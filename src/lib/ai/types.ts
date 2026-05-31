@@ -44,6 +44,12 @@ export interface SuggestReplyResult {
   risk: string | null;
   priority: Priority;
   source: "openai" | "fallback";
+  /** What the human operator should do (not what the AI replied). */
+  actionSuggestion: string | null;
+  /** Overall risk classification for this message. */
+  riskLevel: "none" | "low" | "medium" | "high";
+  /** BCP-47 language tag detected from the guest message. */
+  detectedLanguage: string;
 }
 
 export interface ClassifyResult {
