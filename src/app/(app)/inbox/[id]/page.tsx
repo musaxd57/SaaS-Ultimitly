@@ -46,6 +46,16 @@ export default async function ConversationPage({
     createdAtLabel: formatDateTime(m.createdAt),
   }));
 
+  // Values for substituting {{placeholders}} in message templates.
+  const wifiItem = kb.find((k) => k.category === "wifi");
+  const templateVars: Record<string, string> = {
+    guestName: conversation.reservation?.guestName ?? conversation.guestIdentifier,
+    propertyName: conversation.property.name,
+    checkInTime: conversation.property.checkInTime,
+    checkOutTime: conversation.property.checkOutTime,
+    wifiInfo: wifiItem ? wifiItem.content : "",
+  };
+
   return (
     <>
       <PageHeader
@@ -64,6 +74,8 @@ export default async function ConversationPage({
             messages={messages}
             status={conversation.status}
             priority={conversation.priority}
+            propertyId={conversation.propertyId}
+            templateVars={templateVars}
           />
         </div>
 

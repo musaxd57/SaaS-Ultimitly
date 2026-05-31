@@ -130,6 +130,26 @@ export const REPLY_TONE = optionMap<ReplyTone>([
   { value: "luxury", label: "Lüks", tone: "default" },
 ]);
 
+// --- Message Templates ------------------------------------------------------
+export type TemplateCategory =
+  | "checkin"
+  | "checkout"
+  | "welcome"
+  | "complaint_response"
+  | "rules"
+  | "wifi"
+  | "general";
+
+export const TEMPLATE_CATEGORY = optionMap<TemplateCategory>([
+  { value: "checkin", label: "Giriş Talimatı", tone: "success" },
+  { value: "checkout", label: "Çıkış Hatırlatması", tone: "secondary" },
+  { value: "welcome", label: "Hoş Geldiniz", tone: "default" },
+  { value: "complaint_response", label: "Şikayet Yanıtı", tone: "destructive" },
+  { value: "rules", label: "Ev Kuralları", tone: "warning" },
+  { value: "wifi", label: "Wi-Fi Bilgisi", tone: "muted" },
+  { value: "general", label: "Genel", tone: "muted" },
+]);
+
 // --- Automation triggers ----------------------------------------------------
 export type AutomationTrigger =
   | "reservation_created"

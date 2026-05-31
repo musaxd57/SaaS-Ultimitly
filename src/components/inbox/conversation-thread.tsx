@@ -12,6 +12,10 @@ import {
   MessageSquarePlus,
   CheckCheck,
   Info,
+  FileText,
+  Languages,
+  ChevronDown,
+  X,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Select } from "@/components/ui/select";
@@ -27,6 +31,15 @@ export interface ThreadMessage {
   senderName: string;
   body: string;
   createdAtLabel: string;
+}
+
+interface TemplateItem {
+  id: string;
+  title: string;
+  body: string;
+  category: string;
+  language: string;
+  isDefault?: boolean;
 }
 
 interface Suggestion {
@@ -45,6 +58,9 @@ interface Props {
   messages: ThreadMessage[];
   status: string;
   priority: string;
+  propertyId?: string;
+  /** Values used to substitute {{placeholders}} in message templates. */
+  templateVars?: Record<string, string>;
 }
 
 function confidenceTone(c: number) {
@@ -53,7 +69,7 @@ function confidenceTone(c: number) {
   return "bg-destructive";
 }
 
-export function ConversationThread({ conversationId, messages, status, priority }: Props) {
+export function ConversationThread({ conversationId, messages, status, priority, propertyId, templateVars }: Props) {
   const router = useRouter();
   const [, startTransition] = useTransition();
   const [composer, setComposer] = useState("");
@@ -65,6 +81,15 @@ export function ConversationThread({ conversationId, messages, status, priority 
   const [showSimulate, setShowSimulate] = useState(false);
   const [simulateText, setSimulateText] = useState("");
   const [simulating, setSimulating] = useState(false);
+
+  // Template picker state
+  const [showTemplates, setShowTemplates] = useState(false);
+  const [templates, setTemplates] = useState<TemplateItem[]>([]);
+  const [templatesLoading, setTemplatesLoading] = useState(false);
+
+  // Translate state: messageId -> translated text
+  const [translations, setTranslations] = useState<Record<string, string>>({});
+  const [translatingId, setTranslatingId] = useState<string | null>(null);
 
   const refresh = () => startTransition(() => router.refresh());
 
@@ -112,6 +137,67 @@ export function ConversationThread({ conversationId, messages, status, priority 
     });
     setBusy(false);
     refresh();
+  }
+
+  async function loadTemplates() {
+    if (templates.length > 0) {
+      setShowTemplates((s) => !s);
+      return;
+    }
+    setTemplatesLoading(true);
+    setShowTemplates(true);
+    try {
+      const url = propertyId
+        ? `/api/templates?propertyId=${propertyId}`
+        : "/api/templates";
+      const res = await fetch(url);
+      if (res.ok) {
+        const data = await res.json();
+        setTemplates(Array.isArray(data) ? data : []);
+      }
+    } finally {
+      setTemplatesLoading(false);
+    }
+  }
+
+  function applyTemplate(t: TemplateItem) {
+    let body = t.body;
+    // Substitute {{placeholders}} with reservation/property values when available.
+    if (templateVars) {
+      for (const [key, value] of Object.entries(templateVars)) {
+        if (value) body = body.split(`{{${key}}}`).join(value);
+      }
+    }
+    // Strip any remaining unfilled placeholders so guests never see raw {{...}}.
+    body = body.replace(/\{\{[^}]+\}\}/g, "").replace(/\n{3,}/g, "\n\n").trim();
+    setComposer(body);
+    setShowTemplates(false);
+  }
+
+  async function translateMessage(messageId: string, body: string) {
+    if (translations[messageId]) {
+      // Toggle off
+      setTranslations((prev) => {
+        const next = { ...prev };
+        delete next[messageId];
+        return next;
+      });
+      return;
+    }
+    setTranslatingId(messageId);
+    try {
+      const res = await fetch(`/api/conversations/${conversationId}/translate-message`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ messageId, targetLanguage: "tr" }),
+      });
+      if (res.ok) {
+        const data = await res.json();
+        setTranslations((prev) => ({ ...prev, [messageId]: data.translation }));
+      }
+    } finally {
+      setTranslatingId(null);
+    }
   }
 
   async function simulateInbound() {
@@ -190,6 +276,29 @@ export function ConversationThread({ conversationId, messages, status, priority 
             >
               {m.body}
             </div>
+            {/* Translate button for inbound messages */}
+            {m.direction === "inbound" ? (
+              <div className="mt-0.5 px-1">
+                <button
+                  type="button"
+                  onClick={() => translateMessage(m.id, m.body)}
+                  disabled={translatingId === m.id}
+                  className="flex items-center gap-1 text-[10px] text-muted-foreground hover:text-primary"
+                >
+                  {translatingId === m.id ? (
+                    <Loader2 className="size-3 animate-spin" />
+                  ) : (
+                    <Languages className="size-3" />
+                  )}
+                  {translations[m.id] ? "Çeviriyi gizle" : "Çevir"}
+                </button>
+                {translations[m.id] ? (
+                  <p className="mt-1 rounded-md bg-blue-50 px-2 py-1 text-xs text-blue-800">
+                    {translations[m.id]}
+                  </p>
+                ) : null}
+              </div>
+            ) : null}
             <span className="mt-1 px-1 text-[11px] text-muted-foreground">
               {m.senderName} · {m.createdAtLabel}
             </span>
@@ -222,6 +331,61 @@ export function ConversationThread({ conversationId, messages, status, priority 
               </option>
             ))}
           </Select>
+
+          {/* Template picker */}
+          <div className="relative">
+            <Button onClick={loadTemplates} disabled={templatesLoading} size="sm" variant="outline">
+              {templatesLoading ? (
+                <Loader2 className="size-4 animate-spin" />
+              ) : (
+                <FileText className="size-4" />
+              )}
+              Şablonlar
+              <ChevronDown className="size-3.5 opacity-60" />
+            </Button>
+            {showTemplates ? (
+              <div className="absolute left-0 top-full z-20 mt-1 max-h-80 w-80 overflow-y-auto rounded-lg border border-border bg-card p-1 shadow-lg">
+                <div className="flex items-center justify-between px-2 py-1.5">
+                  <span className="text-xs font-semibold text-muted-foreground">
+                    Mesaj Şablonları
+                  </span>
+                  <button
+                    type="button"
+                    onClick={() => setShowTemplates(false)}
+                    className="text-muted-foreground hover:text-foreground"
+                    aria-label="Kapat"
+                  >
+                    <X className="size-3.5" />
+                  </button>
+                </div>
+                {templates.length === 0 ? (
+                  <p className="p-3 text-xs text-muted-foreground">
+                    Şablon bulunamadı. Şablonlar sayfasından ekleyebilirsiniz.
+                  </p>
+                ) : (
+                  templates.map((t) => (
+                    <button
+                      key={t.id}
+                      type="button"
+                      onClick={() => applyTemplate(t)}
+                      className="block w-full rounded-md px-2.5 py-2 text-left hover:bg-muted"
+                    >
+                      <span className="flex items-center justify-between gap-2">
+                        <span className="truncate text-sm font-medium">{t.title}</span>
+                        <span className="shrink-0 text-[10px] uppercase text-muted-foreground">
+                          {t.language}
+                        </span>
+                      </span>
+                      <span className="mt-0.5 line-clamp-2 block text-xs text-muted-foreground">
+                        {t.body}
+                      </span>
+                    </button>
+                  ))
+                )}
+              </div>
+            ) : null}
+          </div>
+
           <button
             type="button"
             onClick={() => setShowSimulate((s) => !s)}

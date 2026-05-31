@@ -224,3 +224,21 @@ model AuditLog {
 
   @@index([organizationId])
 }
+
+model MessageTemplate {
+  id             String   @id @default(cuid())
+  organizationId String
+  propertyId     String?  // null = org-wide
+  category       String
+  title          String
+  body           String
+  language       String   @default("tr")
+  isActive       Boolean  @default(true)
+  createdAt      DateTime @default(now())
+  updatedAt      DateTime @updatedAt
+
+  organization Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  property     Property?    @relation(fields: [propertyId], references: [id], onDelete: Cascade)
+
+  @@index([organizationId])
+}

@@ -10,6 +10,7 @@ import {
   notFound,
   serverError,
 } from "@/lib/api";
+import { translateText } from "@/lib/ai/translate";
 
 type Params = { params: Promise<{ id: string }> };
 
@@ -24,9 +25,20 @@ export async function POST(req: NextRequest, { params }: Params) {
     });
     if (!conversation) return notFound();
 
-    const data = await req.json().catch(() => null);
-    const parsed = conversationReplySchema.safeParse(data);
+    const rawData = await req.json().catch(() => null);
+    const parsed = conversationReplySchema.safeParse(rawData);
     if (!parsed.success) return badRequest(zodFieldErrors(parsed.error));
+
+    // Optional: translate the reply before saving
+    const translateTo: string | undefined =
+      typeof rawData?.translateTo === "string" && rawData.translateTo.trim()
+        ? rawData.translateTo.trim()
+        : undefined;
+
+    let replyBody = parsed.data.body;
+    if (translateTo) {
+      replyBody = await translateText(replyBody, translateTo);
+    }
 
     const now = new Date();
     const [message] = await prisma.$transaction([
@@ -35,7 +47,7 @@ export async function POST(req: NextRequest, { params }: Params) {
           conversationId: id,
           direction: "outbound",
           senderName: parsed.data.senderName || session.name,
-          body: parsed.data.body,
+          body: replyBody,
         },
       }),
       prisma.conversation.update({

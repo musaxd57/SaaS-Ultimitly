@@ -1,5 +1,13 @@
 import "server-only";
-import { startOfDay, endOfDay, startOfMonth, endOfMonth } from "date-fns";
+import {
+  startOfDay,
+  endOfDay,
+  startOfMonth,
+  endOfMonth,
+  subMonths,
+  addDays,
+  format,
+} from "date-fns";
 import { prisma } from "@/lib/db";
 
 export interface OpsStats {
@@ -125,6 +133,416 @@ export async function getMonthlyReport(orgId: string): Promise<MonthlyReport> {
     totalTasks,
     taskCompletionRate: totalTasks > 0 ? Math.round((completedTasks / totalTasks) * 100) : 0,
     messagesCount,
+  };
+}
+
+// ---------------------------------------------------------------------------
+// Revenue Analytics
+// ---------------------------------------------------------------------------
+
+export interface MonthlyRevenue {
+  monthLabel: string;
+  month: string; // YYYY-MM
+  byCurrency: { currency: string; total: number }[];
+}
+
+export async function getRevenueAnalytics(orgId: string, months = 6): Promise<MonthlyRevenue[]> {
+  const results: MonthlyRevenue[] = [];
+  const now = new Date();
+
+  const TURKISH_MONTHS = [
+    "Ocak", "Şubat", "Mart", "Nisan", "Mayıs", "Haziran",
+    "Temmuz", "Ağustos", "Eylül", "Ekim", "Kasım", "Aralık",
+  ];
+
+  for (let i = months - 1; i >= 0; i--) {
+    const d = subMonths(now, i);
+    const mStart = startOfMonth(d);
+    const mEnd = endOfMonth(d);
+
+    const reservations = await prisma.reservation.findMany({
+      where: {
+        property: { organizationId: orgId },
+        arrivalDate: { gte: mStart, lte: mEnd },
+        totalAmount: { not: null },
+      },
+      select: { totalAmount: true, currency: true },
+    });
+
+    const byCurrency = new Map<string, number>();
+    for (const r of reservations) {
+      if (r.totalAmount) {
+        byCurrency.set(r.currency, (byCurrency.get(r.currency) ?? 0) + r.totalAmount);
+      }
+    }
+
+    const monthNum = mStart.getMonth();
+    results.push({
+      monthLabel: `${TURKISH_MONTHS[monthNum]} ${mStart.getFullYear()}`,
+      month: format(mStart, "yyyy-MM"),
+      byCurrency: Array.from(byCurrency, ([currency, total]) => ({ currency, total })),
+    });
+  }
+
+  return results;
+}
+
+// ---------------------------------------------------------------------------
+// Occupancy by Property
+// ---------------------------------------------------------------------------
+
+export interface PropertyOccupancy {
+  propertyId: string;
+  propertyName: string;
+  thisMonthRate: number; // 0..100
+  lastMonthRate: number; // 0..100
+  delta: number; // +/-
+}
+
+export async function getOccupancyByProperty(orgId: string): Promise<PropertyOccupancy[]> {
+  const now = new Date();
+  const thisMonthStart = startOfMonth(now);
+  const thisMonthEnd = endOfMonth(now);
+  const lastMonthStart = startOfMonth(subMonths(now, 1));
+  const lastMonthEnd = endOfMonth(subMonths(now, 1));
+
+  const properties = await prisma.property.findMany({
+    where: { organizationId: orgId },
+    select: { id: true, name: true },
+  });
+
+  const daysInThisMonth = thisMonthEnd.getDate();
+  const daysInLastMonth = lastMonthEnd.getDate();
+
+  const results: PropertyOccupancy[] = [];
+
+  for (const p of properties) {
+    // Count days occupied this month
+    const [thisMonthRes, lastMonthRes] = await Promise.all([
+      prisma.reservation.findMany({
+        where: {
+          propertyId: p.id,
+          status: { in: ["confirmed", "completed"] },
+          arrivalDate: { lt: thisMonthEnd },
+          departureDate: { gt: thisMonthStart },
+        },
+        select: { arrivalDate: true, departureDate: true },
+      }),
+      prisma.reservation.findMany({
+        where: {
+          propertyId: p.id,
+          status: { in: ["confirmed", "completed"] },
+          arrivalDate: { lt: lastMonthEnd },
+          departureDate: { gt: lastMonthStart },
+        },
+        select: { arrivalDate: true, departureDate: true },
+      }),
+    ]);
+
+    function countOccupiedDays(
+      reservations: { arrivalDate: Date; departureDate: Date }[],
+      rangeStart: Date,
+      rangeEnd: Date,
+    ): number {
+      const occupied = new Set<string>();
+      for (const r of reservations) {
+        const start = r.arrivalDate > rangeStart ? r.arrivalDate : rangeStart;
+        const end = r.departureDate < rangeEnd ? r.departureDate : rangeEnd;
+        let cur = startOfDay(start);
+        while (cur < end) {
+          occupied.add(format(cur, "yyyy-MM-dd"));
+          cur = addDays(cur, 1);
+        }
+      }
+      return occupied.size;
+    }
+
+    const thisOccupied = countOccupiedDays(thisMonthRes, thisMonthStart, thisMonthEnd);
+    const lastOccupied = countOccupiedDays(lastMonthRes, lastMonthStart, lastMonthEnd);
+
+    const thisRate = Math.round((thisOccupied / daysInThisMonth) * 100);
+    const lastRate = Math.round((lastOccupied / daysInLastMonth) * 100);
+
+    results.push({
+      propertyId: p.id,
+      propertyName: p.name,
+      thisMonthRate: thisRate,
+      lastMonthRate: lastRate,
+      delta: thisRate - lastRate,
+    });
+  }
+
+  return results;
+}
+
+// ---------------------------------------------------------------------------
+// Top Topics
+// ---------------------------------------------------------------------------
+
+export interface TopicCount {
+  intent: string;
+  count: number;
+}
+
+export async function getTopTopics(orgId: string, limit = 5): Promise<TopicCount[]> {
+  const raw = await prisma.message.groupBy({
+    by: ["aiIntent"],
+    where: {
+      conversation: { property: { organizationId: orgId } },
+      aiIntent: { not: null },
+    },
+    _count: { aiIntent: true },
+    orderBy: { _count: { aiIntent: "desc" } },
+    take: limit,
+  });
+
+  return raw
+    .filter((r) => r.aiIntent !== null)
+    .map((r) => ({
+      intent: r.aiIntent as string,
+      count: r._count.aiIntent,
+    }));
+}
+
+// ---------------------------------------------------------------------------
+// Response Time Stats
+// ---------------------------------------------------------------------------
+
+export interface ResponseTimeStats {
+  avgMinutes: number | null;
+  conversationsAnalyzed: number;
+}
+
+export async function getResponseTimeStats(orgId: string): Promise<ResponseTimeStats> {
+  const thirtyDaysAgo = new Date(Date.now() - 30 * 24 * 60 * 60 * 1000);
+
+  // Fetch conversations with messages from the last 30 days
+  const conversations = await prisma.conversation.findMany({
+    where: {
+      property: { organizationId: orgId },
+      createdAt: { gte: thirtyDaysAgo },
+    },
+    select: { id: true },
+  });
+
+  if (conversations.length === 0) {
+    return { avgMinutes: null, conversationsAnalyzed: 0 };
+  }
+
+  const conversationIds = conversations.map((c) => c.id);
+
+  // For each conversation, find first inbound and first outbound after it
+  let totalMinutes = 0;
+  let count = 0;
+
+  for (const convId of conversationIds) {
+    const messages = await prisma.message.findMany({
+      where: { conversationId: convId },
+      select: { direction: true, createdAt: true },
+      orderBy: { createdAt: "asc" },
+    });
+
+    const firstInbound = messages.find((m) => m.direction === "inbound");
+    if (!firstInbound) continue;
+
+    const firstOutbound = messages.find(
+      (m) => m.direction === "outbound" && m.createdAt > firstInbound.createdAt,
+    );
+    if (!firstOutbound) continue;
+
+    const diffMs = firstOutbound.createdAt.getTime() - firstInbound.createdAt.getTime();
+    totalMinutes += diffMs / (1000 * 60);
+    count++;
+  }
+
+  return {
+    avgMinutes: count > 0 ? Math.round(totalMinutes / count) : null,
+    conversationsAnalyzed: count,
+  };
+}
+
+// ---------------------------------------------------------------------------
+// Occupancy Forecast
+// ---------------------------------------------------------------------------
+
+export interface DayForecast {
+  date: string; // YYYY-MM-DD
+  confirmedCount: number;
+  totalProperties: number;
+  rate: number; // 0..100
+}
+
+export interface OccupancyForecast {
+  days: DayForecast[];
+  avgRate: number;
+  peakDay: DayForecast | null;
+}
+
+export async function getOccupancyForecast(
+  orgId: string,
+  daysAhead = 30,
+): Promise<OccupancyForecast> {
+  const today = startOfDay(new Date());
+  const forecastEnd = addDays(today, daysAhead);
+
+  const [totalProperties, reservations] = await Promise.all([
+    prisma.property.count({ where: { organizationId: orgId } }),
+    prisma.reservation.findMany({
+      where: {
+        property: { organizationId: orgId },
+        status: { in: ["confirmed", "pending"] },
+        arrivalDate: { lt: forecastEnd },
+        departureDate: { gt: today },
+      },
+      select: {
+        propertyId: true,
+        arrivalDate: true,
+        departureDate: true,
+      },
+    }),
+  ]);
+
+  const days: DayForecast[] = [];
+  for (let i = 0; i < daysAhead; i++) {
+    const day = addDays(today, i);
+    const dayEnd = addDays(day, 1);
+    const dateStr = format(day, "yyyy-MM-dd");
+
+    // Count distinct properties occupied on this day
+    const occupiedProperties = new Set<string>();
+    for (const r of reservations) {
+      if (r.arrivalDate < dayEnd && r.departureDate > day) {
+        occupiedProperties.add(r.propertyId);
+      }
+    }
+
+    const confirmedCount = occupiedProperties.size;
+    const rate = totalProperties > 0 ? Math.round((confirmedCount / totalProperties) * 100) : 0;
+
+    days.push({ date: dateStr, confirmedCount, totalProperties, rate });
+  }
+
+  const avgRate =
+    days.length > 0 ? Math.round(days.reduce((s, d) => s + d.rate, 0) / days.length) : 0;
+
+  const peakDay = days.reduce<DayForecast | null>(
+    (best, d) => (best === null || d.rate > best.rate ? d : best),
+    null,
+  );
+
+  return { days, avgRate, peakDay };
+}
+
+// ---------------------------------------------------------------------------
+// Host Performance Score
+// ---------------------------------------------------------------------------
+
+export type PerformanceGrade = "A" | "B" | "C" | "D" | "F";
+
+export interface HostPerformanceScore {
+  score: number; // 0..100
+  breakdown: {
+    responseRate: number;    // 0..100
+    taskCompletionRate: number; // 0..100
+    occupancyRate: number;   // 0..100
+    complaintRate: number;   // 0..100 (lower = better)
+  };
+  grade: PerformanceGrade;
+  label: string;
+}
+
+export async function getHostPerformanceScore(orgId: string): Promise<HostPerformanceScore> {
+  const now = new Date();
+  const thirtyDaysAgo = new Date(now.getTime() - 30 * 24 * 60 * 60 * 1000);
+  const monthStart = startOfMonth(now);
+  const monthEnd = endOfMonth(now);
+
+  // 1. Response rate: % conversations answered within 24h
+  const recentConversations = await prisma.conversation.findMany({
+    where: {
+      property: { organizationId: orgId },
+      createdAt: { gte: thirtyDaysAgo },
+    },
+    select: { id: true },
+  });
+
+  let answeredWithin24h = 0;
+  const totalConvs = recentConversations.length;
+
+  for (const conv of recentConversations) {
+    const messages = await prisma.message.findMany({
+      where: { conversationId: conv.id },
+      select: { direction: true, createdAt: true },
+      orderBy: { createdAt: "asc" },
+    });
+    const firstInbound = messages.find((m) => m.direction === "inbound");
+    if (!firstInbound) continue;
+    const firstOutbound = messages.find(
+      (m) => m.direction === "outbound" && m.createdAt > firstInbound.createdAt,
+    );
+    if (!firstOutbound) continue;
+    const diffH = (firstOutbound.createdAt.getTime() - firstInbound.createdAt.getTime()) / (1000 * 60 * 60);
+    if (diffH <= 24) answeredWithin24h++;
+  }
+
+  const responseRate = totalConvs > 0 ? Math.round((answeredWithin24h / totalConvs) * 100) : 100;
+
+  // 2. Task completion rate this month
+  const [doneTasks, allTasks] = await Promise.all([
+    prisma.task.count({
+      where: {
+        property: { organizationId: orgId },
+        status: "done",
+        dueAt: { gte: monthStart, lte: monthEnd },
+      },
+    }),
+    prisma.task.count({
+      where: {
+        property: { organizationId: orgId },
+        dueAt: { gte: monthStart, lte: monthEnd },
+      },
+    }),
+  ]);
+  const taskCompletionRate = allTasks > 0 ? Math.round((doneTasks / allTasks) * 100) : 100;
+
+  // 3. Occupancy rate this month
+  const stats = await getOpsStats(orgId);
+  const occupancyRate = stats.occupancyRate;
+
+  // 4. Complaint rate (complaints / total conversations in 30 days)
+  const complaintConvs = await prisma.conversation.count({
+    where: {
+      property: { organizationId: orgId },
+      status: "problem",
+      createdAt: { gte: thirtyDaysAgo },
+    },
+  });
+  const rawComplaintRate =
+    totalConvs > 0 ? Math.round((complaintConvs / totalConvs) * 100) : 0;
+  const complaintRate = rawComplaintRate;
+
+  // Weighted score:
+  // responseRate * 0.30 + taskCompletionRate * 0.25 + occupancyRate * 0.25 + (100 - complaintRate) * 0.20
+  const score = Math.round(
+    responseRate * 0.30 +
+    taskCompletionRate * 0.25 +
+    occupancyRate * 0.25 +
+    (100 - Math.min(complaintRate, 100)) * 0.20,
+  );
+
+  let grade: PerformanceGrade;
+  let label: string;
+  if (score >= 90) { grade = "A"; label = "Mükemmel"; }
+  else if (score >= 75) { grade = "B"; label = "İyi"; }
+  else if (score >= 60) { grade = "C"; label = "Orta"; }
+  else if (score >= 45) { grade = "D"; label = "Geliştirilmeli"; }
+  else { grade = "F"; label = "Kritik"; }
+
+  return {
+    score,
+    breakdown: { responseRate, taskCompletionRate, occupancyRate, complaintRate },
+    grade,
+    label,
   };
 }
 
