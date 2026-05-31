@@ -11,6 +11,7 @@ import {
   Wand2,
   MessageSquarePlus,
   CheckCheck,
+  Info,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Select } from "@/components/ui/select";
@@ -34,6 +35,9 @@ interface Suggestion {
   reply: string;
   risk: string | null;
   source: "openai" | "fallback";
+  actionSuggestion?: string | null;
+  riskLevel?: "none" | "low" | "medium" | "high";
+  detectedLanguage?: string;
 }
 
 interface Props {
@@ -258,6 +262,24 @@ export function ConversationThread({ conversationId, messages, status, priority 
                 {suggestion.source === "openai" ? "OpenAI" : "Şablon"}
               </Badge>
               <Badge tone="secondary">{suggestion.intent}</Badge>
+              {suggestion.riskLevel && suggestion.riskLevel !== "none" ? (
+                <span
+                  className={cn(
+                    "inline-flex items-center gap-1 rounded-full px-2 py-0.5 text-xs font-medium",
+                    suggestion.riskLevel === "low" && "bg-yellow-100 text-yellow-800",
+                    suggestion.riskLevel === "medium" && "bg-orange-100 text-orange-800",
+                    suggestion.riskLevel === "high" && "bg-red-100 text-red-800",
+                  )}
+                >
+                  <AlertTriangle className="size-3" />
+                  {suggestion.riskLevel === "low" ? "Düşük Risk" : suggestion.riskLevel === "medium" ? "Orta Risk" : "Yüksek Risk"}
+                </span>
+              ) : null}
+              {suggestion.detectedLanguage && suggestion.detectedLanguage !== "tr" ? (
+                <span className="text-xs text-muted-foreground">
+                  Dil: {suggestion.detectedLanguage.toUpperCase()}
+                </span>
+              ) : null}
               <div className="ml-auto flex items-center gap-2">
                 <span className="text-xs text-muted-foreground">
                   Güven %{Math.round(suggestion.confidence * 100)}
@@ -275,6 +297,13 @@ export function ConversationThread({ conversationId, messages, status, priority 
               <p className="flex items-start gap-2 rounded-md bg-warning/15 px-2.5 py-2 text-xs text-amber-700">
                 <AlertTriangle className="mt-0.5 size-3.5 shrink-0" />
                 {suggestion.risk}
+              </p>
+            ) : null}
+
+            {suggestion.actionSuggestion ? (
+              <p className="flex items-start gap-2 rounded-md bg-blue-50 px-2.5 py-2 text-xs text-blue-800">
+                <Info className="mt-0.5 size-3.5 shrink-0" />
+                <span><span className="font-medium">Operatör için:</span> {suggestion.actionSuggestion}</span>
               </p>
             ) : null}
 

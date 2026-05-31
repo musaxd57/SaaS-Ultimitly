@@ -9,6 +9,7 @@ import {
   ReservationsList,
   type ReservationRow,
 } from "@/components/reservations/reservations-list";
+import { ImportForm } from "@/components/reservations/import-form";
 import { RESERVATION_STATUS } from "@/lib/constants";
 import { formatDate, formatCurrency, cn } from "@/lib/utils";
 
@@ -22,14 +23,21 @@ export default async function ReservationsPage({
   const session = await requireAuth();
   const { status } = await searchParams;
 
-  const reservations = await prisma.reservation.findMany({
-    where: {
-      property: { organizationId: session.organizationId },
-      ...(status ? { status } : {}),
-    },
-    include: { property: { select: { name: true } } },
-    orderBy: { arrivalDate: "desc" },
-  });
+  const [reservations, properties] = await Promise.all([
+    prisma.reservation.findMany({
+      where: {
+        property: { organizationId: session.organizationId },
+        ...(status ? { status } : {}),
+      },
+      include: { property: { select: { name: true } } },
+      orderBy: { arrivalDate: "desc" },
+    }),
+    prisma.property.findMany({
+      where: { organizationId: session.organizationId },
+      select: { id: true, name: true },
+      orderBy: { name: "asc" },
+    }),
+  ]);
 
   const rows: ReservationRow[] = reservations.map((r) => ({
     id: r.id,
@@ -47,6 +55,7 @@ export default async function ReservationsPage({
   return (
     <>
       <PageHeader title="Rezervasyonlar" description="Tüm kanallardan rezervasyonları yönetin.">
+        <ImportForm properties={properties} />
         <LinkButton href="/reservations/new">
           <Plus className="size-4" /> Yeni rezervasyon
         </LinkButton>

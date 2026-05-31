@@ -29,6 +29,11 @@ export default async function TasksPage({
       include: {
         property: { select: { name: true } },
         assignedTo: { select: { name: true } },
+        updates: {
+          select: { photoUrl: true, note: true, createdAt: true },
+          orderBy: { createdAt: "desc" },
+          take: 1,
+        },
       },
       orderBy: [{ dueAt: "asc" }, { createdAt: "desc" }],
     }),
@@ -41,6 +46,7 @@ export default async function TasksPage({
 
   const cards: TaskCardData[] = tasks.map((t) => {
     const checklist = safeJsonParse<ChecklistItem[]>(t.checklistJson, []);
+    const latestUpdate = t.updates[0] ?? null;
     return {
       id: t.id,
       title: t.title,
@@ -54,6 +60,8 @@ export default async function TasksPage({
         checklist.length > 0
           ? { done: checklist.filter((c) => c.done).length, total: checklist.length }
           : null,
+      latestPhotoUrl: latestUpdate?.photoUrl ?? null,
+      latestNote: latestUpdate?.note ?? null,
     };
   });
 

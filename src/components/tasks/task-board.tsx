@@ -1,11 +1,12 @@
 "use client";
 
-import { useState, useTransition } from "react";
+import { useRef, useState, useTransition } from "react";
 import { useRouter } from "next/navigation";
-import { Loader2, Trash2, User, Clock, CheckSquare } from "lucide-react";
+import { Loader2, Trash2, User, Clock, CheckSquare, Camera, FileText } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
 import { Select } from "@/components/ui/select";
 import { TASK_STATUS, TASK_TYPE, PRIORITY } from "@/lib/constants";
+import { cn } from "@/lib/utils";
 
 export interface TaskCardData {
   id: string;
@@ -17,12 +18,17 @@ export interface TaskCardData {
   assigneeName: string | null;
   dueLabel: string | null;
   checklist: { done: number; total: number } | null;
+  latestPhotoUrl?: string | null;
+  latestNote?: string | null;
 }
 
 export function TaskBoard({ tasks }: { tasks: TaskCardData[] }) {
   const router = useRouter();
   const [busyId, setBusyId] = useState<string | null>(null);
+  const [uploadingId, setUploadingId] = useState<string | null>(null);
+  const [noteMap, setNoteMap] = useState<Record<string, string>>({});
   const [, startTransition] = useTransition();
+  const fileInputRefs = useRef<Record<string, HTMLInputElement | null>>({});
 
   async function setStatus(id: string, status: string) {
     setBusyId(id);
@@ -40,6 +46,40 @@ export function TaskBoard({ tasks }: { tasks: TaskCardData[] }) {
     setBusyId(id);
     await fetch(`/api/tasks/${id}`, { method: "DELETE" });
     setBusyId(null);
+    startTransition(() => router.refresh());
+  }
+
+  async function handlePhotoChange(id: string, e: React.ChangeEvent<HTMLInputElement>) {
+    const file = e.target.files?.[0];
+    if (!file) return;
+    setUploadingId(id);
+    try {
+      const fd = new FormData();
+      fd.append("file", file);
+      const uploadRes = await fetch("/api/upload", { method: "POST", body: fd });
+      if (!uploadRes.ok) return;
+      const { url } = await uploadRes.json();
+      await fetch(`/api/tasks/${id}`, {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ photoUrl: url }),
+      });
+      startTransition(() => router.refresh());
+    } finally {
+      setUploadingId(null);
+      if (fileInputRefs.current[id]) fileInputRefs.current[id]!.value = "";
+    }
+  }
+
+  async function handleNoteBlur(id: string) {
+    const note = noteMap[id];
+    if (!note?.trim()) return;
+    await fetch(`/api/tasks/${id}`, {
+      method: "PATCH",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ note }),
+    });
+    setNoteMap((prev) => ({ ...prev, [id]: "" }));
     startTransition(() => router.refresh());
   }
 
@@ -96,6 +136,63 @@ export function TaskBoard({ tasks }: { tasks: TaskCardData[] }) {
                         </p>
                       ) : null}
                     </div>
+
+                    {/* Latest note */}
+                    {t.latestNote ? (
+                      <p className="mt-2 flex items-start gap-1 rounded bg-muted/50 px-2 py-1 text-xs text-muted-foreground">
+                        <FileText className="mt-0.5 size-3 shrink-0" />
+                        <span className="line-clamp-2">{t.latestNote}</span>
+                      </p>
+                    ) : null}
+
+                    {/* Latest photo thumbnail */}
+                    {t.latestPhotoUrl ? (
+                      <a href={t.latestPhotoUrl} target="_blank" rel="noopener noreferrer" className="mt-2 block">
+                        {/* eslint-disable-next-line @next/next/no-img-element */}
+                        <img
+                          src={t.latestPhotoUrl}
+                          alt="Görev fotoğrafı"
+                          className="h-20 w-full rounded-md border border-border object-cover"
+                        />
+                      </a>
+                    ) : null}
+
+                    {/* Note input */}
+                    <textarea
+                      placeholder="Not ekle... (kaydedmek için odaktan çık)"
+                      value={noteMap[t.id] ?? ""}
+                      onChange={(e) => setNoteMap((prev) => ({ ...prev, [t.id]: e.target.value }))}
+                      onBlur={() => handleNoteBlur(t.id)}
+                      rows={2}
+                      className={cn(
+                        "mt-2 w-full resize-none rounded border border-border bg-muted/30 px-2 py-1.5 text-xs placeholder:text-muted-foreground/60 focus:outline-none focus:ring-1 focus:ring-ring",
+                      )}
+                    />
+
+                    {/* Photo upload */}
+                    <div className="mt-2 flex items-center gap-2">
+                      <input
+                        ref={(el) => { fileInputRefs.current[t.id] = el; }}
+                        type="file"
+                        accept="image/jpeg,image/png,image/webp"
+                        className="hidden"
+                        onChange={(e) => handlePhotoChange(t.id, e)}
+                      />
+                      <button
+                        type="button"
+                        disabled={uploadingId === t.id}
+                        onClick={() => fileInputRefs.current[t.id]?.click()}
+                        className="flex items-center gap-1 rounded px-2 py-1 text-xs text-muted-foreground hover:bg-accent hover:text-foreground disabled:opacity-50"
+                      >
+                        {uploadingId === t.id ? (
+                          <Loader2 className="size-3 animate-spin" />
+                        ) : (
+                          <Camera className="size-3" />
+                        )}
+                        Fotoğraf Ekle
+                      </button>
+                    </div>
+
                     <Select
                       value={t.status}
                       disabled={busyId === t.id}

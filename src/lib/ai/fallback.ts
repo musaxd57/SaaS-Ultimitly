@@ -15,6 +15,7 @@ type Intent =
   | "location"
   | "cleaning"
   | "refund"
+  | "amenity"
   | "general";
 
 const KEYWORDS: Record<Exclude<Intent, "general">, string[]> = {
@@ -32,6 +33,7 @@ const KEYWORDS: Record<Exclude<Intent, "general">, string[]> = {
   parking: ["otopark", "park yeri", "araç", "arac", "parking", "araba", "garaj"],
   location: ["adres", "konum", "nerede", "address", "location", "yol tarifi", "directions", "nasıl gelir", "nasil gelir"],
   cleaning: ["temizlik", "havlu", "çarşaf", "carsaf", "cleaning", "towel", "bed sheet", "ek temizlik"],
+  amenity: ["klima", "air conditioning", "buzdolabı", "fridge", "çamaşır makinesi", "washing machine", "tv", "televizyon", "fırın", "oven", "mikrodalga", "microwave", "elektrikli", "ekipman", "eşya"],
 };
 
 function detectIntent(message: string): Intent {
@@ -39,7 +41,7 @@ function detectIntent(message: string): Intent {
   // Order matters: complaints & refunds take precedence.
   const order: Exclude<Intent, "general">[] = [
     "complaint", "refund", "early_checkin", "late_checkout",
-    "checkin", "checkout", "wifi", "parking", "location", "cleaning",
+    "checkin", "checkout", "wifi", "parking", "location", "cleaning", "amenity",
   ];
   for (const intent of order) {
     if (KEYWORDS[intent].some((kw) => m.includes(kw))) return intent;
@@ -137,9 +139,45 @@ export function suggestReplyFallback(input: SuggestReplyInput): SuggestReplyResu
         : "Temizlik talebinizi aldık, ekibimizle planlayıp size dönüş yapacağız.";
       break;
     }
+    case "amenity": {
+      const kb = findKb(input, "general");
+      body = kb
+        ? `Ekipman bilgisi: ${kb}`
+        : "Ekipman veya eşya ile ilgili sorunuzu ekibimize ilettik; en kısa sürede size dönüş yapacağız.";
+      break;
+    }
     default:
       body =
         "Mesajınız için teşekkürler. Talebinizi aldık ve en kısa sürede size dönüş yapacağız. Bu sırada başka bir sorunuz olursa çekinmeden yazabilirsiniz.";
+  }
+
+  // Derive riskLevel and actionSuggestion from intent
+  let riskLevel: "none" | "low" | "medium" | "high" = "none";
+  let actionSuggestion: string | null = null;
+
+  if (intent === "complaint") {
+    riskLevel = "medium";
+    actionSuggestion = "Şikayeti değerlendirin ve misafirle iletişime geçin. Gerekirse ekibi mülke gönderin.";
+  } else if (intent === "refund") {
+    riskLevel = "medium";
+    actionSuggestion = "Mali durumu inceleyin ve 24 saat içinde misafire dönüş yapın.";
+  } else if (intent === "early_checkin") {
+    riskLevel = "low";
+    actionSuggestion = "Takvimi kontrol edin; müsaitse erken giriş onaylayın.";
+  } else if (intent === "late_checkout") {
+    riskLevel = "low";
+    actionSuggestion = "Temizlik programını ve sonraki rezervasyonu kontrol ederek geç çıkış onaylayın.";
+  }
+
+  // Detect guest language simply from the message (basic heuristic for fallback)
+  const msgLower = input.guestMessage.toLowerCase();
+  let detectedLanguage = "tr";
+  if (/\b(the|is|are|can|i |you |please|hello|hi |my |for |and )\b/.test(msgLower)) {
+    detectedLanguage = "en";
+  } else if (/\b(ich |sie |bitte|danke|hallo|ist |und |für )\b/.test(msgLower)) {
+    detectedLanguage = "de";
+  } else if (/\b(je |vous |bonjour|merci|est |les |pour )\b/.test(msgLower)) {
+    detectedLanguage = "fr";
   }
 
   return {
@@ -149,5 +187,8 @@ export function suggestReplyFallback(input: SuggestReplyInput): SuggestReplyResu
     risk,
     priority,
     source: "fallback",
+    actionSuggestion,
+    riskLevel,
+    detectedLanguage,
   };
 }

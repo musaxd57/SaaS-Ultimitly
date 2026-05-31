@@ -61,6 +61,12 @@ export async function suggestReply(input: SuggestReplyInput): Promise<SuggestRep
         )
           ? (priorityRaw as Priority)
           : "standard";
+        const riskLevelRaw = String(parsed.riskLevel ?? "none");
+        const riskLevel = (["none", "low", "medium", "high"] as const).includes(
+          riskLevelRaw as "none" | "low" | "medium" | "high",
+        )
+          ? (riskLevelRaw as "none" | "low" | "medium" | "high")
+          : "none";
         return {
           intent: String(parsed.intent ?? "general"),
           confidence: clamp01(Number(parsed.confidence)),
@@ -68,6 +74,15 @@ export async function suggestReply(input: SuggestReplyInput): Promise<SuggestRep
           risk: typeof parsed.risk === "string" && parsed.risk.trim() ? parsed.risk : null,
           priority,
           source: "openai",
+          actionSuggestion:
+            typeof parsed.actionSuggestion === "string" && parsed.actionSuggestion.trim()
+              ? parsed.actionSuggestion.trim()
+              : null,
+          riskLevel,
+          detectedLanguage:
+            typeof parsed.detectedLanguage === "string" && parsed.detectedLanguage.trim()
+              ? parsed.detectedLanguage.trim()
+              : "tr",
         };
       }
     } catch {
