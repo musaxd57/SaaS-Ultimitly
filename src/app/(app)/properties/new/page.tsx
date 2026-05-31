@@ -4,6 +4,8 @@ import { LinkButton } from "@/components/ui/link-button";
 import { ArrowLeft } from "lucide-react";
 import { PropertyForm } from "@/components/properties/property-form";
 
+export const dynamic = "force-dynamic";
+
 export default function NewPropertyPage() {
   return (
     <>

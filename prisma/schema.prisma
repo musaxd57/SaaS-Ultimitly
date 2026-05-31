@@ -27,10 +27,11 @@ model Organization {
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
 
-  users           User[]
-  properties      Property[]
-  automationRules AutomationRule[]
-  auditLogs       AuditLog[]
+  users            User[]
+  properties       Property[]
+  automationRules  AutomationRule[]
+  auditLogs        AuditLog[]
+  messageTemplates MessageTemplate[]
 }
 
 model User {
@@ -65,11 +66,12 @@ model Property {
   createdAt            DateTime @default(now())
   updatedAt            DateTime @updatedAt
 
-  organization  Organization        @relation(fields: [organizationId], references: [id], onDelete: Cascade)
-  reservations  Reservation[]
-  conversations Conversation[]
-  tasks         Task[]
-  knowledgeBase KnowledgeBaseItem[]
+  organization     Organization        @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  reservations     Reservation[]
+  conversations    Conversation[]
+  tasks            Task[]
+  knowledgeBase    KnowledgeBaseItem[]
+  messageTemplates MessageTemplate[]
 
   @@index([organizationId])
 }
