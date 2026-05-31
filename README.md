@@ -87,10 +87,34 @@ E-posta: demo@guestops.ai
 | `npm run dev` | Geliştirme sunucusu |
 | `npm run build` | Production build (`prisma generate` + `next build`) |
 | `npm run start` | Production sunucusu |
+| `npm test` | Testleri çalıştır (Vitest) |
+| `npm run test:watch` | Testleri izleme modunda çalıştır |
+| `npm run typecheck` | TypeScript tip kontrolü (`tsc --noEmit`) |
 | `npm run db:push` | Şemayı veritabanına uygula |
 | `npm run db:seed` | Örnek veriyi yükle |
 | `npm run db:reset` | DB'yi sıfırla + yeniden seed |
 | `npm run db:studio` | Prisma Studio (veri görüntüleyici) |
+
+---
+
+## 🧪 Testler
+
+Vitest ile **56 test** (7 birim + 1 entegrasyon dosyası). Harici API gerektirmez;
+entegrasyon testleri geçici bir SQLite veritabanı (`prisma/test.db`) oluşturur.
+
+```bash
+npm test
+```
+
+Kapsam:
+- **AI fallback** — niyet sınıflandırma, cevap üretimi, **prompt-injection güvenliği**
+  (misafir mesajındaki talimatlar uygulanmaz; finansal talepler "risk" işaretlenir).
+- **AI prompt'ları** — sistem prompt'unun güvenlik kuralları + veri sınırı.
+- **Otomasyon motoru** — rezervasyon → 2 görev, şikayet → eskalasyon (gerçek DB).
+- **Raporlar** — operasyon istatistikleri, aylık gelir/görev metrikleri, org izolasyonu.
+- **Doğrulama** — Zod şemaları, tarih/format kuralları.
+- **Auth** — JWT oturum imzala/doğrula, şifre hash/karşılaştır.
+- **Sabitler & yardımcılar** — etiket/ton eşlemeleri, biçimlendirme.
 
 ---
 
@@ -116,6 +140,10 @@ src/
 prisma/
   schema.prisma        # veri modeli
   seed.ts              # örnek veri
+tests/
+  unit/                # AI fallback, prompts, validators, auth, utils, constants
+  integration/         # otomasyon + raporlar (gerçek SQLite)
+  helpers/ stubs/      # test yardımcıları, server-only stub
 ```
 
 ---
