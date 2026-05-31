@@ -1,0 +1,123 @@
+import Link from "next/link";
+import { notFound } from "next/navigation";
+import { ArrowLeft, BookOpen, CalendarDays } from "lucide-react";
+import { requireAuth } from "@/lib/auth";
+import { prisma } from "@/lib/db";
+import { PageHeader } from "@/components/page-header";
+import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import { Badge } from "@/components/ui/badge";
+import { LinkButton } from "@/components/ui/link-button";
+import { DeleteButton } from "@/components/delete-button";
+import { PropertyForm } from "@/components/properties/property-form";
+import { KB_CATEGORY, RESERVATION_STATUS } from "@/lib/constants";
+import { formatDate } from "@/lib/utils";
+
+export const dynamic = "force-dynamic";
+
+export default async function PropertyDetailPage({
+  params,
+}: {
+  params: Promise<{ id: string }>;
+}) {
+  const session = await requireAuth();
+  const { id } = await params;
+  const property = await prisma.property.findFirst({
+    where: { id, organizationId: session.organizationId },
+    include: {
+      knowledgeBase: { where: { isActive: true }, orderBy: { category: "asc" } },
+      reservations: { orderBy: { arrivalDate: "desc" }, take: 5 },
+    },
+  });
+  if (!property) notFound();
+
+  return (
+    <>
+      <PageHeader title={property.name} description="Mülk ayarları ve bilgileri.">
+        <LinkButton href="/properties" variant="outline" size="sm">
+          <ArrowLeft className="size-4" /> Geri
+        </LinkButton>
+        <DeleteButton
+          endpoint={`/api/properties/${property.id}`}
+          redirectTo="/properties"
+          label="Mülkü sil"
+        />
+      </PageHeader>
+
+      <div className="grid gap-4 lg:grid-cols-3">
+        <Card className="lg:col-span-2">
+          <CardHeader>
+            <CardTitle className="text-base">Mülk Ayarları</CardTitle>
+          </CardHeader>
+          <CardContent>
+            <PropertyForm
+              mode="edit"
+              property={{
+                id: property.id,
+                name: property.name,
+                address: property.address ?? "",
+                city: property.city ?? "",
+                country: property.country ?? "",
+                checkInTime: property.checkInTime,
+                checkOutTime: property.checkOutTime,
+                cleaningBufferMinutes: property.cleaningBufferMinutes,
+                notes: property.notes ?? "",
+              }}
+            />
+          </CardContent>
+        </Card>
+
+        <div className="space-y-4">
+          <Card>
+            <CardHeader className="flex-row items-center justify-between space-y-0">
+              <CardTitle className="flex items-center gap-2 text-base">
+                <BookOpen className="size-4 text-muted-foreground" /> Bilgi Tabanı
+              </CardTitle>
+              <Link href="/knowledge" className="text-xs font-medium text-primary hover:underline">
+                Düzenle
+              </Link>
+            </CardHeader>
+            <CardContent className="space-y-2">
+              {property.knowledgeBase.length === 0 ? (
+                <p className="text-sm text-muted-foreground">Henüz bilgi eklenmemiş.</p>
+              ) : (
+                property.knowledgeBase.map((k) => (
+                  <div key={k.id} className="flex items-center justify-between gap-2">
+                    <span className="truncate text-sm">{k.title}</span>
+                    <Badge tone={KB_CATEGORY.tone(k.category)}>{KB_CATEGORY.label(k.category)}</Badge>
+                  </div>
+                ))
+              )}
+            </CardContent>
+          </Card>
+
+          <Card>
+            <CardHeader>
+              <CardTitle className="flex items-center gap-2 text-base">
+                <CalendarDays className="size-4 text-muted-foreground" /> Son Rezervasyonlar
+              </CardTitle>
+            </CardHeader>
+            <CardContent className="space-y-2">
+              {property.reservations.length === 0 ? (
+                <p className="text-sm text-muted-foreground">Rezervasyon yok.</p>
+              ) : (
+                property.reservations.map((r) => (
+                  <div key={r.id} className="flex items-center justify-between gap-2">
+                    <div className="min-w-0">
+                      <p className="truncate text-sm font-medium">{r.guestName}</p>
+                      <p className="text-xs text-muted-foreground">
+                        {formatDate(r.arrivalDate)} – {formatDate(r.departureDate)}
+                      </p>
+                    </div>
+                    <Badge tone={RESERVATION_STATUS.tone(r.status)}>
+                      {RESERVATION_STATUS.label(r.status)}
+                    </Badge>
+                  </div>
+                ))
+              )}
+            </CardContent>
+          </Card>
+        </div>
+      </div>
+    </>
+  );
+}
