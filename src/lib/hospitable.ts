@@ -158,11 +158,20 @@ export interface HospitableMessage {
   [key: string]: unknown;
 }
 
-/** List reservations the token can access (optionally filtered via query params). */
-export async function listReservations(
-  query?: Record<string, string>,
-): Promise<HospitableReservation[]> {
-  const qs = query && Object.keys(query).length ? `?${new URLSearchParams(query)}` : "";
+/**
+ * List reservations. Hospitable requires a `properties[]` filter, so pass the
+ * property UUIDs to scope the query (optionally narrowed by date range).
+ */
+export async function listReservations(options?: {
+  propertyIds?: string[];
+  startDate?: string;
+  endDate?: string;
+}): Promise<HospitableReservation[]> {
+  const params = new URLSearchParams();
+  for (const id of options?.propertyIds ?? []) params.append("properties[]", id);
+  if (options?.startDate) params.set("start_date", options.startDate);
+  if (options?.endDate) params.set("end_date", options.endDate);
+  const qs = params.toString() ? `?${params.toString()}` : "";
   const res = await hospitableFetch<ListEnvelope<HospitableReservation>>(`/reservations${qs}`);
   return res.data ?? [];
 }

@@ -2,6 +2,7 @@ import { NextResponse } from "next/server";
 import { requireSession, unauthorized } from "@/lib/api";
 import {
   isHospitableConfigured,
+  listProperties,
   listReservations,
   listMessages,
 } from "@/lib/hospitable";
@@ -40,7 +41,12 @@ export async function GET() {
   const out: Record<string, unknown> = { ok: true };
 
   try {
-    const reservations = await listReservations();
+    // /reservations requires a properties[] filter, so resolve property IDs first.
+    const properties = await listProperties();
+    const propertyIds = properties.map((p) => p.id);
+    out.propertiesCount = propertyIds.length;
+
+    const reservations = await listReservations({ propertyIds });
     out.reservations = {
       count: reservations.length,
       shape: reservations.length ? shapeOf(reservations[0]) : null,

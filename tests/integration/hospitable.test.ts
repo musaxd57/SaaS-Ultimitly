@@ -74,11 +74,14 @@ describe("hospitable client", () => {
       .spyOn(global, "fetch")
       .mockResolvedValue(jsonResponse({ data: [{ id: "r1", platform: "airbnb" }] }));
 
-    const reservations = await listReservations();
+    const reservations = await listReservations({ propertyIds: ["prop-uuid-1"] });
 
     expect(reservations).toHaveLength(1);
     expect(reservations[0].id).toBe("r1");
-    expect(String(fetchMock.mock.calls[0][0])).toContain("/reservations");
+    const calledUrl = String(fetchMock.mock.calls[0][0]);
+    expect(calledUrl).toContain("/reservations");
+    expect(calledUrl).toContain("properties");
+    expect(calledUrl).toContain("prop-uuid-1");
   });
 
   it("lists messages for a reservation at the nested messages endpoint", async () => {
