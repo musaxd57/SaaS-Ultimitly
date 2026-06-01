@@ -66,7 +66,27 @@ function senderFullName(m: HospitableMessage): string | null {
 
 // ---------------------------------------------------------------------------
 
-export async function syncHospitable(organizationId: string): Promise<SyncResult> {
+// Serialise sync runs across the process. The scheduled cron and a manual
+// "pull messages" click can fire at the same time; running them concurrently
+// against SQLite caused write contention. This chain makes every syncHospitable
+// call wait for the previous one to finish, so there is only ever one in
+// flight. (Railway runs a single replica, so an in-process lock is sufficient.)
+let syncChain: Promise<unknown> = Promise.resolve();
+
+export function syncHospitable(organizationId: string): Promise<SyncResult> {
+  const run = syncChain.then(
+    () => runSync(organizationId),
+    () => runSync(organizationId),
+  );
+  // Keep the chain alive regardless of this run's outcome.
+  syncChain = run.then(
+    () => undefined,
+    () => undefined,
+  );
+  return run;
+}
+
+async function runSync(organizationId: string): Promise<SyncResult> {
   const result: SyncResult = { properties: 0, reservations: 0, conversations: 0, messages: 0 };
 
   // 1. Link/create properties.
