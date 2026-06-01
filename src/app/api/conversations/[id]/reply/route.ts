@@ -1,7 +1,7 @@
-import { type NextRequest } from "next/server";
+import { type NextRequest, NextResponse } from "next/server";
 import { prisma } from "@/lib/db";
 import { conversationReplySchema, zodFieldErrors } from "@/lib/validators";
-import { waSendText } from "@/lib/whatsapp";
+import { sendOnChannel } from "@/lib/messaging";
 import {
   requireSession,
   unauthorized,
@@ -21,7 +21,12 @@ export async function POST(req: NextRequest, { params }: Params) {
   try {
     const conversation = await prisma.conversation.findFirst({
       where: { id, property: { organizationId: session.organizationId } },
-      select: { id: true, channel: true, guestIdentifier: true },
+      select: {
+        id: true,
+        channel: true,
+        guestIdentifier: true,
+        externalReservationId: true,
+      },
     });
     if (!conversation) return notFound();
 
@@ -29,7 +34,7 @@ export async function POST(req: NextRequest, { params }: Params) {
     const parsed = conversationReplySchema.safeParse(rawData);
     if (!parsed.success) return badRequest(zodFieldErrors(parsed.error));
 
-    // Optional: translate the reply before saving
+    // Optional: translate the reply before sending/saving.
     const translateTo: string | undefined =
       typeof rawData?.translateTo === "string" && rawData.translateTo.trim()
         ? rawData.translateTo.trim()
@@ -38,6 +43,16 @@ export async function POST(req: NextRequest, { params }: Params) {
     let replyBody = parsed.data.body;
     if (translateTo) {
       replyBody = await translateText(replyBody, translateTo);
+    }
+
+    // Deliver on the guest's channel FIRST — don't persist a reply that never
+    // reached the guest (Airbnb/Booking via Hospitable, or WhatsApp).
+    const outcome = await sendOnChannel(conversation, replyBody);
+    if (!outcome.ok) {
+      return NextResponse.json(
+        { error: `Mesaj gönderilemedi: ${outcome.error ?? "bilinmeyen hata"}` },
+        { status: 502 },
+      );
     }
 
     const now = new Date();
@@ -55,12 +70,6 @@ export async function POST(req: NextRequest, { params }: Params) {
         data: { status: "answered", lastMessageAt: now },
       }),
     ]);
-
-    // If this is a WhatsApp conversation, attempt to deliver via the Cloud API.
-    // guestIdentifier is the guest's E.164 phone number for WA channels.
-    if (conversation.channel === "whatsapp" && conversation.guestIdentifier) {
-      void waSendText(conversation.guestIdentifier, parsed.data.body);
-    }
 
     return jsonOk(message, 201);
   } catch {

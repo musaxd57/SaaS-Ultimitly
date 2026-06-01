@@ -3,6 +3,7 @@ import {
   listProperties,
   listReservations,
   listMessages,
+  sendMessage,
   HospitableError,
 } from "@/lib/hospitable";
 
@@ -113,5 +114,31 @@ describe("hospitable client", () => {
     expect(fetchMock).toHaveBeenCalledTimes(2);
     expect(String(fetchMock.mock.calls[0][0])).toContain("page=1");
     expect(String(fetchMock.mock.calls[1][0])).toContain("page=2");
+  });
+
+  it("sends a message via POST to the reservation messages endpoint", async () => {
+    vi.stubEnv("HOSPITABLE_API_TOKEN", "tok");
+    const fetchMock = vi
+      .spyOn(global, "fetch")
+      .mockResolvedValue(jsonResponse({ data: { id: 555 } }, { status: 201 }));
+
+    const result = await sendMessage("res-uuid", "Merhaba!");
+
+    expect(result.ok).toBe(true);
+    expect(result.id).toBe("555");
+    const [url, init] = fetchMock.mock.calls[0];
+    expect(String(url)).toContain("/reservations/res-uuid/messages");
+    expect(init?.method).toBe("POST");
+    expect(JSON.parse(String(init?.body))).toEqual({ body: "Merhaba!" });
+  });
+
+  it("returns ok:false (never throws) when a send fails", async () => {
+    vi.stubEnv("HOSPITABLE_API_TOKEN", "tok");
+    vi.spyOn(global, "fetch").mockResolvedValue(jsonResponse("unprocessable", { status: 422 }));
+
+    const result = await sendMessage("res-uuid", "Hi");
+
+    expect(result.ok).toBe(false);
+    expect(result.error).toBeTruthy();
   });
 });

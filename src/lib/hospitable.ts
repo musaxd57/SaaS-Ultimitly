@@ -210,3 +210,33 @@ export async function listMessages(reservationId: string): Promise<HospitableMes
     `/reservations/${encodeURIComponent(reservationId)}/messages`,
   );
 }
+
+export interface SendResult {
+  ok: boolean;
+  id?: string;
+  error?: string;
+}
+
+/**
+ * Send a message to the guest on a reservation's thread (delivered on the
+ * original channel — Airbnb, Booking, ...). Never throws: returns a result so
+ * the caller can decide whether to persist the reply.
+ *
+ * Endpoint: POST /reservations/{uuid}/messages  body: { body }
+ * (Rate limited to 2/min per reservation; hospitableFetch absorbs 429s.)
+ */
+export async function sendMessage(reservationId: string, body: string): Promise<SendResult> {
+  if (!reservationId || !body) {
+    return { ok: false, error: "reservationId ve body gerekli" };
+  }
+  try {
+    const res = await hospitableFetch<{ data?: { id?: string | number } }>(
+      `/reservations/${encodeURIComponent(reservationId)}/messages`,
+      { method: "POST", body: JSON.stringify({ body }) },
+    );
+    const id = res?.data?.id;
+    return { ok: true, id: id != null ? String(id) : undefined };
+  } catch (err) {
+    return { ok: false, error: err instanceof Error ? err.message : String(err) };
+  }
+}

@@ -77,6 +77,7 @@ export function ConversationThread({ conversationId, messages, status, priority,
   const [suggestion, setSuggestion] = useState<Suggestion | null>(null);
   const [suggestLoading, setSuggestLoading] = useState(false);
   const [sending, setSending] = useState(false);
+  const [sendError, setSendError] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
   const [showSimulate, setShowSimulate] = useState(false);
   const [simulateText, setSimulateText] = useState("");
@@ -112,6 +113,7 @@ export function ConversationThread({ conversationId, messages, status, priority,
   async function sendReply(body: string) {
     if (!body.trim()) return;
     setSending(true);
+    setSendError(null);
     try {
       const res = await fetch(`/api/conversations/${conversationId}/reply`, {
         method: "POST",
@@ -122,7 +124,12 @@ export function ConversationThread({ conversationId, messages, status, priority,
         setComposer("");
         setSuggestion(null);
         refresh();
+      } else {
+        const data = await res.json().catch(() => null);
+        setSendError(data?.error ?? "Mesaj gönderilemedi.");
       }
+    } catch {
+      setSendError("Mesaj gönderilemedi.");
     } finally {
       setSending(false);
     }
@@ -496,6 +503,12 @@ export function ConversationThread({ conversationId, messages, status, priority,
           placeholder="Cevabınızı yazın veya AI önerisini kullanın..."
           className="min-h-[80px]"
         />
+        {sendError ? (
+          <p className="flex items-start gap-2 rounded-md bg-destructive/10 px-2.5 py-2 text-xs text-destructive">
+            <AlertTriangle className="mt-0.5 size-3.5 shrink-0" />
+            {sendError}
+          </p>
+        ) : null}
         <div className="flex justify-end">
           <Button onClick={() => sendReply(composer)} disabled={sending || !composer.trim()}>
             {sending ? <Loader2 className="size-4 animate-spin" /> : <Send className="size-4" />}
