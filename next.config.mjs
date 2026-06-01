@@ -21,6 +21,19 @@ const nextConfig = {
       bodySizeLimit: "5mb",
     },
   },
+  webpack: (config, { dev }) => {
+    // Disable webpack's persistent filesystem cache for production builds. On CI
+    // hosts that persist .next/cache across deploys (e.g. Railway's cache mount),
+    // a stale cache left by an older/incompatible build can emit corrupt chunks
+    // and break prerendering of the auto-generated /500 and /_error pages
+    // ("<Html> should not be imported outside of pages/_document"). Compiling
+    // fresh every production build avoids that whole class of failure; dev keeps
+    // its fast-refresh cache.
+    if (!dev) {
+      config.cache = false;
+    }
+    return config;
+  },
 };
 
 export default nextConfig;
