@@ -10,6 +10,7 @@ import {
   ConversationThread,
   type ThreadMessage,
 } from "@/components/inbox/conversation-thread";
+import { DeleteConversationButton } from "@/components/inbox/delete-conversation-button";
 import { KB_CATEGORY, RESERVATION_STATUS } from "@/lib/constants";
 import { formatDate, formatDateTime, formatCurrency } from "@/lib/utils";
 
@@ -65,6 +66,7 @@ export default async function ConversationPage({
         <LinkButton href="/inbox" variant="outline" size="sm">
           <ArrowLeft className="size-4" /> Mesajlar
         </LinkButton>
+        <DeleteConversationButton conversationId={conversation.id} />
       </PageHeader>
 
       <div className="grid gap-4 lg:grid-cols-3">

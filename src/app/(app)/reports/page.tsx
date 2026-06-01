@@ -107,10 +107,10 @@ export default async function ReportsPage() {
 
   const maxTopic = topTopics[0]?.count ?? 1;
 
-  const breakdownItems = [
+  const breakdownItems: { label: string; value: number | null; invert: boolean }[] = [
     { label: "Cevap oranı (24s içinde)", value: performance.breakdown.responseRate, invert: false },
-    { label: "Görev tamamlama", value: performance.breakdown.taskCompletionRate, invert: false },
-    { label: "Doluluk (bu ay)", value: performance.breakdown.occupancyRate, invert: false },
+    { label: "Görev tamamlama (vadesi gelen)", value: performance.breakdown.taskCompletionRate, invert: false },
+    { label: "Doluluk (bugün)", value: performance.breakdown.occupancyRate, invert: false },
     { label: "Şikayet oranı (düşük = iyi)", value: performance.breakdown.complaintRate, invert: true },
   ];
 
@@ -139,28 +139,35 @@ export default async function ReportsPage() {
                 <Award className="size-4" /> Host Performans Skoru
               </p>
               <p className="text-4xl font-bold">
-                {performance.score}
+                {performance.hasData ? performance.score : "—"}
                 <span className="text-lg font-normal text-muted-foreground">/100</span>
               </p>
               <p className="mt-1 text-xs text-muted-foreground">
-                Cevap hızı, görev tamamlama, doluluk ve şikayet oranından hesaplanır.
+                {performance.hasData
+                  ? "Yalnızca verisi olan ölçütlerden hesaplanır; “veri yok” olanlar skoru etkilemez."
+                  : "Henüz yeterli veri yok. Mesaj ve görevler biriktikçe skor oluşur."}
               </p>
             </div>
           </div>
 
           <div className="flex-1 space-y-2.5 md:border-l md:border-border md:pl-6">
             {breakdownItems.map((b) => {
-              const good = b.invert ? 100 - b.value : b.value;
+              const hasData = b.value !== null;
+              const good = !hasData ? 0 : b.invert ? 100 - b.value! : b.value!;
               const barColor =
                 good >= 75 ? "bg-emerald-500" : good >= 50 ? "bg-amber-500" : "bg-rose-500";
               return (
                 <div key={b.label} className="space-y-1">
                   <div className="flex items-center justify-between text-xs">
                     <span className="text-muted-foreground">{b.label}</span>
-                    <span className="font-medium">%{b.value}</span>
+                    <span className={cn("font-medium", !hasData && "text-muted-foreground")}>
+                      {hasData ? `%${b.value}` : "veri yok"}
+                    </span>
                   </div>
                   <div className="h-1.5 overflow-hidden rounded-full bg-muted">
-                    <div className={cn("h-full", barColor)} style={{ width: `${b.value}%` }} />
+                    {hasData ? (
+                      <div className={cn("h-full", barColor)} style={{ width: `${b.value}%` }} />
+                    ) : null}
                   </div>
                 </div>
               );

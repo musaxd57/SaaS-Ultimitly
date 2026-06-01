@@ -36,3 +36,25 @@ export async function PATCH(req: NextRequest, { params }: Params) {
     return serverError();
   }
 }
+
+export async function DELETE(_req: NextRequest, { params }: Params) {
+  const session = await requireSession();
+  if (!session) return unauthorized();
+  const { id } = await params;
+  try {
+    const existing = await prisma.conversation.findFirst({
+      where: { id, property: { organizationId: session.organizationId } },
+      select: { id: true },
+    });
+    if (!existing) return notFound();
+
+    // Remove the messages first, then the conversation (no DB-level cascade).
+    await prisma.$transaction([
+      prisma.message.deleteMany({ where: { conversationId: id } }),
+      prisma.conversation.delete({ where: { id } }),
+    ]);
+    return jsonOk({ deleted: true });
+  } catch {
+    return serverError();
+  }
+}

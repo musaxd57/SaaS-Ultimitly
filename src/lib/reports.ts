@@ -440,24 +440,29 @@ export async function getOccupancyForecast(
 export type PerformanceGrade = "A" | "B" | "C" | "D" | "F";
 
 export interface HostPerformanceScore {
-  score: number; // 0..100
+  score: number; // 0..100 (weighted over the metrics that actually have data)
   breakdown: {
-    responseRate: number;    // 0..100
-    taskCompletionRate: number; // 0..100
-    occupancyRate: number;   // 0..100
-    complaintRate: number;   // 0..100 (lower = better)
+    // null = "no data yet" (excluded from the score instead of counted as 0/100,
+    // so a brand-new account's score doesn't swing wildly).
+    responseRate: number | null;    // 0..100
+    taskCompletionRate: number | null; // 0..100
+    occupancyRate: number | null;   // 0..100
+    complaintRate: number | null;   // 0..100 (lower = better)
   };
   grade: PerformanceGrade;
   label: string;
+  hasData: boolean; // false when there is nothing meaningful to score yet
 }
 
 export async function getHostPerformanceScore(orgId: string): Promise<HostPerformanceScore> {
   const now = new Date();
   const thirtyDaysAgo = new Date(now.getTime() - 30 * 24 * 60 * 60 * 1000);
   const monthStart = startOfMonth(now);
-  const monthEnd = endOfMonth(now);
+  const todayStart = startOfDay(now);
 
-  // 1. Response rate: % conversations answered within 24h
+  // 1. Response rate: of conversations that received a guest message in the last
+  //    30 days, what % were answered within 24h. null when none received a guest
+  //    message yet (so the metric is excluded rather than scored as 0 or 100).
   const recentConversations = await prisma.conversation.findMany({
     where: {
       property: { organizationId: orgId },
@@ -466,8 +471,8 @@ export async function getHostPerformanceScore(orgId: string): Promise<HostPerfor
     select: { id: true },
   });
 
+  let answerable = 0;
   let answeredWithin24h = 0;
-  const totalConvs = recentConversations.length;
 
   for (const conv of recentConversations) {
     const messages = await prisma.message.findMany({
@@ -476,40 +481,47 @@ export async function getHostPerformanceScore(orgId: string): Promise<HostPerfor
       orderBy: { createdAt: "asc" },
     });
     const firstInbound = messages.find((m) => m.direction === "inbound");
-    if (!firstInbound) continue;
+    if (!firstInbound) continue; // nothing to answer → not counted against the host
+    answerable++;
     const firstOutbound = messages.find(
       (m) => m.direction === "outbound" && m.createdAt > firstInbound.createdAt,
     );
-    if (!firstOutbound) continue;
-    const diffH = (firstOutbound.createdAt.getTime() - firstInbound.createdAt.getTime()) / (1000 * 60 * 60);
-    if (diffH <= 24) answeredWithin24h++;
+    if (
+      firstOutbound &&
+      (firstOutbound.createdAt.getTime() - firstInbound.createdAt.getTime()) / (1000 * 60 * 60) <= 24
+    ) {
+      answeredWithin24h++;
+    }
   }
 
-  const responseRate = totalConvs > 0 ? Math.round((answeredWithin24h / totalConvs) * 100) : 100;
+  const responseRate = answerable > 0 ? Math.round((answeredWithin24h / answerable) * 100) : null;
 
-  // 2. Task completion rate this month
-  const [doneTasks, allTasks] = await Promise.all([
+  // 2. Task completion rate: only tasks that were already DUE before today count
+  //    (a task due later isn't "missed"). null when nothing is due yet this month —
+  //    this is what prevents freshly-imported future tasks from tanking the score.
+  const [doneTasks, dueTasks] = await Promise.all([
     prisma.task.count({
       where: {
         property: { organizationId: orgId },
         status: "done",
-        dueAt: { gte: monthStart, lte: monthEnd },
+        dueAt: { gte: monthStart, lt: todayStart },
       },
     }),
     prisma.task.count({
       where: {
         property: { organizationId: orgId },
-        dueAt: { gte: monthStart, lte: monthEnd },
+        dueAt: { gte: monthStart, lt: todayStart },
       },
     }),
   ]);
-  const taskCompletionRate = allTasks > 0 ? Math.round((doneTasks / allTasks) * 100) : 100;
+  const taskCompletionRate = dueTasks > 0 ? Math.round((doneTasks / dueTasks) * 100) : null;
 
-  // 3. Occupancy rate this month
+  // 3. Occupancy rate today. null only when there are no properties at all.
   const stats = await getOpsStats(orgId);
-  const occupancyRate = stats.occupancyRate;
+  const occupancyRate = stats.totalProperties > 0 ? stats.occupancyRate : null;
 
-  // 4. Complaint rate (complaints / total conversations in 30 days)
+  // 4. Complaint rate (problem conversations / all conversations in 30 days).
+  //    null when there are no conversations yet.
   const complaintConvs = await prisma.conversation.count({
     where: {
       property: { organizationId: orgId },
@@ -517,22 +529,31 @@ export async function getHostPerformanceScore(orgId: string): Promise<HostPerfor
       createdAt: { gte: thirtyDaysAgo },
     },
   });
-  const rawComplaintRate =
-    totalConvs > 0 ? Math.round((complaintConvs / totalConvs) * 100) : 0;
-  const complaintRate = rawComplaintRate;
+  const complaintRate =
+    recentConversations.length > 0
+      ? Math.round((complaintConvs / recentConversations.length) * 100)
+      : null;
 
-  // Weighted score:
-  // responseRate * 0.30 + taskCompletionRate * 0.25 + occupancyRate * 0.25 + (100 - complaintRate) * 0.20
-  const score = Math.round(
-    responseRate * 0.30 +
-    taskCompletionRate * 0.25 +
-    occupancyRate * 0.25 +
-    (100 - Math.min(complaintRate, 100)) * 0.20,
-  );
+  // Weighted score over ONLY the metrics that have data, re-normalized so the
+  // weights still sum to 1. With no messages/tasks the score reflects occupancy
+  // alone instead of swinging between 0 and 100.
+  const components: { value: number; weight: number }[] = [];
+  if (responseRate !== null) components.push({ value: responseRate, weight: 0.3 });
+  if (taskCompletionRate !== null) components.push({ value: taskCompletionRate, weight: 0.25 });
+  if (occupancyRate !== null) components.push({ value: occupancyRate, weight: 0.25 });
+  if (complaintRate !== null)
+    components.push({ value: 100 - Math.min(complaintRate, 100), weight: 0.2 });
+
+  const totalWeight = components.reduce((s, c) => s + c.weight, 0);
+  const hasData = totalWeight > 0;
+  const score = hasData
+    ? Math.round(components.reduce((s, c) => s + c.value * c.weight, 0) / totalWeight)
+    : 0;
 
   let grade: PerformanceGrade;
   let label: string;
-  if (score >= 90) { grade = "A"; label = "Mükemmel"; }
+  if (!hasData) { grade = "C"; label = "Veri yok"; }
+  else if (score >= 90) { grade = "A"; label = "Mükemmel"; }
   else if (score >= 75) { grade = "B"; label = "İyi"; }
   else if (score >= 60) { grade = "C"; label = "Orta"; }
   else if (score >= 45) { grade = "D"; label = "Geliştirilmeli"; }
@@ -543,6 +564,7 @@ export async function getHostPerformanceScore(orgId: string): Promise<HostPerfor
     breakdown: { responseRate, taskCompletionRate, occupancyRate, complaintRate },
     grade,
     label,
+    hasData,
   };
 }
 
