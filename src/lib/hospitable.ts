@@ -154,7 +154,7 @@ export interface HospitableReservation {
 }
 
 export interface HospitableMessage {
-  id?: string;
+  id?: string | number;
   [key: string]: unknown;
 }
 

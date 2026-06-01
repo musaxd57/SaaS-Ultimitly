@@ -67,6 +67,7 @@ model Property {
   cleaningBufferMinutes Int     @default(120)
   notes                String?
   icalToken            String?  @unique // secret token for the public iCal export feed
+  hospitableId         String?  @unique // linked Hospitable property UUID (channel sync)
   createdAt            DateTime @default(now())
   updatedAt            DateTime @updatedAt
 
@@ -133,6 +134,10 @@ model Conversation {
   status          String   @default("new") // new | waiting | answered | problem | closed
   priority        String   @default("standard") // urgent | standard | low
   lastMessageAt   DateTime @default(now())
+  // Channel-provider identifiers (e.g. Hospitable) used to sync messages and
+  // send replies back on the original channel (Airbnb, Booking, ...).
+  externalReservationId  String? // Hospitable reservation UUID (reply target)
+  externalConversationId String? // Hospitable conversation UUID
   createdAt       DateTime @default(now())
   updatedAt       DateTime @updatedAt
 
@@ -142,6 +147,7 @@ model Conversation {
 
   @@index([propertyId])
   @@index([status])
+  @@index([externalReservationId])
 }
 
 model Message {
@@ -154,11 +160,13 @@ model Message {
   aiSuggestedReply String?
   aiConfidence    Float?
   aiIntent        String?
+  externalId       String? // provider message id (e.g. Hospitable) — sync dedup
   createdAt       DateTime @default(now())
 
   conversation Conversation @relation(fields: [conversationId], references: [id], onDelete: Cascade)
 
   @@index([conversationId])
+  @@index([conversationId, externalId])
 }
 
 model Task {

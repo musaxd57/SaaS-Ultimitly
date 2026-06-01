@@ -8,6 +8,7 @@ import { Badge } from "@/components/ui/badge";
 import { EmptyState } from "@/components/empty-state";
 import { AutoReplyToggle } from "@/components/inbox/auto-reply-toggle";
 import { HospitableTestButton } from "@/components/inbox/hospitable-test-button";
+import { HospitableSyncButton } from "@/components/inbox/hospitable-sync-button";
 import { CONVERSATION_STATUS } from "@/lib/constants";
 import { fromNow, truncate, cn } from "@/lib/utils";
 
@@ -44,6 +45,7 @@ export default async function InboxPage({
   return (
     <>
       <PageHeader title="Mesajlar" description="Tüm misafir konuşmalarını tek kutudan yönetin.">
+        <HospitableSyncButton />
         <HospitableTestButton />
         <AutoReplyToggle enabled={org?.autoReplyWhatsapp ?? false} />
         <LinkButton href="/inbox/new">
