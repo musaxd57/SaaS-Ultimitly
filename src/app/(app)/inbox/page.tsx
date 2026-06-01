@@ -6,6 +6,7 @@ import { PageHeader } from "@/components/page-header";
 import { LinkButton } from "@/components/ui/link-button";
 import { Badge } from "@/components/ui/badge";
 import { EmptyState } from "@/components/empty-state";
+import { AutoReplyToggle } from "@/components/inbox/auto-reply-toggle";
 import { CONVERSATION_STATUS } from "@/lib/constants";
 import { fromNow, truncate, cn } from "@/lib/utils";
 
@@ -19,23 +20,30 @@ export default async function InboxPage({
   const session = await requireAuth();
   const { status } = await searchParams;
 
-  const conversations = await prisma.conversation.findMany({
-    where: {
-      property: { organizationId: session.organizationId },
-      ...(status ? { status } : {}),
-    },
-    include: {
-      property: { select: { name: true } },
-      messages: { orderBy: { createdAt: "desc" }, take: 1 },
-    },
-    orderBy: { lastMessageAt: "desc" },
-  });
+  const [conversations, org] = await Promise.all([
+    prisma.conversation.findMany({
+      where: {
+        property: { organizationId: session.organizationId },
+        ...(status ? { status } : {}),
+      },
+      include: {
+        property: { select: { name: true } },
+        messages: { orderBy: { createdAt: "desc" }, take: 1 },
+      },
+      orderBy: { lastMessageAt: "desc" },
+    }),
+    prisma.organization.findUnique({
+      where: { id: session.organizationId },
+      select: { autoReplyWhatsapp: true },
+    }),
+  ]);
 
   const filters = [{ value: "", label: "Tümü" }, ...CONVERSATION_STATUS.options];
 
   return (
     <>
       <PageHeader title="Mesajlar" description="Tüm misafir konuşmalarını tek kutudan yönetin.">
+        <AutoReplyToggle enabled={org?.autoReplyWhatsapp ?? false} />
         <LinkButton href="/inbox/new">
           <Plus className="size-4" /> Yeni konuşma
         </LinkButton>

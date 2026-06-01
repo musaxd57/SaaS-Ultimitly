@@ -1,7 +1,7 @@
 import { type NextRequest, NextResponse } from "next/server";
 import { prisma } from "@/lib/db";
 import { extractInboundMessages, type WaWebhookPayload } from "@/lib/whatsapp";
-import { applyInboundMessageRules } from "@/lib/automation";
+import { applyInboundMessageRules, applyWhatsappAutoReply } from "@/lib/automation";
 
 // ---------------------------------------------------------------------------
 // WhatsApp Business Cloud API webhook
@@ -143,4 +143,8 @@ async function handleOneMessage(
 
   // Run automation rules (classification, complaint escalation, etc.).
   await applyInboundMessageRules(conversation.id, messageBody);
+
+  // If the org enabled it, auto-answer safe, high-confidence messages.
+  // Complaints/risky/uncertain messages are skipped and wait for a human.
+  await applyWhatsappAutoReply(conversation.id);
 }

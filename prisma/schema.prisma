@@ -24,6 +24,9 @@ model Organization {
   plan      String   @default("free") // free | pro | business
   timezone  String   @default("Europe/Istanbul")
   language  String   @default("tr") // default UI/AI language
+  // When true, safe/high-confidence WhatsApp guest messages are answered
+  // automatically by the AI; complaints and risky messages always wait for a human.
+  autoReplyWhatsapp Boolean @default(false)
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
 
