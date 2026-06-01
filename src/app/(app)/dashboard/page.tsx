@@ -7,7 +7,6 @@ import {
   AlertTriangle,
   Sparkles,
   BedDouble,
-  ArrowRight,
   CheckCircle2,
   ListChecks,
   Users,
@@ -19,7 +18,6 @@ import { PageHeader } from "@/components/page-header";
 import { StatCard } from "@/components/stat-card";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
-import { LinkButton } from "@/components/ui/link-button";
 import { EmptyState } from "@/components/empty-state";
 import { CONVERSATION_STATUS, PRIORITY, TASK_TYPE } from "@/lib/constants";
 import { formatTime, truncate } from "@/lib/utils";
@@ -94,11 +92,8 @@ export default async function DashboardPage() {
           month: "long",
           year: "numeric",
         })}
-      >
-        <LinkButton href="/reservations/new">
-          Yeni rezervasyon <ArrowRight className="size-4" />
-        </LinkButton>
-      </PageHeader>
+      />
+
 
       {/* AI daily summary */}
       <Card className="border-primary/20 bg-accent/40">
