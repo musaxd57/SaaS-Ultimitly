@@ -53,6 +53,10 @@ describe("syncCalendarSource", () => {
     });
     expect(first?.guestName).toBe("Ahmet Yılmaz");
     expect(first?.channel).toBe("airbnb");
+
+    // Each imported (future-dated) reservation gets a checkout cleaning task.
+    const cleaning = await prisma.task.count({ where: { propertyId, type: "cleaning" } });
+    expect(cleaning).toBe(2);
   });
 
   it("updates instead of duplicating on a second sync", async () => {
@@ -72,6 +76,9 @@ describe("syncCalendarSource", () => {
     expect(second.updated).toBe(2);
     const count = await prisma.reservation.count({ where: { propertyId } });
     expect(count).toBe(2);
+    // Re-sync must not duplicate the cleaning tasks.
+    const cleaning = await prisma.task.count({ where: { propertyId, type: "cleaning" } });
+    expect(cleaning).toBe(2);
   });
 
   it("records an error status when the feed cannot be fetched", async () => {

@@ -1,6 +1,7 @@
 import "server-only";
 import { prisma } from "@/lib/db";
 import { parseIcs } from "@/lib/import/ics";
+import { createReservationTasks } from "@/lib/automation";
 
 export interface SyncResult {
   imported: number;
@@ -89,9 +90,11 @@ export async function syncCalendarSource(sourceId: string): Promise<SyncResult> 
             notes: row.notes ?? null,
           },
         });
+        // Backfill tasks for reservations imported before task automation existed.
+        await createReservationTasks(existing.id);
         result.updated++;
       } else {
-        await prisma.reservation.create({
+        const created = await prisma.reservation.create({
           data: {
             propertyId: source.propertyId,
             guestName: row.guestName,
@@ -104,6 +107,7 @@ export async function syncCalendarSource(sourceId: string): Promise<SyncResult> 
             currency: "EUR",
           },
         });
+        await createReservationTasks(created.id);
         result.imported++;
       }
     } catch (err) {

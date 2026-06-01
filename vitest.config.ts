@@ -18,6 +18,10 @@ export default defineConfig({
   test: {
     environment: "node",
     include: ["tests/**/*.test.ts"],
+    // Integration tests share one SQLite file and wipe it between cases, so the
+    // test files must not run in parallel (otherwise one file's resetDb wipes
+    // another file's data mid-run).
+    fileParallelism: false,
     // The integration suite provisions a real SQLite schema once, up front.
     globalSetup: ["tests/global-setup.ts"],
     env: {

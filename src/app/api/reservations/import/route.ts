@@ -3,6 +3,7 @@ import { prisma } from "@/lib/db";
 import { requireSession, unauthorized, badRequest, jsonOk, serverError } from "@/lib/api";
 import { parseIcs } from "@/lib/import/ics";
 import { parseCsv } from "@/lib/import/csv";
+import { createReservationTasks } from "@/lib/automation";
 
 export async function POST(req: NextRequest) {
   const session = await requireSession();
@@ -97,7 +98,7 @@ export async function POST(req: NextRequest) {
       }
 
       try {
-        await prisma.reservation.create({
+        const created = await prisma.reservation.create({
           data: {
             propertyId,
             guestName: row.guestName,
@@ -113,6 +114,7 @@ export async function POST(req: NextRequest) {
             currency: row.currency ?? "EUR",
           },
         });
+        await createReservationTasks(created.id);
         imported++;
       } catch (err) {
         errors.push(`${rowLabel}: Veritabanı hatası — ${String(err).slice(0, 80)}`);

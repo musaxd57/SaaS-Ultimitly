@@ -1,9 +1,9 @@
 import "server-only";
+import { startOfDay } from "date-fns";
 import { prisma } from "@/lib/db";
 import { classifyMessage } from "@/lib/ai";
 import { emailService } from "@/lib/email";
 import {
-  taskAssignedEmail,
   complaintEscalationEmail,
   reservationCreatedEmail,
 } from "@/lib/email-templates";
@@ -11,7 +11,72 @@ import {
 // Simple, fixed if/then automation engine (no queue/Zapier-style builder for MVP).
 // Each function represents a trigger handler.
 
-/** Reservation created → prepare check-in & checkout cleaning tasks. */
+/**
+ * Create the standard check-in prep + checkout cleaning tasks for a reservation.
+ * Idempotent: skips entirely if the reservation already has tasks (so it is safe
+ * to call on every iCal re-sync). Past-dated stays are ignored — only upcoming
+ * arrivals/departures generate work.
+ */
+export async function createReservationTasks(reservationId: string): Promise<void> {
+  const r = await prisma.reservation.findUnique({
+    where: { id: reservationId },
+    select: {
+      id: true,
+      propertyId: true,
+      guestName: true,
+      arrivalDate: true,
+      departureDate: true,
+      status: true,
+    },
+  });
+  if (!r || r.status === "cancelled") return;
+
+  // Already has tasks → don't duplicate (handles repeated syncs).
+  const existing = await prisma.task.count({ where: { reservationId: r.id } });
+  if (existing > 0) return;
+
+  const todayStart = startOfDay(new Date());
+  const data: {
+    propertyId: string;
+    reservationId: string;
+    type: string;
+    title: string;
+    description: string;
+    dueAt: Date;
+    status: string;
+    priority: string;
+  }[] = [];
+
+  if (r.arrivalDate >= todayStart) {
+    data.push({
+      propertyId: r.propertyId,
+      reservationId: r.id,
+      type: "checkin_prep",
+      title: `${r.guestName} girişi için hazırlık`,
+      description: "Hoş geldin hazırlığı, anahtar/giriş kontrolü.",
+      dueAt: r.arrivalDate,
+      status: "todo",
+      priority: "standard",
+    });
+  }
+  if (r.departureDate >= todayStart) {
+    data.push({
+      propertyId: r.propertyId,
+      reservationId: r.id,
+      type: "cleaning",
+      title: `Çıkış temizliği - ${r.guestName}`,
+      description: "Çıkış sonrası tam temizlik ve çarşaf/havlu değişimi.",
+      dueAt: r.departureDate,
+      status: "todo",
+      priority: "standard",
+    });
+  }
+
+  if (data.length === 0) return;
+  await prisma.task.createMany({ data });
+}
+
+/** Reservation created → prepare check-in & checkout cleaning tasks + notify owners. */
 export async function applyReservationCreatedRules(reservationId: string): Promise<void> {
   const r = await prisma.reservation.findUnique({
     where: { id: reservationId },
@@ -21,32 +86,7 @@ export async function applyReservationCreatedRules(reservationId: string): Promi
   });
   if (!r || r.status === "cancelled") return;
 
-  const [checkinTask, cleaningTask] = await Promise.all([
-    prisma.task.create({
-      data: {
-        propertyId: r.propertyId,
-        reservationId: r.id,
-        type: "checkin_prep",
-        title: `${r.guestName} girişi için hazırlık`,
-        description: "Hoş geldin hazırlığı, anahtar/giriş kontrolü.",
-        dueAt: r.arrivalDate,
-        status: "todo",
-        priority: "standard",
-      },
-    }),
-    prisma.task.create({
-      data: {
-        propertyId: r.propertyId,
-        reservationId: r.id,
-        type: "cleaning",
-        title: `Çıkış temizliği - ${r.guestName}`,
-        description: "Çıkış sonrası tam temizlik ve çarşaf/havlu değişimi.",
-        dueAt: r.departureDate,
-        status: "todo",
-        priority: "standard",
-      },
-    }),
-  ]);
+  await createReservationTasks(r.id);
 
   // Fetch all owner/manager users in this organization for the reservation email.
   const orgUsers = await prisma.user.findMany({
@@ -91,19 +131,6 @@ export async function applyReservationCreatedRules(reservationId: string): Promi
       `Yeni Rezervasyon: ${r.guestName} — ${r.property.name}`,
       html,
     );
-  }
-
-  // Email any assignees on the auto-created tasks (typically none at creation, but future-proof).
-  const tasksWithAssignee = [checkinTask, cleaningTask].filter((t) => t.assignedToId);
-  for (const task of tasksWithAssignee) {
-    if (!task.assignedToId) continue;
-    const assignee = await prisma.user.findUnique({
-      where: { id: task.assignedToId },
-      select: { name: true, email: true },
-    });
-    if (!assignee) continue;
-    const taskHtml = taskAssignedEmail(task, assignee, propertyData);
-    void emailService.send(assignee.email, `Yeni Görev: ${task.title}`, taskHtml);
   }
 }
 
