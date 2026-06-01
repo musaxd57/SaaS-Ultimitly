@@ -16,9 +16,9 @@ SQLite olduğu gibi kalır (kalıcı disk üzerinde tutulur).
 3. Branch olarak en güncel kodun olduğu dalı seç (örn. `claude/great-edison-3zqpZ`
    ya da `main`'e birleştirdiysen `main`).
 
-Railway otomatik olarak Next.js'i tanır ve `npm run build` ile derler.
-Başlatma komutu `railway.json` içinde tanımlı (önce `prisma db push`, sonra
-`next start`).
+Build, depodaki `Dockerfile` ile yapılır (Railway'in Nixpacks otomatik
+algılaması yerine — bu, derlemeyi sabit ve tekrarlanabilir kılar). Başlatma
+adımı Dockerfile içinde tanımlı: önce `prisma db push`, sonra `next start`.
 
 ## 2) Kalıcı disk (Volume) ekle — SQLite burada yaşar
 
