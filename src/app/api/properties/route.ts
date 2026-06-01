@@ -2,6 +2,7 @@ import { type NextRequest } from "next/server";
 import { prisma } from "@/lib/db";
 import { propertySchema, zodFieldErrors } from "@/lib/validators";
 import { requireSession, unauthorized, badRequest, jsonOk, serverError } from "@/lib/api";
+import { generateCalendarToken } from "@/lib/export/ics";
 
 export async function GET() {
   const session = await requireSession();
@@ -32,6 +33,7 @@ export async function POST(req: NextRequest) {
         checkOutTime: d.checkOutTime,
         cleaningBufferMinutes: d.cleaningBufferMinutes,
         notes: d.notes || null,
+        icalToken: generateCalendarToken(),
       },
     });
     return jsonOk(property, 201);

@@ -1,6 +1,7 @@
 import Link from "next/link";
+import { headers } from "next/headers";
 import { notFound } from "next/navigation";
-import { ArrowLeft, BookOpen, CalendarDays } from "lucide-react";
+import { ArrowLeft, BookOpen, CalendarDays, CalendarSync } from "lucide-react";
 import { requireAuth } from "@/lib/auth";
 import { prisma } from "@/lib/db";
 import { PageHeader } from "@/components/page-header";
@@ -9,6 +10,8 @@ import { Badge } from "@/components/ui/badge";
 import { LinkButton } from "@/components/ui/link-button";
 import { DeleteButton } from "@/components/delete-button";
 import { PropertyForm } from "@/components/properties/property-form";
+import { CalendarFeed } from "@/components/properties/calendar-feed";
+import { generateCalendarToken } from "@/lib/export/ics";
 import { KB_CATEGORY, RESERVATION_STATUS } from "@/lib/constants";
 import { formatDate } from "@/lib/utils";
 
@@ -29,6 +32,19 @@ export default async function PropertyDetailPage({
     },
   });
   if (!property) notFound();
+
+  // Lazily ensure the property has a calendar feed token (backfill for
+  // properties created before the feature existed).
+  let icalToken = property.icalToken;
+  if (!icalToken) {
+    icalToken = generateCalendarToken();
+    await prisma.property.update({ where: { id: property.id }, data: { icalToken } });
+  }
+
+  const headerList = await headers();
+  const host = headerList.get("host") ?? "localhost:3000";
+  const protocol = host.startsWith("localhost") || host.startsWith("127.") ? "http" : "https";
+  const feedUrl = `${protocol}://${host}/api/calendar/${icalToken}`;
 
   return (
     <>
@@ -67,6 +83,17 @@ export default async function PropertyDetailPage({
         </Card>
 
         <div className="space-y-4">
+          <Card>
+            <CardHeader>
+              <CardTitle className="flex items-center gap-2 text-base">
+                <CalendarSync className="size-4 text-muted-foreground" /> Takvim Senkronizasyonu
+              </CardTitle>
+            </CardHeader>
+            <CardContent>
+              <CalendarFeed feedUrl={feedUrl} />
+            </CardContent>
+          </Card>
+
           <Card>
             <CardHeader className="flex-row items-center justify-between space-y-0">
               <CardTitle className="flex items-center gap-2 text-base">

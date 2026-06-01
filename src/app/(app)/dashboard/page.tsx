@@ -9,6 +9,8 @@ import {
   BedDouble,
   ArrowRight,
   CheckCircle2,
+  ListChecks,
+  Users,
 } from "lucide-react";
 import { requireAuth } from "@/lib/auth";
 import { prisma } from "@/lib/db";
@@ -20,7 +22,7 @@ import { Badge } from "@/components/ui/badge";
 import { LinkButton } from "@/components/ui/link-button";
 import { EmptyState } from "@/components/empty-state";
 import { CONVERSATION_STATUS, PRIORITY, TASK_TYPE } from "@/lib/constants";
-import { formatTime, formatDate, truncate } from "@/lib/utils";
+import { formatTime, truncate } from "@/lib/utils";
 
 export const dynamic = "force-dynamic";
 
@@ -32,7 +34,7 @@ export default async function DashboardPage() {
   const dayEnd = endOfDay(now);
   const scope = { property: { organizationId: orgId } };
 
-  const [stats, arrivals, departures, conversations, urgentTasks] = await Promise.all([
+  const [stats, arrivals, departures, conversations, tasksToday, stayingCount] = await Promise.all([
     getOpsStats(orgId),
     prisma.reservation.findMany({
       where: { ...scope, arrivalDate: { gte: dayStart, lte: dayEnd } },
@@ -53,13 +55,28 @@ export default async function DashboardPage() {
       orderBy: { lastMessageAt: "desc" },
       take: 5,
     }),
+    // Tasks due today (any priority) — the operational "to-do for today".
     prisma.task.findMany({
-      where: { ...scope, status: { not: "done" }, priority: "urgent" },
+      where: { ...scope, status: { not: "done" }, dueAt: { gte: dayStart, lte: dayEnd } },
       include: { property: { select: { name: true } } },
       orderBy: { dueAt: "asc" },
-      take: 5,
+    }),
+    // Guests currently in-house (arrived and not yet departed).
+    prisma.reservation.count({
+      where: {
+        ...scope,
+        status: { in: ["confirmed", "completed"] },
+        arrivalDate: { lte: dayEnd },
+        departureDate: { gte: dayStart },
+      },
     }),
   ]);
+
+  // Sort today's tasks urgent-first, then by due time.
+  const priorityRank: Record<string, number> = { urgent: 0, standard: 1, low: 2 };
+  const sortedTasksToday = [...tasksToday].sort(
+    (a, b) => (priorityRank[a.priority] ?? 1) - (priorityRank[b.priority] ?? 1),
+  );
 
   const summary = buildDailySummary(
     stats,
@@ -215,26 +232,26 @@ export default async function DashboardPage() {
           </CardContent>
         </Card>
 
-        {/* Urgent tasks */}
+        {/* Today's tasks */}
         <Card>
           <CardHeader className="flex-row items-center justify-between space-y-0">
             <CardTitle className="flex items-center gap-2 text-base">
-              <AlertTriangle className="size-4 text-muted-foreground" /> Acil Görevler
+              <ListChecks className="size-4 text-muted-foreground" /> Bugünkü Görevler
             </CardTitle>
             <Link href="/tasks" className="text-xs font-medium text-primary hover:underline">
               Tümü
             </Link>
           </CardHeader>
           <CardContent className="space-y-2">
-            {urgentTasks.length === 0 ? (
+            {sortedTasksToday.length === 0 ? (
               <EmptyState
                 icon={CheckCircle2}
-                title="Acil görev yok"
-                description="Operasyon kontrol altında."
+                title="Bugün görev yok"
+                description="Bugün için planlanmış iş bulunmuyor."
                 className="py-6"
               />
             ) : (
-              urgentTasks.map((t) => (
+              sortedTasksToday.map((t) => (
                 <Link
                   key={t.id}
                   href="/tasks"
@@ -246,7 +263,7 @@ export default async function DashboardPage() {
                   </div>
                   <p className="mt-0.5 text-xs text-muted-foreground">
                     {TASK_TYPE.label(t.type)} · {t.property.name}
-                    {t.dueAt ? ` · ${formatDate(t.dueAt)} ${formatTime(t.dueAt)}` : ""}
+                    {t.dueAt ? ` · ${formatTime(t.dueAt)}` : ""}
                   </p>
                 </Link>
               ))
@@ -256,7 +273,13 @@ export default async function DashboardPage() {
       </div>
 
       {/* Secondary stats */}
-      <div className="grid gap-4 sm:grid-cols-3">
+      <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
+        <StatCard
+          label="Şu An Konaklayan"
+          value={stayingCount}
+          icon={Users}
+          hint="evde olan misafir"
+        />
         <StatCard
           label="Doluluk (bugün)"
           value={`%${stats.occupancyRate}`}

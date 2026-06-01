@@ -63,6 +63,7 @@ model Property {
   checkOutTime         String   @default("11:00")
   cleaningBufferMinutes Int     @default(120)
   notes                String?
+  icalToken            String?  @unique // secret token for the public iCal export feed
   createdAt            DateTime @default(now())
   updatedAt            DateTime @updatedAt
 
