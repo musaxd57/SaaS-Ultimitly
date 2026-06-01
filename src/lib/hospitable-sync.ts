@@ -92,13 +92,17 @@ export async function syncHospitable(organizationId: string): Promise<SyncResult
     for (const reservation of reservations) {
       if (!reservation.id) continue;
 
-      // Always upsert the Reservation record so the calendar stays up to date.
-      // Guarded: a single bad reservation must never break the whole sync.
-      try {
-        const saved = await upsertReservationCalendar(propertyId, reservation);
-        if (saved) result.reservations++;
-      } catch (err) {
-        console.error(`[Hospitable sync] reservation upsert failed for ${reservation.id}`, err);
+      // Upsert the Reservation record so the calendar reflects Hospitable
+      // bookings. Disabled by default while we stabilise production — enable by
+      // setting ENABLE_RESERVATION_SYNC=1. Fully guarded so it can never abort
+      // the sync.
+      if (process.env.ENABLE_RESERVATION_SYNC === "1") {
+        try {
+          const saved = await upsertReservationCalendar(propertyId, reservation);
+          if (saved) result.reservations++;
+        } catch (err) {
+          console.error(`[Hospitable sync] reservation upsert failed for ${reservation.id}`, err);
+        }
       }
 
       // Message thread sync — only when there is a conversation.
