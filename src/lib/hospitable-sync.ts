@@ -154,23 +154,33 @@ async function importThread(
   const language = str(reservation.conversation_language) ?? "tr";
   const lastMessageAt = parseDate(reservation.last_message_at) ?? new Date();
 
+  // Chronological order so the last element is the most recent message.
+  const ordered = [...messages].sort(
+    (a, b) => (parseDate(a.created_at)?.getTime() ?? 0) - (parseDate(b.created_at)?.getTime() ?? 0),
+  );
+
   // Guest display name from a guest message, falling back to the booking code.
   const guestName =
-    senderFullName(messages.find(isGuestMessage) ?? ({} as HospitableMessage)) ??
+    senderFullName(ordered.find(isGuestMessage) ?? ({} as HospitableMessage)) ??
     (str(reservation.code) ? `Rezervasyon ${reservation.code}` : "Misafir");
 
-  let conversation = await prisma.conversation.findFirst({
+  // Status reflects who spoke last: guest → awaiting a reply ("new"); host → "answered".
+  const lastMessage = ordered[ordered.length - 1];
+  const computedStatus = lastMessage && isGuestMessage(lastMessage) ? "new" : "answered";
+
+  const existing = await prisma.conversation.findFirst({
     where: { propertyId, externalReservationId: reservationId },
-    select: { id: true },
+    select: { id: true, status: true },
   });
 
-  if (!conversation) {
-    conversation = await prisma.conversation.create({
+  let conversationId: string;
+  if (!existing) {
+    const created = await prisma.conversation.create({
       data: {
         propertyId,
         channel,
         guestIdentifier: guestName,
-        status: "new",
+        status: computedStatus,
         priority: "standard",
         lastMessageAt,
         externalReservationId: reservationId,
@@ -178,18 +188,22 @@ async function importThread(
       },
       select: { id: true },
     });
+    conversationId = created.id;
   } else {
+    // Preserve human/rule decisions; only refresh the automatic states.
+    const preserve = ["problem", "closed", "waiting"].includes(existing.status);
     await prisma.conversation.update({
-      where: { id: conversation.id },
-      data: { lastMessageAt, guestIdentifier: guestName },
+      where: { id: existing.id },
+      data: {
+        lastMessageAt,
+        guestIdentifier: guestName,
+        ...(preserve ? {} : { status: computedStatus }),
+      },
     });
+    conversationId = existing.id;
   }
 
   // Import messages in chronological order, skipping ones we already have.
-  const ordered = [...messages].sort(
-    (a, b) => (parseDate(a.created_at)?.getTime() ?? 0) - (parseDate(b.created_at)?.getTime() ?? 0),
-  );
-
   let newMessages = 0;
   for (const m of ordered) {
     const externalId = m.id != null ? String(m.id) : null;
@@ -197,7 +211,7 @@ async function importThread(
     if (!externalId || !body) continue; // skip non-text / unidentifiable messages
 
     const exists = await prisma.message.findFirst({
-      where: { conversationId: conversation.id, externalId },
+      where: { conversationId, externalId },
       select: { id: true },
     });
     if (exists) continue;
@@ -205,7 +219,7 @@ async function importThread(
     const inbound = isGuestMessage(m);
     await prisma.message.create({
       data: {
-        conversationId: conversation.id,
+        conversationId,
         direction: inbound ? "inbound" : "outbound",
         senderName: senderFullName(m) ?? (inbound ? guestName : "Ev sahibi"),
         body,

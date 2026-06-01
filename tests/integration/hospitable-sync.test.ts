@@ -78,6 +78,7 @@ describe("syncHospitable", () => {
       language: "en",
     });
     expect(conversation?.messages[1].direction).toBe("outbound");
+    expect(conversation?.status).toBe("answered"); // host spoke last
 
     // Second sync imports nothing new (dedup by external id).
     const second = await syncHospitable(orgId);
@@ -108,5 +109,32 @@ describe("syncHospitable", () => {
     expect(await prisma.property.count({ where: { organizationId: orgId } })).toBe(2);
     const created = await prisma.property.findFirst({ where: { hospitableId: "hosp-prop-9" } });
     expect(created?.name).toBe("Deniz Manzaralı Daire");
+  });
+
+  it("marks guest-last threads 'new' and preserves human states on re-sync", async () => {
+    const { orgId } = await makeOrgWithProperty();
+    mockProperties.mockResolvedValue([{ id: "hp", name: "Test Property" }]);
+    mockReservations.mockResolvedValue([
+      { id: "res-2", platform: "airbnb", last_message_at: "2026-05-30T10:00:00Z" },
+    ]);
+    mockMessages.mockResolvedValue([
+      {
+        id: 1,
+        body: "Hello?",
+        sender_type: "guest",
+        sender: { full_name: "Guest" },
+        created_at: "2026-05-30T10:00:00Z",
+      },
+    ]);
+
+    await syncHospitable(orgId);
+    let conv = await prisma.conversation.findFirst({ where: { externalReservationId: "res-2" } });
+    expect(conv?.status).toBe("new"); // guest spoke last
+
+    // A human closes it; a re-sync with no new messages must not reopen it.
+    await prisma.conversation.update({ where: { id: conv!.id }, data: { status: "closed" } });
+    await syncHospitable(orgId);
+    conv = await prisma.conversation.findFirst({ where: { externalReservationId: "res-2" } });
+    expect(conv?.status).toBe("closed");
   });
 });

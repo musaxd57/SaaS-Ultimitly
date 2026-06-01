@@ -95,4 +95,23 @@ describe("hospitable client", () => {
     expect(messages).toHaveLength(1);
     expect(String(fetchMock.mock.calls[0][0])).toContain("/reservations/r1/messages");
   });
+
+  it("fetches every page when meta.last_page indicates more", async () => {
+    vi.stubEnv("HOSPITABLE_API_TOKEN", "tok");
+    const fetchMock = vi
+      .spyOn(global, "fetch")
+      .mockResolvedValueOnce(
+        jsonResponse({ data: [{ id: "p1", name: "A" }], meta: { current_page: 1, last_page: 2 } }),
+      )
+      .mockResolvedValueOnce(
+        jsonResponse({ data: [{ id: "p2", name: "B" }], meta: { current_page: 2, last_page: 2 } }),
+      );
+
+    const props = await listProperties();
+
+    expect(props).toHaveLength(2);
+    expect(fetchMock).toHaveBeenCalledTimes(2);
+    expect(String(fetchMock.mock.calls[0][0])).toContain("page=1");
+    expect(String(fetchMock.mock.calls[1][0])).toContain("page=2");
+  });
 });

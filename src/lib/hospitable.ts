@@ -124,9 +124,40 @@ async function hospitableFetch<T>(
 // than we model; we only declare what we use).
 // ---------------------------------------------------------------------------
 
-/** Hospitable list endpoints wrap results in a `{ data: [...] }` envelope. */
+/** Hospitable list endpoints wrap results in a `{ data, meta, links }` envelope. */
 interface ListEnvelope<T> {
   data?: T[];
+  meta?: { current_page?: number; last_page?: number };
+  links?: { next?: string | null };
+}
+
+/** Hard cap on pages to fetch, so a misbehaving endpoint can never loop forever. */
+const MAX_PAGES = 40;
+
+/**
+ * Fetch every page of a paginated list endpoint and concatenate the results.
+ * Stops when an empty page is returned, the last page is reached (per `meta`),
+ * or there is no `links.next`. If the endpoint isn't paginated it simply
+ * returns the single page.
+ */
+async function fetchAllPages<T>(path: string, params?: URLSearchParams): Promise<T[]> {
+  const items: T[] = [];
+  for (let page = 1; page <= MAX_PAGES; page++) {
+    const p = new URLSearchParams(params);
+    p.set("page", String(page));
+    const res = await hospitableFetch<ListEnvelope<T>>(`${path}?${p.toString()}`);
+    const batch = res.data ?? [];
+    items.push(...batch);
+
+    if (batch.length === 0) break;
+    const lastPage = res.meta?.last_page;
+    if (typeof lastPage === "number") {
+      if (page >= lastPage) break;
+    } else if (!res.links?.next) {
+      break;
+    }
+  }
+  return items;
 }
 
 export interface HospitableProperty {
@@ -137,12 +168,11 @@ export interface HospitableProperty {
 }
 
 /**
- * List the properties the token can access. Used by the connection test and,
- * later, to map Hospitable properties onto our own Property records.
+ * List the properties the token can access. Used by the connection test and
+ * to map Hospitable properties onto our own Property records.
  */
 export async function listProperties(): Promise<HospitableProperty[]> {
-  const res = await hospitableFetch<ListEnvelope<HospitableProperty>>("/properties");
-  return res.data ?? [];
+  return fetchAllPages<HospitableProperty>("/properties");
 }
 
 // Reservations and messages are modelled tolerantly (an index signature) until
@@ -171,15 +201,12 @@ export async function listReservations(options?: {
   for (const id of options?.propertyIds ?? []) params.append("properties[]", id);
   if (options?.startDate) params.set("start_date", options.startDate);
   if (options?.endDate) params.set("end_date", options.endDate);
-  const qs = params.toString() ? `?${params.toString()}` : "";
-  const res = await hospitableFetch<ListEnvelope<HospitableReservation>>(`/reservations${qs}`);
-  return res.data ?? [];
+  return fetchAllPages<HospitableReservation>("/reservations", params);
 }
 
-/** List the message thread for a single reservation. */
+/** List the full message thread for a single reservation (all pages). */
 export async function listMessages(reservationId: string): Promise<HospitableMessage[]> {
-  const res = await hospitableFetch<ListEnvelope<HospitableMessage>>(
+  return fetchAllPages<HospitableMessage>(
     `/reservations/${encodeURIComponent(reservationId)}/messages`,
   );
-  return res.data ?? [];
 }
