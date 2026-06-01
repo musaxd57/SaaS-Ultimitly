@@ -93,8 +93,13 @@ export async function syncHospitable(organizationId: string): Promise<SyncResult
       if (!reservation.id) continue;
 
       // Always upsert the Reservation record so the calendar stays up to date.
-      const saved = await upsertReservationCalendar(propertyId, reservation);
-      if (saved) result.reservations++;
+      // Guarded: a single bad reservation must never break the whole sync.
+      try {
+        const saved = await upsertReservationCalendar(propertyId, reservation);
+        if (saved) result.reservations++;
+      } catch (err) {
+        console.error(`[Hospitable sync] reservation upsert failed for ${reservation.id}`, err);
+      }
 
       // Message thread sync — only when there is a conversation.
       if (!reservation.last_message_at) continue;
@@ -108,9 +113,13 @@ export async function syncHospitable(organizationId: string): Promise<SyncResult
       }
       if (messages.length === 0) continue;
 
-      const imported = await importThread(propertyId, reservation, messages);
-      result.conversations++;
-      result.messages += imported;
+      try {
+        const imported = await importThread(propertyId, reservation, messages);
+        result.conversations++;
+        result.messages += imported;
+      } catch (err) {
+        console.error(`[Hospitable sync] thread import failed for ${reservation.id}`, err);
+      }
     }
   }
 
@@ -126,6 +135,15 @@ async function upsertReservationCalendar(
   const arrivalDate = parseDate(reservation.check_in);
   const departureDate = parseDate(reservation.check_out);
   if (!arrivalDate || !departureDate) return false;
+
+  // Guard against a stale propertyId (FK safety): only write if the property
+  // really exists. Prevents "Foreign key constraint violated" from aborting
+  // the sync if the property map is out of date for any reason.
+  const propertyExists = await prisma.property.findUnique({
+    where: { id: propertyId },
+    select: { id: true },
+  });
+  if (!propertyExists) return false;
 
   const g = reservation.guest;
   const guestName =
