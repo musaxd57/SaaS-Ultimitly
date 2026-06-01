@@ -1,5 +1,10 @@
 import { describe, it, expect, afterEach, vi } from "vitest";
-import { listProperties, HospitableError } from "@/lib/hospitable";
+import {
+  listProperties,
+  listReservations,
+  listMessages,
+  HospitableError,
+} from "@/lib/hospitable";
 
 /** Build a minimal fetch Response stub. */
 function jsonResponse(body: unknown, init: { status?: number; headers?: HeadersInit } = {}) {
@@ -61,5 +66,30 @@ describe("hospitable client", () => {
       status: 401,
     });
     await expect(listProperties()).rejects.toBeInstanceOf(HospitableError);
+  });
+
+  it("lists reservations from the /reservations endpoint", async () => {
+    vi.stubEnv("HOSPITABLE_API_TOKEN", "tok");
+    const fetchMock = vi
+      .spyOn(global, "fetch")
+      .mockResolvedValue(jsonResponse({ data: [{ id: "r1", platform: "airbnb" }] }));
+
+    const reservations = await listReservations();
+
+    expect(reservations).toHaveLength(1);
+    expect(reservations[0].id).toBe("r1");
+    expect(String(fetchMock.mock.calls[0][0])).toContain("/reservations");
+  });
+
+  it("lists messages for a reservation at the nested messages endpoint", async () => {
+    vi.stubEnv("HOSPITABLE_API_TOKEN", "tok");
+    const fetchMock = vi
+      .spyOn(global, "fetch")
+      .mockResolvedValue(jsonResponse({ data: [{ id: "m1", body: "hi" }] }));
+
+    const messages = await listMessages("r1");
+
+    expect(messages).toHaveLength(1);
+    expect(String(fetchMock.mock.calls[0][0])).toContain("/reservations/r1/messages");
   });
 });

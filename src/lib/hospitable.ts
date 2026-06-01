@@ -144,3 +144,33 @@ export async function listProperties(): Promise<HospitableProperty[]> {
   const res = await hospitableFetch<ListEnvelope<HospitableProperty>>("/properties");
   return res.data ?? [];
 }
+
+// Reservations and messages are modelled tolerantly (an index signature) until
+// we confirm the exact field names against the live API; the diagnostics probe
+// reports their shape so the sync mapping can be written precisely.
+export interface HospitableReservation {
+  id: string;
+  [key: string]: unknown;
+}
+
+export interface HospitableMessage {
+  id?: string;
+  [key: string]: unknown;
+}
+
+/** List reservations the token can access (optionally filtered via query params). */
+export async function listReservations(
+  query?: Record<string, string>,
+): Promise<HospitableReservation[]> {
+  const qs = query && Object.keys(query).length ? `?${new URLSearchParams(query)}` : "";
+  const res = await hospitableFetch<ListEnvelope<HospitableReservation>>(`/reservations${qs}`);
+  return res.data ?? [];
+}
+
+/** List the message thread for a single reservation. */
+export async function listMessages(reservationId: string): Promise<HospitableMessage[]> {
+  const res = await hospitableFetch<ListEnvelope<HospitableMessage>>(
+    `/reservations/${encodeURIComponent(reservationId)}/messages`,
+  );
+  return res.data ?? [];
+}
