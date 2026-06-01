@@ -21,9 +21,10 @@ export function HospitableSyncButton() {
       const res = await fetch("/api/hospitable/sync", { method: "POST" });
       const data = await res.json();
       if (data.ok) {
+        const auto = data.autoReplies ? ` · ${data.autoReplies} oto-yanıt gönderildi` : "";
         setResult({
           ok: true,
-          text: `${data.conversations} konuşma · ${data.messages} yeni mesaj`,
+          text: `${data.conversations} konuşma · ${data.messages} yeni mesaj${auto}`,
         });
         router.refresh();
       } else {

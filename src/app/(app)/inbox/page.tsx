@@ -7,6 +7,7 @@ import { LinkButton } from "@/components/ui/link-button";
 import { Badge } from "@/components/ui/badge";
 import { EmptyState } from "@/components/empty-state";
 import { AutoReplyToggle } from "@/components/inbox/auto-reply-toggle";
+import { AutoReplyTestButton } from "@/components/inbox/auto-reply-test-button";
 import { HospitableTestButton } from "@/components/inbox/hospitable-test-button";
 import { HospitableSyncButton } from "@/components/inbox/hospitable-sync-button";
 import { CONVERSATION_STATUS } from "@/lib/constants";
@@ -36,18 +37,38 @@ export default async function InboxPage({
     }),
     prisma.organization.findUnique({
       where: { id: session.organizationId },
-      select: { autoReplyWhatsapp: true },
+      select: {
+        autoReplyWhatsapp: true,
+        autoReplyHospitable: true,
+        autoReplyStartHour: true,
+        autoReplyEndHour: true,
+      },
     }),
   ]);
 
   const filters = [{ value: "", label: "Tümü" }, ...CONVERSATION_STATUS.options];
+
+  const pad = (h: number) => String(h).padStart(2, "0");
+  const activeWindow = `${pad(org?.autoReplyStartHour ?? 0)}:00–${pad(org?.autoReplyEndHour ?? 9)}:00`;
 
   return (
     <>
       <PageHeader title="Mesajlar" description="Tüm misafir konuşmalarını tek kutudan yönetin.">
         <HospitableSyncButton />
         <HospitableTestButton />
-        <AutoReplyToggle enabled={org?.autoReplyWhatsapp ?? false} />
+        <AutoReplyTestButton />
+        <AutoReplyToggle
+          field="autoReplyHospitable"
+          label={`Gece oto-yanıt (${activeWindow})`}
+          enabled={org?.autoReplyHospitable ?? false}
+          title={`Açıkken: ${activeWindow} arası, güvenli ve emin olunan Airbnb/Booking mesajlarına AI otomatik cevap gönderir. Şikayet/riskli mesajlar her zaman size kalır. "Mesajları çek" sırasında çalışır.`}
+        />
+        <AutoReplyToggle
+          field="autoReplyWhatsapp"
+          label="WhatsApp oto-yanıt"
+          enabled={org?.autoReplyWhatsapp ?? false}
+          title="Açıkken: güvenli ve emin olunan WhatsApp mesajlarına AI otomatik cevap verir. Şikayet/riskli mesajlar her zaman size kalır."
+        />
         <LinkButton href="/inbox/new">
           <Plus className="size-4" /> Yeni konuşma
         </LinkButton>

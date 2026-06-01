@@ -3,6 +3,7 @@ import { startOfDay } from "date-fns";
 import { prisma } from "@/lib/db";
 import { classifyMessage, suggestReply } from "@/lib/ai";
 import { waSendText } from "@/lib/whatsapp";
+import { sendOnChannel } from "@/lib/messaging";
 import { emailService } from "@/lib/email";
 import {
   complaintEscalationEmail,
@@ -13,6 +14,42 @@ import {
 // deterministic fallback never reaches this bar (it caps safe intents at 0.55),
 // so auto-reply effectively requires a real model response — by design.
 const AUTO_REPLY_MIN_CONFIDENCE = 0.7;
+
+/** Only safe, confident drafts may be auto-sent; everything else waits for a human. */
+function passesAutoReplySafetyGate(result: {
+  riskLevel: string;
+  confidence: number;
+}): boolean {
+  if (result.riskLevel !== "none" && result.riskLevel !== "low") return false;
+  return result.confidence >= AUTO_REPLY_MIN_CONFIDENCE;
+}
+
+/** Current hour (0-23) in the given IANA timezone (e.g. "Europe/Istanbul"). */
+export function currentHourInTimeZone(timeZone: string, now: Date = new Date()): number {
+  try {
+    const formatted = new Intl.DateTimeFormat("en-US", {
+      timeZone,
+      hour: "numeric",
+      hour12: false,
+    }).format(now);
+    const hour = parseInt(formatted, 10) % 24;
+    return Number.isNaN(hour) ? now.getHours() : hour;
+  } catch {
+    return now.getHours();
+  }
+}
+
+/**
+ * Is `hour` inside the [startHour, endHour) window?
+ *   start === end → always true (full day)
+ *   start <  end  → same-day window (e.g. 9–18)
+ *   start >  end  → window that wraps past midnight (e.g. 22–6)
+ */
+export function isWithinActiveHours(startHour: number, endHour: number, hour: number): boolean {
+  if (startHour === endHour) return true;
+  if (startHour < endHour) return hour >= startHour && hour < endHour;
+  return hour >= startHour || hour < endHour;
+}
 
 // Simple, fixed if/then automation engine (no queue/Zapier-style builder for MVP).
 // Each function represents a trigger handler.
@@ -348,8 +385,7 @@ export async function applyWhatsappAutoReply(conversationId: string): Promise<bo
   });
 
   // Safety gate: only auto-send safe, confident replies.
-  if (result.riskLevel !== "none" && result.riskLevel !== "low") return false;
-  if (result.confidence < AUTO_REPLY_MIN_CONFIDENCE) return false;
+  if (!passesAutoReplySafetyGate(result)) return false;
 
   const now = new Date();
   await prisma.$transaction([
@@ -371,4 +407,249 @@ export async function applyWhatsappAutoReply(conversationId: string): Promise<bo
 
   await waSendText(conversation.guestIdentifier, result.reply);
   return true;
+}
+
+// ---------------------------------------------------------------------------
+// Channel (Airbnb / Booking via Hospitable) AI auto-reply
+//
+// Unlike WhatsApp (which is webhook-driven and instant), channel messages are
+// pulled in by sync (polling). So channel auto-reply runs as a pass after each
+// sync, gated to an active-hours window in the org timezone — e.g. answer guests
+// automatically only between 00:00 and 09:00. It SENDS first (via the same
+// transport as manual replies) and only persists when delivery succeeds, so we
+// never record a reply that didn't reach the guest. Complaints, risky, and
+// low-confidence messages are always left for a human.
+// ---------------------------------------------------------------------------
+
+export interface ChannelAutoReplyOptions {
+  /** Compute the draft but do not send or persist (preview / test). */
+  dryRun?: boolean;
+  /** Skip the active-hours window check (used by the preview). */
+  ignoreSchedule?: boolean;
+  /** Skip the org on/off toggle check (used by the preview). */
+  ignoreToggle?: boolean;
+}
+
+export interface ChannelAutoReplyOutcome {
+  sent: boolean;
+  /** Why no message was sent (when sent=false). */
+  skippedReason?: string;
+  /** The AI draft, when one was produced (dry-run preview or before sending). */
+  draft?: { reply: string; intent: string; confidence: number; riskLevel: string };
+  guestIdentifier?: string;
+  propertyName?: string;
+}
+
+/**
+ * Evaluate (and unless dryRun, deliver) an AI auto-reply for a single channel
+ * conversation. All safety gates are re-checked here, so callers can pass a
+ * broad candidate set safely.
+ */
+export async function applyChannelAutoReply(
+  conversationId: string,
+  options: ChannelAutoReplyOptions = {},
+): Promise<ChannelAutoReplyOutcome> {
+  const conversation = await prisma.conversation.findUnique({
+    where: { id: conversationId },
+    include: {
+      property: {
+        select: {
+          name: true,
+          checkInTime: true,
+          checkOutTime: true,
+          address: true,
+          city: true,
+          organization: {
+            select: {
+              autoReplyHospitable: true,
+              language: true,
+              timezone: true,
+              autoReplyStartHour: true,
+              autoReplyEndHour: true,
+            },
+          },
+        },
+      },
+      reservation: {
+        select: { guestName: true, arrivalDate: true, departureDate: true, status: true },
+      },
+      messages: { orderBy: { createdAt: "asc" } },
+    },
+  });
+
+  if (!conversation) return { sent: false, skippedReason: "not_found" };
+  const meta = { guestIdentifier: conversation.guestIdentifier, propertyName: conversation.property.name };
+  const org = conversation.property.organization;
+
+  // Must be a conversation we can actually reply to on its channel.
+  if (!conversation.externalReservationId) return { sent: false, skippedReason: "no_external_target", ...meta };
+  // A complaint has already escalated to a human — never auto-reply to it.
+  if (conversation.status === "problem") return { sent: false, skippedReason: "complaint", ...meta };
+
+  if (!options.ignoreToggle && !org.autoReplyHospitable) {
+    return { sent: false, skippedReason: "disabled", ...meta };
+  }
+  if (!options.ignoreSchedule) {
+    const hour = currentHourInTimeZone(org.timezone);
+    if (!isWithinActiveHours(org.autoReplyStartHour, org.autoReplyEndHour, hour)) {
+      return { sent: false, skippedReason: "outside_hours", ...meta };
+    }
+  }
+
+  const messages = conversation.messages;
+  if (messages.length === 0) return { sent: false, skippedReason: "no_messages", ...meta };
+  const last = messages[messages.length - 1];
+  // Only answer when the guest spoke last (don't reply to ourselves).
+  if (last.direction !== "inbound") return { sent: false, skippedReason: "already_answered", ...meta };
+
+  const kb = await prisma.knowledgeBaseItem.findMany({
+    where: { propertyId: conversation.propertyId, isActive: true },
+    select: { category: true, title: true, content: true },
+  });
+
+  const result = await suggestReply({
+    guestMessage: last.body,
+    property: {
+      name: conversation.property.name,
+      checkInTime: conversation.property.checkInTime,
+      checkOutTime: conversation.property.checkOutTime,
+      address: conversation.property.address,
+      city: conversation.property.city,
+    },
+    reservation: conversation.reservation
+      ? {
+          guestName: conversation.reservation.guestName,
+          arrivalDate: conversation.reservation.arrivalDate,
+          departureDate: conversation.reservation.departureDate,
+          status: conversation.reservation.status,
+        }
+      : null,
+    knowledgeBase: kb,
+    history: messages.map((m) => ({
+      direction: m.direction as "inbound" | "outbound",
+      body: m.body,
+    })),
+    tone: "warm",
+    language: org.language ?? "tr",
+  });
+
+  // Safety gate: only auto-send safe, confident replies.
+  if (!passesAutoReplySafetyGate(result)) {
+    return { sent: false, skippedReason: "low_confidence_or_risky", ...meta };
+  }
+
+  const draft = {
+    reply: result.reply,
+    intent: result.intent,
+    confidence: result.confidence,
+    riskLevel: result.riskLevel,
+  };
+
+  if (options.dryRun) {
+    return { sent: false, skippedReason: "dry_run", draft, ...meta };
+  }
+
+  // Deliver FIRST — never persist a reply that didn't reach the guest.
+  const delivery = await sendOnChannel(
+    {
+      channel: conversation.channel,
+      guestIdentifier: conversation.guestIdentifier,
+      externalReservationId: conversation.externalReservationId,
+    },
+    result.reply,
+  );
+  if (!delivery.ok) {
+    return { sent: false, skippedReason: `send_failed: ${delivery.error ?? "unknown"}`, draft, ...meta };
+  }
+
+  const now = new Date();
+  await prisma.$transaction([
+    prisma.message.create({
+      data: {
+        conversationId: conversation.id,
+        direction: "outbound",
+        senderName: "GuestOps AI",
+        body: result.reply,
+        aiIntent: result.intent,
+        aiConfidence: result.confidence,
+      },
+    }),
+    prisma.conversation.update({
+      where: { id: conversation.id },
+      data: { status: "answered", lastMessageAt: now },
+    }),
+  ]);
+
+  return { sent: true, draft, ...meta };
+}
+
+/**
+ * Run the channel auto-reply pass for an organization: if enabled AND we are
+ * inside the active-hours window, auto-answer every channel conversation whose
+ * last message is an unanswered guest message. Called after each sync.
+ */
+export async function runDueChannelAutoReplies(
+  organizationId: string,
+): Promise<{ sent: number; considered: number }> {
+  const org = await prisma.organization.findUnique({
+    where: { id: organizationId },
+    select: {
+      autoReplyHospitable: true,
+      timezone: true,
+      autoReplyStartHour: true,
+      autoReplyEndHour: true,
+    },
+  });
+  if (!org || !org.autoReplyHospitable) return { sent: 0, considered: 0 };
+
+  const hour = currentHourInTimeZone(org.timezone);
+  if (!isWithinActiveHours(org.autoReplyStartHour, org.autoReplyEndHour, hour)) {
+    return { sent: 0, considered: 0 };
+  }
+
+  // "new" = the guest spoke last and we haven't answered (see hospitable-sync).
+  const candidates = await prisma.conversation.findMany({
+    where: {
+      property: { organizationId },
+      externalReservationId: { not: null },
+      status: "new",
+    },
+    select: { id: true },
+  });
+
+  let sent = 0;
+  for (const c of candidates) {
+    const outcome = await applyChannelAutoReply(c.id);
+    if (outcome.sent) sent++;
+  }
+  return { sent, considered: candidates.length };
+}
+
+/**
+ * Preview what the channel auto-reply WOULD send right now — without sending
+ * anything. Ignores the on/off toggle and the active-hours window so the user
+ * can test quality at any time. Returns one outcome per candidate conversation.
+ */
+export async function previewChannelAutoReplies(
+  organizationId: string,
+  limit = 12,
+): Promise<ChannelAutoReplyOutcome[]> {
+  const candidates = await prisma.conversation.findMany({
+    where: {
+      property: { organizationId },
+      externalReservationId: { not: null },
+      status: "new",
+    },
+    orderBy: { lastMessageAt: "desc" },
+    take: limit,
+    select: { id: true },
+  });
+
+  const outcomes: ChannelAutoReplyOutcome[] = [];
+  for (const c of candidates) {
+    outcomes.push(
+      await applyChannelAutoReply(c.id, { dryRun: true, ignoreSchedule: true, ignoreToggle: true }),
+    );
+  }
+  return outcomes;
 }

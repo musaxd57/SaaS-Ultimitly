@@ -2,6 +2,7 @@ import { NextResponse } from "next/server";
 import { requireSession, unauthorized } from "@/lib/api";
 import { isHospitableConfigured } from "@/lib/hospitable";
 import { syncHospitable } from "@/lib/hospitable-sync";
+import { runDueChannelAutoReplies } from "@/lib/automation";
 
 // ---------------------------------------------------------------------------
 // Pull guest conversations from Hospitable into the inbox.
@@ -21,7 +22,10 @@ export async function POST() {
 
   try {
     const result = await syncHospitable(session.organizationId);
-    return NextResponse.json({ ok: true, ...result });
+    // After pulling new messages, run the night auto-reply pass. This is a no-op
+    // unless auto-reply is enabled AND we are inside the active-hours window.
+    const auto = await runDueChannelAutoReplies(session.organizationId);
+    return NextResponse.json({ ok: true, ...result, autoReplies: auto.sent });
   } catch (err) {
     const message = err instanceof Error ? err.message : "Senkronizasyon başarısız oldu.";
     return NextResponse.json({ ok: false, error: message });
