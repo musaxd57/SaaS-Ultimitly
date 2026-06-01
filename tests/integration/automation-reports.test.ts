@@ -1,5 +1,9 @@
 import { describe, it, expect, beforeEach, afterAll } from "vitest";
-import { applyReservationCreatedRules, applyInboundMessageRules } from "@/lib/automation";
+import {
+  applyReservationCreatedRules,
+  applyInboundMessageRules,
+  backfillReservationTasks,
+} from "@/lib/automation";
 import { getOpsStats, getMonthlyReport } from "@/lib/reports";
 import { prisma, resetDb, makeOrgWithProperty, daysFromNow } from "../helpers/db";
 
@@ -51,6 +55,63 @@ describe("applyReservationCreatedRules", () => {
     await applyReservationCreatedRules(reservation.id);
 
     expect(await prisma.task.count()).toBe(0);
+  });
+});
+
+describe("backfillReservationTasks", () => {
+  it("creates tasks for existing reservations and is idempotent", async () => {
+    const { orgId, propertyId } = await makeOrgWithProperty();
+    await prisma.reservation.create({
+      data: {
+        propertyId,
+        guestName: "Backfill A",
+        arrivalDate: daysFromNow(3),
+        departureDate: daysFromNow(6),
+        status: "confirmed",
+      },
+    });
+    await prisma.reservation.create({
+      data: {
+        propertyId,
+        guestName: "Backfill B",
+        arrivalDate: daysFromNow(10),
+        departureDate: daysFromNow(12),
+        status: "confirmed",
+      },
+    });
+
+    // No tasks until backfill runs (reservations created directly).
+    expect(await prisma.task.count()).toBe(0);
+
+    const first = await backfillReservationTasks(orgId);
+    expect(first.processed).toBe(2);
+    expect(first.created).toBe(4); // 2 check-in prep + 2 cleaning
+    expect(await prisma.task.count()).toBe(4);
+
+    // Re-running must not duplicate tasks.
+    const second = await backfillReservationTasks(orgId);
+    expect(second.processed).toBe(2);
+    expect(second.created).toBe(0);
+    expect(await prisma.task.count()).toBe(4);
+  });
+
+  it("creates only a cleaning task for a stay that ends today but started in the past", async () => {
+    const { orgId, propertyId } = await makeOrgWithProperty();
+    await prisma.reservation.create({
+      data: {
+        propertyId,
+        guestName: "Checkout Today",
+        arrivalDate: daysFromNow(-3),
+        departureDate: daysFromNow(0), // departs today → still actionable
+        status: "confirmed",
+      },
+    });
+
+    const result = await backfillReservationTasks(orgId);
+    expect(result.created).toBe(1);
+    const tasks = await prisma.task.findMany();
+    expect(tasks).toHaveLength(1);
+    expect(tasks[0].type).toBe("cleaning");
   });
 });
 

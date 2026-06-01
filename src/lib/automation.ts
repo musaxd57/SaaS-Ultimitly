@@ -15,9 +15,9 @@ import {
  * Create the standard check-in prep + checkout cleaning tasks for a reservation.
  * Idempotent: skips entirely if the reservation already has tasks (so it is safe
  * to call on every iCal re-sync). Past-dated stays are ignored — only upcoming
- * arrivals/departures generate work.
+ * arrivals/departures generate work. Returns the number of tasks created.
  */
-export async function createReservationTasks(reservationId: string): Promise<void> {
+export async function createReservationTasks(reservationId: string): Promise<number> {
   const r = await prisma.reservation.findUnique({
     where: { id: reservationId },
     select: {
@@ -29,11 +29,11 @@ export async function createReservationTasks(reservationId: string): Promise<voi
       status: true,
     },
   });
-  if (!r || r.status === "cancelled") return;
+  if (!r || r.status === "cancelled") return 0;
 
   // Already has tasks → don't duplicate (handles repeated syncs).
   const existing = await prisma.task.count({ where: { reservationId: r.id } });
-  if (existing > 0) return;
+  if (existing > 0) return 0;
 
   const todayStart = startOfDay(new Date());
   const data: {
@@ -72,8 +72,34 @@ export async function createReservationTasks(reservationId: string): Promise<voi
     });
   }
 
-  if (data.length === 0) return;
+  if (data.length === 0) return 0;
   await prisma.task.createMany({ data });
+  return data.length;
+}
+
+/**
+ * Backfill tasks for every existing reservation in an organization.
+ * Used when reservations were imported (e.g. via iCal) before task automation
+ * existed. Idempotent: createReservationTasks skips reservations that already
+ * have tasks and ignores past-dated stays. Returns how many were processed and
+ * how many tasks were actually created.
+ */
+export async function backfillReservationTasks(
+  organizationId: string,
+): Promise<{ processed: number; created: number }> {
+  const reservations = await prisma.reservation.findMany({
+    where: {
+      property: { organizationId },
+      status: { not: "cancelled" },
+    },
+    select: { id: true },
+  });
+
+  let created = 0;
+  for (const r of reservations) {
+    created += await createReservationTasks(r.id);
+  }
+  return { processed: reservations.length, created };
 }
 
 /** Reservation created → prepare check-in & checkout cleaning tasks + notify owners. */

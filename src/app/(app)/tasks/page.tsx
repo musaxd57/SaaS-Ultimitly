@@ -6,6 +6,7 @@ import { PageHeader } from "@/components/page-header";
 import { LinkButton } from "@/components/ui/link-button";
 import { EmptyState } from "@/components/empty-state";
 import { TaskBoard, type TaskCardData } from "@/components/tasks/task-board";
+import { BackfillTasksButton } from "@/components/tasks/backfill-button";
 import { formatDateTime, safeJsonParse, cn } from "@/lib/utils";
 
 export const dynamic = "force-dynamic";
@@ -68,6 +69,7 @@ export default async function TasksPage({
   return (
     <>
       <PageHeader title="Görevler" description="Temizlik, bakım ve check-in görevlerini yönetin.">
+        <BackfillTasksButton />
         <LinkButton href="/tasks/new">
           <Plus className="size-4" /> Yeni görev
         </LinkButton>
@@ -107,7 +109,7 @@ export default async function TasksPage({
         <EmptyState
           icon={ListChecks}
           title="Görev yok"
-          description="Yeni görev ekleyin. Rezervasyon oluşturduğunuzda otomatik görevler de açılır."
+          description="Mevcut rezervasyonlarınız için görev oluşturmak üzere yukarıdaki “Rezervasyonlardan oluştur” düğmesine basın. Yeni rezervasyonlarda görevler otomatik açılır."
         >
           <LinkButton href="/tasks/new" size="sm">
             <Plus className="size-4" /> Görev ekle
