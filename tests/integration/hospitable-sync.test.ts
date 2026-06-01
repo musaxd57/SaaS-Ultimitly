@@ -57,7 +57,7 @@ describe("syncHospitable", () => {
 
     const result = await syncHospitable(orgId);
 
-    expect(result).toEqual({ properties: 1, reservations: 0, conversations: 1, messages: 2 });
+    expect(result).toEqual({ properties: 1, conversations: 1, messages: 2 });
 
     // Adopted the existing property by name — no duplicate.
     expect(await prisma.property.count({ where: { organizationId: orgId } })).toBe(1);
@@ -136,61 +136,5 @@ describe("syncHospitable", () => {
     await syncHospitable(orgId);
     conv = await prisma.conversation.findFirst({ where: { externalReservationId: "res-2" } });
     expect(conv?.status).toBe("closed");
-  });
-
-  describe("reservation → calendar sync (ENABLE_RESERVATION_SYNC=1)", () => {
-    beforeEach(() => {
-      vi.stubEnv("ENABLE_RESERVATION_SYNC", "1");
-    });
-
-    it("upserts reservations with check-in/out and is idempotent", async () => {
-      const { orgId } = await makeOrgWithProperty(); // "Test Property"
-      mockProperties.mockResolvedValue([{ id: "hp", name: "Test Property" }]);
-      mockReservations.mockResolvedValue([
-        {
-          id: "res-cal-1",
-          code: "HMCAL",
-          platform: "booking",
-          status: "confirmed",
-          check_in: "2026-06-10",
-          check_out: "2026-06-13",
-          guest: { full_name: "Cal Guest", email: "cal@example.com" },
-          total_price: 420,
-          currency: "EUR",
-          last_message_at: null,
-        },
-      ]);
-
-      const result = await syncHospitable(orgId);
-      expect(result.reservations).toBe(1);
-
-      const res = await prisma.reservation.findFirst({ where: { sourceReference: "res-cal-1" } });
-      expect(res).toMatchObject({
-        guestName: "Cal Guest",
-        guestEmail: "cal@example.com",
-        channel: "booking",
-        status: "confirmed",
-        totalAmount: 420,
-        currency: "EUR",
-      });
-      expect(res?.arrivalDate.toISOString().slice(0, 10)).toBe("2026-06-10");
-      expect(res?.departureDate.toISOString().slice(0, 10)).toBe("2026-06-13");
-
-      // Re-sync updates in place — no duplicate row.
-      await syncHospitable(orgId);
-      expect(await prisma.reservation.count({ where: { sourceReference: "res-cal-1" } })).toBe(1);
-    });
-
-    it("skips reservations without valid check-in/out dates", async () => {
-      const { orgId } = await makeOrgWithProperty();
-      mockProperties.mockResolvedValue([{ id: "hp", name: "Test Property" }]);
-      mockReservations.mockResolvedValue([
-        { id: "res-nodate", platform: "airbnb", last_message_at: null },
-      ]);
-
-      const result = await syncHospitable(orgId);
-      expect(result.reservations).toBe(0);
-      expect(await prisma.reservation.count()).toBe(0);
-    });
   });
 });

@@ -27,7 +27,6 @@ import {
 
 export interface SyncResult {
   properties: number; // properties linked or created
-  reservations: number; // reservations upserted (calendar)
   conversations: number; // conversations created or updated
   messages: number; // new messages imported
 }
@@ -66,28 +65,8 @@ function senderFullName(m: HospitableMessage): string | null {
 
 // ---------------------------------------------------------------------------
 
-// Serialise sync runs across the process. The scheduled cron and a manual
-// "pull messages" click can fire at the same time; running them concurrently
-// against SQLite caused write contention. This chain makes every syncHospitable
-// call wait for the previous one to finish, so there is only ever one in
-// flight. (Railway runs a single replica, so an in-process lock is sufficient.)
-let syncChain: Promise<unknown> = Promise.resolve();
-
-export function syncHospitable(organizationId: string): Promise<SyncResult> {
-  const run = syncChain.then(
-    () => runSync(organizationId),
-    () => runSync(organizationId),
-  );
-  // Keep the chain alive regardless of this run's outcome.
-  syncChain = run.then(
-    () => undefined,
-    () => undefined,
-  );
-  return run;
-}
-
-async function runSync(organizationId: string): Promise<SyncResult> {
-  const result: SyncResult = { properties: 0, reservations: 0, conversations: 0, messages: 0 };
+export async function syncHospitable(organizationId: string): Promise<SyncResult> {
+  const result: SyncResult = { properties: 0, conversations: 0, messages: 0 };
 
   // 1. Link/create properties.
   const hospitableProps = await listProperties();
@@ -110,23 +89,8 @@ async function runSync(organizationId: string): Promise<SyncResult> {
     }
 
     for (const reservation of reservations) {
-      if (!reservation.id) continue;
-
-      // Upsert the Reservation record so the calendar reflects Hospitable
-      // bookings. Disabled by default while we stabilise production — enable by
-      // setting ENABLE_RESERVATION_SYNC=1. Fully guarded so it can never abort
-      // the sync.
-      if (process.env.ENABLE_RESERVATION_SYNC === "1") {
-        try {
-          const saved = await upsertReservationCalendar(propertyId, reservation);
-          if (saved) result.reservations++;
-        } catch (err) {
-          console.error(`[Hospitable sync] reservation upsert failed for ${reservation.id}`, err);
-        }
-      }
-
-      // Message thread sync — only when there is a conversation.
-      if (!reservation.last_message_at) continue;
+      // Only reservations that actually have a conversation thread.
+      if (!reservation.last_message_at || !reservation.id) continue;
 
       let messages: HospitableMessage[];
       try {
@@ -137,100 +101,13 @@ async function runSync(organizationId: string): Promise<SyncResult> {
       }
       if (messages.length === 0) continue;
 
-      try {
-        const imported = await importThread(propertyId, reservation, messages);
-        result.conversations++;
-        result.messages += imported;
-      } catch (err) {
-        console.error(`[Hospitable sync] thread import failed for ${reservation.id}`, err);
-      }
+      const imported = await importThread(propertyId, reservation, messages);
+      result.conversations++;
+      result.messages += imported;
     }
   }
 
   return result;
-}
-
-/** Upsert a Reservation row so the calendar reflects Hospitable bookings. */
-async function upsertReservationCalendar(
-  propertyId: string,
-  reservation: HospitableReservation,
-): Promise<boolean> {
-  const srcRef = String(reservation.id);
-  const arrivalDate = parseDate(reservation.check_in);
-  const departureDate = parseDate(reservation.check_out);
-  if (!arrivalDate || !departureDate) return false;
-
-  // Guard against a stale propertyId (FK safety): only write if the property
-  // really exists. Prevents "Foreign key constraint violated" from aborting
-  // the sync if the property map is out of date for any reason.
-  const propertyExists = await prisma.property.findUnique({
-    where: { id: propertyId },
-    select: { id: true },
-  });
-  if (!propertyExists) return false;
-
-  const g = reservation.guest;
-  const guestName =
-    str(g?.full_name) ??
-    str(g?.name) ??
-    (str(reservation.code) ? `Rezervasyon ${reservation.code}` : "Misafir");
-  const guestEmail = str(g?.email) ?? null;
-  const guestPhone = str(g?.phone) ?? null;
-
-  const channel = toChannel(reservation.platform);
-
-  const rawStatus = String(reservation.status ?? "confirmed").toLowerCase();
-  const status =
-    rawStatus === "cancelled"
-      ? "cancelled"
-      : rawStatus === "pending"
-        ? "pending"
-        : rawStatus === "completed" || rawStatus === "checked_out"
-          ? "completed"
-          : "confirmed";
-
-  const totalAmount =
-    typeof reservation.total_price === "number" ? reservation.total_price : null;
-  const currency = str(reservation.currency) ?? "EUR";
-
-  const existing = await prisma.reservation.findFirst({
-    where: { propertyId, sourceReference: srcRef },
-    select: { id: true },
-  });
-
-  if (existing) {
-    await prisma.reservation.update({
-      where: { id: existing.id },
-      data: {
-        guestName,
-        ...(guestEmail !== null ? { guestEmail } : {}),
-        ...(guestPhone !== null ? { guestPhone } : {}),
-        arrivalDate,
-        departureDate,
-        channel,
-        status,
-        ...(totalAmount !== null ? { totalAmount, currency } : {}),
-      },
-    });
-  } else {
-    await prisma.reservation.create({
-      data: {
-        propertyId,
-        guestName,
-        guestEmail: guestEmail ?? undefined,
-        guestPhone: guestPhone ?? undefined,
-        arrivalDate,
-        departureDate,
-        channel,
-        status,
-        totalAmount: totalAmount ?? undefined,
-        currency,
-        sourceReference: srcRef,
-      },
-    });
-  }
-
-  return true;
 }
 
 /** Link a Hospitable property to an existing Property (by id, then name) or create one. */

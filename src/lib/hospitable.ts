@@ -180,22 +180,6 @@ export async function listProperties(): Promise<HospitableProperty[]> {
 // reports their shape so the sync mapping can be written precisely.
 export interface HospitableReservation {
   id: string;
-  code?: string;
-  check_in?: string;
-  check_out?: string;
-  platform?: string;
-  status?: string;
-  guest?: {
-    name?: string;
-    full_name?: string;
-    email?: string;
-    phone?: string;
-  };
-  total_price?: number;
-  currency?: string;
-  last_message_at?: string | null;
-  conversation_id?: string | number;
-  conversation_language?: string;
   [key: string]: unknown;
 }
 

@@ -3,7 +3,7 @@ import { PrismaClient } from "@prisma/client";
 // Prevent multiple Prisma instances during dev hot-reload.
 const globalForPrisma = globalThis as unknown as {
   prisma: PrismaClient | undefined;
-  sqliteTuned: boolean | undefined;
+  journalReset: boolean | undefined;
 };
 
 export const prisma =
@@ -16,20 +16,19 @@ if (process.env.NODE_ENV !== "production") {
   globalForPrisma.prisma = prisma;
 }
 
-// Tune SQLite for concurrent access. WAL lets readers and a writer proceed at
-// the same time (instead of blocking), and busy_timeout makes a contended
-// write wait briefly rather than fail with "database is locked". Both are
-// persistent/connection-level no-ops to re-run, so doing this once on startup
-// is safe. Fire-and-forget: errors (e.g. non-SQLite engines) are ignored.
-if (!globalForPrisma.sqliteTuned) {
-  globalForPrisma.sqliteTuned = true;
+// Ensure the database uses the standard rollback journal, NOT WAL. A previous
+// build briefly switched the database to WAL mode, which this host's volume
+// does not support reliably — reads and writes started failing. Switching back
+// to DELETE here also performs a checkpoint, flushing any rows still sitting in
+// the -wal sidecar file back into the main database (so no committed data is
+// lost). Idempotent and a no-op once the database is already in DELETE mode.
+if (!globalForPrisma.journalReset) {
+  globalForPrisma.journalReset = true;
   void (async () => {
     try {
-      await prisma.$executeRawUnsafe("PRAGMA busy_timeout = 5000;");
-      await prisma.$executeRawUnsafe("PRAGMA journal_mode = WAL;");
+      await prisma.$executeRawUnsafe("PRAGMA journal_mode = DELETE;");
     } catch {
-      // Not fatal — the app works without the tuning.
+      // Not fatal — ignore on non-SQLite engines or if already set.
     }
   })();
 }
-
