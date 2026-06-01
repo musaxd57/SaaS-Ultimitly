@@ -24,12 +24,9 @@ model Organization {
   plan      String   @default("free") // free | pro | business
   timezone  String   @default("Europe/Istanbul")
   language  String   @default("tr") // default UI/AI language
-  // When true, safe/high-confidence WhatsApp guest messages are answered
-  // automatically by the AI; complaints and risky messages always wait for a human.
-  autoReplyWhatsapp Boolean @default(false)
-  // Same idea for channel (Airbnb / Booking via Hospitable) conversations, but
-  // gated to an active-hours window (below) in the org timezone. Sends only
-  // safe, high-confidence drafts; complaints/risky messages always wait.
+  // When true, safe/high-confidence channel (Airbnb / Booking via Hospitable)
+  // guest messages are auto-answered; gated to active-hours window in org timezone.
+  // Complaints and risky messages always wait for a human.
   autoReplyHospitable Boolean @default(false)
   autoReplyStartHour  Int     @default(0) // window start hour 0-23 (inclusive)
   autoReplyEndHour    Int     @default(9) // window end hour 0-23 (exclusive)

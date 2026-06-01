@@ -4,7 +4,7 @@ import { requireSession, unauthorized, badRequest, jsonOk, serverError } from "@
 
 // Organization-level settings the UI can toggle. Booleans are the auto-reply
 // switches; the two hour fields define the channel auto-reply active window.
-const BOOLEAN_FIELDS = ["autoReplyWhatsapp", "autoReplyHospitable"] as const;
+const BOOLEAN_FIELDS = ["autoReplyHospitable"] as const;
 const HOUR_FIELDS = ["autoReplyStartHour", "autoReplyEndHour"] as const;
 
 /** Update organization-level settings (auto-reply toggles + active-hours window). */

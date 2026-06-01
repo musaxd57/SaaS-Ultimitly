@@ -38,7 +38,6 @@ export default async function InboxPage({
     prisma.organization.findUnique({
       where: { id: session.organizationId },
       select: {
-        autoReplyWhatsapp: true,
         autoReplyHospitable: true,
         autoReplyStartHour: true,
         autoReplyEndHour: true,
@@ -62,12 +61,6 @@ export default async function InboxPage({
           label={`Gece oto-yanıt (${activeWindow})`}
           enabled={org?.autoReplyHospitable ?? false}
           title={`Açıkken: ${activeWindow} arası, güvenli ve emin olunan Airbnb/Booking mesajlarına AI otomatik cevap gönderir. Şikayet/riskli mesajlar her zaman size kalır. "Mesajları çek" sırasında çalışır.`}
-        />
-        <AutoReplyToggle
-          field="autoReplyWhatsapp"
-          label="WhatsApp oto-yanıt"
-          enabled={org?.autoReplyWhatsapp ?? false}
-          title="Açıkken: güvenli ve emin olunan WhatsApp mesajlarına AI otomatik cevap verir. Şikayet/riskli mesajlar her zaman size kalır."
         />
         <LinkButton href="/inbox/new">
           <Plus className="size-4" /> Yeni konuşma

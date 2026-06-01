@@ -6,11 +6,9 @@ import { Bot, Loader2 } from "lucide-react";
 import { cn } from "@/lib/utils";
 
 /**
- * Toggle an organization AI auto-reply switch. Generic over the settings field
- * (`autoReplyWhatsapp` for WhatsApp, `autoReplyHospitable` for channel/night
- * auto-reply) so the same control serves both. When on, safe and high-confidence
- * guest messages are answered automatically; complaints and risky messages still
- * wait for a human.
+ * Toggle the Airbnb/Booking channel night auto-reply switch.
+ * When on, safe and high-confidence guest messages inside the active-hours window
+ * are answered automatically; complaints and risky messages still wait for a human.
  */
 export function AutoReplyToggle({
   field,
@@ -18,7 +16,7 @@ export function AutoReplyToggle({
   enabled,
   title,
 }: {
-  field: "autoReplyWhatsapp" | "autoReplyHospitable";
+  field: "autoReplyHospitable";
   label: string;
   enabled: boolean;
   title?: string;

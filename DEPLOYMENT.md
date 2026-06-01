@@ -41,7 +41,7 @@ Servis → **Variables** → her birini ekle:
 | `NODE_ENV` | `production` |
 
 > `PORT`'u **elle ekleme** — Railway otomatik verir, Next.js onu kullanır.
-> İstersen e-posta/WhatsApp için `.env.example`'daki diğer değişkenleri de ekleyebilirsin (opsiyonel).
+> İstersen e-posta için `.env.example`'daki `EMAIL_*` değişkenlerini de ekleyebilirsin (opsiyonel — boş bırakırsan konsola yazar).
 
 ## 4) Deploy + alan adı (domain)
 

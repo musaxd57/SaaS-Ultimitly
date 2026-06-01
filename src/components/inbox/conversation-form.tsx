@@ -12,7 +12,6 @@ import { PRIORITY } from "@/lib/constants";
 
 const CHANNELS = [
   { value: "manual", label: "Manuel" },
-  { value: "whatsapp", label: "WhatsApp" },
   { value: "email", label: "E-posta" },
   { value: "airbnb", label: "Airbnb" },
   { value: "booking", label: "Booking" },
@@ -36,7 +35,7 @@ export function ConversationForm({
     propertyId: properties[0]?.id ?? "",
     reservationId: "",
     guestIdentifier: "",
-    channel: "whatsapp",
+    channel: "manual",
     priority: "standard",
     firstMessage: "",
   });
