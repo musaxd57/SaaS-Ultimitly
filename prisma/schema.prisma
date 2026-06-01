@@ -73,8 +73,27 @@ model Property {
   tasks            Task[]
   knowledgeBase    KnowledgeBaseItem[]
   messageTemplates MessageTemplate[]
+  calendarSources  CalendarSource[]
 
   @@index([organizationId])
+}
+
+// A subscribed external iCal URL (Airbnb, Booking.com, etc.) that is fetched
+// periodically to pull reservations into the property automatically.
+model CalendarSource {
+  id           String    @id @default(cuid())
+  propertyId   String
+  label        String    // "Airbnb", "Booking.com", "Etstur" ...
+  url          String
+  lastSyncedAt DateTime?
+  lastStatus   String? // "ok" | "error"
+  lastResult   String? // human-readable summary of the last sync
+  createdAt    DateTime  @default(now())
+  updatedAt    DateTime  @updatedAt
+
+  property Property @relation(fields: [propertyId], references: [id], onDelete: Cascade)
+
+  @@index([propertyId])
 }
 
 model Reservation {

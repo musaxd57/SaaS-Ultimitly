@@ -1,7 +1,7 @@
 import Link from "next/link";
 import { headers } from "next/headers";
 import { notFound } from "next/navigation";
-import { ArrowLeft, BookOpen, CalendarDays, CalendarSync } from "lucide-react";
+import { ArrowLeft, BookOpen, CalendarDays, CalendarSync, ArrowDownToLine } from "lucide-react";
 import { requireAuth } from "@/lib/auth";
 import { prisma } from "@/lib/db";
 import { PageHeader } from "@/components/page-header";
@@ -11,6 +11,7 @@ import { LinkButton } from "@/components/ui/link-button";
 import { DeleteButton } from "@/components/delete-button";
 import { PropertyForm } from "@/components/properties/property-form";
 import { CalendarFeed } from "@/components/properties/calendar-feed";
+import { CalendarSources } from "@/components/properties/calendar-sources";
 import { generateCalendarToken } from "@/lib/export/ics";
 import { KB_CATEGORY, RESERVATION_STATUS } from "@/lib/constants";
 import { formatDate } from "@/lib/utils";
@@ -29,6 +30,7 @@ export default async function PropertyDetailPage({
     include: {
       knowledgeBase: { where: { isActive: true }, orderBy: { category: "asc" } },
       reservations: { orderBy: { arrivalDate: "desc" }, take: 5 },
+      calendarSources: { orderBy: { createdAt: "asc" } },
     },
   });
   if (!property) notFound();
@@ -86,7 +88,28 @@ export default async function PropertyDetailPage({
           <Card>
             <CardHeader>
               <CardTitle className="flex items-center gap-2 text-base">
-                <CalendarSync className="size-4 text-muted-foreground" /> Takvim Senkronizasyonu
+                <ArrowDownToLine className="size-4 text-muted-foreground" /> Kanal Takvimleri (içe aktar)
+              </CardTitle>
+            </CardHeader>
+            <CardContent>
+              <CalendarSources
+                propertyId={property.id}
+                sources={property.calendarSources.map((s) => ({
+                  id: s.id,
+                  label: s.label,
+                  url: s.url,
+                  lastSyncedAt: s.lastSyncedAt ? s.lastSyncedAt.toISOString() : null,
+                  lastStatus: s.lastStatus,
+                  lastResult: s.lastResult,
+                }))}
+              />
+            </CardContent>
+          </Card>
+
+          <Card>
+            <CardHeader>
+              <CardTitle className="flex items-center gap-2 text-base">
+                <CalendarSync className="size-4 text-muted-foreground" /> Takvim Senkronizasyonu (dışa aktar)
               </CardTitle>
             </CardHeader>
             <CardContent>
