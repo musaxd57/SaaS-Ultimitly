@@ -547,11 +547,15 @@ export async function runDueChannelAutoReplies(
   }
 
   // "new" = the guest spoke last and we haven't answered (see hospitable-sync).
+  // Only answer FRESH messages (last 48h): when auto-reply is first enabled we
+  // must not blast late replies at a days-old backlog of unanswered chats.
+  const freshSince = new Date(Date.now() - 48 * 60 * 60 * 1000);
   const candidates = await prisma.conversation.findMany({
     where: {
       property: { organizationId },
       externalReservationId: { not: null },
       status: "new",
+      lastMessageAt: { gte: freshSince },
     },
     select: { id: true },
   });

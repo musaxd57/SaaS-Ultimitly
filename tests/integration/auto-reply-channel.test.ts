@@ -9,6 +9,7 @@ import { suggestReply } from "@/lib/ai";
 import { sendOnChannel } from "@/lib/messaging";
 import {
   applyChannelAutoReply,
+  runDueChannelAutoReplies,
   previewChannelAutoReplies,
   sendDueWelcomes,
   previewWelcomes,
@@ -223,6 +224,25 @@ describe("applyChannelAutoReply", () => {
   it("skips manual conversations with no channel target", async () => {
     const { conversationId } = await seed({ externalReservationId: null });
     expect((await applyChannelAutoReply(conversationId)).skippedReason).toBe("no_external_target");
+  });
+
+  it("runDueChannelAutoReplies answers a fresh 'new' chat", async () => {
+    const { orgId } = await seed(); // lastMessageAt defaults to now
+    const out = await runDueChannelAutoReplies(orgId);
+    expect(out.sent).toBe(1);
+    expect(mockSend).toHaveBeenCalledTimes(1);
+  });
+
+  it("runDueChannelAutoReplies ignores a days-old backlog (only fresh < 48h)", async () => {
+    const { orgId, conversationId } = await seed();
+    await prisma.conversation.update({
+      where: { id: conversationId },
+      data: { lastMessageAt: new Date(Date.now() - 3 * 24 * 60 * 60 * 1000) },
+    });
+    const out = await runDueChannelAutoReplies(orgId);
+    expect(out.considered).toBe(0); // old chat isn't even a candidate
+    expect(out.sent).toBe(0);
+    expect(mockSend).not.toHaveBeenCalled();
   });
 });
 
