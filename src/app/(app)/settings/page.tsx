@@ -3,16 +3,24 @@ import { prisma } from "@/lib/db";
 import { PageHeader } from "@/components/page-header";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { AiVoiceForm } from "@/components/settings/ai-voice-form";
+import { BulkTimesForm } from "@/components/settings/bulk-times-form";
 import { AutoReplyToggle } from "@/components/inbox/auto-reply-toggle";
 
 export const dynamic = "force-dynamic";
 
 export default async function SettingsPage() {
   const session = await requireAuth();
-  const org = await prisma.organization.findUnique({
-    where: { id: session.organizationId },
-    select: { aiReplyTone: true, aiSignature: true, autoWelcome: true },
-  });
+  const [org, sampleProperty] = await Promise.all([
+    prisma.organization.findUnique({
+      where: { id: session.organizationId },
+      select: { aiReplyTone: true, aiSignature: true, autoWelcome: true },
+    }),
+    prisma.property.findFirst({
+      where: { organizationId: session.organizationId },
+      select: { checkInTime: true, checkOutTime: true },
+      orderBy: { createdAt: "asc" },
+    }),
+  ]);
 
   return (
     <>
@@ -22,6 +30,11 @@ export default async function SettingsPage() {
       />
 
       <AiVoiceForm tone={org?.aiReplyTone ?? "warm"} signature={org?.aiSignature ?? ""} />
+
+      <BulkTimesForm
+        defaultCheckIn={sampleProperty?.checkInTime ?? "14:00"}
+        defaultCheckOut={sampleProperty?.checkOutTime ?? "11:00"}
+      />
 
       <Card className="max-w-2xl">
         <CardHeader>
