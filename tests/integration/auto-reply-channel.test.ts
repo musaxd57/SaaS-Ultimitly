@@ -11,6 +11,7 @@ import {
   applyChannelAutoReply,
   previewChannelAutoReplies,
   sendDueWelcomes,
+  previewWelcomes,
   isWithinActiveHours,
   currentHourInTimeZone,
 } from "@/lib/automation";
@@ -369,5 +370,28 @@ describe("sendDueWelcomes", () => {
     const { orgId } = await seedWelcome({ arrival: past });
     expect((await sendDueWelcomes(orgId)).sent).toBe(0);
     expect(mockSend).not.toHaveBeenCalled();
+  });
+
+  it("previewWelcomes builds the text without sending, regardless of toggles", async () => {
+    // autoWelcome off + no kill-switch → preview still works, sends nothing.
+    vi.stubEnv("AUTO_REPLY_ENABLED", "");
+    const { orgId } = await seedWelcome({
+      autoWelcome: false,
+      content: "Merhaba {isim}👋\n\nDaire 4",
+    });
+    const previews = await previewWelcomes(orgId);
+
+    expect(previews).toHaveLength(1);
+    expect(previews[0]).toMatchObject({ guest: "Bircan Yılmaz", hasEntry: true, alreadySent: false });
+    expect(previews[0].body).toBe("Merhaba Bircan👋\n\nDaire 4");
+    expect(mockSend).not.toHaveBeenCalled();
+  });
+
+  it("previewWelcomes flags apartments missing a welcome entry", async () => {
+    const { orgId } = await seedWelcome({ withEntry: false });
+    const previews = await previewWelcomes(orgId);
+    expect(previews).toHaveLength(1);
+    expect(previews[0].hasEntry).toBe(false);
+    expect(previews[0].body).toBeNull();
   });
 });

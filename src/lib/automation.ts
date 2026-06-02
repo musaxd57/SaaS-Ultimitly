@@ -568,7 +568,22 @@ function guestFirstName(name: string): string | null {
 
 // Placeholder the host can drop into a welcome template — {isim} / {ad} / {name}
 // — replaced with the guest's first name when the message is sent.
-const NAME_PLACEHOLDER = /\{\s*(isim|ad|name)\s*\}/gi;
+function hasNamePlaceholder(s: string): boolean {
+  return /\{\s*(isim|ad|name)\s*\}/i.test(s); // fresh, non-global → no lastIndex footgun
+}
+
+/**
+ * Build the welcome message body. If the host's template contains a {isim}
+ * placeholder, substitute the name and send it verbatim (their own greeting +
+ * sign-off). Otherwise prepend a greeting and append the org signature.
+ */
+function buildWelcomeBody(content: string, firstName: string, signature?: string): string {
+  const trimmed = content.trim();
+  if (hasNamePlaceholder(trimmed)) {
+    return trimmed.replace(/\{\s*(isim|ad|name)\s*\}/gi, firstName);
+  }
+  return [`Merhaba ${firstName},`, "", trimmed, ...(signature ? ["", signature] : [])].join("\n");
+}
 
 /**
  * Send the per-apartment welcome message for upcoming reservations that haven't
@@ -618,18 +633,7 @@ export async function sendDueWelcomes(
     if (!welcome) continue; // this apartment has no welcome text → skip
 
     const firstName = guestFirstName(r.guestName) ?? r.guestName;
-    const content = welcome.content.trim();
-    let body: string;
-    if (NAME_PLACEHOLDER.test(content)) {
-      // The host wrote their own greeting with a {isim} placeholder — substitute
-      // the guest's name and send the template exactly as written (their own
-      // sign-off included; we don't append the org signature).
-      body = content.replace(NAME_PLACEHOLDER, firstName);
-    } else {
-      // No placeholder — prepend a greeting and append the signature.
-      const greeting = `Merhaba ${firstName},`;
-      body = [greeting, "", content, ...(signature ? ["", signature] : [])].join("\n");
-    }
+    const body = buildWelcomeBody(welcome.content, firstName, signature);
 
     const delivery = await sendOnChannel(
       {
@@ -649,6 +653,69 @@ export async function sendDueWelcomes(
   }
 
   return { sent, considered: reservations.length };
+}
+
+export interface WelcomePreview {
+  guest: string;
+  property: string;
+  hasEntry: boolean;
+  alreadySent: boolean;
+  body: string | null;
+}
+
+/**
+ * Preview the welcome message for upcoming reservations WITHOUT sending — the
+ * exact text that would go out (placeholder substituted). Ignores the on/off
+ * toggles so the host can review quality before going live. Flags apartments
+ * that are missing a welcome entry and reservations already welcomed.
+ */
+export async function previewWelcomes(
+  organizationId: string,
+  limit = 12,
+): Promise<WelcomePreview[]> {
+  const org = await prisma.organization.findUnique({
+    where: { id: organizationId },
+    select: { aiSignature: true },
+  });
+  const signature = org?.aiSignature?.trim();
+
+  const now = new Date();
+  const horizon = new Date(now.getTime() + 45 * 24 * 60 * 60 * 1000);
+
+  const reservations = await prisma.reservation.findMany({
+    where: {
+      property: { organizationId },
+      status: "confirmed",
+      sourceReference: { not: null },
+      arrivalDate: { gte: startOfDay(now), lte: horizon },
+    },
+    select: {
+      guestName: true,
+      propertyId: true,
+      welcomeSentAt: true,
+      property: { select: { name: true } },
+    },
+    orderBy: { arrivalDate: "asc" },
+    take: limit,
+  });
+
+  const previews: WelcomePreview[] = [];
+  for (const r of reservations) {
+    const welcome = await prisma.knowledgeBaseItem.findFirst({
+      where: { propertyId: r.propertyId, category: "welcome", isActive: true },
+      select: { content: true },
+      orderBy: { updatedAt: "desc" },
+    });
+    const firstName = guestFirstName(r.guestName) ?? r.guestName;
+    previews.push({
+      guest: r.guestName,
+      property: r.property.name,
+      hasEntry: Boolean(welcome),
+      alreadySent: Boolean(r.welcomeSentAt),
+      body: welcome ? buildWelcomeBody(welcome.content, firstName, signature) : null,
+    });
+  }
+  return previews;
 }
 
 /**

@@ -4,6 +4,7 @@ import { PageHeader } from "@/components/page-header";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { AiVoiceForm } from "@/components/settings/ai-voice-form";
 import { BulkTimesForm } from "@/components/settings/bulk-times-form";
+import { WelcomeTestButton } from "@/components/settings/welcome-test-button";
 import { AutoReplyToggle } from "@/components/inbox/auto-reply-toggle";
 
 export const dynamic = "force-dynamic";
@@ -49,12 +50,15 @@ export default async function SettingsPage() {
             &quot;Merhaba Bircan👋&quot;). Karşılama girişi olmayan daireler atlanır; sadece
             yaklaşan rezervasyonlara gider.
           </p>
-          <AutoReplyToggle
-            field="autoWelcome"
-            label="Otomatik karşılama"
-            enabled={org?.autoWelcome ?? false}
-            title="Açıkken: yaklaşan rezervasyon onaylarında, o dairenin karşılama mesajı misafire bir kez otomatik gider. Güvenlik ana şalteri (AUTO_REPLY_ENABLED) da açık olmalı."
-          />
+          <div className="flex flex-wrap items-center gap-3">
+            <AutoReplyToggle
+              field="autoWelcome"
+              label="Otomatik karşılama"
+              enabled={org?.autoWelcome ?? false}
+              title="Açıkken: yaklaşan rezervasyon onaylarında, o dairenin karşılama mesajı misafire bir kez otomatik gider. Güvenlik ana şalteri (AUTO_REPLY_ENABLED) da açık olmalı."
+            />
+            <WelcomeTestButton />
+          </div>
         </CardContent>
       </Card>
     </>
