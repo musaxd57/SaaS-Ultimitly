@@ -5,6 +5,7 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { AiVoiceForm } from "@/components/settings/ai-voice-form";
 import { BulkTimesForm } from "@/components/settings/bulk-times-form";
 import { WelcomeTestButton } from "@/components/settings/welcome-test-button";
+import { NightHoursForm } from "@/components/settings/night-hours-form";
 import { AutoReplyToggle } from "@/components/inbox/auto-reply-toggle";
 
 export const dynamic = "force-dynamic";
@@ -14,7 +15,13 @@ export default async function SettingsPage() {
   const [org, sampleProperty] = await Promise.all([
     prisma.organization.findUnique({
       where: { id: session.organizationId },
-      select: { aiReplyTone: true, aiSignature: true, autoWelcome: true },
+      select: {
+        aiReplyTone: true,
+        aiSignature: true,
+        autoWelcome: true,
+        autoReplyStartHour: true,
+        autoReplyEndHour: true,
+      },
     }),
     prisma.property.findFirst({
       where: { organizationId: session.organizationId },
@@ -61,6 +68,11 @@ export default async function SettingsPage() {
           </div>
         </CardContent>
       </Card>
+
+      <NightHoursForm
+        startHour={org?.autoReplyStartHour ?? 0}
+        endHour={org?.autoReplyEndHour ?? 9}
+      />
     </>
   );
 }
