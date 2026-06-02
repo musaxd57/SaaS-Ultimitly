@@ -388,6 +388,16 @@ export async function applyChannelAutoReply(
   if (!conversation.externalReservationId) return { sent: false, skippedReason: "no_external_target", ...meta };
   // A complaint has already escalated to a human — never auto-reply to it.
   if (conversation.status === "problem") return { sent: false, skippedReason: "complaint", ...meta };
+  // The guest's stay is over (or the booking was cancelled) — the AI has no
+  // business replying to a finished reservation.
+  if (conversation.reservation) {
+    if (conversation.reservation.status === "cancelled") {
+      return { sent: false, skippedReason: "reservation_ended", ...meta };
+    }
+    if (conversation.reservation.departureDate < startOfDay(new Date())) {
+      return { sent: false, skippedReason: "reservation_ended", ...meta };
+    }
+  }
 
   if (!options.ignoreToggle && !org.autoReplyHospitable) {
     return { sent: false, skippedReason: "disabled", ...meta };

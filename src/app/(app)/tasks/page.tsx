@@ -1,9 +1,10 @@
 import Link from "next/link";
-import { ListChecks, Plus } from "lucide-react";
+import { ListChecks, Plus, Sparkles } from "lucide-react";
 import { requireAuth } from "@/lib/auth";
 import { prisma } from "@/lib/db";
 import { PageHeader } from "@/components/page-header";
 import { LinkButton } from "@/components/ui/link-button";
+import { Card, CardContent } from "@/components/ui/card";
 import { EmptyState } from "@/components/empty-state";
 import { TaskBoard, type TaskCardData } from "@/components/tasks/task-board";
 import { BackfillTasksButton } from "@/components/tasks/backfill-button";
@@ -74,6 +75,24 @@ export default async function TasksPage({
           <Plus className="size-4" /> Yeni görev
         </LinkButton>
       </PageHeader>
+
+      <Card className="border-primary/20 bg-accent/40">
+        <CardContent className="flex gap-3 p-5">
+          <div className="flex size-9 shrink-0 items-center justify-center rounded-lg bg-primary text-primary-foreground">
+            <Sparkles className="size-5" />
+          </div>
+          <div className="space-y-1 text-sm">
+            <p className="font-semibold">Görevleri AI yönetir</p>
+            <p className="text-muted-foreground">
+              Her yeni rezervasyonda AI otomatik olarak <strong>check-in hazırlık</strong> ve{" "}
+              <strong>çıkış temizliği</strong> görevlerini doğru tarihlerle açar. Mevcut
+              rezervasyonlarınız için “Rezervasyonlardan oluştur” düğmesini kullanın; ekibinize
+              atayın, fotoğraflı kontrol notu ekleyin, AI günlük operasyon özetinde bunları takip
+              etsin.
+            </p>
+          </div>
+        </CardContent>
+      </Card>
 
       {properties.length > 1 ? (
         <div className="flex flex-wrap gap-2">
