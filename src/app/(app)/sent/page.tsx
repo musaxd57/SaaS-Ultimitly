@@ -121,7 +121,7 @@ export default async function SentPage() {
                         it.kind === "welcome"
                           ? "success"
                           : it.kind === "checkout"
-                            ? "warning"
+                            ? "muted"
                             : "secondary"
                       }
                     >
