@@ -38,10 +38,21 @@ export async function POST(req: NextRequest, { params }: Params) {
       return badRequest({ _: "Öneri üretmek için bir misafir mesajı gerekli" });
     }
 
-    const kb = await prisma.knowledgeBaseItem.findMany({
+    const kbRaw = await prisma.knowledgeBaseItem.findMany({
       where: { propertyId: conversation.propertyId, isActive: true },
       select: { category: true, title: true, content: true },
     });
+    // Resolve any {isim} placeholder (e.g. in the welcome template) to the
+    // guest's name so a literal "{isim}" can never appear in the suggestion.
+    const firstWord = conversation.guestIdentifier?.trim().split(/\s+/)[0] ?? "";
+    const guestFirst =
+      !firstWord || firstWord === "Rezervasyon" || firstWord === "Misafir"
+        ? "misafirimiz"
+        : firstWord;
+    const kb = kbRaw.map((k) => ({
+      ...k,
+      content: k.content.replace(/\{\s*(isim|ad|name)\s*\}/gi, guestFirst),
+    }));
 
     const result = await suggestReply({
       guestMessage: lastInbound.body,
