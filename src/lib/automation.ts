@@ -658,6 +658,7 @@ export async function sendDueWelcomes(
       propertyId: true,
       arrivalDate: true,
     },
+    distinct: ["sourceReference"], // one message per booking, even if rows duplicated
     orderBy: { arrivalDate: "asc" },
     take: 25, // cap per run so enabling the toggle can't cause a huge burst
   });
@@ -689,8 +690,9 @@ export async function sendDueWelcomes(
     );
     if (!delivery.ok) continue; // try again next run; do not mark as sent
 
-    await prisma.reservation.update({
-      where: { id: r.id },
+    // Mark every row for this booking (handles any duplicate reservation rows).
+    await prisma.reservation.updateMany({
+      where: { sourceReference: r.sourceReference, property: { organizationId } },
       data: { welcomeSentAt: new Date() },
     });
     sent++;
@@ -739,6 +741,7 @@ export async function previewWelcomes(
       welcomeSentAt: true,
       property: { select: { name: true } },
     },
+    distinct: ["sourceReference"], // one card per booking
     orderBy: { arrivalDate: "asc" },
     take: limit,
   });
@@ -802,6 +805,7 @@ export async function sendDueCheckouts(
       propertyId: true,
       departureDate: true,
     },
+    distinct: ["sourceReference"], // one message per booking, even if rows duplicated
     orderBy: { departureDate: "asc" },
     take: 25,
   });
@@ -828,8 +832,9 @@ export async function sendDueCheckouts(
     );
     if (!delivery.ok) continue;
 
-    await prisma.reservation.update({
-      where: { id: r.id },
+    // Mark every row for this booking (handles any duplicate reservation rows).
+    await prisma.reservation.updateMany({
+      where: { sourceReference: r.sourceReference, property: { organizationId } },
       data: { checkoutSentAt: new Date() },
     });
     sent++;
@@ -864,6 +869,7 @@ export async function previewCheckouts(
       checkoutSentAt: true,
       property: { select: { name: true } },
     },
+    distinct: ["sourceReference"], // one card per booking
     orderBy: { departureDate: "asc" },
     take: limit,
   });
