@@ -2,7 +2,7 @@
 
 import { useState, useTransition } from "react";
 import { useRouter } from "next/navigation";
-import { Loader2, Plus, Trash2, Eye, EyeOff, Copy } from "lucide-react";
+import { Loader2, Plus, Trash2, Eye, EyeOff, Copy, Pencil, Check, X } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Select } from "@/components/ui/select";
@@ -142,6 +142,42 @@ export function KbManager({
     }
   }
 
+  // --- Edit an entry (category / title / content) --------------------------
+  const [editId, setEditId] = useState<string | null>(null);
+  const [editForm, setEditForm] = useState({ category: "general", title: "", content: "" });
+  const [editBusy, setEditBusy] = useState(false);
+  const [editError, setEditError] = useState<string | null>(null);
+
+  function startEdit(item: KbItem) {
+    setCopyId(null);
+    setEditId(item.id);
+    setEditForm({ category: item.category, title: item.title, content: item.content });
+    setEditError(null);
+  }
+
+  async function saveEdit(id: string) {
+    setEditBusy(true);
+    setEditError(null);
+    try {
+      const res = await fetch(`/api/kb/${id}`, {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(editForm),
+      });
+      const data = await res.json().catch(() => ({}));
+      if (!res.ok) {
+        setEditError(data.fields?.content ?? data.fields?.title ?? data.error ?? "Kaydedilemedi");
+        return;
+      }
+      setEditId(null);
+      refresh();
+    } catch {
+      setEditError("Bağlantı hatası.");
+    } finally {
+      setEditBusy(false);
+    }
+  }
+
   const grouped = properties
     .map((p) => ({ property: p, list: items.filter((i) => i.propertyId === p.id) }))
     .filter((g) => g.list.length > 0);
@@ -214,6 +250,17 @@ export function KbManager({
                         {!item.isActive ? <Badge tone="muted">Pasif</Badge> : null}
                       </div>
                       <div className="flex items-center gap-1">
+                        <button
+                          onClick={() => startEdit(item)}
+                          className={cn(
+                            "rounded p-1.5 text-muted-foreground hover:bg-accent",
+                            editId === item.id && "bg-accent text-foreground",
+                          )}
+                          aria-label="Düzenle"
+                          title="Düzenle"
+                        >
+                          <Pencil className="size-4" />
+                        </button>
                         {otherProps(item).length > 0 ? (
                           <button
                             onClick={() => openCopy(item)}
@@ -250,9 +297,70 @@ export function KbManager({
                         </button>
                       </div>
                     </div>
-                    <p className="mt-1.5 whitespace-pre-wrap text-sm text-muted-foreground">
-                      {item.content}
-                    </p>
+                    {editId === item.id ? (
+                      <div className="mt-2.5 space-y-2 rounded-md border border-border bg-muted/30 p-2.5">
+                        {editError ? (
+                          <p className="text-xs text-destructive">{editError}</p>
+                        ) : null}
+                        <div className="grid gap-2 sm:grid-cols-2">
+                          <Field label="Kategori" htmlFor={`edit-cat-${item.id}`}>
+                            <Select
+                              id={`edit-cat-${item.id}`}
+                              value={editForm.category}
+                              onChange={(e) =>
+                                setEditForm((f) => ({ ...f, category: e.target.value }))
+                              }
+                            >
+                              {KB_CATEGORY.options.map((o) => (
+                                <option key={o.value} value={o.value}>
+                                  {o.label}
+                                </option>
+                              ))}
+                            </Select>
+                          </Field>
+                          <Field label="Başlık" htmlFor={`edit-title-${item.id}`}>
+                            <Input
+                              id={`edit-title-${item.id}`}
+                              value={editForm.title}
+                              onChange={(e) =>
+                                setEditForm((f) => ({ ...f, title: e.target.value }))
+                              }
+                            />
+                          </Field>
+                        </div>
+                        <Field label="İçerik" htmlFor={`edit-content-${item.id}`}>
+                          <Textarea
+                            id={`edit-content-${item.id}`}
+                            rows={6}
+                            value={editForm.content}
+                            onChange={(e) =>
+                              setEditForm((f) => ({ ...f, content: e.target.value }))
+                            }
+                          />
+                        </Field>
+                        <div className="flex items-center gap-2">
+                          <Button size="sm" onClick={() => saveEdit(item.id)} disabled={editBusy}>
+                            {editBusy ? (
+                              <Loader2 className="size-3.5 animate-spin" />
+                            ) : (
+                              <Check className="size-3.5" />
+                            )}
+                            Kaydet
+                          </Button>
+                          <button
+                            type="button"
+                            onClick={() => setEditId(null)}
+                            className="inline-flex items-center gap-1 text-xs text-muted-foreground hover:underline"
+                          >
+                            <X className="size-3.5" /> İptal
+                          </button>
+                        </div>
+                      </div>
+                    ) : (
+                      <p className="mt-1.5 whitespace-pre-wrap text-sm text-muted-foreground">
+                        {item.content}
+                      </p>
+                    )}
 
                     {copyId === item.id ? (
                       <div className="mt-2.5 space-y-2 rounded-md border border-border bg-muted/30 p-2.5">
