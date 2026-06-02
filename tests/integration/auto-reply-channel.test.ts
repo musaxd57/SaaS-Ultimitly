@@ -1,4 +1,4 @@
-import { describe, it, expect, beforeEach, vi } from "vitest";
+import { describe, it, expect, beforeEach, afterEach, vi } from "vitest";
 import { prisma, resetDb } from "../helpers/db";
 
 // Force the AI + transport to be deterministic mocks.
@@ -93,8 +93,25 @@ describe("applyChannelAutoReply", () => {
   beforeEach(async () => {
     await resetDb();
     vi.clearAllMocks();
+    // The global master kill-switch must be ON for the sending tests below.
+    vi.stubEnv("AUTO_REPLY_ENABLED", "1");
     mockSuggest.mockResolvedValue(SAFE_REPLY);
     mockSend.mockResolvedValue({ ok: true });
+  });
+
+  afterEach(() => {
+    vi.unstubAllEnvs();
+  });
+
+  it("never sends when the global kill-switch (AUTO_REPLY_ENABLED) is off", async () => {
+    vi.stubEnv("AUTO_REPLY_ENABLED", ""); // not "1" → globally disabled
+    const { conversationId } = await seed();
+    const out = await applyChannelAutoReply(conversationId);
+
+    expect(out.sent).toBe(false);
+    expect(out.skippedReason).toBe("globally_disabled");
+    expect(mockSend).not.toHaveBeenCalled();
+    expect(await prisma.message.count({ where: { conversationId, direction: "outbound" } })).toBe(0);
   });
 
   it("dry-run returns the draft without sending or persisting", async () => {

@@ -447,6 +447,15 @@ export async function applyChannelAutoReply(
     return { sent: false, skippedReason: "dry_run", draft, ...meta };
   }
 
+  // GLOBAL MASTER KILL-SWITCH. Auto-replies are NEVER sent unless the
+  // deployment explicitly sets AUTO_REPLY_ENABLED=1. This is a hard, env-level
+  // guarantee on top of the per-org toggle and the active-hours window: with the
+  // variable unset (the default), no automatic message can ever leave the
+  // system — previews/tests still work, the AI just never delivers.
+  if (process.env.AUTO_REPLY_ENABLED !== "1") {
+    return { sent: false, skippedReason: "globally_disabled", draft, ...meta };
+  }
+
   // Deliver FIRST — never persist a reply that didn't reach the guest.
   const delivery = await sendOnChannel(
     {
@@ -498,6 +507,11 @@ export async function runDueChannelAutoReplies(
       autoReplyEndHour: true,
     },
   });
+  // Global master kill-switch (see applyChannelAutoReply): nothing is ever sent
+  // unless AUTO_REPLY_ENABLED=1 is set on the deployment. Short-circuit here so
+  // the cron pass does no AI work at all while auto-reply is globally disabled.
+  if (process.env.AUTO_REPLY_ENABLED !== "1") return { sent: 0, considered: 0 };
+
   if (!org || !org.autoReplyHospitable) return { sent: 0, considered: 0 };
 
   const hour = currentHourInTimeZone(org.timezone);
