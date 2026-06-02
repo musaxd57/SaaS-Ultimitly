@@ -30,9 +30,11 @@ export default async function SettingsPage() {
         <CardContent className="space-y-3">
           <p className="text-sm text-muted-foreground">
             Açıkken, yaklaşan rezervasyonlara o dairenin <strong>Karşılama Mesajı</strong> bilgi
-            tabanı girişi, misafirin adıyla ve imzanla <strong>tek sefer</strong> otomatik gönderilir.
-            Karşılama girişi olmayan daireler atlanır. (Her daire için Bilgi Tabanı'na
-            "Karşılama Mesajı" kategorisinde bir giriş ekleyin.)
+            tabanı girişi <strong>tek sefer</strong> otomatik gönderilir. Metnin içine{" "}
+            <code className="rounded bg-muted px-1 py-0.5 text-xs">{"{isim}"}</code> yazarsanız,
+            gönderirken misafirin adıyla değiştirilir (örn. &quot;Merhaba {"{isim}"}👋&quot; →
+            &quot;Merhaba Bircan👋&quot;). Karşılama girişi olmayan daireler atlanır; sadece
+            yaklaşan rezervasyonlara gider.
           </p>
           <AutoReplyToggle
             field="autoWelcome"

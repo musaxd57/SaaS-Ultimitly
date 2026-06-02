@@ -566,6 +566,10 @@ function guestFirstName(name: string): string | null {
   return first;
 }
 
+// Placeholder the host can drop into a welcome template — {isim} / {ad} / {name}
+// — replaced with the guest's first name when the message is sent.
+const NAME_PLACEHOLDER = /\{\s*(isim|ad|name)\s*\}/gi;
+
 /**
  * Send the per-apartment welcome message for upcoming reservations that haven't
  * received one yet. The body is built from the apartment's "welcome" knowledge
@@ -613,11 +617,19 @@ export async function sendDueWelcomes(
     });
     if (!welcome) continue; // this apartment has no welcome text → skip
 
-    const firstName = guestFirstName(r.guestName);
-    const greeting = firstName ? `Merhaba ${firstName},` : "Merhaba,";
-    const body = [greeting, "", welcome.content.trim(), ...(signature ? ["", signature] : [])].join(
-      "\n",
-    );
+    const firstName = guestFirstName(r.guestName) ?? r.guestName;
+    const content = welcome.content.trim();
+    let body: string;
+    if (NAME_PLACEHOLDER.test(content)) {
+      // The host wrote their own greeting with a {isim} placeholder — substitute
+      // the guest's name and send the template exactly as written (their own
+      // sign-off included; we don't append the org signature).
+      body = content.replace(NAME_PLACEHOLDER, firstName);
+    } else {
+      // No placeholder — prepend a greeting and append the signature.
+      const greeting = `Merhaba ${firstName},`;
+      body = [greeting, "", content, ...(signature ? ["", signature] : [])].join("\n");
+    }
 
     const delivery = await sendOnChannel(
       {

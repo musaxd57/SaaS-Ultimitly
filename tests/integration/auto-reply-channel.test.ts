@@ -277,7 +277,7 @@ describe("sendDueWelcomes", () => {
   });
 
   async function seedWelcome(
-    opts: { autoWelcome?: boolean; withEntry?: boolean; arrival?: Date } = {},
+    opts: { autoWelcome?: boolean; withEntry?: boolean; arrival?: Date; content?: string } = {},
   ) {
     const org = await prisma.organization.create({
       data: { name: "Org", autoWelcome: opts.autoWelcome ?? true, aiSignature: "Sevgiler,\nİsa" },
@@ -291,7 +291,7 @@ describe("sendDueWelcomes", () => {
           propertyId: property.id,
           category: "welcome",
           title: "Karşılama",
-          content: "Daire 3 — Wifi: NUVE/1234",
+          content: opts.content ?? "Daire 3 — Wifi: NUVE/1234",
         },
       });
     }
@@ -330,6 +330,19 @@ describe("sendDueWelcomes", () => {
     const again = await sendDueWelcomes(orgId);
     expect(again.sent).toBe(0);
     expect(mockSend).not.toHaveBeenCalled();
+  });
+
+  it("substitutes the {isim} placeholder and sends the template as written", async () => {
+    const { orgId } = await seedWelcome({
+      content: "Merhaba {isim}👋\n\nDaire 4 — Wifi: NUVEBUTİK\n\nSevgiler,\nİsa Çınar",
+    });
+    const out = await sendDueWelcomes(orgId);
+
+    expect(out.sent).toBe(1);
+    const [, body] = mockSend.mock.calls[0];
+    expect(body).toBe("Merhaba Bircan👋\n\nDaire 4 — Wifi: NUVEBUTİK\n\nSevgiler,\nİsa Çınar");
+    // No auto greeting/signature was added on top of the host's own template.
+    expect(body).not.toContain("Merhaba Bircan,");
   });
 
   it("does nothing when autoWelcome is off", async () => {

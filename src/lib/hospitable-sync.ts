@@ -255,8 +255,12 @@ async function importThread(
     (a, b) => (parseDate(a.created_at)?.getTime() ?? 0) - (parseDate(b.created_at)?.getTime() ?? 0),
   );
 
-  // Guest display name from a guest message, falling back to the booking code.
+  // Guest display name: prefer the reservation's own guest record (Hospitable
+  // provides it reliably, e.g. "Bircan"), then a guest message's sender, then
+  // the booking code as a last resort.
   const guestName =
+    str(reservation.guest?.full_name) ??
+    str(reservation.guest?.name) ??
     senderFullName(ordered.find(isGuestMessage) ?? ({} as HospitableMessage)) ??
     (str(reservation.code) ? `Rezervasyon ${reservation.code}` : "Misafir");
 
