@@ -6,8 +6,6 @@ const projectRoot = path.dirname(fileURLToPath(import.meta.url));
 /** @type {import('next').NextConfig} */
 const nextConfig = {
   reactStrictMode: true,
-  // Required for Railway / Docker deployments — produces a self-contained build.
-  output: "standalone",
   // Pin the workspace root to this project so Next doesn't pick a stray
   // package-lock.json in a parent directory (silences the "inferred workspace
   // root" multi-lockfile warning on dev start).
