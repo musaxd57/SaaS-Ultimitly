@@ -5,7 +5,7 @@ import { requireSession, unauthorized, badRequest, jsonOk, serverError } from "@
 // Organization-level settings the UI can change. Booleans are the auto-reply
 // switches; the hour fields define the channel auto-reply active window;
 // aiReplyTone / aiSignature shape the AI's voice.
-const BOOLEAN_FIELDS = ["autoReplyHospitable"] as const;
+const BOOLEAN_FIELDS = ["autoReplyHospitable", "autoWelcome"] as const;
 const HOUR_FIELDS = ["autoReplyStartHour", "autoReplyEndHour"] as const;
 const VALID_TONES = ["formal", "warm", "short", "luxury"] as const;
 const SIGNATURE_MAX = 600;

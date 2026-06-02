@@ -2,7 +2,7 @@ import { type NextRequest, NextResponse } from "next/server";
 import { prisma } from "@/lib/db";
 import { isHospitableConfigured } from "@/lib/hospitable";
 import { syncHospitable } from "@/lib/hospitable-sync";
-import { runDueChannelAutoReplies } from "@/lib/automation";
+import { runDueChannelAutoReplies, sendDueWelcomes } from "@/lib/automation";
 
 // ---------------------------------------------------------------------------
 // Scheduled sync + night auto-reply (the engine behind 24/7 operation).
@@ -37,15 +37,23 @@ async function handle(req: NextRequest) {
   }
 
   const orgs = await prisma.organization.findMany({ select: { id: true } });
-  const totals = { organizations: orgs.length, conversations: 0, messages: 0, autoReplies: 0 };
+  const totals = {
+    organizations: orgs.length,
+    conversations: 0,
+    messages: 0,
+    autoReplies: 0,
+    welcomes: 0,
+  };
 
   for (const org of orgs) {
     try {
       const result = await syncHospitable(org.id);
       const auto = await runDueChannelAutoReplies(org.id);
+      const welcome = await sendDueWelcomes(org.id);
       totals.conversations += result.conversations;
       totals.messages += result.messages;
       totals.autoReplies += auto.sent;
+      totals.welcomes += welcome.sent;
     } catch (err) {
       // One org failing must not abort the rest.
       console.error(`[cron/sync] failed for organization ${org.id}`, err);

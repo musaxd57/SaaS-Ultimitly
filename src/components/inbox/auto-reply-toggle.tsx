@@ -16,7 +16,7 @@ export function AutoReplyToggle({
   enabled,
   title,
 }: {
-  field: "autoReplyHospitable";
+  field: "autoReplyHospitable" | "autoWelcome";
   label: string;
   enabled: boolean;
   title?: string;

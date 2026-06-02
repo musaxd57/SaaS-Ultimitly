@@ -32,6 +32,7 @@ model Organization {
   autoReplyEndHour    Int     @default(9) // window end hour 0-23 (exclusive)
   aiReplyTone         String  @default("warm") // AI reply tone: formal | warm | short | luxury
   aiSignature         String? // optional sign-off appended to every AI reply (host name + contact)
+  autoWelcome         Boolean @default(false) // send the per-apartment welcome message on reservation confirmation
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
 
@@ -119,6 +120,7 @@ model Reservation {
   currency        String   @default("EUR")
   sourceReference String?
   notes           String?
+  welcomeSentAt   DateTime? // set once the auto welcome message has been delivered
   createdAt       DateTime @default(now())
   updatedAt       DateTime @updatedAt
 

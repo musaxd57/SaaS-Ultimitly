@@ -10,6 +10,7 @@ import { sendOnChannel } from "@/lib/messaging";
 import {
   applyChannelAutoReply,
   previewChannelAutoReplies,
+  sendDueWelcomes,
   isWithinActiveHours,
   currentHourInTimeZone,
 } from "@/lib/automation";
@@ -259,6 +260,101 @@ describe("previewChannelAutoReplies", () => {
 
     expect(previews).toHaveLength(1);
     expect(previews[0].draft?.reply).toBe(SAFE_REPLY.reply);
+    expect(mockSend).not.toHaveBeenCalled();
+  });
+});
+
+describe("sendDueWelcomes", () => {
+  beforeEach(async () => {
+    await resetDb();
+    vi.clearAllMocks();
+    vi.stubEnv("AUTO_REPLY_ENABLED", "1");
+    mockSend.mockResolvedValue({ ok: true });
+  });
+
+  afterEach(() => {
+    vi.unstubAllEnvs();
+  });
+
+  async function seedWelcome(
+    opts: { autoWelcome?: boolean; withEntry?: boolean; arrival?: Date } = {},
+  ) {
+    const org = await prisma.organization.create({
+      data: { name: "Org", autoWelcome: opts.autoWelcome ?? true, aiSignature: "Sevgiler,\nİsa" },
+    });
+    const property = await prisma.property.create({
+      data: { organizationId: org.id, name: "nuve 3" },
+    });
+    if (opts.withEntry !== false) {
+      await prisma.knowledgeBaseItem.create({
+        data: {
+          propertyId: property.id,
+          category: "welcome",
+          title: "Karşılama",
+          content: "Daire 3 — Wifi: NUVE/1234",
+        },
+      });
+    }
+    const arrival = opts.arrival ?? new Date(Date.now() + 5 * 24 * 60 * 60 * 1000);
+    const reservation = await prisma.reservation.create({
+      data: {
+        propertyId: property.id,
+        guestName: "Bircan Yılmaz",
+        arrivalDate: arrival,
+        departureDate: new Date(arrival.getTime() + 2 * 24 * 60 * 60 * 1000),
+        channel: "airbnb",
+        status: "confirmed",
+        sourceReference: "res-w-1",
+      },
+    });
+    return { orgId: org.id, reservationId: reservation.id };
+  }
+
+  it("sends a personalised welcome once and marks it sent", async () => {
+    const { orgId, reservationId } = await seedWelcome();
+    const out = await sendDueWelcomes(orgId);
+
+    expect(out.sent).toBe(1);
+    expect(mockSend).toHaveBeenCalledTimes(1);
+    const [target, body] = mockSend.mock.calls[0];
+    expect(target).toMatchObject({ externalReservationId: "res-w-1", channel: "airbnb" });
+    expect(body).toContain("Merhaba Bircan,");
+    expect(body).toContain("Daire 3 — Wifi: NUVE/1234");
+    expect(body).toContain("Sevgiler,\nİsa");
+
+    const res = await prisma.reservation.findUnique({ where: { id: reservationId } });
+    expect(res?.welcomeSentAt).toBeTruthy();
+
+    // Idempotent: a second run does not re-send.
+    mockSend.mockClear();
+    const again = await sendDueWelcomes(orgId);
+    expect(again.sent).toBe(0);
+    expect(mockSend).not.toHaveBeenCalled();
+  });
+
+  it("does nothing when autoWelcome is off", async () => {
+    const { orgId } = await seedWelcome({ autoWelcome: false });
+    expect((await sendDueWelcomes(orgId)).sent).toBe(0);
+    expect(mockSend).not.toHaveBeenCalled();
+  });
+
+  it("does nothing when the global kill-switch is off", async () => {
+    vi.stubEnv("AUTO_REPLY_ENABLED", "");
+    const { orgId } = await seedWelcome();
+    expect((await sendDueWelcomes(orgId)).sent).toBe(0);
+    expect(mockSend).not.toHaveBeenCalled();
+  });
+
+  it("skips apartments that have no welcome entry", async () => {
+    const { orgId } = await seedWelcome({ withEntry: false });
+    expect((await sendDueWelcomes(orgId)).sent).toBe(0);
+    expect(mockSend).not.toHaveBeenCalled();
+  });
+
+  it("never messages past reservations", async () => {
+    const past = new Date(Date.now() - 10 * 24 * 60 * 60 * 1000);
+    const { orgId } = await seedWelcome({ arrival: past });
+    expect((await sendDueWelcomes(orgId)).sent).toBe(0);
     expect(mockSend).not.toHaveBeenCalled();
   });
 });

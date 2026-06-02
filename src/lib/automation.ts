@@ -559,6 +559,86 @@ export async function runDueChannelAutoReplies(
   return { sent, considered: candidates.length };
 }
 
+/** First name for the greeting, or null for placeholder names (no real name). */
+function guestFirstName(name: string): string | null {
+  const first = name.trim().split(/\s+/)[0];
+  if (!first || first === "Rezervasyon" || first === "Misafir") return null;
+  return first;
+}
+
+/**
+ * Send the per-apartment welcome message for upcoming reservations that haven't
+ * received one yet. The body is built from the apartment's "welcome" knowledge
+ * base entry, personalised with the guest's first name and closed with the org
+ * signature. Sent at most ONCE per reservation (welcomeSentAt), only for stays
+ * arriving in the near future (never blasts past guests), and only when BOTH the
+ * global kill-switch (AUTO_REPLY_ENABLED=1) and the org's autoWelcome toggle are
+ * on. Apartments without a welcome entry are skipped.
+ */
+export async function sendDueWelcomes(
+  organizationId: string,
+): Promise<{ sent: number; considered: number }> {
+  if (process.env.AUTO_REPLY_ENABLED !== "1") return { sent: 0, considered: 0 };
+
+  const org = await prisma.organization.findUnique({
+    where: { id: organizationId },
+    select: { autoWelcome: true, aiSignature: true },
+  });
+  if (!org || !org.autoWelcome) return { sent: 0, considered: 0 };
+
+  const now = new Date();
+  const horizon = new Date(now.getTime() + 45 * 24 * 60 * 60 * 1000);
+
+  const reservations = await prisma.reservation.findMany({
+    where: {
+      property: { organizationId },
+      status: "confirmed",
+      welcomeSentAt: null,
+      sourceReference: { not: null },
+      arrivalDate: { gte: startOfDay(now), lte: horizon },
+    },
+    select: { id: true, guestName: true, channel: true, sourceReference: true, propertyId: true },
+    orderBy: { arrivalDate: "asc" },
+    take: 25, // cap per run so enabling the toggle can't cause a huge burst
+  });
+
+  const signature = org.aiSignature?.trim();
+  let sent = 0;
+
+  for (const r of reservations) {
+    const welcome = await prisma.knowledgeBaseItem.findFirst({
+      where: { propertyId: r.propertyId, category: "welcome", isActive: true },
+      select: { content: true },
+      orderBy: { updatedAt: "desc" },
+    });
+    if (!welcome) continue; // this apartment has no welcome text → skip
+
+    const firstName = guestFirstName(r.guestName);
+    const greeting = firstName ? `Merhaba ${firstName},` : "Merhaba,";
+    const body = [greeting, "", welcome.content.trim(), ...(signature ? ["", signature] : [])].join(
+      "\n",
+    );
+
+    const delivery = await sendOnChannel(
+      {
+        channel: r.channel,
+        guestIdentifier: r.guestName,
+        externalReservationId: r.sourceReference,
+      },
+      body,
+    );
+    if (!delivery.ok) continue; // try again next run; do not mark as sent
+
+    await prisma.reservation.update({
+      where: { id: r.id },
+      data: { welcomeSentAt: new Date() },
+    });
+    sent++;
+  }
+
+  return { sent, considered: reservations.length };
+}
+
 /**
  * Preview what the channel auto-reply WOULD send right now — without sending
  * anything. Ignores the on/off toggle and the active-hours window so the user
