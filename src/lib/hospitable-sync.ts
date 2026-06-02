@@ -161,15 +161,19 @@ async function upsertReservationCalendar(
   const guestPhone = str(g?.phone) ?? null;
   const channel = toChannel(reservation.platform);
 
-  const rawStatus = String(reservation.status ?? "confirmed").toLowerCase();
-  const status =
-    rawStatus === "cancelled"
-      ? "cancelled"
-      : rawStatus === "pending"
-        ? "pending"
-        : rawStatus === "completed" || rawStatus === "checked_out"
-          ? "completed"
-          : "confirmed";
+  // Look at both the top-level status and the nested reservation_status so a
+  // cancelled booking is never treated as "confirmed" (and never welcomed).
+  const rawStatus =
+    `${reservation.status ?? ""} ${reservation.reservation_status?.current?.category ?? ""}`.toLowerCase();
+  const status = rawStatus.includes("cancel")
+    ? "cancelled"
+    : rawStatus.includes("pending") || rawStatus.includes("request")
+      ? "pending"
+      : rawStatus.includes("complete") ||
+          rawStatus.includes("checked_out") ||
+          rawStatus.includes("past")
+        ? "completed"
+        : "confirmed";
 
   const totalAmount =
     typeof reservation.total_price === "number" ? reservation.total_price : null;

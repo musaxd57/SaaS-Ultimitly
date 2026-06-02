@@ -187,6 +187,7 @@ export interface HospitableReservation {
   departure_date?: string;
   platform?: string;
   status?: string;
+  reservation_status?: { current?: { category?: string } };
   guest?: {
     name?: string;
     full_name?: string;

@@ -172,4 +172,24 @@ describe("syncHospitable", () => {
     await syncHospitable(orgId);
     expect(await prisma.reservation.count({ where: { sourceReference: "res-cal-1" } })).toBe(1);
   });
+
+  it("maps a cancelled reservation to 'cancelled' (via nested status)", async () => {
+    const { orgId } = await makeOrgWithProperty();
+    mockProperties.mockResolvedValue([{ id: "hp", name: "Test Property" }]);
+    mockReservations.mockResolvedValue([
+      {
+        id: "res-cancel",
+        platform: "airbnb",
+        arrival_date: "2026-07-01",
+        departure_date: "2026-07-03",
+        reservation_status: { current: { category: "cancelled" } },
+        guest: { full_name: "Cancelled Guest" },
+        last_message_at: null,
+      },
+    ]);
+
+    await syncHospitable(orgId);
+    const res = await prisma.reservation.findFirst({ where: { sourceReference: "res-cancel" } });
+    expect(res?.status).toBe("cancelled");
+  });
 });
