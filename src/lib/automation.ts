@@ -8,6 +8,9 @@ import {
   complaintEscalationEmail,
   reservationCreatedEmail,
 } from "@/lib/email-templates";
+import type { ReplyTone } from "@/lib/constants";
+
+const VALID_TONES: ReplyTone[] = ["formal", "warm", "short", "luxury"];
 
 // Auto-reply only fires when the AI is confident AND the message is safe. The
 // deterministic fallback never reaches this bar (it caps safe intents at 0.55),
@@ -364,6 +367,8 @@ export async function applyChannelAutoReply(
               timezone: true,
               autoReplyStartHour: true,
               autoReplyEndHour: true,
+              aiReplyTone: true,
+              aiSignature: true,
             },
           },
         },
@@ -427,9 +432,18 @@ export async function applyChannelAutoReply(
       direction: m.direction as "inbound" | "outbound",
       body: m.body,
     })),
-    tone: "warm",
+    tone: VALID_TONES.includes(org.aiReplyTone as ReplyTone)
+      ? (org.aiReplyTone as ReplyTone)
+      : "warm",
     language: org.language ?? "tr",
   });
+
+  // Close every reply in the host's voice: append their configured signature
+  // (name + contact) so guests get a personal, on-brand sign-off. Build a new
+  // string — never mutate the AI result object (it may be shared / reused).
+  const signature = org.aiSignature?.trim();
+  const replyText =
+    signature && result.reply ? `${result.reply.trimEnd()}\n\n${signature}` : result.reply;
 
   // Safety gate: only auto-send safe, confident replies.
   if (!passesAutoReplySafetyGate(result)) {
@@ -437,7 +451,7 @@ export async function applyChannelAutoReply(
   }
 
   const draft = {
-    reply: result.reply,
+    reply: replyText,
     intent: result.intent,
     confidence: result.confidence,
     riskLevel: result.riskLevel,
@@ -463,7 +477,7 @@ export async function applyChannelAutoReply(
       guestIdentifier: conversation.guestIdentifier,
       externalReservationId: conversation.externalReservationId,
     },
-    result.reply,
+    replyText,
   );
   if (!delivery.ok) {
     return { sent: false, skippedReason: `send_failed: ${delivery.error ?? "unknown"}`, draft, ...meta };
@@ -476,7 +490,7 @@ export async function applyChannelAutoReply(
         conversationId: conversation.id,
         direction: "outbound",
         senderName: "GuestOps AI",
-        body: result.reply,
+        body: replyText,
         aiIntent: result.intent,
         aiConfidence: result.confidence,
       },

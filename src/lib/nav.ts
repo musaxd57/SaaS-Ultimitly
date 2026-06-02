@@ -5,6 +5,7 @@ import {
   Building2,
   BookOpen,
   FileText,
+  Settings,
   type LucideIcon,
 } from "lucide-react";
 
@@ -21,6 +22,7 @@ export const NAV_ITEMS: NavItem[] = [
   { href: "/properties", label: "Mülkler", icon: Building2 },
   { href: "/knowledge", label: "Bilgi Tabanı", icon: BookOpen },
   { href: "/templates", label: "Şablonlar", icon: FileText },
+  { href: "/settings", label: "Ayarlar", icon: Settings },
 ];
 
 export function titleForPath(pathname: string): string {

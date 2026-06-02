@@ -37,6 +37,7 @@ async function seed(opts: {
   status?: string;
   externalReservationId?: string | null;
   lastDirection?: "inbound" | "outbound";
+  aiSignature?: string;
 } = {}) {
   const org = await prisma.organization.create({
     data: {
@@ -45,6 +46,7 @@ async function seed(opts: {
       autoReplyStartHour: opts.startHour ?? 0,
       autoReplyEndHour: opts.endHour ?? 0, // start === end → always within window
       timezone: "Europe/Istanbul",
+      ...(opts.aiSignature ? { aiSignature: opts.aiSignature } : {}),
     },
   });
   const property = await prisma.property.create({
@@ -122,6 +124,21 @@ describe("applyChannelAutoReply", () => {
     expect(out.draft?.reply).toBe(SAFE_REPLY.reply);
     expect(mockSend).not.toHaveBeenCalled();
     expect(await prisma.message.count({ where: { conversationId, direction: "outbound" } })).toBe(0);
+  });
+
+  it("appends the host signature to the reply when one is configured", async () => {
+    const { conversationId } = await seed({ aiSignature: "Sevgiler,\nİsa Çınar" });
+    const out = await applyChannelAutoReply(conversationId, { dryRun: true });
+
+    expect(out.draft?.reply).toBe(`${SAFE_REPLY.reply}\n\nSevgiler,\nİsa Çınar`);
+
+    // And when actually sending, the guest receives the signed reply.
+    const sent = await applyChannelAutoReply(conversationId);
+    expect(sent.sent).toBe(true);
+    expect(mockSend).toHaveBeenCalledWith(
+      expect.objectContaining({ externalReservationId: "res-1" }),
+      `${SAFE_REPLY.reply}\n\nSevgiler,\nİsa Çınar`,
+    );
   });
 
   it("sends via the channel transport and persists when enabled and in-window", async () => {

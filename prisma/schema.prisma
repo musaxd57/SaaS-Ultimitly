@@ -30,6 +30,8 @@ model Organization {
   autoReplyHospitable Boolean @default(false)
   autoReplyStartHour  Int     @default(0) // window start hour 0-23 (inclusive)
   autoReplyEndHour    Int     @default(9) // window end hour 0-23 (exclusive)
+  aiReplyTone         String  @default("warm") // AI reply tone: formal | warm | short | luxury
+  aiSignature         String? // optional sign-off appended to every AI reply (host name + contact)
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
 
