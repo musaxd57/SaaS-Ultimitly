@@ -1,9 +1,5 @@
 import { defineConfig } from "vitest/config";
 import { fileURLToPath } from "node:url";
-import path from "node:path";
-
-// Test DB lives next to the dev DB but is fully disposable (gitignored *.db).
-const testDbPath = path.join(process.cwd(), "prisma", "test.db");
 
 export default defineConfig({
   resolve: {
@@ -18,14 +14,15 @@ export default defineConfig({
   test: {
     environment: "node",
     include: ["tests/**/*.test.ts"],
-    // Integration tests share one SQLite file and wipe it between cases, so the
+    // Integration tests share one database and wipe it between cases, so the
     // test files must not run in parallel (otherwise one file's resetDb wipes
     // another file's data mid-run).
     fileParallelism: false,
-    // The integration suite provisions a real SQLite schema once, up front.
+    // The integration suite provisions a throwaway PostgreSQL instance once, up
+    // front (see tests/global-setup.ts) — this URL must match it.
     globalSetup: ["tests/global-setup.ts"],
     env: {
-      DATABASE_URL: `file:${testDbPath}`,
+      DATABASE_URL: "postgresql://postgres@localhost:5433/guestops_test?schema=public",
       AUTH_SECRET: "test-secret-min-16-characters-long",
       // Force the deterministic AI path; never call OpenAI from tests.
       OPENAI_API_KEY: "",

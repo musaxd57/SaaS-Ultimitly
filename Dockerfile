@@ -33,13 +33,15 @@ COPY . .
 
 # Build. A dummy DATABASE_URL satisfies any build-time references; the real one
 # is provided by Railway at runtime. `npm run build` runs `prisma generate &&
-# next build`.
+# next build`. The dummy URL only needs the right shape (postgresql://) so the
+# Prisma client instantiates during build; the real one is injected by Railway
+# at runtime and no build step connects to it.
 ENV NODE_ENV=production
-ENV DATABASE_URL="file:/tmp/build.db"
+ENV DATABASE_URL="postgresql://user:pass@localhost:5432/db?schema=public"
 RUN npm run build
 
 EXPOSE 3000
 
-# At startup: apply the schema to the (persistent volume) database, then serve.
+# At startup: apply the schema to the (managed Postgres) database, then serve.
 # `next start` binds to Railway's injected $PORT automatically.
 CMD ["sh", "-c", "npx prisma db push --skip-generate && npm run start"]
