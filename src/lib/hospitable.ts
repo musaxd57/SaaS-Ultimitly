@@ -183,11 +183,15 @@ export interface HospitableReservation {
   code?: string;
   check_in?: string;
   check_out?: string;
+  arrival_date?: string;
+  departure_date?: string;
   platform?: string;
   status?: string;
   guest?: {
     name?: string;
     full_name?: string;
+    first_name?: string;
+    last_name?: string;
     email?: string;
     phone?: string;
   };
@@ -217,6 +221,9 @@ export async function listReservations(options?: {
   for (const id of options?.propertyIds ?? []) params.append("properties[]", id);
   if (options?.startDate) params.set("start_date", options.startDate);
   if (options?.endDate) params.set("end_date", options.endDate);
+  // Ask Hospitable to embed the guest record so we get the guest's name (the
+  // bare reservation only carries guest COUNTS, not the name).
+  params.set("include", "guest");
   return fetchAllPages<HospitableReservation>("/reservations", params);
 }
 

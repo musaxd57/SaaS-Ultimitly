@@ -64,6 +64,16 @@ function senderFullName(m: HospitableMessage): string | null {
   return str(sender?.full_name) ?? str(sender?.first_name);
 }
 
+/** Guest name from the (included) reservation.guest record, if present. */
+function reservationGuestName(reservation: HospitableReservation): string | null {
+  const g = reservation.guest;
+  if (!g) return null;
+  const full = str(g.full_name) ?? str(g.name);
+  if (full) return full;
+  const composed = [str(g.first_name), str(g.last_name)].filter(Boolean).join(" ").trim();
+  return composed.length ? composed : null;
+}
+
 // ---------------------------------------------------------------------------
 
 export async function syncHospitable(organizationId: string): Promise<SyncResult> {
@@ -132,8 +142,8 @@ async function upsertReservationCalendar(
   reservation: HospitableReservation,
 ): Promise<boolean> {
   const srcRef = String(reservation.id);
-  const arrivalDate = parseDate(reservation.check_in);
-  const departureDate = parseDate(reservation.check_out);
+  const arrivalDate = parseDate(reservation.arrival_date) ?? parseDate(reservation.check_in);
+  const departureDate = parseDate(reservation.departure_date) ?? parseDate(reservation.check_out);
   if (!arrivalDate || !departureDate) return false;
 
   // FK safety: only write if the property genuinely exists.
@@ -145,8 +155,7 @@ async function upsertReservationCalendar(
 
   const g = reservation.guest;
   const guestName =
-    str(g?.full_name) ??
-    str(g?.name) ??
+    reservationGuestName(reservation) ??
     (str(reservation.code) ? `Rezervasyon ${reservation.code}` : "Misafir");
   const guestEmail = str(g?.email) ?? null;
   const guestPhone = str(g?.phone) ?? null;
@@ -255,12 +264,10 @@ async function importThread(
     (a, b) => (parseDate(a.created_at)?.getTime() ?? 0) - (parseDate(b.created_at)?.getTime() ?? 0),
   );
 
-  // Guest display name: prefer the reservation's own guest record (Hospitable
-  // provides it reliably, e.g. "Bircan"), then a guest message's sender, then
-  // the booking code as a last resort.
+  // Guest display name: prefer the (included) reservation guest record, then a
+  // guest message's sender, then the booking code as a last resort.
   const guestName =
-    str(reservation.guest?.full_name) ??
-    str(reservation.guest?.name) ??
+    reservationGuestName(reservation) ??
     senderFullName(ordered.find(isGuestMessage) ?? ({} as HospitableMessage)) ??
     (str(reservation.code) ? `Rezervasyon ${reservation.code}` : "Misafir");
 
