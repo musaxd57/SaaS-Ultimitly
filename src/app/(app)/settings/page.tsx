@@ -4,7 +4,7 @@ import { PageHeader } from "@/components/page-header";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { AiVoiceForm } from "@/components/settings/ai-voice-form";
 import { BulkTimesForm } from "@/components/settings/bulk-times-form";
-import { WelcomeTestButton } from "@/components/settings/welcome-test-button";
+import { MessagePreviewButton } from "@/components/settings/message-preview-button";
 import { NightHoursForm } from "@/components/settings/night-hours-form";
 import { AutoReplyToggle } from "@/components/inbox/auto-reply-toggle";
 
@@ -19,6 +19,7 @@ export default async function SettingsPage() {
         aiReplyTone: true,
         aiSignature: true,
         autoWelcome: true,
+        autoCheckout: true,
         autoReplyStartHour: true,
         autoReplyEndHour: true,
       },
@@ -88,7 +89,39 @@ export default async function SettingsPage() {
               enabled={org?.autoWelcome ?? false}
               title="Açıkken: yaklaşan rezervasyon onaylarında, o dairenin karşılama mesajı misafire bir kez otomatik gider. Güvenlik ana şalteri (AUTO_REPLY_ENABLED) da açık olmalı."
             />
-            <WelcomeTestButton />
+            <MessagePreviewButton
+              endpoint="/api/hospitable/welcome-test"
+              label="Karşılama önizleme"
+              missingNote={'"Karşılama Mesajı" girişi yok'}
+            />
+          </div>
+        </CardContent>
+      </Card>
+
+      <Card className="max-w-2xl">
+        <CardHeader>
+          <CardTitle className="text-base">Otomatik Çıkış Mesajı</CardTitle>
+        </CardHeader>
+        <CardContent className="space-y-3">
+          <p className="text-sm text-muted-foreground">
+            Açıkken, çıkış (departure) günü <strong>sabah 08:00&apos;da</strong> o dairenin{" "}
+            <strong>Çıkış Mesajı</strong> bilgi tabanı girişi, misafirin adıyla{" "}
+            <strong>tek sefer</strong> gönderilir. Metnin içine{" "}
+            <code className="rounded bg-muted px-1 py-0.5 text-xs">{"{isim}"}</code> yazın (örn.
+            &quot;Hi {"{isim}"}, ... Safe travels, İsa&quot;). Çıkış girişi olmayan daireler atlanır.
+          </p>
+          <div className="flex flex-wrap items-center gap-3">
+            <AutoReplyToggle
+              field="autoCheckout"
+              label="Otomatik çıkış mesajı"
+              enabled={org?.autoCheckout ?? false}
+              title="Açıkken: çıkış günü sabah 08:00'da, o dairenin çıkış mesajı misafire bir kez otomatik gider. Ana şalter (AUTO_REPLY_ENABLED) da açık olmalı."
+            />
+            <MessagePreviewButton
+              endpoint="/api/hospitable/checkout-test"
+              label="Çıkış önizleme"
+              missingNote={'"Çıkış Mesajı" girişi yok'}
+            />
           </div>
         </CardContent>
       </Card>

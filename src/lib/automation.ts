@@ -529,6 +529,7 @@ export async function runDueChannelAutoReplies(
     where: { id: organizationId },
     select: {
       autoReplyHospitable: true,
+      autoReplyEnabledAt: true,
       timezone: true,
       autoReplyStartHour: true,
       autoReplyEndHour: true,
@@ -547,9 +548,10 @@ export async function runDueChannelAutoReplies(
   }
 
   // "new" = the guest spoke last and we haven't answered (see hospitable-sync).
-  // Only answer FRESH messages (last 48h): when auto-reply is first enabled we
-  // must not blast late replies at a days-old backlog of unanswered chats.
-  const freshSince = new Date(Date.now() - 48 * 60 * 60 * 1000);
+  // Only answer messages that arrived AFTER auto-reply was switched on — never
+  // the pre-existing backlog. Falls back to a 48h window if the timestamp is
+  // missing (legacy orgs).
+  const freshSince = org.autoReplyEnabledAt ?? new Date(Date.now() - 48 * 60 * 60 * 1000);
   const candidates = await prisma.conversation.findMany({
     where: {
       property: { organizationId },
@@ -605,7 +607,7 @@ function hasNamePlaceholder(s: string): boolean {
  * placeholder, substitute the name and send it verbatim (their own greeting +
  * sign-off). Otherwise prepend a greeting and append the org signature.
  */
-function buildWelcomeBody(content: string, firstName: string, signature?: string): string {
+function buildGuestMessageBody(content: string, firstName: string, signature?: string): string {
   const trimmed = content.trim();
   if (hasNamePlaceholder(trimmed)) {
     return trimmed.replace(/\{\s*(isim|ad|name)\s*\}/gi, firstName);
@@ -675,7 +677,7 @@ export async function sendDueWelcomes(
     if (!welcome) continue; // this apartment has no welcome text → skip
 
     const firstName = guestFirstName(r.guestName) ?? r.guestName;
-    const body = buildWelcomeBody(welcome.content, firstName, signature);
+    const body = buildGuestMessageBody(welcome.content, firstName, signature);
 
     const delivery = await sendOnChannel(
       {
@@ -754,7 +756,132 @@ export async function previewWelcomes(
       property: r.property.name,
       hasEntry: Boolean(welcome),
       alreadySent: Boolean(r.welcomeSentAt),
-      body: welcome ? buildWelcomeBody(welcome.content, firstName, signature) : null,
+      body: welcome ? buildGuestMessageBody(welcome.content, firstName, signature) : null,
+    });
+  }
+  return previews;
+}
+
+/**
+ * Send the per-apartment check-out message on the guest's DEPARTURE day, at/after
+ * 08:00 in the org timezone, once per reservation (checkoutSentAt). Body comes
+ * from the apartment's "checkout" knowledge-base entry, personalised with the
+ * guest's first name. Gated behind AUTO_REPLY_ENABLED + the org autoCheckout
+ * toggle. Apartments without a checkout entry are skipped.
+ */
+export async function sendDueCheckouts(
+  organizationId: string,
+): Promise<{ sent: number; considered: number }> {
+  if (process.env.AUTO_REPLY_ENABLED !== "1") return { sent: 0, considered: 0 };
+
+  const org = await prisma.organization.findUnique({
+    where: { id: organizationId },
+    select: { autoCheckout: true, aiSignature: true, timezone: true },
+  });
+  if (!org || !org.autoCheckout) return { sent: 0, considered: 0 };
+
+  const now = new Date();
+  const tz = org.timezone ?? "Europe/Istanbul";
+  // Only from 08:00 onward on the departure day.
+  if (currentHourInTimeZone(tz, now) < 8) return { sent: 0, considered: 0 };
+  const todayKey = dateKeyInTimeZone(now, tz);
+
+  const reservations = await prisma.reservation.findMany({
+    where: {
+      property: { organizationId },
+      status: { in: ["confirmed", "completed"] },
+      checkoutSentAt: null,
+      sourceReference: { not: null },
+      departureDate: { gte: addDays(startOfDay(now), -1), lt: addDays(startOfDay(now), 2) },
+    },
+    select: {
+      id: true,
+      guestName: true,
+      channel: true,
+      sourceReference: true,
+      propertyId: true,
+      departureDate: true,
+    },
+    orderBy: { departureDate: "asc" },
+    take: 25,
+  });
+
+  const signature = org.aiSignature?.trim();
+  let sent = 0;
+
+  for (const r of reservations) {
+    if (arrivalDateKey(r.departureDate) !== todayKey) continue; // only on the check-out day
+
+    const tpl = await prisma.knowledgeBaseItem.findFirst({
+      where: { propertyId: r.propertyId, category: "checkout", isActive: true },
+      select: { content: true },
+      orderBy: { updatedAt: "desc" },
+    });
+    if (!tpl) continue;
+
+    const firstName = guestFirstName(r.guestName) ?? r.guestName;
+    const body = buildGuestMessageBody(tpl.content, firstName, signature);
+
+    const delivery = await sendOnChannel(
+      { channel: r.channel, guestIdentifier: r.guestName, externalReservationId: r.sourceReference },
+      body,
+    );
+    if (!delivery.ok) continue;
+
+    await prisma.reservation.update({
+      where: { id: r.id },
+      data: { checkoutSentAt: new Date() },
+    });
+    sent++;
+  }
+
+  return { sent, considered: reservations.length };
+}
+
+/** Preview check-out messages for upcoming departures (no sending). */
+export async function previewCheckouts(
+  organizationId: string,
+  limit = 12,
+): Promise<WelcomePreview[]> {
+  const org = await prisma.organization.findUnique({
+    where: { id: organizationId },
+    select: { aiSignature: true },
+  });
+  const signature = org?.aiSignature?.trim();
+  const now = new Date();
+  const horizon = new Date(now.getTime() + 45 * 24 * 60 * 60 * 1000);
+
+  const reservations = await prisma.reservation.findMany({
+    where: {
+      property: { organizationId },
+      status: { in: ["confirmed", "completed"] },
+      sourceReference: { not: null },
+      departureDate: { gte: startOfDay(now), lte: horizon },
+    },
+    select: {
+      guestName: true,
+      propertyId: true,
+      checkoutSentAt: true,
+      property: { select: { name: true } },
+    },
+    orderBy: { departureDate: "asc" },
+    take: limit,
+  });
+
+  const previews: WelcomePreview[] = [];
+  for (const r of reservations) {
+    const tpl = await prisma.knowledgeBaseItem.findFirst({
+      where: { propertyId: r.propertyId, category: "checkout", isActive: true },
+      select: { content: true },
+      orderBy: { updatedAt: "desc" },
+    });
+    const firstName = guestFirstName(r.guestName) ?? r.guestName;
+    previews.push({
+      guest: r.guestName,
+      property: r.property.name,
+      hasEntry: Boolean(tpl),
+      alreadySent: Boolean(r.checkoutSentAt),
+      body: tpl ? buildGuestMessageBody(tpl.content, firstName, signature) : null,
     });
   }
   return previews;

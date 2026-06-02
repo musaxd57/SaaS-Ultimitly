@@ -12,6 +12,7 @@ import {
   runDueChannelAutoReplies,
   previewChannelAutoReplies,
   sendDueWelcomes,
+  sendDueCheckouts,
   previewWelcomes,
   isWithinActiveHours,
   currentHourInTimeZone,
@@ -407,5 +408,86 @@ describe("sendDueWelcomes", () => {
     expect(previews).toHaveLength(1);
     expect(previews[0].hasEntry).toBe(false);
     expect(previews[0].body).toBeNull();
+  });
+});
+
+describe("sendDueCheckouts", () => {
+  beforeEach(async () => {
+    await resetDb();
+    vi.clearAllMocks();
+    vi.stubEnv("AUTO_REPLY_ENABLED", "1");
+    vi.useFakeTimers({ toFake: ["Date"] });
+    mockSend.mockResolvedValue({ ok: true });
+  });
+
+  afterEach(() => {
+    vi.useRealTimers();
+    vi.unstubAllEnvs();
+  });
+
+  async function seedCheckout(
+    opts: { autoCheckout?: boolean; withEntry?: boolean; departure: Date },
+  ) {
+    const org = await prisma.organization.create({
+      data: { name: "Org", autoCheckout: opts.autoCheckout ?? true, timezone: "Europe/Istanbul" },
+    });
+    const property = await prisma.property.create({
+      data: { organizationId: org.id, name: "nuve 3" },
+    });
+    if (opts.withEntry !== false) {
+      await prisma.knowledgeBaseItem.create({
+        data: {
+          propertyId: property.id,
+          category: "checkout",
+          title: "Çıkış",
+          content: "Hi {isim}, safe travels — İsa",
+        },
+      });
+    }
+    await prisma.reservation.create({
+      data: {
+        propertyId: property.id,
+        guestName: "Ronda Smith",
+        arrivalDate: opts.departure,
+        departureDate: opts.departure,
+        channel: "airbnb",
+        status: "confirmed",
+        sourceReference: "res-co-1",
+      },
+    });
+    return { orgId: org.id };
+  }
+
+  it("sends the check-out message on the departure day after 08:00, personalised", async () => {
+    vi.setSystemTime(new Date("2026-06-15T08:00:00Z")); // 11:00 Istanbul
+    const { orgId } = await seedCheckout({ departure: new Date("2026-06-15T00:00:00Z") });
+    const out = await sendDueCheckouts(orgId);
+    expect(out.sent).toBe(1);
+    const [, body] = mockSend.mock.calls[0];
+    expect(body).toBe("Hi Ronda, safe travels — İsa");
+  });
+
+  it("does not send before 08:00", async () => {
+    vi.setSystemTime(new Date("2026-06-15T03:00:00Z")); // 06:00 Istanbul
+    const { orgId } = await seedCheckout({ departure: new Date("2026-06-15T00:00:00Z") });
+    expect((await sendDueCheckouts(orgId)).sent).toBe(0);
+    expect(mockSend).not.toHaveBeenCalled();
+  });
+
+  it("does not send when it is not the departure day", async () => {
+    vi.setSystemTime(new Date("2026-06-15T09:00:00Z")); // 12:00 Istanbul
+    const { orgId } = await seedCheckout({ departure: new Date("2026-06-20T00:00:00Z") });
+    expect((await sendDueCheckouts(orgId)).sent).toBe(0);
+    expect(mockSend).not.toHaveBeenCalled();
+  });
+
+  it("does nothing when autoCheckout is off", async () => {
+    vi.setSystemTime(new Date("2026-06-15T09:00:00Z"));
+    const { orgId } = await seedCheckout({
+      autoCheckout: false,
+      departure: new Date("2026-06-15T00:00:00Z"),
+    });
+    expect((await sendDueCheckouts(orgId)).sent).toBe(0);
+    expect(mockSend).not.toHaveBeenCalled();
   });
 });

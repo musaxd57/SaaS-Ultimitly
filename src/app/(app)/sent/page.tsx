@@ -11,7 +11,7 @@ export const dynamic = "force-dynamic";
 
 interface SentItem {
   id: string;
-  kind: "reply" | "welcome";
+  kind: "reply" | "welcome" | "checkout";
   when: Date;
   guest: string;
   property: string;
@@ -22,7 +22,7 @@ export default async function SentPage() {
   const session = await requireAuth();
   const orgId = session.organizationId;
 
-  const [replies, welcomes] = await Promise.all([
+  const [replies, welcomes, checkouts] = await Promise.all([
     // AI auto-replies that were actually sent (stored as outbound GuestOps AI msgs).
     prisma.message.findMany({
       where: {
@@ -50,6 +50,18 @@ export default async function SentPage() {
       orderBy: { welcomeSentAt: "desc" },
       take: 100,
     }),
+    // Check-out messages (tracked on the reservation).
+    prisma.reservation.findMany({
+      where: { checkoutSentAt: { not: null }, property: { organizationId: orgId } },
+      select: {
+        id: true,
+        guestName: true,
+        checkoutSentAt: true,
+        property: { select: { name: true } },
+      },
+      orderBy: { checkoutSentAt: "desc" },
+      take: 100,
+    }),
   ]);
 
   const items: SentItem[] = [
@@ -68,6 +80,14 @@ export default async function SentPage() {
       guest: w.guestName,
       property: w.property.name,
       preview: "Karşılama mesajı gönderildi.",
+    })),
+    ...checkouts.map((c) => ({
+      id: `c-${c.id}`,
+      kind: "checkout" as const,
+      when: c.checkoutSentAt as Date,
+      guest: c.guestName,
+      property: c.property.name,
+      preview: "Çıkış mesajı gönderildi.",
     })),
   ].sort((a, b) => b.when.getTime() - a.when.getTime());
 
@@ -90,18 +110,26 @@ export default async function SentPage() {
             <Card key={it.id}>
               <CardContent className="flex items-start gap-3 p-4">
                 <div className="mt-0.5 flex size-8 shrink-0 items-center justify-center rounded-lg bg-primary/10 text-primary">
-                  {it.kind === "welcome" ? (
-                    <Sparkles className="size-4" />
-                  ) : (
-                    <Bot className="size-4" />
-                  )}
+                  {it.kind === "reply" ? <Bot className="size-4" /> : <Sparkles className="size-4" />}
                 </div>
                 <div className="min-w-0 flex-1">
                   <div className="flex flex-wrap items-center gap-2">
                     <span className="text-sm font-medium">{it.guest}</span>
                     <Badge tone="muted">{it.property}</Badge>
-                    <Badge tone={it.kind === "welcome" ? "success" : "secondary"}>
-                      {it.kind === "welcome" ? "Karşılama" : "Oto-yanıt"}
+                    <Badge
+                      tone={
+                        it.kind === "welcome"
+                          ? "success"
+                          : it.kind === "checkout"
+                            ? "warning"
+                            : "secondary"
+                      }
+                    >
+                      {it.kind === "welcome"
+                        ? "Karşılama"
+                        : it.kind === "checkout"
+                          ? "Çıkış"
+                          : "Oto-yanıt"}
                     </Badge>
                     <span className="ml-auto text-xs text-muted-foreground">{fromNow(it.when)}</span>
                   </div>
