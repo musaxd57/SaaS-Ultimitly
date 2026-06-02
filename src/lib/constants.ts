@@ -90,6 +90,7 @@ export const TASK_TYPE = optionMap<TaskType>([
 
 // --- Knowledge Base ---------------------------------------------------------
 export type KbCategory =
+  | "welcome"
   | "location"
   | "checkin"
   | "wifi"
@@ -101,6 +102,7 @@ export type KbCategory =
   | "local_tips"
   | "general";
 export const KB_CATEGORY = optionMap<KbCategory>([
+  { value: "welcome", label: "Karşılama Mesajı", tone: "success" },
   { value: "location", label: "Konum", tone: "default" },
   { value: "checkin", label: "Giriş Talimatı", tone: "success" },
   { value: "wifi", label: "Wi-Fi", tone: "secondary" },
