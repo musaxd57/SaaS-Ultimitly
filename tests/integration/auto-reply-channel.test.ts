@@ -296,7 +296,15 @@ describe("sendDueWelcomes", () => {
         },
       });
     }
-    const arrival = opts.arrival ?? new Date(Date.now() + 5 * 24 * 60 * 60 * 1000);
+    // Default arrival = TODAY (org timezone) at noon UTC, so the check-in-day
+    // welcome fires deterministically.
+    const istToday = new Intl.DateTimeFormat("en-CA", {
+      timeZone: "Europe/Istanbul",
+      year: "numeric",
+      month: "2-digit",
+      day: "2-digit",
+    }).format(new Date());
+    const arrival = opts.arrival ?? new Date(`${istToday}T12:00:00Z`);
     const reservation = await prisma.reservation.create({
       data: {
         propertyId: property.id,
@@ -368,6 +376,13 @@ describe("sendDueWelcomes", () => {
   it("never messages past reservations", async () => {
     const past = new Date(Date.now() - 10 * 24 * 60 * 60 * 1000);
     const { orgId } = await seedWelcome({ arrival: past });
+    expect((await sendDueWelcomes(orgId)).sent).toBe(0);
+    expect(mockSend).not.toHaveBeenCalled();
+  });
+
+  it("only sends on the check-in day — not for future reservations", async () => {
+    const inFiveDays = new Date(Date.now() + 5 * 24 * 60 * 60 * 1000);
+    const { orgId } = await seedWelcome({ arrival: inFiveDays });
     expect((await sendDueWelcomes(orgId)).sent).toBe(0);
     expect(mockSend).not.toHaveBeenCalled();
   });

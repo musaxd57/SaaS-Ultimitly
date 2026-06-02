@@ -1,5 +1,5 @@
 import "server-only";
-import { startOfDay } from "date-fns";
+import { startOfDay, addDays } from "date-fns";
 import { prisma } from "@/lib/db";
 import { classifyMessage, suggestReply } from "@/lib/ai";
 import { sendOnChannel } from "@/lib/messaging";
@@ -574,6 +574,25 @@ function guestFirstName(name: string): string | null {
   return first;
 }
 
+/** Calendar date (YYYY-MM-DD) of `d` as seen in the given IANA timezone. */
+function dateKeyInTimeZone(d: Date, tz: string): string {
+  try {
+    return new Intl.DateTimeFormat("en-CA", {
+      timeZone: tz,
+      year: "numeric",
+      month: "2-digit",
+      day: "2-digit",
+    }).format(d);
+  } catch {
+    return d.toISOString().slice(0, 10);
+  }
+}
+
+/** The reservation's check-in calendar date (stored as UTC midnight of that date). */
+function arrivalDateKey(d: Date): string {
+  return d.toISOString().slice(0, 10);
+}
+
 // Placeholder the host can drop into a welcome template — {isim} / {ad} / {name}
 // — replaced with the guest's first name when the message is sent.
 function hasNamePlaceholder(s: string): boolean {
@@ -609,12 +628,16 @@ export async function sendDueWelcomes(
 
   const org = await prisma.organization.findUnique({
     where: { id: organizationId },
-    select: { autoWelcome: true, aiSignature: true },
+    select: { autoWelcome: true, aiSignature: true, timezone: true },
   });
   if (!org || !org.autoWelcome) return { sent: 0, considered: 0 };
 
+  // Send exactly on the guest's check-in DAY (org timezone): at 00:00 of the
+  // arrival date. The cron runs every few minutes, so it fires right after
+  // midnight. Scan a small window around now, then match the exact calendar day.
   const now = new Date();
-  const horizon = new Date(now.getTime() + 45 * 24 * 60 * 60 * 1000);
+  const tz = org.timezone ?? "Europe/Istanbul";
+  const todayKey = dateKeyInTimeZone(now, tz);
 
   const reservations = await prisma.reservation.findMany({
     where: {
@@ -622,9 +645,16 @@ export async function sendDueWelcomes(
       status: "confirmed",
       welcomeSentAt: null,
       sourceReference: { not: null },
-      arrivalDate: { gte: startOfDay(now), lte: horizon },
+      arrivalDate: { gte: addDays(startOfDay(now), -1), lt: addDays(startOfDay(now), 2) },
     },
-    select: { id: true, guestName: true, channel: true, sourceReference: true, propertyId: true },
+    select: {
+      id: true,
+      guestName: true,
+      channel: true,
+      sourceReference: true,
+      propertyId: true,
+      arrivalDate: true,
+    },
     orderBy: { arrivalDate: "asc" },
     take: 25, // cap per run so enabling the toggle can't cause a huge burst
   });
@@ -633,6 +663,9 @@ export async function sendDueWelcomes(
   let sent = 0;
 
   for (const r of reservations) {
+    // Only on the check-in day itself.
+    if (arrivalDateKey(r.arrivalDate) !== todayKey) continue;
+
     const welcome = await prisma.knowledgeBaseItem.findFirst({
       where: { propertyId: r.propertyId, category: "welcome", isActive: true },
       select: { content: true },
