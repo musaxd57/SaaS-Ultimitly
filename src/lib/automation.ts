@@ -470,6 +470,14 @@ export async function applyChannelAutoReply(
     return { sent: false, skippedReason: "globally_disabled", draft, ...meta };
   }
 
+  // Anti-spam rate limit: never send more than one message per hour to the same
+  // guest. Protects the account from Airbnb/Booking spam penalties.
+  const ONE_HOUR_MS = 60 * 60 * 1000;
+  const lastOutbound = [...messages].reverse().find((m) => m.direction === "outbound");
+  if (lastOutbound && Date.now() - new Date(lastOutbound.createdAt).getTime() < ONE_HOUR_MS) {
+    return { sent: false, skippedReason: "rate_limited", draft, ...meta };
+  }
+
   // Deliver FIRST — never persist a reply that didn't reach the guest.
   const delivery = await sendOnChannel(
     {

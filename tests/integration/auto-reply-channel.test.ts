@@ -38,6 +38,7 @@ async function seed(opts: {
   externalReservationId?: string | null;
   lastDirection?: "inbound" | "outbound";
   aiSignature?: string;
+  recentOutbound?: boolean;
 } = {}) {
   const org = await prisma.organization.create({
     data: {
@@ -62,6 +63,17 @@ async function seed(opts: {
         opts.externalReservationId === undefined ? "res-1" : opts.externalReservationId,
       messages: {
         create: [
+          // An earlier reply we sent 10 minutes ago (for the rate-limit test).
+          ...(opts.recentOutbound
+            ? [
+                {
+                  direction: "outbound",
+                  senderName: "Host",
+                  body: "Önceki cevabımız",
+                  createdAt: new Date(Date.now() - 10 * 60_000),
+                },
+              ]
+            : []),
           {
             direction: "inbound",
             senderName: "Alex",
@@ -180,6 +192,15 @@ describe("applyChannelAutoReply", () => {
     expect(out.sent).toBe(false);
     expect(out.skippedReason).toBe("disabled");
     expect(mockSuggest).not.toHaveBeenCalled();
+    expect(mockSend).not.toHaveBeenCalled();
+  });
+
+  it("rate-limits: skips when we already messaged this guest within the last hour", async () => {
+    const { conversationId } = await seed({ recentOutbound: true });
+    const out = await applyChannelAutoReply(conversationId);
+
+    expect(out.sent).toBe(false);
+    expect(out.skippedReason).toBe("rate_limited");
     expect(mockSend).not.toHaveBeenCalled();
   });
 
