@@ -30,12 +30,36 @@ export default async function SettingsPage() {
     }),
   ]);
 
+  const masterOn = process.env.AUTO_REPLY_ENABLED === "1";
+
   return (
     <>
       <PageHeader
         title="Ayarlar"
         description="AI'nın sesi ve otomatik mesaj ayarları."
       />
+
+      <div
+        className={
+          masterOn
+            ? "rounded-lg border border-emerald-300 bg-emerald-50 px-4 py-3 text-sm text-emerald-800"
+            : "rounded-lg border border-amber-300 bg-amber-50 px-4 py-3 text-sm text-amber-800"
+        }
+      >
+        {masterOn ? (
+          <>
+            <strong>Otomatik gönderim ana şalteri: AÇIK.</strong> Aşağıdaki toggle'lar
+            (gece oto-yanıt / otomatik karşılama) açıksa, mesajlar gerçekten gönderilir.
+          </>
+        ) : (
+          <>
+            <strong>Otomatik gönderim ana şalteri: KAPALI.</strong> Aşağıdaki toggle'ları açsanız
+            bile <strong>hiçbir otomatik mesaj gönderilmez</strong>. Açmak için Railway'de
+            <code className="mx-1 rounded bg-amber-100 px-1 py-0.5">AUTO_REPLY_ENABLED=1</code>
+            ayarlayın.
+          </>
+        )}
+      </div>
 
       <AiVoiceForm tone={org?.aiReplyTone ?? "warm"} signature={org?.aiSignature ?? ""} />
 
