@@ -405,10 +405,18 @@ export async function applyChannelAutoReply(
   // Only answer when the guest spoke last (don't reply to ourselves).
   if (last.direction !== "inbound") return { sent: false, skippedReason: "already_answered", ...meta };
 
-  const kb = await prisma.knowledgeBaseItem.findMany({
+  const kbRaw = await prisma.knowledgeBaseItem.findMany({
     where: { propertyId: conversation.propertyId, isActive: true },
     select: { category: true, title: true, content: true },
   });
+  // Resolve any {isim} placeholder in KB entries (e.g. the welcome template) to
+  // the guest's name before it reaches the model, so a literal "{isim}" can
+  // never leak into a reply.
+  const guestFirst = guestFirstName(conversation.guestIdentifier) ?? "misafirimiz";
+  const kb = kbRaw.map((k) => ({
+    ...k,
+    content: k.content.replace(/\{\s*(isim|ad|name)\s*\}/gi, guestFirst),
+  }));
 
   const result = await suggestReply({
     guestMessage: last.body,

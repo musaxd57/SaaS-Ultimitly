@@ -23,7 +23,7 @@ export function HospitableSyncButton() {
       if (data.ok) {
         setResult({
           ok: true,
-          text: `${data.properties ?? 0} mülk · ${data.conversations} konuşma · ${data.messages} yeni mesaj`,
+          text: `${data.properties ?? 0} mülk · ${data.reservations ?? 0} rezervasyon · ${data.conversations} konuşma · ${data.messages} yeni mesaj`,
         });
         router.refresh();
       } else {
