@@ -1,8 +1,5 @@
 import { type NextRequest, NextResponse } from "next/server";
-import { prisma } from "@/lib/db";
-import { isHospitableConfigured } from "@/lib/hospitable";
-import { syncHospitable } from "@/lib/hospitable-sync";
-import { runDueChannelAutoReplies, sendDueWelcomes, sendDueCheckouts } from "@/lib/automation";
+import { runScheduledSync } from "@/lib/scheduled-sync";
 
 // ---------------------------------------------------------------------------
 // Scheduled sync + night auto-reply (the engine behind 24/7 operation).
@@ -32,38 +29,9 @@ async function handle(req: NextRequest) {
   if (!authorized(req)) {
     return NextResponse.json({ ok: false, error: "unauthorized" }, { status: 401 });
   }
-  if (!isHospitableConfigured()) {
-    return NextResponse.json({ ok: false, error: "HOSPITABLE_API_TOKEN not configured" });
-  }
 
-  const orgs = await prisma.organization.findMany({ select: { id: true } });
-  const totals = {
-    organizations: orgs.length,
-    conversations: 0,
-    messages: 0,
-    autoReplies: 0,
-    welcomes: 0,
-    checkouts: 0,
-  };
-
-  for (const org of orgs) {
-    try {
-      const result = await syncHospitable(org.id);
-      const auto = await runDueChannelAutoReplies(org.id);
-      const welcome = await sendDueWelcomes(org.id);
-      const checkout = await sendDueCheckouts(org.id);
-      totals.conversations += result.conversations;
-      totals.messages += result.messages;
-      totals.autoReplies += auto.sent;
-      totals.welcomes += welcome.sent;
-      totals.checkouts += checkout.sent;
-    } catch (err) {
-      // One org failing must not abort the rest.
-      console.error(`[cron/sync] failed for organization ${org.id}`, err);
-    }
-  }
-
-  return NextResponse.json({ ok: true, ...totals });
+  const totals = await runScheduledSync();
+  return NextResponse.json(totals);
 }
 
 export async function GET(req: NextRequest) {
