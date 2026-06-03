@@ -26,7 +26,7 @@ async function callOpenAI(system: string, user: string): Promise<string | null> 
         Authorization: `Bearer ${key}`,
       },
       body: JSON.stringify({
-        model: process.env.OPENAI_MODEL || "gpt-4o-mini",
+        model: process.env.OPENAI_MODEL || "gpt-4.1",
         temperature: 0.4,
         response_format: { type: "json_object" },
         messages: [
