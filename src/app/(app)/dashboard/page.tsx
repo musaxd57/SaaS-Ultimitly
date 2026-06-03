@@ -189,7 +189,7 @@ export default async function DashboardPage() {
                     <p className="text-xs text-muted-foreground">{r.property.name}</p>
                   </div>
                   <span className="text-sm font-medium text-muted-foreground">
-                    {r.property.checkOutTime}
+                    {r.guestCheckoutTime ?? r.property.checkOutTime}
                   </span>
                 </div>
               ))

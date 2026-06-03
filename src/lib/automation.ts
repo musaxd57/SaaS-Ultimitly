@@ -380,7 +380,7 @@ export async function applyChannelAutoReply(
         },
       },
       reservation: {
-        select: { guestName: true, arrivalDate: true, departureDate: true, status: true },
+        select: { id: true, guestName: true, arrivalDate: true, departureDate: true, status: true },
       },
       messages: { orderBy: { createdAt: "asc" } },
     },
@@ -461,6 +461,20 @@ export async function applyChannelAutoReply(
       : "warm",
     language: org.language ?? "tr",
   });
+
+  // If the guest stated their own departure time, record it on the reservation
+  // so the dashboard can show it (falling back to the property default). Guarded
+  // and best-effort — never blocks the reply.
+  if (result.statedCheckoutTime && conversation.reservation) {
+    try {
+      await prisma.reservation.update({
+        where: { id: conversation.reservation.id },
+        data: { guestCheckoutTime: result.statedCheckoutTime },
+      });
+    } catch {
+      // ignore — not critical to the reply
+    }
+  }
 
   // Close every reply in the host's voice: append their configured signature
   // (name + contact) so guests get a personal, on-brand sign-off. Build a new

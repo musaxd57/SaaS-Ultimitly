@@ -83,6 +83,11 @@ export async function suggestReply(input: SuggestReplyInput): Promise<SuggestRep
             typeof parsed.detectedLanguage === "string" && parsed.detectedLanguage.trim()
               ? parsed.detectedLanguage.trim()
               : "tr",
+          statedCheckoutTime:
+            typeof parsed.statedCheckoutTime === "string" &&
+            /^\d{1,2}:\d{2}$/.test(parsed.statedCheckoutTime.trim())
+              ? parsed.statedCheckoutTime.trim()
+              : null,
         };
       }
     } catch {

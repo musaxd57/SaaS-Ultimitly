@@ -50,6 +50,8 @@ export interface SuggestReplyResult {
   riskLevel: "none" | "low" | "medium" | "high";
   /** BCP-47 language tag detected from the guest message. */
   detectedLanguage: string;
+  /** The guest's own stated departure/check-out time as "HH:MM" (24h), or null. */
+  statedCheckoutTime: string | null;
 }
 
 export interface ClassifyResult {

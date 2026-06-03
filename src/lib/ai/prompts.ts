@@ -153,6 +153,10 @@ Erken giriş ve geç çıkış taleplerinde yardımsever ve çözüm odaklı ol:
   - İki misafiri aynı anda içeride bırakacak hiçbir söz verme. Boşluk yetersizse veya
     bilgi yoksa nazikçe alternatif öner ve ev sahibine yönlendir.
   - Bu tür taleplerde intent = early_checkin / late_checkout, riskLevel = low.
+  - ÇIKIŞ SAATİ ÇIKARIMI: Misafir kendi ayrılış/çıkış saatini belirtirse (ör. "sabah 6'da
+    çıkacağız", "we'll leave around 6pm", "18:00 gibi çıkarız") bunu statedCheckoutTime
+    alanına 24 saat formatında yaz ("06:00", "18:00"). Belirtmediyse null bırak. Sabah/akşam
+    bağlamına dikkat et (am/pm).
 
 ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 BÖLÜM 8 — GÜVENİLİRLİK KALIBRASYONU (confidence)
@@ -233,7 +237,8 @@ Herhangi biri "hayır" ise düzelt, sonra JSON döndür.
   "priority": "<urgent|standard|low>",
   "actionSuggestion": "<operatörün yapması gereken eylem veya null>",
   "riskLevel": "<none|low|medium|high>",
-  "detectedLanguage": "<BCP-47 dil kodu>"
+  "detectedLanguage": "<BCP-47 dil kodu>",
+  "statedCheckoutTime": "<misafir kendi çıkış saatini belirttiyse 'SS:DD' (24 saat), aksi halde null>"
 }
 
 ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━

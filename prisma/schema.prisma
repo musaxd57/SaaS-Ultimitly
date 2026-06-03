@@ -124,6 +124,7 @@ model Reservation {
   notes           String?
   welcomeSentAt   DateTime? // set once the auto welcome message has been delivered
   checkoutSentAt  DateTime? // set once the auto check-out message has been delivered
+  guestCheckoutTime String? // guest's own stated departure time (e.g. "18:00"); null → use property default
   createdAt       DateTime @default(now())
   updatedAt       DateTime @updatedAt
 

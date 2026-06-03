@@ -32,6 +32,7 @@ const SAFE_REPLY = {
   actionSuggestion: null,
   riskLevel: "none" as const,
   detectedLanguage: "tr",
+  statedCheckoutTime: null,
 };
 
 /** Seed an org + property + one channel conversation whose guest spoke last. */

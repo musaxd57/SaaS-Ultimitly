@@ -215,5 +215,6 @@ export function suggestReplyFallback(input: SuggestReplyInput): SuggestReplyResu
     actionSuggestion,
     riskLevel,
     detectedLanguage,
+    statedCheckoutTime: null,
   };
 }
