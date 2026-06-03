@@ -430,7 +430,7 @@ export async function applyChannelAutoReply(
   const guestFirst = guestFirstName(conversation.guestIdentifier) ?? "misafirimiz";
   const kb = kbRaw.map((k) => ({
     ...k,
-    content: k.content.replace(/\{\s*(isim|ad|name)\s*\}/gi, guestFirst),
+    content: fillPlaceholders(k.content, guestFirst, conversation.property.name),
   }));
 
   const result = await suggestReply({
@@ -617,17 +617,32 @@ function hasNamePlaceholder(s: string): boolean {
   return /\{\s*(isim|ad|name)\s*\}/i.test(s); // fresh, non-global → no lastIndex footgun
 }
 
+// Resolve the host's template tokens to live values:
+//   {isim} / {ad} / {name}         → guest's first name
+//   {daire} / {apartment} / {apt}  → the apartment (property) name
+function fillPlaceholders(text: string, firstName: string, propertyName?: string): string {
+  let out = text.replace(/\{\s*(isim|ad|name)\s*\}/gi, firstName);
+  if (propertyName) out = out.replace(/\{\s*(daire|apartment|apt)\s*\}/gi, propertyName);
+  return out;
+}
+
 /**
  * Build the welcome message body. If the host's template contains a {isim}
- * placeholder, substitute the name and send it verbatim (their own greeting +
+ * placeholder, substitute the tokens and send it verbatim (their own greeting +
  * sign-off). Otherwise prepend a greeting and append the org signature.
  */
-function buildGuestMessageBody(content: string, firstName: string, signature?: string): string {
+function buildGuestMessageBody(
+  content: string,
+  firstName: string,
+  signature?: string,
+  propertyName?: string,
+): string {
   const trimmed = content.trim();
+  const filled = fillPlaceholders(trimmed, firstName, propertyName);
   if (hasNamePlaceholder(trimmed)) {
-    return trimmed.replace(/\{\s*(isim|ad|name)\s*\}/gi, firstName);
+    return filled; // host's own greeting + sign-off, tokens resolved
   }
-  return [`Merhaba ${firstName},`, "", trimmed, ...(signature ? ["", signature] : [])].join("\n");
+  return [`Merhaba ${firstName},`, "", filled, ...(signature ? ["", signature] : [])].join("\n");
 }
 
 /**
@@ -672,6 +687,7 @@ export async function sendDueWelcomes(
       sourceReference: true,
       propertyId: true,
       arrivalDate: true,
+      property: { select: { name: true } },
     },
     distinct: ["sourceReference"], // one message per booking, even if rows duplicated
     orderBy: { arrivalDate: "asc" },
@@ -693,7 +709,7 @@ export async function sendDueWelcomes(
     if (!welcome) continue; // this apartment has no welcome text → skip
 
     const firstName = guestFirstName(r.guestName) ?? r.guestName;
-    const body = buildGuestMessageBody(welcome.content, firstName, signature);
+    const body = buildGuestMessageBody(welcome.content, firstName, signature, r.property.name);
 
     const delivery = await sendOnChannel(
       {
@@ -774,7 +790,7 @@ export async function previewWelcomes(
       property: r.property.name,
       hasEntry: Boolean(welcome),
       alreadySent: Boolean(r.welcomeSentAt),
-      body: welcome ? buildGuestMessageBody(welcome.content, firstName, signature) : null,
+      body: welcome ? buildGuestMessageBody(welcome.content, firstName, signature, r.property.name) : null,
     });
   }
   return previews;
@@ -823,6 +839,7 @@ export async function sendDueCheckouts(
       propertyId: true,
       arrivalDate: true,
       departureDate: true,
+      property: { select: { name: true } },
     },
     distinct: ["sourceReference"], // one message per booking, even if rows duplicated
     orderBy: { departureDate: "asc" },
@@ -850,7 +867,7 @@ export async function sendDueCheckouts(
     if (!tpl) continue;
 
     const firstName = guestFirstName(r.guestName) ?? r.guestName;
-    const body = buildGuestMessageBody(tpl.content, firstName, signature);
+    const body = buildGuestMessageBody(tpl.content, firstName, signature, r.property.name);
 
     const delivery = await sendOnChannel(
       { channel: r.channel, guestIdentifier: r.guestName, externalReservationId: r.sourceReference },
@@ -913,7 +930,7 @@ export async function previewCheckouts(
       property: r.property.name,
       hasEntry: Boolean(tpl),
       alreadySent: Boolean(r.checkoutSentAt),
-      body: tpl ? buildGuestMessageBody(tpl.content, firstName, signature) : null,
+      body: tpl ? buildGuestMessageBody(tpl.content, firstName, signature, r.property.name) : null,
     });
   }
   return previews;
