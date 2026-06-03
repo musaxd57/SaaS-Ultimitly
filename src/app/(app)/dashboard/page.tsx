@@ -35,13 +35,23 @@ export default async function DashboardPage() {
   const [stats, arrivals, departures, conversations, tasksToday, stayingCount] = await Promise.all([
     getOpsStats(orgId),
     prisma.reservation.findMany({
-      where: { ...scope, arrivalDate: { gte: dayStart, lte: dayEnd } },
+      where: {
+        ...scope,
+        status: { in: ["confirmed", "completed"] },
+        arrivalDate: { gte: dayStart, lte: dayEnd },
+      },
       include: { property: { select: { name: true, checkInTime: true } } },
+      distinct: ["sourceReference"],
       orderBy: { arrivalDate: "asc" },
     }),
     prisma.reservation.findMany({
-      where: { ...scope, departureDate: { gte: dayStart, lte: dayEnd } },
+      where: {
+        ...scope,
+        status: { in: ["confirmed", "completed"] },
+        departureDate: { gte: dayStart, lte: dayEnd },
+      },
       include: { property: { select: { name: true, checkOutTime: true } } },
+      distinct: ["sourceReference"],
       orderBy: { departureDate: "asc" },
     }),
     prisma.conversation.findMany({
