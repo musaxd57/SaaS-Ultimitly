@@ -1,6 +1,6 @@
 // Next.js startup hook. Runs once when the server process boots.
 //
-// We start an in-process timer that triggers the scheduled sync every 5 minutes
+// We start an in-process timer that triggers the scheduled sync every 2 minutes
 // — a self-contained backup so the system keeps pulling messages and sending
 // auto-replies even if the external scheduler (cron-job.org) goes down.
 //
@@ -10,7 +10,7 @@
 // same authenticated path the external scheduler uses. Both triggers are
 // idempotent and guarded by an in-process lock, so running both is safe.
 
-const INTERVAL_MS = 5 * 60 * 1000; // 5 minutes
+const INTERVAL_MS = 2 * 60 * 1000; // 2 minutes
 
 export async function register() {
   // Only on the Node.js runtime, only in production, only once per process.
@@ -52,5 +52,5 @@ export async function register() {
   // Kick once shortly after boot (server is listening), then on a fixed interval.
   setTimeout(tick, 15_000);
   setInterval(tick, INTERVAL_MS);
-  console.log("[internal-cron] in-process scheduler started (every 5 min)");
+  console.log("[internal-cron] in-process scheduler started (every 2 min)");
 }
