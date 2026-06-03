@@ -1,4 +1,5 @@
 import { describe, it, expect, beforeEach, afterEach, vi } from "vitest";
+import { addDays } from "date-fns";
 import { prisma, resetDb } from "../helpers/db";
 
 // Force the AI + transport to be deterministic mocks.
@@ -426,7 +427,7 @@ describe("sendDueCheckouts", () => {
   });
 
   async function seedCheckout(
-    opts: { autoCheckout?: boolean; withEntry?: boolean; departure: Date },
+    opts: { autoCheckout?: boolean; withEntry?: boolean; arrival?: Date; departure: Date },
   ) {
     const org = await prisma.organization.create({
       data: { name: "Org", autoCheckout: opts.autoCheckout ?? true, timezone: "Europe/Istanbul" },
@@ -444,11 +445,14 @@ describe("sendDueCheckouts", () => {
         },
       });
     }
+    // Default to a multi-night stay (arrival 3 days before departure) so the
+    // single-night skip doesn't apply unless a test opts into it.
+    const arrival = opts.arrival ?? addDays(opts.departure, -3);
     await prisma.reservation.create({
       data: {
         propertyId: property.id,
         guestName: "Ronda Smith",
-        arrivalDate: opts.departure,
+        arrivalDate: arrival,
         departureDate: opts.departure,
         channel: "airbnb",
         status: "confirmed",
@@ -458,8 +462,8 @@ describe("sendDueCheckouts", () => {
     return { orgId: org.id };
   }
 
-  it("sends the check-out message on the departure day after 08:00, personalised", async () => {
-    vi.setSystemTime(new Date("2026-06-15T08:00:00Z")); // 11:00 Istanbul
+  it("sends the check-out message the evening before (after 18:00), personalised", async () => {
+    vi.setSystemTime(new Date("2026-06-14T15:00:00Z")); // 18:00 Istanbul, day before
     const { orgId } = await seedCheckout({ departure: new Date("2026-06-15T00:00:00Z") });
     const out = await sendDueCheckouts(orgId);
     expect(out.sent).toBe(1);
@@ -467,22 +471,39 @@ describe("sendDueCheckouts", () => {
     expect(body).toBe("Hi Ronda, safe travels — İsa");
   });
 
-  it("does not send before 08:00", async () => {
-    vi.setSystemTime(new Date("2026-06-15T03:00:00Z")); // 06:00 Istanbul
+  it("does not send before 18:00", async () => {
+    vi.setSystemTime(new Date("2026-06-14T12:00:00Z")); // 15:00 Istanbul
     const { orgId } = await seedCheckout({ departure: new Date("2026-06-15T00:00:00Z") });
     expect((await sendDueCheckouts(orgId)).sent).toBe(0);
     expect(mockSend).not.toHaveBeenCalled();
   });
 
-  it("does not send when it is not the departure day", async () => {
-    vi.setSystemTime(new Date("2026-06-15T09:00:00Z")); // 12:00 Istanbul
+  it("does not send on the departure day itself (it already went the night before)", async () => {
+    vi.setSystemTime(new Date("2026-06-15T15:00:00Z")); // 18:00 Istanbul, departure day
+    const { orgId } = await seedCheckout({ departure: new Date("2026-06-15T00:00:00Z") });
+    expect((await sendDueCheckouts(orgId)).sent).toBe(0);
+    expect(mockSend).not.toHaveBeenCalled();
+  });
+
+  it("does not send when check-out is not tomorrow", async () => {
+    vi.setSystemTime(new Date("2026-06-14T18:00:00Z")); // 21:00 Istanbul
     const { orgId } = await seedCheckout({ departure: new Date("2026-06-20T00:00:00Z") });
     expect((await sendDueCheckouts(orgId)).sent).toBe(0);
     expect(mockSend).not.toHaveBeenCalled();
   });
 
+  it("does not send to single-night reservations", async () => {
+    vi.setSystemTime(new Date("2026-06-14T15:00:00Z")); // 18:00 Istanbul, eve of check-out
+    const { orgId } = await seedCheckout({
+      arrival: new Date("2026-06-14T00:00:00Z"),
+      departure: new Date("2026-06-15T00:00:00Z"), // 1 night
+    });
+    expect((await sendDueCheckouts(orgId)).sent).toBe(0);
+    expect(mockSend).not.toHaveBeenCalled();
+  });
+
   it("does nothing when autoCheckout is off", async () => {
-    vi.setSystemTime(new Date("2026-06-15T09:00:00Z"));
+    vi.setSystemTime(new Date("2026-06-14T15:00:00Z"));
     const { orgId } = await seedCheckout({
       autoCheckout: false,
       departure: new Date("2026-06-15T00:00:00Z"),

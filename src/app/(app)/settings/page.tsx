@@ -104,18 +104,19 @@ export default async function SettingsPage() {
         </CardHeader>
         <CardContent className="space-y-3">
           <p className="text-sm text-muted-foreground">
-            Açıkken, çıkış (departure) günü <strong>sabah 08:00&apos;da</strong> o dairenin{" "}
+            Açıkken, çıkıştan <strong>bir gün önce akşam 18:00&apos;da</strong> o dairenin{" "}
             <strong>Çıkış Mesajı</strong> bilgi tabanı girişi, misafirin adıyla{" "}
             <strong>tek sefer</strong> gönderilir. Metnin içine{" "}
             <code className="rounded bg-muted px-1 py-0.5 text-xs">{"{isim}"}</code> yazın (örn.
-            &quot;Hi {"{isim}"}, ... Safe travels, İsa&quot;). Çıkış girişi olmayan daireler atlanır.
+            &quot;Merhaba {"{isim}"}, yarın çıkış günü...&quot;). Tek gecelik konaklamalara{" "}
+            <strong>gönderilmez</strong>; çıkış girişi olmayan daireler atlanır.
           </p>
           <div className="flex flex-wrap items-center gap-3">
             <AutoReplyToggle
               field="autoCheckout"
               label="Otomatik çıkış mesajı"
               enabled={org?.autoCheckout ?? false}
-              title="Açıkken: çıkış günü sabah 08:00'da, o dairenin çıkış mesajı misafire bir kez otomatik gider. Ana şalter (AUTO_REPLY_ENABLED) da açık olmalı."
+              title="Açıkken: çıkıştan bir gün önce akşam 18:00'da, o dairenin çıkış mesajı misafire bir kez otomatik gider. Tek gecelik konaklamalara gönderilmez. Ana şalter (AUTO_REPLY_ENABLED) da açık olmalı."
             />
             <MessagePreviewButton
               endpoint="/api/hospitable/checkout-test"

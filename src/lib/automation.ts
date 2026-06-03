@@ -776,11 +776,13 @@ export async function previewWelcomes(
 }
 
 /**
- * Send the per-apartment check-out message on the guest's DEPARTURE day, at/after
- * 08:00 in the org timezone, once per reservation (checkoutSentAt). Body comes
- * from the apartment's "checkout" knowledge-base entry, personalised with the
- * guest's first name. Gated behind AUTO_REPLY_ENABLED + the org autoCheckout
- * toggle. Apartments without a checkout entry are skipped.
+ * Send the per-apartment check-out message the EVENING BEFORE the guest's
+ * departure: from 18:00 (org timezone) onward, for bookings whose check-out is
+ * the next day. Sent once per reservation (checkoutSentAt). Body comes from the
+ * apartment's "checkout" knowledge-base entry, personalised with the guest's
+ * first name. Single-night stays are skipped (the evening-before would land on
+ * the arrival/welcome day). Gated behind AUTO_REPLY_ENABLED + the org
+ * autoCheckout toggle. Apartments without a checkout entry are skipped.
  */
 export async function sendDueCheckouts(
   organizationId: string,
@@ -795,9 +797,10 @@ export async function sendDueCheckouts(
 
   const now = new Date();
   const tz = org.timezone ?? "Europe/Istanbul";
-  // Only from 08:00 onward on the departure day.
-  if (currentHourInTimeZone(tz, now) < 8) return { sent: 0, considered: 0 };
-  const todayKey = dateKeyInTimeZone(now, tz);
+  // Only from 18:00 onward, the day BEFORE departure.
+  if (currentHourInTimeZone(tz, now) < 18) return { sent: 0, considered: 0 };
+  // The calendar date of "tomorrow" in the org timezone — check-out must be then.
+  const tomorrowKey = dateKeyInTimeZone(addDays(now, 1), tz);
 
   const reservations = await prisma.reservation.findMany({
     where: {
@@ -805,7 +808,7 @@ export async function sendDueCheckouts(
       status: { in: ["confirmed", "completed"] },
       checkoutSentAt: null,
       sourceReference: { not: null },
-      departureDate: { gte: addDays(startOfDay(now), -1), lt: addDays(startOfDay(now), 2) },
+      departureDate: { gte: startOfDay(now), lt: addDays(startOfDay(now), 3) },
     },
     select: {
       id: true,
@@ -813,6 +816,7 @@ export async function sendDueCheckouts(
       channel: true,
       sourceReference: true,
       propertyId: true,
+      arrivalDate: true,
       departureDate: true,
     },
     distinct: ["sourceReference"], // one message per booking, even if rows duplicated
@@ -824,7 +828,14 @@ export async function sendDueCheckouts(
   let sent = 0;
 
   for (const r of reservations) {
-    if (arrivalDateKey(r.departureDate) !== todayKey) continue; // only on the check-out day
+    // Only when check-out is tomorrow (so the message lands the evening before).
+    if (arrivalDateKey(r.departureDate) !== tomorrowKey) continue;
+    // Skip single-night stays: the evening-before would collide with the
+    // arrival/welcome day, so these never get an automatic check-out message.
+    const nights = Math.round(
+      (r.departureDate.getTime() - r.arrivalDate.getTime()) / 86_400_000,
+    );
+    if (nights <= 1) continue;
 
     const tpl = await prisma.knowledgeBaseItem.findFirst({
       where: { propertyId: r.propertyId, category: "checkout", isActive: true },
