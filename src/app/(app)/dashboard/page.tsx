@@ -188,9 +188,16 @@ export default async function DashboardPage() {
                     <p className="text-sm font-medium">{r.guestName}</p>
                     <p className="text-xs text-muted-foreground">{r.property.name}</p>
                   </div>
-                  <span className="text-sm font-medium text-muted-foreground">
-                    {r.guestCheckoutTime ?? r.property.checkOutTime}
-                  </span>
+                  <div className="text-right">
+                    <span className="text-sm font-medium text-muted-foreground">
+                      {r.guestCheckoutTime ?? r.property.checkOutTime}
+                    </span>
+                    {r.guestCheckoutTime ? (
+                      <span className="block text-[10px] font-medium text-emerald-600">
+                        misafirin verdiği saat
+                      </span>
+                    ) : null}
+                  </div>
                 </div>
               ))
             )}
