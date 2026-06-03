@@ -355,7 +355,7 @@ describe("sendDueWelcomes", () => {
     expect(body).not.toContain("Merhaba Bircan,");
   });
 
-  it("substitutes the {daire} placeholder with the apartment name", async () => {
+  it("substitutes the {daire} placeholder with the apartment number", async () => {
     const { orgId } = await seedWelcome({
       content: "Merhaba {isim}, Apartment {daire} sizi bekliyor.",
     });
@@ -363,7 +363,8 @@ describe("sendDueWelcomes", () => {
 
     expect(out.sent).toBe(1);
     const [, body] = mockSend.mock.calls[0];
-    expect(body).toBe("Merhaba Bircan, Apartment nuve 3 sizi bekliyor.");
+    // Property is named "nuve 3" → {daire} resolves to just "3".
+    expect(body).toBe("Merhaba Bircan, Apartment 3 sizi bekliyor.");
   });
 
   it("does nothing when autoWelcome is off", async () => {

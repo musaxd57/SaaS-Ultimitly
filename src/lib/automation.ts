@@ -617,12 +617,22 @@ function hasNamePlaceholder(s: string): boolean {
   return /\{\s*(isim|ad|name)\s*\}/i.test(s); // fresh, non-global → no lastIndex footgun
 }
 
+// The guest-facing apartment number: the last number in the property name
+// ("nuve 3" → "3", "nuve teras 4" → "4", "Daire 1" → "1"). Falls back to the
+// full name when it contains no number.
+function apartmentNumber(propertyName: string): string {
+  const nums = propertyName.match(/\d+/g);
+  return nums ? nums[nums.length - 1] : propertyName;
+}
+
 // Resolve the host's template tokens to live values:
 //   {isim} / {ad} / {name}         → guest's first name
-//   {daire} / {apartment} / {apt}  → the apartment (property) name
+//   {daire} / {apartment} / {apt}  → the apartment number (from the property name)
 function fillPlaceholders(text: string, firstName: string, propertyName?: string): string {
   let out = text.replace(/\{\s*(isim|ad|name)\s*\}/gi, firstName);
-  if (propertyName) out = out.replace(/\{\s*(daire|apartment|apt)\s*\}/gi, propertyName);
+  if (propertyName) {
+    out = out.replace(/\{\s*(daire|apartment|apt)\s*\}/gi, apartmentNumber(propertyName));
+  }
   return out;
 }
 
