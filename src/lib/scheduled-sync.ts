@@ -3,7 +3,12 @@ import "server-only";
 import { prisma } from "@/lib/db";
 import { isHospitableConfigured } from "@/lib/hospitable";
 import { syncHospitable } from "@/lib/hospitable-sync";
-import { runDueChannelAutoReplies, sendDueWelcomes, sendDueCheckouts } from "@/lib/automation";
+import {
+  runDueChannelAutoReplies,
+  sendDueWelcomes,
+  sendDueCheckouts,
+  sendDueAlerts,
+} from "@/lib/automation";
 
 // ---------------------------------------------------------------------------
 // The one scheduled pass: pull new Hospitable messages for every organization,
@@ -27,6 +32,7 @@ export interface ScheduledSyncTotals {
   autoReplies: number;
   welcomes: number;
   checkouts: number;
+  alerts: number;
 }
 
 function zero(): ScheduledSyncTotals {
@@ -38,6 +44,7 @@ function zero(): ScheduledSyncTotals {
     autoReplies: 0,
     welcomes: 0,
     checkouts: 0,
+    alerts: 0,
   };
 }
 
@@ -61,6 +68,9 @@ export async function runScheduledSync(): Promise<ScheduledSyncTotals> {
     for (const org of orgs) {
       try {
         const result = await syncHospitable(org.id);
+        // Flag complaints (→ "problem") BEFORE the auto-reply pass so they are
+        // routed to a human and never auto-answered.
+        const alert = await sendDueAlerts(org.id);
         const auto = await runDueChannelAutoReplies(org.id);
         const welcome = await sendDueWelcomes(org.id);
         const checkout = await sendDueCheckouts(org.id);
@@ -69,6 +79,7 @@ export async function runScheduledSync(): Promise<ScheduledSyncTotals> {
         totals.autoReplies += auto.sent;
         totals.welcomes += welcome.sent;
         totals.checkouts += checkout.sent;
+        totals.alerts += alert.alerted;
       } catch (err) {
         // One org failing must not abort the rest.
         console.error(`[scheduled-sync] failed for organization ${org.id}`, err);

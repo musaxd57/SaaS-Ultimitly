@@ -2,6 +2,7 @@ import "server-only";
 import { startOfDay, addDays } from "date-fns";
 import { prisma } from "@/lib/db";
 import { classifyMessage, suggestReply } from "@/lib/ai";
+import { classifyFallback } from "@/lib/ai/fallback";
 import { sendOnChannel } from "@/lib/messaging";
 import { emailService } from "@/lib/email";
 import {
@@ -894,6 +895,69 @@ export async function sendDueCheckouts(
   }
 
   return { sent, considered: reservations.length };
+}
+
+/**
+ * Email the host when a guest sends a complaint or refund-type message that
+ * needs a person. Detection is keyword-based (classifyFallback) — no AI cost.
+ * Each flagged conversation is moved to "problem", which routes it to a human
+ * (auto-reply skips "problem") AND dedupes the alert so it never re-sends. The
+ * feature is off unless ALERT_EMAIL is set. Never throws: e-mail failures are
+ * swallowed by the email service and the status write is guarded.
+ */
+export async function sendDueAlerts(
+  organizationId: string,
+): Promise<{ alerted: number }> {
+  const to = process.env.ALERT_EMAIL?.trim();
+  if (!to) return { alerted: 0 };
+
+  const org = await prisma.organization.findUnique({
+    where: { id: organizationId },
+    select: { name: true },
+  });
+
+  // Unanswered conversations where the guest spoke last and that aren't flagged.
+  const candidates = await prisma.conversation.findMany({
+    where: { property: { organizationId }, status: "new" },
+    select: {
+      id: true,
+      guestIdentifier: true,
+      channel: true,
+      priority: true,
+      property: { select: { name: true, address: true, city: true } },
+      messages: { orderBy: { createdAt: "desc" }, take: 1 },
+    },
+    take: 50,
+  });
+
+  let alerted = 0;
+  for (const c of candidates) {
+    const last = c.messages[0];
+    if (!last || last.direction !== "inbound") continue;
+    const cls = classifyFallback(last.body);
+    if (!cls.isComplaint && cls.intent !== "refund") continue;
+
+    const html = complaintEscalationEmail(
+      { id: c.id, guestIdentifier: c.guestIdentifier, channel: c.channel, priority: c.priority },
+      last.body,
+      { name: c.property.name, address: c.property.address, city: c.property.city },
+      org?.name ?? "GuestOps",
+    );
+    await emailService.send(
+      to,
+      `⚠️ Acil misafir mesajı — ${c.guestIdentifier} (${c.property.name})`,
+      html,
+    );
+
+    // Flag → routes the conversation to a human and prevents re-alerting.
+    try {
+      await prisma.conversation.update({ where: { id: c.id }, data: { status: "problem" } });
+    } catch {
+      // ignore; the next run will retry
+    }
+    alerted++;
+  }
+  return { alerted };
 }
 
 /** Preview check-out messages for upcoming departures (no sending). */
