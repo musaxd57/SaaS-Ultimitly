@@ -36,12 +36,12 @@ export default async function DashboardPage() {
     getOpsStats(orgId),
     prisma.reservation.findMany({
       where: { ...scope, arrivalDate: { gte: dayStart, lte: dayEnd } },
-      include: { property: { select: { name: true } } },
+      include: { property: { select: { name: true, checkInTime: true } } },
       orderBy: { arrivalDate: "asc" },
     }),
     prisma.reservation.findMany({
       where: { ...scope, departureDate: { gte: dayStart, lte: dayEnd } },
-      include: { property: { select: { name: true } } },
+      include: { property: { select: { name: true, checkOutTime: true } } },
       orderBy: { departureDate: "asc" },
     }),
     prisma.conversation.findMany({
@@ -149,7 +149,7 @@ export default async function DashboardPage() {
                     <p className="text-xs text-muted-foreground">{r.property.name}</p>
                   </div>
                   <span className="text-sm font-medium text-muted-foreground">
-                    {formatTime(r.arrivalDate)}
+                    {r.property.checkInTime}
                   </span>
                 </div>
               ))
@@ -179,7 +179,7 @@ export default async function DashboardPage() {
                     <p className="text-xs text-muted-foreground">{r.property.name}</p>
                   </div>
                   <span className="text-sm font-medium text-muted-foreground">
-                    {formatTime(r.departureDate)}
+                    {r.property.checkOutTime}
                   </span>
                 </div>
               ))
