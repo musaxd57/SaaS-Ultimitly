@@ -21,7 +21,12 @@ const AUTO_REPLY_MIN_CONFIDENCE = 0.7;
 function passesAutoReplySafetyGate(result: {
   riskLevel: string;
   confidence: number;
+  source: string;
 }): boolean {
+  // Never auto-send the deterministic fallback: it can't honour the language /
+  // nuance rules the model follows, so if the model is unavailable we wait for a
+  // human instead of sending a canned message.
+  if (result.source !== "openai") return false;
   if (result.riskLevel !== "none" && result.riskLevel !== "low") return false;
   return result.confidence >= AUTO_REPLY_MIN_CONFIDENCE;
 }

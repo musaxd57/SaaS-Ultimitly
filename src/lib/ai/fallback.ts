@@ -71,87 +71,123 @@ function findKb(input: SuggestReplyInput, category: string): string | null {
 export function suggestReplyFallback(input: SuggestReplyInput): SuggestReplyResult {
   const { intent, priority, confidence } = classifyFallback(input.guestMessage);
   const name = input.reservation?.guestName?.split(" ")[0];
-  const greeting = name ? `Merhaba ${name},` : "Merhaba,";
-  const closing = input.tone === "short" ? "" : "\n\nİyi günler dileriz.";
   const p = input.property;
+
+  // Detect the guest's language (basic heuristic). Default is ENGLISH — Turkish
+  // only when clear Turkish markers are present — matching the product policy
+  // (English by default, mirror the guest when they use another language).
+  const msgLower = input.guestMessage.toLowerCase();
+  let detectedLanguage = "en";
+  if (/[çğıöşü]/.test(msgLower) || /\b(merhaba|teşekkür|nasıl|nerede|şifre|için|değil|var mı|selam|günaydın)\b/.test(msgLower)) {
+    detectedLanguage = "tr";
+  } else if (/\b(ich |sie |bitte|danke|hallo|ist |und |für )\b/.test(msgLower)) {
+    detectedLanguage = "de";
+  } else if (/\b(je |vous |bonjour|merci|est |les |pour )\b/.test(msgLower)) {
+    detectedLanguage = "fr";
+  }
+  // We only carry full Turkish + English phrasings; any non-Turkish guest gets
+  // the (internationally understood) English fallback.
+  const isTr = detectedLanguage === "tr";
+
+  const greeting = isTr
+    ? name ? `Merhaba ${name},` : "Merhaba,"
+    : name ? `Hi ${name},` : "Hi,";
+  const closing = input.tone === "short" ? "" : isTr ? "\n\nİyi günler dileriz." : "\n\nKind regards,";
 
   let body: string;
   let risk: string | null = null;
 
   switch (intent) {
     case "complaint":
-      body =
-        "Yaşadığınız sorun için çok üzgünüz. Durumu hemen ekibimize iletiyoruz ve en kısa sürede sizinle ilgileneceğiz. Bu arada size yardımcı olabileceğimiz acil bir şey varsa lütfen belirtin.";
+      body = isTr
+        ? "Yaşadığınız sorun için çok üzgünüz. Durumu hemen ekibimize iletiyoruz ve en kısa sürede sizinle ilgileneceğiz. Bu arada size yardımcı olabileceğimiz acil bir şey varsa lütfen belirtin."
+        : "We're very sorry about the issue you've experienced. We've notified our team right away and will take care of it as soon as possible. In the meantime, please let us know if there's anything urgent we can help with.";
       risk = "Şikayet/olası sorun algılandı. Yöneticiye iletilmeli; otomatik karar verilmedi.";
       break;
     case "refund":
-      body =
-        "Talebinizi aldık. İade ve ücret konuları yöneticimiz tarafından değerlendirilecektir; en kısa sürede size dönüş yapacağız.";
+      body = isTr
+        ? "Talebinizi aldık. İade ve ücret konuları yöneticimiz tarafından değerlendirilecektir; en kısa sürede size dönüş yapacağız."
+        : "We've received your request. Refunds and charges are reviewed by our manager, and we'll get back to you as soon as possible.";
       risk = "İade/ücret talebi. Finansal karar gerektirir, yönetici onayı şart.";
       break;
-    case "early_checkin": {
-      body = `Check-in saatimiz ${p.checkInTime}. Erken giriş, o günkü müsaitliğe bağlı olarak mümkün olabilir. Müsaitliği kontrol edip size en kısa sürede bilgi vereceğiz.`;
+    case "early_checkin":
+      body = isTr
+        ? `Check-in saatimiz ${p.checkInTime}. Erken giriş, o günkü müsaitliğe bağlı olarak mümkün olabilir. Müsaitliği kontrol edip size en kısa sürede bilgi vereceğiz.`
+        : `Our check-in time is ${p.checkInTime}. An early check-in may be possible depending on availability that day. We'll check and let you know as soon as we can.`;
       break;
-    }
-    case "late_checkout": {
-      body = `Check-out saatimiz ${p.checkOutTime}. Geç çıkış, sonraki rezervasyon ve temizlik programına bağlı olarak mümkün olabilir. Kontrol edip size dönüş yapacağız.`;
+    case "late_checkout":
+      body = isTr
+        ? `Check-out saatimiz ${p.checkOutTime}. Geç çıkış, sonraki rezervasyon ve temizlik programına bağlı olarak mümkün olabilir. Kontrol edip size dönüş yapacağız.`
+        : `Our check-out time is ${p.checkOutTime}. A late check-out may be possible depending on the cleaning schedule and the next booking. We'll check and get back to you.`;
       break;
-    }
     case "checkin": {
       const kb = findKb(input, "checkin");
-      body = kb
-        ? `Giriş bilgileri: ${kb}\n\nCheck-in saatimiz ${p.checkInTime}.`
-        : `Check-in saatimiz ${p.checkInTime}. Giriş talimatlarını girişten önce sizinle paylaşacağız.`;
+      body = isTr
+        ? kb
+          ? `Giriş bilgileri: ${kb}\n\nCheck-in saatimiz ${p.checkInTime}.`
+          : `Check-in saatimiz ${p.checkInTime}. Giriş talimatlarını girişten önce sizinle paylaşacağız.`
+        : kb
+          ? `Check-in details: ${kb}\n\nOur check-in time is ${p.checkInTime}.`
+          : `Our check-in time is ${p.checkInTime}. We'll share the entry instructions with you before arrival.`;
       break;
     }
-    case "checkout": {
-      body = `Check-out saatimiz ${p.checkOutTime}. Çıkışta anahtarları/kartı belirtilen yere bırakmanız yeterli olacaktır.`;
+    case "checkout":
+      body = isTr
+        ? `Check-out saatimiz ${p.checkOutTime}. Çıkışta anahtarları/kartı belirtilen yere bırakmanız yeterli olacaktır.`
+        : `Our check-out time is ${p.checkOutTime}. On your way out, simply leave the keys/card in the agreed place.`;
       break;
-    }
     case "wifi": {
       const kb = findKb(input, "wifi");
-      body = kb
-        ? `Wi-Fi bilgileri: ${kb}`
-        : "Wi-Fi bilgilerini kontrol edip en kısa sürede sizinle paylaşacağız.";
+      body = isTr
+        ? kb ? `Wi-Fi bilgileri: ${kb}` : "Wi-Fi bilgilerini kontrol edip en kısa sürede sizinle paylaşacağız."
+        : kb ? `Wi-Fi details: ${kb}` : "We'll check the Wi-Fi details and share them with you shortly.";
       break;
     }
     case "parking": {
       const kb = findKb(input, "parking");
-      body = kb
-        ? `Otopark bilgisi: ${kb}`
-        : "Otopark durumunu kontrol edip size bilgi vereceğiz.";
+      body = isTr
+        ? kb ? `Otopark bilgisi: ${kb}` : "Otopark durumunu kontrol edip size bilgi vereceğiz."
+        : kb ? `Parking info: ${kb}` : "We'll check the parking options and let you know.";
       break;
     }
     case "location": {
       const kb = findKb(input, "location");
       const addr = p.address ? `${p.address}${p.city ? ", " + p.city : ""}` : null;
-      body = kb
-        ? `Konum bilgisi: ${kb}`
-        : addr
-          ? `Adresimiz: ${addr}. Detaylı yol tarifini girişten önce paylaşacağız.`
-          : "Konum ve yol tarifi bilgisini en kısa sürede sizinle paylaşacağız.";
+      body = isTr
+        ? kb
+          ? `Konum bilgisi: ${kb}`
+          : addr
+            ? `Adresimiz: ${addr}. Detaylı yol tarifini girişten önce paylaşacağız.`
+            : "Konum ve yol tarifi bilgisini en kısa sürede sizinle paylaşacağız."
+        : kb
+          ? `Location info: ${kb}`
+          : addr
+            ? `Our address is: ${addr}. We'll share detailed directions before arrival.`
+            : "We'll share the location and directions with you shortly.";
       break;
     }
     case "cleaning": {
       const kb = findKb(input, "cleaning");
-      body = kb
-        ? `Temizlik bilgisi: ${kb}`
-        : "Temizlik talebinizi aldık, ekibimizle planlayıp size dönüş yapacağız.";
+      body = isTr
+        ? kb ? `Temizlik bilgisi: ${kb}` : "Temizlik talebinizi aldık, ekibimizle planlayıp size dönüş yapacağız."
+        : kb ? `Cleaning info: ${kb}` : "We've received your cleaning request and will arrange it with our team and get back to you.";
       break;
     }
     case "amenity": {
       const kb = findKb(input, "general");
-      body = kb
-        ? `Ekipman bilgisi: ${kb}`
-        : "Ekipman veya eşya ile ilgili sorunuzu ekibimize ilettik; en kısa sürede size dönüş yapacağız.";
+      body = isTr
+        ? kb ? `Ekipman bilgisi: ${kb}` : "Ekipman veya eşya ile ilgili sorunuzu ekibimize ilettik; en kısa sürede size dönüş yapacağız."
+        : kb ? `Amenity info: ${kb}` : "We've passed your question about the equipment to our team and will get back to you shortly.";
       break;
     }
     default:
-      body =
-        "Mesajınız için teşekkürler. Talebinizi aldık ve en kısa sürede size dönüş yapacağız. Bu sırada başka bir sorunuz olursa çekinmeden yazabilirsiniz.";
+      body = isTr
+        ? "Mesajınız için teşekkürler. Talebinizi aldık ve en kısa sürede size dönüş yapacağız. Bu sırada başka bir sorunuz olursa çekinmeden yazabilirsiniz."
+        : "Thanks for your message. We've received your request and will get back to you as soon as possible. Feel free to write if you have any other questions.";
   }
 
-  // Derive riskLevel and actionSuggestion from intent
+  // Derive riskLevel and actionSuggestion from intent. actionSuggestion is shown
+  // to the (Turkish-speaking) operator, so it stays in Turkish.
   let riskLevel: "none" | "low" | "medium" | "high" = "none";
   let actionSuggestion: string | null = null;
 
@@ -167,17 +203,6 @@ export function suggestReplyFallback(input: SuggestReplyInput): SuggestReplyResu
   } else if (intent === "late_checkout") {
     riskLevel = "low";
     actionSuggestion = "Temizlik programını ve sonraki rezervasyonu kontrol ederek geç çıkış onaylayın.";
-  }
-
-  // Detect guest language simply from the message (basic heuristic for fallback)
-  const msgLower = input.guestMessage.toLowerCase();
-  let detectedLanguage = "tr";
-  if (/\b(the|is|are|can|i |you |please|hello|hi |my |for |and )\b/.test(msgLower)) {
-    detectedLanguage = "en";
-  } else if (/\b(ich |sie |bitte|danke|hallo|ist |und |für )\b/.test(msgLower)) {
-    detectedLanguage = "de";
-  } else if (/\b(je |vous |bonjour|merci|est |les |pour )\b/.test(msgLower)) {
-    detectedLanguage = "fr";
   }
 
   return {
