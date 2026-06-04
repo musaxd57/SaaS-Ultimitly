@@ -19,6 +19,7 @@ export default async function SettingsPage() {
         aiReplyTone: true,
         aiSignature: true,
         autoWelcome: true,
+        autoCheckin: true,
         autoCheckout: true,
         autoReplyStartHour: true,
         autoReplyEndHour: true,
@@ -75,12 +76,13 @@ export default async function SettingsPage() {
         </CardHeader>
         <CardContent className="space-y-3">
           <p className="text-sm text-muted-foreground">
-            Açıkken, yaklaşan rezervasyonlara o dairenin <strong>Karşılama Mesajı</strong> bilgi
-            tabanı girişi <strong>tek sefer</strong> otomatik gönderilir. Metnin içine{" "}
-            <code className="rounded bg-muted px-1 py-0.5 text-xs">{"{isim}"}</code> yazarsanız,
-            gönderirken misafirin adıyla değiştirilir (örn. &quot;Merhaba {"{isim}"}👋&quot; →
-            &quot;Merhaba Bircan👋&quot;). Karşılama girişi olmayan daireler atlanır; sadece
-            yaklaşan rezervasyonlara gider.
+            Açıkken, <strong>rezervasyon yapılır yapılmaz</strong> (birkaç dakika içinde) o dairenin{" "}
+            <strong>Karşılama Mesajı</strong> bilgi tabanı girişi <strong>tek sefer</strong> gönderilir
+            — sıcak bir &quot;hoş geldiniz / teşekkürler&quot; mesajı (adres/kod/Wi-Fi içermez, onlar
+            Giriş Bilgileri&apos;nde). Metne{" "}
+            <code className="rounded bg-muted px-1 py-0.5 text-xs">{"{isim}"}</code> yazarsanız
+            misafirin adıyla değiştirilir. Bu özellik açıldıktan <strong>sonra</strong> yapılan
+            rezervasyonlara gider; eskilere gönderilmez. Karşılama girişi olmayan daireler atlanır.
           </p>
           <div className="flex flex-wrap items-center gap-3">
             <AutoReplyToggle
@@ -93,6 +95,32 @@ export default async function SettingsPage() {
               endpoint="/api/hospitable/welcome-test"
               label="Karşılama önizleme"
               missingNote={'"Karşılama Mesajı" girişi yok'}
+            />
+          </div>
+        </CardContent>
+      </Card>
+
+      <Card className="max-w-2xl">
+        <CardHeader>
+          <CardTitle className="text-base">Otomatik Giriş Bilgileri Mesajı</CardTitle>
+        </CardHeader>
+        <CardContent className="space-y-3">
+          <p className="text-sm text-muted-foreground">
+            Açıkken, girişe <strong>4 gün kala</strong> o dairenin{" "}
+            <strong>Giriş Talimatı</strong> bilgi tabanı girişi misafirin adıyla{" "}
+            <strong>tek sefer</strong> gönderilir — adres, kapı/kasa kodu, Wi-Fi gibi pratik
+            bilgiler. Metne{" "}
+            <code className="rounded bg-muted px-1 py-0.5 text-xs">{"{isim}"}</code> /{" "}
+            <code className="rounded bg-muted px-1 py-0.5 text-xs">{"{daire}"}</code> yazabilirsiniz.
+            Bu özellik açıldıktan <strong>sonra</strong> yapılan rezervasyonlara gider; eskilere
+            gönderilmez. Giriş Talimatı girişi olmayan daireler atlanır.
+          </p>
+          <div className="flex flex-wrap items-center gap-3">
+            <AutoReplyToggle
+              field="autoCheckin"
+              label="Otomatik giriş bilgileri"
+              enabled={org?.autoCheckin ?? false}
+              title="Açıkken: girişe 4 gün kala, o dairenin 'Giriş Talimatı' bilgi tabanı girişi misafire bir kez otomatik gider. Ana şalter (AUTO_REPLY_ENABLED) da açık olmalı."
             />
           </div>
         </CardContent>

@@ -42,9 +42,11 @@ model Organization {
   aiReplyTone         String  @default("warm") // AI reply tone: formal | warm | short | luxury
   aiSignature         String? // optional sign-off appended to every AI reply (host name + contact)
   autoWelcome         Boolean @default(false) // send the per-apartment welcome message on reservation confirmation
+  autoCheckin         Boolean @default(false) // send the per-apartment check-in info message a few days before arrival
   autoCheckout        Boolean @default(false) // send the per-apartment check-out message on departure day (08:00)
   autoReplyEnabledAt  DateTime? // when night auto-reply was last switched on (only answer messages after this)
   autoWelcomeEnabledAt  DateTime? // when welcome was switched on (only greet bookings created after this — never the backlog)
+  autoCheckinEnabledAt  DateTime? // when check-in info was switched on (only message bookings created after this)
   autoCheckoutEnabledAt DateTime? // when checkout was switched on (only message bookings created after this)
   aiStyleProfile      String?   // distilled guide of the host's own reply style, learned from past messages
   aiStyleProfileAt    DateTime? // when the style profile was last refreshed (throttles regeneration)
@@ -136,6 +138,7 @@ model Reservation {
   sourceReference String?
   notes           String?
   welcomeSentAt   DateTime? // set once the auto welcome message has been delivered
+  checkinSentAt   DateTime? // set once the auto check-in info message has been delivered
   checkoutSentAt  DateTime? // set once the auto check-out message has been delivered
   guestCheckoutTime String? // guest's own stated departure time (e.g. "18:00"); null → use property default
   createdAt       DateTime @default(now())

@@ -7,6 +7,7 @@ import { reportError } from "@/lib/report-error";
 import {
   runDueChannelAutoReplies,
   sendDueWelcomes,
+  sendDueCheckins,
   sendDueCheckouts,
   sendDueAlerts,
   refreshStyleProfile,
@@ -33,6 +34,7 @@ export interface ScheduledSyncTotals {
   messages: number;
   autoReplies: number;
   welcomes: number;
+  checkins: number;
   checkouts: number;
   alerts: number;
 }
@@ -45,6 +47,7 @@ function zero(): ScheduledSyncTotals {
     messages: 0,
     autoReplies: 0,
     welcomes: 0,
+    checkins: 0,
     checkouts: 0,
     alerts: 0,
   };
@@ -107,11 +110,13 @@ export async function runScheduledSync(): Promise<ScheduledSyncTotals> {
           const alert = await sendDueAlerts(org.id);
           const auto = await runDueChannelAutoReplies(org.id);
           const welcome = await sendDueWelcomes(org.id);
+          const checkin = await sendDueCheckins(org.id);
           const checkout = await sendDueCheckouts(org.id);
           totals.conversations += result.conversations;
           totals.messages += result.messages;
           totals.autoReplies += auto.sent;
           totals.welcomes += welcome.sent;
+          totals.checkins += checkin.sent;
           totals.checkouts += checkout.sent;
           totals.alerts += alert.alerted;
         } catch (err) {

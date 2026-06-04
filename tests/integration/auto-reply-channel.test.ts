@@ -13,6 +13,7 @@ import {
   runDueChannelAutoReplies,
   previewChannelAutoReplies,
   sendDueWelcomes,
+  sendDueCheckins,
   sendDueCheckouts,
   previewWelcomes,
   isWithinActiveHours,
@@ -408,13 +409,13 @@ describe("sendDueWelcomes", () => {
     expect(mockSend).toHaveBeenCalledTimes(1);
   });
 
-  it("waits for a far-future booking — only greets within the lead window", async () => {
-    // A booking arriving in 30 days is NOT welcomed yet (lead window is 14 days);
-    // it will be picked up once the stay comes within two weeks.
+  it("welcomes even a far-future booking right away (no lead cap)", async () => {
+    // The welcome is a booking thank-you, so it goes immediately regardless of
+    // how far ahead the stay is (access details are a separate check-in message).
     const inThirtyDays = new Date(Date.now() + 30 * 24 * 60 * 60 * 1000);
     const { orgId } = await seedWelcome({ arrival: inThirtyDays });
-    expect((await sendDueWelcomes(orgId)).sent).toBe(0);
-    expect(mockSend).not.toHaveBeenCalled();
+    expect((await sendDueWelcomes(orgId)).sent).toBe(1);
+    expect(mockSend).toHaveBeenCalledTimes(1);
   });
 
   it("does not welcome bookings made before welcome was switched on", async () => {
@@ -455,6 +456,99 @@ describe("sendDueWelcomes", () => {
     expect(previews).toHaveLength(1);
     expect(previews[0].hasEntry).toBe(false);
     expect(previews[0].body).toBeNull();
+  });
+});
+
+describe("sendDueCheckins", () => {
+  beforeEach(async () => {
+    await resetDb();
+    vi.clearAllMocks();
+    vi.stubEnv("AUTO_REPLY_ENABLED", "1");
+    mockSend.mockResolvedValue({ ok: true });
+  });
+  afterEach(() => vi.unstubAllEnvs());
+
+  async function seedCheckin(
+    opts: { autoCheckin?: boolean; withEntry?: boolean; arrival: Date } = { arrival: new Date() },
+  ) {
+    const org = await prisma.organization.create({
+      data: {
+        name: "Org",
+        autoCheckin: opts.autoCheckin ?? true,
+        autoCheckinEnabledAt: new Date(0), // enabled long ago → bookings qualify
+        aiSignature: "İsa",
+      },
+    });
+    const property = await prisma.property.create({
+      data: { organizationId: org.id, name: "nuve 3" },
+    });
+    if (opts.withEntry !== false) {
+      await prisma.knowledgeBaseItem.create({
+        data: {
+          propertyId: property.id,
+          category: "checkin",
+          title: "Giriş Talimatı",
+          content: "Merhaba {isim}, kapı kodu **2022, Wi-Fi: NUVE/1234 — Daire {daire}",
+        },
+      });
+    }
+    const reservation = await prisma.reservation.create({
+      data: {
+        propertyId: property.id,
+        guestName: "Bircan Yılmaz",
+        arrivalDate: opts.arrival,
+        departureDate: new Date(opts.arrival.getTime() + 2 * 24 * 60 * 60 * 1000),
+        channel: "airbnb",
+        status: "confirmed",
+        sourceReference: "res-ci-1",
+      },
+    });
+    return { orgId: org.id, reservationId: reservation.id };
+  }
+
+  it("sends the check-in info within the lead window and marks it once", async () => {
+    const inThreeDays = new Date(Date.now() + 3 * 24 * 60 * 60 * 1000);
+    const { orgId } = await seedCheckin({ arrival: inThreeDays });
+    const out = await sendDueCheckins(orgId);
+    expect(out.sent).toBe(1);
+    const [, body] = mockSend.mock.calls[0];
+    expect(body).toBe("Merhaba Bircan, kapı kodu **2022, Wi-Fi: NUVE/1234 — Daire 3");
+    // Idempotent — a second pass sends nothing.
+    expect((await sendDueCheckins(orgId)).sent).toBe(0);
+  });
+
+  it("waits while arrival is still beyond the lead window", async () => {
+    const inTenDays = new Date(Date.now() + 10 * 24 * 60 * 60 * 1000);
+    const { orgId } = await seedCheckin({ arrival: inTenDays });
+    expect((await sendDueCheckins(orgId)).sent).toBe(0);
+    expect(mockSend).not.toHaveBeenCalled();
+  });
+
+  it("does nothing when autoCheckin is off", async () => {
+    const inThreeDays = new Date(Date.now() + 3 * 24 * 60 * 60 * 1000);
+    const { orgId } = await seedCheckin({ arrival: inThreeDays, autoCheckin: false });
+    expect((await sendDueCheckins(orgId)).sent).toBe(0);
+  });
+
+  it("skips apartments with no check-in entry", async () => {
+    const inThreeDays = new Date(Date.now() + 3 * 24 * 60 * 60 * 1000);
+    const { orgId } = await seedCheckin({ arrival: inThreeDays, withEntry: false });
+    expect((await sendDueCheckins(orgId)).sent).toBe(0);
+  });
+
+  it("does not message bookings made before check-in info was switched on", async () => {
+    const inThreeDays = new Date(Date.now() + 3 * 24 * 60 * 60 * 1000);
+    const { orgId, reservationId } = await seedCheckin({ arrival: inThreeDays });
+    await prisma.reservation.update({
+      where: { id: reservationId },
+      data: { createdAt: new Date(Date.now() - 24 * 60 * 60 * 1000) },
+    });
+    await prisma.organization.update({
+      where: { id: orgId },
+      data: { autoCheckinEnabledAt: new Date() },
+    });
+    expect((await sendDueCheckins(orgId)).sent).toBe(0);
+    expect(mockSend).not.toHaveBeenCalled();
   });
 });
 

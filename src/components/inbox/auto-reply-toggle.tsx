@@ -16,7 +16,7 @@ export function AutoReplyToggle({
   enabled,
   title,
 }: {
-  field: "autoReplyHospitable" | "autoWelcome" | "autoCheckout";
+  field: "autoReplyHospitable" | "autoWelcome" | "autoCheckin" | "autoCheckout";
   label: string;
   enabled: boolean;
   title?: string;

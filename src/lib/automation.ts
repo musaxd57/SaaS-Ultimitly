@@ -783,13 +783,11 @@ export async function sendDueWelcomes(
   });
   if (!org || !org.autoWelcome) return { sent: 0, considered: 0 };
 
-  // Timing: greet a booking once it is within WELCOME_LEAD_DAYS of check-in.
-  //   • booked far ahead (e.g. 3 months) → waits, fires LEAD days before arrival
-  //   • booked inside the lead window     → fires right away (next ~2-min cron)
-  // Only bookings first seen AFTER welcome was switched on (autoWelcomeEnabledAt)
-  // qualify, so enabling the feature never touches the pre-existing backlog.
-  // No baseline yet → nothing is sent. Sent at most once per booking.
-  const WELCOME_LEAD_DAYS = 14;
+  // The welcome is a "thanks for booking" greeting (no codes/Wi-Fi), so it goes
+  // right after the booking is made — the sync picks it up within ~2 minutes,
+  // regardless of how far ahead the stay is. Only bookings first seen AFTER
+  // welcome was switched on (autoWelcomeEnabledAt) qualify, so enabling never
+  // touches the pre-existing backlog. No baseline yet → nothing is sent.
   const now = new Date();
   const baseline = org.autoWelcomeEnabledAt;
   if (!baseline) return { sent: 0, considered: 0 };
@@ -801,10 +799,7 @@ export async function sendDueWelcomes(
       welcomeSentAt: null,
       sourceReference: { not: null },
       createdAt: { gte: baseline }, // only bookings created since welcome was enabled
-      arrivalDate: {
-        gte: startOfDay(now), // never welcome a stay already begun/past
-        lte: addDays(now, WELCOME_LEAD_DAYS), // …and not until it's within the lead window
-      },
+      arrivalDate: { gte: startOfDay(now) }, // never welcome a stay already begun/past
     },
     select: {
       id: true,
@@ -849,6 +844,89 @@ export async function sendDueWelcomes(
     await prisma.reservation.updateMany({
       where: { sourceReference: r.sourceReference, property: { organizationId } },
       data: { welcomeSentAt: new Date() },
+    });
+    sent++;
+  }
+
+  return { sent, considered: reservations.length };
+}
+
+/**
+ * Send the per-apartment CHECK-IN INFO message a few days before arrival — the
+ * practical access details (address, entry code, Wi-Fi). Fires once the stay is
+ * within CHECKIN_LEAD_DAYS of check-in, at most once per reservation
+ * (checkinSentAt), and only for bookings created after the feature was switched
+ * on (autoCheckinEnabledAt → never the backlog). Gated behind AUTO_REPLY_ENABLED
+ * + the org autoCheckin toggle. Apartments without a "checkin" knowledge-base
+ * entry are skipped. Body comes from that entry, personalised with the guest's
+ * first name.
+ */
+export async function sendDueCheckins(
+  organizationId: string,
+): Promise<{ sent: number; considered: number }> {
+  if (process.env.AUTO_REPLY_ENABLED !== "1") return { sent: 0, considered: 0 };
+
+  const org = await prisma.organization.findUnique({
+    where: { id: organizationId },
+    select: { autoCheckin: true, autoCheckinEnabledAt: true, aiSignature: true },
+  });
+  if (!org || !org.autoCheckin) return { sent: 0, considered: 0 };
+
+  // Land the access details close to the stay: CHECKIN_LEAD_DAYS before arrival.
+  const CHECKIN_LEAD_DAYS = 4;
+  const now = new Date();
+  const baseline = org.autoCheckinEnabledAt;
+  if (!baseline) return { sent: 0, considered: 0 };
+
+  const reservations = await prisma.reservation.findMany({
+    where: {
+      property: { organizationId },
+      status: "confirmed",
+      checkinSentAt: null,
+      sourceReference: { not: null },
+      createdAt: { gte: baseline }, // only bookings created since this was enabled
+      arrivalDate: {
+        gte: startOfDay(now), // not for stays already begun/past
+        lte: addDays(now, CHECKIN_LEAD_DAYS), // …only once within the lead window
+      },
+    },
+    select: {
+      id: true,
+      guestName: true,
+      channel: true,
+      sourceReference: true,
+      propertyId: true,
+      property: { select: { name: true } },
+    },
+    distinct: ["sourceReference"], // one message per booking, even if rows duplicated
+    orderBy: { arrivalDate: "asc" },
+    take: 25,
+  });
+
+  const signature = org.aiSignature?.trim();
+  let sent = 0;
+
+  for (const r of reservations) {
+    const tpl = await prisma.knowledgeBaseItem.findFirst({
+      where: { propertyId: r.propertyId, category: "checkin", isActive: true },
+      select: { content: true },
+      orderBy: { updatedAt: "desc" },
+    });
+    if (!tpl) continue; // no check-in info entry for this apartment → skip
+
+    const firstName = guestFirstName(r.guestName) ?? r.guestName;
+    const body = buildGuestMessageBody(tpl.content, firstName, signature, r.property.name);
+
+    const delivery = await sendOnChannel(
+      { channel: r.channel, guestIdentifier: r.guestName, externalReservationId: r.sourceReference },
+      body,
+    );
+    if (!delivery.ok) continue; // try again next run; do not mark as sent
+
+    // Mark every row for this booking (handles any duplicate reservation rows).
+    await prisma.reservation.updateMany({
+      where: { sourceReference: r.sourceReference, property: { organizationId } },
+      data: { checkinSentAt: new Date() },
     });
     sent++;
   }

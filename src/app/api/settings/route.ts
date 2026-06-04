@@ -5,7 +5,7 @@ import { requireSession, unauthorized, badRequest, jsonOk, serverError } from "@
 // Organization-level settings the UI can change. Booleans are the auto-reply
 // switches; the hour fields define the channel auto-reply active window;
 // aiReplyTone / aiSignature shape the AI's voice.
-const BOOLEAN_FIELDS = ["autoReplyHospitable", "autoWelcome", "autoCheckout"] as const;
+const BOOLEAN_FIELDS = ["autoReplyHospitable", "autoWelcome", "autoCheckin", "autoCheckout"] as const;
 const HOUR_FIELDS = ["autoReplyStartHour", "autoReplyEndHour"] as const;
 const VALID_TONES = ["formal", "warm", "short", "luxury"] as const;
 const SIGNATURE_MAX = 600;
@@ -35,6 +35,7 @@ export async function PATCH(req: NextRequest) {
     const nowIso = new Date().toISOString();
     if (update.autoReplyHospitable === true) update.autoReplyEnabledAt = nowIso;
     if (update.autoWelcome === true) update.autoWelcomeEnabledAt = nowIso;
+    if (update.autoCheckin === true) update.autoCheckinEnabledAt = nowIso;
     if (update.autoCheckout === true) update.autoCheckoutEnabledAt = nowIso;
     for (const field of HOUR_FIELDS) {
       if (field in data) {
