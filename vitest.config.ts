@@ -11,9 +11,11 @@ export default defineConfig({
       "server-only": fileURLToPath(new URL("./tests/stubs/server-only.ts", import.meta.url)),
     },
   },
+  // Automatic JSX runtime so component tests need no explicit React import.
+  esbuild: { jsx: "automatic" },
   test: {
     environment: "node",
-    include: ["tests/**/*.test.ts"],
+    include: ["tests/**/*.test.{ts,tsx}"],
     // Integration tests share one database and wipe it between cases, so the
     // test files must not run in parallel (otherwise one file's resetDb wipes
     // another file's data mid-run).
