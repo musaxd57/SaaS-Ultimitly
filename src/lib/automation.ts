@@ -779,18 +779,18 @@ export async function sendDueWelcomes(
 
   const org = await prisma.organization.findUnique({
     where: { id: organizationId },
-    select: { autoWelcome: true, aiSignature: true, timezone: true },
+    select: { autoWelcome: true, autoWelcomeEnabledAt: true, aiSignature: true, timezone: true },
   });
   if (!org || !org.autoWelcome) return { sent: 0, considered: 0 };
 
   // Send as soon as a NEW booking is picked up by the sync — effectively a
   // minute or two after the reservation is made (the cron runs every few
-  // minutes). To avoid blasting the pre-existing backlog, only consider rows
-  // first seen recently (createdAt within RECENT_WINDOW) whose stay hasn't
-  // already started. Sent at most once per reservation (welcomeSentAt).
+  // minutes). Only greet bookings first seen AFTER welcome was switched on
+  // (autoWelcomeEnabledAt), so enabling the feature never touches the
+  // pre-existing backlog. No baseline yet → nothing is sent. Once per booking.
   const now = new Date();
-  const RECENT_WINDOW_MS = 2 * 60 * 60 * 1000; // 2h — tolerates short cron gaps
-  const freshSince = new Date(now.getTime() - RECENT_WINDOW_MS);
+  const baseline = org.autoWelcomeEnabledAt;
+  if (!baseline) return { sent: 0, considered: 0 };
 
   const reservations = await prisma.reservation.findMany({
     where: {
@@ -798,7 +798,7 @@ export async function sendDueWelcomes(
       status: "confirmed",
       welcomeSentAt: null,
       sourceReference: { not: null },
-      createdAt: { gte: freshSince }, // only freshly-booked/synced reservations
+      createdAt: { gte: baseline }, // only bookings created since welcome was enabled
       arrivalDate: { gte: startOfDay(now) }, // never welcome a stay already begun/past
     },
     select: {
@@ -931,7 +931,7 @@ export async function sendDueCheckouts(
 
   const org = await prisma.organization.findUnique({
     where: { id: organizationId },
-    select: { autoCheckout: true, aiSignature: true, timezone: true },
+    select: { autoCheckout: true, autoCheckoutEnabledAt: true, aiSignature: true, timezone: true },
   });
   if (!org || !org.autoCheckout) return { sent: 0, considered: 0 };
 
@@ -941,6 +941,11 @@ export async function sendDueCheckouts(
   if (currentHourInTimeZone(tz, now) < 18) return { sent: 0, considered: 0 };
   // The calendar date of "tomorrow" in the org timezone — check-out must be then.
   const tomorrowKey = dateKeyInTimeZone(addDays(now, 1), tz);
+  // Only message bookings created AFTER checkout was switched on
+  // (autoCheckoutEnabledAt), so enabling never messages guests already mid-stay
+  // from before. No baseline yet → nothing is sent.
+  const baseline = org.autoCheckoutEnabledAt;
+  if (!baseline) return { sent: 0, considered: 0 };
 
   const reservations = await prisma.reservation.findMany({
     where: {
@@ -948,6 +953,7 @@ export async function sendDueCheckouts(
       status: { in: ["confirmed", "completed"] },
       checkoutSentAt: null,
       sourceReference: { not: null },
+      createdAt: { gte: baseline }, // only bookings created since checkout was enabled
       departureDate: { gte: startOfDay(now), lt: addDays(startOfDay(now), 3) },
     },
     select: {

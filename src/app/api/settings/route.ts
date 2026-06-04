@@ -30,11 +30,12 @@ export async function PATCH(req: NextRequest) {
         else update[field] = data[field];
       }
     }
-    // When night auto-reply is switched ON, stamp the moment so the engine only
-    // answers messages that arrive from now on (never the existing backlog).
-    if (update.autoReplyHospitable === true) {
-      update.autoReplyEnabledAt = new Date().toISOString();
-    }
+    // When an automation is switched ON, stamp the moment so the engine only
+    // acts on bookings/messages from now on (never the existing backlog).
+    const nowIso = new Date().toISOString();
+    if (update.autoReplyHospitable === true) update.autoReplyEnabledAt = nowIso;
+    if (update.autoWelcome === true) update.autoWelcomeEnabledAt = nowIso;
+    if (update.autoCheckout === true) update.autoCheckoutEnabledAt = nowIso;
     for (const field of HOUR_FIELDS) {
       if (field in data) {
         const n = Number(data[field]);

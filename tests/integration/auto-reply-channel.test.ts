@@ -283,7 +283,12 @@ describe("sendDueWelcomes", () => {
     opts: { autoWelcome?: boolean; withEntry?: boolean; arrival?: Date; content?: string } = {},
   ) {
     const org = await prisma.organization.create({
-      data: { name: "Org", autoWelcome: opts.autoWelcome ?? true, aiSignature: "Sevgiler,\nİsa" },
+      data: {
+        name: "Org",
+        autoWelcome: opts.autoWelcome ?? true,
+        autoWelcomeEnabledAt: new Date(0), // enabled long ago → fresh bookings qualify
+        aiSignature: "Sevgiler,\nİsa",
+      },
     });
     const property = await prisma.property.create({
       data: { organizationId: org.id, name: "nuve 3" },
@@ -403,13 +408,18 @@ describe("sendDueWelcomes", () => {
     expect(mockSend).toHaveBeenCalledTimes(1);
   });
 
-  it("does not welcome the pre-existing backlog (stale createdAt)", async () => {
+  it("does not welcome bookings made before welcome was switched on", async () => {
     const inFiveDays = new Date(Date.now() + 5 * 24 * 60 * 60 * 1000);
     const { orgId, reservationId } = await seedWelcome({ arrival: inFiveDays });
-    // Simulate a reservation synced long ago — outside the recent window.
+    // The booking existed BEFORE the feature was enabled: createdAt is one day
+    // earlier than the baseline → it must be left alone (no backlog blast).
     await prisma.reservation.update({
       where: { id: reservationId },
-      data: { createdAt: new Date(Date.now() - 6 * 60 * 60 * 1000) },
+      data: { createdAt: new Date(Date.now() - 24 * 60 * 60 * 1000) },
+    });
+    await prisma.organization.update({
+      where: { id: orgId },
+      data: { autoWelcomeEnabledAt: new Date() },
     });
     expect((await sendDueWelcomes(orgId)).sent).toBe(0);
     expect(mockSend).not.toHaveBeenCalled();
@@ -457,7 +467,12 @@ describe("sendDueCheckouts", () => {
     opts: { autoCheckout?: boolean; withEntry?: boolean; arrival?: Date; departure: Date },
   ) {
     const org = await prisma.organization.create({
-      data: { name: "Org", autoCheckout: opts.autoCheckout ?? true, timezone: "Europe/Istanbul" },
+      data: {
+        name: "Org",
+        autoCheckout: opts.autoCheckout ?? true,
+        autoCheckoutEnabledAt: new Date(0), // enabled long ago → bookings qualify
+        timezone: "Europe/Istanbul",
+      },
     });
     const property = await prisma.property.create({
       data: { organizationId: org.id, name: "nuve 3" },
@@ -496,6 +511,18 @@ describe("sendDueCheckouts", () => {
     expect(out.sent).toBe(1);
     const [, body] = mockSend.mock.calls[0];
     expect(body).toBe("Hi Ronda, safe travels — İsa");
+  });
+
+  it("does not message bookings made before checkout was switched on", async () => {
+    vi.setSystemTime(new Date("2026-06-14T15:00:00Z")); // 18:00 Istanbul, day before
+    const { orgId } = await seedCheckout({ departure: new Date("2026-06-15T00:00:00Z") });
+    // Feature enabled only now — after the booking already existed.
+    await prisma.organization.update({
+      where: { id: orgId },
+      data: { autoCheckoutEnabledAt: new Date() },
+    });
+    expect((await sendDueCheckouts(orgId)).sent).toBe(0);
+    expect(mockSend).not.toHaveBeenCalled();
   });
 
   it("does not send before 18:00", async () => {
