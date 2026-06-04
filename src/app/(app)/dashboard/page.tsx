@@ -1,5 +1,5 @@
 import Link from "next/link";
-import { startOfDay, endOfDay } from "date-fns";
+import { zonedDayRange } from "@/lib/automation";
 import {
   LogIn,
   LogOut,
@@ -28,8 +28,13 @@ export default async function DashboardPage() {
   const session = await requireAuth();
   const orgId = session.organizationId;
   const now = new Date();
-  const dayStart = startOfDay(now);
-  const dayEnd = endOfDay(now);
+  // "Today" is the host's local calendar day (org timezone), not the server's
+  // UTC day — otherwise arrivals/departures can land on the wrong date.
+  const org = await prisma.organization.findUnique({
+    where: { id: orgId },
+    select: { timezone: true },
+  });
+  const { start: dayStart, end: dayEnd } = zonedDayRange(now, org?.timezone ?? "Europe/Istanbul");
   const scope = { property: { organizationId: orgId } };
 
   const [stats, arrivals, departures, conversations, tasksToday, stayingCount] = await Promise.all([
@@ -120,8 +125,8 @@ export default async function DashboardPage() {
 
       {/* Stat cards */}
       <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
-        <StatCard label="Bugünkü Girişler" value={stats.arrivalsToday} icon={LogIn} />
-        <StatCard label="Bugünkü Çıkışlar" value={stats.departuresToday} icon={LogOut} />
+        <StatCard label="Bugünkü Girişler" value={arrivals.length} icon={LogIn} />
+        <StatCard label="Bugünkü Çıkışlar" value={departures.length} icon={LogOut} />
         <StatCard
           label="Bekleyen Mesajlar"
           value={stats.openConversations}

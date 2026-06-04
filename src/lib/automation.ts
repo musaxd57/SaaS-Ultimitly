@@ -676,6 +676,49 @@ function arrivalDateKey(d: Date): string {
   return d.toISOString().slice(0, 10);
 }
 
+/** How far ahead (ms) the IANA `tz` is from UTC at the given instant. */
+function tzOffsetMs(tz: string, at: Date): number {
+  try {
+    const parts = new Intl.DateTimeFormat("en-US", {
+      timeZone: tz,
+      hour12: false,
+      year: "numeric",
+      month: "2-digit",
+      day: "2-digit",
+      hour: "2-digit",
+      minute: "2-digit",
+      second: "2-digit",
+    }).formatToParts(at);
+    const f = Object.fromEntries(parts.map((p) => [p.type, p.value]));
+    const asUtc = Date.UTC(
+      Number(f.year),
+      Number(f.month) - 1,
+      Number(f.day),
+      Number(f.hour) % 24,
+      Number(f.minute),
+      Number(f.second),
+    );
+    return asUtc - at.getTime();
+  } catch {
+    return 0;
+  }
+}
+
+/**
+ * UTC [start, end] instants spanning the calendar day of `now` as seen in the
+ * IANA `tz` (e.g. "Europe/Istanbul"). Use this so "today's arrivals/departures"
+ * are bucketed by the host's local day, not the server's UTC day.
+ */
+export function zonedDayRange(now: Date, tz: string): { start: Date; end: Date } {
+  const key = dateKeyInTimeZone(now, tz); // "YYYY-MM-DD" in tz
+  const [y, m, d] = key.split("-").map(Number);
+  const utcMidnight = Date.UTC(y, m - 1, d, 0, 0, 0, 0);
+  const offsetMs = tzOffsetMs(tz, new Date(utcMidnight));
+  const start = new Date(utcMidnight - offsetMs);
+  const end = new Date(start.getTime() + 24 * 60 * 60 * 1000 - 1);
+  return { start, end };
+}
+
 // Placeholder the host can drop into a welcome template — {isim} / {ad} / {name}
 // — replaced with the guest's first name when the message is sent.
 function hasNamePlaceholder(s: string): boolean {

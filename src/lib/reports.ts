@@ -1,7 +1,6 @@
 import "server-only";
 import {
   startOfDay,
-  endOfDay,
   startOfMonth,
   endOfMonth,
   subMonths,
@@ -9,6 +8,7 @@ import {
   format,
 } from "date-fns";
 import { prisma } from "@/lib/db";
+import { zonedDayRange } from "@/lib/automation";
 
 export interface OpsStats {
   arrivalsToday: number;
@@ -26,12 +26,19 @@ const propertyScope = (orgId: string) => ({ property: { organizationId: orgId } 
 
 export async function getOpsStats(orgId: string): Promise<OpsStats> {
   const now = new Date();
-  const dayStart = startOfDay(now);
-  const dayEnd = endOfDay(now);
+  // Bucket "today" by the host's local calendar day (org timezone), not the
+  // server's UTC day, and only count active bookings once per reservation so
+  // the stat cards match the dashboard lists.
+  const org = await prisma.organization.findUnique({
+    where: { id: orgId },
+    select: { timezone: true },
+  });
+  const { start: dayStart, end: dayEnd } = zonedDayRange(now, org?.timezone ?? "Europe/Istanbul");
+  const activeStatus = { in: ["confirmed", "completed"] };
 
   const [
-    arrivalsToday,
-    departuresToday,
+    arrivalRows,
+    departureRows,
     openConversations,
     problemConversations,
     urgentTasks,
@@ -39,11 +46,23 @@ export async function getOpsStats(orgId: string): Promise<OpsStats> {
     totalProperties,
     occupiedToday,
   ] = await Promise.all([
-    prisma.reservation.count({
-      where: { ...propertyScope(orgId), arrivalDate: { gte: dayStart, lte: dayEnd } },
+    prisma.reservation.findMany({
+      where: {
+        ...propertyScope(orgId),
+        status: activeStatus,
+        arrivalDate: { gte: dayStart, lte: dayEnd },
+      },
+      select: { sourceReference: true, id: true },
+      distinct: ["sourceReference"],
     }),
-    prisma.reservation.count({
-      where: { ...propertyScope(orgId), departureDate: { gte: dayStart, lte: dayEnd } },
+    prisma.reservation.findMany({
+      where: {
+        ...propertyScope(orgId),
+        status: activeStatus,
+        departureDate: { gte: dayStart, lte: dayEnd },
+      },
+      select: { sourceReference: true, id: true },
+      distinct: ["sourceReference"],
     }),
     prisma.conversation.count({
       where: { ...propertyScope(orgId), status: { in: ["new", "waiting"] } },
@@ -72,8 +91,8 @@ export async function getOpsStats(orgId: string): Promise<OpsStats> {
     totalProperties > 0 ? Math.round((occupiedToday / totalProperties) * 100) : 0;
 
   return {
-    arrivalsToday,
-    departuresToday,
+    arrivalsToday: arrivalRows.length,
+    departuresToday: departureRows.length,
     openConversations,
     problemConversations,
     urgentTasks,
