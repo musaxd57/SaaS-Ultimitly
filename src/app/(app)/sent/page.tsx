@@ -11,7 +11,7 @@ export const dynamic = "force-dynamic";
 
 interface SentItem {
   id: string;
-  kind: "reply" | "welcome" | "checkout";
+  kind: "reply" | "welcome" | "checkin" | "checkout";
   when: Date;
   guest: string;
   property: string;
@@ -22,7 +22,7 @@ export default async function SentPage() {
   const session = await requireAuth();
   const orgId = session.organizationId;
 
-  const [replies, welcomes, checkouts] = await Promise.all([
+  const [replies, welcomes, checkins, checkouts] = await Promise.all([
     // AI auto-replies that were actually sent (stored as outbound AI msgs).
     prisma.message.findMany({
       where: {
@@ -48,6 +48,18 @@ export default async function SentPage() {
         property: { select: { name: true } },
       },
       orderBy: { welcomeSentAt: "desc" },
+      take: 100,
+    }),
+    // Check-in info messages (tracked on the reservation).
+    prisma.reservation.findMany({
+      where: { checkinSentAt: { not: null }, property: { organizationId: orgId } },
+      select: {
+        id: true,
+        guestName: true,
+        checkinSentAt: true,
+        property: { select: { name: true } },
+      },
+      orderBy: { checkinSentAt: "desc" },
       take: 100,
     }),
     // Check-out messages (tracked on the reservation).
@@ -81,6 +93,14 @@ export default async function SentPage() {
       property: w.property.name,
       preview: "Karşılama mesajı gönderildi.",
     })),
+    ...checkins.map((c) => ({
+      id: `ci-${c.id}`,
+      kind: "checkin" as const,
+      when: c.checkinSentAt as Date,
+      guest: c.guestName,
+      property: c.property.name,
+      preview: "Giriş bilgileri mesajı gönderildi.",
+    })),
     ...checkouts.map((c) => ({
       id: `c-${c.id}`,
       kind: "checkout" as const,
@@ -95,7 +115,7 @@ export default async function SentPage() {
     <>
       <PageHeader
         title="Gönderilenler"
-        description="Sistemin otomatik gönderdiği mesajlar — oto-yanıtlar ve karşılama mesajları."
+        description="Sistemin otomatik gönderdiği mesajlar — oto-yanıtlar, karşılama, giriş ve çıkış mesajları."
       />
 
       {items.length === 0 ? (
@@ -120,16 +140,20 @@ export default async function SentPage() {
                       tone={
                         it.kind === "welcome"
                           ? "success"
-                          : it.kind === "checkout"
-                            ? "muted"
-                            : "secondary"
+                          : it.kind === "checkin"
+                            ? "default"
+                            : it.kind === "checkout"
+                              ? "muted"
+                              : "secondary"
                       }
                     >
                       {it.kind === "welcome"
                         ? "Karşılama"
-                        : it.kind === "checkout"
-                          ? "Çıkış"
-                          : "Oto-yanıt"}
+                        : it.kind === "checkin"
+                          ? "Giriş"
+                          : it.kind === "checkout"
+                            ? "Çıkış"
+                            : "Oto-yanıt"}
                     </Badge>
                     <span className="ml-auto text-xs text-muted-foreground">{fromNow(it.when)}</span>
                   </div>

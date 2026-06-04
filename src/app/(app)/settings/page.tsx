@@ -122,6 +122,11 @@ export default async function SettingsPage() {
               enabled={org?.autoCheckin ?? false}
               title="Açıkken: girişe 4 gün kala, o dairenin 'Giriş Talimatı' bilgi tabanı girişi misafire bir kez otomatik gider. Ana şalter (AUTO_REPLY_ENABLED) da açık olmalı."
             />
+            <MessagePreviewButton
+              endpoint="/api/hospitable/checkin-test"
+              label="Giriş bilgileri önizleme"
+              missingNote={'"Giriş Talimatı" girişi yok'}
+            />
           </div>
         </CardContent>
       </Card>

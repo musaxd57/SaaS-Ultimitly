@@ -779,7 +779,7 @@ export async function sendDueWelcomes(
 
   const org = await prisma.organization.findUnique({
     where: { id: organizationId },
-    select: { autoWelcome: true, autoWelcomeEnabledAt: true, aiSignature: true, timezone: true },
+    select: { autoWelcome: true, autoWelcomeEnabledAt: true, aiSignature: true },
   });
   if (!org || !org.autoWelcome) return { sent: 0, considered: 0 };
 
@@ -819,7 +819,6 @@ export async function sendDueWelcomes(
   let sent = 0;
 
   for (const r of reservations) {
-
     const welcome = await prisma.knowledgeBaseItem.findFirst({
       where: { propertyId: r.propertyId, category: "welcome", isActive: true },
       select: { content: true },
@@ -993,6 +992,63 @@ export async function previewWelcomes(
       hasEntry: Boolean(welcome),
       alreadySent: Boolean(r.welcomeSentAt),
       body: welcome ? buildGuestMessageBody(welcome.content, firstName, signature, r.property.name) : null,
+    });
+  }
+  return previews;
+}
+
+/**
+ * Preview the check-in info message for upcoming reservations WITHOUT sending —
+ * the exact text that would go out (placeholders substituted). Ignores the
+ * on/off toggle so the host can review every apartment's "Giriş Talimatı" entry
+ * before going live. Flags apartments missing the entry and bookings already
+ * messaged.
+ */
+export async function previewCheckins(
+  organizationId: string,
+  limit = 12,
+): Promise<WelcomePreview[]> {
+  const org = await prisma.organization.findUnique({
+    where: { id: organizationId },
+    select: { aiSignature: true },
+  });
+  const signature = org?.aiSignature?.trim();
+
+  const now = new Date();
+  const horizon = new Date(now.getTime() + 45 * 24 * 60 * 60 * 1000);
+
+  const reservations = await prisma.reservation.findMany({
+    where: {
+      property: { organizationId },
+      status: "confirmed",
+      sourceReference: { not: null },
+      arrivalDate: { gte: startOfDay(now), lte: horizon },
+    },
+    select: {
+      guestName: true,
+      propertyId: true,
+      checkinSentAt: true,
+      property: { select: { name: true } },
+    },
+    distinct: ["sourceReference"], // one card per booking
+    orderBy: { arrivalDate: "asc" },
+    take: limit,
+  });
+
+  const previews: WelcomePreview[] = [];
+  for (const r of reservations) {
+    const tpl = await prisma.knowledgeBaseItem.findFirst({
+      where: { propertyId: r.propertyId, category: "checkin", isActive: true },
+      select: { content: true },
+      orderBy: { updatedAt: "desc" },
+    });
+    const firstName = guestFirstName(r.guestName) ?? r.guestName;
+    previews.push({
+      guest: r.guestName,
+      property: r.property.name,
+      hasEntry: Boolean(tpl),
+      alreadySent: Boolean(r.checkinSentAt),
+      body: tpl ? buildGuestMessageBody(tpl.content, firstName, signature, r.property.name) : null,
     });
   }
   return previews;

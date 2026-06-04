@@ -16,6 +16,7 @@ import {
   sendDueCheckins,
   sendDueCheckouts,
   previewWelcomes,
+  previewCheckins,
   isWithinActiveHours,
   currentHourInTimeZone,
 } from "@/lib/automation";
@@ -548,6 +549,16 @@ describe("sendDueCheckins", () => {
       data: { autoCheckinEnabledAt: new Date() },
     });
     expect((await sendDueCheckins(orgId)).sent).toBe(0);
+    expect(mockSend).not.toHaveBeenCalled();
+  });
+
+  it("previewCheckins builds the text without sending, regardless of toggle", async () => {
+    const inThreeDays = new Date(Date.now() + 3 * 24 * 60 * 60 * 1000);
+    const { orgId } = await seedCheckin({ arrival: inThreeDays, autoCheckin: false });
+    const previews = await previewCheckins(orgId);
+    expect(previews).toHaveLength(1);
+    expect(previews[0]).toMatchObject({ guest: "Bircan Yılmaz", hasEntry: true, alreadySent: false });
+    expect(previews[0].body).toBe("Merhaba Bircan, kapı kodu **2022, Wi-Fi: NUVE/1234 — Daire 3");
     expect(mockSend).not.toHaveBeenCalled();
   });
 });
