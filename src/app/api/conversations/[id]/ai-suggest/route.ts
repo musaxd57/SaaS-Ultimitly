@@ -49,10 +49,20 @@ export async function POST(req: NextRequest, { params }: Params) {
       !firstWord || firstWord === "Rezervasyon" || firstWord === "Misafir"
         ? "misafirimiz"
         : firstWord;
+    // Resolve {daire}/{apartment} to the apartment number (e.g. "nuve 3" → "3").
+    const aptNumber = conversation.property.name.match(/\d+/g)?.pop() ?? conversation.property.name;
     const kb = kbRaw.map((k) => ({
       ...k,
-      content: k.content.replace(/\{\s*(isim|ad|name)\s*\}/gi, guestFirst),
+      content: k.content
+        .replace(/\{\s*(isim|ad|name)\s*\}/gi, guestFirst)
+        .replace(/\{\s*(daire|apartment|apt)\s*\}/gi, aptNumber),
     }));
+
+    // Same learned style profile the auto-reply pass uses, for consistent voice.
+    const org = await prisma.organization.findUnique({
+      where: { id: session.organizationId },
+      select: { aiStyleProfile: true },
+    });
 
     const result = await suggestReply({
       guestMessage: lastInbound.body,
@@ -78,6 +88,7 @@ export async function POST(req: NextRequest, { params }: Params) {
       })),
       tone,
       language: lastInbound.language || "tr",
+      styleProfile: org?.aiStyleProfile,
     });
 
     await prisma.message.update({

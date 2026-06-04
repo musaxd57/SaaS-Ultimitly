@@ -100,7 +100,7 @@ export async function suggestReply(input: SuggestReplyInput): Promise<SuggestRep
           detectedLanguage:
             typeof parsed.detectedLanguage === "string" && parsed.detectedLanguage.trim()
               ? parsed.detectedLanguage.trim()
-              : "tr",
+              : "en", // policy: English by default when unknown
           statedCheckoutTime:
             typeof parsed.statedCheckoutTime === "string" &&
             /^\d{1,2}:\d{2}$/.test(parsed.statedCheckoutTime.trim())
