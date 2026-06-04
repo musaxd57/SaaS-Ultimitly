@@ -16,12 +16,12 @@ function clamp01(n: number): number {
 }
 
 /**
- * o-series reasoning models (o1, o3, o4, ...) reject custom sampling params like
- * `temperature`. Detect them so we can omit those params and stay compatible —
- * letting the operator drop in ANY model via env without breaking the call.
+ * Reasoning (o1/o3/o4…) and GPT-5 family models only accept default sampling and
+ * reject a custom `temperature`. Detect them so we can omit that param (and allow
+ * a longer timeout), letting ANY model be dropped in via env without breaking.
  */
 export function isReasoningModel(model: string): boolean {
-  return /^o\d/i.test(model.trim());
+  return /^(o\d|gpt-5)/i.test(model.trim());
 }
 
 /** The model used for the main guest-reply generation. */

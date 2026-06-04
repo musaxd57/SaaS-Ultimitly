@@ -7,9 +7,9 @@ import "server-only";
 // Never throws.
 // ---------------------------------------------------------------------------
 
-/** o-series reasoning models reject custom temperature; omit it for them. */
+/** Reasoning (o-series) and GPT-5 models reject custom temperature; omit it. */
 function isReasoningModel(model: string): boolean {
-  return /^o\d/i.test(model.trim());
+  return /^(o\d|gpt-5)/i.test(model.trim());
 }
 
 // Module-level cache: avoids re-translating the same (text, lang) pair.
