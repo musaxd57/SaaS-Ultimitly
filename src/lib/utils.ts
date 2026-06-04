@@ -19,10 +19,15 @@ export function formatCurrency(amount: number | null | undefined, currency = "EU
   }
 }
 
+// Reservation arrival/departure values are stored as UTC-anchored calendar
+// dates (a date-only booking date → UTC midnight). Pin the formatter to UTC so
+// the displayed day is the booking day itself, never shifted by the viewer's
+// timezone (a browser behind UTC would otherwise show the previous day).
 const dateFmt = new Intl.DateTimeFormat("tr-TR", {
   day: "2-digit",
   month: "short",
   year: "numeric",
+  timeZone: "UTC",
 });
 
 const dateTimeFmt = new Intl.DateTimeFormat("tr-TR", {

@@ -173,6 +173,32 @@ describe("syncHospitable", () => {
     expect(await prisma.reservation.count({ where: { sourceReference: "res-cal-1" } })).toBe(1);
   });
 
+  it("stores date-only arrival_date/departure_date as the exact calendar day", async () => {
+    const { orgId } = await makeOrgWithProperty();
+    mockProperties.mockResolvedValue([{ id: "hp", name: "Test Property" }]);
+    mockReservations.mockResolvedValue([
+      {
+        id: "res-dates",
+        platform: "airbnb",
+        status: "confirmed",
+        // Canonical date-only fields take precedence over check_in/check_out.
+        arrival_date: "2026-06-04",
+        departure_date: "2026-06-06",
+        check_in: "2026-06-99", // bogus on purpose — must be ignored
+        check_out: "2026-06-99",
+        guest: { full_name: "Date Guest" },
+        last_message_at: null,
+      },
+    ]);
+
+    await syncHospitable(orgId);
+    const res = await prisma.reservation.findFirst({ where: { sourceReference: "res-dates" } });
+    // No off-by-one and no timezone drift: the stored calendar day equals the
+    // Hospitable date exactly — so GuestOps matches the channel calendar.
+    expect(res?.arrivalDate.toISOString().slice(0, 10)).toBe("2026-06-04");
+    expect(res?.departureDate.toISOString().slice(0, 10)).toBe("2026-06-06");
+  });
+
   it("maps a cancelled reservation to 'cancelled' (via nested status)", async () => {
     const { orgId } = await makeOrgWithProperty();
     mockProperties.mockResolvedValue([{ id: "hp", name: "Test Property" }]);

@@ -16,6 +16,13 @@ describe("formatDate", () => {
   it("renders an em dash for empty input", () => {
     expect(formatDate(null)).toBe("—");
   });
+
+  it("shows the UTC calendar day of a date-only reservation value (no tz drift)", () => {
+    // Stored as UTC midnight of June 4 — must read as June 4 everywhere.
+    expect(formatDate("2026-06-04T00:00:00.000Z")).toBe("04 Haz 2026");
+    // Late-UTC instant on June 4 still belongs to June 4 (not rolled to the 5th).
+    expect(formatDate("2026-06-04T23:30:00.000Z")).toBe("04 Haz 2026");
+  });
 });
 
 describe("initials", () => {

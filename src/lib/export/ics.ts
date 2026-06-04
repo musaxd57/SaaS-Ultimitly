@@ -42,11 +42,16 @@ function formatUtcStamp(date: Date): string {
   return date.toISOString().replace(/[-:]/g, "").replace(/\.\d{3}/, "");
 }
 
-/** Format a Date as a date-only value in local terms: YYYYMMDD. */
+/**
+ * Format a Date as a date-only value: YYYYMMDD. Reservation dates are stored as
+ * UTC-anchored calendar dates (e.g. Hospitable's date-only arrival_date becomes
+ * UTC midnight), so read the calendar day in UTC — this keeps the exported date
+ * identical to the booking date regardless of the server's timezone.
+ */
 function formatDateOnly(date: Date): string {
-  const y = date.getFullYear();
-  const m = String(date.getMonth() + 1).padStart(2, "0");
-  const d = String(date.getDate()).padStart(2, "0");
+  const y = date.getUTCFullYear();
+  const m = String(date.getUTCMonth() + 1).padStart(2, "0");
+  const d = String(date.getUTCDate()).padStart(2, "0");
   return `${y}${m}${d}`;
 }
 
