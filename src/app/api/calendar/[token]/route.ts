@@ -49,7 +49,7 @@ export async function GET(
     allDay: true,
   }));
 
-  const ics = buildIcsCalendar(`${property.name} — GuestOps AI`, events);
+  const ics = buildIcsCalendar(`${property.name} — Lixus AI`, events);
 
   return new Response(ics, {
     status: 200,

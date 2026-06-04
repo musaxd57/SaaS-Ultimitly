@@ -61,7 +61,7 @@ export function AppShell({ user, children }: AppShellProps) {
             <Hotel className="size-4.5" />
           </div>
           <span className="text-base font-semibold tracking-tight">
-            GuestOps <span className="text-primary">AI</span>
+            Lixus <span className="text-primary">AI</span>
           </span>
         </Link>
         <button

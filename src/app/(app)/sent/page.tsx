@@ -23,7 +23,7 @@ export default async function SentPage() {
   const orgId = session.organizationId;
 
   const [replies, welcomes, checkouts] = await Promise.all([
-    // AI auto-replies that were actually sent (stored as outbound GuestOps AI msgs).
+    // AI auto-replies that were actually sent (stored as outbound AI msgs).
     prisma.message.findMany({
       where: {
         direction: "outbound",
