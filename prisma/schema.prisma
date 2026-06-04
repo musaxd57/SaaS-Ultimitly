@@ -18,6 +18,15 @@ datasource db {
   url      = env("DATABASE_URL")
 }
 
+// Cross-instance mutex. A holder writes a future `lockedUntil`; others can only
+// acquire once that time has passed (or the holder releases by resetting it),
+// so the scheduled sync runs once at a time even across multiple replicas.
+model SystemLock {
+  name        String   @id
+  lockedUntil DateTime
+  updatedAt   DateTime @updatedAt
+}
+
 model Organization {
   id        String   @id @default(cuid())
   name      String

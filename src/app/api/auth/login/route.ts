@@ -4,10 +4,20 @@ import { loginSchema, zodFieldErrors } from "@/lib/validators";
 import { verifyPassword } from "@/lib/auth/password";
 import { setSessionCookie } from "@/lib/auth";
 import { badRequest, jsonOk, serverError } from "@/lib/api";
+import { rateLimit, clientIp } from "@/lib/rate-limit";
 import type { UserRole } from "@/lib/constants";
 
 export async function POST(req: NextRequest) {
   try {
+    // Throttle login attempts per IP: 10 tries / 5 minutes (anti brute-force).
+    const limited = rateLimit(`login:${clientIp(req)}`, 10, 5 * 60 * 1000);
+    if (!limited.ok) {
+      return NextResponse.json(
+        { error: "Çok fazla deneme. Lütfen biraz sonra tekrar deneyin." },
+        { status: 429, headers: { "Retry-After": String(limited.retryAfter) } },
+      );
+    }
+
     const data = await req.json().catch(() => null);
     const parsed = loginSchema.safeParse(data);
     if (!parsed.success) return badRequest(zodFieldErrors(parsed.error));

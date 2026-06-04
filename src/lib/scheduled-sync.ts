@@ -3,6 +3,7 @@ import "server-only";
 import { prisma } from "@/lib/db";
 import { isHospitableConfigured } from "@/lib/hospitable";
 import { syncHospitable } from "@/lib/hospitable-sync";
+import { reportError } from "@/lib/report-error";
 import {
   runDueChannelAutoReplies,
   sendDueWelcomes,
@@ -49,9 +50,35 @@ function zero(): ScheduledSyncTotals {
   };
 }
 
-// Prevents two overlapping passes (e.g. the external cron and the in-process
-// timer firing at the same moment) from doing redundant work.
+const LOCK_NAME = "scheduled-sync";
+const LOCK_TTL_MS = 5 * 60 * 1000; // auto-release if a holder crashes mid-run
+
+// Fast in-process guard (same instance) on top of the cross-instance DB lock.
 let running = false;
+
+/** Take the cross-instance lock if it is free; safe to call from any replica. */
+async function acquireLock(): Promise<boolean> {
+  const now = new Date();
+  const until = new Date(now.getTime() + LOCK_TTL_MS);
+  // Ensure the row exists with a past expiry so the first ever run can acquire.
+  await prisma.systemLock.upsert({
+    where: { name: LOCK_NAME },
+    create: { name: LOCK_NAME, lockedUntil: new Date(0) },
+    update: {},
+  });
+  // Atomic: only one caller's updateMany can match a free lock.
+  const res = await prisma.systemLock.updateMany({
+    where: { name: LOCK_NAME, lockedUntil: { lte: now } },
+    data: { lockedUntil: until },
+  });
+  return res.count === 1;
+}
+
+async function releaseLock(): Promise<void> {
+  await prisma.systemLock
+    .updateMany({ where: { name: LOCK_NAME }, data: { lockedUntil: new Date(0) } })
+    .catch(() => {});
+}
 
 export async function runScheduledSync(): Promise<ScheduledSyncTotals> {
   if (!isHospitableConfigured()) {
@@ -62,33 +89,40 @@ export async function runScheduledSync(): Promise<ScheduledSyncTotals> {
   }
   running = true;
   try {
-    const totals = zero();
-    const orgs = await prisma.organization.findMany({ select: { id: true } });
-    totals.organizations = orgs.length;
-
-    for (const org of orgs) {
-      try {
-        const result = await syncHospitable(org.id);
-        // Keep the host's style profile fresh (self-throttles to once a day).
-        await refreshStyleProfile(org.id);
-        // Flag complaints (→ "problem") BEFORE the auto-reply pass so they are
-        // routed to a human and never auto-answered.
-        const alert = await sendDueAlerts(org.id);
-        const auto = await runDueChannelAutoReplies(org.id);
-        const welcome = await sendDueWelcomes(org.id);
-        const checkout = await sendDueCheckouts(org.id);
-        totals.conversations += result.conversations;
-        totals.messages += result.messages;
-        totals.autoReplies += auto.sent;
-        totals.welcomes += welcome.sent;
-        totals.checkouts += checkout.sent;
-        totals.alerts += alert.alerted;
-      } catch (err) {
-        // One org failing must not abort the rest.
-        console.error(`[scheduled-sync] failed for organization ${org.id}`, err);
-      }
+    if (!(await acquireLock())) {
+      return { ...zero(), ok: false, error: "locked" };
     }
-    return totals;
+    try {
+      const totals = zero();
+      const orgs = await prisma.organization.findMany({ select: { id: true } });
+      totals.organizations = orgs.length;
+
+      for (const org of orgs) {
+        try {
+          const result = await syncHospitable(org.id);
+          // Keep the host's style profile fresh (self-throttles to once a day).
+          await refreshStyleProfile(org.id);
+          // Flag complaints (→ "problem") BEFORE the auto-reply pass so they are
+          // routed to a human and never auto-answered.
+          const alert = await sendDueAlerts(org.id);
+          const auto = await runDueChannelAutoReplies(org.id);
+          const welcome = await sendDueWelcomes(org.id);
+          const checkout = await sendDueCheckouts(org.id);
+          totals.conversations += result.conversations;
+          totals.messages += result.messages;
+          totals.autoReplies += auto.sent;
+          totals.welcomes += welcome.sent;
+          totals.checkouts += checkout.sent;
+          totals.alerts += alert.alerted;
+        } catch (err) {
+          // One org failing must not abort the rest.
+          await reportError(`scheduled-sync org ${org.id}`, err);
+        }
+      }
+      return totals;
+    } finally {
+      await releaseLock();
+    }
   } finally {
     running = false;
   }
