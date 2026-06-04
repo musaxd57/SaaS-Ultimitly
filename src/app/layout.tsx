@@ -9,7 +9,7 @@ const inter = Inter({
 });
 
 export const metadata: Metadata = {
-  title: "GuestOps AI — Kısa Dönem Kiralama Operasyon Paneli",
+  title: "Lixus AI — Kısa Dönem Kiralama Operasyon Paneli",
   description:
     "Misafir iletişimi, temizlik operasyonu, görev yönetimi ve AI cevap önerilerini tek panelde birleştiren operasyon platformu.",
 };

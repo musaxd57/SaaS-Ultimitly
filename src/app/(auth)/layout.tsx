@@ -16,7 +16,7 @@ export default function AuthLayout({ children }: { children: React.ReactNode }) 
             <Hotel className="size-5" />
           </div>
           <span className="text-lg font-semibold tracking-tight">
-            GuestOps <span className="text-white/70">AI</span>
+            Lixus <span className="text-white/70">AI</span>
           </span>
         </div>
 

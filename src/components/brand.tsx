@@ -15,7 +15,7 @@ export function Brand({
       </div>
       {!iconOnly ? (
         <span className="text-base font-semibold tracking-tight text-foreground">
-          GuestOps <span className="text-primary">AI</span>
+          Lixus <span className="text-primary">AI</span>
         </span>
       ) : null}
     </div>

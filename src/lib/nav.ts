@@ -31,5 +31,5 @@ export function titleForPath(pathname: string): string {
   const match = NAV_ITEMS.filter((i) => pathname.startsWith(i.href)).sort(
     (a, b) => b.href.length - a.href.length,
   )[0];
-  return match?.label ?? "GuestOps AI";
+  return match?.label ?? "Lixus AI";
 }
