@@ -783,11 +783,13 @@ export async function sendDueWelcomes(
   });
   if (!org || !org.autoWelcome) return { sent: 0, considered: 0 };
 
-  // Send as soon as a NEW booking is picked up by the sync — effectively a
-  // minute or two after the reservation is made (the cron runs every few
-  // minutes). Only greet bookings first seen AFTER welcome was switched on
-  // (autoWelcomeEnabledAt), so enabling the feature never touches the
-  // pre-existing backlog. No baseline yet → nothing is sent. Once per booking.
+  // Timing: greet a booking once it is within WELCOME_LEAD_DAYS of check-in.
+  //   • booked far ahead (e.g. 3 months) → waits, fires LEAD days before arrival
+  //   • booked inside the lead window     → fires right away (next ~2-min cron)
+  // Only bookings first seen AFTER welcome was switched on (autoWelcomeEnabledAt)
+  // qualify, so enabling the feature never touches the pre-existing backlog.
+  // No baseline yet → nothing is sent. Sent at most once per booking.
+  const WELCOME_LEAD_DAYS = 14;
   const now = new Date();
   const baseline = org.autoWelcomeEnabledAt;
   if (!baseline) return { sent: 0, considered: 0 };
@@ -799,7 +801,10 @@ export async function sendDueWelcomes(
       welcomeSentAt: null,
       sourceReference: { not: null },
       createdAt: { gte: baseline }, // only bookings created since welcome was enabled
-      arrivalDate: { gte: startOfDay(now) }, // never welcome a stay already begun/past
+      arrivalDate: {
+        gte: startOfDay(now), // never welcome a stay already begun/past
+        lte: addDays(now, WELCOME_LEAD_DAYS), // …and not until it's within the lead window
+      },
     },
     select: {
       id: true,

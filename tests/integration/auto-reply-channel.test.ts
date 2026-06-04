@@ -408,6 +408,15 @@ describe("sendDueWelcomes", () => {
     expect(mockSend).toHaveBeenCalledTimes(1);
   });
 
+  it("waits for a far-future booking — only greets within the lead window", async () => {
+    // A booking arriving in 30 days is NOT welcomed yet (lead window is 14 days);
+    // it will be picked up once the stay comes within two weeks.
+    const inThirtyDays = new Date(Date.now() + 30 * 24 * 60 * 60 * 1000);
+    const { orgId } = await seedWelcome({ arrival: inThirtyDays });
+    expect((await sendDueWelcomes(orgId)).sent).toBe(0);
+    expect(mockSend).not.toHaveBeenCalled();
+  });
+
   it("does not welcome bookings made before welcome was switched on", async () => {
     const inFiveDays = new Date(Date.now() + 5 * 24 * 60 * 60 * 1000);
     const { orgId, reservationId } = await seedWelcome({ arrival: inFiveDays });
