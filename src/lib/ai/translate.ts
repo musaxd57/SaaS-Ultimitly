@@ -89,7 +89,7 @@ export async function translateText(
         Authorization: `Bearer ${apiKey}`,
       },
       body: JSON.stringify({
-        model: process.env.OPENAI_MODEL || "gpt-4o-mini",
+        model: process.env.OPENAI_TRANSLATE_MODEL || process.env.OPENAI_MODEL || "gpt-4.1",
         temperature: 0.2,
         messages: [
           { role: "system", content: buildSystemPrompt(targetLanguage, sourceLanguage) },

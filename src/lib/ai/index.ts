@@ -111,10 +111,13 @@ export async function summarizeHostStyle(sampleReplies: string[]): Promise<strin
 
   const system =
     "Sen bir editör asistanısın. Bir kısa dönem kiralama ev sahibinin geçmiş misafir " +
-    "cevaplarını okuyup, gelecekteki cevapların aynı tonda yazılması için KISA bir TARZ " +
-    "REHBERİ çıkaracaksın. Sadece üslubu tarif et: selamlama/kapanış alışkanlığı, samimiyet " +
-    "düzeyi, cümle uzunluğu, emoji kullanımı, sık verilen yanıt yaklaşımları. ASLA belirli " +
-    "bilgileri (adres, şifre, kod, fiyat) rehbere koyma. En fazla 150 kelime, madde madde.";
+    "cevaplarını okuyup, gelecekteki AI taslakları için bir REHBER çıkaracaksın. İKİ bölüm yaz:\n" +
+    "1) TARZ: selamlama/kapanış alışkanlığı, samimiyet düzeyi, cümle uzunluğu, emoji kullanımı.\n" +
+    "2) SIK SORULAN SORULAR: ev sahibinin tekrar eden, GİZLİ OLMAYAN sorulara (ör. otopark, " +
+    "valiz/bagaj bırakma, ulaşım/yol tarifi, geç çıkış/erken giriş yaklaşımı, çevre önerileri) " +
+    "verdiği tipik cevapları kısaca özetle — yalnızca tutarlı, tekrar eden cevapları.\n" +
+    "KESİNLİKLE DIŞARIDA BIRAK: Wi-Fi şifresi, kapı/giriş kodu, tam ev adresi, fiyat ve iade " +
+    "rakamları (bunlar gizli/değişkendir, rehbere ASLA koyma). En fazla 220 kelime, madde madde.";
   const user = `Ev sahibinin geçmiş cevapları:\n\n${samples.map((s, i) => `${i + 1}. ${s}`).join("\n")}`;
 
   try {
@@ -122,7 +125,7 @@ export async function summarizeHostStyle(sampleReplies: string[]): Promise<strin
       method: "POST",
       headers: { "Content-Type": "application/json", Authorization: `Bearer ${key}` },
       body: JSON.stringify({
-        model: process.env.OPENAI_STYLE_MODEL || "gpt-4o-mini",
+        model: process.env.OPENAI_STYLE_MODEL || process.env.OPENAI_MODEL || "gpt-4.1",
         temperature: 0.2,
         messages: [
           { role: "system", content: system },
@@ -134,7 +137,7 @@ export async function summarizeHostStyle(sampleReplies: string[]): Promise<strin
     if (!res.ok) return null;
     const data = await res.json();
     const text = data?.choices?.[0]?.message?.content;
-    return typeof text === "string" && text.trim() ? text.trim().slice(0, 1200) : null;
+    return typeof text === "string" && text.trim() ? text.trim().slice(0, 1800) : null;
   } catch {
     return null;
   }
