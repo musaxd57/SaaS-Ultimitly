@@ -15,9 +15,35 @@ function clamp01(n: number): number {
   return Math.max(0, Math.min(1, n));
 }
 
+/**
+ * o-series reasoning models (o1, o3, o4, ...) reject custom sampling params like
+ * `temperature`. Detect them so we can omit those params and stay compatible —
+ * letting the operator drop in ANY model via env without breaking the call.
+ */
+export function isReasoningModel(model: string): boolean {
+  return /^o\d/i.test(model.trim());
+}
+
+/** The model used for the main guest-reply generation. */
+function replyModel(): string {
+  return process.env.OPENAI_MODEL || "gpt-4.1";
+}
+
 async function callOpenAI(system: string, user: string): Promise<string | null> {
   const key = process.env.OPENAI_API_KEY;
   if (!key) return null;
+  const model = replyModel();
+  const payload: Record<string, unknown> = {
+    model,
+    response_format: { type: "json_object" },
+    messages: [
+      { role: "system", content: system },
+      { role: "user", content: user },
+    ],
+  };
+  // Reasoning models only accept the default temperature; everything else gets
+  // a low temperature for consistency.
+  if (!isReasoningModel(model)) payload.temperature = 0.4;
   try {
     const res = await fetch("https://api.openai.com/v1/chat/completions", {
       method: "POST",
@@ -25,17 +51,9 @@ async function callOpenAI(system: string, user: string): Promise<string | null> 
         "Content-Type": "application/json",
         Authorization: `Bearer ${key}`,
       },
-      body: JSON.stringify({
-        model: process.env.OPENAI_MODEL || "gpt-4.1",
-        temperature: 0.4,
-        response_format: { type: "json_object" },
-        messages: [
-          { role: "system", content: system },
-          { role: "user", content: user },
-        ],
-      }),
-      // Avoid hanging requests blocking the UI.
-      signal: AbortSignal.timeout(20000),
+      body: JSON.stringify(payload),
+      // Reasoning models can be slower — allow a longer ceiling.
+      signal: AbortSignal.timeout(isReasoningModel(model) ? 60000 : 20000),
     });
     if (!res.ok) return null;
     const data = await res.json();
@@ -120,19 +138,22 @@ export async function summarizeHostStyle(sampleReplies: string[]): Promise<strin
     "rakamları (bunlar gizli/değişkendir, rehbere ASLA koyma). En fazla 220 kelime, madde madde.";
   const user = `Ev sahibinin geçmiş cevapları:\n\n${samples.map((s, i) => `${i + 1}. ${s}`).join("\n")}`;
 
+  const model = process.env.OPENAI_STYLE_MODEL || process.env.OPENAI_MODEL || "gpt-4.1";
+  const payload: Record<string, unknown> = {
+    model,
+    messages: [
+      { role: "system", content: system },
+      { role: "user", content: user },
+    ],
+  };
+  if (!isReasoningModel(model)) payload.temperature = 0.2;
+
   try {
     const res = await fetch("https://api.openai.com/v1/chat/completions", {
       method: "POST",
       headers: { "Content-Type": "application/json", Authorization: `Bearer ${key}` },
-      body: JSON.stringify({
-        model: process.env.OPENAI_STYLE_MODEL || process.env.OPENAI_MODEL || "gpt-4.1",
-        temperature: 0.2,
-        messages: [
-          { role: "system", content: system },
-          { role: "user", content: user },
-        ],
-      }),
-      signal: AbortSignal.timeout(20000),
+      body: JSON.stringify(payload),
+      signal: AbortSignal.timeout(isReasoningModel(model) ? 60000 : 20000),
     });
     if (!res.ok) return null;
     const data = await res.json();

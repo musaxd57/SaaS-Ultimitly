@@ -2,9 +2,15 @@ import "server-only";
 
 // ---------------------------------------------------------------------------
 // translateText — high-quality, hospitality-aware translation via OpenAI
-// (gpt-4o-mini). Returns the original text unchanged if OpenAI is not
-// configured or on any error. Never throws.
+// (model from OPENAI_TRANSLATE_MODEL / OPENAI_MODEL, default gpt-4.1). Returns
+// the original text unchanged if OpenAI is not configured or on any error.
+// Never throws.
 // ---------------------------------------------------------------------------
+
+/** o-series reasoning models reject custom temperature; omit it for them. */
+function isReasoningModel(model: string): boolean {
+  return /^o\d/i.test(model.trim());
+}
 
 // Module-level cache: avoids re-translating the same (text, lang) pair.
 const _cache = new Map<string, string>();
@@ -81,6 +87,16 @@ export async function translateText(
     return text;
   }
 
+  const model = process.env.OPENAI_TRANSLATE_MODEL || process.env.OPENAI_MODEL || "gpt-4.1";
+  const payload: Record<string, unknown> = {
+    model,
+    messages: [
+      { role: "system", content: buildSystemPrompt(targetLanguage, sourceLanguage) },
+      { role: "user", content: text },
+    ],
+  };
+  if (!isReasoningModel(model)) payload.temperature = 0.2;
+
   try {
     const res = await fetch("https://api.openai.com/v1/chat/completions", {
       method: "POST",
@@ -88,15 +104,8 @@ export async function translateText(
         "Content-Type": "application/json",
         Authorization: `Bearer ${apiKey}`,
       },
-      body: JSON.stringify({
-        model: process.env.OPENAI_TRANSLATE_MODEL || process.env.OPENAI_MODEL || "gpt-4.1",
-        temperature: 0.2,
-        messages: [
-          { role: "system", content: buildSystemPrompt(targetLanguage, sourceLanguage) },
-          { role: "user", content: text },
-        ],
-      }),
-      signal: AbortSignal.timeout(15000),
+      body: JSON.stringify(payload),
+      signal: AbortSignal.timeout(isReasoningModel(model) ? 60000 : 15000),
     });
 
     if (!res.ok) return text;
