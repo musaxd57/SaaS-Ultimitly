@@ -394,9 +394,23 @@ describe("sendDueWelcomes", () => {
     expect(mockSend).not.toHaveBeenCalled();
   });
 
-  it("only sends on the check-in day — not for future reservations", async () => {
+  it("sends right after booking, even for a future arrival", async () => {
+    // A freshly-made booking (createdAt ~now) arriving in 5 days is welcomed
+    // immediately — the welcome no longer waits for the check-in day.
     const inFiveDays = new Date(Date.now() + 5 * 24 * 60 * 60 * 1000);
     const { orgId } = await seedWelcome({ arrival: inFiveDays });
+    expect((await sendDueWelcomes(orgId)).sent).toBe(1);
+    expect(mockSend).toHaveBeenCalledTimes(1);
+  });
+
+  it("does not welcome the pre-existing backlog (stale createdAt)", async () => {
+    const inFiveDays = new Date(Date.now() + 5 * 24 * 60 * 60 * 1000);
+    const { orgId, reservationId } = await seedWelcome({ arrival: inFiveDays });
+    // Simulate a reservation synced long ago — outside the recent window.
+    await prisma.reservation.update({
+      where: { id: reservationId },
+      data: { createdAt: new Date(Date.now() - 6 * 60 * 60 * 1000) },
+    });
     expect((await sendDueWelcomes(orgId)).sent).toBe(0);
     expect(mockSend).not.toHaveBeenCalled();
   });

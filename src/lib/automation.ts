@@ -783,12 +783,14 @@ export async function sendDueWelcomes(
   });
   if (!org || !org.autoWelcome) return { sent: 0, considered: 0 };
 
-  // Send exactly on the guest's check-in DAY (org timezone): at 00:00 of the
-  // arrival date. The cron runs every few minutes, so it fires right after
-  // midnight. Scan a small window around now, then match the exact calendar day.
+  // Send as soon as a NEW booking is picked up by the sync — effectively a
+  // minute or two after the reservation is made (the cron runs every few
+  // minutes). To avoid blasting the pre-existing backlog, only consider rows
+  // first seen recently (createdAt within RECENT_WINDOW) whose stay hasn't
+  // already started. Sent at most once per reservation (welcomeSentAt).
   const now = new Date();
-  const tz = org.timezone ?? "Europe/Istanbul";
-  const todayKey = dateKeyInTimeZone(now, tz);
+  const RECENT_WINDOW_MS = 2 * 60 * 60 * 1000; // 2h — tolerates short cron gaps
+  const freshSince = new Date(now.getTime() - RECENT_WINDOW_MS);
 
   const reservations = await prisma.reservation.findMany({
     where: {
@@ -796,7 +798,8 @@ export async function sendDueWelcomes(
       status: "confirmed",
       welcomeSentAt: null,
       sourceReference: { not: null },
-      arrivalDate: { gte: addDays(startOfDay(now), -1), lt: addDays(startOfDay(now), 2) },
+      createdAt: { gte: freshSince }, // only freshly-booked/synced reservations
+      arrivalDate: { gte: startOfDay(now) }, // never welcome a stay already begun/past
     },
     select: {
       id: true,
@@ -816,8 +819,6 @@ export async function sendDueWelcomes(
   let sent = 0;
 
   for (const r of reservations) {
-    // Only on the check-in day itself.
-    if (arrivalDateKey(r.arrivalDate) !== todayKey) continue;
 
     const welcome = await prisma.knowledgeBaseItem.findFirst({
       where: { propertyId: r.propertyId, category: "welcome", isActive: true },
