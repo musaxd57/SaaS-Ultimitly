@@ -8,6 +8,7 @@ import {
   sendDueWelcomes,
   sendDueCheckouts,
   sendDueAlerts,
+  refreshStyleProfile,
 } from "@/lib/automation";
 
 // ---------------------------------------------------------------------------
@@ -68,6 +69,8 @@ export async function runScheduledSync(): Promise<ScheduledSyncTotals> {
     for (const org of orgs) {
       try {
         const result = await syncHospitable(org.id);
+        // Keep the host's style profile fresh (self-throttles to once a day).
+        await refreshStyleProfile(org.id);
         // Flag complaints (→ "problem") BEFORE the auto-reply pass so they are
         // routed to a human and never auto-answered.
         const alert = await sendDueAlerts(org.id);

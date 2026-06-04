@@ -98,6 +98,49 @@ export async function suggestReply(input: SuggestReplyInput): Promise<SuggestRep
 }
 
 /**
+ * Distil a short "style guide" from the host's own past replies, so future AI
+ * drafts can mirror their voice and typical decisions. Internal summarisation —
+ * uses a cheap model. Returns null if OpenAI isn't configured, on any failure,
+ * or when there isn't enough signal. Never throws.
+ */
+export async function summarizeHostStyle(sampleReplies: string[]): Promise<string | null> {
+  const key = process.env.OPENAI_API_KEY;
+  if (!key) return null;
+  const samples = sampleReplies.map((s) => s.trim()).filter(Boolean).slice(0, 40);
+  if (samples.length < 5) return null; // too little signal to generalise safely
+
+  const system =
+    "Sen bir editör asistanısın. Bir kısa dönem kiralama ev sahibinin geçmiş misafir " +
+    "cevaplarını okuyup, gelecekteki cevapların aynı tonda yazılması için KISA bir TARZ " +
+    "REHBERİ çıkaracaksın. Sadece üslubu tarif et: selamlama/kapanış alışkanlığı, samimiyet " +
+    "düzeyi, cümle uzunluğu, emoji kullanımı, sık verilen yanıt yaklaşımları. ASLA belirli " +
+    "bilgileri (adres, şifre, kod, fiyat) rehbere koyma. En fazla 150 kelime, madde madde.";
+  const user = `Ev sahibinin geçmiş cevapları:\n\n${samples.map((s, i) => `${i + 1}. ${s}`).join("\n")}`;
+
+  try {
+    const res = await fetch("https://api.openai.com/v1/chat/completions", {
+      method: "POST",
+      headers: { "Content-Type": "application/json", Authorization: `Bearer ${key}` },
+      body: JSON.stringify({
+        model: process.env.OPENAI_STYLE_MODEL || "gpt-4o-mini",
+        temperature: 0.2,
+        messages: [
+          { role: "system", content: system },
+          { role: "user", content: user },
+        ],
+      }),
+      signal: AbortSignal.timeout(20000),
+    });
+    if (!res.ok) return null;
+    const data = await res.json();
+    const text = data?.choices?.[0]?.message?.content;
+    return typeof text === "string" && text.trim() ? text.trim().slice(0, 1200) : null;
+  } catch {
+    return null;
+  }
+}
+
+/**
  * Classify an inbound message (intent / priority / complaint flag).
  * Uses the deterministic classifier for speed and predictability.
  */

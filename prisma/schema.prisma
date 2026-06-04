@@ -35,6 +35,8 @@ model Organization {
   autoWelcome         Boolean @default(false) // send the per-apartment welcome message on reservation confirmation
   autoCheckout        Boolean @default(false) // send the per-apartment check-out message on departure day (08:00)
   autoReplyEnabledAt  DateTime? // when night auto-reply was last switched on (only answer messages after this)
+  aiStyleProfile      String?   // distilled guide of the host's own reply style, learned from past messages
+  aiStyleProfileAt    DateTime? // when the style profile was last refreshed (throttles regeneration)
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
 

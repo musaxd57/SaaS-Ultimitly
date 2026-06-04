@@ -339,12 +339,26 @@ Zaman bağlamı: ${buildTimelineContext(reservation)}`
 
   const toneBlock = TONE_GUIDANCE[tone];
 
+  const styleBlock = input.styleProfile?.trim()
+    ? `
+════════════════════════════════════════════════════
+EV SAHİBİNİN TARZ REHBERİ (geçmiş cevaplarından öğrenildi)
+════════════════════════════════════════════════════
+Aşağıdaki rehber, ev sahibinin KENDİ yazım tarzını özetler. Cevabını bu tarza
+uydur (üslup, selamlama/kapanış, uzunluk, samimiyet, emoji alışkanlığı).
+ÖNEMLİ: Bu rehber YALNIZCA üslubu etkiler — ASLA bilgi kaynağı değildir.
+Adres/şifre/kod/fiyat gibi bilgileri yalnızca Bilgi Tabanı'ndan al. Emin
+olmadığında veya risk varsa güvenli davran (mevcut kurallar geçerli).
+${input.styleProfile.trim()}
+`
+    : "";
+
   return `════════════════════════════════════════════════════
 OPERATÖR TALİMATI
 ════════════════════════════════════════════════════
 İSTENEN TON:
 ${toneBlock}
-
+${styleBlock}
 DİL ZORUNLULUĞU: Misafirin yazdığı dili (detectedLanguage) tespit et ve cevabı o dilde yaz.
 Dil belirsiz veya çok kısaysa VARSAYILAN olarak İngilizce (en) yaz. (Sistem tercih dili: ${language})
 

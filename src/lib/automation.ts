@@ -1,7 +1,7 @@
 import "server-only";
 import { startOfDay, addDays } from "date-fns";
 import { prisma } from "@/lib/db";
-import { classifyMessage, suggestReply } from "@/lib/ai";
+import { classifyMessage, suggestReply, summarizeHostStyle } from "@/lib/ai";
 import { classifyFallback } from "@/lib/ai/fallback";
 import { sendOnChannel } from "@/lib/messaging";
 import { emailService } from "@/lib/email";
@@ -375,6 +375,7 @@ export async function applyChannelAutoReply(
               autoReplyEndHour: true,
               aiReplyTone: true,
               aiSignature: true,
+              aiStyleProfile: true,
             },
           },
         },
@@ -460,6 +461,7 @@ export async function applyChannelAutoReply(
       ? (org.aiReplyTone as ReplyTone)
       : "warm",
     language: org.language ?? "tr",
+    styleProfile: org.aiStyleProfile,
   });
 
   // If the guest stated their own departure time, record it on the reservation
@@ -598,6 +600,54 @@ export async function runDueChannelAutoReplies(
     if (outcome.sent) sent++;
   }
   return { sent, considered: candidates.length };
+}
+
+/**
+ * Refresh the org's "style profile" — a short guide distilled from the host's
+ * OWN past replies — so future AI drafts mirror their voice. Throttled to once
+ * per ~24h and only run when there are enough real host messages. Best-effort:
+ * on any failure the existing profile (or none) is kept and replies fall back to
+ * default behaviour. Never throws.
+ */
+export async function refreshStyleProfile(
+  organizationId: string,
+): Promise<{ refreshed: boolean }> {
+  if (!process.env.OPENAI_API_KEY) return { refreshed: false };
+
+  const org = await prisma.organization.findUnique({
+    where: { id: organizationId },
+    select: { aiStyleProfileAt: true },
+  });
+  if (!org) return { refreshed: false };
+
+  // Throttle: skip if refreshed within the last 24 hours.
+  if (org.aiStyleProfileAt && Date.now() - org.aiStyleProfileAt.getTime() < 24 * 60 * 60 * 1000) {
+    return { refreshed: false };
+  }
+
+  // Learn ONLY from the host's real, human replies — never the AI's own.
+  const hostReplies = await prisma.message.findMany({
+    where: {
+      direction: "outbound",
+      senderName: { not: "GuestOps AI" },
+      conversation: { property: { organizationId } },
+    },
+    select: { body: true },
+    orderBy: { createdAt: "desc" },
+    take: 40,
+  });
+
+  const samples = hostReplies.map((m) => m.body).filter((b) => b && b.trim().length > 0);
+  if (samples.length < 5) return { refreshed: false };
+
+  const profile = await summarizeHostStyle(samples);
+  if (!profile) return { refreshed: false };
+
+  await prisma.organization.update({
+    where: { id: organizationId },
+    data: { aiStyleProfile: profile, aiStyleProfileAt: new Date() },
+  });
+  return { refreshed: true };
 }
 
 /** First name for the greeting, or null for placeholder names (no real name). */

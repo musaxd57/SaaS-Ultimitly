@@ -34,6 +34,8 @@ export interface SuggestReplyInput {
   history?: HistoryMessage[];
   tone: ReplyTone;
   language: string;
+  /** Distilled guide of the host's own reply style (optional, learned). */
+  styleProfile?: string | null;
 }
 
 export interface SuggestReplyResult {

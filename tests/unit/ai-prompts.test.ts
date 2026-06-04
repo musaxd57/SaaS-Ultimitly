@@ -74,4 +74,18 @@ describe("buildReplyUserPrompt", () => {
     const p = buildReplyUserPrompt({ ...input, knowledgeBase: [] });
     expect(p).toContain("bilgi tabanı boş");
   });
+
+  it("includes the host style guide only when present, as style-only guidance", () => {
+    const without = buildReplyUserPrompt(input);
+    expect(without).not.toContain("TARZ REHBERİ");
+
+    const withProfile = buildReplyUserPrompt({
+      ...input,
+      styleProfile: "- Kısa ve samimi yazar\n- Mesajı 'Sevgiler' ile kapatır",
+    });
+    expect(withProfile).toContain("TARZ REHBERİ");
+    expect(withProfile).toContain("Sevgiler");
+    // Must be framed as style-only, never a source of facts.
+    expect(withProfile).toMatch(/YALNIZCA üslubu|bilgi kaynağı değildir/);
+  });
 });
