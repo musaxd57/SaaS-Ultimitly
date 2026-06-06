@@ -58,8 +58,12 @@ export async function POST(req: NextRequest) {
       select: { aiStyleProfile: true },
     });
 
-    // Same pipeline as the inbox — but the result is only returned, never sent
-    // and never persisted.
+    // Same pipeline as the inbox. We attach a SAMPLE reservation (today's
+    // check-in at the chosen apartment) so reservation-aware questions ("which
+    // apartment am I in?", "when is my check-out?") test realistically — exactly
+    // as a real inbox conversation, which is always tied to a booking. The
+    // result is only returned, never sent and never persisted.
+    const now = new Date();
     const result = await suggestReply({
       guestMessage: message,
       property: {
@@ -69,7 +73,12 @@ export async function POST(req: NextRequest) {
         address: property.address,
         city: property.city,
       },
-      reservation: null,
+      reservation: {
+        guestName: "Test Misafir",
+        arrivalDate: now,
+        departureDate: new Date(now.getTime() + 3 * 24 * 60 * 60 * 1000),
+        status: "confirmed",
+      },
       knowledgeBase: kb,
       history: [],
       tone,

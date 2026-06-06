@@ -75,7 +75,7 @@ export function AiTestCard({ properties }: { properties: { id: string; name: str
       <p className="text-sm text-muted-foreground">
         Buraya bir misafir mesajı yaz, gerçek AI cevabını gör. <strong>Hiçbir şey
         gönderilmez</strong>, hiçbir misafire dokunulmaz, konuşma oluşturulmaz — sadece test.
-        Seçtiğin dairenin bilgi tabanı kullanılır.
+        Seçtiğin dairenin bilgi tabanı + bugün giriş yapan örnek bir rezervasyon kullanılır.
       </p>
 
       {properties.length > 1 ? (
