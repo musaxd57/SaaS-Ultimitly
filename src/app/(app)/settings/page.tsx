@@ -7,12 +7,13 @@ import { BulkTimesForm } from "@/components/settings/bulk-times-form";
 import { MessagePreviewButton } from "@/components/settings/message-preview-button";
 import { NightHoursForm } from "@/components/settings/night-hours-form";
 import { AutoReplyToggle } from "@/components/inbox/auto-reply-toggle";
+import { AiTestCard } from "@/components/settings/ai-test-card";
 
 export const dynamic = "force-dynamic";
 
 export default async function SettingsPage() {
   const session = await requireAuth();
-  const [org, sampleProperty] = await Promise.all([
+  const [org, sampleProperty, properties] = await Promise.all([
     prisma.organization.findUnique({
       where: { id: session.organizationId },
       select: {
@@ -28,6 +29,11 @@ export default async function SettingsPage() {
     prisma.property.findFirst({
       where: { organizationId: session.organizationId },
       select: { checkInTime: true, checkOutTime: true },
+      orderBy: { createdAt: "asc" },
+    }),
+    prisma.property.findMany({
+      where: { organizationId: session.organizationId },
+      select: { id: true, name: true },
       orderBy: { createdAt: "asc" },
     }),
   ]);
@@ -62,6 +68,17 @@ export default async function SettingsPage() {
           </>
         )}
       </div>
+
+      {properties.length > 0 ? (
+        <Card className="max-w-2xl">
+          <CardHeader>
+            <CardTitle className="text-base">AI Cevap Testi (gönderMEZ)</CardTitle>
+          </CardHeader>
+          <CardContent>
+            <AiTestCard properties={properties} />
+          </CardContent>
+        </Card>
+      ) : null}
 
       <AiVoiceForm tone={org?.aiReplyTone ?? "warm"} signature={org?.aiSignature ?? ""} />
 
