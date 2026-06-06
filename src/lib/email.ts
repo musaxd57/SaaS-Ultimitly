@@ -47,6 +47,10 @@ class EmailService {
           user: process.env.EMAIL_USER,
           pass: process.env.EMAIL_PASS,
         },
+        // Fail fast instead of hanging when the SMTP port is blocked/unreachable.
+        connectionTimeout: 12000,
+        greetingTimeout: 12000,
+        socketTimeout: 12000,
       });
 
       await transporter.sendMail({
@@ -81,6 +85,10 @@ class EmailService {
         port: Number(process.env.EMAIL_PORT ?? 587),
         secure: Number(process.env.EMAIL_PORT ?? 587) === 465,
         auth: { user: process.env.EMAIL_USER, pass: process.env.EMAIL_PASS },
+        // Fail fast (~12s) instead of hanging if the SMTP port is blocked.
+        connectionTimeout: 12000,
+        greetingTimeout: 12000,
+        socketTimeout: 12000,
       });
       await transporter.sendMail({
         from: process.env.EMAIL_FROM ?? "Lixus AI <noreply@lixusai.com>",
