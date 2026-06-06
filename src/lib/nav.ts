@@ -6,6 +6,7 @@ import {
   Building2,
   BookOpen,
   FileText,
+  BarChart3,
   Settings,
   type LucideIcon,
 } from "lucide-react";
@@ -24,6 +25,7 @@ export const NAV_ITEMS: NavItem[] = [
   { href: "/properties", label: "Mülkler", icon: Building2 },
   { href: "/knowledge", label: "Bilgi Tabanı", icon: BookOpen },
   { href: "/templates", label: "Şablonlar", icon: FileText },
+  { href: "/reports", label: "Raporlar", icon: BarChart3 },
   { href: "/settings", label: "Ayarlar", icon: Settings },
 ];
 

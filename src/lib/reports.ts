@@ -587,6 +587,62 @@ export async function getHostPerformanceScore(orgId: string): Promise<HostPerfor
   };
 }
 
+export interface AiOpsReport {
+  aiReplies: number; // AI auto-replies actually sent (last 30 days)
+  welcomes: number; // welcome messages sent (last 30 days)
+  checkins: number; // check-in info messages sent (last 30 days)
+  checkouts: number; // check-out messages sent (last 30 days)
+  openProblems: number; // conversations currently flagged for a human
+  problemsByProperty: { propertyName: string; count: number }[];
+}
+
+/**
+ * AI & automation activity over the last 30 days plus the current complaint
+ * backlog by apartment. Surfaces how much work the system handled and where the
+ * problems concentrate. All read-only counts; safe on an empty account (zeros).
+ */
+export async function getAiOpsReport(orgId: string): Promise<AiOpsReport> {
+  const since = new Date(Date.now() - 30 * 24 * 60 * 60 * 1000);
+  const scope = propertyScope(orgId);
+
+  const [aiReplies, welcomes, checkins, checkouts, problems] = await Promise.all([
+    prisma.message.count({
+      where: {
+        direction: "outbound",
+        senderName: "GuestOps AI",
+        createdAt: { gte: since },
+        conversation: { ...scope },
+      },
+    }),
+    prisma.reservation.count({ where: { ...scope, welcomeSentAt: { gte: since } } }),
+    prisma.reservation.count({ where: { ...scope, checkinSentAt: { gte: since } } }),
+    prisma.reservation.count({ where: { ...scope, checkoutSentAt: { gte: since } } }),
+    prisma.conversation.findMany({
+      where: { ...scope, status: "problem" },
+      select: { property: { select: { name: true } } },
+      take: 500,
+    }),
+  ]);
+
+  const counts = new Map<string, number>();
+  for (const p of problems) {
+    const name = p.property.name;
+    counts.set(name, (counts.get(name) ?? 0) + 1);
+  }
+  const problemsByProperty = [...counts.entries()]
+    .map(([propertyName, count]) => ({ propertyName, count }))
+    .sort((a, b) => b.count - a.count);
+
+  return {
+    aiReplies,
+    welcomes,
+    checkins,
+    checkouts,
+    openProblems: problems.length,
+    problemsByProperty,
+  };
+}
+
 /** Deterministic Turkish daily operations summary (no external AI needed). */
 export function buildDailySummary(
   stats: OpsStats,
