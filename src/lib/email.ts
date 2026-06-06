@@ -60,6 +60,39 @@ class EmailService {
       console.error("[EmailService] Failed to send email:", err);
     }
   }
+
+  /**
+   * Like send(), but REPORTS the outcome so a "test email" button can show
+   * success or the exact SMTP error (wrong app password, host, etc.). Still
+   * never throws.
+   */
+  async sendReporting(
+    to: string,
+    subject: string,
+    html: string,
+  ): Promise<{ ok: boolean; error?: string }> {
+    if (!this.isConfigured()) {
+      return { ok: false, error: "SMTP ayarlı değil (EMAIL_HOST eksik) — e-posta gönderilemez." };
+    }
+    try {
+      const nodemailer = await import("nodemailer");
+      const transporter = nodemailer.createTransport({
+        host: process.env.EMAIL_HOST,
+        port: Number(process.env.EMAIL_PORT ?? 587),
+        secure: Number(process.env.EMAIL_PORT ?? 587) === 465,
+        auth: { user: process.env.EMAIL_USER, pass: process.env.EMAIL_PASS },
+      });
+      await transporter.sendMail({
+        from: process.env.EMAIL_FROM ?? "Lixus AI <noreply@lixusai.com>",
+        to,
+        subject,
+        html,
+      });
+      return { ok: true };
+    } catch (err) {
+      return { ok: false, error: err instanceof Error ? err.message : String(err) };
+    }
+  }
 }
 
 export const emailService = new EmailService();

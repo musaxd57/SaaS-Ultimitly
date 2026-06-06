@@ -8,6 +8,7 @@ import { MessagePreviewButton } from "@/components/settings/message-preview-butt
 import { NightHoursForm } from "@/components/settings/night-hours-form";
 import { AutoReplyToggle } from "@/components/inbox/auto-reply-toggle";
 import { AiTestCard } from "@/components/settings/ai-test-card";
+import { TestEmailButton } from "@/components/settings/test-email-button";
 
 export const dynamic = "force-dynamic";
 
@@ -79,6 +80,20 @@ export default async function SettingsPage() {
           </CardContent>
         </Card>
       ) : null}
+
+      <Card className="max-w-2xl">
+        <CardHeader>
+          <CardTitle className="text-base">Acil Bildirim E-postası</CardTitle>
+        </CardHeader>
+        <CardContent className="space-y-3">
+          <p className="text-sm text-muted-foreground">
+            Misafir <strong>şikayet/iade</strong> yazınca, <code className="rounded bg-muted px-1 py-0.5 text-xs">ALERT_EMAIL</code>{" "}
+            adresine anında uyarı maili gider (uyurken bile kaçırmazsın). SMTP doğru
+            ayarlandı mı görmek için aşağıdan bir test maili gönder.
+          </p>
+          <TestEmailButton />
+        </CardContent>
+      </Card>
 
       <AiVoiceForm tone={org?.aiReplyTone ?? "warm"} signature={org?.aiSignature ?? ""} />
 

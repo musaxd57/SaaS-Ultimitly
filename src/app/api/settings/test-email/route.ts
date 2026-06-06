@@ -1,0 +1,33 @@
+import { emailService } from "@/lib/email";
+import { requireSession, unauthorized, badRequest, jsonOk, serverError } from "@/lib/api";
+
+// ---------------------------------------------------------------------------
+// Send a TEST alert email to ALERT_EMAIL so the host can verify the SMTP setup
+// (host/user/app-password) actually works — without waiting for a real
+// complaint. Reports the exact outcome (sent, or the SMTP error).
+// ---------------------------------------------------------------------------
+
+export async function POST() {
+  const session = await requireSession();
+  if (!session) return unauthorized();
+
+  const to = process.env.ALERT_EMAIL?.trim();
+  if (!to) {
+    return badRequest({ _: "ALERT_EMAIL ayarlı değil. Önce Railway'de ALERT_EMAIL'i girin." });
+  }
+
+  try {
+    const html =
+      `<div style="font-family:sans-serif;line-height:1.5">` +
+      `<h2>✅ Lixus AI — Test e-postası</h2>` +
+      `<p>Bu bir test mesajıdır. Bunu gördüyseniz, acil bildirim e-postalarınız <b>çalışıyor</b> 🎉</p>` +
+      `<p>Artık bir misafir şikayet/iade yazdığında bu adrese anında uyarı gelecek.</p>` +
+      `<p style="color:#888;font-size:12px">— Lixus AI</p></div>`;
+
+    const result = await emailService.sendReporting(to, "✅ Lixus AI — Test e-postası", html);
+    if (result.ok) return jsonOk({ sent: true, to });
+    return badRequest({ _: result.error ?? "E-posta gönderilemedi." });
+  } catch {
+    return serverError();
+  }
+}
