@@ -41,6 +41,24 @@ function passesAutoReplySafetyGate(result: {
   return result.confidence >= AUTO_REPLY_MIN_CONFIDENCE;
 }
 
+// A short, warm note (in the guest's language) appended to AUTO-sent replies so
+// the guest knows the message was machine-prepared and a human will correct any
+// slip. Manual replies (host-reviewed) never carry it. Set AUTO_REPLY_DISCLOSURE=0
+// to turn it off.
+function automatedReplyNote(lang: string | undefined): string | null {
+  if (process.env.AUTO_REPLY_DISCLOSURE === "0") return null;
+  const l = (lang ?? "en").slice(0, 2).toLowerCase();
+  const notes: Record<string, string> = {
+    tr: "(Bu yanıt otomatik asistanımızca hazırlandı; bir hata olursa ekibimiz hemen düzeltir.)",
+    en: "(This reply was prepared by our automated assistant; if anything looks off, our team will fix it right away.)",
+    de: "(Diese Antwort wurde von unserem automatischen Assistenten erstellt; bei Fehlern hilft unser Team sofort.)",
+    fr: "(Cette réponse a été préparée par notre assistant automatique ; en cas d'erreur, notre équipe corrige aussitôt.)",
+    ar: "(تم إعداد هذا الرد بواسطة مساعدنا الآلي؛ وإذا حدث أي خطأ فسيصححه فريقنا فورًا.)",
+    ru: "(Этот ответ подготовлен нашим автоматическим ассистентом; если что-то не так, команда сразу поправит.)",
+  };
+  return notes[l] ?? notes.en;
+}
+
 /** Current hour (0-23) in the given IANA timezone (e.g. "Europe/Istanbul"). */
 export function currentHourInTimeZone(timeZone: string, now: Date = new Date()): number {
   try {
@@ -511,6 +529,12 @@ export async function applyChannelAutoReply(
   const signature = org.aiSignature?.trim();
   const replyText =
     signature && result.reply ? `${result.reply.trimEnd()}\n\n${signature}` : result.reply;
+  // The GUEST-FACING body of an AUTO-send also carries a short machine-prepared
+  // note in the guest's language, so a guest can account for the rare mistake. The
+  // draft/preview stays clean; the manual "AI suggest" path is the host's reviewed
+  // words and never carries it.
+  const note = automatedReplyNote(result.detectedLanguage);
+  const outboundBody = note ? `${replyText}\n\n${note}` : replyText;
 
   // Safety gate: only auto-send safe, confident replies.
   if (!passesAutoReplySafetyGate(result)) {
@@ -549,7 +573,7 @@ export async function applyChannelAutoReply(
       guestIdentifier: conversation.guestIdentifier,
       externalReservationId: conversation.externalReservationId,
     },
-    replyText,
+    outboundBody,
   );
   if (!delivery.ok) {
     return { sent: false, skippedReason: `send_failed: ${delivery.error ?? "unknown"}`, draft, ...meta };
@@ -562,7 +586,7 @@ export async function applyChannelAutoReply(
         conversationId: conversation.id,
         direction: "outbound",
         senderName: "GuestOps AI",
-        body: replyText,
+        body: outboundBody,
         aiIntent: result.intent,
         aiConfidence: result.confidence,
       },

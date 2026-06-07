@@ -41,6 +41,13 @@ describe("REPLY_SYSTEM_PROMPT", () => {
     expect(REPLY_SYSTEM_PROMPT).toMatch(/none.*low.*medium.*high/s);
   });
 
+  it("states an explicit rule hierarchy and diverse edge-case examples", () => {
+    expect(REPLY_SYSTEM_PROMPT).toContain("KURAL ÖNCELİĞİ");
+    expect(REPLY_SYSTEM_PROMPT).toContain("ÖRNEK 11"); // rude/angry guest
+    expect(REPLY_SYSTEM_PROMPT).toContain("ÖRNEK 12"); // safety emergency → high risk
+    expect(REPLY_SYSTEM_PROMPT).toContain("ÖRNEK 14"); // post-stay returning guest
+  });
+
   it("includes actionSuggestion field in output schema", () => {
     expect(REPLY_SYSTEM_PROMPT).toContain("actionSuggestion");
   });

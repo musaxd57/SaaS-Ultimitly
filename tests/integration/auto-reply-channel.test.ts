@@ -24,6 +24,12 @@ import {
 const mockSuggest = vi.mocked(suggestReply);
 const mockSend = vi.mocked(sendOnChannel);
 
+// The machine-prepared note appended to AUTO-sent replies (Turkish, since the
+// SAFE_REPLY fixture detects "tr"). The draft/preview stays clean — only the
+// guest-facing send carries it.
+const AUTO_NOTE_TR =
+  "(Bu yanıt otomatik asistanımızca hazırlandı; bir hata olursa ekibimiz hemen düzeltir.)";
+
 const SAFE_REPLY = {
   intent: "checkin",
   confidence: 0.9,
@@ -140,12 +146,12 @@ describe("applyChannelAutoReply", () => {
 
     expect(out.draft?.reply).toBe(`${SAFE_REPLY.reply}\n\nSevgiler,\nİsa Çınar`);
 
-    // And when actually sending, the guest receives the signed reply.
+    // And when actually sending, the guest receives the signed reply + the note.
     const sent = await applyChannelAutoReply(conversationId);
     expect(sent.sent).toBe(true);
     expect(mockSend).toHaveBeenCalledWith(
       expect.objectContaining({ externalReservationId: "res-1" }),
-      `${SAFE_REPLY.reply}\n\nSevgiler,\nİsa Çınar`,
+      `${SAFE_REPLY.reply}\n\nSevgiler,\nİsa Çınar\n\n${AUTO_NOTE_TR}`,
     );
   });
 
@@ -156,14 +162,31 @@ describe("applyChannelAutoReply", () => {
     expect(out.sent).toBe(true);
     expect(mockSend).toHaveBeenCalledWith(
       expect.objectContaining({ externalReservationId: "res-1", channel: "airbnb" }),
-      SAFE_REPLY.reply,
+      `${SAFE_REPLY.reply}\n\n${AUTO_NOTE_TR}`,
     );
     const conv = await prisma.conversation.findUnique({
       where: { id: conversationId },
       include: { messages: true },
     });
     expect(conv?.status).toBe("answered");
-    expect(conv?.messages.some((m) => m.direction === "outbound" && m.body === SAFE_REPLY.reply)).toBe(true);
+    expect(
+      conv?.messages.some(
+        (m) => m.direction === "outbound" && m.body === `${SAFE_REPLY.reply}\n\n${AUTO_NOTE_TR}`,
+      ),
+    ).toBe(true);
+  });
+
+  it("marks the auto-sent body as machine-prepared, but keeps the draft clean", async () => {
+    const { conversationId } = await seed();
+    // Draft (preview) stays clean — no disclosure.
+    const preview = await applyChannelAutoReply(conversationId, { dryRun: true });
+    expect(preview.draft?.reply).toBe(SAFE_REPLY.reply);
+    expect(preview.draft?.reply).not.toContain("otomatik");
+
+    // The actual guest-facing send carries the note (in the guest's language).
+    await applyChannelAutoReply(conversationId);
+    const body = mockSend.mock.calls.at(-1)?.[1] as string;
+    expect(body).toContain(AUTO_NOTE_TR);
   });
 
   it("does NOT persist a reply when delivery fails (send-first safety)", async () => {
