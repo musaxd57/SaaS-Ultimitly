@@ -29,10 +29,12 @@ describe("REPLY_SYSTEM_PROMPT", () => {
     expect(REPLY_SYSTEM_PROMPT).toMatch(/KURAL-5/);
   });
 
-  it("defines all 12 intents", () => {
+  it("defines the intent taxonomy incl. the early_departure signal", () => {
     expect(REPLY_SYSTEM_PROMPT).toContain("complaint");
     expect(REPLY_SYSTEM_PROMPT).toContain("amenity");
     expect(REPLY_SYSTEM_PROMPT).toContain("general");
+    // 13th intent: distinguishes "leaving early / cancelling" from a normal checkout.
+    expect(REPLY_SYSTEM_PROMPT).toContain("early_departure");
   });
 
   it("defines riskLevel categories", () => {
