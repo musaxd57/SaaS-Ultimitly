@@ -86,6 +86,31 @@ describe("syncHospitable", () => {
     expect(await prisma.message.count()).toBe(2);
   });
 
+  it("does not re-fetch messages for threads that haven't changed (rate-limit saver)", async () => {
+    const { orgId } = await makeOrgWithProperty();
+    mockProperties.mockResolvedValue([{ id: "hosp-prop-1", name: "Test Property" }]);
+    mockReservations.mockResolvedValue([
+      { id: "res-stable", platform: "airbnb", last_message_at: "2026-05-30T10:00:00Z" },
+    ]);
+    mockMessages.mockResolvedValue([
+      {
+        id: 9,
+        body: "Hello?",
+        sender_type: "guest",
+        sender: { full_name: "Guest" },
+        created_at: "2026-05-30T10:00:00Z",
+      },
+    ]);
+
+    await syncHospitable(orgId); // first run imports the thread
+    expect(mockMessages).toHaveBeenCalledTimes(1);
+
+    // Same last_message_at → thread unchanged → the message endpoint must NOT be
+    // hit again (this is what keeps a busy account under the API rate limit).
+    await syncHospitable(orgId);
+    expect(mockMessages).toHaveBeenCalledTimes(1);
+  });
+
   it("skips reservations that have no message thread", async () => {
     const { orgId } = await makeOrgWithProperty();
     mockProperties.mockResolvedValue([{ id: "hosp-prop-1", name: "Test Property" }]);

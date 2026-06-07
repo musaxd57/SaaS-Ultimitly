@@ -114,6 +114,21 @@ export async function syncHospitable(organizationId: string): Promise<SyncResult
       // Message thread import — only for reservations that have a conversation.
       if (!reservation.last_message_at) continue;
 
+      // Skip threads that are UNCHANGED since our last import: only spend a
+      // Hospitable API request when the thread genuinely has a newer message.
+      // This keeps the per-run request count low so busy accounts (many
+      // listings) don't exhaust the rate limit before reaching new messages.
+      const incomingLast = parseDate(reservation.last_message_at);
+      if (incomingLast) {
+        const existingConv = await prisma.conversation.findFirst({
+          where: { propertyId, externalReservationId: String(reservation.id) },
+          select: { lastMessageAt: true },
+        });
+        if (existingConv?.lastMessageAt && existingConv.lastMessageAt >= incomingLast) {
+          continue; // already up to date — no network call needed
+        }
+      }
+
       let messages: HospitableMessage[];
       try {
         messages = await listMessages(String(reservation.id));
