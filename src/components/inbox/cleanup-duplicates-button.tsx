@@ -19,9 +19,10 @@ export function CleanupDuplicatesButton() {
   async function run() {
     if (
       !window.confirm(
-        "Aynı misafir ve daire için bölünmüş tekrar konuşmalar temizlenecek. " +
-          "Sadece tüm mesajları zaten güncel kopyada bulunan bayat kopyalar silinir — " +
-          "hiçbir mesaj kaybolmaz. Devam edilsin mi?",
+        "Kanal yeniden bağlanınca oluşan artıklar temizlenecek:\n" +
+          "• Bölünmüş tekrar konuşmalar (her mesaj korunur)\n" +
+          "• Hospitable'da artık bulunmayan hayalet rezervasyonlar\n\n" +
+          "Hiçbir mesaj veya geçerli rezervasyon kaybolmaz. Devam edilsin mi?",
       )
     ) {
       return;
@@ -32,8 +33,13 @@ export function CleanupDuplicatesButton() {
       const res = await fetch("/api/conversations/cleanup-duplicates", { method: "POST" });
       const data = await res.json();
       if (data.ok) {
-        const review = data.needsReview > 0 ? ` · ${data.needsReview} elle bakılmalı` : "";
-        setResult({ ok: true, text: `${data.removed} tekrar silindi${review}` });
+        const parts = [`${data.removed ?? 0} tekrar konuşma`];
+        if ((data.reservationsRemoved ?? 0) > 0) {
+          parts.push(`${data.reservationsRemoved} hayalet rezervasyon`);
+        }
+        let text = `${parts.join(" · ")} silindi`;
+        if ((data.needsReview ?? 0) > 0) text += ` · ${data.needsReview} elle bakılmalı`;
+        setResult({ ok: true, text });
         router.refresh();
       } else {
         setResult({ ok: false, text: data.error ?? "Temizlik başarısız" });
