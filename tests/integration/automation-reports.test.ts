@@ -202,6 +202,35 @@ describe("getOpsStats", () => {
     expect(stats.occupancyRate).toBe(100);
   });
 
+  it("counts a turnover day once — occupancy never exceeds 100%", async () => {
+    const { orgId, propertyId } = await makeOrgWithProperty();
+    // Same flat: one guest checks OUT today, another checks IN today.
+    await prisma.reservation.create({
+      data: {
+        propertyId,
+        guestName: "Leaving",
+        arrivalDate: daysFromNow(-3),
+        departureDate: new Date(),
+        status: "confirmed",
+      },
+    });
+    await prisma.reservation.create({
+      data: {
+        propertyId,
+        guestName: "Arriving",
+        arrivalDate: new Date(),
+        departureDate: daysFromNow(3),
+        status: "confirmed",
+      },
+    });
+
+    const stats = await getOpsStats(orgId);
+
+    expect(stats.totalProperties).toBe(1);
+    expect(stats.occupiedToday).toBe(1); // distinct flat, not 2 reservations
+    expect(stats.occupancyRate).toBe(100); // never 200
+  });
+
   it("scopes stats to the requesting organization only", async () => {
     const a = await makeOrgWithProperty();
     const b = await makeOrgWithProperty();

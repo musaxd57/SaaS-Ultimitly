@@ -44,7 +44,7 @@ export async function getOpsStats(orgId: string): Promise<OpsStats> {
     urgentTasks,
     openTasks,
     totalProperties,
-    occupiedToday,
+    occupiedRows,
   ] = await Promise.all([
     prisma.reservation.findMany({
       where: {
@@ -77,18 +77,23 @@ export async function getOpsStats(orgId: string): Promise<OpsStats> {
       where: { ...propertyScope(orgId), status: { not: "done" } },
     }),
     prisma.property.count({ where: { organizationId: orgId } }),
-    prisma.reservation.count({
+    prisma.reservation.findMany({
       where: {
         ...propertyScope(orgId),
         status: { in: ["confirmed", "completed"] },
         arrivalDate: { lte: dayEnd },
         departureDate: { gte: dayStart },
       },
+      select: { propertyId: true },
+      distinct: ["propertyId"], // DISTINCT flats, not reservations
     }),
   ]);
 
+  // On a turnover day a single flat has both a check-out and a check-in; counting
+  // reservations would push occupancy past 100%, so count DISTINCT properties.
+  const occupiedToday = occupiedRows.length;
   const occupancyRate =
-    totalProperties > 0 ? Math.round((occupiedToday / totalProperties) * 100) : 0;
+    totalProperties > 0 ? Math.min(100, Math.round((occupiedToday / totalProperties) * 100)) : 0;
 
   return {
     arrivalsToday: arrivalRows.length,

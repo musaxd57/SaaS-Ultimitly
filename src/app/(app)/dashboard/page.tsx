@@ -37,7 +37,7 @@ export default async function DashboardPage() {
   const { start: dayStart, end: dayEnd } = zonedDayRange(now, org?.timezone ?? "Europe/Istanbul");
   const scope = { property: { organizationId: orgId } };
 
-  const [stats, arrivals, departures, conversations, tasksToday, stayingCount] = await Promise.all([
+  const [stats, arrivals, departures, conversations, tasksToday, stayingRows] = await Promise.all([
     getOpsStats(orgId),
     prisma.reservation.findMany({
       where: {
@@ -74,16 +74,20 @@ export default async function DashboardPage() {
       include: { property: { select: { name: true } } },
       orderBy: { dueAt: "asc" },
     }),
-    // Guests currently in-house (arrived and not yet departed).
-    prisma.reservation.count({
+    // Flats currently in-house — DISTINCT properties, so a turnover day (one guest
+    // out + one in, same flat) counts once, never inflating the number.
+    prisma.reservation.findMany({
       where: {
         ...scope,
         status: { in: ["confirmed", "completed"] },
         arrivalDate: { lte: dayEnd },
         departureDate: { gte: dayStart },
       },
+      select: { propertyId: true },
+      distinct: ["propertyId"],
     }),
   ]);
+  const stayingCount = stayingRows.length;
 
   // Sort today's tasks urgent-first, then by due time.
   const priorityRank: Record<string, number> = { urgent: 0, standard: 1, low: 2 };
