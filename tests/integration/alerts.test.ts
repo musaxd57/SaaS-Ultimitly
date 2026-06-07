@@ -9,7 +9,13 @@ import { sendDueAlerts } from "@/lib/automation";
 
 const mockSend = vi.mocked(emailService.send);
 
-async function seedConversation(opts: { body: string; status?: string; direction?: "inbound" | "outbound" }) {
+async function seedConversation(opts: {
+  body: string;
+  status?: string;
+  direction?: "inbound" | "outbound";
+  createdAt?: Date;
+}) {
+  const when = opts.createdAt ?? new Date();
   const org = await prisma.organization.create({ data: { name: "Org" } });
   const property = await prisma.property.create({
     data: { organizationId: org.id, name: "nuve 7" },
@@ -20,13 +26,14 @@ async function seedConversation(opts: { body: string; status?: string; direction
       channel: "airbnb",
       guestIdentifier: "Alex",
       status: opts.status ?? "new",
+      lastMessageAt: when,
       messages: {
         create: [
           {
             direction: opts.direction ?? "inbound",
             senderName: "Alex",
             body: opts.body,
-            createdAt: new Date(),
+            createdAt: when,
           },
         ],
       },
@@ -78,6 +85,16 @@ describe("sendDueAlerts", () => {
   it("also alerts on refund requests", async () => {
     const { orgId } = await seedConversation({ body: "Para iadesi istiyorum lütfen." });
     expect((await sendDueAlerts(orgId)).alerted).toBe(1);
+  });
+
+  it("does NOT alert on a stale complaint resurfaced by a re-sync (weeks-old message)", async () => {
+    const tenDaysAgo = new Date(Date.now() - 10 * 24 * 60 * 60 * 1000);
+    const { orgId } = await seedConversation({
+      body: "Klima çalışmıyor, oda berbat!",
+      createdAt: tenDaysAgo,
+    });
+    expect((await sendDueAlerts(orgId)).alerted).toBe(0);
+    expect(mockSend).not.toHaveBeenCalled();
   });
 
   it("ignores ordinary questions (no alert)", async () => {

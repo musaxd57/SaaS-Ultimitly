@@ -1169,6 +1169,13 @@ export async function sendDueAlerts(
     select: { name: true },
   });
 
+  // Only escalate genuinely recent complaints. A re-sync (e.g. after reconnecting
+  // the channel) can resurface a weeks-old unanswered message as "new"; without
+  // this guard the host gets a burst of stale alert emails about long-past stays.
+  // Real complaints are caught within minutes (the cron syncs ~every 2m), so a few
+  // days of slack is plenty.
+  const ALERT_MAX_AGE_MS = 72 * 60 * 60 * 1000;
+
   // Unanswered conversations where the guest spoke last and that aren't flagged.
   const candidates = await prisma.conversation.findMany({
     where: { property: { organizationId }, status: "new" },
@@ -1180,6 +1187,7 @@ export async function sendDueAlerts(
       property: { select: { name: true, address: true, city: true } },
       messages: { orderBy: { createdAt: "desc" }, take: 1 },
     },
+    orderBy: { lastMessageAt: "desc" }, // freshest first — never let stale backlog crowd out new complaints
     take: 50,
   });
 
@@ -1187,6 +1195,8 @@ export async function sendDueAlerts(
   for (const c of candidates) {
     const last = c.messages[0];
     if (!last || last.direction !== "inbound") continue;
+    // Skip stale backlog surfaced by a re-sync — only alert on fresh messages.
+    if (Date.now() - last.createdAt.getTime() > ALERT_MAX_AGE_MS) continue;
     const cls = classifyFallback(last.body);
     if (!cls.isComplaint && cls.intent !== "refund") continue;
 
