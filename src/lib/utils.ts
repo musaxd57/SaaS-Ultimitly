@@ -30,11 +30,17 @@ const dateFmt = new Intl.DateTimeFormat("tr-TR", {
   timeZone: "UTC",
 });
 
+// Message/task timestamps are real instants (not date-only). Render them in the
+// app's operating timezone so the wall-clock time matches Airbnb/Hospitable and
+// the host's own clock — NOT the server's UTC. (Türkiye is UTC+3 year-round.)
+const APP_TIME_ZONE = "Europe/Istanbul";
+
 const dateTimeFmt = new Intl.DateTimeFormat("tr-TR", {
   day: "2-digit",
   month: "short",
   hour: "2-digit",
   minute: "2-digit",
+  timeZone: APP_TIME_ZONE,
 });
 
 export function formatDate(date: Date | string | null | undefined) {
@@ -52,6 +58,7 @@ export function formatTime(date: Date | string | null | undefined) {
   return new Date(date).toLocaleTimeString("tr-TR", {
     hour: "2-digit",
     minute: "2-digit",
+    timeZone: APP_TIME_ZONE,
   });
 }
 
