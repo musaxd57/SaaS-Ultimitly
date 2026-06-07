@@ -11,6 +11,7 @@ import {
   type ThreadMessage,
 } from "@/components/inbox/conversation-thread";
 import { DeleteConversationButton } from "@/components/inbox/delete-conversation-button";
+import { AutoRefresh } from "@/components/inbox/auto-refresh";
 import { KB_CATEGORY, RESERVATION_STATUS } from "@/lib/constants";
 import { formatDate, formatDateTime, formatCurrency } from "@/lib/utils";
 
@@ -59,6 +60,7 @@ export default async function ConversationPage({
 
   return (
     <>
+      <AutoRefresh seconds={30} />
       <PageHeader
         title={conversation.guestIdentifier}
         description={`${conversation.property.name} · ${conversation.channel}`}

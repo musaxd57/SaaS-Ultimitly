@@ -10,6 +10,7 @@ import { AutoReplyToggle } from "@/components/inbox/auto-reply-toggle";
 import { AutoReplyTestButton } from "@/components/inbox/auto-reply-test-button";
 import { HospitableSyncButton } from "@/components/inbox/hospitable-sync-button";
 import { CleanupDuplicatesButton } from "@/components/inbox/cleanup-duplicates-button";
+import { AutoRefresh } from "@/components/inbox/auto-refresh";
 import { CONVERSATION_STATUS } from "@/lib/constants";
 import { fromNow, truncate, cn } from "@/lib/utils";
 
@@ -52,6 +53,7 @@ export default async function InboxPage({
 
   return (
     <>
+      <AutoRefresh seconds={30} />
       <PageHeader title="Mesajlar" description="Tüm misafir konuşmalarını tek kutudan yönetin.">
         <HospitableSyncButton />
         <CleanupDuplicatesButton />
