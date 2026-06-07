@@ -19,8 +19,14 @@ const VALID_TONES: ReplyTone[] = ["formal", "warm", "short", "luxury"];
 // so auto-reply effectively requires a real model response — by design.
 const AUTO_REPLY_MIN_CONFIDENCE = 0.7;
 
+// HARD BLOCK: these intents touch money / cancellation / a complaint and must
+// ALWAYS be handled by a human — never auto-sent, even if the model under-rates
+// the risk as "low". This is a belt-and-suspenders on top of the riskLevel gate.
+const NEVER_AUTO_REPLY_INTENTS = new Set(["complaint", "refund", "early_departure"]);
+
 /** Only safe, confident drafts may be auto-sent; everything else waits for a human. */
 function passesAutoReplySafetyGate(result: {
+  intent: string;
   riskLevel: string;
   confidence: number;
   source: string;
@@ -29,6 +35,8 @@ function passesAutoReplySafetyGate(result: {
   // nuance rules the model follows, so if the model is unavailable we wait for a
   // human instead of sending a canned message.
   if (result.source !== "openai") return false;
+  // Sensitive intents always go to a human (refund/cancellation/complaint).
+  if (NEVER_AUTO_REPLY_INTENTS.has(result.intent)) return false;
   if (result.riskLevel !== "none" && result.riskLevel !== "low") return false;
   return result.confidence >= AUTO_REPLY_MIN_CONFIDENCE;
 }

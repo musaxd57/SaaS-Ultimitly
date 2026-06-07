@@ -217,6 +217,24 @@ describe("applyChannelAutoReply", () => {
     expect(mockSend).not.toHaveBeenCalled();
   });
 
+  it("NEVER auto-sends money/cancellation intents even if rated low-risk", async () => {
+    // Hard guarantee: refund / cancellation / complaint always wait for a human,
+    // even when the model under-rates the risk as "low" with high confidence.
+    for (const intent of ["early_departure", "refund", "complaint"]) {
+      mockSend.mockClear();
+      mockSuggest.mockResolvedValue({
+        ...SAFE_REPLY,
+        intent,
+        riskLevel: "low",
+        confidence: 0.95,
+      });
+      const { conversationId } = await seed();
+      const out = await applyChannelAutoReply(conversationId);
+      expect(out.sent).toBe(false);
+      expect(mockSend).not.toHaveBeenCalled();
+    }
+  });
+
   it("skips complaints and conversations we already answered", async () => {
     const complaint = await seed({ status: "problem" });
     expect((await applyChannelAutoReply(complaint.conversationId)).skippedReason).toBe("complaint");
