@@ -102,11 +102,17 @@ export async function syncHospitable(organizationId: string): Promise<SyncResult
   // Bound the reservation query to a recent→future window. Without it, every
   // listing pages through its ENTIRE booking history (up to 40 pages each),
   // which on a multi-listing account exhausts the API rate limit before any
-  // messages are fetched — so new guest messages silently never import. A
-  // 60-days-back → ~18-months-ahead window keeps every active/recent/upcoming
-  // booking while cutting the historical bloat that caused the throttling.
+  // messages are fetched — so new guest messages silently never import.
+  //
+  // The window must reach far enough BACK to still catch a checked-out guest who
+  // messages after their stay (reviews, "I left something", a rebooking note) —
+  // 60 days was too tight and silently dropped those. Default 180 days back;
+  // override with HOSPITABLE_SYNC_BACK_DAYS if a guest messages even later. The
+  // skip-unchanged-thread optimisation keeps the per-run message-fetch cost low
+  // regardless of how many older reservations the wider window includes.
+  const backDays = Number(process.env.HOSPITABLE_SYNC_BACK_DAYS) || 180;
   const fmt = (d: Date) => d.toISOString().slice(0, 10);
-  const startDate = fmt(new Date(Date.now() - 60 * 24 * 60 * 60 * 1000));
+  const startDate = fmt(new Date(Date.now() - backDays * 24 * 60 * 60 * 1000));
   const endDate = fmt(new Date(Date.now() + 540 * 24 * 60 * 60 * 1000));
 
   for (const [hospitableId, propertyId] of propertyMap) {
