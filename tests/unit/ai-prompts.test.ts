@@ -35,6 +35,8 @@ describe("REPLY_SYSTEM_PROMPT", () => {
     expect(REPLY_SYSTEM_PROMPT).toContain("general");
     // 13th intent: distinguishes "leaving early / cancelling" from a normal checkout.
     expect(REPLY_SYSTEM_PROMPT).toContain("early_departure");
+    // 14th intent: guest asking to speak to a human / the host.
+    expect(REPLY_SYSTEM_PROMPT).toContain("human_request");
   });
 
   it("defines riskLevel categories", () => {

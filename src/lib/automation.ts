@@ -429,6 +429,11 @@ export async function applyChannelAutoReply(
   if (!conversation.externalReservationId) return { sent: false, skippedReason: "no_external_target", ...meta };
   // A complaint has already escalated to a human — never auto-reply to it.
   if (conversation.status === "problem") return { sent: false, skippedReason: "complaint", ...meta };
+  // Human-handoff hold: the guest asked to speak to the host, so we already sent a
+  // holding reply and paused the AI for a while to let the host take over.
+  if (conversation.autoReplyHoldUntil && conversation.autoReplyHoldUntil > new Date()) {
+    return { sent: false, skippedReason: "human_hold", ...meta };
+  }
   // The guest's stay is over (or the booking was cancelled) — the AI has no
   // business replying to a finished reservation.
   if (conversation.reservation) {
@@ -596,6 +601,18 @@ export async function applyChannelAutoReply(
       data: { status: "answered", lastMessageAt: now },
     }),
   ]);
+
+  // Guest asked to speak to a human: we just sent the holding reply, now pause the
+  // AI on this thread so the host can take over without the bot chiming in again.
+  if (result.intent === "human_request") {
+    const holdHours = Number(process.env.HUMAN_HANDOFF_HOLD_HOURS) || 12;
+    await prisma.conversation
+      .update({
+        where: { id: conversation.id },
+        data: { autoReplyHoldUntil: new Date(now.getTime() + holdHours * 60 * 60 * 1000) },
+      })
+      .catch(() => {});
+  }
 
   return { sent: true, draft, ...meta };
 }

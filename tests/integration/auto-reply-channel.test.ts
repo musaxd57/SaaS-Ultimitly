@@ -258,6 +258,38 @@ describe("applyChannelAutoReply", () => {
     }
   });
 
+  it("sends a holding reply and pauses the AI when the guest asks for a human", async () => {
+    mockSuggest.mockResolvedValue({
+      ...SAFE_REPLY,
+      intent: "human_request",
+      reply: "Talebinizi ev sahibimize ilettim; en kısa sürede kendisi sizinle iletişime geçecektir.",
+      riskLevel: "low",
+      confidence: 0.9,
+    });
+    const { conversationId } = await seed();
+
+    const out = await applyChannelAutoReply(conversationId);
+
+    expect(out.sent).toBe(true); // the one holding reply goes out
+    const conv = await prisma.conversation.findUnique({ where: { id: conversationId } });
+    expect(conv?.autoReplyHoldUntil).toBeInstanceOf(Date);
+    expect(conv!.autoReplyHoldUntil!.getTime()).toBeGreaterThan(Date.now());
+  });
+
+  it("stays silent while a human-handoff hold is active", async () => {
+    const { conversationId } = await seed();
+    await prisma.conversation.update({
+      where: { id: conversationId },
+      data: { autoReplyHoldUntil: new Date(Date.now() + 60 * 60 * 1000) },
+    });
+
+    const out = await applyChannelAutoReply(conversationId);
+
+    expect(out.sent).toBe(false);
+    expect(out.skippedReason).toBe("human_hold");
+    expect(mockSend).not.toHaveBeenCalled();
+  });
+
   it("skips complaints and conversations we already answered", async () => {
     const complaint = await seed({ status: "problem" });
     expect((await applyChannelAutoReply(complaint.conversationId)).skippedReason).toBe("complaint");

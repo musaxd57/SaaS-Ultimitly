@@ -32,6 +32,7 @@ const INTENT_LABEL: Record<string, string> = {
   early_checkin: "Erken giriş",
   late_checkout: "Geç çıkış",
   early_departure: "Erken ayrılma",
+  human_request: "Ev sahibi talebi",
   cleaning: "Temizlik",
   amenity: "Ekipman / Eşya",
   complaint: "Şikayet",

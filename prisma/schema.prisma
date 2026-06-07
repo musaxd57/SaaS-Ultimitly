@@ -165,6 +165,9 @@ model Conversation {
   // send replies back on the original channel (Airbnb, Booking, ...).
   externalReservationId  String? // Hospitable reservation UUID (reply target)
   externalConversationId String? // Hospitable conversation UUID
+  // When set & in the future, auto-reply is paused for this thread — the guest
+  // asked to speak to a human, so we hand off and let the host take over.
+  autoReplyHoldUntil DateTime?
   createdAt       DateTime @default(now())
   updatedAt       DateTime @updatedAt
 
