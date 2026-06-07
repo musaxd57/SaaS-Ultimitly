@@ -4,7 +4,6 @@ import {
   LogIn,
   LogOut,
   AlertTriangle,
-  Clock,
   Trophy,
   BedDouble,
 } from "lucide-react";
@@ -12,7 +11,6 @@ import { requireAuth } from "@/lib/auth";
 import {
   getAiOpsReport,
   getTopTopics,
-  getResponseTimeStats,
   getHostPerformanceScore,
   getOccupancyByProperty,
 } from "@/lib/reports";
@@ -43,10 +41,9 @@ const INTENT_LABEL: Record<string, string> = {
 export default async function ReportsPage() {
   const { organizationId } = await requireAuth();
 
-  const [ai, topics, responseTime, score, occupancy] = await Promise.all([
+  const [ai, topics, score, occupancy] = await Promise.all([
     getAiOpsReport(organizationId),
     getTopTopics(organizationId, 6),
-    getResponseTimeStats(organizationId),
     getHostPerformanceScore(organizationId),
     getOccupancyByProperty(organizationId),
   ]);
@@ -82,12 +79,6 @@ export default async function ReportsPage() {
               <>
                 <p className="text-3xl font-semibold">{score.score}/100</p>
                 <p className="text-sm text-muted-foreground">{score.label}</p>
-                <div className="mt-2 flex items-center gap-2 text-sm text-muted-foreground">
-                  <Clock className="size-4" />
-                  {responseTime.avgMinutes != null
-                    ? `Ortalama yanıt süresi: ${responseTime.avgMinutes} dk (${responseTime.conversationsAnalyzed} konuşma)`
-                    : "Yanıt süresi için yeterli veri yok."}
-                </div>
               </>
             ) : (
               <EmptyState title="Skor için yeterli veri yok" className="py-6" />
