@@ -57,7 +57,7 @@ describe("syncHospitable", () => {
 
     const result = await syncHospitable(orgId);
 
-    expect(result).toEqual({ properties: 1, reservations: 0, conversations: 1, messages: 2 });
+    expect(result).toMatchObject({ properties: 1, reservations: 0, conversations: 1, messages: 2, threads: 1, skipped: 0 });
 
     // Adopted the existing property by name — no duplicate.
     expect(await prisma.property.count({ where: { organizationId: orgId } })).toBe(1);

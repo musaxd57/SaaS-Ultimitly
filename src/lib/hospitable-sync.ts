@@ -30,6 +30,8 @@ export interface SyncResult {
   reservations: number; // reservations upserted (drives dashboard + welcome)
   conversations: number; // conversations created or updated
   messages: number; // new messages imported
+  threads: number; // reservations that have a message thread (last_message_at)
+  skipped: number; // unchanged threads skipped (no API call needed)
 }
 
 function str(value: unknown): string | null {
@@ -77,7 +79,14 @@ function reservationGuestName(reservation: HospitableReservation): string | null
 // ---------------------------------------------------------------------------
 
 export async function syncHospitable(organizationId: string): Promise<SyncResult> {
-  const result: SyncResult = { properties: 0, reservations: 0, conversations: 0, messages: 0 };
+  const result: SyncResult = {
+    properties: 0,
+    reservations: 0,
+    conversations: 0,
+    messages: 0,
+    threads: 0,
+    skipped: 0,
+  };
 
   // 1. Link/create properties.
   const hospitableProps = await listProperties();
@@ -90,10 +99,20 @@ export async function syncHospitable(organizationId: string): Promise<SyncResult
   }
 
   // 2. Per property, pull reservations and their message threads.
+  // Bound the reservation query to a recent→future window. Without it, every
+  // listing pages through its ENTIRE booking history (up to 40 pages each),
+  // which on a multi-listing account exhausts the API rate limit before any
+  // messages are fetched — so new guest messages silently never import. A
+  // 60-days-back → ~18-months-ahead window keeps every active/recent/upcoming
+  // booking while cutting the historical bloat that caused the throttling.
+  const fmt = (d: Date) => d.toISOString().slice(0, 10);
+  const startDate = fmt(new Date(Date.now() - 60 * 24 * 60 * 60 * 1000));
+  const endDate = fmt(new Date(Date.now() + 540 * 24 * 60 * 60 * 1000));
+
   for (const [hospitableId, propertyId] of propertyMap) {
     let reservations: HospitableReservation[];
     try {
-      reservations = await listReservations({ propertyIds: [hospitableId] });
+      reservations = await listReservations({ propertyIds: [hospitableId], startDate, endDate });
     } catch (err) {
       console.error(`[Hospitable sync] reservations failed for ${hospitableId}`, err);
       continue;
@@ -113,6 +132,7 @@ export async function syncHospitable(organizationId: string): Promise<SyncResult
 
       // Message thread import — only for reservations that have a conversation.
       if (!reservation.last_message_at) continue;
+      result.threads++;
 
       // Skip threads that are UNCHANGED since our last import: only spend a
       // Hospitable API request when the thread genuinely has a newer message.
@@ -125,6 +145,7 @@ export async function syncHospitable(organizationId: string): Promise<SyncResult
           select: { lastMessageAt: true },
         });
         if (existingConv?.lastMessageAt && existingConv.lastMessageAt >= incomingLast) {
+          result.skipped++;
           continue; // already up to date — no network call needed
         }
       }
