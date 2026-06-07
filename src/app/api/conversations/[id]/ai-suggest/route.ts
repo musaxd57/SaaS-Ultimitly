@@ -2,6 +2,7 @@ import { type NextRequest } from "next/server";
 import { prisma } from "@/lib/db";
 import { aiSuggestSchema } from "@/lib/validators";
 import { suggestReply } from "@/lib/ai";
+import { getAdjacency } from "@/lib/turnover";
 import {
   requireSession,
   unauthorized,
@@ -64,6 +65,15 @@ export async function POST(req: NextRequest, { params }: Params) {
       select: { aiStyleProfile: true },
     });
 
+    // Turnover context (neighbouring bookings) for early-checkin/late-checkout.
+    const adjacency = conversation.reservation
+      ? await getAdjacency(
+          conversation.propertyId,
+          conversation.reservation.arrivalDate,
+          conversation.reservation.departureDate,
+        )
+      : null;
+
     const result = await suggestReply({
       guestMessage: lastInbound.body,
       property: {
@@ -79,6 +89,7 @@ export async function POST(req: NextRequest, { params }: Params) {
             arrivalDate: conversation.reservation.arrivalDate,
             departureDate: conversation.reservation.departureDate,
             status: conversation.reservation.status,
+            guestCheckoutTime: conversation.reservation.guestCheckoutTime,
           }
         : null,
       knowledgeBase: kb,
@@ -89,6 +100,7 @@ export async function POST(req: NextRequest, { params }: Params) {
       tone,
       language: lastInbound.language || "tr",
       styleProfile: org?.aiStyleProfile,
+      adjacency,
     });
 
     await prisma.message.update({

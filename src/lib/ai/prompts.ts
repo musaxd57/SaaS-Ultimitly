@@ -1,5 +1,5 @@
 import type { ReplyTone } from "@/lib/constants";
-import type { SuggestReplyInput } from "./types";
+import type { AdjacencyContext, SuggestReplyInput } from "./types";
 
 // ============================================================================
 // TONE SYSTEM — Detailed guidance for each tone mode
@@ -333,6 +333,45 @@ function daysDiff(from: Date | string, to: Date | string): number {
   }
 }
 
+function sameDay(a: Date | string, b: Date | string): boolean {
+  return new Date(a).toISOString().slice(0, 10) === new Date(b).toISOString().slice(0, 10);
+}
+
+/**
+ * Concrete turnover facts for the model so early-checkin / late-checkout calls are
+ * data-driven, not pure guesswork. Returns "" when there is no reservation or no
+ * adjacency data. Keeps the guardrail: the model still defers the final time
+ * commitment to the operator.
+ */
+function buildAdjacencyBlock(
+  reservation: SuggestReplyInput["reservation"],
+  adjacency: AdjacencyContext | null,
+  property: SuggestReplyInput["property"],
+): string {
+  if (!reservation || !adjacency) return "";
+  const { previousDeparture, nextArrival } = adjacency;
+
+  const before = previousDeparture
+    ? sameDay(previousDeparture, reservation.arrivalDate)
+      ? `Giriş günü AYNI dairede önceki misafir saat ${property.checkOutTime}'da çıkıyor → DEVİR GÜNÜ. Erken giriş ancak çıkış + temizlik sonrası mümkün (pencere ${property.checkOutTime}–${property.checkInTime}).`
+      : `Giriş gününden önce daire boş (önceki çıkış: ${fmtDate(previousDeparture)}). Erken girişte devir baskısı yok.`
+    : `Giriş öncesi kayıtlı önceki rezervasyon yok (daire muhtemelen müsait).`;
+
+  const after = nextArrival
+    ? sameDay(nextArrival, reservation.departureDate)
+      ? `Çıkış günü AYNI daireye sonraki misafir saat ${property.checkInTime}'da giriyor → DEVİR GÜNÜ. Geç çıkış sınırlı; temizlik için ${property.checkOutTime}–${property.checkInTime} penceresi gerekiyor.`
+      : `Çıkıştan sonraki ilk giriş: ${fmtDate(nextArrival)}. Geç çıkışta devir baskısı düşük.`
+    : `Çıkış sonrası kayıtlı sonraki rezervasyon yok (geç çıkış daha esnek olabilir).`;
+
+  return `
+════════════════════════════════════════════════════
+KOMŞU REZERVASYON / DEVİR GÜNÜ (erken giriş & geç çıkış için VERİ)
+════════════════════════════════════════════════════
+${before}
+${after}
+Bunu Bölüm 7.5 mantığıyla kullan: devir günü varsa temkinli, müsaitse daha olumlu yaklaş. YİNE DE kesin saat taahhüdünü tek başına verme; onayı operatöre bırak (actionSuggestion).`;
+}
+
 function buildTimelineContext(reservation: { arrivalDate: Date | string; departureDate: Date | string } | null): string {
   if (!reservation) return "(rezervasyon yok)";
   const now = new Date();
@@ -366,7 +405,11 @@ export function buildReplyUserPrompt(input: SuggestReplyInput): string {
   const res = reservation
     ? `Misafir: ${reservation.guestName}
 Giriş: ${fmtDate(reservation.arrivalDate)} | Çıkış: ${fmtDate(reservation.departureDate)}
-Durum: ${reservation.status}
+Durum: ${reservation.status}${
+        reservation.guestCheckoutTime
+          ? `\nMisafirin daha önce kendi belirttiği çıkış saati: ${reservation.guestCheckoutTime} (bunu hatırla; tekrar sorma, gerekirse buna göre konuş).`
+          : ""
+      }
 Zaman bağlamı: ${buildTimelineContext(reservation)}`
     : "(bu konuşma bir rezervasyona bağlı değil)";
 
@@ -379,6 +422,17 @@ Zaman bağlamı: ${buildTimelineContext(reservation)}`
       : "(önceki mesaj geçmişi yok)";
 
   const toneBlock = TONE_GUIDANCE[tone];
+
+  // Mirror the guest's message length numerically (Section 10.5, made concrete).
+  const wordCount = guestMessage.trim().split(/\s+/).filter(Boolean).length;
+  const lengthHint =
+    wordCount <= 4
+      ? "CEVAP UZUNLUĞU: Misafir çok kısa yazdı — 1-2 cümlelik kısa, net bir cevap ver; gereksiz uzatma."
+      : wordCount >= 40
+        ? "CEVAP UZUNLUĞU: Misafir uzun/detaylı yazdı — sorduğu her noktayı karşıla ama yine de öz ve sohbet havasında tut."
+        : "CEVAP UZUNLUĞU: Misafirin yazdığı uzunluğa yakın, dengeli bir cevap ver (genelde 2-4 cümle).";
+
+  const adjacencyBlock = buildAdjacencyBlock(reservation, input.adjacency ?? null, property);
 
   const styleBlock = input.styleProfile?.trim()
     ? `
@@ -403,6 +457,7 @@ ${toneBlock}
 ${styleBlock}
 DİL ZORUNLULUĞU: Misafirin yazdığı dili (detectedLanguage) tespit et ve cevabı o dilde yaz.
 Dil belirsiz veya çok kısaysa VARSAYILAN olarak İngilizce (en) yaz. (Sistem tercih dili: ${language})
+${lengthHint}
 
 ════════════════════════════════════════════════════
 MÜLK BİLGİSİ
@@ -418,6 +473,7 @@ UYARI: Bu alanlardan herhangi biri "(belirtilmemiş)" ise cevabında o bilgiyi Y
 REZERVASYON
 ════════════════════════════════════════════════════
 ${res}
+${adjacencyBlock}
 
 ════════════════════════════════════════════════════
 BİLGİ TABANI (GERÇEK BİLGİLER — sadece bunları kullan)

@@ -75,6 +75,54 @@ describe("buildReplyUserPrompt", () => {
     expect(p).toContain("bilgi tabanı boş");
   });
 
+  it("calibrates reply length to the guest message size", () => {
+    const short = buildReplyUserPrompt({ ...input, guestMessage: "wifi?" });
+    expect(short).toMatch(/çok kısa/);
+    const long = buildReplyUserPrompt({
+      ...input,
+      guestMessage: Array.from({ length: 45 }, (_, i) => `kelime${i}`).join(" "),
+    });
+    expect(long).toMatch(/uzun\/detaylı/);
+  });
+
+  it("surfaces the guest's previously-stated check-out time when known", () => {
+    const without = buildReplyUserPrompt(input);
+    expect(without).not.toMatch(/belirttiği çıkış saati/);
+    const withTime = buildReplyUserPrompt({
+      ...input,
+      reservation: { ...input.reservation!, guestCheckoutTime: "09:00" },
+    });
+    expect(withTime).toMatch(/belirttiği çıkış saati: 09:00/);
+  });
+
+  it("includes a turnover/adjacency block only when adjacency data is given", () => {
+    const without = buildReplyUserPrompt(input);
+    expect(without).not.toContain("DEVİR GÜNÜ");
+
+    // previous checkout == arrival and next arrival == departure → both turnover days.
+    const withAdjacency = buildReplyUserPrompt({
+      ...input,
+      adjacency: {
+        previousDeparture: new Date("2026-06-01"),
+        nextArrival: new Date("2026-06-04"),
+      },
+    });
+    expect(withAdjacency).toContain("KOMŞU REZERVASYON");
+    expect(withAdjacency).toMatch(/→ DEVİR GÜNÜ/); // the arrow marks an actual turnover day
+    // Guardrail must survive: still defer the final commitment to the operator.
+    expect(withAdjacency).toMatch(/taahhüdünü tek başına verme/);
+  });
+
+  it("shows a free-window adjacency block when there is no same-day turnover", () => {
+    const free = buildReplyUserPrompt({
+      ...input,
+      adjacency: { previousDeparture: new Date("2026-05-20"), nextArrival: null },
+    });
+    expect(free).toContain("KOMŞU REZERVASYON");
+    expect(free).toMatch(/daire boş|devir baskısı yok/);
+    expect(free).not.toMatch(/→ DEVİR GÜNÜ/); // no actual turnover day in this case
+  });
+
   it("includes the host guide only when present, with hard limits", () => {
     const without = buildReplyUserPrompt(input);
     expect(without).not.toContain("EV SAHİBİ REHBERİ");

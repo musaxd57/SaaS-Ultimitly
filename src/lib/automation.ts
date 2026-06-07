@@ -4,6 +4,7 @@ import { prisma } from "@/lib/db";
 import { classifyMessage, suggestReply, summarizeHostStyle } from "@/lib/ai";
 import { classifyFallback } from "@/lib/ai/fallback";
 import { sendOnChannel } from "@/lib/messaging";
+import { getAdjacency } from "@/lib/turnover";
 import { emailService } from "@/lib/email";
 import {
   complaintEscalationEmail,
@@ -381,7 +382,14 @@ export async function applyChannelAutoReply(
         },
       },
       reservation: {
-        select: { id: true, guestName: true, arrivalDate: true, departureDate: true, status: true },
+        select: {
+          id: true,
+          guestName: true,
+          arrivalDate: true,
+          departureDate: true,
+          status: true,
+          guestCheckoutTime: true,
+        },
       },
       messages: { orderBy: { createdAt: "asc" } },
     },
@@ -435,6 +443,15 @@ export async function applyChannelAutoReply(
     content: fillPlaceholders(k.content, guestFirst, conversation.property.name),
   }));
 
+  // Turnover context so early-checkin / late-checkout answers are data-driven.
+  const adjacency = conversation.reservation
+    ? await getAdjacency(
+        conversation.propertyId,
+        conversation.reservation.arrivalDate,
+        conversation.reservation.departureDate,
+      )
+    : null;
+
   const result = await suggestReply({
     guestMessage: last.body,
     property: {
@@ -450,6 +467,7 @@ export async function applyChannelAutoReply(
           arrivalDate: conversation.reservation.arrivalDate,
           departureDate: conversation.reservation.departureDate,
           status: conversation.reservation.status,
+          guestCheckoutTime: conversation.reservation.guestCheckoutTime,
         }
       : null,
     knowledgeBase: kb,
@@ -462,6 +480,7 @@ export async function applyChannelAutoReply(
       : "warm",
     language: org.language ?? "tr",
     styleProfile: org.aiStyleProfile,
+    adjacency,
   });
 
   // If the guest stated their own departure time, record it on the reservation

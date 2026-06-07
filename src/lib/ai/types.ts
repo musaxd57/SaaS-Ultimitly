@@ -11,6 +11,16 @@ export interface ReservationContext {
   arrivalDate: Date | string;
   departureDate: Date | string;
   status: string;
+  /** The guest's own previously-stated check-out time ("HH:MM"), if known. */
+  guestCheckoutTime?: string | null;
+}
+
+/** Neighbouring bookings for the SAME property — for turnover-day reasoning. */
+export interface AdjacencyContext {
+  /** Nearest prior booking's check-out date (same property), or null. */
+  previousDeparture?: Date | string | null;
+  /** Nearest following booking's check-in date (same property), or null. */
+  nextArrival?: Date | string | null;
 }
 
 export interface PropertyContext {
@@ -36,6 +46,8 @@ export interface SuggestReplyInput {
   language: string;
   /** Distilled guide of the host's own reply style (optional, learned). */
   styleProfile?: string | null;
+  /** Neighbouring bookings (same property) for early-checkin/late-checkout calls. */
+  adjacency?: AdjacencyContext | null;
 }
 
 export interface SuggestReplyResult {
