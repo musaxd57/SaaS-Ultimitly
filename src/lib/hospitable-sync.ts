@@ -80,7 +80,7 @@ function reservationGuestName(reservation: HospitableReservation): string | null
 
 export async function syncHospitable(
   organizationId: string,
-  options: { backDays?: number } = {},
+  options: { backDays?: number; forwardDays?: number } = {},
 ): Promise<SyncResult> {
   const result: SyncResult = {
     properties: 0,
@@ -107,16 +107,16 @@ export async function syncHospitable(
   // which on a multi-listing account exhausts the API rate limit before any
   // messages are fetched — so new guest messages silently never import.
   //
-  // The window must reach far enough BACK to still catch a checked-out guest who
-  // messages after their stay (reviews, "I left something", a rebooking note).
-  // To avoid paying a wide sweep on EVERY 2-min run, the caller decides the depth:
-  // the cron uses a narrow window most of the time and a wide one only hourly, and
-  // the manual button always goes wide. Explicit `backDays` wins; otherwise the
-  // frequent default (env HOSPITABLE_SYNC_BACK_DAYS or 90 days) applies.
-  const backDays = options.backDays ?? (Number(process.env.HOSPITABLE_SYNC_BACK_DAYS) || 90);
+  // The window is chosen by the CALLER so the cron can stay light. The expensive
+  // part of every run is paging through the reservations in the window; the bulk
+  // of those are far-FUTURE bookings, so the frequent cron uses a narrow window
+  // (recent + near-term) while a wide catch-up runs only hourly, and the manual
+  // button always goes wide. Safe full defaults apply to any direct call.
+  const backDays = options.backDays ?? 90;
+  const forwardDays = options.forwardDays ?? 540;
   const fmt = (d: Date) => d.toISOString().slice(0, 10);
   const startDate = fmt(new Date(Date.now() - backDays * 24 * 60 * 60 * 1000));
-  const endDate = fmt(new Date(Date.now() + 540 * 24 * 60 * 60 * 1000));
+  const endDate = fmt(new Date(Date.now() + forwardDays * 24 * 60 * 60 * 1000));
 
   for (const [hospitableId, propertyId] of propertyMap) {
     let reservations: HospitableReservation[];

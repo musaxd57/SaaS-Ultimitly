@@ -107,15 +107,26 @@ export async function runScheduledSync(): Promise<ScheduledSyncTotals> {
       const orgs = await prisma.organization.findMany({ select: { id: true } });
       totals.organizations = orgs.length;
 
-      // Decide once per run: narrow (frequent) or wide (hourly catch-up) window.
+      // Decide once per run: narrow (frequent, light) or wide (hourly catch-up).
+      // Narrow keeps the every-2-min reservation sweep cheap; the wide window runs
+      // at most hourly to still pick up far-future bookings and long-ago guests
+      // who message now. All tunable via env, sensible defaults baked in.
       const deepEveryMs = (Number(process.env.HOSPITABLE_DEEP_EVERY_MIN) || 60) * 60_000;
       const deep = Date.now() - lastDeepSyncAt >= deepEveryMs;
       if (deep) lastDeepSyncAt = Date.now();
-      const backDays = deep ? Number(process.env.HOSPITABLE_DEEP_BACK_DAYS) || 540 : undefined;
+      const window = deep
+        ? {
+            backDays: Number(process.env.HOSPITABLE_DEEP_BACK_DAYS) || 540,
+            forwardDays: Number(process.env.HOSPITABLE_DEEP_FORWARD_DAYS) || 540,
+          }
+        : {
+            backDays: Number(process.env.HOSPITABLE_SYNC_BACK_DAYS) || 90,
+            forwardDays: Number(process.env.HOSPITABLE_SYNC_FORWARD_DAYS) || 120,
+          };
 
       for (const org of orgs) {
         try {
-          const result = await syncHospitable(org.id, { backDays });
+          const result = await syncHospitable(org.id, window);
           // Keep the host's style profile fresh (self-throttles to once a day).
           await refreshStyleProfile(org.id);
           // Flag complaints (→ "problem") BEFORE the auto-reply pass so they are

@@ -26,6 +26,7 @@ export async function POST() {
     // long-ago guest who messages now is caught (the cron does this only hourly).
     const result = await syncHospitable(session.organizationId, {
       backDays: Number(process.env.HOSPITABLE_DEEP_BACK_DAYS) || 540,
+      forwardDays: Number(process.env.HOSPITABLE_DEEP_FORWARD_DAYS) || 540,
     });
     return NextResponse.json({ ok: true, ...result });
   } catch (err) {
