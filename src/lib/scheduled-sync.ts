@@ -59,6 +59,13 @@ const LOCK_TTL_MS = 5 * 60 * 1000; // auto-release if a holder crashes mid-run
 // Fast in-process guard (same instance) on top of the cross-instance DB lock.
 let running = false;
 
+// Two-speed sweep: most runs use a NARROW reservation window (cheap, ~every 2
+// min); a WIDE "catch-up" window runs at most once per HOSPITABLE_DEEP_EVERY_MIN
+// so a guest who checked out long ago but messages now is still imported —
+// without paying the wide sweep on every run. Starts at 0 so the first run after
+// a restart is a deep one.
+let lastDeepSyncAt = 0;
+
 /** Take the cross-instance lock if it is free; safe to call from any replica. */
 async function acquireLock(): Promise<boolean> {
   const now = new Date();
@@ -100,9 +107,15 @@ export async function runScheduledSync(): Promise<ScheduledSyncTotals> {
       const orgs = await prisma.organization.findMany({ select: { id: true } });
       totals.organizations = orgs.length;
 
+      // Decide once per run: narrow (frequent) or wide (hourly catch-up) window.
+      const deepEveryMs = (Number(process.env.HOSPITABLE_DEEP_EVERY_MIN) || 60) * 60_000;
+      const deep = Date.now() - lastDeepSyncAt >= deepEveryMs;
+      if (deep) lastDeepSyncAt = Date.now();
+      const backDays = deep ? Number(process.env.HOSPITABLE_DEEP_BACK_DAYS) || 540 : undefined;
+
       for (const org of orgs) {
         try {
-          const result = await syncHospitable(org.id);
+          const result = await syncHospitable(org.id, { backDays });
           // Keep the host's style profile fresh (self-throttles to once a day).
           await refreshStyleProfile(org.id);
           // Flag complaints (→ "problem") BEFORE the auto-reply pass so they are

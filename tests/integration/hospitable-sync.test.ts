@@ -125,6 +125,20 @@ describe("syncHospitable", () => {
     expect(mockMessages).not.toHaveBeenCalled();
   });
 
+  it("bounds the reservation window by the backDays option", async () => {
+    const { orgId } = await makeOrgWithProperty();
+    mockProperties.mockResolvedValue([{ id: "hp", name: "Test Property" }]);
+    mockReservations.mockResolvedValue([]);
+
+    await syncHospitable(orgId, { backDays: 365 });
+
+    const arg = mockReservations.mock.calls[0]?.[0];
+    const expectedStart = new Date(Date.now() - 365 * 24 * 60 * 60 * 1000)
+      .toISOString()
+      .slice(0, 10);
+    expect(arg?.startDate).toBe(expectedStart);
+  });
+
   it("creates a new property when none matches by name", async () => {
     const { orgId } = await makeOrgWithProperty(); // "Test Property"
     mockProperties.mockResolvedValue([{ id: "hosp-prop-9", name: "Deniz Manzaralı Daire" }]);

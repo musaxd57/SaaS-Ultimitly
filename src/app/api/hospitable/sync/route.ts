@@ -22,7 +22,11 @@ export async function POST() {
   }
 
   try {
-    const result = await syncHospitable(session.organizationId);
+    // A manual pull is the user explicitly asking for everything — go wide so a
+    // long-ago guest who messages now is caught (the cron does this only hourly).
+    const result = await syncHospitable(session.organizationId, {
+      backDays: Number(process.env.HOSPITABLE_DEEP_BACK_DAYS) || 540,
+    });
     return NextResponse.json({ ok: true, ...result });
   } catch (err) {
     const message = err instanceof Error ? err.message : "Senkronizasyon başarısız oldu.";

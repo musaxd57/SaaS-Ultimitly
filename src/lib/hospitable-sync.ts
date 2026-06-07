@@ -78,7 +78,10 @@ function reservationGuestName(reservation: HospitableReservation): string | null
 
 // ---------------------------------------------------------------------------
 
-export async function syncHospitable(organizationId: string): Promise<SyncResult> {
+export async function syncHospitable(
+  organizationId: string,
+  options: { backDays?: number } = {},
+): Promise<SyncResult> {
   const result: SyncResult = {
     properties: 0,
     reservations: 0,
@@ -105,12 +108,12 @@ export async function syncHospitable(organizationId: string): Promise<SyncResult
   // messages are fetched — so new guest messages silently never import.
   //
   // The window must reach far enough BACK to still catch a checked-out guest who
-  // messages after their stay (reviews, "I left something", a rebooking note) —
-  // 60 days was too tight and silently dropped those. Default 180 days back;
-  // override with HOSPITABLE_SYNC_BACK_DAYS if a guest messages even later. The
-  // skip-unchanged-thread optimisation keeps the per-run message-fetch cost low
-  // regardless of how many older reservations the wider window includes.
-  const backDays = Number(process.env.HOSPITABLE_SYNC_BACK_DAYS) || 180;
+  // messages after their stay (reviews, "I left something", a rebooking note).
+  // To avoid paying a wide sweep on EVERY 2-min run, the caller decides the depth:
+  // the cron uses a narrow window most of the time and a wide one only hourly, and
+  // the manual button always goes wide. Explicit `backDays` wins; otherwise the
+  // frequent default (env HOSPITABLE_SYNC_BACK_DAYS or 90 days) applies.
+  const backDays = options.backDays ?? (Number(process.env.HOSPITABLE_SYNC_BACK_DAYS) || 90);
   const fmt = (d: Date) => d.toISOString().slice(0, 10);
   const startDate = fmt(new Date(Date.now() - backDays * 24 * 60 * 60 * 1000));
   const endDate = fmt(new Date(Date.now() + 540 * 24 * 60 * 60 * 1000));
