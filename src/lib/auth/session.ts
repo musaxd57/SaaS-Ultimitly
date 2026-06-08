@@ -4,7 +4,7 @@ import type { UserRole } from "@/lib/constants";
 // Edge-safe session helpers (jose only). Used by both middleware and server.
 
 export const SESSION_COOKIE = "guestops_session";
-export const SESSION_MAX_AGE = 60 * 60 * 24 * 7; // 7 days (seconds)
+export const SESSION_MAX_AGE = 60 * 60 * 24 * 30; // 30 days (seconds), sliding
 
 export interface SessionPayload {
   userId: string;

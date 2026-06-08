@@ -28,9 +28,9 @@ export async function middleware(req: NextRequest) {
   const res = NextResponse.next();
 
   // SLIDING SESSION: while signed in and active, re-issue the cookie with a fresh
-  // 7-day expiry so the window counts from the LAST activity, not the first login.
+  // 30-day expiry so the window counts from the LAST activity, not the first login.
   // Active users therefore never get logged out; the session only truly expires
-  // after 7 days of NO activity → then a full login (password + 2FA) is required.
+  // after 30 days of NO activity → then a full login (password + 2FA) is required.
   // All session fields (incl. impersonation actor*) are preserved on re-sign.
   if (session) {
     const fresh = await signSession(session);
