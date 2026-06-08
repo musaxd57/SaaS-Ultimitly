@@ -18,7 +18,9 @@ const VALID_TONES: ReplyTone[] = ["formal", "warm", "short", "luxury"];
 // Auto-reply only fires when the AI is confident AND the message is safe. The
 // deterministic fallback never reaches this bar (it caps safe intents at 0.55),
 // so auto-reply effectively requires a real model response — by design.
-const AUTO_REPLY_MIN_CONFIDENCE = 0.7;
+// Floor is 0.75: only clearly-confident drafts (75%+) auto-send; anything more
+// borderline waits for a human review.
+const AUTO_REPLY_MIN_CONFIDENCE = 0.75;
 
 // HARD BLOCK: these intents touch money / cancellation / a complaint and must
 // ALWAYS be handled by a human — never auto-sent, even if the model under-rates
