@@ -161,57 +161,6 @@ export async function getMonthlyReport(orgId: string): Promise<MonthlyReport> {
 }
 
 // ---------------------------------------------------------------------------
-// Revenue Analytics
-// ---------------------------------------------------------------------------
-
-export interface MonthlyRevenue {
-  monthLabel: string;
-  month: string; // YYYY-MM
-  byCurrency: { currency: string; total: number }[];
-}
-
-export async function getRevenueAnalytics(orgId: string, months = 6): Promise<MonthlyRevenue[]> {
-  const results: MonthlyRevenue[] = [];
-  const now = new Date();
-
-  const TURKISH_MONTHS = [
-    "Ocak", "Şubat", "Mart", "Nisan", "Mayıs", "Haziran",
-    "Temmuz", "Ağustos", "Eylül", "Ekim", "Kasım", "Aralık",
-  ];
-
-  for (let i = months - 1; i >= 0; i--) {
-    const d = subMonths(now, i);
-    const mStart = startOfMonth(d);
-    const mEnd = endOfMonth(d);
-
-    const reservations = await prisma.reservation.findMany({
-      where: {
-        property: { organizationId: orgId },
-        arrivalDate: { gte: mStart, lte: mEnd },
-        totalAmount: { not: null },
-      },
-      select: { totalAmount: true, currency: true },
-    });
-
-    const byCurrency = new Map<string, number>();
-    for (const r of reservations) {
-      if (r.totalAmount) {
-        byCurrency.set(r.currency, (byCurrency.get(r.currency) ?? 0) + r.totalAmount);
-      }
-    }
-
-    const monthNum = mStart.getMonth();
-    results.push({
-      monthLabel: `${TURKISH_MONTHS[monthNum]} ${mStart.getFullYear()}`,
-      month: format(mStart, "yyyy-MM"),
-      byCurrency: Array.from(byCurrency, ([currency, total]) => ({ currency, total })),
-    });
-  }
-
-  return results;
-}
-
-// ---------------------------------------------------------------------------
 // Occupancy by Property
 // ---------------------------------------------------------------------------
 
