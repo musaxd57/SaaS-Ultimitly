@@ -215,6 +215,10 @@ export interface HospitableReservation {
   };
   total_price?: number;
   currency?: string;
+  // Present only when include=financials AND the token has financials:read.
+  // Loosely typed — Hospitable returns nested money objects; the sync parses it
+  // defensively (see extractReservationTotal).
+  financials?: Record<string, unknown>;
   last_message_at?: string | null;
   conversation_id?: string | number;
   conversation_language?: string;
@@ -242,9 +246,10 @@ export async function listReservations(
   for (const id of options?.propertyIds ?? []) params.append("properties[]", id);
   if (options?.startDate) params.set("start_date", options.startDate);
   if (options?.endDate) params.set("end_date", options.endDate);
-  // Ask Hospitable to embed the guest record so we get the guest's name (the
-  // bare reservation only carries guest COUNTS, not the name).
-  params.set("include", "guest");
+  // Embed the guest record (for the name) AND financials (for revenue — base
+  // rate, payout, total). NOTE: financials require the token's `financials:read`
+  // scope; without it Hospitable simply omits the object (no error).
+  params.set("include", "guest,financials");
   return fetchAllPages<HospitableReservation>("/reservations", params, token);
 }
 
