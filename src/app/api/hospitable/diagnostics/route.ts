@@ -43,7 +43,32 @@ export async function GET() {
     const propertyIds = properties.map((p) => p.id);
     out.propertiesCount = propertyIds.length;
 
+    // List every property the API returns (id + name) so duplicates are visible.
+    out.properties = properties.map((p) => ({ id: p.id, name: p.name ?? p.public_name ?? "?" }));
+    // Flag any name the API returns more than once (e.g. a real "serdarı ekrem 1"
+    // twin on the Hospitable side vs. a stale record only in our DB).
+    const nameCounts = new Map<string, number>();
+    for (const p of properties) {
+      const n = p.name ?? p.public_name ?? "?";
+      nameCounts.set(n, (nameCounts.get(n) ?? 0) + 1);
+    }
+    out.duplicateNames = [...nameCounts.entries()]
+      .filter(([, c]) => c > 1)
+      .map(([name, count]) => ({ name, count }));
+
     const reservations = await listReservations({ propertyIds }, token);
+
+    // Status breakdown — reveals whether pre-approval / inquiry reservations are
+    // returned by this endpoint at all (so we know if they CAN be synced).
+    const statusCounts: Record<string, number> = {};
+    for (const r of reservations) {
+      const raw =
+        `${(r as { status?: string }).status ?? ""}|${(r as { reservation_status?: { current?: { category?: string } } }).reservation_status?.current?.category ?? ""}`.trim();
+      const key = raw === "|" ? "(boş)" : raw;
+      statusCounts[key] = (statusCounts[key] ?? 0) + 1;
+    }
+    out.reservationStatuses = statusCounts;
+
     out.reservations = {
       count: reservations.length,
       shape: reservations.length ? shapeOf(reservations[0]) : null,
