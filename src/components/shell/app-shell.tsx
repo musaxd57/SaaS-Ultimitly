@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import Link from "next/link";
 import { usePathname, useRouter } from "next/navigation";
 import { Hotel, Menu, X, LogOut, Loader2, Shield, ArrowLeft } from "lucide-react";
@@ -30,6 +30,16 @@ export function AppShell({ user, superAdmin, impersonating, children }: AppShell
     router.push("/admin");
     router.refresh();
   }
+
+  // Close the mobile sidebar with Escape (accessibility).
+  useEffect(() => {
+    if (!mobileOpen) return;
+    const onKey = (e: KeyboardEvent) => {
+      if (e.key === "Escape") setMobileOpen(false);
+    };
+    window.addEventListener("keydown", onKey);
+    return () => window.removeEventListener("keydown", onKey);
+  }, [mobileOpen]);
 
   async function logout() {
     setLoggingOut(true);

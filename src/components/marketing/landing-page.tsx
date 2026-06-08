@@ -255,6 +255,30 @@ export function LandingPage() {
         </div>
       </section>
 
+      {/* More — shipped features the rest of the page doesn't spell out */}
+      <section className="border-t border-border py-16">
+        <div className="mx-auto max-w-5xl px-4 sm:px-6">
+          <h2 className="text-center text-2xl font-bold tracking-tight">Panelin içinde dahası var</h2>
+          <div className="mx-auto mt-8 grid max-w-3xl gap-x-8 gap-y-3 sm:grid-cols-2">
+            {[
+              "Airbnb + Booking mesajları tek gelen kutusunda",
+              "A–F performans skoru ile işletme karnesi",
+              "30 günlük doluluk tahmini",
+              "AI sizin yazı üslubunuzu öğrenir",
+              "Gece/gündüz çalışma saati ayarı",
+              "İki adımlı güvenlik (2FA)",
+              "Otomatik karşılama, check-in ve checkout mesajları",
+              "Türkçe, İngilizce, Almanca, Arapça ve daha fazlası",
+            ].map((item) => (
+              <div key={item} className="flex items-start gap-2 text-sm">
+                <Check className="mt-0.5 size-4 shrink-0 text-primary" />
+                <span>{item}</span>
+              </div>
+            ))}
+          </div>
+        </div>
+      </section>
+
       {/* Pricing */}
       <section id="fiyatlar" className="border-t border-border bg-card/40 py-20">
         <div className="mx-auto max-w-6xl px-4 sm:px-6">

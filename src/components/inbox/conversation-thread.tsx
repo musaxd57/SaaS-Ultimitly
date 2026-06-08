@@ -371,7 +371,7 @@ export function ConversationThread({ conversationId, messages, status, priority,
               <ChevronDown className="size-3.5 opacity-60" />
             </Button>
             {showTemplates ? (
-              <div className="absolute left-0 top-full z-20 mt-1 max-h-80 w-80 overflow-y-auto rounded-lg border border-border bg-card p-1 shadow-lg">
+              <div className="absolute left-0 top-full z-20 mt-1 max-h-80 w-80 max-w-[calc(100vw-2rem)] overflow-y-auto rounded-lg border border-border bg-card p-1 shadow-lg">
                 <div className="flex items-center justify-between px-2 py-1.5">
                   <span className="text-xs font-semibold text-muted-foreground">
                     Mesaj Şablonları
