@@ -9,6 +9,7 @@ import { NightHoursForm } from "@/components/settings/night-hours-form";
 import { AutoReplyToggle } from "@/components/inbox/auto-reply-toggle";
 import { AiTestCard } from "@/components/settings/ai-test-card";
 import { TestEmailButton } from "@/components/settings/test-email-button";
+import { AlertEmailForm } from "@/components/settings/alert-email-form";
 import { AccountCard } from "@/components/settings/account-card";
 import { TwoFactorCard } from "@/components/settings/two-factor-card";
 import { HospitableConnectCard } from "@/components/settings/hospitable-connect-card";
@@ -35,6 +36,7 @@ export default async function SettingsPage() {
       select: {
         aiReplyTone: true,
         aiSignature: true,
+        alertEmail: true,
         autoWelcome: true,
         autoCheckin: true,
         autoCheckout: true,
@@ -144,9 +146,13 @@ export default async function SettingsPage() {
         </CardHeader>
         <CardContent className="space-y-3">
           <p className="text-sm text-muted-foreground">
-            Misafir <strong>şikayet/iade</strong> yazınca, <code className="rounded bg-muted px-1 py-0.5 text-xs">ALERT_EMAIL</code>{" "}
-            adresine anında uyarı maili gider (uyurken bile kaçırmazsın). SMTP doğru
-            ayarlandı mı görmek için aşağıdan bir test maili gönder.
+            Misafir <strong>şikayet/iade</strong> yazınca, aşağıdaki <strong>kendi adresinize</strong>{" "}
+            anında uyarı maili gider (uyurken bile kaçırmazsınız). Adresi boş bırakırsanız sistem
+            varsayılanı kullanılır.
+          </p>
+          <AlertEmailForm initial={org?.alertEmail ?? ""} />
+          <p className="text-xs text-muted-foreground">
+            E-postaların geldiğini doğrulamak için bir test maili gönderin:
           </p>
           <TestEmailButton />
         </CardContent>

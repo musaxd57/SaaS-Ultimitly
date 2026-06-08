@@ -47,6 +47,9 @@ model Organization {
   plan      String   @default("free") // free | pro | business
   timezone  String   @default("Europe/Istanbul")
   language  String   @default("tr") // default UI/AI language
+  // Where this org's urgent complaint/refund alert e-mails go. Per-tenant: each
+  // customer sets their OWN address. Falls back to the ALERT_EMAIL env when null.
+  alertEmail String?
   // When true, safe/high-confidence channel (Airbnb / Booking via Hospitable)
   // guest messages are auto-answered; gated to active-hours window in org timezone.
   // Complaints and risky messages always wait for a human.

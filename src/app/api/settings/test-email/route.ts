@@ -1,3 +1,4 @@
+import { prisma } from "@/lib/db";
 import { emailService } from "@/lib/email";
 import { requireSession, unauthorized, badRequest, jsonOk, serverError, tooManyRequests } from "@/lib/api";
 import { rateLimit } from "@/lib/rate-limit";
@@ -16,9 +17,14 @@ export async function POST() {
   const limited = rateLimit(`test-email:${session.userId}`, 5, 60_000);
   if (!limited.ok) return tooManyRequests(limited.retryAfter);
 
-  const to = process.env.ALERT_EMAIL?.trim();
+  // Per-tenant: send to THIS org's own alert address, else the env fallback.
+  const org = await prisma.organization.findUnique({
+    where: { id: session.organizationId },
+    select: { alertEmail: true },
+  });
+  const to = org?.alertEmail?.trim() || process.env.ALERT_EMAIL?.trim();
   if (!to) {
-    return badRequest({ _: "ALERT_EMAIL ayarlı değil. Önce Railway'de ALERT_EMAIL'i girin." });
+    return badRequest({ _: "Uyarı e-postası ayarlı değil. Önce yukarıdaki alana bir e-posta girin." });
   }
 
   try {

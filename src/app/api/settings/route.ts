@@ -68,6 +68,21 @@ export async function PATCH(req: NextRequest) {
       }
     }
 
+    if ("alertEmail" in data) {
+      const raw = data.alertEmail;
+      if (raw !== null && typeof raw !== "string") {
+        errors.alertEmail = "Metin olmalı.";
+      } else {
+        const trimmed = (raw ?? "").toString().trim();
+        if (trimmed && !/^[^@\s]+@[^@\s]+\.[^@\s]+$/.test(trimmed)) {
+          errors.alertEmail = "Geçerli bir e-posta girin.";
+        } else {
+          // Empty clears it → falls back to the env ALERT_EMAIL.
+          update.alertEmail = trimmed.length === 0 ? null : trimmed.toLowerCase();
+        }
+      }
+    }
+
     if (Object.keys(errors).length > 0) return badRequest(errors);
     if (Object.keys(update).length === 0) {
       return badRequest({ _: "Güncellenecek geçerli bir alan yok." });

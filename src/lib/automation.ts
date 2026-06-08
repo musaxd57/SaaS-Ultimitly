@@ -1272,13 +1272,14 @@ export async function sendDueCheckouts(
 export async function sendDueAlerts(
   organizationId: string,
 ): Promise<{ alerted: number }> {
-  const to = process.env.ALERT_EMAIL?.trim();
-  if (!to) return { alerted: 0 };
-
   const org = await prisma.organization.findUnique({
     where: { id: organizationId },
-    select: { name: true },
+    select: { name: true, alertEmail: true },
   });
+  // Per-tenant recipient: this org's own alert address, else the global env
+  // fallback (so the operator's own org keeps working without setting a field).
+  const to = org?.alertEmail?.trim() || process.env.ALERT_EMAIL?.trim();
+  if (!to) return { alerted: 0 };
 
   // Only escalate genuinely recent complaints. A re-sync (e.g. after reconnecting
   // the channel) can resurface a weeks-old unanswered message as "new"; without
