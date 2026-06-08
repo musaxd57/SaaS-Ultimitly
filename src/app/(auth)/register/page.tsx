@@ -1,9 +1,13 @@
 import type { Metadata } from "next";
+import { redirect } from "next/navigation";
 import { RegisterForm } from "@/components/auth/register-form";
 
 export const metadata: Metadata = { title: "Kayıt — Lixus AI" };
 
 export default function RegisterPage() {
+  // Public sign-up is closed (see the register API) — send visitors to login.
+  if (process.env.REGISTRATION_OPEN !== "1") redirect("/login");
+
   return (
     <div className="space-y-6">
       <div className="space-y-1.5">

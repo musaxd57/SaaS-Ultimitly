@@ -8,6 +8,14 @@ import { rateLimit, clientIp } from "@/lib/rate-limit";
 
 export async function POST(req: NextRequest) {
   try {
+    // SECURITY: public sign-up is CLOSED by default. While the app shares a single
+    // Hospitable token, a new org would sync the owner's Airbnb data — so no one
+    // else may create an account until per-org channel connections exist. Flip
+    // REGISTRATION_OPEN=1 only when the product is truly multi-tenant.
+    if (process.env.REGISTRATION_OPEN !== "1") {
+      return NextResponse.json({ error: "Kayıt şu an kapalı." }, { status: 403 });
+    }
+
     // Throttle sign-ups per IP: 5 / hour (anti-spam / abuse).
     const limited = rateLimit(`register:${clientIp(req)}`, 5, 60 * 60 * 1000);
     if (!limited.ok) {

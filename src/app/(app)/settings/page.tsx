@@ -9,6 +9,7 @@ import { NightHoursForm } from "@/components/settings/night-hours-form";
 import { AutoReplyToggle } from "@/components/inbox/auto-reply-toggle";
 import { AiTestCard } from "@/components/settings/ai-test-card";
 import { TestEmailButton } from "@/components/settings/test-email-button";
+import { AccountCard } from "@/components/settings/account-card";
 
 export const dynamic = "force-dynamic";
 
@@ -69,6 +70,15 @@ export default async function SettingsPage() {
           </>
         )}
       </div>
+
+      <Card className="max-w-2xl">
+        <CardHeader>
+          <CardTitle className="text-base">Hesap / Giriş Bilgileri</CardTitle>
+        </CardHeader>
+        <CardContent>
+          <AccountCard email={session.email} />
+        </CardContent>
+      </Card>
 
       {properties.length > 0 ? (
         <Card className="max-w-2xl">
