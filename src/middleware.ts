@@ -8,9 +8,12 @@ export async function middleware(req: NextRequest) {
   const token = req.cookies.get(SESSION_COOKIE)?.value;
   const session = await verifySession(token);
   const isAuthPage = AUTH_PATHS.some((p) => pathname === p || pathname.startsWith(p + "/"));
+  // Public pages a logged-out visitor may see: the marketing landing ("/") and
+  // the auth pages. Everything else requires a session.
+  const isPublic = pathname === "/" || isAuthPage;
 
-  // Not signed in → only auth pages are allowed.
-  if (!session && !isAuthPage) {
+  // Not signed in → only public pages are allowed.
+  if (!session && !isPublic) {
     const url = req.nextUrl.clone();
     url.pathname = "/login";
     url.search = pathname && pathname !== "/" ? `?next=${encodeURIComponent(pathname)}` : "";
