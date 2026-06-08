@@ -12,6 +12,13 @@ export interface SessionPayload {
   role: UserRole;
   email: string;
   name: string;
+  // Impersonation (operator panel): when a super-admin "enters" a customer org,
+  // the session carries the customer's context above AND these actor fields —
+  // the REAL operator behind it — so we can show a banner, keep super-admin
+  // powers, and switch back. Signed into the JWT, so they cannot be forged.
+  actorUserId?: string;
+  actorEmail?: string;
+  actorName?: string;
 }
 
 function getSecretKey(): Uint8Array {
@@ -47,6 +54,9 @@ export async function verifySession(token: string | undefined): Promise<SessionP
         role: (payload.role as UserRole) ?? "staff",
         email: payload.email,
         name: (payload.name as string) ?? "",
+        ...(typeof payload.actorUserId === "string" ? { actorUserId: payload.actorUserId } : {}),
+        ...(typeof payload.actorEmail === "string" ? { actorEmail: payload.actorEmail } : {}),
+        ...(typeof payload.actorName === "string" ? { actorName: payload.actorName } : {}),
       };
     }
     return null;

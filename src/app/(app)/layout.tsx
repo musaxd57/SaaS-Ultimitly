@@ -1,6 +1,7 @@
 import { redirect } from "next/navigation";
 import { requireAuth } from "@/lib/auth";
 import { prisma } from "@/lib/db";
+import { isSuperAdmin } from "@/lib/admin";
 import { AppShell } from "@/components/shell/app-shell";
 
 export default async function AppLayout({ children }: { children: React.ReactNode }) {
@@ -27,6 +28,12 @@ export default async function AppLayout({ children }: { children: React.ReactNod
         role: session.role,
         orgName: org.name,
       }}
+      superAdmin={isSuperAdmin(session)}
+      impersonating={
+        session.actorUserId
+          ? { actorName: session.actorName ?? session.actorEmail ?? "Operatör", orgName: org.name }
+          : null
+      }
     >
       {children}
     </AppShell>

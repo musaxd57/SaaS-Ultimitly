@@ -3,7 +3,7 @@
 import { useState } from "react";
 import Link from "next/link";
 import { usePathname, useRouter } from "next/navigation";
-import { Hotel, Menu, X, LogOut, Loader2 } from "lucide-react";
+import { Hotel, Menu, X, LogOut, Loader2, Shield, ArrowLeft } from "lucide-react";
 import { NAV_ITEMS, titleForPath } from "@/lib/nav";
 import { USER_ROLE, type UserRole } from "@/lib/constants";
 import { Avatar } from "@/components/ui/avatar";
@@ -12,14 +12,24 @@ import { cn } from "@/lib/utils";
 
 interface AppShellProps {
   user: { name: string; email: string; role: UserRole; orgName: string };
+  superAdmin?: boolean;
+  impersonating?: { actorName: string; orgName: string } | null;
   children: React.ReactNode;
 }
 
-export function AppShell({ user, children }: AppShellProps) {
+export function AppShell({ user, superAdmin, impersonating, children }: AppShellProps) {
   const pathname = usePathname();
   const router = useRouter();
   const [mobileOpen, setMobileOpen] = useState(false);
   const [loggingOut, setLoggingOut] = useState(false);
+  const [exiting, setExiting] = useState(false);
+
+  async function exitImpersonation() {
+    setExiting(true);
+    await fetch("/api/admin/exit", { method: "POST" });
+    router.push("/admin");
+    router.refresh();
+  }
 
   async function logout() {
     setLoggingOut(true);
@@ -73,6 +83,21 @@ export function AppShell({ user, children }: AppShellProps) {
         </button>
       </div>
       {navLinks}
+      {superAdmin ? (
+        <Link
+          href="/admin"
+          onClick={() => setMobileOpen(false)}
+          className={cn(
+            "flex items-center gap-3 rounded-md px-3 py-2 text-sm font-medium transition-colors",
+            isActive("/admin")
+              ? "bg-primary text-primary-foreground"
+              : "text-muted-foreground hover:bg-accent hover:text-accent-foreground",
+          )}
+        >
+          <Shield className="size-4.5 shrink-0" />
+          Operatör Paneli
+        </Link>
+      ) : null}
       <div className="rounded-lg border border-border bg-muted/40 p-3">
         <div className="flex items-center gap-2">
           <Avatar name={user.name} className="size-8" />
@@ -108,6 +133,24 @@ export function AppShell({ user, children }: AppShellProps) {
 
       {/* Main column */}
       <div className="flex min-h-screen flex-col">
+        {impersonating ? (
+          <div className="flex flex-wrap items-center justify-between gap-2 bg-amber-500 px-4 py-2 text-sm font-medium text-amber-950 sm:px-6">
+            <span>
+              <strong>{impersonating.orgName}</strong> hesabındasın (operatör: {impersonating.actorName}).
+              Yaptığın her şey bu müşteriyi etkiler.
+            </span>
+            <Button
+              size="sm"
+              variant="outline"
+              className="border-amber-700 bg-amber-100 hover:bg-amber-200"
+              onClick={exitImpersonation}
+              disabled={exiting}
+            >
+              {exiting ? <Loader2 className="size-4 animate-spin" /> : <ArrowLeft className="size-4" />}
+              Kendi hesabıma dön
+            </Button>
+          </div>
+        ) : null}
         <header className="sticky top-0 z-30 flex h-14 items-center justify-between gap-3 border-b border-border bg-card/95 px-4 backdrop-blur sm:px-6">
           <div className="flex items-center gap-3">
             <button
