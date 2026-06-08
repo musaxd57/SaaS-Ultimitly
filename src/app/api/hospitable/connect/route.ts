@@ -10,9 +10,9 @@ import {
   isPrimaryOrg,
 } from "@/lib/hospitable-credentials";
 
-// OPERATOR-ONLY: the channel token is set up and managed by the super-admin
-// operator (including while impersonating a customer). Customers can never read
-// or change it — so every handler here requires super-admin.
+// Each account's channel token is managed by that account's OWNER (self-service)
+// or by the operator/super-admin on their behalf (incl. while impersonating). The
+// token is write-only: it is stored encrypted and never returned to the browser.
 
 // ---------------------------------------------------------------------------
 // Connect / disconnect THIS organization's own Hospitable account (multi-tenant).
@@ -28,7 +28,9 @@ import {
 export async function POST(req: NextRequest) {
   const session = await requireSession();
   if (!session) return unauthorized();
-  if (!isSuperAdmin(session)) return unauthorized();
+  // The account's OWNER may manage their own connection; the operator (super-admin,
+  // incl. while impersonating) may also do it for them. Others cannot.
+  if (!(session.role === "owner" || isSuperAdmin(session))) return unauthorized();
 
   // Each verify hits Hospitable (outbound) on user input — throttle to stop
   // quota burn / token probing. Generous for a human connecting their account.
@@ -88,7 +90,9 @@ export async function POST(req: NextRequest) {
 export async function DELETE() {
   const session = await requireSession();
   if (!session) return unauthorized();
-  if (!isSuperAdmin(session)) return unauthorized();
+  // The account's OWNER may manage their own connection; the operator (super-admin,
+  // incl. while impersonating) may also do it for them. Others cannot.
+  if (!(session.role === "owner" || isSuperAdmin(session))) return unauthorized();
   try {
     await clearOrgHospitableToken(session.organizationId);
     return NextResponse.json({ ok: true });
@@ -100,6 +104,8 @@ export async function DELETE() {
 export async function GET() {
   const session = await requireSession();
   if (!session) return unauthorized();
-  if (!isSuperAdmin(session)) return unauthorized();
+  // The account's OWNER may manage their own connection; the operator (super-admin,
+  // incl. while impersonating) may also do it for them. Others cannot.
+  if (!(session.role === "owner" || isSuperAdmin(session))) return unauthorized();
   return NextResponse.json(await getConnectionInfo(session.organizationId));
 }

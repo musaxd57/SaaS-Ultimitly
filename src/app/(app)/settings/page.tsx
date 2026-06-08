@@ -19,10 +19,11 @@ export const dynamic = "force-dynamic";
 
 export default async function SettingsPage() {
   const session = await requireAuth();
-  // Only the OPERATOR (super-admin, incl. while impersonating a customer) may see
-  // or change the channel token. Customers never touch it — the operator sets it
-  // up for them, so the field is hidden from non-operators.
-  const canManageChannel = isSuperAdmin(session);
+  // The channel token belongs to THIS account. Its OWNER can connect it
+  // themselves (self-service, with instructions), and the operator (super-admin,
+  // incl. while impersonating) can also do it for a non-technical customer.
+  // Staff/manager-only users just see a neutral note.
+  const canManageChannel = session.role === "owner" || isSuperAdmin(session);
   const hospitableInfo = canManageChannel ? await getConnectionInfo(session.organizationId) : null;
   const me = await prisma.user.findUnique({
     where: { id: session.userId },
