@@ -1,5 +1,6 @@
 import { type NextRequest, NextResponse } from "next/server";
-import { requireSession, unauthorized, serverError } from "@/lib/api";
+import { requireSession, unauthorized, serverError, tooManyRequests } from "@/lib/api";
+import { rateLimit } from "@/lib/rate-limit";
 import { verifyToken, HospitableError } from "@/lib/hospitable";
 import {
   setOrgHospitableToken,
@@ -21,6 +22,12 @@ import {
 export async function POST(req: NextRequest) {
   const session = await requireSession();
   if (!session) return unauthorized();
+
+  // Each verify hits Hospitable (outbound) on user input — throttle to stop
+  // quota burn / token probing. Generous for a human connecting their account.
+  const limited = rateLimit(`hosp-connect:${session.userId}`, 8, 60_000);
+  if (!limited.ok) return tooManyRequests(limited.retryAfter);
+
   try {
     const data = await req.json().catch(() => null);
 

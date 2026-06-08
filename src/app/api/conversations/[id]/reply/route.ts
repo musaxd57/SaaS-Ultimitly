@@ -10,7 +10,9 @@ import {
   jsonOk,
   notFound,
   serverError,
+  tooManyRequests,
 } from "@/lib/api";
+import { rateLimit } from "@/lib/rate-limit";
 import { translateText } from "@/lib/ai/translate";
 
 type Params = { params: Promise<{ id: string }> };
@@ -19,6 +21,12 @@ export async function POST(req: NextRequest, { params }: Params) {
   const session = await requireSession();
   if (!session) return unauthorized();
   const { id } = await params;
+
+  // Each reply sends to Hospitable (+ optional OpenAI translate). Throttle per
+  // conversation so a stuck client or abuse can't spam the guest / burn quota.
+  const limited = rateLimit(`reply:${id}`, 20, 60_000);
+  if (!limited.ok) return tooManyRequests(limited.retryAfter);
+
   try {
     const conversation = await prisma.conversation.findFirst({
       where: { id, property: { organizationId: session.organizationId } },

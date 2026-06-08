@@ -1,5 +1,6 @@
 import { emailService } from "@/lib/email";
-import { requireSession, unauthorized, badRequest, jsonOk, serverError } from "@/lib/api";
+import { requireSession, unauthorized, badRequest, jsonOk, serverError, tooManyRequests } from "@/lib/api";
+import { rateLimit } from "@/lib/rate-limit";
 
 // ---------------------------------------------------------------------------
 // Send a TEST alert email to ALERT_EMAIL so the host can verify the SMTP setup
@@ -10,6 +11,10 @@ import { requireSession, unauthorized, badRequest, jsonOk, serverError } from "@
 export async function POST() {
   const session = await requireSession();
   if (!session) return unauthorized();
+
+  // Sends real SMTP mail — throttle hard so it can't be used to email-bomb.
+  const limited = rateLimit(`test-email:${session.userId}`, 5, 60_000);
+  if (!limited.ok) return tooManyRequests(limited.retryAfter);
 
   const to = process.env.ALERT_EMAIL?.trim();
   if (!to) {

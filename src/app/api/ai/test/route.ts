@@ -1,7 +1,8 @@
 import { type NextRequest } from "next/server";
 import { prisma } from "@/lib/db";
 import { suggestReply } from "@/lib/ai";
-import { requireSession, unauthorized, badRequest, jsonOk, serverError } from "@/lib/api";
+import { requireSession, unauthorized, badRequest, jsonOk, serverError, tooManyRequests } from "@/lib/api";
+import { rateLimit } from "@/lib/rate-limit";
 
 // ---------------------------------------------------------------------------
 // AI reply PLAYGROUND — safe dry-run.
@@ -19,6 +20,10 @@ type Tone = (typeof TONES)[number];
 export async function POST(req: NextRequest) {
   const session = await requireSession();
   if (!session) return unauthorized();
+
+  // Playground calls OpenAI ($). Throttle per user to cap spend on abuse.
+  const limited = rateLimit(`ai-test:${session.userId}`, 15, 60_000);
+  if (!limited.ok) return tooManyRequests(limited.retryAfter);
 
   try {
     const body = (await req.json().catch(() => null)) as

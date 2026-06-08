@@ -1,6 +1,7 @@
 import { type NextRequest } from "next/server";
 import { prisma } from "@/lib/db";
 import { buildIcsCalendar, type IcsEvent } from "@/lib/export/ics";
+import { rateLimit, clientIp } from "@/lib/rate-limit";
 
 export const dynamic = "force-dynamic";
 
@@ -11,9 +12,19 @@ export const dynamic = "force-dynamic";
  * token in the path is the only credential, so it must stay secret.
  */
 export async function GET(
-  _req: NextRequest,
+  req: NextRequest,
   { params }: { params: Promise<{ token: string }> },
 ) {
+  // Public + unauthenticated: cap per-IP so a single client can't hammer it.
+  // Generous — legitimate calendar subscribers poll infrequently per IP.
+  const limited = rateLimit(`ical:${clientIp(req)}`, 60, 60_000);
+  if (!limited.ok) {
+    return new Response("Too many requests", {
+      status: 429,
+      headers: { "Retry-After": String(Math.max(1, limited.retryAfter)) },
+    });
+  }
+
   const { token } = await params;
 
   if (!token || token.length < 16) {

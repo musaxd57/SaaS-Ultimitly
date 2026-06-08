@@ -1,5 +1,6 @@
 import { type NextRequest } from "next/server";
-import { requireSession, unauthorized, jsonOk, serverError } from "@/lib/api";
+import { requireSession, unauthorized, jsonOk, serverError, tooManyRequests } from "@/lib/api";
+import { rateLimit } from "@/lib/rate-limit";
 import { cleanupDuplicateConversations } from "@/lib/conversations-cleanup";
 import { cleanupStaleReservations } from "@/lib/reservations-cleanup";
 
@@ -12,6 +13,11 @@ import { cleanupStaleReservations } from "@/lib/reservations-cleanup";
 export async function POST(_req: NextRequest) {
   const session = await requireSession();
   if (!session) return unauthorized();
+
+  // Verifies every property against Hospitable (outbound burst) — throttle per org.
+  const limited = rateLimit(`cleanup-dup:${session.organizationId}`, 4, 60_000);
+  if (!limited.ok) return tooManyRequests(limited.retryAfter);
+
   try {
     const [conversations, reservations] = await Promise.all([
       cleanupDuplicateConversations(session.organizationId),

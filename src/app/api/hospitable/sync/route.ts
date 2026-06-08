@@ -1,5 +1,6 @@
 import { NextResponse } from "next/server";
-import { requireSession, unauthorized } from "@/lib/api";
+import { requireSession, unauthorized, tooManyRequests } from "@/lib/api";
+import { rateLimit } from "@/lib/rate-limit";
 import { hasOrgHospitable } from "@/lib/hospitable-credentials";
 import { syncHospitable } from "@/lib/hospitable-sync";
 
@@ -16,6 +17,11 @@ import { syncHospitable } from "@/lib/hospitable-sync";
 export async function POST() {
   const session = await requireSession();
   if (!session) return unauthorized();
+
+  // A manual sync is a wide Hospitable sweep — throttle per org so the button
+  // can't be spammed into the channel's own rate limit.
+  const limited = rateLimit(`manual-sync:${session.organizationId}`, 6, 60_000);
+  if (!limited.ok) return tooManyRequests(limited.retryAfter);
 
   if (!(await hasOrgHospitable(session.organizationId))) {
     return NextResponse.json({ ok: false, error: "Hospitable bağlı değil. Ayarlar'dan hesabınızı bağlayın." });

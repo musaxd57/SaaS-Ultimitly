@@ -8,7 +8,9 @@ import {
   jsonOk,
   notFound,
   serverError,
+  tooManyRequests,
 } from "@/lib/api";
+import { rateLimit } from "@/lib/rate-limit";
 import { zodFieldErrors } from "@/lib/validators";
 import { translateText } from "@/lib/ai/translate";
 
@@ -23,6 +25,10 @@ export async function POST(req: NextRequest, { params }: Params) {
   const session = await requireSession();
   if (!session) return unauthorized();
   const { id } = await params;
+
+  // Translation calls OpenAI ($). Throttle per user to cap spend on abuse.
+  const limited = rateLimit(`translate:${session.userId}`, 30, 60_000);
+  if (!limited.ok) return tooManyRequests(limited.retryAfter);
 
   try {
     // Verify conversation belongs to org

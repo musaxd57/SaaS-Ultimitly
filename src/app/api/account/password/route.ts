@@ -1,7 +1,15 @@
 import { type NextRequest } from "next/server";
 import { prisma } from "@/lib/db";
 import { hashPassword } from "@/lib/auth/password";
-import { requireSession, unauthorized, badRequest, jsonOk, serverError } from "@/lib/api";
+import {
+  requireSession,
+  unauthorized,
+  badRequest,
+  jsonOk,
+  serverError,
+  tooManyRequests,
+} from "@/lib/api";
+import { rateLimit } from "@/lib/rate-limit";
 
 /**
  * Set a new password for the signed-in user. Authenticated by the active session
@@ -10,6 +18,11 @@ import { requireSession, unauthorized, badRequest, jsonOk, serverError } from "@
 export async function POST(req: NextRequest) {
   const session = await requireSession();
   if (!session) return unauthorized();
+
+  // Throttle password changes (anti-abuse / anti-lockout-spam).
+  const limited = rateLimit(`pw-change:${session.userId}`, 5, 10 * 60_000);
+  if (!limited.ok) return tooManyRequests(limited.retryAfter);
+
   try {
     const data = await req.json().catch(() => null);
     const newPassword = typeof data?.newPassword === "string" ? data.newPassword.trim() : "";

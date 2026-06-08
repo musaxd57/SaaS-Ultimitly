@@ -29,6 +29,13 @@ export function serverError(message = "Beklenmeyen bir hata oluştu") {
   return NextResponse.json({ error: message }, { status: 500 });
 }
 
+export function tooManyRequests(retryAfter: number, message = "Çok fazla istek. Lütfen biraz bekleyin.") {
+  return NextResponse.json(
+    { error: message },
+    { status: 429, headers: { "Retry-After": String(Math.max(1, retryAfter)) } },
+  );
+}
+
 /** Verify a property belongs to the org (multi-tenant isolation). */
 export async function propertyInOrg(propertyId: string, organizationId: string) {
   const property = await prisma.property.findFirst({
