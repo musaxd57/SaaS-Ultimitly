@@ -123,7 +123,8 @@ export function HospitableConnectCard({ info }: { info: HospitableConnectionInfo
             </div>
           </Field>
           <p className="text-xs text-muted-foreground">
-            🔒 Bağlı ve kilitli. Token güvende saklanıyor ve görüntülenemez. Değiştirmek için aç.
+            🔒 Bağlı ve kilitli. Token <strong>şifreli (encrypted)</strong> saklanıyor — biz dahil
+            <strong> hiç kimse göremez/kopyalayamaz</strong>. Değiştirmek için &quot;Değiştir&quot;e bas.
           </p>
           <div className="flex flex-wrap gap-2">
             <Button type="button" variant="outline" disabled={busy !== null} onClick={() => { setEditing(true); setError(null); setDone(null); }}>
@@ -143,11 +144,19 @@ export function HospitableConnectCard({ info }: { info: HospitableConnectionInfo
       {/* FORM VIEW — not connected, or operator clicked "Değiştir". */}
       {showForm ? (
         <>
-          <p className="text-sm text-muted-foreground">
-            Hospitable&apos;da <strong>Settings → API → Personal Access Token</strong> oluştur,
-            token&apos;ı kopyala ve aşağıya yapıştır. Token şifrelenerek saklanır; sadece bu hesabın
-            mülklerine erişir.
-          </p>
+          <div className="rounded-md border bg-muted/40 p-3 text-sm text-muted-foreground">
+            <p className="mb-1.5 font-medium text-foreground">Hospitable token&apos;ı nasıl alınır? (2 dakika)</p>
+            <ol className="list-decimal space-y-1 pl-4">
+              <li>Hospitable hesabında <strong>Settings → API</strong> bölümüne gir.</li>
+              <li><strong>&quot;Create Personal Access Token&quot;</strong> de ve bir isim ver.</li>
+              <li>Oluşan token&apos;ı <strong>kopyala</strong> (<code>hospitable_pat_...</code> ile başlar).</li>
+              <li>Aşağıdaki kutuya <strong>yapıştır → Bağla</strong>.</li>
+            </ol>
+            <p className="mt-1.5 text-xs">
+              🔒 Token <strong>şifreli (encrypted)</strong> saklanır; sadece bu hesabın mülklerine erişir
+              ve bir daha hiç görüntülenmez — biz bile göremeyiz.
+            </p>
+          </div>
           <form
             onSubmit={(e) => {
               e.preventDefault();
