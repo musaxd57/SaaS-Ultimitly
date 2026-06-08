@@ -126,9 +126,30 @@ export function TwoFactorCard({ initialEnabled }: { initialEnabled: boolean }) {
   return (
     <div className="space-y-3">
       <p className="text-sm text-muted-foreground">
-        Şifrene ek bir güvenlik katmanı. Açıkken, girişte telefonundaki Authenticator uygulamasından
-        6 haneli bir kod istenir — şifren çalınsa bile telefonun olmadan kimse giremez.
+        <strong className="text-foreground">Ne işe yarar?</strong> Şifrene ek bir güvenlik katmanı.
+        Açıkken girişte, şifrenin yanında telefonundaki uygulamadan 6 haneli bir kod da istenir —
+        şifren çalınsa bile telefonun olmadan kimse giremez. Kod 30 saniyede bir yenilenir.
       </p>
+      <div className="rounded-md border bg-muted/40 p-3 text-sm text-muted-foreground">
+        <p className="mb-1.5 font-medium text-foreground">Nasıl yapılır? (2 dakika)</p>
+        <ol className="list-decimal space-y-1 pl-4">
+          <li>
+            Telefonuna <strong>Google Authenticator</strong> (veya Authy) uygulamasını indir —
+            ücretsiz.
+          </li>
+          <li>
+            Aşağıdaki <strong>&quot;2FA kur&quot;</strong> butonuna bas; ekranda bir anahtar çıkar.
+          </li>
+          <li>
+            Uygulamada <strong>&quot;Hesap ekle → Kurulum anahtarı gir&quot;</strong> de; anahtarı yaz
+            (anahtar türü: <strong>Zaman bazlı / Time based</strong>).
+          </li>
+          <li>Uygulamanın ürettiği 6 haneli kodu buraya gir → 2FA açılır.</li>
+        </ol>
+        <p className="mt-1.5 text-xs">
+          Not: Telefonunu kaybetmemek için uygulamanın yedeklemesini (bulut senkron) açık tut.
+        </p>
+      </div>
       <Button onClick={startSetup} disabled={busy}>
         {busy ? <Loader2 className="size-4 animate-spin" /> : <ShieldCheck className="size-4" />}
         İki adımlı girişi (2FA) kur
