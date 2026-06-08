@@ -60,8 +60,9 @@ function passesAutoReplySafetyGate(
 // the guest knows the message was machine-prepared and a human will correct any
 // slip. Manual replies (host-reviewed) never carry it. Set AUTO_REPLY_DISCLOSURE=0
 // to turn it off.
-function automatedReplyNote(lang: string | undefined): string | null {
-  if (process.env.AUTO_REPLY_DISCLOSURE === "0") return null;
+function automatedReplyNote(lang: string | undefined, orgEnabled: boolean): string | null {
+  // env=0 is a GLOBAL operator kill-switch; otherwise the per-org toggle decides.
+  if (process.env.AUTO_REPLY_DISCLOSURE === "0" || !orgEnabled) return null;
   const l = (lang ?? "en").slice(0, 2).toLowerCase();
   const notes: Record<string, string> = {
     tr: "(Bu yanıt otomatik asistanımızca hazırlandı; bir hata olursa ekibimiz hemen düzeltir.)",
@@ -419,6 +420,8 @@ export async function applyChannelAutoReply(
               aiReplyTone: true,
               aiSignature: true,
               aiStyleProfile: true,
+              autoReplyDisclosure: true,
+              handoffHoldHours: true,
             },
           },
         },
@@ -556,7 +559,7 @@ export async function applyChannelAutoReply(
   // note sits ABOVE the host's signature so the personal sign-off still closes the
   // message (a robotic disclaimer shouldn't be the last line). Draft/preview and
   // the manual "AI suggest" path stay clean — only the auto-send carries it.
-  const note = automatedReplyNote(result.detectedLanguage);
+  const note = automatedReplyNote(result.detectedLanguage, org.autoReplyDisclosure);
   const outboundParts = [result.reply.trimEnd()];
   if (note) outboundParts.push(note);
   if (signature) outboundParts.push(signature);
@@ -633,7 +636,7 @@ export async function applyChannelAutoReply(
   // Guest asked to speak to a human: we just sent the holding reply, now pause the
   // AI on this thread so the host can take over without the bot chiming in again.
   if (result.intent === "human_request") {
-    const holdHours = Number(process.env.HUMAN_HANDOFF_HOLD_HOURS) || 12;
+    const holdHours = org.handoffHoldHours ?? (Number(process.env.HUMAN_HANDOFF_HOLD_HOURS) || 12);
     await prisma.conversation
       .update({
         where: { id: conversation.id },

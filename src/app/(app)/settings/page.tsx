@@ -10,6 +10,7 @@ import { AutoReplyToggle } from "@/components/inbox/auto-reply-toggle";
 import { AiTestCard } from "@/components/settings/ai-test-card";
 import { TestEmailButton } from "@/components/settings/test-email-button";
 import { AlertEmailForm } from "@/components/settings/alert-email-form";
+import { AutomationPrefsForm } from "@/components/settings/automation-prefs-form";
 import { AccountCard } from "@/components/settings/account-card";
 import { TwoFactorCard } from "@/components/settings/two-factor-card";
 import { HospitableConnectCard } from "@/components/settings/hospitable-connect-card";
@@ -37,6 +38,8 @@ export default async function SettingsPage() {
         aiReplyTone: true,
         aiSignature: true,
         alertEmail: true,
+        autoReplyDisclosure: true,
+        handoffHoldHours: true,
         autoWelcome: true,
         autoCheckin: true,
         autoCheckout: true,
@@ -159,6 +162,18 @@ export default async function SettingsPage() {
       </Card>
 
       <AiVoiceForm tone={org?.aiReplyTone ?? "warm"} signature={org?.aiSignature ?? ""} name={session.name} />
+
+      <Card className="max-w-2xl">
+        <CardHeader>
+          <CardTitle className="text-base">Otomasyon Tercihleri</CardTitle>
+        </CardHeader>
+        <CardContent>
+          <AutomationPrefsForm
+            disclosure={org?.autoReplyDisclosure ?? true}
+            holdHours={org?.handoffHoldHours ?? 12}
+          />
+        </CardContent>
+      </Card>
 
       <BulkTimesForm
         defaultCheckIn={sampleProperty?.checkInTime ?? "14:00"}

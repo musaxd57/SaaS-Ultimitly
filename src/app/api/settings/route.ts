@@ -83,6 +83,17 @@ export async function PATCH(req: NextRequest) {
       }
     }
 
+    if ("autoReplyDisclosure" in data) {
+      if (typeof data.autoReplyDisclosure !== "boolean") errors.autoReplyDisclosure = "true/false olmalı.";
+      else update.autoReplyDisclosure = data.autoReplyDisclosure;
+    }
+
+    if ("handoffHoldHours" in data) {
+      const n = Number(data.handoffHoldHours);
+      if (!Number.isInteger(n) || n < 0 || n > 72) errors.handoffHoldHours = "0-72 arası saat olmalı.";
+      else update.handoffHoldHours = n;
+    }
+
     if (Object.keys(errors).length > 0) return badRequest(errors);
     if (Object.keys(update).length === 0) {
       return badRequest({ _: "Güncellenecek geçerli bir alan yok." });

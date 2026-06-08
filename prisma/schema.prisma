@@ -50,6 +50,11 @@ model Organization {
   // Where this org's urgent complaint/refund alert e-mails go. Per-tenant: each
   // customer sets their OWN address. Falls back to the ALERT_EMAIL env when null.
   alertEmail String?
+  // Per-tenant automation prefs (each customer controls their own):
+  //  - autoReplyDisclosure: append the "(machine-prepared)" note to AUTO sends.
+  //  - handoffHoldHours: hours the AI stays silent after a guest asks for a human.
+  autoReplyDisclosure Boolean @default(true)
+  handoffHoldHours    Int     @default(12)
   // When true, safe/high-confidence channel (Airbnb / Booking via Hospitable)
   // guest messages are auto-answered; gated to active-hours window in org timezone.
   // Complaints and risky messages always wait for a human.
