@@ -6,7 +6,6 @@ import {
   AlertTriangle,
   Trophy,
   BedDouble,
-  Wallet,
 } from "lucide-react";
 import { requireAuth } from "@/lib/auth";
 import {
@@ -14,7 +13,6 @@ import {
   getTopTopics,
   getHostPerformanceScore,
   getOccupancyByProperty,
-  getRevenueAnalytics,
 } from "@/lib/reports";
 import { PageHeader } from "@/components/page-header";
 import { StatCard } from "@/components/stat-card";
@@ -45,31 +43,14 @@ const INTENT_LABEL: Record<string, string> = {
 export default async function ReportsPage() {
   const { organizationId } = await requireAuth();
 
-  const [ai, topics, score, occupancy, revenue] = await Promise.all([
+  const [ai, topics, score, occupancy] = await Promise.all([
     getAiOpsReport(organizationId),
     getTopTopics(organizationId, 6),
     getHostPerformanceScore(organizationId),
     getOccupancyByProperty(organizationId),
-    getRevenueAnalytics(organizationId, 6),
   ]);
 
   const maxTopic = Math.max(1, ...topics.map((t) => t.count));
-
-  // Pick the dominant currency over the 6-month window for the revenue chart.
-  const currencyTotals = new Map<string, number>();
-  for (const m of revenue) {
-    for (const c of m.byCurrency) currencyTotals.set(c.currency, (currencyTotals.get(c.currency) ?? 0) + c.total);
-  }
-  const primaryCurrency = [...currencyTotals.entries()].sort((a, b) => b[1] - a[1])[0]?.[0] ?? "EUR";
-  const monthly = revenue.map((m) => ({
-    label: m.monthLabel,
-    total: m.byCurrency.find((c) => c.currency === primaryCurrency)?.total ?? 0,
-  }));
-  const maxRevenue = Math.max(1, ...monthly.map((m) => m.total));
-  const thisMonthRevenue = monthly[monthly.length - 1]?.total ?? 0;
-  const hasRevenue = currencyTotals.size > 0 && [...currencyTotals.values()].some((v) => v > 0);
-  const fmtMoney = (n: number) =>
-    new Intl.NumberFormat("tr-TR", { style: "currency", currency: primaryCurrency, maximumFractionDigits: 0 }).format(n);
 
   return (
     <>
@@ -85,50 +66,6 @@ export default async function ReportsPage() {
         <StatCard label="Giriş Bilgileri" value={ai.checkins} icon={LogIn} />
         <StatCard label="Çıkış Mesajları" value={ai.checkouts} icon={LogOut} />
       </div>
-
-      {/* Revenue */}
-      <Card>
-        <CardHeader className="flex-row items-center justify-between space-y-0">
-          <CardTitle className="flex items-center gap-2 text-base">
-            <Wallet className="size-4 text-muted-foreground" /> Gelir — Son 6 Ay
-          </CardTitle>
-          {hasRevenue ? (
-            <div className="text-right">
-              <p className="text-xl font-semibold">{fmtMoney(thisMonthRevenue)}</p>
-              <p className="text-[11px] text-muted-foreground">bu ay (giriş tarihine göre)</p>
-            </div>
-          ) : null}
-        </CardHeader>
-        <CardContent>
-          {!hasRevenue ? (
-            <EmptyState
-              title="Henüz gelir verisi yok"
-              description="Rezervasyonlarınız bağlandıkça (Airbnb/Booking tutarları) gelir burada görünür."
-              className="py-6"
-            />
-          ) : (
-            <div className="space-y-2.5">
-              {monthly.map((m) => (
-                <div key={m.label} className="flex items-center gap-3">
-                  <span className="w-28 shrink-0 text-xs text-muted-foreground">{m.label}</span>
-                  <div className="h-5 flex-1 overflow-hidden rounded bg-muted">
-                    <div
-                      className="flex h-full items-center rounded bg-primary/80 px-2"
-                      style={{ width: `${Math.max(6, (m.total / maxRevenue) * 100)}%` }}
-                    />
-                  </div>
-                  <span className="w-24 shrink-0 text-right text-sm font-medium">{fmtMoney(m.total)}</span>
-                </div>
-              ))}
-              {currencyTotals.size > 1 ? (
-                <p className="pt-1 text-[11px] text-muted-foreground">
-                  Not: birden fazla para birimi var; grafik {primaryCurrency} bazında gösteriliyor.
-                </p>
-              ) : null}
-            </div>
-          )}
-        </CardContent>
-      </Card>
 
       <div className="grid gap-4 lg:grid-cols-2">
         {/* Host performance + response time */}

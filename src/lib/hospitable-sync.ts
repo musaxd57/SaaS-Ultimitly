@@ -39,44 +39,6 @@ function str(value: unknown): string | null {
   return typeof value === "string" && value.length ? value : null;
 }
 
-/** Pull a money amount out of a Hospitable value, which may be a plain number or
- *  a nested money object { amount: <minor units>, currency, formatted }. */
-function parseMoney(v: unknown): number | null {
-  if (typeof v === "number" && isFinite(v)) return v;
-  if (v && typeof v === "object") {
-    const o = v as Record<string, unknown>;
-    // Hospitable v2 money objects carry amounts in MINOR units (cents).
-    if (typeof o.amount === "number" && isFinite(o.amount)) return o.amount / 100;
-    if (typeof o.value === "number" && isFinite(o.value)) return o.value / 100;
-  }
-  return null;
-}
-
-/**
- * Best-effort total revenue for a reservation. Tries the legacy top-level
- * `total_price`, then the `financials` object (present only with the
- * financials:read scope). Returns { amount, currency } — amount null if none.
- */
-function extractReservationTotal(r: HospitableReservation): { amount: number | null; currency: string } {
-  const topCurrency = str(r.currency);
-  if (typeof r.total_price === "number" && isFinite(r.total_price)) {
-    return { amount: r.total_price, currency: topCurrency ?? "EUR" };
-  }
-  const fin = r.financials as Record<string, unknown> | undefined;
-  if (fin && typeof fin === "object") {
-    const host = fin.host as Record<string, unknown> | undefined;
-    const guest = fin.guest as Record<string, unknown> | undefined;
-    const currency = str(fin.currency) ?? topCurrency ?? "EUR";
-    // Prefer the host payout (what the host actually earns), then guest total.
-    const candidates = [host?.payout, host?.revenue, host?.total, guest?.total_price, guest?.total, fin.total_price, fin.total];
-    for (const c of candidates) {
-      const amount = parseMoney(c);
-      if (amount !== null) return { amount, currency };
-    }
-  }
-  return { amount: null, currency: topCurrency ?? "EUR" };
-}
-
 function parseDate(value: unknown): Date | null {
   const s = str(value);
   if (!s) return null;
@@ -265,7 +227,9 @@ async function upsertReservationCalendar(
         ? "completed"
         : "confirmed";
 
-  const { amount: totalAmount, currency } = extractReservationTotal(reservation);
+  const totalAmount =
+    typeof reservation.total_price === "number" ? reservation.total_price : null;
+  const currency = str(reservation.currency) ?? "EUR";
 
   const existing = await prisma.reservation.findFirst({
     where: { propertyId, sourceReference: srcRef },

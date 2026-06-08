@@ -3,7 +3,7 @@ import { Hotel, MessageSquare, ListChecks, BarChart3 } from "lucide-react";
 const VALUE_PROPS = [
   { icon: MessageSquare, text: "Misafir mesajlarına AI destekli hızlı cevap" },
   { icon: ListChecks, text: "Temizlik ve check-in görevleri otomatik akışta" },
-  { icon: BarChart3, text: "Tüm operasyon ve gelir tek panelde" },
+  { icon: BarChart3, text: "Doluluk, performans ve operasyon tek panelde" },
 ];
 
 export default function AuthLayout({ children }: { children: React.ReactNode }) {
