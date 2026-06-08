@@ -19,7 +19,8 @@ describe("sendOnChannel", () => {
     );
 
     expect(outcome.ok).toBe(true);
-    expect(mockHospitable).toHaveBeenCalledWith("res-1", "Merhaba");
+    // Third arg is the per-org token (undefined here → env fallback in the client).
+    expect(mockHospitable).toHaveBeenCalledWith("res-1", "Merhaba", undefined);
   });
 
   it("is a no-op for manual threads with nothing to deliver", async () => {

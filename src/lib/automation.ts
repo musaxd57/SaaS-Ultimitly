@@ -4,6 +4,7 @@ import { prisma } from "@/lib/db";
 import { classifyMessage, suggestReply, summarizeHostStyle } from "@/lib/ai";
 import { classifyFallback } from "@/lib/ai/fallback";
 import { sendOnChannel } from "@/lib/messaging";
+import { getOrgHospitableToken } from "@/lib/hospitable-credentials";
 import { getAdjacency } from "@/lib/turnover";
 import { emailService } from "@/lib/email";
 import {
@@ -389,6 +390,7 @@ export async function applyChannelAutoReply(
       property: {
         select: {
           name: true,
+          organizationId: true,
           checkInTime: true,
           checkOutTime: true,
           address: true,
@@ -571,7 +573,12 @@ export async function applyChannelAutoReply(
   // silent on non-questions (low confidence) — so each guest message gets at most
   // one reply and nothing unsolicited goes out.
 
-  // Deliver FIRST — never persist a reply that didn't reach the guest.
+  // Deliver FIRST — never persist a reply that didn't reach the guest. Use THIS
+  // org's own Hospitable token; if it isn't connected, there is nothing to send.
+  const token = await getOrgHospitableToken(conversation.property.organizationId);
+  if (!token) {
+    return { sent: false, skippedReason: "not_connected", draft, ...meta };
+  }
   const delivery = await sendOnChannel(
     {
       channel: conversation.channel,
@@ -579,6 +586,7 @@ export async function applyChannelAutoReply(
       externalReservationId: conversation.externalReservationId,
     },
     outboundBody,
+    token,
   );
   if (!delivery.ok) {
     return { sent: false, skippedReason: `send_failed: ${delivery.error ?? "unknown"}`, draft, ...meta };
@@ -851,6 +859,10 @@ export async function sendDueWelcomes(
   });
   if (!org || !org.autoWelcome) return { sent: 0, considered: 0 };
 
+  // Multi-tenant: deliver via THIS org's own Hospitable token (skip if unconnected).
+  const token = await getOrgHospitableToken(organizationId);
+  if (!token) return { sent: 0, considered: 0 };
+
   // The welcome is a "thanks for booking" greeting (no codes/Wi-Fi), so it goes
   // right after the booking is made — the sync picks it up within ~2 minutes,
   // regardless of how far ahead the stay is. Only bookings first seen AFTER
@@ -904,6 +916,7 @@ export async function sendDueWelcomes(
         externalReservationId: r.sourceReference,
       },
       body,
+      token,
     );
     if (!delivery.ok) continue; // try again next run; do not mark as sent
 
@@ -938,6 +951,10 @@ export async function sendDueCheckins(
     select: { autoCheckin: true, autoCheckinEnabledAt: true, aiSignature: true },
   });
   if (!org || !org.autoCheckin) return { sent: 0, considered: 0 };
+
+  // Multi-tenant: deliver via THIS org's own Hospitable token (skip if unconnected).
+  const token = await getOrgHospitableToken(organizationId);
+  if (!token) return { sent: 0, considered: 0 };
 
   // Land the access details close to the stay: CHECKIN_LEAD_DAYS before arrival.
   const CHECKIN_LEAD_DAYS = 4;
@@ -987,6 +1004,7 @@ export async function sendDueCheckins(
     const delivery = await sendOnChannel(
       { channel: r.channel, guestIdentifier: r.guestName, externalReservationId: r.sourceReference },
       body,
+      token,
     );
     if (!delivery.ok) continue; // try again next run; do not mark as sent
 
@@ -1142,6 +1160,10 @@ export async function sendDueCheckouts(
   });
   if (!org || !org.autoCheckout) return { sent: 0, considered: 0 };
 
+  // Multi-tenant: deliver via THIS org's own Hospitable token (skip if unconnected).
+  const token = await getOrgHospitableToken(organizationId);
+  if (!token) return { sent: 0, considered: 0 };
+
   const now = new Date();
   const tz = org.timezone ?? "Europe/Istanbul";
   // Only from 18:00 onward, the day BEFORE departure.
@@ -1204,6 +1226,7 @@ export async function sendDueCheckouts(
     const delivery = await sendOnChannel(
       { channel: r.channel, guestIdentifier: r.guestName, externalReservationId: r.sourceReference },
       body,
+      token,
     );
     if (!delivery.ok) continue;
 

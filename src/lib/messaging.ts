@@ -28,9 +28,14 @@ export interface SendOutcome {
  *     externalReservationId,
  *   - otherwise a no-op (internal/manual threads have nothing to deliver).
  */
-export async function sendOnChannel(target: ChannelTarget, body: string): Promise<SendOutcome> {
+export async function sendOnChannel(
+  target: ChannelTarget,
+  body: string,
+  token?: string,
+): Promise<SendOutcome> {
   if (target.externalReservationId) {
-    const r = await sendMessage(target.externalReservationId, body);
+    // Multi-tenant: deliver via the connecting org's own Hospitable token.
+    const r = await sendMessage(target.externalReservationId, body, token);
     return { ok: r.ok, error: r.error };
   }
 

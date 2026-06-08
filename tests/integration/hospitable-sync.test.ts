@@ -8,6 +8,11 @@ vi.mock("@/lib/hospitable", () => ({
   listMessages: vi.fn(),
 }));
 
+// The org is "connected" — return a fixed token so the multi-tenant sync runs.
+vi.mock("@/lib/hospitable-credentials", () => ({
+  getOrgHospitableToken: vi.fn().mockResolvedValue("test-token"),
+}));
+
 import { listProperties, listReservations, listMessages } from "@/lib/hospitable";
 import { syncHospitable } from "@/lib/hospitable-sync";
 

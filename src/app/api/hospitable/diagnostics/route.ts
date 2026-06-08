@@ -1,11 +1,7 @@
 import { NextResponse } from "next/server";
 import { requireSession, unauthorized } from "@/lib/api";
-import {
-  isHospitableConfigured,
-  listProperties,
-  listReservations,
-  listMessages,
-} from "@/lib/hospitable";
+import { listProperties, listReservations, listMessages } from "@/lib/hospitable";
+import { getOrgHospitableToken } from "@/lib/hospitable-credentials";
 
 // ---------------------------------------------------------------------------
 // Hospitable structural diagnostics (dev aid)
@@ -34,19 +30,20 @@ export async function GET() {
   const session = await requireSession();
   if (!session) return unauthorized();
 
-  if (!isHospitableConfigured()) {
-    return NextResponse.json({ ok: false, error: "HOSPITABLE_API_TOKEN tanımlı değil." });
+  const token = await getOrgHospitableToken(session.organizationId);
+  if (!token) {
+    return NextResponse.json({ ok: false, error: "Hospitable bağlı değil." });
   }
 
   const out: Record<string, unknown> = { ok: true };
 
   try {
     // /reservations requires a properties[] filter, so resolve property IDs first.
-    const properties = await listProperties();
+    const properties = await listProperties(token);
     const propertyIds = properties.map((p) => p.id);
     out.propertiesCount = propertyIds.length;
 
-    const reservations = await listReservations({ propertyIds });
+    const reservations = await listReservations({ propertyIds }, token);
     out.reservations = {
       count: reservations.length,
       shape: reservations.length ? shapeOf(reservations[0]) : null,
@@ -55,7 +52,7 @@ export async function GET() {
     const first = reservations[0];
     if (first?.id) {
       try {
-        const messages = await listMessages(String(first.id));
+        const messages = await listMessages(String(first.id), token);
         out.messages = {
           reservationKeyTried: "id",
           count: messages.length,

@@ -2,6 +2,7 @@ import { type NextRequest, NextResponse } from "next/server";
 import { prisma } from "@/lib/db";
 import { conversationReplySchema, zodFieldErrors } from "@/lib/validators";
 import { sendOnChannel } from "@/lib/messaging";
+import { getOrgHospitableToken } from "@/lib/hospitable-credentials";
 import {
   requireSession,
   unauthorized,
@@ -46,8 +47,16 @@ export async function POST(req: NextRequest, { params }: Params) {
     }
 
     // Deliver on the guest's channel FIRST — don't persist a reply that never
-    // reached the guest (Airbnb/Booking via Hospitable, or WhatsApp).
-    const outcome = await sendOnChannel(conversation, replyBody);
+    // reached the guest (Airbnb/Booking via Hospitable, or WhatsApp). Use this
+    // org's own Hospitable token (multi-tenant).
+    const token = await getOrgHospitableToken(session.organizationId);
+    if (conversation.externalReservationId && !token) {
+      return NextResponse.json(
+        { error: "Hospitable bağlı değil — mesaj gönderilemiyor. Ayarlar'dan bağlayın." },
+        { status: 502 },
+      );
+    }
+    const outcome = await sendOnChannel(conversation, replyBody, token ?? undefined);
     if (!outcome.ok) {
       return NextResponse.json(
         { error: `Mesaj gönderilemedi: ${outcome.error ?? "bilinmeyen hata"}` },

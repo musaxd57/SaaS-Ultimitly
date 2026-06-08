@@ -50,6 +50,13 @@ model Organization {
   autoCheckoutEnabledAt DateTime? // when checkout was switched on (only message bookings created after this)
   aiStyleProfile      String?   // distilled guide of the host's own reply style, learned from past messages
   aiStyleProfileAt    DateTime? // when the style profile was last refreshed (throttles regeneration)
+  // Per-customer Hospitable connection (multi-tenant). Each org connects its OWN
+  // Hospitable account; the Personal Access Token is stored ENCRYPTED here (see
+  // lib/crypto). Null = not connected — the "primary" org may instead fall back
+  // to the global HOSPITABLE_API_TOKEN env (see lib/hospitable-credentials).
+  hospitableTokenEnc    String?
+  hospitableLabel       String?   // human label for the connected account (e.g. "8 mülk")
+  hospitableConnectedAt DateTime? // when this org connected its own Hospitable token
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
 

@@ -10,11 +10,14 @@ import { AutoReplyToggle } from "@/components/inbox/auto-reply-toggle";
 import { AiTestCard } from "@/components/settings/ai-test-card";
 import { TestEmailButton } from "@/components/settings/test-email-button";
 import { AccountCard } from "@/components/settings/account-card";
+import { HospitableConnectCard } from "@/components/settings/hospitable-connect-card";
+import { getConnectionInfo } from "@/lib/hospitable-credentials";
 
 export const dynamic = "force-dynamic";
 
 export default async function SettingsPage() {
   const session = await requireAuth();
+  const hospitableInfo = await getConnectionInfo(session.organizationId);
   const [org, sampleProperty, properties] = await Promise.all([
     prisma.organization.findUnique({
       where: { id: session.organizationId },
@@ -77,6 +80,15 @@ export default async function SettingsPage() {
         </CardHeader>
         <CardContent>
           <AccountCard email={session.email} />
+        </CardContent>
+      </Card>
+
+      <Card className="max-w-2xl">
+        <CardHeader>
+          <CardTitle className="text-base">Hospitable Bağlantısı (Airbnb / Booking)</CardTitle>
+        </CardHeader>
+        <CardContent>
+          <HospitableConnectCard info={hospitableInfo} />
         </CardContent>
       </Card>
 

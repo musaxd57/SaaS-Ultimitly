@@ -57,10 +57,13 @@ function sleep(ms: number): Promise<void> {
 async function hospitableFetch<T>(
   path: string,
   init: RequestInit = {},
+  token?: string,
   retries = MAX_RETRIES,
 ): Promise<T> {
-  const token = process.env.HOSPITABLE_API_TOKEN;
-  if (!token) {
+  // Multi-tenant: callers pass the connecting org's token. When omitted we fall
+  // back to the global env token (legacy single-tenant path + tests).
+  const tok = token || process.env.HOSPITABLE_API_TOKEN;
+  if (!tok) {
     throw new HospitableError("HOSPITABLE_API_TOKEN .env dosyasında tanımlı değil.");
   }
 
@@ -74,7 +77,7 @@ async function hospitableFetch<T>(
         headers: {
           Accept: "application/json",
           "Content-Type": "application/json",
-          Authorization: `Bearer ${token}`,
+          Authorization: `Bearer ${tok}`,
           ...(init.headers ?? {}),
         },
         signal: AbortSignal.timeout(TIMEOUT_MS),
@@ -140,12 +143,16 @@ const MAX_PAGES = 40;
  * or there is no `links.next`. If the endpoint isn't paginated it simply
  * returns the single page.
  */
-async function fetchAllPages<T>(path: string, params?: URLSearchParams): Promise<T[]> {
+async function fetchAllPages<T>(
+  path: string,
+  params?: URLSearchParams,
+  token?: string,
+): Promise<T[]> {
   const items: T[] = [];
   for (let page = 1; page <= MAX_PAGES; page++) {
     const p = new URLSearchParams(params);
     p.set("page", String(page));
-    const res = await hospitableFetch<ListEnvelope<T>>(`${path}?${p.toString()}`);
+    const res = await hospitableFetch<ListEnvelope<T>>(`${path}?${p.toString()}`, {}, token);
     const batch = res.data ?? [];
     items.push(...batch);
 
@@ -171,8 +178,18 @@ export interface HospitableProperty {
  * List the properties the token can access. Used by the connection test and
  * to map Hospitable properties onto our own Property records.
  */
-export async function listProperties(): Promise<HospitableProperty[]> {
-  return fetchAllPages<HospitableProperty>("/properties");
+export async function listProperties(token?: string): Promise<HospitableProperty[]> {
+  return fetchAllPages<HospitableProperty>("/properties", undefined, token);
+}
+
+/**
+ * Validate a Personal Access Token by listing the properties it can access.
+ * Used by the "Connect Hospitable" flow. Returns the property count (or throws
+ * HospitableError on an invalid/unauthorized token).
+ */
+export async function verifyToken(token: string): Promise<{ properties: number }> {
+  const props = await fetchAllPages<HospitableProperty>("/properties", undefined, token);
+  return { properties: props.length };
 }
 
 // Reservations and messages are modelled tolerantly (an index signature) until
@@ -213,11 +230,14 @@ export interface HospitableMessage {
  * List reservations. Hospitable requires a `properties[]` filter, so pass the
  * property UUIDs to scope the query (optionally narrowed by date range).
  */
-export async function listReservations(options?: {
-  propertyIds?: string[];
-  startDate?: string;
-  endDate?: string;
-}): Promise<HospitableReservation[]> {
+export async function listReservations(
+  options?: {
+    propertyIds?: string[];
+    startDate?: string;
+    endDate?: string;
+  },
+  token?: string,
+): Promise<HospitableReservation[]> {
   const params = new URLSearchParams();
   for (const id of options?.propertyIds ?? []) params.append("properties[]", id);
   if (options?.startDate) params.set("start_date", options.startDate);
@@ -225,13 +245,18 @@ export async function listReservations(options?: {
   // Ask Hospitable to embed the guest record so we get the guest's name (the
   // bare reservation only carries guest COUNTS, not the name).
   params.set("include", "guest");
-  return fetchAllPages<HospitableReservation>("/reservations", params);
+  return fetchAllPages<HospitableReservation>("/reservations", params, token);
 }
 
 /** List the full message thread for a single reservation (all pages). */
-export async function listMessages(reservationId: string): Promise<HospitableMessage[]> {
+export async function listMessages(
+  reservationId: string,
+  token?: string,
+): Promise<HospitableMessage[]> {
   return fetchAllPages<HospitableMessage>(
     `/reservations/${encodeURIComponent(reservationId)}/messages`,
+    undefined,
+    token,
   );
 }
 
@@ -249,7 +274,11 @@ export interface SendResult {
  * Endpoint: POST /reservations/{uuid}/messages  body: { body }
  * (Rate limited to 2/min per reservation; hospitableFetch absorbs 429s.)
  */
-export async function sendMessage(reservationId: string, body: string): Promise<SendResult> {
+export async function sendMessage(
+  reservationId: string,
+  body: string,
+  token?: string,
+): Promise<SendResult> {
   if (!reservationId || !body) {
     return { ok: false, error: "reservationId ve body gerekli" };
   }
@@ -257,6 +286,7 @@ export async function sendMessage(reservationId: string, body: string): Promise<
     const res = await hospitableFetch<{ data?: { id?: string | number } }>(
       `/reservations/${encodeURIComponent(reservationId)}/messages`,
       { method: "POST", body: JSON.stringify({ body }) },
+      token,
     );
     const id = res?.data?.id;
     return { ok: true, id: id != null ? String(id) : undefined };

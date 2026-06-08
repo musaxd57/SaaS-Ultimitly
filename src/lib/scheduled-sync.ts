@@ -1,7 +1,6 @@
 import "server-only";
 
 import { prisma } from "@/lib/db";
-import { isHospitableConfigured } from "@/lib/hospitable";
 import { syncHospitable } from "@/lib/hospitable-sync";
 import { reportError } from "@/lib/report-error";
 import {
@@ -91,9 +90,9 @@ async function releaseLock(): Promise<void> {
 }
 
 export async function runScheduledSync(): Promise<ScheduledSyncTotals> {
-  if (!isHospitableConfigured()) {
-    return { ...zero(), ok: false, error: "HOSPITABLE_API_TOKEN not configured" };
-  }
+  // Multi-tenant: no global token gate here. Each org self-gates on ITS OWN
+  // Hospitable connection (syncHospitable + the automation senders return early
+  // when the org has no token), so orgs that aren't connected are simply skipped.
   if (running) {
     return { ...zero(), ok: false, error: "already_running" };
   }

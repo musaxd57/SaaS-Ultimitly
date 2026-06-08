@@ -2,6 +2,7 @@ import "server-only";
 
 import { prisma } from "@/lib/db";
 import { listReservations } from "@/lib/hospitable";
+import { getOrgHospitableToken } from "@/lib/hospitable-credentials";
 
 // ---------------------------------------------------------------------------
 // Ghost-reservation cleanup
@@ -41,6 +42,11 @@ export async function cleanupStaleReservations(
     skippedProperties: 0,
   };
 
+  // Multi-tenant: verify against THIS org's own Hospitable account. No
+  // connection → nothing to verify against, so prune nothing (stay safe).
+  const token = await getOrgHospitableToken(organizationId);
+  if (!token) return result;
+
   // Mirror the sync's reservation window exactly so "would Hospitable have
   // returned it?" lines up with what the sync imports.
   const startDate = new Date(Date.now() - 60 * DAY).toISOString().slice(0, 10);
@@ -58,7 +64,7 @@ export async function cleanupStaleReservations(
 
     let current;
     try {
-      current = await listReservations({ propertyIds: [p.hospitableId], startDate, endDate });
+      current = await listReservations({ propertyIds: [p.hospitableId], startDate, endDate }, token);
     } catch {
       result.skippedProperties++; // couldn't verify → never prune
       continue;

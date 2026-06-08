@@ -9,6 +9,7 @@ import {
   type HospitableReservation,
   type HospitableMessage,
 } from "@/lib/hospitable";
+import { getOrgHospitableToken } from "@/lib/hospitable-credentials";
 
 // ---------------------------------------------------------------------------
 // Hospitable → Inbox synchronisation
@@ -91,8 +92,14 @@ export async function syncHospitable(
     skipped: 0,
   };
 
+  // Multi-tenant: use THIS org's own Hospitable token. If it has no connection
+  // (and isn't the primary org falling back to env), there is nothing to pull —
+  // return immediately so one customer can never sync another's Airbnb data.
+  const token = await getOrgHospitableToken(organizationId);
+  if (!token) return result;
+
   // 1. Link/create properties.
-  const hospitableProps = await listProperties();
+  const hospitableProps = await listProperties(token);
   const propertyMap = new Map<string, string>(); // hospitableId → our propertyId
   for (const hp of hospitableProps) {
     if (!hp.id) continue;
@@ -121,7 +128,7 @@ export async function syncHospitable(
   for (const [hospitableId, propertyId] of propertyMap) {
     let reservations: HospitableReservation[];
     try {
-      reservations = await listReservations({ propertyIds: [hospitableId], startDate, endDate });
+      reservations = await listReservations({ propertyIds: [hospitableId], startDate, endDate }, token);
     } catch (err) {
       console.error(`[Hospitable sync] reservations failed for ${hospitableId}`, err);
       continue;
@@ -161,7 +168,7 @@ export async function syncHospitable(
 
       let messages: HospitableMessage[];
       try {
-        messages = await listMessages(String(reservation.id));
+        messages = await listMessages(String(reservation.id), token);
       } catch (err) {
         console.error(`[Hospitable sync] messages failed for ${reservation.id}`, err);
         continue;

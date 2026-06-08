@@ -5,6 +5,10 @@ import { prisma, resetDb } from "../helpers/db";
 // Force the AI + transport to be deterministic mocks.
 vi.mock("@/lib/ai", () => ({ suggestReply: vi.fn(), classifyMessage: vi.fn() }));
 vi.mock("@/lib/messaging", () => ({ sendOnChannel: vi.fn() }));
+// The org is "connected" — return a fixed token so auto-reply delivery proceeds.
+vi.mock("@/lib/hospitable-credentials", () => ({
+  getOrgHospitableToken: vi.fn().mockResolvedValue("test-token"),
+}));
 
 import { suggestReply } from "@/lib/ai";
 import { sendOnChannel } from "@/lib/messaging";
@@ -152,6 +156,7 @@ describe("applyChannelAutoReply", () => {
     expect(mockSend).toHaveBeenCalledWith(
       expect.objectContaining({ externalReservationId: "res-1" }),
       `${SAFE_REPLY.reply}\n\nSevgiler,\nİsa Çınar\n\n${AUTO_NOTE_TR}`,
+      "test-token",
     );
   });
 
@@ -163,6 +168,7 @@ describe("applyChannelAutoReply", () => {
     expect(mockSend).toHaveBeenCalledWith(
       expect.objectContaining({ externalReservationId: "res-1", channel: "airbnb" }),
       `${SAFE_REPLY.reply}\n\n${AUTO_NOTE_TR}`,
+      "test-token",
     );
     const conv = await prisma.conversation.findUnique({
       where: { id: conversationId },

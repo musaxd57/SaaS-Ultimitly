@@ -1,6 +1,6 @@
 import { NextResponse } from "next/server";
 import { requireSession, unauthorized } from "@/lib/api";
-import { isHospitableConfigured } from "@/lib/hospitable";
+import { hasOrgHospitable } from "@/lib/hospitable-credentials";
 import { syncHospitable } from "@/lib/hospitable-sync";
 
 // ---------------------------------------------------------------------------
@@ -17,8 +17,8 @@ export async function POST() {
   const session = await requireSession();
   if (!session) return unauthorized();
 
-  if (!isHospitableConfigured()) {
-    return NextResponse.json({ ok: false, error: "HOSPITABLE_API_TOKEN .env dosyasında tanımlı değil." });
+  if (!(await hasOrgHospitable(session.organizationId))) {
+    return NextResponse.json({ ok: false, error: "Hospitable bağlı değil. Ayarlar'dan hesabınızı bağlayın." });
   }
 
   try {

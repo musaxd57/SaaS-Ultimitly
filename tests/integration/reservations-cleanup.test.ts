@@ -4,6 +4,11 @@ import { prisma, resetDb } from "../helpers/db";
 // Mock the Hospitable client so the cleanup runs against fixed "current" data.
 vi.mock("@/lib/hospitable", () => ({ listReservations: vi.fn() }));
 
+// The org is "connected" — return a fixed token so cleanup runs (multi-tenant).
+vi.mock("@/lib/hospitable-credentials", () => ({
+  getOrgHospitableToken: vi.fn().mockResolvedValue("test-token"),
+}));
+
 import { listReservations } from "@/lib/hospitable";
 import { cleanupStaleReservations } from "@/lib/reservations-cleanup";
 
