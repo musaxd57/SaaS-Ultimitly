@@ -101,8 +101,8 @@ export function LoginForm() {
       </Button>
       <p className="text-center text-sm text-muted-foreground">
         Hesabınız yok mu?{" "}
-        <Link href="/register" className="font-medium text-primary hover:underline">
-          Kayıt olun
+        <Link href="/#demo" className="font-medium text-primary hover:underline">
+          Ücretsiz demo isteyin
         </Link>
       </p>
     </form>
