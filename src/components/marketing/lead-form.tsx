@@ -1,6 +1,7 @@
 "use client";
 
 import { useState } from "react";
+import Link from "next/link";
 import { Loader2, Check, Send } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -8,6 +9,7 @@ import { Input } from "@/components/ui/input";
 /** Public "request a demo / free trial" form on the landing page. */
 export function LeadForm() {
   const [form, setForm] = useState({ name: "", email: "", phone: "", message: "" });
+  const [website, setWebsite] = useState(""); // honeypot — humans never fill this
   const [busy, setBusy] = useState(false);
   const [done, setDone] = useState(false);
   const [errors, setErrors] = useState<Record<string, string>>({});
@@ -24,7 +26,7 @@ export function LeadForm() {
       const res = await fetch("/api/leads", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify(form),
+        body: JSON.stringify({ ...form, website }),
       });
       const data = await res.json().catch(() => ({}));
       if (res.ok) setDone(true);
@@ -52,21 +54,33 @@ export function LeadForm() {
     <form onSubmit={submit} className="space-y-3 rounded-xl border border-border bg-card p-6">
       <div className="grid gap-3 sm:grid-cols-2">
         <div>
-          <Input placeholder="Adınız" value={form.name} onChange={(e) => set("name", e.target.value)} required />
+          <Input aria-label="Adınız" placeholder="Adınız" value={form.name} onChange={(e) => set("name", e.target.value)} required />
           {errors.name ? <p className="mt-1 text-xs text-destructive">{errors.name}</p> : null}
         </div>
         <div>
-          <Input type="email" placeholder="E-posta" value={form.email} onChange={(e) => set("email", e.target.value)} required />
+          <Input aria-label="E-posta" type="email" placeholder="E-posta" value={form.email} onChange={(e) => set("email", e.target.value)} required />
           {errors.email ? <p className="mt-1 text-xs text-destructive">{errors.email}</p> : null}
         </div>
       </div>
-      <Input placeholder="Telefon (opsiyonel)" value={form.phone} onChange={(e) => set("phone", e.target.value)} />
+      <Input aria-label="Telefon" placeholder="Telefon (opsiyonel)" value={form.phone} onChange={(e) => set("phone", e.target.value)} />
       <textarea
+        aria-label="Mesajınız"
         placeholder="Kaç daireniz var, ne zaman başlamak istersiniz? (opsiyonel)"
         value={form.message}
         onChange={(e) => set("message", e.target.value)}
         rows={3}
         className="w-full rounded-md border border-input bg-background px-3 py-2 text-sm focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+      />
+      {/* Honeypot: hidden from humans; bots that fill it get silently dropped. */}
+      <input
+        type="text"
+        name="website"
+        value={website}
+        onChange={(e) => setWebsite(e.target.value)}
+        tabIndex={-1}
+        autoComplete="off"
+        aria-hidden="true"
+        className="absolute left-[-9999px] h-0 w-0 opacity-0"
       />
       {errors._ ? <p className="text-sm text-destructive">{errors._}</p> : null}
       <Button type="submit" className="w-full" size="lg" disabled={busy}>
@@ -74,7 +88,9 @@ export function LeadForm() {
         Ücretsiz demo iste
       </Button>
       <p className="text-center text-xs text-muted-foreground">
-        Kredi kartı gerekmez. Size dönüp kurulumu birlikte yapalım.
+        Kredi kartı gerekmez. Demo isteyerek{" "}
+        <Link href="/gizlilik" className="underline hover:text-foreground">Gizlilik Politikası</Link>
+        &apos;nı kabul etmiş olursunuz.
       </p>
     </form>
   );

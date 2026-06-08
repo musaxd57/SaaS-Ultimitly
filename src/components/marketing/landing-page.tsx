@@ -342,8 +342,10 @@ export function LandingPage() {
           <p className="text-xs text-muted-foreground">
             © {new Date().getFullYear()} Lixus AI · Airbnb &amp; Booking ev sahipleri için yapay zekâ asistanı
           </p>
-          <div className="flex items-center gap-4 text-sm text-muted-foreground">
+          <div className="flex flex-wrap items-center justify-center gap-x-4 gap-y-1 text-sm text-muted-foreground">
             <Link href="/login" className="hover:text-foreground">Giriş</Link>
+            <Link href="/gizlilik" className="hover:text-foreground">Gizlilik</Link>
+            <Link href="/kosullar" className="hover:text-foreground">Koşullar</Link>
             {whatsapp ? (
               <a
                 href={`https://wa.me/${whatsapp}`}

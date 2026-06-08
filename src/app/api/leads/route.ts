@@ -18,6 +18,11 @@ export async function POST(req: NextRequest) {
     }
 
     const data = await req.json().catch(() => null);
+    // Honeypot: a hidden "website" field that only bots fill. Pretend success so
+    // the bot doesn't learn it was rejected, but store nothing.
+    if (data && typeof (data as { website?: unknown }).website === "string" && (data as { website: string }).website.trim()) {
+      return jsonOk({ ok: true }, 201);
+    }
     const parsed = leadSchema.safeParse(data);
     if (!parsed.success) return badRequest(zodFieldErrors(parsed.error));
 

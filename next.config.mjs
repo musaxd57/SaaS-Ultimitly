@@ -6,6 +6,25 @@ const projectRoot = path.dirname(fileURLToPath(import.meta.url));
 /** @type {import('next').NextConfig} */
 const nextConfig = {
   reactStrictMode: true,
+  // Don't advertise the framework (minor info-leak hardening).
+  poweredByHeader: false,
+  // Safe, additive security headers on every response. Deliberately NO strict
+  // Content-Security-Policy (would need nonces and risks breaking the app) —
+  // these are header-only and won't affect functionality.
+  async headers() {
+    return [
+      {
+        source: "/(.*)",
+        headers: [
+          { key: "X-Content-Type-Options", value: "nosniff" },
+          { key: "X-Frame-Options", value: "SAMEORIGIN" },
+          { key: "Referrer-Policy", value: "strict-origin-when-cross-origin" },
+          { key: "Permissions-Policy", value: "camera=(), microphone=(), geolocation=()" },
+          { key: "Strict-Transport-Security", value: "max-age=63072000; includeSubDomains" },
+        ],
+      },
+    ];
+  },
   // Pin the workspace root to this project so Next doesn't pick a stray
   // package-lock.json in a parent directory (silences the "inferred workspace
   // root" multi-lockfile warning on dev start).

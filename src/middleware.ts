@@ -8,9 +8,11 @@ export async function middleware(req: NextRequest) {
   const token = req.cookies.get(SESSION_COOKIE)?.value;
   const session = await verifySession(token);
   const isAuthPage = AUTH_PATHS.some((p) => pathname === p || pathname.startsWith(p + "/"));
-  // Public pages a logged-out visitor may see: the marketing landing ("/") and
-  // the auth pages. Everything else requires a session.
-  const isPublic = pathname === "/" || isAuthPage;
+  // Public pages a logged-out visitor may see: the marketing landing ("/"), the
+  // legal pages, and the auth pages. Everything else requires a session.
+  const PUBLIC_PREFIXES = ["/gizlilik", "/kosullar"];
+  const isPublic =
+    pathname === "/" || isAuthPage || PUBLIC_PREFIXES.some((p) => pathname === p || pathname.startsWith(p + "/"));
 
   // Not signed in → only public pages are allowed.
   if (!session && !isPublic) {
