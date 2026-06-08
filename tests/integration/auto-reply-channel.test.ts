@@ -56,6 +56,7 @@ async function seed(opts: {
   externalReservationId?: string | null;
   lastDirection?: "inbound" | "outbound";
   aiSignature?: string;
+  guestMessage?: string;
 } = {}) {
   const org = await prisma.organization.create({
     data: {
@@ -83,7 +84,7 @@ async function seed(opts: {
           {
             direction: "inbound",
             senderName: "Alex",
-            body: "What time is check-in?",
+            body: opts.guestMessage ?? "What time is check-in?",
             createdAt: new Date(Date.now() - 60_000),
           },
           ...(opts.lastDirection === "outbound"
@@ -134,6 +135,31 @@ describe("applyChannelAutoReply", () => {
     expect(await prisma.message.count({ where: { conversationId, direction: "outbound" } })).toBe(0);
   });
 
+  it("vetoes the auto-send when the guest's words signal a complaint, even if the model labels it benign", async () => {
+    // The model MISCLASSIFIES an angry message as a calm, low-risk "checkin"
+    // (SAFE_REPLY). The keyword cross-check in the safety gate must still block
+    // the auto-send so a real complaint never gets a canned reply.
+    const { conversationId } = await seed({
+      guestMessage: "The heater is broken and the room is dirty, this is unacceptable!",
+    });
+    const out = await applyChannelAutoReply(conversationId);
+
+    expect(out.sent).toBe(false);
+    expect(out.skippedReason).toBe("low_confidence_or_risky");
+    expect(mockSend).not.toHaveBeenCalled();
+    expect(await prisma.message.count({ where: { conversationId, direction: "outbound" } })).toBe(0);
+  });
+
+  it("vetoes the auto-send when the guest signals early departure / cancellation", async () => {
+    const { conversationId } = await seed({
+      guestMessage: "We need to leave early and cancel the last two nights.",
+    });
+    const out = await applyChannelAutoReply(conversationId);
+
+    expect(out.sent).toBe(false);
+    expect(mockSend).not.toHaveBeenCalled();
+  });
+
   it("dry-run returns the draft without sending or persisting", async () => {
     const { conversationId } = await seed();
     const out = await applyChannelAutoReply(conversationId, { dryRun: true });
@@ -150,12 +176,13 @@ describe("applyChannelAutoReply", () => {
 
     expect(out.draft?.reply).toBe(`${SAFE_REPLY.reply}\n\nSevgiler,\nİsa Çınar`);
 
-    // And when actually sending, the guest receives the signed reply + the note.
+    // And when actually sending, the guest receives reply → note → signature
+    // (the disclosure sits ABOVE the host's personal sign-off, which closes it).
     const sent = await applyChannelAutoReply(conversationId);
     expect(sent.sent).toBe(true);
     expect(mockSend).toHaveBeenCalledWith(
       expect.objectContaining({ externalReservationId: "res-1" }),
-      `${SAFE_REPLY.reply}\n\nSevgiler,\nİsa Çınar\n\n${AUTO_NOTE_TR}`,
+      `${SAFE_REPLY.reply}\n\n${AUTO_NOTE_TR}\n\nSevgiler,\nİsa Çınar`,
       "test-token",
     );
   });

@@ -6,6 +6,8 @@ import type { ClassifyResult, SuggestReplyInput, SuggestReplyResult } from "./ty
 
 type Intent =
   | "complaint"
+  | "early_departure"
+  | "human_request"
   | "early_checkin"
   | "late_checkout"
   | "checkin"
@@ -25,6 +27,21 @@ const KEYWORDS: Record<Exclude<Intent, "general">, string[]> = {
     "dirty", "not working", "complaint", "rezalet", "iğrenç", "igrenc",
   ],
   refund: ["iade", "geri ödeme", "geri odeme", "refund", "para iadesi", "ücret iade"],
+  // Leaving the stay EARLY / shortening / cancelling — a revenue/refund-sensitive
+  // signal that must always route to a human (also used as an auto-send veto).
+  early_departure: [
+    "erken ayrıl", "erken ayril", "erken çık", "erken cik", "ayrılmak zorunda", "ayrilmak zorunda",
+    "ayrılmamız gerek", "ayrilmamiz gerek", "rezervasyonu kısalt", "rezervasyonu kisalt", "iptal et",
+    "iptal edebilir", "leave early", "check out early", "checking out early", "cut short", "shorten my stay",
+    "cancel my", "cancel the", "won't be staying", "wont be staying", "can't stay", "cant stay",
+  ],
+  // Guest explicitly wants a real person / the host.
+  human_request: [
+    "gerçek kişi", "gercek kisi", "gerçek bir kişi", "gercek bir kisi", "bir insanla", "insanla konuş",
+    "yetkiliyle", "temsilci", "ev sahibiyle", "ev sahibi ile", "real person", "real human",
+    "speak to a human", "talk to a human", "speak to someone", "talk to someone", "speak to the host",
+    "talk to the host",
+  ],
   early_checkin: ["erken giriş", "erken giris", "early check", "erken check", "early arrival"],
   late_checkout: ["geç çıkış", "gec cikis", "late check", "geç check", "gec check", "late departure"],
   checkin: ["giriş", "giris", "check-in", "check in", "checkin", "anahtar", "key", "nasıl gir", "nasil gir", "kapı kodu", "kapi kodu", "access"],
@@ -38,9 +55,10 @@ const KEYWORDS: Record<Exclude<Intent, "general">, string[]> = {
 
 function detectIntent(message: string): Intent {
   const m = message.toLowerCase();
-  // Order matters: complaints & refunds take precedence.
+  // Order matters: complaint / refund / early-departure (sensitive) take precedence,
+  // then an explicit human request, then the operational intents.
   const order: Exclude<Intent, "general">[] = [
-    "complaint", "refund", "early_checkin", "late_checkout",
+    "complaint", "refund", "early_departure", "human_request", "early_checkin", "late_checkout",
     "checkin", "checkout", "wifi", "parking", "location", "cleaning", "amenity",
   ];
   for (const intent of order) {
@@ -84,6 +102,10 @@ export function suggestReplyFallback(input: SuggestReplyInput): SuggestReplyResu
     detectedLanguage = "de";
   } else if (/\b(je |vous |bonjour|merci|est |les |pour )\b/.test(msgLower)) {
     detectedLanguage = "fr";
+  } else if (/[؀-ۿ]/.test(input.guestMessage)) {
+    detectedLanguage = "ar"; // Arabic script
+  } else if (/[Ѐ-ӿ]/.test(input.guestMessage)) {
+    detectedLanguage = "ru"; // Cyrillic script
   }
   // We only carry full Turkish + English phrasings; any non-Turkish guest gets
   // the (internationally understood) English fallback.
@@ -109,6 +131,17 @@ export function suggestReplyFallback(input: SuggestReplyInput): SuggestReplyResu
         ? "Talebinizi aldık. İade ve ücret konuları yöneticimiz tarafından değerlendirilecektir; en kısa sürede size dönüş yapacağız."
         : "We've received your request. Refunds and charges are reviewed by our manager, and we'll get back to you as soon as possible.";
       risk = "İade/ücret talebi. Finansal karar gerektirir, yönetici onayı şart.";
+      break;
+    case "early_departure":
+      body = isTr
+        ? "Bunu duyduğuma üzüldüm. Erken ayrılış / rezervasyon değişikliği talebinizi hemen ekibimize ilettim; platform üzerinden gerekli adımları kontrol edip en kısa sürede size dönüş yapacağız."
+        : "I'm sorry to hear that. I've passed your early-departure / booking-change request to our team right away; we'll review the necessary steps through the platform and get back to you as soon as possible.";
+      risk = "Erken ayrılma / iptal sinyali. Gelir ve iade süreci, operatör kararı gerektirir.";
+      break;
+    case "human_request":
+      body = isTr
+        ? "Tabii ki. Talebinizi ev sahibimize ilettim; en kısa sürede kendisi sizinle iletişime geçecektir."
+        : "Of course. I've passed your request to our host, who will get in touch with you as soon as possible.";
       break;
     case "early_checkin":
       body = isTr
@@ -197,6 +230,12 @@ export function suggestReplyFallback(input: SuggestReplyInput): SuggestReplyResu
   } else if (intent === "refund") {
     riskLevel = "medium";
     actionSuggestion = "Mali durumu inceleyin ve 24 saat içinde misafire dönüş yapın.";
+  } else if (intent === "early_departure") {
+    riskLevel = "medium";
+    actionSuggestion = "Platform iade/değişiklik politikasını kontrol et, takvimi güncelle, misafire dönüş yap.";
+  } else if (intent === "human_request") {
+    riskLevel = "low";
+    actionSuggestion = "Misafir bizzat ev sahibiyle görüşmek istiyor — İsa'ya ilet, kişisel dönüş yapsın.";
   } else if (intent === "early_checkin") {
     riskLevel = "low";
     actionSuggestion = "Takvimi kontrol edin; müsaitse erken giriş onaylayın.";

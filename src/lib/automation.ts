@@ -26,18 +26,30 @@ const AUTO_REPLY_MIN_CONFIDENCE = 0.7;
 const NEVER_AUTO_REPLY_INTENTS = new Set(["complaint", "refund", "early_departure"]);
 
 /** Only safe, confident drafts may be auto-sent; everything else waits for a human. */
-function passesAutoReplySafetyGate(result: {
-  intent: string;
-  riskLevel: string;
-  confidence: number;
-  source: string;
-}): boolean {
+function passesAutoReplySafetyGate(
+  result: {
+    intent: string;
+    riskLevel: string;
+    confidence: number;
+    source: string;
+  },
+  guestMessage: string,
+): boolean {
   // Never auto-send the deterministic fallback: it can't honour the language /
   // nuance rules the model follows, so if the model is unavailable we wait for a
   // human instead of sending a canned message.
   if (result.source !== "openai") return false;
   // Sensitive intents always go to a human (refund/cancellation/complaint).
   if (NEVER_AUTO_REPLY_INTENTS.has(result.intent)) return false;
+  // CROSS-CHECK the model against the deterministic keyword detector: if the
+  // guest's OWN words clearly signal a complaint, refund, or early-departure/
+  // cancellation, never auto-send — even when the model under-rated it as a
+  // benign, low-risk intent. This catches the dangerous misclassification case
+  // (an angry or money/cancellation message labelled e.g. "amenity"/"general").
+  const fb = classifyFallback(guestMessage);
+  if (fb.isComplaint || fb.intent === "refund" || fb.intent === "early_departure") {
+    return false;
+  }
   if (result.riskLevel !== "none" && result.riskLevel !== "low") return false;
   return result.confidence >= AUTO_REPLY_MIN_CONFIDENCE;
 }
@@ -534,17 +546,23 @@ export async function applyChannelAutoReply(
   // (name + contact) so guests get a personal, on-brand sign-off. Build a new
   // string — never mutate the AI result object (it may be shared / reused).
   const signature = org.aiSignature?.trim();
+  // Draft / manual "AI suggest" stays clean: the host's words + their signature.
   const replyText =
     signature && result.reply ? `${result.reply.trimEnd()}\n\n${signature}` : result.reply;
   // The GUEST-FACING body of an AUTO-send also carries a short machine-prepared
   // note in the guest's language, so a guest can account for the rare mistake. The
-  // draft/preview stays clean; the manual "AI suggest" path is the host's reviewed
-  // words and never carries it.
+  // note sits ABOVE the host's signature so the personal sign-off still closes the
+  // message (a robotic disclaimer shouldn't be the last line). Draft/preview and
+  // the manual "AI suggest" path stay clean — only the auto-send carries it.
   const note = automatedReplyNote(result.detectedLanguage);
-  const outboundBody = note ? `${replyText}\n\n${note}` : replyText;
+  const outboundParts = [result.reply.trimEnd()];
+  if (note) outboundParts.push(note);
+  if (signature) outboundParts.push(signature);
+  const outboundBody = outboundParts.join("\n\n");
 
-  // Safety gate: only auto-send safe, confident replies.
-  if (!passesAutoReplySafetyGate(result)) {
+  // Safety gate: only auto-send safe, confident replies (cross-checked against
+  // the guest's own words, so a mislabelled complaint/refund never slips through).
+  if (!passesAutoReplySafetyGate(result, last.body)) {
     return { sent: false, skippedReason: "low_confidence_or_risky", ...meta };
   }
 
