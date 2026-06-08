@@ -10,9 +10,8 @@ import { Label } from "@/components/ui/label";
 
 export function LoginForm() {
   const router = useRouter();
-  // Prefilled with the seeded demo account for quick evaluation.
-  const [email, setEmail] = useState("demo@guestops.ai");
-  const [password, setPassword] = useState("demo1234");
+  const [email, setEmail] = useState("");
+  const [password, setPassword] = useState("");
   const [code, setCode] = useState("");
   const [twoFactor, setTwoFactor] = useState(false);
   const [error, setError] = useState<string | null>(null);
