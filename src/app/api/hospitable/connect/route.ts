@@ -2,12 +2,17 @@ import { type NextRequest, NextResponse } from "next/server";
 import { requireSession, unauthorized, serverError, tooManyRequests } from "@/lib/api";
 import { rateLimit } from "@/lib/rate-limit";
 import { verifyToken, HospitableError } from "@/lib/hospitable";
+import { isSuperAdmin } from "@/lib/admin";
 import {
   setOrgHospitableToken,
   clearOrgHospitableToken,
   getConnectionInfo,
   isPrimaryOrg,
 } from "@/lib/hospitable-credentials";
+
+// OPERATOR-ONLY: the channel token is set up and managed by the super-admin
+// operator (including while impersonating a customer). Customers can never read
+// or change it — so every handler here requires super-admin.
 
 // ---------------------------------------------------------------------------
 // Connect / disconnect THIS organization's own Hospitable account (multi-tenant).
@@ -23,10 +28,11 @@ import {
 export async function POST(req: NextRequest) {
   const session = await requireSession();
   if (!session) return unauthorized();
+  if (!isSuperAdmin(session)) return unauthorized();
 
   // Each verify hits Hospitable (outbound) on user input — throttle to stop
   // quota burn / token probing. Generous for a human connecting their account.
-  const limited = rateLimit(`hosp-connect:${session.userId}`, 8, 60_000);
+  const limited = rateLimit(`hosp-connect:${session.actorUserId ?? session.userId}`, 8, 60_000);
   if (!limited.ok) return tooManyRequests(limited.retryAfter);
 
   try {
@@ -82,6 +88,7 @@ export async function POST(req: NextRequest) {
 export async function DELETE() {
   const session = await requireSession();
   if (!session) return unauthorized();
+  if (!isSuperAdmin(session)) return unauthorized();
   try {
     await clearOrgHospitableToken(session.organizationId);
     return NextResponse.json({ ok: true });
@@ -93,5 +100,6 @@ export async function DELETE() {
 export async function GET() {
   const session = await requireSession();
   if (!session) return unauthorized();
+  if (!isSuperAdmin(session)) return unauthorized();
   return NextResponse.json(await getConnectionInfo(session.organizationId));
 }

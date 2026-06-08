@@ -12,12 +12,17 @@ import { TestEmailButton } from "@/components/settings/test-email-button";
 import { AccountCard } from "@/components/settings/account-card";
 import { HospitableConnectCard } from "@/components/settings/hospitable-connect-card";
 import { getConnectionInfo } from "@/lib/hospitable-credentials";
+import { isSuperAdmin } from "@/lib/admin";
 
 export const dynamic = "force-dynamic";
 
 export default async function SettingsPage() {
   const session = await requireAuth();
-  const hospitableInfo = await getConnectionInfo(session.organizationId);
+  // Only the OPERATOR (super-admin, incl. while impersonating a customer) may see
+  // or change the channel token. Customers never touch it — the operator sets it
+  // up for them, so the field is hidden from non-operators.
+  const canManageChannel = isSuperAdmin(session);
+  const hospitableInfo = canManageChannel ? await getConnectionInfo(session.organizationId) : null;
   const [org, sampleProperty, properties] = await Promise.all([
     prisma.organization.findUnique({
       where: { id: session.organizationId },
@@ -83,14 +88,29 @@ export default async function SettingsPage() {
         </CardContent>
       </Card>
 
-      <Card className="max-w-2xl">
-        <CardHeader>
-          <CardTitle className="text-base">Hospitable Bağlantısı (Airbnb / Booking)</CardTitle>
-        </CardHeader>
-        <CardContent>
-          <HospitableConnectCard info={hospitableInfo} />
-        </CardContent>
-      </Card>
+      {canManageChannel && hospitableInfo ? (
+        <Card className="max-w-2xl">
+          <CardHeader>
+            <CardTitle className="text-base">Hospitable Bağlantısı (Airbnb / Booking)</CardTitle>
+          </CardHeader>
+          <CardContent>
+            <HospitableConnectCard info={hospitableInfo} />
+          </CardContent>
+        </Card>
+      ) : (
+        <Card className="max-w-2xl">
+          <CardHeader>
+            <CardTitle className="text-base">Kanal Bağlantısı (Airbnb / Booking)</CardTitle>
+          </CardHeader>
+          <CardContent>
+            <p className="text-sm text-muted-foreground">
+              Airbnb / Booking bağlantınız <strong>operatörünüz tarafından kurulur ve yönetilir</strong>.
+              Sizin bir şey yapmanıza gerek yok — bağlantı kurulduğunda misafir mesajlarınız otomatik
+              olarak buraya akmaya başlar.
+            </p>
+          </CardContent>
+        </Card>
+      )}
 
       {properties.length > 0 ? (
         <Card className="max-w-2xl">
