@@ -284,16 +284,29 @@ async function linkProperty(
 
   const name = str(hp.name) ?? str(hp.public_name) ?? "Hospitable mülkü";
 
-  // Adopt an existing, unlinked property with the same name (avoids duplicates).
-  const byName = await prisma.property.findFirst({
-    where: { organizationId, hospitableId: null, name },
-    select: { id: true },
-  });
+  // Adopt an existing property with the same name instead of creating a second
+  // record. This prevents duplicates when a listing's Hospitable id changes
+  // (e.g. after a reconnect): the old, now-unmatched property is re-linked to the
+  // new id rather than spawning a twin. Prefer an unlinked match, else re-link the
+  // oldest same-named one. Assumes listing names are unique within an org (true
+  // for typical hosts; two listings sharing an identical name would merge).
+  const byName =
+    (await prisma.property.findFirst({
+      where: { organizationId, hospitableId: null, name },
+      select: { id: true, hospitableId: true },
+    })) ??
+    (await prisma.property.findFirst({
+      where: { organizationId, name },
+      orderBy: { createdAt: "asc" },
+      select: { id: true, hospitableId: true },
+    }));
   if (byName) {
-    await prisma.property.update({
-      where: { id: byName.id },
-      data: { hospitableId: hp.id },
-    });
+    if (byName.hospitableId !== hp.id) {
+      await prisma.property.update({
+        where: { id: byName.id },
+        data: { hospitableId: hp.id },
+      });
+    }
     return byName.id;
   }
 
