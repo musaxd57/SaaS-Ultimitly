@@ -12,8 +12,10 @@ import {
   MessageSquareReply,
   Check,
   ArrowRight,
+  PlayCircle,
 } from "lucide-react";
 import { buttonVariants } from "@/components/ui/button";
+import { LeadForm } from "@/components/marketing/lead-form";
 import { cn } from "@/lib/utils";
 
 // Public marketing landing page (logged-out visitors). Turkish-first, sells the
@@ -126,6 +128,9 @@ export function LandingPage() {
   // (digits only, with country code, e.g. 905xxxxxxxxx). Never hardcode a
   // personal number; if unset, only the e-mail contact is shown.
   const whatsapp = process.env.NEXT_PUBLIC_WHATSAPP?.replace(/\D/g, "");
+  // Optional demo video — set NEXT_PUBLIC_DEMO_VIDEO to a YouTube/Loom EMBED URL
+  // (e.g. https://www.youtube.com/embed/XXXX). If unset, a placeholder is shown.
+  const demoVideo = process.env.NEXT_PUBLIC_DEMO_VIDEO;
 
   return (
     <div className="min-h-screen bg-background text-foreground">
@@ -150,9 +155,9 @@ export function LandingPage() {
             <Link href="/login" className={cn(buttonVariants({ variant: "ghost", size: "sm" }))}>
               Giriş Yap
             </Link>
-            <Link href="/register" className={cn(buttonVariants({ size: "sm" }))}>
+            <a href="#demo" className={cn(buttonVariants({ size: "sm" }))}>
               Ücretsiz Dene
-            </Link>
+            </a>
           </div>
         </div>
       </header>
@@ -170,14 +175,42 @@ export function LandingPage() {
           Siz uyurken bile. Kurulumu biz yaparız.
         </p>
         <div className="mt-8 flex flex-col items-center justify-center gap-3 sm:flex-row">
-          <Link href="/register" className={cn(buttonVariants({ size: "lg" }), "w-full sm:w-auto")}>
+          <a href="#demo" className={cn(buttonVariants({ size: "lg" }), "w-full sm:w-auto")}>
             14 gün ücretsiz dene <ArrowRight className="size-4" />
-          </Link>
+          </a>
           <a href="#nasil" className={cn(buttonVariants({ variant: "outline", size: "lg" }), "w-full sm:w-auto")}>
             Nasıl çalışır?
           </a>
         </div>
         <p className="mt-4 text-sm text-muted-foreground">Kredi kartı gerekmez · Kurulum ücretsiz · İstediğiniz zaman iptal</p>
+      </section>
+
+      {/* Demo video */}
+      <section className="border-t border-border bg-card/40 py-20">
+        <div className="mx-auto max-w-4xl px-4 sm:px-6">
+          <h2 className="text-center text-3xl font-bold tracking-tight">Lixus AI iş başında</h2>
+          <p className="mx-auto mt-3 max-w-xl text-center text-muted-foreground">
+            Misafir mesajı geldiğinde AI’ın nasıl anında, doğru ve sizin tonunuzla yanıtladığını görün.
+          </p>
+          <div className="mt-10 aspect-video overflow-hidden rounded-2xl border border-border bg-foreground/5 shadow-sm">
+            {demoVideo ? (
+              <iframe
+                src={demoVideo}
+                title="Lixus AI demo"
+                className="size-full"
+                allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture"
+                allowFullScreen
+              />
+            ) : (
+              <div className="flex size-full flex-col items-center justify-center gap-3 text-muted-foreground">
+                <span className="flex size-16 items-center justify-center rounded-full bg-primary text-primary-foreground">
+                  <PlayCircle className="size-8" />
+                </span>
+                <p className="text-sm font-medium">Demo videosu çok yakında</p>
+              </div>
+            )}
+          </div>
+        </div>
       </section>
 
       {/* How it works */}
@@ -257,12 +290,12 @@ export function LandingPage() {
                     </li>
                   ))}
                 </ul>
-                <Link
-                  href="/register"
+                <a
+                  href="#demo"
                   className={cn(buttonVariants({ variant: t.highlight ? "default" : "outline" }), "mt-6 w-full")}
                 >
                   Başla
-                </Link>
+                </a>
               </div>
             ))}
           </div>
@@ -284,19 +317,16 @@ export function LandingPage() {
         </div>
       </section>
 
-      {/* Final CTA */}
-      <section className="border-t border-border bg-primary py-16 text-primary-foreground">
-        <div className="mx-auto max-w-3xl px-4 text-center sm:px-6">
-          <h2 className="text-3xl font-bold tracking-tight">Misafir mesajlarıyla uğraşmayı bırakın</h2>
-          <p className="mx-auto mt-3 max-w-xl text-primary-foreground/80">
-            Lixus AI sizin yerinize, sizin tonunuzla yanıtlasın. 14 gün ücretsiz deneyin, farkı görün.
+      {/* Final CTA + lead form */}
+      <section id="demo" className="scroll-mt-20 border-t border-border bg-primary py-16 text-primary-foreground">
+        <div className="mx-auto max-w-xl px-4 sm:px-6">
+          <h2 className="text-center text-3xl font-bold tracking-tight">Ücretsiz demo isteyin</h2>
+          <p className="mx-auto mt-3 max-w-md text-center text-primary-foreground/80">
+            Bilgilerinizi bırakın, size dönüp kurulumu birlikte yapalım. 14 gün ücretsiz, taahhüt yok.
           </p>
-          <Link
-            href="/register"
-            className={cn(buttonVariants({ variant: "secondary", size: "lg" }), "mt-8")}
-          >
-            Hemen ücretsiz başla <ArrowRight className="size-4" />
-          </Link>
+          <div className="mt-8">
+            <LeadForm />
+          </div>
         </div>
       </section>
 

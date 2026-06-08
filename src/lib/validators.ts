@@ -10,6 +10,15 @@ import {
   REPLY_TONE,
 } from "@/lib/constants";
 
+// --- Marketing lead (public "request a demo" form) -------------------------
+export const leadSchema = z.object({
+  name: z.string().min(2, "Adınızı girin").max(120),
+  email: z.string().email("Geçerli bir e-posta girin"),
+  phone: z.string().max(40).optional().or(z.literal("")),
+  message: z.string().max(1000).optional().or(z.literal("")),
+});
+export type LeadInput = z.infer<typeof leadSchema>;
+
 // --- Auth -------------------------------------------------------------------
 export const registerSchema = z.object({
   organizationName: z.string().min(2, "İşletme adı en az 2 karakter olmalı"),

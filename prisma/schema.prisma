@@ -27,6 +27,20 @@ model SystemLock {
   updatedAt   DateTime @updatedAt
 }
 
+// Public "request a demo / free trial" leads captured from the marketing landing
+// page (no account yet). The operator reviews these in the Operator Panel.
+model Lead {
+  id        String   @id @default(cuid())
+  name      String
+  email     String
+  phone     String?
+  message   String?
+  handled   Boolean  @default(false)
+  createdAt DateTime @default(now())
+
+  @@index([createdAt])
+}
+
 model Organization {
   id        String   @id @default(cuid())
   name      String

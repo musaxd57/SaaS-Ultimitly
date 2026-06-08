@@ -14,16 +14,19 @@ export default async function AdminPage() {
   // SUPER-ADMIN ONLY. Anyone else is sent back to their dashboard.
   if (!isSuperAdmin(session)) redirect("/dashboard");
 
-  const orgs = await prisma.organization.findMany({
-    orderBy: { createdAt: "asc" },
-    select: {
-      id: true,
-      name: true,
-      createdAt: true,
-      hospitableTokenEnc: true,
-      _count: { select: { properties: true, users: true } },
-    },
-  });
+  const [orgs, leads] = await Promise.all([
+    prisma.organization.findMany({
+      orderBy: { createdAt: "asc" },
+      select: {
+        id: true,
+        name: true,
+        createdAt: true,
+        hospitableTokenEnc: true,
+        _count: { select: { properties: true, users: true } },
+      },
+    }),
+    prisma.lead.findMany({ orderBy: { createdAt: "desc" }, take: 50 }),
+  ]);
 
   // Primary org (allowed to use the shared env token) = PRIMARY_ORG_ID, or the
   // oldest org — which is the first row since we ordered by createdAt asc.
@@ -95,6 +98,44 @@ export default async function AdminPage() {
               </tbody>
             </table>
           </div>
+        </CardContent>
+      </Card>
+
+      <Card>
+        <CardHeader>
+          <CardTitle className="text-base">Demo Talepleri ({leads.length})</CardTitle>
+        </CardHeader>
+        <CardContent className="p-0">
+          {leads.length === 0 ? (
+            <p className="px-4 py-6 text-sm text-muted-foreground">Henüz demo talebi yok.</p>
+          ) : (
+            <div className="overflow-x-auto">
+              <table className="w-full text-sm">
+                <thead>
+                  <tr className="border-b text-left text-xs uppercase text-muted-foreground">
+                    <th className="px-4 py-2 font-medium">İsim</th>
+                    <th className="px-4 py-2 font-medium">E-posta</th>
+                    <th className="px-4 py-2 font-medium">Telefon</th>
+                    <th className="px-4 py-2 font-medium">Mesaj</th>
+                    <th className="px-4 py-2 font-medium">Tarih</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {leads.map((l) => (
+                    <tr key={l.id} className="border-b last:border-0 align-top">
+                      <td className="px-4 py-3 font-medium">{l.name}</td>
+                      <td className="px-4 py-3">
+                        <a href={`mailto:${l.email}`} className="text-primary hover:underline">{l.email}</a>
+                      </td>
+                      <td className="px-4 py-3 text-muted-foreground">{l.phone ?? "—"}</td>
+                      <td className="px-4 py-3 max-w-xs text-muted-foreground">{l.message ?? "—"}</td>
+                      <td className="px-4 py-3 whitespace-nowrap text-muted-foreground">{dateFmt.format(l.createdAt)}</td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+          )}
         </CardContent>
       </Card>
 
