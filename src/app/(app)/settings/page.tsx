@@ -10,6 +10,7 @@ import { AutoReplyToggle } from "@/components/inbox/auto-reply-toggle";
 import { AiTestCard } from "@/components/settings/ai-test-card";
 import { TestEmailButton } from "@/components/settings/test-email-button";
 import { AccountCard } from "@/components/settings/account-card";
+import { TwoFactorCard } from "@/components/settings/two-factor-card";
 import { HospitableConnectCard } from "@/components/settings/hospitable-connect-card";
 import { getConnectionInfo } from "@/lib/hospitable-credentials";
 import { isSuperAdmin } from "@/lib/admin";
@@ -23,6 +24,10 @@ export default async function SettingsPage() {
   // up for them, so the field is hidden from non-operators.
   const canManageChannel = isSuperAdmin(session);
   const hospitableInfo = canManageChannel ? await getConnectionInfo(session.organizationId) : null;
+  const me = await prisma.user.findUnique({
+    where: { id: session.userId },
+    select: { twoFactorEnabledAt: true },
+  });
   const [org, sampleProperty, properties] = await Promise.all([
     prisma.organization.findUnique({
       where: { id: session.organizationId },
@@ -85,6 +90,15 @@ export default async function SettingsPage() {
         </CardHeader>
         <CardContent>
           <AccountCard email={session.email} />
+        </CardContent>
+      </Card>
+
+      <Card className="max-w-2xl">
+        <CardHeader>
+          <CardTitle className="text-base">İki Adımlı Giriş (2FA)</CardTitle>
+        </CardHeader>
+        <CardContent>
+          <TwoFactorCard initialEnabled={Boolean(me?.twoFactorEnabledAt)} />
         </CardContent>
       </Card>
 

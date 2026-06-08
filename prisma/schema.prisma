@@ -74,6 +74,11 @@ model User {
   email          String   @unique
   passwordHash   String
   role           String   @default("owner") // owner | manager | staff
+  // Two-factor auth (TOTP / authenticator app). Secret stored ENCRYPTED (see
+  // lib/crypto). 2FA is ACTIVE only once twoFactorEnabledAt is set (after the
+  // user confirms a first code), so a half-finished setup never locks anyone out.
+  twoFactorSecret    String?
+  twoFactorEnabledAt DateTime?
   createdAt      DateTime @default(now())
   updatedAt      DateTime @updatedAt
 

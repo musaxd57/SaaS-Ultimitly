@@ -13,6 +13,8 @@ export function LoginForm() {
   // Prefilled with the seeded demo account for quick evaluation.
   const [email, setEmail] = useState("demo@guestops.ai");
   const [password, setPassword] = useState("demo1234");
+  const [code, setCode] = useState("");
+  const [twoFactor, setTwoFactor] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [loading, setLoading] = useState(false);
 
@@ -24,9 +26,16 @@ export function LoginForm() {
       const res = await fetch("/api/auth/login", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ email, password }),
+        body: JSON.stringify({ email, password, ...(twoFactor ? { code } : {}) }),
       });
       const data = await res.json().catch(() => ({}));
+
+      // Account has 2FA: password accepted, now prompt for the 6-digit code.
+      if (data?.twoFactorRequired) {
+        setTwoFactor(true);
+        setError(res.ok ? null : (data.error ?? "Doğrulama kodu hatalı"));
+        return;
+      }
       if (!res.ok) {
         setError(data.error ?? "Giriş başarısız oldu");
         return;
@@ -69,9 +78,27 @@ export function LoginForm() {
           required
         />
       </div>
+      {twoFactor ? (
+        <div className="space-y-2">
+          <Label htmlFor="code">Doğrulama kodu</Label>
+          <Input
+            id="code"
+            inputMode="numeric"
+            autoComplete="one-time-code"
+            placeholder="Authenticator uygulamasındaki 6 haneli kod"
+            value={code}
+            onChange={(e) => setCode(e.target.value)}
+            autoFocus
+            required
+          />
+          <p className="text-xs text-muted-foreground">
+            Telefonundaki Authenticator uygulamasını aç ve Lixus AI kodunu gir.
+          </p>
+        </div>
+      ) : null}
       <Button type="submit" className="w-full" disabled={loading}>
         {loading ? <Loader2 className="size-4 animate-spin" /> : null}
-        Giriş Yap
+        {twoFactor ? "Doğrula ve Gir" : "Giriş Yap"}
       </Button>
       <p className="text-center text-sm text-muted-foreground">
         Hesabınız yok mu?{" "}

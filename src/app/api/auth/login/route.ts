@@ -5,6 +5,8 @@ import { verifyPassword } from "@/lib/auth/password";
 import { setSessionCookie } from "@/lib/auth";
 import { badRequest, jsonOk, serverError } from "@/lib/api";
 import { rateLimit, clientIp } from "@/lib/rate-limit";
+import { decryptSecret } from "@/lib/crypto";
+import { verifyTotp } from "@/lib/auth/totp";
 import type { UserRole } from "@/lib/constants";
 
 export async function POST(req: NextRequest) {
@@ -28,6 +30,25 @@ export async function POST(req: NextRequest) {
     const ok = user ? await verifyPassword(parsed.data.password, user.passwordHash) : false;
     if (!user || !ok) {
       return NextResponse.json({ error: "E-posta veya şifre hatalı" }, { status: 401 });
+    }
+
+    // Second factor (authenticator app), when enabled for this account. The
+    // password is correct at this point; we still withhold the session until a
+    // valid 6-digit code is supplied. The password is re-sent with the code, so
+    // no server-side pending state is needed.
+    if (user.twoFactorEnabledAt) {
+      const code = parsed.data.code?.trim() ?? "";
+      if (!code) {
+        // Tell the client to prompt for the code (no session issued yet).
+        return jsonOk({ twoFactorRequired: true });
+      }
+      const secret = user.twoFactorSecret ? decryptSecret(user.twoFactorSecret) : null;
+      if (!secret || !verifyTotp(secret, code)) {
+        return NextResponse.json(
+          { error: "Doğrulama kodu hatalı", twoFactorRequired: true },
+          { status: 401 },
+        );
+      }
     }
 
     await setSessionCookie({

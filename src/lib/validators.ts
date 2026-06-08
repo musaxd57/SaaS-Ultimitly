@@ -22,6 +22,8 @@ export type RegisterInput = z.infer<typeof registerSchema>;
 export const loginSchema = z.object({
   email: z.string().email("Geçerli bir e-posta girin"),
   password: z.string().min(1, "Şifre gerekli"),
+  // Optional TOTP code, supplied on the second step when the account has 2FA on.
+  code: z.string().optional(),
 });
 export type LoginInput = z.infer<typeof loginSchema>;
 
