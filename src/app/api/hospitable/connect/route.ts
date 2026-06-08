@@ -6,6 +6,7 @@ import {
   setOrgHospitableToken,
   clearOrgHospitableToken,
   getConnectionInfo,
+  isPrimaryOrg,
 } from "@/lib/hospitable-credentials";
 
 // ---------------------------------------------------------------------------
@@ -33,6 +34,16 @@ export async function POST(req: NextRequest) {
 
     // Claim the deployment's env token onto this org (primary-org migration).
     if (data?.claimEnv === true) {
+      // SECURITY: only the PRIMARY org may claim the shared env token. Without
+      // this, any customer org could POST {claimEnv:true} and steal the founder's
+      // Hospitable credentials (cross-tenant leak). The UI hides the button for
+      // non-primary orgs, but the API must enforce it too.
+      if (!(await isPrimaryOrg(session.organizationId))) {
+        return NextResponse.json(
+          { ok: false, error: "Bu işlem yalnızca ana hesap için geçerli." },
+          { status: 403 },
+        );
+      }
       const envToken = process.env.HOSPITABLE_API_TOKEN;
       if (!envToken) {
         return NextResponse.json({ ok: false, error: "Ortamda Hospitable token yok." }, { status: 400 });

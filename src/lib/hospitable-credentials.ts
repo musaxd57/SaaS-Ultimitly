@@ -37,6 +37,11 @@ export function resetPrimaryOrgCache(): void {
   primaryOrgIdCache = undefined;
 }
 
+/** True only for the org allowed to use the global env token (the founder's). */
+export async function isPrimaryOrg(orgId: string): Promise<boolean> {
+  return (await primaryOrgId()) === orgId;
+}
+
 /**
  * The Hospitable Personal Access Token to use for an organization, or null when
  * the org has no usable connection. Callers MUST treat null as "not connected"
@@ -84,7 +89,19 @@ export async function getConnectionInfo(orgId: string): Promise<HospitableConnec
     where: { id: orgId },
     select: { hospitableTokenEnc: true, hospitableLabel: true, hospitableConnectedAt: true },
   });
-  const ownToken = Boolean(org?.hospitableTokenEnc);
+  // A stored token only counts as "connected" if it still DECRYPTS. After a key
+  // rotation it won't — and getOrgHospitableToken treats it as disconnected — so
+  // the UI must agree (otherwise it shows "connected" while sync/send silently
+  // no-op, with no prompt to reconnect).
+  let ownToken = false;
+  if (org?.hospitableTokenEnc) {
+    try {
+      decryptSecret(org.hospitableTokenEnc);
+      ownToken = true;
+    } catch {
+      ownToken = false;
+    }
+  }
   const isPrimary = (await primaryOrgId()) === orgId;
   const envAvailable = Boolean(process.env.HOSPITABLE_API_TOKEN) && isPrimary;
   return {
