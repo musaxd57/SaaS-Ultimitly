@@ -104,13 +104,26 @@ export function HospitableConnectCard({ info }: { info: HospitableConnectionInfo
         </div>
       )}
 
-      {/* LOCKED VIEW — connected and not editing: token is hidden & uneditable. */}
+      {/* LOCKED VIEW — connected and not editing: the field is VISIBLE but locked
+          (greyed, unclickable) and shows masked dots; the real token is never
+          loaded into the browser. "Değiştir" unlocks it to enter a new one. */}
       {info.connected && !editing ? (
         <div className="space-y-3">
-          <p className="inline-flex items-center gap-2 text-sm text-muted-foreground">
-            <Lock className="size-4 shrink-0" />
-            Token şifreli saklanıyor ve <strong className="mx-1 text-foreground">görüntülenemez</strong>.
-            Değiştirmen gerekirse yeni bir token bağla.
+          <Field label="Hospitable Personal Access Token" htmlFor="hosp-locked">
+            <div className="relative">
+              <Input
+                id="hosp-locked"
+                type="text"
+                value={"•".repeat(28)}
+                disabled
+                readOnly
+                className="cursor-not-allowed bg-muted/50 pr-9 tracking-widest"
+              />
+              <Lock className="pointer-events-none absolute right-3 top-1/2 size-4 -translate-y-1/2 text-muted-foreground" />
+            </div>
+          </Field>
+          <p className="text-xs text-muted-foreground">
+            🔒 Bağlı ve kilitli. Token güvende saklanıyor ve görüntülenemez. Değiştirmek için aç.
           </p>
           <div className="flex flex-wrap gap-2">
             <Button type="button" variant="outline" disabled={busy !== null} onClick={() => { setEditing(true); setError(null); setDone(null); }}>
