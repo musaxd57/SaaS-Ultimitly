@@ -10,7 +10,16 @@ import { Field } from "@/components/form-field";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { REPLY_TONE } from "@/lib/constants";
 
-export function AiVoiceForm({ tone, signature }: { tone: string; signature: string }) {
+export function AiVoiceForm({
+  tone,
+  signature,
+  name,
+}: {
+  tone: string;
+  signature: string;
+  /** Logged-in account's name — used only as the signature placeholder example. */
+  name?: string;
+}) {
   const router = useRouter();
   const [, startTransition] = useTransition();
   const [aiReplyTone, setTone] = useState(tone);
@@ -76,7 +85,7 @@ export function AiVoiceForm({ tone, signature }: { tone: string; signature: stri
               rows={4}
               value={aiSignature}
               onChange={(e) => setSignature(e.target.value)}
-              placeholder={"Örn:\nSevgiler,\nİsa Çınar\n📞 +90 5XX XXX XX XX"}
+              placeholder={`Örn:\nSevgiler,\n${name?.trim() || "Ali Yılmaz"}\n📞 +90 5XX XXX XX XX`}
             />
             <p className="mt-1 text-xs text-muted-foreground">
               Boş bırakırsan imza eklenmez. İletişim numaranı buraya koyabilirsin — her dairede aynı kalır.

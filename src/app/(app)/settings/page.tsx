@@ -158,7 +158,7 @@ export default async function SettingsPage() {
         </CardContent>
       </Card>
 
-      <AiVoiceForm tone={org?.aiReplyTone ?? "warm"} signature={org?.aiSignature ?? ""} />
+      <AiVoiceForm tone={org?.aiReplyTone ?? "warm"} signature={org?.aiSignature ?? ""} name={session.name} />
 
       <BulkTimesForm
         defaultCheckIn={sampleProperty?.checkInTime ?? "14:00"}
