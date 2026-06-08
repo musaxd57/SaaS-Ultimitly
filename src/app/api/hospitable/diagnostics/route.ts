@@ -1,4 +1,5 @@
 import { NextResponse } from "next/server";
+import { prisma } from "@/lib/db";
 import { requireSession, unauthorized } from "@/lib/api";
 import { listProperties, listReservations, listMessages } from "@/lib/hospitable";
 import { getOrgHospitableToken } from "@/lib/hospitable-credentials";
@@ -55,6 +56,30 @@ export async function GET() {
     out.duplicateNames = [...nameCounts.entries()]
       .filter(([, c]) => c > 1)
       .map(([name, count]) => ({ name, count }));
+
+    // ORPHANS: our DB properties whose hospitableId is NO LONGER returned by
+    // Hospitable (e.g. a listing whose id changed → a stale duplicate left
+    // behind). These are the records that are safe to delete. Read-only.
+    const liveIds = new Set(properties.map((p) => p.id));
+    const dbProps = await prisma.property.findMany({
+      where: { organizationId: session.organizationId },
+      select: {
+        id: true,
+        name: true,
+        hospitableId: true,
+        _count: { select: { reservations: true, conversations: true } },
+      },
+    });
+    out.dbPropertiesCount = dbProps.length;
+    out.orphans = dbProps
+      .filter((p) => p.hospitableId !== null && !liveIds.has(p.hospitableId))
+      .map((p) => ({
+        sil_bunu_lixusId: p.id,
+        name: p.name,
+        hospitableId: p.hospitableId,
+        reservations: p._count.reservations,
+        conversations: p._count.conversations,
+      }));
 
     const reservations = await listReservations({ propertyIds }, token);
 
