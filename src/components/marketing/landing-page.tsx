@@ -122,6 +122,11 @@ const FAQS = [
 ];
 
 export function LandingPage() {
+  // Optional WhatsApp contact — set NEXT_PUBLIC_WHATSAPP to a BUSINESS number
+  // (digits only, with country code, e.g. 905xxxxxxxxx). Never hardcode a
+  // personal number; if unset, only the e-mail contact is shown.
+  const whatsapp = process.env.NEXT_PUBLIC_WHATSAPP?.replace(/\D/g, "");
+
   return (
     <div className="min-h-screen bg-background text-foreground">
       {/* Nav */}
@@ -309,6 +314,16 @@ export function LandingPage() {
           </p>
           <div className="flex items-center gap-4 text-sm text-muted-foreground">
             <Link href="/login" className="hover:text-foreground">Giriş</Link>
+            {whatsapp ? (
+              <a
+                href={`https://wa.me/${whatsapp}`}
+                target="_blank"
+                rel="noopener noreferrer"
+                className="hover:text-foreground"
+              >
+                WhatsApp
+              </a>
+            ) : null}
             <a href="mailto:iletisim@lixusai.com" className="hover:text-foreground">İletişim</a>
           </div>
         </div>

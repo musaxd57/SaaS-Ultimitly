@@ -11,9 +11,12 @@ import {
   ListChecks,
   Users,
 } from "lucide-react";
+import { Plug } from "lucide-react";
 import { requireAuth } from "@/lib/auth";
 import { prisma } from "@/lib/db";
 import { getOpsStats, buildDailySummary } from "@/lib/reports";
+import { getConnectionInfo } from "@/lib/hospitable-credentials";
+import { OnboardingGuide, type OnboardingStep } from "@/components/onboarding-guide";
 import { PageHeader } from "@/components/page-header";
 import { StatCard } from "@/components/stat-card";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
@@ -32,7 +35,7 @@ export default async function DashboardPage() {
   // UTC day — otherwise arrivals/departures can land on the wrong date.
   const org = await prisma.organization.findUnique({
     where: { id: orgId },
-    select: { timezone: true },
+    select: { timezone: true, aiSignature: true },
   });
   const { start: dayStart, end: dayEnd } = zonedDayRange(now, org?.timezone ?? "Europe/Istanbul");
   const scope = { property: { organizationId: orgId } };
@@ -89,6 +92,48 @@ export default async function DashboardPage() {
   ]);
   const stayingCount = stayingRows.length;
 
+  // "Başlarken" onboarding: compute setup progress. The card only renders until
+  // every step is done, then disappears for established accounts.
+  const [connection, conversationCount] = await Promise.all([
+    getConnectionInfo(orgId),
+    prisma.conversation.count({ where: scope }),
+  ]);
+  const onboardingSteps: OnboardingStep[] = [
+    {
+      done: connection.connected,
+      title: "Airbnb / Booking bağlantısını kur",
+      desc: "Ayarlar'dan Hospitable token'ını bağla (ya da operatörün senin için bağlasın).",
+      href: "/settings",
+      cta: "Bağlantıyı kur",
+      icon: Plug,
+    },
+    {
+      done: stats.totalProperties > 0,
+      title: "Dairelerin hazır olsun",
+      desc: "Bağlantı kurulunca daireleriniz otomatik gelir; birkaç dakika sürebilir.",
+      href: "/properties",
+      cta: "Daireleri gör",
+      icon: BedDouble,
+    },
+    {
+      done: Boolean(org?.aiSignature?.trim()),
+      title: "AI sesini ve imzanı ayarla",
+      desc: "AI'ın tonunu seç ve mesaj imzanı ekle — misafire senin üslubunla yazsın.",
+      href: "/settings",
+      cta: "Ayarla",
+      icon: Sparkles,
+    },
+    {
+      done: conversationCount > 0,
+      title: "Gelen kutusunu keşfet",
+      desc: "Her misafir mesajına AI hazır bir cevap önerir — tek tıkla gönder ya da düzenle.",
+      href: "/inbox",
+      cta: "Gelen kutusu",
+      icon: MessageSquare,
+    },
+  ];
+  const onboardingDone = onboardingSteps.every((s) => s.done);
+
   // Sort today's tasks urgent-first, then by due time.
   const priorityRank: Record<string, number> = { urgent: 0, standard: 1, low: 2 };
   const sortedTasksToday = [...tasksToday].sort(
@@ -113,6 +158,8 @@ export default async function DashboardPage() {
         })}
       />
 
+      {/* Getting-started guide — only until the account is fully set up. */}
+      {!onboardingDone ? <OnboardingGuide steps={onboardingSteps} /> : null}
 
       {/* AI daily summary */}
       <Card className="border-primary/20 bg-accent/40">
