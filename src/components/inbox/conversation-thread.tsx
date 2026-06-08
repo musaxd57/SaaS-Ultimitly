@@ -94,6 +94,9 @@ export function ConversationThread({ conversationId, messages, status, priority,
 
   const refresh = () => startTransition(() => router.refresh());
 
+  // The guest spoke last and is waiting — the moment to nudge "let AI answer".
+  const awaitingReply = messages[messages.length - 1]?.direction === "inbound";
+
   async function handleSuggest() {
     setSuggestLoading(true);
     setSuggestion(null);
@@ -317,6 +320,23 @@ export function ConversationThread({ conversationId, messages, status, priority,
 
       {/* AI suggestion */}
       <div className="space-y-3 p-4">
+        {/* Nudge: when the guest is waiting and no draft yet, invite one-click AI. */}
+        {awaitingReply && !suggestion && !suggestLoading ? (
+          <div className="flex items-center gap-3 rounded-lg border border-primary/30 bg-accent/40 p-3">
+            <span className="flex size-8 shrink-0 items-center justify-center rounded-lg bg-primary text-primary-foreground">
+              <Sparkles className="size-4" />
+            </span>
+            <p className="flex-1 text-sm">
+              <span className="font-medium">Misafir cevap bekliyor.</span>{" "}
+              <span className="text-muted-foreground">
+                AI saniyede sizin tonunuzla bir cevap hazırlasın — onaylayın ya da düzenleyin.
+              </span>
+            </p>
+            <Button onClick={handleSuggest} disabled={suggestLoading} size="sm" className="shrink-0">
+              <Sparkles className="size-4" /> AI ile cevapla
+            </Button>
+          </div>
+        ) : null}
         <div className="flex flex-wrap items-center gap-2">
           <Button onClick={handleSuggest} disabled={suggestLoading} size="sm">
             {suggestLoading ? (
