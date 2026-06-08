@@ -15,7 +15,7 @@ const SECTIONS: Section[] = [
   {
     title: "1. Veri Sorumlusu",
     body: [
-      "Bu metin, Lixus AI hizmetini sunan [İşletme ünvanınız] (“Lixus AI”, “biz”) tarafından, 6698 sayılı Kişisel Verilerin Korunması Kanunu (“KVKK”) kapsamında veri sorumlusu sıfatıyla hazırlanmıştır. İletişim: iletisim@lixusai.com.",
+      "Bu metin, Lixus AI (“biz”) tarafından, 6698 sayılı Kişisel Verilerin Korunması Kanunu (“KVKK”) kapsamında veri sorumlusu sıfatıyla hazırlanmıştır. İletişim: iletisimlixusai@gmail.com.",
     ],
   },
   {
@@ -80,7 +80,7 @@ const SECTIONS: Section[] = [
   {
     title: "10. İletişim",
     body: [
-      "Haklarınızı kullanmak veya gizlilikle ilgili sorularınız için iletisim@lixusai.com adresinden bize ulaşabilirsiniz. Talebinize en kısa sürede ve mevzuatta öngörülen süreler içinde yanıt veririz.",
+      "Haklarınızı kullanmak veya gizlilikle ilgili sorularınız için iletisimlixusai@gmail.com adresinden bize ulaşabilirsiniz. Talebinize en kısa sürede ve mevzuatta öngörülen süreler içinde yanıt veririz.",
     ],
   },
 ];

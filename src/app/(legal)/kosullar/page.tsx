@@ -68,7 +68,7 @@ const SECTIONS: Section[] = [
   {
     title: "10. İletişim",
     body: [
-      "Sorularınız için iletisim@lixusai.com adresinden bize ulaşabilirsiniz.",
+      "Sorularınız için iletisimlixusai@gmail.com adresinden bize ulaşabilirsiniz.",
     ],
   },
 ];

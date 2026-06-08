@@ -380,7 +380,7 @@ export function LandingPage() {
                 WhatsApp
               </a>
             ) : null}
-            <a href="mailto:iletisim@lixusai.com" className="hover:text-foreground">İletişim</a>
+            <a href="mailto:iletisimlixusai@gmail.com" className="hover:text-foreground">İletişim</a>
           </div>
         </div>
       </footer>
