@@ -14,6 +14,7 @@ export function LoginForm() {
   const [password, setPassword] = useState("");
   const [code, setCode] = useState("");
   const [twoFactor, setTwoFactor] = useState(false);
+  const [rememberDevice, setRememberDevice] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [loading, setLoading] = useState(false);
 
@@ -25,7 +26,7 @@ export function LoginForm() {
       const res = await fetch("/api/auth/login", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ email, password, ...(twoFactor ? { code } : {}) }),
+        body: JSON.stringify({ email, password, ...(twoFactor ? { code, rememberDevice } : {}) }),
       });
       const data = await res.json().catch(() => ({}));
 
@@ -93,6 +94,15 @@ export function LoginForm() {
           <p className="text-xs text-muted-foreground">
             Telefonundaki Authenticator uygulamasını aç ve Lixus AI kodunu gir.
           </p>
+          <label className="flex items-center gap-2 text-sm text-muted-foreground">
+            <input
+              type="checkbox"
+              checked={rememberDevice}
+              onChange={(e) => setRememberDevice(e.target.checked)}
+              className="size-4 rounded border-input"
+            />
+            Bu cihazı 30 gün hatırla — tekrar kod sorma
+          </label>
         </div>
       ) : null}
       <Button type="submit" className="w-full" disabled={loading}>

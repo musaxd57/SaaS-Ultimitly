@@ -33,6 +33,8 @@ export const loginSchema = z.object({
   password: z.string().min(1, "Şifre gerekli"),
   // Optional TOTP code, supplied on the second step when the account has 2FA on.
   code: z.string().optional(),
+  // "Bu cihazı 30 gün hatırla": skip the 2FA code on this device for 30 days.
+  rememberDevice: z.boolean().optional(),
 });
 export type LoginInput = z.infer<typeof loginSchema>;
 
