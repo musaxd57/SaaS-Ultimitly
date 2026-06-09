@@ -26,7 +26,10 @@ export async function writeAudit(entry: {
         metadataJson: entry.metadata ? JSON.stringify(entry.metadata) : null,
       },
     });
-  } catch {
-    // Intentionally ignored — never let an audit write affect the real action.
+  } catch (err) {
+    // Never let an audit write affect the real action — but do leave a breadcrumb
+    // in the server logs (and Sentry, which captures console.error) so a silently
+    // dropped audit trail is at least visible to operators.
+    console.error("[audit] dropped entry", entry.action, err);
   }
 }

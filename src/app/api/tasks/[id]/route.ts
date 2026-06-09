@@ -32,6 +32,19 @@ export async function PATCH(req: NextRequest, { params }: Params) {
     if (!parsed.success) return badRequest(zodFieldErrors(parsed.error));
     const d = parsed.data;
 
+    // Staff may only progress a task (status / note / photo). Re-assigning,
+    // renaming, re-prioritising or rescheduling is an owner/manager action.
+    if (
+      !canManage(session) &&
+      (d.assignedToId !== undefined ||
+        d.title !== undefined ||
+        d.description !== undefined ||
+        d.priority !== undefined ||
+        d.dueAt !== undefined)
+    ) {
+      return forbidden("Personel yalnızca görev durumunu güncelleyebilir.");
+    }
+
     let newAssignee: { id: string; name: string; email: string } | null = null;
     if (d.assignedToId) {
       const member = await prisma.user.findFirst({

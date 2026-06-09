@@ -13,7 +13,7 @@ import {
 // --- Marketing lead (public "request a demo" form) -------------------------
 export const leadSchema = z.object({
   name: z.string().min(2, "Adınızı girin").max(120),
-  email: z.string().email("Geçerli bir e-posta girin"),
+  email: z.string().email("Geçerli bir e-posta girin").max(254),
   phone: z.string().max(40).optional().or(z.literal("")),
   message: z.string().max(1000).optional().or(z.literal("")),
 });
@@ -75,7 +75,7 @@ export type ReservationInput = z.infer<typeof reservationSchema>;
 
 export const reservationUpdateSchema = z.object({
   status: z.enum(RESERVATION_STATUS.values).optional(),
-  notes: z.string().optional(),
+  notes: z.string().max(5000).optional(),
 });
 
 // --- Conversation / Messages ------------------------------------------------
@@ -119,10 +119,10 @@ export type TaskInput = z.infer<typeof taskSchema>;
 export const taskUpdateSchema = z.object({
   status: z.enum(TASK_STATUS.values).optional(),
   assignedToId: z.string().optional(),
-  note: z.string().optional(),
-  photoUrl: z.string().optional(),
-  title: z.string().optional(),
-  description: z.string().optional(),
+  note: z.string().max(5000).optional(),
+  photoUrl: z.string().max(2000).optional(),
+  title: z.string().max(300).optional(),
+  description: z.string().max(5000).optional(),
   priority: z.enum(PRIORITY.values).optional(),
   dueAt: z.coerce.date().optional(),
 });
