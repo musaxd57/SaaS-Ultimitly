@@ -79,11 +79,14 @@ izolasyon, auth, AI güvenlik kapısı, KVKK export, billing-dormant hepsi iyi).
 - ✅ Benzersiz mülk ismi (app-level, org bazlı, case-insensitive, trim). RİSKLİ
   `linkProperty` SYNC'ine DOKUNULMADI; manuel create/rename'de aynı-isim reddi.
   (Kullanıcının "serdarı ekrem 1" kopya sorununa kalıcı çözüm.)
-- ⏭️ **KALAN — iCal kanal yapısal fix (HIGH):** lifecycle göndericiler iCal
-  rezervasyonunu Hospitable'a yönlendiriyor. Kanal güvenilir ayraç DEĞİL (iCal
-  feed'i de airbnb/booking etiketlenebilir) → Hospitable reservation id'sini AYRI
-  bir alanda tutmak gerek. Mesaj-yolu = en hassas; aceleye getirme, dedike adımda
-  yap. Bugün misafire zarar yok (iCal UID Hospitable'da geçersiz → sessizce fail).
+- ✅ iCal kanal filtresi (GÜVENLİ kısım) — lifecycle göndericiler + önizlemeler
+  `channel: { notIn: ["ics","manual"] }` ile iCal/manuel rezervasyonu atlar.
+  `toChannel` asla bu ikisini üretmez → gerçek Hospitable mesajı ASLA bozulmaz.
+  2 agent (danışman + doğrulama) onayladı.
+  ⏭️ KALAN (opsiyonel, ZARARSIZ): CalendarSource ile "airbnb" etiketli iCal feed'i
+  hâlâ filtreden geçiyor; tam kapatmak için yapısal `hospitableReservationId` alanı
+  gerek (migration + backfill — mesaj-yoluna dokunur, dikkatli/dedike adım). Bugün
+  zararsız (iCal UID Hospitable'da geçersiz → gönderim sessizce fail).
 - **Hafıza/persist:** önemli kararlar repoya yazılır (CLAUDE.md + ROADMAP.md) —
   bu, ephemeral web ortamında claude-mem gibi yerel araçlardan daha güvenilir.
 
