@@ -27,6 +27,7 @@ export function TaskBoard({ tasks }: { tasks: TaskCardData[] }) {
   const [busyId, setBusyId] = useState<string | null>(null);
   const [uploadingId, setUploadingId] = useState<string | null>(null);
   const [noteMap, setNoteMap] = useState<Record<string, string>>({});
+  const [noteError, setNoteError] = useState<Record<string, string>>({});
   const [, startTransition] = useTransition();
   const fileInputRefs = useRef<Record<string, HTMLInputElement | null>>({});
 
@@ -74,13 +75,23 @@ export function TaskBoard({ tasks }: { tasks: TaskCardData[] }) {
   async function handleNoteBlur(id: string) {
     const note = noteMap[id];
     if (!note?.trim()) return;
-    await fetch(`/api/tasks/${id}`, {
-      method: "PATCH",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ note }),
-    });
-    setNoteMap((prev) => ({ ...prev, [id]: "" }));
-    startTransition(() => router.refresh());
+    setNoteError((prev) => ({ ...prev, [id]: "" }));
+    try {
+      const res = await fetch(`/api/tasks/${id}`, {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ note }),
+      });
+      if (!res.ok) {
+        // Keep the typed note so it isn't lost; tell the user it didn't save.
+        setNoteError((prev) => ({ ...prev, [id]: "Not kaydedilemedi, tekrar deneyin." }));
+        return;
+      }
+      setNoteMap((prev) => ({ ...prev, [id]: "" }));
+      startTransition(() => router.refresh());
+    } catch {
+      setNoteError((prev) => ({ ...prev, [id]: "Bağlantı hatası, not kaydedilemedi." }));
+    }
   }
 
   return (
@@ -168,6 +179,9 @@ export function TaskBoard({ tasks }: { tasks: TaskCardData[] }) {
                         "mt-2 w-full resize-none rounded border border-border bg-muted/30 px-2 py-1.5 text-xs placeholder:text-muted-foreground/60 focus:outline-none focus:ring-1 focus:ring-ring",
                       )}
                     />
+                    {noteError[t.id] ? (
+                      <p className="mt-1 text-xs text-destructive">{noteError[t.id]}</p>
+                    ) : null}
 
                     {/* Photo upload */}
                     <div className="mt-2 flex items-center gap-2">
