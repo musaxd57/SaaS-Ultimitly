@@ -53,6 +53,20 @@ export async function POST(req: NextRequest) {
       if (!member) return badRequest({ assignedToId: "Geçersiz personel" });
     }
 
+    // The reservation must belong to the SAME org AND the same property — never
+    // trust a client-supplied reservationId (cross-tenant reference otherwise).
+    if (d.reservationId) {
+      const reservation = await prisma.reservation.findFirst({
+        where: {
+          id: d.reservationId,
+          propertyId: d.propertyId,
+          property: { organizationId: session.organizationId },
+        },
+        select: { id: true },
+      });
+      if (!reservation) return badRequest({ reservationId: "Geçersiz rezervasyon" });
+    }
+
     const task = await prisma.task.create({
       data: {
         propertyId: d.propertyId,
