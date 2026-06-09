@@ -29,8 +29,8 @@ const KEYWORDS: Record<Exclude<Intent, "general">, string[]> = {
     // to avoid English false matches (e.g. "sale"). Catches a foreign-language
     // complaint even if the model mislabels it.
     "funktioniert nicht", "kaputt", "schmutzig", "dreckig", "beschwerde", "schimmel",
-    "ne fonctionne pas", "cassé", "problème", "plainte", "fuite",
-    "no funciona", "roto", "sucio", "queja", "non funziona", "rotto", "sporco",
+    "ne fonctionne pas", "cassé", "problème", "porter plainte", "fuite",
+    "no funciona", "está roto", "está rota", "sucio", "queja", "non funziona", "rotto", "sporco",
     "لا يعمل", "معطل", "متسخ", "مشكلة", "شكوى",
     "не работает", "сломан", "грязно", "проблема", "жалоба",
   ],

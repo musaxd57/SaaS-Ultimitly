@@ -63,6 +63,11 @@ describe("classifyFallback", () => {
     expect(classifyFallback("Ich möchte eine Rückerstattung").intent).toBe("refund"); // DE
     expect(classifyFallback("Je veux annuler ma réservation").intent).toBe("early_departure"); // FR cancel
   });
+
+  it("does not over-block benign English words (no false complaint match)", () => {
+    // "prototype"/"protocol" must NOT trip the (removed) "roto" substring.
+    expect(classifyFallback("Is this a prototype apartment? Nice protocol.").intent).not.toBe("complaint");
+  });
 });
 
 describe("suggestReplyFallback", () => {
