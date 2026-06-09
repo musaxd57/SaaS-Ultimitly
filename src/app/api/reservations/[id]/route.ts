@@ -8,6 +8,8 @@ import {
   jsonOk,
   notFound,
   serverError,
+  canManage,
+  forbidden,
 } from "@/lib/api";
 
 type Params = { params: Promise<{ id: string }> };
@@ -22,6 +24,7 @@ async function findScoped(id: string, orgId: string) {
 export async function PATCH(req: NextRequest, { params }: Params) {
   const session = await requireSession();
   if (!session) return unauthorized();
+  if (!canManage(session)) return forbidden();
   const { id } = await params;
   try {
     if (!(await findScoped(id, session.organizationId))) return notFound();
@@ -42,6 +45,7 @@ export async function PATCH(req: NextRequest, { params }: Params) {
 export async function DELETE(_req: NextRequest, { params }: Params) {
   const session = await requireSession();
   if (!session) return unauthorized();
+  if (!canManage(session)) return forbidden();
   const { id } = await params;
   const result = await prisma.reservation.deleteMany({
     where: { id, property: { organizationId: session.organizationId } },

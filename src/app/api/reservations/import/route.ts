@@ -1,6 +1,6 @@
 import { type NextRequest } from "next/server";
 import { prisma } from "@/lib/db";
-import { requireSession, unauthorized, badRequest, jsonOk, serverError } from "@/lib/api";
+import { requireSession, unauthorized, badRequest, jsonOk, serverError, canManage, forbidden } from "@/lib/api";
 import { parseIcs } from "@/lib/import/ics";
 import { parseCsv } from "@/lib/import/csv";
 import { createReservationTasks } from "@/lib/automation";
@@ -8,6 +8,7 @@ import { createReservationTasks } from "@/lib/automation";
 export async function POST(req: NextRequest) {
   const session = await requireSession();
   if (!session) return unauthorized();
+  if (!canManage(session)) return forbidden();
 
   try {
     const formData = await req.formData();

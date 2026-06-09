@@ -1,6 +1,6 @@
 import { type NextRequest } from "next/server";
 import { prisma } from "@/lib/db";
-import { requireSession, unauthorized, notFound, jsonOk, serverError } from "@/lib/api";
+import { requireSession, unauthorized, notFound, jsonOk, serverError, canManage, forbidden } from "@/lib/api";
 
 export async function DELETE(
   _req: NextRequest,
@@ -8,6 +8,7 @@ export async function DELETE(
 ) {
   const session = await requireSession();
   if (!session) return unauthorized();
+  if (!canManage(session)) return forbidden();
 
   try {
     const { id } = await params;

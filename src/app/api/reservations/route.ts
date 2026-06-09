@@ -8,6 +8,8 @@ import {
   jsonOk,
   serverError,
   propertyInOrg,
+  canManage,
+  forbidden,
 } from "@/lib/api";
 import { applyReservationCreatedRules } from "@/lib/automation";
 
@@ -33,6 +35,7 @@ export async function GET(req: NextRequest) {
 export async function POST(req: NextRequest) {
   const session = await requireSession();
   if (!session) return unauthorized();
+  if (!canManage(session)) return forbidden();
   try {
     const data = await req.json().catch(() => null);
     const parsed = reservationSchema.safeParse(data);
