@@ -87,6 +87,22 @@ izolasyon, auth, AI güvenlik kapısı, KVKK export, billing-dormant hepsi iyi).
   hâlâ filtreden geçiyor; tam kapatmak için yapısal `hospitableReservationId` alanı
   gerek (migration + backfill — mesaj-yoluna dokunur, dikkatli/dedike adım). Bugün
   zararsız (iCal UID Hospitable'da geçersiz → gönderim sessizce fail).
+
+## 10-Agent Tam Tarama (2026-06-09) — 3 frontend + 7 backend
+Tüm kod didik didik tarandı. KRİTİK / "sistem bozuk" bulgu YOK. Doğrulanan sağlamlar:
+tenant izolasyonu, AI güvenlik kapısı, KVKK export, billing dormant, crypto/TOTP/2FA,
+XSS yokluğu, prompt-injection direnci, landing iddiaları, per-org token izolasyonu.
+**Uygulanan düzeltmeler:**
+- E-posta bildirimlerinde HTML injection → `esc()` ile kaçışlama (misafir mesajı/ismi)
+- Hesap-bazlı giriş limiti (20/15dk) + login `decryptSecret` fail-soft
+- Impersonation owner-seçimi (string-asc "manager"ı öne alıyordu) + `customer.create` audit
+- `calendar-sources/[id]/sync` staff geçidi + login `?next=` açık-yönlendirme guard
+**Ertelenenler (dikkat/migration/karar gerek):**
+- XFF `clientIp` (platform-bağlı; hesap-limiti ile etkili azaltıldı), CSRF (geniş),
+  session revocation, validator `.max/.trim` (escaping zaten exploit'i kapattı),
+  N+1 perf, sync kilit fencing-token + `@@unique` (önce prod dedup), iCal yapısal alan.
+**Launch öncesi (billing açılmadan gereksiz):** landing↔plans.ts fiyat eşitleme,
+Mesafeli Satış Sözleşmesi + Ön Bilgilendirme Formu (yasal), Iyzico imza sandbox testi.
 - **Hafıza/persist:** önemli kararlar repoya yazılır (CLAUDE.md + ROADMAP.md) —
   bu, ephemeral web ortamında claude-mem gibi yerel araçlardan daha güvenilir.
 
