@@ -100,8 +100,8 @@ export function MessagePreviewButton({
               ) : null}
               {previews
                 ?.filter((p) => p.hasEntry)
-                .map((p, i) => (
-                  <div key={i} className="rounded-lg border border-border p-3">
+                .map((p) => (
+                  <div key={`${p.property}|${p.guest}`} className="rounded-lg border border-border p-3">
                     <div className="flex flex-wrap items-center gap-2">
                       <span className="text-sm font-medium">{p.guest}</span>
                       <Badge tone="muted">{p.property}</Badge>

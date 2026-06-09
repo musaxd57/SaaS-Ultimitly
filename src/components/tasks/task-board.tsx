@@ -33,20 +33,30 @@ export function TaskBoard({ tasks }: { tasks: TaskCardData[] }) {
 
   async function setStatus(id: string, status: string) {
     setBusyId(id);
-    await fetch(`/api/tasks/${id}`, {
+    const res = await fetch(`/api/tasks/${id}`, {
       method: "PATCH",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({ status }),
     });
     setBusyId(null);
+    if (!res.ok) {
+      // The Select is controlled by the server prop, so it snaps back on its own;
+      // tell the user why the change didn't stick.
+      window.alert(res.status === 403 ? "Bu işlem için yetkiniz yok." : "Görev durumu güncellenemedi.");
+      return;
+    }
     startTransition(() => router.refresh());
   }
 
   async function remove(id: string) {
     if (!window.confirm("Bu görevi silmek istediğinize emin misiniz?")) return;
     setBusyId(id);
-    await fetch(`/api/tasks/${id}`, { method: "DELETE" });
+    const res = await fetch(`/api/tasks/${id}`, { method: "DELETE" });
     setBusyId(null);
+    if (!res.ok) {
+      window.alert(res.status === 403 ? "Görev silme yetkiniz yok (yalnızca yönetici)." : "Görev silinemedi.");
+      return;
+    }
     startTransition(() => router.refresh());
   }
 
@@ -58,13 +68,21 @@ export function TaskBoard({ tasks }: { tasks: TaskCardData[] }) {
       const fd = new FormData();
       fd.append("file", file);
       const uploadRes = await fetch("/api/upload", { method: "POST", body: fd });
-      if (!uploadRes.ok) return;
+      if (!uploadRes.ok) {
+        window.alert("Fotoğraf yüklenemedi.");
+        return;
+      }
       const { url } = await uploadRes.json();
-      await fetch(`/api/tasks/${id}`, {
+      const patchRes = await fetch(`/api/tasks/${id}`, {
         method: "PATCH",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ photoUrl: url }),
       });
+      if (!patchRes.ok) {
+        // The image uploaded but didn't attach — say so instead of failing silently.
+        window.alert("Fotoğraf kaydedilemedi, tekrar deneyin.");
+        return;
+      }
       startTransition(() => router.refresh());
     } finally {
       setUploadingId(null);

@@ -101,8 +101,8 @@ export function AutoReplyTestButton() {
                       <p className="flex items-center gap-1.5 text-xs font-semibold text-emerald-600">
                         <Check className="size-3.5" /> AI bunları otomatik gönderir ({willSend.length})
                       </p>
-                      {willSend.map((p, i) => (
-                        <div key={i} className="rounded-lg border border-emerald-200 bg-emerald-50/50 p-3">
+                      {willSend.map((p) => (
+                        <div key={`${p.propertyName}|${p.guestIdentifier}`} className="rounded-lg border border-emerald-200 bg-emerald-50/50 p-3">
                           <div className="mb-1 flex items-center gap-2 text-xs text-muted-foreground">
                             <span className="font-medium text-foreground">{p.guestIdentifier}</span>
                             {p.propertyName ? <span>· {p.propertyName}</span> : null}
@@ -121,8 +121,8 @@ export function AutoReplyTestButton() {
                       <p className="flex items-center gap-1.5 text-xs font-semibold text-amber-600">
                         <Clock className="size-3.5" /> Bunlar size bırakılır ({willWait.length})
                       </p>
-                      {willWait.map((p, i) => (
-                        <div key={i} className="rounded-lg border border-border bg-muted/30 p-3">
+                      {willWait.map((p) => (
+                        <div key={`${p.propertyName}|${p.guestIdentifier}`} className="rounded-lg border border-border bg-muted/30 p-3">
                           <div className="flex items-center gap-2 text-xs text-muted-foreground">
                             <span className="font-medium text-foreground">{p.guestIdentifier}</span>
                             {p.propertyName ? <span>· {p.propertyName}</span> : null}
