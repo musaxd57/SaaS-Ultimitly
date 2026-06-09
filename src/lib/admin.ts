@@ -2,6 +2,7 @@ import "server-only";
 
 import { prisma } from "@/lib/db";
 import { setSessionCookie, getSession, type SessionPayload } from "@/lib/auth";
+import { writeAudit } from "@/lib/audit";
 import type { UserRole } from "@/lib/constants";
 
 // ---------------------------------------------------------------------------
@@ -83,6 +84,13 @@ export async function enterOrganization(
     actorEmail: actor,
     actorName,
   });
+  // Leave a trace: an operator just gained access to this customer's guest PII.
+  await writeAudit({
+    organizationId: target.id,
+    actorUserId,
+    action: "impersonate.enter",
+    metadata: { operatorEmail: actor, operatorName: actorName, assumedUserId: owner.id },
+  });
   return true;
 }
 
@@ -99,6 +107,12 @@ export async function exitImpersonation(): Promise<boolean> {
     select: { id: true, organizationId: true, role: true, email: true, name: true },
   });
   if (!actor) return false;
+  await writeAudit({
+    organizationId: current.organizationId,
+    actorUserId: current.actorUserId,
+    action: "impersonate.exit",
+    metadata: { operatorEmail: current.actorEmail ?? actor.email, restoredToOrg: actor.organizationId },
+  });
   await setSessionCookie({
     userId: actor.id,
     organizationId: actor.organizationId,

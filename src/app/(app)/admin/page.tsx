@@ -14,7 +14,7 @@ export default async function AdminPage() {
   // SUPER-ADMIN ONLY. Anyone else is sent back to their dashboard.
   if (!isSuperAdmin(session)) redirect("/dashboard");
 
-  const [orgs, leads] = await Promise.all([
+  const [orgs, leads, auditLogs] = await Promise.all([
     prisma.organization.findMany({
       orderBy: { createdAt: "asc" },
       select: {
@@ -26,6 +26,18 @@ export default async function AdminPage() {
       },
     }),
     prisma.lead.findMany({ orderBy: { createdAt: "desc" }, take: 50 }),
+    prisma.auditLog.findMany({
+      orderBy: { createdAt: "desc" },
+      take: 50,
+      select: {
+        id: true,
+        action: true,
+        createdAt: true,
+        metadataJson: true,
+        actor: { select: { email: true } },
+        organization: { select: { name: true } },
+      },
+    }),
   ]);
 
   // Primary org (allowed to use the shared env token) = PRIMARY_ORG_ID, or the
@@ -145,6 +157,51 @@ export default async function AdminPage() {
         </CardHeader>
         <CardContent>
           <AddCustomerForm />
+        </CardContent>
+      </Card>
+
+      <Card>
+        <CardHeader>
+          <CardTitle className="text-base">Denetim Kayıtları (son 50 işlem)</CardTitle>
+        </CardHeader>
+        <CardContent className="p-0">
+          {auditLogs.length === 0 ? (
+            <p className="px-4 py-6 text-sm text-muted-foreground">Henüz kayıt yok.</p>
+          ) : (
+            <div className="overflow-x-auto">
+              <table className="w-full text-sm">
+                <thead>
+                  <tr className="border-b text-left text-xs uppercase text-muted-foreground">
+                    <th className="px-4 py-2 font-medium">İşlem</th>
+                    <th className="px-4 py-2 font-medium">Yapan (operatör)</th>
+                    <th className="px-4 py-2 font-medium">İşletme</th>
+                    <th className="px-4 py-2 font-medium">Tarih</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {auditLogs.map((log) => (
+                    <tr key={log.id} className="border-b last:border-0">
+                      <td className="px-4 py-2.5 font-medium">{log.action}</td>
+                      <td className="px-4 py-2.5 text-muted-foreground">
+                        {(() => {
+                          try {
+                            const m = log.metadataJson ? JSON.parse(log.metadataJson) : null;
+                            return m?.operatorEmail ?? log.actor?.email ?? "—";
+                          } catch {
+                            return log.actor?.email ?? "—";
+                          }
+                        })()}
+                      </td>
+                      <td className="px-4 py-2.5 text-muted-foreground">{log.organization?.name ?? "—"}</td>
+                      <td className="px-4 py-2.5 whitespace-nowrap text-muted-foreground">
+                        {dateFmt.format(log.createdAt)} {log.createdAt.toLocaleTimeString("tr-TR", { hour: "2-digit", minute: "2-digit", timeZone: "Europe/Istanbul" })}
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+          )}
         </CardContent>
       </Card>
     </>
