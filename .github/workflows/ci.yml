@@ -1,0 +1,36 @@
+name: CI
+
+on:
+  push:
+    branches: ["claude/great-edison-3zqpZ", "main"]
+  pull_request:
+
+# Note: this CI is independent of the Railway deploy ("Wait for CI" is off), so a
+# red run never blocks production — it just surfaces regressions early.
+jobs:
+  verify:
+    runs-on: ubuntu-latest
+    # Debian container runs as root, which the integration test global-setup
+    # needs (it provisions its own PostgreSQL on :5433 via `su postgres`).
+    container:
+      image: node:20-bookworm
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Install PostgreSQL (for the integration test harness)
+        run: |
+          apt-get update
+          apt-get install -y --no-install-recommends postgresql postgresql-contrib sudo
+          rm -rf /var/lib/apt/lists/*
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Generate Prisma client
+        run: npx prisma generate
+
+      - name: Type-check
+        run: npm run typecheck
+
+      - name: Tests
+        run: npm test
