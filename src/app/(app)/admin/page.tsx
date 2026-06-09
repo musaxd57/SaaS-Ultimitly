@@ -102,7 +102,16 @@ export default async function AdminPage() {
                       </td>
                       <td className="px-4 py-3 text-muted-foreground">{dateFmt.format(org.createdAt)}</td>
                       <td className="px-4 py-3 text-right">
-                        {isSelf ? null : <ImpersonateButton organizationId={org.id} orgName={org.name} />}
+                        <div className="flex items-center justify-end gap-2">
+                          <a
+                            href={`/api/admin/export?orgId=${org.id}`}
+                            className="text-xs font-medium text-muted-foreground hover:text-foreground hover:underline"
+                            title="KVKK veri dışa aktarımı (JSON)"
+                          >
+                            Veri indir
+                          </a>
+                          {isSelf ? null : <ImpersonateButton organizationId={org.id} orgName={org.name} />}
+                        </div>
                       </td>
                     </tr>
                   );
