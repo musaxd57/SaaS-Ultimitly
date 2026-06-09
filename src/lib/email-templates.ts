@@ -322,7 +322,7 @@ export function reservationCreatedEmail(
                 ? `<tr><td colspan="2" style="padding-top:12px;">
                     <p style="margin:0 0 2px;color:#94a3b8;font-size:11px;font-weight:600;text-transform:uppercase;">TUTAR</p>
                     <p style="margin:0;color:#0f172a;font-size:14px;font-weight:600;">
-                      ${reservation.totalAmount.toLocaleString("tr-TR", { minimumFractionDigits: 2 })} ${reservation.currency ?? "EUR"}
+                      ${reservation.totalAmount.toLocaleString("tr-TR", { minimumFractionDigits: 2 })} ${esc(reservation.currency ?? "EUR")}
                     </p>
                   </td></tr>`
                 : ""

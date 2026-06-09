@@ -1,6 +1,7 @@
 import { type NextRequest } from "next/server";
 import { prisma } from "@/lib/db";
-import { requireSession, unauthorized, badRequest, jsonOk, serverError } from "@/lib/api";
+import { requireSession, unauthorized, badRequest, jsonOk, serverError, tooManyRequests } from "@/lib/api";
+import { rateLimit } from "@/lib/rate-limit";
 import { encryptSecret, decryptSecret } from "@/lib/crypto";
 import { generateSecret, otpauthUri, verifyTotp, verifyTotpStep } from "@/lib/auth/totp";
 
@@ -27,6 +28,9 @@ export async function GET() {
 export async function POST(req: NextRequest) {
   const session = await requireSession();
   if (!session) return unauthorized();
+  // Throttle 2FA management (enable/disable code attempts) — anti code brute-force.
+  const limited = rateLimit(`2fa:${session.userId}`, 10, 10 * 60_000);
+  if (!limited.ok) return tooManyRequests(limited.retryAfter);
   try {
     const data = await req.json().catch(() => null);
     const action = typeof data?.action === "string" ? data.action : "";
@@ -66,8 +70,18 @@ export async function POST(req: NextRequest) {
       // Require a valid current code to switch it off (so a hijacked session
       // without the authenticator can't quietly disable 2FA).
       if (user?.twoFactorEnabledAt && user.twoFactorSecret) {
-        const secret = decryptSecret(user.twoFactorSecret);
-        if (!verifyTotp(secret, code)) return badRequest({ code: "Kapatmak için geçerli bir kod girin." });
+        // Fail-soft: if the secret can't be decrypted (e.g. ENCRYPTION_KEY rotated),
+        // allow disable to proceed so the user isn't permanently locked out;
+        // otherwise require a valid current code.
+        let secret: string | null = null;
+        try {
+          secret = decryptSecret(user.twoFactorSecret);
+        } catch {
+          secret = null;
+        }
+        if (secret && !verifyTotp(secret, code)) {
+          return badRequest({ code: "Kapatmak için geçerli bir kod girin." });
+        }
       }
       await prisma.user.update({
         where: { id: session.userId },

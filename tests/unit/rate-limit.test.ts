@@ -29,9 +29,12 @@ describe("rateLimit", () => {
 });
 
 describe("clientIp", () => {
-  it("prefers the first x-forwarded-for entry", () => {
+  it("uses the rightmost (trusted-proxy) x-forwarded-for hop, not the spoofable leftmost", () => {
+    // "1.2.3.4" is client-supplied (spoofable); "5.6.7.8" is appended by the proxy.
     const req = new Request("http://x", { headers: { "x-forwarded-for": "1.2.3.4, 5.6.7.8" } });
-    expect(clientIp(req)).toBe("1.2.3.4");
+    expect(clientIp(req)).toBe("5.6.7.8");
+    // A single value still works.
+    expect(clientIp(new Request("http://x", { headers: { "x-forwarded-for": "9.9.9.9" } }))).toBe("9.9.9.9");
   });
 
   it("falls back to x-real-ip then 'unknown'", () => {

@@ -37,7 +37,12 @@ export function rateLimit(
 /** Best-effort client IP from common proxy headers (Railway/Vercel set these). */
 export function clientIp(req: Request): string {
   const xff = req.headers.get("x-forwarded-for");
-  if (xff) return xff.split(",")[0]!.trim();
+  if (xff) {
+    // Trust the RIGHTMOST hop (appended by the platform proxy, e.g. Railway), not
+    // the leftmost which is client-supplied and trivially spoofable.
+    const parts = xff.split(",").map((s) => s.trim()).filter(Boolean);
+    if (parts.length) return parts[parts.length - 1]!;
+  }
   return req.headers.get("x-real-ip") ?? "unknown";
 }
 
