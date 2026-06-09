@@ -63,7 +63,7 @@ export async function PATCH(req: NextRequest, { params }: Params) {
     const property = await prisma.property.update({
       where: { id },
       data: {
-        name: d.name,
+        name: d.name?.trim(),
         address: d.address === "" ? null : d.address,
         city: d.city === "" ? null : d.city,
         country: d.country === "" ? null : d.country,
