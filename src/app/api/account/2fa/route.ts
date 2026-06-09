@@ -2,7 +2,7 @@ import { type NextRequest } from "next/server";
 import { prisma } from "@/lib/db";
 import { requireSession, unauthorized, badRequest, jsonOk, serverError } from "@/lib/api";
 import { encryptSecret, decryptSecret } from "@/lib/crypto";
-import { generateSecret, otpauthUri, verifyTotp } from "@/lib/auth/totp";
+import { generateSecret, otpauthUri, verifyTotp, verifyTotpStep } from "@/lib/auth/totp";
 
 // ---------------------------------------------------------------------------
 // Two-factor auth (authenticator app) management for the signed-in user.
@@ -48,10 +48,12 @@ export async function POST(req: NextRequest) {
       });
       if (!user?.twoFactorSecret) return badRequest({ _: "Önce kurulum başlatın." });
       const secret = decryptSecret(user.twoFactorSecret);
-      if (!verifyTotp(secret, code)) return badRequest({ code: "Kod hatalı veya süresi geçmiş." });
+      const step = verifyTotpStep(secret, code);
+      if (step === null) return badRequest({ code: "Kod hatalı veya süresi geçmiş." });
       await prisma.user.update({
         where: { id: session.userId },
-        data: { twoFactorEnabledAt: new Date() },
+        // Record the step so the enabling code can't be replayed at login.
+        data: { twoFactorEnabledAt: new Date(), twoFactorLastStep: step },
       });
       return jsonOk({ ok: true, enabled: true });
     }
@@ -69,7 +71,7 @@ export async function POST(req: NextRequest) {
       }
       await prisma.user.update({
         where: { id: session.userId },
-        data: { twoFactorSecret: null, twoFactorEnabledAt: null },
+        data: { twoFactorSecret: null, twoFactorEnabledAt: null, twoFactorLastStep: null },
       });
       return jsonOk({ ok: true, enabled: false });
     }

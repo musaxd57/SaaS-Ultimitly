@@ -67,14 +67,28 @@ export function totp(secretB32: string, atMs: number = Date.now()): string {
  * steps (clock skew / a code typed just after it rolled). Default ±1 = ~90s.
  */
 export function verifyTotp(secretB32: string, token: string, window = 1, atMs: number = Date.now()): boolean {
+  return verifyTotpStep(secretB32, token, window, atMs) !== null;
+}
+
+/**
+ * Like {@link verifyTotp} but returns the matched time-step (counter) so the
+ * caller can record it and reject reuse of the same code (replay protection).
+ * Returns null when the code is invalid.
+ */
+export function verifyTotpStep(
+  secretB32: string,
+  token: string,
+  window = 1,
+  atMs: number = Date.now(),
+): number | null {
   const clean = token.replace(/\D/g, "");
-  if (clean.length !== DIGITS) return false;
+  if (clean.length !== DIGITS) return null;
   const secret = base32Decode(secretB32);
   const counter = Math.floor(atMs / 1000 / PERIOD);
   for (let i = -window; i <= window; i++) {
-    if (hotp(secret, counter + i) === clean) return true;
+    if (hotp(secret, counter + i) === clean) return counter + i;
   }
-  return false;
+  return null;
 }
 
 /** A fresh random base32 secret (160 bits) for a new enrollment. */

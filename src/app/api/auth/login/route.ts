@@ -6,7 +6,7 @@ import { setSessionCookie, hasTrustedDevice, setTrustedDeviceCookie } from "@/li
 import { badRequest, jsonOk, serverError } from "@/lib/api";
 import { rateLimit, clientIp } from "@/lib/rate-limit";
 import { decryptSecret } from "@/lib/crypto";
-import { verifyTotp } from "@/lib/auth/totp";
+import { verifyTotpStep } from "@/lib/auth/totp";
 import type { UserRole } from "@/lib/constants";
 
 export async function POST(req: NextRequest) {
@@ -51,12 +51,19 @@ export async function POST(req: NextRequest) {
           return jsonOk({ twoFactorRequired: true });
         }
         const secret = user.twoFactorSecret ? decryptSecret(user.twoFactorSecret) : null;
-        if (!secret || !verifyTotp(secret, code)) {
+        const step = secret ? verifyTotpStep(secret, code) : null;
+        // Reject a wrong code OR a code already used (replay within its window).
+        if (step === null || (user.twoFactorLastStep != null && step <= user.twoFactorLastStep)) {
           return NextResponse.json(
             { error: "Doğrulama kodu hatalı", twoFactorRequired: true },
             { status: 401 },
           );
         }
+        // Burn this step so the same code cannot be replayed.
+        await prisma.user.update({
+          where: { id: user.id },
+          data: { twoFactorLastStep: step },
+        });
       }
     }
 

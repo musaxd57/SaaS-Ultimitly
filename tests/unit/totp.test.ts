@@ -3,6 +3,7 @@ import {
   hotp,
   totp,
   verifyTotp,
+  verifyTotpStep,
   generateSecret,
   base32Encode,
   base32Decode,
@@ -59,5 +60,18 @@ describe("TOTP / HOTP", () => {
     const now = Date.now();
     const code = totp(secret, now);
     expect(verifyTotp(secret, ` ${code.slice(0, 3)} ${code.slice(3)} `, 1, now)).toBe(true);
+  });
+
+  it("verifyTotpStep returns the matched step (for replay protection) or null", () => {
+    const secret = generateSecret();
+    const now = Date.now();
+    const step = Math.floor(now / 1000 / 30);
+    const code = totp(secret, now);
+    // A valid code resolves to its time-step; a caller burns steps <= lastStep.
+    expect(verifyTotpStep(secret, code, 1, now)).toBe(step);
+    expect(verifyTotpStep(secret, "000000", 1, now)).toBeNull();
+    // The previous window's code resolves to the earlier (smaller) step.
+    const prev = totp(secret, now - 30_000);
+    expect(verifyTotpStep(secret, prev, 1, now)).toBe(step - 1);
   });
 });

@@ -103,6 +103,8 @@ model User {
   // user confirms a first code), so a half-finished setup never locks anyone out.
   twoFactorSecret    String?
   twoFactorEnabledAt DateTime?
+  // Last accepted TOTP time-step — rejects replay of an already-used code.
+  twoFactorLastStep  Int?
   createdAt      DateTime @default(now())
   updatedAt      DateTime @updatedAt
 
