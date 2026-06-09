@@ -37,10 +37,13 @@ export async function POST(req: NextRequest) {
     // valid 6-digit code is supplied — UNLESS this is a remembered ("trusted")
     // device, in which case the code is skipped for 30 days. The password is
     // re-sent with the code, so no server-side pending state is needed.
+    // The trusted-device cookie is bound to this epoch, so resetting 2FA
+    // (disable→re-enable) invalidates every previously-remembered device.
+    const twoFaEpoch = user.twoFactorEnabledAt ? user.twoFactorEnabledAt.getTime() : 0;
     let trustedDevice = false;
     if (user.twoFactorEnabledAt) {
       // Fail-closed: any error reading the trusted-device cookie → ask for 2FA.
-      trustedDevice = await hasTrustedDevice(user.id);
+      trustedDevice = await hasTrustedDevice(user.id, twoFaEpoch);
       if (!trustedDevice) {
         const code = parsed.data.code?.trim() ?? "";
         if (!code) {
@@ -70,7 +73,7 @@ export async function POST(req: NextRequest) {
     // Never fatal: a failure here must not undo the successful login.
     if (user.twoFactorEnabledAt && (parsed.data.rememberDevice || trustedDevice)) {
       try {
-        await setTrustedDeviceCookie(user.id);
+        await setTrustedDeviceCookie(user.id, twoFaEpoch);
       } catch {
         // ignore — the login already succeeded.
       }

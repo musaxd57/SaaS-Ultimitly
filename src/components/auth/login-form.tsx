@@ -14,7 +14,9 @@ export function LoginForm() {
   const [password, setPassword] = useState("");
   const [code, setCode] = useState("");
   const [twoFactor, setTwoFactor] = useState(false);
-  const [rememberDevice, setRememberDevice] = useState(true);
+  // Default OFF: a deliberate opt-in, so a shared/front-desk computer never
+  // silently keeps a 30-day 2FA-skip cookie.
+  const [rememberDevice, setRememberDevice] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [loading, setLoading] = useState(false);
 

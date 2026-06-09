@@ -14,6 +14,11 @@ export const TRUSTED_DEVICE_COOKIE = "guestops_trusted_device";
 export const TRUSTED_DEVICE_MAX_AGE = 60 * 60 * 24 * 30; // 30 days (seconds)
 const PURPOSE = "trusted_device";
 
+// The token is bound to a 2FA "epoch" (the user's twoFactorEnabledAt time). When
+// 2FA is disabled and re-enabled — e.g. after a suspected compromise — the epoch
+// changes and every previously-issued trusted cookie stops matching, forcing the
+// new 2FA. So "remember 30 days" never outlives a deliberate 2FA reset.
+
 function getSecretKey(): Uint8Array {
   const secret = process.env.AUTH_SECRET;
   if (!secret || secret.length < 16) {
@@ -22,24 +27,29 @@ function getSecretKey(): Uint8Array {
   return new TextEncoder().encode(secret);
 }
 
-/** Sign a trusted-device token bound to a single user. */
-export async function signTrustedDeviceToken(userId: string): Promise<string> {
-  return new SignJWT({ userId, purpose: PURPOSE })
+/** Sign a trusted-device token bound to a single user + their 2FA epoch. */
+export async function signTrustedDeviceToken(userId: string, epoch: number): Promise<string> {
+  return new SignJWT({ userId, purpose: PURPOSE, epoch })
     .setProtectedHeader({ alg: "HS256" })
     .setIssuedAt()
     .setExpirationTime(`${TRUSTED_DEVICE_MAX_AGE}s`)
     .sign(getSecretKey());
 }
 
-/** True only if the token is valid, unexpired, our purpose, AND for THIS user. */
+/** True only if valid, unexpired, our purpose, for THIS user AND this 2FA epoch. */
 export async function verifyTrustedDeviceToken(
   token: string | undefined,
   userId: string,
+  epoch: number,
 ): Promise<boolean> {
   if (!token) return false;
   try {
     const { payload } = await jwtVerify(token, getSecretKey());
-    return payload.purpose === PURPOSE && payload.userId === userId;
+    return (
+      payload.purpose === PURPOSE &&
+      payload.userId === userId &&
+      payload.epoch === epoch
+    );
   } catch {
     return false; // fail-closed
   }
