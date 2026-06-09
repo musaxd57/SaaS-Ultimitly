@@ -106,6 +106,36 @@ Mesafeli Satış Sözleşmesi + Ön Bilgilendirme Formu (yasal), Iyzico imza san
 - **Hafıza/persist:** önemli kararlar repoya yazılır (CLAUDE.md + ROADMAP.md) —
   bu, ephemeral web ortamında claude-mem gibi yerel araçlardan daha güvenilir.
 
+## Round-3: konuşma↔rezervasyon bağı + 10-agent re-tarama (2026-06-09)
+**Yeni özellik (kullanıcı onaylı):** senkron Hospitable konuşmaları artık yerel
+Reservation satırına bağlanıyor (`conversation.reservationId`), katı eşleşme
+`(propertyId + Hospitable reservation id)`. Create'te set, "unchanged" sync'te bile
+backfill — ama ASLA mevcut/insan-bağını ezmez. Etki: AI doğru misafir-adı/tarih
+bağlamı alır; iptal/çıkışı-geçmiş rezervasyonda oto-yanıt atlanır (sadece daha
+temkinli; gönderim hedefi hep `externalReservationId`, `reservationId` DEĞİL → yanlış
+misafire gitme imkânsız). Testli (create + backfill + iptal/geçmiş/bugün gate'i).
+**10 agent (3 FE + 7 BE) tekrar taradı → 9 SOUND, 1 gerçek bug bulundu+düzeltildi:**
+- 🔴 **2FA setup-bypass** (FE-3): `setup` aksiyonu `twoFactorEnabledAt:null` yazıyordu →
+  aktif hesapta çağrılınca 2FA'yı KODSUZ kapatıyordu. Düzeltildi: aktifken setup reddedilir
+  (önce disable—geçerli kod ister). Disable guard'ı da `twoFactorEnabledAt` tek başına.
+- iyzico webhook (dormant): `?secret=` query kaldırıldı + `timingSafeEqual`.
+- email `reservation.channel` fallback `esc()`; tüm string validator cap'leri tamamlandı.
+- task-board hata yüzeyleme (status/sil/foto sessizdi); stable list key'ler.
+- previewCheckouts iCal/manual filtresi; getMonthlyReport sourceReference dedup (sayım+gelir).
+- dashboard "Bekleyen Mesajlar" kartı = new+waiting+problem (liste ile eşitlendi).
+- exitImpersonation fail-safe (operatör user'ı yoksa session temizlenir, org'da kapalı kalmaz).
+**Sağlam doğrulandı (değişmedi):** mesaj↔doğru daire/misafir eşleşmesi (BE-1 SOUND:
+`Property.hospitableId @unique` + liveIds gate same-named çakışmayı yapısal engeller),
+oto-yanıt güvenlik kapısı (5 kontrol intact), tenant izolasyonu (53 route), outgoing
+token izolasyonu, billing dormant, KVKK export sır sızdırmaz.
+**⏳ Kullanıcı kararı/aksiyonu bekleyen:**
+- `/api/conversations/[id]/reply` staff geçidi: BE-5 "rol-modeli ihlali" dedi, BE-3 "inbox işi,
+  by-design" dedi (agent'lar çelişti) → KARAR KULLANICININ. Staff misafire yanıt yazabilsin mi?
+- **`PRIMARY_ORG_ID`** env'i Railway'de kurucu-org id'sine ayarla (env-token fallback'i kilitler).
+**⏭️ Ertelendi (pre-launch / zararsız):** admin/export açık-select daraltma (sır YOK, veri
+minimizasyonu), oto-yanıt cutoff'unu org-tz'ye taşıma (konteyner UTC iken sorun yok),
+prompt'ta guestName fence (pre-existing, defense-in-depth).
+
 ## Çalışma şekli
 Kullanıcı: "Bana söyle, ben kodlarım." Fazları sırayla, additive + testli.
 Build + `npm test` yeşil olmadan push etme. GitHub'da PR sadece kullanıcı
