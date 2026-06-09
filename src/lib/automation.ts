@@ -901,6 +901,10 @@ export async function sendDueWelcomes(
       status: "confirmed",
       welcomeSentAt: null,
       sourceReference: { not: null },
+      // Lifecycle messages post to Hospitable via sourceReference (only valid for
+      // Hospitable bookings). toChannel() never yields "ics"/"manual", so this can
+      // never drop a real Hospitable reservation — it just skips iCal/manual ones.
+      channel: { notIn: ["ics", "manual"] },
       createdAt: { gte: baseline }, // only bookings created since welcome was enabled
       arrivalDate: { gte: startOfDay(now) }, // never welcome a stay already begun/past
     },
@@ -991,6 +995,7 @@ export async function sendDueCheckins(
       status: "confirmed",
       checkinSentAt: null,
       sourceReference: { not: null },
+      channel: { notIn: ["ics", "manual"] }, // only Hospitable-messageable bookings (never iCal/manual)
       createdAt: { gte: baseline }, // only bookings created since this was enabled
       arrivalDate: {
         gte: startOfDay(now), // not for stays already begun/past
@@ -1074,6 +1079,7 @@ export async function previewWelcomes(
       property: { organizationId },
       status: "confirmed",
       sourceReference: { not: null },
+      channel: { notIn: ["ics", "manual"] }, // match the sender filter (preview == reality)
       arrivalDate: { gte: startOfDay(now), lte: horizon },
     },
     select: {
@@ -1131,6 +1137,7 @@ export async function previewCheckins(
       property: { organizationId },
       status: "confirmed",
       sourceReference: { not: null },
+      channel: { notIn: ["ics", "manual"] }, // match the sender filter (preview == reality)
       arrivalDate: { gte: startOfDay(now), lte: horizon },
     },
     select: {
@@ -1205,6 +1212,7 @@ export async function sendDueCheckouts(
       status: { in: ["confirmed", "completed"] },
       checkoutSentAt: null,
       sourceReference: { not: null },
+      channel: { notIn: ["ics", "manual"] }, // only Hospitable-messageable bookings (never iCal/manual)
       createdAt: { gte: baseline }, // only bookings created since checkout was enabled
       departureDate: { gte: startOfDay(now), lt: addDays(startOfDay(now), 3) },
     },
