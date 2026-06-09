@@ -5,6 +5,19 @@ import "server-only";
 // All emails are in Turkish, use inline styles for maximum email client support.
 // ---------------------------------------------------------------------------
 
+// Escape user/guest-controlled text before interpolating into email HTML. A
+// guest's chat message or display name can contain <, >, &, or markup; without
+// this an alert email to the host could carry injected HTML. Static template
+// strings are safe — only dynamic values are wrapped with esc().
+function esc(v: unknown): string {
+  return String(v ?? "")
+    .replace(/&/g, "&amp;")
+    .replace(/</g, "&lt;")
+    .replace(/>/g, "&gt;")
+    .replace(/"/g, "&quot;")
+    .replace(/'/g, "&#39;");
+}
+
 const BRAND_HEADER = `
   <table width="100%" cellpadding="0" cellspacing="0" style="margin-bottom:24px;">
     <tr>
@@ -104,18 +117,18 @@ export function taskAssignedEmail(
       Size yeni bir görev atandı
     </h2>
     <p style="margin:0 0 24px;color:#64748b;font-size:15px;">
-      Merhaba ${assignee.name}, aşağıdaki görev sizinle paylaşıldı.
+      Merhaba ${esc(assignee.name)}, aşağıdaki görev sizinle paylaşıldı.
     </p>
 
     <table width="100%" cellpadding="0" cellspacing="0" style="background:#f8fafc;border:1px solid #e2e8f0;border-radius:8px;margin-bottom:24px;">
       <tr>
         <td style="padding:20px 24px;">
           <p style="margin:0 0 4px;color:#64748b;font-size:12px;font-weight:600;text-transform:uppercase;letter-spacing:0.5px;">GÖREV</p>
-          <p style="margin:0 0 16px;color:#0f172a;font-size:18px;font-weight:700;">${task.title}</p>
+          <p style="margin:0 0 16px;color:#0f172a;font-size:18px;font-weight:700;">${esc(task.title)}</p>
 
           ${
             task.description
-              ? `<p style="margin:0 0 16px;color:#475569;font-size:14px;line-height:1.6;">${task.description}</p>`
+              ? `<p style="margin:0 0 16px;color:#475569;font-size:14px;line-height:1.6;">${esc(task.description)}</p>`
               : ""
           }
 
@@ -123,8 +136,8 @@ export function taskAssignedEmail(
             <tr>
               <td style="width:50%;padding-right:8px;">
                 <p style="margin:0 0 4px;color:#94a3b8;font-size:11px;font-weight:600;text-transform:uppercase;">MÜL K</p>
-                <p style="margin:0;color:#0f172a;font-size:14px;font-weight:600;">${property.name}</p>
-                ${property.city ? `<p style="margin:0;color:#64748b;font-size:12px;">${property.city}</p>` : ""}
+                <p style="margin:0;color:#0f172a;font-size:14px;font-weight:600;">${esc(property.name)}</p>
+                ${property.city ? `<p style="margin:0;color:#64748b;font-size:12px;">${esc(property.city)}</p>` : ""}
               </td>
               <td style="width:50%;">
                 <p style="margin:0 0 4px;color:#94a3b8;font-size:11px;font-weight:600;text-transform:uppercase;">ÖNCELİK</p>
@@ -173,7 +186,7 @@ export function complaintEscalationEmail(
       Şikayet Eskalasyonu
     </h2>
     <p style="margin:0 0 24px;color:#64748b;font-size:15px;">
-      <strong>${property.name}</strong> mülkünüzde bir misafir şikayeti tespit edildi.
+      <strong>${esc(property.name)}</strong> mülkünüzde bir misafir şikayeti tespit edildi.
       Lütfen en kısa sürede değerlendirin.
     </p>
 
@@ -181,7 +194,7 @@ export function complaintEscalationEmail(
       <tr>
         <td style="padding:16px 20px;">
           <p style="margin:0 0 4px;color:#94a3b8;font-size:11px;font-weight:600;text-transform:uppercase;">MİSAFİR MESAJI</p>
-          <p style="margin:0;color:#1e293b;font-size:15px;font-style:italic;line-height:1.6;">"${message.slice(0, 600)}${message.length > 600 ? "…" : ""}"</p>
+          <p style="margin:0;color:#1e293b;font-size:15px;font-style:italic;line-height:1.6;">"${esc(message.slice(0, 600))}${message.length > 600 ? "…" : ""}"</p>
         </td>
       </tr>
     </table>
@@ -193,21 +206,21 @@ export function complaintEscalationEmail(
             <tr>
               <td style="width:50%;padding-right:8px;">
                 <p style="margin:0 0 2px;color:#94a3b8;font-size:11px;font-weight:600;text-transform:uppercase;">MİSAFİR</p>
-                <p style="margin:0;color:#0f172a;font-size:14px;font-weight:600;">${conversation.guestIdentifier}</p>
+                <p style="margin:0;color:#0f172a;font-size:14px;font-weight:600;">${esc(conversation.guestIdentifier)}</p>
               </td>
               <td style="width:50%;">
                 <p style="margin:0 0 2px;color:#94a3b8;font-size:11px;font-weight:600;text-transform:uppercase;">MÜLK</p>
-                <p style="margin:0;color:#0f172a;font-size:14px;font-weight:600;">${property.name}</p>
+                <p style="margin:0;color:#0f172a;font-size:14px;font-weight:600;">${esc(property.name)}</p>
               </td>
             </tr>
             <tr>
               <td style="padding-top:12px;">
                 <p style="margin:0 0 2px;color:#94a3b8;font-size:11px;font-weight:600;text-transform:uppercase;">İŞLETME</p>
-                <p style="margin:0;color:#0f172a;font-size:14px;">${orgName}</p>
+                <p style="margin:0;color:#0f172a;font-size:14px;">${esc(orgName)}</p>
               </td>
               <td style="padding-top:12px;">
                 <p style="margin:0 0 2px;color:#94a3b8;font-size:11px;font-weight:600;text-transform:uppercase;">KANAL</p>
-                <p style="margin:0;color:#0f172a;font-size:14px;">${conversation.channel}</p>
+                <p style="margin:0;color:#0f172a;font-size:14px;">${esc(conversation.channel)}</p>
               </td>
             </tr>
           </table>
@@ -274,14 +287,14 @@ export function reservationCreatedEmail(
       Yeni Rezervasyon Oluşturuldu
     </h2>
     <p style="margin:0 0 24px;color:#64748b;font-size:15px;">
-      <strong>${property.name}</strong> mülkünüz için yeni bir rezervasyon kaydedildi.
+      <strong>${esc(property.name)}</strong> mülkünüz için yeni bir rezervasyon kaydedildi.
     </p>
 
     <table width="100%" cellpadding="0" cellspacing="0" style="background:#f0fdf4;border:1px solid #bbf7d0;border-radius:8px;margin-bottom:24px;">
       <tr>
         <td style="padding:20px 24px;">
           <p style="margin:0 0 4px;color:#94a3b8;font-size:11px;font-weight:600;text-transform:uppercase;">MİSAFİR</p>
-          <p style="margin:0 0 16px;color:#0f172a;font-size:20px;font-weight:700;">${reservation.guestName}</p>
+          <p style="margin:0 0 16px;color:#0f172a;font-size:20px;font-weight:700;">${esc(reservation.guestName)}</p>
 
           <table width="100%" cellpadding="0" cellspacing="0">
             <tr>
@@ -318,7 +331,7 @@ export function reservationCreatedEmail(
               reservation.notes
                 ? `<tr><td colspan="2" style="padding-top:12px;">
                     <p style="margin:0 0 2px;color:#94a3b8;font-size:11px;font-weight:600;text-transform:uppercase;">NOTLAR</p>
-                    <p style="margin:0;color:#475569;font-size:13px;">${reservation.notes}</p>
+                    <p style="margin:0;color:#475569;font-size:13px;">${esc(reservation.notes)}</p>
                   </td></tr>`
                 : ""
             }
