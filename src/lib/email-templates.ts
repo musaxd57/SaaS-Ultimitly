@@ -314,7 +314,7 @@ export function reservationCreatedEmail(
               </td>
               <td style="padding-top:12px;">
                 <p style="margin:0 0 2px;color:#94a3b8;font-size:11px;font-weight:600;text-transform:uppercase;">KANAL</p>
-                <p style="margin:0;color:#0f172a;font-size:14px;">${channelLabels[reservation.channel] ?? reservation.channel}</p>
+                <p style="margin:0;color:#0f172a;font-size:14px;">${channelLabels[reservation.channel] ?? esc(reservation.channel)}</p>
               </td>
             </tr>
             ${

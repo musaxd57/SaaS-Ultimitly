@@ -1,4 +1,5 @@
 import { type NextRequest, NextResponse } from "next/server";
+import { timingSafeEqual } from "node:crypto";
 import { prisma } from "@/lib/db";
 import { jsonOk, unauthorized } from "@/lib/api";
 import { reportError } from "@/lib/report-error";
@@ -18,11 +19,12 @@ export async function POST(req: NextRequest) {
   const secret = process.env.IYZICO_WEBHOOK_SECRET?.trim();
   if (!secret) return NextResponse.json({ disabled: true }, { status: 200 });
 
-  const provided =
-    req.headers.get("x-iyzi-webhook-secret") ||
-    new URL(req.url).searchParams.get("secret") ||
-    "";
-  if (provided !== secret) return unauthorized();
+  // Header only — never accept the secret via ?secret= (it would leak into proxy
+  // access logs). Compare in constant time to avoid a timing oracle.
+  const provided = req.headers.get("x-iyzi-webhook-secret") ?? "";
+  const a = Buffer.from(provided);
+  const b = Buffer.from(secret);
+  if (a.length !== b.length || !timingSafeEqual(a, b)) return unauthorized();
 
   let payload: unknown = null;
   try {

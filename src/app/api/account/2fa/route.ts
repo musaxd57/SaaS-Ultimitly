@@ -37,6 +37,17 @@ export async function POST(req: NextRequest) {
     const code = typeof data?.code === "string" ? data.code : "";
 
     if (action === "setup") {
+      // Guard: never let "setup" run on an already-active account. Setup writes
+      // twoFactorEnabledAt: null (re-keying), which would silently DISABLE live
+      // 2FA with no code — so a hijacked session could turn 2FA off. To re-key,
+      // the user must first "disable" (which requires a valid current code).
+      const current = await prisma.user.findUnique({
+        where: { id: session.userId },
+        select: { twoFactorEnabledAt: true },
+      });
+      if (current?.twoFactorEnabledAt) {
+        return badRequest({ _: "2FA zaten aktif. Yenilemek için önce kapatın." });
+      }
       const secret = generateSecret();
       await prisma.user.update({
         where: { id: session.userId },
@@ -68,16 +79,19 @@ export async function POST(req: NextRequest) {
         select: { twoFactorSecret: true, twoFactorEnabledAt: true },
       });
       // Require a valid current code to switch it off (so a hijacked session
-      // without the authenticator can't quietly disable 2FA).
-      if (user?.twoFactorEnabledAt && user.twoFactorSecret) {
-        // Fail-soft: if the secret can't be decrypted (e.g. ENCRYPTION_KEY rotated),
-        // allow disable to proceed so the user isn't permanently locked out;
-        // otherwise require a valid current code.
+      // without the authenticator can't quietly disable 2FA). Key the check on
+      // twoFactorEnabledAt ALONE: if 2FA is active but the secret is somehow
+      // missing/undecryptable, fall through to the fail-soft (allow disable) so
+      // the user can never be permanently locked out — but a present, decryptable
+      // secret always demands a valid code.
+      if (user?.twoFactorEnabledAt) {
         let secret: string | null = null;
-        try {
-          secret = decryptSecret(user.twoFactorSecret);
-        } catch {
-          secret = null;
+        if (user.twoFactorSecret) {
+          try {
+            secret = decryptSecret(user.twoFactorSecret);
+          } catch {
+            secret = null;
+          }
         }
         if (secret && !verifyTotp(secret, code)) {
           return badRequest({ code: "Kapatmak için geçerli bir kod girin." });
