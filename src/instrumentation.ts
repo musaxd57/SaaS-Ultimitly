@@ -38,7 +38,11 @@ export async function register() {
         headers: { Authorization: `Bearer ${secret}` },
         signal: AbortSignal.timeout(60_000),
       });
-      const data = (await res.json()) as Record<string, number | boolean>;
+      if (!res.ok) {
+        console.error(`[internal-cron] tick HTTP ${res.status}`);
+        return;
+      }
+      const data = (await res.json().catch(() => ({}))) as Record<string, number | boolean>;
       if (data.ok && (data.messages || data.autoReplies || data.welcomes || data.checkouts)) {
         console.log(
           `[internal-cron] messages=${data.messages} autoReplies=${data.autoReplies} welcomes=${data.welcomes} checkouts=${data.checkouts}`,

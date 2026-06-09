@@ -89,6 +89,21 @@ async function releaseLock(): Promise<void> {
     .catch(() => {});
 }
 
+/**
+ * Run `fn` while holding the cross-instance sync lock, so it can never overlap
+ * the scheduled cron (which uses the same lock). Returns `{ locked: true }`
+ * without running if a sync is already in progress. Used by the manual
+ * "Mesajları çek" button to prevent duplicate rows from a manual+cron race.
+ */
+export async function withSyncLock<T>(fn: () => Promise<T>): Promise<T | { locked: true }> {
+  if (!(await acquireLock())) return { locked: true };
+  try {
+    return await fn();
+  } finally {
+    await releaseLock();
+  }
+}
+
 export async function runScheduledSync(): Promise<ScheduledSyncTotals> {
   // Multi-tenant: no global token gate here. Each org self-gates on ITS OWN
   // Hospitable connection (syncHospitable + the automation senders return early
