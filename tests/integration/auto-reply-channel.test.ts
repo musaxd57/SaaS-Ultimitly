@@ -337,6 +337,73 @@ describe("applyChannelAutoReply", () => {
     expect((await applyChannelAutoReply(conversationId)).skippedReason).toBe("no_external_target");
   });
 
+  // The reservation-link gate: a synced conversation now carries its booking, so
+  // the AI must refuse to reply to a finished/cancelled stay (link is read-only
+  // context — it can only make auto-reply MORE conservative, never send more).
+  async function linkReservation(
+    conversationId: string,
+    data: { status: string; arrivalDate: Date; departureDate: Date },
+  ) {
+    const conv = await prisma.conversation.findUnique({
+      where: { id: conversationId },
+      select: { propertyId: true },
+    });
+    const reservation = await prisma.reservation.create({
+      data: {
+        propertyId: conv!.propertyId,
+        guestName: "Alex",
+        channel: "airbnb",
+        sourceReference: "res-1",
+        ...data,
+      },
+      select: { id: true },
+    });
+    await prisma.conversation.update({
+      where: { id: conversationId },
+      data: { reservationId: reservation.id },
+    });
+  }
+
+  it("skips when the linked reservation is cancelled", async () => {
+    const { conversationId } = await seed();
+    await linkReservation(conversationId, {
+      status: "cancelled",
+      arrivalDate: new Date(Date.now() - 2 * 24 * 60 * 60 * 1000),
+      departureDate: new Date(Date.now() + 2 * 24 * 60 * 60 * 1000), // future, but cancelled
+    });
+    const out = await applyChannelAutoReply(conversationId);
+    expect(out.sent).toBe(false);
+    expect(out.skippedReason).toBe("reservation_ended");
+    expect(mockSend).not.toHaveBeenCalled();
+  });
+
+  it("skips when the linked reservation already departed", async () => {
+    const { conversationId } = await seed();
+    await linkReservation(conversationId, {
+      status: "completed",
+      arrivalDate: new Date(Date.now() - 5 * 24 * 60 * 60 * 1000),
+      departureDate: new Date(Date.now() - 2 * 24 * 60 * 60 * 1000), // left 2 days ago
+    });
+    const out = await applyChannelAutoReply(conversationId);
+    expect(out.sent).toBe(false);
+    expect(out.skippedReason).toBe("reservation_ended");
+    expect(mockSend).not.toHaveBeenCalled();
+  });
+
+  it("still answers on the checkout day itself (departure later today)", async () => {
+    const { conversationId } = await seed();
+    const now = new Date();
+    await linkReservation(conversationId, {
+      status: "confirmed",
+      arrivalDate: new Date(Date.now() - 2 * 24 * 60 * 60 * 1000),
+      // Departure is later TODAY → not strictly before startOfDay(now) → answerable.
+      departureDate: new Date(now.getFullYear(), now.getMonth(), now.getDate(), 23, 0, 0),
+    });
+    const out = await applyChannelAutoReply(conversationId);
+    expect(out.sent).toBe(true);
+    expect(mockSend).toHaveBeenCalled();
+  });
+
   it("runDueChannelAutoReplies answers a fresh 'new' chat", async () => {
     const { orgId } = await seed(); // lastMessageAt defaults to now
     const out = await runDueChannelAutoReplies(orgId);

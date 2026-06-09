@@ -165,9 +165,20 @@ export async function syncHospitable(
       if (incomingLast) {
         const existingConv = await prisma.conversation.findFirst({
           where: { propertyId, externalReservationId: String(reservation.id) },
-          select: { lastMessageAt: true },
+          select: { id: true, lastMessageAt: true, reservationId: true },
         });
         if (existingConv?.lastMessageAt && existingConv.lastMessageAt >= incomingLast) {
+          // Up to date — skip the message fetch (rate-limit saver). But still
+          // backfill the reservation link if it's missing, so an already-imported
+          // thread gets its correct guest/dates context (and the ended-booking
+          // gate) without waiting for the next new message. One-time, never
+          // overwrites an existing link.
+          if (localReservationId && !existingConv.reservationId) {
+            await prisma.conversation.update({
+              where: { id: existingConv.id },
+              data: { reservationId: localReservationId },
+            });
+          }
           result.skipped++;
           continue; // already up to date — no network call needed
         }

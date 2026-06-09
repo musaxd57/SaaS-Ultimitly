@@ -141,7 +141,7 @@ export async function getMonthlyReport(orgId: string): Promise<MonthlyReport> {
   const [reservations, completedTasks, totalTasks, messagesCount] = await Promise.all([
     prisma.reservation.findMany({
       where: { ...propertyScope(orgId), arrivalDate: { gte: monthStart, lte: monthEnd } },
-      select: { totalAmount: true, currency: true },
+      select: { totalAmount: true, currency: true, sourceReference: true },
     }),
     prisma.task.count({
       where: { ...propertyScope(orgId), status: "done", updatedAt: { gte: monthStart, lte: monthEnd } },
@@ -157,8 +157,20 @@ export async function getMonthlyReport(orgId: string): Promise<MonthlyReport> {
     }),
   ]);
 
+  // Collapse duplicate Hospitable rows that share a sourceReference (one booking
+  // can appear twice), but count each manual/iCal booking (null sourceReference)
+  // individually — mirrors getOpsStats so neither the count nor the revenue
+  // double-counts a single booking.
+  const seenRefs = new Set<string>();
+  const distinctReservations = reservations.filter((r) => {
+    if (r.sourceReference == null) return true;
+    if (seenRefs.has(r.sourceReference)) return false;
+    seenRefs.add(r.sourceReference);
+    return true;
+  });
+
   const revenueMap = new Map<string, number>();
-  for (const r of reservations) {
+  for (const r of distinctReservations) {
     if (r.totalAmount) {
       revenueMap.set(r.currency, (revenueMap.get(r.currency) ?? 0) + r.totalAmount);
     }
@@ -166,7 +178,7 @@ export async function getMonthlyReport(orgId: string): Promise<MonthlyReport> {
 
   return {
     monthLabel: now.toLocaleDateString("tr-TR", { month: "long", year: "numeric" }),
-    reservationsCount: reservations.length,
+    reservationsCount: distinctReservations.length,
     revenueByCurrency: Array.from(revenueMap, ([currency, total]) => ({ currency, total })),
     completedTasks,
     totalTasks,

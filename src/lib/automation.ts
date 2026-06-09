@@ -1364,6 +1364,9 @@ export async function previewCheckouts(
       property: { organizationId },
       status: { in: ["confirmed", "completed"] },
       sourceReference: { not: null },
+      // Mirror the live sender: iCal/manual bookings are never messaged, so the
+      // preview must not list them as "would send" either.
+      channel: { notIn: ["ics", "manual"] },
       departureDate: { gte: startOfDay(now), lte: horizon },
     },
     select: {
