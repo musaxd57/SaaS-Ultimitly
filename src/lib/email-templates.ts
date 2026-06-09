@@ -1,7 +1,7 @@
 import "server-only";
 
 // ---------------------------------------------------------------------------
-// GuestOps AI — Email Templates
+// Lixus AI — Email Templates
 // All emails are in Turkish, use inline styles for maximum email client support.
 // ---------------------------------------------------------------------------
 
@@ -10,7 +10,7 @@ const BRAND_HEADER = `
     <tr>
       <td style="background:#1e293b;padding:20px 32px;border-radius:8px 8px 0 0;">
         <span style="color:#ffffff;font-size:20px;font-weight:700;letter-spacing:-0.5px;">
-          GuestOps <span style="color:#6366f1;">AI</span>
+          Lixus <span style="color:#6366f1;">AI</span>
         </span>
       </td>
     </tr>
@@ -21,7 +21,7 @@ const FOOTER = `
   <table width="100%" cellpadding="0" cellspacing="0" style="margin-top:32px;border-top:1px solid #e2e8f0;padding-top:16px;">
     <tr>
       <td style="color:#94a3b8;font-size:12px;text-align:center;">
-        GuestOps AI — Kısa Dönem Kiralama Yönetim Platformu<br/>
+        Lixus AI — Kısa Dönem Kiralama Yönetim Platformu<br/>
         Bu e-posta otomatik olarak oluşturulmuştur. Lütfen yanıtlamayınız.
       </td>
     </tr>
@@ -34,7 +34,7 @@ function wrapEmail(bodyContent: string): string {
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-  <title>GuestOps AI</title>
+  <title>Lixus AI</title>
 </head>
 <body style="margin:0;padding:0;background:#f8fafc;font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,sans-serif;">
   <table width="100%" cellpadding="0" cellspacing="0" style="padding:32px 16px;">
@@ -145,7 +145,7 @@ export function taskAssignedEmail(
     </table>
 
     <p style="color:#64748b;font-size:14px;">
-      GuestOps AI platformuna giriş yaparak görevin detaylarını görüntüleyebilir ve durumunu güncelleyebilirsiniz.
+      Lixus AI platformuna giriş yaparak görevin detaylarını görüntüleyebilir ve durumunu güncelleyebilirsiniz.
     </p>
   `;
 
@@ -216,7 +216,7 @@ export function complaintEscalationEmail(
     </table>
 
     <p style="color:#64748b;font-size:14px;">
-      GuestOps AI'de konuşmayı görüntüleyerek misafire hemen yanıt verebilirsiniz.
+      Lixus AI'de konuşmayı görüntüleyerek misafire hemen yanıt verebilirsiniz.
     </p>
   `;
 
@@ -328,7 +328,7 @@ export function reservationCreatedEmail(
     </table>
 
     <p style="color:#64748b;font-size:14px;">
-      GuestOps AI platformunu ziyaret ederek rezervasyonu yönetebilir, görev atayabilir ve misafirle iletişime geçebilirsiniz.
+      Lixus AI platformunu ziyaret ederek rezervasyonu yönetebilir, görev atayabilir ve misafirle iletişime geçebilirsiniz.
     </p>
   `;
 

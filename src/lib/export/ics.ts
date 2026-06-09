@@ -64,7 +64,7 @@ export function buildIcsCalendar(calendarName: string, events: IcsEvent[]): stri
   const lines: string[] = [
     "BEGIN:VCALENDAR",
     "VERSION:2.0",
-    "PRODID:-//GuestOps AI//Reservation Feed//TR",
+    "PRODID:-//Lixus AI//Reservation Feed//TR",
     "CALSCALE:GREGORIAN",
     "METHOD:PUBLISH",
     `X-WR-CALNAME:${escapeIcsText(calendarName)}`,

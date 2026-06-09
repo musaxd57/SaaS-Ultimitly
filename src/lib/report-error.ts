@@ -41,7 +41,7 @@ export async function reportError(context: string, err: unknown): Promise<void> 
   try {
     await emailService.send(
       to,
-      `⚠️ GuestOps sistem hatası — ${context}`,
+      `⚠️ Lixus AI sistem hatası — ${context}`,
       `<p>Bir sistem hatası oluştu:</p><pre style="white-space:pre-wrap;font-size:13px">${escapeHtml(
         detail,
       ).slice(0, 4000)}</pre>`,
