@@ -24,9 +24,19 @@ export async function POST(req: NextRequest) {
     const parsed = loginSchema.safeParse(data);
     if (!parsed.success) return badRequest(zodFieldErrors(parsed.error));
 
-    const user = await prisma.user.findUnique({
-      where: { email: parsed.data.email.toLowerCase() },
-    });
+    const email = parsed.data.email.toLowerCase();
+    // Per-ACCOUNT throttle (in addition to the per-IP one above): an attacker
+    // rotating IPs otherwise gets unlimited password / 2FA-code guesses against
+    // one account. Generous cap so a legitimate user is not locked out.
+    const acct = rateLimit(`login-acct:${email}`, 20, 15 * 60 * 1000);
+    if (!acct.ok) {
+      return NextResponse.json(
+        { error: "Bu hesap için çok fazla deneme. Lütfen biraz sonra tekrar deneyin." },
+        { status: 429, headers: { "Retry-After": String(acct.retryAfter) } },
+      );
+    }
+
+    const user = await prisma.user.findUnique({ where: { email } });
     const ok = user ? await verifyPassword(parsed.data.password, user.passwordHash) : false;
     if (!user || !ok) {
       return NextResponse.json({ error: "E-posta veya şifre hatalı" }, { status: 401 });
@@ -50,7 +60,15 @@ export async function POST(req: NextRequest) {
           // Tell the client to prompt for the code (no session issued yet).
           return jsonOk({ twoFactorRequired: true });
         }
-        const secret = user.twoFactorSecret ? decryptSecret(user.twoFactorSecret) : null;
+        // Fail-soft: if the secret can't be decrypted (e.g. ENCRYPTION_KEY was
+        // rotated after launch), don't 500 — treat it as an invalid code so the
+        // response stays clean instead of crashing the login handler.
+        let secret: string | null = null;
+        try {
+          secret = user.twoFactorSecret ? decryptSecret(user.twoFactorSecret) : null;
+        } catch {
+          secret = null;
+        }
         const step = secret ? verifyTotpStep(secret, code) : null;
         // Reject a wrong code OR a code already used (replay within its window).
         if (step === null || (user.twoFactorLastStep != null && step <= user.twoFactorLastStep)) {
