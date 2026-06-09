@@ -1,6 +1,7 @@
 import { notFound } from "next/navigation";
 import { ArrowLeft, Building2, CalendarDays, BookOpen, Clock } from "lucide-react";
 import { requireAuth } from "@/lib/auth";
+import { canManage } from "@/lib/api";
 import { prisma } from "@/lib/db";
 import { PageHeader } from "@/components/page-header";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
@@ -80,6 +81,7 @@ export default async function ConversationPage({
             priority={conversation.priority}
             propertyId={conversation.propertyId}
             templateVars={templateVars}
+            canReply={canManage(session)}
           />
         </div>
 

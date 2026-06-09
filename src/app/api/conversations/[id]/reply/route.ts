@@ -11,6 +11,8 @@ import {
   notFound,
   serverError,
   tooManyRequests,
+  canManage,
+  forbidden,
 } from "@/lib/api";
 import { rateLimit } from "@/lib/rate-limit";
 import { translateText } from "@/lib/ai/translate";
@@ -20,6 +22,9 @@ type Params = { params: Promise<{ id: string }> };
 export async function POST(req: NextRequest, { params }: Params) {
   const session = await requireSession();
   if (!session) return unauthorized();
+  // Only owner/manager may send guest-facing replies. Staff are read + task
+  // updates; the inbound-message and status routes stay open for their triage.
+  if (!canManage(session)) return forbidden();
   const { id } = await params;
 
   // Each reply sends to Hospitable (+ optional OpenAI translate). Throttle per

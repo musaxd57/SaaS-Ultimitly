@@ -61,6 +61,8 @@ interface Props {
   propertyId?: string;
   /** Values used to substitute {{placeholders}} in message templates. */
   templateVars?: Record<string, string>;
+  /** Owner/manager may send guest replies; staff get a read-only thread. */
+  canReply?: boolean;
 }
 
 function confidenceTone(c: number) {
@@ -69,7 +71,7 @@ function confidenceTone(c: number) {
   return "bg-destructive";
 }
 
-export function ConversationThread({ conversationId, messages, status, priority, propertyId, templateVars }: Props) {
+export function ConversationThread({ conversationId, messages, status, priority, propertyId, templateVars, canReply = true }: Props) {
   const router = useRouter();
   const [, startTransition] = useTransition();
   const [composer, setComposer] = useState("");
@@ -500,42 +502,50 @@ export function ConversationThread({ conversationId, messages, status, priority,
 
             <p className="whitespace-pre-wrap rounded-md bg-card p-3 text-sm">{suggestion.reply}</p>
 
-            <div className="flex flex-wrap gap-2">
-              <Button size="sm" variant="outline" onClick={() => setComposer(suggestion.reply)}>
-                <Wand2 className="size-4" /> Taslağı kullan
-              </Button>
-              <Button size="sm" onClick={() => sendReply(suggestion.reply)} disabled={sending}>
-                {sending ? <Loader2 className="size-4 animate-spin" /> : <CheckCheck className="size-4" />}
-                Onayla ve gönder
-              </Button>
-            </div>
+            {canReply ? (
+              <div className="flex flex-wrap gap-2">
+                <Button size="sm" variant="outline" onClick={() => setComposer(suggestion.reply)}>
+                  <Wand2 className="size-4" /> Taslağı kullan
+                </Button>
+                <Button size="sm" onClick={() => sendReply(suggestion.reply)} disabled={sending}>
+                  {sending ? <Loader2 className="size-4 animate-spin" /> : <CheckCheck className="size-4" />}
+                  Onayla ve gönder
+                </Button>
+              </div>
+            ) : null}
           </div>
         ) : null}
       </div>
 
       <Separator />
 
-      {/* Composer */}
-      <div className="space-y-2 p-4">
-        <Textarea
-          value={composer}
-          onChange={(e) => setComposer(e.target.value)}
-          placeholder="Cevabınızı yazın veya AI önerisini kullanın..."
-          className="min-h-[80px]"
-        />
-        {sendError ? (
-          <p className="flex items-start gap-2 rounded-md bg-destructive/10 px-2.5 py-2 text-xs text-destructive">
-            <AlertTriangle className="mt-0.5 size-3.5 shrink-0" />
-            {sendError}
-          </p>
-        ) : null}
-        <div className="flex justify-end">
-          <Button onClick={() => sendReply(composer)} disabled={sending || !composer.trim()}>
-            {sending ? <Loader2 className="size-4 animate-spin" /> : <Send className="size-4" />}
-            Gönder
-          </Button>
+      {/* Composer — owner/manager only; staff see a read-only thread. */}
+      {canReply ? (
+        <div className="space-y-2 p-4">
+          <Textarea
+            value={composer}
+            onChange={(e) => setComposer(e.target.value)}
+            placeholder="Cevabınızı yazın veya AI önerisini kullanın..."
+            className="min-h-[80px]"
+          />
+          {sendError ? (
+            <p className="flex items-start gap-2 rounded-md bg-destructive/10 px-2.5 py-2 text-xs text-destructive">
+              <AlertTriangle className="mt-0.5 size-3.5 shrink-0" />
+              {sendError}
+            </p>
+          ) : null}
+          <div className="flex justify-end">
+            <Button onClick={() => sendReply(composer)} disabled={sending || !composer.trim()}>
+              {sending ? <Loader2 className="size-4 animate-spin" /> : <Send className="size-4" />}
+              Gönder
+            </Button>
+          </div>
         </div>
-      </div>
+      ) : (
+        <p className="p-4 text-xs text-muted-foreground">
+          Misafire yanıt gönderme yetkisi yalnızca sahip/yönetici rolündedir.
+        </p>
+      )}
     </div>
   );
 }
