@@ -5,6 +5,7 @@ import { hashPassword } from "@/lib/auth/password";
 import { requireSession, unauthorized, badRequest, jsonOk, serverError, tooManyRequests } from "@/lib/api";
 import { isSuperAdmin } from "@/lib/admin";
 import { rateLimit } from "@/lib/rate-limit";
+import { writeAudit } from "@/lib/audit";
 
 // ---------------------------------------------------------------------------
 // Operator panel: create a new CUSTOMER organization + its owner login.
@@ -44,6 +45,18 @@ export async function POST(req: NextRequest) {
         },
       });
       return { org };
+    });
+
+    // Trace: an operator created a new customer org + owner login (forensic/KVKK).
+    await writeAudit({
+      organizationId: org.id,
+      actorUserId: session.actorUserId ?? session.userId,
+      action: "customer.create",
+      metadata: {
+        operatorEmail: session.actorEmail ?? session.email,
+        ownerEmail: email,
+        orgName: parsed.data.organizationName,
+      },
     });
 
     return jsonOk({ ok: true, organizationId: org.id }, 201);

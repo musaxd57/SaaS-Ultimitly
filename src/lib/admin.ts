@@ -59,14 +59,19 @@ export async function enterOrganization(
     select: {
       id: true,
       users: {
-        // Prefer an owner; fall back to the oldest user.
-        orderBy: [{ role: "asc" }, { createdAt: "asc" }],
-        take: 1,
+        orderBy: { createdAt: "asc" },
         select: { id: true, role: true, email: true, name: true },
       },
     },
   });
-  const owner = target?.users[0];
+  if (!target) return false;
+  // Prefer an actual owner, then a manager, then the oldest user. A string sort
+  // on "role" alone wrongly picks "manager" before "owner" (alphabetical), which
+  // would give the operator reduced powers inside the tenant.
+  const owner =
+    target.users.find((u) => u.role === "owner") ??
+    target.users.find((u) => u.role === "manager") ??
+    target.users[0];
   if (!owner) return false;
 
   // Preserve the ORIGINAL operator when hopping customer→customer.

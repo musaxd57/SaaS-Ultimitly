@@ -44,7 +44,10 @@ export function LoginForm() {
       }
       const params = new URLSearchParams(window.location.search);
       const next = params.get("next");
-      router.push(next && next.startsWith("/") ? next : "/dashboard");
+      // Same-origin only: reject protocol-relative ("//evil.com") and "/\" forms.
+      const safeNext =
+        next && next.startsWith("/") && !next.startsWith("//") && !next.startsWith("/\\");
+      router.push(safeNext ? next : "/dashboard");
       router.refresh();
     } catch {
       setError("Bağlantı hatası. Lütfen tekrar deneyin.");
