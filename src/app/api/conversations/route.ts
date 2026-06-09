@@ -44,6 +44,21 @@ export async function POST(req: NextRequest) {
       return badRequest({ propertyId: "Geçersiz mülk" });
     }
 
+    // The reservation (if linked) must belong to the SAME org AND property — never
+    // trust a client-supplied reservationId, or another tenant's guest data could
+    // be shown in this org's conversation sidebar.
+    if (d.reservationId) {
+      const reservation = await prisma.reservation.findFirst({
+        where: {
+          id: d.reservationId,
+          propertyId: d.propertyId,
+          property: { organizationId: session.organizationId },
+        },
+        select: { id: true },
+      });
+      if (!reservation) return badRequest({ reservationId: "Geçersiz rezervasyon" });
+    }
+
     const conversation = await prisma.conversation.create({
       data: {
         propertyId: d.propertyId,

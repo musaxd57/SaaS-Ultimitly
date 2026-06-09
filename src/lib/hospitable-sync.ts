@@ -100,10 +100,15 @@ export async function syncHospitable(
 
   // 1. Link/create properties.
   const hospitableProps = await listProperties(token);
+  // Live Hospitable listing ids this run — used so linkProperty never re-points a
+  // property that still belongs to a different LIVE same-named listing.
+  const liveIds = new Set<string>(
+    hospitableProps.map((p) => p.id).filter((id): id is string => Boolean(id)),
+  );
   const propertyMap = new Map<string, string>(); // hospitableId → our propertyId
   for (const hp of hospitableProps) {
     if (!hp.id) continue;
-    const ourId = await linkProperty(organizationId, hp);
+    const ourId = await linkProperty(organizationId, hp, liveIds);
     propertyMap.set(hp.id, ourId);
     result.properties++;
   }
@@ -275,6 +280,7 @@ async function upsertReservationCalendar(
 async function linkProperty(
   organizationId: string,
   hp: HospitableProperty,
+  liveIds: Set<string>,
 ): Promise<string> {
   const linked = await prisma.property.findFirst({
     where: { organizationId, hospitableId: hp.id },
@@ -284,30 +290,30 @@ async function linkProperty(
 
   const name = str(hp.name) ?? str(hp.public_name) ?? "Hospitable mülkü";
 
-  // Adopt an existing property with the same name instead of creating a second
-  // record. This prevents duplicates when a listing's Hospitable id changes
-  // (e.g. after a reconnect): the old, now-unmatched property is re-linked to the
-  // new id rather than spawning a twin. Prefer an unlinked match, else re-link the
-  // oldest same-named one. Assumes listing names are unique within an org (true
-  // for typical hosts; two listings sharing an identical name would merge).
-  const byName =
-    (await prisma.property.findFirst({
-      where: { organizationId, hospitableId: null, name },
-      select: { id: true, hospitableId: true },
-    })) ??
-    (await prisma.property.findFirst({
-      where: { organizationId, name },
-      orderBy: { createdAt: "asc" },
-      select: { id: true, hospitableId: true },
-    }));
-  if (byName) {
-    if (byName.hospitableId !== hp.id) {
-      await prisma.property.update({
-        where: { id: byName.id },
-        data: { hospitableId: hp.id },
-      });
-    }
-    return byName.id;
+  // Re-adopt a same-named property that LOST its link (hospitableId null) — the
+  // unambiguous orphan/reconnect case.
+  const unlinked = await prisma.property.findFirst({
+    where: { organizationId, hospitableId: null, name },
+    select: { id: true },
+  });
+  if (unlinked) {
+    await prisma.property.update({ where: { id: unlinked.id }, data: { hospitableId: hp.id } });
+    return unlinked.id;
+  }
+
+  // Else: a same-named property whose current hospitableId is STALE (no longer in
+  // this account's live listings → the listing reconnected with a new id). Re-point
+  // it. CRITICAL: NEVER steal a property still linked to a DIFFERENT LIVE listing
+  // (two listings sharing an identical name) — that would file one apartment's
+  // reservations/messages under the other. In that case create a fresh record.
+  const sameName = await prisma.property.findFirst({
+    where: { organizationId, name },
+    orderBy: { createdAt: "asc" },
+    select: { id: true, hospitableId: true },
+  });
+  if (sameName?.hospitableId && !liveIds.has(sameName.hospitableId)) {
+    await prisma.property.update({ where: { id: sameName.id }, data: { hospitableId: hp.id } });
+    return sameName.id;
   }
 
   const created = await prisma.property.create({
