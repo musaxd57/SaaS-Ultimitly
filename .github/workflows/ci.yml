@@ -2,8 +2,15 @@ name: CI
 
 on:
   push:
-    branches: ["claude/great-edison-3zqpZ", "main"]
+    branches: ["main"]
   pull_request:
+
+# Run CI ONCE per change: PR branches are covered by the pull_request event (so we
+# don't ALSO trigger on push and get duplicate runs); main is covered by push.
+# cancel-in-progress drops superseded runs when commits land in quick succession.
+concurrency:
+  group: ${{ github.workflow }}-${{ github.event.pull_request.number || github.ref }}
+  cancel-in-progress: true
 
 # Note: this CI is independent of the Railway deploy ("Wait for CI" is off), so a
 # red run never blocks production — it just surfaces regressions early.
