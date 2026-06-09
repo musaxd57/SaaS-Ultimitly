@@ -53,7 +53,6 @@ export async function getOpsStats(orgId: string): Promise<OpsStats> {
         arrivalDate: { gte: dayStart, lte: dayEnd },
       },
       select: { sourceReference: true, id: true },
-      distinct: ["sourceReference"],
     }),
     prisma.reservation.findMany({
       where: {
@@ -62,7 +61,6 @@ export async function getOpsStats(orgId: string): Promise<OpsStats> {
         departureDate: { gte: dayStart, lte: dayEnd },
       },
       select: { sourceReference: true, id: true },
-      distinct: ["sourceReference"],
     }),
     prisma.conversation.count({
       where: { ...propertyScope(orgId), status: { in: ["new", "waiting"] } },
@@ -95,9 +93,26 @@ export async function getOpsStats(orgId: string): Promise<OpsStats> {
   const occupancyRate =
     totalProperties > 0 ? Math.min(100, Math.round((occupiedToday / totalProperties) * 100)) : 0;
 
+  // Count distinct bookings: collapse duplicate rows that share a sourceReference
+  // (the same Hospitable booking can appear twice), but count each manual/iCal
+  // booking (null sourceReference) individually — Prisma `distinct` over a
+  // nullable column wrongly merges ALL nulls into one (undercount).
+  const countDistinctBookings = (rows: { sourceReference: string | null }[]): number => {
+    const seen = new Set<string>();
+    let n = 0;
+    for (const r of rows) {
+      if (r.sourceReference == null) n++;
+      else if (!seen.has(r.sourceReference)) {
+        seen.add(r.sourceReference);
+        n++;
+      }
+    }
+    return n;
+  };
+
   return {
-    arrivalsToday: arrivalRows.length,
-    departuresToday: departureRows.length,
+    arrivalsToday: countDistinctBookings(arrivalRows),
+    departuresToday: countDistinctBookings(departureRows),
     openConversations,
     problemConversations,
     urgentTasks,

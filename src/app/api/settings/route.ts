@@ -30,13 +30,35 @@ export async function PATCH(req: NextRequest) {
         else update[field] = data[field];
       }
     }
-    // When an automation is switched ON, stamp the moment so the engine only
-    // acts on bookings/messages from now on (never the existing backlog).
-    const nowIso = new Date().toISOString();
-    if (update.autoReplyHospitable === true) update.autoReplyEnabledAt = nowIso;
-    if (update.autoWelcome === true) update.autoWelcomeEnabledAt = nowIso;
-    if (update.autoCheckin === true) update.autoCheckinEnabledAt = nowIso;
-    if (update.autoCheckout === true) update.autoCheckoutEnabledAt = nowIso;
+    // Stamp *EnabledAt ONLY on a genuine OFF→ON transition, so the engine acts
+    // only on bookings/messages from when automation was actually switched on
+    // (never the backlog). Re-saving other settings while a toggle is already on
+    // must NOT push the baseline forward — that would silently skip messages for
+    // bookings already in the pipeline.
+    const enabling = (["autoReplyHospitable", "autoWelcome", "autoCheckin", "autoCheckout"] as const).filter(
+      (f) => update[f] === true,
+    );
+    if (enabling.length > 0) {
+      const current = await prisma.organization.findUnique({
+        where: { id: session.organizationId },
+        select: {
+          autoReplyHospitable: true,
+          autoWelcome: true,
+          autoCheckin: true,
+          autoCheckout: true,
+        },
+      });
+      const nowIso = new Date().toISOString();
+      const stampOf = {
+        autoReplyHospitable: "autoReplyEnabledAt",
+        autoWelcome: "autoWelcomeEnabledAt",
+        autoCheckin: "autoCheckinEnabledAt",
+        autoCheckout: "autoCheckoutEnabledAt",
+      } as const;
+      for (const f of enabling) {
+        if (current?.[f] !== true) update[stampOf[f]] = nowIso;
+      }
+    }
     for (const field of HOUR_FIELDS) {
       if (field in data) {
         const n = Number(data[field]);

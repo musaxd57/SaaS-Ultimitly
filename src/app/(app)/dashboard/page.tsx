@@ -40,7 +40,7 @@ export default async function DashboardPage() {
   const { start: dayStart, end: dayEnd } = zonedDayRange(now, org?.timezone ?? "Europe/Istanbul");
   const scope = { property: { organizationId: orgId } };
 
-  const [stats, arrivals, departures, conversations, tasksToday, stayingRows] = await Promise.all([
+  const [stats, arrivalsRaw, departuresRaw, conversations, tasksToday, stayingRows] = await Promise.all([
     getOpsStats(orgId),
     prisma.reservation.findMany({
       where: {
@@ -49,7 +49,6 @@ export default async function DashboardPage() {
         arrivalDate: { gte: dayStart, lte: dayEnd },
       },
       include: { property: { select: { name: true, checkInTime: true } } },
-      distinct: ["sourceReference"],
       orderBy: { arrivalDate: "asc" },
     }),
     prisma.reservation.findMany({
@@ -59,7 +58,6 @@ export default async function DashboardPage() {
         departureDate: { gte: dayStart, lte: dayEnd },
       },
       include: { property: { select: { name: true, checkOutTime: true } } },
-      distinct: ["sourceReference"],
       orderBy: { departureDate: "asc" },
     }),
     prisma.conversation.findMany({
@@ -91,6 +89,21 @@ export default async function DashboardPage() {
     }),
   ]);
   const stayingCount = stayingRows.length;
+
+  // Collapse duplicate Hospitable rows (same sourceReference) but keep each
+  // manual/iCal booking (null sourceReference) — mirrors getOpsStats so the
+  // cards and the lists agree and never undercount.
+  const dedupeBookings = <T extends { sourceReference: string | null }>(rows: T[]): T[] => {
+    const seen = new Set<string>();
+    return rows.filter((r) => {
+      if (r.sourceReference == null) return true;
+      if (seen.has(r.sourceReference)) return false;
+      seen.add(r.sourceReference);
+      return true;
+    });
+  };
+  const arrivals = dedupeBookings(arrivalsRaw);
+  const departures = dedupeBookings(departuresRaw);
 
   // "Başlarken" onboarding: compute setup progress. The card only renders until
   // every step is done, then disappears for established accounts.
