@@ -21,9 +21,9 @@ export type LeadInput = z.infer<typeof leadSchema>;
 
 // --- Auth -------------------------------------------------------------------
 export const registerSchema = z.object({
-  organizationName: z.string().min(2, "İşletme adı en az 2 karakter olmalı"),
-  name: z.string().min(2, "Ad en az 2 karakter olmalı"),
-  email: z.string().email("Geçerli bir e-posta girin"),
+  organizationName: z.string().min(2, "İşletme adı en az 2 karakter olmalı").max(200),
+  name: z.string().min(2, "Ad en az 2 karakter olmalı").max(200),
+  email: z.string().email("Geçerli bir e-posta girin").max(254),
   password: z.string().min(8, "Şifre en az 8 karakter olmalı").max(200),
 });
 export type RegisterInput = z.infer<typeof registerSchema>;
@@ -40,10 +40,10 @@ export type LoginInput = z.infer<typeof loginSchema>;
 
 // --- Property ---------------------------------------------------------------
 export const propertySchema = z.object({
-  name: z.string().min(2, "Mülk adı gerekli"),
-  address: z.string().optional().or(z.literal("")),
-  city: z.string().optional().or(z.literal("")),
-  country: z.string().optional().or(z.literal("")),
+  name: z.string().min(2, "Mülk adı gerekli").max(200),
+  address: z.string().max(300).optional().or(z.literal("")),
+  city: z.string().max(120).optional().or(z.literal("")),
+  country: z.string().max(120).optional().or(z.literal("")),
   checkInTime: z.string().regex(/^\d{2}:\d{2}$/, "SS:DD formatında olmalı").default("15:00"),
   checkOutTime: z.string().regex(/^\d{2}:\d{2}$/, "SS:DD formatında olmalı").default("11:00"),
   cleaningBufferMinutes: z.coerce.number().int().min(0).max(1440).default(120),
@@ -56,15 +56,15 @@ export const reservationSchema = z
   .object({
     propertyId: z.string().min(1, "Mülk seçin"),
     guestName: z.string().trim().min(2, "Misafir adı gerekli").max(200),
-    guestPhone: z.string().optional().or(z.literal("")),
-    guestEmail: z.string().email("Geçerli e-posta girin").optional().or(z.literal("")),
+    guestPhone: z.string().max(40).optional().or(z.literal("")),
+    guestEmail: z.string().email("Geçerli e-posta girin").max(254).optional().or(z.literal("")),
     arrivalDate: z.coerce.date({ message: "Giriş tarihi gerekli" }),
     departureDate: z.coerce.date({ message: "Çıkış tarihi gerekli" }),
     channel: z.enum(RESERVATION_CHANNEL.values).default("manual"),
     status: z.enum(RESERVATION_STATUS.values).default("confirmed"),
     totalAmount: z.coerce.number().min(0).optional().or(z.nan().transform(() => undefined)),
     currency: z.string().max(8).default("EUR"),
-    sourceReference: z.string().optional().or(z.literal("")),
+    sourceReference: z.string().max(200).optional().or(z.literal("")),
     notes: z.string().max(5000).optional().or(z.literal("")),
   })
   .refine((d) => d.departureDate > d.arrivalDate, {
@@ -133,7 +133,7 @@ export const kbSchema = z.object({
   category: z.enum(KB_CATEGORY.values).default("general"),
   title: z.string().trim().min(2, "Başlık gerekli").max(300),
   content: z.string().min(2, "İçerik gerekli").max(20000),
-  language: z.string().default("tr"),
+  language: z.string().max(10).default("tr"),
   isActive: z.coerce.boolean().default(true),
 });
 export type KbInput = z.infer<typeof kbSchema>;
