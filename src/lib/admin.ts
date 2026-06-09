@@ -1,7 +1,7 @@
 import "server-only";
 
 import { prisma } from "@/lib/db";
-import { setSessionCookie, getSession, type SessionPayload } from "@/lib/auth";
+import { setSessionCookie, clearSessionCookie, getSession, type SessionPayload } from "@/lib/auth";
 import { writeAudit } from "@/lib/audit";
 import type { UserRole } from "@/lib/constants";
 
@@ -111,7 +111,14 @@ export async function exitImpersonation(): Promise<boolean> {
     where: { id: current.actorUserId },
     select: { id: true, organizationId: true, role: true, email: true, name: true },
   });
-  if (!actor) return false;
+  if (!actor) {
+    // Fail-safe: the operator's own user record is gone, so we can't restore
+    // their session — but we must NOT leave them trapped inside the customer org
+    // (still seeing that customer's guest PII). Clear the session so they drop to
+    // the login screen and can sign back in as themselves.
+    await clearSessionCookie();
+    return false;
+  }
   await writeAudit({
     organizationId: current.organizationId,
     actorUserId: current.actorUserId,

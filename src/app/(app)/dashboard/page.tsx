@@ -89,6 +89,11 @@ export default async function DashboardPage() {
     }),
   ]);
   const stayingCount = stayingRows.length;
+  // The "Bekleyen Mesajlar" card must count the SAME statuses the list below it
+  // shows (new + waiting + problem). openConversations is new+waiting only
+  // (kept distinct for the daily report), so add the escalated complaints back
+  // here — otherwise the headline number undercounts what's listed.
+  const pendingMessages = stats.openConversations + stats.problemConversations;
 
   // Collapse duplicate Hospitable rows (same sourceReference) but keep each
   // manual/iCal booking (null sourceReference) — mirrors getOpsStats so the
@@ -193,9 +198,9 @@ export default async function DashboardPage() {
         <StatCard label="Bugünkü Çıkışlar" value={departures.length} icon={LogOut} />
         <StatCard
           label="Bekleyen Mesajlar"
-          value={stats.openConversations}
+          value={pendingMessages}
           icon={MessageSquare}
-          tone={stats.openConversations > 0 ? "warning" : "default"}
+          tone={pendingMessages > 0 ? "warning" : "default"}
         />
         <StatCard
           label="Acil Görevler"
