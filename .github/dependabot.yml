@@ -1,0 +1,17 @@
+# Dependabot (ROADMAP Faz 3) — weekly, grouped dependency-update PRs so security
+# patches land safely without flooding the repo. CI (ci.yml) runs typecheck +
+# tests on each PR, so an update that breaks the build is caught before merge.
+version: 2
+updates:
+  - package-ecosystem: "npm"
+    directory: "/"
+    schedule:
+      interval: "weekly"
+    open-pull-requests-limit: 5
+    groups:
+      all-dependencies:
+        patterns: ["*"]
+  - package-ecosystem: "github-actions"
+    directory: "/"
+    schedule:
+      interval: "weekly"

@@ -63,13 +63,18 @@
 **Iyzico** (Türkiye'de Stripe yok; Iyzico'nun yerel abonelik ürünü var —
 otomatik tahsilat + webhook). Yedek: **PayTR**.
 
-- [ ] **Yeni tablolar** (hepsi additive/güvenli): `Plan`, `Subscription`, `Invoice`, `WebhookEvent`
-- [ ] **Plan limiti** (mülk sayısı 1–2 / 3–7 / 8+) + **paywall** (operatör/impersonation **hep muaf**)
+- [x] **Yeni tablolar** (additive): `Plan`, `Subscription`, `Invoice`, `WebhookEvent` ✅
+- [x] **Iyzico istemci iskeleti** (dependency-free, env'e bağlı dormant) + **webhook endpoint** (kapalı, secret gelince açılır) ✅
+- [x] **Entitlement servisi** + **plan limiti mantığı** + testler ✅ *(paywall ENFORCEMENT `BILLING_ENFORCED` ile KAPALI)*
+- [ ] **Iyzico sandbox bağlama** (gerçek abonelik/checkout çağrıları — anahtar gelince)
+- [ ] **Plan limiti devreye alma** (paywall) — *yalnızca backfill + onay sonrası*
 - [ ] **e-Arşiv fatura** (özel entegratör Paraşüt vb. — başta elle; mali müşavire danış)
 - [ ] **Self-serve kayıt + ödeme akışı** (şu an kayıt kapalı; açılacak)
 
 > ⚠️ **En kritik risk:** canlı müşterileri yanlışlıkla paywall'a düşürmemek →
 > mevcut org'ları **"aktif" backfill ŞART.**
+> ✅ Tasarımla güvenli: Subscription satırı OLMAYAN org = *grandfathered → aktif →
+> sınırsız*. Yani mevcut müşteriler `BILLING_ENFORCED=true` olsa bile bloklanmaz.
 
 **🔑 Senin başlatman gerekenler (BUGÜN — onay gün alır):**
 Iyzico iş hesabı + API anahtarı · mali müşavir (e-fatura) · avukat (metinler).

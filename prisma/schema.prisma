@@ -87,6 +87,8 @@ model Organization {
   automationRules  AutomationRule[]
   auditLogs        AuditLog[]
   messageTemplates MessageTemplate[]
+  subscription     Subscription?
+  invoices         Invoice[]
 }
 
 model User {
@@ -336,4 +338,83 @@ model MessageTemplate {
   property     Property?    @relation(fields: [propertyId], references: [id], onDelete: Cascade)
 
   @@index([organizationId])
+}
+
+// ---------------------------------------------------------------------------
+// Billing (Faz 2). ADDITIVE & DORMANT. These tables hold subscription/billing
+// state but NOTHING is paywalled until billing is *explicitly* enforced
+// (env BILLING_ENFORCED=true) AND existing orgs are backfilled as active.
+// Default behaviour (see lib/billing): an org with no Subscription row is
+// treated as grandfathered → active → unlimited, so live customers are never
+// blocked. New rows are only created by the (future) checkout flow.
+// ---------------------------------------------------------------------------
+
+// Catalog of available plans. Limits follow the roadmap (1–2 / 3–7 / 8+).
+model Plan {
+  id            String   @id @default(cuid())
+  code          String   @unique // free | pro | business (mirrors Organization.plan)
+  name          String
+  propertyLimit Int? // max properties; null = unlimited
+  priceMinor    Int      @default(0) // price in smallest unit (kuruş for TRY); 0 = free
+  currency      String   @default("TRY")
+  interval      String   @default("month") // month | year
+  isActive      Boolean  @default(true)
+  sortOrder     Int      @default(0)
+  createdAt     DateTime @default(now())
+  updatedAt     DateTime @updatedAt
+}
+
+// One subscription per organization (the billing source of truth).
+model Subscription {
+  id                String    @id @default(cuid())
+  organizationId    String    @unique
+  planCode          String    @default("free")
+  status            String    @default("active") // active | trialing | past_due | canceled | grandfathered
+  provider          String    @default("iyzico") // iyzico | paytr | manual
+  providerRef       String? // provider's subscription reference
+  currentPeriodEnd  DateTime?
+  cancelAtPeriodEnd Boolean   @default(false)
+  createdAt         DateTime  @default(now())
+  updatedAt         DateTime  @updatedAt
+
+  organization Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  invoices     Invoice[]
+
+  @@index([status])
+}
+
+model Invoice {
+  id             String    @id @default(cuid())
+  organizationId String
+  subscriptionId String?
+  amountMinor    Int
+  currency       String    @default("TRY")
+  status         String    @default("pending") // pending | paid | failed | refunded
+  provider       String    @default("iyzico")
+  providerRef    String?
+  eArchiveStatus String    @default("none") // none | requested | issued | error
+  metadataJson   String?
+  issuedAt       DateTime  @default(now())
+  paidAt         DateTime?
+
+  organization Organization  @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  subscription Subscription? @relation(fields: [subscriptionId], references: [id], onDelete: SetNull)
+
+  @@index([organizationId])
+  @@index([status])
+}
+
+// Raw provider webhook events, stored idempotently (process each once).
+model WebhookEvent {
+  id              String    @id @default(cuid())
+  provider        String    @default("iyzico")
+  eventType       String?
+  providerEventId String?   @unique // idempotency key
+  payloadJson     String
+  status          String    @default("received") // received | processed | error
+  error           String?
+  processedAt     DateTime?
+  createdAt       DateTime  @default(now())
+
+  @@index([provider, status])
 }

@@ -377,6 +377,19 @@ async function main() {
     ],
   });
 
+  // Plans (Faz 2) — idempotent upsert; mirrors src/lib/billing/plans.ts.
+  const seedPlans: {
+    code: string; name: string; propertyLimit: number | null;
+    priceMinor: number; currency: string; interval: string; sortOrder: number;
+  }[] = [
+    { code: "free", name: "Başlangıç", propertyLimit: 2, priceMinor: 0, currency: "TRY", interval: "month", sortOrder: 0 },
+    { code: "pro", name: "Pro", propertyLimit: 7, priceMinor: 49900, currency: "TRY", interval: "month", sortOrder: 1 },
+    { code: "business", name: "İşletme", propertyLimit: null, priceMinor: 99900, currency: "TRY", interval: "month", sortOrder: 2 },
+  ];
+  for (const plan of seedPlans) {
+    await prisma.plan.upsert({ where: { code: plan.code }, create: plan, update: plan });
+  }
+
   console.log("✅ Seed complete.");
   console.log(`   Org: ${org.name}`);
   console.log(`   Login: ${owner.email} / demo1234`);
