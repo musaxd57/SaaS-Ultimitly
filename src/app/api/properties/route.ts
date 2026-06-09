@@ -23,10 +23,22 @@ export async function POST(req: NextRequest) {
     const parsed = propertySchema.safeParse(data);
     if (!parsed.success) return badRequest(zodFieldErrors(parsed.error));
     const d = parsed.data;
+    const name = d.name.trim();
+
+    // One property per name within the org — prevents confusing duplicate-named
+    // listings. App-level (no DB constraint), so existing data is never touched
+    // and the deploy's `prisma db push` can't fail. Sync (linkProperty) is
+    // separate and already adopts same-named properties, so it's unaffected.
+    const dupe = await prisma.property.findFirst({
+      where: { organizationId: session.organizationId, name: { equals: name, mode: "insensitive" } },
+      select: { id: true },
+    });
+    if (dupe) return badRequest({ name: "Bu isimde bir mülk zaten var" });
+
     const property = await prisma.property.create({
       data: {
         organizationId: session.organizationId,
-        name: d.name,
+        name,
         address: d.address || null,
         city: d.city || null,
         country: d.country || null,

@@ -33,7 +33,7 @@ export async function PATCH(req: NextRequest, { params }: Params) {
   try {
     const existing = await prisma.property.findFirst({
       where: { id, organizationId: session.organizationId },
-      select: { id: true },
+      select: { id: true, name: true },
     });
     if (!existing) return notFound();
 
@@ -41,6 +41,24 @@ export async function PATCH(req: NextRequest, { params }: Params) {
     const parsed = propertySchema.partial().safeParse(data);
     if (!parsed.success) return badRequest(zodFieldErrors(parsed.error));
     const d = parsed.data;
+
+    // Block renaming onto another property's name in the same org — but ONLY when
+    // the name actually changes, so editing other fields on a property that has a
+    // pre-existing duplicate is never blocked.
+    if (d.name !== undefined) {
+      const newName = d.name.trim();
+      if (newName.toLowerCase() !== existing.name.trim().toLowerCase()) {
+        const dupe = await prisma.property.findFirst({
+          where: {
+            organizationId: session.organizationId,
+            name: { equals: newName, mode: "insensitive" },
+            id: { not: id },
+          },
+          select: { id: true },
+        });
+        if (dupe) return badRequest({ name: "Bu isimde bir mülk zaten var" });
+      }
+    }
 
     const property = await prisma.property.update({
       where: { id },
