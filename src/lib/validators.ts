@@ -24,7 +24,7 @@ export const registerSchema = z.object({
   organizationName: z.string().min(2, "İşletme adı en az 2 karakter olmalı"),
   name: z.string().min(2, "Ad en az 2 karakter olmalı"),
   email: z.string().email("Geçerli bir e-posta girin"),
-  password: z.string().min(8, "Şifre en az 8 karakter olmalı"),
+  password: z.string().min(8, "Şifre en az 8 karakter olmalı").max(200),
 });
 export type RegisterInput = z.infer<typeof registerSchema>;
 
@@ -32,7 +32,7 @@ export const loginSchema = z.object({
   email: z.string().email("Geçerli bir e-posta girin"),
   password: z.string().min(1, "Şifre gerekli"),
   // Optional TOTP code, supplied on the second step when the account has 2FA on.
-  code: z.string().optional(),
+  code: z.string().trim().max(12).optional(),
   // "Bu cihazı 30 gün hatırla": skip the 2FA code on this device for 30 days.
   rememberDevice: z.boolean().optional(),
 });
@@ -47,7 +47,7 @@ export const propertySchema = z.object({
   checkInTime: z.string().regex(/^\d{2}:\d{2}$/, "SS:DD formatında olmalı").default("15:00"),
   checkOutTime: z.string().regex(/^\d{2}:\d{2}$/, "SS:DD formatında olmalı").default("11:00"),
   cleaningBufferMinutes: z.coerce.number().int().min(0).max(1440).default(120),
-  notes: z.string().optional().or(z.literal("")),
+  notes: z.string().max(5000).optional().or(z.literal("")),
 });
 export type PropertyInput = z.infer<typeof propertySchema>;
 
@@ -55,7 +55,7 @@ export type PropertyInput = z.infer<typeof propertySchema>;
 export const reservationSchema = z
   .object({
     propertyId: z.string().min(1, "Mülk seçin"),
-    guestName: z.string().min(2, "Misafir adı gerekli"),
+    guestName: z.string().trim().min(2, "Misafir adı gerekli").max(200),
     guestPhone: z.string().optional().or(z.literal("")),
     guestEmail: z.string().email("Geçerli e-posta girin").optional().or(z.literal("")),
     arrivalDate: z.coerce.date({ message: "Giriş tarihi gerekli" }),
@@ -63,9 +63,9 @@ export const reservationSchema = z
     channel: z.enum(RESERVATION_CHANNEL.values).default("manual"),
     status: z.enum(RESERVATION_STATUS.values).default("confirmed"),
     totalAmount: z.coerce.number().min(0).optional().or(z.nan().transform(() => undefined)),
-    currency: z.string().default("EUR"),
+    currency: z.string().max(8).default("EUR"),
     sourceReference: z.string().optional().or(z.literal("")),
-    notes: z.string().optional().or(z.literal("")),
+    notes: z.string().max(5000).optional().or(z.literal("")),
   })
   .refine((d) => d.departureDate > d.arrivalDate, {
     message: "Çıkış tarihi girişten sonra olmalı",
@@ -80,16 +80,16 @@ export const reservationUpdateSchema = z.object({
 
 // --- Conversation / Messages ------------------------------------------------
 export const conversationReplySchema = z.object({
-  body: z.string().min(1, "Mesaj boş olamaz"),
-  senderName: z.string().optional(),
+  body: z.string().min(1, "Mesaj boş olamaz").max(10000),
+  senderName: z.string().max(200).optional(),
 });
 
 export const conversationCreateSchema = z.object({
   propertyId: z.string().min(1, "Mülk seçin"),
   reservationId: z.string().optional().or(z.literal("")),
-  guestIdentifier: z.string().min(1, "Misafir bilgisi gerekli"),
-  channel: z.string().default("manual"),
-  firstMessage: z.string().min(1, "İlk mesaj gerekli"),
+  guestIdentifier: z.string().trim().min(1, "Misafir bilgisi gerekli").max(200),
+  channel: z.string().max(40).default("manual"),
+  firstMessage: z.string().min(1, "İlk mesaj gerekli").max(10000),
   priority: z.enum(PRIORITY.values).default("standard"),
 });
 
@@ -107,8 +107,8 @@ export const taskSchema = z.object({
   propertyId: z.string().min(1, "Mülk seçin"),
   reservationId: z.string().optional().or(z.literal("")),
   type: z.enum(TASK_TYPE.values).default("cleaning"),
-  title: z.string().min(2, "Başlık gerekli"),
-  description: z.string().optional().or(z.literal("")),
+  title: z.string().trim().min(2, "Başlık gerekli").max(300),
+  description: z.string().max(5000).optional().or(z.literal("")),
   assignedToId: z.string().optional().or(z.literal("")),
   dueAt: z.coerce.date().optional().or(z.literal("").transform(() => undefined)),
   priority: z.enum(PRIORITY.values).default("standard"),
@@ -131,8 +131,8 @@ export const taskUpdateSchema = z.object({
 export const kbSchema = z.object({
   propertyId: z.string().min(1, "Mülk seçin"),
   category: z.enum(KB_CATEGORY.values).default("general"),
-  title: z.string().min(2, "Başlık gerekli"),
-  content: z.string().min(2, "İçerik gerekli"),
+  title: z.string().trim().min(2, "Başlık gerekli").max(300),
+  content: z.string().min(2, "İçerik gerekli").max(20000),
   language: z.string().default("tr"),
   isActive: z.coerce.boolean().default(true),
 });
