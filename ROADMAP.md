@@ -2,136 +2,115 @@
 
 > Türkiye odaklı, çok kiracılı (multi-tenant) SaaS. Kısa dönem kiralama
 > hostları için Airbnb/Booking misafir mesajlarını yapay zekâ ile otomatik
-> yanıtlar. B2C — bireysel Türk hostlara satılır.
+> yanıtlar. B2C — bireysel Türk hostlara satılır. (İşletme: Nuve, ~10 daire.)
 >
 > **Değişmez kural:** Çalışan ürün **bozulmayacak**. Her ekleme *additive*
-> (üzerine ekleme), testli ve geri alınabilir olur. Riskli bir şey varsa
-> önce yedek + onay.
+> (üzerine ekleme), testli ve geri alınabilir olur. Riskli adımda önce
+> yedek + onay, ilk canlı denemeler birlikte doğrulanır.
 >
 > Son güncelleme: 2026-06-09 · Toplam **6 faz** (Faz 0 → Faz 5)
+> *(Faz 2–5 detayları kullanıcının onayladığı orijinal plandan birebir.)*
 
 ---
 
 ## 📍 Fazların Özeti
 
-| Faz | Başlık | Ana Hedef | Tahmini Zaman |
-|-----|--------|-----------|----------------|
-| **0** | Temel, Güvenlik, İzleme | Sağlam zemin — izleme, yedek, hukuki araçlar | ✅ Bugün (2026 Q2) |
-| **1** | Ürün Derinliği & Tutundurma | Daha çok değer + müşteriyi elde tutma | 2026 Q3 (1–3 ay) |
-| **2** | Para Altyapısı (Monetizasyon) | Otomatik abonelik + fatura + self-serve satış | 2026 Q3–Q4 |
-| **3** | Ölçek & Güvenilirlik | Çok müşteride çökmeden, hızlı çalışma | 2026 Q4 – 2027 Q1 |
-| **4** | Büyüme & Pazarlama | Yeni müşteri kazanımı, otomatik onboarding | 2027 |
-| **5** | Olgunluk & Kurumsallaşma | Ekip, mobil, kurumsal, yurt dışı | 2027–2029 |
+| Faz | Başlık | Ana Hedef | Zaman |
+|-----|--------|-----------|-------|
+| **0** | Temel, Güvenlik, İzleme | Sağlam zemin: izleme, yedek, ilk araçlar | ✅ Bugün (2026 Q2) |
+| **1** | Ürün Derinliği & Tutundurma | Daha çok değer + müşteriyi elde tutma | 2026 Q3 |
+| **2** | **Ödeme Sistemi** | Otomatik abonelik + plan limiti + fatura | ~3–4 hafta (anahtarınla) |
+| **3** | Dayanıklılık | 5-yıl sağlamlık: veri bütünlüğü, performans | 2026 Q4 – 2027 Q1 |
+| **4** | Yasal Uyum (KVKK) | Paralel; çoğu doküman/avukat işi | Faz 2 ile paralel |
+| **5** | Sonra (büyüdükçe) | Ekip, mobil, CRM, white-label | 2027+ |
 
 ---
 
 ## ✅ Faz 0 — Temel, Güvenlik, İzleme  *(BUGÜN — neredeyse bitti)*
 
-**Amaç:** Üzerine güvenle inşa edebileceğimiz sağlam bir zemin.
-
 **Kod (eklendi, canlıda, yedekli):**
-- [x] **CI** (GitHub Actions) — her değişiklikte otomatik test, bozuk kod canlıya gidemez
-- [x] **Marka rebrand** — e-posta/hata/takvimde "Lixus AI"
+- [x] **CI** (GitHub Actions) — her değişiklikte otomatik test
+- [x] **Marka rebrand** — Lixus AI (e-posta/hata/takvim)
 - [x] **`/api/health`** — site/DB/cron canlılık ölçümü
-- [x] **Audit log** — operatör bir hesaba girince iz kalır
-- [x] **Denetim paneli** (/admin) — bu izleri görüntüleme
-- [x] **KVKK veri export** — bir müşterinin tüm verisini JSON indir
+- [x] **Audit log** — operatör impersonation izi *(Faz 4 "loglu destek"in temeli)*
+- [x] **Denetim paneli** (/admin)
+- [x] **KVKK veri export (operatör)** *(Faz 4 "veri export"un ilk parçası)*
 
-**Dış servisler (birlikte kuruldu):**
-- [x] **UptimeRobot** — çökersen haber verir (`www.lixusai.com/api/health`)
-- [x] **Sentry** — hata izleme (`node` projesi Railway'e bağlı)
-- [x] **Hata maili** — `ALERT_EMAIL` → musacinar2009@gmail.com
-- [x] **apex domain** — www'suz `lixusai.com` çalışıyor
-- [x] **GitHub yedek branch** — `backup/stable-2026-06-09` (donmuş kopya)
+**Dış servisler:**
+- [x] **UptimeRobot** · **Sentry** (`node` projesi) · **Hata maili** (`ALERT_EMAIL`)
+- [x] **apex domain** (www'suz lixusai.com) · **GitHub yedek branch** `backup/stable-2026-06-09`
 - [ ] **Railway Pro + otomatik Postgres yedeği** ← *akşam alınacak*
 
 ---
 
 ## 🚀 Faz 1 — Ürün Derinliği & Tutundurma  *(2026 Q3)*
 
-**Amaç:** Üründen alınan değeri artır, müşteriyi elde tut (retention).
-Para almadan önce ürünü "bırakılamaz" hale getir.
+**Amaç:** Üründen alınan değeri artır, müşteriyi elde tut. Para almadan önce
+ürünü "bırakılamaz" yap.
 
-- [ ] **WhatsApp kanalı** — misafirle WhatsApp üzerinden de konuşma/yanıt
-- [ ] **AI upsell önerileri** — erken giriş / geç çıkış / ekstra temizlik gibi
-      satışları AI'nin uygun anda önermesi (ek gelir hostlara)
-- [ ] **Haftalık özet e-postası** — host'a performans raporu (kaç mesaj,
-      kaç otomatik yanıt, doluluk) → düzenli geri dönüş, tutundurma
-- [ ] **Çoklu dil genişletme** — misafirin diline otomatik yanıtı güçlendir
-- [ ] **Bilgi tabanı / SSS otomasyonu** — host kendi cevaplarını öğretsin
+- [ ] **WhatsApp kanalı** — misafirle WhatsApp üzerinden de yanıt
+- [ ] **AI upsell** — erken giriş / geç çıkış / ekstra temizlik satışını AI önersin
+- [ ] **Haftalık özet e-postası** — host'a performans raporu → düzenli geri dönüş
+- [ ] **Çoklu dil genişletme** + **bilgi tabanı/SSS** otomasyonu
 
-> ⚠️ E-posta ve para akışına dokunan her şey **senin onayınla** ve ilk
-> gönderimler **birlikte doğrulanarak** açılır.
+> ⚠️ E-posta ve para akışına dokunan her şey **senin onayınla**, ilk gönderimler
+> **birlikte doğrulanarak** açılır.
 
 ---
 
-## 💳 Faz 2 — Para Altyapısı (Monetizasyon)  *(2026 Q3–Q4)*
+## 💳 Faz 2 — Ödeme Sistemi  *(senin kararın + anahtarın, ~3–4 hafta)*
 
-**Amaç:** Müşteri kendi kaydolsun, otomatik ödesin, fatura kessin.
-**Bu fazın hazırlığı BUGÜN paralel başlamalı** (hesap onayları gün alır).
+**Iyzico** (Türkiye'de Stripe yok; Iyzico'nun yerel abonelik ürünü var —
+otomatik tahsilat + webhook). Yedek: **PayTR**.
 
-- [ ] **Iyzico abonelik entegrasyonu** — recurring (otomatik aylık tahsilat)
-- [ ] **Plan/paket yapısı** — örn. Başlangıç / Pro / İşletme + kullanım limitleri
-- [ ] **Self-serve kayıt + ödeme akışı** — şu an kayıt kapalı; açılacak
-- [ ] **e-Arşiv / e-fatura** — özel entegratör (Paraşüt vb.) ile otomatik fatura
-- [ ] **Hukuki metinler (avukat onaylı)** — KVKK aydınlatma + açık rıza +
-      mesafeli satış sözleşmesi + iade/gizlilik politikası
-- [ ] **VERBİS kaydı** (gerekirse)
+- [ ] **Yeni tablolar** (hepsi additive/güvenli): `Plan`, `Subscription`, `Invoice`, `WebhookEvent`
+- [ ] **Plan limiti** (mülk sayısı 1–2 / 3–7 / 8+) + **paywall** (operatör/impersonation **hep muaf**)
+- [ ] **e-Arşiv fatura** (özel entegratör Paraşüt vb. — başta elle; mali müşavire danış)
+- [ ] **Self-serve kayıt + ödeme akışı** (şu an kayıt kapalı; açılacak)
 
-**🔑 Senin başlatman gerekenler (BUGÜN):**
-- **Iyzico iş hesabı** başvurusu (şirket/şahıs + IBAN + evrak) → onay birkaç gün
-- **Mali müşavir** randevusu (e-fatura/entegratör kurulumu)
-- **Avukat** randevusu (yukarıdaki metinler + VERBİS)
+> ⚠️ **En kritik risk:** canlı müşterileri yanlışlıkla paywall'a düşürmemek →
+> mevcut org'ları **"aktif" backfill ŞART.**
+
+**🔑 Senin başlatman gerekenler (BUGÜN — onay gün alır):**
+Iyzico iş hesabı + API anahtarı · mali müşavir (e-fatura) · avukat (metinler).
 
 ---
 
-## 📈 Faz 3 — Ölçek & Güvenilirlik  *(2026 Q4 – 2027 Q1)*
+## 🏗️ Faz 3 — Dayanıklılık  *(5-yıl sağlamlık)*
 
-**Amaç:** 10 değil 100+ müşteride bile çökmeden, hızlı ve tutarlı çalışmak.
-
-- [ ] **Reservation `@@unique` kısıtı** + veri tekilleştirme (önce prod'da dedup)
-- [ ] **Prisma migrate history'ye geçiş** (`db push` yerine kontrollü migration)
-- [ ] **Kuyruk/worker mimarisi** — sync ve AI işleri arka planda, sıraya girerek
-- [ ] **PostHog analytics** — hangi özellik ne kadar kullanılıyor (ürün kararları)
-- [ ] **Rate limiting + sağlam hata kurtarma** — API kötüye kullanımına karşı
-- [ ] **Yük testleri** — çok kiracılı senaryoda performans ölçümü
+- [ ] **Reservation benzersizlik kısıtı** `@@unique([propertyId, sourceReference])` — **önce dedup, sonra ekle**
+- [ ] **`db push` → migration geçişi** (şema değişiklikleri geri-alınabilir olsun)
+- [ ] **Dependabot** (Prisma 7 / Next 16 güncellemeleri planlı)
+- [ ] **Sayfalama + indeksler** (gelen kutusu büyüdükçe yavaşlamasın)
+- [ ] **Şifreleme anahtarı versiyonlama** (rotasyon kilitleme yapmadan)
 
 ---
 
-## 🌱 Faz 4 — Büyüme & Pazarlama  *(2027)*
+## ⚖️ Faz 4 — Yasal Uyum (KVKK)  *(paralel; çoğu doküman/avukat işi)*
 
-**Amaç:** Yeni müşteriyi otomatik kazan ve dakikalar içinde kur.
-
-- [ ] **Demo video** + landing iyileştirme + **SEO**
-- [ ] **Onboarding sihirbazı** — yeni host 5 dakikada kendi kurar
-- [ ] **Referans / affiliate programı** — mevcut hostlar yeni host getirsin
-- [ ] **Yeni entegrasyonlar** — Hospitable dışı PMS/kanallar
-- [ ] **Çoklu para birimi** — yurt dışına açılım hazırlığı
-
----
-
-## 🏛️ Faz 5 — Olgunluk & Kurumsallaşma  *(2027–2029)*
-
-**Amaç:** Tek kişilik üründen kurumsal platforma.
-
-- [ ] **Ekip/rol yönetimi** — host'un çalışanları için yetkiler
-- [ ] **Gelişmiş AI** — otomasyon kuralları, host stilini öğrenen yanıtlar
-- [ ] **Mobil uygulama**
-- [ ] **Güvenlik sertifikasyonları** — kurumsal müşteriler için
-- [ ] **Açık API / marketplace** — 3. parti eklentiler
+- [ ] **Veri export/silme araçları** (KVKK m.11 — host'un misafir verisini silmesi)
+      *(operatör export'u Faz 0'da yapıldı; host-tarafı silme kalan parça)*
+- [ ] **Saklama/imha politikası** + eski mesajları otomatik temizleme
+- [ ] **DPA + VERBİS değerlendirmesi** (Lixus = işleyen, host = sorumlu) — avukat/mali müşavir
+- [ ] **İhlal müdahale planı** (KVKK 72 saat bildirimi)
+- [ ] **Az-yetkili + loglu destek aracı** — operatör müşteri sorununu sınırlı yetkiyle çözsün
+      *(şu an tam impersonation = çok yetki; audit log temeli Faz 0'da atıldı)*
 
 ---
 
-## 🔑 Anahtar/Karar Gerektirenler (özet — sende)
+## 🟣 Faz 5 — Sonra (büyüdükçe)
+
+Ekip rolleri & görev atama · PWA/mobil · Misafir CRM (tekrar gelen misafir) ·
+Akıllı kilit (Nuki) · White-label (ajans modeli) · Instagram/e-posta birleşik kutu.
+
+---
+
+## 🔑 Anahtar/Karar Gerektirenler (sende)
 
 | Konu | Ne zaman | Not |
 |------|----------|-----|
 | Railway Pro + yedek | Bu akşam | ~$20/ay, otomatik Postgres yedeği |
-| Iyzico iş hesabı | **Bugün başlat** | Onay gün alır; Faz 2'nin önkoşulu |
-| Mali müşavir | Bugün başlat | e-fatura/entegratör |
+| Iyzico iş hesabı | **Bugün başlat** | Faz 2 önkoşulu; sandbox anahtarıyla erken kodlanabilir |
+| Mali müşavir | Bugün başlat | İşletme yapısı + e-fatura (Iyzico kayıtlı işletme ister) |
 | Avukat | Bugün başlat | KVKK + mesafeli satış metinleri, VERBİS |
-| Demo video | Faz 4'ten önce | landing'de `NEXT_PUBLIC_DEMO_VIDEO` |
-
-> **Çalışma şekli:** "Bana söyle, ben kodlarım." Her faz maddesi additive +
-> testli eklenir, mevcut çalışan ürün **bozulmaz**. Riskli adımlarda önce
-> yedek alınır, ilk canlı denemeler birlikte doğrulanır.
+| Demo video | Faz 4'ten önce | landing `NEXT_PUBLIC_DEMO_VIDEO` |
