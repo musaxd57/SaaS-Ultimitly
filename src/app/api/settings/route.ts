@@ -1,6 +1,6 @@
 import { type NextRequest } from "next/server";
 import { prisma } from "@/lib/db";
-import { requireSession, unauthorized, badRequest, jsonOk, serverError } from "@/lib/api";
+import { requireSession, unauthorized, badRequest, jsonOk, serverError, canManage, forbidden } from "@/lib/api";
 
 // Organization-level settings the UI can change. Booleans are the auto-reply
 // switches; the hour fields define the channel auto-reply active window;
@@ -14,6 +14,7 @@ const SIGNATURE_MAX = 600;
 export async function PATCH(req: NextRequest) {
   const session = await requireSession();
   if (!session) return unauthorized();
+  if (!canManage(session)) return forbidden();
 
   try {
     const data = await req.json().catch(() => null);

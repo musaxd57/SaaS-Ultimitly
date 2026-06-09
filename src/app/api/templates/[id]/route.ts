@@ -1,7 +1,7 @@
 import { type NextRequest } from "next/server";
 import { prisma } from "@/lib/db";
 import { z } from "zod";
-import { requireSession, unauthorized, badRequest, jsonOk, notFound, serverError } from "@/lib/api";
+import { requireSession, unauthorized, badRequest, jsonOk, notFound, serverError, canManage, forbidden } from "@/lib/api";
 import { zodFieldErrors } from "@/lib/validators";
 
 type Params = { params: Promise<{ id: string }> };
@@ -17,6 +17,7 @@ const templateUpdateSchema = z.object({
 export async function PATCH(req: NextRequest, { params }: Params) {
   const session = await requireSession();
   if (!session) return unauthorized();
+  if (!canManage(session)) return forbidden();
   const { id } = await params;
 
   try {
@@ -43,6 +44,7 @@ export async function PATCH(req: NextRequest, { params }: Params) {
 export async function DELETE(_req: NextRequest, { params }: Params) {
   const session = await requireSession();
   if (!session) return unauthorized();
+  if (!canManage(session)) return forbidden();
   const { id } = await params;
 
   const result = await prisma.messageTemplate.deleteMany({

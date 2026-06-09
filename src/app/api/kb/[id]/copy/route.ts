@@ -7,6 +7,8 @@ import {
   jsonOk,
   notFound,
   serverError,
+  canManage,
+  forbidden,
 } from "@/lib/api";
 
 type Params = { params: Promise<{ id: string }> };
@@ -17,6 +19,7 @@ type Params = { params: Promise<{ id: string }> };
 export async function POST(req: NextRequest, { params }: Params) {
   const session = await requireSession();
   if (!session) return unauthorized();
+  if (!canManage(session)) return forbidden();
   const { id } = await params;
 
   try {

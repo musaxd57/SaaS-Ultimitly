@@ -1,6 +1,6 @@
 import { type NextRequest } from "next/server";
 import { prisma } from "@/lib/db";
-import { requireSession, unauthorized, badRequest, jsonOk, serverError } from "@/lib/api";
+import { requireSession, unauthorized, badRequest, jsonOk, serverError, canManage, forbidden } from "@/lib/api";
 
 export async function POST(
   req: NextRequest,
@@ -8,6 +8,7 @@ export async function POST(
 ) {
   const session = await requireSession();
   if (!session) return unauthorized();
+  if (!canManage(session)) return forbidden();
 
   try {
     const { id: propertyId } = await params;

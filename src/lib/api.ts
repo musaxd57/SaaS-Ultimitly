@@ -25,6 +25,20 @@ export function notFound(message = "Kayıt bulunamadı") {
   return NextResponse.json({ error: message }, { status: 404 });
 }
 
+export function forbidden(message = "Bu işlem için yetkiniz yok") {
+  return NextResponse.json({ error: message }, { status: 403 });
+}
+
+/**
+ * Owner/manager may perform config & destructive actions (create/edit/delete
+ * properties, templates, knowledge base, bulk settings, create/delete tasks).
+ * Staff (e.g. cleaners) cannot — they only update task status/photos.
+ * Operators impersonating a customer carry that org's owner role, so unaffected.
+ */
+export function canManage(session: SessionPayload | null): boolean {
+  return session?.role === "owner" || session?.role === "manager";
+}
+
 export function serverError(message = "Beklenmeyen bir hata oluştu") {
   return NextResponse.json({ error: message }, { status: 500 });
 }

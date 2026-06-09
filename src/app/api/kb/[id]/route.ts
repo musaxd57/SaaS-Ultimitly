@@ -8,6 +8,8 @@ import {
   jsonOk,
   notFound,
   serverError,
+  canManage,
+  forbidden,
 } from "@/lib/api";
 
 type Params = { params: Promise<{ id: string }> };
@@ -15,6 +17,7 @@ type Params = { params: Promise<{ id: string }> };
 export async function PATCH(req: NextRequest, { params }: Params) {
   const session = await requireSession();
   if (!session) return unauthorized();
+  if (!canManage(session)) return forbidden();
   const { id } = await params;
   try {
     const existing = await prisma.knowledgeBaseItem.findFirst({
@@ -40,6 +43,7 @@ export async function PATCH(req: NextRequest, { params }: Params) {
 export async function DELETE(_req: NextRequest, { params }: Params) {
   const session = await requireSession();
   if (!session) return unauthorized();
+  if (!canManage(session)) return forbidden();
   const { id } = await params;
   const result = await prisma.knowledgeBaseItem.deleteMany({
     where: { id, property: { organizationId: session.organizationId } },

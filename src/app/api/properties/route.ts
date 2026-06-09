@@ -1,7 +1,7 @@
 import { type NextRequest } from "next/server";
 import { prisma } from "@/lib/db";
 import { propertySchema, zodFieldErrors } from "@/lib/validators";
-import { requireSession, unauthorized, badRequest, jsonOk, serverError } from "@/lib/api";
+import { requireSession, unauthorized, badRequest, jsonOk, serverError, canManage, forbidden } from "@/lib/api";
 import { generateCalendarToken } from "@/lib/export/ics";
 
 export async function GET() {
@@ -17,6 +17,7 @@ export async function GET() {
 export async function POST(req: NextRequest) {
   const session = await requireSession();
   if (!session) return unauthorized();
+  if (!canManage(session)) return forbidden();
   try {
     const data = await req.json().catch(() => null);
     const parsed = propertySchema.safeParse(data);

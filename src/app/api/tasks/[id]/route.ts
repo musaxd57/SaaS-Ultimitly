@@ -8,6 +8,8 @@ import {
   jsonOk,
   notFound,
   serverError,
+  canManage,
+  forbidden,
 } from "@/lib/api";
 import { emailService } from "@/lib/email";
 import { taskAssignedEmail } from "@/lib/email-templates";
@@ -90,6 +92,7 @@ export async function PATCH(req: NextRequest, { params }: Params) {
 export async function DELETE(_req: NextRequest, { params }: Params) {
   const session = await requireSession();
   if (!session) return unauthorized();
+  if (!canManage(session)) return forbidden();
   const { id } = await params;
   const result = await prisma.task.deleteMany({
     where: { id, property: { organizationId: session.organizationId } },

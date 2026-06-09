@@ -1,6 +1,6 @@
 import { type NextRequest } from "next/server";
 import { prisma } from "@/lib/db";
-import { requireSession, unauthorized, badRequest, jsonOk, serverError } from "@/lib/api";
+import { requireSession, unauthorized, badRequest, jsonOk, serverError, canManage, forbidden } from "@/lib/api";
 
 // Apply one check-in / check-out time to ALL of the org's properties at once.
 // Useful when every apartment shares the same hours (and fixes the AI quoting a
@@ -10,6 +10,7 @@ const TIME_RE = /^([01]?\d|2[0-3]):[0-5]\d$/; // H:MM or HH:MM, 00:00–23:59
 export async function POST(req: NextRequest) {
   const session = await requireSession();
   if (!session) return unauthorized();
+  if (!canManage(session)) return forbidden();
 
   try {
     const data = await req.json().catch(() => null);

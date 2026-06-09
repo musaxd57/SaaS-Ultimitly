@@ -1,7 +1,7 @@
 import { type NextRequest } from "next/server";
 import { prisma } from "@/lib/db";
 import { z } from "zod";
-import { requireSession, unauthorized, badRequest, jsonOk, serverError, propertyInOrg } from "@/lib/api";
+import { requireSession, unauthorized, badRequest, jsonOk, serverError, propertyInOrg, canManage, forbidden } from "@/lib/api";
 import { zodFieldErrors } from "@/lib/validators";
 import { DEFAULT_TEMPLATES } from "@/lib/templates";
 
@@ -41,6 +41,7 @@ export async function GET(req: NextRequest) {
 export async function POST(req: NextRequest) {
   const session = await requireSession();
   if (!session) return unauthorized();
+  if (!canManage(session)) return forbidden();
 
   try {
     const data = await req.json().catch(() => null);

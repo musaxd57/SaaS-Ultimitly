@@ -8,6 +8,8 @@ import {
   jsonOk,
   notFound,
   serverError,
+  canManage,
+  forbidden,
 } from "@/lib/api";
 
 type Params = { params: Promise<{ id: string }> };
@@ -26,6 +28,7 @@ export async function GET(_req: NextRequest, { params }: Params) {
 export async function PATCH(req: NextRequest, { params }: Params) {
   const session = await requireSession();
   if (!session) return unauthorized();
+  if (!canManage(session)) return forbidden();
   const { id } = await params;
   try {
     const existing = await prisma.property.findFirst({
@@ -61,6 +64,7 @@ export async function PATCH(req: NextRequest, { params }: Params) {
 export async function DELETE(_req: NextRequest, { params }: Params) {
   const session = await requireSession();
   if (!session) return unauthorized();
+  if (!canManage(session)) return forbidden();
   const { id } = await params;
   const result = await prisma.property.deleteMany({
     where: { id, organizationId: session.organizationId },
