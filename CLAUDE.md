@@ -71,17 +71,19 @@ izolasyon, auth, AI güvenlik kapısı, KVKK export, billing-dormant hepsi iyi).
 - HIGH: rapor/dashboard sayımı — null `sourceReference` artık tek tek sayılıyor
 - bcrypt 10→12; otomasyon `*EnabledAt` sadece OFF→ON'da damgalanıyor
 - TOTP replay koruması (`User.twoFactorLastStep`, totp/login/2fa)
-**KALAN düzeltmeler (kullanıcı onayladı "hepsini yap" — sırada):**
-1. **Staff rol kısıtlama** — staff sadece görev durumu/foto; mülk/şablon/KB
-   silme + bulk-times owner+manager'a. (properties/tasks/templates/kb routes)
-2. **Çok dilli şikayet gate'i** — TR/EN dışı dilde şikayet oto-yanıtlanmasın
-   (automation.ts safety gate + fallback keyword kapsamı).
-3. **Mülk isim-dedup** — `linkProperty` isim çakışmasında belirsizse birleştirme
-   (hospitable-sync.ts); kullanıcının "serdarı ekrem 1" sorunu.
-4. **iCal kanal yapısal fix (HIGH)** — lifecycle göndericiler iCal rezervasyonu
-   Hospitable'a yönlendiriyor. Kanal güvenilir ayraç DEĞİL (iCal feed'i de
-   airbnb/booking etiketlenebilir) → Hospitable reservation id'sini ayrı alanda
-   tutmak gerek. Mesaj-yolu = en hassas; aceleye getirme. Bugün misafire zarar yok.
+**Düzeltmeler — durum (her biri ayrı agent ile doğrulandı):**
+- ✅ Staff rol kısıtlama — owner/manager yönetir, staff sadece okuma + görev
+  güncelleme; tüm yıkıcı/config route'lar `canManage` geçitli.
+- ✅ Çok dilli şikayet gate'i — DE/FR/ES/IT/AR/RU kelime ağı; verifier'in bulduğu
+  false-positive (`roto`→prototype) temizlendi.
+- ✅ Benzersiz mülk ismi (app-level, org bazlı, case-insensitive, trim). RİSKLİ
+  `linkProperty` SYNC'ine DOKUNULMADI; manuel create/rename'de aynı-isim reddi.
+  (Kullanıcının "serdarı ekrem 1" kopya sorununa kalıcı çözüm.)
+- ⏭️ **KALAN — iCal kanal yapısal fix (HIGH):** lifecycle göndericiler iCal
+  rezervasyonunu Hospitable'a yönlendiriyor. Kanal güvenilir ayraç DEĞİL (iCal
+  feed'i de airbnb/booking etiketlenebilir) → Hospitable reservation id'sini AYRI
+  bir alanda tutmak gerek. Mesaj-yolu = en hassas; aceleye getirme, dedike adımda
+  yap. Bugün misafire zarar yok (iCal UID Hospitable'da geçersiz → sessizce fail).
 - **Hafıza/persist:** önemli kararlar repoya yazılır (CLAUDE.md + ROADMAP.md) —
   bu, ephemeral web ortamında claude-mem gibi yerel araçlardan daha güvenilir.
 
