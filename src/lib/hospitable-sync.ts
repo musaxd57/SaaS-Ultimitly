@@ -144,9 +144,11 @@ export async function syncHospitable(
 
       // Store the reservation (guest, dates, status) — drives the dashboard and
       // the welcome message. Guarded so one bad record can't abort the sync.
+      // Capture its local id so the conversation can be linked to it below.
+      let localReservationId: string | null = null;
       try {
-        const saved = await upsertReservationCalendar(propertyId, reservation);
-        if (saved) result.reservations++;
+        localReservationId = await upsertReservationCalendar(propertyId, reservation);
+        if (localReservationId) result.reservations++;
       } catch (err) {
         console.error(`[Hospitable sync] reservation upsert failed for ${reservation.id}`, err);
       }
@@ -181,7 +183,7 @@ export async function syncHospitable(
       if (messages.length === 0) continue;
 
       try {
-        const imported = await importThread(propertyId, reservation, messages);
+        const imported = await importThread(propertyId, reservation, messages, localReservationId);
         result.conversations++;
         result.messages += imported;
       } catch (err) {
@@ -193,22 +195,26 @@ export async function syncHospitable(
   return result;
 }
 
-/** Upsert a Reservation row (guest, dates, status) from a Hospitable reservation. */
+/**
+ * Upsert a Reservation row (guest, dates, status) from a Hospitable reservation.
+ * Returns the local Reservation id so the caller can link the conversation to it
+ * (correct guest/dates context), or null when nothing was written.
+ */
 async function upsertReservationCalendar(
   propertyId: string,
   reservation: HospitableReservation,
-): Promise<boolean> {
+): Promise<string | null> {
   const srcRef = String(reservation.id);
   const arrivalDate = parseDate(reservation.arrival_date) ?? parseDate(reservation.check_in);
   const departureDate = parseDate(reservation.departure_date) ?? parseDate(reservation.check_out);
-  if (!arrivalDate || !departureDate) return false;
+  if (!arrivalDate || !departureDate) return null;
 
   // FK safety: only write if the property genuinely exists.
   const propertyExists = await prisma.property.findUnique({
     where: { id: propertyId },
     select: { id: true },
   });
-  if (!propertyExists) return false;
+  if (!propertyExists) return null;
 
   const g = reservation.guest;
   const guestName =
@@ -255,25 +261,26 @@ async function upsertReservationCalendar(
         ...(totalAmount !== null ? { totalAmount, currency } : {}),
       },
     });
-  } else {
-    await prisma.reservation.create({
-      data: {
-        propertyId,
-        guestName,
-        guestEmail: guestEmail ?? undefined,
-        guestPhone: guestPhone ?? undefined,
-        arrivalDate,
-        departureDate,
-        channel,
-        status,
-        totalAmount: totalAmount ?? undefined,
-        currency,
-        sourceReference: srcRef,
-      },
-    });
+    return existing.id;
   }
 
-  return true;
+  const created = await prisma.reservation.create({
+    data: {
+      propertyId,
+      guestName,
+      guestEmail: guestEmail ?? undefined,
+      guestPhone: guestPhone ?? undefined,
+      arrivalDate,
+      departureDate,
+      channel,
+      status,
+      totalAmount: totalAmount ?? undefined,
+      currency,
+      sourceReference: srcRef,
+    },
+    select: { id: true },
+  });
+  return created.id;
 }
 
 /** Link a Hospitable property to an existing Property (by id, then name) or create one. */
@@ -328,6 +335,7 @@ async function importThread(
   propertyId: string,
   reservation: HospitableReservation,
   messages: HospitableMessage[],
+  localReservationId: string | null,
 ): Promise<number> {
   const reservationId = String(reservation.id);
   const channel = toChannel(reservation.platform);
@@ -352,7 +360,7 @@ async function importThread(
 
   const existing = await prisma.conversation.findFirst({
     where: { propertyId, externalReservationId: reservationId },
-    select: { id: true, status: true },
+    select: { id: true, status: true, reservationId: true },
   });
 
   let conversationId: string;
@@ -365,6 +373,10 @@ async function importThread(
         status: computedStatus,
         priority: "standard",
         lastMessageAt,
+        // Link to the local reservation row (same property + same Hospitable
+        // reservation id) so the AI replies with the correct guest/dates and
+        // skips finished/cancelled bookings. Null when no reservation matched.
+        reservationId: localReservationId,
         externalReservationId: reservationId,
         externalConversationId: str(reservation.conversation_id),
       },
@@ -380,6 +392,11 @@ async function importThread(
         lastMessageAt,
         guestIdentifier: guestName,
         ...(preserve ? {} : { status: computedStatus }),
+        // Backfill the reservation link only when it's currently empty — never
+        // overwrite an existing (possibly human-set) link.
+        ...(localReservationId && !existing.reservationId
+          ? { reservationId: localReservationId }
+          : {}),
       },
     });
     conversationId = existing.id;

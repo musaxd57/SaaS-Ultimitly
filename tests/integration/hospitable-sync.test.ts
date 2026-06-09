@@ -262,4 +262,112 @@ describe("syncHospitable", () => {
     const res = await prisma.reservation.findFirst({ where: { sourceReference: "res-cancel" } });
     expect(res?.status).toBe("cancelled");
   });
+
+  it("links a new conversation to its local reservation row (correct guest/dates context)", async () => {
+    const { orgId } = await makeOrgWithProperty();
+    mockProperties.mockResolvedValue([{ id: "hp", name: "Test Property" }]);
+    mockReservations.mockResolvedValue([
+      {
+        id: "res-link",
+        platform: "airbnb",
+        status: "confirmed",
+        arrival_date: "2026-06-10",
+        departure_date: "2026-06-13",
+        guest: { full_name: "Linked Guest" },
+        conversation_id: "conv-link",
+        last_message_at: "2026-06-09T10:00:00Z",
+      },
+    ]);
+    mockMessages.mockResolvedValue([
+      {
+        id: 5001,
+        body: "Hi, what is the wifi password?",
+        sender_type: "guest",
+        sender: { full_name: "Linked Guest" },
+        created_at: "2026-06-09T10:00:00Z",
+      },
+    ]);
+
+    await syncHospitable(orgId);
+
+    const reservation = await prisma.reservation.findFirst({ where: { sourceReference: "res-link" } });
+    const conversation = await prisma.conversation.findFirst({ where: { externalReservationId: "res-link" } });
+    expect(reservation).toBeTruthy();
+    // Linked to the SAME local reservation row → the AI replies with the correct
+    // guest/dates and the finished/cancelled-booking gate can apply.
+    expect(conversation?.reservationId).toBe(reservation!.id);
+  });
+
+  it("backfills the reservation link on a later sync, never overwriting an existing link", async () => {
+    const { orgId } = await makeOrgWithProperty();
+    mockProperties.mockResolvedValue([{ id: "hp", name: "Test Property" }]);
+    // First sync: reservation has no dates → no local reservation row → the
+    // conversation is created UNLINKED.
+    mockReservations.mockResolvedValue([
+      { id: "res-bf", platform: "airbnb", conversation_id: "c", last_message_at: "2026-06-09T10:00:00Z" },
+    ]);
+    mockMessages.mockResolvedValue([
+      { id: 7001, body: "Hello", sender_type: "guest", sender: { full_name: "BF Guest" }, created_at: "2026-06-09T10:00:00Z" },
+    ]);
+    await syncHospitable(orgId);
+    let conv = await prisma.conversation.findFirst({ where: { externalReservationId: "res-bf" } });
+    expect(conv?.reservationId).toBeNull();
+
+    // Second sync: the same reservation now carries dates + a NEWER message → a
+    // local reservation row is written and the unlinked conversation is backfilled.
+    mockReservations.mockResolvedValue([
+      {
+        id: "res-bf",
+        platform: "airbnb",
+        status: "confirmed",
+        arrival_date: "2026-06-10",
+        departure_date: "2026-06-13",
+        guest: { full_name: "BF Guest" },
+        last_message_at: "2026-06-09T12:00:00Z",
+      },
+    ]);
+    mockMessages.mockResolvedValue([
+      { id: 7001, body: "Hello", sender_type: "guest", sender: { full_name: "BF Guest" }, created_at: "2026-06-09T10:00:00Z" },
+      { id: 7002, body: "Anyone there?", sender_type: "guest", sender: { full_name: "BF Guest" }, created_at: "2026-06-09T12:00:00Z" },
+    ]);
+    await syncHospitable(orgId);
+
+    const reservation = await prisma.reservation.findFirst({ where: { sourceReference: "res-bf" } });
+    conv = await prisma.conversation.findFirst({ where: { externalReservationId: "res-bf" } });
+    expect(reservation).toBeTruthy();
+    expect(conv?.reservationId).toBe(reservation!.id);
+
+    // A human re-points the link elsewhere; a later sync must NOT clobber it.
+    const otherProp = await prisma.property.findFirst({ where: { organizationId: orgId } });
+    const manual = await prisma.reservation.create({
+      data: {
+        propertyId: otherProp!.id,
+        guestName: "Manual",
+        arrivalDate: new Date("2026-06-10"),
+        departureDate: new Date("2026-06-13"),
+        sourceReference: "manual-ref",
+      },
+      select: { id: true },
+    });
+    await prisma.conversation.update({ where: { id: conv!.id }, data: { reservationId: manual.id } });
+    mockMessages.mockResolvedValue([
+      { id: 7001, body: "Hello", sender_type: "guest", sender: { full_name: "BF Guest" }, created_at: "2026-06-09T10:00:00Z" },
+      { id: 7002, body: "Anyone there?", sender_type: "guest", sender: { full_name: "BF Guest" }, created_at: "2026-06-09T12:00:00Z" },
+      { id: 7003, body: "Still waiting", sender_type: "guest", sender: { full_name: "BF Guest" }, created_at: "2026-06-09T14:00:00Z" },
+    ]);
+    mockReservations.mockResolvedValue([
+      {
+        id: "res-bf",
+        platform: "airbnb",
+        status: "confirmed",
+        arrival_date: "2026-06-10",
+        departure_date: "2026-06-13",
+        guest: { full_name: "BF Guest" },
+        last_message_at: "2026-06-09T14:00:00Z",
+      },
+    ]);
+    await syncHospitable(orgId);
+    conv = await prisma.conversation.findFirst({ where: { externalReservationId: "res-bf" } });
+    expect(conv?.reservationId).toBe(manual.id); // human link preserved
+  });
 });
