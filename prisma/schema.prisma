@@ -186,6 +186,7 @@ model Reservation {
 
   @@index([propertyId])
   @@index([arrivalDate])
+  @@index([departureDate]) // checkout / cleaning / report queries filter by this
 }
 
 model Conversation {
@@ -214,6 +215,7 @@ model Conversation {
   @@index([propertyId])
   @@index([status])
   @@index([externalReservationId])
+  @@index([lastMessageAt]) // inbox is ordered by recency
 }
 
 model Message {
@@ -233,6 +235,7 @@ model Message {
 
   @@index([conversationId])
   @@index([conversationId, externalId])
+  @@index([conversationId, createdAt]) // fetch a thread's latest message fast
 }
 
 model Task {
