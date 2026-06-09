@@ -25,8 +25,20 @@ const KEYWORDS: Record<Exclude<Intent, "general">, string[]> = {
     "çalışmıyor", "calismiyor", "kirli", "bozuk", "problem", "sorun", "şikayet", "sikayet",
     "kötü", "kotu", "berbat", "leak", "su akıyor", "koku", "böcek", "bocek", "broken",
     "dirty", "not working", "complaint", "rezalet", "iğrenç", "igrenc",
+    // Multilingual backstop (DE/FR/ES/IT/AR/RU). Distinctive complaint words only,
+    // to avoid English false matches (e.g. "sale"). Catches a foreign-language
+    // complaint even if the model mislabels it.
+    "funktioniert nicht", "kaputt", "schmutzig", "dreckig", "beschwerde", "schimmel",
+    "ne fonctionne pas", "cassé", "problème", "plainte", "fuite",
+    "no funciona", "roto", "sucio", "queja", "non funziona", "rotto", "sporco",
+    "لا يعمل", "معطل", "متسخ", "مشكلة", "شكوى",
+    "не работает", "сломан", "грязно", "проблема", "жалоба",
   ],
-  refund: ["iade", "geri ödeme", "geri odeme", "refund", "para iadesi", "ücret iade"],
+  refund: [
+    "iade", "geri ödeme", "geri odeme", "refund", "para iadesi", "ücret iade",
+    "rückerstattung", "geld zurück", "remboursement", "reembolso", "devolución",
+    "استرداد", "استرجاع", "возврат", "вернуть деньги",
+  ],
   // Leaving the stay EARLY / shortening / cancelling — a revenue/refund-sensitive
   // signal that must always route to a human (also used as an auto-send veto).
   early_departure: [
@@ -34,6 +46,9 @@ const KEYWORDS: Record<Exclude<Intent, "general">, string[]> = {
     "ayrılmamız gerek", "ayrilmamiz gerek", "rezervasyonu kısalt", "rezervasyonu kisalt", "iptal et",
     "iptal edebilir", "leave early", "check out early", "checking out early", "cut short", "shorten my stay",
     "cancel my", "cancel the", "won't be staying", "wont be staying", "can't stay", "cant stay",
+    // Multilingual cancel / leave-early signals (DE/FR/ES/AR/RU).
+    "stornieren", "früher abreisen", "annuler", "partir plus tôt", "cancelar", "salir antes",
+    "إلغاء", "المغادرة مبكرا", "отменить", "уехать раньше",
   ],
   // Guest explicitly wants a real person / the host.
   human_request: [

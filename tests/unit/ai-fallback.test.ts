@@ -50,6 +50,19 @@ describe("classifyFallback", () => {
   it("recognizes English complaint keywords", () => {
     expect(classifyFallback("The shower is broken").intent).toBe("complaint");
   });
+
+  it("catches complaints in other supported languages (backstop)", () => {
+    expect(classifyFallback("Die Klimaanlage funktioniert nicht").intent).toBe("complaint"); // DE
+    expect(classifyFallback("La douche ne fonctionne pas").intent).toBe("complaint"); // FR
+    expect(classifyFallback("El baño está muy sucio").intent).toBe("complaint"); // ES
+    expect(classifyFallback("Кондиционер не работает").intent).toBe("complaint"); // RU
+    expect(classifyFallback("التكييف لا يعمل").intent).toBe("complaint"); // AR
+  });
+
+  it("catches refund / cancellation in other languages", () => {
+    expect(classifyFallback("Ich möchte eine Rückerstattung").intent).toBe("refund"); // DE
+    expect(classifyFallback("Je veux annuler ma réservation").intent).toBe("early_departure"); // FR cancel
+  });
 });
 
 describe("suggestReplyFallback", () => {
