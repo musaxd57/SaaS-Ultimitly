@@ -343,6 +343,20 @@ aynı; rezervasyon date-only gösterimleri `formatDate` (UTC) kaldı. **Kullanı
 hemen. **DERS:** önce tarih-matematiğini suçladım (2 yanlış tur); gerçek sorun EKSİK GÖREV'di — veriyi
 (dashboard vs task tablosu) baştan karşılaştırmalıydım.
 
+## Görevler "Bugün" — SON parça: oluşturma gate'i UTC→İstanbul (commit acad837)
+Per-type fix sonrası "Eksik görevleri oluştur (4)" butonu DOĞRU çıktı (4 eksik temizlik buldu) ama
+tıklayınca **0 oluştu** ("geçmiş tarihli"). **Kanıt = kesin teşhis:** bugünkü çıkışların departureDate'i
+**İstanbul gece-yarısı** (21:00Z önceki UTC gün) saklı → UTC-midnight'tan ÖNCE. `createReservationTasks`
+gate'i `>= startOfDay(new Date())` (date-fns = sunucu UTC günü) kullanıyordu → bugünkü çıkışı "geçmiş"
+sanıp temizliği oluşturmuyordu. Sayım sorgusu (İstanbul sınırı) "eksik" diyordu ama gate (UTC) reddediyordu
+— iki sınır çelişiyordu. **Düzeltme:** gate artık `zonedDayRange(now, "Europe/Istanbul").start`. +1 test
+(İstanbul-gece-yarısı bugün çıkışı). **İLK hipotezim (İstanbul-midnight storage) DOĞRUYMUŞ** — ajanlar
+test fixture'ındaki date-only string'e bakıp "UTC-midnight" dedi, ama GERÇEK Hospitable verisi İstanbul
+saatli geliyor. **Ders: canlı veriyi (backfill 0 verdi) erken alsaydım 2 tur kazanırdım.**
+**⚠️ Ertelenen (aynı UTC skew, RİSKLİ): oto-yanıt/welcome/checkout göndericileri** (automation.ts
+474,922,1014,1096,1154,1230,1383) hâlâ UTC startOfDay — checkout günü sabahı oto-yanıtı yanlışlıkla
+atlayabilir. Auto-reply hot-path + pinned boundary testi → kullanıcı onaylı dedike adım.
+
 ## Çalışma şekli
 Kullanıcı: "Bana söyle, ben kodlarım." Fazları sırayla, additive + testli.
 Build + `npm test` yeşil olmadan push etme. GitHub'da PR sadece kullanıcı
