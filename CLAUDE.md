@@ -147,6 +147,32 @@ vergi/telefon) doldurulacak + 4 yasal sayfa avukata inceletilecek.
 **Tam ödeme launch'ı için kalan (Faz 2):** Iyzico sandbox anahtarları + imza doğrulama testi,
 checkout akışı, Plan tablosu seed, BILLING_ENFORCED açma. Billing hâlâ dormant.
 
+## ÇALIŞMA TARZI — KALICI TERCİH (kullanıcı "ezberle" dedi, 2026-06-10)
+**Kullanıcı her iş oturumunda DURMADAN, BOL AGENT ile çalışmamı istiyor** ("en az 10 agent her
+seferinde", "full agentları hep kullan", "soru sorma sonunda topla"). Standart davranış: her
+turda 8-12+ paralel agent (frontend/backend/güvenlik/hız/müşteri-gözü/strateji), bulgularını KOD
+İLE DOĞRULA (agent ~yarı bulguda yanılıyor), sadece gerçek+güvenli olanları uygula, sonunda tek
+"karar listesi" sun. **KRİTİK:** Konteyner ara sıra eski snapshot'a (365c957) döner → işi SIK SIK
+commit+push et ki sıfırlamada kaybolmasın. Kurtarma: `git fetch origin <branch>` → `git reset
+--hard origin/<branch>` → `npx prisma generate`.
+
+## ⏳ LAUNCH ÖNCESİ — KULLANICI/AVUKAT KARARLARI (akşam 2. dalga, ~14 agent sentezi)
+Kodla çözülmez; kullanıcı dönünce (önem sırasına göre):
+1. **Iyzico iş hesabı + sandbox anahtarları** — tüm ödeme işinin kilidi (kayıtlı işletme+muhasebeci). Gelmeden checkout/trial test edilemez.
+2. **KVKK — en keskin risk:** misafir mesajları OpenAI'a (ABD) gidiyor, aktarım MEKANİZMASI yok. Gerek: OpenAI DPA + KVKK **Standart Sözleşme** (Kurul'a 5 iş günü bildir) + "API verisi eğitimde kullanılmaz". Ayrıca: host'larla **DPA (veri işleyen eki)** yok; **VERBİS** kaydı muhtemelen gerekli; gizlilik silme/saklama vaat ediyor ama kodda auto-purge YOK.
+3. **legal-entity.ts** [parantez] alanları (ünvan/adres/MERSİS/telefon) — ödeme almadan ÖNCE.
+4. **E-posta DNS:** RESEND_API_KEY + RESEND_FROM (doğrulanmış domain) + SPF/DKIM/DMARC — yoksa şifre-kodu/uyarı mailleri spam'e düşer. (.env.example'da hâlâ eski "GuestOps" markası.)
+5. **Şifre değişince oturum geçersizleştirme** (sessionEpoch) — UX kararı: diğer cihazlardan çıkış ister misin? + istersen 2FA'da TOTP. (Auth hot-path, birlikte.)
+6. **/api/health?strict=1** için 2. UptimeRobot monitörü (sync ölürse haber al).
+
+## ⏳ ERTELENEN GELİŞTİRİCİ İŞLERİ (güvenli ama büyük / prod-hazırlık gerek)
+- **Reverse-trial + pause motoru** (signup'ta trialing sub, expiry cron, paused durumu) — pricing çekirdeği, YOK. + `canAddProperty`'yi property-create'e bağla (0 çağrı) + webhook→subscription işleme + Iyzico imza doğrulama (placeholder).
+- **`@@unique([conversationId, externalId])`** (mesaj dedup'unu DB-constraint'e taşı) — önce PROD dublör temizliği (yoksa db push patlar). + cron lock-heartbeat + claim-then-send (çift-gönderim savunması).
+- **KVKK kodu:** misafir/hesap silme route'u + retention/anonimleştirme cron + gizlilik'te alt-işleyenleri tam say.
+- **SEO:** JSON-LD (FAQ/Org/Product), fiyat-karşılaştırma tablosu, lead-form KVKK onay kutusu.
+- **Mobil (additive Tailwind):** admin tablo overflow, mesaj balonu break-words, kb ikon-buton ≥40px, modal kenar boşluğu.
+- **Bağımlılık (düşük, prod temiz):** next 15.5.18→.19, @types/nodemailer→devDeps, vitest (dev-only CRITICAL) güncelle.
+
 ## Airbnb-bypass kararı + şifre-mail akışı + perf + 17-agent dalga (2026-06-10 akşam)
 **STRATEJİ KARARI (4 bağımsız web-araştırma ajanı + sentez, hepsi aynı sonuç):** "Hospitable'ı
 aradan çıkarıp doğrudan Airbnb'ye bağlanma" fikri **PRATİKTE KAPALI ve PEŞİNDEN KOŞULMAYACAK.**
