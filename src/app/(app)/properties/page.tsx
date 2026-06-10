@@ -12,6 +12,7 @@ export const dynamic = "force-dynamic";
 
 export default async function PropertiesPage() {
   const session = await requireAuth();
+  const canManage = session.role === "owner" || session.role === "manager";
   const properties = await prisma.property.findMany({
     where: { organizationId: session.organizationId },
     orderBy: { createdAt: "desc" },
@@ -23,9 +24,11 @@ export default async function PropertiesPage() {
   return (
     <>
       <PageHeader title="Mülkler" description="Yönettiğiniz tüm mülkler ve ayarları.">
-        <LinkButton href="/properties/new">
-          <Plus className="size-4" /> Yeni mülk
-        </LinkButton>
+        {canManage ? (
+          <LinkButton href="/properties/new">
+            <Plus className="size-4" /> Yeni mülk
+          </LinkButton>
+        ) : null}
       </PageHeader>
 
       {properties.length === 0 ? (
@@ -34,9 +37,11 @@ export default async function PropertiesPage() {
           title="Henüz mülk eklenmemiş"
           description="İlk mülkünüzü ekleyerek rezervasyon ve görev yönetimine başlayın."
         >
-          <LinkButton href="/properties/new" size="sm">
-            <Plus className="size-4" /> İlk mülkü ekle
-          </LinkButton>
+          {canManage ? (
+            <LinkButton href="/properties/new" size="sm">
+              <Plus className="size-4" /> İlk mülkü ekle
+            </LinkButton>
+          ) : null}
         </EmptyState>
       ) : (
         <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">

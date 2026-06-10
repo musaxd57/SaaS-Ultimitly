@@ -138,9 +138,11 @@ export function AiTestCard({ properties }: { properties: { id: string; name: str
               {aiSourceLabel(result.source)}
             </Badge>
           </div>
-          {result.confidence < 0.4 ? (
+          {result.confidence < 0.75 ? (
             <p className="text-xs text-amber-600">
-              Düşük güven (&lt;0.40) → bu mesaja otomatik cevap <strong>gönderilmez</strong> (spam önleme).
+              Güven %75&apos;in altında → bu mesaja otomatik cevap <strong>gönderilmez</strong>, sizin
+              onayınıza bırakılır. (Yüksek güvende bile şikayet/iade/erken-çıkış gibi mesajlar her zaman
+              size kalır.)
             </p>
           ) : null}
           <pre className="whitespace-pre-wrap font-sans text-sm">{result.reply}</pre>

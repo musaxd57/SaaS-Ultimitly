@@ -24,6 +24,9 @@ export default async function PropertyDetailPage({
   params: Promise<{ id: string }>;
 }) {
   const session = await requireAuth();
+  // Staff get a read-only view; only owner/manager see edit/delete/sync controls
+  // (mirrors the API, which 403s these for staff).
+  const canManage = session.role === "owner" || session.role === "manager";
   const { id } = await params;
   const property = await prisma.property.findFirst({
     where: { id, organizationId: session.organizationId },
@@ -54,11 +57,13 @@ export default async function PropertyDetailPage({
         <LinkButton href="/properties" variant="outline" size="sm">
           <ArrowLeft className="size-4" /> Geri
         </LinkButton>
-        <DeleteButton
-          endpoint={`/api/properties/${property.id}`}
-          redirectTo="/properties"
-          label="Mülkü sil"
-        />
+        {canManage ? (
+          <DeleteButton
+            endpoint={`/api/properties/${property.id}`}
+            redirectTo="/properties"
+            label="Mülkü sil"
+          />
+        ) : null}
       </PageHeader>
 
       <div className="grid gap-4 lg:grid-cols-3">
@@ -69,6 +74,7 @@ export default async function PropertyDetailPage({
           <CardContent>
             <PropertyForm
               mode="edit"
+              canManage={canManage}
               property={{
                 id: property.id,
                 name: property.name,
@@ -94,6 +100,7 @@ export default async function PropertyDetailPage({
             <CardContent>
               <CalendarSources
                 propertyId={property.id}
+                canManage={canManage}
                 sources={property.calendarSources.map((s) => ({
                   id: s.id,
                   label: s.label,

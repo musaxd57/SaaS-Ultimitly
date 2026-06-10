@@ -173,6 +173,7 @@ export default async function DashboardPage() {
           day: "numeric",
           month: "long",
           year: "numeric",
+          timeZone: org?.timezone ?? "Europe/Istanbul",
         })}
       />
 
@@ -229,13 +230,13 @@ export default async function DashboardPage() {
               arrivals.map((r) => (
                 <div
                   key={r.id}
-                  className="flex items-center justify-between rounded-lg border border-border px-3 py-2"
+                  className="flex items-center justify-between gap-2 rounded-lg border border-border px-3 py-2"
                 >
-                  <div>
-                    <p className="text-sm font-medium">{r.guestName}</p>
-                    <p className="text-xs text-muted-foreground">{r.property.name}</p>
+                  <div className="min-w-0">
+                    <p className="truncate text-sm font-medium">{r.guestName}</p>
+                    <p className="truncate text-xs text-muted-foreground">{r.property.name}</p>
                   </div>
-                  <span className="text-sm font-medium text-muted-foreground">
+                  <span className="shrink-0 text-sm font-medium text-muted-foreground">
                     {r.property.checkInTime}
                   </span>
                 </div>
@@ -259,13 +260,13 @@ export default async function DashboardPage() {
               departures.map((r) => (
                 <div
                   key={r.id}
-                  className="flex items-center justify-between rounded-lg border border-border px-3 py-2"
+                  className="flex items-center justify-between gap-2 rounded-lg border border-border px-3 py-2"
                 >
-                  <div>
-                    <p className="text-sm font-medium">{r.guestName}</p>
-                    <p className="text-xs text-muted-foreground">{r.property.name}</p>
+                  <div className="min-w-0">
+                    <p className="truncate text-sm font-medium">{r.guestName}</p>
+                    <p className="truncate text-xs text-muted-foreground">{r.property.name}</p>
                   </div>
-                  <div className="text-right">
+                  <div className="shrink-0 text-right">
                     <span className="text-sm font-medium text-muted-foreground">
                       {r.guestCheckoutTime ?? r.property.checkOutTime}
                     </span>
@@ -307,8 +308,8 @@ export default async function DashboardPage() {
                   className="block rounded-lg border border-border px-3 py-2 hover:bg-accent"
                 >
                   <div className="flex items-center justify-between gap-2">
-                    <p className="text-sm font-medium">{c.guestIdentifier}</p>
-                    <Badge tone={CONVERSATION_STATUS.tone(c.status)}>
+                    <p className="min-w-0 truncate text-sm font-medium">{c.guestIdentifier}</p>
+                    <Badge tone={CONVERSATION_STATUS.tone(c.status)} className="shrink-0">
                       {CONVERSATION_STATUS.label(c.status)}
                     </Badge>
                   </div>

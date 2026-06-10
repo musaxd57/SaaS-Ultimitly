@@ -60,7 +60,7 @@ export default async function ReportsPage() {
     <>
       <PageHeader
         title="Raporlar"
-        description="AI performansı, şikayet yoğunluğu ve operasyon metrikleri — son 30 gün."
+        description="AI performansı, şikayet yoğunluğu ve operasyon metrikleri. Her kart kendi dönemini belirtir (AI etkinliği son 30 gün, doluluk bu ay)."
       />
 
       {/* AI & automation activity */}

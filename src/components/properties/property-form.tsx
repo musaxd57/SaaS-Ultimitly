@@ -34,9 +34,12 @@ const empty: PropertyFormData = {
 export function PropertyForm({
   mode,
   property,
+  canManage = true,
 }: {
   mode: "create" | "edit";
   property?: PropertyFormData;
+  /** Staff (read-only) see the form but can't save — the API also returns 403. */
+  canManage?: boolean;
 }) {
   const router = useRouter();
   const [form, setForm] = useState<PropertyFormData>(property ?? empty);
@@ -50,6 +53,7 @@ export function PropertyForm({
 
   async function onSubmit(e: React.FormEvent) {
     e.preventDefault();
+    if (!canManage) return; // staff can't create/edit properties (route also enforces 403)
     setLoading(true);
     setError(null);
     setFields({});
@@ -140,12 +144,18 @@ export function PropertyForm({
         />
       </Field>
 
-      <div className="flex justify-end gap-2">
-        <Button type="submit" disabled={loading}>
-          {loading ? <Loader2 className="size-4 animate-spin" /> : null}
-          {mode === "create" ? "Mülk Ekle" : "Değişiklikleri Kaydet"}
-        </Button>
-      </div>
+      {canManage ? (
+        <div className="flex justify-end gap-2">
+          <Button type="submit" disabled={loading}>
+            {loading ? <Loader2 className="size-4 animate-spin" /> : null}
+            {mode === "create" ? "Mülk Ekle" : "Değişiklikleri Kaydet"}
+          </Button>
+        </div>
+      ) : (
+        <p className="text-xs text-muted-foreground">
+          Mülk ayarları yalnızca sahip/yönetici tarafından düzenlenebilir.
+        </p>
+      )}
     </form>
   );
 }

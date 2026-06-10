@@ -167,7 +167,7 @@ export function TaskBoard({ tasks }: { tasks: TaskCardData[] }) {
     (cleaningTasks.length === 0
       ? "(seçili aralıkta temizlik yok)"
       : cleaningTasks
-          .map((t) => `• ${t.dueLabel ?? ""} — ${t.propertyName} — ${t.title}`)
+          .map((t) => "• " + [t.dueLabel, t.propertyName, t.title].filter(Boolean).join(" — "))
           .join("\n"));
   const waLink = `https://wa.me/?text=${encodeURIComponent(shareText)}`;
 

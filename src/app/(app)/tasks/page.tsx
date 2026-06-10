@@ -108,10 +108,9 @@ export default async function TasksPage({
             <p className="font-semibold">Görevleri AI yönetir</p>
             <p className="text-muted-foreground">
               Her yeni rezervasyonda AI otomatik olarak <strong>check-in hazırlık</strong> ve{" "}
-              <strong>çıkış temizliği</strong> görevlerini doğru tarihlerle açar. Mevcut
-              rezervasyonlarınız için “Rezervasyonlardan oluştur” düğmesini kullanın; ekibinize
-              atayın, fotoğraflı kontrol notu ekleyin, AI günlük operasyon özetinde bunları takip
-              etsin.
+              <strong>çıkış temizliği</strong> görevlerini doğru tarihlerle açar. Eksik kalan olursa
+              yukarıdaki “Eksik görevleri oluştur” düğmesiyle tamamlayın; ekibinize atayın, fotoğraflı
+              kontrol notu ekleyin, AI günlük operasyon özetinde bunları takip etsin.
             </p>
           </div>
         </CardContent>
@@ -151,7 +150,7 @@ export default async function TasksPage({
         <EmptyState
           icon={ListChecks}
           title="Görev yok"
-          description="Mevcut rezervasyonlarınız için görev oluşturmak üzere yukarıdaki “Rezervasyonlardan oluştur” düğmesine basın. Yeni rezervasyonlarda görevler otomatik açılır."
+          description="Yeni rezervasyonlarda görevler otomatik açılır. Eksik kalan varsa yukarıdaki düğmeyle tamamlayabilir, dilerseniz aşağıdan elle de görev ekleyebilirsiniz."
         >
           <LinkButton href="/tasks/new" size="sm">
             <Plus className="size-4" /> Görev ekle
