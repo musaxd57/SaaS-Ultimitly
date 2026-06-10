@@ -32,6 +32,7 @@ export async function POST(req: NextRequest) {
         email: parsed.data.email.toLowerCase().trim(),
         phone: parsed.data.phone?.trim() || null,
         message: parsed.data.message?.trim() || null,
+        consentAt: new Date(), // KVKK: schema enforced consent === true
       },
     });
 

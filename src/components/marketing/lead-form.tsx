@@ -10,6 +10,7 @@ import { Input } from "@/components/ui/input";
 export function LeadForm() {
   const [form, setForm] = useState({ name: "", email: "", phone: "", message: "" });
   const [website, setWebsite] = useState(""); // honeypot — humans never fill this
+  const [consent, setConsent] = useState(false);
   const [busy, setBusy] = useState(false);
   const [done, setDone] = useState(false);
   const [errors, setErrors] = useState<Record<string, string>>({});
@@ -26,7 +27,7 @@ export function LeadForm() {
       const res = await fetch("/api/leads", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ ...form, website }),
+        body: JSON.stringify({ ...form, website, consent }),
       });
       const data = await res.json().catch(() => ({}));
       if (res.ok) setDone(true);
@@ -82,16 +83,27 @@ export function LeadForm() {
         aria-hidden="true"
         className="absolute left-[-9999px] h-0 w-0 opacity-0"
       />
+      <label className="flex items-start gap-2 text-xs text-muted-foreground">
+        <input
+          type="checkbox"
+          checked={consent}
+          onChange={(e) => setConsent(e.target.checked)}
+          required
+          className="mt-0.5 size-4 shrink-0 rounded border-input"
+        />
+        <span>
+          <Link href="/gizlilik" className="underline hover:text-foreground">KVKK Aydınlatma Metni</Link>
+          &apos;ni okudum; demo talebime dönüş yapılması için ad, e-posta ve telefon bilgilerimin
+          işlenmesine açık rıza veriyorum.
+        </span>
+      </label>
+      {errors.consent ? <p className="text-xs text-destructive">{errors.consent}</p> : null}
       {errors._ ? <p className="text-sm text-destructive">{errors._}</p> : null}
-      <Button type="submit" className="w-full" size="lg" disabled={busy}>
+      <Button type="submit" className="w-full" size="lg" disabled={busy || !consent}>
         {busy ? <Loader2 className="size-4 animate-spin" /> : <Send className="size-4" />}
         Ücretsiz demo iste
       </Button>
-      <p className="text-center text-xs text-muted-foreground">
-        Kredi kartı gerekmez. Demo isteyerek{" "}
-        <Link href="/gizlilik" className="underline hover:text-foreground">Gizlilik Politikası</Link>
-        &apos;nı kabul etmiş olursunuz.
-      </p>
+      <p className="text-center text-xs text-muted-foreground">Kredi kartı gerekmez.</p>
     </form>
   );
 }

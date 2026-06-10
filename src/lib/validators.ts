@@ -16,6 +16,10 @@ export const leadSchema = z.object({
   email: z.string().email("Geçerli bir e-posta girin").max(254),
   phone: z.string().max(40).optional().or(z.literal("")),
   message: z.string().max(1000).optional().or(z.literal("")),
+  // KVKK: explicit, affirmative consent is required to collect contact data.
+  consent: z.literal(true, {
+    errorMap: () => ({ message: "Devam etmek için onay kutusunu işaretleyin." }),
+  }),
 });
 export type LeadInput = z.infer<typeof leadSchema>;
 

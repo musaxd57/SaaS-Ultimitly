@@ -36,6 +36,7 @@ model Lead {
   phone     String?
   message   String?
   handled   Boolean  @default(false)
+  consentAt DateTime? // KVKK açık rıza zaman damgası (onay kutusu işaretlendiğinde)
   createdAt DateTime @default(now())
 
   @@index([createdAt])

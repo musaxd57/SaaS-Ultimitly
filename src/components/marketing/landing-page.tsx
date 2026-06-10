@@ -16,6 +16,7 @@ import {
 } from "lucide-react";
 import { buttonVariants } from "@/components/ui/button";
 import { LeadForm } from "@/components/marketing/lead-form";
+import { StructuredData } from "@/components/marketing/structured-data";
 import { cn } from "@/lib/utils";
 
 // Public marketing landing page (logged-out visitors). Turkish-first, sells the
@@ -145,6 +146,7 @@ export function LandingPage() {
 
   return (
     <div className="min-h-screen bg-background text-foreground">
+      <StructuredData faqs={FAQS} />
       {/* Nav */}
       <header className="sticky top-0 z-40 border-b border-border bg-background/90 backdrop-blur">
         <div className="mx-auto flex h-16 max-w-6xl items-center justify-between px-4 sm:px-6">
@@ -380,7 +382,7 @@ export function LandingPage() {
           </p>
           <div className="flex flex-wrap items-center justify-center gap-x-4 gap-y-1 text-sm text-muted-foreground">
             <Link href="/login" className="hover:text-foreground">Giriş</Link>
-            <Link href="/gizlilik" className="hover:text-foreground">Gizlilik</Link>
+            <Link href="/gizlilik" className="hover:text-foreground">Gizlilik &amp; KVKK</Link>
             <Link href="/kosullar" className="hover:text-foreground">Koşullar</Link>
             <Link href="/on-bilgilendirme" className="hover:text-foreground">Ön Bilgilendirme</Link>
             <Link href="/mesafeli-satis" className="hover:text-foreground">Mesafeli Satış</Link>
