@@ -10,9 +10,10 @@ import { runScheduledSync } from "@/lib/scheduled-sync";
 // unless auto-reply is enabled AND we are inside the active-hours window. So it
 // is safe to call frequently around the clock; replies only go out at night.
 //
-// Auth: requires CRON_SECRET (env). Accepts it via the Authorization: Bearer
-// header (Vercel Cron style), an x-cron-secret header, or a ?secret= query
-// param. Without a configured secret the endpoint refuses to run.
+// Auth: requires CRON_SECRET (env), sent via the Authorization: Bearer header
+// (Vercel Cron / cron-job.org style) or an x-cron-secret header. The secret is
+// NEVER accepted via a ?secret= query param — that would leak it into the
+// platform's request logs. Without a configured secret the endpoint refuses to run.
 // ---------------------------------------------------------------------------
 
 function authorized(req: NextRequest): boolean {
@@ -20,8 +21,7 @@ function authorized(req: NextRequest): boolean {
   if (!secret) return false; // never expose an unauthenticated trigger
   const auth = req.headers.get("authorization");
   const bearer = auth?.startsWith("Bearer ") ? auth.slice(7) : null;
-  const provided =
-    bearer ?? req.headers.get("x-cron-secret") ?? new URL(req.url).searchParams.get("secret");
+  const provided = bearer ?? req.headers.get("x-cron-secret");
   return provided === secret;
 }
 
