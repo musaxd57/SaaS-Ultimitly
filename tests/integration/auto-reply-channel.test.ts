@@ -1,5 +1,5 @@
 import { describe, it, expect, beforeEach, afterEach, vi } from "vitest";
-import { addDays } from "date-fns";
+import { addDays, startOfDay } from "date-fns";
 import { prisma, resetDb } from "../helpers/db";
 
 // Force the AI + transport to be deterministic mocks.
@@ -390,14 +390,15 @@ describe("applyChannelAutoReply", () => {
     expect(mockSend).not.toHaveBeenCalled();
   });
 
-  it("still answers on the checkout day itself (departure later today)", async () => {
+  it("still answers on the checkout day itself (departure == start of today)", async () => {
     const { conversationId } = await seed();
-    const now = new Date();
     await linkReservation(conversationId, {
       status: "confirmed",
       arrivalDate: new Date(Date.now() - 2 * 24 * 60 * 60 * 1000),
-      // Departure is later TODAY → not strictly before startOfDay(now) → answerable.
-      departureDate: new Date(now.getFullYear(), now.getMonth(), now.getDate(), 23, 0, 0),
+      // Departure == start of TODAY: the exact boundary. The gate uses strict `<`
+      // (departureDate < startOfDay(now)), so a checkout TODAY is still answered.
+      // This pins the `<` vs `<=` off-by-one — `<=` here would wrongly skip.
+      departureDate: startOfDay(new Date()),
     });
     const out = await applyChannelAutoReply(conversationId);
     expect(out.sent).toBe(true);

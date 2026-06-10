@@ -322,8 +322,9 @@ export function ConversationThread({ conversationId, messages, status, priority,
 
       {/* AI suggestion */}
       <div className="space-y-3 p-4">
-        {/* Nudge: when the guest is waiting and no draft yet, invite one-click AI. */}
-        {awaitingReply && !suggestion && !suggestLoading ? (
+        {/* Nudge: when the guest is waiting and no draft yet, invite one-click AI.
+            Only for users who can actually send (owner/manager); staff are read-only. */}
+        {canReply && awaitingReply && !suggestion && !suggestLoading ? (
           <div className="flex items-center gap-3 rounded-lg border border-primary/30 bg-accent/40 p-3">
             <span className="flex size-8 shrink-0 items-center justify-center rounded-lg bg-primary text-primary-foreground">
               <Sparkles className="size-4" />
@@ -340,14 +341,16 @@ export function ConversationThread({ conversationId, messages, status, priority,
           </div>
         ) : null}
         <div className="flex flex-wrap items-center gap-2">
-          <Button onClick={handleSuggest} disabled={suggestLoading} size="sm">
-            {suggestLoading ? (
-              <Loader2 className="size-4 animate-spin" />
-            ) : (
-              <Sparkles className="size-4" />
-            )}
-            AI cevap öner
-          </Button>
+          {canReply ? (
+            <Button onClick={handleSuggest} disabled={suggestLoading} size="sm">
+              {suggestLoading ? (
+                <Loader2 className="size-4 animate-spin" />
+              ) : (
+                <Sparkles className="size-4" />
+              )}
+              AI cevap öner
+            </Button>
+          ) : null}
           <Select
             value={tone}
             onChange={(e) => setTone(e.target.value as ReplyTone)}
@@ -415,14 +418,16 @@ export function ConversationThread({ conversationId, messages, status, priority,
             ) : null}
           </div>
 
-          <button
-            type="button"
-            onClick={() => setShowSimulate((s) => !s)}
-            className="ml-auto flex items-center gap-1 text-xs text-muted-foreground hover:text-foreground"
-          >
-            <MessageSquarePlus className="size-3.5" />
-            Misafir mesajı simüle et
-          </button>
+          {canReply ? (
+            <button
+              type="button"
+              onClick={() => setShowSimulate((s) => !s)}
+              className="ml-auto flex items-center gap-1 text-xs text-muted-foreground hover:text-foreground"
+            >
+              <MessageSquarePlus className="size-3.5" />
+              Misafir mesajı simüle et
+            </button>
+          ) : null}
         </div>
 
         {showSimulate ? (

@@ -36,7 +36,8 @@ export function TwoFactorCard({ initialEnabled }: { initialEnabled: boolean }) {
     const { ok, data } = await call({ action: "setup" });
     setBusy(false);
     if (ok && data.secret) setSecret(data.secret);
-    else setError(data.error ?? "Kurulum başlatılamadı.");
+    // The "already active" guard returns its message in fields._, so read that first.
+    else setError(data.fields?._ ?? data.error ?? "Kurulum başlatılamadı.");
   }
 
   async function confirmEnable(e: React.FormEvent) {
