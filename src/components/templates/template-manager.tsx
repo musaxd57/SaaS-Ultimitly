@@ -230,7 +230,7 @@ export function TemplateManager({ properties, customTemplates, defaultTemplates 
                     type="button"
                     onClick={() => handleDelete(t.id)}
                     disabled={busyId === t.id}
-                    className="rounded p-1.5 text-muted-foreground hover:bg-destructive/10 hover:text-destructive disabled:opacity-50"
+                    className="inline-flex min-h-[40px] min-w-[40px] items-center justify-center rounded p-1.5 text-muted-foreground hover:bg-destructive/10 hover:text-destructive disabled:opacity-50"
                     aria-label="Sil"
                   >
                     {busyId === t.id ? (

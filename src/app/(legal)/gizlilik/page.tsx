@@ -44,15 +44,20 @@ const SECTIONS: Section[] = [
     ],
   },
   {
-    title: "5. Verilerin Aktarımı",
+    title: "5. Verilerin Aktarımı ve Alt İşleyenler",
     body: [
-      "Verileriniz, hizmetin sunulması için kullandığımız altyapı sağlayıcılarıyla sınırlı ölçüde paylaşılabilir: barındırma, e-posta gönderimi, yapay zekâ ile mesaj yanıtlama (OpenAI) ve Airbnb/Booking mesajlarına erişim için kullandığımız kanal entegrasyon aracıları. Bu sağlayıcıların bir kısmı yurt dışında bulunabileceğinden, veri aktarımı KVKK’nın ilgili hükümlerine uygun şekilde gerçekleştirilir. Verilerinizi pazarlama amacıyla üçüncü kişilere satmayız.",
+      "Verileriniz, hizmetin sunulması için kullandığımız aşağıdaki altyapı sağlayıcıları (alt işleyenler) ile sınırlı ölçüde paylaşılabilir:",
+      "• OpenAI (ABD) — misafir mesajlarına yapay zekâ ile yanıt hazırlama. API üzerinden iletilen veriler model eğitimi için kullanılmaz.",
+      "• Hospitable (yurt dışı) — Airbnb/Booking mesajlarına ve rezervasyon bilgilerine erişim için kanal entegrasyon aracısı.",
+      "• E-posta gönderim sağlayıcısı (Resend/SMTP) — şifre, bildirim ve uyarı e-postalarının iletimi.",
+      "• Railway (barındırma) — uygulama ve veritabanı sunucusu.",
+      "Bu sağlayıcıların bir kısmı yurt dışında bulunduğundan, kişisel verilerin yurt dışına aktarımı KVKK m.9 kapsamında, gerekli güvenceler (taahhütname/standart sözleşme ve açık rıza) sağlanarak gerçekleştirilir. Verilerinizi pazarlama amacıyla üçüncü kişilere satmayız.",
     ],
   },
   {
     title: "6. Saklama Süresi",
     body: [
-      "Kişisel verilerinizi, işleme amacının gerektirdiği süre boyunca ve ilgili mevzuatta öngörülen yasal saklama süreleri kadar saklarız. Süre sona erdiğinde verileriniz silinir, yok edilir veya anonim hâle getirilir.",
+      "Kişisel verilerinizi, hizmetin sunulması ve yasal yükümlülüklerin gerektirdiği süre boyunca saklarız. Talebiniz üzerine veya hesabınızı kapatmanız hâlinde ilgili veriler makul süre içinde silinir, yok edilir ya da anonim hâle getirilir. Belirli bir misafire ait verileri (rezervasyon/konuşma) panelinizden dilediğiniz zaman silebilirsiniz.",
     ],
   },
   {

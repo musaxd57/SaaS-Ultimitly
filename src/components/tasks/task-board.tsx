@@ -287,7 +287,7 @@ export function TaskBoard({ tasks }: { tasks: TaskCardData[] }) {
                         type="button"
                         onClick={() => remove(t.id)}
                         disabled={busyId === t.id}
-                        className="rounded p-1 text-muted-foreground hover:bg-destructive/10 hover:text-destructive disabled:opacity-50"
+                        className="inline-flex min-h-[40px] min-w-[40px] items-center justify-center rounded p-1 text-muted-foreground hover:bg-destructive/10 hover:text-destructive disabled:opacity-50"
                         aria-label="Sil"
                       >
                         {busyId === t.id ? (
