@@ -128,9 +128,16 @@ Yeni oturumda kod beklenenden eskiyse ÖNCE bunu yap.
 source!=="openai" fallback testi.
 
 ## Pre-launch hazırlık (2026-06-10) — devam ediyor
-Kullanıcı "Launch öncesi hazırlık" yönünü seçti; fiyat modeli = **freemium**.
-**Yapıldı:** (a) landing fiyatları plans.ts ile eşitlendi — Başlangıç Ücretsiz / Pro ₺499 /
-İşletme ₺999 (drift'i önlemek için sync-yorumu eklendi). (b) admin/export açık-select
+Kullanıcı "Launch öncesi hazırlık" yönünü seçti.
+**FİYAT KARARI (3 agent web araştırması, kullanıcı onaylı):** USD/TRY=₺46. Model =
+**REVERSE TRIAL**: kayıt → 14 gün tam Pro ücretsiz (KART YOK) → yükseltmezse hesap
+DURAKLAR (kalıcı bedava tier YOK — Başlangıç artık ÜCRETLİ). Fiyatlar (aylık, TRY):
+**Başlangıç ₺449 (1-2 daire) · Pro ₺899 (3-7) · İşletme ₺1.699 (8+/∞)**; yıllıkta 2 ay
+bedava. Düz-tier (daire-başı değil). Çıpalar: HemenKamp ₺499, BasitCRM ₺575, rakipler
+$7-12/daire; TRY'de fiyatlamak kozumuz. Hedef %12-18 deneme→ücretli. (Opsiyonel sonra:
+mevsimsel duraklat ₺99/ay; yılda bir enflasyon ayarı ~%32.) Reverse-trial sayaç+duraklatma
+mantığı billing açılınca (Faz 2) kurulur; plan `code` "free" legacy, o zaman rename.
+**Yapıldı:** (a) landing + plans.ts bu fiyatlara güncellendi + reverse-trial mesajı. (b) admin/export açık-select
 daraltıldı (forward-secrecy, sır sızdırmaz). (c) **Mesafeli Satış Sözleşmesi** +
 **Ön Bilgilendirme Formu** TASLAK sayfaları eklendi (`(legal)/mesafeli-satis`,
 `(legal)/on-bilgilendirme`), footer'lara linklendi; satıcı bilgisi `src/lib/legal-entity.ts`
