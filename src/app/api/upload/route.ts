@@ -2,6 +2,7 @@ import { type NextRequest } from "next/server";
 import { writeFile, mkdir } from "fs/promises";
 import { join } from "path";
 import { requireSession, unauthorized, badRequest, jsonOk, serverError } from "@/lib/api";
+import { sniffImageExt } from "@/lib/image-validation";
 
 const ALLOWED_TYPES = ["image/jpeg", "image/png", "image/webp"];
 const MAX_SIZE_BYTES = 5 * 1024 * 1024; // 5 MB
@@ -12,31 +13,6 @@ function randomHex(n: number): string {
   return Array.from(arr)
     .map((b) => b.toString(16).padStart(2, "0"))
     .join("");
-}
-
-/**
- * Authoritative image-type check: inspect the real leading bytes rather than
- * trusting the client-supplied Content-Type (which is trivially forged). Returns
- * the canonical extension, or null if the bytes are not a JPEG/PNG/WebP. The
- * stored file's extension is derived from THIS, so attacker bytes can't be saved
- * under an image name in the public web root.
- */
-function sniffImageExt(buf: Buffer): "jpg" | "png" | "webp" | null {
-  if (buf.length >= 3 && buf[0] === 0xff && buf[1] === 0xd8 && buf[2] === 0xff) return "jpg";
-  if (
-    buf.length >= 8 &&
-    buf[0] === 0x89 && buf[1] === 0x50 && buf[2] === 0x4e && buf[3] === 0x47 &&
-    buf[4] === 0x0d && buf[5] === 0x0a && buf[6] === 0x1a && buf[7] === 0x0a
-  )
-    return "png";
-  // WebP: "RIFF"...."WEBP"
-  if (
-    buf.length >= 12 &&
-    buf.toString("ascii", 0, 4) === "RIFF" &&
-    buf.toString("ascii", 8, 12) === "WEBP"
-  )
-    return "webp";
-  return null;
 }
 
 export async function POST(req: NextRequest) {
