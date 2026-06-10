@@ -135,8 +135,8 @@ export default async function SentPage({
   return (
     <>
       <PageHeader
-        title="Gönderilenler"
-        description="Sistemin otomatik gönderdiği mesajlar — oto-yanıtlar, karşılama, giriş ve çıkış mesajları."
+        title="Otomatik Gönderilenler"
+        description="Sistemin sizin yerinize otomatik gönderdiği mesajlar — oto-yanıtlar, karşılama, giriş ve çıkış. Elle yazdığınız cevaplar burada görünmez (onlar konuşma ekranındadır)."
       />
 
       {items.length > 0 ? (

@@ -122,7 +122,13 @@ export function AiVoiceForm({
               sizin tonunuza yaklaştırmak için kullanılır. Yeni cevaplar verdikçe gelişir.
             </p>
           </details>
-        ) : null}
+        ) : (
+          <p className="mt-4 rounded-lg border border-dashed border-border bg-muted/20 p-3 text-xs text-muted-foreground">
+            <span className="font-medium text-foreground">Üslup öğrenme hazırlanıyor.</span> Siz
+            misafirlere cevap verdikçe Lixus AI yazış tarzınızı öğrenir ve özetini burada gösterir —
+            sonra yanıtları gitgide size daha çok benzer.
+          </p>
+        )}
       </CardContent>
     </Card>
   );
