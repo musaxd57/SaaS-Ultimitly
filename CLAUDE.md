@@ -357,6 +357,25 @@ saatli geliyor. **Ders: canlı veriyi (backfill 0 verdi) erken alsaydım 2 tur k
 474,922,1014,1096,1154,1230,1383) hâlâ UTC startOfDay — checkout günü sabahı oto-yanıtı yanlışlıkla
 atlayabilir. Auto-reply hot-path + pinned boundary testi → kullanıcı onaylı dedike adım.
 
+## Otomatik-mesaj yolu 10-agent denetimi + saat-dilimi/çift-gönderim fix (commit 1f51794)
+Kullanıcı "misafire mesaj giden her yere 10 agent koy, hata istemiyorum" dedi. 10 agent (3 saat-dilimi
++ 7 mesaj-doğruluk), kodla doğruladı.
+**SAĞLAM (dokunulmadı):** oto-yanıt güvenlik kapısı (hava geçirmez — şikayet/iade asla oto-gitmez),
+gönderim hedefi (hep kendi externalReservationId'si — yanlış misafir imkânsız), per-org token izolasyonu
+(hava geçirmez), iCal/manuel guard (tam; en kötüsü zararsız boş deneme).
+**Düzeltildi (kullanıcı onaylı):** (a) **Saat-dilimi** — görevlerdeki UTC↔İstanbul kayması mesaj
+göndericilerinde de vardı: **checkout** (`:1252` arrivalDateKey UTC ≠ tomorrowKey İstanbul → İstanbul-
+gece-yarısı saklı çıkışlarda mesaj HİÇ gitmiyordu → `dateKeyInTimeZone(departureDate, tz)`), **check-in**
+(`:1014` bugünkü girişi atlıyordu), **welcome** + 3 preview (`gte: startOfDay`→`zonedDayRange`), **oto-yanıt
+bitiş kapısı** (`:474` checkout sabahı 00:00-03:00 atlıyordu → `zonedDayRange(now, org.timezone).start`).
+`startOfDay` import'tan kaldırıldı (artık kullanılmıyor), `arrivalDateKey` ölü → silindi. (b) **Çift-gönderim**:
+welcome/checkin/checkout "gönder-sonra-damgala"ydı → **claim-then-send** (önce atomik damgala, kazanırsan
+gönder, gönderim fail'de geri al → retry korunur). 2 eşzamanlı sync artık aynı misafire 2 mesaj atamaz.
+(c) **Ölü-talep guard**: declined/expired/not_possible/denied → "cancelled" (hospitable-sync) → mesajlanmaz.
++5 regresyon testi. 326 test yeşil.
+**⏭️ Ertelendi (düşük/dar):** oto-yanıt+manuel-yanıt eşzamanlı claim (nadir), lock fencing-token (bilinen),
+apartmentNumber sezgiseli ("isimdeki son sayı" — "nuve N" isimlemesinde GÜVENLİ, ileride farklı isimde riskli).
+
 ## Çalışma şekli
 Kullanıcı: "Bana söyle, ben kodlarım." Fazları sırayla, additive + testli.
 Build + `npm test` yeşil olmadan push etme. GitHub'da PR sadece kullanıcı
