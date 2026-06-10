@@ -15,6 +15,21 @@ export interface SendEmailOptions {
   html: string;
 }
 
+// A plain-text alternative for every email. HTML-only mail scores worse with spam
+// filters (Gmail/Outlook) and renders poorly in text clients; a text part raises
+// inbox placement — important for the account-takeover-sensitive password code.
+function htmlToText(html: string): string {
+  return html
+    .replace(/<style[\s\S]*?<\/style>/gi, " ")
+    .replace(/<[^>]+>/g, " ")
+    .replace(/&amp;/g, "&")
+    .replace(/&lt;/g, "<")
+    .replace(/&gt;/g, ">")
+    .replace(/&nbsp;/g, " ")
+    .replace(/\s+/g, " ")
+    .trim();
+}
+
 class EmailService {
   private isConfigured(): boolean {
     return Boolean(process.env.RESEND_API_KEY || process.env.EMAIL_HOST);
@@ -35,7 +50,7 @@ class EmailService {
       const res = await fetch("https://api.resend.com/emails", {
         method: "POST",
         headers: { "Content-Type": "application/json", Authorization: `Bearer ${key}` },
-        body: JSON.stringify({ from, to, subject, html }),
+        body: JSON.stringify({ from, to, subject, html, text: htmlToText(html) }),
         signal: AbortSignal.timeout(15000),
       });
       if (res.ok) return { ok: true };
@@ -70,6 +85,7 @@ class EmailService {
         to,
         subject,
         html,
+        text: htmlToText(html),
       });
       return { ok: true };
     } catch (err) {

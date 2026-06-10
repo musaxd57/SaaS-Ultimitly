@@ -38,7 +38,7 @@ export async function POST() {
     const result = await emailService.sendReporting(to, "✅ Lixus AI — Test e-postası", html);
     if (result.ok) return jsonOk({ sent: true, to });
     return badRequest({ _: result.error ?? "E-posta gönderilemedi." });
-  } catch {
-    return serverError();
+  } catch (err) {
+    return serverError(undefined, err);
   }
 }
