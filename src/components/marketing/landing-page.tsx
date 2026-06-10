@@ -74,19 +74,20 @@ const FEATURES = [
 ];
 
 // Display tiers — keep PRICES + property ranges in sync with src/lib/billing/plans.ts
-// (DEFAULT_PLANS). Freemium model: Başlangıç free (2 daire), Pro ₺499 (7), İşletme ₺999 (∞).
+// (DEFAULT_PLANS). Reverse-trial model: 14 gün tam Pro ücretsiz (kart yok), sonra plan
+// seçilir. Başlangıç ₺449 (2 daire) · Pro ₺899 (7) · İşletme ₺1.699 (∞).
 const TIERS = [
   {
     name: "Başlangıç",
-    price: "Ücretsiz",
-    unit: "",
+    price: "₺449",
+    unit: "/ay",
     desc: "1–2 daireli ev sahipleri için",
     features: ["7/24 otomatik yanıt", "Türkçe + çok dilli", "Şikayet koruması", "E-posta desteği"],
     highlight: false,
   },
   {
     name: "Pro",
-    price: "₺499",
+    price: "₺899",
     unit: "/ay",
     desc: "3–7 daireli profesyonel hostlar",
     features: ["Başlangıç’taki her şey", "Otomatik karşılama & check-in", "Üslup öğrenme", "Öncelikli destek"],
@@ -94,7 +95,7 @@ const TIERS = [
   },
   {
     name: "İşletme",
-    price: "₺999",
+    price: "₺1.699",
     unit: "/ay",
     desc: "8+ daire / yönetim şirketleri",
     features: ["Pro’daki her şey", "Sınırsız daire", "Özel kurulum", "Telefon desteği"],
@@ -286,7 +287,8 @@ export function LandingPage() {
         <div className="mx-auto max-w-6xl px-4 sm:px-6">
           <h2 className="text-center text-3xl font-bold tracking-tight">Basit, şeffaf fiyatlandırma</h2>
           <p className="mx-auto mt-3 max-w-xl text-center text-muted-foreground">
-            Kurulum ücretsiz, 14 gün deneme. Daire sayınıza göre seçin.
+            Her şey açık başlayın: <strong className="text-foreground">14 gün boyunca tüm Pro
+            özellikleri ücretsiz</strong> — kart gerekmez. Sonra daire sayınıza göre seçin.
           </p>
           <div className="mt-12 grid gap-6 md:grid-cols-3">
             {TIERS.map((t) => (
