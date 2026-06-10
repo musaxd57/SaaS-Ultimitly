@@ -48,11 +48,12 @@ export async function POST(req: NextRequest, { params }: Params) {
     const parsed = conversationReplySchema.safeParse(rawData);
     if (!parsed.success) return badRequest(zodFieldErrors(parsed.error));
 
-    // Optional: translate the reply before sending/saving.
+    // Optional: translate the reply before sending/saving. Cap the length — this
+    // value is forwarded to a paid translate call, so never accept an unbounded
+    // string (a valid language name/code is short).
+    const translateRaw = typeof rawData?.translateTo === "string" ? rawData.translateTo.trim() : "";
     const translateTo: string | undefined =
-      typeof rawData?.translateTo === "string" && rawData.translateTo.trim()
-        ? rawData.translateTo.trim()
-        : undefined;
+      translateRaw && translateRaw.length <= 20 ? translateRaw : undefined;
 
     let replyBody = parsed.data.body;
     if (translateTo) {

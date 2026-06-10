@@ -6,11 +6,13 @@ import { zodFieldErrors } from "@/lib/validators";
 
 type Params = { params: Promise<{ id: string }> };
 
+// Bounds mirror templateCreateSchema (templates/route.ts) so an update can't
+// store an unbounded payload the create path would have rejected.
 const templateUpdateSchema = z.object({
-  title: z.string().min(2).optional(),
-  body: z.string().min(2).optional(),
-  category: z.string().optional(),
-  language: z.string().optional(),
+  title: z.string().min(2).max(300).optional(),
+  body: z.string().min(2).max(20000).optional(),
+  category: z.string().max(80).optional(),
+  language: z.string().max(10).optional(),
   isActive: z.boolean().optional(),
 });
 

@@ -1,6 +1,6 @@
 import { NextResponse } from "next/server";
 import { prisma } from "@/lib/db";
-import { requireSession, unauthorized } from "@/lib/api";
+import { requireSession, unauthorized, canManage, forbidden } from "@/lib/api";
 import { listProperties, listReservations, listMessages } from "@/lib/hospitable";
 import { getOrgHospitableToken } from "@/lib/hospitable-credentials";
 
@@ -30,6 +30,9 @@ function shapeOf(value: unknown, depth = 0): unknown {
 export async function GET() {
   const session = await requireSession();
   if (!session) return unauthorized();
+  // Channel diagnostics expose the org's property list + internal ids — owner/
+  // manager/operator only, never staff.
+  if (!canManage(session)) return forbidden();
 
   const token = await getOrgHospitableToken(session.organizationId);
   if (!token) {

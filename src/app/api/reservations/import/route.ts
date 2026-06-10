@@ -117,8 +117,9 @@ export async function POST(req: NextRequest) {
         });
         await createReservationTasks(created.id);
         imported++;
-      } catch (err) {
-        errors.push(`${rowLabel}: Veritabanı hatası — ${String(err).slice(0, 80)}`);
+      } catch {
+        // Don't surface the raw DB/Prisma error text to the client — generic only.
+        errors.push(`${rowLabel}: Kaydedilemedi (veritabanı hatası).`);
         skipped++;
       }
     }

@@ -24,9 +24,11 @@ export async function POST(
     const url = String(data?.url ?? "").trim();
 
     if (label.length < 2) return badRequest({ label: "Kaynak adı gerekli (örn. Airbnb)" });
+    if (label.length > 120) return badRequest({ label: "Kaynak adı çok uzun (en fazla 120 karakter)" });
     if (!/^https?:\/\/.+/i.test(url)) {
       return badRequest({ url: "Geçerli bir http(s) iCal bağlantısı girin" });
     }
+    if (url.length > 2000) return badRequest({ url: "Bağlantı çok uzun (en fazla 2000 karakter)" });
 
     const source = await prisma.calendarSource.create({
       data: { propertyId, label, url },
