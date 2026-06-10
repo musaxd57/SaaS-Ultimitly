@@ -113,6 +113,42 @@ describe("backfillReservationTasks", () => {
     expect(tasks).toHaveLength(1);
     expect(tasks[0].type).toBe("cleaning");
   });
+
+  it("backfills a MISSING cleaning task when only a check-in task exists (per-type)", async () => {
+    // Regression: a reservation that earlier got only a check-in task used to be
+    // blocked forever by the "has any task → bail" guard, so today's checkouts
+    // never got their cleaning task. Per-type creation must fill just the gap.
+    const { orgId, propertyId } = await makeOrgWithProperty();
+    const reservation = await prisma.reservation.create({
+      data: {
+        propertyId,
+        guestName: "Half Tasked",
+        arrivalDate: daysFromNow(1),
+        departureDate: daysFromNow(4),
+        status: "confirmed",
+      },
+    });
+    await prisma.task.create({
+      data: {
+        propertyId,
+        reservationId: reservation.id,
+        type: "checkin_prep",
+        title: "existing check-in",
+        description: "",
+        dueAt: reservation.arrivalDate,
+        status: "todo",
+        priority: "standard",
+      },
+    });
+
+    const result = await backfillReservationTasks(orgId);
+    expect(result.created).toBe(1); // only the missing cleaning task
+
+    const tasks = await prisma.task.findMany({ where: { reservationId: reservation.id } });
+    expect(tasks).toHaveLength(2);
+    expect(tasks.filter((t) => t.type === "checkin_prep")).toHaveLength(1); // not duplicated
+    expect(tasks.filter((t) => t.type === "cleaning")).toHaveLength(1); // now present
+  });
 });
 
 describe("applyInboundMessageRules", () => {

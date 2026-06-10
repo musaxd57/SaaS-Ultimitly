@@ -63,32 +63,42 @@ export function formatTime(date: Date | string | null | undefined) {
 }
 
 /**
- * Whole days from "today" (the host's calendar day in `tz`) to a reservation/task
- * date. Returns 0 = today, 1 = tomorrow, −1 = yesterday.
+ * Whole days from "today" to a reservation/task date, both measured as calendar
+ * days in `tz` (the host's operating zone, Istanbul). Returns 0 = today,
+ * 1 = tomorrow, −1 = yesterday.
  *
- * The date is interpreted by its **UTC calendar day** — the exact same basis
- * `formatDate` uses to DISPLAY it (the formatter is pinned to UTC). Reservation
- * dates land at different times of day depending on the import path (Hospitable =
- * UTC midnight, iCal/CSV = local noon, others later in the UTC day), so measuring
- * in any single zone would let a task shown as "10 Haz" fall into a different
- * bucket than its own label. Anchoring to the UTC day guarantees a task displayed
- * as today's date always counts as today (offset 0), regardless of the stored
- * hour. "Today" itself is the host's calendar day in `tz` (Istanbul), so the
- * filter still tracks the host's clock, not the server's UTC.
+ * Anchored to the org timezone so the Görevler "Bugün" filter matches the
+ * dashboard's "Bugünkü Çıkışlar" exactly — both decide a checkout's day with the
+ * Istanbul calendar boundary (zonedDayRange). A reservation that's already the
+ * next Istanbul day (e.g. a dueAt at 21:00Z) counts as tomorrow on both screens.
  */
 export function daysUntilDate(
   date: Date | string,
   now: Date = new Date(),
   tz: string = APP_TIME_ZONE,
 ): number {
-  const d = new Date(date);
-  const dateIdx = Math.floor(
-    Date.UTC(d.getUTCFullYear(), d.getUTCMonth(), d.getUTCDate()) / 86_400_000,
-  );
-  const todayIdx = Math.floor(
-    Date.parse(`${now.toLocaleDateString("en-CA", { timeZone: tz })}T00:00:00Z`) / 86_400_000,
-  );
-  return dateIdx - todayIdx;
+  const dayIndex = (d: Date | string) =>
+    Math.floor(
+      Date.parse(`${new Date(d).toLocaleDateString("en-CA", { timeZone: tz })}T00:00:00Z`) /
+        86_400_000,
+    );
+  return dayIndex(date) - dayIndex(now);
+}
+
+/**
+ * Like formatDate but rendered in a given timezone (default the app's zone).
+ * For TASK dueAt — a real instant tied to the org's operating day — so the date
+ * shown on a task card matches the Istanbul-day filter (daysUntilDate) and the
+ * dashboard. Reservation date-only values keep using formatDate (UTC-pinned).
+ */
+export function formatDayInTz(date: Date | string | null | undefined, tz: string = APP_TIME_ZONE) {
+  if (!date) return "—";
+  return new Intl.DateTimeFormat("tr-TR", {
+    day: "2-digit",
+    month: "short",
+    year: "numeric",
+    timeZone: tz,
+  }).format(new Date(date));
 }
 
 /** Relative "x ago" style label in Turkish, coarse-grained. */

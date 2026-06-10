@@ -8,7 +8,8 @@ import { Card, CardContent } from "@/components/ui/card";
 import { EmptyState } from "@/components/empty-state";
 import { TaskBoard, type TaskCardData } from "@/components/tasks/task-board";
 import { BackfillTasksButton } from "@/components/tasks/backfill-button";
-import { formatDate, safeJsonParse, cn, daysUntilDate } from "@/lib/utils";
+import { safeJsonParse, cn, daysUntilDate, formatDayInTz } from "@/lib/utils";
+import { zonedDayRange } from "@/lib/automation";
 
 export const dynamic = "force-dynamic";
 
@@ -44,15 +45,16 @@ export default async function TasksPage({
       select: { id: true, name: true },
       orderBy: { name: "asc" },
     }),
-    // Current/future reservations that still have NO tasks — so the backfill button
-    // only appears when it would actually create something (auto-creation now covers
-    // new Hospitable bookings, so in steady state this is 0 and the button hides).
+    // Current/future checkouts still missing their CLEANING task — so the backfill
+    // button appears and one click fills the gap. Keyed on the cleaning type
+    // specifically (a reservation can have a check-in task yet still need cleaning),
+    // and on the Istanbul day boundary so it matches the dashboard's "today".
     prisma.reservation.count({
       where: {
         property: { organizationId: session.organizationId },
         status: { not: "cancelled" },
-        tasks: { none: {} },
-        departureDate: { gte: new Date(new Date().setUTCHours(0, 0, 0, 0)) },
+        tasks: { none: { type: "cleaning" } },
+        departureDate: { gte: zonedDayRange(new Date(), "Europe/Istanbul").start },
       },
     }),
   ]);
@@ -76,7 +78,7 @@ export default async function TasksPage({
       status: t.status,
       propertyName: t.property.name,
       assigneeName: t.assignedTo?.name ?? null,
-      dueLabel: t.dueAt ? formatDate(t.dueAt) : null,
+      dueLabel: t.dueAt ? formatDayInTz(t.dueAt, TZ) : null,
       dueDays: t.dueAt ? daysUntilDate(t.dueAt, now, TZ) : null,
       checklist:
         checklist.length > 0

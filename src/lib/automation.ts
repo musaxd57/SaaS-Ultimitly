@@ -125,9 +125,16 @@ export async function createReservationTasks(reservationId: string): Promise<num
   });
   if (!r || r.status === "cancelled") return 0;
 
-  // Already has tasks → don't duplicate (handles repeated syncs).
-  const existing = await prisma.task.count({ where: { reservationId: r.id } });
-  if (existing > 0) return 0;
+  // Per-TYPE idempotency: create whichever of check-in / cleaning is still missing.
+  // A plain "has any task → bail" permanently blocked a reservation that earlier
+  // got only a check-in task from ever receiving its checkout cleaning — the exact
+  // reason today's checkouts were absent from the cleaning list. Checking per type
+  // is still safe to re-run every sync (never duplicates) and self-heals the gap.
+  const existing = await prisma.task.findMany({
+    where: { reservationId: r.id },
+    select: { type: true },
+  });
+  const has = new Set(existing.map((t) => t.type));
 
   const todayStart = startOfDay(new Date());
   const data: {
@@ -141,7 +148,7 @@ export async function createReservationTasks(reservationId: string): Promise<num
     priority: string;
   }[] = [];
 
-  if (r.arrivalDate >= todayStart) {
+  if (r.arrivalDate >= todayStart && !has.has("checkin_prep")) {
     data.push({
       propertyId: r.propertyId,
       reservationId: r.id,
@@ -153,7 +160,7 @@ export async function createReservationTasks(reservationId: string): Promise<num
       priority: "standard",
     });
   }
-  if (r.departureDate >= todayStart) {
+  if (r.departureDate >= todayStart && !has.has("cleaning")) {
     data.push({
       propertyId: r.propertyId,
       reservationId: r.id,
