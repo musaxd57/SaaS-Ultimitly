@@ -113,6 +113,11 @@ model User {
   pwChangeCodeHash      String?
   pwChangeCodeExpiresAt DateTime?
   pwChangeCodeAttempts  Int       @default(0)
+  // Forgot-password RESET (logged OUT) — separate from pwChangeCode* so a public
+  // reset request can never burn/overwrite a code the user is mid-using in Settings.
+  pwResetCodeHash       String?
+  pwResetCodeExpiresAt  DateTime?
+  pwResetCodeAttempts   Int       @default(0)
   createdAt      DateTime @default(now())
   updatedAt      DateTime @updatedAt
 

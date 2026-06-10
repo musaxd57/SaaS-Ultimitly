@@ -82,6 +82,13 @@ export function LoginForm() {
           onChange={(e) => setPassword(e.target.value)}
           required
         />
+        {!twoFactor ? (
+          <div className="text-right">
+            <Link href="/sifremi-unuttum" className="text-sm text-primary hover:underline">
+              Şifremi unuttum?
+            </Link>
+          </div>
+        ) : null}
       </div>
       {twoFactor ? (
         <div className="space-y-2">
