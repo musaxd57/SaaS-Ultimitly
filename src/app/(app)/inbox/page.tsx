@@ -19,16 +19,18 @@ export const dynamic = "force-dynamic";
 export default async function InboxPage({
   searchParams,
 }: {
-  searchParams: Promise<{ status?: string }>;
+  searchParams: Promise<{ status?: string; q?: string }>;
 }) {
   const session = await requireAuth();
-  const { status } = await searchParams;
+  const { status, q } = await searchParams;
+  const query = q?.trim() ?? "";
 
   const [conversations, org] = await Promise.all([
     prisma.conversation.findMany({
       where: {
         property: { organizationId: session.organizationId },
         ...(status ? { status } : {}),
+        ...(query ? { guestIdentifier: { contains: query, mode: "insensitive" } } : {}),
       },
       include: {
         property: { select: { name: true } },
@@ -89,6 +91,27 @@ export default async function InboxPage({
         })}
       </div>
 
+      <form method="GET" className="flex flex-wrap items-center gap-2">
+        {status ? <input type="hidden" name="status" value={status} /> : null}
+        <input
+          name="q"
+          defaultValue={query}
+          placeholder="Misafir adına göre ara…"
+          className="w-full max-w-xs rounded-lg border border-border bg-card px-3 py-1.5 text-sm placeholder:text-muted-foreground focus:outline-none focus:ring-1 focus:ring-ring"
+        />
+        <button type="submit" className="rounded-lg border border-border bg-card px-3 py-1.5 text-sm hover:bg-accent">
+          Ara
+        </button>
+        {query ? (
+          <Link
+            href={status ? `/inbox?status=${status}` : "/inbox"}
+            className="text-sm text-muted-foreground hover:text-foreground"
+          >
+            Temizle
+          </Link>
+        ) : null}
+      </form>
+
       {conversations.length === 0 ? (
         <EmptyState
           icon={MessageSquare}
@@ -101,15 +124,23 @@ export default async function InboxPage({
         </EmptyState>
       ) : (
         <div className="divide-y divide-border overflow-hidden rounded-xl border border-border bg-card">
-          {conversations.map((c) => (
+          {conversations.map((c) => {
+            // Highlight threads still needing attention (guest waiting / escalated).
+            const unread = c.status === "new" || c.status === "waiting" || c.status === "problem";
+            return (
             <Link
               key={c.id}
               href={`/inbox/${c.id}`}
-              className="flex items-center gap-3 px-4 py-3 transition-colors hover:bg-accent/40"
+              className={cn(
+                "flex items-center gap-3 px-4 py-3 transition-colors hover:bg-accent/40",
+                unread && "border-l-2 border-l-primary bg-accent/20",
+              )}
             >
               <div className="min-w-0 flex-1">
                 <div className="flex items-center gap-2">
-                  <p className="truncate text-sm font-medium">{c.guestIdentifier}</p>
+                  <p className={cn("truncate text-sm", unread ? "font-semibold" : "font-medium")}>
+                    {c.guestIdentifier}
+                  </p>
                   {c.priority === "urgent" ? (
                     <AlertTriangle className="size-3.5 text-destructive" />
                   ) : null}
@@ -126,7 +157,8 @@ export default async function InboxPage({
                 <span className="text-[11px] text-muted-foreground">{fromNow(c.lastMessageAt)}</span>
               </div>
             </Link>
-          ))}
+            );
+          })}
         </div>
       )}
     </>

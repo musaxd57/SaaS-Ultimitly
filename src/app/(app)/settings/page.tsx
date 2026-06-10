@@ -25,7 +25,8 @@ export default async function SettingsPage() {
   // themselves (self-service, with instructions), and the operator (super-admin,
   // incl. while impersonating) can also do it for a non-technical customer.
   // Staff/manager-only users just see a neutral note.
-  const canManageChannel = session.role === "owner" || isSuperAdmin(session);
+  const isOperator = isSuperAdmin(session);
+  const canManageChannel = session.role === "owner" || isOperator;
   const hospitableInfo = canManageChannel ? await getConnectionInfo(session.organizationId) : null;
   const me = await prisma.user.findUnique({
     where: { id: session.userId },
@@ -80,12 +81,17 @@ export default async function SettingsPage() {
             <strong>Otomatik gönderim ana şalteri: AÇIK.</strong> Aşağıdaki toggle'lar
             (gece oto-yanıt / otomatik karşılama) açıksa, mesajlar gerçekten gönderilir.
           </>
-        ) : (
+        ) : isOperator ? (
           <>
             <strong>Otomatik gönderim ana şalteri: KAPALI.</strong> Aşağıdaki toggle'ları açsanız
             bile <strong>hiçbir otomatik mesaj gönderilmez</strong>. Açmak için Railway'de
             <code className="mx-1 rounded bg-amber-100 px-1 py-0.5">AUTO_REPLY_ENABLED=1</code>
             ayarlayın.
+          </>
+        ) : (
+          <>
+            <strong>Otomatik gönderim şu an kapalı.</strong> Aşağıdaki toggle'ları açsanız bile
+            otomatik mesaj gönderilmez. Bu özelliği etkinleştirmek için bizimle iletişime geçin.
           </>
         )}
       </div>
