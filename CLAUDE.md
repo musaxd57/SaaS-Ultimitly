@@ -275,6 +275,23 @@ token izolasyonu, billing dormant, KVKK export sır sızdırmaz.
 minimizasyonu), oto-yanıt cutoff'unu org-tz'ye taşıma (konteyner UTC iken sorun yok),
 prompt'ta guestName fence (pre-existing, defense-in-depth).
 
+## Görevler "Bugün" filtresi tarih-bug'ı (2026-06-10, 3 agent + kod doğrulama)
+**Belirti:** Dashboard "bugün 4 çıkış" derken Görevler→"Bugün (0)", backfill butonu da gizli.
+**Kök neden (kod ile DOĞRULANDI, agent'lar çelişti → import kodu çözdü):** iCal/CSV içe
+aktarımı tarihleri `new Date(y,m,d,12,0,0)` = **öğlen-UTC** saklıyor ("noon to avoid TZ edge"),
+Hospitable ise **gece-yarısı-UTC**. Görevler sayfası `dueDays = Math.round((dueAt −
+todayMidnightUTC)/86_400_000)` yapıyordu → öğlen-saklı BUGÜNkü çıkış = round(0.5)=**1** → "Bu
+hafta"ya düşüp "Bugün"den gizleniyordu. Dashboard doğruydu çünkü `zonedDayRange` (İstanbul) kullanıyor.
+**Düzeltme:** `calendarDaysBetween()` (utils.ts) — iki anı önce İstanbul **takvim gününe** indirip
+fark alır; saklama saatinden bağımsız robust. tasks/page.tsx artık bunu kullanıyor. +5 unit test
+(öğlen-saklı-bugün regresyonu + 21:00Z tz sınırı). 320 test yeşil.
+**İlgili (önceki push, branch'te):** hospitable-sync artık her booking'de `createReservationTasks`
+çağırıyor (eskiden sadece iCal/manual açıyordu) → Hospitable rezervasyonları da görev üretir.
+**Değişmedi (bilinçli, minimal):** createReservationTasks gate'i + reservationsMissingTasks sayımı
+date-fns/UTC-midnight kaldı — görünür bug DEĞİLDİ (gate bugünü zaten >= ile yakalıyor; sayım
+today-or-future'ı doğru ayırıyor). Sadece görünür filtre düzeltildi. **Ders:** agent storage
+iddiasında çelişince import path'i (ics.ts/csv.ts) okumak gerçeği verdi — körü körüne uygulama.
+
 ## Çalışma şekli
 Kullanıcı: "Bana söyle, ben kodlarım." Fazları sırayla, additive + testli.
 Build + `npm test` yeşil olmadan push etme. GitHub'da PR sadece kullanıcı
