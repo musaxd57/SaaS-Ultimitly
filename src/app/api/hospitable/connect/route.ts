@@ -95,8 +95,8 @@ export async function POST(req: NextRequest) {
       metadata: { properties: info.properties },
     });
     return NextResponse.json({ ok: true, properties: info.properties });
-  } catch {
-    return serverError();
+  } catch (err) {
+    return serverError(undefined, err);
   }
 }
 
@@ -114,8 +114,8 @@ export async function DELETE() {
       action: "hospitable.disconnect",
     });
     return NextResponse.json({ ok: true });
-  } catch {
-    return serverError();
+  } catch (err) {
+    return serverError(undefined, err);
   }
 }
 

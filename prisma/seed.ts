@@ -382,9 +382,12 @@ async function main() {
     code: string; name: string; propertyLimit: number | null;
     priceMinor: number; currency: string; interval: string; sortOrder: number;
   }[] = [
-    { code: "free", name: "Başlangıç", propertyLimit: 2, priceMinor: 0, currency: "TRY", interval: "month", sortOrder: 0 },
-    { code: "pro", name: "Pro", propertyLimit: 7, priceMinor: 49900, currency: "TRY", interval: "month", sortOrder: 1 },
-    { code: "business", name: "İşletme", propertyLimit: null, priceMinor: 99900, currency: "TRY", interval: "month", sortOrder: 2 },
+    // Prices MUST match src/lib/billing/plans.ts (DEFAULT_PLANS). These were stale
+    // (old ₺0/₺499/₺999 anchors) — corrected to the live reverse-trial pricing so
+    // the DB Plan table never bills a wrong amount if checkout ever reads it.
+    { code: "free", name: "Başlangıç", propertyLimit: 2, priceMinor: 44900, currency: "TRY", interval: "month", sortOrder: 0 },
+    { code: "pro", name: "Pro", propertyLimit: 7, priceMinor: 89900, currency: "TRY", interval: "month", sortOrder: 1 },
+    { code: "business", name: "İşletme", propertyLimit: null, priceMinor: 169900, currency: "TRY", interval: "month", sortOrder: 2 },
   ];
   for (const plan of seedPlans) {
     await prisma.plan.upsert({ where: { code: plan.code }, create: plan, update: plan });

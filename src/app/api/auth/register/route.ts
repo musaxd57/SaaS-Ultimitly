@@ -58,7 +58,7 @@ export async function POST(req: NextRequest) {
       name: user.name,
     });
     return jsonOk({ ok: true }, 201);
-  } catch {
-    return serverError();
+  } catch (err) {
+    return serverError(undefined, err);
   }
 }

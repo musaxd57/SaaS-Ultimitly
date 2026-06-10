@@ -128,7 +128,7 @@ export async function PATCH(req: NextRequest) {
     });
 
     return jsonOk(update);
-  } catch {
-    return serverError();
+  } catch (err) {
+    return serverError(undefined, err);
   }
 }

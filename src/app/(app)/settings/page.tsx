@@ -84,14 +84,14 @@ export default async function SettingsPage() {
           </>
         ) : isOperator ? (
           <>
-            <strong>Otomatik gönderim ana şalteri: KAPALI.</strong> Aşağıdaki seçeneklerı açsanız
+            <strong>Otomatik gönderim ana şalteri: KAPALI.</strong> Aşağıdaki seçenekleri açsanız
             bile <strong>hiçbir otomatik mesaj gönderilmez</strong>. Açmak için Railway'de
             <code className="mx-1 rounded bg-amber-100 px-1 py-0.5">AUTO_REPLY_ENABLED=1</code>
             ayarlayın.
           </>
         ) : (
           <>
-            <strong>Otomatik gönderim şu an kapalı.</strong> Aşağıdaki seçeneklerı açsanız bile
+            <strong>Otomatik gönderim şu an kapalı.</strong> Aşağıdaki seçenekleri açsanız bile
             otomatik mesaj gönderilmez. Bu özelliği etkinleştirmek için bizimle iletişime geçin.
           </>
         )}
