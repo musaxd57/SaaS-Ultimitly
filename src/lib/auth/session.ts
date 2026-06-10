@@ -4,7 +4,11 @@ import type { UserRole } from "@/lib/constants";
 // Edge-safe session helpers (jose only). Used by both middleware and server.
 
 export const SESSION_COOKIE = "guestops_session";
-export const SESSION_MAX_AGE = 60 * 60 * 24 * 30; // 30 days (seconds), sliding
+// 14 days (seconds), sliding. Re-issued on every active request, so daily users
+// never get logged out; only 14-day-idle sessions expire. Shorter than 30d to
+// bound a stolen token's blast radius (a forgot-password reset rotates the
+// password but does not yet invalidate live sessions — sessionEpoch is deferred).
+export const SESSION_MAX_AGE = 60 * 60 * 24 * 14;
 
 export interface SessionPayload {
   userId: string;

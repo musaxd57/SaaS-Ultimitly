@@ -10,7 +10,7 @@ export async function middleware(req: NextRequest) {
   const isAuthPage = AUTH_PATHS.some((p) => pathname === p || pathname.startsWith(p + "/"));
   // Public pages a logged-out visitor may see: the marketing landing ("/"), the
   // legal pages, and the auth pages. Everything else requires a session.
-  const PUBLIC_PREFIXES = ["/gizlilik", "/kosullar"];
+  const PUBLIC_PREFIXES = ["/gizlilik", "/kosullar", "/mesafeli-satis", "/on-bilgilendirme"];
   const isPublic =
     pathname === "/" || isAuthPage || PUBLIC_PREFIXES.some((p) => pathname === p || pathname.startsWith(p + "/"));
 

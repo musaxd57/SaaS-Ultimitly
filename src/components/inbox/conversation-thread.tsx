@@ -67,7 +67,9 @@ interface Props {
 }
 
 function confidenceTone(c: number) {
-  if (c >= 0.6) return "bg-success";
+  // Green only at/above the real auto-send floor (AUTO_REPLY_MIN_CONFIDENCE = 0.75),
+  // so the bar never implies a 0.6–0.74 draft would auto-send.
+  if (c >= 0.75) return "bg-success";
   if (c >= 0.4) return "bg-warning";
   return "bg-destructive";
 }

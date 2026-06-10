@@ -395,6 +395,22 @@ edilebilir), status guard false-cancel yok, uçtan-uca akış sağlam. **2 mikro
   kopya: automation + ai-suggest + ai/test route). {daire} host-opt-in, hiçbir default'ta yok. İleride
   çok-sayılı isim ("Daire 5 Kat 2") koyulursa opsiyonel `Property.unitLabel` alanı (additive, fallback heuristik).
 
+## KARARLAR + launch-fix turu (8-agent, 2026-06-10)
+**Konteyner yine 365c957'e sıfırlandı** → `git reset --hard origin` ile geri yüklendi (iş hep origin'de güvende).
+CI YEŞİL (tüm commit'ler success; ci.yml deploy'u bloklamaz). Prod env: OPENAI_MODEL=**gpt-5.1**, RESEND ✓+SMTP ✓.
+**FİYAT KARARI: ₺449/899/1699 AYNEN KALSIN.** gpt-5.1 ($1.25/M in, $0.125 cached) gpt-4.1'den UCUZ → maliyet
+DAHA İYİ. Tüm tier tipik kullanımda %50-75 marj. Prompt caching ZATEN otomatik aktif (sabit prefix + guest
+mesajı ayrı user turn). **Tek açık: İşletme "sınırsız"** ~29-44 daire üstü negatif → **~20 daire fair-use tavanı**
+kararı; enforcement billing engine'e bağlı (canAddProperty 0-çağrı + BILLING_ENFORCED + backfill) → billing
+build'inde. Prompt few-shot kısaltma = opsiyonel margin (şart değil).
+**SESSION KARARI:** tam sessionEpoch ERTELENDİ (mass-logout footgun + UX kararına bağlı). Stress-test forgot-
+password'ün oturum öldürmemesini gerçek açık saydı → **ucuz mitigasyon: SESSION_MAX_AGE 30g→14g** (hot-path'e
+dokunmaz, aktif kullanıcı etkilenmez, çalınan-token penceresi yarıya). sessionEpoch ileride: layout.tsx'teki
+MEVCUT DB-read+logout-guard'a 2 satır (middleware DEĞİL), `epoch != null && mismatch` ile mass-logout'tan kaçın.
+**Bu turda düzeltilen (push+redeploy):** [HIGH] middleware PUBLIC_PREFIXES'e `/mesafeli-satis`+`/on-bilgilendirme`
+(yasal sayfalar çıkış-yapmışken /login'e atıyordu — gerçek launch bug); SESSION_MAX_AGE 14g; AI güven barı
+0.6→0.75. Email hepsi Resend'le gider, stale-brand sızıntısı yok, Sentry aktif. 8-agent: yeni iş hepsi SAĞLAM.
+
 ## Çalışma şekli
 Kullanıcı: "Bana söyle, ben kodlarım." Fazları sırayla, additive + testli.
 Build + `npm test` yeşil olmadan push etme. GitHub'da PR sadece kullanıcı
