@@ -106,6 +106,27 @@ Mesafeli Satış Sözleşmesi + Ön Bilgilendirme Formu (yasal), Iyzico imza san
 - **Hafıza/persist:** önemli kararlar repoya yazılır (CLAUDE.md + ROADMAP.md) —
   bu, ephemeral web ortamında claude-mem gibi yerel araçlardan daha güvenilir.
 
+## Round-4: staff-reply RBAC + 10-agent final re-tarama (2026-06-10) → 10/10 SOUND
+**Karar (kullanıcı):** Staff misafire mesaj GÖNDEREMEZ — sadece owner/manager.
+`/api/conversations/[id]/reply` artık `canManage` geçitli (tek request-tetikli
+gönderim yolu; diğer gönderenler cron/AUTO_REPLY_ENABLED). UI'da staff için composer +
+AI-öner + simüle gizli, salt-okunur thread. inbound-mesaj + status route'ları staff'a açık.
+**10 agent (3 FE + 7 BE) doğru kod üzerinde → 10/10 SOUND, 0 broken, 0 güvenlik açığı.**
+Doğrulanan kritik yollar: mesaj↔doğru daire/misafir (BE-1), oto-yanıt güvenliği (BE-2),
+tenant izolasyonu + staff gate completeness (BE-3: sendOnChannel tek choke-point), 2FA
+bypass kapandı (BE-4), giden token izolasyonu (BE-5), billing/KVKK (BE-6), regresyon yok (BE-7).
+**Eklenen regresyon testleri** (agent'ların tek tekrar eden notu = test borcu): 2FA setup-guard,
+staff task-alan kısıtı, exitImpersonation fail-safe (route-level, requireSession/getSession
+mock'lu + gerçek DB). Checkout-day gate testi `startOfDay(now)` ile `<` sınırına sabitlendi.
+287 test yeşil.
+**⚠️ ÖNEMLİ — ortam kurtarma:** Konteyner gece yenilenince ESKİ snapshot'ta (365c957)
+açıldı; tüm işim origin'de (e682dc6) güvendeydi ama local geride kalmıştı → agent'lar eski
+koda bakıp yanlış "BROKEN" verdi. ÇÖZÜM: `git fetch origin <branch>` → `git reset --hard
+origin/<branch>` → `npx prisma generate` (client şema ile senkron olmalı) → typecheck/test/build.
+Yeni oturumda kod beklenenden eskiyse ÖNCE bunu yap.
+**⏭️ Ertelendi (pre-launch/zararsız):** admin/export açık-select daraltma (sır YOK),
+hospitableFetch env-fallback guard, @@unique (prod dedup gerek), source!=="openai" fallback testi.
+
 ## Round-3: konuşma↔rezervasyon bağı + 10-agent re-tarama (2026-06-09)
 **Yeni özellik (kullanıcı onaylı):** senkron Hospitable konuşmaları artık yerel
 Reservation satırına bağlanıyor (`conversation.reservationId`), katı eşleşme
