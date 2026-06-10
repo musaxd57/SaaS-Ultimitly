@@ -124,8 +124,21 @@ açıldı; tüm işim origin'de (e682dc6) güvendeydi ama local geride kalmışt
 koda bakıp yanlış "BROKEN" verdi. ÇÖZÜM: `git fetch origin <branch>` → `git reset --hard
 origin/<branch>` → `npx prisma generate` (client şema ile senkron olmalı) → typecheck/test/build.
 Yeni oturumda kod beklenenden eskiyse ÖNCE bunu yap.
-**⏭️ Ertelendi (pre-launch/zararsız):** admin/export açık-select daraltma (sır YOK),
-hospitableFetch env-fallback guard, @@unique (prod dedup gerek), source!=="openai" fallback testi.
+**⏭️ Ertelendi:** hospitableFetch env-fallback guard, @@unique (prod dedup gerek),
+source!=="openai" fallback testi.
+
+## Pre-launch hazırlık (2026-06-10) — devam ediyor
+Kullanıcı "Launch öncesi hazırlık" yönünü seçti; fiyat modeli = **freemium**.
+**Yapıldı:** (a) landing fiyatları plans.ts ile eşitlendi — Başlangıç Ücretsiz / Pro ₺499 /
+İşletme ₺999 (drift'i önlemek için sync-yorumu eklendi). (b) admin/export açık-select
+daraltıldı (forward-secrecy, sır sızdırmaz). (c) **Mesafeli Satış Sözleşmesi** +
+**Ön Bilgilendirme Formu** TASLAK sayfaları eklendi (`(legal)/mesafeli-satis`,
+`(legal)/on-bilgilendirme`), footer'lara linklendi; satıcı bilgisi `src/lib/legal-entity.ts`
+SELLER sabitinde (placeholder). Koşullar + Gizlilik zaten vardı.
+**⏳ KULLANICI YAPACAK:** `src/lib/legal-entity.ts` [köşeli parantez] alanları (ünvan/adres/
+vergi/telefon) doldurulacak + 4 yasal sayfa avukata inceletilecek.
+**Tam ödeme launch'ı için kalan (Faz 2):** Iyzico sandbox anahtarları + imza doğrulama testi,
+checkout akışı, Plan tablosu seed, BILLING_ENFORCED açma. Billing hâlâ dormant.
 
 ## Round-3: konuşma↔rezervasyon bağı + 10-agent re-tarama (2026-06-09)
 **Yeni özellik (kullanıcı onaylı):** senkron Hospitable konuşmaları artık yerel
