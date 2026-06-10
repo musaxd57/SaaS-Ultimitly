@@ -147,6 +147,46 @@ vergi/telefon) doldurulacak + 4 yasal sayfa avukata inceletilecek.
 **Tam ödeme launch'ı için kalan (Faz 2):** Iyzico sandbox anahtarları + imza doğrulama testi,
 checkout akışı, Plan tablosu seed, BILLING_ENFORCED açma. Billing hâlâ dormant.
 
+## Polish + 4-agent denetim dalgası (2026-06-10) — 8 commit, hepsi additive, 288 test yeşil
+Kullanıcı "ben yokken durmadan çalış, agent çalıştır, panelleri didikle, hata/yalan olmasın,
+bozmadan ekleyebildiğini ekle" dedi. 4 read-only denetçi agent (panel-copy, FE-robustness,
+BE-correctness, security) → bulguların GÜVENLİ olanları uygulandı. Agent verdiği genel: ürün
+sağlam, KRİTİK açık YOK, IDOR YOK, eksik-RBAC (yıkıcı route) YOK.
+**Uygulandı (push'landı):**
+- **"GuestOps AI" sızıntısı:** inbox thread'de ham senderName görünüyordu → `displaySenderName()`
+  SADECE render'da "Lixus AI"e map'liyor. Saklanan string/WHERE karşılaştırmaları DOKUNULMADI
+  (sihirli string intact). ui-labels.ts.
+- **AI öğrenme görünür:** Ayarlar→AI Sesi'nde "Lixus AI üslubunuzdan ne öğrendi?" salt-okunur
+  panel (aiStyleProfile). Landing'de "önceki cevaplarınızdan öğrenir" mesajı güçlendirildi.
+- **Doğruluk:** landing "30 günlük doluluk tahmini" → "daireye göre doluluk (geçen aya kıyasla)"
+  (gerçekle eşleşsin); raporlara "X mesaj yanıtlandı ~Y saat kazandırıldı" satırı.
+- **Oto-yanıt notu (kullanıcı sorusu): EVET kapatılabiliyor** — Ayarlar→Otomasyon→"Otomatik yanıt
+  notu" checkbox'ı (`autoReplyDisclosure`). Ayar metni artık misafirin gördüğü TAM notla birebir.
+- **FE sessiz-hata yüzeyleme:** calendar-sources sil, kb toggle/sil, şablon sil, conversation
+  status/öner/şablon-yükle/çeviri, logout/exit, auto-reply-toggle, task-board — hepsi HTTP-hata
+  + network-reject (try/catch/finally) için kullanıcıya mesaj. page-header `flex-wrap` (mobil taşma).
+- **Girdi sınırı/hijyen:** reply `translateTo` ≤20, calendar-source label≤120/url≤2000, template
+  update `.max()`, import ham DB-hatası gizlendi (generic), hospitable/diagnostics `canManage` geçidi.
+- **Güvenlik:** upload artık MIME değil GERÇEK magic-byte (JPEG/PNG/WebP) doğruluyor + uzantı
+  sniff'ten türüyor (staff açık kaldı = görev fotoğrafı). Audit log: login başarılı/başarısız
+  (bilinen hesap), şifre değiştir, 2FA aç/kapa, hospitable connect/disconnect. Logout cookie
+  `path:"/"` + maxAge:0 ile temizleniyor (bare delete proxy'de kalabiliyordu). CSP **report-only**
+  (bloklamaz, sadece console'a ihlal raporu = ileride enforce için zemin).
+- **UX:** dashboard stat kartları tıklanabilir (StatCard `href` opsiyonel): Bekleyen→/inbox,
+  Görevler→/tasks, Sorunlu→/inbox?status=problem, Doluluk→/reports.
+**⏭️ ERTELENDİ (kullanıcı kararı / migration / kırma riski — BİLİNÇLİ):**
+- **H1 şifre değişimi "mevcut şifre" istesin mi?** Agent #1 önceliği = hesap-ele-geçirme açığı
+  (oturumu olan biri şifreyi kalıcı değiştirebilir). AMA `account/password` BİLİNÇLİ "logged-in
+  recovery" için yazılmış + e-posta reset akışı YOK → mevcut-şifre zorunlu yapmak, şifresini unutup
+  oturumu açık kalan kullanıcıyı kilitler. Kullanıcıya sorulmadan ÇEVİRMEDİM. Audit log eklendi.
+  **KARAR KULLANICININ:** güvenlik mi (mevcut-şifre iste) / kurtarma kolaylığı mı? Reset akışı da gerekebilir.
+- **H2 CSRF same-origin:** middleware matcher `/api`'yi DIŞLIYOR (line 56) → orada temiz eklenemez;
+  her route'a helper = geniş (daha önce de ertelenmişti). `sameSite:lax` ana vektörü zaten kapatıyor. Ertelendi.
+- **M2 impersonation self/super-admin guard** (operatörü etkileyebilir), **BE sync gate'leri**
+  (hospitable/sync + calendar/sync staff'a açık = POLİTİKA kararı), **ai-suggest/translate gate**
+  (UI'da staff'a gizli + rate-limit'li), **L1 dağıtık rate-limit** (replica'da gerek),
+  **L2 TOTP atomicity** (çok düşük risk, login'e dokunur). **ENCRYPTION_KEY rotasyonu = ASLA** (canlı token kırılır).
+
 ## Round-3: konuşma↔rezervasyon bağı + 10-agent re-tarama (2026-06-09)
 **Yeni özellik (kullanıcı onaylı):** senkron Hospitable konuşmaları artık yerel
 Reservation satırına bağlanıyor (`conversation.reservationId`), katı eşleşme
