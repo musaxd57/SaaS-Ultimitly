@@ -535,8 +535,9 @@ export async function applyChannelAutoReply(
 
   // If the guest stated their own departure time, record it on the reservation
   // so the dashboard can show it (falling back to the property default). Guarded
-  // and best-effort — never blocks the reply.
-  if (result.statedCheckoutTime && conversation.reservation) {
+  // and best-effort — never blocks the reply. Skipped on dryRun so a PREVIEW
+  // ("test quality") stays side-effect-free and never mutates a reservation.
+  if (!options.dryRun && result.statedCheckoutTime && conversation.reservation) {
     try {
       await prisma.reservation.update({
         where: { id: conversation.reservation.id },

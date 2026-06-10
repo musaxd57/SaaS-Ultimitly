@@ -170,6 +170,32 @@ describe("applyChannelAutoReply", () => {
     expect(await prisma.message.count({ where: { conversationId, direction: "outbound" } })).toBe(0);
   });
 
+  it("a dry-run preview is side-effect-free: never writes the guest's stated checkout time", async () => {
+    mockSuggest.mockResolvedValue({ ...SAFE_REPLY, statedCheckoutTime: "11:30" });
+    const { conversationId } = await seed();
+    await linkReservation(conversationId, {
+      status: "confirmed",
+      arrivalDate: new Date(Date.now() - 2 * 24 * 60 * 60 * 1000),
+      departureDate: new Date(Date.now() + 2 * 24 * 60 * 60 * 1000),
+    });
+
+    // Preview must NOT mutate the reservation.
+    await applyChannelAutoReply(conversationId, { dryRun: true });
+    let res = await prisma.reservation.findFirst({
+      where: { sourceReference: "res-1" },
+      select: { guestCheckoutTime: true },
+    });
+    expect(res?.guestCheckoutTime).toBeNull();
+
+    // A real (non-dry-run) run DOES record it.
+    await applyChannelAutoReply(conversationId);
+    res = await prisma.reservation.findFirst({
+      where: { sourceReference: "res-1" },
+      select: { guestCheckoutTime: true },
+    });
+    expect(res?.guestCheckoutTime).toBe("11:30");
+  });
+
   it("appends the host signature to the reply when one is configured", async () => {
     const { conversationId } = await seed({ aiSignature: "Sevgiler,\nİsa Çınar" });
     const out = await applyChannelAutoReply(conversationId, { dryRun: true });
