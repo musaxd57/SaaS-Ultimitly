@@ -63,28 +63,32 @@ export function formatTime(date: Date | string | null | undefined) {
 }
 
 /**
- * Whole CALENDAR days between two instants, measured in the given timezone
- * (default the app's operating zone). Returns `to − from` in days: 0 = same day,
- * 1 = tomorrow, −1 = yesterday.
+ * Whole days from "today" (the host's calendar day in `tz`) to a reservation/task
+ * date. Returns 0 = today, 1 = tomorrow, −1 = yesterday.
  *
- * Why not `(b - a) / 86_400_000`: reservation/task dates land at different times
- * of day depending on the import path — Hospitable stores UTC midnight, while
- * iCal/CSV store local NOON ("noon to avoid TZ edge cases"). A raw ms-division +
- * Math.round then misreads a noon-stored "today" task as `round(0.5) = 1` and
- * hides it from the "Bugün" filter. Collapsing each instant to its calendar day
- * in `tz` first makes a checkout dated today reliably 0, regardless of the hour.
+ * The date is interpreted by its **UTC calendar day** — the exact same basis
+ * `formatDate` uses to DISPLAY it (the formatter is pinned to UTC). Reservation
+ * dates land at different times of day depending on the import path (Hospitable =
+ * UTC midnight, iCal/CSV = local noon, others later in the UTC day), so measuring
+ * in any single zone would let a task shown as "10 Haz" fall into a different
+ * bucket than its own label. Anchoring to the UTC day guarantees a task displayed
+ * as today's date always counts as today (offset 0), regardless of the stored
+ * hour. "Today" itself is the host's calendar day in `tz` (Istanbul), so the
+ * filter still tracks the host's clock, not the server's UTC.
  */
-export function calendarDaysBetween(
-  from: Date | string,
-  to: Date | string,
+export function daysUntilDate(
+  date: Date | string,
+  now: Date = new Date(),
   tz: string = APP_TIME_ZONE,
 ): number {
-  const dayIndex = (d: Date | string) =>
-    Math.floor(
-      Date.parse(`${new Date(d).toLocaleDateString("en-CA", { timeZone: tz })}T00:00:00Z`) /
-        86_400_000,
-    );
-  return dayIndex(to) - dayIndex(from);
+  const d = new Date(date);
+  const dateIdx = Math.floor(
+    Date.UTC(d.getUTCFullYear(), d.getUTCMonth(), d.getUTCDate()) / 86_400_000,
+  );
+  const todayIdx = Math.floor(
+    Date.parse(`${now.toLocaleDateString("en-CA", { timeZone: tz })}T00:00:00Z`) / 86_400_000,
+  );
+  return dateIdx - todayIdx;
 }
 
 /** Relative "x ago" style label in Turkish, coarse-grained. */

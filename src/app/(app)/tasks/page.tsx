@@ -8,7 +8,7 @@ import { Card, CardContent } from "@/components/ui/card";
 import { EmptyState } from "@/components/empty-state";
 import { TaskBoard, type TaskCardData } from "@/components/tasks/task-board";
 import { BackfillTasksButton } from "@/components/tasks/backfill-button";
-import { formatDate, safeJsonParse, cn, calendarDaysBetween } from "@/lib/utils";
+import { formatDate, safeJsonParse, cn, daysUntilDate } from "@/lib/utils";
 
 export const dynamic = "force-dynamic";
 
@@ -57,12 +57,11 @@ export default async function TasksPage({
     }),
   ]);
 
-  // Whole CALENDAR days (org timezone) from "today" to each task's due date —
-  // drives the Bugün / Bu hafta / Bu ay filter so a far-future task (e.g. an
-  // August arrival) doesn't clutter the near-term view. Uses calendarDaysBetween
-  // (not raw ms ÷ 86.4M) because dueAt's time-of-day differs by import path —
-  // Hospitable = UTC midnight, iCal/CSV = local noon — and a plain Math.round
-  // would misclassify a noon-stored "today" checkout as tomorrow and hide it.
+  // Drives the Bugün / Bu hafta / Bu ay filter. Each task is bucketed by the UTC
+  // calendar day of its dueAt — the SAME basis formatDate uses to show the date —
+  // so a task displayed as "10 Haz" always lands in "Bugün" on the 10th, no matter
+  // what time-of-day it was stored at (Hospitable UTC-midnight, iCal local-noon,
+  // or later in the UTC day). "Today" is the host's Istanbul calendar day.
   const TZ = "Europe/Istanbul"; // Türkiye, UTC+3 year-round
   const now = new Date();
 
@@ -78,7 +77,7 @@ export default async function TasksPage({
       propertyName: t.property.name,
       assigneeName: t.assignedTo?.name ?? null,
       dueLabel: t.dueAt ? formatDate(t.dueAt) : null,
-      dueDays: t.dueAt ? calendarDaysBetween(now, t.dueAt, TZ) : null,
+      dueDays: t.dueAt ? daysUntilDate(t.dueAt, now, TZ) : null,
       checklist:
         checklist.length > 0
           ? { done: checklist.filter((c) => c.done).length, total: checklist.length }
