@@ -2,7 +2,7 @@
 
 import { useRef, useState, useTransition } from "react";
 import { useRouter } from "next/navigation";
-import { Loader2, Trash2, User, Clock, CheckSquare, Camera, FileText, ChevronDown, ChevronRight } from "lucide-react";
+import { Loader2, Trash2, User, Clock, CheckSquare, Camera, FileText, ChevronDown, ChevronRight, Share2, Copy, Check } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
 import { Select } from "@/components/ui/select";
 import { TASK_STATUS, TASK_TYPE, PRIORITY } from "@/lib/constants";
@@ -39,6 +39,8 @@ export function TaskBoard({ tasks }: { tasks: TaskCardData[] }) {
   const [statusFilter, setStatusFilter] = useState<string>("");
   // Time window — default "this week" so far-future tasks don't all dump in.
   const [timeRange, setTimeRange] = useState<"today" | "week" | "month" | "all">("week");
+  const [shareOpen, setShareOpen] = useState(false);
+  const [copied, setCopied] = useState(false);
   function toggleExpanded(id: string) {
     setExpanded((prev) => {
       const next = new Set(prev);
@@ -157,6 +159,28 @@ export function TaskBoard({ tasks }: { tasks: TaskCardData[] }) {
     (t) => (!statusFilter || t.status === statusFilter) && rangeMatch(t.dueDays, timeRange),
   );
 
+  // Shareable cleaning list (the cleaner doesn't log in — the host sends this over
+  // WhatsApp / copies it). Built from the CLEANING tasks in the current filter view.
+  const cleaningTasks = visible.filter((t) => t.type === "cleaning");
+  const shareText =
+    "🧹 Temizlik Listesi\n\n" +
+    (cleaningTasks.length === 0
+      ? "(seçili aralıkta temizlik yok)"
+      : cleaningTasks
+          .map((t) => `• ${t.dueLabel ?? ""} — ${t.propertyName} — ${t.title}`)
+          .join("\n"));
+  const waLink = `https://wa.me/?text=${encodeURIComponent(shareText)}`;
+
+  async function copyList() {
+    try {
+      await navigator.clipboard.writeText(shareText);
+      setCopied(true);
+      setTimeout(() => setCopied(false), 2000);
+    } catch {
+      window.alert("Kopyalanamadı. Listeyi elle seçip kopyalayabilirsiniz.");
+    }
+  }
+
   return (
     <div className="space-y-3">
       {/* Time window — so far-future tasks (e.g. August arrivals) don't all dump in */}
@@ -208,6 +232,48 @@ export function TaskBoard({ tasks }: { tasks: TaskCardData[] }) {
           );
         })}
       </div>
+
+      {/* Share the cleaning list over WhatsApp / copy — the cleaner doesn't log in */}
+      {cleaningTasks.length > 0 ? (
+        <div>
+          <button
+            type="button"
+            onClick={() => setShareOpen((s) => !s)}
+            className="inline-flex items-center gap-1.5 rounded-full border border-border bg-card px-3 py-1 text-sm text-muted-foreground hover:bg-accent"
+          >
+            <Share2 className="size-3.5" /> Temizlik listesini paylaş ({cleaningTasks.length})
+          </button>
+          {shareOpen ? (
+            <div className="mt-2 space-y-2 rounded-lg border border-border bg-muted/30 p-3">
+              <pre className="max-h-48 overflow-auto whitespace-pre-wrap break-words text-xs text-foreground">
+                {shareText}
+              </pre>
+              <div className="flex flex-wrap gap-2">
+                <a
+                  href={waLink}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="inline-flex items-center gap-1.5 rounded-md bg-emerald-600 px-3 py-1.5 text-sm font-medium text-white hover:bg-emerald-700"
+                >
+                  WhatsApp&apos;ta paylaş
+                </a>
+                <button
+                  type="button"
+                  onClick={copyList}
+                  className="inline-flex items-center gap-1.5 rounded-md border border-border bg-card px-3 py-1.5 text-sm hover:bg-accent"
+                >
+                  {copied ? <Check className="size-4 text-emerald-600" /> : <Copy className="size-4" />}
+                  {copied ? "Kopyalandı" : "Kopyala"}
+                </button>
+              </div>
+              <p className="text-[11px] text-muted-foreground">
+                Liste yukarıdaki filtreye göre oluşur (ör. “Bu hafta”). Temizlikçine WhatsApp&apos;tan
+                gönder ya da kopyalayıp yapıştır.
+              </p>
+            </div>
+          ) : null}
+        </div>
+      ) : null}
 
       {visible.length === 0 ? (
         <p className="py-8 text-center text-sm text-muted-foreground">Bu filtrede görev yok.</p>
