@@ -132,7 +132,11 @@ export default async function ReportsPage() {
                 </div>
               </>
             ) : (
-              <EmptyState title="Skor için yeterli veri yok" className="py-6" />
+              <EmptyState
+                title="Skor için yeterli veri yok"
+                description="Misafir mesajlarına yanıt verip görevleri tamamladıkça otomatik hesaplanır."
+                className="py-6"
+              />
             )}
           </CardContent>
         </Card>

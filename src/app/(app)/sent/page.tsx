@@ -1,3 +1,4 @@
+import Link from "next/link";
 import { Send, Bot, Sparkles } from "lucide-react";
 import { requireAuth } from "@/lib/auth";
 import { prisma } from "@/lib/db";
@@ -5,22 +6,29 @@ import { PageHeader } from "@/components/page-header";
 import { Card, CardContent } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { EmptyState } from "@/components/empty-state";
-import { fromNow, truncate } from "@/lib/utils";
+import { fromNow, truncate, cn } from "@/lib/utils";
 
 export const dynamic = "force-dynamic";
 
+type SentKind = "reply" | "welcome" | "checkin" | "checkout";
+
 interface SentItem {
   id: string;
-  kind: "reply" | "welcome" | "checkin" | "checkout";
+  kind: SentKind;
   when: Date;
   guest: string;
   property: string;
   preview: string;
 }
 
-export default async function SentPage() {
+export default async function SentPage({
+  searchParams,
+}: {
+  searchParams: Promise<{ type?: string }>;
+}) {
   const session = await requireAuth();
   const orgId = session.organizationId;
+  const { type } = await searchParams;
 
   const [replies, welcomes, checkins, checkouts] = await Promise.all([
     // AI auto-replies that were actually sent (stored as outbound AI msgs).
@@ -111,6 +119,19 @@ export default async function SentPage() {
     })),
   ].sort((a, b) => b.when.getTime() - a.when.getTime());
 
+  // Filter pills (by kind) with live counts, mirroring the inbox status filter.
+  const counts: Record<SentKind, number> = { reply: 0, welcome: 0, checkin: 0, checkout: 0 };
+  for (const it of items) counts[it.kind]++;
+  const filters: { value: string; label: string; count: number }[] = [
+    { value: "", label: "Tümü", count: items.length },
+    { value: "reply", label: "Oto-yanıtlar", count: counts.reply },
+    { value: "welcome", label: "Karşılama", count: counts.welcome },
+    { value: "checkin", label: "Giriş", count: counts.checkin },
+    { value: "checkout", label: "Çıkış", count: counts.checkout },
+  ];
+  const activeType = type && type in counts ? type : "";
+  const visibleItems = activeType ? items.filter((it) => it.kind === activeType) : items;
+
   return (
     <>
       <PageHeader
@@ -118,15 +139,43 @@ export default async function SentPage() {
         description="Sistemin otomatik gönderdiği mesajlar — oto-yanıtlar, karşılama, giriş ve çıkış mesajları."
       />
 
+      {items.length > 0 ? (
+        <div className="flex flex-wrap gap-2">
+          {filters.map((f) => {
+            const active = activeType === f.value;
+            return (
+              <Link
+                key={f.value || "all"}
+                href={f.value ? `/sent?type=${f.value}` : "/sent"}
+                className={cn(
+                  "rounded-full border px-3 py-1 text-sm transition-colors",
+                  active
+                    ? "border-primary bg-primary text-primary-foreground"
+                    : "border-border bg-card text-muted-foreground hover:bg-accent",
+                )}
+              >
+                {f.label} <span className="opacity-70">({f.count})</span>
+              </Link>
+            );
+          })}
+        </div>
+      ) : null}
+
       {items.length === 0 ? (
         <EmptyState
           icon={Send}
           title="Henüz otomatik mesaj gönderilmedi"
           description="Oto-yanıt veya otomatik karşılama açıldığında, gönderilen her mesaj burada listelenir."
         />
+      ) : visibleItems.length === 0 ? (
+        <EmptyState
+          icon={Send}
+          title="Bu türde mesaj yok"
+          description="Seçtiğiniz türde gönderilmiş mesaj bulunmuyor."
+        />
       ) : (
         <div className="space-y-2">
-          {items.map((it) => (
+          {visibleItems.map((it) => (
             <Card key={it.id}>
               <CardContent className="flex items-start gap-3 p-4">
                 <div className="mt-0.5 flex size-8 shrink-0 items-center justify-center rounded-lg bg-primary/10 text-primary">

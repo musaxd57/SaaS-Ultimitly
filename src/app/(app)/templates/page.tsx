@@ -26,7 +26,7 @@ export default async function TemplatesPage() {
     <>
       <PageHeader
         title="Şablonlar"
-        description="Misafir iletişimi için hazır mesaj şablonları. Özel şablonlar ekleyin veya varsayılanları kullanın."
+        description="Misafir iletişimi için hazır mesaj şablonları. Bir konuşma ekranındaki “Şablonlar” düğmesiyle mesaja eklenir. Özel şablon ekleyebilir ya da varsayılanlardan ilham alabilirsiniz."
       />
 
       <TemplateManager

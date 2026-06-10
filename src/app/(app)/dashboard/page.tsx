@@ -201,6 +201,7 @@ export default async function DashboardPage() {
           value={pendingMessages}
           icon={MessageSquare}
           tone={pendingMessages > 0 ? "warning" : "default"}
+          hint="yeni + beklemede + sorunlu"
           href="/inbox"
         />
         <StatCard
