@@ -147,6 +147,38 @@ vergi/telefon) doldurulacak + 4 yasal sayfa avukata inceletilecek.
 **Tam ödeme launch'ı için kalan (Faz 2):** Iyzico sandbox anahtarları + imza doğrulama testi,
 checkout akışı, Plan tablosu seed, BILLING_ENFORCED açma. Billing hâlâ dormant.
 
+## Airbnb-bypass kararı + şifre-mail akışı + perf + 17-agent dalga (2026-06-10 akşam)
+**STRATEJİ KARARI (4 bağımsız web-araştırma ajanı + sentez, hepsi aynı sonuç):** "Hospitable'ı
+aradan çıkarıp doğrudan Airbnb'ye bağlanma" fikri **PRATİKTE KAPALI ve PEŞİNDEN KOŞULMAYACAK.**
+Airbnb API'si **partner-kapılı, davetle, başvuru kapalı**; "Allow/OAuth" ekranı sadece onaylı
+partnerlere çıkıyor (bot yanılttı). Mesajlaşma erişimi sadece partnere. Gayriresmi yol (scraping/
+private-API/headless) = **müşterinin Airbnb hesabı banlanır → şirketi bitiren risk**; "Allow dedi"
+hukuken korumaz (hiQ kaybetti); KVKK/GDPR yükü ayrıca. Hospitable Connect 3. tarafa ÜCRETSİZ →
+marjı yemiyor; o senin Airbnb'ye **dokunma lisansın**. **Doğru yol:** billing'i aç + ödeyen müşteri
+bul (asıl risk bu); moat = Türkçe/KVKK/yerel GTM; İLERİDE 2. PMS (Guesty/Hostaway) adaptörü ekle
+(`sendOnChannel` tek-nokta zaten hazır); Airbnb partnerliğini ancak yüzlerce host'la (supply kozu) gündeme al.
+**ŞİFRE DEĞİŞTİRME — kullanıcı kararı uygulandı:** mevcut şifre SORULMAZ (unutana kurtarma). Yerine
+`/api/account/password` artık **2 adım: mail'e kod → doğrula → değiştir.** 8 haneli kod (10^8),
+bcrypt-hash'li saklanır, 10 dk TTL, kod-başına 5 deneme **atomik claim** (TOCTOU kapalı), `request`
+ayrı sıkı limit (4/15dk, mail-bomba+reroll önler), mail gidemezse kod temizlenir, başarıda audit.
+User'a `pwChangeCode*` (nullable) eklendi (db-push güvenli, ajan GO verdi). 7 entegrasyon testi.
+⚠️ **ÖNEMLİ — Launch öncesi mail round-trip'i KULLANICIYLA birlikte test et** (RESEND/SMTP prod'da
+alert-mail için zaten ayarlı). 2 güvenlik ajanı (savunmacı + saldırgan red-team) inceledi.
+**⏳ ERTELENEN auth-sertleştirme (RİSKLİ — auth hot-path / proje kuralı "riskli auth = kullanıcı onayı"):**
+(1) **Şifre değişince oturum geçersizleştirme** (`User.sessionEpoch` + JWT'ye göm + `getSession`'da
+DB-kontrol): çalınmış oturum şu an şifre değişince düşmüyor — stateless JWT (session.ts DB okumuyor).
+Bunu eklemek auth-hot-path'e DB-okuma ekler → KULLANICIYLA + yedekle yap. (2) 2FA açıksa confirm'de
+TOTP iste (stolen-session+inbox senaryosunu kapatır; (1) ile birlikte yapılmalı). Yapınca customer-UX
+"tüm cihazlardan çıkış" notu da DOĞRU olur. (3) CSRF same-origin (geniş; lax+JSON bugün büyük ölçüde örtüyor).
+**PERF (ajan denetimi, hepsi behavior-preserving, regresyon ajanı SOUND onayı):** 3 indeks eklendi
+(`Reservation[propertyId,sourceReference]`, `Conversation[propertyId,status,lastMessageAt]`,
+`Task[reservationId]` — db-push index-only, kilit ms'ler) + `getOccupancyByProperty` N+1 (mülk-başına
+2 sorgu) → tek sorgu. Ertelendi: inbox `take`/sayfalama (veri gizler), auto-reply mesaj-context kırpma (AI yolu).
+**Customer-UX ajan disiplini:** ajan ~yarı bulgusunda yanıldı (Railway notu zaten operatöre-özel; "tasks
+ayara bağlı" YANLIŞ; "tüm cihazdan çıkış" notu şu an YALAN olurdu). HER iddia kod ile doğrulandı, sadece
+gerçek+güvenli olanlar uygulandı (AI-üslup boş-durum, Gönderilenler başlığı). Ders: ajan bulgusunu körce uygulama.
+**Toplam bu oturum: ~17 agent** (4 ilk denetim + 2 doğrulama + 1 a11y + 4 strateji/perf + 6 Wave-B).
+
 ## Polish + 4-agent denetim dalgası (2026-06-10) — 8 commit, hepsi additive, 288 test yeşil
 Kullanıcı "ben yokken durmadan çalış, agent çalıştır, panelleri didikle, hata/yalan olmasın,
 bozmadan ekleyebildiğini ekle" dedi. 4 read-only denetçi agent (panel-copy, FE-robustness,
