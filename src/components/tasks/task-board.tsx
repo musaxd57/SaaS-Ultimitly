@@ -33,6 +33,9 @@ export function TaskBoard({ tasks }: { tasks: TaskCardData[] }) {
   // Cards are compact by default (note input + photo hidden) so 50+ tasks don't
   // become an endless scroll; tap "Not / fotoğraf" to reveal the editors.
   const [expanded, setExpanded] = useState<Set<string>>(new Set());
+  // Filter by status (default: all) — cards render in a wide responsive grid so
+  // 50+ tasks flow left-to-right instead of stacking into one endless column.
+  const [statusFilter, setStatusFilter] = useState<string>("");
   function toggleExpanded(id: string) {
     setExpanded((prev) => {
       const next = new Set(prev);
@@ -133,21 +136,39 @@ export function TaskBoard({ tasks }: { tasks: TaskCardData[] }) {
     }
   }
 
+  const statusFilters = [{ value: "", label: "Tümü" }, ...TASK_STATUS.options];
+  const visible = statusFilter ? tasks.filter((t) => t.status === statusFilter) : tasks;
+
   return (
-    <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-4">
-      {TASK_STATUS.options.map((col) => {
-        const items = tasks.filter((t) => t.status === col.value);
-        return (
-          <div key={col.value} className="flex flex-col gap-3 rounded-xl bg-muted/40 p-3">
-            <div className="flex items-center justify-between px-1">
-              <span className="text-sm font-semibold">{col.label}</span>
-              <Badge tone="muted">{items.length}</Badge>
-            </div>
-            <div className="flex flex-col gap-2">
-              {items.length === 0 ? (
-                <p className="px-1 py-4 text-center text-xs text-muted-foreground">Görev yok</p>
-              ) : (
-                items.map((t) => (
+    <div className="space-y-3">
+      {/* Status filter — keeps all tasks from piling into one tall column */}
+      <div className="flex flex-wrap gap-2">
+        {statusFilters.map((f) => {
+          const count = f.value ? tasks.filter((t) => t.status === f.value).length : tasks.length;
+          const active = statusFilter === f.value;
+          return (
+            <button
+              key={f.value || "all"}
+              type="button"
+              onClick={() => setStatusFilter(f.value)}
+              className={cn(
+                "rounded-full border px-3 py-1 text-sm transition-colors",
+                active
+                  ? "border-primary bg-primary text-primary-foreground"
+                  : "border-border bg-card text-muted-foreground hover:bg-accent",
+              )}
+            >
+              {f.label} <span className="opacity-70">({count})</span>
+            </button>
+          );
+        })}
+      </div>
+
+      {visible.length === 0 ? (
+        <p className="py-8 text-center text-sm text-muted-foreground">Bu filtrede görev yok.</p>
+      ) : (
+        <div className="grid items-start gap-3 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4">
+          {visible.map((t) => (
                   <div key={t.id} className="rounded-lg border border-border bg-card p-3 shadow-sm">
                     <div className="flex items-start justify-between gap-2">
                       <p className="text-sm font-medium leading-snug">{t.title}</p>
@@ -285,12 +306,9 @@ export function TaskBoard({ tasks }: { tasks: TaskCardData[] }) {
                       </>
                     ) : null}
                   </div>
-                ))
-              )}
-            </div>
-          </div>
-        );
-      })}
+          ))}
+        </div>
+      )}
     </div>
   );
 }
