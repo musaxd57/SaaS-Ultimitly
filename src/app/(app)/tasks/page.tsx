@@ -46,6 +46,12 @@ export default async function TasksPage({
     }),
   ]);
 
+  // Whole days from "today" (org timezone) to each task's due date — drives the
+  // Bugün / Bu hafta / Bu ay filter so a far-future task (e.g. an August arrival)
+  // doesn't clutter the near-term view. dueAt is UTC-midnight of the booking date.
+  const TZ = "Europe/Istanbul"; // Türkiye, UTC+3 year-round
+  const todayMs = Date.parse(`${new Date().toLocaleDateString("en-CA", { timeZone: TZ })}T00:00:00Z`);
+
   const cards: TaskCardData[] = tasks.map((t) => {
     const checklist = safeJsonParse<ChecklistItem[]>(t.checklistJson, []);
     const latestUpdate = t.updates[0] ?? null;
@@ -58,6 +64,7 @@ export default async function TasksPage({
       propertyName: t.property.name,
       assigneeName: t.assignedTo?.name ?? null,
       dueLabel: t.dueAt ? formatDate(t.dueAt) : null,
+      dueDays: t.dueAt ? Math.round((t.dueAt.getTime() - todayMs) / 86_400_000) : null,
       checklist:
         checklist.length > 0
           ? { done: checklist.filter((c) => c.done).length, total: checklist.length }

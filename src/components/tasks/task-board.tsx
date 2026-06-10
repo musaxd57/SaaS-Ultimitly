@@ -17,6 +17,7 @@ export interface TaskCardData {
   propertyName: string;
   assigneeName: string | null;
   dueLabel: string | null;
+  dueDays?: number | null; // whole days from today to the due date (for the time filter)
   checklist: { done: number; total: number } | null;
   latestPhotoUrl?: string | null;
   latestNote?: string | null;
@@ -36,6 +37,8 @@ export function TaskBoard({ tasks }: { tasks: TaskCardData[] }) {
   // Filter by status (default: all) — cards render in a wide responsive grid so
   // 50+ tasks flow left-to-right instead of stacking into one endless column.
   const [statusFilter, setStatusFilter] = useState<string>("");
+  // Time window — default "this week" so far-future tasks don't all dump in.
+  const [timeRange, setTimeRange] = useState<"today" | "week" | "month" | "all">("week");
   function toggleExpanded(id: string) {
     setExpanded((prev) => {
       const next = new Set(prev);
@@ -137,14 +140,56 @@ export function TaskBoard({ tasks }: { tasks: TaskCardData[] }) {
   }
 
   const statusFilters = [{ value: "", label: "Tümü" }, ...TASK_STATUS.options];
-  const visible = statusFilter ? tasks.filter((t) => t.status === statusFilter) : tasks;
+  const timeFilters: { value: "today" | "week" | "month" | "all"; label: string }[] = [
+    { value: "today", label: "Bugün" },
+    { value: "week", label: "Bu hafta" },
+    { value: "month", label: "Bu ay" },
+    { value: "all", label: "Tümü" },
+  ];
+  const rangeMatch = (d: number | null | undefined, range: typeof timeRange) => {
+    if (d == null) return true; // no due date → always show
+    if (range === "today") return d <= 0; // today + overdue
+    if (range === "week") return d <= 7;
+    if (range === "month") return d <= 31;
+    return true;
+  };
+  const visible = tasks.filter(
+    (t) => (!statusFilter || t.status === statusFilter) && rangeMatch(t.dueDays, timeRange),
+  );
 
   return (
     <div className="space-y-3">
-      {/* Status filter — keeps all tasks from piling into one tall column */}
+      {/* Time window — so far-future tasks (e.g. August arrivals) don't all dump in */}
+      <div className="flex flex-wrap gap-2">
+        {timeFilters.map((f) => {
+          const count = tasks.filter(
+            (t) => (!statusFilter || t.status === statusFilter) && rangeMatch(t.dueDays, f.value),
+          ).length;
+          const active = timeRange === f.value;
+          return (
+            <button
+              key={f.value}
+              type="button"
+              onClick={() => setTimeRange(f.value)}
+              className={cn(
+                "rounded-full border px-3 py-1 text-sm font-medium transition-colors",
+                active
+                  ? "border-primary bg-primary text-primary-foreground"
+                  : "border-border bg-card text-muted-foreground hover:bg-accent",
+              )}
+            >
+              {f.label} <span className="opacity-70">({count})</span>
+            </button>
+          );
+        })}
+      </div>
+
+      {/* Status filter */}
       <div className="flex flex-wrap gap-2">
         {statusFilters.map((f) => {
-          const count = f.value ? tasks.filter((t) => t.status === f.value).length : tasks.length;
+          const count = tasks.filter(
+            (t) => (!f.value || t.status === f.value) && rangeMatch(t.dueDays, timeRange),
+          ).length;
           const active = statusFilter === f.value;
           return (
             <button
@@ -188,7 +233,10 @@ export function TaskBoard({ tasks }: { tasks: TaskCardData[] }) {
                     </div>
                     <div className="mt-2 flex flex-wrap gap-1.5">
                       <Badge tone={TASK_TYPE.tone(t.type)}>{TASK_TYPE.label(t.type)}</Badge>
-                      <Badge tone={PRIORITY.tone(t.priority)}>{PRIORITY.label(t.priority)}</Badge>
+                      {/* Only flag priority when it's urgent — 'Standart' is just noise on 50+ cards */}
+                      {t.priority === "urgent" ? (
+                        <Badge tone={PRIORITY.tone(t.priority)}>{PRIORITY.label(t.priority)}</Badge>
+                      ) : null}
                     </div>
                     <div className="mt-2 space-y-1 text-xs text-muted-foreground">
                       <p>{t.propertyName}</p>
