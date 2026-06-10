@@ -331,21 +331,30 @@ export async function getResponseTimeStats(orgId: string): Promise<ResponseTimeS
 
   const conversationIds = conversations.map((c) => c.id);
 
+  // One query for ALL messages (was N+1: a findMany per conversation). The
+  // @@index([conversationId, createdAt]) keeps this fast; a global createdAt-asc
+  // order also yields per-conversation ascending order once grouped.
+  const messages = await prisma.message.findMany({
+    where: { conversationId: { in: conversationIds } },
+    select: { conversationId: true, direction: true, createdAt: true },
+    orderBy: { createdAt: "asc" },
+  });
+  const byConversation = new Map<string, { direction: string; createdAt: Date }[]>();
+  for (const m of messages) {
+    const arr = byConversation.get(m.conversationId);
+    if (arr) arr.push(m);
+    else byConversation.set(m.conversationId, [m]);
+  }
+
   // For each conversation, find first inbound and first outbound after it
   let totalMinutes = 0;
   let count = 0;
 
-  for (const convId of conversationIds) {
-    const messages = await prisma.message.findMany({
-      where: { conversationId: convId },
-      select: { direction: true, createdAt: true },
-      orderBy: { createdAt: "asc" },
-    });
-
-    const firstInbound = messages.find((m) => m.direction === "inbound");
+  for (const msgs of byConversation.values()) {
+    const firstInbound = msgs.find((m) => m.direction === "inbound");
     if (!firstInbound) continue;
 
-    const firstOutbound = messages.find(
+    const firstOutbound = msgs.find(
       (m) => m.direction === "outbound" && m.createdAt > firstInbound.createdAt,
     );
     if (!firstOutbound) continue;
@@ -474,23 +483,32 @@ export async function getHostPerformanceScore(orgId: string): Promise<HostPerfor
   let answerable = 0;
   let answeredWithin24h = 0;
 
-  for (const conv of recentConversations) {
-    const messages = await prisma.message.findMany({
-      where: { conversationId: conv.id },
-      select: { direction: true, createdAt: true },
+  if (recentConversations.length > 0) {
+    // One query for all messages (was N+1: a findMany per conversation).
+    const recentMessages = await prisma.message.findMany({
+      where: { conversationId: { in: recentConversations.map((c) => c.id) } },
+      select: { conversationId: true, direction: true, createdAt: true },
       orderBy: { createdAt: "asc" },
     });
-    const firstInbound = messages.find((m) => m.direction === "inbound");
-    if (!firstInbound) continue; // nothing to answer → not counted against the host
-    answerable++;
-    const firstOutbound = messages.find(
-      (m) => m.direction === "outbound" && m.createdAt > firstInbound.createdAt,
-    );
-    if (
-      firstOutbound &&
-      (firstOutbound.createdAt.getTime() - firstInbound.createdAt.getTime()) / (1000 * 60 * 60) <= 24
-    ) {
-      answeredWithin24h++;
+    const grouped = new Map<string, { direction: string; createdAt: Date }[]>();
+    for (const m of recentMessages) {
+      const arr = grouped.get(m.conversationId);
+      if (arr) arr.push(m);
+      else grouped.set(m.conversationId, [m]);
+    }
+    for (const msgs of grouped.values()) {
+      const firstInbound = msgs.find((m) => m.direction === "inbound");
+      if (!firstInbound) continue; // nothing to answer → not counted against the host
+      answerable++;
+      const firstOutbound = msgs.find(
+        (m) => m.direction === "outbound" && m.createdAt > firstInbound.createdAt,
+      );
+      if (
+        firstOutbound &&
+        (firstOutbound.createdAt.getTime() - firstInbound.createdAt.getTime()) / (1000 * 60 * 60) <= 24
+      ) {
+        answeredWithin24h++;
+      }
     }
   }
 
