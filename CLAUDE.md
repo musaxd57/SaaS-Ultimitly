@@ -376,6 +376,25 @@ gönder, gönderim fail'de geri al → retry korunur). 2 eşzamanlı sync artık
 **⏭️ Ertelendi (düşük/dar):** oto-yanıt+manuel-yanıt eşzamanlı claim (nadir), lock fencing-token (bilinen),
 apartmentNumber sezgiseli ("isimdeki son sayı" — "nuve N" isimlemesinde GÜVENLİ, ileride farklı isimde riskli).
 
+## Mesaj-fix doğrulama (5 agent) + ertelenenler kararı (commit 6bbd23f)
+Kullanıcı "yaptıklarını 5 agent kontrol etsin + ertelenenlere 5 agentla bak ne yapılabilir" dedi.
+**Wave A (5 agent, yapılanları doğrula): HEPSİ SAĞLAM, regresyon YOK.** Saat-dilimi fix'leri doğru
+(geçmiş misafiri dahil etmez, null-tz güvenli), claim-then-send atomik (Postgres row-lock → ikinci run
+count=0; rollback-kaynaklı duplicate YOK çünkü dış lock + atomiklik; permanent-miss çok dar+kabul
+edilebilir), status guard false-cancel yok, uçtan-uca akış sağlam. **2 mikro-sertleştirme uygulandı:**
+`expire`→`expired` (string daralt), claim rollback'lerine `.catch(()=>{})` (rollback blip loop'u kırmasın).
+**Wave B (5 agent, ertelenenler) — KARAR:**
+- **Oto-yanıt atomik claim:** mümkün (~6 satır, welcome paterni) AMA ERTELENDİ. Sebep: yarış SADECE
+  çok-replica/lock-TTL-aşımında olur; **tek replica + in-process `running` flag → bugün İMKÂNSIZ.** En
+  hassas yol (oto-yanıt = ürünün kalbi). Sadece status:"new" cron yolu gönderiyor. 2. replica'ya geçince İLK eklenecek.
+- **Lock fencing-token:** ERTELE. Çalışan kilide stuck-lock riski ekler; claim-then-send zaten guest-duplicate'i
+  kapattı. Gerekirse fencing yerine heartbeat-extend (şemasız, düşük risk).
+- **`@@unique([conversationId, externalId])`:** ERTELE. Sadece rapor-sayım/inbound-dup (guest'e gitmez);
+  prod dedup gerekir yoksa boot'taki `db push` patlar.
+- **apartmentNumber:** ERTELE. "isimdeki son sayı" — "nuve N/serdarı ekrem N" hepsinde DOĞRU (3 yerde
+  kopya: automation + ai-suggest + ai/test route). {daire} host-opt-in, hiçbir default'ta yok. İleride
+  çok-sayılı isim ("Daire 5 Kat 2") koyulursa opsiyonel `Property.unitLabel` alanı (additive, fallback heuristik).
+
 ## Çalışma şekli
 Kullanıcı: "Bana söyle, ben kodlarım." Fazları sırayla, additive + testli.
 Build + `npm test` yeşil olmadan push etme. GitHub'da PR sadece kullanıcı
