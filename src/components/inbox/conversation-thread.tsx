@@ -24,6 +24,7 @@ import { Badge } from "@/components/ui/badge";
 import { Separator } from "@/components/ui/separator";
 import { CONVERSATION_STATUS, PRIORITY, REPLY_TONE, type ReplyTone } from "@/lib/constants";
 import { cn } from "@/lib/utils";
+import { intentLabel, langLabel, aiSourceLabel } from "@/lib/ui-labels";
 
 export interface ThreadMessage {
   id: string;
@@ -457,9 +458,9 @@ export function ConversationThread({ conversationId, messages, status, priority,
                 <Bot className="size-4 text-primary" /> AI Önerisi
               </span>
               <Badge tone={suggestion.source === "openai" ? "default" : "muted"}>
-                {suggestion.source === "openai" ? "OpenAI" : "Şablon"}
+                {aiSourceLabel(suggestion.source)}
               </Badge>
-              <Badge tone="secondary">{suggestion.intent}</Badge>
+              <Badge tone="secondary">{intentLabel(suggestion.intent)}</Badge>
               {suggestion.riskLevel && suggestion.riskLevel !== "none" ? (
                 <span
                   className={cn(
@@ -475,7 +476,7 @@ export function ConversationThread({ conversationId, messages, status, priority,
               ) : null}
               {suggestion.detectedLanguage && suggestion.detectedLanguage !== "tr" ? (
                 <span className="text-xs text-muted-foreground">
-                  Dil: {suggestion.detectedLanguage.toUpperCase()}
+                  Dil: {langLabel(suggestion.detectedLanguage)}
                 </span>
               ) : null}
               <div className="ml-auto flex items-center gap-2">
@@ -501,7 +502,7 @@ export function ConversationThread({ conversationId, messages, status, priority,
             {suggestion.actionSuggestion ? (
               <p className="flex items-start gap-2 rounded-md bg-blue-50 px-2.5 py-2 text-xs text-blue-800">
                 <Info className="mt-0.5 size-3.5 shrink-0" />
-                <span><span className="font-medium">Operatör için:</span> {suggestion.actionSuggestion}</span>
+                <span><span className="font-medium">Sizin için not:</span> {suggestion.actionSuggestion}</span>
               </p>
             ) : null}
 

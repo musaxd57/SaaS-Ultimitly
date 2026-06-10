@@ -15,6 +15,7 @@ import { DeleteConversationButton } from "@/components/inbox/delete-conversation
 import { AutoRefresh } from "@/components/inbox/auto-refresh";
 import { KB_CATEGORY, RESERVATION_STATUS } from "@/lib/constants";
 import { formatDate, formatDateTime, formatCurrency } from "@/lib/utils";
+import { channelLabel } from "@/lib/ui-labels";
 
 export const dynamic = "force-dynamic";
 
@@ -64,7 +65,7 @@ export default async function ConversationPage({
       <AutoRefresh seconds={30} />
       <PageHeader
         title={conversation.guestIdentifier}
-        description={`${conversation.property.name} · ${conversation.channel}`}
+        description={`${conversation.property.name} · ${channelLabel(conversation.channel)}`}
       >
         <LinkButton href="/inbox" variant="outline" size="sm">
           <ArrowLeft className="size-4" /> Mesajlar

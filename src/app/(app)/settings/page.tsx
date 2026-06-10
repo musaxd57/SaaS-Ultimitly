@@ -78,19 +78,19 @@ export default async function SettingsPage() {
       >
         {masterOn ? (
           <>
-            <strong>Otomatik gönderim ana şalteri: AÇIK.</strong> Aşağıdaki toggle'lar
+            <strong>Otomatik gönderim ana şalteri: AÇIK.</strong> Aşağıdaki seçenekler
             (gece oto-yanıt / otomatik karşılama) açıksa, mesajlar gerçekten gönderilir.
           </>
         ) : isOperator ? (
           <>
-            <strong>Otomatik gönderim ana şalteri: KAPALI.</strong> Aşağıdaki toggle'ları açsanız
+            <strong>Otomatik gönderim ana şalteri: KAPALI.</strong> Aşağıdaki seçeneklerı açsanız
             bile <strong>hiçbir otomatik mesaj gönderilmez</strong>. Açmak için Railway'de
             <code className="mx-1 rounded bg-amber-100 px-1 py-0.5">AUTO_REPLY_ENABLED=1</code>
             ayarlayın.
           </>
         ) : (
           <>
-            <strong>Otomatik gönderim şu an kapalı.</strong> Aşağıdaki toggle'ları açsanız bile
+            <strong>Otomatik gönderim şu an kapalı.</strong> Aşağıdaki seçeneklerı açsanız bile
             otomatik mesaj gönderilmez. Bu özelliği etkinleştirmek için bizimle iletişime geçin.
           </>
         )}

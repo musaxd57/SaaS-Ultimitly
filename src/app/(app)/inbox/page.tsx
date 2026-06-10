@@ -62,7 +62,7 @@ export default async function InboxPage({
         <AutoReplyTestButton />
         <AutoReplyToggle
           field="autoReplyHospitable"
-          label={`Gece oto-yanıt (${activeWindow})`}
+          label={`Oto-yanıt (${activeWindow})`}
           enabled={org?.autoReplyHospitable ?? false}
           title={`Açıkken: ${activeWindow} arası, güvenli ve emin olunan Airbnb/Booking mesajlarına AI otomatik cevap gönderir. Şikayet/riskli mesajlar her zaman size kalır. "Mesajları çek" sırasında çalışır.`}
         />

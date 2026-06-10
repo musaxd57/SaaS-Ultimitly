@@ -33,7 +33,7 @@ const INTENT_LABEL: Record<string, string> = {
   early_checkin: "Erken giriş",
   late_checkout: "Geç çıkış",
   early_departure: "Erken ayrılma",
-  human_request: "Ev sahibi talebi",
+  human_request: "İnsan desteği isteniyor",
   cleaning: "Temizlik",
   amenity: "Ekipman / Eşya",
   complaint: "Şikayet",
@@ -92,7 +92,7 @@ export default async function ReportsPage() {
                   ) : null}
                   {score.breakdown.responseRate !== null ? (
                     <div className="flex items-center justify-between">
-                      <span className="text-muted-foreground">Yanıt oranı (24s içinde)</span>
+                      <span className="text-muted-foreground">Yanıt oranı (24 saat içinde)</span>
                       <span className="font-medium">%{score.breakdown.responseRate}</span>
                     </div>
                   ) : null}
@@ -163,7 +163,7 @@ export default async function ReportsPage() {
           </CardHeader>
           <CardContent className="space-y-2">
             {ai.problemsByProperty.length === 0 ? (
-              <EmptyState title="Açık şikayet yok 🎉" className="py-6" />
+              <EmptyState title="Açık şikayet yok" className="py-6" />
             ) : (
               ai.problemsByProperty.map((p) => (
                 <div

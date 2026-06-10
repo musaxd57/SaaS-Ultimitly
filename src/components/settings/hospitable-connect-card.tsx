@@ -74,7 +74,7 @@ export function HospitableConnectCard({ info }: { info: HospitableConnectionInfo
     info.envAvailable && !info.ownToken ? (
       <div className="rounded-md border border-dashed border-muted-foreground/30 p-3">
         <p className="mb-2 text-sm text-muted-foreground">
-          Bu sistemde zaten bir Hospitable bağlantısı (ortam değişkeni) var. Tek tıkla bu
+          Bu sistemde zaten bir Hospitable bağlantısı mevcut. Tek tıkla bu
           hesaba kalıcı olarak aktarabilirsin — sonra ortak bağlantıya ihtiyaç kalmaz.
         </p>
         <Button type="button" variant="outline" disabled={busy !== null} onClick={() => post({ claimEnv: true }, "claim")}>
@@ -123,7 +123,7 @@ export function HospitableConnectCard({ info }: { info: HospitableConnectionInfo
             </div>
           </Field>
           <p className="text-xs text-muted-foreground">
-            🔒 Bağlı ve kilitli. Token <strong>şifreli (encrypted)</strong> saklanıyor — biz dahil
+            🔒 Bağlı ve kilitli. Token <strong>şifreli olarak</strong> saklanıyor — biz dahil
             <strong> hiç kimse göremez/kopyalayamaz</strong>. Değiştirmek için &quot;Değiştir&quot;e bas.
           </p>
           <div className="flex flex-wrap gap-2">
@@ -153,7 +153,7 @@ export function HospitableConnectCard({ info }: { info: HospitableConnectionInfo
               <li>Aşağıdaki kutuya <strong>yapıştır → Bağla</strong>.</li>
             </ol>
             <p className="mt-1.5 text-xs">
-              🔒 Token <strong>şifreli (encrypted)</strong> saklanır; sadece bu hesabın mülklerine erişir
+              🔒 Token <strong>şifreli olarak</strong> saklanır; sadece bu hesabın mülklerine erişir
               ve bir daha hiç görüntülenmez — biz bile göremeyiz.
             </p>
           </div>

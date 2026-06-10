@@ -188,7 +188,7 @@ export function TaskBoard({ tasks }: { tasks: TaskCardData[] }) {
 
                     {/* Note input */}
                     <textarea
-                      placeholder="Not ekle... (kaydedmek için odaktan çık)"
+                      placeholder="Not ekle… (kaydetmek için kutudan çıkın)"
                       value={noteMap[t.id] ?? ""}
                       onChange={(e) => setNoteMap((prev) => ({ ...prev, [t.id]: e.target.value }))}
                       onBlur={() => handleNoteBlur(t.id)}

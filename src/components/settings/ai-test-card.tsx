@@ -4,6 +4,7 @@ import { useState } from "react";
 import { Sparkles, Loader2 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
+import { intentLabel, langLabel, riskLabel, aiSourceLabel } from "@/lib/ui-labels";
 
 interface TestResult {
   reply: string;
@@ -126,15 +127,15 @@ export function AiTestCard({ properties }: { properties: { id: string; name: str
       {result ? (
         <div className="space-y-2 rounded-lg border border-border p-3">
           <div className="flex flex-wrap items-center gap-2">
-            <Badge tone="muted">{result.intent}</Badge>
-            <Badge tone={RISK_TONE[result.riskLevel]}>risk: {result.riskLevel}</Badge>
+            <Badge tone="muted">{intentLabel(result.intent)}</Badge>
+            <Badge tone={RISK_TONE[result.riskLevel]}>{riskLabel(result.riskLevel)}</Badge>
             <Badge tone="muted">güven: %{Math.round(result.confidence * 100)}</Badge>
-            <Badge tone="muted">dil: {result.detectedLanguage}</Badge>
+            <Badge tone="muted">Dil: {langLabel(result.detectedLanguage)}</Badge>
             {result.statedCheckoutTime ? (
               <Badge tone="secondary">çıkış saati: {result.statedCheckoutTime}</Badge>
             ) : null}
             <Badge tone={result.source === "openai" ? "success" : "muted"}>
-              {result.source === "openai" ? "AI (canlı)" : "yedek"}
+              {aiSourceLabel(result.source)}
             </Badge>
           </div>
           {result.confidence < 0.4 ? (
