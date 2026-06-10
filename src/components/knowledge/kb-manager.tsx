@@ -263,6 +263,7 @@ export function KbManager({
                       </div>
                       <div className="flex items-center gap-1">
                         <button
+                          type="button"
                           onClick={() => startEdit(item)}
                           className={cn(
                             "rounded p-1.5 text-muted-foreground hover:bg-accent",
@@ -275,6 +276,7 @@ export function KbManager({
                         </button>
                         {otherProps(item).length > 0 ? (
                           <button
+                            type="button"
                             onClick={() => openCopy(item)}
                             className={cn(
                               "rounded p-1.5 text-muted-foreground hover:bg-accent",
@@ -287,6 +289,7 @@ export function KbManager({
                           </button>
                         ) : null}
                         <button
+                          type="button"
                           onClick={() => toggleActive(item)}
                           disabled={busyId === item.id}
                           className="rounded p-1.5 text-muted-foreground hover:bg-accent disabled:opacity-50"
@@ -296,6 +299,7 @@ export function KbManager({
                           {item.isActive ? <Eye className="size-4" /> : <EyeOff className="size-4" />}
                         </button>
                         <button
+                          type="button"
                           onClick={() => remove(item.id)}
                           disabled={busyId === item.id}
                           className="rounded p-1.5 text-muted-foreground hover:bg-destructive/10 hover:text-destructive disabled:opacity-50"

@@ -95,6 +95,7 @@ export function AppShell({ user, superAdmin, impersonating, children }: AppShell
           </span>
         </Link>
         <button
+          type="button"
           className="rounded-md p-1 text-muted-foreground hover:bg-accent lg:hidden"
           onClick={() => setMobileOpen(false)}
           aria-label="Menüyü kapat"
@@ -174,6 +175,7 @@ export function AppShell({ user, superAdmin, impersonating, children }: AppShell
         <header className="sticky top-0 z-30 flex h-14 items-center justify-between gap-3 border-b border-border bg-card/95 px-4 backdrop-blur sm:px-6">
           <div className="flex items-center gap-3">
             <button
+              type="button"
               className="rounded-md p-2 text-muted-foreground hover:bg-accent lg:hidden"
               onClick={() => setMobileOpen(true)}
               aria-label="Menüyü aç"

@@ -227,6 +227,7 @@ export function TemplateManager({ properties, customTemplates, defaultTemplates 
                     <p className="whitespace-pre-wrap text-xs text-muted-foreground line-clamp-3">{t.body}</p>
                   </div>
                   <button
+                    type="button"
                     onClick={() => handleDelete(t.id)}
                     disabled={busyId === t.id}
                     className="rounded p-1.5 text-muted-foreground hover:bg-destructive/10 hover:text-destructive disabled:opacity-50"

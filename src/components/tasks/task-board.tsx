@@ -141,6 +141,7 @@ export function TaskBoard({ tasks }: { tasks: TaskCardData[] }) {
                     <div className="flex items-start justify-between gap-2">
                       <p className="text-sm font-medium leading-snug">{t.title}</p>
                       <button
+                        type="button"
                         onClick={() => remove(t.id)}
                         disabled={busyId === t.id}
                         className="rounded p-1 text-muted-foreground hover:bg-destructive/10 hover:text-destructive disabled:opacity-50"

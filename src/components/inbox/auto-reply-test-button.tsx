@@ -67,6 +67,9 @@ export function AutoReplyTestButton() {
           onClick={() => setOpen(false)}
         >
           <div
+            role="dialog"
+            aria-modal="true"
+            aria-label="Oto-yanıt testi (önizleme)"
             className="mt-8 w-full max-w-2xl overflow-hidden rounded-xl border border-border bg-card shadow-xl"
             onClick={(e) => e.stopPropagation()}
           >

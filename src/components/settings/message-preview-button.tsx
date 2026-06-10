@@ -63,10 +63,16 @@ export function MessagePreviewButton({
 
       {open ? (
         <div className="fixed inset-0 z-50 flex items-start justify-center overflow-y-auto bg-foreground/40 p-4 sm:p-8">
-          <div className="w-full max-w-2xl rounded-xl border border-border bg-card p-5 shadow-xl">
+          <div
+            role="dialog"
+            aria-modal="true"
+            aria-label={label}
+            className="w-full max-w-2xl rounded-xl border border-border bg-card p-5 shadow-xl"
+          >
             <div className="flex items-center justify-between">
               <h3 className="text-base font-semibold">{label}</h3>
               <button
+                type="button"
                 onClick={() => setOpen(false)}
                 className="rounded-md p-1 text-muted-foreground hover:bg-accent"
                 aria-label="Kapat"
