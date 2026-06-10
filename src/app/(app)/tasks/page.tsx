@@ -8,7 +8,7 @@ import { Card, CardContent } from "@/components/ui/card";
 import { EmptyState } from "@/components/empty-state";
 import { TaskBoard, type TaskCardData } from "@/components/tasks/task-board";
 import { BackfillTasksButton } from "@/components/tasks/backfill-button";
-import { formatDate, safeJsonParse, cn } from "@/lib/utils";
+import { formatDate, safeJsonParse, cn, calendarDaysBetween } from "@/lib/utils";
 
 export const dynamic = "force-dynamic";
 
@@ -57,11 +57,14 @@ export default async function TasksPage({
     }),
   ]);
 
-  // Whole days from "today" (org timezone) to each task's due date — drives the
-  // Bugün / Bu hafta / Bu ay filter so a far-future task (e.g. an August arrival)
-  // doesn't clutter the near-term view. dueAt is UTC-midnight of the booking date.
+  // Whole CALENDAR days (org timezone) from "today" to each task's due date —
+  // drives the Bugün / Bu hafta / Bu ay filter so a far-future task (e.g. an
+  // August arrival) doesn't clutter the near-term view. Uses calendarDaysBetween
+  // (not raw ms ÷ 86.4M) because dueAt's time-of-day differs by import path —
+  // Hospitable = UTC midnight, iCal/CSV = local noon — and a plain Math.round
+  // would misclassify a noon-stored "today" checkout as tomorrow and hide it.
   const TZ = "Europe/Istanbul"; // Türkiye, UTC+3 year-round
-  const todayMs = Date.parse(`${new Date().toLocaleDateString("en-CA", { timeZone: TZ })}T00:00:00Z`);
+  const now = new Date();
 
   const cards: TaskCardData[] = tasks.map((t) => {
     const checklist = safeJsonParse<ChecklistItem[]>(t.checklistJson, []);
@@ -75,7 +78,7 @@ export default async function TasksPage({
       propertyName: t.property.name,
       assigneeName: t.assignedTo?.name ?? null,
       dueLabel: t.dueAt ? formatDate(t.dueAt) : null,
-      dueDays: t.dueAt ? Math.round((t.dueAt.getTime() - todayMs) / 86_400_000) : null,
+      dueDays: t.dueAt ? calendarDaysBetween(now, t.dueAt, TZ) : null,
       checklist:
         checklist.length > 0
           ? { done: checklist.filter((c) => c.done).length, total: checklist.length }
