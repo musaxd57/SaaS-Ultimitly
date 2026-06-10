@@ -201,12 +201,14 @@ export default async function DashboardPage() {
           value={pendingMessages}
           icon={MessageSquare}
           tone={pendingMessages > 0 ? "warning" : "default"}
+          href="/inbox"
         />
         <StatCard
           label="Acil Görevler"
           value={stats.urgentTasks}
           icon={AlertTriangle}
           tone={stats.urgentTasks > 0 ? "destructive" : "default"}
+          href="/tasks"
         />
       </div>
 
@@ -371,13 +373,15 @@ export default async function DashboardPage() {
           value={`%${stats.occupancyRate}`}
           icon={BedDouble}
           hint={`${stats.occupiedToday}/${stats.totalProperties} mülk dolu`}
+          href="/reports"
         />
-        <StatCard label="Açık Görevler" value={stats.openTasks} icon={CheckCircle2} />
+        <StatCard label="Açık Görevler" value={stats.openTasks} icon={CheckCircle2} href="/tasks" />
         <StatCard
           label="Sorunlu Konuşmalar"
           value={stats.problemConversations}
           icon={AlertTriangle}
           tone={stats.problemConversations > 0 ? "destructive" : "default"}
+          href="/inbox?status=problem"
         />
       </div>
     </>

@@ -1,4 +1,5 @@
 import * as React from "react";
+import Link from "next/link";
 import type { LucideIcon } from "lucide-react";
 import { Card } from "@/components/ui/card";
 import { cn } from "@/lib/utils";
@@ -10,6 +11,8 @@ interface StatCardProps {
   hint?: string;
   tone?: "default" | "warning" | "destructive" | "success";
   className?: string;
+  /** When set, the whole card becomes a link to this route (with a hover cue). */
+  href?: string;
 }
 
 const toneClasses: Record<NonNullable<StatCardProps["tone"]>, string> = {
@@ -26,9 +29,10 @@ export function StatCard({
   hint,
   tone = "default",
   className,
+  href,
 }: StatCardProps) {
-  return (
-    <Card className={cn("p-5", className)}>
+  const card = (
+    <Card className={cn("p-5", href && "transition-colors hover:bg-accent/40", className)}>
       <div className="flex items-start justify-between gap-3">
         <div className="space-y-1">
           <p className="text-sm font-medium text-muted-foreground">{label}</p>
@@ -47,5 +51,13 @@ export function StatCard({
         ) : null}
       </div>
     </Card>
+  );
+
+  return href ? (
+    <Link href={href} className="block">
+      {card}
+    </Link>
+  ) : (
+    card
   );
 }
