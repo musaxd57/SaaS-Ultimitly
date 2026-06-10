@@ -106,23 +106,31 @@ const TIERS = [
 const FAQS = [
   {
     q: "Airbnb hesabıma ya da takvimime zarar verir mi?",
-    a: "Hayır. Lixus AI takvime ve fiyatlara dokunmaz — yalnızca misafir mesajlarını okur ve yanıtlar. Rezervasyonlarınız ve fiyatlarınız sizde kalır.",
+    a: "Hayır. Lixus AI yalnızca misafir mesajlarınızı okur ve yanıtlar; takviminize, fiyatlarınıza veya rezervasyonlarınıza dokunmaz. Kontrol her zaman sizde kalır.",
   },
   {
     q: "Yanlış ya da uygunsuz cevap verir mi?",
-    a: "Şikayet, iade ve iptal gibi hassas mesajlar asla otomatik gönderilmez; size iletilir. AI emin olmadığında söz vermez, taslağı insan onayına bırakır.",
+    a: "Şikayet, iade ve iptal gibi hassas mesajlar asla otomatik gönderilmez — doğrudan size iletilir. AI emin olmadığında mesajı kendiliğinden göndermez; hazırladığı taslağı onayınıza bırakır.",
   },
   {
-    q: "Kurulum zor mu? Teknik bilgi gerekir mi?",
-    a: "Hayır. İsterseniz kurulumu baştan sona biz yaparız. Siz yalnızca temiz panelinizden misafirlerinizi takip edersiniz.",
+    q: "Misafirim yabancı; AI onun dilinde mi cevap verir?",
+    a: "Evet. AI misafirin yazdığı dili algılar ve o dilde yanıtlar — Türkçe, İngilizce, Rusça, Almanca, Arapça ve daha fazlası. Siz panelinizi Türkçe yönetirsiniz, misafir kendi dilinde yanıt alır.",
   },
   {
     q: "Hangi platformları destekliyor?",
-    a: "Airbnb ve Booking.com misafir mesajları (Hospitable bağlantısı üzerinden). Mevcut bağlantınızı kullanır.",
+    a: "Airbnb ve Booking.com misafir mesajlarını destekler. Bağlantıyı kurulumda adım adım gösteriyoruz; sonrasında her iki platformu tek panelden yönetirsiniz.",
+  },
+  {
+    q: "Kurulum zor mu? Teknik bilgi gerekir mi?",
+    a: "Hayır. Kaydolun, Airbnb/Booking bağlantınızı birkaç tıkla yapın, dairelerinizin bilgilerini ekleyin — AI hemen yanıtlamaya başlar. Takılırsanız kurulumda yanınızdayız.",
+  },
+  {
+    q: "Ücretsiz deneyebilir miyim? Kart gerekiyor mu?",
+    a: "Evet. 14 gün boyunca tüm Pro özellikleri ücretsiz, kart gerekmez. Beğenirseniz devam edersiniz; beğenmezseniz hiçbir şey ödemezsiniz.",
   },
   {
     q: "İstediğim zaman durdurabilir miyim?",
-    a: "Evet. Otomatik gönderimi tek tıkla kapatabilir, dilediğinizde aboneliğinizi sonlandırabilirsiniz. Taahhüt yok.",
+    a: "Evet. Otomatik gönderimi tek tıkla kapatabilir, aboneliğinizi dilediğiniz zaman sonlandırabilirsiniz. Taahhüt yok.",
   },
 ];
 
