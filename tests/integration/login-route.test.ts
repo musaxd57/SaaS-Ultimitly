@@ -3,6 +3,8 @@ import { NextRequest } from "next/server";
 import { prisma, resetDb } from "../helpers/db";
 import { hashPassword } from "@/lib/auth/password";
 import { __resetRateLimit } from "@/lib/rate-limit";
+import { encryptSecret } from "@/lib/crypto";
+import { generateSecret, totp } from "@/lib/auth/totp";
 
 // Avoid touching the real cookie store on the success path (not exercised here).
 vi.mock("@/lib/auth", async (orig) => {
@@ -64,5 +66,55 @@ describe("POST /api/auth/login", () => {
     // A fresh IP is still allowed (gets 401, not 429).
     const other = await POST(loginReq({ email: "musa@example.com", password: "nope" }, "3.3.3.3"));
     expect(other.status).toBe(401);
+  });
+});
+
+// 2FA verification + replay protection at the ROUTE level (not just the totp lib).
+// Guards the documented Round-1 fix: a used TOTP step can't be replayed.
+describe("POST /api/auth/login — 2FA + TOTP replay", () => {
+  const email = "tf@example.com";
+  let secret: string;
+
+  beforeEach(async () => {
+    await resetDb();
+    __resetRateLimit();
+    vi.clearAllMocks();
+    secret = generateSecret();
+    const org = await prisma.organization.create({ data: { name: "Org" } });
+    await prisma.user.create({
+      data: {
+        organizationId: org.id,
+        name: "TF",
+        email,
+        passwordHash: await hashPassword("correct-horse"),
+        role: "owner",
+        twoFactorSecret: encryptSecret(secret),
+        twoFactorEnabledAt: new Date(),
+      },
+    });
+  });
+
+  it("withholds the session and asks for a code when 2FA is on and no code is given", async () => {
+    const res = await POST(loginReq({ email, password: "correct-horse" }, "5.0.0.1"));
+    expect(res.status).toBe(200);
+    expect((await res.json()).twoFactorRequired).toBe(true);
+  });
+
+  it("rejects a wrong code", async () => {
+    const res = await POST(loginReq({ email, password: "correct-horse", code: "000000" }, "5.0.0.2"));
+    expect(res.status).toBe(401);
+  });
+
+  it("accepts a valid code, records the step, and REJECTS replay of the same code", async () => {
+    const code = totp(secret);
+    const ok = await POST(loginReq({ email, password: "correct-horse", code }, "5.0.0.3"));
+    expect(ok.status).toBe(200);
+    expect((await ok.json()).ok).toBe(true);
+    const u = await prisma.user.findUnique({ where: { email }, select: { twoFactorLastStep: true } });
+    expect(u?.twoFactorLastStep).not.toBeNull();
+
+    // Same code again → replay blocked (step <= twoFactorLastStep).
+    const replay = await POST(loginReq({ email, password: "correct-horse", code }, "5.0.0.4"));
+    expect(replay.status).toBe(401);
   });
 });
