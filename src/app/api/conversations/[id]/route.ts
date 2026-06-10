@@ -8,6 +8,8 @@ import {
   jsonOk,
   notFound,
   serverError,
+  canManage,
+  forbidden,
 } from "@/lib/api";
 
 type Params = { params: Promise<{ id: string }> };
@@ -40,6 +42,9 @@ export async function PATCH(req: NextRequest, { params }: Params) {
 export async function DELETE(_req: NextRequest, { params }: Params) {
   const session = await requireSession();
   if (!session) return unauthorized();
+  // Deleting a thread (+ all its messages) is destructive — owner/manager only.
+  // The PATCH above (status/priority) stays open for staff inbox triage.
+  if (!canManage(session)) return forbidden();
   const { id } = await params;
   try {
     const existing = await prisma.conversation.findFirst({

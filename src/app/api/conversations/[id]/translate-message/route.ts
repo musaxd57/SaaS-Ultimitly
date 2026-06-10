@@ -18,7 +18,7 @@ type Params = { params: Promise<{ id: string }> };
 
 const translateSchema = z.object({
   messageId: z.string().min(1, "messageId gerekli"),
-  targetLanguage: z.string().min(2, "Hedef dil gerekli"),
+  targetLanguage: z.string().min(2, "Hedef dil gerekli").max(20, "Geçersiz dil kodu"),
 });
 
 export async function POST(req: NextRequest, { params }: Params) {

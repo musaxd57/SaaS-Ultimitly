@@ -8,6 +8,8 @@ import {
   jsonOk,
   serverError,
   propertyInOrg,
+  canManage,
+  forbidden,
 } from "@/lib/api";
 import { applyInboundMessageRules } from "@/lib/automation";
 
@@ -34,6 +36,8 @@ export async function GET(req: NextRequest) {
 export async function POST(req: NextRequest) {
   const session = await requireSession();
   if (!session) return unauthorized();
+  // Creating a conversation is an owner/manager action; staff are read + tasks.
+  if (!canManage(session)) return forbidden();
   try {
     const data = await req.json().catch(() => null);
     const parsed = conversationCreateSchema.safeParse(data);

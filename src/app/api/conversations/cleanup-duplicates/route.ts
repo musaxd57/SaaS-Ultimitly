@@ -1,5 +1,5 @@
 import { type NextRequest } from "next/server";
-import { requireSession, unauthorized, jsonOk, serverError, tooManyRequests } from "@/lib/api";
+import { requireSession, unauthorized, jsonOk, serverError, tooManyRequests, canManage, forbidden } from "@/lib/api";
 import { rateLimit } from "@/lib/rate-limit";
 import { cleanupDuplicateConversations } from "@/lib/conversations-cleanup";
 import { cleanupStaleReservations } from "@/lib/reservations-cleanup";
@@ -13,6 +13,8 @@ import { cleanupStaleReservations } from "@/lib/reservations-cleanup";
 export async function POST(_req: NextRequest) {
   const session = await requireSession();
   if (!session) return unauthorized();
+  // Destructive maintenance (deletes rows) — owner/manager only.
+  if (!canManage(session)) return forbidden();
 
   // Verifies every property against Hospitable (outbound burst) — throttle per org.
   const limited = rateLimit(`cleanup-dup:${session.organizationId}`, 4, 60_000);

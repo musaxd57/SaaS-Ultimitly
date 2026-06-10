@@ -1,4 +1,5 @@
 import { type NextRequest, NextResponse } from "next/server";
+import { timingSafeEqual } from "node:crypto";
 import { runScheduledSync } from "@/lib/scheduled-sync";
 
 // ---------------------------------------------------------------------------
@@ -21,8 +22,11 @@ function authorized(req: NextRequest): boolean {
   if (!secret) return false; // never expose an unauthenticated trigger
   const auth = req.headers.get("authorization");
   const bearer = auth?.startsWith("Bearer ") ? auth.slice(7) : null;
-  const provided = bearer ?? req.headers.get("x-cron-secret");
-  return provided === secret;
+  const provided = bearer ?? req.headers.get("x-cron-secret") ?? "";
+  // Constant-time compare to avoid a timing side-channel on the shared secret.
+  const a = Buffer.from(provided);
+  const b = Buffer.from(secret);
+  return a.length === b.length && timingSafeEqual(a, b);
 }
 
 async function handle(req: NextRequest) {

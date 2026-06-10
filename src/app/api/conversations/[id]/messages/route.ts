@@ -8,6 +8,8 @@ import {
   jsonOk,
   notFound,
   serverError,
+  canManage,
+  forbidden,
 } from "@/lib/api";
 import { applyInboundMessageRules } from "@/lib/automation";
 
@@ -18,6 +20,9 @@ type Params = { params: Promise<{ id: string }> };
 export async function POST(req: NextRequest, { params }: Params) {
   const session = await requireSession();
   if (!session) return unauthorized();
+  // Injecting a (simulated) guest message can trigger AI classification/escalation
+  // — owner/manager only; staff have a read-only thread.
+  if (!canManage(session)) return forbidden();
   const { id } = await params;
   try {
     const conversation = await prisma.conversation.findFirst({

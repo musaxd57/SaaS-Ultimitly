@@ -7,10 +7,10 @@ import { DEFAULT_TEMPLATES } from "@/lib/templates";
 
 const templateCreateSchema = z.object({
   propertyId: z.string().optional().or(z.literal("")).transform((v) => v || null),
-  category: z.string().min(1, "Kategori gerekli"),
-  title: z.string().min(2, "Başlık gerekli"),
-  body: z.string().min(2, "İçerik gerekli"),
-  language: z.string().default("tr"),
+  category: z.string().min(1, "Kategori gerekli").max(80),
+  title: z.string().min(2, "Başlık gerekli").max(300),
+  body: z.string().min(2, "İçerik gerekli").max(20000),
+  language: z.string().max(10).default("tr"),
 });
 
 export async function GET(req: NextRequest) {
