@@ -13,7 +13,6 @@ import {
   getTopTopics,
   getHostPerformanceScore,
   getOccupancyByProperty,
-  getResponseTimeStats,
 } from "@/lib/reports";
 import { PageHeader } from "@/components/page-header";
 import { StatCard } from "@/components/stat-card";
@@ -44,12 +43,11 @@ const INTENT_LABEL: Record<string, string> = {
 export default async function ReportsPage() {
   const { organizationId } = await requireAuth();
 
-  const [ai, topics, score, occupancy, responseTime] = await Promise.all([
+  const [ai, topics, score, occupancy] = await Promise.all([
     getAiOpsReport(organizationId),
     getTopTopics(organizationId, 6),
     getHostPerformanceScore(organizationId),
     getOccupancyByProperty(organizationId),
-    getResponseTimeStats(organizationId),
   ]);
 
   const maxTopic = Math.max(1, ...topics.map((t) => t.count));
@@ -99,12 +97,6 @@ export default async function ReportsPage() {
                 <p className="text-3xl font-semibold">{score.score}/100</p>
                 <p className="text-sm text-muted-foreground">{score.label}</p>
                 <div className="mt-3 space-y-1.5 border-t border-border pt-3 text-sm">
-                  {responseTime.avgMinutes !== null ? (
-                    <div className="flex items-center justify-between">
-                      <span className="text-muted-foreground">Ortalama yanıt süresi</span>
-                      <span className="font-medium">{responseTime.avgMinutes} dk</span>
-                    </div>
-                  ) : null}
                   {score.breakdown.responseRate !== null ? (
                     <div className="flex items-center justify-between">
                       <span className="text-muted-foreground">Yanıt oranı (24 saat içinde)</span>

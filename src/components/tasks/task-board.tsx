@@ -2,7 +2,7 @@
 
 import { useRef, useState, useTransition } from "react";
 import { useRouter } from "next/navigation";
-import { Loader2, Trash2, User, Clock, CheckSquare, Camera, FileText } from "lucide-react";
+import { Loader2, Trash2, User, Clock, CheckSquare, Camera, FileText, ChevronDown, ChevronRight } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
 import { Select } from "@/components/ui/select";
 import { TASK_STATUS, TASK_TYPE, PRIORITY } from "@/lib/constants";
@@ -30,6 +30,17 @@ export function TaskBoard({ tasks }: { tasks: TaskCardData[] }) {
   const [noteError, setNoteError] = useState<Record<string, string>>({});
   const [, startTransition] = useTransition();
   const fileInputRefs = useRef<Record<string, HTMLInputElement | null>>({});
+  // Cards are compact by default (note input + photo hidden) so 50+ tasks don't
+  // become an endless scroll; tap "Not / fotoğraf" to reveal the editors.
+  const [expanded, setExpanded] = useState<Set<string>>(new Set());
+  function toggleExpanded(id: string) {
+    setExpanded((prev) => {
+      const next = new Set(prev);
+      if (next.has(id)) next.delete(id);
+      else next.add(id);
+      return next;
+    });
+  }
 
   async function setStatus(id: string, status: string) {
     setBusyId(id);
@@ -185,57 +196,7 @@ export function TaskBoard({ tasks }: { tasks: TaskCardData[] }) {
                       </p>
                     ) : null}
 
-                    {/* Latest photo thumbnail */}
-                    {t.latestPhotoUrl ? (
-                      <a href={t.latestPhotoUrl} target="_blank" rel="noopener noreferrer" className="mt-2 block">
-                        {/* eslint-disable-next-line @next/next/no-img-element */}
-                        <img
-                          src={t.latestPhotoUrl}
-                          alt="Görev fotoğrafı"
-                          className="h-20 w-full rounded-md border border-border object-cover"
-                        />
-                      </a>
-                    ) : null}
-
-                    {/* Note input */}
-                    <textarea
-                      placeholder="Not ekle… (kaydetmek için kutudan çıkın)"
-                      value={noteMap[t.id] ?? ""}
-                      onChange={(e) => setNoteMap((prev) => ({ ...prev, [t.id]: e.target.value }))}
-                      onBlur={() => handleNoteBlur(t.id)}
-                      rows={2}
-                      className={cn(
-                        "mt-2 w-full resize-none rounded border border-border bg-muted/30 px-2 py-1.5 text-xs placeholder:text-muted-foreground/60 focus:outline-none focus:ring-1 focus:ring-ring",
-                      )}
-                    />
-                    {noteError[t.id] ? (
-                      <p className="mt-1 text-xs text-destructive">{noteError[t.id]}</p>
-                    ) : null}
-
-                    {/* Photo upload */}
-                    <div className="mt-2 flex items-center gap-2">
-                      <input
-                        ref={(el) => { fileInputRefs.current[t.id] = el; }}
-                        type="file"
-                        accept="image/jpeg,image/png,image/webp"
-                        className="hidden"
-                        onChange={(e) => handlePhotoChange(t.id, e)}
-                      />
-                      <button
-                        type="button"
-                        disabled={uploadingId === t.id}
-                        onClick={() => fileInputRefs.current[t.id]?.click()}
-                        className="flex items-center gap-1 rounded px-2 py-1 text-xs text-muted-foreground hover:bg-accent hover:text-foreground disabled:opacity-50"
-                      >
-                        {uploadingId === t.id ? (
-                          <Loader2 className="size-3 animate-spin" />
-                        ) : (
-                          <Camera className="size-3" />
-                        )}
-                        Fotoğraf Ekle
-                      </button>
-                    </div>
-
+                    {/* Status — always visible for a one-tap change */}
                     <Select
                       value={t.status}
                       disabled={busyId === t.id}
@@ -248,6 +209,81 @@ export function TaskBoard({ tasks }: { tasks: TaskCardData[] }) {
                         </option>
                       ))}
                     </Select>
+
+                    {/* Detail toggle — keeps the card compact (note input + photo hidden) */}
+                    <button
+                      type="button"
+                      onClick={() => toggleExpanded(t.id)}
+                      className="mt-2 flex items-center gap-1 text-xs font-medium text-primary hover:underline"
+                    >
+                      {expanded.has(t.id) ? (
+                        <>
+                          <ChevronDown className="size-3" /> Gizle
+                        </>
+                      ) : (
+                        <>
+                          <ChevronRight className="size-3" /> Not{t.type === "cleaning" ? " / fotoğraf" : ""}
+                          {t.latestPhotoUrl ? " 📷" : ""}
+                        </>
+                      )}
+                    </button>
+
+                    {expanded.has(t.id) ? (
+                      <>
+                        {/* Latest photo thumbnail */}
+                        {t.latestPhotoUrl ? (
+                          <a href={t.latestPhotoUrl} target="_blank" rel="noopener noreferrer" className="mt-2 block">
+                            {/* eslint-disable-next-line @next/next/no-img-element */}
+                            <img
+                              src={t.latestPhotoUrl}
+                              alt="Görev fotoğrafı"
+                              className="h-20 w-full rounded-md border border-border object-cover"
+                            />
+                          </a>
+                        ) : null}
+
+                        {/* Note input */}
+                        <textarea
+                          placeholder="Not ekle… (kaydetmek için kutudan çıkın)"
+                          value={noteMap[t.id] ?? ""}
+                          onChange={(e) => setNoteMap((prev) => ({ ...prev, [t.id]: e.target.value }))}
+                          onBlur={() => handleNoteBlur(t.id)}
+                          rows={2}
+                          className={cn(
+                            "mt-2 w-full resize-none rounded border border-border bg-muted/30 px-2 py-1.5 text-xs placeholder:text-muted-foreground/60 focus:outline-none focus:ring-1 focus:ring-ring",
+                          )}
+                        />
+                        {noteError[t.id] ? (
+                          <p className="mt-1 text-xs text-destructive">{noteError[t.id]}</p>
+                        ) : null}
+
+                        {/* Photo upload — only for cleaning tasks (proof of cleaning); never check-in prep */}
+                        {t.type === "cleaning" ? (
+                          <div className="mt-2 flex items-center gap-2">
+                            <input
+                              ref={(el) => { fileInputRefs.current[t.id] = el; }}
+                              type="file"
+                              accept="image/jpeg,image/png,image/webp"
+                              className="hidden"
+                              onChange={(e) => handlePhotoChange(t.id, e)}
+                            />
+                            <button
+                              type="button"
+                              disabled={uploadingId === t.id}
+                              onClick={() => fileInputRefs.current[t.id]?.click()}
+                              className="flex items-center gap-1 rounded px-2 py-1 text-xs text-muted-foreground hover:bg-accent hover:text-foreground disabled:opacity-50"
+                            >
+                              {uploadingId === t.id ? (
+                                <Loader2 className="size-3 animate-spin" />
+                              ) : (
+                                <Camera className="size-3" />
+                              )}
+                              Temizlik fotoğrafı ekle
+                            </button>
+                          </div>
+                        ) : null}
+                      </>
+                    ) : null}
                   </div>
                 ))
               )}

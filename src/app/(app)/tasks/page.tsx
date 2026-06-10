@@ -8,7 +8,7 @@ import { Card, CardContent } from "@/components/ui/card";
 import { EmptyState } from "@/components/empty-state";
 import { TaskBoard, type TaskCardData } from "@/components/tasks/task-board";
 import { BackfillTasksButton } from "@/components/tasks/backfill-button";
-import { formatDateTime, safeJsonParse, cn } from "@/lib/utils";
+import { formatDate, safeJsonParse, cn } from "@/lib/utils";
 
 export const dynamic = "force-dynamic";
 
@@ -57,7 +57,7 @@ export default async function TasksPage({
       status: t.status,
       propertyName: t.property.name,
       assigneeName: t.assignedTo?.name ?? null,
-      dueLabel: t.dueAt ? formatDateTime(t.dueAt) : null,
+      dueLabel: t.dueAt ? formatDate(t.dueAt) : null,
       checklist:
         checklist.length > 0
           ? { done: checklist.filter((c) => c.done).length, total: checklist.length }
