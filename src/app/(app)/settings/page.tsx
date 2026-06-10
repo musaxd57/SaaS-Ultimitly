@@ -115,6 +115,35 @@ export default async function SettingsPage() {
         </CardContent>
       </Card>
 
+      {session.role === "owner" || session.role === "manager" ? (
+        <Card className="max-w-2xl">
+          <CardHeader>
+            <CardTitle className="text-base">Verileriniz (KVKK)</CardTitle>
+          </CardHeader>
+          <CardContent className="space-y-3">
+            <p className="text-sm text-muted-foreground">
+              İşletmenize ait tüm verileri (daireler, rezervasyonlar, misafir konuşmaları, görevler,
+              bilgi bankası) tek bir JSON dosyası olarak indirebilirsiniz. Şifre ve gizli anahtarlar
+              dışa aktarıma dâhil edilmez.
+            </p>
+            <a
+              href="/api/account/export"
+              className="inline-flex items-center justify-center rounded-md border border-border bg-card px-4 py-2 text-sm font-medium hover:bg-accent"
+            >
+              Verilerimi indir (JSON)
+            </a>
+            <p className="text-xs text-muted-foreground">
+              Belirli bir misafire ait verileri silmek için ilgili rezervasyonu veya konuşmayı
+              panelden silebilirsiniz. Hesabınızın tamamen silinmesini isterseniz{" "}
+              <a href="mailto:iletisimlixusai@gmail.com" className="underline hover:text-foreground">
+                iletisimlixusai@gmail.com
+              </a>{" "}
+              adresine yazın.
+            </p>
+          </CardContent>
+        </Card>
+      ) : null}
+
       {canManageChannel && hospitableInfo ? (
         <Card className="max-w-2xl">
           <CardHeader>
