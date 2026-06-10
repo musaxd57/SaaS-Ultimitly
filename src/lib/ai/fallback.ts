@@ -35,8 +35,10 @@ const KEYWORDS: Record<Exclude<Intent, "general">, string[]> = {
     "не работает", "сломан", "грязно", "проблема", "жалоба",
   ],
   refund: [
-    "iade", "geri ödeme", "geri odeme", "refund", "para iadesi", "ücret iade",
-    "rückerstattung", "geld zurück", "remboursement", "reembolso", "devolución",
+    "iade", "geri ödeme", "geri odeme", "refund", "para iadesi", "ücret iade", "paramı geri",
+    "rückerstattung", "geld zurück", "remboursement", "rembourser",
+    "reembolso", "devolución", "devolver", "devuelv", "money back",
+    "rimborso", "rimborsare", // Italian (was missing)
     "استرداد", "استرجاع", "возврат", "вернуть деньги",
   ],
   // Leaving the stay EARLY / shortening / cancelling — a revenue/refund-sensitive
@@ -44,10 +46,13 @@ const KEYWORDS: Record<Exclude<Intent, "general">, string[]> = {
   early_departure: [
     "erken ayrıl", "erken ayril", "erken çık", "erken cik", "ayrılmak zorunda", "ayrilmak zorunda",
     "ayrılmamız gerek", "ayrilmamiz gerek", "rezervasyonu kısalt", "rezervasyonu kisalt", "iptal et",
-    "iptal edebilir", "leave early", "check out early", "checking out early", "cut short", "shorten my stay",
-    "cancel my", "cancel the", "won't be staying", "wont be staying", "can't stay", "cant stay",
-    // Multilingual cancel / leave-early signals (DE/FR/ES/AR/RU).
+    "iptal edebilir", "iptal etmek", "konaklamayı kısalt", "leave early", "leave sooner", "check out early",
+    "checking out early", "cut short", "shorten my stay", "end our reservation", "end the reservation",
+    "end our stay", "ahead of schedule", "sooner than planned", "head home early",
+    "cancel my", "cancel the", "cancel our", "won't be staying", "wont be staying", "can't stay", "cant stay",
+    // Multilingual cancel / leave-early signals (DE/FR/ES/IT/AR/RU).
     "stornieren", "früher abreisen", "annuler", "partir plus tôt", "cancelar", "salir antes",
+    "annullare", "cancellare", "partire prima", "accorciare", "lasciare prima", // Italian (was missing)
     "إلغاء", "المغادرة مبكرا", "отменить", "уехать раньше",
   ],
   // Guest explicitly wants a real person / the host.
