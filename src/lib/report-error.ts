@@ -10,8 +10,11 @@ import { emailService } from "@/lib/email";
 // This is the project's lightweight observability hook — a single choke point
 // where a real monitoring backend (Sentry, etc.) can later be wired in.
 
-let lastEmailAt = 0;
-const EMAIL_THROTTLE_MS = 10 * 60 * 1000; // at most one alert email / 10 min
+// Throttle per CONTEXT (not globally) so a fleet-wide failure — e.g. sync
+// breaking for several orgs at once, each a distinct context — isn't masked as a
+// single blip; each distinct failure still gets one alert per window.
+const lastEmailAt = new Map<string, number>();
+const EMAIL_THROTTLE_MS = 10 * 60 * 1000; // at most one alert email / context / 10 min
 
 function escapeHtml(s: string): string {
   return s
@@ -35,8 +38,8 @@ export async function reportError(context: string, err: unknown): Promise<void> 
   if (!to) return;
 
   const now = Date.now();
-  if (now - lastEmailAt < EMAIL_THROTTLE_MS) return;
-  lastEmailAt = now;
+  if (now - (lastEmailAt.get(context) ?? 0) < EMAIL_THROTTLE_MS) return;
+  lastEmailAt.set(context, now);
 
   try {
     await emailService.send(
@@ -53,7 +56,7 @@ export async function reportError(context: string, err: unknown): Promise<void> 
 
 /** Test helper: reset the email throttle. */
 export function __resetReportThrottle() {
-  lastEmailAt = 0;
+  lastEmailAt.clear();
 }
 
 // --- Sentry (dependency-free) ----------------------------------------------

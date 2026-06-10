@@ -1,4 +1,4 @@
-import { NextResponse } from "next/server";
+import { NextResponse, type NextRequest } from "next/server";
 import { prisma } from "@/lib/db";
 
 export const dynamic = "force-dynamic";
@@ -11,8 +11,14 @@ export const dynamic = "force-dynamic";
 //   { ok, db: "up"|"down", lastSyncAgeSec, sync: "ok"|"stale"|"unknown" }
 //
 // Returns 503 when the database is unreachable so the monitor flags it.
+//
+// STRICT MODE: add ?strict=1 → also returns 503 when sync is "stale" (the 2-min
+// loop hasn't run in >15 min). Point a SECOND uptime monitor at /api/health?strict=1
+// so a silently-dead sync loop actually pages you — the default probe stays lenient
+// (200 with a sync field) so a transient post-deploy gap doesn't false-alarm.
 // ---------------------------------------------------------------------------
-export async function GET() {
+export async function GET(req: NextRequest) {
+  const strict = req.nextUrl.searchParams.get("strict") === "1";
   // 1. DB connectivity — the one critical signal.
   try {
     await prisma.$queryRaw`SELECT 1`;
@@ -38,5 +44,7 @@ export async function GET() {
     // DB is up (above) — liveness is best-effort, don't fail the probe.
   }
 
-  return NextResponse.json({ ok: true, db: "up", lastSyncAgeSec, sync });
+  // In strict mode a stale sync loop is a failure the monitor should page on.
+  const status = strict && sync === "stale" ? 503 : 200;
+  return NextResponse.json({ ok: status === 200, db: "up", lastSyncAgeSec, sync }, { status });
 }

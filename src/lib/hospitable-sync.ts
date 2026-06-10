@@ -5,11 +5,13 @@ import {
   listProperties,
   listReservations,
   listMessages,
+  HospitableError,
   type HospitableProperty,
   type HospitableReservation,
   type HospitableMessage,
 } from "@/lib/hospitable";
 import { getOrgHospitableToken } from "@/lib/hospitable-credentials";
+import { reportError } from "@/lib/report-error";
 
 // ---------------------------------------------------------------------------
 // Hospitable → Inbox synchronisation
@@ -130,12 +132,27 @@ export async function syncHospitable(
   const startDate = fmt(new Date(Date.now() - backDays * 24 * 60 * 60 * 1000));
   const endDate = fmt(new Date(Date.now() + forwardDays * 24 * 60 * 60 * 1000));
 
+  // A revoked/expired token makes EVERY Hospitable call 401/403. Surface that
+  // ONCE per org (reportError → Sentry/alert email) so the host gets told to
+  // reconnect — instead of the sync dying silently and new guest messages never
+  // importing again. Non-auth per-record errors stay best-effort console logs.
+  let authFailureReported = false;
+  const noteHospitableError = (context: string, err: unknown) => {
+    const status = err instanceof HospitableError ? err.status : undefined;
+    if ((status === 401 || status === 403) && !authFailureReported) {
+      authFailureReported = true;
+      void reportError(`hospitable-auth org:${organizationId}`, err);
+    } else {
+      console.error(`[Hospitable sync] ${context}`, err);
+    }
+  };
+
   for (const [hospitableId, propertyId] of propertyMap) {
     let reservations: HospitableReservation[];
     try {
       reservations = await listReservations({ propertyIds: [hospitableId], startDate, endDate }, token);
     } catch (err) {
-      console.error(`[Hospitable sync] reservations failed for ${hospitableId}`, err);
+      noteHospitableError(`reservations failed for ${hospitableId}`, err);
       continue;
     }
 
@@ -188,7 +205,7 @@ export async function syncHospitable(
       try {
         messages = await listMessages(String(reservation.id), token);
       } catch (err) {
-        console.error(`[Hospitable sync] messages failed for ${reservation.id}`, err);
+        noteHospitableError(`messages failed for ${reservation.id}`, err);
         continue;
       }
       if (messages.length === 0) continue;

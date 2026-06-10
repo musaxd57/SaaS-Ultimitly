@@ -1,6 +1,7 @@
 import { NextResponse } from "next/server";
 import { getSession, type SessionPayload } from "@/lib/auth";
 import { prisma } from "@/lib/db";
+import { reportError } from "@/lib/report-error";
 
 export type { SessionPayload };
 
@@ -39,7 +40,13 @@ export function canManage(session: SessionPayload | null): boolean {
   return session?.role === "owner" || session?.role === "manager";
 }
 
-export function serverError(message = "Beklenmeyen bir hata oluştu") {
+/**
+ * 500 response. Pass the caught error as the 2nd arg so it reaches Sentry/alert
+ * email via reportError — a plain `catch {}` here would make the failure totally
+ * invisible (only `reportError`, NOT bare console.error, is captured).
+ */
+export function serverError(message = "Beklenmeyen bir hata oluştu", err?: unknown) {
+  if (err !== undefined) void reportError("api", err);
   return NextResponse.json({ error: message }, { status: 500 });
 }
 

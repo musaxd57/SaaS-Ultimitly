@@ -58,3 +58,11 @@ export async function register() {
   setInterval(tick, INTERVAL_MS);
   console.log("[internal-cron] in-process scheduler started (every 2 min)");
 }
+
+// NOTE: a global Next.js `onRequestError` crash-net was attempted here but reverted
+// — importing reportError (→ nodemailer) into instrumentation.ts pulls server-only
+// deps into the EDGE bundle and fails the build (same reason register() uses a
+// fetch-over-localhost call instead of importing the sync code). A future crash-net
+// needs a node-runtime-only entry (e.g. a separate instrumentation file or an
+// internal report endpoint). Server route 500s are already surfaced via
+// serverError(err) → reportError; this hook would only add RSC-render/throw capture.
