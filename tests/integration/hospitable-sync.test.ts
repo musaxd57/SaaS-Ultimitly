@@ -263,6 +263,26 @@ describe("syncHospitable", () => {
     expect(res?.status).toBe("cancelled");
   });
 
+  it("maps a declined/expired request to cancelled (so it is never messaged)", async () => {
+    const { orgId } = await makeOrgWithProperty();
+    mockProperties.mockResolvedValue([{ id: "hp", name: "Test Property" }]);
+    mockReservations.mockResolvedValue([
+      {
+        id: "res-declined",
+        platform: "airbnb",
+        arrival_date: "2026-07-01",
+        departure_date: "2026-07-03",
+        reservation_status: { current: { category: "declined" } },
+        guest: { full_name: "Declined Guest" },
+        last_message_at: null,
+      },
+    ]);
+
+    await syncHospitable(orgId);
+    const res = await prisma.reservation.findFirst({ where: { sourceReference: "res-declined" } });
+    expect(res?.status).toBe("cancelled");
+  });
+
   it("links a new conversation to its local reservation row (correct guest/dates context)", async () => {
     const { orgId } = await makeOrgWithProperty();
     mockProperties.mockResolvedValue([{ id: "hp", name: "Test Property" }]);

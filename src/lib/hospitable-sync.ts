@@ -262,9 +262,16 @@ async function upsertReservationCalendar(
 
   // Look at both the top-level status and the nested reservation_status so a
   // cancelled booking is never treated as "confirmed" (and never welcomed).
+  // Terminal "never happened" states (cancelled/declined/expired/not_possible/
+  // denied) all map to "cancelled" so no lifecycle message reaches a dead request.
   const rawStatus =
     `${reservation.status ?? ""} ${reservation.reservation_status?.current?.category ?? ""}`.toLowerCase();
-  const status = rawStatus.includes("cancel")
+  const status =
+    rawStatus.includes("cancel") ||
+    rawStatus.includes("declin") ||
+    rawStatus.includes("expire") ||
+    rawStatus.includes("not_possible") ||
+    rawStatus.includes("denied")
     ? "cancelled"
     : rawStatus.includes("pending") || rawStatus.includes("request")
       ? "pending"

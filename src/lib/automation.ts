@@ -1,5 +1,5 @@
 import "server-only";
-import { startOfDay, addDays } from "date-fns";
+import { addDays } from "date-fns";
 import { prisma } from "@/lib/db";
 import { classifyMessage, suggestReply, summarizeHostStyle } from "@/lib/ai";
 import { classifyFallback } from "@/lib/ai/fallback";
@@ -471,7 +471,10 @@ export async function applyChannelAutoReply(
     if (conversation.reservation.status === "cancelled") {
       return { sent: false, skippedReason: "reservation_ended", ...meta };
     }
-    if (conversation.reservation.departureDate < startOfDay(new Date())) {
+    if (conversation.reservation.departureDate < zonedDayRange(new Date(), org.timezone).start) {
+      // Istanbul day boundary (not server UTC) — otherwise a guest still checked in
+      // on checkout-day morning (departureDate at Istanbul midnight = before UTC
+      // midnight) would be wrongly treated as departed and the reply skipped.
       return { sent: false, skippedReason: "reservation_ended", ...meta };
     }
   }
@@ -783,11 +786,6 @@ function dateKeyInTimeZone(d: Date, tz: string): string {
   }
 }
 
-/** The reservation's check-in calendar date (stored as UTC midnight of that date). */
-function arrivalDateKey(d: Date): string {
-  return d.toISOString().slice(0, 10);
-}
-
 /** How far ahead (ms) the IANA `tz` is from UTC at the given instant. */
 function tzOffsetMs(tz: string, at: Date): number {
   try {
@@ -919,7 +917,8 @@ export async function sendDueWelcomes(
       // never drop a real Hospitable reservation — it just skips iCal/manual ones.
       channel: { notIn: ["ics", "manual"] },
       createdAt: { gte: baseline }, // only bookings created since welcome was enabled
-      arrivalDate: { gte: startOfDay(now) }, // never welcome a stay already begun/past
+      // Istanbul day boundary (not server UTC) so today's arrival isn't dropped.
+      arrivalDate: { gte: zonedDayRange(now, "Europe/Istanbul").start },
     },
     select: {
       id: true,
@@ -949,6 +948,15 @@ export async function sendDueWelcomes(
     const firstName = guestFirstName(r.guestName) ?? r.guestName;
     const body = buildGuestMessageBody(welcome.content, firstName, signature, r.property.name);
 
+    // Claim-then-send: atomically stamp welcomeSentAt BEFORE sending so two
+    // overlapping sync runs can't both deliver. Lose the claim → skip; send fails →
+    // roll the claim back so it retries next run. Stamps every row for this booking.
+    const claim = await prisma.reservation.updateMany({
+      where: { sourceReference: r.sourceReference, property: { organizationId }, welcomeSentAt: null },
+      data: { welcomeSentAt: new Date() },
+    });
+    if (claim.count === 0) continue; // another run already claimed/sent this booking
+
     const delivery = await sendOnChannel(
       {
         channel: r.channel,
@@ -958,13 +966,13 @@ export async function sendDueWelcomes(
       body,
       token,
     );
-    if (!delivery.ok) continue; // try again next run; do not mark as sent
-
-    // Mark every row for this booking (handles any duplicate reservation rows).
-    await prisma.reservation.updateMany({
-      where: { sourceReference: r.sourceReference, property: { organizationId } },
-      data: { welcomeSentAt: new Date() },
-    });
+    if (!delivery.ok) {
+      await prisma.reservation.updateMany({
+        where: { sourceReference: r.sourceReference, property: { organizationId } },
+        data: { welcomeSentAt: null },
+      });
+      continue; // send failed → un-claim, retry next run
+    }
     sent++;
   }
 
@@ -1011,7 +1019,7 @@ export async function sendDueCheckins(
       channel: { notIn: ["ics", "manual"] }, // only Hospitable-messageable bookings (never iCal/manual)
       createdAt: { gte: baseline }, // only bookings created since this was enabled
       arrivalDate: {
-        gte: startOfDay(now), // not for stays already begun/past
+        gte: zonedDayRange(now, "Europe/Istanbul").start, // not for stays already begun/past (Istanbul day)
         lte: addDays(now, CHECKIN_LEAD_DAYS), // …only once within the lead window
       },
     },
@@ -1042,18 +1050,25 @@ export async function sendDueCheckins(
     const firstName = guestFirstName(r.guestName) ?? r.guestName;
     const body = buildGuestMessageBody(tpl.content, firstName, signature, r.property.name);
 
+    // Claim-then-send (see sendDueWelcomes) — prevents a concurrent double-send.
+    const claim = await prisma.reservation.updateMany({
+      where: { sourceReference: r.sourceReference, property: { organizationId }, checkinSentAt: null },
+      data: { checkinSentAt: new Date() },
+    });
+    if (claim.count === 0) continue;
+
     const delivery = await sendOnChannel(
       { channel: r.channel, guestIdentifier: r.guestName, externalReservationId: r.sourceReference },
       body,
       token,
     );
-    if (!delivery.ok) continue; // try again next run; do not mark as sent
-
-    // Mark every row for this booking (handles any duplicate reservation rows).
-    await prisma.reservation.updateMany({
-      where: { sourceReference: r.sourceReference, property: { organizationId } },
-      data: { checkinSentAt: new Date() },
-    });
+    if (!delivery.ok) {
+      await prisma.reservation.updateMany({
+        where: { sourceReference: r.sourceReference, property: { organizationId } },
+        data: { checkinSentAt: null },
+      });
+      continue; // send failed → un-claim, retry next run
+    }
     sent++;
   }
 
@@ -1093,7 +1108,7 @@ export async function previewWelcomes(
       status: "confirmed",
       sourceReference: { not: null },
       channel: { notIn: ["ics", "manual"] }, // match the sender filter (preview == reality)
-      arrivalDate: { gte: startOfDay(now), lte: horizon },
+      arrivalDate: { gte: zonedDayRange(now, "Europe/Istanbul").start, lte: horizon },
     },
     select: {
       guestName: true,
@@ -1151,7 +1166,7 @@ export async function previewCheckins(
       status: "confirmed",
       sourceReference: { not: null },
       channel: { notIn: ["ics", "manual"] }, // match the sender filter (preview == reality)
-      arrivalDate: { gte: startOfDay(now), lte: horizon },
+      arrivalDate: { gte: zonedDayRange(now, "Europe/Istanbul").start, lte: horizon },
     },
     select: {
       guestName: true,
@@ -1227,7 +1242,7 @@ export async function sendDueCheckouts(
       sourceReference: { not: null },
       channel: { notIn: ["ics", "manual"] }, // only Hospitable-messageable bookings (never iCal/manual)
       createdAt: { gte: baseline }, // only bookings created since checkout was enabled
-      departureDate: { gte: startOfDay(now), lt: addDays(startOfDay(now), 3) },
+      departureDate: { gte: zonedDayRange(now, tz).start, lt: addDays(zonedDayRange(now, tz).start, 3) },
     },
     select: {
       id: true,
@@ -1249,7 +1264,10 @@ export async function sendDueCheckouts(
 
   for (const r of reservations) {
     // Only when check-out is tomorrow (so the message lands the evening before).
-    if (arrivalDateKey(r.departureDate) !== tomorrowKey) continue;
+    // Compare the departure's calendar day in the ORG timezone against tomorrowKey
+    // (also org tz). A UTC day-key disagreed by a day for departures stored at
+    // Istanbul midnight, so checkout messages effectively never sent.
+    if (dateKeyInTimeZone(r.departureDate, tz) !== tomorrowKey) continue;
     // Skip single-night stays: the evening-before would collide with the
     // arrival/welcome day, so these never get an automatic check-out message.
     const nights = Math.round(
@@ -1267,18 +1285,25 @@ export async function sendDueCheckouts(
     const firstName = guestFirstName(r.guestName) ?? r.guestName;
     const body = buildGuestMessageBody(tpl.content, firstName, signature, r.property.name);
 
+    // Claim-then-send (see sendDueWelcomes) — prevents a concurrent double-send.
+    const claim = await prisma.reservation.updateMany({
+      where: { sourceReference: r.sourceReference, property: { organizationId }, checkoutSentAt: null },
+      data: { checkoutSentAt: new Date() },
+    });
+    if (claim.count === 0) continue;
+
     const delivery = await sendOnChannel(
       { channel: r.channel, guestIdentifier: r.guestName, externalReservationId: r.sourceReference },
       body,
       token,
     );
-    if (!delivery.ok) continue;
-
-    // Mark every row for this booking (handles any duplicate reservation rows).
-    await prisma.reservation.updateMany({
-      where: { sourceReference: r.sourceReference, property: { organizationId } },
-      data: { checkoutSentAt: new Date() },
-    });
+    if (!delivery.ok) {
+      await prisma.reservation.updateMany({
+        where: { sourceReference: r.sourceReference, property: { organizationId } },
+        data: { checkoutSentAt: null },
+      });
+      continue; // send failed → un-claim, retry next run
+    }
     sent++;
   }
 
@@ -1380,7 +1405,7 @@ export async function previewCheckouts(
       // Mirror the live sender: iCal/manual bookings are never messaged, so the
       // preview must not list them as "would send" either.
       channel: { notIn: ["ics", "manual"] },
-      departureDate: { gte: startOfDay(now), lte: horizon },
+      departureDate: { gte: zonedDayRange(now, "Europe/Istanbul").start, lte: horizon },
     },
     select: {
       guestName: true,

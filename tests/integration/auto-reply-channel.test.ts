@@ -431,6 +431,27 @@ describe("applyChannelAutoReply", () => {
     expect(mockSend).toHaveBeenCalled();
   });
 
+  it("still answers on checkout-day morning when departure is at Istanbul midnight", async () => {
+    // Regression: a departure stored at Istanbul midnight (21:00Z prev UTC day) was
+    // wrongly read as departed by the old UTC startOfDay gate during the 00:00-03:00
+    // Istanbul window. The org-tz gate keeps answering until the day actually ends.
+    const istToday = new Intl.DateTimeFormat("en-CA", {
+      timeZone: "Europe/Istanbul",
+      year: "numeric",
+      month: "2-digit",
+      day: "2-digit",
+    }).format(new Date());
+    const { conversationId } = await seed();
+    await linkReservation(conversationId, {
+      status: "confirmed",
+      arrivalDate: new Date(Date.now() - 2 * 24 * 60 * 60 * 1000),
+      departureDate: new Date(`${istToday}T00:00:00+03:00`), // Istanbul midnight today
+    });
+    const out = await applyChannelAutoReply(conversationId);
+    expect(out.sent).toBe(true);
+    expect(mockSend).toHaveBeenCalled();
+  });
+
   it("runDueChannelAutoReplies answers a fresh 'new' chat", async () => {
     const { orgId } = await seed(); // lastMessageAt defaults to now
     const out = await runDueChannelAutoReplies(orgId);
@@ -636,6 +657,34 @@ describe("sendDueWelcomes", () => {
     expect(mockSend).not.toHaveBeenCalled();
   });
 
+  it("welcomes an arrival stored at Istanbul midnight of today (org-tz gate)", async () => {
+    // Regression: an arrival stored at Istanbul midnight (21:00Z the previous UTC
+    // day) was excluded by the old UTC startOfDay gate. The Istanbul-zoned gate
+    // must include today's arrival.
+    const istToday = new Intl.DateTimeFormat("en-CA", {
+      timeZone: "Europe/Istanbul",
+      year: "numeric",
+      month: "2-digit",
+      day: "2-digit",
+    }).format(new Date());
+    const istanbulMidnightToday = new Date(`${istToday}T00:00:00+03:00`);
+    const { orgId } = await seedWelcome({ arrival: istanbulMidnightToday });
+    expect((await sendDueWelcomes(orgId)).sent).toBe(1);
+    expect(mockSend).toHaveBeenCalledTimes(1);
+  });
+
+  it("rolls back the claim when the send fails, so it retries next run", async () => {
+    const { orgId, reservationId } = await seedWelcome();
+    mockSend.mockResolvedValueOnce({ ok: false, error: "429" });
+    expect((await sendDueWelcomes(orgId)).sent).toBe(0);
+    // Claim rolled back → not marked sent, so the next run can retry.
+    const after = await prisma.reservation.findUnique({ where: { id: reservationId } });
+    expect(after?.welcomeSentAt).toBeNull();
+
+    mockSend.mockResolvedValue({ ok: true });
+    expect((await sendDueWelcomes(orgId)).sent).toBe(1);
+  });
+
   it("previewWelcomes builds the text without sending, regardless of toggles", async () => {
     // autoWelcome off + no kill-switch → preview still works, sends nothing.
     vi.stubEnv("AUTO_REPLY_ENABLED", "");
@@ -825,6 +874,17 @@ describe("sendDueCheckouts", () => {
     expect(out.sent).toBe(1);
     const [, body] = mockSend.mock.calls[0];
     expect(body).toBe("Hi Ronda, safe travels — İsa");
+  });
+
+  it("sends for a checkout stored at Istanbul midnight (org-tz day-key fix)", async () => {
+    // Load-bearing regression: departure stored at Istanbul midnight (21:00Z the
+    // previous UTC day). The old UTC day-key read it as the previous day so the
+    // message never sent; the org-tz key matches "tomorrow" correctly.
+    vi.setSystemTime(new Date("2026-06-14T15:00:00Z")); // 18:00 Istanbul, eve of Jun 15
+    const { orgId } = await seedCheckout({
+      departure: new Date("2026-06-14T21:00:00Z"), // Istanbul midnight of Jun 15
+    });
+    expect((await sendDueCheckouts(orgId)).sent).toBe(1);
   });
 
   it("does not message bookings made before checkout was switched on", async () => {
