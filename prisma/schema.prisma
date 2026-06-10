@@ -105,6 +105,14 @@ model User {
   twoFactorEnabledAt DateTime?
   // Last accepted TOTP time-step — rejects replay of an already-used code.
   twoFactorLastStep  Int?
+  // Password-change e-mail verification: a short-lived 6-digit code is e-mailed
+  // to the user and stored here HASHED (never plaintext). Changing the password
+  // requires entering the matching, unexpired code — it proves control of the
+  // inbox, so no current password is needed (and a stale logged-in session alone
+  // can no longer silently change the password).
+  pwChangeCodeHash      String?
+  pwChangeCodeExpiresAt DateTime?
+  pwChangeCodeAttempts  Int       @default(0)
   createdAt      DateTime @default(now())
   updatedAt      DateTime @updatedAt
 
