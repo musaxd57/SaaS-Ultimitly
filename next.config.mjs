@@ -8,10 +8,23 @@ const nextConfig = {
   reactStrictMode: true,
   // Don't advertise the framework (minor info-leak hardening).
   poweredByHeader: false,
-  // Safe, additive security headers on every response. Deliberately NO strict
-  // Content-Security-Policy (would need nonces and risks breaking the app) —
-  // these are header-only and won't affect functionality.
+  // Safe, additive security headers on every response. The Content-Security-Policy
+  // is REPORT-ONLY: it never blocks anything (so it cannot break the app), it only
+  // surfaces violations in the browser console — groundwork for an enforced policy
+  // later (which would need nonces for Next's inline bootstrap). All header-only.
   async headers() {
+    const cspReportOnly = [
+      "default-src 'self'",
+      "base-uri 'self'",
+      "object-src 'none'",
+      "frame-ancestors 'self'",
+      "img-src 'self' data: https:",
+      "script-src 'self' 'unsafe-inline'",
+      "style-src 'self' 'unsafe-inline'",
+      "font-src 'self' data:",
+      "connect-src 'self'",
+      "frame-src 'self' https:",
+    ].join("; ");
     return [
       {
         source: "/(.*)",
@@ -24,6 +37,7 @@ const nextConfig = {
           { key: "Cross-Origin-Opener-Policy", value: "same-origin" },
           { key: "Cross-Origin-Resource-Policy", value: "same-site" },
           { key: "X-Permitted-Cross-Domain-Policies", value: "none" },
+          { key: "Content-Security-Policy-Report-Only", value: cspReportOnly },
         ],
       },
     ];

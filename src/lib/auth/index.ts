@@ -45,7 +45,16 @@ export async function setSessionCookie(payload: SessionPayload): Promise<void> {
 
 export async function clearSessionCookie(): Promise<void> {
   const store = await cookies();
-  store.delete(SESSION_COOKIE);
+  // Overwrite-then-expire with the SAME attributes the cookie was set with
+  // (notably path:"/"). A bare delete-by-name can fail to clear the cookie
+  // behind some proxy/path setups, leaving a valid session alive after logout.
+  store.set(SESSION_COOKIE, "", {
+    httpOnly: true,
+    secure: process.env.NODE_ENV === "production",
+    sameSite: "lax",
+    path: "/",
+    maxAge: 0,
+  });
 }
 
 /** Mark the current browser as a remembered device for this user (30 days). */
