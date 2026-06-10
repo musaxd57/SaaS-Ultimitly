@@ -269,7 +269,7 @@ async function upsertReservationCalendar(
   const status =
     rawStatus.includes("cancel") ||
     rawStatus.includes("declin") ||
-    rawStatus.includes("expire") ||
+    rawStatus.includes("expired") ||
     rawStatus.includes("not_possible") ||
     rawStatus.includes("denied")
     ? "cancelled"

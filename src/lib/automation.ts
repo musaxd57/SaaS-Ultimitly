@@ -967,10 +967,12 @@ export async function sendDueWelcomes(
       token,
     );
     if (!delivery.ok) {
-      await prisma.reservation.updateMany({
-        where: { sourceReference: r.sourceReference, property: { organizationId } },
-        data: { welcomeSentAt: null },
-      });
+      await prisma.reservation
+        .updateMany({
+          where: { sourceReference: r.sourceReference, property: { organizationId } },
+          data: { welcomeSentAt: null },
+        })
+        .catch(() => {}); // a rollback blip must not break the loop (retries next run)
       continue; // send failed → un-claim, retry next run
     }
     sent++;
@@ -1063,10 +1065,12 @@ export async function sendDueCheckins(
       token,
     );
     if (!delivery.ok) {
-      await prisma.reservation.updateMany({
-        where: { sourceReference: r.sourceReference, property: { organizationId } },
-        data: { checkinSentAt: null },
-      });
+      await prisma.reservation
+        .updateMany({
+          where: { sourceReference: r.sourceReference, property: { organizationId } },
+          data: { checkinSentAt: null },
+        })
+        .catch(() => {}); // a rollback blip must not break the loop (retries next run)
       continue; // send failed → un-claim, retry next run
     }
     sent++;
@@ -1298,10 +1302,12 @@ export async function sendDueCheckouts(
       token,
     );
     if (!delivery.ok) {
-      await prisma.reservation.updateMany({
-        where: { sourceReference: r.sourceReference, property: { organizationId } },
-        data: { checkoutSentAt: null },
-      });
+      await prisma.reservation
+        .updateMany({
+          where: { sourceReference: r.sourceReference, property: { organizationId } },
+          data: { checkoutSentAt: null },
+        })
+        .catch(() => {}); // a rollback blip must not break the loop (retries next run)
       continue; // send failed → un-claim, retry next run
     }
     sent++;
