@@ -197,6 +197,9 @@ model Reservation {
   @@index([propertyId])
   @@index([arrivalDate])
   @@index([departureDate]) // checkout / cleaning / report queries filter by this
+  // Sync de-dup looks up (propertyId, sourceReference) once per reservation on
+  // every 2-min cron — index it so that's a seek, not a per-row scan.
+  @@index([propertyId, sourceReference])
 }
 
 model Conversation {
@@ -226,6 +229,9 @@ model Conversation {
   @@index([status])
   @@index([externalReservationId])
   @@index([lastMessageAt]) // inbox is ordered by recency
+  // Composite for the hot path: inbox/dashboard/cron filter by status and sort
+  // by lastMessageAt within an org's properties (one index instead of filter+sort).
+  @@index([propertyId, status, lastMessageAt])
 }
 
 model Message {
@@ -271,6 +277,8 @@ model Task {
   @@index([propertyId])
   @@index([status])
   @@index([assignedToId])
+  // createReservationTasks / backfill look up tasks by reservationId per row.
+  @@index([reservationId])
 }
 
 model TaskUpdate {

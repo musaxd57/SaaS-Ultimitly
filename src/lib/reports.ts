@@ -214,65 +214,59 @@ export async function getOccupancyByProperty(orgId: string): Promise<PropertyOcc
   const daysInThisMonth = thisMonthEnd.getDate();
   const daysInLastMonth = lastMonthEnd.getDate();
 
-  const results: PropertyOccupancy[] = [];
+  // ONE query covering both months across ALL properties (was 2 queries per
+  // property → an N+1). countOccupiedDays clamps each reservation to the target
+  // range, so feeding it the whole union-window set yields the same per-month
+  // counts as the old per-property queries.
+  const allRes = await prisma.reservation.findMany({
+    where: {
+      property: { organizationId: orgId },
+      status: { in: ["confirmed", "completed"] },
+      arrivalDate: { lt: thisMonthEnd },
+      departureDate: { gt: lastMonthStart },
+    },
+    select: { propertyId: true, arrivalDate: true, departureDate: true },
+  });
 
-  for (const p of properties) {
-    // Count days occupied this month
-    const [thisMonthRes, lastMonthRes] = await Promise.all([
-      prisma.reservation.findMany({
-        where: {
-          propertyId: p.id,
-          status: { in: ["confirmed", "completed"] },
-          arrivalDate: { lt: thisMonthEnd },
-          departureDate: { gt: thisMonthStart },
-        },
-        select: { arrivalDate: true, departureDate: true },
-      }),
-      prisma.reservation.findMany({
-        where: {
-          propertyId: p.id,
-          status: { in: ["confirmed", "completed"] },
-          arrivalDate: { lt: lastMonthEnd },
-          departureDate: { gt: lastMonthStart },
-        },
-        select: { arrivalDate: true, departureDate: true },
-      }),
-    ]);
+  const byProperty = new Map<string, { arrivalDate: Date; departureDate: Date }[]>();
+  for (const r of allRes) {
+    const list = byProperty.get(r.propertyId);
+    if (list) list.push(r);
+    else byProperty.set(r.propertyId, [r]);
+  }
 
-    function countOccupiedDays(
-      reservations: { arrivalDate: Date; departureDate: Date }[],
-      rangeStart: Date,
-      rangeEnd: Date,
-    ): number {
-      const occupied = new Set<string>();
-      for (const r of reservations) {
-        const start = r.arrivalDate > rangeStart ? r.arrivalDate : rangeStart;
-        const end = r.departureDate < rangeEnd ? r.departureDate : rangeEnd;
-        let cur = startOfDay(start);
-        while (cur < end) {
-          occupied.add(format(cur, "yyyy-MM-dd"));
-          cur = addDays(cur, 1);
-        }
+  function countOccupiedDays(
+    reservations: { arrivalDate: Date; departureDate: Date }[],
+    rangeStart: Date,
+    rangeEnd: Date,
+  ): number {
+    const occupied = new Set<string>();
+    for (const r of reservations) {
+      const start = r.arrivalDate > rangeStart ? r.arrivalDate : rangeStart;
+      const end = r.departureDate < rangeEnd ? r.departureDate : rangeEnd;
+      let cur = startOfDay(start);
+      while (cur < end) {
+        occupied.add(format(cur, "yyyy-MM-dd"));
+        cur = addDays(cur, 1);
       }
-      return occupied.size;
     }
+    return occupied.size;
+  }
 
-    const thisOccupied = countOccupiedDays(thisMonthRes, thisMonthStart, thisMonthEnd);
-    const lastOccupied = countOccupiedDays(lastMonthRes, lastMonthStart, lastMonthEnd);
-
+  return properties.map((p) => {
+    const res = byProperty.get(p.id) ?? [];
+    const thisOccupied = countOccupiedDays(res, thisMonthStart, thisMonthEnd);
+    const lastOccupied = countOccupiedDays(res, lastMonthStart, lastMonthEnd);
     const thisRate = Math.round((thisOccupied / daysInThisMonth) * 100);
     const lastRate = Math.round((lastOccupied / daysInLastMonth) * 100);
-
-    results.push({
+    return {
       propertyId: p.id,
       propertyName: p.name,
       thisMonthRate: thisRate,
       lastMonthRate: lastRate,
       delta: thisRate - lastRate,
-    });
-  }
-
-  return results;
+    };
+  });
 }
 
 // ---------------------------------------------------------------------------
