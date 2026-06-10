@@ -66,7 +66,8 @@ export function AutomationPrefsForm({
         <span className="text-sm">
           <span className="font-medium">Otomatik yanıt notu</span>
           <span className="block text-xs text-muted-foreground">
-            Otomatik gönderilen cevapların sonuna “(Bu yanıt otomatik hazırlandı)” notu eklensin.
+            Otomatik gönderilen cevapların sonuna “(Bu yanıt otomatik asistanımızca hazırlandı; bir
+            hata olursa ekibimiz hemen düzeltir.)” notu eklensin. Misafirin diline göre yazılır.
             Kapatırsanız misafir bu notu görmez. (Elle gönderdiğiniz cevaplarda zaten görünmez.)
           </span>
         </span>

@@ -38,6 +38,7 @@ export default async function SettingsPage() {
       select: {
         aiReplyTone: true,
         aiSignature: true,
+        aiStyleProfile: true,
         alertEmail: true,
         autoReplyDisclosure: true,
         handoffHoldHours: true,
@@ -167,7 +168,12 @@ export default async function SettingsPage() {
         </CardContent>
       </Card>
 
-      <AiVoiceForm tone={org?.aiReplyTone ?? "warm"} signature={org?.aiSignature ?? ""} name={session.name} />
+      <AiVoiceForm
+        tone={org?.aiReplyTone ?? "warm"}
+        signature={org?.aiSignature ?? ""}
+        name={session.name}
+        styleProfile={org?.aiStyleProfile}
+      />
 
       <Card className="max-w-2xl">
         <CardHeader>

@@ -14,11 +14,14 @@ export function AiVoiceForm({
   tone,
   signature,
   name,
+  styleProfile,
 }: {
   tone: string;
   signature: string;
   /** Logged-in account's name — used only as the signature placeholder example. */
   name?: string;
+  /** Auto-learned summary of the host's writing style (read-only, may be empty). */
+  styleProfile?: string | null;
 }) {
   const router = useRouter();
   const [, startTransition] = useTransition();
@@ -104,6 +107,21 @@ export function AiVoiceForm({
             ) : null}
           </div>
         </form>
+
+        {styleProfile?.trim() ? (
+          <details className="mt-4 rounded-lg border border-border bg-muted/30 p-3">
+            <summary className="cursor-pointer text-sm font-medium">
+              Lixus AI sizin üslubunuzdan ne öğrendi?
+            </summary>
+            <p className="mt-2 whitespace-pre-wrap text-xs leading-relaxed text-muted-foreground">
+              {styleProfile.trim()}
+            </p>
+            <p className="mt-2 text-[11px] text-muted-foreground">
+              Bu özet, önceki cevaplarınızdan otomatik öğrenilir ve düzenli güncellenir; AI yanıtlarını
+              sizin tonunuza yaklaştırmak için kullanılır. Yeni cevaplar verdikçe gelişir.
+            </p>
+          </details>
+        ) : null}
       </CardContent>
     </Card>
   );

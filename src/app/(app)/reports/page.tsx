@@ -53,6 +53,10 @@ export default async function ReportsPage() {
   ]);
 
   const maxTopic = Math.max(1, ...topics.map((t) => t.count));
+  // A felt "value delivered" line: how many messages the AI handled and a rough
+  // time-saved estimate (~4 dk per message a host would otherwise type).
+  const autoMessages = ai.aiReplies + ai.welcomes + ai.checkins + ai.checkouts;
+  const savedHours = Math.round((autoMessages * 4) / 60);
 
   return (
     <>
@@ -68,6 +72,17 @@ export default async function ReportsPage() {
         <StatCard label="Giriş Bilgileri" value={ai.checkins} icon={LogIn} />
         <StatCard label="Çıkış Mesajları" value={ai.checkouts} icon={LogOut} />
       </div>
+      {autoMessages > 0 ? (
+        <p className="text-sm text-muted-foreground">
+          Son 30 günde Lixus AI <strong className="text-foreground">{autoMessages}</strong> mesajı sizin yerinize
+          yanıtladı
+          {savedHours >= 1 ? (
+            <> — tahminen <strong className="text-foreground">~{savedHours} saat</strong> kazandırdı.</>
+          ) : (
+            "."
+          )}
+        </p>
+      ) : null}
 
       <div className="grid gap-4 lg:grid-cols-2">
         {/* Host performance + response time */}

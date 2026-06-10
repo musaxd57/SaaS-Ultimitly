@@ -26,17 +26,17 @@ const STEPS = [
   {
     icon: Plug,
     title: "1. Bağlayın",
-    body: "Mevcut Airbnb / Booking bağlantınızı saniyeler içinde ekleyin. İsterseniz kurulumu tamamen biz yaparız — siz hiçbir teknik şeyle uğraşmazsınız.",
+    body: "Airbnb / Booking bağlantınızı birkaç tıkla ekleyin — teknik bilgi gerekmez. İsterseniz kurulumda size yardımcı oluruz.",
   },
   {
     icon: Brain,
     title: "2. AI öğrenir",
-    body: "Lixus AI sizin üslubunuzu, dairelerinizi ve sık sorulan soruları öğrenir; bilgi tabanınızı kullanır, asla bilgi uydurmaz.",
+    body: "Lixus AI önceki cevaplarınızdan üslubunuzu, dairelerinizi ve sık sorulan soruları öğrenir; zamanla size daha çok benzer. Bilgi tabanınızı kullanır, asla bilgi uydurmaz.",
   },
   {
     icon: MessageSquareReply,
     title: "3. 7/24 yanıtlar",
-    body: "Misafir mesajları gece 3’te bile anında, doğru ve sizin tonunuzla yanıtlanır. Siz sadece onaylar ya da bırakırsınız.",
+    body: "Misafir mesajları gece 3’te bile anında, doğru ve sizin tonunuzla yanıtlanır. İsterseniz onaylarsınız, isterseniz tamamen AI’a bırakırsınız.",
   },
 ];
 
@@ -59,12 +59,12 @@ const FEATURES = [
   {
     icon: UserRound,
     title: "İnsan gibi ton, robot değil",
-    body: "Sizin yazış tarzınızı taklit eder. Misafir bir asistanla değil, sizinle konuşuyormuş gibi hisseder.",
+    body: "Önceki cevaplarınızdan yazış tarzınızı öğrenir ve zamanla size daha çok benzer. Misafir bir asistanla değil, sizinle konuşuyormuş gibi hisseder.",
   },
   {
     icon: Wrench,
     title: "Sizin yerinize kurulum",
-    body: "Done-for-you: bağlantıyı, bilgi tabanını ve ayarları biz hazırlarız. Siz sadece temiz panelinizi kullanırsınız.",
+    body: "İsterseniz bağlantıyı, bilgi tabanını ve ayarları sizin için biz hazırlarız. Siz sadece sade panelinizi kullanırsınız.",
   },
   {
     icon: LayoutDashboard,
@@ -90,7 +90,7 @@ const TIERS = [
     price: "₺899",
     unit: "/ay",
     desc: "3–7 daireli profesyonel hostlar",
-    features: ["Başlangıç’taki her şey", "Otomatik karşılama & check-in", "Üslup öğrenme", "Öncelikli destek"],
+    features: ["Başlangıç’taki her şey", "Otomatik karşılama & check-in", "Detaylı performans raporları", "Öncelikli destek"],
     highlight: true,
   },
   {
@@ -193,7 +193,7 @@ export function LandingPage() {
             Nasıl çalışır?
           </a>
         </div>
-        <p className="mt-4 text-sm text-muted-foreground">Kredi kartı gerekmez · Kurulum ücretsiz · İstediğiniz zaman iptal</p>
+        <p className="mt-4 text-sm text-muted-foreground">Kredi kartı gerekmez · Kurulum desteği dahil · İstediğiniz zaman iptal</p>
       </section>
 
       {/* Demo video */}
@@ -274,8 +274,8 @@ export function LandingPage() {
             {[
               "Airbnb + Booking mesajları tek gelen kutusunda",
               "A–F performans skoru ile işletme karnesi",
-              "30 günlük doluluk tahmini",
-              "AI sizin yazı üslubunuzu öğrenir",
+              "Daireye göre doluluk (geçen aya kıyasla)",
+              "AI önceki cevaplarınızdan üslubunuzu öğrenir",
               "Gece/gündüz çalışma saati ayarı",
               "İki adımlı güvenlik (2FA)",
               "Otomatik karşılama, check-in ve checkout mesajları",
