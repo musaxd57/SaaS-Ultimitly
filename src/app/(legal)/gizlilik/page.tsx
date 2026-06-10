@@ -46,7 +46,7 @@ const SECTIONS: Section[] = [
   {
     title: "5. Verilerin Aktarımı",
     body: [
-      "Verileriniz, hizmetin sunulması için kullandığımız altyapı sağlayıcılarıyla (barındırma, e-posta gönderimi, yapay zekâ işleme ve kanal entegrasyonu — ör. Hospitable) sınırlı ölçüde paylaşılabilir. Bu sağlayıcıların bir kısmı yurt dışında bulunabileceğinden, veri aktarımı KVKK’nın ilgili hükümlerine uygun şekilde gerçekleştirilir. Verilerinizi pazarlama amacıyla üçüncü kişilere satmayız.",
+      "Verileriniz, hizmetin sunulması için kullandığımız altyapı sağlayıcılarıyla sınırlı ölçüde paylaşılabilir: barındırma, e-posta gönderimi, yapay zekâ ile mesaj yanıtlama (OpenAI) ve Airbnb/Booking mesajlarına erişim için kullandığımız kanal entegrasyon aracıları. Bu sağlayıcıların bir kısmı yurt dışında bulunabileceğinden, veri aktarımı KVKK’nın ilgili hükümlerine uygun şekilde gerçekleştirilir. Verilerinizi pazarlama amacıyla üçüncü kişilere satmayız.",
     ],
   },
   {

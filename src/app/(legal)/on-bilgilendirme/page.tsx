@@ -26,13 +26,13 @@ const SECTIONS: Section[] = [
     title: "2. Hizmetin Temel Nitelikleri",
     body: [
       "Lixus AI, kısa dönem kiralama işletmeleri için misafir mesajlarını yapay zekâ ile yanıtlayan, görev ve operasyon takibi sağlayan bir yazılım (SaaS) hizmetidir. Hizmet, seçilen abonelik planına göre internet üzerinden sunulur.",
-      "Planlar: Başlangıç (ücretsiz, 1–2 daire), Pro (3–7 daire) ve İşletme (8+ / sınırsız daire). Planların güncel içerikleri ve sınırları hizmet içinde ve fiyatlandırma sayfasında belirtilir.",
+      "Planlar: Başlangıç (1–2 daire), Pro (3–7 daire) ve İşletme (8+ / sınırsız daire). Planların güncel fiyatları, içerikleri ve sınırları fiyatlandırma sayfasında belirtilir.",
     ],
   },
   {
     title: "3. Hizmet Bedeli ve Ödeme",
     body: [
-      "Başlangıç planı ücretsizdir. Pro ve İşletme planları, fiyatlandırma sayfasında belirtilen aylık bedel üzerinden ücretlendirilir. Belirtilen fiyatlara KDV dahildir.",
+      "Başlangıç dâhil tüm planlar, fiyatlandırma sayfasında belirtilen aylık bedel üzerinden ücretlendirilir; belirtilen fiyatlara KDV dâhildir. Yeni hesaplara, bir plan seçmeden önce 14 gün ücretsiz Pro denemesi sunulur.",
       "Ödemeler, anlaşmalı ödeme kuruluşu üzerinden kredi/banka kartı ile alınır. Abonelik, seçilen dönem (aylık) boyunca geçerlidir ve aksi belirtilmedikçe dönem sonunda yenilenir. Aboneliğinizi dilediğiniz zaman iptal edebilirsiniz; iptal, içinde bulunulan dönemin sonunda yürürlüğe girer.",
     ],
   },

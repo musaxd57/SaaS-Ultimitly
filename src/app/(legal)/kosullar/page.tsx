@@ -38,13 +38,13 @@ const SECTIONS: Section[] = [
   {
     title: "5. Üçüncü Taraf Entegrasyonları",
     body: [
-      "Hizmet, misafir mesajlarına erişmek için üçüncü taraf sağlayıcılarla (ör. Hospitable) entegre olur. Bu sağlayıcıların kullanımı kendi koşullarına ve ücretlerine tabidir; bu maliyetlerden Lixus AI sorumlu değildir.",
+      "Hizmet, misafir mesajlarına erişmek için Airbnb/Booking kanal entegrasyon sağlayıcılarıyla entegre olur. Bu sağlayıcıların kullanımı kendi koşullarına ve ücretlerine tabidir; bu maliyetlerden Lixus AI sorumlu değildir.",
     ],
   },
   {
     title: "6. Ücretlendirme",
     body: [
-      "Hizmet, seçtiğiniz pakete göre ücretlendirilir. Fiyatlandırma ve abonelik koşulları size ayrıca bildirilir. Aboneliğinizi koşullara uygun olarak dilediğiniz zaman sonlandırabilirsiniz.",
+      "Hizmet, seçtiğiniz abonelik planına göre ücretlendirilir. Güncel fiyatlar fiyatlandırma sayfasında yayımlanır. Aboneliğinizi dilediğiniz zaman sonlandırabilirsiniz; iptal, içinde bulunulan dönemin sonunda yürürlüğe girer.",
     ],
   },
   {

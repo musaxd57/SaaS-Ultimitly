@@ -28,7 +28,7 @@ const SECTIONS: Section[] = [
   {
     title: "3. Hizmetin Nitelikleri ve Bedeli",
     body: [
-      "Lixus AI, kısa dönem kiralama işletmeleri için misafir mesajlarını yapay zekâ ile yanıtlayan ve operasyon takibi sağlayan bir SaaS hizmetidir. Başlangıç planı ücretsizdir; Pro ve İşletme planları, satın alma anında fiyatlandırma sayfasında gösterilen aylık bedel üzerinden ücretlendirilir.",
+      "Lixus AI, kısa dönem kiralama işletmeleri için misafir mesajlarını yapay zekâ ile yanıtlayan ve operasyon takibi sağlayan bir SaaS hizmetidir. Başlangıç dâhil tüm planlar, satın alma anında fiyatlandırma sayfasında gösterilen aylık bedel üzerinden ücretlendirilir. Yeni hesaplara, ödeme öncesi 14 gün ücretsiz Pro denemesi sunulur.",
       "İlan edilen fiyatlara KDV dahildir. Vergi ve benzeri yasal yükümlülükler bedele dahil olarak gösterilir.",
     ],
   },
