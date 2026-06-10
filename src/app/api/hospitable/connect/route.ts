@@ -9,6 +9,7 @@ import {
   getConnectionInfo,
   isPrimaryOrg,
 } from "@/lib/hospitable-credentials";
+import { writeAudit } from "@/lib/audit";
 
 // Each account's channel token is managed by that account's OWNER (self-service)
 // or by the operator/super-admin on their behalf (incl. while impersonating). The
@@ -58,6 +59,12 @@ export async function POST(req: NextRequest) {
       }
       const info = await verifyToken(envToken);
       await setOrgHospitableToken(session.organizationId, envToken, `${info.properties} mülk`);
+      await writeAudit({
+        organizationId: session.organizationId,
+        actorUserId: session.actorUserId ?? session.userId,
+        action: "hospitable.connect",
+        metadata: { via: "env", properties: info.properties },
+      });
       return NextResponse.json({ ok: true, properties: info.properties });
     }
 
@@ -81,6 +88,12 @@ export async function POST(req: NextRequest) {
     }
 
     await setOrgHospitableToken(session.organizationId, token, `${info.properties} mülk`);
+    await writeAudit({
+      organizationId: session.organizationId,
+      actorUserId: session.actorUserId ?? session.userId,
+      action: "hospitable.connect",
+      metadata: { properties: info.properties },
+    });
     return NextResponse.json({ ok: true, properties: info.properties });
   } catch {
     return serverError();
@@ -95,6 +108,11 @@ export async function DELETE() {
   if (!(session.role === "owner" || isSuperAdmin(session))) return unauthorized();
   try {
     await clearOrgHospitableToken(session.organizationId);
+    await writeAudit({
+      organizationId: session.organizationId,
+      actorUserId: session.actorUserId ?? session.userId,
+      action: "hospitable.disconnect",
+    });
     return NextResponse.json({ ok: true });
   } catch {
     return serverError();

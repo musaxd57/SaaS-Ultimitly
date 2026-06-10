@@ -10,6 +10,7 @@ import {
   tooManyRequests,
 } from "@/lib/api";
 import { rateLimit } from "@/lib/rate-limit";
+import { writeAudit } from "@/lib/audit";
 
 /**
  * Set a new password for the signed-in user. Authenticated by the active session
@@ -31,6 +32,13 @@ export async function POST(req: NextRequest) {
     }
     const passwordHash = await hashPassword(newPassword);
     await prisma.user.update({ where: { id: session.userId }, data: { passwordHash } });
+    // Security breadcrumb — who changed a password, and when (KVKK / incident response).
+    await writeAudit({
+      organizationId: session.organizationId,
+      actorUserId: session.actorUserId ?? session.userId,
+      action: "account.password_change",
+      metadata: { targetUserId: session.userId },
+    });
     return jsonOk({ ok: true });
   } catch {
     return serverError();

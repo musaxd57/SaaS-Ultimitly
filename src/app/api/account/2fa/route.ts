@@ -4,6 +4,7 @@ import { requireSession, unauthorized, badRequest, jsonOk, serverError, tooManyR
 import { rateLimit } from "@/lib/rate-limit";
 import { encryptSecret, decryptSecret } from "@/lib/crypto";
 import { generateSecret, otpauthUri, verifyTotp, verifyTotpStep } from "@/lib/auth/totp";
+import { writeAudit } from "@/lib/audit";
 
 // ---------------------------------------------------------------------------
 // Two-factor auth (authenticator app) management for the signed-in user.
@@ -70,6 +71,12 @@ export async function POST(req: NextRequest) {
         // Record the step so the enabling code can't be replayed at login.
         data: { twoFactorEnabledAt: new Date(), twoFactorLastStep: step },
       });
+      await writeAudit({
+        organizationId: session.organizationId,
+        actorUserId: session.actorUserId ?? session.userId,
+        action: "account.2fa_enable",
+        metadata: { targetUserId: session.userId },
+      });
       return jsonOk({ ok: true, enabled: true });
     }
 
@@ -100,6 +107,12 @@ export async function POST(req: NextRequest) {
       await prisma.user.update({
         where: { id: session.userId },
         data: { twoFactorSecret: null, twoFactorEnabledAt: null, twoFactorLastStep: null },
+      });
+      await writeAudit({
+        organizationId: session.organizationId,
+        actorUserId: session.actorUserId ?? session.userId,
+        action: "account.2fa_disable",
+        metadata: { targetUserId: session.userId },
       });
       return jsonOk({ ok: true, enabled: false });
     }

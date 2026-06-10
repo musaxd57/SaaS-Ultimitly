@@ -7,6 +7,7 @@ import { badRequest, jsonOk, serverError } from "@/lib/api";
 import { rateLimit, clientIp } from "@/lib/rate-limit";
 import { decryptSecret } from "@/lib/crypto";
 import { verifyTotpStep } from "@/lib/auth/totp";
+import { writeAudit } from "@/lib/audit";
 import type { UserRole } from "@/lib/constants";
 
 export async function POST(req: NextRequest) {
@@ -39,6 +40,16 @@ export async function POST(req: NextRequest) {
     const user = await prisma.user.findUnique({ where: { email } });
     const ok = user ? await verifyPassword(parsed.data.password, user.passwordHash) : false;
     if (!user || !ok) {
+      // Record a failed attempt against a KNOWN account (targeted-attack signal).
+      // Unknown emails have no org to scope to — the rate limiter covers those.
+      if (user) {
+        await writeAudit({
+          organizationId: user.organizationId,
+          actorUserId: user.id,
+          action: "auth.login_failed",
+          metadata: { reason: "bad_password", ip: clientIp(req) },
+        });
+      }
       return NextResponse.json({ error: "E-posta veya şifre hatalı" }, { status: 401 });
     }
 
@@ -91,6 +102,14 @@ export async function POST(req: NextRequest) {
       role: user.role as UserRole,
       email: user.email,
       name: user.name,
+    });
+
+    // Security breadcrumb: a successful sign-in (who + when). Non-fatal.
+    await writeAudit({
+      organizationId: user.organizationId,
+      actorUserId: user.id,
+      action: "auth.login_success",
+      metadata: { ip: clientIp(req), twoFactor: Boolean(user.twoFactorEnabledAt) },
     });
 
     // Remember this device (skip the 2FA code here for 30 days). Only meaningful
