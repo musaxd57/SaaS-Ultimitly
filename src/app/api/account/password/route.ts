@@ -17,7 +17,7 @@ import { emailService } from "@/lib/email";
 // Change the signed-in user's password — gated by an E-MAIL VERIFICATION CODE,
 // NOT the current password. Rationale: this screen exists so a user who FORGOT
 // their password can still recover while logged in, so asking for the current
-// password would defeat the purpose. Instead we e-mail a short-lived 6-digit
+// password would defeat the purpose. Instead we e-mail a short-lived 8-digit
 // code to the account's own address; entering it proves control of the inbox,
 // which a merely-stolen/stale session cannot do on its own.
 //
