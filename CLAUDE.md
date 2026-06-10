@@ -292,6 +292,32 @@ date-fns/UTC-midnight kaldı — görünür bug DEĞİLDİ (gate bugünü zaten 
 today-or-future'ı doğru ayırıyor). Sadece görünür filtre düzeltildi. **Ders:** agent storage
 iddiasında çelişince import path'i (ics.ts/csv.ts) okumak gerçeği verdi — körü körüne uygulama.
 
+## 13-agent panel denetimi + Mesajlar/RBAC cila (2026-06-10, commit dfe3c90)
+Kullanıcı "tüm panellere bak, 5 FE + 5 BE, son kararı sen ver yaz bana yapmadan önce" dedi.
+13 agent (3 "bugünkü görev" + 5 FE + 5 BE), kod-doğrulamalı. Kullanıcı onayı: "önerimi uygula" +
+"güvenli olanların hepsi".
+**"Bugün 0" KESİNLEŞTİ (3 agent):** bugünkü çıkışların görevleri VAR (backfill butonu gizli =
+`reservationsMissingTasks=0` = hepsinin görevi var kanıtı). iCal öğlen-UTC saklı → eski Math.round
+"Bu hafta"ya atıyordu; ekran deploy-öncesiydi. calendarDaysBetween fix'i ile "Bugün"e düşer. Veri
+kaybı/backfill YOK.
+**Uygulandı (dfe3c90):** (a) Mesajlar header: "Tekrarları temizle" müşteri header'ından kaldırıldı
+(yıkıcı operatör bakımı; endpoint duruyor, sadece buton gizli — `cleanup-duplicates-button.tsx` artık
+import edilmiyor) + arama "Temizle"→"Aramayı temizle" (yıkıcı butonla isim çakışması bitti; arama
+HİÇBİR ŞEY SİLMİYOR, sadece filtre reset). (b) AI test kartı eşiği 0.4→0.75 (gerçek oto-yanıt kapısı;
+0.55-0.74 "gönderilir" gibi görünüyordu — yalan). (c) Raporlar "son 30 gün" başlığı kaldırıldı
+(doluluk=bu ay, şikayet=anlık; her kart kendi dönemini yazıyor). (d) Görevler metni "Rezervasyonlardan
+oluştur"→"Eksik görevleri oluştur" + boş-durum çıkmazı. (e) iCal "Senkronla" sessiz-hata: 200 dönse de
+import 0 + errors varsa sebep gösteriliyor. (f) **Mülkler staff-RBAC UI:** staff salt-okunur; Yeni mülk/
+Mülkü sil/form-kaydet/calendar add-sync-sil gizli, /properties/new staff'ı geri yollar (API zaten 403).
+(g) Dashboard tarih org-tz'de (UTC değil) + mobil isim truncate.
+**Denetim SAĞLAM çıkanlar:** auth/RBAC/tenant izolasyonu (52 route, IDOR yok), dedup over-delete yok +
+canManage-gated + onaylı, arama güvenli, per-org token izolasyonu, AI prompt-injection kalkanı, e-posta
+HTML kaçışlama, password 2-adım flow, billing dormant.
+**⏭️ Ertelenen low'lar (zararsız):** KB dili "tr"e sabit (ölü alan; lookup dile bakmıyor),
+auto-reply-toggle/kb/template `window.alert` (inline değil, tutarsız ama çalışıyor), gece oto-yanıt
+on/off sadece Inbox'ta (Ayarlar'da pencere var togglesi yok), test-email `canManage` gate (düşük etki,
+rate-limit'li, sabit alıcı), releaseLock fencing-token (bilinen/deferred, dedup externalId ile güvenli).
+
 ## Çalışma şekli
 Kullanıcı: "Bana söyle, ben kodlarım." Fazları sırayla, additive + testli.
 Build + `npm test` yeşil olmadan push etme. GitHub'da PR sadece kullanıcı
