@@ -326,6 +326,23 @@ saklıysa İstanbul'da ertesi güne kayıyor (1) → etiketle filtre çelişiyor
 İstanbul günü. Böylece "10 Haz" görünen görev, saklama saatinden BAĞIMSIZ olarak 10'unda "Bugün"e düşer.
 `calendarDaysBetween` kaldırıldı → `daysUntilDate(date, now, tz)`. 4 test (akşam-UTC regresyonu dahil).
 
+## Görevler "Bugün" — GERÇEK kök neden (per-type) (2026-06-10, commit dc11846)
+Tarih filtresi DEĞİLDİ. Dashboard "bugün 4 çıkış" ama Görevler Bugün'de o 4 temizlik YOK.
+**Kök (agent + kod):** `createReservationTasks` `if (existing > 0) return 0` ile herhangi bir görev
+varsa komple çıkıyordu → daha önce sadece check-in görevi almış rezervasyon ÇIKIŞ TEMİZLİĞİNİ asla
+alamıyor + backfill butonu da gizli (çünkü "görevi var"). Abdulrahman tek görünen çünkü dashboard
+onu Jun-11 sayıyor (akşam-UTC), benim UTC-gün denemem onu yanlışlıkla Bugün'e koymuştu.
+**Düzeltmeler:** (a) `createReservationTasks` artık **per-type** — eksik olan check-in/cleaning'i ayrı
+ayrı oluşturur (idempotent, her sync'te self-heal, asla çift). +1 regresyon testi. (b)
+`reservationsMissingTasks` artık **cleaning'i eksik** rezervasyonları sayıyor (Istanbul sınırı) →
+"Eksik görevleri oluştur" butonu çıkıyor, tek tık doldurur. (c) Görevler filtresi tekrar **İstanbul
+takvim günü** (`daysUntilDate`) → dashboard `zonedDayRange` ile BİREBİR eşleşir (UTC-gün denemesi geri
+alındı). (d) Görev tarih etiketi `formatDayInTz` (İstanbul) → kart-tarihi + filtre + dashboard hepsi
+aynı; rezervasyon date-only gösterimleri `formatDate` (UTC) kaldı. **Kullanıcı:** deploy + sync (cron
+2dk veya "Mesajları çek") sonra bugünkü çıkışların temizlikleri Bugün'e düşer; ya da backfill butonuyla
+hemen. **DERS:** önce tarih-matematiğini suçladım (2 yanlış tur); gerçek sorun EKSİK GÖREV'di — veriyi
+(dashboard vs task tablosu) baştan karşılaştırmalıydım.
+
 ## Çalışma şekli
 Kullanıcı: "Bana söyle, ben kodlarım." Fazları sırayla, additive + testli.
 Build + `npm test` yeşil olmadan push etme. GitHub'da PR sadece kullanıcı
