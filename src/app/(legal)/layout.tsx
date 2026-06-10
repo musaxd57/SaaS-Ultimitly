@@ -23,9 +23,11 @@ export default function LegalLayout({ children }: { children: React.ReactNode })
       <footer className="border-t border-border py-8">
         <div className="mx-auto flex max-w-3xl flex-col items-center justify-between gap-2 px-4 text-xs text-muted-foreground sm:flex-row sm:px-6">
           <span>© {new Date().getFullYear()} Lixus AI</span>
-          <div className="flex gap-4">
+          <div className="flex flex-wrap justify-center gap-4">
             <Link href="/gizlilik" className="hover:text-foreground">Gizlilik</Link>
             <Link href="/kosullar" className="hover:text-foreground">Kullanım Koşulları</Link>
+            <Link href="/on-bilgilendirme" className="hover:text-foreground">Ön Bilgilendirme</Link>
+            <Link href="/mesafeli-satis" className="hover:text-foreground">Mesafeli Satış</Link>
           </div>
         </div>
       </footer>

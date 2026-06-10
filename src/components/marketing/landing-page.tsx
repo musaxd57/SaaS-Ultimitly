@@ -372,6 +372,8 @@ export function LandingPage() {
             <Link href="/login" className="hover:text-foreground">Giriş</Link>
             <Link href="/gizlilik" className="hover:text-foreground">Gizlilik</Link>
             <Link href="/kosullar" className="hover:text-foreground">Koşullar</Link>
+            <Link href="/on-bilgilendirme" className="hover:text-foreground">Ön Bilgilendirme</Link>
+            <Link href="/mesafeli-satis" className="hover:text-foreground">Mesafeli Satış</Link>
             {whatsapp ? (
               <a
                 href={`https://wa.me/${whatsapp}`}
