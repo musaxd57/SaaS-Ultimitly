@@ -22,7 +22,7 @@ export default async function TasksPage({
   const session = await requireAuth();
   const { propertyId } = await searchParams;
 
-  const [tasks, properties] = await Promise.all([
+  const [tasks, properties, reservationsMissingTasks] = await Promise.all([
     prisma.task.findMany({
       where: {
         property: { organizationId: session.organizationId },
@@ -43,6 +43,17 @@ export default async function TasksPage({
       where: { organizationId: session.organizationId },
       select: { id: true, name: true },
       orderBy: { name: "asc" },
+    }),
+    // Current/future reservations that still have NO tasks — so the backfill button
+    // only appears when it would actually create something (auto-creation now covers
+    // new Hospitable bookings, so in steady state this is 0 and the button hides).
+    prisma.reservation.count({
+      where: {
+        property: { organizationId: session.organizationId },
+        status: { not: "cancelled" },
+        tasks: { none: {} },
+        departureDate: { gte: new Date(new Date().setUTCHours(0, 0, 0, 0)) },
+      },
     }),
   ]);
 
@@ -77,7 +88,9 @@ export default async function TasksPage({
   return (
     <>
       <PageHeader title="Görevler" description="Temizlik, bakım ve check-in görevlerini yönetin.">
-        <BackfillTasksButton />
+        {reservationsMissingTasks > 0 ? (
+          <BackfillTasksButton count={reservationsMissingTasks} />
+        ) : null}
         <LinkButton href="/tasks/new">
           <Plus className="size-4" /> Yeni görev
         </LinkButton>

@@ -6,11 +6,12 @@ import { Loader2, ListPlus } from "lucide-react";
 import { Button } from "@/components/ui/button";
 
 /**
- * One-click backfill: create the standard check-in/cleaning tasks for every
- * existing reservation that doesn't have them yet (e.g. reservations imported
- * via iCal before task automation existed). Idempotent and safe to re-run.
+ * Recovery action: create the standard check-in/cleaning tasks for any reservation
+ * that doesn't have them yet. New Hospitable/iCal/manual bookings now auto-create
+ * tasks, so the page only shows this button when `count > 0` (reservations still
+ * missing tasks). Idempotent and safe to re-run.
  */
-export function BackfillTasksButton() {
+export function BackfillTasksButton({ count }: { count?: number }) {
   const router = useRouter();
   const [busy, setBusy] = useState(false);
 
@@ -30,6 +31,8 @@ export function BackfillTasksButton() {
       } else {
         window.alert("Görevler oluşturulamadı.");
       }
+    } catch {
+      window.alert("Bağlantı hatası. Lütfen tekrar deneyin.");
     } finally {
       setBusy(false);
     }
@@ -38,7 +41,7 @@ export function BackfillTasksButton() {
   return (
     <Button variant="outline" onClick={run} disabled={busy}>
       {busy ? <Loader2 className="size-4 animate-spin" /> : <ListPlus className="size-4" />}
-      Rezervasyonlardan oluştur
+      {count ? `Eksik görevleri oluştur (${count})` : "Eksik görevleri oluştur"}
     </Button>
   );
 }
