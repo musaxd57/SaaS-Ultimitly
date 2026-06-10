@@ -136,7 +136,12 @@ export async function createReservationTasks(reservationId: string): Promise<num
   });
   const has = new Set(existing.map((t) => t.type));
 
-  const todayStart = startOfDay(new Date());
+  // "Today" boundary in the host's timezone (Istanbul) — matches the dashboard and
+  // the missing-tasks count. date-fns startOfDay uses the server's UTC day, which
+  // is 3h behind Istanbul; reservation dates land at Istanbul midnight (BEFORE UTC
+  // midnight), so a UTC gate wrongly treats TODAY's checkout as past and creates
+  // nothing. That is exactly why "Eksik görevleri oluştur" reported 0 created.
+  const todayStart = zonedDayRange(new Date(), "Europe/Istanbul").start;
   const data: {
     propertyId: string;
     reservationId: string;

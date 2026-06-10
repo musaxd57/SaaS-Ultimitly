@@ -3,6 +3,7 @@ import {
   applyReservationCreatedRules,
   applyInboundMessageRules,
   backfillReservationTasks,
+  zonedDayRange,
 } from "@/lib/automation";
 import { getOpsStats, getMonthlyReport } from "@/lib/reports";
 import { prisma, resetDb, makeOrgWithProperty, daysFromNow } from "../helpers/db";
@@ -148,6 +149,30 @@ describe("backfillReservationTasks", () => {
     expect(tasks).toHaveLength(2);
     expect(tasks.filter((t) => t.type === "checkin_prep")).toHaveLength(1); // not duplicated
     expect(tasks.filter((t) => t.type === "cleaning")).toHaveLength(1); // now present
+  });
+
+  it("creates the cleaning task for a checkout stored at Istanbul midnight of today", async () => {
+    // The exact field failure: departureDate at Istanbul midnight (e.g. 21:00Z the
+    // previous UTC day) is BEFORE UTC midnight, so the old date-fns startOfDay (UTC)
+    // gate treated today's checkout as past → "Eksik görevleri oluştur" created 0.
+    // The Istanbul-zoned gate must include it.
+    const { orgId, propertyId } = await makeOrgWithProperty();
+    const { start: istanbulToday } = zonedDayRange(new Date(), "Europe/Istanbul");
+    await prisma.reservation.create({
+      data: {
+        propertyId,
+        guestName: "Istanbul Midnight Checkout",
+        arrivalDate: daysFromNow(-2),
+        departureDate: istanbulToday,
+        status: "confirmed",
+      },
+    });
+
+    const result = await backfillReservationTasks(orgId);
+    expect(result.created).toBe(1);
+    const tasks = await prisma.task.findMany();
+    expect(tasks).toHaveLength(1);
+    expect(tasks[0].type).toBe("cleaning");
   });
 });
 
