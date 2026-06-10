@@ -266,7 +266,7 @@ export function KbManager({
                           type="button"
                           onClick={() => startEdit(item)}
                           className={cn(
-                            "rounded p-1.5 text-muted-foreground hover:bg-accent",
+                            "rounded p-2.5 text-muted-foreground hover:bg-accent",
                             editId === item.id && "bg-accent text-foreground",
                           )}
                           aria-label="Düzenle"
@@ -279,7 +279,7 @@ export function KbManager({
                             type="button"
                             onClick={() => openCopy(item)}
                             className={cn(
-                              "rounded p-1.5 text-muted-foreground hover:bg-accent",
+                              "rounded p-2.5 text-muted-foreground hover:bg-accent",
                               copyId === item.id && "bg-accent text-foreground",
                             )}
                             aria-label="Diğer dairelere kopyala"
@@ -292,7 +292,7 @@ export function KbManager({
                           type="button"
                           onClick={() => toggleActive(item)}
                           disabled={busyId === item.id}
-                          className="rounded p-1.5 text-muted-foreground hover:bg-accent disabled:opacity-50"
+                          className="rounded p-2.5 text-muted-foreground hover:bg-accent disabled:opacity-50"
                           aria-label={item.isActive ? "Pasifleştir" : "Aktifleştir"}
                           title={item.isActive ? "Pasifleştir" : "Aktifleştir"}
                         >
@@ -302,7 +302,7 @@ export function KbManager({
                           type="button"
                           onClick={() => remove(item.id)}
                           disabled={busyId === item.id}
-                          className="rounded p-1.5 text-muted-foreground hover:bg-destructive/10 hover:text-destructive disabled:opacity-50"
+                          className="rounded p-2.5 text-muted-foreground hover:bg-destructive/10 hover:text-destructive disabled:opacity-50"
                           aria-label="Sil"
                         >
                           {busyId === item.id ? (

@@ -66,7 +66,7 @@ export default async function AdminPage() {
         </CardHeader>
         <CardContent className="p-0">
           <div className="overflow-x-auto">
-            <table className="w-full text-sm">
+            <table className="w-full min-w-max text-sm">
               <thead>
                 <tr className="border-b text-left text-xs uppercase text-muted-foreground">
                   <th className="px-4 py-2 font-medium">İşletme</th>
@@ -131,7 +131,7 @@ export default async function AdminPage() {
             <p className="px-4 py-6 text-sm text-muted-foreground">Henüz demo talebi yok.</p>
           ) : (
             <div className="overflow-x-auto">
-              <table className="w-full text-sm">
+              <table className="w-full min-w-max text-sm">
                 <thead>
                   <tr className="border-b text-left text-xs uppercase text-muted-foreground">
                     <th className="px-4 py-2 font-medium">İsim</th>
@@ -178,7 +178,7 @@ export default async function AdminPage() {
             <p className="px-4 py-6 text-sm text-muted-foreground">Henüz kayıt yok.</p>
           ) : (
             <div className="overflow-x-auto">
-              <table className="w-full text-sm">
+              <table className="w-full min-w-max text-sm">
                 <thead>
                   <tr className="border-b text-left text-xs uppercase text-muted-foreground">
                     <th className="px-4 py-2 font-medium">İşlem</th>

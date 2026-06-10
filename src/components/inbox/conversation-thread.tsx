@@ -302,7 +302,7 @@ export function ConversationThread({ conversationId, messages, status, priority,
           >
             <div
               className={cn(
-                "max-w-[85%] whitespace-pre-wrap rounded-2xl px-3.5 py-2 text-sm",
+                "max-w-[90%] sm:max-w-[85%] whitespace-pre-wrap break-words rounded-2xl px-3.5 py-2 text-sm",
                 m.direction === "outbound"
                   ? "rounded-br-sm bg-primary text-primary-foreground"
                   : "rounded-bl-sm bg-muted text-foreground",
@@ -376,7 +376,7 @@ export function ConversationThread({ conversationId, messages, status, priority,
           <Select
             value={tone}
             onChange={(e) => setTone(e.target.value as ReplyTone)}
-            className="h-9 w-32 text-xs"
+            className="h-9 w-full sm:w-32 text-xs"
             aria-label="Ton"
           >
             {REPLY_TONE.options.map((o) => (
