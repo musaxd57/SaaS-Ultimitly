@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { Loader2, Check, KeyRound, MailCheck } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -21,6 +21,15 @@ export function AccountCard({ email }: { email: string }) {
   const [done, setDone] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [info, setInfo] = useState<string | null>(null);
+  // Cooldown (seconds) after a code is sent, so "resend" can't be spammed —
+  // the server caps it too (4 / 15 min), this is the visible UX guard.
+  const [cooldown, setCooldown] = useState(0);
+
+  useEffect(() => {
+    if (cooldown <= 0) return;
+    const t = setTimeout(() => setCooldown((c) => c - 1), 1000);
+    return () => clearTimeout(t);
+  }, [cooldown]);
 
   async function requestCode() {
     setBusy(true);
@@ -36,6 +45,7 @@ export function AccountCard({ email }: { email: string }) {
       const data = await res.json().catch(() => ({}));
       if (res.ok) {
         setStep("code");
+        setCooldown(30); // 30 sn boyunca tekrar gönderilemesin
         setInfo(`Doğrulama kodu ${email} adresine gönderildi. (Spam klasörünü de kontrol edin.)`);
       } else {
         setError(data.error ?? data.fields?._ ?? "Kod gönderilemedi.");
@@ -88,9 +98,11 @@ export function AccountCard({ email }: { email: string }) {
       </p>
 
       {step === "idle" ? (
-        <Button type="button" onClick={requestCode} disabled={busy}>
+        <Button type="button" onClick={requestCode} disabled={busy || cooldown > 0}>
           {busy ? <Loader2 className="size-4 animate-spin" /> : <MailCheck className="size-4" />}
-          Şifreyi değiştir (e-postaya kod gönder)
+          {cooldown > 0
+            ? `Tekrar göndermek için ${cooldown}s`
+            : "Şifreyi değiştir (e-postaya kod gönder)"}
         </Button>
       ) : (
         <form onSubmit={confirmChange} className="space-y-3">
@@ -121,8 +133,8 @@ export function AccountCard({ email }: { email: string }) {
               {busy ? <Loader2 className="size-4 animate-spin" /> : <KeyRound className="size-4" />}
               Şifreyi güncelle
             </Button>
-            <Button type="button" variant="ghost" onClick={requestCode} disabled={busy}>
-              Kodu tekrar gönder
+            <Button type="button" variant="ghost" onClick={requestCode} disabled={busy || cooldown > 0}>
+              {cooldown > 0 ? `Kodu tekrar gönder (${cooldown}s)` : "Kodu tekrar gönder"}
             </Button>
             <Button
               type="button"
