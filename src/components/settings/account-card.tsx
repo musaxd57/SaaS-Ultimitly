@@ -94,14 +94,14 @@ export function AccountCard({ email }: { email: string }) {
         </Button>
       ) : (
         <form onSubmit={confirmChange} className="space-y-3">
-          <Field label="E-postana gelen 6 haneli kod" htmlFor="pw-code" className="max-w-[220px]">
+          <Field label="E-postana gelen 8 haneli kod" htmlFor="pw-code" className="max-w-[220px]">
             <Input
               id="pw-code"
               inputMode="numeric"
               autoComplete="one-time-code"
               value={code}
-              onChange={(e) => setCode(e.target.value.replace(/\D/g, "").slice(0, 6))}
-              placeholder="______"
+              onChange={(e) => setCode(e.target.value.replace(/\D/g, "").slice(0, 8))}
+              placeholder="________"
               required
             />
           </Field>
@@ -117,7 +117,7 @@ export function AccountCard({ email }: { email: string }) {
             />
           </Field>
           <div className="flex flex-wrap items-center gap-2">
-            <Button type="submit" disabled={busy || pw.length < 8 || code.length !== 6}>
+            <Button type="submit" disabled={busy || pw.length < 8 || code.length !== 8}>
               {busy ? <Loader2 className="size-4 animate-spin" /> : <KeyRound className="size-4" />}
               Şifreyi güncelle
             </Button>

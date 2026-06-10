@@ -28,10 +28,14 @@ import { emailService } from "@/lib/email";
 const CODE_TTL_MS = 10 * 60_000; // 10 minutes
 const MAX_CODE_ATTEMPTS = 5; // wrong-code guesses before the code is burned
 
-/** Crypto-strong 6-digit code, "000000"–"999999". */
-function sixDigitCode(): string {
-  const n = crypto.getRandomValues(new Uint32Array(1))[0] % 1_000_000;
-  return String(n).padStart(6, "0");
+/**
+ * Crypto-strong 8-digit code (10^8 space). 8 rather than 6 digits because the
+ * code is the PRIMARY barrier here (no current-password is asked): the extra
+ * two digits keep brute-force negligible even across re-requests + rate limits.
+ */
+function verificationCode(): string {
+  const n = crypto.getRandomValues(new Uint32Array(1))[0] % 100_000_000;
+  return String(n).padStart(8, "0");
 }
 
 function codeEmailHtml(code: string): string {
@@ -60,7 +64,12 @@ export async function POST(req: NextRequest) {
 
     // STEP 1 — e-mail a verification code to the signed-in user's own address.
     if (action === "request") {
-      const code = sixDigitCode();
+      // Tighter, separate cap on code REQUESTS specifically — stops both inbox-
+      // bombing and "re-roll a fresh code to refill the guess budget" abuse.
+      const reqLimit = rateLimit(`pw-change-req:${session.userId}`, 4, 15 * 60_000);
+      if (!reqLimit.ok) return tooManyRequests(reqLimit.retryAfter);
+
+      const code = verificationCode();
       const codeHash = await hashPassword(code);
       await prisma.user.update({
         where: { id: session.userId },
@@ -94,42 +103,42 @@ export async function POST(req: NextRequest) {
       if (newPassword.length < 8) {
         return badRequest({ newPassword: "Şifre en az 8 karakter olmalı." });
       }
-      if (!/^\d{6}$/.test(code)) {
-        return badRequest({ code: "6 haneli doğrulama kodunu girin." });
+      if (!/^\d{8}$/.test(code)) {
+        return badRequest({ code: "8 haneli doğrulama kodunu girin." });
+      }
+
+      // Atomically CLAIM one guess slot: only succeeds if a live, unexpired code
+      // exists AND attempts are still under the cap. Doing the check+increment in
+      // a single conditional updateMany closes the read-then-act race (parallel
+      // confirms can't each slip past a stale "attempts < 5" read), and it caps
+      // total guesses PER CODE regardless of how the request was reached.
+      const claim = await prisma.user.updateMany({
+        where: {
+          id: session.userId,
+          pwChangeCodeHash: { not: null },
+          pwChangeCodeExpiresAt: { gt: new Date() },
+          pwChangeCodeAttempts: { lt: MAX_CODE_ATTEMPTS },
+        },
+        data: { pwChangeCodeAttempts: { increment: 1 } },
+      });
+      if (claim.count === 0) {
+        // No live code / expired / out of attempts → burn whatever's there.
+        await prisma.user.updateMany({
+          where: { id: session.userId },
+          data: { pwChangeCodeHash: null, pwChangeCodeExpiresAt: null },
+        });
+        return badRequest({
+          code: "Kod geçersiz, süresi dolmuş ya da çok fazla denendi. “Kod gönder” ile yeni bir kod isteyin.",
+        });
       }
 
       const user = await prisma.user.findUnique({
         where: { id: session.userId },
-        select: {
-          pwChangeCodeHash: true,
-          pwChangeCodeExpiresAt: true,
-          pwChangeCodeAttempts: true,
-        },
+        select: { pwChangeCodeHash: true },
       });
-      if (!user?.pwChangeCodeHash || !user.pwChangeCodeExpiresAt) {
-        return badRequest({ code: "Önce “Kod gönder” ile bir doğrulama kodu isteyin." });
-      }
-      if (user.pwChangeCodeExpiresAt.getTime() < Date.now()) {
-        await prisma.user.update({
-          where: { id: session.userId },
-          data: { pwChangeCodeHash: null, pwChangeCodeExpiresAt: null },
-        });
-        return badRequest({ code: "Kodun süresi doldu. Yeni bir kod isteyin." });
-      }
-      if (user.pwChangeCodeAttempts >= MAX_CODE_ATTEMPTS) {
-        await prisma.user.update({
-          where: { id: session.userId },
-          data: { pwChangeCodeHash: null, pwChangeCodeExpiresAt: null },
-        });
-        return badRequest({ code: "Çok fazla hatalı deneme. Yeni bir kod isteyin." });
-      }
-
-      const ok = await verifyPassword(code, user.pwChangeCodeHash);
+      const ok = user?.pwChangeCodeHash ? await verifyPassword(code, user.pwChangeCodeHash) : false;
       if (!ok) {
-        await prisma.user.update({
-          where: { id: session.userId },
-          data: { pwChangeCodeAttempts: { increment: 1 } },
-        });
+        // Wrong code — the attempt was already counted by the atomic claim above.
         return badRequest({ code: "Kod hatalı." });
       }
 

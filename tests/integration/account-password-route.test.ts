@@ -35,7 +35,7 @@ function req(body: unknown) {
 }
 
 function codeFromEmail(): string {
-  const m = lastEmailHtml.match(/(\d{6})/);
+  const m = lastEmailHtml.match(/(\d{8})/);
   if (!m) throw new Error("no code in e-mail");
   return m[1];
 }
@@ -58,7 +58,7 @@ describe("POST /api/account/password (e-mail code flow)", () => {
     const res = await POST(req({ action: "request" }));
     expect(res.status).toBe(200);
     const code = codeFromEmail();
-    expect(code).toMatch(/^\d{6}$/);
+    expect(code).toMatch(/^\d{8}$/);
 
     const u = await prisma.user.findUnique({
       where: { id: session.userId },
@@ -87,7 +87,7 @@ describe("POST /api/account/password (e-mail code flow)", () => {
   it("rejects a wrong code, increments attempts, and leaves the password unchanged", async () => {
     await POST(req({ action: "request" }));
 
-    const res = await POST(req({ action: "confirm", code: "000000", newPassword: "brandnew123" }));
+    const res = await POST(req({ action: "confirm", code: "00000000", newPassword: "brandnew123" }));
     expect(res.status).toBe(400);
 
     const u = await prisma.user.findUnique({
@@ -98,8 +98,26 @@ describe("POST /api/account/password (e-mail code flow)", () => {
     expect(u?.pwChangeCodeAttempts).toBe(1);
   });
 
+  it("burns the code after 5 wrong attempts — even the correct code then fails", async () => {
+    await POST(req({ action: "request" }));
+    const code = codeFromEmail();
+    for (let i = 0; i < 5; i++) {
+      const r = await POST(req({ action: "confirm", code: "00000000", newPassword: "brandnew123" }));
+      expect(r.status).toBe(400);
+    }
+    // 6th try with the REAL code must fail — the code is burned, not unlimited.
+    const res = await POST(req({ action: "confirm", code, newPassword: "brandnew123" }));
+    expect(res.status).toBe(400);
+    const u = await prisma.user.findUnique({
+      where: { id: session.userId },
+      select: { passwordHash: true, pwChangeCodeHash: true },
+    });
+    expect(u?.passwordHash).toBe("old"); // never changed
+    expect(u?.pwChangeCodeHash).toBeNull(); // burned
+  });
+
   it("rejects confirm when no code was requested", async () => {
-    const res = await POST(req({ action: "confirm", code: "123456", newPassword: "brandnew123" }));
+    const res = await POST(req({ action: "confirm", code: "12345678", newPassword: "brandnew123" }));
     expect(res.status).toBe(400);
     const u = await prisma.user.findUnique({ where: { id: session.userId }, select: { passwordHash: true } });
     expect(u?.passwordHash).toBe("old");
