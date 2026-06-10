@@ -24,13 +24,18 @@ export function DeleteButton({
   async function onDelete() {
     if (!window.confirm(confirmText)) return;
     setLoading(true);
-    const res = await fetch(endpoint, { method: "DELETE" });
-    if (res.ok) {
-      if (redirectTo) router.push(redirectTo);
-      router.refresh();
-    } else {
+    try {
+      const res = await fetch(endpoint, { method: "DELETE" });
+      if (res.ok) {
+        if (redirectTo) router.push(redirectTo);
+        router.refresh();
+      } else {
+        setLoading(false);
+        window.alert("Silme işlemi başarısız oldu.");
+      }
+    } catch {
       setLoading(false);
-      window.alert("Silme işlemi başarısız oldu.");
+      window.alert("Bağlantı hatası. Lütfen tekrar deneyin.");
     }
   }
 

@@ -28,17 +28,22 @@ export function AutoReplyToggle({
   async function toggle() {
     const next = !on;
     setBusy(true);
-    const res = await fetch("/api/settings", {
-      method: "PATCH",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ [field]: next }),
-    });
-    setBusy(false);
-    if (res.ok) {
-      setOn(next);
-      router.refresh();
-    } else {
-      window.alert("Ayar güncellenemedi.");
+    try {
+      const res = await fetch("/api/settings", {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ [field]: next }),
+      });
+      if (res.ok) {
+        setOn(next);
+        router.refresh();
+      } else {
+        window.alert("Ayar güncellenemedi.");
+      }
+    } catch {
+      window.alert("Bağlantı hatası. Lütfen tekrar deneyin.");
+    } finally {
+      setBusy(false);
     }
   }
 

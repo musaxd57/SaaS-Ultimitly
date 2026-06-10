@@ -76,21 +76,33 @@ export function KbManager({
 
   async function toggleActive(item: KbItem) {
     setBusyId(item.id);
-    await fetch(`/api/kb/${item.id}`, {
-      method: "PATCH",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ isActive: !item.isActive }),
-    });
-    setBusyId(null);
-    refresh();
+    try {
+      const res = await fetch(`/api/kb/${item.id}`, {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ isActive: !item.isActive }),
+      });
+      if (!res.ok) window.alert("Bilgi güncellenemedi.");
+      else refresh();
+    } catch {
+      window.alert("Bağlantı hatası. Lütfen tekrar deneyin.");
+    } finally {
+      setBusyId(null);
+    }
   }
 
   async function remove(id: string) {
     if (!window.confirm("Bu bilgiyi silmek istediğinize emin misiniz?")) return;
     setBusyId(id);
-    await fetch(`/api/kb/${id}`, { method: "DELETE" });
-    setBusyId(null);
-    refresh();
+    try {
+      const res = await fetch(`/api/kb/${id}`, { method: "DELETE" });
+      if (!res.ok) window.alert("Bilgi silinemedi.");
+      else refresh();
+    } catch {
+      window.alert("Bağlantı hatası. Lütfen tekrar deneyin.");
+    } finally {
+      setBusyId(null);
+    }
   }
 
   // --- Copy an entry to other apartments -----------------------------------

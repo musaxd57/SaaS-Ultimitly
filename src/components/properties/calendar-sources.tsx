@@ -40,36 +40,52 @@ export function CalendarSources({ propertyId, sources }: Props) {
       return;
     }
     setAdding(true);
-    const res = await fetch(`/api/properties/${propertyId}/calendar-sources`, {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ label: label.trim(), url: url.trim() }),
-    });
-    setAdding(false);
-    if (res.ok) {
-      setLabel("");
-      setUrl("");
-      router.refresh();
-    } else {
-      const data = await res.json().catch(() => null);
-      setError(data?.fields ? Object.values(data.fields).join(" ") : "Eklenemedi.");
+    try {
+      const res = await fetch(`/api/properties/${propertyId}/calendar-sources`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ label: label.trim(), url: url.trim() }),
+      });
+      if (res.ok) {
+        setLabel("");
+        setUrl("");
+        router.refresh();
+      } else {
+        const data = await res.json().catch(() => null);
+        setError(data?.fields ? Object.values(data.fields).join(" ") : "Eklenemedi.");
+      }
+    } catch {
+      setError("Bağlantı hatası. Lütfen tekrar deneyin.");
+    } finally {
+      setAdding(false);
     }
   }
 
   async function syncSource(id: string) {
     setBusyId(id);
-    const res = await fetch(`/api/calendar-sources/${id}/sync`, { method: "POST" });
-    setBusyId(null);
-    if (res.ok) router.refresh();
-    else window.alert("Senkronizasyon başarısız oldu.");
+    try {
+      const res = await fetch(`/api/calendar-sources/${id}/sync`, { method: "POST" });
+      if (res.ok) router.refresh();
+      else window.alert("Senkronizasyon başarısız oldu.");
+    } catch {
+      window.alert("Bağlantı hatası. Lütfen tekrar deneyin.");
+    } finally {
+      setBusyId(null);
+    }
   }
 
   async function deleteSource(id: string) {
     if (!window.confirm("Bu takvim bağlantısını silmek istiyor musunuz?")) return;
     setBusyId(id);
-    const res = await fetch(`/api/calendar-sources/${id}`, { method: "DELETE" });
-    setBusyId(null);
-    if (res.ok) router.refresh();
+    try {
+      const res = await fetch(`/api/calendar-sources/${id}`, { method: "DELETE" });
+      if (res.ok) router.refresh();
+      else window.alert("Takvim bağlantısı silinemedi.");
+    } catch {
+      window.alert("Bağlantı hatası. Lütfen tekrar deneyin.");
+    } finally {
+      setBusyId(null);
+    }
   }
 
   return (

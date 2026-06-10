@@ -18,13 +18,18 @@ export function DeleteConversationButton({ conversationId }: { conversationId: s
       return;
     }
     setBusy(true);
-    const res = await fetch(`/api/conversations/${conversationId}`, { method: "DELETE" });
-    if (res.ok) {
-      router.push("/inbox");
-      router.refresh();
-    } else {
+    try {
+      const res = await fetch(`/api/conversations/${conversationId}`, { method: "DELETE" });
+      if (res.ok) {
+        router.push("/inbox");
+        router.refresh();
+      } else {
+        setBusy(false);
+        window.alert("Konuşma silinemedi.");
+      }
+    } catch {
       setBusy(false);
-      window.alert("Konuşma silinemedi.");
+      window.alert("Bağlantı hatası. Lütfen tekrar deneyin.");
     }
   }
 

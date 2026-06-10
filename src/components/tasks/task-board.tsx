@@ -33,31 +33,41 @@ export function TaskBoard({ tasks }: { tasks: TaskCardData[] }) {
 
   async function setStatus(id: string, status: string) {
     setBusyId(id);
-    const res = await fetch(`/api/tasks/${id}`, {
-      method: "PATCH",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ status }),
-    });
-    setBusyId(null);
-    if (!res.ok) {
-      // The Select is controlled by the server prop, so it snaps back on its own;
-      // tell the user why the change didn't stick.
-      window.alert(res.status === 403 ? "Bu işlem için yetkiniz yok." : "Görev durumu güncellenemedi.");
-      return;
+    try {
+      const res = await fetch(`/api/tasks/${id}`, {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ status }),
+      });
+      if (!res.ok) {
+        // The Select is controlled by the server prop, so it snaps back on its own;
+        // tell the user why the change didn't stick.
+        window.alert(res.status === 403 ? "Bu işlem için yetkiniz yok." : "Görev durumu güncellenemedi.");
+        return;
+      }
+      startTransition(() => router.refresh());
+    } catch {
+      window.alert("Bağlantı hatası. Lütfen tekrar deneyin.");
+    } finally {
+      setBusyId(null);
     }
-    startTransition(() => router.refresh());
   }
 
   async function remove(id: string) {
     if (!window.confirm("Bu görevi silmek istediğinize emin misiniz?")) return;
     setBusyId(id);
-    const res = await fetch(`/api/tasks/${id}`, { method: "DELETE" });
-    setBusyId(null);
-    if (!res.ok) {
-      window.alert(res.status === 403 ? "Görev silme yetkiniz yok (yalnızca yönetici)." : "Görev silinemedi.");
-      return;
+    try {
+      const res = await fetch(`/api/tasks/${id}`, { method: "DELETE" });
+      if (!res.ok) {
+        window.alert(res.status === 403 ? "Görev silme yetkiniz yok (yalnızca yönetici)." : "Görev silinemedi.");
+        return;
+      }
+      startTransition(() => router.refresh());
+    } catch {
+      window.alert("Bağlantı hatası. Lütfen tekrar deneyin.");
+    } finally {
+      setBusyId(null);
     }
-    startTransition(() => router.refresh());
   }
 
   async function handlePhotoChange(id: string, e: React.ChangeEvent<HTMLInputElement>) {

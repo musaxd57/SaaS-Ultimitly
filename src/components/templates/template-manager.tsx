@@ -82,9 +82,15 @@ export function TemplateManager({ properties, customTemplates, defaultTemplates 
   async function handleDelete(id: string) {
     if (!window.confirm("Bu şablonu silmek istediğinize emin misiniz?")) return;
     setBusyId(id);
-    await fetch(`/api/templates/${id}`, { method: "DELETE" });
-    setBusyId(null);
-    refresh();
+    try {
+      const res = await fetch(`/api/templates/${id}`, { method: "DELETE" });
+      if (!res.ok) window.alert("Şablon silinemedi.");
+      else refresh();
+    } catch {
+      window.alert("Bağlantı hatası. Lütfen tekrar deneyin.");
+    } finally {
+      setBusyId(null);
+    }
   }
 
   return (

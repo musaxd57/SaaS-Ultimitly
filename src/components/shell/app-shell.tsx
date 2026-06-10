@@ -26,9 +26,14 @@ export function AppShell({ user, superAdmin, impersonating, children }: AppShell
 
   async function exitImpersonation() {
     setExiting(true);
-    await fetch("/api/admin/exit", { method: "POST" });
-    router.push("/admin");
-    router.refresh();
+    try {
+      await fetch("/api/admin/exit", { method: "POST" });
+      router.push("/admin");
+      router.refresh();
+    } catch {
+      // Network reject — let the operator retry instead of a stuck spinner.
+      setExiting(false);
+    }
   }
 
   // Close the mobile sidebar with Escape (accessibility).
@@ -43,9 +48,14 @@ export function AppShell({ user, superAdmin, impersonating, children }: AppShell
 
   async function logout() {
     setLoggingOut(true);
-    await fetch("/api/auth/logout", { method: "POST" });
-    router.push("/login");
-    router.refresh();
+    try {
+      await fetch("/api/auth/logout", { method: "POST" });
+      router.push("/login");
+      router.refresh();
+    } catch {
+      // Network reject — reset so the user can retry (session stays until cleared).
+      setLoggingOut(false);
+    }
   }
 
   function isActive(href: string) {
