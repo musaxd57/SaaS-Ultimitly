@@ -73,18 +73,20 @@ const FEATURES = [
   },
 ];
 
+// Display tiers — keep PRICES + property ranges in sync with src/lib/billing/plans.ts
+// (DEFAULT_PLANS). Freemium model: Başlangıç free (2 daire), Pro ₺499 (7), İşletme ₺999 (∞).
 const TIERS = [
   {
     name: "Başlangıç",
-    price: "₺499",
-    unit: "/ay",
+    price: "Ücretsiz",
+    unit: "",
     desc: "1–2 daireli ev sahipleri için",
     features: ["7/24 otomatik yanıt", "Türkçe + çok dilli", "Şikayet koruması", "E-posta desteği"],
     highlight: false,
   },
   {
     name: "Pro",
-    price: "₺999",
+    price: "₺499",
     unit: "/ay",
     desc: "3–7 daireli profesyonel hostlar",
     features: ["Başlangıç’taki her şey", "Otomatik karşılama & check-in", "Üslup öğrenme", "Öncelikli destek"],
@@ -92,7 +94,7 @@ const TIERS = [
   },
   {
     name: "İşletme",
-    price: "₺1.490+",
+    price: "₺999",
     unit: "/ay",
     desc: "8+ daire / yönetim şirketleri",
     features: ["Pro’daki her şey", "Sınırsız daire", "Özel kurulum", "Telefon desteği"],

@@ -43,7 +43,17 @@ export async function GET(req: NextRequest) {
           checkOutTime: true,
           notes: true,
           createdAt: true,
-          reservations: true,
+          // Explicit allowlists (not `true`) so a future schema column can't
+          // silently leak into the export. Guest/business data only — internal
+          // AI scoring + sync bookkeeping fields are deliberately excluded.
+          reservations: {
+            select: {
+              id: true, guestName: true, guestPhone: true, guestEmail: true,
+              arrivalDate: true, departureDate: true, channel: true, status: true,
+              totalAmount: true, currency: true, notes: true, guestCheckoutTime: true,
+              createdAt: true,
+            },
+          },
           conversations: {
             select: {
               id: true,
@@ -53,14 +63,34 @@ export async function GET(req: NextRequest) {
               guestIdentifier: true,
               createdAt: true,
               lastMessageAt: true,
-              messages: true,
+              messages: {
+                select: {
+                  id: true, direction: true, senderName: true, body: true,
+                  language: true, createdAt: true,
+                },
+              },
             },
           },
-          tasks: true,
-          knowledgeBase: true,
+          tasks: {
+            select: {
+              id: true, type: true, title: true, description: true, status: true,
+              priority: true, dueAt: true, createdAt: true,
+            },
+          },
+          knowledgeBase: {
+            select: {
+              id: true, category: true, title: true, content: true,
+              language: true, isActive: true, createdAt: true,
+            },
+          },
         },
       },
-      messageTemplates: true,
+      messageTemplates: {
+        select: {
+          id: true, category: true, title: true, body: true,
+          language: true, isActive: true, createdAt: true,
+        },
+      },
     },
   });
   if (!org) return badRequest({ orgId: "İşletme bulunamadı." });
