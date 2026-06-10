@@ -24,7 +24,7 @@ import { Badge } from "@/components/ui/badge";
 import { Separator } from "@/components/ui/separator";
 import { CONVERSATION_STATUS, PRIORITY, REPLY_TONE, type ReplyTone } from "@/lib/constants";
 import { cn } from "@/lib/utils";
-import { intentLabel, langLabel, aiSourceLabel } from "@/lib/ui-labels";
+import { intentLabel, langLabel, aiSourceLabel, displaySenderName } from "@/lib/ui-labels";
 
 export interface ThreadMessage {
   id: string;
@@ -79,6 +79,7 @@ export function ConversationThread({ conversationId, messages, status, priority,
   const [tone, setTone] = useState<ReplyTone>("warm");
   const [suggestion, setSuggestion] = useState<Suggestion | null>(null);
   const [suggestLoading, setSuggestLoading] = useState(false);
+  const [suggestError, setSuggestError] = useState<string | null>(null);
   const [sending, setSending] = useState(false);
   const [sendError, setSendError] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
@@ -90,6 +91,7 @@ export function ConversationThread({ conversationId, messages, status, priority,
   const [showTemplates, setShowTemplates] = useState(false);
   const [templates, setTemplates] = useState<TemplateItem[]>([]);
   const [templatesLoading, setTemplatesLoading] = useState(false);
+  const [templatesError, setTemplatesError] = useState(false);
 
   // Translate state: messageId -> translated text
   const [translations, setTranslations] = useState<Record<string, string>>({});
@@ -103,14 +105,18 @@ export function ConversationThread({ conversationId, messages, status, priority,
   async function handleSuggest() {
     setSuggestLoading(true);
     setSuggestion(null);
+    setSuggestError(null);
     try {
       const res = await fetch(`/api/conversations/${conversationId}/ai-suggest`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ tone }),
       });
-      const data = await res.json();
+      const data = await res.json().catch(() => null);
       if (res.ok) setSuggestion(data);
+      else setSuggestError(data?.error ?? "AI önerisi alınamadı. Lütfen tekrar deneyin.");
+    } catch {
+      setSuggestError("Bağlantı hatası. Lütfen tekrar deneyin.");
     } finally {
       setSuggestLoading(false);
     }
@@ -143,13 +149,19 @@ export function ConversationThread({ conversationId, messages, status, priority,
 
   async function changeField(field: "status" | "priority", value: string) {
     setBusy(true);
-    await fetch(`/api/conversations/${conversationId}`, {
-      method: "PATCH",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ [field]: value }),
-    });
-    setBusy(false);
-    refresh();
+    try {
+      const res = await fetch(`/api/conversations/${conversationId}`, {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ [field]: value }),
+      });
+      if (!res.ok) window.alert("Güncellenemedi. Yetkiniz yoksa yöneticinize danışın.");
+      else refresh();
+    } catch {
+      window.alert("Bağlantı hatası. Lütfen tekrar deneyin.");
+    } finally {
+      setBusy(false);
+    }
   }
 
   async function loadTemplates() {
@@ -158,6 +170,7 @@ export function ConversationThread({ conversationId, messages, status, priority,
       return;
     }
     setTemplatesLoading(true);
+    setTemplatesError(false);
     setShowTemplates(true);
     try {
       const url = propertyId
@@ -167,7 +180,11 @@ export function ConversationThread({ conversationId, messages, status, priority,
       if (res.ok) {
         const data = await res.json();
         setTemplates(Array.isArray(data) ? data : []);
+      } else {
+        setTemplatesError(true);
       }
+    } catch {
+      setTemplatesError(true);
     } finally {
       setTemplatesLoading(false);
     }
@@ -207,7 +224,11 @@ export function ConversationThread({ conversationId, messages, status, priority,
       if (res.ok) {
         const data = await res.json();
         setTranslations((prev) => ({ ...prev, [messageId]: data.translation }));
+      } else {
+        window.alert("Çeviri yapılamadı. Lütfen tekrar deneyin.");
       }
+    } catch {
+      window.alert("Bağlantı hatası. Lütfen tekrar deneyin.");
     } finally {
       setTranslatingId(null);
     }
@@ -313,7 +334,7 @@ export function ConversationThread({ conversationId, messages, status, priority,
               </div>
             ) : null}
             <span className="mt-1 px-1 text-[11px] text-muted-foreground">
-              {m.senderName} · {m.createdAtLabel}
+              {displaySenderName(m.senderName)} · {m.createdAtLabel}
             </span>
           </div>
         ))}
@@ -333,7 +354,7 @@ export function ConversationThread({ conversationId, messages, status, priority,
             <p className="flex-1 text-sm">
               <span className="font-medium">Misafir cevap bekliyor.</span>{" "}
               <span className="text-muted-foreground">
-                AI saniyede sizin tonunuzla bir cevap hazırlasın — onaylayın ya da düzenleyin.
+                AI saniyeler içinde sizin tonunuzla bir cevap hazırlasın — onaylayın ya da düzenleyin.
               </span>
             </p>
             <Button onClick={handleSuggest} disabled={suggestLoading} size="sm" className="shrink-0">
@@ -391,7 +412,11 @@ export function ConversationThread({ conversationId, messages, status, priority,
                     <X className="size-3.5" />
                   </button>
                 </div>
-                {templates.length === 0 ? (
+                {templatesError ? (
+                  <p className="p-3 text-xs text-destructive">
+                    Şablonlar yüklenemedi. Lütfen tekrar deneyin.
+                  </p>
+                ) : templates.length === 0 ? (
                   <p className="p-3 text-xs text-muted-foreground">
                     Şablon bulunamadı. Şablonlar sayfasından ekleyebilirsiniz.
                   </p>
@@ -449,6 +474,12 @@ export function ConversationThread({ conversationId, messages, status, priority,
               </Button>
             </div>
           </div>
+        ) : null}
+
+        {suggestError ? (
+          <p className="rounded-md bg-destructive/10 px-3 py-2 text-sm text-destructive">
+            {suggestError}
+          </p>
         ) : null}
 
         {suggestion ? (

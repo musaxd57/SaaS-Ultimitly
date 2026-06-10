@@ -78,7 +78,8 @@ export function AiVoiceForm({
               ))}
             </Select>
             <p className="mt-1 text-xs text-muted-foreground">
-              AI cevaplarının üslubu. Sıcak = samimi, Resmi = ciddi, Kısa = öz, Lüks = zarif.
+              AI cevaplarının üslubu. Sıcak = samimi ve dostça, Resmi = profesyonel ve ciddi,
+              Kısa = özlü ve hızlı, Lüks = seçkin ve şık.
             </p>
           </Field>
 

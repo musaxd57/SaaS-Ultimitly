@@ -53,6 +53,14 @@ export function aiSourceLabel(source: string): string {
   return source === "openai" ? "Lixus AI" : "Hazır yanıt";
 }
 
+// AI-sent messages are stored with the legacy senderName "GuestOps AI" — that
+// string is a DB-level classification marker and MUST NOT change at the storage
+// layer. Map it to the live brand at DISPLAY time only; all other sender names
+// (guest names, host names, "Ev sahibi") pass through unchanged.
+export function displaySenderName(name: string): string {
+  return name === "GuestOps AI" ? "Lixus AI" : name;
+}
+
 const CHANNEL_LABELS: Record<string, string> = {
   airbnb: "Airbnb",
   booking: "Booking.com",
