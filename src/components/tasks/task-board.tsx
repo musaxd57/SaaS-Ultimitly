@@ -141,7 +141,11 @@ export function TaskBoard({ tasks }: { tasks: TaskCardData[] }) {
     }
   }
 
-  const statusFilters = [{ value: "", label: "Tümü" }, ...TASK_STATUS.options];
+  // Cleaning/check-in tasks really only need to-do vs done — drop the rarely-used
+  // "Devam ediyor" / "Onay bekliyor" middle states from the picker + filter (the
+  // data model keeps all four; this is just a simpler UI).
+  const SIMPLE_STATUSES = TASK_STATUS.options.filter((o) => o.value === "todo" || o.value === "done");
+  const statusFilters = [{ value: "", label: "Tümü" }, ...SIMPLE_STATUSES];
   const timeFilters: { value: "overdue" | "today" | "week" | "month" | "all"; label: string }[] = [
     { value: "overdue", label: "Geciken" },
     { value: "today", label: "Bugün" },
@@ -157,9 +161,14 @@ export function TaskBoard({ tasks }: { tasks: TaskCardData[] }) {
     if (range === "month") return d <= 31;
     return true;
   };
-  const visible = tasks.filter(
-    (t) => (!statusFilter || t.status === statusFilter) && rangeMatch(t.dueDays, timeRange),
-  );
+  // A task drops out of the active date buckets (Geciken/Bugün/Bu hafta/Bu ay) once
+  // it's "Tamamlandı" — a finished cleaning isn't "geciken", and done work shouldn't
+  // clutter the plan. See completed tasks via the "Tamamlandı" pill or the "Tümü" view.
+  const passes = (t: TaskCardData, time: typeof timeRange, status: string) =>
+    (!status || t.status === status) &&
+    rangeMatch(t.dueDays, time) &&
+    !(t.status === "done" && status !== "done" && time !== "all");
+  const visible = tasks.filter((t) => passes(t, timeRange, statusFilter));
 
   // Shareable cleaning list (the cleaner doesn't log in — the host sends this over
   // WhatsApp / copies it). Built from the CLEANING tasks in the current filter view.
@@ -188,9 +197,7 @@ export function TaskBoard({ tasks }: { tasks: TaskCardData[] }) {
       {/* Time window — so far-future tasks (e.g. August arrivals) don't all dump in */}
       <div className="flex flex-wrap gap-2">
         {timeFilters.map((f) => {
-          const count = tasks.filter(
-            (t) => (!statusFilter || t.status === statusFilter) && rangeMatch(t.dueDays, f.value),
-          ).length;
+          const count = tasks.filter((t) => passes(t, f.value, statusFilter)).length;
           const active = timeRange === f.value;
           return (
             <button
@@ -213,9 +220,7 @@ export function TaskBoard({ tasks }: { tasks: TaskCardData[] }) {
       {/* Status filter */}
       <div className="flex flex-wrap gap-2">
         {statusFilters.map((f) => {
-          const count = tasks.filter(
-            (t) => (!f.value || t.status === f.value) && rangeMatch(t.dueDays, timeRange),
-          ).length;
+          const count = tasks.filter((t) => passes(t, timeRange, f.value)).length;
           const active = statusFilter === f.value;
           return (
             <button
@@ -340,7 +345,7 @@ export function TaskBoard({ tasks }: { tasks: TaskCardData[] }) {
                       onChange={(e) => setStatus(t.id, e.target.value)}
                       className="mt-2 h-8 text-xs"
                     >
-                      {TASK_STATUS.options.map((o) => (
+                      {SIMPLE_STATUSES.map((o) => (
                         <option key={o.value} value={o.value}>
                           {o.label}
                         </option>
