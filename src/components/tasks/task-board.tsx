@@ -38,7 +38,7 @@ export function TaskBoard({ tasks }: { tasks: TaskCardData[] }) {
   // 50+ tasks flow left-to-right instead of stacking into one endless column.
   const [statusFilter, setStatusFilter] = useState<string>("");
   // Time window — default "this week" so far-future tasks don't all dump in.
-  const [timeRange, setTimeRange] = useState<"today" | "week" | "month" | "all">("week");
+  const [timeRange, setTimeRange] = useState<"overdue" | "today" | "week" | "month" | "all">("week");
   const [shareOpen, setShareOpen] = useState(false);
   const [copied, setCopied] = useState(false);
   function toggleExpanded(id: string) {
@@ -142,16 +142,18 @@ export function TaskBoard({ tasks }: { tasks: TaskCardData[] }) {
   }
 
   const statusFilters = [{ value: "", label: "Tümü" }, ...TASK_STATUS.options];
-  const timeFilters: { value: "today" | "week" | "month" | "all"; label: string }[] = [
+  const timeFilters: { value: "overdue" | "today" | "week" | "month" | "all"; label: string }[] = [
+    { value: "overdue", label: "Geciken" },
     { value: "today", label: "Bugün" },
     { value: "week", label: "Bu hafta" },
     { value: "month", label: "Bu ay" },
     { value: "all", label: "Tümü" },
   ];
   const rangeMatch = (d: number | null | undefined, range: typeof timeRange) => {
-    if (d == null) return true; // no due date → always show
-    if (range === "today") return d <= 0; // today + overdue
-    if (range === "week") return d <= 7;
+    if (d == null) return range !== "overdue"; // no due date → show everywhere except Geciken
+    if (range === "overdue") return d < 0; // past due (Geciken)
+    if (range === "today") return d === 0; // today ONLY — matches the dashboard's "Bugünkü Görevler"
+    if (range === "week") return d <= 7; // overdue stays visible here too (default view)
     if (range === "month") return d <= 31;
     return true;
   };

@@ -649,11 +649,6 @@ export function buildDailySummary(
   if (stats.occupancyRate > 0) {
     parts.push(`Doluluk oranı %${stats.occupancyRate}.`);
   }
-  if (stats.openConversations > 0) {
-    parts.push(`${stats.openConversations} mesaj cevap bekliyor.`);
-  } else {
-    parts.push("Cevap bekleyen mesaj yok.");
-  }
   if (stats.problemConversations > 0) {
     parts.push(`⚠ ${stats.problemConversations} sorunlu konuşma yöneticinin dikkatini bekliyor.`);
   }
