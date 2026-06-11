@@ -1,5 +1,8 @@
+"use client";
+
+import { useEffect, useState } from "react";
 import Link from "next/link";
-import { CheckCircle2, ArrowRight, Rocket, type LucideIcon } from "lucide-react";
+import { CheckCircle2, ArrowRight, Rocket, X } from "lucide-react";
 import { Card, CardContent } from "@/components/ui/card";
 import { cn } from "@/lib/utils";
 
@@ -9,23 +12,60 @@ export interface OnboardingStep {
   desc: string;
   href: string;
   cta: string;
-  icon: LucideIcon;
 }
+
+// Per-browser "I've seen it, stop showing me" flag. Kept in localStorage so the
+// dismissal needs no schema change / API call — it cannot affect the working
+// product, and the server still hides the card outright once every step is done.
+const DISMISS_KEY = "lixus_onboarding_dismissed";
 
 /**
  * "Başlarken" checklist shown on the dashboard until the account is set up.
  * Guides a new customer through connect → properties → AI voice → inbox, so they
- * progress through the panels quickly. Disappears once every step is done.
+ * progress through the panels quickly. Disappears once every step is done, or
+ * when the host dismisses it with the × button.
  */
 export function OnboardingGuide({ steps }: { steps: OnboardingStep[] }) {
+  // Start shown on both server and first client render (no hydration mismatch);
+  // hide after mount if the host previously dismissed it.
+  const [dismissed, setDismissed] = useState(false);
+  useEffect(() => {
+    try {
+      if (localStorage.getItem(DISMISS_KEY) === "1") setDismissed(true);
+    } catch {
+      // localStorage can throw in private mode — fall back to showing the card.
+    }
+  }, []);
+
+  if (dismissed) return null;
+
   const doneCount = steps.filter((s) => s.done).length;
   // The first not-yet-done step is the one we nudge them toward next.
   const nextIndex = steps.findIndex((s) => !s.done);
 
+  const handleDismiss = () => {
+    try {
+      localStorage.setItem(DISMISS_KEY, "1");
+    } catch {
+      // Ignore — worst case the card reappears on next load.
+    }
+    setDismissed(true);
+  };
+
   return (
     <Card className="border-primary/30 bg-accent/30">
-      <CardContent className="p-5">
-        <div className="flex items-center gap-3">
+      <CardContent className="relative p-5">
+        <button
+          type="button"
+          onClick={handleDismiss}
+          aria-label="Kurulum rehberini gizle"
+          title="Gizle"
+          className="absolute right-2.5 top-2.5 inline-flex size-8 items-center justify-center rounded-md text-muted-foreground transition-colors hover:bg-accent hover:text-foreground"
+        >
+          <X className="size-4" />
+        </button>
+
+        <div className="flex items-center gap-3 pr-8">
           <div className="flex size-9 shrink-0 items-center justify-center rounded-lg bg-primary text-primary-foreground">
             <Rocket className="size-5" />
           </div>

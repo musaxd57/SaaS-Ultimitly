@@ -11,7 +11,6 @@ import {
   ListChecks,
   Users,
 } from "lucide-react";
-import { Plug } from "lucide-react";
 import { requireAuth } from "@/lib/auth";
 import { prisma } from "@/lib/db";
 import { getOpsStats, buildDailySummary } from "@/lib/reports";
@@ -118,7 +117,6 @@ export default async function DashboardPage() {
       desc: "Ayarlar'dan Hospitable token'ını bağla (ya da operatörün senin için bağlasın).",
       href: "/settings",
       cta: "Bağlantıyı kur",
-      icon: Plug,
     },
     {
       done: stats.totalProperties > 0,
@@ -126,7 +124,6 @@ export default async function DashboardPage() {
       desc: "Bağlantı kurulunca daireleriniz otomatik gelir; birkaç dakika sürebilir.",
       href: "/properties",
       cta: "Daireleri gör",
-      icon: BedDouble,
     },
     {
       done: Boolean(org?.aiSignature?.trim()),
@@ -134,7 +131,6 @@ export default async function DashboardPage() {
       desc: "AI'ın tonunu seç ve mesaj imzanı ekle — misafire senin üslubunla yazsın.",
       href: "/settings",
       cta: "Ayarla",
-      icon: Sparkles,
     },
     {
       done: conversationCount > 0,
@@ -142,7 +138,6 @@ export default async function DashboardPage() {
       desc: "Her misafir mesajına AI hazır bir cevap önerir — tek tıkla gönder ya da düzenle.",
       href: "/inbox",
       cta: "Gelen kutusu",
-      icon: MessageSquare,
     },
   ];
   const onboardingDone = onboardingSteps.every((s) => s.done);
