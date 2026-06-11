@@ -350,7 +350,7 @@ export default async function DashboardPage() {
       </div>
 
       {/* Secondary stats */}
-      <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
+      <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
         <StatCard
           label="Şu An Konaklayan"
           value={stayingCount}
@@ -364,7 +364,6 @@ export default async function DashboardPage() {
           hint={`${stats.occupiedToday}/${stats.totalProperties} mülk dolu`}
           href="/reports"
         />
-        <StatCard label="Açık Görevler" value={stats.openTasks} icon={CheckCircle2} href="/tasks" />
         <StatCard
           label="Sorunlu Konuşmalar"
           value={stats.problemConversations}
