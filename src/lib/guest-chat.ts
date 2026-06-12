@@ -85,7 +85,7 @@ export async function resolveGuestChat(
 ): Promise<GuestChatContext | null> {
   if (!token || token.length < 16) return null;
 
-  const property = await prisma.property.findUnique({
+  const property = await prisma.property.findFirst({
     where: { chatToken: token },
     select: {
       id: true,
