@@ -1,36 +1,66 @@
 "use client";
 
-import { useEffect, useRef, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 
+type Role = "guest" | "ai" | "host";
 interface ChatMessage {
-  role: "guest" | "ai";
+  id: string;
+  role: Role;
   text: string;
-  escalated?: boolean;
 }
 
 /**
- * Public guest concierge chat UI. Mobile-first (guests are on phones in the
- * apartment). Posts to /api/chat/[token]; the server decides whether to answer
- * or escalate. No PII is collected here and no secrets are shown — access codes
- * live in the Airbnb-native check-in flow, never on this public surface.
+ * Public guest concierge chat UI (mobile-first). Two-way: it loads the stay's
+ * thread, polls for new messages, and shows three distinct senders —
+ *   • Misafir (the guest)        → right, primary
+ *   • Lixus AI (the bot)         → left, grey card
+ *   • Ev sahibiniz (the human)   → left, green
+ * No PII or access codes are shown here; the access codes live in the
+ * Airbnb-native check-in flow, never on this public surface.
  */
 export function GuestChat({ token, propertyName }: { token: string; propertyName: string }) {
   const [messages, setMessages] = useState<ChatMessage[]>([]);
   const [input, setInput] = useState("");
-  const [loading, setLoading] = useState(false);
+  const [sending, setSending] = useState(false);
+  const [closed, setClosed] = useState(false);
+  const [error, setError] = useState<string | null>(null);
   const endRef = useRef<HTMLDivElement>(null);
 
+  const loadHistory = useCallback(async () => {
+    try {
+      const res = await fetch(`/api/chat/${token}`, { method: "GET" });
+      if (!res.ok) return;
+      const data = (await res.json()) as { open?: boolean; messages?: ChatMessage[] };
+      if (data.open === false) {
+        setClosed(true);
+        return;
+      }
+      setClosed(false);
+      if (Array.isArray(data.messages)) setMessages(data.messages);
+    } catch {
+      /* transient — the next poll retries */
+    }
+  }, [token]);
+
   useEffect(() => {
-    // Optional call — scrollIntoView is absent in some environments (e.g. jsdom).
+    void loadHistory();
+    const t = setInterval(() => void loadHistory(), 5000); // see host replies as they arrive
+    return () => clearInterval(t);
+  }, [loadHistory]);
+
+  useEffect(() => {
     endRef.current?.scrollIntoView?.({ behavior: "smooth" });
-  }, [messages, loading]);
+  }, [messages, sending]);
 
   async function send() {
     const text = input.trim();
-    if (!text || loading) return;
+    if (!text || sending) return;
     setInput("");
-    setMessages((m) => [...m, { role: "guest", text }]);
-    setLoading(true);
+    setError(null);
+    // optimistic guest bubble; the server fetch below replaces the list with the
+    // authoritative version (guest message + AI reply) keyed by real ids.
+    setMessages((m) => [...m, { id: `tmp-${Date.now()}`, role: "guest", text }]);
+    setSending(true);
     try {
       const res = await fetch(`/api/chat/${token}`, {
         method: "POST",
@@ -38,21 +68,15 @@ export function GuestChat({ token, propertyName }: { token: string; propertyName
         body: JSON.stringify({ message: text }),
       });
       if (!res.ok) {
-        setMessages((m) => [
-          ...m,
-          { role: "ai", text: "Şu an yanıt veremiyorum. Lütfen biraz sonra tekrar deneyin." },
-        ]);
+        // error kept in dedicated state so a background poll can't wipe it
+        setError("Şu an yanıt veremiyorum. Lütfen biraz sonra tekrar deneyin.");
         return;
       }
-      const data = (await res.json()) as { reply?: string; escalated?: boolean };
-      setMessages((m) => [
-        ...m,
-        { role: "ai", text: data.reply ?? "Anlayamadım, tekrar yazar mısınız?", escalated: data.escalated },
-      ]);
+      await loadHistory();
     } catch {
-      setMessages((m) => [...m, { role: "ai", text: "Bağlantı hatası. Lütfen tekrar deneyin." }]);
+      setError("Bağlantı hatası. Lütfen tekrar deneyin.");
     } finally {
-      setLoading(false);
+      setSending(false);
     }
   }
 
@@ -60,76 +84,105 @@ export function GuestChat({ token, propertyName }: { token: string; propertyName
     <div className="mx-auto flex min-h-screen max-w-lg flex-col bg-background">
       <header className="border-b border-border bg-card px-4 py-3">
         <p className="text-sm font-semibold">{propertyName}</p>
-        <p className="text-xs text-muted-foreground">Misafir yardımı · yapay zekâ asistanı</p>
+        <p className="text-xs text-muted-foreground">Misafir yardımı · yapay zekâ + ev sahibi</p>
       </header>
 
       <div className="flex-1 space-y-3 overflow-y-auto px-4 py-4">
-        {messages.length === 0 ? (
+        {messages.length === 0 && !closed ? (
           <div className="rounded-lg border border-border bg-card p-4 text-sm text-muted-foreground">
             Merhaba! 👋 Konaklamanızla ilgili sorularınızı (çöp günü, cihazlar, kurallar, çevre
-            önerileri…) buraya yazabilirsiniz. Yanıtlayamadığımız bir şey olursa ev sahibine iletiriz.
+            önerileri…) buraya yazabilirsiniz. Yapay zekâ yanıtlar; gerekirse ev sahibiniz devreye girer.
           </div>
         ) : null}
 
-        {messages.map((m, i) => (
-          <div key={i} className={m.role === "guest" ? "flex justify-end" : "flex justify-start"}>
-            <div
-              className={
-                m.role === "guest"
-                  ? "max-w-[85%] rounded-2xl rounded-br-sm bg-primary px-3 py-2 text-sm text-primary-foreground"
-                  : "max-w-[85%] rounded-2xl rounded-bl-sm border border-border bg-card px-3 py-2 text-sm"
-              }
-            >
-              <p className="whitespace-pre-wrap break-words">{m.text}</p>
-              {m.escalated ? (
-                <p className="mt-1 text-[11px] text-muted-foreground">Ev sahibine iletildi ✓</p>
-              ) : null}
-            </div>
+        {closed ? (
+          <div className="rounded-lg border border-border bg-card p-4 text-sm text-muted-foreground">
+            Konaklamanız sona erdiği için sohbet kapandı. İyi günler dileriz!
           </div>
-        ))}
+        ) : null}
 
-        {loading ? (
+        {messages.map((m) => {
+          const guest = m.role === "guest";
+          const host = m.role === "host";
+          return (
+            <div key={m.id} className={guest ? "flex justify-end" : "flex justify-start"}>
+              <div
+                className={
+                  guest
+                    ? "max-w-[85%] rounded-2xl rounded-br-sm bg-primary px-3 py-2 text-sm text-primary-foreground"
+                    : host
+                      ? "max-w-[85%] rounded-2xl rounded-bl-sm border border-emerald-300 bg-emerald-50 px-3 py-2 text-sm text-emerald-900"
+                      : "max-w-[85%] rounded-2xl rounded-bl-sm border border-border bg-card px-3 py-2 text-sm"
+                }
+              >
+                {!guest ? (
+                  <p
+                    className={
+                      host
+                        ? "mb-0.5 text-[10px] font-semibold text-emerald-700"
+                        : "mb-0.5 text-[10px] font-semibold text-muted-foreground"
+                    }
+                  >
+                    {host ? "👤 Ev sahibiniz" : "🤖 Lixus AI"}
+                  </p>
+                ) : null}
+                <p className="whitespace-pre-wrap break-words">{m.text}</p>
+              </div>
+            </div>
+          );
+        })}
+
+        {sending ? (
           <div className="flex justify-start">
             <div className="rounded-2xl rounded-bl-sm border border-border bg-card px-3 py-2 text-sm text-muted-foreground">
               yazıyor…
             </div>
           </div>
         ) : null}
+        {error ? (
+          <div className="flex justify-start">
+            <div className="max-w-[85%] rounded-2xl rounded-bl-sm border border-destructive/40 bg-destructive/10 px-3 py-2 text-sm text-destructive">
+              {error}
+            </div>
+          </div>
+        ) : null}
         <div ref={endRef} />
       </div>
 
-      <form
-        onSubmit={(e) => {
-          e.preventDefault();
-          void send();
-        }}
-        className="flex items-end gap-2 border-t border-border bg-card p-3"
-      >
-        <textarea
-          value={input}
-          onChange={(e) => setInput(e.target.value)}
-          onKeyDown={(e) => {
-            if (e.key === "Enter" && !e.shiftKey) {
-              e.preventDefault();
-              void send();
-            }
+      {!closed ? (
+        <form
+          onSubmit={(e) => {
+            e.preventDefault();
+            void send();
           }}
-          rows={1}
-          maxLength={2000}
-          placeholder="Sorunuzu yazın…"
-          className="max-h-32 min-h-[40px] flex-1 resize-none rounded-lg border border-border bg-background px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-primary/40"
-        />
-        <button
-          type="submit"
-          disabled={loading || !input.trim()}
-          className="inline-flex h-10 shrink-0 items-center rounded-lg bg-primary px-4 text-sm font-medium text-primary-foreground transition-colors hover:bg-primary/90 disabled:opacity-50"
+          className="flex items-end gap-2 border-t border-border bg-card p-3"
         >
-          Gönder
-        </button>
-      </form>
+          <textarea
+            value={input}
+            onChange={(e) => setInput(e.target.value)}
+            onKeyDown={(e) => {
+              if (e.key === "Enter" && !e.shiftKey) {
+                e.preventDefault();
+                void send();
+              }
+            }}
+            rows={1}
+            maxLength={2000}
+            placeholder="Sorunuzu yazın…"
+            className="max-h-32 min-h-[40px] flex-1 resize-none rounded-lg border border-border bg-background px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-primary/40"
+          />
+          <button
+            type="submit"
+            disabled={sending || !input.trim()}
+            className="inline-flex h-10 shrink-0 items-center rounded-lg bg-primary px-4 text-sm font-medium text-primary-foreground transition-colors hover:bg-primary/90 disabled:opacity-50"
+          >
+            Gönder
+          </button>
+        </form>
+      ) : null}
 
       <footer className="bg-card px-4 pb-4 text-center text-[11px] text-muted-foreground">
-        Otomatik asistan. Kapı kodu/Wi-Fi gibi bilgiler güvenlik için burada paylaşılmaz.{" "}
+        Otomatik asistan + ev sahibi. Kapı kodu/Wi-Fi gibi bilgiler güvenlik için burada paylaşılmaz.{" "}
         <a href="/gizlilik" className="underline">
           Gizlilik
         </a>

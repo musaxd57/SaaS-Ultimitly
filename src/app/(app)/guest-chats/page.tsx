@@ -5,6 +5,7 @@ import { prisma } from "@/lib/db";
 import { PageHeader } from "@/components/page-header";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
+import { GuestChatReply } from "@/components/guest-chats/reply-box";
 import { formatDate, formatDateTime } from "@/lib/utils";
 
 export const dynamic = "force-dynamic";
@@ -33,7 +34,7 @@ export default async function GuestChatsPage() {
     <>
       <PageHeader
         title="Misafir Sohbetleri"
-        description="Daireye asılan QR'dan gelen sohbetler — misafirin sorusu ve AI'ın yanıtı. Mesajlar (Airbnb) sekmesinden ayrı tutulur. Buradan bilgi tabanınızı güçlendirebilirsiniz."
+        description="Daireye asılan QR'dan gelen sohbetler — misafirin sorusu, AI'ın yanıtı ve sizin yanıtlarınız. Mesajlar (Airbnb) sekmesinden ayrı tutulur. Buradan misafire siz de yazabilirsiniz."
       />
 
       {conversations.length === 0 ? (
@@ -66,30 +67,41 @@ export default async function GuestChatsPage() {
               </CardHeader>
               <CardContent className="space-y-2">
                 {c.messages.map((m) => {
-                  const fromGuest = m.direction === "inbound";
+                  // Three distinct senders: the guest, the bot ("Lixus AI"), and
+                  // the human host (any other outbound senderName → "Siz").
+                  const role =
+                    m.direction === "inbound" ? "guest" : m.senderName === "Lixus AI" ? "ai" : "host";
+                  const guest = role === "guest";
+                  const host = role === "host";
                   return (
-                    <div key={m.id} className={fromGuest ? "flex justify-start" : "flex justify-end"}>
+                    <div key={m.id} className={guest ? "flex justify-start" : "flex justify-end"}>
                       <div
                         className={
-                          fromGuest
+                          guest
                             ? "max-w-[85%] rounded-2xl rounded-bl-sm border border-border bg-card px-3 py-2 text-sm"
-                            : "max-w-[85%] rounded-2xl rounded-br-sm bg-primary px-3 py-2 text-sm text-primary-foreground"
+                            : host
+                              ? "max-w-[85%] rounded-2xl rounded-br-sm border border-emerald-300 bg-emerald-50 px-3 py-2 text-sm text-emerald-900"
+                              : "max-w-[85%] rounded-2xl rounded-br-sm bg-primary px-3 py-2 text-sm text-primary-foreground"
                         }
                       >
                         <p className="whitespace-pre-wrap break-words">{m.body}</p>
                         <p
                           className={
-                            fromGuest
+                            guest
                               ? "mt-0.5 text-[10px] text-muted-foreground"
-                              : "mt-0.5 text-[10px] text-primary-foreground/70"
+                              : host
+                                ? "mt-0.5 text-[10px] text-emerald-700"
+                                : "mt-0.5 text-[10px] text-primary-foreground/70"
                           }
                         >
-                          {fromGuest ? "Misafir" : "Lixus AI"} · {formatDateTime(m.createdAt)}
+                          {guest ? "👤 Misafir" : host ? "🙋 Siz" : "🤖 Lixus AI"} ·{" "}
+                          {formatDateTime(m.createdAt)}
                         </p>
                       </div>
                     </div>
                   );
                 })}
+                <GuestChatReply conversationId={c.id} />
               </CardContent>
             </Card>
           ))}

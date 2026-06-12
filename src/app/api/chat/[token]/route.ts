@@ -107,6 +107,39 @@ async function recordGuestChat(
   });
 }
 
+// Public history fetch — the guest's chat page loads this on open and polls it,
+// so the host's replies (written from the panel) show up when the guest reopens
+// the chat or keeps it open. Scoped to the CURRENT stay's thread only (a past
+// guest can't read it — the chat is closed after checkout), so no PII leak.
+export async function GET(req: NextRequest, { params }: { params: Promise<{ token: string }> }) {
+  if (process.env.GUEST_CHAT_ENABLED !== "1") return notFound();
+  const limited = rateLimit(`guestchat-get:${clientIp(req)}`, 60, 60_000);
+  if (!limited.ok) return tooManyRequests(limited.retryAfter);
+
+  const { token } = await params;
+  const ctx = await resolveGuestChat(token);
+  if (!ctx) return notFound();
+  if (!ctx.open || !ctx.activeReservation) return jsonOk({ open: false, messages: [] });
+
+  const marker = `qr-chat:${ctx.property.id}:${ctx.activeReservation.id}`;
+  const convo = await prisma.conversation.findFirst({
+    where: { propertyId: ctx.property.id, externalReservationId: marker },
+    select: {
+      messages: {
+        orderBy: { createdAt: "asc" },
+        select: { id: true, direction: true, senderName: true, body: true },
+      },
+    },
+  });
+  const messages = (convo?.messages ?? []).map((m) => ({
+    id: m.id,
+    // "ai" = the bot (senderName "Lixus AI"); any other outbound = the human host.
+    role: m.direction === "inbound" ? "guest" : m.senderName === "Lixus AI" ? "ai" : "host",
+    text: m.body,
+  }));
+  return jsonOk({ open: true, messages });
+}
+
 export async function POST(req: NextRequest, { params }: { params: Promise<{ token: string }> }) {
   // Global kill-switch read at request time (flip without a rebuild).
   if (process.env.GUEST_CHAT_ENABLED !== "1") return notFound();
