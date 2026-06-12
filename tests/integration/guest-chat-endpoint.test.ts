@@ -1,0 +1,145 @@
+import { describe, it, expect, beforeEach, afterEach, vi } from "vitest";
+import { prisma, resetDb, makeOrgWithProperty } from "../helpers/db";
+import { generateChatToken } from "@/lib/guest-chat";
+import { __resetRateLimit } from "@/lib/rate-limit";
+import type { SuggestReplyResult } from "@/lib/ai/types";
+
+// Mock ONLY the model call — deterministic, no network. The safety gate
+// (classifyFallback cross-check) stays real.
+vi.mock("@/lib/ai", () => ({ suggestReply: vi.fn() }));
+import { suggestReply } from "@/lib/ai";
+import { POST } from "@/app/api/chat/[token]/route";
+
+const mockSuggest = vi.mocked(suggestReply);
+const ORIGINAL_ENV = process.env.GUEST_CHAT_ENABLED;
+
+function result(over: Partial<SuggestReplyResult> = {}): SuggestReplyResult {
+  return {
+    intent: "general",
+    confidence: 0.9,
+    reply: "Çöp salı günü toplanır.",
+    risk: null,
+    priority: "standard",
+    source: "openai",
+    actionSuggestion: null,
+    riskLevel: "none",
+    detectedLanguage: "tr",
+    statedCheckoutTime: null,
+    ...over,
+  };
+}
+
+function call(token: string, message: unknown) {
+  const req = new Request(`http://localhost/api/chat/${token}`, {
+    method: "POST",
+    headers: { "content-type": "application/json", "x-forwarded-for": "203.0.113.5" },
+    body: JSON.stringify({ message }),
+  });
+  return POST(req as never, { params: Promise.resolve({ token }) });
+}
+
+async function enableChat(propertyId: string): Promise<string> {
+  const token = generateChatToken();
+  await prisma.property.update({
+    where: { id: propertyId },
+    data: { chatToken: token, chatEnabled: true },
+  });
+  return token;
+}
+
+describe("POST /api/chat/[token] (public QR concierge)", () => {
+  beforeEach(async () => {
+    await resetDb();
+    __resetRateLimit();
+    mockSuggest.mockReset();
+    mockSuggest.mockResolvedValue(result());
+    process.env.GUEST_CHAT_ENABLED = "1";
+  });
+  afterEach(() => {
+    if (ORIGINAL_ENV === undefined) delete process.env.GUEST_CHAT_ENABLED;
+    else process.env.GUEST_CHAT_ENABLED = ORIGINAL_ENV;
+  });
+
+  it("404s when the global kill-switch is off — surface is inert by default", async () => {
+    const { propertyId } = await makeOrgWithProperty();
+    const token = await enableChat(propertyId);
+    delete process.env.GUEST_CHAT_ENABLED;
+    expect((await call(token, "merhaba")).status).toBe(404);
+  });
+
+  it("404s for unknown and per-apartment-disabled tokens", async () => {
+    expect((await call(generateChatToken(), "merhaba")).status).toBe(404); // unknown
+    const { propertyId } = await makeOrgWithProperty();
+    const token = generateChatToken();
+    await prisma.property.update({ where: { id: propertyId }, data: { chatToken: token, chatEnabled: false } });
+    expect((await call(token, "merhaba")).status).toBe(404); // disabled
+  });
+
+  it("rejects empty and over-long messages", async () => {
+    const { propertyId } = await makeOrgWithProperty();
+    const token = await enableChat(propertyId);
+    expect((await call(token, "")).status).toBe(400);
+    expect((await call(token, "x".repeat(2001))).status).toBe(400);
+  });
+
+  it("answers a confident, benign question without touching the inbox", async () => {
+    const { propertyId } = await makeOrgWithProperty();
+    const token = await enableChat(propertyId);
+    const res = await call(token, "Çöp ne zaman toplanıyor?");
+    expect(res.status).toBe(200);
+    const json = await res.json();
+    expect(json.escalated).toBe(false);
+    expect(json.reply).toContain("Çöp");
+    expect(await prisma.conversation.count({ where: { propertyId } })).toBe(0);
+  });
+
+  it("escalates to one reusable inbox thread when the model is unavailable (fallback)", async () => {
+    mockSuggest.mockResolvedValue(result({ source: "fallback" }));
+    const { propertyId } = await makeOrgWithProperty();
+    const token = await enableChat(propertyId);
+
+    const res = await call(token, "Çöp ne zaman?");
+    const json = await res.json();
+    expect(json.escalated).toBe(true);
+
+    const convos = await prisma.conversation.findMany({ where: { propertyId } });
+    expect(convos).toHaveLength(1);
+    expect(convos[0].channel).toBe("chat");
+    expect(convos[0].externalReservationId).toBe(`qr-chat:${propertyId}`);
+    const msgs = await prisma.message.findMany({ where: { conversationId: convos[0].id } });
+    expect(msgs).toHaveLength(1);
+    expect(msgs[0].direction).toBe("inbound");
+    expect(msgs[0].body).toBe("Çöp ne zaman?");
+
+    // A second escalation reuses the same thread — no duplicate conversations.
+    await call(token, "Park var mı?");
+    expect(await prisma.conversation.count({ where: { propertyId } })).toBe(1);
+    expect(await prisma.message.count({ where: { conversationId: convos[0].id } })).toBe(2);
+  });
+
+  it("escalates sensitive intents (complaint/refund) instead of answering", async () => {
+    mockSuggest.mockResolvedValue(result({ intent: "complaint", confidence: 0.95 }));
+    const { propertyId } = await makeOrgWithProperty();
+    const token = await enableChat(propertyId);
+    const json = await (await call(token, "Daire çok kirliydi, şikayetçiyim")).json();
+    expect(json.escalated).toBe(true);
+    expect(await prisma.conversation.count({ where: { propertyId } })).toBe(1);
+  });
+
+  it("escalates on the keyword cross-check even if the model under-rates the risk", async () => {
+    // Model says benign + confident, but the guest's own words scream refund.
+    mockSuggest.mockResolvedValue(result({ intent: "general", confidence: 0.95, riskLevel: "none" }));
+    const { propertyId } = await makeOrgWithProperty();
+    const token = await enableChat(propertyId);
+    const json = await (await call(token, "Param iadesi istiyorum, rezervasyonu iptal edin")).json();
+    expect(json.escalated).toBe(true);
+  });
+
+  it("escalates a low-confidence answer rather than guessing at the doorway", async () => {
+    mockSuggest.mockResolvedValue(result({ confidence: 0.5 }));
+    const { propertyId } = await makeOrgWithProperty();
+    const token = await enableChat(propertyId);
+    const json = await (await call(token, "Klima nasıl çalışır?")).json();
+    expect(json.escalated).toBe(true);
+  });
+});
