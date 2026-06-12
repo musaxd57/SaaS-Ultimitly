@@ -33,9 +33,15 @@ export async function sendOnChannel(
   body: string,
   token?: string,
 ): Promise<SendOutcome> {
-  if (target.externalReservationId) {
+  // Internal QR-concierge threads ("qr-chat:<propertyId>") have no return channel
+  // — the guest is an anonymous web visitor — so record the host's reply locally
+  // and deliver nothing externally (never POST a synthetic id to Hospitable).
+  const isInternal =
+    !target.externalReservationId || target.externalReservationId.startsWith("qr-chat:");
+
+  if (!isInternal) {
     // Multi-tenant: deliver via the connecting org's own Hospitable token.
-    const r = await sendMessage(target.externalReservationId, body, token);
+    const r = await sendMessage(target.externalReservationId!, body, token);
     return { ok: r.ok, error: r.error };
   }
 

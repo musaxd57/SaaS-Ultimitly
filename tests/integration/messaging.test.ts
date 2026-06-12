@@ -30,6 +30,16 @@ describe("sendOnChannel", () => {
     expect(mockHospitable).not.toHaveBeenCalled();
   });
 
+  it("NEVER posts an internal qr-chat thread to Hospitable (no return channel) — H1", async () => {
+    const outcome = await sendOnChannel(
+      { channel: "chat", guestIdentifier: "QR Misafir", externalReservationId: "qr-chat:prop-1" },
+      "Size yardımcı olayım",
+    );
+
+    expect(outcome).toEqual({ ok: true, skipped: true });
+    expect(mockHospitable).not.toHaveBeenCalled();
+  });
+
   it("propagates a failure from the underlying transport", async () => {
     mockHospitable.mockResolvedValue({ ok: false, error: "429" });
 

@@ -16,9 +16,11 @@ vi.mock("@/lib/messaging", () => ({ sendOnChannel: vi.fn(async () => ({ ok: true
 vi.mock("@/lib/hospitable-credentials", () => ({ getOrgHospitableToken: vi.fn(async () => "tok") }));
 
 import { sendOnChannel } from "@/lib/messaging";
+import { getOrgHospitableToken } from "@/lib/hospitable-credentials";
 import { POST } from "@/app/api/conversations/[id]/reply/route";
 
 const mockSend = vi.mocked(sendOnChannel);
+const mockToken = vi.mocked(getOrgHospitableToken);
 
 function req(id: string, body: unknown) {
   return new NextRequest(`http://localhost/api/conversations/${id}/reply`, {
@@ -83,5 +85,32 @@ describe("POST /api/conversations/[id]/reply — staff RBAC gate", () => {
     });
     expect(res.status).toBe(404); // scoped by property.organizationId → not found
     expect(mockSend).not.toHaveBeenCalled();
+  });
+
+  it("persists a reply to an internal qr-chat thread without requiring Hospitable (H1)", async () => {
+    // A QR-concierge escalation lands as a synthetic "qr-chat:<propertyId>" thread.
+    // The host must be able to answer it (recorded locally) even with NO Hospitable
+    // connection — and it is never POSTed to Hospitable. Before the fix this 502'd
+    // and the reply was lost.
+    const prop = await prisma.property.findFirstOrThrow({ where: { organizationId: orgId } });
+    const qr = await prisma.conversation.create({
+      data: {
+        propertyId: prop.id,
+        guestIdentifier: "QR Misafir",
+        channel: "chat",
+        externalReservationId: `qr-chat:${prop.id}`,
+        status: "new",
+      },
+    });
+    mockToken.mockResolvedValueOnce(null); // org has NO Hospitable token
+    session = { userId: "u", organizationId: orgId, role: "owner", email: "o@x.com", name: "Owner" };
+
+    const res = await POST(req(qr.id, { body: "Çöp salı günü toplanır." }), {
+      params: Promise.resolve({ id: qr.id }),
+    });
+
+    expect(res.status).toBe(201);
+    const count = await prisma.message.count({ where: { conversationId: qr.id, direction: "outbound" } });
+    expect(count).toBe(1);
   });
 });
