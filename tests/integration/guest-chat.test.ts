@@ -43,6 +43,31 @@ describe("resolveGuestChat (public QR concierge foundation)", () => {
     expect(blob).not.toContain("4821");
   });
 
+  it("drops access secrets MISFILED under a non-secret category (content scan, C1)", async () => {
+    const { propertyId } = await makeOrgWithProperty();
+    await prisma.knowledgeBaseItem.createMany({
+      data: [
+        // A door code a host naively put under "faq" / "general" / "rules".
+        { propertyId, category: "faq", title: "Giriş", content: "Kapı kodu 7788'dir." },
+        { propertyId, category: "general", title: "Bilgi", content: "Anahtar kutusu kodu 9090." },
+        { propertyId, category: "rules", title: "Wifi", content: "Wi-Fi şifresi: HUNTER2" },
+        { propertyId, category: "parking", title: "PIN", content: "PIN: 4455" },
+        // A genuinely benign item must survive.
+        { propertyId, category: "faq", title: "Çöp", content: "Çöp salı günü toplanır." },
+      ],
+    });
+    const token = await enableChat(propertyId);
+
+    const ctx = await resolveGuestChat(token);
+    const blob = JSON.stringify(ctx!.knowledgeBase);
+    expect(blob).not.toContain("7788");
+    expect(blob).not.toContain("9090");
+    expect(blob).not.toContain("HUNTER2");
+    expect(blob).not.toContain("4455");
+    // ...but the benign item is still available.
+    expect(blob).toContain("Çöp salı günü");
+  });
+
   it("excludes exactly the secret-bearing categories", () => {
     expect([...QR_SECRET_CATEGORIES]).toEqual(["wifi", "checkin"]);
   });

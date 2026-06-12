@@ -20,6 +20,29 @@ import { prisma } from "@/lib/db";
 // public QR context. (Matches the KnowledgeBaseItem category vocabulary.)
 export const QR_SECRET_CATEGORIES = ["wifi", "checkin"] as const;
 
+// CONTENT-level guard (belt to the category suspenders). The category filter
+// alone "fails open" if a host files a door/keybox code or Wi-Fi password under
+// faq/rules/general/etc. — so ANY KB item whose text looks like an access secret
+// is dropped regardless of category. Over-redaction is the SAFE direction here:
+// at worst the chat says it can't help (and escalates), never leaks a code.
+// (\b avoided around Turkish letters like ş/ı — JS word boundaries are ASCII.)
+const SECRET_PATTERNS: RegExp[] = [
+  // door / keybox / entry / lock + code word (TR suffixes ok), e.g. "kapı kodu",
+  // "anahtar kutusu kodu", "keybox code", "giriş şifresi", "door/lock code".
+  /(kap[ıi]|giri[şs]|anahtar\s*kutu|key\s*?box|keybox|door|lock|entry|gate)\w*[\s:]{0,3}\w{0,6}[\s:]{0,3}(kod|şifre|sifre|parola|code|pin)/i,
+  // a code/PIN/password word followed by a value, e.g. "PIN: 5678", "kodu 0000",
+  // "şifre HUNTER2", "parola: abc12".
+  /(pin|kod|code|şifre|sifre|parola|password|passcode)\w*\s*[:=#]?\s*([0-9]{3,}|[^\s.\n]*\d)/i,
+  // Wi-Fi / wireless / internet ... password word.
+  /(wi-?fi|kablosuz|internet)\w*[^.\n]{0,40}(şifre|sifre|parola|password|passcode|key)/i,
+  // a password/parola label with a colon/equals, e.g. "Şifre: ...", "parola = ...".
+  /(şifre|sifre|parola|password|passcode)\w*\s*[:=]/i,
+];
+
+function looksLikeSecret(text: string): boolean {
+  return SECRET_PATTERNS.some((re) => re.test(text));
+}
+
 /** Unguessable per-apartment chat token — two UUIDs, ~256-bit (icalToken style). */
 export function generateChatToken(): string {
   return (crypto.randomUUID() + crypto.randomUUID()).replace(/-/g, "");
@@ -77,7 +100,7 @@ export async function resolveGuestChat(
   });
   if (!property || !property.chatEnabled) return null;
 
-  const [activeReservation, knowledgeBase] = await Promise.all([
+  const [activeReservation, kbRaw] = await Promise.all([
     prisma.reservation.findFirst({
       where: {
         propertyId: property.id,
@@ -97,6 +120,10 @@ export async function resolveGuestChat(
       select: { category: true, title: true, content: true },
     }),
   ]);
+
+  // Drop any item whose text looks like an access secret, even in an allowed
+  // category — the public bearer-token surface must never have a code in context.
+  const knowledgeBase = kbRaw.filter((k) => !looksLikeSecret(`${k.title}\n${k.content}`));
 
   return {
     property: {
