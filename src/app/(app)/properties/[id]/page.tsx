@@ -1,7 +1,7 @@
 import Link from "next/link";
 import { headers } from "next/headers";
 import { notFound } from "next/navigation";
-import { ArrowLeft, BookOpen, CalendarDays, CalendarSync, ArrowDownToLine } from "lucide-react";
+import { ArrowLeft, BookOpen, CalendarDays, CalendarSync, ArrowDownToLine, QrCode } from "lucide-react";
 import { requireAuth } from "@/lib/auth";
 import { prisma } from "@/lib/db";
 import { PageHeader } from "@/components/page-header";
@@ -12,6 +12,7 @@ import { DeleteButton } from "@/components/delete-button";
 import { PropertyForm } from "@/components/properties/property-form";
 import { CalendarFeed } from "@/components/properties/calendar-feed";
 import { CalendarSources } from "@/components/properties/calendar-sources";
+import { GuestChatSettings } from "@/components/properties/guest-chat-settings";
 import { generateCalendarToken } from "@/lib/export/ics";
 import { KB_CATEGORY, RESERVATION_STATUS } from "@/lib/constants";
 import { formatDate } from "@/lib/utils";
@@ -123,6 +124,27 @@ export default async function PropertyDetailPage({
               <CalendarFeed feedUrl={feedUrl} />
             </CardContent>
           </Card>
+
+          {canManage && process.env.GUEST_CHAT_ENABLED === "1" ? (
+            <Card>
+              <CardHeader>
+                <CardTitle className="flex items-center gap-2 text-base">
+                  <QrCode className="size-4 text-muted-foreground" /> Misafir Chat (QR)
+                </CardTitle>
+              </CardHeader>
+              <CardContent>
+                <GuestChatSettings
+                  propertyId={property.id}
+                  enabled={property.chatEnabled}
+                  url={
+                    property.chatEnabled && property.chatToken
+                      ? `${protocol}://${host}/c/${property.chatToken}`
+                      : null
+                  }
+                />
+              </CardContent>
+            </Card>
+          ) : null}
 
           <Card>
             <CardHeader className="flex-row items-center justify-between space-y-0">
