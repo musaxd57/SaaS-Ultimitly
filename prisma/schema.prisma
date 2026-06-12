@@ -183,6 +183,7 @@ model Reservation {
   guestName       String
   guestPhone      String?
   guestEmail      String?
+  guestExternalId String?  // Hospitable stable guest id — links the SAME person across stays (returning-guest)
   arrivalDate     DateTime
   departureDate   DateTime
   channel         String   @default("manual") // manual | airbnb | booking | direct | other
@@ -208,6 +209,7 @@ model Reservation {
   // Sync de-dup looks up (propertyId, sourceReference) once per reservation on
   // every 2-min cron — index it so that's a seek, not a per-row scan.
   @@index([propertyId, sourceReference])
+  @@index([guestExternalId]) // returning-guest lookup by the stable guest id
 }
 
 model Conversation {

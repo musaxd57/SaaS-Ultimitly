@@ -258,6 +258,9 @@ async function upsertReservationCalendar(
     (str(reservation.code) ? `Rezervasyon ${reservation.code}` : "Misafir");
   const guestEmail = str(g?.email) ?? null;
   const guestPhone = str(g?.phone) ?? null;
+  // Stable per-person guest id (links the same guest across stays). Airbnb masks
+  // email/phone, but this id is present — it's the reliable returning-guest key.
+  const guestExternalId = g?.id != null ? String(g.id) : null;
   const channel = toChannel(reservation.platform);
 
   // Look at both the top-level status and the nested reservation_status so a
@@ -297,6 +300,7 @@ async function upsertReservationCalendar(
         guestName,
         ...(guestEmail !== null ? { guestEmail } : {}),
         ...(guestPhone !== null ? { guestPhone } : {}),
+        ...(guestExternalId !== null ? { guestExternalId } : {}),
         arrivalDate,
         departureDate,
         channel,
@@ -313,6 +317,7 @@ async function upsertReservationCalendar(
       guestName,
       guestEmail: guestEmail ?? undefined,
       guestPhone: guestPhone ?? undefined,
+      guestExternalId: guestExternalId ?? undefined,
       arrivalDate,
       departureDate,
       channel,

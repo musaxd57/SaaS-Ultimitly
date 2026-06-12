@@ -16,6 +16,7 @@ import { AutoRefresh } from "@/components/inbox/auto-refresh";
 import { KB_CATEGORY, RESERVATION_STATUS } from "@/lib/constants";
 import { formatDate, formatDateTime, formatCurrency } from "@/lib/utils";
 import { channelLabel } from "@/lib/ui-labels";
+import { getReturningGuestInfo } from "@/lib/returning-guest";
 
 export const dynamic = "force-dynamic";
 
@@ -36,6 +37,15 @@ export default async function ConversationPage({
     },
   });
   if (!conversation) notFound();
+
+  // Returning-guest context — matched only by the reliable Hospitable guest id
+  // (never name/email), so there are no false "welcome back" positives.
+  const returning = conversation.reservation
+    ? await getReturningGuestInfo(session.organizationId, {
+        id: conversation.reservation.id,
+        guestExternalId: conversation.reservation.guestExternalId,
+      })
+    : null;
 
   const kb = await prisma.knowledgeBaseItem.findMany({
     where: { propertyId: conversation.propertyId, isActive: true },
@@ -134,6 +144,18 @@ export default async function ConversationPage({
                       conversation.reservation.currency,
                     )}
                   </p>
+                  {returning ? (
+                    <div className="mt-2 space-y-1 rounded-md border border-warning/30 bg-warning/10 p-2">
+                      <Badge tone="warning">🔁 {returning.stayCount}. konaklama</Badge>
+                      <ul className="space-y-0.5 text-xs text-muted-foreground">
+                        {returning.pastStays.slice(0, 5).map((s) => (
+                          <li key={s.id}>
+                            {s.propertyName} · {formatDate(s.arrivalDate)}–{formatDate(s.departureDate)}
+                          </li>
+                        ))}
+                      </ul>
+                    </div>
+                  ) : null}
                 </>
               ) : (
                 <p className="text-muted-foreground">Bağlı rezervasyon yok.</p>

@@ -206,6 +206,7 @@ export interface HospitableReservation {
   status?: string;
   reservation_status?: { current?: { category?: string } };
   guest?: {
+    id?: string | number; // stable per-person guest id (consistent across this guest's reservations)
     name?: string;
     full_name?: string;
     first_name?: string;
