@@ -159,6 +159,20 @@ model Property {
   @@index([organizationId])
 }
 
+// Durable per-apartment daily counter for PAID guest-chat AI calls. The in-memory
+// limiter resets on every restart (and isn't shared across replicas), so an
+// attacker holding one QR token could re-trigger the cap each boot; this DB-backed
+// counter bounds the spend to a true daily cap. One tiny row per apartment/day.
+model ChatUsage {
+  propertyId String
+  day        String   // YYYY-MM-DD (UTC) rate window
+  count      Int      @default(0)
+  updatedAt  DateTime @updatedAt
+
+  @@id([propertyId, day])
+  @@index([day]) // optional housekeeping: prune old windows
+}
+
 // A subscribed external iCal URL (Airbnb, Booking.com, etc.) that is fetched
 // periodically to pull reservations into the property automatically.
 model CalendarSource {

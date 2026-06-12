@@ -28,6 +28,8 @@ const MAX_MESSAGE = 2000;
 // Intents that must never be answered autonomously to a guest — money,
 // cancellation, complaint, or an explicit ask for a human.
 const ESCALATE_INTENTS = new Set(["complaint", "refund", "early_departure", "human_request"]);
+// Max PAID AI calls per apartment per (UTC) day — a durable cost ceiling.
+const DAILY_AI_CAP = 200;
 
 const notFound = () => new Response("Not found", { status: 404 });
 
@@ -131,10 +133,18 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ tok
 
   const guestIdentifier = "QR Misafir";
 
-  // Per-apartment daily cap on PAID AI calls — a cost ceiling a botnet rotating
-  // IPs can't bypass. Exhausted → escalate without calling the model.
-  const dayCap = rateLimit(`guestchat-day:${ctx.property.id}`, 200, 24 * 60 * 60 * 1000);
-  if (!dayCap.ok) {
+  // Per-apartment DAILY cap on PAID AI calls — DURABLE (survives restarts, shared
+  // across replicas), so one bearer token can't re-burn the cap every boot the way
+  // the in-memory limiter allowed. Atomic increment, then check. Over cap →
+  // escalate without calling the (paid) model.
+  const day = new Date().toISOString().slice(0, 10);
+  const usage = await prisma.chatUsage.upsert({
+    where: { propertyId_day: { propertyId: ctx.property.id, day } },
+    create: { propertyId: ctx.property.id, day, count: 1 },
+    update: { count: { increment: 1 } },
+    select: { count: true },
+  });
+  if (usage.count > DAILY_AI_CAP) {
     await escalateToInbox(ctx.property.id, ctx.activeReservation?.id ?? null, guestIdentifier, message);
     return jsonOk({ escalated: true, reply: "Sorunuzu ev sahibine ilettim; en kısa sürede size dönecek." });
   }

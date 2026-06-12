@@ -142,4 +142,18 @@ describe("POST /api/chat/[token] (public QR concierge)", () => {
     const json = await (await call(token, "Klima nasıl çalışır?")).json();
     expect(json.escalated).toBe(true);
   });
+
+  it("escalates WITHOUT a paid model call once the durable daily AI cap is hit (H2)", async () => {
+    const { propertyId } = await makeOrgWithProperty();
+    const token = await enableChat(propertyId);
+    const day = new Date().toISOString().slice(0, 10);
+    // Pre-load the durable counter at the cap so the next call goes over it.
+    await prisma.chatUsage.create({ data: { propertyId, day, count: 200 } });
+
+    const res = await call(token, "Bir sorum var");
+    const json = await res.json();
+    expect(json.escalated).toBe(true);
+    expect(mockSuggest).not.toHaveBeenCalled(); // over cap → the model is never called
+    expect(await prisma.conversation.count({ where: { propertyId } })).toBe(1); // escalated to inbox
+  });
 });
