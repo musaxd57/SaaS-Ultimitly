@@ -94,7 +94,7 @@ describe("POST /api/chat/[token] (public QR concierge)", () => {
     expect((await call(token, "x".repeat(2001))).status).toBe(400);
   });
 
-  it("answers a confident, benign question without touching the inbox", async () => {
+  it("records a confident answer (question + AI reply) as a non-urgent 'chat' thread", async () => {
     const { propertyId } = await makeOrgWithProperty();
     const token = await enableChat(propertyId);
     const res = await call(token, "Çöp ne zaman toplanıyor?");
@@ -102,31 +102,41 @@ describe("POST /api/chat/[token] (public QR concierge)", () => {
     const json = await res.json();
     expect(json.escalated).toBe(false);
     expect(json.reply).toContain("Çöp");
-    expect(await prisma.conversation.count({ where: { propertyId } })).toBe(0);
+
+    const convos = await prisma.conversation.findMany({ where: { propertyId } });
+    expect(convos).toHaveLength(1);
+    expect(convos[0].channel).toBe("chat"); // its own tab, NOT the Airbnb inbox
+    expect(convos[0].priority).toBe("standard"); // not escalated
+    expect(convos[0].externalReservationId?.startsWith(`qr-chat:${propertyId}:`)).toBe(true);
+    const msgs = await prisma.message.findMany({
+      where: { conversationId: convos[0].id },
+      orderBy: { createdAt: "asc" },
+    });
+    expect(msgs).toHaveLength(2); // BOTH the guest question and the AI reply
+    expect(msgs[0].direction).toBe("inbound");
+    expect(msgs[0].body).toBe("Çöp ne zaman toplanıyor?");
+    expect(msgs[1].direction).toBe("outbound");
+    expect(msgs[1].body).toContain("Çöp");
   });
 
-  it("escalates to one reusable inbox thread when the model is unavailable (fallback)", async () => {
+  it("records an escalated exchange flagged urgent; reuses the same per-guest thread", async () => {
     mockSuggest.mockResolvedValue(result({ source: "fallback" }));
     const { propertyId } = await makeOrgWithProperty();
     const token = await enableChat(propertyId);
 
-    const res = await call(token, "Çöp ne zaman?");
-    const json = await res.json();
+    const json = await (await call(token, "Çöp ne zaman?")).json();
     expect(json.escalated).toBe(true);
 
     const convos = await prisma.conversation.findMany({ where: { propertyId } });
     expect(convos).toHaveLength(1);
     expect(convos[0].channel).toBe("chat");
-    expect(convos[0].externalReservationId).toBe(`qr-chat:${propertyId}`);
-    const msgs = await prisma.message.findMany({ where: { conversationId: convos[0].id } });
-    expect(msgs).toHaveLength(1);
-    expect(msgs[0].direction).toBe("inbound");
-    expect(msgs[0].body).toBe("Çöp ne zaman?");
+    expect(convos[0].priority).toBe("urgent"); // escalated → flagged
+    expect(await prisma.message.count({ where: { conversationId: convos[0].id } })).toBe(2);
 
-    // A second escalation reuses the same thread — no duplicate conversations.
+    // A second message from the same guest reuses the same thread (no duplicate).
     await call(token, "Park var mı?");
     expect(await prisma.conversation.count({ where: { propertyId } })).toBe(1);
-    expect(await prisma.message.count({ where: { conversationId: convos[0].id } })).toBe(2);
+    expect(await prisma.message.count({ where: { conversationId: convos[0].id } })).toBe(4);
   });
 
   it("escalates sensitive intents (complaint/refund) instead of answering", async () => {
@@ -135,11 +145,12 @@ describe("POST /api/chat/[token] (public QR concierge)", () => {
     const token = await enableChat(propertyId);
     const json = await (await call(token, "Daire çok kirliydi, şikayetçiyim")).json();
     expect(json.escalated).toBe(true);
-    expect(await prisma.conversation.count({ where: { propertyId } })).toBe(1);
+    const convos = await prisma.conversation.findMany({ where: { propertyId } });
+    expect(convos).toHaveLength(1);
+    expect(convos[0].priority).toBe("urgent");
   });
 
   it("escalates on the keyword cross-check even if the model under-rates the risk", async () => {
-    // Model says benign + confident, but the guest's own words scream refund.
     mockSuggest.mockResolvedValue(result({ intent: "general", confidence: 0.95, riskLevel: "none" }));
     const { propertyId } = await makeOrgWithProperty();
     const token = await enableChat(propertyId);
@@ -159,14 +170,16 @@ describe("POST /api/chat/[token] (public QR concierge)", () => {
     const { propertyId } = await makeOrgWithProperty();
     const token = await enableChat(propertyId);
     const day = new Date().toISOString().slice(0, 10);
-    // Pre-load the durable counter at the cap so the next call goes over it.
     await prisma.chatUsage.create({ data: { propertyId, day, count: 200 } });
 
     const res = await call(token, "Bir sorum var");
     const json = await res.json();
     expect(json.escalated).toBe(true);
     expect(mockSuggest).not.toHaveBeenCalled(); // over cap → the model is never called
-    expect(await prisma.conversation.count({ where: { propertyId } })).toBe(1); // escalated to inbox
+    const convos = await prisma.conversation.findMany({ where: { propertyId } });
+    expect(convos).toHaveLength(1);
+    expect(convos[0].priority).toBe("urgent");
+    expect(await prisma.message.count({ where: { conversationId: convos[0].id } })).toBe(2);
   });
 
   it("returns 'closed' (no model call, no inbox write) when there is no active stay", async () => {

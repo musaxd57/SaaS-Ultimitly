@@ -1,6 +1,7 @@
 import {
   LayoutDashboard,
   MessageSquare,
+  QrCode,
   Send,
   ListChecks,
   Building2,
@@ -20,6 +21,7 @@ export interface NavItem {
 export const NAV_ITEMS: NavItem[] = [
   { href: "/dashboard", label: "Panel", icon: LayoutDashboard },
   { href: "/inbox", label: "Mesajlar", icon: MessageSquare },
+  { href: "/guest-chats", label: "Misafir Sohbetleri", icon: QrCode },
   { href: "/sent", label: "Gönderilenler", icon: Send },
   { href: "/tasks", label: "Görevler", icon: ListChecks },
   { href: "/properties", label: "Mülkler", icon: Building2 },

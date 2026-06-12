@@ -22,6 +22,7 @@ export async function GET(req: NextRequest) {
   const conversations = await prisma.conversation.findMany({
     where: {
       property: { organizationId: session.organizationId },
+      channel: { not: "chat" }, // QR guest chats live in their own "Misafir Sohbetleri" tab
       ...(status ? { status } : {}),
     },
     include: {

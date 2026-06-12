@@ -53,25 +53,28 @@ function mustEscalate(
 }
 
 /**
- * Drop an escalated question into the host's existing inbox as a single
- * per-apartment "qr-chat" conversation, so the host sees it. The marker is
- * synthetic so it can never collide with a real Hospitable thread.
- *
- * NOTE: the public chat has no return address (an anonymous scanner), so the
- * host reads the question here but the reply-back channel is a live-surface
- * concern to design at enable-time — intentionally out of scope while disabled.
+ * Record a guest-chat exchange (the guest's question + the bot's reply) for the
+ * host. Kept OUT of the Airbnb inbox: a dedicated per-stay conversation
+ * ("qr-chat:<propertyId>:<reservationId>", channel "chat") that the separate
+ * "Misafir Sohbetleri" tab reads. Escalated exchanges are flagged ("problem" +
+ * urgent) so the host can spot the ones that needed them. The synthetic marker
+ * can never collide with a real Hospitable thread (those are UUIDs).
  */
-async function escalateToInbox(
+async function recordGuestChat(
   propertyId: string,
-  reservationId: string | null,
-  guestIdentifier: string,
-  message: string,
+  reservation: { id: string; guestName: string },
+  guestMessage: string,
+  botReply: string,
+  escalated: boolean,
 ): Promise<void> {
-  const marker = `qr-chat:${propertyId}`;
+  const marker = `qr-chat:${propertyId}:${reservation.id}`;
   const now = new Date();
+  // status is always "answered" so these never leak into the Airbnb inbox/dashboard
+  // counts (which key on new/waiting/problem); escalation is flagged via priority
+  // "urgent" (and stays urgent once set). The separate tab reads channel "chat".
   const existing = await prisma.conversation.findFirst({
     where: { propertyId, externalReservationId: marker },
-    select: { id: true, status: true },
+    select: { id: true },
   });
   let conversationId: string;
   if (!existing) {
@@ -79,11 +82,11 @@ async function escalateToInbox(
       data: {
         propertyId,
         channel: "chat",
-        guestIdentifier,
-        status: "new",
-        priority: "standard",
+        guestIdentifier: reservation.guestName,
+        status: "answered",
+        priority: escalated ? "urgent" : "standard",
         lastMessageAt: now,
-        reservationId,
+        reservationId: reservation.id,
         externalReservationId: marker,
       },
       select: { id: true },
@@ -92,22 +95,15 @@ async function escalateToInbox(
   } else {
     await prisma.conversation.update({
       where: { id: existing.id },
-      data: {
-        lastMessageAt: now,
-        guestIdentifier,
-        ...(existing.status === "closed" ? { status: "new" } : {}),
-      },
+      data: { lastMessageAt: now, ...(escalated ? { priority: "urgent" } : {}) },
     });
     conversationId = existing.id;
   }
-  await prisma.message.create({
-    data: {
-      conversationId,
-      direction: "inbound",
-      senderName: guestIdentifier,
-      body: message.slice(0, MAX_MESSAGE),
-      language: "tr",
-    },
+  await prisma.message.createMany({
+    data: [
+      { conversationId, direction: "inbound", senderName: reservation.guestName, body: guestMessage.slice(0, MAX_MESSAGE), language: "tr" },
+      { conversationId, direction: "outbound", senderName: "Lixus AI", body: botReply.slice(0, MAX_MESSAGE), language: "tr" },
+    ],
   });
 }
 
@@ -141,7 +137,11 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ tok
     });
   }
 
-  const guestIdentifier = "QR Misafir";
+  // open ⟹ an active reservation exists; guard defensively for the type-checker.
+  const res = ctx.activeReservation;
+  if (!res) {
+    return jsonOk({ closed: true, reply: "Şu an aktif bir konaklama görünmüyor; sohbet kapalı." });
+  }
 
   // Per-apartment DAILY cap on PAID AI calls — DURABLE (survives restarts, shared
   // across replicas), so one bearer token can't re-burn the cap every boot the way
@@ -155,8 +155,9 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ tok
     select: { count: true },
   });
   if (usage.count > DAILY_AI_CAP) {
-    await escalateToInbox(ctx.property.id, ctx.activeReservation?.id ?? null, guestIdentifier, message);
-    return jsonOk({ escalated: true, reply: "Sorunuzu ev sahibine ilettim; en kısa sürede size dönecek." });
+    const reply = "Sorunuzu ev sahibine ilettim; en kısa sürede size dönecek.";
+    await recordGuestChat(ctx.property.id, res, message, reply, true);
+    return jsonOk({ escalated: true, reply });
   }
 
   const org = await prisma.organization.findUnique({
@@ -164,7 +165,6 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ tok
     select: { aiStyleProfile: true },
   });
 
-  const res = ctx.activeReservation;
   const result = await suggestReply({
     guestMessage: message,
     property: {
@@ -174,10 +174,9 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ tok
       address: ctx.property.address,
       city: ctx.property.city,
     },
-    // NO reservation PII to an anonymous public surface: not the guest's name and
-    // not their stay dates (a past guest who kept the QR could otherwise learn the
-    // CURRENT guest's checkout date). General checkout time still comes from the
-    // property (property.checkOutTime), which is not personal data.
+    // NO reservation PII to the anonymous public AI: not the guest's name, not
+    // their stay dates. (The host's private "Misafir Sohbetleri" record DOES carry
+    // the guest name — that's the host's own booking data.)
     reservation: null,
     knowledgeBase: ctx.knowledgeBase,
     history: [],
@@ -186,10 +185,10 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ tok
     styleProfile: org?.aiStyleProfile ?? null,
   });
 
-  if (mustEscalate(result, message)) {
-    await escalateToInbox(ctx.property.id, res?.id ?? null, guestIdentifier, message);
-    return jsonOk({ escalated: true, reply: "Bu sorunuzu ev sahibine ilettim; en kısa sürede size dönecek." });
-  }
-
-  return jsonOk({ escalated: false, reply: result.reply });
+  const escalate = mustEscalate(result, message);
+  const reply = escalate
+    ? "Bu sorunuzu ev sahibine ilettim; en kısa sürede size dönecek."
+    : result.reply;
+  await recordGuestChat(ctx.property.id, res, message, reply, escalate);
+  return jsonOk({ escalated: escalate, reply });
 }

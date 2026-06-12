@@ -28,6 +28,7 @@ export default async function InboxPage({
     prisma.conversation.findMany({
       where: {
         property: { organizationId: session.organizationId },
+        channel: { not: "chat" }, // QR guest chats live in their own "Misafir Sohbetleri" tab
         ...(status ? { status } : {}),
         ...(query ? { guestIdentifier: { contains: query, mode: "insensitive" } } : {}),
       },
