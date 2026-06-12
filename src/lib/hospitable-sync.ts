@@ -260,7 +260,9 @@ async function upsertReservationCalendar(
   const guestPhone = str(g?.phone) ?? null;
   // Stable per-person guest id (links the same guest across stays). Airbnb masks
   // email/phone, but this id is present — it's the reliable returning-guest key.
-  const guestExternalId = g?.id != null ? String(g.id) : null;
+  // Falsy guard (not just != null): an empty-string id must never become a shared
+  // match key. Real Hospitable guest ids are non-empty UUIDs → always truthy.
+  const guestExternalId = g?.id ? String(g.id) : null;
   const channel = toChannel(reservation.platform);
 
   // Look at both the top-level status and the nested reservation_status so a

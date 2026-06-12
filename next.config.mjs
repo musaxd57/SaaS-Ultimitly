@@ -40,6 +40,13 @@ const nextConfig = {
           { key: "Content-Security-Policy-Report-Only", value: cspReportOnly },
         ],
       },
+      {
+        // The public guest QR concierge URL carries a bearer token IN THE PATH.
+        // Never leak it via the Referer header (not even to our own pages the
+        // chat footer links to) — a leaked token = access to that apartment's chat.
+        source: "/c/:path*",
+        headers: [{ key: "Referrer-Policy", value: "no-referrer" }],
+      },
     ];
   },
   // Pin the workspace root to this project so Next doesn't pick a stray

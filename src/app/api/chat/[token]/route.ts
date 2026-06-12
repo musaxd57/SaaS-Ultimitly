@@ -154,11 +154,11 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ tok
       address: ctx.property.address,
       city: ctx.property.city,
     },
-    // GENERIC guest name only — never leak the real guest's name to an anonymous
-    // scanner. The dates still give timing context (checkout day, etc.).
-    reservation: res
-      ? { guestName: "Misafirimiz", arrivalDate: res.arrivalDate, departureDate: res.departureDate, status: res.status }
-      : null,
+    // NO reservation PII to an anonymous public surface: not the guest's name and
+    // not their stay dates (a past guest who kept the QR could otherwise learn the
+    // CURRENT guest's checkout date). General checkout time still comes from the
+    // property (property.checkOutTime), which is not personal data.
+    reservation: null,
     knowledgeBase: ctx.knowledgeBase,
     history: [],
     tone: "warm",
