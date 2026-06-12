@@ -142,6 +142,8 @@ model Property {
   cleaningBufferMinutes Int     @default(120)
   notes                String?
   icalToken            String?  @unique // secret token for the public iCal export feed
+  chatToken            String?  @unique // secret token for the public guest QR concierge chat
+  chatEnabled          Boolean  @default(false) // per-apartment master switch for the public chat (off by default)
   hospitableId         String?  @unique // linked Hospitable property UUID (channel sync)
   createdAt            DateTime @default(now())
   updatedAt            DateTime @updatedAt
