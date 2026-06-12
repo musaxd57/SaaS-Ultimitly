@@ -11,6 +11,21 @@ async function enableChat(propertyId: string): Promise<string> {
   return token;
 }
 
+// A reservation that is active right now (arrived yesterday, leaves in 2 days) —
+// so the chat is OPEN regardless of the wall-clock time the test runs at.
+async function activeStay(propertyId: string) {
+  return prisma.reservation.create({
+    data: {
+      propertyId,
+      guestName: "Misafir",
+      arrivalDate: daysFromNow(-1),
+      departureDate: daysFromNow(2),
+      status: "confirmed",
+      channel: "airbnb",
+    },
+  });
+}
+
 describe("resolveGuestChat (public QR concierge foundation)", () => {
   beforeEach(resetDb);
 
@@ -24,10 +39,12 @@ describe("resolveGuestChat (public QR concierge foundation)", () => {
         { propertyId, category: "rules", title: "Kural", content: "Sigara yok.", isActive: false },
       ],
     });
+    await activeStay(propertyId);
     const token = await enableChat(propertyId);
 
     const ctx = await resolveGuestChat(token);
     expect(ctx).not.toBeNull();
+    expect(ctx!.open).toBe(true);
     expect(ctx!.property.id).toBe(propertyId);
     expect(ctx!.property.organizationId).toBe(orgId);
 
@@ -56,6 +73,7 @@ describe("resolveGuestChat (public QR concierge foundation)", () => {
         { propertyId, category: "faq", title: "Çöp", content: "Çöp salı günü toplanır." },
       ],
     });
+    await activeStay(propertyId);
     const token = await enableChat(propertyId);
 
     const ctx = await resolveGuestChat(token);
@@ -88,23 +106,54 @@ describe("resolveGuestChat (public QR concierge foundation)", () => {
     expect(await resolveGuestChat(generateChatToken())).toBeNull(); // valid shape, not in DB
   });
 
-  it("attaches the currently-staying reservation, never a past or future one", async () => {
+  it("is OPEN during an active stay, CLOSED when only past/future stays exist", async () => {
     const { propertyId } = await makeOrgWithProperty();
     const token = await enableChat(propertyId);
 
+    // Only a past and a future stay → vacant now → closed.
     await prisma.reservation.create({
       data: { propertyId, guestName: "Geçmiş", arrivalDate: daysFromNow(-10), departureDate: daysFromNow(-7), status: "completed", channel: "airbnb" },
     });
     await prisma.reservation.create({
       data: { propertyId, guestName: "Gelecek", arrivalDate: daysFromNow(5), departureDate: daysFromNow(8), status: "confirmed", channel: "airbnb" },
     });
-    expect((await resolveGuestChat(token))!.activeReservation).toBeNull();
+    const closed = await resolveGuestChat(token);
+    expect(closed!.open).toBe(false);
+    expect(closed!.activeReservation).toBeNull();
 
-    const current = await prisma.reservation.create({
-      data: { propertyId, guestName: "Şimdi", arrivalDate: daysFromNow(-1), departureDate: daysFromNow(2), status: "confirmed", channel: "airbnb" },
-    });
+    // Add a stay that is active right now → open, with that reservation attached.
+    const current = await activeStay(propertyId);
     const ctx = await resolveGuestChat(token);
+    expect(ctx!.open).toBe(true);
     expect(ctx!.activeReservation?.id).toBe(current.id);
-    expect(ctx!.activeReservation?.guestName).toBe("Şimdi");
+  });
+
+  it("CLOSES the chat at checkOutTime on the departure day (then nothing to answer)", async () => {
+    const { propertyId } = await makeOrgWithProperty(); // checkOutTime defaults to "11:00"
+    const token = await enableChat(propertyId);
+    await prisma.knowledgeBaseItem.create({
+      data: { propertyId, category: "faq", title: "Çöp", content: "Salı." },
+    });
+    // Stay departs Jun 15; checkout is 11:00 Istanbul.
+    await prisma.reservation.create({
+      data: {
+        propertyId,
+        guestName: "Çıkış",
+        arrivalDate: new Date("2026-06-13T00:00:00Z"),
+        departureDate: new Date("2026-06-15T00:00:00Z"),
+        status: "confirmed",
+        channel: "airbnb",
+      },
+    });
+
+    // 10:00 Istanbul (07:00Z) on departure day → still open.
+    const before = await resolveGuestChat(token, new Date("2026-06-15T07:00:00Z"));
+    expect(before!.open).toBe(true);
+    expect(before!.knowledgeBase.length).toBeGreaterThan(0);
+
+    // 12:00 Istanbul (09:00Z), past the 11:00 checkout → closed, no KB.
+    const after = await resolveGuestChat(token, new Date("2026-06-15T09:00:00Z"));
+    expect(after!.open).toBe(false);
+    expect(after!.knowledgeBase).toHaveLength(0);
   });
 });

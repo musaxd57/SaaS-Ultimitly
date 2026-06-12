@@ -1,5 +1,5 @@
 import { describe, it, expect, beforeEach, afterEach, vi } from "vitest";
-import { prisma, resetDb, makeOrgWithProperty } from "../helpers/db";
+import { prisma, resetDb, makeOrgWithProperty, daysFromNow } from "../helpers/db";
 import { generateChatToken } from "@/lib/guest-chat";
 import { __resetRateLimit } from "@/lib/rate-limit";
 import type { SuggestReplyResult } from "@/lib/ai/types";
@@ -43,6 +43,18 @@ async function enableChat(propertyId: string): Promise<string> {
   await prisma.property.update({
     where: { id: propertyId },
     data: { chatToken: token, chatEnabled: true },
+  });
+  // An active stay so the chat is OPEN (the open/closed window itself is tested
+  // in guest-chat.test.ts). Without this, the endpoint would return "closed".
+  await prisma.reservation.create({
+    data: {
+      propertyId,
+      guestName: "Misafir",
+      arrivalDate: daysFromNow(-1),
+      departureDate: daysFromNow(2),
+      status: "confirmed",
+      channel: "airbnb",
+    },
   });
   return token;
 }
@@ -155,5 +167,22 @@ describe("POST /api/chat/[token] (public QR concierge)", () => {
     expect(json.escalated).toBe(true);
     expect(mockSuggest).not.toHaveBeenCalled(); // over cap → the model is never called
     expect(await prisma.conversation.count({ where: { propertyId } })).toBe(1); // escalated to inbox
+  });
+
+  it("returns 'closed' (no model call, no inbox write) when there is no active stay", async () => {
+    const { propertyId } = await makeOrgWithProperty();
+    // Enable the chat but DON'T create a reservation → the apartment is vacant.
+    const token = generateChatToken();
+    await prisma.property.update({
+      where: { id: propertyId },
+      data: { chatToken: token, chatEnabled: true },
+    });
+
+    const res = await call(token, "Merhaba, bir sorum var");
+    expect(res.status).toBe(200);
+    const json = await res.json();
+    expect(json.closed).toBe(true);
+    expect(mockSuggest).not.toHaveBeenCalled();
+    expect(await prisma.conversation.count({ where: { propertyId } })).toBe(0);
   });
 });

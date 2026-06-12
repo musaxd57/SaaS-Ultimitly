@@ -1,4 +1,5 @@
 import { prisma } from "@/lib/db";
+import { daysUntilDate } from "@/lib/utils";
 
 // ---------------------------------------------------------------------------
 // Guest QR concierge — token resolution (FOUNDATION, no public surface yet).
@@ -48,6 +49,25 @@ export function generateChatToken(): string {
   return (crypto.randomUUID() + crypto.randomUUID()).replace(/-/g, "");
 }
 
+const APP_TZ = "Europe/Istanbul";
+
+/** "HH:MM" → minutes since midnight (tolerant of a single-digit hour). */
+function hhmmToMinutes(s: string): number {
+  const m = /(\d{1,2}):(\d{2})/.exec(s ?? "");
+  return m ? Number(m[1]) * 60 + Number(m[2]) : 0;
+}
+
+/** Current wall-clock time in the app timezone as minutes since midnight. */
+function nowMinutesInTz(now: Date): number {
+  const hhmm = new Intl.DateTimeFormat("en-GB", {
+    timeZone: APP_TZ,
+    hour: "2-digit",
+    minute: "2-digit",
+    hour12: false,
+  }).format(now);
+  return hhmmToMinutes(hhmm);
+}
+
 export interface GuestChatContext {
   property: {
     id: string;
@@ -58,6 +78,10 @@ export interface GuestChatContext {
     address: string | null;
     city: string | null;
   };
+  /** True only during an active stay (arrival day → checkOutTime on departure day,
+   *  Istanbul). When false the chat is closed (vacant / before check-in / after
+   *  checkout) and answers nothing. */
+  open: boolean;
   /** The guest currently in residence, if any. */
   activeReservation: {
     id: string;
@@ -100,42 +124,63 @@ export async function resolveGuestChat(
   });
   if (!property || !property.chatEnabled) return null;
 
-  const [activeReservation, kbRaw] = await Promise.all([
-    prisma.reservation.findFirst({
-      where: {
-        propertyId: property.id,
-        status: { in: ["confirmed", "completed"] },
-        arrivalDate: { lte: now },
-        departureDate: { gte: now },
-      },
-      orderBy: { arrivalDate: "desc" },
-      select: { id: true, guestName: true, arrivalDate: true, departureDate: true, status: true },
-    }),
-    prisma.knowledgeBaseItem.findMany({
-      where: {
-        propertyId: property.id,
-        isActive: true,
-        category: { notIn: [...QR_SECRET_CATEGORIES] },
-      },
-      select: { category: true, title: true, content: true },
-    }),
-  ]);
+  const propertyPublic = {
+    id: property.id,
+    organizationId: property.organizationId,
+    name: property.name,
+    checkInTime: property.checkInTime,
+    checkOutTime: property.checkOutTime,
+    address: property.address,
+    city: property.city,
+  };
 
+  // OPEN only during an active stay: from the arrival day through the property's
+  // checkOutTime on the departure day (Istanbul). Before check-in, after checkout,
+  // or while vacant → CLOSED. So a past guest who kept the QR can't keep using it,
+  // and it resets for the next guest automatically.
+  const candidate = await prisma.reservation.findFirst({
+    where: {
+      propertyId: property.id,
+      status: { in: ["confirmed", "completed"] },
+      // Wide net; the precise open/closed decision is the Istanbul day/time check.
+      arrivalDate: { lte: new Date(now.getTime() + 12 * 60 * 60 * 1000) },
+      departureDate: { gte: new Date(now.getTime() - 24 * 60 * 60 * 1000) },
+    },
+    orderBy: { arrivalDate: "desc" },
+    select: { id: true, guestName: true, arrivalDate: true, departureDate: true, status: true },
+  });
+
+  let open = false;
+  let activeReservation: GuestChatContext["activeReservation"] = null;
+  if (candidate) {
+    const started = daysUntilDate(candidate.arrivalDate, now) <= 0; // arrival day today or earlier
+    const depDiff = daysUntilDate(candidate.departureDate, now); // 0 = today, >0 future, <0 past
+    const beforeCheckout =
+      depDiff > 0 ||
+      (depDiff === 0 && nowMinutesInTz(now) < hhmmToMinutes(property.checkOutTime));
+    if (started && beforeCheckout) {
+      open = true;
+      activeReservation = candidate;
+    }
+  }
+
+  // Closed → return the property (so the page can show a branded "no active stay"
+  // screen) but no reservation and an empty knowledge base (nothing to answer).
+  if (!open) {
+    return { property: propertyPublic, open: false, activeReservation: null, knowledgeBase: [] };
+  }
+
+  const kbRaw = await prisma.knowledgeBaseItem.findMany({
+    where: {
+      propertyId: property.id,
+      isActive: true,
+      category: { notIn: [...QR_SECRET_CATEGORIES] },
+    },
+    select: { category: true, title: true, content: true },
+  });
   // Drop any item whose text looks like an access secret, even in an allowed
   // category — the public bearer-token surface must never have a code in context.
   const knowledgeBase = kbRaw.filter((k) => !looksLikeSecret(`${k.title}\n${k.content}`));
 
-  return {
-    property: {
-      id: property.id,
-      organizationId: property.organizationId,
-      name: property.name,
-      checkInTime: property.checkInTime,
-      checkOutTime: property.checkOutTime,
-      address: property.address,
-      city: property.city,
-    },
-    activeReservation,
-    knowledgeBase,
-  };
+  return { property: propertyPublic, open: true, activeReservation, knowledgeBase };
 }

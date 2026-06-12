@@ -24,5 +24,18 @@ export default async function GuestChatPage({ params }: { params: Promise<{ toke
   const ctx = await resolveGuestChat(token);
   if (!ctx) notFound();
 
+  // Closed outside an active stay (vacant / before check-in / after checkout).
+  if (!ctx.open) {
+    return (
+      <div className="mx-auto flex min-h-screen max-w-lg flex-col items-center justify-center gap-2 px-6 text-center">
+        <p className="text-base font-semibold">{ctx.property.name}</p>
+        <p className="text-sm text-muted-foreground">
+          Şu an aktif bir konaklama görünmüyor; sohbet kapalı. Bir konaklamanız
+          varsa giriş gününüzde bu sayfadan tekrar ulaşabilirsiniz.
+        </p>
+      </div>
+    );
+  }
+
   return <GuestChat token={token} propertyName={ctx.property.name} />;
 }

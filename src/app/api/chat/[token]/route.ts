@@ -131,6 +131,16 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ tok
   const ctx = await resolveGuestChat(token);
   if (!ctx) return notFound();
 
+  // Chat is open only during an active stay (until checkOutTime on departure day).
+  // Outside that → no AI, no escalation, just a polite "no active stay" reply.
+  if (!ctx.open) {
+    return jsonOk({
+      closed: true,
+      reply:
+        "Şu an bu daire için aktif bir konaklama görünmüyor; sohbet kapalı. Bir konaklamanız varsa lütfen giriş gününüzde tekrar deneyin.",
+    });
+  }
+
   const guestIdentifier = "QR Misafir";
 
   // Per-apartment DAILY cap on PAID AI calls — DURABLE (survives restarts, shared
