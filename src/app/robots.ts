@@ -9,7 +9,8 @@ export default function robots(): MetadataRoute.Robots {
       allow: "/",
       // Keep private app + API routes out of search indexes (they require auth
       // anyway, but be explicit).
-      disallow: ["/api/", "/dashboard", "/inbox", "/settings", "/admin", "/tasks", "/properties", "/reports", "/sent", "/knowledge", "/templates"],
+      // "/c" = public guest QR chat (bearer-token URLs) — never crawl/index them.
+      disallow: ["/api/", "/c/", "/dashboard", "/inbox", "/settings", "/admin", "/tasks", "/properties", "/reports", "/sent", "/knowledge", "/templates"],
     },
     sitemap: `${BASE}/sitemap.xml`,
   };
