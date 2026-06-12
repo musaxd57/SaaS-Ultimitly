@@ -1,24 +1,29 @@
 "use client";
 
-import { useState } from "react";
+import { useRef, useState } from "react";
 import { useRouter } from "next/navigation";
+import { QRCodeCanvas } from "qrcode.react";
+import { Download } from "lucide-react";
 
 /**
  * Owner/manager control to turn the public guest QR concierge on/off for one
- * apartment and copy the link to embed in the printed QR. Only rendered when
- * the global GUEST_CHAT_ENABLED switch is on (the page gates it), so it never
- * appears before the operator has opted the whole feature in.
+ * apartment, copy the link, and download a STATIC QR (encodes the link directly,
+ * generated client-side → no third party, no expiry, never leaves the browser).
+ * Only rendered when the global GUEST_CHAT_ENABLED switch is on.
  */
 export function GuestChatSettings({
   propertyId,
+  propertyName,
   enabled,
   url,
 }: {
   propertyId: string;
+  propertyName: string;
   enabled: boolean;
   url: string | null;
 }) {
   const router = useRouter();
+  const qrRef = useRef<HTMLCanvasElement>(null);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [copied, setCopied] = useState(false);
@@ -53,6 +58,17 @@ export function GuestChatSettings({
     } catch {
       /* clipboard may be unavailable — the URL is selectable in the field */
     }
+  }
+
+  function downloadQr() {
+    const canvas = qrRef.current; // the hidden 1024px canvas → crisp print resolution
+    if (!canvas) return;
+    const slug =
+      propertyName.replace(/[^\p{L}\p{N}]+/gu, "-").replace(/^-+|-+$/g, "").toLowerCase() || "daire";
+    const a = document.createElement("a");
+    a.href = canvas.toDataURL("image/png");
+    a.download = `lixus-qr-${slug}.png`;
+    a.click();
   }
 
   return (
@@ -93,6 +109,36 @@ export function GuestChatSettings({
             >
               {copied ? "Kopyalandı" : "Kopyala"}
             </button>
+          </div>
+
+          <div className="flex flex-col items-start gap-2 pt-1">
+            <QRCodeCanvas
+              value={url}
+              size={184}
+              level="M"
+              marginSize={2}
+              className="rounded-md border border-border bg-white p-2"
+            />
+            {/* Hidden hi-res copy (1024px) — used only for a crisp printable download. */}
+            <QRCodeCanvas
+              ref={qrRef}
+              value={url}
+              size={1024}
+              level="M"
+              marginSize={2}
+              className="hidden"
+            />
+            <button
+              type="button"
+              onClick={downloadQr}
+              className="inline-flex h-9 items-center gap-1.5 rounded-md bg-primary px-3 text-sm font-medium text-primary-foreground hover:bg-primary/90"
+            >
+              <Download className="size-4" /> QR'ı indir (PNG)
+            </button>
+            <p className="text-[11px] text-muted-foreground">
+              Statik &amp; süresiz — yazdırıp daireye as. (Dış QR sitelerindeki &quot;dynamic&quot;
+              seçeneği 3. taraftan geçer ve süresi dolar; bunun yerine bunu kullan.)
+            </p>
           </div>
         </div>
       ) : null}

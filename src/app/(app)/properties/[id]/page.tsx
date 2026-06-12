@@ -135,6 +135,7 @@ export default async function PropertyDetailPage({
               <CardContent>
                 <GuestChatSettings
                   propertyId={property.id}
+                  propertyName={property.name}
                   enabled={property.chatEnabled}
                   url={
                     property.chatEnabled && property.chatToken
