@@ -113,6 +113,8 @@ export function TaskBoard({ tasks }: { tasks: TaskCardData[] }) {
         return;
       }
       startTransition(() => router.refresh());
+    } catch {
+      window.alert("Bağlantı hatası. Lütfen tekrar deneyin.");
     } finally {
       setUploadingId(null);
       if (fileInputRefs.current[id]) fileInputRefs.current[id]!.value = "";

@@ -59,11 +59,11 @@ export default async function TasksPage({
     }),
   ]);
 
-  // Drives the Bugün / Bu hafta / Bu ay filter. Each task is bucketed by the UTC
-  // calendar day of its dueAt — the SAME basis formatDate uses to show the date —
-  // so a task displayed as "10 Haz" always lands in "Bugün" on the 10th, no matter
-  // what time-of-day it was stored at (Hospitable UTC-midnight, iCal local-noon,
-  // or later in the UTC day). "Today" is the host's Istanbul calendar day.
+  // Drives the Bugün / Bu hafta / Bu ay filter. Each task is bucketed by the
+  // Istanbul calendar day of its dueAt (daysUntilDate) — the SAME basis the card's
+  // date label uses (formatDayInTz) — so a task shown as "10 Haz" always lands in
+  // "Bugün" on the 10th (the host's Istanbul day), no matter what time-of-day it
+  // was stored at (Hospitable UTC-midnight, iCal local-noon, or Istanbul-midnight).
   const TZ = "Europe/Istanbul"; // Türkiye, UTC+3 year-round
   const now = new Date();
 

@@ -111,7 +111,7 @@ export default async function ReportsPage() {
                   ) : null}
                   {score.breakdown.occupancyRate !== null ? (
                     <div className="flex items-center justify-between">
-                      <span className="text-muted-foreground">Doluluk</span>
+                      <span className="text-muted-foreground">Doluluk (bugün)</span>
                       <span className="font-medium">%{score.breakdown.occupancyRate}</span>
                     </div>
                   ) : null}

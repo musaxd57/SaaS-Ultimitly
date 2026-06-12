@@ -21,12 +21,17 @@ export function TwoFactorCard({ initialEnabled }: { initialEnabled: boolean }) {
   const [done, setDone] = useState<string | null>(null);
 
   async function call(body: object) {
-    const res = await fetch("/api/account/2fa", {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify(body),
-    });
-    return { ok: res.ok, data: await res.json().catch(() => ({})) };
+    try {
+      const res = await fetch("/api/account/2fa", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(body),
+      });
+      return { ok: res.ok, data: await res.json().catch(() => ({})) };
+    } catch {
+      // Network reject — surface a generic error instead of leaving the spinner stuck.
+      return { ok: false, data: {} };
+    }
   }
 
   async function startSetup() {
