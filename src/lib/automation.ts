@@ -703,6 +703,10 @@ export async function runDueChannelAutoReplies(
     where: {
       property: { organizationId },
       externalReservationId: { not: null },
+      // Skip internal QR-concierge threads: they were already triaged by the
+      // chat's own gate and have no return channel (a real Hospitable id is a
+      // UUID and never starts with "qr-chat:").
+      NOT: { externalReservationId: { startsWith: "qr-chat:" } },
       status: "new",
       lastMessageAt: { gte: freshSince },
     },
@@ -1456,6 +1460,9 @@ export async function previewChannelAutoReplies(
     where: {
       property: { organizationId },
       externalReservationId: { not: null },
+      // Internal QR-concierge threads are never channel-auto-replied (already
+      // triaged by the chat gate; no return channel). UUIDs never start "qr-chat:".
+      NOT: { externalReservationId: { startsWith: "qr-chat:" } },
       status: "new",
     },
     orderBy: { lastMessageAt: "desc" },
