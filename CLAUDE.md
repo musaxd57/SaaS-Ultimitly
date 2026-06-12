@@ -458,6 +458,20 @@ Pro-tier feature-gate.
 audit), hepsi kodla doğrulandı. ~13 commit, 365 test yeşil. **DERS (tekrar):** konteyner flux + arka-plan agent
 stash'i uncommitted işi geçici "kayıp" gösterdi → sık commit'le kurtardım. SIK COMMIT+PUSH şart.
 
+## 🔴 PROD CRASH + fix + rezervasyon-penceresi (2026-06-12, aynı tur sonu)
+**CRASH (benim hatam, "bozma" ihlali):** `Property.chatToken @unique` ekledim → Railway boot'taki `prisma db push`
+(--accept-data-loss YOK) **dolu** Property tablosuna unique kısıt eklemeyi "data loss" sayıp HATA verdi → container
+crash-loop, prod düştü. **KRİTİK DERS:** boş local test-DB'sine `@unique` sorunsuz eklenir → local YEŞİL, ama
+**dolu prod'da `db push` patlar.** Çözüm: `chatToken`'dan `@unique` kaldırıldı (random 2×UUID → app-level benzersiz
+yeter, `findUnique`→`findFirst`). Dockerfile boot komutuna DOKUNMADIM (gerçek yıkıcı değişiklik için data-loss ağı
+korunsun). **Kural: dolu tabloya ASLA `@unique` ekleme; gerekiyorsa app-level benzersizlik + findFirst.** (Index
+ve yeni-tablo `db push`'ta güvenli; sadece unique-kısıt + required-kolon-without-default + drop patlatır.)
+**Rezervasyon-penceresi (kullanıcı isteği + güvenlik kazancı):** QR chat artık SADECE aktif konaklama boyunca açık —
+giriş gününden çıkış günü `checkOutTime`'a (İstanbul, dakika-hassas) kadar. Vakit dışı/boş daire → KAPALI (model
+çağrısı yok, "aktif konaklama yok" mesajı). Eski misafir QR'ı saklasa da çıkıştan sonra kullanamaz; sonraki misafir
+için otomatik sıfırlanır (sabit QR kalır, yeniden basma yok). `resolveGuestChat` `open` döndürür; endpoint+sayfa
+kapalı-durumu gösterir. 367 test yeşil.
+
 ## Çalışma şekli
 Kullanıcı: "Bana söyle, ben kodlarım." Fazları sırayla, additive + testli.
 Build + `npm test` yeşil olmadan push etme. GitHub'da PR sadece kullanıcı
