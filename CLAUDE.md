@@ -411,6 +411,43 @@ MEVCUT DB-read+logout-guard'a 2 satır (middleware DEĞİL), `epoch != null && m
 (yasal sayfalar çıkış-yapmışken /login'e atıyordu — gerçek launch bug); SESSION_MAX_AGE 14g; AI güven barı
 0.6→0.75. Email hepsi Resend'le gider, stale-brand sızıntısı yok, Sentry aktif. 8-agent: yeni iş hepsi SAĞLAM.
 
+## QR Misafir Concierge + Returning-Guest (2026-06-12, otonom 5-saat turu, ~8 agent)
+Kullanıcı "5 saat aralıksız, soru sorma, kodla ilgili her şeyi bitir, agentlar didik didik baksın,
+QR'ı sonra ben hallederim" dedi. İki büyük özellik kuruldu — ikisi de **KAPALI-DOĞUMLU**.
+
+**QR Misafir Concierge (KAPALI; kullanıcı kendi/Nuve için açacak):** Daireye asılan QR → public
+chat → AI bilgi tabanından **genel** soruları yanıtlar → çözemezse host inbox'ına escalate.
+- **İki kill-switch:** `GUEST_CHAT_ENABLED=1` env (global; yoksa her şey 404) **+** `Property.chatEnabled`
+  (daire-başı, default false). Kullanıcı go-live'da **env'i set edip** property sayfasından daireyi açar.
+- Parçalar: `lib/guest-chat.ts` (token→daire→KB çözücü), `api/chat/[token]` (public uç), `app/c/[token]`
+  (sayfa) + middleware `/c` public-prefix, `api/properties/[id]/chat` (owner enable toggle) + property
+  sayfası kartı (sadece `GUEST_CHAT_ENABLED=1` iken görünür). Token = `icalToken` deseni (2×UUID).
+- **GÜVENLİK (3 red-team agent + uygulandı):** (C1) sır dışlama hem **kategori** (`wifi`/`checkin`) hem
+  **içerik-tarayıcı** (kapı kodu/keybox/PIN/wifi şifre regex) — kategori-only "fail-open"du (host kodu
+  `faq`/`rules`'a koyabilir). Sırlar prompt'a HİÇ girmez → injection bile çalacak şey bulamaz. (H1) escalate'ler
+  `qr-chat:<propertyId>` sentetik thread → `sendOnChannel` bunu **internal** sayar (Hospitable'a ASLA POST etmez;
+  yoksa host yanıtı 502 + kaybolurdu). Oto-yanıt cron'u da `qr-chat:` thread'leri dışlar. (Privacy) anonim yüzeye
+  **ne misafir adı ne tarih** gider (generic + reservation:null); checkout SAATİ property'den. `/c` → `no-referrer`
+  (token referer'la sızmasın). Reddet-ve-escalate kapısı: şikayet/iade/insan/düşük-güven → "ev sahibine ilettim".
+  Maliyet: per-IP + per-daire günlük AI tavanı + 2000-char sınır.
+- **⏳ KULLANICI/ileride:** env set + daireyi aç + ilk-deneme birlikte test (canlı yüzey). QR'ın return-channel'i
+  yok (anonim misafir) — host escalate'i inbox'ta GÖRÜR ama geri yazamaz (v1 by-design). KB'ye kapı kodu koyma!
+- **⏭️ ERTELENEN güvenlik (kapalıyken zararsız):** H2 günlük maliyet tavanı in-memory (restart'ta sıfırlanır;
+  durable sayaç gerek — çok-replica/Railway churn'de gevşer); M1 XFF rightmost-hop spoofing (tek-replica'da düşük);
+  KVKK: misafir sorusu OpenAI'a gider (anonim) → mevcut OpenAI-DPA/Standart-Sözleşme işine dahil et.
+
+**Returning-guest ("N. konaklama" rozeti) — guest.id ile (KAPALI değil, additive):** Diagnostics gerçek veride
+`reservation.guest.id` VAR (email/phone Airbnb-maskeli) → güvenilir anahtar. `Reservation.guestExternalId`
+(nullable+index), sync'te null-safe yakalanır (sonraki sync'te dolar, eski/manuel satır null). `getReturningGuestInfo`
+**sadece guest.id ile** eşleşir (isim/email YOK → sıfır yanlış-pozitif), org-scoped (property.organizationId — tenant
+izole, test'li), self+cancelled hariç. Inbox konuşma sayfasında "🔁 N. konaklama" rozeti + geçmiş konaklamalar.
+**⚠️ Caveat (prod'da doğrula):** guest.id'nin kişi-başı (rezervasyon-başı değil) STABİL olduğu varsayılır; değilse
+rozet sessizce hiç çıkmaz (fail-safe, asla yanlış). 1 gerçek tekrar-misafirle teyit et.
+
+**Bu tur: ~8 agent** (5 QR strateji/teknik/güvenlik/regresyon + 3 returning-guest/broad-audit), hepsi kodla
+doğrulandı. ~10 commit, 364 test yeşil. **DERS (tekrar):** konteyner flux + arka-plan agent stash'i uncommitted
+işi geçici "kayıp" gösterdi → returning-guest'i sık commit'le kurtardım. SIK COMMIT+PUSH şart.
+
 ## Çalışma şekli
 Kullanıcı: "Bana söyle, ben kodlarım." Fazları sırayla, additive + testli.
 Build + `npm test` yeşil olmadan push etme. GitHub'da PR sadece kullanıcı
