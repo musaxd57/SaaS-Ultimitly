@@ -444,9 +444,19 @@ izole, test'li), self+cancelled hariç. Inbox konuşma sayfasında "🔁 N. kona
 **⚠️ Caveat (prod'da doğrula):** guest.id'nin kişi-başı (rezervasyon-başı değil) STABİL olduğu varsayılır; değilse
 rozet sessizce hiç çıkmaz (fail-safe, asla yanlış). 1 gerçek tekrar-misafirle teyit et.
 
-**Bu tur: ~8 agent** (5 QR strateji/teknik/güvenlik/regresyon + 3 returning-guest/broad-audit), hepsi kodla
-doğrulandı. ~10 commit, 364 test yeşil. **DERS (tekrar):** konteyner flux + arka-plan agent stash'i uncommitted
-işi geçici "kayıp" gösterdi → returning-guest'i sık commit'le kurtardım. SIK COMMIT+PUSH şart.
+**3 derin audit (oto-yanıt çekirdeği + auth/session + broad-app, hepsi kodla doğrulandı) → HEPSİ SAĞLAM:**
+CRITICAL/HIGH YOK, ~57 route'ta IDOR yok, RBAC/auth-bypass/çapraz-kiracı sızıntı yok, saat-dilimi bug sınıfı
+temizlenmiş, landing↔plans fiyat eşleşiyor. **Uygulanan LOW'lar:** 2FA-card + task-foto fetch try/catch (network
+guard), rapor "Doluluk (bugün)" etiketi, ölü cleanup-duplicates-button silindi, 2 stale yorum. **H2 (durable
+maliyet tavanı) yapıldı:** `ChatUsage(propertyId,day,count)` tablosu — QR günlük AI tavanı artık restart/replica
+güvenli (in-memory değil).
+**⏳ ERTELENEN (auth hot-path = KULLANICI ONAYI, otonom uygulanmadı):** sessionEpoch (çalınan token şifre-reset/
+rol-değişiminde 14g'e kadar yaşar), impersonation'dayken account/2fa mutasyon bloğu (L3 — escalation değil).
+M1 XFF/distributed rate-limit (replica'da gerek). #3 sync "waiting"-preserve (bilinçli). #5 billing açılınca
+Pro-tier feature-gate.
+**Bu tur: ~16 agent** (5 QR strateji/güvenlik + 3 returning-guest/feasibility + 5 QR-review/regresyon + 3 derin
+audit), hepsi kodla doğrulandı. ~13 commit, 365 test yeşil. **DERS (tekrar):** konteyner flux + arka-plan agent
+stash'i uncommitted işi geçici "kayıp" gösterdi → sık commit'le kurtardım. SIK COMMIT+PUSH şart.
 
 ## Çalışma şekli
 Kullanıcı: "Bana söyle, ben kodlarım." Fazları sırayla, additive + testli.
