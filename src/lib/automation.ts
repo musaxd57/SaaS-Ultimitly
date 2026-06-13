@@ -184,6 +184,30 @@ export async function createReservationTasks(reservationId: string): Promise<num
 }
 
 /**
+ * When a reservation is cancelled, drop its still-pending AUTO-generated tasks
+ * (check-in prep / cleaning) so the cleaning list never shows work for a guest who
+ * isn't coming. Only auto types are touched — a host's manual task on the booking
+ * is preserved — and only incomplete ones (a task already marked "done" stays as
+ * history). Best-effort + idempotent: safe to call on every sync. Returns the
+ * number of tasks removed.
+ */
+export async function removeAutoTasksForCancelledReservation(reservationId: string): Promise<number> {
+  const r = await prisma.reservation.findUnique({
+    where: { id: reservationId },
+    select: { status: true },
+  });
+  if (!r || r.status !== "cancelled") return 0;
+  const { count } = await prisma.task.deleteMany({
+    where: {
+      reservationId,
+      status: { not: "done" },
+      type: { in: ["checkin_prep", "cleaning"] },
+    },
+  });
+  return count;
+}
+
+/**
  * Backfill tasks for every existing reservation in an organization.
  * Used when reservations were imported (e.g. via iCal) before task automation
  * existed. Idempotent: createReservationTasks skips reservations that already

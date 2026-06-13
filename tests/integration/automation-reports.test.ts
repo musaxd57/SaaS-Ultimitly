@@ -3,6 +3,8 @@ import {
   applyReservationCreatedRules,
   applyInboundMessageRules,
   backfillReservationTasks,
+  createReservationTasks,
+  removeAutoTasksForCancelledReservation,
   zonedDayRange,
 } from "@/lib/automation";
 import { getOpsStats, getMonthlyReport } from "@/lib/reports";
@@ -56,6 +58,46 @@ describe("applyReservationCreatedRules", () => {
     await applyReservationCreatedRules(reservation.id);
 
     expect(await prisma.task.count()).toBe(0);
+  });
+});
+
+describe("removeAutoTasksForCancelledReservation", () => {
+  it("removes pending auto tasks but keeps manual and completed ones", async () => {
+    const { propertyId } = await makeOrgWithProperty();
+    const reservation = await prisma.reservation.create({
+      data: {
+        propertyId,
+        guestName: "Soon Cancelled",
+        arrivalDate: daysFromNow(2),
+        departureDate: daysFromNow(5),
+        status: "confirmed",
+      },
+    });
+    // Auto check-in + cleaning tasks (both pending).
+    await createReservationTasks(reservation.id);
+    // A manual task on the same booking (host-created) and an already-done auto
+    // task — both must survive the cancellation cleanup.
+    await prisma.task.create({
+      data: { propertyId, reservationId: reservation.id, type: "maintenance", title: "Musluk tamiri", dueAt: daysFromNow(3) },
+    });
+    await prisma.task.create({
+      data: { propertyId, reservationId: reservation.id, type: "cleaning", title: "Erken temizlik", dueAt: daysFromNow(1), status: "done" },
+    });
+    expect(await prisma.task.count({ where: { reservationId: reservation.id } })).toBe(4);
+
+    // Confirmed booking → no-op.
+    expect(await removeAutoTasksForCancelledReservation(reservation.id)).toBe(0);
+    expect(await prisma.task.count({ where: { reservationId: reservation.id } })).toBe(4);
+
+    // Cancel, then clean up: only the 2 pending auto tasks go.
+    await prisma.reservation.update({ where: { id: reservation.id }, data: { status: "cancelled" } });
+    const removed = await removeAutoTasksForCancelledReservation(reservation.id);
+    expect(removed).toBe(2);
+
+    const left = await prisma.task.findMany({ where: { reservationId: reservation.id }, orderBy: { type: "asc" } });
+    expect(left).toHaveLength(2);
+    expect(left.map((t) => t.type).sort()).toEqual(["cleaning", "maintenance"]); // the done cleaning + the manual one
+    expect(left.find((t) => t.type === "cleaning")?.status).toBe("done");
   });
 });
 

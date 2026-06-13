@@ -12,7 +12,7 @@ import {
 } from "@/lib/hospitable";
 import { getOrgHospitableToken } from "@/lib/hospitable-credentials";
 import { reportError } from "@/lib/report-error";
-import { createReservationTasks } from "@/lib/automation";
+import { createReservationTasks, removeAutoTasksForCancelledReservation } from "@/lib/automation";
 
 // ---------------------------------------------------------------------------
 // Hospitable → Inbox synchronisation
@@ -173,6 +173,10 @@ export async function syncHospitable(
           // sync is safe. Best-effort — a task failure must never break the sync.
           // This makes Hospitable bookings drop tasks automatically, like iCal does.
           await createReservationTasks(localReservationId).catch(() => {});
+          // If the booking flipped to cancelled, remove its still-pending auto
+          // tasks so the cleaning/check-in list isn't left with work for a guest
+          // who isn't coming. No-op for active bookings. Best-effort.
+          await removeAutoTasksForCancelledReservation(localReservationId).catch(() => {});
         }
       } catch (err) {
         console.error(`[Hospitable sync] reservation upsert failed for ${reservation.id}`, err);
