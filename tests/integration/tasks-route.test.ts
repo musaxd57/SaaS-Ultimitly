@@ -9,7 +9,7 @@ vi.mock("@/lib/api", async (orig) => {
   return { ...actual, requireSession: vi.fn(async () => session) };
 });
 
-import { PATCH } from "@/app/api/tasks/[id]/route";
+import { PATCH, DELETE } from "@/app/api/tasks/[id]/route";
 
 let orgId = "";
 let taskId = "";
@@ -69,5 +69,22 @@ describe("PATCH /api/tasks/[id] — staff field restriction", () => {
     expect(res.status).toBe(200);
     const t = await prisma.task.findUnique({ where: { id: taskId }, select: { title: true } });
     expect(t?.title).toBe("Yeni başlık");
+  });
+
+  it("does NOT let an owner of another org edit this task (tenant isolation) — 404, unchanged", async () => {
+    const other = await prisma.organization.create({ data: { name: "Other Org" } });
+    session = { userId: "x", organizationId: other.id, role: "owner", email: "o2@x.com", name: "Owner2" };
+    const res = await PATCH(patchReq({ title: "sızıntı" }), ctx());
+    expect(res.status).toBe(404);
+    const t = await prisma.task.findUnique({ where: { id: taskId }, select: { title: true } });
+    expect(t?.title).toBe("Temizlik"); // unchanged
+  });
+
+  it("does NOT let an owner of another org delete this task (tenant isolation) — 404, still present", async () => {
+    const other = await prisma.organization.create({ data: { name: "Other Org" } });
+    session = { userId: "x", organizationId: other.id, role: "owner", email: "o2@x.com", name: "Owner2" };
+    const res = await DELETE(patchReq({}), ctx());
+    expect(res.status).toBe(404);
+    expect(await prisma.task.findUnique({ where: { id: taskId } })).not.toBeNull();
   });
 });

@@ -305,6 +305,26 @@ describe("getOpsStats", () => {
     expect(stats.occupancyRate).toBe(100);
   });
 
+  it("excludes a cancelled reservation from arrivals and occupancy", async () => {
+    const { orgId, propertyId } = await makeOrgWithProperty();
+    // A booking that would arrive + occupy today, but it's cancelled → must not
+    // count anywhere (the guarantee behind the dashboard going quiet on a cancel).
+    await prisma.reservation.create({
+      data: {
+        propertyId,
+        guestName: "Cancelled Today",
+        arrivalDate: new Date(),
+        departureDate: daysFromNow(3),
+        status: "cancelled",
+      },
+    });
+
+    const stats = await getOpsStats(orgId);
+    expect(stats.arrivalsToday).toBe(0);
+    expect(stats.occupiedToday).toBe(0);
+    expect(stats.occupancyRate).toBe(0);
+  });
+
   it("counts a turnover day once — occupancy never exceeds 100%", async () => {
     const { orgId, propertyId } = await makeOrgWithProperty();
     // Same flat: one guest checks OUT today, another checks IN today.

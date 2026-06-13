@@ -250,7 +250,11 @@ export function ConversationThread({ conversationId, messages, status, priority,
         setShowSimulate(false);
         setSuggestion(null);
         refresh();
+      } else {
+        window.alert("Mesaj eklenemedi. Lütfen tekrar deneyin.");
       }
+    } catch {
+      window.alert("Bağlantı hatası. Lütfen tekrar deneyin.");
     } finally {
       setSimulating(false);
     }
