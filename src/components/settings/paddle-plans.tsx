@@ -68,6 +68,7 @@ export function PaddlePlans({
   currentPlanCode,
   currentPlanName,
   grandfathered,
+  trialDaysLeft = null,
   plans,
 }: {
   clientToken: string;
@@ -77,6 +78,7 @@ export function PaddlePlans({
   currentPlanCode: string;
   currentPlanName: string;
   grandfathered: boolean;
+  trialDaysLeft?: number | null;
   plans: PlanOption[];
 }) {
   const router = useRouter();
@@ -134,6 +136,17 @@ export function PaddlePlans({
         <strong className="text-foreground">
           {grandfathered ? "Mevcut müşteri (sınırsız)" : currentPlanName}
         </strong>
+        {trialDaysLeft != null ? (
+          <>
+            {" "}
+            —{" "}
+            <strong className="text-foreground">
+              {trialDaysLeft > 0
+                ? `ücretsiz deneme, ${trialDaysLeft} gün kaldı`
+                : "ücretsiz deneme bugün doluyor"}
+            </strong>
+          </>
+        ) : null}
         .
       </p>
 

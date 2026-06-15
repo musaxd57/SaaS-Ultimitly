@@ -140,6 +140,7 @@ export default async function SettingsPage() {
               currentPlanCode={entitlement.planCode}
               currentPlanName={entitlement.planName}
               grandfathered={entitlement.grandfathered}
+              trialDaysLeft={entitlement.trialDaysLeft}
               plans={DEFAULT_PLANS.map((p) => ({
                 code: p.code,
                 name: p.name,

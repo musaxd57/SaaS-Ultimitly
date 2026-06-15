@@ -528,6 +528,34 @@ durdu; Hospitable planı yenilenince döner (bug değil). Onboarding rehberi zat
 **⏭️ Ertelendi (B'den, düşük öncelik):** org-başı AI maliyet tavanı (oto-yanıt zaten Hospitable-gated
 = ödeyen kullanıcı; test çağrıları rate-limit'li). Demo video = `NEXT_PUBLIC_DEMO_VIDEO` env'e URL koy.
 
+## Reverse-trial + duraklatma motoru EKLENDİ (2026-06-15, DORMANT) ✅
+Kullanıcı "ekle hepsini sen seç" dedi → reverse-trial çekirdeği kuruldu. **`BILLING_ENFORCED`
+hâlâ master kill-switch (KAPALI) → bugün kimse bloklanmaz.** Parçalar:
+- **Signup'ta trial:** `register` artık org+user ile birlikte atomik **`trialing` Subscription**
+  oluşturuyor (planCode "pro", provider "trial", `trialEndsAt = now + TRIAL_DAYS` [vars. 14]).
+  `Subscription.trialEndsAt DateTime?` eklendi (nullable → db-push güvenli).
+- **Süre dolumu CANLI türetilir (cron YOK — bilinçli):** `getEntitlement` trial'i live hesaplar
+  (`trialing`, `trialEndsAt`, `trialDaysLeft`, `trialExpired`). **Süre dolmuş trial erişimi SADECE
+  `BILLING_ENFORCED=true` iken kaybeder.** Persist-eden sweep/cron KOYMADIM: paused'ı diske yazsam
+  enforcement sonradan kapatılınca org'lar stuck-paused kalırdı → BILLING_ENFORCED gerçek tek anahtar
+  kalsın diye türetme tercih edildi. (Stranding riski yok; toggle-off her şeyi geri açar.)
+- **Enforcement kapısı:** `(app)/layout.tsx` — `billingEnforced() && !active && !operatör` → app yerine
+  `BillingLockedScreen` (Paddle planları yerinde + "Çıkış"). Operatör (impersonation/superadmin) bypass.
+- **UX:** trialing iken her sayfada slim `TrialBanner` ("Pro deneme: N gün kaldı · Planları görün");
+  Ayarlar abonelik kartı + locked-screen `trialDaysLeft` gösterir. Paddle webhook ödeme gelince
+  trialing→active upsert ediyor (zaten vardı).
+- **QR tutarlılığı:** süre dolmuş trial + enforced → QR da durur (resolveGuestChat getEntitlement.active'e
+  bakıyor); dormant'ta QR çalışmaya devam. canceled/past_due paid sub → her zaman QR durur (önceki davranış).
+- **Test:** `tests/integration/trial.test.ts` (8) + guest-chat-subscription'a 2 trial testi. 407 test yeşil.
+- **⚠️ login-route.test time-bomb FIX:** EMAIL_VERIFY_REQUIRED_FROM (2026-06-15T18:00Z) gerçek-zamanı
+  geçti → "şimdi" oluşturulan doğrulanmamış kullanıcılar login'de 403. Login testleri verify'ı test
+  etmiyordu → fixture'lara `emailVerifiedAt` eklendi (prod doğru: post-cutoff doğrulama zorunlu).
+- **⏳ KULLANICI/launch:** (1) `BILLING_ENFORCED=true` ancak prod org'lar active/grandfathered teyit
+  edilince + erken-üyelere (dormant'ta açılan, trial'ı çoktan geçmiş) karar verince açılır — flip anında
+  süresi geçmiş trial'lar paused olur. (2) "Deneme bitiyor/bitti" **e-postası KOYULMADI** (e-posta akışı =
+  kullanıcı onayı + birlikte ilk-test kuralı) → istenirse ayrı dilim. (3) `canAddProperty` property-create'e
+  hâlâ bağlı değil (limit enforcement; enforced açılınca bağlanır).
+
 ## Çalışma şekli
 Kullanıcı: "Bana söyle, ben kodlarım." Fazları sırayla, additive + testli.
 Build + `npm test` yeşil olmadan push etme. GitHub'da PR sadece kullanıcı

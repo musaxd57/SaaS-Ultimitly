@@ -6,6 +6,7 @@ import { badRequest, jsonOk, serverError } from "@/lib/api";
 import { rateLimit, clientIp } from "@/lib/rate-limit";
 import { emailService } from "@/lib/email";
 import { makeVerifyToken, VERIFY_TTL_MS, verifyEmailHtml, verifyUrlFromHost } from "@/lib/auth/email-verify";
+import { newTrialSubscriptionData } from "@/lib/billing/subscription";
 
 export async function POST(req: NextRequest) {
   try {
@@ -50,6 +51,11 @@ export async function POST(req: NextRequest) {
           emailVerifyTokenHash: hash,
           emailVerifyExpiresAt: new Date(Date.now() + VERIFY_TTL_MS),
         },
+      });
+      // Start the reverse-trial: full Pro free for 14 days (no card). Harmless
+      // while billing is dormant — counts as active until BILLING_ENFORCED is on.
+      await tx.subscription.create({
+        data: { organizationId: org.id, ...newTrialSubscriptionData() },
       });
       return { org, user };
     });

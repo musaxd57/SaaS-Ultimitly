@@ -22,9 +22,36 @@ export type Entitlement = {
   status: string;
   active: boolean; // may the org use paid features right now?
   grandfathered: boolean; // existing org, no subscription row
+  trialing: boolean; // currently inside the free reverse-trial
+  trialEndsAt: Date | null;
+  trialDaysLeft: number | null; // whole days left (0 once past), null when not trialing
+  trialExpired: boolean; // a trial whose end date has passed (effect gated by enforcement)
 };
 
 const ACTIVE_STATUSES = new Set(["active", "trialing", "grandfathered"]);
+
+// Reverse trial: every new signup gets full Pro free for this many days (no
+// card). If they don't upgrade, access pauses — ONLY once billing is enforced.
+export const TRIAL_DAYS = Number(process.env.TRIAL_DAYS) || 14;
+
+/** End date for a trial starting now (or at `from`). */
+export function trialEndDate(from: Date = new Date()): Date {
+  return new Date(from.getTime() + TRIAL_DAYS * 24 * 60 * 60 * 1000);
+}
+
+/**
+ * Subscription row data for a brand-new signup: a Pro reverse-trial. Stored even
+ * while billing is dormant — entitlement treats `trialing` exactly like
+ * grandfathered until BILLING_ENFORCED is on, so it changes nothing today.
+ */
+export function newTrialSubscriptionData() {
+  return {
+    planCode: "pro",
+    status: "trialing",
+    provider: "trial",
+    trialEndsAt: trialEndDate(),
+  };
+}
 
 /** True only when billing is explicitly enforced. Default OFF → nothing blocked. */
 export function billingEnforced(): boolean {
@@ -42,16 +69,39 @@ export async function getEntitlement(organizationId: string): Promise<Entitlemen
       status: "grandfathered",
       active: true,
       grandfathered: true,
+      trialing: false,
+      trialEndsAt: null,
+      trialDaysLeft: null,
+      trialExpired: false,
     };
   }
   const plan = planByCode(sub.planCode);
+  const now = Date.now();
+  const trialing = sub.status === "trialing";
+  const trialEndsAt = sub.trialEndsAt ?? null;
+  const trialExpired = trialing && trialEndsAt != null && trialEndsAt.getTime() <= now;
+  const trialDaysLeft =
+    trialing && trialEndsAt != null
+      ? Math.max(0, Math.ceil((trialEndsAt.getTime() - now) / 86_400_000))
+      : null;
+
+  let active = ACTIVE_STATUSES.has(sub.status);
+  // An expired reverse-trial only loses access once billing is actually
+  // enforced. Until then every org stays unblocked (dormant by design), so
+  // flipping BILLING_ENFORCED off always restores access — the true kill-switch.
+  if (trialExpired && billingEnforced()) active = false;
+
   return {
     planCode: sub.planCode,
     planName: plan?.name ?? sub.planCode,
     propertyLimit: plan ? plan.propertyLimit : null,
     status: sub.status,
-    active: ACTIVE_STATUSES.has(sub.status),
+    active,
     grandfathered: sub.status === "grandfathered",
+    trialing,
+    trialEndsAt,
+    trialDaysLeft,
+    trialExpired,
   };
 }
 

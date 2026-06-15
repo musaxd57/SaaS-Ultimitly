@@ -35,6 +35,7 @@ describe("POST /api/auth/login", () => {
         email: "musa@example.com",
         passwordHash: await hashPassword("correct-horse"),
         role: "owner",
+        emailVerifiedAt: new Date(), // not testing the verify gate here
       },
     });
   });
@@ -90,6 +91,7 @@ describe("POST /api/auth/login — 2FA + TOTP replay", () => {
         role: "owner",
         twoFactorSecret: encryptSecret(secret),
         twoFactorEnabledAt: new Date(),
+        emailVerifiedAt: new Date(), // not testing the verify gate here
       },
     });
   });

@@ -422,8 +422,9 @@ model Subscription {
   organizationId    String    @unique
   planCode          String    @default("free")
   status            String    @default("active") // active | trialing | past_due | canceled | grandfathered
-  provider          String    @default("iyzico") // iyzico | paytr | manual
+  provider          String    @default("iyzico") // iyzico | paytr | paddle | trial | manual
   providerRef       String? // provider's subscription reference
+  trialEndsAt       DateTime? // reverse-trial: when the free 14-day Pro trial ends
   currentPeriodEnd  DateTime?
   cancelAtPeriodEnd Boolean   @default(false)
   createdAt         DateTime  @default(now())
