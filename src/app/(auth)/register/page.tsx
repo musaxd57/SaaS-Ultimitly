@@ -4,6 +4,11 @@ import { RegisterForm } from "@/components/auth/register-form";
 
 export const metadata: Metadata = { title: "Kayıt — Lixus AI" };
 
+// Read REGISTRATION_OPEN at RUNTIME, not build time. Without this the page is
+// statically prerendered and the env value is frozen at build — so flipping
+// REGISTRATION_OPEN=1 later never takes effect (the page keeps redirecting).
+export const dynamic = "force-dynamic";
+
 export default function RegisterPage() {
   // Public sign-up is closed (see the register API) — send visitors to login.
   if (process.env.REGISTRATION_OPEN !== "1") redirect("/login");
