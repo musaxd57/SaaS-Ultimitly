@@ -9,8 +9,10 @@ import {
   notFound,
   serverError,
   tooManyRequests,
+  paymentRequired,
 } from "@/lib/api";
 import { rateLimit } from "@/lib/rate-limit";
+import { premiumAllowed } from "@/lib/billing/subscription";
 import { zodFieldErrors } from "@/lib/validators";
 import { translateText } from "@/lib/ai/translate";
 
@@ -25,6 +27,9 @@ export async function POST(req: NextRequest, { params }: Params) {
   const session = await requireSession();
   if (!session) return unauthorized();
   const { id } = await params;
+
+  // Paid AI feature: blocked once the trial lapses (dormant-safe until enforced).
+  if (!(await premiumAllowed(session.organizationId))) return paymentRequired();
 
   // Translation calls OpenAI ($). Throttle per user to cap spend on abuse.
   const limited = rateLimit(`translate:${session.userId}`, 30, 60_000);

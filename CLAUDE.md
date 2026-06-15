@@ -556,6 +556,32 @@ hâlâ master kill-switch (KAPALI) → bugün kimse bloklanmaz.** Parçalar:
   kullanıcı onayı + birlikte ilk-test kuralı) → istenirse ayrı dilim. (3) `canAddProperty` property-create'e
   hâlâ bağlı değil (limit enforcement; enforced açılınca bağlanır).
 
+## Freemium: tam kilit YERİNE "ücretsiz sürüme düşür" (2026-06-15) ✅ — BILLING_ENFORCED=true CANLI
+Kullanıcı `BILLING_ENFORCED=true`'yu Railway'e koydu (enforcement artık AÇIK). Karar: 14 gün
+deneme bitince **tam kilit YOK** → org "ücretsiz sürüme" düşer (panelleri gezer/okur, manuel
+çalışır) ama **otomatik mesajlaşma (asıl ücretli özellik) kapanır.** 10-agent denetimi (4 paralel,
+kodla doğrulandı) ile tasarlandı, son kararı ben verdim.
+**KEEP (ücretsiz tier):** tüm panelleri gez/oku, Hospitable sync (kendi token'ı, maliyet 0), manuel
+cevap, raporlar/KVKK export. **BLOCK:** AI oto-yanıt + oto karşılama/giriş/çıkış + AI öner/test +
+çeviri + QR concierge (zaten) + yeni daire (zaten).
+**Mimari (tek kapı = `premiumAllowed(orgId)` = `!billingEnforced() || getEntitlement.active`):**
+- **Otomatik gönderim kapatma:** `scheduled-sync.ts` per-org döngüsünde `premiumAllowed` ile 4 gönderici
+  (auto-reply/welcome/checkin/checkout) atlanıyor; `syncHospitable` + `sendDueAlerts` (host-only) çalışmaya
+  devam → inbox dolar, misafire otomatik gitmez. (Agent: `sendOnChannel` tek choke-point; manuel sync
+  route gönderici çağırmıyor; in-process timer cron route'una gidiyor → tek nokta yeter.)
+- **Suistimal deliği kapatıldı (agent buldu):** AI öner/test/çeviri + 4 preview route'u human-tetikli
+  OpenAI harcamasıydı, entitlement gate'i YOKTU → 7 route'a `premiumAllowed → paymentRequired (402)` eklendi.
+- **Tam kilit kaldırıldı:** `(app)/layout.tsx` artık `BillingLockedScreen` göstermiyor (dosya silindi).
+  Yerine slim `LimitedModeBanner` ("deneme doldu — otomatik yanıtlar kapalı · Planları görün").
+- **UI:** `AutoReplyToggle` + `AutoReplyTestButton`'a `locked` prop → inbox + 3 ayar toggle'ı kilitliyken
+  "yükseltin" gösterip inert (yanıltıcı "Açık" olmaz). Yükseltme yolu: banner → Ayarlar "Aboneliğiniz" kartı.
+- **DORMANT-SAFE:** `premiumAllowed` BILLING_ENFORCED kapalıyken HEP true → env'i geri kapatırsan her şey
+  açılır (tek master switch). **Founder (grandfathered+superadmin) HİÇ etkilenmez** (active=true).
+- **Test:** premiumAllowed (5) + premium-route 402 gate (3). 425 test yeşil, build temiz.
+- **⏳ Kalan/dikkat:** AI test kartı + MessagePreviewButton (ayarlar) limited iken 402 mesajını gösteriyor
+  (inert değil ama bozuk değil — toggle'lar zaten kilitli). İstenirse onlara da `locked` prop eklenir.
+  `BILLING_ENFORCED` canlı → sandbox Paddle ise ödeme testi yap; prod price/secret teyit et.
+
 ## Çalışma şekli
 Kullanıcı: "Bana söyle, ben kodlarım." Fazları sırayla, additive + testli.
 Build + `npm test` yeşil olmadan push etme. GitHub'da PR sadece kullanıcı

@@ -30,6 +30,13 @@ export function forbidden(message = "Bu işlem için yetkiniz yok") {
   return NextResponse.json({ error: message }, { status: 403 });
 }
 
+/** 402: a paid/AI feature is used while the subscription is not active. */
+export function paymentRequired(
+  message = "Aboneliğiniz aktif değil. AI ve otomatik yanıt özellikleri için Ayarlar'dan bir plan seçin.",
+) {
+  return NextResponse.json({ error: message }, { status: 402 });
+}
+
 /**
  * Owner/manager may perform config & destructive actions (create/edit/delete
  * properties, templates, knowledge base, bulk settings, create/delete tasks).

@@ -9,7 +9,7 @@ vi.mock("@/lib/db", () => ({
 }));
 
 import { prisma } from "@/lib/db";
-import { getEntitlement, canAddProperty, billingEnforced } from "@/lib/billing/subscription";
+import { getEntitlement, canAddProperty, billingEnforced, premiumAllowed } from "@/lib/billing/subscription";
 
 const findUnique = vi.mocked(prisma.subscription.findUnique);
 const count = vi.mocked(prisma.property.count);
@@ -60,5 +60,45 @@ describe("billing entitlements (safe-by-default)", () => {
     const res = await canAddProperty("org1");
     expect(res.allowed).toBe(true);
     expect(count).not.toHaveBeenCalled();
+  });
+});
+
+describe("premiumAllowed — paid/AI feature gate (free-tier downgrade)", () => {
+  beforeEach(() => vi.clearAllMocks());
+  afterEach(() => vi.unstubAllEnvs());
+
+  it("DORMANT: always allowed while BILLING_ENFORCED is off — even a canceled sub", async () => {
+    vi.stubEnv("BILLING_ENFORCED", "");
+    findUnique.mockResolvedValue({ organizationId: "o", planCode: "pro", status: "canceled" } as never);
+    expect(await premiumAllowed("o")).toBe(true);
+  });
+
+  it("ENFORCED + active sub → allowed (automation stays on)", async () => {
+    vi.stubEnv("BILLING_ENFORCED", "true");
+    findUnique.mockResolvedValue({ organizationId: "o", planCode: "pro", status: "active" } as never);
+    expect(await premiumAllowed("o")).toBe(true);
+  });
+
+  it("ENFORCED + grandfathered (no sub) → allowed (founder unaffected)", async () => {
+    vi.stubEnv("BILLING_ENFORCED", "true");
+    findUnique.mockResolvedValue(null);
+    expect(await premiumAllowed("o")).toBe(true);
+  });
+
+  it("ENFORCED + canceled → BLOCKED (free tier: automation off)", async () => {
+    vi.stubEnv("BILLING_ENFORCED", "true");
+    findUnique.mockResolvedValue({ organizationId: "o", planCode: "pro", status: "canceled" } as never);
+    expect(await premiumAllowed("o")).toBe(false);
+  });
+
+  it("ENFORCED + expired trial → BLOCKED", async () => {
+    vi.stubEnv("BILLING_ENFORCED", "true");
+    findUnique.mockResolvedValue({
+      organizationId: "o",
+      planCode: "pro",
+      status: "trialing",
+      trialEndsAt: new Date(Date.now() - 86_400_000),
+    } as never);
+    expect(await premiumAllowed("o")).toBe(false);
   });
 });

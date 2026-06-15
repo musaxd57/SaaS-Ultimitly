@@ -4,8 +4,8 @@ import { prisma } from "@/lib/db";
 import { isSuperAdmin } from "@/lib/admin";
 import { AppShell } from "@/components/shell/app-shell";
 import { getEntitlement, billingEnforced } from "@/lib/billing/subscription";
-import { BillingLockedScreen } from "@/components/billing/billing-locked-screen";
 import { TrialBanner } from "@/components/billing/trial-banner";
+import { LimitedModeBanner } from "@/components/billing/limited-mode-banner";
 
 export default async function AppLayout({ children }: { children: React.ReactNode }) {
   const session = await requireAuth();
@@ -23,21 +23,14 @@ export default async function AppLayout({ children }: { children: React.ReactNod
     redirect("/api/auth/logout");
   }
 
-  // Billing gate (Faz 2). DORMANT unless BILLING_ENFORCED=true. When enforced, an
-  // org whose reverse-trial ended / subscription lapsed sees the paywall instead
-  // of the app. Operators (impersonating or super-admin) always pass through so
-  // support is never blocked.
+  // Billing (Faz 2). DORMANT unless BILLING_ENFORCED=true. We do NOT hard-lock
+  // the app: a lapsed org (trial ended / canceled) keeps full browsing + manual
+  // work — only AUTOMATIC guest messaging is suppressed (enforced in the sync
+  // pass + the AI routes). Here we just surface a nudge banner. Operators
+  // (impersonating / super-admin) and grandfathered/active orgs stay active.
   const entitlement = await getEntitlement(session.organizationId);
   const isOperator = Boolean(session.actorUserId) || isSuperAdmin(session);
-  if (billingEnforced() && !entitlement.active && !isOperator) {
-    return (
-      <BillingLockedScreen
-        entitlement={entitlement}
-        email={session.email}
-        organizationId={session.organizationId}
-      />
-    );
-  }
+  const limited = billingEnforced() && !entitlement.active && !isOperator;
 
   return (
     <AppShell
@@ -54,7 +47,9 @@ export default async function AppLayout({ children }: { children: React.ReactNod
           : null
       }
     >
-      {entitlement.trialing && entitlement.trialDaysLeft != null ? (
+      {limited ? (
+        <LimitedModeBanner />
+      ) : entitlement.trialing && entitlement.trialDaysLeft != null ? (
         <TrialBanner daysLeft={entitlement.trialDaysLeft} />
       ) : null}
       {children}

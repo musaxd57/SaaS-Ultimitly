@@ -105,6 +105,18 @@ export async function getEntitlement(organizationId: string): Promise<Entitlemen
   };
 }
 
+/**
+ * May this org use PAID features right now (AI auto-reply, automated messages,
+ * AI suggest/test, translate, QR)? Free/expired tier keeps browsing + manual
+ * work but loses the OpenAI-spending automation. DORMANT-SAFE: always true while
+ * BILLING_ENFORCED is off, so nothing is gated until the paywall is switched on.
+ * Grandfathered/active/trialing orgs (incl. the founder) are always allowed.
+ */
+export async function premiumAllowed(organizationId: string): Promise<boolean> {
+  if (!billingEnforced()) return true;
+  return (await getEntitlement(organizationId)).active;
+}
+
 export type AddPropertyCheck = {
   allowed: boolean;
   reason?: "subscription_inactive" | "property_limit";

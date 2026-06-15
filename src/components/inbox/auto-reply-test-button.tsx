@@ -18,7 +18,7 @@ interface Preview {
  * sending anything. Lets the user judge quality before enabling the live night
  * auto-reply.
  */
-export function AutoReplyTestButton() {
+export function AutoReplyTestButton({ locked = false }: { locked?: boolean }) {
   const [busy, setBusy] = useState(false);
   const [open, setOpen] = useState(false);
   const [previews, setPreviews] = useState<Preview[] | null>(null);
@@ -53,8 +53,12 @@ export function AutoReplyTestButton() {
       <button
         type="button"
         onClick={runTest}
-        disabled={busy}
-        title="Oto-yanıtın şu an ne göndereceğini göster — hiçbir şey gönderilmez (test)."
+        disabled={busy || locked}
+        title={
+          locked
+            ? "Aboneliğiniz aktif değil — açmak için Ayarlar'dan bir plan seçin."
+            : "Oto-yanıtın şu an ne göndereceğini göster — hiçbir şey gönderilmez (test)."
+        }
         className="inline-flex items-center gap-2 rounded-full border border-border bg-card px-3 py-1.5 text-sm font-medium text-muted-foreground transition-colors hover:bg-accent disabled:opacity-50"
       >
         {busy ? <Loader2 className="size-4 animate-spin" /> : <FlaskConical className="size-4" />}

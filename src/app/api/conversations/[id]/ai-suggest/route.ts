@@ -11,8 +11,10 @@ import {
   notFound,
   serverError,
   tooManyRequests,
+  paymentRequired,
 } from "@/lib/api";
 import { rateLimit } from "@/lib/rate-limit";
+import { premiumAllowed } from "@/lib/billing/subscription";
 
 type Params = { params: Promise<{ id: string }> };
 
@@ -20,6 +22,9 @@ export async function POST(req: NextRequest, { params }: Params) {
   const session = await requireSession();
   if (!session) return unauthorized();
   const { id } = await params;
+
+  // Paid AI feature: blocked once the trial lapses (dormant-safe until enforced).
+  if (!(await premiumAllowed(session.organizationId))) return paymentRequired();
 
   // Each suggestion calls OpenAI ($). Throttle per user to cap spend on abuse.
   const limited = rateLimit(`ai-suggest:${session.userId}`, 20, 60_000);

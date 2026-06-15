@@ -3,6 +3,7 @@ import "server-only";
 import { prisma } from "@/lib/db";
 import { syncHospitable } from "@/lib/hospitable-sync";
 import { reportError } from "@/lib/report-error";
+import { premiumAllowed } from "@/lib/billing/subscription";
 import {
   runDueChannelAutoReplies,
   sendDueWelcomes,
@@ -146,10 +147,15 @@ export async function runScheduledSync(): Promise<ScheduledSyncTotals> {
           // Flag complaints (→ "problem") BEFORE the auto-reply pass so they are
           // routed to a human and never auto-answered.
           const alert = await sendDueAlerts(org.id);
-          const auto = await runDueChannelAutoReplies(org.id);
-          const welcome = await sendDueWelcomes(org.id);
-          const checkin = await sendDueCheckins(org.id);
-          const checkout = await sendDueCheckouts(org.id);
+          // Free/expired tier (billing enforced + subscription not active): keep
+          // syncing messages and host complaint-alerts, but SUPPRESS all
+          // automatic guest messaging — the paid feature. Dormant-safe: while
+          // BILLING_ENFORCED is off, premiumAllowed is always true.
+          const canAutomate = await premiumAllowed(org.id);
+          const auto = canAutomate ? await runDueChannelAutoReplies(org.id) : { sent: 0 };
+          const welcome = canAutomate ? await sendDueWelcomes(org.id) : { sent: 0 };
+          const checkin = canAutomate ? await sendDueCheckins(org.id) : { sent: 0 };
+          const checkout = canAutomate ? await sendDueCheckouts(org.id) : { sent: 0 };
           totals.conversations += result.conversations;
           totals.messages += result.messages;
           totals.autoReplies += auto.sent;

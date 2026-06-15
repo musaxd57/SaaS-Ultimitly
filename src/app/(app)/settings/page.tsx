@@ -16,7 +16,7 @@ import { TwoFactorCard } from "@/components/settings/two-factor-card";
 import { HospitableConnectCard } from "@/components/settings/hospitable-connect-card";
 import { PaddlePlans } from "@/components/settings/paddle-plans";
 import { getConnectionInfo } from "@/lib/hospitable-credentials";
-import { getEntitlement } from "@/lib/billing/subscription";
+import { getEntitlement, premiumAllowed } from "@/lib/billing/subscription";
 import { DEFAULT_PLANS } from "@/lib/billing/plans";
 import { isSuperAdmin } from "@/lib/admin";
 
@@ -35,6 +35,8 @@ export default async function SettingsPage() {
     where: { id: session.userId },
     select: { twoFactorEnabledAt: true },
   });
+  // Free/expired tier: automation toggles render inert (server suppresses sends).
+  const automationLocked = !(await premiumAllowed(session.organizationId));
   const [org, sampleProperty, properties] = await Promise.all([
     prisma.organization.findUnique({
       where: { id: session.organizationId },
@@ -289,6 +291,7 @@ export default async function SettingsPage() {
               field="autoWelcome"
               label="Otomatik karşılama"
               enabled={org?.autoWelcome ?? false}
+              locked={automationLocked}
               title="Açıkken: yaklaşan rezervasyon onaylarında, o dairenin karşılama mesajı misafire bir kez otomatik gider. Güvenlik ana şalteri (AUTO_REPLY_ENABLED) da açık olmalı."
             />
             <MessagePreviewButton
@@ -320,6 +323,7 @@ export default async function SettingsPage() {
               field="autoCheckin"
               label="Otomatik giriş bilgileri"
               enabled={org?.autoCheckin ?? false}
+              locked={automationLocked}
               title="Açıkken: girişe 4 gün kala, o dairenin 'Giriş Talimatı' bilgi tabanı girişi misafire bir kez otomatik gider. Ana şalter (AUTO_REPLY_ENABLED) da açık olmalı."
             />
             <MessagePreviewButton
@@ -349,6 +353,7 @@ export default async function SettingsPage() {
               field="autoCheckout"
               label="Otomatik çıkış mesajı"
               enabled={org?.autoCheckout ?? false}
+              locked={automationLocked}
               title="Açıkken: çıkıştan bir gün önce akşam 18:00'da, o dairenin çıkış mesajı misafire bir kez otomatik gider. Tek gecelik konaklamalara gönderilmez. Ana şalter (AUTO_REPLY_ENABLED) da açık olmalı."
             />
             <MessagePreviewButton

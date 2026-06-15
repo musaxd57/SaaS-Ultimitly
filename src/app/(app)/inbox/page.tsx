@@ -12,6 +12,7 @@ import { HospitableSyncButton } from "@/components/inbox/hospitable-sync-button"
 import { AutoRefresh } from "@/components/inbox/auto-refresh";
 import { CONVERSATION_STATUS } from "@/lib/constants";
 import { getConnectionInfo } from "@/lib/hospitable-credentials";
+import { premiumAllowed } from "@/lib/billing/subscription";
 import { fromNow, truncate, cn } from "@/lib/utils";
 
 export const dynamic = "force-dynamic";
@@ -50,6 +51,10 @@ export default async function InboxPage({
     getConnectionInfo(session.organizationId),
   ]);
 
+  // Free/expired tier: automation is suppressed server-side — render the
+  // controls inert so they don't misleadingly read "Açık".
+  const automationLocked = !(await premiumAllowed(session.organizationId));
+
   const filters = [{ value: "", label: "Tümü" }, ...CONVERSATION_STATUS.options];
 
   const pad = (h: number) => String(h).padStart(2, "0");
@@ -60,11 +65,12 @@ export default async function InboxPage({
       <AutoRefresh seconds={30} />
       <PageHeader title="Mesajlar" description="Tüm misafir konuşmalarını tek kutudan yönetin.">
         <HospitableSyncButton />
-        <AutoReplyTestButton />
+        <AutoReplyTestButton locked={automationLocked} />
         <AutoReplyToggle
           field="autoReplyHospitable"
           label={`Oto-yanıt (${activeWindow})`}
           enabled={org?.autoReplyHospitable ?? false}
+          locked={automationLocked}
           title={`Açıkken: ${activeWindow} arası, AI'ın %75+ emin olduğu BASİT sorulara (çöp günü, Wi-Fi, çevre önerisi gibi) otomatik cevap verir. Şikayet, iade, riskli ve belirsiz mesajlar HER ZAMAN size kalır. "Mesajları çek" sırasında çalışır.`}
         />
         <LinkButton href="/inbox/new">

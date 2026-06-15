@@ -1,5 +1,6 @@
 import { NextResponse } from "next/server";
-import { requireSession, unauthorized } from "@/lib/api";
+import { requireSession, unauthorized, paymentRequired } from "@/lib/api";
+import { premiumAllowed } from "@/lib/billing/subscription";
 import { previewChannelAutoReplies } from "@/lib/automation";
 
 // ---------------------------------------------------------------------------
@@ -14,6 +15,7 @@ import { previewChannelAutoReplies } from "@/lib/automation";
 export async function POST() {
   const session = await requireSession();
   if (!session) return unauthorized();
+  if (!(await premiumAllowed(session.organizationId))) return paymentRequired();
 
   try {
     const outcomes = await previewChannelAutoReplies(session.organizationId);
