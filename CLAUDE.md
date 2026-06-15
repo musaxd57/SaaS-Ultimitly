@@ -511,6 +511,23 @@ prod client token + prod webhook destination (**www URL**) + prod secret → Rai
 `NEXT_PUBLIC_PADDLE_ENV=production`, yeni `PADDLE_*`). Paywall hâlâ KAPALI (BILLING_ENFORCED yok; reverse-trial
 motoru Faz 2, henüz YOK → ödeme şimdilik opsiyonel "yükselt").
 
+## Self-serve kayıt AÇILDI + e-posta doğrulama (2026-06-15) ✅
+**Karar (kullanıcı):** Landing "Başla/Üye ol" → `/register`; public self-serve kayıt açıldı.
+**Güvenlik (10 agent + kod):** Yeni org KURUCUNUN Hospitable verisine ERİŞEMEZ — env-token
+fallback SADECE primary org'a (PRIMARY_ORG_ID=Nuve `cmpwcnpdz0000oz1yw4wof2o1`, ya da en eski).
+Sync yeni org'u atlar (token=null). 58 route org-scoped, IDOR yok, impersonation gated, QR izole,
+billing webhook güvenli. Tek teorik bulgu (çeviri cache) sızıntı değil. **Founder güvende.**
+**E-posta doğrulama (yeni, anti-bot):** `lib/auth/email-verify.ts` (256-bit token URL'de + sha256
+hash saklanır, 24s, tek-kullanım). register AUTO-LOGIN YOK → doğrulama maili. `/api/auth/verify-email`
++ `/resend-verification`. login gate **SADECE** `createdAt >= EMAIL_VERIFY_REQUIRED_FROM
+(2026-06-15T18:00Z)` + doğrulanmamış hesapları 403'ler → **ESKİ tüm hesaplar (founder dahil) muaf,
+kilitlenmez** (6 test + güvenlik ajanı SOUND). User +3 nullable alan (db-push güvenli).
+**Railway env (app servisi):** `REGISTRATION_OPEN=1` + `PRIMARY_ORG_ID=cmpwcnpdz0000oz1yw4wof2o1`.
+**⚠️ NOT:** Nuve'nin Hospitable aboneliği BİTMİŞ (HTTP 402 "Subscription not active") → mesaj sync'i
+durdu; Hospitable planı yenilenince döner (bug değil). Onboarding rehberi zaten var (4 adım, ilk=Hospitable).
+**⏭️ Ertelendi (B'den, düşük öncelik):** org-başı AI maliyet tavanı (oto-yanıt zaten Hospitable-gated
+= ödeyen kullanıcı; test çağrıları rate-limit'li). Demo video = `NEXT_PUBLIC_DEMO_VIDEO` env'e URL koy.
+
 ## Çalışma şekli
 Kullanıcı: "Bana söyle, ben kodlarım." Fazları sırayla, additive + testli.
 Build + `npm test` yeşil olmadan push etme. GitHub'da PR sadece kullanıcı
