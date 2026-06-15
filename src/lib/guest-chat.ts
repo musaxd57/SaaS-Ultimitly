@@ -1,5 +1,6 @@
 import { prisma } from "@/lib/db";
 import { daysUntilDate } from "@/lib/utils";
+import { getEntitlement } from "@/lib/billing/subscription";
 
 // ---------------------------------------------------------------------------
 // Guest QR concierge — token resolution (FOUNDATION, no public surface yet).
@@ -123,6 +124,14 @@ export async function resolveGuestChat(
     },
   });
   if (!property || !property.chatEnabled) return null;
+
+  // Tie the QR concierge to an ACTIVE membership: if the org's subscription has
+  // lapsed/canceled (entitlement not active), the QR stops working (resolves to
+  // 404, exactly like a disabled chat). Grandfathered (no subscription — existing
+  // customers / founder) and active/trialing orgs are unaffected. So a customer
+  // whose Paddle subscription is canceled automatically loses the QR feature.
+  const entitlement = await getEntitlement(property.organizationId);
+  if (!entitlement.active) return null;
 
   const propertyPublic = {
     id: property.id,
