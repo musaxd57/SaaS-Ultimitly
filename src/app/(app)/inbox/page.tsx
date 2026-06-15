@@ -11,6 +11,7 @@ import { AutoReplyTestButton } from "@/components/inbox/auto-reply-test-button";
 import { HospitableSyncButton } from "@/components/inbox/hospitable-sync-button";
 import { AutoRefresh } from "@/components/inbox/auto-refresh";
 import { CONVERSATION_STATUS } from "@/lib/constants";
+import { getConnectionInfo } from "@/lib/hospitable-credentials";
 import { fromNow, truncate, cn } from "@/lib/utils";
 
 export const dynamic = "force-dynamic";
@@ -24,7 +25,7 @@ export default async function InboxPage({
   const { status, q } = await searchParams;
   const query = q?.trim() ?? "";
 
-  const [conversations, org] = await Promise.all([
+  const [conversations, org, connection] = await Promise.all([
     prisma.conversation.findMany({
       where: {
         property: { organizationId: session.organizationId },
@@ -46,6 +47,7 @@ export default async function InboxPage({
         autoReplyEndHour: true,
       },
     }),
+    getConnectionInfo(session.organizationId),
   ]);
 
   const filters = [{ value: "", label: "Tümü" }, ...CONVERSATION_STATUS.options];
@@ -63,7 +65,7 @@ export default async function InboxPage({
           field="autoReplyHospitable"
           label={`Oto-yanıt (${activeWindow})`}
           enabled={org?.autoReplyHospitable ?? false}
-          title={`Açıkken: ${activeWindow} arası, güvenli ve emin olunan Airbnb/Booking mesajlarına AI otomatik cevap gönderir. Şikayet/riskli mesajlar her zaman size kalır. "Mesajları çek" sırasında çalışır.`}
+          title={`Açıkken: ${activeWindow} arası, AI'ın %75+ emin olduğu BASİT sorulara (çöp günü, Wi-Fi, çevre önerisi gibi) otomatik cevap verir. Şikayet, iade, riskli ve belirsiz mesajlar HER ZAMAN size kalır. "Mesajları çek" sırasında çalışır.`}
         />
         <LinkButton href="/inbox/new">
           <Plus className="size-4" /> Yeni konuşma
@@ -114,8 +116,12 @@ export default async function InboxPage({
       {conversations.length === 0 ? (
         <EmptyState
           icon={MessageSquare}
-          title="Konuşma yok"
-          description="Yeni bir konuşma başlatın veya misafir mesajı ekleyin."
+          title={connection.connected ? "Konuşma yok" : "Henüz misafir mesajı yok"}
+          description={
+            connection.connected
+              ? "Misafir mesajları geldikçe burada listelenir. Dilerseniz elle de konuşma başlatabilirsiniz."
+              : "Airbnb / Booking bağlantısını kurunca misafir mesajları otomatik buraya akar. Dilerseniz şimdi elle konuşma başlatabilirsiniz."
+          }
         >
           <LinkButton href="/inbox/new" size="sm">
             <Plus className="size-4" /> Yeni konuşma

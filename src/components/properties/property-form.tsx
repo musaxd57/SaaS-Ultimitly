@@ -124,6 +124,7 @@ export function PropertyForm({
           label="Temizlik tamponu (dk)"
           htmlFor="buffer"
           error={fields.cleaningBufferMinutes}
+          hint="Bir misafirin çıkışıyla sonraki misafirin girişi arasında temizliğe ayırdığınız süre."
         >
           <Input
             id="buffer"

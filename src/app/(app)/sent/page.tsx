@@ -6,6 +6,7 @@ import { PageHeader } from "@/components/page-header";
 import { Card, CardContent } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { EmptyState } from "@/components/empty-state";
+import { getConnectionInfo } from "@/lib/hospitable-credentials";
 import { fromNow, truncate, cn } from "@/lib/utils";
 
 export const dynamic = "force-dynamic";
@@ -30,7 +31,7 @@ export default async function SentPage({
   const orgId = session.organizationId;
   const { type } = await searchParams;
 
-  const [replies, welcomes, checkins, checkouts] = await Promise.all([
+  const [replies, welcomes, checkins, checkouts, connection] = await Promise.all([
     // AI auto-replies that were actually sent (stored as outbound AI msgs).
     prisma.message.findMany({
       where: {
@@ -82,6 +83,7 @@ export default async function SentPage({
       orderBy: { checkoutSentAt: "desc" },
       take: 100,
     }),
+    getConnectionInfo(orgId),
   ]);
 
   const items: SentItem[] = [
@@ -165,7 +167,11 @@ export default async function SentPage({
         <EmptyState
           icon={Send}
           title="Henüz otomatik mesaj gönderilmedi"
-          description="Oto-yanıt veya otomatik karşılama açıldığında, gönderilen her mesaj burada listelenir."
+          description={
+            connection.connected
+              ? "Oto-yanıt veya otomatik karşılama açıldığında, gönderilen her mesaj burada listelenir."
+              : "Airbnb / Booking bağlantısını kurup oto-yanıt veya otomatik karşılamayı açtığınızda, gönderilen her mesaj burada listelenir."
+          }
         />
       ) : visibleItems.length === 0 ? (
         <EmptyState

@@ -14,6 +14,7 @@ import {
   getHostPerformanceScore,
   getOccupancyByProperty,
 } from "@/lib/reports";
+import { getConnectionInfo } from "@/lib/hospitable-credentials";
 import { PageHeader } from "@/components/page-header";
 import { StatCard } from "@/components/stat-card";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
@@ -43,18 +44,22 @@ const INTENT_LABEL: Record<string, string> = {
 export default async function ReportsPage() {
   const { organizationId } = await requireAuth();
 
-  const [ai, topics, score, occupancy] = await Promise.all([
+  const [ai, topics, score, occupancy, connection] = await Promise.all([
     getAiOpsReport(organizationId),
     getTopTopics(organizationId, 6),
     getHostPerformanceScore(organizationId),
     getOccupancyByProperty(organizationId),
+    getConnectionInfo(organizationId),
   ]);
 
   const maxTopic = Math.max(1, ...topics.map((t) => t.count));
   // A felt "value delivered" line: how many messages the AI handled and a rough
-  // time-saved estimate (~4 dk per message a host would otherwise type).
+  // time-saved estimate (~4 dk per message a host would otherwise type). Show
+  // minutes until it crosses an hour so small numbers don't round down to
+  // "~0 saat" (which reads like nothing happened).
   const autoMessages = ai.aiReplies + ai.welcomes + ai.checkins + ai.checkouts;
-  const savedHours = Math.round((autoMessages * 4) / 60);
+  const savedMinutes = autoMessages * 4;
+  const savedHours = Math.round(savedMinutes / 60);
 
   return (
     <>
@@ -62,6 +67,13 @@ export default async function ReportsPage() {
         title="Raporlar"
         description="AI performansı, şikayet yoğunluğu ve operasyon metrikleri. Her kart kendi dönemini belirtir (AI etkinliği son 30 gün, doluluk bu ay)."
       />
+
+      {!connection.connected ? (
+        <p className="rounded-lg border border-border bg-muted/40 px-3 py-2 text-sm text-muted-foreground">
+          Airbnb / Booking bağlantısı kurulunca bu raporlar misafir mesajları ve rezervasyonlarla
+          otomatik dolar.
+        </p>
+      ) : null}
 
       {/* AI & automation activity */}
       <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
@@ -74,10 +86,10 @@ export default async function ReportsPage() {
         <p className="text-sm text-muted-foreground">
           Son 30 günde Lixus AI <strong className="text-foreground">{autoMessages}</strong> mesajı sizin yerinize
           yanıtladı
-          {savedHours >= 1 ? (
+          {savedMinutes >= 60 ? (
             <> — tahminen <strong className="text-foreground">~{savedHours} saat</strong> kazandırdı.</>
           ) : (
-            "."
+            <> — tahminen <strong className="text-foreground">~{savedMinutes} dakika</strong> kazandırdı.</>
           )}
         </p>
       ) : null}

@@ -38,7 +38,7 @@ export default async function KnowledgePage() {
     <>
       <PageHeader
         title="Bilgi Tabanı"
-        description="AI'nin doğru cevap vermesi için mülke özel bilgiler. Wi-Fi, giriş, kurallar..."
+        description="Buraya girdiğiniz mülke özel bilgiler, AI'ın misafir sorularına verdiği yanıtları ve otomatik karşılama/giriş/çıkış mesajlarını besler. Wi-Fi, giriş yöntemi, ev kuralları, çevre önerileri…"
       />
 
       {properties.length === 0 ? (

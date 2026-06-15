@@ -7,19 +7,23 @@ import { LinkButton } from "@/components/ui/link-button";
 import { Card } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { EmptyState } from "@/components/empty-state";
+import { getConnectionInfo } from "@/lib/hospitable-credentials";
 
 export const dynamic = "force-dynamic";
 
 export default async function PropertiesPage() {
   const session = await requireAuth();
   const canManage = session.role === "owner" || session.role === "manager";
-  const properties = await prisma.property.findMany({
-    where: { organizationId: session.organizationId },
-    orderBy: { createdAt: "desc" },
-    include: {
-      _count: { select: { reservations: true, tasks: true, knowledgeBase: true } },
-    },
-  });
+  const [properties, connection] = await Promise.all([
+    prisma.property.findMany({
+      where: { organizationId: session.organizationId },
+      orderBy: { createdAt: "desc" },
+      include: {
+        _count: { select: { reservations: true, tasks: true, knowledgeBase: true } },
+      },
+    }),
+    getConnectionInfo(session.organizationId),
+  ]);
 
   return (
     <>
@@ -35,7 +39,11 @@ export default async function PropertiesPage() {
         <EmptyState
           icon={Building2}
           title="Henüz mülk eklenmemiş"
-          description="İlk mülkünüzü ekleyerek rezervasyon ve görev yönetimine başlayın."
+          description={
+            connection.connected
+              ? "Airbnb / Booking bağlı — daireleriniz ilk eşitlemede otomatik eklenir. Dilerseniz elle de ekleyebilirsiniz."
+              : "Airbnb / Booking bağlantısını kurunca daireleriniz otomatik eklenir. Dilerseniz şimdi elle de ekleyebilirsiniz."
+          }
         >
           {canManage ? (
             <LinkButton href="/properties/new" size="sm">

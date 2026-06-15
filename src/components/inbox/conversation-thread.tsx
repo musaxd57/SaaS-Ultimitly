@@ -457,7 +457,7 @@ export function ConversationThread({ conversationId, messages, status, priority,
               className="ml-auto flex items-center gap-1 text-xs text-muted-foreground hover:text-foreground"
             >
               <MessageSquarePlus className="size-3.5" />
-              Misafir mesajı simüle et
+              Misafir mesajı dene (test)
             </button>
           ) : null}
         </div>
@@ -465,7 +465,8 @@ export function ConversationThread({ conversationId, messages, status, priority,
         {showSimulate ? (
           <div className="space-y-2 rounded-lg border border-dashed border-border p-3">
             <p className="text-xs text-muted-foreground">
-              Test amaçlı: gelen bir misafir mesajı ekleyin (AI sınıflandırması/eskalasyon çalışır).
+              Sadece test: sanki bir misafir bu mesajı atmış gibi ekler; AI&apos;ın nasıl
+              sınıflandırıp yanıtladığını görürsünüz. Misafire hiçbir şey gönderilmez.
             </p>
             <Textarea
               value={simulateText}
