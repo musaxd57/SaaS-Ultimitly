@@ -3,6 +3,7 @@ import { prisma } from "@/lib/db";
 import { propertySchema, zodFieldErrors } from "@/lib/validators";
 import { requireSession, unauthorized, badRequest, jsonOk, serverError, canManage, forbidden } from "@/lib/api";
 import { generateCalendarToken } from "@/lib/export/ics";
+import { canAddProperty } from "@/lib/billing/subscription";
 
 export async function GET() {
   const session = await requireSession();
@@ -34,6 +35,18 @@ export async function POST(req: NextRequest) {
       select: { id: true },
     });
     if (dupe) return badRequest({ name: "Bu isimde bir mülk zaten var" });
+
+    // Plan limit (Faz 2). NON-BLOCKING while billing is dormant: canAddProperty
+    // returns { allowed: true } unless BILLING_ENFORCED=true, so this changes
+    // nothing today and only gates once the paywall is switched on.
+    const gate = await canAddProperty(session.organizationId);
+    if (!gate.allowed) {
+      const message =
+        gate.reason === "property_limit"
+          ? `Planınız en fazla ${gate.limit} daireye izin veriyor. Daha fazla daire için planınızı yükseltin.`
+          : "Aboneliğiniz aktif değil. Daire eklemek için bir plan seçin.";
+      return forbidden(message);
+    }
 
     const property = await prisma.property.create({
       data: {
