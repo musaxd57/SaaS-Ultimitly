@@ -44,6 +44,23 @@ function loadPaddle(): Promise<PaddleGlobal | null> {
   });
 }
 
+/**
+ * A plan card is the locked "current" one ONLY when the org has a real, ACTIVE
+ * paid subscription of that exact plan. During a trial (no plan owned yet) or
+ * after a lapse (canceled / past_due → the user must be able to re-subscribe) NO
+ * card is locked, so paying is always reachable. Grandfathered orgs carry
+ * currentPlanCode "grandfathered" which matches no plan → never locked either.
+ * Extracted + exported so the state matrix is unit-tested without rendering.
+ */
+export function isLockedCurrentPlan(o: {
+  active: boolean;
+  trialing: boolean;
+  planCode: string;
+  currentPlanCode: string;
+}): boolean {
+  return o.active && !o.trialing && o.planCode === o.currentPlanCode;
+}
+
 export interface PlanOption {
   code: string;
   name: string;
@@ -68,6 +85,7 @@ export function PaddlePlans({
   currentPlanCode,
   currentPlanName,
   grandfathered,
+  active = true,
   trialDaysLeft = null,
   plans,
 }: {
@@ -78,6 +96,9 @@ export function PaddlePlans({
   currentPlanCode: string;
   currentPlanName: string;
   grandfathered: boolean;
+  /** Whether the org currently has access. When false (lapsed/locked), NO plan
+   *  is "owned" so every card stays payable — the user can re-subscribe. */
+  active?: boolean;
   trialDaysLeft?: number | null;
   plans: PlanOption[];
 }) {
@@ -111,10 +132,12 @@ export function PaddlePlans({
     };
   }, [clientToken, environment, router]);
 
-  // During the free trial no plan counts as "owned" yet — every card stays
-  // selectable so the user can actually subscribe (incl. continuing on Pro).
-  // Only a real PAID subscription marks its plan as the locked "current" one.
+  // A plan only counts as the locked "current" one when the org has a real,
+  // ACTIVE paid subscription of it. During a trial (no plan owned yet) OR when
+  // access has lapsed (canceled/past_due — the user needs to re-subscribe),
+  // every card stays selectable. Prevents locking someone out of paying.
   const trialing = trialDaysLeft != null;
+  const lapsed = !active && !trialing && !grandfathered;
 
   const openCheckout = useCallback(
     (priceId: string) => {
@@ -148,8 +171,14 @@ export function PaddlePlans({
             <strong className="text-foreground">
               {trialDaysLeft > 0
                 ? `ücretsiz deneme, ${trialDaysLeft} gün kaldı`
-                : "ücretsiz deneme bugün doluyor"}
+                : "ücretsiz deneme süreniz doldu"}
             </strong>
+          </>
+        ) : null}
+        {lapsed ? (
+          <>
+            {" "}
+            — <strong className="text-destructive">aboneliğiniz aktif değil</strong>
           </>
         ) : null}
         .
@@ -157,7 +186,12 @@ export function PaddlePlans({
 
       <div className="grid gap-3 sm:grid-cols-3">
         {plans.map((p) => {
-          const isCurrent = !trialing && p.code === currentPlanCode;
+          const isCurrent = isLockedCurrentPlan({
+            active,
+            trialing,
+            planCode: p.code,
+            currentPlanCode,
+          });
           const price = (p.priceMinor / 100).toLocaleString("tr-TR");
           const limit = p.propertyLimit == null ? "Sınırsız daire" : `${p.propertyLimit} daireye kadar`;
           return (

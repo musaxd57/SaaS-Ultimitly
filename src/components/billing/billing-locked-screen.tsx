@@ -59,6 +59,7 @@ export function BillingLockedScreen({
               currentPlanCode={entitlement.planCode}
               currentPlanName={entitlement.planName}
               grandfathered={entitlement.grandfathered}
+              active={entitlement.active}
               trialDaysLeft={entitlement.trialDaysLeft}
               plans={DEFAULT_PLANS.map((p) => ({
                 code: p.code,

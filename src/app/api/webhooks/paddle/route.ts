@@ -94,6 +94,10 @@ async function applySubscriptionEvent(data: Record<string, unknown>): Promise<vo
       provider: "paddle",
       ...(providerRef ? { providerRef } : {}),
       ...(currentPeriodEnd ? { currentPeriodEnd } : {}),
+      // Once a real paid subscription activates, our local reverse-trial marker
+      // is moot — clear it so trialEndsAt can never make a paying org look
+      // "expired" if future code reads it without checking status.
+      ...(status === "active" ? { trialEndsAt: null } : {}),
       cancelAtPeriodEnd,
     },
   });

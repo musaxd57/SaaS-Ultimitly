@@ -81,6 +81,38 @@ describe("POST /api/webhooks/paddle", () => {
     expect(evt?.status).toBe("processed");
   });
 
+  it("trial → paid: activation flips the existing trialing row to active and CLEARS trialEndsAt", async () => {
+    // brand-new signup state: a trialing reverse-trial row already exists
+    await prisma.subscription.create({
+      data: {
+        organizationId: orgId,
+        planCode: "pro",
+        status: "trialing",
+        provider: "trial",
+        trialEndsAt: new Date("2026-06-29T00:00:00.000Z"),
+      },
+    });
+    const body = JSON.stringify({
+      event_id: "evt_activate",
+      event_type: "subscription.activated",
+      data: {
+        id: "sub_paid",
+        status: "active",
+        custom_data: { organizationId: orgId },
+        items: [{ price: { id: "pri_pro" } }],
+      },
+    });
+    const res = await POST(req(body, sign(body)));
+    expect(res.status).toBe(200);
+
+    // still ONE row (upsert updated, not inserted), now active + trial marker gone
+    expect(await prisma.subscription.count({ where: { organizationId: orgId } })).toBe(1);
+    const sub = await prisma.subscription.findUnique({ where: { organizationId: orgId } });
+    expect(sub?.status).toBe("active");
+    expect(sub?.provider).toBe("paddle");
+    expect(sub?.trialEndsAt).toBeNull();
+  });
+
   it("dedupes a duplicate event_id (idempotent)", async () => {
     const body = JSON.stringify({
       event_id: "evt_dup",

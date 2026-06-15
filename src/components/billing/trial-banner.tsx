@@ -8,7 +8,7 @@ import Link from "next/link";
 export function TrialBanner({ daysLeft }: { daysLeft: number }) {
   const label =
     daysLeft <= 0
-      ? "Ücretsiz deneme süreniz bugün doluyor."
+      ? "Ücretsiz deneme süreniz doldu — devam için bir plan seçin."
       : `Pro ücretsiz deneme: ${daysLeft} gün kaldı.`;
   return (
     <div className="flex flex-wrap items-center justify-center gap-x-2 gap-y-1 rounded-lg border border-amber-300 bg-amber-50 px-3 py-2 text-center text-sm text-amber-900">
