@@ -486,8 +486,14 @@ HMAC-SHA256 `ts:rawBody` + replay guard, `paddlePriceToPlanCode`, `paddleStatusT
 [event_id] → custom_data.organizationId çözülürse Subscription/Invoice upsert; org yoksa sadece kaydeder,
 asla çökmez/yanlış org'a yazmaz). Iyzico kodu dormant DURUYOR (Türk-entity fallback). 14 yeni test (imza
 valid/tamper/stale/rotation, dormant/401/activated/dedup/transaction/no-link). **Paywall hâlâ KAPALI** (`BILLING_ENFORCED`).
-**⏳ Kullanıcı:** Paddle KYB onayı (ablanın belgeleriyle) → 3 planı (price id) oluştur → Railway env'e
-`PADDLE_*` gir → BİRLİKTE test → checkout UI + paywall (Faz 2, henüz YOK; client token + price id + onay gerekir).
+**Checkout UI eklendi (2026-06-15):** `components/settings/paddle-plans.tsx` (Paddle.js CDN'den yüklenir,
+dependency-free; overlay checkout, `customData.organizationId` damgalar → webhook org'a bağlar). Ayarlar'a
+"Aboneliğiniz" kartı (owner/manager + Paddle env'li → yoksa görünmez/dormant). Env: `NEXT_PUBLIC_PADDLE_CLIENT_TOKEN`
++ `NEXT_PUBLIC_PADDLE_ENV` + `PADDLE_PRICE_*`. **CSP şu an Report-Only** → Paddle.js bloklanmıyor; CSP enforce
+edilirse `cdn.paddle.com`/`*.paddle.com`/`sandbox-buy.paddle.com` script-src/frame-src/connect-src'e eklenmeli.
+Sandbox price id'leri Railway'de; kullanıcı sandbox kurulumunu (client token, API key, webhook secret) yaptı.
+**⏳ Kalan:** sandbox'ta sahte kartla BİRLİKTE ilk test ödemesi → Paddle KYB onayı → production price'ları +
+prod env → paywall (BILLING_ENFORCED, reverse-trial motoru hâlâ YOK, Faz 2).
 
 ## Çalışma şekli
 Kullanıcı: "Bana söyle, ben kodlarım." Fazları sırayla, additive + testli.

@@ -14,7 +14,10 @@ import { AutomationPrefsForm } from "@/components/settings/automation-prefs-form
 import { AccountCard } from "@/components/settings/account-card";
 import { TwoFactorCard } from "@/components/settings/two-factor-card";
 import { HospitableConnectCard } from "@/components/settings/hospitable-connect-card";
+import { PaddlePlans } from "@/components/settings/paddle-plans";
 import { getConnectionInfo } from "@/lib/hospitable-credentials";
+import { getEntitlement } from "@/lib/billing/subscription";
+import { DEFAULT_PLANS } from "@/lib/billing/plans";
 import { isSuperAdmin } from "@/lib/admin";
 
 export const dynamic = "force-dynamic";
@@ -63,6 +66,23 @@ export default async function SettingsPage() {
 
   const masterOn = process.env.AUTO_REPLY_ENABLED === "1";
 
+  // Paddle plan/upgrade card — only for owner/manager, and only when Paddle is
+  // configured (client token + at least one price id). Dormant otherwise, so the
+  // card never appears until billing is wired up. Price ids are public.
+  const canManageBilling = session.role === "owner" || session.role === "manager";
+  const paddleClientToken = process.env.NEXT_PUBLIC_PADDLE_CLIENT_TOKEN?.trim() || "";
+  const paddleEnv = process.env.NEXT_PUBLIC_PADDLE_ENV?.trim() === "production" ? "production" : "sandbox";
+  const paddlePriceByCode: Record<string, string> = {
+    free: process.env.PADDLE_PRICE_BASLANGIC?.trim() || "",
+    pro: process.env.PADDLE_PRICE_PRO?.trim() || "",
+    business: process.env.PADDLE_PRICE_ISLETME?.trim() || "",
+  };
+  const paddleReady =
+    canManageBilling &&
+    Boolean(paddleClientToken) &&
+    Object.values(paddlePriceByCode).some((id) => id.length > 0);
+  const entitlement = paddleReady ? await getEntitlement(session.organizationId) : null;
+
   return (
     <>
       <PageHeader
@@ -105,6 +125,33 @@ export default async function SettingsPage() {
           <AccountCard email={session.email} />
         </CardContent>
       </Card>
+
+      {paddleReady && entitlement ? (
+        <Card className="max-w-2xl">
+          <CardHeader>
+            <CardTitle className="text-base">Aboneliğiniz</CardTitle>
+          </CardHeader>
+          <CardContent>
+            <PaddlePlans
+              clientToken={paddleClientToken}
+              environment={paddleEnv}
+              email={session.email}
+              organizationId={session.organizationId}
+              currentPlanCode={entitlement.planCode}
+              currentPlanName={entitlement.planName}
+              grandfathered={entitlement.grandfathered}
+              plans={DEFAULT_PLANS.map((p) => ({
+                code: p.code,
+                name: p.name,
+                priceMinor: p.priceMinor,
+                currency: p.currency,
+                propertyLimit: p.propertyLimit,
+                priceId: paddlePriceByCode[p.code] ?? "",
+              }))}
+            />
+          </CardContent>
+        </Card>
+      ) : null}
 
       <Card className="max-w-2xl">
         <CardHeader>
