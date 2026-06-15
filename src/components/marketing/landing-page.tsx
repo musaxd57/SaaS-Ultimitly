@@ -64,8 +64,8 @@ const FEATURES = [
   },
   {
     icon: Wrench,
-    title: "Sizin yerinize kurulum",
-    body: "İsterseniz bağlantıyı, bilgi tabanını ve ayarları sizin için biz hazırlarız. Siz sadece sade panelinizi kullanırsınız.",
+    title: "Dakikalar içinde kurulum",
+    body: "Kaydolun, Airbnb/Booking bağlantınızı ekleyin, dairelerinizin bilgilerini girin — teknik bilgi gerekmez. Sade panelinizi hemen kullanmaya başlarsınız.",
   },
   {
     icon: LayoutDashboard,
@@ -185,7 +185,7 @@ export function LandingPage() {
         </h1>
         <p className="mx-auto mt-5 max-w-2xl text-lg text-muted-foreground">
           Airbnb ve Booking misafir mesajlarınızı Lixus AI yanıtlasın — Türkçe öncelikli, hatasız ve güvenli.
-          Siz uyurken bile. Kurulumu biz yaparız.
+          Siz uyurken bile. Kurulum birkaç dakika, teknik bilgi gerekmez.
         </p>
         <div className="mt-8 flex flex-col items-center justify-center gap-3 sm:flex-row">
           <Link href="/register" className={cn(buttonVariants({ size: "lg" }), "w-full sm:w-auto")}>
@@ -195,7 +195,7 @@ export function LandingPage() {
             Nasıl çalışır?
           </a>
         </div>
-        <p className="mt-4 text-sm text-muted-foreground">Kredi kartı gerekmez · Kurulum desteği dahil · İstediğiniz zaman iptal</p>
+        <p className="mt-4 text-sm text-muted-foreground">Kredi kartı gerekmez · Dakikalar içinde kurulum · İstediğiniz zaman iptal</p>
       </section>
 
       {/* Demo video */}

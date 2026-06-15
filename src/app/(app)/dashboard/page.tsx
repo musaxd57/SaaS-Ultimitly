@@ -278,8 +278,12 @@ export default async function DashboardPage() {
             {conversations.length === 0 ? (
               <EmptyState
                 icon={CheckCircle2}
-                title="Bekleyen mesaj yok"
-                description="Tüm konuşmalar güncel."
+                title={connection.connected ? "Bekleyen mesaj yok" : "Henüz mesaj yok"}
+                description={
+                  connection.connected
+                    ? "Tüm konuşmalar güncel."
+                    : "Airbnb / Booking bağlantısını kurunca misafir mesajları burada görünür."
+                }
                 className="py-6"
               />
             ) : (

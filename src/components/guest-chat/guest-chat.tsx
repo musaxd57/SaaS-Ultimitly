@@ -135,7 +135,7 @@ export function GuestChat({ token, propertyName }: { token: string; propertyName
         {sending ? (
           <div className="flex justify-start">
             <div className="rounded-2xl rounded-bl-sm border border-border bg-card px-3 py-2 text-sm text-muted-foreground">
-              yazıyor…
+              🤖 Lixus AI yazıyor…
             </div>
           </div>
         ) : null}
