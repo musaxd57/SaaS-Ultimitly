@@ -168,9 +168,9 @@ export function LandingPage() {
             <Link href="/login" className={cn(buttonVariants({ variant: "ghost", size: "sm" }))}>
               Giriş Yap
             </Link>
-            <a href="#demo" className={cn(buttonVariants({ size: "sm" }))}>
+            <Link href="/register" className={cn(buttonVariants({ size: "sm" }))}>
               Ücretsiz Dene
-            </a>
+            </Link>
           </div>
         </div>
       </header>
@@ -188,9 +188,9 @@ export function LandingPage() {
           Siz uyurken bile. Kurulumu biz yaparız.
         </p>
         <div className="mt-8 flex flex-col items-center justify-center gap-3 sm:flex-row">
-          <a href="#demo" className={cn(buttonVariants({ size: "lg" }), "w-full sm:w-auto")}>
+          <Link href="/register" className={cn(buttonVariants({ size: "lg" }), "w-full sm:w-auto")}>
             14 gün ücretsiz dene <ArrowRight className="size-4" />
-          </a>
+          </Link>
           <a href="#nasil" className={cn(buttonVariants({ variant: "outline", size: "lg" }), "w-full sm:w-auto")}>
             Nasıl çalışır?
           </a>
@@ -328,12 +328,12 @@ export function LandingPage() {
                     </li>
                   ))}
                 </ul>
-                <a
-                  href="#demo"
+                <Link
+                  href="/register"
                   className={cn(buttonVariants({ variant: t.highlight ? "default" : "outline" }), "mt-6 w-full")}
                 >
                   Başla
-                </a>
+                </Link>
               </div>
             ))}
           </div>
