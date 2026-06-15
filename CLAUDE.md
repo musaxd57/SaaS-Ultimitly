@@ -495,6 +495,22 @@ Sandbox price id'leri Railway'de; kullanıcı sandbox kurulumunu (client token, 
 **⏳ Kalan:** sandbox'ta sahte kartla BİRLİKTE ilk test ödemesi → Paddle KYB onayı → production price'ları +
 prod env → paywall (BILLING_ENFORCED, reverse-trial motoru hâlâ YOK, Faz 2).
 
+## Paddle SANDBOX uçtan-uca DOĞRULANDI (2026-06-15) ✅
+Checkout → TL ödeme → webhook **Delivered (200)** → Subscription upsert → Ayarlar "Şu anki planınız: İşletme".
+Tüm zincir sandbox'ta çalışıyor. Çözülen tuzaklar (ÖNEMLİ, tekrar yaşanmasın):
+- **Webhook URL = `https://www.lixusai.com/api/webhooks/paddle`** — apex `lixusai.com` Cloudflare ile **301 → www**
+  yönlendiriyor, Paddle 3xx'i takip etmiyor → "Failed". Railway custom domain zaten **www** (apex değil).
+  Railway app domaini (`saas-ultimitly-production.up.railway.app`) da çalışır (Cloudflare yok).
+- **Her Paddle notification destination'ın AYRI signing secret'ı (`pdl_...`) var** → `PADDLE_WEBHOOK_SECRET`
+  AKTİF destination'ın secret'ı ile birebir aynı olmalı; yoksa kod 401 "Yetkisiz erişim" döner.
+- **Fiyat para birimi:** price'ı TRY oluştur (yoksa checkout USD gösterir — yanlış). Sandbox price/secret/token
+  production'dan AYRI.
+- Domain "Request website approval" (Checkout settings) onaylanmadan checkout "Something went wrong" verir.
+**⏳ PRODUCTION için kalan:** KYB onayı (sürüyor) → prod ortamında 3 fiyat (yeni price id) + prod API key +
+prod client token + prod webhook destination (**www URL**) + prod secret → Railway prod env (`PADDLE_ENV=production`,
+`NEXT_PUBLIC_PADDLE_ENV=production`, yeni `PADDLE_*`). Paywall hâlâ KAPALI (BILLING_ENFORCED yok; reverse-trial
+motoru Faz 2, henüz YOK → ödeme şimdilik opsiyonel "yükselt").
+
 ## Çalışma şekli
 Kullanıcı: "Bana söyle, ben kodlarım." Fazları sırayla, additive + testli.
 Build + `npm test` yeşil olmadan push etme. GitHub'da PR sadece kullanıcı
