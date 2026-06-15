@@ -2,9 +2,10 @@ import { NextResponse, type NextRequest } from "next/server";
 import { prisma } from "@/lib/db";
 import { registerSchema, zodFieldErrors } from "@/lib/validators";
 import { hashPassword } from "@/lib/auth/password";
-import { setSessionCookie } from "@/lib/auth";
 import { badRequest, jsonOk, serverError } from "@/lib/api";
 import { rateLimit, clientIp } from "@/lib/rate-limit";
+import { emailService } from "@/lib/email";
+import { makeVerifyToken, VERIFY_TTL_MS, verifyEmailHtml, verifyUrlFromHost } from "@/lib/auth/email-verify";
 
 export async function POST(req: NextRequest) {
   try {
@@ -34,7 +35,8 @@ export async function POST(req: NextRequest) {
     if (existing) return badRequest({ email: "Bu e-posta adresi zaten kayıtlı" });
 
     const passwordHash = await hashPassword(parsed.data.password);
-    const { org, user } = await prisma.$transaction(async (tx) => {
+    const { raw, hash } = makeVerifyToken();
+    const { user } = await prisma.$transaction(async (tx) => {
       const org = await tx.organization.create({
         data: { name: parsed.data.organizationName },
       });
@@ -45,19 +47,21 @@ export async function POST(req: NextRequest) {
           email,
           passwordHash,
           role: "owner",
+          emailVerifyTokenHash: hash,
+          emailVerifyExpiresAt: new Date(Date.now() + VERIFY_TTL_MS),
         },
       });
       return { org, user };
     });
 
-    await setSessionCookie({
-      userId: user.id,
-      organizationId: org.id,
-      role: "owner",
-      email: user.email,
-      name: user.name,
-    });
-    return jsonOk({ ok: true }, 201);
+    // No auto-login: the account stays inert until the inbox is confirmed
+    // (anti-bot). Clicking the e-mailed link sets emailVerifiedAt + the session.
+    await emailService.send(
+      email,
+      "Lixus AI — E-postanı doğrula",
+      verifyEmailHtml(user.name, verifyUrlFromHost(req.headers.get("host"), raw)),
+    );
+    return jsonOk({ ok: true, verifyEmail: true }, 201);
   } catch (err) {
     return serverError(undefined, err);
   }

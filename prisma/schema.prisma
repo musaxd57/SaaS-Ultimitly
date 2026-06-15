@@ -119,6 +119,13 @@ model User {
   pwResetCodeHash       String?
   pwResetCodeExpiresAt  DateTime?
   pwResetCodeAttempts   Int       @default(0)
+  // E-mail verification (self-serve sign-up anti-bot). Null emailVerifiedAt = not
+  // yet verified. The link token is stored sha256-HASHED (deterministic so it can
+  // be looked up by hash). Existing users (created before EMAIL_VERIFY_REQUIRED_FROM)
+  // are NEVER gated at login, so this can't lock out the founder / current accounts.
+  emailVerifiedAt       DateTime?
+  emailVerifyTokenHash  String?
+  emailVerifyExpiresAt  DateTime?
   createdAt      DateTime @default(now())
   updatedAt      DateTime @updatedAt
 

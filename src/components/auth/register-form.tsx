@@ -21,6 +21,7 @@ export function RegisterForm() {
   const [fields, setFields] = useState<Fields>({});
   const [error, setError] = useState<string | null>(null);
   const [loading, setLoading] = useState(false);
+  const [sent, setSent] = useState(false);
 
   function update(key: keyof typeof form) {
     return (e: React.ChangeEvent<HTMLInputElement>) =>
@@ -44,6 +45,11 @@ export function RegisterForm() {
         setError(data.error ?? "Kayıt başarısız oldu");
         return;
       }
+      if (data.verifyEmail) {
+        // Anti-bot: the account is inert until the e-mailed link is clicked.
+        setSent(true);
+        return;
+      }
       router.push("/dashboard");
       router.refresh();
     } catch {
@@ -51,6 +57,21 @@ export function RegisterForm() {
     } finally {
       setLoading(false);
     }
+  }
+
+  if (sent) {
+    return (
+      <div className="space-y-3 rounded-md border border-emerald-300 bg-emerald-50 px-4 py-5 text-sm text-emerald-900">
+        <p className="font-semibold">Hesabın oluşturuldu — son bir adım kaldı! 📧</p>
+        <p>
+          <strong>{form.email}</strong> adresine bir <strong>doğrulama bağlantısı</strong> gönderdik.
+          Maildeki butona tıkla; giriş otomatik tamamlanır.
+        </p>
+        <p className="text-xs text-emerald-700">
+          Mail birkaç dakikada gelmezse spam/gereksiz klasörüne bak. Bağlantı 24 saat geçerlidir.
+        </p>
+      </div>
+    );
   }
 
   return (

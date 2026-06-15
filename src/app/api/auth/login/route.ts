@@ -8,6 +8,7 @@ import { rateLimit, clientIp } from "@/lib/rate-limit";
 import { decryptSecret } from "@/lib/crypto";
 import { verifyTotpStep } from "@/lib/auth/totp";
 import { writeAudit } from "@/lib/audit";
+import { needsEmailVerification } from "@/lib/auth/email-verify";
 import type { UserRole } from "@/lib/constants";
 
 export async function POST(req: NextRequest) {
@@ -51,6 +52,19 @@ export async function POST(req: NextRequest) {
         });
       }
       return NextResponse.json({ error: "E-posta veya şifre hatalı" }, { status: 401 });
+    }
+
+    // E-mail verification gate — ONLY for self-serve accounts created at/after the
+    // cutoff. Every pre-existing account (the founder, staff, operator-created
+    // customers) is exempt, so this can never lock out a current user.
+    if (needsEmailVerification(user)) {
+      return NextResponse.json(
+        {
+          error: "E-postanı doğrulaman gerekiyor. Kayıt sırasında gönderdiğimiz doğrulama bağlantısına tıkla.",
+          needsVerification: true,
+        },
+        { status: 403 },
+      );
     }
 
     // Second factor (authenticator app), when enabled for this account. The

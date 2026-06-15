@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { useRouter } from "next/navigation";
 import Link from "next/link";
 import { Loader2 } from "lucide-react";
@@ -19,6 +19,35 @@ export function LoginForm() {
   const [rememberDevice, setRememberDevice] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [loading, setLoading] = useState(false);
+  // E-mail verification: shown when login is blocked for an unverified account, or
+  // when the verify link was bad/expired (?verify= flag from the verify route).
+  const [needsVerify, setNeedsVerify] = useState(false);
+  const [resent, setResent] = useState(false);
+
+  useEffect(() => {
+    const v = new URLSearchParams(window.location.search).get("verify");
+    if (v === "expired" || v === "missing") {
+      setNeedsVerify(true);
+      setError("Doğrulama bağlantısı geçersiz ya da süresi dolmuş. E-postanı gir ve yeni bağlantı iste.");
+    }
+  }, []);
+
+  async function resendVerification() {
+    if (!email) {
+      setError("Önce e-posta adresini gir.");
+      return;
+    }
+    try {
+      await fetch("/api/auth/resend-verification", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ email }),
+      });
+      setResent(true);
+    } catch {
+      setError("Bağlantı hatası. Lütfen tekrar deneyin.");
+    }
+  }
 
   async function onSubmit(e: React.FormEvent) {
     e.preventDefault();
@@ -40,6 +69,7 @@ export function LoginForm() {
       }
       if (!res.ok) {
         setError(data.error ?? "Giriş başarısız oldu");
+        if (data?.needsVerification) setNeedsVerify(true);
         return;
       }
       const params = new URLSearchParams(window.location.search);
@@ -60,6 +90,21 @@ export function LoginForm() {
     <form onSubmit={onSubmit} className="space-y-4">
       {error ? (
         <p className="rounded-md bg-destructive/10 px-3 py-2 text-sm text-destructive">{error}</p>
+      ) : null}
+      {needsVerify ? (
+        <div className="rounded-md border border-amber-300 bg-amber-50 px-3 py-2.5 text-sm text-amber-900">
+          {resent ? (
+            <p>Yeni doğrulama bağlantısı gönderildi — gelen kutunu (ve spam'i) kontrol et.</p>
+          ) : (
+            <button
+              type="button"
+              onClick={resendVerification}
+              className="font-medium text-amber-900 underline hover:no-underline"
+            >
+              Doğrulama mailini tekrar gönder
+            </button>
+          )}
+        </div>
       ) : null}
       <div className="space-y-2">
         <Label htmlFor="email">E-posta</Label>
@@ -123,8 +168,8 @@ export function LoginForm() {
       </Button>
       <p className="text-center text-sm text-muted-foreground">
         Hesabınız yok mu?{" "}
-        <Link href="/#demo" className="font-medium text-primary hover:underline">
-          Ücretsiz demo isteyin
+        <Link href="/register" className="font-medium text-primary hover:underline">
+          Hemen üye olun
         </Link>
       </p>
     </form>
