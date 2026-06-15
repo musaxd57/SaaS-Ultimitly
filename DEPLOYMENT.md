@@ -1,106 +1,104 @@
-# GuestOps AI — Railway'de 7/24 Yayına Alma (Deploy) Rehberi
+# Lixus AI — Railway Yayına Alma Rehberi
 
-Bu rehber uygulamayı **Railway**'de sürekli açık (7/24) çalıştırır. Böylece
-gece otomatik cevap, sen uyurken / bilgisayarın kapalıyken bile çalışır.
-SQLite olduğu gibi kalır (kalıcı disk üzerinde tutulur).
+Uygulama **Railway** üzerinde Docker ile 7/24 çalışır; böylece otomatik yanıt ve
+zamanlanmış senkron, siz uyurken / bilgisayarınız kapalıyken bile sürer.
+Veritabanı **PostgreSQL**'dir (Railway'in yönetilen Postgres servisi).
 
-> **Önemli:** Hiçbir gizli anahtarı (token, şifre) GitHub'a koyma. Hepsi
-> aşağıda Railway panelindeki **Variables** bölümüne girilir.
+> **Önemli:** Hiçbir gizli anahtarı repoya koymayın. Hepsi Railway panelindeki
+> **Variables** bölümüne girilir. `claude/great-edison-3zqpZ` dalı Railway'e
+> otomatik deploy olur.
 
 ---
 
-## 1) Railway projesini oluştur
+## 1) Proje ve veritabanı
 
-1. <https://railway.app> → **Login with GitHub**.
-2. **New Project** → **Deploy from GitHub repo** → `musaxd57/SaaS-Ultimitly`.
-3. Branch olarak en güncel kodun olduğu dalı seç (örn. `claude/great-edison-3zqpZ`
-   ya da `main`'e birleştirdiysen `main`).
+1. <https://railway.app> → **Login with GitHub** → **New Project** → **Deploy from GitHub repo** → `musaxd57/SaaS-Ultimitly`.
+2. Aynı projeye **+ New → Database → PostgreSQL** ekleyin. Railway `DATABASE_URL`'i otomatik üretir; uygulama servisine referans verin.
 
-Build, depodaki `Dockerfile` ile yapılır (Railway'in Nixpacks otomatik
-algılaması yerine — bu, derlemeyi sabit ve tekrarlanabilir kılar). Başlatma
-adımı Dockerfile içinde tanımlı: önce `prisma db push`, sonra `next start`.
+Build, depodaki **Dockerfile** ile yapılır. Boot komutu sabittir:
+`npx prisma db push --skip-generate && npm run start` — yani şema her açılışta
+veritabanına uygulanır, sonra Next.js başlar. `PORT`'u elle eklemeyin (Railway verir).
 
-## 2) Kalıcı disk (Volume) ekle — SQLite burada yaşar
+## 2) Ortam değişkenleri (Variables)
 
-1. Servise tıkla → **Settings** → **Volumes** → **+ New Volume**.
-2. **Mount path:** `/data`
-3. Kaydet. (Bu disk, her deploy'da silinmez — veritabanın güvende.)
-
-## 3) Ortam değişkenleri (Variables)
-
-Servis → **Variables** → her birini ekle:
+**Zorunlu çekirdek**
 
 | Değişken | Değer |
 |---|---|
-| `DATABASE_URL` | `file:/data/dev.db`  ← volume yolu! |
-| `AUTH_SECRET` | Güçlü rastgele değer (`openssl rand -base64 32`) |
-| `CRON_SECRET` | Güçlü rastgele değer (`openssl rand -base64 32`) |
-| `HOSPITABLE_API_TOKEN` | Hospitable kişisel erişim token'ın |
-| `OPENAI_API_KEY` | OpenAI anahtarın (AI cevaplar için) |
-| `OPENAI_MODEL` | `gpt-4o-mini` (opsiyonel) |
-| `NODE_ENV` | `production` |
+| `DATABASE_URL` | Railway Postgres bağlantı dizesi (`postgresql://…`) |
+| `AUTH_SECRET` | Güçlü rastgele değer (`openssl rand -base64 32`) — oturum + şifreleme anahtarı |
+| `CRON_SECRET` | Güçlü rastgele değer — zamanlayıcı ucunu korur |
+| `SUPERADMIN_EMAILS` | Operatör (süper-admin) e-postaları, virgülle |
+| `PRIMARY_ORG_ID` | Kurucu org id'si — env Hospitable token'ını yalnızca bu org kullanır (yeni müşteriler kurucu verisine erişemez) |
 
-> `PORT`'u **elle ekleme** — Railway otomatik verir, Next.js onu kullanır.
-> İstersen e-posta için `.env.example`'daki `EMAIL_*` değişkenlerini de ekleyebilirsin (opsiyonel — boş bırakırsan konsola yazar).
+**Hospitable + AI**
 
-## 4) Deploy + alan adı (domain)
+| Değişken | Değer |
+|---|---|
+| `HOSPITABLE_API_TOKEN` | Primary org için Hospitable kişisel erişim token'ı |
+| `OPENAI_API_KEY` | OpenAI anahtarı (boşsa şablon fallback) |
+| `OPENAI_MODEL` | `gpt-5.1` |
 
-1. **Deploy** çalışsın (ilk kez `prisma db push` boş veritabanına tabloları kurar).
-2. **Settings** → **Networking** → **Generate Domain** → herkese açık bir
-   adres alırsın: `https://<senin-uygulaman>.up.railway.app`
+**E-posta (şifre kodu / uyarı mailleri)** — Resend tercih edilir, yoksa SMTP:
 
-## 5) Hesabını oluştur ve mesajları çek
+| Değişken | Değer |
+|---|---|
+| `RESEND_API_KEY` / `RESEND_FROM` | Resend anahtarı + doğrulanmış gönderen adresi |
+| `EMAIL_HOST/PORT/USER/PASS/FROM` | (alternatif) SMTP ayarları |
+| `ALERT_EMAIL` | Şikayet/hata uyarılarının gideceği adres |
 
-1. `https://<senin-uygulaman>.up.railway.app/register` → yeni hesap aç
-   (yayındaki veritabanı boş başlar — yerel hesabın taşınmaz, sorun değil).
-2. Giriş yap → **Mesajlar** → **Hospitable testi** ile bağlantıyı doğrula →
-   **Mesajları çek** ile konuşmalar gelsin.
-3. **Oto-yanıt testi** ile AI'ın ne göndereceğini gör (hiçbir şey gönderilmez).
+**Özellik şalterleri + izleme**
 
-## 6) Zamanlayıcı (her birkaç dakikada bir otomatik çekme)
+| Değişken | Değer |
+|---|---|
+| `REGISTRATION_OPEN` | `1` → public self-serve kayıt açık |
+| `AUTO_REPLY_ENABLED` | `1` → otomatik yanıt master şalteri açık |
+| `GUEST_CHAT_ENABLED` | `1` → QR misafir concierge global açık |
+| `SENTRY_DSN` | Hata izleme (opsiyonel) |
+| `NEXT_PUBLIC_WHATSAPP` / `NEXT_PUBLIC_DEMO_VIDEO` | Landing WhatsApp numarası / demo video embed (opsiyonel) |
 
-Gece otomatik cevabın **kendi kendine** çalışması için, düzenli aralıkla
-`/api/cron/sync` çağrılmalı. En kolayı ücretsiz **cron-job.org**:
+**Ödeme (Paddle — Merchant of Record)**
 
-1. <https://cron-job.org> → ücretsiz hesap → **Create cronjob**.
-2. **URL:** `https://<senin-uygulaman>.up.railway.app/api/cron/sync`
-3. **Schedule:** her 5 dakikada bir (`*/5 * * * *`).
-4. **Advanced / Headers** → bir başlık ekle:
-   - Key: `Authorization`
-   - Value: `Bearer <CRON_SECRET>`  ← Railway'e girdiğin `CRON_SECRET` ile aynı
-5. Kaydet.
+| Değişken | Değer |
+|---|---|
+| `PADDLE_ENV` / `NEXT_PUBLIC_PADDLE_ENV` | `sandbox` veya `production` |
+| `PADDLE_API_KEY` · `PADDLE_WEBHOOK_SECRET` | API anahtarı + aktif webhook destination'ın signing secret'ı (`pdl_…`) |
+| `NEXT_PUBLIC_PADDLE_CLIENT_TOKEN` | Paddle.js checkout client token'ı |
+| `PADDLE_PRICE_BASLANGIC` · `PADDLE_PRICE_PRO` · `PADDLE_PRICE_ISLETME` | TRY plan fiyat id'leri |
+| `BILLING_ENFORCED` | `true` → paywall devrede (boş = herkes serbest). Açmadan önce ilk gerçek ödemeyi doğrulayın. |
 
-> Bu uç nokta güvenlidir: doğru `CRON_SECRET` gönderilmezse **401** döner.
-> Auto-reply yalnızca **aktif saat aralığında (varsayılan 00:00–09:00)** ve
-> oto-yanıt **Açık**ken mesaj gönderir; gündüz çağrılsa bile mesaj göndermez,
-> sadece yeni mesajları çeker.
+## 3) Deploy + domain
 
-> **Alternatif:** Railway'in kendi **Cron** servisini de kullanabilirsin
-> (ayrı bir servise `*/5 * * * *` zamanlaması verip aynı URL'yi `curl` ile
-> çağırırsın). cron-job.org daha basit olduğu için onu öneriyoruz.
+1. İlk deploy: boot'taki `prisma db push` tabloları kurar.
+2. **Settings → Networking** → custom domain (**www** kullanın; apex Cloudflare ile www'ye 301 yönlenir).
 
-## 7) Gece otomatik cevabı aç
+## 4) Zamanlayıcı (otomatik senkron + gece yanıtı)
 
-**Mesajlar** sayfasında **"Gece oto-yanıt (00:00–09:00)"** butonunu **Açık** yap.
-Artık 00:00–09:00 arası gelen güvenli misafir mesaplarına AI otomatik cevap
-verir. İstediğin an aynı butonla **kapatabilirsin**.
+Otomatik yanıtın kendi kendine çalışması için `/api/cron/sync` düzenli çağrılmalı.
+Uygulama ayrıca kendi içinde 2 dakikalık bir yedek cron çalıştırır, ama dış bir
+zamanlayıcı da önerilir (**cron-job.org**, ücretsiz):
+
+- **URL:** `https://<domain>/api/cron/sync`
+- **Schedule:** her 5 dakikada bir (`*/5 * * * *`)
+- **Header:** `Authorization: Bearer <CRON_SECRET>`
+
+Uç nokta yanlış secret'ta **401** döner. Otomatik yanıt yalnızca **aktif saat
+aralığında** ve oto-yanıt **açıkken** gönderir; aksi halde sadece yeni mesajları çeker.
+
+## 5) Paddle webhook (ödeme aktifse)
+
+Paddle → **Notifications → Destination:**
+`https://www.lixusai.com/api/webhooks/paddle` (mutlaka **www** — apex 301 verir,
+Paddle 3xx takip etmez). Destination'ın signing secret'ını (`pdl_…`)
+`PADDLE_WEBHOOK_SECRET`'a girin. Test ödemesi → log **"Delivered" (200)** olmalı.
 
 ---
 
 ## Özet akış
 
 ```
-cron-job.org  ──(her 5 dk, Bearer CRON_SECRET)──▶  /api/cron/sync
-                                                        │
-                                   Hospitable'dan yeni mesajları çek
-                                                        │
-                       00:00–09:00 arası + oto-yanıt Açık mı?
-                                          │evet                │hayır
-                          güvenli+emin cevapları gönder      sadece çek
+cron-job.org ──(5 dk, Bearer CRON_SECRET)──▶ /api/cron/sync
+                                               │ Hospitable'dan yeni mesajları çek
+                                               │ aktif saat + oto-yanıt açıksa → güvenli cevapları gönder
+Paddle ──────(www webhook, imzalı)─────────▶ /api/webhooks/paddle → Subscription/Invoice
 ```
-
-## Saat aralığını değiştirmek
-
-Varsayılan pencere **00:00–09:00**. Değiştirmek istersen söyle; ayar
-veritabanında `autoReplyStartHour` / `autoReplyEndHour` alanlarında tutuluyor
-(0–23). İstersen arayüze küçük bir saat seçici de ekleyebilirim.

@@ -1,12 +1,12 @@
-// GuestOps AI - Prisma schema
+// Lixus AI - Prisma schema
 // ----------------------------------------------------------------------------
-// MVP uses SQLite for zero-config local runs. The schema is written to be
-// PostgreSQL-portable:
+// PostgreSQL (Railway). Conventions kept portable + simple:
 //   * "enum-like" fields are plain Strings, validated in the app layer (Zod).
 //   * JSON payloads are stored as String (JSON.stringify / JSON.parse).
-// To move to Postgres: change `provider` to "postgresql", set DATABASE_URL,
-// then run `npx prisma migrate dev`. (Optionally promote String enums to
-// native enums and *Json fields to the `Json` type.)
+// Deploy applies the schema at boot via `prisma db push --skip-generate`
+// (no migration files). NOTE: never add a `@unique`/required-no-default column
+// to a POPULATED table — `db push` refuses it (data-loss) and crashes boot;
+// use app-level uniqueness + findFirst instead.
 // ----------------------------------------------------------------------------
 
 generator client {

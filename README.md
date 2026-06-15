@@ -1,82 +1,78 @@
-# GuestOps AI
+# Lixus AI
 
-Airbnb, Booking ve kısa dönem kiralama yöneten küçük/orta ölçekli işletmeler için
-**AI destekli operasyon platformu**. Misafir iletişimi, temizlik operasyonu,
-check-in/out akışı, görev yönetimi, otomatik hatırlatma ve gelir raporunu tek
-panelde birleştirir.
+**Airbnb & Booking misafir mesajlarınızı yapay zekâ yanıtlasın — Türkçe öncelikli, güvenli, 7/24.**
 
-> **Temel prensip:** Platformların kurallarını aşmaz. AI karar verici değil,
-> **yardımcı operatördür** — sadece öneri üretir, son kararı kullanıcı verir.
+Kısa dönem kiralama hostları için çok kiracılı (multi-tenant) SaaS. Misafir
+iletişimini, temizlik/giriş-çıkış operasyonunu ve görev yönetimini tek panelde
+toplar; gelen misafir mesajlarına gece gündüz, misafirin kendi dilinde,
+**siz uyurken bile** cevap verir.
 
-Bu repo, dokümandaki **REALISTIC MVP** kapsamına göre üretilmiş, **çalışan ve
-production-ready bir MVP**'dir: sade UI, dark mode/animasyon yok, AI yalnızca cevap
-önerisi yapar, otomasyon sabit kurallarla çalışır.
+> **Temel ilke:** AI karar verici değil, **yardımcı operatördür.** Şikayet, iade
+> ve riskli mesajlar her zaman insana bırakılır; otomatik cevap yalnızca güvenli,
+> yüksek-güvenli sorulara gider.
 
 ---
 
-## ✨ Özellikler (MVP)
+## ✨ Özellikler
 
 | Modül | Açıklama |
 |-------|----------|
-| **Panel (Dashboard)** | AI günlük operasyon özeti, bugünkü giriş/çıkışlar, bekleyen mesajlar, acil görevler, doluluk |
-| **Mesajlar (Inbox)** | Konuşma kutusu, **AI cevap önerisi** (ton seçimi, güven skoru, risk uyarısı), tek tıkla onayla & gönder |
-| **Rezervasyonlar** | Manuel rezervasyon girişi, kanal/durum yönetimi, filtreleme |
-| **Takvim** | Mülk bazlı 14 günlük doluluk zaman çizelgesi (giriş/çıkış işaretli) |
-| **Görevler** | Temizlik/bakım/check-in görevleri için Kanban board, atama, durum takibi |
-| **Mülkler** | Mülk ayarları, check-in/out saatleri, temizlik tamponu |
-| **Bilgi Tabanı** | Mülke özel Wi-Fi, giriş talimatı, kurallar vb. — AI bu bilgilerle konuşur |
-| **Raporlar** | Doluluk, gelir, mesaj/görev metrikleri, en sık konular |
+| **Panel** | Günlük AI operasyon özeti, bugünkü giriş/çıkışlar, bekleyen mesajlar, bağlantı durumu |
+| **Mesajlar** | Airbnb/Booking konuşmaları, AI cevap önerisi (ton + güven skoru + risk uyarısı), tek tıkla onayla & gönder |
+| **Otomatik yanıt** | Güvenli sorulara gece/gündüz otomatik cevap — şikayet/iade/risk her zaman insana |
+| **Misafir Sohbetleri (QR)** | Daireye asılan QR → public concierge sohbeti; AI bilgi tabanından yanıtlar, çözemezse host'a iletir |
+| **Görevler** | Temizlik/bakım/giriş hazırlığı için Kanban; rezervasyondan otomatik üretilir |
+| **Mülkler & Bilgi Tabanı** | Daire ayarları + Wi-Fi/giriş talimatı/kurallar — AI ve oto-mesajlar bu bilgiyle konuşur |
+| **İptaller** | İptal edilen rezervasyonlar; bekleyen görevleri otomatik temizler |
+| **Raporlar** | AI performansı, şikayet yoğunluğu, doluluk, en sık sorulan konular |
+| **Ayarlar & Abonelik** | AI sesi/üslubu, otomasyon tercihleri, 2FA, abonelik (Paddle) |
 
-### AI Operasyon Asistanı
-- Misafir mesajını **sınıflandırır** (intent + öncelik) ve **cevap taslağı** üretir.
-- **OpenAI opsiyoneldir.** `OPENAI_API_KEY` yoksa **deterministik şablon fallback**
-  devreye girer — uygulama API anahtarı olmadan da tam çalışır.
-- **Prompt-injection korumalı:** misafir mesajı veri olarak işlenir, içindeki
-  talimatlar uygulanmaz. Bilgi yoksa uydurmaz; finansal/kritik konuları "risk" olarak
-  işaretleyip yöneticiye yönlendirir.
+### AI Güvenlik Kapısı
 
-### Sabit Kurallı Otomasyon (fixed rules)
-- **Yeni rezervasyon** → otomatik check-in hazırlık + çıkış temizliği görevi.
-- **Şikayet algılandı** → konuşma "sorunlu" olarak işaretlenir, öncelik "acil"e çekilir,
-  bakım görevi açılır.
+Otomatik cevap, üst üste beş kontrolü geçmeden **asla** gönderilmez:
+`source == openai` · şikayet/iade/erken-çıkış **intent blocklist** · anahtar-kelime
+çapraz kontrolü · **güven ≥ 0.75** · master + daire-bazı açık/kapalı şalter.
+Misafir mesajı veri olarak işlenir (prompt-injection korumalı); bilgi yoksa uydurmaz.
+
+### Diğer
+
+Çok kiracılı izolasyon + operatör impersonation · per-tenant şifreli Hospitable
+token · reverse-trial + **Paddle** abonelik (Merchant of Record) · KVKK veri export ·
+2FA (TOTP) · e-posta doğrulama · tekrar gelen misafir rozeti.
 
 ---
 
 ## 🧱 Teknoloji
 
-- **Next.js 15** (App Router) + **React 19** + **TypeScript**
-- **Tailwind CSS** + shadcn tarzı bileşenler (Radix bağımlılığı yok, sade)
-- **Prisma ORM** + **SQLite** (geliştirme için sıfır-konfig; Postgres'e taşınabilir)
-- **jose** (JWT oturum) + **bcryptjs** (şifre hash) — özel hafif auth
-- **Zod** (doğrulama), **multi-tenant** (organizasyon bazlı veri izolasyonu)
+**Next.js 15** (App Router) · **React 19** · **TypeScript** · **Prisma 6** +
+**PostgreSQL** · **Tailwind CSS** · **Zod** · **jose** (JWT) + **bcryptjs** ·
+**Vitest**. Deploy: **Railway** (Docker).
 
 ---
 
 ## 🚀 Hızlı Başlangıç
 
+Yerelde bir **PostgreSQL** veritabanı gerekir (Docker, yerel kurulum veya bir bağlantı dizesi).
+
 ```bash
-# 1. Bağımlılıklar
 npm install
+cp .env.example .env            # AUTH_SECRET + DATABASE_URL ayarlayın
 
-# 2. Ortam değişkenleri
-cp .env.example .env
-#   AUTH_SECRET değerini değiştirin. OPENAI_API_KEY opsiyonel (boş bırakılabilir).
+npm run db:push                 # şemayı veritabanına uygula
+npm run db:seed                 # örnek veri
 
-# 3. Veritabanını oluştur + örnek veri
-npm run db:push
-npm run db:seed
-
-# 4. Geliştirme sunucusu
-npm run dev
-# → http://localhost:3000
+npm run dev                     # → http://localhost:3000
 ```
 
-### Demo giriş
+`OPENAI_API_KEY` opsiyoneldir; boşsa deterministik şablon fallback devreye girer
+(uygulama anahtar olmadan da çalışır, üretimde gerçek model kullanılır).
+
+### Örnek giriş (seed)
+
 ```
 E-posta: demo@guestops.ai
 Şifre:   demo1234
 ```
-(Login ekranında hazır gelir.)
 
 ---
 
@@ -86,101 +82,44 @@ E-posta: demo@guestops.ai
 |-------|----------|
 | `npm run dev` | Geliştirme sunucusu |
 | `npm run build` | Production build (`prisma generate` + `next build`) |
-| `npm run start` | Production sunucusu |
+| `npm start` | Production sunucusu |
 | `npm test` | Testleri çalıştır (Vitest) |
-| `npm run test:watch` | Testleri izleme modunda çalıştır |
-| `npm run typecheck` | TypeScript tip kontrolü (`tsc --noEmit`) |
+| `npm run typecheck` | TypeScript tip kontrolü |
 | `npm run db:push` | Şemayı veritabanına uygula |
 | `npm run db:seed` | Örnek veriyi yükle |
 | `npm run db:reset` | DB'yi sıfırla + yeniden seed |
-| `npm run db:studio` | Prisma Studio (veri görüntüleyici) |
+| `npm run db:studio` | Prisma Studio |
 
 ---
 
 ## 🧪 Testler
 
-Vitest ile **56 test** (7 birim + 1 entegrasyon dosyası). Harici API gerektirmez;
-entegrasyon testleri geçici bir SQLite veritabanı (`prisma/test.db`) oluşturur.
+Vitest — **59 test dosyası** (birim + entegrasyon). Entegrasyon testleri gerçek bir
+PostgreSQL test veritabanı kullanır. Kapsam: AI güvenlik kapısı, otomasyon motoru,
+tenant izolasyonu, billing/entitlement, auth/2FA, raporlar, doğrulama.
 
 ```bash
 npm test
 ```
 
-Kapsam:
-- **AI fallback** — niyet sınıflandırma, cevap üretimi, **prompt-injection güvenliği**
-  (misafir mesajındaki talimatlar uygulanmaz; finansal talepler "risk" işaretlenir).
-- **AI prompt'ları** — sistem prompt'unun güvenlik kuralları + veri sınırı.
-- **Otomasyon motoru** — rezervasyon → 2 görev, şikayet → eskalasyon (gerçek DB).
-- **Raporlar** — operasyon istatistikleri, aylık gelir/görev metrikleri, org izolasyonu.
-- **Doğrulama** — Zod şemaları, tarih/format kuralları.
-- **Auth** — JWT oturum imzala/doğrula, şifre hash/karşılaştır.
-- **Sabitler & yardımcılar** — etiket/ton eşlemeleri, biçimlendirme.
-
 ---
 
-## 🗂 Proje Yapısı
+## 📁 Proje Yapısı
 
 ```
-src/
-  app/
-    (auth)/            # login, register
-    (app)/             # panel, inbox, reservations, calendar, tasks, properties, knowledge, reports
-    api/               # REST route handlers (auth, properties, reservations, conversations, tasks, kb, reports)
-  components/
-    ui/                # button, card, input, select, badge, ... (tasarım sistemi)
-    inbox/ tasks/ ...  # modül bileşenleri
-  lib/
-    ai/                # prompt'lar, suggestReply, classify, deterministik fallback
-    auth/              # JWT oturum, şifre, session yardımcıları
-    automation.ts      # sabit kurallı otomasyon
-    db.ts              # Prisma client
-    reports.ts         # operasyon/gelir istatistikleri
-    validators.ts      # Zod şemaları
-    constants.ts       # enum benzeri sabitler + etiketler
-prisma/
-  schema.prisma        # veri modeli
-  seed.ts              # örnek veri
-tests/
-  unit/                # AI fallback, prompts, validators, auth, utils, constants
-  integration/         # otomasyon + raporlar (gerçek SQLite)
-  helpers/ stubs/      # test yardımcıları, server-only stub
+src/app/(app)/      panel, mesajlar, misafir-sohbetleri, görevler, mülkler,
+                    bilgi-tabanı, raporlar, iptaller, ayarlar, admin
+src/app/api/        REST route handler'ları (auth, conversations, hospitable,
+                    tasks, billing webhooks, chat/[token], cron, ...)
+src/lib/            ai/ · auth/ · billing/ · payments/ · automation.ts ·
+                    scheduled-sync.ts · hospitable-sync.ts
+prisma/             schema.prisma · seed.ts
+tests/              unit/ · integration/ · helpers/
 ```
 
 ---
 
-## 🔌 API (özet)
+## 🚢 Yayına Alma
 
-`/api/auth/{login,register,logout}` ·
-`/api/properties[/:id]` ·
-`/api/reservations[/:id]` ·
-`/api/conversations[/:id]` · `/:id/reply` · `/:id/messages` · `/:id/ai-suggest` ·
-`/api/tasks[/:id]` ·
-`/api/kb[/:id]` ·
-`/api/reports/{daily,monthly,ops}`
-
-Tüm uç noktalar oturum + organizasyon bazlı yetki kontrolünden geçer.
-
----
-
-## 🐘 PostgreSQL'e Geçiş
-
-MVP varsayılanı SQLite'tır. Production için:
-
-1. `prisma/schema.prisma` içinde `datasource db` → `provider = "postgresql"`.
-2. `.env` → `DATABASE_URL="postgresql://user:pass@host:5432/guestops?schema=public"`.
-3. `npx prisma migrate dev` çalıştırın.
-
-Şema Postgres-uyumlu yazılmıştır (enum benzeri alanlar String, JSON alanları String
-olarak saklanır; istenirse native enum/`Json` tipine yükseltilebilir).
-
----
-
-## 🧭 Kapsam Notu (REALISTIC MVP)
-
-İlk sürümde **bilinçli olarak yok**: tam otomatik kanal entegrasyonu, fiyat
-optimizasyonu, dinamik kanal senkronu, microservice/queue mimarisi, gelişmiş RBAC,
-vector DB, görsel workflow builder, BI dashboard.
-
-**Sonraki adımlar (V2+):** Resmi WhatsApp Business API, e-posta/ICS rezervasyon içe
-aktarma, şablon kütüphanesi, çok dilli otomatik çeviri, fotoğraf yükleme (S3),
-gelişmiş raporlama.
+Railway üzerinde 7/24 çalıştırma, ortam değişkenleri ve zamanlayıcı kurulumu için
+→ **[DEPLOYMENT.md](./DEPLOYMENT.md)**. Ürün yol haritası → **[ROADMAP.md](./ROADMAP.md)**.
