@@ -111,6 +111,11 @@ export function PaddlePlans({
     };
   }, [clientToken, environment, router]);
 
+  // During the free trial no plan counts as "owned" yet — every card stays
+  // selectable so the user can actually subscribe (incl. continuing on Pro).
+  // Only a real PAID subscription marks its plan as the locked "current" one.
+  const trialing = trialDaysLeft != null;
+
   const openCheckout = useCallback(
     (priceId: string) => {
       if (!window.Paddle || !priceId) return;
@@ -152,7 +157,7 @@ export function PaddlePlans({
 
       <div className="grid gap-3 sm:grid-cols-3">
         {plans.map((p) => {
-          const isCurrent = p.code === currentPlanCode;
+          const isCurrent = !trialing && p.code === currentPlanCode;
           const price = (p.priceMinor / 100).toLocaleString("tr-TR");
           const limit = p.propertyLimit == null ? "Sınırsız daire" : `${p.propertyLimit} daireye kadar`;
           return (
@@ -175,7 +180,13 @@ export function PaddlePlans({
                 onClick={() => openCheckout(p.priceId)}
                 className="inline-flex h-8 w-full items-center justify-center rounded-md bg-primary px-3 text-xs font-medium text-primary-foreground hover:bg-primary/90 disabled:opacity-50"
               >
-                {isCurrent ? "Mevcut plan" : ready ? "Bu plana geç" : "Yükleniyor…"}
+                {isCurrent
+                  ? "Mevcut plan"
+                  : !ready
+                    ? "Yükleniyor…"
+                    : trialing
+                      ? "Bu planı seç"
+                      : "Bu plana geç"}
               </button>
             </div>
           );
