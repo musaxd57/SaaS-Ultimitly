@@ -472,6 +472,23 @@ giriş gününden çıkış günü `checkOutTime`'a (İstanbul, dakika-hassas) k
 için otomatik sıfırlanır (sabit QR kalır, yeniden basma yok). `resolveGuestChat` `open` döndürür; endpoint+sayfa
 kapalı-durumu gösterir. 367 test yeşil.
 
+## Ödeme kararı: Paddle (MoR) + İtalyan Partita IVA (2026-06-15)
+**Karar (kullanıcı + 4 araştırma ajanı, kaynaklı):** İşletme **ablanın İtalyan Partita IVA**'sı adına
+olacak (kullanıcı 18 yaş altı → yetişkin ablan yasal sahip; isim=Partita IVA=IBAN birebir aynı, sen
+yetkili kullanıcı). İtalyan entity → **Iyzico KULLANILAMAZ** (Türk vergi levhası ister). Yerine **Paddle
+Billing (Merchant of Record)** seçildi: Paddle satıcı olur, KDV'yi her ülkede toplar/öder → ablan hiçbir
+yerde KDV kaydı yapmaz, sadece İtalya'da geliri beyan eder (commercialista). TRY fiyatı destekler (Türk
+kartı onayı için kritik; Lemon Squeezy USD-only, Stripe ise Türk KDV kaydı ister → elendi). ⚠️ Türk kartı,
+yabancı işyerine sınır-ötesi ödemede daha sık reddedilir (3DS) — Iyzico kadar pürüzsüz olmayacak.
+**Kod (eklendi, DORMANT):** `lib/payments/paddle.ts` (env-gated, dependency-free: `verifyPaddleSignature`
+HMAC-SHA256 `ts:rawBody` + replay guard, `paddlePriceToPlanCode`, `paddleStatusToLocal`, `paddleRequest`),
+`/api/webhooks/paddle` (PADDLE_WEBHOOK_SECRET yoksa 200 disabled; raw-body imza → idempotent WebhookEvent
+[event_id] → custom_data.organizationId çözülürse Subscription/Invoice upsert; org yoksa sadece kaydeder,
+asla çökmez/yanlış org'a yazmaz). Iyzico kodu dormant DURUYOR (Türk-entity fallback). 14 yeni test (imza
+valid/tamper/stale/rotation, dormant/401/activated/dedup/transaction/no-link). **Paywall hâlâ KAPALI** (`BILLING_ENFORCED`).
+**⏳ Kullanıcı:** Paddle KYB onayı (ablanın belgeleriyle) → 3 planı (price id) oluştur → Railway env'e
+`PADDLE_*` gir → BİRLİKTE test → checkout UI + paywall (Faz 2, henüz YOK; client token + price id + onay gerekir).
+
 ## Çalışma şekli
 Kullanıcı: "Bana söyle, ben kodlarım." Fazları sırayla, additive + testli.
 Build + `npm test` yeşil olmadan push etme. GitHub'da PR sadece kullanıcı

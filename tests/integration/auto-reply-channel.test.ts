@@ -890,10 +890,18 @@ describe("sendDueCheckouts", () => {
   it("does not message bookings made before checkout was switched on", async () => {
     vi.setSystemTime(new Date("2026-06-14T15:00:00Z")); // 18:00 Istanbul, day before
     const { orgId } = await seedCheckout({ departure: new Date("2026-06-15T00:00:00Z") });
-    // Feature enabled only now — after the booking already existed.
+    // Pin both timestamps to FIXED instants so the gate (reservation.createdAt >=
+    // autoCheckoutEnabledAt) is deterministic regardless of the real wall clock:
+    // the booking was created (Jun 10) BEFORE the feature was switched on (Jun 12).
+    // (Previously baseline used `new Date()` while createdAt defaulted to the real
+    // DB clock — a time bomb that flipped once the real date passed Jun 14.)
+    await prisma.reservation.updateMany({
+      where: { property: { organizationId: orgId } },
+      data: { createdAt: new Date("2026-06-10T00:00:00Z") },
+    });
     await prisma.organization.update({
       where: { id: orgId },
-      data: { autoCheckoutEnabledAt: new Date() },
+      data: { autoCheckoutEnabledAt: new Date("2026-06-12T00:00:00Z") },
     });
     expect((await sendDueCheckouts(orgId)).sent).toBe(0);
     expect(mockSend).not.toHaveBeenCalled();
