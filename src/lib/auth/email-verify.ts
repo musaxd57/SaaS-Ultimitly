@@ -40,11 +40,18 @@ export function hashVerifyToken(raw: string): string {
   return createHash("sha256").update(raw).digest("hex");
 }
 
-/** Build the absolute verify URL from the request host (canonical www works too). */
-export function verifyUrlFromHost(host: string | null, rawToken: string): string {
+/** Public base URL from the request Host header. Behind Railway/Cloudflare,
+ *  req.nextUrl.origin is the INTERNAL origin (localhost:8080) — the Host header
+ *  carries the real public domain, so always build absolute URLs from it. */
+export function baseUrlFromHost(host: string | null): string {
   const h = host || "www.lixusai.com";
   const proto = h.startsWith("localhost") || h.startsWith("127.") ? "http" : "https";
-  return `${proto}://${h}/api/auth/verify-email?token=${rawToken}`;
+  return `${proto}://${h}`;
+}
+
+/** Build the absolute verify URL from the request host (canonical www works too). */
+export function verifyUrlFromHost(host: string | null, rawToken: string): string {
+  return `${baseUrlFromHost(host)}/api/auth/verify-email?token=${rawToken}`;
 }
 
 export function verifyEmailHtml(name: string, url: string): string {

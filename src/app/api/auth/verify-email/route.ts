@@ -1,7 +1,7 @@
 import { NextResponse, type NextRequest } from "next/server";
 import { prisma } from "@/lib/db";
 import { setSessionCookie } from "@/lib/auth";
-import { hashVerifyToken } from "@/lib/auth/email-verify";
+import { hashVerifyToken, baseUrlFromHost } from "@/lib/auth/email-verify";
 import type { UserRole } from "@/lib/constants";
 
 export const dynamic = "force-dynamic";
@@ -11,8 +11,10 @@ export const dynamic = "force-dynamic";
 // token it redirects to /login with a flag so the page can offer "resend".
 export async function GET(req: NextRequest) {
   const token = req.nextUrl.searchParams.get("token")?.trim() ?? "";
-  const origin = req.nextUrl.origin;
-  const fail = (reason: string) => NextResponse.redirect(`${origin}/login?verify=${reason}`);
+  // Redirect to the PUBLIC host (from the Host header), not req.nextUrl.origin
+  // which is the internal localhost:8080 behind Railway/Cloudflare.
+  const base = baseUrlFromHost(req.headers.get("host"));
+  const fail = (reason: string) => NextResponse.redirect(`${base}/login?verify=${reason}`);
 
   if (!token) return fail("missing");
 
@@ -36,5 +38,5 @@ export async function GET(req: NextRequest) {
     name: user.name,
   });
 
-  return NextResponse.redirect(`${origin}/dashboard`);
+  return NextResponse.redirect(`${base}/dashboard`);
 }
