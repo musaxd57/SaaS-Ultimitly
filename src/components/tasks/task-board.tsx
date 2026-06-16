@@ -23,6 +23,26 @@ export interface TaskCardData {
   latestNote?: string | null;
 }
 
+// The three Kanban columns. A card lands in exactly one: explicit todo / done,
+// and anything in-between (in_progress, the legacy awaiting_review, or any
+// unknown value) falls into the middle "Devam ediyor" column so nothing is ever
+// hidden. The on-card Select (todo / in_progress / done) is how you move a card.
+const COLUMNS: { key: string; label: string; dot: string }[] = [
+  { key: "todo", label: "Yapılacak", dot: "bg-muted-foreground/40" },
+  { key: "in_progress", label: "Devam ediyor", dot: "bg-primary" },
+  { key: "done", label: "Tamamlandı", dot: "bg-emerald-500" },
+];
+function columnOf(status: string): string {
+  if (status === "todo") return "todo";
+  if (status === "done") return "done";
+  return "in_progress";
+}
+// Status options offered on each card — the model keeps a 4th "Onay bekliyor"
+// state, but cleaning/check-in work only needs these three (matches the columns).
+const SELECT_STATUSES = TASK_STATUS.options.filter(
+  (o) => o.value === "todo" || o.value === "in_progress" || o.value === "done",
+);
+
 export function TaskBoard({ tasks }: { tasks: TaskCardData[] }) {
   const router = useRouter();
   const [busyId, setBusyId] = useState<string | null>(null);
@@ -34,10 +54,8 @@ export function TaskBoard({ tasks }: { tasks: TaskCardData[] }) {
   // Cards are compact by default (note input + photo hidden) so 50+ tasks don't
   // become an endless scroll; tap "Not / fotoğraf" to reveal the editors.
   const [expanded, setExpanded] = useState<Set<string>>(new Set());
-  // Filter by status (default: all) — cards render in a wide responsive grid so
-  // 50+ tasks flow left-to-right instead of stacking into one endless column.
-  const [statusFilter, setStatusFilter] = useState<string>("");
-  // Time window — default "this week" so far-future tasks don't all dump in.
+  // Time window — default "this week" so far-future tasks don't all dump in. The
+  // status axis is the Kanban columns now (no separate status filter pill).
   const [timeRange, setTimeRange] = useState<"overdue" | "today" | "week" | "month" | "all">("week");
   const [shareOpen, setShareOpen] = useState(false);
   const [copied, setCopied] = useState(false);
@@ -143,11 +161,6 @@ export function TaskBoard({ tasks }: { tasks: TaskCardData[] }) {
     }
   }
 
-  // Cleaning/check-in tasks really only need to-do vs done — drop the rarely-used
-  // "Devam ediyor" / "Onay bekliyor" middle states from the picker + filter (the
-  // data model keeps all four; this is just a simpler UI).
-  const SIMPLE_STATUSES = TASK_STATUS.options.filter((o) => o.value === "todo" || o.value === "done");
-  const statusFilters = [{ value: "", label: "Tümü" }, ...SIMPLE_STATUSES];
   const timeFilters: { value: "overdue" | "today" | "week" | "month" | "all"; label: string }[] = [
     { value: "overdue", label: "Geciken" },
     { value: "today", label: "Bugün" },
@@ -163,18 +176,17 @@ export function TaskBoard({ tasks }: { tasks: TaskCardData[] }) {
     if (range === "month") return d <= 31;
     return true;
   };
-  // A task drops out of the active date buckets (Geciken/Bugün/Bu hafta/Bu ay) once
-  // it's "Tamamlandı" — a finished cleaning isn't "geciken", and done work shouldn't
-  // clutter the plan. See completed tasks via the "Tamamlandı" pill or the "Tümü" view.
-  const passes = (t: TaskCardData, time: typeof timeRange, status: string) =>
-    (!status || t.status === status) &&
-    rangeMatch(t.dueDays, time) &&
-    !(t.status === "done" && status !== "done" && time !== "all");
-  const visible = tasks.filter((t) => passes(t, timeRange, statusFilter));
+  // A finished task is never "geciken" (overdue) — keep the Tamamlandı column out
+  // of the Geciken window. In every other window it shows by its due date, so each
+  // window is a self-contained board (this week's plan + this week's done work).
+  const inWindow = (t: TaskCardData, range: typeof timeRange) =>
+    !(t.status === "done" && range === "overdue") && rangeMatch(t.dueDays, range);
+  const visible = tasks.filter((t) => inWindow(t, timeRange));
 
   // Shareable cleaning list (the cleaner doesn't log in — the host sends this over
-  // WhatsApp / copies it). Built from the CLEANING tasks in the current filter view.
-  const cleaningTasks = visible.filter((t) => t.type === "cleaning");
+  // WhatsApp / copies it). Built from the OPEN cleaning tasks in the current view
+  // (a done cleaning isn't something you ask the cleaner to do).
+  const cleaningTasks = visible.filter((t) => t.type === "cleaning" && t.status !== "done");
   const shareText =
     "🧹 Temizlik Listesi\n\n" +
     (cleaningTasks.length === 0
@@ -194,12 +206,163 @@ export function TaskBoard({ tasks }: { tasks: TaskCardData[] }) {
     }
   }
 
+  function renderCard(t: TaskCardData) {
+    return (
+      <div
+        key={t.id}
+        className={cn(
+          "rounded-lg border border-border bg-card p-3 shadow-sm transition-opacity",
+          t.status === "done" && "opacity-70",
+        )}
+      >
+        <div className="flex items-start justify-between gap-2">
+          <p className="min-w-0 break-words text-sm font-medium leading-snug">{t.title}</p>
+          <button
+            type="button"
+            onClick={() => remove(t.id)}
+            disabled={busyId === t.id}
+            className="inline-flex min-h-[40px] min-w-[40px] items-center justify-center rounded p-1 text-muted-foreground hover:bg-destructive/10 hover:text-destructive disabled:opacity-50"
+            aria-label="Sil"
+          >
+            {busyId === t.id ? (
+              <Loader2 className="size-3.5 animate-spin" />
+            ) : (
+              <Trash2 className="size-3.5" />
+            )}
+          </button>
+        </div>
+        <div className="mt-2 flex flex-wrap gap-1.5">
+          <Badge tone={TASK_TYPE.tone(t.type)}>{TASK_TYPE.label(t.type)}</Badge>
+          {/* Only flag priority when it's urgent — 'Standart' is just noise on 50+ cards */}
+          {t.priority === "urgent" ? (
+            <Badge tone={PRIORITY.tone(t.priority)}>{PRIORITY.label(t.priority)}</Badge>
+          ) : null}
+        </div>
+        <div className="mt-2 space-y-1 text-xs text-muted-foreground">
+          <p className="break-words">{t.propertyName}</p>
+          {t.assigneeName ? (
+            <p className="flex items-center gap-1">
+              <User className="size-3" /> {t.assigneeName}
+            </p>
+          ) : null}
+          {t.dueLabel ? (
+            <p className="flex items-center gap-1">
+              <Clock className="size-3" /> {t.dueLabel}
+            </p>
+          ) : null}
+          {t.checklist ? (
+            <p className="flex items-center gap-1">
+              <CheckSquare className="size-3" /> {t.checklist.done}/{t.checklist.total}
+            </p>
+          ) : null}
+        </div>
+
+        {/* Latest note */}
+        {t.latestNote ? (
+          <p className="mt-2 flex items-start gap-1 rounded bg-muted/50 px-2 py-1 text-xs text-muted-foreground">
+            <FileText className="mt-0.5 size-3 shrink-0" />
+            <span className="line-clamp-2">{t.latestNote}</span>
+          </p>
+        ) : null}
+
+        {/* Status — always visible; this is how you move a card between columns */}
+        <Select
+          value={columnOf(t.status)}
+          disabled={busyId === t.id}
+          onChange={(e) => setStatus(t.id, e.target.value)}
+          className="mt-2 h-9 text-xs"
+        >
+          {SELECT_STATUSES.map((o) => (
+            <option key={o.value} value={o.value}>
+              {o.label}
+            </option>
+          ))}
+        </Select>
+
+        {/* Detail toggle — keeps the card compact (note input + photo hidden) */}
+        <button
+          type="button"
+          onClick={() => toggleExpanded(t.id)}
+          className="mt-2 flex items-center gap-1 text-xs font-medium text-primary hover:underline"
+        >
+          {expanded.has(t.id) ? (
+            <>
+              <ChevronDown className="size-3" /> Gizle
+            </>
+          ) : (
+            <>
+              <ChevronRight className="size-3" /> Not{t.type === "cleaning" ? " / fotoğraf" : ""}
+              {t.latestPhotoUrl ? " 📷" : ""}
+            </>
+          )}
+        </button>
+
+        {expanded.has(t.id) ? (
+          <>
+            {/* Latest photo thumbnail */}
+            {t.latestPhotoUrl ? (
+              <a href={t.latestPhotoUrl} target="_blank" rel="noopener noreferrer" className="mt-2 block">
+                {/* eslint-disable-next-line @next/next/no-img-element */}
+                <img
+                  src={t.latestPhotoUrl}
+                  alt="Görev fotoğrafı"
+                  className="h-20 w-full rounded-md border border-border object-cover"
+                />
+              </a>
+            ) : null}
+
+            {/* Note input */}
+            <textarea
+              placeholder="Not ekle… (kaydetmek için kutudan çıkın)"
+              value={noteMap[t.id] ?? ""}
+              onChange={(e) => setNoteMap((prev) => ({ ...prev, [t.id]: e.target.value }))}
+              onBlur={() => handleNoteBlur(t.id)}
+              rows={2}
+              className={cn(
+                "mt-2 w-full resize-none rounded border border-border bg-muted/30 px-2 py-1.5 text-xs placeholder:text-muted-foreground/60 focus:outline-none focus:ring-1 focus:ring-ring",
+              )}
+            />
+            {noteError[t.id] ? (
+              <p className="mt-1 text-xs text-destructive">{noteError[t.id]}</p>
+            ) : null}
+
+            {/* Photo upload — only for cleaning tasks (proof of cleaning); never check-in prep */}
+            {t.type === "cleaning" ? (
+              <div className="mt-2 flex items-center gap-2">
+                <input
+                  ref={(el) => { fileInputRefs.current[t.id] = el; }}
+                  type="file"
+                  accept="image/jpeg,image/png,image/webp"
+                  className="hidden"
+                  onChange={(e) => handlePhotoChange(t.id, e)}
+                />
+                <button
+                  type="button"
+                  disabled={uploadingId === t.id}
+                  onClick={() => fileInputRefs.current[t.id]?.click()}
+                  className="flex items-center gap-1 rounded px-2 py-1 text-xs text-muted-foreground hover:bg-accent hover:text-foreground disabled:opacity-50"
+                >
+                  {uploadingId === t.id ? (
+                    <Loader2 className="size-3 animate-spin" />
+                  ) : (
+                    <Camera className="size-3" />
+                  )}
+                  Temizlik fotoğrafı ekle
+                </button>
+              </div>
+            ) : null}
+          </>
+        ) : null}
+      </div>
+    );
+  }
+
   return (
     <div className="space-y-3">
       {/* Time window — so far-future tasks (e.g. August arrivals) don't all dump in */}
       <div className="flex flex-wrap gap-2">
         {timeFilters.map((f) => {
-          const count = tasks.filter((t) => passes(t, f.value, statusFilter)).length;
+          const count = tasks.filter((t) => inWindow(t, f.value)).length;
           const active = timeRange === f.value;
           return (
             <button
@@ -208,29 +371,6 @@ export function TaskBoard({ tasks }: { tasks: TaskCardData[] }) {
               onClick={() => setTimeRange(f.value)}
               className={cn(
                 "rounded-full border px-3 py-1 text-sm font-medium transition-colors",
-                active
-                  ? "border-primary bg-primary text-primary-foreground"
-                  : "border-border bg-card text-muted-foreground hover:bg-accent",
-              )}
-            >
-              {f.label} <span className="opacity-70">({count})</span>
-            </button>
-          );
-        })}
-      </div>
-
-      {/* Status filter */}
-      <div className="flex flex-wrap gap-2">
-        {statusFilters.map((f) => {
-          const count = tasks.filter((t) => passes(t, timeRange, f.value)).length;
-          const active = statusFilter === f.value;
-          return (
-            <button
-              key={f.value || "all"}
-              type="button"
-              onClick={() => setStatusFilter(f.value)}
-              className={cn(
-                "rounded-full border px-3 py-1 text-sm transition-colors",
                 active
                   ? "border-primary bg-primary text-primary-foreground"
                   : "border-border bg-card text-muted-foreground hover:bg-accent",
@@ -287,149 +427,28 @@ export function TaskBoard({ tasks }: { tasks: TaskCardData[] }) {
       {visible.length === 0 ? (
         <p className="py-8 text-center text-sm text-muted-foreground">Bu filtrede görev yok.</p>
       ) : (
-        <div className="grid items-start gap-3 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4">
-          {visible.map((t) => (
-                  <div key={t.id} className="rounded-lg border border-border bg-card p-3 shadow-sm">
-                    <div className="flex items-start justify-between gap-2">
-                      <p className="text-sm font-medium leading-snug">{t.title}</p>
-                      <button
-                        type="button"
-                        onClick={() => remove(t.id)}
-                        disabled={busyId === t.id}
-                        className="inline-flex min-h-[40px] min-w-[40px] items-center justify-center rounded p-1 text-muted-foreground hover:bg-destructive/10 hover:text-destructive disabled:opacity-50"
-                        aria-label="Sil"
-                      >
-                        {busyId === t.id ? (
-                          <Loader2 className="size-3.5 animate-spin" />
-                        ) : (
-                          <Trash2 className="size-3.5" />
-                        )}
-                      </button>
-                    </div>
-                    <div className="mt-2 flex flex-wrap gap-1.5">
-                      <Badge tone={TASK_TYPE.tone(t.type)}>{TASK_TYPE.label(t.type)}</Badge>
-                      {/* Only flag priority when it's urgent — 'Standart' is just noise on 50+ cards */}
-                      {t.priority === "urgent" ? (
-                        <Badge tone={PRIORITY.tone(t.priority)}>{PRIORITY.label(t.priority)}</Badge>
-                      ) : null}
-                    </div>
-                    <div className="mt-2 space-y-1 text-xs text-muted-foreground">
-                      <p>{t.propertyName}</p>
-                      {t.assigneeName ? (
-                        <p className="flex items-center gap-1">
-                          <User className="size-3" /> {t.assigneeName}
-                        </p>
-                      ) : null}
-                      {t.dueLabel ? (
-                        <p className="flex items-center gap-1">
-                          <Clock className="size-3" /> {t.dueLabel}
-                        </p>
-                      ) : null}
-                      {t.checklist ? (
-                        <p className="flex items-center gap-1">
-                          <CheckSquare className="size-3" /> {t.checklist.done}/{t.checklist.total}
-                        </p>
-                      ) : null}
-                    </div>
-
-                    {/* Latest note */}
-                    {t.latestNote ? (
-                      <p className="mt-2 flex items-start gap-1 rounded bg-muted/50 px-2 py-1 text-xs text-muted-foreground">
-                        <FileText className="mt-0.5 size-3 shrink-0" />
-                        <span className="line-clamp-2">{t.latestNote}</span>
-                      </p>
-                    ) : null}
-
-                    {/* Status — always visible for a one-tap change */}
-                    <Select
-                      value={t.status}
-                      disabled={busyId === t.id}
-                      onChange={(e) => setStatus(t.id, e.target.value)}
-                      className="mt-2 h-8 text-xs"
-                    >
-                      {SIMPLE_STATUSES.map((o) => (
-                        <option key={o.value} value={o.value}>
-                          {o.label}
-                        </option>
-                      ))}
-                    </Select>
-
-                    {/* Detail toggle — keeps the card compact (note input + photo hidden) */}
-                    <button
-                      type="button"
-                      onClick={() => toggleExpanded(t.id)}
-                      className="mt-2 flex items-center gap-1 text-xs font-medium text-primary hover:underline"
-                    >
-                      {expanded.has(t.id) ? (
-                        <>
-                          <ChevronDown className="size-3" /> Gizle
-                        </>
-                      ) : (
-                        <>
-                          <ChevronRight className="size-3" /> Not{t.type === "cleaning" ? " / fotoğraf" : ""}
-                          {t.latestPhotoUrl ? " 📷" : ""}
-                        </>
-                      )}
-                    </button>
-
-                    {expanded.has(t.id) ? (
-                      <>
-                        {/* Latest photo thumbnail */}
-                        {t.latestPhotoUrl ? (
-                          <a href={t.latestPhotoUrl} target="_blank" rel="noopener noreferrer" className="mt-2 block">
-                            {/* eslint-disable-next-line @next/next/no-img-element */}
-                            <img
-                              src={t.latestPhotoUrl}
-                              alt="Görev fotoğrafı"
-                              className="h-20 w-full rounded-md border border-border object-cover"
-                            />
-                          </a>
-                        ) : null}
-
-                        {/* Note input */}
-                        <textarea
-                          placeholder="Not ekle… (kaydetmek için kutudan çıkın)"
-                          value={noteMap[t.id] ?? ""}
-                          onChange={(e) => setNoteMap((prev) => ({ ...prev, [t.id]: e.target.value }))}
-                          onBlur={() => handleNoteBlur(t.id)}
-                          rows={2}
-                          className={cn(
-                            "mt-2 w-full resize-none rounded border border-border bg-muted/30 px-2 py-1.5 text-xs placeholder:text-muted-foreground/60 focus:outline-none focus:ring-1 focus:ring-ring",
-                          )}
-                        />
-                        {noteError[t.id] ? (
-                          <p className="mt-1 text-xs text-destructive">{noteError[t.id]}</p>
-                        ) : null}
-
-                        {/* Photo upload — only for cleaning tasks (proof of cleaning); never check-in prep */}
-                        {t.type === "cleaning" ? (
-                          <div className="mt-2 flex items-center gap-2">
-                            <input
-                              ref={(el) => { fileInputRefs.current[t.id] = el; }}
-                              type="file"
-                              accept="image/jpeg,image/png,image/webp"
-                              className="hidden"
-                              onChange={(e) => handlePhotoChange(t.id, e)}
-                            />
-                            <button
-                              type="button"
-                              disabled={uploadingId === t.id}
-                              onClick={() => fileInputRefs.current[t.id]?.click()}
-                              className="flex items-center gap-1 rounded px-2 py-1 text-xs text-muted-foreground hover:bg-accent hover:text-foreground disabled:opacity-50"
-                            >
-                              {uploadingId === t.id ? (
-                                <Loader2 className="size-3 animate-spin" />
-                              ) : (
-                                <Camera className="size-3" />
-                              )}
-                              Temizlik fotoğrafı ekle
-                            </button>
-                          </div>
-                        ) : null}
-                      </>
-                    ) : null}
-                  </div>
-          ))}
+        <div className="grid grid-cols-1 items-start gap-4 lg:grid-cols-3">
+          {COLUMNS.map((col) => {
+            const colTasks = visible.filter((t) => columnOf(t.status) === col.key);
+            return (
+              <div key={col.key} className="min-w-0 rounded-xl border border-border bg-muted/20 p-3">
+                <div className="mb-3 flex items-center gap-2 px-1">
+                  <span className={cn("size-2.5 rounded-full", col.dot)} aria-hidden="true" />
+                  <h3 className="text-sm font-semibold">{col.label}</h3>
+                  <span className="ml-auto rounded-full bg-card px-2 py-0.5 text-xs font-medium text-muted-foreground">
+                    {colTasks.length}
+                  </span>
+                </div>
+                <div className="space-y-3 lg:max-h-[68vh] lg:overflow-y-auto lg:pr-0.5">
+                  {colTasks.length === 0 ? (
+                    <p className="py-8 text-center text-xs text-muted-foreground/70">Görev yok</p>
+                  ) : (
+                    colTasks.map((t) => renderCard(t))
+                  )}
+                </div>
+              </div>
+            );
+          })}
         </div>
       )}
     </div>
