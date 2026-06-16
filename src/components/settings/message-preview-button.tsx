@@ -58,7 +58,7 @@ export function MessagePreviewButton({
     <>
       <Button type="button" variant="outline" size="sm" onClick={runTest} disabled={busy}>
         {busy ? <Loader2 className="size-4 animate-spin" /> : <FlaskConical className="size-4" />}
-        {label} (gönderMEZ)
+        {label} (misafire gitmez)
       </Button>
 
       {open ? (

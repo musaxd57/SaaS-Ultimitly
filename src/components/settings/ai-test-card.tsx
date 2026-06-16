@@ -117,7 +117,7 @@ export function AiTestCard({ properties }: { properties: { id: string; name: str
 
       <Button type="button" onClick={run} disabled={busy || !message.trim()}>
         {busy ? <Loader2 className="size-4 animate-spin" /> : <Sparkles className="size-4" />}
-        Cevabı gör (gönderMEZ)
+        Cevabı gör (misafire gitmez)
       </Button>
 
       {error ? (

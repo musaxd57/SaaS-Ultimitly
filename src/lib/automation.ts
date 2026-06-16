@@ -1357,11 +1357,19 @@ export async function sendDueAlerts(
 ): Promise<{ alerted: number }> {
   const org = await prisma.organization.findUnique({
     where: { id: organizationId },
-    select: { name: true, alertEmail: true },
+    select: {
+      name: true,
+      alertEmail: true,
+      // Oldest user = the org's owner (who signed up) — used as the per-tenant
+      // fallback so a customer who didn't set an alert address still gets THEIR
+      // own alerts. We must NOT fall back to env ALERT_EMAIL here: that is the
+      // operator's address, so other tenants' complaints would leak to the operator.
+      users: { orderBy: { createdAt: "asc" }, take: 1, select: { email: true } },
+    },
   });
-  // Per-tenant recipient: this org's own alert address, else the global env
-  // fallback (so the operator's own org keeps working without setting a field).
-  const to = org?.alertEmail?.trim() || process.env.ALERT_EMAIL?.trim();
+  // Per-tenant recipient: this org's own alert address, else the org owner's
+  // account email. Never the global env fallback (operator-only).
+  const to = org?.alertEmail?.trim() || org?.users[0]?.email?.trim();
   if (!to) return { alerted: 0 };
 
   // Only escalate genuinely recent complaints. A re-sync (e.g. after reconnecting

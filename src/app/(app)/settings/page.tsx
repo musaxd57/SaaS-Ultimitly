@@ -222,7 +222,7 @@ export default async function SettingsPage() {
       {properties.length > 0 ? (
         <Card className="max-w-2xl">
           <CardHeader>
-            <CardTitle className="text-base">AI Cevap Testi (gönderMEZ)</CardTitle>
+            <CardTitle className="text-base">AI Cevap Testi (misafire gitmez)</CardTitle>
           </CardHeader>
           <CardContent>
             <AiTestCard properties={properties} />
@@ -237,8 +237,8 @@ export default async function SettingsPage() {
         <CardContent className="space-y-3">
           <p className="text-sm text-muted-foreground">
             Misafir <strong>şikayet/iade</strong> yazınca, aşağıdaki <strong>kendi adresinize</strong>{" "}
-            anında uyarı maili gider (uyurken bile kaçırmazsınız). Adresi boş bırakırsanız sistem
-            varsayılanı kullanılır.
+            anında uyarı maili gider (uyurken bile kaçırmazsınız). Adresi boş bırakırsanız
+            hesabınızın e-posta adresi kullanılır.
           </p>
           <AlertEmailForm initial={org?.alertEmail ?? ""} />
           <p className="text-xs text-muted-foreground">
