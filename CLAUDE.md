@@ -575,6 +575,29 @@ LeadForm KVKK consent server-enforced (zaten vardı). 425 test yeşil, build tem
 notu) — landing'de "Sınırsız" kaldı; istenirse "Yüksek daire (adil kullanım)" + canAddProperty'ye soft-cap. **⏭️ SIRADA:**
 diğer paneller tek tek (kullanıcı isteği) aynı titizlikle.
 
+## Fiyat modeli kararı: FLAT kalsın + İşletme 25 daire (2026-06-16, 6-agent araştırma + kullanıcı onayı)
+Kullanıcı flat'i saçma bulup Hospitable gibi mülk-başı dinamik fiyat sordu. 6 ajan (strateji/maliyet/
+Türk-pazarı/psikoloji/feasibility/rakip), web+kodla. **Karar (kullanıcı AskUserQuestion ile seçti): FLAT
+tier'ler KALSIN, sadece İşletme'yi marj-güvenli yap.**
+**Neden flat (dinamik DEĞİL):** (1) **AI maliyeti çok küçük** — gpt-5.1 + prompt-cache ile ~₺17/daire/ay
+(yoğunda ~₺30); Başlangıç %93-96, Pro %87-91 marj → flat zaten kârlı, dinamiğe maliyet ihtiyacı YOK.
+(2) **Flat-rate bias** (Lambrecht-Skiera JMR, akademik): küçük host öngörülebilir sabit fiyatı sayaçlı/
+mülk-başına TERCİH eder, "taksimetre etkisi" satın almayı düşürür. (3) 2026 uzman konsensüsü = basitlik.
+(4) Türk pazarı flat-tier (BasitCRM/HemenKamp/Paraşüt); ₺449 giriş tabanına (₺300-600) tam oturuyor.
+(5) Müşteri zaten Hospitable'a mülk-başı ödüyor → üstüne mülk-başı = zor satış.
+**Uygulanan:** `plans.ts` İşletme `propertyLimit` 200→**25** (25 dairede ~%75 marj; canAddProperty otomatik
+uydu). Landing: "8-25 daireli profesyoneller" + "25 daireye kadar" + fiyat altına "25+ daire → bize ulaşın"
+(elle teklif/değer-bazlı pazarlık). Başlangıç ₺449 / Pro ₺899 / İşletme ₺1.699 AYNEN.
+**⏭️ ERTELENEN (kullanıcı isterse — daha çok gelir ama karmaşık):** strateji ajanının "hibrit" önerisi —
+flat base + 2 daire üstü daire-başı (₺120/daire 3-10, ₺90 11-40, ₺65 41+), hacimde inen oran. Paddle quantity
+destekliyor; `Subscription.unitCount` (nullable, db-push güvenli) + webhook quantity + entitlement `unitCount ??
+tier` → canAddProperty zaten mülk-başı olur. Büyük hesaptan değer-bazlı daha çok alır ama checkout/billing
+karmaşıklaşır + küçük hostu korkutma riski (bu yüzden ertelendi; bugünün kararı flat-basitlik).
+**Rakip referansı:** Besty $12/listing, Conduit(HostAI) $500 flat, Hospitable AI plana dahil ($29-99/mülk),
+Hostex 10-reply/mülk metered. Lixus ₺120/daire (~$2.6) hepsinden ucuz — TRY-native moat.
+**⏳ Launch KDV kararı:** B2C → yasal olarak KDV-dahil headline (Madde 57); ama Paddle MoR KDV'yi kendi
+topluyor/gösteriyor → checkout'ta netleşir, launch'ta teyit et.
+
 ## Çalışma şekli
 Kullanıcı: "Bana söyle, ben kodlarım." Fazları sırayla, additive + testli.
 Build + `npm test` yeşil olmadan push etme. GitHub'da PR sadece kullanıcı

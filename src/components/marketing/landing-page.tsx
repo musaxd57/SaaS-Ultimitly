@@ -101,8 +101,8 @@ const TIERS = [
     name: "İşletme",
     price: "₺1.699",
     unit: "/ay",
-    desc: "8+ daire / yönetim şirketleri",
-    features: ["Pro’daki her şey", "200 daireye kadar", "Birebir kurulum desteği", "Öncelikli destek"],
+    desc: "8–25 daireli profesyoneller",
+    features: ["Pro’daki her şey", "25 daireye kadar", "Birebir kurulum desteği", "Öncelikli destek"],
     highlight: false,
   },
 ];
@@ -356,6 +356,13 @@ export function LandingPage() {
               </Reveal>
             ))}
           </div>
+          <p className="mt-8 text-center text-sm text-muted-foreground">
+            25+ daire mi yönetiyorsunuz?{" "}
+            <a href="#demo" className="font-medium text-foreground underline underline-offset-2">
+              Büyük portföyler için bize ulaşın
+            </a>
+            .
+          </p>
         </div>
       </section>
 
