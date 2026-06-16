@@ -115,7 +115,7 @@ export default async function DashboardPage() {
       done: connection.connected,
       title: "Airbnb / Booking bağlantısını kur",
       desc: "Misafir mesajlarınızın akması için Hospitable hesabınızın token'ını Ayarlar'dan bağlayın. (Hospitable hesabınız yoksa önce hospitable.com'dan açmanız gerekir.)",
-      href: "/settings",
+      href: "/settings#hospitable",
       cta: "Bağlantıyı kur",
     },
     {

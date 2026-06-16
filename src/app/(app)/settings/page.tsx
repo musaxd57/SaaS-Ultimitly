@@ -196,7 +196,7 @@ export default async function SettingsPage() {
       ) : null}
 
       {canManageChannel && hospitableInfo ? (
-        <Card className="max-w-2xl">
+        <Card id="hospitable" className="max-w-2xl scroll-mt-24">
           <CardHeader>
             <CardTitle className="text-base">Hospitable Bağlantısı (Airbnb / Booking)</CardTitle>
           </CardHeader>
