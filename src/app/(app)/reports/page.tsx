@@ -60,6 +60,12 @@ export default async function ReportsPage() {
   const autoMessages = ai.aiReplies + ai.welcomes + ai.checkins + ai.checkouts;
   const savedMinutes = autoMessages * 4;
   const savedHours = Math.round(savedMinutes / 60);
+  // Overall occupancy ring (this month) — a simple average across units, shown as
+  // a donut at the top of the per-property occupancy card.
+  const overallOccupancy =
+    occupancy.length > 0
+      ? Math.round(occupancy.reduce((s, o) => s + o.thisMonthRate, 0) / occupancy.length)
+      : 0;
 
   return (
     <>
@@ -162,9 +168,9 @@ export default async function ReportsPage() {
                     <span>{INTENT_LABEL[t.intent] ?? t.intent}</span>
                     <span className="text-muted-foreground">{t.count}</span>
                   </div>
-                  <div className="h-1.5 overflow-hidden rounded-full bg-muted">
+                  <div className="h-2 overflow-hidden rounded-full bg-muted">
                     <div
-                      className="h-full rounded-full bg-primary"
+                      className="h-full rounded-full bg-gradient-to-r from-primary to-primary/60"
                       style={{ width: `${(t.count / maxTopic) * 100}%` }}
                     />
                   </div>
@@ -208,27 +214,54 @@ export default async function ReportsPage() {
               <BedDouble className="size-4 text-muted-foreground" /> Doluluk (daireye göre)
             </CardTitle>
           </CardHeader>
-          <CardContent className="space-y-2">
+          <CardContent className="space-y-3">
             {occupancy.length === 0 ? (
               <EmptyState title="Henüz veri yok" className="py-6" />
             ) : (
-              occupancy.map((o) => (
-                <div
-                  key={o.propertyId}
-                  className="flex items-center justify-between rounded-lg border border-border px-3 py-2 text-sm"
-                >
-                  <span className="font-medium">{o.propertyName}</span>
-                  <span className="flex items-center gap-2">
-                    <span className="text-muted-foreground">%{o.thisMonthRate} bu ay</span>
-                    {o.delta !== 0 ? (
-                      <Badge tone={o.delta > 0 ? "success" : "muted"}>
-                        {o.delta > 0 ? "+" : ""}
-                        {o.delta}
-                      </Badge>
-                    ) : null}
-                  </span>
+              <>
+                {/* Overall occupancy donut (this month, averaged across units) */}
+                <div className="flex items-center justify-center gap-4 border-b border-border pb-4">
+                  <div
+                    className="grid size-24 shrink-0 place-items-center rounded-full"
+                    style={{
+                      background: `conic-gradient(hsl(var(--primary)) ${overallOccupancy * 3.6}deg, hsl(var(--muted)) ${overallOccupancy * 3.6}deg)`,
+                    }}
+                  >
+                    <div className="grid size-[68px] place-items-center rounded-full bg-card text-center">
+                      <div>
+                        <div className="text-xl font-bold leading-none">%{overallOccupancy}</div>
+                        <div className="mt-0.5 text-[10px] text-muted-foreground">ortalama</div>
+                      </div>
+                    </div>
+                  </div>
+                  <div className="text-sm">
+                    <p className="font-medium">Bu ay ortalama doluluk</p>
+                    <p className="text-muted-foreground">{occupancy.length} daire</p>
+                  </div>
                 </div>
-              ))
+                {occupancy.map((o) => (
+                  <div key={o.propertyId} className="space-y-1">
+                    <div className="flex items-center justify-between gap-2 text-sm">
+                      <span className="min-w-0 truncate font-medium">{o.propertyName}</span>
+                      <span className="flex shrink-0 items-center gap-2">
+                        <span className="text-muted-foreground">%{o.thisMonthRate}</span>
+                        {o.delta !== 0 ? (
+                          <Badge tone={o.delta > 0 ? "success" : "muted"}>
+                            {o.delta > 0 ? "+" : ""}
+                            {o.delta}
+                          </Badge>
+                        ) : null}
+                      </span>
+                    </div>
+                    <div className="h-2 overflow-hidden rounded-full bg-muted">
+                      <div
+                        className="h-full rounded-full bg-gradient-to-r from-primary to-primary/60"
+                        style={{ width: `${Math.min(100, Math.max(0, o.thisMonthRate))}%` }}
+                      />
+                    </div>
+                  </div>
+                ))}
+              </>
             )}
           </CardContent>
         </Card>
