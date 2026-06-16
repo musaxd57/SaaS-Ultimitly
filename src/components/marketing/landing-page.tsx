@@ -184,8 +184,8 @@ export function LandingPage() {
           Misafirlerinize 7/24, kendi dillerinde, <span className="text-primary">insan gibi</span> cevap veren yapay zekâ
         </h1>
         <p className="mx-auto mt-5 max-w-2xl text-lg text-muted-foreground">
-          Airbnb ve Booking misafir mesajlarınızı Lixus AI yanıtlasın — Türkçe öncelikli, hatasız ve güvenli.
-          Siz uyurken bile. Kurulum birkaç dakika, teknik bilgi gerekmez.
+          Airbnb ve Booking misafir mesajlarınızı Lixus AI yanıtlasın — Türkçe öncelikli, güvenli ve
+          her zaman sizin kontrolünüzde. Siz uyurken bile. Kurulum birkaç dakika, teknik bilgi gerekmez.
         </p>
         <div className="mt-8 flex flex-col items-center justify-center gap-3 sm:flex-row">
           <Link href="/register" className={cn(buttonVariants({ size: "lg" }), "w-full sm:w-auto")}>
