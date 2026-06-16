@@ -154,7 +154,7 @@ const PANELS = [
   {
     icon: MessageSquareReply,
     name: "Mesajlar",
-    body: "Airbnb + Booking tek gelen kutusunda. AI cevabı önerir, tek tıkla onaylayıp gönderirsiniz.",
+    body: "Airbnb + Booking tek gelen kutusunda. Güvenli sorulara AI otomatik cevap verir; dilerseniz önce önerir, tek tıkla gönderirsiniz.",
   },
   {
     icon: QrCode,
@@ -264,7 +264,7 @@ export function LandingPage() {
       {/* Lixus AI in action — a real demo video if configured, otherwise a
           static example conversation so this section is never empty. */}
       <section className="border-t border-border bg-card/40 py-20">
-        <div className="mx-auto max-w-4xl px-4 sm:px-6">
+        <div className="mx-auto max-w-5xl px-4 sm:px-6">
           <Reveal as="h2" className="text-center text-3xl font-bold tracking-tight">Lixus AI iş başında</Reveal>
           <Reveal as="p" delay={80} className="mx-auto mt-3 max-w-xl text-center text-muted-foreground">
             Misafir hangi dilde yazarsa o dilde yanıt. İster tam otomatik gönderir, ister AI önerir siz tek
@@ -282,60 +282,8 @@ export function LandingPage() {
               />
             </Reveal>
           ) : (
-            <Reveal delay={120} className="card-lift mx-auto mt-10 max-w-md overflow-hidden rounded-2xl border border-border bg-card shadow-sm">
-              {/* window chrome */}
-              <div className="flex items-center gap-1.5 border-b border-border bg-muted/40 px-4 py-2.5">
-                <span className="size-2.5 rounded-full bg-red-400/70" />
-                <span className="size-2.5 rounded-full bg-amber-400/80" />
-                <span className="size-2.5 rounded-full bg-emerald-400/70" />
-                <span className="ml-2 text-xs font-medium text-muted-foreground">Mesajlar · nuve 2</span>
-              </div>
-              <div className="space-y-3 p-4 text-left">
-                {/* 1) German — full auto-reply */}
-                <div className="flex justify-start">
-                  <div className="max-w-[82%] rounded-2xl rounded-bl-sm border border-border bg-muted/50 px-3 py-2 text-sm">
-                    <span className="mb-0.5 block text-[10px] font-semibold text-muted-foreground">Misafir · Almanca</span>
-                    Hallo! Wann kann ich einchecken?
-                  </div>
-                </div>
-                <div className="flex justify-end">
-                  <div className="max-w-[82%] rounded-2xl rounded-br-sm bg-primary px-3 py-2 text-sm text-primary-foreground">
-                    <span className="mb-0.5 block text-[10px] font-semibold text-primary-foreground/70">Lixus AI · otomatik gönderildi</span>
-                    Hallo! Der Check-in ist ab 15:00 Uhr möglich. Bei früherer Ankunft schreiben Sie mir gern. 😊
-                  </div>
-                </div>
-
-                {/* 2) English — AI suggests, host approves */}
-                <div className="flex justify-start">
-                  <div className="max-w-[82%] rounded-2xl rounded-bl-sm border border-border bg-muted/50 px-3 py-2 text-sm">
-                    <span className="mb-0.5 block text-[10px] font-semibold text-muted-foreground">Misafir · İngilizce</span>
-                    Hi! Is there parking near the apartment?
-                  </div>
-                </div>
-                <div className="flex justify-end">
-                  <div className="max-w-[82%] rounded-2xl rounded-br-sm bg-primary px-3 py-2 text-sm text-primary-foreground">
-                    <span className="mb-0.5 block text-[10px] font-semibold text-primary-foreground/70">Lixus AI önerdi · tek tıkla onayladınız</span>
-                    Hi! Yes — there&apos;s a 24/7 paid car park 2 minutes away on the same street. Want the exact location?
-                  </div>
-                </div>
-
-                {/* 3) Turkish — complaint escalated (safety gate) */}
-                <div className="flex justify-start">
-                  <div className="max-w-[82%] rounded-2xl rounded-bl-sm border border-border bg-muted/50 px-3 py-2 text-sm">
-                    <span className="mb-0.5 block text-[10px] font-semibold text-muted-foreground">Misafir · Türkçe</span>
-                    Daireyi çok kirli buldum, hayal kırıklığına uğradım.
-                  </div>
-                </div>
-                <div className="flex items-start gap-2 rounded-lg border border-amber-300 bg-amber-50 px-3 py-2 text-xs text-amber-900">
-                  <ShieldCheck className="mt-0.5 size-3.5 shrink-0" aria-hidden="true" />
-                  <span>Şikayet algılandı — Lixus AI otomatik cevap vermedi, mesajı size iletti. Hassas konular her zaman sizde.</span>
-                </div>
-
-                <p className="border-t border-border pt-3 text-center text-[11px] text-muted-foreground">
-                  Her daire için seçim sizin: <strong className="text-foreground">tam otomatik</strong> ya da{" "}
-                  <strong className="text-foreground">AI önersin, siz tek tıkla gönderin.</strong>
-                </p>
-              </div>
+            <Reveal delay={120} className="mt-10">
+              <DemoFrame src="/urun.html" title="Lixus AI ürün turu" />
             </Reveal>
           )}
         </div>

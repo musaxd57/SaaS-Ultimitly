@@ -228,7 +228,7 @@
 
   /* overlays */
   .cursor{position:absolute;z-index:60;left:0;top:0;width:30px;height:30px;pointer-events:none;
-    transition:transform 1s cubic-bezier(.55,.06,.2,1);filter:drop-shadow(0 4px 6px rgba(20,30,60,.4));opacity:0}
+    transition:transform .55s cubic-bezier(.55,.06,.2,1);filter:drop-shadow(0 4px 6px rgba(20,30,60,.4));opacity:0}
   .cursor.in{opacity:1}
   .ripple{position:absolute;z-index:55;width:18px;height:18px;border-radius:50%;border:2px solid var(--accent);
     transform:translate(-50%,-50%) scale(.4);opacity:0;pointer-events:none}
@@ -571,11 +571,15 @@
     {at:2700,fn:function(){ hideRing(); hideTip(); }},
 
     {at:2950,fn:function(){ showScene('s2'); setUrl('lixusai.com','/register'); setChip(2,'Hesabını oluştur'); hideCursor(); }},
-    {at:3350,fn:function(){ aim($('rBiz')); fillField($('rBiz'),'Bosphorus Stays'); }},
-    {at:4000,fn:function(){ blurField($('rBiz')); aim($('rName')); fillField($('rName'),'Ahmet Yılmaz'); }},
-    {at:4650,fn:function(){ blurField($('rName')); aim($('rMail')); fillField($('rMail'),'ahmet@bosphorusstays.com'); }},
-    {at:5300,fn:function(){ blurField($('rMail')); aim($('rPass')); fillField($('rPass'),'••••••••••'); }},
-    {at:5950,fn:function(){ blurField($('rPass')); aim($('rBtn')); ringEl($('rBtn'),7); tipEl($('rBtn'),'Hesap Oluştur'); }},
+    {at:3250,fn:function(){ aim($('rBiz')); }},
+    {at:3850,fn:function(){ fillField($('rBiz'),'Bosphorus Stays'); }},
+    {at:3950,fn:function(){ blurField($('rBiz')); aim($('rName')); }},
+    {at:4550,fn:function(){ fillField($('rName'),'Ahmet Yılmaz'); }},
+    {at:4650,fn:function(){ blurField($('rName')); aim($('rMail')); }},
+    {at:5250,fn:function(){ fillField($('rMail'),'ahmet@bosphorusstays.com'); }},
+    {at:5350,fn:function(){ blurField($('rMail')); aim($('rPass')); }},
+    {at:5950,fn:function(){ fillField($('rPass'),'••••••••••'); }},
+    {at:6050,fn:function(){ blurField($('rPass')); aim($('rBtn')); ringEl($('rBtn'),7); tipEl($('rBtn'),'Hesap Oluştur'); }},
     {at:6750,fn:function(){ clickEl($('rBtn')); }},
     {at:7150,fn:function(){ hideRing(); hideTip(); }},
 
