@@ -13,7 +13,10 @@ import {
   Check,
   ArrowRight,
   ChevronDown,
-  PlayCircle,
+  QrCode,
+  ClipboardCheck,
+  BarChart3,
+  BookOpen,
 } from "lucide-react";
 import { buttonVariants } from "@/components/ui/button";
 import { LeadForm } from "@/components/marketing/lead-form";
@@ -140,6 +143,40 @@ const FAQS = [
 
 const TRUST = ["Türkiye’de geliştirildi", "KVKK uyumlu", "Şikayetlerde otomatik cevap yok", "Airbnb & Booking"];
 
+// The real panels a customer uses — shown as little "screens" on the landing.
+const PANELS = [
+  {
+    icon: LayoutDashboard,
+    name: "Panel",
+    body: "Günlük AI özeti, bugünkü giriş/çıkışlar, bekleyen mesajlar ve doluluk — sabah açınca her şey bir bakışta.",
+  },
+  {
+    icon: MessageSquareReply,
+    name: "Mesajlar",
+    body: "Airbnb + Booking tek gelen kutusunda. AI cevabı önerir, tek tıkla onaylayıp gönderirsiniz.",
+  },
+  {
+    icon: QrCode,
+    name: "Misafir Sohbetleri",
+    body: "Daireye astığınız QR ile misafir, konaklama boyunca AI’a soru sorar; çözemezse size iletilir.",
+  },
+  {
+    icon: ClipboardCheck,
+    name: "Görevler",
+    body: "Temizlik ve giriş hazırlığı görevleri rezervasyondan otomatik oluşur; Kanban’da takip edersiniz.",
+  },
+  {
+    icon: BarChart3,
+    name: "Raporlar",
+    body: "Performans skoru, daireye göre doluluk, şikayet yoğunluğu ve en çok sorulan konular.",
+  },
+  {
+    icon: BookOpen,
+    name: "Bilgi Tabanı",
+    body: "Wi-Fi, giriş talimatı, ev kuralları — AI ve otomatik mesajlar bu bilgilerle konuşur.",
+  },
+];
+
 export function LandingPage() {
   // Optional WhatsApp contact — set NEXT_PUBLIC_WHATSAPP to a BUSINESS number
   // (digits only, with country code). If unset, only the e-mail contact shows.
@@ -223,14 +260,16 @@ export function LandingPage() {
         </div>
       </section>
 
-      {/* Demo video — only rendered when a real embed URL is configured */}
-      {demoVideo ? (
-        <section className="border-t border-border bg-card/40 py-20">
-          <div className="mx-auto max-w-4xl px-4 sm:px-6">
-            <Reveal as="h2" className="text-center text-3xl font-bold tracking-tight">Lixus AI iş başında</Reveal>
-            <Reveal as="p" delay={80} className="mx-auto mt-3 max-w-xl text-center text-muted-foreground">
-              Misafir mesajı geldiğinde AI’ın nasıl sizin tonunuzla yanıt hazırladığını görün.
-            </Reveal>
+      {/* Lixus AI in action — a real demo video if configured, otherwise a
+          static example conversation so this section is never empty. */}
+      <section className="border-t border-border bg-card/40 py-20">
+        <div className="mx-auto max-w-4xl px-4 sm:px-6">
+          <Reveal as="h2" className="text-center text-3xl font-bold tracking-tight">Lixus AI iş başında</Reveal>
+          <Reveal as="p" delay={80} className="mx-auto mt-3 max-w-xl text-center text-muted-foreground">
+            Misafir hangi dilde yazarsa o dilde yanıtlar; riskli mesajları size bırakır. Örnek bir gelen kutusu:
+          </Reveal>
+
+          {demoVideo ? (
             <Reveal delay={120} className="mt-10 aspect-video overflow-hidden rounded-2xl border border-border bg-foreground/5 shadow-sm">
               <iframe
                 src={demoVideo}
@@ -240,9 +279,50 @@ export function LandingPage() {
                 allowFullScreen
               />
             </Reveal>
-          </div>
-        </section>
-      ) : null}
+          ) : (
+            <Reveal delay={120} className="card-lift mx-auto mt-10 max-w-md overflow-hidden rounded-2xl border border-border bg-card shadow-sm">
+              {/* window chrome */}
+              <div className="flex items-center gap-1.5 border-b border-border bg-muted/40 px-4 py-2.5">
+                <span className="size-2.5 rounded-full bg-red-400/70" />
+                <span className="size-2.5 rounded-full bg-amber-400/80" />
+                <span className="size-2.5 rounded-full bg-emerald-400/70" />
+                <span className="ml-2 text-xs font-medium text-muted-foreground">Mesajlar · nuve 2</span>
+              </div>
+              <div className="space-y-3 p-4 text-left">
+                {/* guest message in German */}
+                <div className="flex justify-start">
+                  <div className="max-w-[82%] rounded-2xl rounded-bl-sm border border-border bg-muted/50 px-3 py-2 text-sm">
+                    <span className="mb-0.5 block text-[10px] font-semibold text-muted-foreground">Misafir · Almanca</span>
+                    Hallo! Wann kann ich einchecken?
+                  </div>
+                </div>
+                {/* AI reply in German */}
+                <div className="flex justify-end">
+                  <div className="max-w-[82%] rounded-2xl rounded-br-sm bg-primary px-3 py-2 text-sm text-primary-foreground">
+                    <span className="mb-0.5 block text-[10px] font-semibold text-primary-foreground/70">Lixus AI · otomatik yanıt</span>
+                    Hallo! Der Check-in ist ab 15:00 Uhr möglich. Bei früherer Ankunft schreiben Sie mir gern. 😊
+                  </div>
+                </div>
+                <p className="text-center text-[11px] text-muted-foreground">
+                  Misafir Almanca yazdı, Lixus AI Almanca yanıtladı — siz panelinizi Türkçe yönetirsiniz.
+                </p>
+
+                {/* complaint → escalation (safety gate) */}
+                <div className="flex justify-start">
+                  <div className="max-w-[82%] rounded-2xl rounded-bl-sm border border-border bg-muted/50 px-3 py-2 text-sm">
+                    <span className="mb-0.5 block text-[10px] font-semibold text-muted-foreground">Misafir</span>
+                    Daireyi çok kirli buldum, hayal kırıklığına uğradım.
+                  </div>
+                </div>
+                <div className="flex items-start gap-2 rounded-lg border border-amber-300 bg-amber-50 px-3 py-2 text-xs text-amber-900">
+                  <ShieldCheck className="mt-0.5 size-3.5 shrink-0" aria-hidden="true" />
+                  <span>Şikayet algılandı — Lixus AI otomatik cevap vermedi, mesajı size iletti. Hassas konular her zaman sizde.</span>
+                </div>
+              </div>
+            </Reveal>
+          )}
+        </div>
+      </section>
 
       {/* How it works */}
       <section id="nasil" className="scroll-mt-20 border-t border-border bg-card/40 py-20">
@@ -280,6 +360,37 @@ export function LandingPage() {
                 </span>
                 <h3 className="mt-4 text-lg font-semibold">{f.title}</h3>
                 <p className="mt-2 text-sm text-muted-foreground">{f.body}</p>
+              </Reveal>
+            ))}
+          </div>
+        </div>
+      </section>
+
+      {/* Panels showcase — the real screens, styled as little windows */}
+      <section className="border-t border-border bg-card/40 py-20">
+        <div className="mx-auto max-w-6xl px-4 sm:px-6">
+          <Reveal as="h2" className="text-center text-3xl font-bold tracking-tight">
+            Açtığınız panelde her şey bir arada
+          </Reveal>
+          <Reveal as="p" delay={80} className="mx-auto mt-3 max-w-xl text-center text-muted-foreground">
+            Mesajdan temizliğe, rapordan misafir sohbetine — tüm operasyonunuz tek ekranda.
+          </Reveal>
+          <div className="mt-12 grid gap-6 sm:grid-cols-2 lg:grid-cols-3">
+            {PANELS.map((p, i) => (
+              <Reveal
+                key={p.name}
+                delay={i * 70}
+                className="card-lift overflow-hidden rounded-xl border border-border bg-card"
+              >
+                <div className="flex items-center gap-1.5 border-b border-border bg-muted/40 px-4 py-2.5">
+                  <span className="size-2.5 rounded-full bg-red-400/70" />
+                  <span className="size-2.5 rounded-full bg-amber-400/80" />
+                  <span className="size-2.5 rounded-full bg-emerald-400/70" />
+                  <span className="ml-2 inline-flex items-center gap-1.5 text-xs font-medium text-foreground">
+                    <p.icon className="size-3.5 text-primary" aria-hidden="true" /> {p.name}
+                  </span>
+                </div>
+                <p className="p-5 text-sm text-muted-foreground">{p.body}</p>
               </Reveal>
             ))}
           </div>
