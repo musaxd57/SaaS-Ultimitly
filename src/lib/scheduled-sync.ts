@@ -2,6 +2,7 @@ import "server-only";
 
 import { prisma } from "@/lib/db";
 import { syncHospitable } from "@/lib/hospitable-sync";
+import { HospitableError } from "@/lib/hospitable";
 import { reportError } from "@/lib/report-error";
 import { premiumAllowed } from "@/lib/billing/subscription";
 import {
@@ -164,8 +165,16 @@ export async function runScheduledSync(): Promise<ScheduledSyncTotals> {
           totals.checkouts += checkout.sent;
           totals.alerts += alert.alerted;
         } catch (err) {
-          // One org failing must not abort the rest.
-          await reportError(`scheduled-sync org ${org.id}`, err);
+          // One org failing must not abort the rest. A Hospitable 402
+          // ("Subscription not active") means THIS org's Hospitable billing
+          // lapsed — an expected external state, not a Lixus bug — so log it
+          // (the UI connection status already reflects it) but DON'T alert-email
+          // every cycle, which would flood the inbox until they renew.
+          if (err instanceof HospitableError && err.status === 402) {
+            console.warn(`[scheduled-sync] org ${org.id}: Hospitable subscription not active (skipped)`);
+          } else {
+            await reportError(`scheduled-sync org ${org.id}`, err);
+          }
         }
       }
       return totals;

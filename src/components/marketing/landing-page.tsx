@@ -196,7 +196,7 @@ export function LandingPage() {
           </Reveal>
           <Reveal as="p" delay={140} className="mx-auto mt-5 max-w-2xl text-base text-muted-foreground sm:text-lg">
             Airbnb ve Booking misafir mesajlarını Lixus AI sizin yerinize, dakikalar içinde yanıtlar — Türkçe
-            öncelikli ve şikayetlerde asla otomatik cevap vermez. Hızlı yanıt, daha çok 5 yıldız demek.
+            öncelikli ve şikayetlerde asla otomatik cevap vermez. Kontrol her zaman sizde.
           </Reveal>
           <Reveal delay={220} className="mt-8 flex flex-col items-center justify-center gap-3 sm:flex-row">
             <Link href="/register" className={cn(buttonVariants({ size: "lg" }), "cta-glow cta-arrow w-full sm:w-auto")}>
