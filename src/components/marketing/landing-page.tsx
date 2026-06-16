@@ -142,7 +142,7 @@ const FAQS = [
   },
 ];
 
-const TRUST = ["Türkiye’de geliştirildi", "KVKK uyumlu", "Şikayetlerde otomatik cevap yok", "Airbnb & Booking"];
+const TRUST = ["Türkiye’de geliştirildi", "KVKK uyumlu", "Şikayetlerde otomatik cevap yok", "Kullanıcı dostu arayüz"];
 
 // The real panels a customer uses — shown as little "screens" on the landing.
 const PANELS = [
@@ -226,15 +226,15 @@ export function LandingPage() {
       <section className="relative overflow-hidden">
         <div className="hero-aura" aria-hidden="true" />
         <div className="relative z-10 mx-auto max-w-6xl px-4 py-20 text-center sm:px-6 sm:py-28">
-          <span className="badge-in inline-flex items-center gap-1.5 rounded-full border border-border bg-accent/60 px-3 py-1 text-xs font-medium text-accent-foreground">
+          <span className="badge-in inline-flex items-center gap-1.5 rounded-full border border-border bg-accent/60 px-3 py-1 text-xs font-medium text-accent-foreground shadow-sm ring-1 ring-border/50">
             <ShieldCheck className="size-3.5" aria-hidden="true" /> Airbnb &amp; Booking ev sahipleri için yapay zekâ asistanı
           </span>
           <Reveal as="h1" delay={60} className="mx-auto mt-6 max-w-3xl text-4xl font-bold tracking-tight sm:text-5xl">
             Misafirlerinize <span className="text-primary">gece 3’te bile</span>, kendi dillerinde cevap veren yapay zekâ
           </Reveal>
           <Reveal as="p" delay={140} className="mx-auto mt-5 max-w-2xl text-base text-muted-foreground sm:text-lg">
-            Misafir hangi dilde yazarsa Lixus AI o dilde, dakikalar içinde cevaplar; üslubunu siz
-            ayarlarsınız, hassas mesajları onaylamanız için size bırakır.
+            Almanca, Rusça, Arapça — misafir hangi dilde yazarsa Lixus AI o dilde yanıtlar.
+            Şikayet ve hassas konuları otomatik yanıtlamaz, size iletir.
           </Reveal>
           <Reveal delay={220} className="mt-8 flex flex-col items-center justify-center gap-3 sm:flex-row">
             <Link href="/register" className={cn(buttonVariants({ size: "lg" }), "cta-glow cta-arrow w-full sm:w-auto")}>
@@ -252,7 +252,7 @@ export function LandingPage() {
             {TRUST.map((t) => (
               <span
                 key={t}
-                className="inline-flex items-center gap-1.5 rounded-full border border-border bg-card px-3 py-1 text-xs text-muted-foreground"
+                className="inline-flex items-center gap-1.5 rounded-full border border-border bg-card/80 px-3 py-1.5 text-xs font-medium text-foreground/80 shadow-sm"
               >
                 <Check className="size-3 text-primary" aria-hidden="true" /> {t}
               </span>
