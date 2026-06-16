@@ -49,14 +49,12 @@ export async function POST(req: NextRequest) {
       try {
         await emailService.send(
           to,
-          `Lixus AI — yeni demo talebi: ${name}`,
-          `<p><strong>Yeni demo / deneme talebi</strong></p>
-           <ul>
-             <li>İsim: ${esc(name)}</li>
-             <li>E-posta: ${esc(email)}</li>
-             ${phone ? `<li>Telefon: ${esc(phone)}</li>` : ""}
-             ${message ? `<li>Mesaj: ${esc(message)}</li>` : ""}
-           </ul>
+          `Yeni demo talebi: ${name}`,
+          `<p>Yeni bir demo / deneme talebi geldi.</p>
+           <p>İsim: ${esc(name)}<br/>
+           E-posta: ${esc(email)}${phone ? `<br/>Telefon: ${esc(phone)}` : ""}${
+             message ? `<br/>Mesaj: ${esc(message)}` : ""
+           }</p>
            <p>Operatör panelindeki "Demo Talepleri" bölümünde de görünür.</p>`,
         );
       } catch (e) {

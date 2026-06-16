@@ -195,8 +195,8 @@ export function LandingPage() {
             Misafirlerinize <span className="text-primary">gece 3’te bile</span>, kendi dillerinde cevap veren yapay zekâ
           </Reveal>
           <Reveal as="p" delay={140} className="mx-auto mt-5 max-w-2xl text-base text-muted-foreground sm:text-lg">
-            Airbnb ve Booking misafir mesajlarını Lixus AI sizin yerinize, dakikalar içinde yanıtlar — Türkçe
-            öncelikli ve şikayetlerde asla otomatik cevap vermez.
+            Misafir hangi dilde yazarsa Lixus AI o dilde, dakikalar içinde cevaplar; üslubunu siz
+            ayarlarsınız, hassas mesajları onaylamanız için size bırakır.
           </Reveal>
           <Reveal delay={220} className="mt-8 flex flex-col items-center justify-center gap-3 sm:flex-row">
             <Link href="/register" className={cn(buttonVariants({ size: "lg" }), "cta-glow cta-arrow w-full sm:w-auto")}>
