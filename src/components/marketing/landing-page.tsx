@@ -266,7 +266,8 @@ export function LandingPage() {
         <div className="mx-auto max-w-4xl px-4 sm:px-6">
           <Reveal as="h2" className="text-center text-3xl font-bold tracking-tight">Lixus AI iş başında</Reveal>
           <Reveal as="p" delay={80} className="mx-auto mt-3 max-w-xl text-center text-muted-foreground">
-            Misafir hangi dilde yazarsa o dilde yanıtlar; riskli mesajları size bırakır. Örnek bir gelen kutusu:
+            Misafir hangi dilde yazarsa o dilde yanıt. İster tam otomatik gönderir, ister AI önerir siz tek
+            tıkla onaylarsınız — riskli mesajları her zaman size bırakır.
           </Reveal>
 
           {demoVideo ? (
@@ -289,28 +290,38 @@ export function LandingPage() {
                 <span className="ml-2 text-xs font-medium text-muted-foreground">Mesajlar · nuve 2</span>
               </div>
               <div className="space-y-3 p-4 text-left">
-                {/* guest message in German */}
+                {/* 1) German — full auto-reply */}
                 <div className="flex justify-start">
                   <div className="max-w-[82%] rounded-2xl rounded-bl-sm border border-border bg-muted/50 px-3 py-2 text-sm">
                     <span className="mb-0.5 block text-[10px] font-semibold text-muted-foreground">Misafir · Almanca</span>
                     Hallo! Wann kann ich einchecken?
                   </div>
                 </div>
-                {/* AI reply in German */}
                 <div className="flex justify-end">
                   <div className="max-w-[82%] rounded-2xl rounded-br-sm bg-primary px-3 py-2 text-sm text-primary-foreground">
-                    <span className="mb-0.5 block text-[10px] font-semibold text-primary-foreground/70">Lixus AI · otomatik yanıt</span>
+                    <span className="mb-0.5 block text-[10px] font-semibold text-primary-foreground/70">Lixus AI · otomatik gönderildi</span>
                     Hallo! Der Check-in ist ab 15:00 Uhr möglich. Bei früherer Ankunft schreiben Sie mir gern. 😊
                   </div>
                 </div>
-                <p className="text-center text-[11px] text-muted-foreground">
-                  Misafir Almanca yazdı, Lixus AI Almanca yanıtladı — siz panelinizi Türkçe yönetirsiniz.
-                </p>
 
-                {/* complaint → escalation (safety gate) */}
+                {/* 2) English — AI suggests, host approves */}
                 <div className="flex justify-start">
                   <div className="max-w-[82%] rounded-2xl rounded-bl-sm border border-border bg-muted/50 px-3 py-2 text-sm">
-                    <span className="mb-0.5 block text-[10px] font-semibold text-muted-foreground">Misafir</span>
+                    <span className="mb-0.5 block text-[10px] font-semibold text-muted-foreground">Misafir · İngilizce</span>
+                    Hi! Is there parking near the apartment?
+                  </div>
+                </div>
+                <div className="flex justify-end">
+                  <div className="max-w-[82%] rounded-2xl rounded-br-sm bg-primary px-3 py-2 text-sm text-primary-foreground">
+                    <span className="mb-0.5 block text-[10px] font-semibold text-primary-foreground/70">Lixus AI önerdi · tek tıkla onayladınız</span>
+                    Hi! Yes — there&apos;s a 24/7 paid car park 2 minutes away on the same street. Want the exact location?
+                  </div>
+                </div>
+
+                {/* 3) Turkish — complaint escalated (safety gate) */}
+                <div className="flex justify-start">
+                  <div className="max-w-[82%] rounded-2xl rounded-bl-sm border border-border bg-muted/50 px-3 py-2 text-sm">
+                    <span className="mb-0.5 block text-[10px] font-semibold text-muted-foreground">Misafir · Türkçe</span>
                     Daireyi çok kirli buldum, hayal kırıklığına uğradım.
                   </div>
                 </div>
@@ -318,6 +329,11 @@ export function LandingPage() {
                   <ShieldCheck className="mt-0.5 size-3.5 shrink-0" aria-hidden="true" />
                   <span>Şikayet algılandı — Lixus AI otomatik cevap vermedi, mesajı size iletti. Hassas konular her zaman sizde.</span>
                 </div>
+
+                <p className="border-t border-border pt-3 text-center text-[11px] text-muted-foreground">
+                  Her daire için seçim sizin: <strong className="text-foreground">tam otomatik</strong> ya da{" "}
+                  <strong className="text-foreground">AI önersin, siz tek tıkla gönderin.</strong>
+                </p>
               </div>
             </Reveal>
           )}
