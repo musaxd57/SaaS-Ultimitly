@@ -22,6 +22,7 @@ import { buttonVariants } from "@/components/ui/button";
 import { LeadForm } from "@/components/marketing/lead-form";
 import { StructuredData } from "@/components/marketing/structured-data";
 import { Reveal } from "@/components/marketing/reveal";
+import { DemoFrame } from "@/components/marketing/demo-frame";
 import { NavScroll } from "@/components/marketing/nav-scroll";
 import { MobileNav } from "@/components/marketing/mobile-nav";
 import { cn } from "@/lib/utils";
@@ -358,6 +359,21 @@ export function LandingPage() {
               </Reveal>
             ))}
           </div>
+        </div>
+      </section>
+
+      {/* Setup walkthrough — animated, static iframe (public/kurulum.html) */}
+      <section className="scroll-mt-20 py-20">
+        <div className="mx-auto max-w-5xl px-4 sm:px-6">
+          <Reveal as="h2" className="text-center text-3xl font-bold tracking-tight">
+            Kurulumu 20 saniyede izleyin
+          </Reveal>
+          <Reveal as="p" delay={80} className="mx-auto mt-3 max-w-xl text-center text-muted-foreground">
+            Ücretsiz dene → hesap aç → e-posta onayı → bağlantıyı kur → token'ı yapıştır. Hepsi bu.
+          </Reveal>
+          <Reveal delay={120} className="mt-10">
+            <DemoFrame />
+          </Reveal>
         </div>
       </section>
 

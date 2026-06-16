@@ -1,0 +1,697 @@
+<!DOCTYPE html>
+<html lang="tr">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Lixus AI — API Bağlama Anlatımı</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap" rel="stylesheet">
+<style>
+  :root{
+    --navy:#1b2747; --ink:#1b2747; --muted:#6b7589; --line:#e9edf3;
+    --bg:#f6f8fc; --accent:#3a5bd9; --accent-2:#5b73e8; --accent-soft:#eef2fd;
+    --green:#15a34a; --green-soft:#e9f9ef; --green-line:#bfe9cd;
+    --mono:ui-monospace,SFMono-Regular,Menlo,Consolas,monospace;
+  }
+  *{box-sizing:border-box}
+  html,body{margin:0}
+  body{
+    font-family:'Inter',system-ui,sans-serif; color:var(--ink);
+    background:
+      radial-gradient(1200px 600px at 15% -10%, #eaf0ff 0%, transparent 60%),
+      radial-gradient(1000px 500px at 100% 110%, #eef9f1 0%, transparent 55%),
+      #f0f3fa;
+    display:flex; flex-direction:column; align-items:center;
+    padding:20px 16px 28px;
+  }
+  .head{width:100%;max-width:960px;display:flex;align-items:center;gap:12px;margin-bottom:14px}
+  .brandmark{width:34px;height:34px;border-radius:9px;background:var(--navy);display:grid;place-items:center;flex:0 0 auto}
+  .brandmark svg{width:18px;height:18px}
+  .head h1{font-size:15px;font-weight:700;margin:0;letter-spacing:-.01em}
+  .head p{font-size:12.5px;color:var(--muted);margin:1px 0 0}
+  .head .spacer{flex:1}
+  .head .badge{font-size:11px;font-weight:600;color:var(--accent);background:var(--accent-soft);
+    border:1px solid #dbe3ff;padding:5px 10px;border-radius:999px}
+
+  .stageWrap{width:100%;max-width:960px;position:relative}
+  .frame{
+    width:960px;height:540px;transform-origin:top left;position:absolute;top:0;left:0;
+    border-radius:16px;overflow:hidden;background:#fff;
+    box-shadow:0 30px 70px -24px rgba(20,30,60,.45),0 6px 18px -8px rgba(20,30,60,.25);
+    border:1px solid rgba(20,30,60,.06);
+  }
+  .chrome{height:42px;background:#eef1f6;border-bottom:1px solid #e2e6ee;display:flex;align-items:center;gap:9px;padding:0 14px}
+  .dots{display:flex;gap:7px}
+  .dots i{width:11px;height:11px;border-radius:50%;display:block}
+  .dots i:nth-child(1){background:#ff5f57}.dots i:nth-child(2){background:#febc2e}.dots i:nth-child(3){background:#28c840}
+  .urlbar{flex:1;height:26px;background:#fff;border:1px solid #e0e4ec;border-radius:8px;display:flex;align-items:center;
+    gap:8px;padding:0 11px;font-size:12.5px;color:#4a5269;max-width:520px;margin:0 auto}
+  .urlbar .lock{width:12px;height:12px;flex:0 0 auto;opacity:.55}
+  .urlbar b{font-weight:600;color:#1b2747}
+  .chrome .rt{width:60px}
+
+  .viewport{position:relative;width:100%;height:498px;background:var(--bg);overflow:hidden}
+  .scene{position:absolute;inset:0;opacity:0;visibility:hidden;transition:opacity .5s ease}
+  .scene.show{opacity:1;visibility:visible}
+
+  .chip{position:absolute;z-index:40;left:16px;top:14px;display:flex;align-items:center;gap:9px;
+    background:rgba(27,39,71,.92);color:#fff;border-radius:999px;padding:7px 14px 7px 9px;
+    font-size:12.5px;font-weight:600;backdrop-filter:blur(4px);box-shadow:0 8px 22px -10px rgba(20,30,60,.6)}
+  .chip .n{width:22px;height:22px;border-radius:50%;background:#fff;color:var(--navy);
+    display:grid;place-items:center;font-size:12px;font-weight:800}
+  .chip.done{background:var(--green)}
+  .chip.done .n{color:var(--green)}
+
+  /* ===== landing ===== */
+  .lp{position:absolute;inset:0;padding:0 44px}
+  .lpnav{display:flex;align-items:center;gap:10px;height:74px}
+  .lplogo{display:flex;align-items:center;gap:9px;font-weight:800;font-size:15px}
+  .lplogo .m{width:26px;height:26px;border-radius:7px;background:var(--navy);display:grid;place-items:center}
+  .lplogo .m svg{width:14px;height:14px}
+  .lpnav .links{display:flex;gap:20px;margin-left:26px;font-size:13px;color:var(--muted);font-weight:500}
+  .lpnav .sp{flex:1}
+  .lpnav .free{font-size:12.5px;font-weight:600;color:#fff;background:var(--navy);padding:8px 15px;border-radius:9px}
+  .lphero{display:grid;grid-template-columns:1.15fr .85fr;gap:26px;align-items:center;margin-top:18px}
+  .eyebrow{display:inline-flex;align-items:center;gap:7px;font-size:11.5px;font-weight:600;color:var(--accent);
+    background:var(--accent-soft);border:1px solid #dde4ff;padding:5px 11px;border-radius:999px}
+  .eyebrow .d{width:6px;height:6px;border-radius:50%;background:var(--accent)}
+  .lphero h2{font-size:31px;line-height:1.12;letter-spacing:-.02em;margin:14px 0 12px;font-weight:800;max-width:430px}
+  .lphero h2 span{color:var(--accent)}
+  .lphero p{font-size:13.5px;line-height:1.55;color:#4d566b;max-width:400px;margin:0 0 20px}
+  .ctaRow{display:flex;gap:12px;align-items:center}
+  .btn-primary{font-size:14px;font-weight:700;color:#fff;background:linear-gradient(135deg,var(--navy),#26345e);
+    padding:13px 22px;border-radius:11px;box-shadow:0 12px 26px -10px rgba(27,39,71,.6)}
+  .btn-ghost{font-size:13.5px;font-weight:600;color:var(--navy);padding:13px 16px;border-radius:11px;border:1px solid #d7ddea}
+  .trust{margin-top:16px;font-size:11.5px;color:#8a93a6;font-weight:500}
+  .heroCard{background:#fff;border:1px solid var(--line);border-radius:16px;padding:16px;
+    box-shadow:0 24px 50px -28px rgba(20,30,60,.35)}
+  .hcTop{display:flex;align-items:center;gap:9px;padding-bottom:11px;border-bottom:1px solid var(--line)}
+  .hcTop .av{width:30px;height:30px;border-radius:8px;background:linear-gradient(135deg,#5b73e8,#3a5bd9);display:grid;place-items:center}
+  .hcTop .av svg{width:15px;height:15px}
+  .hcTop b{font-size:13px}.hcTop small{display:block;font-size:11px;color:var(--muted)}
+  .bubble{margin-top:11px;font-size:12px;line-height:1.45;padding:9px 12px;border-radius:12px;max-width:80%}
+  .bubble.in{background:#f1f3f8;color:#3a4258;border-bottom-left-radius:3px}
+  .bubble.out{background:var(--accent-soft);color:#27365e;margin-left:auto;border-bottom-right-radius:3px;border:1px solid #dde4ff}
+  .bubble .lang{font-size:9.5px;font-weight:700;letter-spacing:.04em;color:#9aa3b8;display:block;margin-bottom:2px}
+
+  /* ===== register (two column) ===== */
+  .reg{position:absolute;inset:0;display:flex}
+  .regL{width:43%;background:linear-gradient(160deg,#1b2747,#243657);color:#fff;padding:30px 34px;display:flex;flex-direction:column}
+  .regL .lg{display:flex;align-items:center;gap:9px;font-weight:800;font-size:15px}
+  .regL .lg .m{width:28px;height:28px;border-radius:8px;background:rgba(255,255,255,.12);display:grid;place-items:center}
+  .regL .lg .m svg{width:15px;height:15px}
+  .regL h2{font-size:26px;line-height:1.16;letter-spacing:-.02em;margin:auto 0 24px;font-weight:800;max-width:290px}
+  .regFeat{display:flex;flex-direction:column;gap:15px}
+  .regFeat .f{display:flex;align-items:center;gap:12px;font-size:13px;color:#cfd8ec}
+  .regFeat .f .i{width:30px;height:30px;border-radius:8px;background:rgba(255,255,255,.1);display:grid;place-items:center;flex:0 0 auto}
+  .regFeat .f .i svg{width:15px;height:15px;opacity:.9}
+  .regL .foot{font-size:11px;color:#8ea0c4;margin-top:20px}
+  .regR{flex:1;background:#f7f9fc;display:grid;place-items:center;padding:20px}
+  .regForm{width:336px}
+  .regForm h3{font-size:21px;margin:0 0 4px;letter-spacing:-.01em}
+  .regForm .sub{font-size:12.5px;color:var(--muted);margin-bottom:16px}
+  .rf{margin-bottom:11px}
+  .rf label{display:block;font-size:12px;font-weight:600;color:#46506a;margin-bottom:5px}
+  .rf .in{height:40px;border:1px solid #dde2ec;border-radius:9px;background:#fff;display:flex;align-items:center;
+    padding:0 12px;font-size:13px;color:#2a3350;overflow:hidden;white-space:nowrap;transition:border-color .2s,box-shadow .2s}
+  .rf .in .ph{color:#aab2c4}
+  .rf .in.focus{border-color:var(--accent);box-shadow:0 0 0 3px rgba(58,91,217,.14)}
+  .rf .hint{font-size:11px;color:#8a93a6;margin-top:5px}
+  .regForm .rbtn{margin-top:6px;height:44px;border-radius:10px;background:var(--navy);color:#fff;font-weight:700;
+    font-size:14px;display:grid;place-items:center;box-shadow:0 12px 24px -12px rgba(27,39,71,.6)}
+  .regForm .alt{text-align:center;font-size:12px;color:var(--muted);margin-top:12px}
+  .regForm .alt b{color:var(--accent)}
+
+  /* ===== email verify ===== */
+  .mail{position:absolute;inset:0;background:#eef1f6;display:grid;place-items:center;padding:22px}
+  .mailCard{width:440px;background:#fff;border:1px solid var(--line);border-radius:16px;overflow:hidden;
+    box-shadow:0 30px 60px -30px rgba(20,30,60,.4)}
+  .mailTab{font-size:11.5px;color:#586079;background:#f4f6fa;border-bottom:1px solid #e6eaf1;padding:8px 18px;
+    display:flex;align-items:center;gap:8px;font-weight:600}
+  .mailTab svg{width:14px;height:14px;opacity:.7}
+  .mailHd{display:flex;align-items:center;gap:11px;padding:14px 18px;border-bottom:1px solid var(--line)}
+  .mailHd .av{width:36px;height:36px;border-radius:9px;background:var(--navy);display:grid;place-items:center;flex:0 0 auto}
+  .mailHd .av svg{width:17px;height:17px}
+  .mailHd b{font-size:13px}
+  .mailHd small{display:block;font-size:11px;color:var(--muted);margin-top:1px}
+  .mailHd .time{margin-left:auto;font-size:11px;color:#9aa3b8}
+  .mailBody{padding:24px 26px 28px;text-align:center}
+  .mailBody h4{font-size:18px;margin:2px 0 9px;letter-spacing:-.01em}
+  .mailBody p{font-size:12.5px;color:#586079;line-height:1.55;margin:0 auto 20px;max-width:310px}
+  .mailBody p b{color:#2a3350}
+  .vbtn{display:inline-flex;align-items:center;gap:9px;background:var(--navy);color:#fff;font-weight:700;font-size:14px;
+    padding:14px 28px;border-radius:12px;box-shadow:0 14px 28px -12px rgba(27,39,71,.6)}
+  .vbtn svg{width:16px;height:16px}
+  .mailBody .note{font-size:11px;color:#9aa3b8;margin-top:16px}
+
+  /* ===== app shell ===== */
+  .app{position:absolute;inset:0;display:flex;background:var(--bg)}
+  .side{width:198px;background:#fff;border-right:1px solid var(--line);padding:16px 12px;flex:0 0 auto;
+    display:flex;flex-direction:column}
+  .side .brand{display:flex;align-items:center;gap:9px;font-weight:800;font-size:14.5px;padding:4px 6px 14px}
+  .side .brand .m{width:26px;height:26px;border-radius:7px;background:var(--navy);display:grid;place-items:center}
+  .side .brand .m svg{width:14px;height:14px}
+  .nav{display:flex;flex-direction:column;gap:2px}
+  .nav a{display:flex;align-items:center;gap:11px;padding:8px 11px;border-radius:10px;font-size:12.5px;
+    font-weight:600;color:#5a6378}
+  .nav a svg{width:15px;height:15px;opacity:.75}
+  .nav a.active{background:var(--navy);color:#fff}
+  .nav a.active svg{opacity:1}
+  .side .userchip{margin-top:auto;display:flex;align-items:center;gap:9px;border:1px solid var(--line);
+    border-radius:11px;padding:9px 10px}
+  .side .userchip .av{width:30px;height:30px;border-radius:8px;background:#eef1f8;color:#5a6378;font-size:12px;
+    font-weight:800;display:grid;place-items:center}
+  .side .userchip b{font-size:12px}.side .userchip small{display:block;font-size:10.5px;color:var(--muted)}
+  .main{flex:1;position:relative;overflow:hidden}
+  .mainScroll{position:absolute;inset:0;padding:22px 28px;transition:transform 1.05s cubic-bezier(.6,.02,.2,1)}
+  .app.scrolled .mainScroll{transform:translateY(-150px)}
+  .topbar{display:flex;align-items:center}
+  .topbar .sp{flex:1}
+  .topbar .nuve{font-size:12.5px;font-weight:600;color:#5a6378;margin-right:18px}
+  .topbar .out{font-size:12.5px;font-weight:600;color:#5a6378}
+  .hello{font-size:25px;font-weight:800;letter-spacing:-.02em;margin:12px 0 3px}
+  .date{font-size:12.5px;color:var(--muted);margin-bottom:16px}
+
+  /* onboarding checklist */
+  .onb{background:linear-gradient(180deg,#f3f6fe,#fbfcff);border:1px solid #e3e9f7;border-radius:16px;padding:15px 17px}
+  .onb .h{display:flex;align-items:center;gap:12px}
+  .onb .h .rk{width:38px;height:38px;border-radius:11px;background:var(--navy);display:grid;place-items:center;flex:0 0 auto}
+  .onb .h .rk svg{width:19px;height:19px}
+  .onb .h b{font-size:14px;color:var(--ink)}
+  .onb .h small{display:block;font-size:11.5px;color:var(--muted);margin-top:2px}
+  .onb .h .x{margin-left:auto;color:#9aa3b8;font-size:15px}
+  .orow{display:flex;align-items:center;gap:12px;background:#fff;border:1px solid var(--line);border-radius:12px;
+    padding:9px 12px;margin-top:9px}
+  .orow.muted{opacity:.6}
+  .orow .num{width:23px;height:23px;border-radius:50%;border:1.5px solid #c7d0e6;color:#7c87a3;font-size:11.5px;font-weight:700;
+    display:grid;place-items:center;flex:0 0 auto}
+  .orow.active .num{border-color:var(--accent);color:var(--accent)}
+  .orow .tx{flex:1;min-width:0}
+  .orow .tx b{font-size:12.5px;display:block}
+  .orow .tx span{font-size:10.5px;color:var(--muted);display:block;margin-top:1px;line-height:1.35;
+    white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+  .orow .obtn{flex:0 0 auto;font-size:12px;font-weight:700;color:#fff;background:var(--navy);
+    padding:8px 13px;border-radius:9px;display:flex;align-items:center;gap:6px;box-shadow:0 8px 18px -10px rgba(27,39,71,.6)}
+  .orow .obtn.ghost{color:var(--navy);background:#fff;border:1px solid #d7ddea;box-shadow:none}
+  .orow .obtn svg{width:13px;height:13px}
+
+  /* settings */
+  .settHead{font-size:21px;font-weight:800;letter-spacing:-.01em;margin:2px 0 3px}
+  .settSub{font-size:12.5px;color:var(--muted);margin-bottom:16px}
+  .scard{background:#fff;border:1px solid var(--line);border-radius:16px;padding:18px 20px;margin-bottom:14px}
+  .scard h4{font-size:15px;font-weight:700;margin:0 0 4px}
+  .scard .desc{font-size:12px;color:#586079;line-height:1.5;margin:0}
+  .okbox{display:none;align-items:center;gap:9px;background:var(--green-soft);border:1px solid var(--green-line);
+    border-radius:11px;padding:10px 14px;font-size:12.5px;color:#15703a;font-weight:600;margin:12px 0 0}
+  .okbox.show{display:flex;animation:pop .45s cubic-bezier(.2,1.3,.4,1)}
+  .okbox .ck{width:21px;height:21px;border-radius:50%;background:var(--green);display:grid;place-items:center;flex:0 0 auto}
+  .okbox .ck svg{width:12px;height:12px}
+  .okbox span{font-weight:500;color:#2f6b48}
+  @keyframes pop{0%{transform:scale(.85);opacity:0}100%{transform:scale(1);opacity:1}}
+  .tokenLabel{font-size:12.5px;font-weight:700;color:#384060;margin:14px 0 7px}
+  .tokenRow{display:flex;gap:11px;align-items:stretch}
+  .tokenInput{flex:1;height:48px;border:1px solid #d7dde9;border-radius:11px;background:#fbfcfe;
+    display:flex;align-items:center;padding:0 14px;font-size:13.5px;font-family:var(--mono);color:#2a3350;
+    gap:8px;overflow:hidden;white-space:nowrap;transition:border-color .25s,box-shadow .25s,background .25s}
+  .tokenInput.focus{border-color:var(--accent);box-shadow:0 0 0 4px rgba(58,91,217,.16);background:#fff}
+  .tokenInput .ph{color:#aab2c4;font-family:'Inter'}
+  .tokenInput .lockic{margin-left:auto;width:16px;height:16px;opacity:.45;flex:0 0 auto;display:none}
+  .caret{display:inline-block;width:1.5px;height:18px;background:var(--accent);margin-left:1px;
+    animation:blink 1s steps(1) infinite;vertical-align:middle}
+  @keyframes blink{50%{opacity:0}}
+  .bagla{flex:0 0 auto;padding:0 22px;border-radius:11px;background:var(--navy);color:#fff;font-weight:700;font-size:13px;
+    display:flex;align-items:center;gap:7px;box-shadow:0 10px 22px -12px rgba(27,39,71,.6)}
+  .bagla svg{width:15px;height:15px}
+  .tokenHint{font-size:11.5px;color:#7c8499;margin-top:9px;line-height:1.5}
+  .tokenHint b{color:#46506a}
+
+  /* overlays */
+  .cursor{position:absolute;z-index:60;left:0;top:0;width:30px;height:30px;pointer-events:none;
+    transition:transform 1s cubic-bezier(.55,.06,.2,1);filter:drop-shadow(0 4px 6px rgba(20,30,60,.4));opacity:0}
+  .cursor.in{opacity:1}
+  .ripple{position:absolute;z-index:55;width:18px;height:18px;border-radius:50%;border:2px solid var(--accent);
+    transform:translate(-50%,-50%) scale(.4);opacity:0;pointer-events:none}
+  .ripple.go{animation:rip .6s ease-out}
+  @keyframes rip{0%{opacity:.9;transform:translate(-50%,-50%) scale(.4)}100%{opacity:0;transform:translate(-50%,-50%) scale(3.1)}}
+  .ring{position:absolute;z-index:50;border:2.5px solid var(--accent);border-radius:12px;
+    box-shadow:0 0 0 4px rgba(58,91,217,.18);opacity:0;transition:opacity .35s, all .4s cubic-bezier(.5,.05,.2,1);pointer-events:none}
+  .ring.on{opacity:1}
+  .ring.pulse{animation:ringpulse 1.4s ease-in-out infinite}
+  @keyframes ringpulse{0%,100%{box-shadow:0 0 0 4px rgba(58,91,217,.18)}50%{box-shadow:0 0 0 9px rgba(58,91,217,.05)}}
+  .tip{position:absolute;z-index:52;background:var(--navy);color:#fff;font-size:12px;font-weight:600;
+    padding:8px 13px;border-radius:10px;opacity:0;transform:translateY(6px);transition:opacity .35s,transform .35s;
+    pointer-events:none;box-shadow:0 12px 26px -12px rgba(20,30,60,.6);white-space:nowrap}
+  .tip.on{opacity:1;transform:translateY(0)}
+  .tip:after{content:"";position:absolute;left:22px;bottom:-5px;width:10px;height:10px;background:var(--navy);transform:rotate(45deg)}
+  .spot{position:absolute;z-index:45;border-radius:12px;box-shadow:0 0 0 9999px rgba(13,20,40,0);
+    transition:box-shadow .55s ease;pointer-events:none}
+  .spot.on{box-shadow:0 0 0 9999px rgba(13,20,40,.5)}
+
+  .done{position:absolute;inset:0;z-index:70;display:grid;place-items:center;
+    background:rgba(20,30,55,.55);backdrop-filter:blur(3px);opacity:0;visibility:hidden;transition:opacity .5s}
+  .done.show{opacity:1;visibility:visible}
+  .doneCard{background:#fff;border-radius:20px;padding:30px 34px;text-align:center;width:380px;
+    box-shadow:0 40px 80px -30px rgba(10,15,35,.6);transform:scale(.92);transition:transform .5s cubic-bezier(.2,1.2,.4,1)}
+  .done.show .doneCard{transform:scale(1)}
+  .doneCard .big{width:62px;height:62px;border-radius:50%;background:var(--green-soft);border:2px solid var(--green-line);
+    display:grid;place-items:center;margin:0 auto 16px}
+  .doneCard .big svg{width:30px;height:30px}
+  .doneCard h3{font-size:21px;margin:0 0 7px;letter-spacing:-.01em}
+  .doneCard p{font-size:13px;color:var(--muted);line-height:1.55;margin:0}
+  .doneCard .pill{margin-top:18px;display:inline-flex;align-items:center;gap:8px;background:var(--accent-soft);
+    border:1px solid #dde4ff;color:var(--accent);font-weight:700;font-size:12.5px;padding:8px 15px;border-radius:999px}
+
+  .controls{width:100%;max-width:960px;position:absolute;left:50%;transform:translateX(-50%);
+    display:flex;align-items:center;gap:14px;background:#fff;border:1px solid var(--line);border-radius:14px;
+    padding:11px 16px;box-shadow:0 18px 40px -22px rgba(20,30,60,.35)}
+  .pbtn{width:38px;height:38px;border-radius:10px;border:none;background:var(--navy);color:#fff;cursor:pointer;
+    display:grid;place-items:center;flex:0 0 auto;transition:transform .12s}
+  .pbtn:hover{transform:translateY(-1px)}
+  .pbtn svg{width:16px;height:16px}
+  .track{flex:1;height:7px;background:#eaedf4;border-radius:99px;overflow:hidden;cursor:pointer;position:relative}
+  .fill{height:100%;width:0;background:linear-gradient(90deg,var(--accent),var(--accent-2));border-radius:99px}
+  .stepname{font-size:12.5px;font-weight:600;color:#46506a;min-width:190px;text-align:right}
+  .stepname b{color:var(--navy)}
+  @media (max-width:560px){ .head .badge{display:none} .stepname{display:none} }
+</style>
+</head>
+<body>
+  <div class="head">
+    <div class="brandmark"><svg viewBox="0 0 24 24" fill="none"><path d="M4 21V5a1 1 0 0 1 1-1h7a1 1 0 0 1 1 1v16M13 21V9a1 1 0 0 1 1-1h5a1 1 0 0 1 1 1v12M3 21h18M7 8h2M7 12h2M16 12h1M16 16h1" stroke="#fff" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"/></svg></div>
+    <div>
+      <h1>Lixus AI — API bağlama anlatımı</h1>
+      <p>Ücretsiz dene → hesap aç → e-posta onayı → Bağlantıyı kur → token'ı yapıştır</p>
+    </div>
+    <div class="spacer"></div>
+    <div class="badge">5 adım · ~20 sn</div>
+  </div>
+
+  <div class="stageWrap" id="stageWrap">
+    <div class="frame" id="frame">
+      <div class="chrome">
+        <div class="dots"><i></i><i></i><i></i></div>
+        <div class="urlbar">
+          <svg class="lock" viewBox="0 0 24 24" fill="none"><rect x="5" y="11" width="14" height="9" rx="2" stroke="#5a6378" stroke-width="1.6"/><path d="M8 11V8a4 4 0 0 1 8 0v3" stroke="#5a6378" stroke-width="1.6"/></svg>
+          <span><b id="urlHost">lixusai.com</b><span id="urlPath"></span></span>
+        </div>
+        <div class="rt"></div>
+      </div>
+
+      <div class="viewport" id="vp">
+        <div class="chip" id="chip"><span class="n" id="chipN">1</span><span id="chipT">Ücretsiz denemeyi başlat</span></div>
+
+        <!-- S1 landing -->
+        <div class="scene show" id="s1">
+          <div class="lp">
+            <div class="lpnav">
+              <div class="lplogo"><span class="m"><svg viewBox="0 0 24 24"><path d="M4 21V5a1 1 0 0 1 1-1h7a1 1 0 0 1 1 1v16M13 21V9a1 1 0 0 1 1-1h5a1 1 0 0 1 1 1v12M3 21h18" stroke="#fff" stroke-width="1.7" fill="none" stroke-linecap="round" stroke-linejoin="round"/></svg></span>Lixus AI</div>
+              <div class="links"><span>Nasıl çalışır</span><span>Özellikler</span><span>Fiyatlar</span><span>SSS</span></div>
+              <div class="sp"></div>
+              <div class="free">Ücretsiz Dene</div>
+            </div>
+            <div class="lphero">
+              <div>
+                <span class="eyebrow"><span class="d"></span>Airbnb &amp; Booking için yapay zekâ asistanı</span>
+                <h2>Misafirlerinize gece 3'te bile, <span>kendi dillerinde</span> cevap veren AI</h2>
+                <p>Misafir hangi dilde yazarsa Lixus AI o dilde dakikalar içinde cevaplar. Üslubu siz ayarlarsınız; hassas mesajları onayınıza bırakır.</p>
+                <div class="ctaRow">
+                  <div class="btn-primary" id="freeBtn">14 gün ücretsiz dene</div>
+                  <div class="btn-ghost">Nasıl çalışır?</div>
+                </div>
+                <div class="trust">Kredi kartı gerekmez · Dakikalar içinde kurulum · İstediğiniz zaman iptal</div>
+              </div>
+              <div class="heroCard">
+                <div class="hcTop"><span class="av"><svg viewBox="0 0 24 24" fill="none"><path d="M12 3l1.6 4.4L18 9l-4.4 1.6L12 15l-1.6-4.4L6 9l4.4-1.6L12 3z" fill="#fff"/></svg></span><div><b>Lixus AI</b><small>misafire yanıt veriyor…</small></div></div>
+                <div class="bubble in"><span class="lang">EN · Misafir</span>Hi! Is early check-in possible?</div>
+                <div class="bubble out"><span class="lang">EN · Lixus AI</span>Hello! Early check-in from 13:00 is available — I'll confirm with the host. 😊</div>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <!-- S2 register -->
+        <div class="scene" id="s2">
+          <div class="reg">
+            <div class="regL">
+              <div class="lg"><span class="m"><svg viewBox="0 0 24 24"><path d="M4 21V5a1 1 0 0 1 1-1h7a1 1 0 0 1 1 1v16M13 21V9a1 1 0 0 1 1-1h5a1 1 0 0 1 1 1v12M3 21h18" stroke="#fff" stroke-width="1.7" fill="none" stroke-linecap="round" stroke-linejoin="round"/></svg></span>Lixus AI</div>
+              <h2>Operasyonunuz kendi kendine yürüsün.</h2>
+              <div class="regFeat">
+                <div class="f"><span class="i"><svg viewBox="0 0 24 24" fill="none"><path d="M21 11.5a8.4 8.4 0 0 1-11.7 7.7L3 21l1.9-6.3A8.4 8.4 0 1 1 21 11.5z" stroke="#fff" stroke-width="1.7" stroke-linejoin="round"/></svg></span>Misafir mesajlarına AI destekli hızlı cevap</div>
+                <div class="f"><span class="i"><svg viewBox="0 0 24 24" fill="none"><path d="M9 11l3 3L22 4M21 12v7a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11" stroke="#fff" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"/></svg></span>Temizlik ve check-in görevleri otomatik akışta</div>
+                <div class="f"><span class="i"><svg viewBox="0 0 24 24" fill="none"><path d="M4 19V5M4 19h16M8 16v-5M12 16V8M16 16v-8" stroke="#fff" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"/></svg></span>Doluluk, performans ve operasyon tek panelde</div>
+              </div>
+              <div class="foot">Kurallara uygun, sağlam, uzun ömürlü operasyon platformu.</div>
+            </div>
+            <div class="regR">
+              <div class="regForm">
+                <h3>Hesap oluşturun</h3>
+                <div class="sub">İşletmenizi ekleyin ve operasyonu yönetmeye başlayın.</div>
+                <div class="rf"><label>İşletme adı</label><div class="in" id="rBiz"><span class="ph">Örn. Bosphorus Stays</span></div></div>
+                <div class="rf"><label>Adınız</label><div class="in" id="rName"><span class="ph"></span></div></div>
+                <div class="rf"><label>E-posta</label><div class="in" id="rMail"><span class="ph"></span></div></div>
+                <div class="rf"><label>Şifre</label><div class="in" id="rPass"><span class="ph"></span></div><div class="hint">En az 8 karakter.</div></div>
+                <div class="rbtn" id="rBtn">Hesap Oluştur</div>
+                <div class="alt">Zaten hesabınız var mı? <b>Giriş yapın</b></div>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <!-- S3 email verify -->
+        <div class="scene" id="s3">
+          <div class="mail">
+            <div class="mailCard">
+              <div class="mailTab"><svg viewBox="0 0 24 24" fill="none"><path d="M3 7l9 6 9-6M3 7v10a1 1 0 0 0 1 1h16a1 1 0 0 0 1-1V7M3 7a1 1 0 0 1 1-1h16a1 1 0 0 1 1 1" stroke="#586079" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"/></svg>Gelen Kutusu · ahmet@bosphorusstays.com</div>
+              <div class="mailHd">
+                <span class="av"><svg viewBox="0 0 24 24"><path d="M4 21V5a1 1 0 0 1 1-1h7a1 1 0 0 1 1 1v16M13 21V9a1 1 0 0 1 1-1h5a1 1 0 0 1 1 1v12M3 21h18" stroke="#fff" stroke-width="1.7" fill="none" stroke-linecap="round" stroke-linejoin="round"/></svg></span>
+                <div><b>Lixus AI</b><small>noreply@lixusai.com</small></div>
+                <span class="time">şimdi</span>
+              </div>
+              <div class="mailBody">
+                <h4>E-postanı doğrula 📧</h4>
+                <p>Merhaba <b>Ahmet</b>, <b>Bosphorus Stays</b> hesabını etkinleştirmek için aşağıdaki butona tıkla. Onaylayınca panele otomatik yönlendirilirsin.</p>
+                <div class="vbtn" id="verifyBtn"><svg viewBox="0 0 24 24" fill="none"><path d="M5 12l4 4L19 7" stroke="#fff" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"/></svg>E-postamı doğrula</div>
+                <div class="note">Bu bağlantı 24 saat geçerlidir.</div>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <!-- S4 dashboard onboarding -->
+        <div class="scene" id="s4">
+          <div class="app">
+            <div class="side">
+              <div class="brand"><span class="m"><svg viewBox="0 0 24 24"><path d="M4 21V5a1 1 0 0 1 1-1h7a1 1 0 0 1 1 1v16M13 21V9a1 1 0 0 1 1-1h5a1 1 0 0 1 1 1v12M3 21h18" stroke="#fff" stroke-width="1.7" fill="none" stroke-linecap="round" stroke-linejoin="round"/></svg></span>Lixus AI</div>
+              <div class="nav">
+                <a class="active"><svg viewBox="0 0 24 24" fill="none"><rect x="3" y="3" width="7" height="7" rx="1.5" stroke="currentColor" stroke-width="1.8"/><rect x="14" y="3" width="7" height="7" rx="1.5" stroke="currentColor" stroke-width="1.8"/><rect x="3" y="14" width="7" height="7" rx="1.5" stroke="currentColor" stroke-width="1.8"/><rect x="14" y="14" width="7" height="7" rx="1.5" stroke="currentColor" stroke-width="1.8"/></svg>Panel</a>
+                <a><svg viewBox="0 0 24 24" fill="none"><path d="M21 11.5a8.4 8.4 0 0 1-11.7 7.7L3 21l1.9-6.3A8.4 8.4 0 1 1 21 11.5z" stroke="currentColor" stroke-width="1.8" stroke-linejoin="round"/></svg>Mesajlar</a>
+                <a><svg viewBox="0 0 24 24" fill="none"><path d="M9 11l3 3L22 4M21 12v7a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"/></svg>Görevler</a>
+                <a><svg viewBox="0 0 24 24" fill="none"><path d="M3 11l9-7 9 7M5 10v9a1 1 0 0 0 1 1h12a1 1 0 0 0 1-1v-9" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"/></svg>Mülkler</a>
+                <a><svg viewBox="0 0 24 24" fill="none"><circle cx="12" cy="12" r="3" stroke="currentColor" stroke-width="1.8"/><path d="M19.4 15a1.6 1.6 0 0 0 .3 1.8M4.6 9a1.6 1.6 0 0 0-.3-1.8" stroke="currentColor" stroke-width="1.7" stroke-linecap="round"/></svg>Ayarlar</a>
+              </div>
+              <div class="userchip"><span class="av">A</span><div><b>Ahmet Yılmaz</b><small>Sahip</small></div></div>
+            </div>
+            <div class="main"><div class="mainScroll">
+              <div class="topbar"><div class="sp"></div><span class="nuve">Bosphorus Stays</span><span class="out">Çıkış</span></div>
+              <div class="hello">Merhaba, Ahmet 👋</div>
+              <div class="date">16 Haziran 2026 Salı</div>
+              <div class="onb">
+                <div class="h">
+                  <span class="rk"><svg viewBox="0 0 24 24" fill="none"><path d="M5 13c0-5 4-9 9-9 0 5-4 9-9 9zM5 13l3 3M9 9l-4 4-2 5 5-2 4-4" stroke="#fff" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"/></svg></span>
+                  <div><b>Başlarken — kurulumun 0/4 tamam</b><small>Birkaç adımda Lixus AI misafirlerinize yanıt vermeye başlasın.</small></div>
+                  <span class="x">✕</span>
+                </div>
+                <div class="orow active">
+                  <span class="num">1</span>
+                  <div class="tx"><b>Airbnb / Booking bağlantısını kur</b><span>Misafir mesajlarınızın akması için Hospitable token'ını Ayarlar'dan bağlayın.</span></div>
+                  <span class="obtn" id="connBtn">Bağlantıyı kur <svg viewBox="0 0 24 24" fill="none"><path d="M5 12h14M13 6l6 6-6 6" stroke="#fff" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/></svg></span>
+                </div>
+                <div class="orow muted">
+                  <span class="num">2</span>
+                  <div class="tx"><b>Dairelerin hazır olsun</b><span>Bağlantı kurulunca daireleriniz otomatik gelir; birkaç dakika sürebilir.</span></div>
+                  <span class="obtn ghost">Daireleri gör</span>
+                </div>
+                <div class="orow muted">
+                  <span class="num">3</span>
+                  <div class="tx"><b>AI sesini ve imzanı ayarla</b><span>AI'ın tonunu seç ve mesaj imzanı ekle — misafire senin üslubunla yazsın.</span></div>
+                  <span class="obtn ghost">Ayarla</span>
+                </div>
+                <div class="orow muted">
+                  <span class="num">4</span>
+                  <div class="tx"><b>Gelen kutusunu keşfet</b><span>Her misafir mesajına AI hazır bir cevap önerir — tek tıkla gönder ya da düzenle.</span></div>
+                  <span class="obtn ghost">Gelen kutusu</span>
+                </div>
+              </div>
+            </div></div>
+          </div>
+        </div>
+
+        <!-- S5 settings -->
+        <div class="scene" id="s5">
+          <div class="app" id="settApp">
+            <div class="side">
+              <div class="brand"><span class="m"><svg viewBox="0 0 24 24"><path d="M4 21V5a1 1 0 0 1 1-1h7a1 1 0 0 1 1 1v16M13 21V9a1 1 0 0 1 1-1h5a1 1 0 0 1 1 1v12M3 21h18" stroke="#fff" stroke-width="1.7" fill="none" stroke-linecap="round" stroke-linejoin="round"/></svg></span>Lixus AI</div>
+              <div class="nav">
+                <a><svg viewBox="0 0 24 24" fill="none"><rect x="3" y="3" width="7" height="7" rx="1.5" stroke="currentColor" stroke-width="1.8"/><rect x="14" y="3" width="7" height="7" rx="1.5" stroke="currentColor" stroke-width="1.8"/><rect x="3" y="14" width="7" height="7" rx="1.5" stroke="currentColor" stroke-width="1.8"/><rect x="14" y="14" width="7" height="7" rx="1.5" stroke="currentColor" stroke-width="1.8"/></svg>Panel</a>
+                <a><svg viewBox="0 0 24 24" fill="none"><path d="M21 11.5a8.4 8.4 0 0 1-11.7 7.7L3 21l1.9-6.3A8.4 8.4 0 1 1 21 11.5z" stroke="currentColor" stroke-width="1.8" stroke-linejoin="round"/></svg>Mesajlar</a>
+                <a><svg viewBox="0 0 24 24" fill="none"><path d="M9 11l3 3L22 4M21 12v7a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"/></svg>Görevler</a>
+                <a><svg viewBox="0 0 24 24" fill="none"><path d="M3 11l9-7 9 7M5 10v9a1 1 0 0 0 1 1h12a1 1 0 0 0 1-1v-9" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"/></svg>Mülkler</a>
+                <a class="active"><svg viewBox="0 0 24 24" fill="none"><circle cx="12" cy="12" r="3" stroke="currentColor" stroke-width="1.8"/><path d="M19.4 15a1.6 1.6 0 0 0 .3 1.8M4.6 9a1.6 1.6 0 0 0-.3-1.8" stroke="currentColor" stroke-width="1.7" stroke-linecap="round"/></svg>Ayarlar</a>
+              </div>
+              <div class="userchip"><span class="av">A</span><div><b>Ahmet Yılmaz</b><small>Sahip</small></div></div>
+            </div>
+            <div class="main"><div class="mainScroll" id="settScroll">
+              <div class="topbar"><div class="sp"></div><span class="nuve">Bosphorus Stays</span><span class="out">Çıkış</span></div>
+              <div class="settHead" style="margin-top:12px">Ayarlar</div>
+              <div class="settSub">Bağlantılar, güvenlik ve hesap tercihlerin</div>
+              <div class="scard">
+                <h4>Hesap / Giriş Bilgileri</h4>
+                <p class="desc">Giriş e-postan: ahmet@bosphorusstays.com — şifreni değiştirmek için e-postana doğrulama kodu göndeririz.</p>
+              </div>
+              <div class="scard" id="hospCard">
+                <h4>Hospitable Bağlantısı (Airbnb / Booking)</h4>
+                <p class="desc">Airbnb &amp; Booking mesajlarını çekmek için Hospitable kişisel erişim anahtarını (token) gir → Bağla.</p>
+                <div class="okbox" id="okbox"><span class="ck"><svg viewBox="0 0 24 24" fill="none"><path d="M5 12l4 4L19 7" stroke="#fff" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"/></svg></span>Bağlı. <span>Hospitable bağlantısı kullanılıyor.</span></div>
+                <div class="tokenLabel">Hospitable Personal Access Token</div>
+                <div class="tokenRow">
+                  <div class="tokenInput" id="tokenInput">
+                    <span id="tokenText"><span class="ph">hospitable_pat_…</span></span>
+                    <svg class="lockic" id="tokenLock" viewBox="0 0 24 24" fill="none"><rect x="5" y="11" width="14" height="9" rx="2" stroke="#7c8499" stroke-width="1.6"/><path d="M8 11V8a4 4 0 0 1 8 0v3" stroke="#7c8499" stroke-width="1.6"/></svg>
+                  </div>
+                  <div class="bagla" id="saveBtn"><svg viewBox="0 0 24 24" fill="none"><path d="M9 7l5 5-5 5" stroke="#fff" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"/></svg>Bağla</div>
+                </div>
+                <p class="tokenHint" id="tokenHint">Token <b>şifreli olarak</b> saklanır — bir daha görüntülenmez, biz bile göremeyiz.</p>
+              </div>
+              <div style="height:60px"></div>
+            </div></div>
+          </div>
+        </div>
+
+        <div class="ring" id="ring"></div>
+        <div class="tip" id="tip"></div>
+        <div class="spot" id="spot"></div>
+        <div class="ripple" id="ripple"></div>
+        <div class="cursor" id="cursor"><svg viewBox="0 0 24 24" fill="none"><path d="M5 3l15 7.5-6.2 1.7L11 21 5 3z" fill="#1b2747" stroke="#fff" stroke-width="1.2" stroke-linejoin="round"/></svg></div>
+
+        <div class="done" id="done">
+          <div class="doneCard">
+            <div class="big"><svg viewBox="0 0 24 24" fill="none"><path d="M5 12l4 4L19 7" stroke="#15a34a" stroke-width="2.6" stroke-linecap="round" stroke-linejoin="round"/></svg></div>
+            <h3>Hazır! API bağlandı 🎉</h3>
+            <p>Airbnb &amp; Booking mesajların artık Lixus AI'a akıyor. Misafirler kendi dillerinde, sizin tonunuzla yanıt alır.</p>
+            <div class="pill">Kurulum tamam · AI yanıtlamaya hazır</div>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <div class="controls" id="controls">
+      <button class="pbtn" id="playBtn"></button>
+      <div class="track" id="track"><div class="fill" id="fill"></div></div>
+      <div class="stepname" id="stepname">Adım <b>1/5</b> · Ücretsiz dene</div>
+    </div>
+  </div>
+
+<script>
+(function(){
+  "use strict";
+  var DUR = 21000;
+  var $ = function(id){return document.getElementById(id);};
+  var frame=$('frame'), wrap=$('stageWrap'), controls=$('controls'), vp=$('vp');
+  var scale = 1;
+  function reportHeight(){
+    try{
+      if(window.parent && window.parent!==window){
+        var h = Math.ceil(document.body.scrollHeight);
+        window.parent.postMessage({lixusDemo:h}, '*');
+      }
+    }catch(e){}
+  }
+  function rescale(){
+    var w = wrap.clientWidth;
+    scale = Math.min(w/960, 1);
+    frame.style.transform = 'scale('+scale+')';
+    var h = 540*scale;
+    wrap.style.height = (h + 78) + 'px';
+    controls.style.top = (h + 18) + 'px';
+    reportHeight();
+  }
+  window.addEventListener('resize', rescale);
+
+  var scenes={s1:$('s1'),s2:$('s2'),s3:$('s3'),s4:$('s4'),s5:$('s5')};
+  var cursor=$('cursor'), ring=$('ring'), tip=$('tip'), spot=$('spot'), ripple=$('ripple');
+  var chipN=$('chipN'), chipT=$('chipT'), chip=$('chip');
+  var urlHost=$('urlHost'), urlPath=$('urlPath');
+  var fill=$('fill'), stepname=$('stepname'), done=$('done');
+  var playBtn=$('playBtn'), track=$('track');
+  var settApp=$('settApp'), tokenInput=$('tokenInput'), tokenText=$('tokenText'),
+      tokenLock=$('tokenLock'), tokenHint=$('tokenHint'), okbox=$('okbox');
+
+  var TOKEN = 'hospitable_pat_3f9Kd2aQ7Lm8Rt5Xy';
+
+  function showScene(id){ for(var k in scenes){ scenes[k].classList.toggle('show', k===id); } }
+  function setChip(n, txt, isDone){ chipN.textContent = isDone?'✓':n; chipT.textContent = txt; chip.classList.toggle('done', !!isDone); }
+  function setUrl(host, path){ urlHost.textContent=host; urlPath.textContent=path||''; }
+  function moveCursor(x,y){ cursor.classList.add('in'); cursor.style.transform='translate('+x+'px,'+y+'px)'; }
+  function hideCursor(){ cursor.classList.remove('in'); }
+  function clickFx(x,y){
+    ripple.style.left=(x+6)+'px'; ripple.style.top=(y+6)+'px';
+    ripple.classList.remove('go'); void ripple.offsetWidth; ripple.classList.add('go');
+    cursor.animate([{},{transform:'translate('+x+'px,'+y+'px) scale(.86)'},{}],{duration:240,easing:'ease-out'});
+  }
+  function showRing(x,y,w,h){ ring.style.left=x+'px';ring.style.top=y+'px';ring.style.width=w+'px';ring.style.height=h+'px';
+    ring.classList.add('on'); ring.classList.add('pulse'); }
+  function hideRing(){ ring.classList.remove('on'); }
+  function showTip(text,x,y){ tip.textContent=text; tip.style.left=x+'px'; tip.style.top=y+'px'; tip.classList.add('on'); }
+  function hideTip(){ tip.classList.remove('on'); }
+  function showSpot(x,y,w,h){ spot.style.left=x+'px';spot.style.top=y+'px';spot.style.width=w+'px';spot.style.height=h+'px'; spot.classList.add('on'); }
+  function hideSpot(){ spot.classList.remove('on'); }
+
+  // measure an element in vp design-space (robust click targeting)
+  function bbox(el){
+    var r=el.getBoundingClientRect(), v=vp.getBoundingClientRect(), s=scale||1;
+    var x=(r.left-v.left)/s, y=(r.top-v.top)/s, w=r.width/s, h=r.height/s;
+    return {x:x,y:y,w:w,h:h,cx:x+w/2,cy:y+h/2};
+  }
+  function aim(el){ var b=bbox(el); moveCursor(b.cx,b.cy); }
+  function ringEl(el,pad){ pad=(pad==null?8:pad); var b=bbox(el); showRing(b.x-pad,b.y-pad,b.w+2*pad,b.h+2*pad); }
+  function tipEl(el,text){ var b=bbox(el); var x=Math.max(8,b.x-2), y=b.y-42; if(y<6)y=b.y+b.h+12; showTip(text,x,y); }
+  function clickEl(el){ var b=bbox(el); clickFx(b.cx,b.cy); }
+
+  function fillField(el, value){ el.classList.add('focus'); el.innerHTML='<span>'+value+'</span>'; }
+  function blurField(el){ el.classList.remove('focus'); }
+
+  var st={typing:false,typeStart:0,typed:false};
+
+  var actions=[
+    {at:0, fn:function(){ resetAll(); showScene('s1'); setUrl('lixusai.com',''); setChip(1,'Ücretsiz denemeyi başlat'); }},
+    {at:550, fn:function(){ aim($('freeBtn')); }},
+    {at:1500,fn:function(){ ringEl($('freeBtn'),9); tipEl($('freeBtn'),'Buradan başla 👆'); }},
+    {at:2300,fn:function(){ clickEl($('freeBtn')); }},
+    {at:2700,fn:function(){ hideRing(); hideTip(); }},
+
+    {at:2950,fn:function(){ showScene('s2'); setUrl('lixusai.com','/register'); setChip(2,'Hesabını oluştur'); hideCursor(); }},
+    {at:3350,fn:function(){ aim($('rBiz')); fillField($('rBiz'),'Bosphorus Stays'); }},
+    {at:4000,fn:function(){ blurField($('rBiz')); aim($('rName')); fillField($('rName'),'Ahmet Yılmaz'); }},
+    {at:4650,fn:function(){ blurField($('rName')); aim($('rMail')); fillField($('rMail'),'ahmet@bosphorusstays.com'); }},
+    {at:5300,fn:function(){ blurField($('rMail')); aim($('rPass')); fillField($('rPass'),'••••••••••'); }},
+    {at:5950,fn:function(){ blurField($('rPass')); aim($('rBtn')); ringEl($('rBtn'),7); tipEl($('rBtn'),'Hesap Oluştur'); }},
+    {at:6750,fn:function(){ clickEl($('rBtn')); }},
+    {at:7150,fn:function(){ hideRing(); hideTip(); }},
+
+    {at:7400,fn:function(){ showScene('s3'); setUrl('mail.google.com',''); setChip(3,'E-postanı doğrula'); hideCursor(); }},
+    {at:8100,fn:function(){ aim($('verifyBtn')); }},
+    {at:8700,fn:function(){ ringEl($('verifyBtn'),9); tipEl($('verifyBtn'),'Maildeki onaya tıkla'); }},
+    {at:9400,fn:function(){ clickEl($('verifyBtn')); }},
+    {at:9800,fn:function(){ hideRing(); hideTip(); }},
+
+    {at:10050,fn:function(){ showScene('s4'); setUrl('lixusai.com','/dashboard'); setChip(4,'Bağlantıyı kur'); hideCursor(); }},
+    {at:10650,fn:function(){ aim($('connBtn')); }},
+    {at:11350,fn:function(){ ringEl($('connBtn'),8); tipEl($('connBtn'),'Tek tıkla bağlantıyı kur'); }},
+    {at:12050,fn:function(){ clickEl($('connBtn')); }},
+    {at:12400,fn:function(){ hideRing(); hideTip(); }},
+
+    {at:12650,fn:function(){ showScene('s5'); setUrl('lixusai.com','/settings'); setChip(5,'API anahtarını yapıştır'); hideCursor(); }},
+    {at:13050,fn:function(){ settApp.classList.add('scrolled'); }},
+    {at:14200,fn:function(){
+        tokenInput.classList.add('focus');
+        var b=bbox(tokenInput);
+        showSpot(b.x-10,b.y-10,b.w+20,b.h+20);
+        ringEl(tokenInput,9);
+        tipEl(tokenInput,"Token'ı buraya yapıştır 👇");
+        aim(tokenInput);
+    }},
+    {at:14800,fn:function(){ st.typing=true; st.typeStart=clock; tokenText.innerHTML=''; }},
+    {at:17000,fn:function(){
+        st.typing=false; st.typed=true;
+        tokenText.innerHTML='••••••••••••••••••••••••';
+        tokenLock.style.display='block';
+        tokenHint.innerHTML='🔒 <b>Bağlı ve kilitli.</b> Token şifreli saklanır — bir daha görüntülenmez, biz bile göremeyiz.';
+        hideTip(); hideRing();
+    }},
+    {at:17400,fn:function(){ aim($('saveBtn')); ringEl($('saveBtn'),8); tipEl($('saveBtn'),'Bağla'); }},
+    {at:18150,fn:function(){ clickEl($('saveBtn')); }},
+    {at:18450,fn:function(){ hideRing(); hideTip(); hideSpot(); tokenInput.classList.remove('focus'); okbox.classList.add('show'); }},
+
+    {at:19400,fn:function(){ hideCursor(); setChip(5,'Tamamlandı',true); done.classList.add('show'); }}
+  ];
+
+  function resetAll(){
+    settApp.classList.remove('scrolled');
+    tokenInput.classList.remove('focus');
+    tokenText.innerHTML='<span class="ph">hospitable_pat_…</span>';
+    tokenLock.style.display='none';
+    tokenHint.innerHTML='Token <b>şifreli olarak</b> saklanır — bir daha görüntülenmez, biz bile göremeyiz.';
+    okbox.classList.remove('show');
+    blurField($('rBiz')); blurField($('rName')); blurField($('rMail')); blurField($('rPass'));
+    $('rBiz').innerHTML='<span class="ph">Örn. Bosphorus Stays</span>';
+    $('rName').innerHTML='<span class="ph"></span>';
+    $('rMail').innerHTML='<span class="ph"></span>';
+    $('rPass').innerHTML='<span class="ph"></span>';
+    hideRing(); hideTip(); hideSpot(); done.classList.remove('show');
+    st.typing=false; st.typed=false;
+  }
+
+  var clock=0, last=0, paused=true, nextIdx=0;
+  function reset(){
+    clock=0; nextIdx=0; resetAll(); showScene('s1');
+    setChip(1,'Ücretsiz denemeyi başlat'); setUrl('lixusai.com','');
+    fill.style.width='0%'; hideCursor();
+  }
+  var stepRanges=[
+    [0,2950,'1/5','Ücretsiz dene'],
+    [2950,7400,'2/5','Hesap oluştur'],
+    [7400,10050,'3/5','E-posta onayı'],
+    [10050,12650,'4/5','Bağlantıyı kur'],
+    [12650,19400,'5/5','API yapıştır'],
+    [19400,DUR,'✓','Tamamlandı']
+  ];
+  function updateStepLabel(){
+    for(var i=0;i<stepRanges.length;i++){
+      if(clock>=stepRanges[i][0] && clock<stepRanges[i][1]){
+        stepname.innerHTML='Adım <b>'+stepRanges[i][2]+'</b> · '+stepRanges[i][3]; return;
+      }
+    }
+    stepname.innerHTML='Adım <b>✓</b> · Tamamlandı';
+  }
+  function tick(now){
+    if(!last) last=now;
+    var dt=now-last; last=now;
+    if(!paused){ clock+=dt; if(clock>DUR){ clock=DUR; paused=true; setPlayIcon(); } }
+    while(nextIdx<actions.length && actions[nextIdx].at<=clock){ actions[nextIdx].fn(); nextIdx++; }
+    if(st.typing && !st.typed){
+      var n=Math.min(TOKEN.length, Math.floor((clock-st.typeStart)/55));
+      tokenText.innerHTML=TOKEN.slice(0,n)+'<span class="caret"></span>';
+    }
+    fill.style.width=(clock/DUR*100)+'%';
+    updateStepLabel();
+    requestAnimationFrame(tick);
+  }
+  function seek(t){
+    t=Math.max(0,Math.min(DUR,t));
+    reset(); clock=0; nextIdx=0;
+    while(nextIdx<actions.length && actions[nextIdx].at<=t){ clock=actions[nextIdx].at; actions[nextIdx].fn(); nextIdx++; }
+    clock=t;
+    if(st.typing && !st.typed){
+      var n=Math.min(TOKEN.length, Math.floor((clock-st.typeStart)/55));
+      tokenText.innerHTML=TOKEN.slice(0,Math.max(0,n))+'<span class="caret"></span>';
+    }
+    fill.style.width=(clock/DUR*100)+'%'; updateStepLabel();
+  }
+
+  var PLAY='<svg viewBox="0 0 24 24" fill="none"><path d="M7 5l12 7-12 7V5z" fill="#fff"/></svg>';
+  var PAUSE='<svg viewBox="0 0 24 24" fill="none"><rect x="6" y="5" width="4" height="14" rx="1" fill="#fff"/><rect x="14" y="5" width="4" height="14" rx="1" fill="#fff"/></svg>';
+  function setPlayIcon(){ playBtn.innerHTML = paused?PLAY:PAUSE; }
+  playBtn.addEventListener('click', function(){ if(clock>=DUR){ reset(); } paused=!paused; last=0; setPlayIcon(); });
+  track.addEventListener('click', function(e){
+    var r=track.getBoundingClientRect(); var t=(e.clientX-r.left)/r.width*DUR;
+    var wasPaused=paused; paused=true; seek(t); paused=wasPaused; last=0; setPlayIcon();
+  });
+
+  rescale(); reset(); setPlayIcon(); requestAnimationFrame(tick);
+  setTimeout(rescale, 400); // re-report height once fonts settle
+  setTimeout(function(){ paused=false; last=0; setPlayIcon(); }, 650);
+})();
+</script>
+</body>
+</html>
