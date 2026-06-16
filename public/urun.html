@@ -42,7 +42,7 @@
   .side .brand .m{width:26px;height:26px;border-radius:7px;background:var(--navy);display:grid;place-items:center}
   .side .brand .m svg{width:14px;height:14px}
   .nav{display:flex;flex-direction:column;gap:2px}
-  .nav a{display:flex;align-items:center;gap:11px;padding:8px 11px;border-radius:10px;font-size:12.5px;font-weight:600;color:#5a6378;transition:background .35s,color .35s}
+  .nav a{display:flex;align-items:center;gap:10px;padding:6px 10px;border-radius:9px;font-size:12px;font-weight:600;color:#5a6378;transition:background .35s,color .35s}
   .nav a svg{width:15px;height:15px;opacity:.75}
   .nav a.active{background:var(--navy);color:#fff} .nav a.active svg{opacity:1}
   .side .userchip{margin-top:auto;display:flex;align-items:center;gap:9px;border:1px solid var(--line);border-radius:11px;padding:9px 10px}
@@ -173,9 +173,15 @@
             <div class="nav">
               <a id="nDash"><svg viewBox="0 0 24 24" fill="none"><rect x="3" y="3" width="7" height="7" rx="1.5" stroke="currentColor" stroke-width="1.8"/><rect x="14" y="3" width="7" height="7" rx="1.5" stroke="currentColor" stroke-width="1.8"/><rect x="3" y="14" width="7" height="7" rx="1.5" stroke="currentColor" stroke-width="1.8"/><rect x="14" y="14" width="7" height="7" rx="1.5" stroke="currentColor" stroke-width="1.8"/></svg>Panel</a>
               <a id="nMsg" class="active"><svg viewBox="0 0 24 24" fill="none"><path d="M21 11.5a8.4 8.4 0 0 1-11.7 7.7L3 21l1.9-6.3A8.4 8.4 0 1 1 21 11.5z" stroke="currentColor" stroke-width="1.8" stroke-linejoin="round"/></svg>Mesajlar</a>
+              <a><svg viewBox="0 0 24 24" fill="none"><rect x="3" y="3" width="7" height="7" rx="1" stroke="currentColor" stroke-width="1.7"/><rect x="14" y="3" width="7" height="7" rx="1" stroke="currentColor" stroke-width="1.7"/><rect x="3" y="14" width="7" height="7" rx="1" stroke="currentColor" stroke-width="1.7"/><path d="M14 14h3v3M17 20h4v-4M21 17v.01M14 20v.01" stroke="currentColor" stroke-width="1.7" stroke-linecap="round"/></svg>Misafir Sohbetleri</a>
+              <a><svg viewBox="0 0 24 24" fill="none"><path d="M22 2 11 13M22 2l-7 20-4-9-9-4 20-7z" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"/></svg>Gönderilenler</a>
               <a id="nTask"><svg viewBox="0 0 24 24" fill="none"><path d="M9 11l3 3L22 4M21 12v7a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"/></svg>Görevler</a>
+              <a><svg viewBox="0 0 24 24" fill="none"><rect x="3" y="4" width="18" height="18" rx="2" stroke="currentColor" stroke-width="1.7"/><path d="M16 2v4M8 2v4M3 10h18M10 14l4 4M14 14l-4 4" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"/></svg>İptaller</a>
+              <a><svg viewBox="0 0 24 24" fill="none"><path d="M3 21h18M5 21V5a1 1 0 0 1 1-1h6a1 1 0 0 1 1 1v16M13 21V9a1 1 0 0 1 1-1h4a1 1 0 0 1 1 1v12" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"/></svg>Mülkler</a>
+              <a><svg viewBox="0 0 24 24" fill="none"><path d="M4 19.5A2.5 2.5 0 0 1 6.5 17H20M4 19.5V5a2 2 0 0 1 2-2h14v17H6.5A2.5 2.5 0 0 0 4 19.5z" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"/></svg>Bilgi Tabanı</a>
+              <a><svg viewBox="0 0 24 24" fill="none"><path d="M14 3H6a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V9z M14 3v6h6 M9 13h6 M9 17h4" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"/></svg>Şablonlar</a>
               <a id="nRep"><svg viewBox="0 0 24 24" fill="none"><path d="M4 19V5M4 19h16M8 16v-5M12 16V8M16 16v-8" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"/></svg>Raporlar</a>
-              <a><svg viewBox="0 0 24 24" fill="none"><circle cx="12" cy="12" r="3" stroke="currentColor" stroke-width="1.8"/><path d="M19.4 15a1.6 1.6 0 0 0 .3 1.8M4.6 9a1.6 1.6 0 0 0-.3-1.8" stroke="currentColor" stroke-width="1.7" stroke-linecap="round"/></svg>Ayarlar</a>
+              <a><svg viewBox="0 0 24 24" fill="none"><circle cx="12" cy="12" r="3" stroke="currentColor" stroke-width="1.7"/><path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 1 1-2.83 2.83l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-4 0v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 1 1-2.83-2.83l.06-.06a1.65 1.65 0 0 0 .33-1.82 1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1 0-4h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 1 1 2.83-2.83l.06.06a1.65 1.65 0 0 0 1.82.33H9a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 4 0v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 1 1 2.83 2.83l-.06.06a1.65 1.65 0 0 0-.33 1.82V9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 0 4h-.09a1.65 1.65 0 0 0-1.51 1z" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/></svg>Ayarlar</a>
             </div>
             <div class="userchip"><span class="av">A</span><div><b>Ahmet Yılmaz</b><small>Sahip</small></div></div>
           </div>
@@ -185,7 +191,7 @@
               <div class="ptitle">Mesajlar</div>
               <div class="psub">Airbnb &amp; Booking — tek gelen kutusu</div>
               <div class="cv">
-                <div class="cvHd"><span class="av">EL</span><div><b>Emma L.</b><small>nuve 2 · Airbnb</small></div><span class="st">AI aktif</span></div>
+                <div class="cvHd"><span class="av">EL</span><div><b>Emma L.</b><small>Daire 1 · Airbnb</small></div><span class="st">AI aktif</span></div>
                 <div class="cvBody" id="cvBody">
                   <div class="msg guest" id="m1"><span class="lab">MİSAFİR · EN</span>Hi! What's the WiFi password?</div>
                   <div class="typing" id="typing"><span class="dot"></span><span class="dot"></span><span class="dot"></span></div>
@@ -216,16 +222,16 @@
               <div class="psub">Rezervasyondan otomatik oluşur — Kanban'da takip edin</div>
               <div class="kb">
                 <div class="kcol"><h5>Bugün <span class="c">3</span></h5>
-                  <div class="kcard"><b>Çıkış temizliği</b><span>nuve 2 · 11:00</span><span class="tag clean">Temizlik</span></div>
-                  <div class="kcard"><b>Check-in hazırlık</b><span>serdarı ekrem 1 · 14:00</span><span class="tag auto">Otomatik</span></div>
-                  <div class="kcard pop" id="kpop"><b>Çıkış temizliği</b><span>nuve 5 · 11:00</span><span class="tag auto">Yeni · otomatik</span></div>
+                  <div class="kcard"><b>Çıkış temizliği</b><span>Daire 1 · 11:00</span><span class="tag clean">Temizlik</span></div>
+                  <div class="kcard pop" id="kpop"><b>Çıkış temizliği</b><span>Daire 3 · 11:00</span><span class="tag auto">Yeni · otomatik</span></div>
+                  <div class="kcard"><b>Check-in hazırlık</b><span>Daire 2 · 14:00</span><span class="tag auto">Otomatik</span></div>
                 </div>
                 <div class="kcol"><h5>Yapılıyor <span class="c">1</span></h5>
-                  <div class="kcard"><b>Klima bakımı</b><span>nuve 2</span><span class="tag clean">Bakım</span></div>
+                  <div class="kcard"><b>Klima bakımı</b><span>Daire 1</span><span class="tag clean">Bakım</span></div>
                 </div>
                 <div class="kcol"><h5>Bitti <span class="c">2</span></h5>
-                  <div class="kcard" style="opacity:.6"><b>Check-in hazırlık</b><span>nuve 2 · tamam</span></div>
-                  <div class="kcard" style="opacity:.6"><b>Çıkış temizliği</b><span>nuve 7 · tamam</span></div>
+                  <div class="kcard" style="opacity:.6"><b>Check-in hazırlık</b><span>Daire 1 · tamam</span></div>
+                  <div class="kcard" style="opacity:.6"><b>Çıkış temizliği</b><span>Daire 4 · tamam</span></div>
                 </div>
               </div>
             </div>
@@ -250,10 +256,10 @@
               </div>
               <div class="rrow two">
                 <div class="rcard"><h5>Daireye göre doluluk (bu ay)</h5>
-                  <div class="bar"><span class="nm">nuve 2</span><span class="tr"><span class="fl" data-w="86"></span></span><span class="pc">%86</span></div>
-                  <div class="bar"><span class="nm">serdarı ekrem 1</span><span class="tr"><span class="fl" data-w="74"></span></span><span class="pc">%74</span></div>
-                  <div class="bar"><span class="nm">nuve 5</span><span class="tr"><span class="fl" data-w="68"></span></span><span class="pc">%68</span></div>
-                  <div class="bar"><span class="nm">nuve 7</span><span class="tr"><span class="fl" data-w="55"></span></span><span class="pc">%55</span></div>
+                  <div class="bar"><span class="nm">Daire 1</span><span class="tr"><span class="fl" data-w="86"></span></span><span class="pc">%86</span></div>
+                  <div class="bar"><span class="nm">Daire 2</span><span class="tr"><span class="fl" data-w="74"></span></span><span class="pc">%74</span></div>
+                  <div class="bar"><span class="nm">Daire 3</span><span class="tr"><span class="fl" data-w="68"></span></span><span class="pc">%68</span></div>
+                  <div class="bar"><span class="nm">Daire 4</span><span class="tr"><span class="fl" data-w="55"></span></span><span class="pc">%55</span></div>
                 </div>
                 <div class="rcard"><h5>AI etkinliği (son 30 gün)</h5>
                   <div class="acts">
@@ -306,7 +312,7 @@
 
   function resetAll(){
     ['m1','m2','m3','m5'].forEach(function(i){$(i).classList.remove('show');});
-    $('typing').classList.remove('show'); $('sug').classList.remove('show'); $('m4').style.display='none'; $('m4').classList.remove('show'); $('esc').classList.remove('show');
+    $('typing').classList.remove('show'); $('sug').classList.remove('show'); $('sug').style.display=''; $('m4').style.display='none'; $('m4').classList.remove('show'); $('esc').classList.remove('show');
     var cb=$('cvBody'); if(cb) cb.scrollTop=0;
     $('kpop').classList.remove('show'); pane('pMsg'); nav('nMsg');
     document.querySelectorAll('.fl').forEach(function(f){f.style.width='0';});
@@ -324,7 +330,7 @@
     {at:5100,fn:function(){aim($('gonder'));}},
     {at:5700,fn:function(){ringEl($('gonder'),7);tipEl($('gonder'),'tek tıkla onaylayın');}},
     {at:6500,fn:function(){clickEl($('gonder'));}},
-    {at:6800,fn:function(){hideRing();hideTip();$('sug').classList.remove('show');$('m4').style.display='block';void $('m4').offsetWidth;$('m4').classList.add('show');scrollDown();hideCursor();}},
+    {at:6800,fn:function(){hideRing();hideTip();$('sug').classList.remove('show');$('sug').style.display='none';$('m4').style.display='block';void $('m4').offsetWidth;$('m4').classList.add('show');scrollDown();hideCursor();}},
     {at:7800,fn:function(){showM('m5');}},
     {at:8600,fn:function(){$('esc').classList.add('show');scrollDown();}},
 
@@ -335,7 +341,7 @@
 
     {at:13300,fn:function(){aim($('nRep'));}},
     {at:14000,fn:function(){clickEl($('nRep'));pane('pRep');nav('nRep');setChip(3,'Raporlar');$('up').textContent='/reports';hideCursor();}},
-    {at:14800,fn:function(){document.querySelectorAll('.fl').forEach(function(f){f.style.width=f.getAttribute('data-w')+'%';});
+    {at:14250,fn:function(){document.querySelectorAll('.fl').forEach(function(f){f.style.width=f.getAttribute('data-w')+'%';});
       $('donut').style.background='conic-gradient(var(--accent) 0deg,var(--accent) 281deg,#eef1f6 281deg)';$('donutV').textContent='%78';}}
   ];
 
