@@ -41,11 +41,13 @@ export async function POST(req: NextRequest) {
     });
 
     // Notify the operator so a demo request is never missed (pull-only before).
-    // Fire-and-forget: a mail hiccup must not fail the visitor's submission.
+    // AWAIT it (Railway is a long-lived server, so this reliably sends before we
+    // respond) and LOG failures, so a delivery problem is visible rather than
+    // silently swallowed. The DB Lead row above is the source of truth either way.
     const to = process.env.ALERT_EMAIL?.trim();
     if (to) {
-      void emailService
-        .send(
+      try {
+        await emailService.send(
           to,
           `Lixus AI — yeni demo talebi: ${name}`,
           `<p><strong>Yeni demo / deneme talebi</strong></p>
@@ -56,8 +58,10 @@ export async function POST(req: NextRequest) {
              ${message ? `<li>Mesaj: ${esc(message)}</li>` : ""}
            </ul>
            <p>Operatör panelindeki "Demo Talepleri" bölümünde de görünür.</p>`,
-        )
-        .catch(() => {});
+        );
+      } catch (e) {
+        console.error("[leads] notification email failed:", e);
+      }
     }
 
     return jsonOk({ ok: true }, 201);
