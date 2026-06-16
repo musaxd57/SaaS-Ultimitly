@@ -120,7 +120,7 @@
   .bar .nm{width:78px;flex:0 0 auto;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
   .rrow.two .bar .nm{width:96px}
   .bar .tr{flex:1;height:8px;background:#eef1f6;border-radius:99px;overflow:hidden}
-  .bar .fl{height:100%;background:linear-gradient(90deg,var(--accent),var(--accent-2));border-radius:99px;transform-origin:left}
+  .bar .fl{display:block;height:100%;background:linear-gradient(90deg,var(--accent),var(--accent-2));border-radius:99px;transform-origin:left}
   #pRep.animate .fl{animation:grow 1s cubic-bezier(.5,.05,.2,1)}
   @keyframes grow{from{transform:scaleX(0)}to{transform:scaleX(1)}}
   .donut{display:flex;align-items:center;justify-content:center;height:96px}
@@ -208,7 +208,7 @@
                 <div class="cvBody" id="cvBody">
                   <div class="msg guest" id="m1"><span class="lab">MİSAFİR · EN</span>Hi! What's the WiFi password?</div>
                   <div class="typing" id="typing"><span class="dot"></span><span class="dot"></span><span class="dot"></span></div>
-                  <div class="msg ai" id="m2"><span class="lab">LIXUS AI</span>Hi Emma! The WiFi network is "Nuve_2" and the password is in your check-in guide. Enjoy your stay! 😊<span class="badge auto">⚡ Otomatik yanıtlandı — onay gerekmedi</span></div>
+                  <div class="msg ai" id="m2"><span class="lab">LIXUS AI</span>Hi Emma! The WiFi network is "Daire1_5G" and the password is in your check-in guide. Enjoy your stay! 😊<span class="badge auto">⚡ Otomatik yanıtlandı — onay gerekmedi</span></div>
                   <div class="msg guest" id="m3"><span class="lab">MİSAFİR · DE</span>Kann ich um 13:00 früher einchecken?</div>
                   <div class="sug" id="sug">
                     <div class="t">
@@ -362,9 +362,8 @@
     {at:13000,fn:function(){hideRing();hideTip();}},
 
     {at:13400,fn:function(){aim($('nRep'));}},
-    {at:14100,fn:function(){clickEl($('nRep'));pane('pRep');nav('nRep');setChip(3,'Raporlar');$('up').textContent='/reports';hideCursor();}},
-    {at:14450,fn:function(){$('pRep').classList.add('animate');
-      $('donut').style.background='conic-gradient(var(--accent) 0deg,var(--accent) 281deg,#eef1f6 281deg)';$('donutV').textContent='%78';}},
+    {at:14100,fn:function(){clickEl($('nRep'));pane('pRep');nav('nRep');setChip(3,'Raporlar');$('up').textContent='/reports';hideCursor();$('pRep').classList.add('animate');}},
+    {at:14450,fn:function(){$('donut').style.background='conic-gradient(var(--accent) 0deg,var(--accent) 281deg,#eef1f6 281deg)';$('donutV').textContent='%78';}},
 
     {at:16500,fn:function(){$('done').classList.add('show');}}
   ];
