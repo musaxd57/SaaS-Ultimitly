@@ -24,7 +24,7 @@ export type PlanDef = {
 export const DEFAULT_PLANS: PlanDef[] = [
   { code: "free", name: "Başlangıç", propertyLimit: 2, priceMinor: 44900, currency: "TRY", interval: "month", sortOrder: 0 },
   { code: "pro", name: "Pro", propertyLimit: 7, priceMinor: 89900, currency: "TRY", interval: "month", sortOrder: 1 },
-  { code: "business", name: "İşletme", propertyLimit: null, priceMinor: 169900, currency: "TRY", interval: "month", sortOrder: 2 },
+  { code: "business", name: "İşletme", propertyLimit: 200, priceMinor: 169900, currency: "TRY", interval: "month", sortOrder: 2 },
 ];
 
 export function planByCode(code: string): PlanDef | undefined {

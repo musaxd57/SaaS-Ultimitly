@@ -102,7 +102,7 @@ const TIERS = [
     price: "₺1.699",
     unit: "/ay",
     desc: "8+ daire / yönetim şirketleri",
-    features: ["Pro’daki her şey", "Sınırsız daire", "Birebir kurulum desteği", "Öncelikli destek"],
+    features: ["Pro’daki her şey", "200 daireye kadar", "Birebir kurulum desteği", "Öncelikli destek"],
     highlight: false,
   },
 ];

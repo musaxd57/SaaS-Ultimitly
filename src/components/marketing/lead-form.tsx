@@ -52,7 +52,7 @@ export function LeadForm() {
   }
 
   return (
-    <form onSubmit={submit} className="space-y-3 rounded-xl border border-border bg-card p-6">
+    <form onSubmit={submit} className="space-y-3 rounded-xl border border-border bg-card p-6 text-foreground">
       <div className="grid gap-3 sm:grid-cols-2">
         <div>
           <Input aria-label="Adınız" placeholder="Adınız" value={form.name} onChange={(e) => set("name", e.target.value)} required />
