@@ -65,3 +65,146 @@
     border-radius: 9999px;
   }
 }
+
+/* ============================================================
+   Landing motion system — dependency-free (CSS keyframes only).
+   transform/opacity only · no layout shift · GPU-friendly.
+   All motion is OFF under prefers-reduced-motion (bottom block).
+   ============================================================ */
+@layer utilities {
+  /* Scroll reveal (driven by <Reveal> adding .is-visible) */
+  .reveal {
+    opacity: 0;
+    transform: translateY(16px);
+    transition:
+      opacity 600ms cubic-bezier(0.16, 1, 0.3, 1),
+      transform 600ms cubic-bezier(0.16, 1, 0.3, 1);
+    transition-delay: var(--reveal-delay, 0ms);
+    will-change: opacity, transform;
+  }
+  .reveal.is-visible {
+    opacity: 1;
+    transform: none;
+    will-change: auto;
+  }
+
+  /* Hero background: soft navy radial glow + faint dotted grid (no images) */
+  .hero-aura {
+    position: absolute;
+    inset: 0;
+    z-index: 0;
+    pointer-events: none;
+    overflow: hidden;
+    background:
+      radial-gradient(42rem 26rem at 50% -8%, hsl(var(--primary) / 0.10), transparent 70%),
+      radial-gradient(30rem 22rem at 85% 6%, hsl(213 94% 68% / 0.08), transparent 70%);
+  }
+  .hero-aura::before {
+    content: "";
+    position: absolute;
+    inset: 0;
+    background-image: radial-gradient(hsl(var(--foreground) / 0.05) 1px, transparent 1px);
+    background-size: 22px 22px;
+    -webkit-mask-image: radial-gradient(60% 60% at 50% 30%, #000 40%, transparent 100%);
+    mask-image: radial-gradient(60% 60% at 50% 30%, #000 40%, transparent 100%);
+  }
+  .hero-aura::after {
+    content: "";
+    position: absolute;
+    top: -10rem;
+    left: 50%;
+    width: 36rem;
+    height: 36rem;
+    margin-left: -18rem;
+    border-radius: 9999px;
+    background: radial-gradient(circle, hsl(var(--primary) / 0.07), transparent 60%);
+    animation: aura-float 14s ease-in-out infinite;
+  }
+
+  /* Card lift on hover/focus */
+  .card-lift {
+    transition:
+      transform 220ms cubic-bezier(0.16, 1, 0.3, 1),
+      box-shadow 220ms ease,
+      border-color 220ms ease;
+  }
+  .card-lift:hover,
+  .card-lift:focus-within {
+    transform: translateY(-4px);
+    border-color: hsl(var(--primary) / 0.55);
+    box-shadow:
+      0 1px 2px hsl(var(--foreground) / 0.04),
+      0 12px 28px -12px hsl(var(--foreground) / 0.18);
+  }
+
+  /* Nav: elevated shadow after scroll (toggled by <NavScroll>) */
+  .nav-scrolled {
+    box-shadow: 0 1px 0 hsl(var(--border)), 0 6px 20px -16px hsl(var(--foreground) / 0.35);
+  }
+
+  /* CTA arrow nudge */
+  .cta-arrow svg:last-child {
+    transition: transform 200ms cubic-bezier(0.16, 1, 0.3, 1);
+  }
+  .cta-arrow:hover svg:last-child {
+    transform: translateX(3px);
+  }
+
+  /* Primary CTA: gentle breathing ring */
+  .cta-glow {
+    position: relative;
+  }
+  .cta-glow::after {
+    content: "";
+    position: absolute;
+    inset: 0;
+    border-radius: inherit;
+    animation: cta-breathe 2.8s ease-in-out infinite;
+    pointer-events: none;
+  }
+
+  /* Badge: one-time entrance */
+  .badge-in {
+    animation: fade-up 600ms cubic-bezier(0.16, 1, 0.3, 1) both;
+  }
+}
+
+@keyframes fade-up {
+  from { opacity: 0; transform: translateY(10px); }
+  to { opacity: 1; transform: none; }
+}
+@keyframes aura-float {
+  0%, 100% { transform: translateY(0) scale(1); }
+  50% { transform: translateY(24px) scale(1.06); }
+}
+@keyframes cta-breathe {
+  0%, 100% { box-shadow: 0 0 0 0 hsl(var(--primary) / 0); }
+  50% { box-shadow: 0 0 0 6px hsl(var(--primary) / 0.12); }
+}
+
+/* Smooth in-page anchor scrolling (native, cheap). */
+html {
+  scroll-behavior: smooth;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  html { scroll-behavior: auto; }
+  .reveal {
+    opacity: 1 !important;
+    transform: none !important;
+    transition: none !important;
+  }
+  .hero-aura::after,
+  .cta-glow::after,
+  .badge-in {
+    animation: none !important;
+  }
+  .card-lift,
+  .cta-arrow svg:last-child {
+    transition: none !important;
+  }
+  .card-lift:hover,
+  .card-lift:focus-within {
+    transform: none !important;
+  }
+}
