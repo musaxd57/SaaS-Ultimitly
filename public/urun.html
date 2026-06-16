@@ -60,7 +60,8 @@
   .cvHd .av{width:30px;height:30px;border-radius:8px;background:#eef1f8;color:#5a6378;font-weight:800;font-size:12px;display:grid;place-items:center}
   .cvHd b{font-size:13px}.cvHd small{display:block;font-size:11px;color:var(--muted)}
   .cvHd .st{margin-left:auto;font-size:10.5px;font-weight:700;color:#15703a;background:var(--green-soft);border:1px solid var(--green-line);padding:3px 9px;border-radius:999px}
-  .cvBody{flex:1;padding:14px 16px;overflow:hidden;display:flex;flex-direction:column;gap:9px}
+  .cvBody{flex:1;padding:14px 16px;overflow-y:auto;scroll-behavior:smooth;scrollbar-width:none;display:flex;flex-direction:column;gap:9px}
+  .cvBody::-webkit-scrollbar{display:none}
   .msg{max-width:74%;font-size:12.5px;line-height:1.4;padding:8px 11px;border-radius:13px;opacity:0;transform:translateY(8px);transition:opacity .4s,transform .4s}
   .msg.show{opacity:1;transform:none}
   .msg .lab{display:block;font-size:9px;font-weight:700;letter-spacing:.03em;margin-bottom:3px;opacity:.7}
@@ -72,14 +73,20 @@
   .esc{align-self:flex-start;max-width:80%;display:flex;gap:7px;align-items:flex-start;font-size:11px;line-height:1.4;color:var(--amber-ink);background:var(--amber);border:1px solid var(--amber-line);border-radius:11px;padding:8px 11px;opacity:0;transform:translateY(8px);transition:opacity .4s,transform .4s}
   .esc.show{opacity:1;transform:none}
   .esc svg{width:14px;height:14px;flex:0 0 auto;margin-top:1px}
-  /* AI suggestion card */
-  .sug{align-self:flex-end;max-width:80%;border:1.5px solid var(--accent);background:var(--accent-soft);border-radius:13px;padding:10px 12px;opacity:0;transform:translateY(8px);transition:opacity .4s,transform .4s}
+  /* AI suggestion card — mirrors the real inbox UI */
+  .sug{align-self:stretch;border:1.5px solid var(--accent);background:var(--accent-soft);border-radius:13px;padding:11px 13px;opacity:0;transform:translateY(8px);transition:opacity .4s,transform .4s}
   .sug.show{opacity:1;transform:none}
-  .sug .t{display:flex;align-items:center;gap:6px;font-size:10px;font-weight:800;color:var(--accent);margin-bottom:5px}
-  .sug .tx{font-size:12.5px;color:#27365e;line-height:1.4}
-  .sug .row{display:flex;gap:7px;margin-top:9px;justify-content:flex-end}
-  .sug .gonder{font-size:11px;font-weight:700;color:#fff;background:var(--navy);padding:6px 13px;border-radius:8px}
-  .sug .edit{font-size:11px;font-weight:600;color:#46506a;background:#fff;border:1px solid #d7ddea;padding:6px 11px;border-radius:8px}
+  .sug .t{display:flex;align-items:center;gap:7px;font-size:10px;margin-bottom:8px;flex-wrap:wrap}
+  .sug .t b{font-weight:800;color:var(--accent);display:flex;align-items:center;gap:5px}
+  .sug .t .pill{font-weight:700;color:#46506a;background:#fff;border:1px solid #d7ddea;padding:2px 8px;border-radius:999px}
+  .sug .t .conf{margin-left:auto;display:flex;align-items:center;gap:6px;font-weight:700;color:#15703a}
+  .sug .t .cbar{width:54px;height:6px;border-radius:99px;background:#dfeee5;overflow:hidden}
+  .sug .t .cfl{display:block;height:100%;background:var(--green);border-radius:99px}
+  .sug .tx{font-size:12.5px;color:#27365e;line-height:1.45;background:#fff;border:1px solid #dde4ff;border-radius:9px;padding:9px 11px}
+  .sug .row{display:flex;gap:8px;margin-top:9px}
+  .sug .onayla{font-size:11px;font-weight:700;color:#fff;background:var(--navy);padding:7px 14px;border-radius:8px;display:flex;align-items:center;gap:6px}
+  .sug .onayla svg{width:13px;height:13px}
+  .sug .taslak{font-size:11px;font-weight:600;color:#46506a;background:#fff;border:1px solid #d7ddea;padding:7px 12px;border-radius:8px}
 
   /* kanban */
   .kb{display:grid;grid-template-columns:repeat(3,1fr);gap:12px;height:388px}
@@ -171,7 +178,19 @@
                   <div class="msg guest" id="m1"><span class="lab">MİSAFİR · EN</span>Hi! What's the WiFi password?</div>
                   <div class="msg ai" id="m2"><span class="lab">LIXUS AI</span>Hi Emma! The WiFi network is "Nuve_2" and the password is in your check-in guide. Enjoy your stay! 😊<span class="badge auto">⚡ otomatik yanıtlandı</span></div>
                   <div class="msg guest" id="m3"><span class="lab">MİSAFİR · DE</span>Kann ich um 13:00 früher einchecken?</div>
-                  <div class="sug" id="sug"><div class="t"><svg width="12" height="12" viewBox="0 0 24 24" fill="none"><path d="M12 3l1.6 4.4L18 9l-4.4 1.6L12 15l-1.6-4.4L6 9l4.4-1.6L12 3z" fill="#3a5bd9"/></svg>AI Önerisi · Almanca</div><div class="tx">Hallo! Ein früher Check-in ab 13:00 Uhr ist je nach Verfügbarkeit möglich — ich halte Sie auf dem Laufenden. 😊</div><div class="row"><span class="edit">Düzenle</span><span class="gonder" id="gonder">Gönder</span></div></div>
+                  <div class="sug" id="sug">
+                    <div class="t">
+                      <b><svg width="12" height="12" viewBox="0 0 24 24" fill="none"><path d="M12 3l1.6 4.4L18 9l-4.4 1.6L12 15l-1.6-4.4L6 9l4.4-1.6L12 3z" fill="#3a5bd9"/></svg>AI Önerisi</b>
+                      <span class="pill">Lixus AI</span>
+                      <span class="pill">Erken giriş</span>
+                      <span class="conf">Güven %88 <span class="cbar"><span class="cfl" style="width:88%"></span></span></span>
+                    </div>
+                    <div class="tx">Hallo! Ein früher Check-in ab 13:00 Uhr ist je nach Verfügbarkeit möglich — ich halte Sie auf dem Laufenden. 😊</div>
+                    <div class="row">
+                      <span class="taslak">Taslağı kullan</span>
+                      <span class="onayla" id="gonder"><svg viewBox="0 0 24 24" fill="none"><path d="M5 12l4 4L19 7" stroke="#fff" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"/></svg>Onayla ve gönder</span>
+                    </div>
+                  </div>
                   <div class="msg ai" id="m4" style="display:none"><span class="lab">LIXUS AI · onayınızla gönderildi</span>Hallo! Ein früher Check-in ab 13:00 Uhr ist je nach Verfügbarkeit möglich — ich halte Sie auf dem Laufenden. 😊</div>
                   <div class="msg guest" id="m5"><span class="lab">MİSAFİR · TR</span>Daireyi beklediğim gibi bulmadım, biraz hayal kırıklığı.</div>
                   <div class="esc" id="esc"><svg viewBox="0 0 24 24" fill="none"><path d="M12 9v4M12 17h.01M10.3 3.9 1.8 18a2 2 0 0 0 1.7 3h17a2 2 0 0 0 1.7-3L13.7 3.9a2 2 0 0 0-3.4 0z" stroke="#8a5a00" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"/></svg><span><b>Şikayet algılandı</b> — Lixus AI otomatik cevap vermedi, size iletti. Hassas konular her zaman sizde.</span></div>
@@ -252,13 +271,15 @@
   function tipEl(el,text){var b=bbox(el);var x=Math.max(8,b.x-2),y=b.y-42;if(y<6)y=b.y+b.h+12;tip.textContent=text;tip.style.left=x+'px';tip.style.top=y+'px';tip.classList.add('on');}
   function hideTip(){tip.classList.remove('on');}
   function setChip(n,t){chipN.textContent=n;chipT.textContent=t;}
-  function showM(id){$(id).classList.add('show');}
+  function scrollDown(){var b=$('cvBody');if(b){b.scrollTop=b.scrollHeight;}}
+  function showM(id){$(id).classList.add('show');scrollDown();}
   function pane(which){['pMsg','pTask','pRep'].forEach(function(p){$(p).classList.toggle('show',p===which);});}
   function nav(which){['nMsg','nTask','nRep'].forEach(function(n){$(n).classList.toggle('active',n===which);});}
 
   function resetAll(){
     ['m1','m2','m3','m5'].forEach(function(i){$(i).classList.remove('show');});
-    $('sug').classList.remove('show'); $('m4').style.display='none'; $('esc').classList.remove('show');
+    $('sug').classList.remove('show'); $('m4').style.display='none'; $('m4').classList.remove('show'); $('esc').classList.remove('show');
+    var cb=$('cvBody'); if(cb) cb.scrollTop=0;
     $('kpop').classList.remove('show'); pane('pMsg'); nav('nMsg');
     document.querySelectorAll('.fl').forEach(function(f){f.style.width='0';});
     $('donut').style.background='conic-gradient(var(--accent) 0deg,#eef1f6 0deg)'; $('donutV').textContent='%0';
@@ -270,13 +291,13 @@
     {at:500,fn:function(){showM('m1');}},
     {at:1300,fn:function(){showM('m2');}},
     {at:2600,fn:function(){showM('m3');}},
-    {at:3500,fn:function(){$('sug').classList.add('show');}},
-    {at:4200,fn:function(){aim($('gonder'));}},
-    {at:5000,fn:function(){ringEl($('gonder'),7);tipEl($('gonder'),'AI önerdi · tek tıkla gönder');}},
+    {at:3500,fn:function(){$('sug').classList.add('show');scrollDown();}},
+    {at:4300,fn:function(){aim($('gonder'));}},
+    {at:5000,fn:function(){ringEl($('gonder'),7);tipEl($('gonder'),'AI önerdi · tek tıkla onayla');}},
     {at:5800,fn:function(){clickEl($('gonder'));}},
-    {at:6100,fn:function(){hideRing();hideTip();$('sug').classList.remove('show');$('m4').style.display='block';void $('m4').offsetWidth;$('m4').classList.add('show');hideCursor();}},
+    {at:6100,fn:function(){hideRing();hideTip();$('sug').classList.remove('show');$('m4').style.display='block';void $('m4').offsetWidth;$('m4').classList.add('show');scrollDown();hideCursor();}},
     {at:7000,fn:function(){showM('m5');}},
-    {at:7900,fn:function(){$('esc').classList.add('show');}},
+    {at:7900,fn:function(){$('esc').classList.add('show');scrollDown();}},
 
     {at:9200,fn:function(){aim($('nTask'));}},
     {at:9900,fn:function(){clickEl($('nTask'));pane('pTask');nav('nTask');setChip(2,'Görevler');$('up').textContent='/tasks';hideCursor();}},
