@@ -2,7 +2,7 @@
 
 import { useState, useTransition } from "react";
 import { useRouter } from "next/navigation";
-import { Loader2, Plus, Trash2, Eye, EyeOff, Copy, Pencil, Check, X } from "lucide-react";
+import { Loader2, Plus, Trash2, ToggleLeft, ToggleRight, Copy, Pencil, Check, X } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Select } from "@/components/ui/select";
@@ -42,6 +42,7 @@ export function KbManager({
   const [busyId, setBusyId] = useState<string | null>(null);
   const [creating, setCreating] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [listError, setListError] = useState<string | null>(null);
   const [form, setForm] = useState({
     propertyId: properties[0]?.id ?? "",
     category: "general",
@@ -82,16 +83,17 @@ export function KbManager({
 
   async function toggleActive(item: KbItem) {
     setBusyId(item.id);
+    setListError(null);
     try {
       const res = await fetch(`/api/kb/${item.id}`, {
         method: "PATCH",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ isActive: !item.isActive }),
       });
-      if (!res.ok) window.alert("Bilgi güncellenemedi.");
+      if (!res.ok) setListError("Bilgi güncellenemedi. Lütfen tekrar deneyin.");
       else refresh();
     } catch {
-      window.alert("Bağlantı hatası. Lütfen tekrar deneyin.");
+      setListError("Bağlantı hatası. Lütfen tekrar deneyin.");
     } finally {
       setBusyId(null);
     }
@@ -100,12 +102,13 @@ export function KbManager({
   async function remove(id: string) {
     if (!window.confirm("Bu bilgiyi silmek istediğinize emin misiniz?")) return;
     setBusyId(id);
+    setListError(null);
     try {
       const res = await fetch(`/api/kb/${id}`, { method: "DELETE" });
-      if (!res.ok) window.alert("Bilgi silinemedi.");
+      if (!res.ok) setListError("Bilgi silinemedi. Lütfen tekrar deneyin.");
       else refresh();
     } catch {
-      window.alert("Bağlantı hatası. Lütfen tekrar deneyin.");
+      setListError("Bağlantı hatası. Lütfen tekrar deneyin.");
     } finally {
       setBusyId(null);
     }
@@ -256,6 +259,9 @@ export function KbManager({
 
       {/* List */}
       <div className="space-y-4 lg:col-span-2">
+        {listError ? (
+          <p className="rounded-md bg-destructive/10 px-3 py-2 text-sm text-destructive">{listError}</p>
+        ) : null}
         {grouped.length === 0 ? (
           <Card>
             <CardContent className="py-10 text-center text-sm text-muted-foreground">
@@ -314,7 +320,7 @@ export function KbManager({
                           aria-label={item.isActive ? "Pasifleştir" : "Aktifleştir"}
                           title={item.isActive ? "Pasifleştir" : "Aktifleştir"}
                         >
-                          {item.isActive ? <Eye className="size-4" /> : <EyeOff className="size-4" />}
+                          {item.isActive ? <ToggleRight className="size-4 text-emerald-600" /> : <ToggleLeft className="size-4" />}
                         </button>
                         <button
                           type="button"

@@ -130,6 +130,7 @@ export function CalendarSources({ propertyId, sources, canManage = true }: Props
                       ) : (
                         <RefreshCw className="size-4" />
                       )}
+                      Senkronla
                     </Button>
                     <Button
                       variant="ghost"
@@ -137,8 +138,9 @@ export function CalendarSources({ propertyId, sources, canManage = true }: Props
                       onClick={() => deleteSource(s.id)}
                       disabled={busyId === s.id}
                       title="Sil"
+                      className="text-destructive hover:text-destructive"
                     >
-                      <Trash2 className="size-4 text-destructive" />
+                      <Trash2 className="size-4" /> Sil
                     </Button>
                   </div>
                 ) : null}

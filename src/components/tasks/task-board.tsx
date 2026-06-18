@@ -292,7 +292,7 @@ export function TaskBoard({ tasks }: { tasks: TaskCardData[] }) {
           ) : (
             <>
               <ChevronRight className="size-3" /> Not{t.type === "cleaning" ? " / fotoğraf" : ""}
-              {t.latestPhotoUrl ? " 📷" : ""}
+              {t.latestPhotoUrl ? <Camera className="size-3" /> : null}
             </>
           )}
         </button>
