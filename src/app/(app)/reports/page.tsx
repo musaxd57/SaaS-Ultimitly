@@ -246,10 +246,17 @@ export default async function ReportsPage() {
                       <span className="flex shrink-0 items-center gap-2">
                         <span className="text-muted-foreground">%{o.thisMonthRate}</span>
                         {o.delta !== 0 ? (
-                          <Badge tone={o.delta > 0 ? "success" : "muted"}>
-                            {o.delta > 0 ? "+" : ""}
-                            {o.delta}
-                          </Badge>
+                          <span className="group relative inline-flex">
+                            <Badge tone={o.delta > 0 ? "success" : "muted"} className="cursor-help">
+                              {o.delta > 0 ? "+" : ""}
+                              {o.delta}
+                            </Badge>
+                            <span className="pointer-events-none absolute right-0 top-full z-20 mt-1.5 hidden w-56 rounded-md bg-foreground px-2.5 py-1.5 text-left text-xs font-normal leading-snug text-background shadow-lg group-hover:block">
+                              Geçen ayın <strong>aynı günlerine</strong> göre değişim — ayın
+                              1&apos;inden bugüne kadarki doluluk, geçen ayın aynı tarih aralığıyla
+                              karşılaştırılır.
+                            </span>
+                          </span>
                         ) : null}
                       </span>
                     </div>
