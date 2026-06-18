@@ -110,8 +110,9 @@ export default async function TasksPage({
             <p className="text-muted-foreground">
               Her yeni rezervasyonda AI otomatik olarak <strong>check-in hazırlık</strong> ve{" "}
               <strong>çıkış temizliği</strong> görevlerini doğru tarihlerle açar. Eksik kalan olursa
-              yukarıdaki “Eksik görevleri oluştur” düğmesiyle tamamlayın; ekibinize atayın, fotoğraflı
-              kontrol notu ekleyin, AI günlük operasyon özetinde bunları takip etsin.
+              yukarıda bir <strong>“Eksik görevleri oluştur”</strong> düğmesi belirir; görünmüyorsa tüm
+              görevler zaten oluşmuş demektir. Dilediğinizde <strong>“Yeni görev”</strong> ile elle de
+              ekleyebilir, ekibinize atayabilir, fotoğraflı kontrol notu ekleyebilirsiniz.
             </p>
           </div>
         </CardContent>
