@@ -110,7 +110,7 @@ export function AiTestCard({ properties }: { properties: { id: string; name: str
       <textarea
         value={message}
         onChange={(e) => setMessage(e.target.value)}
-        placeholder="Misafir mesajını buraya yaz (ya da yukarıdan bir örnek seç)…"
+        placeholder="Misafir mesajını buraya yazın (ya da yukarıdan bir örnek seçin)…"
         rows={3}
         className="w-full rounded-md border border-input bg-background px-3 py-2 text-sm"
       />

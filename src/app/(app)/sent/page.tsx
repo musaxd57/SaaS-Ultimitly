@@ -35,8 +35,9 @@ function apartmentNumberOf(propertyName: string): string {
   return nums ? nums[nums.length - 1] : propertyName;
 }
 
-// Resolve the host's template tokens to live values for a faithful preview of
-// what the guest actually received (same tokens as automation.fillPlaceholders).
+// Resolve the host's template tokens to live values for a preview of the message
+// content (same token rules as the automatic sender). It's the content basis of
+// what was sent, trimmed for the list — not a byte-exact copy.
 function fillTokens(text: string, firstName: string, propertyName: string): string {
   return text
     .replace(/\{\s*(isim|ad|name)\s*\}/gi, firstName)
@@ -139,13 +140,14 @@ export default async function SentPage({
           property: { organizationId: orgId }, // tenant isolation
         },
         select: { propertyId: true, category: true, content: true },
+        orderBy: { updatedAt: "desc" }, // newest active entry wins — same as the sender
       })
     : [];
   // Lookup keyed by `${propertyId}:${category}` → template content.
   const kbByKey = new Map<string, string>();
   for (const k of kbItems) {
     const key = `${k.propertyId}:${k.category}`;
-    if (!kbByKey.has(key)) kbByKey.set(key, k.content); // first/active entry wins
+    if (!kbByKey.has(key)) kbByKey.set(key, k.content); // newest active entry wins (sorted desc)
   }
   function lifecyclePreview(
     kind: Exclude<SentKind, "reply">,
