@@ -4,7 +4,6 @@ import { PageHeader } from "@/components/page-header";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { AiVoiceForm } from "@/components/settings/ai-voice-form";
 import { BulkTimesForm } from "@/components/settings/bulk-times-form";
-import { MessagePreviewButton } from "@/components/settings/message-preview-button";
 import { NightHoursForm } from "@/components/settings/night-hours-form";
 import { AutoReplyToggle } from "@/components/inbox/auto-reply-toggle";
 import { AiTestCard } from "@/components/settings/ai-test-card";
@@ -294,11 +293,6 @@ export default async function SettingsPage() {
               locked={automationLocked}
               title="Açıkken: yaklaşan rezervasyon onaylarında, o dairenin karşılama mesajı misafire bir kez otomatik gider. Güvenlik ana şalteri (AUTO_REPLY_ENABLED) da açık olmalı."
             />
-            <MessagePreviewButton
-              endpoint="/api/hospitable/welcome-test"
-              label="Karşılama önizleme"
-              missingNote={'"Karşılama Mesajı" girişi yok'}
-            />
           </div>
         </CardContent>
       </Card>
@@ -326,11 +320,6 @@ export default async function SettingsPage() {
               locked={automationLocked}
               title="Açıkken: girişe 4 gün kala, o dairenin 'Giriş Talimatı' bilgi tabanı girişi misafire bir kez otomatik gider. Ana şalter (AUTO_REPLY_ENABLED) da açık olmalı."
             />
-            <MessagePreviewButton
-              endpoint="/api/hospitable/checkin-test"
-              label="Giriş bilgileri önizleme"
-              missingNote={'"Giriş Talimatı" girişi yok'}
-            />
           </div>
         </CardContent>
       </Card>
@@ -355,11 +344,6 @@ export default async function SettingsPage() {
               enabled={org?.autoCheckout ?? false}
               locked={automationLocked}
               title="Açıkken: çıkıştan bir gün önce akşam 18:00'da, o dairenin çıkış mesajı misafire bir kez otomatik gider. Tek gecelik konaklamalara gönderilmez. Ana şalter (AUTO_REPLY_ENABLED) da açık olmalı."
-            />
-            <MessagePreviewButton
-              endpoint="/api/hospitable/checkout-test"
-              label="Çıkış önizleme"
-              missingNote={'"Çıkış Mesajı" girişi yok'}
             />
           </div>
         </CardContent>

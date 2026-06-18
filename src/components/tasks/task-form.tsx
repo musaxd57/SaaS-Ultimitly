@@ -117,9 +117,13 @@ export function TaskForm({
         </Field>
         <Field label="Durum" htmlFor="status">
           <Select id="status" value={form.status} onChange={(e) => set("status", e.target.value)}>
-            {TASK_STATUS.options.map((o) => (
-              <option key={o.value} value={o.value}>{o.label}</option>
-            ))}
+            {/* Match the board's 3 columns (todo / in_progress / done) — the 4th
+                "Onay bekliyor" state has no column, so don't offer it here. */}
+            {TASK_STATUS.options
+              .filter((o) => o.value !== "awaiting_review")
+              .map((o) => (
+                <option key={o.value} value={o.value}>{o.label}</option>
+              ))}
           </Select>
         </Field>
       </div>
