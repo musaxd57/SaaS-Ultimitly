@@ -9,7 +9,6 @@ import {
   AlertTriangle,
   Bot,
   Wand2,
-  MessageSquarePlus,
   CheckCheck,
   Info,
   FileText,
@@ -24,7 +23,7 @@ import { Badge } from "@/components/ui/badge";
 import { Separator } from "@/components/ui/separator";
 import { CONVERSATION_STATUS, PRIORITY, REPLY_TONE, type ReplyTone } from "@/lib/constants";
 import { cn } from "@/lib/utils";
-import { intentLabel, langLabel, aiSourceLabel, displaySenderName } from "@/lib/ui-labels";
+import { intentLabel, langLabel, displaySenderName } from "@/lib/ui-labels";
 
 export interface ThreadMessage {
   id: string;
@@ -66,14 +65,6 @@ interface Props {
   canReply?: boolean;
 }
 
-function confidenceTone(c: number) {
-  // Green only at/above the real auto-send floor (AUTO_REPLY_MIN_CONFIDENCE = 0.75),
-  // so the bar never implies a 0.6–0.74 draft would auto-send.
-  if (c >= 0.75) return "bg-success";
-  if (c >= 0.4) return "bg-warning";
-  return "bg-destructive";
-}
-
 export function ConversationThread({ conversationId, messages, status, priority, propertyId, templateVars, canReply = true }: Props) {
   const router = useRouter();
   const [, startTransition] = useTransition();
@@ -85,9 +76,6 @@ export function ConversationThread({ conversationId, messages, status, priority,
   const [sending, setSending] = useState(false);
   const [sendError, setSendError] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
-  const [showSimulate, setShowSimulate] = useState(false);
-  const [simulateText, setSimulateText] = useState("");
-  const [simulating, setSimulating] = useState(false);
 
   // Template picker state
   const [showTemplates, setShowTemplates] = useState(false);
@@ -199,6 +187,10 @@ export function ConversationThread({ conversationId, messages, status, priority,
       for (const [key, value] of Object.entries(templateVars)) {
         if (value) body = body.split(`{{${key}}}`).join(value);
       }
+      // Also accept the single-brace {isim}/{ad} tokens used by the automatic
+      // messages, so a host doesn't have to learn two placeholder styles.
+      const guest = templateVars.guestName;
+      if (guest) body = body.split("{isim}").join(guest).split("{ad}").join(guest);
     }
     // Strip any remaining unfilled placeholders so guests never see raw {{...}}.
     body = body.replace(/\{\{[^}]+\}\}/g, "").replace(/\n{3,}/g, "\n\n").trim();
@@ -233,30 +225,6 @@ export function ConversationThread({ conversationId, messages, status, priority,
       window.alert("Bağlantı hatası. Lütfen tekrar deneyin.");
     } finally {
       setTranslatingId(null);
-    }
-  }
-
-  async function simulateInbound() {
-    if (!simulateText.trim()) return;
-    setSimulating(true);
-    try {
-      const res = await fetch(`/api/conversations/${conversationId}/messages`, {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ body: simulateText }),
-      });
-      if (res.ok) {
-        setSimulateText("");
-        setShowSimulate(false);
-        setSuggestion(null);
-        refresh();
-      } else {
-        window.alert("Mesaj eklenemedi. Lütfen tekrar deneyin.");
-      }
-    } catch {
-      window.alert("Bağlantı hatası. Lütfen tekrar deneyin.");
-    } finally {
-      setSimulating(false);
     }
   }
 
@@ -450,38 +418,7 @@ export function ConversationThread({ conversationId, messages, status, priority,
             ) : null}
           </div>
 
-          {canReply ? (
-            <button
-              type="button"
-              onClick={() => setShowSimulate((s) => !s)}
-              className="ml-auto flex items-center gap-1 text-xs text-muted-foreground hover:text-foreground"
-            >
-              <MessageSquarePlus className="size-3.5" />
-              Misafir mesajı dene (test)
-            </button>
-          ) : null}
         </div>
-
-        {showSimulate ? (
-          <div className="space-y-2 rounded-lg border border-dashed border-border p-3">
-            <p className="text-xs text-muted-foreground">
-              Sadece test: sanki bir misafir bu mesajı atmış gibi ekler; AI&apos;ın nasıl
-              sınıflandırıp yanıtladığını görürsünüz. Misafire hiçbir şey gönderilmez.
-            </p>
-            <Textarea
-              value={simulateText}
-              onChange={(e) => setSimulateText(e.target.value)}
-              placeholder="Örn. Klima çalışmıyor, çok sıcak!"
-              className="min-h-[60px]"
-            />
-            <div className="flex justify-end">
-              <Button size="sm" variant="secondary" onClick={simulateInbound} disabled={simulating}>
-                {simulating ? <Loader2 className="size-4 animate-spin" /> : null}
-                Misafir mesajı ekle
-              </Button>
-            </div>
-          </div>
-        ) : null}
 
         {suggestError ? (
           <p className="rounded-md bg-destructive/10 px-3 py-2 text-sm text-destructive">
@@ -495,9 +432,6 @@ export function ConversationThread({ conversationId, messages, status, priority,
               <span className="flex items-center gap-1.5 text-sm font-semibold">
                 <Bot className="size-4 text-primary" /> AI Önerisi
               </span>
-              <Badge tone={suggestion.source === "openai" ? "default" : "muted"}>
-                {aiSourceLabel(suggestion.source)}
-              </Badge>
               <Badge tone="secondary">{intentLabel(suggestion.intent)}</Badge>
               {suggestion.riskLevel && suggestion.riskLevel !== "none" ? (
                 <span
@@ -517,17 +451,16 @@ export function ConversationThread({ conversationId, messages, status, priority,
                   Dil: {langLabel(suggestion.detectedLanguage)}
                 </span>
               ) : null}
-              <div className="ml-auto flex items-center gap-2">
-                <span className="text-xs text-muted-foreground">
-                  Güven %{Math.round(suggestion.confidence * 100)}
-                </span>
-                <div className="h-1.5 w-20 overflow-hidden rounded-full bg-border">
-                  <div
-                    className={cn("h-full", confidenceTone(suggestion.confidence))}
-                    style={{ width: `${Math.round(suggestion.confidence * 100)}%` }}
-                  />
-                </div>
-              </div>
+              <span
+                className={cn(
+                  "ml-auto inline-flex items-center gap-1 rounded-full px-2 py-0.5 text-xs font-medium",
+                  suggestion.confidence >= 0.75
+                    ? "bg-emerald-100 text-emerald-800"
+                    : "bg-amber-100 text-amber-800",
+                )}
+              >
+                {suggestion.confidence >= 0.75 ? "AI bundan emin" : "AI emin değil — gözden geçirin"}
+              </span>
             </div>
 
             {suggestion.risk ? (

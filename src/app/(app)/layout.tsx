@@ -41,6 +41,7 @@ export default async function AppLayout({ children }: { children: React.ReactNod
         orgName: org.name,
       }}
       superAdmin={isSuperAdmin(session)}
+      guestChatEnabled={process.env.GUEST_CHAT_ENABLED === "1"}
       impersonating={
         session.actorUserId
           ? { actorName: session.actorName ?? session.actorEmail ?? "Operatör", orgName: org.name }

@@ -114,7 +114,7 @@ export default async function DashboardPage() {
     {
       done: connection.connected,
       title: "Airbnb / Booking bağlantısını kur",
-      desc: "Misafir mesajlarınızın akması için Hospitable hesabınızın token'ını Ayarlar'dan bağlayın. (Hospitable hesabınız yoksa önce hospitable.com'dan açmanız gerekir.)",
+      desc: "Airbnb / Booking bağlantınızı Ayarlar'dan kurun — misafir mesajlarınız otomatik akmaya başlar.",
       href: "/settings#hospitable",
       cta: "Bağlantıyı kur",
     },
@@ -148,16 +148,38 @@ export default async function DashboardPage() {
     (a, b) => (priorityRank[a.priority] ?? 1) - (priorityRank[b.priority] ?? 1),
   );
 
-  const summary = buildDailySummary(
-    stats,
-    arrivals.map((a) => ({ guestName: a.guestName, propertyName: a.property.name })),
-    departures.map((d) => ({ guestName: d.guestName, propertyName: d.property.name })),
-  );
+  // Feed the summary the SAME deduped counts the cards/lists already show, so
+  // the sentence count can never disagree with the visible numbers. Cap the
+  // listed names to the first 3 (then "ve N diğer") so a busy day stays one
+  // tidy line instead of dumping every guest name.
+  const capGuests = (rows: { guestName: string; property: { name: string } }[]) => {
+    const names = rows.slice(0, 3).map((r) => `${r.guestName} (${r.property.name})`).join(", ");
+    const extra = rows.length - 3;
+    return extra > 0 ? `${names} ve ${extra} diğer` : names;
+  };
+  // Use the shared helper for the stats sentences (with deduped counts), then
+  // append our own capped name lists — the helper would otherwise dump every
+  // name uncapped.
+  const summaryParts = [
+    buildDailySummary(
+      { ...stats, arrivalsToday: arrivals.length, departuresToday: departures.length },
+      [],
+      [],
+    ),
+  ];
+  if (arrivals.length > 0) summaryParts.push(`Girişler: ${capGuests(arrivals)}.`);
+  if (departures.length > 0) summaryParts.push(`Çıkışlar: ${capGuests(departures)}.`);
+  const summary = summaryParts.join(" ");
+
+  // Guard against an empty/blank name so the greeting never shows a dangling
+  // comma or trailing space (e.g. accounts created without a display name).
+  const firstName = session.name?.trim().split(/\s+/)[0] ?? "";
+  const greeting = firstName ? `Merhaba, ${firstName} 👋` : "Merhaba 👋";
 
   return (
     <>
       <PageHeader
-        title={`Merhaba, ${session.name.split(" ")[0]} 👋`}
+        title={greeting}
         description={now.toLocaleDateString("tr-TR", {
           weekday: "long",
           day: "numeric",

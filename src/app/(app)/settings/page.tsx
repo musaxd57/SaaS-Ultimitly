@@ -91,32 +91,30 @@ export default async function SettingsPage() {
         description="AI'nın sesi ve otomatik mesaj ayarları."
       />
 
-      <div
-        className={
-          masterOn
-            ? "rounded-lg border border-emerald-300 bg-emerald-50 px-4 py-3 text-sm text-emerald-800"
-            : "rounded-lg border border-amber-300 bg-amber-50 px-4 py-3 text-sm text-amber-800"
-        }
-      >
-        {masterOn ? (
-          <>
-            <strong>Otomatik gönderim ana şalteri: AÇIK.</strong> Aşağıdaki seçenekler
-            (gece oto-yanıt / otomatik karşılama) açıksa, mesajlar gerçekten gönderilir.
-          </>
-        ) : isOperator ? (
-          <>
-            <strong>Otomatik gönderim ana şalteri: KAPALI.</strong> Aşağıdaki seçenekleri açsanız
-            bile <strong>hiçbir otomatik mesaj gönderilmez</strong>. Açmak için Railway'de
-            <code className="mx-1 rounded bg-amber-100 px-1 py-0.5">AUTO_REPLY_ENABLED=1</code>
-            ayarlayın.
-          </>
-        ) : (
-          <>
-            <strong>Otomatik gönderim şu an kapalı.</strong> Aşağıdaki seçenekleri açsanız bile
-            otomatik mesaj gönderilmez. Bu özelliği etkinleştirmek için bizimle iletişime geçin.
-          </>
-        )}
-      </div>
+      {/* Master-switch status is operator-only plumbing — customers never see it. */}
+      {isOperator ? (
+        <div
+          className={
+            masterOn
+              ? "rounded-lg border border-emerald-300 bg-emerald-50 px-4 py-3 text-sm text-emerald-800"
+              : "rounded-lg border border-amber-300 bg-amber-50 px-4 py-3 text-sm text-amber-800"
+          }
+        >
+          {masterOn ? (
+            <>
+              <strong>Otomatik gönderim ana şalteri: AÇIK.</strong> Aşağıdaki seçenekler
+              (gece oto-yanıt / otomatik karşılama) açıksa, mesajlar gerçekten gönderilir.
+            </>
+          ) : (
+            <>
+              <strong>Otomatik gönderim ana şalteri: KAPALI.</strong> Aşağıdaki seçenekleri açsanız
+              bile <strong>hiçbir otomatik mesaj gönderilmez</strong>. Açmak için Railway'de
+              <code className="mx-1 rounded bg-amber-100 px-1 py-0.5">AUTO_REPLY_ENABLED=1</code>
+              ayarlayın.
+            </>
+          )}
+        </div>
+      ) : null}
 
       <Card className="max-w-2xl">
         <CardHeader>
@@ -197,7 +195,7 @@ export default async function SettingsPage() {
       {canManageChannel && hospitableInfo ? (
         <Card id="hospitable" className="max-w-2xl scroll-mt-24">
           <CardHeader>
-            <CardTitle className="text-base">Hospitable Bağlantısı (Airbnb / Booking)</CardTitle>
+            <CardTitle className="text-base">Airbnb / Booking Bağlantısı</CardTitle>
           </CardHeader>
           <CardContent>
             <HospitableConnectCard info={hospitableInfo} />
@@ -221,7 +219,7 @@ export default async function SettingsPage() {
       {properties.length > 0 ? (
         <Card className="max-w-2xl">
           <CardHeader>
-            <CardTitle className="text-base">AI Cevap Testi (misafire gitmez)</CardTitle>
+            <CardTitle className="text-base">AI&apos;yı Deneyin</CardTitle>
           </CardHeader>
           <CardContent>
             <AiTestCard properties={properties} />

@@ -194,9 +194,8 @@ export async function getMonthlyReport(orgId: string): Promise<MonthlyReport> {
 export interface PropertyOccupancy {
   propertyId: string;
   propertyName: string;
-  thisMonthRate: number; // 0..100
-  lastMonthRate: number; // 0..100
-  delta: number; // +/-
+  thisMonthRate: number; // 0..100, "to date" (1st → today, Istanbul)
+  delta: number; // +/- vs last month over the SAME elapsed-day window
 }
 
 export async function getOccupancyByProperty(orgId: string): Promise<PropertyOccupancy[]> {
@@ -211,8 +210,33 @@ export async function getOccupancyByProperty(orgId: string): Promise<PropertyOcc
     select: { id: true, name: true },
   });
 
-  const daysInThisMonth = thisMonthEnd.getDate();
+  // "Occupancy to date": the current month must be measured against the nights
+  // ELAPSED so far (1st → today), not the whole month — otherwise a unit booked
+  // solid through the 18th reads ~55% mid-month. "Today" is the host's Istanbul
+  // calendar day, matching the rest of the codebase (zonedDayRange).
+  const istToday = zonedDayRange(now, "Europe/Istanbul").start;
+  const todayDayOfMonth = Number(
+    new Intl.DateTimeFormat("en-CA", {
+      timeZone: "Europe/Istanbul",
+      day: "2-digit",
+    }).format(istToday),
+  );
+
+  // Cut both windows off at the same day-of-month so the delta is like-for-like
+  // (this-month-to-date vs last-month-over-the-same-days). countOccupiedDays
+  // counts each day cur with rangeStart <= cur < rangeEnd, so an exclusive end
+  // at "start of day N" yields exactly the nights of days 1..N-1.
+  const thisMonthCutoff = startOfDay(addDays(thisMonthStart, todayDayOfMonth - 1));
   const daysInLastMonth = lastMonthEnd.getDate();
+  // Clamp the comparison window to last month's length (e.g. today=31, last
+  // month had 30 days → compare the full 30 elapsed nights of last month).
+  const lastMonthCutoffDay = Math.min(todayDayOfMonth, daysInLastMonth);
+  const lastMonthCutoff = startOfDay(addDays(lastMonthStart, lastMonthCutoffDay - 1));
+
+  // Denominators = elapsed nights in each window (days 1..cutoff-1). max(1, …)
+  // guards day-1 of the month / empty windows from a divide-by-zero.
+  const elapsedNightsThis = Math.max(1, todayDayOfMonth - 1);
+  const elapsedNightsLast = Math.max(1, lastMonthCutoffDay - 1);
 
   // ONE query covering both months across ALL properties (was 2 queries per
   // property → an N+1). countOccupiedDays clamps each reservation to the target
@@ -253,17 +277,19 @@ export async function getOccupancyByProperty(orgId: string): Promise<PropertyOcc
     return occupied.size;
   }
 
+  const clamp = (n: number) => Math.min(100, Math.max(0, n));
+
   return properties.map((p) => {
     const res = byProperty.get(p.id) ?? [];
-    const thisOccupied = countOccupiedDays(res, thisMonthStart, thisMonthEnd);
-    const lastOccupied = countOccupiedDays(res, lastMonthStart, lastMonthEnd);
-    const thisRate = Math.round((thisOccupied / daysInThisMonth) * 100);
-    const lastRate = Math.round((lastOccupied / daysInLastMonth) * 100);
+    // Both windows stop at their respective cutoff so we compare like-for-like.
+    const thisOccupied = countOccupiedDays(res, thisMonthStart, thisMonthCutoff);
+    const lastOccupied = countOccupiedDays(res, lastMonthStart, lastMonthCutoff);
+    const thisRate = clamp(Math.round((thisOccupied / elapsedNightsThis) * 100));
+    const lastRate = clamp(Math.round((lastOccupied / elapsedNightsLast) * 100));
     return {
       propertyId: p.id,
       propertyName: p.name,
       thisMonthRate: thisRate,
-      lastMonthRate: lastRate,
       delta: thisRate - lastRate,
     };
   });

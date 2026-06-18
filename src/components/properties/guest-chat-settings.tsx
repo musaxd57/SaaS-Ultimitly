@@ -74,8 +74,8 @@ export function GuestChatSettings({
   return (
     <div className="space-y-3">
       <p className="text-xs text-muted-foreground">
-        Dairenin içine asacağın QR'ı okutan misafir, bilgi tabanından genel sorularını yapay zekâya
-        sorar; çözülemeyen konu sana mesaj olarak düşer. Güvenlik için kapı kodu/Wi-Fi burada
+        Dairenin içine asacağınız QR'ı okutan misafir, bilgi tabanından genel sorularını yapay zekâya
+        sorar; çözülemeyen konu size mesaj olarak düşer. Güvenlik için kapı kodu/Wi-Fi burada
         paylaşılmaz.
       </p>
 
@@ -89,12 +89,12 @@ export function GuestChatSettings({
             : "inline-flex h-9 items-center rounded-md bg-primary px-3 text-sm font-medium text-primary-foreground hover:bg-primary/90 disabled:opacity-50"
         }
       >
-        {busy ? "…" : enabled ? "Misafir chat'i kapat" : "Misafir chat'i aç"}
+        {busy ? "…" : enabled ? "Misafir sohbetini kapat" : "Misafir sohbetini aç"}
       </button>
 
       {enabled && url ? (
         <div className="space-y-1">
-          <p className="text-xs font-medium">Misafir bağlantısı (QR'a göm):</p>
+          <p className="text-xs font-medium">Misafir bağlantısı:</p>
           <div className="flex items-center gap-2">
             <input
               readOnly
@@ -136,8 +136,7 @@ export function GuestChatSettings({
               <Download className="size-4" /> QR'ı indir (PNG)
             </button>
             <p className="text-[11px] text-muted-foreground">
-              Statik &amp; süresiz — yazdırıp daireye as. (Dış QR sitelerindeki &quot;dynamic&quot;
-              seçeneği 3. taraftan geçer ve süresi dolar; bunun yerine bunu kullan.)
+              Statik ve süresiz QR — bir kez yazdırıp daireye asın, güncellemeye gerek kalmaz.
             </p>
           </div>
         </div>

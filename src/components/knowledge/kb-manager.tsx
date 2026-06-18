@@ -13,6 +13,12 @@ import { Field } from "@/components/form-field";
 import { KB_CATEGORY } from "@/lib/constants";
 import { cn } from "@/lib/utils";
 
+// Categories whose content is auto-sent verbatim to the guest (vs. read-only
+// facts the AI uses to answer questions). Only used to group the dropdown.
+const TRIGGER_CATEGORIES = new Set(["welcome", "checkin", "checkout"]);
+const triggerOptions = KB_CATEGORY.options.filter((o) => TRIGGER_CATEGORIES.has(o.value));
+const infoOptions = KB_CATEGORY.options.filter((o) => !TRIGGER_CATEGORIES.has(o.value));
+
 export interface KbItem {
   id: string;
   propertyId: string;
@@ -217,10 +223,22 @@ export function KbManager({
             </Field>
             <Field label="Kategori" htmlFor="kb-category">
               <Select id="kb-category" value={form.category} onChange={(e) => set("category", e.target.value)}>
-                {KB_CATEGORY.options.map((o) => (
-                  <option key={o.value} value={o.value}>{o.label}</option>
-                ))}
+                <optgroup label="Otomatik gönderilen mesajlar">
+                  {triggerOptions.map((o) => (
+                    <option key={o.value} value={o.value}>{o.label}</option>
+                  ))}
+                </optgroup>
+                <optgroup label="AI'ın yanıtlarken kullandığı bilgiler">
+                  {infoOptions.map((o) => (
+                    <option key={o.value} value={o.value}>{o.label}</option>
+                  ))}
+                </optgroup>
               </Select>
+              {TRIGGER_CATEGORIES.has(form.category) ? (
+                <p className="mt-1 text-xs text-muted-foreground">
+                  Bu metin misafire otomatik gönderilir.
+                </p>
+              ) : null}
             </Field>
             <Field label="Başlık" htmlFor="kb-title">
               <Input id="kb-title" value={form.title} onChange={(e) => set("title", e.target.value)} required />
@@ -327,11 +345,20 @@ export function KbManager({
                                 setEditForm((f) => ({ ...f, category: e.target.value }))
                               }
                             >
-                              {KB_CATEGORY.options.map((o) => (
-                                <option key={o.value} value={o.value}>
-                                  {o.label}
-                                </option>
-                              ))}
+                              <optgroup label="Otomatik gönderilen mesajlar">
+                                {triggerOptions.map((o) => (
+                                  <option key={o.value} value={o.value}>
+                                    {o.label}
+                                  </option>
+                                ))}
+                              </optgroup>
+                              <optgroup label="AI'ın yanıtlarken kullandığı bilgiler">
+                                {infoOptions.map((o) => (
+                                  <option key={o.value} value={o.value}>
+                                    {o.label}
+                                  </option>
+                                ))}
+                              </optgroup>
                             </Select>
                           </Field>
                           <Field label="Başlık" htmlFor={`edit-title-${item.id}`}>

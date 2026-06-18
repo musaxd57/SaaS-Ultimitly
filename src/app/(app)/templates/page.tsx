@@ -26,10 +26,11 @@ export default async function TemplatesPage() {
     <>
       <PageHeader
         title="Şablonlar"
-        description="Misafir iletişimi için hazır mesaj şablonları. Bir konuşma ekranındaki “Şablonlar” düğmesiyle mesaja eklenir. Özel şablon ekleyebilir ya da varsayılanlardan ilham alabilirsiniz."
+        description="Elle eklediğiniz hazır mesaj şablonları — bir konuşma ekranındaki “Şablonlar” düğmesiyle mesaja eklenir. (AI'ın misafir sorularını otomatik yanıtlarken kullandığı bilgiler için Bilgi Tabanı bölümünü kullanın.)"
       />
 
       <TemplateManager
+        canManage={session.role === "owner" || session.role === "manager"}
         properties={properties}
         customTemplates={customTemplates.map((t) => ({
           id: t.id,

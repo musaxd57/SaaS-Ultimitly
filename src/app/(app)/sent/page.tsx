@@ -22,6 +22,37 @@ interface SentItem {
   preview: string;
 }
 
+// The guest's first name, used to resolve {isim}/{ad}/{name} tokens in the
+// preview exactly as the automation does when it actually sends the message.
+function firstNameOf(guestName: string): string {
+  return guestName.trim().split(/\s+/)[0] || guestName.trim();
+}
+
+// The guest-facing apartment number: the last number in the property name
+// ("nuve 3" → "3"). Mirrors automation.ts so the {daire} token preview matches.
+function apartmentNumberOf(propertyName: string): string {
+  const nums = propertyName.match(/\d+/g);
+  return nums ? nums[nums.length - 1] : propertyName;
+}
+
+// Resolve the host's template tokens to live values for a faithful preview of
+// what the guest actually received (same tokens as automation.fillPlaceholders).
+function fillTokens(text: string, firstName: string, propertyName: string): string {
+  return text
+    .replace(/\{\s*(isim|ad|name)\s*\}/gi, firstName)
+    .replace(/\{\s*(daire|apartment|apt)\s*\}/gi, apartmentNumberOf(propertyName));
+}
+
+// Fallback line when an apartment has no saved template for this lifecycle kind
+// (e.g. the entry was deleted after the message went out). Non-redundant with
+// the row's badge: it tells the reader the content isn't recoverable, not just
+// that "a message was sent".
+const FALLBACK_PREVIEW: Record<Exclude<SentKind, "reply">, string> = {
+  welcome: "Karşılama metni kayıtlı değil (mesaj gönderildi).",
+  checkin: "Giriş bilgileri metni kayıtlı değil (mesaj gönderildi).",
+  checkout: "Çıkış metni kayıtlı değil (mesaj gönderildi).",
+};
+
 export default async function SentPage({
   searchParams,
 }: {
@@ -52,6 +83,7 @@ export default async function SentPage({
       where: { welcomeSentAt: { not: null }, property: { organizationId: orgId } },
       select: {
         id: true,
+        propertyId: true,
         guestName: true,
         welcomeSentAt: true,
         property: { select: { name: true } },
@@ -64,6 +96,7 @@ export default async function SentPage({
       where: { checkinSentAt: { not: null }, property: { organizationId: orgId } },
       select: {
         id: true,
+        propertyId: true,
         guestName: true,
         checkinSentAt: true,
         property: { select: { name: true } },
@@ -76,6 +109,7 @@ export default async function SentPage({
       where: { checkoutSentAt: { not: null }, property: { organizationId: orgId } },
       select: {
         id: true,
+        propertyId: true,
         guestName: true,
         checkoutSentAt: true,
         property: { select: { name: true } },
@@ -85,6 +119,45 @@ export default async function SentPage({
     }),
     getConnectionInfo(orgId),
   ]);
+
+  // Lifecycle message bodies aren't persisted — only the sent-at flag is. To show
+  // a real preview of WHAT was sent (not a generic restatement of the badge), look
+  // up each property's Knowledge Base entry for the matching lifecycle category and
+  // use a trimmed, token-resolved snippet. One grouped, org-scoped query for every
+  // involved property/category — then mapped in memory (no N+1).
+  const lifecyclePropertyIds = Array.from(
+    new Set(
+      [...welcomes, ...checkins, ...checkouts].map((r) => r.propertyId),
+    ),
+  );
+  const kbItems = lifecyclePropertyIds.length
+    ? await prisma.knowledgeBaseItem.findMany({
+        where: {
+          propertyId: { in: lifecyclePropertyIds },
+          category: { in: ["welcome", "checkin", "checkout"] },
+          isActive: true,
+          property: { organizationId: orgId }, // tenant isolation
+        },
+        select: { propertyId: true, category: true, content: true },
+      })
+    : [];
+  // Lookup keyed by `${propertyId}:${category}` → template content.
+  const kbByKey = new Map<string, string>();
+  for (const k of kbItems) {
+    const key = `${k.propertyId}:${k.category}`;
+    if (!kbByKey.has(key)) kbByKey.set(key, k.content); // first/active entry wins
+  }
+  function lifecyclePreview(
+    kind: Exclude<SentKind, "reply">,
+    propertyId: string,
+    propertyName: string,
+    guestName: string,
+  ): string {
+    const content = kbByKey.get(`${propertyId}:${kind}`);
+    if (!content) return FALLBACK_PREVIEW[kind];
+    const resolved = fillTokens(content.trim(), firstNameOf(guestName), propertyName);
+    return truncate(resolved.replace(/\s+/g, " "), 120);
+  }
 
   const items: SentItem[] = [
     ...replies.map((m) => ({
@@ -101,7 +174,7 @@ export default async function SentPage({
       when: w.welcomeSentAt as Date,
       guest: w.guestName,
       property: w.property.name,
-      preview: "Karşılama mesajı gönderildi.",
+      preview: lifecyclePreview("welcome", w.propertyId, w.property.name, w.guestName),
     })),
     ...checkins.map((c) => ({
       id: `ci-${c.id}`,
@@ -109,7 +182,7 @@ export default async function SentPage({
       when: c.checkinSentAt as Date,
       guest: c.guestName,
       property: c.property.name,
-      preview: "Giriş bilgileri mesajı gönderildi.",
+      preview: lifecyclePreview("checkin", c.propertyId, c.property.name, c.guestName),
     })),
     ...checkouts.map((c) => ({
       id: `c-${c.id}`,
@@ -117,7 +190,7 @@ export default async function SentPage({
       when: c.checkoutSentAt as Date,
       guest: c.guestName,
       property: c.property.name,
-      preview: "Çıkış mesajı gönderildi.",
+      preview: lifecyclePreview("checkout", c.propertyId, c.property.name, c.guestName),
     })),
   ].sort((a, b) => b.when.getTime() - a.when.getTime());
 

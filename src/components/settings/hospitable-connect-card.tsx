@@ -50,7 +50,7 @@ export function HospitableConnectCard({ info }: { info: HospitableConnectionInfo
   }
 
   async function disconnect() {
-    if (!confirm("Hospitable bağlantısını kesmek istediğine emin misin? Mesaj çekme/gönderme durur.")) return;
+    if (!confirm("Bağlantıyı kesmek istediğinize emin misiniz? Misafir mesajları çekme/gönderme durur.")) return;
     setBusy("disconnect");
     setError(null);
     setDone(null);
@@ -74,8 +74,8 @@ export function HospitableConnectCard({ info }: { info: HospitableConnectionInfo
     info.envAvailable && !info.ownToken ? (
       <div className="rounded-md border border-dashed border-muted-foreground/30 p-3">
         <p className="mb-2 text-sm text-muted-foreground">
-          Bu sistemde zaten bir Hospitable bağlantısı mevcut. Tek tıkla bu
-          hesaba kalıcı olarak aktarabilirsin — sonra ortak bağlantıya ihtiyaç kalmaz.
+          Bu sistemde zaten bir bağlantı mevcut. Tek tıkla bu
+          hesaba kalıcı olarak aktarabilirsiniz — sonra ortak bağlantıya ihtiyaç kalmaz.
         </p>
         <Button type="button" variant="outline" disabled={busy !== null} onClick={() => post({ claimEnv: true }, "claim")}>
           {busy === "claim" ? <Loader2 className="size-4 animate-spin" /> : <Link2 className="size-4" />}
@@ -100,7 +100,7 @@ export function HospitableConnectCard({ info }: { info: HospitableConnectionInfo
       ) : (
         <div className="rounded-md border border-amber-300 bg-amber-50 px-3 py-2 text-sm text-amber-800">
           <strong>Bağlı değil.</strong> Bu hesabın misafir mesajları çekilemez/gönderilemez.
-          Aşağıdan Hospitable hesabını bağla.
+          Aşağıdan Airbnb / Booking bağlantınızı (Hospitable üzerinden) kurun.
         </div>
       )}
 
@@ -124,7 +124,7 @@ export function HospitableConnectCard({ info }: { info: HospitableConnectionInfo
           </Field>
           <p className="text-xs text-muted-foreground">
             🔒 Bağlı ve kilitli. Token <strong>şifreli olarak</strong> saklanıyor — biz dahil
-            <strong> hiç kimse göremez/kopyalayamaz</strong>. Değiştirmek için &quot;Değiştir&quot;e bas.
+            <strong> hiç kimse göremez/kopyalayamaz</strong>. Değiştirmek için &quot;Değiştir&quot;e basın.
           </p>
           <div className="flex flex-wrap gap-2">
             <Button type="button" variant="outline" disabled={busy !== null} onClick={() => { setEditing(true); setError(null); setDone(null); }}>
@@ -145,12 +145,12 @@ export function HospitableConnectCard({ info }: { info: HospitableConnectionInfo
       {showForm ? (
         <>
           <div className="rounded-md border bg-muted/40 p-3 text-sm text-muted-foreground">
-            <p className="mb-1.5 font-medium text-foreground">Hospitable token&apos;ı nasıl alınır? (2 dakika)</p>
+            <p className="mb-1.5 font-medium text-foreground">Bağlantı anahtarı nasıl alınır? (2 dakika)</p>
             <ol className="list-decimal space-y-1 pl-4">
-              <li>Hospitable hesabında <strong>Settings → API</strong> bölümüne gir.</li>
-              <li><strong>&quot;Create Personal Access Token&quot;</strong> de ve bir isim ver.</li>
-              <li>Oluşan token&apos;ı <strong>kopyala</strong> (<code>hospitable_pat_...</code> ile başlar).</li>
-              <li>Aşağıdaki kutuya <strong>yapıştır → Bağla</strong>.</li>
+              <li>Hospitable hesabınızda <strong>Settings → API</strong> bölümüne girin.</li>
+              <li><strong>&quot;Create Personal Access Token&quot;</strong> deyin ve bir isim verin.</li>
+              <li>Oluşan anahtarı <strong>kopyalayın</strong> (<code>hospitable_pat_...</code> ile başlar).</li>
+              <li>Aşağıdaki kutuya <strong>yapıştırın → Bağla</strong>.</li>
             </ol>
             <p className="mt-1.5 text-xs">
               🔒 Token <strong>şifreli olarak</strong> saklanır; sadece bu hesabın mülklerine erişir

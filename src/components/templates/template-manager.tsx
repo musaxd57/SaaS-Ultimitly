@@ -28,11 +28,13 @@ interface Props {
   properties: { id: string; name: string }[];
   customTemplates: CustomTemplateRow[];
   defaultTemplates: MessageTemplate[];
+  /** Owner/manager may add/delete templates; staff get a read-only view. */
+  canManage?: boolean;
 }
 
 const LANG_LABELS: Record<string, string> = { tr: "Türkçe", en: "İngilizce", de: "Almanca", fr: "Fransızca", ar: "Arapça" };
 
-export function TemplateManager({ properties, customTemplates, defaultTemplates }: Props) {
+export function TemplateManager({ properties, customTemplates, defaultTemplates, canManage = true }: Props) {
   const router = useRouter();
   const [, startTransition] = useTransition();
   const [creating, setCreating] = useState(false);
@@ -98,14 +100,16 @@ export function TemplateManager({ properties, customTemplates, defaultTemplates 
       {/* Custom Templates Header */}
       <div className="flex items-center justify-between">
         <h2 className="text-base font-semibold">Özel Şablonlar ({customTemplates.length})</h2>
-        <Button size="sm" onClick={() => setShowForm((s) => !s)}>
-          <Plus className="size-4" />
-          Yeni Şablon
-        </Button>
+        {canManage ? (
+          <Button size="sm" onClick={() => setShowForm((s) => !s)}>
+            <Plus className="size-4" />
+            Yeni Şablon
+          </Button>
+        ) : null}
       </div>
 
       {/* Create Form */}
-      {showForm ? (
+      {canManage && showForm ? (
         <Card>
           <CardHeader>
             <CardTitle className="text-base">Yeni Şablon Oluştur</CardTitle>
@@ -167,7 +171,7 @@ export function TemplateManager({ properties, customTemplates, defaultTemplates 
               <Field
                 label="Şablon metni"
                 htmlFor="tmpl-body"
-                hint="Yer tutucular: {{guestName}}, {{checkInTime}}, {{checkOutTime}}, {{propertyName}}, {{wifiInfo}}"
+                hint="Yer tutucular: {{guestName}} (ya da {isim}), {{checkInTime}}, {{checkOutTime}}, {{propertyName}}, {{wifiInfo}} — değerler eklenirken otomatik doldurulur."
               >
                 <Textarea
                   id="tmpl-body"
@@ -196,7 +200,7 @@ export function TemplateManager({ properties, customTemplates, defaultTemplates 
       {customTemplates.length === 0 && !showForm ? (
         <Card>
           <CardContent className="py-10 text-center text-sm text-muted-foreground">
-            Henüz özel şablon oluşturulmadı. Yukarıdaki butona tıklayarak ekleyebilirsiniz.
+            Henüz özel şablon oluşturulmadı.{canManage ? " Yukarıdaki butona tıklayarak ekleyebilirsiniz." : ""}
           </CardContent>
         </Card>
       ) : (
@@ -226,19 +230,21 @@ export function TemplateManager({ properties, customTemplates, defaultTemplates 
                     </div>
                     <p className="whitespace-pre-wrap text-xs text-muted-foreground line-clamp-3">{t.body}</p>
                   </div>
-                  <button
-                    type="button"
-                    onClick={() => handleDelete(t.id)}
-                    disabled={busyId === t.id}
-                    className="inline-flex min-h-[40px] min-w-[40px] items-center justify-center rounded p-1.5 text-muted-foreground hover:bg-destructive/10 hover:text-destructive disabled:opacity-50"
-                    aria-label="Sil"
-                  >
-                    {busyId === t.id ? (
-                      <Loader2 className="size-4 animate-spin" />
-                    ) : (
-                      <Trash2 className="size-4" />
-                    )}
-                  </button>
+                  {canManage ? (
+                    <button
+                      type="button"
+                      onClick={() => handleDelete(t.id)}
+                      disabled={busyId === t.id}
+                      className="inline-flex min-h-[40px] min-w-[40px] items-center justify-center rounded p-1.5 text-muted-foreground hover:bg-destructive/10 hover:text-destructive disabled:opacity-50"
+                      aria-label="Sil"
+                    >
+                      {busyId === t.id ? (
+                        <Loader2 className="size-4 animate-spin" />
+                      ) : (
+                        <Trash2 className="size-4" />
+                      )}
+                    </button>
+                  ) : null}
                 </div>
               </CardContent>
             </Card>

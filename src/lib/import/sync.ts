@@ -39,7 +39,7 @@ export async function syncCalendarSource(sourceId: string): Promise<SyncResult> 
   let text: string;
   try {
     const res = await fetch(source.url, {
-      headers: { "User-Agent": "GuestOps-AI/1.0" },
+      headers: { "User-Agent": "Lixus-AI/1.0" },
       // iCal feeds change often; never serve a stale cached copy.
       cache: "no-store",
     });
@@ -47,8 +47,8 @@ export async function syncCalendarSource(sourceId: string): Promise<SyncResult> 
       throw new Error(`HTTP ${res.status}`);
     }
     text = await res.text();
-  } catch (err) {
-    result.errors.push(`Bağlantı hatası: ${String(err).slice(0, 120)}`);
+  } catch {
+    result.errors.push("Bağlantıya ulaşılamadı — takvim (.ics) bağlantısını kontrol edin.");
     await prisma.calendarSource.update({
       where: { id: sourceId },
       data: { lastSyncedAt: new Date(), lastStatus: "error", lastResult: result.errors[0] },
@@ -110,15 +110,18 @@ export async function syncCalendarSource(sourceId: string): Promise<SyncResult> 
         await createReservationTasks(created.id);
         result.imported++;
       }
-    } catch (err) {
-      result.errors.push(`Kayıt hatası: ${String(err).slice(0, 80)}`);
+    } catch {
+      result.errors.push("Kaydetme sırasında bir sorun oluştu, tekrar deneyin.");
       result.skipped++;
     }
   }
 
-  const summary =
-    `${result.imported} yeni, ${result.updated} güncellendi, ${result.skipped} atlandı` +
-    (result.errors.length ? `, ${result.errors.length} hata` : "");
+  const parts: string[] = [];
+  if (result.imported > 0) parts.push(`${result.imported} yeni rezervasyon`);
+  if (result.updated > 0) parts.push(`${result.updated} güncellendi`);
+  if (result.skipped > 0) parts.push(`${result.skipped} atlandı`);
+  if (result.errors.length) parts.push(`${result.errors.length} hata`);
+  const summary = parts.length ? parts.join(", ") : "Yeni rezervasyon bulunamadı";
 
   await prisma.calendarSource.update({
     where: { id: sourceId },

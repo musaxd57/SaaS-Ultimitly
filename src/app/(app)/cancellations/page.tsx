@@ -1,6 +1,5 @@
 import Link from "next/link";
 import { CalendarX2 } from "lucide-react";
-import { startOfDay, endOfDay, startOfWeek, endOfWeek, startOfMonth, endOfMonth } from "date-fns";
 import { requireAuth } from "@/lib/auth";
 import { prisma } from "@/lib/db";
 import { PageHeader } from "@/components/page-header";
@@ -8,6 +7,9 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { RESERVATION_CHANNEL } from "@/lib/constants";
 import { cn, formatDate } from "@/lib/utils";
+import { zonedDayRange } from "@/lib/automation";
+
+const TZ = "Europe/Istanbul"; // Türkiye, UTC+3 year-round
 
 export const dynamic = "force-dynamic";
 
@@ -19,13 +21,46 @@ const PERIODS: { value: Period; label: string }[] = [
   { value: "month", label: "Bu ay" },
 ];
 
-/** Date window (by stay arrival date) for the selected period. Null = no filter. */
+/**
+ * Date window (by stay arrival date) for the selected period, anchored to the
+ * host's Istanbul calendar — NOT the server's zone (Railway is UTC). Hospitable
+ * stores arrivalDate at Istanbul-midnight-UTC and iCal/CSV at noon-UTC, so a UTC
+ * boundary mis-buckets a stay by a day; we mirror tasks/page.tsx & automation.ts
+ * and key off the Istanbul day. Boundaries are computed as Istanbul calendar
+ * days, then each mapped to its exact Istanbul-midnight (and 23:59:59.999) UTC
+ * instant via zonedDayRange. Null = no filter ("Tümü"). */
 function windowFor(period: Period): { gte: Date; lte: Date } | null {
   const now = new Date();
-  if (period === "day") return { gte: startOfDay(now), lte: endOfDay(now) };
-  if (period === "week") return { gte: startOfWeek(now, { weekStartsOn: 1 }), lte: endOfWeek(now, { weekStartsOn: 1 }) };
-  if (period === "month") return { gte: startOfMonth(now), lte: endOfMonth(now) };
-  return null;
+  if (period === "all") return null;
+
+  // Today's Istanbul calendar day boundaries (start = Istanbul-midnight UTC).
+  const today = zonedDayRange(now, TZ);
+  if (period === "day") return { gte: today.start, lte: today.end };
+
+  // The Istanbul calendar Y-M-D of "today", used to derive week/month edges.
+  const key = new Intl.DateTimeFormat("en-CA", {
+    timeZone: TZ,
+    year: "numeric",
+    month: "2-digit",
+    day: "2-digit",
+  }).format(now);
+  const [y, m, d] = key.split("-").map(Number);
+
+  if (period === "week") {
+    // Week starts Monday (matches the previous weekStartsOn: 1). Compute the
+    // Mon/Sun calendar days via UTC date math on the Istanbul Y-M-D, then map
+    // each boundary day back to its Istanbul instant through zonedDayRange.
+    const dow = new Date(Date.UTC(y, m - 1, d)).getUTCDay(); // 0=Sun..6=Sat
+    const sinceMonday = (dow + 6) % 7; // Mon→0 .. Sun→6
+    const monday = new Date(Date.UTC(y, m - 1, d - sinceMonday));
+    const sunday = new Date(Date.UTC(y, m - 1, d - sinceMonday + 6));
+    return { gte: zonedDayRange(monday, TZ).start, lte: zonedDayRange(sunday, TZ).end };
+  }
+
+  // month: first and last calendar day of the Istanbul month.
+  const first = new Date(Date.UTC(y, m - 1, 1));
+  const last = new Date(Date.UTC(y, m, 0)); // day 0 of next month = last day of this one
+  return { gte: zonedDayRange(first, TZ).start, lte: zonedDayRange(last, TZ).end };
 }
 
 /**

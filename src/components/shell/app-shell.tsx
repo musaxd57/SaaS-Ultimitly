@@ -13,11 +13,12 @@ import { cn } from "@/lib/utils";
 interface AppShellProps {
   user: { name: string; email: string; role: UserRole; orgName: string };
   superAdmin?: boolean;
+  guestChatEnabled?: boolean;
   impersonating?: { actorName: string; orgName: string } | null;
   children: React.ReactNode;
 }
 
-export function AppShell({ user, superAdmin, impersonating, children }: AppShellProps) {
+export function AppShell({ user, superAdmin, guestChatEnabled, impersonating, children }: AppShellProps) {
   const pathname = usePathname();
   const router = useRouter();
   const [mobileOpen, setMobileOpen] = useState(false);
@@ -62,9 +63,15 @@ export function AppShell({ user, superAdmin, impersonating, children }: AppShell
     return pathname === href || pathname.startsWith(href + "/");
   }
 
+  // The QR "Misafir Sohbetleri" tab only makes sense when the feature is enabled
+  // for this deployment, and never for staff (whose page redirects them away).
+  const navItems = NAV_ITEMS.filter((i) =>
+    i.href === "/guest-chats" ? Boolean(guestChatEnabled) && user.role !== "staff" : true,
+  );
+
   const navLinks = (
     <nav className="flex flex-1 flex-col gap-1">
-      {NAV_ITEMS.map(({ href, label, icon: Icon }) => (
+      {navItems.map(({ href, label, icon: Icon }) => (
         <Link
           key={href}
           href={href}

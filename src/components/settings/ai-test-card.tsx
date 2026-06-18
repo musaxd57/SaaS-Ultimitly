@@ -74,9 +74,9 @@ export function AiTestCard({ properties }: { properties: { id: string; name: str
   return (
     <div className="space-y-3">
       <p className="text-sm text-muted-foreground">
-        Buraya bir misafir mesajı yaz, gerçek AI cevabını gör. <strong>Hiçbir şey
-        gönderilmez</strong>, hiçbir misafire dokunulmaz, konuşma oluşturulmaz — sadece test.
-        Seçtiğin dairenin bilgi tabanı + bugün giriş yapan örnek bir rezervasyon kullanılır.
+        Bir misafir mesajı yazın, AI&apos;nın gerçek cevabını görün. <strong>Hiçbir mesaj
+        gönderilmez</strong> — otomatik yanıtı açmadan önce AI&apos;nın nasıl cevap verdiğini
+        rahatça deneyebilirsiniz. Seçtiğiniz dairenin bilgi tabanı kullanılır.
       </p>
 
       {properties.length > 1 ? (
@@ -117,7 +117,7 @@ export function AiTestCard({ properties }: { properties: { id: string; name: str
 
       <Button type="button" onClick={run} disabled={busy || !message.trim()}>
         {busy ? <Loader2 className="size-4 animate-spin" /> : <Sparkles className="size-4" />}
-        Cevabı gör (misafire gitmez)
+        AI cevabını gör
       </Button>
 
       {error ? (
