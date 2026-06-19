@@ -230,11 +230,11 @@ export function LandingPage() {
             <ShieldCheck className="size-3.5" aria-hidden="true" /> Airbnb &amp; Booking ev sahipleri için yapay zekâ asistanı
           </span>
           <Reveal as="h1" delay={60} className="mx-auto mt-6 max-w-3xl text-4xl font-bold tracking-tight sm:text-5xl">
-            Misafirlerinize <span className="text-primary">gece 3’te bile</span>, kendi dillerinde cevap veren yapay zekâ
+            Misafir mesajlarını Lixus AI yazsın, <span className="text-primary">siz yaşayın</span>.
           </Reveal>
           <Reveal as="p" delay={140} className="mx-auto mt-5 max-w-2xl text-base text-muted-foreground sm:text-lg">
-            Almanca, Rusça, Arapça — misafir hangi dilde yazarsa Lixus AI o dilde yanıtlar.
-            Şikayet ve hassas konuları otomatik yanıtlamaz, size iletir.
+            Misafiriniz hangi dilde yazarsa — Almanca, Rusça, Arapça — Lixus AI o dilde, gece
+            3’te bile yanıtlar. Şikayet ve hassas konuları otomatik yanıtlamaz, size iletir.
           </Reveal>
           <Reveal delay={220} className="mt-8 flex flex-col items-center justify-center gap-3 sm:flex-row">
             <Link href="/register" className={cn(buttonVariants({ size: "lg" }), "cta-glow cta-arrow w-full sm:w-auto")}>
