@@ -489,6 +489,13 @@ toplamaya onaylı — bu en büyük eşikti. **⏳ PRODUCTION go-live için kala
 `PADDLE_ENV=production`, `NEXT_PUBLIC_PADDLE_ENV=production`, yeni `PADDLE_PRICE_*` + `PADDLE_API_KEY` +
 `PADDLE_WEBHOOK_SECRET` + `NEXT_PUBLIC_PADDLE_CLIENT_TOKEN`. (Sandbox uçtan-uca zaten DOĞRULANDI; prod aynı
 zincir, sadece yeni anahtarlar. Reverse-trial + BILLING_ENFORCED durumu aşağıdaki bölümlerde.)
+**↳ GÜNCELLEME (2026-06-19, aynı gün): PRODUCTION KURULDU ✅.** Railway'de `PADDLE_ENV=production`, canlı
+`pdl_live_apikey_...` (Active), client-side token (Active), webhook `https://www.lixusai.com/api/webhooks/paddle`
+(Active, 56 event almış). Yani Paddle production CANLI. Kalan teyitler: (a) webhook teslimatları **200/Delivered**
+mı (401 değil → secret doğru), (b) `PADDLE_PRICE_*` değerleri **prod price id** mi (sandbox değil), (c) Checkout
+domain "website approval" onaylı mı, (d) hazır olunca **KÜÇÜK BİR GERÇEK ÖDEMEYİ birlikte** test (zincir prod'da da
+çalışsın). NOT: Paddle "Getting started / Integration checklist" sayfası **otomatik tiklenmez, generic rehberdir** —
+gerçek durum göstergesi yeşil "Verification passed" (geçti).
 
 ## Self-serve kayıt AÇILDI + e-posta doğrulama (2026-06-15) ✅
 **Karar (kullanıcı):** Landing "Başla/Üye ol" → `/register`; public self-serve kayıt açıldı.
