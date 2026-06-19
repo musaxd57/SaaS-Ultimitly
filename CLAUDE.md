@@ -481,10 +481,14 @@ Tüm zincir sandbox'ta çalışıyor. Çözülen tuzaklar (ÖNEMLİ, tekrar yaş
 - **Fiyat para birimi:** price'ı TRY oluştur (yoksa checkout USD gösterir — yanlış). Sandbox price/secret/token
   production'dan AYRI.
 - Domain "Request website approval" (Checkout settings) onaylanmadan checkout "Something went wrong" verir.
-**⏳ PRODUCTION için kalan:** KYB onayı (sürüyor) → prod ortamında 3 fiyat (yeni price id) + prod API key +
-prod client token + prod webhook destination (**www URL**) + prod secret → Railway prod env (`PADDLE_ENV=production`,
-`NEXT_PUBLIC_PADDLE_ENV=production`, yeni `PADDLE_*`). Paywall hâlâ KAPALI (BILLING_ENFORCED yok; reverse-trial
-motoru Faz 2, henüz YOK → ödeme şimdilik opsiyonel "yükselt").
+**✅ KYB ONAYI GEÇTİ (2026-06-19) — "Verification passed".** İşletme (ablanın İtalyan Partita IVA'sı) ödeme
+toplamaya onaylı — bu en büyük eşikti. **⏳ PRODUCTION go-live için kalan (Paddle dashboard, çoğu no-code):**
+(1) **Payout details** (ablanın IBAN'ı) gir; (2) prod ortamında **3 fiyat TRY** oluştur → yeni price id; (3) prod
+**client-side token** + prod **API key**; (4) prod **webhook destination (www URL)** + onun signing secret'ı;
+(5) Checkout default link + domain "website approval". Sonra bunları bana ver → Railway prod env:
+`PADDLE_ENV=production`, `NEXT_PUBLIC_PADDLE_ENV=production`, yeni `PADDLE_PRICE_*` + `PADDLE_API_KEY` +
+`PADDLE_WEBHOOK_SECRET` + `NEXT_PUBLIC_PADDLE_CLIENT_TOKEN`. (Sandbox uçtan-uca zaten DOĞRULANDI; prod aynı
+zincir, sadece yeni anahtarlar. Reverse-trial + BILLING_ENFORCED durumu aşağıdaki bölümlerde.)
 
 ## Self-serve kayıt AÇILDI + e-posta doğrulama (2026-06-15) ✅
 **Karar (kullanıcı):** Landing "Başla/Üye ol" → `/register`; public self-serve kayıt açıldı.
