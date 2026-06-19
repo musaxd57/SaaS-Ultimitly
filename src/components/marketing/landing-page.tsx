@@ -233,9 +233,8 @@ export function LandingPage() {
             Misafir mesajlarını <span className="text-primary">7/24, güvenle</span> yanıtlayan yapay zekâ.
           </Reveal>
           <Reveal as="p" delay={140} className="mx-auto mt-5 max-w-2xl text-base text-muted-foreground sm:text-lg">
-            Gece 3’te bile yanıtlar — ya da yalnızca sizin belirlediğiniz saatlerde. Misafiriniz
-            hangi dilde yazarsa o dilde cevap alır; şikayet ve hassas konuları asla otomatik
-            yanıtlamaz, size iletir.
+            Özelleştirilebilir otomatik yanıtlama — misafiriniz hangi dilde yazarsa o dilde cevap
+            alır. Şikayet ve hassas konuları asla otomatik yanıtlamaz, size iletir; böylece risksiz.
           </Reveal>
           <Reveal delay={220} className="mt-8 flex flex-col items-center justify-center gap-3 sm:flex-row">
             <Link href="/register" className={cn(buttonVariants({ size: "lg" }), "cta-glow cta-arrow w-full sm:w-auto")}>
