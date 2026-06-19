@@ -608,6 +608,63 @@ export async function applyChannelAutoReply(
   // Safety gate: only auto-send safe, confident replies (cross-checked against
   // the guest's own words, so a mislabelled complaint/refund never slips through).
   if (!passesAutoReplySafetyGate(result, last.body)) {
+    // If the block was driven by a MODEL-detected sensitive signal (complaint /
+    // refund / early-departure intent, or medium/high risk) — not mere low
+    // confidence — actively escalate to the host so it never sits silently in the
+    // inbox. The keyword path (sendDueAlerts) already handles keyword-detectable
+    // cases and flags "problem" BEFORE this runs; this closes the "model saw it,
+    // keywords missed it" gap. Atomic status claim → can't double-email.
+    const modelSensitive =
+      result.source === "openai" &&
+      (NEVER_AUTO_REPLY_INTENTS.has(result.intent) ||
+        (result.riskLevel !== "none" && result.riskLevel !== "low"));
+    if (!options.dryRun && modelSensitive) {
+      try {
+        const claimed = await prisma.conversation.updateMany({
+          where: { id: conversation.id, status: { not: "problem" } },
+          data: { status: "problem", priority: "urgent" },
+        });
+        if (claimed.count === 1) {
+          // Per-tenant recipient: this org's own alert address, else the org
+          // owner's account email. NEVER the env fallback (operator-only leak).
+          const alertOrg = await prisma.organization.findUnique({
+            where: { id: conversation.property.organizationId },
+            select: {
+              name: true,
+              alertEmail: true,
+              users: { orderBy: { createdAt: "asc" }, take: 1, select: { email: true } },
+            },
+          });
+          const to = alertOrg?.alertEmail?.trim() || alertOrg?.users[0]?.email?.trim();
+          if (to) {
+            const html = complaintEscalationEmail(
+              {
+                id: conversation.id,
+                guestIdentifier: conversation.guestIdentifier,
+                channel: conversation.channel,
+                priority: "urgent",
+              },
+              last.body,
+              {
+                name: conversation.property.name,
+                address: conversation.property.address,
+                city: conversation.property.city,
+              },
+              alertOrg?.name ?? "Lixus AI",
+            );
+            void emailService.send(
+              to,
+              `⚠️ Acil misafir mesajı — ${conversation.guestIdentifier} (${conversation.property.name})`,
+              html,
+            );
+          }
+        }
+      } catch {
+        // Escalation is best-effort; an email/db hiccup must never throw out of
+        // the auto-reply pass (the next sync cycle retries via sendDueAlerts).
+      }
+      return { sent: false, skippedReason: "escalated_to_human", ...meta };
+    }
     return { sent: false, skippedReason: "low_confidence_or_risky", ...meta };
   }
 

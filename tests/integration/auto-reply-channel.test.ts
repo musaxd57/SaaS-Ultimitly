@@ -9,6 +9,8 @@ vi.mock("@/lib/messaging", () => ({ sendOnChannel: vi.fn() }));
 vi.mock("@/lib/hospitable-credentials", () => ({
   getOrgHospitableToken: vi.fn().mockResolvedValue("test-token"),
 }));
+// Capture host-alert emails (the model-detected complaint escalation) without sending.
+vi.mock("@/lib/email", () => ({ emailService: { send: vi.fn() } }));
 
 import { suggestReply } from "@/lib/ai";
 import { sendOnChannel } from "@/lib/messaging";
@@ -23,10 +25,13 @@ import {
   previewCheckins,
   isWithinActiveHours,
   currentHourInTimeZone,
+  sendDueAlerts,
 } from "@/lib/automation";
+import { emailService } from "@/lib/email";
 
 const mockSuggest = vi.mocked(suggestReply);
 const mockSend = vi.mocked(sendOnChannel);
+const mockEmail = vi.mocked(emailService.send);
 
 // The machine-prepared note appended to AUTO-sent replies (Turkish, since the
 // SAFE_REPLY fixture detects "tr"). The draft/preview stays clean — only the
@@ -97,6 +102,75 @@ async function seed(opts: {
   });
   return { orgId: org.id, conversationId: conversation.id };
 }
+
+/** Add the org's owner user so an escalation alert has a per-tenant recipient. */
+async function addOwner(orgId: string, email = "owner@test.com") {
+  await prisma.user.create({
+    data: { organizationId: orgId, name: "Owner", email, passwordHash: "x", role: "owner" },
+  });
+}
+
+describe("applyChannelAutoReply — model-detected complaint escalation", () => {
+  beforeEach(async () => {
+    await resetDb();
+    vi.clearAllMocks();
+    vi.stubEnv("AUTO_REPLY_ENABLED", "1");
+    mockSend.mockResolvedValue({ ok: true });
+  });
+  afterEach(() => vi.unstubAllEnvs());
+
+  it("escalates (status 'problem' + host email) when the MODEL flags a complaint the keywords miss", async () => {
+    // No complaint keyword in the text — only the model labels it complaint.
+    mockSuggest.mockResolvedValue({ ...SAFE_REPLY, intent: "complaint", riskLevel: "medium", confidence: 0.9 });
+    const { orgId, conversationId } = await seed({ guestMessage: "I expected something else from this stay." });
+    await addOwner(orgId);
+
+    const out = await applyChannelAutoReply(conversationId);
+
+    expect(out.sent).toBe(false);
+    expect(out.skippedReason).toBe("escalated_to_human");
+    expect(mockSend).not.toHaveBeenCalled(); // nothing auto-sent to the guest
+    const conv = await prisma.conversation.findUnique({ where: { id: conversationId } });
+    expect(conv?.status).toBe("problem");
+    expect(mockEmail).toHaveBeenCalledTimes(1);
+    expect(mockEmail.mock.calls[0][0]).toBe("owner@test.com");
+  });
+
+  it("escalates on model-flagged high risk even when the intent is operational", async () => {
+    mockSuggest.mockResolvedValue({ ...SAFE_REPLY, intent: "amenity", riskLevel: "high", confidence: 0.9 });
+    const { orgId, conversationId } = await seed({ guestMessage: "Bir konuda yardım lazım." });
+    await addOwner(orgId);
+
+    const out = await applyChannelAutoReply(conversationId);
+    expect(out.skippedReason).toBe("escalated_to_human");
+    expect((await prisma.conversation.findUnique({ where: { id: conversationId } }))?.status).toBe("problem");
+    expect(mockEmail).toHaveBeenCalledTimes(1);
+  });
+
+  it("does NOT escalate or email a normal safe message (it auto-sends)", async () => {
+    mockSuggest.mockResolvedValue(SAFE_REPLY);
+    const { orgId, conversationId } = await seed();
+    await addOwner(orgId);
+
+    const out = await applyChannelAutoReply(conversationId);
+    expect(out.sent).toBe(true);
+    expect(mockEmail).not.toHaveBeenCalled();
+  });
+
+  it("does NOT double-email: a model-escalated 'problem' is skipped by a later sendDueAlerts", async () => {
+    mockSuggest.mockResolvedValue({ ...SAFE_REPLY, intent: "complaint", riskLevel: "medium", confidence: 0.9 });
+    const { orgId, conversationId } = await seed({ guestMessage: "I expected something else from this stay." });
+    await addOwner(orgId);
+
+    await applyChannelAutoReply(conversationId); // escalates → status "problem", 1 email
+    expect(mockEmail).toHaveBeenCalledTimes(1);
+    mockEmail.mockClear();
+
+    const alerts = await sendDueAlerts(orgId); // only looks at status "new" → finds nothing
+    expect(alerts.alerted).toBe(0);
+    expect(mockEmail).not.toHaveBeenCalled();
+  });
+});
 
 describe("isWithinActiveHours", () => {
   it("handles same-day, wrap-around, and all-day windows", () => {

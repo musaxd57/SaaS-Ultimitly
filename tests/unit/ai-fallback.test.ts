@@ -68,6 +68,33 @@ describe("classifyFallback", () => {
     // "prototype"/"protocol" must NOT trip the (removed) "roto" substring.
     expect(classifyFallback("Is this a prototype apartment? Nice protocol.").intent).not.toBe("complaint");
   });
+
+  it("catches soft / implicit complaints (negation-anchored)", () => {
+    expect(classifyFallback("Oda beklediğim gibi değildi, biraz hayal kırıklığı.").intent).toBe("complaint");
+    expect(classifyFallback("Açıkçası temiz değil, hiç hoş değil.").intent).toBe("complaint");
+    expect(classifyFallback("The place was not as described and not clean.").intent).toBe("complaint");
+  });
+
+  it("catches concession / partial-refund asks as refund (anchored, not bare 'indirim')", () => {
+    expect(classifyFallback("Bu durum için bir telafi mümkün mü?").intent).toBe("refund");
+    expect(classifyFallback("Yaşadığımız için indirim mümkün mü acaba?").intent).toBe("refund");
+    expect(classifyFallback("Can you offer a discount for the trouble?").intent).toBe("refund");
+  });
+
+  it("catches enriched AR/RU/IT complaint vocabulary", () => {
+    expect(classifyFallback("Я очень разочарован, здесь воняет").intent).toBe("complaint"); // RU
+    expect(classifyFallback("Sono molto deluso, l'appartamento è sporca").intent).toBe("complaint"); // IT
+    expect(classifyFallback("السرير مكسور والمكان وسخ").intent).toBe("complaint"); // AR
+  });
+
+  it("does NOT over-block benign messages with near-miss words (false-positive guard)", () => {
+    // "beklediğimden güzel" (positive) lacks "gibi değil"; "çok temiz" lacks "değil".
+    expect(classifyFallback("Daire beklediğimden de güzeldi, her şey çok temiz!").intent).not.toBe("complaint");
+    // "indirimli" (discounted, a pricing word) must NOT match the anchored concession keys.
+    expect(classifyFallback("İndirimli sezonda tekrar gelmek isteriz.").intent).not.toBe("refund");
+    // Russian "неплохо" (not bad = good) must not trip a complaint — we never added bare "плохо".
+    expect(classifyFallback("Всё неплохо, спасибо!").intent).not.toBe("complaint");
+  });
 });
 
 describe("suggestReplyFallback", () => {

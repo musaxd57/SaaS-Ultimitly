@@ -33,6 +33,20 @@ const KEYWORDS: Record<Exclude<Intent, "general">, string[]> = {
     "no funciona", "está roto", "está rota", "sucio", "queja", "non funziona", "rotto", "sporco",
     "لا يعمل", "معطل", "متسخ", "مشكلة", "شكوى",
     "не работает", "сломан", "грязно", "проблема", "жалоба",
+    // Soft / implicit complaints + dissatisfaction (negation-anchored so positives
+    // like "tam beklediğim gibi" / "çok temiz" never match). Over-escalation is the
+    // safe side: at worst the host gets a flagged non-urgent message.
+    "beklediğim gibi değil", "beklediğimiz gibi değil", "hayal kırıklığı", "memnun değil",
+    "temiz değil", "hiç hoş değil", "olması gereken gibi değil",
+    "not as expected", "not as described", "not clean", "disappointed", "not happy",
+    "doesn't work", "does not work",
+    // Enriched AR/RU/IT complaint vocabulary (distinctive, unambiguous terms only).
+    "وسخ", "رائحة كريهة", "لا يوجد تدفئة", "لا يوجد تكييف", "مكسور", "صراصير", "حشرات",
+    "مخيب للآمال", "تسرب",
+    "грязный", "воняет", "нет отопления", "шумно", "тараканы", "насекомые", "ужасно",
+    "разочарован", "течёт", "протекает",
+    "sporca", "cattivo odore", "puzza", "non c'è riscaldamento", "rumoroso", "scarafaggi",
+    "insetti", "terribile", "pessimo", "deluso", "delusa", "perdita d'acqua",
   ],
   refund: [
     "iade", "geri ödeme", "geri odeme", "refund", "para iadesi", "ücret iade", "paramı geri",
@@ -40,6 +54,11 @@ const KEYWORDS: Record<Exclude<Intent, "general">, string[]> = {
     "reembolso", "devolución", "devolver", "devuelv", "money back",
     "rimborso", "rimborsare", // Italian (was missing)
     "استرداد", "استرجاع", "возврат", "вернуть деньги",
+    // Concession / partial-refund asks. Anchored — NOT bare "indirim"/"discount",
+    // which would wrongly match pre-booking pricing ("indirimli sezon").
+    "telafi", "indirim mümkün", "indirim yapabilir", "fiyattan düş", "ücretten düş",
+    "compensate", "compensation", "give us a discount", "offer a discount",
+    "إعادة المال", "restituire i soldi", "soldi indietro",
   ],
   // Leaving the stay EARLY / shortening / cancelling — a revenue/refund-sensitive
   // signal that must always route to a human (also used as an auto-send veto).
@@ -54,6 +73,8 @@ const KEYWORDS: Record<Exclude<Intent, "general">, string[]> = {
     "stornieren", "früher abreisen", "annuler", "partir plus tôt", "cancelar", "salir antes",
     "annullare", "cancellare", "partire prima", "accorciare", "lasciare prima", // Italian (was missing)
     "إلغاء", "المغادرة مبكرا", "отменить", "уехать раньше",
+    "إنهاء الحجز", "تقصير الإقامة", "съехать раньше", "сократить проживание",
+    "andare via prima", "terminare la prenotazione",
   ],
   // Guest explicitly wants a real person / the host.
   human_request: [
