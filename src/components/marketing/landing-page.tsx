@@ -234,7 +234,7 @@ export function LandingPage() {
           </Reveal>
           <Reveal as="p" delay={140} className="mx-auto mt-5 max-w-2xl text-base text-muted-foreground sm:text-lg">
             Özelleştirilebilir otomatik yanıtlama — misafiriniz hangi dilde yazarsa o dilde cevap
-            alır. Şikayet ve hassas konuları asla otomatik yanıtlamaz, size iletir; böylece risksiz.
+            alır. Şikayet, iade gibi riskli konuları otomatik yanıtlamaz, size bırakır.
           </Reveal>
           <Reveal delay={220} className="mt-8 flex flex-col items-center justify-center gap-3 sm:flex-row">
             <Link href="/register" className={cn(buttonVariants({ size: "lg" }), "cta-glow cta-arrow w-full sm:w-auto")}>
