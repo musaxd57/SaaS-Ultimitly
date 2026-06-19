@@ -1,10 +1,11 @@
 import { redirect } from "next/navigation";
-import { AlertTriangle } from "lucide-react";
+import { AlertTriangle, QrCode, Building2 } from "lucide-react";
 import { requireAuth } from "@/lib/auth";
 import { prisma } from "@/lib/db";
 import { PageHeader } from "@/components/page-header";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
+import { LinkButton } from "@/components/ui/link-button";
 import { GuestChatReply } from "@/components/guest-chats/reply-box";
 import { formatDate, formatDateTime } from "@/lib/utils";
 
@@ -39,9 +40,53 @@ export default async function GuestChatsPage() {
 
       {conversations.length === 0 ? (
         <Card>
-          <CardContent className="py-10 text-center text-sm text-muted-foreground">
-            Henüz misafir sohbeti yok. Bir dairede QR&apos;ı açtığında ve o dairede aktif bir konaklama
-            varken misafir yazdıkça sohbetler burada görünür.
+          <CardContent className="space-y-6 px-6 py-10">
+            <div className="flex flex-col items-center text-center">
+              <span className="flex size-14 items-center justify-center rounded-2xl bg-primary/10 text-primary">
+                <QrCode className="size-7" />
+              </span>
+              <h3 className="mt-4 text-lg font-semibold">Daireniz için 7/24 misafir asistanı</h3>
+              <p className="mt-2 max-w-xl text-sm text-muted-foreground">
+                Daireye astığınız bir QR&apos;ı okutan misafir; Wi-Fi, çevredeki yerler, ulaşım gibi
+                <strong> genel sorularını</strong> yapay zekâya sorar. AI bilgi tabanınızdan yanıtlar;
+                çözemediği bir konu olursa <strong>size iletir</strong> ve buradan siz yanıtlarsınız.
+                Güvenlik için kapı kodu/Wi-Fi şifresi QR&apos;da paylaşılmaz.
+              </p>
+            </div>
+
+            <div className="mx-auto grid max-w-2xl gap-3 sm:grid-cols-3">
+              <div className="rounded-lg border border-border bg-muted/30 p-4 text-center">
+                <span className="inline-flex size-7 items-center justify-center rounded-full bg-primary text-xs font-bold text-primary-foreground">
+                  1
+                </span>
+                <p className="mt-2 text-xs text-muted-foreground">
+                  <strong className="text-foreground">Mülkler</strong>&apos;den bir daireyi açıp{" "}
+                  <strong className="text-foreground">&quot;Misafir sohbetini aç&quot;</strong>a basın.
+                </p>
+              </div>
+              <div className="rounded-lg border border-border bg-muted/30 p-4 text-center">
+                <span className="inline-flex size-7 items-center justify-center rounded-full bg-primary text-xs font-bold text-primary-foreground">
+                  2
+                </span>
+                <p className="mt-2 text-xs text-muted-foreground">
+                  Çıkan <strong className="text-foreground">QR&apos;ı indirip yazdırın</strong>, daireye asın.
+                </p>
+              </div>
+              <div className="rounded-lg border border-border bg-muted/30 p-4 text-center">
+                <span className="inline-flex size-7 items-center justify-center rounded-full bg-primary text-xs font-bold text-primary-foreground">
+                  3
+                </span>
+                <p className="mt-2 text-xs text-muted-foreground">
+                  Misafir okuttukça sohbetler <strong className="text-foreground">burada</strong> görünür.
+                </p>
+              </div>
+            </div>
+
+            <div className="flex justify-center">
+              <LinkButton href="/properties">
+                <Building2 className="size-4" /> Mülklere git
+              </LinkButton>
+            </div>
           </CardContent>
         </Card>
       ) : (
