@@ -609,6 +609,24 @@ Hostex 10-reply/mülk metered. Lixus ₺120/daire (~$2.6) hepsinden ucuz — TRY
 **⏳ Launch KDV kararı:** B2C → yasal olarak KDV-dahil headline (Madde 57); ama Paddle MoR KDV'yi kendi
 topluyor/gösteriyor → checkout'ta netleşir, launch'ta teyit et.
 
+## Panel cilası + hero + güvenlik-kapısı sertleştirme (2026-06-19→23, ~50 agent toplam) ✅
+Kullanıcı "tüm panellere gerçek-müşteri gözüyle bak, saçma/dev-artığı şeyleri sil, bol agent" dedi.
+**KURAL (kullanıcı, kalıcı):** "bundan sonra eklediğimiz HER ŞEY gerçek satılan ürüne giriyor" — gösteriş/debug yok.
+**Panel batch (10 denetim + 7 uygulama + 10 re-audit agent, hepsi kodla doğrulandı, 10/10 SOUND, davranış KANITLI değişmedi):**
+- **Görevler → Kanban panosu** (Yapılacak/Devam ediyor/Tamamlandı durum sütunları; in_progress geri açıldı; görev formu 3 durumla eşitlendi). RBAC/filtre/not-foto korundu.
+- **Raporlar:** ortalama doluluk **donut'u** + gradient çubuklar; doluluk artık **"bugüne kadarki"** payda (ay-sonu yerine — ayın 18'inde dolu daire %100, eski ~%55 yanıltması bitti); delta **aynı-gün** karşılaştırması + üstüne-gelince tooltip.
+- **Ayarlar:** ana-şalter uyarısı **müşteriden gizli** (operatöre özel); "Hospitable Bağlantısı"→"Airbnb/Booking Bağlantısı"; "AI Cevap Testi (misafire gitmez)"→**"AI'yı Deneyin"**; "önizleme (misafire gitmez)" butonları silindi.
+- **Mesajlar:** "Misafir mesajı dene (test)" **debug aracı + endpoint'i silindi**; ham "Güven %73+çubuk"→sade "AI bundan emin/değil"; çelişkili kaynak rozeti kaldırıldı; şablonlarda `{isim}` de çalışır.
+- **Şablonlar:** personel salt-okunur (RBAC UI). **Bilgi Tabanı:** kategoriler 2 optgroup (otomatik-gönderilen ↔ AI-okur) + Şablonlar çapraz-link; aktif/pasif göz→toggle ikonu + inline hata. **İptaller:** gün filtresi UTC→İstanbul. **Gönderilenler:** oto-mesajlar gerçek KB içeriğini gösterir. **Mülkler/iCal:** ham hata→Türkçe, Senkronla/Sil etiketli, User-Agent "GuestOps-AI"→"Lixus-AI". **Görev kartı** 📷→ikon. Ölü kod (MessagePreviewButton + simülasyon route) silindi.
+- **Misafir Sohbetleri (QR):** menü-geçidi `GUEST_CHAT_ENABLED && rol≠staff` (env açık → TÜM müşteriler görür; **kullanıcı kararı: müşterilere açık kalsın**); boş ekran → karşılama + 3-adım yönlendirme + "Mülklere git".
+**Landing hero (defalarca yinelendi, 10-agent iddia-denetimi):** Final = **"Misafir mesajlarını 7/24, güvenle yanıtlayan yapay zekâ."** + alt: **"Özelleştirilebilir otomatik yanıtlama — misafiriniz hangi dilde yazarsa o dilde cevap alır. Şikayet, iade gibi riskli konuları otomatik yanıtlamaz, size bırakır."** Ajanlar "asla/risksiz/%100 güvenli/dakikalar içinde" gibi **mutlak iddiaları yalan/Reklam-Kurulu riski** buldu → hepsi atıldı, dürüst+güçlü kaldı. ("siz yaşayın" da kullanıcı "saçma" deyince gitti.)
+**Güvenlik-kapısı SERTLEŞTİRME (8-agent denetim sonrası, en son iş):** landing'deki "şikayeti otomatik yanıtlamaz" iddiasını gerçekten doğrulamak için `lib/ai/fallback.ts`'e (a) **örtük şikayet + telafi/indirim** kelimeleri (olumsuzluk-çapalı → "tam beklediğim gibi"/"indirimli sezon" FP YOK; bare "indirim"/"плохо" tuzakları bilerek atlandı), (b) **AR/RU/IT zenginleştirme** eklendi. (c) `automation.ts` `applyChannelAutoReply` artık model şikayet/iade/yüksek-risk görüp kelime ağı kaçırırsa da konuşmayı **atomik "problem" + host'a mail** yapar (`skippedReason: "escalated_to_human"`; `sendDueAlerts` status="new" baktığı için **çift-mail imkânsız**; alıcı per-tenant, operatöre sızmaz). **+8 regresyon testi, 434 yeşil.** Oto-yanıt güvenlik kapısı SADECE daha sıkı oldu.
+**urun.html / kurulum.html (landing demo animasyonları):** tam 11-madde nav + düzgün Ayarlar dişlisi; mesajlar yazıldığı anda görünür (display:none fix); raporlar çubukları gerçekten dolar (inline-span `display:block` kök-sebep); WiFi adı anonim.
+**⏳ KULLANICI/launch hatırlatmaları (hâlâ geçerli):**
+- 🔴 **`AUTO_REPLY_ENABLED=1` Railway'de set DEĞİL** (Ayarlar "ana şalter KAPALI" gösteriyor) → şu an hiç kimseye (Nuve dahil) otomatik mesaj GİTMİYOR. Canlıya hazır olunca **birlikte ilk gönderimleri doğrula**, sonra "1" yap.
+- 💳 **Paddle production CANLI** (env=production, pdl_live_ key, webhook aktif) → hazır olunca **küçük gerçek ödemeyi birlikte** test et.
+- Nuve'nin Hospitable aboneliği bitik (402) → veri donmuş anlık-görüntü; yenilenince canlı döner.
+
 ## Çalışma şekli
 Kullanıcı: "Bana söyle, ben kodlarım." Fazları sırayla, additive + testli.
 Build + `npm test` yeşil olmadan push etme. GitHub'da PR sadece kullanıcı
