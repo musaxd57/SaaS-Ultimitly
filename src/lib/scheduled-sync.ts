@@ -5,6 +5,7 @@ import { syncHospitable } from "@/lib/hospitable-sync";
 import { HospitableError } from "@/lib/hospitable";
 import { reportError } from "@/lib/report-error";
 import { premiumAllowed } from "@/lib/billing/subscription";
+import { anonymizeOldGuestData } from "@/lib/data-retention";
 import {
   runDueChannelAutoReplies,
   sendDueWelcomes,
@@ -175,6 +176,17 @@ export async function runScheduledSync(): Promise<ScheduledSyncTotals> {
           } else {
             await reportError(`scheduled-sync org ${org.id}`, err);
           }
+        }
+      }
+
+      // KVKK retention sweep — anonymize guest PII for long-past stays. No-op
+      // unless DATA_RETENTION_MONTHS is set; runs at most once per deep window so
+      // it never burdens the frequent narrow passes. Best-effort, never aborts.
+      if (deep) {
+        try {
+          await anonymizeOldGuestData();
+        } catch (err) {
+          await reportError("scheduled-sync retention", err);
         }
       }
       return totals;

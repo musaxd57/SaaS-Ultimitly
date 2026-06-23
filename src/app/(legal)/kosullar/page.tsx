@@ -60,13 +60,22 @@ const SECTIONS: Section[] = [
     ],
   },
   {
-    title: "9. Değişiklikler ve Fesih",
+    title: "9. Veri İşleme ve KVKK (Veri İşleyen Sözleşmesi)",
+    body: [
+      "KVKK kapsamında, misafirlerinize ait kişisel verilerin (ad, mesaj içeriği, rezervasyon bilgileri vb.) VERİ SORUMLUSU sizsiniz; Lixus AI bu verileri yalnızca size hizmeti sunmak amacıyla, talimatlarınız doğrultusunda işleyen VERİ İŞLEYEN sıfatıyla hareket eder.",
+      "Hizmeti sağlamak için sınırlı sayıda alt-işleyen kullanırız: yapay zekâ yanıtları için OpenAI, Airbnb/Booking kanal erişimi için entegrasyon sağlayıcısı (Hospitable), barındırma ve e-posta altyapısı sağlayıcıları. Bu kapsamda misafir mesaj içeriği, yanıt üretmek amacıyla yurt dışında (ör. ABD) bulunan yapay zekâ sağlayıcısına aktarılabilir; hizmeti kullanarak bu aktarımın hizmetin sunulması için gerekli olduğunu kabul edersiniz. API ile gönderilen veriler sağlayıcı tarafından model eğitiminde kullanılmaz.",
+      "Verileri yalnızca hizmetin gerektirdiği süre boyunca saklarız; saklama süresi dolan misafir kişisel verileri anonimleştirilir ya da silinir. Hesabınızı sildiğinizde organizasyonunuza ait tüm veriler kalıcı olarak silinir. Belirli bir misafirin verisinin silinmesini de talep edebilirsiniz.",
+      "Verileri korumak için makul teknik ve idari tedbirleri (şifreleme, erişim kontrolü, çok-kiracılı izolasyon) uygularız. Hizmete eklediğiniz misafir verileri için gerekli aydınlatma yükümlülüğü ve hukuki dayanak (gerektiğinde açık rıza) sizin sorumluluğunuzdadır.",
+    ],
+  },
+  {
+    title: "10. Değişiklikler ve Fesih",
     body: [
       "Bu koşulları zaman zaman güncelleyebiliriz; önemli değişiklikleri makul biçimde bildiririz. Koşulları ihlal etmeniz hâlinde hesabınızı askıya alabilir veya sonlandırabiliriz.",
     ],
   },
   {
-    title: "10. İletişim",
+    title: "11. İletişim",
     body: [
       "Sorularınız için iletisimlixusai@gmail.com adresinden bize ulaşabilirsiniz.",
     ],

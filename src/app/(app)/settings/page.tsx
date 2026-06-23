@@ -5,6 +5,7 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { AiVoiceForm } from "@/components/settings/ai-voice-form";
 import { BulkTimesForm } from "@/components/settings/bulk-times-form";
 import { NightHoursForm } from "@/components/settings/night-hours-form";
+import { DeleteAccountCard } from "@/components/settings/delete-account-card";
 import { AutoReplyToggle } from "@/components/inbox/auto-reply-toggle";
 import { AiTestCard } from "@/components/settings/ai-test-card";
 import { TestEmailButton } from "@/components/settings/test-email-button";
@@ -351,6 +352,17 @@ export default async function SettingsPage() {
         startHour={org?.autoReplyStartHour ?? 0}
         endHour={org?.autoReplyEndHour ?? 9}
       />
+
+      {session.role === "owner" && !isOperator ? (
+        <Card className="max-w-2xl border-destructive/30">
+          <CardHeader>
+            <CardTitle className="text-base text-destructive">Hesabı Sil</CardTitle>
+          </CardHeader>
+          <CardContent>
+            <DeleteAccountCard />
+          </CardContent>
+        </Card>
+      ) : null}
     </>
   );
 }
