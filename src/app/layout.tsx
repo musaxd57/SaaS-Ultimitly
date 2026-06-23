@@ -9,7 +9,7 @@ const inter = Inter({
 });
 
 const DESCRIPTION =
-  "Airbnb ve Booking misafir mesajlarınızı 7/24, Türkçe öncelikli ve güvenli biçimde yanıtlayan yapay zekâ asistanı. Temizlik ve check-in görevleri otomatik akışta, tüm operasyon tek panelde.";
+  "Airbnb ve Booking misafir mesajlarını 7/24, güvenle yanıtlayan yapay zekâ. Misafiriniz hangi dilde yazarsa o dilde cevap alır; şikayet ve iade gibi riskli konuları otomatik yanıtlamaz, size bırakır. Temizlik ve check-in görevleri otomatik, tüm operasyon tek panelde.";
 
 export const metadata: Metadata = {
   metadataBase: new URL("https://lixusai.com"),
@@ -21,7 +21,8 @@ export const metadata: Metadata = {
   applicationName: "Lixus AI",
   keywords: [
     "Airbnb asistanı", "yapay zekâ misafir iletişimi", "Booking otomatik yanıt",
-    "kısa dönem kiralama yazılımı", "Airbnb otomasyon", "misafir mesaj yönetimi", "Lixus AI",
+    "kısa dönem kiralama yazılımı", "Airbnb otomasyon", "misafir mesaj yönetimi",
+    "Lixus AI", "lixusai", "lixus ai", "Lixus AI Türkiye",
   ],
   alternates: { canonical: "/" },
   openGraph: {

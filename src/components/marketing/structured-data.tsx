@@ -3,7 +3,7 @@ import { SELLER } from "@/lib/legal-entity";
 
 const SITE = "https://lixusai.com";
 const DESCRIPTION =
-  "Airbnb ve Booking.com misafir mesajlarını Türkçe önceliğiyle, KVKK'ya uygun şekilde yapay zekâ ile otomatik yanıtlayan SaaS. Şikayet/iade/iptal asla otomatik gönderilmez; kontrol her zaman sizde.";
+  "Airbnb ve Booking misafir mesajlarını 7/24, güvenle yanıtlayan yapay zekâ. Misafiriniz hangi dilde yazarsa o dilde cevap alır; şikayet ve iade gibi riskli konuları otomatik yanıtlamaz, size bırakır.";
 
 /**
  * JSON-LD structured data for the marketing landing — Organization,
@@ -17,6 +17,7 @@ export function StructuredData({ faqs }: { faqs: { q: string; a: string }[] }) {
   const organization: Record<string, unknown> = {
     "@type": "Organization",
     name: "Lixus AI",
+    alternateName: ["LixusAI", "lixusai", "Lixus AI Türkiye"],
     url: SITE,
     logo: `${SITE}/icon.svg`,
     email: SELLER.eposta,
@@ -52,9 +53,17 @@ export function StructuredData({ faqs }: { faqs: { q: string; a: string }[] }) {
     })),
   };
 
+  const website = {
+    "@type": "WebSite",
+    name: "Lixus AI",
+    alternateName: ["LixusAI", "lixusai"],
+    url: SITE,
+    inLanguage: "tr-TR",
+  };
+
   const graph = {
     "@context": "https://schema.org",
-    "@graph": [organization, software, faqPage],
+    "@graph": [organization, website, software, faqPage],
   };
 
   return (
