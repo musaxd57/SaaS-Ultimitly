@@ -1,5 +1,6 @@
 import Link from "next/link";
-import { Hotel, ArrowLeft } from "lucide-react";
+import { ArrowLeft } from "lucide-react";
+import { BrandMark } from "@/components/brand";
 
 export default function LegalLayout({ children }: { children: React.ReactNode }) {
   return (
@@ -8,7 +9,7 @@ export default function LegalLayout({ children }: { children: React.ReactNode })
         <div className="mx-auto flex h-16 max-w-3xl items-center justify-between px-4 sm:px-6">
           <Link href="/" className="flex items-center gap-2">
             <span className="flex size-8 items-center justify-center rounded-lg bg-primary text-primary-foreground">
-              <Hotel className="size-4.5" />
+              <BrandMark className="size-5" />
             </span>
             <span className="text-base font-semibold tracking-tight">
               Lixus <span className="text-primary">AI</span>

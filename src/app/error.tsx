@@ -2,7 +2,8 @@
 
 import { useEffect } from "react";
 import Link from "next/link";
-import { Hotel, RotateCw } from "lucide-react";
+import { RotateCw } from "lucide-react";
+import { BrandMark } from "@/components/brand";
 import { Button, buttonVariants } from "@/components/ui/button";
 import { cn } from "@/lib/utils";
 
@@ -22,7 +23,7 @@ export default function Error({
     <div className="flex min-h-screen flex-col items-center justify-center gap-6 bg-background px-4 text-center">
       <Link href="/" className="flex items-center gap-2">
         <span className="flex size-9 items-center justify-center rounded-lg bg-primary text-primary-foreground">
-          <Hotel className="size-5" />
+          <BrandMark className="size-6" />
         </span>
         <span className="text-lg font-semibold tracking-tight">
           Lixus <span className="text-primary">AI</span>

@@ -1,6 +1,5 @@
 import Link from "next/link";
 import {
-  Hotel,
   Globe,
   ShieldCheck,
   Moon,
@@ -19,6 +18,7 @@ import {
   BookOpen,
 } from "lucide-react";
 import { buttonVariants } from "@/components/ui/button";
+import { BrandMark } from "@/components/brand";
 import { LeadForm } from "@/components/marketing/lead-form";
 import { StructuredData } from "@/components/marketing/structured-data";
 import { Reveal } from "@/components/marketing/reveal";
@@ -198,7 +198,7 @@ export function LandingPage() {
         <div className="mx-auto flex h-16 max-w-6xl items-center justify-between px-4 sm:px-6">
           <Link href="/" className="flex items-center gap-2">
             <span className="flex size-8 items-center justify-center rounded-lg bg-primary text-primary-foreground">
-              <Hotel className="size-4.5" aria-hidden="true" />
+              <BrandMark className="size-5" />
             </span>
             <span className="text-lg font-semibold tracking-tight">
               Lixus <span className="text-primary">AI</span>
@@ -502,7 +502,7 @@ export function LandingPage() {
         <div className="mx-auto flex max-w-6xl flex-col items-center justify-between gap-4 px-4 sm:flex-row sm:px-6">
           <div className="flex items-center gap-2">
             <span className="flex size-7 items-center justify-center rounded-md bg-primary text-primary-foreground">
-              <Hotel className="size-4" aria-hidden="true" />
+              <BrandMark className="size-4.5" />
             </span>
             <span className="text-sm font-semibold">Lixus AI</span>
           </div>

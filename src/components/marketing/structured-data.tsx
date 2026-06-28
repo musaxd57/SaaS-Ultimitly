@@ -19,7 +19,7 @@ export function StructuredData({ faqs }: { faqs: { q: string; a: string }[] }) {
     name: "Lixus AI",
     alternateName: ["LixusAI", "lixusai", "Lixus AI Türkiye"],
     url: SITE,
-    logo: `${SITE}/icon.svg`,
+    logo: `${SITE}/lixus-logo-icon.png`,
     email: SELLER.eposta,
     description: DESCRIPTION,
     areaServed: "TR",

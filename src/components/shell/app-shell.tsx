@@ -3,7 +3,8 @@
 import { useEffect, useState } from "react";
 import Link from "next/link";
 import { usePathname, useRouter } from "next/navigation";
-import { Hotel, Menu, X, LogOut, Loader2, Shield, ArrowLeft } from "lucide-react";
+import { Menu, X, LogOut, Loader2, Shield, ArrowLeft } from "lucide-react";
+import { BrandMark } from "@/components/brand";
 import { NAV_ITEMS, titleForPath } from "@/lib/nav";
 import { USER_ROLE, type UserRole } from "@/lib/constants";
 import { Avatar } from "@/components/ui/avatar";
@@ -95,7 +96,7 @@ export function AppShell({ user, superAdmin, guestChatEnabled, impersonating, ch
       <div className="flex items-center justify-between px-1">
         <Link href="/dashboard" className="flex items-center gap-2" onClick={() => setMobileOpen(false)}>
           <div className="flex size-8 items-center justify-center rounded-lg bg-primary text-primary-foreground">
-            <Hotel className="size-4.5" />
+            <BrandMark className="size-5" />
           </div>
           <span className="text-base font-semibold tracking-tight">
             Lixus <span className="text-primary">AI</span>

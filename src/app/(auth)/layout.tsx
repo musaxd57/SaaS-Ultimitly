@@ -1,4 +1,5 @@
-import { Hotel, MessageSquare, ListChecks, BarChart3 } from "lucide-react";
+import { MessageSquare, ListChecks, BarChart3 } from "lucide-react";
+import { BrandMark } from "@/components/brand";
 
 const VALUE_PROPS = [
   { icon: MessageSquare, text: "Misafir mesajlarına AI destekli hızlı cevap" },
@@ -13,7 +14,7 @@ export default function AuthLayout({ children }: { children: React.ReactNode }) 
       <div className="relative hidden flex-col justify-between bg-primary p-10 text-primary-foreground lg:flex">
         <div className="flex items-center gap-2">
           <div className="flex size-9 items-center justify-center rounded-lg bg-white/15">
-            <Hotel className="size-5" />
+            <BrandMark className="size-6" />
           </div>
           <span className="text-lg font-semibold tracking-tight">
             Lixus <span className="text-white/70">AI</span>
