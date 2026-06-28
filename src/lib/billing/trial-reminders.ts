@@ -24,7 +24,8 @@ import { billingEnforced } from "./subscription";
 const DAY_MS = 24 * 60 * 60 * 1000;
 
 // Send the "ending soon" mail when this many whole days (or fewer) remain.
-const ENDING_SOON_DAYS = Number(process.env.TRIAL_REMINDER_DAYS) || 2;
+// Default 1 = the day before expiry (the "ended" mail then lands at expiry).
+const ENDING_SOON_DAYS = Number(process.env.TRIAL_REMINDER_DAYS) || 1;
 // Don't email about a trial that ended more than this long ago (safety bound).
 const ENDED_GRACE_DAYS = 30;
 

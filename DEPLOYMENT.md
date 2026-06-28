@@ -56,7 +56,7 @@ veritabanına uygulanır, sonra Next.js başlar. `PORT`'u elle eklemeyin (Railwa
 | `GUEST_CHAT_ENABLED` | `1` → QR misafir concierge global açık |
 | `DATA_RETENTION_MONTHS` | KVKK: bu aydan eski misafir PII'si (ad/mesaj) otomatik anonimleştirilir (ör. `24`). Boş = kapalı |
 | `TRIAL_EMAILS_ENABLED` | `1` → deneme-hatırlatma mailleri açık (varsayılan KAPALI/dormant). Açmadan önce ilk gönderimi birlikte doğrulayın |
-| `TRIAL_REMINDER_DAYS` | Deneme bitmeden kaç gün kala "bitiyor" maili gider (varsayılan `2`). Mailler yalnızca `BILLING_ENFORCED=true` **ve** `TRIAL_EMAILS_ENABLED=1` iken gider |
+| `TRIAL_REMINDER_DAYS` | Deneme bitmeden kaç gün kala "bitiyor" maili gider (varsayılan `1` = 1 gün önce). Mailler yalnızca `BILLING_ENFORCED=true` **ve** `TRIAL_EMAILS_ENABLED=1` iken gider |
 | `APP_BASE_URL` | Cron mailleri için panel linki tabanı (varsayılan `https://www.lixusai.com`) |
 | `SENTRY_DSN` | Hata izleme (opsiyonel) |
 | `NEXT_PUBLIC_WHATSAPP` / `NEXT_PUBLIC_DEMO_VIDEO` | Landing WhatsApp numarası / demo video embed (opsiyonel) |

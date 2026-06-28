@@ -640,10 +640,11 @@ kararı) → "ücretsiz sürüm": gezer/manuel çalışır, OTO-mesajlaşma kapa
 `sendDueTrialReminders()` deep-sync'te. SADECE `BILLING_ENFORCED` açıkken (mesaj doğru olsun), idempotent
 (`Subscription.trialEndingSentAt`/`trialEndedSentAt` nullable, atomik claim-then-send + fail'de rollback),
 alıcı = org owner (oldest user, env DEĞİL), "ended" 30-gün grace (eski trial'ları blast etmez). 2 mail
-(`trialEndingSoonEmail` ~2g kala / `trialEndedEmail`). **DORMANT ŞİP:** `TRIAL_EMAILS_ENABLED=1` (default KAPALI)
-olmadan hiç mail gitmez — e-posta-akışı kuralı (deploy edince oto-blast olmasın). +8 test (446 yeşil).
-Env: `TRIAL_EMAILS_ENABLED` (kapalı), `TRIAL_REMINDER_DAYS` (vars.2), `APP_BASE_URL` (vars. www).
-**⏳ KULLANICI: hazır olunca `TRIAL_EMAILS_ENABLED=1` + ilk gönderimi birlikte izle.**
+(`trialEndingSoonEmail` 1g kala / `trialEndedEmail` bitince — kullanıcı "ikisi de, 1 gün önce" seçti).
+**DORMANT ŞİP:** `TRIAL_EMAILS_ENABLED=1` (default KAPALI) olmadan hiç mail gitmez — e-posta-akışı kuralı
+(deploy edince oto-blast olmasın). +8 test (446 yeşil). Env: `TRIAL_EMAILS_ENABLED` (kullanıcı Railway'de
+1 yaptı), `TRIAL_REMINDER_DAYS` (vars.1), `APP_BASE_URL` (vars. www).
+**⏳ KULLANICI: ilk gerçek gönderimi (bir denemenin bitişinde) birlikte izle.**
 
 ## Çalışma şekli
 Kullanıcı: "Bana söyle, ben kodlarım." Fazları sırayla, additive + testli.

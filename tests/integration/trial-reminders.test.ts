@@ -52,7 +52,7 @@ async function trialOrg(opts: {
 describe("reverse-trial reminder emails", () => {
   it("sends the 'ending soon' email once to the owner, then never again", async () => {
     const now = new Date();
-    const orgId = await trialOrg({ trialEndsAt: new Date(now.getTime() + 2 * DAY) });
+    const orgId = await trialOrg({ trialEndsAt: new Date(now.getTime() + 1 * DAY) }); // ~1 day left
 
     const r1 = await sendDueTrialReminders(now);
     expect(r1.ending).toBe(1);
