@@ -37,6 +37,11 @@ function settingsUrl(): string {
 export type TrialReminderResult = { ending: number; ended: number };
 
 export async function sendDueTrialReminders(now: Date = new Date()): Promise<TrialReminderResult> {
+  // Ships DORMANT. Per the project rule (e-mail flows open only with user
+  // approval + a first send verified together), these don't go out until
+  // TRIAL_EMAILS_ENABLED=1 is set — otherwise deploying would auto-mail real
+  // owners on the next cron. Flip it on when ready to watch the first sends.
+  if (process.env.TRIAL_EMAILS_ENABLED !== "1") return { ending: 0, ended: 0 };
   // Truthful only when expiry actually pauses automation.
   if (!billingEnforced()) return { ending: 0, ended: 0 };
 

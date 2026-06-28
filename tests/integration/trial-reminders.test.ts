@@ -14,6 +14,7 @@ beforeEach(async () => {
   vi.clearAllMocks();
   mockSend.mockResolvedValue(undefined);
   vi.stubEnv("BILLING_ENFORCED", "true"); // reminders only fire when enforced
+  vi.stubEnv("TRIAL_EMAILS_ENABLED", "1"); // opt-in flag (ships dormant)
 });
 afterEach(() => vi.unstubAllEnvs());
 afterAll(async () => {
@@ -84,6 +85,15 @@ describe("reverse-trial reminder emails", () => {
     mockSend.mockClear();
     const r2 = await sendDueTrialReminders(now);
     expect(r2.ended).toBe(0);
+    expect(mockSend).not.toHaveBeenCalled();
+  });
+
+  it("ships dormant: sends NOTHING until TRIAL_EMAILS_ENABLED=1", async () => {
+    vi.stubEnv("TRIAL_EMAILS_ENABLED", ""); // opt-in flag off
+    const now = new Date();
+    await trialOrg({ trialEndsAt: new Date(now.getTime() - 1 * DAY) });
+    const r = await sendDueTrialReminders(now);
+    expect(r).toEqual({ ending: 0, ended: 0 });
     expect(mockSend).not.toHaveBeenCalled();
   });
 
