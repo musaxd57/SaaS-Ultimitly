@@ -646,6 +646,52 @@ alıcı = org owner (oldest user, env DEĞİL), "ended" 30-gün grace (eski tria
 1 yaptı), `TRIAL_REMINDER_DAYS` (vars.1), `APP_BASE_URL` (vars. www).
 **⏳ KULLANICI: ilk gerçek gönderimi (bir denemenin bitişinde) birlikte izle.**
 
+## PMS bağlantı katmanı stratejisi — 12-ajan araştırma (2026-06-28)
+**Soru (varoluşsal ICP kısıtı):** "Müşteri Airbnb'sini buraya nasıl bağlayacak?" Bugün ürün per-tenant
+Hospitable token istiyor → host Hospitable'a (~$29/ay) ödemeli + Hospitable takvimi devralıyor. Kapı kapı
+satıştan ÖNCE çözülmesi gereken asıl soru bu. **12 ajan** (9 PMS + Airbnb/Booking direkt + ToS + founder-
+accounts), hepsi kaynak/kodla doğrulandı. Filtre = **programatik Airbnb mesaj GÖNDERME** (okuma yaygın,
+gönderme nadir/ayırt edici).
+**3 gerçek aday (mesaj gönderen):**
+- **Hospitable $29 (MEVCUT):** ✅ gönderir · ✅ **mesaj-only mod VAR ("Limited Connection" → takvime/fiyata
+  karışmaz, host Airbnb'yi kendi tutar)** · ✅ **OAuth "Connect" butonu küçük geliştiriciye AÇIK** (vendor
+  başvurusu birkaç gün, davet-gerektirmez — Airbnb'nin tersi) · ❌ reseller/cash-affiliate YOK (sadece $100
+  bill credit) · cheapest API plan $29 (free Essentials API kullanamaz).
+- **Hostex $7/ay (Pro, en ucuz):** 🥇 fiyatta Hospitable'ı kıran TEK aday · ✅ gönderir (`POST /v3/
+  conversations/{id}`, kendi SDK'sı + canlı repo'larla KODDAN doğrulandı) · ❌ mesaj-only mod yok (kanal
+  yöneticisi → takvim senkronu gelir) · token (self-serve) veya OAuth (partner-onaylı) · sandbox yok · referral %30.
+- **Beds24 ~$27/ay (€15.90 + €10 API rate-limit):** ✅ gönderir (`POST /bookings/messages`, scope
+  `bookings-personal`, native Airbnb thread) · ❌ mesaj-only mod yok (iCal takvime karışmaz ama mesaj taşımaz) ·
+  **per-tenant invite-code→refresh-token (mevcut `getOrgHospitableToken` şifreli-token modeline birebir uyar)** ·
+  ✅ **white-label + reseller programı** · Airbnb Preferred+ · yeni-mesaj webhook'u var.
+**Elenenler:** Smoobu (€29-35, mesaj-only yok=takvim zorla, ama %10 nakit affiliate), Hostaway ($125-175 satış-
+gated), Guesty ($40-72/daire, Lite'ta API yok), Hostfully ($129+API eklenti) — pahalı/ağır; **Lodgify (mesaj
+API READ-ONLY — gönderemiyor), Uplisting (public API'de mesajlaşma HİÇ yok)** — diskalifiye.
+**⚠️ TERS-KÖŞE İÇGÖRÜ (en önemlisi):** Kullanıcının nefret ettiği "Hospitable takvime karışıyor" derdinden
+kaçışın olan TEK yer = **Hospitable'ın Limited Connection'ı.** Ucuz alternatiflerin (Hostex/Beds24/Smoobu)
+HİÇBİRİNDE mesaj-only mod yok — hepsi tam kanal-yöneticisi, takvimi zorla devralır. Yani **ucuz = daha hafif
+DEĞİL, tam tersi.**
+**KARARLAR (sıralı):**
+1. **ŞİMDİ — Hospitable'da kal, 2 ekleme (C; kullanıcı "kesinlikle yap, unutma" dedi):** (a) **"Hospitable ile
+   Bağlan" OAuth butonu** (token kopyala-yapıştır yerine tek-tık; demo pürüzsüzleşir). ⚠️ Mesaj GÖNDERME scope'u
+   `message:write` ayrı onay isteyebilir → Hospitable'a SOR (team-platform@hospitable.com) yol haritasına koymadan.
+   (b) **Limited Connection rehberi** → "takvime karışıyor" derdi biter. ⚠️ Hospitable "limited modda mesaj
+   güvenilirliği düşebilir" diyor → **önce Nuve'da gerçek veriyle TEST et**, sonra müşteriye öner.
+2. **ORTA — Hostex ($7) ikinci adaptör** (`sendOnChannel` tek-nokta zaten hazır): fiyata duyarlı, kanal
+   yöneticisini değiştirmeye razı host için ucuz tier. Takvim devralmayı kabul gerek + sandbox yok.
+3. **OPSİYON — Beds24 white-label** (görünmez bundle: müşteri PMS'i görmez, sen markalarsın) — ama operasyonel
+   yük + aylık min ücret. İleride büyürsen.
+4. **D (kendi Airbnb/Booking partnerliğin) = KAPALI, KANITLANDI:** Airbnb API davet-usulü/başvuru kapalı, yayınlı
+   ilan-sayısı YOK (niteliksel supply + 6ay-zorunlu-özellik + güvenlik denetimi); Booking yayınlı eşik **≥250 ilan
+   + ≥3000 rezervasyon/yıl** + yeni-partner onboarding "ikinci duyuruya kadar DURDURULMUŞ". Bypass (scrape/private-
+   API/headless) = ToS ihlali + müşterinin Airbnb hesabı BAN (hiQ davası: ToS ihlalinden $500k tazminat, "izin
+   verdi/legal" KORUMAZ; mesajlar login arkasında=public-scraping savunması geçersiz). → **Supply topla (A/B ile),
+   100-200 host'ta tekrar bak. D = bitiş çizgisi, başlangıç değil.**
+**Satış (A):** ICP = "PMS kullanan/kullanmaya razı host" (apart-otel/pansiyon/property-manager); kart bırakma
+DEĞİL → canlı demo + oracıkta 14-gün bedava denemeye kayıt. **Mimari hazır:** `sendOnChannel` tek choke-point +
+per-tenant şifreli token modeli Beds24/Hostex'e de uyar (Beds24 sadece 24s refresh-token rotasyonu ekler).
+**Hiçbiri henüz KODLANMADI** — kullanıcı yön seçince additive eklenir (bağlantı katmanı = kullanıcı onayı kuralı).
+
 ## Çalışma şekli
 Kullanıcı: "Bana söyle, ben kodlarım." Fazları sırayla, additive + testli.
 Build + `npm test` yeşil olmadan push etme. GitHub'da PR sadece kullanıcı
