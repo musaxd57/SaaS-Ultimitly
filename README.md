@@ -1,6 +1,6 @@
 # Lixus AI
 
-**Airbnb & Booking misafir mesajlarınızı yapay zekâ yanıtlasın — Türkçe öncelikli, güvenli, 7/24.**
+**Airbnb & Booking misafir mesajlarınızı yapay zekâ yanıtlasın — 7/24, güvenle, misafirin kendi dilinde.**
 
 Kısa dönem kiralama hostları için çok kiracılı (multi-tenant) SaaS. Misafir
 iletişimini, temizlik/giriş-çıkış operasyonunu ve görev yönetimini tek panelde
@@ -94,7 +94,7 @@ E-posta: demo@guestops.ai
 
 ## 🧪 Testler
 
-Vitest — **59 test dosyası** (birim + entegrasyon). Entegrasyon testleri gerçek bir
+Vitest — **60 test dosyası, 438 test** (birim + entegrasyon). Entegrasyon testleri gerçek bir
 PostgreSQL test veritabanı kullanır. Kapsam: AI güvenlik kapısı, otomasyon motoru,
 tenant izolasyonu, billing/entitlement, auth/2FA, raporlar, doğrulama.
 
