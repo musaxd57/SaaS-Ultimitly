@@ -94,7 +94,7 @@ E-posta: demo@guestops.ai
 
 ## 🧪 Testler
 
-Vitest — **60 test dosyası, 438 test** (birim + entegrasyon). Entegrasyon testleri gerçek bir
+Vitest — **61 test dosyası, 445 test** (birim + entegrasyon). Entegrasyon testleri gerçek bir
 PostgreSQL test veritabanı kullanır. Kapsam: AI güvenlik kapısı, otomasyon motoru,
 tenant izolasyonu, billing/entitlement, auth/2FA, raporlar, doğrulama.
 

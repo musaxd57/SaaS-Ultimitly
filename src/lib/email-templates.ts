@@ -347,3 +347,65 @@ export function reservationCreatedEmail(
 
   return wrapEmail(body);
 }
+
+// ---------------------------------------------------------------------------
+// Template 4 + 5: Reverse-trial reminders (account owner)
+// Sent only while billing is enforced, so the "access pauses" wording is true.
+// ---------------------------------------------------------------------------
+function ctaButton(href: string, label: string): string {
+  return `
+    <table cellpadding="0" cellspacing="0" style="margin:8px 0 24px;">
+      <tr>
+        <td style="background:#1e293b;border-radius:8px;">
+          <a href="${esc(href)}" style="display:inline-block;padding:12px 28px;color:#ffffff;font-size:15px;font-weight:600;text-decoration:none;">${esc(label)}</a>
+        </td>
+      </tr>
+    </table>`;
+}
+
+/** "Your Pro trial ends in N days" — a few days before expiry. */
+export function trialEndingSoonEmail(ownerName: string, daysLeft: number, settingsUrl: string): string {
+  const gun = daysLeft <= 1 ? "yarın" : `${daysLeft} gün sonra`;
+  const body = `
+    <h2 style="margin:0 0 8px;color:#0f172a;font-size:22px;font-weight:700;">
+      Pro denemeniz ${gun} bitiyor
+    </h2>
+    <p style="margin:0 0 16px;color:#64748b;font-size:15px;line-height:1.6;">
+      Merhaba ${esc(ownerName)},<br/><br/>
+      14 günlük ücretsiz Pro denemeniz <strong>${gun}</strong> sona eriyor. Süre dolduğunda
+      panelinizi kullanmaya devam edebilirsiniz; ancak <strong>otomatik misafir yanıtları</strong>
+      (oto-yanıt, karşılama, giriş/çıkış mesajları ve QR concierge) <strong>kapanır</strong>.
+    </p>
+    <p style="margin:0 0 8px;color:#64748b;font-size:15px;line-height:1.6;">
+      Otomatik mesajlaşmayı kesintisiz sürdürmek için bir plan seçin:
+    </p>
+    ${ctaButton(settingsUrl, "Planları görün")}
+    <p style="margin:0;color:#94a3b8;font-size:13px;">
+      Kartınızdan deneme boyunca hiçbir ücret alınmadı. İstediğiniz zaman seçebilirsiniz.
+    </p>
+  `;
+  return wrapEmail(body);
+}
+
+/** "Your trial ended — automatic messaging is paused." */
+export function trialEndedEmail(ownerName: string, settingsUrl: string): string {
+  const body = `
+    <h2 style="margin:0 0 8px;color:#0f172a;font-size:22px;font-weight:700;">
+      Ücretsiz denemeniz sona erdi
+    </h2>
+    <p style="margin:0 0 16px;color:#64748b;font-size:15px;line-height:1.6;">
+      Merhaba ${esc(ownerName)},<br/><br/>
+      14 günlük Pro denemeniz doldu. Hesabınız açık — panelleri kullanmaya, mesajları
+      görüntülemeye ve manuel yanıt vermeye devam edebilirsiniz. Ancak
+      <strong>otomatik misafir yanıtları şu anda kapalı</strong>.
+    </p>
+    <p style="margin:0 0 8px;color:#64748b;font-size:15px;line-height:1.6;">
+      AI'nın misafirlerinize sizin yerinize, 7/24 yanıt vermesini yeniden açmak için bir plan seçin:
+    </p>
+    ${ctaButton(settingsUrl, "Plan seç & devam et")}
+    <p style="margin:0;color:#94a3b8;font-size:13px;">
+      Sorularınız için bize her zaman ulaşabilirsiniz.
+    </p>
+  `;
+  return wrapEmail(body);
+}

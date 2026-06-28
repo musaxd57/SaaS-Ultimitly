@@ -425,6 +425,8 @@ model Subscription {
   provider          String    @default("iyzico") // iyzico | paytr | paddle | trial | manual
   providerRef       String? // provider's subscription reference
   trialEndsAt       DateTime? // reverse-trial: when the free 14-day Pro trial ends
+  trialEndingSentAt DateTime? // "denemen bitiyor" reminder email sent at (idempotency)
+  trialEndedSentAt  DateTime? // "deneme bitti" email sent at (idempotency)
   currentPeriodEnd  DateTime?
   cancelAtPeriodEnd Boolean   @default(false)
   createdAt         DateTime  @default(now())
