@@ -511,6 +511,7 @@ export function LandingPage() {
           </p>
           <div className="flex flex-wrap items-center justify-center gap-x-4 gap-y-1 text-sm text-muted-foreground">
             <Link href="/login" className="hover:text-foreground">Giriş</Link>
+            <Link href="/entegrasyonlar" className="hover:text-foreground">Entegrasyonlar</Link>
             <Link href="/gizlilik" className="hover:text-foreground">Gizlilik &amp; KVKK</Link>
             <Link href="/kosullar" className="hover:text-foreground">Koşullar</Link>
             <Link href="/on-bilgilendirme" className="hover:text-foreground">Ön Bilgilendirme</Link>
