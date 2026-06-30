@@ -692,6 +692,35 @@ DEĞİL → canlı demo + oracıkta 14-gün bedava denemeye kayıt. **Mimari haz
 per-tenant şifreli token modeli Beds24/Hostex'e de uyar (Beds24 sadece 24s refresh-token rotasyonu ekler).
 **Hiçbiri henüz KODLANMADI** — kullanıcı yön seçince additive eklenir (bağlantı katmanı = kullanıcı onayı kuralı).
 
+## Hospitable partnerlik başvurusu + Connect ≠ Public API (2026-06-30)
+Connect/Public-API erişim formu (typeform hnDLwUvF) dolduruldu → **5 iş günü** inceleme. Frances
+olumlu döndü, **Patrick (Kıdemli Ortaklıklar Müd.)** cc'de. Forma verilenler: scope'lar **property:read,
+reservation:read, message:read, message:write** (financials/calendar bilinçli YOK = "dokunmuyoruz" kozu);
+endpoint-bazlı açıklama (her özellik→endpoint); app-tile logo = `lixusai.com/lixus-logo-icon.png` (kare);
+müşteri sayısı dürüstçe **"1" (Nuve)**; "marketplace sayfan var mı"→**Yes** + `lixusai.com/entegrasyonlar`
+sayfası eklendi+deploy (commit a6907d9, middleware public-prefix + footer link).
+**🔑 KRİTİK YENİ BİLGİ — Connect oyunu değiştiriyor.** İki AYRI ürün var:
+- **Hospitable Connect** (`connect.hospitable.com/api/v1`): müşteri **doğrudan Airbnb'sini bağlar**, **kendi
+  Hospitable aboneliği GEREKMEZ.** Doküman aynen *"PMS kullanmayan (ve hiç kullanmayacak) host'lara açılın"*
+  diyor = tam ICP'miz + **$29/ay müşteri-maliyet engelini kaldırabilir** (kullanıcının "müşteri Hospitable'a
+  girmeden bağlansın" isteğinin cevabı). Bearer token (partner portal → Settings > Access tokens), 60 req/dk,
+  customer-scoped `/customers/{id}/reservations`, `_select=` ile alan seçimi, webhooks (listing/calendar/
+  reservation/guest). Connect 3. tarafa ücretsiz.
+- **Public API** (`developer.hospitable.com`, /v2, OAuth2/PAT): bir Hospitable KULLANICISININ hesabına
+  entegrasyon — host'un Hospitable aboneliği ŞART (şu an PAT ile kullandığımız yol).
+- **⚠️ MAKE-OR-BREAK AÇIK SORU:** Connect overview verisi listing/rezervasyon/takvim/misafir sayıyor, **MESAJ
+  yok.** Ürünümüz mesajlaşma. Scope formunda message:read/write vardı → muhtemelen destekliyor ama
+  KESİNLEŞTİRİLMELİ. Patrick'e net soru: "Connect üzerinden misafir mesajı okunur/gönderilir mi + müşteri-
+  Airbnb-bağlama modeli." Cevap evet ise entegrasyon = yeni base URL + customer-scoped + webhooks (mimari
+  şu anki Public-API/PAT'ten farklı; `sendOnChannel` tek-nokta yine adapte edilir).
+
+## ÇALIŞMA TARZI — iletişim geri bildirimi (kullanıcı, 2026-06-30)
+Kullanıcı: "bir cümleye/klişeye takılma, daha zekice düşün, yazmadan düşün." Somut kural: ürünü her yerde
+**aynı kalıpla tekrarlama** (örn. "müşterinin dilinde cevap veren, 7/24 çalışan, şikayeti size bırakan" —
+bu üçlüyü brošür/mail/başvuruda fazla tekrarladım, robotikleşti). Bunun yerine: duruma göre **değişken,
+daha keskin/yerinde** tanımlar; ürünü/siteyi zaten biliyorum, varyasyon getir; **önce düşün sonra yaz.**
+Tekrar = robotik, kaçın.
+
 ## Çalışma şekli
 Kullanıcı: "Bana söyle, ben kodlarım." Fazları sırayla, additive + testli.
 Build + `npm test` yeşil olmadan push etme. GitHub'da PR sadece kullanıcı
