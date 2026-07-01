@@ -9,9 +9,6 @@
 1. ✅ Minimum paid plan for API/integration access? (waiting answer)
 2. ✅ OAuth Connect timeline & process? (waiting answer)
 3. ✅ Message read/write scope available in OAuth flow? (waiting answer)
-4. **TODO: Can we provide them a demo/test account in our staging environment?**
-   - Rationale: Faster OAuth flow testing, real integration validation
-   - Ask Frances/Patrick if they can test against our demo Hospitable setup
 
 ## Critical Path Items
 - OAuth is preferred flow (hosts one-click authorize)
