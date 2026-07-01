@@ -813,6 +813,35 @@ görünümü + dosya ağacı + olgun Claude Code IDE entegrasyonu). **Google Ant
 çok yeni (Kasım 2025), kendi rakip Gemini-tabanlı ajanı var; kullanıcının %100 Claude-Code-odaklı
 akışına hiçbir şey katmıyor, sadece kararsızlık/karmaşıklık riski ekliyor.
 
+## 🎯 HOSPITABLE ORTAKLIĞI — SORULACAK #1 SORU: Lixus'a özel "sadece-API" paketi (2026-07-01, kullanıcı direktifi — ASLA UNUTMA)
+**Kullanıcının net direktifi (ezberle):** Hospitable ile yazışmada **en öncelikli soru** şu olmalı —
+Hospitable, **Lixus müşterilerine özel bir "limited / sadece-API" paketi** çıkarır mı? Müşteri,
+Hospitable'ın tam uygulamasını/panelini **kullanmadan** (ve ona ihtiyaç duymadan), **yalnızca Lixus'un
+ihtiyaç duyduğu verileri API ile çekmemizi sağlayan** ucuz bir paket satın alsın.
+- **İçerik:** Lixus'un uygulamamızda kullandığı tüm özellikler/scope'lar (property/reservation/message
+  read + **message:write**) yeter. Müşterinin ekstra Hospitable uygulama özelliklerini **kullanamaması
+  SORUN DEĞİL** — paketi **salt "bağlantı lisansı"/API** olarak alır. Yani "sadece Lixus için işe
+  yarayan her şey" = yeterli.
+- **Fiyat hipotezi:** ~**$7/daire/ay** (kullanıcı "sallıyorum" dedi = placeholder, pazarlığa açık). Amaç:
+  bugünkü **$29/ay Hospitable-app maliyet engelini kaldıran** API-only düşük fiyat noktası — müşteri-
+  edinme engelimizin asıl kaynağı bu maliyet.
+- **Sıra (önemli):** ÖNCE **fizibilite** ("böyle bir paket / müşterilerime özel iş birliği mümkün mü"),
+  mümkünse **SONRA fiyat**.
+- **Kaldıraç/pitch:** "Bu ortaklıkla **Hospitable'ı Türkiye pazarında gerçekten büyütebileceğimize
+  şüphemiz yok**" — Lixus, Hospitable'a çok sayıda Türk host getiren **dağıtım kanalı** olur → onlar
+  API-lisans geliri + pazar payı kazanır, biz müşteri-maliyet engelini kaldırırız = kazan-kazan.
+- **Özü:** "Müşterinin **sırf API için** alabileceği paket" **veya** "**benim müşterilerime özel paket**"
+  = reseller / white-label / toptan-API iş birliği.
+
+**Mevcut bağlamla ilişki (bu YENİ bir soru değil — en kritik hale getirilmiş + fiyat/ticari çerçeve
+eklenmiş hali):** Zaten keşfedilen **Hospitable Connect** ile birebir örtüşüyor (yukarıdaki 2026-06-30
+notu): *"müşteri doğrudan Airbnb'sini bağlar, kendi Hospitable aboneliği GEREKMEZ"* + *"Connect 3. tarafa
+ÜCRETSİZ"*. Yani bu paketin teknik zemini muhtemelen **Connect**; kullanıcının direktifi buna **fiyat/
+ticari çerçeve** ekliyor. **⚠️ Hâlâ açık make-or-break:** Connect üzerinden **misafir mesajı okunur/
+gönderilir mi** (Connect overview'da mesaj YOK; ürünümüz mesajlaşma). **Frances + Patrick'e** (2026-06-30
+gönderilen agency/white-label + fiyat sorusu hâlâ bekliyor) bu paket sorusunu **MESAJLAŞMA sorusuyla
+BİRLİKTE** netleştir. (5 iş günü inceleme dolmadan dürtme kuralı geçerli.)
+
 ## Çalışma şekli
 Kullanıcı: "Bana söyle, ben kodlarım." Fazları sırayla, additive + testli.
 Build + `npm test` yeşil olmadan push etme. GitHub'da PR sadece kullanıcı
