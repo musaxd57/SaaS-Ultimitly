@@ -721,6 +721,98 @@ bu üçlüyü brošür/mail/başvuruda fazla tekrarladım, robotikleşti). Bunun
 daha keskin/yerinde** tanımlar; ürünü/siteyi zaten biliyorum, varyasyon getir; **önce düşün sonra yaz.**
 Tekrar = robotik, kaçın.
 
+## Hospitable takip + yasal sayfa detayları + satış/GTM + oturum kapanışı (2026-07-01)
+
+**Hospitable — sessizlik NORMAL, dürtme:** Frances+Patrick'e "Connect mi (müşteri Hospitable
+aboneliksiz doğrudan bağlanır) yoksa agency/white-label mi mümkün + fiyatlandırma nasıl olur"
+sorusu gönderildi (2026-06-30 09:59). ~1 gün geçti, cevap yok — bu BEKLENEN: (a) form incelemesi
+ayrı "5 iş günü" süreci, henüz dolmadı; (b) bu ek soru düşünülüyor/Patrick'e iletiliyor olabilir;
+(c) form kararı + bu sorunun cevabı TEK mailde birleşebilir. Sessizlik = ret/görmezden-gelme
+DEĞİL. 5 iş günü dolup hâlâ ses yoksa nazik TEK hatırlatma at, öncesinde dürtme.
+
+**Yasal sayfalar — 4'ü de kapsamlı genişletildi (commit b6a19a0):**
+- **Gizlilik** 10→17 bölüm: tam KVKK m.11 hakları, roller netliği (host misafir verisinde veri
+  SORUMLUSU, biz veri İŞLEYENiz), alt-işleyenlere **Paddle** eklendi, yurt dışı aktarım (KVKK m.9),
+  AI/otomatik-işleme şeffaflığı (tam otomatik karar YOK — insan onayı/denetimi vurgulandı), Kurul'a
+  şikâyet yolu, ~30-gün başvuru cevap süresi.
+- **Kullanım Koşulları** 11→21 bölüm: 14-gün kartsız deneme + deneme-sonrası "ücretsiz sürüm"
+  açıklaması, Paddle MoR ödeme modeli, mücbir sebep, sorumluluk sınırı (son 12 ay ödenen tutarla
+  sınırlı), tazminat maddesi, uygulanacak hukuk + Tüketici Hakem Heyeti/Mahkemesi.
+- **Ön Bilgilendirme** 6→12, **Mesafeli Satış** 10→17: tanımlar, taraf yükümlülükleri, delil
+  sözleşmesi (HMK m.193), temerrüt hükmü eklendi.
+- **Silme/saklama sözü BİLEREK "yapılabilir" tutuldu** ("talebiniz üzerine sileriz"), "otomatik
+  silinir" DENMEDİ — çünkü o an özellik opsiyonel bir env'e bağlıydı, tutulamayacak söz verilmedi.
+
+**`DATA_RETENTION_MONTHS=24` artık Railway'de CANLI** (kullanıcı bu oturumda set etti) →
+`anonymizeOldGuestData()` gerçekten çalışıyor: 24 aydan eski `departureDate`'li rezervasyonların
+misafir PII'si (ad/telefon/e-posta/misafirin mesaj gövdesi) deep-sync'te periyodik anonimleştirilir,
+doluluk/rapor sayıları bozulmaz.
+**⏭️ Küçük açık uç:** Gizlilik'in "Saklama ve İmha" bölümü hâlâ jenerik dil kullanıyor ("gerektiği
+süre"), artık gerçek olan "24 ay" rakamını anmıyor. Yanlış değil (daha az kesin), istenirse
+netleştirilebilir — düşük öncelik, launch'ı engellemez.
+
+**Avukat incelemesi — brief hazırlandı, REPOYA GİRMEDİ:** KVKK/e-ticaret avukatına iletilmek üzere
+tek-sayfalık brief (scratchpad'de, kullanıcıya dosya olarak gönderildi — proje deposunun parçası
+DEĞİL, gerekirse yeniden üretilir). 7 net soru: (1) OpenAI'a aktarım mekanizması (Standart
+Sözleşme/Kurul-bildirimi/açık rıza?), (2) VERBİS kaydı gerekli mi, (3) host'larla veri-işleyen
+sözleşmesi (DPA) şablonu gerekir mi, (4) açık rıza gereken bir nokta var mı, (5) **entity/hukuk
+sorusu** (İtalyan Partita IVA + Paddle MoR + Türk tüketici — hangi çerçeve, sitede hangi satıcı
+bilgisi gösterilmeli), (6) Paddle-MoR kurgusunda tüketici-hukuku uyumu, (7) genel madde eksik/risk
+taraması.
+
+**`legal-entity.ts` placeholder'ları HÂLÂ DOLU DEĞİL (bilinçli, ertelendi):** Kullanıcı "millet
+koddan görür mü" diye sordu → netleştirildi: (a) bu bilgi YASA GEREĞİ sitede herkese açık olmak
+ZORUNDA (mesafeli satışta satıcı kimliği gizlenemez) — GitHub public/private olması bunu
+DEĞİŞTİRMEZ, çünkü site (lixusai.com) repo'dan bağımsız her zaman açık; (b) AMA Paddle
+Merchant-of-Record olduğu için gerçek gösterilen "satıcı" Paddle olabilir, ablanın İtalyan
+entity'si hiç görünmeyebilir — tam avukat-brief soru-5'in konusu, cevap gelmeden KARAR VERİLMEDİ.
+(c) Kullanıcı ayrıca genel olarak **repoyu private yapmayı** düşünüyor (kaynak kodu gizlemek için,
+ayrı/bağımsız bir konu) — henüz yapılmadı, kullanıcının kararı, GitHub Settings→"Change repository
+visibility". **SONUÇ: `legal-entity.ts` hâlâ `[SATICI ÜNVANI]` vb. placeholder'larla duruyor —
+ödeme açmadan/launch'tan ÖNCE ya avukat cevabına göre Paddle'ı satıcı gösterecek şekilde sayfalar
+güncellenir, ya da kullanıcı ablasının bilgilerini verir, dosya doldurulur.**
+
+**AI model kararı (kullanıcı sordu, GPT-5.1 vs Claude Opus/Sonnet/Haiku):** KARAR: **gpt-5.1'de
+KAL**, kod DEĞİŞMEDİ. Gerekçe: iş frontier-seviye akıl yürütme istemiyor (çok-dilli sınıflandırma +
+şablon-cevap, ikisi de yeterli); güvenlik kapısı (güven-eşiği 0.75, şikayet/iade kelime-ağı)
+gpt-5.1'in davranışına kalibre — model değişimi mesaj-gönderim hot-path'inde yeniden test/kalibrasyon
+riski taşır ("bozma" kuralı). gpt-5.1 ucuz (input $1.25/M vs Sonnet $3/M), prompt-cache zaten aktif.
+**Sadece somut bir gerçek-dünya arıza çıkarsa** gerçek mesajlarla A/B test edilip değiştirilir —
+sezgiyle/moda diye değil.
+
+**Satış/GTM işi bu oturumda (KOD DEĞİL — iş bağlamı, gelecek oturum devam etsin diye kayıtlı):**
+- Kullanıcı saha satışına çıkıyor. **Broşür** (tek-sayfa HTML, scratchpad'de — repo'da DEĞİL,
+  istenirse yeniden üretilir): logo + 6 fayda (Airbnb-yanıt-süresi/7-24, misafir kendi dilinde,
+  üslup öğrenir, "açınca otomatik yanıtlar/isterseniz önce önizleyip onaylarsınız", riskliyi
+  size-bırakır, takvime-dokunmaz) + 3 adım (Bağla→AI cevabı yazar→Otomatik ya da onaylı) + QR
+  (lixusai.com) + WhatsApp 0534 513 27 12 + "14 gün kartsız bedava".
+- **ICP netleşti:** PMS-kullanan/kullanmaya-razı host, apart-otel/pansiyon, ve özellikle
+  **property-manager/co-host (çarpan etkisi — 1 anlaşma = 10-50 daire)**.
+- **Somut co-host/yönetim şirketleri (İstanbul, araştırıldı+kaynaklı):** Missafir, Hanemo,
+  WelcomeConcierge, Line To Mars, Settle Turkey, Istanbul Homes — bunlara özel outreach maili
+  hazırlandı (bunlar host-portföyü zaten yönetiyor → doğrudan satış hedefi, referans ikinci öncelik).
+- **Temizlikçi kanalı (referans/altın kaynak):** Kon Temizlik, Avant/Beyoğlu Temizlik Şirketi,
+  **Armut.com ilçe sayfaları** (Şişli 219 sağlayıcı, Beyoğlu otel/ev temizliği).
+- **Armut.com "Airbnb Danışmanlığı" hizmeti açıldı** — tanıtım yazısı yazıldı (Armut'un özel-
+  karakter/telefon/link YASAK kısıtına uyularak) → inbound lead kanalı.
+- Demo script (5dk) + itiraz-cevap kartı hazır. **API'siz/Hospitable'sız demo yolu:**
+  Ayarlar→**"AI'yı Deneyin"** kartı (`ai-test-card.tsx`) — hazır örnek mesaj butonlarıyla çok-dillilik/
+  risk-tespiti/güvenlik-kapısı canlı gösterilir, hiçbir bağlantı gerektirmez.
+
+**🔴 KONTEYNER YİNE SIFIRLANDI (2026-07-01) — DERS TEKRARLANDI (3.-4. kez):** Yerel git sadece
+"Initial commit" + 16-byte placeholder README'ye dönmüştü (tüm proje dosyaları yerelden silinmiş
+görünüyordu). `git fetch origin <branch>` + `git reset --hard origin/<branch>` ile **TÜM iş
+(b6a19a0'a kadar) sorunsuz kurtarıldı** — hiçbir şey kaybolmadı çünkü SIK COMMIT+PUSH kuralı
+uygulanmıştı. **KURAL (tekrar tekrar doğrulanan gerçek):** konteyner yerel state'i güvenilmez,
+**origin/uzak branch tek gerçek kaynak.** Yeni oturum başında dosyalar eksik/tuhaf görünürse PANİK
+YAPMA — önce `git remote -v` + `git fetch` + `git log origin/<branch> --oneline` ile uzak geçmişi
+gör, sonra `git reset --hard origin/<branch>` ile yerel'i eşitle.
+
+**Araç/iş akışı tavsiyeleri (kod değil):** VS Code'un kendi terminali > ayrı cmd/PowerShell (diff-
+görünümü + dosya ağacı + olgun Claude Code IDE entegrasyonu). **Google Antigravity IDE'ye GEÇME** —
+çok yeni (Kasım 2025), kendi rakip Gemini-tabanlı ajanı var; kullanıcının %100 Claude-Code-odaklı
+akışına hiçbir şey katmıyor, sadece kararsızlık/karmaşıklık riski ekliyor.
+
 ## Çalışma şekli
 Kullanıcı: "Bana söyle, ben kodlarım." Fazları sırayla, additive + testli.
 Build + `npm test` yeşil olmadan push etme. GitHub'da PR sadece kullanıcı
