@@ -1,0 +1,388 @@
+<!DOCTYPE html>
+<html lang="tr">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Lixus AI — Ürün Turu</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap" rel="stylesheet">
+<style>
+  :root{
+    --navy:#1b2747; --ink:#1b2747; --muted:#6b7589; --line:#e9edf3;
+    --bg:#f6f8fc; --accent:#3a5bd9; --accent-2:#5b73e8; --accent-soft:#eef2fd;
+    --green:#15a34a; --green-soft:#e9f9ef; --green-line:#bfe9cd; --amber:#fff7e6; --amber-line:#ffe2a6; --amber-ink:#8a5a00;
+  }
+  *{box-sizing:border-box} html,body{margin:0}
+  body{font-family:'Inter',system-ui,sans-serif;color:var(--ink);
+    background:radial-gradient(1200px 600px at 15% -10%,#eaf0ff 0%,transparent 60%),radial-gradient(1000px 500px at 100% 110%,#eef9f1 0%,transparent 55%),#f0f3fa;
+    display:flex;flex-direction:column;align-items:center;padding:20px 16px 28px}
+  .head{width:100%;max-width:960px;display:flex;align-items:center;gap:12px;margin-bottom:14px}
+  .brandmark{width:34px;height:34px;border-radius:9px;background:var(--navy);display:grid;place-items:center;flex:0 0 auto}
+  .brandmark svg{width:18px;height:18px}
+  .head h1{font-size:15px;font-weight:700;margin:0;letter-spacing:-.01em}
+  .head p{font-size:12.5px;color:var(--muted);margin:1px 0 0}
+  .head .spacer{flex:1}
+  .head .badge{font-size:11px;font-weight:600;color:var(--accent);background:var(--accent-soft);border:1px solid #dbe3ff;padding:5px 10px;border-radius:999px}
+  .stageWrap{width:100%;max-width:960px;position:relative}
+  .frame{width:960px;height:540px;transform-origin:top left;position:absolute;top:0;left:0;border-radius:16px;overflow:hidden;background:#fff;
+    box-shadow:0 30px 70px -24px rgba(20,30,60,.45),0 6px 18px -8px rgba(20,30,60,.25);border:1px solid rgba(20,30,60,.06)}
+  .chrome{height:42px;background:#eef1f6;border-bottom:1px solid #e2e6ee;display:flex;align-items:center;gap:9px;padding:0 14px}
+  .dots{display:flex;gap:7px}.dots i{width:11px;height:11px;border-radius:50%;display:block}
+  .dots i:nth-child(1){background:#ff5f57}.dots i:nth-child(2){background:#febc2e}.dots i:nth-child(3){background:#28c840}
+  .urlbar{flex:1;height:26px;background:#fff;border:1px solid #e0e4ec;border-radius:8px;display:flex;align-items:center;gap:8px;padding:0 11px;font-size:12.5px;color:#4a5269;max-width:520px;margin:0 auto}
+  .urlbar .lock{width:12px;height:12px;flex:0 0 auto;opacity:.55} .urlbar b{font-weight:600;color:#1b2747} .chrome .rt{width:60px}
+  .viewport{position:relative;width:100%;height:498px;background:var(--bg);overflow:hidden}
+  .chip{position:absolute;z-index:40;left:16px;top:14px;display:flex;align-items:center;gap:9px;background:rgba(27,39,71,.92);color:#fff;border-radius:999px;padding:7px 14px 7px 9px;font-size:12.5px;font-weight:600;backdrop-filter:blur(4px);box-shadow:0 8px 22px -10px rgba(20,30,60,.6)}
+  .chip .n{width:22px;height:22px;border-radius:50%;background:#fff;color:var(--navy);display:grid;place-items:center;font-size:12px;font-weight:800}
+
+  .app{position:absolute;inset:0;display:flex;background:var(--bg)}
+  .side{width:198px;background:#fff;border-right:1px solid var(--line);padding:16px 12px;flex:0 0 auto;display:flex;flex-direction:column}
+  .side .brand{display:flex;align-items:center;gap:9px;font-weight:800;font-size:14.5px;padding:4px 6px 14px}
+  .side .brand .m{width:26px;height:26px;border-radius:7px;background:var(--navy);display:grid;place-items:center}
+  .side .brand .m svg{width:14px;height:14px}
+  .nav{display:flex;flex-direction:column;gap:2px}
+  .nav a{display:flex;align-items:center;gap:10px;padding:6px 10px;border-radius:9px;font-size:12px;font-weight:600;color:#5a6378;transition:background .35s,color .35s}
+  .nav a svg{width:15px;height:15px;opacity:.75}
+  .nav a.active{background:var(--navy);color:#fff} .nav a.active svg{opacity:1}
+  .side .userchip{margin-top:auto;display:flex;align-items:center;gap:9px;border:1px solid var(--line);border-radius:11px;padding:9px 10px}
+  .side .userchip .av{width:30px;height:30px;border-radius:8px;background:#eef1f8;color:#5a6378;font-size:12px;font-weight:800;display:grid;place-items:center}
+  .side .userchip b{font-size:12px}.side .userchip small{display:block;font-size:10.5px;color:var(--muted)}
+  .main{flex:1;position:relative;overflow:hidden}
+  .pane{position:absolute;inset:0;padding:18px 24px;opacity:0;visibility:hidden;transition:opacity .45s}
+  .pane.show{opacity:1;visibility:visible}
+  .ptitle{font-size:19px;font-weight:800;letter-spacing:-.01em}
+  .psub{font-size:12px;color:var(--muted);margin:2px 0 14px}
+
+  /* chat */
+  .cv{background:#fff;border:1px solid var(--line);border-radius:14px;overflow:hidden;height:406px;display:flex;flex-direction:column}
+  .cvHd{display:flex;align-items:center;gap:10px;padding:9px 13px;border-bottom:1px solid var(--line)}
+  .cvHd .av{width:30px;height:30px;border-radius:8px;background:#eef1f8;color:#5a6378;font-weight:800;font-size:12px;display:grid;place-items:center}
+  .cvHd b{font-size:13px}.cvHd small{display:block;font-size:11px;color:var(--muted)}
+  .cvHd .st{margin-left:auto;font-size:10.5px;font-weight:700;color:#15703a;background:var(--green-soft);border:1px solid var(--green-line);padding:3px 9px;border-radius:999px}
+  .cvBody{flex:1;padding:14px 16px;overflow-y:auto;scroll-behavior:smooth;scrollbar-width:none;display:flex;flex-direction:column;gap:9px}
+  .cvBody::-webkit-scrollbar{display:none}
+  .msg{max-width:74%;font-size:12.5px;line-height:1.4;padding:8px 11px;border-radius:13px;display:none}
+  .msg.show{display:block;animation:msgin .4s ease both}
+  @keyframes msgin{from{opacity:0;transform:translateY(8px)}to{opacity:1;transform:none}}
+  .msg .lab{display:block;font-size:9px;font-weight:700;letter-spacing:.03em;margin-bottom:3px;opacity:.7}
+  .msg.guest{align-self:flex-start;background:#f1f3f8;color:#39425a;border-bottom-left-radius:4px}
+  .msg.ai{align-self:flex-end;background:var(--navy);color:#fff;border-bottom-right-radius:4px}
+  .msg.ai .lab{color:#aebbe0}
+  .badge{display:inline-flex;align-items:center;gap:5px;font-size:9px;font-weight:700;padding:2px 7px;border-radius:999px;margin-top:5px}
+  .badge.auto{background:rgba(255,255,255,.16);color:#dbe6ff}
+  .typing{align-self:flex-end;display:none;gap:4px;background:var(--navy);border-radius:13px;border-bottom-right-radius:4px;padding:11px 14px;opacity:0;transition:opacity .3s}
+  .typing.show{display:flex;opacity:1}
+  .typing .dot{width:6px;height:6px;border-radius:50%;background:#fff;opacity:.45;animation:td 1.1s infinite}
+  .typing .dot:nth-child(2){animation-delay:.16s}.typing .dot:nth-child(3){animation-delay:.32s}
+  @keyframes td{0%,60%,100%{opacity:.35;transform:translateY(0)}30%{opacity:1;transform:translateY(-3px)}}
+  .esc{align-self:flex-start;max-width:80%;display:none;gap:7px;align-items:flex-start;font-size:11px;line-height:1.4;color:var(--amber-ink);background:var(--amber);border:1px solid var(--amber-line);border-radius:11px;padding:8px 11px}
+  .esc.show{display:flex;animation:msgin .4s ease both}
+  .esc svg{width:14px;height:14px;flex:0 0 auto;margin-top:1px}
+  /* AI suggestion card — mirrors the real inbox UI */
+  .sug{align-self:stretch;border:1.5px solid var(--accent);background:var(--accent-soft);border-radius:13px;padding:11px 13px;display:none}
+  .sug.show{display:block;animation:msgin .4s ease both}
+  .sug .t{display:flex;align-items:center;gap:7px;font-size:10px;margin-bottom:8px;flex-wrap:wrap}
+  .sug .t b{font-weight:800;color:var(--accent);display:flex;align-items:center;gap:5px}
+  .sug .t .pill{font-weight:700;color:#46506a;background:#fff;border:1px solid #d7ddea;padding:2px 8px;border-radius:999px}
+  .sug .t .conf{margin-left:auto;display:flex;align-items:center;gap:6px;font-weight:700;color:#15703a}
+  .sug .t .cbar{width:54px;height:6px;border-radius:99px;background:#dfeee5;overflow:hidden}
+  .sug .t .cfl{display:block;height:100%;background:var(--green);border-radius:99px}
+  .sug .tx{font-size:12.5px;color:#27365e;line-height:1.45;background:#fff;border:1px solid #dde4ff;border-radius:9px;padding:9px 11px}
+  .sug .row{display:flex;gap:8px;margin-top:9px}
+  .sug .onayla{font-size:11px;font-weight:700;color:#fff;background:var(--navy);padding:7px 14px;border-radius:8px;display:flex;align-items:center;gap:6px}
+  .sug .onayla svg{width:13px;height:13px}
+  .sug .taslak{font-size:11px;font-weight:600;color:#46506a;background:#fff;border:1px solid #d7ddea;padding:7px 12px;border-radius:8px}
+
+  /* kanban */
+  .kb{display:grid;grid-template-columns:repeat(3,1fr);gap:12px;height:352px}
+  .kcol{background:#fff;border:1px solid var(--line);border-radius:13px;padding:11px}
+  .kcol h5{font-size:11.5px;font-weight:800;color:#46506a;margin:0 0 9px;display:flex;align-items:center;gap:7px}
+  .kcol h5 .c{font-size:10px;color:#8a93a6;background:#f1f3f8;border-radius:999px;padding:1px 7px;font-weight:700}
+  .kcard{border:1px solid var(--line);border-radius:10px;padding:9px 10px;margin-bottom:8px;background:#fbfcfe;opacity:1;transform:none;transition:opacity .45s,transform .45s,box-shadow .45s}
+  .kcard.pop{opacity:0;transform:translateY(10px)}
+  .kcard.pop.show{opacity:1;transform:none;box-shadow:0 0 0 3px rgba(58,91,217,.18)}
+  .kcard b{font-size:11.5px;display:block}
+  .kcard span{font-size:10px;color:var(--muted);display:block;margin-top:2px}
+  .kcard .tag{display:inline-block;font-size:9px;font-weight:700;padding:2px 7px;border-radius:999px;margin-top:6px}
+  .tag.clean{background:#eaf4ff;color:#2563c9}.tag.auto{background:var(--accent-soft);color:var(--accent)}
+
+  /* reports */
+  .grid4{display:grid;grid-template-columns:repeat(4,1fr);gap:12px}
+  .stat{background:#fff;border:1px solid var(--line);border-radius:13px;padding:13px 14px}
+  .stat .k{font-size:10.5px;color:var(--muted);font-weight:600}
+  .stat .v{font-size:23px;font-weight:800;letter-spacing:-.02em;margin-top:4px}
+  .stat .v small{font-size:12px;color:var(--green);font-weight:700}
+  .rrow{display:grid;grid-template-columns:1.3fr 1fr;gap:12px;margin-top:12px}
+  .rcard{background:#fff;border:1px solid var(--line);border-radius:13px;padding:14px 16px}
+  .rcard h5{font-size:12.5px;font-weight:700;margin:0 0 11px}
+  .bar{display:flex;align-items:center;gap:9px;margin-bottom:9px;font-size:11px;color:#46506a}
+  .bar .nm{width:78px;flex:0 0 auto;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+  .rrow.two .bar .nm{width:96px}
+  .bar .tr{flex:1;height:8px;background:#eef1f6;border-radius:99px;overflow:hidden}
+  .bar .fl{display:block;height:100%;background:linear-gradient(90deg,var(--accent),var(--accent-2));border-radius:99px;transform-origin:left}
+  #pRep.animate .fl{animation:grow 1s cubic-bezier(.5,.05,.2,1)}
+  @keyframes grow{from{transform:scaleX(0)}to{transform:scaleX(1)}}
+  .donut{display:flex;align-items:center;justify-content:center;height:96px}
+  .donut .c{width:90px;height:90px;border-radius:50%;background:conic-gradient(var(--accent) 0,var(--accent) 0deg,#eef1f6 0deg);display:grid;place-items:center;transition:background 1.2s cubic-bezier(.5,.05,.2,1)}
+  .donut .c .in{width:64px;height:64px;border-radius:50%;background:#fff;display:grid;place-items:center;font-size:16px;font-weight:800}
+  .bar .pc{width:34px;text-align:right;font-weight:700;color:#46506a;flex:0 0 auto}
+  .acts{display:flex;gap:9px;margin-top:5px}
+  .act{flex:1;background:#fbfcfe;border:1px solid var(--line);border-radius:10px;padding:10px;text-align:center}
+  .act b{font-size:19px;font-weight:800;display:block;letter-spacing:-.02em}
+  .act span{font-size:10px;color:var(--muted)}
+  .rrow.two{margin-top:11px}
+
+  .cursor{position:absolute;z-index:60;left:0;top:0;width:30px;height:30px;pointer-events:none;transition:transform .55s cubic-bezier(.55,.06,.2,1);filter:drop-shadow(0 4px 6px rgba(20,30,60,.4));opacity:0}
+  .cursor.in{opacity:1}
+  .ripple{position:absolute;z-index:55;width:18px;height:18px;border-radius:50%;border:2px solid var(--accent);transform:translate(-50%,-50%) scale(.4);opacity:0;pointer-events:none}
+  .ripple.go{animation:rip .6s ease-out}
+  @keyframes rip{0%{opacity:.9;transform:translate(-50%,-50%) scale(.4)}100%{opacity:0;transform:translate(-50%,-50%) scale(3.1)}}
+  .ring{position:absolute;z-index:50;border:2.5px solid var(--accent);border-radius:10px;box-shadow:0 0 0 4px rgba(58,91,217,.18);opacity:0;transition:opacity .35s,all .4s cubic-bezier(.5,.05,.2,1);pointer-events:none}
+  .ring.on{opacity:1;animation:rp 1.4s ease-in-out infinite}
+  @keyframes rp{0%,100%{box-shadow:0 0 0 4px rgba(58,91,217,.18)}50%{box-shadow:0 0 0 9px rgba(58,91,217,.05)}}
+  .tip{position:absolute;z-index:52;background:var(--navy);color:#fff;font-size:12px;font-weight:600;padding:8px 13px;border-radius:10px;opacity:0;transform:translateY(6px);transition:opacity .35s,transform .35s;pointer-events:none;box-shadow:0 12px 26px -12px rgba(20,30,60,.6);white-space:nowrap}
+  .tip.on{opacity:1;transform:translateY(0)}
+  .tip:after{content:"";position:absolute;left:22px;bottom:-5px;width:10px;height:10px;background:var(--navy);transform:rotate(45deg)}
+
+  .controls{width:100%;max-width:960px;position:absolute;left:50%;transform:translateX(-50%);display:flex;align-items:center;gap:14px;background:#fff;border:1px solid var(--line);border-radius:14px;padding:11px 16px;box-shadow:0 18px 40px -22px rgba(20,30,60,.35)}
+  .pbtn{width:38px;height:38px;border-radius:10px;border:none;background:var(--navy);color:#fff;cursor:pointer;display:grid;place-items:center;flex:0 0 auto}
+  .pbtn svg{width:16px;height:16px}
+  .track{flex:1;height:7px;background:#eaedf4;border-radius:99px;overflow:hidden;cursor:pointer;position:relative}
+  .fill{height:100%;width:0;background:linear-gradient(90deg,var(--accent),var(--accent-2));border-radius:99px}
+  .stepname{font-size:12.5px;font-weight:600;color:#46506a;min-width:170px;text-align:right}.stepname b{color:var(--navy)}
+  .done{position:absolute;inset:0;z-index:70;display:grid;place-items:center;background:rgba(20,30,55,.55);backdrop-filter:blur(3px);opacity:0;visibility:hidden;transition:opacity .5s}
+  .done.show{opacity:1;visibility:visible}
+  .doneCard{background:#fff;border-radius:18px;padding:26px 30px;text-align:center;width:420px;box-shadow:0 40px 80px -30px rgba(10,15,35,.6);transform:scale(.92);transition:transform .5s cubic-bezier(.2,1.2,.4,1)}
+  .done.show .doneCard{transform:scale(1)}
+  .doneCard .big{width:56px;height:56px;border-radius:50%;background:var(--green-soft);border:2px solid var(--green-line);display:grid;place-items:center;margin:0 auto 14px}
+  .doneCard .big svg{width:28px;height:28px}
+  .doneCard h3{font-size:20px;margin:0 0 8px;letter-spacing:-.01em}
+  .doneCard p{font-size:12.5px;color:var(--muted);line-height:1.55;margin:0}
+  .doneCard p b{color:var(--ink)}
+  .doneCard .pill{margin-top:16px;display:inline-flex;align-items:center;gap:7px;background:var(--accent-soft);border:1px solid #dde4ff;color:var(--accent);font-weight:700;font-size:12px;padding:8px 15px;border-radius:999px}
+  @media (max-width:560px){.head .badge{display:none}.stepname{display:none}}
+</style>
+</head>
+<body>
+  <div class="head">
+    <div class="brandmark"><svg viewBox="0 0 24 24" fill="none"><path d="M4 21V5a1 1 0 0 1 1-1h7a1 1 0 0 1 1 1v16M13 21V9a1 1 0 0 1 1-1h5a1 1 0 0 1 1 1v12M3 21h18M7 8h2M7 12h2M16 12h1M16 16h1" stroke="#fff" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"/></svg></div>
+    <div><h1>Lixus AI — ürün turu</h1><p>Mesajlar (karşılıklı yanıt) → Görevler → Raporlar</p></div>
+    <div class="spacer"></div><div class="badge">3 panel · ~19 sn</div>
+  </div>
+
+  <div class="stageWrap" id="stageWrap">
+    <div class="frame" id="frame">
+      <div class="chrome">
+        <div class="dots"><i></i><i></i><i></i></div>
+        <div class="urlbar"><svg class="lock" viewBox="0 0 24 24" fill="none"><rect x="5" y="11" width="14" height="9" rx="2" stroke="#5a6378" stroke-width="1.6"/><path d="M8 11V8a4 4 0 0 1 8 0v3" stroke="#5a6378" stroke-width="1.6"/></svg><span><b id="uh">lixusai.com</b><span id="up">/inbox</span></span></div>
+        <div class="rt"></div>
+      </div>
+      <div class="viewport" id="vp">
+        <div class="chip" id="chip"><span class="n" id="chipN">1</span><span id="chipT">Mesajlar</span></div>
+        <div class="app">
+          <div class="side">
+            <div class="brand"><span class="m"><svg viewBox="0 0 24 24"><path d="M4 21V5a1 1 0 0 1 1-1h7a1 1 0 0 1 1 1v16M13 21V9a1 1 0 0 1 1-1h5a1 1 0 0 1 1 1v12M3 21h18" stroke="#fff" stroke-width="1.7" fill="none" stroke-linecap="round" stroke-linejoin="round"/></svg></span>Lixus AI</div>
+            <div class="nav">
+              <a id="nDash"><svg viewBox="0 0 24 24" fill="none"><rect x="3" y="3" width="7" height="7" rx="1.5" stroke="currentColor" stroke-width="1.8"/><rect x="14" y="3" width="7" height="7" rx="1.5" stroke="currentColor" stroke-width="1.8"/><rect x="3" y="14" width="7" height="7" rx="1.5" stroke="currentColor" stroke-width="1.8"/><rect x="14" y="14" width="7" height="7" rx="1.5" stroke="currentColor" stroke-width="1.8"/></svg>Panel</a>
+              <a id="nMsg" class="active"><svg viewBox="0 0 24 24" fill="none"><path d="M21 11.5a8.4 8.4 0 0 1-11.7 7.7L3 21l1.9-6.3A8.4 8.4 0 1 1 21 11.5z" stroke="currentColor" stroke-width="1.8" stroke-linejoin="round"/></svg>Mesajlar</a>
+              <a><svg viewBox="0 0 24 24" fill="none"><rect x="3" y="3" width="7" height="7" rx="1" stroke="currentColor" stroke-width="1.7"/><rect x="14" y="3" width="7" height="7" rx="1" stroke="currentColor" stroke-width="1.7"/><rect x="3" y="14" width="7" height="7" rx="1" stroke="currentColor" stroke-width="1.7"/><path d="M14 14h3v3M17 20h4v-4M21 17v.01M14 20v.01" stroke="currentColor" stroke-width="1.7" stroke-linecap="round"/></svg>Misafir Sohbetleri</a>
+              <a><svg viewBox="0 0 24 24" fill="none"><path d="M22 2 11 13M22 2l-7 20-4-9-9-4 20-7z" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"/></svg>Gönderilenler</a>
+              <a id="nTask"><svg viewBox="0 0 24 24" fill="none"><path d="M9 11l3 3L22 4M21 12v7a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"/></svg>Görevler</a>
+              <a><svg viewBox="0 0 24 24" fill="none"><rect x="3" y="4" width="18" height="18" rx="2" stroke="currentColor" stroke-width="1.7"/><path d="M16 2v4M8 2v4M3 10h18M10 14l4 4M14 14l-4 4" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"/></svg>İptaller</a>
+              <a><svg viewBox="0 0 24 24" fill="none"><path d="M3 21h18M5 21V5a1 1 0 0 1 1-1h6a1 1 0 0 1 1 1v16M13 21V9a1 1 0 0 1 1-1h4a1 1 0 0 1 1 1v12" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"/></svg>Mülkler</a>
+              <a><svg viewBox="0 0 24 24" fill="none"><path d="M4 19.5A2.5 2.5 0 0 1 6.5 17H20M4 19.5V5a2 2 0 0 1 2-2h14v17H6.5A2.5 2.5 0 0 0 4 19.5z" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"/></svg>Bilgi Tabanı</a>
+              <a><svg viewBox="0 0 24 24" fill="none"><path d="M14 3H6a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V9z M14 3v6h6 M9 13h6 M9 17h4" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"/></svg>Şablonlar</a>
+              <a id="nRep"><svg viewBox="0 0 24 24" fill="none"><path d="M4 19V5M4 19h16M8 16v-5M12 16V8M16 16v-8" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"/></svg>Raporlar</a>
+              <a><svg viewBox="0 0 24 24" fill="none"><circle cx="12" cy="12" r="3" stroke="currentColor" stroke-width="1.7"/><path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 1 1-2.83 2.83l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-4 0v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 1 1-2.83-2.83l.06-.06a1.65 1.65 0 0 0 .33-1.82 1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1 0-4h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 1 1 2.83-2.83l.06.06a1.65 1.65 0 0 0 1.82.33H9a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 4 0v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 1 1 2.83 2.83l-.06.06a1.65 1.65 0 0 0-.33 1.82V9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 0 4h-.09a1.65 1.65 0 0 0-1.51 1z" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/></svg>Ayarlar</a>
+            </div>
+            <div class="userchip"><span class="av">A</span><div><b>Ahmet Yılmaz</b><small>Sahip</small></div></div>
+          </div>
+          <div class="main">
+            <!-- MESSAGES -->
+            <div class="pane show" id="pMsg">
+              <div class="ptitle">Mesajlar</div>
+              <div class="psub">Airbnb &amp; Booking — tek gelen kutusu</div>
+              <div class="cv">
+                <div class="cvHd"><span class="av">EL</span><div><b>Emma L.</b><small>Daire 1 · Airbnb</small></div><span class="st">AI aktif</span></div>
+                <div class="cvBody" id="cvBody">
+                  <div class="msg guest" id="m1"><span class="lab">MİSAFİR · EN</span>Hi! What's the WiFi password?</div>
+                  <div class="typing" id="typing"><span class="dot"></span><span class="dot"></span><span class="dot"></span></div>
+                  <div class="msg ai" id="m2"><span class="lab">LIXUS AI</span>Hi Emma! The WiFi network is "Daire1_5G" and the password is in your check-in guide. Enjoy your stay! 😊<span class="badge auto">⚡ Otomatik yanıtlandı — onay gerekmedi</span></div>
+                  <div class="msg guest" id="m3"><span class="lab">MİSAFİR · DE</span>Kann ich um 13:00 früher einchecken?</div>
+                  <div class="sug" id="sug">
+                    <div class="t">
+                      <b><svg width="12" height="12" viewBox="0 0 24 24" fill="none"><path d="M12 3l1.6 4.4L18 9l-4.4 1.6L12 15l-1.6-4.4L6 9l4.4-1.6L12 3z" fill="#3a5bd9"/></svg>AI Önerisi</b>
+                      <span class="pill">Lixus AI</span>
+                      <span class="pill">Erken giriş</span>
+                      <span class="conf">Güven %88 <span class="cbar"><span class="cfl" style="width:88%"></span></span></span>
+                    </div>
+                    <div class="tx">Hallo! Ein früher Check-in ab 13:00 Uhr ist je nach Verfügbarkeit möglich — ich halte Sie auf dem Laufenden. 😊</div>
+                    <div class="row">
+                      <span class="taslak">Taslağı kullan</span>
+                      <span class="onayla" id="gonder"><svg viewBox="0 0 24 24" fill="none"><path d="M5 12l4 4L19 7" stroke="#fff" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"/></svg>Onayla ve gönder</span>
+                    </div>
+                  </div>
+                  <div class="msg ai" id="m4" style="display:none"><span class="lab">LIXUS AI · onayınızla gönderildi</span>Hallo! Ein früher Check-in ab 13:00 Uhr ist je nach Verfügbarkeit möglich — ich halte Sie auf dem Laufenden. 😊</div>
+                  <div class="msg guest" id="m5"><span class="lab">MİSAFİR · TR</span>Daireyi beklediğim gibi bulmadım, biraz hayal kırıklığı.</div>
+                  <div class="esc" id="esc"><svg viewBox="0 0 24 24" fill="none"><path d="M12 9v4M12 17h.01M10.3 3.9 1.8 18a2 2 0 0 0 1.7 3h17a2 2 0 0 0 1.7-3L13.7 3.9a2 2 0 0 0-3.4 0z" stroke="#8a5a00" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"/></svg><span><b>Şikayet algılandı</b> — Lixus AI otomatik cevap vermedi, size iletti. Hassas konular her zaman sizde.</span></div>
+                </div>
+              </div>
+            </div>
+            <!-- TASKS -->
+            <div class="pane" id="pTask">
+              <div class="ptitle">Görevler</div>
+              <div class="psub">Rezervasyondan otomatik oluşur — Kanban'da takip edin</div>
+              <div class="kb">
+                <div class="kcol"><h5>Bugün <span class="c">3</span></h5>
+                  <div class="kcard"><b>Çıkış temizliği</b><span>Daire 1 · 11:00</span><span class="tag clean">Temizlik</span></div>
+                  <div class="kcard pop" id="kpop"><b>Çıkış temizliği</b><span>Daire 3 · 11:00</span><span class="tag auto">Yeni · otomatik</span></div>
+                  <div class="kcard"><b>Check-in hazırlık</b><span>Daire 2 · 14:00</span><span class="tag auto">Otomatik</span></div>
+                </div>
+                <div class="kcol"><h5>Yapılıyor <span class="c">1</span></h5>
+                  <div class="kcard"><b>Klima bakımı</b><span>Daire 1</span><span class="tag clean">Bakım</span></div>
+                </div>
+                <div class="kcol"><h5>Bitti <span class="c">2</span></h5>
+                  <div class="kcard" style="opacity:.6"><b>Check-in hazırlık</b><span>Daire 1 · tamam</span></div>
+                  <div class="kcard" style="opacity:.6"><b>Çıkış temizliği</b><span>Daire 4 · tamam</span></div>
+                </div>
+              </div>
+            </div>
+            <!-- REPORTS -->
+            <div class="pane" id="pRep">
+              <div class="ptitle">Raporlar</div>
+              <div class="psub">Performans, doluluk ve operasyon — bir bakışta</div>
+              <div class="grid4">
+                <div class="stat"><div class="k">Performans skoru</div><div class="v">A</div></div>
+                <div class="stat"><div class="k">Doluluk (bu ay)</div><div class="v">%78 <small>+6</small></div></div>
+                <div class="stat"><div class="k">AI yanıtladı (30g)</div><div class="v">142</div></div>
+                <div class="stat"><div class="k">Açık şikayet</div><div class="v">0</div></div>
+              </div>
+              <div class="rrow">
+                <div class="rcard"><h5>En çok sorulan konular</h5>
+                  <div class="bar"><span class="nm">Wi-Fi</span><span class="tr"><span class="fl" style="width:92%"></span></span></div>
+                  <div class="bar"><span class="nm">Giriş</span><span class="tr"><span class="fl" style="width:74%"></span></span></div>
+                  <div class="bar"><span class="nm">Otopark</span><span class="tr"><span class="fl" style="width:48%"></span></span></div>
+                  <div class="bar"><span class="nm">Çevre</span><span class="tr"><span class="fl" style="width:35%"></span></span></div>
+                </div>
+                <div class="rcard"><h5>Doluluk</h5><div class="donut"><div class="c" id="donut"><div class="in" id="donutV">%0</div></div></div></div>
+              </div>
+              <div class="rrow two">
+                <div class="rcard"><h5>Daireye göre doluluk (bu ay)</h5>
+                  <div class="bar"><span class="nm">Daire 1</span><span class="tr"><span class="fl" style="width:86%"></span></span><span class="pc">%86</span></div>
+                  <div class="bar"><span class="nm">Daire 2</span><span class="tr"><span class="fl" style="width:74%"></span></span><span class="pc">%74</span></div>
+                  <div class="bar"><span class="nm">Daire 3</span><span class="tr"><span class="fl" style="width:68%"></span></span><span class="pc">%68</span></div>
+                  <div class="bar"><span class="nm">Daire 4</span><span class="tr"><span class="fl" style="width:55%"></span></span><span class="pc">%55</span></div>
+                </div>
+                <div class="rcard"><h5>AI etkinliği (son 30 gün)</h5>
+                  <div class="acts">
+                    <div class="act"><b>96</b><span>Oto-yanıt</span></div>
+                    <div class="act"><b>38</b><span>Karşılama</span></div>
+                    <div class="act"><b>41</b><span>Çıkış</span></div>
+                  </div>
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+        <div class="ring" id="ring"></div>
+        <div class="tip" id="tip"></div>
+        <div class="ripple" id="ripple"></div>
+        <div class="cursor" id="cursor"><svg viewBox="0 0 24 24" fill="none"><path d="M5 3l15 7.5-6.2 1.7L11 21 5 3z" fill="#1b2747" stroke="#fff" stroke-width="1.2" stroke-linejoin="round"/></svg></div>
+        <div class="done" id="done">
+          <div class="doneCard">
+            <div class="big"><svg viewBox="0 0 24 24" fill="none"><path d="M5 12l4 4L19 7" stroke="#15a34a" stroke-width="2.6" stroke-linecap="round" stroke-linejoin="round"/></svg></div>
+            <h3>Hepsi tek panelde 🎉</h3>
+            <p>Mesajlar, Görevler ve Raporlar'ı gördünüz. Ayrıca <b>Misafir Sohbetleri (QR)</b>, <b>Mülkler</b>, <b>Bilgi Tabanı</b>, <b>Şablonlar</b>, <b>İptaller</b> ve daha fazlası.</p>
+            <div class="pill">14 gün ücretsiz · kart gerekmez</div>
+          </div>
+        </div>
+      </div>
+    </div>
+    <div class="controls" id="controls">
+      <button class="pbtn" id="playBtn"></button>
+      <div class="track" id="track"><div class="fill" id="fill"></div></div>
+      <div class="stepname" id="stepname">Adım <b>1/3</b> · Mesajlar</div>
+    </div>
+  </div>
+
+<script>
+(function(){
+  "use strict";
+  var DUR=18800, $=function(id){return document.getElementById(id);};
+  var frame=$('frame'),wrap=$('stageWrap'),controls=$('controls'),vp=$('vp'),scale=1;
+  function reportHeight(){try{if(window.parent&&window.parent!==window){window.parent.postMessage({lixusDemo:Math.ceil(document.body.scrollHeight)+14},'*');}}catch(e){}}
+  function rescale(){var w=wrap.clientWidth;scale=Math.min(w/960,1);frame.style.transform='scale('+scale+')';var h=540*scale;wrap.style.height=(h+78)+'px';controls.style.top=(h+18)+'px';reportHeight();}
+  window.addEventListener('resize',rescale);
+  var cursor=$('cursor'),ring=$('ring'),tip=$('tip'),ripple=$('ripple'),chipN=$('chipN'),chipT=$('chipT'),fill=$('fill'),stepname=$('stepname'),playBtn=$('playBtn'),track=$('track');
+  function bbox(el){var r=el.getBoundingClientRect(),v=vp.getBoundingClientRect(),s=scale||1;var x=(r.left-v.left)/s,y=(r.top-v.top)/s,w=r.width/s,h=r.height/s;return{x:x,y:y,w:w,h:h,cx:x+w/2,cy:y+h/2};}
+  function moveCursor(x,y){cursor.classList.add('in');cursor.style.transform='translate('+x+'px,'+y+'px)';}
+  function hideCursor(){cursor.classList.remove('in');}
+  function aim(el){var b=bbox(el);moveCursor(b.cx,b.cy);}
+  function clickFx(x,y){ripple.style.left=(x+6)+'px';ripple.style.top=(y+6)+'px';ripple.classList.remove('go');void ripple.offsetWidth;ripple.classList.add('go');cursor.animate([{},{transform:'translate('+x+'px,'+y+'px) scale(.86)'},{}],{duration:240,easing:'ease-out'});}
+  function clickEl(el){var b=bbox(el);clickFx(b.cx,b.cy);}
+  function ringEl(el,pad){pad=(pad==null?7:pad);var b=bbox(el);ring.style.left=(b.x-pad)+'px';ring.style.top=(b.y-pad)+'px';ring.style.width=(b.w+2*pad)+'px';ring.style.height=(b.h+2*pad)+'px';ring.classList.add('on');}
+  function hideRing(){ring.classList.remove('on');}
+  function tipEl(el,text){var b=bbox(el);var x=Math.max(8,b.x-2),y=b.y-42;if(y<6)y=b.y+b.h+12;tip.textContent=text;tip.style.left=x+'px';tip.style.top=y+'px';tip.classList.add('on');}
+  function hideTip(){tip.classList.remove('on');}
+  function setChip(n,t){chipN.textContent=n;chipT.textContent=t;}
+  function scrollDown(){var b=$('cvBody');if(b){b.scrollTop=b.scrollHeight;}}
+  function showM(id){$(id).classList.add('show');scrollDown();}
+  function pane(which){['pMsg','pTask','pRep'].forEach(function(p){$(p).classList.toggle('show',p===which);});}
+  function nav(which){['nMsg','nTask','nRep'].forEach(function(n){$(n).classList.toggle('active',n===which);});}
+
+  function resetAll(){
+    ['m1','m2','m3','m5'].forEach(function(i){$(i).classList.remove('show');});
+    $('typing').classList.remove('show'); $('sug').classList.remove('show'); $('sug').style.display=''; $('m4').style.display='none'; $('m4').classList.remove('show'); $('esc').classList.remove('show');
+    var cb=$('cvBody'); if(cb) cb.scrollTop=0;
+    $('kpop').classList.remove('show'); pane('pMsg'); nav('nMsg');
+    $('pRep').classList.remove('animate');
+    $('donut').style.background='conic-gradient(var(--accent) 0deg,#eef1f6 0deg)'; $('donutV').textContent='%0';
+    $('done').classList.remove('show'); hideRing(); hideTip(); hideCursor(); $('uh').textContent='lixusai.com'; $('up').textContent='/inbox';
+  }
+
+  var actions=[
+    {at:0,fn:function(){resetAll();setChip(1,'Mesajlar');}},
+    {at:500,fn:function(){showM('m1');}},
+    {at:1300,fn:function(){$('typing').classList.add('show');scrollDown();}},
+    {at:2400,fn:function(){$('typing').classList.remove('show');showM('m2');}},
+    {at:3600,fn:function(){showM('m3');}},
+    {at:4400,fn:function(){$('sug').classList.add('show');scrollDown();}},
+    {at:5100,fn:function(){aim($('gonder'));}},
+    {at:5700,fn:function(){ringEl($('gonder'),7);tipEl($('gonder'),'tek tıkla onaylayın');}},
+    {at:6500,fn:function(){clickEl($('gonder'));}},
+    {at:6800,fn:function(){hideRing();hideTip();$('sug').classList.remove('show');$('sug').style.display='none';$('m4').style.display='block';void $('m4').offsetWidth;$('m4').classList.add('show');scrollDown();hideCursor();}},
+    {at:7800,fn:function(){showM('m5');}},
+    {at:8600,fn:function(){$('esc').classList.add('show');scrollDown();}},
+
+    {at:9700,fn:function(){aim($('nTask'));}},
+    {at:10400,fn:function(){clickEl($('nTask'));pane('pTask');nav('nTask');setChip(2,'Görevler');$('up').textContent='/tasks';hideCursor();}},
+    {at:11400,fn:function(){$('kpop').classList.add('show');}},
+    {at:12000,fn:function(){ringEl($('kpop'),6);tipEl($('kpop'),'Rezervasyondan otomatik oluştu');}},
+    {at:13000,fn:function(){hideRing();hideTip();}},
+
+    {at:13400,fn:function(){aim($('nRep'));}},
+    {at:14100,fn:function(){clickEl($('nRep'));pane('pRep');nav('nRep');setChip(3,'Raporlar');$('up').textContent='/reports';hideCursor();$('pRep').classList.add('animate');}},
+    {at:14450,fn:function(){$('donut').style.background='conic-gradient(var(--accent) 0deg,var(--accent) 281deg,#eef1f6 281deg)';$('donutV').textContent='%78';}},
+
+    {at:16500,fn:function(){$('done').classList.add('show');}}
+  ];
+
+  var clock=0,last=0,paused=true,nextIdx=0;
+  function reset(){clock=0;nextIdx=0;resetAll();setChip(1,'Mesajlar');fill.style.width='0%';}
+  var ranges=[[0,9700,'1/3','Mesajlar'],[9700,13400,'2/3','Görevler'],[13400,DUR,'3/3','Raporlar']];
+  function lbl(){for(var i=0;i<ranges.length;i++){if(clock>=ranges[i][0]&&clock<ranges[i][1]){stepname.innerHTML='Adım <b>'+ranges[i][2]+'</b> · '+ranges[i][3];return;}}stepname.innerHTML='Adım <b>3/3</b> · Raporlar';}
+  function tick(now){if(!last)last=now;var dt=now-last;last=now;if(!paused){clock+=dt;if(clock>DUR){clock=DUR;paused=true;setIcon();}}
+    while(nextIdx<actions.length&&actions[nextIdx].at<=clock){actions[nextIdx].fn();nextIdx++;}
+    fill.style.width=(clock/DUR*100)+'%';lbl();requestAnimationFrame(tick);}
+  function seek(t){t=Math.max(0,Math.min(DUR,t));reset();clock=0;nextIdx=0;while(nextIdx<actions.length&&actions[nextIdx].at<=t){clock=actions[nextIdx].at;actions[nextIdx].fn();nextIdx++;}clock=t;fill.style.width=(clock/DUR*100)+'%';lbl();}
+  var PLAY='<svg viewBox="0 0 24 24" fill="none"><path d="M7 5l12 7-12 7V5z" fill="#fff"/></svg>',PAUSE='<svg viewBox="0 0 24 24" fill="none"><rect x="6" y="5" width="4" height="14" rx="1" fill="#fff"/><rect x="14" y="5" width="4" height="14" rx="1" fill="#fff"/></svg>';
+  function setIcon(){playBtn.innerHTML=paused?PLAY:PAUSE;}
+  playBtn.addEventListener('click',function(){if(clock>=DUR){reset();}paused=!paused;last=0;setIcon();});
+  track.addEventListener('click',function(e){var r=track.getBoundingClientRect();var t=(e.clientX-r.left)/r.width*DUR;var wp=paused;paused=true;seek(t);paused=wp;last=0;setIcon();});
+  rescale();reset();setIcon();requestAnimationFrame(tick);setTimeout(rescale,400);
+  setTimeout(function(){paused=false;last=0;setIcon();},650);
+})();
+</script>
+</body>
+</html>

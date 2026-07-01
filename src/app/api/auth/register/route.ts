@@ -1,0 +1,74 @@
+import { NextResponse, type NextRequest } from "next/server";
+import { prisma } from "@/lib/db";
+import { registerSchema, zodFieldErrors } from "@/lib/validators";
+import { hashPassword } from "@/lib/auth/password";
+import { badRequest, jsonOk, serverError } from "@/lib/api";
+import { rateLimit, clientIp } from "@/lib/rate-limit";
+import { emailService } from "@/lib/email";
+import { makeVerifyToken, VERIFY_TTL_MS, verifyEmailHtml, verifyUrlFromHost } from "@/lib/auth/email-verify";
+import { newTrialSubscriptionData } from "@/lib/billing/subscription";
+
+export async function POST(req: NextRequest) {
+  try {
+    // SECURITY: public sign-up is CLOSED by default. While the app shares a single
+    // Hospitable token, a new org would sync the owner's Airbnb data — so no one
+    // else may create an account until per-org channel connections exist. Flip
+    // REGISTRATION_OPEN=1 only when the product is truly multi-tenant.
+    if (process.env.REGISTRATION_OPEN !== "1") {
+      return NextResponse.json({ error: "Kayıt şu an kapalı." }, { status: 403 });
+    }
+
+    // Throttle sign-ups per IP: 5 / hour (anti-spam / abuse).
+    const limited = rateLimit(`register:${clientIp(req)}`, 5, 60 * 60 * 1000);
+    if (!limited.ok) {
+      return NextResponse.json(
+        { error: "Çok fazla deneme. Lütfen biraz sonra tekrar deneyin." },
+        { status: 429, headers: { "Retry-After": String(limited.retryAfter) } },
+      );
+    }
+
+    const data = await req.json().catch(() => null);
+    const parsed = registerSchema.safeParse(data);
+    if (!parsed.success) return badRequest(zodFieldErrors(parsed.error));
+
+    const email = parsed.data.email.toLowerCase();
+    const existing = await prisma.user.findUnique({ where: { email } });
+    if (existing) return badRequest({ email: "Bu e-posta adresi zaten kayıtlı" });
+
+    const passwordHash = await hashPassword(parsed.data.password);
+    const { raw, hash } = makeVerifyToken();
+    const { user } = await prisma.$transaction(async (tx) => {
+      const org = await tx.organization.create({
+        data: { name: parsed.data.organizationName },
+      });
+      const user = await tx.user.create({
+        data: {
+          organizationId: org.id,
+          name: parsed.data.name,
+          email,
+          passwordHash,
+          role: "owner",
+          emailVerifyTokenHash: hash,
+          emailVerifyExpiresAt: new Date(Date.now() + VERIFY_TTL_MS),
+        },
+      });
+      // Start the reverse-trial: full Pro free for 14 days (no card). Harmless
+      // while billing is dormant — counts as active until BILLING_ENFORCED is on.
+      await tx.subscription.create({
+        data: { organizationId: org.id, ...newTrialSubscriptionData() },
+      });
+      return { org, user };
+    });
+
+    // No auto-login: the account stays inert until the inbox is confirmed
+    // (anti-bot). Clicking the e-mailed link sets emailVerifiedAt + the session.
+    await emailService.send(
+      email,
+      "Lixus AI — E-postanı doğrula",
+      verifyEmailHtml(user.name, verifyUrlFromHost(req.headers.get("host"), raw)),
+    );
+    return jsonOk({ ok: true, verifyEmail: true }, 201);
+  } catch (err) {
+    return serverError(undefined, err);
+  }
+}

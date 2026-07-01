@@ -1,0 +1,475 @@
+// Lixus AI - Prisma schema
+// ----------------------------------------------------------------------------
+// PostgreSQL (Railway). Conventions kept portable + simple:
+//   * "enum-like" fields are plain Strings, validated in the app layer (Zod).
+//   * JSON payloads are stored as String (JSON.stringify / JSON.parse).
+// Deploy applies the schema at boot via `prisma db push --skip-generate`
+// (no migration files). NOTE: never add a `@unique`/required-no-default column
+// to a POPULATED table — `db push` refuses it (data-loss) and crashes boot;
+// use app-level uniqueness + findFirst instead.
+// ----------------------------------------------------------------------------
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+// Cross-instance mutex. A holder writes a future `lockedUntil`; others can only
+// acquire once that time has passed (or the holder releases by resetting it),
+// so the scheduled sync runs once at a time even across multiple replicas.
+model SystemLock {
+  name        String   @id
+  lockedUntil DateTime
+  updatedAt   DateTime @updatedAt
+}
+
+// Public "request a demo / free trial" leads captured from the marketing landing
+// page (no account yet). The operator reviews these in the Operator Panel.
+model Lead {
+  id        String   @id @default(cuid())
+  name      String
+  email     String
+  phone     String?
+  message   String?
+  handled   Boolean  @default(false)
+  consentAt DateTime? // KVKK açık rıza zaman damgası (onay kutusu işaretlendiğinde)
+  createdAt DateTime @default(now())
+
+  @@index([createdAt])
+}
+
+model Organization {
+  id        String   @id @default(cuid())
+  name      String
+  plan      String   @default("free") // free | pro | business
+  timezone  String   @default("Europe/Istanbul")
+  language  String   @default("tr") // default UI/AI language
+  // Where this org's urgent complaint/refund alert e-mails go. Per-tenant: each
+  // customer sets their OWN address. Falls back to the ALERT_EMAIL env when null.
+  alertEmail String?
+  // Per-tenant automation prefs (each customer controls their own):
+  //  - autoReplyDisclosure: append the "(machine-prepared)" note to AUTO sends.
+  //  - handoffHoldHours: hours the AI stays silent after a guest asks for a human.
+  autoReplyDisclosure Boolean @default(true)
+  handoffHoldHours    Int     @default(12)
+  // When true, safe/high-confidence channel (Airbnb / Booking via Hospitable)
+  // guest messages are auto-answered; gated to active-hours window in org timezone.
+  // Complaints and risky messages always wait for a human.
+  autoReplyHospitable Boolean @default(false)
+  autoReplyStartHour  Int     @default(0) // window start hour 0-23 (inclusive)
+  autoReplyEndHour    Int     @default(9) // window end hour 0-23 (exclusive)
+  aiReplyTone         String  @default("warm") // AI reply tone: formal | warm | short | luxury
+  aiSignature         String? // optional sign-off appended to every AI reply (host name + contact)
+  autoWelcome         Boolean @default(false) // send the per-apartment welcome message on reservation confirmation
+  autoCheckin         Boolean @default(false) // send the per-apartment check-in info message a few days before arrival
+  autoCheckout        Boolean @default(false) // send the per-apartment check-out message on departure day (08:00)
+  autoReplyEnabledAt  DateTime? // when night auto-reply was last switched on (only answer messages after this)
+  autoWelcomeEnabledAt  DateTime? // when welcome was switched on (only greet bookings created after this — never the backlog)
+  autoCheckinEnabledAt  DateTime? // when check-in info was switched on (only message bookings created after this)
+  autoCheckoutEnabledAt DateTime? // when checkout was switched on (only message bookings created after this)
+  aiStyleProfile      String?   // distilled guide of the host's own reply style, learned from past messages
+  aiStyleProfileAt    DateTime? // when the style profile was last refreshed (throttles regeneration)
+  // Per-customer Hospitable connection (multi-tenant). Each org connects its OWN
+  // Hospitable account; the Personal Access Token is stored ENCRYPTED here (see
+  // lib/crypto). Null = not connected — the "primary" org may instead fall back
+  // to the global HOSPITABLE_API_TOKEN env (see lib/hospitable-credentials).
+  hospitableTokenEnc    String?
+  hospitableLabel       String?   // human label for the connected account (e.g. "8 mülk")
+  hospitableConnectedAt DateTime? // when this org connected its own Hospitable token
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  users            User[]
+  properties       Property[]
+  automationRules  AutomationRule[]
+  auditLogs        AuditLog[]
+  messageTemplates MessageTemplate[]
+  subscription     Subscription?
+  invoices         Invoice[]
+}
+
+model User {
+  id             String   @id @default(cuid())
+  organizationId String
+  name           String
+  email          String   @unique
+  passwordHash   String
+  role           String   @default("owner") // owner | manager | staff
+  // Two-factor auth (TOTP / authenticator app). Secret stored ENCRYPTED (see
+  // lib/crypto). 2FA is ACTIVE only once twoFactorEnabledAt is set (after the
+  // user confirms a first code), so a half-finished setup never locks anyone out.
+  twoFactorSecret    String?
+  twoFactorEnabledAt DateTime?
+  // Last accepted TOTP time-step — rejects replay of an already-used code.
+  twoFactorLastStep  Int?
+  // Password-change e-mail verification: a short-lived 8-digit code is e-mailed
+  // to the user and stored here HASHED (never plaintext). Changing the password
+  // requires entering the matching, unexpired code — it proves control of the
+  // inbox, so no current password is needed (and a stale logged-in session alone
+  // can no longer silently change the password).
+  pwChangeCodeHash      String?
+  pwChangeCodeExpiresAt DateTime?
+  pwChangeCodeAttempts  Int       @default(0)
+  // Forgot-password RESET (logged OUT) — separate from pwChangeCode* so a public
+  // reset request can never burn/overwrite a code the user is mid-using in Settings.
+  pwResetCodeHash       String?
+  pwResetCodeExpiresAt  DateTime?
+  pwResetCodeAttempts   Int       @default(0)
+  // E-mail verification (self-serve sign-up anti-bot). Null emailVerifiedAt = not
+  // yet verified. The link token is stored sha256-HASHED (deterministic so it can
+  // be looked up by hash). Existing users (created before EMAIL_VERIFY_REQUIRED_FROM)
+  // are NEVER gated at login, so this can't lock out the founder / current accounts.
+  emailVerifiedAt       DateTime?
+  emailVerifyTokenHash  String?
+  emailVerifyExpiresAt  DateTime?
+  createdAt      DateTime @default(now())
+  updatedAt      DateTime @updatedAt
+
+  organization Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  assignedTasks Task[]      @relation("TaskAssignee")
+  taskUpdates  TaskUpdate[]
+  auditLogs    AuditLog[]
+
+  @@index([organizationId])
+}
+
+model Property {
+  id                   String   @id @default(cuid())
+  organizationId       String
+  name                 String
+  address              String?
+  city                 String?
+  country              String?
+  checkInTime          String   @default("15:00")
+  checkOutTime         String   @default("11:00")
+  cleaningBufferMinutes Int     @default(120)
+  notes                String?
+  icalToken            String?  @unique // secret token for the public iCal export feed
+  chatToken            String?  // secret token for the public guest QR concierge chat (random 2×UUID → app-level unique; NOT a DB @unique, which would break `db push` on a populated table)
+  chatEnabled          Boolean  @default(false) // per-apartment master switch for the public chat (off by default)
+  hospitableId         String?  @unique // linked Hospitable property UUID (channel sync)
+  createdAt            DateTime @default(now())
+  updatedAt            DateTime @updatedAt
+
+  organization     Organization        @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  reservations     Reservation[]
+  conversations    Conversation[]
+  tasks            Task[]
+  knowledgeBase    KnowledgeBaseItem[]
+  messageTemplates MessageTemplate[]
+  calendarSources  CalendarSource[]
+
+  @@index([organizationId])
+}
+
+// Durable per-apartment daily counter for PAID guest-chat AI calls. The in-memory
+// limiter resets on every restart (and isn't shared across replicas), so an
+// attacker holding one QR token could re-trigger the cap each boot; this DB-backed
+// counter bounds the spend to a true daily cap. One tiny row per apartment/day.
+model ChatUsage {
+  propertyId String
+  day        String   // YYYY-MM-DD (UTC) rate window
+  count      Int      @default(0)
+  updatedAt  DateTime @updatedAt
+
+  @@id([propertyId, day])
+  @@index([day]) // optional housekeeping: prune old windows
+}
+
+// A subscribed external iCal URL (Airbnb, Booking.com, etc.) that is fetched
+// periodically to pull reservations into the property automatically.
+model CalendarSource {
+  id           String    @id @default(cuid())
+  propertyId   String
+  label        String    // "Airbnb", "Booking.com", "Etstur" ...
+  url          String
+  lastSyncedAt DateTime?
+  lastStatus   String? // "ok" | "error"
+  lastResult   String? // human-readable summary of the last sync
+  createdAt    DateTime  @default(now())
+  updatedAt    DateTime  @updatedAt
+
+  property Property @relation(fields: [propertyId], references: [id], onDelete: Cascade)
+
+  @@index([propertyId])
+}
+
+model Reservation {
+  id              String   @id @default(cuid())
+  propertyId      String
+  guestName       String
+  guestPhone      String?
+  guestEmail      String?
+  guestExternalId String?  // Hospitable stable guest id — links the SAME person across stays (returning-guest)
+  arrivalDate     DateTime
+  departureDate   DateTime
+  channel         String   @default("manual") // manual | airbnb | booking | direct | other
+  status          String   @default("confirmed") // pending | confirmed | cancelled | completed
+  totalAmount     Float?
+  currency        String   @default("EUR")
+  sourceReference String?
+  notes           String?
+  welcomeSentAt   DateTime? // set once the auto welcome message has been delivered
+  checkinSentAt   DateTime? // set once the auto check-in info message has been delivered
+  checkoutSentAt  DateTime? // set once the auto check-out message has been delivered
+  guestCheckoutTime String? // guest's own stated departure time (e.g. "18:00"); null → use property default
+  createdAt       DateTime @default(now())
+  updatedAt       DateTime @updatedAt
+
+  property      Property       @relation(fields: [propertyId], references: [id], onDelete: Cascade)
+  conversations Conversation[]
+  tasks         Task[]
+
+  @@index([propertyId])
+  @@index([arrivalDate])
+  @@index([departureDate]) // checkout / cleaning / report queries filter by this
+  // Sync de-dup looks up (propertyId, sourceReference) once per reservation on
+  // every 2-min cron — index it so that's a seek, not a per-row scan.
+  @@index([propertyId, sourceReference])
+  @@index([guestExternalId]) // returning-guest lookup by the stable guest id
+}
+
+model Conversation {
+  id              String   @id @default(cuid())
+  propertyId      String
+  reservationId   String?
+  channel         String   @default("manual") // manual | whatsapp | email | airbnb | booking
+  guestIdentifier String // name / phone / email used to address the guest
+  status          String   @default("new") // new | waiting | answered | problem | closed
+  priority        String   @default("standard") // urgent | standard | low
+  lastMessageAt   DateTime @default(now())
+  // Channel-provider identifiers (e.g. Hospitable) used to sync messages and
+  // send replies back on the original channel (Airbnb, Booking, ...).
+  externalReservationId  String? // Hospitable reservation UUID (reply target)
+  externalConversationId String? // Hospitable conversation UUID
+  // When set & in the future, auto-reply is paused for this thread — the guest
+  // asked to speak to a human, so we hand off and let the host take over.
+  autoReplyHoldUntil DateTime?
+  createdAt       DateTime @default(now())
+  updatedAt       DateTime @updatedAt
+
+  property    Property     @relation(fields: [propertyId], references: [id], onDelete: Cascade)
+  reservation Reservation? @relation(fields: [reservationId], references: [id], onDelete: SetNull)
+  messages    Message[]
+
+  @@index([propertyId])
+  @@index([status])
+  @@index([externalReservationId])
+  @@index([lastMessageAt]) // inbox is ordered by recency
+  // Composite for the hot path: inbox/dashboard/cron filter by status and sort
+  // by lastMessageAt within an org's properties (one index instead of filter+sort).
+  @@index([propertyId, status, lastMessageAt])
+}
+
+model Message {
+  id              String   @id @default(cuid())
+  conversationId  String
+  direction       String // inbound | outbound
+  senderName      String
+  body            String
+  language        String   @default("tr")
+  aiSuggestedReply String?
+  aiConfidence    Float?
+  aiIntent        String?
+  externalId       String? // provider message id (e.g. Hospitable) — sync dedup
+  createdAt       DateTime @default(now())
+
+  conversation Conversation @relation(fields: [conversationId], references: [id], onDelete: Cascade)
+
+  @@index([conversationId])
+  @@index([conversationId, externalId])
+  @@index([conversationId, createdAt]) // fetch a thread's latest message fast
+}
+
+model Task {
+  id            String   @id @default(cuid())
+  propertyId    String
+  reservationId String?
+  type          String   @default("cleaning") // cleaning | laundry | restock | checkin_prep | checkout_review | maintenance
+  title         String
+  description   String?
+  assignedToId  String?
+  dueAt         DateTime?
+  status        String   @default("todo") // todo | in_progress | awaiting_review | done
+  priority      String   @default("standard") // urgent | standard | low
+  checklistJson String? // JSON-encoded array of { label, done }
+  createdAt     DateTime @default(now())
+  updatedAt     DateTime @updatedAt
+
+  property    Property     @relation(fields: [propertyId], references: [id], onDelete: Cascade)
+  reservation Reservation? @relation(fields: [reservationId], references: [id], onDelete: SetNull)
+  assignedTo  User?        @relation("TaskAssignee", fields: [assignedToId], references: [id], onDelete: SetNull)
+  updates     TaskUpdate[]
+
+  @@index([propertyId])
+  @@index([status])
+  @@index([assignedToId])
+  // createReservationTasks / backfill look up tasks by reservationId per row.
+  @@index([reservationId])
+}
+
+model TaskUpdate {
+  id        String   @id @default(cuid())
+  taskId    String
+  userId    String?
+  status    String?
+  note      String?
+  photoUrl  String?
+  createdAt DateTime @default(now())
+
+  task Task  @relation(fields: [taskId], references: [id], onDelete: Cascade)
+  user User? @relation(fields: [userId], references: [id], onDelete: SetNull)
+
+  @@index([taskId])
+}
+
+model KnowledgeBaseItem {
+  id         String   @id @default(cuid())
+  propertyId String
+  category   String   @default("general") // location | checkin | wifi | rules | parking | trash | cleaning | faq | local_tips | general
+  title      String
+  content    String
+  language   String   @default("tr")
+  isActive   Boolean  @default(true)
+  createdAt  DateTime @default(now())
+  updatedAt  DateTime @updatedAt
+
+  property Property @relation(fields: [propertyId], references: [id], onDelete: Cascade)
+
+  @@index([propertyId])
+  @@index([category])
+}
+
+model AutomationRule {
+  id             String   @id @default(cuid())
+  organizationId String
+  name           String
+  triggerType    String // reservation_created | checkout_completed | message_received | complaint_detected
+  conditionJson  String? // JSON-encoded condition
+  actionJson     String // JSON-encoded action
+  isEnabled      Boolean  @default(true)
+  createdAt      DateTime @default(now())
+  updatedAt      DateTime @updatedAt
+
+  organization Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+
+  @@index([organizationId])
+}
+
+model AuditLog {
+  id             String   @id @default(cuid())
+  organizationId String
+  actorUserId    String?
+  action         String
+  metadataJson   String?
+  createdAt      DateTime @default(now())
+
+  organization Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  actor        User?        @relation(fields: [actorUserId], references: [id], onDelete: SetNull)
+
+  @@index([organizationId])
+}
+
+model MessageTemplate {
+  id             String   @id @default(cuid())
+  organizationId String
+  propertyId     String?  // null = org-wide
+  category       String
+  title          String
+  body           String
+  language       String   @default("tr")
+  isActive       Boolean  @default(true)
+  createdAt      DateTime @default(now())
+  updatedAt      DateTime @updatedAt
+
+  organization Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  property     Property?    @relation(fields: [propertyId], references: [id], onDelete: Cascade)
+
+  @@index([organizationId])
+}
+
+// ---------------------------------------------------------------------------
+// Billing (Faz 2). ADDITIVE & DORMANT. These tables hold subscription/billing
+// state but NOTHING is paywalled until billing is *explicitly* enforced
+// (env BILLING_ENFORCED=true) AND existing orgs are backfilled as active.
+// Default behaviour (see lib/billing): an org with no Subscription row is
+// treated as grandfathered → active → unlimited, so live customers are never
+// blocked. New rows are only created by the (future) checkout flow.
+// ---------------------------------------------------------------------------
+
+// Catalog of available plans. Limits follow the roadmap (1–2 / 3–7 / 8+).
+model Plan {
+  id            String   @id @default(cuid())
+  code          String   @unique // free | pro | business (mirrors Organization.plan)
+  name          String
+  propertyLimit Int? // max properties; null = unlimited
+  priceMinor    Int      @default(0) // price in smallest unit (kuruş for TRY); 0 = free
+  currency      String   @default("TRY")
+  interval      String   @default("month") // month | year
+  isActive      Boolean  @default(true)
+  sortOrder     Int      @default(0)
+  createdAt     DateTime @default(now())
+  updatedAt     DateTime @updatedAt
+}
+
+// One subscription per organization (the billing source of truth).
+model Subscription {
+  id                String    @id @default(cuid())
+  organizationId    String    @unique
+  planCode          String    @default("free")
+  status            String    @default("active") // active | trialing | past_due | canceled | grandfathered
+  provider          String    @default("iyzico") // iyzico | paytr | paddle | trial | manual
+  providerRef       String? // provider's subscription reference
+  trialEndsAt       DateTime? // reverse-trial: when the free 14-day Pro trial ends
+  trialEndingSentAt DateTime? // "denemen bitiyor" reminder email sent at (idempotency)
+  trialEndedSentAt  DateTime? // "deneme bitti" email sent at (idempotency)
+  currentPeriodEnd  DateTime?
+  cancelAtPeriodEnd Boolean   @default(false)
+  createdAt         DateTime  @default(now())
+  updatedAt         DateTime  @updatedAt
+
+  organization Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  invoices     Invoice[]
+
+  @@index([status])
+}
+
+model Invoice {
+  id             String    @id @default(cuid())
+  organizationId String
+  subscriptionId String?
+  amountMinor    Int
+  currency       String    @default("TRY")
+  status         String    @default("pending") // pending | paid | failed | refunded
+  provider       String    @default("iyzico")
+  providerRef    String?
+  eArchiveStatus String    @default("none") // none | requested | issued | error
+  metadataJson   String?
+  issuedAt       DateTime  @default(now())
+  paidAt         DateTime?
+
+  organization Organization  @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  subscription Subscription? @relation(fields: [subscriptionId], references: [id], onDelete: SetNull)
+
+  @@index([organizationId])
+  @@index([status])
+}
+
+// Raw provider webhook events, stored idempotently (process each once).
+model WebhookEvent {
+  id              String    @id @default(cuid())
+  provider        String    @default("iyzico")
+  eventType       String?
+  providerEventId String?   @unique // idempotency key
+  payloadJson     String
+  status          String    @default("received") // received | processed | error
+  error           String?
+  processedAt     DateTime?
+  createdAt       DateTime  @default(now())
+
+  @@index([provider, status])
+}

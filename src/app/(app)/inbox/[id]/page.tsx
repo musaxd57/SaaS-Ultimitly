@@ -1,0 +1,189 @@
+import { notFound } from "next/navigation";
+import { ArrowLeft, Building2, CalendarDays, BookOpen, Clock } from "lucide-react";
+import { requireAuth } from "@/lib/auth";
+import { canManage } from "@/lib/api";
+import { prisma } from "@/lib/db";
+import { PageHeader } from "@/components/page-header";
+import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import { Badge } from "@/components/ui/badge";
+import { LinkButton } from "@/components/ui/link-button";
+import {
+  ConversationThread,
+  type ThreadMessage,
+} from "@/components/inbox/conversation-thread";
+import { DeleteConversationButton } from "@/components/inbox/delete-conversation-button";
+import { AutoRefresh } from "@/components/inbox/auto-refresh";
+import { KB_CATEGORY, RESERVATION_STATUS } from "@/lib/constants";
+import { formatDate, formatDateTime, formatCurrency } from "@/lib/utils";
+import { channelLabel } from "@/lib/ui-labels";
+import { getReturningGuestInfo } from "@/lib/returning-guest";
+
+export const dynamic = "force-dynamic";
+
+export default async function ConversationPage({
+  params,
+}: {
+  params: Promise<{ id: string }>;
+}) {
+  const session = await requireAuth();
+  const { id } = await params;
+
+  const conversation = await prisma.conversation.findFirst({
+    where: { id, property: { organizationId: session.organizationId } },
+    include: {
+      property: true,
+      reservation: true,
+      messages: { orderBy: { createdAt: "asc" } },
+    },
+  });
+  if (!conversation) notFound();
+
+  // Returning-guest context — matched only by the reliable Hospitable guest id
+  // (never name/email), so there are no false "welcome back" positives.
+  const returning = conversation.reservation
+    ? await getReturningGuestInfo(session.organizationId, {
+        id: conversation.reservation.id,
+        guestExternalId: conversation.reservation.guestExternalId,
+      })
+    : null;
+
+  const kb = await prisma.knowledgeBaseItem.findMany({
+    where: { propertyId: conversation.propertyId, isActive: true },
+    orderBy: { category: "asc" },
+  });
+
+  const messages: ThreadMessage[] = conversation.messages.map((m) => ({
+    id: m.id,
+    direction: m.direction as "inbound" | "outbound",
+    senderName: m.senderName,
+    body: m.body,
+    createdAtLabel: formatDateTime(m.createdAt),
+  }));
+
+  // Values for substituting {{placeholders}} in message templates.
+  const wifiItem = kb.find((k) => k.category === "wifi");
+  const templateVars: Record<string, string> = {
+    guestName: conversation.reservation?.guestName ?? conversation.guestIdentifier,
+    propertyName: conversation.property.name,
+    checkInTime: conversation.property.checkInTime,
+    checkOutTime: conversation.property.checkOutTime,
+    wifiInfo: wifiItem ? wifiItem.content : "",
+  };
+
+  return (
+    <>
+      <AutoRefresh seconds={30} />
+      <PageHeader
+        title={conversation.guestIdentifier}
+        description={`${conversation.property.name} · ${channelLabel(conversation.channel)}`}
+      >
+        <LinkButton href="/inbox" variant="outline" size="sm">
+          <ArrowLeft className="size-4" /> Mesajlar
+        </LinkButton>
+        <DeleteConversationButton conversationId={conversation.id} />
+      </PageHeader>
+
+      <div className="grid gap-4 lg:grid-cols-3">
+        <div className="lg:col-span-2">
+          <ConversationThread
+            conversationId={conversation.id}
+            messages={messages}
+            status={conversation.status}
+            priority={conversation.priority}
+            propertyId={conversation.propertyId}
+            templateVars={templateVars}
+            canReply={canManage(session)}
+          />
+        </div>
+
+        <div className="space-y-4">
+          <Card>
+            <CardHeader>
+              <CardTitle className="flex items-center gap-2 text-base">
+                <Building2 className="size-4 text-muted-foreground" /> Mülk
+              </CardTitle>
+            </CardHeader>
+            <CardContent className="space-y-1 text-sm">
+              <p className="font-medium">{conversation.property.name}</p>
+              {conversation.property.address ? (
+                <p className="text-muted-foreground">
+                  {[conversation.property.address, conversation.property.city]
+                    .filter(Boolean)
+                    .join(", ")}
+                </p>
+              ) : null}
+              <p className="flex items-center gap-1 text-muted-foreground">
+                <Clock className="size-3.5" />
+                {conversation.property.checkInTime} → {conversation.property.checkOutTime}
+              </p>
+            </CardContent>
+          </Card>
+
+          <Card>
+            <CardHeader>
+              <CardTitle className="flex items-center gap-2 text-base">
+                <CalendarDays className="size-4 text-muted-foreground" /> Rezervasyon
+              </CardTitle>
+            </CardHeader>
+            <CardContent className="space-y-1 text-sm">
+              {conversation.reservation ? (
+                <>
+                  <div className="flex items-center justify-between">
+                    <p className="font-medium">{conversation.reservation.guestName}</p>
+                    <Badge tone={RESERVATION_STATUS.tone(conversation.reservation.status)}>
+                      {RESERVATION_STATUS.label(conversation.reservation.status)}
+                    </Badge>
+                  </div>
+                  <p className="text-muted-foreground">
+                    {formatDate(conversation.reservation.arrivalDate)} –{" "}
+                    {formatDate(conversation.reservation.departureDate)}
+                  </p>
+                  <p className="text-muted-foreground">
+                    {formatCurrency(
+                      conversation.reservation.totalAmount,
+                      conversation.reservation.currency,
+                    )}
+                  </p>
+                  {returning ? (
+                    <div className="mt-2 space-y-1 rounded-md border border-warning/30 bg-warning/10 p-2">
+                      <Badge tone="warning">🔁 {returning.stayCount}. konaklama</Badge>
+                      <ul className="space-y-0.5 text-xs text-muted-foreground">
+                        {returning.pastStays.slice(0, 5).map((s) => (
+                          <li key={s.id}>
+                            {s.propertyName} · {formatDate(s.arrivalDate)}–{formatDate(s.departureDate)}
+                          </li>
+                        ))}
+                      </ul>
+                    </div>
+                  ) : null}
+                </>
+              ) : (
+                <p className="text-muted-foreground">Bağlı rezervasyon yok.</p>
+              )}
+            </CardContent>
+          </Card>
+
+          <Card>
+            <CardHeader>
+              <CardTitle className="flex items-center gap-2 text-base">
+                <BookOpen className="size-4 text-muted-foreground" /> Bilgi Tabanı
+              </CardTitle>
+            </CardHeader>
+            <CardContent className="space-y-2">
+              {kb.length === 0 ? (
+                <p className="text-sm text-muted-foreground">Bu mülk için bilgi yok.</p>
+              ) : (
+                kb.map((k) => (
+                  <div key={k.id} className="flex items-center justify-between gap-2">
+                    <span className="truncate text-sm">{k.title}</span>
+                    <Badge tone={KB_CATEGORY.tone(k.category)}>{KB_CATEGORY.label(k.category)}</Badge>
+                  </div>
+                ))
+              )}
+            </CardContent>
+          </Card>
+        </div>
+      </div>
+    </>
+  );
+}
