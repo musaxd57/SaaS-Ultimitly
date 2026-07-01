@@ -11,18 +11,21 @@
 
 ---
 
-## 🎯 Gerçek durum: kod hazır, iş başlamadı
+## 🎯 Gerçek durum: çekirdek canlı doğrulandı, ödeyen müşteri yok
 
 Mühendislik bir MVP'nin ~%90'ı — paneller cilalı, güvenlik kapısı sağlam, billing/
-reverse-trial canlı, Paddle production kuruldu, ~438 test yeşil. **Ama henüz tek
-ödeyen müşteri yok ve çekirdek özellik (oto-yanıt) gerçek müşteride canlı denenmedi.**
-Asıl belirsizlik kodda değil, burada. Sıradaki gerçek iş (önem sırasıyla):
+reverse-trial canlı, Paddle production kuruldu, ~446 test yeşil. **Çekirdek özellik
+(oto-yanıt) artık gerçek müşteride canlı doğrulandı (2026-07-01) — sorunsuz çalıştı.**
+Ama henüz tek ödeyen müşteri yok. Asıl belirsizlik kodda değil, burada. Sıradaki
+gerçek iş (önem sırasıyla):
 
-1. **Çekirdeği canlı doğrula** — `AUTO_REPLY_ENABLED=1` artık açık; Hospitable
-   yenilenince Nuve'nin kendi dairelerinde **ilk gerçek gönderimleri birlikte izle**.
+1. ~~**Çekirdeği canlı doğrula**~~ ✅ **Yapıldı (2026-07-01)** — `AUTO_REPLY_ENABLED=1`
+   açıkken Nuve'nin dairelerinde ilk gerçek gönderimler izlendi, sorunsuz gitti.
 2. **Kendi ürününü kullan** bir hafta — sonra **1 tanıdık host'a** ücretsiz kur,
-   gerçek geri bildirim al (para vermeden "kullanır mıydın?").
+   gerçek geri bildirim al (para vermeden "kullanır mıydın?"). **Durum: sadece
+   planlandı, henüz kurulmadı.**
 3. **Paddle'da küçük bir gerçek ödeme** test et (zincir prod'da da çalışsın).
+   **Durum: henüz yapılmadı** (sandbox uçtan-uca zaten doğrulanmıştı).
 4. Paralelde **avukat/mali müşavir** (KVKK Standart Sözleşme + e-fatura).
 
 ---
@@ -89,8 +92,8 @@ Ekip rolleri & atama · PWA/mobil · misafir CRM · akıllı kilit (Nuki) · whi
 ## 🔑 Senin kararın/aksiyonun
 | Konu | Durum / Not |
 |------|-------------|
-| Çekirdeği canlı doğrula | `AUTO_REPLY_ENABLED=1` açık → Hospitable yenilenince ilk gönderimleri birlikte izle |
-| İlk gerçek ödeme | Paddle prod CANLI → küçük gerçek ödemeyi birlikte test |
-| İlk müşteri | 1 tanıdık host'a kur, geri bildirim al (asıl risk: birisi öder mi?) |
+| Çekirdeği canlı doğrula | ✅ **Yapıldı (2026-07-01)** — ilk gerçek gönderimler sorunsuz gitti |
+| İlk gerçek ödeme | Paddle prod CANLI → **henüz test edilmedi**, küçük gerçek ödemeyi birlikte dene |
+| İlk müşteri | **Sadece planlandı** — 1 tanıdık host'a kur, geri bildirim al (asıl risk: birisi öder mi?) |
 | Avukat / mali müşavir | OpenAI DPA + KVKK Standart Sözleşme + VERBİS + e-fatura |
 | Hospitable | Nuve aboneliği bitik (402) → yenilenince veri canlanır |
