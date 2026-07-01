@@ -813,6 +813,15 @@ görünümü + dosya ağacı + olgun Claude Code IDE entegrasyonu). **Google Ant
 çok yeni (Kasım 2025), kendi rakip Gemini-tabanlı ajanı var; kullanıcının %100 Claude-Code-odaklı
 akışına hiçbir şey katmıyor, sadece kararsızlık/karmaşıklık riski ekliyor.
 
+## Çekirdek canlı doğrulandı ✅ (2026-07-01)
+Kullanıcı `AUTO_REPLY_ENABLED=1` açıkken Hospitable yenilenince **gerçek misafirlere giden ilk
+otomatik gönderimleri izledi: sorunsuz çalıştı** (doğru dil, doğru içerik, güvenlik kapısı riskli
+mesajları doğru atladı). Ürünün kalbi (oto-yanıt) artık canlıda kanıtlanmış — bilinen sorun YOK.
+**Netlik için — henüz YAPILMAYANLAR (ROADMAP'te "senin kararın" listesinde kalıyor):**
+- **1 tanıdık host'a ücretsiz kurulum** — sadece PLANLANDI, henüz kurulmadı.
+- **Paddle gerçek ödeme testi** — henüz yapılmadı (sandbox uçtan-uca zaten doğrulanmıştı, yukarıdaki
+  "Paddle SANDBOX uçtan-uca DOĞRULANDI" bölümüne bak; gerçek kartla prod testi hâlâ bekliyor).
+
 ## Çalışma şekli
 Kullanıcı: "Bana söyle, ben kodlarım." Fazları sırayla, additive + testli.
 Build + `npm test` yeşil olmadan push etme. GitHub'da PR sadece kullanıcı
