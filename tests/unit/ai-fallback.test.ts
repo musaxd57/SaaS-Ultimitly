@@ -95,6 +95,27 @@ describe("classifyFallback", () => {
     // Russian "неплохо" (not bad = good) must not trip a complaint — we never added bare "плохо".
     expect(classifyFallback("Всё неплохо, спасибо!").intent).not.toBe("complaint");
   });
+
+  it("does NOT flag 'no problem'/'sorun yok' positive closings as complaints (negation guard)", () => {
+    expect(classifyFallback("No problem, thanks for everything!").intent).not.toBe("complaint");
+    expect(classifyFallback("Sorun yok, her şey için teşekkürler!").intent).not.toBe("complaint");
+    expect(classifyFallback("Hiç sorun yaşamadık, harika bir tatildi.").intent).not.toBe("complaint");
+    expect(classifyFallback("Problemsiz bir konaklamaydı, çok memnun kaldık.").intent).not.toBe("complaint");
+    expect(classifyFallback("Kein Problem, alles war gut!").intent).not.toBe("complaint"); // DE
+  });
+
+  it("still flags a genuine 'problem'/'sorun' as a complaint", () => {
+    expect(classifyFallback("There is a problem with the wifi").intent).toBe("complaint");
+    expect(classifyFallback("Büyük bir sorun var, kapı açılmıyor").intent).toBe("complaint");
+    expect(classifyFallback("Hay un problema con la ducha").intent).toBe("complaint"); // ES problema
+  });
+
+  it("catches enriched strong English complaint words + chargeback threats", () => {
+    expect(classifyFallback("This place is terrible and disgusting").intent).toBe("complaint");
+    expect(classifyFallback("The room is filthy, there are cockroaches").intent).toBe("complaint");
+    expect(classifyFallback("There is no hot water at all").intent).toBe("complaint");
+    expect(classifyFallback("I will file a chargeback and dispute this").intent).toBe("refund");
+  });
 });
 
 describe("suggestReplyFallback", () => {

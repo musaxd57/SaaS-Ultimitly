@@ -22,9 +22,16 @@ type Intent =
 
 const KEYWORDS: Record<Exclude<Intent, "general">, string[]> = {
   complaint: [
-    "çalışmıyor", "calismiyor", "kirli", "bozuk", "problem", "sorun", "şikayet", "sikayet",
+    // NB: bare "problem"/"sorun" are NOT listed here — they appear in very common
+    // positive closings ("no problem", "sorun yok"). They're matched separately,
+    // negation-guarded, in hasUnnegatedProblemWord() below.
+    "çalışmıyor", "calismiyor", "kirli", "bozuk", "şikayet", "sikayet",
     "kötü", "kotu", "berbat", "leak", "su akıyor", "koku", "böcek", "bocek", "broken",
     "dirty", "not working", "complaint", "rezalet", "iğrenç", "igrenc",
+    // Strong, unambiguous English complaint signals (enriched — the cross-check
+    // must catch these even when the model mislabels; over-escalation is safe).
+    "terrible", "awful", "horrible", "unacceptable", "disgusting", "filthy",
+    "cockroach", "cockroaches", "bed bug", "bedbug", "bed bugs", "no hot water", "no heating",
     // Multilingual backstop (DE/FR/ES/IT/AR/RU). Distinctive complaint words only,
     // to avoid English false matches (e.g. "sale"). Catches a foreign-language
     // complaint even if the model mislabels it.
@@ -59,6 +66,8 @@ const KEYWORDS: Record<Exclude<Intent, "general">, string[]> = {
     "telafi", "indirim mümkün", "indirim yapabilir", "fiyattan düş", "ücretten düş",
     "compensate", "compensation", "give us a discount", "offer a discount",
     "إعادة المال", "restituire i soldi", "soldi indietro",
+    // Escalation / chargeback threats — always route to a human, never auto-answer.
+    "chargeback", "charge back", "dispute", "resolution center",
   ],
   // Leaving the stay EARLY / shortening / cancelling — a revenue/refund-sensitive
   // signal that must always route to a human (also used as an auto-send veto).
@@ -94,6 +103,29 @@ const KEYWORDS: Record<Exclude<Intent, "general">, string[]> = {
   amenity: ["klima", "air conditioning", "buzdolabı", "fridge", "çamaşır makinesi", "washing machine", "tv", "televizyon", "fırın", "oven", "mikrodalga", "microwave", "elektrikli", "ekipman", "eşya"],
 };
 
+// "problem"/"sorun" are strong complaint words that also appear in extremely
+// common POSITIVE closings ("no problem", "sorun yok", "sorunsuz", "hiç sorun
+// yaşamadık"). Match them only when NOT inside such a negated/positive phrase, so
+// a polite guest isn't flagged as an urgent complaint (which e-mails the host and
+// diverts the thread to the "problem" queue, blocking it from automation).
+const PROBLEM_NEGATIONS = [
+  "no problem", "no problems", "not a problem", "without problem", "without any problem",
+  "sorun yok", "sorun yoktu", "sorunsuz", "hiç sorun", "hic sorun", "hiçbir sorun", "hicbir sorun",
+  "sorun olmadı", "sorun olmadi", "sorun yaşama", "sorun yasama", "sorun değil", "sorun degil",
+  "problem yok", "problemsiz",
+  "kein problem", "keine probleme", "pas de problème", "pas de probleme", "sans problème", "sans probleme",
+  "ningún problema", "ningun problema", "sin problema", "nessun problema", "senza problemi",
+  "нет проблем", "без проблем", "بدون مشكلة", "لا مشكلة",
+];
+
+/** True when a bare "problem"/"sorun" survives after stripping negated phrases. */
+function hasUnnegatedProblemWord(m: string): boolean {
+  if (!m.includes("problem") && !m.includes("sorun")) return false;
+  let stripped = m;
+  for (const neg of PROBLEM_NEGATIONS) stripped = stripped.split(neg).join(" ");
+  return stripped.includes("problem") || stripped.includes("sorun");
+}
+
 function detectIntent(message: string): Intent {
   const m = message.toLowerCase();
   // Order matters: complaint / refund / early-departure (sensitive) take precedence,
@@ -104,6 +136,8 @@ function detectIntent(message: string): Intent {
   ];
   for (const intent of order) {
     if (KEYWORDS[intent].some((kw) => m.includes(kw))) return intent;
+    // "problem"/"sorun" live outside the keyword list — negation-guarded here.
+    if (intent === "complaint" && hasUnnegatedProblemWord(m)) return "complaint";
   }
   return "general";
 }
