@@ -233,7 +233,7 @@ export function suggestReplyFallback(input: SuggestReplyInput): SuggestReplyResu
   const greeting = isTr
     ? name ? `Merhaba ${name},` : "Merhaba,"
     : name ? `Hi ${name},` : "Hi,";
-  const closing = input.tone === "short" ? "" : isTr ? "\n\nİyi günler dileriz." : "\n\nKind regards,";
+  const closing = input.tone === "short" ? "" : isTr ? "\n\nİyi günler dilerim." : "\n\nKind regards,";
 
   let body: string;
   let risk: string | null = null;
@@ -241,20 +241,20 @@ export function suggestReplyFallback(input: SuggestReplyInput): SuggestReplyResu
   switch (intent) {
     case "complaint":
       body = isTr
-        ? "Bunun için özür dileriz. Durumu hemen ekibimize iletiyoruz ve en kısa sürede sizinle ilgileneceğiz."
-        : "We apologize for the issue you've experienced. We've notified our team right away and will take care of it as soon as possible.";
+        ? "Bunun için özür dilerim. Durumu hemen ekibimize ilettim; en kısa sürede size döneceğim."
+        : "Apologies for the issue you've experienced. I've notified our team right away and will get back to you as soon as possible.";
       risk = "Şikayet/olası sorun algılandı. Yöneticiye iletilmeli; otomatik karar verilmedi.";
       break;
     case "refund":
       body = isTr
-        ? "Talebinizi aldık. İade ve ücret konuları yöneticimiz tarafından değerlendirilecektir; en kısa sürede size dönüş yapacağız."
-        : "We've received your request. Refunds and charges are reviewed by our manager, and we'll get back to you as soon as possible.";
+        ? "Talebinizi aldım. İade ve ücret konularını yöneticimiz değerlendirecek ve en kısa sürede size dönüş yapacak."
+        : "I've received your request. Refunds and charges are reviewed by our manager, who will get back to you as soon as possible.";
       risk = "İade/ücret talebi. Finansal karar gerektirir, yönetici onayı şart.";
       break;
     case "early_departure":
       body = isTr
-        ? "Bilgilendirdiğiniz için teşekkürler. Erken ayrılış / rezervasyon değişikliği talebinizi hemen ekibimize ilettim; platform üzerinden gerekli adımları kontrol edip en kısa sürede size dönüş yapacağız."
-        : "Thank you for letting us know. I've passed your early-departure / booking-change request to our team right away; we'll review the necessary steps through the platform and get back to you as soon as possible.";
+        ? "Bilgilendirdiğiniz için teşekkürler. Erken ayrılış / rezervasyon değişikliği talebinizi hemen ekibimize ilettim; platform üzerinden gerekli adımları kontrol edip en kısa sürede size döneceğim."
+        : "Thank you for letting us know. I've passed your early-departure / booking-change request to our team right away; I'll review the necessary steps through the platform and get back to you as soon as possible.";
       risk = "Erken ayrılma / iptal sinyali. Gelir ve iade süreci, operatör kararı gerektirir.";
       break;
     case "human_request":
@@ -264,23 +264,23 @@ export function suggestReplyFallback(input: SuggestReplyInput): SuggestReplyResu
       break;
     case "early_checkin":
       body = isTr
-        ? `Check-in saatimiz ${p.checkInTime}. Erken giriş, o günkü müsaitliğe bağlı olarak mümkün olabilir. Müsaitliği kontrol edip size en kısa sürede bilgi vereceğiz.`
-        : `Our check-in time is ${p.checkInTime}. An early check-in may be possible depending on availability that day. We'll check and let you know as soon as we can.`;
+        ? `Check-in saatimiz ${p.checkInTime}. Erken giriş, o günkü müsaitliğe bağlı olarak mümkün olabilir. Müsaitliği kontrol edip size en kısa sürede bilgi vereceğim.`
+        : `Our check-in time is ${p.checkInTime}. An early check-in may be possible depending on availability that day. I'll check and let you know as soon as I can.`;
       break;
     case "late_checkout":
       body = isTr
-        ? `Check-out saatimiz ${p.checkOutTime}. Geç çıkış, sonraki rezervasyon ve temizlik programına bağlı olarak mümkün olabilir. Kontrol edip size dönüş yapacağız.`
-        : `Our check-out time is ${p.checkOutTime}. A late check-out may be possible depending on the cleaning schedule and the next booking. We'll check and get back to you.`;
+        ? `Check-out saatimiz ${p.checkOutTime}. Geç çıkış, sonraki rezervasyon ve temizlik programına bağlı olarak mümkün olabilir. Kontrol edip size döneceğim.`
+        : `Our check-out time is ${p.checkOutTime}. A late check-out may be possible depending on the cleaning schedule and the next booking. I'll check and get back to you.`;
       break;
     case "checkin": {
       const kb = findKb(input, "checkin");
       body = isTr
         ? kb
           ? `Giriş bilgileri: ${kb}\n\nCheck-in saatimiz ${p.checkInTime}.`
-          : `Check-in saatimiz ${p.checkInTime}. Giriş talimatlarını girişten önce sizinle paylaşacağız.`
+          : `Check-in saatimiz ${p.checkInTime}. Giriş talimatlarını girişten önce sizinle paylaşacağım.`
         : kb
           ? `Check-in details: ${kb}\n\nOur check-in time is ${p.checkInTime}.`
-          : `Our check-in time is ${p.checkInTime}. We'll share the entry instructions with you before arrival.`;
+          : `Our check-in time is ${p.checkInTime}. I'll share the entry instructions with you before arrival.`;
       break;
     }
     case "checkout":
@@ -291,15 +291,15 @@ export function suggestReplyFallback(input: SuggestReplyInput): SuggestReplyResu
     case "wifi": {
       const kb = findKb(input, "wifi");
       body = isTr
-        ? kb ? `Wi-Fi bilgileri: ${kb}` : "Wi-Fi bilgilerini kontrol edip en kısa sürede sizinle paylaşacağız."
-        : kb ? `Wi-Fi details: ${kb}` : "We'll check the Wi-Fi details and share them with you shortly.";
+        ? kb ? `Wi-Fi bilgileri: ${kb}` : "Wi-Fi bilgilerini kontrol edip en kısa sürede sizinle paylaşacağım."
+        : kb ? `Wi-Fi details: ${kb}` : "I'll check the Wi-Fi details and share them with you shortly.";
       break;
     }
     case "parking": {
       const kb = findKb(input, "parking");
       body = isTr
-        ? kb ? `Otopark bilgisi: ${kb}` : "Otopark durumunu kontrol edip size bilgi vereceğiz."
-        : kb ? `Parking info: ${kb}` : "We'll check the parking options and let you know.";
+        ? kb ? `Otopark bilgisi: ${kb}` : "Otopark durumunu kontrol edip size bilgi vereceğim."
+        : kb ? `Parking info: ${kb}` : "I'll check the parking options and let you know.";
       break;
     }
     case "location": {
@@ -309,33 +309,33 @@ export function suggestReplyFallback(input: SuggestReplyInput): SuggestReplyResu
         ? kb
           ? `Konum bilgisi: ${kb}`
           : addr
-            ? `Adresimiz: ${addr}. Detaylı yol tarifini girişten önce paylaşacağız.`
-            : "Konum ve yol tarifi bilgisini en kısa sürede sizinle paylaşacağız."
+            ? `Adresimiz: ${addr}. Detaylı yol tarifini girişten önce paylaşacağım.`
+            : "Konum ve yol tarifi bilgisini en kısa sürede sizinle paylaşacağım."
         : kb
           ? `Location info: ${kb}`
           : addr
-            ? `Our address is: ${addr}. We'll share detailed directions before arrival.`
-            : "We'll share the location and directions with you shortly.";
+            ? `Our address is: ${addr}. I'll share detailed directions before arrival.`
+            : "I'll share the location and directions with you shortly.";
       break;
     }
     case "cleaning": {
       const kb = findKb(input, "cleaning");
       body = isTr
-        ? kb ? `Temizlik bilgisi: ${kb}` : "Temizlik talebinizi aldık, ekibimizle planlayıp size dönüş yapacağız."
-        : kb ? `Cleaning info: ${kb}` : "We've received your cleaning request and will arrange it with our team and get back to you.";
+        ? kb ? `Temizlik bilgisi: ${kb}` : "Temizlik talebinizi aldım; ekibimizle planlayıp size döneceğim."
+        : kb ? `Cleaning info: ${kb}` : "I've received your cleaning request; I'll arrange it with our team and get back to you.";
       break;
     }
     case "amenity": {
       const kb = findKb(input, "general");
       body = isTr
-        ? kb ? `Ekipman bilgisi: ${kb}` : "Ekipman veya eşya ile ilgili sorunuzu ekibimize ilettik; en kısa sürede size dönüş yapacağız."
-        : kb ? `Amenity info: ${kb}` : "We've passed your question about the equipment to our team and will get back to you shortly.";
+        ? kb ? `Ekipman bilgisi: ${kb}` : "Ekipman veya eşya ile ilgili sorunuzu ekibimize ilettim; en kısa sürede size döneceğim."
+        : kb ? `Amenity info: ${kb}` : "I've passed your question about the equipment to our team and will get back to you shortly.";
       break;
     }
     default:
       body = isTr
-        ? "Mesajınız için teşekkürler. Talebinizi aldık ve en kısa sürede size dönüş yapacağız."
-        : "Thanks for your message. We've received your request and will get back to you as soon as possible.";
+        ? "Mesajınız için teşekkürler. Talebinizi aldım; en kısa sürede size döneceğim."
+        : "Thanks for your message. I've received your request and will get back to you as soon as possible.";
   }
 
   // Derive riskLevel and actionSuggestion from intent. actionSuggestion is shown

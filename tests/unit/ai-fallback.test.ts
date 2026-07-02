@@ -169,7 +169,7 @@ describe("suggestReplyFallback", () => {
 
   it("does not invent answers when the knowledge base is empty", () => {
     const r = suggestReplyFallback(baseInput({ guestMessage: "Wifi şifresi nedir?" }));
-    expect(r.reply).toContain("paylaşacağız");
+    expect(r.reply).toContain("paylaşacağım");
     expect(r.reply).not.toMatch(/şifre.*[:=]/i);
   });
 
@@ -194,13 +194,13 @@ describe("suggestReplyFallback", () => {
     expect(r.intent).toBe("refund");
     expect(r.risk).toBeTruthy();
     // The reply must be the safe template, never an approval of the injected amount.
-    expect(r.reply).toContain("yöneticimiz tarafından değerlendirilecektir");
+    expect(r.reply).toContain("yöneticimiz değerlendirecek");
     expect(r.reply).not.toContain("1000");
     expect(r.reply.toLowerCase()).not.toContain("onaylandı");
   });
 
   it("omits the closing line in short tone", () => {
     const r = suggestReplyFallback(baseInput({ guestMessage: "Giriş saati?", tone: "short" }));
-    expect(r.reply).not.toContain("İyi günler dileriz.");
+    expect(r.reply).not.toContain("İyi günler dilerim.");
   });
 });
