@@ -19,6 +19,55 @@ const TRIGGER_CATEGORIES = new Set(["welcome", "checkin", "checkout"]);
 const triggerOptions = KB_CATEGORY.options.filter((o) => TRIGGER_CATEGORIES.has(o.value));
 const infoOptions = KB_CATEGORY.options.filter((o) => !TRIGGER_CATEGORIES.has(o.value));
 
+// One-click starter templates. Clicking one only PREFILLS the form — nothing is
+// saved until the host reviews, replaces the [brackets] and presses "Ekle".
+// The AI answers only from what's in the KB, so an empty KB = a weak product;
+// these lower the cost of the first 10 minutes of setup.
+const KB_PRESETS: { key: string; label: string; category: string; title: string; content: string }[] = [
+  {
+    key: "wifi",
+    label: "Wi-Fi",
+    category: "wifi",
+    title: "Wi-Fi bilgisi",
+    content: "Ağ adı (SSID): [AĞ ADI]\nŞifre: [ŞİFRE]\nModem salonda, TV ünitesinin yanındadır. Bağlantı sorunu olursa modemi 10 saniye kapatıp açmayı deneyebilirsiniz.",
+  },
+  {
+    key: "checkin",
+    label: "Giriş talimatı",
+    category: "checkin",
+    title: "Giriş talimatı",
+    content: "Giriş saati: [15:00] ve sonrasıdır.\nAdres: [AÇIK ADRES]\nBinaya girişte [ZİL / KAPI KODU TARİFİ]. Daire [KAT] katta, kapı no [NO].\nAnahtar: [ANAHTAR TESLİM ŞEKLİ — ör. kapıdaki şifreli anahtar kutusu; kodu size giriş günü ayrıca iletilir].\nSorun yaşarsanız bize bu kanaldan yazabilirsiniz.",
+  },
+  {
+    key: "parking",
+    label: "Otopark",
+    category: "parking",
+    title: "Otopark",
+    content: "[Bina önünde ücretsiz sokak parkı mevcuttur / En yakın otopark: [OTOPARK ADI], yürüme mesafesi [X] dk, günlük yaklaşık ücret [₺Y]].",
+  },
+  {
+    key: "trash",
+    label: "Çöp",
+    category: "trash",
+    title: "Çöp ve geri dönüşüm",
+    content: "Çöpleri ağzı bağlı poşetle [ÇÖP NOKTASI TARİFİ — ör. binanın yan sokağındaki konteyner]'a bırakabilirsiniz. Geri dönüşüm kutusu [VARSA YERİ].",
+  },
+  {
+    key: "rules",
+    label: "Ev kuralları",
+    category: "rules",
+    title: "Ev kuralları",
+    content: "Dairede sigara içilmez.\nEvcil hayvan [kabul edilir / kabul edilmez].\nSaat 22:00'den sonra lütfen gürültü yapmayınız (bina sakinleri için).\nParti / etkinlik düzenlenemez.\nMisafir sayısı rezervasyonda belirtilen kişi sayısını aşamaz.",
+  },
+  {
+    key: "checkout",
+    label: "Çıkış mesajı",
+    category: "checkout",
+    title: "Çıkış hatırlatması",
+    content: "Çıkış saati [11:00]'dir. Ayrılırken pencereleri kapatmanız, klimayı/ısıtıcıyı kapatmanız ve anahtarı [ANAHTAR BIRAKMA YERİ]'ne bırakmanız yeterli. Bizi tercih ettiğiniz için teşekkürler, tekrar bekleriz!",
+  },
+];
+
 export interface KbItem {
   id: string;
   propertyId: string;
@@ -217,6 +266,25 @@ export function KbManager({
             {error ? (
               <p className="rounded-md bg-destructive/10 px-3 py-2 text-sm text-destructive">{error}</p>
             ) : null}
+            <div>
+              <p className="mb-1.5 text-xs font-medium text-muted-foreground">
+                Hazır şablonla başlayın (formu doldurur, siz düzenleyip eklersiniz):
+              </p>
+              <div className="flex flex-wrap gap-1.5">
+                {KB_PRESETS.map((p) => (
+                  <button
+                    key={p.key}
+                    type="button"
+                    onClick={() =>
+                      setForm((f) => ({ ...f, category: p.category, title: p.title, content: p.content }))
+                    }
+                    className="rounded-full border border-border px-2.5 py-1 text-xs transition-colors hover:bg-accent"
+                  >
+                    {p.label}
+                  </button>
+                ))}
+              </div>
+            </div>
             <Field label="Mülk" htmlFor="kb-property">
               <Select id="kb-property" value={form.propertyId} onChange={(e) => set("propertyId", e.target.value)} required>
                 {properties.map((p) => (
@@ -248,6 +316,11 @@ export function KbManager({
             </Field>
             <Field label="İçerik" htmlFor="kb-content">
               <Textarea id="kb-content" value={form.content} onChange={(e) => set("content", e.target.value)} required />
+              {form.content.includes("[") ? (
+                <p className="mt-1 text-xs text-amber-600">
+                  Köşeli parantezli [alanları] kendi bilgilerinizle değiştirmeyi unutmayın.
+                </p>
+              ) : null}
             </Field>
             <Button type="submit" className="w-full" disabled={creating}>
               {creating ? <Loader2 className="size-4 animate-spin" /> : <Plus className="size-4" />}
