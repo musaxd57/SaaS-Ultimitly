@@ -27,6 +27,8 @@ const owner = (orgId: string): SessionPayload => ({
   sessionEpoch: 0,
 });
 
+const noCtx = { params: Promise.resolve({} as Record<string, never>) };
+
 async function seedProperties(orgId: string, n: number) {
   for (let i = 0; i < n; i++) {
     await prisma.property.create({ data: { organizationId: orgId, name: `Var ${i}` } });
@@ -59,7 +61,7 @@ describe("POST /api/properties — plan limit gate", () => {
     });
     await seedProperties(orgId, 2); // free cap is 2 — already at it
     delete process.env.BILLING_ENFORCED;
-    const res = await POST(createReq("Üçüncü"));
+    const res = await POST(createReq("Üçüncü"), noCtx);
     expect(res.status).toBe(201);
   });
 
@@ -69,7 +71,7 @@ describe("POST /api/properties — plan limit gate", () => {
     });
     await seedProperties(orgId, 2);
     process.env.BILLING_ENFORCED = "true";
-    const res = await POST(createReq("Üçüncü"));
+    const res = await POST(createReq("Üçüncü"), noCtx);
     expect(res.status).toBe(403);
     expect((await res.json()).error).toMatch(/plan/i);
     // nothing created
@@ -82,7 +84,7 @@ describe("POST /api/properties — plan limit gate", () => {
     });
     await seedProperties(orgId, 1);
     process.env.BILLING_ENFORCED = "true";
-    const res = await POST(createReq("İkinci"));
+    const res = await POST(createReq("İkinci"), noCtx);
     expect(res.status).toBe(201);
   });
 
@@ -97,7 +99,7 @@ describe("POST /api/properties — plan limit gate", () => {
       },
     });
     process.env.BILLING_ENFORCED = "true";
-    const res = await POST(createReq("Yeni"));
+    const res = await POST(createReq("Yeni"), noCtx);
     expect(res.status).toBe(403);
     expect((await res.json()).error).toMatch(/abone/i);
   });
@@ -105,7 +107,7 @@ describe("POST /api/properties — plan limit gate", () => {
   it("ENFORCED: a grandfathered org (no subscription) stays unlimited", async () => {
     await seedProperties(orgId, 5);
     process.env.BILLING_ENFORCED = "true";
-    const res = await POST(createReq("Altıncı"));
+    const res = await POST(createReq("Altıncı"), noCtx);
     expect(res.status).toBe(201);
   });
 });

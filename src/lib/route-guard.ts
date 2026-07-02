@@ -33,7 +33,11 @@ type AuthedHandler<P> = (
   ctx: RouteCtx<P>,
 ) => Promise<Response> | Response;
 
-/** Require a valid session; inject it, capture unexpected throws → 500 (Sentry). */
+/** Require a valid session; inject it, capture unexpected throws → 500 (Sentry).
+ *  `ctx` is REQUIRED (Next's route-type validation demands a non-optional second
+ *  parameter for dynamic segments). Next always passes it; tests that invoke a
+ *  handler directly must pass it too (e.g. `{ params: Promise.resolve({}) }` for
+ *  a collection route). */
 export function withAuth<P = Record<string, never>>(handler: AuthedHandler<P>) {
   return async (req: NextRequest, ctx: RouteCtx<P>): Promise<Response> => {
     const session = await requireSession();
