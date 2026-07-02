@@ -1,4 +1,4 @@
-import { describe, it, expect, beforeEach, vi } from "vitest";
+import { describe, it, expect, beforeEach, afterEach, vi } from "vitest";
 import { prisma, resetDb, makeOrgWithProperty } from "../helpers/db";
 
 // Mock the Hospitable API client so the sync runs against fixed fixtures.
@@ -389,5 +389,80 @@ describe("syncHospitable", () => {
     await syncHospitable(orgId);
     conv = await prisma.conversation.findFirst({ where: { externalReservationId: "res-bf" } });
     expect(conv?.reservationId).toBe(manual.id); // human link preserved
+  });
+});
+
+describe("syncHospitable — plan property limit", () => {
+  beforeEach(async () => {
+    await resetDb();
+    vi.clearAllMocks();
+    mockReservations.mockResolvedValue([]);
+    mockMessages.mockResolvedValue([]);
+  });
+  afterEach(() => vi.unstubAllEnvs());
+
+  it("is NOT capped while billing is dormant (BILLING_ENFORCED off), even far over a plan's limit", async () => {
+    const org = await prisma.organization.create({ data: { name: "Dormant Org" } });
+    await prisma.subscription.create({
+      data: { organizationId: org.id, planCode: "free", status: "active" }, // free = 2
+    });
+    mockProperties.mockResolvedValue([
+      { id: "hp-1", name: "A" },
+      { id: "hp-2", name: "B" },
+      { id: "hp-3", name: "C" },
+    ]);
+    const result = await syncHospitable(org.id);
+    expect(result.properties).toBe(3);
+    expect(result.propertiesCapped).toBe(0);
+  });
+
+  it("caps NEW listings at the plan's property limit once billing is enforced", async () => {
+    vi.stubEnv("BILLING_ENFORCED", "true");
+    const org = await prisma.organization.create({ data: { name: "Capped Org" } });
+    await prisma.subscription.create({
+      data: { organizationId: org.id, planCode: "free", status: "active" }, // free = 2
+    });
+    mockProperties.mockResolvedValue([
+      { id: "hp-1", name: "A" },
+      { id: "hp-2", name: "B" },
+      { id: "hp-3", name: "C" },
+    ]);
+    const result = await syncHospitable(org.id);
+    expect(result.properties).toBe(2);
+    expect(result.propertiesCapped).toBe(1);
+    expect(await prisma.property.count({ where: { organizationId: org.id } })).toBe(2);
+  });
+
+  it("never drops or re-blocks a property that was already onboarded before the cap applied", async () => {
+    const org = await prisma.organization.create({ data: { name: "Grandfathered Growth Org" } });
+    // 3 properties already onboarded while dormant/unlimited...
+    mockProperties.mockResolvedValue([
+      { id: "hp-1", name: "A" },
+      { id: "hp-2", name: "B" },
+      { id: "hp-3", name: "C" },
+    ]);
+    await syncHospitable(org.id);
+    expect(await prisma.property.count({ where: { organizationId: org.id } })).toBe(3);
+
+    // ...then the org is put on a 2-property plan and enforcement switches on.
+    await prisma.subscription.create({
+      data: { organizationId: org.id, planCode: "free", status: "active" }, // free = 2
+    });
+    vi.stubEnv("BILLING_ENFORCED", "true");
+    const result = await syncHospitable(org.id); // same 3 listings, re-synced
+    expect(result.properties).toBe(3); // all 3 already-linked properties still sync
+    expect(result.propertiesCapped).toBe(0); // nothing new to refuse
+    expect(await prisma.property.count({ where: { organizationId: org.id } })).toBe(3);
+  });
+
+  it("grandfathered orgs (no Subscription row) are never capped even when enforced", async () => {
+    vi.stubEnv("BILLING_ENFORCED", "true");
+    const org = await prisma.organization.create({ data: { name: "No Sub Org" } });
+    mockProperties.mockResolvedValue(
+      Array.from({ length: 30 }, (_, i) => ({ id: `hp-${i}`, name: `Prop ${i}` })),
+    );
+    const result = await syncHospitable(org.id);
+    expect(result.properties).toBe(30);
+    expect(result.propertiesCapped).toBe(0);
   });
 });

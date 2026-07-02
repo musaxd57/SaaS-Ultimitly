@@ -13,6 +13,7 @@ import {
 import { getOrgHospitableToken } from "@/lib/hospitable-credentials";
 import { reportError } from "@/lib/report-error";
 import { createReservationTasks, removeAutoTasksForCancelledReservation } from "@/lib/automation";
+import { billingEnforced, getEntitlement } from "@/lib/billing/subscription";
 
 // ---------------------------------------------------------------------------
 // Hospitable → Inbox synchronisation
@@ -36,6 +37,20 @@ export interface SyncResult {
   messages: number; // new messages imported
   threads: number; // reservations that have a message thread (last_message_at)
   skipped: number; // unchanged threads skipped (no API call needed)
+  propertiesCapped: number; // NEW Hospitable listings not onboarded — plan's property limit reached
+}
+
+/** Per-sync-run counter so linkProperty can refuse to CREATE past the plan's
+ * property limit. Never blocks a property that's already linked/re-adopted —
+ * only caps brand-new growth, so nothing existing is ever affected. */
+type PropertyLimitState = { limit: number; current: number } | null;
+
+async function resolvePropertyLimitState(organizationId: string): Promise<PropertyLimitState> {
+  if (!billingEnforced()) return null; // dormant — matches canAddProperty's own gate
+  const ent = await getEntitlement(organizationId);
+  if (ent.propertyLimit == null) return null; // unlimited (grandfathered or no-cap plan)
+  const current = await prisma.property.count({ where: { organizationId } });
+  return { limit: ent.propertyLimit, current };
 }
 
 function str(value: unknown): string | null {
@@ -93,6 +108,7 @@ export async function syncHospitable(
     messages: 0,
     threads: 0,
     skipped: 0,
+    propertiesCapped: 0,
   };
 
   // Multi-tenant: use THIS org's own Hospitable token. If it has no connection
@@ -101,7 +117,13 @@ export async function syncHospitable(
   const token = await getOrgHospitableToken(organizationId);
   if (!token) return result;
 
-  // 1. Link/create properties.
+  // 1. Link/create properties, capped at the org's PLAN property limit (only
+  // while billing is enforced). This is the only place a host's chosen Lixus
+  // tier can matter for Hospitable sync: an org whose real Hospitable account
+  // has more listings than their plan allows gets the first N onboarded —
+  // never a mid-run reshuffle of which N (stable Hospitable listing order),
+  // and NEVER any already-linked property dropped or re-counted.
+  const limitState = await resolvePropertyLimitState(organizationId);
   const hospitableProps = await listProperties(token);
   // Live Hospitable listing ids this run — used so linkProperty never re-points a
   // property that still belongs to a different LIVE same-named listing.
@@ -111,7 +133,11 @@ export async function syncHospitable(
   const propertyMap = new Map<string, string>(); // hospitableId → our propertyId
   for (const hp of hospitableProps) {
     if (!hp.id) continue;
-    const ourId = await linkProperty(organizationId, hp, liveIds);
+    const ourId = await linkProperty(organizationId, hp, liveIds, limitState);
+    if (!ourId) {
+      result.propertiesCapped++;
+      continue;
+    }
     propertyMap.set(hp.id, ourId);
     result.properties++;
   }
@@ -337,12 +363,18 @@ async function upsertReservationCalendar(
   return created.id;
 }
 
-/** Link a Hospitable property to an existing Property (by id, then name) or create one. */
+/**
+ * Link a Hospitable property to an existing Property (by id, then name) or
+ * create one — unless creating one would exceed the plan's property limit, in
+ * which case returns null (nothing already onboarded is ever affected; only
+ * a brand-new, never-before-linked listing can be refused this way).
+ */
 async function linkProperty(
   organizationId: string,
   hp: HospitableProperty,
   liveIds: Set<string>,
-): Promise<string> {
+  limitState: PropertyLimitState,
+): Promise<string | null> {
   const linked = await prisma.property.findFirst({
     where: { organizationId, hospitableId: hp.id },
     select: { id: true },
@@ -377,10 +409,15 @@ async function linkProperty(
     return sameName.id;
   }
 
+  // Only reaching here creates a genuinely NEW property row — the one point
+  // where a plan's property-count entitlement can cap Hospitable sync.
+  if (limitState && limitState.current >= limitState.limit) return null;
+
   const created = await prisma.property.create({
     data: { organizationId, name, hospitableId: hp.id },
     select: { id: true },
   });
+  if (limitState) limitState.current++;
   return created.id;
 }
 

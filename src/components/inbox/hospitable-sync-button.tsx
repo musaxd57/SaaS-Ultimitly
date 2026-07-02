@@ -21,9 +21,12 @@ export function HospitableSyncButton() {
       const res = await fetch("/api/hospitable/sync", { method: "POST" });
       const data = await res.json();
       if (data.ok) {
+        const capped = data.propertiesCapped ?? 0;
         setResult({
           ok: true,
-          text: `${data.properties ?? 0} mülk · ${data.reservations ?? 0} rezervasyon · ${data.conversations} konuşma · ${data.messages} yeni mesaj`,
+          text:
+            `${data.properties ?? 0} mülk · ${data.reservations ?? 0} rezervasyon · ${data.conversations} konuşma · ${data.messages} yeni mesaj` +
+            (capped > 0 ? ` · ${capped} mülk plan limiti nedeniyle eklenmedi (planınızı yükseltin)` : ""),
         });
         router.refresh();
       } else {
