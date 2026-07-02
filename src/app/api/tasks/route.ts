@@ -1,20 +1,9 @@
-import { type NextRequest } from "next/server";
 import { prisma } from "@/lib/db";
 import { taskSchema, zodFieldErrors } from "@/lib/validators";
-import {
-  requireSession,
-  unauthorized,
-  badRequest,
-  jsonOk,
-  serverError,
-  propertyInOrg,
-  canManage,
-  forbidden,
-} from "@/lib/api";
+import { badRequest, jsonOk, propertyInOrg } from "@/lib/api";
+import { withAuth, withManage } from "@/lib/route-guard";
 
-export async function GET(req: NextRequest) {
-  const session = await requireSession();
-  if (!session) return unauthorized();
+export const GET = withAuth(async (session, req) => {
   const { searchParams } = new URL(req.url);
   const status = searchParams.get("status") ?? undefined;
   const propertyId = searchParams.get("propertyId") ?? undefined;
@@ -32,59 +21,52 @@ export async function GET(req: NextRequest) {
     orderBy: [{ dueAt: "asc" }, { createdAt: "desc" }],
   });
   return jsonOk(tasks);
-}
+});
 
-export async function POST(req: NextRequest) {
-  const session = await requireSession();
-  if (!session) return unauthorized();
-  if (!canManage(session)) return forbidden();
-  try {
-    const data = await req.json().catch(() => null);
-    const parsed = taskSchema.safeParse(data);
-    if (!parsed.success) return badRequest(zodFieldErrors(parsed.error));
-    const d = parsed.data;
+export const POST = withManage(async (session, req) => {
+  const data = await req.json().catch(() => null);
+  const parsed = taskSchema.safeParse(data);
+  if (!parsed.success) return badRequest(zodFieldErrors(parsed.error));
+  const d = parsed.data;
 
-    if (!(await propertyInOrg(d.propertyId, session.organizationId))) {
-      return badRequest({ propertyId: "Geçersiz mülk" });
-    }
-
-    if (d.assignedToId) {
-      const member = await prisma.user.findFirst({
-        where: { id: d.assignedToId, organizationId: session.organizationId },
-        select: { id: true },
-      });
-      if (!member) return badRequest({ assignedToId: "Geçersiz personel" });
-    }
-
-    // The reservation must belong to the SAME org AND the same property — never
-    // trust a client-supplied reservationId (cross-tenant reference otherwise).
-    if (d.reservationId) {
-      const reservation = await prisma.reservation.findFirst({
-        where: {
-          id: d.reservationId,
-          propertyId: d.propertyId,
-          property: { organizationId: session.organizationId },
-        },
-        select: { id: true },
-      });
-      if (!reservation) return badRequest({ reservationId: "Geçersiz rezervasyon" });
-    }
-
-    const task = await prisma.task.create({
-      data: {
-        propertyId: d.propertyId,
-        reservationId: d.reservationId || null,
-        type: d.type,
-        title: d.title,
-        description: d.description || null,
-        assignedToId: d.assignedToId || null,
-        dueAt: d.dueAt instanceof Date ? d.dueAt : null,
-        status: d.status,
-        priority: d.priority,
-      },
-    });
-    return jsonOk(task, 201);
-  } catch (err) {
-    return serverError(undefined, err);
+  if (!(await propertyInOrg(d.propertyId, session.organizationId))) {
+    return badRequest({ propertyId: "Geçersiz mülk" });
   }
-}
+
+  if (d.assignedToId) {
+    const member = await prisma.user.findFirst({
+      where: { id: d.assignedToId, organizationId: session.organizationId },
+      select: { id: true },
+    });
+    if (!member) return badRequest({ assignedToId: "Geçersiz personel" });
+  }
+
+  // The reservation must belong to the SAME org AND the same property — never
+  // trust a client-supplied reservationId (cross-tenant reference otherwise).
+  if (d.reservationId) {
+    const reservation = await prisma.reservation.findFirst({
+      where: {
+        id: d.reservationId,
+        propertyId: d.propertyId,
+        property: { organizationId: session.organizationId },
+      },
+      select: { id: true },
+    });
+    if (!reservation) return badRequest({ reservationId: "Geçersiz rezervasyon" });
+  }
+
+  const task = await prisma.task.create({
+    data: {
+      propertyId: d.propertyId,
+      reservationId: d.reservationId || null,
+      type: d.type,
+      title: d.title,
+      description: d.description || null,
+      assignedToId: d.assignedToId || null,
+      dueAt: d.dueAt instanceof Date ? d.dueAt : null,
+      status: d.status,
+      priority: d.priority,
+    },
+  });
+  return jsonOk(task, 201);
+});

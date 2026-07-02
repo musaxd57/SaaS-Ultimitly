@@ -1,11 +1,10 @@
 import { startOfDay, endOfDay } from "date-fns";
 import { prisma } from "@/lib/db";
 import { getOpsStats, buildDailySummary } from "@/lib/reports";
-import { requireSession, unauthorized, jsonOk } from "@/lib/api";
+import { jsonOk } from "@/lib/api";
+import { withAuth } from "@/lib/route-guard";
 
-export async function GET() {
-  const session = await requireSession();
-  if (!session) return unauthorized();
+export const GET = withAuth(async (session) => {
   const orgId = session.organizationId;
   const now = new Date();
   const dayStart = startOfDay(now);
@@ -47,4 +46,4 @@ export async function GET() {
       departureDate: d.departureDate,
     })),
   });
-}
+});

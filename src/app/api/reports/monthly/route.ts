@@ -1,9 +1,7 @@
 import { getMonthlyReport } from "@/lib/reports";
-import { requireSession, unauthorized, jsonOk } from "@/lib/api";
+import { jsonOk } from "@/lib/api";
+import { withAuth } from "@/lib/route-guard";
 
-export async function GET() {
-  const session = await requireSession();
-  if (!session) return unauthorized();
-  const report = await getMonthlyReport(session.organizationId);
-  return jsonOk(report);
-}
+export const GET = withAuth(async (session) => {
+  return jsonOk(await getMonthlyReport(session.organizationId));
+});

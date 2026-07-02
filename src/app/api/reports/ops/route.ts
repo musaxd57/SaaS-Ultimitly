@@ -1,9 +1,7 @@
 import { getOpsStats } from "@/lib/reports";
-import { requireSession, unauthorized, jsonOk } from "@/lib/api";
+import { jsonOk } from "@/lib/api";
+import { withAuth } from "@/lib/route-guard";
 
-export async function GET() {
-  const session = await requireSession();
-  if (!session) return unauthorized();
-  const stats = await getOpsStats(session.organizationId);
-  return jsonOk(stats);
-}
+export const GET = withAuth(async (session) => {
+  return jsonOk(await getOpsStats(session.organizationId));
+});

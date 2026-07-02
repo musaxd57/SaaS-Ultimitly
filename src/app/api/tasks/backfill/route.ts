@@ -1,5 +1,5 @@
-import { type NextRequest } from "next/server";
-import { requireSession, unauthorized, jsonOk, serverError, canManage, forbidden } from "@/lib/api";
+import { jsonOk } from "@/lib/api";
+import { withManage } from "@/lib/route-guard";
 import { backfillReservationTasks } from "@/lib/automation";
 
 /**
@@ -7,15 +7,6 @@ import { backfillReservationTasks } from "@/lib/automation";
  * that doesn't have them yet (button target). Useful for reservations imported
  * via iCal before task automation existed.
  */
-export async function POST(_req: NextRequest) {
-  const session = await requireSession();
-  if (!session) return unauthorized();
-  if (!canManage(session)) return forbidden();
-
-  try {
-    const result = await backfillReservationTasks(session.organizationId);
-    return jsonOk(result);
-  } catch (err) {
-    return serverError(undefined, err);
-  }
-}
+export const POST = withManage(async (session) => {
+  return jsonOk(await backfillReservationTasks(session.organizationId));
+});
