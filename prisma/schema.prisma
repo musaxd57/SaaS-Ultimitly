@@ -30,14 +30,18 @@ model SystemLock {
 // Public "request a demo / free trial" leads captured from the marketing landing
 // page (no account yet). The operator reviews these in the Operator Panel.
 model Lead {
-  id        String   @id @default(cuid())
-  name      String
-  email     String
-  phone     String?
-  message   String?
-  handled   Boolean  @default(false)
-  consentAt DateTime? // KVKK açık rıza zaman damgası (onay kutusu işaretlendiğinde)
-  createdAt DateTime @default(now())
+  id         String    @id @default(cuid())
+  name       String
+  email      String
+  phone      String?
+  message    String?
+  handled    Boolean   @default(false)
+  // Mini sales pipeline (operator panel): new → contacted → demo → won | lost.
+  status     String    @default("new")
+  note       String? // operator's follow-up note
+  followUpAt DateTime? // when to get back to this lead
+  consentAt  DateTime? // KVKK açık rıza zaman damgası (onay kutusu işaretlendiğinde)
+  createdAt  DateTime  @default(now())
 
   @@index([createdAt])
 }

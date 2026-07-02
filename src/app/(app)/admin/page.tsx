@@ -6,6 +6,7 @@ import { PageHeader } from "@/components/page-header";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { AddCustomerForm } from "@/components/admin/add-customer-form";
 import { ImpersonateButton } from "@/components/admin/impersonate-button";
+import { LeadActions } from "@/components/admin/lead-actions";
 
 export const dynamic = "force-dynamic";
 
@@ -135,10 +136,10 @@ export default async function AdminPage() {
                 <thead>
                   <tr className="border-b text-left text-xs uppercase text-muted-foreground">
                     <th className="px-4 py-2 font-medium">İsim</th>
-                    <th className="px-4 py-2 font-medium">E-posta</th>
-                    <th className="px-4 py-2 font-medium">Telefon</th>
+                    <th className="px-4 py-2 font-medium">İletişim</th>
                     <th className="px-4 py-2 font-medium">Mesaj</th>
                     <th className="px-4 py-2 font-medium">Tarih</th>
+                    <th className="px-4 py-2 font-medium">Takip</th>
                   </tr>
                 </thead>
                 <tbody>
@@ -147,10 +148,31 @@ export default async function AdminPage() {
                       <td className="px-4 py-3 font-medium">{l.name}</td>
                       <td className="px-4 py-3">
                         <a href={`mailto:${l.email}`} className="text-primary hover:underline">{l.email}</a>
+                        {l.phone ? (
+                          <span className="mt-0.5 block text-xs text-muted-foreground">
+                            {l.phone}
+                            {" · "}
+                            <a
+                              href={`https://wa.me/${l.phone.replace(/\D/g, "")}`}
+                              target="_blank"
+                              rel="noopener noreferrer"
+                              className="font-medium text-emerald-600 hover:underline"
+                            >
+                              WhatsApp
+                            </a>
+                          </span>
+                        ) : null}
                       </td>
-                      <td className="px-4 py-3 text-muted-foreground">{l.phone ?? "—"}</td>
                       <td className="px-4 py-3 max-w-xs text-muted-foreground">{l.message ?? "—"}</td>
                       <td className="px-4 py-3 whitespace-nowrap text-muted-foreground">{dateFmt.format(l.createdAt)}</td>
+                      <td className="px-4 py-3">
+                        <LeadActions
+                          leadId={l.id}
+                          status={l.status}
+                          note={l.note}
+                          followUpAt={l.followUpAt ? l.followUpAt.toISOString().slice(0, 10) : null}
+                        />
+                      </td>
                     </tr>
                   ))}
                 </tbody>
