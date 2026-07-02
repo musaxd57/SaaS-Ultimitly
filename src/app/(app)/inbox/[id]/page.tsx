@@ -136,7 +136,8 @@ export default async function ConversationPage({
               </CardTitle>
             </CardHeader>
             <CardContent className="space-y-1 text-sm">
-              <p className="font-medium">{conversation.property.name}</p>
+              {/* Property name already shown in the page header above — avoid
+                  repeating it here, just the details the header doesn't have. */}
               {conversation.property.address ? (
                 <p className="text-muted-foreground">
                   {[conversation.property.address, conversation.property.city]
