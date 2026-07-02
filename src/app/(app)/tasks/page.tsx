@@ -21,6 +21,7 @@ export default async function TasksPage({
   searchParams: Promise<{ propertyId?: string }>;
 }) {
   const session = await requireAuth();
+  const canManage = session.role === "owner" || session.role === "manager";
   const { propertyId } = await searchParams;
 
   const [tasks, properties, reservationsMissingTasks] = await Promise.all([
@@ -159,7 +160,7 @@ export default async function TasksPage({
           </LinkButton>
         </EmptyState>
       ) : (
-        <TaskBoard tasks={cards} />
+        <TaskBoard tasks={cards} canManage={canManage} />
       )}
     </>
   );

@@ -43,7 +43,7 @@ const SELECT_STATUSES = TASK_STATUS.options.filter(
   (o) => o.value === "todo" || o.value === "in_progress" || o.value === "done",
 );
 
-export function TaskBoard({ tasks }: { tasks: TaskCardData[] }) {
+export function TaskBoard({ tasks, canManage = true }: { tasks: TaskCardData[]; canManage?: boolean }) {
   const router = useRouter();
   const [busyId, setBusyId] = useState<string | null>(null);
   const [uploadingId, setUploadingId] = useState<string | null>(null);
@@ -217,19 +217,21 @@ export function TaskBoard({ tasks }: { tasks: TaskCardData[] }) {
       >
         <div className="flex items-start justify-between gap-2">
           <p className="min-w-0 break-words text-sm font-medium leading-snug">{t.title}</p>
-          <button
-            type="button"
-            onClick={() => remove(t.id)}
-            disabled={busyId === t.id}
-            className="inline-flex min-h-[40px] min-w-[40px] items-center justify-center rounded p-1 text-muted-foreground hover:bg-destructive/10 hover:text-destructive disabled:opacity-50"
-            aria-label="Sil"
-          >
-            {busyId === t.id ? (
-              <Loader2 className="size-3.5 animate-spin" />
-            ) : (
-              <Trash2 className="size-3.5" />
-            )}
-          </button>
+          {canManage ? (
+            <button
+              type="button"
+              onClick={() => remove(t.id)}
+              disabled={busyId === t.id}
+              className="inline-flex min-h-[40px] min-w-[40px] items-center justify-center rounded p-1 text-muted-foreground hover:bg-destructive/10 hover:text-destructive disabled:opacity-50"
+              aria-label="Sil"
+            >
+              {busyId === t.id ? (
+                <Loader2 className="size-3.5 animate-spin" />
+              ) : (
+                <Trash2 className="size-3.5" />
+              )}
+            </button>
+          ) : null}
         </div>
         <div className="mt-2 flex flex-wrap gap-1.5">
           <Badge tone={TASK_TYPE.tone(t.type)}>{TASK_TYPE.label(t.type)}</Badge>

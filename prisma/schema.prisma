@@ -235,6 +235,11 @@ model Reservation {
   // every 2-min cron — index it so that's a seek, not a per-row scan.
   @@index([propertyId, sourceReference])
   @@index([guestExternalId]) // returning-guest lookup by the stable guest id
+  // Org-scoped date-range report aggregates (occupancy / forecast) filter by
+  // property AND a date window; composite indexes let those seek instead of
+  // scanning the global date index and discarding other orgs' rows at scale.
+  @@index([propertyId, arrivalDate])
+  @@index([propertyId, departureDate])
 }
 
 model Conversation {

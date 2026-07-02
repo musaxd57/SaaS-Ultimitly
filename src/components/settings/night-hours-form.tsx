@@ -69,14 +69,14 @@ export function NightHoursForm({
           </p>
           <div className="grid gap-3 sm:grid-cols-2">
             <Field label="Başlangıç" htmlFor="night-start">
-              <Select id="night-start" value={String(start)} onChange={(e) => setStart(Number(e.target.value))}>
+              <Select id="night-start" value={String(start)} onChange={(e) => { setStart(Number(e.target.value)); setSaved(false); }}>
                 {HOURS.map((h) => (
                   <option key={h} value={h}>{pad(h)}</option>
                 ))}
               </Select>
             </Field>
             <Field label="Bitiş" htmlFor="night-end">
-              <Select id="night-end" value={String(end)} onChange={(e) => setEnd(Number(e.target.value))}>
+              <Select id="night-end" value={String(end)} onChange={(e) => { setEnd(Number(e.target.value)); setSaved(false); }}>
                 {HOURS.map((h) => (
                   <option key={h} value={h}>{pad(h)}</option>
                 ))}

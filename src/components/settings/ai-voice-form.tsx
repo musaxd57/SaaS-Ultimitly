@@ -70,7 +70,7 @@ export function AiVoiceForm({
           ) : null}
 
           <Field label="Yanıt tonu" htmlFor="ai-tone">
-            <Select id="ai-tone" value={aiReplyTone} onChange={(e) => setTone(e.target.value)}>
+            <Select id="ai-tone" value={aiReplyTone} onChange={(e) => { setTone(e.target.value); setSaved(false); }}>
               {REPLY_TONE.options.map((o) => (
                 <option key={o.value} value={o.value}>
                   {o.label}
@@ -88,7 +88,7 @@ export function AiVoiceForm({
               id="ai-signature"
               rows={4}
               value={aiSignature}
-              onChange={(e) => setSignature(e.target.value)}
+              onChange={(e) => { setSignature(e.target.value); setSaved(false); }}
               placeholder={`Örn:\nSevgiler,\n${name?.trim() || "Ali Yılmaz"}\n📞 +90 5XX XXX XX XX`}
             />
             <p className="mt-1 text-xs text-muted-foreground">

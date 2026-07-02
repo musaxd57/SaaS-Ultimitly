@@ -69,7 +69,7 @@ export function BulkTimesForm({
               <Input
                 id="bulk-checkin"
                 value={checkInTime}
-                onChange={(e) => setCheckIn(e.target.value)}
+                onChange={(e) => { setCheckIn(e.target.value); setResult(null); }}
                 placeholder="14:00"
               />
             </Field>
@@ -77,7 +77,7 @@ export function BulkTimesForm({
               <Input
                 id="bulk-checkout"
                 value={checkOutTime}
-                onChange={(e) => setCheckOut(e.target.value)}
+                onChange={(e) => { setCheckOut(e.target.value); setResult(null); }}
                 placeholder="11:00"
               />
             </Field>
