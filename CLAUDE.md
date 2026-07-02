@@ -946,6 +946,17 @@ isteyen → Hospitable aboneliği şart (satışta dürüstçe söylenir). Reply
 (OAuth adımları + scope teyidi + Connect messaging/pricing/authorization + kibar "reseller açılırsa ilk
 sıradayız" kapanışı).
 
+## Hospitable — Patrick'e FİNAL cevap gönderildi (2026-07-02)
+Patrick'in mailine tek birleşik cevap verildi (kullanıcı gönderiyor): (1) OAuth vendor flow'a EVET +
+sıradaki adım/scope (message:write dahil) teyidi; (2) **Connect'in 3 kritik sorusu:** Airbnb mesajlaşma
+(okuma+GÖNDERME) var mı · Hospitable-üyeliği-olmayan host nasıl authorize eder · partner fiyatı ne;
+(3) #1-direktifin (sadece-API/reseller "Türkiye'de büyütürüz" kozu) büyüme-pitch versiyonu kibarca gömülü
+(Patrick "white-label şu an YOK" dediği için sıfırdan sorulmadı, kapı açık tutuldu + pilot önerisi); (4) call teklifi.
+**Netleşen mantık — abonelik:** Public API = host ödemeli Hospitable şart ($29, kesin). **Connect = Hospitable
+kendi dokümanında "host aboneliği GEREKMEZ" diyor (Connect'in amacı bu) AMA Patrick teyit etmedi/fiyat vermedi
+→ email tam bunu + mesajlaşmayı soruyor.** Connect üyeliksiz+mesajlaşmalıysa $29 engeli çözülür (Türk ICP kapısı).
+Cevap beklenirken dürtme yok.
+
 ## Çalışma şekli
 Kullanıcı: "Bana söyle, ben kodlarım." Fazları sırayla, additive + testli.
 Build + `npm test` yeşil olmadan push etme. GitHub'da PR sadece kullanıcı
