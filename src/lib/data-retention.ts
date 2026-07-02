@@ -35,51 +35,99 @@ export async function anonymizeOldGuestData(now: Date = new Date()): Promise<{ a
   if (!Number.isFinite(months) || months <= 0) return { anonymized: 0 }; // disabled by default
   const cutoff = subMonths(startOfDay(now), months);
 
-  // Reservations whose stay ended before the cutoff and still carry real PII
-  // (guestName not yet anonymized). Bounded batch.
+  let anonymized = 0;
+
+  // (1) Reservation-linked guest data. Reservations whose stay ended before the
+  // cutoff and still carry real PII (guestName not yet anonymized). Bounded batch.
   const oldRes = await prisma.reservation.findMany({
     where: { departureDate: { lt: cutoff }, guestName: { not: ANON_NAME } },
     select: { id: true },
     take: RETENTION_BATCH,
   });
-  if (oldRes.length === 0) return { anonymized: 0 };
-  const resIds = oldRes.map((r) => r.id);
+  if (oldRes.length > 0) {
+    const resIds = oldRes.map((r) => r.id);
+    const convs = await prisma.conversation.findMany({
+      where: { reservationId: { in: resIds } },
+      select: { id: true },
+    });
+    const convIds = convs.map((c) => c.id);
 
-  const convs = await prisma.conversation.findMany({
-    where: { reservationId: { in: resIds } },
+    await prisma.$transaction([
+      // The guest's OWN messages (inbound) carry their words/PII — scrub the body.
+      // Outbound (host/AI) content is the host's own record and is left intact.
+      ...(convIds.length
+        ? [
+            prisma.message.updateMany({
+              where: { conversationId: { in: convIds }, direction: "inbound", body: { not: ANON_BODY } },
+              data: { body: ANON_BODY, senderName: ANON_ID, aiSuggestedReply: null },
+            }),
+            prisma.conversation.updateMany({
+              where: { id: { in: convIds } },
+              data: { guestIdentifier: ANON_ID },
+            }),
+          ]
+        : []),
+      prisma.reservation.updateMany({
+        where: { id: { in: resIds } },
+        data: {
+          guestName: ANON_NAME,
+          guestPhone: null,
+          guestEmail: null,
+          guestExternalId: null,
+          guestCheckoutTime: null,
+          notes: null,
+        },
+      }),
+    ]);
+    anonymized += resIds.length;
+  }
+
+  // (2) Orphaned conversations with NO reservation link. These never reach the
+  // reservation-driven sweep above, so their guest PII would otherwise live
+  // FOREVER: manual/unmatched threads, or — critically — threads whose reservation
+  // the host deleted (Conversation.reservation is onDelete: SetNull). Age them by
+  // their own lastMessageAt so the privacy promise ("veriler saklama süresi
+  // sonunda anonimleştirilir") actually holds for every thread, not just linked ones.
+  const orphanConvs = await prisma.conversation.findMany({
+    where: {
+      reservationId: null,
+      lastMessageAt: { lt: cutoff },
+      guestIdentifier: { not: ANON_ID },
+    },
     select: { id: true },
+    take: RETENTION_BATCH,
   });
-  const convIds = convs.map((c) => c.id);
+  if (orphanConvs.length > 0) {
+    const orphanIds = orphanConvs.map((c) => c.id);
+    await prisma.$transaction([
+      prisma.message.updateMany({
+        where: { conversationId: { in: orphanIds }, direction: "inbound", body: { not: ANON_BODY } },
+        data: { body: ANON_BODY, senderName: ANON_ID, aiSuggestedReply: null },
+      }),
+      prisma.conversation.updateMany({
+        where: { id: { in: orphanIds } },
+        data: { guestIdentifier: ANON_ID },
+      }),
+    ]);
+    anonymized += orphanIds.length;
+  }
 
-  await prisma.$transaction([
-    // The guest's OWN messages (inbound) carry their words/PII — scrub the body.
-    // Outbound (host/AI) content is the host's own record and is left intact.
-    ...(convIds.length
-      ? [
-          prisma.message.updateMany({
-            where: { conversationId: { in: convIds }, direction: "inbound", body: { not: ANON_BODY } },
-            data: { body: ANON_BODY, senderName: ANON_ID, aiSuggestedReply: null },
-          }),
-          prisma.conversation.updateMany({
-            where: { id: { in: convIds } },
-            data: { guestIdentifier: ANON_ID },
-          }),
-        ]
-      : []),
-    prisma.reservation.updateMany({
-      where: { id: { in: resIds } },
-      data: {
-        guestName: ANON_NAME,
-        guestPhone: null,
-        guestEmail: null,
-        guestExternalId: null,
-        guestCheckoutTime: null,
-        notes: null,
-      },
-    }),
-  ]);
+  return { anonymized };
+}
 
-  return { anonymized: resIds.length };
+/**
+ * Delete marketing leads past the lead-retention window. Prospect PII (name /
+ * email / phone / message) has no other lifecycle — Lead has no org link, so it is
+ * NOT covered by account erasure or the guest-data sweep — and would otherwise be
+ * kept indefinitely. Gated by its OWN env var (default OFF) so a host's active
+ * sales pipeline is never silently purged: set LEAD_RETENTION_MONTHS to enable.
+ */
+export async function purgeOldLeads(now: Date = new Date()): Promise<{ purged: number }> {
+  const months = Number(process.env.LEAD_RETENTION_MONTHS);
+  if (!Number.isFinite(months) || months <= 0) return { purged: 0 }; // disabled by default
+  const cutoff = subMonths(startOfDay(now), months);
+  const res = await prisma.lead.deleteMany({ where: { createdAt: { lt: cutoff } } });
+  return { purged: res.count };
 }
 
 /**

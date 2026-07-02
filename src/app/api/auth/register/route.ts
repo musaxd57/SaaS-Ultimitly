@@ -31,6 +31,15 @@ export async function POST(req: NextRequest) {
     const parsed = registerSchema.safeParse(data);
     if (!parsed.success) return badRequest(zodFieldErrors(parsed.error));
 
+    // KVKK: explicit, informed consent to the Terms + Privacy Policy is required
+    // to register (backs the "kaydolarak kabul edersiniz" claim with a real
+    // record). The client disables submit until checked; enforce it server-side.
+    if (data?.consent !== true) {
+      return badRequest({
+        consent: "Devam etmek için Kullanım Koşulları ve Gizlilik Politikası'nı onaylamalısınız.",
+      });
+    }
+
     const email = parsed.data.email.toLowerCase();
     const existing = await prisma.user.findUnique({ where: { email } });
     if (existing) return badRequest({ email: "Bu e-posta adresi zaten kayıtlı" });
@@ -48,6 +57,7 @@ export async function POST(req: NextRequest) {
           email,
           passwordHash,
           role: "owner",
+          acceptedTermsAt: new Date(),
           emailVerifyTokenHash: hash,
           emailVerifyExpiresAt: new Date(Date.now() + VERIFY_TTL_MS),
         },

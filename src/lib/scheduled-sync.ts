@@ -6,7 +6,7 @@ import { HospitableError } from "@/lib/hospitable";
 import { reportError } from "@/lib/report-error";
 import { premiumAllowed } from "@/lib/billing/subscription";
 import { sendDueTrialReminders } from "@/lib/billing/trial-reminders";
-import { anonymizeOldGuestData } from "@/lib/data-retention";
+import { anonymizeOldGuestData, purgeOldLeads } from "@/lib/data-retention";
 import {
   runDueChannelAutoReplies,
   sendDueWelcomes,
@@ -188,6 +188,12 @@ export async function runScheduledSync(): Promise<ScheduledSyncTotals> {
           await anonymizeOldGuestData();
         } catch (err) {
           await reportError("scheduled-sync retention", err);
+        }
+        // Marketing-lead retention. No-op unless LEAD_RETENTION_MONTHS is set.
+        try {
+          await purgeOldLeads();
+        } catch (err) {
+          await reportError("scheduled-sync lead-purge", err);
         }
         // Reverse-trial reminder emails ("ending soon" / "ended"). No-op unless
         // BILLING_ENFORCED is on; idempotent + per-tenant. Best-effort.

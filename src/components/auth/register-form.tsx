@@ -22,6 +22,7 @@ export function RegisterForm() {
   const [error, setError] = useState<string | null>(null);
   const [loading, setLoading] = useState(false);
   const [sent, setSent] = useState(false);
+  const [consent, setConsent] = useState(false);
 
   function update(key: keyof typeof form) {
     return (e: React.ChangeEvent<HTMLInputElement>) =>
@@ -37,7 +38,7 @@ export function RegisterForm() {
       const res = await fetch("/api/auth/register", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify(form),
+        body: JSON.stringify({ ...form, consent }),
       });
       const data = await res.json().catch(() => ({}));
       if (!res.ok) {
@@ -125,7 +126,29 @@ export function RegisterForm() {
           <p className="text-xs text-muted-foreground">En az 8 karakter.</p>
         )}
       </div>
-      <Button type="submit" className="w-full" disabled={loading}>
+      <div className="space-y-1">
+        <label className="flex items-start gap-2 text-xs text-muted-foreground">
+          <input
+            type="checkbox"
+            checked={consent}
+            onChange={(e) => setConsent(e.target.checked)}
+            className="mt-0.5 size-4 shrink-0 rounded border-input"
+            required
+          />
+          <span>
+            <Link href="/kosullar" target="_blank" className="text-primary hover:underline">
+              Kullanım Koşulları
+            </Link>{" "}
+            ve{" "}
+            <Link href="/gizlilik" target="_blank" className="text-primary hover:underline">
+              Gizlilik Politikası
+            </Link>
+            &apos;nı okudum, kabul ediyorum.
+          </span>
+        </label>
+        {fields.consent ? <p className="text-xs text-destructive">{fields.consent}</p> : null}
+      </div>
+      <Button type="submit" className="w-full" disabled={loading || !consent}>
         {loading ? <Loader2 className="size-4 animate-spin" /> : null}
         Hesap Oluştur
       </Button>

@@ -73,6 +73,7 @@ describe("registration → verification → login", () => {
         name: "Ada",
         email: "ada@x.com",
         password: "secret123",
+        consent: true,
       }),
     );
     expect(res.status).toBe(201);
@@ -80,7 +81,23 @@ describe("registration → verification → login", () => {
     const u = await prisma.user.findUnique({ where: { email: "ada@x.com" } });
     expect(u?.emailVerifiedAt).toBeNull();
     expect(u?.emailVerifyTokenHash).toBeTruthy();
+    expect(u?.acceptedTermsAt).not.toBeNull(); // KVKK consent recorded
     expect(mockSend).toHaveBeenCalledOnce();
+  });
+
+  it("rejects registration without KVKK consent (400, no account created)", async () => {
+    const res = await register(
+      postReq("http://localhost/api/auth/register", {
+        organizationName: "Acme",
+        name: "Ada",
+        email: "noconsent@x.com",
+        password: "secret123",
+        // consent intentionally omitted
+      }),
+    );
+    expect(res.status).toBe(400);
+    expect(await prisma.user.findUnique({ where: { email: "noconsent@x.com" } })).toBeNull();
+    expect(mockSend).not.toHaveBeenCalled();
   });
 
   it("clicking the e-mailed link verifies the account + clears the token", async () => {
@@ -90,6 +107,7 @@ describe("registration → verification → login", () => {
         name: "Ada",
         email: "ada@x.com",
         password: "secret123",
+        consent: true,
       }),
     );
     const html = String(mockSend.mock.calls[0][2]);

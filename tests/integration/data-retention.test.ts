@@ -1,7 +1,7 @@
 import { describe, it, expect, beforeEach, afterEach, vi } from "vitest";
 import { subMonths } from "date-fns";
 import { prisma, resetDb } from "../helpers/db";
-import { anonymizeOldGuestData, deleteAccountData } from "@/lib/data-retention";
+import { anonymizeOldGuestData, deleteAccountData, purgeOldLeads } from "@/lib/data-retention";
 
 async function seedStay(opts: {
   orgName?: string;
@@ -97,6 +97,75 @@ describe("anonymizeOldGuestData (KVKK retention)", () => {
     await seedStay({ departedMonthsAgo: 30, guestName: "John Old", body: "Bozuk!" });
     expect((await anonymizeOldGuestData()).anonymized).toBe(1);
     expect((await anonymizeOldGuestData()).anonymized).toBe(0);
+  });
+
+  it("anonymizes ORPHANED conversations (no reservation link) by their own age", async () => {
+    // Reproduces the real gap: a thread whose reservation the host deleted
+    // (reservationId → null via SetNull) is unreachable through the reservation
+    // sweep and would otherwise keep the guest's message body + identifier forever.
+    vi.stubEnv("DATA_RETENTION_MONTHS", "24");
+    const org = await prisma.organization.create({ data: { name: "Org" } });
+    const property = await prisma.property.create({ data: { organizationId: org.id, name: "Daire 1" } });
+    const oldOrphan = await prisma.conversation.create({
+      data: {
+        propertyId: property.id,
+        channel: "airbnb",
+        guestIdentifier: "Ahmet Yılmaz",
+        lastMessageAt: subMonths(new Date(), 30),
+        messages: { create: [{ direction: "inbound", senderName: "Ahmet Yılmaz", body: "Kapı kodu nedir?" }] },
+      },
+    });
+    const recentOrphan = await prisma.conversation.create({
+      data: {
+        propertyId: property.id,
+        channel: "airbnb",
+        guestIdentifier: "Yeni Misafir",
+        lastMessageAt: subMonths(new Date(), 1),
+        messages: { create: [{ direction: "inbound", senderName: "Yeni Misafir", body: "Merhaba" }] },
+      },
+    });
+
+    const r = await anonymizeOldGuestData();
+    expect(r.anonymized).toBe(1);
+
+    const scrubbed = await prisma.conversation.findUnique({
+      where: { id: oldOrphan.id },
+      include: { messages: true },
+    });
+    expect(scrubbed?.guestIdentifier).toBe("Misafir");
+    expect(scrubbed?.messages[0].body).not.toContain("Kapı kodu");
+    expect(scrubbed?.messages[0].body).toContain("saklama süresi");
+
+    const intact = await prisma.conversation.findUnique({
+      where: { id: recentOrphan.id },
+      include: { messages: true },
+    });
+    expect(intact?.guestIdentifier).toBe("Yeni Misafir");
+    expect(intact?.messages[0].body).toContain("Merhaba");
+  });
+});
+
+describe("purgeOldLeads (KVKK lead retention)", () => {
+  beforeEach(async () => {
+    await resetDb();
+  });
+  afterEach(() => {
+    vi.unstubAllEnvs();
+  });
+
+  it("is a no-op when LEAD_RETENTION_MONTHS is not set (never silently purges sales pipeline)", async () => {
+    await prisma.lead.create({ data: { name: "Old", email: "a@b.com", createdAt: subMonths(new Date(), 40) } });
+    expect((await purgeOldLeads()).purged).toBe(0);
+    expect(await prisma.lead.count()).toBe(1);
+  });
+
+  it("deletes leads past the window and keeps recent ones", async () => {
+    vi.stubEnv("LEAD_RETENTION_MONTHS", "24");
+    const oldLead = await prisma.lead.create({ data: { name: "Old", email: "old@x.com", createdAt: subMonths(new Date(), 30) } });
+    const recentLead = await prisma.lead.create({ data: { name: "New", email: "new@x.com", createdAt: subMonths(new Date(), 2) } });
+    expect((await purgeOldLeads()).purged).toBe(1);
+    expect(await prisma.lead.findUnique({ where: { id: oldLead.id } })).toBeNull();
+    expect(await prisma.lead.findUnique({ where: { id: recentLead.id } })).not.toBeNull();
   });
 });
 

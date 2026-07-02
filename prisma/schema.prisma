@@ -126,6 +126,10 @@ model User {
   emailVerifiedAt       DateTime?
   emailVerifyTokenHash  String?
   emailVerifyExpiresAt  DateTime?
+  // KVKK: when the user accepted Terms + Privacy at sign-up (informed-consent
+  // record). Nullable → existing accounts (created before the consent checkbox)
+  // stay valid and are never blocked.
+  acceptedTermsAt       DateTime?
   createdAt      DateTime @default(now())
   updatedAt      DateTime @updatedAt
 

@@ -17,6 +17,7 @@ export async function resetDb(): Promise<void> {
   await prisma.invoice.deleteMany();
   await prisma.subscription.deleteMany();
   await prisma.webhookEvent.deleteMany();
+  await prisma.lead.deleteMany(); // no FK relation → must be cleared explicitly
   await prisma.property.deleteMany();
   await prisma.user.deleteMany();
   await prisma.organization.deleteMany();
