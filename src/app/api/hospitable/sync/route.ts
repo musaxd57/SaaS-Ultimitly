@@ -1,5 +1,6 @@
 import { NextResponse } from "next/server";
-import { requireSession, unauthorized, tooManyRequests } from "@/lib/api";
+import { tooManyRequests } from "@/lib/api";
+import { withAuth } from "@/lib/route-guard";
 import { rateLimit } from "@/lib/rate-limit";
 import { hasOrgHospitable } from "@/lib/hospitable-credentials";
 import { syncHospitable } from "@/lib/hospitable-sync";
@@ -12,13 +13,12 @@ import { withSyncLock } from "@/lib/scheduled-sync";
 // it only pulls properties / conversations / messages in. It never sends a
 // message and never triggers the auto-reply pass (that is the scheduled cron's
 // job, and is itself gated by AUTO_REPLY_ENABLED). Returns 200 with
-// { ok: false } for expected failures so the UI can show a friendly message.
+// { ok: false } for expected failures so the UI can show a friendly message —
+// so the inner try/catch stays; withAuth only adds the session gate + a 500 net
+// for genuinely unexpected throws.
 // ---------------------------------------------------------------------------
 
-export async function POST() {
-  const session = await requireSession();
-  if (!session) return unauthorized();
-
+export const POST = withAuth(async (session) => {
   // A manual sync is a wide Hospitable sweep — throttle per org so the button
   // can't be spammed into the channel's own rate limit.
   const limited = rateLimit(`manual-sync:${session.organizationId}`, 6, 60_000);
@@ -50,4 +50,4 @@ export async function POST() {
     const message = err instanceof Error ? err.message : "Senkronizasyon başarısız oldu.";
     return NextResponse.json({ ok: false, error: message });
   }
-}
+});

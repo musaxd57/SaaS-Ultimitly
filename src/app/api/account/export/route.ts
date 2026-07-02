@@ -1,6 +1,7 @@
-import { type NextRequest, NextResponse } from "next/server";
+import { NextResponse } from "next/server";
 import { prisma } from "@/lib/db";
-import { requireSession, unauthorized, forbidden, canManage } from "@/lib/api";
+import { forbidden } from "@/lib/api";
+import { withManage } from "@/lib/route-guard";
 import { writeAudit } from "@/lib/audit";
 
 export const dynamic = "force-dynamic";
@@ -12,11 +13,7 @@ export const dynamic = "force-dynamic";
 // SECRETS ARE EXCLUDED (no passwordHash, no 2FA secret, no encrypted token).
 // Audit-logged.
 // ---------------------------------------------------------------------------
-export async function GET(_req: NextRequest) {
-  const session = await requireSession();
-  if (!session) return unauthorized();
-  if (!canManage(session)) return forbidden();
-
+export const GET = withManage(async (session) => {
   const org = await prisma.organization.findUnique({
     where: { id: session.organizationId },
     select: {
@@ -105,4 +102,4 @@ export async function GET(_req: NextRequest) {
       "Content-Disposition": `attachment; filename="${filename}"`,
     },
   });
-}
+});

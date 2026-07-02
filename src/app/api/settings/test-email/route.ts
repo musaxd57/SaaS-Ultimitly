@@ -1,6 +1,7 @@
 import { prisma } from "@/lib/db";
 import { emailService } from "@/lib/email";
-import { requireSession, unauthorized, badRequest, jsonOk, serverError, tooManyRequests } from "@/lib/api";
+import { badRequest, jsonOk, tooManyRequests } from "@/lib/api";
+import { withAuth } from "@/lib/route-guard";
 import { rateLimit } from "@/lib/rate-limit";
 
 // ---------------------------------------------------------------------------
@@ -9,10 +10,7 @@ import { rateLimit } from "@/lib/rate-limit";
 // complaint. Reports the exact outcome (sent, or the SMTP error).
 // ---------------------------------------------------------------------------
 
-export async function POST() {
-  const session = await requireSession();
-  if (!session) return unauthorized();
-
+export const POST = withAuth(async (session) => {
   // Sends real SMTP mail — throttle hard so it can't be used to email-bomb.
   const limited = rateLimit(`test-email:${session.userId}`, 5, 60_000);
   if (!limited.ok) return tooManyRequests(limited.retryAfter);
@@ -27,18 +25,14 @@ export async function POST() {
     return badRequest({ _: "Uyarı e-postası ayarlı değil. Önce yukarıdaki alana bir e-posta girin." });
   }
 
-  try {
-    const html =
-      `<div style="font-family:sans-serif;line-height:1.5">` +
-      `<h2>✅ Lixus AI — Test e-postası</h2>` +
-      `<p>Bu bir test mesajıdır. Bunu gördüyseniz, acil bildirim e-postalarınız <b>çalışıyor</b> 🎉</p>` +
-      `<p>Artık bir misafir şikayet/iade yazdığında bu adrese anında uyarı gelecek.</p>` +
-      `<p style="color:#888;font-size:12px">— Lixus AI</p></div>`;
+  const html =
+    `<div style="font-family:sans-serif;line-height:1.5">` +
+    `<h2>✅ Lixus AI — Test e-postası</h2>` +
+    `<p>Bu bir test mesajıdır. Bunu gördüyseniz, acil bildirim e-postalarınız <b>çalışıyor</b> 🎉</p>` +
+    `<p>Artık bir misafir şikayet/iade yazdığında bu adrese anında uyarı gelecek.</p>` +
+    `<p style="color:#888;font-size:12px">— Lixus AI</p></div>`;
 
-    const result = await emailService.sendReporting(to, "✅ Lixus AI — Test e-postası", html);
-    if (result.ok) return jsonOk({ sent: true, to });
-    return badRequest({ _: result.error ?? "E-posta gönderilemedi." });
-  } catch (err) {
-    return serverError(undefined, err);
-  }
-}
+  const result = await emailService.sendReporting(to, "✅ Lixus AI — Test e-postası", html);
+  if (result.ok) return jsonOk({ sent: true, to });
+  return badRequest({ _: result.error ?? "E-posta gönderilemedi." });
+});

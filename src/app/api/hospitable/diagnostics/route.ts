@@ -1,6 +1,6 @@
 import { NextResponse } from "next/server";
 import { prisma } from "@/lib/db";
-import { requireSession, unauthorized, canManage, forbidden } from "@/lib/api";
+import { withManage } from "@/lib/route-guard";
 import { listProperties, listReservations, listMessages } from "@/lib/hospitable";
 import { getOrgHospitableToken } from "@/lib/hospitable-credentials";
 
@@ -27,13 +27,9 @@ function shapeOf(value: unknown, depth = 0): unknown {
   return typeof value;
 }
 
-export async function GET() {
-  const session = await requireSession();
-  if (!session) return unauthorized();
-  // Channel diagnostics expose the org's property list + internal ids — owner/
-  // manager/operator only, never staff.
-  if (!canManage(session)) return forbidden();
-
+// Channel diagnostics expose the org's property list + internal ids — owner/
+// manager/operator only, never staff (withManage).
+export const GET = withManage(async (session) => {
   const token = await getOrgHospitableToken(session.organizationId);
   if (!token) {
     return NextResponse.json({ ok: false, error: "Hospitable bağlı değil." });
@@ -122,4 +118,4 @@ export async function GET() {
   }
 
   return NextResponse.json(out);
-}
+});

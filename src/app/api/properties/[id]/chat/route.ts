@@ -1,17 +1,14 @@
-import { type NextRequest } from "next/server";
 import { prisma } from "@/lib/db";
-import { requireSession, unauthorized, canManage, forbidden, jsonOk, badRequest } from "@/lib/api";
+import { jsonOk, badRequest, forbidden } from "@/lib/api";
+import { withManage } from "@/lib/route-guard";
 import { generateChatToken } from "@/lib/guest-chat";
 import { writeAudit } from "@/lib/audit";
 
 // Enable/disable the public guest QR concierge for ONE apartment. Owner/manager
-// only, strictly org-scoped. Enabling lazily mints an unguessable token; the
-// token is kept on disable so re-enabling reuses the same (already-printed) QR.
-export async function POST(req: NextRequest, { params }: { params: Promise<{ id: string }> }) {
-  const session = await requireSession();
-  if (!session) return unauthorized();
-  if (!canManage(session)) return forbidden();
-
+// only (withManage), strictly org-scoped. Enabling lazily mints an unguessable
+// token; the token is kept on disable so re-enabling reuses the same (already-
+// printed) QR.
+export const POST = withManage<{ id: string }>(async (session, req, { params }) => {
   const { id } = await params;
   const body = (await req.json().catch(() => null)) as { enabled?: unknown } | null;
   if (typeof body?.enabled !== "boolean") {
@@ -42,4 +39,4 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ id:
   }).catch(() => {});
 
   return jsonOk(updated);
-}
+});
