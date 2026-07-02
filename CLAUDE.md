@@ -1128,6 +1128,25 @@ kartı, kurulum sihirbazı=onboarding rehberi, kaçınılacaklar=zaten bizim kar
 tavan+limit hazır). **Reddedilen/ertelenenler:** AI-upsell (3. kez, Airbnb platform-dışı ödeme riski),
 WhatsApp bildirimi (dış hesap+kullanıcı kararı), cleaner portal / multi-PMS / SEO blog (launch sonrası).
 
+## 2. Gemini dalgası: readiness score + landing senaryoları + kararlar (2026-07-02, commit 78af140)
+Kullanıcı 2. Gemini listesini getirdi ("sen seç"). **Eklendi:** (a) **Booking Readiness Score** — Mülkler
+kartlarında "N/5 hazır" rozeti (Wi-Fi/giriş/kurallar/çıkış-mesajı/kanal-bağlantısı) + eksikler yazılı;
+mevcut sorgudan türetme, şema yok. (b) **Landing dürüst senaryo bölümü** (her zaman görünür, maliyet 0):
+4 örnek mesaj — hangileri otomatik yanıtlanır (yeşil), hangileri güvenlik kapısıyla size bırakılır (turuncu);
+canlı demo kutusu ancak `LANDING_DEMO_ENABLED=1` iken altında çıkar. **Kararlar/cevaplar:**
+- **Claude API'yi landing demoya koyma fikri REDDEDİLDİ:** demo, ürünün GERÇEK hattını göstermeli (satış
+  dürüstlüğü); ikinci sağlayıcı = temsil etmeyen demo + yeni bağımlılık/anahtar. Model kararı zaten "gpt-5.1'de
+  kal, gerçek arıza olmadan değiştirme".
+- **Ayarlar'daki karşılama/giriş/çıkış toggle'ları oto-yanıta BAĞLANMADI (kullanıcı sordu "kapatsam mı"):**
+  bunlar misafire GERÇEK mesaj gönderen ayrı özellikler; oto-yanıt açılınca otomatik açılmaları sürpriz
+  gönderim yapar ("bozma" kuralı). Ayrı kalmalı, bölüm gizlenmemeli.
+- **AI Review Queue** = zaten var (problem statüsü + inbox filtresi). **"Neden göndermedi" açıklaması**
+  ertelendi (skippedReason persist edilmiyor — şema+cron işi, ayrı dilim). **Haftalık e-posta** = e-posta-akışı
+  kuralı (kullanıcı onayı + dormant doğum) → istenirse ayrı dilim. **Review-isteme otomasyonu / lost-item /
+  dil analitiği / cleaner link** → ertelendi (platform-kuralı riski / orta boy işler, launch sonrası).
+- **"Takvim boş" (Pırasa hesabı) bug DEĞİL:** o org OAuth test hesabı, 0 mülk/rezervasyon; Nuve org'unda
+  veri DB'deki Reservation'lardan gelir (Hospitable 402 olsa bile mevcut satırlar durur).
+
 ## Çalışma şekli
 Kullanıcı: "Bana söyle, ben kodlarım." Fazları sırayla, additive + testli.
 Build + `npm test` yeşil olmadan push etme. GitHub'da PR sadece kullanıcı
