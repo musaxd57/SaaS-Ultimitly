@@ -41,4 +41,11 @@ describe("clientIp", () => {
     expect(clientIp(new Request("http://x", { headers: { "x-real-ip": "9.9.9.9" } }))).toBe("9.9.9.9");
     expect(clientIp(new Request("http://x"))).toBe("unknown");
   });
+
+  it("prefers cf-connecting-ip when Cloudflare terminates the request", () => {
+    const req = new Request("http://x", {
+      headers: { "cf-connecting-ip": "3.3.3.3", "x-forwarded-for": "1.2.3.4, 5.6.7.8" },
+    });
+    expect(clientIp(req)).toBe("3.3.3.3");
+  });
 });

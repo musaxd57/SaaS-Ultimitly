@@ -36,6 +36,12 @@ export function rateLimit(
 
 /** Best-effort client IP from common proxy headers (Railway/Vercel set these). */
 export function clientIp(req: Request): string {
+  // If Cloudflare sits in front of this request, it sets its OWN header with the
+  // true edge-verified client IP — prefer it over X-Forwarded-For, which can grow
+  // extra (still-spoofable) leftmost hops once a CF-terminated request reaches us.
+  const cfIp = req.headers.get("cf-connecting-ip");
+  if (cfIp?.trim()) return cfIp.trim();
+
   const xff = req.headers.get("x-forwarded-for");
   if (xff) {
     // Trust the RIGHTMOST hop (appended by the platform proxy, e.g. Railway), not

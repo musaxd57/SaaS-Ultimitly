@@ -12,7 +12,8 @@
     "db:push": "prisma db push",
     "db:seed": "tsx prisma/seed.ts",
     "db:studio": "prisma studio",
-    "db:reset": "prisma db push --force-reset && tsx prisma/seed.ts"
+    "db:reset": "prisma db push --force-reset && tsx prisma/seed.ts",
+    "env:recover": "git fetch origin && git reset --hard origin/claude/great-edison-3zqpZ && npx prisma generate"
   },
   "prisma": {
     "seed": "tsx prisma/seed.ts"

@@ -3,6 +3,7 @@ import { REPLY_SYSTEM_PROMPT, buildReplyUserPrompt } from "./prompts";
 import { suggestReplyFallback, classifyFallback } from "./fallback";
 import type { ClassifyResult, SuggestReplyInput, SuggestReplyResult } from "./types";
 import type { Priority } from "@/lib/constants";
+import { reportError } from "@/lib/report-error";
 
 export type { SuggestReplyInput, SuggestReplyResult, ClassifyResult } from "./types";
 
@@ -55,10 +56,19 @@ async function callOpenAI(system: string, user: string): Promise<string | null> 
       // Reasoning models can be slower — allow a longer ceiling.
       signal: AbortSignal.timeout(isReasoningModel(model) ? 60000 : 20000),
     });
-    if (!res.ok) return null;
+    if (!res.ok) {
+      // Silent-degradation guard: every call here falls back to the deterministic
+      // fallback on failure (by design — the guest always gets an answer), but a
+      // persistent cause (bad/expired key, exhausted quota, deprecated model)
+      // would otherwise degrade every reply with nobody noticing. Report, don't
+      // throw — the fallback path below is unaffected.
+      void reportError(`openai-reply ${res.status}`, new Error(await res.text().catch(() => res.statusText)));
+      return null;
+    }
     const data = await res.json();
     return data?.choices?.[0]?.message?.content ?? null;
-  } catch {
+  } catch (err) {
+    void reportError("openai-reply", err);
     return null;
   }
 }

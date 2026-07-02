@@ -13,6 +13,10 @@ Railway Postgres, confirmed: `Migration 0_init marked as applied.`), and Phase 3
 real migrations now; any future schema change ships as a reviewed migration file
 under `prisma/migrations/`, not a live schema-diff.
 
+**Verified live:** Railway deploy log shows "Deployment successful" on the first
+`migrate deploy` boot; dashboard loads with real data (messages, tasks,
+checkouts) immediately after. Cutover confirmed working end-to-end.
+
 Verified locally end-to-end on a throwaway Postgres: the baseline has **zero
 drift** vs a `db push`'d schema; a plain `migrate deploy` on the populated DB
 fails **P3005** (proving the baseline step is mandatory first); `resolve --applied`
