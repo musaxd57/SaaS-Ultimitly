@@ -233,7 +233,7 @@ export function suggestReplyFallback(input: SuggestReplyInput): SuggestReplyResu
   const greeting = isTr
     ? name ? `Merhaba ${name},` : "Merhaba,"
     : name ? `Hi ${name},` : "Hi,";
-  const closing = input.tone === "short" ? "" : isTr ? "\n\nİyi günler dilerim." : "\n\nKind regards,";
+  const closing = input.tone === "short" ? "" : isTr ? "\n\nİyi günler dileriz." : "\n\nKind regards,";
 
   let body: string;
   let risk: string | null = null;
@@ -241,7 +241,7 @@ export function suggestReplyFallback(input: SuggestReplyInput): SuggestReplyResu
   switch (intent) {
     case "complaint":
       body = isTr
-        ? "Bunun için özür dilerim. Durumu hemen ekibimize ilettim; en kısa sürede size döneceğim."
+        ? "Bunun için özür dileriz. Durumu hemen ekibimize ilettim; en kısa sürede size döneceğim."
         : "Apologies for the issue you've experienced. I've notified our team right away and will get back to you as soon as possible.";
       risk = "Şikayet/olası sorun algılandı. Yöneticiye iletilmeli; otomatik karar verilmedi.";
       break;

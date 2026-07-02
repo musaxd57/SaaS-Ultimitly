@@ -201,6 +201,6 @@ describe("suggestReplyFallback", () => {
 
   it("omits the closing line in short tone", () => {
     const r = suggestReplyFallback(baseInput({ guestMessage: "Giriş saati?", tone: "short" }));
-    expect(r.reply).not.toContain("İyi günler dilerim.");
+    expect(r.reply).not.toContain("İyi günler dileriz.");
   });
 });
