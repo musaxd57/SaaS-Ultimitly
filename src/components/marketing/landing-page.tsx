@@ -23,6 +23,7 @@ import { LeadForm } from "@/components/marketing/lead-form";
 import { StructuredData } from "@/components/marketing/structured-data";
 import { Reveal } from "@/components/marketing/reveal";
 import { DemoFrame } from "@/components/marketing/demo-frame";
+import { LandingDemo } from "@/components/marketing/landing-demo";
 import { NavScroll } from "@/components/marketing/nav-scroll";
 import { MobileNav } from "@/components/marketing/mobile-nav";
 import { cn } from "@/lib/utils";
@@ -185,6 +186,9 @@ export function LandingPage() {
   // Optional demo video — set NEXT_PUBLIC_DEMO_VIDEO to a YouTube/Loom EMBED URL.
   // If unset, the whole demo section is hidden (no empty placeholder box).
   const demoVideo = process.env.NEXT_PUBLIC_DEMO_VIDEO;
+  // Live "try the AI" block — mirrors the /api/demo/ai kill-switch so the
+  // section and the endpoint appear/disappear together.
+  const aiDemoEnabled = process.env.LANDING_DEMO_ENABLED === "1";
 
   return (
     <div className="min-h-screen bg-background text-foreground">
@@ -400,6 +404,23 @@ export function LandingPage() {
           </Reveal>
         </div>
       </section>
+
+      {/* Live AI demo — only when the operator has enabled the public demo
+          endpoint (LANDING_DEMO_ENABLED=1); otherwise no dead UI ships. */}
+      {aiDemoEnabled ? (
+        <section id="canli-demo" className="scroll-mt-20 border-t border-border py-20">
+          <div className="mx-auto max-w-6xl px-4 text-center sm:px-6">
+            <Reveal as="h2" className="text-3xl font-bold tracking-tight">AI&apos;ı şimdi deneyin</Reveal>
+            <Reveal as="p" delay={80} className="mx-auto mt-3 max-w-xl text-muted-foreground">
+              Kayıt olmadan, örnek bir dairede: hangi dilde yazarsanız o dilde cevap verir;
+              şikayet ve iade gibi konularda ise durup ev sahibine bırakır.
+            </Reveal>
+            <Reveal delay={160} className="mt-8">
+              <LandingDemo />
+            </Reveal>
+          </div>
+        </section>
+      ) : null}
 
       {/* Pricing */}
       <section id="fiyatlar" className="scroll-mt-20 border-t border-border bg-card/40 py-20">
