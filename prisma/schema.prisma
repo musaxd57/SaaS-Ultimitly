@@ -130,6 +130,11 @@ model User {
   // record). Nullable → existing accounts (created before the consent checkbox)
   // stay valid and are never blocked.
   acceptedTermsAt       DateTime?
+  // Session invalidation counter. Bumped on password change/reset → a stolen JWT
+  // (which carries the old value) stops matching, so it dies within one request
+  // instead of surviving up to 14 days. Defaulted → db-push safe + no mass-logout
+  // on deploy (existing users + legacy tokens both read 0).
+  sessionEpoch   Int      @default(0)
   createdAt      DateTime @default(now())
   updatedAt      DateTime @updatedAt
 

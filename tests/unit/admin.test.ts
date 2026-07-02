@@ -8,6 +8,7 @@ const base: SessionPayload = {
   role: "owner",
   email: "Operator@Example.com",
   name: "Operator",
+  sessionEpoch: 0,
 };
 
 afterEach(() => vi.unstubAllEnvs());

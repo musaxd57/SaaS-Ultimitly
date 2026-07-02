@@ -38,6 +38,7 @@ describe("exitImpersonation fail-safe", () => {
       role: "owner",
       email: "customer@x.com",
       name: "Customer",
+      sessionEpoch: 0,
       actorUserId: "missing-operator",
       actorEmail: "operator@x.com",
     };
@@ -62,6 +63,7 @@ describe("exitImpersonation fail-safe", () => {
       role: "owner",
       email: "customer@x.com",
       name: "Customer",
+      sessionEpoch: 0,
       actorUserId: operator.id,
       actorEmail: "op@x.com",
     };

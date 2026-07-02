@@ -116,6 +116,7 @@ export async function POST(req: NextRequest) {
       role: user.role as UserRole,
       email: user.email,
       name: user.name,
+      sessionEpoch: user.sessionEpoch,
     });
 
     // Security breadcrumb: a successful sign-in (who + when). Non-fatal.

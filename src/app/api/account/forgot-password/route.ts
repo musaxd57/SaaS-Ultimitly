@@ -152,8 +152,10 @@ export async function POST(req: NextRequest) {
           pwResetCodeHash: null,
           pwResetCodeExpiresAt: null,
           pwResetCodeAttempts: 0,
-          // When sessionEpoch lands (deferred auth-hardening), add
-          // `sessionEpoch: { increment: 1 }` here to kill other live sessions.
+          // Kill every live session: a stolen token carries the old epoch, so it
+          // stops matching the moment the reset completes (the core reason a user
+          // resets a password they fear is compromised).
+          sessionEpoch: { increment: 1 },
         },
       });
       await writeAudit({

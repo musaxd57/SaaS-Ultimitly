@@ -24,6 +24,7 @@ const owner = (orgId: string): SessionPayload => ({
   role: "owner",
   email: "o@x.com",
   name: "O",
+  sessionEpoch: 0,
 });
 
 async function seedProperties(orgId: string, n: number) {

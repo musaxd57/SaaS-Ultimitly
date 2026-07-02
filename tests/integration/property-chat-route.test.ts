@@ -24,6 +24,7 @@ const owner = (orgId: string): SessionPayload => ({
   role: "owner",
   email: "o@x.com",
   name: "O",
+  sessionEpoch: 0,
 });
 
 describe("POST /api/properties/[id]/chat — enable guest QR concierge", () => {
@@ -40,7 +41,7 @@ describe("POST /api/properties/[id]/chat — enable guest QR concierge", () => {
   });
 
   it("FORBIDS staff (403) — owner/manager only, nothing changes", async () => {
-    session = { userId: "u", organizationId: orgId, role: "staff", email: "s@x.com", name: "S" };
+    session = { userId: "u", organizationId: orgId, role: "staff", email: "s@x.com", name: "S", sessionEpoch: 0 };
     const res = await POST(req(propertyId, { enabled: true }), { params: Promise.resolve({ id: propertyId }) });
     expect(res.status).toBe(403);
     const after = await prisma.property.findUnique({ where: { id: propertyId } });

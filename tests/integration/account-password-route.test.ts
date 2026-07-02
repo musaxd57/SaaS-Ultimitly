@@ -51,7 +51,7 @@ describe("POST /api/account/password (e-mail code flow)", () => {
     const user = await prisma.user.create({
       data: { organizationId: org.id, name: "U", email: "u@example.com", passwordHash: "old", role: "owner" },
     });
-    session = { userId: user.id, organizationId: org.id, role: "owner", email: "u@example.com", name: "U" };
+    session = { userId: user.id, organizationId: org.id, role: "owner", email: "u@example.com", name: "U", sessionEpoch: 0 };
   });
 
   it("request e-mails a code and stores it hashed (never plaintext)", async () => {
@@ -78,10 +78,11 @@ describe("POST /api/account/password (e-mail code flow)", () => {
 
     const u = await prisma.user.findUnique({
       where: { id: session.userId },
-      select: { passwordHash: true, pwChangeCodeHash: true },
+      select: { passwordHash: true, pwChangeCodeHash: true, sessionEpoch: true },
     });
     expect(await verifyPassword("brandnew123", u!.passwordHash)).toBe(true);
     expect(u?.pwChangeCodeHash).toBeNull(); // code burned after use
+    expect(u?.sessionEpoch).toBe(1); // bumped 0→1 → invalidates stolen tokens
   });
 
   it("rejects a wrong code, increments attempts, and leaves the password unchanged", async () => {

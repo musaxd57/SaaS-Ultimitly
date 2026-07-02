@@ -60,7 +60,7 @@ export async function enterOrganization(
       id: true,
       users: {
         orderBy: { createdAt: "asc" },
-        select: { id: true, role: true, email: true, name: true },
+        select: { id: true, role: true, email: true, name: true, sessionEpoch: true },
       },
     },
   });
@@ -85,6 +85,7 @@ export async function enterOrganization(
     role: owner.role as UserRole,
     email: owner.email,
     name: owner.name,
+    sessionEpoch: owner.sessionEpoch,
     actorUserId,
     actorEmail: actor,
     actorName,
@@ -109,7 +110,7 @@ export async function exitImpersonation(): Promise<boolean> {
   if (!current?.actorUserId) return false;
   const actor = await prisma.user.findUnique({
     where: { id: current.actorUserId },
-    select: { id: true, organizationId: true, role: true, email: true, name: true },
+    select: { id: true, organizationId: true, role: true, email: true, name: true, sessionEpoch: true },
   });
   if (!actor) {
     // Fail-safe: the operator's own user record is gone, so we can't restore
@@ -131,6 +132,7 @@ export async function exitImpersonation(): Promise<boolean> {
     role: actor.role as UserRole,
     email: actor.email,
     name: actor.name,
+    sessionEpoch: actor.sessionEpoch,
   });
   return true;
 }

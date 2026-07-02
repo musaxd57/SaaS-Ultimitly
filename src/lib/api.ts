@@ -5,9 +5,25 @@ import { reportError } from "@/lib/report-error";
 
 export type { SessionPayload };
 
-/** Returns the current session or null (for route handlers). */
+/** Returns the current session or null (for route handlers). Also enforces the
+ *  session epoch: a stolen token whose sessionEpoch no longer matches the user's
+ *  current DB value (bumped on password change/reset, or if the user was deleted)
+ *  is rejected here, so every authed API route returns 401 without any per-route
+ *  change. One indexed primary-key lookup; fail-OPEN on a transient DB error so a
+ *  blip can never mass-logout (the JWT signature is still valid). */
 export async function requireSession(): Promise<SessionPayload | null> {
-  return getSession();
+  const session = await getSession();
+  if (!session) return null;
+  try {
+    const user = await prisma.user.findUnique({
+      where: { id: session.userId },
+      select: { sessionEpoch: true },
+    });
+    if (!user || user.sessionEpoch !== session.sessionEpoch) return null;
+  } catch {
+    // DB blip — don't turn a transient read failure into a logout.
+  }
+  return session;
 }
 
 export function jsonOk<T>(data: T, status = 200) {

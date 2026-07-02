@@ -48,7 +48,7 @@ describe("PATCH /api/tasks/[id] — staff field restriction", () => {
   });
 
   it("blocks staff from changing a management field (title) with 403", async () => {
-    session = { userId: staffId, organizationId: orgId, role: "staff", email: "s@x.com", name: "Staff" };
+    session = { userId: staffId, organizationId: orgId, role: "staff", email: "s@x.com", name: "Staff", sessionEpoch: 0 };
     const res = await PATCH(patchReq({ title: "Yeni başlık" }), ctx());
     expect(res.status).toBe(403);
     const t = await prisma.task.findUnique({ where: { id: taskId }, select: { title: true } });
@@ -56,7 +56,7 @@ describe("PATCH /api/tasks/[id] — staff field restriction", () => {
   });
 
   it("lets staff progress a task (status)", async () => {
-    session = { userId: staffId, organizationId: orgId, role: "staff", email: "s@x.com", name: "Staff" };
+    session = { userId: staffId, organizationId: orgId, role: "staff", email: "s@x.com", name: "Staff", sessionEpoch: 0 };
     const res = await PATCH(patchReq({ status: "done" }), ctx());
     expect(res.status).toBe(200);
     const t = await prisma.task.findUnique({ where: { id: taskId }, select: { status: true } });
@@ -64,7 +64,7 @@ describe("PATCH /api/tasks/[id] — staff field restriction", () => {
   });
 
   it("lets an owner change a management field (title)", async () => {
-    session = { userId: ownerId, organizationId: orgId, role: "owner", email: "o@x.com", name: "Owner" };
+    session = { userId: ownerId, organizationId: orgId, role: "owner", email: "o@x.com", name: "Owner", sessionEpoch: 0 };
     const res = await PATCH(patchReq({ title: "Yeni başlık" }), ctx());
     expect(res.status).toBe(200);
     const t = await prisma.task.findUnique({ where: { id: taskId }, select: { title: true } });
@@ -73,7 +73,7 @@ describe("PATCH /api/tasks/[id] — staff field restriction", () => {
 
   it("does NOT let an owner of another org edit this task (tenant isolation) — 404, unchanged", async () => {
     const other = await prisma.organization.create({ data: { name: "Other Org" } });
-    session = { userId: "x", organizationId: other.id, role: "owner", email: "o2@x.com", name: "Owner2" };
+    session = { userId: "x", organizationId: other.id, role: "owner", email: "o2@x.com", name: "Owner2", sessionEpoch: 0 };
     const res = await PATCH(patchReq({ title: "sızıntı" }), ctx());
     expect(res.status).toBe(404);
     const t = await prisma.task.findUnique({ where: { id: taskId }, select: { title: true } });
@@ -82,7 +82,7 @@ describe("PATCH /api/tasks/[id] — staff field restriction", () => {
 
   it("does NOT let an owner of another org delete this task (tenant isolation) — 404, still present", async () => {
     const other = await prisma.organization.create({ data: { name: "Other Org" } });
-    session = { userId: "x", organizationId: other.id, role: "owner", email: "o2@x.com", name: "Owner2" };
+    session = { userId: "x", organizationId: other.id, role: "owner", email: "o2@x.com", name: "Owner2", sessionEpoch: 0 };
     const res = await DELETE(patchReq({}), ctx());
     expect(res.status).toBe(404);
     expect(await prisma.task.findUnique({ where: { id: taskId } })).not.toBeNull();

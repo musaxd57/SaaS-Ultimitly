@@ -21,7 +21,7 @@ export async function GET(req: NextRequest) {
   const hash = hashVerifyToken(token);
   const user = await prisma.user.findFirst({
     where: { emailVerifyTokenHash: hash, emailVerifyExpiresAt: { gt: new Date() } },
-    select: { id: true, organizationId: true, role: true, email: true, name: true },
+    select: { id: true, organizationId: true, role: true, email: true, name: true, sessionEpoch: true },
   });
   if (!user) return fail("expired");
 
@@ -36,6 +36,7 @@ export async function GET(req: NextRequest) {
     role: user.role as UserRole,
     email: user.email,
     name: user.name,
+    sessionEpoch: user.sessionEpoch,
   });
 
   return NextResponse.redirect(`${base}/dashboard`);

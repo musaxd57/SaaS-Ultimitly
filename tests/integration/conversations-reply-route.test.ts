@@ -57,7 +57,7 @@ describe("POST /api/conversations/[id]/reply — staff RBAC gate", () => {
   });
 
   it("FORBIDS a staff user from sending — 403, nothing sent, no outbound row", async () => {
-    session = { userId: "u", organizationId: orgId, role: "staff", email: "s@x.com", name: "Staff" };
+    session = { userId: "u", organizationId: orgId, role: "staff", email: "s@x.com", name: "Staff", sessionEpoch: 0 };
     const res = await POST(req(conversationId, { body: "Merhaba" }), {
       params: Promise.resolve({ id: conversationId }),
     });
@@ -68,7 +68,7 @@ describe("POST /api/conversations/[id]/reply — staff RBAC gate", () => {
   });
 
   it("ALLOWS an owner to send — 201, delivered once, outbound row persisted", async () => {
-    session = { userId: "u", organizationId: orgId, role: "owner", email: "o@x.com", name: "Owner" };
+    session = { userId: "u", organizationId: orgId, role: "owner", email: "o@x.com", name: "Owner", sessionEpoch: 0 };
     const res = await POST(req(conversationId, { body: "Merhaba" }), {
       params: Promise.resolve({ id: conversationId }),
     });
@@ -79,7 +79,7 @@ describe("POST /api/conversations/[id]/reply — staff RBAC gate", () => {
   });
 
   it("credits an AI-approved send (aiAssisted) in reports, not a manual reply (#8)", async () => {
-    session = { userId: "u", organizationId: orgId, role: "owner", email: "o@x.com", name: "Owner" };
+    session = { userId: "u", organizationId: orgId, role: "owner", email: "o@x.com", name: "Owner", sessionEpoch: 0 };
     // One-click "Onayla ve gönder" on an AI draft → flagged.
     await POST(req(conversationId, { body: "AI taslağı", aiAssisted: true }), {
       params: Promise.resolve({ id: conversationId }),
@@ -101,7 +101,7 @@ describe("POST /api/conversations/[id]/reply — staff RBAC gate", () => {
 
   it("does not let an owner of ANOTHER org reply into this conversation (tenant isolation)", async () => {
     const otherOrg = await prisma.organization.create({ data: { name: "Other" } });
-    session = { userId: "u2", organizationId: otherOrg.id, role: "owner", email: "o2@x.com", name: "Owner2" };
+    session = { userId: "u2", organizationId: otherOrg.id, role: "owner", email: "o2@x.com", name: "Owner2", sessionEpoch: 0 };
     const res = await POST(req(conversationId, { body: "sızıntı" }), {
       params: Promise.resolve({ id: conversationId }),
     });
@@ -125,7 +125,7 @@ describe("POST /api/conversations/[id]/reply — staff RBAC gate", () => {
       },
     });
     mockToken.mockResolvedValueOnce(null); // org has NO Hospitable token
-    session = { userId: "u", organizationId: orgId, role: "owner", email: "o@x.com", name: "Owner" };
+    session = { userId: "u", organizationId: orgId, role: "owner", email: "o@x.com", name: "Owner", sessionEpoch: 0 };
 
     const res = await POST(req(qr.id, { body: "Çöp salı günü toplanır." }), {
       params: Promise.resolve({ id: qr.id }),

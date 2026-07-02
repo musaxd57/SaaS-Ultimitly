@@ -32,7 +32,7 @@ describe("POST /api/account/2fa", () => {
     const user = await prisma.user.create({
       data: { organizationId: org.id, name: "U", email: "u@example.com", passwordHash: "x", role: "owner" },
     });
-    session = { userId: user.id, organizationId: org.id, role: "owner", email: "u@example.com", name: "U" };
+    session = { userId: user.id, organizationId: org.id, role: "owner", email: "u@example.com", name: "U", sessionEpoch: 0 };
   });
 
   it("rejects 'setup' when 2FA is already active — never silently disables it", async () => {

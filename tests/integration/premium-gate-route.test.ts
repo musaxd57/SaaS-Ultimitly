@@ -20,7 +20,7 @@ describe("premium route gate (free-tier downgrade)", () => {
     vi.clearAllMocks();
     const org = await prisma.organization.create({ data: { name: "Org" } });
     orgId = org.id;
-    session = { userId: "u", organizationId: orgId, role: "owner", email: "o@x.com", name: "O" };
+    session = { userId: "u", organizationId: orgId, role: "owner", email: "o@x.com", name: "O", sessionEpoch: 0 };
   });
   afterEach(() => {
     delete process.env.BILLING_ENFORCED;

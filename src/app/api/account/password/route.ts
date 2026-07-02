@@ -151,6 +151,9 @@ export async function POST(req: NextRequest) {
           pwChangeCodeHash: null,
           pwChangeCodeExpiresAt: null,
           pwChangeCodeAttempts: 0,
+          // Invalidate every OTHER live session (a stolen token carries the old
+          // epoch → it stops matching on the next request).
+          sessionEpoch: { increment: 1 },
         },
       });
       await writeAudit({
