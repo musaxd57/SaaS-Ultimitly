@@ -10,7 +10,7 @@ export async function POST(_req: NextRequest) {
   try {
     const result = await syncAllSourcesForOrg(session.organizationId);
     return jsonOk(result);
-  } catch {
-    return serverError();
+  } catch (err) {
+    return serverError(undefined, err);
   }
 }

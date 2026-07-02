@@ -15,7 +15,7 @@ export async function POST(_req: NextRequest) {
   try {
     const result = await backfillReservationTasks(session.organizationId);
     return jsonOk(result);
-  } catch {
-    return serverError();
+  } catch (err) {
+    return serverError(undefined, err);
   }
 }

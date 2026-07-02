@@ -22,7 +22,7 @@ export async function POST(req: NextRequest) {
     const ok = await enterOrganization(session, organizationId);
     if (!ok) return badRequest({ organizationId: "Bu işletmeye ait kullanıcı bulunamadı." });
     return jsonOk({ ok: true });
-  } catch {
-    return serverError();
+  } catch (err) {
+    return serverError(undefined, err);
   }
 }

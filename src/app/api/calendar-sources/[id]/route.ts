@@ -20,7 +20,7 @@ export async function DELETE(
 
     await prisma.calendarSource.delete({ where: { id } });
     return jsonOk({ ok: true });
-  } catch {
-    return serverError();
+  } catch (err) {
+    return serverError(undefined, err);
   }
 }

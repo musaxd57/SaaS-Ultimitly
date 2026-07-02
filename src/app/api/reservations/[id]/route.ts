@@ -37,8 +37,8 @@ export async function PATCH(req: NextRequest, { params }: Params) {
       data: parsed.data,
     });
     return jsonOk(reservation);
-  } catch {
-    return serverError();
+  } catch (err) {
+    return serverError(undefined, err);
   }
 }
 

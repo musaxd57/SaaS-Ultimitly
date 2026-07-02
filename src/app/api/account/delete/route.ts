@@ -45,7 +45,7 @@ export async function POST(req: NextRequest) {
     await deleteAccountData(session.organizationId);
     await clearSessionCookie(); // the account is gone — drop the session too
     return jsonOk({ ok: true });
-  } catch {
-    return serverError();
+  } catch (err) {
+    return serverError(undefined, err);
   }
 }

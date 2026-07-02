@@ -86,7 +86,7 @@ export async function POST(req: NextRequest) {
     await applyInboundMessageRules(conversation.id, d.firstMessage);
 
     return jsonOk(conversation, 201);
-  } catch {
-    return serverError();
+  } catch (err) {
+    return serverError(undefined, err);
   }
 }

@@ -125,7 +125,7 @@ export async function POST(req: NextRequest) {
     }
 
     return jsonOk({ imported, skipped, errors });
-  } catch {
-    return serverError();
+  } catch (err) {
+    return serverError(undefined, err);
   }
 }

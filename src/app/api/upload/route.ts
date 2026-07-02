@@ -57,7 +57,7 @@ export async function POST(req: NextRequest) {
 
     const url = `/uploads/${orgSlug}/${filename}`;
     return jsonOk({ url });
-  } catch {
-    return serverError();
+  } catch (err) {
+    return serverError(undefined, err);
   }
 }

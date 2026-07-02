@@ -1,6 +1,7 @@
 import { NextResponse } from "next/server";
-import { requireSession, unauthorized, paymentRequired } from "@/lib/api";
+import { requireSession, unauthorized, paymentRequired, tooManyRequests } from "@/lib/api";
 import { premiumAllowed } from "@/lib/billing/subscription";
+import { rateLimit } from "@/lib/rate-limit";
 import { previewCheckouts } from "@/lib/automation";
 
 // Dry-run preview for the automatic check-out message — builds the exact text
@@ -9,6 +10,9 @@ export async function POST() {
   const session = await requireSession();
   if (!session) return unauthorized();
   if (!(await premiumAllowed(session.organizationId))) return paymentRequired();
+
+  const limited = rateLimit(`preview-checkout:${session.userId}`, 6, 60_000);
+  if (!limited.ok) return tooManyRequests(limited.retryAfter);
 
   try {
     const previews = await previewCheckouts(session.organizationId);

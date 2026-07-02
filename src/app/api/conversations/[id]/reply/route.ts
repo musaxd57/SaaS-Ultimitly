@@ -13,8 +13,10 @@ import {
   tooManyRequests,
   canManage,
   forbidden,
+  paymentRequired,
 } from "@/lib/api";
 import { rateLimit } from "@/lib/rate-limit";
+import { premiumAllowed } from "@/lib/billing/subscription";
 import { translateText } from "@/lib/ai/translate";
 
 type Params = { params: Promise<{ id: string }> };
@@ -57,6 +59,10 @@ export async function POST(req: NextRequest, { params }: Params) {
 
     let replyBody = parsed.data.body;
     if (translateTo) {
+      // Translate is a paid AI feature — gate it in the freemium tier so a lapsed
+      // org can't burn OpenAI via the manual reply path. The manual send itself
+      // stays free; only the optional translate add-on is premium.
+      if (!(await premiumAllowed(session.organizationId))) return paymentRequired();
       replyBody = await translateText(replyBody, translateTo);
     }
 

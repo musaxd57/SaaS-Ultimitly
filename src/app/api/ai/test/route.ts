@@ -96,7 +96,7 @@ export async function POST(req: NextRequest) {
     });
 
     return jsonOk({ ...result, property: property.name });
-  } catch {
-    return serverError();
+  } catch (err) {
+    return serverError(undefined, err);
   }
 }

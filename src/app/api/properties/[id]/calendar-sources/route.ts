@@ -34,7 +34,7 @@ export async function POST(
       data: { propertyId, label, url },
     });
     return jsonOk(source, 201);
-  } catch {
-    return serverError();
+  } catch (err) {
+    return serverError(undefined, err);
   }
 }

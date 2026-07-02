@@ -32,7 +32,7 @@ export async function POST(_req: NextRequest) {
       reservationsChecked: reservations.checkedProperties,
       reservationsSkipped: reservations.skippedProperties,
     });
-  } catch {
-    return serverError();
+  } catch (err) {
+    return serverError(undefined, err);
   }
 }

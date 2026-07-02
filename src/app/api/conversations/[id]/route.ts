@@ -34,8 +34,8 @@ export async function PATCH(req: NextRequest, { params }: Params) {
       data: parsed.data,
     });
     return jsonOk(conversation);
-  } catch {
-    return serverError();
+  } catch (err) {
+    return serverError(undefined, err);
   }
 }
 
@@ -59,7 +59,7 @@ export async function DELETE(_req: NextRequest, { params }: Params) {
       prisma.conversation.delete({ where: { id } }),
     ]);
     return jsonOk({ deleted: true });
-  } catch {
-    return serverError();
+  } catch (err) {
+    return serverError(undefined, err);
   }
 }

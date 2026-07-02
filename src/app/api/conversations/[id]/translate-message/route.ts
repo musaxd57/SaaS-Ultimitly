@@ -69,7 +69,7 @@ export async function POST(req: NextRequest, { params }: Params) {
     );
 
     return jsonOk({ translation, detectedLanguage });
-  } catch {
-    return serverError();
+  } catch (err) {
+    return serverError(undefined, err);
   }
 }

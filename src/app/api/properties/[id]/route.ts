@@ -74,8 +74,8 @@ export async function PATCH(req: NextRequest, { params }: Params) {
       },
     });
     return jsonOk(property);
-  } catch {
-    return serverError();
+  } catch (err) {
+    return serverError(undefined, err);
   }
 }
 

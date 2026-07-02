@@ -1,6 +1,7 @@
 import { NextResponse } from "next/server";
-import { requireSession, unauthorized, paymentRequired } from "@/lib/api";
+import { requireSession, unauthorized, paymentRequired, tooManyRequests } from "@/lib/api";
 import { premiumAllowed } from "@/lib/billing/subscription";
+import { rateLimit } from "@/lib/rate-limit";
 import { previewChannelAutoReplies } from "@/lib/automation";
 
 // ---------------------------------------------------------------------------
@@ -16,6 +17,11 @@ export async function POST() {
   const session = await requireSession();
   if (!session) return unauthorized();
   if (!(await premiumAllowed(session.organizationId))) return paymentRequired();
+
+  // This preview fans out one model call per awaiting conversation on the shared
+  // platform key — throttle per user so it can't be POST-spammed for cost.
+  const limited = rateLimit(`preview-autoreply:${session.userId}`, 6, 60_000);
+  if (!limited.ok) return tooManyRequests(limited.retryAfter);
 
   try {
     const outcomes = await previewChannelAutoReplies(session.organizationId);

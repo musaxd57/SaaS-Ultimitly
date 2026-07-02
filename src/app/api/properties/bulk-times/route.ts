@@ -40,7 +40,7 @@ export async function POST(req: NextRequest) {
     });
 
     return jsonOk({ ok: true, updated: result.count, ...update });
-  } catch {
-    return serverError();
+  } catch (err) {
+    return serverError(undefined, err);
   }
 }

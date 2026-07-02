@@ -97,8 +97,8 @@ export async function PATCH(req: NextRequest, { params }: Params) {
     }
 
     return jsonOk(task);
-  } catch {
-    return serverError();
+  } catch (err) {
+    return serverError(undefined, err);
   }
 }
 

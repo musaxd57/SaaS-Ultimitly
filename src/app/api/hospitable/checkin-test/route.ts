@@ -1,6 +1,7 @@
 import { NextResponse } from "next/server";
-import { requireSession, unauthorized, paymentRequired } from "@/lib/api";
+import { requireSession, unauthorized, paymentRequired, tooManyRequests } from "@/lib/api";
 import { premiumAllowed } from "@/lib/billing/subscription";
+import { rateLimit } from "@/lib/rate-limit";
 import { previewCheckins } from "@/lib/automation";
 
 // ---------------------------------------------------------------------------
@@ -16,6 +17,9 @@ export async function POST() {
   const session = await requireSession();
   if (!session) return unauthorized();
   if (!(await premiumAllowed(session.organizationId))) return paymentRequired();
+
+  const limited = rateLimit(`preview-checkin:${session.userId}`, 6, 60_000);
+  if (!limited.ok) return tooManyRequests(limited.retryAfter);
 
   try {
     const previews = await previewCheckins(session.organizationId);

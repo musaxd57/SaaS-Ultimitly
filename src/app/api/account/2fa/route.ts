@@ -118,7 +118,7 @@ export async function POST(req: NextRequest) {
     }
 
     return badRequest({ _: "Geçersiz işlem." });
-  } catch {
-    return serverError();
+  } catch (err) {
+    return serverError(undefined, err);
   }
 }

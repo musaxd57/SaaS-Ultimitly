@@ -10,7 +10,7 @@ export async function POST() {
   try {
     await exitImpersonation();
     return jsonOk({ ok: true });
-  } catch {
-    return serverError();
+  } catch (err) {
+    return serverError(undefined, err);
   }
 }

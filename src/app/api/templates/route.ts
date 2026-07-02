@@ -68,7 +68,7 @@ export async function POST(req: NextRequest) {
     });
 
     return jsonOk(template, 201);
-  } catch {
-    return serverError();
+  } catch (err) {
+    return serverError(undefined, err);
   }
 }

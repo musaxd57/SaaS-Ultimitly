@@ -67,7 +67,7 @@ export async function POST(req: NextRequest) {
     await applyReservationCreatedRules(reservation.id);
 
     return jsonOk(reservation, 201);
-  } catch {
-    return serverError();
+  } catch (err) {
+    return serverError(undefined, err);
   }
 }

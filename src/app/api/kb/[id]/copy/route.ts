@@ -72,7 +72,7 @@ export async function POST(req: NextRequest, { params }: Params) {
     }
 
     return jsonOk({ ok: true, created });
-  } catch {
-    return serverError();
+  } catch (err) {
+    return serverError(undefined, err);
   }
 }

@@ -21,7 +21,7 @@ export async function POST(
 
     const result = await syncCalendarSource(id);
     return jsonOk(result);
-  } catch {
-    return serverError();
+  } catch (err) {
+    return serverError(undefined, err);
   }
 }
