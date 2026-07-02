@@ -29,6 +29,15 @@ describe("REPLY_SYSTEM_PROMPT", () => {
     expect(REPLY_SYSTEM_PROMPT).toMatch(/KURAL-5/);
   });
 
+  it("forbids internally-contradictory replies (conditional + past-tense claim, double apology)", () => {
+    // Section 10.6: the "Yine de çalışmazsa durumu ekibimize ilettim" class of nonsense.
+    expect(REPLY_SYSTEM_PROMPT).toContain("İÇ TUTARLILIK");
+    expect(REPLY_SYSTEM_PROMPT).toContain("Yine de çalışmazsa durumu ekibimize ilettim");
+    expect(REPLY_SYSTEM_PROMPT).toMatch(/EN FAZLA BİR cümle/);
+    // And the final self-check includes it.
+    expect(REPLY_SYSTEM_PROMPT).toMatch(/çifte özür/);
+  });
+
   it("defines the intent taxonomy incl. the early_departure signal", () => {
     expect(REPLY_SYSTEM_PROMPT).toContain("complaint");
     expect(REPLY_SYSTEM_PROMPT).toContain("amenity");

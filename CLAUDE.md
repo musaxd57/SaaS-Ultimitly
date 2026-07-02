@@ -1147,6 +1147,24 @@ canlı demo kutusu ancak `LANDING_DEMO_ENABLED=1` iken altında çıkar. **Karar
 - **"Takvim boş" (Pırasa hesabı) bug DEĞİL:** o org OAuth test hesabı, 0 mülk/rezervasyon; Nuve org'unda
   veri DB'deki Reservation'lardan gelir (Hospitable 402 olsa bile mevcut satırlar durur).
 
+## 📌 KULLANICI DİREKTİFİ — "kesinlikle ekleyelim ileride mantıklıları" (2026-07-02)
+Kullanıcı şu ertelenen özellikleri KALICI yapılacaklar listesine aldırdı (zamanı gelince, mantıklı
+olanlar, dikkatli dilimler halinde):
+1. **"Neden göndermedi" açıklaması** — inbox'ta konuşma başına "otomatik gönderilmedi çünkü: şikayet /
+   güven düşük / gece penceresi dışı..." rozeti. Gerek: `skippedReason`'ı persist et (Conversation'a
+   nullable alan + cron yazımı) → şema + otomasyon-yolu işi, ayrı dikkatli dilim.
+2. **Haftalık operasyon özeti e-postası** ("bu hafta AI X mesaj önerdi, Y otomatik gitti, Z riskli size
+   bırakıldı, ~N saat kazandırıldı") — e-posta akışı kuralı: dormant doğar (`WEEKLY_DIGEST_ENABLED`
+   gibi), ilk gönderim kullanıcıyla birlikte doğrulanır. Veri zaten reports'ta var.
+3. **Review/değerlendirme isteme otomasyonu** — checkout sonrası kibar yorum-isteme taslağı;
+   platform-kurallarına uygun, insan-onaylı veya per-org toggle'lı olmalı (spam değil).
+4. **Lost-item / çıkış-sonrası akışı** — "eşya unuttum / depozito" mesajlarına özel kategori;
+   iade/depozito tarafında OTOMATİK KARAR ASLA (mevcut güvenlik kapısı korunur).
+5. **Misafir dil & konu analitiği** — raporlara son 30 gün dil dağılımı, sık konular, daire-bazlı sorun
+   kırılımı (mevcut Message/Conversation verisinden türetilir, şema gerekmez).
+6. **Temizlikçi paylaşım linki** — Görevler'den temizlikçiye korumalı/tek-kullanımlık link (bugünkü
+   temizlikler + fotoğraf yükleme). Orta/büyük iş — token modeli + public yüzey, launch sonrası.
+
 ## Çalışma şekli
 Kullanıcı: "Bana söyle, ben kodlarım." Fazları sırayla, additive + testli.
 Build + `npm test` yeşil olmadan push etme. GitHub'da PR sadece kullanıcı
