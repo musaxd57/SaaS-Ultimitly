@@ -31,7 +31,7 @@ Hoş geldiniz! Check-in saatimiz {{checkInTime}}. Kapı kodunu ve giriş talimat
 
 {{wifiInfo}}
 
-Herhangi bir sorunuz olursa lütfen bize ulaşın. İyi tatiller!`,
+İyi tatiller!`,
   },
   {
     id: "default-checkin-en-1",
@@ -45,7 +45,7 @@ Welcome! Check-in time is {{checkInTime}}. Please find the door code and arrival
 
 {{wifiInfo}}
 
-Feel free to reach out if you have any questions. Enjoy your stay!`,
+Enjoy your stay!`,
   },
   {
     id: "default-checkin-tr-2",
@@ -55,7 +55,7 @@ Feel free to reach out if you have any questions. Enjoy your stay!`,
     isDefault: true,
     body: `Merhaba {{guestName}},
 
-{{propertyName}}'e girişinize az kaldı! Sizi {{checkInTime}}'de bekliyoruz. Giriş öncesinde aklınıza takılan herhangi bir soru varsa çekinmeden yazabilirsiniz.`,
+{{propertyName}}'e girişinize az kaldı! Sizi {{checkInTime}}'de bekliyoruz.`,
   },
 
   // --- Check-out ---
@@ -145,7 +145,7 @@ Giriş öncesinde detaylı bilgi paylaşacağız.`,
 
 Yaşadığınız sorun için içtenlikle özür dileriz. Bu durumu kabul edilemez buluyoruz ve derhal çözüm üretiyoruz.
 
-Ekibimiz en kısa sürede sizinle iletişime geçecek. Bu arada başka nasıl yardımcı olabiliriz?`,
+Ekibimiz en kısa sürede sizinle iletişime geçecek.`,
   },
   {
     id: "default-complaint-en-1",
@@ -155,9 +155,7 @@ Ekibimiz en kısa sürede sizinle iletişime geçecek. Bu arada başka nasıl ya
     isDefault: true,
     body: `Hello {{guestName}},
 
-We sincerely apologize for the inconvenience you experienced. Our team is on it and will be in touch shortly to resolve the issue.
-
-Is there anything else we can do to help in the meantime?`,
+We sincerely apologize for the inconvenience you experienced. Our team is on it and will be in touch shortly to resolve the issue.`,
   },
 
   // --- Rules ---
@@ -214,9 +212,7 @@ Let us know if you have any connection issues!`,
     isDefault: true,
     body: `Merhaba {{guestName}},
 
-Mesajınız için teşekkürler. Talebinizi aldık ve en kısa sürede size dönüş yapacağız.
-
-Başka bir sorunuz olursa çekinmeden yazabilirsiniz.`,
+Mesajınız için teşekkürler. Talebinizi aldık ve en kısa sürede size dönüş yapacağız.`,
   },
   {
     id: "default-general-en-1",
@@ -226,9 +222,7 @@ Başka bir sorunuz olursa çekinmeden yazabilirsiniz.`,
     isDefault: true,
     body: `Hello {{guestName}},
 
-Thank you for your message. We've received your request and will get back to you as soon as possible.
-
-Feel free to reach out if you have any other questions.`,
+Thank you for your message. We've received your request and will get back to you as soon as possible.`,
   },
 ];
 

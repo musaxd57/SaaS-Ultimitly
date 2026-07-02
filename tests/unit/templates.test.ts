@@ -64,4 +64,12 @@ describe("DEFAULT_TEMPLATES", () => {
     const ids = DEFAULT_TEMPLATES.map((t) => t.id);
     expect(new Set(ids).size).toBe(ids.length);
   });
+
+  it("contains no filler-question closings (user rule: never extend the conversation)", () => {
+    const banned =
+      /başka bir sorunuz|başka nasıl yardımcı|çekinmeden yazabilirsiniz|herhangi bir sorunuz olursa|feel free to reach out|anything else we can do|any other questions/i;
+    for (const t of DEFAULT_TEMPLATES) {
+      expect(t.body).not.toMatch(banned);
+    }
+  });
 });

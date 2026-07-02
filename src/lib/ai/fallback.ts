@@ -241,8 +241,8 @@ export function suggestReplyFallback(input: SuggestReplyInput): SuggestReplyResu
   switch (intent) {
     case "complaint":
       body = isTr
-        ? "Bunun için özür dileriz. Durumu hemen ekibimize iletiyoruz ve en kısa sürede sizinle ilgileneceğiz. Bu arada size yardımcı olabileceğimiz acil bir şey varsa lütfen belirtin."
-        : "We apologize for the issue you've experienced. We've notified our team right away and will take care of it as soon as possible. In the meantime, please let us know if there's anything urgent we can help with.";
+        ? "Bunun için özür dileriz. Durumu hemen ekibimize iletiyoruz ve en kısa sürede sizinle ilgileneceğiz."
+        : "We apologize for the issue you've experienced. We've notified our team right away and will take care of it as soon as possible.";
       risk = "Şikayet/olası sorun algılandı. Yöneticiye iletilmeli; otomatik karar verilmedi.";
       break;
     case "refund":
@@ -334,8 +334,8 @@ export function suggestReplyFallback(input: SuggestReplyInput): SuggestReplyResu
     }
     default:
       body = isTr
-        ? "Mesajınız için teşekkürler. Talebinizi aldık ve en kısa sürede size dönüş yapacağız. Bu sırada başka bir sorunuz olursa çekinmeden yazabilirsiniz."
-        : "Thanks for your message. We've received your request and will get back to you as soon as possible. Feel free to write if you have any other questions.";
+        ? "Mesajınız için teşekkürler. Talebinizi aldık ve en kısa sürede size dönüş yapacağız."
+        : "Thanks for your message. We've received your request and will get back to you as soon as possible.";
   }
 
   // Derive riskLevel and actionSuggestion from intent. actionSuggestion is shown
