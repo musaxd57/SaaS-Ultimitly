@@ -957,6 +957,46 @@ kendi dokümanında "host aboneliği GEREKMEZ" diyor (Connect'in amacı bu) AMA 
 → email tam bunu + mesajlaşmayı soruyor.** Connect üyeliksiz+mesajlaşmalıysa $29 engeli çözülür (Türk ICP kapısı).
 Cevap beklenirken dürtme yok.
 
+## Migration cutover CANLIDA DOĞRULANDI (2026-07-02) + 2. Gemini denetimi (ufak güvenli küme)
+**Faz 2+3 canlıda teyit edildi:** kullanıcı Railway'de PostgreSQL public URL'iyle `npx prisma migrate
+resolve --applied 0_init` çalıştırdı ("Migration 0_init marked as applied", PostgreSQL "railway" DB'sine
+bağlandı — SQLite değil, çünkü yerel klasör önce `git reset --hard origin` ile güncellendi, aksi halde
+eski/yanlış şema kullanılıyordu). Ardından Dockerfile `migrate deploy`'a çevrildi, push edildi, Railway
+deploy log'u **"Deployment successful"** dedi ve dashboard gerçek veriyle sorunsuz yüklendi. Cutover
+uçtan-uca kanıtlı çalışıyor.
+
+**2. Gemini denetim dokümanı** (`lixus_ai_detailed_audit_and_proposals.md`) değerlendirildi:
+- **✅ Uygulandı (ucuz+güvenli):** (a) OpenAI çağrı hataları artık Sentry'ye raporlanıyor — önceden
+  `callOpenAI` her hatada (kötü anahtar/rate-limit/timeout) sessizce `null` dönüp fallback'e düşüyordu,
+  kalıcı bir sorun (süresi dolmuş anahtar, tükenmiş kota) fark edilmeden AI kalitesini sürekli düşürebilirdi
+  — fallback davranışı DEĞİŞMEDİ, sadece raporlama eklendi. (b) `clientIp` artık Cloudflare'ın
+  `CF-Connecting-IP` header'ını (varsa) rightmost-XFF'den önce tercih ediyor — kendi güvenlik denetimimizin
+  de işaret ettiği iyileştirme, header yoksa zararsız no-op. (c) `npm run env:recover` script'i
+  (CLAUDE.md'deki kurtarma komutunun kısayolu) — sıfır riskli kolaylık.
+- **❌ Reddedildi (aynı gerekçeyle tekrar):** AI-upsell/Paddle-ödeme-linki modülü — önceki turda zaten
+  reddedilmişti (Airbnb-ban riski + Paddle host-marketplace değil), yeni argüman yok. Tam sistem-prompt
+  yeniden yazımı + misafir mesajından TÜM `<>` karakterlerini regex'le silme — zaten şu an daha güvenli/test
+  edilmiş bir fence savunmamız var (`<<...>>` + "veri bloğu kapatamaz" kuralı), regex-silme yıkıcı
+  (meşru içerikte `<3` gibi karakterleri bozar) ve gereksiz. Yeni `pre_booking_inquiry` intent'i (15.
+  kategori) — aynı davranışsal hedefi ÖNCEKİ turda taksonomiye dokunmadan, kapsamlı prompt-bloğuyla zaten
+  sağladık; intent enum'unu genişletmek güvenlik-kapısı kalibrasyonuna gereksiz risk katar.
+- **⏸️ Ertelendi (bizim önceki derin denetimimizle birebir örtüşüyor, yeni bilgi yok):** SystemLock
+  heartbeat/fencing-token — zaten "çok-replica'ya geçince ilk eklenecek" kararı var, tek-replica'da
+  gerçek risk yok.
+- **🔵 İleride/kullanıcı-kararı (özellik, kod-otomasyonu değil):** WhatsApp kanal entegrasyonu (yeni
+  webhook/hesap/maliyet), Bilgi Tabanı çok-dilli oto-çeviri (her KB düzenlemesinde OpenAI maliyeti +
+  şema kararı), few-shot style-summarizer yeniden tasarımı (çekirdek reply-prompt'a dokunur, gerçek
+  kalite-sinyali olmadan otonom yapılmaz). Yerel prompt-simülatör betiği — zaten Ayarlar→"AI'yı Deneyin"
+  kartıyla karşılanıyor + önerilen dosya yolu/`ts-node` bizim repoya uygun değildi (yanlış/alakasız).
++4 test (CF-IP tercihi, OpenAI hata-raporlama 3 senaryo). 480 test yeşil, build temiz.
+
+**⚠️ Bu turda BİR KEZ DAHA konteyner/çalışma-dizini reset'i yaşandı** — 3 dosyalık commit'lenmemiş
+değişiklik (cf-connecting-ip, reportError, env:recover) diskten silindi TAM `git commit` anında (`git add
+-A` boş geldi). Local HEAD origin ile hep eşitti (önceki tüm iş güvendeydi) — sadece o anki commit'lenmemiş
+değişiklikler kayboldu, hemen yeniden yazılıp bu sefer **anında** commit+push edildi. **Ders (tekrar,
+kalıcı kural olarak pekişti): edit → hemen commit+push, aradaki pencereyi hiç açık bırakma** — özellikle
+tek dosya/küçük değişikliklerde bile, tam-suit testini push'tan SONRA doğrulama olarak çalıştır, önce değil.
+
 ## Çalışma şekli
 Kullanıcı: "Bana söyle, ben kodlarım." Fazları sırayla, additive + testli.
 Build + `npm test` yeşil olmadan push etme. GitHub'da PR sadece kullanıcı
