@@ -34,7 +34,7 @@ export default async function DashboardPage() {
   // UTC day — otherwise arrivals/departures can land on the wrong date.
   const org = await prisma.organization.findUnique({
     where: { id: orgId },
-    select: { timezone: true, aiSignature: true },
+    select: { timezone: true, aiSignature: true, autoReplyHospitable: true },
   });
   const { start: dayStart, end: dayEnd } = zonedDayRange(now, org?.timezone ?? "Europe/Istanbul");
   const scope = { property: { organizationId: orgId } };
@@ -106,9 +106,10 @@ export default async function DashboardPage() {
 
   // "Başlarken" onboarding: compute setup progress. The card only renders until
   // every step is done, then disappears for established accounts.
-  const [connection, conversationCount] = await Promise.all([
+  const [connection, conversationCount, kbCount] = await Promise.all([
     getConnectionInfo(orgId),
     prisma.conversation.count({ where: scope }),
+    prisma.knowledgeBaseItem.count({ where: { isActive: true, ...scope } }),
   ]);
   const onboardingSteps: OnboardingStep[] = [
     {
@@ -126,6 +127,13 @@ export default async function DashboardPage() {
       cta: "Daireleri gör",
     },
     {
+      done: kbCount > 0,
+      title: "Bilgi tabanınızı doldurun",
+      desc: "AI misafire buradaki bilgilerden cevap verir — Wi-Fi, giriş, otopark, kurallar. Hazır şablonlarla birkaç dakika sürer.",
+      href: "/knowledge",
+      cta: "Bilgi ekle",
+    },
+    {
       done: Boolean(org?.aiSignature?.trim()),
       title: "AI sesinizi ve imzanızı ayarlayın",
       desc: "AI'ın tonunu seçin ve mesaj imzanızı ekleyin — misafire sizin üslubunuzla yazsın.",
@@ -138,6 +146,13 @@ export default async function DashboardPage() {
       desc: "Her misafir mesajına AI hazır bir cevap önerir — tek tıkla gönderin ya da düzenleyin.",
       href: "/inbox",
       cta: "Gelen kutusu",
+    },
+    {
+      done: Boolean(org?.autoReplyHospitable),
+      title: "Otomatik yanıtı açın",
+      desc: "Hazır hissettiğinizde açın — basit sorular kendiliğinden yanıtlanır, şikayet gibi riskli konular her zaman size bırakılır.",
+      href: "/inbox",
+      cta: "Aç",
     },
   ];
   const onboardingDone = onboardingSteps.every((s) => s.done);
