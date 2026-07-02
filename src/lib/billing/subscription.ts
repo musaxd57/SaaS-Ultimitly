@@ -30,6 +30,15 @@ export type Entitlement = {
 
 const ACTIVE_STATUSES = new Set(["active", "trialing", "grandfathered"]);
 
+// Dunning grace: a `past_due` subscription is a paying customer whose renewal
+// card failed once and is inside Paddle's retry window — NOT a churned customer.
+// Cutting their features off instantly (Paddle maps past_due/paused here)
+// violates the cardinal rule "never block a live customer", so keep them active
+// for a grace window. Paddle drives the dunning and sends `canceled` when it
+// finally gives up (which ends access). Bounded so a stuck past_due can't grant
+// unpaid access forever.
+const PAST_DUE_GRACE_DAYS = Number(process.env.BILLING_PAST_DUE_GRACE_DAYS) || 14;
+
 // Reverse trial: every new signup gets full Pro free for this many days (no
 // card). If they don't upgrade, access pauses — ONLY once billing is enforced.
 export const TRIAL_DAYS = Number(process.env.TRIAL_DAYS) || 14;
@@ -86,6 +95,14 @@ export async function getEntitlement(organizationId: string): Promise<Entitlemen
       : null;
 
   let active = ACTIVE_STATUSES.has(sub.status);
+  // Dunning grace for a failed renewal — anchored to the period end it failed on
+  // (or the last update as a fallback). Keeps a paying customer unblocked while
+  // Paddle retries; when Paddle finally sends `canceled`, status flips and this
+  // no longer applies.
+  if (sub.status === "past_due") {
+    const anchor = (sub.currentPeriodEnd ?? sub.updatedAt).getTime();
+    if (now <= anchor + PAST_DUE_GRACE_DAYS * 86_400_000) active = true;
+  }
   // An expired reverse-trial only loses access once billing is actually
   // enforced. Until then every org stays unblocked (dormant by design), so
   // flipping BILLING_ENFORCED off always restores access — the true kill-switch.

@@ -101,4 +101,51 @@ describe("premiumAllowed — paid/AI feature gate (free-tier downgrade)", () => 
     } as never);
     expect(await premiumAllowed("o")).toBe(false);
   });
+
+  it("ENFORCED + past_due WITHIN dunning grace → allowed (one card decline can't cut off a payer)", async () => {
+    vi.stubEnv("BILLING_ENFORCED", "true");
+    findUnique.mockResolvedValue({
+      organizationId: "o",
+      planCode: "pro",
+      status: "past_due",
+      currentPeriodEnd: new Date(Date.now() - 3 * 86_400_000), // renewal failed 3 days ago
+      updatedAt: new Date(),
+    } as never);
+    expect(await premiumAllowed("o")).toBe(true);
+  });
+
+  it("ENFORCED + past_due PAST the grace window → BLOCKED", async () => {
+    vi.stubEnv("BILLING_ENFORCED", "true");
+    findUnique.mockResolvedValue({
+      organizationId: "o",
+      planCode: "pro",
+      status: "past_due",
+      currentPeriodEnd: new Date(Date.now() - 30 * 86_400_000), // 30d > 14d grace
+      updatedAt: new Date(Date.now() - 30 * 86_400_000),
+    } as never);
+    expect(await premiumAllowed("o")).toBe(false);
+  });
+
+  it("past_due grace anchors on updatedAt when currentPeriodEnd is null", async () => {
+    vi.stubEnv("BILLING_ENFORCED", "true");
+    findUnique.mockResolvedValue({
+      organizationId: "o",
+      planCode: "pro",
+      status: "past_due",
+      currentPeriodEnd: null,
+      updatedAt: new Date(Date.now() - 2 * 86_400_000), // within grace
+    } as never);
+    expect(await premiumAllowed("o")).toBe(true);
+  });
+
+  it("DORMANT: past_due allowed while BILLING_ENFORCED is off (even long past grace)", async () => {
+    vi.stubEnv("BILLING_ENFORCED", "");
+    findUnique.mockResolvedValue({
+      organizationId: "o",
+      planCode: "pro",
+      status: "past_due",
+      currentPeriodEnd: new Date(Date.now() - 100 * 86_400_000),
+    } as never);
+    expect(await premiumAllowed("o")).toBe(true);
+  });
 });
