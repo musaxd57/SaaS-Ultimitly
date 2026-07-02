@@ -1081,6 +1081,28 @@ teyitli). Buton artık gerçek kullanıcılar için CANLI ve ÇALIŞIYOR.
 **Sonuç: 3 commit (495f83e, df63441, 1784ed0), 504 test yeşil, build+typecheck temiz, buton gerçek Hospitable
 hesabıyla uçtan uca doğrulandı.** Bu bölüm kapandı — sıradaki OAuth işi kullanıcı yeni bir hesap/host bağladığında.
 
+## Gerçek boşluk bulundu+kapatıldı: Hospitable sync plan-limitini yok sayıyordu (2026-07-02, commit 298928a)
+Kullanıcı sordu: "adamın gerçekte 30 dairesi var, Lixus'ta 20-25'lik plan aldı — Hospitable kaçını gönderiyor?"
+Kodla doğrulandı: **`canAddProperty` (plan property-limiti) SADECE elle "Yeni mülk ekle" butonunda
+çalışıyordu** (`api/properties/route.ts:36`) — `syncHospitable()` Hospitable'dan gelen HER mülkü koşulsuz
+çekip Property satırı açıyordu (`hospitable-sync.ts`, limit kontrolü YOK). Yani pratikte: 30 gerçek dairesi
+olan biri 25'lik planı alıp Hospitable'ı bağlarsa, **30'unun da senkronlanıp otomatik yanıtlandığı** bir
+durum vardı — plan limiti sadece elle-ekleme yolunu kapatıyordu (ki gerçek müşteriler mülklerini zaten
+sync'ten alıyor, elle eklemiyor). Gerçek bir gelir sızıntısıydı.
+**Düzeltme (additive, hiçbir mevcut mülkü etkilemez):** `linkProperty()` artık YENİ bir Property satırı
+oluşturmadan hemen önce plan limitini kontrol ediyor — `resolvePropertyLimitState()` (dormant unless
+`BILLING_ENFORCED=true`, `canAddProperty` ile birebir aynı gate) org'un `propertyLimit`'ini + mevcut
+sayısını çekiyor; limit dolunca SADECE yeni mülkler reddediliyor (zaten bağlı/yeniden-eşleşen mülkler HİÇBİR
+ZAMAN etkilenmiyor — mevcut veriyi asla bozmama kuralına uyar). `SyncResult.propertiesCapped` yeni alan;
+senkron butonu artık "N mülk plan limiti nedeniyle eklenmedi (planınızı yükseltin)" gösteriyor (sessiz kesinti
+yok). +4 regresyon testi (dormant'ta sınırsız, enforced'da kapalı, önceden-eklenmiş mülkler asla düşmüyor,
+grandfathered org'lar hep sınırsız). 508 test yeşil, build+typecheck temiz.
+**Not (Hospitable'ın kendi tarafı):** Hospitable'ın kendi API'si de sadece o hesapta GERÇEKTEN Hospitable'a
+kayıtlı/ödenmiş mülkleri döner (Hospitable kendi mülk-başı fiyatlıyor) — yani host'un Airbnb'de 30 dairesi
+olup Hospitable'a sadece 8'ini eklediyse bize zaten 8 gelir. Ama 30'unun 30'unu da Hospitable'a kaydettiyse
+(hepsi için Hospitable'a ödüyorsa), bizim tarafımızdaki sınır olmadan hepsini biz de işlerdik — asıl kapatılan
+boşluk buydu.
+
 ## Çalışma şekli
 Kullanıcı: "Bana söyle, ben kodlarım." Fazları sırayla, additive + testli.
 Build + `npm test` yeşil olmadan push etme. GitHub'da PR sadece kullanıcı
