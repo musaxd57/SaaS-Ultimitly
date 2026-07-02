@@ -50,6 +50,32 @@ const STEPS = [
   },
 ];
 
+// Honest example scenarios for the "what gets auto-answered" section — these
+// mirror the REAL safety gate: info questions auto-send, complaints/refunds/
+// early-checkout always escalate to the host.
+const DEMO_SCENARIOS = [
+  {
+    message: "Merhaba, wifi şifresi nedir?",
+    outcome: "Bilgi tabanınızdaki Wi-Fi bilgisiyle anında yanıtlar.",
+    auto: true,
+  },
+  {
+    message: "Wo kann ich parken?",
+    outcome: "Almanca soruya Almanca cevap verir — otopark bilginizden.",
+    auto: true,
+  },
+  {
+    message: "Daire hiç temiz değildi, iade istiyorum.",
+    outcome: "Şikayet + iade tespit edilir; otomatik cevap GÖNDERİLMEZ, konuşma size işaretlenir ve e-posta ile haber verilir.",
+    auto: false,
+  },
+  {
+    message: "Yarın saat 13:00 gibi çıksak olur mu?",
+    outcome: "Geç çıkış = sizin kararınız. AI durur, mesajı onayınıza bırakır.",
+    auto: false,
+  },
+];
+
 const FEATURES = [
   {
     icon: Globe,
@@ -405,22 +431,44 @@ export function LandingPage() {
         </div>
       </section>
 
-      {/* Live AI demo — only when the operator has enabled the public demo
-          endpoint (LANDING_DEMO_ENABLED=1); otherwise no dead UI ships. */}
-      {aiDemoEnabled ? (
-        <section id="canli-demo" className="scroll-mt-20 border-t border-border py-20">
-          <div className="mx-auto max-w-6xl px-4 text-center sm:px-6">
-            <Reveal as="h2" className="text-3xl font-bold tracking-tight">AI&apos;ı şimdi deneyin</Reveal>
-            <Reveal as="p" delay={80} className="mx-auto mt-3 max-w-xl text-muted-foreground">
-              Kayıt olmadan, örnek bir dairede: hangi dilde yazarsanız o dilde cevap verir;
-              şikayet ve iade gibi konularda ise durup ev sahibine bırakır.
+      {/* What the AI answers vs. leaves to the host — honest example scenarios
+          (static, no API cost), plus the live demo when the operator has
+          enabled the public endpoint (LANDING_DEMO_ENABLED=1). */}
+      <section id="canli-demo" className="scroll-mt-20 border-t border-border py-20">
+        <div className="mx-auto max-w-6xl px-4 text-center sm:px-6">
+          <Reveal as="h2" className="text-3xl font-bold tracking-tight">
+            Neyi kendisi yanıtlar, neyi size bırakır?
+          </Reveal>
+          <Reveal as="p" delay={80} className="mx-auto mt-3 max-w-xl text-muted-foreground">
+            Örnek misafir mesajları — yeşiller otomatik yanıtlanır, turuncular güvenlik
+            kapısına takılıp onayınıza gelir.
+          </Reveal>
+          <Reveal delay={160} className="mx-auto mt-10 grid max-w-4xl gap-4 text-left sm:grid-cols-2">
+            {DEMO_SCENARIOS.map((s) => (
+              <div key={s.message} className="card-lift rounded-xl border border-border bg-card p-4">
+                <p className="text-sm font-medium">&ldquo;{s.message}&rdquo;</p>
+                <p className="mt-2 text-sm text-muted-foreground">{s.outcome}</p>
+                <span
+                  className={cn(
+                    "mt-3 inline-flex items-center gap-1 rounded-full px-2.5 py-1 text-xs font-medium",
+                    s.auto ? "bg-emerald-50 text-emerald-700" : "bg-amber-50 text-amber-700",
+                  )}
+                >
+                  {s.auto ? "Otomatik yanıtlanır" : "Size bırakılır"}
+                </span>
+              </div>
+            ))}
+          </Reveal>
+          {aiDemoEnabled ? (
+            <Reveal delay={220} className="mt-10">
+              <h3 className="text-xl font-semibold">Kendiniz deneyin</h3>
+              <div className="mt-4">
+                <LandingDemo />
+              </div>
             </Reveal>
-            <Reveal delay={160} className="mt-8">
-              <LandingDemo />
-            </Reveal>
-          </div>
-        </section>
-      ) : null}
+          ) : null}
+        </div>
+      </section>
 
       {/* Pricing */}
       <section id="fiyatlar" className="scroll-mt-20 border-t border-border bg-card/40 py-20">
