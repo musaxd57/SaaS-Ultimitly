@@ -6,11 +6,12 @@ happened (adding a unique constraint to a populated table → boot crash-loop).
 Moving to `prisma migrate deploy` means every schema change ships as a **reviewed
 migration file**, applied deterministically, with no surprise diffing.
 
-**Status:** Phase 1 is DONE and already on the branch — `prisma/migrations/0_init`
-(the full current schema) is committed, but the **Dockerfile boot command is
-unchanged** (still `db push`), which ignores the migrations dir. So nothing about
-prod boot has changed yet. Phases 2–3 are the actual cutover and are done
-**together, in order** (Phase 3 auto-deploys, so it MUST come after Phase 2).
+**Status: DONE (2026-07-02).** Phase 1 (baseline migration committed), Phase 2
+(prod baselined — user ran `migrate resolve --applied 0_init` against the live
+Railway Postgres, confirmed: `Migration 0_init marked as applied.`), and Phase 3
+(Dockerfile flipped to `migrate deploy`, pushed) are all complete. Prod boots on
+real migrations now; any future schema change ships as a reviewed migration file
+under `prisma/migrations/`, not a live schema-diff.
 
 Verified locally end-to-end on a throwaway Postgres: the baseline has **zero
 drift** vs a `db push`'d schema; a plain `migrate deploy` on the populated DB

@@ -42,6 +42,14 @@ RUN npm run build
 
 EXPOSE 3000
 
-# At startup: apply the schema to the (managed Postgres) database, then serve.
+# At startup: apply any pending migrations (prisma/migrations/), then serve.
 # `next start` binds to Railway's injected $PORT automatically.
-CMD ["sh", "-c", "npx prisma db push --skip-generate && npm run start"]
+#
+# Was `prisma db push` (schema-diff on every boot — no history, no review; this
+# is how the chatToken @unique outage happened: adding a unique constraint to a
+# populated table made db push refuse and crash-loop the boot). `migrate deploy`
+# only applies committed, reviewed migration files from prisma/migrations/ — no
+# surprise diffing. Prod was one-time baselined (`migrate resolve --applied
+# 0_init`) before this flipped, so this run is a no-op until a NEW migration is
+# added. See docs/MIGRATION_CUTOVER.md for the full cutover + rollback.
+CMD ["sh", "-c", "npx prisma migrate deploy && npm run start"]
