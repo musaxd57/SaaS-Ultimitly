@@ -865,6 +865,40 @@ Sonra kullanıcı "güvenli kümenin tamamını yap, sorun olmuycaksa uzun uzun"
 - **#6 legal-entity.ts placeholder'ları** (canlı gösteriliyor, ödeme-öncesi blocker) + **#7 landing'de $29 Hospitable dürüstlüğü** — kullanıcı/kopya kararı, kod değil.
 **DERS:** tam suit tek gerçek bug'ı yakaladı (QR concierge past_due grace'e uymuyordu — #2'nin yan etkisi, düzeltildi). Her batch: hedefli test → commit → push (konteyner-reset güvenliği). Commit mesajında backtick KULLANMA (bash çalıştırıyor, kelime düşürdü).
 
+## Auth-sertleştirme turu: sessionEpoch + withAuth + migrations (2026-07-02, ~4 araştırma agent)
+Kullanıcı ertelenen 3 riskli işi ("hepsini yap, dikkatli ol, acele etme") istedi. 3 read-only araştırma
+agent'ı (session-mimarisi + route-deseni + Prisma-migration baselining, hepsi kodla/ampirik doğrulandı),
+sonra sırayla uygulandı — her biri ayrı test+commit+push checkpoint'i.
+**① sessionEpoch (BİTTİ, canlı):** çalınan JWT şifre-değişince/sıfırlanınca 14g yaşıyordu → `User.sessionEpoch
+Int @default(0)` JWT'ye gömülü, SUNUCU-tarafında zorlanıyor. Enforcement `requireSession`(api.ts, +1 PK
+lookup, fail-OPEN DB-blip'te) + `(app)/layout.tsx` (mevcut org-read'e katıldı, 0 ek sorgu, mismatch→`/api/auth/
+logout` — `/login` döngü yapardı). **Middleware/verifySession edge-stateless KALDI** (sadece payload alanı).
+Legacy token→0, DB default 0 → **deploy'da toplu-çıkış YOK**. 4 mint noktası (login/verify-email/impersonate
+enter+exit) epoch damgalar; şifre-değiştir + forgot-password `increment:1`. +7 test.
+**② withAuth/withManage (BİTTİ, org-scoped yüzey):** tekrar eden `requireSession→401 + canManage→403 + try/catch→
+serverError` preamble'ı **`lib/route-guard.ts`** HOF'larına katlandı. **KRİTİK:** HOF'lar ayrı modülde çünkü
+`withAuth` `requireSession`'ı api.ts'ten **import** ediyor → testlerin `vi.mock("@/lib/api",{requireSession})`
+cross-module yakalanıyor (**testler değişmeden çalışır**; intra-module çağrı mock'u atlardı). HOF AUTH-only,
+org-scope her handler'da KALDI. ctx **zorunlu** (Next 15 dinamik-route tip-doğrulaması opsiyoneli reddediyor);
+collection route'u direkt çağıran testler `{params:Promise.resolve({})}` geçer. Migrate: tüm CRUD (conversations/
+tasks/kb/templates/reservations/properties/settings) + AI (ai-suggest/translate/ai-test) + reply + property-sub +
+diagnostics + calendar/sync + export + upload + import (~40 handler). **Bilinçli EXPLICIT bırakıldı:** account/2fa+
+password (user-scoped auth, marjinal fayda + auth-hassas), 4 hospitable/*-test önizleme (zaten premium+rate-limit,
+testleri POST() ile çağırıyor), kategori-C (public-token/health, webhook-imza, cron-secret, admin-superadmin,
+hospitable/connect custom-gate, account/delete owner-only) — hepsi kendi geçidini korur.
+**③ Migrations db-push→migrate deploy (Faz 0-1 BİTTİ + runbook; Faz 2-3 kullanıcı):** bugünkü boot'ta düz
+`migrate deploy` **P3005 → prod crash** (ampirik kanıtlandı). `prisma/migrations/0_init` baseline (20 tablo/40
+index/21 FK) üretildi, throwaway PG'de **SIFIR drift + P3005-tehlike + resolve-düzeltme** uçtan-uca doğrulandı.
+**Faz 1 (commit'lendi): Dockerfile boot DEĞİŞMEDİ (hâlâ db-push, migrations dizinini yok sayar) → prod etkilenmedi.**
+`docs/MIGRATION_CUTOVER.md` runbook: **Faz 2 = kullanıcı prod'da `npx prisma migrate resolve --applied 0_init`**
+(tek sefer, veri-dokunmaz) → **Faz 3 = Dockerfile'ı `migrate deploy`e çevir** (auto-deploy, Faz 2'den SONRA).
+Rollback = Dockerfile commit'ini revert. **Guarded auto-baseline REDDEDİLDİ** (P3008 race + boş-DB felaketi).
+**Toplam: ~30 commit bu 2 oturum, 469 test yeşil, build+typecheck temiz.** DERS: (a) ESM intra-module çağrı
+mock'u atlar → HOF'u ayrı modüle koy. (b) Next 15 route-tip-doğrulaması ctx-opsiyonel reddeder → zorunlu tut,
+testte boş-ctx geç. (c) prod-migration cutover'ı kullanıcıyla koordine (prod erişimi yok + auto-deploy).
+**⏳ KULLANICI:** migration Faz 2 (prod baseline komutu) + Faz 3 (Dockerfile flip, birlikte izle). withAuth
+kalan explicit route'lar isteğe bağlı, sıfır-risk artımlı adapte edilebilir.
+
 ## Çalışma şekli
 Kullanıcı: "Bana söyle, ben kodlarım." Fazları sırayla, additive + testli.
 Build + `npm test` yeşil olmadan push etme. GitHub'da PR sadece kullanıcı
