@@ -38,6 +38,18 @@ describe("REPLY_SYSTEM_PROMPT", () => {
     expect(REPLY_SYSTEM_PROMPT).toMatch(/çifte özür/);
   });
 
+  it("bans self-emotion statements and wish-closings — in the rule AND in every example", () => {
+    expect(REPLY_SYSTEM_PROMPT).toContain("DUYGU BEYANI YASAK");
+    expect(REPLY_SYSTEM_PROMPT).toContain("TEMENNİ YASAK");
+    // Few-shot examples override rules, so none of the example REPLIES may
+    // model an emotion ("üzüldüm/üzgünüm/sorry to hear") or a wish ("Umarım").
+    const exampleReplies = [...REPLY_SYSTEM_PROMPT.matchAll(/"reply":"([^"]+)"/g)].map((m) => m[1]);
+    expect(exampleReplies.length).toBeGreaterThan(10);
+    for (const reply of exampleReplies) {
+      expect(reply).not.toMatch(/üzül|üzgün|Umarım|umarım|sorry to hear|so sorry/i);
+    }
+  });
+
   it("defines the intent taxonomy incl. the early_departure signal", () => {
     expect(REPLY_SYSTEM_PROMPT).toContain("complaint");
     expect(REPLY_SYSTEM_PROMPT).toContain("amenity");

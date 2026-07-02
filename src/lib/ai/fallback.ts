@@ -241,8 +241,8 @@ export function suggestReplyFallback(input: SuggestReplyInput): SuggestReplyResu
   switch (intent) {
     case "complaint":
       body = isTr
-        ? "Yaşadığınız sorun için çok üzgünüz. Durumu hemen ekibimize iletiyoruz ve en kısa sürede sizinle ilgileneceğiz. Bu arada size yardımcı olabileceğimiz acil bir şey varsa lütfen belirtin."
-        : "We're very sorry about the issue you've experienced. We've notified our team right away and will take care of it as soon as possible. In the meantime, please let us know if there's anything urgent we can help with.";
+        ? "Bunun için özür dileriz. Durumu hemen ekibimize iletiyoruz ve en kısa sürede sizinle ilgileneceğiz. Bu arada size yardımcı olabileceğimiz acil bir şey varsa lütfen belirtin."
+        : "We apologize for the issue you've experienced. We've notified our team right away and will take care of it as soon as possible. In the meantime, please let us know if there's anything urgent we can help with.";
       risk = "Şikayet/olası sorun algılandı. Yöneticiye iletilmeli; otomatik karar verilmedi.";
       break;
     case "refund":
@@ -253,8 +253,8 @@ export function suggestReplyFallback(input: SuggestReplyInput): SuggestReplyResu
       break;
     case "early_departure":
       body = isTr
-        ? "Bunu duyduğuma üzüldüm. Erken ayrılış / rezervasyon değişikliği talebinizi hemen ekibimize ilettim; platform üzerinden gerekli adımları kontrol edip en kısa sürede size dönüş yapacağız."
-        : "I'm sorry to hear that. I've passed your early-departure / booking-change request to our team right away; we'll review the necessary steps through the platform and get back to you as soon as possible.";
+        ? "Bilgilendirdiğiniz için teşekkürler. Erken ayrılış / rezervasyon değişikliği talebinizi hemen ekibimize ilettim; platform üzerinden gerekli adımları kontrol edip en kısa sürede size dönüş yapacağız."
+        : "Thank you for letting us know. I've passed your early-departure / booking-change request to our team right away; we'll review the necessary steps through the platform and get back to you as soon as possible.";
       risk = "Erken ayrılma / iptal sinyali. Gelir ve iade süreci, operatör kararı gerektirir.";
       break;
     case "human_request":
