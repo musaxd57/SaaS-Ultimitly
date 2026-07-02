@@ -699,6 +699,20 @@ export async function applyChannelAutoReply(
   if (!token) {
     return { sent: false, skippedReason: "not_connected", draft, ...meta };
   }
+
+  // Claim-then-send: atomically move the thread out of the "new" claimable set
+  // BEFORE delivering, so two concurrent sync passes (multiple replicas, or a
+  // lock-TTL overrun) can't both send a reply to the same guest. The loser sees
+  // count 0 and backs off; on a delivery failure we release the claim so the
+  // winner still retries next cycle. Mirrors the welcome/checkin/checkout senders.
+  const claim = await prisma.conversation.updateMany({
+    where: { id: conversation.id, status: { in: ["new", "waiting"] } },
+    data: { status: "answered" },
+  });
+  if (claim.count === 0) {
+    return { sent: false, skippedReason: "already_claimed", draft, ...meta };
+  }
+
   const delivery = await sendOnChannel(
     {
       channel: conversation.channel,
@@ -709,6 +723,10 @@ export async function applyChannelAutoReply(
     token,
   );
   if (!delivery.ok) {
+    // Release the claim so a later cycle retries this still-unanswered message.
+    await prisma.conversation
+      .update({ where: { id: conversation.id }, data: { status: "new" } })
+      .catch(() => {});
     return { sent: false, skippedReason: `send_failed: ${delivery.error ?? "unknown"}`, draft, ...meta };
   }
 
@@ -791,15 +809,35 @@ export async function runDueChannelAutoReplies(
       status: "new",
       lastMessageAt: { gte: freshSince },
     },
-    select: { id: true },
+    select: { id: true, lastMessageAt: true, autoReplyAttemptedAt: true },
   });
 
+  // Cost guard: skip threads we already modeled for THIS message and left "new"
+  // (low confidence / globally disabled) — re-modelling the same unchanged text
+  // every 2 minutes just burns the OpenAI key. A new guest message advances
+  // lastMessageAt past the stamp, so the thread becomes eligible again on its own.
+  const eligible = candidates.filter(
+    (c) => !c.autoReplyAttemptedAt || c.autoReplyAttemptedAt < c.lastMessageAt,
+  );
+
   let sent = 0;
-  for (const c of candidates) {
+  for (const c of eligible) {
     const outcome = await applyChannelAutoReply(c.id);
-    if (outcome.sent) sent++;
+    if (outcome.sent) {
+      sent++;
+    } else if (
+      outcome.skippedReason === "low_confidence_or_risky" ||
+      outcome.skippedReason === "globally_disabled"
+    ) {
+      // Deterministic non-send for this message → don't re-model it next tick.
+      // Transient reasons (send_failed / not_connected / already_claimed) are NOT
+      // stamped, so they still retry when conditions change.
+      await prisma.conversation
+        .updateMany({ where: { id: c.id }, data: { autoReplyAttemptedAt: new Date() } })
+        .catch(() => {});
+    }
   }
-  return { sent, considered: candidates.length };
+  return { sent, considered: eligible.length };
 }
 
 /**

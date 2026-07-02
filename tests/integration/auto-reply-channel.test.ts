@@ -544,6 +544,50 @@ describe("applyChannelAutoReply", () => {
     expect(out.sent).toBe(0);
     expect(mockSend).not.toHaveBeenCalled();
   });
+
+  it("does not re-model a lingering low-confidence 'new' thread every tick, but re-models after a new message (#3a)", async () => {
+    const { orgId, conversationId } = await seed({
+      guestMessage: "The room is dirty and broken, unacceptable!", // vetoed → stays 'new'
+    });
+    // Tick 1: modeled once, vetoed, left 'new', then stamped.
+    await runDueChannelAutoReplies(orgId);
+    expect(mockSuggest.mock.calls.length).toBe(1);
+    expect(mockSend).not.toHaveBeenCalled();
+
+    // Tick 2: same unchanged message → NOT re-modeled (no wasted OpenAI call).
+    await runDueChannelAutoReplies(orgId);
+    expect(mockSuggest.mock.calls.length).toBe(1);
+
+    // A NEW guest message advances lastMessageAt past the stamp → eligible again.
+    await prisma.message.create({
+      data: { conversationId, direction: "inbound", senderName: "Alex", body: "Any update?" },
+    });
+    await prisma.conversation.update({ where: { id: conversationId }, data: { lastMessageAt: new Date() } });
+    await runDueChannelAutoReplies(orgId);
+    expect(mockSuggest.mock.calls.length).toBe(2);
+  });
+
+  it("claim-then-send: a delivery failure releases the claim (status back to 'new') so it retries (#3b)", async () => {
+    mockSend.mockResolvedValueOnce({ ok: false, error: "boom" });
+    const { conversationId } = await seed();
+    const out = await applyChannelAutoReply(conversationId);
+    expect(out.sent).toBe(false);
+    expect(out.skippedReason).toContain("send_failed");
+    const conv = await prisma.conversation.findUnique({ where: { id: conversationId } });
+    expect(conv?.status).toBe("new"); // claim released → retryable next cycle
+    expect(await prisma.message.count({ where: { conversationId, direction: "outbound" } })).toBe(0);
+  });
+
+  it("claim-then-send: backs off (no double-send) when the thread was concurrently claimed (#3b)", async () => {
+    // Race: another pass already moved status out of the claimable set while the
+    // guest's message is still the last one.
+    const { conversationId } = await seed({ status: "answered" });
+    const out = await applyChannelAutoReply(conversationId);
+    expect(out.sent).toBe(false);
+    expect(out.skippedReason).toBe("already_claimed");
+    expect(mockSend).not.toHaveBeenCalled();
+    expect(await prisma.message.count({ where: { conversationId, direction: "outbound" } })).toBe(0);
+  });
 });
 
 describe("previewChannelAutoReplies", () => {
