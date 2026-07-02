@@ -1,5 +1,5 @@
 import { notFound } from "next/navigation";
-import { ArrowLeft, Building2, CalendarDays, BookOpen, Clock } from "lucide-react";
+import { ArrowLeft, Building2, CalendarDays, BookOpen, Clock, ArrowLeftRight, CheckSquare } from "lucide-react";
 import { requireAuth } from "@/lib/auth";
 import { canManage } from "@/lib/api";
 import { prisma } from "@/lib/db";
@@ -13,10 +13,11 @@ import {
 } from "@/components/inbox/conversation-thread";
 import { DeleteConversationButton } from "@/components/inbox/delete-conversation-button";
 import { AutoRefresh } from "@/components/inbox/auto-refresh";
-import { KB_CATEGORY, RESERVATION_STATUS } from "@/lib/constants";
-import { formatDate, formatDateTime, formatCurrency } from "@/lib/utils";
+import { KB_CATEGORY, RESERVATION_STATUS, TASK_STATUS, TASK_TYPE } from "@/lib/constants";
+import { formatDate, formatDateTime, formatCurrency, daysUntilDate } from "@/lib/utils";
 import { channelLabel } from "@/lib/ui-labels";
 import { getReturningGuestInfo } from "@/lib/returning-guest";
+import { getAdjacency } from "@/lib/turnover";
 
 export const dynamic = "force-dynamic";
 
@@ -47,10 +48,41 @@ export default async function ConversationPage({
       })
     : null;
 
-  const kb = await prisma.knowledgeBaseItem.findMany({
-    where: { propertyId: conversation.propertyId, isActive: true },
-    orderBy: { category: "asc" },
-  });
+  const [kb, adjacency, tasks] = await Promise.all([
+    prisma.knowledgeBaseItem.findMany({
+      where: { propertyId: conversation.propertyId, isActive: true },
+      orderBy: { category: "asc" },
+    }),
+    // Same adjacency data the AI prompt uses for early-checkin/late-checkout
+    // reasoning — surfaced here so the host sees the turnover context too,
+    // not just the model. Read-only; confirmed/completed bookings only.
+    conversation.reservation
+      ? getAdjacency(
+          conversation.propertyId,
+          conversation.reservation.arrivalDate,
+          conversation.reservation.departureDate,
+        )
+      : null,
+    conversation.reservation
+      ? prisma.task.findMany({
+          where: { reservationId: conversation.reservation.id },
+          orderBy: [{ status: "asc" }, { dueAt: "asc" }],
+          select: { id: true, type: true, title: true, status: true, dueAt: true },
+        })
+      : [],
+  ]);
+
+  // Turnover day = the adjacent booking's checkout/checkin falls on the SAME
+  // Istanbul calendar day as this stay's arrival/departure (daysUntilDate diffs
+  // any two dates, not just "today" — reused rather than a new same-day helper).
+  const turnoverIn =
+    adjacency?.previousDeparture && conversation.reservation
+      ? daysUntilDate(adjacency.previousDeparture, conversation.reservation.arrivalDate) === 0
+      : false;
+  const turnoverOut =
+    adjacency?.nextArrival && conversation.reservation
+      ? daysUntilDate(adjacency.nextArrival, conversation.reservation.departureDate) === 0
+      : false;
 
   const messages: ThreadMessage[] = conversation.messages.map((m) => ({
     id: m.id,
@@ -156,12 +188,55 @@ export default async function ConversationPage({
                       </ul>
                     </div>
                   ) : null}
+                  {turnoverIn || turnoverOut ? (
+                    <div className="mt-2 flex items-start gap-1.5 rounded-md border border-warning/30 bg-warning/10 p-2 text-xs text-warning-foreground">
+                      <ArrowLeftRight className="mt-0.5 size-3.5 shrink-0" />
+                      <span>
+                        {turnoverIn
+                          ? `Giriş günü aynı günde önceki misafir saat ${conversation.property.checkOutTime}'te çıkıyor — devir günü.`
+                          : `Çıkış günü aynı günde yeni misafir saat ${conversation.property.checkInTime}'te giriyor — devir günü.`}
+                      </span>
+                    </div>
+                  ) : null}
                 </>
               ) : (
                 <p className="text-muted-foreground">Bağlı rezervasyon yok.</p>
               )}
             </CardContent>
           </Card>
+
+          {conversation.reservation ? (
+            <Card>
+              <CardHeader>
+                <CardTitle className="flex items-center gap-2 text-base">
+                  <CheckSquare className="size-4 text-muted-foreground" /> Görevler
+                </CardTitle>
+              </CardHeader>
+              <CardContent className="space-y-2">
+                {tasks.length === 0 ? (
+                  <p className="text-sm text-muted-foreground">Bu konaklama için görev yok.</p>
+                ) : (
+                  tasks.map((t) => (
+                    <div key={t.id} className="flex items-center justify-between gap-2">
+                      <div className="min-w-0 flex-1">
+                        <p className="truncate text-sm">{t.title}</p>
+                        <Badge tone={TASK_TYPE.tone(t.type)}>{TASK_TYPE.label(t.type)}</Badge>
+                      </div>
+                      <Badge tone={TASK_STATUS.tone(t.status)}>{TASK_STATUS.label(t.status)}</Badge>
+                    </div>
+                  ))
+                )}
+                <LinkButton
+                  href={`/tasks?propertyId=${conversation.propertyId}`}
+                  variant="outline"
+                  size="sm"
+                  className="w-full"
+                >
+                  Tüm görevleri gör
+                </LinkButton>
+              </CardContent>
+            </Card>
+          ) : null}
 
           <Card>
             <CardHeader>
