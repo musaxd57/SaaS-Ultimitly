@@ -10,9 +10,14 @@ afterAll(async () => {
   await prisma.$disconnect();
 });
 
-// A customer whose Paddle subscription is canceled/past_due must lose the QR
-// concierge automatically; grandfathered (no sub) + active/trialing keep it.
-async function makeQrProperty(subStatus?: string, trialEndsAt?: Date): Promise<string> {
+// A canceled subscription (or a past_due one beyond the dunning grace) loses the
+// QR concierge; grandfathered (no sub) + active/trialing — and past_due within the
+// grace window (a paying customer whose card failed once) — keep it.
+async function makeQrProperty(
+  subStatus?: string,
+  trialEndsAt?: Date,
+  currentPeriodEnd?: Date,
+): Promise<string> {
   const org = await prisma.organization.create({ data: { name: "Org" } });
   if (subStatus) {
     await prisma.subscription.create({
@@ -22,6 +27,7 @@ async function makeQrProperty(subStatus?: string, trialEndsAt?: Date): Promise<s
         status: subStatus,
         provider: "paddle",
         trialEndsAt: trialEndsAt ?? null,
+        currentPeriodEnd: currentPeriodEnd ?? null,
       },
     });
   }
@@ -51,8 +57,16 @@ describe("QR concierge ↔ subscription gate", () => {
     expect(await resolveGuestChat(await makeQrProperty("canceled"))).toBeNull();
   });
 
-  it("STOPS when the subscription is PAST_DUE", async () => {
-    expect(await resolveGuestChat(await makeQrProperty("past_due"))).toBeNull();
+  it("KEEPS working when PAST_DUE within the dunning grace (paying customer, card retry)", async () => {
+    // A single failed renewal stays active during the grace window (billing #2),
+    // so the concierge isn't cut off instantly while Paddle retries the card.
+    expect(await resolveGuestChat(await makeQrProperty("past_due"))).not.toBeNull();
+  });
+
+  it("STOPS when PAST_DUE beyond the grace window", async () => {
+    // currentPeriodEnd 60 days ago → well past the 14-day grace → no longer active.
+    const token = await makeQrProperty("past_due", undefined, daysFromNow(-60));
+    expect(await resolveGuestChat(token)).toBeNull();
   });
 
   it("KEEPS working for an EXPIRED trial while billing is DORMANT", async () => {
