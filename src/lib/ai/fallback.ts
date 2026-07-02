@@ -32,6 +32,10 @@ const KEYWORDS: Record<Exclude<Intent, "general">, string[]> = {
     // must catch these even when the model mislabels; over-escalation is safe).
     "terrible", "awful", "horrible", "unacceptable", "disgusting", "filthy",
     "cockroach", "cockroaches", "bed bug", "bedbug", "bed bugs", "no hot water", "no heating",
+    // Re-opened / recurring issue signals ("klima hâlâ soğutmuyor", "temizlikçi
+    // gelmedi") — a guest re-raising an unresolved problem must route to a human.
+    "soğutmuyor", "sogutmuyor", "ısıtmıyor", "isitmiyor", "düzelmedi", "duzelmedi",
+    "temizlikçi gelmedi", "temizlikci gelmedi", "temizlik yapılmadı", "temizlik yapilmadi",
     // Multilingual backstop (DE/FR/ES/IT/AR/RU). Distinctive complaint words only,
     // to avoid English false matches (e.g. "sale"). Catches a foreign-language
     // complaint even if the model mislabels it.
@@ -154,6 +158,46 @@ export function classifyFallback(message: string): ClassifyResult {
     isComplaint,
     confidence: intent === "general" ? 0.3 : isComplaint ? 0.7 : 0.55,
   };
+}
+
+// ---------------------------------------------------------------------------
+// Closing/acknowledgement detector. After a reply (human or AI), guests very
+// often send a bare "tamam / teşekkürler / ok / thanks 👍" that needs NO answer.
+// The auto-reply pass uses this to (a) skip a pointless model call and (b) stay
+// out of a thread a human just closed. DELIBERATELY conservative: any question
+// mark, any non-closing word, or anything longer than a short line fails the
+// check and proceeds to the model — a real question can never be swallowed.
+// ---------------------------------------------------------------------------
+const CLOSING_TOKENS = new Set([
+  // Turkish
+  "tamam", "tamamdır", "tamamdir", "teşekkür", "tesekkur", "teşekkürler", "tesekkurler",
+  "ederim", "ederiz", "çok", "cok", "sağol", "sagol", "sağolun", "sagolun", "sağ", "sag",
+  "ol", "olun", "peki", "anlaştık", "anlastik", "olur", "süper", "harika", "mükemmel",
+  "mukemmel", "eyvallah", "görüşürüz", "gorusuruz", "iyi", "günler", "gunler", "geceler",
+  "akşamlar", "aksamlar", "rica",
+  // English
+  "ok", "okay", "okey", "thanks", "thank", "thx", "you", "so", "much", "many", "great",
+  "perfect", "awesome", "alright", "all", "right", "cool", "got", "it", "sounds", "good",
+  "fine", "noted", "cheers", "bye", "goodbye", "super",
+  // DE / FR / ES / IT
+  "danke", "dankeschön", "dankeschon", "schön", "schon", "vielen", "dank", "alles", "klar", "perfekt", "gut",
+  "merci", "beaucoup", "parfait", "gracias", "vale", "perfecto", "genial",
+  "grazie", "mille", "perfetto", "va", "bene",
+  // RU / AR
+  "спасибо", "хорошо", "ладно", "отлично", "понятно", "شكرا", "تمام", "حسنا", "ممتاز",
+]);
+
+/** True only for a short, pure closing/ack ("Tamam, teşekkürler!", "ok thanks", "👍"). */
+export function isClosingAck(message: string): boolean {
+  const raw = message.trim().toLowerCase();
+  if (!raw || raw.length > 60) return false;
+  if (raw.includes("?") || raw.includes("？")) return false; // a question is never a closing
+  // Strip punctuation/emoji; what remains must be ONLY closing words.
+  const cleaned = raw.replace(/[^\p{L}\p{N}\s]/gu, " ").replace(/\s+/g, " ").trim();
+  if (!cleaned) return true; // pure emoji/punctuation ("👍", "🙏")
+  const tokens = cleaned.split(" ");
+  if (tokens.length > 6) return false;
+  return tokens.every((t) => CLOSING_TOKENS.has(t));
 }
 
 function findKb(input: SuggestReplyInput, category: string): string | null {

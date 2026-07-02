@@ -1,5 +1,5 @@
 import { describe, it, expect } from "vitest";
-import { classifyFallback, suggestReplyFallback } from "@/lib/ai/fallback";
+import { classifyFallback, suggestReplyFallback, isClosingAck } from "@/lib/ai/fallback";
 import type { SuggestReplyInput } from "@/lib/ai/types";
 
 function baseInput(overrides: Partial<SuggestReplyInput> = {}): SuggestReplyInput {
@@ -115,6 +115,38 @@ describe("classifyFallback", () => {
     expect(classifyFallback("The room is filthy, there are cockroaches").intent).toBe("complaint");
     expect(classifyFallback("There is no hot water at all").intent).toBe("complaint");
     expect(classifyFallback("I will file a chargeback and dispute this").intent).toBe("refund");
+  });
+
+  it("catches re-opened / recurring issue signals as complaints", () => {
+    expect(classifyFallback("Klima hâlâ soğutmuyor").intent).toBe("complaint");
+    expect(classifyFallback("Kombi ısıtmıyor, üşüyoruz").intent).toBe("complaint");
+    expect(classifyFallback("Temizlikçi gelmedi bugün").intent).toBe("complaint");
+    expect(classifyFallback("Sorun hâlâ düzelmedi maalesef").intent).toBe("complaint");
+  });
+});
+
+describe("isClosingAck (deterministic closing/ack detector)", () => {
+  it("matches short pure closings across languages", () => {
+    expect(isClosingAck("Tamam, teşekkürler!")).toBe(true);
+    expect(isClosingAck("Çok teşekkür ederim")).toBe(true);
+    expect(isClosingAck("ok thanks")).toBe(true);
+    expect(isClosingAck("Perfect, thank you so much!")).toBe(true);
+    expect(isClosingAck("Danke schön!")).toBe(true);
+    expect(isClosingAck("Спасибо!")).toBe(true);
+    expect(isClosingAck("شكرا")).toBe(true);
+    expect(isClosingAck("👍")).toBe(true);
+    expect(isClosingAck("Anlaştık, görüşürüz")).toBe(true);
+  });
+
+  it("NEVER matches a message with a question or real content", () => {
+    expect(isClosingAck("Teşekkürler, peki wifi şifresi nedir?")).toBe(false);
+    expect(isClosingAck("Thanks! And what time is check-in?")).toBe(false);
+    expect(isClosingAck("Tamam ama klima hala çalışmıyor")).toBe(false);
+    expect(isClosingAck("Ok, we arrive at 3pm")).toBe(false);
+    expect(isClosingAck("Merhaba")).toBe(false); // greeting, not a closing
+    expect(isClosingAck("")).toBe(false);
+    // Long messages never match even if they contain closing words.
+    expect(isClosingAck("Thank you for everything, we really enjoyed our stay here and would love to come back")).toBe(false);
   });
 });
 

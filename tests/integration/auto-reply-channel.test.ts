@@ -588,6 +588,46 @@ describe("applyChannelAutoReply", () => {
     expect(mockSend).not.toHaveBeenCalled();
     expect(await prisma.message.count({ where: { conversationId, direction: "outbound" } })).toBe(0);
   });
+
+  it("closing-ack: a bare 'thanks' after a reply is skipped with NO model call, and stamped", async () => {
+    const { orgId, conversationId } = await seed();
+    // A reply (human or AI) already went out; the guest closes with a bare thanks.
+    await prisma.message.create({
+      data: {
+        conversationId, direction: "outbound", senderName: "Host", body: "Rica ederiz!",
+        createdAt: new Date(Date.now() - 30_000),
+      },
+    });
+    await prisma.message.create({
+      data: {
+        conversationId, direction: "inbound", senderName: "Alex", body: "Tamam, çok teşekkürler! 🙏",
+        createdAt: new Date(),
+      },
+    });
+    await prisma.conversation.update({ where: { id: conversationId }, data: { lastMessageAt: new Date() } });
+
+    const out = await runDueChannelAutoReplies(orgId);
+    expect(out.sent).toBe(0);
+    expect(mockSuggest).not.toHaveBeenCalled(); // no OpenAI spend on a closing
+    expect(mockSend).not.toHaveBeenCalled(); // the bot stays out of the closed thread
+
+    // Stamped like other deterministic non-sends → next tick doesn't reconsider it.
+    const out2 = await runDueChannelAutoReplies(orgId);
+    expect(out2.considered).toBe(0);
+  });
+
+  it("closing-ack: 'thanks + a real question' still goes to the model", async () => {
+    const { conversationId } = await seed({ guestMessage: "Teşekkürler! Peki wifi şifresi nedir?" });
+    await prisma.message.create({
+      data: {
+        conversationId, direction: "outbound", senderName: "Host", body: "Yardımcı olalım.",
+        createdAt: new Date(Date.now() - 120_000), // BEFORE the guest's message
+      },
+    });
+    const out = await applyChannelAutoReply(conversationId);
+    expect(out.skippedReason).not.toBe("closing_ack");
+    expect(mockSuggest).toHaveBeenCalled(); // real content → modeled as usual
+  });
 });
 
 describe("previewChannelAutoReplies", () => {

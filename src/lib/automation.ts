@@ -2,7 +2,7 @@ import "server-only";
 import { addDays } from "date-fns";
 import { prisma } from "@/lib/db";
 import { classifyMessage, suggestReply, summarizeHostStyle } from "@/lib/ai";
-import { classifyFallback } from "@/lib/ai/fallback";
+import { classifyFallback, isClosingAck } from "@/lib/ai/fallback";
 import { sendOnChannel } from "@/lib/messaging";
 import { getOrgHospitableToken } from "@/lib/hospitable-credentials";
 import { getAdjacency } from "@/lib/turnover";
@@ -519,6 +519,14 @@ export async function applyChannelAutoReply(
   // Only answer when the guest spoke last (don't reply to ourselves).
   if (last.direction !== "inbound") return { sent: false, skippedReason: "already_answered", ...meta };
 
+  // A bare "tamam / teşekkürler / ok 👍" closing after ANY reply (human or AI)
+  // needs no answer — skip BEFORE spending a model call, and never butt into a
+  // thread a human just wrapped up. Deterministic and conservative: a question
+  // or any extra content ("teşekkürler, peki wifi şifresi?") never matches.
+  if (isClosingAck(last.body) && messages.some((m) => m.direction === "outbound")) {
+    return { sent: false, skippedReason: "closing_ack", ...meta };
+  }
+
   const kbRaw = await prisma.knowledgeBaseItem.findMany({
     where: { propertyId: conversation.propertyId, isActive: true },
     select: { category: true, title: true, content: true },
@@ -827,7 +835,8 @@ export async function runDueChannelAutoReplies(
       sent++;
     } else if (
       outcome.skippedReason === "low_confidence_or_risky" ||
-      outcome.skippedReason === "globally_disabled"
+      outcome.skippedReason === "globally_disabled" ||
+      outcome.skippedReason === "closing_ack"
     ) {
       // Deterministic non-send for this message → don't re-model it next tick.
       // Transient reasons (send_failed / not_connected / already_claimed) are NOT
