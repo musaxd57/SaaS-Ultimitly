@@ -1103,6 +1103,31 @@ olup Hospitable'a sadece 8'ini eklediyse bize zaten 8 gelir. Ama 30'unun 30'unu 
 (hepsi için Hospitable'a ödüyorsa), bizim tarafımızdaki sınır olmadan hepsini biz de işlerdik — asıl kapatılan
 boşluk buydu.
 
+## Gemini öneri listesinden 5 güvenli özellik eklendi (2026-07-02, 5 commit, 517 test yeşil)
+Kullanıcı Gemini'nin büyük özellik listesini getirdi ("sen seç mantıklıları ekle"). Değerlendirme: liste
+büyük ölçüde ZATEN VAR olanları öneriyordu (human-review-queue=problem statüsü, canlı-demo=AI'yı Deneyin
+kartı, kurulum sihirbazı=onboarding rehberi, kaçınılacaklar=zaten bizim kararlarımız). Gerçekten eksik olan
+5 güvenli parça eklendi, her biri ayrı commit+test+push:
+1. **KB hazır şablonları** (0436ac5): Bilgi Tabanı formunda 6 tek-tık şablon çipi (Wi-Fi/giriş/otopark/çöp/
+   kurallar/çıkış) — formu doldurur, host [köşeli parantezleri] düzenleyip ekler; "[" kaldıkça uyarı çıkar.
+2. **Kurulum sağlık kontrolü** (15b6860): dashboard "Başlarken" listesi 4→6 adım — "Bilgi tabanınızı doldurun"
+   (kbCount>0) + "Otomatik yanıtı açın" (org.autoReplyHospitable; master env'e BİLEREK bakmıyor — yoksa tüm
+   müşteriler takılı görünürdü).
+3. **Lead mini-CRM** (1859d8c): `Lead.status/note/followUpAt` (migration `2_lead_crm_fields`, throwaway PG'de
+   sıfır-drift doğrulandı) + `PATCH /api/admin/leads/[id]` (superadmin-only) + operatör paneli lead tablosunda
+   inline durum/not/takip-tarihi + telefonlu lead'e WhatsApp linki. Pipeline: new→contacted→demo→won|lost.
+4. **Takvim görünümü** (affb65b): yeni `/calendar` sayfası (nav "Takvim") — aylık grid, gün başına giriş/çıkış/
+   "N dolu", daire filtresi çipleri, ay gezinme. Salt-okunur; dashboard'la aynı org-tz day-key + sourceReference
+   dedup (sayılar asla çelişmez). Şema değişikliği yok.
+5. **Landing AI demosu** (4e19f23, DORMANT): `/api/demo/ai` + landing "AI'ı şimdi deneyin" bölümü — **SADECE
+   `LANDING_DEMO_ENABLED=1` iken var** (yoksa 404 + bölüm render edilmez). Gerçek suggestReply hattı ama
+   TAMAMEN KURGU örnek daire+KB (gerçek org verisi asla okunmaz). Maliyet: 6/saat per-IP + durable global
+   günlük tavan (`LANDING_DEMO_DAILY_CAP` vars. 300, ChatUsage `propertyId="landing-demo"` sentetik anahtar).
+   Cevabın altında dürüst "otomatik gönderilirdi / size bırakılırdı" rozeti (güvenlik kapısı canlı gösterim).
+**⏳ KULLANICI:** landing demosunu açmak istersen Railway'e `LANDING_DEMO_ENABLED=1` koy (OpenAI harcar,
+tavan+limit hazır). **Reddedilen/ertelenenler:** AI-upsell (3. kez, Airbnb platform-dışı ödeme riski),
+WhatsApp bildirimi (dış hesap+kullanıcı kararı), cleaner portal / multi-PMS / SEO blog (launch sonrası).
+
 ## Çalışma şekli
 Kullanıcı: "Bana söyle, ben kodlarım." Fazları sırayla, additive + testli.
 Build + `npm test` yeşil olmadan push etme. GitHub'da PR sadece kullanıcı
