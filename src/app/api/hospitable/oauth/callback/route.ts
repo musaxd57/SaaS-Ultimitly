@@ -2,7 +2,7 @@ import { type NextRequest, NextResponse } from "next/server";
 import { requireSession } from "@/lib/api";
 import { isSuperAdmin } from "@/lib/admin";
 import { verifyToken, HospitableError } from "@/lib/hospitable";
-import { setOrgHospitableToken } from "@/lib/hospitable-credentials";
+import { setOrgHospitableOAuthTokens } from "@/lib/hospitable-credentials";
 import { writeAudit } from "@/lib/audit";
 import {
   getHospitableOAuthConfig,
@@ -11,10 +11,10 @@ import {
 } from "@/lib/hospitable-oauth";
 
 // Completes the OAuth round-trip: verifies the CSRF state, exchanges the code
-// for an access token, validates it (same verifyToken call the manual-PAT
-// flow uses), then stores it via the SAME setOrgHospitableToken() the manual
-// flow uses — so sync/send treat an OAuth-obtained token identically to a
-// pasted PAT. No new storage path, no behavior fork downstream.
+// for a token set, validates the access token (same verifyToken call the
+// manual-PAT flow uses), then stores access+refresh+expiry via
+// setOrgHospitableOAuthTokens(). getOrgHospitableToken() transparently
+// refreshes it going forward — sync/send never see a difference from a PAT.
 export async function GET(req: NextRequest) {
   const session = await requireSession();
   if (!session) return NextResponse.redirect(new URL("/login", req.url));
@@ -49,9 +49,9 @@ export async function GET(req: NextRequest) {
   }
 
   try {
-    const accessToken = await exchangeCodeForToken(config, code);
-    const info = await verifyToken(accessToken);
-    await setOrgHospitableToken(session.organizationId, accessToken, `${info.properties} mülk`);
+    const tokens = await exchangeCodeForToken(config, code);
+    const info = await verifyToken(tokens.accessToken);
+    await setOrgHospitableOAuthTokens(session.organizationId, tokens, `${info.properties} mülk`);
     await writeAudit({
       organizationId: session.organizationId,
       actorUserId: session.actorUserId ?? session.userId,

@@ -80,6 +80,12 @@ model Organization {
   hospitableTokenEnc    String?
   hospitableLabel       String?   // human label for the connected account (e.g. "8 mülk")
   hospitableConnectedAt DateTime? // when this org connected its own Hospitable token
+  // OAuth-connected orgs only (the "Hospitable ile Bağlan" flow). A pasted PAT
+  // never expires, so these stay null for PAT connections — getOrgHospitableToken
+  // treats null hospitableTokenExpiresAt as "doesn't expire" (existing behavior,
+  // unchanged) and only refreshes when this is set and in the past.
+  hospitableRefreshTokenEnc String?   // encrypted OAuth refresh token
+  hospitableTokenExpiresAt DateTime? // when hospitableTokenEnc's access token expires
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
 

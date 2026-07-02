@@ -2,6 +2,13 @@ import "server-only";
 
 import { prisma } from "@/lib/db";
 import { encryptSecret, decryptSecret } from "@/lib/crypto";
+import {
+  getHospitableOAuthConfig,
+  refreshAccessToken,
+  HospitableOAuthError,
+  type HospitableTokenSet,
+} from "@/lib/hospitable-oauth";
+import { reportError } from "@/lib/report-error";
 
 // ---------------------------------------------------------------------------
 // Per-organization Hospitable credentials (multi-tenant).
@@ -42,30 +49,120 @@ export async function isPrimaryOrg(orgId: string): Promise<boolean> {
   return (await primaryOrgId()) === orgId;
 }
 
+// Refresh this many seconds before actual expiry, so a slow request never
+// races past the real deadline (Hospitable access tokens live 12h — this
+// buffer is tiny relative to that, just a safety margin).
+const TOKEN_REFRESH_BUFFER_MS = 2 * 60 * 1000;
+
 /**
- * The Hospitable Personal Access Token to use for an organization, or null when
- * the org has no usable connection. Callers MUST treat null as "not connected"
- * and skip syncing/sending for that org (never fall back to another org's token).
+ * The Hospitable Personal Access Token (or current OAuth access token) to use
+ * for an organization, or null when the org has no usable connection. Callers
+ * MUST treat null as "not connected" and skip syncing/sending for that org
+ * (never fall back to another org's token).
+ *
+ * PAT connections (hospitableTokenExpiresAt is null) are returned as-is, same
+ * as always. OAuth connections carry an expiry; when it's due this
+ * transparently refreshes (using the stored refresh token) before returning,
+ * so every existing caller keeps working with zero changes on their end.
  */
 export async function getOrgHospitableToken(orgId: string): Promise<string | null> {
   const org = await prisma.organization.findUnique({
     where: { id: orgId },
-    select: { hospitableTokenEnc: true },
+    select: { hospitableTokenEnc: true, hospitableRefreshTokenEnc: true, hospitableTokenExpiresAt: true },
   });
   if (!org) return null;
 
   if (org.hospitableTokenEnc) {
+    let accessToken: string;
     try {
-      return decryptSecret(org.hospitableTokenEnc);
+      accessToken = decryptSecret(org.hospitableTokenEnc);
     } catch {
       return null; // corrupt/under a rotated key → treat as disconnected
     }
+
+    // PAT (no expiry tracked) — unchanged legacy path.
+    if (!org.hospitableTokenExpiresAt) return accessToken;
+
+    const dueForRefresh = org.hospitableTokenExpiresAt.getTime() - TOKEN_REFRESH_BUFFER_MS <= Date.now();
+    if (!dueForRefresh) return accessToken;
+
+    return refreshOrgOAuthToken(orgId, org.hospitableRefreshTokenEnc);
   }
 
   // Primary org only: fall back to the global env token (legacy single-tenant).
   const env = process.env.HOSPITABLE_API_TOKEN;
   if (env && (await primaryOrgId()) === orgId) return env;
   return null;
+}
+
+/**
+ * Refresh an expired OAuth access token and persist the new token set. Returns
+ * the fresh access token, or null when the org can't currently be refreshed
+ * (never throws — this sits on the hot sync/send path, a hiccup here must
+ * degrade to "not connected this cycle", not crash the caller).
+ */
+async function refreshOrgOAuthToken(orgId: string, refreshTokenEnc: string | null): Promise<string | null> {
+  const config = getHospitableOAuthConfig();
+  if (!config || !refreshTokenEnc) return null; // OAuth not configured / no refresh token stored
+
+  let refreshToken: string;
+  try {
+    refreshToken = decryptSecret(refreshTokenEnc);
+  } catch {
+    return null;
+  }
+
+  try {
+    const tokens = await refreshAccessToken(config, refreshToken);
+    await persistOAuthTokenSet(orgId, tokens);
+    return tokens.accessToken;
+  } catch (err) {
+    if (err instanceof HospitableOAuthError && err.authFailure) {
+      // The refresh token itself is dead (expired/reused/revoked) — the
+      // connection cannot self-heal. Clear it so Settings correctly shows
+      // "not connected" and the host is prompted to reconnect, rather than
+      // silently failing to sync/send forever with a token that will never work.
+      await clearOrgHospitableToken(orgId);
+    }
+    // Transient failure (network/5xx) — leave the stored refresh token alone,
+    // report it, and let the next cycle try again.
+    void reportError(`hospitable-oauth-refresh org:${orgId}`, err);
+    return null;
+  }
+}
+
+async function persistOAuthTokenSet(orgId: string, tokens: HospitableTokenSet): Promise<void> {
+  await prisma.organization.update({
+    where: { id: orgId },
+    data: {
+      hospitableTokenEnc: encryptSecret(tokens.accessToken),
+      hospitableRefreshTokenEnc: encryptSecret(tokens.refreshToken),
+      hospitableTokenExpiresAt: tokens.expiresAt,
+    },
+  });
+}
+
+/**
+ * Store the initial token set from a completed OAuth connect flow. Unlike the
+ * PAT path (setOrgHospitableToken), this also tracks the refresh token +
+ * expiry, so getOrgHospitableToken knows to refresh instead of treating it as
+ * a permanent token.
+ */
+export async function setOrgHospitableOAuthTokens(
+  orgId: string,
+  tokens: HospitableTokenSet,
+  label: string | null,
+): Promise<void> {
+  await prisma.organization.update({
+    where: { id: orgId },
+    data: {
+      hospitableTokenEnc: encryptSecret(tokens.accessToken),
+      hospitableRefreshTokenEnc: encryptSecret(tokens.refreshToken),
+      hospitableTokenExpiresAt: tokens.expiresAt,
+      hospitableLabel: label,
+      hospitableConnectedAt: new Date(),
+    },
+  });
 }
 
 /** True when the org can talk to Hospitable (own token or primary env fallback). */
@@ -113,7 +210,13 @@ export async function getConnectionInfo(orgId: string): Promise<HospitableConnec
   };
 }
 
-/** Store (encrypted) the Hospitable token an org will use from now on. */
+/**
+ * Store (encrypted) the Hospitable PAT an org will use from now on. Explicitly
+ * clears any OAuth refresh/expiry fields — a PAT never expires, so if an org
+ * previously connected via OAuth and now pastes a PAT instead (or an operator
+ * resets it), getOrgHospitableToken must treat it as the non-expiring legacy
+ * path, not try to "refresh" a manually-entered token.
+ */
 export async function setOrgHospitableToken(
   orgId: string,
   token: string,
@@ -123,16 +226,24 @@ export async function setOrgHospitableToken(
     where: { id: orgId },
     data: {
       hospitableTokenEnc: encryptSecret(token),
+      hospitableRefreshTokenEnc: null,
+      hospitableTokenExpiresAt: null,
       hospitableLabel: label,
       hospitableConnectedAt: new Date(),
     },
   });
 }
 
-/** Remove an org's stored Hospitable token (disconnect). */
+/** Remove an org's stored Hospitable token (disconnect) — PAT or OAuth alike. */
 export async function clearOrgHospitableToken(orgId: string): Promise<void> {
   await prisma.organization.update({
     where: { id: orgId },
-    data: { hospitableTokenEnc: null, hospitableLabel: null, hospitableConnectedAt: null },
+    data: {
+      hospitableTokenEnc: null,
+      hospitableRefreshTokenEnc: null,
+      hospitableTokenExpiresAt: null,
+      hospitableLabel: null,
+      hospitableConnectedAt: null,
+    },
   });
 }

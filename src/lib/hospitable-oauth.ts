@@ -3,19 +3,22 @@ import { randomBytes } from "crypto";
 
 // ---------------------------------------------------------------------------
 // Hospitable OAuth vendor flow ("Hospitable ile Bağlan" one-click connect).
-// DORMANT until all required env vars are set — mirrors the Paddle/Iyzico
+// DORMANT until the client credentials are set — mirrors the Paddle/Iyzico
 // dormant-adapter pattern: nothing here is called automatically, and the UI
 // button only renders when isHospitableOAuthConfigured() is true, so the
 // existing manual Personal-Access-Token flow (hospitable/connect route) keeps
 // working unconditionally as the fallback/default path.
 //
-// The actual authorize/token endpoint URLs are NOT guessed — they come from
-// env (HOSPITABLE_OAUTH_AUTHORIZE_URL / HOSPITABLE_OAUTH_TOKEN_URL) sourced
-// from Hospitable's partner docs, so a wrong guess can never silently ship.
+// authorize/token URLs default to Hospitable's documented, non-partner-
+// specific OAuth2 endpoints (developer.hospitable.com/docs/public-api-docs
+// → Authentication), confirmed from two independent lookups — not guessed.
+// Still overridable via env in case Hospitable ever changes them.
 // ---------------------------------------------------------------------------
 
 export const OAUTH_STATE_COOKIE = "hospitable_oauth_state";
 const STATE_MAX_AGE = 10 * 60; // 10 minutes — just long enough for the redirect round-trip
+const DEFAULT_AUTHORIZE_URL = "https://auth.hospitable.com/oauth/authorize";
+const DEFAULT_TOKEN_URL = "https://auth.hospitable.com/oauth/token";
 
 export interface HospitableOAuthConfig {
   clientId: string;
@@ -25,16 +28,16 @@ export interface HospitableOAuthConfig {
   redirectUri: string;
 }
 
-/** Null unless every required env var is set — the single dormant/live switch. */
+/** Null unless the client credentials are set — the single dormant/live switch. */
 export function getHospitableOAuthConfig(): HospitableOAuthConfig | null {
   const clientId = process.env.HOSPITABLE_OAUTH_CLIENT_ID?.trim();
   const clientSecret = process.env.HOSPITABLE_OAUTH_CLIENT_SECRET?.trim();
-  const authorizeUrl = process.env.HOSPITABLE_OAUTH_AUTHORIZE_URL?.trim();
-  const tokenUrl = process.env.HOSPITABLE_OAUTH_TOKEN_URL?.trim();
+  if (!clientId || !clientSecret) return null;
+  const authorizeUrl = process.env.HOSPITABLE_OAUTH_AUTHORIZE_URL?.trim() || DEFAULT_AUTHORIZE_URL;
+  const tokenUrl = process.env.HOSPITABLE_OAUTH_TOKEN_URL?.trim() || DEFAULT_TOKEN_URL;
   const redirectUri =
     process.env.HOSPITABLE_OAUTH_REDIRECT_URI?.trim() ||
     "https://www.lixusai.com/api/hospitable/oauth/callback";
-  if (!clientId || !clientSecret || !authorizeUrl || !tokenUrl) return null;
   return { clientId, clientSecret, authorizeUrl, tokenUrl, redirectUri };
 }
 
@@ -57,32 +60,104 @@ export function buildAuthorizeUrl(config: HospitableOAuthConfig, state: string):
   return url.toString();
 }
 
-export class HospitableOAuthError extends Error {}
+/**
+ * `authFailure: true` means Hospitable rejected the credentials themselves
+ * (e.g. the refresh token was invalid, reused, or past its 90-day expiry) —
+ * the connection is dead and must be re-authorized, so callers should clear
+ * the stored tokens. `authFailure: false` means a transient problem (network,
+ * timeout, 5xx) — the stored refresh token may still be good, so callers
+ * should just skip this cycle and retry later, NOT clear the connection.
+ */
+export class HospitableOAuthError extends Error {
+  authFailure: boolean;
+  constructor(message: string, authFailure: boolean) {
+    super(message);
+    this.authFailure = authFailure;
+  }
+}
 
-/** Exchange an authorization code for an access token. Throws on any failure. */
+export interface HospitableTokenSet {
+  accessToken: string;
+  refreshToken: string;
+  /** Absolute expiry, derived from the response's expires_in (seconds from now). */
+  expiresAt: Date;
+}
+
+/** Hospitable docs: access_token expires after 12h; used as a fallback only if
+ *  a token response is ever missing expires_in (defensive, should not happen). */
+const DEFAULT_TOKEN_LIFETIME_SECONDS = 12 * 60 * 60;
+
+function parseTokenResponse(data: unknown): HospitableTokenSet {
+  const d = data as Record<string, unknown> | null;
+  const accessToken = d?.access_token;
+  const refreshToken = d?.refresh_token;
+  if (typeof accessToken !== "string" || !accessToken) {
+    throw new HospitableOAuthError("Token response had no access_token", true);
+  }
+  if (typeof refreshToken !== "string" || !refreshToken) {
+    throw new HospitableOAuthError("Token response had no refresh_token", true);
+  }
+  const expiresIn =
+    typeof d?.expires_in === "number" && d.expires_in > 0
+      ? d.expires_in
+      : DEFAULT_TOKEN_LIFETIME_SECONDS;
+  return { accessToken, refreshToken, expiresAt: new Date(Date.now() + expiresIn * 1000) };
+}
+
+async function postTokenRequest(
+  config: HospitableOAuthConfig,
+  body: Record<string, string>,
+): Promise<HospitableTokenSet> {
+  let res: Response;
+  try {
+    res = await fetch(config.tokenUrl, {
+      method: "POST",
+      headers: { "Content-Type": "application/json", Accept: "application/json" },
+      body: JSON.stringify(body),
+      signal: AbortSignal.timeout(15000),
+    });
+  } catch (err) {
+    throw new HospitableOAuthError(
+      `Token request network failure: ${err instanceof Error ? err.message : "unknown"}`,
+      false,
+    );
+  }
+  if (!res.ok) {
+    // 4xx from an OAuth token endpoint is the standard shape for "invalid_grant"
+    // (bad code / bad or reused refresh token) — treat as a definitive auth
+    // failure. 5xx/429 are the server's problem, not the credential's — retry later.
+    const authFailure = res.status >= 400 && res.status < 500 && res.status !== 429;
+    throw new HospitableOAuthError(`Token request failed (${res.status})`, authFailure);
+  }
+  const data = await res.json().catch(() => null);
+  return parseTokenResponse(data);
+}
+
+/** Exchange an authorization code for a token set. Throws HospitableOAuthError. */
 export async function exchangeCodeForToken(
   config: HospitableOAuthConfig,
   code: string,
-): Promise<string> {
-  const res = await fetch(config.tokenUrl, {
-    method: "POST",
-    headers: { "Content-Type": "application/json", Accept: "application/json" },
-    body: JSON.stringify({
-      grant_type: "authorization_code",
-      client_id: config.clientId,
-      client_secret: config.clientSecret,
-      code,
-      redirect_uri: config.redirectUri,
-    }),
-    signal: AbortSignal.timeout(15000),
+): Promise<HospitableTokenSet> {
+  return postTokenRequest(config, {
+    grant_type: "authorization_code",
+    client_id: config.clientId,
+    client_secret: config.clientSecret,
+    code,
+    redirect_uri: config.redirectUri,
   });
-  if (!res.ok) {
-    throw new HospitableOAuthError(`Token exchange failed (${res.status})`);
-  }
-  const data = await res.json().catch(() => null);
-  const accessToken = data?.access_token;
-  if (typeof accessToken !== "string" || !accessToken) {
-    throw new HospitableOAuthError("Token exchange response had no access_token");
-  }
-  return accessToken;
+}
+
+/** Use a refresh token to get a new token set. Refresh tokens ROTATE — the
+ *  response's refresh_token replaces the one that was just used. Throws
+ *  HospitableOAuthError (authFailure:true means this refresh token is dead). */
+export async function refreshAccessToken(
+  config: HospitableOAuthConfig,
+  refreshToken: string,
+): Promise<HospitableTokenSet> {
+  return postTokenRequest(config, {
+    grant_type: "refresh_token",
+    client_id: config.clientId,
+    client_secret: config.clientSecret,
+    refresh_token: refreshToken,
+  });
 }
