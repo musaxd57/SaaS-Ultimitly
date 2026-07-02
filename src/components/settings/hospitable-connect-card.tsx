@@ -15,13 +15,35 @@ import type { HospitableConnectionInfo } from "@/lib/hospitable-credentials";
  * connected, the token field is hidden behind a locked view — you must click
  * "Değiştir" to enter a new one (nothing is ever displayed or copyable).
  */
-export function HospitableConnectCard({ info }: { info: HospitableConnectionInfo }) {
+// Query-param result codes the OAuth callback route redirects back with.
+const OAUTH_RESULT_MESSAGES: Record<string, { ok: boolean; text: string }> = {
+  connected: { ok: true, text: "Hospitable ile bağlandı." },
+  forbidden: { ok: false, text: "Bu işlem için yetkiniz yok." },
+  not_configured: { ok: false, text: "OAuth bağlantısı henüz hazır değil — token ile bağlanabilirsiniz." },
+  denied: { ok: false, text: "Bağlantı izni verilmedi." },
+  state_mismatch: { ok: false, text: "Bağlantı isteği doğrulanamadı, lütfen tekrar deneyin." },
+  invalid_token: { ok: false, text: "Alınan bağlantı anahtarı geçersiz, lütfen tekrar deneyin." },
+  exchange_failed: { ok: false, text: "Hospitable ile bağlantı kurulamadı, lütfen tekrar deneyin." },
+};
+
+export function HospitableConnectCard({
+  info,
+  oauthEnabled = false,
+  oauthResult,
+}: {
+  info: HospitableConnectionInfo;
+  /** Whether the "Hospitable ile Bağlan" one-click OAuth button should render. */
+  oauthEnabled?: boolean;
+  /** Result code the OAuth callback redirected back with (?hospitable=...), if any. */
+  oauthResult?: string;
+}) {
   const router = useRouter();
   const [token, setToken] = useState("");
   const [editing, setEditing] = useState(false);
   const [busy, setBusy] = useState<null | "connect" | "claim" | "disconnect">(null);
-  const [error, setError] = useState<string | null>(null);
-  const [done, setDone] = useState<string | null>(null);
+  const oauthMessage = oauthResult ? OAUTH_RESULT_MESSAGES[oauthResult] : null;
+  const [error, setError] = useState<string | null>(oauthMessage && !oauthMessage.ok ? oauthMessage.text : null);
+  const [done, setDone] = useState<string | null>(oauthMessage?.ok ? oauthMessage.text : null);
 
   async function post(body: object, kind: "connect" | "claim") {
     setBusy(kind);
@@ -144,6 +166,19 @@ export function HospitableConnectCard({ info }: { info: HospitableConnectionInfo
       {/* FORM VIEW — not connected, or operator clicked "Değiştir". */}
       {showForm ? (
         <>
+          {oauthEnabled ? (
+            <div className="space-y-2">
+              <a href="/api/hospitable/oauth/authorize">
+                <Button type="button" className="w-full sm:w-auto">
+                  <Link2 className="size-4" /> Hospitable ile Bağlan
+                </Button>
+              </a>
+              <div className="flex items-center gap-2 text-xs text-muted-foreground">
+                <div className="h-px flex-1 bg-border" /> veya elle bağlanın{" "}
+                <div className="h-px flex-1 bg-border" />
+              </div>
+            </div>
+          ) : null}
           <div className="rounded-md border bg-muted/40 p-3 text-sm text-muted-foreground">
             <p className="mb-1.5 font-medium text-foreground">Bağlantı anahtarı nasıl alınır? (2 dakika)</p>
             <ol className="list-decimal space-y-1 pl-4">

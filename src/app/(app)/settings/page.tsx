@@ -19,11 +19,17 @@ import { getConnectionInfo } from "@/lib/hospitable-credentials";
 import { getEntitlement, premiumAllowed } from "@/lib/billing/subscription";
 import { DEFAULT_PLANS } from "@/lib/billing/plans";
 import { isSuperAdmin } from "@/lib/admin";
+import { isHospitableOAuthConfigured } from "@/lib/hospitable-oauth";
 
 export const dynamic = "force-dynamic";
 
-export default async function SettingsPage() {
+export default async function SettingsPage({
+  searchParams,
+}: {
+  searchParams: Promise<{ hospitable?: string }>;
+}) {
   const session = await requireAuth();
+  const { hospitable: hospitableResult } = await searchParams;
   // The channel token belongs to THIS account. Its OWNER can connect it
   // themselves (self-service, with instructions), and the operator (super-admin,
   // incl. while impersonating) can also do it for a non-technical customer.
@@ -199,7 +205,11 @@ export default async function SettingsPage() {
             <CardTitle className="text-base">Airbnb / Booking Bağlantısı</CardTitle>
           </CardHeader>
           <CardContent>
-            <HospitableConnectCard info={hospitableInfo} />
+            <HospitableConnectCard
+              info={hospitableInfo}
+              oauthEnabled={isHospitableOAuthConfigured()}
+              oauthResult={hospitableResult}
+            />
           </CardContent>
         </Card>
       ) : (
