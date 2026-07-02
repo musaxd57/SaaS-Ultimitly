@@ -997,6 +997,29 @@ değişiklikler kayboldu, hemen yeniden yazılıp bu sefer **anında** commit+pu
 kalıcı kural olarak pekişti): edit → hemen commit+push, aradaki pencereyi hiç açık bırakma** — özellikle
 tek dosya/küçük değişikliklerde bile, tam-suit testini push'tan SONRA doğrulama olarak çalıştır, önce değil.
 
+## Hospitable — Patrick'in FİNAL cevabı geldi (2026-07-02): Connect kapandı + YENİ fırsat
+**Connect netleşti (olumsuz):** Patrick açıkça "Connect tam misafir mesajlaşması değil, sadece Airbnb-bağlama
+için sınırlı, Hospitable inbox üzerinden tam oku/gönder mesajlaşma DEĞİL" dedi. **Connect yolu artık kapalı** —
+mesajlaşma gereken tek yol Public API (host'un kendi Hospitable aboneliği hâlâ şart).
+**OAuth:** Devam — Public API partner vendor flow'a geçiyoruz. Scope'lar (property:read, reservation:read,
+message:read, message:write) onaylandı, vendor flow sürecinde kesinleşecek. **Partner Portal:**
+https://partners.hospitable.com/login · **Partner Resources:** https://hospitable.notion.site/Hospitable-Partner-Resources-6b5b233e5e334a05a81c8f9063539955
+**🔑 YENİ FIRSAT — $29 engelinin olası çözümü:** Patrick kendiliğinden önerdi: **tek bir ana Hospitable hesabı
+altında BİRDEN FAZLA host'un mülkünü yönetmek mümkün** ("could work well for property managers or operators
+managing several listings centrally... it would still require a Hospitable subscription [tek hesap için] but
+may lower the barrier... it would be somehow white labeled"). Yani: her Türk host kendi $29/ay'lık Hospitable
+hesabı açmak yerine, **Lixus TEK bir hesapla birden fazla müşteri mülkünü yönetebilir** (property-manager/
+operatör modeli). Tam gizli-arka-plan reseller şu an YOK ama **"trafik göstermeye başlarsan pilot/ticari
+konuşmayı tekrar açarız"** dedi — kapı açık, kanıt (gerçek Türk host trafiği) istiyor.
+**Gönderilecek cevap taslağı hazırlandı** (kullanıcı onayı bekliyor): OAuth'a başlıyoruz + tek-hesap/çoklu-mülk
+modeline 3 somut soru (fiyatlandırma per-property ölçekte nasıl, "white-label" pratikte ne demek — misafir/host
+Hospitable markasını hiç görmeyecek mi, farklı/ilişkisiz host'ların mülklerini tek hesapta yönetmenin bir kısıtı
+var mı) + gerçek trafik gösterince pilot konuşmasını tekrar açma daveti.
+**⚠️ Mimari not (ileride, kod DEĞİL, kullanıcı kararı gerek):** "tek hesap → çoklu tenant mülkü" modeli bugünkü
+per-org şifreli-token mimarisinden (`getOrgHospitableToken`) farklı — paylaşılan tek master token'ı birden fazla
+Lixus org'una mülk-bazında eşlemek gerekir, tenant-izolasyonu (org A'nın misafir verisi asla org B'ye sızmamalı)
+yeniden tasarlanmalı. Fiyatlandırma/limit netleşmeden ve kullanıcı onayı olmadan buna dokunulmayacak.
+
 ## Çalışma şekli
 Kullanıcı: "Bana söyle, ben kodlarım." Fazları sırayla, additive + testli.
 Build + `npm test` yeşil olmadan push etme. GitHub'da PR sadece kullanıcı
