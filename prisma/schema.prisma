@@ -280,6 +280,10 @@ model Message {
   aiConfidence    Float?
   aiIntent        String?
   externalId       String? // provider message id (e.g. Hospitable) — sync dedup
+  // True when this outbound reply was drafted by the AI and approved by a human
+  // (one-click "Onayla ve gönder"). Lets reports credit host-approved AI replies,
+  // not only fully-automatic "GuestOps AI" sends. Defaulted → db-push safe.
+  aiAssisted      Boolean  @default(false)
   createdAt       DateTime @default(now())
 
   conversation Conversation @relation(fields: [conversationId], references: [id], onDelete: Cascade)

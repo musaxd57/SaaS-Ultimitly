@@ -57,6 +57,10 @@ export async function POST(req: NextRequest, { params }: Params) {
     const translateTo: string | undefined =
       translateRaw && translateRaw.length <= 20 ? translateRaw : undefined;
 
+    // Credit AI-assisted approvals in reports: set by the client when the host
+    // clicks "Onayla ve gönder" on an AI draft (vs typing a manual reply).
+    const aiAssisted = rawData?.aiAssisted === true;
+
     let replyBody = parsed.data.body;
     if (translateTo) {
       // Translate is a paid AI feature — gate it in the freemium tier so a lapsed
@@ -95,6 +99,7 @@ export async function POST(req: NextRequest, { params }: Params) {
           direction: "outbound",
           senderName: parsed.data.senderName || session.name,
           body: replyBody,
+          aiAssisted,
         },
       }),
       prisma.conversation.update({

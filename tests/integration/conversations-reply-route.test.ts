@@ -18,6 +18,7 @@ vi.mock("@/lib/hospitable-credentials", () => ({ getOrgHospitableToken: vi.fn(as
 import { sendOnChannel } from "@/lib/messaging";
 import { getOrgHospitableToken } from "@/lib/hospitable-credentials";
 import { POST } from "@/app/api/conversations/[id]/reply/route";
+import { getAiOpsReport } from "@/lib/reports";
 
 const mockSend = vi.mocked(sendOnChannel);
 const mockToken = vi.mocked(getOrgHospitableToken);
@@ -75,6 +76,27 @@ describe("POST /api/conversations/[id]/reply — staff RBAC gate", () => {
     expect(mockSend).toHaveBeenCalledTimes(1);
     const count = await prisma.message.count({ where: { conversationId, direction: "outbound" } });
     expect(count).toBe(1);
+  });
+
+  it("credits an AI-approved send (aiAssisted) in reports, not a manual reply (#8)", async () => {
+    session = { userId: "u", organizationId: orgId, role: "owner", email: "o@x.com", name: "Owner" };
+    // One-click "Onayla ve gönder" on an AI draft → flagged.
+    await POST(req(conversationId, { body: "AI taslağı", aiAssisted: true }), {
+      params: Promise.resolve({ id: conversationId }),
+    });
+    // A manually-typed reply → not flagged.
+    await POST(req(conversationId, { body: "Elle yazıldı" }), {
+      params: Promise.resolve({ id: conversationId }),
+    });
+
+    const msgs = await prisma.message.findMany({ where: { conversationId, direction: "outbound" } });
+    expect(msgs.find((m) => m.body === "AI taslağı")?.aiAssisted).toBe(true);
+    expect(msgs.find((m) => m.body === "Elle yazıldı")?.aiAssisted).toBe(false);
+
+    // The reports "AI answered" metric now includes the approved AI reply (was 0
+    // for an active host before this fix), but not the manual one.
+    const report = await getAiOpsReport(orgId);
+    expect(report.aiReplies).toBe(1);
   });
 
   it("does not let an owner of ANOTHER org reply into this conversation (tenant isolation)", async () => {

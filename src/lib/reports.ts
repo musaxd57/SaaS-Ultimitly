@@ -607,7 +607,7 @@ export async function getHostPerformanceScore(orgId: string): Promise<HostPerfor
 }
 
 export interface AiOpsReport {
-  aiReplies: number; // AI auto-replies actually sent (last 30 days)
+  aiReplies: number; // AI replies sent (auto + host-approved AI-assisted) — last 30 days
   welcomes: number; // welcome messages sent (last 30 days)
   checkins: number; // check-in info messages sent (last 30 days)
   checkouts: number; // check-out messages sent (last 30 days)
@@ -628,7 +628,10 @@ export async function getAiOpsReport(orgId: string): Promise<AiOpsReport> {
     prisma.message.count({
       where: {
         direction: "outbound",
-        senderName: "GuestOps AI",
+        // Fully-automatic AI sends (the "GuestOps AI" classifier string — do NOT
+        // change it) PLUS host-approved AI-assisted replies, so an active host who
+        // one-click-approves AI drafts actually sees credit (was 0 before).
+        OR: [{ senderName: "GuestOps AI" }, { aiAssisted: true }],
         createdAt: { gte: since },
         conversation: { ...scope },
       },

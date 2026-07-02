@@ -112,7 +112,7 @@ export function ConversationThread({ conversationId, messages, status, priority,
     }
   }
 
-  async function sendReply(body: string) {
+  async function sendReply(body: string, aiAssisted = false) {
     if (!body.trim()) return;
     setSending(true);
     setSendError(null);
@@ -120,7 +120,7 @@ export function ConversationThread({ conversationId, messages, status, priority,
       const res = await fetch(`/api/conversations/${conversationId}/reply`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ body }),
+        body: JSON.stringify({ body, aiAssisted }),
       });
       if (res.ok) {
         setComposer("");
@@ -484,7 +484,7 @@ export function ConversationThread({ conversationId, messages, status, priority,
                 <Button size="sm" variant="outline" onClick={() => setComposer(suggestion.reply)}>
                   <Wand2 className="size-4" /> Taslağı kullan
                 </Button>
-                <Button size="sm" onClick={() => sendReply(suggestion.reply)} disabled={sending}>
+                <Button size="sm" onClick={() => sendReply(suggestion.reply, true)} disabled={sending}>
                   {sending ? <Loader2 className="size-4 animate-spin" /> : <CheckCheck className="size-4" />}
                   Onayla ve gönder
                 </Button>
