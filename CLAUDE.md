@@ -1044,6 +1044,43 @@ sunucusuna karşı UÇTAN UCA hiç denenmedi (yalnızca dokümantasyon-uyumlu ş
 "Hospitable ile Bağlan"a tıklayıp gerçek izin ekranından geçmeli**, callback'in düzgün "Bağlandı" dönüp senkronun
 başladığını birlikte teyit etmeliyiz — para/e-posta akışı kuralına benzer "ilk gerçek denemeyi birlikte doğrula" ilkesi.
 
+## Hospitable OAuth — CANLIDA DOĞRULANDI ✅ + 2 prod olayı + kalıcı ders (2026-07-02, 3 commit)
+Kullanıcı gerçek hesabıyla "Hospitable ile Bağlan" butonunu denedi → yolda **2 prod olayı** çıktı, ikisi de
+aynı gün düzeltildi, **son deneme temiz "Bağlı ✓ Hospitable ile bağlandı" ile bitti** (ekran görüntüsüyle
+teyitli). Buton artık gerçek kullanıcılar için CANLI ve ÇALIŞIYOR.
+- **Olay 1 — eksik migration (hotfix 495f83e):** `hospitableRefreshTokenEnc`/`hospitableTokenExpiresAt` alanları
+  `schema.prisma`'ya elle eklenip `prisma generate` çalıştırılmıştı AMA gerçek migration dosyası ÜRETİLMEMİŞTİ.
+  Boot bu oturumda zaten `migrate deploy`'a çevrilmişti (yukarıdaki "Migration cutover" bölümü) → sadece şemayı
+  düzenlemek prod'da HİÇBİR ŞEY yapmadı, DB'de kolonlar hiç oluşmadı. Sonuç: her org için `scheduled-sync`
+  `PrismaClientKnownRequestError: column does not exist` ile patladı (kullanıcı 5 ayrı hata-maili gösterdi).
+  **Düzeltme:** `prisma migrate diff --from-migrations ./prisma/migrations --to-schema-datamodel
+  ./prisma/schema.prisma --script` ile eksik migration üretildi, taze bir throwaway Postgres'te 0_init + bu
+  migration'ın SIFIR-drift uyguladığı doğrulandıktan sonra push edildi. **KALICI KURAL:** `schema.prisma`'yı
+  elle değiştirdikten sonra **HER ZAMAN** gerçek bir migration dosyası üret (artık `db push` değil `migrate
+  deploy` kullanılıyor) — yoksa şema ile DB sessizce ayrışır, sadece kod deploy edilince patlar.
+- **Olay 2 — localhost yönlendirme buggy (fix df63441 + proaktif tarama 1784ed0):** Her iki yeni OAuth route'u
+  `NextResponse.redirect(new URL(path, req.url))` kullanıyordu. Railway'in reverse-proxy'si arkasında `req.url`
+  **container'ın İÇ adresini** taşır (`localhost:8080`), public domaini DEĞİL → kullanıcı callback'ten sonra
+  `localhost:8080/settings?...` adresine (ERR_CONNECTION_REFUSED) yönlendirildi. Kod tabanında zaten aynı sorunun
+  daha önce çözüldüğü bir yer vardı (`lib/auth/email-verify.ts`'teki `baseUrlFromHost(host)` — Host header'ından
+  inşa eder). Her iki OAuth route'una bu fonksiyon uygulandı. **Ardından "hatasız olsun kontrolleri sağla"
+  talimatıyla `src/app/api/` ağacının tamamı aynı desen (`new URL(...req.url)`) için tarandı** → üçüncü bir
+  gerçek örnek bulundu: `api/auth/logout/route.ts`'in GET'i (aynı bug). Önemi: bu route, bu oturumda eklenen
+  **sessionEpoch uyuşmazlığı guard'ının** yönlendirme hedefi de — yani düzeltilmeseydi şifre değiştirince/
+  sessionEpoch uyuşmazlığında kullanıcı da aynı şekilde localhost'a düşerdi. Düzeltildi + 3 regresyon testi
+  (`tests/integration/logout-route.test.ts`). **KALICI KURAL:** Railway arkasında **hiçbir route** `req.url`
+  içinden mutlak URL kurmasın; her zaman `baseUrlFromHost(req.headers.get("host"))` kullan.
+- **State mismatch (kullanıcı kendi teşhis etti, bug DEĞİL):** Bir denemede "state_mismatch" tekrarlandı ama
+  bu sefer doğru domaindeydi — sebep 2 sekmenin aynı anda açık olup state cookie'sini ezmesiydi (kullanıcı: "2
+  tane aynı sekme açıktı ondan sorun yok"). Tek sekmeyle temiz deneme başarılı oldu.
+- **"0 mülk" görünmesi → bug DEĞİL:** Test edilen Hospitable hesabının gerçekten 0 mülkü var (Nuve'nin gerçek
+  hesabı DEĞİL, bilinçli olarak ayrı test hesabıyla denendi — Nuve'nin Hospitable aboneliği zaten bitik/402).
+- **Logo Partner Portal'da görünmüyor:** dosya repoda doğru (`public/lixus-logo-icon.png`, geçerli 512×512 PNG,
+  `lixusai.com/lixus-logo-icon.png` canlıda erişilebilir) → bizim kod sorunu değil, muhtemelen Hospitable Partner
+  Portal'ın kendi tarafında bir yapılandırma/cache gecikmesi. Düşük öncelik, işlevi etkilemiyor.
+**Sonuç: 3 commit (495f83e, df63441, 1784ed0), 504 test yeşil, build+typecheck temiz, buton gerçek Hospitable
+hesabıyla uçtan uca doğrulandı.** Bu bölüm kapandı — sıradaki OAuth işi kullanıcı yeni bir hesap/host bağladığında.
+
 ## Çalışma şekli
 Kullanıcı: "Bana söyle, ben kodlarım." Fazları sırayla, additive + testli.
 Build + `npm test` yeşil olmadan push etme. GitHub'da PR sadece kullanıcı
