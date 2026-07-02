@@ -4,6 +4,7 @@ import { isSuperAdmin } from "@/lib/admin";
 import { verifyToken, HospitableError } from "@/lib/hospitable";
 import { setOrgHospitableOAuthTokens } from "@/lib/hospitable-credentials";
 import { writeAudit } from "@/lib/audit";
+import { baseUrlFromHost } from "@/lib/auth/email-verify";
 import {
   getHospitableOAuthConfig,
   exchangeCodeForToken,
@@ -16,22 +17,27 @@ import {
 // setOrgHospitableOAuthTokens(). getOrgHospitableToken() transparently
 // refreshes it going forward — sync/send never see a difference from a PAT.
 export async function GET(req: NextRequest) {
+  // Behind Railway, req.url's origin is the INTERNAL container address
+  // (localhost:xxxx) — every redirect back to OUR OWN site must be built from
+  // the Host header instead, or the browser gets sent to an unreachable
+  // localhost URL (see lib/auth/email-verify.ts for the same, earlier fix).
+  const base = baseUrlFromHost(req.headers.get("host"));
   const session = await requireSession();
-  if (!session) return NextResponse.redirect(new URL("/login", req.url));
+  if (!session) return NextResponse.redirect(`${base}/login`);
   if (!(session.role === "owner" || isSuperAdmin(session))) {
-    return NextResponse.redirect(new URL("/settings?hospitable=forbidden", req.url));
+    return NextResponse.redirect(`${base}/settings?hospitable=forbidden`);
   }
 
   const config = getHospitableOAuthConfig();
   if (!config) {
-    return NextResponse.redirect(new URL("/settings?hospitable=not_configured", req.url));
+    return NextResponse.redirect(`${base}/settings?hospitable=not_configured`);
   }
 
   const url = new URL(req.url);
   const err = url.searchParams.get("error");
   if (err) {
     // The host declined the authorization screen — not a failure to log loudly.
-    return NextResponse.redirect(new URL("/settings?hospitable=denied", req.url));
+    return NextResponse.redirect(`${base}/settings?hospitable=denied`);
   }
 
   const state = url.searchParams.get("state");
@@ -44,7 +50,7 @@ export async function GET(req: NextRequest) {
 
   if (!code || !state || !cookieState || state !== cookieState) {
     return clearStateCookie(
-      NextResponse.redirect(new URL("/settings?hospitable=state_mismatch", req.url)),
+      NextResponse.redirect(`${base}/settings?hospitable=state_mismatch`),
     );
   }
 
@@ -58,11 +64,11 @@ export async function GET(req: NextRequest) {
       action: "hospitable.connect",
       metadata: { via: "oauth", properties: info.properties },
     });
-    return clearStateCookie(NextResponse.redirect(new URL("/settings?hospitable=connected", req.url)));
+    return clearStateCookie(NextResponse.redirect(`${base}/settings?hospitable=connected`));
   } catch (err) {
     const reason = err instanceof HospitableError ? "invalid_token" : "exchange_failed";
     return clearStateCookie(
-      NextResponse.redirect(new URL(`/settings?hospitable=${reason}`, req.url)),
+      NextResponse.redirect(`${base}/settings?hospitable=${reason}`),
     );
   }
 }
