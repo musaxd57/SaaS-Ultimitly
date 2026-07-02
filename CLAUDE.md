@@ -842,6 +842,29 @@ gönderilir mi** (Connect overview'da mesaj YOK; ürünümüz mesajlaşma). **Fr
 gönderilen agency/white-label + fiyat sorusu hâlâ bekliyor) bu paket sorusunu **MESAJLAŞMA sorusuyla
 BİRLİKTE** netleştir. (5 iş günü inceleme dolmadan dürtme kuralı geçerli.)
 
+## 12-agent tam inceleme + güvenli-küme uygulaması (2026-07-02) — 8 commit, 462 test yeşil, build temiz
+Kullanıcı "projeyi baştan sona incele, iyi mi, geliştirilecek yanları ne" dedi → **12 paralel uzman agent**
+(güvenlik/çok-kiracılık/AI-hattı/billing/sync/frontend/test/perf/ürün/devops/KVKK/kod-kalitesi), hepsi kodla
+doğrulandı. **Genel: ürün SAĞLAM** — kritik güvenlik açığı / IDOR / çapraz-kiracı sızıntı / AI-güvenlik deliği YOK.
+Sonra kullanıcı "güvenli kümenin tamamını yap, sorun olmuycaksa uzun uzun" dedi → additive + testli + commit'li uygulandı:
+- **#1 Gözlemlenebilirlik:** 34 API route'u 500'ü sessiz yutuyordu (`catch{}`+argümansız `serverError()`) → Sentry görmüyordu; `serverError(undefined, err)` ile bağlandı (davranış aynı).
+- **#5 Maliyet kapıları:** 4 önizleme route'una `rateLimit` (6/dk) + reply-route inline `translateText`'e `premiumAllowed` geçidi (freemium'da tek açık OpenAI harcaması kapandı).
+- **#3c AI yanlış-pozitif:** çıplak `problem`/`sorun` → `hasUnnegatedProblemWord()` (negasyon-korumalı; "no problem"/"sorun yok" artık şikayet sanılmıyor) + şikayet/iade ağı net terimlerle zenginleşti (terrible/disgusting/cockroach/chargeback/dispute…). Güvenlik kapısı SADECE sıkılaştı.
+- **#4 KVKK:** (a) orphan-konuşma retention — `reservationId=null` konuşmalar artık `lastMessageAt` yaşına göre anonimleşiyor (host rezervasyonu silince misafir mesajı sonsuza kalıyordu → gizlilik sözü artık tutuluyor); (b) `purgeOldLeads()` — **`LEAD_RETENTION_MONTHS` env-gated, default KAPALI** (satış lead'leri sessizce silinmesin); (c) kayıt onay kutusu (Koşullar+Gizlilik linkli, server-enforced, `User.acceptedTermsAt`). **Test-isolation bug bulundu+düzeltildi:** `resetDb` `Lead` tablosunu temizlemiyordu.
+- **#2 Billing past_due grace:** kart 1 kez reddedilince (Paddle dunning penceresi) ödeyen müşteri anında premium kaybediyordu (kural ihlali, BILLING_ENFORCED canlı) → `past_due` grace boyunca (`BILLING_PAST_DUE_GRACE_DAYS`, vars.14; `currentPeriodEnd ?? updatedAt`'e çapalı) aktif; Paddle `canceled` gönderince biter. QR concierge de bu grace'e uyar (test güncellendi).
+- **#8 AI kredisi:** onaylanan AI cevapları host adıyla kaydediliyordu → Reports aktif kullanıcıya 0 AI kredisi gösteriyordu. `Message.aiAssisted` (default false) eklendi; "Onayla ve gönder" işaretliyor; `getAiOpsReport` `senderName="GuestOps AI" OR aiAssisted` sayıyor (**sihirli string OR ile korundu, DEĞİŞMEDİ**).
+- **#3a/#3b Oto-yanıt (ürünün kalbi, dikkatli):** (a) `Conversation.autoReplyAttemptedAt` — düşük-güvenli "new" konuşma artık her 2-dk tik'te yeniden modele gitmiyor (yeni mesaj `lastMessageAt`'i ilerletince tekrar uygun); (b) claim-then-send (atomik `status new/waiting→answered` gönderimden ÖNCE, fail'de geri al) → çok-replica'da çift-gönderim savunması. Tek replica'da davranış aynı.
+- **Cila:** "Kaydedildi" rozetleri düzenlemede sıfırlanıyor (yalan söylemiyor), TaskBoard staff'a sil-butonu göstermiyor, Reports delta tooltip'i dokunmatik'te `title` ile erişilir, Reservation `[propertyId,arrivalDate]`+`[propertyId,departureDate]` index'leri (index-only, db-push güvenli).
+**Yeni env:** `LEAD_RETENTION_MONTHS` (default off), `BILLING_PAST_DUE_GRACE_DAYS` (default 14). **Yeni şema (hepsi nullable/defaulted → db-push güvenli):** `User.acceptedTermsAt`, `Message.aiAssisted`, `Conversation.autoReplyAttemptedAt`.
+**⏭️ BİLİNÇLİ ERTELENDİ (agent önerdi ama riskli/büyük — kullanıcı kararı/dikkat gerek):**
+- **`withAuth/withManage` wrapper** (48 route'ta tekrar eden auth+org-scope+try/catch preamble'ı tek HOF'a) — izolasyonu "konvansiyon"dan "yapısal"a taşır, EN yüksek hata-önleme kaldıracı AMA tüm route'lara dokunur = büyük blast-radius, ayrı/dikkatli oturum.
+- **db-push-on-boot → gerçek migration'lar** (`prisma migrate deploy`) — `chatToken` outage dersi; dolu prod'da her yapısal değişiklik boot-crash riski. Migrate'i serve'den ayır. Altyapı değişikliği = kullanıcı onayı.
+- **sessionEpoch** (çalınan token şifre-reset/rol-değişiminde 14g yaşıyor) — auth hot-path, proje kuralı "riskli auth = kullanıcı onayı".
+- **apartmentNumber 4× kopya → tek lib** — mesaj-yolu refactor'u, saf-cleanup için mesaj hot-path'ine dokunmak istemedim (regresyon > fayda bu turda).
+- **sync'te gereksiz findUnique'ler** (perf C) — LOW-MED, sync-yolu hassas, ayrı dikkatli tur.
+- **#6 legal-entity.ts placeholder'ları** (canlı gösteriliyor, ödeme-öncesi blocker) + **#7 landing'de $29 Hospitable dürüstlüğü** — kullanıcı/kopya kararı, kod değil.
+**DERS:** tam suit tek gerçek bug'ı yakaladı (QR concierge past_due grace'e uymuyordu — #2'nin yan etkisi, düzeltildi). Her batch: hedefli test → commit → push (konteyner-reset güvenliği). Commit mesajında backtick KULLANMA (bash çalıştırıyor, kelime düşürdü).
+
 ## Çalışma şekli
 Kullanıcı: "Bana söyle, ben kodlarım." Fazları sırayla, additive + testli.
 Build + `npm test` yeşil olmadan push etme. GitHub'da PR sadece kullanıcı
