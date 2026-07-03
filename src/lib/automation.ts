@@ -82,6 +82,28 @@ export function passesAutoReplySafetyGate(
   return result.confidence >= AUTO_REPLY_MIN_CONFIDENCE;
 }
 
+/**
+ * Risk-visibility (Faz-A): persist WHY the AI last held back on a thread (+ the
+ * model's last risk verdict) so the inbox can explain itself and Reports can
+ * aggregate. Guarded write — only touches the row when the value actually
+ * changes, so recurring per-tick skips (human_hold etc.) cost one write total.
+ */
+async function persistRiskVisibility(
+  conversationId: string,
+  reason: string,
+  risk?: string | null,
+): Promise<void> {
+  await prisma.conversation
+    .updateMany({
+      where: {
+        id: conversationId,
+        OR: [{ skippedReason: null }, { skippedReason: { not: reason } }],
+      },
+      data: { skippedReason: reason, ...(risk !== undefined ? { lastRiskLevel: risk } : {}) },
+    })
+    .catch(() => {});
+}
+
 // ---------------------------------------------------------------------------
 // Tier-2 "holding acknowledgement" (OPT-IN, default OFF).
 //
@@ -610,18 +632,21 @@ export async function applyChannelAutoReply(
   // Human-handoff hold: the guest asked to speak to the host, so we already sent a
   // holding reply and paused the AI for a while to let the host take over.
   if (conversation.autoReplyHoldUntil && conversation.autoReplyHoldUntil > new Date()) {
+    if (!options.dryRun) await persistRiskVisibility(conversation.id, "human_hold");
     return { sent: false, skippedReason: "human_hold", ...meta };
   }
   // The guest's stay is over (or the booking was cancelled) — the AI has no
   // business replying to a finished reservation.
   if (conversation.reservation) {
     if (conversation.reservation.status === "cancelled") {
+      if (!options.dryRun) await persistRiskVisibility(conversation.id, "reservation_ended");
       return { sent: false, skippedReason: "reservation_ended", ...meta };
     }
     if (conversation.reservation.departureDate < zonedDayRange(new Date(), org.timezone).start) {
       // Istanbul day boundary (not server UTC) — otherwise a guest still checked in
       // on checkout-day morning (departureDate at Istanbul midnight = before UTC
       // midnight) would be wrongly treated as departed and the reply skipped.
+      if (!options.dryRun) await persistRiskVisibility(conversation.id, "reservation_ended");
       return { sent: false, skippedReason: "reservation_ended", ...meta };
     }
   }
@@ -647,6 +672,7 @@ export async function applyChannelAutoReply(
   // thread a human just wrapped up. Deterministic and conservative: a question
   // or any extra content ("teşekkürler, peki wifi şifresi?") never matches.
   if (isClosingAck(last.body) && messages.some((m) => m.direction === "outbound")) {
+    if (!options.dryRun) await persistRiskVisibility(conversation.id, "closing_ack");
     return { sent: false, skippedReason: "closing_ack", ...meta };
   }
 
@@ -753,7 +779,12 @@ export async function applyChannelAutoReply(
       try {
         const claimed = await prisma.conversation.updateMany({
           where: { id: conversation.id, status: { not: "problem" } },
-          data: { status: "problem", priority: "urgent" },
+          data: {
+            status: "problem",
+            priority: "urgent",
+            skippedReason: "escalated_to_human",
+            lastRiskLevel: result.riskLevel,
+          },
         });
         if (claimed.count === 1) {
           // Per-tenant recipient: this org's own alert address, else the org
@@ -817,6 +848,9 @@ export async function applyChannelAutoReply(
         // the auto-reply pass (the next sync cycle retries via sendDueAlerts).
       }
       return { sent: false, skippedReason: "escalated_to_human", ...meta };
+    }
+    if (!options.dryRun) {
+      await persistRiskVisibility(conversation.id, "low_confidence_or_risky", result.riskLevel);
     }
     return { sent: false, skippedReason: "low_confidence_or_risky", ...meta };
   }
@@ -897,7 +931,7 @@ export async function applyChannelAutoReply(
     }),
     prisma.conversation.update({
       where: { id: conversation.id },
-      data: { status: "answered", lastMessageAt: now },
+      data: { status: "answered", lastMessageAt: now, skippedReason: null, lastRiskLevel: result.riskLevel },
     }),
   ]);
 
@@ -1665,7 +1699,7 @@ export async function sendDueAlerts(
     try {
       const res = await prisma.conversation.updateMany({
         where: { id: c.id, status: "new" },
-        data: { status: "problem" },
+        data: { status: "problem", skippedReason: "complaint" },
       });
       claimed = res.count;
     } catch {

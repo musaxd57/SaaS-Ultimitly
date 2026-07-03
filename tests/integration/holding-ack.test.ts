@@ -83,6 +83,7 @@ describe("tier-2 holding acknowledgement — keyword path (sendDueAlerts)", () =
 
     const conv = await prisma.conversation.findUnique({ where: { id: conversation.id } });
     expect(conv?.status).toBe("problem"); // host still owns the thread
+    expect(conv?.skippedReason).toBe("complaint"); // Faz-A: inbox badge source
 
     // Idempotent: a second pass finds nothing claimable.
     vi.clearAllMocks();
@@ -168,6 +169,8 @@ describe("tier-2 holding acknowledgement — model path (applyChannelAutoReply)"
     expect(bodies[0]).toContain("Apologies for the trouble"); // EN from the model verdict
     const conv = await prisma.conversation.findUnique({ where: { id: conversation.id } });
     expect(conv?.status).toBe("problem");
+    expect(conv?.skippedReason).toBe("escalated_to_human"); // Faz-A badge
+    expect(conv?.lastRiskLevel).toBe("medium"); // Faz-A reports aggregation
     expect(mockEmail).toHaveBeenCalledTimes(1);
   });
 
@@ -213,6 +216,9 @@ describe("human_request gate refinement (regression for the over-broad veto)", (
     expect(r.sent).toBe(true);
     const conv = await prisma.conversation.findUnique({ where: { id: conversation.id } });
     expect(conv?.autoReplyHoldUntil).toBeTruthy(); // AI paused for the handoff window
+    // Faz-A: a successful auto-send clears the held-back reason and records the verdict.
+    expect(conv?.skippedReason).toBeNull();
+    expect(conv?.lastRiskLevel).toBe("low");
   });
 
   it("model says something ELSE for a human-request message → held for a human (no send)", async () => {

@@ -102,6 +102,16 @@ export default async function ConversationPage({
     wifiInfo: wifiItem ? wifiItem.content : "",
   };
 
+
+// Why the AI last held back on this thread — honest, host-facing wording.
+const SKIP_REASON_LABELS: Record<string, string> = {
+  escalated_to_human: "AI riskli konu tespit etti — cevap size bırakıldı",
+  complaint: "Şikayet algılandı — otomatik cevap gönderilmedi, size bırakıldı",
+  low_confidence_or_risky: "AI emin olamadı — taslak onayınızı bekliyor",
+  closing_ack: "Misafir sohbeti kapattı — cevap gerekmedi",
+  human_hold: "İnsan devri istendi — AI bu konuşmada beklemede",
+  reservation_ended: "Konaklama bitti/iptal — otomatik yanıt bu konuşmada kapalı",
+};
   return (
     <>
       <AutoRefresh seconds={30} />
@@ -114,6 +124,12 @@ export default async function ConversationPage({
         </LinkButton>
         <DeleteConversationButton conversationId={conversation.id} />
       </PageHeader>
+
+      {conversation.skippedReason && conversation.status !== "answered" ? (
+        <p className="rounded-md border border-amber-200 bg-amber-50 px-3 py-2 text-sm text-amber-800">
+          🤖 {SKIP_REASON_LABELS[conversation.skippedReason] ?? "Otomatik yanıt beklemede"}
+        </p>
+      ) : null}
 
       <div className="grid gap-4 lg:grid-cols-3">
         <div className="lg:col-span-2">

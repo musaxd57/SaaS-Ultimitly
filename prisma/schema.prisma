@@ -284,6 +284,12 @@ model Conversation {
   // the same unchanged message every tick; a new guest message advances
   // lastMessageAt past this, making the thread eligible again. Nullable → db-push safe.
   autoReplyAttemptedAt DateTime?
+  // Risk visibility (Faz-A): why the AI last held back on this thread (stable
+  // per-message reasons only: escalated_to_human | complaint |
+  // low_confidence_or_risky | closing_ack | human_hold | reservation_ended;
+  // null after a successful auto-send) + the model's last risk verdict.
+  skippedReason String?
+  lastRiskLevel String?
   createdAt       DateTime @default(now())
   updatedAt       DateTime @updatedAt
 

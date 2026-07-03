@@ -8,6 +8,7 @@ import {
   BedDouble,
 } from "lucide-react";
 import { requireAuth } from "@/lib/auth";
+import { prisma } from "@/lib/db";
 import {
   getAiOpsReport,
   getTopTopics,
@@ -43,6 +44,42 @@ const INTENT_LABEL: Record<string, string> = {
 
 export default async function ReportsPage() {
   const { organizationId } = await requireAuth();
+  const since30 = new Date(Date.now() - 30 * 24 * 60 * 60 * 1000);
+  const HELD_REASONS = ["escalated_to_human", "complaint", "low_confidence_or_risky"];
+  const [riskRows, heldRows, heldResolved] = await Promise.all([
+    prisma.conversation.groupBy({
+      by: ["lastRiskLevel"],
+      where: {
+        property: { organizationId },
+        lastMessageAt: { gte: since30 },
+        lastRiskLevel: { not: null },
+      },
+      _count: { _all: true },
+    }),
+    prisma.conversation.groupBy({
+      by: ["skippedReason"],
+      where: {
+        property: { organizationId },
+        lastMessageAt: { gte: since30 },
+        skippedReason: { in: HELD_REASONS },
+      },
+      _count: { _all: true },
+    }),
+    // Held-for-human threads the host has since answered = manually resolved.
+    prisma.conversation.count({
+      where: {
+        property: { organizationId },
+        lastMessageAt: { gte: since30 },
+        skippedReason: { in: HELD_REASONS },
+        status: "answered",
+      },
+    }),
+  ]);
+  const riskCount = (lvl: string) =>
+    riskRows.find((r) => r.lastRiskLevel === lvl)?._count._all ?? 0;
+  const heldCount = (reason: string) =>
+    heldRows.find((r) => r.skippedReason === reason)?._count._all ?? 0;
+  const heldTotal = heldRows.reduce((sum, r) => sum + r._count._all, 0);
 
   const [ai, topics, score, occupancy, connection] = await Promise.all([
     getAiOpsReport(organizationId),
@@ -203,6 +240,48 @@ export default async function ReportsPage() {
                   <Badge tone="destructive">{p.count}</Badge>
                 </div>
               ))
+            )}
+          </CardContent>
+        </Card>
+
+        {/* AI risk visibility (Faz-A): what the AI held back and why, last 30 days */}
+        <Card>
+          <CardHeader className="flex-row items-center justify-between space-y-0">
+            <CardTitle className="flex items-center gap-2 text-base">
+              <AlertTriangle className="size-4 text-muted-foreground" /> AI Risk Görünümü (son 30 gün)
+            </CardTitle>
+            <Badge tone={heldTotal > 0 ? "secondary" : "muted"}>{heldTotal} size bırakıldı</Badge>
+          </CardHeader>
+          <CardContent className="space-y-2 text-sm">
+            {heldTotal === 0 && riskRows.length === 0 ? (
+              <EmptyState title="Son 30 günde riskli mesaj yok" className="py-6" />
+            ) : (
+              <>
+                <div className="flex items-center justify-between rounded-lg border border-border px-3 py-2">
+                  <span>Yüksek riskli mesaj</span>
+                  <Badge tone={riskCount("high") > 0 ? "destructive" : "muted"}>{riskCount("high")}</Badge>
+                </div>
+                <div className="flex items-center justify-between rounded-lg border border-border px-3 py-2">
+                  <span>Orta riskli mesaj</span>
+                  <Badge tone={riskCount("medium") > 0 ? "secondary" : "muted"}>{riskCount("medium")}</Badge>
+                </div>
+                <div className="flex items-center justify-between rounded-lg border border-border px-3 py-2">
+                  <span>Şikayet — size bırakıldı</span>
+                  <Badge tone="muted">{heldCount("complaint") + heldCount("escalated_to_human")}</Badge>
+                </div>
+                <div className="flex items-center justify-between rounded-lg border border-border px-3 py-2">
+                  <span>Düşük güven — onay bekledi</span>
+                  <Badge tone="muted">{heldCount("low_confidence_or_risky")}</Badge>
+                </div>
+                <div className="flex items-center justify-between rounded-lg border border-border px-3 py-2">
+                  <span>Size bırakılanlardan yanıtladığınız</span>
+                  <Badge tone={heldResolved > 0 ? "success" : "muted"}>{heldResolved}</Badge>
+                </div>
+                <p className="pt-1 text-xs text-muted-foreground">
+                  Riskli/şikayet içeren mesajlar otomatik cevaplanmaz — burada AI&apos;ın neyi size
+                  bıraktığını ve neyin çözüldüğünü görürsünüz.
+                </p>
+              </>
             )}
           </CardContent>
         </Card>
