@@ -1290,6 +1290,26 @@ kehribar rozet ("AI riskli konu tespit etti — cevap size bırakıldı" / "güv
 (yüksek/orta sayısı, size-bırakılan kırılımı, bunlardan host'un çözdüğü). İlke korunur: etiket ≠ karar.
 **Faz-B hâlâ ileride:** model çıktısına riskType enum + usedSources/missingInfo (golden-set kalibrasyonuyla).
 
+## Faz-B TAMAMLANDI: riskType + evidence + landing 3-seviye (2026-07-03, 54297ae→son, 594 test)
+Kullanıcı "kendine güveniyorsan Faz-B'yi de tekte, en iyi haliyle, bol agent'la yap" dedi → yapıldı:
+- **Model çıktısı 3 yeni alan:** `riskType` (11'lik KAPALI etiket seti — kodda clamp, bilinmeyen→null),
+  `usedSources` (kanıt: "kb:wifi"/"property:checkInTime"/"reservation:x"/"history"; ≤8×60), `missingInfo`
+  (≤5×80). Prompt: BÖLÜM 4.5 + şema + kontrol-listesi 10 + **20 örneğin hepsine tutarlı değerler**.
+- **Fallback deterministik üretir:** `detectRiskType` (öncelik: injection>safety>review-threat>
+  platform_policy>money_refund>cancellation>human_request>complaint) + vaka-bazlı kaynak/eksik.
+- **Kapı SADECE sıkılaştı:** yüksek-riskli riskType etiketi, model riskLevel'i düşük verse bile oto-gönderimi
+  vetolar; TEK muafiyet intent VE etiket birlikte human_request (tasarlanmış devir mesajı). Golden'a 4 pin.
+- **Persist:** `Conversation.lastRiskType` + `Message.aiSourcesJson` (migration `5_risk_type_evidence`,
+  sıfır-drift). **UI:** öneri paneli + AI test kartı "İnsan incelemesi: <sebep>" + "Dayanak: ..." +
+  "Eksik bilgi: ..."; inbox rozetine "· Sebep: X"; Raporlar kartına "En sık risk türleri" (30g, top-5).
+- **Landing 3-seviye satış senaryoları:** yeşil "Anında yanıtlar" / sarı "Yatıştırır + bilgi toplar"
+  (tier-2 dürüst: "siz açarsanız") / kehribar "Durur, size bırakır" (+ IBAN senaryosu).
+- **2 paralel denetim ajanı:** prompt-tutarlılık (3 bulgu: Ö19 kaynak fazlalığı, rehber-olgusu "history"
+  etiketi, typo — düzeltildi) + kod-doğruluk (**SOUND, gerçek kusur yok**; muafiyet çifte-koşula
+  daraltıldı, 2 eksik kapı-pini eklendi). İlke korunuyor: etiket ≠ karar; veto her zaman kodda.
+**⏳ Not:** riskType kalibrasyonu canlıda ilk gerçek mesajlarla gözlenmeli (etiket-only, yanlış etiket
+zararsız); "Bu ay kaç high-risk" kartı veri geldikçe dolar.
+
 ## Çalışma şekli
 Kullanıcı: "Bana söyle, ben kodlarım." Fazları sırayla, additive + testli.
 Build + `npm test` yeşil olmadan push etme. GitHub'da PR sadece kullanıcı
