@@ -1310,6 +1310,30 @@ Kullanıcı "kendine güveniyorsan Faz-B'yi de tekte, en iyi haliyle, bol agent'
 **⏳ Not:** riskType kalibrasyonu canlıda ilk gerçek mesajlarla gözlenmeli (etiket-only, yanlış etiket
 zararsız); "Bu ay kaç high-risk" kartı veri geldikçe dolar.
 
+## 5-ajan debug taraması + bulgu düzeltmeleri (2026-07-03, commit 2475831, 601 test)
+Kullanıcı "push emin ol + uzunca debugging ara, bol agent" dedi. **Push/deploy teyidi:** GitHub API'den uzak uç
+doğrulandı; 6 migration taze PG'de sırayla temiz; Dockerfile `migrate deploy`. **5 paralel ajan:** E2E-tutarlılık
+(CONSISTENT — persist edilen 6 skippedReason değeri ↔ rozet etiketleri birebir, RISK_TYPES ↔ label map 1:1,
+groupBy geçerli), deploy-güvenliği (PASS — migration'lar populated-prod-güvenli; ampirik sıfır-drift), güvenlik
+(1 gerçek bulgu), otomasyon + frontend ajanları platform oturum-limitine takıldı (kapsamları aynı gün önceki
+Faz-B kod incelemesi + E2E ajanı + 601 testle örtülü; istenirse limit sıfırlanınca tekrar koşulur).
+**Uygulanan düzeltmeler:**
+- **CF header güveni (güvenlik bulgusu):** `cf-connecting-ip` Railway origin'ine direkt istekte istemci-yazmalı
+  → rate-limit kimliği döndürülebiliyordu. Artık SADECE `TRUST_CF_HEADER=1` iken güvenilir (vars. kapalı =
+  platformun eklediği en-sağ XFF hop'u). Testler güncellendi.
+- **Gerçek yanlış-pozitif (kullanıcının probe örneği yakalattı):** "Arkadaşım 1 saat uğrayacak, sorun olur mu?"
+  acil-şikayet sayılıp host'a mail atıyordu → gelecek-izin kalıpları ("sorun olur mu/olmaz", "a problem if"...)
+  negasyon listesine eklendi.
+- **Gerçek-misafir yazımı:** düşen-r stem'leri ("çalışmıyo/soğutmuyo/ısıtmıyo") artık iki yazımı da yakalar;
+  golden'a 6 probe (geç checkout, havlu, arkadaş-uğrama, otopark, "ev biraz soğuk"=model-işi PASS) + bozuk-yazım
+  veto satırı eklendi.
+- **usedSources doğrulaması KODDA:** model iddia ettiği kaynak (kb:X/property/reservation/history) gerçekten
+  input'ta yoksa sessizce düşürülür — UI uydurma kaynak gösteremez. UI dili "Dayanak"→"Kullandığı bağlam".
+- **Landing 3-seviye bölümü konteyner flux'ında commit'lenmeden kaybolmuş — yeniden uygulandı** (+1 yeşil kart
+  dengesi). DERS (yine): büyük edit → HEMEN commit.
+- Deploy-ajan takipleri: schema başlığındaki bayat "db push" notu düzeltildi; .env.example'a 13 eksik env
+  (DATA_RETENTION_MONTHS + TRIAL_EMAILS_ENABLED prod'da canlı ve belgesizdi) + TRUST_CF_HEADER eklendi.
+
 ## Çalışma şekli
 Kullanıcı: "Bana söyle, ben kodlarım." Fazları sırayla, additive + testli.
 Build + `npm test` yeşil olmadan push etme. GitHub'da PR sadece kullanıcı
