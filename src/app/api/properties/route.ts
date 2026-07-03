@@ -21,9 +21,9 @@ export const POST = withManage(async (session, req) => {
   const name = d.name.trim();
 
   // One property per name within the org — prevents confusing duplicate-named
-  // listings. App-level (no DB constraint), so existing data is never touched
-  // and the deploy's `prisma db push` can't fail. Sync (linkProperty) is
-  // separate and already adopts same-named properties, so it's unaffected.
+  // listings. App-level (no DB constraint) so existing rows are never touched —
+  // adding a DB unique to a populated table is forbidden here (see schema
+  // header). Sync (linkProperty) adopts same-named properties separately.
   const dupe = await prisma.property.findFirst({
     where: { organizationId: session.organizationId, name: { equals: name, mode: "insensitive" } },
     select: { id: true },
