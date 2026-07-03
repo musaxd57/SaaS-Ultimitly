@@ -1199,10 +1199,21 @@ simüle ediyor; onaylı misafire wifi vermek ürünün ta kendisi — QR zaten s
 intent/riskType taksonomi genişletme (kalibrasyon riski, kalıcı ertelenmiş listede); prompt'u modüllere
 bölme + yüzey-bazlı promptlar + evidence alanı + classify-then-generate (büyük altyapı, launch sonrası);
 style-profile deterministik redaction + çeviri UI uyarısı (ayrı küçük dilimler).
-**⏭️ Ertelenen değerli fikir — GOLDEN TEST SET:** ~100 sabit senaryoluk fixture seti (iade tehdidi, gaz
-kokusu, kapı-kodu isteyen potansiyel misafir, injection, çok-dilli şikayet, devir-günü erken giriş...)
-her prompt değişikliğinde beklenen intent/risk/auto-karar asserte edilir. Mevcut testler bunun ~%40'ını
-zaten kapsıyor; tam set ayrı dilim olarak yapılacak (prompt artık testsiz büyümemeli).
+**✅ GOLDEN TEST SET KURULDU (kullanıcı direktifi "ekle iyi olucaksa", 2026-07-03, commit e0f313f):**
+`tests/unit/golden-scenarios.test.ts` — ~50 sabit misafir-mesajı senaryosu, DETERMİNİSTİK güvenlik
+katmanını kilitler: kapıya (passesAutoReplySafetyGate, artık export) bilerek zararsız 0.9-güvenli
+sentetik model sonucu verilir → "model yanlış sınıflandırsa bile kod bu mesajı insana bırakır mı?"
+her senaryo için asserte edilir. Kapsam: şikayet (6 dil) / iade+chargeback / erken-ayrılma / kötü-yorum
+tehdidi / platform-dışı ödeme / insan-talebi / injection → hepsi VETO; gündelik sorular + övgü tuzakları
+("no problem", "siz bir yıldızsınız", "4.91 star rating", host'tan söz etme, "disregard my previous
+message" düzeltmesi) → GEÇMELİ (over-blocking da test ediliyor). + secret-gate ve closing-ack senaryoları.
+**Seti kurarken 3 gerçek ağ boşluğu bulunup kapatıldı:** kötü-yorum/puan tehdidi + platform-dışı ödeme
+kelime ağları (İKİSİ DE TEHDİT-ÇAPALI — düz "1 star"/"bir yıldız" övgülerde patlıyordu, düşman-denetim
+AGENT'ı 4 yanlış-pozitif sınıfı buldu, hepsi düzeltildi) ve human_request kapı vetosu (konuş/görüş/ulaş
+fiiline çapalı — host'tan bahsetmek otomasyonu kapatmaz). Injection regex'leri de daraltıldı ("please
+disregard my previous message" masum düzeltmesi artık takılmaz). **KURAL: prompt/kelime-ağı değişikliği
+yapan HERKES golden seti çalıştırır; yeni risk sınıfı eklerken sete hem tehdit hem övgü-tuzağı senaryosu
+eklenir.** 580 test yeşil.
 
 ## Çalışma şekli
 Kullanıcı: "Bana söyle, ben kodlarım." Fazları sırayla, additive + testli.
