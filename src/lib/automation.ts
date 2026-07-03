@@ -2,7 +2,15 @@ import "server-only";
 import { addDays } from "date-fns";
 import { prisma } from "@/lib/db";
 import { classifyMessage, suggestReply, summarizeHostStyle } from "@/lib/ai";
-import { classifyFallback, isClosingAck, detectPromptInjection } from "@/lib/ai/fallback";
+import {
+  classifyFallback,
+  isClosingAck,
+  detectPromptInjection,
+  holdingAckEligible,
+  holdingAckBlockedSignals,
+  detectGuestLanguage,
+} from "@/lib/ai/fallback";
+import { premiumAllowed } from "@/lib/billing/subscription";
 import { sendOnChannel } from "@/lib/messaging";
 import { getOrgHospitableToken } from "@/lib/hospitable-credentials";
 import { getAdjacency } from "@/lib/turnover";
@@ -51,14 +59,17 @@ export function passesAutoReplySafetyGate(
   // benign, low-risk intent. This catches the dangerous misclassification case
   // (an angry or money/cancellation message labelled e.g. "amenity"/"general").
   const fb = classifyFallback(guestMessage);
-  // human_request included: when the guest's own words ask for a real person /
-  // the host, a bot reply is exactly what they did NOT want — even if the model
-  // mislabelled the message as something benign.
+  // human_request nuance: when the guest's own words ask for a real person, the
+  // ONLY acceptable auto-reply is the model's handoff acknowledgement ("passed
+  // you to our host"), which the model produces exactly when IT also labelled
+  // the message human_request (and the send then pauses the AI on this thread).
+  // If the model labelled it anything else, its draft is a normal answer — the
+  // one thing this guest did not want — so hold for a human.
   if (
     fb.isComplaint ||
     fb.intent === "refund" ||
     fb.intent === "early_departure" ||
-    fb.intent === "human_request"
+    (fb.intent === "human_request" && result.intent !== "human_request")
   ) {
     return false;
   }
@@ -69,6 +80,103 @@ export function passesAutoReplySafetyGate(
   if (detectPromptInjection(guestMessage)) return false;
   if (result.riskLevel !== "none" && result.riskLevel !== "low") return false;
   return result.confidence >= AUTO_REPLY_MIN_CONFIDENCE;
+}
+
+// ---------------------------------------------------------------------------
+// Tier-2 "holding acknowledgement" (OPT-IN, default OFF).
+//
+// The three-tier model: (1) low-risk questions auto-send; (3) high-risk
+// messages get a silent draft + host escalation. This is tier (2): a MILD
+// complaint (no money/cancellation/human-request/review-threat/safety/injection
+// signals — see holdingAckEligible) gets ONE immediate, deterministic,
+// non-committal acknowledgement so the guest isn't left hanging at 3am, while
+// the conversation STAYS flagged "problem" and the host is still emailed. The
+// text never promises a remedy, never admits fault, only acknowledges + asks
+// for a detail/photo + hands off to the host. Per-org opt-in
+// (autoHoldingReplyEnabled) so the default product keeps the landing promise
+// ("complaints are never auto-answered") to the letter.
+// ---------------------------------------------------------------------------
+const HOLDING_ACK_TEXTS: Record<string, string> = {
+  tr: "Bunun için özür dileriz. Mesajınızı ev sahibimize ilettim; en kısa sürede sizinle ilgilenecek. Sorunun kısa bir detayını ya da fotoğrafını paylaşırsanız çözümü hızlandırır.",
+  en: "Apologies for the trouble. I've passed your message to our host, who will follow up with you shortly. Sharing a short detail or a photo of the issue will help speed things up.",
+  de: "Entschuldigen Sie die Unannehmlichkeit. Ich habe Ihre Nachricht an unseren Gastgeber weitergeleitet; er meldet sich in Kürze bei Ihnen. Ein kurzes Detail oder ein Foto des Problems hilft uns, schneller zu helfen.",
+  fr: "Veuillez nous excuser pour ce désagrément. J'ai transmis votre message à notre hôte, qui reviendra vers vous rapidement. Un court détail ou une photo du problème nous aidera à aller plus vite.",
+  ar: "نعتذر عن هذا الإزعاج. لقد أرسلت رسالتكم إلى المضيف وسيتواصل معكم في أقرب وقت. مشاركة تفصيل قصير أو صورة للمشكلة تساعدنا على الحل بشكل أسرع.",
+  ru: "Приносим извинения за неудобство. Я передал ваше сообщение хозяину — он свяжется с вами в ближайшее время. Короткое описание или фото проблемы поможет решить вопрос быстрее.",
+};
+
+/**
+ * Send the tier-2 holding acknowledgement if every gate allows it. The CALLER
+ * must have already atomically claimed the conversation into "problem" — that
+ * claim is the idempotency lock (a second replica/run loses the claim and never
+ * reaches this call), so the guest can never receive the ack twice.
+ */
+async function maybeSendHoldingAck(opts: {
+  organizationId: string;
+  conversation: {
+    id: string;
+    channel: string;
+    guestIdentifier: string;
+    externalReservationId: string | null;
+  };
+  guestMessage: string;
+  org: { autoHoldingReplyEnabled: boolean; autoReplyDisclosure: boolean; aiSignature: string | null };
+  /** Model-detected language when available; falls back to the heuristic. */
+  language?: string | null;
+  /** True on the model path: the model already labelled this a (non-high)
+   * complaint, so keyword-complaint isn't required — only the blocking
+   * signals (money/threat/safety/human/injection) are checked. */
+  complaintConfirmed?: boolean;
+}): Promise<boolean> {
+  // Same master switches as every other automatic guest message.
+  if (process.env.AUTO_REPLY_ENABLED !== "1") return false;
+  if (!opts.org.autoHoldingReplyEnabled) return false;
+  const eligible = opts.complaintConfirmed
+    ? !holdingAckBlockedSignals(opts.guestMessage)
+    : holdingAckEligible(opts.guestMessage);
+  if (!eligible) return false;
+  if (!(await premiumAllowed(opts.organizationId))) return false;
+  const token = await getOrgHospitableToken(opts.organizationId);
+  if (!token) return false;
+
+  const lang = (opts.language ?? detectGuestLanguage(opts.guestMessage)).slice(0, 2).toLowerCase();
+  const text = HOLDING_ACK_TEXTS[lang] ?? HOLDING_ACK_TEXTS.en;
+  const note = automatedReplyNote(lang, opts.org.autoReplyDisclosure);
+  const signature = opts.org.aiSignature?.trim();
+  const body = [text, ...(note ? [note] : []), ...(signature ? [signature] : [])].join("\n\n");
+
+  const delivery = await sendOnChannel(
+    {
+      channel: opts.conversation.channel,
+      guestIdentifier: opts.conversation.guestIdentifier,
+      externalReservationId: opts.conversation.externalReservationId,
+    },
+    body,
+    token,
+  );
+  if (!delivery.ok) return false; // escalation already happened; ack is best-effort
+
+  // Bookkeeping (delivery already succeeded — best-effort): record the outbound
+  // message; the conversation deliberately STAYS "problem" so the host still
+  // owns the thread.
+  await prisma
+    .$transaction([
+      prisma.message.create({
+        data: {
+          conversationId: opts.conversation.id,
+          direction: "outbound",
+          senderName: "GuestOps AI",
+          body,
+          aiIntent: "complaint",
+        },
+      }),
+      prisma.conversation.update({
+        where: { id: opts.conversation.id },
+        data: { lastMessageAt: new Date() },
+      }),
+    ])
+    .catch(() => {});
+  return true;
 }
 
 // A short, warm note (in the guest's language) appended to AUTO-sent replies so
@@ -655,6 +763,9 @@ export async function applyChannelAutoReply(
             select: {
               name: true,
               alertEmail: true,
+              autoHoldingReplyEnabled: true,
+              autoReplyDisclosure: true,
+              aiSignature: true,
               users: { orderBy: { createdAt: "asc" }, take: 1, select: { email: true } },
             },
           });
@@ -680,6 +791,25 @@ export async function applyChannelAutoReply(
               `⚠️ Acil misafir mesajı — ${conversation.guestIdentifier} (${conversation.property.name})`,
               html,
             );
+          }
+          // Tier-2 holding acknowledgement (opt-in): a MILD model-detected
+          // complaint (never high risk, never money/cancellation) may get one
+          // immediate non-committal ack. The claim above is the idempotency
+          // lock; the thread stays "problem" for the host either way.
+          if (alertOrg && result.intent === "complaint" && result.riskLevel !== "high") {
+            await maybeSendHoldingAck({
+              organizationId: conversation.property.organizationId,
+              conversation: {
+                id: conversation.id,
+                channel: conversation.channel,
+                guestIdentifier: conversation.guestIdentifier,
+                externalReservationId: conversation.externalReservationId,
+              },
+              guestMessage: last.body,
+              org: alertOrg,
+              language: result.detectedLanguage,
+              complaintConfirmed: true,
+            }).catch(() => false);
           }
         }
       } catch {
@@ -1479,6 +1609,9 @@ export async function sendDueAlerts(
     select: {
       name: true,
       alertEmail: true,
+      autoHoldingReplyEnabled: true,
+      autoReplyDisclosure: true,
+      aiSignature: true,
       // Oldest user = the org's owner (who signed up) — used as the per-tenant
       // fallback so a customer who didn't set an alert address still gets THEIR
       // own alerts. We must NOT fall back to env ALERT_EMAIL here: that is the
@@ -1506,6 +1639,7 @@ export async function sendDueAlerts(
       guestIdentifier: true,
       channel: true,
       priority: true,
+      externalReservationId: true,
       property: { select: { name: true, address: true, city: true } },
       messages: { orderBy: { createdAt: "desc" }, take: 1 },
     },
@@ -1522,6 +1656,23 @@ export async function sendDueAlerts(
     const cls = classifyFallback(last.body);
     if (!cls.isComplaint && cls.intent !== "refund") continue;
 
+    // ATOMIC claim first (new → problem): routes the thread to a human, dedupes
+    // the alert AND is the idempotency lock for the optional holding ack below —
+    // two concurrent passes can't both win, so the guest can never get the ack
+    // (or the host the email) twice. If a send below then fails, the thread is
+    // still visibly flagged "problem" in the inbox, so nothing is silently lost.
+    let claimed = 0;
+    try {
+      const res = await prisma.conversation.updateMany({
+        where: { id: c.id, status: "new" },
+        data: { status: "problem" },
+      });
+      claimed = res.count;
+    } catch {
+      // ignore; the next run will retry
+    }
+    if (claimed !== 1) continue;
+
     const html = complaintEscalationEmail(
       { id: c.id, guestIdentifier: c.guestIdentifier, channel: c.channel, priority: c.priority },
       last.body,
@@ -1533,14 +1684,24 @@ export async function sendDueAlerts(
       `⚠️ Acil misafir mesajı — ${c.guestIdentifier} (${c.property.name})`,
       html,
     );
-
-    // Flag → routes the conversation to a human and prevents re-alerting.
-    try {
-      await prisma.conversation.update({ where: { id: c.id }, data: { status: "problem" } });
-    } catch {
-      // ignore; the next run will retry
-    }
     alerted++;
+
+    // Tier-2 holding acknowledgement (opt-in; keyword path — no model verdict
+    // here, so holdingAckEligible alone decides mildness).
+    if (org) {
+      await maybeSendHoldingAck({
+        organizationId,
+        conversation: {
+          id: c.id,
+          channel: c.channel,
+          guestIdentifier: c.guestIdentifier,
+          externalReservationId: c.externalReservationId,
+        },
+        guestMessage: last.body,
+        org,
+        language: null,
+      }).catch(() => false);
+    }
   }
   return { alerted };
 }

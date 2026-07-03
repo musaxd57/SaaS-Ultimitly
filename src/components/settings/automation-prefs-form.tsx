@@ -14,14 +14,17 @@ import { Input } from "@/components/ui/input";
 export function AutomationPrefsForm({
   disclosure,
   holdHours,
+  holdingAck,
 }: {
   disclosure: boolean;
   holdHours: number;
+  holdingAck: boolean;
 }) {
   const router = useRouter();
   const [, startTransition] = useTransition();
   const [autoReplyDisclosure, setDisclosure] = useState(disclosure);
   const [handoffHoldHours, setHoldHours] = useState(String(holdHours));
+  const [autoHoldingReplyEnabled, setHoldingAck] = useState(holdingAck);
   const [busy, setBusy] = useState(false);
   const [saved, setSaved] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -38,6 +41,7 @@ export function AutomationPrefsForm({
         body: JSON.stringify({
           autoReplyDisclosure,
           handoffHoldHours: Number(handoffHoldHours),
+          autoHoldingReplyEnabled,
         }),
       });
       const data = await res.json().catch(() => ({}));
@@ -69,6 +73,26 @@ export function AutomationPrefsForm({
             Otomatik gönderilen cevapların sonuna “(Bu yanıt otomatik asistanımızca hazırlandı; bir
             hata olursa ekibimiz hemen düzeltir.)” notu eklensin. Misafirin diline göre yazılır.
             Kapatırsanız misafir bu notu görmez. (Elle gönderdiğiniz cevaplarda zaten görünmez.)
+          </span>
+        </span>
+      </label>
+
+      <label className="flex items-start gap-3">
+        <input
+          type="checkbox"
+          checked={autoHoldingReplyEnabled}
+          onChange={(e) => { setHoldingAck(e.target.checked); setSaved(false); }}
+          className="mt-0.5 size-4"
+        />
+        <span className="text-sm">
+          <span className="font-medium">Hafif şikayette otomatik ön-yanıt</span>
+          <span className="block text-xs text-muted-foreground">
+            Açarsanız: para/iade, iptal, güvenlik, kötü-yorum tehdidi gibi sinyaller İÇERMEYEN hafif
+            şikayetlerde misafire anında tek bir bekletme mesajı gider — "Bunun için özür dileriz.
+            Mesajınızı ev sahibimize ilettim; en kısa sürede sizinle ilgilenecek. Sorunun kısa bir
+            detayını ya da fotoğrafını paylaşırsanız çözümü hızlandırır." Karar vermez, söz vermez;
+            konuşma yine "Sorunlu" olarak size düşer ve e-posta ile haber verilir. Kapalıyken (varsayılan)
+            şikayetlere hiçbir otomatik mesaj gitmez.
           </span>
         </span>
       </label>

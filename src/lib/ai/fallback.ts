@@ -20,6 +20,19 @@ type Intent =
   | "amenity"
   | "general";
 
+// Bad-review / rating threats — THREAT-ANCHORED forms only: bare "kötü ..." already
+// matches via "kötü" in the complaint list, and unanchored "1 star"/"negative
+// review" false-positived on compliments ("4.91 star rating", "siz bir
+// yıldızsınız", "we read a negative review before booking"). Named so the
+// holding-ack eligibility check can exclude review-threats specifically.
+const REVIEW_THREAT_PHRASES = [
+  "yıldız veririm", "yildiz veririm", "yıldız vereceğim", "yildiz verecegim",
+  "bir yıldız ver", "1 yıldız ver", "tek yıldız ver",
+  "leave a bad review", "leave a negative review", "write a bad review",
+  "give you a bad review", "leave you a bad review", "1 star review", "one star review",
+  "leave 1 star", "give 1 star", "one-star review",
+];
+
 const KEYWORDS: Record<Exclude<Intent, "general">, string[]> = {
   complaint: [
     // NB: bare "problem"/"sorun" are NOT listed here — they appear in very common
@@ -58,15 +71,8 @@ const KEYWORDS: Record<Exclude<Intent, "general">, string[]> = {
     "разочарован", "течёт", "протекает",
     "sporca", "cattivo odore", "puzza", "non c'è riscaldamento", "rumoroso", "scarafaggi",
     "insetti", "terribile", "pessimo", "deluso", "delusa", "perdita d'acqua",
-    // Bad-review / rating threats — extortion-adjacent, must always reach a human.
-    // THREAT-ANCHORED forms only: bare "kötü ..." already matches via "kötü" above,
-    // and unanchored "1 star"/"negative review" false-positived on compliments
-    // ("4.91 star rating", "siz bir yıldızsınız", "we read a negative review before booking").
-    "yıldız veririm", "yildiz veririm", "yıldız vereceğim", "yildiz verecegim",
-    "bir yıldız ver", "1 yıldız ver", "tek yıldız ver",
-    "leave a bad review", "leave a negative review", "write a bad review",
-    "give you a bad review", "leave you a bad review", "1 star review", "one star review",
-    "leave 1 star", "give 1 star", "one-star review",
+    // Bad-review / rating threats (REVIEW_THREAT_PHRASES below) — extortion-adjacent.
+    ...REVIEW_THREAT_PHRASES,
   ],
   refund: [
     "iade", "geri ödeme", "geri odeme", "refund", "para iadesi", "ücret iade", "paramı geri",
@@ -256,6 +262,65 @@ export function detectPromptInjection(message: string): boolean {
   return INJECTION_PATTERNS.some((re) => re.test(message));
 }
 
+/**
+ * Detect the guest's language (basic heuristic). Default is ENGLISH — Turkish
+ * only when clear Turkish markers are present — matching the product policy
+ * (English by default, mirror the guest when they use another language).
+ */
+export function detectGuestLanguage(message: string): string {
+  const msgLower = message.toLowerCase();
+  if (/[çğıöşü]/.test(msgLower) || /\b(merhaba|teşekkür|nasıl|nerede|şifre|için|değil|var mı|selam|günaydın)\b/.test(msgLower)) {
+    return "tr";
+  }
+  if (/\b(ich |sie |bitte|danke|hallo|ist |und |für )\b/.test(msgLower)) return "de";
+  if (/\b(je |vous |bonjour|merci|est |les |pour )\b/.test(msgLower)) return "fr";
+  if (/[؀-ۿ]/.test(message)) return "ar"; // Arabic script
+  if (/[Ѐ-ӿ]/.test(message)) return "ru"; // Cyrillic script
+  return "en";
+}
+
+/** Order-independent check: does the message hit ANY keyword of this intent net?
+ * (detectIntent's precedence hides co-present signals — complaint wins over
+ * refund — so eligibility checks need direct access.) */
+export function matchesIntentKeywords(message: string, intent: Exclude<Intent, "general">): boolean {
+  const m = message.toLowerCase();
+  return KEYWORDS[intent].some((kw) => m.includes(kw));
+}
+
+// Safety-critical signals: a generic holding acknowledgement must never replace
+// the model's safety-aware draft (gas/fire/injury/lockout class) — these always
+// stay on the silent-escalate path. Substring over-matching here is fine: it
+// only means "no holding ack", never a wrong message.
+const SAFETY_CRITICAL_WORDS = [
+  "gaz", "yangın", "yangin", "duman", "yaraland", "düştü", "dustu", "kaza", "ambulans",
+  "polis", "acil", "kilitli kaldı", "kilitli kaldi", "içeri giremiyor", "iceri giremiyor",
+  "fire", "smoke", "gas leak", "carbon monoxide", "injured", "hurt", "bleeding",
+  "ambulance", "police", "emergency", "locked out", "can't get in", "cant get in",
+];
+
+/**
+ * May a MILD complaint get the automatic tier-2 "holding acknowledgement"?
+ * Deliberately conservative: complaint-class only, and NONE of the signals that
+ * demand a human's judgement (money, cancellation, wanting a human, review
+ * threats, safety emergencies, injection). Anything excluded here still follows
+ * the normal escalate-to-host path — this gate only ever WITHHOLDS the ack.
+ */
+export function holdingAckBlockedSignals(message: string): boolean {
+  if (detectPromptInjection(message)) return true;
+  if (matchesIntentKeywords(message, "refund")) return true;
+  if (matchesIntentKeywords(message, "early_departure")) return true;
+  if (matchesIntentKeywords(message, "human_request")) return true;
+  const m = message.toLowerCase();
+  if (REVIEW_THREAT_PHRASES.some((p) => m.includes(p))) return true;
+  if (SAFETY_CRITICAL_WORDS.some((w) => m.includes(w))) return true;
+  return false;
+}
+
+export function holdingAckEligible(message: string): boolean {
+  if (!classifyFallback(message).isComplaint) return false;
+  return !holdingAckBlockedSignals(message);
+}
+
 export function suggestReplyFallback(input: SuggestReplyInput): SuggestReplyResult {
   const { intent, priority, confidence } = classifyFallback(input.guestMessage);
   const name = input.reservation?.guestName?.split(" ")[0];
@@ -273,22 +338,7 @@ export function suggestReplyFallback(input: SuggestReplyInput): SuggestReplyResu
     (input.reservation != null &&
       (input.reservation.status === "confirmed" || input.reservation.status === "completed"));
 
-  // Detect the guest's language (basic heuristic). Default is ENGLISH — Turkish
-  // only when clear Turkish markers are present — matching the product policy
-  // (English by default, mirror the guest when they use another language).
-  const msgLower = input.guestMessage.toLowerCase();
-  let detectedLanguage = "en";
-  if (/[çğıöşü]/.test(msgLower) || /\b(merhaba|teşekkür|nasıl|nerede|şifre|için|değil|var mı|selam|günaydın)\b/.test(msgLower)) {
-    detectedLanguage = "tr";
-  } else if (/\b(ich |sie |bitte|danke|hallo|ist |und |für )\b/.test(msgLower)) {
-    detectedLanguage = "de";
-  } else if (/\b(je |vous |bonjour|merci|est |les |pour )\b/.test(msgLower)) {
-    detectedLanguage = "fr";
-  } else if (/[؀-ۿ]/.test(input.guestMessage)) {
-    detectedLanguage = "ar"; // Arabic script
-  } else if (/[Ѐ-ӿ]/.test(input.guestMessage)) {
-    detectedLanguage = "ru"; // Cyrillic script
-  }
+  const detectedLanguage = detectGuestLanguage(input.guestMessage);
   // We only carry full Turkish + English phrasings; any non-Turkish guest gets
   // the (internationally understood) English fallback.
   const isTr = detectedLanguage === "tr";

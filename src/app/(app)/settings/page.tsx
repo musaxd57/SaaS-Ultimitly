@@ -52,6 +52,7 @@ export default async function SettingsPage({
         aiStyleProfile: true,
         alertEmail: true,
         autoReplyDisclosure: true,
+        autoHoldingReplyEnabled: true,
         handoffHoldHours: true,
         autoWelcome: true,
         autoCheckin: true,
@@ -271,6 +272,7 @@ export default async function SettingsPage({
           <AutomationPrefsForm
             disclosure={org?.autoReplyDisclosure ?? true}
             holdHours={org?.handoffHoldHours ?? 12}
+            holdingAck={org?.autoHoldingReplyEnabled ?? false}
           />
         </CardContent>
       </Card>

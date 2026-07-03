@@ -60,6 +60,12 @@ model Organization {
   //  - handoffHoldHours: hours the AI stays silent after a guest asks for a human.
   autoReplyDisclosure Boolean @default(true)
   handoffHoldHours    Int     @default(12)
+  // Tier-2 "holding acknowledgement": when ON, a MILD complaint (no money/legal/
+  // safety/threat signals) gets one immediate, deterministic non-committal ack
+  // ("passed to our host, sharing a detail helps") while STILL escalating to the
+  // host as before. OPT-IN per org, default OFF — the landing promise ("complaints
+  // are never auto-answered") stays true unless the host knowingly enables this.
+  autoHoldingReplyEnabled Boolean @default(false)
   // When true, safe/high-confidence channel (Airbnb / Booking via Hospitable)
   // guest messages are auto-answered; gated to active-hours window in org timezone.
   // Complaints and risky messages always wait for a human.
