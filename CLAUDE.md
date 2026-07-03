@@ -1165,6 +1165,45 @@ olanlar, dikkatli dilimler halinde):
 6. **Temizlikçi paylaşım linki** — Görevler'den temizlikçiye korumalı/tek-kullanımlık link (bugünkü
    temizlikler + fotoğraf yükleme). Orta/büyük iş — token modeli + public yüzey, launch sonrası.
 
+## AI üslup + güvenlik sertleştirme dalgası (2026-07-02→03, ~8 commit, 526 test yeşil)
+Kullanıcı landing demosunda gerçek cevapları inceleyip üslup hatalarını tek tek yakaladı; her tur
+prompt (`prompts.ts`) + fallback (`fallback.ts`) + örnekler + testler birlikte güncellendi. **NOT: bu
+dosyalar TÜM yüzeylerin tek kaynağı** (gerçek oto-yanıt, inbox AI-öner, Ayarlar testi, landing demo,
+QR concierge) — demoya özel hiçbir şey yok.
+**Üslup kuralları (kullanıcı kararları):** (a) **Duygu beyanı YASAK** ("üzüldüm/üzgünüm/sorry to hear"
+sınıfı; kısa özür serbest) + **temenni yasak** ("Umarım ... getireceğiz" bozuk kalıbı). (b) **İç
+tutarlılık:** koşul + geçmiş-zaman iddiası aynı cümlede yasak ("Yine de çalışmazsa ... ilettim"),
+çifte özür yasak, önce çözüm-adımı sonra tek güvence cümlesi. (c) **Dolgu-soru kapanışları silindi**
+(fallback + 6 varsayılan şablon; "başka bir şey lazım mı?" sınıfı) — regresyon testi tarıyor.
+(d) **Ses:** kişisel eylem ben-dili ("ilettim", "size döneceğim"), ekipçe iş çoğul olabilir
+("ilgileneceğiz"), nezaket kalıpları geleneksel biz ("özür dileriz", "teşekkür ederiz"), edilgen yasak
+("iletişime geçilecek"), her cümle biz-biz robot dili yasak. (e) **Misafire HER ZAMAN "siz"**
+("dener misiniz"; misafir sen diliyle yazsa bile; DE "Sie", FR "vous"). Örneklerin hepsi (19) bu
+kurallara göre yeniden yazıldı — örnek kuraldan güçlüdür, ikisi birlikte değişmeli.
+**3. dış denetim (kullanıcı getirdi, "son karar sende") — kodla doğrulanıp uygulananlar (b07ee88):**
+- **Fallback secret gate:** OpenAI'sız yol wifi/checkin/adres KB içeriğini artık SADECE
+  confirmed/completed konaklamada döndürüyor (önceden pending/bağsız konuşmada da veriyordu —
+  model yolundaki pre-booking guard'ın fallback'te karşılığı yoktu; gerçek açıktı).
+- **`verifiedActiveStay` bayrağı:** QR concierge konaklamayı doğrulayıp PII vermediği için prompt'un
+  pre-booking bloğu aktif misafire "rezervasyonunuzu tamamlayın" diyordu → yeni blok: aktif konaklama
+  çerçevesi + açık-kanal sır yasağı. `SuggestReplyInput.verifiedActiveStay`, QR route true geçiyor.
+- **Intent clamp:** model 14-dışı intent döndürürse "general"e sabitlenir + confidence ≤0.5 (auto-send
+  kapısı BLOCKLIST'ti → bilinmeyen intent yüksek güvenle kapıdan geçebilirdi; artık yapısal imkânsız).
+- **Deterministik injection backstop:** `detectPromptInjection()` (EN+TR jailbreak kalıpları + kendi
+  `<<>>` ayraçlarımız) auto-send kapısında model-bağımsız veto — sadece kısıtlar.
+- **Landing demo:** injection örnek çipi eklendi (kalkan canlı gösteriliyor); ayrımcılık/nefret içeriği
+  high-risk sınıfına yazıldı (asla oto-cevap).
+**Reddedilen denetim önerileri (gerekçeli):** `deliveryModeRecommendation` alanı (gönderim kararı
+MODELE verilmez — kod kapısı mimarinin kendisi); demo KB'sinden wifi'ı çıkarmak (demo ONAYLI misafiri
+simüle ediyor; onaylı misafire wifi vermek ürünün ta kendisi — QR zaten secret-free, ikisi karışmasın);
+intent/riskType taksonomi genişletme (kalibrasyon riski, kalıcı ertelenmiş listede); prompt'u modüllere
+bölme + yüzey-bazlı promptlar + evidence alanı + classify-then-generate (büyük altyapı, launch sonrası);
+style-profile deterministik redaction + çeviri UI uyarısı (ayrı küçük dilimler).
+**⏭️ Ertelenen değerli fikir — GOLDEN TEST SET:** ~100 sabit senaryoluk fixture seti (iade tehdidi, gaz
+kokusu, kapı-kodu isteyen potansiyel misafir, injection, çok-dilli şikayet, devir-günü erken giriş...)
+her prompt değişikliğinde beklenen intent/risk/auto-karar asserte edilir. Mevcut testler bunun ~%40'ını
+zaten kapsıyor; tam set ayrı dilim olarak yapılacak (prompt artık testsiz büyümemeli).
+
 ## Çalışma şekli
 Kullanıcı: "Bana söyle, ben kodlarım." Fazları sırayla, additive + testli.
 Build + `npm test` yeşil olmadan push etme. GitHub'da PR sadece kullanıcı
