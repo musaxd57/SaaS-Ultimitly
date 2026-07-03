@@ -1215,6 +1215,24 @@ disregard my previous message" masum düzeltmesi artık takılmaz). **KURAL: pro
 yapan HERKES golden seti çalıştırır; yeni risk sınıfı eklerken sete hem tehdit hem övgü-tuzağı senaryosu
 eklenir.** 580 test yeşil.
 
+## 4. dış öneri dalgası: platform-policy guard eklendi, surface/decision-layer gerekçeli ertelendi (2026-07-03, 4d9a4ac)
+Kullanıcı 3 maddelik yeni öneri getirdi ("son karar sende"):
+- **✅ #3 Platform Policy Guard (prompt tarafı) EKLENDİ:** KURAL-4 genişletildi — model IBAN/hesap ASLA
+  paylaşmaz, ödeme talimatı vermez, platform-dışı anlaşmayı kabul/ima etmez; sabit güvenli kalıp ("işlemler
+  platform üzerinden... ev sahibimiz size dönüş yapacak"), riskLevel=high, intent=refund (para sınıfı →
+  asla oto-gitmez). ÖRNEK 20 (IBAN teklifi reddi) eklendi. Deterministik tarafı zaten golden-set dilimiyle
+  kurulmuştu (kelime ağı + gate vetosu) — bu dilim host'un gördüğü TASLAK metni de güvenceye aldı.
+- **⏸️ #1 Surface enum (inbox/automation/qr/demo/test):** kritik kısmı ZATEN yapıldı (`verifiedActiveStay`
+  QR sorununu çözdü — önerinin verdiği örnek buydu ve öneri stale). Tam yüzey-enum + yüzey-bazlı policy
+  blokları = daha önce ertelenen "surface-specific prompts" altyapısı; yüzeylerin risk farkı bugün KOD
+  katmanında zaten uygulanıyor (automation=kod kapısı, QR=scrubbed KB+escalate, demo=kurgu veri,
+  test=premium+rate-limit). Launch sonrası altyapı dilimi.
+- **❌ #2 Structured decision layer (autoDecision/shouldReply/riskType/usedSources/missingInfo):** 3. kez
+  REDDEDİLDİ — gönderim kararı MODELE verilmez, kod kapısında kalır (mimari ilke; golden set bunu kilitliyor).
+  shouldReply zaten deterministik (closing-ack + confidence<0.4); usedSources/missingInfo = evidence-alanı
+  altyapısı (ertelenmiş); riskType = taksonomi genişletme (kalibrasyon riski, ertelenmiş).
+Ayrıca ÖRNEK 19'daki gözden kaçan karışık-ses düzeltildi. 581 test yeşil.
+
 ## Çalışma şekli
 Kullanıcı: "Bana söyle, ben kodlarım." Fazları sırayla, additive + testli.
 Build + `npm test` yeşil olmadan push etme. GitHub'da PR sadece kullanıcı
