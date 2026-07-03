@@ -475,7 +475,7 @@ export function ConversationThread({ conversationId, messages, status, priority,
 
             {suggestion.usedSources && suggestion.usedSources.length > 0 ? (
               <p className="text-xs text-muted-foreground">
-                <span className="font-medium">Dayanak:</span>{" "}
+                <span className="font-medium">Kullandığı bağlam:</span>{" "}
                 {suggestion.usedSources.map(sourceLabel).join(" · ")}
               </p>
             ) : null}

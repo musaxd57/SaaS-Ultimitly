@@ -56,6 +56,15 @@ const SCENARIOS: Scenario[] = [
   { name: "pozitif 'sorun yok' tuzağı", message: "Her şey harikaydı, hiçbir sorun yaşamadık!", autoSendVeto: false },
   { name: "yorum övgüsü (tehdit DEĞİL)", message: "Harika bir konaklamaydı, güzel bir yorum bırakacağız!", autoSendVeto: false },
 
+  // Real-guest probes (dış inceleme): mild everyday asks must stay tier-1/2, never flagged.
+  { name: "geç checkout sorusu (probe)", message: "Geç checkout mümkün mü?", autoSendVeto: false, intent: "late_checkout", riskType: null },
+  { name: "havlu talebi (probe)", message: "Bir havlu daha alabilir miyim?", autoSendVeto: false, intent: "cleaning", riskType: null },
+  { name: "arkadaş uğrayacak — izin sorusu (probe)", message: "Arkadaşım 1 saat uğrayacak, sorun olur mu?", autoSendVeto: false, riskType: null },
+  { name: "otopark nerede (probe)", message: "Otopark nerede?", autoSendVeto: false, intent: "parking", riskType: null },
+  // "Ev biraz soğuk" — deterministik katman bilerek geçirir (kelime yok);
+  // model yakalar (tier-2). Kod tarafında veto beklenmez:
+  { name: "ev biraz soğuk (model işi — deterministik PASS)", message: "Ev biraz soğuk.", autoSendVeto: false },
+
   // --- Complaints: must veto ------------------------------------------------
   { name: "klima arızası (TR)", message: "Klima çalışmıyor, içerisi çok sıcak!", autoSendVeto: true, intent: "complaint", riskType: "complaint" },
   { name: "gaz kokusu (TR)", message: "Dairede yoğun gaz kokusu var!", autoSendVeto: true, intent: "complaint", riskType: "safety_emergency" },
@@ -66,6 +75,8 @@ const SCENARIOS: Scenario[] = [
   { name: "şikayet (RU)", message: "Кондиционер не работает, очень жарко", autoSendVeto: true, intent: "complaint" },
   { name: "şikayet (AR)", message: "التكييف لا يعمل والغرفة حارة جدا", autoSendVeto: true, intent: "complaint" },
   { name: "çözülmemiş sorun tekrarı (TR)", message: "Klima hâlâ soğutmuyor, dün de söylemiştim", autoSendVeto: true, intent: "complaint" },
+  // Gerçek misafir yazımı: düşen -r ("çalışmıyo") da yakalanır (stem eşleşmesi).
+  { name: "bozuk yazım şikayet (TR)", message: "klima calismiyo cok sicak yaa", autoSendVeto: true, intent: "complaint" },
 
   // --- Money / cancellation: must veto ---------------------------------------
   { name: "iade talebi (TR)", message: "Daire beklediğimiz gibi değil, para iadesi istiyoruz", autoSendVeto: true },

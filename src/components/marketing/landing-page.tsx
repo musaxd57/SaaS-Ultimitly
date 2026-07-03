@@ -50,31 +50,47 @@ const STEPS = [
   },
 ];
 
-// Honest example scenarios for the "what gets auto-answered" section — these
-// mirror the REAL safety gate: info questions auto-send, complaints/refunds/
-// early-checkout always escalate to the host.
-const DEMO_SCENARIOS = [
+// Honest 3-tier sales scenarios — mirror the REAL safety architecture:
+// tier 1 auto-sends, tier 2 calms + gathers info (host approves; optional
+// auto pre-reply the host knowingly enables), tier 3 always waits for the host.
+const DEMO_SCENARIOS: { tier: 1 | 2 | 3; message: string; outcome: string }[] = [
   {
+    tier: 1,
     message: "Merhaba, wifi şifresi nedir?",
-    outcome: "Bilgi tabanınızdaki Wi-Fi bilgisiyle anında yanıtlar.",
-    auto: true,
+    outcome: "Bilgi tabanınızdaki Wi-Fi bilgisiyle anında, sizin üslubunuzla yanıtlar.",
   },
   {
+    tier: 1,
+    message: "Check-in saat kaçta, erken gelebilir miyiz?",
+    outcome: "Dairenizin gerçek giriş saatiyle anında yanıtlar; erken giriş isteğini size iletir.",
+  },
+  {
+    tier: 1,
     message: "Wo kann ich parken?",
     outcome: "Almanca soruya Almanca cevap verir — otopark bilginizden.",
-    auto: true,
   },
   {
+    tier: 2,
+    message: "Ev çok soğuk, hiç memnun kalmadık.",
+    outcome:
+      "Sakin bir cevap taslağı hazırlar, foto/detay ister, sorunu size işaretler — söz vermez, suçu kabul etmez. Dilerseniz \"aldık, ilgileniyoruz\" ön-yanıtını otomatik de gönderir (siz açarsanız).",
+  },
+  {
+    tier: 3,
     message: "Daire hiç temiz değildi, iade istiyorum.",
-    outcome: "Şikayet + iade tespit edilir; otomatik cevap GÖNDERİLMEZ, konuşma size işaretlenir ve e-posta ile haber verilir.",
-    auto: false,
+    outcome: "Para/iade tespit edilir; otomatik cevap GÖNDERİLMEZ — taslak + e-posta ile size düşer.",
   },
   {
-    message: "Yarın saat 13:00 gibi çıksak olur mu?",
-    outcome: "Geç çıkış = sizin kararınız. AI durur, mesajı onayınıza bırakır.",
-    auto: false,
+    tier: 3,
+    message: "Airbnb komisyonu çok, IBAN atayım direkt ödeyeyim?",
+    outcome: "Platform dışı ödeme = kırmızı çizgi. AI asla kabul etmez, sizi uyarır.",
   },
 ];
+const TIER_META: Record<1 | 2 | 3, { chip: string; cls: string }> = {
+  1: { chip: "Anında yanıtlar", cls: "bg-emerald-50 text-emerald-700" },
+  2: { chip: "Yatıştırır + bilgi toplar", cls: "bg-yellow-50 text-yellow-800" },
+  3: { chip: "Durur, size bırakır", cls: "bg-amber-50 text-amber-700" },
+};
 
 const FEATURES = [
   {
@@ -452,10 +468,10 @@ export function LandingPage() {
                 <span
                   className={cn(
                     "mt-3 inline-flex items-center gap-1 rounded-full px-2.5 py-1 text-xs font-medium",
-                    s.auto ? "bg-emerald-50 text-emerald-700" : "bg-amber-50 text-amber-700",
+                    TIER_META[s.tier].cls,
                   )}
                 >
-                  {s.auto ? "Otomatik yanıtlanır" : "Size bırakılır"}
+                  {TIER_META[s.tier].chip}
                 </span>
               </div>
             ))}

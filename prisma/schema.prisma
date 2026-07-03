@@ -3,10 +3,10 @@
 // PostgreSQL (Railway). Conventions kept portable + simple:
 //   * "enum-like" fields are plain Strings, validated in the app layer (Zod).
 //   * JSON payloads are stored as String (JSON.stringify / JSON.parse).
-// Deploy applies the schema at boot via `prisma db push --skip-generate`
-// (no migration files). NOTE: never add a `@unique`/required-no-default column
-// to a POPULATED table — `db push` refuses it (data-loss) and crashes boot;
-// use app-level uniqueness + findFirst instead.
+// Deploy applies REAL migrations at boot via `prisma migrate deploy` (see
+// Dockerfile + docs/MIGRATION_CUTOVER.md). RULE: every schema edit needs a
+// migration file (prisma migrate diff), verified on a throwaway Postgres.
+// Never add a `@unique`/required-no-default column to a POPULATED table.
 // ----------------------------------------------------------------------------
 
 generator client {

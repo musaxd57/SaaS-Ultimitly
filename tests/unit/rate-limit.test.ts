@@ -1,4 +1,4 @@
-import { describe, it, expect, beforeEach } from "vitest";
+import { describe, it, expect, vi, beforeEach } from "vitest";
 import { rateLimit, clientIp, __resetRateLimit } from "@/lib/rate-limit";
 
 describe("rateLimit", () => {
@@ -42,10 +42,22 @@ describe("clientIp", () => {
     expect(clientIp(new Request("http://x"))).toBe("unknown");
   });
 
-  it("prefers cf-connecting-ip when Cloudflare terminates the request", () => {
+  it("IGNORES cf-connecting-ip by default — a direct-to-origin client could set it freely", () => {
     const req = new Request("http://x", {
       headers: { "cf-connecting-ip": "3.3.3.3", "x-forwarded-for": "1.2.3.4, 5.6.7.8" },
     });
-    expect(clientIp(req)).toBe("3.3.3.3");
+    expect(clientIp(req)).toBe("5.6.7.8"); // rightmost XFF hop (platform-appended)
+  });
+
+  it("prefers cf-connecting-ip only when TRUST_CF_HEADER=1 (origin locked behind Cloudflare)", () => {
+    vi.stubEnv("TRUST_CF_HEADER", "1");
+    try {
+      const req = new Request("http://x", {
+        headers: { "cf-connecting-ip": "3.3.3.3", "x-forwarded-for": "1.2.3.4, 5.6.7.8" },
+      });
+      expect(clientIp(req)).toBe("3.3.3.3");
+    } finally {
+      vi.unstubAllEnvs();
+    }
   });
 });

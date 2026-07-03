@@ -152,7 +152,7 @@ export function AiTestCard({ properties }: { properties: { id: string; name: str
             <p className="text-xs font-medium text-orange-700">İnsan incelemesi: {riskTypeLabel(result.riskType)}</p>
           ) : null}
           {result.usedSources && result.usedSources.length > 0 ? (
-            <p className="text-xs text-muted-foreground">Dayanak: {result.usedSources.map(sourceLabel).join(" · ")}</p>
+            <p className="text-xs text-muted-foreground">Kullandığı bağlam: {result.usedSources.map(sourceLabel).join(" · ")}</p>
           ) : null}
           {result.missingInfo && result.missingInfo.length > 0 ? (
             <p className="text-xs text-amber-700">Eksik bilgi: {result.missingInfo.join(" · ")}</p>

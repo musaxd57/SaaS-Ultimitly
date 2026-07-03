@@ -36,11 +36,16 @@ export function rateLimit(
 
 /** Best-effort client IP from common proxy headers (Railway/Vercel set these). */
 export function clientIp(req: Request): string {
-  // If Cloudflare sits in front of this request, it sets its OWN header with the
-  // true edge-verified client IP — prefer it over X-Forwarded-For, which can grow
-  // extra (still-spoofable) leftmost hops once a CF-terminated request reaches us.
-  const cfIp = req.headers.get("cf-connecting-ip");
-  if (cfIp?.trim()) return cfIp.trim();
+  // Cloudflare's edge-verified client IP — but ONLY when the deployment says the
+  // origin is actually locked behind Cloudflare (TRUST_CF_HEADER=1). The Railway
+  // app domain is reachable DIRECTLY (that's how the Paddle webhook works), and a
+  // direct client can set cf-connecting-ip to any value per request, rotating its
+  // rate-limit identity at will. Default OFF = trust only the rightmost XFF hop,
+  // which the platform proxy appends and the client cannot control.
+  if (process.env.TRUST_CF_HEADER === "1") {
+    const cfIp = req.headers.get("cf-connecting-ip");
+    if (cfIp?.trim()) return cfIp.trim();
+  }
 
   const xff = req.headers.get("x-forwarded-for");
   if (xff) {

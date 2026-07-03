@@ -47,7 +47,7 @@ const KEYWORDS: Record<Exclude<Intent, "general">, string[]> = {
     // NB: bare "problem"/"sorun" are NOT listed here — they appear in very common
     // positive closings ("no problem", "sorun yok"). They're matched separately,
     // negation-guarded, in hasUnnegatedProblemWord() below.
-    "çalışmıyor", "calismiyor", "kirli", "bozuk", "şikayet", "sikayet",
+    "çalışmıyo", "calismiyo", "kirli", "bozuk", "şikayet", "sikayet",
     "kötü", "kotu", "berbat", "leak", "su akıyor", "koku", "böcek", "bocek", "broken",
     "dirty", "not working", "complaint", "rezalet", "iğrenç", "igrenc",
     // Strong, unambiguous English complaint signals (enriched — the cross-check
@@ -56,7 +56,7 @@ const KEYWORDS: Record<Exclude<Intent, "general">, string[]> = {
     "cockroach", "cockroaches", "bed bug", "bedbug", "bed bugs", "no hot water", "no heating",
     // Re-opened / recurring issue signals ("klima hâlâ soğutmuyor", "temizlikçi
     // gelmedi") — a guest re-raising an unresolved problem must route to a human.
-    "soğutmuyor", "sogutmuyor", "ısıtmıyor", "isitmiyor", "düzelmedi", "duzelmedi",
+    "soğutmuyo", "sogutmuyo", "ısıtmıyo", "isitmiyo", "düzelmedi", "duzelmedi",
     "temizlikçi gelmedi", "temizlikci gelmedi", "temizlik yapılmadı", "temizlik yapilmadi",
     // Multilingual backstop (DE/FR/ES/IT/AR/RU). Distinctive complaint words only,
     // to avoid English false matches (e.g. "sale"). Catches a foreign-language
@@ -146,6 +146,11 @@ const PROBLEM_NEGATIONS = [
   "no problem", "no problems", "not a problem", "without problem", "without any problem",
   "sorun yok", "sorun yoktu", "sorunsuz", "hiç sorun", "hic sorun", "hiçbir sorun", "hicbir sorun",
   "sorun olmadı", "sorun olmadi", "sorun yaşama", "sorun yasama", "sorun değil", "sorun degil",
+  // Permission questions about the FUTURE are asks, not complaints:
+  // "arkadaşım uğrayacak, sorun olur mu?" must never flag the thread.
+  "sorun olur mu", "sorun olmaz", "sorun olmasın", "sorun teşkil eder mi",
+  "problem olur mu", "problem olmaz", "a problem if", "any problem if",
+  "is that a problem", "would that be a problem", "is it a problem",
   "problem yok", "problemsiz",
   "kein problem", "keine probleme", "pas de problème", "pas de probleme", "sans problème", "sans probleme",
   "ningún problema", "ningun problema", "sin problema", "nessun problema", "senza problemi",

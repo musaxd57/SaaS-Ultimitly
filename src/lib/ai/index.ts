@@ -29,6 +29,24 @@ export const RISK_TYPES = new Set([
   "access_security", "prompt_injection",
 ]);
 
+/**
+ * Evidence claims are VERIFIED against the actual request context — the model
+ * can only cite a kb category / property field / reservation / history that
+ * really existed in its input. Unverifiable claims are silently dropped, so
+ * the UI never presents an invented source as fact.
+ */
+function verifyUsedSources(list: string[], input: SuggestReplyInput): string[] {
+  const kbCats = new Set(input.knowledgeBase.map((k) => k.category));
+  return list.filter((src) => {
+    if (src.startsWith("kb:")) return kbCats.has(src.slice(3));
+    if (src === "property:address") return Boolean(input.property.address);
+    if (src.startsWith("property:")) return true; // check-in/out times always exist
+    if (src.startsWith("reservation:")) return input.reservation != null;
+    if (src === "history") return Boolean(input.history && input.history.length > 0) || Boolean(input.styleProfile);
+    return false; // unknown shape → drop
+  });
+}
+
 /** Max evidence entries / entry length — the model must never flood the DB/UI. */
 function sanitizeStringList(raw: unknown, maxItems: number, maxLen: number): string[] {
   if (!Array.isArray(raw)) return [];
@@ -147,7 +165,7 @@ export async function suggestReply(input: SuggestReplyInput): Promise<SuggestRep
             typeof parsed.riskType === "string" && RISK_TYPES.has(parsed.riskType)
               ? parsed.riskType
               : null,
-          usedSources: sanitizeStringList(parsed.usedSources, 8, 60),
+          usedSources: verifyUsedSources(sanitizeStringList(parsed.usedSources, 8, 60), input),
           missingInfo: sanitizeStringList(parsed.missingInfo, 5, 80),
           statedCheckoutTime:
             typeof parsed.statedCheckoutTime === "string" &&
