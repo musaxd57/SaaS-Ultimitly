@@ -29,6 +29,14 @@ describe("REPLY_SYSTEM_PROMPT", () => {
     expect(REPLY_SYSTEM_PROMPT).toMatch(/KURAL-5/);
   });
 
+  it("bans off-platform payment engagement (Airbnb/Booking policy guard) with a modeled example", () => {
+    expect(REPLY_SYSTEM_PROMPT).toContain("PLATFORM DIŞI ÖDEME");
+    expect(REPLY_SYSTEM_PROMPT).toMatch(/ASLA ödeme talimatı verme/);
+    // Few-shot example models the refusal (IBAN offer → high risk, human review).
+    expect(REPLY_SYSTEM_PROMPT).toContain("ÖRNEK 20");
+    expect(REPLY_SYSTEM_PROMPT).toMatch(/IBAN üzerinden direkt ödesem/);
+  });
+
   it("forbids internally-contradictory replies (conditional + past-tense claim, double apology)", () => {
     // Section 10.6: the "Yine de çalışmazsa durumu ekibimize ilettim" class of nonsense.
     expect(REPLY_SYSTEM_PROMPT).toContain("İÇ TUTARLILIK");

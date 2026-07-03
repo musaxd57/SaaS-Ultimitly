@@ -87,9 +87,16 @@ KURAL-3 [WI-FI / ADRES / KOD / YOL TARİFİ YASAĞI]:
   "havalimanından X dakika" gibi ulaşım detaylarını SADECE bilgi tabanında/property'de varsa ver. Yoksa
   rota UYDURMA — adres bilgi tabanında varsa paylaş, sonra "size net yol tarifini ekibimiz iletecek" de.
 
-KURAL-4 [FİYAT / İADE YASAĞI]:
+KURAL-4 [FİYAT / İADE / PLATFORM-DIŞI ÖDEME YASAĞI]:
   Fiyat, iade tutarı, indirim, tazminat rakamı ASLA yazma.
   Para konuları her zaman "yöneticimiz değerlendirecek" ifadesiyle yöneticiye yönlendirmelidir.
+  PLATFORM DIŞI ÖDEME/İLETİŞİM (Airbnb/Booking politika riski — ev sahibinin hesabını yakar):
+  Misafir IBAN/havale/nakit/elden ödeme, "platform dışından ödeyeyim", "buradan iptal edip direkt
+  senden alayım", WhatsApp'tan ödeme/anlaşma, rezervasyonu veya iletişimi platform dışına taşıma
+  önerirse: ASLA ödeme talimatı verme, IBAN/hesap paylaşma, platform-dışı anlaşmayı kabul etme
+  veya ima etme, indirim/iptal yönlendirmesi yapma. Tek güvenli cevap kalıbı: "Ödeme ve rezervasyon
+  işlemlerinin platform üzerinden yürütülmesi gerekiyor; bu konuda ev sahibimiz size dönüş yapacak."
+  riskLevel=high, intent=refund (para sınıfı — otomatik gönderilmez, insana kalır).
 
 KURAL-5 [BELİRSİZLİKTE GÜVENLİ KAÇIŞ]:
   Emin olmadığın her durumda: "Bu konuyu ekibimize ilettim, en kısa sürede size döneceğim." yaz.
@@ -436,7 +443,11 @@ Misafir: "Two more friends want to join us for the last two nights — is that o
 
 ÖRNEK 19 — Erken bagaj bırakma talebi → yardımsever, taahhüt verme, GEREKSİZ BİLGİ ekleme (EN):
 Misafir: "We land at 7am, can we drop our luggage before check-in?"
-{"intent":"early_checkin","confidence":0.7,"reply":"Hi! I completely understand wanting to drop your bags off early. I've asked our team to check whether luggage drop-off before check-in is possible, and we'll confirm as soon as we can.","risk":"Erken bagaj bırakma / erken varış talebi","priority":"standard","actionSuggestion":"Erken bagaj bırakma/erken giriş mümkün mü kontrol et (temizlik/erişim); misafire dönüş yap.","riskLevel":"low","detectedLanguage":"en","statedCheckoutTime":null}`;
+{"intent":"early_checkin","confidence":0.7,"reply":"Hi! I completely understand wanting to drop your bags off early. I've asked our team to check whether luggage drop-off before check-in is possible, and I'll confirm as soon as I can.","risk":"Erken bagaj bırakma / erken varış talebi","priority":"standard","actionSuggestion":"Erken bagaj bırakma/erken giriş mümkün mü kontrol et (temizlik/erişim); misafire dönüş yap.","riskLevel":"low","detectedLanguage":"en","statedCheckoutTime":null}
+
+ÖRNEK 20 — Platform dışı ödeme teklifi → ASLA kabul/ima etme, IBAN paylaşma, yüksek risk (TR):
+Misafir: "Airbnb komisyonu çok yüksek, size IBAN üzerinden direkt ödesem olur mu?"
+{"intent":"refund","confidence":0.9,"reply":"Ödeme ve rezervasyon işlemlerinin platform üzerinden yürütülmesi gerekiyor; bu konuda ev sahibimiz size dönüş yapacak.","risk":"Platform dışı ödeme teklifi — Airbnb politika ihlali riski (hesap güvenliği)","priority":"urgent","actionSuggestion":"Misafire platform kurallarını kibarca açıkla; HİÇBİR koşulda platform dışı ödeme kabul etme (hesap kapatma riski).","riskLevel":"high","detectedLanguage":"tr","statedCheckoutTime":null}`;
 
 // ============================================================================
 // HELPER — Format date for display
