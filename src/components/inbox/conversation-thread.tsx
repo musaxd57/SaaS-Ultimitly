@@ -23,7 +23,7 @@ import { Badge } from "@/components/ui/badge";
 import { Separator } from "@/components/ui/separator";
 import { CONVERSATION_STATUS, PRIORITY, REPLY_TONE, type ReplyTone } from "@/lib/constants";
 import { cn } from "@/lib/utils";
-import { intentLabel, langLabel, displaySenderName } from "@/lib/ui-labels";
+import { intentLabel, langLabel, displaySenderName, riskTypeLabel, sourceLabel } from "@/lib/ui-labels";
 
 export interface ThreadMessage {
   id: string;
@@ -50,6 +50,9 @@ interface Suggestion {
   source: "openai" | "fallback";
   actionSuggestion?: string | null;
   riskLevel?: "none" | "low" | "medium" | "high";
+  riskType?: string | null;
+  usedSources?: string[];
+  missingInfo?: string[];
   detectedLanguage?: string;
 }
 
@@ -462,6 +465,25 @@ export function ConversationThread({ conversationId, messages, status, priority,
                 {suggestion.confidence >= 0.75 ? "AI bundan emin" : "AI emin değil — gözden geçirin"}
               </span>
             </div>
+
+            {riskTypeLabel(suggestion.riskType) ? (
+              <p className="flex items-start gap-2 rounded-md bg-orange-50 px-2.5 py-2 text-xs text-orange-800">
+                <AlertTriangle className="mt-0.5 size-3.5 shrink-0" />
+                <span><span className="font-medium">İnsan incelemesi:</span> {riskTypeLabel(suggestion.riskType)}</span>
+              </p>
+            ) : null}
+
+            {suggestion.usedSources && suggestion.usedSources.length > 0 ? (
+              <p className="text-xs text-muted-foreground">
+                <span className="font-medium">Dayanak:</span>{" "}
+                {suggestion.usedSources.map(sourceLabel).join(" · ")}
+              </p>
+            ) : null}
+            {suggestion.missingInfo && suggestion.missingInfo.length > 0 ? (
+              <p className="text-xs text-amber-700">
+                <span className="font-medium">Eksik bilgi:</span> {suggestion.missingInfo.join(" · ")}
+              </p>
+            ) : null}
 
             {suggestion.risk ? (
               <p className="flex items-start gap-2 rounded-md bg-warning/15 px-2.5 py-2 text-xs text-amber-700">

@@ -4,13 +4,16 @@ import { useState } from "react";
 import { Sparkles, Loader2 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
-import { intentLabel, langLabel, riskLabel, aiSourceLabel } from "@/lib/ui-labels";
+import { intentLabel, langLabel, riskLabel, aiSourceLabel, riskTypeLabel, sourceLabel } from "@/lib/ui-labels";
 
 interface TestResult {
   reply: string;
   intent: string;
   confidence: number;
   riskLevel: "none" | "low" | "medium" | "high";
+  riskType?: string | null;
+  usedSources?: string[];
+  missingInfo?: string[];
   detectedLanguage: string;
   statedCheckoutTime: string | null;
   source: "openai" | "fallback";
@@ -144,6 +147,15 @@ export function AiTestCard({ properties }: { properties: { id: string; name: str
               onayınıza bırakılır. (Yüksek güvende bile şikayet/iade/erken-çıkış gibi mesajlar her zaman
               size kalır.)
             </p>
+          ) : null}
+          {riskTypeLabel(result.riskType) ? (
+            <p className="text-xs font-medium text-orange-700">İnsan incelemesi: {riskTypeLabel(result.riskType)}</p>
+          ) : null}
+          {result.usedSources && result.usedSources.length > 0 ? (
+            <p className="text-xs text-muted-foreground">Dayanak: {result.usedSources.map(sourceLabel).join(" · ")}</p>
+          ) : null}
+          {result.missingInfo && result.missingInfo.length > 0 ? (
+            <p className="text-xs text-amber-700">Eksik bilgi: {result.missingInfo.join(" · ")}</p>
           ) : null}
           <pre className="whitespace-pre-wrap font-sans text-sm">{result.reply}</pre>
         </div>

@@ -9,6 +9,7 @@ import {
 } from "lucide-react";
 import { requireAuth } from "@/lib/auth";
 import { prisma } from "@/lib/db";
+import { riskTypeLabel } from "@/lib/ui-labels";
 import {
   getAiOpsReport,
   getTopTopics,
@@ -80,6 +81,17 @@ export default async function ReportsPage() {
   const heldCount = (reason: string) =>
     heldRows.find((r) => r.skippedReason === reason)?._count._all ?? 0;
   const heldTotal = heldRows.reduce((sum, r) => sum + r._count._all, 0);
+  const riskTypeRows = await prisma.conversation.groupBy({
+    by: ["lastRiskType"],
+    where: {
+      property: { organizationId },
+      lastMessageAt: { gte: since30 },
+      lastRiskType: { not: null },
+    },
+    _count: { _all: true },
+    orderBy: { _count: { lastRiskType: "desc" } },
+    take: 5,
+  });
 
   const [ai, topics, score, occupancy, connection] = await Promise.all([
     getAiOpsReport(organizationId),
@@ -277,6 +289,17 @@ export default async function ReportsPage() {
                   <span>Size bırakılanlardan yanıtladığınız</span>
                   <Badge tone={heldResolved > 0 ? "success" : "muted"}>{heldResolved}</Badge>
                 </div>
+                {riskTypeRows.length > 0 ? (
+                  <div className="space-y-1 border-t border-border pt-2">
+                    <p className="text-xs font-medium text-muted-foreground">En sık risk türleri</p>
+                    {riskTypeRows.map((row) => (
+                      <div key={row.lastRiskType} className="flex items-center justify-between text-xs">
+                        <span>{riskTypeLabel(row.lastRiskType) ?? row.lastRiskType}</span>
+                        <span className="font-medium">{row._count._all}</span>
+                      </div>
+                    ))}
+                  </div>
+                ) : null}
                 <p className="pt-1 text-xs text-muted-foreground">
                   Riskli/şikayet içeren mesajlar otomatik cevaplanmaz — burada AI&apos;ın neyi size
                   bıraktığını ve neyin çözüldüğünü görürsünüz.

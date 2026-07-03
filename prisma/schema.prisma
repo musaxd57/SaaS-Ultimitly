@@ -290,6 +290,8 @@ model Conversation {
   // null after a successful auto-send) + the model's last risk verdict.
   skippedReason String?
   lastRiskLevel String?
+  // Faz-B: WHY risky (closed label set, code-clamped) — reports/inbox only.
+  lastRiskType  String?
   createdAt       DateTime @default(now())
   updatedAt       DateTime @updatedAt
 
@@ -316,6 +318,9 @@ model Message {
   aiSuggestedReply String?
   aiConfidence    Float?
   aiIntent        String?
+  // Faz-B evidence: JSON array of the sources the AI grounded this reply on
+  // (e.g. ["kb:wifi","property:checkInTime"]). Auto-sends only; audit trail.
+  aiSourcesJson   String?
   externalId       String? // provider message id (e.g. Hospitable) — sync dedup
   // True when this outbound reply was drafted by the AI and approved by a human
   // (one-click "Onayla ve gönder"). Lets reports credit host-approved AI replies,

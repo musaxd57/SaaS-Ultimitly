@@ -20,6 +20,24 @@ function clamp01(n: number): number {
 // BLOCKLIST, so a novel/unknown intent string from the model would sail past
 // it — clamp unknowns to "general" AND cap their confidence below the 0.75
 // auto-send floor, so an off-taxonomy answer can never be sent unreviewed.
+/** The closed riskType label set (WHY risky). A LABEL only — the send decision
+ * stays in code; the gate may tighten on these but never loosen. Unknown model
+ * output clamps to null so a novel label can never carry meaning downstream. */
+export const RISK_TYPES = new Set([
+  "complaint", "money_refund", "cancellation", "human_request", "review_threat",
+  "platform_policy", "safety_emergency", "discrimination", "rule_violation",
+  "access_security", "prompt_injection",
+]);
+
+/** Max evidence entries / entry length — the model must never flood the DB/UI. */
+function sanitizeStringList(raw: unknown, maxItems: number, maxLen: number): string[] {
+  if (!Array.isArray(raw)) return [];
+  return raw
+    .filter((x): x is string => typeof x === "string" && x.trim().length > 0)
+    .slice(0, maxItems)
+    .map((x) => x.trim().slice(0, maxLen));
+}
+
 const KNOWN_INTENTS = new Set([
   "complaint", "refund", "early_checkin", "late_checkout", "early_departure",
   "human_request", "checkin", "checkout", "wifi", "parking", "location",
@@ -125,6 +143,12 @@ export async function suggestReply(input: SuggestReplyInput): Promise<SuggestRep
             typeof parsed.detectedLanguage === "string" && parsed.detectedLanguage.trim()
               ? parsed.detectedLanguage.trim()
               : "en", // policy: English by default when unknown
+          riskType:
+            typeof parsed.riskType === "string" && RISK_TYPES.has(parsed.riskType)
+              ? parsed.riskType
+              : null,
+          usedSources: sanitizeStringList(parsed.usedSources, 8, 60),
+          missingInfo: sanitizeStringList(parsed.missingInfo, 5, 80),
           statedCheckoutTime:
             typeof parsed.statedCheckoutTime === "string" &&
             /^\d{1,2}:\d{2}$/.test(parsed.statedCheckoutTime.trim())

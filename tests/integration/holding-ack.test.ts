@@ -151,6 +151,9 @@ describe("tier-2 holding acknowledgement — model path (applyChannelAutoReply)"
     actionSuggestion: null,
     riskLevel,
     detectedLanguage: "en",
+    riskType: "complaint" as string | null,
+    usedSources: [] as string[],
+    missingInfo: [] as string[],
     statedCheckoutTime: null,
   });
 
@@ -210,6 +213,9 @@ describe("human_request gate refinement (regression for the over-broad veto)", (
       actionSuggestion: null,
       riskLevel: "low" as const,
       detectedLanguage: "tr",
+      riskType: null,
+      usedSources: [],
+      missingInfo: [],
       statedCheckoutTime: null,
     });
     const r = await applyChannelAutoReply(conversation.id);
@@ -233,6 +239,9 @@ describe("human_request gate refinement (regression for the over-broad veto)", (
       actionSuggestion: null,
       riskLevel: "none" as const,
       detectedLanguage: "tr",
+      riskType: null,
+      usedSources: [],
+      missingInfo: [],
       statedCheckoutTime: null,
     });
     const r = await applyChannelAutoReply(conversation.id);

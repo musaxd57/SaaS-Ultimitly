@@ -15,7 +15,7 @@ import { DeleteConversationButton } from "@/components/inbox/delete-conversation
 import { AutoRefresh } from "@/components/inbox/auto-refresh";
 import { KB_CATEGORY, RESERVATION_STATUS, TASK_STATUS, TASK_TYPE } from "@/lib/constants";
 import { formatDate, formatDateTime, formatCurrency, daysUntilDate } from "@/lib/utils";
-import { channelLabel } from "@/lib/ui-labels";
+import { channelLabel, riskTypeLabel } from "@/lib/ui-labels";
 import { getReturningGuestInfo } from "@/lib/returning-guest";
 import { getAdjacency } from "@/lib/turnover";
 
@@ -128,6 +128,7 @@ const SKIP_REASON_LABELS: Record<string, string> = {
       {conversation.skippedReason && conversation.status !== "answered" ? (
         <p className="rounded-md border border-amber-200 bg-amber-50 px-3 py-2 text-sm text-amber-800">
           🤖 {SKIP_REASON_LABELS[conversation.skippedReason] ?? "Otomatik yanıt beklemede"}
+          {riskTypeLabel(conversation.lastRiskType) ? ` · Sebep: ${riskTypeLabel(conversation.lastRiskType)}` : ""}
         </p>
       ) : null}
 

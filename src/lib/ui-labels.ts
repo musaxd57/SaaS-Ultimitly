@@ -73,3 +73,38 @@ const CHANNEL_LABELS: Record<string, string> = {
 export function channelLabel(channel: string): string {
   return CHANNEL_LABELS[channel.toLowerCase()] ?? channel;
 }
+
+// Faz-B: WHY-risky label (closed set) → short host-facing Turkish.
+const RISK_TYPE_LABELS: Record<string, string> = {
+  complaint: "şikayet",
+  money_refund: "para / iade talebi",
+  cancellation: "iptal / erken ayrılma",
+  human_request: "insan talebi",
+  review_threat: "kötü yorum tehdidi",
+  platform_policy: "platform dışı işlem",
+  safety_emergency: "güvenlik / acil durum",
+  discrimination: "ayrımcılık içeriği",
+  rule_violation: "kural ihlali sinyali",
+  access_security: "giriş / erişim sorunu",
+  prompt_injection: "şüpheli talimat (injection)",
+};
+export function riskTypeLabel(t: string | null | undefined): string | null {
+  return t ? (RISK_TYPE_LABELS[t] ?? null) : null;
+}
+
+// Faz-B evidence: "kb:wifi" → "Bilgi tabanı: Wi-Fi" etc. Unknown shapes pass through.
+const KB_TR: Record<string, string> = {
+  wifi: "Wi-Fi", checkin: "Giriş Talimatı", checkout: "Çıkış Mesajı", welcome: "Karşılama",
+  location: "Konum", rules: "Ev Kuralları", parking: "Otopark", trash: "Çöp",
+  cleaning: "Temizlik", faq: "SSS", local_tips: "Yerel Tavsiye", general: "Genel",
+};
+const PROP_TR: Record<string, string> = {
+  checkInTime: "Giriş saati", checkOutTime: "Çıkış saati", address: "Adres",
+};
+export function sourceLabel(src: string): string {
+  if (src.startsWith("kb:")) return `Bilgi tabanı: ${KB_TR[src.slice(3)] ?? src.slice(3)}`;
+  if (src.startsWith("property:")) return PROP_TR[src.slice(9)] ?? src;
+  if (src.startsWith("reservation:")) return `Rezervasyon: ${src.slice(12)}`;
+  if (src === "history") return "Önceki yazışma";
+  return src;
+}

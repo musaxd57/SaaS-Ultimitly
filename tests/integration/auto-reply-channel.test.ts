@@ -49,6 +49,9 @@ const SAFE_REPLY = {
   actionSuggestion: null,
   riskLevel: "none" as const,
   detectedLanguage: "tr",
+  riskType: null,
+  usedSources: [],
+  missingInfo: [],
   statedCheckoutTime: null,
 };
 

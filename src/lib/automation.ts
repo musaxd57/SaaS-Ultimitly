@@ -9,6 +9,7 @@ import {
   holdingAckEligible,
   holdingAckBlockedSignals,
   detectGuestLanguage,
+  detectRiskType,
 } from "@/lib/ai/fallback";
 import { premiumAllowed } from "@/lib/billing/subscription";
 import { sendOnChannel } from "@/lib/messaging";
@@ -44,6 +45,8 @@ export function passesAutoReplySafetyGate(
     riskLevel: string;
     confidence: number;
     source: string;
+    /** Model's WHY-risky label (closed set, clamped). Used to TIGHTEN only. */
+    riskType?: string | null;
   },
   guestMessage: string,
 ): boolean {
@@ -78,6 +81,17 @@ export function passesAutoReplySafetyGate(
   // jailbreak phrasing, the draft waits for a human no matter what the model
   // scored. Restrictive-only (can only prevent an auto-send).
   if (detectPromptInjection(guestMessage)) return false;
+  // riskType is a LABEL, but a high-stakes label is itself a red flag: if the
+  // model names any of these, never auto-send even when it (inconsistently)
+  // scored the risk low. Tightens only — an empty/null label changes nothing.
+  const HIGH_STAKES_RISK_TYPES = new Set([
+    "money_refund", "cancellation", "review_threat", "platform_policy",
+    "safety_emergency", "discrimination", "access_security", "prompt_injection",
+    "complaint", "human_request",
+  ]);
+  if (result.riskType && result.intent !== "human_request" && HIGH_STAKES_RISK_TYPES.has(result.riskType)) {
+    return false;
+  }
   if (result.riskLevel !== "none" && result.riskLevel !== "low") return false;
   return result.confidence >= AUTO_REPLY_MIN_CONFIDENCE;
 }
@@ -92,6 +106,7 @@ async function persistRiskVisibility(
   conversationId: string,
   reason: string,
   risk?: string | null,
+  riskType?: string | null,
 ): Promise<void> {
   await prisma.conversation
     .updateMany({
@@ -99,7 +114,11 @@ async function persistRiskVisibility(
         id: conversationId,
         OR: [{ skippedReason: null }, { skippedReason: { not: reason } }],
       },
-      data: { skippedReason: reason, ...(risk !== undefined ? { lastRiskLevel: risk } : {}) },
+      data: {
+        skippedReason: reason,
+        ...(risk !== undefined ? { lastRiskLevel: risk } : {}),
+        ...(riskType !== undefined ? { lastRiskType: riskType } : {}),
+      },
     })
     .catch(() => {});
 }
@@ -784,6 +803,7 @@ export async function applyChannelAutoReply(
             priority: "urgent",
             skippedReason: "escalated_to_human",
             lastRiskLevel: result.riskLevel,
+            lastRiskType: result.riskType ?? detectRiskType(last.body),
           },
         });
         if (claimed.count === 1) {
@@ -850,7 +870,12 @@ export async function applyChannelAutoReply(
       return { sent: false, skippedReason: "escalated_to_human", ...meta };
     }
     if (!options.dryRun) {
-      await persistRiskVisibility(conversation.id, "low_confidence_or_risky", result.riskLevel);
+      await persistRiskVisibility(
+        conversation.id,
+        "low_confidence_or_risky",
+        result.riskLevel,
+        result.riskType ?? detectRiskType(last.body),
+      );
     }
     return { sent: false, skippedReason: "low_confidence_or_risky", ...meta };
   }
@@ -927,11 +952,18 @@ export async function applyChannelAutoReply(
         body: outboundBody,
         aiIntent: result.intent,
         aiConfidence: result.confidence,
+        aiSourcesJson: result.usedSources.length ? JSON.stringify(result.usedSources) : null,
       },
     }),
     prisma.conversation.update({
       where: { id: conversation.id },
-      data: { status: "answered", lastMessageAt: now, skippedReason: null, lastRiskLevel: result.riskLevel },
+      data: {
+        status: "answered",
+        lastMessageAt: now,
+        skippedReason: null,
+        lastRiskLevel: result.riskLevel,
+        lastRiskType: result.riskType,
+      },
     }),
   ]);
 
@@ -1699,7 +1731,11 @@ export async function sendDueAlerts(
     try {
       const res = await prisma.conversation.updateMany({
         where: { id: c.id, status: "new" },
-        data: { status: "problem", skippedReason: "complaint" },
+        data: {
+          status: "problem",
+          skippedReason: "complaint",
+          lastRiskType: detectRiskType(last.body),
+        },
       });
       claimed = res.count;
     } catch {

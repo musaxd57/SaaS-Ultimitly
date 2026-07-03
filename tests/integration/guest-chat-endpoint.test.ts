@@ -24,6 +24,9 @@ function result(over: Partial<SuggestReplyResult> = {}): SuggestReplyResult {
     actionSuggestion: null,
     riskLevel: "none",
     detectedLanguage: "tr",
+    riskType: null,
+    usedSources: [],
+    missingInfo: [],
     statedCheckoutTime: null,
     ...over,
   };

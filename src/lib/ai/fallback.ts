@@ -33,6 +33,15 @@ const REVIEW_THREAT_PHRASES = [
   "leave 1 star", "give 1 star", "one-star review",
 ];
 
+// OFF-PLATFORM payment asks — an Airbnb/Booking policy landmine for the host;
+// the bot must never engage. Anchored phrases (not bare "cash"/"iban", which
+// false-positive: e.g. "Liban"). Named so riskType can label them platform_policy.
+const OFFPLATFORM_PAYMENT_PHRASES = [
+  "platform dışı öde", "platform disi ode", "elden ödeme", "elden odeme", "elden nakit",
+  "banka havalesi", "havale yapsam", "havale yapayım", "havale yapayim", "iban gönder", "iban gonder",
+  "pay outside", "pay you directly", "pay in cash instead", "off the platform", "western union",
+];
+
 const KEYWORDS: Record<Exclude<Intent, "general">, string[]> = {
   complaint: [
     // NB: bare "problem"/"sorun" are NOT listed here — they appear in very common
@@ -87,12 +96,8 @@ const KEYWORDS: Record<Exclude<Intent, "general">, string[]> = {
     "إعادة المال", "restituire i soldi", "soldi indietro",
     // Escalation / chargeback threats — always route to a human, never auto-answer.
     "chargeback", "charge back", "dispute", "resolution center",
-    // OFF-PLATFORM payment asks — an Airbnb/Booking policy landmine for the host;
-    // the bot must never engage. Anchored phrases (not bare "cash"/"iban", which
-    // false-positive: e.g. "Liban").
-    "platform dışı öde", "platform disi ode", "elden ödeme", "elden odeme", "elden nakit",
-    "banka havalesi", "havale yapsam", "havale yapayım", "havale yapayim", "iban gönder", "iban gonder",
-    "pay outside", "pay you directly", "pay in cash instead", "off the platform", "western union",
+    // OFF-PLATFORM payment asks (OFFPLATFORM_PAYMENT_PHRASES below).
+    ...OFFPLATFORM_PAYMENT_PHRASES,
   ],
   // Leaving the stay EARLY / shortening / cancelling — a revenue/refund-sensitive
   // signal that must always route to a human (also used as an auto-send veto).
@@ -305,6 +310,24 @@ const SAFETY_CRITICAL_WORDS = [
  * threats, safety emergencies, injection). Anything excluded here still follows
  * the normal escalate-to-host path — this gate only ever WITHHOLDS the ack.
  */
+/**
+ * Deterministic riskType label from the keyword nets (Faz-B). Order = severity
+ * precedence. A LABEL for UI/reports only — the auto-send gate has its own
+ * vetoes and may additionally tighten on it.
+ */
+export function detectRiskType(message: string): string | null {
+  if (detectPromptInjection(message)) return "prompt_injection";
+  const m = message.toLowerCase();
+  if (SAFETY_CRITICAL_WORDS.some((w) => m.includes(w))) return "safety_emergency";
+  if (REVIEW_THREAT_PHRASES.some((p) => m.includes(p))) return "review_threat";
+  if (OFFPLATFORM_PAYMENT_PHRASES.some((p) => m.includes(p))) return "platform_policy";
+  if (matchesIntentKeywords(message, "refund")) return "money_refund";
+  if (matchesIntentKeywords(message, "early_departure")) return "cancellation";
+  if (matchesIntentKeywords(message, "human_request")) return "human_request";
+  if (classifyFallback(message).isComplaint) return "complaint";
+  return null;
+}
+
 export function holdingAckBlockedSignals(message: string): boolean {
   if (detectPromptInjection(message)) return true;
   if (matchesIntentKeywords(message, "refund")) return true;
@@ -350,6 +373,8 @@ export function suggestReplyFallback(input: SuggestReplyInput): SuggestReplyResu
 
   let body: string;
   let risk: string | null = null;
+  const usedSources: string[] = [];
+  const missingInfo: string[] = [];
 
   switch (intent) {
     case "complaint":
@@ -376,17 +401,21 @@ export function suggestReplyFallback(input: SuggestReplyInput): SuggestReplyResu
         : "Of course. I've passed your request to our host, who will get in touch with you as soon as possible.";
       break;
     case "early_checkin":
+      usedSources.push("property:checkInTime");
       body = isTr
         ? `Check-in saatimiz ${p.checkInTime}. Erken giriş, o günkü müsaitliğe bağlı olarak mümkün olabilir. Müsaitliği kontrol edip size en kısa sürede bilgi vereceğim.`
         : `Our check-in time is ${p.checkInTime}. An early check-in may be possible depending on availability that day. I'll check and let you know as soon as I can.`;
       break;
     case "late_checkout":
+      usedSources.push("property:checkOutTime");
       body = isTr
         ? `Check-out saatimiz ${p.checkOutTime}. Geç çıkış, sonraki rezervasyon ve temizlik programına bağlı olarak mümkün olabilir. Kontrol edip size döneceğim.`
         : `Our check-out time is ${p.checkOutTime}. A late check-out may be possible depending on the cleaning schedule and the next booking. I'll check and get back to you.`;
       break;
     case "checkin": {
       const kb = stayVerified ? findKb(input, "checkin") : null;
+      usedSources.push("property:checkInTime");
+      if (kb) usedSources.push("kb:checkin");
       body = isTr
         ? kb
           ? `Giriş bilgileri: ${kb}\n\nCheck-in saatimiz ${p.checkInTime}.`
@@ -397,12 +426,15 @@ export function suggestReplyFallback(input: SuggestReplyInput): SuggestReplyResu
       break;
     }
     case "checkout":
+      usedSources.push("property:checkOutTime");
       body = isTr
         ? `Check-out saatimiz ${p.checkOutTime}. Çıkışta anahtarları/kartı belirtilen yere bırakmanız yeterli olacaktır.`
         : `Our check-out time is ${p.checkOutTime}. On your way out, simply leave the keys/card in the agreed place.`;
       break;
     case "wifi": {
       const kb = stayVerified ? findKb(input, "wifi") : null;
+      if (kb) usedSources.push("kb:wifi");
+      else missingInfo.push(isTr ? "Wi-Fi bilgisi" : "Wi-Fi details");
       body = isTr
         ? kb ? `Wi-Fi bilgileri: ${kb}` : "Wi-Fi bilgilerini kontrol edip en kısa sürede sizinle paylaşacağım."
         : kb ? `Wi-Fi details: ${kb}` : "I'll check the Wi-Fi details and share them with you shortly.";
@@ -410,6 +442,8 @@ export function suggestReplyFallback(input: SuggestReplyInput): SuggestReplyResu
     }
     case "parking": {
       const kb = findKb(input, "parking");
+      if (kb) usedSources.push("kb:parking");
+      else missingInfo.push(isTr ? "otopark bilgisi" : "parking info");
       body = isTr
         ? kb ? `Otopark bilgisi: ${kb}` : "Otopark durumunu kontrol edip size bilgi vereceğim."
         : kb ? `Parking info: ${kb}` : "I'll check the parking options and let you know.";
@@ -417,7 +451,9 @@ export function suggestReplyFallback(input: SuggestReplyInput): SuggestReplyResu
     }
     case "location": {
       const kb = stayVerified ? findKb(input, "location") : null;
+      if (kb) usedSources.push("kb:location");
       const addr = stayVerified && p.address ? `${p.address}${p.city ? ", " + p.city : ""}` : null;
+      if (!kb && addr) usedSources.push("property:address");
       body = isTr
         ? kb
           ? `Konum bilgisi: ${kb}`
@@ -433,6 +469,7 @@ export function suggestReplyFallback(input: SuggestReplyInput): SuggestReplyResu
     }
     case "cleaning": {
       const kb = findKb(input, "cleaning");
+      if (kb) usedSources.push("kb:cleaning");
       body = isTr
         ? kb ? `Temizlik bilgisi: ${kb}` : "Temizlik talebinizi aldım; ekibimizle planlayıp size döneceğim."
         : kb ? `Cleaning info: ${kb}` : "I've received your cleaning request; I'll arrange it with our team and get back to you.";
@@ -440,6 +477,7 @@ export function suggestReplyFallback(input: SuggestReplyInput): SuggestReplyResu
     }
     case "amenity": {
       const kb = findKb(input, "general");
+      if (kb) usedSources.push("kb:general");
       body = isTr
         ? kb ? `Ekipman bilgisi: ${kb}` : "Ekipman veya eşya ile ilgili sorunuzu ekibimize ilettim; en kısa sürede size döneceğim."
         : kb ? `Amenity info: ${kb}` : "I've passed your question about the equipment to our team and will get back to you shortly.";
@@ -483,6 +521,9 @@ export function suggestReplyFallback(input: SuggestReplyInput): SuggestReplyResu
     risk,
     priority,
     source: "fallback",
+    riskType: detectRiskType(input.guestMessage),
+    usedSources,
+    missingInfo,
     actionSuggestion,
     riskLevel,
     detectedLanguage,

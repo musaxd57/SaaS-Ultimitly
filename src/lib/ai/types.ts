@@ -71,6 +71,16 @@ export interface SuggestReplyResult {
   riskLevel: "none" | "low" | "medium" | "high";
   /** BCP-47 language tag detected from the guest message. */
   detectedLanguage: string;
+  /**
+   * WHY the message is risky — a LABEL, never a decision (the send gate stays
+   * in code and only ever tightens on it). Null when not risky / unknown.
+   * One of RISK_TYPES (unknown model output is clamped to null).
+   */
+  riskType: string | null;
+  /** Evidence: which context grounded the reply (e.g. "kb:wifi", "reservation:checkOutTime", "property:checkInTime", "history"). */
+  usedSources: string[];
+  /** What was missing to answer fully (short phrases; empty when nothing). */
+  missingInfo: string[];
   /** The guest's own stated departure/check-out time as "HH:MM" (24h), or null. */
   statedCheckoutTime: string | null;
 }
