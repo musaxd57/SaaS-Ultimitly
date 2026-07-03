@@ -1233,6 +1233,23 @@ Kullanıcı 3 maddelik yeni öneri getirdi ("son karar sende"):
   altyapısı (ertelenmiş); riskType = taksonomi genişletme (kalibrasyon riski, ertelenmiş).
 Ayrıca ÖRNEK 19'daki gözden kaçan karışık-ses düzeltildi. 581 test yeşil.
 
+## Tier-2 "holding ack" + human_request düzeltmesi (2026-07-03, commit e7b1382, 589 test)
+Kullanıcının 3-seviye modeli değerlendirildi: **Seviye 1 (düşük risk oto-gönder) ve Seviye 3 (yüksek risk =
+sessiz taslak + acil e-posta + Sorunlu) ZATEN VARDI** — gerçek eksik Seviye 2 idi, eklendi:
+- **`Organization.autoHoldingReplyEnabled`** (migration `3_auto_holding_reply`, default KAPALI — landing
+  sözü "şikayeti otomatik yanıtlamaz" varsayılanda aynen doğru; host Ayarlar→Otomasyon'dan BİLEREK açar).
+- Açıkken: HAFİF şikayete (para/iade, iptal, insan-talebi, kötü-yorum tehdidi, güvenlik-acili
+  [gaz/yangın/yaralanma/kilitli], injection sinyali İÇERMEYEN) **tek deterministik bekletme mesajı** gider
+  (6 dil; söz vermez, suç kabul etmez, detay/foto ister, host'a devreder) — konuşma YİNE "Sorunlu" +
+  e-posta. İki yola da bağlı: keyword (sendDueAlerts, artık atomic claim-then-act = latent çift-mail
+  penceresi de kapandı) + model yolu (`complaintConfirmed`, riskLevel high ASLA).
+- **Dünkü human_request vetosu fazla genişti (bilinçli akışı bozuyordu):** model DE human_request diyorsa
+  tasarlanmış devir mesajı ("ev sahibimize ilettim" + AI 12s susar) yine gider; model başka şey diyorsa
+  veto. Regresyon testi eklendi (bu akışın hiç testi yokmuş).
+- `holdingAckEligible/BlockedSignals`, `detectGuestLanguage`, `matchesIntentKeywords` fallback'ten export.
+**Kısa kararlar:** riskType/evidence alanları = İLERİDE mantıklı (raporlama/açıklama UI'ı gelince, golden-set
+genişletmesiyle birlikte; bugün değil). Surface-enum = launch sonrası (kod katmanı zaten yüzey-bazlı).
+
 ## Çalışma şekli
 Kullanıcı: "Bana söyle, ben kodlarım." Fazları sırayla, additive + testli.
 Build + `npm test` yeşil olmadan push etme. GitHub'da PR sadece kullanıcı
