@@ -89,7 +89,11 @@ export function passesAutoReplySafetyGate(
     "safety_emergency", "discrimination", "access_security", "prompt_injection",
     "complaint", "human_request",
   ]);
-  if (result.riskType && result.intent !== "human_request" && HIGH_STAKES_RISK_TYPES.has(result.riskType)) {
+  // Sole exemption: the designed handoff ack — model intent AND label both say
+  // human_request. Any OTHER high-stakes label (even alongside a human_request
+  // intent) holds for a human.
+  const isHandoffAck = result.intent === "human_request" && result.riskType === "human_request";
+  if (result.riskType && !isHandoffAck && HIGH_STAKES_RISK_TYPES.has(result.riskType)) {
     return false;
   }
   if (result.riskLevel !== "none" && result.riskLevel !== "low") return false;

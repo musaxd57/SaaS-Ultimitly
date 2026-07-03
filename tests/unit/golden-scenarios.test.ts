@@ -141,6 +141,30 @@ describe("GOLDEN SET — deterministic safety layer verdicts", () => {
   }
 });
 
+describe("GOLDEN SET — riskType gate cross-check (Faz-B: label tightens, never loosens)", () => {
+  it("a high-stakes riskType label vetoes auto-send even when the model scored everything benign", () => {
+    for (const riskType of ["money_refund", "platform_policy", "review_threat", "safety_emergency", "complaint"]) {
+      const r = { intent: "general", riskLevel: "none", confidence: 0.9, source: "openai", riskType };
+      expect(passesAutoReplySafetyGate(r, "Ordinary looking message")).toBe(false);
+    }
+  });
+
+  it("the designed human_request handoff ack still flows (intent AND label both human_request)", () => {
+    const r = { intent: "human_request", riskLevel: "low", confidence: 0.9, source: "openai", riskType: "human_request" };
+    expect(passesAutoReplySafetyGate(r, "Gerçek bir kişiyle görüşmek istiyorum lütfen")).toBe(true);
+  });
+
+  it("human_request intent with a DIFFERENT high-stakes label holds for a human", () => {
+    const r = { intent: "human_request", riskLevel: "low", confidence: 0.9, source: "openai", riskType: "complaint" };
+    expect(passesAutoReplySafetyGate(r, "Klima bozuk, bir insanla görüşmek istiyorum")).toBe(false);
+  });
+
+  it("null riskType changes nothing (old behavior byte-identical)", () => {
+    const r = { intent: "wifi", riskLevel: "none", confidence: 0.9, source: "openai", riskType: null };
+    expect(passesAutoReplySafetyGate(r, "Merhaba, wifi şifresi nedir?")).toBe(true);
+  });
+});
+
 describe("GOLDEN SET — secret gate (kapı kodu isteyen ONAYSIZ misafir)", () => {
   const KB = [
     { category: "checkin", title: "Giriş", content: "Kapı kodu 8811, keybox şifresi 2244." },

@@ -304,13 +304,6 @@ const SAFETY_CRITICAL_WORDS = [
 ];
 
 /**
- * May a MILD complaint get the automatic tier-2 "holding acknowledgement"?
- * Deliberately conservative: complaint-class only, and NONE of the signals that
- * demand a human's judgement (money, cancellation, wanting a human, review
- * threats, safety emergencies, injection). Anything excluded here still follows
- * the normal escalate-to-host path — this gate only ever WITHHOLDS the ack.
- */
-/**
  * Deterministic riskType label from the keyword nets (Faz-B). Order = severity
  * precedence. A LABEL for UI/reports only — the auto-send gate has its own
  * vetoes and may additionally tighten on it.
@@ -328,6 +321,13 @@ export function detectRiskType(message: string): string | null {
   return null;
 }
 
+/**
+ * May a MILD complaint get the automatic tier-2 "holding acknowledgement"?
+ * Deliberately conservative: complaint-class only, and NONE of the signals that
+ * demand a human's judgement (money, cancellation, wanting a human, review
+ * threats, safety emergencies, injection). Anything excluded here still follows
+ * the normal escalate-to-host path — this gate only ever WITHHOLDS the ack.
+ */
 export function holdingAckBlockedSignals(message: string): boolean {
   if (detectPromptInjection(message)) return true;
   if (matchesIntentKeywords(message, "refund")) return true;
