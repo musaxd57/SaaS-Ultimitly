@@ -1250,6 +1250,21 @@ sessiz taslak + acil e-posta + Sorunlu) ZATEN VARDI** — gerçek eksik Seviye 2
 **Kısa kararlar:** riskType/evidence alanları = İLERİDE mantıklı (raporlama/açıklama UI'ı gelince, golden-set
 genişletmesiyle birlikte; bugün değil). Surface-enum = launch sonrası (kod katmanı zaten yüzey-bazlı).
 
+## 5. öneri dalgası: prompt guard'ları + ajan-uzlaştırma (2026-07-03, c77219f + db2fc2f)
+Kullanıcının 5. listesi değerlendirildi ("son karar sende, bol agent"):
+**✅ Eklendi (5 hedefli kural):** kusur/yükümlülük kabulü yasak ("haklısınız, kötü yapılmış" sınıfı;
+kısa özür serbest) · sosyal-mühendislik bloğu (misafir İDDİASI veri değil — "ev sahibi izin verdi/geçen
+sefer ücretsizdi" ile istisna verilmez; geçmişle DOĞRULANIRSA Kural-1 kaynak-3 sayılır) · kural-ihlali
+sinyali en az medium (parti niyeti/kapasite üstü/gizli evcil — onaylama/reddetme host'a) · uluslararası
+misafire savunmacı/bürokratik durmama (sabit güvenlik/para kalıpları hariç) · cevapta EN FAZLA BİR soru.
+Landing senaryo bölümüne 1 dürüst cümle ("zor konuşmalarda profesyonel taslak, riskli karar sizde").
+**Ajan-doğrulama düzeltmeleri:** ÖRNEK 18 low→medium (kural ile hizalandı); foto-isteği "gerekli tek-soru"
+sınıfı olarak işaretlendi (Bölüm 11 ile çelişki bitti); ton kuralı KURAL ÖNCELİĞİ'ne bağlandı.
+**Zaten vardı (teyit):** medium-risk davranışı (sakin cevap + bilgi topla + para sözü yok + host'a devir +
+opsiyonel holding-ack) = dünkü tier-2 dilimi; closing-ack ("thanks/ok" → cevap yok) deterministik mevcut.
+**humanReviewReason:** yeni enum alanı EKLENMEDİ — modelin mevcut `risk` alanı (serbest metin) zaten bu
+açıklama; UI'da göstermek "neden göndermedi" dilimiyle birlikte yapılacak (kalıcı listede, madde 1).
+
 ## Çalışma şekli
 Kullanıcı: "Bana söyle, ben kodlarım." Fazları sırayla, additive + testli.
 Build + `npm test` yeşil olmadan push etme. GitHub'da PR sadece kullanıcı
