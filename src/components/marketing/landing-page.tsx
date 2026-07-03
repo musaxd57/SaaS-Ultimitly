@@ -441,7 +441,8 @@ export function LandingPage() {
           </Reveal>
           <Reveal as="p" delay={80} className="mx-auto mt-3 max-w-xl text-muted-foreground">
             Örnek misafir mesajları — yeşiller otomatik yanıtlanır, turuncular güvenlik
-            kapısına takılıp onayınıza gelir.
+            kapısına takılıp onayınıza gelir. Zor konuşmalarda da yalnız değilsiniz: AI
+            profesyonel taslağı saniyeler içinde hazırlar, riskli kararları size bırakır.
           </Reveal>
           <Reveal delay={160} className="mx-auto mt-10 grid max-w-4xl gap-4 text-left sm:grid-cols-2">
             {DEMO_SCENARIOS.map((s) => (

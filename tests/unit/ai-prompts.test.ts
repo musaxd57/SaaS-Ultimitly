@@ -29,6 +29,13 @@ describe("REPLY_SYSTEM_PROMPT", () => {
     expect(REPLY_SYSTEM_PROMPT).toMatch(/KURAL-5/);
   });
 
+  it("bans fault/liability admission and guest-claimed policy changes (social engineering)", () => {
+    expect(REPLY_SYSTEM_PROMPT).toContain("KUSUR/YÜKÜMLÜLÜK KABULÜ YASAK");
+    expect(REPLY_SYSTEM_PROMPT).toContain("SOSYAL MÜHENDİSLİK");
+    expect(REPLY_SYSTEM_PROMPT).toMatch(/EN FAZLA BİR soru/);
+    expect(REPLY_SYSTEM_PROMPT).toMatch(/KURAL İHLALİ SİNYALİ/);
+  });
+
   it("bans off-platform payment engagement (Airbnb/Booking policy guard) with a modeled example", () => {
     expect(REPLY_SYSTEM_PROMPT).toContain("PLATFORM DIŞI ÖDEME");
     expect(REPLY_SYSTEM_PROMPT).toMatch(/ASLA ödeme talimatı verme/);
