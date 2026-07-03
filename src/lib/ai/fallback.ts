@@ -205,10 +205,54 @@ function findKb(input: SuggestReplyInput, category: string): string | null {
   return item ? item.content : null;
 }
 
+// ---------------------------------------------------------------------------
+// Deterministic prompt-injection detector — a CODE-side backstop so the
+// auto-send gate never has to trust the model's own injection detection.
+// Conservative, high-precision patterns only (classic jailbreak phrasings and
+// our own << >> delimiters); a false positive merely means a human reviews the
+// message, so over-matching is the safe side — but ordinary guest smalltalk
+// must never hit these.
+// ---------------------------------------------------------------------------
+const INJECTION_PATTERNS: RegExp[] = [
+  /ignore (all |the )?(previous|prior|above|earlier) (instructions|prompts?|rules|messages)/i,
+  /disregard (all |the )?(previous|prior|above|earlier)/i,
+  /forget (all |the )?(previous|prior|above|earlier|your) (instructions|prompts?|rules)/i,
+  /system prompt/i,
+  /developer mode/i,
+  /\bjailbreak\b/i,
+  /you are now (a|an|the|no longer)\b/i,
+  /pretend (to be|you are|you're)/i,
+  /act as (if you|a system|an admin|the admin|the host system)/i,
+  /reveal (your|the) (instructions|prompt|rules)/i,
+  /<<[A-Z_]{2,}>>/, // our own data-fence delimiters injected into a message
+  /önceki (tüm )?talimatları (unut|yok say|görmezden gel|geçersiz kıl)/i,
+  /talimatları (unut|yok say|görmezden gel)/i,
+  /sistem (promptu|mesajı|talimatı)/i,
+  /artık .{0,30}(rolündesin|olarak davran)/i,
+  /yeni rolün/i,
+];
+
+/** True when a guest message contains classic prompt-injection phrasing. */
+export function detectPromptInjection(message: string): boolean {
+  return INJECTION_PATTERNS.some((re) => re.test(message));
+}
+
 export function suggestReplyFallback(input: SuggestReplyInput): SuggestReplyResult {
   const { intent, priority, confidence } = classifyFallback(input.guestMessage);
   const name = input.reservation?.guestName?.split(" ")[0];
   const p = input.property;
+
+  // SECRET GATE — mirrors the model prompt's pre-booking guard so the
+  // deterministic path is at the SAME policy level: access details (Wi-Fi,
+  // entry instructions, full address/directions) are only surfaced for a
+  // CONFIRMED/completed stay. No reservation / pending / cancelled → the
+  // writer may be a prospective guest → use the deferral line even when the
+  // KB has the answer. verifiedActiveStay (QR) counts as verified, but that
+  // surface's KB is already secret-scrubbed upstream anyway.
+  const stayVerified =
+    input.verifiedActiveStay === true ||
+    (input.reservation != null &&
+      (input.reservation.status === "confirmed" || input.reservation.status === "completed"));
 
   // Detect the guest's language (basic heuristic). Default is ENGLISH — Turkish
   // only when clear Turkish markers are present — matching the product policy
@@ -273,7 +317,7 @@ export function suggestReplyFallback(input: SuggestReplyInput): SuggestReplyResu
         : `Our check-out time is ${p.checkOutTime}. A late check-out may be possible depending on the cleaning schedule and the next booking. I'll check and get back to you.`;
       break;
     case "checkin": {
-      const kb = findKb(input, "checkin");
+      const kb = stayVerified ? findKb(input, "checkin") : null;
       body = isTr
         ? kb
           ? `Giriş bilgileri: ${kb}\n\nCheck-in saatimiz ${p.checkInTime}.`
@@ -289,7 +333,7 @@ export function suggestReplyFallback(input: SuggestReplyInput): SuggestReplyResu
         : `Our check-out time is ${p.checkOutTime}. On your way out, simply leave the keys/card in the agreed place.`;
       break;
     case "wifi": {
-      const kb = findKb(input, "wifi");
+      const kb = stayVerified ? findKb(input, "wifi") : null;
       body = isTr
         ? kb ? `Wi-Fi bilgileri: ${kb}` : "Wi-Fi bilgilerini kontrol edip en kısa sürede sizinle paylaşacağım."
         : kb ? `Wi-Fi details: ${kb}` : "I'll check the Wi-Fi details and share them with you shortly.";
@@ -303,8 +347,8 @@ export function suggestReplyFallback(input: SuggestReplyInput): SuggestReplyResu
       break;
     }
     case "location": {
-      const kb = findKb(input, "location");
-      const addr = p.address ? `${p.address}${p.city ? ", " + p.city : ""}` : null;
+      const kb = stayVerified ? findKb(input, "location") : null;
+      const addr = stayVerified && p.address ? `${p.address}${p.city ? ", " + p.city : ""}` : null;
       body = isTr
         ? kb
           ? `Konum bilgisi: ${kb}`

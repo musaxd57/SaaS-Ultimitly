@@ -48,6 +48,13 @@ export interface SuggestReplyInput {
   styleProfile?: string | null;
   /** Neighbouring bookings (same property) for early-checkin/late-checkout calls. */
   adjacency?: AdjacencyContext | null;
+  /**
+   * PUBLIC anonymous surface (QR concierge) where the caller has ALREADY
+   * verified an active stay but deliberately passes no reservation PII.
+   * Suppresses the "prospective guest / complete your booking" framing while
+   * KEEPING the no-secrets policy (it's still an open channel).
+   */
+  verifiedActiveStay?: boolean;
 }
 
 export interface SuggestReplyResult {

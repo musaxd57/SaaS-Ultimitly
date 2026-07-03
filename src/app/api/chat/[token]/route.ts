@@ -211,6 +211,11 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ tok
     // their stay dates. (The host's private "Misafir Sohbetleri" record DOES carry
     // the guest name — that's the host's own booking data.)
     reservation: null,
+    // ...but the stay IS verified (chat only opens during an active booking) —
+    // without this flag the pre-booking guard would treat the current guest as
+    // a prospect and invite them to "complete your booking" mid-stay. Secrets
+    // remain banned either way (public surface; KB is pre-scrubbed upstream).
+    verifiedActiveStay: true,
     knowledgeBase: ctx.knowledgeBase,
     history: [],
     tone: "warm",

@@ -2,7 +2,7 @@ import "server-only";
 import { addDays } from "date-fns";
 import { prisma } from "@/lib/db";
 import { classifyMessage, suggestReply, summarizeHostStyle } from "@/lib/ai";
-import { classifyFallback, isClosingAck } from "@/lib/ai/fallback";
+import { classifyFallback, isClosingAck, detectPromptInjection } from "@/lib/ai/fallback";
 import { sendOnChannel } from "@/lib/messaging";
 import { getOrgHospitableToken } from "@/lib/hospitable-credentials";
 import { getAdjacency } from "@/lib/turnover";
@@ -52,6 +52,11 @@ function passesAutoReplySafetyGate(
   if (fb.isComplaint || fb.intent === "refund" || fb.intent === "early_departure") {
     return false;
   }
+  // Deterministic prompt-injection backstop: never rely on the model to
+  // self-report an injection attempt — if the guest's own words carry classic
+  // jailbreak phrasing, the draft waits for a human no matter what the model
+  // scored. Restrictive-only (can only prevent an auto-send).
+  if (detectPromptInjection(guestMessage)) return false;
   if (result.riskLevel !== "none" && result.riskLevel !== "low") return false;
   return result.confidence >= AUTO_REPLY_MIN_CONFIDENCE;
 }

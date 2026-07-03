@@ -155,6 +155,18 @@ describe("buildReplyUserPrompt", () => {
     expect(free).not.toMatch(/→ DEVİR GÜNÜ/); // no actual turnover day in this case
   });
 
+  it("verifiedActiveStay (QR) suppresses the prospect framing but keeps the no-secrets policy", () => {
+    const out = buildReplyUserPrompt({ ...input, reservation: null, verifiedActiveStay: true });
+    expect(out).toContain("AKTİF KONAKLAMA DOĞRULANDI");
+    // No pre-booking "complete your booking" invitation for a current guest...
+    expect(out).not.toContain("REZERVASYON ONAYLANMAMIŞ");
+    // ...but the open-channel secret ban is stated explicitly.
+    expect(out).toMatch(/kapı kodu.*ASLA yazma/s);
+    // And a confirmed inbox stay gets NEITHER block.
+    const confirmed = buildReplyUserPrompt(input);
+    expect(confirmed).not.toContain("AKTİF KONAKLAMA DOĞRULANDI");
+  });
+
   it("adds the pre-booking guard for unlinked / pending / cancelled context — and NOT for confirmed", () => {
     // Confirmed stay (the fixture): no pre-booking block, access info flows normally.
     expect(prompt).not.toContain("REZERVASYON ONAYLANMAMIŞ");

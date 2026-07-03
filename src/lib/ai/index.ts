@@ -16,6 +16,16 @@ function clamp01(n: number): number {
   return Math.max(0, Math.min(1, n));
 }
 
+// The 14 intents the prompt defines. The auto-send gate works with an intent
+// BLOCKLIST, so a novel/unknown intent string from the model would sail past
+// it — clamp unknowns to "general" AND cap their confidence below the 0.75
+// auto-send floor, so an off-taxonomy answer can never be sent unreviewed.
+const KNOWN_INTENTS = new Set([
+  "complaint", "refund", "early_checkin", "late_checkout", "early_departure",
+  "human_request", "checkin", "checkout", "wifi", "parking", "location",
+  "cleaning", "amenity", "general",
+]);
+
 /**
  * Reasoning (o1/o3/o4…) and GPT-5 family models only accept default sampling and
  * reject a custom `temperature`. Detect them so we can omit that param (and allow
@@ -95,9 +105,13 @@ export async function suggestReply(input: SuggestReplyInput): Promise<SuggestRep
         )
           ? (riskLevelRaw as "none" | "low" | "medium" | "high")
           : "none";
+        const intentRaw = String(parsed.intent ?? "general");
+        const intentKnown = KNOWN_INTENTS.has(intentRaw);
         return {
-          intent: String(parsed.intent ?? "general"),
-          confidence: clamp01(Number(parsed.confidence)),
+          intent: intentKnown ? intentRaw : "general",
+          confidence: intentKnown
+            ? clamp01(Number(parsed.confidence))
+            : Math.min(clamp01(Number(parsed.confidence)), 0.5),
           reply: parsed.reply.trim(),
           risk: typeof parsed.risk === "string" && parsed.risk.trim() ? parsed.risk : null,
           priority,
