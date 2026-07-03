@@ -1265,6 +1265,20 @@ opsiyonel holding-ack) = dünkü tier-2 dilimi; closing-ack ("thanks/ok" → cev
 **humanReviewReason:** yeni enum alanı EKLENMEDİ — modelin mevcut `risk` alanı (serbest metin) zaten bu
 açıklama; UI'da göstermek "neden göndermedi" dilimiyle birlikte yapılacak (kalıcı listede, madde 1).
 
+## 5'li sağlık kontrolü + riskType/evidence yol haritası KARARI (2026-07-03)
+**Kontroller:** (1-3) AI cevap kalitesi/veto/3-seviye = 590 test + golden set kanıtlı (kapı, worst-case
+"model her şeyi zararsız sandı" senaryosunda bile vetoluyor; tier-1/2/3 entegrasyon testli). (4) **Prompt
+maliyeti ölçüldü:** system=35.1k karakter (~12-14k token, STATİK → OpenAI otomatik cache %90 indirim),
+user-turn ~5.5k kr (~2k token) → cevap başına ~₺0.3; 50 cevap/daire/ay ≈ ₺15-17 → CLAUDE.md'deki marj
+hesabı hâlâ geçerli, şişme YOK (kurallar büyüdü ama cache'li prefix'te). (5) Landing demo: senaryo kartları
++ canlı demo + injection çipi dürüst satış hattı; kullanıcı canlıda test etti.
+**riskType/evidence panel fikri = MANTIKLI, kademeli KABUL (kalıcı listeye eklendi, launch-sonrası):**
+Faz-A (küçük şema, additive): `Conversation.skippedReason` + `lastRiskLevel` persist → inbox "neden
+otomatik gönderilmedi" rozeti + Raporlar'a "bu ay N high-risk / risk türü dağılımı / hangi riskler manuel
+çözüldü". Faz-B (model çıktısı genişletme + golden-set kalibrasyonu): `riskType` enum + `usedSources/
+missingInfo` (evidence) → "bu cevap hangi KB'ye dayandı / eksik bilgi ne" ekranları. Gerekçe: host'u
+panele geri getiren yapışkan ekranlar; karar yine kodda kalır (etiket ≠ karar ilkesi).
+
 ## Çalışma şekli
 Kullanıcı: "Bana söyle, ben kodlarım." Fazları sırayla, additive + testli.
 Build + `npm test` yeşil olmadan push etme. GitHub'da PR sadece kullanıcı
