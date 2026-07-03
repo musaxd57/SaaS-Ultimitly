@@ -27,8 +27,10 @@ const AUTO_REPLY_MIN_CONFIDENCE = 0.75;
 // the risk as "low". This is a belt-and-suspenders on top of the riskLevel gate.
 const NEVER_AUTO_REPLY_INTENTS = new Set(["complaint", "refund", "early_departure"]);
 
-/** Only safe, confident drafts may be auto-sent; everything else waits for a human. */
-function passesAutoReplySafetyGate(
+/** Only safe, confident drafts may be auto-sent; everything else waits for a human.
+ * Exported for the golden scenario suite — the gate is the product's core safety
+ * promise, so its verdicts are pinned by fixed test scenarios. */
+export function passesAutoReplySafetyGate(
   result: {
     intent: string;
     riskLevel: string;
@@ -49,7 +51,15 @@ function passesAutoReplySafetyGate(
   // benign, low-risk intent. This catches the dangerous misclassification case
   // (an angry or money/cancellation message labelled e.g. "amenity"/"general").
   const fb = classifyFallback(guestMessage);
-  if (fb.isComplaint || fb.intent === "refund" || fb.intent === "early_departure") {
+  // human_request included: when the guest's own words ask for a real person /
+  // the host, a bot reply is exactly what they did NOT want — even if the model
+  // mislabelled the message as something benign.
+  if (
+    fb.isComplaint ||
+    fb.intent === "refund" ||
+    fb.intent === "early_departure" ||
+    fb.intent === "human_request"
+  ) {
     return false;
   }
   // Deterministic prompt-injection backstop: never rely on the model to

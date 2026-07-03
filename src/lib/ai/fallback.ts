@@ -58,6 +58,15 @@ const KEYWORDS: Record<Exclude<Intent, "general">, string[]> = {
     "разочарован", "течёт", "протекает",
     "sporca", "cattivo odore", "puzza", "non c'è riscaldamento", "rumoroso", "scarafaggi",
     "insetti", "terribile", "pessimo", "deluso", "delusa", "perdita d'acqua",
+    // Bad-review / rating threats — extortion-adjacent, must always reach a human.
+    // THREAT-ANCHORED forms only: bare "kötü ..." already matches via "kötü" above,
+    // and unanchored "1 star"/"negative review" false-positived on compliments
+    // ("4.91 star rating", "siz bir yıldızsınız", "we read a negative review before booking").
+    "yıldız veririm", "yildiz veririm", "yıldız vereceğim", "yildiz verecegim",
+    "bir yıldız ver", "1 yıldız ver", "tek yıldız ver",
+    "leave a bad review", "leave a negative review", "write a bad review",
+    "give you a bad review", "leave you a bad review", "1 star review", "one star review",
+    "leave 1 star", "give 1 star", "one-star review",
   ],
   refund: [
     "iade", "geri ödeme", "geri odeme", "refund", "para iadesi", "ücret iade", "paramı geri",
@@ -72,6 +81,12 @@ const KEYWORDS: Record<Exclude<Intent, "general">, string[]> = {
     "إعادة المال", "restituire i soldi", "soldi indietro",
     // Escalation / chargeback threats — always route to a human, never auto-answer.
     "chargeback", "charge back", "dispute", "resolution center",
+    // OFF-PLATFORM payment asks — an Airbnb/Booking policy landmine for the host;
+    // the bot must never engage. Anchored phrases (not bare "cash"/"iban", which
+    // false-positive: e.g. "Liban").
+    "platform dışı öde", "platform disi ode", "elden ödeme", "elden odeme", "elden nakit",
+    "banka havalesi", "havale yapsam", "havale yapayım", "havale yapayim", "iban gönder", "iban gonder",
+    "pay outside", "pay you directly", "pay in cash instead", "off the platform", "western union",
   ],
   // Leaving the stay EARLY / shortening / cancelling — a revenue/refund-sensitive
   // signal that must always route to a human (also used as an auto-send veto).
@@ -92,7 +107,11 @@ const KEYWORDS: Record<Exclude<Intent, "general">, string[]> = {
   // Guest explicitly wants a real person / the host.
   human_request: [
     "gerçek kişi", "gercek kisi", "gerçek bir kişi", "gercek bir kisi", "bir insanla", "insanla konuş",
-    "yetkiliyle", "temsilci", "ev sahibiyle", "ev sahibi ile", "real person", "real human",
+    "yetkiliyle", "temsilci",
+    // Anchored to talk/reach verbs — a mere MENTION of the host ("ev sahibiyle dün
+    // konuştuk, sorun çözüldü") must not read as a request to reach one.
+    "ev sahibiyle konuş", "ev sahibiyle görüş", "ev sahibi ile konuş", "ev sahibi ile görüş",
+    "ev sahibine ulaş", "ev sahibiyle iletişim", "real person", "real human",
     "speak to a human", "talk to a human", "speak to someone", "talk to someone", "speak to the host",
     "talk to the host",
   ],
@@ -214,20 +233,20 @@ function findKb(input: SuggestReplyInput, category: string): string | null {
 // must never hit these.
 // ---------------------------------------------------------------------------
 const INJECTION_PATTERNS: RegExp[] = [
-  /ignore (all |the )?(previous|prior|above|earlier) (instructions|prompts?|rules|messages)/i,
-  /disregard (all |the )?(previous|prior|above|earlier)/i,
+  /ignore (all |the )?(previous|prior|above|earlier) (instructions|prompts?|rules)/i,
+  /disregard (all |the )?(previous|prior|above|earlier) (instructions|prompts?|rules)/i,
   /forget (all |the )?(previous|prior|above|earlier|your) (instructions|prompts?|rules)/i,
   /system prompt/i,
   /developer mode/i,
   /\bjailbreak\b/i,
-  /you are now (a|an|the|no longer)\b/i,
+  /you are now (a|an) (different|new )?(ai|bot|assistant|system|admin|persona|character)/i,
   /pretend (to be|you are|you're)/i,
   /act as (if you|a system|an admin|the admin|the host system)/i,
   /reveal (your|the) (instructions|prompt|rules)/i,
   /<<[A-Z_]{2,}>>/, // our own data-fence delimiters injected into a message
   /önceki (tüm )?talimatları (unut|yok say|görmezden gel|geçersiz kıl)/i,
   /talimatları (unut|yok say|görmezden gel)/i,
-  /sistem (promptu|mesajı|talimatı)/i,
+  /sistem (promptu|talimatı)/i, // NOT "sistem mesajı" — "Airbnb'den sistem mesajı geldi" is a normal guest sentence
   /artık .{0,30}(rolündesin|olarak davran)/i,
   /yeni rolün/i,
 ];
