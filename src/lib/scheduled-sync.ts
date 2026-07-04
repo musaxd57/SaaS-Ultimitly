@@ -1,5 +1,6 @@
 import "server-only";
 
+import { randomUUID } from "node:crypto";
 import { prisma } from "@/lib/db";
 import { syncHospitable } from "@/lib/hospitable-sync";
 import { HospitableError } from "@/lib/hospitable";
@@ -57,7 +58,14 @@ function zero(): ScheduledSyncTotals {
 }
 
 const LOCK_NAME = "scheduled-sync";
-const LOCK_TTL_MS = 5 * 60 * 1000; // auto-release if a holder crashes mid-run
+// Auto-release if a holder crashes mid-run. Set well ABOVE the worst-case run
+// time (a deep sync of a large multi-listing account with 429 back-offs can take
+// several minutes): if the TTL lapses WHILE a sync is still running, a second
+// run can acquire and execute concurrently — and the non-atomic import dedupe
+// (findFirst-then-create) can then write duplicate rows. 15 min gives ample
+// head-room; the fencing token below stops the overrunning run from clobbering
+// the new owner's lock if it ever does happen.
+const LOCK_TTL_MS = 15 * 60 * 1000;
 
 // Fast in-process guard (same instance) on top of the cross-instance DB lock.
 let running = false;
@@ -69,27 +77,41 @@ let running = false;
 // a restart is a deep one.
 let lastDeepSyncAt = 0;
 
-/** Take the cross-instance lock if it is free; safe to call from any replica. */
-async function acquireLock(): Promise<boolean> {
+/**
+ * Take the cross-instance lock if it is free; safe to call from any replica.
+ * Returns a unique fencing token to whoever wins the lock, or null if the lock
+ * is currently held. The token must be passed back to releaseLock so a run can
+ * only ever release the lock IT holds.
+ */
+async function acquireLock(): Promise<string | null> {
   const now = new Date();
   const until = new Date(now.getTime() + LOCK_TTL_MS);
+  const holder = randomUUID();
   // Ensure the row exists with a past expiry so the first ever run can acquire.
   await prisma.systemLock.upsert({
     where: { name: LOCK_NAME },
     create: { name: LOCK_NAME, lockedUntil: new Date(0) },
     update: {},
   });
-  // Atomic: only one caller's updateMany can match a free lock.
+  // Atomic: only one caller's updateMany can match a free lock. Stamp our token
+  // so releaseLock can verify ownership.
   const res = await prisma.systemLock.updateMany({
     where: { name: LOCK_NAME, lockedUntil: { lte: now } },
-    data: { lockedUntil: until },
+    data: { lockedUntil: until, holder },
   });
-  return res.count === 1;
+  return res.count === 1 ? holder : null;
 }
 
-async function releaseLock(): Promise<void> {
+async function releaseLock(holder: string): Promise<void> {
+  // Fencing: only free the lock if we still hold it. If our TTL had lapsed and a
+  // newer run re-acquired (writing its own token), the WHERE won't match and we
+  // leave the new owner's lock untouched — instead of yanking it out from under
+  // a run that is still going.
   await prisma.systemLock
-    .updateMany({ where: { name: LOCK_NAME }, data: { lockedUntil: new Date(0) } })
+    .updateMany({
+      where: { name: LOCK_NAME, holder },
+      data: { lockedUntil: new Date(0), holder: null },
+    })
     .catch(() => {});
 }
 
@@ -100,11 +122,12 @@ async function releaseLock(): Promise<void> {
  * "Mesajları çek" button to prevent duplicate rows from a manual+cron race.
  */
 export async function withSyncLock<T>(fn: () => Promise<T>): Promise<T | { locked: true }> {
-  if (!(await acquireLock())) return { locked: true };
+  const holder = await acquireLock();
+  if (!holder) return { locked: true };
   try {
     return await fn();
   } finally {
-    await releaseLock();
+    await releaseLock(holder);
   }
 }
 
@@ -117,7 +140,8 @@ export async function runScheduledSync(): Promise<ScheduledSyncTotals> {
   }
   running = true;
   try {
-    if (!(await acquireLock())) {
+    const holder = await acquireLock();
+    if (!holder) {
       return { ...zero(), ok: false, error: "locked" };
     }
     try {
@@ -205,7 +229,7 @@ export async function runScheduledSync(): Promise<ScheduledSyncTotals> {
       }
       return totals;
     } finally {
-      await releaseLock();
+      await releaseLock(holder);
     }
   } finally {
     running = false;

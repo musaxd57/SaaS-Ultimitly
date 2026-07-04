@@ -126,14 +126,30 @@ describe("premiumAllowed — paid/AI feature gate (free-tier downgrade)", () => 
     expect(await premiumAllowed("o")).toBe(false);
   });
 
-  it("past_due grace anchors on updatedAt when currentPeriodEnd is null", async () => {
+  it("past_due grace anchors on pastDueSince (stable), NOT the bumping updatedAt", async () => {
     vi.stubEnv("BILLING_ENFORCED", "true");
     findUnique.mockResolvedValue({
       organizationId: "o",
       planCode: "pro",
       status: "past_due",
       currentPeriodEnd: null,
-      updatedAt: new Date(Date.now() - 2 * 86_400_000), // within grace
+      pastDueSince: new Date(Date.now() - 20 * 86_400_000), // went past_due 20d ago (> 14d grace)
+      updatedAt: new Date(), // a fresh dunning webhook bumped this — must NOT re-open grace
+      createdAt: new Date(Date.now() - 60 * 86_400_000),
+    } as never);
+    expect(await premiumAllowed("o")).toBe(false);
+  });
+
+  it("past_due WITHIN grace via pastDueSince (currentPeriodEnd null) → allowed", async () => {
+    vi.stubEnv("BILLING_ENFORCED", "true");
+    findUnique.mockResolvedValue({
+      organizationId: "o",
+      planCode: "pro",
+      status: "past_due",
+      currentPeriodEnd: null,
+      pastDueSince: new Date(Date.now() - 2 * 86_400_000), // 2d ago, within 14d grace
+      updatedAt: new Date(),
+      createdAt: new Date(Date.now() - 60 * 86_400_000),
     } as never);
     expect(await premiumAllowed("o")).toBe(true);
   });

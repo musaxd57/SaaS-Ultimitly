@@ -29,6 +29,7 @@ export const dynamic = "force-dynamic";
 type PaddleEvent = {
   event_id?: string;
   event_type?: string;
+  occurred_at?: string; // ISO instant the event happened (Paddle-assigned)
   data?: Record<string, unknown>;
 };
 
@@ -46,11 +47,25 @@ function orgIdFromCustomData(data: Record<string, unknown> | undefined): string 
   return null;
 }
 
-async function applySubscriptionEvent(data: Record<string, unknown>): Promise<void> {
+async function applySubscriptionEvent(
+  data: Record<string, unknown>,
+  occurredAt: Date | null,
+): Promise<void> {
   const organizationId = orgIdFromCustomData(data);
   if (!organizationId) return; // not linked yet → recorded only
   const org = await prisma.organization.findUnique({ where: { id: organizationId }, select: { id: true } });
   if (!org) return; // never write against an org that isn't ours
+
+  // Ordering guard: Paddle can deliver events out of order (and retries them).
+  // Never let an OLDER event overwrite a fresher state — a late `subscription.
+  // updated` (past_due) arriving after the `active`/`canceled` that superseded
+  // it would otherwise flip access the wrong way. Only apply an event strictly
+  // newer than the last one we recorded for this org.
+  const existing = await prisma.subscription.findUnique({
+    where: { organizationId },
+    select: { lastEventAt: true, pastDueSince: true },
+  });
+  if (occurredAt && existing?.lastEventAt && occurredAt <= existing.lastEventAt) return;
 
   const providerRef = str(data.id);
   const status = paddleStatusToLocal(str(data.status));
@@ -77,6 +92,14 @@ async function applySubscriptionEvent(data: Record<string, unknown>): Promise<vo
   const scheduled = data.scheduled_change as Record<string, unknown> | undefined;
   const cancelAtPeriodEnd = str(scheduled?.action) === "cancel";
 
+  // Dunning-grace anchor: stamp pastDueSince ONCE on the first transition INTO
+  // past_due and keep it stable across every following dunning retry; clear it
+  // the moment we leave past_due. getEntitlement counts the grace window from
+  // here instead of the auto-bumping updatedAt (which each retry pushed forward,
+  // so the window never elapsed and an unpaid org kept premium indefinitely).
+  const pastDueSince =
+    status === "past_due" ? (existing?.pastDueSince ?? occurredAt ?? new Date()) : null;
+
   await prisma.subscription.upsert({
     where: { organizationId },
     create: {
@@ -87,6 +110,8 @@ async function applySubscriptionEvent(data: Record<string, unknown>): Promise<vo
       providerRef,
       currentPeriodEnd,
       cancelAtPeriodEnd,
+      pastDueSince,
+      lastEventAt: occurredAt,
     },
     update: {
       ...(planCode ? { planCode } : {}),
@@ -99,6 +124,8 @@ async function applySubscriptionEvent(data: Record<string, unknown>): Promise<vo
       // "expired" if future code reads it without checking status.
       ...(status === "active" ? { trialEndsAt: null } : {}),
       cancelAtPeriodEnd,
+      pastDueSince,
+      ...(occurredAt ? { lastEventAt: occurredAt } : {}),
     },
   });
 }
@@ -161,6 +188,8 @@ export async function POST(req: NextRequest) {
 
   const providerEventId = event?.event_id ?? null;
   const eventType = event?.event_type ?? null;
+  const occurredAtRaw = event?.occurred_at ? new Date(event.occurred_at) : null;
+  const occurredAt = occurredAtRaw && !Number.isNaN(occurredAtRaw.getTime()) ? occurredAtRaw : null;
 
   try {
     // Idempotency: only a SUCCESSFULLY processed event is a true duplicate. A row
@@ -187,7 +216,7 @@ export async function POST(req: NextRequest) {
     const data = event?.data;
     if (data && eventType) {
       if (eventType.startsWith("subscription.")) {
-        await applySubscriptionEvent(data);
+        await applySubscriptionEvent(data, occurredAt);
       } else if (eventType === "transaction.completed" || eventType === "transaction.paid") {
         await applyTransactionEvent(data);
       }

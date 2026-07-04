@@ -100,7 +100,11 @@ export async function getEntitlement(organizationId: string): Promise<Entitlemen
   // Paddle retries; when Paddle finally sends `canceled`, status flips and this
   // no longer applies.
   if (sub.status === "past_due") {
-    const anchor = (sub.currentPeriodEnd ?? sub.updatedAt).getTime();
+    // Anchor to a STABLE timestamp: pastDueSince (stamped once when the sub first
+    // went past_due), else the period end it failed on, else createdAt. NEVER
+    // updatedAt — it is @updatedAt, so every dunning webhook bumped it forward
+    // and the grace window never elapsed (an unpaid org kept premium forever).
+    const anchor = (sub.pastDueSince ?? sub.currentPeriodEnd ?? sub.createdAt).getTime();
     if (now <= anchor + PAST_DUE_GRACE_DAYS * 86_400_000) active = true;
   }
   // An expired reverse-trial only loses access once billing is actually

@@ -24,6 +24,10 @@ datasource db {
 model SystemLock {
   name        String   @id
   lockedUntil DateTime
+  // Fencing token: a random value written by whoever currently holds the lock.
+  // releaseLock only clears the row when this still matches its own token, so a
+  // run that overran the TTL can't wipe the lock a newer run has since taken.
+  holder      String?
   updatedAt   DateTime @updatedAt
 }
 
@@ -479,6 +483,15 @@ model Subscription {
   trialEndedSentAt  DateTime? // "deneme bitti" email sent at (idempotency)
   currentPeriodEnd  DateTime?
   cancelAtPeriodEnd Boolean   @default(false)
+  // Stable anchor for the past_due dunning grace: set once on the first
+  // transition INTO past_due, cleared on any non-past_due status. Grace counts
+  // from here instead of the auto-bumping updatedAt (which every dunning webhook
+  // pushed forward, so the window never elapsed → unpaid orgs kept access).
+  pastDueSince      DateTime?
+  // occurred_at of the newest Paddle subscription event we've applied. A later
+  // event whose occurred_at is not newer is ignored, so a late/stale event can't
+  // overwrite a fresher active/canceled state and flip access the wrong way.
+  lastEventAt       DateTime?
   createdAt         DateTime  @default(now())
   updatedAt         DateTime  @updatedAt
 
