@@ -121,7 +121,10 @@ export function paddleStatusToLocal(status: string | null | undefined): string {
     case "canceled":
       return "canceled";
     default:
-      return status ?? "active";
+      // Unknown/missing status → treat as NOT active. Never gift premium access
+      // on an unrecognized value; the 14-day dunning grace still keeps a genuine
+      // paying customer active while their real status is resolved.
+      return "past_due";
   }
 }
 

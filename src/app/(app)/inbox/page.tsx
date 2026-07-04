@@ -23,8 +23,12 @@ export default async function InboxPage({
   searchParams: Promise<{ status?: string; q?: string }>;
 }) {
   const session = await requireAuth();
-  const { status, q } = await searchParams;
-  const query = q?.trim() ?? "";
+  const sp = await searchParams;
+  // Next 15 hands a repeated query param (?status=a&status=b) as string[] at
+  // runtime despite the string typing — take the first so a bare array never
+  // reaches Prisma (would throw on a scalar field) or .trim() (would crash).
+  const status = Array.isArray(sp.status) ? sp.status[0] : sp.status;
+  const query = (Array.isArray(sp.q) ? sp.q[0] : sp.q)?.trim() ?? "";
 
   const [conversations, org, connection] = await Promise.all([
     prisma.conversation.findMany({

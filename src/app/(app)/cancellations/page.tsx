@@ -79,7 +79,9 @@ export default async function CancellationsPage({
 }) {
   const session = await requireAuth();
   const sp = await searchParams;
-  const propertyId = sp.propertyId;
+  // A repeated ?propertyId= arrives as string[] at runtime; take the first so a
+  // bare array never reaches Prisma on this scalar field (would throw).
+  const propertyId = Array.isArray(sp.propertyId) ? sp.propertyId[0] : sp.propertyId;
   const period: Period = PERIODS.some((p) => p.value === sp.period) ? (sp.period as Period) : "all";
   const win = windowFor(period);
 

@@ -1,14 +1,16 @@
 import "server-only";
-import {
-  startOfDay,
-  startOfMonth,
-  endOfMonth,
-  subMonths,
-  addDays,
-  format,
-} from "date-fns";
+import { startOfDay, startOfMonth, endOfMonth } from "date-fns";
 import { prisma } from "@/lib/db";
 import { zonedDayRange } from "@/lib/automation";
+
+// Reporting day/occupancy math is anchored to the host's Istanbul calendar
+// (UTC+3, no DST) — Railway runs UTC and Hospitable stores arrivalDate at
+// Istanbul-midnight-UTC, so bucketing by the server's UTC day shifts month-edge
+// nights by a day. istDayKey returns the Istanbul "YYYY-MM-DD" of an instant;
+// zonedDayRange maps an Istanbul calendar day to its exact UTC boundaries.
+const REPORT_TZ = "Europe/Istanbul";
+const DAY_MS = 24 * 60 * 60 * 1000;
+const istDayKey = (d: Date): string => d.toLocaleDateString("en-CA", { timeZone: REPORT_TZ });
 
 export interface OpsStats {
   arrivalsToday: number;
@@ -140,7 +142,14 @@ export async function getMonthlyReport(orgId: string): Promise<MonthlyReport> {
 
   const [reservations, completedTasks, totalTasks, messagesCount] = await Promise.all([
     prisma.reservation.findMany({
-      where: { ...propertyScope(orgId), arrivalDate: { gte: monthStart, lte: monthEnd } },
+      // Exclude cancelled/pending stays so the monthly count and revenue match
+      // every other surface (dashboard, occupancy, calendar) — a cancellation
+      // must not inflate the reported reservations or income.
+      where: {
+        ...propertyScope(orgId),
+        status: { in: ["confirmed", "completed"] },
+        arrivalDate: { gte: monthStart, lte: monthEnd },
+      },
       select: { totalAmount: true, currency: true, sourceReference: true },
     }),
     prisma.task.count({
@@ -199,11 +208,16 @@ export interface PropertyOccupancy {
 }
 
 export async function getOccupancyByProperty(orgId: string): Promise<PropertyOccupancy[]> {
-  const now = new Date();
-  const thisMonthStart = startOfMonth(now);
-  const thisMonthEnd = endOfMonth(now);
-  const lastMonthStart = startOfMonth(subMonths(now, 1));
-  const lastMonthEnd = endOfMonth(subMonths(now, 1));
+  // Anchor every month/day boundary to the host's Istanbul calendar (not the
+  // server's UTC day). zonedDayRange maps an Istanbul calendar day to its exact
+  // UTC [midnight, 23:59:59.999] instant, so a stay stored at Istanbul-midnight-
+  // UTC lands on the correct night instead of shifting a day at the month edge.
+  const istKey = istDayKey(new Date()); // "YYYY-MM-DD" — today in Istanbul
+  const [iy, im, todayDayOfMonth] = istKey.split("-").map(Number);
+
+  const thisMonthStart = zonedDayRange(new Date(Date.UTC(iy, im - 1, 1)), REPORT_TZ).start;
+  const thisMonthEnd = zonedDayRange(new Date(Date.UTC(iy, im, 0)), REPORT_TZ).end;
+  const lastMonthStart = zonedDayRange(new Date(Date.UTC(iy, im - 2, 1)), REPORT_TZ).start;
 
   const properties = await prisma.property.findMany({
     where: { organizationId: orgId },
@@ -212,26 +226,18 @@ export async function getOccupancyByProperty(orgId: string): Promise<PropertyOcc
 
   // "Occupancy to date": the current month must be measured against the nights
   // ELAPSED so far (1st → today), not the whole month — otherwise a unit booked
-  // solid through the 18th reads ~55% mid-month. "Today" is the host's Istanbul
-  // calendar day, matching the rest of the codebase (zonedDayRange).
-  const istToday = zonedDayRange(now, "Europe/Istanbul").start;
-  const todayDayOfMonth = Number(
-    new Intl.DateTimeFormat("en-CA", {
-      timeZone: "Europe/Istanbul",
-      day: "2-digit",
-    }).format(istToday),
-  );
-
+  // solid through the 18th reads ~55% mid-month.
+  //
   // Cut both windows off at the same day-of-month so the delta is like-for-like
   // (this-month-to-date vs last-month-over-the-same-days). countOccupiedDays
-  // counts each day cur with rangeStart <= cur < rangeEnd, so an exclusive end
-  // at "start of day N" yields exactly the nights of days 1..N-1.
-  const thisMonthCutoff = startOfDay(addDays(thisMonthStart, todayDayOfMonth - 1));
-  const daysInLastMonth = lastMonthEnd.getDate();
+  // counts each Istanbul day cur with rangeStart <= cur < rangeEnd, so an
+  // exclusive end at "Istanbul-midnight of day N" yields exactly days 1..N-1.
+  const thisMonthCutoff = zonedDayRange(new Date(Date.UTC(iy, im - 1, todayDayOfMonth)), REPORT_TZ).start;
+  const daysInLastMonth = new Date(Date.UTC(iy, im - 1, 0)).getUTCDate();
   // Clamp the comparison window to last month's length (e.g. today=31, last
   // month had 30 days → compare the full 30 elapsed nights of last month).
   const lastMonthCutoffDay = Math.min(todayDayOfMonth, daysInLastMonth);
-  const lastMonthCutoff = startOfDay(addDays(lastMonthStart, lastMonthCutoffDay - 1));
+  const lastMonthCutoff = zonedDayRange(new Date(Date.UTC(iy, im - 2, lastMonthCutoffDay)), REPORT_TZ).start;
 
   // Denominators = elapsed nights in each window (days 1..cutoff-1). max(1, …)
   // guards day-1 of the month / empty windows from a divide-by-zero.
@@ -259,6 +265,10 @@ export async function getOccupancyByProperty(orgId: string): Promise<PropertyOcc
     else byProperty.set(r.propertyId, [r]);
   }
 
+  // rangeStart/rangeEnd are UTC instants marking Istanbul-day boundaries. Walk
+  // the stay in Istanbul calendar days (24h steps — Istanbul has no DST) and
+  // collect each distinct Istanbul day-key inside the window; departure day is
+  // exclusive (checkout is not an occupied night).
   function countOccupiedDays(
     reservations: { arrivalDate: Date; departureDate: Date }[],
     rangeStart: Date,
@@ -268,10 +278,10 @@ export async function getOccupancyByProperty(orgId: string): Promise<PropertyOcc
     for (const r of reservations) {
       const start = r.arrivalDate > rangeStart ? r.arrivalDate : rangeStart;
       const end = r.departureDate < rangeEnd ? r.departureDate : rangeEnd;
-      let cur = startOfDay(start);
+      let cur = zonedDayRange(start, REPORT_TZ).start; // Istanbul-midnight of start's day
       while (cur < end) {
-        occupied.add(format(cur, "yyyy-MM-dd"));
-        cur = addDays(cur, 1);
+        occupied.add(istDayKey(cur));
+        cur = new Date(cur.getTime() + DAY_MS);
       }
     }
     return occupied.size;
@@ -411,8 +421,11 @@ export async function getOccupancyForecast(
   orgId: string,
   daysAhead = 30,
 ): Promise<OccupancyForecast> {
-  const today = startOfDay(new Date());
-  const forecastEnd = addDays(today, daysAhead);
+  // Istanbul calendar days (UTC+3, no DST): "today" is the Istanbul-midnight UTC
+  // instant and each day steps 24h, so the overlap test buckets Hospitable stays
+  // (stored at Istanbul-midnight-UTC) on the correct night, not one day early.
+  const today = zonedDayRange(new Date(), REPORT_TZ).start;
+  const forecastEnd = new Date(today.getTime() + daysAhead * DAY_MS);
 
   const [totalProperties, reservations] = await Promise.all([
     prisma.property.count({ where: { organizationId: orgId } }),
@@ -433,9 +446,9 @@ export async function getOccupancyForecast(
 
   const days: DayForecast[] = [];
   for (let i = 0; i < daysAhead; i++) {
-    const day = addDays(today, i);
-    const dayEnd = addDays(day, 1);
-    const dateStr = format(day, "yyyy-MM-dd");
+    const day = new Date(today.getTime() + i * DAY_MS);
+    const dayEnd = new Date(day.getTime() + DAY_MS);
+    const dateStr = istDayKey(day);
 
     // Count distinct properties occupied on this day
     const occupiedProperties = new Set<string>();

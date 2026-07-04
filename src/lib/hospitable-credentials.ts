@@ -86,7 +86,10 @@ export async function getOrgHospitableToken(orgId: string): Promise<string | nul
     const dueForRefresh = org.hospitableTokenExpiresAt.getTime() - TOKEN_REFRESH_BUFFER_MS <= Date.now();
     if (!dueForRefresh) return accessToken;
 
-    return refreshOrgOAuthToken(orgId, org.hospitableRefreshTokenEnc);
+    return refreshOrgOAuthToken(orgId, org.hospitableRefreshTokenEnc, {
+      currentAccessToken: accessToken,
+      expiresAt: org.hospitableTokenExpiresAt,
+    });
   }
 
   // Primary org only: fall back to the global env token (legacy single-tenant).
@@ -101,7 +104,11 @@ export async function getOrgHospitableToken(orgId: string): Promise<string | nul
  * (never throws — this sits on the hot sync/send path, a hiccup here must
  * degrade to "not connected this cycle", not crash the caller).
  */
-async function refreshOrgOAuthToken(orgId: string, refreshTokenEnc: string | null): Promise<string | null> {
+async function refreshOrgOAuthToken(
+  orgId: string,
+  refreshTokenEnc: string | null,
+  fallback?: { currentAccessToken: string; expiresAt: Date },
+): Promise<string | null> {
   const config = getHospitableOAuthConfig();
   if (!config || !refreshTokenEnc) return null; // OAuth not configured / no refresh token stored
 
@@ -117,16 +124,36 @@ async function refreshOrgOAuthToken(orgId: string, refreshTokenEnc: string | nul
     await persistOAuthTokenSet(orgId, tokens);
     return tokens.accessToken;
   } catch (err) {
+    void reportError(`hospitable-oauth-refresh org:${orgId}`, err);
+
     if (err instanceof HospitableOAuthError && err.authFailure) {
       // The refresh token itself is dead (expired/reused/revoked) — the
       // connection cannot self-heal. Clear it so Settings correctly shows
-      // "not connected" and the host is prompted to reconnect, rather than
-      // silently failing to sync/send forever with a token that will never work.
-      await clearOrgHospitableToken(orgId);
+      // "not connected" and the host is prompted to reconnect.
+      //
+      // BUT only if the STORED refresh token is still the exact one we just
+      // failed with. Two overlapping refreshes both send the SAME old token;
+      // Hospitable rotates refresh tokens (single-use), so the winner persists
+      // a fresh token and the loser gets invalid_grant on the now-spent old one.
+      // An unconditional clear here would wipe the winner's just-saved valid
+      // token — comparing the stored blob against ours makes the loser a no-op.
+      const current = await prisma.organization.findUnique({
+        where: { id: orgId },
+        select: { hospitableRefreshTokenEnc: true },
+      });
+      if (current?.hospitableRefreshTokenEnc === refreshTokenEnc) {
+        await clearOrgHospitableToken(orgId);
+      }
+      return null;
     }
-    // Transient failure (network/5xx) — leave the stored refresh token alone,
-    // report it, and let the next cycle try again.
-    void reportError(`hospitable-oauth-refresh org:${orgId}`, err);
+
+    // Transient failure (network/5xx) — leave the stored refresh token alone and
+    // let the next cycle retry. We only refresh inside a small pre-expiry buffer,
+    // so if the current access token hasn't ACTUALLY expired yet, hand it back so
+    // this sync/send cycle still works instead of going dark for a transient blip.
+    if (fallback && fallback.expiresAt.getTime() > Date.now()) {
+      return fallback.currentAccessToken;
+    }
     return null;
   }
 }

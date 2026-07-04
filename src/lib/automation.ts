@@ -81,13 +81,20 @@ export function passesAutoReplySafetyGate(
   // jailbreak phrasing, the draft waits for a human no matter what the model
   // scored. Restrictive-only (can only prevent an auto-send).
   if (detectPromptInjection(guestMessage)) return false;
+  // Deterministic safety-emergency backstop: a message whose OWN words signal a
+  // safety emergency (fire/gas/smoke/injury/bleeding/locked-out…) must reach a
+  // human even when the model under-rated it AND it hit no complaint keyword.
+  // Without this the only path that caught safety was the complaint cross-check,
+  // so "smoke everywhere, the alarm is going off" (no complaint word) could
+  // auto-send a canned reply. Restrictive-only — can only prevent an auto-send.
+  if (detectRiskType(guestMessage) === "safety_emergency") return false;
   // riskType is a LABEL, but a high-stakes label is itself a red flag: if the
   // model names any of these, never auto-send even when it (inconsistently)
   // scored the risk low. Tightens only — an empty/null label changes nothing.
   const HIGH_STAKES_RISK_TYPES = new Set([
     "money_refund", "cancellation", "review_threat", "platform_policy",
     "safety_emergency", "discrimination", "access_security", "prompt_injection",
-    "complaint", "human_request",
+    "complaint", "human_request", "rule_violation",
   ]);
   // Sole exemption: the designed handoff ack — model intent AND label both say
   // human_request. Any OTHER high-stakes label (even alongside a human_request

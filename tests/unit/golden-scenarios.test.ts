@@ -124,6 +124,17 @@ const SCENARIOS: Scenario[] = [
   // --- Manuel rezervasyon ödeme lojistiği: para = insana bırakılır (bilinçli veto) --
   { name: "havale lojistiği (kabul edilen veto — para insana)", message: "Kalan ödemeyi banka havalesi ile yapabilir miyim?", autoSendVeto: true },
   { name: "indirim pazarlığı (kabul edilen veto — para insana)", message: "İki hafta kalacağız, indirim yapabilir misiniz?", autoSendVeto: true },
+
+  // --- Güvenlik acili: ŞİKAYET kelimesi OLMADAN da veto olmalı (safety backstop) --
+  // Bunlar bilerek hiçbir şikayet kelimesi taşımaz; eski kod yalnızca şikayet
+  // cross-check'i üzerinden yakalıyordu, bu yüzden safety_emergency kelime-ağı
+  // gate'e ayrı bir veto olarak eklendi. Model "general/none" dese bile durmalı.
+  { name: "duman + alarm (TR, şikayet kelimesi yok)", message: "Her yer duman içinde, alarm çalıyor", autoSendVeto: true, riskType: "safety_emergency" },
+  { name: "yaralanma (EN, şikayet kelimesi yok)", message: "I fell down the stairs and I'm bleeding, please help.", autoSendVeto: true, riskType: "safety_emergency" },
+  { name: "kilitli kaldı (TR, şikayet kelimesi yok)", message: "Gece yarısı çocuklarla dışarıda kilitli kaldık", autoSendVeto: true, riskType: "safety_emergency" },
+  // Güvenlik tespiti bilinçli olarak AŞIRI-kapsayıcı: masum bir "gaz ocağı"
+  // sorusu bile insana bırakılır (yanlış-pozitifte güvenli taraf = beklet).
+  { name: "gaz ocağı sorusu (bilinçli veto — güvenlik aşırı-kapsayıcı)", message: "Dairede gaz ocağı var mı, yemek yapabilir miyiz?", autoSendVeto: true, riskType: "safety_emergency" },
 ];
 
 describe("GOLDEN SET — deterministic safety layer verdicts", () => {
@@ -154,7 +165,7 @@ describe("GOLDEN SET — deterministic safety layer verdicts", () => {
 
 describe("GOLDEN SET — riskType gate cross-check (Faz-B: label tightens, never loosens)", () => {
   it("a high-stakes riskType label vetoes auto-send even when the model scored everything benign", () => {
-    for (const riskType of ["money_refund", "platform_policy", "review_threat", "safety_emergency", "complaint"]) {
+    for (const riskType of ["money_refund", "platform_policy", "review_threat", "safety_emergency", "complaint", "rule_violation", "cancellation", "discrimination", "access_security"]) {
       const r = { intent: "general", riskLevel: "none", confidence: 0.9, source: "openai", riskType };
       expect(passesAutoReplySafetyGate(r, "Ordinary looking message")).toBe(false);
     }

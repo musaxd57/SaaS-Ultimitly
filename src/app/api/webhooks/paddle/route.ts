@@ -163,21 +163,26 @@ export async function POST(req: NextRequest) {
   const eventType = event?.event_type ?? null;
 
   try {
-    // Idempotency: never process the same event twice.
+    // Idempotency: only a SUCCESSFULLY processed event is a true duplicate. A row
+    // still in "received"/"error" means a prior attempt threw before finishing
+    // (DB hiccup/deadlock) — Paddle WILL retry the same event_id, and we MUST
+    // reprocess it, else the subscription/invoice mutation is lost forever (a
+    // paying customer could stay locked out). The apply handlers are idempotent
+    // (subscription upsert-by-org, invoice dedup-by-providerRef), so re-running
+    // is safe. Upsert reuses the existing row instead of colliding on its id.
     if (providerEventId) {
       const existing = await prisma.webhookEvent.findUnique({ where: { providerEventId } });
-      if (existing) return jsonOk({ ok: true, duplicate: true });
+      if (existing?.status === "processed") return jsonOk({ ok: true, duplicate: true });
+      await prisma.webhookEvent.upsert({
+        where: { providerEventId },
+        create: { provider: "paddle", eventType, providerEventId, payloadJson: rawBody, status: "received" },
+        update: { status: "received", eventType, payloadJson: rawBody, error: null },
+      });
+    } else {
+      await prisma.webhookEvent.create({
+        data: { provider: "paddle", eventType, providerEventId: null, payloadJson: rawBody, status: "received" },
+      });
     }
-
-    await prisma.webhookEvent.create({
-      data: {
-        provider: "paddle",
-        eventType,
-        providerEventId,
-        payloadJson: rawBody,
-        status: "received",
-      },
-    });
 
     const data = event?.data;
     if (data && eventType) {

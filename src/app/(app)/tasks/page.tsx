@@ -22,7 +22,10 @@ export default async function TasksPage({
 }) {
   const session = await requireAuth();
   const canManage = session.role === "owner" || session.role === "manager";
-  const { propertyId } = await searchParams;
+  const sp = await searchParams;
+  // A repeated ?propertyId= param arrives as string[] at runtime; take the first
+  // so a bare array never reaches Prisma on this scalar field (would throw).
+  const propertyId = Array.isArray(sp.propertyId) ? sp.propertyId[0] : sp.propertyId;
 
   const [tasks, properties, reservationsMissingTasks] = await Promise.all([
     prisma.task.findMany({

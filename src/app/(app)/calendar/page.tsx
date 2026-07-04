@@ -73,6 +73,7 @@ export default async function CalendarPage({
       arrivalDate: true,
       departureDate: true,
       sourceReference: true,
+      propertyId: true,
       property: { select: { name: true } },
     },
     orderBy: { arrivalDate: "asc" },
@@ -92,14 +93,14 @@ export default async function CalendarPage({
   type DayInfo = {
     arrivals: { guest: string; property: string }[];
     departures: { guest: string; property: string }[];
-    occupied: number;
+    occupied: Set<string>; // DISTINCT propertyIds occupied that night
   };
   const days = new Map<string, DayInfo>();
   const daysInMonth = new Date(Date.UTC(year, monthNum, 0)).getUTCDate();
   const keyOf = (dayNum: number) =>
     `${year}-${String(monthNum).padStart(2, "0")}-${String(dayNum).padStart(2, "0")}`;
   for (let d = 1; d <= daysInMonth; d++) {
-    days.set(keyOf(d), { arrivals: [], departures: [], occupied: 0 });
+    days.set(keyOf(d), { arrivals: [], departures: [], occupied: new Set() });
   }
   for (const r of reservations) {
     const arrKey = dayKey(r.arrivalDate, tz);
@@ -108,8 +109,11 @@ export default async function CalendarPage({
     days.get(arrKey)?.arrivals.push(entry);
     days.get(depKey)?.departures.push(entry);
     for (const [key, info] of days) {
-      // Occupied nights: arrival day inclusive, departure day exclusive.
-      if (key >= arrKey && key < depKey) info.occupied++;
+      // Occupied nights: arrival day inclusive, departure day exclusive. Track
+      // by propertyId so the badge shows DISTINCT flats occupied — two bookings
+      // for the same flat (or an overlapping manual + iCal row) count once, and
+      // the number can never exceed the apartment total.
+      if (key >= arrKey && key < depKey) info.occupied.add(r.propertyId);
     }
   }
 
@@ -214,12 +218,12 @@ export default async function CalendarPage({
                     >
                       <div className="mb-1 flex items-center justify-between">
                         <span className={cn("font-semibold", isToday && "text-primary")}>{dayNum}</span>
-                        {info.occupied > 0 ? (
+                        {info.occupied.size > 0 ? (
                           <span
                             className="rounded-full bg-primary/10 px-1.5 py-0.5 text-[10px] font-medium text-primary"
-                            title={`${info.occupied}/${totalProperties} daire dolu`}
+                            title={`${info.occupied.size}/${totalProperties} daire dolu`}
                           >
-                            {info.occupied} dolu
+                            {info.occupied.size} dolu
                           </span>
                         ) : null}
                       </div>
