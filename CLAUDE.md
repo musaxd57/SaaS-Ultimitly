@@ -151,26 +151,27 @@ occupancy İstanbul day-key · calendar "N dolu" Set<propertyId> · paddle statu
 yeniden işlenir (upsert; kaybolan abonelik/fatura mutasyonu engellendi) · inbox/tasks/cancellations sayfaları
 tekrarlı query-param (string[]) → tek değere coerce (Prisma/`.trim()` crash guard). **605 test yeşil.**
 
-## ⏳ SIRADAKİ OTURUM — 8-ajan denetimi kalan doğrulanmış bulgular (2026-07-04, UYGULANMADI)
-1. **[şema gerek] Sync fencing + double-sync penceresi** (`scheduled-sync.ts` + `hospitable-sync.ts`):
-   manuel-sync `withSyncLock` in-process `running` flag'ini atlıyor + DB lock TTL 5dk + `releaseLock`
-   sahiplik kontrolsüz → uzun deep-sync'te lock düşer, ikinci sync aynı org'a girer → dedupe non-atomik
-   (findFirst-then-create, `@@unique` YOK) → duplicate satır + P2002. Fix: `SystemLock`'a `holder` kolonu
-   (nullable, migration güvenli) + `releaseLock` `updateMany({where:{name,holder}})` fencing + manuel rota
-   `running` guard'ına saygı. (CLAUDE.md "tek-replica'da gereksiz" demişti ama manuel-bypass TEK-instance de.)
-2. **[şema gerek] Paddle past_due grace çapası** (`billing/subscription.ts:102`): anchor `currentPeriodEnd
-   ?? updatedAt`; `updatedAt` `@updatedAt` → her dunning webhook'unda now'a sıçrar → 14g grace hiç dolmaz,
-   ödemeyen past_due org süresiz premium. Fix: `pastDueSince` (ilk past_due geçişinde bir kez set, üzerine
-   yazma) VEYA `updatedAt`'a asla düşme (createdAt/currentPeriodEnd). (Deferred item ile örtüşür.)
-3. **[şema gereksiz] Paddle webhook occurred_at sıralama:** `applySubscriptionEvent` gelen event'in status'ünü
-   koşulsuz yazıyor; geç gelen bayat `subscription.updated` yeni `active`/`canceled`'ı ezebilir → erişim ters
-   döner. Fix: `occurred_at`/event- zamanı guard'ı (yalnız daha yeni event yazsın).
+## ✅ 8-ajan denetimi 1-3 UYGULANDI (2026-07-04, commit b94cd8a — migration 6)
+1. **Sync fencing** YAPILDI: `SystemLock.holder` (fencing token) + `releaseLock` `updateMany({where:{name,holder}})`
+   ownership-check + TTL 5dk→15dk (uzun deep-sync'in ortada expire olup ikinci sync'i concurrent çalıştırmasını
+   önler). acquireLock artık holder döndürür; withSyncLock/runScheduledSync holder taşır.
+2. **Paddle past_due grace çapası** YAPILDI: `Subscription.pastDueSince` (ilk past_due geçişinde bir kez set,
+   non-past_due'da temizle); `getEntitlement` grace anchor'ı `pastDueSince ?? currentPeriodEnd ?? createdAt`
+   (ASLA `updatedAt` — @updatedAt her dunning'te sıçrayıp grace'i sonsuza uzatıyordu).
+3. **Webhook occurred_at sıralama** YAPILDI: `Subscription.lastEventAt`; `applySubscriptionEvent` occurred_at'i
+   son uygulanandan yeni değilse event'i atlar (bayat event taze active/canceled'ı ezip erişimi ters çeviremez).
+Migration `6_sync_fencing_billing_anchors` = 3 nullable kolon, taze Postgres'te sıfır-drift doğrulandı. 606 test.
+
+## ⏳ SIRADAKİ OTURUM — kalan (KULLANICI/LEGAL kararı)
 4. **[karar/legal] KVKK iCal PII** (`api/calendar/[token]/route.ts:50,54`): public token'lı iCal feed misafir
    TAM ADINI `summary`/`description`'a koyuyor → Airbnb/Google 3. taraflara aktarılıyor (veri-minimizasyonu).
    Fix opsiyonu: adı çıkar, generic "Rezervasyon"/"Dolu". ⚠️ Host kendi Google Takvimi'nde adı görmek isteyebilir
    → KULLANICI KARARI (kod hazır ama ürün/legal tercih).
 5. Temiz çıkanlar (bug YOK): auth/session/IDOR (58 rota), prisma şema/migration drift, KVKK retention/export,
    client-component/form XSS/crash, env-token fallback (unreachable prod'da). Tekrar taramaya gerek az.
+6. **[opsiyonel/büyük] `@@unique([conversationId,externalId])` + `(propertyId,sourceReference)`** — fencing
+   double-sync'i büyük ölçüde kapattı ama dedupe hâlâ app-level (findFirst-then-create). Constraint self-defending
+   yapardı; DOLU tabloya @unique = önce prod dedup ŞART (yoksa boot patlar). Ertelendi.
 
 ## ⏳ ERTELENEN (güvenli ama büyük / karar-migration gerek)
 - Reverse-trial pause-cron (bugün canlı türetiliyor, cron yok — kararla). `@@unique([conversationId,
@@ -188,6 +189,7 @@ tekrarlı query-param (string[]) → tek değere coerce (Prisma/`.trim()` crash 
 4. Paddle: küçük gerçek ödeme birlikte test. AUTO_REPLY: ilk gönderimler birlikte doğrula.
 
 ## Durum
-**605 test yeşil, typecheck temiz, migrate deploy canlıda doğrulanmış.** 6 migration
-(0_init→5_risk_type_evidence) sıfır-drift. Branch = `claude/great-edison-3zqpZ`, origin ile senkron
-(commit a6d3713 = 10-ajan sweep + 8-ajan denetim düzeltmeleri).
+**606 test yeşil, typecheck temiz, migrate deploy canlıda doğrulanmış.** 7 migration
+(0_init→6_sync_fencing_billing_anchors) sıfır-drift (taze Postgres'te doğrulandı). Branch =
+`claude/great-edison-3zqpZ`, origin ile senkron (b94cd8a = sync fencing + Paddle grace anchor +
+webhook event sıralama; a6d3713 = 10-ajan sweep + 8-ajan denetim; hepsi canlıda deploy'lu).
