@@ -70,6 +70,11 @@ model Organization {
   // host as before. OPT-IN per org, default OFF — the landing promise ("complaints
   // are never auto-answered") stays true unless the host knowingly enables this.
   autoHoldingReplyEnabled Boolean @default(false)
+  // iCal privacy: the public per-property calendar feed (subscribed to by Airbnb/
+  // Booking/Google Calendar) HIDES the guest's name by default — KVKK data
+  // minimization, the feed only needs busy/free dates. A host who wants the name
+  // in their own calendar can opt in. Applies to every property feed of the org.
+  icalShowGuestName Boolean @default(false)
   // When true, safe/high-confidence channel (Airbnb / Booking via Hospitable)
   // guest messages are auto-answered; gated to active-hours window in org timezone.
   // Complaints and risky messages always wait for a human.

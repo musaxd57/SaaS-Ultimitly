@@ -11,6 +11,7 @@ import { AiTestCard } from "@/components/settings/ai-test-card";
 import { TestEmailButton } from "@/components/settings/test-email-button";
 import { AlertEmailForm } from "@/components/settings/alert-email-form";
 import { AutomationPrefsForm } from "@/components/settings/automation-prefs-form";
+import { IcalPrivacyForm } from "@/components/settings/ical-privacy-form";
 import { AccountCard } from "@/components/settings/account-card";
 import { TwoFactorCard } from "@/components/settings/two-factor-card";
 import { HospitableConnectCard } from "@/components/settings/hospitable-connect-card";
@@ -53,6 +54,7 @@ export default async function SettingsPage({
         alertEmail: true,
         autoReplyDisclosure: true,
         autoHoldingReplyEnabled: true,
+        icalShowGuestName: true,
         handoffHoldHours: true,
         autoWelcome: true,
         autoCheckin: true,
@@ -274,6 +276,15 @@ export default async function SettingsPage({
             holdHours={org?.handoffHoldHours ?? 12}
             holdingAck={org?.autoHoldingReplyEnabled ?? false}
           />
+        </CardContent>
+      </Card>
+
+      <Card className="max-w-2xl">
+        <CardHeader>
+          <CardTitle className="text-base">Takvim Akışı Gizliliği</CardTitle>
+        </CardHeader>
+        <CardContent>
+          <IcalPrivacyForm showGuestName={org?.icalShowGuestName ?? false} />
         </CardContent>
       </Card>
 

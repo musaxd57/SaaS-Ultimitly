@@ -92,6 +92,38 @@ export function buildIcsCalendar(calendarName: string, events: IcsEvent[]): stri
   return lines.map(foldLine).join("\r\n") + "\r\n";
 }
 
+export type IcalReservation = {
+  id: string;
+  guestName: string;
+  arrivalDate: Date;
+  departureDate: Date;
+  channel: string | null;
+  sourceReference: string | null;
+};
+
+/**
+ * Build the VEVENT list for a property's public feed. Pure + testable. When
+ * showGuestName is false (the default), the guest's name is omitted from BOTH
+ * the summary and the description, so no guest PII leaves the system in a feed
+ * that third parties (Airbnb / Booking / Google) subscribe to — only busy dates.
+ */
+export function buildIcalEvents(reservations: IcalReservation[], showGuestName: boolean): IcsEvent[] {
+  return reservations.map((r) => ({
+    uid: `${r.id}@guestops-ai`,
+    summary: showGuestName && r.guestName ? `Rezervasyon — ${r.guestName}` : "Rezervasyon",
+    start: r.arrivalDate,
+    end: r.departureDate,
+    description: [
+      showGuestName && r.guestName ? `Misafir: ${r.guestName}` : null,
+      r.channel ? `Kanal: ${r.channel}` : null,
+      r.sourceReference ? `Referans: ${r.sourceReference}` : null,
+    ]
+      .filter(Boolean)
+      .join("\n"),
+    allDay: true,
+  }));
+}
+
 /** Generate a hard-to-guess token for a public calendar feed URL. */
 export function generateCalendarToken(): string {
   // Two UUIDs (without dashes) give a 64-char, 256-bit-ish secret.

@@ -1,6 +1,6 @@
 import { type NextRequest } from "next/server";
 import { prisma } from "@/lib/db";
-import { buildIcsCalendar, type IcsEvent } from "@/lib/export/ics";
+import { buildIcsCalendar, buildIcalEvents } from "@/lib/export/ics";
 import { rateLimit, clientIp } from "@/lib/rate-limit";
 
 export const dynamic = "force-dynamic";
@@ -34,6 +34,7 @@ export async function GET(
   const property = await prisma.property.findUnique({
     where: { icalToken: token },
     include: {
+      organization: { select: { icalShowGuestName: true } },
       reservations: {
         where: { status: { in: ["confirmed", "completed", "pending"] } },
         orderBy: { arrivalDate: "asc" },
@@ -45,20 +46,12 @@ export async function GET(
     return new Response("Not found", { status: 404 });
   }
 
-  const events: IcsEvent[] = property.reservations.map((r) => ({
-    uid: `${r.id}@guestops-ai`,
-    summary: r.status === "cancelled" ? `İptal — ${r.guestName}` : `Rezervasyon — ${r.guestName}`,
-    start: r.arrivalDate,
-    end: r.departureDate,
-    description: [
-      r.guestName ? `Misafir: ${r.guestName}` : null,
-      r.channel ? `Kanal: ${r.channel}` : null,
-      r.sourceReference ? `Referans: ${r.sourceReference}` : null,
-    ]
-      .filter(Boolean)
-      .join("\n"),
-    allDay: true,
-  }));
+  // KVKK data-minimization: this feed is handed to third parties (Airbnb, Booking,
+  // Google), so the guest's real name is HIDDEN by default — the block-dates use
+  // case only needs busy windows. A host can opt in (per-org setting) to see the
+  // name in their own calendar.
+  const showGuestName = property.organization?.icalShowGuestName ?? false;
+  const events = buildIcalEvents(property.reservations, showGuestName);
 
   const ics = buildIcsCalendar(`${property.name} — Lixus AI`, events);
 
