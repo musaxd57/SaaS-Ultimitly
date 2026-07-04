@@ -1334,6 +1334,36 @@ Faz-B kod incelemesi + E2E ajanı + 601 testle örtülü; istenirse limit sıfı
 - Deploy-ajan takipleri: schema başlığındaki bayat "db push" notu düzeltildi; .env.example'a 13 eksik env
   (DATA_RETENTION_MONTHS + TRIAL_EMAILS_ENABLED prod'da canlı ve belgesizdi) + TRUST_CF_HEADER eklendi.
 
+## 10-ajan gece taraması: 3 rapor geldi, 7'si limite takıldı — BULGULAR SIRADAKİ OTURUMA (2026-07-03 gece)
+Kullanıcı "20 agent, hata ara" dedi; 10 sıkı-formatlı ajan başlatıldı, platform 5h-limiti 7'sini kesti
+(22:20 UTC reset). Biten 3'ünün DOĞRULANMIŞ bulguları — **sıradaki oturum bunları uygulasın:**
+**A) Hospitable OAuth (öncelik 1 — bağlantı kaybettirebilir):**
+1. `hospitable-credentials.ts` refreshOrgOAuthToken catch'i: eşzamanlı iki refresh'te kaybeden
+   invalid_grant alıp KAZANANIN yeni token'ını da siliyor → clear'ı KOŞULLU yap (DB'deki
+   hospitableRefreshTokenEnc hâlâ başarısız olan parametreyle AYNIYSA sil; değiştiyse dokunma).
+2. Aynı dosya ~:87: 2-dk buffer penceresinde refresh transient-fail olursa null dönüyor ama eski
+   access token hâlâ GEÇERLİ (expiresAt > now) → o durumda mevcut accessToken'ı döndür.
+3. (Ertelendi/defansif) hospitable.ts:65 env-token fallback'i boş-string token'da devreye girebilir —
+   bugün hiçbir çağıran boş geçmiyor (getOrgHospitableToken null döner, çağıranlar skip eder). Not olarak dursun.
+**B) Rapor/sayı tutarlılığı (kullanıcıya yanlış rakam gösterir):**
+4. `calendar/page.tsx` ~:110: "N dolu" rezervasyon sayıyor, distinct DAİRE değil (dupe satırlar
+   totalProperties'i aşabilir) → gün başına Set<propertyId> (select'e propertyId ekle).
+5. `reports.ts` getMonthlyReport: status filtresi YOK — iptaller sayıyı/geliri şişiriyor →
+   `status: { in: ["confirmed","completed"] }` ekle (diğer tüm yüzeylerle hizala).
+6. `reports.ts` getOccupancyByProperty ~:203: ay penceresi UTC startOfMonth ama todayDayOfMonth
+   İstanbul → ayın 1'i 00:00-03:00 İstanbul'da YANLIŞ ay; İstanbul Y-M'den türet (cancellations gibi).
+7. `reports.ts` countOccupiedDays ~:271: geceleri server-UTC gününe bucket'lıyor (İstanbul-gecesi
+   satırlar önceki UTC gününe kayıyor) → İstanbul day-key kullan.
+8. (Bilinçli fark — DOKUNMA): dashboard "Doluluk (bugün)" çıkış-günü-DAHİL, takvim "N dolu"
+   gece-bazlı (çıkış-hariç) — etiketleri zaten farklı, semantik bilinçli.
+**C) Paddle (düşük, HMAC arkasında):**
+9. `payments/paddle.ts:124` null/bilinmeyen Paddle status → "active" düşüyor; "past_due"a çevir
+   (grace sayesinde müşteri yine aktif kalır, ama bilinmeyen durum erişim HEDİYE etmez).
+10. (Ertelendi — şema ister): webhook occurred_at sıralama kontrolü + past_due grace'ine
+    `pastDueSince` çapası (updatedAt her dunning'de kayıyor; currentPeriodEnd null'ken sınırsız kayabilir).
+**Diğer 7 ajanın kapsamı** (QR, auth, KVKK, lifecycle senders, frontend, test-kalitesi, copy) limit
+sonrası istenirse tekrar koşulur — çoğu daha önceki denetimlerle kısmen örtülü.
+
 ## Çalışma şekli
 Kullanıcı: "Bana söyle, ben kodlarım." Fazları sırayla, additive + testli.
 Build + `npm test` yeşil olmadan push etme. GitHub'da PR sadece kullanıcı
