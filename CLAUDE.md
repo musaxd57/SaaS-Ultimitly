@@ -126,7 +126,8 @@ izolasyonu yeniden tasarlanmalı. Partner Portal: partners.hospitable.com. Sessi
 Panel: dashboard (AI özet, 6-adım onboarding sağlık kontrolü), inbox (AI-öner + risk rozeti), Mesajlar,
 Misafir Sohbetleri (QR concierge, kapalı-doğumlu), Gönderilenler, Görevler (Kanban), **Takvim** (/calendar,
 aylık grid), İptaller, Mülkler (readiness "N/5 hazır" rozeti), **Bilgi Tabanı** (6 hazır şablon çipi),
-Şablonlar, Raporlar (donut doluluk + AI risk görünümü + risk türleri), Ayarlar. Operatör paneli: müşteri
+Şablonlar, Raporlar (donut doluluk + AI risk görünümü + risk türleri), Ayarlar (+ "Takvim Akışı Gizliliği" =
+iCal feed'de misafir-adı gizleme toggle'ı, default gizli). Operatör paneli: müşteri
 yönetimi + impersonation + **Lead mini-CRM** (status/note/followUpAt + WhatsApp linki). Landing: 3-seviye
 dürüst senaryo kartları + env-gated canlı AI demo + injection çipi. QR concierge: rezervasyon-penceresi
 (aktif konaklama boyunca), secret-free KB, escalate. Returning-guest rozeti (guest.id ile). KVKK: export,
@@ -164,16 +165,20 @@ Migration `6_sync_fencing_billing_anchors` = 3 nullable kolon, taze Postgres'te 
 **4-ajan adversarial doğrulama:** üçü de doğru onaylandı; +3 güvenli cila (webhook `<` guard, null-providerRef
 fatura guard, occupancy delta off-by-one pre-existing) + fencing testi eklendi (commit 1d112f7). 607 test.
 
-## ⏳ SIRADAKİ OTURUM — kalan (KULLANICI/LEGAL kararı)
-4. **[karar/legal] KVKK iCal PII** (`api/calendar/[token]/route.ts:50,54`): public token'lı iCal feed misafir
-   TAM ADINI `summary`/`description`'a koyuyor → Airbnb/Google 3. taraflara aktarılıyor (veri-minimizasyonu).
-   Fix opsiyonu: adı çıkar, generic "Rezervasyon"/"Dolu". ⚠️ Host kendi Google Takvimi'nde adı görmek isteyebilir
-   → KULLANICI KARARI (kod hazır ama ürün/legal tercih).
+## ✅ KVKK iCal PII UYGULANDI (2026-07-04, commit 282cfec — migration 7)
+Kullanıcı ürün-kararı: iCal feed'de misafir adı VARSAYILAN GİZLİ. `Organization.icalShowGuestName`
+(default false; NOT NULL DEFAULT false → dolu tabloda güvenli backfill, taze Postgres'te sıfır-drift).
+`buildIcalEvents(reservations, showGuestName)` `lib/export/ics.ts`'e taşındı (pure, testli — ad kapalıyken
+summary "Rezervasyon", description'da SADECE kanal/referans; ad hiçbir yerde sızmıyor). Ayarlar → "Takvim
+Akışı Gizliliği" toggle (host isterse açar). 609 test.
+
+## ⏳ SIRADAKİ OTURUM — kalan (opsiyonel / karar)
 5. Temiz çıkanlar (bug YOK): auth/session/IDOR (58 rota), prisma şema/migration drift, KVKK retention/export,
    client-component/form XSS/crash, env-token fallback (unreachable prod'da). Tekrar taramaya gerek az.
-6. **[opsiyonel/büyük] `@@unique([conversationId,externalId])` + `(propertyId,sourceReference)`** — fencing
-   double-sync'i büyük ölçüde kapattı ama dedupe hâlâ app-level (findFirst-then-create). Constraint self-defending
-   yapardı; DOLU tabloya @unique = önce prod dedup ŞART (yoksa boot patlar). Ertelendi.
+6. **[opsiyonel/büyük — BİLİNÇLİ ERTELENDİ] `@@unique([conversationId,externalId])` + `(propertyId,
+   sourceReference)`** — fencing double-sync'i büyük ölçüde kapattı ama dedupe hâlâ app-level (findFirst-then-
+   create). Constraint self-defending yapardı AMA DOLU tabloya @unique = boot'ta patlar → önce prod-dedup ŞART
+   (buradan güvenle yapılamaz). Karar: ŞİMDİ EKLEME; ilerde ayrı, elle-doğrulanan dedup+constraint migration'ı ile.
 
 ## ⏳ ERTELENEN (güvenli ama büyük / karar-migration gerek)
 - Reverse-trial pause-cron (bugün canlı türetiliyor, cron yok — kararla). `@@unique([conversationId,
@@ -191,8 +196,8 @@ fatura guard, occupancy delta off-by-one pre-existing) + fencing testi eklendi (
 4. Paddle: küçük gerçek ödeme birlikte test. AUTO_REPLY: ilk gönderimler birlikte doğrula.
 
 ## Durum
-**607 test yeşil, typecheck temiz, migrate deploy canlıda doğrulanmış.** 7 migration
-(0_init→6_sync_fencing_billing_anchors) sıfır-drift (taze Postgres'te doğrulandı). Branch =
-`claude/great-edison-3zqpZ`, origin ile senkron (1d112f7 = doğrulama-turu cilası; b94cd8a = sync
-fencing + Paddle grace anchor + webhook sıralama; a6d3713 = 10-ajan sweep + 8-ajan denetim; hepsi
-canlıda deploy'lu).
+**609 test yeşil, typecheck temiz, migrate deploy canlıda doğrulanmış.** 8 migration
+(0_init→7_ical_hide_guest_name) sıfır-drift (taze Postgres'te doğrulandı). Branch =
+`claude/great-edison-3zqpZ`, origin ile senkron (282cfec = iCal PII gizliliği; 1d112f7 = doğrulama-turu
+cilası; b94cd8a = sync fencing + Paddle grace anchor + webhook sıralama; a6d3713 = 10-ajan sweep + 8-ajan
+denetim; hepsi canlıda deploy'lu).
