@@ -160,7 +160,9 @@ tekrarlı query-param (string[]) → tek değere coerce (Prisma/`.trim()` crash 
    (ASLA `updatedAt` — @updatedAt her dunning'te sıçrayıp grace'i sonsuza uzatıyordu).
 3. **Webhook occurred_at sıralama** YAPILDI: `Subscription.lastEventAt`; `applySubscriptionEvent` occurred_at'i
    son uygulanandan yeni değilse event'i atlar (bayat event taze active/canceled'ı ezip erişimi ters çeviremez).
-Migration `6_sync_fencing_billing_anchors` = 3 nullable kolon, taze Postgres'te sıfır-drift doğrulandı. 606 test.
+Migration `6_sync_fencing_billing_anchors` = 3 nullable kolon, taze Postgres'te sıfır-drift doğrulandı.
+**4-ajan adversarial doğrulama:** üçü de doğru onaylandı; +3 güvenli cila (webhook `<` guard, null-providerRef
+fatura guard, occupancy delta off-by-one pre-existing) + fencing testi eklendi (commit 1d112f7). 607 test.
 
 ## ⏳ SIRADAKİ OTURUM — kalan (KULLANICI/LEGAL kararı)
 4. **[karar/legal] KVKK iCal PII** (`api/calendar/[token]/route.ts:50,54`): public token'lı iCal feed misafir
@@ -189,7 +191,8 @@ Migration `6_sync_fencing_billing_anchors` = 3 nullable kolon, taze Postgres'te 
 4. Paddle: küçük gerçek ödeme birlikte test. AUTO_REPLY: ilk gönderimler birlikte doğrula.
 
 ## Durum
-**606 test yeşil, typecheck temiz, migrate deploy canlıda doğrulanmış.** 7 migration
+**607 test yeşil, typecheck temiz, migrate deploy canlıda doğrulanmış.** 7 migration
 (0_init→6_sync_fencing_billing_anchors) sıfır-drift (taze Postgres'te doğrulandı). Branch =
-`claude/great-edison-3zqpZ`, origin ile senkron (b94cd8a = sync fencing + Paddle grace anchor +
-webhook event sıralama; a6d3713 = 10-ajan sweep + 8-ajan denetim; hepsi canlıda deploy'lu).
+`claude/great-edison-3zqpZ`, origin ile senkron (1d112f7 = doğrulama-turu cilası; b94cd8a = sync
+fencing + Paddle grace anchor + webhook sıralama; a6d3713 = 10-ajan sweep + 8-ajan denetim; hepsi
+canlıda deploy'lu).
