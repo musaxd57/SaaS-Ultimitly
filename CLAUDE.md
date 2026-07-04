@@ -172,6 +172,18 @@ Kullanıcı ürün-kararı: iCal feed'de misafir adı VARSAYILAN GİZLİ. `Organ
 summary "Rezervasyon", description'da SADECE kanal/referans; ad hiçbir yerde sızmıyor). Ayarlar → "Takvim
 Akışı Gizliliği" toggle (host isterse açar). 609 test.
 
+## ⚠️ BİLİNÇLİ TAVİZLER — canlıda izle (2026-07-04)
+Bu oturumun iki düzeltmesi kasıtlı bir maliyet taşıyor; gerçek kullanımda izle, sorun olursa incelt:
+1. **AI güvenlik kapısı AŞIRI-KAPSAYICI:** `passesAutoReplySafetyGate`'e eklenen `detectRiskType(msg)===
+   "safety_emergency"` deterministik veto, masum güvenlik-kelimeli soruları da (ör. "gaz ocağı var mı?",
+   "yangın merdiveni nerede?") insana bırakır → host beklenenden çok "beklet/Sorunlu" görebilir. Felsefeye
+   uygun (riskli=insana) ama gerçek taviz. Çok false-hold olursa: `safety_emergency`'yi bağlam/soru-kalıbıyla
+   incelt (bare-word `SAFETY_CRITICAL_WORDS` yerine "acil + risk sinyali" kombinasyonu).
+2. **Sync kilidi TTL 5dk→15dk** (`scheduled-sync.ts` `LOCK_TTL_MS`): gerçek bir process çökmesinde sync
+   toparlanması 15dk'ya kadar gecikir (eskiden 5dk). Deep-sync ortada expire olup ikinci sync'i concurrent
+   çalıştırmasın + duplicate satır olmasın diye bilinçli. Sorun olursa: sabit TTL yerine kilit HEARTBEAT'i
+   (org-loop içinde `lockedUntil`'i periyodik uzat) daha iyi çözüm — fencing token zaten mevcut.
+
 ## ⏳ SIRADAKİ OTURUM — kalan (opsiyonel / karar)
 5. Temiz çıkanlar (bug YOK): auth/session/IDOR (58 rota), prisma şema/migration drift, KVKK retention/export,
    client-component/form XSS/crash, env-token fallback (unreachable prod'da). Tekrar taramaya gerek az.
