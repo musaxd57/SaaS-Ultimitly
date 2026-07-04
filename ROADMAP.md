@@ -58,7 +58,7 @@ Reverse-trial: 14 gün Pro ücretsiz → ödemezse "ücretsiz sürüme" düşer 
 Fiyat: **₺449 / ₺899 / ₺1.699** (düz-tier, İşletme 25 daireye kadar).
 **✅ Yapıldı:** tablolar + entitlement · webhook (imza/idempotent) + checkout UI · sandbox
 uçtan-uca · reverse-trial + freemium (`BILLING_ENFORCED` canlı) · self-serve kayıt + e-posta
-doğrulama · **KYB onayı GEÇTİ + production env CANLI** (pdl_live key, www webhook aktif).
+doğrulama · **KYB onayı GEÇTİ + production env CANLI** (canlı Paddle anahtarı, www webhook aktif).
 - [ ] **İlk gerçek ödeme testi** (prod price id + secret teyidi + küçük canlı ödeme birlikte)
 - [ ] e-Arşiv/fatura akışı (mali müşavire danış)
 
