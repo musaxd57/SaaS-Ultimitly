@@ -141,21 +141,36 @@ retention/anonimleştirme, orphan-sweep, kayıt onay kutusu.
   varyasyon getir. Kararı kullanıcıya değil, uygula ("sen yap").
 - **Persist:** önemli kararlar repoya (CLAUDE.md) yazılır — ephemeral web ortamında en güvenilir hafıza.
 
-## ⏳ SIRADAKİ OTURUM — 10-ajan gece taraması doğrulanmış bulguları (2026-07-03, henüz UYGULANMADI)
-Kod ile doğrulanmış, uygulanmayı bekliyor (önem sırası):
-1. **[Öncelik-1] `hospitable-credentials.ts` refreshOrgOAuthToken:** eşzamanlı iki refresh'te kaybeden
-   invalid_grant alıp KAZANANIN yeni token'ını siliyor → clear'ı KOŞULLU yap (DB'deki refreshTokenEnc
-   hâlâ başarısız olanla AYNIYSA sil). + transient-fail'de expiresAt>now ise eski accessToken'ı döndür.
-2. **`reports.ts` getMonthlyReport:** status filtresi YOK → iptaller sayı/geliri şişiriyor →
-   `status:{in:["confirmed","completed"]}` ekle. Diğer surface'lerle hizala.
-3. **`reports.ts` getOccupancyByProperty/countOccupiedDays:** UTC startOfMonth + UTC gün-bucket ama
-   todayDayOfMonth İstanbul → ayın 1'i gece yanlış ay; gece satırları yanlış güne kayıyor → İstanbul
-   day-key kullan (cancellations/page.tsx gibi).
-4. **`calendar/page.tsx` "N dolu":** rezervasyon sayıyor, distinct DAİRE değil → gün başına Set<propertyId>.
-5. **`payments/paddle.ts` status map:** null/bilinmeyen → "active"; "past_due"a çevir (erişim hediye etme).
-6. (Ertelendi/şema): Paddle webhook occurred_at sıralama + `pastDueSince` çapası. hospitable.ts:65 env-fallback
-   boş-token guard (bugün zararsız). **Kalan 7 ajan** (QR/auth/KVKK/lifecycle/frontend/test/copy) limit
-   yedi → tekrar koşulabilir (çoğu önceki denetimlerle kısmen örtülü).
+## ✅ 10-ajan sweep bulguları UYGULANDI (2026-07-04, commit a6d3713)
+1-5 (hospitable OAuth refresh koşullu-clear + transient reuse · reports monthly status filtresi · reports
+occupancy İstanbul day-key · calendar "N dolu" Set<propertyId> · paddle status default past_due) **YAPILDI**.
++ Bu turda 8-ajan denetiminden doğrulanıp uygulanan ekstralar: reports.getOccupancyForecast aynı UTC-vs-
+İstanbul gün-bucket bug'ı (İstanbul day-key'e çevrildi) · AI GATE: safety_emergency deterministik backstop
+(şikayet kelimesi olmayan acil mesaj artık kesin veto) + `rule_violation` HIGH_STAKES set'e eklendi (golden
++4 senaryo) · paddle webhook: sadece "processed" satır gerçek duplicate → received/error satır retry'de
+yeniden işlenir (upsert; kaybolan abonelik/fatura mutasyonu engellendi) · inbox/tasks/cancellations sayfaları
+tekrarlı query-param (string[]) → tek değere coerce (Prisma/`.trim()` crash guard). **605 test yeşil.**
+
+## ⏳ SIRADAKİ OTURUM — 8-ajan denetimi kalan doğrulanmış bulgular (2026-07-04, UYGULANMADI)
+1. **[şema gerek] Sync fencing + double-sync penceresi** (`scheduled-sync.ts` + `hospitable-sync.ts`):
+   manuel-sync `withSyncLock` in-process `running` flag'ini atlıyor + DB lock TTL 5dk + `releaseLock`
+   sahiplik kontrolsüz → uzun deep-sync'te lock düşer, ikinci sync aynı org'a girer → dedupe non-atomik
+   (findFirst-then-create, `@@unique` YOK) → duplicate satır + P2002. Fix: `SystemLock`'a `holder` kolonu
+   (nullable, migration güvenli) + `releaseLock` `updateMany({where:{name,holder}})` fencing + manuel rota
+   `running` guard'ına saygı. (CLAUDE.md "tek-replica'da gereksiz" demişti ama manuel-bypass TEK-instance de.)
+2. **[şema gerek] Paddle past_due grace çapası** (`billing/subscription.ts:102`): anchor `currentPeriodEnd
+   ?? updatedAt`; `updatedAt` `@updatedAt` → her dunning webhook'unda now'a sıçrar → 14g grace hiç dolmaz,
+   ödemeyen past_due org süresiz premium. Fix: `pastDueSince` (ilk past_due geçişinde bir kez set, üzerine
+   yazma) VEYA `updatedAt`'a asla düşme (createdAt/currentPeriodEnd). (Deferred item ile örtüşür.)
+3. **[şema gereksiz] Paddle webhook occurred_at sıralama:** `applySubscriptionEvent` gelen event'in status'ünü
+   koşulsuz yazıyor; geç gelen bayat `subscription.updated` yeni `active`/`canceled`'ı ezebilir → erişim ters
+   döner. Fix: `occurred_at`/event- zamanı guard'ı (yalnız daha yeni event yazsın).
+4. **[karar/legal] KVKK iCal PII** (`api/calendar/[token]/route.ts:50,54`): public token'lı iCal feed misafir
+   TAM ADINI `summary`/`description`'a koyuyor → Airbnb/Google 3. taraflara aktarılıyor (veri-minimizasyonu).
+   Fix opsiyonu: adı çıkar, generic "Rezervasyon"/"Dolu". ⚠️ Host kendi Google Takvimi'nde adı görmek isteyebilir
+   → KULLANICI KARARI (kod hazır ama ürün/legal tercih).
+5. Temiz çıkanlar (bug YOK): auth/session/IDOR (58 rota), prisma şema/migration drift, KVKK retention/export,
+   client-component/form XSS/crash, env-token fallback (unreachable prod'da). Tekrar taramaya gerek az.
 
 ## ⏳ ERTELENEN (güvenli ama büyük / karar-migration gerek)
 - Reverse-trial pause-cron (bugün canlı türetiliyor, cron yok — kararla). `@@unique([conversationId,
@@ -173,5 +188,6 @@ Kod ile doğrulanmış, uygulanmayı bekliyor (önem sırası):
 4. Paddle: küçük gerçek ödeme birlikte test. AUTO_REPLY: ilk gönderimler birlikte doğrula.
 
 ## Durum
-**601 test yeşil, build+typecheck temiz, migrate deploy canlıda doğrulanmış.** 6 migration
-(0_init→5_risk_type_evidence) sıfır-drift. Branch = `claude/great-edison-3zqpZ`, origin ile senkron.
+**605 test yeşil, typecheck temiz, migrate deploy canlıda doğrulanmış.** 6 migration
+(0_init→5_risk_type_evidence) sıfır-drift. Branch = `claude/great-edison-3zqpZ`, origin ile senkron
+(commit a6d3713 = 10-ajan sweep + 8-ajan denetim düzeltmeleri).
