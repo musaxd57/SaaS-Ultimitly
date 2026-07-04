@@ -235,8 +235,11 @@ export async function getOccupancyByProperty(orgId: string): Promise<PropertyOcc
   const thisMonthCutoff = zonedDayRange(new Date(Date.UTC(iy, im - 1, todayDayOfMonth)), REPORT_TZ).start;
   const daysInLastMonth = new Date(Date.UTC(iy, im - 1, 0)).getUTCDate();
   // Clamp the comparison window to last month's length (e.g. today=31, last
-  // month had 30 days → compare the full 30 elapsed nights of last month).
-  const lastMonthCutoffDay = Math.min(todayDayOfMonth, daysInLastMonth);
+  // month had 30 days → compare the full 30 elapsed nights of last month). The
+  // cutoff is EXCLUSIVE (countOccupiedDays counts days 1..cutoff-1), so the cap
+  // is daysInLastMonth + 1 — capping at daysInLastMonth would count only 1..29
+  // and silently drop last month's final night from the delta baseline.
+  const lastMonthCutoffDay = Math.min(todayDayOfMonth, daysInLastMonth + 1);
   const lastMonthCutoff = zonedDayRange(new Date(Date.UTC(iy, im - 2, lastMonthCutoffDay)), REPORT_TZ).start;
 
   // Denominators = elapsed nights in each window (days 1..cutoff-1). max(1, …)

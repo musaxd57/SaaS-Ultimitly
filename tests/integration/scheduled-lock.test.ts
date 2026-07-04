@@ -10,7 +10,7 @@ vi.mock("@/lib/hospitable", () => ({
   listMessages: vi.fn().mockResolvedValue([]),
 }));
 
-import { runScheduledSync } from "@/lib/scheduled-sync";
+import { runScheduledSync, withSyncLock } from "@/lib/scheduled-sync";
 
 describe("runScheduledSync cross-instance lock", () => {
   beforeEach(async () => {
@@ -40,5 +40,22 @@ describe("runScheduledSync cross-instance lock", () => {
     const res = await runScheduledSync();
     expect(res.ok).toBe(false);
     expect(res.error).toBe("locked");
+  });
+
+  it("fencing: a run whose lock was taken over (TTL lapse) does not release the new owner's lock", async () => {
+    await withSyncLock(async () => {
+      // Simulate another replica re-acquiring after our TTL lapsed: overwrite the
+      // holder token and push the expiry into the future while we're still "running".
+      await prisma.systemLock.update({
+        where: { name: "scheduled-sync" },
+        data: { holder: "other-run", lockedUntil: new Date(Date.now() + 60_000) },
+      });
+    });
+    // Our releaseLock(originalHolder) must be a no-op — the takeover lock stands,
+    // instead of being yanked back to the epoch (which would have let a third run
+    // barge in while "other-run" is still going).
+    const lock = await prisma.systemLock.findUnique({ where: { name: "scheduled-sync" } });
+    expect(lock!.holder).toBe("other-run");
+    expect(lock!.lockedUntil.getTime()).toBeGreaterThan(Date.now());
   });
 });

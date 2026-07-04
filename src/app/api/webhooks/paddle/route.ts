@@ -59,13 +59,14 @@ async function applySubscriptionEvent(
   // Ordering guard: Paddle can deliver events out of order (and retries them).
   // Never let an OLDER event overwrite a fresher state — a late `subscription.
   // updated` (past_due) arriving after the `active`/`canceled` that superseded
-  // it would otherwise flip access the wrong way. Only apply an event strictly
-  // newer than the last one we recorded for this org.
+  // it would otherwise flip access the wrong way. Drop only STRICTLY older
+  // events (`<`); an equal-timestamp event (two events in the same millisecond,
+  // or a reprocessed retry) re-applies idempotently rather than being lost.
   const existing = await prisma.subscription.findUnique({
     where: { organizationId },
     select: { lastEventAt: true, pastDueSince: true },
   });
-  if (occurredAt && existing?.lastEventAt && occurredAt <= existing.lastEventAt) return;
+  if (occurredAt && existing?.lastEventAt && occurredAt < existing.lastEventAt) return;
 
   const providerRef = str(data.id);
   const status = paddleStatusToLocal(str(data.status));
@@ -137,11 +138,13 @@ async function applyTransactionEvent(data: Record<string, unknown>): Promise<voi
   if (!org) return;
 
   const providerRef = str(data.id);
-  // Idempotency: one Invoice per Paddle transaction id.
-  if (providerRef) {
-    const existing = await prisma.invoice.findFirst({ where: { provider: "paddle", providerRef } });
-    if (existing) return;
-  }
+  // Idempotency: one Invoice per Paddle transaction id. Without a providerRef we
+  // have no dedup key and events can be reprocessed on retry, so skip rather than
+  // create an undeduplicatable row a retry would duplicate. (Real Paddle
+  // transaction events always carry an id.)
+  if (!providerRef) return;
+  const existing = await prisma.invoice.findFirst({ where: { provider: "paddle", providerRef } });
+  if (existing) return;
 
   // Paddle amounts are minor-unit strings (e.g. "44900").
   const details = data.details as Record<string, unknown> | undefined;
