@@ -400,13 +400,16 @@ export-dışlama regresyon testi yok (yapı allowlist ile zaten güvenli — ist
   (iptali/cancellation/cancel this) · hasar/depozito/ceza dispute anchor'ları · ırk-temelli exclusion (no black/siyahi olmasın,
   exclusion-anchored → misafirin kendi kökeni tetiklemez) · **QR concierge mustEscalate** backstop'ları (injection+safety_emergency+
   rule_violation+discrimination+human_request — public chat'te human-review taslağı yok). +9 golden (88 pass). Hepsi over-escalate=güvenli.
-**KARAR-LİSTESİ (ERTELENDİ — inceleme/karar gerek):**
-- [billing] Paddle webhook apply-hatasında 200 dönüp retry engelliyor → mutasyon kalıcı kayıp; 5xx (idempotent handler'lar güvenli)
-  VEYA reconciliation. Bilinçli "retry-storm yok" tasarımıydı → KARAR. + invoice dedup non-atomic (boş tablo→@@unique güvenli) + occurred_at null/atomic race.
+**UYGULANAN (batch 2, kullanıcı onayı):**
+- **[billing] webhook 5xx (commit `6a2c49c`):** signature+parse OK ama apply throw → artık 200 yerine **500** (Paddle retry eder; handler
+  idempotent → tam-bir-kez). Invalid-signature→401, unparseable→200 korundu. +test (apply-throw→500+processed değil→retry idempotent).
+- **[kopya+UX (commit `7d8bb01`)]:** gizlilik §19 3-çerez (session+2FA-30g+oauth-state) · yasal "yıllık" kaldırıldı (ürün aylık) ·
+  landing "25+"→"25'ten fazla" · settings KVKK "veya"→"ve + biri diğerini silmez" · landing-demo Enter busy-guard · guest-chat başarısız-gönderimde optimistic balon rollback + input geri.
+**KARAR-LİSTESİ (HÂLÂ ERTELİ — inceleme/karar):**
+- [billing-low] invoice dedup non-atomic (findFirst+create; boş tablo→@@unique([provider,providerRef]) güvenli) + occurred_at null/atomic concurrency race.
 - [reliability] automation.ts:972 ana persist try/catch (kardeşleri korumalı, bu değil) · manual reply idempotency (claim-then-send, auto-reply'da var).
-- [kopya-güvenli] gizlilik §19 "sadece oturum çerezi" (aslında 3 çerez: session+trusted-device 30g+oauth-state) · yasal "yıllık" plan
-  (ürün sadece aylık) · landing "25+" İşletme-25 ile çakışma · settings KVKK "rezervasyon VEYA konuşma sil" (tek işlem PII'yi kardeş kayıtta bırakır)
-  · billing/consent bayat "best-effort" yorumu (artık fail-closed) · account-card error-first→field-first · landing-demo Enter çift-tetik + rozet-overclaim · guest-chat optimistic balon geri-almıyor.
+- [sync-low] deep-cadence multi-replica (module var → SystemLock'a taşı) · outbound externalId-null dedup ("canlıda doğrula").
+- [nit] account-card error-first→field-first · landing-demo rozet-overclaim (gate'in 2/8 kontrolü) · billing/consent bayat "best-effort" yorumu (artık fail-closed).
 - [sync-low] deep-cadence multi-replica (module var) · outbound externalId-null dedup (CLAUDE.md'de zaten "canlıda doğrula").
 - **Kalan 23 agent** (frontend·prompt-injection·kvkk-retention·crypto/session·rate-limit·webhook-security·deploy-smoke·env-checklist·migration-integrity) resume'da → sonuçları gelince işlenecek.
 - **DOĞRULAMA — İKİSİ DE TEMİZ (2 review agent, kodla):** (a) **Checkout gate:** bypass yok (disabled buton + openCheckout guard),
