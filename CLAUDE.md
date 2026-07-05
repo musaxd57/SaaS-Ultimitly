@@ -345,8 +345,15 @@ riskli, budget netleşince). • KVKK UX (silinir/saklanır paneli + AI veri-kul
 - **#42 Checkout consent (commit `c4e7080`):** `paddle-plans.tsx` — ZORUNLU checkbox ("Ön Bilgilendirme + Mesafeli Satış'ı
   okudum"), tüm plan butonlarını kilitler + `openCheckout` içinde defense-in-depth guard + /on-bilgilendirme,/mesafeli-satis link.
   Kabul-KAYDI (timestamp/version server-side) = #41'e ait (şu an sadece UI gate). 637 test yeşil.
-- **DOĞRULAMA:** 2 review agent salındı (session limit RESETLENDİ, çalışıyor) — checkout gate bypass/stale-closure + legal metin
-  ürün-doğruluğu (webhook redaksiyon/report-error/sync scrubbed/iCal/QR/AI-gate iddiaları kodla mı?). Bulgular kodla teyit edilip uygulanacak.
+- **DOĞRULAMA — İKİSİ DE TEMİZ (2 review agent, kodla):** (a) **Checkout gate:** bypass yok (disabled buton + openCheckout guard),
+  stale-closure yok (`accepted` deps'te), linkler geçerli, tek checkout yüzeyi. Tek "vektör" konsoldan direkt `Paddle.Checkout.open`
+  = her client-side 3rd-party checkout'ta doğal, server-side kayıtla (#41) kapanır — app bug değil. (b) **Legal metin ürün-doğruluğu:**
+  6 iddia da DOĞRU — Paddle webhook redaksiyon (data-retention.ts:209-266), report-error redaksiyon (report-error.ts:29-58), sync
+  scrubbed-guard (hospitable-sync.ts:346-353,510-527), iCal ad-gizleme (ics.ts + schema icalShowGuestName @default false), QR
+  chatEnabled+secret-gate+kill-switch, AI passesAutoReplySafetyGate high-risk veto. gizlilik 1-23 tekrarsız/çelişkisiz.
+  Küçük not (fix gerekmez): "hasar/depozito/ceza" için ayrık deterministik kelime-ağı yok (model complaint/refund'a sınıflar+bloklar,
+  metin "bırakılabilir" yumuşak) → ileride AI-gate word-net eklenebilir (golden gerekli). `legal-entity.ts` [parantez] alanları HÂLÂ
+  boş = bilinen ödeme-öncesi hukuk blocker (kod değil).
 
 ## ⏳ SIRADAKİ OTURUM — kalan (opsiyonel / karar)
 4b. **[düşük — hardening]** CSV/iCal import (`reservations/import`) manuel-yol uzunluk kaplarını atlıyor (currency
