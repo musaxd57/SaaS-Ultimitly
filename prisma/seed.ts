@@ -24,8 +24,20 @@ async function main() {
   // migrate reset` (which auto-runs this hook) pointed at the live DATABASE_URL
   // would destroy all customer data, violating the cardinal "don't break the
   // working product" rule. ALLOW_PROD_SEED=1 is the deliberate override.
-  if (process.env.NODE_ENV === "production" && process.env.ALLOW_PROD_SEED !== "1") {
-    throw new Error("Refusing to seed/wipe in production (set ALLOW_PROD_SEED=1 to override).");
+  // NODE_ENV alone is NOT enough: a stray run with NODE_ENV unset/"development"
+  // but DATABASE_URL pointed at the live DB would still wipe it. Refuse unless the
+  // target host is a LOCAL database. ALLOW_PROD_SEED=1 is the deliberate override.
+  let localDb = false;
+  try {
+    const h = new URL(process.env.DATABASE_URL ?? "").hostname;
+    localDb = h === "localhost" || h === "127.0.0.1" || h === "::1";
+  } catch {
+    localDb = false; // unparseable / empty → treat as non-local (refuse)
+  }
+  if ((process.env.NODE_ENV === "production" || !localDb) && process.env.ALLOW_PROD_SEED !== "1") {
+    throw new Error(
+      "Refusing to seed/wipe: DATABASE_URL is not a local database (set ALLOW_PROD_SEED=1 to override).",
+    );
   }
 
   // Clean slate (dependency order). Safe for local/dev reseeding.

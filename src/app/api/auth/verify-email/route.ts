@@ -2,6 +2,7 @@ import { NextResponse, type NextRequest } from "next/server";
 import { prisma } from "@/lib/db";
 import { setSessionCookie } from "@/lib/auth";
 import { hashVerifyToken, baseUrlFromHost } from "@/lib/auth/email-verify";
+import { rateLimit, clientIp } from "@/lib/rate-limit";
 import type { UserRole } from "@/lib/constants";
 
 export const dynamic = "force-dynamic";
@@ -10,6 +11,16 @@ export const dynamic = "force-dynamic";
 // verified, signs the user in, and redirects to the dashboard. On a bad/expired
 // token it redirects to /login with a flag so the page can offer "resend".
 export async function GET(req: NextRequest) {
+  // Throttle by IP: this endpoint issues a login session on a token match and
+  // scans an unindexed column, so an unauthenticated flood could brute-force
+  // tokens and hammer the DB. A legit user clicks the emailed link once or twice.
+  const limited = rateLimit(`verify-email:${clientIp(req)}`, 20, 60 * 60 * 1000);
+  if (!limited.ok) {
+    return new NextResponse("Too many requests", {
+      status: 429,
+      headers: { "Retry-After": String(limited.retryAfter) },
+    });
+  }
   const token = req.nextUrl.searchParams.get("token")?.trim() ?? "";
   // Redirect to the PUBLIC host (from the Host header), not req.nextUrl.origin
   // which is the internal localhost:8080 behind Railway/Cloudflare.
