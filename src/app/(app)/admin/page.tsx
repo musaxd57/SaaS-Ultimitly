@@ -23,6 +23,7 @@ export default async function AdminPage() {
         name: true,
         createdAt: true,
         hospitableTokenEnc: true,
+        subscription: { select: { status: true, planCode: true, provider: true, trialEndsAt: true } },
         _count: { select: { properties: true, users: true } },
       },
     }),
@@ -52,6 +53,36 @@ export default async function AdminPage() {
     return { label: "Bağlı değil", ok: false };
   }
 
+  // Billing mode at a glance (the operator picks it on create; see admin/customers).
+  function billing(org: (typeof orgs)[number]): { label: string; tone: "green" | "amber" | "red" | "gray" } {
+    const sub = org.subscription;
+    if (!sub) return { label: "Kayıtsız (grandfathered)", tone: "amber" }; // legacy row-less org
+    switch (sub.status) {
+      case "trialing": {
+        const d = sub.trialEndsAt
+          ? Math.max(0, Math.ceil((sub.trialEndsAt.getTime() - Date.now()) / 86_400_000))
+          : null;
+        return { label: d != null ? `Deneme · ${d}g` : "Deneme", tone: "green" };
+      }
+      case "active":
+        return { label: sub.provider === "manual" ? "Manuel · aktif" : `Ücretli · ${sub.provider}`, tone: "green" };
+      case "grandfathered":
+        return { label: "Ücretsiz / iç hesap", tone: "gray" };
+      case "past_due":
+        return { label: "Ödeme bekliyor", tone: "amber" };
+      case "canceled":
+        return { label: "İptal", tone: "red" };
+      default:
+        return { label: sub.status, tone: "gray" };
+    }
+  }
+  const toneClass: Record<"green" | "amber" | "red" | "gray", string> = {
+    green: "bg-emerald-50 text-emerald-700",
+    amber: "bg-amber-50 text-amber-700",
+    red: "bg-red-50 text-red-700",
+    gray: "bg-muted text-muted-foreground",
+  };
+
   const dateFmt = new Intl.DateTimeFormat("tr-TR", { dateStyle: "medium", timeZone: "Europe/Istanbul" });
 
   return (
@@ -73,6 +104,7 @@ export default async function AdminPage() {
                   <th className="px-4 py-2 font-medium">İşletme</th>
                   <th className="px-4 py-2 font-medium">Daire</th>
                   <th className="px-4 py-2 font-medium">Kullanıcı</th>
+                  <th className="px-4 py-2 font-medium">Faturalama</th>
                   <th className="px-4 py-2 font-medium">Hospitable</th>
                   <th className="px-4 py-2 font-medium">Eklendi</th>
                   <th className="px-4 py-2 font-medium"></th>
@@ -90,6 +122,16 @@ export default async function AdminPage() {
                       </td>
                       <td className="px-4 py-3 text-muted-foreground">{org._count.properties}</td>
                       <td className="px-4 py-3 text-muted-foreground">{org._count.users}</td>
+                      <td className="px-4 py-3">
+                        {(() => {
+                          const b = billing(org);
+                          return (
+                            <span className={`inline-flex items-center rounded-full px-2 py-0.5 text-xs font-medium ${toneClass[b.tone]}`}>
+                              {b.label}
+                            </span>
+                          );
+                        })()}
+                      </td>
                       <td className="px-4 py-3">
                         <span
                           className={
