@@ -14,6 +14,7 @@ import { getOrgHospitableToken } from "@/lib/hospitable-credentials";
 import { reportError } from "@/lib/report-error";
 import { createReservationTasks, removeAutoTasksForCancelledReservation } from "@/lib/automation";
 import { billingEnforced, getEntitlement } from "@/lib/billing/subscription";
+import { ANON_NAME, ANON_ID } from "@/lib/data-retention";
 
 // ---------------------------------------------------------------------------
 // Hospitable → Inbox synchronisation
@@ -333,17 +334,23 @@ async function upsertReservationCalendar(
 
   const existing = await prisma.reservation.findFirst({
     where: { propertyId, sourceReference: srcRef },
-    select: { id: true },
+    select: { id: true, guestName: true },
   });
 
   if (existing) {
+    // KVKK resurrection guard: once the retention sweep has anonymized this row
+    // (guestName === ANON_NAME), NEVER let a re-sync write the guest's PII back
+    // from the channel — the deep look-back can reach past the retention cutoff,
+    // and Booking/direct channels return the real name forever. Dates/status
+    // (non-PII) still refresh so occupancy stays correct.
+    const scrubbed = existing.guestName === ANON_NAME;
     await prisma.reservation.update({
       where: { id: existing.id },
       data: {
-        ...(resolvedGuestName !== null ? { guestName: resolvedGuestName } : {}),
-        ...(guestEmail !== null ? { guestEmail } : {}),
-        ...(guestPhone !== null ? { guestPhone } : {}),
-        ...(guestExternalId !== null ? { guestExternalId } : {}),
+        ...(!scrubbed && resolvedGuestName !== null ? { guestName: resolvedGuestName } : {}),
+        ...(!scrubbed && guestEmail !== null ? { guestEmail } : {}),
+        ...(!scrubbed && guestPhone !== null ? { guestPhone } : {}),
+        ...(!scrubbed && guestExternalId !== null ? { guestExternalId } : {}),
         arrivalDate,
         departureDate,
         channel,
@@ -462,7 +469,7 @@ async function importThread(
 
   const existing = await prisma.conversation.findFirst({
     where: { propertyId, externalReservationId: reservationId },
-    select: { id: true, status: true, reservationId: true },
+    select: { id: true, status: true, reservationId: true, guestIdentifier: true },
   });
 
   let conversationId: string;
@@ -488,11 +495,14 @@ async function importThread(
   } else {
     // Preserve human/rule decisions; only refresh the automatic states.
     const preserve = ["problem", "closed", "waiting"].includes(existing.status);
+    // KVKK resurrection guard (see upsertReservationCalendar): don't rewrite the
+    // guest identifier once the retention sweep anonymized it.
+    const scrubbed = existing.guestIdentifier === ANON_ID;
     await prisma.conversation.update({
       where: { id: existing.id },
       data: {
         lastMessageAt,
-        guestIdentifier: guestName,
+        ...(scrubbed ? {} : { guestIdentifier: guestName }),
         ...(preserve ? {} : { status: computedStatus }),
         // Backfill the reservation link only when it's currently empty — never
         // overwrite an existing (possibly human-set) link.

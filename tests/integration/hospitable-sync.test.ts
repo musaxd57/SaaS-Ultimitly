@@ -465,4 +465,58 @@ describe("syncHospitable — plan property limit", () => {
     expect(result.properties).toBe(30);
     expect(result.propertiesCapped).toBe(0);
   });
+
+  it("KVKK: never resurrects PII onto an already-anonymized row (retention guard)", async () => {
+    const { orgId } = await makeOrgWithProperty();
+    mockProperties.mockResolvedValue([{ id: "hosp-prop-1", name: "Test Property" }]);
+    // Booking channel: it returns the REAL guest PII forever (no masking), so the
+    // only defense against re-import resurrection is the local-anonymized guard.
+    const booking = {
+      id: "res-guard-1",
+      platform: "booking",
+      arrival_date: "2026-05-01",
+      departure_date: "2026-05-04",
+      conversation_id: "conv-guard-1",
+      last_message_at: "2026-05-01T10:00:00Z",
+      guest: { full_name: "Ada Lovelace", email: "ada@example.com", phone: "+90 555 111 2233" },
+    };
+    mockReservations.mockResolvedValue([booking]);
+    mockMessages.mockResolvedValue([
+      { id: 2001, body: "Merhaba", sender_type: "guest", sender_role: "guest", sender: { full_name: "Ada Lovelace" }, created_at: "2026-05-01T09:00:00Z" },
+    ]);
+    await syncHospitable(orgId);
+
+    let res = await prisma.reservation.findFirst({ where: { property: { organizationId: orgId }, sourceReference: "res-guard-1" } });
+    expect(res?.guestName).toBe("Ada Lovelace");
+    expect(res?.guestEmail).toBe("ada@example.com");
+
+    // Simulate the retention sweep anonymizing this stay (name/PII scrubbed).
+    await prisma.reservation.update({
+      where: { id: res!.id },
+      data: { guestName: "Eski misafir", guestEmail: null, guestPhone: null, guestExternalId: null },
+    });
+    await prisma.conversation.updateMany({
+      where: { propertyId: res!.propertyId, externalReservationId: "res-guard-1" },
+      data: { guestIdentifier: "Misafir" },
+    });
+
+    // Re-sync: the channel STILL returns the real name + a genuinely-new message.
+    mockReservations.mockResolvedValue([{ ...booking, last_message_at: "2026-05-02T09:00:00Z" }]);
+    mockMessages.mockResolvedValue([
+      { id: 2001, body: "Merhaba", sender_type: "guest", sender_role: "guest", sender: { full_name: "Ada Lovelace" }, created_at: "2026-05-01T09:00:00Z" },
+      { id: 2002, body: "Bir sorum daha var", sender_type: "guest", sender_role: "guest", sender: { full_name: "Ada Lovelace" }, created_at: "2026-05-02T09:00:00Z" },
+    ]);
+    await syncHospitable(orgId);
+
+    // PII stays scrubbed — NOT resurrected from the channel.
+    res = await prisma.reservation.findFirst({ where: { property: { organizationId: orgId }, sourceReference: "res-guard-1" } });
+    expect(res?.guestName).toBe("Eski misafir");
+    expect(res?.guestEmail).toBeNull();
+    expect(res?.guestPhone).toBeNull();
+    const conv = await prisma.conversation.findFirst({ where: { propertyId: res!.propertyId, externalReservationId: "res-guard-1" } });
+    expect(conv?.guestIdentifier).toBe("Misafir");
+    // ...but the genuinely-NEW message still imported (the guard blocks resurrection, not new data).
+    const msgCount = await prisma.message.count({ where: { conversation: { externalReservationId: "res-guard-1" } } });
+    expect(msgCount).toBe(2);
+  });
 });

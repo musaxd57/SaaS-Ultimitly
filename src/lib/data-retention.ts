@@ -18,8 +18,10 @@ import { prisma } from "@/lib/db";
 //    ChatUsage has no FK relation, so it's cleared explicitly first.
 // ---------------------------------------------------------------------------
 
-const ANON_NAME = "Eski misafir";
-const ANON_ID = "Misafir";
+// Exported so the sync engine can DETECT an already-anonymized row and refuse to
+// overwrite the sentinel with fresh channel PII (KVKK resurrection guard).
+export const ANON_NAME = "Eski misafir";
+export const ANON_ID = "Misafir";
 const ANON_BODY = "[saklama süresi doldu — içerik silindi]";
 
 /** How many old reservations to scrub per call — bounds work / lock time. */
