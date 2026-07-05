@@ -2,6 +2,7 @@
 
 import { useCallback, useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
+import Link from "next/link";
 
 // Paddle.js is loaded from Paddle's CDN at runtime (no npm dependency, matching
 // the rest of the dependency-free billing code). Minimal typings for the bits we
@@ -105,6 +106,9 @@ export function PaddlePlans({
   const router = useRouter();
   const [ready, setReady] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  // Distance-selling consent: the buyer must accept the Ön Bilgilendirme Formu +
+  // Mesafeli Satış Sözleşmesi BEFORE a paid checkout opens. Gates every plan button.
+  const [accepted, setAccepted] = useState(false);
 
   useEffect(() => {
     let cancelled = false;
@@ -142,6 +146,12 @@ export function PaddlePlans({
   const openCheckout = useCallback(
     (priceId: string) => {
       if (!window.Paddle || !priceId) return;
+      // Defense-in-depth: even if the button somehow fires, never open a paid
+      // checkout without the pre-contract acceptance.
+      if (!accepted) {
+        setError("Devam etmek için Ön Bilgilendirme Formu ve Mesafeli Satış Sözleşmesi’ni onaylayın.");
+        return;
+      }
       setError(null);
       try {
         window.Paddle.Checkout.open({
@@ -154,7 +164,7 @@ export function PaddlePlans({
         setError("Ödeme ekranı açılamadı. Lütfen tekrar deneyin.");
       }
     },
-    [email, organizationId],
+    [email, organizationId, accepted],
   );
 
   return (
@@ -184,6 +194,25 @@ export function PaddlePlans({
         .
       </p>
 
+      <label className="flex items-start gap-2 rounded-md border border-border bg-muted/30 p-3 text-xs leading-relaxed text-muted-foreground">
+        <input
+          type="checkbox"
+          checked={accepted}
+          onChange={(e) => setAccepted(e.target.checked)}
+          className="mt-0.5 h-4 w-4 shrink-0"
+        />
+        <span>
+          <Link href="/on-bilgilendirme" target="_blank" className="text-primary hover:underline">
+            Ön Bilgilendirme Formu
+          </Link>
+          {" ve "}
+          <Link href="/mesafeli-satis" target="_blank" className="text-primary hover:underline">
+            Mesafeli Satış Sözleşmesi
+          </Link>
+          ’ni okudum, kabul ediyorum. Bir plan seçmeden önce bu kutuyu işaretlemeniz gerekir.
+        </span>
+      </label>
+
       <div className="grid gap-3 sm:grid-cols-3">
         {plans.map((p) => {
           const isCurrent = isLockedCurrentPlan({
@@ -210,7 +239,7 @@ export function PaddlePlans({
               <p className="mb-2 text-xs text-muted-foreground">{limit}</p>
               <button
                 type="button"
-                disabled={!ready || isCurrent || !p.priceId}
+                disabled={!ready || isCurrent || !p.priceId || !accepted}
                 onClick={() => openCheckout(p.priceId)}
                 className="inline-flex h-8 w-full items-center justify-center rounded-md bg-primary px-3 text-xs font-medium text-primary-foreground hover:bg-primary/90 disabled:opacity-50"
               >
