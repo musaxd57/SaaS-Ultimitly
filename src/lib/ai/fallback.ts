@@ -106,6 +106,9 @@ const KEYWORDS: Record<Exclude<Intent, "general">, string[]> = {
     "إعادة المال", "restituire i soldi", "soldi indietro",
     // Escalation / chargeback threats — always route to a human, never auto-answer.
     "chargeback", "charge back", "dispute", "resolution center",
+    // Damage / deposit / penalty disputes — financial/liability, always to a human.
+    "hasar bedeli", "hasar ücret", "hasar ucret", "para cezası", "para cezasi",
+    "depozito iade", "depozitomu", "security deposit", "deposit back", "damage charge", "charged for damage",
     // OFF-PLATFORM payment asks (OFFPLATFORM_PAYMENT_PHRASES below).
     ...OFFPLATFORM_PAYMENT_PHRASES,
   ],
@@ -117,9 +120,12 @@ const KEYWORDS: Record<Exclude<Intent, "general">, string[]> = {
     // "iptal ed" covers the declarative softened forms the old net missed:
     // "iptal edeceğim", "iptal ediyorum", "iptal ederim" (t→d consonant softening).
     "iptal ed", "iptal edebilir", "iptal etmek", "konaklamayı kısalt", "leave early", "leave sooner", "check out early",
+    // Noun-form cancellation phrasings the verb-only net missed (TR/EN).
+    "iptali", "iptal taleb", "iptal işlem", "iptal islem",
     "checking out early", "cut short", "shorten my stay", "end our reservation", "end the reservation",
     "end our stay", "ahead of schedule", "sooner than planned", "head home early",
-    "cancel my", "cancel the", "cancel our", "won't be staying", "wont be staying", "can't stay", "cant stay",
+    "cancel my", "cancel the", "cancel our", "cancellation", "cancel this", "cancel it",
+    "won't be staying", "wont be staying", "can't stay", "cant stay",
     // Multilingual cancel / leave-early signals (DE/FR/ES/IT/AR/RU).
     "stornieren", "früher abreisen", "annuler", "partir plus tôt", "cancelar", "salir antes",
     "annullare", "cancellare", "partire prima", "accorciare", "lasciare prima", // Italian (was missing)
@@ -261,9 +267,9 @@ function findKb(input: SuggestReplyInput, category: string): string | null {
 // must never hit these.
 // ---------------------------------------------------------------------------
 const INJECTION_PATTERNS: RegExp[] = [
-  /ignore (all |the )?(previous|prior|above|earlier) (instructions|prompts?|rules)/i,
-  /disregard (all |the )?(previous|prior|above|earlier) (instructions|prompts?|rules)/i,
-  /forget (all |the )?(previous|prior|above|earlier|your) (instructions|prompts?|rules)/i,
+  /ignore (all |the |your )*(previous|prior|above|earlier|your) (instructions|prompts?|rules)/i,
+  /disregard (all |the |your )*(previous|prior|above|earlier|your) (instructions|prompts?|rules)/i,
+  /forget (all |the |your )*(previous|prior|above|earlier|your) (instructions|prompts?|rules)/i,
   /system prompt/i,
   /developer mode/i,
   /\bjailbreak\b/i,
@@ -347,6 +353,8 @@ const DISCRIMINATION_PHRASES = [
   "arap olmasın", "arap istemiyor", "kürt olmasın", "kurt olmasin", "türk olsun", "turk olsun", "türk olmayan",
   "müslüman olmasın", "musluman olmasin", "hristiyan olmasın", "yabancı olmasın", "yabanci olmasin", "yerli olsun",
   "no syrians", "no arabs", "not syrian", "not arab", "no foreigners", "must be turkish", "only turkish", "no muslims",
+  // Race-based exclusion (parallel to the above; still EXCLUSION-anchored).
+  "no black", "no blacks", "no africans", "siyahi olmasın", "siyahi istemiyor", "zenci olmasın", "zenci istemiyor",
 ];
 
 /**

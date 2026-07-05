@@ -1,7 +1,7 @@
 import { type NextRequest } from "next/server";
 import { prisma } from "@/lib/db";
 import { suggestReply } from "@/lib/ai";
-import { classifyFallback } from "@/lib/ai/fallback";
+import { classifyFallback, detectPromptInjection, detectRiskType } from "@/lib/ai/fallback";
 import { resolveGuestChat } from "@/lib/guest-chat";
 import { jsonOk, badRequest, tooManyRequests } from "@/lib/api";
 import { rateLimit, clientIp } from "@/lib/rate-limit";
@@ -47,7 +47,15 @@ function mustEscalate(
   // Cross-check the guest's own words against the deterministic detector — catches
   // an angry/refund message the model under-rated as benign.
   const fb = classifyFallback(message);
-  if (fb.isComplaint || fb.intent === "refund" || fb.intent === "early_departure") return true;
+  if (fb.isComplaint || fb.intent === "refund" || fb.intent === "early_departure" || fb.intent === "human_request") {
+    return true;
+  }
+  // Deterministic high-risk backstops (mirror the inbox auto-send gate): a classic
+  // injection or a safety/rule/discrimination message is escalated even if the
+  // model under-rated it as benign — the guest chat has no human-review draft.
+  if (detectPromptInjection(message)) return true;
+  const dr = detectRiskType(message);
+  if (dr === "safety_emergency" || dr === "rule_violation" || dr === "discrimination") return true;
   if (result.riskLevel !== "none" && result.riskLevel !== "low") return true;
   return result.confidence < 0.75;
 }
