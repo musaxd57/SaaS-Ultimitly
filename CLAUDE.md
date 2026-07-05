@@ -333,8 +333,14 @@ success" yerine "Başarılı giriş" gösteriyor (raw action title'da; bilinmeye
 genişletildi. (2) **Register trust copy**: "14 gün ücretsiz Pro deneme — kart gerekmez" + e-posta doğrulama + oto-ücret-yok notu.
 **KARAR/GÖRÜŞ (kullanıcıya sunuldu):** • Analitik: ProductEvent modeli AÇMA — writeAudit/AuditLog zaten trackEvent; eksik
 event'leri (ai_reply_sent/auto_reply_blocked/kb_item_created/billing_checkout_*) writeAudit'e tak + admin aggregation ekle.
-• Consent hardening (privacyAcceptedAt/legalVersion/IP/UA/marketingConsent) = MIGRATION → task #41 (session-limit altında şema
-riskli, budget netleşince). • KVKK UX (silinir/saklanır paneli + AI veri-kullanım açıklaması + export görünürlüğü) = task #44.
+• KVKK UX (silinir/saklanır paneli + AI veri-kullanım açıklaması + export görünürlüğü) = task #44.
+**✅ #41 UYGULANDI (migration 8_consent_evidence, commit `e173c4d`):** User'a 4 NULLABLE kolon (privacyAcceptedAt·
+acceptedLegalVersion·acceptedIp·acceptedUserAgent) — dolu tabloda güvenli (NOT NULL/default YOK). Gerçek migration üretildi
+(`migrate diff --from-migrations`), throwaway Postgres'te migrate deploy (0..8) + **sıfır-drift doğrulandı**. Register route
+aynı transaction'da damgalıyor: privacyAcceptedAt=acceptedTermsAt (tek checkbox Terms+Privacy), acceptedLegalVersion=LEGAL_VERSION,
+acceptedIp=clientIp(req) (rightmost XFF, spoof-dayanıklı), acceptedUserAgent=UA (512'ye kırpık, null-safe). Legal versiyon TEK-KAYNAK:
+`LEGAL_VERSION="2026-06"` + `LEGAL_LAST_UPDATED="Haziran 2026"` @ legal-entity.ts; 4 legal sayfası artık ortak sabiti render ediyor
+(damgalanan versiyon görünen tarihten sapamaz). +2 test (evidence yakalama + header'sız null-safe). 639 test. Review agent doğruluyor.
 • Register'a mesafeli/ön-bilgilendirme KOYMA (kullanıcı onayı) — sadece terms/privacy kaldı.
 **✅ #43 + #42 UYGULANDI (kullanıcı "önce bu 2sini yap" dedi):**
 - **#43 Legal metin ekleri (commit `1db744c`):** verilen metin mevcut legal sayfalara ADDITIVE eklendi (mevcut içerik korundu,
