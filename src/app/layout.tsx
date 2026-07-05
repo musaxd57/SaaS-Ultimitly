@@ -24,7 +24,6 @@ export const metadata: Metadata = {
     "kısa dönem kiralama yazılımı", "Airbnb otomasyon", "misafir mesaj yönetimi",
     "Lixus AI", "lixusai", "lixus ai", "Lixus AI Türkiye",
   ],
-  alternates: { canonical: "/" },
   openGraph: {
     type: "website",
     locale: "tr_TR",
