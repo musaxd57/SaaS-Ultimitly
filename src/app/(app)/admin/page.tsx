@@ -2,6 +2,7 @@ import { redirect } from "next/navigation";
 import { requireAuth } from "@/lib/auth";
 import { prisma } from "@/lib/db";
 import { isSuperAdmin } from "@/lib/admin";
+import { auditActionLabel } from "@/lib/audit";
 import { PageHeader } from "@/components/page-header";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { AddCustomerForm } from "@/components/admin/add-customer-form";
@@ -254,7 +255,7 @@ export default async function AdminPage() {
                 <tbody>
                   {auditLogs.map((log) => (
                     <tr key={log.id} className="border-b last:border-0">
-                      <td className="px-4 py-2.5 font-medium">{log.action}</td>
+                      <td className="px-4 py-2.5 font-medium" title={log.action}>{auditActionLabel(log.action)}</td>
                       <td className="px-4 py-2.5 text-muted-foreground">
                         {(() => {
                           try {

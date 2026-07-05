@@ -77,6 +77,13 @@ export function RegisterForm() {
 
   return (
     <form onSubmit={onSubmit} className="space-y-4">
+      <div className="rounded-md border border-emerald-300 bg-emerald-50 px-3 py-2.5 text-xs text-emerald-900">
+        <p className="font-semibold">14 gün ücretsiz Pro deneme — kart gerekmez.</p>
+        <p className="mt-0.5 text-emerald-700">
+          Kaydolduğunuzda hesabınızı doğrulamak için e-posta göndeririz. Deneme bitince otomatik ücret
+          alınmaz; dilerseniz ücretsiz sürümle devam edebilirsiniz.
+        </p>
+      </div>
       {error ? (
         <p className="rounded-md bg-destructive/10 px-3 py-2 text-sm text-destructive">{error}</p>
       ) : null}
