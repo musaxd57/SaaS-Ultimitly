@@ -411,7 +411,17 @@ export-dışlama regresyon testi yok (yapı allowlist ile zaten güvenli — ist
 - [sync-low] deep-cadence multi-replica (module var → SystemLock'a taşı) · outbound externalId-null dedup ("canlıda doğrula").
 - [nit] account-card error-first→field-first · landing-demo rozet-overclaim (gate'in 2/8 kontrolü) · billing/consent bayat "best-effort" yorumu (artık fail-closed).
 - [sync-low] deep-cadence multi-replica (module var) · outbound externalId-null dedup (CLAUDE.md'de zaten "canlıda doğrula").
-- **Kalan 23 agent** (frontend·prompt-injection·kvkk-retention·crypto/session·rate-limit·webhook-security·deploy-smoke·env-checklist·migration-integrity) resume'da → sonuçları gelince işlenecek.
+**✅ WORKFLOW TAMAMLANDI (42/42 agent, 0 hata, resume ile): 94 bulgu, 1 CONFIRMED HIGH (adversarial), 20 medium, 52 low, 21 info.**
+- **[HIGH — DÜZELTİLDİ, commit `fd5585e`]** `redactSensitive` FIELD_RE virgüllü değerleri (adres/full_name/guest_name) redakte edemiyordu →
+  değer Sentry(ABD)+log+mail'e SIZIYORDU. Quoted-branch eklendi (virgül dahil tam yakala). +regresyon testi.
+- **[safety — DÜZELTİLDİ, commit `151395a`]** seed prod-wipe guard NODE_ENV yerine DATABASE_URL-local kontrolü · verify-email rate-limit (20/saat/IP).
+**🚨 #47 DEPLOY BLOCKER (task açıldı — HÂLÂ AÇIK):** migration `0_..9_` padsız → sonraki `10_*` lexical olarak `1_` ile `2_` arasına düşer
+→ FRESH deploy migration'ları yanlış sırada uygular → boot crash. Mevcut prod güvenli, kırılma 10'da. **Fix prod DB dokunur** (zero-pad + `_prisma_migrations` update) → kullanıcı-onaylı. **Bu yüzden verify-email index'i ertelendi.**
+**KARAR-LİSTESİ (yeni gerçek bulgular — inceleme/karar):**
+- [AI-safety] `passesAutoReplySafetyGate` sadece `last.body`'yi tarıyor; AI cevabı TÜM konuşma geçmişi + misafirin (Airbnb-kontrollü) rezervasyon ADI'ndan üretiliyor → önceki mesaja veya display-name'e gömülü injection kod-kapısını atlar. Gate'i geçmiş+ad'a genişlet (golden gerekli).
+- [KVKK] erasure yalnız `custom_data.organizationId`'li webhook satırlarını redakte ediyor; `customer.updated` (email/ad/adres) bu tag'i taşımaz → hesap-silmede redaksiyonsuz kalır. Erasure'ı customer_id ile de eşleştir.
+- [QR-privacy] chat geçmişi sadece paylaşılan (fiziksel-asılı) QR token'ıyla korunuyor → önceki misafir/temizlikçi, aktif konaklamada mevcut misafirin sohbetini okuyabilir. Tasarım limiti (per-misafir auth gerek).
+- [fe-admin] billing rozeti süresi-dolmuş denemeyi yeşil "Deneme·0g" gösteriyor (limited moda düşmüşken) · [fe-reports] getAiOpsReport openProblems .length(cap 500) yerine count() · [fe-calendar] "+N diğer" turnover günü yanlış sayıyor · [pricing] tier-özel özellik iddiası gate'li değil (kopya) · [password-reset] bcrypt parity-timing enumeration (subtle).
 - **DOĞRULAMA — İKİSİ DE TEMİZ (2 review agent, kodla):** (a) **Checkout gate:** bypass yok (disabled buton + openCheckout guard),
   stale-closure yok (`accepted` deps'te), linkler geçerli, tek checkout yüzeyi. Tek "vektör" konsoldan direkt `Paddle.Checkout.open`
   = her client-side 3rd-party checkout'ta doğal, server-side kayıtla (#41) kapanır — app bug değil. (b) **Legal metin ürün-doğruluğu:**
