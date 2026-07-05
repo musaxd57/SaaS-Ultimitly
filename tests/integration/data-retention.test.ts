@@ -194,4 +194,47 @@ describe("deleteAccountData (KVKK erasure)", () => {
     expect(await prisma.reservation.findUnique({ where: { id: b.reservationId } })).not.toBeNull();
     expect(await prisma.message.count({ where: { conversationId: b.conversationId } })).toBe(2);
   });
+
+  it("minimizes Paddle webhook PII on erasure but keeps the financial skeleton", async () => {
+    const a = await seedStay({ orgName: "Org A", departedMonthsAgo: 2, guestName: "A Guest", body: "msg A" });
+    const b = await seedStay({ orgName: "Org B", departedMonthsAgo: 2, guestName: "B Guest", body: "msg B" });
+
+    const payloadA = JSON.stringify({
+      event_id: "evt_1",
+      event_type: "transaction.completed",
+      occurred_at: "2026-06-01T10:00:00Z",
+      data: {
+        id: "txn_1", status: "completed", customer_id: "ctm_1", subscription_id: "sub_1", currency_code: "TRY",
+        customer: { email: "owner@a.com", name: "Ada Owner", address: { city: "İstanbul", postal_code: "34000" } },
+        details: { totals: { grand_total: "44900" } },
+        custom_data: { organizationId: a.orgId },
+      },
+    });
+    const evtA = await prisma.webhookEvent.create({
+      data: { provider: "paddle", eventType: "transaction.completed", providerEventId: "evt_1", payloadJson: payloadA, status: "processed" },
+    });
+    const payloadB = JSON.stringify({ event_id: "evt_2", data: { id: "txn_2", customer: { email: "owner@b.com" }, custom_data: { organizationId: b.orgId } } });
+    const evtB = await prisma.webhookEvent.create({
+      data: { provider: "paddle", eventType: "transaction.completed", providerEventId: "evt_2", payloadJson: payloadB, status: "processed" },
+    });
+
+    await deleteAccountData(a.orgId);
+
+    // Org A's webhook SURVIVES (financial trail — Invoice/Subscription cascaded away) but PII is stripped.
+    const redacted = await prisma.webhookEvent.findUnique({ where: { id: evtA.id } });
+    expect(redacted).not.toBeNull();
+    expect(redacted!.payloadJson).not.toContain("owner@a.com");
+    expect(redacted!.payloadJson).not.toContain("Ada Owner");
+    expect(redacted!.payloadJson).not.toContain("34000");
+    // ...reconciliation skeleton kept.
+    expect(redacted!.payloadJson).toContain("evt_1");
+    expect(redacted!.payloadJson).toContain("txn_1");
+    expect(redacted!.payloadJson).toContain("44900");
+    expect(redacted!.payloadJson).toContain(a.orgId);
+    expect(redacted!.payloadJson).toContain("kvkk-erasure");
+
+    // A DIFFERENT org's webhook is byte-identical (untouched).
+    const other = await prisma.webhookEvent.findUnique({ where: { id: evtB.id } });
+    expect(other!.payloadJson).toBe(payloadB);
+  });
 });

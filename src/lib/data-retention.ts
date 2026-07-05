@@ -132,11 +132,86 @@ export async function purgeOldLeads(now: Date = new Date()): Promise<{ purged: n
   return { purged: res.count };
 }
 
+const asObj = (v: unknown): Record<string, unknown> =>
+  v && typeof v === "object" ? (v as Record<string, unknown>) : {};
+
+/**
+ * Rebuild a Paddle webhook payload keeping ONLY a minimal financial/reconciliation
+ * skeleton (allowlist = fail-closed, so any future PII field Paddle adds is
+ * dropped by default). Amount/currency are financial-record fields, NOT direct
+ * PII, so they're kept for the books; customer email/name/address/card and the
+ * rest of the raw body are dropped.
+ */
+function redactPaddlePayload(raw: string): string {
+  let p: Record<string, unknown>;
+  try {
+    p = asObj(JSON.parse(raw));
+  } catch {
+    return JSON.stringify({ redactedAt: new Date().toISOString(), note: "kvkk-erasure", raw: "unparseable" });
+  }
+  const d = asObj(p.data);
+  const totals = asObj(asObj(d.details).totals);
+  const period = asObj(d.current_billing_period);
+  const cd = asObj(d.custom_data);
+  return JSON.stringify({
+    event_id: p.event_id ?? null,
+    event_type: p.event_type ?? null,
+    occurred_at: p.occurred_at ?? null,
+    data: {
+      id: d.id ?? null,
+      status: d.status ?? null,
+      customer_id: d.customer_id ?? null, // provider id (reconciliation), not direct PII
+      subscription_id: d.subscription_id ?? null,
+      currency_code: d.currency_code ?? null,
+      current_billing_period: { ends_at: period.ends_at ?? null },
+      details: { totals: { grand_total: totals.grand_total ?? null } },
+      custom_data: { organizationId: cd.organizationId ?? null },
+    },
+    redactedAt: new Date().toISOString(),
+    note: "kvkk-erasure",
+  });
+}
+
+/**
+ * Minimize customer PII in Paddle WebhookEvent rows for a deleted org. WebhookEvent
+ * has NO org FK (so it doesn't cascade — it's the surviving financial trail once
+ * Invoice/Subscription cascade away). Linked only via payloadJson custom_data.
+ * organizationId: pre-filter by substring (org id is a high-entropy cuid), then
+ * parse-verify before touching. status:"processed" so a Paddle retry can't re-store
+ * raw PII (the webhook route only reprocesses non-"processed" rows).
+ */
+async function redactPaddleWebhooksForOrg(organizationId: string): Promise<void> {
+  const rows = await prisma.webhookEvent.findMany({
+    where: { provider: "paddle", payloadJson: { contains: organizationId } },
+    select: { id: true, payloadJson: true },
+  });
+  for (const r of rows) {
+    let belongs = false;
+    try {
+      const parsed = JSON.parse(r.payloadJson) as { data?: { custom_data?: { organizationId?: unknown } } };
+      belongs = parsed?.data?.custom_data?.organizationId === organizationId;
+    } catch {
+      belongs = false; // unparseable → not attributable to this org, skip
+    }
+    if (!belongs) continue;
+    await prisma.webhookEvent.update({
+      where: { id: r.id },
+      data: { payloadJson: redactPaddlePayload(r.payloadJson), status: "processed", processedAt: new Date() },
+    });
+  }
+}
+
 /**
  * Full account erasure for one organization. Irreversible. The caller MUST have
  * already authorized this (owner re-authenticated). Returns silently on success.
  */
 export async function deleteAccountData(organizationId: string): Promise<void> {
+  // KVKK erasure: WebhookEvent has no org FK (won't cascade) and its Paddle
+  // payload carries customer email/name/address. Keep the financial skeleton but
+  // strip the PII BEFORE the org row is gone (so it's minimized even if the
+  // delete below throws).
+  await redactPaddleWebhooksForOrg(organizationId);
+
   // ChatUsage rows key on propertyId but have no FK relation → won't cascade.
   const props = await prisma.property.findMany({
     where: { organizationId },
