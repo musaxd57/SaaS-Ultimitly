@@ -23,6 +23,30 @@ import { prisma } from "@/lib/db";
 export const ANON_NAME = "Eski misafir";
 export const ANON_ID = "Misafir";
 const ANON_BODY = "[saklama süresi doldu — içerik silindi]";
+const ANON_BODY_NAME = "[Misafir]"; // in-body name redaction — keeps the host's record, drops the name
+const MIN_NAME_LEN = 3; // skip 2-char names ("Al"/"Su") — too collision-prone
+
+/**
+ * Redact a guest's known name(s) from an OUTBOUND body — the host's own record is
+ * kept, only the identifying token is removed. Automated greetings use only the
+ * FIRST name ("Merhaba Ahmet,"); manual host replies may use the full name, so
+ * redact both (longest first). Boundaries are Unicode-aware (JS \b is ASCII-only
+ * and breaks on Turkish ç/ğ/ı/ö/ş/ü). Insertion is literal; idempotent.
+ */
+function redactNameFromBody(body: string, names: string[]): string {
+  const tokens = Array.from(
+    new Set(names.flatMap((n) => { const full = n.trim(); return [full, full.split(/\s+/)[0] ?? ""]; })),
+  )
+    .map((t) => t.trim())
+    .filter((t) => t.length >= MIN_NAME_LEN && t !== ANON_NAME && t !== ANON_ID)
+    .sort((a, b) => b.length - a.length);
+  let out = body;
+  for (const t of tokens) {
+    const esc = t.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+    out = out.replace(new RegExp(`(?<![\\p{L}\\p{N}])${esc}(?![\\p{L}\\p{N}])`, "giu"), ANON_BODY_NAME);
+  }
+  return out;
+}
 
 /** How many old reservations to scrub per call — bounds work / lock time. */
 const RETENTION_BATCH = 300;
@@ -43,20 +67,44 @@ export async function anonymizeOldGuestData(now: Date = new Date()): Promise<{ a
   // cutoff and still carry real PII (guestName not yet anonymized). Bounded batch.
   const oldRes = await prisma.reservation.findMany({
     where: { departureDate: { lt: cutoff }, guestName: { not: ANON_NAME } },
-    select: { id: true },
+    select: { id: true, guestName: true },
     take: RETENTION_BATCH,
   });
   if (oldRes.length > 0) {
     const resIds = oldRes.map((r) => r.id);
+    const resNameById = new Map(oldRes.map((r) => [r.id, r.guestName]));
     const convs = await prisma.conversation.findMany({
       where: { reservationId: { in: resIds } },
-      select: { id: true },
+      select: { id: true, reservationId: true, guestIdentifier: true },
     });
     const convIds = convs.map((c) => c.id);
 
+    // Outbound (host/AI) bodies are the host's own record → KEPT, but the guest's
+    // NAME is scrubbed out of them. Names are captured HERE, before the same
+    // transaction overwrites reservation.guestName / conversation.guestIdentifier.
+    const namesByConv = new Map<string, string[]>();
+    for (const c of convs) {
+      namesByConv.set(
+        c.id,
+        [c.reservationId ? resNameById.get(c.reservationId) ?? null : null, c.guestIdentifier].filter(
+          (n): n is string => Boolean(n),
+        ),
+      );
+    }
+    const outbound = convIds.length
+      ? await prisma.message.findMany({
+          where: { conversationId: { in: convIds }, direction: "outbound" },
+          select: { id: true, conversationId: true, body: true },
+        })
+      : [];
+    const bodyRedactions: { id: string; body: string }[] = [];
+    for (const m of outbound) {
+      const red = redactNameFromBody(m.body, namesByConv.get(m.conversationId) ?? []);
+      if (red !== m.body) bodyRedactions.push({ id: m.id, body: red });
+    }
+
     await prisma.$transaction([
       // The guest's OWN messages (inbound) carry their words/PII — scrub the body.
-      // Outbound (host/AI) content is the host's own record and is left intact.
       ...(convIds.length
         ? [
             prisma.message.updateMany({
@@ -69,6 +117,8 @@ export async function anonymizeOldGuestData(now: Date = new Date()): Promise<{ a
             }),
           ]
         : []),
+      // Outbound bodies: keep the host's record, remove only the guest's name.
+      ...bodyRedactions.map((r) => prisma.message.update({ where: { id: r.id }, data: { body: r.body } })),
       prisma.reservation.updateMany({
         where: { id: { in: resIds } },
         data: {
@@ -96,11 +146,24 @@ export async function anonymizeOldGuestData(now: Date = new Date()): Promise<{ a
       lastMessageAt: { lt: cutoff },
       guestIdentifier: { not: ANON_ID },
     },
-    select: { id: true },
+    select: { id: true, guestIdentifier: true },
     take: RETENTION_BATCH,
   });
   if (orphanConvs.length > 0) {
     const orphanIds = orphanConvs.map((c) => c.id);
+    // Redact the guest name from OUTBOUND bodies too (host record kept). For an
+    // orphan the guestIdentifier is the ONLY name source (no reservation row).
+    const nameByConv = new Map(orphanConvs.map((c) => [c.id, c.guestIdentifier]));
+    const outbound = await prisma.message.findMany({
+      where: { conversationId: { in: orphanIds }, direction: "outbound" },
+      select: { id: true, conversationId: true, body: true },
+    });
+    const bodyRedactions: { id: string; body: string }[] = [];
+    for (const m of outbound) {
+      const name = nameByConv.get(m.conversationId);
+      const red = name ? redactNameFromBody(m.body, [name]) : m.body;
+      if (red !== m.body) bodyRedactions.push({ id: m.id, body: red });
+    }
     await prisma.$transaction([
       prisma.message.updateMany({
         where: { conversationId: { in: orphanIds }, direction: "inbound", body: { not: ANON_BODY } },
@@ -110,6 +173,7 @@ export async function anonymizeOldGuestData(now: Date = new Date()): Promise<{ a
         where: { id: { in: orphanIds } },
         data: { guestIdentifier: ANON_ID },
       }),
+      ...bodyRedactions.map((r) => prisma.message.update({ where: { id: r.id }, data: { body: r.body } })),
     ]);
     anonymized += orphanIds.length;
   }

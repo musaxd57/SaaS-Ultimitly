@@ -8,6 +8,7 @@ async function seedStay(opts: {
   departedMonthsAgo: number;
   guestName: string;
   body: string;
+  outboundBody?: string;
 }) {
   const org = await prisma.organization.create({ data: { name: opts.orgName ?? "Org" } });
   const property = await prisma.property.create({ data: { organizationId: org.id, name: "Daire 1" } });
@@ -32,12 +33,17 @@ async function seedStay(opts: {
       messages: {
         create: [
           { direction: "inbound", senderName: opts.guestName, body: opts.body },
-          { direction: "outbound", senderName: "Lixus AI", body: "Yardımcı olalım." },
+          { direction: "outbound", senderName: "Lixus AI", body: opts.outboundBody ?? "Yardımcı olalım." },
         ],
       },
     },
   });
   return { orgId: org.id, propertyId: property.id, reservationId: reservation.id, conversationId: conversation.id };
+}
+
+async function outboundBodyOf(conversationId: string): Promise<string> {
+  const m = await prisma.message.findFirst({ where: { conversationId, direction: "outbound" } });
+  return m?.body ?? "";
 }
 
 describe("anonymizeOldGuestData (KVKK retention)", () => {
@@ -142,6 +148,117 @@ describe("anonymizeOldGuestData (KVKK retention)", () => {
     });
     expect(intact?.guestIdentifier).toBe("Yeni Misafir");
     expect(intact?.messages[0].body).toContain("Merhaba");
+  });
+});
+
+describe("anonymizeOldGuestData — outbound body name redaction (KVKK)", () => {
+  beforeEach(async () => {
+    await resetDb();
+  });
+  afterEach(() => {
+    vi.unstubAllEnvs();
+  });
+
+  it("scrubs the guest name from the host's outbound reply but keeps the host content", async () => {
+    // The load-bearing case: an automated greeting uses the FIRST name ("Merhaba
+    // Ahmet,") and a manual host reply may sign off with the FULL name. Both must go,
+    // the operational content ("anahtar kutuda") must stay.
+    vi.stubEnv("DATA_RETENTION_MONTHS", "24");
+    const s = await seedStay({
+      departedMonthsAgo: 30,
+      guestName: "Ahmet Yılmaz",
+      body: "Kapı kodu nedir?",
+      outboundBody: "Merhaba Ahmet, anahtar kutuda. — Ahmet Yılmaz",
+    });
+
+    expect((await anonymizeOldGuestData()).anonymized).toBe(1);
+
+    const body = await outboundBodyOf(s.conversationId);
+    expect(body).not.toContain("Ahmet");
+    expect(body).not.toContain("Yılmaz");
+    expect(body).toContain("[Misafir]");
+    expect(body).toContain("anahtar kutuda"); // host's own record preserved
+  });
+
+  it("leaves ultra-short names alone so real words aren't mangled", async () => {
+    // "Su" (2 chars) is also the Turkish word for "water"; redacting it blindly would
+    // corrupt "Su tesisatı". The full name still goes; the bare short first name is a
+    // deliberate, documented residual.
+    vi.stubEnv("DATA_RETENTION_MONTHS", "24");
+    const s = await seedStay({
+      departedMonthsAgo: 30,
+      guestName: "Su Yılmaz",
+      body: "Merhaba",
+      outboundBody: "Su tesisatı çalışıyor. İyi günler Su Yılmaz.",
+    });
+
+    expect((await anonymizeOldGuestData()).anonymized).toBe(1);
+
+    const body = await outboundBodyOf(s.conversationId);
+    expect(body).toContain("Su tesisatı"); // real word NOT mangled
+    expect(body).not.toContain("Yılmaz"); // full name redacted
+    expect(body).toContain("[Misafir]");
+  });
+
+  it("is idempotent — a second sweep leaves the redacted body byte-identical", async () => {
+    vi.stubEnv("DATA_RETENTION_MONTHS", "24");
+    const s = await seedStay({
+      departedMonthsAgo: 30,
+      guestName: "Mehmet Demir",
+      body: "Soru",
+      outboundBody: "Merhaba Mehmet, hoş geldiniz Mehmet Demir.",
+    });
+
+    expect((await anonymizeOldGuestData()).anonymized).toBe(1);
+    const first = await outboundBodyOf(s.conversationId);
+    expect(first).not.toContain("Mehmet");
+
+    expect((await anonymizeOldGuestData()).anonymized).toBe(0);
+    const second = await outboundBodyOf(s.conversationId);
+    expect(second).toBe(first);
+  });
+
+  it("does NOT touch outbound bodies of recent (in-window) stays", async () => {
+    vi.stubEnv("DATA_RETENTION_MONTHS", "24");
+    const s = await seedStay({
+      departedMonthsAgo: 1,
+      guestName: "Ayşe Kaya",
+      body: "Merhaba",
+      outboundBody: "Merhaba Ayşe, teşekkürler.",
+    });
+
+    expect((await anonymizeOldGuestData()).anonymized).toBe(0);
+
+    const body = await outboundBodyOf(s.conversationId);
+    expect(body).toContain("Ayşe"); // still in the retention window → untouched
+  });
+
+  it("redacts the name from an ORPHAN thread's outbound body (guestIdentifier is the only name source)", async () => {
+    vi.stubEnv("DATA_RETENTION_MONTHS", "24");
+    const org = await prisma.organization.create({ data: { name: "Org" } });
+    const property = await prisma.property.create({ data: { organizationId: org.id, name: "Daire 1" } });
+    const orphan = await prisma.conversation.create({
+      data: {
+        propertyId: property.id,
+        channel: "airbnb",
+        guestIdentifier: "Fatma Şahin",
+        lastMessageAt: subMonths(new Date(), 30),
+        messages: {
+          create: [
+            { direction: "inbound", senderName: "Fatma Şahin", body: "Kapı kodu nedir?" },
+            { direction: "outbound", senderName: "Lixus AI", body: "Merhaba Fatma, kod 1234. — Fatma Şahin" },
+          ],
+        },
+      },
+    });
+
+    expect((await anonymizeOldGuestData()).anonymized).toBe(1);
+
+    const body = await outboundBodyOf(orphan.id);
+    expect(body).not.toContain("Fatma");
+    expect(body).not.toContain("Şahin");
+    expect(body).toContain("[Misafir]");
+    expect(body).toContain("kod 1234"); // host content preserved
   });
 });
 
