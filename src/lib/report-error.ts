@@ -31,7 +31,14 @@ const SENSITIVE_KEY =
   "client[_-]?secret|secret|api[_-]?key|authorization|cookie|set[_-]?cookie|" +
   "e?mail|phone|telephone|gsm|mobile|full[_-]?name|first[_-]?name|last[_-]?name|" +
   "guest[_-]?name|name|address|street|door[_-]?code|access[_-]?code|postal[_-]?code)";
-const FIELD_RE = new RegExp(`("?)(${SENSITIVE_KEY})\\1\\s*[:=]\\s*("?)[^"\\n,}{]*\\3`, "gi");
+// Value matcher handles BOTH a quoted JSON value (commas/braces INSIDE the quotes
+// are part of the value — e.g. "Istanbul, Turkey") and a bare key=value token.
+// The old `[^"\n,}{]*` stopped at the first comma, so a quoted address/full_name
+// leaked its value un-redacted; the quoted branch below fixes that.
+const FIELD_RE = new RegExp(
+  `("?)(${SENSITIVE_KEY})\\1\\s*[:=]\\s*("[^"\\n]*"|[^",}{\\n]+)`,
+  "gi",
+);
 
 /**
  * Mask PII/secret VALUES from an error string before it leaves the process —

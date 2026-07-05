@@ -104,6 +104,20 @@ describe("redactSensitive", () => {
     expect(redactSensitive("")).toBe("");
   });
 
+  it("redacts quoted PII values that CONTAIN commas (address/full_name/guest_name)", () => {
+    // Regression for the FIELD_RE comma-leak: the value matcher used to stop at the
+    // first comma, so a quoted address/name leaked the rest of its value to the
+    // US-hosted Sentry / alert email / retained logs.
+    expect(redactSensitive('{"address":"Istanbul, Turkey"}')).not.toContain("Istanbul");
+    expect(redactSensitive('{"address":"Istanbul, Turkey"}')).not.toContain("Turkey");
+    expect(redactSensitive('{"full_name":"Yılmaz, Ahmet"}')).not.toContain("Yılmaz");
+    const multi = redactSensitive('{"guest_name":"Mehmet, Demir","address":"Beşiktaş, İstanbul"}');
+    expect(multi).not.toContain("Mehmet");
+    expect(multi).not.toContain("Beşiktaş");
+    // a bare unquoted sensitive value still redacts; an error code after it survives
+    expect(redactSensitive("address: Ataturk Cad No 5, P2002")).toContain("P2002");
+  });
+
   it("strips PII/keys from an OpenAI-style error body but keeps the error type/code", () => {
     // Mirrors what ai/index.ts feeds reportError: the OpenAI API error RESPONSE
     // body (which may echo an offending value) plus the request's auth header.
