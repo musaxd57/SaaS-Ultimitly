@@ -138,7 +138,10 @@ export const kbSchema = z.object({
   title: z.string().trim().min(2, "Başlık gerekli").max(300),
   content: z.string().min(2, "İçerik gerekli").max(20000),
   language: z.string().max(10).default("tr"),
-  isActive: z.coerce.boolean().default(true),
+  // z.boolean (not z.coerce.boolean): coercion maps the STRING "false" to true
+  // (Boolean("false")). Callers send real booleans; a stringy "false" should be
+  // rejected, not silently activate the item. default(true) still handles absent.
+  isActive: z.boolean().default(true),
 });
 export type KbInput = z.infer<typeof kbSchema>;
 

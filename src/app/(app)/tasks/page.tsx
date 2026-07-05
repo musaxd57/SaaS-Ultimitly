@@ -72,7 +72,10 @@ export default async function TasksPage({
   const now = new Date();
 
   const cards: TaskCardData[] = tasks.map((t) => {
-    const checklist = safeJsonParse<ChecklistItem[]>(t.checklistJson, []);
+    const parsedChecklist = safeJsonParse<ChecklistItem[]>(t.checklistJson, []);
+    // Guard against a stored non-array JSON scalar (e.g. "foo") slipping past
+    // safeJsonParse — .length/.filter on a non-array would 500 the page.
+    const checklist = Array.isArray(parsedChecklist) ? parsedChecklist : [];
     const latestUpdate = t.updates[0] ?? null;
     return {
       id: t.id,
