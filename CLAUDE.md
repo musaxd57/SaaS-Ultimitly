@@ -334,9 +334,19 @@ genişletildi. (2) **Register trust copy**: "14 gün ücretsiz Pro deneme — ka
 **KARAR/GÖRÜŞ (kullanıcıya sunuldu):** • Analitik: ProductEvent modeli AÇMA — writeAudit/AuditLog zaten trackEvent; eksik
 event'leri (ai_reply_sent/auto_reply_blocked/kb_item_created/billing_checkout_*) writeAudit'e tak + admin aggregation ekle.
 • Consent hardening (privacyAcceptedAt/legalVersion/IP/UA/marketingConsent) = MIGRATION → task #41 (session-limit altında şema
-riskli, budget netleşince). • Checkout consent checkbox = task #42 (para-akışı bitişik, birlikte doğrula). • Legal metin ekleri
-(13 bölüm) = task #43 (mevcut legal sayfalara additive). • KVKK UX (silinir/saklanır paneli + AI veri-kullanım açıklaması +
-export görünürlüğü) = task #44. • Register'a mesafeli/ön-bilgilendirme KOYMA (kullanıcı onayı) — sadece terms/privacy kaldı.
+riskli, budget netleşince). • KVKK UX (silinir/saklanır paneli + AI veri-kullanım açıklaması + export görünürlüğü) = task #44.
+• Register'a mesafeli/ön-bilgilendirme KOYMA (kullanıcı onayı) — sadece terms/privacy kaldı.
+**✅ #43 + #42 UYGULANDI (kullanıcı "önce bu 2sini yap" dedi):**
+- **#43 Legal metin ekleri (commit `1db744c`):** verilen metin mevcut legal sayfalara ADDITIVE eklendi (mevcut içerik korundu,
+  sadece genişletildi/renumber). gizlilik(KVKK) 1→23 (yeni: Kullanılan Bağlam/Risk Etiketleri · Ödeme Webhook'ları+Finansal ·
+  Hata Raporlama+Redaksiyon · QR Misafir Sohbeti · Takvim/iCal · Müşteri Yükümlülükleri; genişletilen 5/6/8/10/12).
+  on-bilgilendirme 1→15 (AI Sınırları · Üçüncü Taraf Bağımlılık · Platform Spam/Politika). mesafeli-satis §8 ALICI + §9 SATICI
+  genişletildi (parti etiketleri SATICI/ALICI'ya harmonize — sözleşme iç-tutarlılığı; metin aksi hâlde birebir). Numara tekrarsız.
+- **#42 Checkout consent (commit `c4e7080`):** `paddle-plans.tsx` — ZORUNLU checkbox ("Ön Bilgilendirme + Mesafeli Satış'ı
+  okudum"), tüm plan butonlarını kilitler + `openCheckout` içinde defense-in-depth guard + /on-bilgilendirme,/mesafeli-satis link.
+  Kabul-KAYDI (timestamp/version server-side) = #41'e ait (şu an sadece UI gate). 637 test yeşil.
+- **DOĞRULAMA:** 2 review agent salındı (session limit RESETLENDİ, çalışıyor) — checkout gate bypass/stale-closure + legal metin
+  ürün-doğruluğu (webhook redaksiyon/report-error/sync scrubbed/iCal/QR/AI-gate iddiaları kodla mı?). Bulgular kodla teyit edilip uygulanacak.
 
 ## ⏳ SIRADAKİ OTURUM — kalan (opsiyonel / karar)
 4b. **[düşük — hardening]** CSV/iCal import (`reservations/import`) manuel-yol uzunluk kaplarını atlıyor (currency
