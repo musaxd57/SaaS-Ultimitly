@@ -368,6 +368,16 @@ export-dışlama regresyon testi yok (yapı allowlist ile zaten güvenli — ist
   IDOR-proof (zod-strip + session) · FK ihlali imkânsız (requireSession user'ı doğruluyor) · client best-effort checkout'u bloklamıyor ·
   erasure org-cascade ile CheckoutConsent gider (retention sweep dokunmaz — host'un KENDİ kanıtı, guest PII değil) · SIZINTI YOK
   (write-only, hiçbir API/export okumuyor) · rate-limit session-keyed bypass yok. 645 test.
+- **✅ FAIL-CLOSED (kullanıcı direktifi, commit `7630ebc`):** best-effort KALDIRILDI. `openCheckout` önce kaydeder, `res.ok`
+  (=satır commit'li) DEĞİLSE `Paddle.Checkout.open` ÇAĞRILMAZ + "Onayınız kaydedilemedi, ödeme başlatılamadı". Kanıt olmadan ödeme
+  yok. +busy in-flight guard (çift-tık→çift satır engellendi). +3 UI test (jsdom: 500→open YOK · network-hata→open YOK · 201→open VAR). **648 test.**
+- **✅ KARAR — consent paketi YETERLİ (kullanıcı, launch için):** timestamp + IP + userAgent + legalVersion + server-side checkout
+  kaydı + fail-closed = yeterli. Postgres güvenilir (endpoint 2xx = ACID-commit'li satır; DB düşerse ödeme açılmaz — doğru taviz).
+- **⏸️ #46 `legalTextHash` = BACKLOG (kullanıcı: "şimdi başlama").** legalVersion YERİNE değil YANINA sha256(legal metin) → metin
+  versiyon-bumpsuz değişse bile kabul-anı hash'i tam gösterileni dondurur. Şart DEĞİL (mevcut standart yeterli), ileride "çok
+  profesyonel güçlendirme". Yaparsak: SECTIONS'ı paylaşılan modüle taşı + server-hash + CI drift-test. **Launch öncesi öncelik DEĞİL.**
+- **🎯 LAUNCH ÖNCESİ ÖNCELİK (kullanıcı sıralaması):** (1) **SELLER bilgileri** (`legal-entity.ts` [parantez] — KULLANICI/avukat
+  girdisi, kod değil), (2) **#44 KVKK UX** (silinir/saklanır paneli + AI veri-kullanım açıklaması + export görünürlüğü — kod), (3) **final denetim** (tur-6 resume).
 - **DOĞRULAMA — İKİSİ DE TEMİZ (2 review agent, kodla):** (a) **Checkout gate:** bypass yok (disabled buton + openCheckout guard),
   stale-closure yok (`accepted` deps'te), linkler geçerli, tek checkout yüzeyi. Tek "vektör" konsoldan direkt `Paddle.Checkout.open`
   = her client-side 3rd-party checkout'ta doğal, server-side kayıtla (#41) kapanır — app bug değil. (b) **Legal metin ürün-doğruluğu:**
