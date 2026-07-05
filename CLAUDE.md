@@ -359,7 +359,11 @@ export-dışlama regresyon testi yok (yapı allowlist ile zaten güvenli — ist
   throwaway PG'de migrate deploy 0..9 + sıfır-drift doğrulandı). `POST /api/billing/consent` (withAuth): org+user SESSION'dan
   (IDOR-proof; body org/user zod-strip), legalVersion=LEGAL_VERSION + ip=clientIp(rightmost XFF) + UA(512-cap) = server-türevli.
   Client (paddle-plans) Paddle overlay AÇILMADAN önce best-effort kaydeder (kayıt hatası checkout'u bloklamaz — checkbox gate +
-  Paddle txn backstop); legalVersion customData'ya da binerek tamamlanan-işlem webhook'una taşınıyor. resetDb temizliyor. +6 test
+  Paddle txn backstop); legalVersion customData'ya da binerek tamamlanan-işlem webhook'una taşınıyor. resetDb temizliyor.
+  **⚠️ KULLANICI DÜZELTMESİ (fail-closed, commit sonraki):** best-effort KALDIRILDI — consent POST başarısızsa (non-2xx VEYA network)
+  `Paddle.Checkout.open` ÇAĞRILMIYOR + "Onayınız kaydedilemedi, ödeme başlatılamadı" gösteriliyor. Delil-önce: kayıt commit
+  olmadan ödeme yok (endpoint 2xx = satır commit'li). +busy in-flight guard (double-click→çift satır engellendi). +3 UI test
+  (jsdom: 500→open YOK, network-hata→open YOK, 201→open VAR). +6 endpoint test
   (kayıt+rightmost-XFF, 401, 400, IDOR-proof, null-safe, 429-cap). **Review agent TEMİZ (7/7 kodla):** migration boot-safe+sıfır-drift ·
   IDOR-proof (zod-strip + session) · FK ihlali imkânsız (requireSession user'ı doğruluyor) · client best-effort checkout'u bloklamıyor ·
   erasure org-cascade ile CheckoutConsent gider (retention sweep dokunmaz — host'un KENDİ kanıtı, guest PII değil) · SIZINTI YOK

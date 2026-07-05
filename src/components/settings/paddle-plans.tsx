@@ -110,6 +110,9 @@ export function PaddlePlans({
   // Distance-selling consent: the buyer must accept the Ön Bilgilendirme Formu +
   // Mesafeli Satış Sözleşmesi BEFORE a paid checkout opens. Gates every plan button.
   const [accepted, setAccepted] = useState(false);
+  // In-flight guard: while the consent record is being written (and checkout
+  // opened) the plan buttons are disabled, so a double-click can't fire twice.
+  const [busy, setBusy] = useState(false);
 
   useEffect(() => {
     let cancelled = false;
@@ -146,7 +149,7 @@ export function PaddlePlans({
 
   const openCheckout = useCallback(
     async (planCode: string, priceId: string) => {
-      if (!window.Paddle || !priceId) return;
+      if (!window.Paddle || !priceId || busy) return;
       // Defense-in-depth: even if the button somehow fires, never open a paid
       // checkout without the pre-contract acceptance.
       if (!accepted) {
@@ -154,21 +157,28 @@ export function PaddlePlans({
         return;
       }
       setError(null);
-      // Record the distance-sales acceptance server-side BEFORE opening checkout,
-      // so IP/UA/version/plan are captured with a server timestamp. Best-effort:
-      // a logging hiccup must NOT block the purchase — the checkbox gate and
-      // Paddle's own transaction record are the backstop — so a failure is
-      // swallowed and we proceed to checkout regardless.
+      setBusy(true);
       try {
-        await fetch("/api/billing/consent", {
-          method: "POST",
-          headers: { "content-type": "application/json" },
-          body: JSON.stringify({ planCode, priceId }),
-        });
-      } catch {
-        // network hiccup — proceed to checkout anyway
-      }
-      try {
+        // FAIL-CLOSED: the consent record is the pre-payment legal evidence. If it
+        // can't be persisted, do NOT open checkout — the whole point is "no payment
+        // without a committed acceptance record". The endpoint returns 2xx ONLY
+        // after the row is committed, so res.ok ⇒ the evidence exists. On any
+        // failure (non-2xx or network) we stop and let the user retry.
+        let recorded = false;
+        try {
+          const res = await fetch("/api/billing/consent", {
+            method: "POST",
+            headers: { "content-type": "application/json" },
+            body: JSON.stringify({ planCode, priceId }),
+          });
+          recorded = res.ok;
+        } catch {
+          recorded = false; // network error
+        }
+        if (!recorded) {
+          setError("Onayınız kaydedilemedi, ödeme başlatılamadı. Lütfen tekrar deneyin.");
+          return;
+        }
         window.Paddle.Checkout.open({
           items: [{ priceId, quantity: 1 }],
           customer: { email },
@@ -179,9 +189,11 @@ export function PaddlePlans({
         });
       } catch {
         setError("Ödeme ekranı açılamadı. Lütfen tekrar deneyin.");
+      } finally {
+        setBusy(false);
       }
     },
-    [email, organizationId, accepted],
+    [email, organizationId, accepted, busy],
   );
 
   return (
@@ -256,7 +268,7 @@ export function PaddlePlans({
               <p className="mb-2 text-xs text-muted-foreground">{limit}</p>
               <button
                 type="button"
-                disabled={!ready || isCurrent || !p.priceId || !accepted}
+                disabled={!ready || isCurrent || !p.priceId || !accepted || busy}
                 onClick={() => openCheckout(p.code, p.priceId)}
                 className="inline-flex h-8 w-full items-center justify-center rounded-md bg-primary px-3 text-xs font-medium text-primary-foreground hover:bg-primary/90 disabled:opacity-50"
               >
