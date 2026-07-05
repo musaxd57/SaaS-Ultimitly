@@ -192,15 +192,55 @@ export default async function SettingsPage({
             </a>
             <p className="text-xs text-muted-foreground">
               Belirli bir misafire ait verileri silmek için ilgili rezervasyonu veya konuşmayı
-              panelden silebilirsiniz. Hesabınızın tamamen silinmesini isterseniz{" "}
-              <a href="mailto:iletisimlixusai@gmail.com" className="underline hover:text-foreground">
-                iletisimlixusai@gmail.com
-              </a>{" "}
-              adresine yazın.
+              panelden silebilirsiniz.{" "}
+              {session.role === "owner" ? (
+                <>
+                  Hesabınızın tamamen silinmesini aşağıdaki <strong>“Hesabı Sil”</strong> bölümünden
+                  yapabilirsiniz.
+                </>
+              ) : (
+                <>
+                  Hesabın tamamen silinmesi için{" "}
+                  <a href="mailto:iletisimlixusai@gmail.com" className="underline hover:text-foreground">
+                    iletisimlixusai@gmail.com
+                  </a>{" "}
+                  adresine yazın.
+                </>
+              )}{" "}
+              Verilerinizin nasıl işlendiğini{" "}
+              <a href="/gizlilik" className="underline hover:text-foreground">
+                Gizlilik Politikası
+              </a>
+              ’nda görebilirsiniz.
             </p>
           </CardContent>
         </Card>
       ) : null}
+
+      <Card className="max-w-2xl">
+        <CardHeader>
+          <CardTitle className="text-base">Yapay Zekâ ve Veri Kullanımı</CardTitle>
+        </CardHeader>
+        <CardContent className="space-y-3">
+          <p className="text-sm text-muted-foreground">
+            Yapay zekâ bir yanıt hazırlarken yalnızca misafirin mesajını, konuşma geçmişini, mülk
+            bilgilerinizi, rezervasyon özetini (misafir adı ve tarihler) ve bilgi tabanınızı bağlam olarak
+            kullanır. Misafirin telefon ve e-posta bilgisi modele gönderilmez.
+          </p>
+          <p className="text-sm text-muted-foreground">
+            Şikayet, iade, iptal, güvenlik, ayrımcılık gibi riskli mesajlar otomatik yanıtlanmaz; her zaman
+            insan onayına bırakılır.
+          </p>
+          <p className="text-sm text-muted-foreground">
+            Veriler, yapay zekâ sağlayıcısının (OpenAI) API varsayılanı gereği model eğitiminde kullanılmaz.
+            Ayrıntı için{" "}
+            <a href="/gizlilik" className="underline hover:text-foreground">
+              Gizlilik Politikası
+            </a>
+            .
+          </p>
+        </CardContent>
+      </Card>
 
       {canManageChannel && hospitableInfo ? (
         <Card id="hospitable" className="max-w-2xl scroll-mt-24">

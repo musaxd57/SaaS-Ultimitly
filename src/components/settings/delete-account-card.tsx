@@ -48,10 +48,27 @@ export function DeleteAccountCard() {
   return (
     <div className="space-y-3">
       <p className="text-sm text-muted-foreground">
-        Hesabınızı ve <strong>tüm verilerinizi</strong> (daireler, mesajlar, görevler, rezervasyonlar,
-        bilgi tabanı) kalıcı olarak siler. Bu işlem <strong>geri alınamaz</strong>. (KVKK — verilerin
-        silinmesini isteme hakkı.)
+        Hesabınızı ve <strong>tüm verilerinizi</strong> kalıcı olarak siler. Bu işlem{" "}
+        <strong>geri alınamaz</strong>. (KVKK — verilerin silinmesini isteme hakkı.)
       </p>
+
+      <div className="rounded-lg border border-border bg-muted/30 p-3 text-xs">
+        <p className="font-medium text-foreground">Kalıcı olarak silinir</p>
+        <ul className="mt-1 list-disc space-y-0.5 pl-4 text-muted-foreground">
+          <li>Daireler ve rezervasyonlar (misafir adı, telefon, e-posta dâhil)</li>
+          <li>Tüm misafir konuşmaları ve mesajları, görevler</li>
+          <li>Bilgi tabanı, şablonlar, takvim bağlantıları, otomasyon kuralları</li>
+          <li>Kullanıcı hesapları (şifre, 2FA, onay kayıtları), denetim kayıtları</li>
+          <li>Abonelik ve faturalar, Hospitable bağlantı bilgileri</li>
+        </ul>
+        <p className="mt-2 font-medium text-foreground">Yasa gereği saklanır (kişisel bilgiler temizlenerek)</p>
+        <ul className="mt-1 list-disc space-y-0.5 pl-4 text-muted-foreground">
+          <li>
+            Ödeme işlem kayıtlarının finansal iskeleti — işlem/abonelik kimliği, tutar, para birimi,
+            tarih ve durum. E-posta, ad-soyad, adres ve kart bilgisi bunlardan silinir.
+          </li>
+        </ul>
+      </div>
 
       {!open ? (
         <Button
