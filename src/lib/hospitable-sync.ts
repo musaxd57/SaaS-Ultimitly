@@ -134,13 +134,20 @@ export async function syncHospitable(
   const propertyMap = new Map<string, string>(); // hospitableId → our propertyId
   for (const hp of hospitableProps) {
     if (!hp.id) continue;
-    const ourId = await linkProperty(organizationId, hp, liveIds, limitState);
-    if (!ourId) {
-      result.propertiesCapped++;
-      continue;
+    try {
+      const ourId = await linkProperty(organizationId, hp, liveIds, limitState);
+      if (!ourId) {
+        result.propertiesCapped++;
+        continue;
+      }
+      propertyMap.set(hp.id, ourId);
+      result.properties++;
+    } catch (err) {
+      // A DB error on ONE listing must not abort the whole org's sync (mirrors the
+      // reservation loop). Notably a P2002 on the GLOBAL-@unique hospitableId when
+      // the same Airbnb account is linked under another org — log and move on.
+      console.error(`[Hospitable sync] linkProperty failed for ${hp.id}`, err);
     }
-    propertyMap.set(hp.id, ourId);
-    result.properties++;
   }
 
   // 2. Per property, pull reservations and their message threads.

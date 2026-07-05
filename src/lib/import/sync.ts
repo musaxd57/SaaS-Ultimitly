@@ -2,6 +2,7 @@ import "server-only";
 import { prisma } from "@/lib/db";
 import { parseIcs } from "@/lib/import/ics";
 import { createReservationTasks } from "@/lib/automation";
+import { isPrivateHost } from "@/lib/net/private-host";
 
 export interface SyncResult {
   imported: number;
@@ -38,6 +39,11 @@ export async function syncCalendarSource(sourceId: string): Promise<SyncResult> 
 
   let text: string;
   try {
+    // SSRF guard (defense-in-depth for rows created before the route guard):
+    // never fetch a loopback / link-local / private / metadata target.
+    if (isPrivateHost(new URL(source.url).hostname)) {
+      throw new Error("blocked private host");
+    }
     const res = await fetch(source.url, {
       headers: { "User-Agent": "Lixus-AI/1.0" },
       // iCal feeds change often; never serve a stale cached copy.
