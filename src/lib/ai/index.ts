@@ -40,7 +40,13 @@ function verifyUsedSources(list: string[], input: SuggestReplyInput): string[] {
   return list.filter((src) => {
     if (src.startsWith("kb:")) return kbCats.has(src.slice(3));
     if (src === "property:address") return Boolean(input.property.address);
-    if (src.startsWith("property:")) return true; // check-in/out times always exist
+    if (src.startsWith("property:")) {
+      // Whitelist the REAL property fields — a blanket `true` let the model inject
+      // a fabricated source (e.g. "property:door_code") that then showed as a
+      // "used context" chip, contradicting the invented-source-dropped guarantee.
+      const field = src.slice("property:".length);
+      return field === "checkInTime" || field === "checkOutTime" || field === "name" || field === "city";
+    }
     if (src.startsWith("reservation:")) return input.reservation != null;
     if (src === "history") return Boolean(input.history && input.history.length > 0) || Boolean(input.styleProfile);
     return false; // unknown shape → drop
@@ -169,7 +175,7 @@ export async function suggestReply(input: SuggestReplyInput): Promise<SuggestRep
           missingInfo: sanitizeStringList(parsed.missingInfo, 5, 80),
           statedCheckoutTime:
             typeof parsed.statedCheckoutTime === "string" &&
-            /^\d{1,2}:\d{2}$/.test(parsed.statedCheckoutTime.trim())
+            /^([01]?\d|2[0-3]):[0-5]\d$/.test(parsed.statedCheckoutTime.trim())
               ? parsed.statedCheckoutTime.trim()
               : null,
         };

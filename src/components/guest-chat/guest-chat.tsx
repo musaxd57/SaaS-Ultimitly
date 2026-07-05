@@ -25,12 +25,21 @@ export function GuestChat({ token, propertyName }: { token: string; propertyName
   const [closed, setClosed] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const endRef = useRef<HTMLDivElement>(null);
+  // Monotonic load counter (drop stale snapshots) + a live "sending" flag the
+  // poll reads to avoid clobbering the optimistic bubble mid-send.
+  const loadSeq = useRef(0);
+  const sendingRef = useRef(false);
 
   const loadHistory = useCallback(async () => {
+    const seq = ++loadSeq.current;
     try {
       const res = await fetch(`/api/chat/${token}`, { method: "GET" });
       if (!res.ok) return;
       const data = (await res.json()) as { open?: boolean; messages?: ChatMessage[] };
+      // Drop a stale snapshot: if a newer load was issued while this one was in
+      // flight (e.g. the post-send refresh), applying this older response would
+      // wipe the just-sent message / AI reply off-screen for up to a poll cycle.
+      if (seq !== loadSeq.current) return;
       if (data.open === false) {
         setClosed(true);
         return;
@@ -44,7 +53,9 @@ export function GuestChat({ token, propertyName }: { token: string; propertyName
 
   useEffect(() => {
     void loadHistory();
-    const t = setInterval(() => void loadHistory(), 5000); // see host replies as they arrive
+    // Skip the poll while a send is in flight so its pre-message snapshot can't
+    // overwrite the optimistic bubble; the post-send loadHistory refreshes it.
+    const t = setInterval(() => { if (!sendingRef.current) void loadHistory(); }, 5000);
     return () => clearInterval(t);
   }, [loadHistory]);
 
@@ -60,6 +71,7 @@ export function GuestChat({ token, propertyName }: { token: string; propertyName
     // optimistic guest bubble; the server fetch below replaces the list with the
     // authoritative version (guest message + AI reply) keyed by real ids.
     setMessages((m) => [...m, { id: `tmp-${Date.now()}`, role: "guest", text }]);
+    sendingRef.current = true;
     setSending(true);
     try {
       const res = await fetch(`/api/chat/${token}`, {
@@ -76,6 +88,7 @@ export function GuestChat({ token, propertyName }: { token: string; propertyName
     } catch {
       setError("Bağlantı hatası. Lütfen tekrar deneyin.");
     } finally {
+      sendingRef.current = false;
       setSending(false);
     }
   }
