@@ -250,16 +250,31 @@ session'dan → IDOR yok), tasks/dashboard aggregation, KVKK anonimleştirme çe
   tutuyor (host kaydı—kasıtlı). (3) [legal] WebhookEvent.payloadJson hesap silmede kalıyor (Paddle MoR). (4) getMonthlyReport
   UTC ay penceresi (İstanbul'a çevrilebilir, düşük etki). (5) dashboard "Şu An Konaklayan" turnover-günü overlap sayıyor.
 
+## ✅ DERİN DENETİM TURU-5 UYGULANDI (2026-07-05, commit 700dd72 + e4b459e + 5a7a028)
+5 agent (adversarial AI-gate + adversarial billing + marketing/SEO + error-reporting/audit + boot/env/seed). Temiz:
+billing entitlement (grace/trial/grandfathered sağlam), error-reporting+audit (never-throw, actor imzalı, sızıntı yok),
+landing demo cost-gate/XSS/hydration, boot-order/env-guard/next.config.
+- **[AI GÜVENLİK — turun en kritik bulgusu, 700dd72]** oto-gönderim kapısında 3 delik kapandı: (1) `rule_violation` +
+  `discrimination` DETERMİNİSTİK NET YOKTU (tur-2'de ertelenmişti) → evcil-hayvan/parti/kapasite/ayrımcı-talep benign-
+  model'le izinsiz onay OTO-GİDİYORDU → word-net + gate veto (ayrımcılık EXCLUSION-anchored, misafirin kendi milliyeti
+  tetiklemez). (2) İngilizce güvenlik kelimeleri zayıf ("I smell gas" yakalanmıyordu) → genişletildi. (3) `riskLevel`
+  FAIL-OPEN ("High"/"critical"→"none") → fail-closed ("high"). +6 golden. **622 test.**
+- **[Ops güvenlik, e4b459e]** seed.ts prod-wipe guard (NODE_ENV=production'da DB silmeyi reddet, ALLOW_PROD_SEED override) ·
+  BILLING_ENFORCED "1" de kabul (diğer 8 flag gibi) · EMAIL_PORT boş-string→0 guard.
+- **[SEO, 5a7a028]** global canonical="/" her sayfaya miras kalıp yasal/KVKK sayfalarını index-dışı bırakıyordu → kaldırıldı.
+- **[⚠️ KARAR — KULLANICI/BILLING]** Operatör-oluşturduğu müşteri Subscription satırı ALMIYOR (public register 14g trial açar) →
+  grandfathered=SINIRSIZ premium, BILLING_ENFORCED'e bağışık. Kasıtlı (agency ücretsiz) mı, gelir-sızıntısı mı? register gibi
+  trial açılsın mı = SENİN KARARIN (para akışı → autonomous turda DOKUNMADIM). Kod hazır: admin/customers'a `newTrialSubscriptionData()`.
+- **[ERTELENDİ — latent]** error-reporting 3.taraf hata gövdesini (OpenAI/Hospitable) redakte etmeden Sentry'ye geçiriyor
+  (doğrulanmış PII sızıntısı DEĞİL, KVKK savunma-derinliği). getMonthlyReport UTC ay. dashboard "Şu An Konaklayan" overlap.
+
 ## ⏳ SIRADAKİ OTURUM — kalan (opsiyonel / karar)
 4b. **[düşük — hardening]** CSV/iCal import (`reservations/import`) manuel-yol uzunluk kaplarını atlıyor (currency
    vb. sınırsız) → satırları `reservationSchema`'dan geçir. QR `looksLikeSecret` yalnız keyword-yanındaki kodu
    yakalıyor (host yanlış kategoriye koyarsa savunma-derinliği boşluğu, sızıntı DEĞİL). conversationReplySchema
    manuel cevapta senderName serbest → "GuestOps AI" ile self-inflate rapor sayımı (kendi-org, exploit değil).
-5. **[AI — dikkatli tasarım gerek] `discrimination` + `rule_violation` deterministik net YOK:** `detectRiskType`
-   bu 2 sınıfı hiç üretmiyor → tespit %100 modelin label'ında (HIGH_STAKES veto var, ama kod-yedeği yok).
-   Örnek: "arkadaşlarım da gece kalacak, sorun olmaz değil mi?" → `sorun olmaz` PROBLEM_NEGATIONS'ta, aktif
-   de-flag. Net eklemek İSTENİR ama false-positive riski yüksek (ayrımcılıkta misafirin KENDİ milliyetini
-   belirtmesi tetiklememeli) → dikkatli, övgü-tuzağı golden'lı ayrı tur. Model zaten label'lıyor, acil değil.
+5. ✅ **[YAPILDI tur-5, commit 700dd72] `discrimination` + `rule_violation` deterministik net** eklendi — fallback.ts
+   word-net (ayrımcılık EXCLUSION-anchored) + gate veto + 6 golden. Misafirin kendi milliyeti tetiklemiyor (praise-trap testli).
 6. **[izle — şema gerek] Otomasyon baseline import-zamanı:** `*EnabledAt` gate'i `Reservation.createdAt`
    (=import anı) üzerinden; host toggle'ı İLK sync'ten önce açar veya hesabı yeniden bağlarsa mevcut gelecek
    rezervasyonlara mesaj gidebilir. Tam-güvenli fix Hospitable "booking-created" zaman damgası ister (yeni kolon).
@@ -290,8 +305,10 @@ session'dan → IDOR yok), tasks/dashboard aggregation, KVKK anonimleştirme çe
 4. Paddle: küçük gerçek ödeme birlikte test. AUTO_REPLY: ilk gönderimler birlikte doğrula.
 
 ## Durum
-**616 test yeşil, typecheck temiz, migrate deploy canlıda doğrulanmış.** 8 migration
+**622 test yeşil, typecheck temiz, migrate deploy canlıda doğrulanmış.** 8 migration
 (0_init→7_ical_hide_guest_name) sıfır-drift (taze Postgres'te doğrulandı). Branch =
-`claude/great-edison-3zqpZ`, origin ile senkron (282cfec = iCal PII gizliliği; 1d112f7 = doğrulama-turu
-cilası; b94cd8a = sync fencing + Paddle grace anchor + webhook sıralama; a6d3713 = 10-ajan sweep + 8-ajan
-denetim; hepsi canlıda deploy'lu).
+`claude/great-edison-3zqpZ`, origin ile senkron. 5-tur derin denetim (loop `197ace29`) yapıldı: tur-1..5 =
+AI-gate güvenlik yedekleri (rule_violation/discrimination/safety-EN/riskLevel) · sync fencing/dedup/guestName ·
+Paddle grace/webhook · iCal PII · impersonation epoch · trial-email retry · QR turnover + wifi-secret · CSV
+import sertleştirme · operatör-müşteri login · seed prod-guard · SEO canonical. Bulgular tur-tur azalıyor
+(çekirdek iyi örtüldü). Kalan: çoğu KULLANICI/LEGAL kararı (operatör-müşteri billing, retention-window, KVKK-DPA).
