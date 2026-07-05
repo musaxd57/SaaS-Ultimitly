@@ -201,7 +201,29 @@ Bu oturumun iki düzeltmesi kasıtlı bir maliyet taşıyor; gerçek kullanımda
 - **Sync BUG3**: per-reservation skip-check DB sorguları sarılı değildi → transient DB hatası mülkün kalan
   rezervasyonlarını abort ediyordu. Null-element guard + try/catch, log-and-continue. **614 test yeşil.**
 
+## ✅ DERİN DENETİM TURU-2 UYGULANDI (2026-07-05, commit cda01bf + 92e3f0a)
+5 agent (QR concierge / operatör-admin / trial-email / kalan rapor fn'leri / request-validation) + doğrulama:
+- **[GÜVENLİK] Impersonation epoch bypass** (cda01bf): operatör bir müşteriyi impersonate ederken sessionEpoch
+  yalnızca MÜŞTERİ userId'sine bakıyordu → operatör kendi şifresini reset etse bile ÇALINAN impersonation
+  token'ı yaşıyordu (müşteri PII erişimi + geri süper-admin'e çıkabiliyor). Fix: `actorSessionEpoch` claim'i
+  (operatörün kendi epoch'u, hop'larda korunur); requireSession + layout guard actor epoch'unu da doğruluyor.
+  Legacy token'lar claim'siz → atlanır (geriye uyumlu). +2 session testi.
+- **[Email] Trial-reminder ölü rollback**: `emailService.send()` hatayı yutup void döndüğü için try/catch
+  rollback ÖLÜ koddu → başarısız trial-maili sonsuza "gönderildi" damgalı kalıyordu (TRIAL_EMAILS + enforcement
+  CANLI). `sendReporting()` + `ok` dalı → başarısızlıkta claim geri alınır, sonraki turda retry. Test güncellendi.
+- **[QR] Turnover shadowing**: resolveGuestChat pencereyi test etmeden EN YENİ rezervasyona indirgiyordu → 12s
+  look-ahead sonraki misafiri öne çekince, mevcut misafir turnover öncesi öğleden sonra chat'i KAPALI görüyordu +
+  turnover sabahı thread'i sonraki misafirin id'siyle sunuluyordu (çapraz-misafir PII). Artık tüm adayları artan
+  varışla değerlendirip AKTİF (incumbent) konaklamayı seçiyor.
+- **[Rapor] getHostPerformanceScore** UTC gün penceresi → İstanbul (occupancy ile aynı sınıf). **getAiOpsReport
+  openProblems** take:500 uzunluğu yerine gerçek count(). **Validators**: loginSchema.email +.max(254),
+  reservationSchema.totalAmount +.max. **616 test yeşil.**
+
 ## ⏳ SIRADAKİ OTURUM — kalan (opsiyonel / karar)
+4b. **[düşük — hardening]** CSV/iCal import (`reservations/import`) manuel-yol uzunluk kaplarını atlıyor (currency
+   vb. sınırsız) → satırları `reservationSchema`'dan geçir. QR `looksLikeSecret` yalnız keyword-yanındaki kodu
+   yakalıyor (host yanlış kategoriye koyarsa savunma-derinliği boşluğu, sızıntı DEĞİL). conversationReplySchema
+   manuel cevapta senderName serbest → "GuestOps AI" ile self-inflate rapor sayımı (kendi-org, exploit değil).
 5. **[AI — dikkatli tasarım gerek] `discrimination` + `rule_violation` deterministik net YOK:** `detectRiskType`
    bu 2 sınıfı hiç üretmiyor → tespit %100 modelin label'ında (HIGH_STAKES veto var, ama kod-yedeği yok).
    Örnek: "arkadaşlarım da gece kalacak, sorun olmaz değil mi?" → `sorun olmaz` PROBLEM_NEGATIONS'ta, aktif
@@ -237,7 +259,7 @@ Bu oturumun iki düzeltmesi kasıtlı bir maliyet taşıyor; gerçek kullanımda
 4. Paddle: küçük gerçek ödeme birlikte test. AUTO_REPLY: ilk gönderimler birlikte doğrula.
 
 ## Durum
-**614 test yeşil, typecheck temiz, migrate deploy canlıda doğrulanmış.** 8 migration
+**616 test yeşil, typecheck temiz, migrate deploy canlıda doğrulanmış.** 8 migration
 (0_init→7_ical_hide_guest_name) sıfır-drift (taze Postgres'te doğrulandı). Branch =
 `claude/great-edison-3zqpZ`, origin ile senkron (282cfec = iCal PII gizliliği; 1d112f7 = doğrulama-turu
 cilası; b94cd8a = sync fencing + Paddle grace anchor + webhook sıralama; a6d3713 = 10-ajan sweep + 8-ajan
