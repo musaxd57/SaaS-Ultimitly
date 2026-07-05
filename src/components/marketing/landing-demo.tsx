@@ -33,6 +33,7 @@ export function LandingDemo() {
   const [error, setError] = useState<string | null>(null);
 
   async function run(text?: string) {
+    if (busy) return; // guard every entry (incl. Enter) against a double-fire
     const msg = (text ?? message).trim();
     if (!msg) return;
     if (text) setMessage(text);

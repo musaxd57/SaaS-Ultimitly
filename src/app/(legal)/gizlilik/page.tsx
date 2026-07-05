@@ -171,7 +171,7 @@ const SECTIONS: Section[] = [
   {
     title: "19. Çerezler",
     body: [
-      "Yalnızca hizmetin çalışması için zorunlu olan oturum çerezini kullanırız; bu çerez, giriş yaptıktan sonra oturumunuzun açık kalmasını sağlar. Pazarlama veya üçüncü taraf izleme çerezleri kullanmayız.",
+      "Hizmetin çalışması için zorunlu birinci-taraf çerezlerini kullanırız: oturum çerezi (giriş sonrası oturumunuzun açık kalması), iki adımlı doğrulamada “bu cihazı hatırla” çerezi (en fazla 30 gün) ve Hospitable bağlantısı sırasında kullanılan güvenlik (state) çerezi. Pazarlama veya üçüncü taraf izleme çerezleri kullanmayız.",
     ],
   },
   {

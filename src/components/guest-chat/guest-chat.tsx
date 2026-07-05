@@ -70,9 +70,16 @@ export function GuestChat({ token, propertyName }: { token: string; propertyName
     setError(null);
     // optimistic guest bubble; the server fetch below replaces the list with the
     // authoritative version (guest message + AI reply) keyed by real ids.
-    setMessages((m) => [...m, { id: `tmp-${Date.now()}`, role: "guest", text }]);
+    const tmpId = `tmp-${Date.now()}`;
+    setMessages((m) => [...m, { id: tmpId, role: "guest", text }]);
     sendingRef.current = true;
     setSending(true);
+    // On failure, roll back the optimistic bubble and restore the typed text so the
+    // guest isn't left with a "sent"-looking message sitting next to an error.
+    const rollback = () => {
+      setMessages((m) => m.filter((x) => x.id !== tmpId));
+      setInput(text);
+    };
     try {
       const res = await fetch(`/api/chat/${token}`, {
         method: "POST",
@@ -80,12 +87,14 @@ export function GuestChat({ token, propertyName }: { token: string; propertyName
         body: JSON.stringify({ message: text }),
       });
       if (!res.ok) {
+        rollback();
         // error kept in dedicated state so a background poll can't wipe it
         setError("Şu an yanıt veremiyorum. Lütfen biraz sonra tekrar deneyin.");
         return;
       }
       await loadHistory();
     } catch {
+      rollback();
       setError("Bağlantı hatası. Lütfen tekrar deneyin.");
     } finally {
       sendingRef.current = false;

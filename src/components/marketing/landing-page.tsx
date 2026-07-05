@@ -534,7 +534,7 @@ export function LandingPage() {
             ))}
           </div>
           <p className="mt-8 text-center text-sm text-muted-foreground">
-            25+ daire mi yönetiyorsunuz?{" "}
+            25’ten fazla daire mi yönetiyorsunuz?{" "}
             <a href="#demo" className="font-medium text-foreground underline underline-offset-2">
               Büyük portföyler için bize ulaşın
             </a>

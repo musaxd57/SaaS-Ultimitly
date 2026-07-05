@@ -53,7 +53,7 @@ const SECTIONS: Section[] = [
   {
     title: "6. Hizmet Bedeli, Vergiler ve Toplam Tutar",
     body: [
-      "Tüm planlar, fiyatlandırma sayfasında belirtilen aylık (veya seçilirse yıllık) bedel üzerinden ücretlendirilir. İlan edilen fiyatlara vergiler dâhildir; ödeme adımında tahsil edilecek toplam tutar, vergiler dâhil olarak açıkça gösterilir.",
+      "Tüm planlar, fiyatlandırma sayfasında belirtilen aylık bedel üzerinden ücretlendirilir. İlan edilen fiyatlara vergiler dâhildir; ödeme adımında tahsil edilecek toplam tutar, vergiler dâhil olarak açıkça gösterilir.",
       "Yeni hesaplara, ücretli bir plan seçmeden önce 14 gün ücretsiz Pro denemesi sunulur; deneme için kart bilgisi alınmaz.",
     ],
   },
@@ -66,7 +66,7 @@ const SECTIONS: Section[] = [
   {
     title: "8. Sözleşme Süresi ve Yenilenme",
     body: [
-      "Abonelik, seçilen dönem (aylık veya yıllık) boyunca geçerlidir ve iptal edilmediği sürece dönem sonunda aynı koşullarla otomatik olarak yenilenir. Aboneliğinizi dilediğiniz zaman iptal edebilirsiniz; iptal, içinde bulunulan ödeme döneminin sonunda yürürlüğe girer ve takip eden dönem için ücret alınmaz.",
+      "Abonelik, seçilen aylık dönem boyunca geçerlidir ve iptal edilmediği sürece dönem sonunda aynı koşullarla otomatik olarak yenilenir. Aboneliğinizi dilediğiniz zaman iptal edebilirsiniz; iptal, içinde bulunulan ödeme döneminin sonunda yürürlüğe girer ve takip eden dönem için ücret alınmaz.",
     ],
   },
   {

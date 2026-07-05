@@ -191,8 +191,8 @@ export default async function SettingsPage({
               Verilerimi indir (JSON)
             </a>
             <p className="text-xs text-muted-foreground">
-              Belirli bir misafire ait verileri silmek için ilgili rezervasyonu veya konuşmayı
-              panelden silebilirsiniz.{" "}
+              Belirli bir misafire ait verileri silmek için ilgili rezervasyonu ve konuşmayı
+              panelden silebilirsiniz; biri diğerini otomatik silmez, bu yüzden tam silme için ikisini de silin.{" "}
               {session.role === "owner" && !isOperator ? (
                 <>
                   Hesabınızın tamamen silinmesini aşağıdaki <strong>“Hesabı Sil”</strong> bölümünden
