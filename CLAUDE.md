@@ -267,8 +267,35 @@ landing demo cost-gate/XSS/hydration, boot-order/env-guard/next.config.
   Pro sonra ücretli), (2) **manual** (status active/provider manual — premium açık, ödemeyi operatör dışarıda toplar), (3)
   **free** (status grandfathered — sınırsız, enforcement-dışı, AÇIK işaret; artık kazara satırsız-grandfathered YOK). Migration
   YOK (mevcut alanlara oturdu). Operatör paneli SADECE Nuve'de (SUPERADMIN_EMAILS gate; müşterilerde yok — doğrulandı).
-- **[ERTELENDİ — latent]** error-reporting 3.taraf hata gövdesini (OpenAI/Hospitable) redakte etmeden Sentry'ye geçiriyor
-  (doğrulanmış PII sızıntısı DEĞİL, KVKK savunma-derinliği). getMonthlyReport UTC ay. dashboard "Şu An Konaklayan" overlap.
+- **[ERTELENDİ — latent → ÇOĞU ÇÖZÜLDÜ TURU-6]** ~~error-reporting Sentry redaksiyon~~ ✅ · ~~dashboard "Şu An
+  Konaklayan" overlap~~ ✅ (aşağı bak). getMonthlyReport UTC ay = HÂLÂ açık (düşük etki).
+
+## ✅ KVKK SERTLEŞTİRME BATCH'İ UYGULANDI (2026-07-05, commits eb47949·cc468eb·be4dfbc·c827b4a·cea2ce0 — kod değişmez, migration YOK)
+Kullanıcı 5 KVKK/doğruluk düzeltmesi istedi; her biri agent-vetted + kod-doğrulanıp uygulandı. **635 test yeşil.**
+1. **[Sentry redaksiyon, cc468eb]** `report-error.ts` `redactSensitive()`: bearer/`sk-`/`whsec_`/JWT/authorization/cookie
+   maskesi + alan-adı-duyarlı `key:value` redaksiyonu + etiketsiz `[EMAIL]/[PHONE]/[NUM]`. `code/id/status/type` bare kalır
+   (P2002/invalid_grant/HTTP-status hata-teşhisi korunur). `reportError` detail/errName/errMessage'i redakte eder; Paddle
+   webhook error yazımı da geçer. → provider raw body / AI prompt / misafir mesajı / token/cookie / email-tel-ad-adres artık
+   Sentry+log+alert-mail'e SIZMAZ. +2 test.
+2. **[Retention resurrection guard, eb47949]** deep-sync (540g) retention-cutoff'u (190g) aşıp anonimleşmiş satırı geri
+   çekince taze kanal-PII'si sentineli EZİYORDU. `hospitable-sync.ts` artık `guestName===ANON_NAME` / `guestIdentifier===
+   ANON_ID` gördüğünde PII alanlarını YAZMAZ (yeni mesajlar yine import edilir). Option-(b): sync PII restore edemez (boot-fail
+   yerine — retention penceresi daralsa bile güvenli). +1 integration test (Booking kanalı; sync→anonymize→re-sync→sentinel korunur).
+3. **[Paddle webhook PII minimize, c827b4a]** account-delete'te WebhookEvent SİLİNMEZ (org FK yok, finansal/audit iz —
+   Invoice/Subscription cascade ile gider). `redactPaddleWebhooksForOrg`: payloadJson allowlist-rebuild (event_id/type/
+   occurred_at + data.{id,status,customer_id,subscription_id,currency_code,period.ends_at,grand_total,custom_data.orgId} +
+   `note:"kvkk-erasure"`) → email/ad/adres/tel/ham-gövde düşer, mutabakat iskeleti kalır. Substring-prefilter + parse-verify
+   (yanlış org'a dokunmaz), `status:"processed"` (Paddle retry ham-PII'yi geri yazamaz). +1 test.
+4. **[Dashboard "bu gece kalan", be4dfbc]** turnover günü giren+çıkanı ikisini de sayıyordu ("şu an evde" için şişik).
+   `reports.ts` `stayingTonight` = `arrivalDate<=dayEnd AND departureDate>dayEnd` (distinct propertyId; iCal öğlen-UTC için
+   `>dayEnd` doğru sınır). Dashboard artık bunu okur (inline dup query kaldırıldı). Doluluk sayımı (occupiedToday) DEĞİŞMEDİ. +2 test.
+5. **[Outbound gövde ad-redaksiyonu, cea2ce0]** retention-sweep misafirin KENDİ (inbound) gövdesini siliyordu ama host'un
+   outbound cevabı adı ekoluyordu (oto-selam ilk-ad "Merhaba Ahmet,"; manuel imza tam-ad) → ad sonsuza kalıyordu. `redactNameFromBody`:
+   bilinen ad(lar)ı outbound'dan çıkarır, host içeriğini ("anahtar kutuda") KORUR → sadece token `[Misafir]`. Rezervasyon-bağlı
+   + orphan yolları. Unicode-duyarlı sınır (`\p{L}\p{N}` lookaround; JS `\b` ASCII, TR ç/ğ/ı/ö/ş/ü'de bozulur). <3-harf ad atlanır
+   ("Su tesisatı" bozulmasın — bilinçli residual). Idempotent. +5 test.
+**Resend DNS = KOD DEĞİL, OPS CHECKLIST** (launch-öncesi): RESEND doğrulanmış domain + SPF/DKIM/DMARC (şifre/uyarı mailleri
+spam'e düşmesin) — aşağıdaki "LAUNCH ÖNCESİ" #3'te zaten var, kod tarafı yapılacak bir şey yok.
 
 ## ⏳ SIRADAKİ OTURUM — kalan (opsiyonel / karar)
 4b. **[düşük — hardening]** CSV/iCal import (`reservations/import`) manuel-yol uzunluk kaplarını atlıyor (currency
@@ -307,8 +334,10 @@ landing demo cost-gate/XSS/hydration, boot-order/env-guard/next.config.
 4. Paddle: küçük gerçek ödeme birlikte test. AUTO_REPLY: ilk gönderimler birlikte doğrula.
 
 ## Durum
-**622 test yeşil, typecheck temiz, migrate deploy canlıda doğrulanmış.** 8 migration
-(0_init→7_ical_hide_guest_name) sıfır-drift (taze Postgres'te doğrulandı). Branch =
+**635 test yeşil, typecheck temiz, migrate deploy canlıda doğrulanmış.** 8 migration
+(0_init→7_ical_hide_guest_name) sıfır-drift (taze Postgres'te doğrulandı). **KVKK sertleştirme batch'i (5 düzeltme,
+migration YOK — mevcut alanlara/koda oturdu): Sentry redaksiyon · retention resurrection guard · Paddle webhook PII
+minimize · dashboard "bu gece kalan" · outbound gövde ad-redaksiyonu.** Branch =
 `claude/great-edison-3zqpZ`, origin ile senkron. 5-tur derin denetim (loop `197ace29`) yapıldı: tur-1..5 =
 AI-gate güvenlik yedekleri (rule_violation/discrimination/safety-EN/riskLevel) · sync fencing/dedup/guestName ·
 Paddle grace/webhook · iCal PII · impersonation epoch · trial-email retry · QR turnover + wifi-secret · CSV
