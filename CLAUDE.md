@@ -354,8 +354,13 @@ export-dışlama regresyon testi yok (yapı allowlist ile zaten güvenli — ist
   genişletildi (parti etiketleri SATICI/ALICI'ya harmonize — sözleşme iç-tutarlılığı; metin aksi hâlde birebir). Numara tekrarsız.
 - **#42 Checkout consent (commit `c4e7080`):** `paddle-plans.tsx` — ZORUNLU checkbox ("Ön Bilgilendirme + Mesafeli Satış'ı
   okudum"), tüm plan butonlarını kilitler + `openCheckout` içinde defense-in-depth guard + /on-bilgilendirme,/mesafeli-satis link.
-  Kabul-KAYDI (timestamp/version server-side) = AYRI task **#45** (şu an SADECE UI gate; #41 register-only, checkout'u kapsamaz).
-  Checkout server-kaydı yeni tablo `CheckoutConsent` + `/api/billing/consent` endpoint ister (org/user/planCode/priceId/version/ip/ua). 637 test yeşil.
+  Kabul-KAYDI (timestamp/version server-side) → **✅ #45 UYGULANDI (migration `9_checkout_consent`, commit `133e8cc`).**
+  Yeni tablo `CheckoutConsent` (org Cascade + user SetNull + index, AuditLog analog — dolu tabloya ALTER YOK, sıfır risk;
+  throwaway PG'de migrate deploy 0..9 + sıfır-drift doğrulandı). `POST /api/billing/consent` (withAuth): org+user SESSION'dan
+  (IDOR-proof; body org/user zod-strip), legalVersion=LEGAL_VERSION + ip=clientIp(rightmost XFF) + UA(512-cap) = server-türevli.
+  Client (paddle-plans) Paddle overlay AÇILMADAN önce best-effort kaydeder (kayıt hatası checkout'u bloklamaz — checkbox gate +
+  Paddle txn backstop); legalVersion customData'ya da binerek tamamlanan-işlem webhook'una taşınıyor. resetDb temizliyor. +5 test
+  (kayıt+rightmost-XFF, 401, 400, IDOR-proof, null-safe). 644 test. Review agent doğruluyor.
 - **DOĞRULAMA — İKİSİ DE TEMİZ (2 review agent, kodla):** (a) **Checkout gate:** bypass yok (disabled buton + openCheckout guard),
   stale-closure yok (`accepted` deps'te), linkler geçerli, tek checkout yüzeyi. Tek "vektör" konsoldan direkt `Paddle.Checkout.open`
   = her client-side 3rd-party checkout'ta doğal, server-side kayıtla (#41) kapanır — app bug değil. (b) **Legal metin ürün-doğruluğu:**
