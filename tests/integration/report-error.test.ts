@@ -3,7 +3,7 @@ import { describe, it, expect, beforeEach, afterEach, vi } from "vitest";
 vi.mock("@/lib/email", () => ({ emailService: { send: vi.fn() } }));
 
 import { emailService } from "@/lib/email";
-import { reportError, __resetReportThrottle } from "@/lib/report-error";
+import { reportError, redactSensitive, __resetReportThrottle } from "@/lib/report-error";
 
 const mockSend = vi.mocked(emailService.send);
 
@@ -59,5 +59,48 @@ describe("reportError", () => {
     const [url, init] = fetchMock.mock.calls[0];
     expect(url).toBe("https://o123.ingest.sentry.io/api/456/envelope/");
     expect(String((init as RequestInit).body)).toContain("kaboom");
+  });
+
+  it("redacts PII/secrets from BOTH the Sentry envelope and the alert email", async () => {
+    const fetchMock = vi.fn().mockResolvedValue(new Response(null, { status: 200 }));
+    vi.stubGlobal("fetch", fetchMock);
+    vi.stubEnv("SENTRY_DSN", "https://pubkey@o123.ingest.sentry.io/456");
+    vi.stubEnv("ERROR_ALERT_EMAIL", "ops@example.com");
+
+    const leaky = new Error(
+      'HospitableError: HTTP 500: {"full_name":"John Smith","email":"guest@x.com","phone":"+90 555 123 4567","door_code":"482913"} Authorization: Bearer sk-abc123def456ghi Cookie: s=zzz whsec_xyz',
+    );
+    await reportError("hospitable-sync", leaky);
+
+    const sentryBody = String((fetchMock.mock.calls[0][1] as RequestInit).body);
+    const emailHtml = String(mockSend.mock.calls[0][2]);
+    for (const s of [sentryBody, emailHtml]) {
+      expect(s).not.toContain("John Smith");
+      expect(s).not.toContain("guest@x.com");
+      expect(s).not.toContain("555 123");
+      expect(s).not.toContain("482913");
+      expect(s).not.toContain("sk-abc123def456ghi");
+      expect(s).not.toContain("whsec_xyz");
+      expect(s).not.toContain("s=zzz");
+      // Debuggable parts SURVIVE:
+      expect(s).toContain("HospitableError");
+      expect(s).toContain("HTTP 500");
+    }
+    expect(sentryBody).toContain("hospitable-sync"); // context/transaction preserved for grouping
+  });
+});
+
+describe("redactSensitive", () => {
+  it("masks secret/PII values, keeps status codes + error types/codes + stack shape", () => {
+    expect(redactSensitive("contact guest@x.com now")).not.toContain("guest@x.com"); // unlabeled email
+    expect(redactSensitive("Bearer sk-abc123def456ghijk")).not.toContain("sk-abc123def456ghijk");
+    expect(redactSensitive("whsec_abcdef")).toBe("whsec_[REDACTED]");
+    expect(redactSensitive("call +905551112233 please")).not.toContain("905551112233"); // unlabeled phone
+    expect(redactSensitive('{"door_code":"482913"}')).not.toContain("482913");
+    // preserved:
+    expect(redactSensitive("PrismaClientKnownRequestError P2002 on field")).toContain("P2002");
+    expect(redactSensitive("HTTP 429 Too Many Requests")).toContain("429");
+    expect(redactSensitive("invalid_grant")).toBe("invalid_grant");
+    expect(redactSensitive("")).toBe("");
   });
 });

@@ -1,7 +1,7 @@
 import { type NextRequest, NextResponse } from "next/server";
 import { prisma } from "@/lib/db";
 import { jsonOk, unauthorized } from "@/lib/api";
-import { reportError } from "@/lib/report-error";
+import { reportError, redactSensitive } from "@/lib/report-error";
 import {
   getPaddleWebhookSecret,
   verifyPaddleSignature,
@@ -234,7 +234,7 @@ export async function POST(req: NextRequest) {
     await reportError("paddle-webhook", err);
     if (providerEventId) {
       await prisma.webhookEvent
-        .update({ where: { providerEventId }, data: { status: "error", error: String(err).slice(0, 500) } })
+        .update({ where: { providerEventId }, data: { status: "error", error: redactSensitive(String(err)).slice(0, 500) } })
         .catch(() => {});
     }
     // Still 200 so Paddle doesn't retry-storm on a transient storage hiccup.

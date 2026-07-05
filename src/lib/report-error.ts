@@ -23,16 +23,53 @@ function escapeHtml(s: string): string {
     .replace(/>/g, "&gt;");
 }
 
-export async function reportError(context: string, err: unknown): Promise<void> {
-  const detail =
-    err instanceof Error ? `${err.name}: ${err.message}\n${err.stack ?? ""}` : String(err);
+// Sensitive JSON/kv KEYS whose VALUE must be masked. Deliberately EXCLUDES bare
+// "code"/"id"/"status"/"type" so error codes (P2002, invalid_grant), ids and
+// HTTP statuses stay visible for debugging.
+const SENSITIVE_KEY =
+  "(?:pass(?:word|wd)?|pwd|token|access[_-]?token|refresh[_-]?token|" +
+  "client[_-]?secret|secret|api[_-]?key|authorization|cookie|set[_-]?cookie|" +
+  "e?mail|phone|telephone|gsm|mobile|full[_-]?name|first[_-]?name|last[_-]?name|" +
+  "guest[_-]?name|name|address|street|door[_-]?code|access[_-]?code|postal[_-]?code)";
+const FIELD_RE = new RegExp(`("?)(${SENSITIVE_KEY})\\1\\s*[:=]\\s*("?)[^"\\n,}{]*\\3`, "gi");
 
-  // Always log — structured and greppable.
+/**
+ * Mask PII/secret VALUES from an error string before it leaves the process —
+ * Sentry is US-hosted (KVKK cross-border egress) and the alert email / logs are
+ * retained too. Preserves error TYPE, HTTP status codes, error codes, and stack
+ * frames (only values are masked), so reports stay debuggable. Exported for tests.
+ */
+export function redactSensitive(input: string): string {
+  if (!input) return input;
+  let s = input;
+  // (A) value-shaped secrets
+  s = s.replace(/\b[Bb]earer\s+[A-Za-z0-9._~+/=-]+/g, "Bearer [REDACTED]");
+  s = s.replace(/\bsk-[A-Za-z0-9_-]{12,}/g, "sk-[REDACTED]"); // OpenAI key
+  s = s.replace(/\bwhsec_[A-Za-z0-9]+/g, "whsec_[REDACTED]"); // webhook secret
+  s = s.replace(/\beyJ[A-Za-z0-9_-]+\.[A-Za-z0-9_-]+\.[A-Za-z0-9_-]+/g, "[JWT]");
+  s = s.replace(/\b(authorization|cookie|set-cookie)\b\s*[:=]\s*[^\n]+/gi, "$1: [REDACTED]");
+  // (B) field-name-aware: catches names/addresses/door-codes of any shape in JSON bodies
+  s = s.replace(FIELD_RE, (_m, q, key) => `${q}${key}${q}: [REDACTED]`);
+  // (C) unlabelled value-shaped PII
+  s = s.replace(/[A-Za-z0-9._%+-]+@[A-Za-z0-9.-]+\.[A-Za-z]{2,}/g, "[EMAIL]");
+  s = s.replace(/\+?\d[\d\s().-]{8,}\d/g, "[PHONE]");
+  s = s.replace(/\b\d{6,}\b/g, "[NUM]"); // long digit runs (ids/door codes); 3-digit statuses survive
+  return s;
+}
+
+export async function reportError(context: string, err: unknown): Promise<void> {
+  const detail = redactSensitive(
+    err instanceof Error ? `${err.name}: ${err.message}\n${err.stack ?? ""}` : String(err),
+  );
+  const errName = err instanceof Error ? err.name : "Error";
+  const errMessage = redactSensitive(err instanceof Error ? err.message : String(err));
+
+  // Always log — structured and greppable (redacted: Railway logs are retained).
   console.error(`[reportError] ${context} :: ${detail}`);
 
   // Real error monitoring (optional): send to Sentry when SENTRY_DSN is set.
   // Fire-and-forget, dependency-free, never throws.
-  void captureToSentry(context, err, detail);
+  void captureToSentry(context, errName, errMessage, detail);
 
   const to = process.env.ERROR_ALERT_EMAIL || process.env.ALERT_EMAIL;
   if (!to) return;
@@ -79,7 +116,12 @@ function parseDsn(dsn: string): SentryDsn | null {
   }
 }
 
-async function captureToSentry(context: string, err: unknown, detail: string): Promise<void> {
+async function captureToSentry(
+  context: string,
+  errName: string,
+  errMessage: string,
+  detail: string,
+): Promise<void> {
   const dsn = process.env.SENTRY_DSN?.trim();
   if (!dsn) return;
   const parsed = parseDsn(dsn);
@@ -97,14 +139,8 @@ async function captureToSentry(context: string, err: unknown, detail: string): P
       logger: "guestops",
       environment: process.env.NODE_ENV ?? "production",
       transaction: context,
-      exception: {
-        values: [
-          {
-            type: err instanceof Error ? err.name : "Error",
-            value: (err instanceof Error ? err.message : String(err)).slice(0, 1000),
-          },
-        ],
-      },
+      // errName/errMessage/detail are already redacted by reportError.
+      exception: { values: [{ type: errName, value: errMessage.slice(0, 1000) }] },
       extra: { detail: detail.slice(0, 4000) },
     });
     await fetch(parsed.endpoint, {
