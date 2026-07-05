@@ -72,8 +72,8 @@ class EmailService {
       const nodemailer = await import("nodemailer");
       const transporter = nodemailer.createTransport({
         host: process.env.EMAIL_HOST,
-        port: Number(process.env.EMAIL_PORT ?? 587),
-        secure: Number(process.env.EMAIL_PORT ?? 587) === 465,
+        port: Number(process.env.EMAIL_PORT || 587),
+        secure: Number(process.env.EMAIL_PORT || 587) === 465,
         auth: { user: process.env.EMAIL_USER, pass: process.env.EMAIL_PASS },
         // Fail fast instead of hanging when the SMTP port is blocked/unreachable.
         connectionTimeout: 12000,

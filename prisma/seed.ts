@@ -19,6 +19,15 @@ function hoursFromNow(hours: number): Date {
 async function main() {
   console.log("🌱 Seeding GuestOps AI...");
 
+  // SAFETY: everything below wipes the ENTIRE database before writing demo data.
+  // Refuse to run against production — a stray `db:seed` / `db:reset` / `prisma
+  // migrate reset` (which auto-runs this hook) pointed at the live DATABASE_URL
+  // would destroy all customer data, violating the cardinal "don't break the
+  // working product" rule. ALLOW_PROD_SEED=1 is the deliberate override.
+  if (process.env.NODE_ENV === "production" && process.env.ALLOW_PROD_SEED !== "1") {
+    throw new Error("Refusing to seed/wipe in production (set ALLOW_PROD_SEED=1 to override).");
+  }
+
   // Clean slate (dependency order). Safe for local/dev reseeding.
   await prisma.taskUpdate.deleteMany();
   await prisma.task.deleteMany();

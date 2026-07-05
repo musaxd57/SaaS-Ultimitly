@@ -62,9 +62,13 @@ export function newTrialSubscriptionData() {
   };
 }
 
-/** True only when billing is explicitly enforced. Default OFF → nothing blocked. */
+/** True only when billing is explicitly enforced. Default OFF → nothing blocked.
+ *  Accepts both "true" (documented) and "1" (the convention every other feature
+ *  flag uses) so an operator matching the "1" pattern can't silently leave
+ *  enforcement off. */
 export function billingEnforced(): boolean {
-  return process.env.BILLING_ENFORCED === "true";
+  const v = process.env.BILLING_ENFORCED;
+  return v === "true" || v === "1";
 }
 
 /** Resolve an organization's current entitlement (permissive default). */
