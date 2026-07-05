@@ -14,6 +14,7 @@ export async function resetDb(): Promise<void> {
   await prisma.chatUsage.deleteMany();
   await prisma.automationRule.deleteMany();
   await prisma.auditLog.deleteMany();
+  await prisma.checkoutConsent.deleteMany();
   await prisma.invoice.deleteMany();
   await prisma.subscription.deleteMany();
   await prisma.webhookEvent.deleteMany();

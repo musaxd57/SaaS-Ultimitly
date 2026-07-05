@@ -3,6 +3,7 @@
 import { useCallback, useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
 import Link from "next/link";
+import { LEGAL_VERSION } from "@/lib/legal-entity";
 
 // Paddle.js is loaded from Paddle's CDN at runtime (no npm dependency, matching
 // the rest of the dependency-free billing code). Minimal typings for the bits we
@@ -144,7 +145,7 @@ export function PaddlePlans({
   const lapsed = !active && !trialing && !grandfathered;
 
   const openCheckout = useCallback(
-    (priceId: string) => {
+    async (planCode: string, priceId: string) => {
       if (!window.Paddle || !priceId) return;
       // Defense-in-depth: even if the button somehow fires, never open a paid
       // checkout without the pre-contract acceptance.
@@ -153,11 +154,27 @@ export function PaddlePlans({
         return;
       }
       setError(null);
+      // Record the distance-sales acceptance server-side BEFORE opening checkout,
+      // so IP/UA/version/plan are captured with a server timestamp. Best-effort:
+      // a logging hiccup must NOT block the purchase — the checkbox gate and
+      // Paddle's own transaction record are the backstop — so a failure is
+      // swallowed and we proceed to checkout regardless.
+      try {
+        await fetch("/api/billing/consent", {
+          method: "POST",
+          headers: { "content-type": "application/json" },
+          body: JSON.stringify({ planCode, priceId }),
+        });
+      } catch {
+        // network hiccup — proceed to checkout anyway
+      }
       try {
         window.Paddle.Checkout.open({
           items: [{ priceId, quantity: 1 }],
           customer: { email },
-          customData: { organizationId },
+          // legalVersion travels with the transaction so the completed-purchase
+          // webhook payload cross-references which text was accepted.
+          customData: { organizationId, legalVersion: LEGAL_VERSION },
           settings: { displayMode: "overlay", theme: "light", locale: "tr" },
         });
       } catch {
@@ -240,7 +257,7 @@ export function PaddlePlans({
               <button
                 type="button"
                 disabled={!ready || isCurrent || !p.priceId || !accepted}
-                onClick={() => openCheckout(p.priceId)}
+                onClick={() => openCheckout(p.code, p.priceId)}
                 className="inline-flex h-8 w-full items-center justify-center rounded-md bg-primary px-3 text-xs font-medium text-primary-foreground hover:bg-primary/90 disabled:opacity-50"
               >
                 {isCurrent

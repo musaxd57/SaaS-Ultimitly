@@ -23,6 +23,16 @@ export const leadSchema = z.object({
 });
 export type LeadInput = z.infer<typeof leadSchema>;
 
+// --- Billing ----------------------------------------------------------------
+// Checkout (Mesafeli Satış) consent record. planCode/priceId are the ONLY client
+// inputs; org, user, legal version, IP and User-Agent are all server-derived so
+// they can't be forged.
+export const checkoutConsentSchema = z.object({
+  planCode: z.string().min(1, "Plan gerekli").max(64),
+  priceId: z.string().min(1, "Fiyat gerekli").max(128),
+});
+export type CheckoutConsentInput = z.infer<typeof checkoutConsentSchema>;
+
 // --- Auth -------------------------------------------------------------------
 export const registerSchema = z.object({
   organizationName: z.string().min(2, "İşletme adı en az 2 karakter olmalı").max(200),

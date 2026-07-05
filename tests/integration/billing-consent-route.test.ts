@@ -1,0 +1,102 @@
+import { describe, it, expect, beforeEach, afterAll, vi } from "vitest";
+import { NextRequest } from "next/server";
+import { prisma, resetDb } from "../helpers/db";
+import { __resetRateLimit } from "@/lib/rate-limit";
+import { LEGAL_VERSION } from "@/lib/legal-entity";
+import type { SessionPayload } from "@/lib/auth";
+
+// route-guard's withAuth reads requireSession from @/lib/api (cross-module) — mock
+// it so we can drive the session. null = unauthenticated.
+let session: SessionPayload | null;
+vi.mock("@/lib/api", async (orig) => {
+  const actual = await orig<typeof import("@/lib/api")>();
+  return { ...actual, requireSession: vi.fn(async () => session) };
+});
+
+import { POST } from "@/app/api/billing/consent/route";
+
+function postReq(body: unknown, extraHeaders?: Record<string, string>) {
+  return new NextRequest("http://localhost/api/billing/consent", {
+    method: "POST",
+    headers: { "content-type": "application/json", ...extraHeaders },
+    body: JSON.stringify(body),
+  });
+}
+const ctx = { params: Promise.resolve({} as Record<string, never>) };
+
+describe("POST /api/billing/consent (checkout distance-sales evidence)", () => {
+  let orgId: string;
+  let userId: string;
+
+  beforeEach(async () => {
+    await resetDb();
+    __resetRateLimit();
+    const org = await prisma.organization.create({ data: { name: "Org" } });
+    orgId = org.id;
+    const user = await prisma.user.create({
+      data: { organizationId: orgId, name: "O", email: "o@x.com", passwordHash: "x", role: "owner" },
+    });
+    userId = user.id;
+    session = { userId, organizationId: orgId, role: "owner", email: "o@x.com", name: "O", sessionEpoch: 0 };
+  });
+  afterAll(async () => {
+    await prisma.$disconnect();
+  });
+
+  it("records the acceptance with server-derived version/IP/UA + session org+user", async () => {
+    const res = await POST(
+      postReq(
+        { planCode: "pro", priceId: "pri_123" },
+        { "x-forwarded-for": "1.2.3.4, 5.6.7.8", "user-agent": "TestBrowser/1.0" },
+      ),
+      ctx,
+    );
+    expect(res.status).toBe(201);
+    const rows = await prisma.checkoutConsent.findMany({ where: { organizationId: orgId } });
+    expect(rows).toHaveLength(1);
+    expect(rows[0]).toMatchObject({
+      organizationId: orgId,
+      userId,
+      planCode: "pro",
+      priceId: "pri_123",
+      legalVersion: LEGAL_VERSION,
+      ip: "5.6.7.8", // rightmost XFF, spoofed leftmost discarded
+      userAgent: "TestBrowser/1.0",
+    });
+    expect(rows[0].createdAt).toBeInstanceOf(Date);
+  });
+
+  it("rejects unauthenticated requests (401, no row)", async () => {
+    session = null;
+    const res = await POST(postReq({ planCode: "pro", priceId: "pri_123" }), ctx);
+    expect(res.status).toBe(401);
+    expect(await prisma.checkoutConsent.count()).toBe(0);
+  });
+
+  it("validates the body (400 on empty planCode, no row)", async () => {
+    const res = await POST(postReq({ planCode: "", priceId: "pri_123" }), ctx);
+    expect(res.status).toBe(400);
+    expect(await prisma.checkoutConsent.count()).toBe(0);
+  });
+
+  it("is IDOR-proof: a body-supplied org/user id is IGNORED — records for the session only", async () => {
+    const otherOrg = await prisma.organization.create({ data: { name: "Other" } });
+    const res = await POST(
+      postReq({ planCode: "pro", priceId: "pri_123", organizationId: otherOrg.id, userId: "hacker" }),
+      ctx,
+    );
+    expect(res.status).toBe(201);
+    expect(await prisma.checkoutConsent.count({ where: { organizationId: otherOrg.id } })).toBe(0);
+    const mine = await prisma.checkoutConsent.findMany({ where: { organizationId: orgId } });
+    expect(mine).toHaveLength(1);
+    expect(mine[0].userId).toBe(userId); // the session user, not the body's "hacker"
+  });
+
+  it("is null-safe when IP/UA headers are absent", async () => {
+    const res = await POST(postReq({ planCode: "pro", priceId: "pri_123" }), ctx);
+    expect(res.status).toBe(201);
+    const row = await prisma.checkoutConsent.findFirst({ where: { organizationId: orgId } });
+    expect(row?.ip).toBe("unknown"); // clientIp fallback
+    expect(row?.userAgent).toBeNull(); // header absent → null
+  });
+});

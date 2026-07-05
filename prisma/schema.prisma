@@ -115,6 +115,7 @@ model Organization {
   messageTemplates MessageTemplate[]
   subscription     Subscription?
   invoices         Invoice[]
+  checkoutConsents CheckoutConsent[]
 }
 
 model User {
@@ -176,6 +177,7 @@ model User {
   assignedTasks Task[]      @relation("TaskAssignee")
   taskUpdates  TaskUpdate[]
   auditLogs    AuditLog[]
+  checkoutConsents CheckoutConsent[]
 
   @@index([organizationId])
 }
@@ -438,6 +440,28 @@ model AuditLog {
 
   organization Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
   actor        User?        @relation(fields: [actorUserId], references: [id], onDelete: SetNull)
+
+  @@index([organizationId])
+}
+
+// Distance-selling (Mesafeli Satış) consent EVIDENCE captured at CHECKOUT — the
+// server-side counterpart to the client checkbox in paddle-plans.tsx. One row per
+// acceptance (repeatable: a user may go through checkout more than once), written
+// by /api/billing/consent right before Paddle's overlay opens. Mirrors AuditLog's
+// org+actor shape; cascades away with the org on erasure (like Invoice/Subscription).
+model CheckoutConsent {
+  id             String   @id @default(cuid())
+  organizationId String
+  userId         String? // who accepted (session user); SetNull if that user is later removed
+  planCode       String // plan being purchased at acceptance time
+  priceId        String // the exact Paddle price id shown
+  legalVersion   String // LEGAL_VERSION at acceptance — which text was accepted
+  ip             String? // server-derived (rightmost XFF), spoof-resistant
+  userAgent      String? // request UA, length-capped
+  createdAt      DateTime @default(now()) // = checkoutLegalAcceptedAt
+
+  organization Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  user         User?        @relation(fields: [userId], references: [id], onDelete: SetNull)
 
   @@index([organizationId])
 }
