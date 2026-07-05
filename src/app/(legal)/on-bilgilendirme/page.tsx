@@ -28,7 +28,7 @@ const SECTIONS: Section[] = [
     body: [
       "Lixus AI, kısa dönem kiralama işletmeleri için misafir mesajlarını yapay zekâ ile yanıtlayan, görev ve operasyon takibi sağlayan bir yazılım (SaaS) hizmetidir. Hizmet, seçilen abonelik planına göre internet üzerinden sunulur; fiziksel bir ürün teslimi yapılmaz.",
       "Hizmet; Hospitable entegrasyonu aracılığıyla rezervasyon ve misafir mesajlarının senkronize edilmesi, bilgi tabanı oluşturulması, AI yanıt önerileri hazırlanması, uygun ayarlarda düşük riskli mesajların otomatik yanıtlanması, orta/yüksek riskli mesajların insan incelemesine bırakılması, görev/operasyon takibi, QR misafir sohbeti ve temel raporlama özelliklerini içerebilir. Hizmetin kapsamı seçilen plana, bağlı entegrasyonlara, Müşteri’nin bilgi tabanı doluluğuna ve otomasyon ayarlarına göre değişebilir.",
-      "Planlar: Başlangıç (1–2 daire), Pro (3–7 daire) ve İşletme (8+ daire). Planların güncel içerikleri, sınırları ve fiyatları satın alma anında fiyatlandırma sayfasında gösterilir.",
+      "Planlar: Başlangıç (1–2 daire), Pro (3–7 daire) ve İşletme (8–25 daire). Planların güncel içerikleri, sınırları ve fiyatları satın alma anında fiyatlandırma sayfasında gösterilir.",
     ],
   },
   {

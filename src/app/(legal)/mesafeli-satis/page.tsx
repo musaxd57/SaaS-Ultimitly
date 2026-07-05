@@ -127,7 +127,7 @@ const SECTIONS: Section[] = [
   {
     title: "17. Yürürlük",
     body: [
-      "ALICI’nın elektronik ortamda ödemeyi onaylaması ile işbu sözleşme (16 maddeden oluşan asıl metin ve ekleri ile birlikte) kurulmuş ve yürürlüğe girmiş sayılır. Sözleşmenin bir örneği ALICI’ya elektronik ortamda sunulur.",
+      "ALICI’nın elektronik ortamda ödemeyi onaylaması ile işbu sözleşme (17 maddeden oluşan asıl metin ve ekleri ile birlikte) kurulmuş ve yürürlüğe girmiş sayılır. Sözleşmenin bir örneği ALICI’ya elektronik ortamda sunulur.",
     ],
   },
 ];

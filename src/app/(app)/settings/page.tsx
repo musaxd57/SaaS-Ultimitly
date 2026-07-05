@@ -193,7 +193,7 @@ export default async function SettingsPage({
             <p className="text-xs text-muted-foreground">
               Belirli bir misafire ait verileri silmek için ilgili rezervasyonu veya konuşmayı
               panelden silebilirsiniz.{" "}
-              {session.role === "owner" ? (
+              {session.role === "owner" && !isOperator ? (
                 <>
                   Hesabınızın tamamen silinmesini aşağıdaki <strong>“Hesabı Sil”</strong> bölümünden
                   yapabilirsiniz.
@@ -228,8 +228,8 @@ export default async function SettingsPage({
             kullanır. Misafirin telefon ve e-posta bilgisi modele gönderilmez.
           </p>
           <p className="text-sm text-muted-foreground">
-            Şikayet, iade, iptal, güvenlik, ayrımcılık gibi riskli mesajlar otomatik yanıtlanmaz; her zaman
-            insan onayına bırakılır.
+            Şikayet, iade, iptal, güvenlik, ayrımcılık gibi riskli mesajlar otomatik sonuçlandırılmaz; her
+            zaman insan incelemesine bırakılır.
           </p>
           <p className="text-sm text-muted-foreground">
             Veriler, yapay zekâ sağlayıcısının (OpenAI) API varsayılanı gereği model eğitiminde kullanılmaz.
