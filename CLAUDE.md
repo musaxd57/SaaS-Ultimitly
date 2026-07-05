@@ -387,6 +387,28 @@ export-dışlama regresyon testi yok (yapı allowlist ile zaten güvenli — ist
   `!isOperator` gate (operatör/founder'a var-olmayan silme bölümünü işaret ediyordu) · (2) settings AI kartı "yanıtlanmaz"→"sonuçlandırılmaz;
   insan incelemesine" (opt-in holding-ack ile hizalı, gizlilik §10) · (3) mesafeli §17 "16 maddeden"→"17" (render'la uyum) · (4) on-bilgilendirme
   "İşletme 8+"→"8–25 daire" (propertyLimit=25 + landing ile uyum). #3/#4 pre-existing, denetimde yüzeye çıktı.
+
+## 🔒 PRE-LAUNCH DENETİM (40-agent workflow, kullanıcı direktifi: yeni özellik YOK)
+`wf_c54a3844` — 41 agent (10 backend·10 uyum·10 frontend·10 ekstra), yüksek/kritik verify. **18/41 bitti, 23 session-limit'te düştü
+(2:30 UTC reset → resume edildi).** Yüksek/kritik YOK; 36 medium/low. **UYGULANAN (kodla-teyit + test):**
+- **[GÜVENLİK] SSRF (commit `91c789c`):** calendar-sources keyfi URL kaydediyor → `import/sync.ts` server-fetch, iç-IP filtresi
+  yoktu → `lib/net/private-host.ts isPrivateHost` (route create + pre-fetch guard; string-only, no-DNS → legit feed bozulmaz).
+  Residual (follow-up): DNS-resolve-to-private + 302-redirect-to-internal (dispatcher/lookup gerek). +1 unit test.
+- **[SYNC] linkProperty guard (`91c789c`):** global-@unique hospitableId P2002'si (aynı Airbnb hesabı 2 org'da) TÜM org sync'ini
+  abort ediyordu → try/catch log-and-continue (rezervasyon loop'u gibi).
+- **[AI-GATE] (commit `9105108`):** injection "your previous instructions" (determiner'da your yoktu) · cancellation isim-formları
+  (iptali/cancellation/cancel this) · hasar/depozito/ceza dispute anchor'ları · ırk-temelli exclusion (no black/siyahi olmasın,
+  exclusion-anchored → misafirin kendi kökeni tetiklemez) · **QR concierge mustEscalate** backstop'ları (injection+safety_emergency+
+  rule_violation+discrimination+human_request — public chat'te human-review taslağı yok). +9 golden (88 pass). Hepsi over-escalate=güvenli.
+**KARAR-LİSTESİ (ERTELENDİ — inceleme/karar gerek):**
+- [billing] Paddle webhook apply-hatasında 200 dönüp retry engelliyor → mutasyon kalıcı kayıp; 5xx (idempotent handler'lar güvenli)
+  VEYA reconciliation. Bilinçli "retry-storm yok" tasarımıydı → KARAR. + invoice dedup non-atomic (boş tablo→@@unique güvenli) + occurred_at null/atomic race.
+- [reliability] automation.ts:972 ana persist try/catch (kardeşleri korumalı, bu değil) · manual reply idempotency (claim-then-send, auto-reply'da var).
+- [kopya-güvenli] gizlilik §19 "sadece oturum çerezi" (aslında 3 çerez: session+trusted-device 30g+oauth-state) · yasal "yıllık" plan
+  (ürün sadece aylık) · landing "25+" İşletme-25 ile çakışma · settings KVKK "rezervasyon VEYA konuşma sil" (tek işlem PII'yi kardeş kayıtta bırakır)
+  · billing/consent bayat "best-effort" yorumu (artık fail-closed) · account-card error-first→field-first · landing-demo Enter çift-tetik + rozet-overclaim · guest-chat optimistic balon geri-almıyor.
+- [sync-low] deep-cadence multi-replica (module var) · outbound externalId-null dedup (CLAUDE.md'de zaten "canlıda doğrula").
+- **Kalan 23 agent** (frontend·prompt-injection·kvkk-retention·crypto/session·rate-limit·webhook-security·deploy-smoke·env-checklist·migration-integrity) resume'da → sonuçları gelince işlenecek.
 - **DOĞRULAMA — İKİSİ DE TEMİZ (2 review agent, kodla):** (a) **Checkout gate:** bypass yok (disabled buton + openCheckout guard),
   stale-closure yok (`accepted` deps'te), linkler geçerli, tek checkout yüzeyi. Tek "vektör" konsoldan direkt `Paddle.Checkout.open`
   = her client-side 3rd-party checkout'ta doğal, server-side kayıtla (#41) kapanır — app bug değil. (b) **Legal metin ürün-doğruluğu:**
