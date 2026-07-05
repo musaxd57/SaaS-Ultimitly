@@ -66,6 +66,9 @@ const SECTIONS: Section[] = [
       "Kayıt ve ödeme sırasında verdiği bilgilerin doğru olduğunu beyan eder.",
       "Hesap güvenliğinden ve giriş bilgilerinin gizliliğinden sorumludur.",
       "Hizmeti yasalara ve bağlı platformların kurallarına uygun kullanır.",
+      "AI tarafından oluşturulan yanıtların taslak/destek niteliğinde olduğunu; misafir ilişkileri, iade, iptal, hasar, güvenlik, yasal yükümlülükler ve platform kuralları bakımından nihai sorumluluğun kendisine ait olduğunu kabul eder.",
+      "Otomatik yanıt özelliğini kullanmadan önce bilgi tabanındaki bilgilerin doğru, güncel ve yeterli olduğunu kontrol etmekle yükümlüdür; eksik veya hatalı bilgi tabanı nedeniyle oluşabilecek yanlış yönlendirmelerden sorumludur.",
+      "Airbnb, Booking.com ve benzeri bağlı platformların kullanım şartlarına, mesajlaşma kurallarına, spam politikalarına, ödeme/rezervasyon kurallarına ve ayrımcılık karşıtı politikalarına uygun davranmakla yükümlüdür.",
       "İşbu sözleşmeyi, Ön Bilgilendirme Formu’nu, Kullanım Koşulları’nı ve Gizlilik Politikası’nı okuyup kabul ettiğini beyan eder.",
     ],
   },
@@ -73,6 +76,10 @@ const SECTIONS: Section[] = [
     title: "9. SATICI’nın Hak ve Yükümlülükleri",
     body: [
       "SATICI, Hizmeti işbu sözleşme ve eklerine uygun şekilde sunmayı taahhüt eder. SATICI, Hizmeti kesintisiz sunmayı hedefler; ancak planlı bakım, güncelleme, mücbir sebep ve üçüncü taraf sağlayıcı kaynaklı kesintilerden sorumlu tutulamaz. Yapay zekâ çıktıları hatalı olabilir; gönderilen mesajlara ilişkin nihai sorumluluk ALICI’ya aittir (ayrıntı için Kullanım Koşulları).",
+      "SATICI (Lixus AI); platform dışı ödeme, hukuka aykırı ayrımcılık, güvenlik riski, kötüye kullanım, spam benzeri kullanım, aşırı/uygunsuz otomasyon veya bağlı platformların kurallarını ihlal eden kullanımlar için Hizmeti sınırlandırabilir, askıya alabilir veya ilgili otomasyonları kapatabilir.",
+      "Airbnb, Booking.com, Hospitable, Paddle, OpenAI, Resend veya diğer üçüncü taraf sağlayıcılardan kaynaklanan kesinti, erişim kısıtı, API değişikliği, hesap/ilan sınırlaması, spam etiketi, mesaj teslim problemi veya platform politikası değişikliklerinden SATICI sorumlu değildir. SATICI yalnızca kendi yazılım hizmetinin makul şekilde çalışması için gerekli teknik önlemleri alır.",
+      "ALICI, platformlar tarafından verilen spam, kalite, görünürlük, hesap, ilan veya politika kararlarının SATICI tarafından verilmediğini; bu kararların ilgili platformların kendi sistemleri ve ALICI’nın kullanım biçimiyle ilişkili olabileceğini kabul eder.",
+      "Platformların spam, kalite, güvenlik veya politika etiketlemeleri; ALICI’nın mesaj içerikleri, gönderim sıklığı, platform kurallarına uyumu ve ilgili platformların kendi algoritma/kararlarına bağlıdır. SATICI yalnızca teknik destek ve otomasyon aracı sağlar; SATICI’dan kaynaklanan açık teknik hata hariç olmak üzere, platformların hesap, ilan, mesaj veya spam sınıflandırmalarına ilişkin nihai sorumluluk ALICI’ya aittir.",
     ],
   },
   {
