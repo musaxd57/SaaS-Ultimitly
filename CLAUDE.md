@@ -234,6 +234,22 @@ Temiz çıkanlar: middleware+cron+instrumentation (JWT imzalı doğrulanıyor, m
 - **[ERTELENDİ — parser rewrite riski]** CSV tırnak-içi newline yanlış ayrışıyor (\n'de pre-split) → state-machine gerek.
   Translate/summarize reportError paritesi (nit). session.ts:10 bayat "deferred" yorumu (doc).
 
+## ✅ DERİN DENETİM TURU-4 UYGULANDI (2026-07-05, commit 6d6ea75 + 6b3bbef)
+5 agent (Hospitable OAuth-connect / hesap-yaşam-döngüsü / KVKK-anonimleştirme / KB-şablon / task-dashboard) + doğrulama.
+Temiz çıkanlar: **OAuth connect flow SAĞLAM** (state httpOnly+192-bit+verified, sabit redirect_uri, server-only secret, org
+session'dan → IDOR yok), tasks/dashboard aggregation, KVKK anonimleştirme çekirdeği (tüm PII alanları kapsanıyor).
+- **[Fonksiyonel] Operatör-oluşturduğu müşteri login kilidi** (6d6ea75): admin/customers `emailVerifiedAt` set etmiyordu →
+  müşteri İLK login'de "doğrulama maili" (hiç gönderilmeyen) yüzünden 403 → `emailVerifiedAt` damgalandı (login zaten muaf sayıyor).
+- **[Güvenlik] QR Wi-Fi secret gate boşluğu**: keyword'süz yazılan wifi SSID/şifre ("İnternet ağımız 'NuveEv'... 12345678")
+  non-secret kategoride `looksLikeSecret`'i atlayıp public QR bağlamına girebiliyordu → keyword-bağımsız wifi pattern eklendi.
+- **[Hardening] (6b3bbef)** kbSchema.isActive `z.coerce.boolean` ("false"→true) → `z.boolean` · task checklist `Array.isArray`
+  guard (non-array JSON 500) · removeAutoTasks docstring düzeltildi (isAuto flag yok → manuel checkin/cleaning de siliniyor). **616 test.**
+- **[ERTELENDİ — karar/latent]** (1) KVKK retention resurrection: `DATA_RETENTION_MONTHS` ≤18'e düşerse deep-sync (540g) anonim
+  satırları geri çekip PII'yi diriltir (bugün 24ay/190g marj GÜVENLİ). Fix: deep-back'i retention-cutoff'a clamp VEYA
+  anonim satırın (guestName="Eski misafir") PII alanlarını sync'te güncelleme. (2) [legal] outbound Message.body misafir adı
+  tutuyor (host kaydı—kasıtlı). (3) [legal] WebhookEvent.payloadJson hesap silmede kalıyor (Paddle MoR). (4) getMonthlyReport
+  UTC ay penceresi (İstanbul'a çevrilebilir, düşük etki). (5) dashboard "Şu An Konaklayan" turnover-günü overlap sayıyor.
+
 ## ⏳ SIRADAKİ OTURUM — kalan (opsiyonel / karar)
 4b. **[düşük — hardening]** CSV/iCal import (`reservations/import`) manuel-yol uzunluk kaplarını atlıyor (currency
    vb. sınırsız) → satırları `reservationSchema`'dan geçir. QR `looksLikeSecret` yalnız keyword-yanındaki kodu
