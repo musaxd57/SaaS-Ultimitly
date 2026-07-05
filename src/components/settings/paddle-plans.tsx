@@ -209,7 +209,7 @@ export function PaddlePlans({
           <Link href="/mesafeli-satis" target="_blank" className="text-primary hover:underline">
             Mesafeli Satış Sözleşmesi
           </Link>
-          ’ni okudum, kabul ediyorum. Bir plan seçmeden önce bu kutuyu işaretlemeniz gerekir.
+          ’ni okudum, kabul ediyorum. Ücretli plana geçmeden önce bu onay gereklidir.
         </span>
       </label>
 
