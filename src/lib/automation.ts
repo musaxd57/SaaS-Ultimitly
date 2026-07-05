@@ -81,13 +81,24 @@ export function passesAutoReplySafetyGate(
   // jailbreak phrasing, the draft waits for a human no matter what the model
   // scored. Restrictive-only (can only prevent an auto-send).
   if (detectPromptInjection(guestMessage)) return false;
-  // Deterministic safety-emergency backstop: a message whose OWN words signal a
-  // safety emergency (fire/gas/smoke/injury/bleeding/locked-out…) must reach a
-  // human even when the model under-rated it AND it hit no complaint keyword.
-  // Without this the only path that caught safety was the complaint cross-check,
-  // so "smoke everywhere, the alarm is going off" (no complaint word) could
-  // auto-send a canned reply. Restrictive-only — can only prevent an auto-send.
-  if (detectRiskType(guestMessage) === "safety_emergency") return false;
+  // Deterministic HIGH-STAKES backstop: these three classes are host-only calls
+  // that have NO other cross-check above (unlike complaint/refund/cancellation/
+  // human_request/injection). So a message whose OWN words signal them must reach
+  // a human even when the model under-rated it and it hit no complaint keyword:
+  //   - safety_emergency: "smoke everywhere, the alarm is going off"
+  //   - rule_violation:   "evcil köpeğimizi getirmek istiyoruz, sorun olur mu?"
+  //     (the "sorun olur mu" phrasing even dodges the complaint net by design)
+  //   - discrimination:   "temizlikçi Türk olsun, Suriyeli göndermeyin"
+  // detectRiskType returns one label by precedence. Restrictive-only (over-
+  // escalation is the safe side — can only PREVENT an auto-send, never cause one).
+  const deterministicRisk = detectRiskType(guestMessage);
+  if (
+    deterministicRisk === "safety_emergency" ||
+    deterministicRisk === "rule_violation" ||
+    deterministicRisk === "discrimination"
+  ) {
+    return false;
+  }
   // riskType is a LABEL, but a high-stakes label is itself a red flag: if the
   // model names any of these, never auto-send even when it (inconsistently)
   // scored the risk low. Tightens only — an empty/null label changes nothing.

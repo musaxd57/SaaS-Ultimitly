@@ -318,6 +318,35 @@ const SAFETY_CRITICAL_WORDS = [
   "polis", "acil", "kilitli kaldı", "kilitli kaldi", "içeri giremiyor", "iceri giremiyor",
   "fire", "smoke", "gas leak", "carbon monoxide", "injured", "hurt", "bleeding",
   "ambulance", "police", "emergency", "locked out", "can't get in", "cant get in",
+  // English / other-language safety vocab (TR is well-covered above; EN was thin,
+  // e.g. "I smell gas" only matched "gas leak"). Bare "gas", a sparking outlet, a
+  // burning smell, flooding. Over-matching is the safe side (never a wrong send).
+  "gas", "smell of gas", "smells like gas", "sparks", "sparking", "burning smell",
+  "smells burning", "flooding", "water pouring", "pouring through", "electric shock", "monoxide",
+];
+
+// RULE VIOLATION (pet in a no-pet listing, party/event, over-capacity guests,
+// smoking inside) — the host, not the bot, decides these (deposit / allergy /
+// liability / neighbour issues). Over-flagging to a human is the safe side.
+const RULE_VIOLATION_PHRASES = [
+  "evcil hayvan", "köpeğ", "kopeg", "köpek getir", "kopek getir", "kedimi getir", "köpeğimi", "kopegimi",
+  "my dog", "my cat", "bring a dog", "bring my dog", "bring our dog", "bring a pet", "pet friendly",
+  "parti", "party", "etkinlik düzenle", "kutlama yap", "eğlence düzenle", "house party", "have a party",
+  "fazladan kişi", "fazladan kisi", "ekstra kişi", "ekstra kisi", "fazladan misafir", "ekstra misafir",
+  "kaç kişi kalabilir", "kac kisi kalabilir", "kişi daha gel", "kisi daha gel", "kişi geleceğiz", "kisi gelecegiz",
+  "kişi geliyoruz", "kisi geliyoruz", "arkadaşlarım da kal", "arkadaslarim da kal", "arkadaşım da kal",
+  "extra guest", "more guests", "additional guest", "how many people can stay", "friends stay over", "friends staying over",
+  "içeride sigara", "iceride sigara", "sigara içebilir", "smoke inside", "smoking inside",
+];
+
+// DISCRIMINATION — a demand to EXCLUDE/prefer people by nationality / ethnicity /
+// religion (e.g. a specific cleaner). Anchored to EXCLUSION phrasing so a guest
+// merely stating their OWN background ("biz Suriyeliyiz") is NOT flagged.
+const DISCRIMINATION_PHRASES = [
+  "suriyeli olmasın", "suriyeli istemiyor", "suriyeli göndermeyin", "suriyeli gondermeyin", "suriyeli yollama",
+  "arap olmasın", "arap istemiyor", "kürt olmasın", "kurt olmasin", "türk olsun", "turk olsun", "türk olmayan",
+  "müslüman olmasın", "musluman olmasin", "hristiyan olmasın", "yabancı olmasın", "yabanci olmasin", "yerli olsun",
+  "no syrians", "no arabs", "not syrian", "not arab", "no foreigners", "must be turkish", "only turkish", "no muslims",
 ];
 
 /**
@@ -334,6 +363,12 @@ export function detectRiskType(message: string): string | null {
   if (matchesIntentKeywords(message, "refund")) return "money_refund";
   if (matchesIntentKeywords(message, "early_departure")) return "cancellation";
   if (matchesIntentKeywords(message, "human_request")) return "human_request";
+  // discrimination + rule_violation had NO deterministic detector — the gate
+  // relied solely on the model's self-reported label, so a model miss on a
+  // pet/party/over-capacity/discriminatory-exclusion message auto-sent an
+  // unauthorized approval. These are host-only decisions (see prompts.ts §4).
+  if (DISCRIMINATION_PHRASES.some((p) => m.includes(p))) return "discrimination";
+  if (RULE_VIOLATION_PHRASES.some((p) => m.includes(p))) return "rule_violation";
   if (classifyFallback(message).isComplaint) return "complaint";
   return null;
 }

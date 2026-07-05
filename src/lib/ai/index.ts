@@ -146,7 +146,11 @@ export async function suggestReply(input: SuggestReplyInput): Promise<SuggestRep
           riskLevelRaw as "none" | "low" | "medium" | "high",
         )
           ? (riskLevelRaw as "none" | "low" | "medium" | "high")
-          : "none";
+          // A PRESENT-but-unrecognized value ("High", "critical", "severe") must
+          // fail CLOSED — coercing it to "none" silently passed the auto-send
+          // riskLevel gate. "high" makes the gate hold it for a human (the intent
+          // path fails closed the same way). Absent → "none" via the ?? above.
+          : "high";
         const intentRaw = String(parsed.intent ?? "general");
         const intentKnown = KNOWN_INTENTS.has(intentRaw);
         return {
