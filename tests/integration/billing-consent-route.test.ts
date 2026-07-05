@@ -99,4 +99,14 @@ describe("POST /api/billing/consent (checkout distance-sales evidence)", () => {
     expect(row?.ip).toBe("unknown"); // clientIp fallback
     expect(row?.userAgent).toBeNull(); // header absent → null
   });
+
+  it("throttles abusive repeats (429 after the 20/user cap; no extra row)", async () => {
+    for (let i = 0; i < 20; i++) {
+      const ok = await POST(postReq({ planCode: "pro", priceId: "pri_123" }), ctx);
+      expect(ok.status).toBe(201);
+    }
+    const throttled = await POST(postReq({ planCode: "pro", priceId: "pri_123" }), ctx);
+    expect(throttled.status).toBe(429); // best-effort on the client → never blocks purchase
+    expect(await prisma.checkoutConsent.count({ where: { organizationId: orgId } })).toBe(20); // 21st not written
+  });
 });

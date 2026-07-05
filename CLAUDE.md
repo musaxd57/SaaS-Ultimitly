@@ -359,8 +359,11 @@ export-dışlama regresyon testi yok (yapı allowlist ile zaten güvenli — ist
   throwaway PG'de migrate deploy 0..9 + sıfır-drift doğrulandı). `POST /api/billing/consent` (withAuth): org+user SESSION'dan
   (IDOR-proof; body org/user zod-strip), legalVersion=LEGAL_VERSION + ip=clientIp(rightmost XFF) + UA(512-cap) = server-türevli.
   Client (paddle-plans) Paddle overlay AÇILMADAN önce best-effort kaydeder (kayıt hatası checkout'u bloklamaz — checkbox gate +
-  Paddle txn backstop); legalVersion customData'ya da binerek tamamlanan-işlem webhook'una taşınıyor. resetDb temizliyor. +5 test
-  (kayıt+rightmost-XFF, 401, 400, IDOR-proof, null-safe). 644 test. Review agent doğruluyor.
+  Paddle txn backstop); legalVersion customData'ya da binerek tamamlanan-işlem webhook'una taşınıyor. resetDb temizliyor. +6 test
+  (kayıt+rightmost-XFF, 401, 400, IDOR-proof, null-safe, 429-cap). **Review agent TEMİZ (7/7 kodla):** migration boot-safe+sıfır-drift ·
+  IDOR-proof (zod-strip + session) · FK ihlali imkânsız (requireSession user'ı doğruluyor) · client best-effort checkout'u bloklamıyor ·
+  erasure org-cascade ile CheckoutConsent gider (retention sweep dokunmaz — host'un KENDİ kanıtı, guest PII değil) · SIZINTI YOK
+  (write-only, hiçbir API/export okumuyor) · rate-limit session-keyed bypass yok. 645 test.
 - **DOĞRULAMA — İKİSİ DE TEMİZ (2 review agent, kodla):** (a) **Checkout gate:** bypass yok (disabled buton + openCheckout guard),
   stale-closure yok (`accepted` deps'te), linkler geçerli, tek checkout yüzeyi. Tek "vektör" konsoldan direkt `Paddle.Checkout.open`
   = her client-side 3rd-party checkout'ta doğal, server-side kayıtla (#41) kapanır — app bug değil. (b) **Legal metin ürün-doğruluğu:**
