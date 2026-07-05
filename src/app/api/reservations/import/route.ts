@@ -11,6 +11,9 @@ export const POST = withManage(async (session, req) => {
   const propertyId = formData.get("propertyId") as string | null;
 
   if (!file) return badRequest({ file: "Dosya gerekli" });
+  // Cap the upload BEFORE buffering it into a string — an authenticated user
+  // POSTing a several-hundred-MB file would otherwise OOM the shared replica.
+  if (file.size > 5 * 1024 * 1024) return badRequest({ file: "Dosya çok büyük (en fazla 5 MB)." });
   if (!propertyId) return badRequest({ propertyId: "Mülk seçin" });
 
   // Verify the property belongs to this organization.
@@ -81,33 +84,45 @@ export const POST = withManage(async (session, req) => {
       continue;
     }
 
-    // Skip duplicates by sourceReference (if provided)
-    if (row.sourceReference) {
-      const existing = await prisma.reservation.findFirst({
-        where: { propertyId, sourceReference: row.sourceReference },
-        select: { id: true },
-      });
-      if (existing) {
-        skipped++;
-        continue;
-      }
+    // Skip duplicates: by sourceReference when present, else by the natural key
+    // (guest + dates on this property) so a double-clicked / re-uploaded plain
+    // CSV with no id column doesn't create full duplicate reservations + tasks.
+    const dupe = row.sourceReference
+      ? await prisma.reservation.findFirst({
+          where: { propertyId, sourceReference: row.sourceReference },
+          select: { id: true },
+        })
+      : await prisma.reservation.findFirst({
+          where: {
+            propertyId,
+            guestName: row.guestName.slice(0, 200),
+            arrivalDate: row.arrivalDate,
+            departureDate: row.departureDate,
+          },
+          select: { id: true },
+        });
+    if (dupe) {
+      skipped++;
+      continue;
     }
 
     try {
       const created = await prisma.reservation.create({
         data: {
           propertyId,
-          guestName: row.guestName,
+          // Clamp to the same caps the manual path enforces (validators.ts) —
+          // the import path otherwise wrote unbounded CSV fields straight to DB.
+          guestName: row.guestName.slice(0, 200),
           arrivalDate: row.arrivalDate,
           departureDate: row.departureDate,
           channel: row.channel ?? "other",
           status: "confirmed",
-          sourceReference: row.sourceReference ?? null,
-          notes: row.notes ?? null,
+          sourceReference: row.sourceReference ? row.sourceReference.slice(0, 200) : null,
+          notes: row.notes ? row.notes.slice(0, 5000) : null,
           ...(typeof row.totalAmount === "number" && !isNaN(row.totalAmount)
-            ? { totalAmount: row.totalAmount }
+            ? { totalAmount: Math.min(row.totalAmount, 100_000_000) }
             : {}),
-          currency: row.currency ?? "EUR",
+          currency: (row.currency ?? "EUR").slice(0, 8),
         },
       });
       await createReservationTasks(created.id);

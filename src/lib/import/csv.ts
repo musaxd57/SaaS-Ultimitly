@@ -101,6 +101,24 @@ function parseCsvLine(line: string): string[] {
 }
 
 /**
+ * Parse a possibly-formatted amount. The LAST separator (. or ,) is the decimal
+ * point; earlier separators are thousands groupings — so both "1.234,56" (EU)
+ * and "1,234.56" (US) parse to 1234.56. The old single `.replace(",",".")`
+ * turned both into 1.234.
+ */
+function parseAmount(raw: string): number | undefined {
+  const cleaned = raw.replace(/[^\d.,]/g, "");
+  if (!cleaned) return undefined;
+  const lastSep = Math.max(cleaned.lastIndexOf("."), cleaned.lastIndexOf(","));
+  const normalized =
+    lastSep === -1
+      ? cleaned
+      : `${cleaned.slice(0, lastSep).replace(/[.,]/g, "")}.${cleaned.slice(lastSep + 1)}`;
+  const n = parseFloat(normalized);
+  return Number.isNaN(n) ? undefined : n;
+}
+
+/**
  * Parse a CSV string and return an array of reservation objects.
  * Skips rows with missing guest name, arrival date, or departure date.
  */
@@ -138,8 +156,7 @@ export function parseCsv(text: string): CsvReservation[] {
     const departureDate = parseDate(departureRaw);
     if (!arrivalDate || !departureDate) continue;
 
-    const amountRaw = get(amountIdx);
-    const totalAmount = amountRaw ? parseFloat(amountRaw.replace(/[^\d.,]/g, "").replace(",", ".")) : undefined;
+    const totalAmount = parseAmount(get(amountIdx));
 
     const currency = get(currencyIdx) || undefined;
     const channel = get(channelIdx) || undefined;

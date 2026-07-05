@@ -46,7 +46,17 @@ export async function syncCalendarSource(sourceId: string): Promise<SyncResult> 
     if (!res.ok) {
       throw new Error(`HTTP ${res.status}`);
     }
+    // Guard against a runaway feed buffering a huge body into memory on the
+    // shared replica (the feed URL is host-supplied). Content-Length when present,
+    // plus a post-read length backstop for chunked responses.
+    const declared = Number(res.headers?.get?.("content-length"));
+    if (Number.isFinite(declared) && declared > 10 * 1024 * 1024) {
+      throw new Error("feed too large");
+    }
     text = await res.text();
+    if (text.length > 10 * 1024 * 1024) {
+      throw new Error("feed too large");
+    }
   } catch {
     result.errors.push("Bağlantıya ulaşılamadı — takvim (.ics) bağlantısını kontrol edin.");
     await prisma.calendarSource.update({
@@ -84,10 +94,10 @@ export async function syncCalendarSource(sourceId: string): Promise<SyncResult> 
         await prisma.reservation.update({
           where: { id: existing.id },
           data: {
-            guestName: row.guestName,
+            guestName: row.guestName.slice(0, 200),
             arrivalDate: row.arrivalDate,
             departureDate: row.departureDate,
-            notes: row.notes ?? null,
+            notes: row.notes ? row.notes.slice(0, 5000) : null,
           },
         });
         // Backfill tasks for reservations imported before task automation existed.
@@ -97,13 +107,13 @@ export async function syncCalendarSource(sourceId: string): Promise<SyncResult> 
         const created = await prisma.reservation.create({
           data: {
             propertyId: source.propertyId,
-            guestName: row.guestName,
+            guestName: row.guestName.slice(0, 200),
             arrivalDate: row.arrivalDate,
             departureDate: row.departureDate,
             channel,
             status: "confirmed",
-            sourceReference: row.sourceReference ?? null,
-            notes: row.notes ?? null,
+            sourceReference: row.sourceReference ? row.sourceReference.slice(0, 200) : null,
+            notes: row.notes ? row.notes.slice(0, 5000) : null,
             currency: "EUR",
           },
         });
