@@ -519,4 +519,45 @@ describe("syncHospitable — plan property limit", () => {
     const msgCount = await prisma.message.count({ where: { conversation: { externalReservationId: "res-guard-1" } } });
     expect(msgCount).toBe(2);
   });
+
+  it("adopts the real guest name on a later sync when the first import had only the 'Misafir' placeholder", async () => {
+    // Regression guard: the resurrection guard must key off the reservation's
+    // DISTINCT ANON_NAME sentinel, not conversation.guestIdentifier === ANON_ID
+    // ("Misafir") — which is ALSO the no-name placeholder. Otherwise a thread first
+    // imported without a resolvable name is frozen at "Misafir" forever.
+    const { orgId } = await makeOrgWithProperty();
+    mockProperties.mockResolvedValue([{ id: "hosp-prop-1", name: "Test Property" }]);
+    // First sync: no guest record, no booking code, sender carries no name → the
+    // only fallback is the "Misafir" placeholder (== ANON_ID, but NOT anonymized).
+    const base = {
+      id: "res-ph-1",
+      platform: "airbnb",
+      arrival_date: "2026-06-10",
+      departure_date: "2026-06-14",
+      conversation_id: "conv-ph-1",
+      last_message_at: "2026-06-09T10:00:00Z",
+    };
+    mockReservations.mockResolvedValue([base]);
+    mockMessages.mockResolvedValue([
+      { id: 3001, body: "Merhaba", sender_type: "guest", sender_role: "guest", sender: {}, created_at: "2026-06-09T10:00:00Z" },
+    ]);
+    await syncHospitable(orgId);
+
+    let conv = await prisma.conversation.findFirst({ where: { externalReservationId: "res-ph-1" } });
+    expect(conv?.guestIdentifier).toBe("Misafir"); // placeholder, NOT anonymized
+
+    // Later sync: the guest record now carries the real name + a genuinely-new message.
+    mockReservations.mockResolvedValue([
+      { ...base, last_message_at: "2026-06-10T09:00:00Z", guest: { full_name: "Zeynep Kaya" } },
+    ]);
+    mockMessages.mockResolvedValue([
+      { id: 3001, body: "Merhaba", sender_type: "guest", sender_role: "guest", sender: {}, created_at: "2026-06-09T10:00:00Z" },
+      { id: 3002, body: "Adım Zeynep", sender_type: "guest", sender_role: "guest", sender: { full_name: "Zeynep Kaya" }, created_at: "2026-06-10T09:00:00Z" },
+    ]);
+    await syncHospitable(orgId);
+
+    // The placeholder is now replaced by the real name (not frozen at "Misafir").
+    conv = await prisma.conversation.findFirst({ where: { externalReservationId: "res-ph-1" } });
+    expect(conv?.guestIdentifier).toBe("Zeynep Kaya");
+  });
 });

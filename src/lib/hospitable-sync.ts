@@ -456,12 +456,17 @@ async function importThread(
     (a, b) => (parseDate(a.created_at)?.getTime() ?? 0) - (parseDate(b.created_at)?.getTime() ?? 0),
   );
 
-  // Guest display name: prefer the (included) reservation guest record, then a
-  // guest message's sender, then the booking code as a last resort.
-  const guestName =
+  // Guest display name. Keep the REAL resolved name separate from the placeholder
+  // fallback (mirrors the reservation guestName/email logic): on UPDATE we only
+  // ever write a real name, so a sync where the name is still unresolved can't
+  // regress a stored name, and — crucially — a thread first created without a
+  // name ("Misafir" placeholder) DOES adopt the real name once it arrives.
+  const resolvedGuestName =
     reservationGuestName(reservation) ??
     senderFullName(ordered.find(isGuestMessage) ?? ({} as HospitableMessage)) ??
-    (str(reservation.code) ? `Rezervasyon ${reservation.code}` : "Misafir");
+    null;
+  const guestName =
+    resolvedGuestName ?? (str(reservation.code) ? `Rezervasyon ${reservation.code}` : "Misafir");
 
   // Status reflects who spoke last: guest → awaiting a reply ("new"); host → "answered".
   const lastMessage = ordered[ordered.length - 1];
@@ -495,14 +500,31 @@ async function importThread(
   } else {
     // Preserve human/rule decisions; only refresh the automatic states.
     const preserve = ["problem", "closed", "waiting"].includes(existing.status);
-    // KVKK resurrection guard (see upsertReservationCalendar): don't rewrite the
-    // guest identifier once the retention sweep anonymized it.
-    const scrubbed = existing.guestIdentifier === ANON_ID;
+    // KVKK resurrection guard: don't rewrite the identifier once the retention
+    // sweep anonymized the stay. Key this off the LINKED RESERVATION's DISTINCT
+    // sentinel (guestName === ANON_NAME), NOT conversation.guestIdentifier ===
+    // ANON_ID — ANON_ID ("Misafir") is ALSO the legitimate no-name placeholder,
+    // so keying off it would freeze a placeholder thread at "Misafir" forever,
+    // never adopting the real name once it arrives. For an orphan thread (no
+    // linked reservation) fall back to the identifier sentinel (privacy-safe).
+    let scrubbed: boolean;
+    if (localReservationId) {
+      const linked = await prisma.reservation.findUnique({
+        where: { id: localReservationId },
+        select: { guestName: true },
+      });
+      scrubbed = linked?.guestName === ANON_NAME;
+    } else {
+      scrubbed = existing.guestIdentifier === ANON_ID;
+    }
     await prisma.conversation.update({
       where: { id: existing.id },
       data: {
         lastMessageAt,
-        ...(scrubbed ? {} : { guestIdentifier: guestName }),
+        // Only ever write a REAL name (never the placeholder) and never onto a
+        // scrubbed stay — so the placeholder is replaced when the name arrives,
+        // but an anonymized identifier is never resurrected.
+        ...(scrubbed || resolvedGuestName === null ? {} : { guestIdentifier: resolvedGuestName }),
         ...(preserve ? {} : { status: computedStatus }),
         // Backfill the reservation link only when it's currently empty — never
         // overwrite an existing (possibly human-set) link.
