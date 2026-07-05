@@ -81,6 +81,46 @@ describe("POST /api/webhooks/paddle", () => {
     expect(evt?.status).toBe("processed");
   });
 
+  it("returns 5xx on a transient apply failure (event NOT processed), then applies idempotently on Paddle's retry", async () => {
+    const body = JSON.stringify({
+      event_id: "evt_retry_1",
+      event_type: "subscription.activated",
+      data: {
+        id: "sub_r1",
+        status: "active",
+        custom_data: { organizationId: orgId },
+        items: [{ price: { id: "pri_pro" } }],
+      },
+    });
+
+    // First delivery: signature valid + payload parses, but the apply throws
+    // (transient DB error). Must return 5xx so Paddle re-delivers, and must NOT
+    // mark the event processed or apply the mutation. Manual reassign + finally
+    // restores the real method even if POST throws (a vi.spyOn().mockRestore() on
+    // the shared Prisma delegate did not restore reliably and leaked to later tests).
+    const origUpsert = prisma.subscription.upsert;
+    prisma.subscription.upsert = (() =>
+      Promise.reject(new Error("db down"))) as unknown as typeof origUpsert;
+    const first = await POST(req(body, sign(body))).finally(() => {
+      prisma.subscription.upsert = origUpsert;
+    });
+    expect(first.status).toBe(500);
+
+    const ev1 = await prisma.webhookEvent.findUnique({ where: { providerEventId: "evt_retry_1" } });
+    expect(ev1?.status).not.toBe("processed"); // stays "error" → a retry reprocesses it
+    expect(await prisma.subscription.findUnique({ where: { organizationId: orgId } })).toBeNull(); // mutation not applied
+
+    // Paddle re-delivers the SAME event → now the idempotent handler applies it
+    // exactly once.
+    const second = await POST(req(body, sign(body)));
+    expect(second.status).toBe(200);
+    const ev2 = await prisma.webhookEvent.findUnique({ where: { providerEventId: "evt_retry_1" } });
+    expect(ev2?.status).toBe("processed");
+    const sub = await prisma.subscription.findUnique({ where: { organizationId: orgId } });
+    expect(sub?.status).toBe("active");
+    expect(sub?.providerRef).toBe("sub_r1");
+  });
+
   it("trial → paid: activation flips the existing trialing row to active and CLEARS trialEndsAt", async () => {
     // brand-new signup state: a trialing reverse-trial row already exists
     await prisma.subscription.create({

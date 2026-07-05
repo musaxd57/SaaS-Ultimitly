@@ -237,7 +237,15 @@ export async function POST(req: NextRequest) {
         .update({ where: { providerEventId }, data: { status: "error", error: redactSensitive(String(err)).slice(0, 500) } })
         .catch(() => {});
     }
-    // Still 200 so Paddle doesn't retry-storm on a transient storage hiccup.
+    // The signature was valid and the payload parsed — this is a RETRYABLE apply
+    // failure (transient DB/storage error mid subscription/invoice mutation).
+    // Return 5xx so Paddle re-delivers: the WebhookEvent stays "error" (only
+    // "processed" counts as a duplicate, so a retry reprocesses it) and the apply
+    // handlers are idempotent (subscription upsert-by-org, invoice dedup-by-
+    // providerRef), so the retry completes the mutation exactly once. Permanent
+    // bad requests keep their current non-retry-inducing behavior: invalid
+    // signature → 401 above, unparseable payload → 200 below.
+    return NextResponse.json({ error: "processing failed" }, { status: 500 });
   }
 
   return jsonOk({ ok: true });
