@@ -352,6 +352,28 @@ describe("getOpsStats", () => {
     expect(stats.totalProperties).toBe(1);
     expect(stats.occupiedToday).toBe(1); // distinct flat, not 2 reservations
     expect(stats.occupancyRate).toBe(100); // never 200
+    expect(stats.stayingTonight).toBe(1); // the arriving guest is in the house tonight
+  });
+
+  it("staying-tonight is night-strict: a checkout-today flat with no re-let is NOT counted", async () => {
+    const { orgId, propertyId } = await makeOrgWithProperty();
+    // Guest checks OUT today, nobody re-lets → the flat is empty tonight.
+    await prisma.reservation.create({
+      data: { propertyId, guestName: "Leaving Today", arrivalDate: daysFromNow(-3), departureDate: new Date(), status: "confirmed" },
+    });
+    const stats = await getOpsStats(orgId);
+    expect(stats.occupiedToday).toBe(1); // occupancy: the flat WAS used today (overlap) → stays correct
+    expect(stats.stayingTonight).toBe(0); // ...but nobody is in the house tonight
+  });
+
+  it("staying-tonight counts a mid-stay guest", async () => {
+    const { orgId, propertyId } = await makeOrgWithProperty();
+    await prisma.reservation.create({
+      data: { propertyId, guestName: "Mid Stay", arrivalDate: daysFromNow(-2), departureDate: daysFromNow(2), status: "confirmed" },
+    });
+    const stats = await getOpsStats(orgId);
+    expect(stats.occupiedToday).toBe(1);
+    expect(stats.stayingTonight).toBe(1);
   });
 
   it("scopes stats to the requesting organization only", async () => {

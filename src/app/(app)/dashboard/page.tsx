@@ -39,7 +39,7 @@ export default async function DashboardPage() {
   const { start: dayStart, end: dayEnd } = zonedDayRange(now, org?.timezone ?? "Europe/Istanbul");
   const scope = { property: { organizationId: orgId } };
 
-  const [stats, arrivalsRaw, departuresRaw, conversations, tasksToday, stayingRows] = await Promise.all([
+  const [stats, arrivalsRaw, departuresRaw, conversations, tasksToday] = await Promise.all([
     getOpsStats(orgId),
     prisma.reservation.findMany({
       where: {
@@ -74,20 +74,11 @@ export default async function DashboardPage() {
       include: { property: { select: { name: true } } },
       orderBy: { dueAt: "asc" },
     }),
-    // Flats currently in-house — DISTINCT properties, so a turnover day (one guest
-    // out + one in, same flat) counts once, never inflating the number.
-    prisma.reservation.findMany({
-      where: {
-        ...scope,
-        status: { in: ["confirmed", "completed"] },
-        arrivalDate: { lte: dayEnd },
-        departureDate: { gte: dayStart },
-      },
-      select: { propertyId: true },
-      distinct: ["propertyId"],
-    }),
   ]);
-  const stayingCount = stayingRows.length;
+  // "Şu An Konaklayan" = night-strict (occupied at end-of-today) via
+  // getOpsStats.stayingTonight — a flat that checks out today with no re-let is
+  // empty tonight and is NOT counted (distinct from the overlap-based occupancy%).
+  const stayingCount = stats.stayingTonight;
 
   // Collapse duplicate Hospitable rows (same sourceReference) but keep each
   // manual/iCal booking (null sourceReference) — mirrors getOpsStats so the

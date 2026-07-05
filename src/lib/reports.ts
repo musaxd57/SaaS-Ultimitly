@@ -22,6 +22,7 @@ export interface OpsStats {
   totalProperties: number;
   occupiedToday: number;
   occupancyRate: number; // 0..100
+  stayingTonight: number; // DISTINCT flats occupied at END-of-today (night-strict)
 }
 
 const propertyScope = (orgId: string) => ({ property: { organizationId: orgId } });
@@ -47,6 +48,7 @@ export async function getOpsStats(orgId: string): Promise<OpsStats> {
     openTasks,
     totalProperties,
     occupiedRows,
+    stayingRows,
   ] = await Promise.all([
     prisma.reservation.findMany({
       where: {
@@ -87,6 +89,20 @@ export async function getOpsStats(orgId: string): Promise<OpsStats> {
       select: { propertyId: true },
       distinct: ["propertyId"], // DISTINCT flats, not reservations
     }),
+    // "Staying tonight": occupied at END-of-today (night-strict), so a flat that
+    // checks out today with no re-let is NOT counted (empty tonight). Both bounds
+    // keyed to dayEnd → representation-agnostic (Hospitable midnight-UTC AND iCal
+    // noon-UTC); a dayStart bound would miscount iCal reservations on both sides.
+    prisma.reservation.findMany({
+      where: {
+        ...propertyScope(orgId),
+        status: { in: ["confirmed", "completed"] },
+        arrivalDate: { lte: dayEnd },
+        departureDate: { gt: dayEnd },
+      },
+      select: { propertyId: true },
+      distinct: ["propertyId"],
+    }),
   ]);
 
   // On a turnover day a single flat has both a check-out and a check-in; counting
@@ -122,6 +138,7 @@ export async function getOpsStats(orgId: string): Promise<OpsStats> {
     totalProperties,
     occupiedToday,
     occupancyRate,
+    stayingTonight: stayingRows.length,
   };
 }
 
