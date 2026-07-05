@@ -31,6 +31,14 @@ const REVIEW_THREAT_PHRASES = [
   "leave a bad review", "leave a negative review", "write a bad review",
   "give you a bad review", "leave you a bad review", "1 star review", "one star review",
   "leave 1 star", "give 1 star", "one-star review",
+  // Turkish review threats (threat-anchored so pre-booking "yorumları okudum"
+  // and praise "siz bir yıldızsınız" never match). Without these a TR review
+  // threat only reads as a generic "complaint", mislabeling riskType and
+  // (for opt-in orgs) failing to block the tier-2 holding-ack.
+  "kötü yorum yaz", "kotu yorum yaz", "kötü yorum bırak", "kotu yorum birak",
+  "kötü yorum yapacağım", "kotu yorum yapacagim", "kötü yorum yaparım", "kotu yorum yaparim",
+  "olumsuz yorum yaz", "olumsuz yorum bırak", "olumsuz yorum yapacağım",
+  "düşük puan ver", "dusuk puan ver", "düşük puan veririm", "dusuk puan veririm",
 ];
 
 // OFF-PLATFORM payment asks — an Airbnb/Booking policy landmine for the host;
@@ -40,6 +48,8 @@ const OFFPLATFORM_PAYMENT_PHRASES = [
   "platform dışı öde", "platform disi ode", "elden ödeme", "elden odeme", "elden nakit",
   "banka havalesi", "havale yapsam", "havale yapayım", "havale yapayim", "iban gönder", "iban gonder",
   "pay outside", "pay you directly", "pay in cash instead", "off the platform", "western union",
+  // English money rails / P2P apps a guest might propose to skip the platform.
+  "bank transfer", "wire transfer", "money transfer", "venmo", "paypal", "zelle", "revolut", "papara",
 ];
 
 const KEYWORDS: Record<Exclude<Intent, "general">, string[]> = {
@@ -91,7 +101,7 @@ const KEYWORDS: Record<Exclude<Intent, "general">, string[]> = {
     "استرداد", "استرجاع", "возврат", "вернуть деньги",
     // Concession / partial-refund asks. Anchored — NOT bare "indirim"/"discount",
     // which would wrongly match pre-booking pricing ("indirimli sezon").
-    "telafi", "indirim mümkün", "indirim yapabilir", "fiyattan düş", "ücretten düş",
+    "telafi", "tazminat", "indirim mümkün", "indirim yapabilir", "fiyattan düş", "ücretten düş",
     "compensate", "compensation", "give us a discount", "offer a discount",
     "إعادة المال", "restituire i soldi", "soldi indietro",
     // Escalation / chargeback threats — always route to a human, never auto-answer.
@@ -104,7 +114,9 @@ const KEYWORDS: Record<Exclude<Intent, "general">, string[]> = {
   early_departure: [
     "erken ayrıl", "erken ayril", "erken çık", "erken cik", "ayrılmak zorunda", "ayrilmak zorunda",
     "ayrılmamız gerek", "ayrilmamiz gerek", "rezervasyonu kısalt", "rezervasyonu kisalt", "iptal et",
-    "iptal edebilir", "iptal etmek", "konaklamayı kısalt", "leave early", "leave sooner", "check out early",
+    // "iptal ed" covers the declarative softened forms the old net missed:
+    // "iptal edeceğim", "iptal ediyorum", "iptal ederim" (t→d consonant softening).
+    "iptal ed", "iptal edebilir", "iptal etmek", "konaklamayı kısalt", "leave early", "leave sooner", "check out early",
     "checking out early", "cut short", "shorten my stay", "end our reservation", "end the reservation",
     "end our stay", "ahead of schedule", "sooner than planned", "head home early",
     "cancel my", "cancel the", "cancel our", "won't be staying", "wont be staying", "can't stay", "cant stay",

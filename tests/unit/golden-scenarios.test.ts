@@ -135,6 +135,17 @@ const SCENARIOS: Scenario[] = [
   // Güvenlik tespiti bilinçli olarak AŞIRI-kapsayıcı: masum bir "gaz ocağı"
   // sorusu bile insana bırakılır (yanlış-pozitifte güvenli taraf = beklet).
   { name: "gaz ocağı sorusu (bilinçli veto — güvenlik aşırı-kapsayıcı)", message: "Dairede gaz ocağı var mı, yemek yapabilir miyiz?", autoSendVeto: true, riskType: "safety_emergency" },
+
+  // --- Kelime-ağı boşlukları kapatıldı (deep-audit turu) — hepsi VETO -----------
+  // Bildirimsel "iptal ed" formu (t→d): eski net yalnız "iptal et/etmek"i yakalıyordu.
+  { name: "iptal bildirimi (TR, iptal ed formu)", message: "Rezervasyonu iptal edeceğim, planlarım değişti", autoSendVeto: true, intent: "early_departure", riskType: "cancellation" },
+  { name: "iptal ediyorum (TR)", message: "Maalesef rezervasyonu iptal ediyorum", autoSendVeto: true, intent: "early_departure", riskType: "cancellation" },
+  // "tazminat" — para ağında eksikti.
+  { name: "tazminat talebi (TR)", message: "Bu yaşadıklarım için tazminat talep ediyorum", autoSendVeto: true, intent: "refund", riskType: "money_refund" },
+  // İngilizce off-platform ödeme rayları.
+  { name: "bank transfer off-platform (EN)", message: "Can I pay by bank transfer instead of through Airbnb?", autoSendVeto: true, intent: "refund", riskType: "platform_policy" },
+  // Türkçe bildirimsel kötü-yorum tehdidi → artık review_threat (complaint değil).
+  { name: "kötü yorum yazacağım (TR, bildirimsel)", message: "Bu daireye kötü yorum yazacağım", autoSendVeto: true, intent: "complaint", riskType: "review_threat" },
 ];
 
 describe("GOLDEN SET — deterministic safety layer verdicts", () => {

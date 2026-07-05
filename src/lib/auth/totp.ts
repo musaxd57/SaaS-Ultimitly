@@ -1,4 +1,4 @@
-import { createHmac, randomBytes } from "crypto";
+import { createHmac, randomBytes, timingSafeEqual } from "crypto";
 
 // ---------------------------------------------------------------------------
 // TOTP (RFC 6238) + HOTP (RFC 4226) — the standard used by Google Authenticator,
@@ -85,8 +85,15 @@ export function verifyTotpStep(
   if (clean.length !== DIGITS) return null;
   const secret = base32Decode(secretB32);
   const counter = Math.floor(atMs / 1000 / PERIOD);
+  // Both operands are always exactly DIGITS chars (clean is length-checked above;
+  // hotp() pads to DIGITS), so a constant-time compare is safe and removes even a
+  // theoretical timing oracle on the code digits.
+  const cleanBuf = Buffer.from(clean, "utf8");
   for (let i = -window; i <= window; i++) {
-    if (hotp(secret, counter + i) === clean) return counter + i;
+    const candidate = Buffer.from(hotp(secret, counter + i), "utf8");
+    if (candidate.length === cleanBuf.length && timingSafeEqual(candidate, cleanBuf)) {
+      return counter + i;
+    }
   }
   return null;
 }

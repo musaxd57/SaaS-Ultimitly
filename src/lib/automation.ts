@@ -1201,9 +1201,13 @@ function apartmentNumber(propertyName: string): string {
 //   {isim} / {ad} / {name}         → guest's first name
 //   {daire} / {apartment} / {apt}  → the apartment number (from the property name)
 function fillPlaceholders(text: string, firstName: string, propertyName?: string): string {
-  let out = text.replace(/\{\s*(isim|ad|name)\s*\}/gi, firstName);
+  // Function replacers so a guest name / apartment value containing $ patterns
+  // ($&, $1, $`, $$, …) is inserted LITERALLY — a plain string replacement would
+  // let those special patterns corrupt the guest's own personalized message.
+  let out = text.replace(/\{\s*(isim|ad|name)\s*\}/gi, () => firstName);
   if (propertyName) {
-    out = out.replace(/\{\s*(daire|apartment|apt)\s*\}/gi, apartmentNumber(propertyName));
+    const apt = apartmentNumber(propertyName);
+    out = out.replace(/\{\s*(daire|apartment|apt)\s*\}/gi, () => apt);
   }
   return out;
 }
