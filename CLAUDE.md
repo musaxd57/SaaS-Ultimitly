@@ -310,12 +310,33 @@ fixture'ı** eklendi (önceki sadece Hospitable-tarzıydı; `ai/index.ts` OpenAI
 **Doğrulanan (bug YOK):** Paddle `custom_data.organizationId` checkout'ta damgalanıyor (`paddle-plans.tsx:150`) →
 redaksiyon webhook'un org-linking'iyle AYNI anahtar+parse-verify → kapsam birebir. Allowlist provider-id'leri koruyor
 (debug sağlam). `[Misafir]` mesaj anlamını bozmuyor (yerinde token, host içeriği kalır).
-**BİRAZDAN (tur-6 planı):** 8 paralel adversarial agent salınıyor — billing state-machine · AI-gate · sync-engine ·
-KVKK-retention (regex/substring adversarial) · güvenlik primitifleri · rapor/dashboard TZ · route IDOR/auth/validation ·
-reliability/crash-guard. **Kural:** her bulgu KODLA doğrulanacak (agent ~yarı yanılır), sadece gerçek+güvenli uygulanacak,
-migration gerektiren self-defending işler karar-listesine. **Bu turda hedeflenen bilinen açık item'lar:** getMonthlyReport
-UTC-ay penceresi · automation baseline import-zamanı (`*EnabledAt` Reservation.createdAt) · `isGuestMessage` alan-adı
-varsayımı · CSV tırnak-içi-newline parser. Bulgular buraya "karar listesi" olarak yazılacak, uygulananlar commit'lenecek.
+**8 AGENT SALINDI → 7'si SESSION API LİMİTİNE takıldı (9:20am UTC reset), sadece sync-engine agent'ı bitti.**
+Onun TEK doğrulanan bulgusu (commit `1e6959e`, KODLA teyit + düzeltildi): **sync "Misafir" placeholder regresyonu** —
+`eb47949`'te eklediğim konuşma resurrection guard'ı `guestIdentifier === ANON_ID` ("Misafir")'e bakıyordu, ama ANON_ID
+AYNI ZAMANDA isimsiz-thread placeholder'ı → ismi baştan çözülemeyen konuşma sonsuza "Misafir"e donuyor, gerçek ad gelince
+adopte etmiyordu (rezervasyon satırı DISTINCT ANON_NAME="Eski misafir" kullandığı için doğru güncelleniyordu → inbox
+"Misafir" ama rezervasyon "Ahmet"). Fix: konuşma guard'ı da rezervasyonun ANON_NAME durumuna baksın + sadece GERÇEK ad
+yazılsın (placeholder değil); orphan thread için identifier sentinel'e düş (privacy-safe). +1 test (placeholder→gerçek ad).
+Diğer 7 agent limit resetinde tekrar salınacak. **Bilinen açık item'lar hâlâ hedef:** getMonthlyReport UTC-ay ·
+automation baseline import-zamanı · `isGuestMessage` alan-adı · CSV tırnak-içi-newline.
+
+## 📊 KULLANICI YENİ İSTEK TURU (2026-07-05) — analitik + KVKK + legal + consent
+Kullanıcı büyük bir istek listesi verdi; KODLA doğrulayıp (agentlar limitte) karar-listesi + 3 güvenli win uyguladım.
+**KODLA DOĞRULANAN MEVCUT DURUM:** (a) **Veri export VAR** (`/api/account/export` self + `/api/admin/export`). (b) **Hesap
+silme VAR** (`/api/account/delete`, bu oturumda sertleştirildi). (c) **Event altyapısı ZATEN VAR** = `writeAudit`+`AuditLog`
+(15 event wired: auth.login_*, account.password_*/2fa_*, customer.create, data.export*, hospitable.*, guest_chat.*,
+impersonate.*) + "Denetim Kayıtları" admin sayfası. (d) **Register consent:** `acceptedTermsAt` VAR; privacyAcceptedAt/
+legalVersion/IP/UA YOK (kullanıcı analizi doğru). (e) **Checkout consent: YOK** (`paddle-plans.tsx`'te Checkout.open öncesi
+mesafeli-satış checkbox'ı yok — doğrulandı).
+**UYGULANAN (commit `1e8a772`):** (1) **Audit label map** (`auditActionLabel` @ audit.ts) → admin panel ham "auth.login_
+success" yerine "Başarılı giriş" gösteriyor (raw action title'da; bilinmeyen→raw fallback). YENİ MODEL YOK, mevcut infra
+genişletildi. (2) **Register trust copy**: "14 gün ücretsiz Pro deneme — kart gerekmez" + e-posta doğrulama + oto-ücret-yok notu.
+**KARAR/GÖRÜŞ (kullanıcıya sunuldu):** • Analitik: ProductEvent modeli AÇMA — writeAudit/AuditLog zaten trackEvent; eksik
+event'leri (ai_reply_sent/auto_reply_blocked/kb_item_created/billing_checkout_*) writeAudit'e tak + admin aggregation ekle.
+• Consent hardening (privacyAcceptedAt/legalVersion/IP/UA/marketingConsent) = MIGRATION → task #41 (session-limit altında şema
+riskli, budget netleşince). • Checkout consent checkbox = task #42 (para-akışı bitişik, birlikte doğrula). • Legal metin ekleri
+(13 bölüm) = task #43 (mevcut legal sayfalara additive). • KVKK UX (silinir/saklanır paneli + AI veri-kullanım açıklaması +
+export görünürlüğü) = task #44. • Register'a mesafeli/ön-bilgilendirme KOYMA (kullanıcı onayı) — sadece terms/privacy kaldı.
 
 ## ⏳ SIRADAKİ OTURUM — kalan (opsiyonel / karar)
 4b. **[düşük — hardening]** CSV/iCal import (`reservations/import`) manuel-yol uzunluk kaplarını atlıyor (currency
