@@ -39,6 +39,11 @@ const SECRET_PATTERNS: RegExp[] = [
   /(wi-?fi|kablosuz|internet)\w*[^.\n]{0,40}(şifre|sifre|parola|password|passcode|key)/i,
   // a password/parola label with a colon/equals, e.g. "Şifre: ...", "parola = ...".
   /(şifre|sifre|parola|password|passcode)\w*\s*[:=]/i,
+  // Wi-Fi / network NAME or PASSWORD stated conversationally WITHOUT a secret
+  // keyword — e.g. "İnternet ağımız 'NuveEv', bağlanmak için 12345678 girin".
+  // The value is quoted or digit-bearing (SSID / password), which the keyword
+  // patterns above miss. Over-redaction stays the safe side (escalate, no leak).
+  /(wi-?fi|wlan|kablosuz|ssid|internet\s*a[ğg])\w*[^.\n]{0,40}(["'«][^"'»\n]{2,}["'»]|[A-Za-z0-9!@#._-]*\d[A-Za-z0-9!@#._-]{3,})/i,
 ];
 
 function looksLikeSecret(text: string): boolean {

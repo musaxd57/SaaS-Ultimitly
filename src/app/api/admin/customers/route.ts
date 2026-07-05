@@ -42,6 +42,11 @@ export async function POST(req: NextRequest) {
           email,
           passwordHash,
           role: "owner",
+          // The operator vouches for this account (agency onboarding), so mark it
+          // verified. Otherwise the customer's FIRST login is blocked citing a
+          // verification email this path never sends — the login route already
+          // documents operator-created customers as exempt from that gate.
+          emailVerifiedAt: new Date(),
         },
       });
       return { org };
