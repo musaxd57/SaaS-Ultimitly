@@ -75,9 +75,10 @@ export default async function DashboardPage() {
       orderBy: { dueAt: "asc" },
     }),
   ]);
-  // "Şu An Konaklayan" = night-strict (occupied at end-of-today) via
+  // "Bu Gece Kalan" = night-strict (occupied at end-of-today) via
   // getOpsStats.stayingTonight — a flat that checks out today with no re-let is
   // empty tonight and is NOT counted (distinct from the overlap-based occupancy%).
+  // Label says "tonight", not "right now", so it matches that semantics exactly.
   const stayingCount = stats.stayingTonight;
 
   // Collapse duplicate Hospitable rows (same sourceReference) but keep each
@@ -379,10 +380,10 @@ export default async function DashboardPage() {
       {/* Secondary stats */}
       <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
         <StatCard
-          label="Şu An Konaklayan"
+          label="Bu Gece Kalan"
           value={stayingCount}
           icon={Users}
-          hint="evde olan misafir"
+          hint="bu gece evde kalan misafir"
         />
         <StatCard
           label="Doluluk (bugün)"

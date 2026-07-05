@@ -103,4 +103,17 @@ describe("redactSensitive", () => {
     expect(redactSensitive("invalid_grant")).toBe("invalid_grant");
     expect(redactSensitive("")).toBe("");
   });
+
+  it("strips PII/keys from an OpenAI-style error body but keeps the error type/code", () => {
+    // Mirrors what ai/index.ts feeds reportError: the OpenAI API error RESPONSE
+    // body (which may echo an offending value) plus the request's auth header.
+    const openai = redactSensitive(
+      '{"error":{"message":"Invalid value for input: guest@x.com","type":"invalid_request_error",' +
+        '"code":"invalid_value"}} Authorization: Bearer sk-live-abc123def456ghi',
+    );
+    expect(openai).not.toContain("guest@x.com"); // echoed PII gone
+    expect(openai).not.toContain("sk-live-abc123def456ghi"); // API key gone
+    expect(openai).toContain("invalid_request_error"); // error type kept (debuggable)
+    expect(openai).toContain("invalid_value"); // error code kept
+  });
 });
