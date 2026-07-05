@@ -23,16 +23,17 @@ vi.mock("@/lib/email", () => ({
 }));
 import { emailService } from "@/lib/email";
 
+import { LEGAL_VERSION } from "@/lib/legal-entity";
 import { POST as register } from "@/app/api/auth/register/route";
 import { POST as login } from "@/app/api/auth/login/route";
 import { GET as verifyEmail } from "@/app/api/auth/verify-email/route";
 
 const mockSend = vi.mocked(emailService.send);
 
-function postReq(url: string, body: unknown) {
+function postReq(url: string, body: unknown, extraHeaders?: Record<string, string>) {
   return new NextRequest(url, {
     method: "POST",
-    headers: { "content-type": "application/json", host: "www.lixusai.com" },
+    headers: { "content-type": "application/json", host: "www.lixusai.com", ...extraHeaders },
     body: JSON.stringify(body),
   });
 }
@@ -83,6 +84,44 @@ describe("registration → verification → login", () => {
     expect(u?.emailVerifyTokenHash).toBeTruthy();
     expect(u?.acceptedTermsAt).not.toBeNull(); // KVKK consent recorded
     expect(mockSend).toHaveBeenCalledOnce();
+  });
+
+  it("records KVKK consent EVIDENCE: privacy timestamp, legal version, IP (rightmost XFF), User-Agent", async () => {
+    const res = await register(
+      postReq(
+        "http://localhost/api/auth/register",
+        { organizationName: "Acme", name: "Ada", email: "ev@x.com", password: "secret123", consent: true },
+        // leftmost XFF is the client-spoofable hop; rightmost (5.6.7.8) is what the
+        // platform proxy actually observed and the value we must record.
+        { "x-forwarded-for": "1.2.3.4, 5.6.7.8", "user-agent": "TestBrowser/1.0" },
+      ),
+    );
+    expect(res.status).toBe(201);
+    const u = await prisma.user.findUnique({ where: { email: "ev@x.com" } });
+    expect(u?.acceptedTermsAt).not.toBeNull();
+    expect(u?.privacyAcceptedAt).not.toBeNull();
+    // one checkbox → both acceptances share the same instant
+    expect(u?.privacyAcceptedAt?.getTime()).toBe(u?.acceptedTermsAt?.getTime());
+    expect(u?.acceptedLegalVersion).toBe(LEGAL_VERSION);
+    expect(u?.acceptedIp).toBe("5.6.7.8"); // rightmost hop, spoofed leftmost discarded
+    expect(u?.acceptedUserAgent).toBe("TestBrowser/1.0");
+  });
+
+  it("consent evidence is null-safe when IP/UA headers are absent (no crash)", async () => {
+    const res = await register(
+      postReq("http://localhost/api/auth/register", {
+        organizationName: "Acme",
+        name: "Ada",
+        email: "noua@x.com",
+        password: "secret123",
+        consent: true,
+      }),
+    );
+    expect(res.status).toBe(201);
+    const u = await prisma.user.findUnique({ where: { email: "noua@x.com" } });
+    expect(u?.acceptedLegalVersion).toBe(LEGAL_VERSION); // version always stamped
+    expect(u?.acceptedIp).toBe("unknown"); // clientIp fallback when no XFF/x-real-ip
+    expect(u?.acceptedUserAgent).toBeNull(); // header absent → null (not "")
   });
 
   it("rejects registration without KVKK consent (400, no account created)", async () => {

@@ -1,5 +1,5 @@
 import type { Metadata } from "next";
-import { SELLER } from "@/lib/legal-entity";
+import { SELLER, LEGAL_LAST_UPDATED } from "@/lib/legal-entity";
 
 export const metadata: Metadata = {
   title: "Gizlilik Politikası ve KVKK Aydınlatma Metni",
@@ -214,7 +214,7 @@ export default function PrivacyPage() {
     <article className="space-y-8">
       <header className="space-y-1">
         <h1 className="text-2xl font-bold tracking-tight">Gizlilik Politikası ve KVKK Aydınlatma Metni</h1>
-        <p className="text-sm text-muted-foreground">Son güncelleme: Haziran 2026</p>
+        <p className="text-sm text-muted-foreground">Son güncelleme: {LEGAL_LAST_UPDATED}</p>
       </header>
       {SECTIONS.map((s) => (
         <section key={s.title} className="space-y-2">

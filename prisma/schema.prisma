@@ -155,6 +155,15 @@ model User {
   // record). Nullable → existing accounts (created before the consent checkbox)
   // stay valid and are never blocked.
   acceptedTermsAt       DateTime?
+  // KVKK consent EVIDENCE (all nullable → existing accounts untouched, safe on a
+  // populated table). privacyAcceptedAt = the moment Privacy was accepted (same
+  // click as Terms today); acceptedLegalVersion = which legal-text release was
+  // shown (LEGAL_VERSION); acceptedIp/acceptedUserAgent = the request context at
+  // sign-up. Together they back an "I never accepted" dispute with a real record.
+  privacyAcceptedAt     DateTime?
+  acceptedLegalVersion  String?
+  acceptedIp            String?
+  acceptedUserAgent     String?
   // Session invalidation counter. Bumped on password change/reset → a stolen JWT
   // (which carries the old value) stops matching, so it dies within one request
   // instead of surviving up to 14 days. Defaulted → db-push safe + no mass-logout

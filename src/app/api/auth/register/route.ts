@@ -7,6 +7,7 @@ import { rateLimit, clientIp } from "@/lib/rate-limit";
 import { emailService } from "@/lib/email";
 import { makeVerifyToken, VERIFY_TTL_MS, verifyEmailHtml, verifyUrlFromHost } from "@/lib/auth/email-verify";
 import { newTrialSubscriptionData } from "@/lib/billing/subscription";
+import { LEGAL_VERSION } from "@/lib/legal-entity";
 
 export async function POST(req: NextRequest) {
   try {
@@ -18,8 +19,16 @@ export async function POST(req: NextRequest) {
       return NextResponse.json({ error: "Kayıt şu an kapalı." }, { status: 403 });
     }
 
+    // Capture the request context ONCE — reused both for the per-IP throttle and
+    // for the KVKK consent-evidence record persisted below. clientIp() reads the
+    // rightmost X-Forwarded-For hop (the value Railway's proxy observed, not a
+    // client-spoofable one); the User-Agent is attacker-controlled free text, so
+    // it's length-capped and stored only as an informational record.
+    const ip = clientIp(req);
+    const userAgent = req.headers.get("user-agent")?.slice(0, 512) ?? null;
+
     // Throttle sign-ups per IP: 5 / hour (anti-spam / abuse).
-    const limited = rateLimit(`register:${clientIp(req)}`, 5, 60 * 60 * 1000);
+    const limited = rateLimit(`register:${ip}`, 5, 60 * 60 * 1000);
     if (!limited.ok) {
       return NextResponse.json(
         { error: "Çok fazla deneme. Lütfen biraz sonra tekrar deneyin." },
@@ -50,6 +59,10 @@ export async function POST(req: NextRequest) {
       const org = await tx.organization.create({
         data: { name: parsed.data.organizationName },
       });
+      // One checkbox covers Terms + Privacy, so both acceptances share the same
+      // instant. Version + IP + UA make the consent record defensible against a
+      // later "I never accepted" dispute (which text, when, from where).
+      const acceptedAt = new Date();
       const user = await tx.user.create({
         data: {
           organizationId: org.id,
@@ -57,7 +70,11 @@ export async function POST(req: NextRequest) {
           email,
           passwordHash,
           role: "owner",
-          acceptedTermsAt: new Date(),
+          acceptedTermsAt: acceptedAt,
+          privacyAcceptedAt: acceptedAt,
+          acceptedLegalVersion: LEGAL_VERSION,
+          acceptedIp: ip,
+          acceptedUserAgent: userAgent,
           emailVerifyTokenHash: hash,
           emailVerifyExpiresAt: new Date(Date.now() + VERIFY_TTL_MS),
         },

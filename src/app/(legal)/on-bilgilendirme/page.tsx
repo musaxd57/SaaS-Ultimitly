@@ -1,5 +1,5 @@
 import type { Metadata } from "next";
-import { SELLER } from "@/lib/legal-entity";
+import { SELLER, LEGAL_LAST_UPDATED } from "@/lib/legal-entity";
 
 export const metadata: Metadata = {
   title: "Ön Bilgilendirme Formu",
@@ -120,7 +120,7 @@ export default function PreliminaryInfoPage() {
     <article className="space-y-8">
       <header className="space-y-1">
         <h1 className="text-2xl font-bold tracking-tight">Ön Bilgilendirme Formu</h1>
-        <p className="text-sm text-muted-foreground">Son güncelleme: Haziran 2026</p>
+        <p className="text-sm text-muted-foreground">Son güncelleme: {LEGAL_LAST_UPDATED}</p>
       </header>
 
       <div className="rounded-lg border border-warning/40 bg-warning/10 p-3 text-xs leading-relaxed text-amber-700">
