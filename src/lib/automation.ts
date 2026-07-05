@@ -220,6 +220,8 @@ async function maybeSendHoldingAck(opts: {
           senderName: "GuestOps AI",
           body,
           aiIntent: "complaint",
+          // Dedup this ack against its own re-import from the channel thread.
+          ...(delivery.providerMessageId ? { externalId: delivery.providerMessageId } : {}),
         },
       }),
       prisma.conversation.update({
@@ -964,6 +966,9 @@ export async function applyChannelAutoReply(
         aiIntent: result.intent,
         aiConfidence: result.confidence,
         aiSourcesJson: result.usedSources.length ? JSON.stringify(result.usedSources) : null,
+        // Store the provider's message id so the next sync dedups this AI reply
+        // instead of re-importing it as a duplicate "Ev sahibi" message.
+        ...(delivery.providerMessageId ? { externalId: delivery.providerMessageId } : {}),
       },
     }),
     prisma.conversation.update({

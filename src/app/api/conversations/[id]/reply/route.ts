@@ -84,6 +84,9 @@ export const POST = withManage<{ id: string }>(async (session, req, { params }) 
         senderName: parsed.data.senderName || session.name,
         body: replyBody,
         aiAssisted,
+        // Store the provider's message id so the sync re-importing this reply from
+        // the channel thread dedups it instead of creating a duplicate row.
+        ...(outcome.providerMessageId ? { externalId: outcome.providerMessageId } : {}),
       },
     }),
     prisma.conversation.update({

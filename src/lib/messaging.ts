@@ -20,6 +20,11 @@ export interface SendOutcome {
   /** True when there was nothing to deliver externally (manual/email thread). */
   skipped?: boolean;
   error?: string;
+  /** The provider's id for the just-sent message, when it returned one. Persist
+   *  it as the local Message.externalId so when the sync re-imports this same
+   *  message from the channel thread it dedups (matches on externalId) instead
+   *  of creating a duplicate outbound row attributed to "Ev sahibi". */
+  providerMessageId?: string | null;
 }
 
 /**
@@ -42,7 +47,7 @@ export async function sendOnChannel(
   if (!isInternal) {
     // Multi-tenant: deliver via the connecting org's own Hospitable token.
     const r = await sendMessage(target.externalReservationId!, body, token);
-    return { ok: r.ok, error: r.error };
+    return { ok: r.ok, error: r.error, providerMessageId: r.id ?? null };
   }
 
   return { ok: true, skipped: true };

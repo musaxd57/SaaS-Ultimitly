@@ -184,7 +184,7 @@ export async function syncHospitable(
     }
 
     for (const reservation of reservations) {
-      if (!reservation.id) continue;
+      if (!reservation || !reservation.id) continue;
 
       // Store the reservation (guest, dates, status) — drives the dashboard and
       // the welcome message. Guarded so one bad record can't abort the sync.
@@ -218,24 +218,31 @@ export async function syncHospitable(
       // listings) don't exhaust the rate limit before reaching new messages.
       const incomingLast = parseDate(reservation.last_message_at);
       if (incomingLast) {
-        const existingConv = await prisma.conversation.findFirst({
-          where: { propertyId, externalReservationId: String(reservation.id) },
-          select: { id: true, lastMessageAt: true, reservationId: true },
-        });
-        if (existingConv?.lastMessageAt && existingConv.lastMessageAt >= incomingLast) {
-          // Up to date — skip the message fetch (rate-limit saver). But still
-          // backfill the reservation link if it's missing, so an already-imported
-          // thread gets its correct guest/dates context (and the ended-booking
-          // gate) without waiting for the next new message. One-time, never
-          // overwrites an existing link.
-          if (localReservationId && !existingConv.reservationId) {
-            await prisma.conversation.update({
-              where: { id: existingConv.id },
-              data: { reservationId: localReservationId },
-            });
+        try {
+          const existingConv = await prisma.conversation.findFirst({
+            where: { propertyId, externalReservationId: String(reservation.id) },
+            select: { id: true, lastMessageAt: true, reservationId: true },
+          });
+          if (existingConv?.lastMessageAt && existingConv.lastMessageAt >= incomingLast) {
+            // Up to date — skip the message fetch (rate-limit saver). But still
+            // backfill the reservation link if it's missing, so an already-imported
+            // thread gets its correct guest/dates context (and the ended-booking
+            // gate) without waiting for the next new message. One-time, never
+            // overwrites an existing link.
+            if (localReservationId && !existingConv.reservationId) {
+              await prisma.conversation.update({
+                where: { id: existingConv.id },
+                data: { reservationId: localReservationId },
+              });
+            }
+            result.skipped++;
+            continue; // already up to date — no network call needed
           }
-          result.skipped++;
-          continue; // already up to date — no network call needed
+        } catch (err) {
+          // A transient DB error on the skip-check must NOT abort the whole
+          // property's remaining reservations — log and fall through to a normal
+          // import (which is idempotent), losing only this cycle's skip savings.
+          console.error(`[Hospitable sync] skip-check failed for ${reservation.id}`, err);
         }
       }
 
@@ -283,9 +290,13 @@ async function upsertReservationCalendar(
   if (!propertyExists) return null;
 
   const g = reservation.guest;
+  // Resolve the real name separately from the placeholder fallback: on UPDATE we
+  // only overwrite guestName when a real name is present, so a later sync where
+  // the channel has masked the guest (Airbnb hides PII a while after checkout)
+  // can't regress a previously-stored name to "Misafir" (mirrors email/phone).
+  const resolvedGuestName = reservationGuestName(reservation) ?? null;
   const guestName =
-    reservationGuestName(reservation) ??
-    (str(reservation.code) ? `Rezervasyon ${reservation.code}` : "Misafir");
+    resolvedGuestName ?? (str(reservation.code) ? `Rezervasyon ${reservation.code}` : "Misafir");
   const guestEmail = str(g?.email) ?? null;
   const guestPhone = str(g?.phone) ?? null;
   // Stable per-person guest id (links the same guest across stays). Airbnb masks
@@ -329,7 +340,7 @@ async function upsertReservationCalendar(
     await prisma.reservation.update({
       where: { id: existing.id },
       data: {
-        guestName,
+        ...(resolvedGuestName !== null ? { guestName: resolvedGuestName } : {}),
         ...(guestEmail !== null ? { guestEmail } : {}),
         ...(guestPhone !== null ? { guestPhone } : {}),
         ...(guestExternalId !== null ? { guestExternalId } : {}),
