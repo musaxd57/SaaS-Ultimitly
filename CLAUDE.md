@@ -219,6 +219,21 @@ Bu oturumun iki düzeltmesi kasıtlı bir maliyet taşıyor; gerçek kullanımda
   openProblems** take:500 uzunluğu yerine gerçek count(). **Validators**: loginSchema.email +.max(254),
   reservationSchema.totalAmount +.max. **616 test yeşil.**
 
+## ✅ DERİN DENETİM TURU-3 UYGULANDI (2026-07-05, commit 892f658 + 54b3eae)
+5 agent (middleware/cron / CSV-iCal import / paylaşılan tarih-util / interaktif client-component / OpenAI) + doğrulama.
+Temiz çıkanlar: middleware+cron+instrumentation (JWT imzalı doğrulanıyor, matcher tam, cron secret timing-safe),
+**paylaşılan tarih/util primitifleri** (zonedDayRange/tzOffsetMs/daysUntilDate — İstanbul UTC+3 doğru, TZ tabanı GÜVENİLİR).
+- **[Import] CSV/iCal sertleştirme** (892f658): alan uzunluk kapları (import + remote-feed sync, manuel-yolla hizalı) ·
+  dosya-boyutu sınırı (5MB upload / 10MB feed, OOM guard) · id-kolonsuz CSV re-import DUPLICATE yaratıyordu → natural-key
+  fallback dedup · miktar ayrıştırma `1.234,56`→1.234 bug'ı (son ayraç=ondalık) düzeltildi.
+- **[AI] Kanıt bütünlüğü** (54b3eae): `verifyUsedSources` `property:*` her değere true dönüyordu → model uydurma kaynak
+  ("property:door_code") enjekte edip UI'da chip gösterebiliyordu → gerçek alanlar whitelist'lendi. `statedCheckoutTime`
+  geçersiz saati ("25:99") kabul ediyordu → aralık-doğrulama.
+- **[Güvenlik] JWT** `jwtVerify` `algorithms:["HS256"]` pinlendi (savunma-derinliği). **[QR-UI] Poll yarışı**: 5s poll
+  gönderilen mesajı ~5s ekrandan silebiliyordu → monotonik load-seq guard + gönderim sırasında poll atla. **616 test yeşil.**
+- **[ERTELENDİ — parser rewrite riski]** CSV tırnak-içi newline yanlış ayrışıyor (\n'de pre-split) → state-machine gerek.
+  Translate/summarize reportError paritesi (nit). session.ts:10 bayat "deferred" yorumu (doc).
+
 ## ⏳ SIRADAKİ OTURUM — kalan (opsiyonel / karar)
 4b. **[düşük — hardening]** CSV/iCal import (`reservations/import`) manuel-yol uzunluk kaplarını atlıyor (currency
    vb. sınırsız) → satırları `reservationSchema`'dan geçir. QR `looksLikeSecret` yalnız keyword-yanındaki kodu
