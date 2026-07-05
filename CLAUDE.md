@@ -415,8 +415,10 @@ export-dışlama regresyon testi yok (yapı allowlist ile zaten güvenli — ist
 - **[HIGH — DÜZELTİLDİ, commit `fd5585e`]** `redactSensitive` FIELD_RE virgüllü değerleri (adres/full_name/guest_name) redakte edemiyordu →
   değer Sentry(ABD)+log+mail'e SIZIYORDU. Quoted-branch eklendi (virgül dahil tam yakala). +regresyon testi.
 - **[safety — DÜZELTİLDİ, commit `151395a`]** seed prod-wipe guard NODE_ENV yerine DATABASE_URL-local kontrolü · verify-email rate-limit (20/saat/IP).
-**🚨 #47 DEPLOY BLOCKER (task açıldı — HÂLÂ AÇIK):** migration `0_..9_` padsız → sonraki `10_*` lexical olarak `1_` ile `2_` arasına düşer
-→ FRESH deploy migration'ları yanlış sırada uygular → boot crash. Mevcut prod güvenli, kırılma 10'da. **Fix prod DB dokunur** (zero-pad + `_prisma_migrations` update) → kullanıcı-onaylı. **Bu yüzden verify-email index'i ertelendi.**
+**✅ #47 DEPLOY BLOCKER ÇÖZÜLDÜ + PROD DOĞRULANDI (commit `e8e5eb2`):** migration klasörleri `00_..09_` zero-pad (git rename, history
+korundu); throwaway PG'de 00-09 sırayla + `10_` probe artık 09'dan sonra + sıfır-drift. Prod `_prisma_migrations` kullanıcı SQL'iyle
+`00_..09_`'a güncellendi (10 satır UPDATE 1), SONRA push edildi → Railway deploy logu **"No pending migrations to apply · 10 migrations
+found · Ready in 202ms"** = temiz boot, re-apply YOK. Artık migration 10+ güvenle eklenebilir (verify-email index'i dahil önceden ertelenenler).
 **KARAR-LİSTESİ (yeni gerçek bulgular — inceleme/karar):**
 - [AI-safety] `passesAutoReplySafetyGate` sadece `last.body`'yi tarıyor; AI cevabı TÜM konuşma geçmişi + misafirin (Airbnb-kontrollü) rezervasyon ADI'ndan üretiliyor → önceki mesaja veya display-name'e gömülü injection kod-kapısını atlar. Gate'i geçmiş+ad'a genişlet (golden gerekli).
 - [KVKK] erasure yalnız `custom_data.organizationId`'li webhook satırlarını redakte ediyor; `customer.updated` (email/ad/adres) bu tag'i taşımaz → hesap-silmede redaksiyonsuz kalır. Erasure'ı customer_id ile de eşleştir.
