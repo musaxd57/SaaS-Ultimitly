@@ -262,9 +262,11 @@ landing demo cost-gate/XSS/hydration, boot-order/env-guard/next.config.
 - **[Ops güvenlik, e4b459e]** seed.ts prod-wipe guard (NODE_ENV=production'da DB silmeyi reddet, ALLOW_PROD_SEED override) ·
   BILLING_ENFORCED "1" de kabul (diğer 8 flag gibi) · EMAIL_PORT boş-string→0 guard.
 - **[SEO, 5a7a028]** global canonical="/" her sayfaya miras kalıp yasal/KVKK sayfalarını index-dışı bırakıyordu → kaldırıldı.
-- **[⚠️ KARAR — KULLANICI/BILLING]** Operatör-oluşturduğu müşteri Subscription satırı ALMIYOR (public register 14g trial açar) →
-  grandfathered=SINIRSIZ premium, BILLING_ENFORCED'e bağışık. Kasıtlı (agency ücretsiz) mı, gelir-sızıntısı mı? register gibi
-  trial açılsın mı = SENİN KARARIN (para akışı → autonomous turda DOKUNMADIM). Kod hazır: admin/customers'a `newTrialSubscriptionData()`.
+- **[✅ KARAR VERİLDİ + UYGULANDI, commit b99f5aa]** Operatör-müşteri billing: admin "müşteri ekle" formuna **Faturalama
+  modu** seçici; admin/customers route ARTIK HER ZAMAN Subscription satırı açar → (1) **trial** (varsayılan, public gibi 14g
+  Pro sonra ücretli), (2) **manual** (status active/provider manual — premium açık, ödemeyi operatör dışarıda toplar), (3)
+  **free** (status grandfathered — sınırsız, enforcement-dışı, AÇIK işaret; artık kazara satırsız-grandfathered YOK). Migration
+  YOK (mevcut alanlara oturdu). Operatör paneli SADECE Nuve'de (SUPERADMIN_EMAILS gate; müşterilerde yok — doğrulandı).
 - **[ERTELENDİ — latent]** error-reporting 3.taraf hata gövdesini (OpenAI/Hospitable) redakte etmeden Sentry'ye geçiriyor
   (doğrulanmış PII sızıntısı DEĞİL, KVKK savunma-derinliği). getMonthlyReport UTC ay. dashboard "Şu An Konaklayan" overlap.
 
