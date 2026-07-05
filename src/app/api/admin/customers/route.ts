@@ -6,6 +6,13 @@ import { requireSession, unauthorized, badRequest, jsonOk, serverError, tooManyR
 import { isSuperAdmin } from "@/lib/admin";
 import { rateLimit } from "@/lib/rate-limit";
 import { writeAudit } from "@/lib/audit";
+import { newTrialSubscriptionData } from "@/lib/billing/subscription";
+
+// Billing lifecycle the operator chooses for a new customer. ALWAYS creates a
+// Subscription row so an operator-created org can never silently fall into
+// "grandfathered = unlimited" by simply MISSING a row.
+const BILLING_MODES = ["trial", "manual", "free"] as const;
+type BillingMode = (typeof BILLING_MODES)[number];
 
 // ---------------------------------------------------------------------------
 // Operator panel: create a new CUSTOMER organization + its owner login.
@@ -32,6 +39,13 @@ export async function POST(req: NextRequest) {
     const existing = await prisma.user.findUnique({ where: { email } });
     if (existing) return badRequest({ email: "Bu e-posta adresi zaten kayıtlı" });
 
+    // Operator's chosen billing lifecycle (default: same reverse-trial as a
+    // public signup, so nothing is gifted premium by accident).
+    const rawMode = (data as { billingMode?: unknown } | null)?.billingMode;
+    const billingMode: BillingMode = BILLING_MODES.includes(rawMode as BillingMode)
+      ? (rawMode as BillingMode)
+      : "trial";
+
     const passwordHash = await hashPassword(parsed.data.password);
     const { org } = await prisma.$transaction(async (tx) => {
       const org = await tx.organization.create({ data: { name: parsed.data.organizationName } });
@@ -49,6 +63,19 @@ export async function POST(req: NextRequest) {
           emailVerifiedAt: new Date(),
         },
       });
+      // Always create a Subscription row (never leave the org row-less):
+      //   trial  → 14-day Pro reverse-trial, then normal billing (public-signup parity)
+      //   manual → active + provider "manual": premium ON, no trial clock; the
+      //            operator collects payment offline (bank transfer etc.)
+      //   free   → grandfathered: unlimited, enforcement-exempt internal account
+      //            (an EXPLICIT marker, not the accidental missing-row default)
+      const subData =
+        billingMode === "manual"
+          ? { organizationId: org.id, planCode: "pro", status: "active", provider: "manual" }
+          : billingMode === "free"
+            ? { organizationId: org.id, planCode: "grandfathered", status: "grandfathered", provider: "manual" }
+            : { organizationId: org.id, ...newTrialSubscriptionData() };
+      await tx.subscription.create({ data: subData });
       return { org };
     });
 
@@ -61,6 +88,7 @@ export async function POST(req: NextRequest) {
         operatorEmail: session.actorEmail ?? session.email,
         ownerEmail: email,
         orgName: parsed.data.organizationName,
+        billingMode,
       },
     });
 

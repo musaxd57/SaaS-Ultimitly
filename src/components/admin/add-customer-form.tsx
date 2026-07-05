@@ -14,7 +14,13 @@ import { Field } from "@/components/form-field";
  */
 export function AddCustomerForm() {
   const router = useRouter();
-  const [form, setForm] = useState({ organizationName: "", name: "", email: "", password: "" });
+  const [form, setForm] = useState({
+    organizationName: "",
+    name: "",
+    email: "",
+    password: "",
+    billingMode: "trial",
+  });
   const [busy, setBusy] = useState(false);
   const [done, setDone] = useState<string | null>(null);
   const [errors, setErrors] = useState<Record<string, string>>({});
@@ -37,7 +43,7 @@ export function AddCustomerForm() {
       const data = await res.json().catch(() => ({}));
       if (res.ok) {
         setDone(`"${form.organizationName}" eklendi. Hesabına girip Ayarlar'dan Hospitable bağlayabilirsin.`);
-        setForm({ organizationName: "", name: "", email: "", password: "" });
+        setForm({ organizationName: "", name: "", email: "", password: "", billingMode: "trial" });
         router.refresh();
       } else {
         setErrors(data.fields ?? { _: data.error ?? "Eklenemedi." });
@@ -67,6 +73,23 @@ export function AddCustomerForm() {
       </Field>
       <Field label="Geçici şifre (en az 8 karakter)" htmlFor="c-pw" error={errors.password}>
         <Input id="c-pw" value={form.password} onChange={(e) => set("password", e.target.value)} placeholder="••••••••" minLength={8} required />
+      </Field>
+      <Field label="Faturalama modu" htmlFor="c-billing" error={errors.billingMode}>
+        <select
+          id="c-billing"
+          value={form.billingMode}
+          onChange={(e) => set("billingMode", e.target.value)}
+          className="flex h-9 w-full rounded-md border border-input bg-transparent px-3 py-1 text-sm shadow-sm focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring"
+        >
+          <option value="trial">Deneme / normal faturalama — 14 gün Pro, sonra ücretli</option>
+          <option value="manual">Manuel faturalama — premium açık, ödemeyi sen alırsın</option>
+          <option value="free">Ücretsiz iç hesap — sınırsız, faturalama dışı</option>
+        </select>
+        <p className="mt-1 text-xs text-muted-foreground">
+          Herkese abonelik kaydı oluşturulur. <strong>Deneme</strong> gerçek müşteri gibi 14 gün sonra ücrete
+          geçer; <strong>Manuel</strong> premium açık tutar (ödemeyi dışarıda toplarsın); <strong>Ücretsiz iç
+          hesap</strong> faturalama zorlamasının tamamen dışındadır.
+        </p>
       </Field>
       {errors._ ? <p className="text-sm text-destructive">{errors._}</p> : null}
       <Button type="submit" disabled={busy}>

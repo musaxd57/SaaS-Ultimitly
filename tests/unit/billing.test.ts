@@ -26,6 +26,31 @@ describe("billing entitlements (safe-by-default)", () => {
     expect(ent.propertyLimit).toBeNull();
   });
 
+  // Operator-created customer billing modes (admin/customers route). Each mode
+  // ALWAYS writes a Subscription row, so no operator-created org silently relies
+  // on the accidental missing-row grandfathered default.
+  it("free-internal mode (grandfathered ROW) → active + unlimited, even ENFORCED", async () => {
+    vi.stubEnv("BILLING_ENFORCED", "true");
+    findUnique.mockResolvedValue({
+      organizationId: "o", planCode: "grandfathered", status: "grandfathered",
+      provider: "manual", createdAt: new Date(),
+    } as never);
+    const ent = await getEntitlement("o");
+    expect(ent.active).toBe(true);
+    expect(ent.propertyLimit).toBeNull();
+    expect(ent.grandfathered).toBe(true);
+    expect(await premiumAllowed("o")).toBe(true);
+  });
+
+  it("manual-billing mode (active/provider=manual ROW) → premium allowed, even ENFORCED", async () => {
+    vi.stubEnv("BILLING_ENFORCED", "true");
+    findUnique.mockResolvedValue({
+      organizationId: "o", planCode: "pro", status: "active",
+      provider: "manual", createdAt: new Date(),
+    } as never);
+    expect(await premiumAllowed("o")).toBe(true);
+  });
+
   it("reads plan + limit + status from an existing subscription", async () => {
     findUnique.mockResolvedValue({ organizationId: "org1", planCode: "pro", status: "active" } as never);
     const ent = await getEntitlement("org1");
