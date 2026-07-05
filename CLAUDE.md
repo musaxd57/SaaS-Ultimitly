@@ -184,9 +184,38 @@ Bu oturumun iki düzeltmesi kasıtlı bir maliyet taşıyor; gerçek kullanımda
    çalıştırmasın + duplicate satır olmasın diye bilinçli. Sorun olursa: sabit TTL yerine kilit HEARTBEAT'i
    (org-loop içinde `lockedUntil`'i periyodik uzat) daha iyi çözüm — fencing token zaten mevcut.
 
+## ✅ DERİN DENETİM TURU UYGULANDI (2026-07-05, commit fc6f897 + 14965a3)
+5 agent (AI çekirdeği / sync motoru / gönderim-yolu / güvenlik primitifleri) + kod-doğrulama:
+- **AI kelime-ağı boşlukları** (fallback.ts, additive+threat-anchored, +5 golden): `iptal ed` (bildirimsel
+  iptal t→d yumuşaması), `tazminat` (refund), İngilizce off-platform rayları (bank/wire/money transfer,
+  venmo/paypal/zelle/revolut/papara), TR bildirimsel kötü-yorum tehdidi (`kötü/olumsuz yorum yaz/bırak/
+  yapacağım`, `düşük puan ver`) → artık review_threat, complaint değil.
+- **TOTP** `timingSafeEqual` (kod hep 6 hane; teorik timing-oracle kapandı). **fillPlaceholders** fonksiyon-
+  replacer (misafir adında `$&`/`$1` gibi desen kendi mesajını bozmasın).
+- **Sync BUG1** (yaygın): app/host cevabı `externalId=null` persist ediliyordu → sonraki sync thread'i tekrar
+  çekince aynı mesaj dedup'a takılmayıp DUPLICATE "Ev sahibi" satırı yaratıyordu. `sendOnChannel` artık
+  provider mesaj-id'sini döndürüyor (`providerMessageId`); reply/auto-reply/holding-ack `externalId`e yazıyor.
+  Sınırlı risk: POST-id≠GET-id ise sadece no-op. ⚠️ CANLIDA DOĞRULA: cevaplar thread'de artık iki kez görünmesin.
+- **Sync BUG2**: reservation UPDATE'te `guestName` koşulsuz yazılıyordu (email/phone korumalıyken) → Airbnb
+  checkout sonrası adı maskeleyince gerçek ad "Misafir"e geriliyordu. Artık korumalı (placeholder sadece create).
+- **Sync BUG3**: per-reservation skip-check DB sorguları sarılı değildi → transient DB hatası mülkün kalan
+  rezervasyonlarını abort ediyordu. Null-element guard + try/catch, log-and-continue. **614 test yeşil.**
+
 ## ⏳ SIRADAKİ OTURUM — kalan (opsiyonel / karar)
-5. Temiz çıkanlar (bug YOK): auth/session/IDOR (58 rota), prisma şema/migration drift, KVKK retention/export,
-   client-component/form XSS/crash, env-token fallback (unreachable prod'da). Tekrar taramaya gerek az.
+5. **[AI — dikkatli tasarım gerek] `discrimination` + `rule_violation` deterministik net YOK:** `detectRiskType`
+   bu 2 sınıfı hiç üretmiyor → tespit %100 modelin label'ında (HIGH_STAKES veto var, ama kod-yedeği yok).
+   Örnek: "arkadaşlarım da gece kalacak, sorun olmaz değil mi?" → `sorun olmaz` PROBLEM_NEGATIONS'ta, aktif
+   de-flag. Net eklemek İSTENİR ama false-positive riski yüksek (ayrımcılıkta misafirin KENDİ milliyetini
+   belirtmesi tetiklememeli) → dikkatli, övgü-tuzağı golden'lı ayrı tur. Model zaten label'lıyor, acil değil.
+6. **[izle — şema gerek] Otomasyon baseline import-zamanı:** `*EnabledAt` gate'i `Reservation.createdAt`
+   (=import anı) üzerinden; host toggle'ı İLK sync'ten önce açar veya hesabı yeniden bağlarsa mevcut gelecek
+   rezervasyonlara mesaj gidebilir. Tam-güvenli fix Hospitable "booking-created" zaman damgası ister (yeni kolon).
+7. **[doğrula — kod değil] `isGuestMessage` alan-adı varsayımı:** sync `m.sender_type/sender_role/full_name`
+   okuyor; canlı API farklı key kullanırsa TÜM mesaj outbound olur → konuşma hiç "new" olmaz → oto-yanıt hiç
+   çalışmaz. CLAUDE.md "AUTO_REPLY uçtan uca doğrulandı" diyor → pratikte doğru; yine de gerçek payload'la teyit et.
+8. Temiz çıkanlar (bug YOK): auth/session/IDOR (58 rota), prisma şema/migration drift, KVKK retention/export,
+   client-component/form XSS/crash, env-token fallback (unreachable prod'da), güvenlik primitifleri (crypto/JWT/
+   2FA/rate-limit — sağlam). Tekrar taramaya gerek az.
 6. **[opsiyonel/büyük — BİLİNÇLİ ERTELENDİ] `@@unique([conversationId,externalId])` + `(propertyId,
    sourceReference)`** — fencing double-sync'i büyük ölçüde kapattı ama dedupe hâlâ app-level (findFirst-then-
    create). Constraint self-defending yapardı AMA DOLU tabloya @unique = boot'ta patlar → önce prod-dedup ŞART
@@ -208,7 +237,7 @@ Bu oturumun iki düzeltmesi kasıtlı bir maliyet taşıyor; gerçek kullanımda
 4. Paddle: küçük gerçek ödeme birlikte test. AUTO_REPLY: ilk gönderimler birlikte doğrula.
 
 ## Durum
-**609 test yeşil, typecheck temiz, migrate deploy canlıda doğrulanmış.** 8 migration
+**614 test yeşil, typecheck temiz, migrate deploy canlıda doğrulanmış.** 8 migration
 (0_init→7_ical_hide_guest_name) sıfır-drift (taze Postgres'te doğrulandı). Branch =
 `claude/great-edison-3zqpZ`, origin ile senkron (282cfec = iCal PII gizliliği; 1d112f7 = doğrulama-turu
 cilası; b94cd8a = sync fencing + Paddle grace anchor + webhook sıralama; a6d3713 = 10-ajan sweep + 8-ajan
