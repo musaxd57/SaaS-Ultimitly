@@ -20,6 +20,17 @@ export async function requireSession(): Promise<SessionPayload | null> {
       select: { sessionEpoch: true },
     });
     if (!user || user.sessionEpoch !== session.sessionEpoch) return null;
+    // While impersonating, ALSO enforce the real operator's epoch — else a stolen
+    // impersonation token would survive the operator resetting their OWN password
+    // (which bumps only the operator's epoch, not the assumed customer's). Skipped
+    // for legacy impersonation tokens minted before this claim (backward compatible).
+    if (session.actorUserId && session.actorSessionEpoch !== undefined) {
+      const actor = await prisma.user.findUnique({
+        where: { id: session.actorUserId },
+        select: { sessionEpoch: true },
+      });
+      if (!actor || actor.sessionEpoch !== session.actorSessionEpoch) return null;
+    }
   } catch {
     // DB blip — don't turn a transient read failure into a logout.
   }

@@ -24,6 +24,18 @@ export default async function AppLayout({ children }: { children: React.ReactNod
   if (!user || !user.organization || user.sessionEpoch !== session.sessionEpoch) {
     redirect("/api/auth/logout");
   }
+  // Impersonation: also enforce the REAL operator's epoch, so a stolen
+  // impersonation token dies when the operator resets their own password (mirrors
+  // requireSession). Legacy tokens without the claim skip this (backward compat).
+  if (session.actorUserId && session.actorSessionEpoch !== undefined) {
+    const actor = await prisma.user.findUnique({
+      where: { id: session.actorUserId },
+      select: { sessionEpoch: true },
+    });
+    if (!actor || actor.sessionEpoch !== session.actorSessionEpoch) {
+      redirect("/api/auth/logout");
+    }
+  }
   const org = user.organization;
 
   // Billing (Faz 2). DORMANT unless BILLING_ENFORCED=true. We do NOT hard-lock

@@ -41,6 +41,26 @@ describe("session JWT", () => {
     expect((await verifySession(token))?.sessionEpoch).toBe(7);
   });
 
+  it("carries the operator's actorSessionEpoch through an impersonation session", async () => {
+    const token = await signSession({
+      ...payload,
+      email: "customer@client.com",
+      organizationId: "org2",
+      actorUserId: "operator1",
+      actorEmail: "operator@example.com",
+      actorName: "Operator",
+      actorSessionEpoch: 3,
+    });
+    const verified = await verifySession(token);
+    expect(verified?.actorUserId).toBe("operator1");
+    expect(verified?.actorSessionEpoch).toBe(3); // used to kill a stolen impersonation token on operator reset
+  });
+
+  it("leaves actorSessionEpoch undefined on a session that isn't impersonating (guard skips the actor check)", async () => {
+    const verified = await verifySession(await signSession(payload));
+    expect(verified?.actorSessionEpoch).toBeUndefined();
+  });
+
   it("defaults a legacy token (no sessionEpoch claim) to epoch 0 — matches the DB default so the deploy that adds this never mass-logs-out", async () => {
     const secret = new TextEncoder().encode(process.env.AUTH_SECRET);
     const legacy = await new SignJWT({

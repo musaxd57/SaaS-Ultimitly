@@ -28,6 +28,11 @@ export interface SessionPayload {
   actorUserId?: string;
   actorEmail?: string;
   actorName?: string;
+  // The real operator's OWN sessionEpoch, signed in while impersonating, so a
+  // stolen impersonation token dies when the operator resets their password
+  // (which bumps their epoch). Absent on legacy tokens → the actor-epoch check
+  // is skipped for them (backward compatible; nobody is logged out on rollout).
+  actorSessionEpoch?: number;
 }
 
 function getSecretKey(): Uint8Array {
@@ -67,6 +72,7 @@ export async function verifySession(token: string | undefined): Promise<SessionP
         ...(typeof payload.actorUserId === "string" ? { actorUserId: payload.actorUserId } : {}),
         ...(typeof payload.actorEmail === "string" ? { actorEmail: payload.actorEmail } : {}),
         ...(typeof payload.actorName === "string" ? { actorName: payload.actorName } : {}),
+        ...(typeof payload.actorSessionEpoch === "number" ? { actorSessionEpoch: payload.actorSessionEpoch } : {}),
       };
     }
     return null;

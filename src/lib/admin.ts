@@ -78,6 +78,9 @@ export async function enterOrganization(
   const actorUserId = current.actorUserId ?? current.userId;
   const actorName = current.actorName ?? current.name;
   const actor = current.actorEmail ?? current.email;
+  // The operator's OWN epoch (preserved across customer→customer hops), so the
+  // operator resetting their password invalidates a stolen impersonation token.
+  const actorSessionEpoch = current.actorSessionEpoch ?? current.sessionEpoch;
 
   await setSessionCookie({
     userId: owner.id,
@@ -89,6 +92,7 @@ export async function enterOrganization(
     actorUserId,
     actorEmail: actor,
     actorName,
+    actorSessionEpoch,
   });
   // Leave a trace: an operator just gained access to this customer's guest PII.
   await writeAudit({
