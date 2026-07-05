@@ -340,7 +340,11 @@ acceptedLegalVersion·acceptedIp·acceptedUserAgent) — dolu tabloda güvenli (
 aynı transaction'da damgalıyor: privacyAcceptedAt=acceptedTermsAt (tek checkbox Terms+Privacy), acceptedLegalVersion=LEGAL_VERSION,
 acceptedIp=clientIp(req) (rightmost XFF, spoof-dayanıklı), acceptedUserAgent=UA (512'ye kırpık, null-safe). Legal versiyon TEK-KAYNAK:
 `LEGAL_VERSION="2026-06"` + `LEGAL_LAST_UPDATED="Haziran 2026"` @ legal-entity.ts; 4 legal sayfası artık ortak sabiti render ediyor
-(damgalanan versiyon görünen tarihten sapamaz). +2 test (evidence yakalama + header'sız null-safe). 639 test. Review agent doğruluyor.
+(damgalanan versiyon görünen tarihten sapamaz). +2 test (evidence yakalama + header'sız null-safe). 639 test. **Review agent
+TEMİZ (7/7 kodla doğrulandı):** migration boot-safe+sıfır-drift · rightmost-XFF spoof-dayanıklı · UA 512-cap null-safe ·
+**SIZINTI/IDOR YOK** (export/admin/login hiçbir yerde 4 alanı dönmüyor — allowlist select) · transaction rollback doğru ·
+legal-version DRY tutarlı. Bilgi-notu (bug değil): consent ham `data?.consent` ile doğrulanıyor (registerSchema'da değil);
+export-dışlama regresyon testi yok (yapı allowlist ile zaten güvenli — istenirse ileride pin-test eklenebilir).
 • Register'a mesafeli/ön-bilgilendirme KOYMA (kullanıcı onayı) — sadece terms/privacy kaldı.
 **✅ #43 + #42 UYGULANDI (kullanıcı "önce bu 2sini yap" dedi):**
 - **#43 Legal metin ekleri (commit `1db744c`):** verilen metin mevcut legal sayfalara ADDITIVE eklendi (mevcut içerik korundu,
