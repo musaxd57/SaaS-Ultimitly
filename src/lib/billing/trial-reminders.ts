@@ -84,10 +84,13 @@ export async function sendDueTrialReminders(now: Date = new Date()): Promise<Tri
         data: { trialEndedSentAt: now },
       });
       if (claimed.count !== 1) continue; // another run won the claim
-      try {
-        await emailService.send(to, "Lixus AI — Ücretsiz denemeniz sona erdi", trialEndedEmail(ownerName, settingsUrl()));
+      // Use sendReporting (not send) — send() swallows delivery failures and
+      // returns void, so the old try/catch rollback was DEAD code: a failed mail
+      // stayed stamped "sent" forever. Branch on the reported outcome instead.
+      const sent = await emailService.sendReporting(to, "Lixus AI — Ücretsiz denemeniz sona erdi", trialEndedEmail(ownerName, settingsUrl()));
+      if (sent.ok) {
         result.ended++;
-      } catch {
+      } else {
         // Roll back so a transient mail failure retries next cycle.
         await prisma.subscription.update({ where: { id: sub.id }, data: { trialEndedSentAt: null } }).catch(() => {});
       }
@@ -101,14 +104,14 @@ export async function sendDueTrialReminders(now: Date = new Date()): Promise<Tri
         data: { trialEndingSentAt: now },
       });
       if (claimed.count !== 1) continue;
-      try {
-        await emailService.send(
-          to,
-          `Lixus AI — Pro denemeniz ${daysLeft <= 1 ? "yarın" : daysLeft + " gün sonra"} bitiyor`,
-          trialEndingSoonEmail(ownerName, daysLeft, settingsUrl()),
-        );
+      const sent = await emailService.sendReporting(
+        to,
+        `Lixus AI — Pro denemeniz ${daysLeft <= 1 ? "yarın" : daysLeft + " gün sonra"} bitiyor`,
+        trialEndingSoonEmail(ownerName, daysLeft, settingsUrl()),
+      );
+      if (sent.ok) {
         result.ending++;
-      } catch {
+      } else {
         await prisma.subscription.update({ where: { id: sub.id }, data: { trialEndingSentAt: null } }).catch(() => {});
       }
     }

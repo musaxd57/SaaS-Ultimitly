@@ -2,17 +2,19 @@ import { describe, it, expect, beforeEach, afterEach, afterAll, vi } from "vites
 import { prisma, resetDb } from "../helpers/db";
 
 // Deterministic transport — assert recipients/subjects without sending mail.
-vi.mock("@/lib/email", () => ({ emailService: { send: vi.fn() } }));
+// The reminder uses sendReporting (returns {ok}) so a real delivery failure is
+// observed and the claim rolled back; mock that, not the fire-and-forget send().
+vi.mock("@/lib/email", () => ({ emailService: { sendReporting: vi.fn() } }));
 import { emailService } from "@/lib/email";
 import { sendDueTrialReminders } from "@/lib/billing/trial-reminders";
 
-const mockSend = vi.mocked(emailService.send);
+const mockSend = vi.mocked(emailService.sendReporting);
 const DAY = 24 * 60 * 60 * 1000;
 
 beforeEach(async () => {
   await resetDb();
   vi.clearAllMocks();
-  mockSend.mockResolvedValue(undefined);
+  mockSend.mockResolvedValue({ ok: true });
   vi.stubEnv("BILLING_ENFORCED", "true"); // reminders only fire when enforced
   vi.stubEnv("TRIAL_EMAILS_ENABLED", "1"); // opt-in flag (ships dormant)
 });
@@ -133,7 +135,9 @@ describe("reverse-trial reminder emails", () => {
   it("rolls back the stamp if the email send fails, so it retries", async () => {
     const now = new Date();
     const orgId = await trialOrg({ trialEndsAt: new Date(now.getTime() - 1 * DAY) });
-    mockSend.mockRejectedValueOnce(new Error("smtp down"));
+    // A REPORTED failure (Resend HTTP 429/500, unverified domain) — what really
+    // happens in prod, where send() would have silently swallowed it.
+    mockSend.mockResolvedValueOnce({ ok: false, error: "smtp down" });
 
     const r1 = await sendDueTrialReminders(now);
     expect(r1.ended).toBe(0); // not counted as sent
@@ -141,7 +145,7 @@ describe("reverse-trial reminder emails", () => {
     expect(after.trialEndedSentAt).toBeNull(); // rolled back → retryable
 
     // Next pass (transport healthy) succeeds.
-    mockSend.mockResolvedValue(undefined);
+    mockSend.mockResolvedValue({ ok: true });
     const r2 = await sendDueTrialReminders(now);
     expect(r2.ended).toBe(1);
   });

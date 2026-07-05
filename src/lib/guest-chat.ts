@@ -147,7 +147,7 @@ export async function resolveGuestChat(
   // checkOutTime on the departure day (Istanbul). Before check-in, after checkout,
   // or while vacant → CLOSED. So a past guest who kept the QR can't keep using it,
   // and it resets for the next guest automatically.
-  const candidate = await prisma.reservation.findFirst({
+  const candidates = await prisma.reservation.findMany({
     where: {
       propertyId: property.id,
       status: { in: ["confirmed", "completed"] },
@@ -155,23 +155,27 @@ export async function resolveGuestChat(
       arrivalDate: { lte: new Date(now.getTime() + 12 * 60 * 60 * 1000) },
       departureDate: { gte: new Date(now.getTime() - 24 * 60 * 60 * 1000) },
     },
-    orderBy: { arrivalDate: "desc" },
+    // Ascending (earliest arrival first): on a back-to-back turnover day the
+    // INCUMBENT stay wins until it checks out, then the next one takes over.
+    orderBy: { arrivalDate: "asc" },
     select: { id: true, guestName: true, arrivalDate: true, departureDate: true, status: true },
   });
 
-  let open = false;
-  let activeReservation: GuestChatContext["activeReservation"] = null;
-  if (candidate) {
-    const started = daysUntilDate(candidate.arrivalDate, now) <= 0; // arrival day today or earlier
-    const depDiff = daysUntilDate(candidate.departureDate, now); // 0 = today, >0 future, <0 past
+  // Evaluate EVERY candidate, not just one row: the 12h look-ahead pulls the NEXT
+  // guest's reservation into the set before they arrive, so a bare findFirst(desc)
+  // would return that not-yet-started row and (a) CLOSE the chat for the guest
+  // currently on-site the afternoon before turnover, and (b) on turnover morning
+  // serve the on-site guest's thread under the next guest's id (cross-guest PII).
+  const isOpenNow = (r: { arrivalDate: Date; departureDate: Date }): boolean => {
+    const started = daysUntilDate(r.arrivalDate, now) <= 0; // arrival day today or earlier
+    const depDiff = daysUntilDate(r.departureDate, now); // 0 = today, >0 future, <0 past
     const beforeCheckout =
       depDiff > 0 ||
       (depDiff === 0 && nowMinutesInTz(now) < hhmmToMinutes(property.checkOutTime));
-    if (started && beforeCheckout) {
-      open = true;
-      activeReservation = candidate;
-    }
-  }
+    return started && beforeCheckout;
+  };
+  const activeReservation: GuestChatContext["activeReservation"] = candidates.find(isOpenNow) ?? null;
+  const open = activeReservation !== null;
 
   // Closed → return the property (so the page can show a branded "no active stay"
   // screen) but no reservation and an empty knowledge base (nothing to answer).

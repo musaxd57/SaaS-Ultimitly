@@ -1,5 +1,5 @@
 import "server-only";
-import { startOfDay, startOfMonth, endOfMonth } from "date-fns";
+import { startOfMonth, endOfMonth } from "date-fns";
 import { prisma } from "@/lib/db";
 import { zonedDayRange } from "@/lib/automation";
 
@@ -502,8 +502,14 @@ export interface HostPerformanceScore {
 export async function getHostPerformanceScore(orgId: string): Promise<HostPerformanceScore> {
   const now = new Date();
   const thirtyDaysAgo = new Date(now.getTime() - 30 * 24 * 60 * 60 * 1000);
-  const monthStart = startOfMonth(now);
-  const todayStart = startOfDay(now);
+  // Istanbul-anchored month/day window (mirrors getOccupancyByProperty) so the
+  // task due-window keys off the host's calendar day, not the server's UTC day —
+  // otherwise, in the Istanbul 00:00–03:00 band the cutoff jumps back a whole UTC
+  // day and mis-scores task completion.
+  const istKey = istDayKey(now);
+  const [iy, im] = istKey.split("-").map(Number);
+  const monthStart = zonedDayRange(new Date(Date.UTC(iy, im - 1, 1)), REPORT_TZ).start;
+  const todayStart = zonedDayRange(now, REPORT_TZ).start;
 
   // 1. Response rate: of conversations that received a guest message in the last
   //    30 days, what % were answered within 24h. null when none received a guest
@@ -640,7 +646,7 @@ export async function getAiOpsReport(orgId: string): Promise<AiOpsReport> {
   const since = new Date(Date.now() - 30 * 24 * 60 * 60 * 1000);
   const scope = propertyScope(orgId);
 
-  const [aiReplies, welcomes, checkins, checkouts, problems] = await Promise.all([
+  const [aiReplies, welcomes, checkins, checkouts, openProblems, problems] = await Promise.all([
     prisma.message.count({
       where: {
         direction: "outbound",
@@ -655,6 +661,10 @@ export async function getAiOpsReport(orgId: string): Promise<AiOpsReport> {
     prisma.reservation.count({ where: { ...scope, welcomeSentAt: { gte: since } } }),
     prisma.reservation.count({ where: { ...scope, checkinSentAt: { gte: since } } }),
     prisma.reservation.count({ where: { ...scope, checkoutSentAt: { gte: since } } }),
+    // Exact open-problem total via count() — the findMany below is capped at 500
+    // for the per-property breakdown, so deriving the headline from its length
+    // would silently undercount a host with >500 flagged conversations.
+    prisma.conversation.count({ where: { ...scope, status: "problem" } }),
     prisma.conversation.findMany({
       where: { ...scope, status: "problem" },
       select: { property: { select: { name: true } } },

@@ -33,7 +33,7 @@ export const registerSchema = z.object({
 export type RegisterInput = z.infer<typeof registerSchema>;
 
 export const loginSchema = z.object({
-  email: z.string().email("Geçerli bir e-posta girin"),
+  email: z.string().email("Geçerli bir e-posta girin").max(254),
   password: z.string().min(1, "Şifre gerekli").max(200),
   // Optional TOTP code, supplied on the second step when the account has 2FA on.
   code: z.string().trim().max(12).optional(),
@@ -66,7 +66,7 @@ export const reservationSchema = z
     departureDate: z.coerce.date({ message: "Çıkış tarihi gerekli" }),
     channel: z.enum(RESERVATION_CHANNEL.values).default("manual"),
     status: z.enum(RESERVATION_STATUS.values).default("confirmed"),
-    totalAmount: z.coerce.number().min(0).optional().or(z.nan().transform(() => undefined)),
+    totalAmount: z.coerce.number().min(0).max(100_000_000).optional().or(z.nan().transform(() => undefined)),
     currency: z.string().max(8).default("EUR"),
     sourceReference: z.string().max(200).optional().or(z.literal("")),
     notes: z.string().max(5000).optional().or(z.literal("")),
