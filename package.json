@@ -3,14 +3,15 @@
   "version": "0.1.0",
   "private": true,
   "scripts": {
-    "dev": "next dev",
-    "build": "prisma generate && next build",
-    "start": "next start",
-    "typecheck": "tsc --noEmit",
-    "test": "vitest run",
-    "test:watch": "vitest",
-    "db:generate": "prisma generate",
-    "db:push": "prisma db push"
+    "guard": "node scripts/branch-guard.mjs",
+    "dev": "npm run guard && next dev",
+    "build": "npm run guard && prisma generate && next build",
+    "start": "npm run guard && next start",
+    "typecheck": "npm run guard && tsc --noEmit",
+    "test": "npm run guard && vitest run",
+    "test:watch": "npm run guard && vitest",
+    "db:generate": "npm run guard && prisma generate",
+    "db:push": "npm run guard && prisma db push"
   },
   "dependencies": {
     "@prisma/client": "^6.2.1",
