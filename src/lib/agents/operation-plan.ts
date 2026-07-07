@@ -136,7 +136,7 @@ export function createOperationPlan(context: GuestMessageContext, analysis: Agen
       tool: "notify_operations_team",
       title: "Alert operations team",
       reason: "High-risk guest issue should not wait for normal queue processing.",
-      status: "pending",
+      status: "safe_to_automate",
       payload: {
         tenantId: context.tenantId,
         propertyName: context.property?.name,

@@ -77,6 +77,9 @@ model Tenant {
   agentRuns   AgentRun[]
   approvals   ApprovalItem[]
   reports     ReportSnapshot[]
+  toolRuns    AgentToolRun[]
+  events      OperationEvent[]
+  signals     ReportSignal[]
 }
 
 model Property {
@@ -183,6 +186,7 @@ model Task {
   property        Property?     @relation(fields: [propertyId], references: [id], onDelete: SetNull)
   reservation     Reservation?  @relation(fields: [reservationId], references: [id], onDelete: SetNull)
   sourceMessage   Message?      @relation("TaskSourceMessage", fields: [sourceMessageId], references: [id], onDelete: SetNull)
+  events          OperationEvent[]
 }
 
 model ApprovalItem {
@@ -215,6 +219,49 @@ model AgentRun {
   createdAt       DateTime @default(now())
   tenant          Tenant   @relation(fields: [tenantId], references: [id], onDelete: Cascade)
   sourceMessage   Message? @relation(fields: [sourceMessageId], references: [id], onDelete: SetNull)
+  toolRuns        AgentToolRun[]
+}
+
+model AgentToolRun {
+  id         String   @id @default(cuid())
+  tenantId   String
+  agentRunId String?
+  tool       String
+  title      String
+  status     String
+  payload    Json
+  result     Json?
+  skipped    Boolean  @default(false)
+  skipReason String?
+  createdAt  DateTime @default(now())
+  tenant     Tenant   @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  agentRun   AgentRun? @relation(fields: [agentRunId], references: [id], onDelete: SetNull)
+}
+
+model OperationEvent {
+  id        String   @id @default(cuid())
+  tenantId  String
+  taskId    String?
+  type      String
+  severity  RiskLevel @default(LOW)
+  title     String
+  body      String
+  metadata  Json?
+  createdAt DateTime @default(now())
+  tenant    Tenant   @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  task      Task?    @relation(fields: [taskId], references: [id], onDelete: SetNull)
+}
+
+model ReportSignal {
+  id         String   @id @default(cuid())
+  tenantId   String
+  propertyId String?
+  category   String
+  riskLevel  RiskLevel
+  tags       Json
+  source     String
+  createdAt  DateTime @default(now())
+  tenant     Tenant   @relation(fields: [tenantId], references: [id], onDelete: Cascade)
 }
 
 model ReportSnapshot {
