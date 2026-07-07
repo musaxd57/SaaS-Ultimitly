@@ -1,0 +1,228 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+enum MessageChannel {
+  AIRBNB
+  BOOKING
+  WHATSAPP
+  QR_CONCIERGE
+  MANUAL
+}
+
+enum MessageAuthor {
+  GUEST
+  HOST
+  AI
+  SYSTEM
+}
+
+enum TaskCategory {
+  CLEANING
+  MAINTENANCE
+  CHECK_IN
+  CHECK_OUT
+  SUPPLIES
+  WIFI
+  PAYMENT
+  REFUND
+  COMPLAINT
+  EMERGENCY
+  GENERAL
+}
+
+enum TaskPriority {
+  LOW
+  MEDIUM
+  HIGH
+  URGENT
+}
+
+enum TaskStatus {
+  SUGGESTED
+  OPEN
+  IN_PROGRESS
+  DONE
+  REJECTED
+}
+
+enum RiskLevel {
+  LOW
+  MEDIUM
+  HIGH
+  CRITICAL
+}
+
+enum ApprovalStatus {
+  PENDING
+  APPROVED
+  REJECTED
+  EDITED
+}
+
+model Tenant {
+  id          String    @id @default(cuid())
+  name        String
+  createdAt   DateTime  @default(now())
+  updatedAt   DateTime  @updatedAt
+  properties  Property[]
+  guests      Guest[]
+  messages    Message[]
+  tasks       Task[]
+  agentRuns   AgentRun[]
+  approvals   ApprovalItem[]
+  reports     ReportSnapshot[]
+}
+
+model Property {
+  id             String        @id @default(cuid())
+  tenantId       String
+  name           String
+  city           String?
+  address        String?
+  houseRules     String?
+  checkInGuide   String?
+  wifiName       String?
+  wifiPassword   String?
+  createdAt      DateTime      @default(now())
+  updatedAt      DateTime      @updatedAt
+  tenant         Tenant        @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  reservations   Reservation[]
+  conversations  Conversation[]
+  tasks          Task[]
+}
+
+model Guest {
+  id             String         @id @default(cuid())
+  tenantId       String
+  displayName    String
+  language       String?
+  platformUserId String?
+  createdAt      DateTime       @default(now())
+  updatedAt      DateTime       @updatedAt
+  tenant         Tenant         @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  reservations   Reservation[]
+  conversations  Conversation[]
+}
+
+model Reservation {
+  id            String         @id @default(cuid())
+  tenantId      String
+  propertyId    String
+  guestId       String
+  platform      MessageChannel
+  platformRef   String?
+  checkIn       DateTime
+  checkOut      DateTime
+  status        String         @default("confirmed")
+  createdAt     DateTime       @default(now())
+  updatedAt     DateTime       @updatedAt
+  guest         Guest          @relation(fields: [guestId], references: [id], onDelete: Cascade)
+  property      Property       @relation(fields: [propertyId], references: [id], onDelete: Cascade)
+  conversations Conversation[]
+  tasks         Task[]
+}
+
+model Conversation {
+  id            String         @id @default(cuid())
+  tenantId      String
+  propertyId    String?
+  guestId       String?
+  reservationId String?
+  channel       MessageChannel
+  externalRef   String?
+  riskLevel     RiskLevel      @default(LOW)
+  createdAt     DateTime       @default(now())
+  updatedAt     DateTime       @updatedAt
+  property      Property?      @relation(fields: [propertyId], references: [id], onDelete: SetNull)
+  guest         Guest?         @relation(fields: [guestId], references: [id], onDelete: SetNull)
+  reservation   Reservation?   @relation(fields: [reservationId], references: [id], onDelete: SetNull)
+  messages      Message[]
+}
+
+model Message {
+  id             String          @id @default(cuid())
+  tenantId       String
+  conversationId String
+  author         MessageAuthor
+  body           String
+  language       String?
+  createdAt      DateTime        @default(now())
+  tenant         Tenant          @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  conversation   Conversation    @relation(fields: [conversationId], references: [id], onDelete: Cascade)
+  tasks          Task[]          @relation("TaskSourceMessage")
+  approvals      ApprovalItem[]
+  agentRuns      AgentRun[]
+}
+
+model Task {
+  id              String        @id @default(cuid())
+  tenantId        String
+  propertyId      String?
+  reservationId   String?
+  sourceMessageId String?
+  title           String
+  description     String
+  category        TaskCategory
+  priority        TaskPriority
+  status          TaskStatus    @default(SUGGESTED)
+  riskLevel       RiskLevel     @default(LOW)
+  assigneeType    String?
+  slaMinutes      Int?
+  dueAt           DateTime?
+  confidence      Float?
+  aiReason        String?
+  createdAt       DateTime      @default(now())
+  updatedAt       DateTime      @updatedAt
+  tenant          Tenant        @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  property        Property?     @relation(fields: [propertyId], references: [id], onDelete: SetNull)
+  reservation     Reservation?  @relation(fields: [reservationId], references: [id], onDelete: SetNull)
+  sourceMessage   Message?      @relation("TaskSourceMessage", fields: [sourceMessageId], references: [id], onDelete: SetNull)
+}
+
+model ApprovalItem {
+  id              String         @id @default(cuid())
+  tenantId        String
+  sourceMessageId String?
+  type            String
+  status          ApprovalStatus @default(PENDING)
+  riskLevel       RiskLevel
+  draft           String
+  reason          String
+  createdAt       DateTime       @default(now())
+  updatedAt       DateTime       @updatedAt
+  tenant          Tenant         @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  sourceMessage   Message?       @relation(fields: [sourceMessageId], references: [id], onDelete: SetNull)
+}
+
+model AgentRun {
+  id              String   @id @default(cuid())
+  tenantId        String
+  sourceMessageId String?
+  agentName       String
+  modelAlias      String
+  input           Json
+  output          Json
+  durationMs      Int
+  costUsd         Decimal? @db.Decimal(10, 6)
+  success         Boolean  @default(true)
+  error           String?
+  createdAt       DateTime @default(now())
+  tenant          Tenant   @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  sourceMessage   Message? @relation(fields: [sourceMessageId], references: [id], onDelete: SetNull)
+}
+
+model ReportSnapshot {
+  id        String   @id @default(cuid())
+  tenantId  String
+  period    String
+  metrics   Json
+  insight   String
+  createdAt DateTime @default(now())
+  tenant    Tenant   @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+}
