@@ -1,4 +1,5 @@
 import { AnalyzeMessageForm } from "./task-agent-form";
+import { OperationPlanPanel } from "./operation-plan-panel";
 
 const exampleTasks = [
   {
@@ -38,7 +39,10 @@ export default function TasksPage() {
 
       <div className="grid two">
         <AnalyzeMessageForm />
+        <OperationPlanPanel />
+      </div>
 
+      <div className="grid">
         <div className="card">
           <h2>Önerilen Görev Kuyruğu</h2>
           <div className="grid">

@@ -62,4 +62,21 @@ real tenant/message IDs and then enable persistence.
 ## First Pages
 
 - `/tasks`: analyze a guest message and inspect the task/risk decision.
+- `/tasks`: generate a multi-step operation plan from a guest issue.
 - `/reports`: generate an operations insight from weekly metrics.
+
+## Operation Plan Agent
+
+`src/lib/agents/operation-plan.ts` converts a message analysis into a safe tool
+plan. It does not execute destructive actions. It produces steps such as:
+
+- `create_task_suggestion`
+- `create_approval_item`
+- `draft_guest_reply`
+- `notify_operations_team`
+- `link_to_existing_issue`
+- `add_report_signal`
+
+This is the bridge from simple extraction to the larger agent system. Execution
+can later be connected to real task, notification, inbox, and report services
+one tool at a time.
