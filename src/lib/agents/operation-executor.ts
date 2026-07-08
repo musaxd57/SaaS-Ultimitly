@@ -8,6 +8,21 @@ import {
 } from "@/lib/agents/operation-plan";
 
 const executionModeSchema = z.enum(["dry_run", "persist"]);
+const taskCategories = [
+  "CLEANING",
+  "MAINTENANCE",
+  "CHECK_IN",
+  "CHECK_OUT",
+  "SUPPLIES",
+  "WIFI",
+  "PAYMENT",
+  "REFUND",
+  "COMPLAINT",
+  "EMERGENCY",
+  "GENERAL"
+] as const;
+const taskPriorities = ["LOW", "MEDIUM", "HIGH", "URGENT"] as const;
+const riskLevels = ["LOW", "MEDIUM", "HIGH", "CRITICAL"] as const;
 
 export const operationExecutionRequestSchema = z.object({
   plan: operationPlanSchema,
@@ -52,12 +67,28 @@ function getNumber(payload: Record<string, unknown>, key: string) {
   return typeof value === "number" ? value : undefined;
 }
 
+function getEnumValue<const T extends readonly string[]>(
+  payload: Record<string, unknown>,
+  key: string,
+  values: T,
+  fallback: T[number]
+): T[number] {
+  const value = getString(payload, key);
+  return values.includes(value ?? "") ? (value as T[number]) : fallback;
+}
+
 function toPrismaJson(value: unknown): Prisma.InputJsonValue {
   return JSON.parse(JSON.stringify(value ?? null)) as Prisma.InputJsonValue;
 }
 
 function isSafeToExecute(step: z.infer<typeof operationPlanStepSchema>) {
   return step.status === "safe_to_automate" || step.tool === "add_report_signal";
+}
+
+function hasPersistentExecutor(step: z.infer<typeof operationPlanStepSchema>) {
+  return ["create_task_suggestion", "create_approval_item", "notify_operations_team", "add_report_signal"].includes(
+    step.tool
+  );
 }
 
 function resultForSkipped(step: z.infer<typeof operationPlanStepSchema>, skipReason: string): ToolExecutionResult {
@@ -71,12 +102,28 @@ function resultForSkipped(step: z.infer<typeof operationPlanStepSchema>, skipRea
 }
 
 function resultForDryRun(step: z.infer<typeof operationPlanStepSchema>): ToolExecutionResult {
+  if (step.status === "pending") {
+    return resultForSkipped(step, "Dry run: pending step needs a connected executor.");
+  }
+
+  if (step.tool === "draft_guest_reply") {
+    return {
+      tool: step.tool,
+      title: step.title,
+      status: "queued_for_human",
+      skipped: false
+    };
+  }
+
+  if (!hasPersistentExecutor(step)) {
+    return resultForSkipped(step, "Dry run: this planned tool is not connected yet.");
+  }
+
   return {
     tool: step.tool,
     title: step.title,
     status: step.status === "requires_human" ? "queued_for_human" : "executed",
-    skipped: step.status === "pending",
-    skipReason: step.status === "pending" ? "Dry run: pending step needs a connected executor." : undefined
+    skipped: false
   };
 }
 
@@ -108,6 +155,32 @@ async function persistToolRun(
   };
 }
 
+async function createGuestReplyApproval(
+  request: OperationExecutionRequest,
+  step: z.infer<typeof operationPlanStepSchema>,
+  reason: string
+): Promise<ToolExecutionResult> {
+  const payload = step.payload;
+  const approval = await prisma.approvalItem.create({
+    data: {
+      tenantId: request.tenantId,
+      sourceMessageId: getString(payload, "sourceMessageId") ?? request.plan.sourceMessageId,
+      type: "guest_reply",
+      riskLevel: getEnumValue(payload, "riskLevel", riskLevels, request.plan.riskLevel === "CRITICAL" ? "CRITICAL" : "HIGH"),
+      draft: getString(payload, "draft") ?? "",
+      reason
+    }
+  });
+
+  return {
+    tool: step.tool,
+    title: step.title,
+    status: "queued_for_human",
+    skipped: false,
+    created: { approvalId: approval.id }
+  };
+}
+
 async function executePersistedStep(
   request: OperationExecutionRequest,
   step: z.infer<typeof operationPlanStepSchema>
@@ -115,34 +188,25 @@ async function executePersistedStep(
   const payload = step.payload;
 
   if (step.status === "requires_human") {
-    if (step.tool !== "create_approval_item") {
-      return resultForSkipped(step, "Step requires human review before execution.");
-    }
-
-    const approval = await prisma.approvalItem.create({
-      data: {
-        tenantId: request.tenantId,
-        sourceMessageId: getString(payload, "sourceMessageId"),
-        type: "guest_reply",
-        riskLevel: getString(payload, "riskLevel") === "CRITICAL" ? "CRITICAL" : "HIGH",
-        draft: getString(payload, "draft") ?? "",
-        reason: Array.isArray(payload.reasons)
-          ? payload.reasons.filter((item) => typeof item === "string").join(" | ")
-          : "Agent operation plan requires human approval"
-      }
-    });
-
-    return {
-      tool: step.tool,
-      title: step.title,
-      status: "queued_for_human",
-      skipped: false,
-      created: { approvalId: approval.id }
-    };
+    return createGuestReplyApproval(
+      request,
+      step,
+      Array.isArray(payload.reasons)
+        ? payload.reasons.filter((item) => typeof item === "string").join(" | ")
+        : "Agent operation plan requires human approval"
+    );
   }
 
   if (!isSafeToExecute(step)) {
     return resultForSkipped(step, "Step is pending and has no safe automatic executor yet.");
+  }
+
+  if (step.tool === "draft_guest_reply") {
+    return createGuestReplyApproval(
+      request,
+      step,
+      "Guest reply draft is queued until outbound inbox sending is connected."
+    );
   }
 
   if (step.tool === "create_task_suggestion") {
@@ -154,9 +218,9 @@ async function executePersistedStep(
         sourceMessageId: getString(payload, "sourceMessageId"),
         title: getString(payload, "title") ?? step.title,
         description: getString(payload, "description") ?? step.reason,
-        category: getString(payload, "category") === "MAINTENANCE" ? "MAINTENANCE" : "GENERAL",
-        priority: getString(payload, "priority") === "URGENT" ? "URGENT" : "MEDIUM",
-        riskLevel: getString(payload, "riskLevel") === "HIGH" ? "HIGH" : "LOW",
+        category: getEnumValue(payload, "category", taskCategories, "GENERAL"),
+        priority: getEnumValue(payload, "priority", taskPriorities, "MEDIUM"),
+        riskLevel: getEnumValue(payload, "riskLevel", riskLevels, "LOW"),
         assigneeType: getString(payload, "assigneeType"),
         slaMinutes: getNumber(payload, "slaMinutes"),
         confidence: getNumber(payload, "confidence"),
@@ -179,7 +243,7 @@ async function executePersistedStep(
       data: {
         tenantId: request.tenantId,
         type: "operations_alert",
-        severity: getString(payload, "riskLevel") === "CRITICAL" ? "CRITICAL" : "HIGH",
+        severity: getEnumValue(payload, "riskLevel", riskLevels, "HIGH"),
         title: step.title,
         body: getString(payload, "message") ?? step.reason,
         metadata: toPrismaJson(payload)
@@ -201,7 +265,7 @@ async function executePersistedStep(
         tenantId: request.tenantId,
         propertyId: getString(payload, "propertyId"),
         category: getString(payload, "category") ?? "GENERAL",
-        riskLevel: getString(payload, "riskLevel") === "HIGH" ? "HIGH" : "LOW",
+        riskLevel: getEnumValue(payload, "riskLevel", riskLevels, "LOW"),
         tags: toPrismaJson(Array.isArray(payload.tags) ? payload.tags : []),
         source: "operation_plan"
       }

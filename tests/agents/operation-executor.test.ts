@@ -126,5 +126,54 @@ describe("operation executor", () => {
     expect(db.operationEventCreate).toHaveBeenCalledOnce();
     expect(db.reportSignalCreate).toHaveBeenCalledOnce();
     expect(db.agentToolRunCreate).toHaveBeenCalledTimes(4);
+    expect(db.taskCreate).toHaveBeenCalledWith(
+      expect.objectContaining({
+        data: expect.objectContaining({
+          category: "CHECK_IN",
+          priority: "URGENT",
+          riskLevel: "HIGH"
+        })
+      })
+    );
+  });
+
+  it("queues safe guest reply drafts instead of sending them without an inbox connector", async () => {
+    db.agentToolRunCreate.mockReset();
+    db.agentToolRunCreate.mockResolvedValueOnce({ id: "tool-run-guest-reply" });
+
+    const result = await executeOperationPlan({
+      tenantId: "tenant-1",
+      mode: "persist",
+      plan: plan({
+        automationMode: "controlled_automation",
+        riskLevel: "LOW",
+        blockers: [],
+        steps: [
+          {
+            tool: "draft_guest_reply",
+            title: "Prepare low-risk guest reply",
+            reason: "Guest only needs operational acknowledgement.",
+            status: "safe_to_automate",
+            payload: {
+              sourceMessageId: "message-1",
+              draft: "We received your message and are checking this.",
+              riskLevel: "LOW"
+            }
+          }
+        ]
+      })
+    });
+
+    expect(result.executedCount).toBe(0);
+    expect(result.queuedForHumanCount).toBe(1);
+    expect(db.approvalItemCreate).toHaveBeenCalledWith(
+      expect.objectContaining({
+        data: expect.objectContaining({
+          type: "guest_reply",
+          riskLevel: "LOW",
+          draft: "We received your message and are checking this."
+        })
+      })
+    );
   });
 });

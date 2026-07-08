@@ -80,3 +80,41 @@ plan. It does not execute destructive actions. It produces steps such as:
 This is the bridge from simple extraction to the larger agent system. Execution
 can later be connected to real task, notification, inbox, and report services
 one tool at a time.
+
+## Operation Execution Agent
+
+`src/lib/agents/operation-executor.ts` takes an operation plan and runs it in one
+of two modes:
+
+- `dry_run`: returns the exact execution outcome without writing database rows.
+- `persist`: creates internal records for connected tools and logs every step as
+  an `AgentToolRun`.
+
+Current persistent tools:
+
+| Tool | Behavior |
+| --- | --- |
+| `create_task_suggestion` | Creates a `Task` with `SUGGESTED` status. |
+| `create_approval_item` | Creates an `ApprovalItem` for human review. |
+| `draft_guest_reply` | Queues the draft as an `ApprovalItem`; it does not send guest-facing messages yet. |
+| `notify_operations_team` | Creates an internal `OperationEvent`. |
+| `add_report_signal` | Creates a `ReportSignal` for reporting and trend analysis. |
+
+Unconnected tools are skipped with a reason instead of failing the whole plan.
+This lets the system grow tool-by-tool without pretending that risky production
+integrations already exist.
+
+## Production Wiring Notes
+
+Before enabling `persist` for real traffic, pass real IDs from the existing Lixus
+database:
+
+- `tenantId`
+- `sourceMessageId`
+- `propertyId`
+- `reservationId`
+- optional `agentRunId`
+
+Guest-facing sends should remain behind an explicit inbox connector and approval
+state machine. The current branch intentionally creates review records instead
+of sending messages directly.
