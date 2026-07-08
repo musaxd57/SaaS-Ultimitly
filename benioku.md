@@ -34,6 +34,10 @@ Bu nedenle amac misafir mesajini anlayip operasyonel aksiyona cevirmek, riskli s
   - `dry_run`: DB'ye yazmadan ne olacagini gosterir
   - `persist`: bagli olan ic kayitlari olusturur
   - her adimi `AgentToolRun` ile loglar
+- Approval workflow:
+  - insan taslagi approve/reject/edit edebilir
+  - her karar `OperationEvent` olarak loglanir
+  - sonuc yine outbound send'i `blocked` dondurur
 - Tasks sayfasinda demo panel:
   - plan olustur
   - dry-run/persist sec
@@ -68,8 +72,10 @@ Boylece sistem hem operasyonel olur hem de kontrolsuz AI davranisi azaltir.
 - `src/lib/agents/message-pipeline.ts`
 - `src/lib/agents/operation-plan.ts`
 - `src/lib/agents/operation-executor.ts`
+- `src/lib/agents/approval-workflow.ts`
 - `src/app/api/agents/operation-plan/route.ts`
 - `src/app/api/agents/execute-operation-plan/route.ts`
+- `src/app/api/agents/approval-decision/route.ts`
 - `src/app/tasks/operation-plan-panel.tsx`
 - `prisma/schema.prisma`
 - `docs/AGENT_SYSTEM.md`

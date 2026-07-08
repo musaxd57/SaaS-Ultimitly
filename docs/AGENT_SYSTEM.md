@@ -104,6 +104,20 @@ Unconnected tools are skipped with a reason instead of failing the whole plan.
 This lets the system grow tool-by-tool without pretending that risky production
 integrations already exist.
 
+## Approval Decision Workflow
+
+`src/lib/agents/approval-workflow.ts` handles human decisions for AI-generated
+guest reply drafts:
+
+- `approve`: marks the approval as approved.
+- `reject`: marks it as rejected.
+- `edit`: stores the edited draft and marks the item as edited.
+
+Every decision creates an `OperationEvent` audit row. The returned outbound
+state is still `blocked`; approving or editing a draft does not send a message to
+the guest. A real inbox connector should consume approved/edited drafts only
+after an explicit send state machine is added.
+
 ## Production Wiring Notes
 
 Before enabling `persist` for real traffic, pass real IDs from the existing Lixus

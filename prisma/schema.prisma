@@ -197,7 +197,11 @@ model ApprovalItem {
   status          ApprovalStatus @default(PENDING)
   riskLevel       RiskLevel
   draft           String
+  editedDraft     String?
   reason          String
+  decisionReason  String?
+  reviewerId      String?
+  decidedAt       DateTime?
   createdAt       DateTime       @default(now())
   updatedAt       DateTime       @updatedAt
   tenant          Tenant         @relation(fields: [tenantId], references: [id], onDelete: Cascade)
