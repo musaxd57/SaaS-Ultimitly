@@ -58,6 +58,42 @@ describe("suggestReply — OpenAI failure reporting", () => {
     expect(result.source).toBe("fallback");
   });
 
+  it("treats a TRUNCATED response (finish_reason=length) as a failure → fallback (never auto-sendable)", async () => {
+    vi.stubGlobal(
+      "fetch",
+      vi.fn(
+        async () =>
+          new Response(
+            JSON.stringify({
+              choices: [{ finish_reason: "length", message: { content: '{"intent":"wifi","reply":"Şifre 123' } }],
+            }),
+          ),
+      ),
+    );
+    const result = await suggestReply(input);
+    // source "fallback" (NOT "openai") → the auto-send gate can never ship the
+    // cut-off reply, and the failure is reported.
+    expect(result.source).toBe("fallback");
+    expect(mockReportError).toHaveBeenCalledOnce();
+    expect(mockReportError.mock.calls[0][0]).toContain("truncated");
+  });
+
+  it("falls back when the model returns invalid/broken JSON", async () => {
+    vi.stubGlobal(
+      "fetch",
+      vi.fn(
+        async () =>
+          new Response(
+            JSON.stringify({
+              choices: [{ finish_reason: "stop", message: { content: '{"intent":"wifi","reply":"Şifre' } }],
+            }),
+          ),
+      ),
+    );
+    const result = await suggestReply(input);
+    expect(result.source).toBe("fallback");
+  });
+
   it("does NOT report anything on a successful OpenAI response", async () => {
     vi.stubGlobal(
       "fetch",

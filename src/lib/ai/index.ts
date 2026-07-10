@@ -82,11 +82,12 @@ function replyModel(): string {
   return process.env.OPENAI_MODEL || "gpt-4.1";
 }
 
-/** Normalize a model-returned language value to a short code (2–3 letters), else "en". */
+/** Normalize a model-returned language value to a short code (2–3 letters), else
+ *  "und" (BCP-47 "undetermined") so garbage can't ride through as a real language. */
 function normalizeLang(v: unknown): string {
-  if (typeof v !== "string") return "en";
+  if (typeof v !== "string") return "und";
   const primary = v.trim().toLowerCase().split(/[-_]/)[0];
-  return /^[a-z]{2,3}$/.test(primary) ? primary : "en";
+  return /^[a-z]{2,3}$/.test(primary) ? primary : "und";
 }
 
 async function callOpenAI(system: string, user: string): Promise<string | null> {
@@ -130,7 +131,16 @@ async function callOpenAI(system: string, user: string): Promise<string | null> 
       return null;
     }
     const data = await res.json();
-    return data?.choices?.[0]?.message?.content ?? null;
+    const choice = data?.choices?.[0];
+    // Truncated output (hit max_completion_tokens): the JSON is almost certainly
+    // incomplete and any "reply" is cut off. Treat it as a failure → the caller
+    // uses the deterministic fallback (source="fallback") and the auto-send gate
+    // (which requires source==="openai") never ships a truncated reply.
+    if (choice?.finish_reason === "length") {
+      void reportError("openai-reply truncated", new Error("finish_reason=length"));
+      return null;
+    }
+    return choice?.message?.content ?? null;
   } catch (err) {
     void reportError("openai-reply", err);
     return null;
