@@ -584,9 +584,12 @@ premium-gate · iCal feed kanal/referans gizli-modda çıkmıyor · R1 openProbl
 **🔴 LAUNCH-BLOCKER — KULLANICI ONAYLI YAKLAŞIM (Paddle):** gerçek upgrade/downgrade — downgrade=dönem-sonu (Paddle scheduled change),
 upgrade=hemen + kalan-gün proration (Paddle kolay verirse, yoksa düz). Aktif abonede yeni-checkout KİLİTLE + iptal/portal linki. **ORTAK İŞ:**
 kod bende AMA Paddle panelinde müşteri-portalı+subscription-update aç + SANDBOX'ta birlikte test etmeden gerçek ödemeye açma.
-**🟠 SIRADAKİ P0 (kod, çoğu onay-gerektirmez):** QR per-stay izolasyon (sabit fiziksel QR→geçmiş konuşma DÖNDÜRME — küçük ürün kararı) ·
-sync cursor idempotency (lastMessageAt tüm mesajlar yazılmadan ilerliyor) · CheckoutIntent nonce (P4, migration→onay) · görev checklist UI
-(T1 — etiket göster+işaretle+persist, benim işim, gate yok) · staff RBAC daralt (atanan mülk/görev — ürün kararı).
+**✅ FAZ-2 "A" TAMAMLANDI (2026-07-10, commit'ler `b241a8f`·`eb14371`·`853118d` + öncesi):** T1 görev checklist UI
+(etiket+işaretle+persist, staff izinli) · sync cursor idempotency (lastMessageAt döngü sonrası) · **oturum DB-yetkili role/org**
+(düşürülen manager) · 2FA fail-closed · TOTP atomik · KVKK foto-unlink · KB-cap · unbounded-query take:500 · **guest-name prompt-injection
+sanitization** (`sanitizePromptValue`). **733 test yeşil.**
+**🟠 KALAN P0 (kod, çoğu onay-gerektirmez):** QR per-stay izolasyon (sabit fiziksel QR→geçmiş konuşma DÖNDÜRME — küçük ürün kararı) ·
+CheckoutIntent nonce (P4, migration→onay) · staff RBAC daralt (atanan mülk/görev — ürün kararı).
 **🟡 HIZLI KÜME:** A4 2FA fail-closed · A3 TOTP atomik · AI2 KB-cap · R4 hesap-silmede foto-unlink · P3 consent planCode↔priceId ·
 QR BILLING_ENFORCED tutarlılığı · trialing-null-anchor · **founder grandfathered guard (test-ödemesi ÖNCESİ)** · boot-time env-assertion ·
 unbounded list-query'lere `take` · AI prompt-injection guest-name sanitization · iCal ghost-reservation temizliği · webhook D1/D2 (unique+atomik).
