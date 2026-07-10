@@ -42,6 +42,13 @@ export default async function PropertyDetailPage({
   });
   if (!property) notFound();
 
+  // Sibling properties (for "copy supply profile to selected apartments").
+  const siblings = await prisma.property.findMany({
+    where: { organizationId: session.organizationId },
+    select: { id: true, name: true },
+    orderBy: { name: "asc" },
+  });
+
   // Lazily ensure the property has a calendar feed token (backfill for
   // properties created before the feature existed).
   let icalToken = property.icalToken;
@@ -106,6 +113,7 @@ export default async function PropertyDetailPage({
                 propertyId={property.id}
                 canManage={canManage}
                 initial={parseSupplyProfile(property.supplyProfileJson)}
+                siblings={siblings}
               />
             </CardContent>
           </Card>
