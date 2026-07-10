@@ -736,6 +736,8 @@ export async function applyChannelAutoReply(
   const kbRaw = await prisma.knowledgeBaseItem.findMany({
     where: { propertyId: conversation.propertyId, isActive: true },
     select: { category: true, title: true, content: true },
+    orderBy: { updatedAt: "desc" },
+    take: 40, // hard cap: bound the prompt (token/cost/context) — 40 KB items is ample
   });
   // Resolve any {isim} placeholder in KB entries (e.g. the welcome template) to
   // the guest's name before it reaches the model, so a literal "{isim}" can

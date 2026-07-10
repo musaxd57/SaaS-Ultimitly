@@ -19,6 +19,7 @@ export const GET = withAuth(async (session, req) => {
       messages: { orderBy: { createdAt: "desc" }, take: 1 },
     },
     orderBy: { lastMessageAt: "desc" },
+    take: 500, // bound the payload — full thread rows, no pagination yet
   });
   return jsonOk(conversations);
 });

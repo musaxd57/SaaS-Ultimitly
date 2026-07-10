@@ -40,6 +40,8 @@ export const POST = withAuth<{ id: string }>(async (session, req, { params }) =>
   const kbRaw = await prisma.knowledgeBaseItem.findMany({
     where: { propertyId: conversation.propertyId, isActive: true },
     select: { category: true, title: true, content: true },
+    orderBy: { updatedAt: "desc" },
+    take: 40, // hard cap: bound the prompt (token/cost/context)
   });
   // Resolve any {isim} placeholder (e.g. in the welcome template) to the
   // guest's name so a literal "{isim}" can never appear in the suggestion.

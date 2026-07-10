@@ -17,6 +17,7 @@ export const GET = withAuth(async (session, req) => {
     },
     include: { property: { select: { name: true } } },
     orderBy: { arrivalDate: "desc" },
+    take: 500, // bound the payload — full guest PII, no pagination yet
   });
   return jsonOk(reservations);
 });

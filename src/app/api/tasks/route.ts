@@ -19,6 +19,7 @@ export const GET = withAuth(async (session, req) => {
       assignedTo: { select: { name: true } },
     },
     orderBy: [{ dueAt: "asc" }, { createdAt: "desc" }],
+    take: 500, // bound the payload — no pagination yet
   });
   return jsonOk(tasks);
 });

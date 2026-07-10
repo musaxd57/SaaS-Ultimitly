@@ -85,12 +85,11 @@ export async function POST(req: NextRequest) {
         where: { id: session.userId },
         select: { twoFactorSecret: true, twoFactorEnabledAt: true },
       });
-      // Require a valid current code to switch it off (so a hijacked session
-      // without the authenticator can't quietly disable 2FA). Key the check on
-      // twoFactorEnabledAt ALONE: if 2FA is active but the secret is somehow
-      // missing/undecryptable, fall through to the fail-soft (allow disable) so
-      // the user can never be permanently locked out — but a present, decryptable
-      // secret always demands a valid code.
+      // FAIL-CLOSED: a hijacked session without the authenticator must NOT be able
+      // to disable 2FA. Always require a valid current code. If the secret can't be
+      // decrypted (should never happen — ENCRYPTION_KEY doesn't rotate), refuse
+      // rather than silently allowing disable — and an undecryptable secret would
+      // already block login (same verify), so this doesn't make recovery worse.
       if (user?.twoFactorEnabledAt) {
         let secret: string | null = null;
         if (user.twoFactorSecret) {
@@ -100,7 +99,7 @@ export async function POST(req: NextRequest) {
             secret = null;
           }
         }
-        if (secret && !verifyTotp(secret, code)) {
+        if (!secret || !verifyTotp(secret, code)) {
           return badRequest({ code: "Kapatmak için geçerli bir kod girin." });
         }
       }
