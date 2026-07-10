@@ -434,6 +434,32 @@ found · Ready in 202ms"** = temiz boot, re-apply YOK. Artık migration 10+ güv
   metin "bırakılabilir" yumuşak) → ileride AI-gate word-net eklenebilir (golden gerekli). `legal-entity.ts` [parantez] alanları HÂLÂ
   boş = bilinen ödeme-öncesi hukuk blocker (kod değil).
 
+## ✅ AKILLI GÖREV SİSTEMİ — FAZ A UYGULANDI (2026-07-10, commit `bcb2d49`, migration 10)
+Kullanıcı "birkaç AI şu 'smart task system' spec'ini yazdı, mantıklı mı?" diye sordu → değerlendirme sundum
+(gerçek geliştirme AMA olduğu gibi risk taşıyor: SMS/Twilio KVKK+İYS+para engeli, şema şişkin, mevcut net
+çoğaltma riski) → kullanıcı "Faz A'dan başla". **Faz A = SMS'SİZ, additive, opt-in.**
+- **Ne yapar:** escalation eden misafir mesajı fiziksel-operasyon sinyali taşırsa (arıza/eksik/temizlik) kategori
+  (mevcut `maintenance/restock/cleaning` tipleri — TASK_TYPE'a DOKUNULMADI) + öncelik + SLA(`dueAt`) ile **deduped**
+  görev açar. Bugün ana kanal-sync yolu (`applyChannelAutoReply`) escalation'da HİÇ görev açmıyordu (sadece "Sorunlu"+mail).
+- **Opt-in toggle:** `Organization.autoTaskFromMessageEnabled` (default KAPALI, holding-ack precedent'i gibi). Kapalıyken
+  davranış BİREBİR aynı. Ayarlar→Otomasyon Tercihleri'nde toggle+açıklama. `applyInboundMessageRules` (dormant webhook
+  yolu) BİLİNÇLİ ELLENMEDİ — canlı ürün risksiz; harmonizasyon Faz-A-sonrası opsiyonel.
+- **AYRI GÜVENLİK NETİ AÇILMADI (kritik ilke):** task kategorisi mevcut AI çıktısından (intent/riskType) türetiliyor;
+  sadece güvenlik-netinde OLMAYAN operasyonel sinyaller için küçük **task-only** netler (breakage/restock) eklendi
+  (`src/lib/tasks/detect.ts`). Bunlar `passesAutoReplySafetyGate`'i BESLEMEZ, golden set'e DOKUNMAZ. fallback.ts
+  değişmedi (sadece `matchesIntentKeywords/detectRiskType/classifyFallback` export'ları OKUNUYOR).
+- **Detector inceltmesi:** amenity/cleaning gibi TOPIC kuralları çıplak soruyu ("havlular nerede?") görev yapmasın diye
+  yalnız gerçek şikayette (`classifyFallback().isComplaint`) tetikler; breakage/restock/safety kendiliğinden problem.
+  Non-operasyonel risk (refund/review_threat/cancellation/human_request/injection/discrimination) → `null` (görev yok).
+- **Dedupe:** `{propertyId}:{type}:{İstanbul-gün}`, findFirst status!=done (non-atomic, kod geneliyle tutarlı taviz).
+  Başlık PII-lean (tip etiketi + eşleşen kelime; misafir adı BAŞLIKTA YOK — eski "Şikayet: {ad}"'dan daha temiz);
+  tam metin description'da (message.slice(0,500), eski complaint-task ile aynı yüzey).
+- **Migration 10_smart_task_routing:** Task.sourceMessageId/dedupeKey (NULLABLE), Organization.autoTaskFromMessageEnabled
+  (NOT NULL DEFAULT false), Task_dedupeKey_idx. Taze PG'de `migrate deploy` 00→10 sırayla + **sıfır-drift** doğrulandı.
+- **679 test yeşil (+17)**, typecheck + build temiz. **⏳ Faz B (ERTELE/karar): dış bildirim (Twilio DEĞİL →
+  token'lı temizlikçi paylaşım-linki + KVKK/İYS + legal ek).** ⚠️ CANLIDA: toggle açık org'da ilk gerçek görev
+  oluşumlarını doğrula (over/under-create + dedupe).
+
 ## ⏳ SIRADAKİ OTURUM — kalan (opsiyonel / karar)
 4b. **[düşük — hardening]** CSV/iCal import (`reservations/import`) manuel-yol uzunluk kaplarını atlıyor (currency
    vb. sınırsız) → satırları `reservationSchema`'dan geçir. QR `looksLikeSecret` yalnız keyword-yanındaki kodu
