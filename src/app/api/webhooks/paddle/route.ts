@@ -37,38 +37,71 @@ function str(v: unknown): string | null {
   return typeof v === "string" && v.length > 0 ? v : null;
 }
 
+// A checkout consent is only trusted as a checkout nonce for a short window (the
+// user is at the Paddle overlay). Generous — a slow checkout still lands inside it.
+const CONSENT_TTL_MS = 24 * 60 * 60 * 1000;
+
+/** First subscription/transaction item's Paddle price id, if any. */
+function eventPriceIdFromData(data: Record<string, unknown> | undefined): string | null {
+  const items = data?.items;
+  if (Array.isArray(items) && items.length > 0) {
+    const first = items[0] as Record<string, unknown>;
+    const price = first?.price as Record<string, unknown> | undefined;
+    return str(price?.id) ?? str(first?.price_id);
+  }
+  return null;
+}
+
+/** Legacy resolution (events with no consentId): match the EXISTING subscription
+ *  by its providerRef — NEVER the client-sent org id. Returns null if unknown. */
+async function orgFromProviderRef(data: Record<string, unknown> | undefined): Promise<string | null> {
+  const refs = [str(data?.id), str(data?.subscription_id)].filter((v): v is string => Boolean(v));
+  if (refs.length === 0) return null;
+  const sub = await prisma.subscription.findFirst({
+    where: { providerRef: { in: refs } },
+    select: { organizationId: true },
+  });
+  return sub?.organizationId ?? null;
+}
+
 /**
- * Resolve the organizationId a Paddle object belongs to. PREFERS the server-trusted
- * path: custom_data.consentId maps to a CheckoutConsent row whose organizationId came
- * from the paying user's SESSION (see /api/billing/consent) — so a tampered
- * custom_data.organizationId can't attribute someone's payment to another org. Falls
- * back to the raw custom_data.organizationId only for legacy checkouts written before
- * consentId existed (self-harming to forge: you'd be paying for another org).
+ * Resolve the organizationId a Paddle object belongs to — WITHOUT ever trusting the
+ * client-sent custom_data.organizationId.
+ *   • With a consentId (all current checkouts): the CheckoutConsent row's org is
+ *     session-derived. It's honoured ONLY if the consent is unknown-free, still
+ *     fresh (< CONSENT_TTL), and its priceId matches the event's — else resolve
+ *     NOTHING (no raw-org fallback; that was the hole).
+ *   • Without a consentId (legacy pre-consentId events): resolve via the existing
+ *     subscription's providerRef. Never the raw org id.
  */
-async function resolveOrgId(data: Record<string, unknown> | undefined): Promise<string | null> {
+async function resolveOrgId(
+  data: Record<string, unknown> | undefined,
+  eventPriceId: string | null,
+): Promise<string | null> {
   const cd =
     data?.custom_data && typeof data.custom_data === "object"
       ? (data.custom_data as Record<string, unknown>)
       : null;
-  if (!cd) return null;
+  const consentId = cd && typeof cd.consentId === "string" && cd.consentId.length > 0 ? cd.consentId : null;
 
-  const consentId = typeof cd.consentId === "string" && cd.consentId.length > 0 ? cd.consentId : null;
   if (consentId) {
     const row = await prisma.checkoutConsent.findUnique({
       where: { id: consentId },
-      select: { organizationId: true },
+      select: { organizationId: true, priceId: true, createdAt: true },
     });
-    if (row) return row.organizationId; // authoritative — session-derived
+    if (!row) return null; // unknown consent → do NOT fall back to a client org id
+    if (Date.now() - row.createdAt.getTime() > CONSENT_TTL_MS) return null; // expired
+    if (eventPriceId && row.priceId && eventPriceId !== row.priceId) return null; // price mismatch
+    return row.organizationId; // authoritative — session-derived
   }
-  const id = typeof cd.organizationId === "string" && cd.organizationId.length > 0 ? cd.organizationId : null;
-  return id;
+  return orgFromProviderRef(data);
 }
 
 async function applySubscriptionEvent(
   data: Record<string, unknown>,
   occurredAt: Date | null,
 ): Promise<void> {
-  const organizationId = await resolveOrgId(data);
+  const organizationId = await resolveOrgId(data, eventPriceIdFromData(data));
   if (!organizationId) return; // not linked yet → recorded only
   const org = await prisma.organization.findUnique({ where: { id: organizationId }, select: { id: true } });
   if (!org) return; // never write against an org that isn't ours
@@ -149,7 +182,9 @@ async function applySubscriptionEvent(
 }
 
 async function applyTransactionEvent(data: Record<string, unknown>): Promise<void> {
-  const organizationId = await resolveOrgId(data);
+  // Transactions skip the price-match (their line items differ from the sub price);
+  // the consent freshness + org binding still apply.
+  const organizationId = await resolveOrgId(data, null);
   if (!organizationId) return;
   const org = await prisma.organization.findUnique({ where: { id: organizationId }, select: { id: true } });
   if (!org) return;

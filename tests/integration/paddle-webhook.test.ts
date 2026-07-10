@@ -19,6 +19,7 @@ function req(body: string, header: string | null) {
 }
 
 let orgId = "";
+let consentId = ""; // server-trusted checkout nonce for orgId (priceId pri_pro)
 
 beforeAll(() => {
   process.env.PADDLE_WEBHOOK_SECRET = SECRET;
@@ -35,6 +36,11 @@ beforeEach(async () => {
   process.env.PADDLE_WEBHOOK_SECRET = SECRET;
   const org = await prisma.organization.create({ data: { name: "Org" } });
   orgId = org.id;
+  const consent = await prisma.checkoutConsent.create({
+    data: { organizationId: orgId, planCode: "pro", priceId: "pri_pro", legalVersion: "2026-06", ip: "1.2.3.4" },
+    select: { id: true },
+  });
+  consentId = consent.id;
 });
 
 describe("POST /api/webhooks/paddle", () => {
@@ -61,7 +67,7 @@ describe("POST /api/webhooks/paddle", () => {
       data: {
         id: "sub_123",
         status: "active",
-        custom_data: { organizationId: orgId },
+        custom_data: { consentId },
         current_billing_period: { ends_at: "2026-07-15T00:00:00.000Z" },
         items: [{ price: { id: "pri_pro" } }],
       },
@@ -119,6 +125,79 @@ describe("POST /api/webhooks/paddle", () => {
     expect(await prisma.subscription.findUnique({ where: { organizationId: victim.id } })).toBeNull();
   });
 
+  it("MISSING consentId + forged org (no existing sub) → binds NOTHING (no raw-org fallback)", async () => {
+    const victim = await prisma.organization.create({ data: { name: "Victim" } });
+    const body = JSON.stringify({
+      event_id: "evt_noconsent",
+      event_type: "subscription.activated",
+      data: {
+        id: "sub_x",
+        status: "active",
+        custom_data: { organizationId: victim.id }, // forged, no consentId
+        items: [{ price: { id: "pri_pro" } }],
+      },
+    });
+    expect((await POST(req(body, sign(body)))).status).toBe(200); // recorded only
+    expect(await prisma.subscription.count()).toBe(0); // nothing applied to any org
+  });
+
+  it("INVALID consentId + forged org → binds NOTHING", async () => {
+    const victim = await prisma.organization.create({ data: { name: "Victim" } });
+    const body = JSON.stringify({
+      event_id: "evt_badconsent",
+      event_type: "subscription.activated",
+      data: {
+        id: "sub_y",
+        status: "active",
+        custom_data: { organizationId: victim.id, consentId: "cns_does_not_exist" },
+        items: [{ price: { id: "pri_pro" } }],
+      },
+    });
+    expect((await POST(req(body, sign(body)))).status).toBe(200);
+    expect(await prisma.subscription.count()).toBe(0);
+  });
+
+  it("consent priceId ≠ event priceId → REJECTED (nothing applied)", async () => {
+    const body = JSON.stringify({
+      event_id: "evt_pricemismatch",
+      event_type: "subscription.activated",
+      data: {
+        id: "sub_z",
+        status: "active",
+        custom_data: { consentId }, // consent priceId is pri_pro
+        items: [{ price: { id: "pri_business" } }], // event is a different price
+      },
+    });
+    expect((await POST(req(body, sign(body)))).status).toBe(200);
+    expect(await prisma.subscription.count()).toBe(0);
+  });
+
+  it("EXPIRED consent (> TTL) → REJECTED", async () => {
+    const stale = await prisma.checkoutConsent.create({
+      data: {
+        organizationId: orgId,
+        planCode: "pro",
+        priceId: "pri_pro",
+        legalVersion: "2026-06",
+        ip: "1.2.3.4",
+        createdAt: new Date(Date.now() - 25 * 60 * 60 * 1000), // 25h ago (> 24h TTL)
+      },
+      select: { id: true },
+    });
+    const body = JSON.stringify({
+      event_id: "evt_expired",
+      event_type: "subscription.activated",
+      data: {
+        id: "sub_e",
+        status: "active",
+        custom_data: { consentId: stale.id },
+        items: [{ price: { id: "pri_pro" } }],
+      },
+    });
+    expect((await POST(req(body, sign(body)))).status).toBe(200);
+    expect(await prisma.subscription.count()).toBe(0);
+  });
+
   it("returns 5xx on a transient apply failure (event NOT processed), then applies idempotently on Paddle's retry", async () => {
     const body = JSON.stringify({
       event_id: "evt_retry_1",
@@ -126,7 +205,7 @@ describe("POST /api/webhooks/paddle", () => {
       data: {
         id: "sub_r1",
         status: "active",
-        custom_data: { organizationId: orgId },
+        custom_data: { consentId },
         items: [{ price: { id: "pri_pro" } }],
       },
     });
@@ -176,7 +255,7 @@ describe("POST /api/webhooks/paddle", () => {
       data: {
         id: "sub_paid",
         status: "active",
-        custom_data: { organizationId: orgId },
+        custom_data: { consentId },
         items: [{ price: { id: "pri_pro" } }],
       },
     });
@@ -195,7 +274,7 @@ describe("POST /api/webhooks/paddle", () => {
     const body = JSON.stringify({
       event_id: "evt_dup",
       event_type: "subscription.updated",
-      data: { id: "sub_1", status: "active", custom_data: { organizationId: orgId }, items: [{ price: { id: "pri_pro" } }] },
+      data: { id: "sub_1", status: "active", custom_data: { consentId }, items: [{ price: { id: "pri_pro" } }] },
     });
     await POST(req(body, sign(body)));
     const res2 = await POST(req(body, sign(body)));
@@ -210,7 +289,7 @@ describe("POST /api/webhooks/paddle", () => {
       data: {
         id: "txn_1",
         status: "completed",
-        custom_data: { organizationId: orgId },
+        custom_data: { consentId },
         currency_code: "TRY",
         details: { totals: { grand_total: "89900" } },
       },
