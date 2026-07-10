@@ -53,6 +53,18 @@ export function serializeSupplyProfile(
   return Object.keys(clean).length === 0 ? null : JSON.stringify(clean);
 }
 
+/**
+ * Turn a supply profile into a task checklist (`{label, done}[]`, catalog order)
+ * for ONE turnover — e.g. [{label:"Çarşaf takımı × 2", done:false}, …]. Empty
+ * profile → empty array (no checklist added). Shared by the turnover-task builder.
+ */
+export function buildSupplyChecklist(profile: SupplyProfile): { label: string; done: boolean }[] {
+  return SUPPLY_ITEMS.filter((d) => (profile[d.key] ?? 0) > 0).map((d) => ({
+    label: `${d.label} × ${profile[d.key]}`,
+    done: false,
+  }));
+}
+
 /** Istanbul-local midnight (as a UTC instant) of the day containing `now`. */
 function istanbulDayStart(now: Date): Date {
   const key = now.toLocaleDateString("en-CA", { timeZone: "Europe/Istanbul" }); // YYYY-MM-DD

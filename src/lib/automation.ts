@@ -16,6 +16,7 @@ import { sendOnChannel } from "@/lib/messaging";
 import { getOrgHospitableToken } from "@/lib/hospitable-credentials";
 import { getAdjacency } from "@/lib/turnover";
 import { createOperationalTaskFromMessage } from "@/lib/tasks/create";
+import { parseSupplyProfile, buildSupplyChecklist } from "@/lib/supply";
 import { emailService } from "@/lib/email";
 import {
   complaintEscalationEmail,
@@ -310,9 +311,16 @@ export async function createReservationTasks(reservationId: string): Promise<num
       arrivalDate: true,
       departureDate: true,
       status: true,
+      property: { select: { supplyProfileJson: true } },
     },
   });
   if (!r || r.status === "cancelled") return 0;
+
+  // Turnover linen/supply checklist from the property's profile (if set). Attached
+  // to the cleaning task — the turnover job the cleaner actually opens ("çarşaf/
+  // havlu değişimi"). Empty when no profile → no checklist, behavior unchanged.
+  const supplyChecklist = buildSupplyChecklist(parseSupplyProfile(r.property?.supplyProfileJson));
+  const supplyChecklistJson = supplyChecklist.length > 0 ? JSON.stringify(supplyChecklist) : undefined;
 
   // Per-TYPE idempotency: create whichever of check-in / cleaning is still missing.
   // A plain "has any task → bail" permanently blocked a reservation that earlier
@@ -340,6 +348,7 @@ export async function createReservationTasks(reservationId: string): Promise<num
     dueAt: Date;
     status: string;
     priority: string;
+    checklistJson?: string;
   }[] = [];
 
   if (r.arrivalDate >= todayStart && !has.has("checkin_prep")) {
@@ -364,6 +373,7 @@ export async function createReservationTasks(reservationId: string): Promise<num
       dueAt: r.departureDate,
       status: "todo",
       priority: "standard",
+      checklistJson: supplyChecklistJson,
     });
   }
 

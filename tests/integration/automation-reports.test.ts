@@ -101,6 +101,55 @@ describe("removeAutoTasksForCancelledReservation", () => {
   });
 });
 
+describe("createReservationTasks supply checklist", () => {
+  it("fills the cleaning task checklist from the property's supply profile", async () => {
+    const { propertyId } = await makeOrgWithProperty();
+    await prisma.property.update({
+      where: { id: propertyId },
+      data: { supplyProfileJson: JSON.stringify({ carsaf_takimi: 2, banyo_havlusu: 4, cop_poseti: 2 }) },
+    });
+    const reservation = await prisma.reservation.create({
+      data: {
+        propertyId,
+        guestName: "Ayşe",
+        arrivalDate: daysFromNow(2),
+        departureDate: daysFromNow(5),
+        status: "confirmed",
+      },
+    });
+
+    await createReservationTasks(reservation.id);
+
+    const cleaning = await prisma.task.findFirst({ where: { reservationId: reservation.id, type: "cleaning" } });
+    expect(cleaning?.checklistJson).toBeTruthy();
+    const list = JSON.parse(cleaning!.checklistJson!) as { label: string; done: boolean }[];
+    expect(list).toEqual([
+      { label: "Çarşaf takımı × 2", done: false },
+      { label: "Banyo havlusu × 4", done: false },
+      { label: "Çöp poşeti × 2", done: false },
+    ]);
+    // The check-in prep task gets no supply checklist (kept simple).
+    const prep = await prisma.task.findFirst({ where: { reservationId: reservation.id, type: "checkin_prep" } });
+    expect(prep?.checklistJson).toBeNull();
+  });
+
+  it("leaves the checklist empty when the property has no supply profile", async () => {
+    const { propertyId } = await makeOrgWithProperty();
+    const reservation = await prisma.reservation.create({
+      data: {
+        propertyId,
+        guestName: "Mehmet",
+        arrivalDate: daysFromNow(2),
+        departureDate: daysFromNow(4),
+        status: "confirmed",
+      },
+    });
+    await createReservationTasks(reservation.id);
+    const cleaning = await prisma.task.findFirst({ where: { reservationId: reservation.id, type: "cleaning" } });
+    expect(cleaning?.checklistJson).toBeNull();
+  });
+});
+
 describe("backfillReservationTasks", () => {
   it("creates tasks for existing reservations and is idempotent", async () => {
     const { orgId, propertyId } = await makeOrgWithProperty();
