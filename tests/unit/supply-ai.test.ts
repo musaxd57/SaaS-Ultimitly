@@ -46,10 +46,22 @@ describe("supply-ai", () => {
     expect(fetchMock).not.toHaveBeenCalled();
   });
 
+  it("defaults to akashML's GLM-5.2 slug when SUPPLY_AI_MODEL is unset", async () => {
+    vi.stubEnv("SUPPLY_AI_API_KEY", "sk-test");
+    vi.stubEnv("SUPPLY_AI_MODEL", "");
+    const fetchMock = vi.fn().mockResolvedValue(
+      new Response(JSON.stringify({ choices: [{ message: { content: "ok" } }] }), { status: 200 }),
+    );
+    vi.stubGlobal("fetch", fetchMock);
+    await generateSupplySummary(basePlan);
+    const body = JSON.parse(String((fetchMock.mock.calls[0][1] as RequestInit).body));
+    expect(body.model).toBe("zai-org/GLM-5.2");
+  });
+
   it("sends ONLY aggregate numbers (no guest PII) and extracts the reply", async () => {
     vi.stubEnv("SUPPLY_AI_API_KEY", "sk-test");
     vi.stubEnv("SUPPLY_AI_BASE_URL", "https://api.akashml.com/v1");
-    vi.stubEnv("SUPPLY_AI_MODEL", "glm-5.2");
+    vi.stubEnv("SUPPLY_AI_MODEL", "zai-org/GLM-5.2");
     const fetchMock = vi.fn().mockResolvedValue(
       new Response(
         JSON.stringify({ choices: [{ message: { content: "Bu hafta çöp poşeti alman iyi olur." } }] }),

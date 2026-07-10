@@ -6,7 +6,7 @@ import type { PrepPlan } from "@/lib/supply";
 // al" tarzı). OpenAI-COMPATIBLE (works with akashML / any /v1/chat/completions):
 //   SUPPLY_AI_API_KEY   — required to enable (unset → feature hidden/no-op)
 //   SUPPLY_AI_BASE_URL  — default https://api.akashml.com/v1
-//   SUPPLY_AI_MODEL     — default glm-5.2
+//   SUPPLY_AI_MODEL     — default zai-org/GLM-5.2 (akashML's GLM-5.2 slug)
 // PRIVACY: only aggregate NUMBERS + property names + counts are sent — never a
 // guest name/email/phone (the PrepPlan carries no guest PII to begin with).
 
@@ -56,7 +56,7 @@ export async function generateSupplySummary(plan: PrepPlan): Promise<string | nu
   if (plan.linen.length === 0 && plan.consumables.length === 0) return null;
 
   const base = (process.env.SUPPLY_AI_BASE_URL?.trim() || "https://api.akashml.com/v1").replace(/\/$/, "");
-  const model = process.env.SUPPLY_AI_MODEL?.trim() || "glm-5.2";
+  const model = process.env.SUPPLY_AI_MODEL?.trim() || "zai-org/GLM-5.2";
 
   try {
     const res = await fetch(`${base}/chat/completions`, {
