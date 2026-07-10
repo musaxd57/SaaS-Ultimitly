@@ -35,7 +35,7 @@ export const POST = withAuth(async (session, req) => {
     return badRequest({ planCode: "Seçilen plan ile fiyat eşleşmiyor." });
   }
 
-  await prisma.checkoutConsent.create({
+  const row = await prisma.checkoutConsent.create({
     data: {
       organizationId: session.organizationId, // from session → can't record for another org
       userId: session.userId,
@@ -45,6 +45,10 @@ export const POST = withAuth(async (session, req) => {
       ip: clientIp(req), // rightmost XFF (platform-observed), spoof-resistant
       userAgent: req.headers.get("user-agent")?.slice(0, 512) ?? null, // capped free text
     },
+    select: { id: true },
   });
-  return jsonOk({ ok: true }, 201);
+  // Return the row id as a server-trusted nonce: the client passes it in the Paddle
+  // checkout's custom_data, and the webhook resolves the org FROM this row (whose
+  // organizationId is session-derived) instead of trusting a client-sent org id.
+  return jsonOk({ ok: true, consentId: row.id }, 201);
 });

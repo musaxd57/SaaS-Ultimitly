@@ -84,15 +84,25 @@ describe("PaddlePlans checkout consent — FAIL-CLOSED", () => {
   });
 
   it("opens checkout ONLY after the consent record succeeds (2xx)", async () => {
-    vi.stubGlobal("fetch", vi.fn().mockResolvedValue({ ok: true, status: 201 }));
+    // 201 must carry a consentId — the client passes it into the checkout customData.
+    vi.stubGlobal(
+      "fetch",
+      vi.fn().mockResolvedValue({ ok: true, status: 201, json: async () => ({ consentId: "cns_1" }) }),
+    );
     renderPlans();
     await acceptAndClickPlan();
 
     await waitFor(() => expect(open).toHaveBeenCalledTimes(1));
-    // the record was written BEFORE checkout opened
+    // the record was written BEFORE checkout opened, and its id rides along as the
+    // server-trusted nonce in customData.
     expect(fetch).toHaveBeenCalledWith(
       "/api/billing/consent",
       expect.objectContaining({ method: "POST" }),
+    );
+    expect(open).toHaveBeenCalledWith(
+      expect.objectContaining({
+        customData: expect.objectContaining({ consentId: "cns_1", organizationId: "org1" }),
+      }),
     );
     expect(screen.queryByText(/kaydedilemedi/i)).toBeNull();
   });

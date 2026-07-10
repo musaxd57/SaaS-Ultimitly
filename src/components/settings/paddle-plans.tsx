@@ -184,27 +184,31 @@ export function PaddlePlans({
         // without a committed acceptance record". The endpoint returns 2xx ONLY
         // after the row is committed, so res.ok ⇒ the evidence exists. On any
         // failure (non-2xx or network) we stop and let the user retry.
-        let recorded = false;
+        let consentId: string | undefined;
         try {
           const res = await fetch("/api/billing/consent", {
             method: "POST",
             headers: { "content-type": "application/json" },
             body: JSON.stringify({ planCode, priceId }),
           });
-          recorded = res.ok;
+          if (res.ok) {
+            const cj = (await res.json().catch(() => ({}))) as { consentId?: string };
+            consentId = cj.consentId;
+          }
         } catch {
-          recorded = false; // network error
+          /* network error → consentId stays undefined */
         }
-        if (!recorded) {
+        if (!consentId) {
           setError("Onayınız kaydedilemedi, ödeme başlatılamadı. Lütfen tekrar deneyin.");
           return;
         }
         window.Paddle.Checkout.open({
           items: [{ priceId, quantity: 1 }],
           customer: { email },
-          // legalVersion travels with the transaction so the completed-purchase
-          // webhook payload cross-references which text was accepted.
-          customData: { organizationId, legalVersion: LEGAL_VERSION },
+          // consentId is a server-trusted nonce → the webhook resolves the org from
+          // the session-derived consent row, not the client-sent organizationId.
+          // legalVersion travels with the transaction for cross-reference.
+          customData: { organizationId, consentId, legalVersion: LEGAL_VERSION },
           // Auto-return to the app after payment instead of leaving the guest on
           // Paddle's success screen; /settings reloads and shows the new plan.
           settings: {
@@ -391,18 +395,22 @@ export function PaddlePlans({
         <div className="space-y-2 rounded-md border border-primary/40 bg-accent/30 p-3">
           <p className="text-sm">
             {pending.mode === "upgrade" ? (
-              <>
-                <strong>{pending.name}</strong> planına <strong>yükseltiyorsunuz</strong>.{" "}
-                {pending.immediateTotal ? (
-                  <>
-                    Şimdi <strong>{pending.immediateTotal}</strong> tahsil edilecek
-                  </>
-                ) : (
-                  <>Kalan günler için fark bugün tahsil edilecek</>
-                )}
-                , ardından aylık{" "}
-                {pending.recurringTotal ?? `${pending.targetMonthly.toLocaleString("tr-TR")} ₺`}.
-              </>
+              pending.immediateTotal ? (
+                <>
+                  <strong>{pending.name}</strong> planına <strong>yükseltiyorsunuz</strong>. Şimdi{" "}
+                  <strong>{pending.immediateTotal}</strong> tahsil edilecek, ardından aylık{" "}
+                  {pending.recurringTotal ?? `${pending.targetMonthly.toLocaleString("tr-TR")} ₺`}.
+                </>
+              ) : (
+                // Fail-closed: never let the customer authorize a charge without the
+                // exact prorated amount (preview couldn't return it → block, don't
+                // charge blind).
+                <>
+                  <strong>{pending.name}</strong> planına yükseltme için{" "}
+                  <strong>kesin tahsilat tutarı şu an hesaplanamadı.</strong> Ödemeden önce tutarı
+                  görmeniz gerekir — lütfen “Vazgeç” deyip tekrar deneyin.
+                </>
+              )
             ) : (
               <>
                 <strong>{pending.name}</strong> planına <strong>düşürüyorsunuz</strong>. Değişiklik mevcut
@@ -416,7 +424,9 @@ export function PaddlePlans({
             <button
               type="button"
               onClick={() => void confirmChange()}
-              disabled={changeBusy}
+              // Fail-closed: an upgrade charges immediately, so block confirm until
+              // the exact amount is known. A downgrade has no immediate charge.
+              disabled={changeBusy || (pending.mode === "upgrade" && !pending.immediateTotal)}
               className="inline-flex h-8 items-center rounded-md bg-primary px-3 text-xs font-medium text-primary-foreground hover:bg-primary/90 disabled:opacity-50"
             >
               {changeBusy
@@ -424,7 +434,7 @@ export function PaddlePlans({
                 : pending.mode === "upgrade"
                   ? pending.immediateTotal
                     ? `${pending.immediateTotal} öde ve yükselt`
-                    : "Öde ve yükselt"
+                    : "Tutar alınamadı"
                   : "Onayla (dönem sonunda)"}
             </button>
             <button

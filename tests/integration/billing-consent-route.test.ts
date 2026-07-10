@@ -54,6 +54,8 @@ describe("POST /api/billing/consent (checkout distance-sales evidence)", () => {
     expect(res.status).toBe(201);
     const rows = await prisma.checkoutConsent.findMany({ where: { organizationId: orgId } });
     expect(rows).toHaveLength(1);
+    // The row id is returned as the server-trusted nonce for the checkout customData.
+    expect((await res.json()).consentId).toBe(rows[0].id);
     expect(rows[0]).toMatchObject({
       organizationId: orgId,
       userId,

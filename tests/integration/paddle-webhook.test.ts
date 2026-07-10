@@ -81,6 +81,44 @@ describe("POST /api/webhooks/paddle", () => {
     expect(evt?.status).toBe("processed");
   });
 
+  it("resolves the org from the server-trusted consentId, IGNORING a forged custom_data.organizationId", async () => {
+    // Consent row created from the paying user's OWN session (org = orgId).
+    const user = await prisma.user.create({
+      data: { organizationId: orgId, name: "U", email: "u@x.com", passwordHash: "x", role: "owner" },
+    });
+    const consent = await prisma.checkoutConsent.create({
+      data: {
+        organizationId: orgId,
+        userId: user.id,
+        planCode: "pro",
+        priceId: "pri_pro",
+        legalVersion: "2026-06",
+        ip: "1.2.3.4",
+        userAgent: "x",
+      },
+      select: { id: true },
+    });
+    // A DIFFERENT org whose id an attacker forges into custom_data.
+    const victim = await prisma.organization.create({ data: { name: "Victim" } });
+
+    const body = JSON.stringify({
+      event_id: "evt_consent",
+      event_type: "subscription.activated",
+      data: {
+        id: "sub_c",
+        status: "active",
+        custom_data: { organizationId: victim.id, consentId: consent.id }, // forged org + real consent
+        items: [{ price: { id: "pri_pro" } }],
+      },
+    });
+    const res = await POST(req(body, sign(body)));
+    expect(res.status).toBe(200);
+
+    // The subscription lands on the CONSENT's org, never the forged victim org.
+    expect(await prisma.subscription.findUnique({ where: { organizationId: orgId } })).not.toBeNull();
+    expect(await prisma.subscription.findUnique({ where: { organizationId: victim.id } })).toBeNull();
+  });
+
   it("returns 5xx on a transient apply failure (event NOT processed), then applies idempotently on Paddle's retry", async () => {
     const body = JSON.stringify({
       event_id: "evt_retry_1",

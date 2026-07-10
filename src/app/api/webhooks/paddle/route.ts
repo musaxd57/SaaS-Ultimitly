@@ -37,21 +37,38 @@ function str(v: unknown): string | null {
   return typeof v === "string" && v.length > 0 ? v : null;
 }
 
-/** Resolve the organizationId a Paddle object refers to (set at checkout). */
-function orgIdFromCustomData(data: Record<string, unknown> | undefined): string | null {
-  const cd = data?.custom_data;
-  if (cd && typeof cd === "object") {
-    const id = (cd as Record<string, unknown>).organizationId;
-    if (typeof id === "string" && id.length > 0) return id;
+/**
+ * Resolve the organizationId a Paddle object belongs to. PREFERS the server-trusted
+ * path: custom_data.consentId maps to a CheckoutConsent row whose organizationId came
+ * from the paying user's SESSION (see /api/billing/consent) — so a tampered
+ * custom_data.organizationId can't attribute someone's payment to another org. Falls
+ * back to the raw custom_data.organizationId only for legacy checkouts written before
+ * consentId existed (self-harming to forge: you'd be paying for another org).
+ */
+async function resolveOrgId(data: Record<string, unknown> | undefined): Promise<string | null> {
+  const cd =
+    data?.custom_data && typeof data.custom_data === "object"
+      ? (data.custom_data as Record<string, unknown>)
+      : null;
+  if (!cd) return null;
+
+  const consentId = typeof cd.consentId === "string" && cd.consentId.length > 0 ? cd.consentId : null;
+  if (consentId) {
+    const row = await prisma.checkoutConsent.findUnique({
+      where: { id: consentId },
+      select: { organizationId: true },
+    });
+    if (row) return row.organizationId; // authoritative — session-derived
   }
-  return null;
+  const id = typeof cd.organizationId === "string" && cd.organizationId.length > 0 ? cd.organizationId : null;
+  return id;
 }
 
 async function applySubscriptionEvent(
   data: Record<string, unknown>,
   occurredAt: Date | null,
 ): Promise<void> {
-  const organizationId = orgIdFromCustomData(data);
+  const organizationId = await resolveOrgId(data);
   if (!organizationId) return; // not linked yet → recorded only
   const org = await prisma.organization.findUnique({ where: { id: organizationId }, select: { id: true } });
   if (!org) return; // never write against an org that isn't ours
@@ -132,7 +149,7 @@ async function applySubscriptionEvent(
 }
 
 async function applyTransactionEvent(data: Record<string, unknown>): Promise<void> {
-  const organizationId = orgIdFromCustomData(data);
+  const organizationId = await resolveOrgId(data);
   if (!organizationId) return;
   const org = await prisma.organization.findUnique({ where: { id: organizationId }, select: { id: true } });
   if (!org) return;

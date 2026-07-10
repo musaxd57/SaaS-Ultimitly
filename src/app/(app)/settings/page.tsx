@@ -104,10 +104,17 @@ export default async function SettingsPage({
     paddleReady && paddleApiReady
       ? await prisma.subscription.findUnique({
           where: { organizationId: session.organizationId },
-          select: { provider: true, providerRef: true },
+          select: { provider: true, providerRef: true, status: true },
         })
       : null;
-  const canManagePaddleSub = managedSub?.provider === "paddle" && Boolean(managedSub?.providerRef);
+  // Manageable = a LIVE Paddle subscription (active / past_due). A CANCELED sub
+  // still carries a providerRef, but the customer no longer has a subscription to
+  // manage — they must be able to start a NEW checkout, so it must NOT lock the
+  // cards. (Excluding canceled here re-opens checkout for lapsed customers.)
+  const canManagePaddleSub =
+    managedSub?.provider === "paddle" &&
+    Boolean(managedSub?.providerRef) &&
+    managedSub?.status !== "canceled";
 
   return (
     <>
