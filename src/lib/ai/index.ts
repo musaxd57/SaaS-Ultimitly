@@ -82,6 +82,13 @@ function replyModel(): string {
   return process.env.OPENAI_MODEL || "gpt-4.1";
 }
 
+/** Normalize a model-returned language value to a short code (2–3 letters), else "en". */
+function normalizeLang(v: unknown): string {
+  if (typeof v !== "string") return "en";
+  const primary = v.trim().toLowerCase().split(/[-_]/)[0];
+  return /^[a-z]{2,3}$/.test(primary) ? primary : "en";
+}
+
 async function callOpenAI(system: string, user: string): Promise<string | null> {
   const key = process.env.OPENAI_API_KEY;
   if (!key) return null;
@@ -97,6 +104,11 @@ async function callOpenAI(system: string, user: string): Promise<string | null> 
   // Reasoning models only accept the default temperature; everything else gets
   // a low temperature for consistency.
   if (!isReasoningModel(model)) payload.temperature = 0.4;
+  // Bound the output — a runaway generation would blow up cost/latency and bloat
+  // the DB/UI/log surfaces it lands on. A reply + its small JSON envelope is short;
+  // reasoning models use max_completion_tokens (must also cover hidden reasoning).
+  if (isReasoningModel(model)) payload.max_completion_tokens = 2000;
+  else payload.max_tokens = 900;
   try {
     const res = await fetch("https://api.openai.com/v1/chat/completions", {
       method: "POST",
@@ -158,19 +170,22 @@ export async function suggestReply(input: SuggestReplyInput): Promise<SuggestRep
           confidence: intentKnown
             ? clamp01(Number(parsed.confidence))
             : Math.min(clamp01(Number(parsed.confidence)), 0.5),
-          reply: parsed.reply.trim(),
-          risk: typeof parsed.risk === "string" && parsed.risk.trim() ? parsed.risk : null,
+          // Cap every free-text field the model returns — an over-long value would
+          // bloat the DB row / inbox UI / logs it lands on (no max_tokens guarantee
+          // per-field). A real guest reply is well under 2000 chars.
+          reply: parsed.reply.trim().slice(0, 2000),
+          risk: typeof parsed.risk === "string" && parsed.risk.trim() ? parsed.risk.slice(0, 300) : null,
           priority,
           source: "openai",
           actionSuggestion:
             typeof parsed.actionSuggestion === "string" && parsed.actionSuggestion.trim()
-              ? parsed.actionSuggestion.trim()
+              ? parsed.actionSuggestion.trim().slice(0, 300)
               : null,
           riskLevel,
-          detectedLanguage:
-            typeof parsed.detectedLanguage === "string" && parsed.detectedLanguage.trim()
-              ? parsed.detectedLanguage.trim()
-              : "en", // policy: English by default when unknown
+          // Clamp to a normalized short language code (2–3 letters). Anything else
+          // (a sentence, garbage) → "en" default, so the field can't be bloated or
+          // carry model prose.
+          detectedLanguage: normalizeLang(parsed.detectedLanguage),
           riskType:
             typeof parsed.riskType === "string" && RISK_TYPES.has(parsed.riskType)
               ? parsed.riskType

@@ -39,7 +39,13 @@ export async function requireSession(): Promise<SessionPayload | null> {
       if (!actor || actor.sessionEpoch !== session.actorSessionEpoch) return null;
     }
   } catch {
-    // DB blip — don't turn a transient read failure into a logout.
+    // FAIL-CLOSED: this guards the API surface (billing / admin / integrations /
+    // data export+delete / message send). If we can't confirm the token still maps
+    // to a live user with the CURRENT role/org/epoch, deny — a transient DB error
+    // must not let a deleted or demoted user act on a stale JWT. (requireAuth, used
+    // for page RENDERS, stays lenient so a blip doesn't mass-logout browsing users;
+    // every mutation still flows through this fail-closed API guard.)
+    return null;
   }
   return session;
 }

@@ -1,7 +1,7 @@
 import "server-only";
 import { prisma } from "@/lib/db";
 import { parseIcs } from "@/lib/import/ics";
-import { createReservationTasks } from "@/lib/automation";
+import { createReservationTasks, removeAutoTasksForCancelledReservation } from "@/lib/automation";
 import { isPrivateHost } from "@/lib/net/private-host";
 import { ANON_NAME } from "@/lib/data-retention";
 
@@ -80,8 +80,12 @@ export async function syncCalendarSource(sourceId: string): Promise<SyncResult> 
   }
 
   const rows = parseIcs(text);
+  // Every UID seen in THIS feed (incl. cancelled ones) → used below to reconcile
+  // reservations that silently disappeared from the feed.
+  const seenRefs = new Set<string>();
 
   for (const row of rows) {
+    if (row.sourceReference) seenRefs.add(row.sourceReference);
     if (!row.guestName || !row.arrivalDate || !row.departureDate) {
       result.skipped++;
       continue;
@@ -99,9 +103,22 @@ export async function syncCalendarSource(sourceId: string): Promise<SyncResult> 
       const existing = row.sourceReference
         ? await prisma.reservation.findFirst({
             where: { propertyId: source.propertyId, sourceReference: row.sourceReference },
-            select: { id: true, guestName: true },
+            select: { id: true, guestName: true, status: true },
           })
         : null;
+
+      // Feed explicitly marks the booking CANCELLED → reflect it locally (cancel +
+      // drop the auto tasks), never import it as a live stay.
+      if (row.status === "CANCELLED") {
+        if (existing && existing.status !== "cancelled") {
+          await prisma.reservation.update({ where: { id: existing.id }, data: { status: "cancelled" } });
+          await removeAutoTasksForCancelledReservation(existing.id);
+          result.updated++;
+        } else {
+          result.skipped++;
+        }
+        continue;
+      }
 
       if (existing) {
         // KVKK resurrection guard: once the retention sweep has anonymized this
@@ -120,6 +137,8 @@ export async function syncCalendarSource(sourceId: string): Promise<SyncResult> 
                 }),
             arrivalDate: row.arrivalDate,
             departureDate: row.departureDate,
+            // Re-confirm a stay that had been cancelled but now reappears live.
+            ...(existing.status === "cancelled" ? { status: "confirmed" } : {}),
           },
         });
         // Backfill tasks for reservations imported before task automation existed.
@@ -145,6 +164,36 @@ export async function syncCalendarSource(sourceId: string): Promise<SyncResult> 
     } catch {
       result.errors.push("Kaydetme sırasında bir sorun oluştu, tekrar deneyin.");
       result.skipped++;
+    }
+  }
+
+  // Reconciliation for OTAs (e.g. Airbnb) that REMOVE a cancelled event instead of
+  // marking it STATUS:CANCELLED: a strictly-FUTURE reservation from this feed's
+  // channel whose UID is no longer present was cancelled upstream → cancel it +
+  // drop its auto tasks. Guarded hard: only when the feed returned events (a
+  // transient empty/broken feed must never mass-cancel), only future arrivals
+  // (a current/past stay is left alone), best-effort (never fails the import).
+  if (rows.length > 0) {
+    try {
+      const upcoming = await prisma.reservation.findMany({
+        where: {
+          propertyId: source.propertyId,
+          channel,
+          sourceReference: { not: null },
+          status: { in: ["confirmed", "pending"] },
+          arrivalDate: { gt: new Date() },
+        },
+        select: { id: true, sourceReference: true },
+      });
+      for (const r of upcoming) {
+        if (r.sourceReference && !seenRefs.has(r.sourceReference)) {
+          await prisma.reservation.update({ where: { id: r.id }, data: { status: "cancelled" } });
+          await removeAutoTasksForCancelledReservation(r.id);
+          result.updated++;
+        }
+      }
+    } catch {
+      // best-effort — reconciliation must not turn a good import into a failure
     }
   }
 

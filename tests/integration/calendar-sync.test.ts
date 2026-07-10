@@ -120,6 +120,105 @@ describe("syncCalendarSource", () => {
     expect(jane?.guestName).toBe("Jane Doe");
   });
 
+  it("marks a reservation cancelled when the feed says STATUS:CANCELLED (keeps others)", async () => {
+    const { propertyId } = await makeOrgWithProperty();
+    const source = await prisma.calendarSource.create({
+      data: { propertyId, label: "Airbnb", url: "https://example.com/cal.ics" },
+    });
+    mockFetch(ICS);
+    await syncCalendarSource(source.id);
+    vi.restoreAllMocks();
+    expect(
+      (await prisma.reservation.findFirst({ where: { propertyId, sourceReference: "abc-123@airbnb.com" } }))?.status,
+    ).toBe("confirmed");
+
+    // Same feed, but the first booking is now STATUS:CANCELLED; the second stays live.
+    const withCancel = `BEGIN:VCALENDAR
+VERSION:2.0
+BEGIN:VEVENT
+UID:abc-123@airbnb.com
+DTSTART;VALUE=DATE:20260710
+DTEND;VALUE=DATE:20260714
+SUMMARY:Ahmet Yılmaz
+STATUS:CANCELLED
+END:VEVENT
+BEGIN:VEVENT
+UID:def-456@airbnb.com
+DTSTART;VALUE=DATE:20260720
+DTEND;VALUE=DATE:20260722
+SUMMARY:Jane Doe
+END:VEVENT
+END:VCALENDAR`;
+    mockFetch(withCancel);
+    await syncCalendarSource(source.id);
+
+    const cancelled = await prisma.reservation.findFirst({ where: { propertyId, sourceReference: "abc-123@airbnb.com" } });
+    const live = await prisma.reservation.findFirst({ where: { propertyId, sourceReference: "def-456@airbnb.com" } });
+    expect(cancelled?.status).toBe("cancelled");
+    expect(live?.status).toBe("confirmed"); // still present → untouched
+  });
+
+  it("cancels a FUTURE reservation that silently disappears from the feed (reconciliation)", async () => {
+    const two = `BEGIN:VCALENDAR
+VERSION:2.0
+BEGIN:VEVENT
+UID:fut-1@airbnb.com
+DTSTART;VALUE=DATE:20270301
+DTEND;VALUE=DATE:20270305
+SUMMARY:Guest One
+END:VEVENT
+BEGIN:VEVENT
+UID:fut-2@airbnb.com
+DTSTART;VALUE=DATE:20270310
+DTEND;VALUE=DATE:20270312
+SUMMARY:Guest Two
+END:VEVENT
+END:VCALENDAR`;
+    const onlyFirst = `BEGIN:VCALENDAR
+VERSION:2.0
+BEGIN:VEVENT
+UID:fut-1@airbnb.com
+DTSTART;VALUE=DATE:20270301
+DTEND;VALUE=DATE:20270305
+SUMMARY:Guest One
+END:VEVENT
+END:VCALENDAR`;
+    const { propertyId } = await makeOrgWithProperty();
+    const source = await prisma.calendarSource.create({
+      data: { propertyId, label: "Airbnb", url: "https://example.com/cal.ics" },
+    });
+    mockFetch(two);
+    await syncCalendarSource(source.id);
+    vi.restoreAllMocks();
+    expect(await prisma.reservation.count({ where: { propertyId, status: "confirmed" } })).toBe(2);
+
+    // fut-2 disappears from the feed → it was cancelled upstream (Airbnb removes).
+    mockFetch(onlyFirst);
+    await syncCalendarSource(source.id);
+
+    expect(
+      (await prisma.reservation.findFirst({ where: { propertyId, sourceReference: "fut-1@airbnb.com" } }))?.status,
+    ).toBe("confirmed");
+    expect(
+      (await prisma.reservation.findFirst({ where: { propertyId, sourceReference: "fut-2@airbnb.com" } }))?.status,
+    ).toBe("cancelled");
+  });
+
+  it("does NOT mass-cancel when the feed comes back empty (guard)", async () => {
+    const { propertyId } = await makeOrgWithProperty();
+    const source = await prisma.calendarSource.create({
+      data: { propertyId, label: "Airbnb", url: "https://example.com/cal.ics" },
+    });
+    mockFetch(ICS);
+    await syncCalendarSource(source.id);
+    vi.restoreAllMocks();
+
+    // A transiently empty (but valid) feed must not cancel everything.
+    mockFetch(`BEGIN:VCALENDAR\nVERSION:2.0\nEND:VCALENDAR`);
+    await syncCalendarSource(source.id);
+    expect(await prisma.reservation.count({ where: { propertyId, status: "cancelled" } })).toBe(0);
+  });
+
   it("records an error status when the feed cannot be fetched", async () => {
     const { propertyId } = await makeOrgWithProperty();
     const source = await prisma.calendarSource.create({

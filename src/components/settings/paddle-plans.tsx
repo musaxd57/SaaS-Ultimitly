@@ -413,9 +413,9 @@ export function PaddlePlans({
               )
             ) : (
               <>
-                <strong>{pending.name}</strong> planına <strong>düşürüyorsunuz</strong>. Değişiklik mevcut
-                döneminizin <strong>sonunda</strong> geçerli olur; o zamana kadar planınız aynı kalır.
-                Sonraki ödeme{" "}
+                <strong>{pending.name}</strong> planına <strong>düşürüyorsunuz</strong>. Değişiklik{" "}
+                <strong>hemen</strong> geçerli olur (yeni plan limitleri anında uygulanır); aradaki fark
+                bir sonraki faturanıza yansıtılır. Yeni aylık ücret{" "}
                 {pending.recurringTotal ?? `${pending.targetMonthly.toLocaleString("tr-TR")} ₺`}.
               </>
             )}
@@ -435,7 +435,7 @@ export function PaddlePlans({
                   ? pending.immediateTotal
                     ? `${pending.immediateTotal} öde ve yükselt`
                     : "Tutar alınamadı"
-                  : "Onayla (dönem sonunda)"}
+                  : "Düşür (hemen geçerli)"}
             </button>
             <button
               type="button"

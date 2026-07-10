@@ -8,6 +8,8 @@ export interface IcsReservation {
   sourceReference: string | null;
   notes: string | null;
   channel: "ics";
+  /** VEVENT STATUS (uppercased), e.g. "CANCELLED" | "CONFIRMED" | null. */
+  status: string | null;
 }
 
 /** Unfold RFC 5545 long lines (continuation lines start with space or tab). */
@@ -116,6 +118,12 @@ export function parseIcs(text: string): IcsReservation[] {
       const uid = get("UID");
       const sourceReference = uid ? uid.trim() : null;
 
+      // STATUS (RFC 5545): "CANCELLED" means the booking was removed on the OTA
+      // side — the sync marks the local reservation cancelled instead of importing
+      // it as a live stay.
+      const statusRaw = get("STATUS");
+      const status = statusRaw ? statusRaw.trim().toUpperCase() : null;
+
       results.push({
         guestName,
         arrivalDate,
@@ -123,6 +131,7 @@ export function parseIcs(text: string): IcsReservation[] {
         sourceReference,
         notes,
         channel: "ics",
+        status,
       });
 
       continue;

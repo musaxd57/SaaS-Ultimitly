@@ -30,6 +30,11 @@ let primaryOrgIdCache: string | null | undefined;
 /** Id of the org allowed to fall back to the global env token (see file header). */
 async function primaryOrgId(): Promise<string | null> {
   if (process.env.PRIMARY_ORG_ID) return process.env.PRIMARY_ORG_ID;
+  // In PRODUCTION the primary org MUST be set explicitly. The "oldest org"
+  // fallback is convenient in dev/demo (single-tenant), but once real customers
+  // exist it could bind the shared env token to the WRONG org — so refuse to guess
+  // in production (→ no env-token fallback rather than a wrong one; fail-safe).
+  if (process.env.NODE_ENV === "production") return null;
   if (primaryOrgIdCache !== undefined) return primaryOrgIdCache;
   const oldest = await prisma.organization.findFirst({
     orderBy: { createdAt: "asc" },
