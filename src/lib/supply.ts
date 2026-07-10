@@ -104,7 +104,8 @@ export interface PrepPlan {
   hasStock: boolean;
 }
 
-// Guest requests older than this are assumed already handled (self-expiring v1).
+// Requests older than this are assumed already handled: the row STAYS in the DB,
+// it is just no longer counted by the plan (falls outside this lookback window).
 const REQUEST_LOOKBACK_MS = 7 * 24 * 60 * 60 * 1000;
 
 /**
