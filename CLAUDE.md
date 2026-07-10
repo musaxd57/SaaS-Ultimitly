@@ -617,6 +617,17 @@ her rezervasyon unbound başlar → bir konaklamada yakalanan secret sonrakinde 
 → retention dokunmaz; sync/import chatBoundHash'e yazmaz. Zincir 00→14 temiz + **sıfır-drift** (throwaway PG). **Tavizler (belge):**
 (a) saldırgan turnover boşluğunda misafirden ÖNCE tararsa stay'i claim eder = DoS (sızıntı değil; misafir host'a sorar), (b) cookie
 kapalı tarayıcı binding'i tutamaz (nadir; fail-safe). Host "Misafir Sohbetleri" paneli ETKİLENMEZ (server-side, org-scoped). +7 test. **744 test yeşil.**
+**✅ PADDLE ABONELİK YÖNETİMİ v1 UYGULANDI (2026-07-10) — PORTAL yolu (para-math yok):** kullanıcı "sandbox'ı boşver, prod key'ler
+hazır, bitir" dedi. Sandbox olmadan proration kodu yazmak canlı-para riski → **Paddle'ın hosted customer portal'ı** kullanıldı
+(upgrade hemen / downgrade dönem-sonu / iptal / kart = Paddle'ın TEST EDİLMİŞ UI'ı; proration'ı Paddle sahiplenir, biz HİÇ para
+hesabı yapmıyoruz). `createPortalSession(subId)` (paddle.ts): önce `GET /subscriptions/{id}`→customer_id, sonra `POST /customers/
+{id}/portal-sessions {subscription_ids}` → `urls.general.overview` (+cancel deep-link); never-throw→null. `POST /api/billing/portal`
+(**withManage** = owner/manager, org SESSION'dan→IDOR yok, rate-limit 12/saat, PADDLE_API_KEY şart). UI: aktif Paddle abonesine
+"Aboneliği yönet (plan değiştir/iptal)" butonu + **yeni-checkout KİLİDİ** (çift-abonelik önlenir; `manageable` prop) + consent
+checkbox gizli (yeni checkout yok). Migration YOK, customer_id on-demand çekilir. **Güvenli taviz:** para-akışı Paddle'da → kötü
+senaryoda yanlış endpoint = feature hata verir, müşteri MİSCHARGE OLMAZ. **⚙️ KULLANICI (Paddle paneli, tek sefer):** portal'da "plan
+değiştir"i etkinleştir (istenirse) — cancel+kart zaten default. **⏳ İN-APP upgrade/downgrade butonları (bizim PATCH+preview) = opsiyonel
+sonraki adım, `PADDLE_PLAN_CHANGE_ENABLED` gate'iyle, ilk gerçek test kullanıcının hesabında doğrulanınca.** +11 test.
 **🟠 KALAN P0 (kod, çoğu onay-gerektirmez):** ~~QR per-stay izolasyon~~ ✅ (yukarıda, migration 14) ·
 CheckoutIntent nonce (P4, migration→onay) · staff RBAC daralt (atanan mülk/görev — ürün kararı) ·
 **createReservationTasks dup-task race** (findMany-then-createMany non-atomik; per-org sync-lock zaten seri, gerçek yarış yalnız eşzamanlı
