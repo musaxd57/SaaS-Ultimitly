@@ -672,7 +672,17 @@ yapıldı, önce küçük-güvenli set uygulandı (staff RBAC = büyük parça, 
 - **[iCal] Ghost rezervasyon** — parser `STATUS:CANCELLED` okuyor → yerel rez iptal + auto-task silinir. + **reconciliation**: feed'den
   DÜŞEN (Airbnb siler) GELECEK tarihli rez (aynı kanal) iptal edilir. Guard'lı: boş feed'de mass-cancel YOK, sadece arrivalDate>now, best-effort.
   Reappear'da re-confirm. +3 test (STATUS:CANCELLED · disappeared-reconcile · empty-feed-guard).
-**⏳ SIRADA (kullanıcı seçti): Staff RBAC (capability) — personel sadece atanmış mülk/görev; token/fiyat/mesaj/entegrasyon/KB kapalı.**
+**✅ STAFF RBAC UYGULANDI (2026-07-10, kullanıcı #1 isteği, migration YOK):** codex doğrulandı — `staff` (temizlik) pratikte tüm işletmeyi
+okuyabiliyordu (tüm görevler/konuşmalar/rezervasyon tutarları/adres/property token'ları/KB, sync tetikleme). 3 KATMAN kapatıldı:
+1. **API sınırı (client fetch/mutation):** ~17 route `withAuth`→`withManage` (reservations/kb/conversations[+id/translate/ai-suggest]/
+   properties[+id]/reports[ops/daily/monthly]/calendar-sync/hospitable-sync/templates/ai-test/hazirlik-summary/settings-test-email GET dahil).
+   Staff artık bunlarda 403. Kalan `withAuth`: tasks (scoped), upload, billing-consent.
+2. **Task scoping:** GET (API+PAGE) staff'a SADECE `assignedToId===userId` görevleri; PATCH staff SADECE kendi atanan görevine + checklist'te
+   yalnız `done` toggle (etiket değiştiremez/madde ekleyemez — stored label'dan yeniden kurulur; length farkı→403). POST (görev oluşturma) manager-only.
+3. **Page sınırı (server-render):** middleware `role==="staff"` → `/tasks` dışındaki tüm app sayfasına `/tasks` redirect (server-rendered guest
+   mesajı/fiyat/token sızmaz). Nav staff'a SADECE "Görevler" gösteriyor. Tasks page query staff'a assigned-only.
+**Taviz/kalan (belge):** capability-enum (tasks.read_assigned vb.) yerine role-tabanlı katman — pratikte aynı sonuç, daha az kod. Property-
+atama modeli YOK (staff "atanmış mülk"ü = atanmış görevinin mülkü, görev üstünden görür). +2 task-route RBAC testi.
 **🟠 KALAN P0 (kod, çoğu onay-gerektirmez):** ~~QR per-stay izolasyon~~ ✅ (yukarıda, migration 14) ·
 ~~CheckoutIntent nonce~~ ✅ (consent-nonce ile kapatıldı, üstte) · staff RBAC daralt (atanan mülk/görev — ürün kararı) ·
 **createReservationTasks dup-task race** (findMany-then-createMany non-atomik; per-org sync-lock zaten seri, gerçek yarış yalnız eşzamanlı

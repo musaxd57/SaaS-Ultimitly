@@ -1,10 +1,10 @@
 import { prisma } from "@/lib/db";
 import { conversationCreateSchema, zodFieldErrors } from "@/lib/validators";
 import { badRequest, jsonOk, propertyInOrg } from "@/lib/api";
-import { withAuth, withManage } from "@/lib/route-guard";
+import { withManage } from "@/lib/route-guard";
 import { applyInboundMessageRules } from "@/lib/automation";
 
-export const GET = withAuth(async (session, req) => {
+export const GET = withManage(async (session, req) => {
   const { searchParams } = new URL(req.url);
   const status = searchParams.get("status") ?? undefined;
 

@@ -1,7 +1,7 @@
 import { prisma } from "@/lib/db";
 import { emailService } from "@/lib/email";
 import { badRequest, jsonOk, tooManyRequests } from "@/lib/api";
-import { withAuth } from "@/lib/route-guard";
+import { withManage } from "@/lib/route-guard";
 import { rateLimit } from "@/lib/rate-limit";
 
 // ---------------------------------------------------------------------------
@@ -10,7 +10,7 @@ import { rateLimit } from "@/lib/rate-limit";
 // complaint. Reports the exact outcome (sent, or the SMTP error).
 // ---------------------------------------------------------------------------
 
-export const POST = withAuth(async (session) => {
+export const POST = withManage(async (session) => {
   // Sends real SMTP mail — throttle hard so it can't be used to email-bomb.
   const limited = rateLimit(`test-email:${session.userId}`, 5, 60_000);
   if (!limited.ok) return tooManyRequests(limited.retryAfter);

@@ -31,6 +31,22 @@ export async function middleware(req: NextRequest) {
     return NextResponse.redirect(url);
   }
 
+  // Staff (cleaning crew) may only use the Tasks surface — every other in-app page
+  // is owner/manager-only. Redirect them to /tasks so a staff member can't reach a
+  // server-rendered page that would show guest messages, prices, tokens, KB, etc.
+  // (The API routes enforce the SAME boundary DB-authoritatively; this is the page
+  // layer. The JWT role is sufficient for a UX redirect — every mutation still hits
+  // the fail-closed API guard.)
+  if (session && session.role === "staff" && !isPublic) {
+    const staffAllowed = pathname === "/tasks" || pathname.startsWith("/tasks/");
+    if (!staffAllowed) {
+      const url = req.nextUrl.clone();
+      url.pathname = "/tasks";
+      url.search = "";
+      return NextResponse.redirect(url);
+    }
+  }
+
   const res = NextResponse.next();
 
   // SLIDING SESSION: while signed in and active, re-issue the cookie with a fresh

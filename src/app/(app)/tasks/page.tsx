@@ -31,6 +31,8 @@ export default async function TasksPage({
     prisma.task.findMany({
       where: {
         property: { organizationId: session.organizationId },
+        // Staff see ONLY tasks assigned to them (they don't get the whole board).
+        ...(canManage ? {} : { assignedToId: session.userId }),
         ...(propertyId ? { propertyId } : {}),
       },
       include: {

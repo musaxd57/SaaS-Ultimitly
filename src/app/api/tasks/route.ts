@@ -1,6 +1,6 @@
 import { prisma } from "@/lib/db";
 import { taskSchema, zodFieldErrors } from "@/lib/validators";
-import { badRequest, jsonOk, propertyInOrg } from "@/lib/api";
+import { badRequest, jsonOk, propertyInOrg, canManage } from "@/lib/api";
 import { withAuth, withManage } from "@/lib/route-guard";
 
 export const GET = withAuth(async (session, req) => {
@@ -11,6 +11,8 @@ export const GET = withAuth(async (session, req) => {
   const tasks = await prisma.task.findMany({
     where: {
       property: { organizationId: session.organizationId },
+      // Staff see ONLY the tasks assigned to them; owner/manager see all.
+      ...(canManage(session) ? {} : { assignedToId: session.userId }),
       ...(status ? { status } : {}),
       ...(propertyId ? { propertyId } : {}),
     },

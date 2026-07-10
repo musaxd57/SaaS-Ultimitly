@@ -1,11 +1,11 @@
 import { prisma } from "@/lib/db";
 import { conversationUpdateSchema, zodFieldErrors } from "@/lib/validators";
 import { badRequest, jsonOk, notFound } from "@/lib/api";
-import { withAuth, withManage } from "@/lib/route-guard";
+import { withManage } from "@/lib/route-guard";
 
-// PATCH (status / priority triage) stays open for staff → withAuth. DELETE (drops
-// the thread + all its messages) is destructive → withManage.
-export const PATCH = withAuth<{ id: string }>(async (session, req, { params }) => {
+// Guest conversations are owner/manager-only (staff must not read guest messages or
+// re-triage threads): both PATCH (status/priority) and DELETE are withManage.
+export const PATCH = withManage<{ id: string }>(async (session, req, { params }) => {
   const { id } = await params;
   const existing = await prisma.conversation.findFirst({
     where: { id, property: { organizationId: session.organizationId } },

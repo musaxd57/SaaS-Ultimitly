@@ -1,6 +1,6 @@
 import { NextResponse } from "next/server";
 import { jsonOk, paymentRequired } from "@/lib/api";
-import { withAuth } from "@/lib/route-guard";
+import { withManage } from "@/lib/route-guard";
 import { rateLimit } from "@/lib/rate-limit";
 import { premiumAllowed } from "@/lib/billing/subscription";
 import { getPrepPlan } from "@/lib/supply";
@@ -13,7 +13,7 @@ export const dynamic = "force-dynamic";
  * the plan SERVER-SIDE from the session's org (no client-supplied data, no IDOR)
  * so only aggregate numbers — never guest PII — reach the model.
  */
-export const POST = withAuth(async (session, req) => {
+export const POST = withManage(async (session, req) => {
   if (!supplyAiConfigured()) {
     return NextResponse.json({ error: "AI özeti bu ortamda etkin değil." }, { status: 503 });
   }

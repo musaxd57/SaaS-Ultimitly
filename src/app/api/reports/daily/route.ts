@@ -2,9 +2,9 @@ import { startOfDay, endOfDay } from "date-fns";
 import { prisma } from "@/lib/db";
 import { getOpsStats, buildDailySummary } from "@/lib/reports";
 import { jsonOk } from "@/lib/api";
-import { withAuth } from "@/lib/route-guard";
+import { withManage } from "@/lib/route-guard";
 
-export const GET = withAuth(async (session) => {
+export const GET = withManage(async (session) => {
   const orgId = session.organizationId;
   const now = new Date();
   const dayStart = startOfDay(now);

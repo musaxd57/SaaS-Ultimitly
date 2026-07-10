@@ -1,11 +1,11 @@
 import { prisma } from "@/lib/db";
 import { propertySchema, zodFieldErrors } from "@/lib/validators";
 import { badRequest, jsonOk, forbidden } from "@/lib/api";
-import { withAuth, withManage } from "@/lib/route-guard";
+import { withManage } from "@/lib/route-guard";
 import { generateCalendarToken } from "@/lib/export/ics";
 import { canAddProperty } from "@/lib/billing/subscription";
 
-export const GET = withAuth(async (session) => {
+export const GET = withManage(async (session) => {
   const properties = await prisma.property.findMany({
     where: { organizationId: session.organizationId },
     orderBy: { createdAt: "desc" },

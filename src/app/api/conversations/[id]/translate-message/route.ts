@@ -1,7 +1,7 @@
 import { prisma } from "@/lib/db";
 import { z } from "zod";
 import { badRequest, jsonOk, notFound, tooManyRequests, paymentRequired } from "@/lib/api";
-import { withAuth } from "@/lib/route-guard";
+import { withManage } from "@/lib/route-guard";
 import { rateLimit } from "@/lib/rate-limit";
 import { premiumAllowed } from "@/lib/billing/subscription";
 import { zodFieldErrors } from "@/lib/validators";
@@ -12,7 +12,7 @@ const translateSchema = z.object({
   targetLanguage: z.string().min(2, "Hedef dil gerekli").max(20, "Geçersiz dil kodu"),
 });
 
-export const POST = withAuth<{ id: string }>(async (session, req, { params }) => {
+export const POST = withManage<{ id: string }>(async (session, req, { params }) => {
   const { id } = await params;
 
   // Paid AI feature: blocked once the trial lapses (dormant-safe until enforced).

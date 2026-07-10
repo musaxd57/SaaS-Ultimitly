@@ -64,11 +64,15 @@ export function AppShell({ user, superAdmin, guestChatEnabled, impersonating, ch
     return pathname === href || pathname.startsWith(href + "/");
   }
 
-  // The QR "Misafir Sohbetleri" tab only makes sense when the feature is enabled
-  // for this deployment, and never for staff (whose page redirects them away).
-  const navItems = NAV_ITEMS.filter((i) =>
-    i.href === "/guest-chats" ? Boolean(guestChatEnabled) && user.role !== "staff" : true,
-  );
+  // Staff (cleaning crew) only get the Tasks tab — every other page is
+  // owner/manager-only (middleware redirects them away; this hides the links).
+  const isStaff = user.role === "staff";
+  const navItems = NAV_ITEMS.filter((i) => {
+    if (isStaff) return i.href === "/tasks";
+    // The QR "Misafir Sohbetleri" tab only shows when the feature is enabled.
+    if (i.href === "/guest-chats") return Boolean(guestChatEnabled);
+    return true;
+  });
 
   const navLinks = (
     <nav className="flex flex-1 flex-col gap-1">

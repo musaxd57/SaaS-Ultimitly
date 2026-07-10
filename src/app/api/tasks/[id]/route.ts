@@ -5,15 +5,37 @@ import { withAuth, withManage } from "@/lib/route-guard";
 import { emailService } from "@/lib/email";
 import { taskAssignedEmail } from "@/lib/email-templates";
 
+/** Parse a stored checklistJson into a clean {label, done}[] (never throws). */
+function parseChecklist(json: string | null): { label: string; done: boolean }[] {
+  if (!json) return [];
+  try {
+    const arr = JSON.parse(json);
+    return Array.isArray(arr)
+      ? arr
+          .filter((x) => x && typeof x.label === "string")
+          .map((x) => ({ label: String(x.label), done: Boolean(x.done) }))
+      : [];
+  } catch {
+    return [];
+  }
+}
+
 // PATCH stays withAuth (session-only): staff MAY progress a task (status/note/
-// photo); only the manager-only fields are gated in-body. DELETE is withManage.
+// photo/checklist tick) — but only THEIR assigned task, and only the done flag on
+// existing checklist items. Manager-only fields are gated in-body. DELETE = withManage.
 export const PATCH = withAuth<{ id: string }>(async (session, req, { params }) => {
   const { id } = await params;
   const existing = await prisma.task.findFirst({
     where: { id, property: { organizationId: session.organizationId } },
-    select: { id: true, assignedToId: true },
+    select: { id: true, assignedToId: true, checklistJson: true },
   });
   if (!existing) return notFound();
+
+  // Staff scope: a staff member may only touch a task ASSIGNED TO THEM. (Owner /
+  // manager may touch any task in the org.)
+  if (!canManage(session) && existing.assignedToId !== session.userId) {
+    return forbidden("Bu görev size atanmamış.");
+  }
 
   const data = await req.json().catch(() => null);
   const parsed = taskUpdateSchema.safeParse(data);
@@ -31,6 +53,24 @@ export const PATCH = withAuth<{ id: string }>(async (session, req, { params }) =
       d.dueAt !== undefined)
   ) {
     return forbidden("Personel yalnızca görev durumunu güncelleyebilir.");
+  }
+
+  // Checklist: a manager may rewrite it freely; STAFF may only flip the `done`
+  // flag on the EXISTING items — never rename, add or remove a checklist item.
+  // Rebuild from the stored labels + the incoming done flags (by index).
+  let checklistWrite: string | undefined;
+  if (d.checklist !== undefined) {
+    if (canManage(session)) {
+      checklistWrite = JSON.stringify(d.checklist);
+    } else {
+      const stored = parseChecklist(existing.checklistJson);
+      if (d.checklist.length !== stored.length) {
+        return forbidden("Personel görev maddelerini değiştiremez, yalnızca işaretleyebilir.");
+      }
+      checklistWrite = JSON.stringify(
+        stored.map((item, i) => ({ label: item.label, done: Boolean(d.checklist?.[i]?.done) })),
+      );
+    }
   }
 
   let newAssignee: { id: string; name: string; email: string } | null = null;
@@ -55,8 +95,8 @@ export const PATCH = withAuth<{ id: string }>(async (session, req, { params }) =
       ...(d.description !== undefined ? { description: d.description } : {}),
       ...(d.priority !== undefined ? { priority: d.priority } : {}),
       ...(d.dueAt !== undefined ? { dueAt: d.dueAt } : {}),
-      // Checklist tick-off — allowed for staff (they do the cleaning).
-      ...(d.checklist !== undefined ? { checklistJson: JSON.stringify(d.checklist) } : {}),
+      // Checklist tick-off (staff: done-only, rebuilt above; manager: free).
+      ...(checklistWrite !== undefined ? { checklistJson: checklistWrite } : {}),
     },
     include: {
       property: { select: { name: true, address: true, city: true } },

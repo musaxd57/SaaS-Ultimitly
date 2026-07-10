@@ -1,7 +1,7 @@
 import { prisma } from "@/lib/db";
 import { suggestReply } from "@/lib/ai";
 import { badRequest, jsonOk, tooManyRequests, paymentRequired } from "@/lib/api";
-import { withAuth } from "@/lib/route-guard";
+import { withManage } from "@/lib/route-guard";
 import { rateLimit } from "@/lib/rate-limit";
 import { premiumAllowed } from "@/lib/billing/subscription";
 
@@ -18,7 +18,7 @@ import { premiumAllowed } from "@/lib/billing/subscription";
 const TONES = ["warm", "formal", "short", "luxury"] as const;
 type Tone = (typeof TONES)[number];
 
-export const POST = withAuth(async (session, req) => {
+export const POST = withManage(async (session, req) => {
   // Paid AI feature: blocked once the trial lapses (dormant-safe until enforced).
   if (!(await premiumAllowed(session.organizationId))) return paymentRequired();
 

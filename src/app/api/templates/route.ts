@@ -1,7 +1,7 @@
 import { prisma } from "@/lib/db";
 import { z } from "zod";
 import { badRequest, jsonOk, propertyInOrg } from "@/lib/api";
-import { withAuth, withManage } from "@/lib/route-guard";
+import { withManage } from "@/lib/route-guard";
 import { zodFieldErrors } from "@/lib/validators";
 import { DEFAULT_TEMPLATES } from "@/lib/templates";
 
@@ -13,7 +13,7 @@ const templateCreateSchema = z.object({
   language: z.string().max(10).default("tr"),
 });
 
-export const GET = withAuth(async (session, req) => {
+export const GET = withManage(async (session, req) => {
   const { searchParams } = new URL(req.url);
   const propertyId = searchParams.get("propertyId") ?? undefined;
   const includeDefaults = searchParams.get("includeDefaults") !== "false";

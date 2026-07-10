@@ -41,38 +41,78 @@ describe("PATCH /api/tasks/[id] — staff field restriction", () => {
     staffId = staff.id;
     ownerId = owner.id;
     const property = await prisma.property.create({ data: { organizationId: org.id, name: "Daire 1" } });
+    // Assigned to the staff member, with a manager-authored checklist to tick.
     const task = await prisma.task.create({
-      data: { propertyId: property.id, type: "cleaning", title: "Temizlik", status: "todo", priority: "standard" },
+      data: {
+        propertyId: property.id,
+        type: "cleaning",
+        title: "Temizlik",
+        status: "todo",
+        priority: "standard",
+        assignedToId: staff.id,
+        checklistJson: JSON.stringify([
+          { label: "Çarşaf takımı × 2", done: false },
+          { label: "Banyo havlusu × 4", done: false },
+        ]),
+      },
     });
     taskId = task.id;
   });
 
-  it("blocks staff from changing a management field (title) with 403", async () => {
+  const staffSession = () => {
     session = { userId: staffId, organizationId: orgId, role: "staff", email: "s@x.com", name: "Staff", sessionEpoch: 0 };
+  };
+
+  it("blocks staff from changing a management field (title) with 403", async () => {
+    staffSession();
     const res = await PATCH(patchReq({ title: "Yeni başlık" }), ctx());
     expect(res.status).toBe(403);
     const t = await prisma.task.findUnique({ where: { id: taskId }, select: { title: true } });
     expect(t?.title).toBe("Temizlik"); // unchanged
   });
 
-  it("lets staff progress a task (status)", async () => {
-    session = { userId: staffId, organizationId: orgId, role: "staff", email: "s@x.com", name: "Staff", sessionEpoch: 0 };
+  it("lets staff progress THEIR assigned task (status)", async () => {
+    staffSession();
     const res = await PATCH(patchReq({ status: "done" }), ctx());
     expect(res.status).toBe(200);
     const t = await prisma.task.findUnique({ where: { id: taskId }, select: { status: true } });
     expect(t?.status).toBe("done");
   });
 
-  it("lets staff tick a checklist item and persists it (cleaner ticks '2 çarşaf' etc.)", async () => {
-    session = { userId: staffId, organizationId: orgId, role: "staff", email: "s@x.com", name: "Staff", sessionEpoch: 0 };
-    const checklist = [
-      { label: "Çarşaf takımı × 2", done: true },
-      { label: "Banyo havlusu × 4", done: false },
-    ];
-    const res = await PATCH(patchReq({ checklist }), ctx());
+  it("blocks staff from touching a task NOT assigned to them (403)", async () => {
+    // Re-assign the task to the owner → staff must no longer be able to touch it.
+    await prisma.task.update({ where: { id: taskId }, data: { assignedToId: ownerId } });
+    staffSession();
+    const res = await PATCH(patchReq({ status: "done" }), ctx());
+    expect(res.status).toBe(403);
+    const t = await prisma.task.findUnique({ where: { id: taskId }, select: { status: true } });
+    expect(t?.status).toBe("todo"); // unchanged
+  });
+
+  it("lets staff TICK an existing checklist item (done only), keeping the labels", async () => {
+    staffSession();
+    // Staff sends done flags; even if labels differ, the STORED labels are kept.
+    const res = await PATCH(
+      patchReq({
+        checklist: [
+          { label: "hacked label", done: true },
+          { label: "another", done: false },
+        ],
+      }),
+      ctx(),
+    );
     expect(res.status).toBe(200);
     const t = await prisma.task.findUnique({ where: { id: taskId }, select: { checklistJson: true } });
-    expect(JSON.parse(t!.checklistJson!)).toEqual(checklist);
+    expect(JSON.parse(t!.checklistJson!)).toEqual([
+      { label: "Çarşaf takımı × 2", done: true }, // label preserved, done applied
+      { label: "Banyo havlusu × 4", done: false },
+    ]);
+  });
+
+  it("blocks staff from adding/removing checklist items (403)", async () => {
+    staffSession();
+    const res = await PATCH(patchReq({ checklist: [{ label: "only one", done: true }] }), ctx());
+    expect(res.status).toBe(403); // length differs → item add/remove is a manager action
   });
 
   it("lets an owner change a management field (title)", async () => {

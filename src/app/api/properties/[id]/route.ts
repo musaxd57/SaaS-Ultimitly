@@ -1,10 +1,10 @@
 import { prisma } from "@/lib/db";
 import { propertySchema, zodFieldErrors } from "@/lib/validators";
 import { badRequest, jsonOk, notFound } from "@/lib/api";
-import { withAuth, withManage } from "@/lib/route-guard";
+import { withManage } from "@/lib/route-guard";
 import { serializeSupplyProfile } from "@/lib/supply";
 
-export const GET = withAuth<{ id: string }>(async (session, _req, { params }) => {
+export const GET = withManage<{ id: string }>(async (session, _req, { params }) => {
   const { id } = await params;
   const property = await prisma.property.findFirst({
     where: { id, organizationId: session.organizationId },

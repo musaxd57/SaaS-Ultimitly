@@ -3,11 +3,11 @@ import { aiSuggestSchema } from "@/lib/validators";
 import { suggestReply } from "@/lib/ai";
 import { getAdjacency } from "@/lib/turnover";
 import { badRequest, jsonOk, notFound, tooManyRequests, paymentRequired } from "@/lib/api";
-import { withAuth } from "@/lib/route-guard";
+import { withManage } from "@/lib/route-guard";
 import { rateLimit } from "@/lib/rate-limit";
 import { premiumAllowed } from "@/lib/billing/subscription";
 
-export const POST = withAuth<{ id: string }>(async (session, req, { params }) => {
+export const POST = withManage<{ id: string }>(async (session, req, { params }) => {
   const { id } = await params;
 
   // Paid AI feature: blocked once the trial lapses (dormant-safe until enforced).
