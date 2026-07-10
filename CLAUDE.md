@@ -440,7 +440,14 @@ Kullanıcı "birkaç AI şu 'smart task system' spec'ini yazdı, mantıklı mı?
 çoğaltma riski) → kullanıcı "Faz A'dan başla". **Faz A = SMS'SİZ, additive, opt-in.**
 - **Ne yapar:** escalation eden misafir mesajı fiziksel-operasyon sinyali taşırsa (arıza/eksik/temizlik) kategori
   (mevcut `maintenance/restock/cleaning` tipleri — TASK_TYPE'a DOKUNULMADI) + öncelik + SLA(`dueAt`) ile **deduped**
-  görev açar. Bugün ana kanal-sync yolu (`applyChannelAutoReply`) escalation'da HİÇ görev açmıyordu (sadece "Sorunlu"+mail).
+  görev açar. Eskiden escalation'da HİÇ görev açılmıyordu (sadece "Sorunlu"+mail).
+- **⚠️ İKİ ESCALATION YOLUNA DA BAĞLI (canlıda-doğrulama bulgusu, commit `8022f86`):** `sendDueAlerts` (keyword yolu)
+  `applyChannelAutoReply`'dan (model yolu) ÖNCE çalışır (scheduled-sync.ts:176 vs 182) ve çoğu operasyonel şikayeti
+  o yakalayıp "Sorunlu" işaretler → model-pass status=="problem"'de erken çıkar. İlk sürüm görevi SADECE model-yoluna
+  bağlamıştı → pratikte neredeyse hiç tetiklenmiyordu. Şimdi HER İKİ yolda da (keyword claim sonrası + model escalation)
+  toggle-gated, deduped, best-effort görev açılıyor.
+- **Mail alıcısı (değişmedi):** `alertEmail` varsa o, yoksa org sahibinin (en eski user) giriş maili; **ASLA** env
+  operator adresi (cross-tenant sızıntı önlenir). Görev oluşturma HİÇ mail göndermez — sadece Task satırı yazar.
 - **Opt-in toggle:** `Organization.autoTaskFromMessageEnabled` (default KAPALI, holding-ack precedent'i gibi). Kapalıyken
   davranış BİREBİR aynı. Ayarlar→Otomasyon Tercihleri'nde toggle+açıklama. `applyInboundMessageRules` (dormant webhook
   yolu) BİLİNÇLİ ELLENMEDİ — canlı ürün risksiz; harmonizasyon Faz-A-sonrası opsiyonel.
