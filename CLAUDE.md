@@ -648,8 +648,18 @@ Canlı doğrulanan: checkout ✅ + webhook→abonelik ✅ + checkout kilidi ✅ 
 rate-limit, `billing.plan_change` audit). UI: flag açıkken kartlar "Yükselt/Düşür" → **preview-önce-onayla** paneli (tam prorated tutar
 gösterilir) → apply → webhook plan'ı günceller. Flag KAPALIYKEN davranış AYNI (portal-only, kilitli kartlar). Migration YOK. +15 test.
 **⚙️ KULLANICI:** test için `PADDLE_PLAN_CHANGE_ENABLED=1` (Railway) → upgrade/downgrade'i hesapta doğrula → kalıcı aç.
+**✅ CODEX 3 BOŞLUK KAPATILDI (2026-07-10, migration YOK):** kullanıcı codex raporunu verdi, üçü de kodla teyit + düzeltildi:
+1. **[GÜVENLİK] Checkout org-binding** — webhook `custom_data.organizationId`'ye (CLIENT-supplied) güveniyordu → tampered org başka
+   tenant'a abonelik bağlayabilirdi. Fix: consent route id döndürüyor (`consentId`), client checkout `customData`'ya koyuyor, webhook
+   `resolveOrgId` ÖNCE consent satırından (SESSION-türevli org) çözüyor; ham organizationId sadece legacy fallback. +1 webhook testi
+   (forged org yok sayılıp consent org'una bağlanıyor). CheckoutIntent-nonce'un migration'sız hâli (mevcut CheckoutConsent yeniden kullanıldı).
+2. **[UX/billing] canceled+providerRef kilidi** — `manageable = provider paddle && providerRef` iptal-edilmiş aboneyi de kilitliyordu →
+   lapsed müşteri yeni checkout AÇAMIYORDU. Fix: settings `manageable`'a `status !== "canceled"` eklendi → iptal olan yeniden abone olabilir.
+3. **[satış/hukuk] preview-siz onay** — plan-change preview başarısızken (immediateTotal null) upgrade yine onaylanabiliyordu (tutar
+   gösterilmeden tahsilat). Fix: FAIL-CLOSED → upgrade'de `immediateTotal` yoksa onay butonu disabled + "Tutar alınamadı, tekrar deneyin".
+   Downgrade anında-tahsilat yok, etkilenmez. +2 UI/consent testi. **776 test.**
 **🟠 KALAN P0 (kod, çoğu onay-gerektirmez):** ~~QR per-stay izolasyon~~ ✅ (yukarıda, migration 14) ·
-CheckoutIntent nonce (P4, migration→onay) · staff RBAC daralt (atanan mülk/görev — ürün kararı) ·
+~~CheckoutIntent nonce~~ ✅ (consent-nonce ile kapatıldı, üstte) · staff RBAC daralt (atanan mülk/görev — ürün kararı) ·
 **createReservationTasks dup-task race** (findMany-then-createMany non-atomik; per-org sync-lock zaten seri, gerçek yarış yalnız eşzamanlı
 → tam-güvenli fix `@@unique([reservationId,type])` migration+prod-dedup → diğer ertelenen unique-constraint'lerle ayni sınıf, ŞİMDİ EKLEME).
 **🟡 HIZLI KÜME (çoğu ✅ FAZ-2 A/B'de yapıldı):** ✅A4 2FA fail-closed · ✅A3 TOTP atomik · ✅AI2 KB-cap · ✅R4 foto-unlink · ✅P3 consent
