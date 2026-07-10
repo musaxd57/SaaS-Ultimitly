@@ -2,6 +2,7 @@ import { prisma } from "@/lib/db";
 import { propertySchema, zodFieldErrors } from "@/lib/validators";
 import { badRequest, jsonOk, notFound } from "@/lib/api";
 import { withAuth, withManage } from "@/lib/route-guard";
+import { serializeSupplyProfile } from "@/lib/supply";
 
 export const GET = withAuth<{ id: string }>(async (session, _req, { params }) => {
   const { id } = await params;
@@ -54,6 +55,9 @@ export const PATCH = withManage<{ id: string }>(async (session, req, { params })
       checkOutTime: d.checkOutTime,
       cleaningBufferMinutes: d.cleaningBufferMinutes,
       notes: d.notes === "" ? null : d.notes,
+      // Only touch the profile when the client actually sent one (partial PATCH).
+      supplyProfileJson:
+        d.supplyProfile === undefined ? undefined : serializeSupplyProfile(d.supplyProfile),
     },
   });
   return jsonOk(property);

@@ -199,6 +199,11 @@ model Property {
   checkOutTime         String   @default("11:00")
   cleaningBufferMinutes Int     @default(120)
   notes                String?
+  // Supply/linen prep profile: JSON object { supplyItemKey: qtyPerArrival } the host
+  // fills once (e.g. {"carsaf_takimi":2,"havlu":4,"cop_poseti":2}). Drives the
+  // deterministic prep/shopping plan (arrivals-in-range × this). Null = not set →
+  // the property is nudged in the plan but blocks nothing. Additive & nullable.
+  supplyProfileJson    String?
   icalToken            String?  @unique // secret token for the public iCal export feed
   chatToken            String?  // secret token for the public guest QR concierge chat (random 2×UUID → app-level unique; NOT a DB @unique, which would break `db push` on a populated table)
   chatEnabled          Boolean  @default(false) // per-apartment master switch for the public chat (off by default)

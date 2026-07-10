@@ -117,6 +117,50 @@ export const KB_CATEGORY = optionMap<KbCategory>([
   { value: "general", label: "Genel", tone: "muted" },
 ]);
 
+// --- Supply / linen planning ------------------------------------------------
+// Per-property "profile" the host fills once: how much of each item ONE arrival
+// (turnover) consumes. The prep plan = arrivals-in-range × this profile. Deliberately
+// guest-count-free: a turnover strips every bed regardless of headcount, so linen is
+// driven by the flat, not by how many people stayed. `kind` groups the report
+// (linen = wash/prepare; consumable = restock/buy). Keys are stable (persisted).
+export type SupplyItemKey =
+  | "carsaf_takimi"
+  | "nevresim"
+  | "banyo_havlusu"
+  | "el_havlusu"
+  | "cop_poseti"
+  | "sampuan"
+  | "sabun"
+  | "tuvalet_kagidi"
+  | "kahve"
+  | "cay"
+  | "su"
+  | "bulasik_deterjani";
+
+export interface SupplyItemDef {
+  key: SupplyItemKey;
+  label: string;
+  unit: string;
+  kind: "linen" | "consumable";
+}
+
+export const SUPPLY_ITEMS: SupplyItemDef[] = [
+  { key: "carsaf_takimi", label: "Çarşaf takımı", unit: "takım", kind: "linen" },
+  { key: "nevresim", label: "Nevresim", unit: "adet", kind: "linen" },
+  { key: "banyo_havlusu", label: "Banyo havlusu", unit: "adet", kind: "linen" },
+  { key: "el_havlusu", label: "El havlusu", unit: "adet", kind: "linen" },
+  { key: "cop_poseti", label: "Çöp poşeti", unit: "adet", kind: "consumable" },
+  { key: "sampuan", label: "Şampuan", unit: "adet", kind: "consumable" },
+  { key: "sabun", label: "Sabun", unit: "adet", kind: "consumable" },
+  { key: "tuvalet_kagidi", label: "Tuvalet kağıdı", unit: "rulo", kind: "consumable" },
+  { key: "kahve", label: "Kahve", unit: "paket", kind: "consumable" },
+  { key: "cay", label: "Çay", unit: "paket", kind: "consumable" },
+  { key: "su", label: "Su", unit: "şişe", kind: "consumable" },
+  { key: "bulasik_deterjani", label: "Bulaşık deterjanı", unit: "adet", kind: "consumable" },
+];
+
+export const SUPPLY_ITEM_KEYS = SUPPLY_ITEMS.map((s) => s.key) as [SupplyItemKey, ...SupplyItemKey[]];
+
 // --- Roles ------------------------------------------------------------------
 export type UserRole = "owner" | "manager" | "staff";
 export const USER_ROLE = optionMap<UserRole>([

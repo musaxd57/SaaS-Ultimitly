@@ -8,6 +8,7 @@ import {
   TASK_TYPE,
   KB_CATEGORY,
   REPLY_TONE,
+  SUPPLY_ITEM_KEYS,
 } from "@/lib/constants";
 
 // --- Marketing lead (public "request a demo" form) -------------------------
@@ -62,6 +63,12 @@ export const propertySchema = z.object({
   checkOutTime: z.string().regex(/^\d{2}:\d{2}$/, "SS:DD formatında olmalı").default("11:00"),
   cleaningBufferMinutes: z.coerce.number().int().min(0).max(1440).default(120),
   notes: z.string().max(5000).optional().or(z.literal("")),
+  // Supply/linen prep profile: qty-per-arrival for known items only. Partial (any
+  // subset of keys), each 0–999. Unknown keys are rejected so a bad client can't
+  // stuff arbitrary data into the JSON column.
+  supplyProfile: z
+    .record(z.enum(SUPPLY_ITEM_KEYS), z.coerce.number().int().min(0).max(999))
+    .optional(),
 });
 export type PropertyInput = z.infer<typeof propertySchema>;
 

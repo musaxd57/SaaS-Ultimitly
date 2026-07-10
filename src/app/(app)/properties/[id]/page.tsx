@@ -10,6 +10,9 @@ import { Badge } from "@/components/ui/badge";
 import { LinkButton } from "@/components/ui/link-button";
 import { DeleteButton } from "@/components/delete-button";
 import { PropertyForm } from "@/components/properties/property-form";
+import { SupplyProfileForm } from "@/components/properties/supply-profile-form";
+import { parseSupplyProfile } from "@/lib/supply";
+import { PackageOpen } from "lucide-react";
 import { CalendarFeed } from "@/components/properties/calendar-feed";
 import { CalendarSources } from "@/components/properties/calendar-sources";
 import { GuestChatSettings } from "@/components/properties/guest-chat-settings";
@@ -87,6 +90,21 @@ export default async function PropertyDetailPage({
                 cleaningBufferMinutes: property.cleaningBufferMinutes,
                 notes: property.notes ?? "",
               }}
+            />
+          </CardContent>
+        </Card>
+
+        <Card className="lg:col-span-2">
+          <CardHeader>
+            <CardTitle className="flex items-center gap-2 text-base">
+              <PackageOpen className="size-4 text-muted-foreground" /> Malzeme Profili
+            </CardTitle>
+          </CardHeader>
+          <CardContent>
+            <SupplyProfileForm
+              propertyId={property.id}
+              canManage={canManage}
+              initial={parseSupplyProfile(property.supplyProfileJson)}
             />
           </CardContent>
         </Card>
