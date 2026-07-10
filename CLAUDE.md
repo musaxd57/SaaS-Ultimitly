@@ -694,12 +694,57 @@ planCode↔priceId · ✅QR BILLING_ENFORCED tutarlılığı · ✅trialing-null
 Railway backup/PITR · object-storage (foto) · KVKK-DPA · landing over-promise kopya (cancel-anytime/KVKK/"asla otomatik yanıtlamaz") ·
 CI: migration-chain+next build+lint+E2E kapıları, Railway-deploy CI'ı beklesin · DEPLOYMENT.md/README bayat · durable queue/outbox.
 
+## ✅ CODEX FOLLOW-UP TAMAMLANDI (2026-07-10 gece — B3 + A1, migration YOK)
+Kullanıcının son Codex-listesi kapatıldı. **797 test yeşil · typecheck temiz · next build temiz.** İki commit + push (origin senkron):
+- **[B3 — `afecf74`] Plan-change previewToken (HMAC bağlama):** UI apply'ı immediateTotal yokken kilitliyordu AMA
+  `POST /api/billing/plan-change` doğrudan/çağrılabiliyordu (blind/replay apply → anında tahsilat riski). Artık
+  `/plan-preview` kısa ömürlü **HMAC token** basıyor (`{org, priceId, mode}` + 10dk exp, `AUTH_SECRET` ile); `/plan-change`
+  bunu ZORUNLU doğruluyor + resolved change'e (org+hedef fiyat+mode) karşı yeniden kontrol ediyor. Blind apply / cross-plan
+  reuse / cross-tenant reuse / expiry-replay hepsi kapandı. `signPlanChangeToken`/`verifyPlanChangeToken` @ `plan-change.ts`
+  (timingSafeEqual). +6 test (no-token/wrong-price/wrong-org/forged-HMAC/round-trip/token-present).
+- **[A1 — `12b6613`] `requireAuth` capability fail-closed:** soft-nav'da `(app)` layout yeniden çalışmıyor → o render'da tek
+  kapı `requireAuth`. DB-yetkili rolü tazeliyor + epoch zorluyor AMA catch'i (geçici DB hatası) bayat JWT rolünü KORUYORDU →
+  yeni-düşürülmüş/çalınan-yükseltilmiş token DB toparlanana kadar owner/manager UI + role-scoped okuma render edebiliyordu.
+  Çözüm: oturum fail-OPEN kalır (DB blip'te toplu-logout YOK — imza geçerli) ama **capability fail-CLOSED**: rol okunamazsa
+  en-az-yetkili `"staff"`e clamp'lenir (manager UI + role-scoped okuma DB dönene kadar gizli). Super-admin email+env tabanlı →
+  etkilenmez. Yazma yolu zaten fail-closed (`requireSession` + `withManage`). +6 unit test (fail-mode sözleşmesi).
+- **[flaky test düzeltmesi — `afecf74`]** `auto-reply-channel` checkout-günü sınır testi `departureDate`'i UTC `startOfDay`
+  ile kuruyordu ama kapı İstanbul gün-başını kullanıyor → 21:00–24:00 UTC penceresinde patlıyordu. İstanbul gece-yarısına göre
+  yeniden kuruldu (deterministik).
+- **[✅ KODLA DOĞRULANIP REDDEDİLDİ — CheckoutConsent single-use nonce]** Codex "consumedAt/expiresAt yok, reuse engellenmiyor"
+  dedi. **expiresAt zaten VAR** (createdAt + 24h TTL, `resolveOrgId`) + **priceId-match** + **org SESSION-türevli** (saldırgan
+  yalnız KENDİ org'una consent açabilir → cross-tenant binding imkânsız). **single-use (consumedAt) BİLİNÇLİ EKLENMEDİ:**
+  Paddle `transaction.completed` ve `subscription.created`'ı AYNI consentId ile AYRI + SIRASIZ gönderir; ilk gelen event
+  consent'i tüketirse diğeri düşer → `transaction` önce tüketirse `subscription.created` null'a düşüp DROP olur → **müşteri öder
+  ama entitlement almaz (para-akışı kırılır)**. Mevcut stateless TTL+priceId+session-org yaklaşımı sırasız çoklu-event'e KASITLI
+  dayanıklı. Güvenlik hedefi (cross-tenant yok, replay sınırlı) zaten karşılanıyor. Migration/webhook değişikliği GEREKMEZ.
+
+## 📋 YARIN DEVAM — BACKLOG (kullanıcı: "yoruldum, .md'ye yaz, yarın yaparız")
+**Bu oturumda BİLEREK BAŞLANMADI (kullanıcı direktifi: yeni büyük parça/migration YOK):**
+- **[reliability/BÜYÜK] Outbound idempotency / outbox:** `automation.ts` manuel-reply idempotency (claim-then-send auto-reply'da
+  var, manuelde yok) + outbound `externalId`-null dedup ("canlıda doğrula"). Tam çözüm `OutboundMessage`/`DeliveryAttempt`
+  outbox tablosu = migration + para/mesaj-akışı → kullanıcı onayı + birlikte test şart.
+- **[altyapı/BÜYÜK] Object storage (foto):** task photoUrl şu an local `/uploads` (ephemeral konteynerde kaybolur) → S3/R2. Migration yok ama env+SDK.
+- **[altyapı/OPS] Railway backup/PITR** (kullanıcı/ops — kod değil) · **durable queue/outbox** · **boot-time env-assertion** (eksik kritik env'de erken fail).
+- **[webhook D1/D2] invoice dedup non-atomic** (findFirst+create; boş tabloda `@@unique([provider,providerRef])` güvenli AMA dolu
+  tabloya @unique = boot-fail → önce prod-dedup ŞART, ayrı elle-doğrulanan migration) + occurred_at null/atomic concurrency race.
+- **[sync-low] `createReservationTasks` dup-task race** (findMany-then-createMany non-atomik; per-org sync-lock seri → gerçek yarış
+  yalnız eşzamanlı; tam-fix `@@unique([reservationId,type])` = yine önce prod-dedup) · deep-cadence multi-replica (module var → SystemLock'a taşı).
+- **[güvenlik-latent] iCal DNS-rebinding / 302→internal** (redirect:"manual" + isPrivateHost string-check VAR; DNS-resolve-to-private için dispatcher/lookup gerek) · QR per-guest credential (per-stay device binding VAR; per-misafir auth ayrı iş).
+- **[AI-safety — golden gerekli] `passesAutoReplySafetyGate` yalnız `last.body` tarıyor;** geçmiş+misafir-adı (Airbnb-kontrollü) enjeksiyonu kapıyı atlayabilir → gate'i geçmiş+ad'a genişlet (golden senaryo ŞART).
+- **[KVKK] erasure yalnız `custom_data.organizationId`'li webhook'ları redakte ediyor;** `customer.updated` (email/ad/adres) bu tag'i taşımaz → customer_id ile de eşleştir.
+- **[nit/kopya] `#46 legalTextHash`** (opsiyonel, legalVersion yanına sha256) · account-card error-first→field-first · landing over-promise kopya · getMonthlyReport UTC-ay penceresi · CI kapıları (migration-chain+build+lint+E2E).
+- **[CI GAP hatırlatma] test harness `prisma db push` kullanıyor (migration DEĞİL)** → migration-chain drift'i testte yakalanmaz; migration eklerken taze Postgres'te 00→N `migrate deploy` + sıfır-drift ELLE doğrula (CLAUDE.md protokolü).
+**[OPS/LEGAL — kullanıcı/avukat, kod değil]:** SELLER bilgisi (`legal-entity.ts` [parantez]) · KVKK-DPA (OpenAI ABD aktarım) · RESEND DNS (SPF/DKIM/DMARC) · Paddle küçük gerçek ödeme birlikte-test · `PADDLE_PLAN_CHANGE_ENABLED=1` ile upgrade/downgrade'i hesapta doğrula.
+
 ## Durum
-**744 test yeşil, typecheck temiz, next build temiz, migrate deploy canlıda doğrulanmış.** 15 migration
+**797 test yeşil, typecheck temiz, next build temiz, migrate deploy canlıda doğrulanmış.** 15 migration
 (00_init→14_guest_stay_chat_binding) sıfır-drift (taze Postgres'te doğrulandı). Son iş: 40-ajan lansman denetimi →
 FAZ-1 (7 bulgu) + FAZ-2 A (T1 checklist UI · sync cursor · oturum DB-yetkili · 2FA/TOTP · foto-unlink · KB-cap · take · prompt-sanitize)
 + FAZ-2 B (iCal SSRF+resurrection · consent planCode↔priceId · billing trialing-null+founder guard · photoUrl scheme · QR gate tutarlılığı)
-+ **QR per-stay device binding (migration 14, first-scan claim + rotasyonlu cookie)**. **⏳ SIRADA: Paddle upgrade/downgrade (ORTAK — sandbox test).** **KVKK sertleştirme batch'i (5 düzeltme,
++ **QR per-stay device binding (migration 14, first-scan claim + rotasyonlu cookie)**
++ **Codex follow-up gecesi: B3 plan-change previewToken HMAC (`afecf74`) + A1 requireAuth capability fail-closed (`12b6613`) + flaky-test fix; CheckoutConsent single-use KODLA-REDDEDİLDİ (para-akışı kırardı).**
+**⏳ SIRADA (yarın): backlog — outbound outbox/idempotency · object storage · webhook D1/D2 · AI-gate geçmiş+ad genişletme (yukarıdaki BACKLOG bölümü).** **KVKK sertleştirme batch'i (5 düzeltme,
 migration YOK — mevcut alanlara/koda oturdu): Sentry redaksiyon · retention resurrection guard · Paddle webhook PII
 minimize · dashboard "bu gece kalan" · outbound gövde ad-redaksiyonu.** Branch =
 `claude/great-edison-3zqpZ`, origin ile senkron. 5-tur derin denetim (loop `197ace29`) yapıldı: tur-1..5 =
