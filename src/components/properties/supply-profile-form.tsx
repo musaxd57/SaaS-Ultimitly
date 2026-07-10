@@ -2,7 +2,7 @@
 
 import { useState } from "react";
 import { useRouter } from "next/navigation";
-import { Loader2, Check } from "lucide-react";
+import { Loader2, Check, Copy } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { SUPPLY_ITEMS } from "@/lib/constants";
 
@@ -29,10 +29,52 @@ export function SupplyProfileForm({
   });
   const [busy, setBusy] = useState(false);
   const [saved, setSaved] = useState(false);
+  const [applied, setApplied] = useState<number | null>(null);
   const [error, setError] = useState<string | null>(null);
 
   const linen = SUPPLY_ITEMS.filter((i) => i.kind === "linen");
   const consumables = SUPPLY_ITEMS.filter((i) => i.kind === "consumable");
+
+  /** Current form values as a { key: qty>0 } object. */
+  function currentProfile(): Record<string, number> {
+    const out: Record<string, number> = {};
+    for (const [k, v] of Object.entries(qty)) {
+      const n = Math.floor(Number(v));
+      if (Number.isFinite(n) && n > 0) out[k] = n;
+    }
+    return out;
+  }
+
+  // "Fill one, copy to the rest": push these values to EVERY property in the org
+  // (overwrites their profiles) so a host with many identical flats sets it once.
+  async function applyToAll() {
+    if (busy) return;
+    if (!confirm("Bu profil TÜM dairelere uygulanacak ve mevcut profillerinin yerini alacak. Emin misiniz?")) {
+      return;
+    }
+    setBusy(true);
+    setError(null);
+    setSaved(false);
+    setApplied(null);
+    try {
+      const res = await fetch("/api/properties/bulk-supply-profile", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ supplyProfile: currentProfile() }),
+      });
+      const data = await res.json().catch(() => ({}));
+      if (res.ok) {
+        setApplied(typeof data.updated === "number" ? data.updated : null);
+        router.refresh();
+      } else {
+        setError(data.error ?? "Uygulanamadı.");
+      }
+    } catch {
+      setError("Bağlantı hatası.");
+    } finally {
+      setBusy(false);
+    }
+  }
 
   async function save(e: React.FormEvent) {
     e.preventDefault();
@@ -40,6 +82,7 @@ export function SupplyProfileForm({
     setBusy(true);
     setError(null);
     setSaved(false);
+    setApplied(null);
     // Send only positive quantities; empty/0 clears the item.
     const supplyProfile: Record<string, number> = {};
     for (const [k, v] of Object.entries(qty)) {
@@ -109,14 +152,22 @@ export function SupplyProfileForm({
       {error ? <p className="text-sm text-destructive">{error}</p> : null}
 
       {canManage ? (
-        <div className="flex items-center gap-3">
+        <div className="flex flex-wrap items-center gap-3">
           <Button type="submit" disabled={busy}>
             {busy ? <Loader2 className="size-4 animate-spin" /> : <Check className="size-4" />}
             Kaydet
           </Button>
+          <Button type="button" variant="outline" disabled={busy} onClick={applyToAll}>
+            <Copy className="size-4" /> Tüm dairelere uygula
+          </Button>
           {saved ? (
             <span className="inline-flex items-center gap-1 text-sm font-medium text-emerald-600">
               <Check className="size-4" /> Kaydedildi
+            </span>
+          ) : null}
+          {applied !== null ? (
+            <span className="inline-flex items-center gap-1 text-sm font-medium text-emerald-600">
+              <Check className="size-4" /> {applied} daireye uygulandı
             </span>
           ) : null}
         </div>
