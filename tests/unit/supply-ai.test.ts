@@ -29,20 +29,20 @@ describe("supply-ai", () => {
     expect(supplyAiConfigured()).toBe(true);
   });
 
-  it("returns null (no network) when unconfigured", async () => {
+  it("does not call the network when unconfigured", async () => {
     vi.stubEnv("SUPPLY_AI_API_KEY", "");
     const fetchMock = vi.fn();
     vi.stubGlobal("fetch", fetchMock);
-    expect(await generateSupplySummary(basePlan)).toBeNull();
+    expect(await generateSupplySummary(basePlan)).toEqual({ ok: false, reason: "not_configured" });
     expect(fetchMock).not.toHaveBeenCalled();
   });
 
-  it("returns null (no network) for an empty plan even when configured", async () => {
+  it("does not call the network for an empty plan even when configured", async () => {
     vi.stubEnv("SUPPLY_AI_API_KEY", "sk-test");
     const fetchMock = vi.fn();
     vi.stubGlobal("fetch", fetchMock);
     const empty = { ...basePlan, linen: [], consumables: [] };
-    expect(await generateSupplySummary(empty)).toBeNull();
+    expect(await generateSupplySummary(empty)).toEqual({ ok: false, reason: "empty_plan" });
     expect(fetchMock).not.toHaveBeenCalled();
   });
 
@@ -71,7 +71,7 @@ describe("supply-ai", () => {
     vi.stubGlobal("fetch", fetchMock);
 
     const out = await generateSupplySummary(basePlan);
-    expect(out).toBe("Bu hafta çöp poşeti alman iyi olur.");
+    expect(out).toEqual({ ok: true, text: "Bu hafta çöp poşeti alman iyi olur." });
 
     const [url, init] = fetchMock.mock.calls[0];
     expect(url).toBe("https://api.akashml.com/v1/chat/completions");
@@ -82,9 +82,15 @@ describe("supply-ai", () => {
     expect(body).not.toMatch(/guest|misafir adı|@|\+90/i);
   });
 
-  it("returns null on a non-OK upstream response", async () => {
+  it("returns a redacted reason on a non-OK upstream response (diagnosable)", async () => {
     vi.stubEnv("SUPPLY_AI_API_KEY", "sk-test");
-    vi.stubGlobal("fetch", vi.fn().mockResolvedValue(new Response("nope", { status: 500 })));
-    expect(await generateSupplySummary(basePlan)).toBeNull();
+    vi.stubEnv("SUPPLY_AI_MODEL", "zai-org/GLM-5.2");
+    vi.stubGlobal("fetch", vi.fn().mockResolvedValue(new Response("model not found", { status: 404 })));
+    const out = await generateSupplySummary(basePlan);
+    expect(out.ok).toBe(false);
+    if (!out.ok) {
+      expect(out.reason).toContain("HTTP 404");
+      expect(out.reason).toContain("zai-org/GLM-5.2");
+    }
   });
 });

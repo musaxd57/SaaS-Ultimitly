@@ -690,6 +690,8 @@ Check-in saati: ${property.checkInTime}
 Check-out saati: ${property.checkOutTime}
 
 UYARI: Bu alanlardan herhangi biri "(belirtilmemiş)" ise cevabında o bilgiyi YAZMA.
+ÖNCELİK: Check-in/check-out SAATİ için YUKARIDAKİ mülk bilgisi esastır — bilgi tabanında farklı bir
+saat geçse bile bu saatleri kullan (saat için tek doğru kaynak burasıdır).
 
 ════════════════════════════════════════════════════
 REZERVASYON

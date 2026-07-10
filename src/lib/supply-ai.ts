@@ -1,6 +1,7 @@
 import "server-only";
 
 import type { PrepPlan } from "@/lib/supply";
+import { reportError, redactSensitive } from "@/lib/report-error";
 
 // Optional, cosmetic AI summary for the prep/shopping plan ("bu hafta çöp poşeti
 // al" tarzı). OpenAI-COMPATIBLE (works with akashML / any /v1/chat/completions):
@@ -13,6 +14,10 @@ import type { PrepPlan } from "@/lib/supply";
 export function supplyAiConfigured(): boolean {
   return Boolean(process.env.SUPPLY_AI_API_KEY?.trim());
 }
+
+export type SupplySummaryResult =
+  | { ok: true; text: string }
+  | { ok: false; reason: string };
 
 /** Compact, PII-free data block describing the plan for the model. */
 function planToText(plan: PrepPlan): string {
@@ -46,20 +51,22 @@ const SYSTEM_PROMPT =
   "düz cümle yaz. Kişisel veri yoktur, ekleme.";
 
 /**
- * Generate a short natural-language summary of the prep plan. Returns null when
- * not configured or on any error/timeout (the caller shows the deterministic list
- * regardless — this is purely additive polish). Never throws.
+ * Generate a short natural-language summary of the prep plan via an OpenAI-
+ * compatible endpoint. Returns a discriminated result so the caller can surface a
+ * (redacted) failure reason for debugging — a wrong model id / key / URL is the
+ * usual cause. Never throws.
  */
-export async function generateSupplySummary(plan: PrepPlan): Promise<string | null> {
+export async function generateSupplySummary(plan: PrepPlan): Promise<SupplySummaryResult> {
   const key = process.env.SUPPLY_AI_API_KEY?.trim();
-  if (!key) return null;
-  if (plan.linen.length === 0 && plan.consumables.length === 0) return null;
+  if (!key) return { ok: false, reason: "not_configured" };
+  if (plan.linen.length === 0 && plan.consumables.length === 0) return { ok: false, reason: "empty_plan" };
 
   const base = (process.env.SUPPLY_AI_BASE_URL?.trim() || "https://api.akashml.com/v1").replace(/\/$/, "");
   const model = process.env.SUPPLY_AI_MODEL?.trim() || "zai-org/GLM-5.2";
+  const url = `${base}/chat/completions`;
 
   try {
-    const res = await fetch(`${base}/chat/completions`, {
+    const res = await fetch(url, {
       method: "POST",
       headers: { "Content-Type": "application/json", Authorization: `Bearer ${key}` },
       body: JSON.stringify({
@@ -75,11 +82,21 @@ export async function generateSupplySummary(plan: PrepPlan): Promise<string | nu
       // upstream can't wedge the request.
       signal: AbortSignal.timeout(30000),
     });
-    if (!res.ok) return null;
+
+    if (!res.ok) {
+      const bodySnippet = redactSensitive((await res.text().catch(() => "")).slice(0, 300));
+      const reason = `HTTP ${res.status} (model=${model}) ${bodySnippet}`.trim();
+      void reportError("supply-ai", new Error(reason));
+      return { ok: false, reason };
+    }
+
     const data = (await res.json()) as { choices?: { message?: { content?: string } }[] };
     const text = data?.choices?.[0]?.message?.content?.trim();
-    return text && text.length > 0 ? text : null;
-  } catch {
-    return null;
+    if (!text) return { ok: false, reason: `boş yanıt (model=${model})` };
+    return { ok: true, text };
+  } catch (e) {
+    const msg = e instanceof Error ? e.message : String(e);
+    void reportError("supply-ai", e);
+    return { ok: false, reason: redactSensitive(`bağlantı hatası: ${msg}`) };
   }
 }

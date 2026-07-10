@@ -33,12 +33,14 @@ export const POST = withAuth(async (session, req) => {
     return jsonOk({ summary: null, empty: true });
   }
 
-  const summary = await generateSupplySummary(plan);
-  if (!summary) {
+  const result = await generateSupplySummary(plan);
+  if (!result.ok) {
+    // Surface a short (redacted) reason so a misconfigured model id / key / URL
+    // is diagnosable from the Network tab, not just a blank 502.
     return NextResponse.json(
-      { error: "Özet oluşturulamadı, lütfen tekrar deneyin." },
+      { error: "Özet oluşturulamadı, lütfen tekrar deneyin.", detail: result.reason },
       { status: 502 },
     );
   }
-  return jsonOk({ summary });
+  return jsonOk({ summary: result.text });
 });
