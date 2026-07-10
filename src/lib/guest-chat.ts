@@ -1,3 +1,4 @@
+import { createHash, timingSafeEqual } from "crypto";
 import { prisma } from "@/lib/db";
 import { daysUntilDate } from "@/lib/utils";
 import { premiumAllowed } from "@/lib/billing/subscription";
@@ -53,6 +54,89 @@ function looksLikeSecret(text: string): boolean {
 /** Unguessable per-apartment chat token — two UUIDs, ~256-bit (icalToken style). */
 export function generateChatToken(): string {
   return (crypto.randomUUID() + crypto.randomUUID()).replace(/-/g, "");
+}
+
+// ---------------------------------------------------------------------------
+// Per-stay device binding (fixes the fixed-physical-QR history leak).
+//
+// The QR is a FIXED, physically-posted bearer credential, so it cannot tell one
+// person from another: a past guest / cleaner who photographed it could scan it
+// during the NEXT guest's stay and read that guest's live chat history. The fix
+// is first-scan device binding: the FIRST device to open the chat during a stay
+// mints a per-stay secret (kept in an httpOnly cookie); only that device sees
+// the history / can send. Any other device scanning the same QR that stay gets
+// "mismatch" → no history, no send. Rotates automatically — each reservation
+// starts unbound, so a secret captured in one stay is useless the next.
+// ---------------------------------------------------------------------------
+
+/** Fresh per-stay device secret — two UUIDs, ~256-bit (goes into the cookie). */
+export function generateStaySecret(): string {
+  return (crypto.randomUUID() + crypto.randomUUID()).replace(/-/g, "");
+}
+
+function hashStaySecret(secret: string): string {
+  return createHash("sha256").update(secret).digest("hex");
+}
+
+/** Constant-time compare of two equal-length hex digests (defence in depth). */
+function safeEqualHex(a: string, b: string): boolean {
+  if (a.length !== b.length) return false;
+  try {
+    return timingSafeEqual(Buffer.from(a, "hex"), Buffer.from(b, "hex"));
+  } catch {
+    return false;
+  }
+}
+
+export type StayBinding =
+  | { status: "bound"; secret: string } // we just claimed this stay → caller sets the cookie
+  | { status: "match" } //                 the presented secret matches the bound device
+  | { status: "mismatch" }; //             a DIFFERENT device already holds this stay
+
+/**
+ * Claim-or-verify a stay's chat for the calling device. Unbound → mint a secret
+ * and atomically claim the stay (returns it so the route can set the cookie).
+ * Already bound → "match" iff the presented cookie secret is the one that claimed
+ * it, else "mismatch". The claim is a conditional updateMany (only succeeds while
+ * still unbound), so two devices racing the first scan can't both win — mirrors
+ * the TOTP-burn / lock-acquire pattern used elsewhere.
+ */
+export async function bindOrCheckStay(
+  reservationId: string,
+  presentedSecret: string | null | undefined,
+): Promise<StayBinding> {
+  const row = await prisma.reservation.findUnique({
+    where: { id: reservationId },
+    select: { chatBoundHash: true },
+  });
+  if (!row) return { status: "mismatch" };
+
+  if (row.chatBoundHash) {
+    if (presentedSecret && safeEqualHex(hashStaySecret(presentedSecret), row.chatBoundHash)) {
+      return { status: "match" };
+    }
+    return { status: "mismatch" };
+  }
+
+  // Unbound → mint a FRESH secret (rotation: never reuse a previous stay's cookie
+  // as this stay's binding) and claim atomically.
+  const secret = generateStaySecret();
+  const claimed = await prisma.reservation.updateMany({
+    where: { id: reservationId, chatBoundHash: null },
+    data: { chatBoundHash: hashStaySecret(secret), chatBoundAt: new Date() },
+  });
+  if (claimed.count === 1) return { status: "bound", secret };
+
+  // Lost the first-scan race: another device bound between our read and write.
+  // Re-check the now-set hash against whatever this device holds.
+  const now = await prisma.reservation.findUnique({
+    where: { id: reservationId },
+    select: { chatBoundHash: true },
+  });
+  if (now?.chatBoundHash && presentedSecret && safeEqualHex(hashStaySecret(presentedSecret), now.chatBoundHash)) {
+    return { status: "match" };
+  }
+  return { status: "mismatch" };
 }
 
 const APP_TZ = "Europe/Istanbul";

@@ -1,8 +1,8 @@
-import { type NextRequest } from "next/server";
+import { type NextRequest, type NextResponse } from "next/server";
 import { prisma } from "@/lib/db";
 import { suggestReply } from "@/lib/ai";
 import { classifyFallback, detectPromptInjection, detectRiskType } from "@/lib/ai/fallback";
-import { resolveGuestChat } from "@/lib/guest-chat";
+import { resolveGuestChat, bindOrCheckStay } from "@/lib/guest-chat";
 import { jsonOk, badRequest, tooManyRequests } from "@/lib/api";
 import { rateLimit, clientIp } from "@/lib/rate-limit";
 
@@ -32,6 +32,38 @@ const ESCALATE_INTENTS = new Set(["complaint", "refund", "early_departure", "hum
 const DAILY_AI_CAP = 200;
 
 const notFound = () => new Response("Not found", { status: 404 });
+
+// Per-stay device-binding cookie: an httpOnly secret unique to the FIRST device
+// that opened the chat this stay, scoped per apartment. Read from the raw Cookie
+// header (works for both Request and NextRequest).
+const stayCookieName = (propertyId: string) => `gcs_${propertyId}`;
+
+function readCookie(req: Request, name: string): string | null {
+  const header = req.headers.get("cookie");
+  if (!header) return null;
+  for (const part of header.split(";")) {
+    const eq = part.indexOf("=");
+    if (eq === -1) continue;
+    if (part.slice(0, eq).trim() === name) return part.slice(eq + 1).trim();
+  }
+  return null;
+}
+
+function setStayCookie(res: NextResponse, name: string, secret: string, departureDate: Date): void {
+  // Cover the whole stay (+36h grace), min 1h, capped at 60d. The server also
+  // gates on an active stay, so this lifetime is just hygiene, not the control.
+  const ms = departureDate.getTime() + 36 * 3_600_000 - Date.now();
+  const maxAge = Math.min(60 * 86_400, Math.max(3_600, Math.floor(ms / 1000)));
+  res.cookies.set({
+    name,
+    value: secret,
+    httpOnly: true,
+    secure: process.env.NODE_ENV === "production",
+    sameSite: "lax",
+    path: "/",
+    maxAge,
+  });
+}
 
 /**
  * Real-time public chat gate. Unlike the Airbnb auto-reply gate (whose failure
@@ -129,6 +161,15 @@ export async function GET(req: NextRequest, { params }: { params: Promise<{ toke
   if (!ctx) return notFound();
   if (!ctx.open || !ctx.activeReservation) return jsonOk({ open: false, messages: [] });
 
+  // Per-stay device binding: the FIRST device to open the chat claims it. A
+  // different device scanning the same fixed physical QR gets NO history — so a
+  // past guest / cleaner holding the QR photo can't read the current guest's chat.
+  const cookieName = stayCookieName(ctx.property.id);
+  const binding = await bindOrCheckStay(ctx.activeReservation.id, readCookie(req, cookieName));
+  if (binding.status === "mismatch") {
+    return jsonOk({ open: true, boundElsewhere: true, messages: [] });
+  }
+
   const marker = `qr-chat:${ctx.property.id}:${ctx.activeReservation.id}`;
   const convo = await prisma.conversation.findFirst({
     where: { propertyId: ctx.property.id, externalReservationId: marker },
@@ -145,7 +186,9 @@ export async function GET(req: NextRequest, { params }: { params: Promise<{ toke
     role: m.direction === "inbound" ? "guest" : m.senderName === "Lixus AI" ? "ai" : "host",
     text: m.body,
   }));
-  return jsonOk({ open: true, messages });
+  const out = jsonOk({ open: true, messages });
+  if (binding.status === "bound") setStayCookie(out, cookieName, binding.secret, ctx.activeReservation.departureDate);
+  return out;
 }
 
 export async function POST(req: NextRequest, { params }: { params: Promise<{ token: string }> }) {
@@ -184,6 +227,26 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ tok
     return jsonOk({ closed: true, reply: "Şu an aktif bir konaklama görünmüyor; sohbet kapalı." });
   }
 
+  // Per-stay device binding: the FIRST device to open the chat claims it. A
+  // different device scanning the same fixed physical QR can't read or send —
+  // so a past guest / cleaner with the QR photo can't hijack the current stay.
+  const cookieName = stayCookieName(ctx.property.id);
+  const binding = await bindOrCheckStay(res.id, readCookie(req, cookieName));
+  if (binding.status === "mismatch") {
+    return jsonOk({
+      boundElsewhere: true,
+      reply:
+        "Bu konaklama için sohbet başka bir cihazda başlatıldı. Yardım için lütfen ev sahibinizle iletişime geçin.",
+    });
+  }
+  // Set the stay cookie on whichever answer we return below (only when we just
+  // claimed the stay for this device).
+  const finalize = (payload: Record<string, unknown>) => {
+    const out = jsonOk(payload);
+    if (binding.status === "bound") setStayCookie(out, cookieName, binding.secret, res.departureDate);
+    return out;
+  };
+
   // Per-apartment DAILY cap on PAID AI calls — DURABLE (survives restarts, shared
   // across replicas), so one bearer token can't re-burn the cap every boot the way
   // the in-memory limiter allowed. Atomic increment, then check. Over cap →
@@ -198,7 +261,7 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ tok
   if (usage.count > DAILY_AI_CAP) {
     const reply = "Sorunuzu ev sahibine ilettim; en kısa sürede size dönecek.";
     await recordGuestChat(ctx.property.id, res, message, reply, true);
-    return jsonOk({ escalated: true, reply });
+    return finalize({ escalated: true, reply });
   }
 
   const org = await prisma.organization.findUnique({
@@ -236,5 +299,5 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ tok
     ? "Bu sorunuzu ev sahibine ilettim; en kısa sürede size dönecek."
     : result.reply;
   await recordGuestChat(ctx.property.id, res, message, reply, escalate);
-  return jsonOk({ escalated: escalate, reply });
+  return finalize({ escalated: escalate, reply });
 }

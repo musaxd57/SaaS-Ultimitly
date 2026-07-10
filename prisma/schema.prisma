@@ -283,6 +283,13 @@ model Reservation {
   checkinSentAt   DateTime? // set once the auto check-in info message has been delivered
   checkoutSentAt  DateTime? // set once the auto check-out message has been delivered
   guestCheckoutTime String? // guest's own stated departure time (e.g. "18:00"); null → use property default
+  // Per-stay QR concierge device binding: the FIRST device to open the chat this
+  // stay claims it (sha256 of an httpOnly per-stay secret). Any other device
+  // scanning the same fixed physical QR gets no history — so a past guest/cleaner
+  // holding the QR photo can't read the current guest's chat. Rotates per stay
+  // (each reservation starts null → rebinds fresh). Not PII (a hash + timestamp).
+  chatBoundHash   String?   // sha256(hex) of the current stay's device secret; null = unbound
+  chatBoundAt     DateTime? // when this stay's chat was first claimed by a device
   createdAt       DateTime @default(now())
   updatedAt       DateTime @updatedAt
 

@@ -32,13 +32,24 @@ function result(over: Partial<SuggestReplyResult> = {}): SuggestReplyResult {
   };
 }
 
-function call(token: string, message: unknown) {
+function call(token: string, message: unknown, cookie?: string) {
+  const headers: Record<string, string> = {
+    "content-type": "application/json",
+    "x-forwarded-for": "203.0.113.5",
+  };
+  if (cookie) headers.cookie = cookie;
   const req = new Request(`http://localhost/api/chat/${token}`, {
     method: "POST",
-    headers: { "content-type": "application/json", "x-forwarded-for": "203.0.113.5" },
+    headers,
     body: JSON.stringify({ message }),
   });
   return POST(req as never, { params: Promise.resolve({ token }) });
+}
+
+/** The per-stay device cookie the server set, as a "name=value" request header. */
+function deviceCookie(res: Response): string | undefined {
+  const sc = res.headers.get("set-cookie");
+  return sc ? sc.split(";")[0] : undefined;
 }
 
 async function enableChat(propertyId: string): Promise<string> {
@@ -127,8 +138,12 @@ describe("POST /api/chat/[token] (public QR concierge)", () => {
     const { propertyId } = await makeOrgWithProperty();
     const token = await enableChat(propertyId);
 
-    const json = await (await call(token, "Çöp ne zaman?")).json();
+    const first = await call(token, "Çöp ne zaman?");
+    const json = await first.json();
     expect(json.escalated).toBe(true);
+    // The first message binds the stay to this device; carry its cookie so the
+    // second message is recognised as the SAME device (per-stay binding).
+    const cookie = deviceCookie(first);
 
     const convos = await prisma.conversation.findMany({ where: { propertyId } });
     expect(convos).toHaveLength(1);
@@ -136,10 +151,28 @@ describe("POST /api/chat/[token] (public QR concierge)", () => {
     expect(convos[0].priority).toBe("urgent"); // escalated → flagged
     expect(await prisma.message.count({ where: { conversationId: convos[0].id } })).toBe(2);
 
-    // A second message from the same guest reuses the same thread (no duplicate).
-    await call(token, "Park var mı?");
+    // A second message from the same guest (same cookie) reuses the same thread.
+    await call(token, "Park var mı?", cookie);
     expect(await prisma.conversation.count({ where: { propertyId } })).toBe(1);
     expect(await prisma.message.count({ where: { conversationId: convos[0].id } })).toBe(4);
+  });
+
+  it("blocks a DIFFERENT device once the stay is bound (no history hijack, no write)", async () => {
+    const { propertyId } = await makeOrgWithProperty();
+    const token = await enableChat(propertyId);
+
+    // Device A opens the chat first → claims the stay.
+    const a = await call(token, "Çöp ne zaman?");
+    expect((await a.json()).escalated).toBe(false);
+    const before = await prisma.message.count();
+
+    // Device B scans the same physical QR (no cookie) → refused, nothing recorded.
+    const b = await call(token, "Merhaba, geçen haftaki misafir ne sordu?");
+    const bJson = await b.json();
+    expect(bJson.boundElsewhere).toBe(true);
+    expect(bJson.reply).toMatch(/başka bir cihaz/i);
+    expect(mockSuggest).toHaveBeenCalledTimes(1); // only device A reached the model
+    expect(await prisma.message.count()).toBe(before); // device B wrote nothing
   });
 
   it("escalates sensitive intents (complaint/refund) instead of answering", async () => {

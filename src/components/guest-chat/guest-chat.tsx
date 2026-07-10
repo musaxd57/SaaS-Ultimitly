@@ -23,6 +23,10 @@ export function GuestChat({ token, propertyName }: { token: string; propertyName
   const [input, setInput] = useState("");
   const [sending, setSending] = useState(false);
   const [closed, setClosed] = useState(false);
+  // The stay's chat is already open on ANOTHER device (per-stay device binding):
+  // this device may not read the history or send. Prevents a past guest / cleaner
+  // holding the QR photo from reading the current guest's conversation.
+  const [boundElsewhere, setBoundElsewhere] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const endRef = useRef<HTMLDivElement>(null);
   // Monotonic load counter (drop stale snapshots) + a live "sending" flag the
@@ -35,11 +39,20 @@ export function GuestChat({ token, propertyName }: { token: string; propertyName
     try {
       const res = await fetch(`/api/chat/${token}`, { method: "GET" });
       if (!res.ok) return;
-      const data = (await res.json()) as { open?: boolean; messages?: ChatMessage[] };
+      const data = (await res.json()) as {
+        open?: boolean;
+        boundElsewhere?: boolean;
+        messages?: ChatMessage[];
+      };
       // Drop a stale snapshot: if a newer load was issued while this one was in
       // flight (e.g. the post-send refresh), applying this older response would
       // wipe the just-sent message / AI reply off-screen for up to a poll cycle.
       if (seq !== loadSeq.current) return;
+      if (data.boundElsewhere) {
+        setBoundElsewhere(true);
+        return;
+      }
+      setBoundElsewhere(false);
       if (data.open === false) {
         setClosed(true);
         return;
@@ -92,6 +105,13 @@ export function GuestChat({ token, propertyName }: { token: string; propertyName
         setError("Şu an yanıt veremiyorum. Lütfen biraz sonra tekrar deneyin.");
         return;
       }
+      const data = (await res.json().catch(() => ({}))) as { boundElsewhere?: boolean };
+      if (data.boundElsewhere) {
+        // This device isn't the one that claimed the stay — nothing was sent.
+        rollback();
+        setBoundElsewhere(true);
+        return;
+      }
       await loadHistory();
     } catch {
       rollback();
@@ -110,10 +130,17 @@ export function GuestChat({ token, propertyName }: { token: string; propertyName
       </header>
 
       <div className="flex-1 space-y-3 overflow-y-auto px-4 py-4">
-        {messages.length === 0 && !closed ? (
+        {messages.length === 0 && !closed && !boundElsewhere ? (
           <div className="rounded-lg border border-border bg-card p-4 text-sm text-muted-foreground">
             Merhaba! 👋 Konaklamanızla ilgili sorularınızı (çöp günü, cihazlar, kurallar, çevre
             önerileri…) buraya yazabilirsiniz. Yapay zekâ yanıtlar; gerekirse ev sahibiniz devreye girer.
+          </div>
+        ) : null}
+
+        {boundElsewhere ? (
+          <div className="rounded-lg border border-border bg-card p-4 text-sm text-muted-foreground">
+            Bu konaklama için sohbet başka bir cihazda başlatılmış. Güvenliğiniz için sohbet yalnızca ilk
+            açılan cihazda görüntülenir. Yardıma ihtiyacınız varsa lütfen ev sahibinizle iletişime geçin.
           </div>
         ) : null}
 
@@ -171,7 +198,7 @@ export function GuestChat({ token, propertyName }: { token: string; propertyName
         <div ref={endRef} />
       </div>
 
-      {!closed ? (
+      {!closed && !boundElsewhere ? (
         <form
           onSubmit={(e) => {
             e.preventDefault();
