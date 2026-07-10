@@ -451,7 +451,9 @@ Kullanıcı "birkaç AI şu 'smart task system' spec'ini yazdı, mantıklı mı?
 - **Detector inceltmesi:** amenity/cleaning gibi TOPIC kuralları çıplak soruyu ("havlular nerede?") görev yapmasın diye
   yalnız gerçek şikayette (`classifyFallback().isComplaint`) tetikler; breakage/restock/safety kendiliğinden problem.
   Non-operasyonel risk (refund/review_threat/cancellation/human_request/injection/discrimination) → `null` (görev yok).
-- **Dedupe:** `{propertyId}:{type}:{İstanbul-gün}`, findFirst status!=done (non-atomic, kod geneliyle tutarlı taviz).
+- **Dedupe:** `{propertyId}:{type}:{topic}:{İstanbul-gün}` (topic dahil → aynı-konu tekrarı tek görev AMA aynı gün
+  farklı iki ayni-kategori sorunu ayrı; adversarial review over-dedupe bulgusuyla eklendi), findFirst status!=done
+  (non-atomic, kod geneliyle tutarlı taviz).
   Başlık PII-lean (tip etiketi + eşleşen kelime; misafir adı BAŞLIKTA YOK — eski "Şikayet: {ad}"'dan daha temiz);
   tam metin description'da (message.slice(0,500), eski complaint-task ile aynı yüzey).
 - **Migration 10_smart_task_routing:** Task.sourceMessageId/dedupeKey (NULLABLE), Organization.autoTaskFromMessageEnabled
