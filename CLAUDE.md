@@ -620,8 +620,11 @@ kapalı tarayıcı/cihaz değiştiren misafir kilitlenir. Host "Misafir Sohbetle
 **✅ QR (b) KURTARMA — host-side kilit sıfırlama (kullanıcı istedi):** `POST /api/properties/[id]/reset-chat` (withManage, org-scoped→IDOR
 yok) daire için `chatBoundHash`/`chatBoundAt`'i temizler → misafir tekrar açınca yeni cihaz claim eder. Mülk sayfası "Misafir Sohbeti"
 kartına "Sohbet cihaz kilidini sıfırla" butonu + açıklama. Audit `guest_chat.reset_binding`. Cihaz kaybı/değişimi artık kalıcı kilit DEĞİL. +3 test.
-**⏸️ İN-APP upgrade/downgrade (bizim PATCH+preview) — BİLİNÇLİ EKLENMEDİ:** portal zaten upgrade/downgrade/iptal'i Paddle'ın TEST EDİLMİŞ
-UI'ıyla kapsıyor; sandbox'sız proration kodunu ikilemek untestable para-riski = kötü takas. İstenirse ilerde gated küçük ek.
+**⏸️ İN-APP upgrade/downgrade (bizim PATCH+preview) — BİLİNÇLİ EKLENMEDİ (BACKLOG, flag: `PADDLE_PLAN_CHANGE_ENABLED`):** portal zaten
+upgrade/downgrade/iptal'i Paddle'ın TEST EDİLMİŞ UI'ıyla kapsıyor; sandbox'sız proration kodunu ikilemek untestable para-riski = kötü takas.
+İstenirse ilerde gated küçük ek: `PADDLE_PLAN_CHANGE_ENABLED` (default OFF) + `PATCH /subscriptions/{id}` (upgrade `prorated_immediately`,
+downgrade `prorated_next_billing_period`) + `POST /subscriptions/{id}/preview` ile önce müşteriye tam tutar gösterip onaylat (fail-closed).
+ŞART DEĞİL — portal yeterli; ilk gerçek plan-değişimi hesapta doğrulanınca flag açılır.
 **✅ PADDLE ABONELİK YÖNETİMİ v1 UYGULANDI (2026-07-10) — PORTAL yolu (para-math yok):** kullanıcı "sandbox'ı boşver, prod key'ler
 hazır, bitir" dedi. Sandbox olmadan proration kodu yazmak canlı-para riski → **Paddle'ın hosted customer portal'ı** kullanıldı
 (upgrade hemen / downgrade dönem-sonu / iptal / kart = Paddle'ın TEST EDİLMİŞ UI'ı; proration'ı Paddle sahiplenir, biz HİÇ para
