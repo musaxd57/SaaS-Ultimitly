@@ -80,4 +80,17 @@ describe("requireSession — session-epoch enforcement", () => {
     mockSession = tokenFor(user, 0);
     expect(await requireSession()).not.toBeNull();
   });
+
+  it("uses the DB-current role, not the JWT's — a demoted manager loses powers immediately", async () => {
+    const org = await prisma.organization.create({ data: { name: "Org" } });
+    const user = await prisma.user.create({
+      data: { organizationId: org.id, name: "U", email: "demoted@x.com", passwordHash: "x", role: "staff", sessionEpoch: 1 },
+    });
+    // Stolen/old token still claims "manager"; the DB now says "staff".
+    mockSession = { userId: user.id, organizationId: org.id, role: "manager", email: "u@x.com", name: "U", sessionEpoch: 1 };
+    const s = await requireSession();
+    expect(s).not.toBeNull();
+    expect(s!.role).toBe("staff"); // authorization is DB-authoritative, not JWT-frozen
+    expect(s!.organizationId).toBe(org.id);
+  });
 });

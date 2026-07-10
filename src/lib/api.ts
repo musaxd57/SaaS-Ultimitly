@@ -17,9 +17,16 @@ export async function requireSession(): Promise<SessionPayload | null> {
   try {
     const user = await prisma.user.findUnique({
       where: { id: session.userId },
-      select: { sessionEpoch: true },
+      // Also read the CURRENT role + org so authorization is DB-authoritative, not
+      // JWT-frozen: a manager demoted to staff (which does NOT bump the epoch)
+      // must lose manager powers immediately, not at token expiry.
+      select: { sessionEpoch: true, role: true, organizationId: true },
     });
     if (!user || user.sessionEpoch !== session.sessionEpoch) return null;
+    // Overwrite role/org with the live DB values (usually identical). withManage's
+    // canManage() and every org-scoped query then see the current, not the stale, role.
+    session.role = user.role as SessionPayload["role"];
+    session.organizationId = user.organizationId;
     // While impersonating, ALSO enforce the real operator's epoch — else a stolen
     // impersonation token would survive the operator resetting their OWN password
     // (which bumps only the operator's epoch, not the assumed customer's). Skipped

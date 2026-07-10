@@ -42,10 +42,16 @@ export async function requireAuth(): Promise<SessionPayload> {
   try {
     const user = await prisma.user.findUnique({
       where: { id: session.userId },
-      select: { sessionEpoch: true },
+      // DB-authoritative role/org (see requireSession): a demoted user loses
+      // powers on the page path too, not only on API routes.
+      select: { sessionEpoch: true, role: true, organizationId: true },
     });
     if (!user || user.sessionEpoch !== session.sessionEpoch) invalid = true;
-    else if (session.actorUserId && session.actorSessionEpoch !== undefined) {
+    else {
+      session.role = user.role as SessionPayload["role"];
+      session.organizationId = user.organizationId;
+    }
+    if (!invalid && session.actorUserId && session.actorSessionEpoch !== undefined) {
       // Impersonation: also enforce the real operator's epoch (see requireSession).
       const actor = await prisma.user.findUnique({
         where: { id: session.actorUserId },
