@@ -15,16 +15,19 @@ export function AutomationPrefsForm({
   disclosure,
   holdHours,
   holdingAck,
+  taskFromMessage,
 }: {
   disclosure: boolean;
   holdHours: number;
   holdingAck: boolean;
+  taskFromMessage: boolean;
 }) {
   const router = useRouter();
   const [, startTransition] = useTransition();
   const [autoReplyDisclosure, setDisclosure] = useState(disclosure);
   const [handoffHoldHours, setHoldHours] = useState(String(holdHours));
   const [autoHoldingReplyEnabled, setHoldingAck] = useState(holdingAck);
+  const [autoTaskFromMessageEnabled, setTaskFromMessage] = useState(taskFromMessage);
   const [busy, setBusy] = useState(false);
   const [saved, setSaved] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -42,6 +45,7 @@ export function AutomationPrefsForm({
           autoReplyDisclosure,
           handoffHoldHours: Number(handoffHoldHours),
           autoHoldingReplyEnabled,
+          autoTaskFromMessageEnabled,
         }),
       });
       const data = await res.json().catch(() => ({}));
@@ -93,6 +97,26 @@ export function AutomationPrefsForm({
             detayını ya da fotoğrafını paylaşırsanız çözümü hızlandırır." Karar vermez, söz vermez;
             konuşma yine "Sorunlu" olarak size düşer ve e-posta ile haber verilir. Kapalıyken (varsayılan)
             şikayetlere hiçbir otomatik mesaj gitmez.
+          </span>
+        </span>
+      </label>
+
+      <label className="flex items-start gap-3">
+        <input
+          type="checkbox"
+          checked={autoTaskFromMessageEnabled}
+          onChange={(e) => { setTaskFromMessage(e.target.checked); setSaved(false); }}
+          className="mt-0.5 size-4"
+        />
+        <span className="text-sm">
+          <span className="font-medium">Mesajlardan otomatik görev oluştur</span>
+          <span className="block text-xs text-muted-foreground">
+            Açarsanız: bir misafir mesajı size "Sorunlu" olarak düştüğünde ve içinde fiziksel bir
+            operasyon sinyali varsa (arıza/bozuk cihaz, eksik malzeme, temizlik şikayeti) otomatik
+            olarak bir <span className="font-medium">görev</span> açılır — kategori, öncelik ve teslim
+            süresiyle (SLA). Aynı mülkte aynı gün aynı konu için tek görev oluşur (mükerrer engellenir).
+            Görev, Görevler (Kanban) ekranınıza düşer. Kapalıyken (varsayılan) davranış aynı kalır:
+            sadece "Sorunlu" işareti + e-posta, görev açılmaz.
           </span>
         </span>
       </label>

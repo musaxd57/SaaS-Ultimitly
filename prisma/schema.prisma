@@ -70,6 +70,12 @@ model Organization {
   // host as before. OPT-IN per org, default OFF — the landing promise ("complaints
   // are never auto-answered") stays true unless the host knowingly enables this.
   autoHoldingReplyEnabled Boolean @default(false)
+  // Smart operational-task routing (opt-in, default OFF): when ON, a guest message
+  // that escalates to the host AND carries a physical-operations signal
+  // (maintenance / restock / cleaning) also opens a deduped, SLA-dated task so the
+  // host can action it — not just a "problem" flag + email. Additive & reversible;
+  // OFF = today's behavior (escalation only, no task on the channel-sync path).
+  autoTaskFromMessageEnabled Boolean @default(false)
   // iCal privacy: the public per-property calendar feed (subscribed to by Airbnb/
   // Booking/Google Calendar) HIDES the guest's name by default — KVKK data
   // minimization, the feed only needs busy/free dates. A host who wants the name
@@ -367,6 +373,13 @@ model Task {
   status        String   @default("todo") // todo | in_progress | awaiting_review | done
   priority      String   @default("standard") // urgent | standard | low
   checklistJson String? // JSON-encoded array of { label, done }
+  // Smart-task routing (Faz A): the guest Message this task was auto-created from
+  // (audit trail; plain id, no FK — the message may be swept by KVKK retention),
+  // and an intra-day dedupe key "{propertyId}:{type}:{YYYY-MM-DD Istanbul}" so
+  // repeated messages about the same issue on the same day don't pile up. Both
+  // null for manually-created and reservation-lifecycle tasks.
+  sourceMessageId String?
+  dedupeKey       String?
   createdAt     DateTime @default(now())
   updatedAt     DateTime @updatedAt
 
@@ -380,6 +393,8 @@ model Task {
   @@index([assignedToId])
   // createReservationTasks / backfill look up tasks by reservationId per row.
   @@index([reservationId])
+  // Smart-task dedupe lookup: findFirst by dedupeKey among non-done tasks.
+  @@index([dedupeKey])
 }
 
 model TaskUpdate {

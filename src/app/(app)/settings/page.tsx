@@ -54,6 +54,7 @@ export default async function SettingsPage({
         alertEmail: true,
         autoReplyDisclosure: true,
         autoHoldingReplyEnabled: true,
+        autoTaskFromMessageEnabled: true,
         icalShowGuestName: true,
         handoffHoldHours: true,
         autoWelcome: true,
@@ -315,6 +316,7 @@ export default async function SettingsPage({
             disclosure={org?.autoReplyDisclosure ?? true}
             holdHours={org?.handoffHoldHours ?? 12}
             holdingAck={org?.autoHoldingReplyEnabled ?? false}
+            taskFromMessage={org?.autoTaskFromMessageEnabled ?? false}
           />
         </CardContent>
       </Card>

@@ -15,6 +15,7 @@ import { premiumAllowed } from "@/lib/billing/subscription";
 import { sendOnChannel } from "@/lib/messaging";
 import { getOrgHospitableToken } from "@/lib/hospitable-credentials";
 import { getAdjacency } from "@/lib/turnover";
+import { createOperationalTaskFromMessage } from "@/lib/tasks/create";
 import { emailService } from "@/lib/email";
 import {
   complaintEscalationEmail,
@@ -841,6 +842,7 @@ export async function applyChannelAutoReply(
               name: true,
               alertEmail: true,
               autoHoldingReplyEnabled: true,
+              autoTaskFromMessageEnabled: true,
               autoReplyDisclosure: true,
               aiSignature: true,
               users: { orderBy: { createdAt: "asc" }, take: 1, select: { email: true } },
@@ -887,6 +889,19 @@ export async function applyChannelAutoReply(
               language: result.detectedLanguage,
               complaintConfirmed: true,
             }).catch(() => false);
+          }
+          // Smart operational task (opt-in): if this escalation carries a
+          // physical-operations signal (fault / restock / cleaning), open a
+          // deduped, SLA-dated task so the host can action it — not just the
+          // "problem" flag + email. Best-effort: never blocks the escalation.
+          if (alertOrg?.autoTaskFromMessageEnabled) {
+            await createOperationalTaskFromMessage({
+              propertyId: conversation.propertyId,
+              message: last.body,
+              sourceMessageId: last.id,
+              reservationId: conversation.reservation?.id ?? null,
+              ai: { intent: result.intent, riskType: result.riskType },
+            }).catch(() => {});
           }
         }
       } catch {
