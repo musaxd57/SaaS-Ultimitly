@@ -82,18 +82,19 @@ describe("supply-ai", () => {
     expect(body).not.toMatch(/guest|misafir adı|@|\+90/i);
   });
 
-  it("falls back to reasoning_content when content is empty (GLM reasoning shape)", async () => {
+  it("disables thinking and strips any inline <think> block from content", async () => {
     vi.stubEnv("SUPPLY_AI_API_KEY", "sk-test");
-    vi.stubGlobal(
-      "fetch",
-      vi.fn().mockResolvedValue(
-        new Response(
-          JSON.stringify({ choices: [{ message: { content: "", reasoning_content: "Çöp poşeti al." }, finish_reason: "stop" }] }),
-          { status: 200 },
-        ),
+    const fetchMock = vi.fn().mockResolvedValue(
+      new Response(
+        JSON.stringify({ choices: [{ message: { content: "<think>let me reason in English</think>Çöp poşeti al." }, finish_reason: "stop" }] }),
+        { status: 200 },
       ),
     );
+    vi.stubGlobal("fetch", fetchMock);
     expect(await generateSupplySummary(basePlan)).toEqual({ ok: true, text: "Çöp poşeti al." });
+    // thinking disabled in the request (GLM/Qwen toggle)
+    const body = JSON.parse(String((fetchMock.mock.calls[0][1] as RequestInit).body));
+    expect(body.chat_template_kwargs).toEqual({ enable_thinking: false });
   });
 
   it("reports finish_reason when a 200 yields no usable text (token exhaustion)", async () => {

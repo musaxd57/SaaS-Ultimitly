@@ -76,10 +76,13 @@ export async function generateSupplySummary(plan: PrepPlan): Promise<SupplySumma
           { role: "user", content: planToText(plan) },
         ],
         temperature: 0.4,
-        // GLM-5.2 is a reasoning model: "thinking" tokens count against max_tokens,
-        // so a tight cap leaves content empty (finish_reason=length). Give ample
-        // headroom — the visible answer is still only 2-3 sentences.
-        max_tokens: 1200,
+        max_tokens: 600,
+        // GLM-5.2 is a REASONING model — left on, it returns its (English, verbose)
+        // chain-of-thought instead of a clean answer. Disable "thinking" so it emits
+        // a direct 2-3 sentence answer in `content`. This is the GLM/Qwen toggle on
+        // vLLM/SGLang backends (akashML). If an endpoint ignores it, the <think>
+        // strip + content-only parsing below still keep the visible text clean.
+        chat_template_kwargs: { enable_thinking: false },
       }),
       // akashML/GLM can take a few seconds; generous but bounded so a hung
       // upstream can't wedge the request.
@@ -94,11 +97,12 @@ export async function generateSupplySummary(plan: PrepPlan): Promise<SupplySumma
     }
 
     const data = (await res.json()) as {
-      choices?: { message?: { content?: string; reasoning_content?: string }; finish_reason?: string }[];
+      choices?: { message?: { content?: string }; finish_reason?: string }[];
     };
     const choice = data?.choices?.[0];
-    // Prefer the visible answer; some reasoning gateways only fill reasoning_content.
-    const text = (choice?.message?.content || choice?.message?.reasoning_content)?.trim();
+    // Only the visible answer — NEVER the reasoning/thinking (verbose + English).
+    // Defensively strip any inline <think>…</think> a reasoning model may emit.
+    const text = (choice?.message?.content ?? "").replace(/<think>[\s\S]*?<\/think>/gi, "").trim();
     if (!text) {
       return { ok: false, reason: `boş yanıt (model=${model}, finish=${choice?.finish_reason ?? "?"})` };
     }
