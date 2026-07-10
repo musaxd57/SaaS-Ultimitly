@@ -469,6 +469,25 @@ Kullanıcı "birkaç AI şu 'smart task system' spec'ini yazdı, mantıklı mı?
   token'lı temizlikçi paylaşım-linki + KVKK/İYS + legal ek).** ⚠️ CANLIDA: toggle açık org'da ilk gerçek görev
   oluşumlarını doğrula (over/under-create + dedupe).
 
+## ✅ HAZIRLIK & ALIŞVERİŞ PLANI UYGULANDI (2026-07-10, commit `87def85`, migration 11)
+Kullanıcı takvimdeki "Tüm daireler" isim-çorbasını sorguladı → "adamlar çarşaf/malzeme adedini girer, AI rapor çıkarır
+(bugün çöp poşeti al gibi)" fikri. **Kritik itiraz (kullanıcı):** "kaç misafir geldiğini bilmiyoruz, AI mesajdan çarşaf
+kullanımını nasıl çıkaracak?" → HAKLI. Bu yüzden **AI YOK, misafir-sayısı YOK** (rezervasyonda guestCount, mülkte kapasite
+YOK — koddan doğrulandı). Mantık: her çıkışta TÜM yataklar toplanır → ihtiyaç **turnover'a** bağlı, kişi sayısına değil.
+- **Deterministik:** host mülk başına bir kez profil girer (giriş başına adet); sistem rezervasyonlardan giriş sayısını
+  bilir (takvimin kullandığı ayni veri) → **giriş × profil = liste**. Sıfır tahmin/mesaj-okuma/AI.
+- **Şema (migration 11_supply_profile):** `Property.supplyProfileJson` (NULLABLE JSON `{itemKey:qtyPerArrival}`, additive,
+  taze PG'de 00→11 sıfır-drift). Katalog `SUPPLY_ITEMS` (constants.ts, stable key'ler; çarşaf/nevresim/havlu + sarf).
+- **`src/lib/supply.ts`:** `parseSupplyProfile`/`serializeSupplyProfile` (tolerant — unknown-key/0/negatif eler, 999 cap) +
+  `getPrepPlan(orgId,{days,now})` = arrivals-in-range × profil, İstanbul gün-penceresi (UTC+3 sabit), `confirmed/completed`
+  (cancelled hariç — takvim filtresiyle ayni), org-scoped (IDOR yok). Guest-count-free; PII yok (sadece adet + daire adı + giriş sayısı).
+- **UI:** Mülk sayfasına "Malzeme Profili" editörü (self-contained PATCH; `propertySchema.supplyProfile` = z.record(enum,int0-999)
+  → bilinmeyen key reddedilir, JSON kolonuna çöp yazılamaz; partial PATCH → normal mülk kaydı profili SİLMEZ). Yeni **/hazirlik**
+  sayfası + nav ("Hazırlık"): Alınacaklar (sarf) / Hazırlanacak (çamaşır) / daire-bazında + profilsiz-daire uyarısı + 1/7/14 gün.
+- **Takvim DEĞİŞMEDİ** (kullanıcı "büyük değişiklik mi" dedi ama takvim çalışıyor + doğru — bozmadım; bu ayrı, tamamlayıcı araç).
+- **695 test yeşil (+12).** ⏳ İleride opsiyon: mevcut turnover görevlerine (cleaning/checkin_prep) bu profilden çarşaf/malzeme
+  checklist'i doldurma (Faz A ile birleşir) · düşük-stok takibi · AI cümle cilası ("bugün çöp poşeti al").
+
 ## ⏳ SIRADAKİ OTURUM — kalan (opsiyonel / karar)
 4b. **[düşük — hardening]** CSV/iCal import (`reservations/import`) manuel-yol uzunluk kaplarını atlıyor (currency
    vb. sınırsız) → satırları `reservationSchema`'dan geçir. QR `looksLikeSecret` yalnız keyword-yanındaki kodu
