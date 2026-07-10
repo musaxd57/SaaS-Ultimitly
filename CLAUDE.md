@@ -588,18 +588,40 @@ kod bende AMA Paddle panelinde müşteri-portalı+subscription-update aç + SAND
 (etiket+işaretle+persist, staff izinli) · sync cursor idempotency (lastMessageAt döngü sonrası) · **oturum DB-yetkili role/org**
 (düşürülen manager) · 2FA fail-closed · TOTP atomik · KVKK foto-unlink · KB-cap · unbounded-query take:500 · **guest-name prompt-injection
 sanitization** (`sanitizePromptValue`). **733 test yeşil.**
+**✅ FAZ-2 "B" TAMAMLANDI (2026-07-10, commit'ler `7856fae`·`a60d33b`·`0b2eeca`·`2961519`·`73430cf` — hepsi gate-less, migration YOK, küçük bağımsız commit + regresyon testi):**
+1. **[SSRF+KVKK, `7856fae`] iCal feed import** (`import/sync.ts`): fetch `redirect:"manual"` (public host artık iç-URL'e 30x ile
+   isPrivateHost'u atlayamaz → 3xx `res.ok`'ta düşer) + 15s AbortSignal timeout (slow-loris) · resurrection guard (retention-anonim
+   satır `guestName===ANON_NAME` iken re-import ad/notu geri YAZMAZ; tarih non-PII → tazelenir; hospitable-sync guard'ının aynası). +1 test.
+2. **[P3, `a60d33b`] Checkout consent planCode↔priceId** (`billing/consent/route.ts`): consent = mesafeli-satış DELİLİ; client planCode'u
+   `paddlePriceToPlanCode` (webhook'la ayni PADDLE_PRICE_* map) ile SUNUCUDA çapraz-doğrula → uyuşmazsa 400 (fail-closed), saklanan plan
+   fiyattan-türetilen (yetkili). Map yoksa (dev/sandbox) client değeri geçerli → geriye uyumlu. +1 test.
+3. **[billing, `0b2eeca`] İki entitlement fail-safe** (`billing/subscription.ts`): (a) `trialing` + trialEndsAt=NULL artık EXPIRED
+   sayılıyor (eski `!= null` şartı → tarihsiz trialing sonsuz ücretsiz veriyordu; enforcement altında) · (b) **founder guard**:
+   `PRIMARY_ORG_ID` ASLA paywall'lanmaz (test-ödemesi Subscription satırı açıp sonra lapse etse/webhook yanlış map'lese bile) — sadece
+   `active` zorlanır, görünen plan/status bozulmaz; explicit env-id ile → müşteri org'unu asla kapsamaz. +2 test.
+4. **[güvenlik, `2961519`] photoUrl scheme guard** (`validators.ts`): task photoUrl hem `<a href>` hem `<img src>` render ediliyor →
+   same-org staff `javascript:`/`data:`/`//host` ile owner'a stored-XSS atabilirdi → yalnız same-origin relative (`/uploads/…`) VEYA https
+   kabul; gerisi red. +2 test.
+5. **[billing, `73430cf`] QR concierge gate tutarlılığı** (`guest-chat.ts`): `resolveGuestChat` `getEntitlement().active`'i DOĞRUDAN
+   kullanıyordu (canceled sub'ı billing DORMANT iken bile blokluyordu — tek dormant-gate'leyen paid yüzey) → `premiumAllowed`'a çevrildi
+   (diğer tüm AI yüzeyleriyle ayni dormant-safe kapı; kill-switch QR'ı da geri açar). Bugünkü enforced prod'da davranış AYNI. Test güncellendi (+1).
+**740 test yeşil · typecheck temiz · next build temiz.**
 **🟠 KALAN P0 (kod, çoğu onay-gerektirmez):** QR per-stay izolasyon (sabit fiziksel QR→geçmiş konuşma DÖNDÜRME — küçük ürün kararı) ·
-CheckoutIntent nonce (P4, migration→onay) · staff RBAC daralt (atanan mülk/görev — ürün kararı).
-**🟡 HIZLI KÜME:** A4 2FA fail-closed · A3 TOTP atomik · AI2 KB-cap · R4 hesap-silmede foto-unlink · P3 consent planCode↔priceId ·
-QR BILLING_ENFORCED tutarlılığı · trialing-null-anchor · **founder grandfathered guard (test-ödemesi ÖNCESİ)** · boot-time env-assertion ·
-unbounded list-query'lere `take` · AI prompt-injection guest-name sanitization · iCal ghost-reservation temizliği · webhook D1/D2 (unique+atomik).
+CheckoutIntent nonce (P4, migration→onay) · staff RBAC daralt (atanan mülk/görev — ürün kararı) ·
+**createReservationTasks dup-task race** (findMany-then-createMany non-atomik; per-org sync-lock zaten seri, gerçek yarış yalnız eşzamanlı
+→ tam-güvenli fix `@@unique([reservationId,type])` migration+prod-dedup → diğer ertelenen unique-constraint'lerle ayni sınıf, ŞİMDİ EKLEME).
+**🟡 HIZLI KÜME (çoğu ✅ FAZ-2 A/B'de yapıldı):** ✅A4 2FA fail-closed · ✅A3 TOTP atomik · ✅AI2 KB-cap · ✅R4 foto-unlink · ✅P3 consent
+planCode↔priceId · ✅QR BILLING_ENFORCED tutarlılığı · ✅trialing-null-anchor · ✅founder grandfathered guard · ✅unbounded list `take` ·
+✅AI prompt-injection guest-name sanitization · ✅iCal ghost-reservation (resurrection guard) · **KALAN:** boot-time env-assertion · webhook D1/D2 (unique+atomik).
 **⏳ OPS/LEGAL/ALTYAPI (kullanıcı/avukat):** SELLER bilgisi (gizlilik/koşullarda ham parantez sızıyor→taslak-banner veya doldur) ·
 Railway backup/PITR · object-storage (foto) · KVKK-DPA · landing over-promise kopya (cancel-anytime/KVKK/"asla otomatik yanıtlamaz") ·
 CI: migration-chain+next build+lint+E2E kapıları, Railway-deploy CI'ı beklesin · DEPLOYMENT.md/README bayat · durable queue/outbox.
 
 ## Durum
-**635 test yeşil, typecheck temiz, migrate deploy canlıda doğrulanmış.** 8 migration
-(0_init→7_ical_hide_guest_name) sıfır-drift (taze Postgres'te doğrulandı). **KVKK sertleştirme batch'i (5 düzeltme,
+**740 test yeşil, typecheck temiz, next build temiz, migrate deploy canlıda doğrulanmış.** 14 migration
+(00_init→13_supply_request_gate_unique) sıfır-drift (taze Postgres'te doğrulandı). Son iş: 40-ajan lansman denetimi →
+FAZ-1 (7 bulgu) + FAZ-2 A (T1 checklist UI · sync cursor · oturum DB-yetkili · 2FA/TOTP · foto-unlink · KB-cap · take · prompt-sanitize)
++ FAZ-2 B (iCal SSRF+resurrection · consent planCode↔priceId · billing trialing-null+founder guard · photoUrl scheme · QR gate tutarlılığı). **KVKK sertleştirme batch'i (5 düzeltme,
 migration YOK — mevcut alanlara/koda oturdu): Sentry redaksiyon · retention resurrection guard · Paddle webhook PII
 minimize · dashboard "bu gece kalan" · outbound gövde ad-redaksiyonu.** Branch =
 `claude/great-edison-3zqpZ`, origin ile senkron. 5-tur derin denetim (loop `197ace29`) yapıldı: tur-1..5 =
