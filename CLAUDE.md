@@ -616,7 +616,12 @@ her rezervasyon unbound başlar → bir konaklamada yakalanan secret sonrakinde 
 (chatBoundHash sha256/chatBoundAt) — ADD COLUMN nullable/no-default → metadata-only, dolu tabloda güvenli; PII değil (hash+zaman)
 → retention dokunmaz; sync/import chatBoundHash'e yazmaz. Zincir 00→14 temiz + **sıfır-drift** (throwaway PG). **Tavizler (belge):**
 (a) saldırgan turnover boşluğunda misafirden ÖNCE tararsa stay'i claim eder = DoS (sızıntı değil; misafir host'a sorar), (b) cookie
-kapalı tarayıcı binding'i tutamaz (nadir; fail-safe). Host "Misafir Sohbetleri" paneli ETKİLENMEZ (server-side, org-scoped). +7 test. **744 test yeşil.**
+kapalı tarayıcı/cihaz değiştiren misafir kilitlenir. Host "Misafir Sohbetleri" paneli ETKİLENMEZ (server-side, org-scoped). +7 test. **744 test yeşil.**
+**✅ QR (b) KURTARMA — host-side kilit sıfırlama (kullanıcı istedi):** `POST /api/properties/[id]/reset-chat` (withManage, org-scoped→IDOR
+yok) daire için `chatBoundHash`/`chatBoundAt`'i temizler → misafir tekrar açınca yeni cihaz claim eder. Mülk sayfası "Misafir Sohbeti"
+kartına "Sohbet cihaz kilidini sıfırla" butonu + açıklama. Audit `guest_chat.reset_binding`. Cihaz kaybı/değişimi artık kalıcı kilit DEĞİL. +3 test.
+**⏸️ İN-APP upgrade/downgrade (bizim PATCH+preview) — BİLİNÇLİ EKLENMEDİ:** portal zaten upgrade/downgrade/iptal'i Paddle'ın TEST EDİLMİŞ
+UI'ıyla kapsıyor; sandbox'sız proration kodunu ikilemek untestable para-riski = kötü takas. İstenirse ilerde gated küçük ek.
 **✅ PADDLE ABONELİK YÖNETİMİ v1 UYGULANDI (2026-07-10) — PORTAL yolu (para-math yok):** kullanıcı "sandbox'ı boşver, prod key'ler
 hazır, bitir" dedi. Sandbox olmadan proration kodu yazmak canlı-para riski → **Paddle'ın hosted customer portal'ı** kullanıldı
 (upgrade hemen / downgrade dönem-sonu / iptal / kart = Paddle'ın TEST EDİLMİŞ UI'ı; proration'ı Paddle sahiplenir, biz HİÇ para

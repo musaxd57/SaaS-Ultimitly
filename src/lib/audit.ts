@@ -20,6 +20,7 @@ const AUDIT_ACTION_LABELS: Record<string, string> = {
   "hospitable.disconnect": "Hospitable bağlantısı kesildi",
   "guest_chat.enable": "Misafir sohbeti açıldı",
   "guest_chat.disable": "Misafir sohbeti kapatıldı",
+  "guest_chat.reset_binding": "Misafir sohbeti cihaz kilidi sıfırlandı",
   "impersonate.enter": "Müşteri hesabına girildi",
   "impersonate.exit": "Müşteri hesabından çıkıldı",
 };

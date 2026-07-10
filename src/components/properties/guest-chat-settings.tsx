@@ -27,6 +27,8 @@ export function GuestChatSettings({
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [copied, setCopied] = useState(false);
+  const [resetting, setResetting] = useState(false);
+  const [resetDone, setResetDone] = useState(false);
 
   async function toggle(next: boolean) {
     setBusy(true);
@@ -57,6 +59,26 @@ export function GuestChatSettings({
       setTimeout(() => setCopied(false), 1500);
     } catch {
       /* clipboard may be unavailable — the URL is selectable in the field */
+    }
+  }
+
+  async function resetBinding() {
+    if (resetting) return;
+    setResetting(true);
+    setError(null);
+    setResetDone(false);
+    try {
+      const res = await fetch(`/api/properties/${propertyId}/reset-chat`, { method: "POST" });
+      if (!res.ok) {
+        setError("Sıfırlama başarısız oldu. Lütfen tekrar deneyin.");
+        return;
+      }
+      setResetDone(true);
+      setTimeout(() => setResetDone(false), 3000);
+    } catch {
+      setError("Bağlantı hatası. Lütfen tekrar deneyin.");
+    } finally {
+      setResetting(false);
     }
   }
 
@@ -137,6 +159,23 @@ export function GuestChatSettings({
             </button>
             <p className="text-[11px] text-muted-foreground">
               Statik ve süresiz QR — bir kez yazdırıp daireye asın, güncellemeye gerek kalmaz.
+            </p>
+          </div>
+
+          <div className="mt-2 border-t border-border pt-3">
+            <button
+              type="button"
+              onClick={() => void resetBinding()}
+              disabled={resetting}
+              className="inline-flex h-8 items-center rounded-md border border-border px-2.5 text-xs font-medium hover:bg-accent disabled:opacity-50"
+            >
+              {resetting ? "…" : "Sohbet cihaz kilidini sıfırla"}
+            </button>
+            {resetDone ? <span className="ml-2 text-xs text-emerald-600">Sıfırlandı</span> : null}
+            <p className="mt-1 text-[11px] text-muted-foreground">
+              Sohbet, her konaklamada onu ilk açan cihaza kilitlenir (güvenlik). Misafir telefonunu
+              değiştirdi veya sohbete erişemiyorsa kilidi sıfırlayın; misafir tekrar açtığında yeni cihaz
+              bağlanır.
             </p>
           </div>
         </div>
