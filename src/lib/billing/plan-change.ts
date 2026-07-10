@@ -1,5 +1,6 @@
 import "server-only";
 
+import { createHmac, timingSafeEqual } from "crypto";
 import { prisma } from "@/lib/db";
 import { DEFAULT_PLANS, planByCode, type PlanDef } from "./plans";
 
@@ -107,4 +108,63 @@ export async function resolvePlanChange(
     priceId,
     target,
   };
+}
+
+// ---------------------------------------------------------------------------
+// Preview → apply binding. A plan change (esp. an upgrade that charges NOW) must
+// be applied ONLY via a change the customer previewed. The preview route mints an
+// HMAC-signed, short-lived token binding {org, priceId, mode, amount}; the apply
+// route REQUIRES it and re-checks it against the resolved change + session. So the
+// apply endpoint can't be called blind (no preview), can't be reused for a
+// different plan/price, and can't be replayed after it expires.
+// ---------------------------------------------------------------------------
+
+const PLAN_TOKEN_TTL_MS = 10 * 60 * 1000; // 10 minutes
+
+type PlanTokenPayload = {
+  org: string;
+  priceId: string;
+  mode: "upgrade" | "downgrade";
+  amount: string | null; // the immediate charge shown at preview (informational/audit)
+  exp: number;
+};
+
+function planTokenSecret(): string {
+  return process.env.AUTH_SECRET ?? "";
+}
+
+/** Sign a preview token binding the change the customer just saw. */
+export function signPlanChangeToken(p: Omit<PlanTokenPayload, "exp">): string {
+  const payload: PlanTokenPayload = { ...p, exp: Date.now() + PLAN_TOKEN_TTL_MS };
+  const body = Buffer.from(JSON.stringify(payload)).toString("base64url");
+  const mac = createHmac("sha256", planTokenSecret()).update(body).digest("base64url");
+  return `${body}.${mac}`;
+}
+
+/** Verify a preview token: HMAC + not-expired. Returns the payload or null. */
+export function verifyPlanChangeToken(token: string | undefined | null): PlanTokenPayload | null {
+  const secret = planTokenSecret();
+  if (!secret || !token) return null;
+  const dot = token.indexOf(".");
+  if (dot <= 0) return null;
+  const body = token.slice(0, dot);
+  const mac = token.slice(dot + 1);
+  const expected = createHmac("sha256", secret).update(body).digest("base64url");
+  let ok = false;
+  try {
+    const a = Buffer.from(mac);
+    const b = Buffer.from(expected);
+    ok = a.length === b.length && timingSafeEqual(a, b);
+  } catch {
+    return null;
+  }
+  if (!ok) return null;
+  let payload: PlanTokenPayload;
+  try {
+    payload = JSON.parse(Buffer.from(body, "base64url").toString("utf8")) as PlanTokenPayload;
+  } catch {
+    return null;
+  }
+  if (!payload || typeof payload.exp !== "number" || Date.now() > payload.exp) return null;
+  return payload;
 }

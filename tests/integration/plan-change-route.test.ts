@@ -21,6 +21,7 @@ vi.mock("@/lib/payments/paddle", () => ({
 
 import { POST as PREVIEW } from "@/app/api/billing/plan-preview/route";
 import { POST as CHANGE } from "@/app/api/billing/plan-change/route";
+import { signPlanChangeToken } from "@/lib/billing/plan-change";
 
 function req(body: unknown) {
   return new NextRequest("http://localhost/x", {
@@ -33,6 +34,10 @@ const ctx = { params: Promise.resolve({} as Record<string, never>) };
 
 describe("plan change routes (gated, PATCH /subscriptions)", () => {
   let orgId: string;
+  // Mint a valid preview token the way /plan-preview does. Apply requires one that
+  // matches the resolved change (org + target price + mode).
+  const tok = (priceId: string, mode: "upgrade" | "downgrade", org = orgId) =>
+    signPlanChangeToken({ org, priceId, mode, amount: null });
 
   beforeEach(async () => {
     await resetDb();
@@ -66,8 +71,18 @@ describe("plan change routes (gated, PATCH /subscriptions)", () => {
   it("preview: pro→business is an upgrade (immediate proration)", async () => {
     const res = await PREVIEW(req({ planCode: "business" }), ctx);
     expect(res.status).toBe(200);
-    expect((await res.json()).mode).toBe("upgrade");
+    const body = await res.json();
+    expect(body.mode).toBe("upgrade");
+    expect(typeof body.previewToken).toBe("string");
+    expect(body.previewToken.length).toBeGreaterThan(0);
     expect(previewMock).toHaveBeenCalledWith("sub_1", "pri_isletme", "prorated_immediately");
+  });
+
+  it("round-trip: the token minted by preview authorizes the apply", async () => {
+    const previewBody = await (await PREVIEW(req({ planCode: "business" }), ctx)).json();
+    const res = await CHANGE(req({ planCode: "business", previewToken: previewBody.previewToken }), ctx);
+    expect(res.status).toBe(200);
+    expect(updateMock).toHaveBeenCalledWith("sub_1", "pri_isletme", "prorated_immediately");
   });
 
   it("preview: pro→free is a downgrade (next billing period)", async () => {
@@ -77,7 +92,7 @@ describe("plan change routes (gated, PATCH /subscriptions)", () => {
   });
 
   it("change: applies an upgrade with immediate proration", async () => {
-    const res = await CHANGE(req({ planCode: "business" }), ctx);
+    const res = await CHANGE(req({ planCode: "business", previewToken: tok("pri_isletme", "upgrade") }), ctx);
     expect(res.status).toBe(200);
     expect((await res.json()).ok).toBe(true);
     expect(updateMock).toHaveBeenCalledWith("sub_1", "pri_isletme", "prorated_immediately");
@@ -85,9 +100,39 @@ describe("plan change routes (gated, PATCH /subscriptions)", () => {
 
   it("change: 502 + Paddle reason when the update is rejected", async () => {
     updateMock.mockResolvedValue({ ok: false, reason: "Paddle HTTP 400 (subscription_locked) env=production resource=subscriptions" });
-    const res = await CHANGE(req({ planCode: "business" }), ctx);
+    const res = await CHANGE(req({ planCode: "business", previewToken: tok("pri_isletme", "upgrade") }), ctx);
     expect(res.status).toBe(502);
     expect((await res.json()).detail).toContain("subscription_locked");
+  });
+
+  it("change: 400 when no preview token is supplied (no blind apply)", async () => {
+    const res = await CHANGE(req({ planCode: "business" }), ctx);
+    expect(res.status).toBe(400);
+    expect(updateMock).not.toHaveBeenCalled();
+  });
+
+  it("change: 400 when the token is for a different price (no reuse across plans)", async () => {
+    // A token minted for a downgrade to free can't authorize the business upgrade.
+    const res = await CHANGE(req({ planCode: "business", previewToken: tok("pri_baslangic", "downgrade") }), ctx);
+    expect(res.status).toBe(400);
+    expect(updateMock).not.toHaveBeenCalled();
+  });
+
+  it("change: 400 when the token is for a different org (no cross-tenant reuse)", async () => {
+    const res = await CHANGE(
+      req({ planCode: "business", previewToken: tok("pri_isletme", "upgrade", "someone-else") }),
+      ctx,
+    );
+    expect(res.status).toBe(400);
+    expect(updateMock).not.toHaveBeenCalled();
+  });
+
+  it("change: 400 when the token is tampered/forged (bad HMAC)", async () => {
+    const valid = tok("pri_isletme", "upgrade");
+    const forged = `${valid.split(".")[0]}.deadbeef`;
+    const res = await CHANGE(req({ planCode: "business", previewToken: forged }), ctx);
+    expect(res.status).toBe(400);
+    expect(updateMock).not.toHaveBeenCalled();
   });
 
   it("404 (dormant) when the feature flag is OFF — nothing reaches Paddle", async () => {

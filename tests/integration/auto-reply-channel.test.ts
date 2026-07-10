@@ -1,5 +1,5 @@
 import { describe, it, expect, beforeEach, afterEach, vi } from "vitest";
-import { addDays, startOfDay } from "date-fns";
+import { addDays } from "date-fns";
 import { prisma, resetDb } from "../helpers/db";
 
 // Force the AI + transport to be deterministic mocks.
@@ -495,13 +495,22 @@ describe("applyChannelAutoReply", () => {
 
   it("still answers on the checkout day itself (departure == start of today)", async () => {
     const { conversationId } = await seed();
+    // Departure == the exact Istanbul day-start boundary. The gate uses strict `<`
+    // (departureDate < zonedDayRange(now, tz).start), so a checkout TODAY is still
+    // answered. This pins the `<` vs `<=` off-by-one — `<=` here would wrongly skip.
+    // Built in Istanbul time so the departure sits ON the boundary regardless of
+    // wall-clock (a naive UTC startOfDay drifts BEFORE the Istanbul day-start after
+    // 21:00Z, making this flaky in the 00:00–03:00 Istanbul window).
+    const istToday = new Intl.DateTimeFormat("en-CA", {
+      timeZone: "Europe/Istanbul",
+      year: "numeric",
+      month: "2-digit",
+      day: "2-digit",
+    }).format(new Date());
     await linkReservation(conversationId, {
       status: "confirmed",
       arrivalDate: new Date(Date.now() - 2 * 24 * 60 * 60 * 1000),
-      // Departure == start of TODAY: the exact boundary. The gate uses strict `<`
-      // (departureDate < startOfDay(now)), so a checkout TODAY is still answered.
-      // This pins the `<` vs `<=` off-by-one — `<=` here would wrongly skip.
-      departureDate: startOfDay(new Date()),
+      departureDate: new Date(`${istToday}T00:00:00+03:00`),
     });
     const out = await applyChannelAutoReply(conversationId);
     expect(out.sent).toBe(true);

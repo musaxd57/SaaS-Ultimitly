@@ -125,6 +125,7 @@ export function PaddlePlans({
     targetMonthly: number;
     immediateTotal: string | null;
     recurringTotal: string | null;
+    previewToken: string;
   } | null>(null);
   const [changeBusy, setChangeBusy] = useState(false);
   // Distance-selling consent: the buyer must accept the Ön Bilgilendirme Formu +
@@ -269,8 +270,9 @@ export function PaddlePlans({
         targetMonthly?: number;
         immediateTotal?: string | null;
         recurringTotal?: string | null;
+        previewToken?: string;
       };
-      if (!res.ok || !data.mode) {
+      if (!res.ok || !data.mode || !data.previewToken) {
         setError(data.error ?? "Plan bilgisi alınamadı. Lütfen tekrar deneyin.");
         return;
       }
@@ -281,6 +283,7 @@ export function PaddlePlans({
         targetMonthly: data.targetMonthly ?? 0,
         immediateTotal: data.immediateTotal ?? null,
         recurringTotal: data.recurringTotal ?? null,
+        previewToken: data.previewToken,
       });
     } catch {
       setError("Bağlantı hatası. Lütfen tekrar deneyin.");
@@ -299,7 +302,7 @@ export function PaddlePlans({
       const res = await fetch("/api/billing/plan-change", {
         method: "POST",
         headers: { "content-type": "application/json" },
-        body: JSON.stringify({ planCode: pending.planCode }),
+        body: JSON.stringify({ planCode: pending.planCode, previewToken: pending.previewToken }),
       });
       const data = (await res.json().catch(() => ({}))) as {
         error?: string;

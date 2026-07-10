@@ -3,7 +3,7 @@ import { badRequest, jsonOk, notFound, tooManyRequests } from "@/lib/api";
 import { withManage } from "@/lib/route-guard";
 import { rateLimit } from "@/lib/rate-limit";
 import { isPaddleConfigured, updateSubscriptionPlan } from "@/lib/payments/paddle";
-import { planChangeEnabled, resolvePlanChange } from "@/lib/billing/plan-change";
+import { planChangeEnabled, resolvePlanChange, verifyPlanChangeToken } from "@/lib/billing/plan-change";
 import { writeAudit } from "@/lib/audit";
 
 // Apply an in-app plan change. Upgrade → charged immediately (prorated); downgrade
@@ -17,11 +17,24 @@ export const POST = withManage(async (session, req) => {
   if (!limited.ok) return tooManyRequests(limited.retryAfter);
   if (!isPaddleConfigured()) return badRequest({ error: "Abonelik yönetimi şu anda kullanılamıyor." });
 
-  const data = (await req.json().catch(() => null)) as { planCode?: unknown } | null;
+  const data = (await req.json().catch(() => null)) as
+    | { planCode?: unknown; previewToken?: unknown }
+    | null;
   const planCode = typeof data?.planCode === "string" ? data.planCode : "";
 
   const r = await resolvePlanChange(session.organizationId, planCode);
   if (!r.ok) return badRequest({ error: r.error });
+
+  // Bind apply → a real preview: require a valid, unexpired preview token whose
+  // org + target price + mode match this change. Blocks a direct/blind apply, a
+  // replay, and reuse for a different plan/price (Codex).
+  const token = verifyPlanChangeToken(typeof data?.previewToken === "string" ? data.previewToken : null);
+  if (!token) {
+    return badRequest({ error: "Önizleme doğrulanamadı — lütfen tekrar deneyin." });
+  }
+  if (token.org !== session.organizationId || token.priceId !== r.priceId || token.mode !== r.mode) {
+    return badRequest({ error: "Önizleme bu plan değişikliğiyle eşleşmiyor." });
+  }
 
   const result = await updateSubscriptionPlan(r.providerRef, r.priceId, r.proration);
   if (!result.ok) {
