@@ -56,6 +56,12 @@ export default async function HazirlikPage({
     select: { supplyStockJson: true },
   });
   const stock = parseSupplyProfile(org?.supplyStockJson);
+  // Split by what you actually need to buy/prepare vs. what stock already covers,
+  // so a fully-stocked item doesn't sit in the shopping list showing "0".
+  const buyConsumables = plan.consumables.filter((i) => i.toBuy > 0);
+  const buyLinen = plan.linen.filter((i) => i.toBuy > 0);
+  const covered = [...plan.consumables, ...plan.linen].filter((i) => i.toBuy === 0);
+  const nothingToBuy = buyConsumables.length === 0 && buyLinen.length === 0;
   const rangeLabel =
     days === 1
       ? formatDayInTz(plan.start)
@@ -106,34 +112,51 @@ export default async function HazirlikPage({
         </Card>
       ) : (
         <div className="space-y-4">
-          {aiEnabled ? <SupplyAiSummary days={days} enabled={aiEnabled} /> : null}
-          <div className="grid gap-4 md:grid-cols-2">
-            {plan.consumables.length > 0 ? (
-              <Card>
-                <CardHeader>
-                  <CardTitle className="flex items-center gap-2 text-base">
-                    <ShoppingCart className="size-4 text-muted-foreground" /> Alınacaklar (sarf)
-                  </CardTitle>
-                </CardHeader>
-                <CardContent>
-                  <ItemList items={plan.consumables} />
-                </CardContent>
-              </Card>
-            ) : null}
+          {aiEnabled && !nothingToBuy ? <SupplyAiSummary days={days} enabled={aiEnabled} /> : null}
 
-            {plan.linen.length > 0 ? (
-              <Card>
-                <CardHeader>
-                  <CardTitle className="flex items-center gap-2 text-base">
-                    <WashingMachine className="size-4 text-muted-foreground" /> Hazırlanacak (çamaşır/tekstil)
-                  </CardTitle>
-                </CardHeader>
-                <CardContent>
-                  <ItemList items={plan.linen} />
-                </CardContent>
-              </Card>
-            ) : null}
-          </div>
+          {nothingToBuy ? (
+            <Card>
+              <CardContent className="py-6 text-center text-sm">
+                <span className="font-medium text-emerald-600">İhtiyaçların tümü elinizdeki stoktan karşılanıyor.</span>
+                <span className="block text-muted-foreground">Bu aralıkta ekstra bir şey almanıza/hazırlamanıza gerek yok.</span>
+              </CardContent>
+            </Card>
+          ) : (
+            <div className="grid gap-4 md:grid-cols-2">
+              {buyConsumables.length > 0 ? (
+                <Card>
+                  <CardHeader>
+                    <CardTitle className="flex items-center gap-2 text-base">
+                      <ShoppingCart className="size-4 text-muted-foreground" /> Alınacaklar (sarf)
+                    </CardTitle>
+                  </CardHeader>
+                  <CardContent>
+                    <ItemList items={buyConsumables} />
+                  </CardContent>
+                </Card>
+              ) : null}
+
+              {buyLinen.length > 0 ? (
+                <Card>
+                  <CardHeader>
+                    <CardTitle className="flex items-center gap-2 text-base">
+                      <WashingMachine className="size-4 text-muted-foreground" /> Hazırlanacak (çamaşır/tekstil)
+                    </CardTitle>
+                  </CardHeader>
+                  <CardContent>
+                    <ItemList items={buyLinen} />
+                  </CardContent>
+                </Card>
+              ) : null}
+            </div>
+          )}
+
+          {covered.length > 0 ? (
+            <p className="text-xs text-muted-foreground">
+              Stoktan karşılanan (almanıza gerek yok):{" "}
+              {covered.map((i) => `${i.label} (elde ${i.onHand})`).join(", ")}.
+            </p>
+          ) : null}
 
           <Card>
             <CardHeader>
