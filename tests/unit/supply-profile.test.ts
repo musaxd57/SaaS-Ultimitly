@@ -46,9 +46,9 @@ describe("serializeSupplyProfile", () => {
 });
 
 describe("detectSupplyRequest", () => {
-  it("detects an explicit extra-towel request (+1)", () => {
+  it("detects a genuine extra-towel/sheet request (+1)", () => {
     expect(detectSupplyRequest("Bir havlu daha alabilir miyiz?")).toEqual([{ itemKey: "banyo_havlusu", qty: 1 }]);
-    expect(detectSupplyRequest("could we get an extra towel?")).toEqual([{ itemKey: "banyo_havlusu", qty: 1 }]);
+    expect(detectSupplyRequest("could we get an extra towel please?")).toEqual([{ itemKey: "banyo_havlusu", qty: 1 }]);
     expect(detectSupplyRequest("fazladan çarşaf rica edebilir miyim")).toEqual([{ itemKey: "carsaf_takimi", qty: 1 }]);
   });
 
@@ -58,13 +58,26 @@ describe("detectSupplyRequest", () => {
     expect(out).toContainEqual({ itemKey: "nevresim", qty: 1 });
   });
 
-  it("does NOT fire without an explicit extra signal (praise / neutral)", () => {
-    expect(detectSupplyRequest("havlular çok temiz ve güzel, teşekkürler")).toEqual([]);
-    expect(detectSupplyRequest("çarşaflar nerede acaba?")).toEqual([]);
-    expect(detectSupplyRequest("wifi şifresi nedir?")).toEqual([]);
+  it("does NOT fire on an availability or price QUESTION", () => {
+    expect(detectSupplyRequest("Ekstra havlu var mı?")).toEqual([]);
+    expect(detectSupplyRequest("Ekstra havlu ücretli mi?")).toEqual([]);
+    expect(detectSupplyRequest("is there an extra towel? how much does it cost?")).toEqual([]);
   });
 
-  it("does NOT fire on an extra signal with no linen item", () => {
+  it("does NOT fire on a REFUSAL / negation", () => {
+    expect(detectSupplyRequest("Ekstra havlu istemiyorum.")).toEqual([]);
+    expect(detectSupplyRequest("Ekstra havlu getirmeyin.")).toEqual([]);
+    expect(detectSupplyRequest("fazladan çarşafa gerek yok")).toEqual([]);
+  });
+
+  it("does NOT fire without a real request verb (praise / statement / next-time)", () => {
+    expect(detectSupplyRequest("havlular çok temiz ve güzel, teşekkürler")).toEqual([]);
+    expect(detectSupplyRequest("Havlularınız harika, bir dahaki sefere yine geliriz")).toEqual([]);
+    expect(detectSupplyRequest("bu çarşaflar bir daha yıkanmalı")).toEqual([]);
+    expect(detectSupplyRequest("çarşaflar nerede acaba?")).toEqual([]);
+  });
+
+  it("does NOT fire on an extra request with no linen item", () => {
     expect(detectSupplyRequest("bir kahve daha alabilir miyim")).toEqual([]);
   });
 });

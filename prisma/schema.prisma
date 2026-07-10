@@ -76,6 +76,10 @@ model Organization {
   // host can action it — not just a "problem" flag + email. Additive & reversible;
   // OFF = today's behavior (escalation only, no task on the channel-sync path).
   autoTaskFromMessageEnabled Boolean @default(false)
+  // Opt-in (default OFF): when a guest message EXPLICITLY asks for extra linen/towels,
+  // add +1 to that property's prep plan. Off = the detector never runs. Kept opt-in
+  // because message parsing is imperfect — the host chooses to trust it.
+  autoSupplyRequestEnabled Boolean @default(false)
   // iCal privacy: the public per-property calendar feed (subscribed to by Airbnb/
   // Booking/Google Calendar) HIDES the guest's name by default — KVKK data
   // minimization, the feed only needs busy/free dates. A host who wants the name
@@ -426,7 +430,10 @@ model SupplyRequest {
   reservation Reservation? @relation(fields: [reservationId], references: [id], onDelete: SetNull)
 
   @@index([propertyId, createdAt])
-  @@index([sourceMessageId])
+  // DB-level dedup backstop (new table → safe): one request per (message, item).
+  // Postgres treats NULL sourceMessageId as distinct, so manual/no-message rows
+  // never collide. Makes the app-level findFirst race-proof.
+  @@unique([sourceMessageId, itemKey])
 }
 
 model TaskUpdate {

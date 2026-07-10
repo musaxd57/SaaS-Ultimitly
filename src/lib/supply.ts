@@ -217,12 +217,38 @@ export async function getPrepPlan(
 }
 
 // --- Guest extra-supply requests (message → +1 in the plan) ------------------
-// Task-triage-only: detect "extra towel/sheet" asks. Requires an EXPLICIT extra
-// signal AND a linen item so "havlular çok güzel" never triggers. +1 per item.
+// Task-triage-only, opt-in (Organization.autoSupplyRequestEnabled). Detection is
+// deliberately CONSERVATIVE — an over-count is a wrong shopping number, so we'd
+// rather miss a real ask than invent one. A message must, together:
+//   • carry an "extra/more" signal (wants ADDITIONAL, not the standard set), AND
+//   • carry a real REQUEST verb (asking for it, not discussing it), AND
+//   • name a linen item, AND
+//   • NOT contain a negation ("istemiyorum", "getirmeyin"), AND
+//   • NOT be an availability/price QUESTION ("var mı?", "ücretli mi?").
 const EXTRA_SIGNALS = [
-  "ekstra", "fazladan", "yedek", "ilave", "bir tane daha", "bir daha", "daha alabilir",
-  "daha rica", "daha istiyor", "daha verir", "daha getir", "extra", "additional",
-  "one more", "some more", "more towel", "more sheet", "another towel", "another sheet",
+  "ekstra", "fazladan", "yedek", "ilave", "daha", "extra", "additional", "one more",
+  "another", "more",
+];
+// A genuine ask (vs. praise / complaint / statement). Without one of these we skip.
+const REQUEST_VERBS = [
+  "alabilir mi", "alabilirmiyim", "alabilir miyiz", "getirir mi", "getirebilir",
+  "getirir misiniz", "verir mi", "verebilir", "rica ", "istiyorum", "istiyoruz",
+  "isteriz", "isterim", "lütfen", "lutfen", "mümkün mü", "mumkun mu", "gönderir mi",
+  "could we get", "could i get", "can we get", "can i get", "can we have", "can i have",
+  "may we", "may i", "please bring", "please send", "we need", "i need", "would like",
+  "we'd like", "we would like",
+];
+// Explicit refusals → never a request (the guest is declining).
+const REQUEST_NEGATIONS = [
+  "istemiyor", "istemem", "istemeyiz", "istemedik", "istemez", "getirmeyin", "getirme",
+  "gerek yok", "gerekmiyor", "lazım değil", "lazim degil", "no need", "don't need",
+  "do not need", "no towel", "without",
+];
+// Availability / price questions → an inquiry, not a request.
+const REQUEST_QUESTIONS = [
+  "var mı", "var mi", "ücretli mi", "ucretli mi", "ne kadar", "kaç para", "kac para",
+  "kaç tl", "kac tl", "fiyat", "how much", "is there", "are there", "do you have",
+  "extra charge", "any charge", "cost",
 ];
 const REQUEST_ITEMS: { key: SupplyItemKey; words: string[] }[] = [
   { key: "banyo_havlusu", words: ["havlu", "towel"] },
@@ -233,7 +259,12 @@ const REQUEST_ITEMS: { key: SupplyItemKey; words: string[] }[] = [
 /** Detect explicit extra-linen requests in a guest message. Empty when none. */
 export function detectSupplyRequest(message: string): { itemKey: SupplyItemKey; qty: number }[] {
   const m = message.toLowerCase();
+  // Guards first (order-independent): refusal or an availability/price question
+  // means it is NOT a request, even if extra/item words are present.
+  if (REQUEST_NEGATIONS.some((w) => m.includes(w))) return [];
+  if (REQUEST_QUESTIONS.some((w) => m.includes(w))) return [];
   if (!EXTRA_SIGNALS.some((s) => m.includes(s))) return [];
+  if (!REQUEST_VERBS.some((v) => m.includes(v))) return [];
   const out: { itemKey: SupplyItemKey; qty: number }[] = [];
   for (const it of REQUEST_ITEMS) {
     if (it.words.some((w) => m.includes(w))) out.push({ itemKey: it.key, qty: 1 });
@@ -252,14 +283,24 @@ export async function recordSupplyRequestFromMessage(ctx: {
   sourceMessageId: string;
   reservationId?: string | null;
 }): Promise<number> {
+  // Cheap keyword pass first; only hit the DB when it looks like a request.
   const detected = detectSupplyRequest(ctx.message);
   if (detected.length === 0) return 0;
+  // Opt-in per org (default OFF) — the host chooses to trust message parsing.
+  const prop = await prisma.property.findUnique({
+    where: { id: ctx.propertyId },
+    select: { organization: { select: { autoSupplyRequestEnabled: true } } },
+  });
+  if (!prop?.organization?.autoSupplyRequestEnabled) return 0;
+
   const existing = await prisma.supplyRequest.findFirst({
     where: { sourceMessageId: ctx.sourceMessageId },
     select: { id: true },
   });
   if (existing) return 0;
-  await prisma.supplyRequest.createMany({
+  // skipDuplicates makes the @@unique([sourceMessageId,itemKey]) a race-proof
+  // backstop: a concurrent second sync silently no-ops instead of throwing.
+  const res = await prisma.supplyRequest.createMany({
     data: detected.map((d) => ({
       propertyId: ctx.propertyId,
       reservationId: ctx.reservationId ?? null,
@@ -267,6 +308,7 @@ export async function recordSupplyRequestFromMessage(ctx: {
       qty: d.qty,
       sourceMessageId: ctx.sourceMessageId,
     })),
+    skipDuplicates: true,
   });
-  return detected.length;
+  return res.count;
 }

@@ -140,8 +140,9 @@ describe("getPrepPlan", () => {
     expect(plan.linen.find((i) => i.key === "banyo_havlusu")!.need).toBe(2); // stale request not counted
   });
 
-  it("records an extra-supply request from a message, deduped by message id", async () => {
+  it("records an extra-supply request from a message when the org opted in, deduped", async () => {
     const a = await makeProperty(orgId, "nuve 1", { banyo_havlusu: 1 });
+    await prisma.organization.update({ where: { id: orgId }, data: { autoSupplyRequestEnabled: true } });
     const n1 = await recordSupplyRequestFromMessage({ propertyId: a.id, message: "bir havlu daha alabilir miyiz?", sourceMessageId: "m1" });
     expect(n1).toBe(1);
     // same message re-synced → no duplicate
@@ -151,5 +152,13 @@ describe("getPrepPlan", () => {
     const n3 = await recordSupplyRequestFromMessage({ propertyId: a.id, message: "wifi şifresi nedir?", sourceMessageId: "m2" });
     expect(n3).toBe(0);
     expect(await prisma.supplyRequest.count({ where: { propertyId: a.id } })).toBe(1);
+  });
+
+  it("does NOT record when the org has NOT opted in (default OFF)", async () => {
+    const a = await makeProperty(orgId, "nuve 1", { banyo_havlusu: 1 });
+    // toggle left default false
+    const n = await recordSupplyRequestFromMessage({ propertyId: a.id, message: "bir havlu daha alabilir miyiz?", sourceMessageId: "m1" });
+    expect(n).toBe(0);
+    expect(await prisma.supplyRequest.count()).toBe(0);
   });
 });

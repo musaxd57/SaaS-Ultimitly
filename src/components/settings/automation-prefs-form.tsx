@@ -16,11 +16,13 @@ export function AutomationPrefsForm({
   holdHours,
   holdingAck,
   taskFromMessage,
+  supplyRequest,
 }: {
   disclosure: boolean;
   holdHours: number;
   holdingAck: boolean;
   taskFromMessage: boolean;
+  supplyRequest: boolean;
 }) {
   const router = useRouter();
   const [, startTransition] = useTransition();
@@ -28,6 +30,7 @@ export function AutomationPrefsForm({
   const [handoffHoldHours, setHoldHours] = useState(String(holdHours));
   const [autoHoldingReplyEnabled, setHoldingAck] = useState(holdingAck);
   const [autoTaskFromMessageEnabled, setTaskFromMessage] = useState(taskFromMessage);
+  const [autoSupplyRequestEnabled, setSupplyRequest] = useState(supplyRequest);
   const [busy, setBusy] = useState(false);
   const [saved, setSaved] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -46,6 +49,7 @@ export function AutomationPrefsForm({
           handoffHoldHours: Number(handoffHoldHours),
           autoHoldingReplyEnabled,
           autoTaskFromMessageEnabled,
+          autoSupplyRequestEnabled,
         }),
       });
       const data = await res.json().catch(() => ({}));
@@ -117,6 +121,25 @@ export function AutomationPrefsForm({
             süresiyle (SLA). Aynı mülkte aynı gün aynı konu için tek görev oluşur (mükerrer engellenir).
             Görev, Görevler (Kanban) ekranınıza düşer. Kapalıyken (varsayılan) davranış aynı kalır:
             sadece "Sorunlu" işareti + e-posta, görev açılmaz.
+          </span>
+        </span>
+      </label>
+
+      <label className="flex items-start gap-3">
+        <input
+          type="checkbox"
+          checked={autoSupplyRequestEnabled}
+          onChange={(e) => { setSupplyRequest(e.target.checked); setSaved(false); }}
+          className="mt-0.5 size-4"
+        />
+        <span className="text-sm">
+          <span className="font-medium">Misafir mesajından ekstra malzeme talebi</span>
+          <span className="block text-xs text-muted-foreground">
+            Açarsanız: bir misafir <span className="font-medium">açıkça</span> ekstra havlu/çarşaf
+            <span className="font-medium"> isterse</span> (ör. "bir havlu daha alabilir miyiz"), o dairenin
+            Hazırlık planına <span className="font-medium">+1</span> eklenir. Soru ("ekstra havlu var mı?"),
+            fiyat ("ücretli mi?") ve ret ("istemiyorum/getirmeyin") <span className="font-medium">tetiklemez</span>.
+            Mesaj çözümlemesi kusursuz değildir; bu yüzden varsayılan KAPALI — açmak sizin tercihiniz.
           </span>
         </span>
       </label>
