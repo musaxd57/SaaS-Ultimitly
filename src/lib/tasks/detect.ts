@@ -165,6 +165,10 @@ export function buildOperationalTaskData(
     description: ctx.message.slice(0, 500),
     priority: detected.priority,
     dueAt: new Date(now.getTime() + detected.slaHours * 3600_000),
-    dedupeKey: `${ctx.propertyId}:${detected.type}:${dayKey(now)}`,
+    // Dedupe key includes the TOPIC, not just the type: a repeat of the SAME
+    // issue on the same day collapses (guest re-sends "musluk akıtıyor"), but two
+    // DISTINCT same-category problems ("klima bozuk" + "musluk akıtıyor", or
+    // "havlu eksik" + "şampuan bitti") stay separate, each an actionable task.
+    dedupeKey: `${ctx.propertyId}:${detected.type}:${detected.topic.replace(/\s+/g, "-")}:${dayKey(now)}`,
   };
 }

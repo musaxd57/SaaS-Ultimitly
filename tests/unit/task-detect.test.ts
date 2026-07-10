@@ -68,7 +68,7 @@ describe("buildOperationalTaskData", () => {
     expect(data.type).toBe("maintenance");
     expect(data.title.startsWith("Bakım:")).toBe(true);
     expect(data.title).not.toContain("Ahmet"); // guest name stays out of the title
-    expect(data.dedupeKey).toBe("prop-1:maintenance:2026-07-10");
+    expect(data.dedupeKey).toBe("prop-1:maintenance:akıtıyor:2026-07-10");
     // full text is preserved in the description for context
     expect(data.description).toContain("Ahmet");
   });
@@ -83,6 +83,6 @@ describe("buildOperationalTaskData", () => {
     const lateUtc = new Date("2026-07-10T22:30:00.000Z"); // 01:30 Istanbul next day
     const d = detectOperationalTask("havlu eksik", {})!;
     const data = buildOperationalTaskData(d, { propertyId: "p", message: "havlu eksik", now: lateUtc });
-    expect(data.dedupeKey).toBe("p:restock:2026-07-11");
+    expect(data.dedupeKey).toBe("p:restock:havlu:2026-07-11");
   });
 });

@@ -46,6 +46,15 @@ describe("createOperationalTaskFromMessage", () => {
     expect(await prisma.task.count({ where: { propertyId } })).toBe(2);
   });
 
+  it("does not dedupe two DISTINCT same-category problems on the same day", async () => {
+    // Both are maintenance, but a leaking faucet and a broken A/C are different
+    // issues — the topic-keyed dedupe must let the host action both.
+    const now = new Date("2026-07-10T09:00:00.000Z");
+    await createOperationalTaskFromMessage({ propertyId, message: "musluk akıtıyor", now });
+    await createOperationalTaskFromMessage({ propertyId, message: "klima bozuk", now });
+    expect(await prisma.task.count({ where: { propertyId, type: "maintenance" } })).toBe(2);
+  });
+
   it("re-opens a task the next day once the previous one is done", async () => {
     const day1 = new Date("2026-07-10T09:00:00.000Z");
     const day2 = new Date("2026-07-11T09:00:00.000Z");
