@@ -287,4 +287,18 @@ export async function deleteAccountData(organizationId: string): Promise<void> {
   }
   // Everything else cascades from the organization row.
   await prisma.organization.delete({ where: { id: organizationId } });
+
+  // KVKK: task photos live on local disk (public/uploads/{orgSlug}), NOT in the DB,
+  // so the cascade above leaves them. Physically remove the org's upload folder.
+  // Best-effort — a missing dir or FS error must never fail the erasure.
+  try {
+    const orgSlug = organizationId.replace(/[^a-zA-Z0-9-]/g, "");
+    if (orgSlug) {
+      const { rm } = await import("node:fs/promises");
+      const { join } = await import("node:path");
+      await rm(join(process.cwd(), "public", "uploads", orgSlug), { recursive: true, force: true });
+    }
+  } catch {
+    // ignore — files may already be gone / ephemeral storage
+  }
 }

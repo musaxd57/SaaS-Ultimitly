@@ -95,18 +95,29 @@ export async function POST(req: NextRequest) {
           secret = null;
         }
         const step = secret ? verifyTotpStep(secret, code) : null;
-        // Reject a wrong code OR a code already used (replay within its window).
-        if (step === null || (user.twoFactorLastStep != null && step <= user.twoFactorLastStep)) {
+        if (step === null) {
           return NextResponse.json(
             { error: "Doğrulama kodu hatalı", twoFactorRequired: true },
             { status: 401 },
           );
         }
-        // Burn this step so the same code cannot be replayed.
-        await prisma.user.update({
-          where: { id: user.id },
+        // Burn this step ATOMICALLY: the conditional updateMany only succeeds if
+        // twoFactorLastStep is still null or older than this step, so two concurrent
+        // logins with the SAME code can't both pass (the read-check-then-update
+        // version had a replay race). count===0 → already consumed → reject.
+        const burned = await prisma.user.updateMany({
+          where: {
+            id: user.id,
+            OR: [{ twoFactorLastStep: null }, { twoFactorLastStep: { lt: step } }],
+          },
           data: { twoFactorLastStep: step },
         });
+        if (burned.count === 0) {
+          return NextResponse.json(
+            { error: "Doğrulama kodu hatalı", twoFactorRequired: true },
+            { status: 401 },
+          );
+        }
       }
     }
 
