@@ -82,6 +82,33 @@ describe("supply-ai", () => {
     expect(body).not.toMatch(/guest|misafir adı|@|\+90/i);
   });
 
+  it("falls back to reasoning_content when content is empty (GLM reasoning shape)", async () => {
+    vi.stubEnv("SUPPLY_AI_API_KEY", "sk-test");
+    vi.stubGlobal(
+      "fetch",
+      vi.fn().mockResolvedValue(
+        new Response(
+          JSON.stringify({ choices: [{ message: { content: "", reasoning_content: "Çöp poşeti al." }, finish_reason: "stop" }] }),
+          { status: 200 },
+        ),
+      ),
+    );
+    expect(await generateSupplySummary(basePlan)).toEqual({ ok: true, text: "Çöp poşeti al." });
+  });
+
+  it("reports finish_reason when a 200 yields no usable text (token exhaustion)", async () => {
+    vi.stubEnv("SUPPLY_AI_API_KEY", "sk-test");
+    vi.stubGlobal(
+      "fetch",
+      vi.fn().mockResolvedValue(
+        new Response(JSON.stringify({ choices: [{ message: { content: "" }, finish_reason: "length" }] }), { status: 200 }),
+      ),
+    );
+    const out = await generateSupplySummary(basePlan);
+    expect(out.ok).toBe(false);
+    if (!out.ok) expect(out.reason).toContain("finish=length");
+  });
+
   it("returns a redacted reason on a non-OK upstream response (diagnosable)", async () => {
     vi.stubEnv("SUPPLY_AI_API_KEY", "sk-test");
     vi.stubEnv("SUPPLY_AI_MODEL", "zai-org/GLM-5.2");

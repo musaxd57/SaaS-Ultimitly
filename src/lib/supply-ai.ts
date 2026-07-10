@@ -76,7 +76,10 @@ export async function generateSupplySummary(plan: PrepPlan): Promise<SupplySumma
           { role: "user", content: planToText(plan) },
         ],
         temperature: 0.4,
-        max_tokens: 220,
+        // GLM-5.2 is a reasoning model: "thinking" tokens count against max_tokens,
+        // so a tight cap leaves content empty (finish_reason=length). Give ample
+        // headroom — the visible answer is still only 2-3 sentences.
+        max_tokens: 1200,
       }),
       // akashML/GLM can take a few seconds; generous but bounded so a hung
       // upstream can't wedge the request.
@@ -90,9 +93,15 @@ export async function generateSupplySummary(plan: PrepPlan): Promise<SupplySumma
       return { ok: false, reason };
     }
 
-    const data = (await res.json()) as { choices?: { message?: { content?: string } }[] };
-    const text = data?.choices?.[0]?.message?.content?.trim();
-    if (!text) return { ok: false, reason: `boş yanıt (model=${model})` };
+    const data = (await res.json()) as {
+      choices?: { message?: { content?: string; reasoning_content?: string }; finish_reason?: string }[];
+    };
+    const choice = data?.choices?.[0];
+    // Prefer the visible answer; some reasoning gateways only fill reasoning_content.
+    const text = (choice?.message?.content || choice?.message?.reasoning_content)?.trim();
+    if (!text) {
+      return { ok: false, reason: `boş yanıt (model=${model}, finish=${choice?.finish_reason ?? "?"})` };
+    }
     return { ok: true, text };
   } catch (e) {
     const msg = e instanceof Error ? e.message : String(e);

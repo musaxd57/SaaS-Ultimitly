@@ -321,6 +321,14 @@ export function KbManager({
                   Köşeli parantezli [alanları] kendi bilgilerinizle değiştirmeyi unutmayın.
                 </p>
               ) : null}
+              {form.category === "checkin" || form.category === "checkout" ? (
+                <p className="mt-1 text-xs text-muted-foreground">
+                  Not: Giriş/çıkış <strong>saatini</strong> buraya sabitlemenize gerek yok — saat, mülk
+                  sayfasındaki “Check-in / Check-out saati” alanından gelir ve yapay zekâ soru gelince
+                  <strong> oradaki saati</strong> esas alır. Burada adres, kapı kodu, anahtar ve
+                  prosedürlere odaklanın.
+                </p>
+              ) : null}
             </Field>
             <Button type="submit" className="w-full" disabled={creating}>
               {creating ? <Loader2 className="size-4 animate-spin" /> : <Plus className="size-4" />}
