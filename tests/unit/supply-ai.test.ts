@@ -7,10 +7,11 @@ const basePlan: PrepPlan = {
   start: new Date("2026-07-10T00:00:00Z"),
   end: new Date("2026-07-17T00:00:00Z"),
   totalArrivals: 3,
-  linen: [{ key: "carsaf_takimi", label: "Çarşaf takımı", unit: "takım", kind: "linen", qty: 6 }],
-  consumables: [{ key: "cop_poseti", label: "Çöp poşeti", unit: "adet", kind: "consumable", qty: 6 }],
+  linen: [{ key: "carsaf_takimi", label: "Çarşaf takımı", unit: "takım", kind: "linen", need: 6, onHand: 0, toBuy: 6 }],
+  consumables: [{ key: "cop_poseti", label: "Çöp poşeti", unit: "adet", kind: "consumable", need: 6, onHand: 0, toBuy: 6 }],
   perProperty: [],
   missingProfile: [],
+  hasStock: false,
 };
 
 describe("supply-ai", () => {

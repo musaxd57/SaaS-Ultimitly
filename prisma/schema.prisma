@@ -111,6 +111,11 @@ model Organization {
   // unchanged) and only refreshes when this is set and in the past.
   hospitableRefreshTokenEnc String?   // encrypted OAuth refresh token
   hospitableTokenExpiresAt DateTime? // when hospitableTokenEnc's access token expires
+  // On-hand supply stock { supplyItemKey: qty } — subtracted from the prep plan so
+  // /hazirlik shows the NET shortfall ("net alınacak") instead of the gross need.
+  // Null/empty = not tracked → plan shows gross (today's behavior). Org-level: a
+  // host buys supplies centrally, so stock is a single pool, not per-apartment.
+  supplyStockJson String?
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
 
@@ -217,6 +222,7 @@ model Property {
   tasks            Task[]
   knowledgeBase    KnowledgeBaseItem[]
   messageTemplates MessageTemplate[]
+  supplyRequests   SupplyRequest[]
   calendarSources  CalendarSource[]
 
   @@index([organizationId])
@@ -279,6 +285,7 @@ model Reservation {
   property      Property       @relation(fields: [propertyId], references: [id], onDelete: Cascade)
   conversations Conversation[]
   tasks         Task[]
+  supplyRequests SupplyRequest[]
 
   @@index([propertyId])
   @@index([arrivalDate])
@@ -400,6 +407,26 @@ model Task {
   @@index([reservationId])
   // Smart-task dedupe lookup: findFirst by dedupeKey among non-done tasks.
   @@index([dedupeKey])
+}
+
+// A guest's one-off extra-supply request ("bir havlu daha alabilir miyim?") picked
+// up from an inbound message. Added to the prep plan so the host prepares the extra
+// item. Deduped per triggering message (sourceMessageId). A NEW table → zero risk to
+// existing tables; cascades away with the property, reservation link SetNull.
+model SupplyRequest {
+  id              String   @id @default(cuid())
+  propertyId      String
+  reservationId   String?
+  itemKey         String // one of the SUPPLY_ITEMS keys
+  qty             Int      @default(1)
+  sourceMessageId String? // the inbound Message it was detected from (dedup)
+  createdAt       DateTime @default(now())
+
+  property    Property     @relation(fields: [propertyId], references: [id], onDelete: Cascade)
+  reservation Reservation? @relation(fields: [reservationId], references: [id], onDelete: SetNull)
+
+  @@index([propertyId, createdAt])
+  @@index([sourceMessageId])
 }
 
 model TaskUpdate {

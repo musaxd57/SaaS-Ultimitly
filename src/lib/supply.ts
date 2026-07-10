@@ -79,54 +79,84 @@ export interface PrepPlanProperty {
   propertyName: string;
   arrivals: number;
   items: PrepPlanItem[];
+  /** Guest-requested extras folded into `items` above; listed for a "misafir talebi" note. */
+  requests: { label: string; qty: number }[];
+}
+/** Aggregate line: gross need, on-hand stock, and the net amount to actually buy. */
+export interface PrepPlanAggItem extends SupplyItemDef {
+  need: number;
+  onHand: number;
+  toBuy: number;
 }
 export interface PrepPlan {
   days: number;
   start: Date;
   end: Date;
   totalArrivals: number;
-  /** Aggregated across the org, split by kind, qty>0, catalog order. */
-  linen: PrepPlanItem[];
-  consumables: PrepPlanItem[];
-  /** Per-property breakdown (only properties with arrivals AND a profile). */
+  /** Aggregated across the org, split by kind, need>0, catalog order. */
+  linen: PrepPlanAggItem[];
+  consumables: PrepPlanAggItem[];
+  /** Per-property breakdown (gross per-flat need incl. guest requests). */
   perProperty: PrepPlanProperty[];
   /** Names of properties that have arrivals but NO profile yet (nudge the host). */
   missingProfile: string[];
+  /** True when any on-hand stock is set → the UI shows "net alınacak". */
+  hasStock: boolean;
 }
+
+// Guest requests older than this are assumed already handled (self-expiring v1).
+const REQUEST_LOOKBACK_MS = 7 * 24 * 60 * 60 * 1000;
 
 /**
  * Build the prep/shopping plan for the next `days` days (default 7), starting at
- * Istanbul "today". Counts confirmed/completed arrivals per property in the window
- * and multiplies by that property's supply profile.
+ * Istanbul "today". need = confirmed/completed arrivals × the property's profile,
+ * PLUS recent guest extra-supply requests; the aggregate subtracts on-hand org
+ * stock to show the NET amount to buy.
  */
 export async function getPrepPlan(
   organizationId: string,
   opts: { days?: number; now?: Date } = {},
 ): Promise<PrepPlan> {
   const days = Math.max(1, Math.min(opts.days ?? 7, 60));
-  const start = istanbulDayStart(opts.now ?? new Date());
+  const now = opts.now ?? new Date();
+  const start = istanbulDayStart(now);
   const end = new Date(start.getTime() + days * 24 * 60 * 60 * 1000);
 
-  const properties = await prisma.property.findMany({
-    where: { organizationId },
-    select: { id: true, name: true, supplyProfileJson: true },
-  });
-  if (properties.length === 0) {
-    return { days, start, end, totalArrivals: 0, linen: [], consumables: [], perProperty: [], missingProfile: [] };
-  }
+  const [org, properties] = await Promise.all([
+    prisma.organization.findUnique({ where: { id: organizationId }, select: { supplyStockJson: true } }),
+    prisma.property.findMany({
+      where: { organizationId },
+      select: { id: true, name: true, supplyProfileJson: true },
+    }),
+  ]);
+  const stock = parseSupplyProfile(org?.supplyStockJson); // same { key: qty } shape
+  const hasStock = Object.keys(stock).length > 0;
+  const empty: PrepPlan = { days, start, end, totalArrivals: 0, linen: [], consumables: [], perProperty: [], missingProfile: [], hasStock };
+  if (properties.length === 0) return empty;
 
+  const ids = properties.map((p) => p.id);
   // Arrivals in the window, bucketed by property. Mirror the calendar's status
   // filter (confirmed/completed) so cancelled/pending bookings don't inflate needs.
-  const arrivals = await prisma.reservation.groupBy({
-    by: ["propertyId"],
-    where: {
-      propertyId: { in: properties.map((p) => p.id) },
-      status: { in: ["confirmed", "completed"] },
-      arrivalDate: { gte: start, lt: end },
-    },
-    _count: { id: true },
-  });
+  const [arrivals, requestsRaw] = await Promise.all([
+    prisma.reservation.groupBy({
+      by: ["propertyId"],
+      where: { propertyId: { in: ids }, status: { in: ["confirmed", "completed"] }, arrivalDate: { gte: start, lt: end } },
+      _count: { id: true },
+    }),
+    prisma.supplyRequest.findMany({
+      where: { propertyId: { in: ids }, createdAt: { gte: new Date(now.getTime() - REQUEST_LOOKBACK_MS) } },
+      select: { propertyId: true, itemKey: true, qty: true },
+    }),
+  ]);
   const arrivalsByProperty = new Map(arrivals.map((a) => [a.propertyId, a._count.id]));
+  // property → itemKey → summed requested qty (only known catalog keys)
+  const reqByProperty = new Map<string, Map<SupplyItemKey, number>>();
+  for (const r of requestsRaw) {
+    if (!KEY_SET.has(r.itemKey)) continue;
+    const m = reqByProperty.get(r.propertyId) ?? new Map<SupplyItemKey, number>();
+    m.set(r.itemKey as SupplyItemKey, (m.get(r.itemKey as SupplyItemKey) ?? 0) + r.qty);
+    reqByProperty.set(r.propertyId, m);
+  }
 
   const totals = new Map<SupplyItemKey, number>();
   const perProperty: PrepPlanProperty[] = [];
@@ -135,40 +165,108 @@ export async function getPrepPlan(
 
   for (const p of properties) {
     const count = arrivalsByProperty.get(p.id) ?? 0;
-    if (count === 0) continue;
     totalArrivals += count;
     const profile = parseSupplyProfile(p.supplyProfileJson);
-    if (Object.keys(profile).length === 0) {
-      missingProfile.push(p.name);
+    const reqMap = reqByProperty.get(p.id);
+    const itemQty = new Map<SupplyItemKey, number>();
+
+    if (count > 0 && Object.keys(profile).length > 0) {
+      for (const def of SUPPLY_ITEMS) {
+        const per = profile[def.key];
+        if (per) itemQty.set(def.key, per * count);
+      }
+    }
+    const reqList: { label: string; qty: number }[] = [];
+    if (reqMap) {
+      for (const def of SUPPLY_ITEMS) {
+        const q = reqMap.get(def.key);
+        if (!q) continue;
+        itemQty.set(def.key, (itemQty.get(def.key) ?? 0) + q);
+        reqList.push({ label: def.label, qty: q });
+      }
+    }
+
+    if (itemQty.size === 0) {
+      // Arrivals but no profile (and no request) → nudge the host to set a profile.
+      if (count > 0 && Object.keys(profile).length === 0) missingProfile.push(p.name);
       continue;
     }
-    const items: PrepPlanItem[] = [];
-    for (const def of SUPPLY_ITEMS) {
-      const per = profile[def.key];
-      if (!per) continue;
-      const qty = per * count;
-      items.push({ ...def, qty });
-      totals.set(def.key, (totals.get(def.key) ?? 0) + qty);
-    }
-    if (items.length > 0) {
-      perProperty.push({ propertyId: p.id, propertyName: p.name, arrivals: count, items });
-    }
+    const items = SUPPLY_ITEMS.filter((d) => itemQty.has(d.key)).map((d) => ({ ...d, qty: itemQty.get(d.key) as number }));
+    for (const [k, q] of itemQty) totals.set(k, (totals.get(k) ?? 0) + q);
+    perProperty.push({ propertyId: p.id, propertyName: p.name, arrivals: count, items, requests: reqList });
   }
 
-  const toList = (kind: "linen" | "consumable"): PrepPlanItem[] =>
-    SUPPLY_ITEMS.filter((d) => d.kind === kind && (totals.get(d.key) ?? 0) > 0).map((d) => ({
-      ...d,
-      qty: totals.get(d.key) as number,
-    }));
+  const toAgg = (kind: "linen" | "consumable"): PrepPlanAggItem[] =>
+    SUPPLY_ITEMS.filter((d) => d.kind === kind && (totals.get(d.key) ?? 0) > 0).map((d) => {
+      const need = totals.get(d.key) as number;
+      const onHand = stock[d.key] ?? 0;
+      return { ...d, need, onHand, toBuy: Math.max(0, need - onHand) };
+    });
 
   return {
     days,
     start,
     end,
     totalArrivals,
-    linen: toList("linen"),
-    consumables: toList("consumable"),
+    linen: toAgg("linen"),
+    consumables: toAgg("consumable"),
     perProperty: perProperty.sort((a, b) => a.propertyName.localeCompare(b.propertyName, "tr")),
     missingProfile,
+    hasStock,
   };
+}
+
+// --- Guest extra-supply requests (message → +1 in the plan) ------------------
+// Task-triage-only: detect "extra towel/sheet" asks. Requires an EXPLICIT extra
+// signal AND a linen item so "havlular çok güzel" never triggers. +1 per item.
+const EXTRA_SIGNALS = [
+  "ekstra", "fazladan", "yedek", "ilave", "bir tane daha", "bir daha", "daha alabilir",
+  "daha rica", "daha istiyor", "daha verir", "daha getir", "extra", "additional",
+  "one more", "some more", "more towel", "more sheet", "another towel", "another sheet",
+];
+const REQUEST_ITEMS: { key: SupplyItemKey; words: string[] }[] = [
+  { key: "banyo_havlusu", words: ["havlu", "towel"] },
+  { key: "carsaf_takimi", words: ["çarşaf", "carsaf", "sheet", "bed linen", "yatak takım"] },
+  { key: "nevresim", words: ["nevresim", "duvet", "yorgan"] },
+];
+
+/** Detect explicit extra-linen requests in a guest message. Empty when none. */
+export function detectSupplyRequest(message: string): { itemKey: SupplyItemKey; qty: number }[] {
+  const m = message.toLowerCase();
+  if (!EXTRA_SIGNALS.some((s) => m.includes(s))) return [];
+  const out: { itemKey: SupplyItemKey; qty: number }[] = [];
+  for (const it of REQUEST_ITEMS) {
+    if (it.words.some((w) => m.includes(w))) out.push({ itemKey: it.key, qty: 1 });
+  }
+  return out;
+}
+
+/**
+ * Record any extra-supply requests found in an inbound guest message, deduped by
+ * the triggering message so a re-sync can't double-count. Best-effort; never throws.
+ * Returns how many request rows were created.
+ */
+export async function recordSupplyRequestFromMessage(ctx: {
+  propertyId: string;
+  message: string;
+  sourceMessageId: string;
+  reservationId?: string | null;
+}): Promise<number> {
+  const detected = detectSupplyRequest(ctx.message);
+  if (detected.length === 0) return 0;
+  const existing = await prisma.supplyRequest.findFirst({
+    where: { sourceMessageId: ctx.sourceMessageId },
+    select: { id: true },
+  });
+  if (existing) return 0;
+  await prisma.supplyRequest.createMany({
+    data: detected.map((d) => ({
+      propertyId: ctx.propertyId,
+      reservationId: ctx.reservationId ?? null,
+      itemKey: d.itemKey,
+      qty: d.qty,
+      sourceMessageId: ctx.sourceMessageId,
+    })),
+  });
+  return detected.length;
 }

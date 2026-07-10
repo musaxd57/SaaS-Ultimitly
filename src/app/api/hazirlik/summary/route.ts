@@ -3,7 +3,7 @@ import { jsonOk } from "@/lib/api";
 import { withAuth } from "@/lib/route-guard";
 import { rateLimit } from "@/lib/rate-limit";
 import { getPrepPlan } from "@/lib/supply";
-import { generateSupplySummary, supplyAiConfigured } from "@/lib/supply-ai";
+import { generateSupplySummary, supplyAiConfigured, planHasBuyables } from "@/lib/supply-ai";
 
 export const dynamic = "force-dynamic";
 
@@ -29,7 +29,7 @@ export const POST = withAuth(async (session, req) => {
   const days = [1, 7, 14].includes(Number(body.days)) ? Number(body.days) : 7;
 
   const plan = await getPrepPlan(session.organizationId, { days });
-  if (plan.linen.length === 0 && plan.consumables.length === 0) {
+  if (!planHasBuyables(plan)) {
     return jsonOk({ summary: null, empty: true });
   }
 

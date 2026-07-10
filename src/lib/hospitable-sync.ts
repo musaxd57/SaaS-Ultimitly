@@ -13,6 +13,7 @@ import {
 import { getOrgHospitableToken } from "@/lib/hospitable-credentials";
 import { reportError } from "@/lib/report-error";
 import { createReservationTasks, removeAutoTasksForCancelledReservation } from "@/lib/automation";
+import { recordSupplyRequestFromMessage } from "@/lib/supply";
 import { billingEnforced, getEntitlement } from "@/lib/billing/subscription";
 import { ANON_NAME, ANON_ID } from "@/lib/data-retention";
 
@@ -557,7 +558,7 @@ async function importThread(
     if (exists) continue;
 
     const inbound = isGuestMessage(m);
-    await prisma.message.create({
+    const created = await prisma.message.create({
       data: {
         conversationId,
         direction: inbound ? "inbound" : "outbound",
@@ -567,8 +568,19 @@ async function importThread(
         externalId,
         createdAt: parseDate(m.created_at) ?? undefined,
       },
+      select: { id: true },
     });
     newMessages++;
+    // Pick up an explicit "extra towel/sheet" ask → adds +1 to the prep plan.
+    // Best-effort, deduped by message id; must never break the sync.
+    if (inbound) {
+      await recordSupplyRequestFromMessage({
+        propertyId,
+        message: body,
+        sourceMessageId: created.id,
+        reservationId: localReservationId,
+      }).catch(() => {});
+    }
   }
 
   return newMessages;

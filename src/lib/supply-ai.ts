@@ -19,28 +19,28 @@ export type SupplySummaryResult =
   | { ok: true; text: string }
   | { ok: false; reason: string };
 
-/** Compact, PII-free data block describing the plan for the model. */
+/** Compact, PII-free data block describing the plan for the model. Uses the NET
+ * amount to buy/prepare (after on-hand stock). */
 function planToText(plan: PrepPlan): string {
   const lines: string[] = [];
   lines.push(`Aralık: önümüzdeki ${plan.days} gün. Toplam giriş (turnover): ${plan.totalArrivals}.`);
-  if (plan.consumables.length > 0) {
-    lines.push(
-      "Alınacaklar (sarf): " +
-        plan.consumables.map((i) => `${i.label} ${i.qty} ${i.unit}`).join(", ") +
-        ".",
-    );
+  const buy = plan.consumables.filter((i) => i.toBuy > 0);
+  const prep = plan.linen.filter((i) => i.toBuy > 0);
+  if (buy.length > 0) {
+    lines.push("Alınacaklar (sarf): " + buy.map((i) => `${i.label} ${i.toBuy} ${i.unit}`).join(", ") + ".");
   }
-  if (plan.linen.length > 0) {
-    lines.push(
-      "Hazırlanacak (çamaşır): " +
-        plan.linen.map((i) => `${i.label} ${i.qty} ${i.unit}`).join(", ") +
-        ".",
-    );
+  if (prep.length > 0) {
+    lines.push("Hazırlanacak (çamaşır): " + prep.map((i) => `${i.label} ${i.toBuy} ${i.unit}`).join(", ") + ".");
   }
   if (plan.missingProfile.length > 0) {
     lines.push(`Malzeme profili tanımsız daire sayısı: ${plan.missingProfile.length}.`);
   }
   return lines.join("\n");
+}
+
+/** Whether there is anything to actually buy/prepare (net of stock). */
+export function planHasBuyables(plan: PrepPlan): boolean {
+  return [...plan.linen, ...plan.consumables].some((i) => i.toBuy > 0);
 }
 
 const SYSTEM_PROMPT =
@@ -61,7 +61,7 @@ const SYSTEM_PROMPT =
 export async function generateSupplySummary(plan: PrepPlan): Promise<SupplySummaryResult> {
   const key = process.env.SUPPLY_AI_API_KEY?.trim();
   if (!key) return { ok: false, reason: "not_configured" };
-  if (plan.linen.length === 0 && plan.consumables.length === 0) return { ok: false, reason: "empty_plan" };
+  if (!planHasBuyables(plan)) return { ok: false, reason: "empty_plan" };
 
   const base = (process.env.SUPPLY_AI_BASE_URL?.trim() || "https://api.akashml.com/v1").replace(/\/$/, "");
   const model = process.env.SUPPLY_AI_MODEL?.trim() || "zai-org/GLM-5.2";

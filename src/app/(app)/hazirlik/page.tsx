@@ -2,9 +2,11 @@ import { requireAuth } from "@/lib/auth";
 import { PageHeader } from "@/components/page-header";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { LinkButton } from "@/components/ui/link-button";
-import { getPrepPlan, type PrepPlanItem } from "@/lib/supply";
+import { getPrepPlan, parseSupplyProfile, type PrepPlanAggItem } from "@/lib/supply";
+import { prisma } from "@/lib/db";
 import { supplyAiConfigured } from "@/lib/supply-ai";
 import { SupplyAiSummary } from "@/components/supply/supply-ai-summary";
+import { SupplyStockForm } from "@/components/supply/supply-stock-form";
 import { formatDayInTz } from "@/lib/utils";
 import { PackageOpen, ShoppingCart, WashingMachine } from "lucide-react";
 
@@ -16,14 +18,19 @@ const RANGES = [
   { days: 14, label: "14 gün" },
 ];
 
-function ItemList({ items }: { items: PrepPlanItem[] }) {
+function ItemList({ items }: { items: PrepPlanAggItem[] }) {
   return (
     <ul className="space-y-1.5">
       {items.map((it) => (
         <li key={it.key} className="flex items-center justify-between gap-3 text-sm">
-          <span>{it.label}</span>
+          <span>
+            {it.label}
+            {it.onHand > 0 ? (
+              <span className="text-xs text-muted-foreground"> · ihtiyaç {it.need}, elde {it.onHand}</span>
+            ) : null}
+          </span>
           <span className="font-semibold tabular-nums">
-            {it.qty} <span className="text-xs font-normal text-muted-foreground">{it.unit}</span>
+            {it.toBuy} <span className="text-xs font-normal text-muted-foreground">{it.unit}</span>
           </span>
         </li>
       ))}
@@ -43,6 +50,12 @@ export default async function HazirlikPage({
   const plan = await getPrepPlan(session.organizationId, { days });
   const hasNeeds = plan.linen.length > 0 || plan.consumables.length > 0;
   const aiEnabled = supplyAiConfigured();
+  const canManage = session.role === "owner" || session.role === "manager";
+  const org = await prisma.organization.findUnique({
+    where: { id: session.organizationId },
+    select: { supplyStockJson: true },
+  });
+  const stock = parseSupplyProfile(org?.supplyStockJson);
   const rangeLabel =
     days === 1
       ? formatDayInTz(plan.start)
@@ -70,6 +83,8 @@ export default async function HazirlikPage({
           {rangeLabel} · {plan.totalArrivals} giriş
         </span>
       </div>
+
+      {canManage ? <SupplyStockForm initial={stock} /> : null}
 
       {!hasNeeds ? (
         <Card>
@@ -140,6 +155,11 @@ export default async function HazirlikPage({
                       </span>
                     ))}
                   </div>
+                  {p.requests.length > 0 ? (
+                    <p className="mt-1 text-xs text-amber-600">
+                      Misafir talebi: {p.requests.map((r) => `+${r.qty} ${r.label}`).join(", ")}
+                    </p>
+                  ) : null}
                 </div>
               ))}
             </CardContent>

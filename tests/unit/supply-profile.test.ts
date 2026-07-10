@@ -1,5 +1,5 @@
 import { describe, it, expect } from "vitest";
-import { parseSupplyProfile, serializeSupplyProfile } from "@/lib/supply";
+import { parseSupplyProfile, serializeSupplyProfile, detectSupplyRequest } from "@/lib/supply";
 
 describe("parseSupplyProfile", () => {
   it("keeps known keys with positive integer quantities", () => {
@@ -42,5 +42,29 @@ describe("serializeSupplyProfile", () => {
   it("round-trips through parse", () => {
     const json = serializeSupplyProfile({ carsaf_takimi: 2, banyo_havlusu: 4, cop_poseti: 2 });
     expect(parseSupplyProfile(json)).toEqual({ carsaf_takimi: 2, banyo_havlusu: 4, cop_poseti: 2 });
+  });
+});
+
+describe("detectSupplyRequest", () => {
+  it("detects an explicit extra-towel request (+1)", () => {
+    expect(detectSupplyRequest("Bir havlu daha alabilir miyiz?")).toEqual([{ itemKey: "banyo_havlusu", qty: 1 }]);
+    expect(detectSupplyRequest("could we get an extra towel?")).toEqual([{ itemKey: "banyo_havlusu", qty: 1 }]);
+    expect(detectSupplyRequest("fazladan çarşaf rica edebilir miyim")).toEqual([{ itemKey: "carsaf_takimi", qty: 1 }]);
+  });
+
+  it("detects multiple distinct extras in one message", () => {
+    const out = detectSupplyRequest("ekstra havlu ve nevresim alabilir miyiz");
+    expect(out).toContainEqual({ itemKey: "banyo_havlusu", qty: 1 });
+    expect(out).toContainEqual({ itemKey: "nevresim", qty: 1 });
+  });
+
+  it("does NOT fire without an explicit extra signal (praise / neutral)", () => {
+    expect(detectSupplyRequest("havlular çok temiz ve güzel, teşekkürler")).toEqual([]);
+    expect(detectSupplyRequest("çarşaflar nerede acaba?")).toEqual([]);
+    expect(detectSupplyRequest("wifi şifresi nedir?")).toEqual([]);
+  });
+
+  it("does NOT fire on an extra signal with no linen item", () => {
+    expect(detectSupplyRequest("bir kahve daha alabilir miyim")).toEqual([]);
   });
 });

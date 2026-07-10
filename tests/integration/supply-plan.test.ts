@@ -1,6 +1,6 @@
 import { describe, it, expect, beforeEach } from "vitest";
 import { prisma, resetDb } from "../helpers/db";
-import { getPrepPlan } from "@/lib/supply";
+import { getPrepPlan, recordSupplyRequestFromMessage } from "@/lib/supply";
 
 // now = 2026-07-10 12:00 Istanbul (09:00 UTC). Istanbul day window for a 7-day
 // plan: [2026-07-10 .. 2026-07-16] inclusive.
@@ -47,8 +47,8 @@ describe("getPrepPlan", () => {
 
     expect(plan.totalArrivals).toBe(3);
     // carsaf: a(2×2)=4 + b(1×1)=1 = 5 ; cop: a(2×1)=2 + b(1×3)=3 = 5
-    const linen = Object.fromEntries(plan.linen.map((i) => [i.key, i.qty]));
-    const cons = Object.fromEntries(plan.consumables.map((i) => [i.key, i.qty]));
+    const linen = Object.fromEntries(plan.linen.map((i) => [i.key, i.toBuy]));
+    const cons = Object.fromEntries(plan.consumables.map((i) => [i.key, i.toBuy]));
     expect(linen.carsaf_takimi).toBe(5);
     expect(cons.cop_poseti).toBe(5);
     expect(plan.perProperty).toHaveLength(2);
@@ -63,7 +63,7 @@ describe("getPrepPlan", () => {
 
     const plan = await getPrepPlan(orgId, { days: 7, now: NOW });
     expect(plan.totalArrivals).toBe(1);
-    expect(plan.linen.find((i) => i.key === "carsaf_takimi")?.qty).toBe(2);
+    expect(plan.linen.find((i) => i.key === "carsaf_takimi")?.toBuy).toBe(2);
   });
 
   it("nudges properties that have arrivals but no profile (not counted)", async () => {
@@ -93,5 +93,63 @@ describe("getPrepPlan", () => {
     expect(plan.totalArrivals).toBe(0);
     expect(plan.linen).toHaveLength(0);
     expect(plan.consumables).toHaveLength(0);
+  });
+
+  it("subtracts on-hand org stock → toBuy = max(0, need - stock)", async () => {
+    const a = await makeProperty(orgId, "nuve 1", { cop_poseti: 2 });
+    await arrival(a.id, "2026-07-11T00:00:00.000Z");
+    await arrival(a.id, "2026-07-13T00:00:00.000Z"); // need = 2×2 = 4
+    await prisma.organization.update({ where: { id: orgId }, data: { supplyStockJson: JSON.stringify({ cop_poseti: 3 }) } });
+
+    const plan = await getPrepPlan(orgId, { days: 7, now: NOW });
+    const cop = plan.consumables.find((i) => i.key === "cop_poseti")!;
+    expect(cop.need).toBe(4);
+    expect(cop.onHand).toBe(3);
+    expect(cop.toBuy).toBe(1); // 4 − 3
+    expect(plan.hasStock).toBe(true);
+  });
+
+  it("never goes negative when stock exceeds need", async () => {
+    const a = await makeProperty(orgId, "nuve 1", { cop_poseti: 1 });
+    await arrival(a.id, "2026-07-11T00:00:00.000Z"); // need 1
+    await prisma.organization.update({ where: { id: orgId }, data: { supplyStockJson: JSON.stringify({ cop_poseti: 10 }) } });
+    const plan = await getPrepPlan(orgId, { days: 7, now: NOW });
+    expect(plan.consumables.find((i) => i.key === "cop_poseti")!.toBuy).toBe(0);
+  });
+
+  it("adds a recent guest supply request (+1) to the need and lists it", async () => {
+    const a = await makeProperty(orgId, "nuve 1", { banyo_havlusu: 2 });
+    await arrival(a.id, "2026-07-11T00:00:00.000Z"); // need 2 towels
+    await prisma.supplyRequest.create({
+      data: { propertyId: a.id, itemKey: "banyo_havlusu", qty: 1, createdAt: new Date("2026-07-09T10:00:00Z") },
+    });
+    const plan = await getPrepPlan(orgId, { days: 7, now: NOW });
+    expect(plan.consumables.length + plan.linen.length).toBeGreaterThan(0);
+    expect(plan.linen.find((i) => i.key === "banyo_havlusu")!.need).toBe(3); // 2 + 1
+    const prop = plan.perProperty.find((p) => p.propertyId === a.id)!;
+    expect(prop.requests).toContainEqual({ label: "Banyo havlusu", qty: 1 });
+  });
+
+  it("ignores a stale request (older than the lookback window)", async () => {
+    const a = await makeProperty(orgId, "nuve 1", { banyo_havlusu: 2 });
+    await arrival(a.id, "2026-07-11T00:00:00.000Z");
+    await prisma.supplyRequest.create({
+      data: { propertyId: a.id, itemKey: "banyo_havlusu", qty: 1, createdAt: new Date("2026-06-01T10:00:00Z") },
+    });
+    const plan = await getPrepPlan(orgId, { days: 7, now: NOW });
+    expect(plan.linen.find((i) => i.key === "banyo_havlusu")!.need).toBe(2); // stale request not counted
+  });
+
+  it("records an extra-supply request from a message, deduped by message id", async () => {
+    const a = await makeProperty(orgId, "nuve 1", { banyo_havlusu: 1 });
+    const n1 = await recordSupplyRequestFromMessage({ propertyId: a.id, message: "bir havlu daha alabilir miyiz?", sourceMessageId: "m1" });
+    expect(n1).toBe(1);
+    // same message re-synced → no duplicate
+    const n2 = await recordSupplyRequestFromMessage({ propertyId: a.id, message: "bir havlu daha alabilir miyiz?", sourceMessageId: "m1" });
+    expect(n2).toBe(0);
+    // neutral message → nothing
+    const n3 = await recordSupplyRequestFromMessage({ propertyId: a.id, message: "wifi şifresi nedir?", sourceMessageId: "m2" });
+    expect(n3).toBe(0);
+    expect(await prisma.supplyRequest.count({ where: { propertyId: a.id } })).toBe(1);
   });
 });
