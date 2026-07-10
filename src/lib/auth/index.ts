@@ -30,8 +30,11 @@ export async function getSession(): Promise<SessionPayload | null> {
  *  but a Next.js soft/client navigation does NOT re-run the layout server
  *  component, so without a per-render check a password-reset-invalidated (or
  *  stolen) session could keep READING page data until a full document load.
- *  requireAuth runs on every page-segment render, closing that gap. Fail-OPEN on a
- *  transient DB blip (never mass-logout — the JWT signature is still valid). */
+ *  requireAuth runs on every page-segment render, closing that gap. Fail-OPEN on
+ *  the SESSION (never mass-logout on a transient DB blip — the JWT signature is
+ *  still valid) but fail-CLOSED on CAPABILITY: if the DB-authoritative role can't
+ *  be read, clamp to the least-privileged role so a just-demoted (or stolen-
+ *  elevated) token can't render owner/manager-gated views during the outage. */
 export async function requireAuth(): Promise<SessionPayload> {
   const session = await getSession();
   if (!session) redirect("/login");
@@ -60,7 +63,12 @@ export async function requireAuth(): Promise<SessionPayload> {
       if (!actor || actor.sessionEpoch !== session.actorSessionEpoch) invalid = true;
     }
   } catch {
-    // DB blip — don't turn a transient read failure into a logout.
+    // DB blip: keep the (signature-valid) session alive — no mass-logout — but we
+    // could NOT confirm the DB-authoritative role, so fail CLOSED on capability by
+    // clamping to the least-privileged role. Manager/owner-gated UI + role-scoped
+    // reads stay hidden until the DB recovers and the real role is read back.
+    // Super-admin is email+env based (not this role) → intentionally unaffected.
+    session.role = "staff";
   }
   if (invalid) redirect("/api/auth/logout");
   return session;
