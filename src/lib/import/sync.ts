@@ -3,6 +3,7 @@ import { prisma } from "@/lib/db";
 import { parseIcs } from "@/lib/import/ics";
 import { createReservationTasks } from "@/lib/automation";
 import { isPrivateHost } from "@/lib/net/private-host";
+import { ANON_NAME } from "@/lib/data-retention";
 
 export interface SyncResult {
   imported: number;
@@ -48,6 +49,12 @@ export async function syncCalendarSource(sourceId: string): Promise<SyncResult> 
       headers: { "User-Agent": "Lixus-AI/1.0" },
       // iCal feeds change often; never serve a stale cached copy.
       cache: "no-store",
+      // SSRF: do NOT follow redirects — a public host could 30x to an internal
+      // URL that bypasses the isPrivateHost check on the original hostname. A 3xx
+      // then fails the res.ok check below. Bound the fetch so a slow-loris internal
+      // endpoint can't wedge the request.
+      redirect: "manual",
+      signal: AbortSignal.timeout(15000),
     });
     if (!res.ok) {
       throw new Error(`HTTP ${res.status}`);
@@ -92,18 +99,27 @@ export async function syncCalendarSource(sourceId: string): Promise<SyncResult> 
       const existing = row.sourceReference
         ? await prisma.reservation.findFirst({
             where: { propertyId: source.propertyId, sourceReference: row.sourceReference },
-            select: { id: true },
+            select: { id: true, guestName: true },
           })
         : null;
 
       if (existing) {
+        // KVKK resurrection guard: once the retention sweep has anonymized this
+        // row (guestName === ANON_NAME), NEVER let a re-import write the guest's
+        // name/notes back from the feed. Dates (non-PII) still refresh so
+        // occupancy stays correct. Mirrors the hospitable-sync.ts guard.
+        const scrubbed = existing.guestName === ANON_NAME;
         await prisma.reservation.update({
           where: { id: existing.id },
           data: {
-            guestName: row.guestName.slice(0, 200),
+            ...(scrubbed
+              ? {}
+              : {
+                  guestName: row.guestName.slice(0, 200),
+                  notes: row.notes ? row.notes.slice(0, 5000) : null,
+                }),
             arrivalDate: row.arrivalDate,
             departureDate: row.departureDate,
-            notes: row.notes ? row.notes.slice(0, 5000) : null,
           },
         });
         // Backfill tasks for reservations imported before task automation existed.
