@@ -5,6 +5,7 @@ import {
   registerSchema,
   propertySchema,
   kbSchema,
+  taskUpdateSchema,
   zodFieldErrors,
 } from "@/lib/validators";
 
@@ -73,6 +74,21 @@ describe("kbSchema", () => {
     expect(parsed.category).toBe("general");
     expect(parsed.language).toBe("tr");
     expect(parsed.isActive).toBe(true);
+  });
+});
+
+describe("taskUpdateSchema.photoUrl scheme guard", () => {
+  it("accepts a same-origin upload path and an https URL", () => {
+    expect(taskUpdateSchema.safeParse({ photoUrl: "/uploads/org/pic.jpg" }).success).toBe(true);
+    expect(taskUpdateSchema.safeParse({ photoUrl: "https://cdn.example.com/a.png" }).success).toBe(true);
+  });
+
+  it("rejects javascript:/data:/protocol-relative/http schemes (stored-XSS vectors)", () => {
+    // photoUrl is rendered as <a href> AND <img src> in the task board.
+    expect(taskUpdateSchema.safeParse({ photoUrl: "javascript:alert(1)" }).success).toBe(false);
+    expect(taskUpdateSchema.safeParse({ photoUrl: "data:text/html,<script>1</script>" }).success).toBe(false);
+    expect(taskUpdateSchema.safeParse({ photoUrl: "//evil.example.com/x.png" }).success).toBe(false);
+    expect(taskUpdateSchema.safeParse({ photoUrl: "http://insecure.example.com/x.png" }).success).toBe(false);
   });
 });
 

@@ -141,7 +141,16 @@ export const taskUpdateSchema = z.object({
   status: z.enum(TASK_STATUS.values).optional(),
   assignedToId: z.string().optional(),
   note: z.string().max(5000).optional(),
-  photoUrl: z.string().max(2000).optional(),
+  // Only a same-origin relative path (what /api/upload returns: "/uploads/…") or
+  // an explicit https URL (future object storage). This value is rendered as an
+  // <a href> AND an <img src> in the task board, so a "javascript:" / "data:" /
+  // protocol-relative "//host" value would be stored XSS a same-org staff member
+  // could aim at the owner. Reject every other scheme.
+  photoUrl: z
+    .string()
+    .max(2000)
+    .refine((v) => /^\/(?!\/)/.test(v) || /^https:\/\//i.test(v), "Geçersiz görsel bağlantısı.")
+    .optional(),
   title: z.string().max(300).optional(),
   description: z.string().max(5000).optional(),
   priority: z.enum(PRIORITY.values).optional(),
