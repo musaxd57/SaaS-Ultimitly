@@ -90,6 +90,7 @@ export function PaddlePlans({
   active = true,
   trialDaysLeft = null,
   manageable = false,
+  planChangeEnabled = false,
   plans,
 }: {
   clientToken: string;
@@ -107,11 +108,25 @@ export function PaddlePlans({
    *  hosted customer portal. Locks NEW checkout (so an active subscriber can't
    *  start a second subscription) and surfaces the "manage subscription" button. */
   manageable?: boolean;
+  /** True when in-app plan change (PADDLE_PLAN_CHANGE_ENABLED) is on AND the org has
+   *  a Paddle sub. Turns the locked cards into real upgrade/downgrade buttons that
+   *  preview the prorated charge, then apply via PATCH /subscriptions. */
+  planChangeEnabled?: boolean;
   plans: PlanOption[];
 }) {
   const router = useRouter();
   const [ready, setReady] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  // In-app plan change: the previewed change awaiting the user's confirmation.
+  const [pending, setPending] = useState<{
+    planCode: string;
+    name: string;
+    mode: "upgrade" | "downgrade";
+    targetMonthly: number;
+    immediateTotal: string | null;
+    recurringTotal: string | null;
+  } | null>(null);
+  const [changeBusy, setChangeBusy] = useState(false);
   // Distance-selling consent: the buyer must accept the Ön Bilgilendirme Formu +
   // Mesafeli Satış Sözleşmesi BEFORE a paid checkout opens. Gates every plan button.
   const [accepted, setAccepted] = useState(false);
@@ -224,6 +239,76 @@ export function PaddlePlans({
     }
   }, [busy]);
 
+  // Step 1: preview the change (Paddle computes the exact prorated charge) and open
+  // the confirm panel. Never applies anything by itself.
+  const startChange = useCallback(async (planCode: string) => {
+    if (changeBusy) return;
+    setError(null);
+    setChangeBusy(true);
+    try {
+      const res = await fetch("/api/billing/plan-preview", {
+        method: "POST",
+        headers: { "content-type": "application/json" },
+        body: JSON.stringify({ planCode }),
+      });
+      const data = (await res.json().catch(() => ({}))) as {
+        error?: string;
+        mode?: "upgrade" | "downgrade";
+        targetName?: string;
+        targetMonthly?: number;
+        immediateTotal?: string | null;
+        recurringTotal?: string | null;
+      };
+      if (!res.ok || !data.mode) {
+        setError(data.error ?? "Plan bilgisi alınamadı. Lütfen tekrar deneyin.");
+        return;
+      }
+      setPending({
+        planCode,
+        name: data.targetName ?? planCode,
+        mode: data.mode,
+        targetMonthly: data.targetMonthly ?? 0,
+        immediateTotal: data.immediateTotal ?? null,
+        recurringTotal: data.recurringTotal ?? null,
+      });
+    } catch {
+      setError("Bağlantı hatası. Lütfen tekrar deneyin.");
+    } finally {
+      setChangeBusy(false);
+    }
+  }, [changeBusy]);
+
+  // Step 2: apply the previewed change. Paddle charges/schedules; our webhook then
+  // updates the local plan, so we refresh once it returns.
+  const confirmChange = useCallback(async () => {
+    if (!pending || changeBusy) return;
+    setError(null);
+    setChangeBusy(true);
+    try {
+      const res = await fetch("/api/billing/plan-change", {
+        method: "POST",
+        headers: { "content-type": "application/json" },
+        body: JSON.stringify({ planCode: pending.planCode }),
+      });
+      const data = (await res.json().catch(() => ({}))) as { error?: string; ok?: boolean };
+      if (!res.ok || !data.ok) {
+        setError(data.error ?? "Plan değişikliği yapılamadı. Lütfen tekrar deneyin.");
+        return;
+      }
+      setPending(null);
+      // Give Paddle's webhook a moment to update the local plan, then refresh.
+      setTimeout(() => router.refresh(), 2500);
+    } catch {
+      setError("Bağlantı hatası. Lütfen tekrar deneyin.");
+    } finally {
+      setChangeBusy(false);
+    }
+  }, [pending, changeBusy, router]);
+
+  // Index of the org's current plan in the (ordered) catalog, to label each card's
+  // button as an upgrade or a downgrade.
+  const currentIndex = plans.findIndex((p) => p.code === currentPlanCode);
+
   return (
     <div className="space-y-3">
       <p className="text-sm text-muted-foreground">
@@ -254,9 +339,11 @@ export function PaddlePlans({
       {manageable ? (
         <div className="space-y-2 rounded-md border border-border bg-muted/30 p-3">
           <p className="text-xs leading-relaxed text-muted-foreground">
-            Planınızı yükseltmek/düşürmek, ödeme yönteminizi değiştirmek veya aboneliğinizi iptal etmek için
-            güvenli abonelik yönetim sayfasını kullanın. Yükseltme hemen, düşürme dönem sonunda geçerli olur;
-            tüm işlemler Paddle üzerinden yürütülür.
+            Ödeme yönteminizi değiştirmek veya aboneliğinizi iptal etmek için güvenli abonelik yönetim
+            sayfasını kullanın; işlemler Paddle üzerinden yürütülür.
+            {planChangeEnabled
+              ? " Plan yükseltme/düşürme için aşağıdaki planlardan birini seçin (yükseltme hemen, düşürme dönem sonunda geçerli olur)."
+              : ""}
           </p>
           <button
             type="button"
@@ -264,7 +351,7 @@ export function PaddlePlans({
             disabled={busy}
             className="inline-flex h-9 items-center rounded-md bg-primary px-3 text-sm font-medium text-primary-foreground hover:bg-primary/90 disabled:opacity-50"
           >
-            {busy ? "Açılıyor…" : "Aboneliği yönet (plan değiştir / iptal)"}
+            {busy ? "Açılıyor…" : "Aboneliği yönet (iptal / kart)"}
           </button>
         </div>
       ) : (
@@ -288,14 +375,61 @@ export function PaddlePlans({
         </label>
       )}
 
+      {pending ? (
+        <div className="space-y-2 rounded-md border border-primary/40 bg-accent/30 p-3">
+          <p className="text-sm">
+            {pending.mode === "upgrade" ? (
+              <>
+                <strong>{pending.name}</strong> planına <strong>yükseltiyorsunuz</strong>.{" "}
+                {pending.immediateTotal ? (
+                  <>
+                    Şimdi <strong>{pending.immediateTotal}</strong> tahsil edilecek
+                  </>
+                ) : (
+                  <>Kalan günler için fark bugün tahsil edilecek</>
+                )}
+                , ardından aylık{" "}
+                {pending.recurringTotal ?? `${pending.targetMonthly.toLocaleString("tr-TR")} ₺`}.
+              </>
+            ) : (
+              <>
+                <strong>{pending.name}</strong> planına <strong>düşürüyorsunuz</strong>. Değişiklik mevcut
+                döneminizin <strong>sonunda</strong> geçerli olur; o zamana kadar planınız aynı kalır.
+                Sonraki ödeme{" "}
+                {pending.recurringTotal ?? `${pending.targetMonthly.toLocaleString("tr-TR")} ₺`}.
+              </>
+            )}
+          </p>
+          <div className="flex gap-2">
+            <button
+              type="button"
+              onClick={() => void confirmChange()}
+              disabled={changeBusy}
+              className="inline-flex h-8 items-center rounded-md bg-primary px-3 text-xs font-medium text-primary-foreground hover:bg-primary/90 disabled:opacity-50"
+            >
+              {changeBusy ? "İşleniyor…" : "Onayla"}
+            </button>
+            <button
+              type="button"
+              onClick={() => setPending(null)}
+              disabled={changeBusy}
+              className="inline-flex h-8 items-center rounded-md border border-border px-3 text-xs font-medium hover:bg-accent disabled:opacity-50"
+            >
+              Vazgeç
+            </button>
+          </div>
+        </div>
+      ) : null}
+
       <div className="grid gap-3 sm:grid-cols-3">
-        {plans.map((p) => {
+        {plans.map((p, i) => {
           const isCurrent = isLockedCurrentPlan({
             active,
             trialing,
             planCode: p.code,
             currentPlanCode,
           });
+          const isUpgrade = currentIndex >= 0 && i > currentIndex;
           const price = (p.priceMinor / 100).toLocaleString("tr-TR");
           const limit = p.propertyLimit == null ? "Sınırsız daire" : `${p.propertyLimit} daireye kadar`;
           return (
@@ -312,22 +446,39 @@ export function PaddlePlans({
                 {price} <span className="text-xs font-normal text-muted-foreground">₺/ay</span>
               </p>
               <p className="mb-2 text-xs text-muted-foreground">{limit}</p>
-              <button
-                type="button"
-                disabled={!ready || isCurrent || !p.priceId || !accepted || busy || manageable}
-                onClick={() => openCheckout(p.code, p.priceId)}
-                className="inline-flex h-8 w-full items-center justify-center rounded-md bg-primary px-3 text-xs font-medium text-primary-foreground hover:bg-primary/90 disabled:opacity-50"
-              >
-                {isCurrent
-                  ? "Mevcut plan"
-                  : manageable
+              {isCurrent ? (
+                <button
+                  type="button"
+                  disabled
+                  className="inline-flex h-8 w-full items-center justify-center rounded-md bg-primary px-3 text-xs font-medium text-primary-foreground disabled:opacity-50"
+                >
+                  Mevcut plan
+                </button>
+              ) : planChangeEnabled ? (
+                <button
+                  type="button"
+                  disabled={changeBusy || !p.priceId || pending !== null}
+                  onClick={() => void startChange(p.code)}
+                  className="inline-flex h-8 w-full items-center justify-center rounded-md bg-primary px-3 text-xs font-medium text-primary-foreground hover:bg-primary/90 disabled:opacity-50"
+                >
+                  {isUpgrade ? "Yükselt" : "Düşür"}
+                </button>
+              ) : (
+                <button
+                  type="button"
+                  disabled={!ready || !p.priceId || !accepted || busy || manageable}
+                  onClick={() => openCheckout(p.code, p.priceId)}
+                  className="inline-flex h-8 w-full items-center justify-center rounded-md bg-primary px-3 text-xs font-medium text-primary-foreground hover:bg-primary/90 disabled:opacity-50"
+                >
+                  {manageable
                     ? "Yönetimden değiştirin"
                     : !ready
                       ? "Yükleniyor…"
                       : trialing
                         ? "Bu planı seç"
                         : "Bu plana geç"}
-              </button>
+                </button>
+              )}
             </div>
           );
         })}

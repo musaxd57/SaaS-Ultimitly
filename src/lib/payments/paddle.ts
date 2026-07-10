@@ -219,3 +219,100 @@ export async function paddleRequest(
   }
   return body;
 }
+
+// ---------------------------------------------------------------------------
+// In-app plan change (upgrade / downgrade). Paddle's hosted portal can't do this,
+// so we drive PATCH /subscriptions/{id} ourselves. Paddle computes ALL proration;
+// we only pass the target price + the billing mode and (for the confirm dialog)
+// read back the amounts it previews. GATED behind PADDLE_PLAN_CHANGE_ENABLED at
+// the route/UI layer — these helpers are inert unless called.
+// ---------------------------------------------------------------------------
+
+type PaddleProrationMode = "prorated_immediately" | "prorated_next_billing_period";
+type PaddleTotals = { grand_total?: string; currency_code?: string };
+type PaddleTxn = { details?: { totals?: PaddleTotals } };
+
+/** Format a Paddle minor-unit total ("kuruş" string) as a tr-TR currency string. */
+function formatPaddleTotal(minor: string | undefined, currency: string | null): string | null {
+  if (minor === undefined) return null;
+  const n = Number(minor);
+  if (!Number.isFinite(n)) return null;
+  const amount = n / 100;
+  try {
+    return currency
+      ? new Intl.NumberFormat("tr-TR", { style: "currency", currency }).format(amount)
+      : amount.toLocaleString("tr-TR");
+  } catch {
+    return amount.toLocaleString("tr-TR");
+  }
+}
+
+export type PlanChangePreview = {
+  mode: PaddleProrationMode;
+  /** Charged NOW (upgrade / prorated_immediately). null for a period-end downgrade. */
+  immediateTotal: string | null;
+  /** The plan's recurring total after the change (next regular bill). */
+  recurringTotal: string | null;
+};
+
+/**
+ * Preview a plan change WITHOUT applying it — so the confirm dialog can show the
+ * exact prorated charge Paddle will make. Best-effort: returns null on any failure
+ * and parses defensively (a missing field → null amount, never a wrong number).
+ * The real charge is always whatever Paddle computes on the apply call, not this.
+ */
+export async function previewSubscriptionUpdate(
+  subscriptionId: string,
+  priceId: string,
+  mode: PaddleProrationMode,
+): Promise<PlanChangePreview | null> {
+  if (!subscriptionId || !priceId || !isPaddleConfigured()) return null;
+  try {
+    const res = (await paddleRequest(`/subscriptions/${encodeURIComponent(subscriptionId)}/preview`, {
+      method: "PATCH",
+      body: { items: [{ price_id: priceId, quantity: 1 }], proration_billing_mode: mode },
+    })) as {
+      data?: {
+        currency_code?: string;
+        immediate_transaction?: PaddleTxn;
+        recurring_transaction_details?: { totals?: PaddleTotals };
+      };
+    };
+    const d = res?.data;
+    const imm = d?.immediate_transaction?.details?.totals;
+    const rec = d?.recurring_transaction_details?.totals;
+    const currency = imm?.currency_code ?? rec?.currency_code ?? d?.currency_code ?? null;
+    return {
+      mode,
+      immediateTotal: formatPaddleTotal(imm?.grand_total, currency),
+      recurringTotal: formatPaddleTotal(rec?.grand_total, currency),
+    };
+  } catch (err) {
+    await reportError("paddle-plan-preview", err);
+    return null;
+  }
+}
+
+/**
+ * Apply a plan change. Upgrade → prorated_immediately (charge the difference now).
+ * Downgrade → prorated_next_billing_period (takes effect at renewal). Paddle owns
+ * the proration + charge; our webhook then updates the local subscription row.
+ * Returns false on any failure (never throws).
+ */
+export async function updateSubscriptionPlan(
+  subscriptionId: string,
+  priceId: string,
+  mode: PaddleProrationMode,
+): Promise<boolean> {
+  if (!subscriptionId || !priceId || !isPaddleConfigured()) return false;
+  try {
+    await paddleRequest(`/subscriptions/${encodeURIComponent(subscriptionId)}`, {
+      method: "PATCH",
+      body: { items: [{ price_id: priceId, quantity: 1 }], proration_billing_mode: mode },
+    });
+    return true;
+  } catch (err) {
+    await reportError("paddle-plan-change", err);
+    return false;
+  }
+}

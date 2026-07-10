@@ -18,6 +18,7 @@ import { HospitableConnectCard } from "@/components/settings/hospitable-connect-
 import { PaddlePlans } from "@/components/settings/paddle-plans";
 import { getConnectionInfo } from "@/lib/hospitable-credentials";
 import { getEntitlement, premiumAllowed } from "@/lib/billing/subscription";
+import { planChangeEnabled } from "@/lib/billing/plan-change";
 import { DEFAULT_PLANS } from "@/lib/billing/plans";
 import { isSuperAdmin } from "@/lib/admin";
 import { isHospitableOAuthConfigured } from "@/lib/hospitable-oauth";
@@ -166,6 +167,7 @@ export default async function SettingsPage({
               active={entitlement.active}
               trialDaysLeft={entitlement.trialDaysLeft}
               manageable={canManagePaddleSub}
+              planChangeEnabled={canManagePaddleSub && planChangeEnabled()}
               plans={DEFAULT_PLANS.map((p) => ({
                 code: p.code,
                 name: p.name,

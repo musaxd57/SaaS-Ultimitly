@@ -21,6 +21,7 @@ const AUDIT_ACTION_LABELS: Record<string, string> = {
   "guest_chat.enable": "Misafir sohbeti açıldı",
   "guest_chat.disable": "Misafir sohbeti kapatıldı",
   "guest_chat.reset_binding": "Misafir sohbeti cihaz kilidi sıfırlandı",
+  "billing.plan_change": "Abonelik planı değiştirildi",
   "impersonate.enter": "Müşteri hesabına girildi",
   "impersonate.exit": "Müşteri hesabından çıkıldı",
 };
