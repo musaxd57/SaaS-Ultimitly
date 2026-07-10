@@ -16,10 +16,15 @@ async function seedConversation(opts: {
   createdAt?: Date;
   alertEmail?: string | null;
   withOwner?: boolean; // default true — the org's owner user (fallback recipient)
+  taskToggle?: boolean; // autoTaskFromMessageEnabled (default false)
 }) {
   const when = opts.createdAt ?? new Date();
   const org = await prisma.organization.create({
-    data: { name: "Org", alertEmail: opts.alertEmail ?? null },
+    data: {
+      name: "Org",
+      alertEmail: opts.alertEmail ?? null,
+      autoTaskFromMessageEnabled: opts.taskToggle ?? false,
+    },
   });
   if (opts.withOwner !== false) {
     await prisma.user.create({
@@ -134,5 +139,28 @@ describe("sendDueAlerts", () => {
     const { orgId } = await seedConversation({ body: "Klima bozuk, çalışmıyor!", withOwner: false });
     expect((await sendDueAlerts(orgId)).alerted).toBe(0);
     expect(mockSend).not.toHaveBeenCalled();
+  });
+
+  it("opens an operational task on a keyword complaint when the toggle is ON", async () => {
+    const { orgId } = await seedConversation({ body: "Klima çalışmıyor, oda çok sıcak!", taskToggle: true });
+    await sendDueAlerts(orgId);
+    const task = await prisma.task.findFirst();
+    expect(task?.type).toBe("maintenance");
+    expect(task?.status).toBe("todo");
+    expect(task?.dueAt).toBeTruthy();
+    expect(task?.dedupeKey).toContain(":maintenance:");
+  });
+
+  it("does NOT open a task when the toggle is OFF (default — behavior unchanged)", async () => {
+    const { orgId } = await seedConversation({ body: "Klima çalışmıyor, oda çok sıcak!" });
+    const out = await sendDueAlerts(orgId);
+    expect(out.alerted).toBe(1); // still escalates + emails
+    expect(await prisma.task.count()).toBe(0); // but creates no task
+  });
+
+  it("does NOT open a physical task for a pure refund escalation (toggle ON)", async () => {
+    const { orgId } = await seedConversation({ body: "Para iadesi istiyorum lütfen.", taskToggle: true });
+    await sendDueAlerts(orgId);
+    expect(await prisma.task.count()).toBe(0);
   });
 });

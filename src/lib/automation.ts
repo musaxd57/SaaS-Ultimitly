@@ -1724,6 +1724,7 @@ export async function sendDueAlerts(
       name: true,
       alertEmail: true,
       autoHoldingReplyEnabled: true,
+      autoTaskFromMessageEnabled: true,
       autoReplyDisclosure: true,
       aiSignature: true,
       // Oldest user = the org's owner (who signed up) — used as the per-tenant
@@ -1753,6 +1754,8 @@ export async function sendDueAlerts(
       guestIdentifier: true,
       channel: true,
       priority: true,
+      propertyId: true,
+      reservationId: true,
       externalReservationId: true,
       property: { select: { name: true, address: true, city: true } },
       messages: { orderBy: { createdAt: "desc" }, take: 1 },
@@ -1769,6 +1772,7 @@ export async function sendDueAlerts(
     if (Date.now() - last.createdAt.getTime() > ALERT_MAX_AGE_MS) continue;
     const cls = classifyFallback(last.body);
     if (!cls.isComplaint && cls.intent !== "refund") continue;
+    const riskType = detectRiskType(last.body);
 
     // ATOMIC claim first (new → problem): routes the thread to a human, dedupes
     // the alert AND is the idempotency lock for the optional holding ack below —
@@ -1782,7 +1786,7 @@ export async function sendDueAlerts(
         data: {
           status: "problem",
           skippedReason: "complaint",
-          lastRiskType: detectRiskType(last.body),
+          lastRiskType: riskType,
         },
       });
       claimed = res.count;
@@ -1819,6 +1823,20 @@ export async function sendDueAlerts(
         org,
         language: null,
       }).catch(() => false);
+    }
+
+    // Smart operational task (opt-in): keyword-detected complaints are the
+    // primary escalation path (this runs before the model pass), so the task
+    // must be created HERE too — not only in applyChannelAutoReply. Deduped;
+    // best-effort, never blocks the alert.
+    if (org?.autoTaskFromMessageEnabled) {
+      await createOperationalTaskFromMessage({
+        propertyId: c.propertyId,
+        message: last.body,
+        sourceMessageId: last.id,
+        reservationId: c.reservationId,
+        ai: { intent: cls.intent, riskType },
+      }).catch(() => {});
     }
   }
   return { alerted };
