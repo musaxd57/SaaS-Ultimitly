@@ -128,6 +128,53 @@ export function paddleStatusToLocal(status: string | null | undefined): string {
   }
 }
 
+export type PortalLinks = {
+  /** Homepage of the customer portal — change plan / cancel / update payment. */
+  overview: string;
+  /** Deep link straight to the cancellation form for this subscription (if any). */
+  cancel: string | null;
+};
+
+/**
+ * Create a Paddle-hosted customer-portal session for one subscription and return
+ * its authenticated links. Paddle's portal is where the customer changes plan
+ * (Paddle owns the proration — upgrade immediate, downgrade at period end),
+ * cancels, and updates their card, so we never touch the money math ourselves.
+ * Sessions are single-use + short-lived → generate on demand, never cache.
+ * Never throws — returns null on any failure (missing config, API error).
+ */
+export async function createPortalSession(subscriptionId: string): Promise<PortalLinks | null> {
+  if (!subscriptionId || !isPaddleConfigured()) return null;
+  try {
+    // The portal session is keyed by CUSTOMER, so resolve the customer id from
+    // the subscription first (we only persist the subscription id / providerRef).
+    const sub = (await paddleRequest(`/subscriptions/${encodeURIComponent(subscriptionId)}`)) as {
+      data?: { customer_id?: string };
+    };
+    const customerId = sub?.data?.customer_id;
+    if (!customerId) return null;
+
+    const res = (await paddleRequest(`/customers/${encodeURIComponent(customerId)}/portal-sessions`, {
+      method: "POST",
+      body: { subscription_ids: [subscriptionId] },
+    })) as {
+      data?: {
+        urls?: {
+          general?: { overview?: string };
+          subscriptions?: Array<{ id?: string; cancel_subscription?: string }>;
+        };
+      };
+    };
+    const overview = res?.data?.urls?.general?.overview;
+    if (!overview) return null;
+    const cancel =
+      res?.data?.urls?.subscriptions?.find((s) => s.id === subscriptionId)?.cancel_subscription ?? null;
+    return { overview, cancel };
+  } catch {
+    return null;
+  }
+}
+
 /**
  * Low-level Paddle Billing API call (e.g. create a transaction for checkout).
  * Only usable when PADDLE_API_KEY is set; never invoked automatically. Throws if

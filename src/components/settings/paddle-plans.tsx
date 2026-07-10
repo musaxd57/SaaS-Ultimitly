@@ -89,6 +89,7 @@ export function PaddlePlans({
   grandfathered,
   active = true,
   trialDaysLeft = null,
+  manageable = false,
   plans,
 }: {
   clientToken: string;
@@ -102,6 +103,10 @@ export function PaddlePlans({
    *  is "owned" so every card stays payable — the user can re-subscribe. */
   active?: boolean;
   trialDaysLeft?: number | null;
+  /** True when the org has a live Paddle subscription that can be managed via the
+   *  hosted customer portal. Locks NEW checkout (so an active subscriber can't
+   *  start a second subscription) and surfaces the "manage subscription" button. */
+  manageable?: boolean;
   plans: PlanOption[];
 }) {
   const router = useRouter();
@@ -196,6 +201,29 @@ export function PaddlePlans({
     [email, organizationId, accepted, busy],
   );
 
+  // Open Paddle's hosted customer portal (change plan / cancel / update card).
+  // The link is generated server-side per request (single-use, short-lived), so
+  // we fetch then redirect the whole tab to it. All proration/cancel logic lives
+  // in Paddle's tested UI — we never compute charges here.
+  const openPortal = useCallback(async () => {
+    if (busy) return;
+    setError(null);
+    setBusy(true);
+    try {
+      const res = await fetch("/api/billing/portal", { method: "POST" });
+      const data = (await res.json().catch(() => ({}))) as { url?: string };
+      if (!res.ok || !data.url) {
+        setError("Abonelik yönetim sayfası açılamadı. Lütfen tekrar deneyin.");
+        return;
+      }
+      window.location.href = data.url;
+    } catch {
+      setError("Bağlantı hatası. Lütfen tekrar deneyin.");
+    } finally {
+      setBusy(false);
+    }
+  }, [busy]);
+
   return (
     <div className="space-y-3">
       <p className="text-sm text-muted-foreground">
@@ -223,24 +251,42 @@ export function PaddlePlans({
         .
       </p>
 
-      <label className="flex items-start gap-2 rounded-md border border-border bg-muted/30 p-3 text-xs leading-relaxed text-muted-foreground">
-        <input
-          type="checkbox"
-          checked={accepted}
-          onChange={(e) => setAccepted(e.target.checked)}
-          className="mt-0.5 h-4 w-4 shrink-0"
-        />
-        <span>
-          <Link href="/on-bilgilendirme" target="_blank" className="text-primary hover:underline">
-            Ön Bilgilendirme Formu
-          </Link>
-          {" ve "}
-          <Link href="/mesafeli-satis" target="_blank" className="text-primary hover:underline">
-            Mesafeli Satış Sözleşmesi
-          </Link>
-          ’ni okudum, kabul ediyorum. Ücretli plana geçmeden önce bu onay gereklidir.
-        </span>
-      </label>
+      {manageable ? (
+        <div className="space-y-2 rounded-md border border-border bg-muted/30 p-3">
+          <p className="text-xs leading-relaxed text-muted-foreground">
+            Planınızı yükseltmek/düşürmek, ödeme yönteminizi değiştirmek veya aboneliğinizi iptal etmek için
+            güvenli abonelik yönetim sayfasını kullanın. Yükseltme hemen, düşürme dönem sonunda geçerli olur;
+            tüm işlemler Paddle üzerinden yürütülür.
+          </p>
+          <button
+            type="button"
+            onClick={() => void openPortal()}
+            disabled={busy}
+            className="inline-flex h-9 items-center rounded-md bg-primary px-3 text-sm font-medium text-primary-foreground hover:bg-primary/90 disabled:opacity-50"
+          >
+            {busy ? "Açılıyor…" : "Aboneliği yönet (plan değiştir / iptal)"}
+          </button>
+        </div>
+      ) : (
+        <label className="flex items-start gap-2 rounded-md border border-border bg-muted/30 p-3 text-xs leading-relaxed text-muted-foreground">
+          <input
+            type="checkbox"
+            checked={accepted}
+            onChange={(e) => setAccepted(e.target.checked)}
+            className="mt-0.5 h-4 w-4 shrink-0"
+          />
+          <span>
+            <Link href="/on-bilgilendirme" target="_blank" className="text-primary hover:underline">
+              Ön Bilgilendirme Formu
+            </Link>
+            {" ve "}
+            <Link href="/mesafeli-satis" target="_blank" className="text-primary hover:underline">
+              Mesafeli Satış Sözleşmesi
+            </Link>
+            ’ni okudum, kabul ediyorum. Ücretli plana geçmeden önce bu onay gereklidir.
+          </span>
+        </label>
+      )}
 
       <div className="grid gap-3 sm:grid-cols-3">
         {plans.map((p) => {
@@ -268,17 +314,19 @@ export function PaddlePlans({
               <p className="mb-2 text-xs text-muted-foreground">{limit}</p>
               <button
                 type="button"
-                disabled={!ready || isCurrent || !p.priceId || !accepted || busy}
+                disabled={!ready || isCurrent || !p.priceId || !accepted || busy || manageable}
                 onClick={() => openCheckout(p.code, p.priceId)}
                 className="inline-flex h-8 w-full items-center justify-center rounded-md bg-primary px-3 text-xs font-medium text-primary-foreground hover:bg-primary/90 disabled:opacity-50"
               >
                 {isCurrent
                   ? "Mevcut plan"
-                  : !ready
-                    ? "Yükleniyor…"
-                    : trialing
-                      ? "Bu planı seç"
-                      : "Bu plana geç"}
+                  : manageable
+                    ? "Yönetimden değiştirin"
+                    : !ready
+                      ? "Yükleniyor…"
+                      : trialing
+                        ? "Bu planı seç"
+                        : "Bu plana geç"}
               </button>
             </div>
           );

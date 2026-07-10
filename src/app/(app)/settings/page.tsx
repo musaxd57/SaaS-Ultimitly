@@ -95,6 +95,18 @@ export default async function SettingsPage({
     Boolean(paddleClientToken) &&
     Object.values(paddlePriceByCode).some((id) => id.length > 0);
   const entitlement = paddleReady ? await getEntitlement(session.organizationId) : null;
+  // Can we offer the Paddle-hosted "manage subscription" portal (change plan /
+  // cancel / update card)? Only when the org has a real Paddle subscription AND
+  // the server API key is set (the portal link is a server-side Paddle API call).
+  const paddleApiReady = Boolean(process.env.PADDLE_API_KEY?.trim());
+  const managedSub =
+    paddleReady && paddleApiReady
+      ? await prisma.subscription.findUnique({
+          where: { organizationId: session.organizationId },
+          select: { provider: true, providerRef: true },
+        })
+      : null;
+  const canManagePaddleSub = managedSub?.provider === "paddle" && Boolean(managedSub?.providerRef);
 
   return (
     <>
@@ -153,6 +165,7 @@ export default async function SettingsPage({
               grandfathered={entitlement.grandfathered}
               active={entitlement.active}
               trialDaysLeft={entitlement.trialDaysLeft}
+              manageable={canManagePaddleSub}
               plans={DEFAULT_PLANS.map((p) => ({
                 code: p.code,
                 name: p.name,
