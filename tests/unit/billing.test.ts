@@ -127,6 +127,33 @@ describe("premiumAllowed — paid/AI feature gate (free-tier downgrade)", () => 
     expect(await premiumAllowed("o")).toBe(false);
   });
 
+  it("ENFORCED + trialing with NO trialEndsAt (malformed) → BLOCKED (fail-closed, no infinite trial)", async () => {
+    vi.stubEnv("BILLING_ENFORCED", "true");
+    findUnique.mockResolvedValue({
+      organizationId: "o",
+      planCode: "pro",
+      status: "trialing",
+      trialEndsAt: null, // missing anchor must not grant an unlimited free trial
+    } as never);
+    const ent = await getEntitlement("o");
+    expect(ent.trialExpired).toBe(true);
+    expect(await premiumAllowed("o")).toBe(false);
+  });
+
+  it("ENFORCED + PRIMARY_ORG_ID with a canceled sub → still allowed (founder never paywalled)", async () => {
+    vi.stubEnv("BILLING_ENFORCED", "true");
+    vi.stubEnv("PRIMARY_ORG_ID", "founder-org");
+    findUnique.mockResolvedValue({
+      organizationId: "founder-org",
+      planCode: "pro",
+      status: "canceled", // e.g. a test payment that later lapsed
+    } as never);
+    // A non-founder org with the same canceled sub IS blocked (proves the guard
+    // is org-scoped, not a blanket bypass).
+    expect(await premiumAllowed("some-customer")).toBe(false);
+    expect(await premiumAllowed("founder-org")).toBe(true);
+  });
+
   it("ENFORCED + past_due WITHIN dunning grace → allowed (one card decline can't cut off a payer)", async () => {
     vi.stubEnv("BILLING_ENFORCED", "true");
     findUnique.mockResolvedValue({

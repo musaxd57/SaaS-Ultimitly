@@ -92,7 +92,12 @@ export async function getEntitlement(organizationId: string): Promise<Entitlemen
   const now = Date.now();
   const trialing = sub.status === "trialing";
   const trialEndsAt = sub.trialEndsAt ?? null;
-  const trialExpired = trialing && trialEndsAt != null && trialEndsAt.getTime() <= now;
+  // A `trialing` subscription with NO end date is malformed (every legitimate
+  // reverse-trial stamps trialEndsAt via newTrialSubscriptionData). Treat the
+  // missing anchor as EXPIRED — fail-closed — so a Paddle webhook or a hand-edited
+  // row that lands status="trialing" without a date can't grant an unlimited free
+  // trial forever. Only bites under enforcement (see the trialExpired gate below).
+  const trialExpired = trialing && (trialEndsAt == null || trialEndsAt.getTime() <= now);
   const trialDaysLeft =
     trialing && trialEndsAt != null
       ? Math.max(0, Math.ceil((trialEndsAt.getTime() - now) / 86_400_000))
@@ -115,6 +120,16 @@ export async function getEntitlement(organizationId: string): Promise<Entitlemen
   // enforced. Until then every org stays unblocked (dormant by design), so
   // flipping BILLING_ENFORCED off always restores access — the true kill-switch.
   if (trialExpired && billingEnforced()) active = false;
+
+  // Founder safety net: the primary org (the founder's OWN org) must NEVER be
+  // paywalled — not even by a real test payment that creates a Subscription row
+  // which later lapses/expires, nor by a mis-mapped webhook. Force access on
+  // WITHOUT distorting the displayed plan/status (those stay truthful). Keyed
+  // strictly off the explicit PRIMARY_ORG_ID env (the founder's fixed org id),
+  // so it can never accidentally cover a customer org.
+  if (!active && process.env.PRIMARY_ORG_ID && organizationId === process.env.PRIMARY_ORG_ID) {
+    active = true;
+  }
 
   return {
     planCode: sub.planCode,
