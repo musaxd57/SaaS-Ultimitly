@@ -485,6 +485,14 @@ async function importThread(
     select: { id: true, status: true, reservationId: true, guestIdentifier: true },
   });
 
+  // Cursor idempotency: do NOT advance lastMessageAt to the provider's latest until
+  // ALL messages below are written. If the message loop throws mid-way (caught by
+  // the caller), an advanced cursor would make the NEXT sync see the thread as
+  // "current" and skip it, dropping the unwritten tail. So create with a
+  // conservative value (the earliest message time) / keep the old value on update,
+  // then bump to `lastMessageAt` only after the loop completes.
+  const createCursor = parseDate(ordered[0]?.created_at) ?? lastMessageAt;
+
   let conversationId: string;
   if (!existing) {
     const created = await prisma.conversation.create({
@@ -494,7 +502,7 @@ async function importThread(
         guestIdentifier: guestName,
         status: computedStatus,
         priority: "standard",
-        lastMessageAt,
+        lastMessageAt: createCursor, // bumped to the real latest after the loop
         // Link to the local reservation row (same property + same Hospitable
         // reservation id) so the AI replies with the correct guest/dates and
         // skips finished/cancelled bookings. Null when no reservation matched.
@@ -528,7 +536,7 @@ async function importThread(
     await prisma.conversation.update({
       where: { id: existing.id },
       data: {
-        lastMessageAt,
+        // lastMessageAt is intentionally NOT advanced here — bumped after the loop.
         // Only ever write a REAL name (never the placeholder) and never onto a
         // scrubbed stay — so the placeholder is replaced when the name arrives,
         // but an anonymized identifier is never resurrected.
@@ -581,6 +589,16 @@ async function importThread(
         reservationId: localReservationId,
       }).catch(() => {});
     }
+  }
+
+  // All messages are now written — safe to advance the cursor to the provider's
+  // latest. If the loop above threw, execution never reaches here (the caller
+  // catches), so the cursor stays behind and the next sync re-fetches the tail.
+  if (createCursor.getTime() !== lastMessageAt.getTime()) {
+    await prisma.conversation.update({
+      where: { id: conversationId },
+      data: { lastMessageAt },
+    });
   }
 
   return newMessages;
