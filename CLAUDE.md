@@ -606,7 +606,18 @@ sanitization** (`sanitizePromptValue`). **733 test yeşil.**
    kullanıyordu (canceled sub'ı billing DORMANT iken bile blokluyordu — tek dormant-gate'leyen paid yüzey) → `premiumAllowed`'a çevrildi
    (diğer tüm AI yüzeyleriyle ayni dormant-safe kapı; kill-switch QR'ı da geri açar). Bugünkü enforced prod'da davranış AYNI. Test güncellendi (+1).
 **740 test yeşil · typecheck temiz · next build temiz.**
-**🟠 KALAN P0 (kod, çoğu onay-gerektirmez):** QR per-stay izolasyon (sabit fiziksel QR→geçmiş konuşma DÖNDÜRME — küçük ürün kararı) ·
+**✅ QR PER-STAY DEVICE BINDING UYGULANDI (2026-07-10, commit `982b338`, migration 14):** kullanıcı onayı "konaklama bazlı,
+süreli, rotasyonlu". Sabit fiziksel QR bir BEARER credential → eski misafir/temizlikçi QR foto'suyla MEVCUT misafirin sohbet
+GEÇMİŞİNİ okuyabiliyordu (codex QR-privacy bulgusu). Fix = **first-scan device binding**: konaklamayı ilk açan cihaz 256-bit
+per-stay secret'i (httpOnly `gcs_<propertyId>` cookie) mint edip **atomik** claim eder (`updateMany where chatBoundHash:null` →
+first-scan yarışı yok, TOTP-burn deseni). Farklı cihaz → `mismatch` → GEÇMİŞ YOK, model çağrısı YOK, DB yazımı YOK. Rotasyonlu:
+her rezervasyon unbound başlar → bir konaklamada yakalanan secret sonrakinde ölü. `bindOrCheckStay` (guest-chat.ts) + GET/POST
+`boundElsewhere` + client "başka cihazda açık" bildirimi (composer gizli). **Migration 14** = Reservation'a 2 NULLABLE kolon
+(chatBoundHash sha256/chatBoundAt) — ADD COLUMN nullable/no-default → metadata-only, dolu tabloda güvenli; PII değil (hash+zaman)
+→ retention dokunmaz; sync/import chatBoundHash'e yazmaz. Zincir 00→14 temiz + **sıfır-drift** (throwaway PG). **Tavizler (belge):**
+(a) saldırgan turnover boşluğunda misafirden ÖNCE tararsa stay'i claim eder = DoS (sızıntı değil; misafir host'a sorar), (b) cookie
+kapalı tarayıcı binding'i tutamaz (nadir; fail-safe). Host "Misafir Sohbetleri" paneli ETKİLENMEZ (server-side, org-scoped). +7 test. **744 test yeşil.**
+**🟠 KALAN P0 (kod, çoğu onay-gerektirmez):** ~~QR per-stay izolasyon~~ ✅ (yukarıda, migration 14) ·
 CheckoutIntent nonce (P4, migration→onay) · staff RBAC daralt (atanan mülk/görev — ürün kararı) ·
 **createReservationTasks dup-task race** (findMany-then-createMany non-atomik; per-org sync-lock zaten seri, gerçek yarış yalnız eşzamanlı
 → tam-güvenli fix `@@unique([reservationId,type])` migration+prod-dedup → diğer ertelenen unique-constraint'lerle ayni sınıf, ŞİMDİ EKLEME).
@@ -618,10 +629,11 @@ Railway backup/PITR · object-storage (foto) · KVKK-DPA · landing over-promise
 CI: migration-chain+next build+lint+E2E kapıları, Railway-deploy CI'ı beklesin · DEPLOYMENT.md/README bayat · durable queue/outbox.
 
 ## Durum
-**740 test yeşil, typecheck temiz, next build temiz, migrate deploy canlıda doğrulanmış.** 14 migration
-(00_init→13_supply_request_gate_unique) sıfır-drift (taze Postgres'te doğrulandı). Son iş: 40-ajan lansman denetimi →
+**744 test yeşil, typecheck temiz, next build temiz, migrate deploy canlıda doğrulanmış.** 15 migration
+(00_init→14_guest_stay_chat_binding) sıfır-drift (taze Postgres'te doğrulandı). Son iş: 40-ajan lansman denetimi →
 FAZ-1 (7 bulgu) + FAZ-2 A (T1 checklist UI · sync cursor · oturum DB-yetkili · 2FA/TOTP · foto-unlink · KB-cap · take · prompt-sanitize)
-+ FAZ-2 B (iCal SSRF+resurrection · consent planCode↔priceId · billing trialing-null+founder guard · photoUrl scheme · QR gate tutarlılığı). **KVKK sertleştirme batch'i (5 düzeltme,
++ FAZ-2 B (iCal SSRF+resurrection · consent planCode↔priceId · billing trialing-null+founder guard · photoUrl scheme · QR gate tutarlılığı)
++ **QR per-stay device binding (migration 14, first-scan claim + rotasyonlu cookie)**. **⏳ SIRADA: Paddle upgrade/downgrade (ORTAK — sandbox test).** **KVKK sertleştirme batch'i (5 düzeltme,
 migration YOK — mevcut alanlara/koda oturdu): Sentry redaksiyon · retention resurrection guard · Paddle webhook PII
 minimize · dashboard "bu gece kalan" · outbound gövde ad-redaksiyonu.** Branch =
 `claude/great-edison-3zqpZ`, origin ile senkron. 5-tur derin denetim (loop `197ace29`) yapıldı: tur-1..5 =
