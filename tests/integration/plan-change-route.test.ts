@@ -37,7 +37,7 @@ describe("plan change routes (gated, PATCH /subscriptions)", () => {
   beforeEach(async () => {
     await resetDb();
     __resetRateLimit();
-    updateMock.mockReset().mockResolvedValue(true);
+    updateMock.mockReset().mockResolvedValue({ ok: true });
     previewMock.mockReset().mockResolvedValue({
       mode: "prorated_immediately",
       immediateTotal: "₺123,45",
@@ -83,9 +83,11 @@ describe("plan change routes (gated, PATCH /subscriptions)", () => {
     expect(updateMock).toHaveBeenCalledWith("sub_1", "pri_isletme", "prorated_immediately");
   });
 
-  it("change: 500 when Paddle rejects the update", async () => {
-    updateMock.mockResolvedValue(false);
-    expect((await CHANGE(req({ planCode: "business" }), ctx)).status).toBe(500);
+  it("change: 502 + Paddle reason when the update is rejected", async () => {
+    updateMock.mockResolvedValue({ ok: false, reason: "Paddle HTTP 400 (subscription_locked) env=production resource=subscriptions" });
+    const res = await CHANGE(req({ planCode: "business" }), ctx);
+    expect(res.status).toBe(502);
+    expect((await res.json()).detail).toContain("subscription_locked");
   });
 
   it("404 (dormant) when the feature flag is OFF — nothing reaches Paddle", async () => {

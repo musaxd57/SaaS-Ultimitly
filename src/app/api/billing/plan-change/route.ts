@@ -1,4 +1,5 @@
-import { badRequest, jsonOk, notFound, serverError, tooManyRequests } from "@/lib/api";
+import { NextResponse } from "next/server";
+import { badRequest, jsonOk, notFound, tooManyRequests } from "@/lib/api";
 import { withManage } from "@/lib/route-guard";
 import { rateLimit } from "@/lib/rate-limit";
 import { isPaddleConfigured, updateSubscriptionPlan } from "@/lib/payments/paddle";
@@ -22,8 +23,15 @@ export const POST = withManage(async (session, req) => {
   const r = await resolvePlanChange(session.organizationId, planCode);
   if (!r.ok) return badRequest({ error: r.error });
 
-  const ok = await updateSubscriptionPlan(r.providerRef, r.priceId, r.proration);
-  if (!ok) return serverError("Plan değişikliği yapılamadı. Lütfen tekrar deneyin.");
+  const result = await updateSubscriptionPlan(r.providerRef, r.priceId, r.proration);
+  if (!result.ok) {
+    // Surface Paddle's reason (e.g. "Paddle HTTP 400 (subscription_locked...)") so
+    // the owner can see WHY without digging the logs. No ids/secrets in the string.
+    return NextResponse.json(
+      { error: "Plan değişikliği yapılamadı. Lütfen tekrar deneyin.", detail: result.reason },
+      { status: 502 },
+    );
+  }
 
   await writeAudit({
     organizationId: session.organizationId,

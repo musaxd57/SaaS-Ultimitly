@@ -50,21 +50,31 @@ describe("previewSubscriptionUpdate / updateSubscriptionPlan", () => {
     expect(await previewSubscriptionUpdate("sub_1", "pri_pro", "prorated_immediately")).toBeNull();
   });
 
-  it("updateSubscriptionPlan returns true on 2xx, false on error, and is a no-op without config", async () => {
-    // No API key → not configured → false, no fetch.
+  it("updateSubscriptionPlan → {ok:true} on 2xx, {ok:false, reason} on error, no-op without config", async () => {
+    // No API key → not configured → {ok:false}, no fetch.
     vi.stubEnv("PADDLE_API_KEY", "");
     const spy = vi.spyOn(global, "fetch");
-    expect(await updateSubscriptionPlan("sub_1", "pri_pro", "prorated_immediately")).toBe(false);
+    expect(await updateSubscriptionPlan("sub_1", "pri_pro", "prorated_immediately")).toEqual({
+      ok: false,
+      reason: "unconfigured",
+    });
     expect(spy).not.toHaveBeenCalled();
     spy.mockRestore();
 
     vi.stubEnv("PADDLE_API_KEY", "test-key");
     vi.spyOn(global, "fetch").mockResolvedValue({ ok: true, status: 200, json: async () => ({ data: {} }) } as Response);
-    expect(await updateSubscriptionPlan("sub_1", "pri_pro", "prorated_immediately")).toBe(true);
+    expect(await updateSubscriptionPlan("sub_1", "pri_pro", "prorated_immediately")).toEqual({ ok: true });
     vi.restoreAllMocks();
 
     vi.stubEnv("PADDLE_API_KEY", "test-key");
-    vi.spyOn(global, "fetch").mockResolvedValue({ ok: false, status: 400, json: async () => ({ error: { code: "x" } }) } as Response);
-    expect(await updateSubscriptionPlan("sub_1", "pri_pro", "prorated_immediately")).toBe(false);
+    vi.spyOn(global, "fetch").mockResolvedValue({
+      ok: false,
+      status: 400,
+      json: async () => ({ error: { code: "subscription_locked" } }),
+    } as Response);
+    const res = await updateSubscriptionPlan("sub_1", "pri_pro", "prorated_immediately");
+    expect(res.ok).toBe(false);
+    // reason carries Paddle's status + code (no ids) so the route can show WHY.
+    if (!res.ok) expect(res.reason).toContain("subscription_locked");
   });
 });

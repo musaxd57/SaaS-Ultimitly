@@ -293,26 +293,31 @@ export async function previewSubscriptionUpdate(
   }
 }
 
+export type PlanUpdateResult = { ok: true } | { ok: false; reason: string };
+
 /**
  * Apply a plan change. Upgrade → prorated_immediately (charge the difference now).
  * Downgrade → prorated_next_billing_period (takes effect at renewal). Paddle owns
  * the proration + charge; our webhook then updates the local subscription row.
- * Returns false on any failure (never throws).
+ * Never throws — on failure returns { ok:false, reason } where reason is Paddle's
+ * "HTTP <status> (<code>)" string (no ids), so the caller can surface WHY.
  */
 export async function updateSubscriptionPlan(
   subscriptionId: string,
   priceId: string,
   mode: PaddleProrationMode,
-): Promise<boolean> {
-  if (!subscriptionId || !priceId || !isPaddleConfigured()) return false;
+): Promise<PlanUpdateResult> {
+  if (!subscriptionId || !priceId || !isPaddleConfigured()) {
+    return { ok: false, reason: "unconfigured" };
+  }
   try {
     await paddleRequest(`/subscriptions/${encodeURIComponent(subscriptionId)}`, {
       method: "PATCH",
       body: { items: [{ price_id: priceId, quantity: 1 }], proration_billing_mode: mode },
     });
-    return true;
+    return { ok: true };
   } catch (err) {
     await reportError("paddle-plan-change", err);
-    return false;
+    return { ok: false, reason: err instanceof Error ? err.message : "unknown" };
   }
 }

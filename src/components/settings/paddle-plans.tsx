@@ -205,7 +205,14 @@ export function PaddlePlans({
           // legalVersion travels with the transaction so the completed-purchase
           // webhook payload cross-references which text was accepted.
           customData: { organizationId, legalVersion: LEGAL_VERSION },
-          settings: { displayMode: "overlay", theme: "light", locale: "tr" },
+          // Auto-return to the app after payment instead of leaving the guest on
+          // Paddle's success screen; /settings reloads and shows the new plan.
+          settings: {
+            displayMode: "overlay",
+            theme: "light",
+            locale: "tr",
+            successUrl: `${window.location.origin}/settings`,
+          },
         });
       } catch {
         setError("Ödeme ekranı açılamadı. Lütfen tekrar deneyin.");
@@ -290,9 +297,16 @@ export function PaddlePlans({
         headers: { "content-type": "application/json" },
         body: JSON.stringify({ planCode: pending.planCode }),
       });
-      const data = (await res.json().catch(() => ({}))) as { error?: string; ok?: boolean };
+      const data = (await res.json().catch(() => ({}))) as {
+        error?: string;
+        detail?: string;
+        ok?: boolean;
+      };
       if (!res.ok || !data.ok) {
-        setError(data.error ?? "Plan değişikliği yapılamadı. Lütfen tekrar deneyin.");
+        setError(
+          (data.error ?? "Plan değişikliği yapılamadı. Lütfen tekrar deneyin.") +
+            (data.detail ? ` (${data.detail})` : ""),
+        );
         return;
       }
       setPending(null);
@@ -341,9 +355,7 @@ export function PaddlePlans({
           <p className="text-xs leading-relaxed text-muted-foreground">
             Ödeme yönteminizi değiştirmek veya aboneliğinizi iptal etmek için güvenli abonelik yönetim
             sayfasını kullanın; işlemler Paddle üzerinden yürütülür.
-            {planChangeEnabled
-              ? " Plan yükseltme/düşürme için aşağıdaki planlardan birini seçin (yükseltme hemen, düşürme dönem sonunda geçerli olur)."
-              : ""}
+            {planChangeEnabled ? " Plan yükseltme/düşürme için aşağıdaki planlardan birini seçin." : ""}
           </p>
           <button
             type="button"
