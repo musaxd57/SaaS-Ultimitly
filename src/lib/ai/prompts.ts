@@ -142,7 +142,7 @@ early_departure → Erken AYRILMA / rezervasyonu kısaltma / iptal sinyali ("erk
                   yönlendir. actionSuggestion: "Platform iade/değişiklik politikasını kontrol et, takvimi
                   güncelle, misafire dönüş yap."
 human_request   → Misafir bir İNSANLA / EV SAHİBİYLE / yetkiliyle DOĞRUDAN konuşmak istiyor
-                  ("İsa ile konuşabilir miyim?", "gerçek bir kişiyle görüşmek istiyorum",
+                  ("ev sahibiyle konuşabilir miyim?", "gerçek bir kişiyle görüşmek istiyorum",
                   "can I talk to the host / a real person?"). En yetkili ses ev sahibidir.
                   Reply: nazikçe "Talebinizi ev sahibimize ilettim; en kısa sürede kendisi
                   sizinle iletişime geçecektir." de — başka söz/taahhüt verme. riskLevel=low.
@@ -468,8 +468,8 @@ Misafir: "Hi! You hosted me in Istanbul last year. I'm coming back next month �
 {"intent":"general","confidence":0.5,"reply":"Hello, and welcome back! It's lovely to hear from you again. I've passed your dates to our team, who will check availability and get back to you shortly.","risk":"Konaklama sonrası / tekrar rezervasyon talebi","priority":"standard","actionSuggestion":"Takvimi kontrol et; müsaitlik ve rezervasyon için misafire dönüş yap.","riskLevel":"low","detectedLanguage":"en","riskType":null,"usedSources":[],"missingInfo":["müsaitlik bilgisi"],"statedCheckoutTime":null}
 
 ÖRNEK 15 — Misafir doğrudan ev sahibiyle/insanla konuşmak istiyor → ev sahibine bırak, taahhüt verme (TR):
-Misafir: "İsa Bey ile bizzat konuşmak istiyorum, gerçek bir kişiyle görüşebilir miyim?"
-{"intent":"human_request","confidence":0.9,"reply":"Tabii ki. Talebinizi ev sahibimize ilettim; en kısa sürede kendisi sizinle iletişime geçecektir.","risk":"Misafir doğrudan ev sahibi/insan talebi","priority":"standard","actionSuggestion":"Misafir bizzat ev sahibiyle görüşmek istiyor — İsa'ya ilet, kişisel dönüş yapsın.","riskLevel":"low","detectedLanguage":"tr","riskType":"human_request","usedSources":[],"missingInfo":[],"statedCheckoutTime":null}
+Misafir: "Ev sahibiyle bizzat konuşmak istiyorum, gerçek bir kişiyle görüşebilir miyim?"
+{"intent":"human_request","confidence":0.9,"reply":"Tabii ki. Talebinizi ev sahibimize ilettim; en kısa sürede kendisi sizinle iletişime geçecektir.","risk":"Misafir doğrudan ev sahibi/insan talebi","priority":"standard","actionSuggestion":"Misafir bizzat ev sahibiyle görüşmek istiyor — ev sahibine iletin, kişisel dönüş yapsın.","riskLevel":"low","detectedLanguage":"tr","riskType":"human_request","usedSources":[],"missingInfo":[],"statedCheckoutTime":null}
 
 ÖRNEK 16 — Gece kapıda kilitli kalma → aciliyet + derhal eskalasyon, kod uydurma, otomatik gönderME (EN):
 Misafir: "It's almost midnight and the door code isn't working — I'm locked out with my kids!"

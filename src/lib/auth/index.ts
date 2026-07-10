@@ -1,6 +1,7 @@
 import "server-only";
 import { cookies } from "next/headers";
 import { redirect } from "next/navigation";
+import { prisma } from "@/lib/db";
 import {
   SESSION_COOKIE,
   SESSION_MAX_AGE,
@@ -24,10 +25,38 @@ export async function getSession(): Promise<SessionPayload | null> {
   return verifySession(token);
 }
 
-/** Require a session in a Server Component / Action. Redirects to /login otherwise. */
+/** Require a session in a Server Component / Action. Redirects to /login otherwise.
+ *  ALSO enforces the session epoch on the PAGE path: the (app) layout checks it,
+ *  but a Next.js soft/client navigation does NOT re-run the layout server
+ *  component, so without a per-render check a password-reset-invalidated (or
+ *  stolen) session could keep READING page data until a full document load.
+ *  requireAuth runs on every page-segment render, closing that gap. Fail-OPEN on a
+ *  transient DB blip (never mass-logout — the JWT signature is still valid). */
 export async function requireAuth(): Promise<SessionPayload> {
   const session = await getSession();
   if (!session) redirect("/login");
+
+  // Epoch check outside try/catch's control flow: redirect() throws NEXT_REDIRECT,
+  // which must NOT be swallowed by the fail-open catch below.
+  let invalid = false;
+  try {
+    const user = await prisma.user.findUnique({
+      where: { id: session.userId },
+      select: { sessionEpoch: true },
+    });
+    if (!user || user.sessionEpoch !== session.sessionEpoch) invalid = true;
+    else if (session.actorUserId && session.actorSessionEpoch !== undefined) {
+      // Impersonation: also enforce the real operator's epoch (see requireSession).
+      const actor = await prisma.user.findUnique({
+        where: { id: session.actorUserId },
+        select: { sessionEpoch: true },
+      });
+      if (!actor || actor.sessionEpoch !== session.actorSessionEpoch) invalid = true;
+    }
+  } catch {
+    // DB blip — don't turn a transient read failure into a logout.
+  }
+  if (invalid) redirect("/api/auth/logout");
   return session;
 }
 

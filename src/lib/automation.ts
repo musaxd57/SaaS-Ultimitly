@@ -12,6 +12,7 @@ import {
   detectRiskType,
 } from "@/lib/ai/fallback";
 import { premiumAllowed } from "@/lib/billing/subscription";
+import { redactSensitive } from "@/lib/report-error";
 import { sendOnChannel } from "@/lib/messaging";
 import { getOrgHospitableToken } from "@/lib/hospitable-credentials";
 import { getAdjacency } from "@/lib/turnover";
@@ -1125,6 +1126,9 @@ export async function refreshStyleProfile(
   organizationId: string,
 ): Promise<{ refreshed: boolean }> {
   if (!process.env.OPENAI_API_KEY) return { refreshed: false };
+  // Premium gate: a lapsed/free org must not keep incurring OpenAI cost for the
+  // background style-distillation (this ran before the premium check in the sync).
+  if (!(await premiumAllowed(organizationId))) return { refreshed: false };
 
   const org = await prisma.organization.findUnique({
     where: { id: organizationId },
@@ -1149,7 +1153,12 @@ export async function refreshStyleProfile(
     take: 40,
   });
 
-  const samples = hostReplies.map((m) => m.body).filter((b) => b && b.trim().length > 0);
+  // KVKK: redact PII (e-mail/phone/long codes/keys) from the host's own reply
+  // bodies BEFORE they reach OpenAI. Style (tone, structure) is preserved; a
+  // door code or address a host happened to type doesn't cross the border raw.
+  const samples = hostReplies
+    .map((m) => redactSensitive(m.body))
+    .filter((b) => b && b.trim().length > 0);
   if (samples.length < 5) return { refreshed: false };
 
   const profile = await summarizeHostStyle(samples);

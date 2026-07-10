@@ -103,9 +103,11 @@ export type IcalReservation = {
 
 /**
  * Build the VEVENT list for a property's public feed. Pure + testable. When
- * showGuestName is false (the default), the guest's name is omitted from BOTH
- * the summary and the description, so no guest PII leaves the system in a feed
- * that third parties (Airbnb / Booking / Google) subscribe to — only busy dates.
+ * showGuestName is false (the default), the event carries ONLY busy dates — no
+ * guest name, and ALSO no channel or booking reference (the reference is a
+ * semi-identifying confirmation code). So nothing beyond busy/free leaves the
+ * system in a feed that third parties (Airbnb / Booking / Google) subscribe to.
+ * With the host's explicit opt-in (showGuestName=true) the details are included.
  */
 export function buildIcalEvents(reservations: IcalReservation[], showGuestName: boolean): IcsEvent[] {
   return reservations.map((r) => ({
@@ -113,13 +115,17 @@ export function buildIcalEvents(reservations: IcalReservation[], showGuestName: 
     summary: showGuestName && r.guestName ? `Rezervasyon — ${r.guestName}` : "Rezervasyon",
     start: r.arrivalDate,
     end: r.departureDate,
-    description: [
-      showGuestName && r.guestName ? `Misafir: ${r.guestName}` : null,
-      r.channel ? `Kanal: ${r.channel}` : null,
-      r.sourceReference ? `Referans: ${r.sourceReference}` : null,
-    ]
-      .filter(Boolean)
-      .join("\n"),
+    // Details (name/channel/reference) are all gated behind the host opt-in —
+    // when the feed is in privacy mode it stays a pure busy/free calendar.
+    description: showGuestName
+      ? [
+          r.guestName ? `Misafir: ${r.guestName}` : null,
+          r.channel ? `Kanal: ${r.channel}` : null,
+          r.sourceReference ? `Referans: ${r.sourceReference}` : null,
+        ]
+          .filter(Boolean)
+          .join("\n")
+      : "",
     allDay: true,
   }));
 }

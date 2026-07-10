@@ -92,7 +92,9 @@ export function AppShell({ user, superAdmin, guestChatEnabled, impersonating, ch
   );
 
   const sidebarBody = (
-    <div className="flex h-full flex-col gap-6 p-4">
+    // overflow-y-auto so on short viewports the nav + user card scroll instead of
+    // clipping the bottom items (13+ menu entries can exceed a short screen).
+    <div className="flex h-full flex-col gap-6 overflow-y-auto p-4">
       <div className="flex items-center justify-between px-1">
         <Link href="/dashboard" className="flex items-center gap-2" onClick={() => setMobileOpen(false)}>
           <div className="flex size-8 items-center justify-center rounded-lg bg-primary text-primary-foreground">

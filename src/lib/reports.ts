@@ -703,7 +703,7 @@ export async function getAiOpsReport(orgId: string): Promise<AiOpsReport> {
     welcomes,
     checkins,
     checkouts,
-    openProblems: problems.length,
+    openProblems, // exact count() — not problems.length (capped at 500)
     problemsByProperty,
   };
 }

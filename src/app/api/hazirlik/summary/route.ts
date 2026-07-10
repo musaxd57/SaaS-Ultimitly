@@ -1,7 +1,8 @@
 import { NextResponse } from "next/server";
-import { jsonOk } from "@/lib/api";
+import { jsonOk, paymentRequired } from "@/lib/api";
 import { withAuth } from "@/lib/route-guard";
 import { rateLimit } from "@/lib/rate-limit";
+import { premiumAllowed } from "@/lib/billing/subscription";
 import { getPrepPlan } from "@/lib/supply";
 import { generateSupplySummary, supplyAiConfigured, planHasBuyables } from "@/lib/supply-ai";
 
@@ -16,6 +17,9 @@ export const POST = withAuth(async (session, req) => {
   if (!supplyAiConfigured()) {
     return NextResponse.json({ error: "AI özeti bu ortamda etkin değil." }, { status: 503 });
   }
+  // Premium gate — match the other AI routes (ai-suggest/translate/ai-test): a
+  // lapsed/free org must not spend on AI summaries when billing is enforced.
+  if (!(await premiumAllowed(session.organizationId))) return paymentRequired();
   // Cost gate: an AI call per request → cap per org.
   const limited = rateLimit(`supply-ai:${session.organizationId}`, 20, 60 * 60 * 1000);
   if (!limited.ok) {

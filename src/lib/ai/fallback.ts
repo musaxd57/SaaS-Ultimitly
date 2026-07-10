@@ -565,7 +565,7 @@ export function suggestReplyFallback(input: SuggestReplyInput): SuggestReplyResu
     actionSuggestion = "Platform iade/değişiklik politikasını kontrol et, takvimi güncelle, misafire dönüş yap.";
   } else if (intent === "human_request") {
     riskLevel = "low";
-    actionSuggestion = "Misafir bizzat ev sahibiyle görüşmek istiyor — İsa'ya ilet, kişisel dönüş yapsın.";
+    actionSuggestion = "Misafir bizzat ev sahibiyle görüşmek istiyor — ev sahibine iletin, kişisel dönüş yapsın.";
   } else if (intent === "early_checkin") {
     riskLevel = "low";
     actionSuggestion = "Takvimi kontrol edin; müsaitse erken giriş onaylayın.";

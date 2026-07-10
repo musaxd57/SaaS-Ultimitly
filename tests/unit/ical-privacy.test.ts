@@ -15,19 +15,22 @@ const reservations = [
 ];
 
 describe("iCal feed guest-name privacy", () => {
-  it("hides the guest name by default (KVKK data minimization)", () => {
+  it("ships ONLY busy dates by default — no name, channel, or reference (KVKK)", () => {
     const [e] = buildIcalEvents(reservations, false);
     expect(e.summary).toBe("Rezervasyon");
     expect(e.summary).not.toContain("Ada");
+    // Privacy mode = pure busy/free: description carries nothing identifying.
+    expect(e.description).toBe("");
     expect(e.description).not.toContain("Ada Lovelace");
-    // Non-PII operational fields still ship so the feed stays useful.
-    expect(e.description).toContain("Kanal: airbnb");
-    expect(e.description).toContain("Referans: ABC123");
+    expect(e.description).not.toContain("Kanal");
+    expect(e.description).not.toContain("Referans"); // booking code is semi-identifying
   });
 
-  it("includes the guest name only when the host opts in", () => {
+  it("includes name + channel + reference only when the host opts in", () => {
     const [e] = buildIcalEvents(reservations, true);
     expect(e.summary).toBe("Rezervasyon — Ada Lovelace");
     expect(e.description).toContain("Misafir: Ada Lovelace");
+    expect(e.description).toContain("Kanal: airbnb");
+    expect(e.description).toContain("Referans: ABC123");
   });
 });
