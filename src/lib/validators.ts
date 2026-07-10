@@ -146,6 +146,11 @@ export const taskUpdateSchema = z.object({
   description: z.string().max(5000).optional(),
   priority: z.enum(PRIORITY.values).optional(),
   dueAt: z.coerce.date().optional(),
+  // Checklist items ({label, done}) so the cleaner can tick off "Çarşaf takımı × 2".
+  checklist: z
+    .array(z.object({ label: z.string().max(300), done: z.boolean() }))
+    .max(60)
+    .optional(),
 });
 
 // --- Knowledge Base ---------------------------------------------------------

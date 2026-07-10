@@ -63,6 +63,18 @@ describe("PATCH /api/tasks/[id] — staff field restriction", () => {
     expect(t?.status).toBe("done");
   });
 
+  it("lets staff tick a checklist item and persists it (cleaner ticks '2 çarşaf' etc.)", async () => {
+    session = { userId: staffId, organizationId: orgId, role: "staff", email: "s@x.com", name: "Staff", sessionEpoch: 0 };
+    const checklist = [
+      { label: "Çarşaf takımı × 2", done: true },
+      { label: "Banyo havlusu × 4", done: false },
+    ];
+    const res = await PATCH(patchReq({ checklist }), ctx());
+    expect(res.status).toBe(200);
+    const t = await prisma.task.findUnique({ where: { id: taskId }, select: { checklistJson: true } });
+    expect(JSON.parse(t!.checklistJson!)).toEqual(checklist);
+  });
+
   it("lets an owner change a management field (title)", async () => {
     session = { userId: ownerId, organizationId: orgId, role: "owner", email: "o@x.com", name: "Owner", sessionEpoch: 0 };
     const res = await PATCH(patchReq({ title: "Yeni başlık" }), ctx());

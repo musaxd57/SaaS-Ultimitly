@@ -18,7 +18,7 @@ export interface TaskCardData {
   assigneeName: string | null;
   dueLabel: string | null;
   dueDays?: number | null; // whole days from today to the due date (for the time filter)
-  checklist: { done: number; total: number } | null;
+  checklist: { items: { label: string; done: boolean }[] } | null;
   latestPhotoUrl?: string | null;
   latestNote?: string | null;
 }
@@ -80,6 +80,30 @@ export function TaskBoard({ tasks, canManage = true }: { tasks: TaskCardData[]; 
         // The Select is controlled by the server prop, so it snaps back on its own;
         // tell the user why the change didn't stick.
         window.alert(res.status === 403 ? "Bu işlem için yetkiniz yok." : "Görev durumu güncellenemedi.");
+        return;
+      }
+      startTransition(() => router.refresh());
+    } catch {
+      window.alert("Bağlantı hatası. Lütfen tekrar deneyin.");
+    } finally {
+      setBusyId(null);
+    }
+  }
+
+  // Toggle one checklist item (e.g. "Çarşaf takımı × 2") done/undone and persist.
+  // Allowed for staff too — they do the cleaning and tick items off.
+  async function toggleChecklistItem(id: string, items: { label: string; done: boolean }[], index: number) {
+    if (busyId === id) return;
+    const next = items.map((it, i) => (i === index ? { ...it, done: !it.done } : it));
+    setBusyId(id);
+    try {
+      const res = await fetch(`/api/tasks/${id}`, {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ checklist: next }),
+      });
+      if (!res.ok) {
+        window.alert(res.status === 403 ? "Bu işlem için yetkiniz yok." : "Güncellenemedi.");
         return;
       }
       startTransition(() => router.refresh());
@@ -254,7 +278,8 @@ export function TaskBoard({ tasks, canManage = true }: { tasks: TaskCardData[]; 
           ) : null}
           {t.checklist ? (
             <p className="flex items-center gap-1">
-              <CheckSquare className="size-3" /> {t.checklist.done}/{t.checklist.total}
+              <CheckSquare className="size-3" /> {t.checklist.items.filter((c) => c.done).length}/
+              {t.checklist.items.length}
             </p>
           ) : null}
         </div>
@@ -301,6 +326,27 @@ export function TaskBoard({ tasks, canManage = true }: { tasks: TaskCardData[]; 
 
         {expanded.has(t.id) ? (
           <>
+            {/* Checklist — the cleaner sees each item (e.g. "Çarşaf takımı × 2")
+                and ticks it off; persisted to the task. */}
+            {t.checklist && t.checklist.items.length > 0 ? (
+              <ul className="mt-2 space-y-1">
+                {t.checklist.items.map((c, i) => (
+                  <li key={i}>
+                    <label className="flex items-center gap-2 text-xs">
+                      <input
+                        type="checkbox"
+                        className="size-4 shrink-0"
+                        checked={c.done}
+                        disabled={busyId === t.id}
+                        onChange={() => toggleChecklistItem(t.id, t.checklist!.items, i)}
+                      />
+                      <span className={cn(c.done && "text-muted-foreground line-through")}>{c.label}</span>
+                    </label>
+                  </li>
+                ))}
+              </ul>
+            ) : null}
+
             {/* Latest photo thumbnail */}
             {t.latestPhotoUrl ? (
               <a href={t.latestPhotoUrl} target="_blank" rel="noopener noreferrer" className="mt-2 block">

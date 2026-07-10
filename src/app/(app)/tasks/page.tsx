@@ -87,10 +87,7 @@ export default async function TasksPage({
       assigneeName: t.assignedTo?.name ?? null,
       dueLabel: t.dueAt ? formatDayInTz(t.dueAt, TZ) : null,
       dueDays: t.dueAt ? daysUntilDate(t.dueAt, now, TZ) : null,
-      checklist:
-        checklist.length > 0
-          ? { done: checklist.filter((c) => c.done).length, total: checklist.length }
-          : null,
+      checklist: checklist.length > 0 ? { items: checklist } : null,
       latestPhotoUrl: latestUpdate?.photoUrl ?? null,
       latestNote: latestUpdate?.note ?? null,
     };

@@ -55,6 +55,8 @@ export const PATCH = withAuth<{ id: string }>(async (session, req, { params }) =
       ...(d.description !== undefined ? { description: d.description } : {}),
       ...(d.priority !== undefined ? { priority: d.priority } : {}),
       ...(d.dueAt !== undefined ? { dueAt: d.dueAt } : {}),
+      // Checklist tick-off — allowed for staff (they do the cleaning).
+      ...(d.checklist !== undefined ? { checklistJson: JSON.stringify(d.checklist) } : {}),
     },
     include: {
       property: { select: { name: true, address: true, city: true } },
