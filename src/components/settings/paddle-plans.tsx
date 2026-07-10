@@ -419,7 +419,13 @@ export function PaddlePlans({
               disabled={changeBusy}
               className="inline-flex h-8 items-center rounded-md bg-primary px-3 text-xs font-medium text-primary-foreground hover:bg-primary/90 disabled:opacity-50"
             >
-              {changeBusy ? "İşleniyor…" : "Onayla"}
+              {changeBusy
+                ? "İşleniyor…"
+                : pending.mode === "upgrade"
+                  ? pending.immediateTotal
+                    ? `${pending.immediateTotal} öde ve yükselt`
+                    : "Öde ve yükselt"
+                  : "Onayla (dönem sonunda)"}
             </button>
             <button
               type="button"
