@@ -71,43 +71,45 @@ export default async function PropertyDetailPage({
       </PageHeader>
 
       <div className="grid gap-4 lg:grid-cols-3">
-        <Card className="lg:col-span-2">
-          <CardHeader>
-            <CardTitle className="text-base">Mülk Ayarları</CardTitle>
-          </CardHeader>
-          <CardContent>
-            <PropertyForm
-              mode="edit"
-              canManage={canManage}
-              property={{
-                id: property.id,
-                name: property.name,
-                address: property.address ?? "",
-                city: property.city ?? "",
-                country: property.country ?? "",
-                checkInTime: property.checkInTime,
-                checkOutTime: property.checkOutTime,
-                cleaningBufferMinutes: property.cleaningBufferMinutes,
-                notes: property.notes ?? "",
-              }}
-            />
-          </CardContent>
-        </Card>
+        <div className="space-y-4 lg:col-span-2">
+          <Card>
+            <CardHeader>
+              <CardTitle className="text-base">Mülk Ayarları</CardTitle>
+            </CardHeader>
+            <CardContent>
+              <PropertyForm
+                mode="edit"
+                canManage={canManage}
+                property={{
+                  id: property.id,
+                  name: property.name,
+                  address: property.address ?? "",
+                  city: property.city ?? "",
+                  country: property.country ?? "",
+                  checkInTime: property.checkInTime,
+                  checkOutTime: property.checkOutTime,
+                  cleaningBufferMinutes: property.cleaningBufferMinutes,
+                  notes: property.notes ?? "",
+                }}
+              />
+            </CardContent>
+          </Card>
 
-        <Card className="lg:col-span-2">
-          <CardHeader>
-            <CardTitle className="flex items-center gap-2 text-base">
-              <PackageOpen className="size-4 text-muted-foreground" /> Malzeme Profili
-            </CardTitle>
-          </CardHeader>
-          <CardContent>
-            <SupplyProfileForm
-              propertyId={property.id}
-              canManage={canManage}
-              initial={parseSupplyProfile(property.supplyProfileJson)}
-            />
-          </CardContent>
-        </Card>
+          <Card>
+            <CardHeader>
+              <CardTitle className="flex items-center gap-2 text-base">
+                <PackageOpen className="size-4 text-muted-foreground" /> Malzeme Profili
+              </CardTitle>
+            </CardHeader>
+            <CardContent>
+              <SupplyProfileForm
+                propertyId={property.id}
+                canManage={canManage}
+                initial={parseSupplyProfile(property.supplyProfileJson)}
+              />
+            </CardContent>
+          </Card>
+        </div>
 
         <div className="space-y-4">
           <Card>
