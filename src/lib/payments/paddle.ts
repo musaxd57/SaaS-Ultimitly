@@ -1,6 +1,7 @@
 import "server-only";
 
 import { createHmac, timingSafeEqual } from "crypto";
+import { reportError } from "@/lib/report-error";
 
 // ---------------------------------------------------------------------------
 // Paddle Billing client (Faz 2). DORMANT until PADDLE_WEBHOOK_SECRET (webhook)
@@ -152,7 +153,10 @@ export async function createPortalSession(subscriptionId: string): Promise<Porta
       data?: { customer_id?: string };
     };
     const customerId = sub?.data?.customer_id;
-    if (!customerId) return null;
+    if (!customerId) {
+      await reportError("paddle-portal", new Error("subscription lookup returned no customer_id"));
+      return null;
+    }
 
     const res = (await paddleRequest(`/customers/${encodeURIComponent(customerId)}/portal-sessions`, {
       method: "POST",
@@ -166,11 +170,17 @@ export async function createPortalSession(subscriptionId: string): Promise<Porta
       };
     };
     const overview = res?.data?.urls?.general?.overview;
-    if (!overview) return null;
+    if (!overview) {
+      await reportError("paddle-portal", new Error("portal session returned no overview url"));
+      return null;
+    }
     const cancel =
       res?.data?.urls?.subscriptions?.find((s) => s.id === subscriptionId)?.cancel_subscription ?? null;
     return { overview, cancel };
-  } catch {
+  } catch (err) {
+    // e.g. "Paddle HTTP 404 (entity_not_found) env=production resource=subscriptions"
+    // → the stored subscription id doesn't exist in the current Paddle environment.
+    await reportError("paddle-portal", err);
     return null;
   }
 }
@@ -195,5 +205,17 @@ export async function paddleRequest(
     body: init?.body !== undefined ? JSON.stringify(init.body) : undefined,
     signal: AbortSignal.timeout(15000),
   });
-  return res.json();
+  const body = (await res.json().catch(() => null)) as
+    | { error?: { code?: string } }
+    | null;
+  if (!res.ok) {
+    // Surface the failure with the HTTP status + Paddle's error code + which env
+    // we hit + the resource type — NO ids (the sub/customer id isn't logged). This
+    // is how we tell "sandbox subscription queried on the production API" (404
+    // entity_not_found) apart from an auth/permission problem (403/401).
+    const code = body?.error?.code ?? "unknown";
+    const resource = path.replace(/^\//, "").split("/")[0] || "?";
+    throw new Error(`Paddle HTTP ${res.status} (${code}) env=${cfg.environment} resource=${resource}`);
+  }
+  return body;
 }

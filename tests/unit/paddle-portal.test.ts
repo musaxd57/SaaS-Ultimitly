@@ -16,7 +16,7 @@ describe("createPortalSession", () => {
     return vi.spyOn(global, "fetch").mockImplementation(async (input: RequestInfo | URL) => {
       const url = String(input);
       const body = url.includes("/portal-sessions") ? portalResp : subResp;
-      return { json: async () => body } as Response;
+      return { ok: true, status: 200, json: async () => body } as Response;
     });
   }
 
@@ -64,6 +64,17 @@ describe("createPortalSession", () => {
   it("never throws — returns null when the overview url is missing", async () => {
     vi.stubEnv("PADDLE_API_KEY", "test-key");
     mockPaddle({ data: { customer_id: "ctm_1" } }, { data: { urls: {} } });
+    expect(await createPortalSession("sub_1")).toBeNull();
+  });
+
+  it("returns null on a non-2xx Paddle response (e.g. subscription not found in this env)", async () => {
+    vi.stubEnv("PADDLE_API_KEY", "test-key");
+    // Mirrors querying a sandbox subscription id against the production API.
+    vi.spyOn(global, "fetch").mockResolvedValue({
+      ok: false,
+      status: 404,
+      json: async () => ({ error: { code: "entity_not_found" } }),
+    } as Response);
     expect(await createPortalSession("sub_1")).toBeNull();
   });
 });
