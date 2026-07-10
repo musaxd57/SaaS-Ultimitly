@@ -633,9 +633,21 @@ hesabı yapmıyoruz). `createPortalSession(subId)` (paddle.ts): önce `GET /subs
 (**withManage** = owner/manager, org SESSION'dan→IDOR yok, rate-limit 12/saat, PADDLE_API_KEY şart). UI: aktif Paddle abonesine
 "Aboneliği yönet (plan değiştir/iptal)" butonu + **yeni-checkout KİLİDİ** (çift-abonelik önlenir; `manageable` prop) + consent
 checkbox gizli (yeni checkout yok). Migration YOK, customer_id on-demand çekilir. **Güvenli taviz:** para-akışı Paddle'da → kötü
-senaryoda yanlış endpoint = feature hata verir, müşteri MİSCHARGE OLMAZ. **⚙️ KULLANICI (Paddle paneli, tek sefer):** portal'da "plan
-değiştir"i etkinleştir (istenirse) — cancel+kart zaten default. **⏳ İN-APP upgrade/downgrade butonları (bizim PATCH+preview) = opsiyonel
-sonraki adım, `PADDLE_PLAN_CHANGE_ENABLED` gate'iyle, ilk gerçek test kullanıcının hesabında doğrulanınca.** +11 test.
+senaryoda yanlış endpoint = feature hata verir, müşteri MİSCHARGE OLMAZ. +11 test.
+**⚠️ DÜZELTME (canlı test, kullanıcı `iletisimlixusai` hesabıyla gerçek ₺30 ödeme yaptı):** Paddle hosted portal PLAN DEĞİŞİKLİĞİ
+YAPMIYOR — sadece **iptal + kart + fatura**. Yukarıdaki "upgrade/downgrade portal'da" iddiası YANLIŞTI. Upgrade/downgrade için satıcı
+`PATCH /subscriptions/{id}`'i KENDİ kurmalı ([Paddle docs](https://developer.paddle.com/build/subscriptions/replace-products-prices-upgrade-downgrade/)).
+Canlı doğrulanan: checkout ✅ + webhook→abonelik ✅ + checkout kilidi ✅ + portal (iptal/kart) ✅. Nuve'nin "İşletme"si sandbox-leftover
+(`404 not_found env=production` — prod API'de yok) → portal 404; DELETE ile temizlenecek (org `cmpwcnpdz...`, Invoice FK `onDelete:SetNull`=güvenli).
+`paddleRequest` artık non-2xx'te fırlatıp `reportError`'a `Paddle HTTP <status> (<code>) env=... resource=...` yazıyor (teşhis; id sızmaz).
+**✅ İN-APP UPGRADE/DOWNGRADE UYGULANDI (2026-07-10) — portal yapmadığı için ZORUNLU oldu, gated:** `PADDLE_PLAN_CHANGE_ENABLED` (default OFF).
+`plan-change.ts`: `planChangeMode` (katalog sırasıyla upgrade/downgrade), `prorationModeFor` (upgrade→`prorated_immediately`, downgrade→
+`prorated_next_billing_period`), `resolvePlanChange` (org SESSION'dan sub+priceId+mode, IDOR-proof, DRY). `paddle.ts`: `previewSubscriptionUpdate`
+(`PATCH /subscriptions/{id}/preview` → immediate+recurring tutar, defansif parse, best-effort→null) + `updateSubscriptionPlan` (`PATCH
+/subscriptions/{id}`; Paddle proration'ı sahiplenir). Route'lar `POST /api/billing/plan-preview` + `/plan-change` (withManage, gated→404,
+rate-limit, `billing.plan_change` audit). UI: flag açıkken kartlar "Yükselt/Düşür" → **preview-önce-onayla** paneli (tam prorated tutar
+gösterilir) → apply → webhook plan'ı günceller. Flag KAPALIYKEN davranış AYNI (portal-only, kilitli kartlar). Migration YOK. +15 test.
+**⚙️ KULLANICI:** test için `PADDLE_PLAN_CHANGE_ENABLED=1` (Railway) → upgrade/downgrade'i hesapta doğrula → kalıcı aç.
 **🟠 KALAN P0 (kod, çoğu onay-gerektirmez):** ~~QR per-stay izolasyon~~ ✅ (yukarıda, migration 14) ·
 CheckoutIntent nonce (P4, migration→onay) · staff RBAC daralt (atanan mülk/görev — ürün kararı) ·
 **createReservationTasks dup-task race** (findMany-then-createMany non-atomik; per-org sync-lock zaten seri, gerçek yarış yalnız eşzamanlı
