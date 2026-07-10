@@ -100,6 +100,28 @@ describe("POST /api/billing/consent (checkout distance-sales evidence)", () => {
     expect(row?.userAgent).toBeNull(); // header absent → null
   });
 
+  it("rejects a planCode that does not match the priceId (fail-closed); a matching pair records normally", async () => {
+    // Configure the server price→plan map so the cross-check is active.
+    const prev = process.env.PADDLE_PRICE_PRO;
+    process.env.PADDLE_PRICE_PRO = "pri_pro_live";
+    try {
+      // Mismatch: the "business" label against the Pro price → 400, no row.
+      const bad = await POST(postReq({ planCode: "business", priceId: "pri_pro_live" }), ctx);
+      expect(bad.status).toBe(400);
+      expect(await prisma.checkoutConsent.count({ where: { organizationId: orgId } })).toBe(0);
+
+      // Matching pair → recorded, and the stored plan is the price-derived "pro".
+      const ok = await POST(postReq({ planCode: "pro", priceId: "pri_pro_live" }), ctx);
+      expect(ok.status).toBe(201);
+      const row = await prisma.checkoutConsent.findFirst({ where: { organizationId: orgId } });
+      expect(row?.planCode).toBe("pro");
+      expect(row?.priceId).toBe("pri_pro_live");
+    } finally {
+      if (prev === undefined) delete process.env.PADDLE_PRICE_PRO;
+      else process.env.PADDLE_PRICE_PRO = prev;
+    }
+  });
+
   it("throttles abusive repeats (429 after the 20/user cap; no extra row)", async () => {
     for (let i = 0; i < 20; i++) {
       const ok = await POST(postReq({ planCode: "pro", priceId: "pri_123" }), ctx);

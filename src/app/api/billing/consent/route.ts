@@ -3,6 +3,7 @@ import { badRequest, jsonOk, tooManyRequests } from "@/lib/api";
 import { withAuth } from "@/lib/route-guard";
 import { rateLimit, clientIp } from "@/lib/rate-limit";
 import { LEGAL_VERSION } from "@/lib/legal-entity";
+import { paddlePriceToPlanCode } from "@/lib/payments/paddle";
 import { checkoutConsentSchema, zodFieldErrors } from "@/lib/validators";
 
 // Server-side record of the Ön Bilgilendirme + Mesafeli Satış acceptance at
@@ -22,11 +23,23 @@ export const POST = withAuth(async (session, req) => {
   const parsed = checkoutConsentSchema.safeParse(data);
   if (!parsed.success) return badRequest(zodFieldErrors(parsed.error));
 
+  // Cross-check the plan LABEL against the price id server-side: the priceId is
+  // what actually drives the Paddle charge, so it is authoritative. When the
+  // price→plan map is configured and the client-supplied planCode disagrees, a
+  // tampered/buggy client is trying to record inconsistent consent evidence —
+  // refuse (fail-closed) so we never store "agreed to Pro" against a Business
+  // price. When the map is unconfigured (derived === null) we can't cross-check,
+  // so the validated client value stands. Store the derived code when available.
+  const derivedPlanCode = paddlePriceToPlanCode(parsed.data.priceId);
+  if (derivedPlanCode && derivedPlanCode !== parsed.data.planCode) {
+    return badRequest({ planCode: "Seçilen plan ile fiyat eşleşmiyor." });
+  }
+
   await prisma.checkoutConsent.create({
     data: {
       organizationId: session.organizationId, // from session → can't record for another org
       userId: session.userId,
-      planCode: parsed.data.planCode,
+      planCode: derivedPlanCode ?? parsed.data.planCode, // price-derived is authoritative
       priceId: parsed.data.priceId,
       legalVersion: LEGAL_VERSION, // server-side, not client-supplied
       ip: clientIp(req), // rightmost XFF (platform-observed), spoof-resistant
