@@ -3,6 +3,8 @@ import { PageHeader } from "@/components/page-header";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { LinkButton } from "@/components/ui/link-button";
 import { getPrepPlan, type PrepPlanItem } from "@/lib/supply";
+import { supplyAiConfigured } from "@/lib/supply-ai";
+import { SupplyAiSummary } from "@/components/supply/supply-ai-summary";
 import { formatDayInTz } from "@/lib/utils";
 import { PackageOpen, ShoppingCart, WashingMachine } from "lucide-react";
 
@@ -40,6 +42,7 @@ export default async function HazirlikPage({
 
   const plan = await getPrepPlan(session.organizationId, { days });
   const hasNeeds = plan.linen.length > 0 || plan.consumables.length > 0;
+  const aiEnabled = supplyAiConfigured();
   const rangeLabel =
     days === 1
       ? formatDayInTz(plan.start)
@@ -88,6 +91,7 @@ export default async function HazirlikPage({
         </Card>
       ) : (
         <div className="space-y-4">
+          {aiEnabled ? <SupplyAiSummary days={days} enabled={aiEnabled} /> : null}
           <div className="grid gap-4 md:grid-cols-2">
             {plan.consumables.length > 0 ? (
               <Card>
