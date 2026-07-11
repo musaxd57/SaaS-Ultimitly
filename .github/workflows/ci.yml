@@ -3,16 +3,17 @@ name: CI
 on:
   push:
     # claude/great-edison-3zqpZ is the branch Railway auto-deploys from — CI must
-    # run exactly where production commits land, not only on main/PRs.
+    # run exactly where production commits land. Push-only, ONCE per commit: the
+    # branch has a long-lived open PR, so a pull_request trigger would run every
+    # push a SECOND time against the PR merge ref (observed duplicate runs) —
+    # the push run tests the exact tree Railway ships, which is the true signal.
     branches: ["main", "claude/great-edison-3zqpZ"]
-  pull_request:
   workflow_dispatch:
 
-# Run CI ONCE per change: PR branches are covered by the pull_request event (so we
-# don't ALSO trigger on push and get duplicate runs); main is covered by push.
-# cancel-in-progress drops superseded runs when commits land in quick succession.
+# cancel-in-progress drops superseded runs when commits land in quick succession
+# (the older run shows as "cancelled" — expected, not a failure).
 concurrency:
-  group: ${{ github.workflow }}-${{ github.event.pull_request.number || github.ref }}
+  group: ${{ github.workflow }}-${{ github.ref }}
   cancel-in-progress: true
 
 # Note: this CI is independent of the Railway deploy ("Wait for CI" is off), so a
