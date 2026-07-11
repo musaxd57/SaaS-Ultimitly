@@ -757,6 +757,45 @@ Codex bağımsız incelemede 2 gerçek açık daha buldu; ikisi de kırmızı-ö
   reconcile-success + 202-pending + classify(4xx/5xx/408/network) + GET-price + lifecycle-via-providerRef + unknown-ref-red +
   forged-org-asla. **Codex'in 4 istenen testinin tümü + fazlası karşılandı.**
 
+## ✅ BACKLOG BÜYÜK TURU UYGULANDI (2026-07-11, kullanıcı: "sen başla / en doğru şekilde yap" — 8 commit, migration 15)
+Kullanıcı onayıyla ertelenen Codex/backlog kalemleri kapatıldı. **848 test yeşil · typecheck temiz · build temiz.** Her fix kırmızı-önce testli
+(uygulanabilen her yerde), 2 adversarial review ajanı + kod-doğrulama döngüsüyle. Commit'ler:
+- **[`3bad92d`] Manuel reply çift-gönderim guard'ı:** reply route'unda hiç server-side idempotency yoktu (çift-tık/proxy-retry → misafire
+  2 kez gider). `src/lib/outbound-claim.ts`: SystemLock-claim `{conversationId, sha256(body)}`, atomik create; başarısız gönderim release
+  eder, farklı metin hiç bloklanmaz, fail-OPEN (dedup gate'i teslimat gate'i değil). QR host-reply de aynı guard + $transaction. TTL **120s**
+  (review bulgusu: Hospitable worst-case ~87s [4×20s+backoff]; 15s TTL'de sweep canlı claim'i silip double-send açıyordu). +5 test.
+- **[`84707c5`] Sync adopt-and-heal:** dış-id'siz (externalId NULL — provider id dönmedi / POST-id≠GET-id) app cevabı sonraki sync'te
+  duplicate "Ev sahibi" satırı oluyordu (BUG1 kalıntısı). Import artık outbound api-mesajı için aynı-gövdeli id'siz yerel satırı (en eski)
+  ADOPTE edip externalId'sini iyileştiriyor; inbound asla adopte edilmez, gerçek id asla ezilmez. Deep-sync legacy NULL satırları da iyileştirir. +2 test.
+- **[`992fab5`+`51ddaea`] KVKK customer.* redaksiyonu + cross-tenant guard (migration 15):** hesap-silme `customer.updated`'ı (custom_data YOK)
+  kaçırıyordu → customer_id üzerinden redaksiyon eklendi. Review bulgusu: Paddle müşteriyi e-postayla dedup'ladığı için cid tek-org garanti DEĞİL →
+  loose learn başka tenant'ın satırını silebilirdi. Fix: `Subscription.customerId` (migration 15, webhook YETKİLİ çözümde saklıyor — consent/providerRef,
+  asla ham custom_data), erasure ONU kullanır (legacy fallback: yalnız org'un kendi providerRef'ine bağlı satırdan öğren), pass-2 BAŞKA org'un
+  custom_data'lı satırına ASLA dokunmaz. Kırmızı-önce: paylaşılan-cid senaryosu kurban satırını gerçekten siliyordu. Belgeli residual: custom_data'sız
+  gerçekten-paylaşılan customer.* satırı yine redakte edilir (sahiplik belirsiz; iskelet kalır). +3 test.
+- **[`3ffbe50`] AI-gate geçmiş+ad injection vetosu:** gate yalnız last.body tarıyordu; model son-6 geçmişi + misafir adını görüyor → önceki mesaja/
+  Airbnb-kontrollü ada gömülü injection kapıyı atlıyordu. Gate opsiyonel `context {history, guestName}` alıyor; SADECE deterministik injection
+  detektörü koşulur (risk kelime-ağları last.body'de kalır — eski çözülmüş şikayet bugünkü wifi cevabını bloklamasın). Auto-reply call-site modelin
+  gördüğünü birebir geçirir; QR mustEscalate'e ad backstop'u. +8 golden (tehdit+övgü-tuzağı çiftleri; TR+EN; 96 golden yeşil).
+- **[`0081338`] Review-düzeltmeleri:** claim TTL 15s→120s (üstte) + **retention era-filtresi**: scrubbed konaklamada retention-cutoff'tan ESKİ mesajlar
+  asla yeniden import edilmez (redakte gövde body-match edemez → duplicate + AD DİRİLTME oluyordu; kırmızı-önce kanıtlı). `retentionCutoff()` data-retention'dan tek-kaynak. +1 test.
+- **[`51ddaea`] Migration 15 `15_invoice_unique_customer_id`:** `@@unique([provider, providerRef])` Invoice'ta (webhook D1 — findFirst+create artık
+  yarış-korumalı: create + P2002-catch, unique gerçek hakem) + `Subscription.customerId`. Migration pre-dedup DELETE'li (en eski kalır, NULL-ref'lere
+  dokunmaz); taze PG'de 00→15 + sıfır-drift + **DOLU-TABLO KANITI** (dup'lu tabloda deploy edildi, boot temiz). ⚠️ Task `@@unique([reservationId,type])`
+  BİLİNÇLİ EKLENMEDİ: manuel görevler de reservationId bağlıyor (meşru 2. görev bloklanırdı), kısmi-unique Prisma'da modellenemez (drift-protokolü kırılır),
+  sync kilidi o yarışı zaten serileştiriyor.
+- **[`7901c4c`] Sertleştirme beşlisi:** (1) iCal SSRF `resolvesToPrivate()` — fetch anında DNS A/AAAA private-check (string-gate'in göremediği
+  "public hostname→iç IP" vektörü; lookup hatasında fail-open, TOCTOU-rebind residual belgeli). (2) **Boot fail-fast**: prod'da AUTH_SECRET yok/placeholder →
+  boot reddi (register() cron-return'lerinden ÖNCE; dev etkilenmez). (3) **Deep-sync kadansı SystemLock'ta** — tüm replikalar tek takvim, restart artık
+  ekstra 540g süpürme tetiklemez. (4) `getMonthlyReport` İstanbul takvim-ayı (UTC+3 sabit, exclusive end). (5) `conversationReplySchema` rezerve gönderen
+  adları reddeder ("GuestOps AI" sihirli-string self-inflate + "Lixus AI" bot-taklidi). +14 test.
+- **[`adab75a`] CI kapıları:** mevcut CI deploy branch'inde HİÇ koşmuyordu (yalnız main/PR) → branch eklendi + **migration-chain job'ı** (taze PG'de
+  00→N replay + `migrate diff --exit-code` sıfır-drift = elle yürüttüğümüz protokol otomatik) + **build job'ı** (`npm run build`). Railway'i bloklamaz
+  (sinyal); "Wait for CI" istenirse Railway panelinden.
+**REDDEDİLEN/ERTELENEN (gerekçeli):** Tam outbox tablosu (`OutboundMessage`/`DeliveryAttempt`) — claim-then-send + adopt-heal + idempotent
+externalId zinciri pratik riskleri kapattı; outbox'ın artısı ölçekte durable-retry, canlı mesaj akışına dokunan mimari değişiklik → launch sonrası
+birlikte-testle. Object storage (S3/R2 env+bucket = kullanıcı/ops) · Railway backup/PITR (ops) · "Wait for CI" (Railway paneli).
+
 ## 📋 YARIN DEVAM — BACKLOG (kullanıcı: "yoruldum, .md'ye yaz, yarın yaparız")
 **Bu oturumda BİLEREK BAŞLANMADI (kullanıcı direktifi: yeni büyük parça/migration YOK):**
 - **[reliability/BÜYÜK] Outbound idempotency / outbox:** `automation.ts` manuel-reply idempotency (claim-then-send auto-reply'da
@@ -776,15 +815,16 @@ Codex bağımsız incelemede 2 gerçek açık daha buldu; ikisi de kırmızı-ö
 **[OPS/LEGAL — kullanıcı/avukat, kod değil]:** SELLER bilgisi (`legal-entity.ts` [parantez]) · KVKK-DPA (OpenAI ABD aktarım) · RESEND DNS (SPF/DKIM/DMARC) · Paddle küçük gerçek ödeme birlikte-test · `PADDLE_PLAN_CHANGE_ENABLED=1` ile upgrade/downgrade'i hesapta doğrula.
 
 ## Durum
-**817 test yeşil, typecheck temiz, next build temiz, migrate deploy canlıda doğrulanmış.** 15 migration
-(00_init→14_guest_stay_chat_binding) sıfır-drift (taze Postgres'te doğrulandı). Son iş: 40-ajan lansman denetimi →
+**848 test yeşil, typecheck temiz, next build temiz, migrate deploy canlıda doğrulanmış.** 16 migration
+(00_init→15_invoice_unique_customer_id) sıfır-drift (taze Postgres'te + dolu-tablo kanıtıyla doğrulandı). Son iş: 40-ajan lansman denetimi →
 FAZ-1 (7 bulgu) + FAZ-2 A (T1 checklist UI · sync cursor · oturum DB-yetkili · 2FA/TOTP · foto-unlink · KB-cap · take · prompt-sanitize)
 + FAZ-2 B (iCal SSRF+resurrection · consent planCode↔priceId · billing trialing-null+founder guard · photoUrl scheme · QR gate tutarlılığı)
 + **QR per-stay device binding (migration 14, first-scan claim + rotasyonlu cookie)**
 + **Codex follow-up gecesi: B3 plan-change previewToken HMAC (`afecf74`) + A1 requireAuth capability fail-closed (`12b6613`) + flaky-test fix; CheckoutConsent single-use KODLA-REDDEDİLDİ (para-akışı kırardı).**
 + **3 billing nüansı (`7d72c82`): previewToken tek-kullanımlık (jti+SystemLock nonce) · apply'da tutar yeniden-preview eşleşmesi · consent freshness imzalı occurred_at'e bağlandı (geç retry entitlement kaybettirmez). Kırmızı-önce testli, migration YOK.**
 + **2 billing gap daha (`5b6b25f`): ambiguous-vs-definitive Paddle hatası (5xx/timeout'ta çift-PATCH yok, GET-reconcile/202-pending) · resolveOrgId providerRef-first (bayat-consent lifecycle event'i düşmez). Kırmızı-önce testli, migration YOK. BILLING ARTIK "TAMAM".**
-**⏳ SIRADA (yarın): backlog — outbound outbox/idempotency · object storage · webhook D1/D2 · AI-gate geçmiş+ad genişletme (yukarıdaki BACKLOG bölümü).** **KVKK sertleştirme batch'i (5 düzeltme,
++ **Backlog büyük turu (8 commit, migration 15): manuel-reply claim · sync adopt-heal · KVKK customer_id+cross-tenant guard · AI-gate geçmiş+ad · Invoice unique (D1) · DNS-SSRF · boot fail-fast · deep-kadans SystemLock · İstanbul-ay · rezerve senderName · CI kapıları (yukarıdaki bölüm).**
+**⏳ KALAN (küçük): outbox tablosu (launch sonrası, birlikte-test) · object storage (S3/R2 — kullanıcı bucket açmalı) · Railway backup/PITR + "Wait for CI" (ops panel) · QR per-misafir credential (ürün kararı) · CSV tırnak-içi-newline parser (riskli rewrite).** **KVKK sertleştirme batch'i (5 düzeltme,
 migration YOK — mevcut alanlara/koda oturdu): Sentry redaksiyon · retention resurrection guard · Paddle webhook PII
 minimize · dashboard "bu gece kalan" · outbound gövde ad-redaksiyonu.** Branch =
 `claude/great-edison-3zqpZ`, origin ile senkron. 5-tur derin denetim (loop `197ace29`) yapıldı: tur-1..5 =
