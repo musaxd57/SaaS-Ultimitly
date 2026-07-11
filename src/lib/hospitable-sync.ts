@@ -566,6 +566,26 @@ async function importThread(
     if (exists) continue;
 
     const inbound = isGuestMessage(m);
+    if (!inbound) {
+      // Adopt-and-heal: a reply sent from the app is persisted locally at send
+      // time, but when the provider returned no message id (or a POST id that
+      // differs from this GET id) the local row's externalId stayed NULL — the
+      // id-dedup above can't see it and the same reply would re-import as a
+      // duplicate "Ev sahibi" row. If an un-ID'd local outbound row with the
+      // exact same text exists, claim the OLDEST one as this provider message
+      // (chronological pairing for repeated identical texts) and heal its id so
+      // every future sync dedups normally. Inbound is never adopted, and a real
+      // externalId is never overwritten.
+      const orphan = await prisma.message.findFirst({
+        where: { conversationId, direction: "outbound", externalId: null, body },
+        orderBy: { createdAt: "asc" },
+        select: { id: true },
+      });
+      if (orphan) {
+        await prisma.message.update({ where: { id: orphan.id }, data: { externalId } });
+        continue;
+      }
+    }
     const created = await prisma.message.create({
       data: {
         conversationId,

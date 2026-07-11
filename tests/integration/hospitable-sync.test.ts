@@ -91,6 +91,96 @@ describe("syncHospitable", () => {
     expect(await prisma.message.count()).toBe(2);
   });
 
+  it("adopts an app-sent reply that has no provider id instead of duplicating it (externalId-null heal)", async () => {
+    const { orgId } = await makeOrgWithProperty();
+    mockProperties.mockResolvedValue([{ id: "hosp-prop-1", name: "Test Property" }]);
+    mockReservations.mockResolvedValue([
+      {
+        id: "res-1",
+        platform: "airbnb",
+        conversation_id: "conv-1",
+        last_message_at: "2026-05-30T10:00:00Z",
+      },
+    ]);
+    mockMessages.mockResolvedValue([
+      { id: 1001, body: "Anahtar nerede?", sender_type: "guest", sender_role: "guest", created_at: "2026-05-30T09:00:00Z" },
+    ]);
+    await syncHospitable(orgId);
+    const conversation = await prisma.conversation.findFirstOrThrow({ where: { externalReservationId: "res-1" } });
+
+    // The host answers via the app, but the provider POST returned no message id
+    // (or a POST-id ≠ GET-id) → the local row persists with externalId NULL.
+    await prisma.message.create({
+      data: {
+        conversationId: conversation.id,
+        direction: "outbound",
+        senderName: "Owner",
+        body: "Anahtar kapı yanındaki kutuda.",
+        externalId: null,
+        createdAt: new Date("2026-05-30T11:00:00Z"),
+      },
+    });
+
+    // The next sync re-fetches the thread; the SAME reply now comes back from the
+    // API with its real id. It must ADOPT the un-ID'd local row (healing its
+    // externalId), not create a duplicate "Ev sahibi" row.
+    mockReservations.mockResolvedValue([
+      { id: "res-1", platform: "airbnb", conversation_id: "conv-1", last_message_at: "2026-05-30T11:00:05Z" },
+    ]);
+    mockMessages.mockResolvedValue([
+      { id: 1001, body: "Anahtar nerede?", sender_type: "guest", sender_role: "guest", created_at: "2026-05-30T09:00:00Z" },
+      { id: 2001, body: "Anahtar kapı yanındaki kutuda.", sender_type: "host", sender_role: "host", created_at: "2026-05-30T11:00:02Z" },
+    ]);
+    await syncHospitable(orgId);
+
+    const outbound = await prisma.message.findMany({
+      where: { conversationId: conversation.id, direction: "outbound" },
+    });
+    expect(outbound).toHaveLength(1); // no duplicate row
+    expect(outbound[0].externalId).toBe("2001"); // healed → future syncs dedup by id
+  });
+
+  it("adopt-heal never claims an INBOUND api message or overwrites a real externalId", async () => {
+    const { orgId } = await makeOrgWithProperty();
+    mockProperties.mockResolvedValue([{ id: "hosp-prop-1", name: "Test Property" }]);
+    mockReservations.mockResolvedValue([
+      { id: "res-1", platform: "airbnb", conversation_id: "conv-1", last_message_at: "2026-05-30T10:00:00Z" },
+    ]);
+    mockMessages.mockResolvedValue([
+      { id: 1001, body: "Merhaba", sender_type: "guest", sender_role: "guest", created_at: "2026-05-30T09:00:00Z" },
+    ]);
+    await syncHospitable(orgId);
+    const conversation = await prisma.conversation.findFirstOrThrow({ where: { externalReservationId: "res-1" } });
+
+    // A local outbound row with the SAME text as the guest's message but already
+    // carrying a REAL id: neither may be adopted/overwritten by the next sync.
+    await prisma.message.create({
+      data: {
+        conversationId: conversation.id,
+        direction: "outbound",
+        senderName: "Owner",
+        body: "Merhaba",
+        externalId: "real-77",
+        createdAt: new Date("2026-05-30T09:30:00Z"),
+      },
+    });
+    mockReservations.mockResolvedValue([
+      { id: "res-1", platform: "airbnb", conversation_id: "conv-1", last_message_at: "2026-05-30T10:30:00Z" },
+    ]);
+    mockMessages.mockResolvedValue([
+      { id: 1001, body: "Merhaba", sender_type: "guest", sender_role: "guest", created_at: "2026-05-30T09:00:00Z" },
+      // A NEW guest message with a body identical to the host's reply text: must
+      // import as a fresh INBOUND row, never adopt the outbound row.
+      { id: 3001, body: "Merhaba", sender_type: "guest", sender_role: "guest", created_at: "2026-05-30T10:30:00Z" },
+    ]);
+    await syncHospitable(orgId);
+
+    const rows = await prisma.message.findMany({ where: { conversationId: conversation.id } });
+    expect(rows.filter((r) => r.direction === "inbound")).toHaveLength(2); // 1001 + 3001
+    expect(rows.find((r) => r.externalId === "real-77")).toBeTruthy(); // untouched
+    expect(rows.find((r) => r.externalId === "3001")?.direction).toBe("inbound");
+  });
+
   it("does not re-fetch messages for threads that haven't changed (rate-limit saver)", async () => {
     const { orgId } = await makeOrgWithProperty();
     mockProperties.mockResolvedValue([{ id: "hosp-prop-1", name: "Test Property" }]);
