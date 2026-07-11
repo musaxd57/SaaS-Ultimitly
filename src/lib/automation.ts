@@ -52,6 +52,9 @@ export function passesAutoReplySafetyGate(
     riskType?: string | null;
   },
   guestMessage: string,
+  /** What the MODEL sees beyond the last message: recent history bodies + the
+   *  (Airbnb-controlled) guest display name. Scanned for INJECTION ONLY. */
+  context?: { history?: string[]; guestName?: string | null },
 ): boolean {
   // Never auto-send the deterministic fallback: it can't honour the language /
   // nuance rules the model follows, so if the model is unavailable we wait for a
@@ -84,6 +87,17 @@ export function passesAutoReplySafetyGate(
   // jailbreak phrasing, the draft waits for a human no matter what the model
   // scored. Restrictive-only (can only prevent an auto-send).
   if (detectPromptInjection(guestMessage)) return false;
+  // The model does not only see the LAST message: the prompt carries the recent
+  // history verbatim plus the guest display name (Airbnb-controlled text). An
+  // injection planted in an EARLIER message — or in the name itself — reaches
+  // the model even when the last message is benign, so the injection veto must
+  // cover those surfaces too. INJECTION ONLY here: re-running the complaint/risk
+  // word nets over old messages would permanently over-block normal threads
+  // (yesterday's resolved complaint is not a reason to hold today's wifi answer).
+  if (context) {
+    const extraSurfaces = [...(context.history ?? []), context.guestName ?? ""];
+    if (extraSurfaces.some((t) => t && detectPromptInjection(t))) return false;
+  }
   // Deterministic HIGH-STAKES backstop: these three classes are host-only calls
   // that have NO other cross-check above (unlike complaint/refund/cancellation/
   // human_request/injection). So a message whose OWN words signal them must reach
@@ -823,7 +837,15 @@ export async function applyChannelAutoReply(
 
   // Safety gate: only auto-send safe, confident replies (cross-checked against
   // the guest's own words, so a mislabelled complaint/refund never slips through).
-  if (!passesAutoReplySafetyGate(result, last.body)) {
+  // Context mirrors what the MODEL sees beyond last.body: the prompt's history
+  // window (prompts.ts keeps the last 6) and both guest-name surfaces (the
+  // reservation name goes into the prompt; guestIdentifier feeds the KB {isim}
+  // fill) — an injection planted in any of them must veto the auto-send.
+  const gateContext = {
+    history: [...messages.slice(-6).map((m) => m.body), conversation.guestIdentifier ?? ""],
+    guestName: conversation.reservation?.guestName ?? null,
+  };
+  if (!passesAutoReplySafetyGate(result, last.body, gateContext)) {
     // If the block was driven by a MODEL-detected sensitive signal (complaint /
     // refund / early-departure intent, or medium/high risk) — not mere low
     // confidence — actively escalate to the host so it never sits silently in the

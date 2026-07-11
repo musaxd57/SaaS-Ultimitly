@@ -73,7 +73,11 @@ function setStayCookie(res: NextResponse, name: string, secret: string, departur
 function mustEscalate(
   result: { intent: string; riskLevel: string; confidence: number; source: string },
   message: string,
+  /** Reservation guest name (Airbnb-controlled) — the model sees it in the prompt,
+   *  so an injection planted in the NAME must escalate even on a benign message. */
+  guestName?: string | null,
 ): boolean {
+  if (guestName && detectPromptInjection(guestName)) return true;
   if (result.source !== "openai") return true; // canned fallback → host handles it
   if (ESCALATE_INTENTS.has(result.intent)) return true; // money/complaint/human
   // Cross-check the guest's own words against the deterministic detector — catches
@@ -294,7 +298,10 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ tok
     styleProfile: org?.aiStyleProfile ?? null,
   });
 
-  const escalate = mustEscalate(result, message);
+  // (The QR model call passes reservation:null — the name never reaches the model
+  // today — so this is defense-in-depth: if the name is ever wired into the
+  // prompt, the deterministic backstop is already in place.)
+  const escalate = mustEscalate(result, message, res.guestName);
   const reply = escalate
     ? "Bu sorunuzu ev sahibine ilettim; en kısa sürede size dönecek."
     : result.reply;
