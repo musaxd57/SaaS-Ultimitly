@@ -719,6 +719,26 @@ Kullanıcının son Codex-listesi kapatıldı. **797 test yeşil · typecheck te
   ama entitlement almaz (para-akışı kırılır)**. Mevcut stateless TTL+priceId+session-org yaklaşımı sırasız çoklu-event'e KASITLI
   dayanıklı. Güvenlik hedefi (cross-tenant yok, replay sınırlı) zaten karşılanıyor. Migration/webhook değişikliği GEREKMEZ.
 
+## ✅ 3 BILLING NÜANSI KAPATILDI (2026-07-11, commit `7d72c82` — migration YOK, SystemLock nonce store)
+Codex'in dünkü 3 billing nüansı: her biri ÖNCE kırmızı-testle gerçek kanıtlandı, SONRA migration'sız + fail-closed düzeltildi.
+**806 test yeşil (+9) · typecheck temiz · build temiz.** Para akışında varsayım yapılmadı.
+- **[Nüans 1 — previewToken TEK-KULLANIMLIK]** 10dk expiry ≠ single-use; aynı token replay/çift-tık → 2. Paddle PATCH/tahsilat
+  üretiyordu. Token'a rastgele `jti` eklendi; apply Paddle'a DOKUNMADAN ÖNCE `jti`'yi SystemLock'ta (unique @id) **atomik claim**
+  ediyor → replay consumed bulur → **409**. BAŞARISIZ apply `jti`'yi bırakır (tahsilat yok → aynı token retry edilebilir).
+  DB-backed → multi-replica doğru (in-memory rate-limiter'ın aksine). `consumePlanChangeNonce`/`releasePlanChangeNonce` @ plan-change.ts.
+- **[Nüans 2 — gösterilen tutar apply'a bağlı]** Token `amount`'ı taşıyordu ama apply kontrol etmiyordu. Apply artık Paddle'da
+  **yeniden preview** yapıp immediateTotal'in (currency formatlı string'e dahil) müşterinin onayladığıyla AYNI olmasını şart
+  koşuyor; upgrade'de tutar alınamazsa fail-closed. Sapma → **409 {amountChanged}** → yeniden onay. Client 409'da dialog'u kapatıp
+  taze preview'e zorluyor.
+- **[Nüans 3 — consent freshness geç webhook'u düşürüyor]** 24h TTL `Date.now()` (GELİŞ) ile ölçülüyordu → Paddle outage/retry
+  24h+ sonra gelirse gerçek ödeme düşer (müşteri öder, entitlement yok). Artık imzalı `occurred_at`'e göre: ödeme anında taze olan
+  geç-teslim event BAĞLANIR; gelecekteki occurred_at (5dk skew ötesi) veya gerçekten bayat consent FAIL-CLOSED; occurred_at yoksa
+  geliş-zamanı fallback (para-güvenli, saldırganca uzatılamaz — occurred_at imzalı gövdede). `resolveOrgId` + `applyTransactionEvent`
+  occurredAt taşıyor. **consumedAt EKLENMEME kararı korundu + test edildi** (transaction+subscription aynı consentId'yi paylaşıyor).
+- **Kırmızı-önce kanıt:** nüans1/2 → 4 yeni test mevcut kodda 200 dönüyordu (409 bekleniyordu); nüans3 → geç-retry count 0 (1
+  bekleniyordu) + future count 1 (0 bekleniyordu). Fix sonrası hepsi yeşil. **SystemLock nonce rows** `plan-change-nonce:{jti}`,
+  expired olanlar opportunistic sweep'le silinir (token zaten expired → replay imkânsız).
+
 ## 📋 YARIN DEVAM — BACKLOG (kullanıcı: "yoruldum, .md'ye yaz, yarın yaparız")
 **Bu oturumda BİLEREK BAŞLANMADI (kullanıcı direktifi: yeni büyük parça/migration YOK):**
 - **[reliability/BÜYÜK] Outbound idempotency / outbox:** `automation.ts` manuel-reply idempotency (claim-then-send auto-reply'da
@@ -738,12 +758,13 @@ Kullanıcının son Codex-listesi kapatıldı. **797 test yeşil · typecheck te
 **[OPS/LEGAL — kullanıcı/avukat, kod değil]:** SELLER bilgisi (`legal-entity.ts` [parantez]) · KVKK-DPA (OpenAI ABD aktarım) · RESEND DNS (SPF/DKIM/DMARC) · Paddle küçük gerçek ödeme birlikte-test · `PADDLE_PLAN_CHANGE_ENABLED=1` ile upgrade/downgrade'i hesapta doğrula.
 
 ## Durum
-**797 test yeşil, typecheck temiz, next build temiz, migrate deploy canlıda doğrulanmış.** 15 migration
+**806 test yeşil, typecheck temiz, next build temiz, migrate deploy canlıda doğrulanmış.** 15 migration
 (00_init→14_guest_stay_chat_binding) sıfır-drift (taze Postgres'te doğrulandı). Son iş: 40-ajan lansman denetimi →
 FAZ-1 (7 bulgu) + FAZ-2 A (T1 checklist UI · sync cursor · oturum DB-yetkili · 2FA/TOTP · foto-unlink · KB-cap · take · prompt-sanitize)
 + FAZ-2 B (iCal SSRF+resurrection · consent planCode↔priceId · billing trialing-null+founder guard · photoUrl scheme · QR gate tutarlılığı)
 + **QR per-stay device binding (migration 14, first-scan claim + rotasyonlu cookie)**
 + **Codex follow-up gecesi: B3 plan-change previewToken HMAC (`afecf74`) + A1 requireAuth capability fail-closed (`12b6613`) + flaky-test fix; CheckoutConsent single-use KODLA-REDDEDİLDİ (para-akışı kırardı).**
++ **3 billing nüansı (`7d72c82`): previewToken tek-kullanımlık (jti+SystemLock nonce) · apply'da tutar yeniden-preview eşleşmesi · consent freshness imzalı occurred_at'e bağlandı (geç retry entitlement kaybettirmez). Kırmızı-önce testli, migration YOK.**
 **⏳ SIRADA (yarın): backlog — outbound outbox/idempotency · object storage · webhook D1/D2 · AI-gate geçmiş+ad genişletme (yukarıdaki BACKLOG bölümü).** **KVKK sertleştirme batch'i (5 düzeltme,
 migration YOK — mevcut alanlara/koda oturdu): Sentry redaksiyon · retention resurrection guard · Paddle webhook PII
 minimize · dashboard "bu gece kalan" · outbound gövde ad-redaksiyonu.** Branch =
