@@ -2,8 +2,11 @@ name: CI
 
 on:
   push:
-    branches: ["main"]
+    # claude/great-edison-3zqpZ is the branch Railway auto-deploys from — CI must
+    # run exactly where production commits land, not only on main/PRs.
+    branches: ["main", "claude/great-edison-3zqpZ"]
   pull_request:
+  workflow_dispatch:
 
 # Run CI ONCE per change: PR branches are covered by the pull_request event (so we
 # don't ALSO trigger on push and get duplicate runs); main is covered by push.
@@ -41,3 +44,60 @@ jobs:
 
       - name: Tests
         run: npm test
+
+  # The gap the test harness can't catch: it uses `prisma db push`, so a broken
+  # or drifting MIGRATION chain only surfaces at deploy (`migrate deploy` at
+  # boot). Replay 00→N on a fresh Postgres, then assert migrations ↔
+  # schema.prisma have ZERO drift — the same protocol done by hand until now.
+  migration-chain:
+    runs-on: ubuntu-latest
+    services:
+      postgres:
+        image: postgres:16
+        env:
+          POSTGRES_USER: postgres
+          POSTGRES_HOST_AUTH_METHOD: trust
+        ports: ["5432:5432"]
+        options: >-
+          --health-cmd pg_isready --health-interval 5s --health-timeout 5s --health-retries 20
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: npm
+      - name: Install dependencies
+        run: npm ci
+      - name: Create chain + shadow databases
+        run: |
+          psql "postgresql://postgres@localhost:5432/postgres" -c 'CREATE DATABASE chain;'
+          psql "postgresql://postgres@localhost:5432/postgres" -c 'CREATE DATABASE shadow;'
+      - name: migrate deploy 00→N on a fresh database
+        run: npx prisma migrate deploy
+        env:
+          DATABASE_URL: postgresql://postgres@localhost:5432/chain
+      - name: Zero-drift check (migrations ↔ schema.prisma)
+        run: >-
+          npx prisma migrate diff
+          --from-migrations ./prisma/migrations
+          --to-schema-datamodel ./prisma/schema.prisma
+          --shadow-database-url postgresql://postgres@localhost:5432/shadow
+          --exit-code
+
+  # Production build gate (DB-free — dummy env values satisfy module-level env
+  # readers; nothing connects at build time).
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: npm
+      - name: Install dependencies
+        run: npm ci
+      - name: next build (via npm script — includes prisma generate)
+        run: npm run build
+        env:
+          DATABASE_URL: postgresql://postgres@localhost:5432/build_dummy
+          AUTH_SECRET: ci-build-only-secret-not-used-anywhere-42
