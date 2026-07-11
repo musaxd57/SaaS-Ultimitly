@@ -610,6 +610,72 @@ describe("syncHospitable — plan property limit", () => {
     expect(msgCount).toBe(2);
   });
 
+  it("KVKK: on a scrubbed stay, messages OLDER than the retention cutoff never re-import (adopt-miss can't resurrect PII)", async () => {
+    vi.stubEnv("DATA_RETENTION_MONTHS", "24");
+    try {
+      const { orgId } = await makeOrgWithProperty();
+      mockProperties.mockResolvedValue([{ id: "hosp-prop-1", name: "Test Property" }]);
+      const booking = {
+        id: "res-old-1",
+        platform: "booking",
+        arrival_date: "2023-01-01",
+        departure_date: "2023-01-04",
+        conversation_id: "conv-old-1",
+        last_message_at: "2023-01-02T10:00:00Z",
+        guest: { full_name: "Ada Lovelace" },
+      };
+      mockReservations.mockResolvedValue([booking]);
+      mockMessages.mockResolvedValue([
+        { id: 4001, body: "Merhaba", sender_type: "guest", sender_role: "guest", created_at: "2023-01-01T09:00:00Z" },
+      ]);
+      await syncHospitable(orgId);
+      const res = await prisma.reservation.findFirstOrThrow({
+        where: { property: { organizationId: orgId }, sourceReference: "res-old-1" },
+      });
+      const conv = await prisma.conversation.findFirstOrThrow({
+        where: { propertyId: res.propertyId, externalReservationId: "res-old-1" },
+      });
+
+      // An app-sent reply from back then that never got a provider id, whose body
+      // the retention sweep has since REDACTED (name → [Misafir]).
+      await prisma.message.create({
+        data: {
+          conversationId: conv.id,
+          direction: "outbound",
+          senderName: "Owner",
+          body: "Merhaba [Misafir], kapı kodu 1234.",
+          externalId: null,
+          createdAt: new Date("2023-01-01T10:00:00Z"),
+        },
+      });
+      // The retention sweep anonymized the stay itself.
+      await prisma.reservation.update({
+        where: { id: res.id },
+        data: { guestName: "Eski misafir", guestEmail: null, guestPhone: null },
+      });
+      await prisma.conversation.update({ where: { id: conv.id }, data: { guestIdentifier: "Misafir" } });
+
+      // A deep re-fetch returns the ORIGINAL (pre-redaction) outbound text with its
+      // provider id, plus a genuinely-new in-window message. The old outbound must
+      // NOT be re-created (adopt misses — the local body is redacted — and creating
+      // it would resurrect the guest name); the new message still imports.
+      mockReservations.mockResolvedValue([{ ...booking, last_message_at: new Date().toISOString() }]);
+      mockMessages.mockResolvedValue([
+        { id: 4001, body: "Merhaba", sender_type: "guest", sender_role: "guest", created_at: "2023-01-01T09:00:00Z" },
+        { id: 4002, body: "Merhaba Ada Lovelace, kapı kodu 1234.", sender_type: "host", sender_role: "host", created_at: "2023-01-01T10:00:00Z" },
+        { id: 4003, body: "Yeni bir sorum var", sender_type: "guest", sender_role: "guest", created_at: new Date().toISOString() },
+      ]);
+      await syncHospitable(orgId);
+
+      const rows = await prisma.message.findMany({ where: { conversationId: conv.id } });
+      expect(rows.some((r) => r.body.includes("Ada Lovelace"))).toBe(false); // no resurrection
+      expect(rows.filter((r) => r.direction === "outbound")).toHaveLength(1); // no duplicate of the redacted reply
+      expect(rows.find((r) => r.externalId === "4003")).toBeTruthy(); // new data still flows
+    } finally {
+      vi.unstubAllEnvs();
+    }
+  });
+
   it("adopts the real guest name on a later sync when the first import had only the 'Misafir' placeholder", async () => {
     // Regression guard: the resurrection guard must key off the reservation's
     // DISTINCT ANON_NAME sentinel, not conversation.guestIdentifier === ANON_ID

@@ -12,13 +12,17 @@ import { prisma } from "@/lib/db";
 // SystemLock's unique @id makes create() the atomic claim, which is correct
 // across replicas (unlike the in-memory rate limiter).
 //
-// The key is {conversationId, sha256(body)} with a SHORT TTL: long enough to
-// absorb a double-submit, short enough that a genuinely repeated identical
-// message a minute later is not blocked. Auto-reply paths have their own
+// The key is {conversationId, sha256(body)}. The TTL must EXCEED the worst-case
+// delivery duration: the Hospitable client retries up to 4×20s with backoff
+// (~87s), and the sweep below deletes expired rows — a TTL shorter than a slow
+// in-flight send would let a late browser/proxy retry sweep the live claim and
+// deliver twice (adversarial-review finding). 120s covers the worst case; the
+// cost is only that the SAME text can't be re-sent for 2 minutes after success
+// (a failed send releases immediately). Auto-reply paths have their own
 // claim-then-send (conversation/reservation updateMany) and don't use this.
 // ---------------------------------------------------------------------------
 
-const CLAIM_TTL_MS = 15_000;
+const CLAIM_TTL_MS = 120_000;
 const PREFIX = "outbound-send:";
 
 function claimName(conversationId: string, body: string): string {

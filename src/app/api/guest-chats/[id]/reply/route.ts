@@ -32,19 +32,21 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ id:
     return NextResponse.json({ error: "Bu mesaj az önce gönderildi." }, { status: 409 });
   }
 
-  const message = await prisma.message.create({
-    data: {
-      conversationId: convo.id,
-      direction: "outbound",
-      senderName: session.name, // human host → shown as "Ev sahibiniz" (not "Lixus AI")
-      body: text,
-      language: "tr",
-    },
-  });
-  await prisma.conversation.update({
-    where: { id: convo.id },
-    data: { lastMessageAt: new Date() },
-  });
+  const [message] = await prisma.$transaction([
+    prisma.message.create({
+      data: {
+        conversationId: convo.id,
+        direction: "outbound",
+        senderName: session.name, // human host → shown as "Ev sahibiniz" (not "Lixus AI")
+        body: text,
+        language: "tr",
+      },
+    }),
+    prisma.conversation.update({
+      where: { id: convo.id },
+      data: { lastMessageAt: new Date() },
+    }),
+  ]);
 
   return jsonOk(message, 201);
 }

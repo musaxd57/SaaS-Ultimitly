@@ -15,7 +15,7 @@ import { reportError } from "@/lib/report-error";
 import { createReservationTasks, removeAutoTasksForCancelledReservation } from "@/lib/automation";
 import { recordSupplyRequestFromMessage } from "@/lib/supply";
 import { billingEnforced, getEntitlement } from "@/lib/billing/subscription";
-import { ANON_NAME, ANON_ID } from "@/lib/data-retention";
+import { ANON_NAME, ANON_ID, retentionCutoff } from "@/lib/data-retention";
 
 // ---------------------------------------------------------------------------
 // Hospitable → Inbox synchronisation
@@ -494,6 +494,9 @@ async function importThread(
   const createCursor = parseDate(ordered[0]?.created_at) ?? lastMessageAt;
 
   let conversationId: string;
+  // Whether the linked stay has been anonymized by the retention sweep — set in
+  // the existing-thread branch below and used by the message loop's era filter.
+  let scrubbedThread = false;
   if (!existing) {
     const created = await prisma.conversation.create({
       data: {
@@ -533,6 +536,7 @@ async function importThread(
     } else {
       scrubbed = existing.guestIdentifier === ANON_ID;
     }
+    scrubbedThread = scrubbed;
     await prisma.conversation.update({
       where: { id: existing.id },
       data: {
@@ -553,11 +557,23 @@ async function importThread(
   }
 
   // Import messages in chronological order, skipping ones we already have.
+  // KVKK era filter: on a retention-anonymized stay, never (re-)create messages
+  // OLDER than the retention cutoff — that era is exactly what the sweep erased
+  // (inbound bodies) or redacted (outbound names). The id-dedup can't protect the
+  // redacted un-ID'd rows (their body no longer matches the provider's original),
+  // so re-importing would BOTH duplicate them AND resurrect the guest's name.
+  // Newer messages still import normally; a missing timestamp on a scrubbed
+  // thread skips (fail-closed for privacy).
+  const eraCutoff = scrubbedThread ? retentionCutoff() : null;
   let newMessages = 0;
   for (const m of ordered) {
     const externalId = m.id != null ? String(m.id) : null;
     const body = str(m.body);
     if (!externalId || !body) continue; // skip non-text / unidentifiable messages
+    if (eraCutoff) {
+      const msgAt = parseDate(m.created_at);
+      if (!msgAt || msgAt < eraCutoff) continue;
+    }
 
     const exists = await prisma.message.findFirst({
       where: { conversationId, externalId },

@@ -52,6 +52,17 @@ function redactNameFromBody(body: string, names: string[]): string {
 const RETENTION_BATCH = 300;
 
 /**
+ * The retention cutoff instant: data from stays that ended BEFORE this is due for
+ * (or already) anonymization. Null when retention is disabled. Shared with the
+ * sync so a deep re-fetch never re-imports the very era retention erased.
+ */
+export function retentionCutoff(now: Date = new Date()): Date | null {
+  const months = Number(process.env.DATA_RETENTION_MONTHS);
+  if (!Number.isFinite(months) || months <= 0) return null;
+  return subMonths(startOfDay(now), months);
+}
+
+/**
  * Anonymize guest personal data for stays that ended before the retention window.
  * No-op unless DATA_RETENTION_MONTHS is a positive number. Returns how many
  * reservations were scrubbed (0 when disabled or nothing is due).
