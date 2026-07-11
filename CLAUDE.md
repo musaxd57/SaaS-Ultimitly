@@ -796,6 +796,25 @@ Kullanıcı onayıyla ertelenen Codex/backlog kalemleri kapatıldı. **848 test 
 externalId zinciri pratik riskleri kapattı; outbox'ın artısı ölçekte durable-retry, canlı mesaj akışına dokunan mimari değişiklik → launch sonrası
 birlikte-testle. Object storage (S3/R2 env+bucket = kullanıcı/ops) · Railway backup/PITR (ops) · "Wait for CI" (Railway paneli).
 
+## ✅ CODEX KAPANIŞ TURU (2026-07-11 öğle — D2 + E2E kapısı; kullanıcı ilkesi: "Codex'in dediğini mantıklıysa yap")
+Kullanıcı direktifi kalıcı: Codex önerileri KÖRÜ KÖRÜNE uygulanmaz — mantıklıysa yapılır, değilse gerekçeli reddedilir. Bu turda:
+- **[`5ead13c` — D2 atomik sıralama]** webhook `occurred_at` vetosu read-check-write'tı (upsert etrafında findUnique) → iki EŞZAMANLI teslimatta
+  ikisi de bayat okumayı geçip ESKİ event son yazabiliyordu (erişim ters döner). Veto artık `updateMany`'nin WHERE'inde (`lastEventAt <= occurred_at`);
+  ilk-event create yarışı P2002'de aynı guard'lı update'e düşer. `pastDueSince` okuması kaldı (yarışta çapa en fazla dakikalar kayar — 14g grace'te
+  önemsiz, belgeli). +2 sıralama testi; 5xx-retry testinin hata-enjeksiyonu artık kullanılmayan upsert'ten create'e taşındı.
+- **[`5ead13c` — E2E smoke kapısı]** `@playwright/test` + 2 testlik suite: GERÇEK production build'i seed'li Postgres'e karşı boot'layıp
+  landing→login→dashboard yürüyor ("app boot olmuyor / auth uçtan uca kırık" sınıfını yalnız bu görür). CI'da yeni `e2e` job'ı (Chromium kur →
+  00→N migrate + seed → build → smoke). Lokal + GitHub runner'da yeşil (ilk koşu 4/4). Sandbox'ta `PW_CHROMIUM_PATH=/opt/pw-browsers/chromium` ile koşulur.
+- **[GERÇEK REGRESYON — smoke İLK koşusunda yakaladı]** e-posta-doğrulama cutoff'undan beri `prisma/seed.ts` demo kullanıcısı HİÇ giriş yapamıyordu
+  (403 doğrulama kapısı). Seed artık `emailVerifiedAt` damgalıyor. (E2E kapısının değerini ilk gün kanıtladı.)
+- **[`4021901` — CI tek-koşu]** Branch'in açık PR'ı yüzünden her push CI'ı İKİ kez koşturuyordu (push + pull_request merge-ref kopyası) →
+  `pull_request` tetikleyicisi kaldırıldı; push-only (main + deploy branch + dispatch). "Cancelled" görünen koşu = concurrency'nin süpersede edilmiş
+  eski commit koşusunu iptali (hata DEĞİL — kullanıcıya açıklandı, yorumda belgelendi).
+- **[REDDEDİLDİ — outbox tablosu]** Sadece ertelenmedi, ilkece reddedildi: claim-then-send + adopt-heal + cron'un doğal retry'ı pratik riskleri
+  kapatıyor; tek-org ölçeğinde sıcak mesaj yoluna kuyruk+worker = risk/fayda tutmuyor. Ölçek gelince (çoklu müşteri + gerçek teslimat-SLA'sı) yeniden değerlendir.
+- **[SKIP — lint kapısı]** Repo'da eslint konfigürasyonu yok; typecheck zaten kapıda. Sırf Codex listeledi diye eslint bootstrap'ı = churn.
+**850 test + 2 E2E yeşil · typecheck temiz · build temiz · CI 4 job yeşil (GitHub runner'da doğrulandı).** Codex'in kod listesinde açık madde kalmadı.
+
 ## 📋 YARIN DEVAM — BACKLOG (kullanıcı: "yoruldum, .md'ye yaz, yarın yaparız")
 **Bu oturumda BİLEREK BAŞLANMADI (kullanıcı direktifi: yeni büyük parça/migration YOK):**
 - **[reliability/BÜYÜK] Outbound idempotency / outbox:** `automation.ts` manuel-reply idempotency (claim-then-send auto-reply'da
