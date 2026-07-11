@@ -354,4 +354,64 @@ describe("deleteAccountData (KVKK erasure)", () => {
     const other = await prisma.webhookEvent.findUnique({ where: { id: evtB.id } });
     expect(other!.payloadJson).toBe(payloadB);
   });
+
+  it("also redacts customer.* events (no custom_data) via the customer_id learned from the org's own rows", async () => {
+    const a = await seedStay({ orgName: "Org A", departedMonthsAgo: 2, guestName: "A Guest", body: "msg A" });
+    const b = await seedStay({ orgName: "Org B", departedMonthsAgo: 2, guestName: "B Guest", body: "msg B" });
+
+    // A checkout-originating row FOR org A: carries custom_data.organizationId AND
+    // the Paddle customer id — this is where the erasure LEARNS ctm_a.
+    await prisma.webhookEvent.create({
+      data: {
+        provider: "paddle",
+        eventType: "subscription.activated",
+        providerEventId: "evt_link_a",
+        status: "processed",
+        payloadJson: JSON.stringify({
+          event_id: "evt_link_a",
+          event_type: "subscription.activated",
+          data: { id: "sub_a", status: "active", customer_id: "ctm_a", custom_data: { organizationId: a.orgId } },
+        }),
+      },
+    });
+    // A Paddle-generated customer.updated FOR org A: NO custom_data (Paddle doesn't
+    // stamp it), the customer entity itself is the payload → carries email/name.
+    const custA = await prisma.webhookEvent.create({
+      data: {
+        provider: "paddle",
+        eventType: "customer.updated",
+        providerEventId: "evt_cust_a",
+        status: "processed",
+        payloadJson: JSON.stringify({
+          event_id: "evt_cust_a",
+          event_type: "customer.updated",
+          data: { id: "ctm_a", status: "active", email: "owner@a.com", name: "Ada Owner" },
+        }),
+      },
+    });
+    // Org B's customer.updated with a DIFFERENT customer id: must stay untouched.
+    const payloadCustB = JSON.stringify({
+      event_id: "evt_cust_b",
+      event_type: "customer.updated",
+      data: { id: "ctm_b", email: "owner@b.com", name: "Bora Owner" },
+    });
+    const custB = await prisma.webhookEvent.create({
+      data: { provider: "paddle", eventType: "customer.updated", providerEventId: "evt_cust_b", status: "processed", payloadJson: payloadCustB },
+    });
+    void b;
+
+    await deleteAccountData(a.orgId);
+
+    // The customer.updated row for A is now redacted even though it never carried
+    // the org id: matched through ctm_a learned from A's own subscription row.
+    const redacted = await prisma.webhookEvent.findUnique({ where: { id: custA.id } });
+    expect(redacted!.payloadJson).not.toContain("owner@a.com");
+    expect(redacted!.payloadJson).not.toContain("Ada Owner");
+    expect(redacted!.payloadJson).toContain("ctm_a"); // provider id skeleton kept
+    expect(redacted!.payloadJson).toContain("kvkk-erasure");
+
+    // B's customer row is byte-identical.
+    const otherCust = await prisma.webhookEvent.findUnique({ where: { id: custB.id } });
+    expect(otherCust!.payloadJson).toBe(payloadCustB);
+  });
 });

@@ -245,6 +245,12 @@ function redactPaddlePayload(raw: string): string {
  * raw PII (the webhook route only reprocesses non-"processed" rows).
  */
 async function redactPaddleWebhooksForOrg(organizationId: string): Promise<void> {
+  // Pass 1 — rows that carry OUR org id in custom_data (stamped at checkout).
+  // While verifying them, LEARN the org's Paddle customer id(s): Paddle-generated
+  // customer.* events (email/name/address updates) carry NO custom_data at all,
+  // so they can only be attributed through this learned customer_id.
+  const redacted = new Set<string>();
+  const customerIds = new Set<string>();
   const rows = await prisma.webhookEvent.findMany({
     where: { provider: "paddle", payloadJson: { contains: organizationId } },
     select: { id: true, payloadJson: true },
@@ -252,8 +258,14 @@ async function redactPaddleWebhooksForOrg(organizationId: string): Promise<void>
   for (const r of rows) {
     let belongs = false;
     try {
-      const parsed = JSON.parse(r.payloadJson) as { data?: { custom_data?: { organizationId?: unknown } } };
+      const parsed = JSON.parse(r.payloadJson) as {
+        data?: { customer_id?: unknown; custom_data?: { organizationId?: unknown } };
+      };
       belongs = parsed?.data?.custom_data?.organizationId === organizationId;
+      const cid = parsed?.data?.customer_id;
+      if (belongs && typeof cid === "string" && cid.length > 0 && cid.length <= 64) {
+        customerIds.add(cid);
+      }
     } catch {
       belongs = false; // unparseable → not attributable to this org, skip
     }
@@ -262,6 +274,35 @@ async function redactPaddleWebhooksForOrg(organizationId: string): Promise<void>
       where: { id: r.id },
       data: { payloadJson: redactPaddlePayload(r.payloadJson), status: "processed", processedAt: new Date() },
     });
+    redacted.add(r.id);
+  }
+
+  // Pass 2 — rows matching a learned customer id. customer.* events put the
+  // customer ENTITY in data (data.id === ctm_...), other events reference it as
+  // data.customer_id; accept either, parse-verified. The id was learned only from
+  // rows proven to belong to this org, so this can't touch another tenant — and
+  // redaction only ever REMOVES fields, never adds.
+  for (const cid of customerIds) {
+    const cidRows = await prisma.webhookEvent.findMany({
+      where: { provider: "paddle", payloadJson: { contains: cid } },
+      select: { id: true, payloadJson: true },
+    });
+    for (const r of cidRows) {
+      if (redacted.has(r.id)) continue;
+      let belongs = false;
+      try {
+        const parsed = JSON.parse(r.payloadJson) as { data?: { id?: unknown; customer_id?: unknown } };
+        belongs = parsed?.data?.customer_id === cid || parsed?.data?.id === cid;
+      } catch {
+        belongs = false;
+      }
+      if (!belongs) continue;
+      await prisma.webhookEvent.update({
+        where: { id: r.id },
+        data: { payloadJson: redactPaddlePayload(r.payloadJson), status: "processed", processedAt: new Date() },
+      });
+      redacted.add(r.id);
+    }
   }
 }
 
