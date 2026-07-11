@@ -18,6 +18,7 @@ vi.mock("@/lib/hospitable-credentials", () => ({ getOrgHospitableToken: vi.fn(as
 import { sendOnChannel } from "@/lib/messaging";
 import { getOrgHospitableToken } from "@/lib/hospitable-credentials";
 import { POST } from "@/app/api/conversations/[id]/reply/route";
+import { POST as QR_REPLY } from "@/app/api/guest-chats/[id]/reply/route";
 import { getAiOpsReport } from "@/lib/reports";
 
 const mockSend = vi.mocked(sendOnChannel);
@@ -134,5 +135,72 @@ describe("POST /api/conversations/[id]/reply — staff RBAC gate", () => {
     expect(res.status).toBe(201);
     const count = await prisma.message.count({ where: { conversationId: qr.id, direction: "outbound" } });
     expect(count).toBe(1);
+  });
+
+  it("double-click: the identical body twice in a row → second is 409, ONE delivery, ONE row", async () => {
+    session = { userId: "u", organizationId: orgId, role: "owner", email: "o@x.com", name: "Owner", sessionEpoch: 0 };
+    const first = await POST(req(conversationId, { body: "Merhaba" }), {
+      params: Promise.resolve({ id: conversationId }),
+    });
+    expect(first.status).toBe(201);
+    // Same text again within the claim TTL (double-click / browser retry): must NOT
+    // reach the guest a second time.
+    const second = await POST(req(conversationId, { body: "Merhaba" }), {
+      params: Promise.resolve({ id: conversationId }),
+    });
+    expect(second.status).toBe(409);
+    expect(mockSend).toHaveBeenCalledTimes(1);
+    expect(await prisma.message.count({ where: { conversationId, direction: "outbound" } })).toBe(1);
+  });
+
+  it("a FAILED delivery releases the claim → an immediate retry of the same text succeeds", async () => {
+    session = { userId: "u", organizationId: orgId, role: "owner", email: "o@x.com", name: "Owner", sessionEpoch: 0 };
+    mockSend.mockResolvedValueOnce({ ok: false, error: "kanal hatası" });
+    const failed = await POST(req(conversationId, { body: "Merhaba" }), {
+      params: Promise.resolve({ id: conversationId }),
+    });
+    expect(failed.status).toBe(502);
+    // Nothing reached the guest → the same text must be retryable right away.
+    const retry = await POST(req(conversationId, { body: "Merhaba" }), {
+      params: Promise.resolve({ id: conversationId }),
+    });
+    expect(retry.status).toBe(201);
+    expect(mockSend).toHaveBeenCalledTimes(2);
+    expect(await prisma.message.count({ where: { conversationId, direction: "outbound" } })).toBe(1);
+  });
+
+  it("a DIFFERENT message right after is not blocked by the duplicate guard", async () => {
+    session = { userId: "u", organizationId: orgId, role: "owner", email: "o@x.com", name: "Owner", sessionEpoch: 0 };
+    expect(
+      (await POST(req(conversationId, { body: "Merhaba" }), { params: Promise.resolve({ id: conversationId }) })).status,
+    ).toBe(201);
+    expect(
+      (await POST(req(conversationId, { body: "Havlular dolapta." }), { params: Promise.resolve({ id: conversationId }) }))
+        .status,
+    ).toBe(201);
+    expect(mockSend).toHaveBeenCalledTimes(2);
+  });
+
+  it("QR host reply: a double-click creates ONE row, second gets 409", async () => {
+    const prop = await prisma.property.findFirstOrThrow({ where: { organizationId: orgId } });
+    const qr = await prisma.conversation.create({
+      data: {
+        propertyId: prop.id,
+        guestIdentifier: "QR Misafir",
+        channel: "chat",
+        externalReservationId: `qr-chat:${prop.id}`,
+        status: "new",
+      },
+    });
+    session = { userId: "u", organizationId: orgId, role: "owner", email: "o@x.com", name: "Owner", sessionEpoch: 0 };
+    const first = await QR_REPLY(req(qr.id, { body: "Kapı kodu 1234 değil, 4321." }), {
+      params: Promise.resolve({ id: qr.id }),
+    });
+    expect(first.status).toBe(201);
+    const second = await QR_REPLY(req(qr.id, { body: "Kapı kodu 1234 değil, 4321." }), {
+      params: Promise.resolve({ id: qr.id }),
+    });
+    expect(second.status).toBe(409);
+    expect(await prisma.message.count({ where: { conversationId: qr.id, direction: "outbound" } })).toBe(1);
   });
 });

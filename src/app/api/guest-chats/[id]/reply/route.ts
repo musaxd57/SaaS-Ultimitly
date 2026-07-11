@@ -1,6 +1,7 @@
-import { type NextRequest } from "next/server";
+import { type NextRequest, NextResponse } from "next/server";
 import { prisma } from "@/lib/db";
 import { requireSession, unauthorized, canManage, forbidden, jsonOk, badRequest, notFound } from "@/lib/api";
+import { claimOutboundSend } from "@/lib/outbound-claim";
 
 // The host replies to a QR guest-chat thread from the "Misafir Sohbetleri" tab.
 // The reply is stored as an OUTBOUND message with the host's name (so it's shown
@@ -23,6 +24,13 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ id:
     select: { id: true },
   });
   if (!convo) return notFound();
+
+  // Duplicate guard: a double-click must not put the same host reply in the
+  // guest's thread twice. (Internal thread — nothing external is sent, so no
+  // release path is needed; the short TTL self-heals a failed create.)
+  if (!(await claimOutboundSend(convo.id, text))) {
+    return NextResponse.json({ error: "Bu mesaj az önce gönderildi." }, { status: 409 });
+  }
 
   const message = await prisma.message.create({
     data: {

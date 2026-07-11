@@ -8,6 +8,7 @@ import { withManage } from "@/lib/route-guard";
 import { rateLimit } from "@/lib/rate-limit";
 import { premiumAllowed } from "@/lib/billing/subscription";
 import { translateText } from "@/lib/ai/translate";
+import { claimOutboundSend, releaseOutboundSend } from "@/lib/outbound-claim";
 
 // Only owner/manager may send guest-facing replies (withManage). Staff are read +
 // task updates; the inbound-message and status routes stay open for their triage.
@@ -67,8 +68,20 @@ export const POST = withManage<{ id: string }>(async (session, req, { params }) 
       { status: 502 },
     );
   }
+  // Duplicate guard (claim-then-send, like auto-reply): a double-click / browser
+  // retry with the SAME text must not reach the guest twice. Keyed on the RAW
+  // typed body so both duplicates map to the same claim even when translate is on.
+  const claimed = await claimOutboundSend(id, parsed.data.body);
+  if (!claimed) {
+    return NextResponse.json(
+      { error: "Bu mesaj az önce gönderildi veya hâlâ gönderiliyor." },
+      { status: 409 },
+    );
+  }
   const outcome = await sendOnChannel(conversation, replyBody, token ?? undefined);
   if (!outcome.ok) {
+    // Nothing reached the guest → release so the same text can be retried now.
+    await releaseOutboundSend(id, parsed.data.body);
     return NextResponse.json(
       { error: `Mesaj gönderilemedi: ${outcome.error ?? "bilinmeyen hata"}` },
       { status: 502 },
