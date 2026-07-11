@@ -67,6 +67,7 @@ describe("POST /api/webhooks/paddle", () => {
       data: {
         id: "sub_123",
         status: "active",
+        customer_id: "ctm_1",
         custom_data: { consentId },
         current_billing_period: { ends_at: "2026-07-15T00:00:00.000Z" },
         items: [{ price: { id: "pri_pro" } }],
@@ -82,6 +83,9 @@ describe("POST /api/webhooks/paddle", () => {
     expect(sub?.providerRef).toBe("sub_123");
     expect(sub?.planCode).toBe("pro");
     expect(sub?.currentPeriodEnd?.toISOString()).toBe("2026-07-15T00:00:00.000Z");
+    // KVKK erasure's authoritative anchor: the customer id is stored from an event
+    // whose org was resolved via consent/providerRef — never client custom_data.
+    expect(sub?.customerId).toBe("ctm_1");
 
     const evt = await prisma.webhookEvent.findUnique({ where: { providerEventId: "evt_sub_1" } });
     expect(evt?.status).toBe("processed");

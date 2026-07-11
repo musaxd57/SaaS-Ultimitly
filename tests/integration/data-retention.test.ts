@@ -355,10 +355,63 @@ describe("deleteAccountData (KVKK erasure)", () => {
     expect(other!.payloadJson).toBe(payloadB);
   });
 
+  it("NEVER redacts another tenant's rows through a SHARED customer_id (cross-tenant guard)", async () => {
+    // Paddle dedups customers by billing email — two orgs CAN end up pointing at
+    // the same ctm_x (e.g. a checkout typed with another host's email). Erasing
+    // org A must not destroy org B's financial-trail PII through that shared id.
+    const a = await seedStay({ orgName: "Org A", departedMonthsAgo: 2, guestName: "A Guest", body: "msg A" });
+    const b = await seedStay({ orgName: "Org B", departedMonthsAgo: 2, guestName: "B Guest", body: "msg B" });
+    // A's webhook-stored subscription: its customer id happens to be the SHARED one.
+    await prisma.subscription.create({
+      data: { organizationId: a.orgId, planCode: "pro", status: "active", provider: "paddle", providerRef: "sub_a", customerId: "ctm_shared" },
+    });
+    await prisma.webhookEvent.create({
+      data: {
+        provider: "paddle",
+        eventType: "subscription.activated",
+        providerEventId: "evt_a_own",
+        status: "processed",
+        payloadJson: JSON.stringify({
+          event_id: "evt_a_own",
+          event_type: "subscription.activated",
+          data: { id: "sub_a", status: "active", customer_id: "ctm_shared", custom_data: { organizationId: a.orgId } },
+        }),
+      },
+    });
+    // VICTIM org B's own checkout row — same shared customer id, B's org stamp, B's PII.
+    const payloadVictim = JSON.stringify({
+      event_id: "evt_b_victim",
+      event_type: "subscription.updated",
+      data: {
+        id: "sub_b",
+        status: "active",
+        customer_id: "ctm_shared",
+        customer: { email: "owner@b.com", name: "Bora Owner" },
+        custom_data: { organizationId: b.orgId },
+      },
+    });
+    const victimRow = await prisma.webhookEvent.create({
+      data: { provider: "paddle", eventType: "subscription.updated", providerEventId: "evt_b_victim", status: "processed", payloadJson: payloadVictim },
+    });
+
+    await deleteAccountData(a.orgId);
+
+    // B's row must be BYTE-IDENTICAL: a shared customer id never lets one tenant's
+    // erasure strip another tenant's records.
+    const after = await prisma.webhookEvent.findUnique({ where: { id: victimRow.id } });
+    expect(after!.payloadJson).toBe(payloadVictim);
+  });
+
   it("also redacts customer.* events (no custom_data) via the customer_id learned from the org's own rows", async () => {
     const a = await seedStay({ orgName: "Org A", departedMonthsAgo: 2, guestName: "A Guest", body: "msg A" });
     const b = await seedStay({ orgName: "Org B", departedMonthsAgo: 2, guestName: "B Guest", body: "msg B" });
 
+    // The org's own subscription row anchors the learn step: a customer id may only
+    // be learned from a payload row tied to the org's OWN providerRef (server-side
+    // link), never from the client-writable custom_data alone.
+    await prisma.subscription.create({
+      data: { organizationId: a.orgId, planCode: "pro", status: "active", provider: "paddle", providerRef: "sub_a" },
+    });
     // A checkout-originating row FOR org A: carries custom_data.organizationId AND
     // the Paddle customer id — this is where the erasure LEARNS ctm_a.
     await prisma.webhookEvent.create({

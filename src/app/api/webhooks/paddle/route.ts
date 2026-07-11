@@ -1,4 +1,5 @@
 import { type NextRequest, NextResponse } from "next/server";
+import { Prisma } from "@prisma/client";
 import { prisma } from "@/lib/db";
 import { jsonOk, unauthorized } from "@/lib/api";
 import { reportError, redactSensitive } from "@/lib/report-error";
@@ -181,6 +182,11 @@ async function applySubscriptionEvent(
   const pastDueSince =
     status === "past_due" ? (existing?.pastDueSince ?? occurredAt ?? new Date()) : null;
 
+  // The Paddle customer id, persisted from an event whose org was resolved
+  // AUTHORITATIVELY above (consent/providerRef — never the raw custom_data org).
+  // KVKK erasure attributes Paddle-generated customer.* events through this.
+  const customerId = str(data.customer_id);
+
   await prisma.subscription.upsert({
     where: { organizationId },
     create: {
@@ -193,6 +199,7 @@ async function applySubscriptionEvent(
       cancelAtPeriodEnd,
       pastDueSince,
       lastEventAt: occurredAt,
+      customerId,
     },
     update: {
       ...(planCode ? { planCode } : {}),
@@ -207,6 +214,7 @@ async function applySubscriptionEvent(
       cancelAtPeriodEnd,
       pastDueSince,
       ...(occurredAt ? { lastEventAt: occurredAt } : {}),
+      ...(customerId ? { customerId } : {}),
     },
   });
 }
@@ -240,18 +248,26 @@ async function applyTransactionEvent(
 
   const sub = await prisma.subscription.findUnique({ where: { organizationId }, select: { id: true } });
 
-  await prisma.invoice.create({
-    data: {
-      organizationId,
-      subscriptionId: sub?.id ?? null,
-      amountMinor: Number.isFinite(amountMinor) ? amountMinor : 0,
-      currency,
-      status: "paid",
-      provider: "paddle",
-      providerRef,
-      paidAt: new Date(),
-    },
-  });
+  try {
+    await prisma.invoice.create({
+      data: {
+        organizationId,
+        subscriptionId: sub?.id ?? null,
+        amountMinor: Number.isFinite(amountMinor) ? amountMinor : 0,
+        currency,
+        status: "paid",
+        provider: "paddle",
+        providerRef,
+        paidAt: new Date(),
+      },
+    });
+  } catch (err) {
+    // Concurrent delivery of the same transaction: the findFirst above is only a
+    // fast-path — @@unique([provider, providerRef]) (D1) is the real arbiter. The
+    // loser of the race lands here; first write wins, nothing to do.
+    if (err instanceof Prisma.PrismaClientKnownRequestError && err.code === "P2002") return;
+    throw err;
+  }
 }
 
 export async function POST(req: NextRequest) {

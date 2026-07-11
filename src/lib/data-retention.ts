@@ -256,12 +256,31 @@ function redactPaddlePayload(raw: string): string {
  * raw PII (the webhook route only reprocesses non-"processed" rows).
  */
 async function redactPaddleWebhooksForOrg(organizationId: string): Promise<void> {
-  // Pass 1 — rows that carry OUR org id in custom_data (stamped at checkout).
-  // While verifying them, LEARN the org's Paddle customer id(s): Paddle-generated
-  // customer.* events (email/name/address updates) carry NO custom_data at all,
-  // so they can only be attributed through this learned customer_id.
-  const redacted = new Set<string>();
+  // AUTHORITATIVE attribution anchors — read BEFORE the org row is deleted.
+  // Paddle dedups customers by billing email, so a customer id is NOT guaranteed
+  // unique to one org (adversarial-review finding): a cid learned loosely could
+  // let one tenant's erasure strip ANOTHER tenant's rows. So:
+  //   • primary: Subscription.customerId — stored by the webhook only for events
+  //     whose org was resolved via consent/providerRef (never client custom_data);
+  //   • legacy fallback (no stored cid yet): learn from an org-stamped row ONLY
+  //     when that row is anchored to one of the org's OWN provider refs.
   const customerIds = new Set<string>();
+  const providerRefs = new Set<string>();
+  const sub = await prisma.subscription.findUnique({
+    where: { organizationId },
+    select: { customerId: true, providerRef: true },
+  });
+  if (sub?.customerId) customerIds.add(sub.customerId);
+  if (sub?.providerRef) providerRefs.add(sub.providerRef);
+  for (const inv of await prisma.invoice.findMany({
+    where: { organizationId },
+    select: { providerRef: true },
+  })) {
+    if (inv.providerRef) providerRefs.add(inv.providerRef);
+  }
+
+  // Pass 1 — rows that carry OUR org id in custom_data (stamped at checkout).
+  const redacted = new Set<string>();
   const rows = await prisma.webhookEvent.findMany({
     where: { provider: "paddle", payloadJson: { contains: organizationId } },
     select: { id: true, payloadJson: true },
@@ -270,11 +289,22 @@ async function redactPaddleWebhooksForOrg(organizationId: string): Promise<void>
     let belongs = false;
     try {
       const parsed = JSON.parse(r.payloadJson) as {
-        data?: { customer_id?: unknown; custom_data?: { organizationId?: unknown } };
+        data?: {
+          id?: unknown;
+          subscription_id?: unknown;
+          customer_id?: unknown;
+          custom_data?: { organizationId?: unknown };
+        };
       };
       belongs = parsed?.data?.custom_data?.organizationId === organizationId;
+      // Legacy learn (only when nothing stored): the row must ALSO be tied to the
+      // org's own subscription/transaction ref — custom_data alone is client-
+      // writable and must never be the sole source of a customer id.
       const cid = parsed?.data?.customer_id;
-      if (belongs && typeof cid === "string" && cid.length > 0 && cid.length <= 64) {
+      const anchored =
+        (typeof parsed?.data?.id === "string" && providerRefs.has(parsed.data.id)) ||
+        (typeof parsed?.data?.subscription_id === "string" && providerRefs.has(parsed.data.subscription_id));
+      if (belongs && anchored && customerIds.size === 0 && typeof cid === "string" && cid.length > 0 && cid.length <= 64) {
         customerIds.add(cid);
       }
     } catch {
@@ -288,11 +318,14 @@ async function redactPaddleWebhooksForOrg(organizationId: string): Promise<void>
     redacted.add(r.id);
   }
 
-  // Pass 2 — rows matching a learned customer id. customer.* events put the
-  // customer ENTITY in data (data.id === ctm_...), other events reference it as
-  // data.customer_id; accept either, parse-verified. The id was learned only from
-  // rows proven to belong to this org, so this can't touch another tenant — and
-  // redaction only ever REMOVES fields, never adds.
+  // Pass 2 — Paddle-generated rows matching the org's customer id. customer.*
+  // events put the customer ENTITY in data (data.id === ctm_...), other events
+  // reference it as data.customer_id; accept either, parse-verified. TENANT
+  // GUARD: a row stamped with a DIFFERENT org's custom_data is never touched —
+  // even if it shares the customer id (Paddle email-dedup can genuinely entangle
+  // two orgs on one customer). Residual, documented: an un-stamped customer.*
+  // row of a genuinely shared customer is still redacted (ambiguous ownership;
+  // the allowlist keeps the reconciliation skeleton, redaction only removes).
   for (const cid of customerIds) {
     const cidRows = await prisma.webhookEvent.findMany({
       where: { provider: "paddle", payloadJson: { contains: cid } },
@@ -302,7 +335,13 @@ async function redactPaddleWebhooksForOrg(organizationId: string): Promise<void>
       if (redacted.has(r.id)) continue;
       let belongs = false;
       try {
-        const parsed = JSON.parse(r.payloadJson) as { data?: { id?: unknown; customer_id?: unknown } };
+        const parsed = JSON.parse(r.payloadJson) as {
+          data?: { id?: unknown; customer_id?: unknown; custom_data?: { organizationId?: unknown } };
+        };
+        const stampedOrg = parsed?.data?.custom_data?.organizationId;
+        if (typeof stampedOrg === "string" && stampedOrg.length > 0 && stampedOrg !== organizationId) {
+          continue; // another tenant's row — NEVER redact through a shared cid
+        }
         belongs = parsed?.data?.customer_id === cid || parsed?.data?.id === cid;
       } catch {
         belongs = false;

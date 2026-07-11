@@ -591,6 +591,11 @@ model Subscription {
   // event whose occurred_at is not newer is ignored, so a late/stale event can't
   // overwrite a fresher active/canceled state and flip access the wrong way.
   lastEventAt       DateTime?
+  // Paddle customer id (ctm_...), stored by the webhook from events whose org was
+  // resolved AUTHORITATIVELY (consent/providerRef — never client custom_data).
+  // KVKK erasure uses THIS to attribute Paddle-generated customer.* events (they
+  // carry no custom_data), so it can never learn another tenant's customer id.
+  customerId        String?
   createdAt         DateTime  @default(now())
   updatedAt         DateTime  @updatedAt
 
@@ -617,6 +622,12 @@ model Invoice {
   organization Organization  @relation(fields: [organizationId], references: [id], onDelete: Cascade)
   subscription Subscription? @relation(fields: [subscriptionId], references: [id], onDelete: SetNull)
 
+  // One Invoice per provider transaction — DB-level idempotency the webhook's
+  // findFirst-then-create couldn't guarantee under concurrent delivery (D1).
+  // Postgres treats NULL providerRef as distinct → manual/legacy rows unaffected.
+  // The migration pre-dedups (keeps the oldest per pair) before adding this, so
+  // a populated table can never fail boot.
+  @@unique([provider, providerRef])
   @@index([organizationId])
   @@index([status])
 }
