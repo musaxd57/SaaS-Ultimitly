@@ -70,6 +70,9 @@ async function main() {
       email: "demo@guestops.ai",
       passwordHash,
       role: "owner",
+      // Local demo account: without this stamp the post-cutoff email-verification
+      // gate blocks login entirely (the E2E smoke caught this regression).
+      emailVerifiedAt: new Date(),
     },
   });
   const staff = await prisma.user.create({
@@ -79,6 +82,7 @@ async function main() {
       email: "ayse@guestops.ai",
       passwordHash,
       role: "staff",
+      emailVerifiedAt: new Date(),
     },
   });
 

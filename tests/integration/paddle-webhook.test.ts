@@ -353,6 +353,53 @@ describe("POST /api/webhooks/paddle", () => {
     expect(await prisma.subscription.count({ where: { organizationId: victim.id } })).toBe(0);
   });
 
+  it("ORDERING: a stale (older occurred_at) event can never overwrite a fresher state (guard is IN the update)", async () => {
+    // Both instants sit inside the consent's freshness window (created ~now):
+    // t1 is 60s before the consent (within clock-skew tolerance), t2 is now.
+    const t1 = new Date(Date.now() - 60_000).toISOString();
+    const t2 = new Date().toISOString();
+    // Fresh state first: the subscription is CANCELED as of t2.
+    const cancel = JSON.stringify({
+      event_id: "evt_ord_cancel",
+      event_type: "subscription.canceled",
+      occurred_at: t2,
+      data: { id: "sub_ord", status: "canceled", custom_data: { consentId }, items: [{ price: { id: "pri_pro" } }] },
+    });
+    expect((await POST(req(cancel, sign(cancel)))).status).toBe(200);
+    // A LATE retry of the older "active" update arrives afterwards (occurred t1 < t2).
+    const lateActive = JSON.stringify({
+      event_id: "evt_ord_late",
+      event_type: "subscription.updated",
+      occurred_at: t1,
+      data: { id: "sub_ord", status: "active", custom_data: { consentId }, items: [{ price: { id: "pri_pro" } }] },
+    });
+    expect((await POST(req(lateActive, sign(lateActive)))).status).toBe(200);
+    const sub = await prisma.subscription.findUnique({ where: { organizationId: orgId } });
+    expect(sub?.status).toBe("canceled"); // stale event dropped — access not flipped back
+    expect(sub?.lastEventAt?.toISOString()).toBe(t2);
+  });
+
+  it("ORDERING: an equal-timestamp reprocess re-applies idempotently (not lost)", async () => {
+    const t = new Date().toISOString();
+    const first = JSON.stringify({
+      event_id: "evt_ord_eq1",
+      event_type: "subscription.activated",
+      occurred_at: t,
+      data: { id: "sub_eq", status: "active", custom_data: { consentId }, items: [{ price: { id: "pri_pro" } }] },
+    });
+    expect((await POST(req(first, sign(first)))).status).toBe(200);
+    // Same instant (reprocessed retry with a different event id): must still apply.
+    const second = JSON.stringify({
+      event_id: "evt_ord_eq2",
+      event_type: "subscription.updated",
+      occurred_at: t,
+      data: { id: "sub_eq", status: "past_due", custom_data: { consentId }, items: [{ price: { id: "pri_pro" } }] },
+    });
+    expect((await POST(req(second, sign(second)))).status).toBe(200);
+    const sub = await prisma.subscription.findUnique({ where: { organizationId: orgId } });
+    expect(sub?.status).toBe("past_due"); // lte guard → equal timestamp re-applies
+  });
+
   it("returns 5xx on a transient apply failure (event NOT processed), then applies idempotently on Paddle's retry", async () => {
     const body = JSON.stringify({
       event_id: "evt_retry_1",
@@ -370,11 +417,11 @@ describe("POST /api/webhooks/paddle", () => {
     // mark the event processed or apply the mutation. Manual reassign + finally
     // restores the real method even if POST throws (a vi.spyOn().mockRestore() on
     // the shared Prisma delegate did not restore reliably and leaked to later tests).
-    const origUpsert = prisma.subscription.upsert;
-    prisma.subscription.upsert = (() =>
-      Promise.reject(new Error("db down"))) as unknown as typeof origUpsert;
+    const origCreate = prisma.subscription.create;
+    prisma.subscription.create = (() =>
+      Promise.reject(new Error("db down"))) as unknown as typeof origCreate;
     const first = await POST(req(body, sign(body))).finally(() => {
-      prisma.subscription.upsert = origUpsert;
+      prisma.subscription.create = origCreate;
     });
     expect(first.status).toBe(500);
 

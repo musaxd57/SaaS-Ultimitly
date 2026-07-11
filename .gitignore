@@ -36,3 +36,7 @@ yarn-error.log*
 # uploads (local file storage for MVP)
 /public/uploads/*
 !/public/uploads/.gitkeep
+
+# Playwright E2E artifacts
+/test-results/
+/playwright-report/

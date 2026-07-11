@@ -140,14 +140,18 @@ async function applySubscriptionEvent(
   // Ordering guard: Paddle can deliver events out of order (and retries them).
   // Never let an OLDER event overwrite a fresher state — a late `subscription.
   // updated` (past_due) arriving after the `active`/`canceled` that superseded
-  // it would otherwise flip access the wrong way. Drop only STRICTLY older
-  // events (`<`); an equal-timestamp event (two events in the same millisecond,
-  // or a reprocessed retry) re-applies idempotently rather than being lost.
+  // it would otherwise flip access the wrong way. The veto is enforced ATOMICALLY
+  // in the update's WHERE below (D2): a read-then-upsert let two CONCURRENT
+  // deliveries both pass a stale read and the older one apply last. Strictly
+  // older events drop; an equal timestamp (same-ms events / reprocessed retry)
+  // re-applies idempotently rather than being lost.
+  // This read only feeds the pastDueSince anchor (existence + current value) —
+  // a race on it can at worst shift the dunning anchor by the gap between two
+  // near-simultaneous past_due events (minutes vs a 14-day grace: immaterial).
   const existing = await prisma.subscription.findUnique({
     where: { organizationId },
     select: { lastEventAt: true, pastDueSince: true },
   });
-  if (occurredAt && existing?.lastEventAt && occurredAt < existing.lastEventAt) return;
 
   const providerRef = str(data.id);
   const status = paddleStatusToLocal(str(data.status));
@@ -187,36 +191,63 @@ async function applySubscriptionEvent(
   // KVKK erasure attributes Paddle-generated customer.* events through this.
   const customerId = str(data.customer_id);
 
-  await prisma.subscription.upsert({
-    where: { organizationId },
-    create: {
-      organizationId,
-      planCode: planCode ?? "free",
-      status,
-      provider: "paddle",
-      providerRef,
-      currentPeriodEnd,
-      cancelAtPeriodEnd,
-      pastDueSince,
-      lastEventAt: occurredAt,
-      customerId,
-    },
-    update: {
-      ...(planCode ? { planCode } : {}),
-      status,
-      provider: "paddle",
-      ...(providerRef ? { providerRef } : {}),
-      ...(currentPeriodEnd ? { currentPeriodEnd } : {}),
-      // Once a real paid subscription activates, our local reverse-trial marker
-      // is moot — clear it so trialEndsAt can never make a paying org look
-      // "expired" if future code reads it without checking status.
-      ...(status === "active" ? { trialEndsAt: null } : {}),
-      cancelAtPeriodEnd,
-      pastDueSince,
-      ...(occurredAt ? { lastEventAt: occurredAt } : {}),
-      ...(customerId ? { customerId } : {}),
-    },
-  });
+  const updateData = {
+    ...(planCode ? { planCode } : {}),
+    status,
+    provider: "paddle",
+    ...(providerRef ? { providerRef } : {}),
+    ...(currentPeriodEnd ? { currentPeriodEnd } : {}),
+    // Once a real paid subscription activates, our local reverse-trial marker
+    // is moot — clear it so trialEndsAt can never make a paying org look
+    // "expired" if future code reads it without checking status.
+    ...(status === "active" ? { trialEndsAt: null } : {}),
+    cancelAtPeriodEnd,
+    pastDueSince,
+    ...(occurredAt ? { lastEventAt: occurredAt } : {}),
+    ...(customerId ? { customerId } : {}),
+  };
+  // Guarded, atomic apply: only an event NOT older than the freshest applied one
+  // may write (evaluated inside the UPDATE — no read-check-write window). An
+  // event with no occurred_at applies unconditionally, as before.
+  const orderingGuard = occurredAt
+    ? { OR: [{ lastEventAt: null }, { lastEventAt: { lte: occurredAt } }] }
+    : {};
+
+  if (existing) {
+    await prisma.subscription.updateMany({
+      where: { organizationId, ...orderingGuard },
+      data: updateData,
+    });
+    return; // count 0 → a fresher event already applied → stale, dropped
+  }
+  try {
+    await prisma.subscription.create({
+      data: {
+        organizationId,
+        planCode: planCode ?? "free",
+        status,
+        provider: "paddle",
+        providerRef,
+        currentPeriodEnd,
+        cancelAtPeriodEnd,
+        pastDueSince,
+        lastEventAt: occurredAt,
+        customerId,
+      },
+    });
+  } catch (err) {
+    // Concurrent first-event race: another delivery created the row between our
+    // read and this create (organizationId is unique). Fall back to the guarded
+    // update — the ordering WHERE decides which of the two events sticks.
+    if (err instanceof Prisma.PrismaClientKnownRequestError && err.code === "P2002") {
+      await prisma.subscription.updateMany({
+        where: { organizationId, ...orderingGuard },
+        data: updateData,
+      });
+      return;
+    }
+    throw err;
+  }
 }
 
 async function applyTransactionEvent(

@@ -84,6 +84,45 @@ jobs:
           --shadow-database-url postgresql://postgres@localhost:5432/shadow
           --exit-code
 
+  # E2E smoke (Codex gate): the REAL production build served against a seeded
+  # Postgres — catches "app doesn't boot / landing 500s / auth broken end-to-end",
+  # which no unit test sees. Kept tiny (2 tests) so it stays fast and unflaky.
+  e2e:
+    runs-on: ubuntu-latest
+    services:
+      postgres:
+        image: postgres:16
+        env:
+          POSTGRES_USER: postgres
+          POSTGRES_HOST_AUTH_METHOD: trust
+        ports: ["5432:5432"]
+        options: >-
+          --health-cmd pg_isready --health-interval 5s --health-timeout 5s --health-retries 20
+    env:
+      DATABASE_URL: postgresql://postgres@localhost:5432/e2e
+      # A real (non-placeholder) secret — the production boot assertion refuses
+      # the dev placeholder by design.
+      AUTH_SECRET: ci-e2e-secret-not-used-outside-this-job-42
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: npm
+      - name: Install dependencies
+        run: npm ci
+      - name: Install Playwright Chromium
+        run: npx playwright install --with-deps chromium
+      - name: Create + migrate + seed the E2E database
+        run: |
+          psql "postgresql://postgres@localhost:5432/postgres" -c 'CREATE DATABASE e2e;'
+          npx prisma migrate deploy
+          npx tsx prisma/seed.ts
+      - name: Build (production)
+        run: npm run build
+      - name: Playwright smoke
+        run: npx playwright test
+
   # Production build gate (DB-free — dummy env values satisfy module-level env
   # readers; nothing connects at build time).
   build:
