@@ -282,6 +282,73 @@ describe("POST /api/webhooks/paddle", () => {
     expect(await prisma.subscription.count({ where: { organizationId: orgId } })).toBe(1);
   });
 
+  it("EXISTING sub lifecycle: 30-day-old consentId but providerRef matches → canceled APPLIED (not dropped)", async () => {
+    // A month-old subscription's lifecycle events still echo the ORIGINAL consentId
+    // (now long stale). They must resolve via the stored providerRef, else a real
+    // cancellation is dropped and the org keeps access it shouldn't.
+    const staleConsent = await prisma.checkoutConsent.create({
+      data: { organizationId: orgId, planCode: "pro", priceId: "pri_pro", legalVersion: "2026-06", ip: "1.2.3.4", createdAt: new Date(Date.now() - 30 * 24 * 60 * 60 * 1000) },
+      select: { id: true },
+    });
+    await prisma.subscription.create({
+      data: { organizationId: orgId, planCode: "pro", status: "active", provider: "paddle", providerRef: "sub_known" },
+    });
+    const body = JSON.stringify({
+      event_id: "evt_cancel_known",
+      event_type: "subscription.canceled",
+      occurred_at: new Date().toISOString(),
+      data: { id: "sub_known", status: "canceled", custom_data: { consentId: staleConsent.id }, items: [{ price: { id: "pri_pro" } }] },
+    });
+    expect((await POST(req(body, sign(body)))).status).toBe(200);
+    expect((await prisma.subscription.findUnique({ where: { organizationId: orgId } }))?.status).toBe("canceled");
+  });
+
+  it("EXISTING sub lifecycle: 30-day-old consentId, past_due resolves via providerRef → APPLIED", async () => {
+    const staleConsent = await prisma.checkoutConsent.create({
+      data: { organizationId: orgId, planCode: "pro", priceId: "pri_pro", legalVersion: "2026-06", ip: "1.2.3.4", createdAt: new Date(Date.now() - 30 * 24 * 60 * 60 * 1000) },
+      select: { id: true },
+    });
+    await prisma.subscription.create({
+      data: { organizationId: orgId, planCode: "pro", status: "active", provider: "paddle", providerRef: "sub_pd" },
+    });
+    const body = JSON.stringify({
+      event_id: "evt_pastdue_known",
+      event_type: "subscription.past_due",
+      occurred_at: new Date().toISOString(),
+      data: { id: "sub_pd", status: "past_due", custom_data: { consentId: staleConsent.id }, items: [{ price: { id: "pri_pro" } }] },
+    });
+    expect((await POST(req(body, sign(body)))).status).toBe(200);
+    expect((await prisma.subscription.findUnique({ where: { organizationId: orgId } }))?.status).toBe("past_due");
+  });
+
+  it("30-day-old consentId + UNKNOWN providerRef → REJECTED (a stale consent can't first-link)", async () => {
+    const staleConsent = await prisma.checkoutConsent.create({
+      data: { organizationId: orgId, planCode: "pro", priceId: "pri_pro", legalVersion: "2026-06", ip: "1.2.3.4", createdAt: new Date(Date.now() - 30 * 24 * 60 * 60 * 1000) },
+      select: { id: true },
+    });
+    // No local Subscription with this providerRef → no lifecycle match → stale consent → dropped.
+    const body = JSON.stringify({
+      event_id: "evt_unknown_ref",
+      event_type: "subscription.updated",
+      occurred_at: new Date().toISOString(),
+      data: { id: "sub_unknown", status: "active", custom_data: { consentId: staleConsent.id }, items: [{ price: { id: "pri_pro" } }] },
+    });
+    expect((await POST(req(body, sign(body)))).status).toBe(200);
+    expect(await prisma.subscription.count()).toBe(0);
+  });
+
+  it("forged organizationId is NEVER used (unknown providerRef, no valid consent)", async () => {
+    const victim = await prisma.organization.create({ data: { name: "Victim" } });
+    const body = JSON.stringify({
+      event_id: "evt_forge_ref",
+      event_type: "subscription.updated",
+      occurred_at: new Date().toISOString(),
+      data: { id: "sub_forge", status: "active", custom_data: { organizationId: victim.id }, items: [{ price: { id: "pri_pro" } }] },
+    });
+    expect((await POST(req(body, sign(body)))).status).toBe(200);
+    expect(await prisma.subscription.count({ where: { organizationId: victim.id } })).toBe(0);
+  });
+
   it("returns 5xx on a transient apply failure (event NOT processed), then applies idempotently on Paddle's retry", async () => {
     const body = JSON.stringify({
       event_id: "evt_retry_1",

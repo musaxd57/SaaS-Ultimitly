@@ -293,14 +293,39 @@ export async function previewSubscriptionUpdate(
   }
 }
 
-export type PlanUpdateResult = { ok: true } | { ok: false; reason: string };
+export type PlanUpdateResult =
+  | { ok: true }
+  // "definitive" = Paddle REJECTED the request (4xx) → NO mutation applied → safe to
+  // retry. "ambiguous" = we don't know if it applied (5xx / request-timeout / network
+  // / abort) → the PATCH may have gone through → must NOT blindly re-send.
+  | { ok: false; kind: "definitive" | "ambiguous"; reason: string };
+
+/**
+ * Classify a failed Paddle mutation as definitely-not-applied vs maybe-applied.
+ * paddleRequest throws "Paddle HTTP <status> (<code>)" on a non-2xx and lets a
+ * network/AbortSignal-timeout error propagate raw. A 4xx (except 408 request-timeout)
+ * means Paddle validated and rejected the call → nothing changed. Anything else — 5xx,
+ * 408, or a thrown network/timeout with no HTTP status — might have applied.
+ */
+export function classifyPaddleFailure(err: unknown): "definitive" | "ambiguous" {
+  const msg = err instanceof Error ? err.message : String(err);
+  const m = msg.match(/Paddle HTTP (\d{3})/);
+  if (m) {
+    const status = Number(m[1]);
+    if (status >= 400 && status < 500 && status !== 408) return "definitive"; // rejected, not applied
+    return "ambiguous"; // 5xx / 408 → may have applied
+  }
+  return "ambiguous"; // AbortSignal timeout / network error / unknown → may have applied
+}
 
 /**
  * Apply a plan change. Upgrade → prorated_immediately (charge the difference now).
  * Downgrade → prorated_next_billing_period (takes effect at renewal). Paddle owns
  * the proration + charge; our webhook then updates the local subscription row.
- * Never throws — on failure returns { ok:false, reason } where reason is Paddle's
- * "HTTP <status> (<code>)" string (no ids), so the caller can surface WHY.
+ * Never throws — on failure returns { ok:false, kind, reason } where reason is Paddle's
+ * "HTTP <status> (<code>)" string (no ids). The caller MUST branch on `kind`: only a
+ * "definitive" failure is safe to retry (Paddle has no general-API idempotency key, so
+ * an "ambiguous" failure could double-apply if blindly re-sent).
  */
 export async function updateSubscriptionPlan(
   subscriptionId: string,
@@ -308,7 +333,7 @@ export async function updateSubscriptionPlan(
   mode: PaddleProrationMode,
 ): Promise<PlanUpdateResult> {
   if (!subscriptionId || !priceId || !isPaddleConfigured()) {
-    return { ok: false, reason: "unconfigured" };
+    return { ok: false, kind: "definitive", reason: "unconfigured" }; // no request sent → not applied
   }
   try {
     await paddleRequest(`/subscriptions/${encodeURIComponent(subscriptionId)}`, {
@@ -318,6 +343,30 @@ export async function updateSubscriptionPlan(
     return { ok: true };
   } catch (err) {
     await reportError("paddle-plan-change", err);
-    return { ok: false, reason: err instanceof Error ? err.message : "unknown" };
+    return { ok: false, kind: classifyPaddleFailure(err), reason: err instanceof Error ? err.message : "unknown" };
+  }
+}
+
+/**
+ * The price id currently on a subscription's first item, per Paddle (GET). Used to
+ * RECONCILE after an AMBIGUOUS plan-change failure: if this already equals the target
+ * price, the PATCH did apply (its response was just lost) → treat as success. Never
+ * throws → null on any failure, so an unreadable state stays "unknown", not "applied".
+ */
+export async function getSubscriptionCurrentPriceId(subscriptionId: string): Promise<string | null> {
+  if (!subscriptionId || !isPaddleConfigured()) return null;
+  try {
+    const res = (await paddleRequest(`/subscriptions/${encodeURIComponent(subscriptionId)}`)) as {
+      data?: { items?: Array<{ price?: { id?: string }; price_id?: string }> };
+    };
+    const items = res?.data?.items;
+    if (Array.isArray(items) && items.length > 0) {
+      const first = items[0];
+      return first?.price?.id ?? first?.price_id ?? null;
+    }
+    return null;
+  } catch (err) {
+    await reportError("paddle-subscription-get", err);
+    return null;
   }
 }

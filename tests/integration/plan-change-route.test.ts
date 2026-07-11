@@ -12,11 +12,16 @@ vi.mock("@/lib/api", async (orig) => {
 
 // Stub the Paddle API layer (no network); capture the args the routes pass so we
 // can assert upgrade→immediate / downgrade→next-period.
-const { updateMock, previewMock } = vi.hoisted(() => ({ updateMock: vi.fn(), previewMock: vi.fn() }));
+const { updateMock, previewMock, getPriceMock } = vi.hoisted(() => ({
+  updateMock: vi.fn(),
+  previewMock: vi.fn(),
+  getPriceMock: vi.fn(),
+}));
 vi.mock("@/lib/payments/paddle", () => ({
   isPaddleConfigured: () => true,
   previewSubscriptionUpdate: previewMock,
   updateSubscriptionPlan: updateMock,
+  getSubscriptionCurrentPriceId: getPriceMock,
 }));
 
 import { POST as PREVIEW } from "@/app/api/billing/plan-preview/route";
@@ -53,6 +58,7 @@ describe("plan change routes (gated, PATCH /subscriptions)", () => {
       immediateTotal: "₺123,45",
       recurringTotal: "₺899,00",
     });
+    getPriceMock.mockReset().mockResolvedValue(null); // reconcile: nothing by default
     vi.stubEnv("PADDLE_PLAN_CHANGE_ENABLED", "1");
     vi.stubEnv("PADDLE_PRICE_BASLANGIC", "pri_baslangic");
     vi.stubEnv("PADDLE_PRICE_PRO", "pri_pro");
@@ -103,8 +109,8 @@ describe("plan change routes (gated, PATCH /subscriptions)", () => {
     expect(updateMock).toHaveBeenCalledWith("sub_1", "pri_isletme", "prorated_immediately");
   });
 
-  it("change: 502 + Paddle reason when the update is rejected", async () => {
-    updateMock.mockResolvedValue({ ok: false, reason: "Paddle HTTP 400 (subscription_locked) env=production resource=subscriptions" });
+  it("change: 502 + Paddle reason on a DEFINITIVE (4xx) rejection", async () => {
+    updateMock.mockResolvedValue({ ok: false, kind: "definitive", reason: "Paddle HTTP 400 (subscription_locked) env=production resource=subscriptions" });
     const res = await CHANGE(req({ planCode: "business", previewToken: tok("pri_isletme", "upgrade") }), ctx);
     expect(res.status).toBe(502);
     expect((await res.json()).detail).toContain("subscription_locked");
@@ -151,14 +157,41 @@ describe("plan change routes (gated, PATCH /subscriptions)", () => {
     expect(updateMock).toHaveBeenCalledTimes(1);
   });
 
-  it("change: a Paddle failure RELEASES the nonce so the same token can be retried", async () => {
+  it("change: a DEFINITIVE (4xx) failure RELEASES the nonce so the same token can be retried", async () => {
     const t = tok("pri_isletme", "upgrade");
-    updateMock.mockResolvedValueOnce({ ok: false, reason: "Paddle HTTP 500 (internal) env=production resource=subscriptions" });
+    updateMock.mockResolvedValueOnce({ ok: false, kind: "definitive", reason: "Paddle HTTP 400 (bad_request) env=production resource=subscriptions" });
     expect((await CHANGE(req({ planCode: "business", previewToken: t }), ctx)).status).toBe(502);
-    // The first apply didn't mutate anything at Paddle → the token isn't burned.
+    // Paddle rejected → nothing mutated → the token isn't burned → retry proceeds.
     const retry = await CHANGE(req({ planCode: "business", previewToken: t }), ctx);
     expect(retry.status).toBe(200);
     expect(updateMock).toHaveBeenCalledTimes(2);
+  });
+
+  it("change: an AMBIGUOUS failure keeps the nonce consumed; reconcile sees target price → success, NO second PATCH", async () => {
+    const t = tok("pri_isletme", "upgrade");
+    // The PATCH reached Paddle and applied, but the response was lost (timeout).
+    updateMock.mockResolvedValueOnce({ ok: false, kind: "ambiguous", reason: "The operation timed out" });
+    getPriceMock.mockResolvedValue("pri_isletme"); // reconcile GET: subscription IS on the target
+    const first = await CHANGE(req({ planCode: "business", previewToken: t }), ctx);
+    expect(first.status).toBe(200);
+    expect((await first.json()).reconciled).toBe(true);
+    // Same token again: nonce already consumed → 409, and NO second Paddle mutation.
+    const retry = await CHANGE(req({ planCode: "business", previewToken: t }), ctx);
+    expect(retry.status).toBe(409);
+    expect(updateMock).toHaveBeenCalledTimes(1);
+  });
+
+  it("change: an AMBIGUOUS failure NOT reconciled to target → 202 pending, nonce stays consumed, NO second PATCH", async () => {
+    const t = tok("pri_isletme", "upgrade");
+    updateMock.mockResolvedValueOnce({ ok: false, kind: "ambiguous", reason: "fetch failed" });
+    getPriceMock.mockResolvedValue("pri_pro"); // still the old price / unknown
+    const first = await CHANGE(req({ planCode: "business", previewToken: t }), ctx);
+    expect(first.status).toBe(202);
+    expect((await first.json()).pending).toBe(true);
+    // We must NOT blindly re-send (could double-apply) → the same token is still spent.
+    const retry = await CHANGE(req({ planCode: "business", previewToken: t }), ctx);
+    expect(retry.status).toBe(409);
+    expect(updateMock).toHaveBeenCalledTimes(1);
   });
 
   it("change: 409 when the apply-time amount differs from the previewed amount (no blind charge)", async () => {

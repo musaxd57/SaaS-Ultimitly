@@ -90,37 +90,41 @@ async function orgFromProviderRef(data: Record<string, unknown> | undefined): Pr
 /**
  * Resolve the organizationId a Paddle object belongs to — WITHOUT ever trusting the
  * client-sent custom_data.organizationId.
- *   • With a consentId (all current checkouts): the CheckoutConsent row's org is
- *     session-derived. It's honoured ONLY if the consent is unknown-free, still
- *     fresh (< CONSENT_TTL), and its priceId matches the event's — else resolve
- *     NOTHING (no raw-org fallback; that was the hole).
- *   • Without a consentId (legacy pre-consentId events): resolve via the existing
- *     subscription's providerRef. Never the raw org id.
+ *   1. KNOWN subscription first: a subscription's whole lifecycle (updated / past_due /
+ *      canceled) echoes the ORIGINAL consentId, which is long stale a month later. Match
+ *      data.id / subscription_id against a Subscription.providerRef we already stored —
+ *      authoritative, never goes stale. This is what keeps late lifecycle events applying.
+ *   2. FIRST-time link only (no local sub yet, e.g. subscription.created / first
+ *      transaction): require a FRESH, session-derived CheckoutConsent whose priceId
+ *      matches. Freshness is judged by the signed occurred_at (a late retry of a real
+ *      payment still binds; a future/stale occurred_at fails closed).
+ *   • The raw custom_data.organizationId is NEVER used in either path.
  */
 async function resolveOrgId(
   data: Record<string, unknown> | undefined,
   eventPriceId: string | null,
   occurredAt: Date | null,
 ): Promise<string | null> {
+  // 1. Already-known subscription → resolve by its stored providerRef.
+  const viaRef = await orgFromProviderRef(data);
+  if (viaRef) return viaRef;
+
+  // 2. First-time link → a fresh, session-derived consent is required.
   const cd =
     data?.custom_data && typeof data.custom_data === "object"
       ? (data.custom_data as Record<string, unknown>)
       : null;
   const consentId = cd && typeof cd.consentId === "string" && cd.consentId.length > 0 ? cd.consentId : null;
+  if (!consentId) return null; // no known sub + no consent → nothing (never the raw org)
 
-  if (consentId) {
-    const row = await prisma.checkoutConsent.findUnique({
-      where: { id: consentId },
-      select: { organizationId: true, priceId: true, createdAt: true },
-    });
-    if (!row) return null; // unknown consent → do NOT fall back to a client org id
-    // Freshness by the SIGNED occurred_at, not arrival: a late retry of a real
-    // payment must NOT lose entitlement; a future/stale occurred_at fails closed.
-    if (!consentAcceptable(row.createdAt, occurredAt, Date.now())) return null;
-    if (eventPriceId && row.priceId && eventPriceId !== row.priceId) return null; // price mismatch
-    return row.organizationId; // authoritative — session-derived
-  }
-  return orgFromProviderRef(data);
+  const row = await prisma.checkoutConsent.findUnique({
+    where: { id: consentId },
+    select: { organizationId: true, priceId: true, createdAt: true },
+  });
+  if (!row) return null; // unknown consent → do NOT fall back to a client org id
+  if (!consentAcceptable(row.createdAt, occurredAt, Date.now())) return null;
+  if (eventPriceId && row.priceId && eventPriceId !== row.priceId) return null; // price mismatch
+  return row.organizationId; // authoritative — session-derived
 }
 
 async function applySubscriptionEvent(

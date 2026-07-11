@@ -1,5 +1,10 @@
 import { describe, it, expect, afterEach, vi } from "vitest";
-import { previewSubscriptionUpdate, updateSubscriptionPlan } from "@/lib/payments/paddle";
+import {
+  classifyPaddleFailure,
+  getSubscriptionCurrentPriceId,
+  previewSubscriptionUpdate,
+  updateSubscriptionPlan,
+} from "@/lib/payments/paddle";
 
 // Unit-test the plan-change Paddle calls with fetch mocked (no network).
 describe("previewSubscriptionUpdate / updateSubscriptionPlan", () => {
@@ -50,12 +55,13 @@ describe("previewSubscriptionUpdate / updateSubscriptionPlan", () => {
     expect(await previewSubscriptionUpdate("sub_1", "pri_pro", "prorated_immediately")).toBeNull();
   });
 
-  it("updateSubscriptionPlan → {ok:true} on 2xx, {ok:false, reason} on error, no-op without config", async () => {
-    // No API key → not configured → {ok:false}, no fetch.
+  it("updateSubscriptionPlan → {ok:true} on 2xx; unconfigured is a definitive no-op", async () => {
+    // No API key → not configured → definitive {ok:false}, no fetch (nothing sent).
     vi.stubEnv("PADDLE_API_KEY", "");
     const spy = vi.spyOn(global, "fetch");
     expect(await updateSubscriptionPlan("sub_1", "pri_pro", "prorated_immediately")).toEqual({
       ok: false,
+      kind: "definitive",
       reason: "unconfigured",
     });
     expect(spy).not.toHaveBeenCalled();
@@ -64,8 +70,9 @@ describe("previewSubscriptionUpdate / updateSubscriptionPlan", () => {
     vi.stubEnv("PADDLE_API_KEY", "test-key");
     vi.spyOn(global, "fetch").mockResolvedValue({ ok: true, status: 200, json: async () => ({ data: {} }) } as Response);
     expect(await updateSubscriptionPlan("sub_1", "pri_pro", "prorated_immediately")).toEqual({ ok: true });
-    vi.restoreAllMocks();
+  });
 
+  it("updateSubscriptionPlan classifies a 4xx as DEFINITIVE (rejected → safe to retry)", async () => {
     vi.stubEnv("PADDLE_API_KEY", "test-key");
     vi.spyOn(global, "fetch").mockResolvedValue({
       ok: false,
@@ -74,7 +81,57 @@ describe("previewSubscriptionUpdate / updateSubscriptionPlan", () => {
     } as Response);
     const res = await updateSubscriptionPlan("sub_1", "pri_pro", "prorated_immediately");
     expect(res.ok).toBe(false);
-    // reason carries Paddle's status + code (no ids) so the route can show WHY.
-    if (!res.ok) expect(res.reason).toContain("subscription_locked");
+    if (!res.ok) {
+      expect(res.kind).toBe("definitive");
+      expect(res.reason).toContain("subscription_locked"); // status + code, no ids
+    }
+  });
+
+  it("updateSubscriptionPlan classifies a 5xx as AMBIGUOUS (may have applied → do NOT blindly retry)", async () => {
+    vi.stubEnv("PADDLE_API_KEY", "test-key");
+    vi.spyOn(global, "fetch").mockResolvedValue({
+      ok: false,
+      status: 500,
+      json: async () => ({ error: { code: "internal_error" } }),
+    } as Response);
+    const res = await updateSubscriptionPlan("sub_1", "pri_pro", "prorated_immediately");
+    expect(res.ok).toBe(false);
+    if (!res.ok) expect(res.kind).toBe("ambiguous");
+  });
+
+  it("updateSubscriptionPlan classifies a network/timeout throw as AMBIGUOUS", async () => {
+    vi.stubEnv("PADDLE_API_KEY", "test-key");
+    vi.spyOn(global, "fetch").mockRejectedValue(new Error("The operation was aborted due to timeout"));
+    const res = await updateSubscriptionPlan("sub_1", "pri_pro", "prorated_immediately");
+    expect(res.ok).toBe(false);
+    if (!res.ok) expect(res.kind).toBe("ambiguous");
+  });
+
+  it("classifyPaddleFailure: 4xx→definitive (except 408), 5xx/408/network→ambiguous", () => {
+    expect(classifyPaddleFailure(new Error("Paddle HTTP 400 (bad_request) env=x resource=subscriptions"))).toBe("definitive");
+    expect(classifyPaddleFailure(new Error("Paddle HTTP 404 (entity_not_found) env=x resource=subscriptions"))).toBe("definitive");
+    expect(classifyPaddleFailure(new Error("Paddle HTTP 409 (conflict) env=x resource=subscriptions"))).toBe("definitive");
+    expect(classifyPaddleFailure(new Error("Paddle HTTP 429 (rate_limit) env=x resource=subscriptions"))).toBe("definitive");
+    expect(classifyPaddleFailure(new Error("Paddle HTTP 408 (request_timeout) env=x resource=subscriptions"))).toBe("ambiguous");
+    expect(classifyPaddleFailure(new Error("Paddle HTTP 500 (internal) env=x resource=subscriptions"))).toBe("ambiguous");
+    expect(classifyPaddleFailure(new Error("Paddle HTTP 503 (unavailable) env=x resource=subscriptions"))).toBe("ambiguous");
+    expect(classifyPaddleFailure(new Error("fetch failed"))).toBe("ambiguous");
+    expect(classifyPaddleFailure(new Error("The operation was aborted due to timeout"))).toBe("ambiguous");
+  });
+
+  it("getSubscriptionCurrentPriceId returns the first item's price id, or null on any failure", async () => {
+    vi.stubEnv("PADDLE_API_KEY", "test-key");
+    vi.spyOn(global, "fetch").mockResolvedValue({
+      ok: true,
+      status: 200,
+      json: async () => ({ data: { items: [{ price: { id: "pri_isletme" } }] } }),
+    } as Response);
+    expect(await getSubscriptionCurrentPriceId("sub_1")).toBe("pri_isletme");
+    vi.restoreAllMocks();
+
+    // Unreadable state (error) must be null (= "unknown", never falsely "applied").
+    vi.stubEnv("PADDLE_API_KEY", "test-key");
+    vi.spyOn(global, "fetch").mockResolvedValue({ ok: false, status: 500, json: async () => ({}) } as Response);
+    expect(await getSubscriptionCurrentPriceId("sub_1")).toBeNull();
   });
 });

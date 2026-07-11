@@ -3,6 +3,7 @@ import { badRequest, jsonOk, notFound, tooManyRequests } from "@/lib/api";
 import { withManage } from "@/lib/route-guard";
 import { rateLimit } from "@/lib/rate-limit";
 import {
+  getSubscriptionCurrentPriceId,
   isPaddleConfigured,
   previewSubscriptionUpdate,
   updateSubscriptionPlan,
@@ -84,22 +85,42 @@ export const POST = withManage(async (session, req) => {
 
   const result = await updateSubscriptionPlan(r.providerRef, r.priceId, r.proration);
   if (!result.ok) {
-    // Nothing was charged → release the nonce so the SAME token can be retried.
-    await releasePlanChangeNonce(token.jti);
-    // Surface Paddle's reason (e.g. "Paddle HTTP 400 (subscription_locked...)") so
-    // the owner can see WHY without digging the logs. No ids/secrets in the string.
-    return NextResponse.json(
-      { error: "Plan değişikliği yapılamadı. Lütfen tekrar deneyin.", detail: result.reason },
-      { status: 502 },
-    );
+    if (result.kind === "definitive") {
+      // Paddle REJECTED the request (4xx) → the plan did NOT change → nothing charged
+      // → release the nonce so the same token can be retried after fixing the cause.
+      await releasePlanChangeNonce(token.jti);
+      // Surface Paddle's reason (e.g. "Paddle HTTP 400 (subscription_locked...)") so
+      // the owner can see WHY without digging the logs. No ids/secrets in the string.
+      return NextResponse.json(
+        { error: "Plan değişikliği yapılamadı. Lütfen tekrar deneyin.", detail: result.reason },
+        { status: 502 },
+      );
+    }
+    // AMBIGUOUS (5xx / timeout / network): the PATCH MAY have applied at Paddle even
+    // though we got no clean response. Paddle has no general-API idempotency key, so we
+    // must NOT re-send (would double-apply) → keep the nonce CONSUMED. Reconcile by
+    // reading the subscription's current price: if it's already the target, it DID
+    // apply (response was just lost) → success. Otherwise leave it for the webhook to
+    // settle and tell the customer we're confirming.
+    const currentPrice = await getSubscriptionCurrentPriceId(r.providerRef);
+    if (currentPrice !== r.priceId) {
+      return NextResponse.json(
+        {
+          pending: true,
+          error: "İşleminiz alındı; Paddle onayı bekleniyor. Birkaç dakika içinde güncellenecek.",
+        },
+        { status: 202 },
+      );
+    }
+    // Reconciled: the change is live at Paddle → fall through to audit + success.
   }
 
   await writeAudit({
     organizationId: session.organizationId,
     actorUserId: session.userId,
     action: "billing.plan_change",
-    metadata: { from: r.currentCode, to: planCode, mode: r.mode },
+    metadata: { from: r.currentCode, to: planCode, mode: r.mode, reconciled: !result.ok },
   }).catch(() => {});
 
-  return jsonOk({ ok: true, mode: r.mode });
+  return jsonOk({ ok: true, mode: r.mode, reconciled: !result.ok });
 });

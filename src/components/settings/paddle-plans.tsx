@@ -309,7 +309,16 @@ export function PaddlePlans({
         detail?: string;
         ok?: boolean;
         amountChanged?: boolean;
+        pending?: boolean;
       };
+      if (data.pending) {
+        // Ambiguous Paddle outcome (timeout/5xx): it may already be applied. We do NOT
+        // re-send. Close the dialog and let the webhook settle the plan on refresh.
+        setPending(null);
+        setError(data.error ?? "İşleminiz alındı; onay bekleniyor. Birkaç dakika içinde güncellenecek.");
+        setTimeout(() => router.refresh(), 4000);
+        return;
+      }
       if (!res.ok || !data.ok) {
         setError(
           (data.error ?? "Plan değişikliği yapılamadı. Lütfen tekrar deneyin.") +
