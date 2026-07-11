@@ -739,6 +739,24 @@ Codex'in dünkü 3 billing nüansı: her biri ÖNCE kırmızı-testle gerçek ka
   bekleniyordu) + future count 1 (0 bekleniyordu). Fix sonrası hepsi yeşil. **SystemLock nonce rows** `plan-change-nonce:{jti}`,
   expired olanlar opportunistic sweep'le silinir (token zaten expired → replay imkânsız).
 
+## ✅ 2 BILLING GAP DAHA KAPATILDI (2026-07-11, commit `5b6b25f` — migration YOK) — billing artık "tamam"
+Codex bağımsız incelemede 2 gerçek açık daha buldu; ikisi de kırmızı-önce testle kanıtlanıp migration'sız + fail-closed düzeltildi.
+**817 test yeşil (+11) · typecheck temiz · build temiz.**
+- **[Gap A — ambiguous vs definitive Paddle hatası]** `updateSubscriptionPlan` false dönünce nonce'ı KOŞULSUZ release etmek
+  güvensizdi: Paddle genel API'de idempotency key YOK ve PATCH timeout/5xx/network'te aslında UYGULANMIŞ olabilir → release +
+  retry = 2. PATCH (çift-tahsilat). Sonuç tipi ayrıldı: **definitive** (4xx = Paddle reddetti, uygulanmadı → release + güvenli
+  retry) vs **ambiguous** (5xx/408/network/abort = uygulanmış olabilir → nonce TÜKETİLMİŞ kalır, ASLA yeniden gönderme). Ambiguous'ta
+  route `GET /subscriptions` ile **reconcile** eder: hedef price uygulanmışsa başarı (reconciled); değilse **202 pending**, webhook
+  settle eder. Yeni: `classifyPaddleFailure` + `getSubscriptionCurrentPriceId` @ paddle.ts. Client 202'de dialog kapatıp refresh.
+- **[Gap B — resolveOrgId bayat-consent lifecycle]** Bilinen bir subscription'ın lifecycle event'leri (updated/past_due/canceled)
+  ORİJİNAL consentId'yi taşır; bir ay sonra consent 24h'i geçince event DÜŞÜYORDU → iptal/past_due sessizce yok sayılıp org erişimi
+  yanlış kalıyordu. Artık `resolveOrgId` ÖNCE `data.id`/`subscription_id` → mevcut `Subscription.providerRef` eşleşmesini kullanıyor
+  (yetkili, bayatlamaz); taze consent yalnız İLK, henüz-bilinmeyen bağlantıda gerekli. Ham org id yine ASLA kullanılmıyor.
+- **Kırmızı-önce:** Gap A → 5xx/timeout'ta eski kod 2. PATCH gönderiyordu; Gap B → 30-günlük consent + mevcut providerRef +
+  canceled/past_due mevcut kodda DÜŞÜYORDU (sub "active" kalıyordu). Fix sonrası hepsi yeşil. **Testler:** definitive-vs-ambiguous +
+  reconcile-success + 202-pending + classify(4xx/5xx/408/network) + GET-price + lifecycle-via-providerRef + unknown-ref-red +
+  forged-org-asla. **Codex'in 4 istenen testinin tümü + fazlası karşılandı.**
+
 ## 📋 YARIN DEVAM — BACKLOG (kullanıcı: "yoruldum, .md'ye yaz, yarın yaparız")
 **Bu oturumda BİLEREK BAŞLANMADI (kullanıcı direktifi: yeni büyük parça/migration YOK):**
 - **[reliability/BÜYÜK] Outbound idempotency / outbox:** `automation.ts` manuel-reply idempotency (claim-then-send auto-reply'da
@@ -758,13 +776,14 @@ Codex'in dünkü 3 billing nüansı: her biri ÖNCE kırmızı-testle gerçek ka
 **[OPS/LEGAL — kullanıcı/avukat, kod değil]:** SELLER bilgisi (`legal-entity.ts` [parantez]) · KVKK-DPA (OpenAI ABD aktarım) · RESEND DNS (SPF/DKIM/DMARC) · Paddle küçük gerçek ödeme birlikte-test · `PADDLE_PLAN_CHANGE_ENABLED=1` ile upgrade/downgrade'i hesapta doğrula.
 
 ## Durum
-**806 test yeşil, typecheck temiz, next build temiz, migrate deploy canlıda doğrulanmış.** 15 migration
+**817 test yeşil, typecheck temiz, next build temiz, migrate deploy canlıda doğrulanmış.** 15 migration
 (00_init→14_guest_stay_chat_binding) sıfır-drift (taze Postgres'te doğrulandı). Son iş: 40-ajan lansman denetimi →
 FAZ-1 (7 bulgu) + FAZ-2 A (T1 checklist UI · sync cursor · oturum DB-yetkili · 2FA/TOTP · foto-unlink · KB-cap · take · prompt-sanitize)
 + FAZ-2 B (iCal SSRF+resurrection · consent planCode↔priceId · billing trialing-null+founder guard · photoUrl scheme · QR gate tutarlılığı)
 + **QR per-stay device binding (migration 14, first-scan claim + rotasyonlu cookie)**
 + **Codex follow-up gecesi: B3 plan-change previewToken HMAC (`afecf74`) + A1 requireAuth capability fail-closed (`12b6613`) + flaky-test fix; CheckoutConsent single-use KODLA-REDDEDİLDİ (para-akışı kırardı).**
 + **3 billing nüansı (`7d72c82`): previewToken tek-kullanımlık (jti+SystemLock nonce) · apply'da tutar yeniden-preview eşleşmesi · consent freshness imzalı occurred_at'e bağlandı (geç retry entitlement kaybettirmez). Kırmızı-önce testli, migration YOK.**
++ **2 billing gap daha (`5b6b25f`): ambiguous-vs-definitive Paddle hatası (5xx/timeout'ta çift-PATCH yok, GET-reconcile/202-pending) · resolveOrgId providerRef-first (bayat-consent lifecycle event'i düşmez). Kırmızı-önce testli, migration YOK. BILLING ARTIK "TAMAM".**
 **⏳ SIRADA (yarın): backlog — outbound outbox/idempotency · object storage · webhook D1/D2 · AI-gate geçmiş+ad genişletme (yukarıdaki BACKLOG bölümü).** **KVKK sertleştirme batch'i (5 düzeltme,
 migration YOK — mevcut alanlara/koda oturdu): Sentry redaksiyon · retention resurrection guard · Paddle webhook PII
 minimize · dashboard "bu gece kalan" · outbound gövde ad-redaksiyonu.** Branch =
