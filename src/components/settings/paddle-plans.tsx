@@ -308,12 +308,16 @@ export function PaddlePlans({
         error?: string;
         detail?: string;
         ok?: boolean;
+        amountChanged?: boolean;
       };
       if (!res.ok || !data.ok) {
         setError(
           (data.error ?? "Plan değişikliği yapılamadı. Lütfen tekrar deneyin.") +
             (data.detail ? ` (${data.detail})` : ""),
         );
+        // 409 = this preview is spent (single-use) or its amount moved. The dialog's
+        // token is dead → close it so the next click mints a FRESH preview + amount.
+        if (res.status === 409) setPending(null);
         return;
       }
       setPending(null);

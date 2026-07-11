@@ -198,6 +198,90 @@ describe("POST /api/webhooks/paddle", () => {
     expect(await prisma.subscription.count()).toBe(0);
   });
 
+  it("LATE retry — occurred_at was fresh at payment, delivered >24h later → ACCEPTED (no lost entitlement)", async () => {
+    // Consent created 48h ago; the customer actually PAID 1 min later (occurred_at),
+    // but Paddle only delivered the webhook now (outage/retry). Freshness must be
+    // judged by the signed occurred_at, not arrival time — else a real payment drops.
+    const consent = await prisma.checkoutConsent.create({
+      data: {
+        organizationId: orgId,
+        planCode: "pro",
+        priceId: "pri_pro",
+        legalVersion: "2026-06",
+        ip: "1.2.3.4",
+        createdAt: new Date(Date.now() - 48 * 60 * 60 * 1000),
+      },
+      select: { id: true },
+    });
+    const body = JSON.stringify({
+      event_id: "evt_late",
+      event_type: "subscription.activated",
+      occurred_at: new Date(Date.now() - 48 * 60 * 60 * 1000 + 60_000).toISOString(), // paid ~1 min after consent
+      data: { id: "sub_late", status: "active", custom_data: { consentId: consent.id }, items: [{ price: { id: "pri_pro" } }] },
+    });
+    expect((await POST(req(body, sign(body)))).status).toBe(200);
+    expect(await prisma.subscription.count({ where: { organizationId: orgId } })).toBe(1);
+  });
+
+  it("FUTURE occurred_at (beyond skew) → fail-closed REJECTED", async () => {
+    // Consent is fresh (created now) but the event claims to have occurred 2h in the
+    // future — anomalous (a real event can't occur later than now). Fail closed.
+    const body = JSON.stringify({
+      event_id: "evt_future",
+      event_type: "subscription.activated",
+      occurred_at: new Date(Date.now() + 2 * 60 * 60 * 1000).toISOString(),
+      data: { id: "sub_future", status: "active", custom_data: { consentId }, items: [{ price: { id: "pri_pro" } }] },
+    });
+    expect((await POST(req(body, sign(body)))).status).toBe(200);
+    expect(await prisma.subscription.count()).toBe(0);
+  });
+
+  it("consent genuinely STALE at payment time (occurred_at − consent > 24h) → REJECTED", async () => {
+    // Consent 48h old AND the payment (occurred_at) also happened ~48h after it →
+    // truly stale nonce, not a late delivery. Still rejected.
+    const consent = await prisma.checkoutConsent.create({
+      data: {
+        organizationId: orgId,
+        planCode: "pro",
+        priceId: "pri_pro",
+        legalVersion: "2026-06",
+        ip: "1.2.3.4",
+        createdAt: new Date(Date.now() - 48 * 60 * 60 * 1000),
+      },
+      select: { id: true },
+    });
+    const body = JSON.stringify({
+      event_id: "evt_stale",
+      event_type: "subscription.activated",
+      occurred_at: new Date(Date.now() - 60_000).toISOString(), // paid ~now = ~48h after consent
+      data: { id: "sub_stale", status: "active", custom_data: { consentId: consent.id }, items: [{ price: { id: "pri_pro" } }] },
+    });
+    expect((await POST(req(body, sign(body)))).status).toBe(200);
+    expect(await prisma.subscription.count()).toBe(0);
+  });
+
+  it("transaction + subscription events safely SHARE one consentId (both bind to the consent org)", async () => {
+    // The consentId is echoed on BOTH events. With occurred_at-based freshness they
+    // must both still resolve to the consent's org (the reason consumedAt was NOT
+    // added — consuming on the first event would drop the other).
+    const tx = JSON.stringify({
+      event_id: "evt_share_tx",
+      event_type: "transaction.completed",
+      occurred_at: new Date().toISOString(),
+      data: { id: "txn_share", status: "completed", custom_data: { consentId }, currency_code: "TRY", details: { totals: { grand_total: "89900" } } },
+    });
+    expect((await POST(req(tx, sign(tx)))).status).toBe(200);
+    const sub = JSON.stringify({
+      event_id: "evt_share_sub",
+      event_type: "subscription.activated",
+      occurred_at: new Date().toISOString(),
+      data: { id: "sub_share", status: "active", custom_data: { consentId }, items: [{ price: { id: "pri_pro" } }] },
+    });
+    expect((await POST(req(sub, sign(sub)))).status).toBe(200);
+    expect(await prisma.invoice.count({ where: { organizationId: orgId } })).toBe(1);
+    expect(await prisma.subscription.count({ where: { organizationId: orgId } })).toBe(1);
+  });
+
   it("returns 5xx on a transient apply failure (event NOT processed), then applies idempotently on Paddle's retry", async () => {
     const body = JSON.stringify({
       event_id: "evt_retry_1",

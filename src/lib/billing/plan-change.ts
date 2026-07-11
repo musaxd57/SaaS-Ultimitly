@@ -1,6 +1,7 @@
 import "server-only";
 
-import { createHmac, timingSafeEqual } from "crypto";
+import { createHmac, randomBytes, timingSafeEqual } from "crypto";
+import { Prisma } from "@prisma/client";
 import { prisma } from "@/lib/db";
 import { DEFAULT_PLANS, planByCode, type PlanDef } from "./plans";
 
@@ -125,7 +126,8 @@ type PlanTokenPayload = {
   org: string;
   priceId: string;
   mode: "upgrade" | "downgrade";
-  amount: string | null; // the immediate charge shown at preview (informational/audit)
+  amount: string | null; // the immediate charge shown at preview (bound + re-checked at apply)
+  jti: string; // single-use nonce (consumed once at apply — expiry is NOT single-use)
   exp: number;
 };
 
@@ -133,9 +135,14 @@ function planTokenSecret(): string {
   return process.env.AUTH_SECRET ?? "";
 }
 
-/** Sign a preview token binding the change the customer just saw. */
-export function signPlanChangeToken(p: Omit<PlanTokenPayload, "exp">): string {
-  const payload: PlanTokenPayload = { ...p, exp: Date.now() + PLAN_TOKEN_TTL_MS };
+/** Sign a preview token binding the change the customer just saw. A fresh random
+ *  jti makes it single-use: apply consumes the jti once (see consumePlanChangeNonce). */
+export function signPlanChangeToken(p: Omit<PlanTokenPayload, "exp" | "jti">): string {
+  const payload: PlanTokenPayload = {
+    ...p,
+    jti: randomBytes(12).toString("base64url"),
+    exp: Date.now() + PLAN_TOKEN_TTL_MS,
+  };
   const body = Buffer.from(JSON.stringify(payload)).toString("base64url");
   const mac = createHmac("sha256", planTokenSecret()).update(body).digest("base64url");
   return `${body}.${mac}`;
@@ -166,5 +173,41 @@ export function verifyPlanChangeToken(token: string | undefined | null): PlanTok
     return null;
   }
   if (!payload || typeof payload.exp !== "number" || Date.now() > payload.exp) return null;
+  if (typeof payload.jti !== "string" || payload.jti.length === 0) return null; // single-use id required
   return payload;
+}
+
+// ---------------------------------------------------------------------------
+// Single-use enforcement. The HMAC token proves "the customer previewed THIS
+// change"; the jti makes it usable ONCE. Apply CLAIMS the jti in SystemLock (a
+// unique @id row) BEFORE the Paddle mutation — a concurrent double-submit or a
+// replay within the 10-min TTL finds the row already present and is refused, so
+// it can't drive a second PATCH/charge. DB-backed → correct across replicas
+// (unlike the in-memory rate-limiter). On a FAILED apply the jti is released so
+// the customer can retry the same token (nothing was charged).
+// ---------------------------------------------------------------------------
+
+const NONCE_PREFIX = "plan-change-nonce:";
+
+/** Atomically claim a token's jti. Returns true on first use, false if already
+ *  consumed (replay / double-submit). Throws only on an unexpected DB error →
+ *  the caller must fail closed (no charge). */
+export async function consumePlanChangeNonce(jti: string, expiresAt: Date): Promise<boolean> {
+  // Opportunistic sweep: an expired nonce can't be replayed (its token is expired
+  // too), so the row is safe to drop — keeps SystemLock from growing unbounded.
+  await prisma.systemLock
+    .deleteMany({ where: { name: { startsWith: NONCE_PREFIX }, lockedUntil: { lt: new Date() } } })
+    .catch(() => {});
+  try {
+    await prisma.systemLock.create({ data: { name: `${NONCE_PREFIX}${jti}`, lockedUntil: expiresAt } });
+    return true;
+  } catch (err) {
+    if (err instanceof Prisma.PrismaClientKnownRequestError && err.code === "P2002") return false;
+    throw err;
+  }
+}
+
+/** Release a claimed jti (only after a FAILED apply) so the token can be retried. */
+export async function releasePlanChangeNonce(jti: string): Promise<void> {
+  await prisma.systemLock.deleteMany({ where: { name: `${NONCE_PREFIX}${jti}` } }).catch(() => {});
 }

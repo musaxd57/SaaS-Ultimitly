@@ -40,6 +40,29 @@ function str(v: unknown): string | null {
 // A checkout consent is only trusted as a checkout nonce for a short window (the
 // user is at the Paddle overlay). Generous — a slow checkout still lands inside it.
 const CONSENT_TTL_MS = 24 * 60 * 60 * 1000;
+// Clock skew tolerance between Paddle and us when judging occurred_at.
+const CONSENT_SKEW_MS = 5 * 60 * 1000;
+
+/**
+ * Is a consent still acceptable as the org-binding nonce for an event that occurred
+ * at `occurredAt`? Freshness is judged against the Paddle-SIGNED event time, NOT the
+ * webhook's arrival time — so a late-delivered retry of a REAL payment (Paddle outage
+ * / re-drive hours later) still binds and the customer keeps the entitlement they paid
+ * for. A future occurred_at (beyond clock skew) is anomalous → fail-closed. When an
+ * event carries no occurred_at (rare — Paddle always sends one), fall back to arrival
+ * time so a signature-valid event isn't dropped; occurred_at is inside the signed body
+ * so this fallback can't be attacker-extended.
+ */
+function consentAcceptable(createdAt: Date, occurredAt: Date | null, now: number): boolean {
+  if (occurredAt) {
+    const t = occurredAt.getTime();
+    if (t > now + CONSENT_SKEW_MS) return false; // occurs in the future → anomalous
+    const age = t - createdAt.getTime();
+    if (age < -CONSENT_SKEW_MS) return false; // event predates its own consent → anomalous
+    return age <= CONSENT_TTL_MS; // consent too old at payment time → stale
+  }
+  return now - createdAt.getTime() <= CONSENT_TTL_MS; // no signed time → arrival-time fallback
+}
 
 /** First subscription/transaction item's Paddle price id, if any. */
 function eventPriceIdFromData(data: Record<string, unknown> | undefined): string | null {
@@ -77,6 +100,7 @@ async function orgFromProviderRef(data: Record<string, unknown> | undefined): Pr
 async function resolveOrgId(
   data: Record<string, unknown> | undefined,
   eventPriceId: string | null,
+  occurredAt: Date | null,
 ): Promise<string | null> {
   const cd =
     data?.custom_data && typeof data.custom_data === "object"
@@ -90,7 +114,9 @@ async function resolveOrgId(
       select: { organizationId: true, priceId: true, createdAt: true },
     });
     if (!row) return null; // unknown consent → do NOT fall back to a client org id
-    if (Date.now() - row.createdAt.getTime() > CONSENT_TTL_MS) return null; // expired
+    // Freshness by the SIGNED occurred_at, not arrival: a late retry of a real
+    // payment must NOT lose entitlement; a future/stale occurred_at fails closed.
+    if (!consentAcceptable(row.createdAt, occurredAt, Date.now())) return null;
     if (eventPriceId && row.priceId && eventPriceId !== row.priceId) return null; // price mismatch
     return row.organizationId; // authoritative — session-derived
   }
@@ -101,7 +127,7 @@ async function applySubscriptionEvent(
   data: Record<string, unknown>,
   occurredAt: Date | null,
 ): Promise<void> {
-  const organizationId = await resolveOrgId(data, eventPriceIdFromData(data));
+  const organizationId = await resolveOrgId(data, eventPriceIdFromData(data), occurredAt);
   if (!organizationId) return; // not linked yet → recorded only
   const org = await prisma.organization.findUnique({ where: { id: organizationId }, select: { id: true } });
   if (!org) return; // never write against an org that isn't ours
@@ -181,10 +207,13 @@ async function applySubscriptionEvent(
   });
 }
 
-async function applyTransactionEvent(data: Record<string, unknown>): Promise<void> {
+async function applyTransactionEvent(
+  data: Record<string, unknown>,
+  occurredAt: Date | null,
+): Promise<void> {
   // Transactions skip the price-match (their line items differ from the sub price);
-  // the consent freshness + org binding still apply.
-  const organizationId = await resolveOrgId(data, null);
+  // the consent freshness (by occurred_at) + org binding still apply.
+  const organizationId = await resolveOrgId(data, null, occurredAt);
   if (!organizationId) return;
   const org = await prisma.organization.findUnique({ where: { id: organizationId }, select: { id: true } });
   if (!org) return;
@@ -273,7 +302,7 @@ export async function POST(req: NextRequest) {
       if (eventType.startsWith("subscription.")) {
         await applySubscriptionEvent(data, occurredAt);
       } else if (eventType === "transaction.completed" || eventType === "transaction.paid") {
-        await applyTransactionEvent(data);
+        await applyTransactionEvent(data, occurredAt);
       }
       if (providerEventId) {
         await prisma.webhookEvent.update({

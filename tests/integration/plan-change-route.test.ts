@@ -35,9 +35,14 @@ const ctx = { params: Promise.resolve({} as Record<string, never>) };
 describe("plan change routes (gated, PATCH /subscriptions)", () => {
   let orgId: string;
   // Mint a valid preview token the way /plan-preview does. Apply requires one that
-  // matches the resolved change (org + target price + mode).
-  const tok = (priceId: string, mode: "upgrade" | "downgrade", org = orgId) =>
-    signPlanChangeToken({ org, priceId, mode, amount: null });
+  // matches the resolved change (org + target price + mode) AND whose amount still
+  // matches a fresh apply-time preview (previewMock returns "₺123,45" by default).
+  const tok = (
+    priceId: string,
+    mode: "upgrade" | "downgrade",
+    org = orgId,
+    amount: string | null = "₺123,45",
+  ) => signPlanChangeToken({ org, priceId, mode, amount });
 
   beforeEach(async () => {
     await resetDb();
@@ -132,6 +137,51 @@ describe("plan change routes (gated, PATCH /subscriptions)", () => {
     const forged = `${valid.split(".")[0]}.deadbeef`;
     const res = await CHANGE(req({ planCode: "business", previewToken: forged }), ctx);
     expect(res.status).toBe(400);
+    expect(updateMock).not.toHaveBeenCalled();
+  });
+
+  it("change: a valid token is SINGLE-USE — the second apply is rejected, only one Paddle mutation", async () => {
+    const t = tok("pri_isletme", "upgrade");
+    const first = await CHANGE(req({ planCode: "business", previewToken: t }), ctx);
+    expect(first.status).toBe(200);
+    // Same token, still inside its 10-min TTL: a replay (double-submit / stolen
+    // token) must NOT drive a second PATCH/charge.
+    const second = await CHANGE(req({ planCode: "business", previewToken: t }), ctx);
+    expect(second.status).toBe(409);
+    expect(updateMock).toHaveBeenCalledTimes(1);
+  });
+
+  it("change: a Paddle failure RELEASES the nonce so the same token can be retried", async () => {
+    const t = tok("pri_isletme", "upgrade");
+    updateMock.mockResolvedValueOnce({ ok: false, reason: "Paddle HTTP 500 (internal) env=production resource=subscriptions" });
+    expect((await CHANGE(req({ planCode: "business", previewToken: t }), ctx)).status).toBe(502);
+    // The first apply didn't mutate anything at Paddle → the token isn't burned.
+    const retry = await CHANGE(req({ planCode: "business", previewToken: t }), ctx);
+    expect(retry.status).toBe(200);
+    expect(updateMock).toHaveBeenCalledTimes(2);
+  });
+
+  it("change: 409 when the apply-time amount differs from the previewed amount (no blind charge)", async () => {
+    // The customer confirmed "₺123,45"; by apply time Paddle now computes a
+    // different immediate charge → refuse and make them re-confirm.
+    previewMock.mockResolvedValue({ mode: "prorated_immediately", immediateTotal: "₺200,00", recurringTotal: "₺899,00" });
+    const res = await CHANGE(req({ planCode: "business", previewToken: tok("pri_isletme", "upgrade", orgId, "₺123,45") }), ctx);
+    expect(res.status).toBe(409);
+    expect((await res.json()).amountChanged).toBe(true);
+    expect(updateMock).not.toHaveBeenCalled();
+  });
+
+  it("change: 409 when the currency differs at apply time (formatted string changes)", async () => {
+    previewMock.mockResolvedValue({ mode: "prorated_immediately", immediateTotal: "$123.45", recurringTotal: "$899.00" });
+    const res = await CHANGE(req({ planCode: "business", previewToken: tok("pri_isletme", "upgrade", orgId, "₺123,45") }), ctx);
+    expect(res.status).toBe(409);
+    expect(updateMock).not.toHaveBeenCalled();
+  });
+
+  it("change: 409 for an upgrade when the apply-time preview can't return an amount (fail-closed)", async () => {
+    previewMock.mockResolvedValue(null); // Paddle preview failed at apply time
+    const res = await CHANGE(req({ planCode: "business", previewToken: tok("pri_isletme", "upgrade") }), ctx);
+    expect(res.status).toBe(409);
     expect(updateMock).not.toHaveBeenCalled();
   });
 
