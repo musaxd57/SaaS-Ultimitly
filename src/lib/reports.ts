@@ -1,5 +1,4 @@
 import "server-only";
-import { startOfMonth, endOfMonth } from "date-fns";
 import { prisma } from "@/lib/db";
 import { zonedDayRange } from "@/lib/automation";
 
@@ -154,8 +153,18 @@ export interface MonthlyReport {
 
 export async function getMonthlyReport(orgId: string): Promise<MonthlyReport> {
   const now = new Date();
-  const monthStart = startOfMonth(now);
-  const monthEnd = endOfMonth(now);
+  // Month window anchored to the host's ISTANBUL calendar month — same class of
+  // fix as the occupancy day-keys. date-fns startOfMonth/endOfMonth use the
+  // server's UTC month, which shifts the 21:00–24:00 UTC window (already the 1st
+  // in Istanbul) and month-edge nights into the wrong month. Istanbul is fixed
+  // UTC+3 (no DST) — the same assumption the shared day-key helpers rely on.
+  // End is EXCLUSIVE (first instant of the next Istanbul month) → `lt`.
+  const [istYear, istMonth] = istDayKey(now).split("-").map(Number);
+  const IST_OFFSET_MS = 3 * 60 * 60 * 1000;
+  const monthStart = new Date(Date.UTC(istYear, istMonth - 1, 1) - IST_OFFSET_MS);
+  const monthEnd = new Date(
+    Date.UTC(istMonth === 12 ? istYear + 1 : istYear, istMonth === 12 ? 0 : istMonth, 1) - IST_OFFSET_MS,
+  );
 
   const [reservations, completedTasks, totalTasks, messagesCount] = await Promise.all([
     prisma.reservation.findMany({
@@ -165,20 +174,20 @@ export async function getMonthlyReport(orgId: string): Promise<MonthlyReport> {
       where: {
         ...propertyScope(orgId),
         status: { in: ["confirmed", "completed"] },
-        arrivalDate: { gte: monthStart, lte: monthEnd },
+        arrivalDate: { gte: monthStart, lt: monthEnd },
       },
       select: { totalAmount: true, currency: true, sourceReference: true },
     }),
     prisma.task.count({
-      where: { ...propertyScope(orgId), status: "done", updatedAt: { gte: monthStart, lte: monthEnd } },
+      where: { ...propertyScope(orgId), status: "done", updatedAt: { gte: monthStart, lt: monthEnd } },
     }),
     prisma.task.count({
-      where: { ...propertyScope(orgId), createdAt: { gte: monthStart, lte: monthEnd } },
+      where: { ...propertyScope(orgId), createdAt: { gte: monthStart, lt: monthEnd } },
     }),
     prisma.message.count({
       where: {
         conversation: { property: { organizationId: orgId } },
-        createdAt: { gte: monthStart, lte: monthEnd },
+        createdAt: { gte: monthStart, lt: monthEnd },
       },
     }),
   ]);

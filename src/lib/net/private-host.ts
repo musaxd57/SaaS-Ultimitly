@@ -1,22 +1,13 @@
+import { lookup } from "node:dns/promises";
+
 /**
- * True when a hostname is a literal loopback / link-local / private / cloud-
- * metadata target. String-only (no DNS) so it's cheap and can never false-reject
- * a legitimate public feed on a transient DNS hiccup. Used to guard host-supplied
- * fetch targets (iCal calendar-source URLs) against the most direct SSRF vectors
- * (http://127.0.0.1, http://169.254.169.254, http://10.x, localhost, [::1]).
- *
- * Residual (documented, follow-up): a public hostname that DNS-resolves to a
- * private IP, or a public host that 302-redirects to an internal one, is NOT
- * caught here — closing those needs DNS resolution + a redirect-validating
- * dispatcher. This guard blocks the literal-address cases, which are the common
- * metadata/loopback attacks.
+ * True when a LITERAL address string is loopback / link-local / private / CGNAT /
+ * cloud-metadata. Shared by the cheap string gate below and the DNS-resolution
+ * gate — one place decides what "private" means.
  */
-export function isPrivateHost(hostname: string): boolean {
-  const h = hostname.toLowerCase().replace(/^\[|\]$/g, ""); // strip IPv6 [..] brackets
+export function isPrivateAddress(address: string): boolean {
+  const h = address.toLowerCase().replace(/^\[|\]$/g, ""); // strip IPv6 [..] brackets
   if (!h) return true;
-  if (h === "localhost" || h.endsWith(".localhost") || h.endsWith(".local") || h.endsWith(".internal")) {
-    return true;
-  }
   // IPv6 loopback / unspecified / link-local (fe80::/10) / unique-local (fc00::/7)
   if (h === "::1" || h === "::" || h.startsWith("fe80:") || h.startsWith("fc") || h.startsWith("fd")) {
     return true;
@@ -34,4 +25,39 @@ export function isPrivateHost(hostname: string): boolean {
     if (a === 100 && b >= 64 && b <= 127) return true; // CGNAT (100.64.0.0/10)
   }
   return false;
+}
+
+/**
+ * True when a hostname is a literal loopback / link-local / private / cloud-
+ * metadata target. String-only (no DNS) so it's cheap and can never false-reject
+ * a legitimate public feed on a transient DNS hiccup. Used to guard host-supplied
+ * fetch targets (iCal calendar-source URLs) against the most direct SSRF vectors
+ * (http://127.0.0.1, http://169.254.169.254, http://10.x, localhost, [::1]).
+ */
+export function isPrivateHost(hostname: string): boolean {
+  const h = hostname.toLowerCase().replace(/^\[|\]$/g, "");
+  if (!h) return true;
+  if (h === "localhost" || h.endsWith(".localhost") || h.endsWith(".local") || h.endsWith(".internal")) {
+    return true;
+  }
+  return isPrivateAddress(h);
+}
+
+/**
+ * DNS-resolution gate: true when the hostname resolves to ANY private address —
+ * closes the "public hostname pointed at an internal IP" SSRF vector the string
+ * check can't see. Checked at FETCH time (records can change after the source
+ * was saved). Fail-OPEN on a lookup error (NXDOMAIN/timeout): the fetch will
+ * fail on its own, and a transient DNS hiccup must never false-block a real
+ * feed. Residual (documented): a TOCTOU rebind between this lookup and the
+ * fetch's own lookup — closing that fully needs a pinning dispatcher; combined
+ * with redirect:"manual" + the string gate this covers the practical attacks.
+ */
+export async function resolvesToPrivate(hostname: string): Promise<boolean> {
+  try {
+    const addrs = await lookup(hostname.replace(/^\[|\]$/g, ""), { all: true, verbatim: true });
+    return addrs.some((a) => isPrivateAddress(a.address));
+  } catch {
+    return false;
+  }
 }

@@ -73,9 +73,35 @@ let running = false;
 // Two-speed sweep: most runs use a NARROW reservation window (cheap, ~every 2
 // min); a WIDE "catch-up" window runs at most once per HOSPITABLE_DEEP_EVERY_MIN
 // so a guest who checked out long ago but messages now is still imported —
-// without paying the wide sweep on every run. Starts at 0 so the first run after
-// a restart is a deep one.
-let lastDeepSyncAt = 0;
+// without paying the wide sweep on every run. The cadence lives in SystemLock
+// (not a module variable) so ALL replicas share ONE schedule: previously each
+// replica — and every restart — kept its own timestamp and re-ran its own deep
+// sweep (extra Hospitable load + 429s for nothing).
+const DEEP_CADENCE_NAME = "deep-sync-cadence";
+
+/**
+ * Atomically claim the deep-sweep slot: true when THIS run should go deep. The
+ * row's lockedUntil holds the NEXT allowed deep time; updateMany on a free slot
+ * is the atomic arbiter (same pattern as the sync lock). On a DB hiccup the run
+ * quietly stays narrow — the deep sweep retries on a later round.
+ */
+async function claimDeepWindow(deepEveryMs: number): Promise<boolean> {
+  const now = new Date();
+  try {
+    await prisma.systemLock.upsert({
+      where: { name: DEEP_CADENCE_NAME },
+      create: { name: DEEP_CADENCE_NAME, lockedUntil: new Date(0) },
+      update: {},
+    });
+    const res = await prisma.systemLock.updateMany({
+      where: { name: DEEP_CADENCE_NAME, lockedUntil: { lte: now } },
+      data: { lockedUntil: new Date(now.getTime() + deepEveryMs) },
+    });
+    return res.count === 1;
+  } catch {
+    return false;
+  }
+}
 
 /**
  * Take the cross-instance lock if it is free; safe to call from any replica.
@@ -154,8 +180,7 @@ export async function runScheduledSync(): Promise<ScheduledSyncTotals> {
       // at most hourly to still pick up far-future bookings and long-ago guests
       // who message now. All tunable via env, sensible defaults baked in.
       const deepEveryMs = (Number(process.env.HOSPITABLE_DEEP_EVERY_MIN) || 60) * 60_000;
-      const deep = Date.now() - lastDeepSyncAt >= deepEveryMs;
-      if (deep) lastDeepSyncAt = Date.now();
+      const deep = await claimDeepWindow(deepEveryMs);
       const window = deep
         ? {
             backDays: Number(process.env.HOSPITABLE_DEEP_BACK_DAYS) || 540,

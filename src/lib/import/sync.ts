@@ -2,7 +2,7 @@ import "server-only";
 import { prisma } from "@/lib/db";
 import { parseIcs } from "@/lib/import/ics";
 import { createReservationTasks, removeAutoTasksForCancelledReservation } from "@/lib/automation";
-import { isPrivateHost } from "@/lib/net/private-host";
+import { isPrivateHost, resolvesToPrivate } from "@/lib/net/private-host";
 import { ANON_NAME } from "@/lib/data-retention";
 
 export interface SyncResult {
@@ -41,8 +41,11 @@ export async function syncCalendarSource(sourceId: string): Promise<SyncResult> 
   let text: string;
   try {
     // SSRF guard (defense-in-depth for rows created before the route guard):
-    // never fetch a loopback / link-local / private / metadata target.
-    if (isPrivateHost(new URL(source.url).hostname)) {
+    // never fetch a loopback / link-local / private / metadata target — neither a
+    // LITERAL private address nor a public hostname that currently RESOLVES to a
+    // private one (DNS is checked at fetch time; records can change after save).
+    const feedHost = new URL(source.url).hostname;
+    if (isPrivateHost(feedHost) || (await resolvesToPrivate(feedHost))) {
       throw new Error("blocked private host");
     }
     const res = await fetch(source.url, {

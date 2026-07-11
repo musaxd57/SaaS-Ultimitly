@@ -102,7 +102,18 @@ export const reservationUpdateSchema = z.object({
 // --- Conversation / Messages ------------------------------------------------
 export const conversationReplySchema = z.object({
   body: z.string().min(1, "Mesaj boş olamaz").max(10000),
-  senderName: z.string().max(200).optional(),
+  // Reserved sender names: "GuestOps AI" is the AI-message classification magic
+  // string (reports count on it) and "Lixus AI" is its rendered brand alias — a
+  // manual reply claiming either would self-inflate the org's AI metrics or
+  // visually impersonate the bot. Only the automation writes them (server-side,
+  // never through this schema).
+  senderName: z
+    .string()
+    .max(200)
+    .refine((v) => !["guestops ai", "lixus ai"].includes(v.trim().toLowerCase()), {
+      message: "Bu gönderen adı sistem için ayrılmıştır.",
+    })
+    .optional(),
 });
 
 export const conversationCreateSchema = z.object({

@@ -59,3 +59,27 @@ describe("runScheduledSync cross-instance lock", () => {
     expect(lock!.lockedUntil.getTime()).toBeGreaterThan(Date.now());
   });
 });
+
+describe("deep-sweep cadence (SystemLock-shared)", () => {
+  beforeEach(async () => {
+    await resetDb();
+    vi.clearAllMocks();
+  });
+
+  it("one deep per window across replicas/restarts: first run claims, second stays narrow, expiry re-claims", async () => {
+    await runScheduledSync(); // first ever run claims the deep slot
+    const row1 = await prisma.systemLock.findUnique({ where: { name: "deep-sync-cadence" } });
+    expect(row1).not.toBeNull();
+    expect(row1!.lockedUntil.getTime()).toBeGreaterThan(Date.now()); // next deep scheduled
+
+    await runScheduledSync(); // inside the window → narrow, cadence untouched
+    const row2 = await prisma.systemLock.findUnique({ where: { name: "deep-sync-cadence" } });
+    expect(row2!.lockedUntil.getTime()).toBe(row1!.lockedUntil.getTime());
+
+    // Window elapses (as it would after HOSPITABLE_DEEP_EVERY_MIN) → next run re-claims.
+    await prisma.systemLock.update({ where: { name: "deep-sync-cadence" }, data: { lockedUntil: new Date(0) } });
+    await runScheduledSync();
+    const row3 = await prisma.systemLock.findUnique({ where: { name: "deep-sync-cadence" } });
+    expect(row3!.lockedUntil.getTime()).toBeGreaterThan(Date.now());
+  });
+});

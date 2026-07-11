@@ -6,6 +6,7 @@ import {
   propertySchema,
   kbSchema,
   taskUpdateSchema,
+  conversationReplySchema,
   zodFieldErrors,
 } from "@/lib/validators";
 
@@ -101,5 +102,18 @@ describe("zodFieldErrors", () => {
       expect(Object.keys(fields)).toContain("email");
       expect(Object.keys(fields)).toContain("password");
     }
+  });
+});
+
+describe("conversationReplySchema — reserved sender names", () => {
+  it("rejects the AI classification magic string and its brand alias (self-inflate guard)", () => {
+    for (const name of ["GuestOps AI", "guestops ai", " Lixus AI ", "LIXUS AI"]) {
+      const r = conversationReplySchema.safeParse({ body: "Merhaba", senderName: name });
+      expect(r.success).toBe(false);
+    }
+  });
+  it("accepts normal sender names (and none at all)", () => {
+    expect(conversationReplySchema.safeParse({ body: "Merhaba", senderName: "Musa" }).success).toBe(true);
+    expect(conversationReplySchema.safeParse({ body: "Merhaba" }).success).toBe(true);
   });
 });

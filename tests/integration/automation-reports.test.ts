@@ -499,3 +499,40 @@ describe("getMonthlyReport", () => {
     expect(report.messagesCount).toBe(3);
   });
 });
+
+describe("getMonthlyReport — Istanbul month window", () => {
+  it("buckets by the ISTANBUL calendar month: pre-month-start excluded, month-start included", async () => {
+    const { orgId, propertyId } = await makeOrgWithProperty();
+    // Reconstruct the exact window the report uses (Istanbul fixed UTC+3).
+    const ym = new Date().toLocaleDateString("en-CA", { timeZone: "Europe/Istanbul" }).slice(0, 7);
+    const [y, m] = ym.split("-").map(Number);
+    const monthStart = new Date(Date.UTC(y, m - 1, 1) - 3 * 60 * 60 * 1000);
+
+    await prisma.reservation.create({
+      data: {
+        propertyId,
+        guestName: "Önceki ay",
+        arrivalDate: new Date(monthStart.getTime() - 1000), // 1s BEFORE the Istanbul month
+        departureDate: new Date(monthStart.getTime() + 86_400_000),
+        status: "confirmed",
+        totalAmount: 111,
+        currency: "TRY",
+      },
+    });
+    await prisma.reservation.create({
+      data: {
+        propertyId,
+        guestName: "Ay başı",
+        arrivalDate: monthStart, // exactly the first Istanbul instant of the month
+        departureDate: new Date(monthStart.getTime() + 2 * 86_400_000),
+        status: "confirmed",
+        totalAmount: 222,
+        currency: "TRY",
+      },
+    });
+
+    const report = await getMonthlyReport(orgId);
+    expect(report.reservationsCount).toBe(1); // only the in-month one
+    expect(report.revenueByCurrency.find((r) => r.currency === "TRY")?.total).toBe(222);
+  });
+});
