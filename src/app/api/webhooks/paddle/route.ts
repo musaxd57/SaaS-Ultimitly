@@ -214,9 +214,18 @@ async function applySubscriptionEvent(
     : {};
 
   // Settles a pending in-app plan change ONLY when this event actually applied
-  // (ordering guard passed) — a stale/dropped event must not clear the guard.
+  // (ordering guard passed) AND it carries the pending TARGET price (holder) —
+  // an unrelated subscription event must not clear someone else's guard.
+  const eventPriceId = eventPriceIdFromData(data);
   const settlePending = () =>
-    prisma.systemLock.deleteMany({ where: { name: `plan-change-pending:${organizationId}` } }).catch(() => {});
+    prisma.systemLock
+      .deleteMany({
+        where: {
+          name: `plan-change-pending:${organizationId}`,
+          OR: [{ holder: null }, ...(eventPriceId ? [{ holder: eventPriceId }] : [])],
+        },
+      })
+      .catch(() => {});
   if (existing) {
     const resU = await prisma.subscription.updateMany({
       where: { organizationId, ...orderingGuard },
@@ -246,10 +255,11 @@ async function applySubscriptionEvent(
     // read and this create (organizationId is unique). Fall back to the guarded
     // update — the ordering WHERE decides which of the two events sticks.
     if (err instanceof Prisma.PrismaClientKnownRequestError && err.code === "P2002") {
-      await prisma.subscription.updateMany({
+      const resF = await prisma.subscription.updateMany({
         where: { organizationId, ...orderingGuard },
         data: updateData,
       });
+      if (resF.count === 1) await settlePending();
       return;
     }
     throw err;

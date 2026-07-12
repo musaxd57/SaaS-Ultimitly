@@ -319,3 +319,39 @@ describe("codex round-3 residuals", () => {
     expect(u2?.status).toBe("confirmed");
   });
 });
+
+describe("codex round-4: atomic legacy adoption", () => {
+  afterEach(() => vi.restoreAllMocks());
+  const day = (d: number) => new Date(Date.now() + d * 86_400_000);
+  const ymd = (d: number) => day(d).toISOString().slice(0, 10).replace(/-/g, "");
+  const ev = (uid: string, extra = "") =>
+    `BEGIN:VEVENT\nUID:${uid}\n${extra}DTSTART;VALUE=DATE:${ymd(10)}\nDTEND;VALUE=DATE:${ymd(12)}\nSUMMARY:R\nEND:VEVENT`;
+  const cal = (...e: string[]) => `BEGIN:VCALENDAR\n${e.join("\n")}\nEND:VCALENDAR`;
+
+  it("STATUS:CANCELLED adopts a legacy NULL row (ownership stamped) before cancelling it", async () => {
+    const { propertyId } = await makeOrgWithProperty();
+    const legacy = await prisma.reservation.create({
+      data: { propertyId, guestName: "L", arrivalDate: day(10), departureDate: day(12), status: "confirmed", channel: "airbnb", sourceReference: "leg-1", calendarSourceId: null },
+    });
+    const s1 = await prisma.calendarSource.create({ data: { propertyId, label: "Airbnb", url: "https://e.com/l.ics" } });
+    mockFetch(cal(ev("leg-1", "STATUS:CANCELLED\n")));
+    await syncCalendarSource(s1.id);
+    const after = await prisma.reservation.findUnique({ where: { id: legacy.id } });
+    expect(after?.status).toBe("cancelled");
+    expect(after?.calendarSourceId).toBe(s1.id); // adopted, not orphan-cancelled
+  });
+
+  it("a row ALREADY bound to another source is never updated even when the read raced (atomic ownership)", async () => {
+    const { propertyId } = await makeOrgWithProperty();
+    const s1 = await prisma.calendarSource.create({ data: { propertyId, label: "Airbnb", url: "https://e.com/x1.ics" } });
+    const s2 = await prisma.calendarSource.create({ data: { propertyId, label: "Airbnb", url: "https://e.com/x2.ics" } });
+    await prisma.reservation.create({
+      data: { propertyId, guestName: "B", arrivalDate: day(10), departureDate: day(12), status: "confirmed", channel: "airbnb", sourceReference: "race-1", calendarSourceId: s2.id },
+    });
+    mockFetch(cal(ev("race-1", "STATUS:CANCELLED\n")));
+    await syncCalendarSource(s1.id); // s1 must not touch s2's row (lookup + atomic WHERE)
+    const row = await prisma.reservation.findFirst({ where: { propertyId, sourceReference: "race-1" } });
+    expect(row?.status).toBe("confirmed");
+    expect(row?.calendarSourceId).toBe(s2.id);
+  });
+});

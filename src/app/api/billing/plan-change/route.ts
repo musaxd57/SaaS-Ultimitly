@@ -102,17 +102,30 @@ export const POST = withManage(async (session, req) => {
     await prisma.systemLock.deleteMany({ where: { name: `plan-change-pending:${session.organizationId}` } }).catch(() => {});
     return jsonOk({ ok: true, mode: r.mode, reconciled: true });
   }
-  // FAIL-CLOSED pending: record it BEFORE the PATCH — if we cannot record, we do
-  // not PATCH (an ambiguous outcome would otherwise be unguarded).
+  // FAIL-CLOSED + ATOMIC pending claim BEFORE the PATCH (Codex round-4): the
+  // upsert version was not a claim — two CONCURRENT applies with two different
+  // valid tokens both passed the fast-path check and both PATCHed. updateMany on
+  // a free slot is the arbiter (same pattern as the sync lock); the holder field
+  // records the TARGET priceId so the webhook only settles the matching change.
+  let pendingClaimed = false;
   try {
-    await prisma.systemLock.upsert({
-      where: { name: `plan-change-pending:${session.organizationId}` },
-      create: { name: `plan-change-pending:${session.organizationId}`, lockedUntil: new Date(Date.now() + 15 * 60_000) },
-      update: { lockedUntil: new Date(Date.now() + 15 * 60_000) },
+    const name = `plan-change-pending:${session.organizationId}`;
+    await prisma.systemLock.upsert({ where: { name }, create: { name, lockedUntil: new Date(0) }, update: {} });
+    const claim = await prisma.systemLock.updateMany({
+      where: { name, lockedUntil: { lte: new Date() } },
+      data: { lockedUntil: new Date(Date.now() + 15 * 60_000), holder: r.priceId },
     });
+    pendingClaimed = claim.count === 1;
   } catch {
     await releasePlanChangeNonce(token.jti);
     return NextResponse.json({ error: "Şu anda işlenemedi, lütfen tekrar deneyin." }, { status: 503 });
+  }
+  if (!pendingClaimed) {
+    await releasePlanChangeNonce(token.jti);
+    return NextResponse.json(
+      { error: "Önceki plan değişikliği doğrulanıyor — birkaç dakika içinde netleşecek.", pendingVerification: true },
+      { status: 409 },
+    );
   }
   const clearPending = () =>
     prisma.systemLock.deleteMany({ where: { name: `plan-change-pending:${session.organizationId}` } }).catch(() => {});

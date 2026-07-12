@@ -237,4 +237,34 @@ describe("plan change routes (gated, PATCH /subscriptions)", () => {
     session = { ...(session as SessionPayload), role: "staff" };
     expect((await CHANGE(req({ planCode: "business" }), ctx)).status).toBe(403);
   });
+  it("CONCURRENT applies with two DIFFERENT valid tokens: only ONE reaches Paddle", async () => {
+    // First PATCH hangs in-flight; the second apply must be refused by the ATOMIC
+    // pending claim (the old upsert let both through → double PATCH/charge).
+    let releaseFirst!: (v: { ok: boolean }) => void;
+    updateMock.mockImplementationOnce(() => new Promise((res) => (releaseFirst = res)));
+    const p1 = CHANGE(req({ planCode: "business", previewToken: tok("pri_isletme", "upgrade") }), ctx);
+    await new Promise((r) => setTimeout(r, 150)); // first is now inside the PATCH, holding the claim
+    const second = await CHANGE(req({ planCode: "business", previewToken: tok("pri_isletme", "upgrade") }), ctx);
+    expect(second.status).toBe(409);
+    expect((await second.json()).pendingVerification).toBe(true);
+    releaseFirst({ ok: true });
+    expect((await p1).status).toBe(200);
+    expect(updateMock).toHaveBeenCalledTimes(1);
+  });
+
+  it("webhook settles the pending guard ONLY for the matching target price", async () => {
+    await prisma.systemLock.create({
+      data: { name: `plan-change-pending:${orgId}`, lockedUntil: new Date(Date.now() + 15 * 60_000), holder: "pri_isletme" },
+    });
+    // Simulate the webhook's settle semantics: an event for a DIFFERENT price
+    // must not clear the guard; the matching one clears it.
+    await prisma.systemLock.deleteMany({
+      where: { name: `plan-change-pending:${orgId}`, OR: [{ holder: null }, { holder: "pri_pro" }] },
+    });
+    expect(await prisma.systemLock.count({ where: { name: `plan-change-pending:${orgId}` } })).toBe(1);
+    await prisma.systemLock.deleteMany({
+      where: { name: `plan-change-pending:${orgId}`, OR: [{ holder: null }, { holder: "pri_isletme" }] },
+    });
+    expect(await prisma.systemLock.count({ where: { name: `plan-change-pending:${orgId}` } })).toBe(0);
+  });
 });

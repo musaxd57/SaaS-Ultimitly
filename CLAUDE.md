@@ -134,6 +134,10 @@ dürüst senaryo kartları + env-gated canlı AI demo + injection çipi. QR conc
 retention/anonimleştirme, orphan-sweep, kayıt onay kutusu.
 
 ## ÇALIŞMA TARZI (kalıcı tercih — kullanıcı "ezberle" dedi)
+- **CODEX PROTOKOLÜ (kullanıcı, 2026-07-11 — ÇOK ÖNEMLİ):** Codex'in dediklerini ZORLA yapmak zorunda değilsin.
+  Doğruysa/mantıklıysa yap; sen daha iyisini biliyorsan GEREKÇENİ AÇIKLA — kullanıcı bunu Codex'e iletir, Codex
+  "senin dediğin gibi olsun" derse öyle kalır. Yani: körü körüne uygulama YOK, gerekçeli ret MEŞRU, son karar
+  karşılıklı gerekçe üzerinden.
 - **BOL AGENT, DURMADAN:** her iş turunda 8-12+ paralel agent (FE/BE/güvenlik/hız/müşteri-gözü/strateji),
   bulguları KOD İLE DOĞRULA (agent ~yarı bulguda yanılır), sadece gerçek+güvenli olanları uygula, sonunda
   tek "karar listesi" sun, soru sorma. ⚠️ Agent raporları uzun → ajanlara "sadece gerçek bulgu, kısa
@@ -821,7 +825,8 @@ Kullanıcı direktifi kalıcı: Codex önerileri KÖRÜ KÖRÜNE uygulanmaz — 
 3. **[Outbound claim ≠ outbox — dürüst sınır]** `!outcome.ok`'ta koşulsuz release güvensizdi (Hospitable timeout'ta mesaj GİTMİŞ olabilir → release+retry = misafire duplicate). Artık definitive (HTTP 4xx, 408 hariç) → release+retry; ambiguous (timeout/5xx/network) → claim TTL boyunca TUTULUR + kullanıcıya "konuşmayı kontrol etmeden tekrar gönderme" 502'si. Claim store hatası fail-OPEN'dı → fail-CLOSED (503). NOT: bu hâlâ outbox değil — durable delivery-state ölçek işi olarak backlog'da AÇIK kalır ("ilkece reddedildi" ifadesi geri alındı).
 4. **[Paddle pending kilidi]** ambiguous 202'den sonra YENİ preview+token ile 2. PATCH mümkündü → SystemLock `plan-change-pending:{org}` (15dk TTL): pending canlıyken preview+apply 409; webhook subscription-event uygulayınca kilidi siler; apply öncesi GET-price hedefteyse PATCH atılmaz (reconciled). +testler.
 5. **[Upload]** kullanıcı-başı rate-limit (30/saat); local-disk→S3 backlog'da AÇIK. 6. **[Consent]** withAuth→withManage (staff sözleşme kaydı yapamaz, +403 test).
-**857 test + 2 E2E yeşil · typecheck + build temiz.** Kalan AÇIK işler: object storage (S3) · durable outbox (ölçekte) · Railway backup/PITR + Wait-for-CI (ops) · QR per-misafir credential · CSV parser rewrite · legalTextHash (#46).
+**✅ CODEX TUR-4 (diff denetimi — 5/5 mantıklı bulunup uygulandı):** pending kilidi upsert→**atomik claim** (updateMany-on-free-slot, holder=hedef priceId; eşzamanlı iki farklı token'dan yalnız biri PATCH atar — deterministik concurrency testi: ilk PATCH askıdayken ikinci apply 409) · webhook settle yalnız guard-uygulandı **VE** event priceId==holder iken (P2002 fallback'ta da count===1 şartı) · iCal legacy-NULL adoption **atomik updateMany** (sahiplik UPDATE içinde yeniden doğrulanır; claim kaybedilirse skip) · STATUS:CANCELLED NULL satırı önce SAHİPLENİP iptal eder, başka source'un satırına asla dokunmaz. +4 test. **863 test yeşil.**
+Kalan AÇIK işler: object storage (S3) · durable outbox (ölçekte) · Railway backup/PITR + Wait-for-CI (ops) · QR per-misafir credential · CSV parser rewrite · legalTextHash (#46).
 
 ## 📋 YARIN DEVAM — BACKLOG (kullanıcı: "yoruldum, .md'ye yaz, yarın yaparız")
 **Bu oturumda BİLEREK BAŞLANMADI (kullanıcı direktifi: yeni büyük parça/migration YOK):**

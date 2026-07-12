@@ -121,9 +121,19 @@ export async function syncCalendarSource(sourceId: string): Promise<SyncResult> 
       // drop the auto tasks), never import it as a live stay.
       if (row.status === "CANCELLED") {
         if (existing && existing.status !== "cancelled") {
-          await prisma.reservation.update({ where: { id: existing.id }, data: { status: "cancelled" } });
-          await removeAutoTasksForCancelledReservation(existing.id);
-          result.updated++;
+          // ATOMIC adopt-and-cancel: the ownership condition is re-checked inside
+          // the UPDATE (a concurrent source may have adopted the NULL legacy row
+          // between our read and now). Count 0 → not ours anymore → skip.
+          const resC = await prisma.reservation.updateMany({
+            where: { id: existing.id, OR: [{ calendarSourceId: source.id }, { calendarSourceId: null }] },
+            data: { status: "cancelled", calendarSourceId: source.id },
+          });
+          if (resC.count === 1) {
+            await removeAutoTasksForCancelledReservation(existing.id);
+            result.updated++;
+          } else {
+            result.skipped++;
+          }
         } else {
           result.skipped++;
         }
@@ -136,8 +146,10 @@ export async function syncCalendarSource(sourceId: string): Promise<SyncResult> 
         // name/notes back from the feed. Dates (non-PII) still refresh so
         // occupancy stays correct. Mirrors the hospitable-sync.ts guard.
         const scrubbed = existing.guestName === ANON_NAME;
-        await prisma.reservation.update({
-          where: { id: existing.id },
+        // ATOMIC adoption: ownership re-checked inside the UPDATE (count 0 = a
+        // concurrent source claimed the legacy NULL row first → not ours, skip).
+        const resU = await prisma.reservation.updateMany({
+          where: { id: existing.id, OR: [{ calendarSourceId: source.id }, { calendarSourceId: null }] },
           data: {
             ...(scrubbed
               ? {}
@@ -154,6 +166,10 @@ export async function syncCalendarSource(sourceId: string): Promise<SyncResult> 
             ...(existing.status === "cancelled" ? { status: "confirmed" } : {}),
           },
         });
+        if (resU.count === 0) {
+          result.skipped++;
+          continue;
+        }
         // Backfill tasks for reservations imported before task automation existed.
         await createReservationTasks(existing.id);
         result.updated++;
