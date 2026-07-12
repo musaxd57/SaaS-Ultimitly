@@ -46,23 +46,36 @@ export default async function TasksPage({
       },
       orderBy: [{ dueAt: "asc" }, { createdAt: "desc" }],
     }),
-    prisma.property.findMany({
-      where: { organizationId: session.organizationId },
-      select: { id: true, name: true },
-      orderBy: { name: "asc" },
-    }),
+    // Property filter chips: managers see the whole portfolio; STAFF must only
+    // see the properties of tasks assigned to them — the full org property list
+    // is business-internal (Codex staff-leak finding).
+    canManage
+      ? prisma.property.findMany({
+          where: { organizationId: session.organizationId },
+          select: { id: true, name: true },
+          orderBy: { name: "asc" },
+        })
+      : prisma.property.findMany({
+          where: {
+            organizationId: session.organizationId,
+            tasks: { some: { assignedToId: session.userId } },
+          },
+          select: { id: true, name: true },
+          orderBy: { name: "asc" },
+        }),
     // Current/future checkouts still missing their CLEANING task — so the backfill
-    // button appears and one click fills the gap. Keyed on the cleaning type
-    // specifically (a reservation can have a check-in task yet still need cleaning),
-    // and on the Istanbul day boundary so it matches the dashboard's "today".
-    prisma.reservation.count({
-      where: {
-        property: { organizationId: session.organizationId },
-        status: { not: "cancelled" },
-        tasks: { none: { type: "cleaning" } },
-        departureDate: { gte: zonedDayRange(new Date(), "Europe/Istanbul").start },
-      },
-    }),
+    // button appears and one click fills the gap. MANAGER-ONLY: the org-wide count
+    // (and the backfill button itself) is management UI; staff must not see it.
+    canManage
+      ? prisma.reservation.count({
+          where: {
+            property: { organizationId: session.organizationId },
+            status: { not: "cancelled" },
+            tasks: { none: { type: "cleaning" } },
+            departureDate: { gte: zonedDayRange(new Date(), "Europe/Istanbul").start },
+          },
+        })
+      : Promise.resolve(0),
   ]);
 
   // Drives the Bugün / Bu hafta / Bu ay filter. Each task is bucketed by the
@@ -98,12 +111,14 @@ export default async function TasksPage({
   return (
     <>
       <PageHeader title="Görevler" description="Temizlik, bakım ve check-in görevlerini yönetin.">
-        {reservationsMissingTasks > 0 ? (
+        {canManage && reservationsMissingTasks > 0 ? (
           <BackfillTasksButton count={reservationsMissingTasks} />
         ) : null}
-        <LinkButton href="/tasks/new">
-          <Plus className="size-4" /> Yeni görev
-        </LinkButton>
+        {canManage ? (
+          <LinkButton href="/tasks/new">
+            <Plus className="size-4" /> Yeni görev
+          </LinkButton>
+        ) : null}
       </PageHeader>
 
       <Card className="border-primary/20 bg-accent/40">

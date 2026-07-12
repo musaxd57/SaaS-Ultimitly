@@ -38,7 +38,9 @@ export async function middleware(req: NextRequest) {
   // layer. The JWT role is sufficient for a UX redirect — every mutation still hits
   // the fail-closed API guard.)
   if (session && session.role === "staff" && !isPublic) {
-    const staffAllowed = pathname === "/tasks" || pathname.startsWith("/tasks/");
+    // EXACT /tasks only: /tasks/new is a manager surface (it server-renders every
+    // property + user name for the assign form) — startsWith leaked it to staff.
+    const staffAllowed = pathname === "/tasks";
     if (!staffAllowed) {
       const url = req.nextUrl.clone();
       url.pathname = "/tasks";

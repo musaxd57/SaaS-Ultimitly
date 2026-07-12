@@ -1,6 +1,6 @@
 import { prisma } from "@/lib/db";
 import { badRequest, jsonOk, tooManyRequests } from "@/lib/api";
-import { withAuth } from "@/lib/route-guard";
+import { withManage } from "@/lib/route-guard";
 import { rateLimit, clientIp } from "@/lib/rate-limit";
 import { LEGAL_VERSION } from "@/lib/legal-entity";
 import { paddlePriceToPlanCode } from "@/lib/payments/paddle";
@@ -12,7 +12,9 @@ import { checkoutConsentSchema, zodFieldErrors } from "@/lib/validators";
 // userId come from the SESSION (never the request body) → IDOR-proof; legal
 // version, IP (rightmost XFF) and User-Agent are server-derived so they can't be
 // forged. One row per acceptance (a user may go through checkout more than once).
-export const POST = withAuth(async (session, req) => {
+// Contract/payment authority: owner + manager only (staff must not be able to
+// record a distance-sales consent for the org — Codex finding).
+export const POST = withManage(async (session, req) => {
   // Light per-user cap so a script can't bloat the table; generous for real use
   // (no human opens checkout 20×/hour). Best-effort on the client, so a 429 here
   // never blocks the purchase — earlier accepted records already stand.

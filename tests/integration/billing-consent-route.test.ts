@@ -68,6 +68,13 @@ describe("POST /api/billing/consent (checkout distance-sales evidence)", () => {
     expect(rows[0].createdAt).toBeInstanceOf(Date);
   });
 
+  it("FORBIDS staff (403, no row) — contract/payment authority is owner/manager only", async () => {
+    session = { ...(session as NonNullable<typeof session>), role: "staff" };
+    const res = await POST(postReq({ planCode: "pro", priceId: "pri_1" }), ctx);
+    expect(res.status).toBe(403);
+    expect(await prisma.checkoutConsent.count()).toBe(0);
+  });
+
   it("rejects unauthenticated requests (401, no row)", async () => {
     session = null;
     const res = await POST(postReq({ planCode: "pro", priceId: "pri_123" }), ctx);
