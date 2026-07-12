@@ -158,7 +158,7 @@ END:VCALENDAR`;
     expect(live?.status).toBe("confirmed"); // still present → untouched
   });
 
-  it("cancels a FUTURE reservation that silently disappears from the feed (reconciliation)", async () => {
+  it("disappearance reconciliation is OFF: a silently-missing future row stays confirmed (partial-feed safety)", async () => {
     const two = `BEGIN:VCALENDAR
 VERSION:2.0
 BEGIN:VEVENT
@@ -201,7 +201,7 @@ END:VCALENDAR`;
     ).toBe("confirmed");
     expect(
       (await prisma.reservation.findFirst({ where: { propertyId, sourceReference: "fut-2@airbnb.com" } }))?.status,
-    ).toBe("cancelled");
+    ).toBe("confirmed");
   });
 
   it("does NOT mass-cancel when the feed comes back empty (guard)", async () => {
@@ -213,10 +213,11 @@ END:VCALENDAR`;
     await syncCalendarSource(source.id);
     vi.restoreAllMocks();
 
-    // A transiently empty (but valid) feed must not cancel everything.
+    const before = await prisma.reservation.count({ where: { propertyId, status: "confirmed" } });
+    // A transiently empty (but valid) feed must not cancel anything.
     mockFetch(`BEGIN:VCALENDAR\nVERSION:2.0\nEND:VCALENDAR`);
     await syncCalendarSource(source.id);
-    expect(await prisma.reservation.count({ where: { propertyId, status: "cancelled" } })).toBe(0);
+    expect(await prisma.reservation.count({ where: { propertyId, status: "confirmed" } })).toBe(before);
   });
 
   it("records an error status when the feed cannot be fetched", async () => {
@@ -279,5 +280,42 @@ describe("reconciliation source-binding (mass-cancel guard)", () => {
     await syncCalendarSource(s2.id); // s2's feed does NOT contain s1's UID
     const s1row = await prisma.reservation.findFirst({ where: { propertyId, sourceReference: "uid-s1@airbnb.com" } });
     expect(s1row?.status).toBe("confirmed");
+  });
+});
+
+describe("codex round-3 residuals", () => {
+  afterEach(() => vi.restoreAllMocks());
+  const day = (d: number) => new Date(Date.now() + d * 86_400_000);
+  const ymd = (d: number) => day(d).toISOString().slice(0, 10).replace(/-/g, "");
+  const ev = (uid: string, extra = "") =>
+    `BEGIN:VEVENT\nUID:${uid}\n${extra}DTSTART;VALUE=DATE:${ymd(10)}\nDTEND;VALUE=DATE:${ymd(12)}\nSUMMARY:R\nEND:VEVENT`;
+  const cal = (...evs: string[]) => `BEGIN:VCALENDAR\n${evs.join("\n")}\nEND:VCALENDAR`;
+
+  it("SAME UID in two feeds: source-2 neither updates nor cancels source-1's row (incl. STATUS:CANCELLED)", async () => {
+    const { propertyId } = await makeOrgWithProperty();
+    const s1 = await prisma.calendarSource.create({ data: { propertyId, label: "Airbnb", url: "https://e.com/1.ics" } });
+    const s2 = await prisma.calendarSource.create({ data: { propertyId, label: "Airbnb", url: "https://e.com/2.ics" } });
+    mockFetch(cal(ev("shared-uid")));
+    await syncCalendarSource(s1.id);
+    vi.restoreAllMocks();
+    // Source-2 serves the SAME UID but CANCELLED → must create/affect NOTHING of s1's.
+    mockFetch(cal(ev("shared-uid", "STATUS:CANCELLED\n")));
+    await syncCalendarSource(s2.id);
+    const rows = await prisma.reservation.findMany({ where: { propertyId, sourceReference: "shared-uid" } });
+    expect(rows).toHaveLength(1);
+    expect(rows[0].calendarSourceId).toBe(s1.id);
+    expect(rows[0].status).toBe("confirmed"); // cross-source cancel blocked
+  });
+
+  it("PARTIAL non-empty feed does not mass-cancel its own missing rows (disappearance reconciliation off)", async () => {
+    const { propertyId } = await makeOrgWithProperty();
+    const s1 = await prisma.calendarSource.create({ data: { propertyId, label: "Airbnb", url: "https://e.com/3.ics" } });
+    mockFetch(cal(ev("u-1"), ev("u-2")));
+    await syncCalendarSource(s1.id);
+    vi.restoreAllMocks();
+    mockFetch(cal(ev("u-1"))); // partial response: u-2 missing but NOT cancelled upstream
+    await syncCalendarSource(s1.id);
+    const u2 = await prisma.reservation.findFirst({ where: { propertyId, sourceReference: "u-2" } });
+    expect(u2?.status).toBe("confirmed");
   });
 });

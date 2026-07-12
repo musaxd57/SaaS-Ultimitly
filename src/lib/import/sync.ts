@@ -103,9 +103,16 @@ export async function syncCalendarSource(sourceId: string): Promise<SyncResult> 
     }
 
     try {
+      // Scope the match to THIS source: a same-UID row bound to ANOTHER source
+      // must never be updated/cancelled by this feed. Legacy pre-binding rows
+      // (calendarSourceId NULL) are adopted — but only those, exactly once.
       const existing = row.sourceReference
         ? await prisma.reservation.findFirst({
-            where: { propertyId: source.propertyId, sourceReference: row.sourceReference },
+            where: {
+              propertyId: source.propertyId,
+              sourceReference: row.sourceReference,
+              OR: [{ calendarSourceId: source.id }, { calendarSourceId: null }],
+            },
             select: { id: true, guestName: true, status: true },
           })
         : null;
@@ -180,7 +187,8 @@ export async function syncCalendarSource(sourceId: string): Promise<SyncResult> 
   // drop its auto tasks. Guarded hard: only when the feed returned events (a
   // transient empty/broken feed must never mass-cancel), only future arrivals
   // (a current/past stay is left alone), best-effort (never fails the import).
-  if (rows.length > 0) {
+  const DISAPPEARANCE_RECONCILIATION = false; // OFF: a partial-but-non-empty feed response could mass-cancel ITS OWN rows; re-enable only with two-consecutive-miss tracking (needs per-source state). STATUS:CANCELLED still cancels explicitly.
+  if (DISAPPEARANCE_RECONCILIATION && rows.length > 0) {
     try {
       const upcoming = await prisma.reservation.findMany({
         where: {
