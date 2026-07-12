@@ -72,18 +72,36 @@ export const POST = withManage<{ id: string }>(async (session, req, { params }) 
   // retry with the SAME text must not reach the guest twice. Keyed on the RAW
   // typed body so both duplicates map to the same claim even when translate is on.
   const claimed = await claimOutboundSend(id, parsed.data.body);
-  if (!claimed) {
+  if (claimed === "duplicate") {
     return NextResponse.json(
       { error: "Bu mesaj az önce gönderildi veya hâlâ gönderiliyor." },
       { status: 409 },
     );
   }
+  if (claimed === "unavailable") {
+    return NextResponse.json(
+      { error: "Şu anda gönderilemedi — lütfen birazdan tekrar deneyin." },
+      { status: 503 },
+    );
+  }
   const outcome = await sendOnChannel(conversation, replyBody, token ?? undefined);
   if (!outcome.ok) {
-    // Nothing reached the guest → release so the same text can be retried now.
-    await releaseOutboundSend(id, parsed.data.body);
+    // DEFINITIVE provider rejection (HTTP 4xx incl. 429; not 408) → nothing was
+    // delivered → release so the same text is retryable now. Anything else
+    // (timeout / network / 5xx) is AMBIGUOUS — the message MAY have reached the
+    // guest despite the error (Codex: this claim is dedup, not an outbox) — so
+    // the claim stays held for its TTL and the user is told to CHECK the thread
+    // before resending; the next sync imports the message if it did deliver.
+    const definitive = /HTTP (4\d\d)/.test(outcome.error ?? "") && !/HTTP 408/.test(outcome.error ?? "");
+    if (definitive) {
+      await releaseOutboundSend(id, parsed.data.body);
+      return NextResponse.json(
+        { error: `Mesaj gönderilemedi: ${outcome.error ?? "bilinmeyen hata"}` },
+        { status: 502 },
+      );
+    }
     return NextResponse.json(
-      { error: `Mesaj gönderilemedi: ${outcome.error ?? "bilinmeyen hata"}` },
+      { error: "Gönderim doğrulanamadı — mesaj ulaşmış olabilir. Tekrar göndermeden önce konuşmayı kontrol edin.", ambiguous: true },
       { status: 502 },
     );
   }

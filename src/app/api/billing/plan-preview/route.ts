@@ -1,5 +1,7 @@
 import { badRequest, jsonOk, notFound, tooManyRequests } from "@/lib/api";
 import { withManage } from "@/lib/route-guard";
+import { prisma } from "@/lib/db";
+import { NextResponse } from "next/server";
 import { rateLimit } from "@/lib/rate-limit";
 import { isPaddleConfigured, previewSubscriptionUpdate } from "@/lib/payments/paddle";
 import { planChangeEnabled, resolvePlanChange, signPlanChangeToken } from "@/lib/billing/plan-change";
@@ -19,6 +21,13 @@ export const POST = withManage(async (session, req) => {
 
   const r = await resolvePlanChange(session.organizationId, planCode);
   if (!r.ok) return badRequest({ error: r.error });
+  const pending = await prisma.systemLock.findUnique({ where: { name: `plan-change-pending:${session.organizationId}` } });
+  if (pending && pending.lockedUntil > new Date()) {
+    return NextResponse.json(
+      { error: "Önceki plan değişikliği doğrulanıyor — birkaç dakika içinde netleşecek.", pendingVerification: true },
+      { status: 409 },
+    );
+  }
 
   const preview = await previewSubscriptionUpdate(r.providerRef, r.priceId, r.proration);
   // Sign the previewed change so /plan-change can bind apply → this exact preview

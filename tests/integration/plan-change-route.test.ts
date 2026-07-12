@@ -171,6 +171,7 @@ describe("plan change routes (gated, PATCH /subscriptions)", () => {
     const t = tok("pri_isletme", "upgrade");
     // The PATCH reached Paddle and applied, but the response was lost (timeout).
     updateMock.mockResolvedValueOnce({ ok: false, kind: "ambiguous", reason: "The operation timed out" });
+    getPriceMock.mockResolvedValueOnce(null); // pre-PATCH check: not yet on target
     getPriceMock.mockResolvedValue("pri_isletme"); // reconcile GET: subscription IS on the target
     const first = await CHANGE(req({ planCode: "business", previewToken: t }), ctx);
     expect(first.status).toBe(200);

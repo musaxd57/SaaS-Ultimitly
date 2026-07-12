@@ -1,4 +1,5 @@
 import { NextResponse } from "next/server";
+import { prisma } from "@/lib/db";
 import { badRequest, jsonOk, notFound, tooManyRequests } from "@/lib/api";
 import { withManage } from "@/lib/route-guard";
 import { rateLimit } from "@/lib/rate-limit";
@@ -35,6 +36,17 @@ export const POST = withManage(async (session, req) => {
 
   const r = await resolvePlanChange(session.organizationId, planCode);
   if (!r.ok) return badRequest({ error: r.error });
+
+  // PENDING guard (Codex): after an AMBIGUOUS apply we must not fire a second
+  // PATCH via a fresh preview+token until the first is settled (webhook clears
+  // the lock; 15-min TTL self-heals if it never arrives).
+  const pending = await prisma.systemLock.findUnique({ where: { name: `plan-change-pending:${session.organizationId}` } });
+  if (pending && pending.lockedUntil > new Date()) {
+    return NextResponse.json(
+      { error: "Önceki plan değişikliği doğrulanıyor — birkaç dakika içinde netleşecek.", pendingVerification: true },
+      { status: 409 },
+    );
+  }
 
   // Bind apply → a real preview: require a valid, unexpired preview token whose
   // org + target price + mode match this change. Blocks a direct/blind apply, a
@@ -83,6 +95,13 @@ export const POST = withManage(async (session, req) => {
     );
   }
 
+  // Already on the target (e.g. a prior ambiguous apply DID land): success without
+  // another PATCH (Codex: never re-PATCH what is already applied).
+  const alreadyOn = await getSubscriptionCurrentPriceId(r.providerRef);
+  if (alreadyOn === r.priceId) {
+    await prisma.systemLock.deleteMany({ where: { name: `plan-change-pending:${session.organizationId}` } }).catch(() => {});
+    return jsonOk({ ok: true, mode: r.mode, reconciled: true });
+  }
   const result = await updateSubscriptionPlan(r.providerRef, r.priceId, r.proration);
   if (!result.ok) {
     if (result.kind === "definitive") {
@@ -96,6 +115,15 @@ export const POST = withManage(async (session, req) => {
         { status: 502 },
       );
     }
+    // Mark the org PENDING so no new preview/apply can fire a second PATCH until
+    // the webhook settles this one (or the TTL expires).
+    await prisma.systemLock
+      .upsert({
+        where: { name: `plan-change-pending:${session.organizationId}` },
+        create: { name: `plan-change-pending:${session.organizationId}`, lockedUntil: new Date(Date.now() + 15 * 60_000) },
+        update: { lockedUntil: new Date(Date.now() + 15 * 60_000) },
+      })
+      .catch(() => {});
     // AMBIGUOUS (5xx / timeout / network): the PATCH MAY have applied at Paddle even
     // though we got no clean response. Paddle has no general-API idempotency key, so we
     // must NOT re-send (would double-apply) → keep the nonce CONSUMED. Reconcile by

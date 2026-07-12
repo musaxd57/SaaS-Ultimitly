@@ -28,8 +28,12 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ id:
   // Duplicate guard: a double-click must not put the same host reply in the
   // guest's thread twice. (Internal thread — nothing external is sent, so no
   // release path is needed; the short TTL self-heals a failed create.)
-  if (!(await claimOutboundSend(convo.id, text))) {
+  const claimed = await claimOutboundSend(convo.id, text);
+  if (claimed === "duplicate") {
     return NextResponse.json({ error: "Bu mesaj az önce gönderildi." }, { status: 409 });
+  }
+  if (claimed === "unavailable") {
+    return NextResponse.json({ error: "Şu anda kaydedilemedi — birazdan tekrar deneyin." }, { status: 503 });
   }
 
   const [message] = await prisma.$transaction([

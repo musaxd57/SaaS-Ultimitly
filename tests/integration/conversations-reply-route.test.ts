@@ -155,7 +155,7 @@ describe("POST /api/conversations/[id]/reply — staff RBAC gate", () => {
 
   it("a FAILED delivery releases the claim → an immediate retry of the same text succeeds", async () => {
     session = { userId: "u", organizationId: orgId, role: "owner", email: "o@x.com", name: "Owner", sessionEpoch: 0 };
-    mockSend.mockResolvedValueOnce({ ok: false, error: "kanal hatası" });
+    mockSend.mockResolvedValueOnce({ ok: false, error: "Hospitable HTTP 400 (bad_request)" }); // DEFINITIVE → releases
     const failed = await POST(req(conversationId, { body: "Merhaba" }), {
       params: Promise.resolve({ id: conversationId }),
     });
@@ -179,6 +179,18 @@ describe("POST /api/conversations/[id]/reply — staff RBAC gate", () => {
         .status,
     ).toBe(201);
     expect(mockSend).toHaveBeenCalledTimes(2);
+  });
+
+  it("AMBIGUOUS delivery failure (timeout) keeps the claim — no immediate identical resend", async () => {
+    session = { userId: "u", organizationId: orgId, role: "owner", email: "o@x.com", name: "Owner", sessionEpoch: 0 };
+    mockSend.mockResolvedValueOnce({ ok: false, error: "The operation timed out" });
+    const first = await POST(req(conversationId, { body: "Merhaba" }), { params: Promise.resolve({ id: conversationId }) });
+    expect(first.status).toBe(502);
+    expect((await first.json()).ambiguous).toBe(true);
+    // The message MAY have reached the guest → the same text must NOT resend now.
+    const retry = await POST(req(conversationId, { body: "Merhaba" }), { params: Promise.resolve({ id: conversationId }) });
+    expect(retry.status).toBe(409);
+    expect(mockSend).toHaveBeenCalledTimes(1);
   });
 
   it("QR host reply: a double-click creates ONE row, second gets 409", async () => {

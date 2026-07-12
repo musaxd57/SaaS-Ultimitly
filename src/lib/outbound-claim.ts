@@ -32,12 +32,14 @@ function claimName(conversationId: string, body: string): string {
 
 /**
  * Atomically claim "this exact text is being sent on this conversation right now".
- * True on the first claim; false when an identical send is in flight or just
- * happened (within the TTL). Fail-OPEN on an unexpected DB error: a broken lock
- * store must never block the host from answering a guest — the guard is a
- * best-effort dedup, not a delivery gate.
+ * "claimed" on the first claim; "duplicate" when an identical send is in flight
+ * or just happened (within the TTL); "unavailable" (fail-CLOSED) when the lock
+ * store itself errors — with the store down a duplicate delivery could not be
+ * detected, so the send is refused instead.
  */
-export async function claimOutboundSend(conversationId: string, body: string): Promise<boolean> {
+export type OutboundClaim = "claimed" | "duplicate" | "unavailable";
+
+export async function claimOutboundSend(conversationId: string, body: string): Promise<OutboundClaim> {
   const now = new Date();
   // Opportunistic sweep: expired claims can't dedup anything anymore (their TTL
   // has passed), so drop them to keep SystemLock from growing unbounded.
@@ -48,10 +50,13 @@ export async function claimOutboundSend(conversationId: string, body: string): P
     await prisma.systemLock.create({
       data: { name: claimName(conversationId, body), lockedUntil: new Date(now.getTime() + CLAIM_TTL_MS) },
     });
-    return true;
+    return "claimed";
   } catch (err) {
-    if (err instanceof Prisma.PrismaClientKnownRequestError && err.code === "P2002") return false;
-    return true; // unknown DB error → fail-open (never block a legit reply)
+    if (err instanceof Prisma.PrismaClientKnownRequestError && err.code === "P2002") return "duplicate";
+    // Unknown store error → fail CLOSED (Codex): with the lock store down the
+    // post-send persist would fail too, and a user retry would re-deliver to the
+    // guest. A 503 "try again shortly" is the safe, honest answer.
+    return "unavailable";
   }
 }
 

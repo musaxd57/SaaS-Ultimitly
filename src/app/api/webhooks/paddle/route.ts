@@ -191,6 +191,8 @@ async function applySubscriptionEvent(
   // KVKK erasure attributes Paddle-generated customer.* events through this.
   const customerId = str(data.customer_id);
 
+  // A subscription event settles any pending in-app plan change for this org.
+  await prisma.systemLock.deleteMany({ where: { name: `plan-change-pending:${organizationId}` } }).catch(() => {});
   const updateData = {
     ...(planCode ? { planCode } : {}),
     status,

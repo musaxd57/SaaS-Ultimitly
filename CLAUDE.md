@@ -813,7 +813,15 @@ Kullanıcı direktifi kalıcı: Codex önerileri KÖRÜ KÖRÜNE uygulanmaz — 
 - **[REDDEDİLDİ — outbox tablosu]** Sadece ertelenmedi, ilkece reddedildi: claim-then-send + adopt-heal + cron'un doğal retry'ı pratik riskleri
   kapatıyor; tek-org ölçeğinde sıcak mesaj yoluna kuyruk+worker = risk/fayda tutmuyor. Ölçek gelince (çoklu müşteri + gerçek teslimat-SLA'sı) yeniden değerlendir.
 - **[SKIP — lint kapısı]** Repo'da eslint konfigürasyonu yok; typecheck zaten kapıda. Sırf Codex listeledi diye eslint bootstrap'ı = churn.
-**850 test + 2 E2E yeşil · typecheck temiz · build temiz · CI 4 job yeşil (GitHub runner'da doğrulandı).** Codex'in kod listesinde açık madde kalmadı.
+**CI 4 job GitHub runner'da yeşil.** ~~"Codex'in kod listesinde açık madde kalmadı"~~ — BU İDDİA YANLIŞTI (bir sonraki bağımsız tarama 6 yeni gerçek bulgu çıkardı; "açık iş yok" tarzı mutlak cümle KURMA).
+
+## ✅ CODEX TUR-2 (2026-07-11 akşam — 6/6 bulgu kırmızı-önce doğrulandı ve kapatıldı, migration 16)
+1. **[RBAC sızıntı]** staff /tasks org-geneli mülk listesi + backfill sayısı + "Yeni görev" CTA görüyordu; middleware `/tasks/*` açıktı → /tasks/new TÜM mülk+kullanıcı adlarını render ediyordu. Fix: staff exact-/tasks; /tasks/new canManage-redirect; staff mülk çipleri YALNIZ atanmış görev mülklerinden; backfill sayısı manager-only. RSC element-tree testiyle fix-öncesi RED kanıtlı (+3 test).
+2. **[iCal MASS-CANCEL — migration 16 `Reservation.calendarSourceId`]** reconciliation propertyId+channel'dı → bir feed, hiç görmediği aynı-kanal rezervasyonları (Hospitable'ınkiler, ikinci feed'inkiler) İPTAL EDİYORDU. Artık import her satırı source'a bağlar (update'te legacy NULL'lar iyileşir), reconciliation SADECE kendi source'una bağlı satırları düşürür. Residual: aynı feed'in kısmi-ama-boş-olmayan cevabı kendi satırlarını yine iptal edebilir (empty-feed guard duruyor). +2 test. Zincir 00→16 sıfır-drift.
+3. **[Outbound claim ≠ outbox — dürüst sınır]** `!outcome.ok`'ta koşulsuz release güvensizdi (Hospitable timeout'ta mesaj GİTMİŞ olabilir → release+retry = misafire duplicate). Artık definitive (HTTP 4xx, 408 hariç) → release+retry; ambiguous (timeout/5xx/network) → claim TTL boyunca TUTULUR + kullanıcıya "konuşmayı kontrol etmeden tekrar gönderme" 502'si. Claim store hatası fail-OPEN'dı → fail-CLOSED (503). NOT: bu hâlâ outbox değil — durable delivery-state ölçek işi olarak backlog'da AÇIK kalır ("ilkece reddedildi" ifadesi geri alındı).
+4. **[Paddle pending kilidi]** ambiguous 202'den sonra YENİ preview+token ile 2. PATCH mümkündü → SystemLock `plan-change-pending:{org}` (15dk TTL): pending canlıyken preview+apply 409; webhook subscription-event uygulayınca kilidi siler; apply öncesi GET-price hedefteyse PATCH atılmaz (reconciled). +testler.
+5. **[Upload]** kullanıcı-başı rate-limit (30/saat); local-disk→S3 backlog'da AÇIK. 6. **[Consent]** withAuth→withManage (staff sözleşme kaydı yapamaz, +403 test).
+**857 test + 2 E2E yeşil · typecheck + build temiz.** Kalan AÇIK işler: object storage (S3) · durable outbox (ölçekte) · Railway backup/PITR + Wait-for-CI (ops) · QR per-misafir credential · CSV parser rewrite · legalTextHash (#46).
 
 ## 📋 YARIN DEVAM — BACKLOG (kullanıcı: "yoruldum, .md'ye yaz, yarın yaparız")
 **Bu oturumda BİLEREK BAŞLANMADI (kullanıcı direktifi: yeni büyük parça/migration YOK):**
@@ -834,7 +842,7 @@ Kullanıcı direktifi kalıcı: Codex önerileri KÖRÜ KÖRÜNE uygulanmaz — 
 **[OPS/LEGAL — kullanıcı/avukat, kod değil]:** SELLER bilgisi (`legal-entity.ts` [parantez]) · KVKK-DPA (OpenAI ABD aktarım) · RESEND DNS (SPF/DKIM/DMARC) · Paddle küçük gerçek ödeme birlikte-test · `PADDLE_PLAN_CHANGE_ENABLED=1` ile upgrade/downgrade'i hesapta doğrula.
 
 ## Durum
-**848 test yeşil, typecheck temiz, next build temiz, migrate deploy canlıda doğrulanmış.** 16 migration
+**857 test (+2 E2E) yeşil, typecheck temiz, next build temiz, migrate deploy canlıda doğrulanmış.** 16 migration
 (00_init→15_invoice_unique_customer_id) sıfır-drift (taze Postgres'te + dolu-tablo kanıtıyla doğrulandı). Son iş: 40-ajan lansman denetimi →
 FAZ-1 (7 bulgu) + FAZ-2 A (T1 checklist UI · sync cursor · oturum DB-yetkili · 2FA/TOTP · foto-unlink · KB-cap · take · prompt-sanitize)
 + FAZ-2 B (iCal SSRF+resurrection · consent planCode↔priceId · billing trialing-null+founder guard · photoUrl scheme · QR gate tutarlılığı)
