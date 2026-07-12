@@ -102,12 +102,27 @@ export const POST = withManage(async (session, req) => {
     await prisma.systemLock.deleteMany({ where: { name: `plan-change-pending:${session.organizationId}` } }).catch(() => {});
     return jsonOk({ ok: true, mode: r.mode, reconciled: true });
   }
+  // FAIL-CLOSED pending: record it BEFORE the PATCH — if we cannot record, we do
+  // not PATCH (an ambiguous outcome would otherwise be unguarded).
+  try {
+    await prisma.systemLock.upsert({
+      where: { name: `plan-change-pending:${session.organizationId}` },
+      create: { name: `plan-change-pending:${session.organizationId}`, lockedUntil: new Date(Date.now() + 15 * 60_000) },
+      update: { lockedUntil: new Date(Date.now() + 15 * 60_000) },
+    });
+  } catch {
+    await releasePlanChangeNonce(token.jti);
+    return NextResponse.json({ error: "Şu anda işlenemedi, lütfen tekrar deneyin." }, { status: 503 });
+  }
+  const clearPending = () =>
+    prisma.systemLock.deleteMany({ where: { name: `plan-change-pending:${session.organizationId}` } }).catch(() => {});
   const result = await updateSubscriptionPlan(r.providerRef, r.priceId, r.proration);
   if (!result.ok) {
     if (result.kind === "definitive") {
       // Paddle REJECTED the request (4xx) → the plan did NOT change → nothing charged
       // → release the nonce so the same token can be retried after fixing the cause.
       await releasePlanChangeNonce(token.jti);
+      await clearPending(); // definitive: nothing applied → nothing pending
       // Surface Paddle's reason (e.g. "Paddle HTTP 400 (subscription_locked...)") so
       // the owner can see WHY without digging the logs. No ids/secrets in the string.
       return NextResponse.json(
@@ -115,15 +130,6 @@ export const POST = withManage(async (session, req) => {
         { status: 502 },
       );
     }
-    // Mark the org PENDING so no new preview/apply can fire a second PATCH until
-    // the webhook settles this one (or the TTL expires).
-    await prisma.systemLock
-      .upsert({
-        where: { name: `plan-change-pending:${session.organizationId}` },
-        create: { name: `plan-change-pending:${session.organizationId}`, lockedUntil: new Date(Date.now() + 15 * 60_000) },
-        update: { lockedUntil: new Date(Date.now() + 15 * 60_000) },
-      })
-      .catch(() => {});
     // AMBIGUOUS (5xx / timeout / network): the PATCH MAY have applied at Paddle even
     // though we got no clean response. Paddle has no general-API idempotency key, so we
     // must NOT re-send (would double-apply) → keep the nonce CONSUMED. Reconcile by
@@ -140,8 +146,10 @@ export const POST = withManage(async (session, req) => {
         { status: 202 },
       );
     }
+    await clearPending(); // reconciled: the change IS live → not pending anymore
     // Reconciled: the change is live at Paddle → fall through to audit + success.
   }
+  if (result.ok) await clearPending();
 
   await writeAudit({
     organizationId: session.organizationId,

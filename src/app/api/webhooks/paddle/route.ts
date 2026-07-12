@@ -191,8 +191,6 @@ async function applySubscriptionEvent(
   // KVKK erasure attributes Paddle-generated customer.* events through this.
   const customerId = str(data.customer_id);
 
-  // A subscription event settles any pending in-app plan change for this org.
-  await prisma.systemLock.deleteMany({ where: { name: `plan-change-pending:${organizationId}` } }).catch(() => {});
   const updateData = {
     ...(planCode ? { planCode } : {}),
     status,
@@ -215,11 +213,16 @@ async function applySubscriptionEvent(
     ? { OR: [{ lastEventAt: null }, { lastEventAt: { lte: occurredAt } }] }
     : {};
 
+  // Settles a pending in-app plan change ONLY when this event actually applied
+  // (ordering guard passed) — a stale/dropped event must not clear the guard.
+  const settlePending = () =>
+    prisma.systemLock.deleteMany({ where: { name: `plan-change-pending:${organizationId}` } }).catch(() => {});
   if (existing) {
-    await prisma.subscription.updateMany({
+    const resU = await prisma.subscription.updateMany({
       where: { organizationId, ...orderingGuard },
       data: updateData,
     });
+    if (resU.count === 1) await settlePending();
     return; // count 0 → a fresher event already applied → stale, dropped
   }
   try {
@@ -237,6 +240,7 @@ async function applySubscriptionEvent(
         customerId,
       },
     });
+    await settlePending();
   } catch (err) {
     // Concurrent first-event race: another delivery created the row between our
     // read and this create (organizationId is unique). Fall back to the guarded
