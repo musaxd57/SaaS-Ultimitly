@@ -217,15 +217,15 @@ async function applySubscriptionEvent(
   // (ordering guard passed) AND it carries the pending TARGET price (holder) —
   // an unrelated subscription event must not clear someone else's guard.
   const eventPriceId = eventPriceIdFromData(data);
-  const settlePending = () =>
-    prisma.systemLock
-      .deleteMany({
-        where: {
-          name: `plan-change-pending:${organizationId}`,
-          OR: [{ holder: null }, ...(eventPriceId ? [{ holder: eventPriceId }] : [])],
-        },
-      })
+  const settlePending = async () => {
+    // STRICT match only: the event must carry the pending TARGET price. A lock
+    // without a matching event (incl. any legacy null-holder row) expires via
+    // its 15-min TTL instead of being cleared by an unrelated event.
+    if (!eventPriceId) return;
+    await prisma.systemLock
+      .deleteMany({ where: { name: `plan-change-pending:${organizationId}`, holder: eventPriceId } })
       .catch(() => {});
+  };
   if (existing) {
     const resU = await prisma.subscription.updateMany({
       where: { organizationId, ...orderingGuard },

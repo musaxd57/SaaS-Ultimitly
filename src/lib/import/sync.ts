@@ -103,30 +103,36 @@ export async function syncCalendarSource(sourceId: string): Promise<SyncResult> 
     }
 
     try {
-      // Scope the match to THIS source: a same-UID row bound to ANOTHER source
-      // must never be updated/cancelled by this feed. Legacy pre-binding rows
-      // (calendarSourceId NULL) are adopted — but only those, exactly once.
-      const existing = row.sourceReference
+      // BOUND-FIRST lookup (Codex round-5): match a row already owned by THIS
+      // source; only a LIVE event may fall back to a legacy calendarSourceId=NULL
+      // row (one-time adoption). A CANCELLED event never touches an unowned row —
+      // safer default: an upstream-cancelled legacy row simply stays until a live
+      // match or manual cleanup (bounded staleness, zero cross-source risk).
+      const bound = row.sourceReference
         ? await prisma.reservation.findFirst({
-            where: {
-              propertyId: source.propertyId,
-              sourceReference: row.sourceReference,
-              OR: [{ calendarSourceId: source.id }, { calendarSourceId: null }],
-            },
+            where: { propertyId: source.propertyId, sourceReference: row.sourceReference, calendarSourceId: source.id },
             select: { id: true, guestName: true, status: true },
           })
         : null;
+      const legacy =
+        !bound && row.sourceReference && row.status !== "CANCELLED"
+          ? await prisma.reservation.findFirst({
+              where: { propertyId: source.propertyId, sourceReference: row.sourceReference, calendarSourceId: null },
+              select: { id: true, guestName: true, status: true },
+            })
+          : null;
+      const existing = bound ?? legacy;
 
       // Feed explicitly marks the booking CANCELLED → reflect it locally (cancel +
       // drop the auto tasks), never import it as a live stay.
       if (row.status === "CANCELLED") {
         if (existing && existing.status !== "cancelled") {
-          // ATOMIC adopt-and-cancel: the ownership condition is re-checked inside
-          // the UPDATE (a concurrent source may have adopted the NULL legacy row
-          // between our read and now). Count 0 → not ours anymore → skip.
+          // Only a row ALREADY bound to this source may be cancelled (ownership
+          // re-checked atomically inside the UPDATE; legacy NULL is never here —
+          // the lookup above excludes it for CANCELLED events).
           const resC = await prisma.reservation.updateMany({
-            where: { id: existing.id, OR: [{ calendarSourceId: source.id }, { calendarSourceId: null }] },
-            data: { status: "cancelled", calendarSourceId: source.id },
+            where: { id: existing.id, calendarSourceId: source.id },
+            data: { status: "cancelled" },
           });
           if (resC.count === 1) {
             await removeAutoTasksForCancelledReservation(existing.id);

@@ -1,6 +1,7 @@
 import { describe, it, expect, beforeEach, beforeAll, afterAll } from "vitest";
 import { NextRequest } from "next/server";
 import { createHmac } from "node:crypto";
+import { Prisma } from "@prisma/client";
 import { prisma, resetDb } from "../helpers/db";
 import { POST } from "@/app/api/webhooks/paddle/route";
 
@@ -517,5 +518,64 @@ describe("POST /api/webhooks/paddle", () => {
     expect(res.status).toBe(200);
     expect(await prisma.webhookEvent.findUnique({ where: { providerEventId: "evt_nolink" } })).not.toBeNull();
     expect(await prisma.subscription.count()).toBe(0);
+  });
+});
+
+describe("codex round-5: pending settle via the REAL handler", () => {
+  const pendingName = () => `plan-change-pending:${orgId}`;
+  const seedPending = (holder: string) =>
+    prisma.systemLock.create({ data: { name: pendingName(), lockedUntil: new Date(Date.now() + 15 * 60_000), holder } });
+  const subEvent = (id: string, evId: string, occurred: string) =>
+    JSON.stringify({
+      event_id: evId,
+      event_type: "subscription.updated",
+      occurred_at: occurred,
+      data: { id, status: "active", custom_data: { consentId }, items: [{ price: { id: "pri_pro" } }] },
+    });
+
+  it("an APPLIED event with the MATCHING target price clears the pending guard", async () => {
+    await seedPending("pri_pro");
+    const body = subEvent("sub_p1", "evt_p1", new Date().toISOString());
+    expect((await POST(req(body, sign(body)))).status).toBe(200);
+    expect(await prisma.systemLock.count({ where: { name: pendingName() } })).toBe(0);
+  });
+
+  it("an applied event with a DIFFERENT price does NOT clear it (TTL will)", async () => {
+    await seedPending("pri_isletme"); // pending targets business; event carries pri_pro
+    const body = subEvent("sub_p2", "evt_p2", new Date().toISOString());
+    expect((await POST(req(body, sign(body)))).status).toBe(200);
+    expect(await prisma.systemLock.count({ where: { name: pendingName() } })).toBe(1);
+  });
+
+  it("a STALE (ordering-vetoed) event never clears the guard even with a matching price", async () => {
+    const t1 = new Date(Date.now() - 60_000).toISOString();
+    const t2 = new Date().toISOString();
+    const fresh = subEvent("sub_p3", "evt_p3a", t2);
+    expect((await POST(req(fresh, sign(fresh)))).status).toBe(200);
+    await seedPending("pri_pro");
+    const stale = subEvent("sub_p3", "evt_p3b", t1); // older than lastEventAt → dropped
+    expect((await POST(req(stale, sign(stale)))).status).toBe(200);
+    expect(await prisma.systemLock.count({ where: { name: pendingName() } })).toBe(1);
+  });
+
+  it("P2002 create-fallback: the rival's row is updated AND the matching pending settles", async () => {
+    await seedPending("pri_pro");
+    const origCreate = prisma.subscription.create;
+    // Emulate a racing replica: it creates the row first, our create hits P2002,
+    // the handler falls back to the guarded updateMany (count 1) → settle.
+    prisma.subscription.create = (async (args: { data: Record<string, unknown> }) => {
+      await origCreate.call(prisma.subscription, {
+        data: { organizationId: orgId, planCode: "free", status: "past_due", provider: "paddle", providerRef: "sub_p4" },
+      });
+      throw new Prisma.PrismaClientKnownRequestError("dup", { code: "P2002", clientVersion: "6" });
+    }) as unknown as typeof origCreate;
+    const body = subEvent("sub_p4", "evt_p4", new Date().toISOString());
+    const res = await POST(req(body, sign(body))).finally(() => {
+      prisma.subscription.create = origCreate;
+    });
+    expect(res.status).toBe(200);
+    const sub = await prisma.subscription.findUnique({ where: { organizationId: orgId } });
+    expect(sub?.status).toBe("active"); // fallback updateMany applied the event
+    expect(await prisma.systemLock.count({ where: { name: pendingName() } })).toBe(0); // settled
   });
 });

@@ -328,7 +328,7 @@ describe("codex round-4: atomic legacy adoption", () => {
     `BEGIN:VEVENT\nUID:${uid}\n${extra}DTSTART;VALUE=DATE:${ymd(10)}\nDTEND;VALUE=DATE:${ymd(12)}\nSUMMARY:R\nEND:VEVENT`;
   const cal = (...e: string[]) => `BEGIN:VCALENDAR\n${e.join("\n")}\nEND:VCALENDAR`;
 
-  it("STATUS:CANCELLED adopts a legacy NULL row (ownership stamped) before cancelling it", async () => {
+  it("STATUS:CANCELLED NEVER touches a legacy NULL row; a LIVE event still adopts it", async () => {
     const { propertyId } = await makeOrgWithProperty();
     const legacy = await prisma.reservation.create({
       data: { propertyId, guestName: "L", arrivalDate: day(10), departureDate: day(12), status: "confirmed", channel: "airbnb", sourceReference: "leg-1", calendarSourceId: null },
@@ -336,9 +336,15 @@ describe("codex round-4: atomic legacy adoption", () => {
     const s1 = await prisma.calendarSource.create({ data: { propertyId, label: "Airbnb", url: "https://e.com/l.ics" } });
     mockFetch(cal(ev("leg-1", "STATUS:CANCELLED\n")));
     await syncCalendarSource(s1.id);
-    const after = await prisma.reservation.findUnique({ where: { id: legacy.id } });
-    expect(after?.status).toBe("cancelled");
-    expect(after?.calendarSourceId).toBe(s1.id); // adopted, not orphan-cancelled
+    let after = await prisma.reservation.findUnique({ where: { id: legacy.id } });
+    expect(after?.status).toBe("confirmed"); // an unowned row is never cancelled
+    expect(after?.calendarSourceId).toBeNull(); // ...nor adopted by a CANCELLED event
+    vi.restoreAllMocks();
+    // A LIVE event for the same UID performs the one-time adoption as before.
+    mockFetch(cal(ev("leg-1")));
+    await syncCalendarSource(s1.id);
+    after = await prisma.reservation.findUnique({ where: { id: legacy.id } });
+    expect(after?.calendarSourceId).toBe(s1.id);
   });
 
   it("a row ALREADY bound to another source is never updated even when the read raced (atomic ownership)", async () => {
