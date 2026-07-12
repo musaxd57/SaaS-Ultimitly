@@ -290,6 +290,11 @@ model Reservation {
   // (each reservation starts null → rebinds fresh). Not PII (a hash + timestamp).
   chatBoundHash   String?   // sha256(hex) of the current stay's device secret; null = unbound
   chatBoundAt     DateTime? // when this stay's chat was first claimed by a device
+  // Which iCal CalendarSource imported this row (plain id, no FK — a deleted
+  // source simply leaves rows unbound). Feed reconciliation may ONLY cancel rows
+  // bound to the SAME source: without this, a feed cancelled every same-channel
+  // booking it had never seen (other feeds, Hospitable) — mass-cancel (Codex).
+  calendarSourceId String?
   createdAt       DateTime @default(now())
   updatedAt       DateTime @updatedAt
 

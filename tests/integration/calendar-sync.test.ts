@@ -233,3 +233,51 @@ END:VCALENDAR`;
     expect(updated?.lastStatus).toBe("error");
   });
 });
+
+describe("reconciliation source-binding (mass-cancel guard)", () => {
+  afterEach(() => vi.restoreAllMocks());
+  const day = (d: number) => new Date(Date.now() + d * 86_400_000);
+  const ymd = (d: number) => day(d).toISOString().slice(0, 10).replace(/-/g, "");
+  const feedWith = (uid: string) =>
+    `BEGIN:VCALENDAR\nBEGIN:VEVENT\nUID:${uid}\nDTSTART;VALUE=DATE:${ymd(10)}\nDTEND;VALUE=DATE:${ymd(12)}\nSUMMARY:Reserved\nEND:VEVENT\nEND:VCALENDAR`;
+
+  it("NEVER cancels another integration's same-channel booking (e.g. Hospitable) on a feed sync", async () => {
+    const { propertyId } = await makeOrgWithProperty();
+    // Imported by the HOSPITABLE sync: same channel, but NOT from this feed.
+    const hosp = await prisma.reservation.create({
+      data: {
+        propertyId,
+        guestName: "Hospitable Misafiri",
+        arrivalDate: day(10),
+        departureDate: day(12),
+        status: "confirmed",
+        channel: "airbnb",
+        sourceReference: "HOSP-1",
+      },
+    });
+    const source = await prisma.calendarSource.create({
+      data: { propertyId, label: "Airbnb", url: "https://example.com/a.ics" },
+    });
+    mockFetch(feedWith("ical-1@airbnb.com"));
+    await syncCalendarSource(source.id);
+    const after = await prisma.reservation.findUnique({ where: { id: hosp.id } });
+    expect(after?.status).toBe("confirmed"); // feed must only reconcile ITS OWN rows
+  });
+
+  it("two same-channel feeds never cancel each other's bookings", async () => {
+    const { propertyId } = await makeOrgWithProperty();
+    const s1 = await prisma.calendarSource.create({
+      data: { propertyId, label: "Airbnb", url: "https://example.com/1.ics" },
+    });
+    const s2 = await prisma.calendarSource.create({
+      data: { propertyId, label: "Airbnb", url: "https://example.com/2.ics" },
+    });
+    mockFetch(feedWith("uid-s1@airbnb.com"));
+    await syncCalendarSource(s1.id);
+    vi.restoreAllMocks();
+    mockFetch(feedWith("uid-s2@airbnb.com"));
+    await syncCalendarSource(s2.id); // s2's feed does NOT contain s1's UID
+    const s1row = await prisma.reservation.findFirst({ where: { propertyId, sourceReference: "uid-s1@airbnb.com" } });
+    expect(s1row?.status).toBe("confirmed");
+  });
+});

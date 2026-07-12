@@ -140,6 +140,9 @@ export async function syncCalendarSource(sourceId: string): Promise<SyncResult> 
                 }),
             arrivalDate: row.arrivalDate,
             departureDate: row.departureDate,
+            // (Re-)bind to THIS source: legacy pre-binding rows heal on their
+            // first match, making them reconcilable again — safely scoped.
+            calendarSourceId: source.id,
             // Re-confirm a stay that had been cancelled but now reappears live.
             ...(existing.status === "cancelled" ? { status: "confirmed" } : {}),
           },
@@ -157,6 +160,7 @@ export async function syncCalendarSource(sourceId: string): Promise<SyncResult> 
             channel,
             status: "confirmed",
             sourceReference: row.sourceReference ? row.sourceReference.slice(0, 200) : null,
+            calendarSourceId: source.id,
             notes: row.notes ? row.notes.slice(0, 5000) : null,
             currency: "EUR",
           },
@@ -182,6 +186,11 @@ export async function syncCalendarSource(sourceId: string): Promise<SyncResult> 
         where: {
           propertyId: source.propertyId,
           channel,
+          // SOURCE BINDING (mass-cancel guard): only rows THIS feed imported are
+          // candidates. Another feed's rows, Hospitable's rows, and legacy
+          // unbound rows (calendarSourceId NULL) are never touched — a feed can
+          // only "disappear" what it once showed.
+          calendarSourceId: source.id,
           sourceReference: { not: null },
           status: { in: ["confirmed", "pending"] },
           arrivalDate: { gt: new Date() },
