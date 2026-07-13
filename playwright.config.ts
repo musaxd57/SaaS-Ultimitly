@@ -20,15 +20,23 @@ export default defineConfig({
       : {}),
   },
   webServer: {
-    // Production server against the E2E database. `next start` requires a prior
-    // `npm run build` (the e2e npm script chains it).
-    command: "npx next start -p 3100",
+    // The REAL start chain (Codex): `npm run start` = prestart env gate
+    // (scripts/verify-env.mjs) → `next start`. The old `npx next start`
+    // BYPASSED the prestart hook, so a green E2E never proved the production
+    // boot path. NODE_ENV=production makes the gate live here: a missing/
+    // placeholder AUTH_SECRET or a missing/AUTH_SECRET-equal ENCRYPTION_KEY
+    // refuses to boot and the suite fails loudly.
+    command: "npm run start",
     url: "http://127.0.0.1:3100",
     reuseExistingServer: !process.env.CI,
     timeout: 120_000,
     env: {
       ...process.env,
-      PORT: "3100",
+      NODE_ENV: "production",
+      PORT: "3100", // `next start` binds $PORT (the npm script owns the command — no -p flag)
+      AUTH_SECRET: process.env.AUTH_SECRET || "e2e-auth-secret-forty-characters-long-xx",
+      // DISTINCT from AUTH_SECRET on purpose — the gate rejects equality.
+      ENCRYPTION_KEY: process.env.ENCRYPTION_KEY || "e2e-encryption-key-different-40chars-xx",
       // Keep the boot quiet & deterministic: no internal cron ticking mid-test.
       INTERNAL_CRON_DISABLED: "1",
     },
