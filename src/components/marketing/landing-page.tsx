@@ -127,13 +127,25 @@ const FEATURES = [
 
 // Display tiers — keep PRICES + property ranges in sync with src/lib/billing/plans.ts
 // (DEFAULT_PLANS). Reverse-trial: 14 gün tam Pro ücretsiz (kart yok), sonra plan seçilir.
+// TÜM ücretli planlar AYNI çekirdek ürün özelliklerini alır (kod'da per-özellik kilit
+// YOK — premiumAllowed tek boolean; enforcement yalnız propertyLimit). Planlar SADECE
+// daire sayısı + destek seviyesiyle ayrışır. Özellikleri üst plana özelmiş gibi
+// göstermeyin (Başlangıç müşterisi karşılama/giriş/çıkış + raporları da kullanır).
 const TIERS = [
   {
     name: "Başlangıç",
     price: "₺449",
     unit: "/ay",
     desc: "1–2 daireli ev sahipleri için",
-    features: ["7/24 otomatik misafir yanıtı", "Türkçe + çok dilli", "Şikayette otomatik durma", "E-posta desteği"],
+    features: [
+      "2 daireye kadar",
+      "Tüm AI özellikleri dahil",
+      "7/24 otomatik misafir yanıtı (Türkçe + çok dilli)",
+      "Otomatik karşılama, giriş ve çıkış mesajları",
+      "Doluluk ve performans raporları",
+      "Şikayette otomatik durma",
+      "E-posta desteği",
+    ],
     highlight: false,
   },
   {
@@ -141,7 +153,11 @@ const TIERS = [
     price: "₺899",
     unit: "/ay",
     desc: "3–7 daireli profesyonel hostlar",
-    features: ["Başlangıç’taki her şey", "Otomatik karşılama, giriş ve çıkış", "Doluluk ve performans raporları", "Öncelikli destek"],
+    features: [
+      "7 daireye kadar",
+      "Başlangıç’taki tüm AI özellikleri",
+      "Öncelikli destek",
+    ],
     highlight: true,
   },
   {
@@ -149,7 +165,11 @@ const TIERS = [
     price: "₺1.699",
     unit: "/ay",
     desc: "8–25 daireli profesyoneller",
-    features: ["Pro’daki her şey", "25 daireye kadar", "Birebir kurulum desteği", "Öncelikli destek"],
+    features: [
+      "25 daireye kadar",
+      "Başlangıç’taki tüm AI özellikleri",
+      "Birebir kurulum + öncelikli destek",
+    ],
     highlight: false,
   },
 ];
