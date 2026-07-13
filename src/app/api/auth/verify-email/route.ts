@@ -36,10 +36,16 @@ export async function GET(req: NextRequest) {
   });
   if (!user) return fail("expired");
 
-  await prisma.user.update({
-    where: { id: user.id },
+  // ATOMIC single-use consume (same burn pattern as TOTP): the update is
+  // conditioned on the token hash STILL being set, so of N concurrent clicks on
+  // the same link exactly one matches and mints a session — a plain
+  // findFirst→update let every racer through. Losers fall to "expired"; the
+  // account is verified by then, so a normal login succeeds.
+  const consumed = await prisma.user.updateMany({
+    where: { id: user.id, emailVerifyTokenHash: hash, emailVerifyExpiresAt: { gt: new Date() } },
     data: { emailVerifiedAt: new Date(), emailVerifyTokenHash: null, emailVerifyExpiresAt: null },
   });
+  if (consumed.count !== 1) return fail("expired");
 
   await setSessionCookie({
     userId: user.id,

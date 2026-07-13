@@ -188,6 +188,41 @@ describe("registration → verification → login", () => {
     expect(u?.emailVerifyTokenHash).toBeNull();
   });
 
+  it("RACE: concurrent clicks on the same verify link mint EXACTLY ONE session (atomic consume)", async () => {
+    // Codex #11: findFirst→update let two concurrent requests both pass the
+    // lookup before either update landed — two sessions from one token. The
+    // consume must be conditionally atomic (updateMany WHERE hash still set).
+    const org = await prisma.organization.create({ data: { name: "X" } });
+    const { raw, hash } = makeVerifyToken();
+    await prisma.user.create({
+      data: {
+        organizationId: org.id,
+        name: "Ada",
+        email: "race@x.com",
+        passwordHash: await hashPassword("secret123"),
+        role: "owner",
+        createdAt: AFTER,
+        emailVerifiedAt: null,
+        emailVerifyTokenHash: hash,
+        emailVerifyExpiresAt: new Date(Date.now() + 60 * 60 * 1000),
+      },
+    });
+
+    const responses = await Promise.all(
+      Array.from({ length: 8 }, () =>
+        verifyEmail(new NextRequest(`http://www.lixusai.com/api/auth/verify-email?token=${raw}`)),
+      ),
+    );
+    const winners = responses.filter((r) => r.headers.get("location")?.includes("/dashboard"));
+    const losers = responses.filter((r) => r.headers.get("location")?.includes("verify=expired"));
+    expect(winners).toHaveLength(1);
+    expect(losers).toHaveLength(7);
+
+    const u = await prisma.user.findUnique({ where: { email: "race@x.com" } });
+    expect(u?.emailVerifiedAt).not.toBeNull();
+    expect(u?.emailVerifyTokenHash).toBeNull();
+  });
+
   it("HOST-INJECTION: a forged Host on register does NOT poison the emailed verify link", async () => {
     await register(
       postReq(
