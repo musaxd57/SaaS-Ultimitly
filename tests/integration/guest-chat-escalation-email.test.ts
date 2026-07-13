@@ -21,7 +21,12 @@ vi.mock("@/lib/report-error", async (orig) => {
 import { suggestReply } from "@/lib/ai";
 import { emailService } from "@/lib/email";
 import { reportError } from "@/lib/report-error";
-import { maybeSendQrEscalationEmail, QR_ESCALATION_COOLDOWN_MS } from "@/lib/guest-chat-alerts";
+import {
+  maybeSendQrEscalationEmail,
+  qrEscalationEventId,
+  QR_ESCALATION_COOLDOWN_MS,
+  QR_ALERT_RESPONSE_BUDGET_MS,
+} from "@/lib/guest-chat-alerts";
 import { POST } from "@/app/api/chat/[token]/route";
 
 const mockSuggest = vi.mocked(suggestReply);
@@ -92,12 +97,12 @@ async function fixture() {
 }
 
 /** Shorthand: one lib call for a given event id. */
-function alert(orgId: string, reservationId: string, triggerMessageId: string, propertyName = "Test Property") {
+function alert(orgId: string, reservationId: string, eventId: string, propertyName = "Test Property") {
   return maybeSendQrEscalationEmail({
     organizationId: orgId,
     propertyName,
     reservationId,
-    triggerMessageId,
+    eventId,
     reason: "ai_escalated",
   });
 }
@@ -166,11 +171,46 @@ describe("maybeSendQrEscalationEmail (lib)", () => {
     expect(mockSendReporting).toHaveBeenCalledTimes(2);
   });
 
-  it("ANTI-FLOOD: a different message INSIDE the short cooldown is absorbed (mail-bomb guard)", async () => {
+  it("ANTI-FLOOD: a different NON-critical message INSIDE the cooldown is absorbed (mail-bomb guard)", async () => {
     const { orgId, reservationId } = await fixture();
     await prisma.organization.update({ where: { id: orgId }, data: { alertEmail: "host@example.com" } });
     expect((await alert(orgId, reservationId, "msg-1")).sent).toBe(true);
     expect((await alert(orgId, reservationId, "msg-2")).deduped).toBe(true); // seconds later
+    expect(mockSendReporting).toHaveBeenCalledTimes(1);
+  });
+
+  it("CRITICAL BYPASS (Codex acceptance): a safety/emergency event INSIDE the cooldown still mails", async () => {
+    const { orgId, reservationId } = await fixture();
+    await prisma.organization.update({ where: { id: orgId }, data: { alertEmail: "host@example.com" } });
+    // Low-risk complaint mails first…
+    expect((await alert(orgId, reservationId, "msg-complaint")).sent).toBe(true);
+    // …then a DISTINCT safety/emergency seconds later — the clock must NOT mute it.
+    const emergency = await maybeSendQrEscalationEmail({
+      organizationId: orgId,
+      propertyName: "Test Property",
+      reservationId,
+      eventId: "msg-fire",
+      reason: "ai_escalated",
+      critical: true,
+    });
+    expect(emergency.sent).toBe(true);
+    expect(mockSendReporting).toHaveBeenCalledTimes(2);
+  });
+
+  it("CRITICAL is still IDENTITY-deduped: the same emergency message id never double-mails", async () => {
+    const { orgId, reservationId } = await fixture();
+    await prisma.organization.update({ where: { id: orgId }, data: { alertEmail: "host@example.com" } });
+    const send = () =>
+      maybeSendQrEscalationEmail({
+        organizationId: orgId,
+        propertyName: "Test Property",
+        reservationId,
+        eventId: "msg-fire",
+        reason: "ai_escalated",
+        critical: true,
+      });
+    expect((await send()).sent).toBe(true);
+    expect((await send()).deduped).toBe(true); // retry of the SAME event
     expect(mockSendReporting).toHaveBeenCalledTimes(1);
   });
 
@@ -238,6 +278,36 @@ describe("maybeSendQrEscalationEmail (lib)", () => {
     expect(row?.qrEscalationEmailAt).toBeNull(); // NOT left consumed
     expect(row?.qrEscalationEmailMessageId).toBeNull();
     expect((await alert(orgId, reservationId, "msg-1")).sent).toBe(true); // retry works
+  });
+
+  it("FINGERPRINT identity (diff-review fix): same critical text collapses, different stays distinct", () => {
+    // Non-critical → the message id IS the identity.
+    expect(qrEscalationEventId("m-1", "İade istiyorum", false)).toBe("m-1");
+    // Critical → normalized content fingerprint: case/punctuation/whitespace noise collapses…
+    const a = qrEscalationEventId("m-1", "ACİL!! Yangın var...", true);
+    const b = qrEscalationEventId("m-2", "acil yangın var", true);
+    expect(a).toBe(b);
+    expect(a).toMatch(/^crit:[0-9a-f]{32}$/);
+    // …while a genuinely different emergency keeps a distinct identity.
+    expect(qrEscalationEventId("m-3", "Gaz kokusu geliyor, acil!", true)).not.toBe(a);
+  });
+
+  it("CRITICAL MAIL-BOMB guard: repeating the same emergency text (new message rows) mails ONCE", async () => {
+    const { orgId, reservationId } = await fixture();
+    await prisma.organization.update({ where: { id: orgId }, data: { alertEmail: "host@example.com" } });
+    const spam = (msgId: string) =>
+      maybeSendQrEscalationEmail({
+        organizationId: orgId,
+        propertyName: "Test Property",
+        reservationId,
+        eventId: qrEscalationEventId(msgId, "ACİL acil ACİL!!!", true),
+        reason: "ai_escalated",
+        critical: true,
+      });
+    expect((await spam("m-1")).sent).toBe(true);
+    expect((await spam("m-2")).deduped).toBe(true); // copy-paste spam, new row, SAME fingerprint
+    expect((await spam("m-3")).deduped).toBe(true);
+    expect(mockSendReporting).toHaveBeenCalledTimes(1);
   });
 
   it("CLAIM RACE: two concurrent alerts for ONE event produce exactly ONE e-mail", async () => {
@@ -312,6 +382,29 @@ describe("POST /api/chat/[token] — escalation wires the e-mail", () => {
     expect(mockSendReporting).toHaveBeenCalledTimes(2);
   });
 
+  it("ROUTE: complaint, then a SAFETY message a moment later → BOTH mail (no cooldown aging needed)", async () => {
+    const { orgId, token } = await fixture();
+    await prisma.organization.update({ where: { id: orgId }, data: { alertEmail: "host@example.com" } });
+    const first = await call(token, "İade istiyorum, berbat!"); // low-risk complaint → mail 1
+    const cookie = deviceCookie(first);
+    expect(mockSendReporting).toHaveBeenCalledTimes(1);
+    // Distinct EMERGENCY right after (deterministic safety_emergency words) —
+    // the acceptance criterion: the emergency MUST produce the second e-mail.
+    const res = await call(token, "Yangın var, duman kokusu geliyor!", cookie);
+    expect((await res.json()).escalated).toBe(true);
+    expect(mockSendReporting).toHaveBeenCalledTimes(2);
+  });
+
+  it("ROUTE: two DISTINCT safety messages back-to-back → two e-mails (1 dk arayla senaryosu)", async () => {
+    const { orgId, token } = await fixture();
+    await prisma.organization.update({ where: { id: orgId }, data: { alertEmail: "host@example.com" } });
+    const first = await call(token, "Gaz kokusu var, acil yardım!");
+    const cookie = deviceCookie(first);
+    const res = await call(token, "Yangın çıktı, ambulans gerekebilir!", cookie);
+    expect((await res.json()).escalated).toBe(true);
+    expect(mockSendReporting).toHaveBeenCalledTimes(2);
+  });
+
   it("DAILY-CAP escalation also alerts (reason daily_cap)", async () => {
     const { orgId, propertyId, token } = await fixture();
     await prisma.organization.update({ where: { id: orgId }, data: { alertEmail: "host@example.com" } });
@@ -322,6 +415,20 @@ describe("POST /api/chat/[token] — escalation wires the e-mail", () => {
     expect(mockSendReporting).toHaveBeenCalledTimes(1);
     expect(mockSendReporting.mock.calls[0][2]).toContain("limit"); // daily_cap reason text
   });
+
+  it("RESPONSE BUDGET (diff-review fix): a HANGING e-mail transport can't hold the guest's reply", async () => {
+    const { orgId, token } = await fixture();
+    await prisma.organization.update({ where: { id: orgId }, data: { alertEmail: "host@example.com" } });
+    // Transport never settles (worst-case outage) — the response must still
+    // come back within the alert budget instead of the 12-15s transport timeout.
+    mockSendReporting.mockImplementationOnce(() => new Promise(() => {}));
+    const started = Date.now();
+    const res = await call(token, "İade istiyorum, berbattı.");
+    const elapsed = Date.now() - started;
+    expect(res.status).toBe(200);
+    expect((await res.json()).escalated).toBe(true);
+    expect(elapsed).toBeLessThan(QR_ALERT_RESPONSE_BUDGET_MS + 2000); // budget + test slack
+  }, 15_000);
 
   it("e-mail failure NEVER breaks the guest's chat response", async () => {
     const { orgId, token } = await fixture();

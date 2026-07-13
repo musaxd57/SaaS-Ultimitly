@@ -211,6 +211,24 @@ describe("POST /api/account/2fa action recovery_codes", () => {
     expect(res.status).toBe(200);
     expect(await prisma.twoFactorRecoveryCode.count({ where: { userId } })).toBe(0);
   });
+
+  it("RE-ENABLE cannot resurrect stale codes (diff-review fix): enable clears leftovers", async () => {
+    // Simulate a past disable whose code-clear failed: 2FA off, rows alive.
+    const org = await prisma.organization.create({ data: { name: "Org" } });
+    const secret = generateSecret();
+    const user = await prisma.user.create({
+      data: {
+        organizationId: org.id, name: "R", email: "r@example.com", passwordHash: "x",
+        twoFactorSecret: encryptSecret(secret), twoFactorEnabledAt: null, // setup done, not active
+      },
+    });
+    await prisma.twoFactorRecoveryCode.create({ data: { userId: user.id, codeHash: "stale-hash" } });
+    session = { userId: user.id, organizationId: org.id, role: "owner", email: "r@example.com", name: "R", sessionEpoch: 0 };
+    const res = await tfaPost(tfaReq({ action: "enable", code: totp(secret) }));
+    expect(res.status).toBe(200);
+    // The stale pre-existing code must be GONE after activation.
+    expect(await prisma.twoFactorRecoveryCode.count({ where: { userId: user.id } })).toBe(0);
+  });
 });
 
 describe("POST /api/auth/login — recovery code as the second factor", () => {

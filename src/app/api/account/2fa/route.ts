@@ -6,7 +6,6 @@ import { encryptSecret, decryptSecret } from "@/lib/crypto";
 import { generateSecret, otpauthUri, verifyTotp, verifyTotpStep } from "@/lib/auth/totp";
 import {
   regenerateRecoveryCodes,
-  clearRecoveryCodes,
   remainingRecoveryCodes,
   RECOVERY_CODE_COUNT,
 } from "@/lib/auth/recovery-codes";
@@ -77,11 +76,17 @@ export async function POST(req: NextRequest) {
       const secret = decryptSecret(user.twoFactorSecret);
       const step = verifyTotpStep(secret, code);
       if (step === null) return badRequest({ code: "Kod hatalı veya süresi geçmiş." });
-      await prisma.user.update({
-        where: { id: session.userId },
-        // Record the step so the enabling code can't be replayed at login.
-        data: { twoFactorEnabledAt: new Date(), twoFactorLastStep: step },
-      });
+      await prisma.$transaction([
+        prisma.user.update({
+          where: { id: session.userId },
+          // Record the step so the enabling code can't be replayed at login.
+          data: { twoFactorEnabledAt: new Date(), twoFactorLastStep: step },
+        }),
+        // Defense-in-depth: a FRESH activation starts with ZERO recovery codes.
+        // If a past disable's clear step ever failed midway, stale codes must
+        // not resurrect as valid second factors under the new secret.
+        prisma.twoFactorRecoveryCode.deleteMany({ where: { userId: session.userId } }),
+      ]);
       await writeAudit({
         organizationId: session.organizationId,
         actorUserId: session.actorUserId ?? session.userId,
@@ -114,14 +119,17 @@ export async function POST(req: NextRequest) {
           return badRequest({ code: "Kapatmak için geçerli bir kod girin." });
         }
       }
-      await prisma.user.update({
-        where: { id: session.userId },
-        data: { twoFactorSecret: null, twoFactorEnabledAt: null, twoFactorLastStep: null },
-      });
-      // Recovery codes are a 2FA artifact — they die with it. A later re-enable
-      // starts with zero codes (the old set was minted under the old secret's
-      // trust context and must not resurrect).
-      await clearRecoveryCodes(session.userId);
+      // ONE transaction: recovery codes are a 2FA artifact and must die WITH it.
+      // Two separate awaits had a gap — if the clear failed after the update,
+      // 2FA was off with live codes on disk, and a later re-enable would have
+      // resurrected them as valid second factors (diff-review finding).
+      await prisma.$transaction([
+        prisma.user.update({
+          where: { id: session.userId },
+          data: { twoFactorSecret: null, twoFactorEnabledAt: null, twoFactorLastStep: null },
+        }),
+        prisma.twoFactorRecoveryCode.deleteMany({ where: { userId: session.userId } }),
+      ]);
       await writeAudit({
         organizationId: session.organizationId,
         actorUserId: session.actorUserId ?? session.userId,

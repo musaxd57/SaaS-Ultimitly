@@ -1,5 +1,6 @@
 import "server-only";
 
+import { createHash } from "crypto";
 import { prisma } from "@/lib/db";
 import { emailService } from "@/lib/email";
 import { qrEscalationEmail } from "@/lib/email-templates";
@@ -34,10 +35,45 @@ import { reportError } from "@/lib/report-error";
 //     never the env ALERT_EMAIL — that's the operator's address).
 // ---------------------------------------------------------------------------
 
-/** Anti-flood cooldown between DISTINCT alerted events of one stay. Short on
- *  purpose (Codex): a later, separate emergency must still alert — this only
- *  absorbs rapid same-incident bursts / hostile message spam. */
+/** Anti-flood cooldown between DISTINCT alerted events of one stay. Applies to
+ *  NON-CRITICAL events only (Codex acceptance): a safety/emergency event
+ *  bypasses the clock entirely — a complaint at 14:00 must never mute a fire
+ *  at 14:02. The critical path is flood-guarded by IDENTITY instead: its event
+ *  id is a normalized CONTENT FINGERPRINT (qrEscalationEventId), so re-sending
+ *  the same "acil!" text never re-mails, while a genuinely different emergency
+ *  always does. Residual (documented): a hostile BOUND guest varying critical
+ *  wording per message can still generate one mail each — bounded by the
+ *  device binding (only the claimed device can send) and the per-IP limiter;
+ *  under-alerting on safety remains the worse failure. */
 export const QR_ESCALATION_COOLDOWN_MS = 5 * 60 * 1000;
+
+/** Max time the guest's HTTP response waits on the alert path. The send keeps
+ *  running detached past this (its own claim/error handling completes either
+ *  way) — a slow Resend/SMTP outage must not hold the guest's "ilettim" reply
+ *  hostage for its 12-15s transport timeout (diff-review finding). */
+export const QR_ALERT_RESPONSE_BUDGET_MS = 2500;
+
+/**
+ * The dedupe identity of an escalated exchange. Non-critical: the inbound
+ * Message id (every distinct message may alert, cooldown throttles floods).
+ * CRITICAL: a normalized content fingerprint — same emergency text repeated
+ * (spam or retry) collapses to ONE identity, different emergencies stay
+ * distinct and always alert.
+ */
+export function qrEscalationEventId(inboundMessageId: string, guestText: string, critical: boolean): string {
+  if (!critical) return inboundMessageId;
+  // Mark-stripping fold: JS lowercases Turkish "İ" to "i"+U+0307 (combining
+  // dot), so a naive lowercase splits "ACİL" vs "acil" into two fingerprints.
+  // NFKD + \p{M} removal folds that (and ş/ğ/ü accents), making the
+  // fingerprint robust to case/diacritic/punctuation noise.
+  const normalized = guestText
+    .toLowerCase()
+    .normalize("NFKD")
+    .replace(/\p{M}+/gu, "")
+    .replace(/[^\p{L}\p{N}]+/gu, " ")
+    .trim();
+  return `crit:${createHash("sha256").update(normalized).digest("hex").slice(0, 32)}`;
+}
 
 export type QrEscalationReason = "ai_escalated" | "daily_cap";
 
@@ -53,13 +89,17 @@ export async function maybeSendQrEscalationEmail(args: {
   organizationId: string;
   propertyName: string;
   reservationId: string;
-  /** The inbound guest Message that forced this escalation — the dedupe identity. */
-  triggerMessageId: string;
+  /** Dedupe identity of this escalation — build with qrEscalationEventId()
+   *  (message id for normal events, content fingerprint for critical ones). */
+  eventId: string;
   reason: QrEscalationReason;
+  /** True for a deterministic safety/emergency verdict — bypasses the
+   *  anti-flood cooldown (identity dedupe still applies). */
+  critical?: boolean;
 }): Promise<{ sent: boolean; deduped?: boolean }> {
   try {
     if (!qrEscalationEmailEnabled()) return { sent: false };
-    if (!args.triggerMessageId) return { sent: false }; // no identity → no claim, no mail
+    if (!args.eventId) return { sent: false }; // no identity → no claim, no mail
 
     // ATOMIC claim, bound to (tenant, event): whoever flips the row owns the
     // send. Conditions: the reservation must belong to the caller's org, this
@@ -76,15 +116,17 @@ export async function maybeSendQrEscalationEmail(args: {
           {
             OR: [
               { qrEscalationEmailMessageId: null },
-              { qrEscalationEmailMessageId: { not: args.triggerMessageId } }, // same event never re-mails
+              { qrEscalationEmailMessageId: { not: args.eventId } }, // same event never re-mails
             ],
           },
-          {
-            OR: [{ qrEscalationEmailAt: null }, { qrEscalationEmailAt: { lt: cooledBefore } }],
-          },
+          // Anti-flood clock — SKIPPED for a critical (safety/emergency) event:
+          // a distinct emergency must alert even seconds after a prior mail.
+          ...(args.critical
+            ? []
+            : [{ OR: [{ qrEscalationEmailAt: null }, { qrEscalationEmailAt: { lt: cooledBefore } }] }]),
         ],
       },
-      data: { qrEscalationEmailAt: claimedAt, qrEscalationEmailMessageId: args.triggerMessageId },
+      data: { qrEscalationEmailAt: claimedAt, qrEscalationEmailMessageId: args.eventId },
     });
     if (claimed.count !== 1) return { sent: false, deduped: true };
 
@@ -95,7 +137,7 @@ export async function maybeSendQrEscalationEmail(args: {
         .updateMany({
           where: {
             id: args.reservationId,
-            qrEscalationEmailMessageId: args.triggerMessageId,
+            qrEscalationEmailMessageId: args.eventId,
             qrEscalationEmailAt: claimedAt,
           },
           data: { qrEscalationEmailAt: null, qrEscalationEmailMessageId: null },
@@ -153,4 +195,23 @@ export async function maybeSendQrEscalationEmail(args: {
     await reportError(`qr-escalation-email (org ${args.organizationId})`, err).catch(() => {});
     return { sent: false };
   }
+}
+
+/**
+ * Route-facing wrapper: same alert, but the caller's await is BOUNDED by
+ * QR_ALERT_RESPONSE_BUDGET_MS. The underlying send continues detached (it
+ * never throws and settles its own claim), so a slow e-mail provider delays
+ * the guest's reply by at most the budget instead of the transport timeout.
+ */
+export function sendQrEscalationAlertBounded(
+  args: Parameters<typeof maybeSendQrEscalationEmail>[0],
+): Promise<void> {
+  const pending = maybeSendQrEscalationEmail(args); // never rejects
+  return new Promise((resolve) => {
+    const timer = setTimeout(resolve, QR_ALERT_RESPONSE_BUDGET_MS);
+    void pending.finally(() => {
+      clearTimeout(timer);
+      resolve();
+    });
+  });
 }

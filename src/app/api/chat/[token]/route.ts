@@ -3,7 +3,7 @@ import { prisma } from "@/lib/db";
 import { suggestReply } from "@/lib/ai";
 import { classifyFallback, detectPromptInjection, detectRiskType } from "@/lib/ai/fallback";
 import { resolveGuestChat, bindOrCheckStay } from "@/lib/guest-chat";
-import { maybeSendQrEscalationEmail } from "@/lib/guest-chat-alerts";
+import { sendQrEscalationAlertBounded, qrEscalationEventId } from "@/lib/guest-chat-alerts";
 import { jsonOk, badRequest, tooManyRequests } from "@/lib/api";
 import { rateLimit, clientIp } from "@/lib/rate-limit";
 
@@ -268,18 +268,23 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ tok
     update: { count: { increment: 1 } },
     select: { count: true },
   });
+  // Deterministic criticality of THIS message (code verdict, model-free):
+  // a safety/emergency bypasses the alert's anti-flood cooldown — a fire two
+  // minutes after a complaint must still e-mail the host.
+  const criticalEvent = detectRiskType(message) === "safety_emergency";
+
   if (usage.count > DAILY_AI_CAP) {
     const reply = "Sorunuzu ev sahibine ilettim; en kısa sürede size dönecek.";
     const { inboundMessageId } = await recordGuestChat(ctx.property.id, res, message, reply, true);
     // "İlettim" is only true if the host finds out — env-gated (default OFF),
-    // deduped per EVENT (this message), never throws, never changes this
-    // response (Codex #15).
-    await maybeSendQrEscalationEmail({
+    // deduped per EVENT, response-time bounded, never throws (Codex #15).
+    await sendQrEscalationAlertBounded({
       organizationId: ctx.property.organizationId,
       propertyName: ctx.property.name,
       reservationId: res.id,
-      triggerMessageId: inboundMessageId,
+      eventId: qrEscalationEventId(inboundMessageId, message, criticalEvent),
       reason: "daily_cap",
+      critical: criticalEvent,
     });
     return finalize({ escalated: true, reply });
   }
@@ -323,12 +328,13 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ tok
     : result.reply;
   const { inboundMessageId } = await recordGuestChat(ctx.property.id, res, message, reply, escalate);
   if (escalate) {
-    await maybeSendQrEscalationEmail({
+    await sendQrEscalationAlertBounded({
       organizationId: ctx.property.organizationId,
       propertyName: ctx.property.name,
       reservationId: res.id,
-      triggerMessageId: inboundMessageId,
+      eventId: qrEscalationEventId(inboundMessageId, message, criticalEvent),
       reason: "ai_escalated",
+      critical: criticalEvent,
     });
   }
   return finalize({ escalated: escalate, reply });
