@@ -1,6 +1,10 @@
 import { describe, it, expect, beforeEach, afterEach, vi } from "vitest";
 import { prisma, resetDb, makeOrgWithProperty } from "../helpers/db";
+// The feed HTTP layer (node:https + pinned lookup + byte-cap) is unit-tested in
+// pinned-fetch.test.ts; here we mock it to feed the sync ENGINE fixed ICS text.
+vi.mock("@/lib/net/pinned-fetch", () => ({ fetchFeedText: vi.fn() }));
 import { syncCalendarSource } from "@/lib/import/sync";
+import { fetchFeedText } from "@/lib/net/pinned-fetch";
 import { ANON_NAME } from "@/lib/data-retention";
 
 const ICS = `BEGIN:VCALENDAR
@@ -21,11 +25,9 @@ END:VEVENT
 END:VCALENDAR`;
 
 function mockFetch(body: string, ok = true) {
-  return vi.spyOn(global, "fetch").mockResolvedValue({
-    ok,
-    status: ok ? 200 : 500,
-    text: async () => body,
-  } as Response);
+  return ok
+    ? vi.mocked(fetchFeedText).mockResolvedValue(body)
+    : vi.mocked(fetchFeedText).mockRejectedValue(new Error("HTTP 500"));
 }
 
 describe("syncCalendarSource", () => {

@@ -4,7 +4,7 @@ import { isUniqueViolation } from "@/lib/db-errors";
 import { parseIcs } from "@/lib/import/ics";
 import { createReservationTasks, removeAutoTasksForCancelledReservation } from "@/lib/automation";
 import { isPrivateHost, resolvesToPrivate } from "@/lib/net/private-host";
-import { pinnedPublicAgent } from "@/lib/net/pinned-fetch";
+import { fetchFeedText } from "@/lib/net/pinned-fetch";
 import { ANON_NAME } from "@/lib/data-retention";
 
 export interface SyncResult {
@@ -14,6 +14,8 @@ export interface SyncResult {
   errors: string[];
 }
 
+const FEED_MAX_BYTES = 10 * 1024 * 1024;
+
 /** Map a free-text source label to a known reservation channel. */
 function channelFromLabel(label: string): string {
   const l = label.toLowerCase();
@@ -21,42 +23,6 @@ function channelFromLabel(label: string): string {
   if (l.includes("booking")) return "booking";
   if (l.includes("direct") || l.includes("doğrudan")) return "direct";
   return "other";
-}
-
-/**
- * Read a response body as text with a HARD byte cap enforced WHILE streaming
- * (Codex #22). The old flow did `await res.text()` and length-checked after —
- * a chunked response with no (or a lying) Content-Length buffered its entire
- * body into memory on the shared replica before the check ran. Now the read
- * aborts the moment the cap is crossed. Falls back to text() (with the same
- * post-check) when no body stream exists (e.g. simple test doubles).
- */
-async function readBodyCapped(res: Response, cap: number): Promise<string> {
-  const reader = res.body?.getReader?.();
-  if (!reader) {
-    const t = await res.text();
-    if (t.length > cap) throw new Error("feed too large");
-    return t;
-  }
-  const chunks: Uint8Array[] = [];
-  let total = 0;
-  for (;;) {
-    const { done, value } = await reader.read();
-    if (done) break;
-    total += value.byteLength;
-    if (total > cap) {
-      await reader.cancel().catch(() => {});
-      throw new Error("feed too large");
-    }
-    chunks.push(value);
-  }
-  const buf = new Uint8Array(total);
-  let off = 0;
-  for (const c of chunks) {
-    buf.set(c, off);
-    off += c.byteLength;
-  }
-  return new TextDecoder("utf-8").decode(buf);
 }
 
 /**
@@ -78,42 +44,22 @@ export async function syncCalendarSource(sourceId: string): Promise<SyncResult> 
 
   let text: string;
   try {
-    // SSRF guard (defense-in-depth for rows created before the route guard):
-    // never fetch a loopback / link-local / private / metadata target — neither a
-    // LITERAL private address nor a public hostname that currently RESOLVES to a
-    // private one (DNS is checked at fetch time; records can change after save).
+    // SSRF pre-check (cheap, defense-in-depth): reject a literal private target
+    // or a hostname that currently RESOLVES private. The AUTHORITATIVE guard is
+    // fetchFeedText's pinned lookup, which validates the address the socket
+    // actually connects to (closing the DNS-rebind TOCTOU this pre-check can't).
     const feedHost = new URL(source.url).hostname;
     if (isPrivateHost(feedHost) || (await resolvesToPrivate(feedHost))) {
       throw new Error("blocked private host");
     }
-    const res = await fetch(source.url, {
-      headers: { "User-Agent": "Lixus-AI/1.0" },
-      // iCal feeds change often; never serve a stale cached copy.
-      cache: "no-store",
-      // SSRF: do NOT follow redirects — a public host could 30x to an internal
-      // URL that bypasses the isPrivateHost check on the original hostname. A 3xx
-      // then fails the res.ok check below. Bound the fetch so a slow-loris internal
-      // endpoint can't wedge the request. Following ZERO redirects is stronger
-      // than re-validating each hop — there is nothing to re-resolve.
-      redirect: "manual",
-      // DNS-REBIND (TOCTOU) pin: the socket connects ONLY to an address this
-      // dispatcher's lookup validated as public, closing the gap between the
-      // pre-check above and fetch's own resolution. TLS SNI/cert unchanged.
-      dispatcher: pinnedPublicAgent(),
-      signal: AbortSignal.timeout(15000),
-    } as RequestInit & { dispatcher: unknown });
-    if (!res.ok) {
-      throw new Error(`HTTP ${res.status}`);
-    }
-    // Guard against a runaway feed on the shared replica (the feed URL is
-    // host-supplied): reject a huge declared Content-Length up front, and cap
-    // the ACTUAL bytes while streaming — a chunked/lying response aborts the
-    // moment it crosses the cap instead of being buffered whole first.
-    const declared = Number(res.headers?.get?.("content-length"));
-    if (Number.isFinite(declared) && declared > 10 * 1024 * 1024) {
-      throw new Error("feed too large");
-    }
-    text = await readBodyCapped(res, 10 * 1024 * 1024);
+    // node:https/http GET with: pinned public-only IP, NO redirect following
+    // (a 3xx is a failure, nothing to re-resolve), a declared + streamed byte
+    // cap, and a 15s timeout. HTTPS keeps full cert validation.
+    text = await fetchFeedText(source.url, {
+      maxBytes: FEED_MAX_BYTES,
+      timeoutMs: 15000,
+      userAgent: "Lixus-AI/1.0",
+    });
   } catch {
     result.errors.push("Bağlantıya ulaşılamadı — takvim (.ics) bağlantısını kontrol edin.");
     await prisma.calendarSource.update({

@@ -1,14 +1,17 @@
-import { describe, it, expect, vi, afterEach } from "vitest";
+import { describe, it, expect, vi, afterEach, beforeAll, afterAll } from "vitest";
+import { Readable } from "node:stream";
+import http from "node:http";
+import type { AddressInfo } from "node:net";
 
-// Codex #22 final — DNS-rebind (TOCTOU) hardening. validatingLookup is the
-// function net/tls calls AT CONNECT TIME, so testing it directly tests the
-// exact point where the socket is bound: whatever it validates is what the
-// connection uses, and there is no second resolution to race.
+// Codex #22 final — DNS-rebind (TOCTOU) hardening on node:https/http. Three
+// layers under test: the validating resolver (the pin point), the streaming
+// byte-cap, and an END-TO-END fetch over a REAL loopback server (so redirect
+// refusal, cap, and stream-to-completion are proven on real sockets).
 
 const dnsMock = vi.hoisted(() => ({ lookup: vi.fn() }));
 vi.mock("node:dns", () => dnsMock);
 
-import { validatingLookup, pinnedPublicAgent } from "@/lib/net/pinned-fetch";
+import { validatingLookup, readStreamCapped, fetchFeedText, type Lookup } from "@/lib/net/pinned-fetch";
 
 /** Drive validatingLookup and resolve to what it passed the socket callback. */
 function runLookup(
@@ -44,7 +47,6 @@ describe("validatingLookup — pin only to validated PUBLIC addresses", () => {
   });
 
   it("REJECTS the whole connection if ANY answer is private (poisoned multi-record)", async () => {
-    // A public sibling must NOT let a poisoned answer through — the set is rejected.
     const res = await runLookup("rebind.evil.test", [
       { address: "93.184.216.34", family: 4 }, // public decoy
       { address: "169.254.169.254", family: 4 }, // cloud metadata
@@ -55,17 +57,9 @@ describe("validatingLookup — pin only to validated PUBLIC addresses", () => {
 
   it("blocks IPv4-mapped IPv6, loopback, link-local, CGNAT and private ranges", async () => {
     for (const bad of [
-      "::ffff:169.254.169.254", // IPv4-mapped metadata
-      "::ffff:10.0.0.5",        // IPv4-mapped private
-      "127.0.0.1",              // loopback
-      "10.1.2.3",               // private
-      "172.16.5.5",             // private
-      "192.168.1.1",            // private
-      "169.254.169.254",        // metadata / link-local
-      "100.64.0.1",             // CGNAT
-      "fe80::1",                // IPv6 link-local
-      "fc00::1",                // IPv6 unique-local
-      "::1",                    // IPv6 loopback
+      "::ffff:169.254.169.254", "::ffff:10.0.0.5", "127.0.0.1", "10.1.2.3",
+      "172.16.5.5", "192.168.1.1", "169.254.169.254", "100.64.0.1",
+      "fe80::1", "fc00::1", "::1",
     ]) {
       const res = await runLookup("x.test", [{ address: bad, family: bad.includes(":") ? 6 : 4 }]);
       expect(res.err?.code, `${bad} must be blocked`).toBe("EACCES");
@@ -73,9 +67,6 @@ describe("validatingLookup — pin only to validated PUBLIC addresses", () => {
   });
 
   it("CONNECT-TIME rebind: whatever resolves AT the lookup call is what's enforced", async () => {
-    // First resolution public → allowed. A later flip to private → the very next
-    // connection's lookup rejects. This is the TOCTOU closure: enforcement lives
-    // at the socket's own resolution, not an earlier pre-check.
     const first = await runLookup("rebind.test", [{ address: "93.184.216.34", family: 4 }]);
     expect(first.err).toBeNull();
     const flipped = await runLookup("rebind.test", [{ address: "127.0.0.1", family: 4 }]);
@@ -89,18 +80,70 @@ describe("validatingLookup — pin only to validated PUBLIC addresses", () => {
   });
 });
 
-describe("pinnedPublicAgent — end-to-end enforcement via real global fetch", () => {
-  it("refuses a hostname that resolves to a private address (loopback), at connect time", async () => {
-    // Real dns.lookup is mocked to loopback for a would-be public host name —
-    // fetch through the agent must fail because the socket lookup rejects it.
+describe("readStreamCapped — abort mid-stream at the cap", () => {
+  it("returns text under the cap; rejects the moment bytes cross it", async () => {
+    expect(await readStreamCapped(Readable.from([Buffer.from("hello")]), 100)).toBe("hello");
+    const endless = new Readable({
+      read() {
+        this.push(Buffer.alloc(1024, 65)); // never ends
+      },
+    });
+    await expect(readStreamCapped(endless, 4096)).rejects.toThrow(/too large/);
+    expect(endless.destroyed).toBe(true); // stream torn down, not drained
+  });
+});
+
+describe("fetchFeedText — end-to-end over a real loopback server", () => {
+  let server: http.Server;
+  let base: string;
+  // Loopback would be refused by the production validatingLookup (correct); a
+  // test-only override lets us reach 127.0.0.1 to exercise the real socket path.
+  const loopbackLookup: Lookup = (_h, options, cb) =>
+    options.all ? cb(null, [{ address: "127.0.0.1", family: 4 }]) : cb(null, "127.0.0.1", 4);
+  const opts = { maxBytes: 1024 * 1024, timeoutMs: 3000, userAgent: "test/1.0", lookupOverride: loopbackLookup };
+
+  const handlers: http.RequestListener[] = [];
+  beforeAll(async () => {
+    server = http.createServer((req, res) => handlers.shift()!(req, res));
+    await new Promise<void>((r) => server.listen(0, "127.0.0.1", r));
+    base = `http://127.0.0.1:${(server.address() as AddressInfo).port}`;
+  });
+  afterAll(() => new Promise<void>((r) => server.close(() => r())));
+
+  it("reads a 200 body fully to completion", async () => {
+    handlers.push((_req, res) => {
+      res.writeHead(200, { "Content-Type": "text/calendar" });
+      res.end("BEGIN:VCALENDAR\nEND:VCALENDAR");
+    });
+    expect(await fetchFeedText(`${base}/cal.ics`, opts)).toContain("VCALENDAR");
+  });
+
+  it("REFUSES to follow a redirect (a 302 is a hard failure, nothing re-resolved)", async () => {
+    handlers.push((_req, res) => {
+      res.writeHead(302, { location: "http://169.254.169.254/" });
+      res.end();
+    });
+    await expect(fetchFeedText(`${base}/redir`, opts)).rejects.toThrow(/HTTP 302/);
+  });
+
+  it("aborts a runaway body at the byte cap (real chunked stream)", async () => {
+    handlers.push((_req, res) => {
+      res.writeHead(200);
+      const t = setInterval(() => res.write(Buffer.alloc(64 * 1024, 88)), 1);
+      res.on("close", () => clearInterval(t));
+    });
+    await expect(
+      fetchFeedText(`${base}/huge`, { ...opts, maxBytes: 256 * 1024 }),
+    ).rejects.toThrow(/too large/);
+  });
+
+  it("PRODUCTION lookup (no override) refuses a loopback-resolving host at connect", async () => {
+    // Real dns.lookup mocked to loopback for a would-be public feed host.
     dnsMock.lookup.mockImplementation((_h: string, _o: unknown, cb: (e: Error | null, a?: unknown) => void) =>
       cb(null, [{ address: "127.0.0.1", family: 4 }]),
     );
     await expect(
-      fetch("http://feed.rebind.test/cal.ics", {
-        dispatcher: pinnedPublicAgent(),
-        signal: AbortSignal.timeout(2000),
-      } as RequestInit & { dispatcher: unknown }),
-    ).rejects.toThrow();
+      fetchFeedText("http://feed.rebind.test/cal.ics", { maxBytes: 1024, timeoutMs: 2000, userAgent: "t" }),
+    ).rejects.toThrow(); // EACCES from the pinned lookup — never connects
   });
 });

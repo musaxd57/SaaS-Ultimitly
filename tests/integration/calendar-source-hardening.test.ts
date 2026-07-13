@@ -3,13 +3,16 @@ import { NextRequest } from "next/server";
 import { prisma, resetDb, makeOrgWithProperty } from "../helpers/db";
 import type { SessionPayload } from "@/lib/auth";
 
-// Codex #22 — two hardenings of the host-supplied iCal feed pipeline:
-//  1. The fetch used to `await res.text()` and length-check AFTER: a chunked
-//     response with no/lying Content-Length buffered its whole body into
-//     memory first. Now the byte cap is enforced WHILE streaming.
-//  2. New calendar sources must be https — feed URLs embed bearer-like
-//     secrets, so plaintext http leaks them in transit. (Legacy http rows
-//     keep syncing; the rule applies at creation.)
+// Codex #22 — hardenings of the host-supplied iCal feed pipeline:
+//  1. Byte-cap / streaming / DNS-rebind pin now live in fetchFeedText (node:https
+//     + validating lookup) and are unit-tested with a real socket in
+//     pinned-fetch.test.ts; here we prove the SYNC ENGINE surfaces a feed-layer
+//     failure ("feed too large") as an error and parses a good feed.
+//  2. New calendar sources must be https — feed URLs embed bearer-like secrets,
+//     so plaintext http leaks them in transit. (Legacy http rows keep syncing;
+//     the rule applies at creation.)
+
+vi.mock("@/lib/net/pinned-fetch", () => ({ fetchFeedText: vi.fn() }));
 
 let session: SessionPayload;
 vi.mock("@/lib/api", async (orig) => {
@@ -18,6 +21,7 @@ vi.mock("@/lib/api", async (orig) => {
 });
 
 import { syncCalendarSource } from "@/lib/import/sync";
+import { fetchFeedText } from "@/lib/net/pinned-fetch";
 import { POST as createSource } from "@/app/api/properties/[id]/calendar-sources/route";
 
 describe("iCal feed hardening", () => {
@@ -28,41 +32,29 @@ describe("iCal feed hardening", () => {
     vi.restoreAllMocks();
   });
 
-  it("STREAMING CAP: an endless chunked body is aborted at the cap, not buffered whole", async () => {
+  it("a feed-layer failure (byte cap tripped in fetchFeedText) is surfaced as a sync error", async () => {
     const { propertyId } = await makeOrgWithProperty();
     const source = await prisma.calendarSource.create({
       data: { propertyId, label: "Airbnb", url: "https://example.com/cal.ics" },
     });
-
-    // A hostile/broken feed streaming 1 MB chunks forever, no Content-Length.
-    const chunk = new Uint8Array(1024 * 1024).fill(65); // "A"
-    let pulls = 0;
-    const endless = new ReadableStream<Uint8Array>({
-      pull(controller) {
-        pulls++;
-        if (pulls > 50) controller.close(); // safety net so a failing impl can't hang the test
-        else controller.enqueue(chunk);
-      },
-    });
-    vi.spyOn(global, "fetch").mockResolvedValue(new Response(endless, { status: 200 }));
+    // The real streaming abort is proven in pinned-fetch.test.ts; here the feed
+    // layer throwing "feed too large" must become a persisted sync error.
+    vi.mocked(fetchFeedText).mockRejectedValue(new Error("feed too large"));
 
     const result = await syncCalendarSource(source.id);
-
-    expect(result.errors.length).toBeGreaterThan(0); // feed rejected
+    expect(result.errors.length).toBeGreaterThan(0);
     expect(result.imported).toBe(0);
-    // The cap (10 MB) fired mid-stream: ~11 pulls, NOT the full 50.
-    expect(pulls).toBeLessThanOrEqual(13);
     const row = await prisma.calendarSource.findUnique({ where: { id: source.id } });
     expect(row?.lastStatus).toBe("error");
   });
 
-  it("normal feeds still parse through the streamed reader (real Response body)", async () => {
+  it("normal feeds parse through the feed layer", async () => {
     const { propertyId } = await makeOrgWithProperty();
     const source = await prisma.calendarSource.create({
       data: { propertyId, label: "Airbnb", url: "https://example.com/cal.ics" },
     });
     const ICS = `BEGIN:VCALENDAR\nVERSION:2.0\nBEGIN:VEVENT\nUID:ok-1@airbnb.com\nDTSTART;VALUE=DATE:20260710\nDTEND;VALUE=DATE:20260714\nSUMMARY:Ahmet Yılmaz\nEND:VEVENT\nEND:VCALENDAR`;
-    vi.spyOn(global, "fetch").mockResolvedValue(new Response(ICS, { status: 200 }));
+    vi.mocked(fetchFeedText).mockResolvedValue(ICS);
 
     const result = await syncCalendarSource(source.id);
     expect(result.errors).toEqual([]);
