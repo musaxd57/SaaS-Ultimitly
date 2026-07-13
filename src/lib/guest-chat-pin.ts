@@ -21,8 +21,11 @@ import { prisma } from "@/lib/db";
 //     without the pepper (which is not in the DB). The HMAC message binds the
 //     reservationId, so a stored hash can never validate against another stay.
 //   * Verification is TIMING-SAFE and rate-limited by a DURABLE per-reservation
-//     counter + lockout (survives restarts, atomic across replicas), in addition
-//     to the route's per-IP limiter.
+//     counter + lockout. The cap gates the COMPARE via an ATOMIC slot reservation
+//     (a conditional `chatPinFailedCount < MAX` increment that serializes on the
+//     row lock), so even a concurrent / multi-replica burst can test at most MAX
+//     guesses per window — the route's per-IP limiter is only a first, per-
+//     instance line of defence on top of this authoritative cross-replica cap.
 //   * The plaintext exists only in the generation response (shown once to the
 //     owner/manager). It never enters logs, Sentry, export or audit metadata.
 //   * ENV-GATED (QR_PIN_ENABLED, default OFF) — deploy is a no-op until enabled.
@@ -132,6 +135,45 @@ export async function verifyReservationPin(
   // malformed input. A brute-forcer's well-formed guesses still count below.
   if (normalizePin(pin).length !== PIN_DIGITS) return { status: "invalid" };
 
+  // ATOMIC SLOT RESERVATION *before* comparing (diff-review fix). The lockout must
+  // gate the COMPARE itself, not just the counter: otherwise a concurrent / multi-
+  // replica burst that all read "not locked" would each run an HMAC compare and
+  // collectively test far more than QR_PIN_MAX_ATTEMPTS guesses in one window —
+  // covering a 6-digit space fast. This conditional increment serializes on the
+  // row lock (`chatPinFailedCount < MAX` is re-checked under the lock), so at most
+  // MAX callers per window are granted a slot; the rest are refused WITHOUT ever
+  // comparing. A correct guess also spends a slot but resets the counter below, so
+  // a legitimate guest is never starved (they succeed within the budget), while a
+  // pure attacker (all wrong) depletes it exactly and gets locked.
+  const slot = await prisma.reservation.updateMany({
+    where: {
+      id: reservationId,
+      chatPinHash: { not: null },
+      OR: [{ chatPinLockedUntil: null }, { chatPinLockedUntil: { lt: now } }],
+      chatPinFailedCount: { lt: QR_PIN_MAX_ATTEMPTS },
+    },
+    data: { chatPinFailedCount: { increment: 1 } },
+  });
+  if (slot.count === 0) {
+    // Budget spent (or a race locked it first) → ensure the lock is set, refuse.
+    const cur = await prisma.reservation.findUnique({
+      where: { id: reservationId },
+      select: { chatPinLockedUntil: true },
+    });
+    let until = cur?.chatPinLockedUntil ?? null;
+    if (!until || until <= now) {
+      until = new Date(now.getTime() + QR_PIN_LOCKOUT_MS);
+      await prisma.reservation
+        .updateMany({
+          where: { id: reservationId, OR: [{ chatPinLockedUntil: null }, { chatPinLockedUntil: { lt: now } }] },
+          data: { chatPinLockedUntil: until, chatPinFailedCount: 0 },
+        })
+        .catch(() => {});
+    }
+    return { status: "locked", retryAfterSec: Math.max(1, Math.ceil((until.getTime() - now.getTime()) / 1000)) };
+  }
+
+  // We hold a slot → now it's safe to compare (timing-safe).
   if (safeEqualHex(hashPin(reservationId, pin), row.chatPinHash)) {
     // Success → reset the counter. Scope the write to the SAME hash so a PIN
     // regenerated in between doesn't get its fresh counter wiped by a stale success.
@@ -144,16 +186,15 @@ export async function verifyReservationPin(
     return { status: "ok" };
   }
 
-  // Wrong PIN → atomic increment; lock out once the threshold is crossed. The
-  // increment is atomic in Postgres; the lock-set-after is best-effort (a
-  // concurrent double-cross just sets the same lock twice — harmless).
+  // Wrong PIN — the slot (increment) is already consumed. If that pushed the count
+  // to the cap, lock now (best-effort; a concurrent double-cross just sets the same
+  // lock twice — harmless).
   try {
-    const updated = await prisma.reservation.update({
+    const post = await prisma.reservation.findUnique({
       where: { id: reservationId },
-      data: { chatPinFailedCount: { increment: 1 } },
       select: { chatPinFailedCount: true },
     });
-    if (updated.chatPinFailedCount >= QR_PIN_MAX_ATTEMPTS) {
+    if ((post?.chatPinFailedCount ?? 0) >= QR_PIN_MAX_ATTEMPTS) {
       await prisma.reservation.updateMany({
         where: { id: reservationId },
         data: { chatPinLockedUntil: new Date(now.getTime() + QR_PIN_LOCKOUT_MS), chatPinFailedCount: 0 },

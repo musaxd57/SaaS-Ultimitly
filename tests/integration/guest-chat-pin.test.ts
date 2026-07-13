@@ -138,6 +138,25 @@ describe("guest-chat-pin — storage + verify (DB)", () => {
     expect((await verifyReservationPin(reservationId, pin, future)).status).toBe("ok");
   });
 
+  it("CONCURRENCY CAP: a burst of wrong guesses can't run more than MAX compares (diff-review)", async () => {
+    // The durable lockout must gate the COMPARE, not just the increment: a
+    // distributed/multi-replica burst that all read "not locked" at once must NOT
+    // all get to test a PIN. At most QR_PIN_MAX_ATTEMPTS guesses may be evaluated
+    // ("invalid") per window; the rest are refused ("locked") without comparing.
+    const { reservationId } = await makeReservation();
+    const pin = await setReservationPin(reservationId);
+    const wrong = pin === "000000" ? "111111" : "000000";
+    const results = await Promise.all(
+      Array.from({ length: 40 }, () => verifyReservationPin(reservationId, wrong)),
+    );
+    const invalid = results.filter((r) => r.status === "invalid").length;
+    const locked = results.filter((r) => r.status === "locked").length;
+    expect(invalid).toBeLessThanOrEqual(QR_PIN_MAX_ATTEMPTS);
+    expect(locked).toBeGreaterThan(0);
+    // And the reservation ends up locked (budget spent).
+    expect((await verifyReservationPin(reservationId, pin)).status).toBe("locked");
+  });
+
   it("a SUCCESSFUL verify resets the failed-attempt counter", async () => {
     const { reservationId } = await makeReservation();
     const pin = await setReservationPin(reservationId);
