@@ -260,12 +260,21 @@ export async function resolveGuestChat(
   // currently on-site the afternoon before turnover, and (b) on turnover morning
   // serve the on-site guest's thread under the next guest's id (cross-guest PII).
   const isOpenNow = (r: { arrivalDate: Date; departureDate: Date }): boolean => {
-    const started = daysUntilDate(r.arrivalDate, now) <= 0; // arrival day today or earlier
-    const depDiff = daysUntilDate(r.departureDate, now); // 0 = today, >0 future, <0 past
+    const arrDiff = daysUntilDate(r.arrivalDate, now); // 0 = today, >0 future, <0 past
+    const depDiff = daysUntilDate(r.departureDate, now);
+    // Symmetric HARD gate (Istanbul): on the arrival day the chat only opens once the
+    // property's check-in time is reached — not from the day-start. This closes the
+    // turnover window (prev guest checked out, next guest not yet checked in) so a
+    // cleaner / past guest can't scan the fixed QR and claim the INCOMING stay's chat
+    // before the real guest arrives. Trade-off (documented): a host-approved EARLY
+    // check-in can't use the QR chat until the official check-in time.
+    const afterCheckin =
+      arrDiff < 0 ||
+      (arrDiff === 0 && nowMinutesInTz(now) >= hhmmToMinutes(property.checkInTime));
     const beforeCheckout =
       depDiff > 0 ||
       (depDiff === 0 && nowMinutesInTz(now) < hhmmToMinutes(property.checkOutTime));
-    return started && beforeCheckout;
+    return afterCheckin && beforeCheckout;
   };
   const activeReservation: GuestChatContext["activeReservation"] = candidates.find(isOpenNow) ?? null;
   const open = activeReservation !== null;

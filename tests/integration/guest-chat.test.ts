@@ -156,4 +156,49 @@ describe("resolveGuestChat (public QR concierge foundation)", () => {
     expect(after!.open).toBe(false);
     expect(after!.knowledgeBase).toHaveLength(0);
   });
+
+  it("OPENS only AT the check-in time on the arrival day (symmetric hard gate)", async () => {
+    const { propertyId } = await makeOrgWithProperty(); // checkInTime "15:00"
+    const token = await enableChat(propertyId);
+    await prisma.reservation.create({
+      data: {
+        propertyId,
+        guestName: "Varış",
+        arrivalDate: new Date("2026-06-20T00:00:00Z"),
+        departureDate: new Date("2026-06-23T00:00:00Z"),
+        status: "confirmed",
+        channel: "airbnb",
+      },
+    });
+    // 12:00 Istanbul (09:00Z) on the arrival day, BEFORE the 15:00 check-in → closed.
+    const early = await resolveGuestChat(token, new Date("2026-06-20T09:00:00Z"));
+    expect(early!.open).toBe(false);
+    // 16:00 Istanbul (13:00Z), past check-in → open.
+    const live = await resolveGuestChat(token, new Date("2026-06-20T13:00:00Z"));
+    expect(live!.open).toBe(true);
+  });
+
+  it("TURNOVER window (checkout 11:00 → next check-in 15:00) is CLOSED — no one can claim the incoming stay early", async () => {
+    const { propertyId } = await makeOrgWithProperty(); // check-in 15:00, checkout 11:00
+    const token = await enableChat(propertyId);
+    // Guest A leaves today 11:00; Guest B arrives today 15:00 (back-to-back).
+    await prisma.reservation.create({
+      data: { propertyId, guestName: "A", arrivalDate: new Date("2026-06-18T00:00:00Z"), departureDate: new Date("2026-06-20T00:00:00Z"), status: "confirmed", channel: "airbnb" },
+    });
+    await prisma.reservation.create({
+      data: { propertyId, guestName: "B", arrivalDate: new Date("2026-06-20T00:00:00Z"), departureDate: new Date("2026-06-22T00:00:00Z"), status: "confirmed", channel: "airbnb" },
+    });
+    // 12:00 Istanbul (09:00Z) — A checked out (11:00), B not checked in (15:00):
+    // the whole turnover window is CLOSED, so a cleaner/past guest can't claim B's chat.
+    const turnover = await resolveGuestChat(token, new Date("2026-06-20T09:00:00Z"));
+    expect(turnover!.open).toBe(false);
+    expect(turnover!.activeReservation).toBeNull();
+    // 16:00 Istanbul (13:00Z) — past B's check-in → open, bound to B.
+    const bLive = await resolveGuestChat(token, new Date("2026-06-20T13:00:00Z"));
+    expect(bLive!.open).toBe(true);
+    expect(bLive!.activeReservation?.guestName).toBe("B");
+    // 10:00 Istanbul (07:00Z) — before A's checkout → still A (incumbent), unaffected.
+    const aStill = await resolveGuestChat(token, new Date("2026-06-20T07:00:00Z"));
+    expect(aStill!.activeReservation?.guestName).toBe("A");
+  });
 });
