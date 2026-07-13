@@ -203,10 +203,15 @@ export default async function SettingsPage({
             <CardTitle className="text-base">Verileriniz (KVKK)</CardTitle>
           </CardHeader>
           <CardContent className="space-y-3">
+            {/* Copy mirrors the export route's ACTUAL allowlist (Codex #34): do not
+                claim "tüm verileri" — invoices/audit/consent records, task photos and
+                calendar sources are deliberately not in this file. */}
             <p className="text-sm text-muted-foreground">
-              İşletmenize ait tüm verileri (daireler, rezervasyonlar, misafir konuşmaları, görevler,
-              bilgi bankası) tek bir JSON dosyası olarak indirebilirsiniz. Şifre ve gizli anahtarlar
-              dışa aktarıma dâhil edilmez.
+              İşletmenizin temel verilerini — daireler, rezervasyonlar, misafir konuşmaları ve
+              mesajlar, görevler, bilgi bankası, mesaj şablonları, kullanıcı listesi — tek bir JSON
+              dosyası olarak indirebilirsiniz. Şifreler ve gizli anahtarlar hiçbir zaman dâhil
+              edilmez; fatura/ödeme ve denetim kayıtları ile görev fotoğrafları bu dosyada yer
+              almaz (gerekirse destekten talep edebilirsiniz).
             </p>
             <a
               href="/api/account/export"
