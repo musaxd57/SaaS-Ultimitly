@@ -2,6 +2,7 @@ import "server-only";
 import { addDays } from "date-fns";
 import { prisma } from "@/lib/db";
 import { isUniqueViolation } from "@/lib/db-errors";
+import { recordRiskEvent } from "@/lib/risk-events";
 import { classifyMessage, suggestReply, summarizeHostStyle } from "@/lib/ai";
 import {
   classifyFallback,
@@ -952,6 +953,18 @@ export async function applyChannelAutoReply(
         // Escalation is best-effort; an email/db hiccup must never throw out of
         // the auto-reply pass (the next sync cycle retries via sendDueAlerts).
       }
+      await recordRiskEvent({
+        organizationId: conversation.property.organizationId,
+        propertyId: conversation.propertyId,
+        conversationId: conversation.id,
+        surface: "auto_reply",
+        triggerId: last.id,
+        finalDecision: "human_review",
+        riskLevel: result.riskLevel,
+        riskType: result.riskType ?? detectRiskType(last.body),
+        reason: "escalated_to_human",
+        confidence: result.confidence,
+      });
       return { sent: false, skippedReason: "escalated_to_human", ...meta };
     }
     if (!options.dryRun) {
@@ -961,6 +974,18 @@ export async function applyChannelAutoReply(
         result.riskLevel,
         result.riskType ?? detectRiskType(last.body),
       );
+      await recordRiskEvent({
+        organizationId: conversation.property.organizationId,
+        propertyId: conversation.propertyId,
+        conversationId: conversation.id,
+        surface: "auto_reply",
+        triggerId: last.id,
+        finalDecision: "human_review",
+        riskLevel: result.riskLevel,
+        riskType: result.riskType ?? detectRiskType(last.body),
+        reason: "low_confidence_or_risky",
+        confidence: result.confidence,
+      });
     }
     return { sent: false, skippedReason: "low_confidence_or_risky", ...meta };
   }
@@ -1077,6 +1102,18 @@ export async function applyChannelAutoReply(
       .catch(() => {});
   }
 
+  await recordRiskEvent({
+    organizationId: conversation.property.organizationId,
+    propertyId: conversation.propertyId,
+    conversationId: conversation.id,
+    surface: "auto_reply",
+    triggerId: last.id,
+    finalDecision: "auto_sent",
+    riskLevel: result.riskLevel,
+    riskType: result.riskType,
+    reason: "gate_passed",
+    confidence: result.confidence,
+  });
   return { sent: true, draft, ...meta };
 }
 
@@ -1856,6 +1893,20 @@ export async function sendDueAlerts(
       // ignore; the next run will retry
     }
     if (claimed !== 1) continue;
+
+    // Decision made (keyword path — NO model verdict, so riskLevel stays null
+    // rather than fabricating one). Recorded at the claim, independent of the
+    // email/ack deliveries below; never throws, unique key absorbs retries.
+    await recordRiskEvent({
+      organizationId,
+      propertyId: c.propertyId,
+      conversationId: c.id,
+      surface: "alerts",
+      triggerId: last.id,
+      finalDecision: "human_review",
+      riskType,
+      reason: "keyword_escalated",
+    });
 
     const html = complaintEscalationEmail(
       { id: c.id, guestIdentifier: c.guestIdentifier, channel: c.channel, priority: c.priority },

@@ -94,6 +94,25 @@ describe("sendDueAlerts", () => {
     expect(conv?.status).toBe("problem");
   });
 
+  it("records ONE RiskEvent per escalation (history wired end-to-end; re-run adds none)", async () => {
+    // Codex #32: the keyword escalation must land in the append-only history —
+    // decision-level fields only, no fabricated riskLevel on the keyword path.
+    const { orgId, conversationId } = await seedConversation({ body: "Klima bozuk, para iadesi istiyorum!" });
+    await sendDueAlerts(orgId);
+    await sendDueAlerts(orgId); // idempotent pass — no second event
+
+    const events = await prisma.riskEvent.findMany({ where: { organizationId: orgId } });
+    expect(events).toHaveLength(1);
+    expect(events[0]).toMatchObject({
+      surface: "alerts",
+      finalDecision: "human_review",
+      reason: "keyword_escalated",
+      conversationId,
+      riskLevel: null, // keyword path has no model verdict — never fabricated
+    });
+    expect(events[0].riskType).toBeTruthy();
+  });
+
   it("uses the org's own alert address when set (over the owner email)", async () => {
     const { orgId } = await seedConversation({
       body: "Para iadesi istiyorum lütfen.",

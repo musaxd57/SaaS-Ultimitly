@@ -124,6 +124,7 @@ model Organization {
   updatedAt DateTime @updatedAt
 
   users            User[]
+  riskEvents       RiskEvent[]
   properties       Property[]
   automationRules  AutomationRule[]
   auditLogs        AuditLog[]
@@ -670,4 +671,38 @@ model WebhookEvent {
   createdAt       DateTime  @default(now())
 
   @@index([provider, status])
+}
+
+// Append-only decision history for the AI risk pipeline (Codex #32). One row =
+// one FINAL, DETERMINISTIC code decision (never raw model output): the auto-
+// reply gate verdict or the keyword-alert escalation. PII-FREE BY DESIGN: no
+// guest text, names, contacts or prompts — only closed-set enums + opaque ids.
+// Reports aggregate the last 30 days from THIS history instead of the mutable
+// Conversation snapshot (which lost every prior decision). No backfill: history
+// starts at feature activation, and the report says so.
+model RiskEvent {
+  id             String   @id @default(cuid())
+  organizationId String
+  // Plain metadata ids (NO FK — ChatUsage precedent): history survives
+  // property/conversation cleanup; KVKK deletion is guaranteed by the
+  // organization CASCADE below. Opaque cuids, never PII.
+  propertyId     String?
+  conversationId String?
+  surface        String // auto_reply | alerts (QR may join later)
+  // The inbound Message id that forced this decision — with organizationId +
+  // finalDecision it forms the TENANT-SCOPED retry-idempotency key: a retried
+  // pass can't double-log, a LEGITIMATE later transition (held -> sent) still
+  // records, and two tenants sharing a trigger string can never mask each other.
+  triggerId      String
+  finalDecision  String // auto_sent | human_review
+  riskLevel      String? // none|low|medium|high (code-clamped); NULL on the keyword path (no model verdict — never fabricate one)
+  riskType       String? // closed set (clamped in code) or null
+  reason         String? // closed-set code (escalated_to_human, low_confidence_or_risky, keyword_escalated[_ack], gate_passed) — NEVER guest text
+  confidence     Float? // model confidence at decision time (0-1) — feeds threshold tuning
+  occurredAt     DateTime @default(now())
+
+  organization Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+
+  @@unique([organizationId, surface, triggerId, finalDecision])
+  @@index([organizationId, occurredAt])
 }

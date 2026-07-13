@@ -46,50 +46,48 @@ const INTENT_LABEL: Record<string, string> = {
 export default async function ReportsPage() {
   const { organizationId } = await requireAuth();
   const since30 = new Date(Date.now() - 30 * 24 * 60 * 60 * 1000);
-  const HELD_REASONS = ["escalated_to_human", "complaint", "low_confidence_or_risky"];
+  // Risk view reads the append-only RiskEvent HISTORY (Codex #32) — the old
+  // Conversation snapshot kept only the LAST decision per thread, so earlier
+  // risks vanished and a stale one looked current. No backfill by design:
+  // counting starts when the event log shipped (the card says so).
+  const HELD_REASONS = ["escalated_to_human", "keyword_escalated", "low_confidence_or_risky"];
   const [riskRows, heldRows, heldResolved] = await Promise.all([
-    prisma.conversation.groupBy({
-      by: ["lastRiskLevel"],
-      where: {
-        property: { organizationId },
-        lastMessageAt: { gte: since30 },
-        lastRiskLevel: { not: null },
-      },
+    prisma.riskEvent.groupBy({
+      by: ["riskLevel"],
+      where: { organizationId, occurredAt: { gte: since30 }, riskLevel: { not: null } },
       _count: { _all: true },
     }),
-    prisma.conversation.groupBy({
-      by: ["skippedReason"],
+    prisma.riskEvent.groupBy({
+      by: ["reason"],
       where: {
-        property: { organizationId },
-        lastMessageAt: { gte: since30 },
-        skippedReason: { in: HELD_REASONS },
+        organizationId,
+        occurredAt: { gte: since30 },
+        finalDecision: "human_review",
+        reason: { in: HELD_REASONS },
       },
       _count: { _all: true },
     }),
     // Held-for-human threads the host has since answered = manually resolved.
+    // Thread STATE, not decision history — stays on Conversation on purpose.
     prisma.conversation.count({
       where: {
         property: { organizationId },
         lastMessageAt: { gte: since30 },
-        skippedReason: { in: HELD_REASONS },
+        skippedReason: { in: ["escalated_to_human", "complaint", "low_confidence_or_risky"] },
         status: "answered",
       },
     }),
   ]);
   const riskCount = (lvl: string) =>
-    riskRows.find((r) => r.lastRiskLevel === lvl)?._count._all ?? 0;
+    riskRows.find((r) => r.riskLevel === lvl)?._count._all ?? 0;
   const heldCount = (reason: string) =>
-    heldRows.find((r) => r.skippedReason === reason)?._count._all ?? 0;
+    heldRows.find((r) => r.reason === reason)?._count._all ?? 0;
   const heldTotal = heldRows.reduce((sum, r) => sum + r._count._all, 0);
-  const riskTypeRows = await prisma.conversation.groupBy({
-    by: ["lastRiskType"],
-    where: {
-      property: { organizationId },
-      lastMessageAt: { gte: since30 },
-      lastRiskType: { not: null },
-    },
+  const riskTypeRows = await prisma.riskEvent.groupBy({
+    by: ["riskType"],
+    where: { organizationId, occurredAt: { gte: since30 }, riskType: { not: null } },
     _count: { _all: true },
-    orderBy: { _count: { lastRiskType: "desc" } },
+    orderBy: { _count: { riskType: "desc" } },
     take: 5,
   });
 
@@ -279,7 +277,7 @@ export default async function ReportsPage() {
                 </div>
                 <div className="flex items-center justify-between rounded-lg border border-border px-3 py-2">
                   <span>Şikayet — size bırakıldı</span>
-                  <Badge tone="muted">{heldCount("complaint") + heldCount("escalated_to_human")}</Badge>
+                  <Badge tone="muted">{heldCount("keyword_escalated") + heldCount("escalated_to_human")}</Badge>
                 </div>
                 <div className="flex items-center justify-between rounded-lg border border-border px-3 py-2">
                   <span>Düşük güven — onay bekledi</span>
@@ -293,8 +291,8 @@ export default async function ReportsPage() {
                   <div className="space-y-1 border-t border-border pt-2">
                     <p className="text-xs font-medium text-muted-foreground">En sık risk türleri</p>
                     {riskTypeRows.map((row) => (
-                      <div key={row.lastRiskType} className="flex items-center justify-between text-xs">
-                        <span>{riskTypeLabel(row.lastRiskType) ?? row.lastRiskType}</span>
+                      <div key={row.riskType} className="flex items-center justify-between text-xs">
+                        <span>{riskTypeLabel(row.riskType) ?? row.riskType}</span>
                         <span className="font-medium">{row._count._all}</span>
                       </div>
                     ))}
@@ -302,7 +300,8 @@ export default async function ReportsPage() {
                 ) : null}
                 <p className="pt-1 text-xs text-muted-foreground">
                   Riskli/şikayet içeren mesajlar otomatik cevaplanmaz — burada AI&apos;ın neyi size
-                  bıraktığını ve neyin çözüldüğünü görürsünüz.
+                  bıraktığını ve neyin çözüldüğünü görürsünüz. Sayım olay bazlıdır ve kayıt
+                  özelliğinin açıldığı andan itibaren birikir; daha eski dönem gösterilmez.
                 </p>
               </>
             )}
