@@ -409,3 +409,44 @@ export function trialEndedEmail(ownerName: string, settingsUrl: string): string 
   `;
   return wrapEmail(body);
 }
+
+// ---------------------------------------------------------------------------
+// Template: QR guest-chat escalation (Codex #15)
+// DELIBERATELY MINIMAL: the recipient is the host, but this mail can sit in a
+// third-party inbox/provider log — so it carries NO guest message body, NO
+// guest name, NO access code and NO reservation details. Plain reason + a safe
+// panel link (built from appBaseUrl(), never the request Host).
+// ---------------------------------------------------------------------------
+export function qrEscalationEmail(
+  propertyName: string,
+  reason: "ai_escalated" | "daily_cap",
+  panelUrl: string,
+): string {
+  const reasonText =
+    reason === "daily_cap"
+      ? "Günlük otomatik yanıt limiti dolduğu için mesaj yapay zekâ tarafından yanıtlanmadı ve size devredildi."
+      : "Yapay zekâ, güvenlik kuralları gereği bu mesajı yanıtlamadı ve size devretti.";
+  const body = `
+    <h2 style="margin:0 0 8px;color:#b45309;font-size:22px;font-weight:700;">
+      Misafir sohbetinde size devredilen mesaj
+    </h2>
+    <p style="margin:0 0 16px;color:#64748b;font-size:15px;">
+      <strong>${esc(propertyName)}</strong> dairesinin QR misafir sohbetinde yeni bir mesaj
+      insan ilgisi bekliyor.
+    </p>
+    <p style="margin:0 0 24px;color:#334155;font-size:14px;">${esc(reasonText)}</p>
+    <table cellpadding="0" cellspacing="0" style="margin-bottom:24px;">
+      <tr>
+        <td style="background:#1e293b;border-radius:8px;">
+          <a href="${esc(panelUrl)}" style="display:inline-block;padding:12px 24px;color:#ffffff;font-size:14px;font-weight:600;text-decoration:none;">
+            Misafir Sohbetleri panelini aç
+          </a>
+        </td>
+      </tr>
+    </table>
+    <p style="color:#94a3b8;font-size:12px;">
+      Gizlilik gereği mesaj içeriği bu e-postada yer almaz; panelde görüntüleyebilirsiniz.
+    </p>
+  `;
+  return wrapEmail(body);
+}

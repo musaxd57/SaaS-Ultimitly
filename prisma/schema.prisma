@@ -302,6 +302,11 @@ model Reservation {
   // (each reservation starts null → rebinds fresh). Not PII (a hash + timestamp).
   chatBoundHash   String?   // sha256(hex) of the current stay's device secret; null = unbound
   chatBoundAt     DateTime? // when this stay's chat was first claimed by a device
+  // QR escalation e-mail claim (Codex #15): when the host was last e-mailed about
+  // an escalated QR-chat message of THIS stay. Atomic windowed claim → the same
+  // incident burst produces ONE mail; a genuinely new incident later re-arms.
+  // Nullable → populated-table safe; env-gated feature (default OFF).
+  qrEscalationEmailAt DateTime?
   // Which iCal CalendarSource imported this row (plain id, no FK — a deleted
   // source simply leaves rows unbound). Feed reconciliation may ONLY cancel rows
   // bound to the SAME source: without this, a feed cancelled every same-channel

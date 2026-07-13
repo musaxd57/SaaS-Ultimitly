@@ -3,6 +3,7 @@ import { prisma } from "@/lib/db";
 import { suggestReply } from "@/lib/ai";
 import { classifyFallback, detectPromptInjection, detectRiskType } from "@/lib/ai/fallback";
 import { resolveGuestChat, bindOrCheckStay } from "@/lib/guest-chat";
+import { maybeSendQrEscalationEmail } from "@/lib/guest-chat-alerts";
 import { jsonOk, badRequest, tooManyRequests } from "@/lib/api";
 import { rateLimit, clientIp } from "@/lib/rate-limit";
 
@@ -265,6 +266,14 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ tok
   if (usage.count > DAILY_AI_CAP) {
     const reply = "Sorunuzu ev sahibine ilettim; en kısa sürede size dönecek.";
     await recordGuestChat(ctx.property.id, res, message, reply, true);
+    // "İlettim" is only true if the host finds out — env-gated (default OFF),
+    // per-stay deduped, never throws, never changes this response (Codex #15).
+    await maybeSendQrEscalationEmail({
+      organizationId: ctx.property.organizationId,
+      propertyName: ctx.property.name,
+      reservationId: res.id,
+      reason: "daily_cap",
+    });
     return finalize({ escalated: true, reply });
   }
 
@@ -306,5 +315,13 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ tok
     ? "Bu sorunuzu ev sahibine ilettim; en kısa sürede size dönecek."
     : result.reply;
   await recordGuestChat(ctx.property.id, res, message, reply, escalate);
+  if (escalate) {
+    await maybeSendQrEscalationEmail({
+      organizationId: ctx.property.organizationId,
+      propertyName: ctx.property.name,
+      reservationId: res.id,
+      reason: "ai_escalated",
+    });
+  }
   return finalize({ escalated: escalate, reply });
 }
