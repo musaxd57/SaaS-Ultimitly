@@ -4,6 +4,7 @@ import { isUniqueViolation } from "@/lib/db-errors";
 import { parseIcs } from "@/lib/import/ics";
 import { createReservationTasks, removeAutoTasksForCancelledReservation } from "@/lib/automation";
 import { isPrivateHost, resolvesToPrivate } from "@/lib/net/private-host";
+import { pinnedPublicAgent } from "@/lib/net/pinned-fetch";
 import { ANON_NAME } from "@/lib/data-retention";
 
 export interface SyncResult {
@@ -92,10 +93,15 @@ export async function syncCalendarSource(sourceId: string): Promise<SyncResult> 
       // SSRF: do NOT follow redirects — a public host could 30x to an internal
       // URL that bypasses the isPrivateHost check on the original hostname. A 3xx
       // then fails the res.ok check below. Bound the fetch so a slow-loris internal
-      // endpoint can't wedge the request.
+      // endpoint can't wedge the request. Following ZERO redirects is stronger
+      // than re-validating each hop — there is nothing to re-resolve.
       redirect: "manual",
+      // DNS-REBIND (TOCTOU) pin: the socket connects ONLY to an address this
+      // dispatcher's lookup validated as public, closing the gap between the
+      // pre-check above and fetch's own resolution. TLS SNI/cert unchanged.
+      dispatcher: pinnedPublicAgent(),
       signal: AbortSignal.timeout(15000),
-    });
+    } as RequestInit & { dispatcher: unknown });
     if (!res.ok) {
       throw new Error(`HTTP ${res.status}`);
     }
