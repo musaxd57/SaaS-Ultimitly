@@ -2,7 +2,9 @@ import { describe, it, expect } from "vitest";
 import { spawnSync } from "node:child_process";
 import { readFileSync } from "node:fs";
 import { join } from "node:path";
-import { isLocalDatabaseUrl } from "../../scripts/guard-local-db.mjs";
+import { symlinkSync, rmSync, mkdtempSync } from "node:fs";
+import { tmpdir } from "node:os";
+import { isLocalDatabaseUrl } from "../../scripts/db-url.mjs";
 
 // Codex #9: `db:reset` runs `prisma db push --force-reset` (full wipe) BEFORE
 // prisma/seed.ts, so the seed's own local-DB guard fired only after the damage.
@@ -52,6 +54,27 @@ describe("scripts/guard-local-db.mjs — the destructive-command gate", () => {
 
   it("ALLOW_PROD_SEED=1 → deliberate override passes", () => {
     expect(gate({ DATABASE_URL: PROD, ALLOW_PROD_SEED: "1" }).status).toBe(0);
+  });
+
+  it("gates UNCONDITIONALLY — even when invoked via a symlink (Windows argv-mismatch class)", () => {
+    // The old main-module detection compared import.meta.url to
+    // file://${process.argv[1]}: on Windows (backslashes, drive letter) and
+    // under symlinks (Node resolves import.meta.url to the REAL path while
+    // argv[1] keeps the link path) the strings never match and the gate
+    // silently skipped. A symlinked run reproduces that mismatch on Linux.
+    const dir = mkdtempSync(join(tmpdir(), "dbguard-"));
+    const link = join(dir, "linked-guard.mjs");
+    symlinkSync(join(process.cwd(), "scripts", "guard-local-db.mjs"), link);
+    try {
+      const r = spawnSync(process.execPath, [link], {
+        env: { ...process.env, DATABASE_URL: PROD, ALLOW_PROD_SEED: "" },
+        encoding: "utf8",
+      });
+      expect(r.status).toBe(1); // old code: 0 (gate skipped) → wipe would proceed
+      expect(r.stderr).toMatch(/Refusing/);
+    } finally {
+      rmSync(dir, { recursive: true, force: true });
+    }
   });
 
   it("CHAIN PROOF: '&&' stops the destructive step when the gate refuses", () => {

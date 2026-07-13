@@ -6,26 +6,22 @@
 // so a shell that still carries the production URL cannot wipe or schema-push
 // the live DB. Same policy + override as seed.ts: ALLOW_PROD_SEED=1 is the one
 // deliberate escape hatch. Never prints the URL (it embeds credentials).
+//
+// UNCONDITIONAL: no "am I the main module?" detection. The previous
+// `import.meta.url === file://${process.argv[1]}` check silently never matched
+// on Windows (backslashes, drive letter, no URL-encoding) and under symlinked
+// invocations — the gate became a no-op exactly where it mattered. This file
+// is an executable, not a library: importing it runs the gate. The pure
+// isLocalDatabaseUrl helper lives in scripts/db-url.mjs for tests/reuse.
 
-/** True only when the URL parses and its host is a loopback address. */
-export function isLocalDatabaseUrl(url) {
-  try {
-    const h = new URL(url ?? "").hostname;
-    return h === "localhost" || h === "127.0.0.1" || h === "::1";
-  } catch {
-    return false; // unparseable / empty → treat as non-local (refuse)
-  }
-}
+import { isLocalDatabaseUrl } from "./db-url.mjs";
 
-// Gate only when executed directly (not when imported by tests).
-if (import.meta.url === `file://${process.argv[1]}`) {
-  if (!isLocalDatabaseUrl(process.env.DATABASE_URL) && process.env.ALLOW_PROD_SEED !== "1") {
-    console.error(
-      "[db-guard] Refusing: DATABASE_URL is not a local database — this command would wipe or mutate it.",
-    );
-    console.error("[db-guard] Point DATABASE_URL at localhost, or set ALLOW_PROD_SEED=1 to override deliberately.");
-    process.exit(1);
-  }
-  console.log("[db-guard] local database confirmed");
-  process.exit(0);
+if (!isLocalDatabaseUrl(process.env.DATABASE_URL) && process.env.ALLOW_PROD_SEED !== "1") {
+  console.error(
+    "[db-guard] Refusing: DATABASE_URL is not a local database — this command would wipe or mutate it.",
+  );
+  console.error("[db-guard] Point DATABASE_URL at localhost, or set ALLOW_PROD_SEED=1 to override deliberately.");
+  process.exit(1);
 }
+console.log("[db-guard] local database confirmed");
+process.exit(0);
