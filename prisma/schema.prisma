@@ -85,6 +85,13 @@ model Organization {
   // minimization, the feed only needs busy/free dates. A host who wants the name
   // in their own calendar can opt in. Applies to every property feed of the org.
   icalShowGuestName Boolean @default(false)
+  // QR concierge PIN — STRICT mode (Faz 5, #14; opt-in, default OFF). When OFF, a
+  // stay requires a PIN only if the host generated one for THAT reservation
+  // (gentle opt-in, no surprise). When ON, EVERY not-yet-claimed stay requires a
+  // PIN — a reservation with no PIN is fail-closed (chat locked until the host
+  // generates one), fully closing the turnover / wrong-scanner gap. Only takes
+  // effect while the global QR_PIN_ENABLED env switch is on.
+  qrChatPinRequired Boolean @default(false)
   // When true, safe/high-confidence channel (Airbnb / Booking via Hospitable)
   // guest messages are auto-answered; gated to active-hours window in org timezone.
   // Complaints and risky messages always wait for a human.
@@ -332,6 +339,19 @@ model Reservation {
   // table safe; the whole feature is env-gated (default OFF).
   qrEscalationEmailAt        DateTime?
   qrEscalationEmailMessageId String? // inbound Message id of the last alerted event
+  // Per-reservation QR concierge PIN (Faz 5, #14). The host generates a PIN and
+  // gives it to the booked guest (e.g. in the check-in message); the guest must
+  // enter it to CLAIM this stay's chat on their device — closing the "cleaner /
+  // past guest / neighbour scans the fixed QR" gap that first-scan device
+  // binding alone left open. Stored as an HMAC(server pepper, reservationId:PIN)
+  // — NEVER the plaintext PIN — so a DB read can't recover or offline-brute-force
+  // a low-entropy PIN (the pepper is a server secret, not in the DB). The whole
+  // feature is env-gated (QR_PIN_ENABLED, default OFF); all fields nullable /
+  // defaulted → populated-table safe, old deployments ignore them.
+  chatPinHash        String?   // HMAC-SHA256 hex of the current PIN; null = no PIN set
+  chatPinSetAt       DateTime? // when the PIN was last (re)generated — regeneration overwrites the hash, instantly invalidating the old PIN
+  chatPinFailedCount Int       @default(0) // durable wrong-PIN counter (brute-force lockout; survives restarts + is multi-replica atomic)
+  chatPinLockedUntil DateTime? // when set & in the future, PIN entry is locked (too many wrong attempts)
   // Which iCal CalendarSource imported this row (plain id, no FK — a deleted
   // source simply leaves rows unbound). Feed reconciliation may ONLY cancel rows
   // bound to the SAME source: without this, a feed cancelled every same-channel
