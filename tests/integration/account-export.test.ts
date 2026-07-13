@@ -93,10 +93,23 @@ describe("GET /api/account/export — complete + secret-free", () => {
       data: { organizationId: orgId, surface: "auto_reply", triggerId: "m-1", finalDecision: "human_review", riskLevel: "high", riskType: "complaint", reason: "escalated_to_human" },
     });
 
+    // Security envelope (Codex): staff AND manager are both 403 — the export
+    // hands over feed credentials + billing; only the owner may take it.
+    for (const role of ["staff", "manager"] as const) {
+      session = { ...session, role };
+      const denied = await exportRoute(new NextRequest("http://localhost/api/account/export"), {
+        params: Promise.resolve({} as Record<string, never>),
+      });
+      expect(denied.status).toBe(403);
+    }
+    session = { ...session, role: "owner" };
+
     const res = await exportRoute(new NextRequest("http://localhost/api/account/export"), {
       params: Promise.resolve({} as Record<string, never>),
     });
     expect(res.status).toBe(200);
+    expect(res.headers.get("cache-control")).toBe("no-store");
+    expect(res.headers.get("content-disposition")).toContain("attachment");
     const text = await res.text();
     const data = JSON.parse(text);
 

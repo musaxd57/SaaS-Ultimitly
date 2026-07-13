@@ -22,6 +22,11 @@ export const dynamic = "force-dynamic";
 // test scans the serialized output for these field names.
 // ---------------------------------------------------------------------------
 export const GET = withManage(async (session) => {
+  // OWNER-ONLY (Codex): the export carries the org's calendar-feed URLs
+  // (bearer-like credentials), invoices and consent evidence — manager-level
+  // access is not enough for a full-account data handover. withManage already
+  // 403s staff; this narrows the remaining manager case.
+  if (session.role !== "owner") return forbidden();
   const orgId = session.organizationId;
   const [org, subscription, invoices, auditLogs, checkoutConsents, riskEvents] = await Promise.all([
     prisma.organization.findUnique({
@@ -208,6 +213,8 @@ export const GET = withManage(async (session) => {
     headers: {
       "Content-Type": "application/json; charset=utf-8",
       "Content-Disposition": `attachment; filename="${filename}"`,
+      // Never let a proxy/browser cache a file full of credentials + PII.
+      "Cache-Control": "no-store",
     },
   });
 });

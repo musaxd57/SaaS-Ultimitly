@@ -197,7 +197,7 @@ export default async function SettingsPage({
         </CardContent>
       </Card>
 
-      {session.role === "owner" || session.role === "manager" ? (
+      {session.role === "owner" ? (
         <Card className="max-w-2xl">
           <CardHeader>
             <CardTitle className="text-base">Verileriniz (KVKK)</CardTitle>
