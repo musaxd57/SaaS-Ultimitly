@@ -1,22 +1,44 @@
-// Deterministic evidence check for statedCheckoutTime (Codex #29). The model's
-// claim "the guest stated they'll check out at HH:MM" is persisted onto the
-// RESERVATION (guestCheckoutTime) and feeds turnover planning — so a regex-valid
-// but HALLUCINATED time must never be written. This verifier accepts the claim
-// only when the guest's own message plausibly contains that time. It is a
-// hallucination stopper, not a full NLU parser: conservative on bare numbers
-// ("2 valizimiz var" can never anchor a 02:00/14:00 claim), tolerant on real
-// time expressions ("18:00", "6pm", "saat 6", "18'de", "akşam 6 gibi").
+// Deterministic evidence check for statedCheckoutTime (Codex #29 + follow-up).
+// The model's claim "the guest stated they'll check out at HH:MM" is persisted
+// onto the RESERVATION (guestCheckoutTime) and feeds turnover planning — so a
+// regex-valid but HALLUCINATED time must never be written. Two requirements,
+// both evaluated per sentence-segment of the guest's own message:
+//   1. the segment plausibly CONTAINS that time, and
+//   2. the same segment carries a CHECKOUT cue (çık/ayrıl/leave/depart/
+//      check-out/…) — "Check-in 18:00 mi?" or "Dinner at 18:00" name a time
+//      but say nothing about checking out and must be rejected.
+// It is a hallucination stopper, not a full NLU parser: conservative on bare
+// numbers ("2 valizimiz var" can never anchor a claim), tolerant on real
+// checkout statements ("18:00'de çıkacağız", "we'll leave around 6pm").
 
 const HHMM = /^([01]?\d|2[0-3]):([0-5]\d)$/;
 
-/** True when `message` plausibly states the time `hhmm` (24h "HH:MM"). */
+// ç[ıi]k / ayr[ıi]l: JS toLowerCase maps ASCII "I" to "i" (not "ı"), so an
+// all-caps "ÇIKACAĞIZ" lowercases to "çikacağiz" — match both vowels.
+// "check[\s-]?out" never matches "check-in" (the "out" is required).
+const CHECKOUT_CUE =
+  /ç[ıi]k|ayr[ıi]l|terk|boşalt|bosalt|check[\s-]?out|leav|depart|vacat|auscheck/;
+
+/** True when `message` plausibly states HH:MM AS A CHECKOUT TIME. */
 export function timeStatedInMessage(hhmm: string, message: string): boolean {
   const parsed = HHMM.exec(hhmm.trim());
   if (!parsed) return false;
   const h = Number(parsed[1]);
   const min = Number(parsed[2]);
-  const text = message.toLowerCase();
 
+  // Evaluate sentence by sentence: the time and the checkout cue must sit in
+  // the SAME segment, so "Dinner at 18:00. We leave tomorrow." can't borrow
+  // the cue from a different sentence to legitimize the dinner time.
+  // A dot BETWEEN digits is a time separator ("18.30"), not a sentence end.
+  for (const segment of message.toLowerCase().split(/(?:[!?\n]|(?<!\d)\.|\.(?!\d))+/)) {
+    if (!CHECKOUT_CUE.test(segment)) continue;
+    if (segmentStatesTime(segment, h, min)) return true;
+  }
+  return false;
+}
+
+/** Does this (lowercased) segment plausibly contain the time h:min? */
+function segmentStatesTime(text: string, h: number, min: number): boolean {
   // 1) Explicit hour:minute / hour.minute mentions, optional am/pm suffix.
   for (const m of text.matchAll(/(\d{1,2})[:.](\d{2})\s*(a\.?m\.?|p\.?m\.?)?/g)) {
     let hh = Number(m[1]);

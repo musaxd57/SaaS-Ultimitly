@@ -113,24 +113,35 @@ describe("statedCheckoutTime requires evidence in the guest message (#29)", () =
 });
 
 describe("timeStatedInMessage (pure)", () => {
-  it("explicit forms", () => {
+  it("explicit forms (with checkout context)", () => {
     expect(timeStatedInMessage("18:00", "18:00 gibi çıkarız")).toBe(true);
+    expect(timeStatedInMessage("18:00", "18:00'de çıkacağız")).toBe(true);
     expect(timeStatedInMessage("18:30", "we leave at 6:30 pm")).toBe(true);
     expect(timeStatedInMessage("06:30", "we leave at 6:30 am")).toBe(true);
     expect(timeStatedInMessage("18:30", "çıkış 18.30 olur")).toBe(true);
     expect(timeStatedInMessage("18:30", "we leave at 6:30")).toBe(true); // afternoon reading allowed
   });
 
-  it("cued bare hours", () => {
+  it("cued bare hours (with checkout context)", () => {
     expect(timeStatedInMessage("18:00", "akşam 6 gibi çıkarız")).toBe(true);
-    expect(timeStatedInMessage("09:00", "saat 9 civarı")).toBe(true);
+    expect(timeStatedInMessage("09:00", "saat 9 civarı ayrılırız")).toBe(true);
     expect(timeStatedInMessage("18:00", "18'de çıkarız")).toBe(true);
     expect(timeStatedInMessage("12:00", "çıkışı öğlen 12 yapabilir miyiz")).toBe(true);
-    expect(timeStatedInMessage("21:00", "at 9 pm")).toBe(true);
+    expect(timeStatedInMessage("21:00", "we depart at 9 pm")).toBe(true);
+    expect(timeStatedInMessage("18:00", "ÇIKACAĞIZ akşam 6 gibi")).toBe(true); // all-caps I → i lowercasing
+  });
+
+  it("a time WITHOUT checkout context is NOT a checkout claim (Codex follow-up)", () => {
+    expect(timeStatedInMessage("18:00", "Check-in 18:00 mi?")).toBe(false); // check-IN question
+    expect(timeStatedInMessage("18:00", "Dinner at 18:00")).toBe(false); // unrelated event
+    expect(timeStatedInMessage("09:00", "saat 9 civarı")).toBe(false); // no checkout verb at all
+    expect(timeStatedInMessage("21:00", "at 9 pm")).toBe(false);
+    // The cue can't be borrowed from a DIFFERENT sentence.
+    expect(timeStatedInMessage("18:00", "Dinner at 18:00. We will leave tomorrow.")).toBe(false);
   });
 
   it("no false anchors from uncued numbers / mismatches", () => {
-    expect(timeStatedInMessage("14:00", "2 valizimiz var")).toBe(false);
+    expect(timeStatedInMessage("14:00", "2 valizimiz var, çıkışta bırakacağız")).toBe(false);
     expect(timeStatedInMessage("10:00", "oda 10 numarada mı")).toBe(false); // no time cue
     expect(timeStatedInMessage("18:00", "19:00 gibi çıkarız")).toBe(false);
     expect(timeStatedInMessage("18:15", "18:00 gibi çıkarız")).toBe(false);
