@@ -50,6 +50,33 @@ export function generateOAuthState(): string {
   return randomBytes(24).toString("hex");
 }
 
+// The state cookie binds the round-trip to the INITIATING session context, not
+// just to a CSRF nonce (Codex #13): an operator who starts the connect flow
+// while impersonating org A, then exits impersonation (or switches to org B)
+// before Hospitable redirects back, must NOT have the host's tokens saved to
+// whatever org the session happens to hold at callback time. The callback
+// requires cookie-org === session-org and cookie-user === session-user.
+//
+// No HMAC needed: the cookie is httpOnly and only ever EQUALITY-CHECKED against
+// the server-side session — a client tampering with its own cookie can only
+// make its own flow fail, never redirect a token to a foreign org.
+
+/** Pack the CSRF state + initiating org/user into the state cookie value. */
+export function packOAuthStateCookie(state: string, organizationId: string, userId: string): string {
+  // "." never appears in the hex state or in cuid ids — an unambiguous join.
+  return `${state}.${organizationId}.${userId}`;
+}
+
+/** Parse a state cookie; null on any malformed/legacy (bare-state) value. */
+export function parseOAuthStateCookie(
+  value: string | undefined,
+): { state: string; organizationId: string; userId: string } | null {
+  if (!value) return null;
+  const parts = value.split(".");
+  if (parts.length !== 3 || parts.some((p) => !p)) return null;
+  return { state: parts[0], organizationId: parts[1], userId: parts[2] };
+}
+
 export function buildAuthorizeUrl(config: HospitableOAuthConfig, state: string): string {
   const url = new URL(config.authorizeUrl);
   url.searchParams.set("client_id", config.clientId);

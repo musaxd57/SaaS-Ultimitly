@@ -8,6 +8,7 @@ import { baseUrlFromHost } from "@/lib/auth/email-verify";
 import {
   getHospitableOAuthConfig,
   exchangeCodeForToken,
+  parseOAuthStateCookie,
   OAUTH_STATE_COOKIE,
 } from "@/lib/hospitable-oauth";
 
@@ -48,9 +49,22 @@ export async function GET(req: NextRequest) {
     return res;
   };
 
-  if (!code || !state || !cookieState || state !== cookieState) {
+  const bound = parseOAuthStateCookie(cookieState);
+  if (!code || !state || !bound || state !== bound.state) {
     return clearStateCookie(
       NextResponse.redirect(`${base}/settings?hospitable=state_mismatch`),
+    );
+  }
+
+  // The flow must FINISH in the exact org+user context it STARTED in (Codex
+  // #13). If the session drifted between authorize and callback — operator
+  // exited impersonation, switched to another customer, or a different user is
+  // signed in on this browser — saving here would bind the host's Hospitable
+  // tokens to the WRONG tenant. Reject BEFORE the code exchange so no token is
+  // ever minted for a mismatched context.
+  if (bound.organizationId !== session.organizationId || bound.userId !== session.userId) {
+    return clearStateCookie(
+      NextResponse.redirect(`${base}/settings?hospitable=context_changed`),
     );
   }
 

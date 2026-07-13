@@ -22,6 +22,10 @@ const OAUTH_RESULT_MESSAGES: Record<string, { ok: boolean; text: string }> = {
   not_configured: { ok: false, text: "OAuth bağlantısı henüz hazır değil — token ile bağlanabilirsiniz." },
   denied: { ok: false, text: "Bağlantı izni verilmedi." },
   state_mismatch: { ok: false, text: "Bağlantı isteği doğrulanamadı, lütfen tekrar deneyin." },
+  context_changed: {
+    ok: false,
+    text: "Bağlantı başlatıldığı hesap/organizasyon değişti — güvenlik için kaydedilmedi. Doğru hesaptayken tekrar deneyin.",
+  },
   invalid_token: { ok: false, text: "Alınan bağlantı anahtarı geçersiz, lütfen tekrar deneyin." },
   exchange_failed: { ok: false, text: "Hospitable ile bağlantı kurulamadı, lütfen tekrar deneyin." },
 };

@@ -6,6 +6,7 @@ import {
   getHospitableOAuthConfig,
   generateOAuthState,
   buildAuthorizeUrl,
+  packOAuthStateCookie,
   OAUTH_STATE_COOKIE,
 } from "@/lib/hospitable-oauth";
 
@@ -34,7 +35,11 @@ export async function GET(req: NextRequest) {
 
   const state = generateOAuthState();
   const res = NextResponse.redirect(buildAuthorizeUrl(config, state));
-  res.cookies.set(OAUTH_STATE_COOKIE, state, {
+  // Bind the round-trip to the INITIATING org+user (not just CSRF): the callback
+  // rejects if the session context changed mid-flow (e.g. impersonation exit),
+  // so the tokens can never be saved to a different tenant than the one that
+  // started the connect.
+  res.cookies.set(OAUTH_STATE_COOKIE, packOAuthStateCookie(state, session.organizationId, session.userId), {
     httpOnly: true,
     secure: process.env.NODE_ENV === "production",
     sameSite: "lax",
