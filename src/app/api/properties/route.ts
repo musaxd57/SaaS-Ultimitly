@@ -1,6 +1,6 @@
 import { prisma } from "@/lib/db";
 import { propertySchema, zodFieldErrors } from "@/lib/validators";
-import { badRequest, jsonOk, forbidden } from "@/lib/api";
+import { badRequest, jsonOk, forbidden, serverError } from "@/lib/api";
 import { withManage } from "@/lib/route-guard";
 import { generateCalendarToken } from "@/lib/export/ics";
 import { canAddProperty } from "@/lib/billing/subscription";
@@ -70,7 +70,15 @@ export const POST = withManage(async (session, req) => {
       select: { id: true },
     });
     if (rows.findIndex((r) => r.id === property.id) >= gate.limit) {
-      await prisma.property.delete({ where: { id: property.id } }).catch(() => {});
+      try {
+        await prisma.property.delete({ where: { id: property.id } });
+      } catch (err) {
+        // The rollback itself failed: the fresh row is still in the DB, so the
+        // org may now sit OVER its plan limit. Never pretend a definitive 403
+        // (the row exists) — surface a real 500 and alert ops (serverError →
+        // reportError), instead of swallowing the inconsistency silently.
+        return serverError("Daire oluşturma doğrulanamadı — lütfen tekrar deneyin.", err);
+      }
       return forbidden(
         `Planınız en fazla ${gate.limit} daireye izin veriyor. Daha fazla daire için planınızı yükseltin.`,
       );
