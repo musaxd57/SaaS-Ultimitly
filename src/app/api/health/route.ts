@@ -4,33 +4,67 @@ import { prisma } from "@/lib/db";
 export const dynamic = "force-dynamic";
 
 // ---------------------------------------------------------------------------
-// Public health probe for an external uptime monitor (UptimeRobot, Better Stack,
-// ...). NO auth and NO tenant data — only DB connectivity and how long since the
-// sync loop last ran, so an alert can fire if the cron silently dies.
+// Public health probe. NO auth, NO tenant data and NO external-service calls —
+// Paddle/Hospitable/OpenAI state must never flip this endpoint. It reads exactly
+// two signals: DB connectivity and the scheduler heartbeat.
 //
-//   { ok, db: "up"|"down", lastSyncAgeSec, sync: "ok"|"stale"|"unknown" }
+// NORMAL /api/health — Railway readiness + basic uptime monitor:
+//   200 ⇔ the app answers and the DB is reachable. Scheduler state is REPORTED
+//   (sync / lastSyncAgeSec) but never fails the probe, so a fresh deploy (no
+//   heartbeat row yet) or a post-deploy gap can't flap readiness.
+//   DB unreachable → 503 { reason: "db_unreachable" }.
 //
-// Returns 503 when the database is unreachable so the monitor flags it.
+// STRICT /api/health?strict=1 — ops monitor (point a SECOND monitor here):
+//   additionally 503 when the scheduler heartbeat is missing/unreadable
+//   ("sync_unknown") or older than SYNC_STALE_AFTER_SEC ("sync_stale"), so a
+//   silently-dead sync loop actually pages you.
 //
-// STRICT MODE: add ?strict=1 → also returns 503 when sync is "stale" (the 2-min
-// loop hasn't run in >15 min). Point a SECOND uptime monitor at /api/health?strict=1
-// so a silently-dead sync loop actually pages you — the default probe stays lenient
-// (200 with a sync field) so a transient post-deploy gap doesn't false-alarm.
+// Heartbeat = SystemLock("scheduled-sync").updatedAt: every scheduler pass bumps
+// it (acquire + release), INCLUDING passes that do no work — zero orgs, per-org
+// Hospitable 402 skips, free-tier automation suppression, or a concurrent run
+// still holding the lock (its acquire stamped updatedAt). Healthy means "the
+// scheduler ran", never "messages flowed" — an inactive Hospitable subscription
+// or an intentionally skipped pass is NOT an outage.
+//
+// Body is machine-readable: { ok, db, sync, lastSyncAgeSec, reason? }; reason
+// appears only on 503. Cache-Control: no-store so no proxy/CDN ever serves a
+// stale verdict to a monitor.
 // ---------------------------------------------------------------------------
+
+// The loop fires every ~2 min (in-process timer + external cron) and the sync
+// lock TTL is 15 min: 15 min of heartbeat silence means every trigger AND the
+// lock TTL have lapsed — genuinely dead, not merely a long deep-sync pass.
+const SYNC_STALE_AFTER_SEC = 15 * 60;
+
+type Health = {
+  ok: boolean;
+  db: "up" | "down";
+  sync: "ok" | "stale" | "unknown";
+  lastSyncAgeSec: number | null;
+  reason?: "db_unreachable" | "sync_stale" | "sync_unknown";
+};
+
+function respond(body: Health, status: 200 | 503) {
+  return NextResponse.json(body, { status, headers: { "Cache-Control": "no-store" } });
+}
+
 export async function GET(req: NextRequest) {
   const strict = req.nextUrl.searchParams.get("strict") === "1";
-  // 1. DB connectivity — the one critical signal.
+
+  // 1. DB connectivity — fatal in BOTH modes.
   try {
     await prisma.$queryRaw`SELECT 1`;
   } catch {
-    return NextResponse.json({ ok: false, db: "down", sync: "unknown" }, { status: 503 });
+    return respond(
+      { ok: false, db: "down", sync: "unknown", lastSyncAgeSec: null, reason: "db_unreachable" },
+      503,
+    );
   }
 
-  // 2. Cron liveness: the scheduled sync touches the "scheduled-sync" SystemLock
-  //    row on every run (acquire + release bump updatedAt), so its age is a proxy
-  //    for "the 2-min loop is alive". > 15 min ⇒ something stopped.
+  // 2. Scheduler heartbeat, best-effort: a failed read is reported as "unknown"
+  //    (strict mode decides whether that pages) — never crashes the probe.
   let lastSyncAgeSec: number | null = null;
-  let sync: "ok" | "stale" | "unknown" = "unknown";
+  let sync: Health["sync"] = "unknown";
   try {
     const lock = await prisma.systemLock.findUnique({
       where: { name: "scheduled-sync" },
@@ -38,13 +72,18 @@ export async function GET(req: NextRequest) {
     });
     if (lock) {
       lastSyncAgeSec = Math.max(0, Math.round((Date.now() - lock.updatedAt.getTime()) / 1000));
-      sync = lastSyncAgeSec <= 15 * 60 ? "ok" : "stale";
+      sync = lastSyncAgeSec <= SYNC_STALE_AFTER_SEC ? "ok" : "stale";
     }
   } catch {
-    // DB is up (above) — liveness is best-effort, don't fail the probe.
+    // DB answered SELECT 1 but the heartbeat row is unreadable → stay "unknown".
   }
 
-  // In strict mode a stale sync loop is a failure the monitor should page on.
-  const status = strict && sync === "stale" ? 503 : 200;
-  return NextResponse.json({ ok: status === 200, db: "up", lastSyncAgeSec, sync }, { status });
+  // 3. Verdict. Normal mode is readiness-only; strict pages on a dead scheduler.
+  if (strict && sync !== "ok") {
+    return respond(
+      { ok: false, db: "up", sync, lastSyncAgeSec, reason: sync === "stale" ? "sync_stale" : "sync_unknown" },
+      503,
+    );
+  }
+  return respond({ ok: true, db: "up", sync, lastSyncAgeSec }, 200);
 }
