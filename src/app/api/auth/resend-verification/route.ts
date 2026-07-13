@@ -7,7 +7,7 @@ import {
   makeVerifyToken,
   VERIFY_TTL_MS,
   verifyEmailHtml,
-  verifyUrlFromHost,
+  verifyUrl,
   needsEmailVerification,
 } from "@/lib/auth/email-verify";
 
@@ -41,7 +41,7 @@ export async function POST(req: NextRequest) {
     await emailService.send(
       email,
       "Lixus AI — E-postanı doğrula",
-      verifyEmailHtml(user.name, verifyUrlFromHost(req.headers.get("host"), raw)),
+      verifyEmailHtml(user.name, verifyUrl(raw)),
     );
   }
   return jsonOk({ ok: true });

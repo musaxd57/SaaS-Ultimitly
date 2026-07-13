@@ -36,6 +36,7 @@ olmadan push etme. PR sadece kullanıcı isterse.
   Tag push proxy'de çalışmaz → yedek TAG değil BRANCH (`backup/stable-YYYY-MM-DD`).
   Commit mesajında backtick KULLANMA (bash çalıştırıp kelime düşürür) → heredoc kullan.
 - **ENCRYPTION_KEY rotasyonu = ASLA** (canlı token'lar kırılır).
+- **APP_URL sabit taban (host-injection fix):** e-posta doğrulama linki + OAuth redirect_uri artık `appBaseUrl()` (sabit `APP_URL` env / canonical) kullanır, ASLA request Host'u değil (forged Host → token saldırgan alanına gidiyordu). In-browser redirect'ler (logout/verify/oauth) `baseUrlFromHost` ama artık ALLOWLIST'li (localhost/127/canonical/APP_URL host; gerisi canonical'a düşer). Railway'e `APP_URL` ekle.
 - **Railway arkasında hiçbir route `req.url`'den mutlak URL kurmasın** → `baseUrlFromHost(
   req.headers.get("host"))` (localhost redirect bug dersi).
 

@@ -8,7 +8,11 @@ import {
   needsEmailVerification,
   makeVerifyToken,
   hashVerifyToken,
+  appBaseUrl,
+  baseUrlFromHost,
+  verifyUrl,
 } from "@/lib/auth/email-verify";
+import { POST as resendVerification } from "@/app/api/auth/resend-verification/route";
 
 // setSessionCookie touches next/headers cookies() — unavailable outside a request
 // scope in tests. Mock it (the existing login-route test does the same).
@@ -57,6 +61,29 @@ describe("email-verify helpers", () => {
     const { raw, hash } = makeVerifyToken();
     expect(raw).toHaveLength(64);
     expect(hash).toBe(hashVerifyToken(raw));
+  });
+
+  it("appBaseUrl is a FIXED trusted base — never influenced by any request", () => {
+    expect(appBaseUrl()).toBe("https://www.lixusai.com"); // canonical default (APP_URL unset)
+    vi.stubEnv("APP_URL", "https://app.example.com");
+    expect(appBaseUrl()).toBe("https://app.example.com");
+    vi.stubEnv("APP_URL", "not-a-url");
+    expect(appBaseUrl()).toBe("https://www.lixusai.com"); // invalid → canonical
+    vi.unstubAllEnvs();
+  });
+
+  it("verifyUrl ignores the Host entirely — the emailed link is host-injection-proof", () => {
+    const url = verifyUrl("a".repeat(64));
+    expect(url.startsWith("https://www.lixusai.com/api/auth/verify-email?token=")).toBe(true);
+  });
+
+  it("baseUrlFromHost ALLOWLISTS: real/localhost hosts pass, a forged host falls back to the fixed base", () => {
+    expect(baseUrlFromHost("www.lixusai.com")).toBe("https://www.lixusai.com");
+    expect(baseUrlFromHost("lixusai.com")).toBe("https://lixusai.com");
+    expect(baseUrlFromHost("localhost:3000")).toBe("http://localhost:3000"); // dev
+    expect(baseUrlFromHost("attacker.com")).toBe("https://www.lixusai.com"); // injection → trusted base
+    expect(baseUrlFromHost("www.lixusai.com.evil.com")).toBe("https://www.lixusai.com"); // suffix trick blocked
+    expect(baseUrlFromHost(null)).toBe("https://www.lixusai.com");
   });
 
   it("gates ONLY post-cutoff unverified accounts (existing users exempt)", () => {
@@ -159,6 +186,42 @@ describe("registration → verification → login", () => {
     const u = await prisma.user.findUnique({ where: { email: "ada@x.com" } });
     expect(u?.emailVerifiedAt).not.toBeNull();
     expect(u?.emailVerifyTokenHash).toBeNull();
+  });
+
+  it("HOST-INJECTION: a forged Host on register does NOT poison the emailed verify link", async () => {
+    await register(
+      postReq(
+        "http://localhost/api/auth/register",
+        { organizationName: "Acme", name: "Ada", email: "vic@x.com", password: "secret123", consent: true },
+        { host: "attacker.evil.com" }, // attacker-controlled Host header
+      ),
+    );
+    const html = String(mockSend.mock.calls[0][2]);
+    expect(html).not.toContain("attacker.evil.com"); // token never leaves for the attacker's domain
+    expect(html).toContain("https://www.lixusai.com/api/auth/verify-email?token=");
+  });
+
+  it("HOST-INJECTION: a forged Host on RESEND does NOT poison the emailed verify link", async () => {
+    const org = await prisma.organization.create({ data: { name: "X" } });
+    await prisma.user.create({
+      data: {
+        organizationId: org.id,
+        name: "Ada",
+        email: "resend@x.com",
+        passwordHash: await hashPassword("secret123"),
+        role: "owner",
+        createdAt: AFTER,
+        emailVerifiedAt: null,
+      },
+    });
+    const res = await resendVerification(
+      postReq("http://localhost/api/auth/resend-verification", { email: "resend@x.com" }, { host: "attacker.evil.com" }),
+    );
+    expect(res.status).toBe(200);
+    expect(mockSend).toHaveBeenCalledOnce();
+    const html = String(mockSend.mock.calls[0][2]);
+    expect(html).not.toContain("attacker.evil.com");
+    expect(html).toContain("https://www.lixusai.com/api/auth/verify-email?token=");
   });
 
   it("a NEW (post-cutoff) unverified account is BLOCKED from login (403), then allowed once verified", async () => {

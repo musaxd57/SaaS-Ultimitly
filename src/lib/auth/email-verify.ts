@@ -40,18 +40,64 @@ export function hashVerifyToken(raw: string): string {
   return createHash("sha256").update(raw).digest("hex");
 }
 
-/** Public base URL from the request Host header. Behind Railway/Cloudflare,
- *  req.nextUrl.origin is the INTERNAL origin (localhost:8080) — the Host header
- *  carries the real public domain, so always build absolute URLs from it. */
-export function baseUrlFromHost(host: string | null): string {
-  const h = host || "www.lixusai.com";
-  const proto = h.startsWith("localhost") || h.startsWith("127.") ? "http" : "https";
-  return `${proto}://${h}`;
+const CANONICAL_BASE = "https://www.lixusai.com";
+const CANONICAL_HOSTS = new Set(["www.lixusai.com", "lixusai.com"]);
+
+/** The FIXED, trusted public base URL — never derived from a request. `APP_URL`
+ *  (validated http/https) or the canonical default. Use this for anything that
+ *  leaves our trust boundary (email links, OAuth redirect_uri): the Host header
+ *  is attacker-controllable, so a verify link built from it could carry the raw
+ *  token to an attacker's domain (host-header injection). */
+export function appBaseUrl(): string {
+  const env = process.env.APP_URL?.trim();
+  if (env) {
+    try {
+      const u = new URL(env);
+      if (u.protocol === "https:" || u.protocol === "http:") return `${u.protocol}//${u.host}`;
+    } catch {
+      // fall through to canonical
+    }
+  }
+  return CANONICAL_BASE;
 }
 
-/** Build the absolute verify URL from the request host (canonical www works too). */
-export function verifyUrlFromHost(host: string | null, rawToken: string): string {
-  return `${baseUrlFromHost(host)}/api/auth/verify-email?token=${rawToken}`;
+/** Is this exact host one we trust to build an in-browser absolute URL from?
+ *  Allowlist only — dev localhost/127.* + the canonical domains + the APP_URL
+ *  host. A forged/unknown Host is rejected (→ appBaseUrl). Exact match: a
+ *  "www.lixusai.com.evil.com" suffix trick does NOT pass. */
+function isAllowedHost(host: string): boolean {
+  const h = host.toLowerCase();
+  if (h === "localhost" || h.startsWith("localhost:")) return true;
+  if (h === "127.0.0.1" || h.startsWith("127.0.0.1:")) return true;
+  if (CANONICAL_HOSTS.has(h)) return true;
+  try {
+    if (process.env.APP_URL && new URL(process.env.APP_URL).host.toLowerCase() === h) return true;
+  } catch {
+    // ignore
+  }
+  return false;
+}
+
+/** Public base URL for an IN-BROWSER redirect back to our own site. Behind
+ *  Railway/Cloudflare, req.nextUrl.origin is the INTERNAL origin — the Host
+ *  carries the real public domain. But the Host is client-controllable, so it's
+ *  ALLOWLISTED here: a recognized host is used as-is; anything else (or missing)
+ *  falls back to the fixed trusted base, so a forged Host can't open-redirect the
+ *  browser to an attacker domain. NOT for email/OAuth links — use appBaseUrl. */
+export function baseUrlFromHost(host: string | null): string {
+  const h = host?.trim();
+  if (h && isAllowedHost(h)) {
+    const proto = h.startsWith("localhost") || h.startsWith("127.") ? "http" : "https";
+    return `${proto}://${h}`;
+  }
+  return appBaseUrl();
+}
+
+/** Absolute verify URL for an e-mailed link — built from the FIXED trusted base,
+ *  NEVER the request Host, so the token can't be redirected to an attacker's
+ *  domain via a forged Host header. */
+export function verifyUrl(rawToken: string): string {
+  return `${appBaseUrl()}/api/auth/verify-email?token=${encodeURIComponent(rawToken)}`;
 }
 
 export function verifyEmailHtml(name: string, url: string): string {

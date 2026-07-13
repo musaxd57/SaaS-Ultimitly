@@ -5,7 +5,7 @@ import { hashPassword } from "@/lib/auth/password";
 import { badRequest, jsonOk, serverError } from "@/lib/api";
 import { rateLimit, clientIp } from "@/lib/rate-limit";
 import { emailService } from "@/lib/email";
-import { makeVerifyToken, VERIFY_TTL_MS, verifyEmailHtml, verifyUrlFromHost } from "@/lib/auth/email-verify";
+import { makeVerifyToken, VERIFY_TTL_MS, verifyEmailHtml, verifyUrl } from "@/lib/auth/email-verify";
 import { newTrialSubscriptionData } from "@/lib/billing/subscription";
 import { LEGAL_VERSION } from "@/lib/legal-entity";
 
@@ -92,7 +92,7 @@ export async function POST(req: NextRequest) {
     await emailService.send(
       email,
       "Lixus AI — E-postanı doğrula",
-      verifyEmailHtml(user.name, verifyUrlFromHost(req.headers.get("host"), raw)),
+      verifyEmailHtml(user.name, verifyUrl(raw)),
     );
     return jsonOk({ ok: true, verifyEmail: true }, 201);
   } catch (err) {
