@@ -30,7 +30,7 @@ Sütunlar: **Veri kategorisi → Saklama süresi/kaynağı → Silme/anonimleşt
 | Misafir mesaj gövdeleri: `Message.body` (inbound), `aiSuggestedReply` | Aynı pencere (rezervasyona/`lastMessageAt`e bağlı) | Inbound body→"[saklama süresi doldu — içerik silindi]", `senderName`→"Misafir", `aiSuggestedReply`→null (data-retention.ts:121-129); **outbound (host/AI yanıtı) SAKLANIR**, içindeki misafir adı "[Misafir]" ile redakte edilir (:36-49) — host'un kendi kaydı | Aynı `[KARAR-GEREKÇE-MISAFIR]` | OpenAI (son 6 mesaj + güncel mesaj prompt'a gider — ai/prompts.ts:651-736), Railway |
 | Konuşma başlığı: `Conversation.guestIdentifier` | Aynı pencere; rezervasyonsuz (orphan) thread'ler kendi `lastMessageAt`ine göre AYRICA süpürülür (data-retention.ts:154-190) | →"Misafir" | Aynı | Railway |
 | QR concierge sohbeti | Normal Conversation/Message satırları (channel "chat") — yukarıdaki kurallar aynen | Aynı sweep + org cascade | Aynı | OpenAI (QR yolunda rezervasyon PII'sı modele GİTMEZ — route.ts:287-293), Railway |
-| Cihaz bağlama: `Reservation.chatBoundHash/chatBoundAt` | Konaklama başına; her rezervasyon null başlar | sha256 hash + zaman damgası — **PII değil** (guest-chat.ts:302 tasarım notu); org cascade | — | Railway |
+| Cihaz bağlama: `Reservation.chatBoundHash/chatBoundAt` | Konaklama başına; her rezervasyon null başlar | sha256 hash + zaman damgası — **takma-adlı (pseudonymous) teknik tanımlayıcı**; doğrudan kimlik içermez ama KVKK'da kişisel veri sayılıp sayılmayacağı **hukuki teyit bekliyor** `[KARAR-CHATBOUND]`; org cascade ile silinir | `[KARAR-CHATBOUND]` | Railway |
 | `ChatUsage` (günlük AI sayaç) | Sayaç, PII yok (propertyId+gün+adet) | Hesap silmede explicit `deleteMany` (data-retention.ts:377) | — | Railway |
 
 **Diriltme korumaları (kod-doğrulanmış):** senkron, anonimleştirilmiş satıra kanal
@@ -112,6 +112,8 @@ canlı Paddle (MoR); o taslak avukata giderken bu satır Paddle olarak düzeltil
 
 1. `[KARAR-ROL]` veri işleyen/sorumlusu ayrımı + host DPA.
 2. `[KARAR-GEREKÇE-MISAFIR]` misafir verisi işleme dayanağı (m.5) — avukat.
+2b. `[KARAR-CHATBOUND]` chatBoundHash türü tanımlayıcıların (cihaz hash'i) KVKK'da
+   kişisel veri/takma-adlı veri sınıflandırması — avukat teyidi.
 3. `[KARAR-FATURA-SÜRE]` Invoice/CheckoutConsent: org-cascade silme ↔ VUK/TTK saklama
    yükümlülüğü; gerekirse "hesap silinse de fatura iskeleti X yıl saklanır" istisnası
    (kod değişikliği gerektirir — bugün cascade siler; WebhookEvent iskeleti zaten kalır).

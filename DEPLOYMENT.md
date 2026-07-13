@@ -60,6 +60,7 @@ bağlıdır: yeni container 200 dönmeden trafik almaz.
 | `REGISTRATION_OPEN` | `1` → public self-serve kayıt açık |
 | `AUTO_REPLY_ENABLED` | `1` → otomatik yanıt master şalteri açık |
 | `GUEST_CHAT_ENABLED` | `1` → QR misafir concierge global açık |
+| `QR_ESCALATION_EMAIL_ENABLED` | `1` → QR sohbeti eskalasyona düşünce host'a e-posta (varsayılan KAPALI; içerikte misafir metni yok, olay başına dedupe, alıcı org alertEmail → owner) |
 | `DATA_RETENTION_MONTHS` | KVKK: bu aydan eski misafir PII'si (ad/mesaj) otomatik anonimleştirilir (ör. `24`). Boş = kapalı |
 | `TRIAL_EMAILS_ENABLED` | `1` → deneme-hatırlatma mailleri açık (varsayılan KAPALI/dormant). Açmadan önce ilk gönderimi birlikte doğrulayın |
 | `TRIAL_REMINDER_DAYS` | Deneme bitmeden kaç gün kala "bitiyor" maili gider (varsayılan `1` = 1 gün önce). Mailler yalnızca `BILLING_ENFORCED=true` **ve** `TRIAL_EMAILS_ENABLED=1` iken gider |

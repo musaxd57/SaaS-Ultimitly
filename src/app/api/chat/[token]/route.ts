@@ -111,7 +111,7 @@ async function recordGuestChat(
   guestMessage: string,
   botReply: string,
   escalated: boolean,
-): Promise<void> {
+): Promise<{ inboundMessageId: string }> {
   const marker = `qr-chat:${propertyId}:${reservation.id}`;
   const now = new Date();
   // status is always "answered" so these never leak into the Airbnb inbox/dashboard
@@ -144,12 +144,17 @@ async function recordGuestChat(
     });
     conversationId = existing.id;
   }
-  await prisma.message.createMany({
+  // createManyAndReturn: the inbound row's id is the escalation-alert EVENT
+  // identity (dedupe anchor) — same insert semantics, ids back in one round.
+  const created = await prisma.message.createManyAndReturn({
     data: [
       { conversationId, direction: "inbound", senderName: reservation.guestName, body: guestMessage.slice(0, MAX_MESSAGE), language: "tr" },
       { conversationId, direction: "outbound", senderName: "Lixus AI", body: botReply.slice(0, MAX_MESSAGE), language: "tr" },
     ],
+    select: { id: true, direction: true },
   });
+  const inboundMessageId = created.find((m) => m.direction === "inbound")?.id ?? created[0]?.id ?? "";
+  return { inboundMessageId };
 }
 
 // Public history fetch — the guest's chat page loads this on open and polls it,
@@ -265,13 +270,15 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ tok
   });
   if (usage.count > DAILY_AI_CAP) {
     const reply = "Sorunuzu ev sahibine ilettim; en kısa sürede size dönecek.";
-    await recordGuestChat(ctx.property.id, res, message, reply, true);
+    const { inboundMessageId } = await recordGuestChat(ctx.property.id, res, message, reply, true);
     // "İlettim" is only true if the host finds out — env-gated (default OFF),
-    // per-stay deduped, never throws, never changes this response (Codex #15).
+    // deduped per EVENT (this message), never throws, never changes this
+    // response (Codex #15).
     await maybeSendQrEscalationEmail({
       organizationId: ctx.property.organizationId,
       propertyName: ctx.property.name,
       reservationId: res.id,
+      triggerMessageId: inboundMessageId,
       reason: "daily_cap",
     });
     return finalize({ escalated: true, reply });
@@ -314,12 +321,13 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ tok
   const reply = escalate
     ? "Bu sorunuzu ev sahibine ilettim; en kısa sürede size dönecek."
     : result.reply;
-  await recordGuestChat(ctx.property.id, res, message, reply, escalate);
+  const { inboundMessageId } = await recordGuestChat(ctx.property.id, res, message, reply, escalate);
   if (escalate) {
     await maybeSendQrEscalationEmail({
       organizationId: ctx.property.organizationId,
       propertyName: ctx.property.name,
       reservationId: res.id,
+      triggerMessageId: inboundMessageId,
       reason: "ai_escalated",
     });
   }

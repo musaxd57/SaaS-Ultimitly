@@ -299,14 +299,19 @@ model Reservation {
   // stay claims it (sha256 of an httpOnly per-stay secret). Any other device
   // scanning the same fixed physical QR gets no history — so a past guest/cleaner
   // holding the QR photo can't read the current guest's chat. Rotates per stay
-  // (each reservation starts null → rebinds fresh). Not PII (a hash + timestamp).
+  // (each reservation starts null → rebinds fresh). Pseudonymous technical
+  // identifier (hash + timestamp, no direct identity) — KVKK classification
+  // pending legal confirmation (see docs/saklama-ve-imha-politikasi.md).
   chatBoundHash   String?   // sha256(hex) of the current stay's device secret; null = unbound
   chatBoundAt     DateTime? // when this stay's chat was first claimed by a device
-  // QR escalation e-mail claim (Codex #15): when the host was last e-mailed about
-  // an escalated QR-chat message of THIS stay. Atomic windowed claim → the same
-  // incident burst produces ONE mail; a genuinely new incident later re-arms.
-  // Nullable → populated-table safe; env-gated feature (default OFF).
-  qrEscalationEmailAt DateTime?
+  // QR escalation e-mail claim (Codex #15): the atomic send-claim for the LAST
+  // escalated QR-chat message the host was e-mailed about. Dedupe is bound to
+  // the EVENT (triggering Message id) — the same message can never double-mail,
+  // while a genuinely new incident always alerts; the timestamp adds only a
+  // SHORT anti-flood cooldown (minutes, not hours). Both nullable → populated-
+  // table safe; the whole feature is env-gated (default OFF).
+  qrEscalationEmailAt        DateTime?
+  qrEscalationEmailMessageId String? // inbound Message id of the last alerted event
   // Which iCal CalendarSource imported this row (plain id, no FK — a deleted
   // source simply leaves rows unbound). Feed reconciliation may ONLY cancel rows
   // bound to the SAME source: without this, a feed cancelled every same-channel
