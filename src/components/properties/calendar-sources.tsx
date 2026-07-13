@@ -23,6 +23,18 @@ interface Props {
   canManage?: boolean;
 }
 
+/** Feed URLs embed bearer-like export secrets (Codex #21) — never render the
+ *  full value on screen (screenshots, shoulder-surfing, screen shares). Host +
+ *  masked tail is enough to recognize which source it is. */
+function maskFeedUrl(url: string): string {
+  try {
+    const u = new URL(url);
+    return `${u.protocol}//${u.host}/…${url.slice(-6)}`;
+  } catch {
+    return `…${url.slice(-6)}`;
+  }
+}
+
 /**
  * Manage external iCal subscriptions (Airbnb, Booking.com …) for a property.
  * Reservations are pulled in on demand via the per-source "Senkronla" button.
@@ -145,9 +157,7 @@ export function CalendarSources({ propertyId, sources, canManage = true }: Props
                   </div>
                 ) : null}
               </div>
-              <p className="truncate text-xs text-muted-foreground" title={s.url}>
-                {s.url}
-              </p>
+              <p className="truncate text-xs text-muted-foreground">{maskFeedUrl(s.url)}</p>
               {s.lastSyncedAt && (
                 <p className="mt-1 flex items-center gap-1 text-xs">
                   {s.lastStatus === "error" ? (

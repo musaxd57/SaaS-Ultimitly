@@ -48,7 +48,9 @@ export function AccountCard({ email }: { email: string }) {
         setCooldown(30); // 30 sn boyunca tekrar gönderilemesin
         setInfo(`Doğrulama kodu ${email} adresine gönderildi. (Spam klasörünü de kontrol edin.)`);
       } else {
-        setError(data.error ?? data.fields?._ ?? "Kod gönderilemedi.");
+        // Field-specific message first (more actionable), generic error second —
+        // same order the confirm step below already uses.
+        setError(data.fields?._ ?? data.error ?? "Kod gönderilemedi.");
       }
     } catch {
       setError("Bağlantı hatası.");
