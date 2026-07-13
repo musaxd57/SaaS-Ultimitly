@@ -1,0 +1,166 @@
+import "server-only";
+
+import { createHmac, randomInt, timingSafeEqual } from "crypto";
+import { prisma } from "@/lib/db";
+
+// ---------------------------------------------------------------------------
+// Per-reservation QR concierge PIN (Faz 5, #14).
+//
+// The QR sticker in an apartment is FIXED and per-property — a bearer credential
+// anyone who photographs it holds. Per-stay device binding stops a past guest
+// from READING the current guest's chat, but "first scan wins" still lets a
+// cleaner / neighbour / early-scanner CLAIM the stay before the real guest.
+// The PIN adds a KNOWLEDGE factor: the host gives the booked guest a PIN, and
+// only someone with it can claim the chat. Once claimed, the device cookie
+// takes over and the PIN is never asked again.
+//
+// SECURITY:
+//   * The PIN is stored ONLY as an HMAC-SHA256 keyed by a SERVER PEPPER
+//     (QR_PIN_PEPPER, else AUTH_SECRET) — never the plaintext. A DB read alone
+//     can't recover it, and can't offline-brute-force a low-entropy 6-digit PIN
+//     without the pepper (which is not in the DB). The HMAC message binds the
+//     reservationId, so a stored hash can never validate against another stay.
+//   * Verification is TIMING-SAFE and rate-limited by a DURABLE per-reservation
+//     counter + lockout (survives restarts, atomic across replicas), in addition
+//     to the route's per-IP limiter.
+//   * The plaintext exists only in the generation response (shown once to the
+//     owner/manager). It never enters logs, Sentry, export or audit metadata.
+//   * ENV-GATED (QR_PIN_ENABLED, default OFF) — deploy is a no-op until enabled.
+// ---------------------------------------------------------------------------
+
+const PIN_DIGITS = 6;
+/** Wrong tries against ONE reservation before it locks (durable, cross-replica). */
+export const QR_PIN_MAX_ATTEMPTS = 10;
+/** How long the reservation's PIN entry stays locked after too many wrong tries. */
+export const QR_PIN_LOCKOUT_MS = 15 * 60_000;
+
+/** Global master switch. Default OFF → the entire PIN feature is dormant. */
+export function qrPinEnabled(): boolean {
+  return process.env.QR_PIN_ENABLED === "1";
+}
+
+function pinPepper(): string {
+  const s = process.env.QR_PIN_PEPPER || process.env.AUTH_SECRET;
+  if (!s) throw new Error("QR PIN pepper yok (QR_PIN_PEPPER / AUTH_SECRET tanımlı değil).");
+  return s;
+}
+
+/** Digits only — tolerant of spaces/dashes the guest may type. */
+export function normalizePin(input: string): string {
+  return (input ?? "").replace(/\D/g, "");
+}
+
+/** A cryptographically-random 6-digit PIN, uniform over 000000–999999. */
+export function generatePin(): string {
+  return String(randomInt(0, 10 ** PIN_DIGITS)).padStart(PIN_DIGITS, "0");
+}
+
+/** HMAC(pepper, "qr-pin:v1:<reservationId>:<normalizedPin>") — reservation-bound,
+ *  so a hash from one stay can never authenticate against another. */
+export function hashPin(reservationId: string, pin: string): string {
+  return createHmac("sha256", pinPepper())
+    .update(`qr-pin:v1:${reservationId}:${normalizePin(pin)}`)
+    .digest("hex");
+}
+
+function safeEqualHex(a: string, b: string): boolean {
+  if (a.length !== b.length) return false;
+  try {
+    return timingSafeEqual(Buffer.from(a, "hex"), Buffer.from(b, "hex"));
+  } catch {
+    return false;
+  }
+}
+
+/**
+ * Generate + store a fresh PIN for a reservation. Returns the PLAINTEXT once
+ * (the only time it exists outside the caller's response). Resets the lockout
+ * counter; overwriting the hash instantly invalidates the previous PIN.
+ */
+export async function setReservationPin(reservationId: string, now: Date = new Date()): Promise<string> {
+  const pin = generatePin();
+  await prisma.reservation.update({
+    where: { id: reservationId },
+    data: {
+      chatPinHash: hashPin(reservationId, pin),
+      chatPinSetAt: now,
+      chatPinFailedCount: 0,
+      chatPinLockedUntil: null,
+    },
+  });
+  return pin;
+}
+
+/** Remove a reservation's PIN (host disables it, or before regenerating). */
+export async function clearReservationPin(reservationId: string): Promise<void> {
+  await prisma.reservation.update({
+    where: { id: reservationId },
+    data: { chatPinHash: null, chatPinSetAt: null, chatPinFailedCount: 0, chatPinLockedUntil: null },
+  });
+}
+
+export type PinVerifyResult =
+  | { status: "ok" }
+  | { status: "invalid" }
+  | { status: "no_pin" }
+  | { status: "locked"; retryAfterSec: number };
+
+/**
+ * Timing-safe verify with a DURABLE per-reservation lockout. A well-formed but
+ * wrong PIN increments the counter and locks the reservation after
+ * QR_PIN_MAX_ATTEMPTS; a malformed entry (not 6 digits) is rejected WITHOUT
+ * burning an attempt (fair to a fat-fingering guest; a brute-forcer must still
+ * send well-formed guesses, which do count).
+ */
+export async function verifyReservationPin(
+  reservationId: string,
+  pin: string,
+  now: Date = new Date(),
+): Promise<PinVerifyResult> {
+  const row = await prisma.reservation.findUnique({
+    where: { id: reservationId },
+    select: { chatPinHash: true, chatPinLockedUntil: true },
+  });
+  if (!row || !row.chatPinHash) return { status: "no_pin" };
+  if (row.chatPinLockedUntil && row.chatPinLockedUntil > now) {
+    return {
+      status: "locked",
+      retryAfterSec: Math.max(1, Math.ceil((row.chatPinLockedUntil.getTime() - now.getTime()) / 1000)),
+    };
+  }
+  // Format guard: don't consume a lockout attempt (or hit the DB) on obviously
+  // malformed input. A brute-forcer's well-formed guesses still count below.
+  if (normalizePin(pin).length !== PIN_DIGITS) return { status: "invalid" };
+
+  if (safeEqualHex(hashPin(reservationId, pin), row.chatPinHash)) {
+    // Success → reset the counter. Scope the write to the SAME hash so a PIN
+    // regenerated in between doesn't get its fresh counter wiped by a stale success.
+    await prisma.reservation
+      .updateMany({
+        where: { id: reservationId, chatPinHash: row.chatPinHash },
+        data: { chatPinFailedCount: 0, chatPinLockedUntil: null },
+      })
+      .catch(() => {});
+    return { status: "ok" };
+  }
+
+  // Wrong PIN → atomic increment; lock out once the threshold is crossed. The
+  // increment is atomic in Postgres; the lock-set-after is best-effort (a
+  // concurrent double-cross just sets the same lock twice — harmless).
+  try {
+    const updated = await prisma.reservation.update({
+      where: { id: reservationId },
+      data: { chatPinFailedCount: { increment: 1 } },
+      select: { chatPinFailedCount: true },
+    });
+    if (updated.chatPinFailedCount >= QR_PIN_MAX_ATTEMPTS) {
+      await prisma.reservation.updateMany({
+        where: { id: reservationId },
+        data: { chatPinLockedUntil: new Date(now.getTime() + QR_PIN_LOCKOUT_MS), chatPinFailedCount: 0 },
+      });
+    }
+  } catch {
+    // Row vanished (cancellation) or a transient error — the guess still fails.
+  }
+  return { status: "invalid" };
+}
