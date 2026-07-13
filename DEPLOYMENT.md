@@ -31,7 +31,8 @@ bağlıdır: yeni container 200 dönmeden trafik almaz.
 | Değişken | Değer |
 |---|---|
 | `DATABASE_URL` | Railway Postgres bağlantı dizesi (`postgresql://…`) |
-| `AUTH_SECRET` | Güçlü rastgele değer (`openssl rand -base64 32`) — oturum + şifreleme anahtarı |
+| `AUTH_SECRET` | Güçlü rastgele değer (`openssl rand -base64 32`) — oturum imza anahtarı |
+| `ENCRYPTION_KEY` | ZORUNLU, `AUTH_SECRET`'ten FARKLI güçlü rastgele değer — saklanan token'ları şifreler; boot kapısı eksikse/aynıysa başlatmaz. ASLA değiştirmeyin (kayıtlı token'lar okunamaz olur) |
 | `CRON_SECRET` | Güçlü rastgele değer — zamanlayıcı ucunu korur |
 | `SUPERADMIN_EMAILS` | Operatör (süper-admin) e-postaları, virgülle |
 | `PRIMARY_ORG_ID` | Kurucu org id'si — env Hospitable token'ını yalnızca bu org kullanır (yeni müşteriler kurucu verisine erişemez) |
