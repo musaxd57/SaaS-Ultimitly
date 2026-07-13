@@ -5,6 +5,8 @@
   "scripts": {
     "dev": "next dev",
     "build": "prisma generate && next build",
+    "verify:env": "node scripts/verify-env.mjs",
+    "prestart": "node scripts/verify-env.mjs",
     "start": "next start",
     "test": "prisma generate && vitest run",
     "test:watch": "vitest",

@@ -45,6 +45,13 @@ EXPOSE 3000
 # At startup: apply any pending migrations (prisma/migrations/), then serve.
 # `next start` binds to Railway's injected $PORT automatically.
 #
+# `npm run start` ALWAYS runs the `prestart` hook first (npm lifecycle) =
+# `node scripts/verify-env.mjs`, the boot env gate: in production a missing/
+# placeholder AUTH_SECRET or a missing/derived ENCRYPTION_KEY exits NON-ZERO
+# HERE, so `next start` never runs and a misconfigured deploy never goes live
+# (instead of "Ready but every request 500s"). NODE_ENV=production is set above,
+# so the gate is active at boot.
+#
 # Was `prisma db push` (schema-diff on every boot — no history, no review; this
 # is how the chatToken @unique outage happened: adding a unique constraint to a
 # populated table made db push refuse and crash-loop the boot). `migrate deploy`
