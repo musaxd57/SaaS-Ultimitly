@@ -381,7 +381,12 @@ export async function deleteAccountData(organizationId: string): Promise<void> {
 
   // KVKK: task photos live on local disk (public/uploads/{orgSlug}), NOT in the DB,
   // so the cascade above leaves them. Physically remove the org's upload folder.
-  // Best-effort — a missing dir or FS error must never fail the erasure.
+  // Best-effort — an FS error must never fail the erasure (the DB rows are gone
+  // either way) — but it must be VISIBLE (Codex #7): the user was told "deleted",
+  // so a leftover file is an operator to-do, never something to swallow silently.
+  // rm(force:true) doesn't throw on a missing dir; what lands here is a real
+  // permission/IO failure. A durable retry queue is the eventual fix (backlog,
+  // together with S3/R2 object storage); alerting is the honest interim.
   try {
     const orgSlug = organizationId.replace(/[^a-zA-Z0-9-]/g, "");
     if (orgSlug) {
@@ -389,7 +394,8 @@ export async function deleteAccountData(organizationId: string): Promise<void> {
       const { join } = await import("node:path");
       await rm(join(process.cwd(), "public", "uploads", orgSlug), { recursive: true, force: true });
     }
-  } catch {
-    // ignore — files may already be gone / ephemeral storage
+  } catch (err) {
+    const { reportError } = await import("@/lib/report-error");
+    await reportError(`account-delete photo cleanup (org ${organizationId})`, err).catch(() => {});
   }
 }
