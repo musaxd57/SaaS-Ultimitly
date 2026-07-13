@@ -1,19 +1,66 @@
 import "server-only";
 
 // ---------------------------------------------------------------------------
-// translateText — high-quality, hospitality-aware translation via OpenAI
-// (model from OPENAI_TRANSLATE_MODEL / OPENAI_MODEL, default gpt-4.1). Returns
-// the original text unchanged if OpenAI is not configured or on any error.
-// Never throws.
+// translate — hospitality-aware translation via OpenAI (model from
+// OPENAI_TRANSLATE_MODEL / OPENAI_MODEL, default gpt-4.1).
+//
+// STRUCTURED RESULT (Codex #30): failures used to return the ORIGINAL text as
+// if it were the translation — the reply route then SENT the untranslated
+// message to the guest while the host believed it went out in the guest's
+// language. Callers now get { ok:false, reason } and decide (both routes fail
+// closed: no silent wrong-language sends). Never throws.
+//
+// Bounded cache: the old module Map grew without limit, holding guest text in
+// memory forever. Now a small LRU with TTL. Input/output are length-capped so
+// a pathological body can't run up token spend or flood the UI.
 // ---------------------------------------------------------------------------
+
+export type TranslateResult =
+  | { ok: true; text: string }
+  | { ok: false; reason: "not_configured" | "failed" | "too_long" };
+
+/** Well above any realistic guest/host message; below abuse territory. */
+const MAX_INPUT_CHARS = 6000;
+const MAX_OUTPUT_CHARS = 8000;
+const CACHE_MAX_ENTRIES = 200;
+const CACHE_TTL_MS = 6 * 60 * 60 * 1000; // 6h — same thread gets re-read soon, not forever
 
 /** Reasoning (o-series) and GPT-5 models reject custom temperature; omit it. */
 function isReasoningModel(model: string): boolean {
   return /^(o\d|gpt-5)/i.test(model.trim());
 }
 
-// Module-level cache: avoids re-translating the same (text, lang) pair.
-const _cache = new Map<string, string>();
+// Small LRU+TTL cache: repeated "translate this message" clicks on the same
+// thread stay free, while memory stays bounded and entries age out.
+const _cache = new Map<string, { value: string; expires: number }>();
+
+function cacheGet(key: string): string | null {
+  const hit = _cache.get(key);
+  if (!hit) return null;
+  if (hit.expires < Date.now()) {
+    _cache.delete(key);
+    return null;
+  }
+  _cache.delete(key); // refresh recency (Map preserves insertion order)
+  _cache.set(key, hit);
+  return hit.value;
+}
+
+function cacheSet(key: string, value: string): void {
+  if (_cache.size >= CACHE_MAX_ENTRIES) {
+    const oldest = _cache.keys().next().value;
+    if (oldest !== undefined) _cache.delete(oldest);
+  }
+  _cache.set(key, { value, expires: Date.now() + CACHE_TTL_MS });
+}
+
+/** Test hooks — mirror the __resetRateLimit precedent. */
+export function __resetTranslateCache(): void {
+  _cache.clear();
+}
+export function __translateCacheSize(): number {
+  return _cache.size;
+}
 
 function cacheKey(text: string, target: string, source?: string): string {
   return `${source ?? "auto"}→${target}:${text}`;
@@ -65,29 +112,27 @@ STRICT RULES:
 7. If the text is already in ${target}, return it unchanged.`;
 }
 
-export async function translateText(
+export async function translate(
   text: string,
   targetLanguage: string,
   sourceLanguage?: string,
-): Promise<string> {
-  if (!text.trim()) return text;
-
-  // If source and target are the same, skip the call entirely.
+): Promise<TranslateResult> {
+  // Nothing to translate — the unchanged text IS the correct result.
+  if (!text.trim()) return { ok: true, text };
   if (sourceLanguage && sourceLanguage.toLowerCase() === targetLanguage.toLowerCase()) {
-    return text;
+    return { ok: true, text };
   }
+  if (text.length > MAX_INPUT_CHARS) return { ok: false, reason: "too_long" };
 
   const key = cacheKey(text, targetLanguage, sourceLanguage);
-  const cached = _cache.get(key);
-  if (cached) return cached;
+  const cached = cacheGet(key);
+  if (cached !== null) return { ok: true, text: cached };
 
   const apiKey = process.env.OPENAI_API_KEY;
-  if (!apiKey) {
-    // No OpenAI configured — return the original (never a dummy translation).
-    return text;
-  }
+  if (!apiKey) return { ok: false, reason: "not_configured" };
 
   const model = process.env.OPENAI_TRANSLATE_MODEL || process.env.OPENAI_MODEL || "gpt-4.1";
+  const reasoning = isReasoningModel(model);
   const payload: Record<string, unknown> = {
     model,
     messages: [
@@ -95,7 +140,10 @@ export async function translateText(
       { role: "user", content: text },
     ],
   };
-  if (!isReasoningModel(model)) payload.temperature = 0.2;
+  if (!reasoning) payload.temperature = 0.2;
+  // Output token cap — a runaway generation must not run up spend.
+  if (reasoning) payload.max_completion_tokens = 4000;
+  else payload.max_tokens = 3000;
 
   try {
     const res = await fetch("https://api.openai.com/v1/chat/completions", {
@@ -105,18 +153,18 @@ export async function translateText(
         Authorization: `Bearer ${apiKey}`,
       },
       body: JSON.stringify(payload),
-      signal: AbortSignal.timeout(isReasoningModel(model) ? 60000 : 15000),
+      signal: AbortSignal.timeout(reasoning ? 60000 : 15000),
     });
 
-    if (!res.ok) return text;
+    if (!res.ok) return { ok: false, reason: "failed" };
     const data = await res.json();
-    const translated = (data?.choices?.[0]?.message?.content as string | undefined)?.trim();
-    if (translated) {
-      _cache.set(key, translated);
-      return translated;
-    }
-    return text;
+    const translated = (data?.choices?.[0]?.message?.content as string | undefined)
+      ?.trim()
+      .slice(0, MAX_OUTPUT_CHARS);
+    if (!translated) return { ok: false, reason: "failed" };
+    cacheSet(key, translated);
+    return { ok: true, text: translated };
   } catch {
-    return text;
+    return { ok: false, reason: "failed" };
   }
 }

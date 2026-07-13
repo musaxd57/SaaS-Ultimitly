@@ -7,7 +7,7 @@ import { badRequest, jsonOk, notFound, tooManyRequests, paymentRequired } from "
 import { withManage } from "@/lib/route-guard";
 import { rateLimit } from "@/lib/rate-limit";
 import { premiumAllowed } from "@/lib/billing/subscription";
-import { translateText } from "@/lib/ai/translate";
+import { translate } from "@/lib/ai/translate";
 import { claimOutboundSend, releaseOutboundSend } from "@/lib/outbound-claim";
 
 // Only owner/manager may send guest-facing replies (withManage). Staff are read +
@@ -52,7 +52,18 @@ export const POST = withManage<{ id: string }>(async (session, req, { params }) 
     // org can't burn OpenAI via the manual reply path. The manual send itself
     // stays free; only the optional translate add-on is premium.
     if (!(await premiumAllowed(session.organizationId))) return paymentRequired();
-    replyBody = await translateText(replyBody, translateTo);
+    // FAIL-CLOSED (Codex #30): a failed translation used to fall through as the
+    // ORIGINAL text — the guest received an untranslated message while the host
+    // believed it went out in their language. No send on translate failure; the
+    // host can retry or deliberately send without translation.
+    const translated = await translate(replyBody, translateTo);
+    if (!translated.ok) {
+      return NextResponse.json(
+        { error: "Çeviri başarısız — mesaj GÖNDERİLMEDİ. Tekrar deneyin veya çeviriyi kapatıp gönderin." },
+        { status: 502 },
+      );
+    }
+    replyBody = translated.text;
   }
 
   // Deliver on the guest's channel FIRST — don't persist a reply that never

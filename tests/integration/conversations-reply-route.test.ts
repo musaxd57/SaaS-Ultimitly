@@ -79,6 +79,20 @@ describe("POST /api/conversations/[id]/reply — staff RBAC gate", () => {
     expect(count).toBe(1);
   });
 
+  it("FAIL-CLOSED translate (Codex #30): translation failure sends NOTHING (502)", async () => {
+    // OPENAI_API_KEY is empty in the test env → translate() reports failure.
+    // The OLD behavior silently fell through and sent the untranslated Turkish
+    // body to the guest while the host believed it went out in their language.
+    session = { userId: "u", organizationId: orgId, role: "owner", email: "o@x.com", name: "Owner", sessionEpoch: 0 };
+    const res = await POST(req(conversationId, { body: "Merhaba, hoş geldiniz!", translateTo: "ru" }), {
+      params: Promise.resolve({ id: conversationId }),
+    });
+    expect(res.status).toBe(502);
+    expect(mockSend).not.toHaveBeenCalled();
+    const count = await prisma.message.count({ where: { conversationId, direction: "outbound" } });
+    expect(count).toBe(0);
+  });
+
   it("credits an AI-approved send (aiAssisted) in reports, not a manual reply (#8)", async () => {
     session = { userId: "u", organizationId: orgId, role: "owner", email: "o@x.com", name: "Owner", sessionEpoch: 0 };
     // One-click "Onayla ve gönder" on an AI draft → flagged.
