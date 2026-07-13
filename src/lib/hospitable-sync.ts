@@ -1,6 +1,7 @@
 import "server-only";
 
 import { prisma } from "@/lib/db";
+import { isUniqueViolation } from "@/lib/db-errors";
 import {
   listProperties,
   listReservations,
@@ -369,24 +370,39 @@ async function upsertReservationCalendar(
     return existing.id;
   }
 
-  const created = await prisma.reservation.create({
-    data: {
-      propertyId,
-      guestName,
-      guestEmail: guestEmail ?? undefined,
-      guestPhone: guestPhone ?? undefined,
-      guestExternalId: guestExternalId ?? undefined,
-      arrivalDate,
-      departureDate,
-      channel,
-      status,
-      totalAmount: totalAmount ?? undefined,
-      currency,
-      sourceReference: srcRef,
-    },
-    select: { id: true },
-  });
-  return created.id;
+  try {
+    const created = await prisma.reservation.create({
+      data: {
+        propertyId,
+        guestName,
+        guestEmail: guestEmail ?? undefined,
+        guestPhone: guestPhone ?? undefined,
+        guestExternalId: guestExternalId ?? undefined,
+        arrivalDate,
+        departureDate,
+        channel,
+        status,
+        totalAmount: totalAmount ?? undefined,
+        currency,
+        sourceReference: srcRef,
+      },
+      select: { id: true },
+    });
+    return created.id;
+  } catch (err) {
+    // DEDUPE-HIT on @@unique([propertyId, sourceReference]) ONLY: a racing
+    // sync created the canonical row between our lookup and this insert —
+    // adopt it (field updates catch up on the next pass). Any other unique
+    // violation is a real error and must surface.
+    if (isUniqueViolation(err, ["propertyId", "sourceReference"])) {
+      const raced = await prisma.reservation.findFirst({
+        where: { propertyId, sourceReference: srcRef },
+        select: { id: true },
+      });
+      if (raced) return raced.id;
+    }
+    throw err;
+  }
 }
 
 /**
@@ -598,22 +614,37 @@ async function importThread(
         select: { id: true },
       });
       if (orphan) {
-        await prisma.message.update({ where: { id: orphan.id }, data: { externalId } });
+        try {
+          await prisma.message.update({ where: { id: orphan.id }, data: { externalId } });
+        } catch (err) {
+          // The canonical row with this externalId already exists (raced in) —
+          // healing the orphan would duplicate the key. Leave the orphan; the
+          // canonical import stands. Only THIS constraint is swallowed.
+          if (!isUniqueViolation(err, ["conversationId", "externalId"])) throw err;
+        }
         continue;
       }
     }
-    const created = await prisma.message.create({
-      data: {
-        conversationId,
-        direction: inbound ? "inbound" : "outbound",
-        senderName: senderFullName(m) ?? (inbound ? guestName : "Ev sahibi"),
-        body,
-        language,
-        externalId,
-        createdAt: parseDate(m.created_at) ?? undefined,
-      },
-      select: { id: true },
-    });
+    let created: { id: string };
+    try {
+      created = await prisma.message.create({
+        data: {
+          conversationId,
+          direction: inbound ? "inbound" : "outbound",
+          senderName: senderFullName(m) ?? (inbound ? guestName : "Ev sahibi"),
+          body,
+          language,
+          externalId,
+          createdAt: parseDate(m.created_at) ?? undefined,
+        },
+        select: { id: true },
+      });
+    } catch (err) {
+      // DEDUPE-HIT on @@unique([conversationId, externalId]) ONLY: another
+      // pass imported this provider message first — the DB is the arbiter now.
+      if (isUniqueViolation(err, ["conversationId", "externalId"])) continue;
+      throw err;
+    }
     newMessages++;
     // Pick up an explicit "extra towel/sheet" ask → adds +1 to the prep plan.
     // Best-effort, deduped by message id; must never break the sync.

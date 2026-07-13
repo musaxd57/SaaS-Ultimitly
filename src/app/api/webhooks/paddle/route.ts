@@ -82,7 +82,9 @@ async function orgFromProviderRef(data: Record<string, unknown> | undefined): Pr
   const refs = [str(data?.id), str(data?.subscription_id)].filter((v): v is string => Boolean(v));
   if (refs.length === 0) return null;
   const sub = await prisma.subscription.findFirst({
-    where: { providerRef: { in: refs } },
+    // provider pinned: providerRef formats are provider-specific, and the new
+    // @@unique([provider, providerRef]) guarantees uniqueness only per provider.
+    where: { provider: "paddle", providerRef: { in: refs } },
     select: { organizationId: true },
   });
   return sub?.organizationId ?? null;

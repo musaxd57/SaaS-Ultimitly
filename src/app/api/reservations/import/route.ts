@@ -1,4 +1,5 @@
 import { prisma } from "@/lib/db";
+import { isUniqueViolation } from "@/lib/db-errors";
 import { badRequest, jsonOk } from "@/lib/api";
 import { withManage } from "@/lib/route-guard";
 import { parseIcs } from "@/lib/import/ics";
@@ -127,7 +128,13 @@ export const POST = withManage(async (session, req) => {
       });
       await createReservationTasks(created.id);
       imported++;
-    } catch {
+    } catch (err) {
+      // A re-imported row with the same platform reference is a DEDUPE, not an
+      // error (@@unique([propertyId, sourceReference]) is the arbiter now).
+      if (isUniqueViolation(err, ["propertyId", "sourceReference"])) {
+        skipped++;
+        continue;
+      }
       // Don't surface the raw DB/Prisma error text to the client — generic only.
       errors.push(`${rowLabel}: Kaydedilemedi (veritabanı hatası).`);
       skipped++;

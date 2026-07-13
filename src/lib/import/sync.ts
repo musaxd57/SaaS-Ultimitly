@@ -1,5 +1,6 @@
 import "server-only";
 import { prisma } from "@/lib/db";
+import { isUniqueViolation } from "@/lib/db-errors";
 import { parseIcs } from "@/lib/import/ics";
 import { createReservationTasks, removeAutoTasksForCancelledReservation } from "@/lib/automation";
 import { isPrivateHost, resolvesToPrivate } from "@/lib/net/private-host";
@@ -214,20 +215,33 @@ export async function syncCalendarSource(sourceId: string): Promise<SyncResult> 
         await createReservationTasks(existing.id);
         result.updated++;
       } else {
-        const created = await prisma.reservation.create({
-          data: {
-            propertyId: source.propertyId,
-            guestName: row.guestName.slice(0, 200),
-            arrivalDate: row.arrivalDate,
-            departureDate: row.departureDate,
-            channel,
-            status: "confirmed",
-            sourceReference: row.sourceReference ? row.sourceReference.slice(0, 200) : null,
-            calendarSourceId: source.id,
-            notes: row.notes ? row.notes.slice(0, 5000) : null,
-            currency: "EUR",
-          },
-        });
+        let created;
+        try {
+          created = await prisma.reservation.create({
+            data: {
+              propertyId: source.propertyId,
+              guestName: row.guestName.slice(0, 200),
+              arrivalDate: row.arrivalDate,
+              departureDate: row.departureDate,
+              channel,
+              status: "confirmed",
+              sourceReference: row.sourceReference ? row.sourceReference.slice(0, 200) : null,
+              calendarSourceId: source.id,
+              notes: row.notes ? row.notes.slice(0, 5000) : null,
+              currency: "EUR",
+            },
+          });
+        } catch (err) {
+          // DEDUPE-HIT on @@unique([propertyId, sourceReference]) ONLY: the UID
+          // already exists on a row BOUND TO ANOTHER SOURCE (our bound-first
+          // lookup deliberately doesn't see it) or raced in. Source-binding
+          // rule: never mutate another source's row — skip.
+          if (isUniqueViolation(err, ["propertyId", "sourceReference"])) {
+            result.skipped++;
+            continue;
+          }
+          throw err;
+        }
         await createReservationTasks(created.id);
         result.imported++;
       }

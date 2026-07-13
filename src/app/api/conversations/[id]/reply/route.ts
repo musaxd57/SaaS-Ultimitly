@@ -1,5 +1,6 @@
 import { NextResponse } from "next/server";
 import { prisma } from "@/lib/db";
+import { isUniqueViolation } from "@/lib/db-errors";
 import { conversationReplySchema, zodFieldErrors } from "@/lib/validators";
 import { sendOnChannel } from "@/lib/messaging";
 import { getOrgHospitableToken } from "@/lib/hospitable-credentials";
@@ -118,24 +119,36 @@ export const POST = withManage<{ id: string }>(async (session, req, { params }) 
   }
 
   const now = new Date();
-  const [message] = await prisma.$transaction([
-    prisma.message.create({
-      data: {
-        conversationId: id,
-        direction: "outbound",
-        senderName: parsed.data.senderName || session.name,
-        body: replyBody,
-        aiAssisted,
-        // Store the provider's message id so the sync re-importing this reply from
-        // the channel thread dedups it instead of creating a duplicate row.
-        ...(outcome.providerMessageId ? { externalId: outcome.providerMessageId } : {}),
-      },
-    }),
-    prisma.conversation.update({
-      where: { id },
-      data: { status: "answered", lastMessageAt: now },
-    }),
-  ]);
+  let message;
+  try {
+    [message] = await prisma.$transaction([
+      prisma.message.create({
+        data: {
+          conversationId: id,
+          direction: "outbound",
+          senderName: parsed.data.senderName || session.name,
+          body: replyBody,
+          aiAssisted,
+          // Store the provider's message id so the sync re-importing this reply from
+          // the channel thread dedups it instead of creating a duplicate row.
+          ...(outcome.providerMessageId ? { externalId: outcome.providerMessageId } : {}),
+        },
+      }),
+      prisma.conversation.update({
+        where: { id },
+        data: { status: "answered", lastMessageAt: now },
+      }),
+    ]);
+  } catch (err) {
+    // Delivery already succeeded; a dedupe-hit on the new
+    // @@unique([conversationId, externalId]) means a concurrent sync imported
+    // this very reply first. Adopt the existing row and still mark answered.
+    if (!isUniqueViolation(err, ["conversationId", "externalId"])) throw err;
+    message = await prisma.message.findFirst({
+      where: { conversationId: id, externalId: outcome.providerMessageId ?? undefined },
+    });
+    await prisma.conversation.update({ where: { id }, data: { status: "answered", lastMessageAt: now } });
+  }
 
   return jsonOk(message, 201);
 });
