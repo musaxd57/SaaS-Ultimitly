@@ -15,6 +15,8 @@ interface DemoResult {
   riskLevel: "none" | "low" | "medium" | "high";
   detectedLanguage: string;
   source: "openai" | "fallback";
+  /** REAL production-gate verdict, computed server-side (passesAutoReplySafetyGate). */
+  wouldAutoSend?: boolean;
 }
 
 const SAMPLES: string[] = [
@@ -61,7 +63,11 @@ export function LandingDemo() {
   }
 
   const risky = result ? result.riskLevel === "medium" || result.riskLevel === "high" : false;
-  const wouldAutoSend = result ? result.confidence >= 0.75 && !risky : false;
+  // The badge states what the product would TRULY do: the server runs the real
+  // auto-send safety gate and returns its verdict. The local confidence/risk
+  // approximation remains only as a fallback for a stale cached bundle whose
+  // API response predates the field.
+  const wouldAutoSend = result ? (result.wouldAutoSend ?? (result.confidence >= 0.75 && !risky)) : false;
 
   return (
     <div className="mx-auto max-w-2xl rounded-2xl border border-border bg-card p-5 text-left shadow-sm sm:p-6">
@@ -127,8 +133,11 @@ export function LandingDemo() {
               <>
                 <ShieldAlert className="mt-0.5 size-3.5 shrink-0" />
                 <span>
-                  Bu mesaj otomatik yanıtlanmaz — {risky ? "riskli konu tespit edildi" : "güven eşiğin altında"},
-                  ev sahibinin onayına bırakılır. Güvenlik kapısı tam olarak böyle çalışır.
+                  Bu mesaj otomatik yanıtlanmaz —{" "}
+                  {risky || result.confidence >= 0.75
+                    ? "güvenlik kapısı riskli/hassas konu tespit etti"
+                    : "güven eşiğin altında"}
+                  , ev sahibinin onayına bırakılır. Güvenlik kapısı tam olarak böyle çalışır.
                 </span>
               </>
             )}

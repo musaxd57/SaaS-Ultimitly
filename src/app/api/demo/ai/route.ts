@@ -1,6 +1,7 @@
 import { type NextRequest, NextResponse } from "next/server";
 import { prisma } from "@/lib/db";
 import { suggestReply } from "@/lib/ai";
+import { passesAutoReplySafetyGate } from "@/lib/automation";
 import { badRequest, jsonOk, notFound, serverError, tooManyRequests } from "@/lib/api";
 import { rateLimit, clientIp } from "@/lib/rate-limit";
 
@@ -95,6 +96,23 @@ export async function POST(req: NextRequest) {
       styleProfile: null,
     });
 
+    // The REAL auto-send verdict (Codex #27): run the exact production gate —
+    // intent blocklist, deterministic risk word-nets, injection veto, source
+    // and confidence checks — not the client's old 2-check approximation
+    // (confidence + riskLevel), which overclaimed "would auto-send" for e.g. a
+    // confident refund demand the gate always blocks. The badge on the landing
+    // page must state what the product would truly do.
+    const wouldAutoSend = passesAutoReplySafetyGate(
+      {
+        intent: result.intent,
+        riskLevel: result.riskLevel,
+        confidence: result.confidence,
+        source: result.source,
+        riskType: result.riskType ?? null,
+      },
+      message,
+    );
+
     return jsonOk({
       reply: result.reply,
       intent: result.intent,
@@ -102,6 +120,7 @@ export async function POST(req: NextRequest) {
       riskLevel: result.riskLevel,
       detectedLanguage: result.detectedLanguage,
       source: result.source,
+      wouldAutoSend,
     });
   } catch (err) {
     return serverError(undefined, err);
