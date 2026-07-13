@@ -56,5 +56,25 @@ export const POST = withManage(async (session, req) => {
       icalToken: generateCalendarToken(),
     },
   });
+
+  // Codex #17: the gate above is count-then-create — two concurrent requests at
+  // limit-1 could BOTH pass and overshoot the plan. Deterministic post-create
+  // reconciliation: order every row by (createdAt, id); if OUR fresh row falls
+  // outside the limit, delete it and return the same limit error. The earlier-
+  // created racer always survives, so a legitimate single create is never lost.
+  // No-op while billing is dormant or the plan is unlimited (gate.limit unset).
+  if (gate.limit != null) {
+    const rows = await prisma.property.findMany({
+      where: { organizationId: session.organizationId },
+      orderBy: [{ createdAt: "asc" }, { id: "asc" }],
+      select: { id: true },
+    });
+    if (rows.findIndex((r) => r.id === property.id) >= gate.limit) {
+      await prisma.property.delete({ where: { id: property.id } }).catch(() => {});
+      return forbidden(
+        `Planınız en fazla ${gate.limit} daireye izin veriyor. Daha fazla daire için planınızı yükseltin.`,
+      );
+    }
+  }
   return jsonOk(property, 201);
 });

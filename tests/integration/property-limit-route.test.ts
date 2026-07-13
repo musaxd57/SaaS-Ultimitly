@@ -88,6 +88,27 @@ describe("POST /api/properties — plan limit gate", () => {
     expect(res.status).toBe(201);
   });
 
+  it("ENFORCED RACE (Codex #17): concurrent creates at limit-1 can NOT overshoot the cap", async () => {
+    // The gate is count-then-create: 4 simultaneous requests all counted 1 < 2
+    // and would all have created. The post-create reconciliation (ordered by
+    // createdAt,id; own row outside the limit deletes itself) must leave
+    // EXACTLY the plan cap in the DB, with exactly one 201.
+    await prisma.subscription.create({
+      data: { organizationId: orgId, planCode: "free", status: "active", provider: "paddle" },
+    });
+    await seedProperties(orgId, 1); // free cap is 2 → one slot left
+    process.env.BILLING_ENFORCED = "true";
+
+    const responses = await Promise.all(
+      Array.from({ length: 4 }, (_, i) => POST(createReq(`Yarış ${i}`), noCtx)),
+    );
+    const created = responses.filter((r) => r.status === 201);
+    const blocked = responses.filter((r) => r.status === 403);
+    expect(created).toHaveLength(1);
+    expect(blocked).toHaveLength(3);
+    expect(await prisma.property.count({ where: { organizationId: orgId } })).toBe(2);
+  });
+
   it("ENFORCED: an expired-trial org is blocked with a subscription message", async () => {
     await prisma.subscription.create({
       data: {
