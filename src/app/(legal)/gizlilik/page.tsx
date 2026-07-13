@@ -142,7 +142,8 @@ const SECTIONS: Section[] = [
   {
     title: "15. QR Misafir Sohbeti",
     body: [
-      "Müşteri tarafından etkinleştirilmesi hâlinde, konaklayan misafirler QR bağlantısı üzerinden mülke ilişkin destek mesajı gönderebilir. Bu özellik yalnızca ilgili konaklama bağlamında hizmet vermek amacıyla kullanılır. QR sohbetinde verilen yanıtlar, Müşteri’nin bilgi tabanı ve konaklama bağlamına göre hazırlanır; hassas erişim bilgileri yalnızca sistem tarafından uygun bağlam doğrulandığında paylaşılır. Müşteri bu özelliği panelden açıp kapatabilir.",
+      "Müşteri tarafından etkinleştirilmesi hâlinde, konaklayan misafirler QR bağlantısı üzerinden mülke ilişkin destek mesajı gönderebilir. Bu özellik yalnızca ilgili konaklama bağlamında hizmet vermek amacıyla kullanılır. QR sohbetinde verilen otomatik yanıtlar Müşteri’nin bilgi tabanından hazırlanır ve bu bağlamda kapı kodu/Wi-Fi şifresi gibi hassas erişim bilgileri yer almaz (bu bilgiler otomatik yanıtlardan ayıklanır).",
+      "QR sohbeti fiziksel bir bağlantı (kod) üzerinden erişildiğinden ve ayrı bir misafir kimlik doğrulaması içermediğinden, ilgili konaklama penceresinde bağlantıya erişebilen kişilerce görüntülenebilecek paylaşımlı bir kanaldır. Bu nedenle Müşteri’ye, kapı kodu ve kişisel/hassas bilgileri bu kanal yerine platform (Airbnb/Booking) mesajları üzerinden iletmesi önerilir. Cihaz bağlama, güncel konaklama sohbetinin sonraki/önceki misafirlerce görüntülenmesini sınırlamaya yönelik ek bir önlemdir. Müşteri bu özelliği panelden açıp kapatabilir.",
     ],
   },
   {

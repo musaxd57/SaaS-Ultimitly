@@ -65,6 +65,10 @@ export function GuestChatReply({ conversationId }: { conversationId: string }) {
         </button>
       </form>
       {error ? <p className="text-xs text-destructive">{error}</p> : null}
+      <p className="text-[11px] leading-snug text-muted-foreground">
+        ⚠️ Bu, misafirle <strong>paylaşılan</strong> bir sohbet kanalıdır. Kapı kodu, Wi-Fi şifresi ve
+        kişisel/hassas bilgileri buraya yazmayın — bunları Airbnb/Booking mesajından iletin.
+      </p>
     </div>
   );
 }
