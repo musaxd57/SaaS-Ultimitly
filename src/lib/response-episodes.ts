@@ -6,10 +6,17 @@
 //
 // An EPISODE is a run of consecutive guest (inbound) messages followed by the
 // host/AI's next outbound: the clock starts at the FIRST message of the run
-// (that's when the guest began waiting) and stops at that outbound. A trailing
-// run with no reply yet is still an episode — an unanswered guest counts
-// against the rate, exactly like before, just per-episode now. Episodes are
-// attributed to the window by when they START.
+// (that's when the guest began waiting) and stops at that outbound. Episodes
+// are attributed to the window by when they START.
+//
+// SLA CONTRACT (Codex follow-up — a guest who wrote 5 minutes ago has NOT
+// missed anything yet):
+//   * answered, delta <= 24h        → answerable + within
+//   * answered, delta  > 24h        → answerable, NOT within (late stays late)
+//   * unanswered, age  > 24h (@now) → answerable, NOT within (SLA expired)
+//   * unanswered, age <= 24h (@now) → PENDING — excluded from the denominator
+// Both boundaries are 24h-INCLUSIVE and consistent: at exactly 24h an answer
+// still counts as within, so the unanswered run is still pending.
 
 export interface EpisodeStats {
   answerable: number;
@@ -22,16 +29,17 @@ const DAY_MS = 24 * 60 * 60 * 1000;
 export function computeResponseEpisodes(
   messages: { direction: string; createdAt: Date }[],
   windowStart: Date,
+  now: Date,
 ): EpisodeStats {
   let answerable = 0;
   let answeredWithin24h = 0;
   let runStart: Date | null = null; // first inbound of the currently-open run
 
-  const close = (end: Date | null) => {
+  const closeAnswered = (end: Date) => {
     if (!runStart) return;
     if (runStart >= windowStart) {
       answerable++;
-      if (end && end.getTime() - runStart.getTime() <= DAY_MS) answeredWithin24h++;
+      if (end.getTime() - runStart.getTime() <= DAY_MS) answeredWithin24h++;
     }
     runStart = null;
   };
@@ -40,10 +48,14 @@ export function computeResponseEpisodes(
     if (m.direction === "inbound") {
       if (!runStart) runStart = m.createdAt; // consecutive inbounds keep the FIRST anchor
     } else {
-      close(m.createdAt); // outbound answers the open run (no-op when none is open)
+      closeAnswered(m.createdAt); // outbound answers the open run (no-op when none is open)
     }
   }
-  close(null); // trailing unanswered run = a miss, not invisible
+  // Trailing unanswered run: a miss ONLY once its 24h SLA has expired; a still-
+  // fresh question is PENDING and stays out of the denominator entirely.
+  if (runStart && runStart >= windowStart && now.getTime() - runStart.getTime() > DAY_MS) {
+    answerable++;
+  }
 
   return { answerable, answeredWithin24h };
 }

@@ -52,20 +52,32 @@ describe("responseRate — episode-based over ACTIVE conversations", () => {
     expect(score.breakdown.responseRate).toBe(100); // old code: null (thread invisible)
   });
 
-  it("B) later slow episodes in the SAME thread drag the rate down (old code: stuck at 100)", async () => {
+  it("B) later slow/expired episodes drag the rate down; a FRESH question is PENDING (out of the denominator)", async () => {
     const now = Date.now();
     const created = new Date(now - 10 * 24 * H);
     await seedConversation(created, [
       // ep1: answered fast (this is ALL the old metric ever saw)
       { dir: "inbound", at: new Date(now - 9 * 24 * H) },
       { dir: "outbound", at: new Date(now - 9 * 24 * H + 1 * H) },
-      // ep2: answered after 30h — too slow
+      // ep2: answered after 30h — late stays late
       { dir: "inbound", at: new Date(now - 5 * 24 * H) },
       { dir: "outbound", at: new Date(now - 5 * 24 * H + 30 * H) },
-      // ep3: still unanswered
-      { dir: "inbound", at: new Date(now - 2 * H) },
+      // ep3: unanswered for 30h — SLA expired → failed
+      { dir: "inbound", at: new Date(now - 30 * H) },
     ]);
     const score = await getHostPerformanceScore(orgId);
-    expect(score.breakdown.responseRate).toBe(33); // 1 of 3 episodes within 24h
+    expect(score.breakdown.responseRate).toBe(33); // 1 of 3 (fast / late / expired)
+
+    // ep4: guest wrote 5 minutes ago — PENDING, must NOT move the denominator
+    // (Codex: instantly counting it as a miss unfairly tanks the report).
+    await prisma.message.create({
+      data: {
+        conversationId: (await prisma.conversation.findFirstOrThrow()).id,
+        direction: "inbound", senderName: "G", body: "b",
+        createdAt: new Date(now - 5 * 60 * 1000),
+      },
+    });
+    const score2 = await getHostPerformanceScore(orgId);
+    expect(score2.breakdown.responseRate).toBe(33); // unchanged — still 1 of 3
   });
 });

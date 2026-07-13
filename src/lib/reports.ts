@@ -578,7 +578,7 @@ export async function getHostPerformanceScore(orgId: string): Promise<HostPerfor
       else grouped.set(m.conversationId, [m]);
     }
     for (const msgs of grouped.values()) {
-      const stats = computeResponseEpisodes(msgs, thirtyDaysAgo);
+      const stats = computeResponseEpisodes(msgs, thirtyDaysAgo, now);
       answerable += stats.answerable;
       answeredWithin24h += stats.answeredWithin24h;
     }
