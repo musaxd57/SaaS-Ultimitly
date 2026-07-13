@@ -28,6 +28,14 @@ export function GuestChat({ token, propertyName }: { token: string; propertyName
   // holding the QR photo from reading the current guest's conversation.
   const [boundElsewhere, setBoundElsewhere] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  // PIN gate (Faz 5): when the stay requires a host-provided code, the chat is
+  // locked behind a PIN entry until this device unlocks it. `pinRequired` drives
+  // the entry screen; once unlocked the server binds the device (cookie) and the
+  // chat behaves normally.
+  const [pinRequired, setPinRequired] = useState(false);
+  const [pinInput, setPinInput] = useState("");
+  const [pinBusy, setPinBusy] = useState(false);
+  const [pinError, setPinError] = useState<string | null>(null);
   const endRef = useRef<HTMLDivElement>(null);
   // Monotonic load counter (drop stale snapshots) + a live "sending" flag the
   // poll reads to avoid clobbering the optimistic bubble mid-send.
@@ -42,12 +50,18 @@ export function GuestChat({ token, propertyName }: { token: string; propertyName
       const data = (await res.json()) as {
         open?: boolean;
         boundElsewhere?: boolean;
+        pinRequired?: boolean;
         messages?: ChatMessage[];
       };
       // Drop a stale snapshot: if a newer load was issued while this one was in
       // flight (e.g. the post-send refresh), applying this older response would
       // wipe the just-sent message / AI reply off-screen for up to a poll cycle.
       if (seq !== loadSeq.current) return;
+      if (data.pinRequired) {
+        setPinRequired(true);
+        return;
+      }
+      setPinRequired(false);
       if (data.boundElsewhere) {
         setBoundElsewhere(true);
         return;
@@ -105,7 +119,17 @@ export function GuestChat({ token, propertyName }: { token: string; propertyName
         setError("Şu an yanıt veremiyorum. Lütfen biraz sonra tekrar deneyin.");
         return;
       }
-      const data = (await res.json().catch(() => ({}))) as { boundElsewhere?: boolean };
+      const data = (await res.json().catch(() => ({}))) as {
+        boundElsewhere?: boolean;
+        pinRequired?: boolean;
+      };
+      if (data.pinRequired) {
+        // The stay needs the host's code (e.g. the device cookie lapsed) — send
+        // nothing, drop back to the PIN entry screen.
+        rollback();
+        setPinRequired(true);
+        return;
+      }
       if (data.boundElsewhere) {
         // This device isn't the one that claimed the stay — nothing was sent.
         rollback();
@@ -120,6 +144,97 @@ export function GuestChat({ token, propertyName }: { token: string; propertyName
       sendingRef.current = false;
       setSending(false);
     }
+  }
+
+  async function submitPin() {
+    const pin = pinInput.replace(/\D/g, "");
+    if (pin.length < 4 || pinBusy) return;
+    setPinBusy(true);
+    setPinError(null);
+    try {
+      const res = await fetch(`/api/chat/${token}`, {
+        method: "POST",
+        headers: { "content-type": "application/json" },
+        body: JSON.stringify({ pin }),
+      });
+      const data = (await res.json().catch(() => ({}))) as {
+        unlocked?: boolean;
+        boundElsewhere?: boolean;
+        locked?: boolean;
+        retryAfter?: number;
+        pinError?: boolean;
+      };
+      if (res.status === 429) {
+        setPinError("Çok fazla deneme. Lütfen birkaç dakika sonra tekrar deneyin.");
+        return;
+      }
+      if (data.unlocked) {
+        setPinInput("");
+        setPinRequired(false);
+        await loadHistory();
+        return;
+      }
+      if (data.boundElsewhere) {
+        setPinRequired(false);
+        setBoundElsewhere(true);
+        return;
+      }
+      if (data.locked) {
+        const mins = Math.max(1, Math.ceil((data.retryAfter ?? 0) / 60));
+        setPinError(`Çok fazla hatalı deneme. ${mins} dakika sonra tekrar deneyin.`);
+        return;
+      }
+      // pinError or anything else → one generic message (never reveals the code).
+      setPinError("Kod hatalı. Ev sahibinizin verdiği giriş kodunu kontrol edin.");
+    } catch {
+      setPinError("Bağlantı hatası. Lütfen tekrar deneyin.");
+    } finally {
+      setPinBusy(false);
+    }
+  }
+
+  // PIN gate screen: shown until this device unlocks the stay with the host's code.
+  if (pinRequired && !boundElsewhere && !closed) {
+    return (
+      <div className="mx-auto flex min-h-screen max-w-lg flex-col items-center justify-center gap-4 bg-background px-6 text-center">
+        <div className="w-full max-w-xs space-y-4 rounded-lg border border-border bg-card p-6">
+          <div>
+            <p className="text-base font-semibold">{propertyName}</p>
+            <p className="mt-1 text-sm text-muted-foreground">
+              Sohbeti başlatmak için ev sahibinizin size verdiği giriş kodunu girin.
+            </p>
+          </div>
+          <form
+            onSubmit={(e) => {
+              e.preventDefault();
+              void submitPin();
+            }}
+            className="space-y-3"
+          >
+            <input
+              value={pinInput}
+              onChange={(e) => setPinInput(e.target.value.replace(/\D/g, "").slice(0, 6))}
+              inputMode="numeric"
+              autoComplete="one-time-code"
+              placeholder="Giriş kodu"
+              autoFocus
+              className="w-full rounded-lg border border-border bg-background px-3 py-2 text-center text-lg tracking-[0.4em] focus:outline-none focus:ring-2 focus:ring-primary/40"
+            />
+            <button
+              type="submit"
+              disabled={pinBusy || pinInput.replace(/\D/g, "").length < 4}
+              className="w-full rounded-lg bg-primary px-4 py-2 text-sm font-medium text-primary-foreground transition-colors hover:bg-primary/90 disabled:opacity-50"
+            >
+              {pinBusy ? "Kontrol ediliyor…" : "Sohbeti aç"}
+            </button>
+          </form>
+          {pinError ? <p className="text-sm text-destructive">{pinError}</p> : null}
+          <p className="text-[11px] text-muted-foreground">
+            Kodu bilmiyorsanız ev sahibinizle iletişime geçin.
+          </p>
+        </div>
+      </div>
+    );
   }
 
   return (

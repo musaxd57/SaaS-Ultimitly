@@ -16,11 +16,17 @@ export function GuestChatSettings({
   propertyName,
   enabled,
   url,
+  pinFeatureEnabled = false,
+  strictMode = false,
 }: {
   propertyId: string;
   propertyName: string;
   enabled: boolean;
   url: string | null;
+  /** Faz 5: whether the QR PIN feature is on (env). Shows the strict-mode toggle. */
+  pinFeatureEnabled?: boolean;
+  /** Org-wide: require a PIN for EVERY stay (not just those with a generated PIN). */
+  strictMode?: boolean;
 }) {
   const router = useRouter();
   const qrRef = useRef<HTMLCanvasElement>(null);
@@ -29,6 +35,31 @@ export function GuestChatSettings({
   const [copied, setCopied] = useState(false);
   const [resetting, setResetting] = useState(false);
   const [resetDone, setResetDone] = useState(false);
+  const [strict, setStrict] = useState(strictMode);
+  const [strictBusy, setStrictBusy] = useState(false);
+
+  async function toggleStrict(next: boolean) {
+    setStrictBusy(true);
+    setError(null);
+    const prev = strict;
+    setStrict(next); // optimistic
+    try {
+      const res = await fetch(`/api/settings`, {
+        method: "PATCH",
+        headers: { "content-type": "application/json" },
+        body: JSON.stringify({ qrChatPinRequired: next }),
+      });
+      if (!res.ok) {
+        setStrict(prev);
+        setError("Ayar kaydedilemedi. Lütfen tekrar deneyin.");
+      }
+    } catch {
+      setStrict(prev);
+      setError("Bağlantı hatası. Lütfen tekrar deneyin.");
+    } finally {
+      setStrictBusy(false);
+    }
+  }
 
   async function toggle(next: boolean) {
     setBusy(true);
@@ -178,6 +209,29 @@ export function GuestChatSettings({
               bağlanır.
             </p>
           </div>
+
+          {pinFeatureEnabled ? (
+            <div className="mt-2 border-t border-border pt-3">
+              <label className="flex items-start gap-2 text-xs">
+                <input
+                  type="checkbox"
+                  checked={strict}
+                  disabled={strictBusy}
+                  onChange={(e) => void toggleStrict(e.target.checked)}
+                  className="mt-0.5 size-4 rounded border-input"
+                />
+                <span>
+                  <span className="font-medium text-foreground">Tüm konaklamalarda giriş kodu zorunlu</span>{" "}
+                  <span className="text-muted-foreground">(işletme geneli)</span>
+                  <span className="mt-0.5 block text-[11px] text-muted-foreground">
+                    Açıkken her rezervasyon için misafir, ev sahibinin verdiği giriş kodunu girmeden sohbeti
+                    açamaz. Kod oluşturmadığınız rezervasyonlarda sohbet kilitli kalır. Kapalıyken yalnızca
+                    kod oluşturduğunuz rezervasyonlarda kod istenir.
+                  </span>
+                </span>
+              </label>
+            </div>
+          ) : null}
         </div>
       ) : null}
 

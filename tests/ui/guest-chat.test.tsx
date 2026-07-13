@@ -79,4 +79,55 @@ describe("GuestChat (UI, two-way)", () => {
 
     await screen.findByText(/yanıt veremiyorum/);
   });
+
+  it("PIN gate: shows the PIN entry when the server requires it, then unlocks", async () => {
+    // GET reports pinRequired until an unlock POST succeeds; then GET returns the thread.
+    let unlocked = false;
+    const fn = vi.fn((_url: string, opts?: RequestInit) => {
+      const method = opts?.method ?? "GET";
+      if (method === "GET") {
+        return unlocked
+          ? Promise.resolve({ ok: true, status: 200, json: async () => ({ open: true, messages: [{ id: "a1", role: "ai", text: "Hoş geldiniz." }] }) })
+          : Promise.resolve({ ok: true, status: 200, json: async () => ({ open: true, pinRequired: true, messages: [] }) });
+      }
+      // POST unlock
+      const body = JSON.parse(String(opts!.body)) as { pin?: string };
+      if (body.pin === "123456") {
+        unlocked = true;
+        return Promise.resolve({ ok: true, status: 200, json: async () => ({ unlocked: true }) });
+      }
+      return Promise.resolve({ ok: true, status: 200, json: async () => ({ pinRequired: true, pinError: true }) });
+    });
+    vi.stubGlobal("fetch", fn);
+    render(<GuestChat token="tok" propertyName="Nuve 5" />);
+
+    // PIN entry visible.
+    const input = await screen.findByPlaceholderText("Giriş kodu");
+    // Wrong PIN → generic error.
+    fireEvent.change(input, { target: { value: "000000" } });
+    fireEvent.click(screen.getByRole("button", { name: /Sohbeti aç/ }));
+    await screen.findByText(/Kod hatalı/);
+    // Correct PIN → unlocks and the chat thread loads.
+    fireEvent.change(screen.getByPlaceholderText("Giriş kodu"), { target: { value: "123456" } });
+    fireEvent.click(screen.getByRole("button", { name: /Sohbeti aç/ }));
+    await screen.findByText("Hoş geldiniz.");
+    const postPin = fn.mock.calls.find((c) => {
+      const b = (c[1] as RequestInit | undefined)?.body;
+      return b && JSON.parse(String(b)).pin === "123456";
+    });
+    expect(postPin).toBeTruthy();
+  });
+
+  it("PIN gate: too many attempts shows a rate-limit message", async () => {
+    const fn = vi.fn((_url: string, opts?: RequestInit) => {
+      const method = opts?.method ?? "GET";
+      if (method === "GET") return Promise.resolve({ ok: true, status: 200, json: async () => ({ open: true, pinRequired: true, messages: [] }) });
+      return Promise.resolve({ ok: false, status: 429, json: async () => ({}) });
+    });
+    vi.stubGlobal("fetch", fn);
+    render(<GuestChat token="t" propertyName="X" />);
+    fireEvent.change(await screen.findByPlaceholderText("Giriş kodu"), { target: { value: "111111" } });
+    fireEvent.click(screen.getByRole("button", { name: /Sohbeti aç/ }));
+    await screen.findByText(/Çok fazla deneme/);
+  });
 });

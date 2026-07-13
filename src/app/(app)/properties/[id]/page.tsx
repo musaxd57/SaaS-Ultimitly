@@ -16,6 +16,7 @@ import { PackageOpen } from "lucide-react";
 import { CalendarFeed } from "@/components/properties/calendar-feed";
 import { CalendarSources } from "@/components/properties/calendar-sources";
 import { GuestChatSettings } from "@/components/properties/guest-chat-settings";
+import { ReservationPinControl } from "@/components/properties/reservation-pin-control";
 import { generateCalendarToken } from "@/lib/export/ics";
 import { KB_CATEGORY, RESERVATION_STATUS } from "@/lib/constants";
 import { formatDate } from "@/lib/utils";
@@ -38,9 +39,15 @@ export default async function PropertyDetailPage({
       knowledgeBase: { where: { isActive: true }, orderBy: { category: "asc" } },
       reservations: { orderBy: { arrivalDate: "desc" }, take: 5 },
       calendarSources: { orderBy: { createdAt: "asc" } },
+      organization: { select: { qrChatPinRequired: true } },
     },
   });
   if (!property) notFound();
+
+  // QR PIN feature (Faz 5) is master-gated by the env switch; the per-reservation
+  // PIN control + strict-mode toggle only appear when it's on AND the host can manage.
+  const pinFeatureEnabled = process.env.QR_PIN_ENABLED === "1";
+  const showPinControls = canManage && process.env.GUEST_CHAT_ENABLED === "1" && pinFeatureEnabled && property.chatEnabled;
 
   // Sibling properties (for "copy supply profile to selected apartments").
   const siblings = await prisma.property.findMany({
@@ -170,6 +177,8 @@ export default async function PropertyDetailPage({
                       ? `${protocol}://${host}/c/${property.chatToken}`
                       : null
                   }
+                  pinFeatureEnabled={pinFeatureEnabled}
+                  strictMode={property.organization.qrChatPinRequired}
                 />
               </CardContent>
             </Card>
@@ -209,16 +218,21 @@ export default async function PropertyDetailPage({
                 <p className="text-sm text-muted-foreground">Rezervasyon yok.</p>
               ) : (
                 property.reservations.map((r) => (
-                  <div key={r.id} className="flex items-center justify-between gap-2">
-                    <div className="min-w-0">
-                      <p className="truncate text-sm font-medium">{r.guestName}</p>
-                      <p className="text-xs text-muted-foreground">
-                        {formatDate(r.arrivalDate)} – {formatDate(r.departureDate)}
-                      </p>
+                  <div key={r.id} className="border-b border-border/50 pb-2 last:border-0 last:pb-0">
+                    <div className="flex items-center justify-between gap-2">
+                      <div className="min-w-0">
+                        <p className="truncate text-sm font-medium">{r.guestName}</p>
+                        <p className="text-xs text-muted-foreground">
+                          {formatDate(r.arrivalDate)} – {formatDate(r.departureDate)}
+                        </p>
+                      </div>
+                      <Badge tone={RESERVATION_STATUS.tone(r.status)}>
+                        {RESERVATION_STATUS.label(r.status)}
+                      </Badge>
                     </div>
-                    <Badge tone={RESERVATION_STATUS.tone(r.status)}>
-                      {RESERVATION_STATUS.label(r.status)}
-                    </Badge>
+                    {showPinControls && r.status !== "cancelled" ? (
+                      <ReservationPinControl reservationId={r.id} initialHasPin={Boolean(r.chatPinHash)} />
+                    ) : null}
                   </div>
                 ))
               )}
