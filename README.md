@@ -58,7 +58,7 @@ Yerelde bir **PostgreSQL** veritabanı gerekir (Docker, yerel kurulum veya bir b
 npm install
 cp .env.example .env            # AUTH_SECRET + DATABASE_URL ayarlayın
 
-npm run db:push                 # şemayı veritabanına uygula
+npm run db:push                 # şemayı LOKAL veritabanına uygula (uzak DB'ye guard engel olur)
 npm run db:seed                 # örnek veri
 
 npm run dev                     # → http://localhost:3000
@@ -85,7 +85,7 @@ E-posta: demo@guestops.ai
 | `npm start` | Production sunucusu |
 | `npm test` | Testleri çalıştır (Vitest) |
 | `npm run typecheck` | TypeScript tip kontrolü |
-| `npm run db:push` | Şemayı veritabanına uygula |
+| `npm run db:push` | Şemayı veritabanına uygula (yalnız lokal DB; `ALLOW_PROD_SEED=1` kaçış) |
 | `npm run db:seed` | Örnek veriyi yükle |
 | `npm run db:reset` | DB'yi sıfırla + yeniden seed |
 | `npm run db:studio` | Prisma Studio |

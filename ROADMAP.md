@@ -7,14 +7,14 @@
 > geri alınabilir. E-posta/para akışına dokunan adımlar onayla ve ilk canlı
 > denemeler birlikte doğrulanarak açılır. (Ayrıntılı proje hafızası: `CLAUDE.md`.)
 >
-> Son güncelleme: 2026-06-23
+> Son güncelleme: 2026-07-13
 
 ---
 
 ## 🎯 Gerçek durum: kod hazır, iş başlamadı
 
 Mühendislik bir MVP'nin ~%90'ı — paneller cilalı, güvenlik kapısı sağlam, billing/
-reverse-trial canlı, Paddle production kuruldu, ~438 test yeşil. **Ama henüz tek
+reverse-trial canlı, Paddle production kuruldu, ~930 test yeşil. **Ama henüz tek
 ödeyen müşteri yok ve çekirdek özellik (oto-yanıt) gerçek müşteride canlı denenmedi.**
 Asıl belirsizlik kodda değil, burada. Sıradaki gerçek iş (önem sırasıyla):
 
@@ -67,7 +67,7 @@ doğrulama · **KYB onayı GEÇTİ + production env CANLI** (canlı Paddle anaht
 ## 🏗️ Faz 3 — Dayanıklılık
 - [x] Dependabot
 - [ ] **Mesaj dedup'unu DB kısıtına taşı** `@@unique([conversationId, externalId])` — *önce prod dedup* (dolu tabloya `@unique` boot'ta patlar)
-- [ ] **`db push` → migration** geçişi
+- [x] **`db push` → migration** geçişi (boot `migrate deploy`, 17 migration, CI migration-chain kapısı)
 - [ ] Gelen kutusu **sayfalama** (veri büyüdükçe)
 - [ ] Sync kilidi için fencing-token / heartbeat
 
