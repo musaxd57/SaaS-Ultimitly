@@ -2,6 +2,7 @@ import "server-only";
 import { prisma } from "@/lib/db";
 import { Prisma } from "@prisma/client";
 import { reservationAmount } from "@/lib/money";
+import { computeResponseEpisodes } from "@/lib/response-episodes";
 import { zonedDayRange } from "@/lib/automation";
 
 // Reporting day/occupancy math is anchored to the host's Istanbul calendar
@@ -546,13 +547,16 @@ export async function getHostPerformanceScore(orgId: string): Promise<HostPerfor
   const monthStart = zonedDayRange(new Date(Date.UTC(iy, im - 1, 1)), REPORT_TZ).start;
   const todayStart = zonedDayRange(now, REPORT_TZ).start;
 
-  // 1. Response rate: of conversations that received a guest message in the last
-  //    30 days, what % were answered within 24h. null when none received a guest
-  //    message yet (so the metric is excluded rather than scored as 0 or 100).
+  // 1. Response rate — EPISODE-BASED (Codex #33): every consecutive guest-message
+  //    run that STARTED in the last 30 days counts once (clock = first message of
+  //    the run → the next outbound). Conversations are scoped by ACTIVITY
+  //    (lastMessageAt), not creation — an old thread the guest just wrote to
+  //    again is exactly the case the metric exists for. null when no episode
+  //    started in the window (excluded rather than scored 0 or 100).
   const recentConversations = await prisma.conversation.findMany({
     where: {
       property: { organizationId: orgId },
-      createdAt: { gte: thirtyDaysAgo },
+      lastMessageAt: { gte: thirtyDaysAgo },
     },
     select: { id: true },
   });
@@ -574,18 +578,9 @@ export async function getHostPerformanceScore(orgId: string): Promise<HostPerfor
       else grouped.set(m.conversationId, [m]);
     }
     for (const msgs of grouped.values()) {
-      const firstInbound = msgs.find((m) => m.direction === "inbound");
-      if (!firstInbound) continue; // nothing to answer → not counted against the host
-      answerable++;
-      const firstOutbound = msgs.find(
-        (m) => m.direction === "outbound" && m.createdAt > firstInbound.createdAt,
-      );
-      if (
-        firstOutbound &&
-        (firstOutbound.createdAt.getTime() - firstInbound.createdAt.getTime()) / (1000 * 60 * 60) <= 24
-      ) {
-        answeredWithin24h++;
-      }
+      const stats = computeResponseEpisodes(msgs, thirtyDaysAgo);
+      answerable += stats.answerable;
+      answeredWithin24h += stats.answeredWithin24h;
     }
   }
 
