@@ -33,7 +33,9 @@ export const metadata: Metadata = {
     description: DESCRIPTION,
   },
   twitter: {
-    card: "summary_large_image",
+    // "summary" until a real OG/Twitter image asset exists — declaring
+    // summary_large_image with NO image renders a broken/empty large card.
+    card: "summary",
     title: "Lixus AI — Airbnb & Booking için AI Misafir Asistanı",
     description: DESCRIPTION,
   },

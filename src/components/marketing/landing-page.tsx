@@ -101,7 +101,7 @@ const FEATURES = [
   {
     icon: ShieldCheck,
     title: "Şikayetlerde devreyi size verir",
-    body: "Şikayet, iade veya iptal mesajlarına asla tek başına cevap vermez — işaretleyip size iletir. Emin değilse göndermez, taslağı onayınıza bırakır.",
+    body: "Şikayet, iade veya iptal mesajlarını asla kendi başına sonuçlandırmaz — işaretleyip size iletir. Emin değilse göndermez, taslağı onayınıza bırakır.",
   },
   {
     icon: Moon,
@@ -181,7 +181,7 @@ const FAQS = [
   },
   {
     q: "Yanlış ya da uygunsuz cevap verir mi?",
-    a: "Şikayet, iade, iptal gibi hassas mesajlar asla otomatik gönderilmez — doğrudan size düşer. Emin olmadığı her durumda taslağı hazırlar, göndermeden önce onayınızı bekler.",
+    a: "Şikayet, iade, iptal gibi hassas mesajları asla otomatik sonuçlandırmaz — doğrudan size düşer. Dilerseniz (siz açarsanız) yalnızca kısa bir \"mesajınızı aldık, ilgileniyoruz\" bekletme yanıtı otomatik gider; çözüm ve karar her zaman sizdedir. Emin olmadığı her durumda taslağı hazırlar, göndermeden önce onayınızı bekler.",
   },
   {
     q: "Misafirim yabancı; AI onun dilinde mi cevap verir?",
@@ -205,7 +205,10 @@ const FAQS = [
   },
 ];
 
-const TRUST = ["Türkiye’de geliştirildi", "KVKK uyumlu", "Şikayetlerde otomatik cevap yok", "Kullanıcı dostu arayüz"];
+// Honest trust chips: "KVKK odaklı" (not an absolute compliance certification
+// claim while the DPA/legal work is in progress) and "otomatik sonuçlandırmaz"
+// (the opt-in holding acknowledgement exists — resolution is always human).
+const TRUST = ["Türkiye’de geliştirildi", "KVKK odaklı tasarım", "Şikayeti otomatik sonuçlandırmaz", "Kullanıcı dostu arayüz"];
 
 // The real panels a customer uses — shown as little "screens" on the landing.
 const PANELS = [

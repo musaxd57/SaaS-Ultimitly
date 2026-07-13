@@ -1,3 +1,4 @@
+import type { Metadata } from "next";
 import { redirect } from "next/navigation";
 import { requireAuth } from "@/lib/auth";
 import { prisma } from "@/lib/db";
@@ -6,6 +7,12 @@ import { AppShell } from "@/components/shell/app-shell";
 import { getEntitlement, billingEnforced } from "@/lib/billing/subscription";
 import { TrialBanner } from "@/components/billing/trial-banner";
 import { LimitedModeBanner } from "@/components/billing/limited-mode-banner";
+
+// The in-app surface must never be indexed: the ROOT layout declares
+// robots index:true (right for marketing pages) and metadata inherits — this
+// override wins for everything under (app). Auth already redirects crawlers to
+// /login; this is the explicit belt-and-braces signal.
+export const metadata: Metadata = { robots: { index: false, follow: false } };
 
 export default async function AppLayout({ children }: { children: React.ReactNode }) {
   const session = await requireAuth();

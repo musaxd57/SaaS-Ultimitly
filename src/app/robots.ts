@@ -8,9 +8,28 @@ export default function robots(): MetadataRoute.Robots {
       userAgent: "*",
       allow: "/",
       // Keep private app + API routes out of search indexes (they require auth
-      // anyway, but be explicit).
+      // anyway, and the (app) layout also sends noindex — be explicit here too).
       // "/c" = public guest QR chat (bearer-token URLs) — never crawl/index them.
-      disallow: ["/api/", "/c/", "/dashboard", "/inbox", "/settings", "/admin", "/tasks", "/properties", "/reports", "/sent", "/knowledge", "/templates"],
+      // Covers EVERY (app) route group directory; update when adding a new one.
+      disallow: [
+        "/api/",
+        "/c/",
+        "/admin",
+        "/calendar",
+        "/cancellations",
+        "/dashboard",
+        "/guest-chats",
+        "/hazirlik",
+        "/inbox",
+        "/knowledge",
+        "/login",
+        "/properties",
+        "/reports",
+        "/sent",
+        "/settings",
+        "/tasks",
+        "/templates",
+      ],
     },
     sitemap: `${BASE}/sitemap.xml`,
   };

@@ -16,8 +16,13 @@ Veritabanı **PostgreSQL**'dir (Railway'in yönetilen Postgres servisi).
 2. Aynı projeye **+ New → Database → PostgreSQL** ekleyin. Railway `DATABASE_URL`'i otomatik üretir; uygulama servisine referans verin.
 
 Build, depodaki **Dockerfile** ile yapılır. Boot komutu sabittir:
-`npx prisma db push --skip-generate && npm run start` — yani şema her açılışta
-veritabanına uygulanır, sonra Next.js başlar. `PORT`'u elle eklemeyin (Railway verir).
+`npx prisma migrate deploy && npm run start` — önce commit'lenmiş migration'lar
+uygulanır (`prisma/migrations/`; şema-diff YOK), sonra `npm run start`'ın
+`prestart` kancası ortam doğrulamasını çalıştırır (`scripts/verify-env.mjs` —
+production'da eksik/placeholder `AUTH_SECRET` veya eksik `ENCRYPTION_KEY`
+boot'u temiz şekilde durdurur), en son Next.js başlar. `PORT`'u elle
+eklemeyin (Railway verir). Sağlık kontrolü `railway.json` ile `/api/health`'e
+bağlıdır: yeni container 200 dönmeden trafik almaz.
 
 ## 2) Ortam değişkenleri (Variables)
 
@@ -73,7 +78,7 @@ veritabanına uygulanır, sonra Next.js başlar. `PORT`'u elle eklemeyin (Railwa
 
 ## 3) Deploy + domain
 
-1. İlk deploy: boot'taki `prisma db push` tabloları kurar.
+1. İlk deploy: boot'taki `prisma migrate deploy` migration zincirini (00→N) uygular ve tabloları kurar.
 2. **Settings → Networking** → custom domain (**www** kullanın; apex Cloudflare ile www'ye 301 yönlenir).
 
 ## 4) Zamanlayıcı (otomatik senkron + gece yanıtı)
