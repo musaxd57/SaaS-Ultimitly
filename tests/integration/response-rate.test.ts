@@ -80,4 +80,16 @@ describe("responseRate — episode-based over ACTIVE conversations", () => {
     const score2 = await getHostPerformanceScore(orgId);
     expect(score2.breakdown.responseRate).toBe(33); // unchanged — still 1 of 3
   });
+
+  it("C) NO eligible episode (only a pending one) → responseRate is NULL — never 0, NaN or Infinity", async () => {
+    const now = Date.now();
+    // The org's ONLY activity: a guest question from 5 minutes ago (pending).
+    await seedConversation(new Date(now - 2 * H), [
+      { dir: "inbound", at: new Date(now - 5 * 60 * 1000) },
+    ]);
+    const score = await getHostPerformanceScore(orgId);
+    expect(score.breakdown.responseRate).toBeNull(); // excluded metric, not a fake score
+    expect(Number.isNaN(score.score)).toBe(false); // composite never poisoned
+    expect(Number.isFinite(score.score)).toBe(true);
+  });
 });
