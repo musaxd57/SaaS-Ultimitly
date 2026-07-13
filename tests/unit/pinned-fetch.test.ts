@@ -137,13 +137,53 @@ describe("fetchFeedText — end-to-end over a real loopback server", () => {
     ).rejects.toThrow(/too large/);
   });
 
-  it("PRODUCTION lookup (no override) refuses a loopback-resolving host at connect", async () => {
-    // Real dns.lookup mocked to loopback for a would-be public feed host.
+  it("PRODUCTION refuses http:// BEFORE any request/DNS (https-only; no override)", async () => {
+    // No lookupOverride → production mode. http must be rejected up front, so
+    // dns.lookup is never even called.
+    dnsMock.lookup.mockImplementation(() => {
+      throw new Error("lookup must not run for a rejected http URL");
+    });
+    await expect(
+      fetchFeedText("http://feed.example.com/cal.ics", { maxBytes: 1024, timeoutMs: 1000, userAgent: "t" }),
+    ).rejects.toThrow(/non-https/);
+    expect(dnsMock.lookup).not.toHaveBeenCalled();
+  });
+
+  it("PRODUCTION https host that resolves to loopback is refused at connect", async () => {
     dnsMock.lookup.mockImplementation((_h: string, _o: unknown, cb: (e: Error | null, a?: unknown) => void) =>
       cb(null, [{ address: "127.0.0.1", family: 4 }]),
     );
     await expect(
-      fetchFeedText("http://feed.rebind.test/cal.ics", { maxBytes: 1024, timeoutMs: 2000, userAgent: "t" }),
+      // https so it passes the protocol gate; the pinned lookup then blocks it.
+      fetchFeedText("https://feed.rebind.test/cal.ics", { maxBytes: 1024, timeoutMs: 2000, userAgent: "t" }),
     ).rejects.toThrow(); // EACCES from the pinned lookup — never connects
+  });
+
+  it("uses agent:false — a truly request-scoped socket (no shared keep-alive pool)", async () => {
+    const spy = vi.spyOn(http, "request");
+    handlers.push((_req, res) => {
+      res.writeHead(200);
+      res.end("ok");
+    });
+    await fetchFeedText(`${base}/x`, opts);
+    expect(spy.mock.calls[0][0]).toMatchObject({ agent: false });
+    spy.mockRestore();
+  });
+
+  it("TOTAL wall-clock deadline: a slow-drip that never idles is still cut", async () => {
+    // A server that writes a tiny byte every 15ms keeps the socket BUSY, so an
+    // idle timeout alone would never fire — only the hard deadline cuts it.
+    handlers.push((_req, res) => {
+      res.writeHead(200);
+      const t = setInterval(() => res.write("x"), 15);
+      res.on("close", () => clearInterval(t));
+    });
+    const start = Date.now();
+    await expect(
+      fetchFeedText(`${base}/drip`, { ...opts, timeoutMs: 250 }),
+    ).rejects.toThrow(/deadline/);
+    const elapsed = Date.now() - start;
+    expect(elapsed).toBeGreaterThanOrEqual(200); // it did wait for the deadline
+    expect(elapsed).toBeLessThan(2000); // …and was cut, not left hanging
   });
 });

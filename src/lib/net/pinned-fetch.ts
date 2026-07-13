@@ -100,22 +100,35 @@ export interface FeedFetchOptions {
 export function fetchFeedText(rawUrl: string, opts: FeedFetchOptions): Promise<string> {
   const url = new URL(rawUrl);
   const isHttps = url.protocol === "https:";
-  if (!isHttps && url.protocol !== "http:") {
-    return Promise.reject(new Error(`unsupported protocol ${url.protocol}`));
+  // PRODUCTION IS HTTPS-ONLY, refused BEFORE any request/DNS work: plaintext
+  // http leaks the feed URL (a bearer-like credential) in transit and gives no
+  // TLS to anchor cert validation or rebind protection. http is permitted ONLY
+  // when a test transport (lookupOverride) is injected, so the loopback test
+  // server is reachable. (Legacy http feed rows now fail sync and must move to
+  // https — the create route has required https since #22.)
+  const testTransport = opts.lookupOverride !== undefined;
+  if (!isHttps && !(testTransport && url.protocol === "http:")) {
+    return Promise.reject(new Error(`refusing non-https feed URL (${url.protocol})`));
   }
   const mod = isHttps ? https : http;
   const lookup = opts.lookupOverride ?? validatingLookup;
 
   return new Promise<string>((resolve, reject) => {
     let settled = false;
+    let deadline: NodeJS.Timeout | undefined;
+    const cleanup = () => {
+      if (deadline) clearTimeout(deadline);
+    };
     const fail = (err: Error) => {
       if (settled) return;
       settled = true;
+      cleanup();
       reject(err);
     };
     const done = (text: string) => {
       if (settled) return;
       settled = true;
+      cleanup();
       resolve(text);
     };
 
@@ -138,6 +151,11 @@ export function fetchFeedText(rawUrl: string, opts: FeedFetchOptions): Promise<s
         lookup: lookup as any,
         // SNI = the original hostname; cert is validated against it (unchanged).
         servername: isHttps ? url.hostname : undefined,
+        // TRULY request-scoped: agent:false = no keep-alive pool, so a socket is
+        // never reused across requests (a pooled connection could survive a
+        // rebind) and it is torn down when this request settles.
+        agent: false,
+        // Socket IDLE timeout (connect stall / a fully-stalled mid-stream).
         timeout: opts.timeoutMs,
       },
       (res) => {
@@ -156,9 +174,14 @@ export function fetchFeedText(rawUrl: string, opts: FeedFetchOptions): Promise<s
         readStreamCapped(res, opts.maxBytes).then(done, fail);
       },
     );
-    // Idle/connect timeout: node emits 'timeout' without aborting — we destroy.
+    // TOTAL wall-clock deadline (NOT just idle): a slow-drip that keeps the
+    // socket busy with tiny chunks resets the idle timer forever, so the idle
+    // timeout alone never fires. This hard deadline cuts it regardless.
+    deadline = setTimeout(() => {
+      req.destroy(new Error("feed deadline exceeded"));
+    }, opts.timeoutMs);
     req.on("timeout", () => {
-      req.destroy(new Error("feed timeout"));
+      req.destroy(new Error("feed idle timeout"));
     });
     req.on("error", fail);
     req.end();
