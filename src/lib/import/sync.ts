@@ -22,6 +22,42 @@ function channelFromLabel(label: string): string {
 }
 
 /**
+ * Read a response body as text with a HARD byte cap enforced WHILE streaming
+ * (Codex #22). The old flow did `await res.text()` and length-checked after —
+ * a chunked response with no (or a lying) Content-Length buffered its entire
+ * body into memory on the shared replica before the check ran. Now the read
+ * aborts the moment the cap is crossed. Falls back to text() (with the same
+ * post-check) when no body stream exists (e.g. simple test doubles).
+ */
+async function readBodyCapped(res: Response, cap: number): Promise<string> {
+  const reader = res.body?.getReader?.();
+  if (!reader) {
+    const t = await res.text();
+    if (t.length > cap) throw new Error("feed too large");
+    return t;
+  }
+  const chunks: Uint8Array[] = [];
+  let total = 0;
+  for (;;) {
+    const { done, value } = await reader.read();
+    if (done) break;
+    total += value.byteLength;
+    if (total > cap) {
+      await reader.cancel().catch(() => {});
+      throw new Error("feed too large");
+    }
+    chunks.push(value);
+  }
+  const buf = new Uint8Array(total);
+  let off = 0;
+  for (const c of chunks) {
+    buf.set(c, off);
+    off += c.byteLength;
+  }
+  return new TextDecoder("utf-8").decode(buf);
+}
+
+/**
  * Fetch an external iCal feed, parse it, and upsert reservations for the
  * given property. Existing reservations (matched by sourceReference / UID)
  * are updated in place; new ones are created. Never throws — failures are
@@ -62,17 +98,15 @@ export async function syncCalendarSource(sourceId: string): Promise<SyncResult> 
     if (!res.ok) {
       throw new Error(`HTTP ${res.status}`);
     }
-    // Guard against a runaway feed buffering a huge body into memory on the
-    // shared replica (the feed URL is host-supplied). Content-Length when present,
-    // plus a post-read length backstop for chunked responses.
+    // Guard against a runaway feed on the shared replica (the feed URL is
+    // host-supplied): reject a huge declared Content-Length up front, and cap
+    // the ACTUAL bytes while streaming — a chunked/lying response aborts the
+    // moment it crosses the cap instead of being buffered whole first.
     const declared = Number(res.headers?.get?.("content-length"));
     if (Number.isFinite(declared) && declared > 10 * 1024 * 1024) {
       throw new Error("feed too large");
     }
-    text = await res.text();
-    if (text.length > 10 * 1024 * 1024) {
-      throw new Error("feed too large");
-    }
+    text = await readBodyCapped(res, 10 * 1024 * 1024);
   } catch {
     result.errors.push("Bağlantıya ulaşılamadı — takvim (.ics) bağlantısını kontrol edin.");
     await prisma.calendarSource.update({
