@@ -25,7 +25,10 @@ ise "veri sorumlusu"yuz.
 | OpenAI | Mesaj yanıtı üreten yapay zekâ | **ABD (yurt dışı)** |
 | Resend | E-posta gönderimi | ABD |
 | Railway | Sunucu/barındırma | AB/ABD |
-| iyzico | Ödeme altyapısı | Türkiye |
+| Paddle | Ödeme altyapısı (Merchant of Record) | ABD/İngiltere |
+
+*(2026-07-13 düzeltme: ödeme sağlayıcı iyzico değil, canlıdaki Paddle. Kod-doğrulamalı
+saklama süreleri + imha mekanizmaları için `docs/saklama-ve-imha-politikasi.md` esastır.)*
 
 **Yurt dışı aktarım (en kritik cümle — avukat mekanizmayı seçince netleşir):**
 > "Misafir mesajları, yanıt üretmek amacıyla OpenAI'a (ABD) aktarılır. Bu aktarım, KVKK
