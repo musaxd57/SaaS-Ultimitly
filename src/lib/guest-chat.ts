@@ -2,6 +2,7 @@ import { createHash, timingSafeEqual } from "crypto";
 import { prisma } from "@/lib/db";
 import { daysUntilDate } from "@/lib/utils";
 import { premiumAllowed } from "@/lib/billing/subscription";
+import { qrPinEnabled } from "@/lib/guest-chat-pin";
 
 // ---------------------------------------------------------------------------
 // Guest QR concierge — token resolution (FOUNDATION, no public surface yet).
@@ -91,7 +92,8 @@ function safeEqualHex(a: string, b: string): boolean {
 export type StayBinding =
   | { status: "bound"; secret: string } // we just claimed this stay → caller sets the cookie
   | { status: "match" } //                 the presented secret matches the bound device
-  | { status: "mismatch" }; //             a DIFFERENT device already holds this stay
+  | { status: "mismatch" } //              a DIFFERENT device already holds this stay
+  | { status: "unclaimed" }; //            unbound AND claiming was withheld (PIN gate: allowClaim=false)
 
 /**
  * Claim-or-verify a stay's chat for the calling device. Unbound → mint a secret
@@ -104,6 +106,7 @@ export type StayBinding =
 export async function bindOrCheckStay(
   reservationId: string,
   presentedSecret: string | null | undefined,
+  opts: { allowClaim?: boolean } = {},
 ): Promise<StayBinding> {
   const row = await prisma.reservation.findUnique({
     where: { id: reservationId },
@@ -117,6 +120,12 @@ export async function bindOrCheckStay(
     }
     return { status: "mismatch" };
   }
+
+  // Unbound. When claiming is WITHHELD (PIN gate, Faz 5): report "unclaimed" so
+  // the caller can require a PIN before anyone binds — WITHOUT this device
+  // silently winning the stay just by scanning first. Default allowClaim=true
+  // preserves the original first-scan-wins behavior for every existing caller.
+  if (opts.allowClaim === false) return { status: "unclaimed" };
 
   // Unbound → mint a FRESH secret (rotation: never reuse a previous stay's cookie
   // as this stay's binding) and claim atomically.
@@ -182,6 +191,10 @@ export interface GuestChatContext {
   } | null;
   /** Active KB items with secret-bearing categories removed. */
   knowledgeBase: { category: string; title: string; content: string }[];
+  /** True when this stay must present a PIN before it can be claimed on a device
+   *  (Faz 5). Derived: QR_PIN_ENABLED env on AND (this reservation has a PIN OR the
+   *  org runs strict mode). NEVER exposes the hash — only the boolean gate. */
+  pinRequired: boolean;
 }
 
 /**
@@ -210,6 +223,9 @@ export async function resolveGuestChat(
       address: true,
       city: true,
       chatEnabled: true,
+      // Org strict-mode toggle (Faz 5): when on, EVERY not-yet-claimed stay needs
+      // a PIN. Read here so the PIN gate is computed in one place.
+      organization: { select: { qrChatPinRequired: true } },
     },
   });
   if (!property || !property.chatEnabled) return null;
@@ -251,7 +267,9 @@ export async function resolveGuestChat(
     // Ascending (earliest arrival first): on a back-to-back turnover day the
     // INCUMBENT stay wins until it checks out, then the next one takes over.
     orderBy: { arrivalDate: "asc" },
-    select: { id: true, guestName: true, arrivalDate: true, departureDate: true, status: true },
+    // chatPinHash is selected ONLY to derive the pinRequired boolean below — it is
+    // stripped from the returned activeReservation (the hash never leaves this fn).
+    select: { id: true, guestName: true, arrivalDate: true, departureDate: true, status: true, chatPinHash: true },
   });
 
   // Evaluate EVERY candidate, not just one row: the 12h look-ahead pulls the NEXT
@@ -276,13 +294,27 @@ export async function resolveGuestChat(
       (depDiff === 0 && nowMinutesInTz(now) < hhmmToMinutes(property.checkOutTime));
     return afterCheckin && beforeCheckout;
   };
-  const activeReservation: GuestChatContext["activeReservation"] = candidates.find(isOpenNow) ?? null;
-  const open = activeReservation !== null;
+  const activeRow = candidates.find(isOpenNow) ?? null;
+  const open = activeRow !== null;
+  // PIN gate (Faz 5): env master switch AND (this stay has a PIN OR org strict mode).
+  // Computed from the hash PRESENCE only; the hash itself is never returned.
+  const pinRequired =
+    open && qrPinEnabled() && (Boolean(activeRow.chatPinHash) || property.organization.qrChatPinRequired);
+  // Strip chatPinHash from the exposed shape.
+  const activeReservation: GuestChatContext["activeReservation"] = activeRow
+    ? {
+        id: activeRow.id,
+        guestName: activeRow.guestName,
+        arrivalDate: activeRow.arrivalDate,
+        departureDate: activeRow.departureDate,
+        status: activeRow.status,
+      }
+    : null;
 
   // Closed → return the property (so the page can show a branded "no active stay"
   // screen) but no reservation and an empty knowledge base (nothing to answer).
   if (!open) {
-    return { property: propertyPublic, open: false, activeReservation: null, knowledgeBase: [] };
+    return { property: propertyPublic, open: false, activeReservation: null, knowledgeBase: [], pinRequired: false };
   }
 
   const kbRaw = await prisma.knowledgeBaseItem.findMany({
@@ -297,5 +329,5 @@ export async function resolveGuestChat(
   // category — the public bearer-token surface must never have a code in context.
   const knowledgeBase = kbRaw.filter((k) => !looksLikeSecret(`${k.title}\n${k.content}`));
 
-  return { property: propertyPublic, open: true, activeReservation, knowledgeBase };
+  return { property: propertyPublic, open: true, activeReservation, knowledgeBase, pinRequired };
 }

@@ -2,7 +2,8 @@ import { type NextRequest, type NextResponse } from "next/server";
 import { prisma } from "@/lib/db";
 import { suggestReply } from "@/lib/ai";
 import { classifyFallback, detectPromptInjection, detectRiskType } from "@/lib/ai/fallback";
-import { resolveGuestChat, bindOrCheckStay } from "@/lib/guest-chat";
+import { resolveGuestChat, bindOrCheckStay, type GuestChatContext } from "@/lib/guest-chat";
+import { verifyReservationPin } from "@/lib/guest-chat-pin";
 import { sendQrEscalationAlertBounded, qrEscalationEventId } from "@/lib/guest-chat-alerts";
 import { jsonOk, badRequest, tooManyRequests } from "@/lib/api";
 import { rateLimit, clientIp } from "@/lib/rate-limit";
@@ -157,6 +158,56 @@ async function recordGuestChat(
   return { inboundMessageId };
 }
 
+// ---------------------------------------------------------------------------
+// PIN unlock (Faz 5): the guest submits the host-provided PIN to CLAIM this
+// stay's chat on their device. On success the device is bound (cookie set) and
+// the PIN is never asked again. Verification is IP rate-limited (on top of the
+// durable per-reservation lockout in verifyReservationPin). Error responses are
+// GENERIC — "invalid" and "no PIN set" collapse to one message so nothing about
+// the PIN's value or existence leaks.
+// ---------------------------------------------------------------------------
+async function handlePinUnlock(
+  req: NextRequest,
+  res: NonNullable<GuestChatContext["activeReservation"]>,
+  pinRequired: boolean,
+  cookieName: string,
+  cookie: string | null,
+  pin: string,
+): Promise<NextResponse> {
+  const claimAndCookie = (claimed: Awaited<ReturnType<typeof bindOrCheckStay>>): NextResponse => {
+    if (claimed.status === "mismatch") return jsonOk({ boundElsewhere: true });
+    const out = jsonOk({ unlocked: true });
+    if (claimed.status === "bound") setStayCookie(out, cookieName, claimed.secret, res.departureDate);
+    return out;
+  };
+
+  // Already claimed by THIS device → unlock is a success no-op.
+  const existing = await bindOrCheckStay(res.id, cookie, { allowClaim: false });
+  if (existing.status === "match") return jsonOk({ unlocked: true });
+  if (existing.status === "mismatch") return jsonOk({ boundElsewhere: true });
+
+  // Unbound. If this stay doesn't actually require a PIN (defensive — the UI
+  // wouldn't send one), just claim it.
+  if (!pinRequired) return claimAndCookie(await bindOrCheckStay(res.id, cookie, { allowClaim: true }));
+
+  // Stricter per-IP cap for PIN guesses, in addition to the durable per-
+  // reservation lockout inside verifyReservationPin.
+  const pinLimit = rateLimit(`guestchat-pin:${clientIp(req)}`, 8, 5 * 60_000);
+  if (!pinLimit.ok) return tooManyRequests(pinLimit.retryAfter);
+
+  const verdict = await verifyReservationPin(res.id, pin);
+  if (verdict.status === "locked") {
+    return jsonOk({ pinRequired: true, locked: true, retryAfter: verdict.retryAfterSec });
+  }
+  if (verdict.status !== "ok") {
+    // invalid | no_pin → ONE generic message (never reveal which, nor the value).
+    return jsonOk({ pinRequired: true, pinError: true });
+  }
+  // Correct PIN → claim the stay for this device (atomic; a racing correct-PIN
+  // device loses and gets boundElsewhere — the intended single-winner result).
+  return claimAndCookie(await bindOrCheckStay(res.id, cookie, { allowClaim: true }));
+}
+
 // Public history fetch — the guest's chat page loads this on open and polls it,
 // so the host's replies (written from the panel) show up when the guest reopens
 // the chat or keeps it open. Scoped to the CURRENT stay's thread only (a past
@@ -175,7 +226,15 @@ export async function GET(req: NextRequest, { params }: { params: Promise<{ toke
   // different device scanning the same fixed physical QR gets NO history — so a
   // past guest / cleaner holding the QR photo can't read the current guest's chat.
   const cookieName = stayCookieName(ctx.property.id);
-  const binding = await bindOrCheckStay(ctx.activeReservation.id, readCookie(req, cookieName));
+  const cookie = readCookie(req, cookieName);
+  // PIN gate (Faz 5): when this stay requires a PIN, a bare scan must NOT claim it
+  // — check the binding WITHOUT claiming; if still unbound, prompt for the PIN.
+  const binding = ctx.pinRequired
+    ? await bindOrCheckStay(ctx.activeReservation.id, cookie, { allowClaim: false })
+    : await bindOrCheckStay(ctx.activeReservation.id, cookie);
+  if (binding.status === "unclaimed") {
+    return jsonOk({ open: true, pinRequired: true, messages: [] });
+  }
   if (binding.status === "mismatch") {
     return jsonOk({ open: true, boundElsewhere: true, messages: [] });
   }
@@ -211,37 +270,51 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ tok
 
   const { token } = await params;
 
-  const body = (await req.json().catch(() => null)) as { message?: unknown } | null;
+  const body = (await req.json().catch(() => null)) as { message?: unknown; pin?: unknown } | null;
+  const pinInput = typeof body?.pin === "string" ? body.pin : null;
   const message = typeof body?.message === "string" ? body.message.trim() : "";
-  if (!message) return badRequest({ message: "Bir mesaj yazın." });
-  if (message.length > MAX_MESSAGE) {
-    return badRequest({ message: `Mesaj çok uzun (en fazla ${MAX_MESSAGE} karakter).` });
-  }
 
   const ctx = await resolveGuestChat(token);
   if (!ctx) return notFound();
 
   // Chat is open only during an active stay (until checkOutTime on departure day).
   // Outside that → no AI, no escalation, just a polite "no active stay" reply.
-  if (!ctx.open) {
+  if (!ctx.open || !ctx.activeReservation) {
     return jsonOk({
       closed: true,
       reply:
         "Şu an bu daire için aktif bir konaklama görünmüyor; sohbet kapalı. Bir konaklamanız varsa lütfen giriş gününüzde tekrar deneyin.",
     });
   }
-
-  // open ⟹ an active reservation exists; guard defensively for the type-checker.
   const res = ctx.activeReservation;
-  if (!res) {
-    return jsonOk({ closed: true, reply: "Şu an aktif bir konaklama görünmüyor; sohbet kapalı." });
+  const cookieName = stayCookieName(ctx.property.id);
+  const cookie = readCookie(req, cookieName);
+
+  // ---- PIN UNLOCK: the guest submitted a PIN to claim the stay (Faz 5) ----
+  if (pinInput !== null) {
+    return handlePinUnlock(req, res, ctx.pinRequired, cookieName, cookie, pinInput);
+  }
+
+  // ---- Message flow ----
+  if (!message) return badRequest({ message: "Bir mesaj yazın." });
+  if (message.length > MAX_MESSAGE) {
+    return badRequest({ message: `Mesaj çok uzun (en fazla ${MAX_MESSAGE} karakter).` });
   }
 
   // Per-stay device binding: the FIRST device to open the chat claims it. A
   // different device scanning the same fixed physical QR can't read or send —
   // so a past guest / cleaner with the QR photo can't hijack the current stay.
-  const cookieName = stayCookieName(ctx.property.id);
-  const binding = await bindOrCheckStay(res.id, readCookie(req, cookieName));
+  // PIN gate (Faz 5): when this stay requires a PIN, a message may NOT claim it —
+  // the guest must unlock with the PIN first, so the message is refused until then.
+  const binding = ctx.pinRequired
+    ? await bindOrCheckStay(res.id, cookie, { allowClaim: false })
+    : await bindOrCheckStay(res.id, cookie);
+  if (binding.status === "unclaimed") {
+    return jsonOk({
+      pinRequired: true,
+      reply: "Sohbeti kullanmak için ev sahibinizin verdiği giriş kodunu girin.",
+    });
+  }
   if (binding.status === "mismatch") {
     return jsonOk({
       boundElsewhere: true,
