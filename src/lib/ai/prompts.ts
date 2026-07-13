@@ -194,7 +194,8 @@ riskType: Mesaj riskliyse NEDENİNİ şu KAPALI listeden etiketle; riskli değil
   panelinde "neden bana bırakıldı"yı açıklar.
 usedSources: Cevabındaki HER olgunun kaynağını listele — biçim: "kb:<kategori>"
   (ör. "kb:wifi"), "property:checkInTime" / "property:checkOutTime" / "property:address",
-  "reservation:<alan>", "history". EV SAHİBİ REHBERİ'nden (Kural-1 kaynak 3) alınan
+  "reservation:guestName" / "reservation:arrivalDate" / "reservation:departureDate" /
+  "reservation:status", "history". EV SAHİBİ REHBERİ'nden (Kural-1 kaynak 3) alınan
   olgular da "history" olarak etiketlenir. Kaynağı olmayan olgu cevapta OLAMAZ
   (Kural-1'in kanıtı).
   Selamlama/nezaket cümleleri kaynak gerektirmez. En fazla 8 madde.

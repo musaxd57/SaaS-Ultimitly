@@ -1,6 +1,7 @@
 import "server-only";
 import { REPLY_SYSTEM_PROMPT, buildReplyUserPrompt } from "./prompts";
 import { suggestReplyFallback, classifyFallback } from "./fallback";
+import { timeStatedInMessage } from "./stated-time";
 import type { ClassifyResult, SuggestReplyInput, SuggestReplyResult } from "./types";
 import type { Priority } from "@/lib/constants";
 import { reportError } from "@/lib/report-error";
@@ -47,7 +48,19 @@ function verifyUsedSources(list: string[], input: SuggestReplyInput): string[] {
       const field = src.slice("property:".length);
       return field === "checkInTime" || field === "checkOutTime" || field === "name" || field === "city";
     }
-    if (src.startsWith("reservation:")) return input.reservation != null;
+    if (src.startsWith("reservation:")) {
+      // Whitelist the REAL reservation-context fields (same rationale as the
+      // property:* whitelist): the model sees guestName / arrivalDate /
+      // departureDate / status — any other suffix ("reservation:door_code") is
+      // an invented source and must drop.
+      const field = src.slice("reservation:".length);
+      return (
+        input.reservation != null &&
+        (field === "guestName" || field === "arrivalDate" || field === "departureDate" || field === "status")
+      );
+    }
+    // "history" also covers the host style guide BY CONTRACT — the prompt says
+    // facts taken from EV SAHİBİ REHBERİ are tagged "history" too.
     if (src === "history") return Boolean(input.history && input.history.length > 0) || Boolean(input.styleProfile);
     return false; // unknown shape → drop
   });
@@ -203,8 +216,13 @@ export async function suggestReply(input: SuggestReplyInput): Promise<SuggestRep
           usedSources: verifyUsedSources(sanitizeStringList(parsed.usedSources, 8, 60), input),
           missingInfo: sanitizeStringList(parsed.missingInfo, 5, 80),
           statedCheckoutTime:
+            // Format-valid AND deterministically evidenced in the guest's own
+            // message (Codex #29): this value is persisted onto the reservation
+            // (guestCheckoutTime) and feeds turnover planning, so a regex-valid
+            // hallucination must never be written.
             typeof parsed.statedCheckoutTime === "string" &&
-            /^([01]?\d|2[0-3]):[0-5]\d$/.test(parsed.statedCheckoutTime.trim())
+            /^([01]?\d|2[0-3]):[0-5]\d$/.test(parsed.statedCheckoutTime.trim()) &&
+            timeStatedInMessage(parsed.statedCheckoutTime.trim(), input.guestMessage)
               ? parsed.statedCheckoutTime.trim()
               : null,
         };
