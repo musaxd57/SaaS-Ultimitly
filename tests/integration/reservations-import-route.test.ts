@@ -52,6 +52,19 @@ describe("POST /api/reservations/import — CSV fail-closed", () => {
     expect(await prisma.reservation.count({ where: { propertyId } })).toBe(0);
   });
 
+  it("VALIDATE-THEN-IMPORT: first rows valid but the LAST row is broken → 400, ZERO written", async () => {
+    // The whole file is tokenized+validated before any DB write, so a corrupt
+    // final row rolls back the entire import (no partial persist).
+    const csv =
+      "guest_name,arrival,departure\n" +
+      "Ada,2026-07-10,2026-07-14\n" + // valid
+      "Bora,2026-08-01,2026-08-03\n" + // valid
+      "Cem,2026-09-01,2026-09-04,EXTRA"; // structural break on the last line
+    const res = await POST(importReq(propertyId, csv), { params: Promise.resolve({}) });
+    expect(res.status).toBe(400);
+    expect(await prisma.reservation.count({ where: { propertyId } })).toBe(0); // nothing written
+  });
+
   it("a well-formed CSV imports rows and skips only the semantically bad one", async () => {
     const csv =
       "guest_name,arrival,departure\n" +

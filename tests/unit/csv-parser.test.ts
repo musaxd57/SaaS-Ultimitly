@@ -1,5 +1,5 @@
 import { describe, it, expect } from "vitest";
-import { parseCsv, CsvParseError } from "@/lib/import/csv";
+import { parseCsv, CsvParseError, detectDelimiter } from "@/lib/import/csv";
 
 // Codex #25 — RFC 4180 correctness + fail-closed on structural corruption.
 // Real-shaped fixtures; the OLD line-split parser mis-handled several of these.
@@ -45,6 +45,18 @@ describe("parseCsv — RFC 4180 fields", () => {
     const rows = parseCsv(`guest_name;arrival;departure\n"Yıl; Ahmet";2026-07-10;2026-07-14`);
     expect(rows).toHaveLength(1);
     expect(rows[0].guestName).toBe("Yıl; Ahmet"); // ; inside quotes is literal
+  });
+
+  it("delimiter detection ignores a comma INSIDE a quoted HEADER cell (Codex #25.3)", () => {
+    // Codex's exact example: `"Misafir, adı";Giriş tarihi` is SEMICOLON-delimited.
+    // A quote-blind count ties (1 comma, 1 semicolon) and wrongly picks "," —
+    // quote-aware counting ignores the quoted comma and correctly picks ";".
+    expect(detectDelimiter('"Misafir, adı";Giriş tarihi')).toBe(";");
+    // Sanity: a genuinely comma-delimited header with a quoted semicolon → ",".
+    expect(detectDelimiter('"a; b",arrival,departure')).toBe(",");
+    // …and it flows through parseCsv on a real semicolon file with a quoted comma.
+    const rows = parseCsv(`"Misafir, adı";giriş;çıkış\n"Yıl, Ahmet";2026-07-10;2026-07-14`);
+    expect(rows[0].guestName).toBe("Yıl, Ahmet");
   });
 
   it("Turkish + EU/US amount and column aliases still work", () => {

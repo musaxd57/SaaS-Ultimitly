@@ -99,11 +99,30 @@ function parseAmount(raw: string): number | undefined {
   return Number.isNaN(n) ? undefined : n;
 }
 
-/** Pick the file's delimiter from the header line (the majority of , vs ;). */
-function detectDelimiter(text: string): "," | ";" {
-  const firstLine = text.split(/\r?\n/, 1)[0] ?? "";
-  const commas = (firstLine.match(/,/g) || []).length;
-  const semis = (firstLine.match(/;/g) || []).length;
+/**
+ * Pick the file's delimiter from the header record (majority of , vs ;), but
+ * QUOTE-AWARE: a comma/semicolon INSIDE a quoted header cell is data, not a
+ * separator — e.g. `"Misafir, adı";Giriş` is semicolon-delimited, and counting
+ * the quoted comma would wrongly pick "," and shift every column.
+ */
+export function detectDelimiter(text: string): "," | ";" {
+  let commas = 0;
+  let semis = 0;
+  let inQuotes = false;
+  for (let i = 0; i < text.length; i++) {
+    const ch = text[i];
+    if (ch === '"') {
+      if (inQuotes && text[i + 1] === '"') {
+        i++; // escaped "" — stays inside the quote
+      } else {
+        inQuotes = !inQuotes;
+      }
+    } else if (!inQuotes) {
+      if (ch === ",") commas++;
+      else if (ch === ";") semis++;
+      else if (ch === "\n" || ch === "\r") break; // end of the (unquoted) header record
+    }
+  }
   return semis > commas ? ";" : ",";
 }
 
