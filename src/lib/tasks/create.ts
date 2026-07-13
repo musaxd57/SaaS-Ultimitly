@@ -49,6 +49,7 @@ export async function createOperationalTaskFromMessage(ctx: {
       propertyId: ctx.propertyId,
       reservationId: ctx.reservationId ?? null,
       type: data.type,
+      origin: "ai",
       title: data.title,
       description: data.description,
       dueAt: data.dueAt,

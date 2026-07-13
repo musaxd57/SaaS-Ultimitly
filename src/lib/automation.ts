@@ -1,6 +1,7 @@
 import "server-only";
 import { addDays } from "date-fns";
 import { prisma } from "@/lib/db";
+import { isUniqueViolation } from "@/lib/db-errors";
 import { classifyMessage, suggestReply, summarizeHostStyle } from "@/lib/ai";
 import {
   classifyFallback,
@@ -358,6 +359,7 @@ export async function createReservationTasks(reservationId: string): Promise<num
     propertyId: string;
     reservationId: string;
     type: string;
+    origin: string;
     title: string;
     description: string;
     dueAt: Date;
@@ -371,6 +373,7 @@ export async function createReservationTasks(reservationId: string): Promise<num
       propertyId: r.propertyId,
       reservationId: r.id,
       type: "checkin_prep",
+      origin: "system",
       title: `${r.guestName} girişi için hazırlık`,
       description: "Hoş geldin hazırlığı, anahtar/giriş kontrolü.",
       dueAt: r.arrivalDate,
@@ -383,6 +386,7 @@ export async function createReservationTasks(reservationId: string): Promise<num
       propertyId: r.propertyId,
       reservationId: r.id,
       type: "cleaning",
+      origin: "system",
       title: `Çıkış temizliği - ${r.guestName}`,
       description: "Çıkış sonrası tam temizlik ve çarşaf/havlu değişimi.",
       dueAt: r.departureDate,
@@ -418,6 +422,10 @@ export async function removeAutoTasksForCancelledReservation(reservationId: stri
       reservationId,
       status: { not: "done" },
       type: { in: ["checkin_prep", "cleaning"] },
+      // ONLY lifecycle-generated tasks: a host's own task tied to this
+      // reservation (origin manual) or a message-driven one (ai) must survive
+      // the booking being cancelled — deleting them destroyed user data.
+      origin: "system",
     },
   });
   return count;
@@ -550,6 +558,7 @@ export async function applyInboundMessageRules(
         data: {
           propertyId: conversation.propertyId,
           type: "maintenance",
+          origin: "ai",
           title: `Şikayet: ${conversation.guestIdentifier}`,
           description: messageBody.slice(0, 500),
           status: "todo",
@@ -1019,32 +1028,42 @@ export async function applyChannelAutoReply(
   }
 
   const now = new Date();
-  await prisma.$transaction([
-    prisma.message.create({
-      data: {
-        conversationId: conversation.id,
-        direction: "outbound",
-        senderName: "GuestOps AI",
-        body: outboundBody,
-        aiIntent: result.intent,
-        aiConfidence: result.confidence,
-        aiSourcesJson: result.usedSources.length ? JSON.stringify(result.usedSources) : null,
-        // Store the provider's message id so the next sync dedups this AI reply
-        // instead of re-importing it as a duplicate "Ev sahibi" message.
-        ...(delivery.providerMessageId ? { externalId: delivery.providerMessageId } : {}),
-      },
-    }),
-    prisma.conversation.update({
-      where: { id: conversation.id },
-      data: {
-        status: "answered",
-        lastMessageAt: now,
-        skippedReason: null,
-        lastRiskLevel: result.riskLevel,
-        lastRiskType: result.riskType,
-      },
-    }),
-  ]);
+  const conversationDone = prisma.conversation.update({
+    where: { id: conversation.id },
+    data: {
+      status: "answered",
+      lastMessageAt: now,
+      skippedReason: null,
+      lastRiskLevel: result.riskLevel,
+      lastRiskType: result.riskType,
+    },
+  });
+  try {
+    await prisma.$transaction([
+      prisma.message.create({
+        data: {
+          conversationId: conversation.id,
+          direction: "outbound",
+          senderName: "GuestOps AI",
+          body: outboundBody,
+          aiIntent: result.intent,
+          aiConfidence: result.confidence,
+          aiSourcesJson: result.usedSources.length ? JSON.stringify(result.usedSources) : null,
+          // Store the provider's message id so the next sync dedups this AI reply
+          // instead of re-importing it as a duplicate "Ev sahibi" message.
+          ...(delivery.providerMessageId ? { externalId: delivery.providerMessageId } : {}),
+        },
+      }),
+      conversationDone,
+    ]);
+  } catch (err) {
+    // Delivery already SUCCEEDED. If the row raced in via a concurrent sync
+    // import (@@unique([conversationId, externalId]) dedupe-hit ONLY), the
+    // message exists — still mark the conversation answered, or the expiring
+    // outbound claim would let a later pass RE-SEND to the guest.
+    if (!isUniqueViolation(err, ["conversationId", "externalId"])) throw err;
+    await conversationDone;
+  }
 
   // Guest asked to speak to a human: we just sent the holding reply, now pause the
   // AI on this thread so the host can take over without the bot chiming in again.

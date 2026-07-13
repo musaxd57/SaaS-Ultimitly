@@ -63,6 +63,7 @@ export const POST = withManage(async (session, req) => {
       propertyId: d.propertyId,
       reservationId: d.reservationId || null,
       type: d.type,
+      origin: "manual",
       title: d.title,
       description: d.description || null,
       assignedToId: d.assignedToId || null,

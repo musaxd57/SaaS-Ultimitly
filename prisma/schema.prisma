@@ -195,6 +195,10 @@ model User {
   checkoutConsents CheckoutConsent[]
 
   @@index([organizationId])
+  // verify-email looks a user up BY token hash on every emailed-link click —
+  // that was a full-table scan (rate-limited, but still). Plain index, not
+  // unique: 256-bit random values collide never; uniqueness isn't the contract.
+  @@index([emailVerifyTokenHash])
 }
 
 model Property {
@@ -308,7 +312,10 @@ model Reservation {
   @@index([departureDate]) // checkout / cleaning / report queries filter by this
   // Sync de-dup looks up (propertyId, sourceReference) once per reservation on
   // every 2-min cron — index it so that's a seek, not a per-row scan.
-  @@index([propertyId, sourceReference])
+  // UNIQUE (was a plain index): one provider/feed reference = one reservation
+  // row per property (prod pre-verified duplicate-free after the 114-pair merge).
+  // NULL sourceReference (manual rows) stays distinct/unconstrained.
+  @@unique([propertyId, sourceReference])
   @@index([guestExternalId]) // returning-guest lookup by the stable guest id
   // Org-scoped date-range report aggregates (occupancy / forecast) filter by
   // property AND a date window; composite indexes let those seek instead of
@@ -385,7 +392,10 @@ model Message {
   conversation Conversation @relation(fields: [conversationId], references: [id], onDelete: Cascade)
 
   @@index([conversationId])
-  @@index([conversationId, externalId])
+  // UNIQUE (was a plain index): the DB is now the dedupe arbiter for imported
+  // provider messages — racing syncs get P2002 (treated as dedupe-hit in code).
+  // NULL externalId (pre-heal app sends) stays distinct/unconstrained.
+  @@unique([conversationId, externalId])
   @@index([conversationId, createdAt]) // fetch a thread's latest message fast
 }
 
@@ -408,6 +418,12 @@ model Task {
   // null for manually-created and reservation-lifecycle tasks.
   sourceMessageId String?
   dedupeKey       String?
+  // Who created this task: manual (host) | system (reservation lifecycle:
+  // checkin_prep/cleaning) | ai (message-driven: smart-task / complaint).
+  // Cancellation cleanup deletes ONLY origin="system" — a host's own task tied
+  // to a reservation must survive the booking being cancelled. DB default is
+  // "manual" (fail-safe: an unstamped row is PROTECTED from auto-deletion).
+  origin          String   @default("manual")
   createdAt     DateTime @default(now())
   updatedAt     DateTime @updatedAt
 
@@ -607,6 +623,10 @@ model Subscription {
   organization Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
   invoices     Invoice[]
 
+  // One provider subscription can bind to exactly ONE org (prod pre-verified
+  // duplicate-free). NULLs are distinct: trial/manual rows (providerRef null)
+  // are unaffected. Mirrors Invoice's [provider, providerRef] key.
+  @@unique([provider, providerRef])
   @@index([status])
 }
 
