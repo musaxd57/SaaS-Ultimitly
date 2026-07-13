@@ -4,7 +4,7 @@ import { isUniqueViolation } from "@/lib/db-errors";
 import { badRequest, jsonOk } from "@/lib/api";
 import { withManage } from "@/lib/route-guard";
 import { parseIcs } from "@/lib/import/ics";
-import { parseCsv } from "@/lib/import/csv";
+import { parseCsv, CsvParseError } from "@/lib/import/csv";
 import { createReservationTasks } from "@/lib/automation";
 
 export const POST = withManage(async (session, req) => {
@@ -53,7 +53,15 @@ export const POST = withManage(async (session, req) => {
       channel: "other" as const,
     }));
   } else {
-    rows = parseCsv(text);
+    // FAIL-CLOSED: a structurally broken CSV (unbalanced quote, shifted columns)
+    // throws — surface a clear validation error and import NOTHING, rather than
+    // writing values from the wrong columns.
+    try {
+      rows = parseCsv(text);
+    } catch (err) {
+      if (err instanceof CsvParseError) return badRequest({ file: err.message });
+      return badRequest({ file: "CSV dosyası okunamadı." });
+    }
   }
 
   let imported = 0;
