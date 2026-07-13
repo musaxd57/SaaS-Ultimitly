@@ -172,6 +172,27 @@ export async function runScheduledSync(): Promise<ScheduledSyncTotals> {
     }
     try {
       const totals = zero();
+
+      // Faz-A cutover healing (Codex #26): runs on EVERY pass, immediately after
+      // the lock and BEFORE any Hospitable/premium/deep gating — an org whose
+      // Hospitable subscription is inactive (402) or whose plan lapsed must
+      // still get its Float-only rows (written by the OLD deployment during
+      // cutover, or by any missed dual-write) backfilled. Same explicit
+      // NaN-safe cast as migration 23; idempotent (WHERE Dec IS NULL) and
+      // best-effort — money display keeps working off the Float fallback.
+      try {
+        const healed = await prisma.$executeRaw`
+          UPDATE "Reservation"
+          SET "totalAmountDec" = round("totalAmount"::numeric, 2)
+          WHERE "totalAmount" IS NOT NULL
+            AND "totalAmountDec" IS NULL
+            AND "totalAmount" NOT IN ('NaN'::float8, 'Infinity'::float8, '-Infinity'::float8)
+            AND abs("totalAmount") < 1e10`;
+        if (healed > 0) console.log(`[scheduled-sync] amount shadow healed: ${healed}`);
+      } catch (err) {
+        await reportError("scheduled-sync amount-heal", err);
+      }
+
       const orgs = await prisma.organization.findMany({ select: { id: true } });
       totals.organizations = orgs.length;
 

@@ -50,7 +50,7 @@ export async function GET(req: NextRequest) {
             select: {
               id: true, guestName: true, guestPhone: true, guestEmail: true,
               arrivalDate: true, departureDate: true, channel: true, status: true,
-              totalAmount: true, currency: true, notes: true, guestCheckoutTime: true,
+              totalAmount: true, totalAmountDec: true, currency: true, notes: true, guestCheckoutTime: true,
               createdAt: true,
             },
           },

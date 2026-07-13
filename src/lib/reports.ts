@@ -1,5 +1,7 @@
 import "server-only";
 import { prisma } from "@/lib/db";
+import { Prisma } from "@prisma/client";
+import { reservationAmount } from "@/lib/money";
 import { zonedDayRange } from "@/lib/automation";
 
 // Reporting day/occupancy math is anchored to the host's Istanbul calendar
@@ -176,7 +178,7 @@ export async function getMonthlyReport(orgId: string): Promise<MonthlyReport> {
         status: { in: ["confirmed", "completed"] },
         arrivalDate: { gte: monthStart, lt: monthEnd },
       },
-      select: { totalAmount: true, currency: true, sourceReference: true },
+      select: { totalAmount: true, totalAmountDec: true, currency: true, sourceReference: true },
     }),
     prisma.task.count({
       where: { ...propertyScope(orgId), status: "done", updatedAt: { gte: monthStart, lt: monthEnd } },
@@ -204,12 +206,19 @@ export async function getMonthlyReport(orgId: string): Promise<MonthlyReport> {
     return true;
   });
 
-  const revenueMap = new Map<string, number>();
+  // Sum in Prisma.Decimal (Codex #26): the old `number` accumulation rebuilt
+  // floating-point error row by row (0.1 + 0.2 → 0.30000000000000004 in the
+  // monthly card). Dec-first read; Number conversion happens ONLY at the final
+  // display boundary below — a 2-dp total round-trips exactly.
+  const revenueDec = new Map<string, Prisma.Decimal>();
   for (const r of distinctReservations) {
-    if (r.totalAmount) {
-      revenueMap.set(r.currency, (revenueMap.get(r.currency) ?? 0) + r.totalAmount);
+    const amount = reservationAmount(r);
+    if (amount && !amount.isZero()) {
+      revenueDec.set(r.currency, (revenueDec.get(r.currency) ?? new Prisma.Decimal(0)).plus(amount));
     }
   }
+  const revenueMap = new Map<string, number>();
+  for (const [cur, sum] of revenueDec) revenueMap.set(cur, sum.toDecimalPlaces(2).toNumber());
 
   return {
     monthLabel: now.toLocaleDateString("tr-TR", { month: "long", year: "numeric" }),

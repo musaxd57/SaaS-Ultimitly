@@ -3,6 +3,7 @@ import { ArrowLeft, Building2, CalendarDays, BookOpen, Clock, ArrowLeftRight, Ch
 import { requireAuth } from "@/lib/auth";
 import { canManage } from "@/lib/api";
 import { prisma } from "@/lib/db";
+import { reservationAmountNumber } from "@/lib/money";
 import { PageHeader } from "@/components/page-header";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
@@ -190,7 +191,7 @@ const SKIP_REASON_LABELS: Record<string, string> = {
                   </p>
                   <p className="text-muted-foreground">
                     {formatCurrency(
-                      conversation.reservation.totalAmount,
+                      reservationAmountNumber(conversation.reservation),
                       conversation.reservation.currency,
                     )}
                   </p>

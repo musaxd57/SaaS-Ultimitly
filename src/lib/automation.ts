@@ -3,6 +3,7 @@ import { addDays } from "date-fns";
 import { prisma } from "@/lib/db";
 import { isUniqueViolation } from "@/lib/db-errors";
 import { recordRiskEvent } from "@/lib/risk-events";
+import { reservationAmountNumber } from "@/lib/money";
 import { classifyMessage, suggestReply, summarizeHostStyle } from "@/lib/ai";
 import {
   classifyFallback,
@@ -498,7 +499,7 @@ export async function applyReservationCreatedRules(reservationId: string): Promi
       departureDate: r.departureDate,
       channel: r.channel,
       status: r.status,
-      totalAmount: r.totalAmount,
+      totalAmount: reservationAmountNumber(r),
       currency: r.currency,
       notes: r.notes,
     },

@@ -1,4 +1,5 @@
 import { prisma } from "@/lib/db";
+import { toAmountDec } from "@/lib/money";
 import { reservationSchema, zodFieldErrors } from "@/lib/validators";
 import { badRequest, jsonOk, propertyInOrg } from "@/lib/api";
 import { withManage } from "@/lib/route-guard";
@@ -43,6 +44,7 @@ export const POST = withManage(async (session, req) => {
       channel: d.channel,
       status: d.status,
       totalAmount: typeof d.totalAmount === "number" ? d.totalAmount : null,
+      totalAmountDec: toAmountDec(typeof d.totalAmount === "number" ? d.totalAmount : null),
       currency: d.currency,
       sourceReference: d.sourceReference || null,
       notes: d.notes || null,

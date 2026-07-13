@@ -281,6 +281,13 @@ model Reservation {
   channel         String   @default("manual") // manual | airbnb | booking | direct | other
   status          String   @default("confirmed") // pending | confirmed | cancelled | completed
   totalAmount     Float?
+  // Faz-A shadow (Codex #26, expand/contract): authoritative-in-waiting Decimal
+  // twin of totalAmount. Dual-written by every writer; readers prefer this and
+  // fall back to the Float. The Float column is NOT dropped/renamed in this
+  // phase (old deployments keep writing it during cutover; a deep-sync healing
+  // pass backfills any Float-only rows). Faz B/C: flip reads to Dec-only, then
+  // drop the Float — separate, later round.
+  totalAmountDec  Decimal? @db.Decimal(12, 2)
   currency        String   @default("EUR")
   sourceReference String?
   notes           String?

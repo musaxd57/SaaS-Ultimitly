@@ -2,6 +2,7 @@ import "server-only";
 
 import { prisma } from "@/lib/db";
 import { isUniqueViolation } from "@/lib/db-errors";
+import { toAmountDec } from "@/lib/money";
 import {
   listProperties,
   listReservations,
@@ -364,7 +365,7 @@ async function upsertReservationCalendar(
         departureDate,
         channel,
         status,
-        ...(totalAmount !== null ? { totalAmount, currency } : {}),
+        ...(totalAmount !== null ? { totalAmount, totalAmountDec: toAmountDec(totalAmount), currency } : {}),
       },
     });
     return existing.id;
@@ -383,6 +384,7 @@ async function upsertReservationCalendar(
         channel,
         status,
         totalAmount: totalAmount ?? undefined,
+        totalAmountDec: toAmountDec(totalAmount) ?? undefined,
         currency,
         sourceReference: srcRef,
       },

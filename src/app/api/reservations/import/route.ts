@@ -1,4 +1,5 @@
 import { prisma } from "@/lib/db";
+import { toAmountDec } from "@/lib/money";
 import { isUniqueViolation } from "@/lib/db-errors";
 import { badRequest, jsonOk } from "@/lib/api";
 import { withManage } from "@/lib/route-guard";
@@ -121,7 +122,10 @@ export const POST = withManage(async (session, req) => {
           sourceReference: row.sourceReference ? row.sourceReference.slice(0, 200) : null,
           notes: row.notes ? row.notes.slice(0, 5000) : null,
           ...(typeof row.totalAmount === "number" && !isNaN(row.totalAmount)
-            ? { totalAmount: Math.min(row.totalAmount, 100_000_000) }
+            ? {
+                totalAmount: Math.min(row.totalAmount, 100_000_000),
+                totalAmountDec: toAmountDec(Math.min(row.totalAmount, 100_000_000)),
+              }
             : {}),
           currency: (row.currency ?? "EUR").slice(0, 8),
         },
