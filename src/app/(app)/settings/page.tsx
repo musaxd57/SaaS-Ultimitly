@@ -43,6 +43,10 @@ export default async function SettingsPage({
     where: { id: session.userId },
     select: { twoFactorEnabledAt: true },
   });
+  // Unused 2FA recovery codes — the card nudges when none exist.
+  const recoveryRemaining = me?.twoFactorEnabledAt
+    ? await prisma.twoFactorRecoveryCode.count({ where: { userId: session.userId, usedAt: null } })
+    : 0;
   // Free/expired tier: automation toggles render inert (server suppresses sends).
   const automationLocked = !(await premiumAllowed(session.organizationId));
   const [org, sampleProperty, properties] = await Promise.all([
@@ -193,7 +197,10 @@ export default async function SettingsPage({
           <CardTitle className="text-base">İki Adımlı Giriş (2FA)</CardTitle>
         </CardHeader>
         <CardContent>
-          <TwoFactorCard initialEnabled={Boolean(me?.twoFactorEnabledAt)} />
+          <TwoFactorCard
+            initialEnabled={Boolean(me?.twoFactorEnabledAt)}
+            initialRecoveryRemaining={recoveryRemaining}
+          />
         </CardContent>
       </Card>
 

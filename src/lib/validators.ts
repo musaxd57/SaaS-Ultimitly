@@ -48,6 +48,9 @@ export const loginSchema = z.object({
   password: z.string().min(1, "Şifre gerekli").max(200),
   // Optional TOTP code, supplied on the second step when the account has 2FA on.
   code: z.string().trim().max(12).optional(),
+  // Alternative second factor: a single-use recovery code ("telefonuma
+  // erişemiyorum"). Max 20 covers XXXX-XXXX-XXXX plus stray separators.
+  recoveryCode: z.string().trim().max(20).optional(),
   // "Bu cihazı 30 gün hatırla": skip the 2FA code on this device for 30 days.
   rememberDevice: z.boolean().optional(),
 });

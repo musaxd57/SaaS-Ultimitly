@@ -13,6 +13,8 @@ const AUDIT_ACTION_LABELS: Record<string, string> = {
   "account.password_reset": "Şifre sıfırlandı",
   "account.2fa_enable": "İki adımlı doğrulama açıldı",
   "account.2fa_disable": "İki adımlı doğrulama kapatıldı",
+  "account.2fa_recovery_generate": "2FA kurtarma kodları oluşturuldu",
+  "account.2fa_recovery_used": "2FA kurtarma koduyla giriş yapıldı",
   "customer.create": "Müşteri hesabı oluşturuldu",
   "data.export": "Veri dışa aktarıldı (operatör)",
   "data.export_self": "Kullanıcı verilerini indirdi",

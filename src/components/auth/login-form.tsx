@@ -14,6 +14,9 @@ export function LoginForm() {
   const [password, setPassword] = useState("");
   const [code, setCode] = useState("");
   const [twoFactor, setTwoFactor] = useState(false);
+  // Second-factor fallback: enter a single-use RECOVERY code instead of the
+  // authenticator code ("telefonuma erişemiyorum").
+  const [useRecovery, setUseRecovery] = useState(false);
   // Default OFF: a deliberate opt-in, so a shared/front-desk computer never
   // silently keeps a 30-day 2FA-skip cookie.
   const [rememberDevice, setRememberDevice] = useState(false);
@@ -57,7 +60,15 @@ export function LoginForm() {
       const res = await fetch("/api/auth/login", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ email, password, ...(twoFactor ? { code, rememberDevice } : {}) }),
+        body: JSON.stringify({
+          email,
+          password,
+          ...(twoFactor
+            ? useRecovery
+              ? { recoveryCode: code, rememberDevice }
+              : { code, rememberDevice }
+            : {}),
+        }),
       });
       const data = await res.json().catch(() => ({}));
 
@@ -137,20 +148,35 @@ export function LoginForm() {
       </div>
       {twoFactor ? (
         <div className="space-y-2">
-          <Label htmlFor="code">Doğrulama kodu</Label>
+          <Label htmlFor="code">{useRecovery ? "Kurtarma kodu" : "Doğrulama kodu"}</Label>
           <Input
             id="code"
-            inputMode="numeric"
+            inputMode={useRecovery ? "text" : "numeric"}
             autoComplete="one-time-code"
-            placeholder="Authenticator uygulamasındaki 6 haneli kod"
+            placeholder={
+              useRecovery ? "XXXX-XXXX-XXXX" : "Authenticator uygulamasındaki 6 haneli kod"
+            }
             value={code}
             onChange={(e) => setCode(e.target.value)}
             autoFocus
             required
           />
           <p className="text-xs text-muted-foreground">
-            Telefonundaki Authenticator uygulamasını aç ve Lixus AI kodunu gir.
+            {useRecovery
+              ? "Kurtarma kodların tek kullanımlıktır — kullandığın kod geçersiz olur."
+              : "Telefonundaki Authenticator uygulamasını aç ve Lixus AI kodunu gir."}
           </p>
+          <button
+            type="button"
+            onClick={() => {
+              setUseRecovery((v) => !v);
+              setCode("");
+              setError(null);
+            }}
+            className="text-xs text-primary underline hover:no-underline"
+          >
+            {useRecovery ? "Authenticator kodu ile gir" : "Koduma erişemiyorum — kurtarma kodu kullan"}
+          </button>
           <label className="flex items-center gap-2 text-sm text-muted-foreground">
             <input
               type="checkbox"

@@ -4,6 +4,12 @@ import { requireSession, unauthorized, badRequest, jsonOk, serverError, tooManyR
 import { rateLimit } from "@/lib/rate-limit";
 import { encryptSecret, decryptSecret } from "@/lib/crypto";
 import { generateSecret, otpauthUri, verifyTotp, verifyTotpStep } from "@/lib/auth/totp";
+import {
+  regenerateRecoveryCodes,
+  clearRecoveryCodes,
+  remainingRecoveryCodes,
+  RECOVERY_CODE_COUNT,
+} from "@/lib/auth/recovery-codes";
 import { writeAudit } from "@/lib/audit";
 
 // ---------------------------------------------------------------------------
@@ -23,7 +29,12 @@ export async function GET() {
     where: { id: session.userId },
     select: { twoFactorEnabledAt: true },
   });
-  return jsonOk({ enabled: Boolean(user?.twoFactorEnabledAt) });
+  const enabled = Boolean(user?.twoFactorEnabledAt);
+  return jsonOk({
+    enabled,
+    // Unused single-use recovery codes left (0 also when 2FA is off).
+    recoveryRemaining: enabled ? await remainingRecoveryCodes(session.userId) : 0,
+  });
 }
 
 export async function POST(req: NextRequest) {
@@ -107,6 +118,10 @@ export async function POST(req: NextRequest) {
         where: { id: session.userId },
         data: { twoFactorSecret: null, twoFactorEnabledAt: null, twoFactorLastStep: null },
       });
+      // Recovery codes are a 2FA artifact — they die with it. A later re-enable
+      // starts with zero codes (the old set was minted under the old secret's
+      // trust context and must not resurrect).
+      await clearRecoveryCodes(session.userId);
       await writeAudit({
         organizationId: session.organizationId,
         actorUserId: session.actorUserId ?? session.userId,
@@ -114,6 +129,40 @@ export async function POST(req: NextRequest) {
         metadata: { targetUserId: session.userId },
       });
       return jsonOk({ ok: true, enabled: false });
+    }
+
+    if (action === "recovery_codes") {
+      // (Re)generate the single-use recovery code set. Same bar as "disable":
+      // 2FA must be ACTIVE and a CURRENT code is required — minting codes is a
+      // future 2FA bypass, so a hijacked session alone must not be enough.
+      const user = await prisma.user.findUnique({
+        where: { id: session.userId },
+        select: { twoFactorSecret: true, twoFactorEnabledAt: true },
+      });
+      if (!user?.twoFactorEnabledAt) {
+        return badRequest({ _: "Kurtarma kodları için önce 2FA'yı açın." });
+      }
+      let secret: string | null = null;
+      if (user.twoFactorSecret) {
+        try {
+          secret = decryptSecret(user.twoFactorSecret);
+        } catch {
+          secret = null;
+        }
+      }
+      if (!secret || !verifyTotp(secret, code)) {
+        return badRequest({ code: "Geçerli bir doğrulama kodu girin." });
+      }
+      // Regeneration atomically invalidates every previous code.
+      const codes = await regenerateRecoveryCodes(session.userId);
+      await writeAudit({
+        organizationId: session.organizationId,
+        actorUserId: session.actorUserId ?? session.userId,
+        action: "account.2fa_recovery_generate",
+        metadata: { targetUserId: session.userId, count: RECOVERY_CODE_COUNT },
+      });
+      // The ONLY place the plaintexts ever leave the server — shown once.
+      return jsonOk({ ok: true, codes, recoveryRemaining: codes.length });
     }
 
     return badRequest({ _: "Geçersiz işlem." });

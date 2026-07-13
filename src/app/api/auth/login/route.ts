@@ -7,6 +7,7 @@ import { badRequest, jsonOk, serverError } from "@/lib/api";
 import { rateLimit, clientIp } from "@/lib/rate-limit";
 import { decryptSecret } from "@/lib/crypto";
 import { verifyTotpStep } from "@/lib/auth/totp";
+import { consumeRecoveryCode, remainingRecoveryCodes } from "@/lib/auth/recovery-codes";
 import { writeAudit } from "@/lib/audit";
 import { needsEmailVerification } from "@/lib/auth/email-verify";
 import type { UserRole } from "@/lib/constants";
@@ -81,42 +82,63 @@ export async function POST(req: NextRequest) {
       trustedDevice = await hasTrustedDevice(user.id, twoFaEpoch);
       if (!trustedDevice) {
         const code = parsed.data.code?.trim() ?? "";
-        if (!code) {
+        const recoveryCode = parsed.data.recoveryCode?.trim() ?? "";
+        if (!code && !recoveryCode) {
           // Tell the client to prompt for the code (no session issued yet).
           return jsonOk({ twoFactorRequired: true });
         }
-        // Fail-soft: if the secret can't be decrypted (e.g. ENCRYPTION_KEY was
-        // rotated after launch), don't 500 — treat it as an invalid code so the
-        // response stays clean instead of crashing the login handler.
-        let secret: string | null = null;
-        try {
-          secret = user.twoFactorSecret ? decryptSecret(user.twoFactorSecret) : null;
-        } catch {
-          secret = null;
-        }
-        const step = secret ? verifyTotpStep(secret, code) : null;
-        if (step === null) {
-          return NextResponse.json(
-            { error: "Doğrulama kodu hatalı", twoFactorRequired: true },
-            { status: 401 },
-          );
-        }
-        // Burn this step ATOMICALLY: the conditional updateMany only succeeds if
-        // twoFactorLastStep is still null or older than this step, so two concurrent
-        // logins with the SAME code can't both pass (the read-check-then-update
-        // version had a replay race). count===0 → already consumed → reject.
-        const burned = await prisma.user.updateMany({
-          where: {
-            id: user.id,
-            OR: [{ twoFactorLastStep: null }, { twoFactorLastStep: { lt: step } }],
-          },
-          data: { twoFactorLastStep: step },
-        });
-        if (burned.count === 0) {
-          return NextResponse.json(
-            { error: "Doğrulama kodu hatalı", twoFactorRequired: true },
-            { status: 401 },
-          );
+        if (recoveryCode) {
+          // Single-use recovery code as the second factor (lost/changed phone).
+          // consumeRecoveryCode is the atomic arbiter — a used/foreign/garbled
+          // code burns nothing and rejects; a valid one is dead from now on.
+          const used = await consumeRecoveryCode(user.id, recoveryCode);
+          if (!used) {
+            return NextResponse.json(
+              { error: "Kurtarma kodu hatalı veya daha önce kullanılmış", twoFactorRequired: true },
+              { status: 401 },
+            );
+          }
+          // Security breadcrumb + a nudge signal: how many codes are left.
+          await writeAudit({
+            organizationId: user.organizationId,
+            actorUserId: user.id,
+            action: "account.2fa_recovery_used",
+            metadata: { remaining: await remainingRecoveryCodes(user.id), ip: clientIp(req) },
+          });
+        } else {
+          // Fail-soft: if the secret can't be decrypted (e.g. ENCRYPTION_KEY was
+          // rotated after launch), don't 500 — treat it as an invalid code so the
+          // response stays clean instead of crashing the login handler.
+          let secret: string | null = null;
+          try {
+            secret = user.twoFactorSecret ? decryptSecret(user.twoFactorSecret) : null;
+          } catch {
+            secret = null;
+          }
+          const step = secret ? verifyTotpStep(secret, code) : null;
+          if (step === null) {
+            return NextResponse.json(
+              { error: "Doğrulama kodu hatalı", twoFactorRequired: true },
+              { status: 401 },
+            );
+          }
+          // Burn this step ATOMICALLY: the conditional updateMany only succeeds if
+          // twoFactorLastStep is still null or older than this step, so two concurrent
+          // logins with the SAME code can't both pass (the read-check-then-update
+          // version had a replay race). count===0 → already consumed → reject.
+          const burned = await prisma.user.updateMany({
+            where: {
+              id: user.id,
+              OR: [{ twoFactorLastStep: null }, { twoFactorLastStep: { lt: step } }],
+            },
+            data: { twoFactorLastStep: step },
+          });
+          if (burned.count === 0) {
+            return NextResponse.json(
+              { error: "Doğrulama kodu hatalı", twoFactorRequired: true },
+              { status: 401 },
+            );
+          }
         }
       }
     }

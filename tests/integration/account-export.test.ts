@@ -52,6 +52,10 @@ describe("GET /api/account/export — complete + secret-free", () => {
       where: { id: orgId },
       data: { hospitableTokenEnc: "SECRET_ENCRYPTED_TOKEN_VALUE", aiSignature: "Sevgiler, Nuve" },
     });
+    // 2FA recovery-code hash (Codex #20) — a new secret family; must never export.
+    await prisma.twoFactorRecoveryCode.create({
+      data: { userId: user.id, codeHash: "SECRET_RECOVERY_HASH_VALUE" },
+    });
     const reservation = await prisma.reservation.create({
       data: {
         propertyId, guestName: "Ada", arrivalDate: daysFromNow(1), departureDate: daysFromNow(3),
@@ -140,6 +144,9 @@ describe("GET /api/account/export — complete + secret-free", () => {
       "emailVerifyTokenHash",
       "hospitableTokenEnc",
       "hospitableRefreshTokenEnc",
+      "SECRET_RECOVERY_HASH_VALUE",
+      "codeHash",
+      "recoveryCodes",
     ]) {
       expect(text).not.toContain(leak);
     }

@@ -194,12 +194,32 @@ model User {
   taskUpdates  TaskUpdate[]
   auditLogs    AuditLog[]
   checkoutConsents CheckoutConsent[]
+  recoveryCodes TwoFactorRecoveryCode[]
 
   @@index([organizationId])
   // verify-email looks a user up BY token hash on every emailed-link click —
   // that was a full-table scan (rate-limited, but still). Plain index, not
   // unique: 256-bit random values collide never; uniqueness isn't the contract.
   @@index([emailVerifyTokenHash])
+}
+
+// 2FA recovery codes (Codex #20). One row per single-use code, stored as a
+// sha256 HASH — the plaintext exists only in the generation response (shown
+// once). Atomic burn = conditional updateMany on usedAt (TOTP-burn pattern).
+// Regeneration deletes the user's old rows first (old codes die together).
+// Cascade: User is deleted via the Organization cascade on erasure → these
+// rows follow automatically. NEW table → zero risk to populated tables.
+model TwoFactorRecoveryCode {
+  id        String    @id @default(cuid())
+  userId    String
+  codeHash  String // sha256(hex) of the normalized code — NEVER the plaintext
+  createdAt DateTime  @default(now())
+  usedAt    DateTime? // single-use: set atomically on consume; non-null = dead
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@unique([userId, codeHash])
+  @@index([userId])
 }
 
 model Property {
