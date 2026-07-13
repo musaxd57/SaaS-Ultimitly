@@ -14,6 +14,7 @@ vi.mock("@/lib/api", async (orig) => {
   return { ...actual, requireSession: vi.fn(async () => session) };
 });
 
+import { NextRequest } from "next/server";
 import { GET as exportRoute } from "@/app/api/account/export/route";
 
 describe("GET /api/account/export — complete + secret-free", () => {
@@ -92,7 +93,9 @@ describe("GET /api/account/export — complete + secret-free", () => {
       data: { organizationId: orgId, surface: "auto_reply", triggerId: "m-1", finalDecision: "human_review", riskLevel: "high", riskType: "complaint", reason: "escalated_to_human" },
     });
 
-    const res = await exportRoute();
+    const res = await exportRoute(new NextRequest("http://localhost/api/account/export"), {
+      params: Promise.resolve({} as Record<string, never>),
+    });
     expect(res.status).toBe(200);
     const text = await res.text();
     const data = JSON.parse(text);
