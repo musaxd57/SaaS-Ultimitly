@@ -38,17 +38,17 @@ describe("outbox state machine — closed set + validated transitions", () => {
     expect(canTransition("ambiguous", "reconciling")).toBe(true);
     expect(canTransition("reconciling", "sent")).toBe(true);
     expect(canTransition("reconciling", "review")).toBe(true);
-    // Human requeue.
+    // Human requeues (ops screen): review → pending, and failed → pending (a failed row was
+    // definitively REJECTED — nothing delivered — so a human retry can't duplicate). No AUTOMATIC
+    // path uses failed→pending: enqueue never resurrects (A3) and a 402 parks as `blocked`.
     expect(canTransition("review", "pending")).toBe(true);
+    expect(canTransition("failed", "pending")).toBe(true);
   });
 
   it("rejects illegal transitions (assertTransition throws)", () => {
     expect(() => assertTransition("sent", "pending")).toThrow(/illegal transition/);
     expect(() => assertTransition("pending", "sent")).toThrow(); // must go via "sending"
     expect(() => assertTransition("failed", "sent")).toThrow();
-    // `failed` is terminal — a 402 is NEVER resurrected via failed→pending (that is the `blocked`
-    // path); only a human `review` requeue or a `blocked` reactivation re-enters `pending`.
-    expect(() => assertTransition("failed", "pending")).toThrow();
     expect(() => assertTransition("sending", "reconciling")).toThrow();
     expect(() => assertTransition("ambiguous", "sent")).toThrow(); // must go via "reconciling"
     expect(() => assertTransition("blocked", "sent")).toThrow(); // must go via pending → sending

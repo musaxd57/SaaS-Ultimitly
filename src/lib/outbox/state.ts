@@ -61,13 +61,17 @@ export const TERMINAL_STATUSES: readonly OutboxStatus[] = ["sent", "failed", "re
 //   reconciling  → ambiguous    (still unknown → back off and try reconcile later)
 //   reconciling  → review       (giving up on auto-reconcile → human decides)
 //   review       → pending      (a human explicitly requeues it)
+//   failed       → pending      (tenant-bound HUMAN retry from the ops screen ONLY — a failed row
+//                                 was definitively REJECTED, so a re-send can't duplicate. NO
+//                                 automatic path does this: enqueue never resurrects, the worker
+//                                 never re-claims a terminal row, and a 402 parks as `blocked`.)
 //   sending      → blocked      (Hospitable 402 "subscription not active" — parked, not failed)
 //   blocked      → pending      (org's Hospitable sync succeeded again → reactivate ONCE)
 const ALLOWED: Record<OutboxStatus, readonly OutboxStatus[]> = {
   pending: ["sending"],
   sending: ["sent", "pending", "failed", "ambiguous", "canceled", "blocked"],
   sent: [],
-  failed: [],
+  failed: ["pending"],
   ambiguous: ["reconciling"],
   reconciling: ["sent", "ambiguous", "review"],
   review: ["pending"],

@@ -26,6 +26,7 @@ const AUDIT_ACTION_LABELS: Record<string, string> = {
   "guest_chat.pin_set": "Misafir sohbeti giriş kodu oluşturuldu",
   "guest_chat.pin_clear": "Misafir sohbeti giriş kodu kaldırıldı",
   "billing.plan_change": "Abonelik planı değiştirildi",
+  "outbox.manual_retry": "Gönderim yeniden kuyruğa alındı",
   "impersonate.enter": "Müşteri hesabına girildi",
   "impersonate.exit": "Müşteri hesabından çıkıldı",
 };

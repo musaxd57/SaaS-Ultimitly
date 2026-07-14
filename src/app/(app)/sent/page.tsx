@@ -1,6 +1,7 @@
 import Link from "next/link";
-import { Send, Bot, Sparkles } from "lucide-react";
+import { Send, Bot, Sparkles, ListOrdered } from "lucide-react";
 import { requireAuth } from "@/lib/auth";
+import { canManage } from "@/lib/api";
 import { prisma } from "@/lib/db";
 import { PageHeader } from "@/components/page-header";
 import { Card, CardContent } from "@/components/ui/card";
@@ -217,7 +218,17 @@ export default async function SentPage({
       <PageHeader
         title="Otomatik Gönderilenler"
         description="Sistemin sizin yerinize otomatik gönderdiği mesajlar — oto-yanıtlar, karşılama, giriş ve çıkış. Elle yazdığınız cevaplar burada görünmez (onlar konuşma ekranındadır)."
-      />
+      >
+        {/* Ops view of the durable outbox — owner/manager only (staff never sees it). */}
+        {canManage(session) ? (
+          <Link
+            href="/sent/queue"
+            className="inline-flex items-center gap-1 text-sm text-primary hover:underline"
+          >
+            <ListOrdered className="size-3.5" /> Gönderim kuyruğu durumu
+          </Link>
+        ) : null}
+      </PageHeader>
 
       {items.length > 0 ? (
         <div className="flex flex-wrap gap-2">
