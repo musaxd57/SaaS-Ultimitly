@@ -115,25 +115,38 @@ claim/retry/reconcile ile teslim eder (process çökmesi/timeout/çoklu-replika 
 sağlam). **Boş/`0` = KAPALI → canlı gönderim yolu bugünkü claim-then-send ile birebir
 aynı** (hiçbir risk yok).
 
-**Şu an bağlı olan yol:** MANUEL host yanıtı (Mesajlar → Yanıtla). AI oto-yanıt /
-welcome / checkin / checkout gönderenler şimdilik kanıtlanmış claim-then-send yolunda
-kalır (her biri tek tek doğru; sonraki artımda outbox'a alınacak).
+**Outbound yol kapsamı (hangi gönderim gerçekten outbox'a gidiyor):**
+
+| Yol | Outbox'ta mı? | Not |
+|-----|---------------|-----|
+| Manuel host yanıtı (Mesajlar → Yanıtla) | ✅ Bağlı | conversation + Message var; worker teslimde "answered" yapar |
+| AI oto-yanıt (`applyChannelAutoReply`) | ✅ Bağlı | güvenlik kapısından SONRA enqueue; `senderName "GuestOps AI"` + AI metadata korunur; #6: teslimde answered |
+| Holding-ack (Tier-2) | ⏳ Ertelendi | opt-in + best-effort + şikayet zaten eskale; worker `markConversationDelivered`'ı "problem"i "answered"a ÇEVİRİR → migration 30 (`markAnsweredOnDelivery`) gerekir |
+| Welcome / checkin / checkout | ⏳ Ertelendi | proaktif, rezervasyon-kapsamlı; bugün YEREL Message/conversation OLUŞTURMAZ → migration 30 (opsiyonel `conversationId`) + proaktif/sync-dedup kararı gerekir |
+| QR misafir sohbeti yanıtı | ⛔ Hariç | iç (web) mesaj, dış sağlayıcıya gitmez — outbox'a bilinçli GİRMEZ |
+
+Ertelenen yollar kanıtlanmış claim-then-send yolunda kalır (her biri tek tek doğru).
+İkisi de migration 30'luk tek bir sonraki artımdır (kullanıcı yanındayken).
 
 **Sağlayıcı idempotency:** Hospitable send-message endpoint'i idempotency-key
-belgelemiyor → **"exactly once" garantisi YOK.** Outbox: intent kaybolmaz, definitive
-failure güvenli retry, ambiguous (timeout/5xx) **kör resend YOK** + provider
-geçmişinden uzlaştırma; uzlaşamazsa `review` (manuel). Kalan teorik duplicate penceresi
-(send başarılı ama yanıt kayıp) provider-key olmadan kapatılamaz.
+belgelemiyor → **"exactly once" garantisi YOK.** Worker `reconcile` (üretim yolu,
+`defaultReconcile`) BİLİNÇLİ TUTUCU: dış rezervasyonda güvenilir sağlayıcı-id eşleşmesi
+olmadığı için gövde+zaman benzerliğiyle **ASLA "sent" işaretlemez** → satır `ambiguous`
+kalır, deneme bitince `review` (manuel). Yani: intent kaybolmaz, definitive failure
+güvenli retry, ambiguous (timeout/5xx) **kör resend YOK**. Kalan teorik duplicate penceresi
+(send başarılı ama yanıt kayıp) provider-key olmadan kapatılamaz — o yüzden `review`.
 
-**Açma adımları (hazır olunca):**
+**Açma adımları (hazır olunca — para/gönderim hot-path'i, İLK gönderimleri BİRLİKTE doğrula):**
 1. Deploy zaten migration `29_message_outbox`'ı uygular (additive, boş tablo).
 2. Worker in-process scheduler'da (2-dk) koşar; ayrı env gerekmez.
-3. `DURABLE_OUTBOX_ENABLED=1` ekle → yalnız MANUEL yanıt outbox'a gider.
-4. Bir manuel yanıt gönder; DB'de `MessageOutbox` satırının `pending → sent` olduğunu
+3. `DURABLE_OUTBOX_ENABLED=1` ekle → manuel yanıt VE AI oto-yanıt outbox'a gider.
+4. Bir yanıt gönder; DB'de `MessageOutbox` satırının `pending → sent` olduğunu
    ve `Message.externalId`'nin worker sonrası dolduğunu doğrula. `review`/`failed`
-   satırları takılı gönderimleri gösterir (elle incele).
-5. Kapatmak için env'i sil → anında eski yola döner (bekleyen `pending` satırlar,
-   flag tekrar açılınca teslim edilir; veri kaybı yok).
+   satırları takılı gönderimleri gösterir (elle incele). Inbox thread'inde mesajın
+   "Sırada → İletildi" rozetini takip et.
+5. Kapatmak (acil rollback) için env'i sil → YENİ gönderimler eski yola döner AMA
+   worker bekleyen `pending/sending/ambiguous` satırları **flag KAPALIYKEN DE** boşaltmaya
+   devam eder (`hasDrainableOutbox`, Codex #1) → kuyruğa alınmış mesaj asla mahsur kalmaz.
 
 ---
 

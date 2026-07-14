@@ -1,7 +1,7 @@
 import { describe, it, expect, beforeEach, vi } from "vitest";
 import { prisma, resetDb, makeOrgWithProperty } from "../helpers/db";
 import { enqueueOutbound } from "@/lib/outbox/enqueue";
-import { drainOutboxOnce, type OutboxSendFn, type OutboxReconcileFn } from "@/lib/outbox/worker";
+import { drainOutboxOnce, hasDrainableOutbox, type OutboxSendFn, type OutboxReconcileFn } from "@/lib/outbox/worker";
 import { OUTBOX_MAX_ATTEMPTS } from "@/lib/outbox/state";
 
 async function makeConvo(propertyId: string) {
@@ -45,8 +45,8 @@ describe("outbox — atomic enqueue + tenant-scoped idempotency", () => {
     expect(msg).toMatchObject({ direction: "outbound", authorType: "host", body: "Merhaba!", externalId: null });
     const ob = await outbox(r.outboxId);
     expect(ob).toMatchObject({ status: "pending", messageId: r.messageId, organizationId: orgId, attemptCount: 0 });
-    // The intent durably records "answered" only after the row exists.
-    expect((await prisma.conversation.findUniqueOrThrow({ where: { id: c.id } })).status).toBe("answered");
+    // #6: enqueue does NOT mark the thread answered — that happens on confirmed delivery.
+    expect((await prisma.conversation.findUniqueOrThrow({ where: { id: c.id } })).status).toBe("new");
   });
 
   it("dedupes a repeated idempotencyKey — ONE outbox row, ONE message, no orphan", async () => {
@@ -226,5 +226,114 @@ describe("outbox worker — send, concurrency, crash points", () => {
     expect(seen[a.orgId]).toBe(`token-for-${a.orgId}`);
     expect(seen[b.orgId]).toBe(`token-for-${b.orgId}`);
     expect(seen[a.orgId]).not.toBe(seen[b.orgId]);
+  });
+});
+
+describe("outbox Faz-B — Codex #1/#2/#4/#6/#7", () => {
+  beforeEach(resetDb);
+
+  // Enqueue two rows in the SAME conversation with a DETERMINISTIC order (a before b).
+  async function twoInOneConvo() {
+    const { orgId, propertyId } = await makeOrgWithProperty();
+    const c = await makeConvo(propertyId);
+    const a = await enqueueOutbound(baseArgs(orgId, c.id, { idempotencyKey: "k1", body: "1" }));
+    const b = await enqueueOutbound(baseArgs(orgId, c.id, { idempotencyKey: "k2", body: "2" }));
+    await prisma.messageOutbox.update({ where: { id: a.outboxId }, data: { createdAt: new Date(Date.now() - 2000) } });
+    await prisma.messageOutbox.update({ where: { id: b.outboxId }, data: { createdAt: new Date(Date.now() - 1000) } });
+    return { orgId, conversationId: c.id, a, b };
+  }
+
+  it("#1: hasDrainableOutbox tracks the queue — the worker drains regardless of the enqueue flag", async () => {
+    const { orgId, propertyId } = await makeOrgWithProperty();
+    const c = await makeConvo(propertyId);
+    expect(await hasDrainableOutbox()).toBe(false);
+    const r = await enqueueOutbound(baseArgs(orgId, c.id));
+    expect(await hasDrainableOutbox()).toBe(true); // scheduler drains even with flag OFF → no stranded rows
+    await drainOutboxOnce({ send: okSend(), tokenFor: async () => "t" }); // worker never reads the flag
+    expect((await outbox(r.outboxId)).status).toBe("sent");
+    expect(await hasDrainableOutbox()).toBe(false);
+  });
+
+  it("#2 FIFO: with two queued rows for ONE conversation, only the EARLIEST is claimed", async () => {
+    const { a, b } = await twoInOneConvo();
+    const send = vi.fn<OutboxSendFn>(async () => ({ ok: true, providerMessageId: "p" }));
+    const res = await drainOutboxOnce({ send, tokenFor: async () => "t", batchSize: 10 });
+    expect(res.claimed).toBe(1); // only one row of the conversation
+    expect(send).toHaveBeenCalledTimes(1);
+    expect((await outbox(a.outboxId)).status).toBe("sent"); // the earliest
+    expect((await outbox(b.outboxId)).status).toBe("pending"); // waits for the first to resolve
+  });
+
+  it("#2 single-flight: TWO concurrent workers send at most ONE message of one thread", async () => {
+    const { a, b } = await twoInOneConvo();
+    let calls = 0;
+    const send: OutboxSendFn = async () => {
+      calls++;
+      return { ok: true, providerMessageId: "p" };
+    };
+    await Promise.all([
+      drainOutboxOnce({ send, tokenFor: async () => "t", batchSize: 10 }),
+      drainOutboxOnce({ send, tokenFor: async () => "t", batchSize: 10 }),
+    ]);
+    expect(calls).toBe(1); // no parallel/duplicate send of the same conversation
+    expect((await outbox(a.outboxId)).status).toBe("sent");
+    expect((await outbox(b.outboxId)).status).toBe("pending");
+  });
+
+  it("#2 order: the second row is delivered only AFTER the first, in order", async () => {
+    const { a, b } = await twoInOneConvo();
+    const order: string[] = [];
+    const send: OutboxSendFn = async (row) => {
+      order.push(row.body);
+      return { ok: true, providerMessageId: "p" };
+    };
+    await drainOutboxOnce({ send, tokenFor: async () => "t", batchSize: 10 }); // sends "1"
+    expect((await outbox(b.outboxId)).status).toBe("pending"); // "2" still waiting
+    await drainOutboxOnce({ send, tokenFor: async () => "t", batchSize: 10 }); // now sends "2"
+    expect(order).toEqual(["1", "2"]);
+    expect((await outbox(a.outboxId)).status).toBe("sent");
+    expect((await outbox(b.outboxId)).status).toBe("sent");
+    void a;
+  });
+
+  it("#4: ambiguous with the DEFAULT (conservative) reconcile → manual review, NEVER auto-sent", async () => {
+    const { orgId, propertyId } = await makeOrgWithProperty();
+    const c = await makeConvo(propertyId);
+    const r = await enqueueOutbound(baseArgs(orgId, c.id));
+    const send = vi.fn<OutboxSendFn>(async () => ({ ok: false, error: "HTTP 500 server error" }));
+    let clock = Date.now();
+    const now = () => new Date(clock);
+    // NO injected reconcile → the production defaultReconcile (no reliable provider match).
+    for (let i = 0; i < OUTBOX_MAX_ATTEMPTS + 3; i++) {
+      await drainOutboxOnce({ send, tokenFor: async () => "t", now });
+      clock += 60 * 60_000;
+    }
+    expect((await outbox(r.outboxId)).status).toBe("review"); // parked, not falsely "sent"
+    expect(send).toHaveBeenCalledTimes(1); // one attempt ever; reconcile is read-only + conservative
+  });
+
+  it("#6: the conversation becomes 'answered' ONLY after the worker confirms delivery", async () => {
+    const { orgId, propertyId } = await makeOrgWithProperty();
+    const c = await makeConvo(propertyId); // status "new"
+    const r = await enqueueOutbound(baseArgs(orgId, c.id));
+    expect((await prisma.conversation.findUniqueOrThrow({ where: { id: c.id } })).status).toBe("new"); // NOT at enqueue
+    await drainOutboxOnce({ send: okSend(), tokenFor: async () => "t" });
+    expect((await outbox(r.outboxId)).status).toBe("sent");
+    expect((await prisma.conversation.findUniqueOrThrow({ where: { id: c.id } })).status).toBe("answered"); // on delivery
+  });
+
+  it("#7: one tenant's failing send does not block another tenant's queue", async () => {
+    const bad = await makeOrgWithProperty();
+    const good = await makeOrgWithProperty();
+    const cb = await makeConvo(bad.propertyId);
+    const cg = await makeConvo(good.propertyId);
+    await enqueueOutbound(baseArgs(bad.orgId, cb.id, { idempotencyKey: "bad" }));
+    const g = await enqueueOutbound(baseArgs(good.orgId, cg.id, { idempotencyKey: "good" }));
+    const send: OutboxSendFn = async (row) =>
+      row.organizationId === bad.orgId
+        ? { ok: false, error: "Hospitable API hatası (HTTP 402)" } // bad org: subscription not active
+        : { ok: true, providerMessageId: "ok" };
+    await drainOutboxOnce({ send, tokenFor: async () => "t", batchSize: 10 });
+    expect((await outbox(g.outboxId)).status).toBe("sent"); // healthy tenant delivered despite the other's 402
   });
 });

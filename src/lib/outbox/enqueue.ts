@@ -36,6 +36,14 @@ export interface EnqueueOutboundArgs {
   authorType: OutboundAuthor;
   aiAssisted?: boolean;
   /**
+   * Optional AI classification metadata, mirrored onto the Message so an auto-reply
+   * enqueued through the outbox keeps the SAME reporting/audit fidelity as a direct
+   * send (aiIntent/aiConfidence/aiSourcesJson). Omitted for a plain host reply.
+   */
+  aiIntent?: string | null;
+  aiConfidence?: number | null;
+  aiSourcesJson?: string | null;
+  /**
    * Tenant-scoped idempotency identity of THIS logical send. The caller computes a
    * stable key (e.g. `auto:{conversationId}:{inboundMessageId}` for an AI reply, or a
    * client-supplied UUID for a manual reply). The same key never sends twice.
@@ -66,6 +74,11 @@ export async function enqueueOutbound(args: EnqueueOutboundArgs): Promise<Enqueu
           senderName: args.senderName,
           body: args.body,
           aiAssisted: args.aiAssisted ?? false,
+          // AI metadata (auto-reply / holding-ack) — same fields a direct send stores,
+          // so reports/audit are identical whether or not the outbox path is used.
+          ...(args.aiIntent != null ? { aiIntent: args.aiIntent } : {}),
+          ...(args.aiConfidence != null ? { aiConfidence: args.aiConfidence } : {}),
+          ...(args.aiSourcesJson != null ? { aiSourcesJson: args.aiSourcesJson } : {}),
           // No externalId yet — set only after a CONFIRMED send (worker).
         },
         select: { id: true },
@@ -84,12 +97,10 @@ export async function enqueueOutbound(args: EnqueueOutboundArgs): Promise<Enqueu
         },
         select: { id: true },
       });
-      // The host/AI HAS responded — the intent is now durable. Mark the thread
-      // answered here (not before), so "answered" never outruns a saved intent.
-      await tx.conversation.update({
-        where: { id: args.conversationId },
-        data: { status: "answered", lastMessageAt: new Date() },
-      });
+      // NOTE (Codex #6): the conversation is NOT marked "answered" here. The intent is
+      // durable, but the guest has NOT received anything yet — "answered/sent" is set
+      // by the worker ONLY once the provider confirms delivery. So a queued-but-
+      // undelivered reply never looks delivered.
       return { outboxId: outbox.id, messageId: message.id };
     });
     return { ...result, deduped: false };

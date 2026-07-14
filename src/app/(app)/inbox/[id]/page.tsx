@@ -49,7 +49,7 @@ export default async function ConversationPage({
       })
     : null;
 
-  const [kb, adjacency, tasks] = await Promise.all([
+  const [kb, adjacency, tasks, outboxRows] = await Promise.all([
     prisma.knowledgeBaseItem.findMany({
       where: { propertyId: conversation.propertyId, isActive: true },
       orderBy: { category: "asc" },
@@ -71,7 +71,13 @@ export default async function ConversationPage({
           select: { id: true, type: true, title: true, status: true, dueAt: true },
         })
       : [],
+    // Durable Outbox delivery status per outbound message (#3): a queued / sending /
+    // ambiguous / review reply must never look like a normally-delivered bubble.
+    prisma.messageOutbox.findMany({ where: { conversationId: id }, select: { messageId: true, status: true } }),
   ]);
+  const outboxByMessage = new Map(
+    outboxRows.filter((o) => o.messageId).map((o) => [o.messageId as string, o.status]),
+  );
 
   // Turnover day = the adjacent booking's checkout/checkin falls on the SAME
   // Istanbul calendar day as this stay's arrival/departure (daysUntilDate diffs
@@ -91,6 +97,7 @@ export default async function ConversationPage({
     senderName: m.senderName,
     authorType: m.authorType,
     body: m.body,
+    outboxStatus: outboxByMessage.get(m.id) ?? null,
     createdAtLabel: formatDateTime(m.createdAt),
   }));
 

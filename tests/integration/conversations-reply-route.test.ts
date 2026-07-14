@@ -255,7 +255,8 @@ describe("POST /api/conversations/[id]/reply — staff RBAC gate", () => {
     expect(ob).toMatchObject({ status: "pending", channel: "airbnb", externalReservationId: "res-1", body: "Merhaba!" });
     const msg = await prisma.message.findFirstOrThrow({ where: { conversationId, direction: "outbound" } });
     expect(msg.externalId).toBeNull(); // not delivered yet → no provider id
-    expect((await prisma.conversation.findUniqueOrThrow({ where: { id: conversationId } })).status).toBe("answered");
+    // #6: NOT answered on enqueue — only the worker marks it answered on confirmed delivery.
+    expect((await prisma.conversation.findUniqueOrThrow({ where: { id: conversationId } })).status).toBe("waiting");
   });
 
   it("Durable Outbox ON: a double-submit of the same text dedupes to ONE queued row (200)", async () => {

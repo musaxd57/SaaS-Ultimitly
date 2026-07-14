@@ -33,7 +33,27 @@ export interface ThreadMessage {
   authorType?: string | null;
   body: string;
   createdAtLabel: string;
+  /**
+   * Durable Outbox delivery state for an outbound message (#8/#3). Null when the
+   * message was never routed through the outbox (legacy / direct-send path). When
+   * set, a PERSISTENT badge is rendered so a queued/sending/unverified reply is
+   * never mistaken for a delivered one — even after a page refresh.
+   */
+  outboxStatus?: string | null;
 }
+
+// Persistent, host-facing delivery labels for a message that went through the
+// durable outbox. "sent" is the only state that means the guest actually received
+// it; every other state must stay visually distinct from a normal delivered bubble.
+const OUTBOX_STATUS_UI: Record<string, { label: string; className: string }> = {
+  pending: { label: "Sırada — gönderilmeyi bekliyor", className: "bg-amber-100 text-amber-800" },
+  sending: { label: "Gönderiliyor…", className: "bg-blue-100 text-blue-800" },
+  sent: { label: "İletildi", className: "bg-emerald-100 text-emerald-800" },
+  reconciling: { label: "Doğrulanıyor…", className: "bg-amber-100 text-amber-800" },
+  ambiguous: { label: "Doğrulanamadı — kontrol edin", className: "bg-orange-100 text-orange-800" },
+  review: { label: "Doğrulanamadı — inceleyin", className: "bg-orange-100 text-orange-800" },
+  failed: { label: "Gönderilemedi", className: "bg-red-100 text-red-800" },
+};
 
 interface TemplateItem {
   id: string;
@@ -325,6 +345,25 @@ export function ConversationThread({ conversationId, messages, status, priority,
             <span className="mt-1 px-1 text-[11px] text-muted-foreground">
               {displaySenderName(m.senderName, m.authorType)} · {m.createdAtLabel}
             </span>
+            {/* Persistent outbox delivery state (#3): survives refresh, so a queued /
+                sending / unverified reply never masquerades as delivered. */}
+            {m.direction === "outbound" && m.outboxStatus && OUTBOX_STATUS_UI[m.outboxStatus] ? (
+              <span
+                className={cn(
+                  "mt-0.5 inline-flex items-center gap-1 rounded-full px-2 py-0.5 text-[10px] font-medium",
+                  OUTBOX_STATUS_UI[m.outboxStatus].className,
+                )}
+              >
+                {m.outboxStatus === "sent" ? (
+                  <CheckCheck className="size-3" />
+                ) : m.outboxStatus === "ambiguous" || m.outboxStatus === "review" || m.outboxStatus === "failed" ? (
+                  <AlertTriangle className="size-3" />
+                ) : (
+                  <Loader2 className="size-3" />
+                )}
+                {OUTBOX_STATUS_UI[m.outboxStatus].label}
+              </span>
+            ) : null}
           </div>
         ))}
       </div>

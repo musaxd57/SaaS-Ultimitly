@@ -14,6 +14,7 @@ vi.mock("@/lib/email", () => ({ emailService: { send: vi.fn() } }));
 
 import { suggestReply } from "@/lib/ai";
 import { sendOnChannel } from "@/lib/messaging";
+import { drainOutboxOnce } from "@/lib/outbox/worker";
 import {
   applyChannelAutoReply,
   runDueChannelAutoReplies,
@@ -639,6 +640,103 @@ describe("applyChannelAutoReply", () => {
     const out = await applyChannelAutoReply(conversationId);
     expect(out.skippedReason).not.toBe("closing_ack");
     expect(mockSuggest).toHaveBeenCalled(); // real content → modeled as usual
+  });
+});
+
+describe("applyChannelAutoReply — Durable Outbox (flag ON, #5/#6)", () => {
+  beforeEach(async () => {
+    await resetDb();
+    vi.clearAllMocks();
+    vi.stubEnv("AUTO_REPLY_ENABLED", "1");
+    vi.stubEnv("DURABLE_OUTBOX_ENABLED", "1");
+    mockSuggest.mockResolvedValue(SAFE_REPLY);
+    mockSend.mockResolvedValue({ ok: true });
+  });
+  afterEach(() => vi.unstubAllEnvs());
+
+  it("ENQUEUES the reply (no inline send); the thread is NOT answered until the worker delivers", async () => {
+    const { conversationId } = await seed();
+    const out = await applyChannelAutoReply(conversationId);
+
+    // The auto-send DECISION fired + is durable, but delivery is the worker's job.
+    expect(out.sent).toBe(true);
+    expect(out.queued).toBe(true);
+    expect(mockSend).not.toHaveBeenCalled(); // NOT delivered inline
+
+    // A durable send-intent + an AI Message (no externalId yet) were written.
+    const row = await prisma.messageOutbox.findFirst({ where: { conversationId } });
+    expect(row?.status).toBe("pending");
+    expect(row?.messageId).toBeTruthy();
+    const msg = await prisma.message.findUnique({ where: { id: row!.messageId! } });
+    expect(msg?.direction).toBe("outbound");
+    expect(msg?.authorType).toBe("ai");
+    expect(msg?.senderName).toBe("GuestOps AI"); // classification magic string preserved
+    expect(msg?.aiIntent).toBe(SAFE_REPLY.intent); // AI metadata carried onto the Message
+    expect(msg?.externalId).toBeNull(); // set ONLY on confirmed delivery
+
+    // #6: the conversation is NOT yet "answered" — a queued reply isn't delivered.
+    let conv = await prisma.conversation.findUnique({ where: { id: conversationId } });
+    expect(conv?.status).toBe("new");
+
+    // The worker delivers → NOW answered, and the provider id is linked for dedup.
+    const deliver = vi.fn().mockResolvedValue({ ok: true, providerMessageId: "p-auto-1" });
+    await drainOutboxOnce({ send: deliver, tokenFor: async () => "test-token" });
+    conv = await prisma.conversation.findUnique({ where: { id: conversationId } });
+    expect(conv?.status).toBe("answered");
+    const delivered = await prisma.message.findUnique({ where: { id: row!.messageId! } });
+    expect(delivered?.externalId).toBe("p-auto-1");
+    expect((await prisma.messageOutbox.findFirst({ where: { conversationId } }))?.status).toBe("sent");
+  });
+
+  it("a later cycle does NOT enqueue a second reply (the queued outbound message → already_answered)", async () => {
+    const { conversationId } = await seed();
+    const first = await applyChannelAutoReply(conversationId);
+    expect(first.queued).toBe(true);
+    expect(await prisma.messageOutbox.count({ where: { conversationId } })).toBe(1);
+
+    const out2 = await applyChannelAutoReply(conversationId);
+    expect(out2.sent).toBe(false);
+    expect(out2.skippedReason).toBe("already_answered");
+    expect(await prisma.messageOutbox.count({ where: { conversationId } })).toBe(1); // still ONE
+  });
+
+  it("human_request: the AI-pause hold is set at enqueue even though delivery is deferred", async () => {
+    mockSuggest.mockResolvedValue({
+      ...SAFE_REPLY,
+      intent: "human_request",
+      reply: "Talebinizi ev sahibimize ilettim.",
+      riskLevel: "low",
+      confidence: 0.9,
+    });
+    const { conversationId } = await seed();
+    const out = await applyChannelAutoReply(conversationId);
+
+    expect(out.sent).toBe(true);
+    expect(out.queued).toBe(true);
+    expect(mockSend).not.toHaveBeenCalled();
+    const conv = await prisma.conversation.findUnique({ where: { id: conversationId } });
+    expect(conv?.autoReplyHoldUntil).toBeInstanceOf(Date);
+    expect(conv!.autoReplyHoldUntil!.getTime()).toBeGreaterThan(Date.now());
+  });
+
+  it("the safety gate still runs BEFORE the outbox: a complaint never enqueues", async () => {
+    // Guest words signal a complaint; the model mislabels it benign. The keyword
+    // cross-check must veto — nothing is queued and nothing is sent.
+    const { conversationId } = await seed({
+      guestMessage: "The heater is broken and the room is dirty, this is unacceptable!",
+    });
+    const out = await applyChannelAutoReply(conversationId);
+
+    expect(out.sent).toBe(false);
+    expect(mockSend).not.toHaveBeenCalled();
+    expect(await prisma.messageOutbox.count({ where: { conversationId } })).toBe(0);
+  });
+
+  it("records an AI RiskEvent (auto_sent) at enqueue time", async () => {
+    const { conversationId } = await seed();
+    await applyChannelAutoReply(conversationId);
+    const ev = await prisma.riskEvent.findFirst({ where: { conversationId, surface: "auto_reply" } });
+    expect(ev?.finalDecision).toBe("auto_sent");
   });
 });
 

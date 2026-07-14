@@ -5,7 +5,7 @@ import { Prisma } from "@prisma/client";
 import { prisma } from "@/lib/db";
 import { reportError } from "@/lib/report-error";
 import { getOrgHospitableToken } from "@/lib/hospitable-credentials";
-import { sendMessage, listMessages } from "@/lib/hospitable";
+import { sendMessage } from "@/lib/hospitable";
 import {
   attemptsExhausted,
   backoffMs,
@@ -91,25 +91,32 @@ const defaultSend: OutboxSendFn = async (row, token) => {
   return { ok: r.ok, error: r.error, providerMessageId: r.id ?? null };
 };
 
-// Default reconcile: Hospitable exposes NO idempotency key, so the only signal is
-// whether the exact body already appears in the reservation's thread. Best-effort +
-// CONSERVATIVE: any read error or ambiguity → not found → the row is parked for
-// review, never blind-resent. Tolerant of the message shape (body|message|content).
-const defaultReconcile: OutboxReconcileFn = async (row, token) => {
+// PRODUCTION reconcile — deliberately CONSERVATIVE (Codex #4). Hospitable exposes NO
+// idempotency key, and an ambiguous send never captured a providerMessageId (the HTTP
+// response was lost), so there is NO reliable way to confirm delivery from the
+// provider's history: a matching body could be a DIFFERENT message, or a genuine
+// duplicate. We therefore do NOT auto-mark "sent" on body+time similarity — the row
+// stays ambiguous and, once attempts are exhausted, is parked for MANUAL review.
+// Internal (no external destination) rows are trivially delivered. This is injectable
+// so a FUTURE reliable signal (a provider idempotency key, or a providerMessageId we
+// actually captured) can confirm delivery here without changing the state machine.
+const defaultReconcile: OutboxReconcileFn = async (row) => {
   if (!row.externalReservationId) return { found: true };
-  try {
-    const msgs = await listMessages(row.externalReservationId, token);
-    const hit = msgs.find((m) => {
-      const rec = m as Record<string, unknown>;
-      const text = rec.body ?? rec.message ?? rec.content;
-      return typeof text === "string" && text === row.body;
-    });
-    const id = hit ? ((hit as Record<string, unknown>).id ?? null) : null;
-    return { found: Boolean(hit), providerMessageId: id != null ? String(id) : null };
-  } catch {
-    return { found: false };
-  }
+  return { found: false }; // no reliable provider match → do NOT auto-confirm; → review
 };
+
+/**
+ * Are there any non-terminal outbox rows that still need work? Cheap indexed check.
+ * The WORKER must drain the queue even when the enqueue flag is OFF — otherwise an
+ * emergency rollback (flag flipped off) would strand already-queued messages forever.
+ * So the scheduler drains when the flag is ON *or* when this returns true.
+ */
+export async function hasDrainableOutbox(): Promise<boolean> {
+  const n = await prisma.messageOutbox.count({
+    where: { status: { in: ["pending", "sending", "ambiguous", "reconciling"] } },
+  });
+  return n > 0;
+}
 
 /**
  * Recover stale claims: a row stuck in `sending`/`reconciling` whose claim window
@@ -158,7 +165,22 @@ async function claimBatch(token: string, now: Date, expiry: Date, batchSize: num
       WHERE s."status" IN ('pending', 'ambiguous')
         AND s."availableAt" <= ${now}
         AND (s."claimExpiresAt" IS NULL OR s."claimExpiresAt" <= ${now})
-      ORDER BY s."availableAt" ASC
+        -- PER-CONVERSATION FIFO + single-in-flight (Codex #2): never claim a row while
+        -- the SAME conversation has an EARLIER queued row (ordering) or an in-flight
+        -- claimed row. Two replicas therefore can't send two messages of one thread in
+        -- parallel or out of order; and at most one send per conversation per pass
+        -- (2-min cadence) keeps well under Hospitable's 2/min/reservation limit.
+        AND NOT EXISTS (
+          SELECT 1 FROM "MessageOutbox" e
+          WHERE e."conversationId" = s."conversationId"
+            AND e."id" <> s."id"
+            AND e."status" IN ('pending', 'sending', 'ambiguous', 'reconciling')
+            AND (
+              e."status" IN ('sending', 'reconciling')
+              OR (e."createdAt", e."id") < (s."createdAt", s."id")
+            )
+        )
+      ORDER BY s."availableAt" ASC, s."createdAt" ASC
       LIMIT ${batchSize}
       FOR UPDATE SKIP LOCKED
     )
@@ -179,26 +201,33 @@ async function settle(
   data: Prisma.MessageOutboxUpdateManyMutationInput,
   providerMessageId?: string | null,
 ): Promise<boolean> {
-  return prisma.$transaction(async (tx) => {
-    const upd = await tx.messageOutbox.updateMany({
-      where: { id: row.id, claimedBy: token, status: fromStatus },
-      data,
-    });
-    if (upd.count === 1 && providerMessageId && row.messageId) {
-      // Link the provider id onto the local Message (only if not already set by a
-      // concurrent sync import). A P2002 on the (conversationId, externalId) unique
-      // means the sync adopted it first → fine, ignore.
-      try {
-        await tx.message.updateMany({
-          where: { id: row.messageId, externalId: null },
-          data: { externalId: providerMessageId },
-        });
-      } catch (err) {
-        if (!(err instanceof Prisma.PrismaClientKnownRequestError && err.code === "P2002")) throw err;
-      }
-    }
-    return upd.count === 1;
+  // The guarded outbox update is the SOURCE OF TRUTH for delivery state, and must NOT be
+  // coupled to the Message.externalId link. Linking is only a convenience for the sync's
+  // dedup (adopt-and-heal covers a miss), so its failure — e.g. a P2002 on the
+  // (conversationId, externalId) unique when a concurrent sync already linked the same
+  // provider id — must NEVER roll back the "sent" transition, or the row would be
+  // re-claimed and RE-SENT (a duplicate). So: settle the row first, then best-effort link.
+  const upd = await prisma.messageOutbox.updateMany({
+    where: { id: row.id, claimedBy: token, status: fromStatus },
+    data,
   });
+  if (upd.count === 1 && providerMessageId && row.messageId) {
+    await prisma.message
+      .updateMany({ where: { id: row.messageId, externalId: null }, data: { externalId: providerMessageId } })
+      .catch(() => {});
+  }
+  return upd.count === 1;
+}
+
+/**
+ * Provider CONFIRMED delivery → the conversation is "answered" NOW (Codex #6), never at
+ * enqueue. A queued-but-undelivered reply therefore never looks delivered. Never
+ * overrides a closed thread. Best-effort — the delivery truth lives on the outbox row.
+ */
+async function markConversationDelivered(conversationId: string, now: Date): Promise<void> {
+  await prisma.conversation
+    .updateMany({ where: { id: conversationId, status: { not: "closed" } }, data: { status: "answered", lastMessageAt: now } })
+    .catch(() => {});
 }
 
 /** Short, secret-free error code from a provider error string (no raw body / tokens). */
@@ -217,7 +246,8 @@ async function processOne(row: OutboxRow, token: string, deps: Required<Pick<Dra
   if (row.status === "reconciling") {
     const { found, providerMessageId } = await deps.reconcile(row, providerToken);
     if (found) {
-      await settle(row, token, "reconciling", { status: "sent", providerMessageId: providerMessageId ?? null, reconciledAt: now, sentAt: now, claimedBy: null, claimExpiresAt: null }, providerMessageId);
+      const done = await settle(row, token, "reconciling", { status: "sent", providerMessageId: providerMessageId ?? null, reconciledAt: now, sentAt: now, claimedBy: null, claimExpiresAt: null }, providerMessageId);
+      if (done) await markConversationDelivered(row.conversationId, now);
       acc.reconciled++;
       return;
     }
@@ -235,7 +265,8 @@ async function processOne(row: OutboxRow, token: string, deps: Required<Pick<Dra
   const outcome = await deps.send(row, providerToken);
   const kind = classifySendResult(outcome);
   if (kind === "definitive_success") {
-    await settle(row, token, "sending", { status: "sent", providerMessageId: outcome.providerMessageId ?? null, sentAt: now, lastErrorKind: null, lastErrorCode: null, claimedBy: null, claimExpiresAt: null }, outcome.providerMessageId);
+    const done = await settle(row, token, "sending", { status: "sent", providerMessageId: outcome.providerMessageId ?? null, sentAt: now, lastErrorKind: null, lastErrorCode: null, claimedBy: null, claimExpiresAt: null }, outcome.providerMessageId);
+    if (done) await markConversationDelivered(row.conversationId, now); // answered ONLY on confirmed delivery (#6)
     acc.sent++;
     return;
   }

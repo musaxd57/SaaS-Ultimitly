@@ -17,6 +17,8 @@ import {
 import { premiumAllowed } from "@/lib/billing/subscription";
 import { redactSensitive } from "@/lib/report-error";
 import { sendOnChannel } from "@/lib/messaging";
+import { durableOutboxEnabled } from "@/lib/outbox/flag";
+import { enqueueOutbound } from "@/lib/outbox/enqueue";
 import { getOrgHospitableToken } from "@/lib/hospitable-credentials";
 import { getAdjacency } from "@/lib/turnover";
 import { createOperationalTaskFromMessage } from "@/lib/tasks/create";
@@ -652,6 +654,12 @@ export interface ChannelAutoReplyOutcome {
   draft?: { reply: string; intent: string; confidence: number; riskLevel: string };
   guestIdentifier?: string;
   propertyName?: string;
+  /**
+   * Durable Outbox (flag ON): true when the reply was ENQUEUED for the worker to
+   * deliver rather than delivered inline. `sent` is still true (the auto-send
+   * decision fired + is durable), but the guest receives it once the worker settles.
+   */
+  queued?: boolean;
 }
 
 /**
@@ -1024,6 +1032,82 @@ export async function applyChannelAutoReply(
     return { sent: false, skippedReason: "not_connected", draft, ...meta };
   }
 
+  // ── Durable Outbox path (flag ON) ──────────────────────────────────────────
+  // Record the AI Message + a durable send-intent ATOMICALLY and let the worker
+  // deliver, retry with backoff, and — per Codex #6 — mark the thread "answered"
+  // ONLY on confirmed delivery. We deliberately do NOT claim "answered" here: the
+  // outbound Message this enqueue creates makes the NEXT cycle skip (its last message
+  // is now outbound → already_answered), and the tenant-scoped idempotencyKey
+  // collapses any concurrent enqueue to a single row — so a queued-but-undelivered
+  // reply never makes the conversation look handled. The auto-send DECISION is final +
+  // durable here, so the decision-time bookkeeping (risk visibility, human-handoff
+  // hold, RiskEvent) runs now; only delivery is deferred. externalId stays unset until
+  // the worker confirms a provider id. Flag OFF (the production default) skips this
+  // whole branch → the inline claim-then-send below runs BYTE-FOR-BYTE as before.
+  if (durableOutboxEnabled() && conversation.externalReservationId) {
+    const now = new Date();
+    let enq;
+    try {
+      enq = await enqueueOutbound({
+        organizationId: conversation.property.organizationId,
+        conversationId: conversation.id,
+        channel: conversation.channel,
+        externalReservationId: conversation.externalReservationId,
+        reservationId: conversation.reservation?.id ?? null,
+        body: outboundBody,
+        senderName: "GuestOps AI", // AI-message classification magic string (unchanged)
+        authorType: "ai",
+        aiAssisted: true,
+        aiIntent: result.intent,
+        aiConfidence: result.confidence,
+        aiSourcesJson: result.usedSources.length ? JSON.stringify(result.usedSources) : null,
+        // Tenant-scoped idempotency: this exact inbound message → at most one queued reply.
+        idempotencyKey: `auto:${conversation.id}:${last.id}`,
+      });
+    } catch (err) {
+      // enqueueOutbound is atomic: a real failure (not a dedupe-hit, which returns
+      // cleanly) left NOTHING persisted, so a later cycle simply retries. There is no
+      // claim to roll back — we never marked the thread.
+      return { sent: false, skippedReason: `enqueue_failed: ${redactSensitive(String(err))}`, draft, ...meta };
+    }
+    // A concurrent run already queued this exact reply — don't double-count or re-run
+    // the decision bookkeeping (the winner already did it).
+    if (enq.deduped) return { sent: false, skippedReason: "already_queued", draft, ...meta };
+
+    // Decision metadata only — NOT status/lastMessageAt (#6: the worker sets "answered"
+    // + the delivery time on confirmed send). lastRiskLevel/Type describe the GUEST
+    // message, so they are valid regardless of when delivery lands.
+    await prisma.conversation
+      .update({
+        where: { id: conversation.id },
+        data: { skippedReason: null, lastRiskLevel: result.riskLevel, lastRiskType: result.riskType },
+      })
+      .catch(() => {});
+    if (result.intent === "human_request") {
+      const holdHours = org.handoffHoldHours ?? (Number(process.env.HUMAN_HANDOFF_HOLD_HOURS) || 12);
+      await prisma.conversation
+        .update({
+          where: { id: conversation.id },
+          data: { autoReplyHoldUntil: new Date(now.getTime() + holdHours * 60 * 60 * 1000) },
+        })
+        .catch(() => {});
+    }
+    await recordRiskEvent({
+      organizationId: conversation.property.organizationId,
+      propertyId: conversation.propertyId,
+      conversationId: conversation.id,
+      surface: "auto_reply",
+      triggerId: last.id,
+      finalDecision: "auto_sent",
+      riskLevel: result.riskLevel,
+      riskType: result.riskType,
+      reason: "gate_passed",
+      confidence: result.confidence,
+    });
+    return { sent: true, queued: true, draft, ...meta };
+  }
+
+  // ── Inline delivery path (flag OFF — production default) ────────────────────
   // Claim-then-send: atomically move the thread out of the "new" claimable set
   // BEFORE delivering, so two concurrent sync passes (multiple replicas, or a
   // lock-TTL overrun) can't both send a reply to the same guest. The loser sees
