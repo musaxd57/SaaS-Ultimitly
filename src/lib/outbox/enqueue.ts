@@ -22,6 +22,23 @@ import { isUniqueViolation } from "@/lib/db-errors";
 /** Whether the caller is enqueuing a host reply or an AI auto-send (drives authorType). */
 export type OutboundAuthor = "host" | "ai";
 
+/**
+ * Closed set of outbox message types (migration 30). Drives the worker's DELIVERY EFFECT:
+ *   manual | ai        → mark the conversation "answered" on confirmed delivery
+ *   holding_ack        → deliver but KEEP the thread in "problem" (never mark answered)
+ *   welcome|checkin|checkout → proactive lifecycle: stamp the reservation's *SentAt on delivery
+ * A NULL type (legacy / pre-30 rolling deploy) is treated as a reply → mark answered.
+ */
+export const OUTBOX_MESSAGE_TYPES = [
+  "manual",
+  "ai",
+  "holding_ack",
+  "welcome",
+  "checkin",
+  "checkout",
+] as const;
+export type OutboxMessageType = (typeof OUTBOX_MESSAGE_TYPES)[number];
+
 export interface EnqueueOutboundArgs {
   organizationId: string;
   conversationId: string;
@@ -34,6 +51,8 @@ export interface EnqueueOutboundArgs {
   body: string;
   senderName: string;
   authorType: OutboundAuthor;
+  /** Closed-set delivery-effect discriminator; omit for a plain reply (→ mark answered). */
+  messageType?: OutboxMessageType;
   aiAssisted?: boolean;
   /**
    * Optional AI classification metadata, mirrored onto the Message so an auto-reply
@@ -91,6 +110,7 @@ export async function enqueueOutbound(args: EnqueueOutboundArgs): Promise<Enqueu
           reservationId: args.reservationId ?? null,
           channel: args.channel,
           externalReservationId: args.externalReservationId,
+          messageType: args.messageType ?? null,
           body: args.body,
           idempotencyKey: args.idempotencyKey,
           status: "pending",
@@ -113,6 +133,61 @@ export async function enqueueOutbound(args: EnqueueOutboundArgs): Promise<Enqueu
         select: { id: true, messageId: true },
       });
       if (existing) return { outboxId: existing.id, messageId: existing.messageId ?? "", deduped: true };
+    }
+    throw err;
+  }
+}
+
+export interface EnqueueProactiveArgs {
+  organizationId: string;
+  /** Hospitable reservation UUID = the delivery destination. */
+  externalReservationId: string;
+  reservationId: string;
+  channel: string;
+  /** welcome | checkin | checkout — the worker stamps the matching reservation *SentAt on delivery. */
+  messageType: Extract<OutboxMessageType, "welcome" | "checkin" | "checkout">;
+  body: string;
+  /** Deterministic identity: {type}:{org}:{reservation-anchor} — replay/restart never sends twice. */
+  idempotencyKey: string;
+}
+
+export interface EnqueueProactiveResult {
+  outboxId: string;
+  deduped: boolean;
+}
+
+/**
+ * Enqueue a PROACTIVE lifecycle send (welcome / check-in / check-out). Unlike a reply, this
+ * has NO conversation and NO local Message — it is a pure durable send-intent keyed to a
+ * reservation. The reservation's *SentAt is stamped ONLY by the worker on confirmed delivery
+ * (never here), and the deterministic idempotencyKey (via the tenant-scoped unique constraint)
+ * makes a scheduler replay or a process restart a clean dedupe-hit rather than a second message.
+ */
+export async function enqueueProactive(args: EnqueueProactiveArgs): Promise<EnqueueProactiveResult> {
+  try {
+    const outbox = await prisma.messageOutbox.create({
+      data: {
+        organizationId: args.organizationId,
+        conversationId: null, // proactive: no thread
+        messageId: null, //      proactive: no local Message (sync re-imports it later, as today)
+        reservationId: args.reservationId,
+        channel: args.channel,
+        externalReservationId: args.externalReservationId,
+        messageType: args.messageType,
+        body: args.body,
+        idempotencyKey: args.idempotencyKey,
+        status: "pending",
+      },
+      select: { id: true },
+    });
+    return { outboxId: outbox.id, deduped: false };
+  } catch (err) {
+    if (isUniqueViolation(err, ["organizationId", "idempotencyKey"])) {
+      const existing = await prisma.messageOutbox.findFirst({
+        where: { organizationId: args.organizationId, idempotencyKey: args.idempotencyKey },
+        select: { id: true },
+      });
+      if (existing) return { outboxId: existing.id, deduped: true };
     }
     throw err;
   }

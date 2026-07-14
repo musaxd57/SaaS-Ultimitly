@@ -51,11 +51,12 @@ export const OUTBOX_CLAIM_LOCK_KEY = 185_083_927; // 0x0B0C5E17 — stable, arbi
 export interface OutboxRow {
   id: string;
   organizationId: string;
-  conversationId: string;
+  conversationId: string | null; // null for a proactive lifecycle send (no thread)
   messageId: string | null;
   reservationId: string | null;
   channel: string;
   externalReservationId: string | null;
+  messageType: string | null; // manual | ai | holding_ack | welcome | checkin | checkout | null
   body: string;
   status: string;
   attemptCount: number;
@@ -269,8 +270,8 @@ async function claimBatchLocked(
       LIMIT ${batchSize}
     )
     RETURNING o."id", o."organizationId", o."conversationId", o."messageId",
-              o."reservationId", o."channel", o."externalReservationId", o."body",
-              o."status", o."attemptCount"
+              o."reservationId", o."channel", o."externalReservationId", o."messageType",
+              o."body", o."status", o."attemptCount"
   `);
   return rows;
 }
@@ -323,7 +324,7 @@ async function markConversationDelivered(conversationId: string, now: Date): Pro
  * wrote always goes). Returns a short reason code when the send must be canceled, else null.
  */
 async function aiSendVeto(row: OutboxRow, now: Date): Promise<string | null> {
-  if (!row.messageId) return null; // no local message → not a tracked AI auto-reply
+  if (!row.messageId || !row.conversationId) return null; // no message/thread → not a tracked AI reply
   const msg = await prisma.message.findUnique({
     where: { id: row.messageId },
     select: { authorType: true, createdAt: true },
@@ -343,6 +344,71 @@ async function aiSendVeto(row: OutboxRow, now: Date): Promise<string | null> {
   });
   if (newer > 0) return "superseded_by_newer_message";
   return null;
+}
+
+/**
+ * SEND-TIME VETO for a PROACTIVE lifecycle send (welcome/checkin/checkout). Between enqueue and
+ * this POST the booking may have changed: cancelled/completed, the message window passed, or the
+ * same lifecycle message was already delivered (its *SentAt got stamped by an earlier attempt).
+ * In any of those, no provider call is made → the row is canceled/superseded.
+ */
+async function lifecycleVeto(row: OutboxRow, now: Date): Promise<string | null> {
+  if (!row.externalReservationId) return "no_destination";
+  const res = await prisma.reservation.findFirst({
+    where: { sourceReference: row.externalReservationId, property: { organizationId: row.organizationId } },
+    select: { status: true, departureDate: true, welcomeSentAt: true, checkinSentAt: true, checkoutSentAt: true },
+  });
+  if (!res) return "reservation_gone";
+  if (res.status === "cancelled" || res.status === "completed") return `reservation_${res.status}`;
+  const type = row.messageType;
+  // Already delivered (stamp set by a prior/concurrent delivery) → never double-send.
+  if (type === "welcome" && res.welcomeSentAt) return "already_sent";
+  if (type === "checkin" && res.checkinSentAt) return "already_sent";
+  if (type === "checkout" && res.checkoutSentAt) return "already_sent";
+  // Window passed: a check-in / check-out whose stay is already over is stale.
+  if ((type === "checkin" || type === "checkout") && res.departureDate < now) return "window_passed";
+  return null;
+}
+
+/**
+ * Dispatch the correct send-time veto by messageType: lifecycle rows use the reservation-state
+ * veto; holding acknowledgements are best-effort and never vetoed; everything else (manual / ai /
+ * legacy NULL) goes through the AI veto, which self-filters (a manual host reply is never vetoed).
+ */
+async function sendTimeVeto(row: OutboxRow, now: Date): Promise<string | null> {
+  const type = row.messageType;
+  if (type === "welcome" || type === "checkin" || type === "checkout") return lifecycleVeto(row, now);
+  if (type === "holding_ack") return null; // soft ack — deliver, keep the thread in "problem"
+  return aiSendVeto(row, now);
+}
+
+/**
+ * Apply the DELIVERY EFFECT for a confirmed send, derived from messageType (migration 30):
+ *   welcome/checkin/checkout → stamp the reservation's *SentAt NOW (never at enqueue), across
+ *     every row of this booking (dup rows share sourceReference), only where still unstamped;
+ *   holding_ack             → nothing (the thread stays in "problem" for the host);
+ *   manual/ai/legacy NULL    → mark the conversation "answered" (#6).
+ */
+async function applyDeliveryEffect(row: OutboxRow, now: Date): Promise<void> {
+  const type = row.messageType;
+  if (type === "welcome" || type === "checkin" || type === "checkout") {
+    const ext = row.externalReservationId;
+    if (!ext) return;
+    const scope = { sourceReference: ext, property: { organizationId: row.organizationId } };
+    // Stamp only the matching field, only where still unstamped, across ALL rows of this
+    // booking (dup rows share sourceReference). Separate calls (not a ternary) so Prisma's
+    // per-model input type is inferred cleanly.
+    if (type === "welcome") {
+      await prisma.reservation.updateMany({ where: { ...scope, welcomeSentAt: null }, data: { welcomeSentAt: now } }).catch(() => {});
+    } else if (type === "checkin") {
+      await prisma.reservation.updateMany({ where: { ...scope, checkinSentAt: null }, data: { checkinSentAt: now } }).catch(() => {});
+    } else {
+      await prisma.reservation.updateMany({ where: { ...scope, checkoutSentAt: null }, data: { checkoutSentAt: now } }).catch(() => {});
+    }
+    return;
+  }
+  if (type === "holding_ack") return; // keep the thread in "problem" — never mark answered
+  if (row.conversationId) await markConversationDelivered(row.conversationId, now);
 }
 
 /**
@@ -381,7 +447,7 @@ async function processOne(row: OutboxRow, token: string, deps: Required<Pick<Dra
     const { found, providerMessageId } = await deps.reconcile(row, providerToken);
     if (found) {
       const done = await settle(row, token, "reconciling", { status: "sent", providerMessageId: providerMessageId ?? null, reconciledAt: now, sentAt: now, claimedBy: null, claimExpiresAt: null }, providerMessageId);
-      if (done) await markConversationDelivered(row.conversationId, now);
+      if (done) await applyDeliveryEffect(row, now);
       acc.reconciled++;
       return;
     }
@@ -396,10 +462,11 @@ async function processOne(row: OutboxRow, token: string, deps: Required<Pick<Dra
   }
 
   // status === "sending": one send attempt.
-  // SEND-TIME VETO (Codex P2): re-check the live thread just before the POST. A stale AI
-  // reply (host took over / AI paused / escalated / superseded by a newer message) is
-  // canceled — NEVER POSTed, and never shown as sent or failed.
-  const veto = await aiSendVeto(row, now);
+  // SEND-TIME VETO (Codex P2 + FAZ 1): re-check the live state just before the POST. A stale
+  // reply (host took over / AI paused / escalated / superseded) OR a lifecycle send whose
+  // booking is cancelled/completed/already-sent/out-of-window is canceled — NEVER POSTed, and
+  // never shown as sent or failed.
+  const veto = await sendTimeVeto(row, now);
   if (veto) {
     await cancelRow(row, token, veto);
     acc.canceled++;
@@ -428,7 +495,7 @@ async function processOne(row: OutboxRow, token: string, deps: Required<Pick<Dra
   }
   if (kind === "definitive_success") {
     const done = await settle(row, token, "sending", { status: "sent", providerMessageId: outcome.providerMessageId ?? null, sentAt: now, lastErrorKind: null, lastErrorCode: null, claimedBy: null, claimExpiresAt: null }, outcome.providerMessageId);
-    if (done) await markConversationDelivered(row.conversationId, now); // answered ONLY on confirmed delivery (#6)
+    if (done) await applyDeliveryEffect(row, now); // stamp lifecycle / mark answered ONLY on confirmed delivery (#6)
     acc.sent++;
     return;
   }

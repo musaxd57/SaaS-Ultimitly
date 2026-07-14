@@ -100,6 +100,7 @@ export const POST = withManage<{ id: string }>(async (session, req, { params }) 
       body: replyBody,
       senderName: parsed.data.senderName || session.name,
       authorType: "host",
+      messageType: "manual",
       aiAssisted,
       idempotencyKey,
     });

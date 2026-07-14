@@ -790,9 +790,17 @@ model RiskEvent {
 model MessageOutbox {
   id             String  @id @default(cuid())
   organizationId String
-  conversationId String
-  messageId      String? // the local Message this send corresponds to (linked at enqueue)
+  // NULLABLE (migration 30): a PROACTIVE lifecycle send (welcome/checkin/checkout) has no
+  // conversation and no local Message — it is a pure send-intent keyed to a reservation.
+  conversationId String?
+  messageId      String? // the local Message this send corresponds to (null for proactive lifecycle)
   reservationId  String?
+  // Closed-set discriminator (migration 30): manual | ai | holding_ack | welcome | checkin | checkout.
+  // NULL = a legacy reply row (rolling-deploy / pre-30) → treated as a normal reply on delivery.
+  // The worker DERIVES the delivery side-effect from this (reply → mark answered; lifecycle →
+  // stamp the reservation's *SentAt; holding_ack → keep the thread in "problem"). No separate
+  // denormalized effect column — the mapping is stable and lives in code (deriveDeliveryEffect).
+  messageType String?
   // Send target snapshot — the worker delivers WITHOUT re-reading the conversation.
   channel               String  // manual | airbnb | booking | ...
   externalReservationId String? // Hospitable reservation UUID (the delivery destination)

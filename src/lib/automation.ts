@@ -17,8 +17,9 @@ import {
 import { premiumAllowed } from "@/lib/billing/subscription";
 import { redactSensitive } from "@/lib/report-error";
 import { sendOnChannel } from "@/lib/messaging";
+import { createHash } from "crypto";
 import { durableOutboxEnabled } from "@/lib/outbox/flag";
-import { enqueueOutbound } from "@/lib/outbox/enqueue";
+import { enqueueOutbound, enqueueProactive } from "@/lib/outbox/enqueue";
 import { getOrgHospitableToken } from "@/lib/hospitable-credentials";
 import { getAdjacency } from "@/lib/turnover";
 import { createOperationalTaskFromMessage } from "@/lib/tasks/create";
@@ -229,6 +230,33 @@ async function maybeSendHoldingAck(opts: {
   const note = automatedReplyNote(lang, opts.org.autoReplyDisclosure);
   const signature = opts.org.aiSignature?.trim();
   const body = [text, ...(note ? [note] : []), ...(signature ? [signature] : [])].join("\n\n");
+
+  // ── Durable Outbox (flag ON) ──────────────────────────────────────────────
+  // Record the ack as a durable send-intent; the worker delivers it. messageType
+  // "holding_ack" → the worker KEEPS the thread in "problem" on delivery (deliveryEffect:
+  // none), so the host still owns it. The escalation's "problem" claim the caller already
+  // made is the primary lock; the deterministic key (conversation + complaint content)
+  // makes a retry a clean dedupe-hit. Flag OFF → the inline best-effort send below runs.
+  if (durableOutboxEnabled() && opts.conversation.externalReservationId) {
+    const digest = createHash("sha256").update(opts.guestMessage).digest("base64url").slice(0, 24);
+    try {
+      await enqueueOutbound({
+        organizationId: opts.organizationId,
+        conversationId: opts.conversation.id,
+        channel: opts.conversation.channel,
+        externalReservationId: opts.conversation.externalReservationId,
+        body,
+        senderName: "GuestOps AI", // classification magic string (unchanged)
+        authorType: "ai",
+        messageType: "holding_ack",
+        aiIntent: "complaint",
+        idempotencyKey: `holding:${opts.conversation.id}:${digest}`,
+      });
+    } catch {
+      return false; // best-effort — a failed enqueue must not break the escalation
+    }
+    return true;
+  }
 
   const delivery = await sendOnChannel(
     {
@@ -1074,6 +1102,7 @@ export async function applyChannelAutoReply(
         body: outboundBody,
         senderName: "GuestOps AI", // AI-message classification magic string (unchanged)
         authorType: "ai",
+        messageType: "ai",
         aiAssisted: true,
         aiIntent: result.intent,
         aiConfidence: result.confidence,
@@ -1542,6 +1571,30 @@ export async function sendDueWelcomes(
     const firstName = guestFirstName(r.guestName) ?? r.guestName;
     const body = buildGuestMessageBody(welcome.content, firstName, signature, r.property.name);
 
+    // ── Durable Outbox (flag ON) ──────────────────────────────────────────────
+    // Enqueue the welcome and let the worker deliver it. welcomeSentAt is stamped ONLY on
+    // confirmed delivery (by the worker), never here — so a queued-but-undelivered welcome
+    // is re-considered next run and the deterministic key (org + booking) makes that a clean
+    // dedupe-hit, so a scheduler replay / process restart never sends a second welcome. Flag
+    // OFF → the proven claim-then-send below runs BYTE-FOR-BYTE as before.
+    if (durableOutboxEnabled() && r.sourceReference) {
+      try {
+        const enq = await enqueueProactive({
+          organizationId,
+          reservationId: r.id,
+          externalReservationId: r.sourceReference,
+          channel: r.channel,
+          messageType: "welcome",
+          body,
+          idempotencyKey: `welcome:${organizationId}:${r.sourceReference}`,
+        });
+        if (!enq.deduped) sent++;
+      } catch {
+        // enqueue failure → welcomeSentAt stays null → a later run retries cleanly. No stamp.
+      }
+      continue;
+    }
+
     // Claim-then-send: atomically stamp welcomeSentAt BEFORE sending so two
     // overlapping sync runs can't both deliver. Lose the claim → skip; send fails →
     // roll the claim back so it retries next run. Stamps every row for this booking.
@@ -1645,6 +1698,26 @@ export async function sendDueCheckins(
 
     const firstName = guestFirstName(r.guestName) ?? r.guestName;
     const body = buildGuestMessageBody(tpl.content, firstName, signature, r.property.name);
+
+    // Durable Outbox (flag ON): enqueue; the worker delivers and stamps checkinSentAt ONLY on
+    // confirmed delivery. Deterministic key (org + booking) → replay/restart dedupes. See welcome.
+    if (durableOutboxEnabled() && r.sourceReference) {
+      try {
+        const enq = await enqueueProactive({
+          organizationId,
+          reservationId: r.id,
+          externalReservationId: r.sourceReference,
+          channel: r.channel,
+          messageType: "checkin",
+          body,
+          idempotencyKey: `checkin:${organizationId}:${r.sourceReference}`,
+        });
+        if (!enq.deduped) sent++;
+      } catch {
+        // enqueue failure → checkinSentAt stays null → a later run retries cleanly.
+      }
+      continue;
+    }
 
     // Claim-then-send (see sendDueWelcomes) — prevents a concurrent double-send.
     const claim = await prisma.reservation.updateMany({
@@ -1882,6 +1955,26 @@ export async function sendDueCheckouts(
 
     const firstName = guestFirstName(r.guestName) ?? r.guestName;
     const body = buildGuestMessageBody(tpl.content, firstName, signature, r.property.name);
+
+    // Durable Outbox (flag ON): enqueue; the worker delivers and stamps checkoutSentAt ONLY on
+    // confirmed delivery. Deterministic key (org + booking) → replay/restart dedupes. See welcome.
+    if (durableOutboxEnabled() && r.sourceReference) {
+      try {
+        const enq = await enqueueProactive({
+          organizationId,
+          reservationId: r.id,
+          externalReservationId: r.sourceReference,
+          channel: r.channel,
+          messageType: "checkout",
+          body,
+          idempotencyKey: `checkout:${organizationId}:${r.sourceReference}`,
+        });
+        if (!enq.deduped) sent++;
+      } catch {
+        // enqueue failure → checkoutSentAt stays null → a later run retries cleanly.
+      }
+      continue;
+    }
 
     // Claim-then-send (see sendDueWelcomes) — prevents a concurrent double-send.
     const claim = await prisma.reservation.updateMany({

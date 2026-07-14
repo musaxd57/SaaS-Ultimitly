@@ -119,14 +119,16 @@ aynı** (hiçbir risk yok).
 
 | Yol | Outbox'ta mı? | Not |
 |-----|---------------|-----|
-| Manuel host yanıtı (Mesajlar → Yanıtla) | ✅ Bağlı | conversation + Message var; worker teslimde "answered" yapar |
-| AI oto-yanıt (`applyChannelAutoReply`) | ✅ Bağlı | güvenlik kapısından SONRA enqueue; `senderName "GuestOps AI"` + AI metadata korunur; #6: teslimde answered |
-| Holding-ack (Tier-2) | ⏳ Ertelendi | opt-in + best-effort + şikayet zaten eskale; worker `markConversationDelivered`'ı "problem"i "answered"a ÇEVİRİR → migration 30 (`markAnsweredOnDelivery`) gerekir |
-| Welcome / checkin / checkout | ⏳ Ertelendi | proaktif, rezervasyon-kapsamlı; bugün YEREL Message/conversation OLUŞTURMAZ → migration 30 (opsiyonel `conversationId`) + proaktif/sync-dedup kararı gerekir |
+| Manuel host yanıtı (Mesajlar → Yanıtla) | ✅ Bağlı | conversation + Message var; `messageType:"manual"` → worker teslimde "answered" yapar |
+| AI oto-yanıt (`applyChannelAutoReply`) | ✅ Bağlı | güvenlik kapısından SONRA enqueue; `senderName "GuestOps AI"` + `messageType:"ai"`; #6: teslimde answered |
+| Holding-ack (Tier-2) | ✅ Bağlı (m30) | `messageType:"holding_ack"` → worker teslimde thread'i "problem" TUTAR (deliveryEffect: none); best-effort |
+| Welcome / checkin / checkout | ✅ Bağlı (m30) | PROAKTİF (`enqueueProactive`): conversation/Message YOK; `*SentAt` YALNIZ teslimde worker'ca damgalanır; key `{tip}:{org}:{sourceReference}` → replay/restart tek gönderim; lifecycle veto (cancelled/completed/already-sent/window) |
 | QR misafir sohbeti yanıtı | ⛔ Hariç | iç (web) mesaj, dış sağlayıcıya gitmez — outbox'a bilinçli GİRMEZ |
 
-Ertelenen yollar kanıtlanmış claim-then-send yolunda kalır (her biri tek tek doğru).
-İkisi de migration 30'luk tek bir sonraki artımdır (kullanıcı yanındayken).
+Aynı rezervasyonun manuel + AI + lifecycle mesajları AYNI advisory claim-lock ve ortak
+2 mesaj/dk/rezervasyon sınırını paylaşır (rate cap `(org, externalReservationId)` üzerinden;
+lifecycle `externalReservationId = sourceReference`). Exactly-once İDDİA YOK: Hospitable
+idempotency-key yok → ambiguous sonuç güvenilir doğrulanamıyorsa `review`'da kalır.
 
 **Sağlayıcı idempotency:** Hospitable send-message endpoint'i idempotency-key
 belgelemiyor → **"exactly once" garantisi YOK.** Worker `reconcile` (üretim yolu,
