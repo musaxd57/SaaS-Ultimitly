@@ -1,0 +1,91 @@
+# Veri Envanteri · Saklama · İmha/Erişim — İÇ TASLAK (kod-doğrulamalı)
+
+> **Bu bir TASLAKTIR.** Kesin hukuki iddia (ör. "KVKK'ya tam uyumludur") İÇERMEZ.
+> Karar bekleyen yerler **[HUKUK KARARI]** ile işaretlidir ve hukuk onayı olmadan
+> belge nihai sayılmaz. Bu belge, koddaki gerçek veri modelinden (Prisma `schema.prisma`,
+> `data-retention.ts`, hesap-silme rotası) çıkarılmıştır; politika metni için tamamlayıcı
+> belge: `docs/saklama-ve-imha-politikasi.md`. Şirket/SELLER kimlik bilgisi UYDURULMAMIŞTIR;
+> `legal-entity.ts` alanları hâlâ boştur (ödeme-öncesi blocker).
+
+## 0) Roller (hipotez — avukat onayı şart)
+- **Lixus = veri işleyen (processor):** misafir verileri (host adına işlenir). Host = veri sorumlusu.
+- **Lixus = veri sorumlusu (controller):** host hesabı + faturalama verileri (Lixus'un kendi müşterisi).
+- Alt-işleyenler: Hospitable (mesaj/rezervasyon), OpenAI (ABD — model), Paddle (MoR/ödeme),
+  Resend (e-posta), Railway (barındırma/DB). **[HUKUK KARARI]** OpenAI ABD aktarımı → DPA +
+  Standart Sözleşme Hükümleri; VERBİS; host-DPA şablonu.
+
+## 1) Veri envanteri + saklama + imha (kod-doğrulanmış)
+
+Kısaltmalar: **Cascade** = org/parent silinince DB'de otomatik silinir · **SetNull** = FK
+NULL'lanır (satır kalır) · **Anon** = `anonymizeOldGuestData` ile PII maskelenir (satır kalır).
+
+| # | Varlık (model) | İçerdiği kişisel veri | Saklama amacı | Önerilen süre | İmha / anonimleştirme mekanizması |
+|---|----------------|----------------------|---------------|---------------|-----------------------------------|
+| 1 | **User** | ad, e-posta, şifre-hash, 2FA sırrı | hesap/kimlik | hesap yaşadıkça | org silinince **Cascade** |
+| 2 | **Organization** | işletme adı, ayarlar, şifreli Hospitable token | hesap | hesap yaşadıkça | `deleteAccountData` → `organization.delete` (kök) |
+| 3 | **Property** | mülk adı/adresi | operasyon | hesap yaşadıkça | org'dan **Cascade** |
+| 4 | **Reservation** | misafir adı/telefon/e-posta, guestExternalId, tarih, tutar | operasyon + gelir geçmişi | **Anon:** `DATA_RETENTION_MONTHS` sonrası (çıkıştan itibaren); satır doluluk için kalır | Property'den **Cascade**; süre dolunca **Anon** (ad→"Eski misafir", id→"Misafir") |
+| 5 | **Conversation** | misafir tanıtıcısı, risk metadatası | mesaj bağlamı | rezervasyonla | Property'den **Cascade**; Anon'da guestIdentifier→"Misafir" |
+| 6 | **Message** | misafir/host mesaj gövdesi (serbest metin PII olabilir), AI meta | operasyon + AI kredi | Anon süresi | Conversation'dan **Cascade**; süre dolunca inbound gövde→"[saklama süresi doldu]" + isim in-body redaksiyon |
+| 7 | **Task / TaskUpdate** | görev başlığı/not, foto-URL, atanan kullanıcı | operasyon | rezervasyonla | Property'den **Cascade**; `reservationId`/`assignedToId` **SetNull** |
+| 8 | **Görev fotoğrafları** | görsel (yerel disk `public/uploads/{org}`) | operasyon | hesap yaşadıkça | **DB DEĞİL** — `deleteAccountData` klasörü fiziksel siler (best-effort, hata → reportError, sessizce yutulmaz) |
+| 9 | **SupplyRequest** | tedarik +1 kaydı | operasyon | rezervasyonla | Property'den **Cascade**; `reservationId` **SetNull** |
+| 10 | **KnowledgeBaseItem / MessageTemplate** | host içeriği (PII olmayabilir) | operasyon | hesap yaşadıkça | Property/Org'dan **Cascade** |
+| 11 | **CalendarSource** | iCal feed URL (kimlik-bilgisi sızabilir), feed-durum metadatası | takvim senk. | hesap yaşadıkça | Property'den **Cascade** |
+| 12 | **ChatUsage** | mülk-başı AI kullanım sayacı (PII yok) | maliyet/limit | — | **FK YOK** → `deleteAccountData` propertyId ile ELLE siler |
+| 13 | **MessageOutbox** | giden mesaj gövdesi (PII olabilir), teslimat durumu | dayanıklı gönderim + teslimat denetimi | kuyruk ömrü (kısa); terminal satırlar audit | Org'dan **Cascade** (org FK). ⚠ Gövde içerir → erasure kapsamı |
+| 14 | **RiskEvent** | AI karar geçmişi (opak conv/property id, gövde YOK) | güvenlik denetimi | **[HUKUK KARARI]** öneri 24 ay | Org'dan **Cascade** |
+| 15 | **AuditLog** | aktör kullanıcı-id, aksiyon, metadataJson | güvenlik/denetim | **[HUKUK KARARI]** öneri 12–24 ay | Org'dan **Cascade**; `actorUserId` **SetNull** |
+| 16 | **CheckoutConsent** | userId, IP, userAgent, onay zamanı/versiyonu | Mesafeli Satış delili | **[HUKUK KARARI]** yasal delil süresi (öneri ≥ satış+10y?) | Org'dan **Cascade**; `userId` **SetNull** |
+| 17 | **Invoice / Subscription** | tutar, sağlayıcı ref, customerId | fatura/muhasebe | **[HUKUK KARARI]** Türk vergi mevzuatı (muhtemel 10y) → erasure'da bile TUTULABİLİR | Org'dan **Cascade** (bugün); vergi zorunluluğu vs. erasure çatışması karara bağlı |
+| 18 | **WebhookEvent** | Paddle payload (müşteri e-posta/ad/adres) | ödeme mutabakatı | finansal iskelet | **FK YOK** → cascade OLMAZ; `deleteAccountData` **önce PII'yi redakte eder**, iskelet kalır |
+| 19 | **TwoFactorRecoveryCode** | kurtarma kodu hash'i | 2FA kurtarma | kod kullanılana/yenilenene | User'dan **Cascade** |
+| 20 | **QR PIN metadatası** (Reservation alanları) | `chatBoundHash`, PIN-hash, kilit metadatası | QR concierge cihaz-bağı | rezervasyonla (stay-başı rotasyon) | Reservation ile **Cascade/Anon**. **[HUKUK KARARI]** `chatBoundHash` = **pseudonymous teknik tanımlayıcı** (hash+zaman, doğrudan kimlik değil) — "PII değildir" KESİN sınıflaması YAPILMADI, hukuki teyit bekliyor |
+| 21 | **Lead** (operatör CRM) | aday host adı/iletişim/not | satış | **[HUKUK KARARI]** öneri: dönüşmezse N ay sonra purge (`purgeOldLeads` var) | bağımsız satır — ayrı purge |
+
+## 2) İmha/erişim mekanizmaları (kod envanteri)
+- **Kendi verini dışa aktarma (erişim):** `/api/account/export` — org + kullanıcılar + mülkler +
+  rezervasyonlar + mesajlar + görevler/foto-linkleri + takvim kaynakları + supply + AI metadata +
+  RiskEvent + fatura/abonelik + audit + consent + **messageDelivery (outbox durumu)** JSON.
+- **Hesabı silme (erasure):** `deleteAccountData(orgId)` → (1) Paddle webhook PII redaksiyonu,
+  (2) ChatUsage elle silme, (3) `organization.delete` (Cascade kök), (4) yerel foto klasörü fiziksel silme.
+- **Otomatik saklama-süresi anonimleştirmesi:** `anonymizeOldGuestData` — `DATA_RETENTION_MONTHS`
+  set ise, çıkışı cutoff'tan eski misafir PII'si maskelenir (satır/doluluk korunur). Orphan-sweep de var.
+- **Diriliş koruması:** anonimleşmiş satıra sync/feed PII'yi GERİ YAZMAZ; cutoff'tan eski mesajlar re-import edilmez.
+
+## 3) Hesap silme cascade davranışı (özet)
+`organization.delete` → **Cascade**: User, Property (→ Reservation, Conversation→Message, Task→TaskUpdate,
+SupplyRequest, KnowledgeBase, CalendarSource), MessageTemplate, AutomationRule, AuditLog, CheckoutConsent,
+RiskEvent, Subscription, Invoice, **MessageOutbox**. **SetNull** (satır kalır): Task.reservationId,
+AuditLog.actorUserId, CheckoutConsent.userId, TaskUpdate.userId. **FK'siz** (elle/redakte): ChatUsage (silinir),
+WebhookEvent (PII redakte, iskelet kalır). **DB dışı:** görev fotoğrafları (yerel disk → fiziksel silinir).
+
+## 4) Yedekler ve ileride PITR etkisi
+- **Bugün:** yönetilen/manuel yedek yok denecek kadar (Railway); PITR planlı değil.
+- **[HUKUK KARARI]** PITR/yedek açılırsa: bir erasure/anonimleştirme, yedeklerde **gecikmeli** yansır →
+  "yedekte kalan PII" için saklama-süresi + geri-yükleme-sonrası yeniden-imha prosedürü tanımlanmalı.
+- Yedek şifreleme + erişim kaydı + saklama süresi belgelenmeli.
+
+## 5) Yasal zorunlulukla tutulabilecek kayıtlar (erasure'a rağmen)
+- **[HUKUK KARARI]** Fatura/Invoice + ödeme kayıtları → Türk vergi/ticaret mevzuatı saklama süresi
+  (muhtemelen 10y) erasure talebini **geçersiz kılabilir**; bu durumda ilgili satırlar minimize edilip
+  tutulur, tamamen silinmez. Çatışma çözümü avukat kararı.
+- Mesafeli Satış onay delili (CheckoutConsent) benzer şekilde delil-saklama gerekçesiyle tutulabilir.
+
+## 6) Müşteri erasure talebi — operasyon akışı (öneri taslağı)
+1. Kimlik doğrula (hesap sahibi mi?).
+2. **[HUKUK KARARI]** vergi/delil zorunluluğu istisnası uygulanacak mı belirle (Invoice/Consent).
+3. Uygulanabilir kapsam için `deleteAccountData` çalıştır (self-servis "Hesabımı sil" bunu tetikler).
+4. Foto klasörü silme hatası → operatör to-do (reportError görünür).
+5. Alt-işleyenlere ilet (Hospitable/OpenAI/Paddle/Resend'de kalan veri için silme/anonimleştirme talebi).
+6. Yedek/PITR açıksa (4. madde) yeniden-imha kuyruğuna ekle.
+7. Talebi + sonucu AuditLog'a yaz.
+
+## 7) Açık kararlar (kapatılmadan belge nihai OLMAZ)
+- **[HUKUK KARARI]** Rol tespiti (processor/controller sınırları) + host-DPA.
+- **[HUKUK KARARI]** Her varlık için kesin saklama süreleri (yukarıdaki "öneri"ler bağlayıcı değil).
+- **[HUKUK KARARI]** `chatBoundHash` / PIN-hash / guestExternalId'nin pseudonymization sınıfı.
+- **[HUKUK KARARI]** Invoice/Consent vergi/delil saklaması vs. erasure çatışması.
+- **[HUKUK KARARI]** OpenAI ABD aktarımı (DPA/SCC), VERBİS kaydı, Resend SPF/DKIM/DMARC + domain.
+- **[HUKUK KARARI]** SELLER/legal-entity kimliği (`legal-entity.ts` boş — ödeme-öncesi blocker).
+- **Teknik açık:** S3/R2 nesne depolama + imha kuyruğu (foto erasure dayanıklılığı); yedek/PITR politikası.
