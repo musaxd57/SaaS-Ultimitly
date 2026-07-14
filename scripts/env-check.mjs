@@ -60,5 +60,33 @@ export function checkProductionEnv(env) {
     }
   }
 
+  // Private object storage (S3/R2) — ONLY enforced when the feature is switched
+  // on (STORAGE_ENABLED=1/true). With it off the storage system is dormant and
+  // none of these are needed, so an env-off deployment is never blocked. When
+  // on, every provider credential must be present and the endpoint must be
+  // HTTPS (a plaintext endpoint would leak signed URLs and objects). Only field
+  // NAMES are ever printed — never a value.
+  const storageOn = ["1", "true"].includes((env.STORAGE_ENABLED ?? "").trim().toLowerCase());
+  if (storageOn) {
+    const endpoint = (env.STORAGE_ENDPOINT ?? "").trim();
+    if (!endpoint) {
+      errors.push("STORAGE_ENDPOINT is missing — REQUIRED when STORAGE_ENABLED is on.");
+    } else if (!/^https:\/\//i.test(endpoint)) {
+      errors.push("STORAGE_ENDPOINT must be an https:// URL.");
+    }
+    if (!(env.STORAGE_BUCKET ?? "").trim()) {
+      errors.push("STORAGE_BUCKET is missing — REQUIRED when STORAGE_ENABLED is on.");
+    }
+    if (!(env.STORAGE_ACCESS_KEY_ID ?? "").trim()) {
+      errors.push("STORAGE_ACCESS_KEY_ID is missing — REQUIRED when STORAGE_ENABLED is on.");
+    }
+    const storageSecret = (env.STORAGE_SECRET_ACCESS_KEY ?? "").trim();
+    if (!storageSecret) {
+      errors.push("STORAGE_SECRET_ACCESS_KEY is missing — REQUIRED when STORAGE_ENABLED is on.");
+    } else if (storageSecret === DEV_PLACEHOLDER_SECRET) {
+      errors.push("STORAGE_SECRET_ACCESS_KEY is the dev placeholder — set the real provider secret.");
+    }
+  }
+
   return { errors, warnings };
 }

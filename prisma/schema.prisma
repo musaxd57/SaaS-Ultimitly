@@ -843,3 +843,29 @@ model MessageOutbox {
   @@index([status, availableAt])
   @@index([organizationId, status])
 }
+
+// Durable deletion intents for PRIVATE object storage (S3/R2) — migration 32.
+// A row = "this object key must eventually be deleted from the bucket". Written in
+// the SAME transaction as (or immediately before) the DB delete that orphans the
+// object, so a provider outage can never turn the DB operation into a silent
+// object leak: the intent persists and is retried by the scheduled drain.
+// NO relation to Organization ON PURPOSE (ChatUsage precedent — opaque tenant id):
+// rows must SURVIVE the org-cascade so a KVKK account erasure can still remove the
+// org's objects from the bucket AFTER the org row is gone. Keys carry no guest PII
+// (org/task cuids + a random filename only).
+model StorageDeletion {
+  id             String    @id @default(cuid())
+  objectKey      String    @unique // idempotency anchor: the same object never queues twice
+  organizationId String // opaque tenant id (NOT an FK — see note above)
+  status         String    @default("pending") // pending | deleted (closed set, app-enforced)
+  attemptCount   Int       @default(0)
+  availableAt    DateTime  @default(now()) // backoff gate — not eligible before this
+  lastError      String? // sanitized short code (e.g. "HTTP 500") — never a provider body/secret
+  deletedAt      DateTime?
+  createdAt      DateTime  @default(now())
+  updatedAt      DateTime  @updatedAt
+
+  // Drain due-query: pending rows ordered by availableAt.
+  @@index([status, availableAt])
+  @@index([organizationId])
+}
