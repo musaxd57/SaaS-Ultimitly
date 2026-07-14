@@ -5,7 +5,7 @@ import { withAuth, withManage } from "@/lib/route-guard";
 import { emailService } from "@/lib/email";
 import { taskAssignedEmail } from "@/lib/email-templates";
 import { enqueueStorageDeletions } from "@/lib/storage/deletion-queue";
-import { STORAGE_PHOTO_URL_PREFIX, keyFromPhotoUrl } from "@/lib/storage/keys";
+import { STORAGE_PHOTO_URL_PREFIX, keyFromPhotoUrl, isAcceptablePhotoUrl } from "@/lib/storage/keys";
 
 /** Parse a stored checklistJson into a clean {label, done}[] (never throws). */
 function parseChecklist(json: string | null): { label: string; done: boolean }[] {
@@ -43,6 +43,14 @@ export const PATCH = withAuth<{ id: string }>(async (session, req, { params }) =
   const parsed = taskUpdateSchema.safeParse(data);
   if (!parsed.success) return badRequest(zodFieldErrors(parsed.error));
   const d = parsed.data;
+
+  // A storage photoUrl must belong to THIS org (its key's org segment == session org).
+  // The schema only checks the URL SHAPE; without this a member could store a photoUrl
+  // pointing at another tenant's object key, which task DELETE / erasure would later
+  // enqueue for deletion. Belt-and-braces with the deletion choke point + serve guard.
+  if (d.photoUrl !== undefined && !isAcceptablePhotoUrl(d.photoUrl, session.organizationId)) {
+    return badRequest({ photoUrl: "Geçersiz görsel bağlantısı." });
+  }
 
   // Staff may only progress a task (status / note / photo). Re-assigning,
   // renaming, re-prioritising or rescheduling is an owner/manager action.

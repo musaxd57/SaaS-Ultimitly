@@ -29,7 +29,7 @@ vi.mock("@/lib/storage/adapter", () => ({
 
 import { POST as uploadPOST } from "@/app/api/upload/route";
 import { GET as serveGET } from "@/app/api/storage/photo/[...key]/route";
-import { DELETE as taskDELETE } from "@/app/api/tasks/[id]/route";
+import { DELETE as taskDELETE, PATCH as taskPATCH } from "@/app/api/tasks/[id]/route";
 
 const SECRET = "provider-secret-must-never-appear";
 const STORAGE_ENV = {
@@ -213,6 +213,16 @@ describe("deletion queue — idempotent, provider failure is NEVER a fake succes
     expect(await prisma.storageDeletion.count()).toBe(1);
   });
 
+  it("TENANT CHOKE POINT: a key whose org segment != the enqueuing org is DROPPED (cross-tenant delete blocked)", async () => {
+    const n = await enqueueStorageDeletions(prisma, "orgA", [
+      "org/orgA/task/t1/mine.png", //    own key → kept
+      "org/orgB/task/t1/victim.png", //  another tenant's key → DROPPED (would delete their object)
+    ]);
+    expect(n).toBe(1);
+    const rows = await prisma.storageDeletion.findMany();
+    expect(rows.map((r) => r.objectKey)).toEqual(["org/orgA/task/t1/mine.png"]);
+  });
+
   it("drain deletes the object and settles the row; a re-drain is a no-op; missing objects settle too", async () => {
     fake.objects.set("org/o/task/t/a.png", { body: PNG_BYTES, contentType: "image/png" });
     await enqueueStorageDeletions(prisma, "o", ["org/o/task/t/a.png", "org/o/task/t/never-stored.png"]);
@@ -292,6 +302,49 @@ describe("task DELETE — enqueues ONLY that task's storage keys, atomically", (
     expect(res.status).toBe(404);
     expect(await prisma.task.count({ where: { id: victim.taskId } })).toBe(1);
     expect(await prisma.storageDeletion.count()).toBe(0);
+  });
+
+  it("POISONED row: a TaskUpdate.photoUrl pointing at ANOTHER org's key is NOT enqueued on delete (choke point)", async () => {
+    const { orgId, taskId, userId } = await seed("owner");
+    const ownKey = `org/${orgId}/task/${taskId}/own.png`;
+    const foreignKey = "org/someOtherOrg/task/x/victim.png"; // a poisoned value (e.g. pre-guard row)
+    await prisma.taskUpdate.createMany({
+      data: [
+        { taskId, userId, photoUrl: STORAGE_PHOTO_URL_PREFIX + ownKey },
+        { taskId, userId, photoUrl: STORAGE_PHOTO_URL_PREFIX + foreignKey },
+      ],
+    });
+    const res = await taskDELETE(delReq(taskId), delCtx(taskId));
+    expect(res.status).toBe(200);
+    const queued = await prisma.storageDeletion.findMany();
+    expect(queued.map((q) => q.objectKey)).toEqual([ownKey]); // foreign key dropped — never deleted
+  });
+});
+
+describe("task PATCH — write-time guard rejects a cross-org storage photoUrl", () => {
+  const patchCtx = (id: string) => ({ params: Promise.resolve({ id }) });
+  const patchReq = (id: string, body: unknown) =>
+    new NextRequest(`http://localhost/api/tasks/${id}`, {
+      method: "PATCH",
+      headers: { "content-type": "application/json" },
+      body: JSON.stringify(body),
+    });
+
+  it("own-org storage photoUrl is accepted; another org's is 400; legacy /uploads is accepted", async () => {
+    const { orgId, taskId } = await seed("owner");
+    const own = `${STORAGE_PHOTO_URL_PREFIX}org/${orgId}/task/${taskId}/1-a.png`;
+    const foreign = `${STORAGE_PHOTO_URL_PREFIX}org/otherOrg/task/t/1-a.png`;
+
+    expect((await taskPATCH(patchReq(taskId, { photoUrl: own }), patchCtx(taskId))).status).toBe(200);
+    const bad = await taskPATCH(patchReq(taskId, { photoUrl: foreign }), patchCtx(taskId));
+    expect(bad.status).toBe(400);
+    expect((await taskPATCH(patchReq(taskId, { photoUrl: "/uploads/x/legacy.png" }), patchCtx(taskId))).status).toBe(200);
+
+    // Only the two accepted updates recorded a photoUrl; the cross-org one never persisted.
+    const urls = (await prisma.taskUpdate.findMany({ select: { photoUrl: true } })).map((u) => u.photoUrl);
+    expect(urls).toContain(own);
+    expect(urls).toContain("/uploads/x/legacy.png");
+    expect(urls).not.toContain(foreign);
   });
 });
 

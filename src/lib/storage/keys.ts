@@ -66,3 +66,16 @@ export function keyFromPhotoUrl(url: string | null | undefined): string | null {
   const key = (url as string).slice(STORAGE_PHOTO_URL_PREFIX.length);
   return isSafeObjectKey(key) ? key : null;
 }
+
+/**
+ * Guard a client-supplied photoUrl at WRITE time: a STORAGE url must resolve to a
+ * safe key whose org segment equals `organizationId`. Returns true for a non-storage
+ * (legacy /uploads) url — this only rejects a storage url that is malformed or points
+ * at ANOTHER tenant, so a poisoned cross-org row can never be stored in the first place
+ * (defense-in-depth alongside the deletion choke point + the serve-time org check).
+ */
+export function isAcceptablePhotoUrl(url: string, organizationId: string): boolean {
+  if (!isStoragePhotoUrl(url)) return true; // legacy /uploads or plain path — unaffected here
+  const key = keyFromPhotoUrl(url);
+  return key !== null && orgIdFromKey(key) === organizationId;
+}

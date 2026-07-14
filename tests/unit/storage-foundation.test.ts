@@ -6,6 +6,7 @@ import {
   photoUrlForKey,
   keyFromPhotoUrl,
   isStoragePhotoUrl,
+  isAcceptablePhotoUrl,
   STORAGE_PHOTO_URL_PREFIX,
 } from "@/lib/storage/keys";
 import { getStorageConfig, storageConfigured, storageUploadsEnabled } from "@/lib/storage/config";
@@ -61,6 +62,18 @@ describe("object keys — the tenant boundary, fail-closed", () => {
     expect(keyFromPhotoUrl(STORAGE_PHOTO_URL_PREFIX + "org/o1/task/t1/../x.jpg")).toBeNull();
     expect(keyFromPhotoUrl("/uploads/legacy/a.jpg")).toBeNull(); // legacy path is NOT storage
     expect(() => buildTaskPhotoKey("bad$org", "t1", "jpg")).toThrow();
+  });
+
+  it("isAcceptablePhotoUrl: a STORAGE url must belong to the org; legacy paths pass; cross-org/malformed rejected", () => {
+    const mine = STORAGE_PHOTO_URL_PREFIX + "org/orgA/task/t1/1-a.jpg";
+    const foreign = STORAGE_PHOTO_URL_PREFIX + "org/orgB/task/t1/1-a.jpg"; // another tenant's key
+    expect(isAcceptablePhotoUrl(mine, "orgA")).toBe(true);
+    expect(isAcceptablePhotoUrl(foreign, "orgA")).toBe(false); // cross-tenant → rejected at write time
+    expect(isAcceptablePhotoUrl(STORAGE_PHOTO_URL_PREFIX + "garbage", "orgA")).toBe(false); // malformed storage url
+    expect(isAcceptablePhotoUrl(STORAGE_PHOTO_URL_PREFIX + "org/orgA/task/t1/../x.jpg", "orgA")).toBe(false); // traversal
+    // Non-storage (legacy /uploads or a plain relative) is unaffected by this guard.
+    expect(isAcceptablePhotoUrl("/uploads/orgA/1-a.jpg", "orgA")).toBe(true);
+    expect(isAcceptablePhotoUrl("/uploads/whatever.png", "orgA")).toBe(true);
   });
 });
 

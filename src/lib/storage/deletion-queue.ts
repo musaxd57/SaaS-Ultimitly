@@ -5,7 +5,7 @@ import { prisma } from "@/lib/db";
 import { reportError } from "@/lib/report-error";
 import { getStorageAdapter, type StorageAdapter } from "./adapter";
 import { storageConfigured } from "./config";
-import { isSafeObjectKey } from "./keys";
+import { isSafeObjectKey, orgIdFromKey } from "./keys";
 
 // ---------------------------------------------------------------------------
 // Idempotent deletion queue for private object storage.
@@ -41,11 +41,21 @@ function errorCode(err: unknown): string {
 /**
  * Record deletion intents for the given object keys. Accepts the transaction
  * client so the intent commits ATOMICALLY with the DB delete that orphans the
- * objects. Unsafe keys are dropped (never sent to a provider); duplicates are
- * a clean no-op. Returns the number of NEW intents written.
+ * objects. Returns the number of NEW intents written.
+ *
+ * TENANT CHOKE POINT: a key is enqueued ONLY when it is well-shaped AND its org
+ * segment equals `organizationId`. `photoUrl` is client-settable (the task PATCH
+ * route stores it verbatim), so a poisoned value pointing at ANOTHER org's key
+ * could otherwise reach here (via task DELETE / account erasure) and delete a
+ * different tenant's object from the shared bucket. The org-segment check — the
+ * same boundary the serve route enforces at read time — closes that at the one
+ * place every deletion flows through. Unsafe/foreign keys are silently dropped;
+ * duplicates are a clean no-op.
  */
 export async function enqueueStorageDeletions(db: Db, organizationId: string, objectKeys: string[]): Promise<number> {
-  const keys = Array.from(new Set(objectKeys.filter(isSafeObjectKey)));
+  const keys = Array.from(
+    new Set(objectKeys.filter((k) => isSafeObjectKey(k) && orgIdFromKey(k) === organizationId)),
+  );
   if (keys.length === 0) return 0;
   const res = await db.storageDeletion.createMany({
     data: keys.map((objectKey) => ({ objectKey, organizationId })),
