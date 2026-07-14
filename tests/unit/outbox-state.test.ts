@@ -14,7 +14,7 @@ import {
 describe("outbox state machine — closed set + validated transitions", () => {
   it("has a fixed, closed status set", () => {
     expect([...OUTBOX_STATUSES].sort()).toEqual(
-      ["ambiguous", "failed", "pending", "reconciling", "review", "sending", "sent"].sort(),
+      ["ambiguous", "canceled", "failed", "pending", "reconciling", "review", "sending", "sent"].sort(),
     );
     expect(isOutboxStatus("sent")).toBe(true);
     expect(isOutboxStatus("totally_made_up")).toBe(false);
@@ -28,6 +28,7 @@ describe("outbox state machine — closed set + validated transitions", () => {
     expect(canTransition("sending", "pending")).toBe(true); // retryable → back off
     expect(canTransition("sending", "failed")).toBe(true);
     expect(canTransition("sending", "ambiguous")).toBe(true);
+    expect(canTransition("sending", "canceled")).toBe(true); // send-time veto (P2)
     // Reconcile path.
     expect(canTransition("ambiguous", "reconciling")).toBe(true);
     expect(canTransition("reconciling", "sent")).toBe(true);
@@ -48,6 +49,7 @@ describe("outbox state machine — closed set + validated transitions", () => {
     expect(isTerminal("sent")).toBe(true);
     expect(isTerminal("failed")).toBe(true);
     expect(isTerminal("review")).toBe(true);
+    expect(isTerminal("canceled")).toBe(true);
     expect(isTerminal("pending")).toBe(false);
     expect(isTerminal("ambiguous")).toBe(false);
   });
@@ -57,10 +59,12 @@ describe("classifySendResult — definitive success / failure vs ambiguous", () 
   it("ok:true → definitive success", () => {
     expect(classifySendResult({ ok: true })).toBe("definitive_success");
   });
-  it("a 4xx (not 408) → definitive failure (safe to retry, nothing delivered)", () => {
+  it("a 4xx (not 408/429) → definitive failure (safe to retry, nothing delivered)", () => {
     expect(classifySendResult({ ok: false, error: "Hospitable API hatası (HTTP 400)" })).toBe("definitive_failure");
     expect(classifySendResult({ ok: false, error: "HTTP 422 unprocessable" })).toBe("definitive_failure");
-    expect(classifySendResult({ ok: false, error: "HTTP 429 rate limited" })).toBe("definitive_failure");
+  });
+  it("a 429 → rate_limited (defer to Retry-After, do NOT consume a terminal attempt)", () => {
+    expect(classifySendResult({ ok: false, error: "Hospitable API hatası (HTTP 429)" })).toBe("rate_limited");
   });
   it("408 / 5xx → ambiguous (may have delivered)", () => {
     expect(classifySendResult({ ok: false, error: "HTTP 408 request timeout" })).toBe("ambiguous");

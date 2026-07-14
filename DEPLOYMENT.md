@@ -136,6 +136,21 @@ kalır, deneme bitince `review` (manuel). Yani: intent kaybolmaz, definitive fai
 güvenli retry, ambiguous (timeout/5xx) **kör resend YOK**. Kalan teorik duplicate penceresi
 (send başarılı ama yanıt kayıp) provider-key olmadan kapatılamaz — o yüzden `review`.
 
+**Rezervasyon hız sınırı (Hospitable 2 mesaj/dk/rezervasyon):** claim SQL ATOMİK olarak
+her (org, rezervasyon) için 60 sn'de en fazla 2 sağlayıcı çağrısına izin verir
+(`ROW_NUMBER` pencere-sıralaması + son-60sn `claimedAt` sayımı; `rn + recent <= 2`). 3.
+kayıt sonraki pencereye kalır. Çoklu-replika altında `FOR UPDATE SKIP LOCKED` + commit'li
+okuma ile atomik (ayrıca prod'da drain tek sync-kilidi altında). **429** → sağlayıcının
+`Retry-After`'ına (yoksa bounded backoff) ERTELENİR ve **terminal deneme SAYILMAZ** (rate
+fırtınası gerçek mesajı `failed` yapamaz).
+
+**AI gönderim-anı vetosu (enqueue-öncesi kapı TEK BAŞINA yetmez):** worker, bir AI satırını
+POST'lamadan HEMEN ÖNCE canlı thread'i yeniden okur. Host manuel yanıt verdiyse / AI durakladıysa
+(`autoReplyHoldUntil`) / konuşma insana devredildiyse (`problem`/`closed`) / kaynak mesajın
+üstüne yeni mesaj geldiyse → **provider çağrısı YAPILMAZ**; satır açık `canceled` durumuna
+geçer (asla sent/failed görünmez) ve teslim edilmemiş AI taslağı Message silinir (ne hayalet
+balon ne "already answered" baskısı). Manuel host yanıtı ASLA vetolanmaz (host bilerek yazdı).
+
 **Açma adımları (hazır olunca — para/gönderim hot-path'i, İLK gönderimleri BİRLİKTE doğrula):**
 1. Deploy zaten migration `29_message_outbox`'ı uygular (additive, boş tablo).
 2. Worker in-process scheduler'da (2-dk) koşar; ayrı env gerekmez.

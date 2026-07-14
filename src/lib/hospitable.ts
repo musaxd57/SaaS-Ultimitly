@@ -29,11 +29,22 @@ const MAX_RETRIES = 3;
 /** Thrown when the Hospitable API returns an error or is misconfigured. */
 export class HospitableError extends Error {
   status?: number;
-  constructor(message: string, status?: number) {
+  /** Parsed `Retry-After` (seconds) on a 429, when the provider sent one. */
+  retryAfterSec?: number;
+  constructor(message: string, status?: number, retryAfterSec?: number) {
     super(message);
     this.name = "HospitableError";
     this.status = status;
+    this.retryAfterSec = retryAfterSec;
   }
+}
+
+/** Parse a `Retry-After` header (delta-seconds form) into a bounded number of seconds. */
+function parseRetryAfter(value: string | null): number | undefined {
+  if (value === null || value === "") return undefined;
+  const n = Number(value);
+  if (!Number.isFinite(n) || n < 0) return undefined;
+  return Math.min(n, 3600); // cap at 1h so a hostile header can't park a row for days
 }
 
 /** True when a Personal Access Token is present in the environment. */
@@ -94,11 +105,7 @@ async function hospitableFetch<T>(
 
     // Rate limited — wait for the server-provided window, then retry.
     if (res.status === 429 && attempt < retries) {
-      const retryAfter = res.headers.get("Retry-After");
-      const waitSec =
-        retryAfter !== null && retryAfter !== "" && Number.isFinite(Number(retryAfter))
-          ? Number(retryAfter)
-          : 2 ** attempt;
+      const waitSec = parseRetryAfter(res.headers.get("Retry-After")) ?? 2 ** attempt;
       await sleep(Math.max(0, waitSec) * 1000);
       continue;
     }
@@ -111,9 +118,13 @@ async function hospitableFetch<T>(
 
     if (!res.ok) {
       const body = await res.text().catch(() => "");
+      // A 429 that reached here (retries exhausted, e.g. the outbox worker's single-shot
+      // send) carries the provider's Retry-After so the caller can defer to its window.
+      const retryAfterSec = res.status === 429 ? parseRetryAfter(res.headers.get("Retry-After")) : undefined;
       throw new HospitableError(
         `Hospitable API hatası (HTTP ${res.status})${body ? `: ${body.slice(0, 200)}` : ""}`,
         res.status,
+        retryAfterSec,
       );
     }
 
@@ -265,6 +276,8 @@ export interface SendResult {
   ok: boolean;
   id?: string;
   error?: string;
+  /** On a 429, the provider's `Retry-After` (seconds) when present — the caller defers to it. */
+  retryAfterSec?: number;
 }
 
 /**
@@ -298,6 +311,7 @@ export async function sendMessage(
     const id = res?.data?.id;
     return { ok: true, id: id != null ? String(id) : undefined };
   } catch (err) {
-    return { ok: false, error: err instanceof Error ? err.message : String(err) };
+    const retryAfterSec = err instanceof HospitableError ? err.retryAfterSec : undefined;
+    return { ok: false, error: err instanceof Error ? err.message : String(err), retryAfterSec };
   }
 }

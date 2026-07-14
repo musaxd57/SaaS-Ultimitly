@@ -53,6 +53,7 @@ const OUTBOX_STATUS_UI: Record<string, { label: string; className: string }> = {
   ambiguous: { label: "Doğrulanamadı — kontrol edin", className: "bg-orange-100 text-orange-800" },
   review: { label: "Doğrulanamadı — inceleyin", className: "bg-orange-100 text-orange-800" },
   failed: { label: "Gönderilemedi", className: "bg-red-100 text-red-800" },
+  canceled: { label: "İptal edildi — yerini yeni durum aldı", className: "bg-muted text-muted-foreground" },
 };
 
 interface TemplateItem {
@@ -356,6 +357,8 @@ export function ConversationThread({ conversationId, messages, status, priority,
               >
                 {m.outboxStatus === "sent" ? (
                   <CheckCheck className="size-3" />
+                ) : m.outboxStatus === "canceled" ? (
+                  <X className="size-3" />
                 ) : m.outboxStatus === "ambiguous" || m.outboxStatus === "review" || m.outboxStatus === "failed" ? (
                   <AlertTriangle className="size-3" />
                 ) : (

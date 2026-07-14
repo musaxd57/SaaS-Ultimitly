@@ -54,6 +54,8 @@ export interface OutboxSendOutcome {
   ok: boolean;
   error?: string | null;
   providerMessageId?: string | null;
+  /** On a 429, the provider's Retry-After converted to ms — the worker defers to it. */
+  retryAfterMs?: number | null;
 }
 
 export type OutboxSendFn = (row: OutboxRow, token: string | undefined) => Promise<OutboxSendOutcome>;
@@ -81,6 +83,8 @@ export interface DrainResult {
   reconciled: number;
   review: number;
   retried: number;
+  canceled: number;
+  rateLimited: number;
 }
 
 // Default single-attempt send (retries: 0 → exactly one POST). An internal thread
@@ -88,7 +92,13 @@ export interface DrainResult {
 const defaultSend: OutboxSendFn = async (row, token) => {
   if (!row.externalReservationId) return { ok: true, providerMessageId: null };
   const r = await sendMessage(row.externalReservationId, row.body, token, { retries: 0 });
-  return { ok: r.ok, error: r.error, providerMessageId: r.id ?? null };
+  return {
+    ok: r.ok,
+    error: r.error,
+    providerMessageId: r.id ?? null,
+    // A 429 carries the provider's Retry-After (seconds) → defer to its window (Codex P1).
+    retryAfterMs: r.retryAfterSec != null ? r.retryAfterSec * 1000 : null,
+  };
 };
 
 // PRODUCTION reconcile — deliberately CONSERVATIVE (Codex #4). Hospitable exposes NO
@@ -150,8 +160,25 @@ async function recoverStaleClaims(now: Date): Promise<number> {
  * availableAt (oldest first).
  */
 async function claimBatch(token: string, now: Date, expiry: Date, batchSize: number): Promise<OutboxRow[]> {
-  // The DUE / claim-expiry comparisons use the worker's own `now` (injected in tests),
-  // so the backoff clock and the claim clock never diverge.
+  // The DUE / claim-expiry / rate-window comparisons all use the worker's own `now`
+  // (injected in tests), so the backoff clock and the claim clock never diverge.
+  //
+  // Layers (inside-out):
+  //   locked  — candidate rows, atomically LOCKED (FOR UPDATE SKIP LOCKED) so two
+  //             replicas get disjoint sets. Guards: due, not-claimed, and per-conversation
+  //             FIFO + single-in-flight (Codex #2 — never claim a row while the SAME
+  //             conversation has an earlier queued row or an in-flight one).
+  //   ranked  — adds, per externalReservationId: `rn` (rank of this row among the batch's
+  //             candidates for that reservation) and `recent` (how many provider ATTEMPTS
+  //             that reservation already made in the last 60s, counted by claimedAt — which
+  //             every claim stamps and settle never clears). window functions can't sit
+  //             under FOR UPDATE, hence the separate layer.
+  //   filter  — HOSPITABLE 2/min/RESERVATION (Codex P1): a SEND claim is allowed only when
+  //             `rn + recent <= 2`, i.e. prior-window attempts + this row's rank stay within
+  //             two. So at most two provider calls per reservation per 60s; a 3rd ready row
+  //             is left for the next window. Atomic under multi-replica via the row locks +
+  //             committed claimedAt reads. Reconcile claims (ambiguous rows) never POST, so
+  //             they bypass the send cap.
   const rows = await prisma.$queryRaw<OutboxRow[]>(Prisma.sql`
     UPDATE "MessageOutbox" AS o
     SET "status" = CASE WHEN o."status" = 'pending' THEN 'sending' ELSE 'reconciling' END,
@@ -161,28 +188,51 @@ async function claimBatch(token: string, now: Date, expiry: Date, batchSize: num
         "claimExpiresAt" = ${expiry},
         "updatedAt" = now()
     WHERE o."id" IN (
-      SELECT s."id" FROM "MessageOutbox" s
-      WHERE s."status" IN ('pending', 'ambiguous')
-        AND s."availableAt" <= ${now}
-        AND (s."claimExpiresAt" IS NULL OR s."claimExpiresAt" <= ${now})
-        -- PER-CONVERSATION FIFO + single-in-flight (Codex #2): never claim a row while
-        -- the SAME conversation has an EARLIER queued row (ordering) or an in-flight
-        -- claimed row. Two replicas therefore can't send two messages of one thread in
-        -- parallel or out of order; and at most one send per conversation per pass
-        -- (2-min cadence) keeps well under Hospitable's 2/min/reservation limit.
-        AND NOT EXISTS (
-          SELECT 1 FROM "MessageOutbox" e
-          WHERE e."conversationId" = s."conversationId"
-            AND e."id" <> s."id"
-            AND e."status" IN ('pending', 'sending', 'ambiguous', 'reconciling')
-            AND (
-              e."status" IN ('sending', 'reconciling')
-              OR (e."createdAt", e."id") < (s."createdAt", s."id")
+      SELECT ranked."id" FROM (
+        SELECT locked."id", locked."status", locked."externalReservationId",
+               locked."availableAt", locked."createdAt",
+               ROW_NUMBER() OVER (
+                 PARTITION BY locked."organizationId", locked."externalReservationId"
+                 ORDER BY locked."availableAt" ASC, locked."createdAt" ASC, locked."id" ASC
+               ) AS rn,
+               (
+                 -- Prior provider ATTEMPTS for this same (org, reservation) in the last 60s.
+                 -- claimedAt is stamped on every claim and never cleared by settle, so it is
+                 -- the true "last attempt" clock. (org-scoped: a Hospitable reservation UUID is
+                 -- globally unique in prod, but scoping to the org is stricter and cheaper.)
+                 SELECT count(*) FROM "MessageOutbox" h
+                 WHERE h."organizationId" = locked."organizationId"
+                   AND h."externalReservationId" = locked."externalReservationId"
+                   AND h."externalReservationId" IS NOT NULL
+                   AND h."id" <> locked."id"
+                   AND h."claimedAt" IS NOT NULL
+                   AND h."claimedAt" > ${now}::timestamptz - interval '60 seconds'
+               ) AS recent
+        FROM (
+          SELECT s."id", s."status", s."organizationId", s."externalReservationId", s."availableAt", s."createdAt"
+          FROM "MessageOutbox" s
+          WHERE s."status" IN ('pending', 'ambiguous')
+            AND s."availableAt" <= ${now}
+            AND (s."claimExpiresAt" IS NULL OR s."claimExpiresAt" <= ${now})
+            AND NOT EXISTS (
+              SELECT 1 FROM "MessageOutbox" e
+              WHERE e."conversationId" = s."conversationId"
+                AND e."id" <> s."id"
+                AND e."status" IN ('pending', 'sending', 'ambiguous', 'reconciling')
+                AND (
+                  e."status" IN ('sending', 'reconciling')
+                  OR (e."createdAt", e."id") < (s."createdAt", s."id")
+                )
             )
-        )
-      ORDER BY s."availableAt" ASC, s."createdAt" ASC
+          ORDER BY s."availableAt" ASC, s."createdAt" ASC
+          FOR UPDATE SKIP LOCKED
+        ) locked
+      ) ranked
+      WHERE ranked."status" = 'ambiguous'                        -- reconcile claim: no POST → no send cap
+         OR ranked."externalReservationId" IS NULL               -- internal thread: nothing rate-limited
+         OR (ranked."rn" + ranked."recent") <= 2                 -- ≤ 2 provider sends / reservation / 60s
+      ORDER BY ranked."availableAt" ASC, ranked."createdAt" ASC
       LIMIT ${batchSize}
-      FOR UPDATE SKIP LOCKED
     )
     RETURNING o."id", o."organizationId", o."conversationId", o."messageId",
               o."reservationId", o."channel", o."externalReservationId", o."body",
@@ -230,6 +280,58 @@ async function markConversationDelivered(conversationId: string, now: Date): Pro
     .catch(() => {});
 }
 
+/**
+ * SEND-TIME VETO for an AI auto-reply (Codex P2). Between enqueue and this POST the
+ * world may have moved on — the host answered manually, the AI was paused / handed to a
+ * human, the thread was escalated, or a newer message arrived. In any of those cases the
+ * queued AI reply is STALE and must NOT be delivered: the enqueue-time safety gate is not
+ * enough on its own. Only AI rows are vetoed (a manual host reply the host explicitly
+ * wrote always goes). Returns a short reason code when the send must be canceled, else null.
+ */
+async function aiSendVeto(row: OutboxRow, now: Date): Promise<string | null> {
+  if (!row.messageId) return null; // no local message → not a tracked AI auto-reply
+  const msg = await prisma.message.findUnique({
+    where: { id: row.messageId },
+    select: { authorType: true, createdAt: true },
+  });
+  if (!msg || msg.authorType !== "ai") return null; // manual/host send → never vetoed
+  const convo = await prisma.conversation.findUnique({
+    where: { id: row.conversationId },
+    select: { status: true, autoReplyHoldUntil: true },
+  });
+  if (!convo) return "conversation_gone";
+  if (convo.status === "problem" || convo.status === "closed") return "escalated_or_closed";
+  if (convo.autoReplyHoldUntil && convo.autoReplyHoldUntil > now) return "ai_paused";
+  // A newer message (a host's manual reply, or a newer guest message) means this AI reply
+  // is no longer the current turn — the thread moved on, so the stale draft must not go.
+  const newer = await prisma.message.count({
+    where: { conversationId: row.conversationId, id: { not: row.messageId }, createdAt: { gt: msg.createdAt } },
+  });
+  if (newer > 0) return "superseded_by_newer_message";
+  return null;
+}
+
+/**
+ * Cancel a vetoed AI send: move the row to the terminal `canceled` state (NEVER
+ * sent/failed) under the claim guard, then best-effort DELETE the undelivered AI draft
+ * Message — so it neither lingers as a phantom "delivered" bubble nor makes the next
+ * auto-reply cycle skip the thread as already-answered. Only deletes a still-unsent
+ * message (externalId IS NULL), so a delivered row is never touched.
+ */
+async function cancelRow(row: OutboxRow, token: string, reason: string): Promise<boolean> {
+  const done = await settle(row, token, "sending", {
+    status: "canceled",
+    lastErrorKind: "canceled",
+    lastErrorCode: reason,
+    claimedBy: null,
+    claimExpiresAt: null,
+  });
+  if (done && row.messageId) {
+    await prisma.message.deleteMany({ where: { id: row.messageId, externalId: null } }).catch(() => {});
+  }
+  return done;
+}
+
 /** Short, secret-free error code from a provider error string (no raw body / tokens). */
 function errorCode(error: string | null | undefined): string {
   const s = error ?? "";
@@ -262,8 +364,36 @@ async function processOne(row: OutboxRow, token: string, deps: Required<Pick<Dra
   }
 
   // status === "sending": one send attempt.
+  // SEND-TIME VETO (Codex P2): re-check the live thread just before the POST. A stale AI
+  // reply (host took over / AI paused / escalated / superseded by a newer message) is
+  // canceled — NEVER POSTed, and never shown as sent or failed.
+  const veto = await aiSendVeto(row, now);
+  if (veto) {
+    await cancelRow(row, token, veto);
+    acc.canceled++;
+    return;
+  }
+
   const outcome = await deps.send(row, providerToken);
   const kind = classifySendResult(outcome);
+  if (kind === "rate_limited") {
+    // 429 — nothing was delivered. Defer to the provider's Retry-After (or a bounded
+    // backoff) WITHOUT consuming a terminal attempt, so a rate-limit storm can never
+    // push a real message to `failed`. The claim already incremented attemptCount → undo it.
+    const waitMs =
+      outcome.retryAfterMs && outcome.retryAfterMs > 0 ? outcome.retryAfterMs : backoffMs(row.attemptCount, row.id);
+    await settle(row, token, "sending", {
+      status: "pending",
+      availableAt: new Date(now.getTime() + waitMs),
+      attemptCount: { decrement: 1 },
+      lastErrorKind: "rate_limited",
+      lastErrorCode: "HTTP 429",
+      claimedBy: null,
+      claimExpiresAt: null,
+    });
+    acc.rateLimited++;
+    return;
+  }
   if (kind === "definitive_success") {
     const done = await settle(row, token, "sending", { status: "sent", providerMessageId: outcome.providerMessageId ?? null, sentAt: now, lastErrorKind: null, lastErrorCode: null, claimedBy: null, claimExpiresAt: null }, outcome.providerMessageId);
     if (done) await markConversationDelivered(row.conversationId, now); // answered ONLY on confirmed delivery (#6)
@@ -298,7 +428,7 @@ export async function drainOutboxOnce(deps: DrainDeps = {}): Promise<DrainResult
     reconcile: deps.reconcile ?? defaultReconcile,
     tokenFor: deps.tokenFor ?? ((orgId: string) => getOrgHospitableToken(orgId).then((t) => t ?? undefined)),
   };
-  const acc: DrainResult = { claimed: 0, sent: 0, failed: 0, ambiguous: 0, reconciled: 0, review: 0, retried: 0 };
+  const acc: DrainResult = { claimed: 0, sent: 0, failed: 0, ambiguous: 0, reconciled: 0, review: 0, retried: 0, canceled: 0, rateLimited: 0 };
   const token = randomUUID();
   const nowDate = now();
   const expiry = new Date(nowDate.getTime() + CLAIM_TTL_MS);

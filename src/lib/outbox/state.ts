@@ -35,6 +35,7 @@ export const OUTBOX_STATUSES = [
   "ambiguous", // an attempt returned an UNKNOWN result — do NOT resend blindly
   "reconciling", // a worker has claimed an ambiguous row to check the provider's history
   "review", // terminal-until-human: ambiguous and not reconcilable → needs manual review
+  "canceled", // terminal: a send-time veto superseded this AI reply BEFORE any POST (never delivered)
 ] as const;
 
 export type OutboxStatus = (typeof OUTBOX_STATUSES)[number];
@@ -43,14 +44,15 @@ export type OutboxStatus = (typeof OUTBOX_STATUSES)[number];
 export const CLAIMABLE_STATUSES: readonly OutboxStatus[] = ["pending", "ambiguous"];
 
 /** Terminal statuses — the worker never touches these again automatically. */
-export const TERMINAL_STATUSES: readonly OutboxStatus[] = ["sent", "failed", "review"];
+export const TERMINAL_STATUSES: readonly OutboxStatus[] = ["sent", "failed", "review", "canceled"];
 
 // The allowed transitions. Anything not listed here is a bug and throws.
 //   pending      → sending      (worker claims a due row)
 //   sending      → sent         (definitive success)
-//   sending      → pending      (definitive failure that is safe to retry → back off)
+//   sending      → pending      (definitive failure that is safe to retry → back off; also a 429 rate-limit defer)
 //   sending      → failed       (definitive failure, terminal: max attempts / unconfigured)
 //   sending      → ambiguous    (unknown result — no blind resend)
+//   sending      → canceled     (send-time veto: host took over / AI paused / superseded → NEVER POSTed)
 //   ambiguous    → reconciling  (worker claims it to check provider history)
 //   reconciling  → sent         (found in provider history → it DID deliver)
 //   reconciling  → ambiguous    (still unknown → back off and try reconcile later)
@@ -58,12 +60,13 @@ export const TERMINAL_STATUSES: readonly OutboxStatus[] = ["sent", "failed", "re
 //   review       → pending      (a human explicitly requeues it)
 const ALLOWED: Record<OutboxStatus, readonly OutboxStatus[]> = {
   pending: ["sending"],
-  sending: ["sent", "pending", "failed", "ambiguous"],
+  sending: ["sent", "pending", "failed", "ambiguous", "canceled"],
   sent: [],
   failed: [],
   ambiguous: ["reconciling"],
   reconciling: ["sent", "ambiguous", "review"],
   review: ["pending"],
+  canceled: [],
 };
 
 export function isOutboxStatus(v: unknown): v is OutboxStatus {
@@ -91,13 +94,20 @@ export function assertTransition(from: OutboxStatus, to: OutboxStatus): void {
 // free-form string in the calling code).
 // ---------------------------------------------------------------------------
 
-export type SendResultKind = "definitive_success" | "definitive_failure" | "ambiguous";
+export type SendResultKind =
+  | "definitive_success"
+  | "definitive_failure"
+  | "ambiguous"
+  | "rate_limited";
 
 /**
  * Classify a provider send outcome. Mirrors the manual-reply route's existing
  * rule so behaviour is consistent: a 4xx (except 408 request-timeout) is a
  * DEFINITIVE rejection (nothing delivered → safe to retry); a timeout / network
- * reset / 5xx is AMBIGUOUS (it MAY have delivered → never blind-resend).
+ * reset / 5xx is AMBIGUOUS (it MAY have delivered → never blind-resend); a 429 is
+ * RATE_LIMITED — a definitive rejection (nothing delivered) that must back off to
+ * the provider's window (Retry-After) WITHOUT consuming a terminal attempt, so a
+ * rate-limit storm can never push a real message to `failed`.
  * `ok:true` is a definitive success.
  */
 export function classifySendResult(outcome: {
@@ -109,6 +119,7 @@ export function classifySendResult(outcome: {
   const m = err.match(/HTTP (\d{3})/);
   if (m) {
     const status = Number(m[1]);
+    if (status === 429) return "rate_limited"; // too many requests → defer, do not consume an attempt
     if (status >= 400 && status < 500 && status !== 408) return "definitive_failure";
     return "ambiguous"; // 5xx / 408 → may have applied
   }

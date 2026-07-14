@@ -337,3 +337,161 @@ describe("outbox Faz-B — Codex #1/#2/#4/#6/#7", () => {
     expect((await outbox(g.outboxId)).status).toBe("sent"); // healthy tenant delivered despite the other's 402
   });
 });
+
+describe("outbox Codex P1/P2 — reservation rate limit + AI send-time veto", () => {
+  beforeEach(resetDb);
+
+  // 3 outbox rows for ONE (org, reservation) but 3 DIFFERENT conversations — so the
+  // per-CONVERSATION single-in-flight guard does NOT serialize them; only the per-
+  // RESERVATION rate cap can. Deterministic order m0 < m1 < m2.
+  async function threeForOneReservation() {
+    const { orgId, propertyId } = await makeOrgWithProperty();
+    const rows = [];
+    for (let i = 0; i < 3; i++) {
+      const c = await prisma.conversation.create({
+        data: { propertyId, channel: "airbnb", guestIdentifier: `G${i}`, status: "new", externalReservationId: "res-shared" },
+      });
+      const r = await enqueueOutbound(
+        baseArgs(orgId, c.id, { idempotencyKey: `k${i}`, externalReservationId: "res-shared", body: `m${i}` }),
+      );
+      await prisma.messageOutbox.update({
+        where: { id: r.outboxId },
+        data: { createdAt: new Date(Date.now() - (3 - i) * 1000) },
+      });
+      rows.push(r);
+    }
+    return { orgId, rows };
+  }
+
+  it("P1: at most 2 provider sends per reservation in a 60s window; the 3rd waits for the next window", async () => {
+    const { rows } = await threeForOneReservation();
+    let calls = 0;
+    const send: OutboxSendFn = async () => ({ ok: true, providerMessageId: `p${++calls}` });
+    let clock = Date.now();
+    const now = () => new Date(clock);
+
+    // Window 1: only 2 of the 3 ready rows are claimed + sent; the 3rd is rate-deferred.
+    await drainOutboxOnce({ send, tokenFor: async () => "t", batchSize: 10, now });
+    expect(calls).toBe(2);
+    const s1 = await Promise.all(rows.map((r) => outbox(r.outboxId)));
+    expect(s1.filter((r) => r.status === "sent")).toHaveLength(2);
+    expect(s1.filter((r) => r.status === "pending")).toHaveLength(1);
+
+    // +30s (still inside the window): the 3rd is STILL blocked — no extra provider call.
+    clock += 30_000;
+    await drainOutboxOnce({ send, tokenFor: async () => "t", batchSize: 10, now });
+    expect(calls).toBe(2);
+
+    // +61s from the first sends (next window): the 3rd finally goes.
+    clock += 31_000;
+    await drainOutboxOnce({ send, tokenFor: async () => "t", batchSize: 10, now });
+    expect(calls).toBe(3);
+    const s3 = await Promise.all(rows.map((r) => outbox(r.outboxId)));
+    expect(s3.every((r) => r.status === "sent")).toBe(true);
+  });
+
+  it("P1: two CONCURRENT workers still send at most 2 for one reservation in the window", async () => {
+    await threeForOneReservation();
+    let calls = 0;
+    const send: OutboxSendFn = async () => ({ ok: true, providerMessageId: `p${++calls}` });
+    await Promise.all([
+      drainOutboxOnce({ send, tokenFor: async () => "t", batchSize: 10 }),
+      drainOutboxOnce({ send, tokenFor: async () => "t", batchSize: 10 }),
+    ]);
+    expect(calls).toBeLessThanOrEqual(2); // atomic under multi-replica: never exceeds 2/60s/reservation
+  });
+
+  it("P1: a 429 defers to Retry-After WITHOUT consuming a terminal attempt (no false 'failed')", async () => {
+    const { orgId, propertyId } = await makeOrgWithProperty();
+    const c = await makeConvo(propertyId);
+    const r = await enqueueOutbound(baseArgs(orgId, c.id));
+    let clock = Date.now();
+    const now = () => new Date(clock);
+    const send: OutboxSendFn = async () => ({ ok: false, error: "Hospitable API hatası (HTTP 429)", retryAfterMs: 45_000 });
+    await drainOutboxOnce({ send, tokenFor: async () => "t", now });
+    const row = await outbox(r.outboxId);
+    expect(row.status).toBe("pending"); // deferred, NOT failed
+    expect(row.attemptCount).toBe(0); // claim increment undone → a rate-limit storm can't exhaust attempts
+    expect(row.availableAt.getTime()).toBe(clock + 45_000); // honoured the provider's Retry-After
+  });
+
+  // ── P2: AI send-time veto ──────────────────────────────────────────────────
+  // Enqueue an AI reply on a fresh thread (guest asked, AI drafted). The AI Message is
+  // backdated so any later message is unambiguously "newer".
+  async function enqueueAiReply(convoOver: Record<string, unknown> = {}) {
+    const { orgId, propertyId } = await makeOrgWithProperty();
+    const c = await prisma.conversation.create({
+      data: { propertyId, channel: "airbnb", guestIdentifier: "G", status: "new", externalReservationId: "res-ai", ...convoOver },
+    });
+    await prisma.message.create({
+      data: { conversationId: c.id, direction: "inbound", senderName: "G", body: "Wifi?", createdAt: new Date(Date.now() - 10_000) },
+    });
+    const r = await enqueueOutbound(
+      baseArgs(orgId, c.id, { externalReservationId: "res-ai", authorType: "ai", senderName: "GuestOps AI", idempotencyKey: "ai1" }),
+    );
+    await prisma.message.update({ where: { id: r.messageId! }, data: { createdAt: new Date(Date.now() - 5000) } });
+    return { orgId, conversationId: c.id, r };
+  }
+
+  const countingSend = () => {
+    let calls = 0;
+    const send: OutboxSendFn = async () => ({ ok: true, providerMessageId: `x${++calls}` });
+    return { send, calls: () => calls };
+  };
+
+  it("P2 veto: a host manual reply after enqueue → the AI send is CANCELED, ZERO provider calls", async () => {
+    const { conversationId, r } = await enqueueAiReply();
+    await prisma.message.create({
+      data: { conversationId, direction: "outbound", authorType: "host", senderName: "Host", body: "Ben ilgilendim" },
+    });
+    const { send, calls } = countingSend();
+    const res = await drainOutboxOnce({ send, tokenFor: async () => "t" });
+    expect(calls()).toBe(0); // NEVER POSTed
+    expect(res.canceled).toBe(1);
+    expect((await outbox(r.outboxId)).status).toBe("canceled"); // not sent, not failed
+    expect(await prisma.message.count({ where: { id: r.messageId! } })).toBe(0); // stale draft removed
+  });
+
+  it("P2 veto: AI paused (autoReplyHoldUntil) before the worker runs → canceled, no send", async () => {
+    const { conversationId, r } = await enqueueAiReply();
+    await prisma.conversation.update({
+      where: { id: conversationId },
+      data: { autoReplyHoldUntil: new Date(Date.now() + 60 * 60_000) },
+    });
+    const { send, calls } = countingSend();
+    await drainOutboxOnce({ send, tokenFor: async () => "t" });
+    expect(calls()).toBe(0);
+    expect((await outbox(r.outboxId)).status).toBe("canceled");
+  });
+
+  it("P2 veto: thread escalated to human ('problem') → canceled, no send", async () => {
+    const { conversationId, r } = await enqueueAiReply();
+    await prisma.conversation.update({ where: { id: conversationId }, data: { status: "problem" } });
+    const { send, calls } = countingSend();
+    await drainOutboxOnce({ send, tokenFor: async () => "t" });
+    expect(calls()).toBe(0);
+    expect((await outbox(r.outboxId)).status).toBe("canceled");
+  });
+
+  it("P2: a MANUAL host reply is NEVER vetoed — it sends even on a 'problem' thread", async () => {
+    const { orgId, propertyId } = await makeOrgWithProperty();
+    const c = await prisma.conversation.create({
+      data: { propertyId, channel: "airbnb", guestIdentifier: "G", status: "problem", externalReservationId: "res-h" },
+    });
+    const r = await enqueueOutbound(
+      baseArgs(orgId, c.id, { externalReservationId: "res-h", authorType: "host", idempotencyKey: "h1" }),
+    );
+    const { send, calls } = countingSend();
+    await drainOutboxOnce({ send, tokenFor: async () => "t" });
+    expect(calls()).toBe(1); // host send goes regardless of thread state
+    expect((await outbox(r.outboxId)).status).toBe("sent");
+  });
+
+  it("P2: no false veto — a still-current AI reply sends normally", async () => {
+    const { r } = await enqueueAiReply();
+    const { send, calls } = countingSend();
+    await drainOutboxOnce({ send, tokenFor: async () => "t" });
+    expect(calls()).toBe(1);
+    expect((await outbox(r.outboxId)).status).toBe("sent");
+  });
+});
