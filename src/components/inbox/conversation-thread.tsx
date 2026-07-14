@@ -15,6 +15,7 @@ import {
   Languages,
   ChevronDown,
   X,
+  PauseCircle,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Select } from "@/components/ui/select";
@@ -53,6 +54,9 @@ const OUTBOX_STATUS_UI: Record<string, { label: string; className: string }> = {
   ambiguous: { label: "Doğrulanamadı — kontrol edin", className: "bg-orange-100 text-orange-800" },
   review: { label: "Doğrulanamadı — inceleyin", className: "bg-orange-100 text-orange-800" },
   failed: { label: "Gönderilemedi", className: "bg-red-100 text-red-800" },
+  // Hospitable subscription not active (402): parked, NOT lost — sends automatically once the
+  // connection is restored (re-sync / reconnect). Distinct amber "paused" tone, not a red failure.
+  blocked: { label: "Abonelik pasif — bağlantı gelince gönderilecek", className: "bg-amber-100 text-amber-800" },
   canceled: { label: "İptal edildi — yerini yeni durum aldı", className: "bg-muted text-muted-foreground" },
 };
 
@@ -359,6 +363,8 @@ export function ConversationThread({ conversationId, messages, status, priority,
                   <CheckCheck className="size-3" />
                 ) : m.outboxStatus === "canceled" ? (
                   <X className="size-3" />
+                ) : m.outboxStatus === "blocked" ? (
+                  <PauseCircle className="size-3" />
                 ) : m.outboxStatus === "ambiguous" || m.outboxStatus === "review" || m.outboxStatus === "failed" ? (
                   <AlertTriangle className="size-3" />
                 ) : (

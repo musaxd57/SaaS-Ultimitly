@@ -9,7 +9,7 @@ import { premiumAllowed } from "@/lib/billing/subscription";
 import { sendDueTrialReminders } from "@/lib/billing/trial-reminders";
 import { anonymizeOldGuestData, purgeOldLeads } from "@/lib/data-retention";
 import { durableOutboxEnabled } from "@/lib/outbox/flag";
-import { drainOutboxOnce, hasDrainableOutbox } from "@/lib/outbox/worker";
+import { drainOutboxOnce, hasDrainableOutbox, reactivateBlockedOutbox } from "@/lib/outbox/worker";
 import {
   runDueChannelAutoReplies,
   sendDueWelcomes,
@@ -217,6 +217,14 @@ export async function runScheduledSync(): Promise<ScheduledSyncTotals> {
       for (const org of orgs) {
         try {
           const result = await syncHospitable(org.id, window);
+          // A SUCCESSFUL sync PROVES this org's Hospitable subscription is active again (a 402
+          // "subscription not active" throws a HospitableError above, skipping this line). So
+          // atomically requeue any outbox rows parked as `blocked` (subscription-not-active) →
+          // `pending`, to be retried exactly ONCE by the drain at the end of this run. Tenant-
+          // scoped + idempotent; a no-op when nothing is blocked. Best-effort — never aborts.
+          await reactivateBlockedOutbox(org.id).catch((err) =>
+            reportError(`scheduled-sync reactivate-blocked ${org.id}`, err),
+          );
           // Keep the host's style profile fresh (self-throttles to once a day).
           await refreshStyleProfile(org.id);
           // Flag complaints (→ "problem") BEFORE the auto-reply pass so they are

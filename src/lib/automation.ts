@@ -1500,10 +1500,12 @@ function buildGuestMessageBody(
  * Fence the flag-OFF lifecycle sender against the durable outbox (post-rollback coherence,
  * final-review). If a row for this (org, reservation, messageType) already exists in the outbox
  * in ANY state EXCEPT terminal `failed`, the outbox owns/owned this send: the direct path must
- * NOT POST a second time — a `pending` row is drained by the worker even with the flag off, and a
- * `review`/`ambiguous`/`sent`/`canceled` row must never be blind-resent. Only a `failed` row
- * (definitively not delivered) lets the direct path retry. No-op when the outbox was never used
- * (pure flag-OFF) → the query finds nothing, so the classic claim-then-send below runs unchanged.
+ * NOT POST a second time — a `pending` row is drained by the worker even with the flag off, a
+ * `blocked` row (Hospitable subscription not active) is reactivated + drained once the sync
+ * succeeds again, and a `review`/`ambiguous`/`sent`/`canceled` row must never be blind-resent.
+ * Only a `failed` row (definitively not delivered) lets the direct path retry. No-op when the
+ * outbox was never used (pure flag-OFF) → the query finds nothing, so the classic claim-then-send
+ * below runs unchanged.
  */
 async function lifecycleOutboxOwns(
   organizationId: string,

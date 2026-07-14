@@ -36,6 +36,9 @@ export const OUTBOX_STATUSES = [
   "reconciling", // a worker has claimed an ambiguous row to check the provider's history
   "review", // terminal-until-human: ambiguous and not reconcilable → needs manual review
   "canceled", // terminal: a send-time veto superseded this AI reply BEFORE any POST (never delivered)
+  "blocked", // terminal-until-reactivated: Hospitable 402 "subscription not active" — a PERSISTENT
+  //            integration-paused state (not a transient outage). NOT auto-claimed / not fast-retried;
+  //            reactivated to `pending` ONCE when the org's sync succeeds again.
 ] as const;
 
 export type OutboxStatus = (typeof OUTBOX_STATUSES)[number];
@@ -44,7 +47,7 @@ export type OutboxStatus = (typeof OUTBOX_STATUSES)[number];
 export const CLAIMABLE_STATUSES: readonly OutboxStatus[] = ["pending", "ambiguous"];
 
 /** Terminal statuses — the worker never touches these again automatically. */
-export const TERMINAL_STATUSES: readonly OutboxStatus[] = ["sent", "failed", "review", "canceled"];
+export const TERMINAL_STATUSES: readonly OutboxStatus[] = ["sent", "failed", "review", "canceled", "blocked"];
 
 // The allowed transitions. Anything not listed here is a bug and throws.
 //   pending      → sending      (worker claims a due row)
@@ -58,18 +61,18 @@ export const TERMINAL_STATUSES: readonly OutboxStatus[] = ["sent", "failed", "re
 //   reconciling  → ambiguous    (still unknown → back off and try reconcile later)
 //   reconciling  → review       (giving up on auto-reconcile → human decides)
 //   review       → pending      (a human explicitly requeues it)
-//   failed       → pending      (a proactive lifecycle send is REQUEUED after a Hospitable
-//                                outage — the flag-OFF sender retries such a booking forever,
-//                                so the outbox must too, else the flag ON→OFF gap loses it)
+//   sending      → blocked      (Hospitable 402 "subscription not active" — parked, not failed)
+//   blocked      → pending      (org's Hospitable sync succeeded again → reactivate ONCE)
 const ALLOWED: Record<OutboxStatus, readonly OutboxStatus[]> = {
   pending: ["sending"],
-  sending: ["sent", "pending", "failed", "ambiguous", "canceled"],
+  sending: ["sent", "pending", "failed", "ambiguous", "canceled", "blocked"],
   sent: [],
-  failed: ["pending"],
+  failed: [],
   ambiguous: ["reconciling"],
   reconciling: ["sent", "ambiguous", "review"],
   review: ["pending"],
   canceled: [],
+  blocked: ["pending"],
 };
 
 export function isOutboxStatus(v: unknown): v is OutboxStatus {
@@ -101,7 +104,8 @@ export type SendResultKind =
   | "definitive_success"
   | "definitive_failure"
   | "ambiguous"
-  | "rate_limited";
+  | "rate_limited"
+  | "blocked";
 
 /**
  * Classify a provider send outcome. Mirrors the manual-reply route's existing
@@ -123,6 +127,7 @@ export function classifySendResult(outcome: {
   if (m) {
     const status = Number(m[1]);
     if (status === 429) return "rate_limited"; // too many requests → defer, do not consume an attempt
+    if (status === 402) return "blocked"; //      subscription not active → park (persistent), reactivate on sync
     if (status >= 400 && status < 500 && status !== 408) return "definitive_failure";
     return "ambiguous"; // 5xx / 408 → may have applied
   }

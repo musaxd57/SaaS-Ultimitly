@@ -186,8 +186,9 @@ export const GET = withManage(async (session) => {
     }),
     // Durable-outbox delivery audit: the per-message send outcome, so a draft that was
     // never delivered (status "canceled" = a send-time veto superseded it; "review"/"failed"
-    // = stuck) is DISTINGUISHABLE from a delivered reply. No body here — it lives on the
-    // linked Message (join by messageId); this is the delivery ledger only.
+    // = stuck; "blocked" = Hospitable subscription not active) is DISTINGUISHABLE from a
+    // delivered reply. No body here — it lives on the linked Message (join by messageId);
+    // this is the delivery ledger only.
     prisma.messageOutbox.findMany({
       where: { organizationId: orgId },
       select: {

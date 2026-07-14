@@ -97,6 +97,7 @@ export interface DrainResult {
   retried: number;
   canceled: number;
   rateLimited: number;
+  blocked: number;
 }
 
 // Default single-attempt send (retries: 0 → exactly one POST). An internal thread
@@ -426,19 +427,49 @@ async function applyDeliveryEffect(row: OutboxRow, now: Date): Promise<void> {
 }
 
 /**
- * A proactive lifecycle send (welcome/checkin/checkout) that reaches a terminal `review` or
- * `failed` has NO conversation/thread, so it shows up in no host panel. Emit a SECRET-FREE
- * operational signal so the host isn't blind to a stuck send: tenant + outbox id + messageType +
- * state ONLY — never the body or any guest data. Best-effort; never throws. No-op for non-lifecycle
- * rows (manual/AI failures already surface a thread badge).
+ * Emit a SECRET-FREE operational breadcrumb for a stuck outbox row: tenant + outbox id +
+ * messageType + state ONLY — never the body or any guest data. Best-effort; never throws. Fires
+ * at most once per row transition (each state below is entered under a claim guard, and `blocked`
+ * rows are never re-claimed) → never a per-pass storm.
+ *   • review / failed: ONLY for lifecycle rows (welcome/checkin/checkout), which have no thread and
+ *     so surface in no host panel; a manual/AI review/failed already shows a per-thread badge.
+ *   • blocked: for ANY row type — a Hospitable 402 "subscription not active" is an ORG-WIDE
+ *     integration-paused condition worth a one-time ops breadcrumb (the reactivation is silent).
  */
-async function signalLifecycleStuck(row: OutboxRow, state: "review" | "failed"): Promise<void> {
+async function signalOutboxStuck(row: OutboxRow, state: "review" | "failed" | "blocked"): Promise<void> {
   const t = row.messageType;
-  if (t !== "welcome" && t !== "checkin" && t !== "checkout") return;
+  const isLifecycle = t === "welcome" || t === "checkin" || t === "checkout";
+  if (state !== "blocked" && !isLifecycle) return;
+  const key = state === "blocked" ? "outbox-blocked" : `outbox-lifecycle-${state}`;
   await reportError(
-    `outbox-lifecycle-${state}`,
-    new Error(`stuck lifecycle send: org=${row.organizationId} outbox=${row.id} type=${t} state=${state}`),
+    key,
+    new Error(`stuck outbox send: org=${row.organizationId} outbox=${row.id} type=${t ?? "reply"} state=${state}`),
   ).catch(() => {});
+}
+
+/**
+ * Reactivate an org's `blocked` (Hospitable 402 "subscription not active") outbox rows: move them
+ * atomically back to `pending` so the next drain tries each ONCE. Called after a SUCCESSFUL
+ * Hospitable sync (scheduled-sync.ts) — a sync only succeeds when the subscription is active again —
+ * and usable as a tenant-bound manual retry. Resets attemptCount/backoff/claim so the retry is
+ * clean. `updateMany` is atomic + idempotent: if nothing is blocked (or a row already moved on),
+ * it is a no-op. Tenant-scoped by `organizationId` so one org can never reactivate another's rows.
+ * Returns the number reactivated.
+ */
+export async function reactivateBlockedOutbox(organizationId: string, now: Date = new Date()): Promise<number> {
+  const res = await prisma.messageOutbox.updateMany({
+    where: { organizationId, status: "blocked" },
+    data: {
+      status: "pending",
+      attemptCount: 0,
+      availableAt: now,
+      claimedBy: null,
+      claimExpiresAt: null,
+      lastErrorKind: null,
+      lastErrorCode: null,
+    },
+  });
+  return res.count;
 }
 
 /**
@@ -485,7 +516,7 @@ async function processOne(row: OutboxRow, token: string, deps: Required<Pick<Dra
       const done = await settle(row, token, "reconciling", { status: "review", claimedBy: null, claimExpiresAt: null });
       // AMBIGUOUS → parked for review; *SentAt is NOT stamped (unverified — never a false "sent").
       // The flag-OFF sender won't re-send it because it fences on this outbox row (see automation.ts).
-      if (done) await signalLifecycleStuck(row, "review");
+      if (done) await signalOutboxStuck(row, "review");
       acc.review++;
       return;
     }
@@ -526,6 +557,25 @@ async function processOne(row: OutboxRow, token: string, deps: Required<Pick<Dra
     acc.rateLimited++;
     return;
   }
+  if (kind === "blocked") {
+    // HTTP 402 "subscription not active" — a PERSISTENT integration-paused state, NOT a transient
+    // outage (Nuve's live account is in exactly this state). Park in terminal-until-reactivated
+    // `blocked`: it is never re-claimed (so NO provider call and NO signal on later passes) and it
+    // does NOT consume a terminal attempt (undo the claim's increment), so reconnecting the
+    // subscription can retry it cleanly ONCE via reactivateBlockedOutbox. Nothing was delivered.
+    // A secret-free ops breadcrumb fires exactly once — here, on this first (and only) transition.
+    const done = await settle(row, token, "sending", {
+      status: "blocked",
+      attemptCount: { decrement: 1 },
+      lastErrorKind: "blocked",
+      lastErrorCode: "HTTP 402",
+      claimedBy: null,
+      claimExpiresAt: null,
+    });
+    if (done) await signalOutboxStuck(row, "blocked");
+    acc.blocked++;
+    return;
+  }
   if (kind === "definitive_success") {
     const done = await settle(row, token, "sending", { status: "sent", providerMessageId: outcome.providerMessageId ?? null, sentAt: now, lastErrorKind: null, lastErrorCode: null, claimedBy: null, claimExpiresAt: null }, outcome.providerMessageId);
     if (done) await applyDeliveryEffect(row, now); // stamp lifecycle / mark answered ONLY on confirmed delivery (#6)
@@ -535,7 +585,7 @@ async function processOne(row: OutboxRow, token: string, deps: Required<Pick<Dra
   if (kind === "definitive_failure") {
     if (attemptsExhausted(row.attemptCount)) {
       const done = await settle(row, token, "sending", { status: "failed", lastErrorKind: "definitive_failure", lastErrorCode: errorCode(outcome.error), claimedBy: null, claimExpiresAt: null });
-      if (done) await signalLifecycleStuck(row, "failed");
+      if (done) await signalOutboxStuck(row, "failed");
       acc.failed++;
     } else {
       await settle(row, token, "sending", { status: "pending", availableAt: new Date(now.getTime() + backoffMs(row.attemptCount, row.id)), lastErrorKind: "definitive_failure", lastErrorCode: errorCode(outcome.error), claimedBy: null, claimExpiresAt: null });
@@ -561,7 +611,7 @@ export async function drainOutboxOnce(deps: DrainDeps = {}): Promise<DrainResult
     reconcile: deps.reconcile ?? defaultReconcile,
     tokenFor: deps.tokenFor ?? ((orgId: string) => getOrgHospitableToken(orgId).then((t) => t ?? undefined)),
   };
-  const acc: DrainResult = { claimed: 0, sent: 0, failed: 0, ambiguous: 0, reconciled: 0, review: 0, retried: 0, canceled: 0, rateLimited: 0 };
+  const acc: DrainResult = { claimed: 0, sent: 0, failed: 0, ambiguous: 0, reconciled: 0, review: 0, retried: 0, canceled: 0, rateLimited: 0, blocked: 0 };
   const token = randomUUID();
   const nowDate = now();
   const expiry = new Date(nowDate.getTime() + CLAIM_TTL_MS);

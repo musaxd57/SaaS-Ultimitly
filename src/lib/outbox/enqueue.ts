@@ -138,16 +138,6 @@ export async function enqueueOutbound(args: EnqueueOutboundArgs): Promise<Enqueu
   }
 }
 
-/**
- * Whether a terminal `failed` outbox row is safe to RESURRECT (re-queue) — true ONLY for a
- * transient/recoverable provider state: a Hospitable 402 "subscription not active" outage. A
- * validation/auth/not-found 4xx (400/401/403/404/409/422 …) is permanent for this exact request,
- * so it must never loop. `errorCode()` (worker) writes the code as "HTTP <n>".
- */
-export function isRetryableFailure(lastErrorCode: string | null): boolean {
-  return lastErrorCode === "HTTP 402";
-}
-
 export interface EnqueueProactiveArgs {
   organizationId: string;
   /** Hospitable reservation UUID = the delivery destination. */
@@ -195,36 +185,14 @@ export async function enqueueProactive(args: EnqueueProactiveArgs): Promise<Enqu
     if (isUniqueViolation(err, ["organizationId", "idempotencyKey"])) {
       const existing = await prisma.messageOutbox.findFirst({
         where: { organizationId: args.organizationId, idempotencyKey: args.idempotencyKey },
-        select: { id: true, status: true, lastErrorCode: true },
+        select: { id: true },
       });
-      if (existing) {
-        // RESURRECT a proactive send that failed for a RETRYABLE-and-not-delivered reason — a
-        // Hospitable OUTAGE / 402 "subscription not active" (Nuve's current state). The flag-OFF
-        // sender retries such a booking every run until it succeeds, so the outbox must too, or
-        // turning the flag ON would silently LOSE every lifecycle message queued during the outage
-        // even after recovery (Review-1). STRICTLY guarded: only status `failed` AND a retryable
-        // error code — a terminal validation/auth 4xx (400/401/403/404/422 …) must NOT enter a
-        // resurrection loop (the request will always fail); and a `review`/ambiguous row MAY have
-        // reached the guest, so it stays parked (never blind-resent). Idempotent under the status
-        // guard — a concurrent claim/settle can't be clobbered.
-        if (existing.status === "failed" && isRetryableFailure(existing.lastErrorCode)) {
-          await prisma.messageOutbox
-            .updateMany({
-              where: { id: existing.id, status: "failed" },
-              data: {
-                status: "pending",
-                attemptCount: 0,
-                availableAt: new Date(),
-                claimedBy: null,
-                claimExpiresAt: null,
-                lastErrorKind: null,
-                lastErrorCode: null,
-              },
-            })
-            .catch(() => {});
-        }
-        return { outboxId: existing.id, deduped: true };
-      }
+      // A replay / restart is a clean dedupe-hit: the durable row already exists and owns the
+      // send. A Hospitable 402 "subscription not active" send does NOT loop here — it parks in
+      // `blocked` and is reactivated to `pending` exactly once by `reactivateBlockedOutbox` when
+      // the org's sync succeeds again (worker.ts). Re-enqueue never resurrects it (that would
+      // hammer the provider + pager while the subscription stays inactive).
+      if (existing) return { outboxId: existing.id, deduped: true };
     }
     throw err;
   }

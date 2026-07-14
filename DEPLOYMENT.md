@@ -155,17 +155,25 @@ balon ne "already answered" baskısı). Manuel host yanıtı ASLA vetolanmaz (ho
 
 **Lifecycle (welcome/checkin/checkout) kesinti + rollback davranışı (final-review düzeltmeleri):**
 `*SentAt` YALNIZ DOĞRULANMIŞ teslimde damgalanır (provider success / güvenilir reconciliation) —
-`review`/ambiguous'ta ASLA (doğrulanmamış veriyle sahte "sent" yok). Kesintide (Hospitable 402)
-satır terminal `failed`'e gider; sonraki sender turu `enqueueProactive` dedupe-hit'inde bu satırı
-YALNIZ **retryable-failed (HTTP 402)** ise pending'e **diriltir** → kesinti bitince tekrar denenir;
-terminal validation/auth 4xx (400/401/403/404/422) DİRİLMEZ (istek hep başarısız → döngü yok).
-Belirsiz satır `review`'da park kalır. Flag ON→OFF **rollback duplicate'i** sahte `*SentAt` ile
+`review`/ambiguous'ta ASLA (doğrulanmamış veriyle sahte "sent" yok). **Hospitable 402 = "abonelik
+aktif değil"** GEÇİCİ kesinti DEĞİL, KALICI entegrasyon-duraklaması (Nuve'nin canlı hesabı şu an
+tam da bu durumda) → satır ayrı, terminal-olmayan **`blocked`** durumuna gider: bir daha CLAIM
+edilmez (her scheduler pass'te provider çağrısı/pager YOK), attempt limitini TÜKETMEZ (claim'in
++1'i geri alınır) ve YALNIZ ilk geçişte tek `outbox-blocked` secretsız ops sinyali üretir. Org'un
+Hospitable sync'i tekrar **başarılı** olduğunda (= abonelik yine aktif; 402 sync'i throw eder)
+`reactivateBlockedOutbox(orgId)` blocked satırları atomik + tenant-scoped biçimde `pending`'e alır →
+worker bir KEZ dener. `enqueueProactive` re-enqueue'da ARTIK diriltme YAPMAZ (402 yolu bu blocked/
+reactivate mekanizmasıdır; failed→pending geçişi kaldırıldı). Terminal validation/auth 4xx
+(400/401/403/404/422) `failed`'e gider ve ASLA dirilmez (istek hep başarısız → döngü yok). Belirsiz
+(5xx/timeout) satır `review`'da park kalır. Flag ON→OFF **rollback duplicate'i** sahte `*SentAt` ile
 DEĞİL, flag-OFF sender'ın outbox kaydına **fence** etmesiyle önlenir: (org, reservation, tip) için
-`failed` HARİÇ bir kayıt varsa (pending/sending/ambiguous/reconciling/review/sent/canceled) direct
-sender ikinci POST atmaz (pending'i worker zaten flag-OFF drain eder). ⏳ **Gözlemlenebilirlik:**
-proaktif `review`/`failed` satırının thread'i yok → host paneline düşmez; artık terminal geçişte
-**secretsız reportError** sinyali üretilir (tenant + outbox id + tip; body/guest YOK) + `messageDelivery`
-export'unda görünür. Özel "takılı lifecycle gönderimi" ops-paneli hâlâ backlog.
+`failed` HARİÇ bir kayıt varsa (pending/sending/ambiguous/reconciling/review/sent/canceled/**blocked**)
+direct sender ikinci POST atmaz (pending/reactivate'i worker zaten flag-OFF drain eder). ⏳
+**Gözlemlenebilirlik:** proaktif `review`/`failed`/`blocked` satırının thread'i yok → host paneline
+düşmez; terminal/park geçişte **secretsız reportError** sinyali üretilir (tenant + outbox id + tip;
+body/guest YOK) + `messageDelivery` export'unda görünür. Manuel/AI blocked satırı ayrıca thread
+rozetinde "Abonelik pasif — bağlantı gelince gönderilecek" olarak görünür. Özel "takılı lifecycle
+gönderimi" ops-paneli hâlâ backlog.
 
 **Açma adımları (hazır olunca — para/gönderim hot-path'i, İLK gönderimleri BİRLİKTE doğrula):**
 1. Deploy zaten migration `29_message_outbox`'ı uygular (additive, boş tablo).
@@ -173,8 +181,9 @@ export'unda görünür. Özel "takılı lifecycle gönderimi" ops-paneli hâlâ 
 3. `DURABLE_OUTBOX_ENABLED=1` ekle → manuel yanıt VE AI oto-yanıt outbox'a gider.
 4. Bir yanıt gönder; DB'de `MessageOutbox` satırının `pending → sent` olduğunu
    ve `Message.externalId`'nin worker sonrası dolduğunu doğrula. `review`/`failed`
-   satırları takılı gönderimleri gösterir (elle incele). Inbox thread'inde mesajın
-   "Sırada → İletildi" rozetini takip et.
+   satırları takılı gönderimleri gösterir (elle incele); `blocked` = Hospitable aboneliği
+   pasif (Nuve'nin şu anki durumu) — sync yeniden başarılı olunca otomatik `pending`'e
+   alınıp bir kez denenir. Inbox thread'inde mesajın "Sırada → İletildi" rozetini takip et.
 5. Kapatmak (acil rollback) için env'i sil → YENİ gönderimler eski yola döner AMA
    worker bekleyen `pending/sending/ambiguous` satırları **flag KAPALIYKEN DE** boşaltmaya
    devam eder (`hasDrainableOutbox`, Codex #1) → kuyruğa alınmış mesaj asla mahsur kalmaz.

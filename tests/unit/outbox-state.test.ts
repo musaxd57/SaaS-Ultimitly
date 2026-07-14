@@ -14,9 +14,10 @@ import {
 describe("outbox state machine — closed set + validated transitions", () => {
   it("has a fixed, closed status set", () => {
     expect([...OUTBOX_STATUSES].sort()).toEqual(
-      ["ambiguous", "canceled", "failed", "pending", "reconciling", "review", "sending", "sent"].sort(),
+      ["ambiguous", "blocked", "canceled", "failed", "pending", "reconciling", "review", "sending", "sent"].sort(),
     );
     expect(isOutboxStatus("sent")).toBe(true);
+    expect(isOutboxStatus("blocked")).toBe(true);
     expect(isOutboxStatus("totally_made_up")).toBe(false);
   });
 
@@ -29,22 +30,28 @@ describe("outbox state machine — closed set + validated transitions", () => {
     expect(canTransition("sending", "failed")).toBe(true);
     expect(canTransition("sending", "ambiguous")).toBe(true);
     expect(canTransition("sending", "canceled")).toBe(true); // send-time veto (P2)
+    // Hospitable 402 "subscription not active" → park in `blocked` (persistent, not a transient
+    // outage); reactivated to `pending` exactly ONCE when the org's sync succeeds again.
+    expect(canTransition("sending", "blocked")).toBe(true);
+    expect(canTransition("blocked", "pending")).toBe(true);
     // Reconcile path.
     expect(canTransition("ambiguous", "reconciling")).toBe(true);
     expect(canTransition("reconciling", "sent")).toBe(true);
     expect(canTransition("reconciling", "review")).toBe(true);
     // Human requeue.
     expect(canTransition("review", "pending")).toBe(true);
-    // Proactive lifecycle REQUEUE after a Hospitable outage (Review-1 fix).
-    expect(canTransition("failed", "pending")).toBe(true);
   });
 
   it("rejects illegal transitions (assertTransition throws)", () => {
     expect(() => assertTransition("sent", "pending")).toThrow(/illegal transition/);
     expect(() => assertTransition("pending", "sent")).toThrow(); // must go via "sending"
     expect(() => assertTransition("failed", "sent")).toThrow();
+    // `failed` is terminal — a 402 is NEVER resurrected via failed→pending (that is the `blocked`
+    // path); only a human `review` requeue or a `blocked` reactivation re-enters `pending`.
+    expect(() => assertTransition("failed", "pending")).toThrow();
     expect(() => assertTransition("sending", "reconciling")).toThrow();
     expect(() => assertTransition("ambiguous", "sent")).toThrow(); // must go via "reconciling"
+    expect(() => assertTransition("blocked", "sent")).toThrow(); // must go via pending → sending
   });
 
   it("marks the terminal statuses", () => {
@@ -52,6 +59,7 @@ describe("outbox state machine — closed set + validated transitions", () => {
     expect(isTerminal("failed")).toBe(true);
     expect(isTerminal("review")).toBe(true);
     expect(isTerminal("canceled")).toBe(true);
+    expect(isTerminal("blocked")).toBe(true); // terminal-until-reactivated (never auto-claimed)
     expect(isTerminal("pending")).toBe(false);
     expect(isTerminal("ambiguous")).toBe(false);
   });
@@ -67,6 +75,11 @@ describe("classifySendResult — definitive success / failure vs ambiguous", () 
   });
   it("a 429 → rate_limited (defer to Retry-After, do NOT consume a terminal attempt)", () => {
     expect(classifySendResult({ ok: false, error: "Hospitable API hatası (HTTP 429)" })).toBe("rate_limited");
+  });
+  it("a 402 → blocked (subscription not active — persistent, park; NOT a definitive_failure)", () => {
+    expect(classifySendResult({ ok: false, error: "Hospitable API hatası (HTTP 402)" })).toBe("blocked");
+    // Must NOT be misread as a plain 4xx definitive failure (that would consume attempts + loop).
+    expect(classifySendResult({ ok: false, error: "HTTP 402 Subscription not active" })).not.toBe("definitive_failure");
   });
   it("408 / 5xx → ambiguous (may have delivered)", () => {
     expect(classifySendResult({ ok: false, error: "HTTP 408 request timeout" })).toBe("ambiguous");

@@ -1,7 +1,7 @@
 import { describe, it, expect, beforeEach, afterEach, vi } from "vitest";
 import { prisma, resetDb, makeOrgWithProperty } from "../helpers/db";
 import { enqueueProactive } from "@/lib/outbox/enqueue";
-import { drainOutboxOnce, type OutboxSendFn } from "@/lib/outbox/worker";
+import { drainOutboxOnce, reactivateBlockedOutbox, type OutboxSendFn } from "@/lib/outbox/worker";
 import { OUTBOX_MAX_ATTEMPTS } from "@/lib/outbox/state";
 
 // FAZ 1 — welcome / check-in / check-out (proactive) + holding-ack wired to the durable outbox.
@@ -9,11 +9,15 @@ import { OUTBOX_MAX_ATTEMPTS } from "@/lib/outbox/state";
 // flag ON so the enqueue → worker-delivers → *SentAt-stamp-on-delivery contract is covered E2E.
 vi.mock("@/lib/messaging", () => ({ sendOnChannel: vi.fn() }));
 vi.mock("@/lib/hospitable-credentials", () => ({ getOrgHospitableToken: vi.fn().mockResolvedValue("test-token") }));
+// Spy the ops pager so the `blocked` test can assert it fires EXACTLY ONCE (no per-pass storm).
+vi.mock("@/lib/report-error", () => ({ reportError: vi.fn().mockResolvedValue(undefined) }));
 
 import { sendOnChannel } from "@/lib/messaging";
+import { reportError } from "@/lib/report-error";
 import { sendDueWelcomes } from "@/lib/automation";
 
 const mockSend = vi.mocked(sendOnChannel);
+const reportErrorMock = vi.mocked(reportError);
 const okDeliver = () => {
   let calls = 0;
   const send: OutboxSendFn = async () => ({ ok: true, providerMessageId: `p${++calls}` });
@@ -139,35 +143,80 @@ describe("outbox lifecycle (FAZ 1) — flag ON", () => {
   });
 
   // ── Final-review fixes (A/A2/B/C) ──────────────────────────────────────────
-  it("A: a RETRYABLE-failed (Hospitable 402 outage) proactive send is RESURRECTED on re-enqueue", async () => {
+  it("A (7-step): 402 subscription-not-active → BLOCKED (parked, no re-claim, ONE pager); reactivate → pending → sent in ONE call", async () => {
     const { orgId, source } = await seedWelcome();
-    await sendDueWelcomes(orgId);
-    const row0 = await prisma.messageOutbox.findFirstOrThrow({ where: { organizationId: orgId } });
-    // A 402 outage marched the row to terminal `failed` (retryable classification).
-    await prisma.messageOutbox.update({
-      where: { id: row0.id },
-      data: { status: "failed", attemptCount: OUTBOX_MAX_ATTEMPTS, lastErrorCode: "HTTP 402" },
-    });
-    await sendDueWelcomes(orgId); // recovery re-run → dedupe-hit RESURRECTS the retryable-failed row
-    const row1 = await prisma.messageOutbox.findFirstOrThrow({ where: { organizationId: orgId } });
-    expect(row1.status).toBe("pending");
-    expect(row1.attemptCount).toBe(0);
+    await sendDueWelcomes(orgId); // enqueue (flag ON)
+
+    // (1) the provider returns 402 "subscription not active".
+    let calls402 = 0;
+    const send402: OutboxSendFn = async () => {
+      calls402++;
+      return { ok: false, error: "Hospitable API hatası (HTTP 402)" };
+    };
+    const r0 = await drainOutboxOnce({ send: send402, tokenFor: async () => "t" });
+
+    // (2) the record becomes `blocked` (NOT failed): the attempt limit is NOT consumed (the claim's
+    //     +1 is undone → attemptCount back to 0) and exactly one provider call was made.
+    const rowBlocked = await prisma.messageOutbox.findFirstOrThrow({ where: { organizationId: orgId } });
+    expect(rowBlocked.status).toBe("blocked");
+    expect(rowBlocked.attemptCount).toBe(0);
+    expect(rowBlocked.lastErrorCode).toBe("HTTP 402");
+    expect(calls402).toBe(1);
+    expect(r0.blocked).toBe(1);
+
+    // (3) drain 5 MORE times — a blocked row is never re-claimed.
+    for (let i = 0; i < 5; i++) await drainOutboxOnce({ send: send402, tokenFor: async () => "t" });
+    // (4) total provider calls STILL 1, and the ops pager fired EXACTLY once (no per-pass storm).
+    expect(calls402).toBe(1);
+    const blockedPages = reportErrorMock.mock.calls.filter(([key]) => key === "outbox-blocked");
+    expect(blockedPages.length).toBe(1);
+    // While blocked, *SentAt is never stamped (nothing was delivered).
+    expect((await prisma.reservation.findFirstOrThrow({ where: { sourceReference: source } })).welcomeSentAt).toBeNull();
+
+    // (5) the integration is active again → atomically reactivate the org's blocked rows.
+    const reactivated = await reactivateBlockedOutbox(orgId);
+    expect(reactivated).toBe(1);
+    // (6) the record is back to `pending` with a fresh attempt budget.
+    const rowPending = await prisma.messageOutbox.findFirstOrThrow({ where: { organizationId: orgId } });
+    expect(rowPending.status).toBe("pending");
+    expect(rowPending.attemptCount).toBe(0);
+
+    // (7) a SINGLE provider call now delivers it → sent + *SentAt stamped.
     const { send, calls } = okDeliver();
     await drainOutboxOnce({ send, tokenFor: async () => "t" });
     expect(calls()).toBe(1);
+    expect((await prisma.messageOutbox.findFirstOrThrow({ where: { organizationId: orgId } })).status).toBe("sent");
     expect((await prisma.reservation.findFirstOrThrow({ where: { sourceReference: source } })).welcomeSentAt).toBeInstanceOf(Date);
   });
 
-  it("A2: a TERMINAL validation/auth 4xx failure (non-402) is NOT resurrected — no infinite loop", async () => {
+  it("A2: reactivateBlockedOutbox is TENANT-BOUND — org A's reactivation never touches org B's blocked row", async () => {
+    const a = await seedWelcome({ source: "src-a" });
+    const b = await seedWelcome({ source: "src-b" });
+    await sendDueWelcomes(a.orgId);
+    await sendDueWelcomes(b.orgId);
+    // Both orgs' rows hit 402 → blocked.
+    const send402: OutboxSendFn = async () => ({ ok: false, error: "HTTP 402" });
+    await drainOutboxOnce({ send: send402, tokenFor: async () => "t", batchSize: 10 });
+    expect((await prisma.messageOutbox.findFirstOrThrow({ where: { organizationId: a.orgId } })).status).toBe("blocked");
+    expect((await prisma.messageOutbox.findFirstOrThrow({ where: { organizationId: b.orgId } })).status).toBe("blocked");
+    // Only org A reconnects → only A's row is reactivated; B stays blocked.
+    const n = await reactivateBlockedOutbox(a.orgId);
+    expect(n).toBe(1);
+    expect((await prisma.messageOutbox.findFirstOrThrow({ where: { organizationId: a.orgId } })).status).toBe("pending");
+    expect((await prisma.messageOutbox.findFirstOrThrow({ where: { organizationId: b.orgId } })).status).toBe("blocked");
+  });
+
+  it("A3: a TERMINAL validation 4xx (HTTP 400) marches to `failed` and is NEVER resurrected by re-enqueue", async () => {
     const { orgId } = await seedWelcome();
     await sendDueWelcomes(orgId);
     const row0 = await prisma.messageOutbox.findFirstOrThrow({ where: { organizationId: orgId } });
+    // A genuine terminal failure (bad request) — distinct from 402: it must stay put forever.
     await prisma.messageOutbox.update({
       where: { id: row0.id },
       data: { status: "failed", attemptCount: OUTBOX_MAX_ATTEMPTS, lastErrorCode: "HTTP 400" },
     });
-    await sendDueWelcomes(orgId); // re-run
-    expect((await prisma.messageOutbox.findFirstOrThrow({ where: { organizationId: orgId } })).status).toBe("failed"); // stays failed
+    await sendDueWelcomes(orgId); // re-run → dedupe-hit does NOT resurrect (no failed→pending path)
+    expect((await prisma.messageOutbox.findFirstOrThrow({ where: { organizationId: orgId } })).status).toBe("failed");
   });
 
   it("B (7-step): enqueue → ambiguous → review → FLAG OFF → old scheduler → ZERO sends, *SentAt NULL, review stays", async () => {
