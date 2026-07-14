@@ -132,6 +132,7 @@ model Organization {
 
   users            User[]
   riskEvents       RiskEvent[]
+  messageOutbox    MessageOutbox[]
   properties       Property[]
   automationRules  AutomationRule[]
   auditLogs        AuditLog[]
@@ -770,4 +771,54 @@ model RiskEvent {
 
   @@unique([organizationId, surface, triggerId, finalDecision])
   @@index([organizationId, occurredAt])
+}
+
+// Durable Outbox (#8): a persistent, claim-safe queue for messages we send OUT to
+// the guest's channel (Hospitable → Airbnb / Booking / ...). The send INTENT is
+// written durably in the SAME transaction as the local Message, so a crash / timeout
+// / replica-race can neither lose it nor double-send it. State machine + transitions
+// live in src/lib/outbox/state.ts (closed set). DORMANT until DURABLE_OUTBOX_ENABLED
+// is on — when off, nothing enqueues and no worker runs, so the live send path is
+// exactly today's claim-then-send.
+//
+// FK policy (mirrors RiskEvent): organizationId is the ONLY foreign key (onDelete
+// Cascade → KVKK / account erasure purges the tenant's outbox). conversationId /
+// messageId / reservationId are OPAQUE ids (no FK): the row carries its own send
+// TARGET snapshot (channel + externalReservationId + body), so a later conversation /
+// message delete can never orphan the worker into an unsendable state. Payload holds
+// ONLY what the send needs — never a token, auth header, PIN, pepper or credential.
+model MessageOutbox {
+  id             String  @id @default(cuid())
+  organizationId String
+  conversationId String
+  messageId      String? // the local Message this send corresponds to (linked at enqueue)
+  reservationId  String?
+  // Send target snapshot — the worker delivers WITHOUT re-reading the conversation.
+  channel               String  // manual | airbnb | booking | ...
+  externalReservationId String? // Hospitable reservation UUID (the delivery destination)
+  body                  String  // the exact text to deliver (minimum needed to send)
+  // Tenant-scoped idempotency: the SAME logical message never enqueues or sends twice.
+  idempotencyKey String
+  // State machine (closed set — see src/lib/outbox/state.ts).
+  status         String    @default("pending")
+  attemptCount   Int       @default(0)
+  availableAt    DateTime  @default(now()) // not eligible before this (backoff gate)
+  claimedAt      DateTime?
+  claimExpiresAt DateTime?
+  claimedBy      String? // worker fencing token (only the holder may complete/release)
+  providerMessageId String? // provider's id — written ONLY after a confirmed / reconciled send
+  lastErrorKind  String? // closed: definitive_failure | ambiguous (never a raw provider body)
+  lastErrorCode  String? // sanitized short code (e.g. "HTTP 500", "timeout") — no secrets
+  sentAt         DateTime?
+  reconciledAt   DateTime?
+  createdAt      DateTime  @default(now())
+  updatedAt      DateTime  @updatedAt
+
+  organization Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+
+  // One outbox row per logical message per tenant (double-enqueue / replay → dedupe-hit).
+  @@unique([organizationId, idempotencyKey])
+  // Worker due-query: claimable rows ordered by (status, availableAt).
+  @@index([status, availableAt])
+  @@index([organizationId, status])
 }

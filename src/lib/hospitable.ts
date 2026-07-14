@@ -279,6 +279,11 @@ export async function sendMessage(
   reservationId: string,
   body: string,
   token?: string,
+  // The durable outbox passes { retries: 0 } so a POST is attempted EXACTLY ONCE —
+  // the worker owns retry/reconcile, and a non-idempotent POST must never be silently
+  // re-sent inside the client (that is the in-fetch duplicate window). Omitted → the
+  // default retry behaviour (unchanged for every existing caller).
+  opts?: { retries?: number },
 ): Promise<SendResult> {
   if (!reservationId || !body) {
     return { ok: false, error: "reservationId ve body gerekli" };
@@ -288,6 +293,7 @@ export async function sendMessage(
       `/reservations/${encodeURIComponent(reservationId)}/messages`,
       { method: "POST", body: JSON.stringify({ body }) },
       token,
+      opts?.retries,
     );
     const id = res?.data?.id;
     return { ok: true, id: id != null ? String(id) : undefined };
