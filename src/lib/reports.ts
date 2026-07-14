@@ -676,6 +676,23 @@ export async function getAiOpsReport(orgId: string): Promise<AiOpsReport> {
   const since = new Date(Date.now() - 30 * 24 * 60 * 60 * 1000);
   const scope = propertyScope(orgId);
 
+  // Durable-outbox correction (FAZ 0): an AI reply routed through the outbox has its Message
+  // row written at ENQUEUE, but if it never reached the guest — still queued, CANCELED by the
+  // send-time veto, terminally failed, or parked for manual review — it must NOT count as an
+  // AI reply. A message with NO outbox row (the direct-send / legacy path) is untouched, so the
+  // authorType/senderName/aiAssisted fallback semantics are preserved exactly. Tenant- and
+  // window-scoped so the exclusion list stays small (empty whenever the flag is off).
+  const undelivered = await prisma.messageOutbox.findMany({
+    where: {
+      organizationId: orgId,
+      status: { not: "sent" },
+      messageId: { not: null },
+      createdAt: { gte: since },
+    },
+    select: { messageId: true },
+  });
+  const undeliveredIds = undelivered.map((r) => r.messageId).filter((id): id is string => Boolean(id));
+
   const [aiReplies, welcomes, checkins, checkouts, openProblems, problems] = await Promise.all([
     prisma.message.count({
       where: {
@@ -693,6 +710,8 @@ export async function getAiOpsReport(orgId: string): Promise<AiOpsReport> {
         ],
         createdAt: { gte: since },
         conversation: { ...scope, channel: { not: "chat" } },
+        // Drop undelivered outbox drafts (queued/canceled/failed/review) — never delivered.
+        ...(undeliveredIds.length ? { id: { notIn: undeliveredIds } } : {}),
       },
     }),
     prisma.reservation.count({ where: { ...scope, welcomeSentAt: { gte: since } } }),

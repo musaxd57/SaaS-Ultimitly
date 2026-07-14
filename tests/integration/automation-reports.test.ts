@@ -577,4 +577,52 @@ describe("getAiOpsReport — AI credit DECIDED by authorType (senderName is disp
     });
     expect((await getAiOpsReport(orgId)).aiReplies).toBe(2); // unchanged: exactly the two legacy AI sends
   });
+
+  // FAZ 0 — outbox delivery correction.
+  it("counts a DELIVERED (sent) outbox AI reply but NOT undelivered ones (canceled/failed/review/queued)", async () => {
+    const { orgId, propertyId } = await makeOrgWithProperty();
+    const c = await conv(propertyId);
+    const mkOutboxAi = async (status: string) => {
+      const m = await prisma.message.create({
+        data: { conversationId: c.id, direction: "outbound", authorType: "ai", senderName: "GuestOps AI", body: "x" },
+      });
+      await prisma.messageOutbox.create({
+        data: {
+          organizationId: orgId, conversationId: c.id, messageId: m.id, channel: "airbnb",
+          externalReservationId: "r", body: "x", idempotencyKey: `k-${status}`, status,
+        },
+      });
+    };
+    await mkOutboxAi("sent"); //      delivered           → COUNT
+    await mkOutboxAi("canceled"); //  superseded by veto  → NOT
+    await mkOutboxAi("failed"); //    terminal failure    → NOT
+    await mkOutboxAi("review"); //    parked for a human  → NOT
+    await mkOutboxAi("pending"); //   still queued        → NOT
+
+    expect((await getAiOpsReport(orgId)).aiReplies).toBe(1); // only the delivered one
+  });
+
+  it("the outbox exclusion is TENANT-scoped — another org's undelivered drafts never affect this org", async () => {
+    const a = await makeOrgWithProperty();
+    const b = await makeOrgWithProperty();
+    // Org A: one delivered AI reply via the LEGACY path (no outbox row) → still counts.
+    const ca = await conv(a.propertyId);
+    await prisma.message.create({
+      data: { conversationId: ca.id, direction: "outbound", authorType: "ai", senderName: "GuestOps AI", body: "x" },
+    });
+    // Org B: a CANCELED outbox draft — must not touch A's count, and must drop out of B's.
+    const cb = await conv(b.propertyId);
+    const mb = await prisma.message.create({
+      data: { conversationId: cb.id, direction: "outbound", authorType: "ai", senderName: "GuestOps AI", body: "x" },
+    });
+    await prisma.messageOutbox.create({
+      data: {
+        organizationId: b.orgId, conversationId: cb.id, messageId: mb.id, channel: "airbnb",
+        externalReservationId: "r", body: "x", idempotencyKey: "kb", status: "canceled",
+      },
+    });
+
+    expect((await getAiOpsReport(a.orgId)).aiReplies).toBe(1); // A unaffected by B's row
+    expect((await getAiOpsReport(b.orgId)).aiReplies).toBe(0); // B's only AI msg was canceled
+  });
 });
