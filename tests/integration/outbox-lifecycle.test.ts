@@ -138,29 +138,43 @@ describe("outbox lifecycle (FAZ 1) — flag ON", () => {
     expect((await prisma.conversation.findUniqueOrThrow({ where: { id: c.id } })).status).toBe("problem");
   });
 
-  // ── Final-review fixes (A/B/C) ─────────────────────────────────────────────
-  it("A: a FAILED proactive send is RESURRECTED on re-enqueue (outage recovery) — never silently lost", async () => {
+  // ── Final-review fixes (A/A2/B/C) ──────────────────────────────────────────
+  it("A: a RETRYABLE-failed (Hospitable 402 outage) proactive send is RESURRECTED on re-enqueue", async () => {
     const { orgId, source } = await seedWelcome();
     await sendDueWelcomes(orgId);
     const row0 = await prisma.messageOutbox.findFirstOrThrow({ where: { organizationId: orgId } });
-    // Simulate a Hospitable outage marching the row to terminal `failed`.
-    await prisma.messageOutbox.update({ where: { id: row0.id }, data: { status: "failed", attemptCount: OUTBOX_MAX_ATTEMPTS } });
-    // Recovery: the sender re-runs (welcomeSentAt still null) → dedupe-hit RESURRECTS the failed row.
-    await sendDueWelcomes(orgId);
+    // A 402 outage marched the row to terminal `failed` (retryable classification).
+    await prisma.messageOutbox.update({
+      where: { id: row0.id },
+      data: { status: "failed", attemptCount: OUTBOX_MAX_ATTEMPTS, lastErrorCode: "HTTP 402" },
+    });
+    await sendDueWelcomes(orgId); // recovery re-run → dedupe-hit RESURRECTS the retryable-failed row
     const row1 = await prisma.messageOutbox.findFirstOrThrow({ where: { organizationId: orgId } });
-    expect(row1.status).toBe("pending"); // resurrected, not stuck at failed
+    expect(row1.status).toBe("pending");
     expect(row1.attemptCount).toBe(0);
-    // …and it now delivers + stamps.
     const { send, calls } = okDeliver();
     await drainOutboxOnce({ send, tokenFor: async () => "t" });
     expect(calls()).toBe(1);
     expect((await prisma.reservation.findFirstOrThrow({ where: { sourceReference: source } })).welcomeSentAt).toBeInstanceOf(Date);
   });
 
-  it("B: a lifecycle send parked for REVIEW (ambiguous) stamps *SentAt → never blind-resent across a rollback", async () => {
-    const { orgId, source } = await seedWelcome();
+  it("A2: a TERMINAL validation/auth 4xx failure (non-402) is NOT resurrected — no infinite loop", async () => {
+    const { orgId } = await seedWelcome();
     await sendDueWelcomes(orgId);
-    const send: OutboxSendFn = async () => ({ ok: false, error: "HTTP 500 server error" }); // ambiguous
+    const row0 = await prisma.messageOutbox.findFirstOrThrow({ where: { organizationId: orgId } });
+    await prisma.messageOutbox.update({
+      where: { id: row0.id },
+      data: { status: "failed", attemptCount: OUTBOX_MAX_ATTEMPTS, lastErrorCode: "HTTP 400" },
+    });
+    await sendDueWelcomes(orgId); // re-run
+    expect((await prisma.messageOutbox.findFirstOrThrow({ where: { organizationId: orgId } })).status).toBe("failed"); // stays failed
+  });
+
+  it("B (7-step): enqueue → ambiguous → review → FLAG OFF → old scheduler → ZERO sends, *SentAt NULL, review stays", async () => {
+    const { orgId, source } = await seedWelcome();
+    // 1-2: enqueue (flag ON) then drive the send to AMBIGUOUS → parked for review.
+    await sendDueWelcomes(orgId);
+    const send: OutboxSendFn = async () => ({ ok: false, error: "HTTP 500 server error" });
     let clock = Date.now();
     const now = () => new Date(clock);
     for (let i = 0; i < OUTBOX_MAX_ATTEMPTS + 3; i++) {
@@ -168,8 +182,18 @@ describe("outbox lifecycle (FAZ 1) — flag ON", () => {
       clock += 60 * 60_000;
     }
     expect((await prisma.messageOutbox.findFirstOrThrow({ where: { organizationId: orgId } })).status).toBe("review");
-    // Maybe-delivered → *SentAt stamped, so the flag-OFF sender (which dedupes on it) SKIPS it.
-    expect((await prisma.reservation.findFirstOrThrow({ where: { sourceReference: source } })).welcomeSentAt).toBeInstanceOf(Date);
+    // *SentAt is NOT stamped (honest — the send was never confirmed).
+    expect((await prisma.reservation.findFirstOrThrow({ where: { sourceReference: source } })).welcomeSentAt).toBeNull();
+
+    // 3: FLAG OFF (rollback). 4: the old direct scheduler runs.
+    vi.stubEnv("DURABLE_OUTBOX_ENABLED", "");
+    const out = await sendDueWelcomes(orgId);
+    // 5: ZERO new provider calls — the direct sender FENCES on the review outbox row (not on *SentAt).
+    expect(mockSend).not.toHaveBeenCalled();
+    expect(out.sent).toBe(0);
+    // 6: *SentAt still NULL. 7: the outbox row stays `review`.
+    expect((await prisma.reservation.findFirstOrThrow({ where: { sourceReference: source } })).welcomeSentAt).toBeNull();
+    expect((await prisma.messageOutbox.findFirstOrThrow({ where: { organizationId: orgId } })).status).toBe("review");
   });
 
   it("C: a CHECK-OUT for a completed booking is NOT vetoed (consistent with the flag-OFF query); welcome IS", async () => {

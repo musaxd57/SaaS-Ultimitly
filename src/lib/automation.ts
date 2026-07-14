@@ -1497,6 +1497,27 @@ function buildGuestMessageBody(
 }
 
 /**
+ * Fence the flag-OFF lifecycle sender against the durable outbox (post-rollback coherence,
+ * final-review). If a row for this (org, reservation, messageType) already exists in the outbox
+ * in ANY state EXCEPT terminal `failed`, the outbox owns/owned this send: the direct path must
+ * NOT POST a second time — a `pending` row is drained by the worker even with the flag off, and a
+ * `review`/`ambiguous`/`sent`/`canceled` row must never be blind-resent. Only a `failed` row
+ * (definitively not delivered) lets the direct path retry. No-op when the outbox was never used
+ * (pure flag-OFF) → the query finds nothing, so the classic claim-then-send below runs unchanged.
+ */
+async function lifecycleOutboxOwns(
+  organizationId: string,
+  externalReservationId: string,
+  messageType: string,
+): Promise<boolean> {
+  const row = await prisma.messageOutbox.findFirst({
+    where: { organizationId, externalReservationId, messageType, status: { not: "failed" } },
+    select: { id: true },
+  });
+  return row != null;
+}
+
+/**
  * Send the per-apartment welcome message for upcoming reservations that haven't
  * received one yet. The body is built from the apartment's "welcome" knowledge
  * base entry, personalised with the guest's first name and closed with the org
@@ -1594,6 +1615,10 @@ export async function sendDueWelcomes(
       }
       continue;
     }
+
+    // Fence against a durable-outbox row for this booking (post-rollback): the outbox owns it
+    // unless it terminally FAILED — don't POST a second time (final-review).
+    if (r.sourceReference && (await lifecycleOutboxOwns(organizationId, r.sourceReference, "welcome"))) continue;
 
     // Claim-then-send: atomically stamp welcomeSentAt BEFORE sending so two
     // overlapping sync runs can't both deliver. Lose the claim → skip; send fails →
@@ -1718,6 +1743,9 @@ export async function sendDueCheckins(
       }
       continue;
     }
+
+    // Fence against a durable-outbox row for this booking (post-rollback, final-review).
+    if (r.sourceReference && (await lifecycleOutboxOwns(organizationId, r.sourceReference, "checkin"))) continue;
 
     // Claim-then-send (see sendDueWelcomes) — prevents a concurrent double-send.
     const claim = await prisma.reservation.updateMany({
@@ -1975,6 +2003,9 @@ export async function sendDueCheckouts(
       }
       continue;
     }
+
+    // Fence against a durable-outbox row for this booking (post-rollback, final-review).
+    if (r.sourceReference && (await lifecycleOutboxOwns(organizationId, r.sourceReference, "checkout"))) continue;
 
     // Claim-then-send (see sendDueWelcomes) — prevents a concurrent double-send.
     const claim = await prisma.reservation.updateMany({

@@ -388,10 +388,11 @@ async function sendTimeVeto(row: OutboxRow, now: Date): Promise<string | null> {
 }
 
 /**
- * Stamp a lifecycle reservation's *SentAt (welcome/checkin/checkout) — the "this lifecycle
- * message is resolved, do NOT auto-send it again" flag SHARED with the flag-OFF sender (which
- * dedupes purely on *SentAt). Stamps across ALL rows of the booking (dup rows share
- * sourceReference), only where still unstamped. No-op for non-lifecycle rows.
+ * Stamp a lifecycle reservation's *SentAt (welcome/checkin/checkout) — the CONFIRMED-DELIVERY
+ * marker. Called ONLY on a provider success (or a reliable reconciliation), NEVER for an
+ * ambiguous/review row (that would be a false "sent" on unverified data). The flag-OFF sender's
+ * rollback dedupe is handled separately by fencing on the outbox row, not by this stamp. Stamps
+ * across ALL rows of the booking (dup rows share sourceReference), only where still unstamped.
  */
 async function stampLifecycleSent(row: OutboxRow, now: Date): Promise<void> {
   const type = row.messageType;
@@ -422,6 +423,22 @@ async function applyDeliveryEffect(row: OutboxRow, now: Date): Promise<void> {
   }
   if (type === "holding_ack") return; // keep the thread in "problem" — never mark answered
   if (row.conversationId) await markConversationDelivered(row.conversationId, now);
+}
+
+/**
+ * A proactive lifecycle send (welcome/checkin/checkout) that reaches a terminal `review` or
+ * `failed` has NO conversation/thread, so it shows up in no host panel. Emit a SECRET-FREE
+ * operational signal so the host isn't blind to a stuck send: tenant + outbox id + messageType +
+ * state ONLY — never the body or any guest data. Best-effort; never throws. No-op for non-lifecycle
+ * rows (manual/AI failures already surface a thread badge).
+ */
+async function signalLifecycleStuck(row: OutboxRow, state: "review" | "failed"): Promise<void> {
+  const t = row.messageType;
+  if (t !== "welcome" && t !== "checkin" && t !== "checkout") return;
+  await reportError(
+    `outbox-lifecycle-${state}`,
+    new Error(`stuck lifecycle send: org=${row.organizationId} outbox=${row.id} type=${t} state=${state}`),
+  ).catch(() => {});
 }
 
 /**
@@ -466,10 +483,9 @@ async function processOne(row: OutboxRow, token: string, deps: Required<Pick<Dra
     }
     if (attemptsExhausted(row.attemptCount)) {
       const done = await settle(row, token, "reconciling", { status: "review", claimedBy: null, claimExpiresAt: null });
-      // A lifecycle row parked for review is AMBIGUOUS — it MAY have reached the guest. Stamp its
-      // *SentAt so it is never blind-resent, by the worker OR by the flag-OFF sender (which dedupes
-      // on *SentAt) across an ON→OFF rollback (Review-2). Reply rows leave the thread un-answered.
-      if (done) await stampLifecycleSent(row, now);
+      // AMBIGUOUS → parked for review; *SentAt is NOT stamped (unverified — never a false "sent").
+      // The flag-OFF sender won't re-send it because it fences on this outbox row (see automation.ts).
+      if (done) await signalLifecycleStuck(row, "review");
       acc.review++;
       return;
     }
@@ -518,7 +534,8 @@ async function processOne(row: OutboxRow, token: string, deps: Required<Pick<Dra
   }
   if (kind === "definitive_failure") {
     if (attemptsExhausted(row.attemptCount)) {
-      await settle(row, token, "sending", { status: "failed", lastErrorKind: "definitive_failure", lastErrorCode: errorCode(outcome.error), claimedBy: null, claimExpiresAt: null });
+      const done = await settle(row, token, "sending", { status: "failed", lastErrorKind: "definitive_failure", lastErrorCode: errorCode(outcome.error), claimedBy: null, claimExpiresAt: null });
+      if (done) await signalLifecycleStuck(row, "failed");
       acc.failed++;
     } else {
       await settle(row, token, "sending", { status: "pending", availableAt: new Date(now.getTime() + backoffMs(row.attemptCount, row.id)), lastErrorKind: "definitive_failure", lastErrorCode: errorCode(outcome.error), claimedBy: null, claimExpiresAt: null });

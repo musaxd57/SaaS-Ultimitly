@@ -154,14 +154,18 @@ geçer (asla sent/failed görünmez) ve teslim edilmemiş AI taslağı Message s
 balon ne "already answered" baskısı). Manuel host yanıtı ASLA vetolanmaz (host bilerek yazdı).
 
 **Lifecycle (welcome/checkin/checkout) kesinti + rollback davranışı (final-review düzeltmeleri):**
-Proaktif lifecycle satırının teslimatı `*SentAt`'i YALNIZ teslimde damgalar. Kesintide (Hospitable
-402/erişilemez) satır terminal `failed`'e gider; bir SONRAKİ sender turu (welcomeSentAt hâlâ NULL)
-`enqueueProactive` dedupe-hit'inde bu `failed` satırı **pending'e diriltir** → kesinti bitince tekrar
-denenir (flag-OFF'un "sonsuz retry" davranışıyla eşleşir; kaybolmaz). Belirsiz (ambiguous) satır
-denemeler bitince `review`'a park edilir VE `*SentAt` damgalanır ("belki-teslim → asla kör-resend",
-flag ON→OFF rollback'inde flag-OFF sender de artık atlar). ⏳ **Gözlemlenebilirlik açığı (backlog):**
-proaktif `review`/`failed` satırının thread'i/konuşması yok → host paneline düşmez; `messageDelivery`
-export'unda görünür ama özel bir "takılı lifecycle gönderimi" ops-yüzeyi ileride eklenmeli.
+`*SentAt` YALNIZ DOĞRULANMIŞ teslimde damgalanır (provider success / güvenilir reconciliation) —
+`review`/ambiguous'ta ASLA (doğrulanmamış veriyle sahte "sent" yok). Kesintide (Hospitable 402)
+satır terminal `failed`'e gider; sonraki sender turu `enqueueProactive` dedupe-hit'inde bu satırı
+YALNIZ **retryable-failed (HTTP 402)** ise pending'e **diriltir** → kesinti bitince tekrar denenir;
+terminal validation/auth 4xx (400/401/403/404/422) DİRİLMEZ (istek hep başarısız → döngü yok).
+Belirsiz satır `review`'da park kalır. Flag ON→OFF **rollback duplicate'i** sahte `*SentAt` ile
+DEĞİL, flag-OFF sender'ın outbox kaydına **fence** etmesiyle önlenir: (org, reservation, tip) için
+`failed` HARİÇ bir kayıt varsa (pending/sending/ambiguous/reconciling/review/sent/canceled) direct
+sender ikinci POST atmaz (pending'i worker zaten flag-OFF drain eder). ⏳ **Gözlemlenebilirlik:**
+proaktif `review`/`failed` satırının thread'i yok → host paneline düşmez; artık terminal geçişte
+**secretsız reportError** sinyali üretilir (tenant + outbox id + tip; body/guest YOK) + `messageDelivery`
+export'unda görünür. Özel "takılı lifecycle gönderimi" ops-paneli hâlâ backlog.
 
 **Açma adımları (hazır olunca — para/gönderim hot-path'i, İLK gönderimleri BİRLİKTE doğrula):**
 1. Deploy zaten migration `29_message_outbox`'ı uygular (additive, boş tablo).
