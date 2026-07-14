@@ -359,8 +359,13 @@ async function lifecycleVeto(row: OutboxRow, now: Date): Promise<string | null> 
     select: { status: true, departureDate: true, welcomeSentAt: true, checkinSentAt: true, checkoutSentAt: true },
   });
   if (!res) return "reservation_gone";
-  if (res.status === "cancelled" || res.status === "completed") return `reservation_${res.status}`;
+  if (res.status === "cancelled") return "reservation_cancelled";
+  // A completed stay is stale for welcome/check-in, but a CHECK-OUT is legitimately due the
+  // evening before departure (status may already have flipped) — its `window_passed` date guard
+  // below handles a truly-past departure. This keeps the flag-ON veto consistent with the
+  // flag-OFF checkout query (which includes `completed`) so the two paths never disagree.
   const type = row.messageType;
+  if ((type === "welcome" || type === "checkin") && res.status === "completed") return "reservation_completed";
   // Already delivered (stamp set by a prior/concurrent delivery) → never double-send.
   if (type === "welcome" && res.welcomeSentAt) return "already_sent";
   if (type === "checkin" && res.checkinSentAt) return "already_sent";
@@ -383,28 +388,36 @@ async function sendTimeVeto(row: OutboxRow, now: Date): Promise<string | null> {
 }
 
 /**
+ * Stamp a lifecycle reservation's *SentAt (welcome/checkin/checkout) — the "this lifecycle
+ * message is resolved, do NOT auto-send it again" flag SHARED with the flag-OFF sender (which
+ * dedupes purely on *SentAt). Stamps across ALL rows of the booking (dup rows share
+ * sourceReference), only where still unstamped. No-op for non-lifecycle rows.
+ */
+async function stampLifecycleSent(row: OutboxRow, now: Date): Promise<void> {
+  const type = row.messageType;
+  const ext = row.externalReservationId;
+  if (!ext) return;
+  const scope = { sourceReference: ext, property: { organizationId: row.organizationId } };
+  // Separate calls (not a ternary) so Prisma's per-model input type is inferred cleanly.
+  if (type === "welcome") {
+    await prisma.reservation.updateMany({ where: { ...scope, welcomeSentAt: null }, data: { welcomeSentAt: now } }).catch(() => {});
+  } else if (type === "checkin") {
+    await prisma.reservation.updateMany({ where: { ...scope, checkinSentAt: null }, data: { checkinSentAt: now } }).catch(() => {});
+  } else if (type === "checkout") {
+    await prisma.reservation.updateMany({ where: { ...scope, checkoutSentAt: null }, data: { checkoutSentAt: now } }).catch(() => {});
+  }
+}
+
+/**
  * Apply the DELIVERY EFFECT for a confirmed send, derived from messageType (migration 30):
- *   welcome/checkin/checkout → stamp the reservation's *SentAt NOW (never at enqueue), across
- *     every row of this booking (dup rows share sourceReference), only where still unstamped;
+ *   welcome/checkin/checkout → stamp the reservation's *SentAt NOW (never at enqueue);
  *   holding_ack             → nothing (the thread stays in "problem" for the host);
  *   manual/ai/legacy NULL    → mark the conversation "answered" (#6).
  */
 async function applyDeliveryEffect(row: OutboxRow, now: Date): Promise<void> {
   const type = row.messageType;
   if (type === "welcome" || type === "checkin" || type === "checkout") {
-    const ext = row.externalReservationId;
-    if (!ext) return;
-    const scope = { sourceReference: ext, property: { organizationId: row.organizationId } };
-    // Stamp only the matching field, only where still unstamped, across ALL rows of this
-    // booking (dup rows share sourceReference). Separate calls (not a ternary) so Prisma's
-    // per-model input type is inferred cleanly.
-    if (type === "welcome") {
-      await prisma.reservation.updateMany({ where: { ...scope, welcomeSentAt: null }, data: { welcomeSentAt: now } }).catch(() => {});
-    } else if (type === "checkin") {
-      await prisma.reservation.updateMany({ where: { ...scope, checkinSentAt: null }, data: { checkinSentAt: now } }).catch(() => {});
-    } else {
-      await prisma.reservation.updateMany({ where: { ...scope, checkoutSentAt: null }, data: { checkoutSentAt: now } }).catch(() => {});
-    }
+    await stampLifecycleSent(row, now);
     return;
   }
   if (type === "holding_ack") return; // keep the thread in "problem" — never mark answered
@@ -452,7 +465,11 @@ async function processOne(row: OutboxRow, token: string, deps: Required<Pick<Dra
       return;
     }
     if (attemptsExhausted(row.attemptCount)) {
-      await settle(row, token, "reconciling", { status: "review", claimedBy: null, claimExpiresAt: null });
+      const done = await settle(row, token, "reconciling", { status: "review", claimedBy: null, claimExpiresAt: null });
+      // A lifecycle row parked for review is AMBIGUOUS — it MAY have reached the guest. Stamp its
+      // *SentAt so it is never blind-resent, by the worker OR by the flag-OFF sender (which dedupes
+      // on *SentAt) across an ON→OFF rollback (Review-2). Reply rows leave the thread un-answered.
+      if (done) await stampLifecycleSent(row, now);
       acc.review++;
       return;
     }

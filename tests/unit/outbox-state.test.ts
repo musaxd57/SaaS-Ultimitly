@@ -35,6 +35,8 @@ describe("outbox state machine — closed set + validated transitions", () => {
     expect(canTransition("reconciling", "review")).toBe(true);
     // Human requeue.
     expect(canTransition("review", "pending")).toBe(true);
+    // Proactive lifecycle REQUEUE after a Hospitable outage (Review-1 fix).
+    expect(canTransition("failed", "pending")).toBe(true);
   });
 
   it("rejects illegal transitions (assertTransition throws)", () => {

@@ -58,11 +58,14 @@ export const TERMINAL_STATUSES: readonly OutboxStatus[] = ["sent", "failed", "re
 //   reconciling  → ambiguous    (still unknown → back off and try reconcile later)
 //   reconciling  → review       (giving up on auto-reconcile → human decides)
 //   review       → pending      (a human explicitly requeues it)
+//   failed       → pending      (a proactive lifecycle send is REQUEUED after a Hospitable
+//                                outage — the flag-OFF sender retries such a booking forever,
+//                                so the outbox must too, else the flag ON→OFF gap loses it)
 const ALLOWED: Record<OutboxStatus, readonly OutboxStatus[]> = {
   pending: ["sending"],
   sending: ["sent", "pending", "failed", "ambiguous", "canceled"],
   sent: [],
-  failed: [],
+  failed: ["pending"],
   ambiguous: ["reconciling"],
   reconciling: ["sent", "ambiguous", "review"],
   review: ["pending"],

@@ -2,6 +2,7 @@ import { describe, it, expect, beforeEach, afterEach, vi } from "vitest";
 import { prisma, resetDb, makeOrgWithProperty } from "../helpers/db";
 import { enqueueProactive } from "@/lib/outbox/enqueue";
 import { drainOutboxOnce, type OutboxSendFn } from "@/lib/outbox/worker";
+import { OUTBOX_MAX_ATTEMPTS } from "@/lib/outbox/state";
 
 // FAZ 1 — welcome / check-in / check-out (proactive) + holding-ack wired to the durable outbox.
 // The provider transport + token are mocked; the sender loops (sendDue*) are exercised with the
@@ -135,6 +136,68 @@ describe("outbox lifecycle (FAZ 1) — flag ON", () => {
     expect((await prisma.messageOutbox.findFirstOrThrow({ where: { organizationId: orgId } })).status).toBe("sent");
     // deliveryEffect for holding_ack is NONE → the host still owns the thread.
     expect((await prisma.conversation.findUniqueOrThrow({ where: { id: c.id } })).status).toBe("problem");
+  });
+
+  // ── Final-review fixes (A/B/C) ─────────────────────────────────────────────
+  it("A: a FAILED proactive send is RESURRECTED on re-enqueue (outage recovery) — never silently lost", async () => {
+    const { orgId, source } = await seedWelcome();
+    await sendDueWelcomes(orgId);
+    const row0 = await prisma.messageOutbox.findFirstOrThrow({ where: { organizationId: orgId } });
+    // Simulate a Hospitable outage marching the row to terminal `failed`.
+    await prisma.messageOutbox.update({ where: { id: row0.id }, data: { status: "failed", attemptCount: OUTBOX_MAX_ATTEMPTS } });
+    // Recovery: the sender re-runs (welcomeSentAt still null) → dedupe-hit RESURRECTS the failed row.
+    await sendDueWelcomes(orgId);
+    const row1 = await prisma.messageOutbox.findFirstOrThrow({ where: { organizationId: orgId } });
+    expect(row1.status).toBe("pending"); // resurrected, not stuck at failed
+    expect(row1.attemptCount).toBe(0);
+    // …and it now delivers + stamps.
+    const { send, calls } = okDeliver();
+    await drainOutboxOnce({ send, tokenFor: async () => "t" });
+    expect(calls()).toBe(1);
+    expect((await prisma.reservation.findFirstOrThrow({ where: { sourceReference: source } })).welcomeSentAt).toBeInstanceOf(Date);
+  });
+
+  it("B: a lifecycle send parked for REVIEW (ambiguous) stamps *SentAt → never blind-resent across a rollback", async () => {
+    const { orgId, source } = await seedWelcome();
+    await sendDueWelcomes(orgId);
+    const send: OutboxSendFn = async () => ({ ok: false, error: "HTTP 500 server error" }); // ambiguous
+    let clock = Date.now();
+    const now = () => new Date(clock);
+    for (let i = 0; i < OUTBOX_MAX_ATTEMPTS + 3; i++) {
+      await drainOutboxOnce({ send, tokenFor: async () => "t", now });
+      clock += 60 * 60_000;
+    }
+    expect((await prisma.messageOutbox.findFirstOrThrow({ where: { organizationId: orgId } })).status).toBe("review");
+    // Maybe-delivered → *SentAt stamped, so the flag-OFF sender (which dedupes on it) SKIPS it.
+    expect((await prisma.reservation.findFirstOrThrow({ where: { sourceReference: source } })).welcomeSentAt).toBeInstanceOf(Date);
+  });
+
+  it("C: a CHECK-OUT for a completed booking is NOT vetoed (consistent with the flag-OFF query); welcome IS", async () => {
+    const { orgId, propertyId } = await makeOrgWithProperty();
+    const mkLifecycleRow = async (type: "checkout" | "welcome", resStatus: string, ref: string, key: string) => {
+      const res = await prisma.reservation.create({
+        data: {
+          propertyId, guestName: "G", channel: "airbnb", status: resStatus,
+          arrivalDate: new Date(Date.now() - 86_400_000), departureDate: new Date(Date.now() + 86_400_000),
+          sourceReference: ref,
+        },
+      });
+      await prisma.messageOutbox.create({
+        data: {
+          organizationId: orgId, conversationId: null, messageId: null, reservationId: res.id, channel: "airbnb",
+          externalReservationId: ref, messageType: type, body: "x", idempotencyKey: key, status: "pending",
+        },
+      });
+      return res.id;
+    };
+    const coId = await mkLifecycleRow("checkout", "completed", "res-co", "co");
+    const wId = await mkLifecycleRow("welcome", "completed", "res-w", "w");
+    const { send, calls } = okDeliver();
+    const res = await drainOutboxOnce({ send, tokenFor: async () => "t", batchSize: 10 });
+    expect(calls()).toBe(1); // checkout sent; welcome vetoed
+    expect(res.canceled).toBe(1);
+    expect((await prisma.reservation.findUniqueOrThrow({ where: { id: coId } })).checkoutSentAt).toBeInstanceOf(Date);
+    expect((await prisma.reservation.findUniqueOrThrow({ where: { id: wId } })).welcomeSentAt).toBeNull(); // welcome canceled
   });
 
   it("proactive enqueue is idempotent on the deterministic key (replay/restart safe)", async () => {

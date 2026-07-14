@@ -185,9 +185,34 @@ export async function enqueueProactive(args: EnqueueProactiveArgs): Promise<Enqu
     if (isUniqueViolation(err, ["organizationId", "idempotencyKey"])) {
       const existing = await prisma.messageOutbox.findFirst({
         where: { organizationId: args.organizationId, idempotencyKey: args.idempotencyKey },
-        select: { id: true },
+        select: { id: true, status: true },
       });
-      if (existing) return { outboxId: existing.id, deduped: true };
+      if (existing) {
+        // RESURRECT a DEFINITIVELY-FAILED proactive send (Hospitable outage / 402 → the row
+        // marched through its bounded retries to terminal `failed`). The flag-OFF sender retries
+        // such a booking every run until it succeeds; the outbox must match, or turning the flag
+        // ON would SILENTLY LOSE every lifecycle message queued during an outage even after
+        // recovery (Review-1). Guarded to `failed` only: a `review`/ambiguous row MAY have
+        // reached the guest, so it stays parked (never blind-resent). Idempotent under the
+        // status guard — a concurrent claim/settle can't be clobbered.
+        if (existing.status === "failed") {
+          await prisma.messageOutbox
+            .updateMany({
+              where: { id: existing.id, status: "failed" },
+              data: {
+                status: "pending",
+                attemptCount: 0,
+                availableAt: new Date(),
+                claimedBy: null,
+                claimExpiresAt: null,
+                lastErrorKind: null,
+                lastErrorCode: null,
+              },
+            })
+            .catch(() => {});
+        }
+        return { outboxId: existing.id, deduped: true };
+      }
     }
     throw err;
   }

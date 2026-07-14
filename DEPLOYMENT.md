@@ -153,6 +153,16 @@ POST'lamadan HEMEN ÖNCE canlı thread'i yeniden okur. Host manuel yanıt verdiy
 geçer (asla sent/failed görünmez) ve teslim edilmemiş AI taslağı Message silinir (ne hayalet
 balon ne "already answered" baskısı). Manuel host yanıtı ASLA vetolanmaz (host bilerek yazdı).
 
+**Lifecycle (welcome/checkin/checkout) kesinti + rollback davranışı (final-review düzeltmeleri):**
+Proaktif lifecycle satırının teslimatı `*SentAt`'i YALNIZ teslimde damgalar. Kesintide (Hospitable
+402/erişilemez) satır terminal `failed`'e gider; bir SONRAKİ sender turu (welcomeSentAt hâlâ NULL)
+`enqueueProactive` dedupe-hit'inde bu `failed` satırı **pending'e diriltir** → kesinti bitince tekrar
+denenir (flag-OFF'un "sonsuz retry" davranışıyla eşleşir; kaybolmaz). Belirsiz (ambiguous) satır
+denemeler bitince `review`'a park edilir VE `*SentAt` damgalanır ("belki-teslim → asla kör-resend",
+flag ON→OFF rollback'inde flag-OFF sender de artık atlar). ⏳ **Gözlemlenebilirlik açığı (backlog):**
+proaktif `review`/`failed` satırının thread'i/konuşması yok → host paneline düşmez; `messageDelivery`
+export'unda görünür ama özel bir "takılı lifecycle gönderimi" ops-yüzeyi ileride eklenmeli.
+
 **Açma adımları (hazır olunca — para/gönderim hot-path'i, İLK gönderimleri BİRLİKTE doğrula):**
 1. Deploy zaten migration `29_message_outbox`'ı uygular (additive, boş tablo).
 2. Worker in-process scheduler'da (2-dk) koşar; ayrı env gerekmez.
