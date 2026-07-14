@@ -91,15 +91,20 @@ export default async function ConversationPage({
       ? daysUntilDate(adjacency.nextArrival, conversation.reservation.departureDate) === 0
       : false;
 
-  const messages: ThreadMessage[] = conversation.messages.map((m) => ({
-    id: m.id,
-    direction: m.direction as "inbound" | "outbound",
-    senderName: m.senderName,
-    authorType: m.authorType,
-    body: m.body,
-    outboxStatus: outboxByMessage.get(m.id) ?? null,
-    createdAtLabel: formatDateTime(m.createdAt),
-  }));
+  const messages: ThreadMessage[] = conversation.messages
+    // A superseded AI draft (its outbox row was CANCELED by the send-time veto) never reached
+    // the guest — hide it from the thread. It is NOT deleted: the row stays for export/audit
+    // as "not delivered". Every other outbox state still renders (with its status badge).
+    .filter((m) => outboxByMessage.get(m.id) !== "canceled")
+    .map((m) => ({
+      id: m.id,
+      direction: m.direction as "inbound" | "outbound",
+      senderName: m.senderName,
+      authorType: m.authorType,
+      body: m.body,
+      outboxStatus: outboxByMessage.get(m.id) ?? null,
+      createdAtLabel: formatDateTime(m.createdAt),
+    }));
 
   // Values for substituting {{placeholders}} in message templates.
   const wifiItem = kb.find((k) => k.category === "wifi");

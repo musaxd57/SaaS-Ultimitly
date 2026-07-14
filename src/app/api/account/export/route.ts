@@ -28,7 +28,7 @@ export const GET = withManage(async (session) => {
   // 403s staff; this narrows the remaining manager case.
   if (session.role !== "owner") return forbidden();
   const orgId = session.organizationId;
-  const [org, subscription, invoices, auditLogs, checkoutConsents, riskEvents] = await Promise.all([
+  const [org, subscription, invoices, auditLogs, checkoutConsents, riskEvents, messageDelivery] = await Promise.all([
     prisma.organization.findUnique({
       where: { id: orgId },
       select: {
@@ -184,6 +184,18 @@ export const GET = withManage(async (session) => {
       },
       orderBy: { occurredAt: "asc" },
     }),
+    // Durable-outbox delivery audit: the per-message send outcome, so a draft that was
+    // never delivered (status "canceled" = a send-time veto superseded it; "review"/"failed"
+    // = stuck) is DISTINGUISHABLE from a delivered reply. No body here — it lives on the
+    // linked Message (join by messageId); this is the delivery ledger only.
+    prisma.messageOutbox.findMany({
+      where: { organizationId: orgId },
+      select: {
+        id: true, conversationId: true, messageId: true, channel: true, status: true,
+        attemptCount: true, lastErrorKind: true, lastErrorCode: true, sentAt: true, createdAt: true,
+      },
+      orderBy: { createdAt: "asc" },
+    }),
   ]);
   if (!org) return forbidden();
 
@@ -204,6 +216,7 @@ export const GET = withManage(async (session) => {
       auditLogs,
       checkoutConsents,
       riskEvents,
+      messageDelivery,
     },
     null,
     2,

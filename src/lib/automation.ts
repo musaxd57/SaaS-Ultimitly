@@ -752,9 +752,26 @@ export async function applyChannelAutoReply(
     }
   }
 
-  const messages = conversation.messages;
+  let messages = conversation.messages;
   if (messages.length === 0) return { sent: false, skippedReason: "no_messages", ...meta };
-  const last = messages[messages.length - 1];
+  let last = messages[messages.length - 1];
+  // A superseded AI draft (send-time veto → its outbox row is 'canceled') never reached the
+  // guest, so it must NOT make the thread look answered. Such a draft is always an UNDELIVERED
+  // outbound message (no externalId) — the only shape the tail can take here — so we only touch
+  // the outbox when the newest message actually looks like one, keeping the hot path free of an
+  // extra query in the normal case (guest spoke last, or the last reply was truly delivered).
+  if (last.direction === "outbound" && !last.externalId) {
+    const canceled = await prisma.messageOutbox.findMany({
+      where: { conversationId: conversation.id, status: "canceled" },
+      select: { messageId: true },
+    });
+    const canceledIds = new Set(canceled.map((r) => r.messageId).filter(Boolean) as string[]);
+    if (canceledIds.size > 0) {
+      messages = messages.filter((m) => !canceledIds.has(m.id));
+      if (messages.length === 0) return { sent: false, skippedReason: "no_messages", ...meta };
+      last = messages[messages.length - 1];
+    }
+  }
   // Only answer when the guest spoke last (don't reply to ourselves).
   if (last.direction !== "inbound") return { sent: false, skippedReason: "already_answered", ...meta };
 

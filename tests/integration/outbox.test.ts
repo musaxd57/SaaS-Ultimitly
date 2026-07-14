@@ -1,7 +1,8 @@
 import { describe, it, expect, beforeEach, vi } from "vitest";
 import { prisma, resetDb, makeOrgWithProperty } from "../helpers/db";
 import { enqueueOutbound } from "@/lib/outbox/enqueue";
-import { drainOutboxOnce, hasDrainableOutbox, type OutboxSendFn, type OutboxReconcileFn } from "@/lib/outbox/worker";
+import { drainOutboxOnce, hasDrainableOutbox, OUTBOX_CLAIM_LOCK_KEY, type OutboxSendFn, type OutboxReconcileFn } from "@/lib/outbox/worker";
+import { Prisma } from "@prisma/client";
 import { OUTBOX_MAX_ATTEMPTS } from "@/lib/outbox/state";
 
 async function makeConvo(propertyId: string) {
@@ -341,13 +342,13 @@ describe("outbox Faz-B — Codex #1/#2/#4/#6/#7", () => {
 describe("outbox Codex P1/P2 — reservation rate limit + AI send-time veto", () => {
   beforeEach(resetDb);
 
-  // 3 outbox rows for ONE (org, reservation) but 3 DIFFERENT conversations — so the
+  // N outbox rows for ONE (org, reservation) but N DIFFERENT conversations — so the
   // per-CONVERSATION single-in-flight guard does NOT serialize them; only the per-
-  // RESERVATION rate cap can. Deterministic order m0 < m1 < m2.
-  async function threeForOneReservation() {
+  // RESERVATION rate cap can. Deterministic order m0 < m1 < … .
+  async function nForOneReservation(n: number) {
     const { orgId, propertyId } = await makeOrgWithProperty();
     const rows = [];
-    for (let i = 0; i < 3; i++) {
+    for (let i = 0; i < n; i++) {
       const c = await prisma.conversation.create({
         data: { propertyId, channel: "airbnb", guestIdentifier: `G${i}`, status: "new", externalReservationId: "res-shared" },
       });
@@ -356,49 +357,74 @@ describe("outbox Codex P1/P2 — reservation rate limit + AI send-time veto", ()
       );
       await prisma.messageOutbox.update({
         where: { id: r.outboxId },
-        data: { createdAt: new Date(Date.now() - (3 - i) * 1000) },
+        data: { createdAt: new Date(Date.now() - (n - i) * 1000) },
       });
       rows.push(r);
     }
     return { orgId, rows };
   }
 
-  it("P1: at most 2 provider sends per reservation in a 60s window; the 3rd waits for the next window", async () => {
-    const { rows } = await threeForOneReservation();
+  it("P1: with 4 ready rows for one reservation, ≤2 provider sends in the first 60s window", async () => {
+    const { rows } = await nForOneReservation(4);
     let calls = 0;
     const send: OutboxSendFn = async () => ({ ok: true, providerMessageId: `p${++calls}` });
     let clock = Date.now();
     const now = () => new Date(clock);
 
-    // Window 1: only 2 of the 3 ready rows are claimed + sent; the 3rd is rate-deferred.
+    // Window 1: exactly 2 of the 4 ready rows go; the other 2 are rate-deferred.
     await drainOutboxOnce({ send, tokenFor: async () => "t", batchSize: 10, now });
     expect(calls).toBe(2);
     const s1 = await Promise.all(rows.map((r) => outbox(r.outboxId)));
     expect(s1.filter((r) => r.status === "sent")).toHaveLength(2);
-    expect(s1.filter((r) => r.status === "pending")).toHaveLength(1);
+    expect(s1.filter((r) => r.status === "pending")).toHaveLength(2);
 
-    // +30s (still inside the window): the 3rd is STILL blocked — no extra provider call.
+    // +30s (still window 1): no extra provider call.
     clock += 30_000;
     await drainOutboxOnce({ send, tokenFor: async () => "t", batchSize: 10, now });
     expect(calls).toBe(2);
 
-    // +61s from the first sends (next window): the 3rd finally goes.
+    // +61s from the first sends (window 2): the remaining 2 go — still ≤2 per window.
     clock += 31_000;
     await drainOutboxOnce({ send, tokenFor: async () => "t", batchSize: 10, now });
-    expect(calls).toBe(3);
-    const s3 = await Promise.all(rows.map((r) => outbox(r.outboxId)));
-    expect(s3.every((r) => r.status === "sent")).toBe(true);
+    expect(calls).toBe(4);
+    expect((await Promise.all(rows.map((r) => outbox(r.outboxId)))).every((r) => r.status === "sent")).toBe(true);
   });
 
-  it("P1: two CONCURRENT workers still send at most 2 for one reservation in the window", async () => {
-    await threeForOneReservation();
+  it("P1 atomic: while a SECOND connection holds the claim lock, the worker claims 0 (real 2-conn barrier)", async () => {
+    // 4 ready rows for one reservation. A separate DB connection holds the shared claim
+    // advisory lock; while it is held, a concurrent worker MUST claim nothing (it cannot
+    // race the rate count). This proves the cap is atomic across connections, not just via
+    // Promise.all timing. Then, lock released, the worker claims exactly the 2-per-window cap.
+    const { rows } = await nForOneReservation(4);
     let calls = 0;
     const send: OutboxSendFn = async () => ({ ok: true, providerMessageId: `p${++calls}` });
-    await Promise.all([
-      drainOutboxOnce({ send, tokenFor: async () => "t", batchSize: 10 }),
-      drainOutboxOnce({ send, tokenFor: async () => "t", batchSize: 10 }),
-    ]);
-    expect(calls).toBeLessThanOrEqual(2); // atomic under multi-replica: never exceeds 2/60s/reservation
+
+    let signalAcquired!: () => void;
+    const acquired = new Promise<void>((r) => (signalAcquired = r));
+    let release!: () => void;
+    const held = new Promise<void>((r) => (release = r));
+    const holder = prisma.$transaction(
+      async (tx) => {
+        // $executeRaw (not $queryRaw): pg_advisory_xact_lock returns void, which the query
+        // deserializer rejects. This blocks until acquired, then holds it for the txn.
+        await tx.$executeRaw(Prisma.sql`SELECT pg_advisory_xact_lock(${OUTBOX_CLAIM_LOCK_KEY}::bigint)`);
+        signalAcquired();
+        await held; // keep the lock until the assertion below runs
+      },
+      { timeout: 20_000 },
+    );
+
+    await acquired; // the lock is now held on a DIFFERENT connection
+    const blocked = await drainOutboxOnce({ send, tokenFor: async () => "t", batchSize: 10 });
+    expect(blocked.claimed).toBe(0); // could not get the shared lock → claimed nothing
+    expect(calls).toBe(0); // and therefore made ZERO provider calls
+
+    release();
+    await holder; // lock freed
+
+    await drainOutboxOnce({ send, tokenFor: async () => "t", batchSize: 10 });
+    expect(calls).toBe(2); // now claims, capped at 2 for the reservation window
+    void rows;
   });
 
   it("P1: a 429 defers to Retry-After WITHOUT consuming a terminal attempt (no false 'failed')", async () => {
@@ -423,14 +449,14 @@ describe("outbox Codex P1/P2 — reservation rate limit + AI send-time veto", ()
     const c = await prisma.conversation.create({
       data: { propertyId, channel: "airbnb", guestIdentifier: "G", status: "new", externalReservationId: "res-ai", ...convoOver },
     });
-    await prisma.message.create({
+    const inbound = await prisma.message.create({
       data: { conversationId: c.id, direction: "inbound", senderName: "G", body: "Wifi?", createdAt: new Date(Date.now() - 10_000) },
     });
     const r = await enqueueOutbound(
       baseArgs(orgId, c.id, { externalReservationId: "res-ai", authorType: "ai", senderName: "GuestOps AI", idempotencyKey: "ai1" }),
     );
     await prisma.message.update({ where: { id: r.messageId! }, data: { createdAt: new Date(Date.now() - 5000) } });
-    return { orgId, conversationId: c.id, r };
+    return { orgId, conversationId: c.id, inboundId: inbound.id, r };
   }
 
   const countingSend = () => {
@@ -439,7 +465,7 @@ describe("outbox Codex P1/P2 — reservation rate limit + AI send-time veto", ()
     return { send, calls: () => calls };
   };
 
-  it("P2 veto: a host manual reply after enqueue → the AI send is CANCELED, ZERO provider calls", async () => {
+  it("P2 veto: a host manual reply after enqueue → CANCELED, ZERO provider calls, Message KEPT", async () => {
     const { conversationId, r } = await enqueueAiReply();
     await prisma.message.create({
       data: { conversationId, direction: "outbound", authorType: "host", senderName: "Host", body: "Ben ilgilendim" },
@@ -449,7 +475,8 @@ describe("outbox Codex P1/P2 — reservation rate limit + AI send-time veto", ()
     expect(calls()).toBe(0); // NEVER POSTed
     expect(res.canceled).toBe(1);
     expect((await outbox(r.outboxId)).status).toBe("canceled"); // not sent, not failed
-    expect(await prisma.message.count({ where: { id: r.messageId! } })).toBe(0); // stale draft removed
+    // Codex P2: the draft Message is NOT deleted — kept for export/audit as "not delivered".
+    expect(await prisma.message.count({ where: { id: r.messageId! } })).toBe(1);
   });
 
   it("P2 veto: AI paused (autoReplyHoldUntil) before the worker runs → canceled, no send", async () => {
@@ -473,6 +500,17 @@ describe("outbox Codex P1/P2 — reservation rate limit + AI send-time veto", ()
     expect((await outbox(r.outboxId)).status).toBe("canceled");
   });
 
+  it("P2 veto: a NEWER guest inbound after enqueue supersedes the draft → canceled, no send", async () => {
+    const { conversationId, r } = await enqueueAiReply();
+    await prisma.message.create({
+      data: { conversationId, direction: "inbound", senderName: "G", body: "Bir de otopark?", createdAt: new Date() },
+    });
+    const { send, calls } = countingSend();
+    await drainOutboxOnce({ send, tokenFor: async () => "t" });
+    expect(calls()).toBe(0);
+    expect((await outbox(r.outboxId)).status).toBe("canceled");
+  });
+
   it("P2: a MANUAL host reply is NEVER vetoed — it sends even on a 'problem' thread", async () => {
     const { orgId, propertyId } = await makeOrgWithProperty();
     const c = await prisma.conversation.create({
@@ -487,7 +525,9 @@ describe("outbox Codex P1/P2 — reservation rate limit + AI send-time veto", ()
     expect((await outbox(r.outboxId)).status).toBe("sent");
   });
 
-  it("P2: no false veto — a still-current AI reply sends normally", async () => {
+  it("P2: no false veto — the draft does NOT count its OWN queued Message as 'newer'; it sends", async () => {
+    // Only the AI draft + the older inbound exist; nothing new happened. The veto must NOT
+    // treat the draft's own Message as a superseding "newer message".
     const { r } = await enqueueAiReply();
     const { send, calls } = countingSend();
     await drainOutboxOnce({ send, tokenFor: async () => "t" });

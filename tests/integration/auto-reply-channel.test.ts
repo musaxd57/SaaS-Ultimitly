@@ -738,6 +738,26 @@ describe("applyChannelAutoReply — Durable Outbox (flag ON, #5/#6)", () => {
     const ev = await prisma.riskEvent.findFirst({ where: { conversationId, surface: "auto_reply" } });
     expect(ev?.finalDecision).toBe("auto_sent");
   });
+
+  it("a CANCELED (vetoed) AI draft is NOT treated as an answer — the thread is re-evaluated (P2)", async () => {
+    const { orgId, conversationId } = await seed(); // guest inbound (older) + status 'new'
+    // Simulate a send-time veto: an AI reply was enqueued, then the worker CANCELED it. The
+    // draft Message is KEPT (no delete — Codex P2), but its outbox row is 'canceled'.
+    const draft = await prisma.message.create({
+      data: { conversationId, direction: "outbound", authorType: "ai", senderName: "GuestOps AI", body: "taslak" },
+    });
+    await prisma.messageOutbox.create({
+      data: {
+        organizationId: orgId, conversationId, messageId: draft.id, channel: "airbnb",
+        externalReservationId: "res-1", body: "taslak", idempotencyKey: "canceled-1", status: "canceled",
+      },
+    });
+    // The canceled draft is now the LAST message — but it must NOT make the thread look
+    // answered (it never reached the guest). The auto-reply filters it and sees the guest's
+    // message again, so it re-evaluates instead of skipping as already_answered.
+    const out = await applyChannelAutoReply(conversationId);
+    expect(out.skippedReason).not.toBe("already_answered");
+  });
 });
 
 describe("previewChannelAutoReplies", () => {

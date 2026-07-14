@@ -36,6 +36,17 @@ import {
 const CLAIM_TTL_MS = 5 * 60_000; // a single attempt must finish within this window
 const DEFAULT_BATCH = 20;
 
+// A single Postgres advisory-lock key that SERIALIZES the whole claim phase across every
+// worker / replica (Codex P1). FOR UPDATE SKIP LOCKED locks disjoint ROWS, so two separate
+// transactions can each pass a reservation's `rn + recent <= 2` cap without seeing the
+// other's UNCOMMITTED claimedAt (snapshot isolation) → up to 4 sends slip through. Holding a
+// shared advisory xact-lock around the claim forces the rate count to read a STABLE committed
+// state, so the 2/min/reservation guarantee is atomic even under real multi-connection races.
+// The lock is held ONLY for the fast claim UPDATE (released at commit); the slow SEND phase
+// runs afterwards, unlocked, so throughput is unaffected. Non-blocking (pg_try_*): a worker
+// that can't get the lock simply does nothing this pass and retries next tick.
+export const OUTBOX_CLAIM_LOCK_KEY = 185_083_927; // 0x0B0C5E17 — stable, arbitrary
+
 /** The subset of the row the worker needs (raw-claimed). */
 export interface OutboxRow {
   id: string;
@@ -153,13 +164,36 @@ async function recoverStaleClaims(now: Date): Promise<number> {
 }
 
 /**
- * Atomically claim up to `batchSize` DUE rows for this worker token. Uses
- * FOR UPDATE SKIP LOCKED so concurrent workers/replicas each get a DISJOINT set —
- * a row is claimed by at most one worker. `pending` → `sending`; `ambiguous` →
- * `reconciling`. attemptCount is incremented on every claim. Fair order by
- * availableAt (oldest first).
+ * Atomically claim up to `batchSize` DUE rows for this worker token. The whole claim runs
+ * inside a transaction that first takes a shared advisory lock (OUTBOX_CLAIM_LOCK_KEY) so the
+ * per-reservation rate cap is computed against a stable committed state — see the key's note.
+ * If another worker holds the lock we return [] (this pass is a no-op; retry next tick). Uses
+ * FOR UPDATE SKIP LOCKED so concurrent workers/replicas each get a DISJOINT set — a row is
+ * claimed by at most one worker. `pending` → `sending`; `ambiguous` → `reconciling`.
+ * attemptCount is incremented on every claim. Fair order by availableAt (oldest first).
  */
 async function claimBatch(token: string, now: Date, expiry: Date, batchSize: number): Promise<OutboxRow[]> {
+  return prisma.$transaction(async (tx) => {
+    // Serialize the claim phase (Codex P1). Non-blocking: if a concurrent worker holds it,
+    // do nothing this pass — the rate count must never race another in-flight claim.
+    const gate = await tx.$queryRaw<Array<{ locked: boolean }>>(
+      Prisma.sql`SELECT pg_try_advisory_xact_lock(${OUTBOX_CLAIM_LOCK_KEY}::bigint) AS locked`,
+    );
+    if (!gate[0]?.locked) return [];
+    return claimBatchLocked(tx, token, now, expiry, batchSize);
+  });
+}
+
+/**
+ * The claim UPDATE itself — MUST run only while the caller holds OUTBOX_CLAIM_LOCK_KEY.
+ */
+async function claimBatchLocked(
+  tx: Prisma.TransactionClient,
+  token: string,
+  now: Date,
+  expiry: Date,
+  batchSize: number,
+): Promise<OutboxRow[]> {
   // The DUE / claim-expiry / rate-window comparisons all use the worker's own `now`
   // (injected in tests), so the backoff clock and the claim clock never diverge.
   //
@@ -176,10 +210,10 @@ async function claimBatch(token: string, now: Date, expiry: Date, batchSize: num
   //   filter  — HOSPITABLE 2/min/RESERVATION (Codex P1): a SEND claim is allowed only when
   //             `rn + recent <= 2`, i.e. prior-window attempts + this row's rank stay within
   //             two. So at most two provider calls per reservation per 60s; a 3rd ready row
-  //             is left for the next window. Atomic under multi-replica via the row locks +
-  //             committed claimedAt reads. Reconcile claims (ambiguous rows) never POST, so
-  //             they bypass the send cap.
-  const rows = await prisma.$queryRaw<OutboxRow[]>(Prisma.sql`
+  //             is left for the next window. Atomic under multi-replica via the shared claim
+  //             lock (above) + committed claimedAt reads. Reconcile claims (ambiguous rows)
+  //             never POST, so they bypass the send cap.
+  const rows = await tx.$queryRaw<OutboxRow[]>(Prisma.sql`
     UPDATE "MessageOutbox" AS o
     SET "status" = CASE WHEN o."status" = 'pending' THEN 'sending' ELSE 'reconciling' END,
         "attemptCount" = o."attemptCount" + 1,
@@ -312,24 +346,22 @@ async function aiSendVeto(row: OutboxRow, now: Date): Promise<string | null> {
 }
 
 /**
- * Cancel a vetoed AI send: move the row to the terminal `canceled` state (NEVER
- * sent/failed) under the claim guard, then best-effort DELETE the undelivered AI draft
- * Message — so it neither lingers as a phantom "delivered" bubble nor makes the next
- * auto-reply cycle skip the thread as already-answered. Only deletes a still-unsent
- * message (externalId IS NULL), so a delivered row is never touched.
+ * Cancel a vetoed AI send: move the row to the terminal `canceled` state (NEVER sent/failed)
+ * under the claim guard. The draft Message is NOT deleted (no data loss — a persistent policy):
+ * the outbox row's `canceled` status is the RELIABLE metadata that marks the message as
+ * "never delivered". Because every guest/host view derives visibility from that single status
+ * (thread + auto-reply "last message" both skip a message whose outbox row is canceled), the
+ * cancellation and the invisibility are ATOMIC — the instant this guarded update lands, the
+ * draft is filtered everywhere, yet stays queryable for export/audit as "not delivered".
  */
 async function cancelRow(row: OutboxRow, token: string, reason: string): Promise<boolean> {
-  const done = await settle(row, token, "sending", {
+  return settle(row, token, "sending", {
     status: "canceled",
     lastErrorKind: "canceled",
     lastErrorCode: reason,
     claimedBy: null,
     claimExpiresAt: null,
   });
-  if (done && row.messageId) {
-    await prisma.message.deleteMany({ where: { id: row.messageId, externalId: null } }).catch(() => {});
-  }
-  return done;
 }
 
 /** Short, secret-free error code from a provider error string (no raw body / tokens). */
