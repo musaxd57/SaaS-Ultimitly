@@ -48,7 +48,7 @@ describe("GuestChat (UI, two-way)", () => {
     expect(JSON.parse(String((postCall![1] as RequestInit).body))).toEqual({ message: "Çöp ne zaman?" });
   });
 
-  it("renders a HOST reply distinctly as 'Ev sahibiniz'", async () => {
+  it("renders a manual host reply as 'İşletme ekibi' with a takeover separator", async () => {
     setupFetch([
       { id: "g1", role: "guest", text: "Klima bozuk" },
       { id: "h1", role: "host", text: "Hemen ilgileniyorum, kusura bakmayın." },
@@ -56,7 +56,8 @@ describe("GuestChat (UI, two-way)", () => {
     render(<GuestChat token="t" />);
 
     await screen.findByText("Hemen ilgileniyorum, kusura bakmayın.");
-    await screen.findByText(/Ev sahibiniz/); // distinct human label
+    await screen.findByText("👥 İşletme ekibi"); // team label — never a host personal name
+    await screen.findByText("İşletme ekibi görüşmeye katıldı"); // takeover separator, once
   });
 
   it("labels the bot reply as 'Lixus AI'", async () => {
@@ -72,6 +73,8 @@ describe("GuestChat (UI, two-way)", () => {
     // The header shows the fixed brand — the guest page no longer has any prop
     // through which a host's private Property.name could ever be rendered.
     await screen.findByText("Lixus AI Misafir Asistanı");
+    // The AI-disclosure notice appears ONCE under the title (not per message).
+    await screen.findByText(/Gerektiğinde işletme ekibi görüşmeye katılabilir/);
   });
 
   it("shows a friendly error when the POST fails", async () => {

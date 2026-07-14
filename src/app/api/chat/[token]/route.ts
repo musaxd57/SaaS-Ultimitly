@@ -33,6 +33,13 @@ const ESCALATE_INTENTS = new Set(["complaint", "refund", "early_departure", "hum
 // Max PAID AI calls per apartment per (UTC) day — a durable cost ceiling.
 const DAILY_AI_CAP = 200;
 
+// Deterministic acknowledgment for a message that arrives AFTER the human team has
+// taken over the thread (host handoff). The AI stays silent for the rest of the
+// stay — it re-opens only on a NEW reservation (a fresh "qr-chat:" thread). The
+// message is still recorded so the host sees it; the client is GET-authoritative,
+// so this reply is a courtesy field, not what renders.
+const HANDOFF_REPLY = "Mesajınız işletme ekibine iletildi; en kısa sürede size dönecek.";
+
 const notFound = () => new Response("Not found", { status: 404 });
 
 // Per-stay device-binding cookie: an httpOnly secret unique to the FIRST device
@@ -110,7 +117,9 @@ async function recordGuestChat(
   propertyId: string,
   reservation: { id: string; guestName: string },
   guestMessage: string,
-  botReply: string,
+  // null → HOST HANDOFF: store ONLY the guest's inbound message (the AI is paused;
+  // the host replies). A string is the bot's reply, stored as a "Lixus AI" outbound.
+  botReply: string | null,
   escalated: boolean,
 ): Promise<{ inboundMessageId: string }> {
   const marker = `qr-chat:${propertyId}:${reservation.id}`;
@@ -150,12 +159,37 @@ async function recordGuestChat(
   const created = await prisma.message.createManyAndReturn({
     data: [
       { conversationId, direction: "inbound", senderName: reservation.guestName, body: guestMessage.slice(0, MAX_MESSAGE), language: "tr" },
-      { conversationId, direction: "outbound", senderName: "Lixus AI", body: botReply.slice(0, MAX_MESSAGE), language: "tr" },
+      ...(botReply !== null
+        ? [{ conversationId, direction: "outbound", senderName: "Lixus AI", body: botReply.slice(0, MAX_MESSAGE), language: "tr" }]
+        : []),
     ],
     select: { id: true, direction: true },
   });
   const inboundMessageId = created.find((m) => m.direction === "inbound")?.id ?? created[0]?.id ?? "";
   return { inboundMessageId };
+}
+
+/**
+ * HOST HANDOFF (migration-free): has a HUMAN host stepped into this stay's thread?
+ * A host reply is an OUTBOUND message whose senderName is NOT the bot's "Lixus AI"
+ * — the exact discriminator the GET uses to render "host" vs "ai". Derived from the
+ * existing messages, so no schema flag is needed. Once true, the AI hands off for
+ * the REST of the stay (deterministic re-open: never within this stay; a new
+ * reservation opens a fresh "qr-chat:" thread with the AI active again).
+ */
+async function hostHasJoinedGuestChat(propertyId: string, reservationId: string): Promise<boolean> {
+  const marker = `qr-chat:${propertyId}:${reservationId}`;
+  const convo = await prisma.conversation.findFirst({
+    where: { propertyId, externalReservationId: marker },
+    select: {
+      messages: {
+        where: { direction: "outbound", senderName: { not: "Lixus AI" } },
+        take: 1,
+        select: { id: true },
+      },
+    },
+  });
+  return (convo?.messages.length ?? 0) > 0;
 }
 
 // ---------------------------------------------------------------------------
@@ -330,6 +364,16 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ tok
     return out;
   };
 
+  // HOST HANDOFF (pre-check): if a human host has already replied in this thread,
+  // the AI has handed off for the rest of the stay. Record the guest's message for
+  // the host and DON'T spend a (paid) model call — the human owns the conversation.
+  // Re-checked once more just before an AI reply would be stored (send-time veto
+  // below), which also catches a host reply that lands WHILE the model is running.
+  if (await hostHasJoinedGuestChat(ctx.property.id, res.id)) {
+    await recordGuestChat(ctx.property.id, res, message, null, true);
+    return finalize({ handoff: true, reply: HANDOFF_REPLY });
+  }
+
   // Per-apartment DAILY cap on PAID AI calls — DURABLE (survives restarts, shared
   // across replicas), so one bearer token can't re-burn the cap every boot the way
   // the in-memory limiter allowed. Atomic increment, then check. Over cap →
@@ -396,6 +440,17 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ tok
   // today — so this is defense-in-depth: if the name is ever wired into the
   // prompt, the deterministic backstop is already in place.)
   const escalate = mustEscalate(result, message, res.guestName);
+
+  // SEND-TIME VETO: a host may have replied WHILE the model ran (seconds). Re-check
+  // now — immediately before we would store the AI reply — and veto it if the human
+  // has taken over: the AI must never talk over the host. Best-effort (shrinks the
+  // race window from the model-call duration to a few ms; a fully atomic guard would
+  // need a schema flag, out of scope). The guest's message is still recorded for the host.
+  if (await hostHasJoinedGuestChat(ctx.property.id, res.id)) {
+    await recordGuestChat(ctx.property.id, res, message, null, true);
+    return finalize({ handoff: true, reply: HANDOFF_REPLY });
+  }
+
   const reply = escalate
     ? "Bu sorunuzu ev sahibine ilettim; en kısa sürede size dönecek."
     : result.reply;

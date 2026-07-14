@@ -1,6 +1,6 @@
 "use client";
 
-import { useCallback, useEffect, useRef, useState } from "react";
+import { Fragment, useCallback, useEffect, useRef, useState } from "react";
 
 type Role = "guest" | "ai" | "host";
 interface ChatMessage {
@@ -21,7 +21,7 @@ const GUEST_ASSISTANT_TITLE = "Lixus AI Misafir Asistanı";
  * thread, polls for new messages, and shows three distinct senders —
  *   • Misafir (the guest)        → right, primary
  *   • Lixus AI (the bot)         → left, grey card
- *   • Ev sahibiniz (the human)   → left, green
+ *   • İşletme ekibi (the human host) → left, green (never a personal name)
  * No PII or access codes are shown here; the access codes live in the
  * Airbnb-native check-in flow, never on this public surface.
  */
@@ -248,14 +248,17 @@ export function GuestChat({ token }: { token: string }) {
     <div className="mx-auto flex min-h-screen max-w-lg flex-col bg-background">
       <header className="border-b border-border bg-card px-4 py-3">
         <p className="text-sm font-semibold">{GUEST_ASSISTANT_TITLE}</p>
-        <p className="text-xs text-muted-foreground">Misafir yardımı · yapay zekâ + ev sahibi</p>
+        {/* One-time disclosure — shown ONCE here, never repeated under each message. */}
+        <p className="text-xs text-muted-foreground">
+          Yanıtlar yapay zekâ tarafından hazırlanabilir. Gerektiğinde işletme ekibi görüşmeye katılabilir.
+        </p>
       </header>
 
       <div className="flex-1 space-y-3 overflow-y-auto px-4 py-4">
         {messages.length === 0 && !closed && !boundElsewhere ? (
           <div className="rounded-lg border border-border bg-card p-4 text-sm text-muted-foreground">
             Merhaba! 👋 Konaklamanızla ilgili sorularınızı (çöp günü, cihazlar, kurallar, çevre
-            önerileri…) buraya yazabilirsiniz. Yapay zekâ yanıtlar; gerekirse ev sahibiniz devreye girer.
+            önerileri…) buraya yazabilirsiniz.
           </div>
         ) : null}
 
@@ -272,34 +275,46 @@ export function GuestChat({ token }: { token: string }) {
           </div>
         ) : null}
 
-        {messages.map((m) => {
+        {messages.map((m, i) => {
           const guest = m.role === "guest";
           const host = m.role === "host";
+          // A once-per-thread separator above the FIRST manual host message, so the
+          // guest sees exactly when the team joined (n is tiny → findIndex is cheap).
+          const isFirstHost = host && messages.findIndex((x) => x.role === "host") === i;
           return (
-            <div key={m.id} className={guest ? "flex justify-end" : "flex justify-start"}>
-              <div
-                className={
-                  guest
-                    ? "max-w-[85%] rounded-2xl rounded-br-sm bg-primary px-3 py-2 text-sm text-primary-foreground"
-                    : host
-                      ? "max-w-[85%] rounded-2xl rounded-bl-sm border border-emerald-300 bg-emerald-50 px-3 py-2 text-sm text-emerald-900"
-                      : "max-w-[85%] rounded-2xl rounded-bl-sm border border-border bg-card px-3 py-2 text-sm"
-                }
-              >
-                {!guest ? (
-                  <p
-                    className={
-                      host
-                        ? "mb-0.5 text-[10px] font-semibold text-emerald-700"
-                        : "mb-0.5 text-[10px] font-semibold text-muted-foreground"
-                    }
-                  >
-                    {host ? "👤 Ev sahibiniz" : "🤖 Lixus AI"}
-                  </p>
-                ) : null}
-                <p className="whitespace-pre-wrap break-words">{m.text}</p>
+            <Fragment key={m.id}>
+              {isFirstHost ? (
+                <div className="my-1 flex items-center gap-2 text-[11px] text-muted-foreground">
+                  <span className="h-px flex-1 bg-border" />
+                  İşletme ekibi görüşmeye katıldı
+                  <span className="h-px flex-1 bg-border" />
+                </div>
+              ) : null}
+              <div className={guest ? "flex justify-end" : "flex justify-start"}>
+                <div
+                  className={
+                    guest
+                      ? "max-w-[85%] rounded-2xl rounded-br-sm bg-primary px-3 py-2 text-sm text-primary-foreground"
+                      : host
+                        ? "max-w-[85%] rounded-2xl rounded-bl-sm border border-emerald-300 bg-emerald-50 px-3 py-2 text-sm text-emerald-900"
+                        : "max-w-[85%] rounded-2xl rounded-bl-sm border border-border bg-card px-3 py-2 text-sm"
+                  }
+                >
+                  {!guest ? (
+                    <p
+                      className={
+                        host
+                          ? "mb-0.5 text-[10px] font-semibold text-emerald-700"
+                          : "mb-0.5 text-[10px] font-semibold text-muted-foreground"
+                      }
+                    >
+                      {host ? "👥 İşletme ekibi" : "🤖 Lixus AI"}
+                    </p>
+                  ) : null}
+                  <p className="whitespace-pre-wrap break-words">{m.text}</p>
+                </div>
               </div>
-            </div>
+            </Fragment>
           );
         })}
 
