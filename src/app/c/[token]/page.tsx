@@ -28,7 +28,10 @@ export default async function GuestChatPage({ params }: { params: Promise<{ toke
   if (!ctx.open) {
     return (
       <div className="mx-auto flex min-h-screen max-w-lg flex-col items-center justify-center gap-2 px-6 text-center">
-        <p className="text-base font-semibold">{ctx.property.name}</p>
+        {/* Branded title only — never the internal Property.name (host's private
+            label) on this public, unauthenticated page, least of all in the closed
+            state where the scanner may be a past/future guest or a passer-by. */}
+        <p className="text-base font-semibold">Lixus AI Misafir Asistanı</p>
         <p className="text-sm text-muted-foreground">
           Şu an aktif bir konaklama görünmüyor; sohbet kapalı. Bir konaklamanız
           varsa giriş gününüzde bu sayfadan tekrar ulaşabilirsiniz.
@@ -37,5 +40,5 @@ export default async function GuestChatPage({ params }: { params: Promise<{ toke
     );
   }
 
-  return <GuestChat token={token} propertyName={ctx.property.name} />;
+  return <GuestChat token={token} />;
 }

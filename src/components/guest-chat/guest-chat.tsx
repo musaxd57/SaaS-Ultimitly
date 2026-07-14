@@ -9,6 +9,13 @@ interface ChatMessage {
   text: string;
 }
 
+// Guest-facing title. Deliberately a FIXED brand string, never the internal
+// Property.name — that name is the host's private label (often an owner name or
+// informal code, e.g. "Serdar'ı Ekrem 2") and must not leak onto this public,
+// unauthenticated QR page. The guest is physically in the unit, so no
+// per-property label is needed to orient them.
+const GUEST_ASSISTANT_TITLE = "Lixus AI Misafir Asistanı";
+
 /**
  * Public guest concierge chat UI (mobile-first). Two-way: it loads the stay's
  * thread, polls for new messages, and shows three distinct senders —
@@ -18,7 +25,7 @@ interface ChatMessage {
  * No PII or access codes are shown here; the access codes live in the
  * Airbnb-native check-in flow, never on this public surface.
  */
-export function GuestChat({ token, propertyName }: { token: string; propertyName: string }) {
+export function GuestChat({ token }: { token: string }) {
   const [messages, setMessages] = useState<ChatMessage[]>([]);
   const [input, setInput] = useState("");
   const [sending, setSending] = useState(false);
@@ -199,7 +206,7 @@ export function GuestChat({ token, propertyName }: { token: string; propertyName
       <div className="mx-auto flex min-h-screen max-w-lg flex-col items-center justify-center gap-4 bg-background px-6 text-center">
         <div className="w-full max-w-xs space-y-4 rounded-lg border border-border bg-card p-6">
           <div>
-            <p className="text-base font-semibold">{propertyName}</p>
+            <p className="text-base font-semibold">{GUEST_ASSISTANT_TITLE}</p>
             <p className="mt-1 text-sm text-muted-foreground">
               Sohbeti başlatmak için ev sahibinizin size verdiği giriş kodunu girin.
             </p>
@@ -240,7 +247,7 @@ export function GuestChat({ token, propertyName }: { token: string; propertyName
   return (
     <div className="mx-auto flex min-h-screen max-w-lg flex-col bg-background">
       <header className="border-b border-border bg-card px-4 py-3">
-        <p className="text-sm font-semibold">{propertyName}</p>
+        <p className="text-sm font-semibold">{GUEST_ASSISTANT_TITLE}</p>
         <p className="text-xs text-muted-foreground">Misafir yardımı · yapay zekâ + ev sahibi</p>
       </header>
 

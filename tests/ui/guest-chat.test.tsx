@@ -37,7 +37,7 @@ describe("GuestChat (UI, two-way)", () => {
 
   it("sends a message and shows the AI reply from the re-fetched history", async () => {
     const fn = setupFetch([]);
-    render(<GuestChat token="tok123" propertyName="Nuve 5" />);
+    render(<GuestChat token="tok123" />);
 
     typeAndSend("Çöp ne zaman?");
 
@@ -53,7 +53,7 @@ describe("GuestChat (UI, two-way)", () => {
       { id: "g1", role: "guest", text: "Klima bozuk" },
       { id: "h1", role: "host", text: "Hemen ilgileniyorum, kusura bakmayın." },
     ]);
-    render(<GuestChat token="t" propertyName="X" />);
+    render(<GuestChat token="t" />);
 
     await screen.findByText("Hemen ilgileniyorum, kusura bakmayın.");
     await screen.findByText(/Ev sahibiniz/); // distinct human label
@@ -61,9 +61,17 @@ describe("GuestChat (UI, two-way)", () => {
 
   it("labels the bot reply as 'Lixus AI'", async () => {
     setupFetch([{ id: "a1", role: "ai", text: "Çöp salı günü." }]);
-    render(<GuestChat token="t" propertyName="X" />);
+    render(<GuestChat token="t" />);
     await screen.findByText("Çöp salı günü.");
-    await screen.findByText(/Lixus AI/);
+    await screen.findByText(/Lixus AI$/); // bot sender label ("🤖 Lixus AI"), not the header title
+  });
+
+  it("shows the branded assistant title (never an internal property name)", async () => {
+    setupFetch([]);
+    render(<GuestChat token="t" />);
+    // The header shows the fixed brand — the guest page no longer has any prop
+    // through which a host's private Property.name could ever be rendered.
+    await screen.findByText("Lixus AI Misafir Asistanı");
   });
 
   it("shows a friendly error when the POST fails", async () => {
@@ -73,7 +81,7 @@ describe("GuestChat (UI, two-way)", () => {
       return Promise.resolve({ ok: false, json: async () => ({}) });
     });
     vi.stubGlobal("fetch", fn);
-    render(<GuestChat token="t" propertyName="X" />);
+    render(<GuestChat token="t" />);
 
     typeAndSend("merhaba");
 
@@ -99,7 +107,7 @@ describe("GuestChat (UI, two-way)", () => {
       return Promise.resolve({ ok: true, status: 200, json: async () => ({ pinRequired: true, pinError: true }) });
     });
     vi.stubGlobal("fetch", fn);
-    render(<GuestChat token="tok" propertyName="Nuve 5" />);
+    render(<GuestChat token="tok" />);
 
     // PIN entry visible.
     const input = await screen.findByPlaceholderText("Giriş kodu");
@@ -125,7 +133,7 @@ describe("GuestChat (UI, two-way)", () => {
       return Promise.resolve({ ok: false, status: 429, json: async () => ({}) });
     });
     vi.stubGlobal("fetch", fn);
-    render(<GuestChat token="t" propertyName="X" />);
+    render(<GuestChat token="t" />);
     fireEvent.change(await screen.findByPlaceholderText("Giriş kodu"), { target: { value: "111111" } });
     fireEvent.click(screen.getByRole("button", { name: /Sohbeti aç/ }));
     await screen.findByText(/Çok fazla deneme/);
