@@ -169,11 +169,13 @@ reactivate mekanizmasıdır; failed→pending geçişi kaldırıldı). Terminal 
 DEĞİL, flag-OFF sender'ın outbox kaydına **fence** etmesiyle önlenir: (org, reservation, tip) için
 `failed` HARİÇ bir kayıt varsa (pending/sending/ambiguous/reconciling/review/sent/canceled/**blocked**)
 direct sender ikinci POST atmaz (pending/reactivate'i worker zaten flag-OFF drain eder). ⏳
-**Gözlemlenebilirlik:** proaktif `review`/`failed`/`blocked` satırının thread'i yok → host paneline
-düşmez; terminal/park geçişte **secretsız reportError** sinyali üretilir (tenant + outbox id + tip;
-body/guest YOK) + `messageDelivery` export'unda görünür. Manuel/AI blocked satırı ayrıca thread
-rozetinde "Abonelik pasif — bağlantı gelince gönderilecek" olarak görünür. Özel "takılı lifecycle
-gönderimi" ops-paneli hâlâ backlog.
+**Gözlemlenebilirlik:** host ops ekranı **`/sent/queue` "Gönderim Kuyruğu"** (owner/manager; staff
+göremez) TÜM outbox satırlarını — proaktif lifecycle dahil — durum filtresi + sayfalama ile gösterir;
+PII'siz (mesaj gövdesi/misafir verisi/claim token asla). blocked satırda "abonelik pasif" açıklaması,
+review/ambiguous salt-okuma; yalnız kesin-gönderilememiş `failed` (402 hariç) satırda tenant-bound
+"Yeniden dene". Ek sinyaller: terminal/park geçişte **secretsız reportError** (tenant + outbox id +
+tip; body/guest YOK) + `messageDelivery` export'u + thread rozeti "Abonelik pasif — bağlantı gelince
+gönderilecek".
 
 **Açma adımları (hazır olunca — para/gönderim hot-path'i, İLK gönderimleri BİRLİKTE doğrula):**
 1. Deploy zaten migration `29_message_outbox`'ı uygular (additive, boş tablo).
