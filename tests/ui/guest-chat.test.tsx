@@ -3,7 +3,7 @@ import { describe, it, expect, vi, beforeEach, afterEach } from "vitest";
 import { render, screen, fireEvent, cleanup } from "@testing-library/react";
 import { GuestChat } from "@/components/guest-chat/guest-chat";
 
-type Msg = { id: string; role: "guest" | "ai" | "host"; text: string };
+type Msg = { id: string; role: "guest" | "ai" | "host" | "resume"; text: string };
 
 // A tiny stateful fake server: GET returns the thread; POST appends the guest
 // message + an AI reply (mirrors recordGuestChat), then the client re-fetches.
@@ -58,6 +58,22 @@ describe("GuestChat (UI, two-way)", () => {
     await screen.findByText("Hemen ilgileniyorum, kusura bakmayın.");
     await screen.findByText("👥 İşletme ekibi"); // team label — never a host personal name
     await screen.findByText("İşletme ekibi görüşmeye katıldı"); // takeover separator, once
+  });
+
+  it("shows the 'AI re-enabled' separator (no bubble) after the host resumes the AI", async () => {
+    setupFetch([
+      { id: "g1", role: "guest", text: "Klima bozuk" },
+      { id: "h1", role: "host", text: "Ben ilgileniyorum." },
+      { id: "r1", role: "resume", text: "Lixus AI yeniden etkinleştirildi" },
+      { id: "a1", role: "ai", text: "Çöp salı günü." },
+    ]);
+    render(<GuestChat token="t" />);
+
+    await screen.findByText("İşletme ekibi görüşmeye katıldı"); // team joined
+    await screen.findByText("Çöp salı günü."); // AI answers again after resume
+    // The resume marker renders ONLY as a separator, never as a chat bubble → its
+    // text appears exactly once.
+    expect(screen.getAllByText("Lixus AI yeniden etkinleştirildi")).toHaveLength(1);
   });
 
   it("labels the bot reply as 'Lixus AI'", async () => {

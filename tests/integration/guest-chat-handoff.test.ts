@@ -1,8 +1,34 @@
 import { describe, it, expect, beforeEach, afterEach, vi } from "vitest";
 import { prisma, resetDb, makeOrgWithProperty, daysFromNow } from "../helpers/db";
-import { generateChatToken } from "@/lib/guest-chat";
+import { generateChatToken, AI_RESUME_MARKER, guestChatAiPausedFromMessages } from "@/lib/guest-chat";
 import { __resetRateLimit } from "@/lib/rate-limit";
 import type { SuggestReplyResult } from "@/lib/ai/types";
+
+// The pure state rule shared by the guest route, the resume endpoint, and the host
+// panel: the AI is paused only until the host explicitly re-enables it (a resume
+// marker), never on a timer.
+describe("guestChatAiPausedFromMessages (pure handoff-state rule)", () => {
+  const host = (s = "Ev Sahibi") => ({ direction: "outbound", senderName: s });
+  const bot = { direction: "outbound", senderName: "Lixus AI" };
+  const guest = { direction: "inbound", senderName: "Misafir" };
+  const resume = { direction: "outbound", senderName: AI_RESUME_MARKER };
+
+  it("is active with no host activity (only guest + bot messages)", () => {
+    expect(guestChatAiPausedFromMessages([guest, bot, guest, bot])).toBe(false);
+  });
+  it("pauses once a host has replied", () => {
+    expect(guestChatAiPausedFromMessages([guest, bot, host()])).toBe(true);
+  });
+  it("re-activates after a resume marker", () => {
+    expect(guestChatAiPausedFromMessages([guest, bot, host(), resume])).toBe(false);
+  });
+  it("pauses again if the host takes over AFTER a resume (latest transition wins)", () => {
+    expect(guestChatAiPausedFromMessages([host(), resume, guest, host()])).toBe(true);
+  });
+  it("ignores the bot's own 'Lixus AI' replies as handoff markers", () => {
+    expect(guestChatAiPausedFromMessages([host(), resume, bot, guest, bot])).toBe(false);
+  });
+});
 
 // QR concierge HOST HANDOFF: once a human host replies in a stay's thread, the AI
 // hands off for the rest of the stay. A new guest message must NOT get an AI reply
@@ -149,6 +175,32 @@ describe("QR host handoff (AI pause + send-time veto)", () => {
     // the new guest message IS recorded (so the host sees it).
     const inbound = msgs.filter((m) => m.direction === "inbound");
     expect(inbound[inbound.length - 1].body).toBe("Çöp ne zaman?");
+  });
+
+  it("re-activates the AI after a resume marker — the next guest message is answered again", async () => {
+    const { propertyId } = await makeOrgWithProperty();
+    const token = await enableChat(propertyId);
+
+    const first = await call(token, "Çöp ne zaman?");
+    const cookie = deviceCookie(first);
+
+    // Host takes over, THEN explicitly re-enables the AI (resume marker = newest
+    // non-bot outbound). The AI must not auto-resume on a timer — only this marker
+    // flips it back on.
+    await hostReplies(propertyId);
+    const convo = await prisma.conversation.findFirstOrThrow({ where: { propertyId, channel: "chat" } });
+    await prisma.message.create({
+      data: { conversationId: convo.id, direction: "outbound", senderName: AI_RESUME_MARKER, body: "Lixus AI yeniden etkinleştirildi", language: "tr" },
+    });
+
+    mockSuggest.mockClear();
+    mockSuggest.mockResolvedValue(result({ reply: "Otopark arka sokakta." }));
+
+    const res = await call(token, "Otopark var mı?", cookie);
+    const json = await res.json();
+    expect(json.handoff).toBeUndefined(); // AI is active again
+    expect(json.escalated).toBe(false);
+    expect(mockSuggest).toHaveBeenCalledTimes(1);
   });
 
   it("the AI's OWN 'Lixus AI' reply does not count as a host takeover", async () => {

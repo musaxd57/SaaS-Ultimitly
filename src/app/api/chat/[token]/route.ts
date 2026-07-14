@@ -2,7 +2,7 @@ import { type NextRequest, type NextResponse } from "next/server";
 import { prisma } from "@/lib/db";
 import { suggestReply } from "@/lib/ai";
 import { classifyFallback, detectPromptInjection, detectRiskType } from "@/lib/ai/fallback";
-import { resolveGuestChat, bindOrCheckStay, type GuestChatContext } from "@/lib/guest-chat";
+import { resolveGuestChat, bindOrCheckStay, AI_RESUME_MARKER, type GuestChatContext } from "@/lib/guest-chat";
 import { verifyReservationPin } from "@/lib/guest-chat-pin";
 import { sendQrEscalationAlertBounded, qrEscalationEventId } from "@/lib/guest-chat-alerts";
 import { jsonOk, badRequest, tooManyRequests } from "@/lib/api";
@@ -170,26 +170,26 @@ async function recordGuestChat(
 }
 
 /**
- * HOST HANDOFF (migration-free): has a HUMAN host stepped into this stay's thread?
- * A host reply is an OUTBOUND message whose senderName is NOT the bot's "Lixus AI"
- * — the exact discriminator the GET uses to render "host" vs "ai". Derived from the
- * existing messages, so no schema flag is needed. Once true, the AI hands off for
- * the REST of the stay (deterministic re-open: never within this stay; a new
- * reservation opens a fresh "qr-chat:" thread with the AI active again).
+ * HOST HANDOFF (migration-free): is the AI currently PAUSED for this stay's thread?
+ * The AI hands off when a human host replies and stays paused until the host
+ * EXPLICITLY re-enables it — never on a timer (the host may have stepped into a
+ * sensitive matter the AI would misread later). State is derived from the most
+ * recent NON-bot outbound event: a host reply (senderName ≠ "Lixus AI") pauses; a
+ * resume marker (senderName = AI_RESUME_MARKER, written by the panel button)
+ * re-opens. No schema flag. A new reservation opens a fresh thread → AI active.
  */
-async function hostHasJoinedGuestChat(propertyId: string, reservationId: string): Promise<boolean> {
+async function guestChatAiPaused(propertyId: string, reservationId: string): Promise<boolean> {
   const marker = `qr-chat:${propertyId}:${reservationId}`;
-  const convo = await prisma.conversation.findFirst({
-    where: { propertyId, externalReservationId: marker },
-    select: {
-      messages: {
-        where: { direction: "outbound", senderName: { not: "Lixus AI" } },
-        take: 1,
-        select: { id: true },
-      },
+  const last = await prisma.message.findFirst({
+    where: {
+      conversation: { is: { propertyId, externalReservationId: marker } },
+      direction: "outbound",
+      senderName: { not: "Lixus AI" },
     },
+    orderBy: { createdAt: "desc" },
+    select: { senderName: true },
   });
-  return (convo?.messages.length ?? 0) > 0;
+  return last ? last.senderName !== AI_RESUME_MARKER : false;
 }
 
 // ---------------------------------------------------------------------------
@@ -285,8 +285,16 @@ export async function GET(req: NextRequest, { params }: { params: Promise<{ toke
   });
   const messages = (convo?.messages ?? []).map((m) => ({
     id: m.id,
-    // "ai" = the bot (senderName "Lixus AI"); any other outbound = the human host.
-    role: m.direction === "inbound" ? "guest" : m.senderName === "Lixus AI" ? "ai" : "host",
+    // inbound → guest; "Lixus AI" → the bot; the resume marker → a "resume" system
+    // line (AI re-enabled); any other outbound → the human host team.
+    role:
+      m.direction === "inbound"
+        ? "guest"
+        : m.senderName === "Lixus AI"
+          ? "ai"
+          : m.senderName === AI_RESUME_MARKER
+            ? "resume"
+            : "host",
     text: m.body,
   }));
   const out = jsonOk({ open: true, messages });
@@ -369,7 +377,7 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ tok
   // the host and DON'T spend a (paid) model call — the human owns the conversation.
   // Re-checked once more just before an AI reply would be stored (send-time veto
   // below), which also catches a host reply that lands WHILE the model is running.
-  if (await hostHasJoinedGuestChat(ctx.property.id, res.id)) {
+  if (await guestChatAiPaused(ctx.property.id, res.id)) {
     await recordGuestChat(ctx.property.id, res, message, null, true);
     return finalize({ handoff: true, reply: HANDOFF_REPLY });
   }
@@ -446,7 +454,7 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ tok
   // has taken over: the AI must never talk over the host. Best-effort (shrinks the
   // race window from the model-call duration to a few ms; a fully atomic guard would
   // need a schema flag, out of scope). The guest's message is still recorded for the host.
-  if (await hostHasJoinedGuestChat(ctx.property.id, res.id)) {
+  if (await guestChatAiPaused(ctx.property.id, res.id)) {
     await recordGuestChat(ctx.property.id, res, message, null, true);
     return finalize({ handoff: true, reply: HANDOFF_REPLY });
   }

@@ -7,6 +7,8 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { LinkButton } from "@/components/ui/link-button";
 import { GuestChatReply } from "@/components/guest-chats/reply-box";
+import { GuestChatResumeAi } from "@/components/guest-chats/resume-ai-button";
+import { guestChatAiPausedFromMessages, AI_RESUME_MARKER } from "@/lib/guest-chat";
 import { formatDate, formatDateTime } from "@/lib/utils";
 
 export const dynamic = "force-dynamic";
@@ -91,7 +93,11 @@ export default async function GuestChatsPage() {
         </Card>
       ) : (
         <div className="space-y-4">
-          {conversations.map((c) => (
+          {conversations.map((c) => {
+            // Handoff state (migration-free): paused once a host replies, until they
+            // explicitly re-enable the AI (a resume marker). Derived from the thread.
+            const aiPaused = guestChatAiPausedFromMessages(c.messages);
+            return (
             <Card key={c.id}>
               <CardHeader className="flex-row flex-wrap items-center justify-between gap-2 space-y-0">
                 <CardTitle className="text-base">
@@ -108,10 +114,21 @@ export default async function GuestChatsPage() {
                       <AlertTriangle className="mr-1 size-3" /> Ev sahibine iletildi
                     </Badge>
                   ) : null}
+                  {aiPaused ? <Badge tone="default">🙋 İnsan desteğinde</Badge> : null}
                 </div>
               </CardHeader>
               <CardContent className="space-y-2">
                 {c.messages.map((m) => {
+                  // The AI re-enable marker is a system line, not a chat bubble.
+                  if (m.senderName === AI_RESUME_MARKER) {
+                    return (
+                      <div key={m.id} className="my-1 flex items-center gap-2 text-[11px] text-muted-foreground">
+                        <span className="h-px flex-1 bg-border" />
+                        🤖 Lixus AI yeniden etkinleştirildi
+                        <span className="h-px flex-1 bg-border" />
+                      </div>
+                    );
+                  }
                   // Three distinct senders: the guest, the bot ("Lixus AI"), and
                   // the human host (any other outbound senderName → "Siz").
                   const role =
@@ -146,10 +163,16 @@ export default async function GuestChatsPage() {
                     </div>
                   );
                 })}
+                {aiPaused ? (
+                  <div className="border-t border-border pt-3">
+                    <GuestChatResumeAi conversationId={c.id} />
+                  </div>
+                ) : null}
                 <GuestChatReply conversationId={c.id} />
               </CardContent>
             </Card>
-          ))}
+            );
+          })}
         </div>
       )}
     </>

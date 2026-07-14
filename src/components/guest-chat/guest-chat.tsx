@@ -2,7 +2,7 @@
 
 import { Fragment, useCallback, useEffect, useRef, useState } from "react";
 
-type Role = "guest" | "ai" | "host";
+type Role = "guest" | "ai" | "host" | "resume";
 interface ChatMessage {
   id: string;
   role: Role;
@@ -278,42 +278,54 @@ export function GuestChat({ token }: { token: string }) {
         {messages.map((m, i) => {
           const guest = m.role === "guest";
           const host = m.role === "host";
-          // A once-per-thread separator above the FIRST manual host message, so the
-          // guest sees exactly when the team joined (n is tiny → findIndex is cheap).
-          const isFirstHost = host && messages.findIndex((x) => x.role === "host") === i;
+          const resume = m.role === "resume";
+          // Separators mark the handoff transitions: the team joining and the AI
+          // being re-enabled. Derived from the sequence — n is tiny so the back-scan
+          // is cheap. A host message starts a "team joined" run only when the previous
+          // handoff marker was a resume (or there was none); a resume marker is
+          // rendered as its own "AI re-enabled" line (no bubble).
+          const prevMarker = [...messages.slice(0, i)].reverse().find((x) => x.role === "host" || x.role === "resume");
+          const startsHostRun = host && (!prevMarker || prevMarker.role === "resume");
+          const separator = resume
+            ? "Lixus AI yeniden etkinleştirildi"
+            : startsHostRun
+              ? "İşletme ekibi görüşmeye katıldı"
+              : null;
           return (
             <Fragment key={m.id}>
-              {isFirstHost ? (
+              {separator ? (
                 <div className="my-1 flex items-center gap-2 text-[11px] text-muted-foreground">
                   <span className="h-px flex-1 bg-border" />
-                  İşletme ekibi görüşmeye katıldı
+                  {separator}
                   <span className="h-px flex-1 bg-border" />
                 </div>
               ) : null}
-              <div className={guest ? "flex justify-end" : "flex justify-start"}>
-                <div
-                  className={
-                    guest
-                      ? "max-w-[85%] rounded-2xl rounded-br-sm bg-primary px-3 py-2 text-sm text-primary-foreground"
-                      : host
-                        ? "max-w-[85%] rounded-2xl rounded-bl-sm border border-emerald-300 bg-emerald-50 px-3 py-2 text-sm text-emerald-900"
-                        : "max-w-[85%] rounded-2xl rounded-bl-sm border border-border bg-card px-3 py-2 text-sm"
-                  }
-                >
-                  {!guest ? (
-                    <p
-                      className={
-                        host
-                          ? "mb-0.5 text-[10px] font-semibold text-emerald-700"
-                          : "mb-0.5 text-[10px] font-semibold text-muted-foreground"
-                      }
-                    >
-                      {host ? "👥 İşletme ekibi" : "🤖 Lixus AI"}
-                    </p>
-                  ) : null}
-                  <p className="whitespace-pre-wrap break-words">{m.text}</p>
+              {resume ? null : (
+                <div className={guest ? "flex justify-end" : "flex justify-start"}>
+                  <div
+                    className={
+                      guest
+                        ? "max-w-[85%] rounded-2xl rounded-br-sm bg-primary px-3 py-2 text-sm text-primary-foreground"
+                        : host
+                          ? "max-w-[85%] rounded-2xl rounded-bl-sm border border-emerald-300 bg-emerald-50 px-3 py-2 text-sm text-emerald-900"
+                          : "max-w-[85%] rounded-2xl rounded-bl-sm border border-border bg-card px-3 py-2 text-sm"
+                    }
+                  >
+                    {!guest ? (
+                      <p
+                        className={
+                          host
+                            ? "mb-0.5 text-[10px] font-semibold text-emerald-700"
+                            : "mb-0.5 text-[10px] font-semibold text-muted-foreground"
+                        }
+                      >
+                        {host ? "👥 İşletme ekibi" : "🤖 Lixus AI"}
+                      </p>
+                    ) : null}
+                    <p className="whitespace-pre-wrap break-words">{m.text}</p>
+                  </div>
                 </div>
-              </div>
+              )}
             </Fragment>
           );
         })}

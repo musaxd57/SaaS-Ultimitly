@@ -24,6 +24,36 @@ import { qrPinEnabled } from "@/lib/guest-chat-pin";
 // public QR context. (Matches the KnowledgeBaseItem category vocabulary.)
 export const QR_SECRET_CATEGORIES = ["wifi", "checkin"] as const;
 
+// ---------------------------------------------------------------------------
+// HOST HANDOFF state (migration-free). When a human host replies in a QR thread
+// the AI hands off; it stays paused until the host EXPLICITLY re-enables it from
+// the panel — never on a timer (the host may have stepped into a sensitive matter
+// the AI would misread hours later). Both the state AND the visible transitions
+// are represented as messages in the existing timeline — no schema flag:
+//   • a host reply  → outbound, senderName = the host's name (a real message)
+//   • a resume mark → outbound, senderName = AI_RESUME_MARKER (a system marker)
+// The bot's own replies use senderName "Lixus AI" and are NOT handoff markers.
+// ---------------------------------------------------------------------------
+export const AI_RESUME_MARKER = "__lixus_ai_resumed__";
+
+/**
+ * Is the QR AI currently PAUSED for this thread? True when the most recent NON-bot
+ * outbound event is a human host reply that has NOT been followed by a resume
+ * marker. Pure — operates on rows already ordered oldest→newest. (Handles any
+ * number of takeover/resume cycles: only the latest transition decides.)
+ */
+export function guestChatAiPausedFromMessages(
+  messages: { direction: string; senderName: string }[],
+): boolean {
+  for (let i = messages.length - 1; i >= 0; i--) {
+    const m = messages[i];
+    if (m.direction !== "outbound") continue; // guest inbound is not a marker
+    if (m.senderName === "Lixus AI") continue; // the bot's own reply is not a handoff marker
+    return m.senderName !== AI_RESUME_MARKER; // host reply → paused; resume marker → active
+  }
+  return false; // no host activity at all → AI active
+}
+
 // CONTENT-level guard (belt to the category suspenders). The category filter
 // alone "fails open" if a host files a door/keybox code or Wi-Fi password under
 // faq/rules/general/etc. — so ANY KB item whose text looks like an access secret
