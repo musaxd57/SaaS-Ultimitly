@@ -2,7 +2,8 @@ import { type NextRequest, type NextResponse } from "next/server";
 import { prisma } from "@/lib/db";
 import { suggestReply } from "@/lib/ai";
 import { classifyFallback, detectPromptInjection, detectRiskType } from "@/lib/ai/fallback";
-import { resolveGuestChat, bindOrCheckStay, AI_RESUME_MARKER, type GuestChatContext } from "@/lib/guest-chat";
+import { resolveGuestChat, bindOrCheckStay, guestChatAiPausedFromMessages, type GuestChatContext } from "@/lib/guest-chat";
+import { guestChatDisplayRole } from "@/lib/message-author";
 import { verifyReservationPin } from "@/lib/guest-chat-pin";
 import { sendQrEscalationAlertBounded, qrEscalationEventId } from "@/lib/guest-chat-alerts";
 import { jsonOk, badRequest, tooManyRequests } from "@/lib/api";
@@ -158,9 +159,9 @@ async function recordGuestChat(
   // identity (dedupe anchor) — same insert semantics, ids back in one round.
   const created = await prisma.message.createManyAndReturn({
     data: [
-      { conversationId, direction: "inbound", senderName: reservation.guestName, body: guestMessage.slice(0, MAX_MESSAGE), language: "tr" },
+      { conversationId, direction: "inbound", authorType: "guest", senderName: reservation.guestName, body: guestMessage.slice(0, MAX_MESSAGE), language: "tr" },
       ...(botReply !== null
-        ? [{ conversationId, direction: "outbound", senderName: "Lixus AI", body: botReply.slice(0, MAX_MESSAGE), language: "tr" }]
+        ? [{ conversationId, direction: "outbound", authorType: "ai", senderName: "Lixus AI", body: botReply.slice(0, MAX_MESSAGE), language: "tr" }]
         : []),
     ],
     select: { id: true, direction: true },
@@ -180,16 +181,16 @@ async function recordGuestChat(
  */
 async function guestChatAiPaused(propertyId: string, reservationId: string): Promise<boolean> {
   const marker = `qr-chat:${propertyId}:${reservationId}`;
-  const last = await prisma.message.findFirst({
-    where: {
-      conversation: { is: { propertyId, externalReservationId: marker } },
-      direction: "outbound",
-      senderName: { not: "Lixus AI" },
+  const convo = await prisma.conversation.findFirst({
+    where: { propertyId, externalReservationId: marker },
+    select: {
+      messages: {
+        orderBy: { createdAt: "asc" },
+        select: { direction: true, senderName: true, authorType: true, systemEventType: true },
+      },
     },
-    orderBy: { createdAt: "desc" },
-    select: { senderName: true },
   });
-  return last ? last.senderName !== AI_RESUME_MARKER : false;
+  return convo ? guestChatAiPausedFromMessages(convo.messages) : false;
 }
 
 // ---------------------------------------------------------------------------
@@ -279,22 +280,14 @@ export async function GET(req: NextRequest, { params }: { params: Promise<{ toke
     select: {
       messages: {
         orderBy: { createdAt: "asc" },
-        select: { id: true, direction: true, senderName: true, body: true },
+        select: { id: true, direction: true, senderName: true, authorType: true, systemEventType: true, body: true },
       },
     },
   });
   const messages = (convo?.messages ?? []).map((m) => ({
     id: m.id,
-    // inbound → guest; "Lixus AI" → the bot; the resume marker → a "resume" system
-    // line (AI re-enabled); any other outbound → the human host team.
-    role:
-      m.direction === "inbound"
-        ? "guest"
-        : m.senderName === "Lixus AI"
-          ? "ai"
-          : m.senderName === AI_RESUME_MARKER
-            ? "resume"
-            : "host",
+    // Reliable, typed role (authorType) — never the message text or host senderName.
+    role: guestChatDisplayRole(m),
     text: m.body,
   }));
   const out = jsonOk({ open: true, messages });

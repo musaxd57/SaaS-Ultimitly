@@ -34,11 +34,11 @@ async function makeChatConvo(propertyId: string, withHostReply = true): Promise<
     },
   });
   await prisma.message.create({
-    data: { conversationId: convo.id, direction: "inbound", senderName: "Misafir", body: "Merhaba", language: "tr" },
+    data: { conversationId: convo.id, direction: "inbound", authorType: "guest", senderName: "Misafir", body: "Merhaba", language: "tr" },
   });
   if (withHostReply) {
     await prisma.message.create({
-      data: { conversationId: convo.id, direction: "outbound", senderName: "Ev Sahibi", body: "Ben bakıyorum", language: "tr" },
+      data: { conversationId: convo.id, direction: "outbound", authorType: "host", senderName: "Ev Sahibi", body: "Ben bakıyorum", language: "tr" },
     });
   }
   return convo.id;
@@ -72,13 +72,13 @@ describe("POST /api/guest-chats/[id]/resume-ai (host re-enables the AI)", () => 
     const res = await call(id);
     expect(res.status).toBe(201);
     expect(await markerCount(id)).toBe(1);
-    // The marker is the newest non-bot outbound → thread is active again.
-    const last = await prisma.message.findFirst({
-      where: { conversationId: id, direction: "outbound", senderName: { not: "Lixus AI" } },
-      orderBy: { createdAt: "desc" },
-      select: { senderName: true },
+    // The marker is a typed SYSTEM event (reliable), not just a senderName string.
+    const marker = await prisma.message.findFirst({
+      where: { conversationId: id, senderName: AI_RESUME_MARKER },
+      select: { authorType: true, systemEventType: true },
     });
-    expect(last?.senderName).toBe(AI_RESUME_MARKER);
+    expect(marker?.authorType).toBe("system");
+    expect(marker?.systemEventType).toBe("guest_chat_ai_resumed");
   });
 
   it("is idempotent — a no-op (200) when the AI is already active", async () => {

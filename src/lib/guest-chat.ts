@@ -3,6 +3,11 @@ import { prisma } from "@/lib/db";
 import { daysUntilDate } from "@/lib/utils";
 import { premiumAllowed } from "@/lib/billing/subscription";
 import { qrPinEnabled } from "@/lib/guest-chat-pin";
+import {
+  LEGACY_AI_RESUME_SENDER,
+  resolveMessageAuthor,
+  SYSTEM_EVENT_GUEST_CHAT_AI_RESUMED,
+} from "@/lib/message-author";
 
 // ---------------------------------------------------------------------------
 // Guest QR concierge — token resolution (FOUNDATION, no public surface yet).
@@ -25,31 +30,40 @@ import { qrPinEnabled } from "@/lib/guest-chat-pin";
 export const QR_SECRET_CATEGORIES = ["wifi", "checkin"] as const;
 
 // ---------------------------------------------------------------------------
-// HOST HANDOFF state (migration-free). When a human host replies in a QR thread
-// the AI hands off; it stays paused until the host EXPLICITLY re-enables it from
-// the panel — never on a timer (the host may have stepped into a sensitive matter
-// the AI would misread hours later). Both the state AND the visible transitions
-// are represented as messages in the existing timeline — no schema flag:
-//   • a host reply  → outbound, senderName = the host's name (a real message)
-//   • a resume mark → outbound, senderName = AI_RESUME_MARKER (a system marker)
-// The bot's own replies use senderName "Lixus AI" and are NOT handoff markers.
+// HOST HANDOFF state. When a human host replies in a QR thread the AI hands off; it
+// stays paused until the host EXPLICITLY re-enables it from the panel — never on a
+// timer (the host may have stepped into a sensitive matter the AI would misread
+// hours later). Both the state AND the visible transitions live in the message
+// timeline, keyed off the RELIABLE `authorType` (migration 28), NEVER the message
+// text or the host-controlled senderName:
+//   • a host reply    → authorType "host"   (a real message; this IS the pause event)
+//   • a resume event  → authorType "system", systemEventType guest_chat_ai_resumed
+// The bot's own replies are authorType "ai" and are NOT handoff markers.
 // ---------------------------------------------------------------------------
-export const AI_RESUME_MARKER = "__lixus_ai_resumed__";
+
+// The resume event's DISPLAY senderName (audit only). State is decided by authorType,
+// not this string; kept so pre-migration rows still render/read correctly.
+export const AI_RESUME_MARKER = LEGACY_AI_RESUME_SENDER;
 
 /**
- * Is the QR AI currently PAUSED for this thread? True when the most recent NON-bot
- * outbound event is a human host reply that has NOT been followed by a resume
- * marker. Pure — operates on rows already ordered oldest→newest. (Handles any
- * number of takeover/resume cycles: only the latest transition decides.)
+ * Is the QR AI currently PAUSED for this thread? True when the most recent handoff
+ * event is a host reply not yet followed by a system resume event. Keys off the
+ * reliable authorType (falls back to the legacy derivation for any pre-migration /
+ * old-deployment row). Pure — rows ordered oldest→newest; only the latest transition
+ * decides, so any number of takeover/resume cycles resolves deterministically.
  */
 export function guestChatAiPausedFromMessages(
-  messages: { direction: string; senderName: string }[],
+  messages: { direction: string; senderName: string; authorType?: string | null; systemEventType?: string | null }[],
 ): boolean {
   for (let i = messages.length - 1; i >= 0; i--) {
-    const m = messages[i];
-    if (m.direction !== "outbound") continue; // guest inbound is not a marker
-    if (m.senderName === "Lixus AI") continue; // the bot's own reply is not a handoff marker
-    return m.senderName !== AI_RESUME_MARKER; // host reply → paused; resume marker → active
+    const { authorType, systemEventType } = resolveMessageAuthor(messages[i]);
+    if (authorType === "guest" || authorType === "ai") continue; // not handoff markers
+    if (authorType === "system") {
+      // Only the "AI re-enabled" event flips it back on; other system events are neutral.
+      if (systemEventType === SYSTEM_EVENT_GUEST_CHAT_AI_RESUMED) return false;
+      continue;
+    }
+    return true; // host reply → paused
   }
   return false; // no host activity at all → AI active
 }

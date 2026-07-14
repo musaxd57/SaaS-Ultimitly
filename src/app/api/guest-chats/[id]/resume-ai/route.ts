@@ -1,7 +1,8 @@
 import { type NextRequest } from "next/server";
 import { prisma } from "@/lib/db";
 import { requireSession, unauthorized, canManage, forbidden, jsonOk, notFound } from "@/lib/api";
-import { AI_RESUME_MARKER } from "@/lib/guest-chat";
+import { AI_RESUME_MARKER, guestChatAiPausedFromMessages } from "@/lib/guest-chat";
+import { SYSTEM_EVENT_GUEST_CHAT_AI_RESUMED } from "@/lib/message-author";
 
 // Owner/manager RE-ENABLES the QR AI for a thread it had handed off to the team.
 // The AI never auto-resumes on a timer (the host may have stepped into a sensitive
@@ -22,19 +23,16 @@ export async function POST(_req: NextRequest, { params }: { params: Promise<{ id
     where: { id, channel: "chat", property: { organizationId: session.organizationId } },
     select: {
       id: true,
-      // Most recent NON-bot outbound event decides the current state.
+      // Reliable handoff state = authorType timeline (legacy senderName fallback inside).
       messages: {
-        where: { direction: "outbound", senderName: { not: "Lixus AI" } },
-        orderBy: { createdAt: "desc" },
-        take: 1,
-        select: { senderName: true },
+        orderBy: { createdAt: "asc" },
+        select: { direction: true, senderName: true, authorType: true, systemEventType: true },
       },
     },
   });
   if (!convo) return notFound();
 
-  const last = convo.messages[0];
-  const paused = last ? last.senderName !== AI_RESUME_MARKER : false;
+  const paused = guestChatAiPausedFromMessages(convo.messages);
   if (!paused) return jsonOk({ ok: true, alreadyActive: true }); // idempotent no-op
 
   await prisma.$transaction([
@@ -42,6 +40,10 @@ export async function POST(_req: NextRequest, { params }: { params: Promise<{ id
       data: {
         conversationId: convo.id,
         direction: "outbound",
+        // The resume EVENT — authorType/systemEventType are the reliable signal; the
+        // senderName is a display/audit label only (never read for state).
+        authorType: "system",
+        systemEventType: SYSTEM_EVENT_GUEST_CHAT_AI_RESUMED,
         senderName: AI_RESUME_MARKER,
         body: "Lixus AI yeniden etkinleştirildi",
         language: "tr",

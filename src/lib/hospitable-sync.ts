@@ -633,6 +633,10 @@ async function importThread(
         data: {
           conversationId,
           direction: inbound ? "inbound" : "outbound",
+          // Imported channel messages: inbound = the guest; outbound = the host's own
+          // reply on the channel (our AI sends carry externalId and dedupe, so they are
+          // not re-created here). authorType is the reliable classifier.
+          authorType: inbound ? "guest" : "host",
           senderName: senderFullName(m) ?? (inbound ? guestName : "Ev sahibi"),
           body,
           language,

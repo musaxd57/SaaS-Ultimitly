@@ -126,6 +126,9 @@ export const POST = withManage<{ id: string }>(async (session, req, { params }) 
         data: {
           conversationId: id,
           direction: "outbound",
+          // Host-sent (manual, or a one-click-approved AI draft → aiAssisted). authorType
+          // is the reliable author; aiAssisted separately flags "AI drafted it".
+          authorType: "host",
           senderName: parsed.data.senderName || session.name,
           body: replyBody,
           aiAssisted,

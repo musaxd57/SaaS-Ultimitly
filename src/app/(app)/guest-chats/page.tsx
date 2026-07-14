@@ -8,7 +8,8 @@ import { Badge } from "@/components/ui/badge";
 import { LinkButton } from "@/components/ui/link-button";
 import { GuestChatReply } from "@/components/guest-chats/reply-box";
 import { GuestChatResumeAi } from "@/components/guest-chats/resume-ai-button";
-import { guestChatAiPausedFromMessages, AI_RESUME_MARKER } from "@/lib/guest-chat";
+import { guestChatAiPausedFromMessages } from "@/lib/guest-chat";
+import { guestChatDisplayRole } from "@/lib/message-author";
 import { formatDate, formatDateTime } from "@/lib/utils";
 
 export const dynamic = "force-dynamic";
@@ -119,8 +120,10 @@ export default async function GuestChatsPage() {
               </CardHeader>
               <CardContent className="space-y-2">
                 {c.messages.map((m) => {
-                  // The AI re-enable marker is a system line, not a chat bubble.
-                  if (m.senderName === AI_RESUME_MARKER) {
+                  // Reliable, typed role (authorType) — never the message text/senderName.
+                  const role = guestChatDisplayRole(m);
+                  // The AI re-enable event is a system separator line, not a chat bubble.
+                  if (role === "resume") {
                     return (
                       <div key={m.id} className="my-1 flex items-center gap-2 text-[11px] text-muted-foreground">
                         <span className="h-px flex-1 bg-border" />
@@ -129,10 +132,6 @@ export default async function GuestChatsPage() {
                       </div>
                     );
                   }
-                  // Three distinct senders: the guest, the bot ("Lixus AI"), and
-                  // the human host (any other outbound senderName → "Siz").
-                  const role =
-                    m.direction === "inbound" ? "guest" : m.senderName === "Lixus AI" ? "ai" : "host";
                   const guest = role === "guest";
                   const host = role === "host";
                   return (

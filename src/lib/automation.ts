@@ -248,6 +248,7 @@ async function maybeSendHoldingAck(opts: {
         data: {
           conversationId: opts.conversation.id,
           direction: "outbound",
+          authorType: "ai",
           senderName: "GuestOps AI",
           body,
           aiIntent: "complaint",
@@ -1070,6 +1071,7 @@ export async function applyChannelAutoReply(
         data: {
           conversationId: conversation.id,
           direction: "outbound",
+          authorType: "ai",
           senderName: "GuestOps AI",
           body: outboundBody,
           aiIntent: result.intent,

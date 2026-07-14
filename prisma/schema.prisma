@@ -445,6 +445,14 @@ model Message {
   // (one-click "Onayla ve gönder"). Lets reports credit host-approved AI replies,
   // not only fully-automatic "GuestOps AI" sends. Defaulted → db-push safe.
   aiAssisted      Boolean  @default(false)
+  // Canonical, typed authorship (migration 28): guest | ai | host | system. This is
+  // the RELIABLE classifier — senderName above is DISPLAY/AUDIT only and must never
+  // drive a security/state decision. systemEventType names a closed system event when
+  // authorType = system (e.g. guest_chat_ai_resumed). NULLABLE: additive on a
+  // populated table + old-deployment INSERT compat; new code dual-writes it and reads
+  // prefer it (deriveMessageAuthor is the transitional fallback for any NULL row).
+  authorType      String?
+  systemEventType String?
   createdAt       DateTime @default(now())
 
   conversation Conversation @relation(fields: [conversationId], references: [id], onDelete: Cascade)

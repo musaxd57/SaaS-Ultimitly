@@ -36,7 +36,7 @@ async function makeChatConvo(propertyId: string): Promise<string> {
     },
   });
   await prisma.message.create({
-    data: { conversationId: convo.id, direction: "inbound", senderName: "Misafir", body: "Merhaba", language: "tr" },
+    data: { conversationId: convo.id, direction: "inbound", authorType: "guest", senderName: "Misafir", body: "Merhaba", language: "tr" },
   });
   return convo.id;
 }
@@ -45,43 +45,48 @@ const rows = (conversationId: string) =>
   prisma.message.findMany({
     where: { conversationId },
     orderBy: { createdAt: "asc" },
-    select: { direction: true, senderName: true },
+    select: { direction: true, senderName: true, authorType: true, systemEventType: true },
   });
 
-describe("POST /api/guest-chats/[id]/reply — handoff-marker identity is reliable", () => {
+describe("POST /api/guest-chats/[id]/reply — handoff identity is authorType, not senderName", () => {
   beforeEach(async () => {
     await resetDb();
     session = null;
   });
 
-  it("a host whose display name collides with a reserved marker is still a HOST reply (AI stays paused)", async () => {
+  it("a host whose display name equals the RESUME marker is still authorType=host (AI stays paused)", async () => {
     const { orgId, propertyId } = await makeOrgWithProperty();
     const id = await makeChatConvo(propertyId);
-    // The handoff state keys off senderName; a host must not be able to masquerade as
-    // the resume marker by setting their account name to the sentinel value.
+    // A hostile/unlucky display name must NOT let a host reply masquerade as a system
+    // resume event — the classifier is authorType, not the host-controlled senderName.
     session = sess(orgId, AI_RESUME_MARKER);
     const res = await call(id, "Ben ilgileniyorum.");
     expect(res.status).toBe(201);
     const stored = await rows(id);
-    expect(stored.some((m) => m.senderName === AI_RESUME_MARKER)).toBe(false); // sanitized
+    const out = stored.find((m) => m.direction === "outbound");
+    expect(out?.authorType).toBe("host"); // reliable signal
+    expect(out?.senderName).toBe(AI_RESUME_MARKER); // real name preserved for display/audit
     expect(guestChatAiPausedFromMessages(stored)).toBe(true); // reads as a takeover, not a resume
   });
 
-  it("a host name colliding with the bot marker ('Lixus AI') is likewise stored as a host reply", async () => {
+  it("a host whose display name equals the BOT marker ('Lixus AI') is still authorType=host", async () => {
     const { orgId, propertyId } = await makeOrgWithProperty();
     const id = await makeChatConvo(propertyId);
     session = sess(orgId, "Lixus AI");
     await call(id, "Yardımcı olayım.");
     const stored = await rows(id);
-    expect(stored.some((m) => m.direction === "outbound" && m.senderName === "Lixus AI")).toBe(false);
+    const out = stored.find((m) => m.direction === "outbound");
+    expect(out?.authorType).toBe("host");
     expect(guestChatAiPausedFromMessages(stored)).toBe(true);
   });
 
-  it("a normal host reply keeps the host's name and pauses the AI", async () => {
+  it("a normal host reply is authorType=host and pauses the AI", async () => {
     const { orgId, propertyId } = await makeOrgWithProperty();
     const id = await makeChatConvo(propertyId);
     session = sess(orgId, "Ayşe Yılmaz");
     await call(id, "Merhaba, yardımcı olayım.");
-    expect(guestChatAiPausedFromMessages(await rows(id))).toBe(true);
+    const stored = await rows(id);
+    expect(stored.find((m) => m.direction === "outbound")?.authorType).toBe("host");
+    expect(guestChatAiPausedFromMessages(stored)).toBe(true);
   });
 });
