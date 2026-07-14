@@ -1,4 +1,5 @@
 import "server-only";
+import { Prisma } from "@prisma/client";
 import { prisma } from "@/lib/db";
 import { isUniqueViolation } from "@/lib/db-errors";
 import { parseIcs } from "@/lib/import/ics";
@@ -15,6 +16,30 @@ export interface SyncResult {
 }
 
 const FEED_MAX_BYTES = 10 * 1024 * 1024;
+
+// ─────────────────────────────────────────────────────────────────────────────
+// #23 Feed-disappearance reconciliation (FAZ 2) — DEFAULT OFF.
+//
+// Some OTAs (Airbnb) REMOVE a cancelled booking's event instead of marking it
+// STATUS:CANCELLED, so a silently-gone UID means an upstream cancellation. Reflecting
+// that is valuable, but a naive "gone this run → cancel" mass-cancels the feed's OWN
+// rows on a partial/transient response (the reason the old inline block stayed OFF).
+// This version is SAFE: a stay is cancelled ONLY after it vanishes from >= THRESHOLD
+// CONSECUTIVE RELIABLE runs AND for >= MIN wall-clock, is source-bound, and reappears
+// reset it atomically. Empty / suspicious-drop / non-reliable fetches never count.
+//
+// Cadence note: iCal sync is USER-TRIGGERED (manual /api/calendar/sync — NOT the cron),
+// so there is no guaranteed interval → the wall-clock MIN duration is the authoritative
+// guard; the count threshold only ensures a single anomalous run can never cancel.
+export function feedReconcileEnabled(): boolean {
+  return process.env.ICAL_DISAPPEARANCE_RECONCILE_ENABLED === "1";
+}
+
+const FEED_MISSING_THRESHOLD = 2; //            >= 2 consecutive reliable runs missing it
+const FEED_MISSING_MIN_MS = 24 * 60 * 60_000; // AND gone >= 24h (user-driven cadence → wall-clock rules)
+const SUSPICIOUS_DROP_MIN_BASE = 5; //          only guard a drop when the baseline had >= 5 UIDs
+const SUSPICIOUS_DROP_RATIO = 0.5; //           a drop to < 50% of the baseline is treated as partial
+const FEED_LOCK_NS = 23; //                     advisory-lock namespace ("#23"), disjoint from the outbox lock
 
 /** Map a free-text source label to a known reservation channel. */
 function channelFromLabel(label: string): string {
@@ -41,6 +66,10 @@ export async function syncCalendarSource(sourceId: string): Promise<SyncResult> 
   }
 
   const channel = channelFromLabel(source.label);
+
+  // Fetch-start stamp — the ordering key for the disappearance reconciliation (a slower older
+  // run must never overwrite a newer run's result). Captured BEFORE the network call.
+  const runStartedAt = new Date();
 
   let text: string;
   try {
@@ -203,39 +232,19 @@ export async function syncCalendarSource(sourceId: string): Promise<SyncResult> 
     }
   }
 
-  // Reconciliation for OTAs (e.g. Airbnb) that REMOVE a cancelled event instead of
-  // marking it STATUS:CANCELLED: a strictly-FUTURE reservation from this feed's
-  // channel whose UID is no longer present was cancelled upstream → cancel it +
-  // drop its auto tasks. Guarded hard: only when the feed returned events (a
-  // transient empty/broken feed must never mass-cancel), only future arrivals
-  // (a current/past stay is left alone), best-effort (never fails the import).
-  const DISAPPEARANCE_RECONCILIATION = false; // OFF: a partial-but-non-empty feed response could mass-cancel ITS OWN rows; re-enable only with two-consecutive-miss tracking (needs per-source state). STATUS:CANCELLED still cancels explicitly.
-  if (DISAPPEARANCE_RECONCILIATION && rows.length > 0) {
+  // Feed-disappearance reconciliation (#23, FAZ 2) — DEFAULT OFF. All the mass-cancel guards
+  // (consecutive-reliable-miss threshold + wall-clock minimum + suspicious-drop/empty skip +
+  // strict source binding + per-source lock + stale-run ordering) live in the function. It only
+  // runs after a SUCCESSFUL fetch; the explicit STATUS:CANCELLED path above is unaffected.
+  // Best-effort: a reconciliation hiccup must never turn a good import into a failure.
+  let reconcileWarning: string | null = null;
+  if (feedReconcileEnabled()) {
     try {
-      const upcoming = await prisma.reservation.findMany({
-        where: {
-          propertyId: source.propertyId,
-          channel,
-          // SOURCE BINDING (mass-cancel guard): only rows THIS feed imported are
-          // candidates. Another feed's rows, Hospitable's rows, and legacy
-          // unbound rows (calendarSourceId NULL) are never touched — a feed can
-          // only "disappear" what it once showed.
-          calendarSourceId: source.id,
-          sourceReference: { not: null },
-          status: { in: ["confirmed", "pending"] },
-          arrivalDate: { gt: new Date() },
-        },
-        select: { id: true, sourceReference: true },
-      });
-      for (const r of upcoming) {
-        if (r.sourceReference && !seenRefs.has(r.sourceReference)) {
-          await prisma.reservation.update({ where: { id: r.id }, data: { status: "cancelled" } });
-          await removeAutoTasksForCancelledReservation(r.id);
-          result.updated++;
-        }
-      }
+      const rec = await reconcileFeedDisappearance({ source, channel, seenRefs, runStartedAt });
+      result.updated += rec.cancelled;
+      reconcileWarning = rec.warning;
     } catch {
-      // best-effort — reconciliation must not turn a good import into a failure
+      // never fail the import on reconciliation
     }
   }
 
@@ -244,6 +253,7 @@ export async function syncCalendarSource(sourceId: string): Promise<SyncResult> 
   if (result.updated > 0) parts.push(`${result.updated} güncellendi`);
   if (result.skipped > 0) parts.push(`${result.skipped} atlandı`);
   if (result.errors.length) parts.push(`${result.errors.length} hata`);
+  if (reconcileWarning) parts.push(`⚠ ${reconcileWarning}`);
   const summary = parts.length ? parts.join(", ") : "Yeni rezervasyon bulunamadı";
 
   await prisma.calendarSource.update({
@@ -256,6 +266,121 @@ export async function syncCalendarSource(sourceId: string): Promise<SyncResult> 
   });
 
   return result;
+}
+
+/**
+ * FAZ 2 — reconcile reservations that silently disappeared from a calendar feed. Runs ONLY
+ * after a successful fetch, and internally enforces every safety gate:
+ *  • per-source advisory lock → two concurrent syncs never double-count a miss;
+ *  • stale-run ordering → an older/slower run never overwrites a newer one's result;
+ *  • empty / suspicious-drop feed → NEVER counts a miss (audit warning instead);
+ *  • a stay is cancelled ONLY after >= THRESHOLD consecutive reliable misses AND >= MIN
+ *    wall-clock, is source-bound, and reappearing resets the streak atomically;
+ *  • cancel is a one-time status flip (no DELETE); only system auto-tasks are cleared.
+ * `now` / `runStartedAt` are injectable for deterministic tests.
+ */
+export async function reconcileFeedDisappearance(opts: {
+  source: { id: string; propertyId: string };
+  channel: string;
+  seenRefs: Set<string>;
+  runStartedAt: Date;
+  now?: Date;
+}): Promise<{ cancelled: number; warning: string | null }> {
+  const { source, channel, seenRefs, runStartedAt } = opts;
+  const now = opts.now ?? new Date();
+  const eventCount = seenRefs.size;
+  const cancelledIds: string[] = [];
+  let warning: string | null = null;
+
+  await prisma.$transaction(async (tx) => {
+    // Serialize this source's reconciliation (namespaced advisory lock, disjoint from the
+    // outbox claim lock). Non-blocking: if another sync holds it, skip — the other run does it.
+    const gate = await tx.$queryRaw<Array<{ locked: boolean }>>(
+      Prisma.sql`SELECT pg_try_advisory_xact_lock(${FEED_LOCK_NS}::int4, hashtext(${source.id})) AS locked`,
+    );
+    if (!gate[0]?.locked) return;
+
+    const src = await tx.calendarSource.findUnique({
+      where: { id: source.id },
+      select: { lastFeedEventCount: true, lastReconcileAt: true },
+    });
+    if (!src) return;
+    // Stale-run guard: a newer reliable run already reconciled → don't let this older run overwrite.
+    if (src.lastReconcileAt && runStartedAt <= src.lastReconcileAt) return;
+
+    // RELIABILITY GATE 1 — empty / unparseable feed never mass-cancels (keep the last baseline).
+    if (eventCount === 0) {
+      warning = "Takvim akışı boş/okunamadı — kayıp uzlaştırması bu turda atlandı.";
+      return;
+    }
+    // RELIABILITY GATE 2 — a suspicious sudden drop is treated as a partial feed: skip miss
+    // tracking this run, but move the baseline so a GENUINE mass-removal reconciles next run.
+    if (
+      src.lastFeedEventCount != null &&
+      src.lastFeedEventCount >= SUSPICIOUS_DROP_MIN_BASE &&
+      eventCount < src.lastFeedEventCount * SUSPICIOUS_DROP_RATIO
+    ) {
+      warning = `Takvim akışı ${src.lastFeedEventCount} → ${eventCount} ani düşüş (kısmi olabilir) — kayıp uzlaştırması bu turda atlandı.`;
+      await tx.calendarSource.update({
+        where: { id: source.id },
+        data: { lastFeedEventCount: eventCount, lastReconcileAt: runStartedAt },
+      });
+      return;
+    }
+
+    // RELIABLE run. Candidates: only FUTURE, source-bound, still-active rows of THIS feed.
+    const candidates = await tx.reservation.findMany({
+      where: {
+        propertyId: source.propertyId,
+        channel,
+        calendarSourceId: source.id, // source binding — never touch another source / Hospitable / legacy-NULL
+        sourceReference: { not: null },
+        status: { in: ["confirmed", "pending"] },
+        arrivalDate: { gt: now },
+      },
+      select: { id: true, sourceReference: true, feedMissingCount: true, feedFirstMissingAt: true },
+    });
+
+    for (const r of candidates) {
+      const present = r.sourceReference != null && seenRefs.has(r.sourceReference);
+      if (present) {
+        // Reappeared / still there → reset the missing streak atomically.
+        await tx.reservation.updateMany({
+          where: { id: r.id },
+          data: { feedMissingCount: 0, feedFirstMissingAt: null, feedLastSeenAt: runStartedAt },
+        });
+        continue;
+      }
+      // Missing this run → grow the streak; anchor firstMissing on the first miss.
+      const count = (r.feedMissingCount ?? 0) + 1;
+      const firstMissing = r.feedFirstMissingAt ?? runStartedAt;
+      await tx.reservation.updateMany({
+        where: { id: r.id },
+        data: { feedMissingCount: count, feedFirstMissingAt: firstMissing },
+      });
+      // Cancel ONLY when BOTH thresholds are crossed. One-time, source-bound + still-active
+      // re-checked atomically inside the UPDATE.
+      if (count >= FEED_MISSING_THRESHOLD && now.getTime() - firstMissing.getTime() >= FEED_MISSING_MIN_MS) {
+        const res = await tx.reservation.updateMany({
+          where: { id: r.id, calendarSourceId: source.id, status: { in: ["confirmed", "pending"] } },
+          data: { status: "cancelled" },
+        });
+        if (res.count === 1) cancelledIds.push(r.id);
+      }
+    }
+
+    await tx.calendarSource.update({
+      where: { id: source.id },
+      data: { lastFeedEventCount: eventCount, lastReconcileAt: runStartedAt },
+    });
+  });
+
+  // Auto-task cleanup for the cancelled stays — ONLY system-origin tasks (manual/ai preserved).
+  // Best-effort, outside the tx so a task hiccup never rolls back a correct cancellation.
+  for (const id of cancelledIds) {
+    await removeAutoTasksForCancelledReservation(id).catch(() => {});
+  }
+  return { cancelled: cancelledIds.length, warning };
 }
 
 /** Sync every calendar source belonging to an organization. */

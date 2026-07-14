@@ -289,6 +289,12 @@ model CalendarSource {
   lastSyncedAt DateTime?
   lastStatus   String? // "ok" | "error"
   lastResult   String? // human-readable summary of the last sync
+  // Feed-disappearance reconciliation state (migration 31, nullable-first, flag-gated).
+  // lastFeedEventCount = # of UIDs in the last RELIABLE feed (suspicious-drop guard baseline);
+  // lastReconcileAt = fetch-start of the last reliable reconciliation (stale-run ordering: a
+  // slower older run never overwrites a newer one's result).
+  lastFeedEventCount Int?
+  lastReconcileAt    DateTime?
   createdAt    DateTime  @default(now())
   updatedAt    DateTime  @updatedAt
 
@@ -322,6 +328,13 @@ model Reservation {
   welcomeSentAt   DateTime? // set once the auto welcome message has been delivered
   checkinSentAt   DateTime? // set once the auto check-in info message has been delivered
   checkoutSentAt  DateTime? // set once the auto check-out message has been delivered
+  // Feed-disappearance reconciliation (migration 31, nullable-first, flag-gated, source-bound).
+  // A confirmed/pending future stay bound to a calendar source whose UID vanishes from CONSECUTIVE
+  // RELIABLE feed runs is a candidate for upstream-cancel — but only after BOTH a miss-count
+  // threshold AND a minimum wall-clock duration, and reset the moment it reappears.
+  feedLastSeenAt     DateTime? // last reliable feed run that still contained this UID
+  feedMissingCount   Int? //      consecutive reliable runs missing it (NULL = 0)
+  feedFirstMissingAt DateTime? // when the current missing streak began (min-duration anchor)
   guestCheckoutTime String? // guest's own stated departure time (e.g. "18:00"); null → use property default
   // Per-stay QR concierge device binding: the FIRST device to open the chat this
   // stay claims it (sha256 of an httpOnly per-stay secret). Any other device
