@@ -16,9 +16,10 @@ const mockReport = vi.mocked(reportError);
 beforeEach(() => vi.clearAllMocks());
 
 describe("serverError — Hospitable 402 is not paged", () => {
-  it("a HospitableError(402) returns 500 but does NOT call reportError", async () => {
+  it("a HospitableError(402) → controlled 409 with a clear message, NOT a 500, and NOT paged", async () => {
     const res = serverError(undefined, new HospitableError("Hospitable API hatası (HTTP 402): Subscription not active", 402));
-    expect(res.status).toBe(500);
+    expect(res.status).toBe(409); // meaningful, not a bare 500
+    expect((await res.json()).error).toMatch(/Hospitable aboneliğiniz aktif değil/);
     expect(mockReport).not.toHaveBeenCalled();
   });
 

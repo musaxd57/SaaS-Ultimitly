@@ -288,7 +288,13 @@ export async function previewSubscriptionUpdate(
       recurringTotal: formatPaddleTotal(rec?.grand_total, currency),
     };
   } catch (err) {
-    await reportError("paddle-plan-preview", err);
+    // Don't page on an expected outcome (e.g. entity_not_found for a trialing org
+    // with no Paddle sub); keep it in the log. Other failures still page.
+    if (isExpectedPaddleError(err)) {
+      console.warn(`[paddle] plan-preview expected outcome — not paged: ${err instanceof Error ? err.message : String(err)}`);
+    } else {
+      await reportError("paddle-plan-preview", err);
+    }
     return null;
   }
 }
@@ -319,6 +325,23 @@ export function classifyPaddleFailure(err: unknown): "definitive" | "ambiguous" 
 }
 
 /**
+ * KNOWN, non-actionable Paddle outcomes — a declined card or a subscription that
+ * doesn't exist are normal business/test states (a customer's card failed, or a
+ * trialing org has no real Paddle subscription yet), NOT Lixus bugs. These must
+ * NOT page Sentry + the alert e-mail (they flooded the founder's inbox during
+ * self-testing); they stay in the console log, and the caller's controlled
+ * response to the user is unchanged. Every OTHER failure (auth, validation, 5xx,
+ * network) still pages so a genuine bug is never masked. Residual (documented):
+ * a genuinely stale providerRef producing entity_not_found on APPLY won't page —
+ * the reconcile/webhook path still settles sub-state, and the console keeps it.
+ */
+export function isExpectedPaddleError(err: unknown): boolean {
+  const msg = err instanceof Error ? err.message : String(err);
+  const code = msg.match(/Paddle HTTP \d{3} \(([^)]+)\)/)?.[1] ?? "";
+  return code === "subscription_payment_declined" || code === "entity_not_found" || code === "not_found";
+}
+
+/**
  * Apply a plan change. Upgrade → prorated_immediately (charge the difference now).
  * Downgrade → prorated_next_billing_period (takes effect at renewal). Paddle owns
  * the proration + charge; our webhook then updates the local subscription row.
@@ -342,7 +365,14 @@ export async function updateSubscriptionPlan(
     });
     return { ok: true };
   } catch (err) {
-    await reportError("paddle-plan-change", err);
+    // A declined card (subscription_payment_declined) is a normal outcome, not a
+    // bug — don't page, just log. The return contract (kind/reason) is UNCHANGED,
+    // so the route's controlled user response is identical.
+    if (isExpectedPaddleError(err)) {
+      console.warn(`[paddle] plan-change expected outcome — not paged: ${err instanceof Error ? err.message : String(err)}`);
+    } else {
+      await reportError("paddle-plan-change", err);
+    }
     return { ok: false, kind: classifyPaddleFailure(err), reason: err instanceof Error ? err.message : "unknown" };
   }
 }

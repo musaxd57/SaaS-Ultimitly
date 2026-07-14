@@ -96,16 +96,20 @@ export function serverError(message = "Beklenmeyen bir hata oluştu", err?: unkn
   if (err !== undefined) {
     // A Hospitable 402 "Subscription not active" is an EXPECTED external state —
     // the org's OWN Hospitable subscription lapsed, not a Lixus bug (the scheduled
-    // sync already treats it this way). A route that surfaces it to serverError
-    // would otherwise page Sentry + an alert email on every hit until the host
-    // renews (this flooded the inbox: hundreds of identical "sistem hatası — api").
-    // Log it quietly instead; every other error still pages.
+    // sync already treats it this way). Two things: (1) DON'T page Sentry + the
+    // alert email on every hit (this flooded the inbox with identical "sistem
+    // hatası — api"); log it instead. (2) Return a MEANINGFUL response, not a bare
+    // 500 — the caller gets a clear "renew your Hospitable subscription" 409 so the
+    // UI can show why the channel action failed. Every OTHER error still pages + 500s.
     const status = (err as { status?: number } | null)?.status;
     if (err instanceof Error && err.name === "HospitableError" && status === 402) {
-      console.warn("[api] Hospitable subscription not active (402) — surfaced but not paged");
-    } else {
-      void reportError("api", err);
+      console.warn("[api] Hospitable subscription not active (402) — surfaced, not paged");
+      return NextResponse.json(
+        { error: "Hospitable aboneliğiniz aktif değil. Kanal senkronizasyonu için aboneliğinizi yenileyin." },
+        { status: 409 },
+      );
     }
+    void reportError("api", err);
   }
   return NextResponse.json({ error: message }, { status: 500 });
 }

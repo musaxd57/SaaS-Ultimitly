@@ -1,13 +1,21 @@
-import { describe, it, expect, afterEach, vi } from "vitest";
+import { describe, it, expect, afterEach, beforeEach, vi } from "vitest";
+
+vi.mock("@/lib/report-error", () => ({ reportError: vi.fn(async () => {}) }));
+
 import {
   classifyPaddleFailure,
+  isExpectedPaddleError,
   getSubscriptionCurrentPriceId,
   previewSubscriptionUpdate,
   updateSubscriptionPlan,
 } from "@/lib/payments/paddle";
+import { reportError } from "@/lib/report-error";
+
+const mockReport = vi.mocked(reportError);
 
 // Unit-test the plan-change Paddle calls with fetch mocked (no network).
 describe("previewSubscriptionUpdate / updateSubscriptionPlan", () => {
+  beforeEach(() => mockReport.mockClear());
   afterEach(() => {
     vi.restoreAllMocks();
     vi.unstubAllEnvs();
@@ -105,6 +113,48 @@ describe("previewSubscriptionUpdate / updateSubscriptionPlan", () => {
     const res = await updateSubscriptionPlan("sub_1", "pri_pro", "prorated_immediately");
     expect(res.ok).toBe(false);
     if (!res.ok) expect(res.kind).toBe("ambiguous");
+  });
+
+  it("isExpectedPaddleError: declined card / entity-not-found are expected; others are not", () => {
+    expect(isExpectedPaddleError(new Error("Paddle HTTP 400 (subscription_payment_declined) env=production resource=subscriptions"))).toBe(true);
+    expect(isExpectedPaddleError(new Error("Paddle HTTP 404 (entity_not_found) env=production resource=subscriptions"))).toBe(true);
+    expect(isExpectedPaddleError(new Error("Paddle HTTP 404 (not_found) env=production resource=subscriptions"))).toBe(true);
+    // Everything else is a real signal.
+    expect(isExpectedPaddleError(new Error("Paddle HTTP 400 (subscription_locked) env=production resource=subscriptions"))).toBe(false);
+    expect(isExpectedPaddleError(new Error("Paddle HTTP 403 (forbidden) env=production resource=subscriptions"))).toBe(false);
+    expect(isExpectedPaddleError(new Error("Paddle HTTP 500 (internal) env=production resource=subscriptions"))).toBe(false);
+    expect(isExpectedPaddleError(new Error("fetch failed"))).toBe(false);
+  });
+
+  it("plan-change does NOT page on a declined card (expected), but DOES on an unexpected error", async () => {
+    vi.stubEnv("PADDLE_API_KEY", "test-key");
+    // Declined card → expected → NOT paged (still returns definitive so the route can respond).
+    vi.spyOn(global, "fetch").mockResolvedValue({
+      ok: false, status: 400, json: async () => ({ error: { code: "subscription_payment_declined" } }),
+    } as Response);
+    const declined = await updateSubscriptionPlan("sub_1", "pri_pro", "prorated_immediately");
+    expect(declined.ok).toBe(false);
+    if (!declined.ok) expect(declined.kind).toBe("definitive");
+    expect(mockReport).not.toHaveBeenCalled();
+
+    // An unexpected failure (e.g. subscription_locked) STILL pages.
+    mockReport.mockClear();
+    vi.restoreAllMocks();
+    vi.stubEnv("PADDLE_API_KEY", "test-key");
+    vi.spyOn(global, "fetch").mockResolvedValue({
+      ok: false, status: 400, json: async () => ({ error: { code: "subscription_locked" } }),
+    } as Response);
+    await updateSubscriptionPlan("sub_1", "pri_pro", "prorated_immediately");
+    expect(mockReport).toHaveBeenCalledTimes(1);
+  });
+
+  it("preview does NOT page on entity_not_found (expected for a trialing org)", async () => {
+    vi.stubEnv("PADDLE_API_KEY", "test-key");
+    vi.spyOn(global, "fetch").mockResolvedValue({
+      ok: false, status: 404, json: async () => ({ error: { code: "entity_not_found" } }),
+    } as Response);
+    expect(await previewSubscriptionUpdate("sub_1", "pri_pro", "prorated_immediately")).toBeNull();
+    expect(mockReport).not.toHaveBeenCalled();
   });
 
   it("classifyPaddleFailure: 4xx→definitive (except 408), 5xx/408/network→ambiguous", () => {
