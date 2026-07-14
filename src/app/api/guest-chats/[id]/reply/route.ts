@@ -2,6 +2,14 @@ import { type NextRequest, NextResponse } from "next/server";
 import { prisma } from "@/lib/db";
 import { requireSession, unauthorized, canManage, forbidden, jsonOk, badRequest, notFound } from "@/lib/api";
 import { claimOutboundSend } from "@/lib/outbound-claim";
+import { AI_RESUME_MARKER } from "@/lib/guest-chat";
+
+// senderName also carries handoff-marker IDENTITY on a qr-chat thread — "Lixus AI"
+// is the bot, AI_RESUME_MARKER is the "AI re-enabled" marker. A host whose account
+// name equals one of these must NOT be able to masquerade as a marker (which keys
+// the AI pause/resume state), so a colliding name is stored as a safe label. The
+// guest never sees the name anyway — they see the role-based "İşletme ekibi".
+const RESERVED_MARKER_NAMES = new Set<string>(["Lixus AI", AI_RESUME_MARKER]);
 
 // The host replies to a QR guest-chat thread from the "Misafir Sohbetleri" tab.
 // The reply is stored as an OUTBOUND message with the host's name (so it's shown
@@ -36,12 +44,15 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ id:
     return NextResponse.json({ error: "Şu anda kaydedilemedi — birazdan tekrar deneyin." }, { status: 503 });
   }
 
+  // Reserved-name guard: never let a host reply be mis-typed as a bot/resume marker.
+  const senderName = RESERVED_MARKER_NAMES.has(session.name.trim()) ? "İşletme ekibi" : session.name;
+
   const [message] = await prisma.$transaction([
     prisma.message.create({
       data: {
         conversationId: convo.id,
         direction: "outbound",
-        senderName: session.name, // human host → shown as "Ev sahibiniz" (not "Lixus AI")
+        senderName, // human host → guest sees the role-based "İşletme ekibi" (never "Lixus AI")
         body: text,
         language: "tr",
       },
