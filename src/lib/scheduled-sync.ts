@@ -10,6 +10,7 @@ import { sendDueTrialReminders } from "@/lib/billing/trial-reminders";
 import { anonymizeOldGuestData, purgeOldLeads } from "@/lib/data-retention";
 import { durableOutboxEnabled } from "@/lib/outbox/flag";
 import { drainOutboxOnce, hasDrainableOutbox, reactivateBlockedOutbox } from "@/lib/outbox/worker";
+import { drainStorageDeletions, hasPendingStorageDeletions } from "@/lib/storage/deletion-queue";
 import {
   runDueChannelAutoReplies,
   sendDueWelcomes,
@@ -273,6 +274,21 @@ export async function runScheduledSync(): Promise<ScheduledSyncTotals> {
         } catch (err) {
           await reportError("scheduled-sync outbox-drain", err);
         }
+      }
+
+      // Private-storage deletion drain. Independent of the STORAGE_ENABLED upload
+      // flag on purpose: intents queued before a flag-off rollback still get
+      // deleted as long as the provider credentials remain (drain itself skips
+      // quietly when unconfigured — rows wait). No-op when the queue is empty.
+      try {
+        if (await hasPendingStorageDeletions()) {
+          const r = await drainStorageDeletions();
+          if (!r.skipped && (r.deleted > 0 || r.failed > 0)) {
+            console.log(`[scheduled-sync] storage-deletions: ${JSON.stringify(r)}`);
+          }
+        }
+      } catch (err) {
+        await reportError("scheduled-sync storage-deletions", err);
       }
 
       // KVKK retention sweep — anonymize guest PII for long-past stays. No-op

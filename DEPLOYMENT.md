@@ -190,6 +190,53 @@ gönderilecek".
    worker bekleyen `pending/sending/ambiguous` satırları **flag KAPALIYKEN DE** boşaltmaya
    devam eder (`hasDrainableOutbox`, Codex #1) → kuyruğa alınmış mesaj asla mahsur kalmaz.
 
+## 7) Private object storage (S3/R2) — opsiyonel, DEFAULT KAPALI
+
+Görev fotoğrafları bugün `public/uploads/{org}` altında **yerel diskte** ve **public statik
+URL** ile duruyor (Railway diski ephemeral → deploy'da silinebilir + link herkese açık). Bu özellik
+fotoğrafları **private bir S3/R2 bucket**'ına taşır ve yalnız **kısa ömürlü (5 dk, en fazla 15 dk)
+imzalı URL** ile sunar. **Henüz bucket yok** → kod hazır, flag KAPALI, gerçek sağlayıcı çağrısı YOK
+(testler in-memory fake adaptörle koşar).
+
+**İki bağımsız kapı (bilinçli):**
+- `storageConfigured()` = sağlayıcı kimlik bilgileri var mı → **okuma (imzalı GET) + silme kuyruğu**
+  drain'ini yönetir. Flag'i kapatsan bile bucket'taki mevcut fotoğraflar çalışmaya devam eder.
+- `storageUploadsEnabled()` = `STORAGE_ENABLED` AÇIK **VE** yapılandırılmış → yalnız **YENİ upload**'ları
+  yönetir. Kapalıyken upload birebir eski yerel-disk yoluna gider.
+
+**Env (yalnız `STORAGE_ENABLED` açıkken ZORUNLU — prestart gate doğrular, değer basılmaz):**
+`STORAGE_ENABLED` (1/true) · `STORAGE_ENDPOINT` (https:// — R2: `https://<acc>.r2.cloudflarestorage.com`) ·
+`STORAGE_BUCKET` · `STORAGE_ACCESS_KEY_ID` · `STORAGE_SECRET_ACCESS_KEY` · `STORAGE_REGION` (ops.; R2=`auto`).
+
+**Object key = kiracı sınırı:** `org/{organizationId}/task/{taskId}/{ts}-{random}.{ext}`. Key HER
+ZAMAN sunucuda oturum/DB kimliklerinden kurulur (istemciden ASLA), her tüketici `isSafeObjectKey`
+(traversal/escape reddi) + org segmenti-oturum eşleşmesi ile yeniden doğrular. Fotoğrafın DB'deki
+değeri same-origin `/api/storage/photo/<key>` (mevcut `taskUpdateSchema` doğrulamasını geçer, render
+değişmez); serve route bunu **imzalı GET**'e 302 ile çözer — public URL YOK.
+
+**Silme kuyruğu (`StorageDeletion`, org FK'sı YOK — cascade'den sağ çıkar):** görev-silme + hesap-silme
+objeyi öksüz bırakan DB işlemiyle **AYNI transaction**'da silme NİYETİNİ yazar → sağlayıcı asla kritik
+yolda değil (kesinti DB işlemini ne bloklar ne de sessiz sızıntıya çevirir). Drain (scheduled-sync,
+her pass) idempotent: sağlayıcı hatasında satır `pending` kalır + backoff (ASLA sahte "deleted");
+yapılandırılmamışsa sessizce atlar (satırlar bekler). Hesap-silme: niyet kaydı transaction'la atomik
+→ org silinirse niyet mutlaka var, org silme rollback olursa hiç niyet yazılmaz.
+
+**LEGACY GEÇİŞ / FALLBACK STRATEJİSİ (kural):** Mevcut `/uploads` dosyaları **taşınmaz ve silinmez** —
+bu tur SADECE ileriye dönük. Eski `photoUrl`'ler (`/uploads/...`) doğrudan statik olarak sunulmaya
+devam eder (serve route yalnız `/api/storage/photo/` önekli key'leri tanır; legacy'e dokunmaz),
+silme kuyruğu yalnız storage-önekli satırları hedefler, hesap-silmedeki yerel `rm` legacy klasörünü
+eskisi gibi temizler. Açtıktan sonra: eski fotoğraflar zamanla doğal olarak (görev/hesap silindikçe)
+tükenir; toplu geri-doldurma (backfill) yapılırsa ayrı bir tur + [KARAR] olarak ele alınmalı (bugün YOK).
+
+**Açma adımları (bucket hazır olunca — ilk gerçek upload'ı BİRLİKTE doğrula):**
+1. R2/S3'te **private** bucket aç (public erişim KAPALI), scoped access key üret.
+2. Yukarıdaki env'leri Railway'e ekle, `STORAGE_ENABLED=1`. Prestart gate eksik/`http` olanı reddeder.
+3. Bir göreve fotoğraf yükle → DB `TaskUpdate.photoUrl` `/api/storage/photo/org/.../...` olmalı,
+   bucket'ta obje görünmeli, panelde foto imzalı URL ile açılmalı.
+4. Bir görevi sil → `StorageDeletion` satırı `pending` → sonraki sync'te `deleted`, bucket'tan gitmeli.
+5. Rollback: `STORAGE_ENABLED`'ı sil → YENİ upload'lar eski yerel yola döner; bucket'taki fotoğraflar
+   VE bekleyen silmeler (kimlik bilgileri durdukça) çalışmaya devam eder.
+
 ---
 
 ## Özet akış

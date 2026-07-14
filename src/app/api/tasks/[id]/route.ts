@@ -4,6 +4,8 @@ import { badRequest, jsonOk, notFound, canManage, forbidden } from "@/lib/api";
 import { withAuth, withManage } from "@/lib/route-guard";
 import { emailService } from "@/lib/email";
 import { taskAssignedEmail } from "@/lib/email-templates";
+import { enqueueStorageDeletions } from "@/lib/storage/deletion-queue";
+import { STORAGE_PHOTO_URL_PREFIX, keyFromPhotoUrl } from "@/lib/storage/keys";
 
 /** Parse a stored checklistJson into a clean {label, done}[] (never throws). */
 function parseChecklist(json: string | null): { label: string; done: boolean }[] {
@@ -131,8 +133,28 @@ export const PATCH = withAuth<{ id: string }>(async (session, req, { params }) =
 
 export const DELETE = withManage<{ id: string }>(async (session, _req, { params }) => {
   const { id } = await params;
-  const result = await prisma.task.deleteMany({
-    where: { id, property: { organizationId: session.organizationId } },
+  // Storage-backed photos: the task cascade wipes the TaskUpdate rows that
+  // reference the objects, so record the deletion INTENTS in the SAME
+  // transaction as the delete — the provider is never on this critical path
+  // (a storage outage can't block the delete NOR silently leak the objects;
+  // the queue drains later). Legacy /uploads photos are untouched (no rows match).
+  const photoRows = await prisma.taskUpdate.findMany({
+    where: {
+      taskId: id,
+      task: { property: { organizationId: session.organizationId } },
+      photoUrl: { startsWith: STORAGE_PHOTO_URL_PREFIX },
+    },
+    select: { photoUrl: true },
+  });
+  const keys = photoRows.map((r) => keyFromPhotoUrl(r.photoUrl)).filter((k): k is string => k !== null);
+  const result = await prisma.$transaction(async (tx) => {
+    const del = await tx.task.deleteMany({
+      where: { id, property: { organizationId: session.organizationId } },
+    });
+    if (del.count > 0 && keys.length > 0) {
+      await enqueueStorageDeletions(tx, session.organizationId, keys);
+    }
+    return del;
   });
   if (result.count === 0) return notFound();
   return jsonOk({ ok: true });

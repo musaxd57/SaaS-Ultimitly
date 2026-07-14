@@ -367,6 +367,25 @@ export async function deleteAccountData(organizationId: string): Promise<void> {
   // delete below throws).
   await redactPaddleWebhooksForOrg(organizationId);
 
+  // Storage-backed task photos (S3/R2): read the object keys NOW, before any
+  // delete, then record the durable deletion INTENTS ATOMICALLY with the org
+  // delete (one transaction, below). The StorageDeletion table has NO org FK on
+  // purpose — the rows SURVIVE the cascade so the drain can remove the objects
+  // afterwards. Atomicity is the safety property: org-delete rolls back ⇒ NO
+  // intents (never queue a deletion for a still-live org), org-delete commits ⇒
+  // intents are recorded (a later provider outage can't fake success; the drain
+  // retries). Legacy /uploads files are handled by the local rm below, unchanged.
+  const { enqueueStorageDeletions } = await import("@/lib/storage/deletion-queue");
+  const { STORAGE_PHOTO_URL_PREFIX, keyFromPhotoUrl } = await import("@/lib/storage/keys");
+  const photoRows = await prisma.taskUpdate.findMany({
+    where: {
+      task: { property: { organizationId } },
+      photoUrl: { startsWith: STORAGE_PHOTO_URL_PREFIX },
+    },
+    select: { photoUrl: true },
+  });
+  const storageKeys = photoRows.map((r) => keyFromPhotoUrl(r.photoUrl)).filter((k): k is string => k !== null);
+
   // ChatUsage rows key on propertyId but have no FK relation → won't cascade.
   const props = await prisma.property.findMany({
     where: { organizationId },
@@ -376,8 +395,12 @@ export async function deleteAccountData(organizationId: string): Promise<void> {
   if (propIds.length > 0) {
     await prisma.chatUsage.deleteMany({ where: { propertyId: { in: propIds } } });
   }
-  // Everything else cascades from the organization row.
-  await prisma.organization.delete({ where: { id: organizationId } });
+  // Everything else cascades from the organization row — AND the storage deletion
+  // intents are written in the SAME transaction (atomic; see the note above).
+  await prisma.$transaction(async (tx) => {
+    await tx.organization.delete({ where: { id: organizationId } });
+    if (storageKeys.length > 0) await enqueueStorageDeletions(tx, organizationId, storageKeys);
+  });
 
   // KVKK: task photos live on local disk (public/uploads/{orgSlug}), NOT in the DB,
   // so the cascade above leaves them. Physically remove the org's upload folder.

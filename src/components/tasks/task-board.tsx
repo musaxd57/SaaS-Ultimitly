@@ -138,6 +138,9 @@ export function TaskBoard({ tasks, canManage = true }: { tasks: TaskCardData[]; 
     try {
       const fd = new FormData();
       fd.append("file", file);
+      // Task binding: used ONLY by the object-storage upload path (flag ON) to
+      // prove ownership before storing; the legacy local path ignores it.
+      fd.append("taskId", id);
       const uploadRes = await fetch("/api/upload", { method: "POST", body: fd });
       if (!uploadRes.ok) {
         window.alert("Fotoğraf yüklenemedi.");
