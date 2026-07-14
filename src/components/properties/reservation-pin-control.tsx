@@ -1,7 +1,7 @@
 "use client";
 
 import { useState } from "react";
-import { KeyRound, Copy, Loader2, MessageSquareText, ClipboardList } from "lucide-react";
+import { KeyRound, Copy, Loader2, MessageSquareText } from "lucide-react";
 
 /**
  * Owner/manager control to generate a per-reservation QR chat PIN and reveal it
@@ -13,19 +13,16 @@ import { KeyRound, Copy, Loader2, MessageSquareText, ClipboardList } from "lucid
  *  - Removal asks for an explicit INLINE confirmation that spells out the
  *    consequence in both org modes (strict OFF → chat opens without a code;
  *    strict ON → chat stays locked until a new code exists).
- *  - Two one-click, guest-facing texts are built CLIENT-SIDE from the shown PIN
- *    (nothing stored, nothing auto-sent — the host approves + sends):
- *      • "Airbnb mesajı" — a chat message. English on purpose (Airbnb auto-
- *        translates to the guest's language; a single English source is short
- *        and translates most reliably). Deliberately filter-friendly: NO link,
- *        no contact info, avoids the "QR code" trigger phrase ("the code shown
- *        in the apartment"), and steers money/refund/urgent matters BACK to
- *        Airbnb messaging (the opposite of the off-platform steering Airbnb's
- *        filters punish).
- *      • "Giriş talimatı (check-in)" — a compact house-manual / check-in-
- *        instructions line for the Airbnb check-in guide field, which is NOT
- *        subject to message filtering (the safest channel if a chat message is
- *        ever held).
+ *  - "Airbnb mesajı kopyala" builds a chat draft CLIENT-SIDE from the shown PIN
+ *    (nothing stored, nothing auto-sent — the host approves + sends). English on
+ *    purpose (Airbnb auto-translates to the guest's language; a single English
+ *    source is short and translates most reliably). Deliberately filter-friendly:
+ *    NO link, no contact info, avoids the "QR code" trigger phrase ("the code
+ *    shown in the apartment"), and steers money/refund/urgent matters BACK to
+ *    Airbnb messaging (the opposite of the off-platform steering Airbnb's filters
+ *    punish). It is pasted into THIS reservation's Airbnb message thread only —
+ *    NOT the listing-level check-in guide, which is shared across reservations
+ *    and would show a stale PIN to the next guest.
  */
 export function ReservationPinControl({
   reservationId,
@@ -40,7 +37,6 @@ export function ReservationPinControl({
   const [error, setError] = useState<string | null>(null);
   const [copied, setCopied] = useState(false);
   const [msgCopied, setMsgCopied] = useState(false);
-  const [noteCopied, setNoteCopied] = useState(false);
   const [confirmRemove, setConfirmRemove] = useState(false);
 
   async function generate() {
@@ -48,7 +44,6 @@ export function ReservationPinControl({
     setError(null);
     setCopied(false);
     setMsgCopied(false);
-    setNoteCopied(false);
     try {
       const res = await fetch(`/api/reservations/${reservationId}/chat-pin`, { method: "POST" });
       const data = (await res.json().catch(() => ({}))) as { pin?: string };
@@ -93,22 +88,14 @@ export function ReservationPinControl({
     }
   }
 
-  /** Chat message for Airbnb. Filter-friendly: no link/contact info, no "QR"
-   *  trigger word, money/refund/urgent kept ON Airbnb. English source. */
+  /** Chat message for THIS reservation's Airbnb thread. Filter-friendly: no
+   *  link/contact info, no "QR" trigger word, money/refund/urgent kept ON
+   *  Airbnb. English source (Airbnb auto-translates to the guest's language). */
   function assistantMessage(p: string): string {
     return (
       `Hello! During your stay you can optionally use the in-apartment guest assistant.\n\n` +
       `Your access code: ${p}\n\n` +
       `Scan the code shown in the apartment and enter this access code. For reservation changes, payments, refunds, or urgent matters, please continue using Airbnb messaging.`
-    );
-  }
-
-  /** Compact line for the Airbnb check-in guide / house-manual field (not
-   *  message-filtered). English source; same scope-honesty. */
-  function assistantCheckinNote(p: string): string {
-    return (
-      `In-apartment guest assistant (optional): scan the code shown in the apartment and enter access code ${p}. ` +
-      `For reservation changes, payments, refunds, or urgent matters, please use Airbnb messaging.`
     );
   }
 
@@ -127,27 +114,16 @@ export function ReservationPinControl({
             </button>
             <span className="text-[10px] text-amber-700">Bu kod bir daha gösterilmez — misafire iletin.</span>
           </div>
-          <div className="flex flex-wrap items-center gap-1.5">
-            <button
-              type="button"
-              onClick={() => void copyToClipboard(assistantMessage(pin), () => { setMsgCopied(true); setTimeout(() => setMsgCopied(false), 1500); })}
-              className="inline-flex h-6 items-center gap-1 rounded px-1.5 text-[11px] font-medium text-amber-900 hover:bg-amber-100"
-            >
-              <MessageSquareText className="size-3" />
-              {msgCopied ? "Mesaj kopyalandı" : "Airbnb mesajı kopyala"}
-            </button>
-            <button
-              type="button"
-              onClick={() => void copyToClipboard(assistantCheckinNote(pin), () => { setNoteCopied(true); setTimeout(() => setNoteCopied(false), 1500); })}
-              className="inline-flex h-6 items-center gap-1 rounded px-1.5 text-[11px] font-medium text-amber-900 hover:bg-amber-100"
-            >
-              <ClipboardList className="size-3" />
-              {noteCopied ? "Talimat kopyalandı" : "Giriş talimatı (check-in) kopyala"}
-            </button>
-          </div>
+          <button
+            type="button"
+            onClick={() => void copyToClipboard(assistantMessage(pin), () => { setMsgCopied(true); setTimeout(() => setMsgCopied(false), 1500); })}
+            className="inline-flex h-6 w-fit items-center gap-1 rounded px-1.5 text-[11px] font-medium text-amber-900 hover:bg-amber-100"
+          >
+            <MessageSquareText className="size-3" />
+            {msgCopied ? "Mesaj kopyalandı" : "Airbnb mesajı kopyala"}
+          </button>
           <p className="text-[10px] text-amber-700">
-            Mesaj takılırsa kodu Airbnb "giriş talimatları / ev rehberi" alanına yapıştırın (mesaj
-            filtresine tabi değildir).
+            Bu kod yalnız bu rezervasyona özeldir — misafirin Airbnb mesaj dizisine yapıştırıp gönderin.
           </p>
         </div>
       ) : confirmRemove ? (

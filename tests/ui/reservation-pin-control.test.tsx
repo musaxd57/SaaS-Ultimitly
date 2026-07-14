@@ -4,8 +4,10 @@ import { render, screen, fireEvent, cleanup } from "@testing-library/react";
 import { ReservationPinControl } from "@/components/properties/reservation-pin-control";
 
 // Faz 5 UX rounds: explicit removal confirmation ("Vazgeç" / "Kodu kaldır") and
-// TWO guest-facing copy variants (Airbnb chat message + check-in-guide note),
-// both built client-side, filter-friendly, English source, nothing persisted.
+// a single guest-facing Airbnb chat draft (English, filter-friendly, built
+// client-side, nothing persisted). The check-in-guide variant was removed: that
+// field is listing-level/shared, so a per-reservation PIN there would show a
+// stale code to the next guest.
 
 function stubFetch() {
   const fn = vi.fn((_url: string, opts?: RequestInit) => {
@@ -55,21 +57,13 @@ describe("ReservationPinControl — PIN reveal + copy variants", () => {
     expect(sessionStorage.length).toBe(0);
   });
 
-  it("check-in note: compact house-manual line with the code + Airbnb-messaging scope", async () => {
+  it("there is NO check-in-guide copy button (removed — listing-level field would show a stale PIN)", async () => {
     stubFetch();
     render(<ReservationPinControl reservationId="r1" initialHasPin={false} />);
     fireEvent.click(screen.getByRole("button", { name: /Giriş kodu oluştur/ }));
     await screen.findByText("123456");
-
-    fireEvent.click(screen.getByRole("button", { name: /Giriş talimatı \(check-in\) kopyala/ }));
-    await screen.findByText("Talimat kopyalandı");
-    const note = writeText.mock.calls[0][0] as string;
-    expect(note).toContain("123456");
-    expect(note).toMatch(/access code/);
-    expect(note).toMatch(/Airbnb messaging/);
-    expect(note).not.toMatch(/QR/i);
-    // The two variants are distinct texts.
-    expect(note).not.toContain("Hello!");
+    expect(screen.queryByRole("button", { name: /check-in/i })).toBeNull();
+    expect(screen.queryByText(/filtresine tabi değildir/)).toBeNull();
   });
 });
 
