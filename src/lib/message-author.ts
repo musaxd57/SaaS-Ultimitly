@@ -11,6 +11,19 @@
 // INSERT compat during a rolling deploy). New code DUAL-WRITES authorType on every
 // insert; readers PREFER it and fall back to `deriveMessageAuthor` for any NULL row
 // (transition-safe). The migration backfills every existing row from the same rule.
+//
+// ROLLING-DEPLOY OVERLAP (Faz-A ⇒ Faz-B): while the OLD deployment is briefly still
+// live after the migration applied, it can INSERT new rows with authorType = NULL.
+// This is safe by design:
+//   • reads stay correct via the `deriveMessageAuthor` fallback (PERMANENT in Faz-A —
+//     never removed here);
+//   • HEALING is the migration's own backfill UPDATEs, which are guarded by
+//     `authorType IS NULL` → idempotent and re-runnable as a one-off ops step; they
+//     never scan on a hot 2-minute loop and never overwrite a value new code wrote.
+// Faz-B (making authorType NOT NULL / dropping the fallback) is a SEPARATE, future
+// migration and MUST NOT ship until production reconciliation
+// (`SELECT count(*) FROM "Message" WHERE "authorType" IS NULL`) is 0 — the same
+// gate the money migration used.
 // ---------------------------------------------------------------------------
 
 export const AUTHOR_TYPES = ["guest", "ai", "host", "system"] as const;

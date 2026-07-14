@@ -44,6 +44,11 @@ describe("guestChatAiPausedFromMessages (pure handoff-state rule)", () => {
     const otherSys = { direction: "outbound", senderName: "x", authorType: "system", systemEventType: "some_future_event" };
     expect(guestChatAiPausedFromMessages([hostT, otherSys])).toBe(true); // last host still governs
   });
+  it("ignores systemEventType on a non-system row (a host with a resume-event value still pauses)", () => {
+    expect(
+      guestChatAiPausedFromMessages([{ direction: "outbound", senderName: "x", authorType: "host", systemEventType: "guest_chat_ai_resumed" }]),
+    ).toBe(true);
+  });
 });
 
 // QR concierge HOST HANDOFF: once a human host replies in a stay's thread, the AI

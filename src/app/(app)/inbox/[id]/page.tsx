@@ -89,6 +89,7 @@ export default async function ConversationPage({
     id: m.id,
     direction: m.direction as "inbound" | "outbound",
     senderName: m.senderName,
+    authorType: m.authorType,
     body: m.body,
     createdAtLabel: formatDateTime(m.createdAt),
   }));

@@ -680,12 +680,19 @@ export async function getAiOpsReport(orgId: string): Promise<AiOpsReport> {
     prisma.message.count({
       where: {
         direction: "outbound",
-        // Fully-automatic AI sends (the "GuestOps AI" classifier string — do NOT
-        // change it) PLUS host-approved AI-assisted replies, so an active host who
-        // one-click-approves AI drafts actually sees credit (was 0 before).
-        OR: [{ senderName: "GuestOps AI" }, { aiAssisted: true }],
+        // AI credit, DECIDED by the reliable authorType (not the senderName string):
+        // fully-automatic AI sends (authorType "ai") PLUS host-approved AI-assisted
+        // replies. senderName appears ONLY as the transitional fallback for legacy /
+        // rolling-deploy rows whose authorType is still NULL. Scoped to booking
+        // channels — the QR "chat" surface keeps its own metrics (preserves the
+        // historic "GuestOps AI"-only semantics: QR "Lixus AI" was never counted).
+        OR: [
+          { authorType: "ai" },
+          { authorType: null, senderName: "GuestOps AI" },
+          { aiAssisted: true },
+        ],
         createdAt: { gte: since },
-        conversation: { ...scope },
+        conversation: { ...scope, channel: { not: "chat" } },
       },
     }),
     prisma.reservation.count({ where: { ...scope, welcomeSentAt: { gte: since } } }),

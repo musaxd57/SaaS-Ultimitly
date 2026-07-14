@@ -53,12 +53,13 @@ export function aiSourceLabel(source: string): string {
   return source === "openai" ? "Lixus AI" : "Hazır yanıt";
 }
 
-// AI-sent messages are stored with the legacy senderName "GuestOps AI" — that
-// string is a DB-level classification marker and MUST NOT change at the storage
-// layer. Map it to the live brand at DISPLAY time only; all other sender names
-// (guest names, host names, "Ev sahibi") pass through unchanged.
-export function displaySenderName(name: string): string {
-  return name === "GuestOps AI" ? "Lixus AI" : name;
+// AI-authored messages surface as the live brand "Lixus AI". The DECISION is the
+// reliable authorType (senderName is a display/audit name only, never a classifier);
+// the legacy "GuestOps AI" storage string is the transitional fallback for rows whose
+// authorType is still NULL. Guest / host names pass through unchanged.
+export function displaySenderName(senderName: string, authorType?: string | null): string {
+  const isAi = authorType ? authorType === "ai" : senderName === "GuestOps AI";
+  return isAi ? "Lixus AI" : senderName;
 }
 
 const CHANNEL_LABELS: Record<string, string> = {

@@ -68,8 +68,11 @@ export default async function SentPage({
     prisma.message.findMany({
       where: {
         direction: "outbound",
-        senderName: "GuestOps AI",
-        conversation: { property: { organizationId: orgId } },
+        // AI auto-sends DECIDED by authorType (senderName is display/audit only);
+        // senderName is the transitional fallback for legacy NULL rows. Booking
+        // channels only — the QR "chat" surface has its own tab (prior semantics).
+        OR: [{ authorType: "ai" }, { authorType: null, senderName: "GuestOps AI" }],
+        conversation: { property: { organizationId: orgId }, channel: { not: "chat" } },
       },
       include: {
         conversation: {

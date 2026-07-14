@@ -29,6 +29,8 @@ export interface ThreadMessage {
   id: string;
   direction: "inbound" | "outbound";
   senderName: string;
+  /** Reliable author classifier (drives the "Lixus AI" label); senderName is display. */
+  authorType?: string | null;
   body: string;
   createdAtLabel: string;
 }
@@ -311,7 +313,7 @@ export function ConversationThread({ conversationId, messages, status, priority,
               </div>
             ) : null}
             <span className="mt-1 px-1 text-[11px] text-muted-foreground">
-              {displaySenderName(m.senderName)} · {m.createdAtLabel}
+              {displaySenderName(m.senderName, m.authorType)} · {m.createdAtLabel}
             </span>
           </div>
         ))}

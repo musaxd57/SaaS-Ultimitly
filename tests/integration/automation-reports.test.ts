@@ -7,7 +7,7 @@ import {
   removeAutoTasksForCancelledReservation,
   zonedDayRange,
 } from "@/lib/automation";
-import { getOpsStats, getMonthlyReport } from "@/lib/reports";
+import { getOpsStats, getMonthlyReport, getAiOpsReport } from "@/lib/reports";
 import { prisma, resetDb, makeOrgWithProperty, daysFromNow } from "../helpers/db";
 
 beforeEach(resetDb);
@@ -534,5 +534,47 @@ describe("getMonthlyReport — Istanbul month window", () => {
     const report = await getMonthlyReport(orgId);
     expect(report.reservationsCount).toBe(1); // only the in-month one
     expect(report.revenueByCurrency.find((r) => r.currency === "TRY")?.total).toBe(222);
+  });
+});
+
+describe("getAiOpsReport — AI credit DECIDED by authorType (senderName is display only)", () => {
+  const conv = (propertyId: string, channel = "airbnb") =>
+    prisma.conversation.create({
+      data: { propertyId, channel, guestIdentifier: "G", status: "answered", priority: "standard" },
+    });
+
+  it("counts AI-authored + host-approved; excludes an AI-NAMED host row and the QR surface", async () => {
+    const { orgId, propertyId } = await makeOrgWithProperty();
+    const c = await conv(propertyId);
+    const mk = (authorType: string | null, senderName: string, aiAssisted = false) =>
+      prisma.message.create({ data: { conversationId: c.id, direction: "outbound", body: "x", authorType, senderName, aiAssisted } });
+
+    await mk("ai", "GuestOps AI"); //              new AI send      → COUNT
+    await mk(null, "GuestOps AI"); //              legacy NULL AI   → COUNT (fallback)
+    await mk("host", "GuestOps AI"); //            host w/ AI name  → NOT (authorType decides)
+    await mk("host", "Ayşe", true); //             host-approved AI → COUNT
+    await mk("host", "Mehmet"); //                 plain host reply → NOT
+
+    // QR AI lives on the "chat" surface with its own metrics → NOT counted here.
+    const qr = await conv(propertyId, "chat");
+    await prisma.message.create({
+      data: { conversationId: qr.id, direction: "outbound", authorType: "ai", senderName: "Lixus AI", body: "x" },
+    });
+
+    expect((await getAiOpsReport(orgId)).aiReplies).toBe(3);
+  });
+
+  it("parity: a legacy-only fixture (every authorType NULL) counts exactly as before", async () => {
+    const { orgId, propertyId } = await makeOrgWithProperty();
+    const c = await conv(propertyId);
+    await prisma.message.createMany({
+      data: [
+        { conversationId: c.id, direction: "outbound", senderName: "GuestOps AI", body: "1" },
+        { conversationId: c.id, direction: "outbound", senderName: "GuestOps AI", body: "2" },
+        { conversationId: c.id, direction: "inbound", senderName: "G", body: "3" }, //        guest → not AI
+        { conversationId: c.id, direction: "outbound", senderName: "Host Adı", body: "4" }, // host  → not AI
+      ],
+    });
+    expect((await getAiOpsReport(orgId)).aiReplies).toBe(2); // unchanged: exactly the two legacy AI sends
   });
 });

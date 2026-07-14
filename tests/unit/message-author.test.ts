@@ -56,3 +56,16 @@ describe("guestChatDisplayRole", () => {
     expect(guestChatDisplayRole({ direction: "inbound", senderName: "Ayşe" })).toBe("guest");
   });
 });
+
+describe("systemEventType is honoured ONLY when authorType=system, and only for the closed set", () => {
+  it("ignores systemEventType on a non-system row (a host row is still host)", () => {
+    expect(
+      guestChatDisplayRole({ direction: "outbound", senderName: "x", authorType: "host", systemEventType: "guest_chat_ai_resumed" }),
+    ).toBe("host");
+  });
+  it("an OUT-OF-SET systemEventType does not produce the resume display behaviour", () => {
+    expect(
+      guestChatDisplayRole({ direction: "outbound", senderName: "x", authorType: "system", systemEventType: "totally_unknown" }),
+    ).not.toBe("resume");
+  });
+});
