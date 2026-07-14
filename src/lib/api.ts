@@ -93,7 +93,20 @@ export function canManage(session: SessionPayload | null): boolean {
  * invisible (only `reportError`, NOT bare console.error, is captured).
  */
 export function serverError(message = "Beklenmeyen bir hata oluştu", err?: unknown) {
-  if (err !== undefined) void reportError("api", err);
+  if (err !== undefined) {
+    // A Hospitable 402 "Subscription not active" is an EXPECTED external state —
+    // the org's OWN Hospitable subscription lapsed, not a Lixus bug (the scheduled
+    // sync already treats it this way). A route that surfaces it to serverError
+    // would otherwise page Sentry + an alert email on every hit until the host
+    // renews (this flooded the inbox: hundreds of identical "sistem hatası — api").
+    // Log it quietly instead; every other error still pages.
+    const status = (err as { status?: number } | null)?.status;
+    if (err instanceof Error && err.name === "HospitableError" && status === 402) {
+      console.warn("[api] Hospitable subscription not active (402) — surfaced but not paged");
+    } else {
+      void reportError("api", err);
+    }
+  }
   return NextResponse.json({ error: message }, { status: 500 });
 }
 
