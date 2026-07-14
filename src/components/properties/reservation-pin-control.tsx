@@ -83,15 +83,15 @@ export function ReservationPinControl({
     }
   }
 
-  /** Ready-to-send channel message (TR + EN). Built in-memory from the shown
-   *  PIN; never persisted, never sent automatically — the host approves it.
-   *  Sets the assistant's SCOPE honestly: optional, and money/refund/urgent
-   *  matters go through Airbnb messaging (mirrors the product's safety line). */
+  /** Ready-to-send channel message. Built in-memory from the shown PIN; never
+   *  persisted, never sent automatically — the host approves it. ENGLISH ONLY on
+   *  purpose: Airbnb auto-translates a message into the guest's own language, so
+   *  a single English source keeps it short AND translates most reliably (and is
+   *  the safest universal fallback if translation doesn't kick in). Sets the
+   *  assistant's SCOPE honestly: optional, and money/refund/urgent matters go
+   *  through Airbnb messaging (mirrors the product's safety line). */
   function airbnbDraft(p: string): string {
     return (
-      `Merhaba! Konaklamanız sırasında dairedeki QR kod üzerinden Daire İçi Misafir Asistanı'nı isteğe bağlı kullanabilirsiniz.\n\n` +
-      `Giriş kodunuz: ${p}\n\n` +
-      `QR kodu okutmanız ve bu kodu girmeniz yeterli. Rezervasyon değişikliği, ödeme, iade veya acil konular için lütfen Airbnb mesajlaşmasını kullanmaya devam edin.\n\n` +
       `Hello! During your stay, you may optionally use the In-Apartment Guest Assistant through the QR code inside the apartment.\n\n` +
       `Your access code: ${p}\n\n` +
       `Simply scan the QR code and enter this code. For reservation changes, payments, refunds, or urgent matters, please continue using Airbnb messaging.`

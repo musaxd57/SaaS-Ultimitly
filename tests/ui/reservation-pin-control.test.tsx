@@ -45,12 +45,11 @@ describe("ReservationPinControl — PIN reveal + Airbnb draft", () => {
     expect(writeText).toHaveBeenCalledTimes(1);
     const draft = writeText.mock.calls[0][0] as string;
     expect(draft).toContain("123456"); // the code the guest needs
-    expect(draft).toContain("Giriş kodunuz:"); // TR
-    expect(draft).toContain("Your access code:"); // EN for foreign guests
-    // Scope disclaimer: optional + money/refund/urgent → Airbnb (product safety line).
-    expect(draft).toMatch(/isteğe bağlı/);
-    expect(draft).toMatch(/Airbnb mesajlaşmasını/);
-    expect(draft).toMatch(/Airbnb messaging/);
+    expect(draft).toContain("Your access code:"); // English source (Airbnb auto-translates)
+    expect(draft).toMatch(/optionally/); // scope: optional use
+    expect(draft).toMatch(/Airbnb messaging/); // scope: money/refund/urgent → Airbnb
+    // English-only on purpose — no Turkish body (Airbnb translates to the guest's language).
+    expect(draft).not.toMatch(/Giriş kodunuz|Merhaba/);
     // Nothing persisted anywhere — clipboard only (host approves + sends manually).
     expect(localStorage.length).toBe(0);
     expect(sessionStorage.length).toBe(0);
