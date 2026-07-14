@@ -265,6 +265,7 @@ export async function previewSubscriptionUpdate(
   subscriptionId: string,
   priceId: string,
   mode: PaddleProrationMode,
+  orgId?: string,
 ): Promise<PlanChangePreview | null> {
   if (!subscriptionId || !priceId || !isPaddleConfigured()) return null;
   try {
@@ -289,9 +290,9 @@ export async function previewSubscriptionUpdate(
     };
   } catch (err) {
     // Don't page on an expected outcome (e.g. entity_not_found for a trialing org
-    // with no Paddle sub); keep it in the log. Other failures still page.
+    // with no Paddle sub); keep a STRUCTURED, org-tagged log line. Other failures page.
     if (isExpectedPaddleError(err)) {
-      console.warn(`[paddle] plan-preview expected outcome — not paged: ${err instanceof Error ? err.message : String(err)}`);
+      logExpectedPaddleOutcome("plan-preview", orgId, err);
     } else {
       await reportError("paddle-plan-preview", err);
     }
@@ -342,6 +343,26 @@ export function isExpectedPaddleError(err: unknown): boolean {
 }
 
 /**
+ * Structured log for a KNOWN, non-paging Paddle outcome (declined card / stale
+ * providerRef). Deliberately NOT a bare free-form warn: emit operation + org +
+ * Paddle's own "HTTP <status> (<code>) env=... resource=..." as one greppable
+ * line. The documented residual — a stale providerRef hitting entity_not_found on
+ * APPLY, which we choose not to page — can then be traced to the exact org for
+ * reconciliation. Paddle's message already omits the sub/customer id (privacy);
+ * `org` is our own tenant id, already present across audit/logs, never PII.
+ */
+function logExpectedPaddleOutcome(
+  operation: "plan-preview" | "plan-change",
+  orgId: string | undefined,
+  err: unknown,
+): void {
+  const detail = err instanceof Error ? err.message : String(err);
+  console.warn(
+    `[paddle] expected outcome — not paged ${JSON.stringify({ operation, org: orgId ?? null, detail })}`,
+  );
+}
+
+/**
  * Apply a plan change. Upgrade → prorated_immediately (charge the difference now).
  * Downgrade → prorated_next_billing_period (takes effect at renewal). Paddle owns
  * the proration + charge; our webhook then updates the local subscription row.
@@ -354,6 +375,7 @@ export async function updateSubscriptionPlan(
   subscriptionId: string,
   priceId: string,
   mode: PaddleProrationMode,
+  orgId?: string,
 ): Promise<PlanUpdateResult> {
   if (!subscriptionId || !priceId || !isPaddleConfigured()) {
     return { ok: false, kind: "definitive", reason: "unconfigured" }; // no request sent → not applied
@@ -365,11 +387,11 @@ export async function updateSubscriptionPlan(
     });
     return { ok: true };
   } catch (err) {
-    // A declined card (subscription_payment_declined) is a normal outcome, not a
-    // bug — don't page, just log. The return contract (kind/reason) is UNCHANGED,
-    // so the route's controlled user response is identical.
+    // A declined card / stale providerRef is a normal outcome, not a bug — don't
+    // page, but keep a STRUCTURED, org-tagged log line. The return contract
+    // (kind/reason) is UNCHANGED, so the route's controlled user response is identical.
     if (isExpectedPaddleError(err)) {
-      console.warn(`[paddle] plan-change expected outcome — not paged: ${err instanceof Error ? err.message : String(err)}`);
+      logExpectedPaddleOutcome("plan-change", orgId, err);
     } else {
       await reportError("paddle-plan-change", err);
     }

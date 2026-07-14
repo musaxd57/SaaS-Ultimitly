@@ -86,27 +86,27 @@ describe("plan change routes (gated, PATCH /subscriptions)", () => {
     expect(body.mode).toBe("upgrade");
     expect(typeof body.previewToken).toBe("string");
     expect(body.previewToken.length).toBeGreaterThan(0);
-    expect(previewMock).toHaveBeenCalledWith("sub_1", "pri_isletme", "prorated_immediately");
+    expect(previewMock).toHaveBeenCalledWith("sub_1", "pri_isletme", "prorated_immediately", orgId);
   });
 
   it("round-trip: the token minted by preview authorizes the apply", async () => {
     const previewBody = await (await PREVIEW(req({ planCode: "business" }), ctx)).json();
     const res = await CHANGE(req({ planCode: "business", previewToken: previewBody.previewToken }), ctx);
     expect(res.status).toBe(200);
-    expect(updateMock).toHaveBeenCalledWith("sub_1", "pri_isletme", "prorated_immediately");
+    expect(updateMock).toHaveBeenCalledWith("sub_1", "pri_isletme", "prorated_immediately", orgId);
   });
 
   it("preview: pro→free is a downgrade (next billing period)", async () => {
     const res = await PREVIEW(req({ planCode: "free" }), ctx);
     expect((await res.json()).mode).toBe("downgrade");
-    expect(previewMock).toHaveBeenCalledWith("sub_1", "pri_baslangic", "prorated_next_billing_period");
+    expect(previewMock).toHaveBeenCalledWith("sub_1", "pri_baslangic", "prorated_next_billing_period", orgId);
   });
 
   it("change: applies an upgrade with immediate proration", async () => {
     const res = await CHANGE(req({ planCode: "business", previewToken: tok("pri_isletme", "upgrade") }), ctx);
     expect(res.status).toBe(200);
     expect((await res.json()).ok).toBe(true);
-    expect(updateMock).toHaveBeenCalledWith("sub_1", "pri_isletme", "prorated_immediately");
+    expect(updateMock).toHaveBeenCalledWith("sub_1", "pri_isletme", "prorated_immediately", orgId);
   });
 
   it("change: 502 + Paddle reason on a DEFINITIVE (4xx) rejection", async () => {

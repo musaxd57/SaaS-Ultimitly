@@ -157,6 +157,35 @@ describe("previewSubscriptionUpdate / updateSubscriptionPlan", () => {
     expect(mockReport).not.toHaveBeenCalled();
   });
 
+  it("logs a STRUCTURED, org-tagged line on an expected outcome (not paged, but traceable)", async () => {
+    vi.stubEnv("PADDLE_API_KEY", "test-key");
+    const warn = vi.spyOn(console, "warn").mockImplementation(() => {});
+    vi.spyOn(global, "fetch").mockResolvedValue({
+      ok: false, status: 404, json: async () => ({ error: { code: "entity_not_found" } }),
+    } as Response);
+    // orgId threaded from the route → the stale-providerRef residual is traceable.
+    await updateSubscriptionPlan("sub_1", "pri_pro", "prorated_immediately", "org_abc");
+    expect(mockReport).not.toHaveBeenCalled();
+    const line = warn.mock.calls.map((c) => c.map(String).join(" ")).join("\n");
+    expect(line).toContain("plan-change");     // operation
+    expect(line).toContain("org_abc");          // tenant, for reconciliation
+    expect(line).toContain("entity_not_found"); // Paddle's own code
+    warn.mockRestore();
+  });
+
+  it("expected-outcome log degrades to org:null when no orgId is threaded (back-compat)", async () => {
+    vi.stubEnv("PADDLE_API_KEY", "test-key");
+    const warn = vi.spyOn(console, "warn").mockImplementation(() => {});
+    vi.spyOn(global, "fetch").mockResolvedValue({
+      ok: false, status: 400, json: async () => ({ error: { code: "subscription_payment_declined" } }),
+    } as Response);
+    await updateSubscriptionPlan("sub_1", "pri_pro", "prorated_immediately"); // no orgId
+    const line = warn.mock.calls.map((c) => c.map(String).join(" ")).join("\n");
+    expect(line).toContain('"org":null');
+    expect(mockReport).not.toHaveBeenCalled();
+    warn.mockRestore();
+  });
+
   it("classifyPaddleFailure: 4xx→definitive (except 408), 5xx/408/network→ambiguous", () => {
     expect(classifyPaddleFailure(new Error("Paddle HTTP 400 (bad_request) env=x resource=subscriptions"))).toBe("definitive");
     expect(classifyPaddleFailure(new Error("Paddle HTTP 404 (entity_not_found) env=x resource=subscriptions"))).toBe("definitive");

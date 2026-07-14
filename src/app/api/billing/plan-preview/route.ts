@@ -29,7 +29,7 @@ export const POST = withManage(async (session, req) => {
     );
   }
 
-  const preview = await previewSubscriptionUpdate(r.providerRef, r.priceId, r.proration);
+  const preview = await previewSubscriptionUpdate(r.providerRef, r.priceId, r.proration, session.organizationId);
   // Sign the previewed change so /plan-change can bind apply → this exact preview
   // (same org + target price + mode), within a short window.
   const previewToken = signPlanChangeToken({

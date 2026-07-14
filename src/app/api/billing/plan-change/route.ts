@@ -80,7 +80,7 @@ export const POST = withManage(async (session, req) => {
   // still hold. If Paddle computes a different immediate total (proration drift /
   // currency change), or an upgrade can't be priced, refuse — the customer must
   // re-confirm the new amount. A downgrade has no immediate charge (both null) → ok.
-  const fresh = await previewSubscriptionUpdate(r.providerRef, r.priceId, r.proration);
+  const fresh = await previewSubscriptionUpdate(r.providerRef, r.priceId, r.proration, session.organizationId);
   const freshAmount = fresh?.immediateTotal ?? null;
   const amountUnknownUpgrade = r.mode === "upgrade" && !freshAmount;
   if (amountUnknownUpgrade || freshAmount !== token.amount) {
@@ -129,7 +129,7 @@ export const POST = withManage(async (session, req) => {
   }
   const clearPending = () =>
     prisma.systemLock.deleteMany({ where: { name: `plan-change-pending:${session.organizationId}` } }).catch(() => {});
-  const result = await updateSubscriptionPlan(r.providerRef, r.priceId, r.proration);
+  const result = await updateSubscriptionPlan(r.providerRef, r.priceId, r.proration, session.organizationId);
   if (!result.ok) {
     if (result.kind === "definitive") {
       // Paddle REJECTED the request (4xx) → the plan did NOT change → nothing charged
