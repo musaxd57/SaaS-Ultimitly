@@ -1,7 +1,7 @@
 "use client";
 
 import { useState } from "react";
-import { KeyRound, Copy, Loader2, MessageSquareText } from "lucide-react";
+import { KeyRound, Copy, Loader2, MessageSquareText, ClipboardList } from "lucide-react";
 
 /**
  * Owner/manager control to generate a per-reservation QR chat PIN and reveal it
@@ -9,13 +9,23 @@ import { KeyRound, Copy, Loader2, MessageSquareText } from "lucide-react";
  * is stored server-side only as a hash; regenerating invalidates the previous
  * one. Rendered only when the QR chat + PIN feature is enabled.
  *
- * UX notes (user feedback round):
+ * UX notes (user feedback rounds):
  *  - Removal asks for an explicit INLINE confirmation that spells out the
  *    consequence in both org modes (strict OFF → chat opens without a code;
  *    strict ON → chat stays locked until a new code exists).
- *  - "Airbnb mesaj taslağını kopyala" builds a ready-to-send TR+EN message with
- *    the code CLIENT-SIDE from the just-shown PIN — nothing is stored, nothing
- *    is auto-sent; the host pastes/edits/sends it themselves on the channel.
+ *  - Two one-click, guest-facing texts are built CLIENT-SIDE from the shown PIN
+ *    (nothing stored, nothing auto-sent — the host approves + sends):
+ *      • "Airbnb mesajı" — a chat message. English on purpose (Airbnb auto-
+ *        translates to the guest's language; a single English source is short
+ *        and translates most reliably). Deliberately filter-friendly: NO link,
+ *        no contact info, avoids the "QR code" trigger phrase ("the code shown
+ *        in the apartment"), and steers money/refund/urgent matters BACK to
+ *        Airbnb messaging (the opposite of the off-platform steering Airbnb's
+ *        filters punish).
+ *      • "Giriş talimatı (check-in)" — a compact house-manual / check-in-
+ *        instructions line for the Airbnb check-in guide field, which is NOT
+ *        subject to message filtering (the safest channel if a chat message is
+ *        ever held).
  */
 export function ReservationPinControl({
   reservationId,
@@ -29,14 +39,16 @@ export function ReservationPinControl({
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [copied, setCopied] = useState(false);
-  const [draftCopied, setDraftCopied] = useState(false);
+  const [msgCopied, setMsgCopied] = useState(false);
+  const [noteCopied, setNoteCopied] = useState(false);
   const [confirmRemove, setConfirmRemove] = useState(false);
 
   async function generate() {
     setBusy(true);
     setError(null);
     setCopied(false);
-    setDraftCopied(false);
+    setMsgCopied(false);
+    setNoteCopied(false);
     try {
       const res = await fetch(`/api/reservations/${reservationId}/chat-pin`, { method: "POST" });
       const data = (await res.json().catch(() => ({}))) as { pin?: string };
@@ -72,41 +84,32 @@ export function ReservationPinControl({
     }
   }
 
-  async function copy() {
-    if (!pin) return;
+  async function copyToClipboard(text: string, mark: () => void) {
     try {
-      await navigator.clipboard?.writeText(pin);
-      setCopied(true);
-      setTimeout(() => setCopied(false), 1500);
+      await navigator.clipboard?.writeText(text);
+      mark();
     } catch {
-      /* clipboard may be unavailable — the PIN is visible on screen */
+      /* clipboard may be unavailable — the PIN is still visible on screen */
     }
   }
 
-  /** Ready-to-send channel message. Built in-memory from the shown PIN; never
-   *  persisted, never sent automatically — the host approves it. ENGLISH ONLY on
-   *  purpose: Airbnb auto-translates a message into the guest's own language, so
-   *  a single English source keeps it short AND translates most reliably (and is
-   *  the safest universal fallback if translation doesn't kick in). Sets the
-   *  assistant's SCOPE honestly: optional, and money/refund/urgent matters go
-   *  through Airbnb messaging (mirrors the product's safety line). */
-  function airbnbDraft(p: string): string {
+  /** Chat message for Airbnb. Filter-friendly: no link/contact info, no "QR"
+   *  trigger word, money/refund/urgent kept ON Airbnb. English source. */
+  function assistantMessage(p: string): string {
     return (
-      `Hello! During your stay, you may optionally use the In-Apartment Guest Assistant through the QR code inside the apartment.\n\n` +
+      `Hello! During your stay you can optionally use the in-apartment guest assistant.\n\n` +
       `Your access code: ${p}\n\n` +
-      `Simply scan the QR code and enter this code. For reservation changes, payments, refunds, or urgent matters, please continue using Airbnb messaging.`
+      `Scan the code shown in the apartment and enter this access code. For reservation changes, payments, refunds, or urgent matters, please continue using Airbnb messaging.`
     );
   }
 
-  async function copyDraft() {
-    if (!pin) return;
-    try {
-      await navigator.clipboard?.writeText(airbnbDraft(pin));
-      setDraftCopied(true);
-      setTimeout(() => setDraftCopied(false), 1500);
-    } catch {
-      /* clipboard may be unavailable — the PIN is visible on screen */
-    }
+  /** Compact line for the Airbnb check-in guide / house-manual field (not
+   *  message-filtered). English source; same scope-honesty. */
+  function assistantCheckinNote(p: string): string {
+    return (
+      `In-apartment guest assistant (optional): scan the code shown in the apartment and enter access code ${p}. ` +
+      `For reservation changes, payments, refunds, or urgent matters, please use Airbnb messaging.`
+    );
   }
 
   return (
@@ -117,21 +120,35 @@ export function ReservationPinControl({
             <span className="font-mono text-sm tracking-[0.3em] text-amber-900">{pin}</span>
             <button
               type="button"
-              onClick={() => void copy()}
+              onClick={() => void copyToClipboard(pin, () => { setCopied(true); setTimeout(() => setCopied(false), 1500); })}
               className="inline-flex h-6 items-center gap-1 rounded px-1.5 text-[11px] font-medium text-amber-900 hover:bg-amber-100"
             >
               <Copy className="size-3" /> {copied ? "Kopyalandı" : "Kopyala"}
             </button>
             <span className="text-[10px] text-amber-700">Bu kod bir daha gösterilmez — misafire iletin.</span>
           </div>
-          <button
-            type="button"
-            onClick={() => void copyDraft()}
-            className="inline-flex h-6 w-fit items-center gap-1 rounded px-1.5 text-[11px] font-medium text-amber-900 hover:bg-amber-100"
-          >
-            <MessageSquareText className="size-3" />
-            {draftCopied ? "Taslak kopyalandı" : "Airbnb mesaj taslağını kopyala"}
-          </button>
+          <div className="flex flex-wrap items-center gap-1.5">
+            <button
+              type="button"
+              onClick={() => void copyToClipboard(assistantMessage(pin), () => { setMsgCopied(true); setTimeout(() => setMsgCopied(false), 1500); })}
+              className="inline-flex h-6 items-center gap-1 rounded px-1.5 text-[11px] font-medium text-amber-900 hover:bg-amber-100"
+            >
+              <MessageSquareText className="size-3" />
+              {msgCopied ? "Mesaj kopyalandı" : "Airbnb mesajı kopyala"}
+            </button>
+            <button
+              type="button"
+              onClick={() => void copyToClipboard(assistantCheckinNote(pin), () => { setNoteCopied(true); setTimeout(() => setNoteCopied(false), 1500); })}
+              className="inline-flex h-6 items-center gap-1 rounded px-1.5 text-[11px] font-medium text-amber-900 hover:bg-amber-100"
+            >
+              <ClipboardList className="size-3" />
+              {noteCopied ? "Talimat kopyalandı" : "Giriş talimatı (check-in) kopyala"}
+            </button>
+          </div>
+          <p className="text-[10px] text-amber-700">
+            Mesaj takılırsa kodu Airbnb "giriş talimatları / ev rehberi" alanına yapıştırın (mesaj
+            filtresine tabi değildir).
+          </p>
         </div>
       ) : confirmRemove ? (
         <div className="rounded-md border border-border bg-muted/40 px-2.5 py-2">
