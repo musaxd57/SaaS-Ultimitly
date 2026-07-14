@@ -11,12 +11,19 @@ import { register } from "@/instrumentation";
 
 const REAL_AUTH = "a-real-production-secret-value-42-chars-xx";
 const REAL_ENC = "a-different-real-encryption-key-40chars-x";
+const REAL_PEPPER = "a-third-distinct-qr-pin-pepper-value-40ch";
 
 /** Run the standalone gate with a controlled env; returns the child result. */
 function gate(env: Record<string, string>, prod = true) {
   return spawnSync(process.execPath, ["scripts/verify-env.mjs"], {
-    // Replace the sensitive vars explicitly (vitest.config injects a test AUTH_SECRET).
-    env: { ...process.env, NODE_ENV: prod ? "production" : "development", AUTH_SECRET: "", ENCRYPTION_KEY: "", ...env },
+    // Replace the sensitive vars explicitly (vitest.config injects a test AUTH_SECRET);
+    // clear the QR PIN vars so the feature-gated pepper check is deterministic.
+    env: {
+      ...process.env,
+      NODE_ENV: prod ? "production" : "development",
+      AUTH_SECRET: "", ENCRYPTION_KEY: "", QR_PIN_ENABLED: "", QR_PIN_PEPPER: "",
+      ...env,
+    },
     encoding: "utf8",
   });
 }
@@ -39,6 +46,24 @@ describe("checkProductionEnv (pure gate logic — single source)", () => {
   it("passes with two distinct real secrets (no errors)", () => {
     const { errors } = checkProductionEnv({ AUTH_SECRET: REAL_AUTH, ENCRYPTION_KEY: REAL_ENC });
     expect(errors).toHaveLength(0);
+  });
+
+  it("QR_PIN_PEPPER (Codex 4): required only when QR_PIN_ENABLED=1, separate + ≥32 + ≠AUTH_SECRET", () => {
+    const base = { AUTH_SECRET: REAL_AUTH, ENCRYPTION_KEY: REAL_ENC };
+    // Feature OFF → no pepper needed (deploy never blocked).
+    expect(checkProductionEnv({ ...base }).errors).toHaveLength(0);
+    expect(checkProductionEnv({ ...base, QR_PIN_ENABLED: "1", QR_PIN_PEPPER: REAL_PEPPER }).errors).toHaveLength(0);
+    // Feature ON → the pepper is enforced.
+    expect(checkProductionEnv({ ...base, QR_PIN_ENABLED: "1" }).errors.join()).toMatch(/QR_PIN_PEPPER is missing/);
+    expect(
+      checkProductionEnv({ ...base, QR_PIN_ENABLED: "1", QR_PIN_PEPPER: REAL_AUTH }).errors.join(),
+    ).toMatch(/independent of AUTH_SECRET/);
+    expect(
+      checkProductionEnv({ ...base, QR_PIN_ENABLED: "1", QR_PIN_PEPPER: "too-short" }).errors.join(),
+    ).toMatch(/at least 32/);
+    expect(
+      checkProductionEnv({ ...base, QR_PIN_ENABLED: "1", QR_PIN_PEPPER: DEV_PLACEHOLDER_SECRET }).errors.join(),
+    ).toMatch(/placeholder/);
   });
 });
 
@@ -71,6 +96,21 @@ describe("scripts/verify-env.mjs — the prestart boot gate", () => {
 
   it("DEV with empty secrets → exit 0 (development/test not blocked)", () => {
     expect(gate({}, false).status).toBe(0);
+  });
+
+  it("PROD + QR_PIN_ENABLED=1 + missing QR_PIN_PEPPER → non-zero exit", () => {
+    const r = gate({ AUTH_SECRET: REAL_AUTH, ENCRYPTION_KEY: REAL_ENC, QR_PIN_ENABLED: "1" });
+    expect(r.status).toBe(1);
+    expect(r.stderr).toMatch(/QR_PIN_PEPPER is missing/);
+  });
+
+  it("PROD + QR_PIN_ENABLED=1 + valid distinct QR_PIN_PEPPER → exit 0", () => {
+    const r = gate({ AUTH_SECRET: REAL_AUTH, ENCRYPTION_KEY: REAL_ENC, QR_PIN_ENABLED: "1", QR_PIN_PEPPER: REAL_PEPPER });
+    expect(r.status).toBe(0);
+  });
+
+  it("PROD + QR_PIN_ENABLED off + no pepper → exit 0 (env-off deploy never blocked)", () => {
+    expect(gate({ AUTH_SECRET: REAL_AUTH, ENCRYPTION_KEY: REAL_ENC }).status).toBe(0);
   });
 
   it("never prints a secret VALUE", () => {

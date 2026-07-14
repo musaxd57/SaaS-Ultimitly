@@ -101,14 +101,14 @@ describe("bindOrCheckStay (per-stay device binding)", () => {
       },
     });
 
-    const first = await bindOrCheckStay(r.id, null);
+    const first = await bindOrCheckStay(r.id, null, { allowClaim: true });
     expect(first.status).toBe("bound");
     const secret = first.status === "bound" ? first.secret : "";
     expect(secret.length).toBeGreaterThanOrEqual(32);
 
-    expect((await bindOrCheckStay(r.id, secret)).status).toBe("match");
-    expect((await bindOrCheckStay(r.id, "not-the-secret")).status).toBe("mismatch");
-    expect((await bindOrCheckStay(r.id, null)).status).toBe("mismatch");
+    expect((await bindOrCheckStay(r.id, secret, { allowClaim: true })).status).toBe("match");
+    expect((await bindOrCheckStay(r.id, "not-the-secret", { allowClaim: true })).status).toBe("mismatch");
+    expect((await bindOrCheckStay(r.id, null, { allowClaim: true })).status).toBe("mismatch");
   });
 
   it("rotates per stay: a previous stay's secret never binds the next reservation", async () => {
@@ -120,17 +120,17 @@ describe("bindOrCheckStay (per-stay device binding)", () => {
       data: { propertyId, guestName: "B", arrivalDate: daysFromNow(0), departureDate: daysFromNow(3), status: "confirmed" },
     });
 
-    const b1 = await bindOrCheckStay(r1.id, null);
+    const b1 = await bindOrCheckStay(r1.id, null, { allowClaim: true });
     const s1 = b1.status === "bound" ? b1.secret : "";
 
     // The next stay is unbound; presenting the OLD secret does NOT reuse it — a
     // fresh secret is minted (rotation), and it differs from the previous stay's.
-    const b2 = await bindOrCheckStay(r2.id, s1);
+    const b2 = await bindOrCheckStay(r2.id, s1, { allowClaim: true });
     expect(b2.status).toBe("bound");
     const s2 = b2.status === "bound" ? b2.secret : "";
     expect(s2).not.toBe(s1);
     // The old secret can't read the new stay.
-    expect((await bindOrCheckStay(r2.id, s1)).status).toBe("mismatch");
+    expect((await bindOrCheckStay(r2.id, s1, { allowClaim: true })).status).toBe("mismatch");
   });
 
   it("GET: the first device sees history; a different (cookieless) device is blocked; the bound cookie still works", async () => {

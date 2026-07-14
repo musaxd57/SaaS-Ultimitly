@@ -106,7 +106,11 @@ export type StayBinding =
 export async function bindOrCheckStay(
   reservationId: string,
   presentedSecret: string | null | undefined,
-  opts: { allowClaim?: boolean } = {},
+  // REQUIRED (Codex 2): no default. Every callsite must state its intent — a
+  // forgotten opts object previously fell through to "claim", so a new caller
+  // added on the PIN-required path could have silently bound a stay without a
+  // PIN. Making this explicit turns that into a compile error.
+  opts: { allowClaim: boolean },
 ): Promise<StayBinding> {
   const row = await prisma.reservation.findUnique({
     where: { id: reservationId },
@@ -123,9 +127,9 @@ export async function bindOrCheckStay(
 
   // Unbound. When claiming is WITHHELD (PIN gate, Faz 5): report "unclaimed" so
   // the caller can require a PIN before anyone binds — WITHOUT this device
-  // silently winning the stay just by scanning first. Default allowClaim=true
-  // preserves the original first-scan-wins behavior for every existing caller.
-  if (opts.allowClaim === false) return { status: "unclaimed" };
+  // silently winning the stay just by scanning first. Callers on the old
+  // first-scan-wins path pass { allowClaim: true } explicitly.
+  if (!opts.allowClaim) return { status: "unclaimed" };
 
   // Unbound → mint a FRESH secret (rotation: never reuse a previous stay's cookie
   // as this stay's binding) and claim atomically.

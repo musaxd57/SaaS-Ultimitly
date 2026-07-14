@@ -38,7 +38,10 @@ export const POST = withManage<{ id: string }>(async (session, _req, { params })
   }).catch(() => {});
 
   // The plaintext PIN leaves the server exactly here (shown once to the host).
-  return jsonOk({ ok: true, pin, chatPinSetAt: new Date().toISOString() });
+  // no-store: a proxy/browser must NEVER cache the response that carries the PIN.
+  const res = jsonOk({ ok: true, pin, chatPinSetAt: new Date().toISOString() });
+  res.headers.set("Cache-Control", "no-store");
+  return res;
 });
 
 export const DELETE = withManage<{ id: string }>(async (session, _req, { params }) => {

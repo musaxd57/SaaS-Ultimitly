@@ -102,6 +102,23 @@ export async function clearReservationPin(reservationId: string): Promise<void> 
   });
 }
 
+/**
+ * Reservations the host may need to set a PIN for = ACTIVE + UPCOMING stays
+ * (departed within the last day, or not yet departed). Ordered soonest-arrival
+ * first. This deliberately replaces the property page's old "last 5 by arrival
+ * DESC" list (Codex 3): on a fully-booked apartment that list pushed the
+ * currently-staying guest out behind future bookings, so the host couldn't
+ * reach it to generate a PIN — locking that guest out under strict mode.
+ */
+export async function listReservationsForPinManagement(propertyId: string, now: Date = new Date()) {
+  return prisma.reservation.findMany({
+    where: { propertyId, departureDate: { gte: new Date(now.getTime() - 24 * 60 * 60 * 1000) } },
+    orderBy: { arrivalDate: "asc" },
+    take: 25,
+    select: { id: true, guestName: true, arrivalDate: true, departureDate: true, status: true, chatPinHash: true },
+  });
+}
+
 export type PinVerifyResult =
   | { status: "ok" }
   | { status: "invalid" }

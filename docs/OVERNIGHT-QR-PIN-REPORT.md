@@ -70,7 +70,10 @@ TIMESTAMP null} + Organization.qrChatPinRequired BOOLEAN NOT NULL DEFAULT false.
 - **Zero-drift:** `migrate diff --exit-code` → "No difference detected".
 
 ## Test sonuçları
-- **Full suite: 1089 test yeşil** · typecheck temiz · `next build` temiz.
+- **Full suite: 1099 test yeşil** · typecheck temiz · `next build` temiz.
+  (Sayı akışı: Faz 5 ilk bitiminde **1089**; concurrency-fix "CONCURRENCY CAP" testi +1 →
+  **1090**; Codex final 6-madde turu +9 yeni test [recovery×1, expiry-concurrency×1,
+  last-5 gap×2, no-store/leak×1, boot pepper×4] → **1099**.)
 - Faz 5 hedefli testler (kırmızı-önce yazıldı):
   - `guest-chat-pin.test.ts` (13) — lib crypto/storage/verify/lockout/regeneration.
   - `guest-chat-pin-gate.test.ts` (12) — route kapısı: flag off eski akış; flag on PIN'li
@@ -103,6 +106,35 @@ Gece sonunda bağımsız bir ajan tüm Faz 5 diff'ini 8 saldırı ekseninde dene
   no_pin tek generic), lifecycle (iptal kapalı, regeneration atomik, turnover
   bloklu), migration (additive-safe), geriye-uyum (env-off tam inert), HMAC/pepper
   (reservation-bound, üretilen PIN kendini doğrular).
+
+## Codex FINAL 6-madde turu (ayrı yeni local commit — mevcut 7 re-authored commit'e dokunulmadı)
+Codex'in son 6 maddesi kodla tek tek doğrulandı; gerçek olanlar YENİ bir local commit'te düzeltildi:
+1. **Lockout recovery — ZATEN DOĞRU (kod değişikliği yok, kanıt eklendi).** Slot-rezervasyon
+   tasarımı zaten: 10 yanlış→locked, `lockedUntil+1sn`'de doğru PIN→ok + `failedCount/lockedUntil`
+   güvenli reset, ve **süre-dolumu anındaki 40 paralel yanlış → ≤MAX HMAC karşılaştırması**. 2 yeni
+   test (RECOVERY, EXPIRY-MOMENT CONCURRENCY) bunu sabitliyor.
+2. **bindOrCheckStay allowClaim — ZORUNLU yapıldı.** Artık default yok; imza `{ allowClaim: boolean }`.
+   Unutulmuş/default claim yolu artık **compile-time hata** (2 route callsite + 7 test callsite açık
+   `{allowClaim:true/false}`'a çevrildi). PIN-required akışında claim edilmediği gate testleriyle de kanıtlı.
+3. **Strict-mode UX / last-5 boşluğu — DÜZELTİLDİ.** `reservations: {orderBy arrival desc, take 5}`
+   dolu-dolu bir dairede AKTİF konaklamayı gelecekteki 5+ rezervasyonun arkasına itip host'un PIN
+   üretmesini engelliyordu. Yeni `listReservationsForPinManagement` (aktif+yaklaşan, departure≥dün,
+   arrival asc, take 25) property sayfasında kullanılıyor; kart başlığı "Aktif & Yaklaşan Rezervasyonlar".
+   Strict açıkken PIN'siz aktif/yaklaşan konaklama varsa **açık amber uyarı** gösteriliyor. 2 yeni test
+   (aktif 6+ gelecek arkasında görünür + ilk sırada; salt-geçmiş hariç).
+4. **Key separation — ZORUNLU.** Boot gate (`env-check.mjs`, tek env-doğrulama kaynağı): prod'da
+   `QR_PIN_ENABLED=1` iken `QR_PIN_PEPPER` **zorunlu, ≥32 karakter, AUTH_SECRET'ten farklı, placeholder
+   değil** — yoksa non-zero exit. Feature kapalıyken gerekmez (env-off deploy bozulmaz). 5+ yeni boot-env
+   testi. `.env.example` + `DEPLOYMENT.md` güncellendi. (Runtime `pinPepper()` fallback dev/test için kalır;
+   prod'da boot gate zaten gerçek pepper garantiler.)
+5. **Plaintext PIN response — no-store.** Generate/regenerate yanıtına `Cache-Control: no-store` eklendi
+   (proxy/tarayıcı PIN'i cache'leyemez). UI localStorage/sessionStorage KULLANMIYOR (React state + clipboard);
+   PIN audit/log/reservation-row'da YOK. Header + sızıntı-tarama testi eklendi.
+6. **1089/1090 farkı:** 1089 = Faz 5 ilk bitimi; concurrency-fix'in "CONCURRENCY CAP" testi +1 = 1090.
+   Bu tur +9 test → **son tam suite = 1099 yeşil** (kesin sayı yukarıda).
+
+Doğrulama (bu tur): hedefli 62/62 + **full suite 1099** + typecheck + build + taze 00→27 zero-drift
+(şema/migration bu turda DEĞİŞMEDİ — yalnız kod/test/docs). Yeni commit SHA'sı git log'da.
 
 ## Bilinen tavizler (belgeli)
 - **Per-reservation lockout DoS:** kötü niyetli biri yanlış PIN spam'iyle gerçek misafiri

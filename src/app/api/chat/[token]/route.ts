@@ -231,7 +231,7 @@ export async function GET(req: NextRequest, { params }: { params: Promise<{ toke
   // — check the binding WITHOUT claiming; if still unbound, prompt for the PIN.
   const binding = ctx.pinRequired
     ? await bindOrCheckStay(ctx.activeReservation.id, cookie, { allowClaim: false })
-    : await bindOrCheckStay(ctx.activeReservation.id, cookie);
+    : await bindOrCheckStay(ctx.activeReservation.id, cookie, { allowClaim: true });
   if (binding.status === "unclaimed") {
     return jsonOk({ open: true, pinRequired: true, messages: [] });
   }
@@ -308,7 +308,7 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ tok
   // the guest must unlock with the PIN first, so the message is refused until then.
   const binding = ctx.pinRequired
     ? await bindOrCheckStay(res.id, cookie, { allowClaim: false })
-    : await bindOrCheckStay(res.id, cookie);
+    : await bindOrCheckStay(res.id, cookie, { allowClaim: true });
   if (binding.status === "unclaimed") {
     return jsonOk({
       pinRequired: true,

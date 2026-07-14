@@ -7,6 +7,7 @@ import {
   setReservationPin,
   clearReservationPin,
   verifyReservationPin,
+  listReservationsForPinManagement,
   qrPinEnabled,
   QR_PIN_MAX_ATTEMPTS,
   QR_PIN_LOCKOUT_MS,
@@ -138,6 +139,40 @@ describe("guest-chat-pin — storage + verify (DB)", () => {
     expect((await verifyReservationPin(reservationId, pin, future)).status).toBe("ok");
   });
 
+  it("RECOVERY (Codex 1): 10 wrong → locked; at lockedUntil+1s the CORRECT PIN succeeds + counters reset", async () => {
+    const { reservationId } = await makeReservation();
+    const pin = await setReservationPin(reservationId);
+    const wrong = pin === "000000" ? "111111" : "000000";
+    for (let i = 0; i < QR_PIN_MAX_ATTEMPTS; i++) {
+      expect((await verifyReservationPin(reservationId, wrong)).status).toBe("invalid");
+    }
+    const locked = await prisma.reservation.findUnique({ where: { id: reservationId } });
+    expect(locked?.chatPinLockedUntil).toBeTruthy();
+    // Exactly 1s AFTER the lock expires, the correct PIN must go through.
+    const afterExpiry = new Date(locked!.chatPinLockedUntil!.getTime() + 1000);
+    expect((await verifyReservationPin(reservationId, pin, afterExpiry)).status).toBe("ok");
+    // …and the durable counters are safely reset.
+    const cleared = await prisma.reservation.findUnique({ where: { id: reservationId } });
+    expect(cleared?.chatPinFailedCount).toBe(0);
+    expect(cleared?.chatPinLockedUntil).toBeNull();
+  });
+
+  it("EXPIRY-MOMENT CONCURRENCY (Codex 1): a burst right as the lock expires still caps compares at MAX", async () => {
+    const { reservationId } = await makeReservation();
+    const pin = await setReservationPin(reservationId);
+    const wrong = pin === "000000" ? "111111" : "000000";
+    for (let i = 0; i < QR_PIN_MAX_ATTEMPTS; i++) await verifyReservationPin(reservationId, wrong);
+    const locked = await prisma.reservation.findUnique({ where: { id: reservationId } });
+    const atExpiry = new Date(locked!.chatPinLockedUntil!.getTime() + 1000);
+    // 40 wrong guesses arriving simultaneously the instant the window opens.
+    const results = await Promise.all(
+      Array.from({ length: 40 }, () => verifyReservationPin(reservationId, wrong, atExpiry)),
+    );
+    const invalid = results.filter((r) => r.status === "invalid").length;
+    expect(invalid).toBeLessThanOrEqual(QR_PIN_MAX_ATTEMPTS); // ≤ MAX HMAC compares
+    expect(results.filter((r) => r.status === "locked").length).toBeGreaterThan(0);
+  });
+
   it("CONCURRENCY CAP: a burst of wrong guesses can't run more than MAX compares (diff-review)", async () => {
     // The durable lockout must gate the COMPARE, not just the increment: a
     // distributed/multi-replica burst that all read "not locked" at once must NOT
@@ -177,6 +212,45 @@ describe("guest-chat-pin — storage + verify (DB)", () => {
     expect(row?.chatPinSetAt).toBeNull();
     expect(row?.chatPinLockedUntil).toBeNull();
     expect((await verifyReservationPin(reservationId, "000000")).status).toBe("no_pin");
+  });
+});
+
+describe("listReservationsForPinManagement (Codex 3 — last-5 gap)", () => {
+  it("surfaces the ACTIVE stay even behind 6+ future bookings (old top-5-desc hid it)", async () => {
+    const { propertyId } = await makeOrgWithProperty();
+    // The currently-staying guest (arrival yesterday, departs in 2 days).
+    const active = await prisma.reservation.create({
+      data: {
+        propertyId, guestName: "Aktif", arrivalDate: daysFromNow(-1), departureDate: daysFromNow(2),
+        status: "confirmed", channel: "airbnb",
+      },
+    });
+    // Six future bookings, all with LATER arrivals — these would fill a top-5-desc list.
+    for (let i = 1; i <= 6; i++) {
+      await prisma.reservation.create({
+        data: {
+          propertyId, guestName: `Gelecek ${i}`, arrivalDate: daysFromNow(i * 5), departureDate: daysFromNow(i * 5 + 2),
+          status: "confirmed", channel: "airbnb",
+        },
+      });
+    }
+    const list = await listReservationsForPinManagement(propertyId);
+    const ids = list.map((r) => r.id);
+    expect(ids).toContain(active.id); // reachable for PIN generation
+    expect(list[0].id).toBe(active.id); // soonest-arrival first
+    expect(list.length).toBe(7); // active + 6 upcoming
+  });
+
+  it("excludes fully-past stays (chat already closed → no PIN needed)", async () => {
+    const { propertyId } = await makeOrgWithProperty();
+    const past = await prisma.reservation.create({
+      data: {
+        propertyId, guestName: "Geçmiş", arrivalDate: daysFromNow(-10), departureDate: daysFromNow(-5),
+        status: "completed", channel: "airbnb",
+      },
+    });
+    const list = await listReservationsForPinManagement(propertyId);
+    expect(list.map((r) => r.id)).not.toContain(past.id);
   });
 });
 

@@ -62,7 +62,7 @@ bağlıdır: yeni container 200 dönmeden trafik almaz.
 | `GUEST_CHAT_ENABLED` | `1` → QR misafir concierge global açık |
 | `QR_ESCALATION_EMAIL_ENABLED` | `1` → QR sohbeti eskalasyona düşünce host'a e-posta (varsayılan KAPALI; içerikte misafir metni yok, olay başına dedupe, alıcı org alertEmail → owner) |
 | `QR_PIN_ENABLED` | `1` → rezervasyona özel QR sohbet PIN'i (Faz 5, varsayılan KAPALI). Host rezervasyon başına 6 haneli kod üretir; misafir sohbeti cihazında açmak için kodu girer. KAPALI deploy mevcut sohbetleri değiştirmez; PIN'siz eski rezervasyonlar ilk-tarayan cihaz-bağlama akışında kalır (org "strict" moda geçmedikçe) |
-| `QR_PIN_PEPPER` | QR PIN HMAC pepper'ı (opsiyonel; yoksa `AUTH_SECRET`). Rotasyonu tüm PIN'leri geçersiz kılar (host yeniden üretir) — kısa ömürlü kod olduğu için kabul edilebilir |
+| `QR_PIN_PEPPER` | QR PIN HMAC pepper'ı. **`QR_PIN_ENABLED=1` iken prod'da ZORUNLU** (boot gate: eksik/placeholder/<32 karakter/AUTH_SECRET'e eşit ise başlatmayı reddeder — AUTH_SECRET fallback prod'da kullanılmaz). Feature kapalıyken gerekmez. Rotasyonu tüm PIN'leri geçersiz kılar (host yeniden üretir) — kısa ömürlü kod olduğu için kabul edilebilir |
 | `DATA_RETENTION_MONTHS` | KVKK: bu aydan eski misafir PII'si (ad/mesaj) otomatik anonimleştirilir (ör. `24`). Boş = kapalı |
 | `TRIAL_EMAILS_ENABLED` | `1` → deneme-hatırlatma mailleri açık (varsayılan KAPALI/dormant). Açmadan önce ilk gönderimi birlikte doğrulayın |
 | `TRIAL_REMINDER_DAYS` | Deneme bitmeden kaç gün kala "bitiyor" maili gider (varsayılan `1` = 1 gün önce). Mailler yalnızca `BILLING_ENFORCED=true` **ve** `TRIAL_EMAILS_ENABLED=1` iken gider |

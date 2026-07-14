@@ -17,6 +17,7 @@ import { CalendarFeed } from "@/components/properties/calendar-feed";
 import { CalendarSources } from "@/components/properties/calendar-sources";
 import { GuestChatSettings } from "@/components/properties/guest-chat-settings";
 import { ReservationPinControl } from "@/components/properties/reservation-pin-control";
+import { listReservationsForPinManagement } from "@/lib/guest-chat-pin";
 import { generateCalendarToken } from "@/lib/export/ics";
 import { KB_CATEGORY, RESERVATION_STATUS } from "@/lib/constants";
 import { formatDate } from "@/lib/utils";
@@ -48,6 +49,20 @@ export default async function PropertyDetailPage({
   // PIN control + strict-mode toggle only appear when it's on AND the host can manage.
   const pinFeatureEnabled = process.env.QR_PIN_ENABLED === "1";
   const showPinControls = canManage && process.env.GUEST_CHAT_ENABLED === "1" && pinFeatureEnabled && property.chatEnabled;
+
+  // For PIN management the "last 5 by arrival desc" list is WRONG (Codex 3): a
+  // fully-booked apartment pushes the CURRENTLY-STAYING guest out behind future
+  // bookings, so the host couldn't reach it to set a PIN. When the controls are
+  // shown, list ACTIVE + UPCOMING stays instead (soonest first, generous window)
+  // so every stay that can need a PIN is reachable. Otherwise keep the recent list.
+  const reservationList = showPinControls
+    ? await listReservationsForPinManagement(property.id)
+    : property.reservations;
+  // Strict mode with PIN-less active/upcoming stays = those chats are locked until
+  // the host generates a code — surface a clear warning on the toggle.
+  const pinlessActiveUpcoming = showPinControls
+    ? reservationList.filter((r) => r.status !== "cancelled" && !r.chatPinHash).length
+    : 0;
 
   // Sibling properties (for "copy supply profile to selected apartments").
   const siblings = await prisma.property.findMany({
@@ -179,6 +194,7 @@ export default async function PropertyDetailPage({
                   }
                   pinFeatureEnabled={pinFeatureEnabled}
                   strictMode={property.organization.qrChatPinRequired}
+                  pinlessActiveUpcoming={pinlessActiveUpcoming}
                 />
               </CardContent>
             </Card>
@@ -210,14 +226,15 @@ export default async function PropertyDetailPage({
           <Card>
             <CardHeader>
               <CardTitle className="flex items-center gap-2 text-base">
-                <CalendarDays className="size-4 text-muted-foreground" /> Son Rezervasyonlar
+                <CalendarDays className="size-4 text-muted-foreground" />{" "}
+                {showPinControls ? "Aktif & Yaklaşan Rezervasyonlar" : "Son Rezervasyonlar"}
               </CardTitle>
             </CardHeader>
             <CardContent className="space-y-2">
-              {property.reservations.length === 0 ? (
+              {reservationList.length === 0 ? (
                 <p className="text-sm text-muted-foreground">Rezervasyon yok.</p>
               ) : (
-                property.reservations.map((r) => (
+                reservationList.map((r) => (
                   <div key={r.id} className="border-b border-border/50 pb-2 last:border-0 last:pb-0">
                     <div className="flex items-center justify-between gap-2">
                       <div className="min-w-0">

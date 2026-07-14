@@ -18,6 +18,7 @@ export function GuestChatSettings({
   url,
   pinFeatureEnabled = false,
   strictMode = false,
+  pinlessActiveUpcoming = 0,
 }: {
   propertyId: string;
   propertyName: string;
@@ -27,6 +28,8 @@ export function GuestChatSettings({
   pinFeatureEnabled?: boolean;
   /** Org-wide: require a PIN for EVERY stay (not just those with a generated PIN). */
   strictMode?: boolean;
+  /** Active/upcoming stays of THIS property that have no PIN yet — warned when strict. */
+  pinlessActiveUpcoming?: number;
 }) {
   const router = useRouter();
   const qrRef = useRef<HTMLCanvasElement>(null);
@@ -230,6 +233,13 @@ export function GuestChatSettings({
                   </span>
                 </span>
               </label>
+              {strict && pinlessActiveUpcoming > 0 ? (
+                <div className="mt-2 rounded-md border border-amber-300 bg-amber-50 px-2.5 py-1.5 text-[11px] text-amber-900">
+                  ⚠️ Bu dairede giriş kodu olmayan {pinlessActiveUpcoming} aktif/yaklaşan konaklama var —
+                  zorunlu mod açık olduğu için bu misafirler kod oluşturana kadar sohbeti açamaz. Aşağıdaki
+                  rezervasyon listesinden kod oluşturun.
+                </div>
+              ) : null}
             </div>
           ) : null}
         </div>

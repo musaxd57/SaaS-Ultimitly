@@ -68,6 +68,20 @@ describe("POST /api/reservations/[id]/chat-pin — generate", () => {
     for (const a of audits) expect(a.metadataJson ?? "").not.toContain(json.pin);
   });
 
+  it("PIN response carries Cache-Control: no-store (Codex 5) and leaks the PIN nowhere but the body", async () => {
+    const { reservationId } = await seed("owner");
+    const res = await POST(req(reservationId, "POST"), ctx(reservationId));
+    expect(res.headers.get("cache-control")).toBe("no-store");
+    const json = await res.json();
+    const pin = json.pin as string;
+    // The PIN must NOT appear in any audit metadata row.
+    const audits = await prisma.auditLog.findMany();
+    for (const a of audits) expect(a.metadataJson ?? "").not.toContain(pin);
+    // …nor persisted on the reservation row (only its hash lives there).
+    const row = await prisma.reservation.findUnique({ where: { id: reservationId } });
+    expect(JSON.stringify(row)).not.toContain(pin);
+  });
+
   it("manager may generate too (owner|manager surface)", async () => {
     const { reservationId } = await seed("manager");
     const res = await POST(req(reservationId, "POST"), ctx(reservationId));

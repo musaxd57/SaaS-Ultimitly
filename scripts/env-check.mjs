@@ -40,5 +40,25 @@ export function checkProductionEnv(env) {
     warnings.push("ENCRYPTION_KEY is shorter than 32 characters — prefer a longer random key.");
   }
 
+  // QR PIN pepper (Faz 5, #14). ONLY enforced when the feature is switched on
+  // (QR_PIN_ENABLED=1) — with it off the whole PIN system is dormant and no
+  // pepper is needed, so an env-off deployment is never blocked. When on, the
+  // PIN HMAC must NOT fall back to AUTH_SECRET (guest-chat-pin.ts uses that
+  // fallback for dev/test only): a dedicated, independent, ≥32-char pepper is
+  // required so rotating AUTH_SECRET can't silently invalidate live PINs and the
+  // session secret is never doubled as the PIN key.
+  if ((env.QR_PIN_ENABLED ?? "").trim() === "1") {
+    const pepper = (env.QR_PIN_PEPPER ?? "").trim();
+    if (!pepper) {
+      errors.push("QR_PIN_PEPPER is missing — REQUIRED when QR_PIN_ENABLED=1 (do not rely on the AUTH_SECRET fallback).");
+    } else if (pepper === DEV_PLACEHOLDER_SECRET) {
+      errors.push("QR_PIN_PEPPER is the dev placeholder — set a real random pepper.");
+    } else if (pepper === authSecret) {
+      errors.push("QR_PIN_PEPPER must be independent of AUTH_SECRET (they are currently equal).");
+    } else if (pepper.length < 32) {
+      errors.push("QR_PIN_PEPPER must be at least 32 characters.");
+    }
+  }
+
   return { errors, warnings };
 }
