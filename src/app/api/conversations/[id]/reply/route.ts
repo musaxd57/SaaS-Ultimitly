@@ -10,6 +10,9 @@ import { rateLimit } from "@/lib/rate-limit";
 import { premiumAllowed } from "@/lib/billing/subscription";
 import { translate } from "@/lib/ai/translate";
 import { claimOutboundSend, releaseOutboundSend } from "@/lib/outbound-claim";
+import { durableOutboxEnabled } from "@/lib/outbox/flag";
+import { enqueueOutbound } from "@/lib/outbox/enqueue";
+import { createHash } from "crypto";
 
 // Only owner/manager may send guest-facing replies (withManage). Staff are read +
 // task updates; the inbound-message and status routes stay open for their triage.
@@ -80,6 +83,35 @@ export const POST = withManage<{ id: string }>(async (session, req, { params }) 
       { status: 502 },
     );
   }
+  // ── Durable Outbox (flag ON): record the Message + its send INTENT atomically and
+  // let the worker deliver it, instead of the synchronous deliver-then-persist below.
+  // Dedup is the tenant-scoped idempotency key — a double-click with the same text
+  // inside a 2-min bucket collapses to ONE queued row (same window as the claim TTL).
+  // Falls through to the proven claim-then-send when the flag is OFF (default) or the
+  // thread is internal (nothing to deliver). ──
+  if (durableOutboxEnabled() && !isInternal && conversation.externalReservationId) {
+    const digest = createHash("sha256").update(parsed.data.body).digest("base64url").slice(0, 24);
+    const idempotencyKey = `manual:${id}:${digest}:${Math.floor(Date.now() / 120_000)}`;
+    const enq = await enqueueOutbound({
+      organizationId: session.organizationId,
+      conversationId: id,
+      channel: conversation.channel,
+      externalReservationId: conversation.externalReservationId,
+      body: replyBody,
+      senderName: parsed.data.senderName || session.name,
+      authorType: "host",
+      aiAssisted,
+      idempotencyKey,
+    });
+    const message = await prisma.message.findUnique({ where: { id: enq.messageId } });
+    // 202 = accepted/queued (NOT yet delivered — the UI shows "sıraya alındı"); a
+    // dedupe-hit is a 200 no-op (the identical message is already queued/sent).
+    return NextResponse.json(
+      { ...message, outbox: { status: "queued", deduped: enq.deduped } },
+      { status: enq.deduped ? 200 : 202 },
+    );
+  }
+
   // Duplicate guard (claim-then-send, like auto-reply): a double-click / browser
   // retry with the SAME text must not reach the guest twice. Keyed on the RAW
   // typed body so both duplicates map to the same claim even when translate is on.

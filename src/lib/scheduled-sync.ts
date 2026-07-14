@@ -8,6 +8,8 @@ import { reportError } from "@/lib/report-error";
 import { premiumAllowed } from "@/lib/billing/subscription";
 import { sendDueTrialReminders } from "@/lib/billing/trial-reminders";
 import { anonymizeOldGuestData, purgeOldLeads } from "@/lib/data-retention";
+import { durableOutboxEnabled } from "@/lib/outbox/flag";
+import { drainOutboxOnce } from "@/lib/outbox/worker";
 import {
   runDueChannelAutoReplies,
   sendDueWelcomes,
@@ -247,6 +249,19 @@ export async function runScheduledSync(): Promise<ScheduledSyncTotals> {
           } else {
             await reportError(`scheduled-sync org ${org.id}`, err);
           }
+        }
+      }
+
+      // Durable Outbox drain (flag ON): deliver queued outbound sends. Runs under the
+      // same cross-instance sync lock (so it never overlaps another pass), and the
+      // worker's own FOR UPDATE SKIP LOCKED claim keeps it correct even if it ever
+      // did. Best-effort — a drain failure never aborts the scheduled pass.
+      if (durableOutboxEnabled()) {
+        try {
+          const drained = await drainOutboxOnce();
+          if (drained.claimed > 0) console.log(`[scheduled-sync] outbox: ${JSON.stringify(drained)}`);
+        } catch (err) {
+          await reportError("scheduled-sync outbox-drain", err);
         }
       }
 

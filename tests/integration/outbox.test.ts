@@ -69,6 +69,26 @@ describe("outbox — atomic enqueue + tenant-scoped idempotency", () => {
     await enqueueOutbound(baseArgs(b.orgId, cb.id, { idempotencyKey: "same" }));
     expect(await prisma.messageOutbox.count()).toBe(2);
   });
+
+  it("the payload carries ONLY send-necessary fields — no token/credential/PII slot (KVKK)", async () => {
+    const { orgId, propertyId } = await makeOrgWithProperty();
+    const c = await makeConvo(propertyId);
+    const r = await enqueueOutbound(baseArgs(orgId, c.id, { body: "gizli olmayan mesaj" }));
+    const row = await outbox(r.outboxId);
+    // No column that could hold a secret (idempotencyKey is a dedup id, not a credential).
+    const forbidden = Object.keys(row).filter((k) => /token|auth|pepper|password|secret|credential|\bpin\b/i.test(k));
+    expect(forbidden).toEqual([]);
+    expect(row.body).toBe("gizli olmayan mesaj"); // body = the message text itself (allowed)
+  });
+
+  it("deleting the org CASCADE-purges its outbox (KVKK / account erasure)", async () => {
+    const { orgId, propertyId } = await makeOrgWithProperty();
+    const c = await makeConvo(propertyId);
+    await enqueueOutbound(baseArgs(orgId, c.id));
+    expect(await prisma.messageOutbox.count({ where: { organizationId: orgId } })).toBe(1);
+    await prisma.organization.delete({ where: { id: orgId } });
+    expect(await prisma.messageOutbox.count({ where: { organizationId: orgId } })).toBe(0);
+  });
 });
 
 describe("outbox worker — send, concurrency, crash points", () => {

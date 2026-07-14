@@ -80,6 +80,7 @@ export function ConversationThread({ conversationId, messages, status, priority,
   const [suggestError, setSuggestError] = useState<string | null>(null);
   const [sending, setSending] = useState(false);
   const [sendError, setSendError] = useState<string | null>(null);
+  const [queuedNote, setQueuedNote] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
 
   // Template picker state
@@ -121,6 +122,7 @@ export function ConversationThread({ conversationId, messages, status, priority,
     if (!body.trim()) return;
     setSending(true);
     setSendError(null);
+    setQueuedNote(null);
     try {
       const res = await fetch(`/api/conversations/${conversationId}/reply`, {
         method: "POST",
@@ -130,6 +132,14 @@ export function ConversationThread({ conversationId, messages, status, priority,
       if (res.ok) {
         setComposer("");
         setSuggestion(null);
+        // Durable Outbox (flag ON): a 202 means QUEUED, not yet delivered — say so
+        // honestly instead of implying the message already reached the guest.
+        if (res.status === 202) {
+          const data = await res.json().catch(() => null);
+          if (data?.outbox?.status === "queued") {
+            setQueuedNote("Mesaj sıraya alındı — birazdan gönderilecek.");
+          }
+        }
         refresh();
       } else {
         const data = await res.json().catch(() => null);
@@ -534,6 +544,9 @@ export function ConversationThread({ conversationId, messages, status, priority,
               <AlertTriangle className="mt-0.5 size-3.5 shrink-0" />
               {sendError}
             </p>
+          ) : null}
+          {queuedNote ? (
+            <p className="rounded-md bg-primary/10 px-2.5 py-2 text-xs text-primary">{queuedNote}</p>
           ) : null}
           <div className="flex justify-end">
             <Button onClick={() => sendReply(composer)} disabled={sending || !composer.trim()}>

@@ -107,6 +107,36 @@ Paddle 3xx takip etmez). Destination'ın signing secret'ını (`pdl_…`)
 
 ---
 
+## 6) Durable Outbox (#8) — opsiyonel, DEFAULT KAPALI
+
+`DURABLE_OUTBOX_ENABLED` **girici mesaj gönderimini kalıcı outbox durum makinesiyle**
+yönetir: mesaj + gönderim-niyeti aynı transaction'da yazılır, bir worker
+claim/retry/reconcile ile teslim eder (process çökmesi/timeout/çoklu-replika daha
+sağlam). **Boş/`0` = KAPALI → canlı gönderim yolu bugünkü claim-then-send ile birebir
+aynı** (hiçbir risk yok).
+
+**Şu an bağlı olan yol:** MANUEL host yanıtı (Mesajlar → Yanıtla). AI oto-yanıt /
+welcome / checkin / checkout gönderenler şimdilik kanıtlanmış claim-then-send yolunda
+kalır (her biri tek tek doğru; sonraki artımda outbox'a alınacak).
+
+**Sağlayıcı idempotency:** Hospitable send-message endpoint'i idempotency-key
+belgelemiyor → **"exactly once" garantisi YOK.** Outbox: intent kaybolmaz, definitive
+failure güvenli retry, ambiguous (timeout/5xx) **kör resend YOK** + provider
+geçmişinden uzlaştırma; uzlaşamazsa `review` (manuel). Kalan teorik duplicate penceresi
+(send başarılı ama yanıt kayıp) provider-key olmadan kapatılamaz.
+
+**Açma adımları (hazır olunca):**
+1. Deploy zaten migration `29_message_outbox`'ı uygular (additive, boş tablo).
+2. Worker in-process scheduler'da (2-dk) koşar; ayrı env gerekmez.
+3. `DURABLE_OUTBOX_ENABLED=1` ekle → yalnız MANUEL yanıt outbox'a gider.
+4. Bir manuel yanıt gönder; DB'de `MessageOutbox` satırının `pending → sent` olduğunu
+   ve `Message.externalId`'nin worker sonrası dolduğunu doğrula. `review`/`failed`
+   satırları takılı gönderimleri gösterir (elle incele).
+5. Kapatmak için env'i sil → anında eski yola döner (bekleyen `pending` satırlar,
+   flag tekrar açılınca teslim edilir; veri kaybı yok).
+
+---
+
 ## Özet akış
 
 ```

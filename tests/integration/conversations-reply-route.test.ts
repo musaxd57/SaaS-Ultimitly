@@ -40,6 +40,7 @@ describe("POST /api/conversations/[id]/reply — staff RBAC gate", () => {
     await resetDb();
     __resetRateLimit();
     vi.clearAllMocks();
+    vi.unstubAllEnvs(); // clear any DURABLE_OUTBOX_ENABLED stub from a prior test
     const org = await prisma.organization.create({ data: { name: "Org" } });
     orgId = org.id;
     const property = await prisma.property.create({
@@ -228,5 +229,43 @@ describe("POST /api/conversations/[id]/reply — staff RBAC gate", () => {
     });
     expect(second.status).toBe(409);
     expect(await prisma.message.count({ where: { conversationId: qr.id, direction: "outbound" } })).toBe(1);
+  });
+
+  // ── Durable Outbox (#8) — flag-gated integration on the manual reply route ──
+  const owner = () => {
+    session = { userId: "u", organizationId: orgId, role: "owner", email: "o@x.com", name: "Owner", sessionEpoch: 0 };
+  };
+
+  it("Durable Outbox OFF (default): the reply uses the proven claim-then-send path", async () => {
+    owner();
+    const res = await POST(req(conversationId, { body: "Merhaba!" }), { params: Promise.resolve({ id: conversationId }) });
+    expect(res.status).toBe(201);
+    expect(mockSend).toHaveBeenCalledTimes(1); // delivered synchronously (current path)
+    expect(await prisma.messageOutbox.count()).toBe(0); // nothing enqueued — outbox untouched
+    expect(await prisma.message.count({ where: { conversationId, direction: "outbound" } })).toBe(1);
+  });
+
+  it("Durable Outbox ON: the reply is ENQUEUED (202), not synchronously sent; message has NO externalId yet", async () => {
+    vi.stubEnv("DURABLE_OUTBOX_ENABLED", "1");
+    owner();
+    const res = await POST(req(conversationId, { body: "Merhaba!" }), { params: Promise.resolve({ id: conversationId }) });
+    expect(res.status).toBe(202); // queued, NOT delivered
+    expect(mockSend).not.toHaveBeenCalled(); // the worker delivers later
+    const ob = await prisma.messageOutbox.findFirstOrThrow({ where: { organizationId: orgId } });
+    expect(ob).toMatchObject({ status: "pending", channel: "airbnb", externalReservationId: "res-1", body: "Merhaba!" });
+    const msg = await prisma.message.findFirstOrThrow({ where: { conversationId, direction: "outbound" } });
+    expect(msg.externalId).toBeNull(); // not delivered yet → no provider id
+    expect((await prisma.conversation.findUniqueOrThrow({ where: { id: conversationId } })).status).toBe("answered");
+  });
+
+  it("Durable Outbox ON: a double-submit of the same text dedupes to ONE queued row (200)", async () => {
+    vi.stubEnv("DURABLE_OUTBOX_ENABLED", "1");
+    owner();
+    const a = await POST(req(conversationId, { body: "Aynı metin" }), { params: Promise.resolve({ id: conversationId }) });
+    const b = await POST(req(conversationId, { body: "Aynı metin" }), { params: Promise.resolve({ id: conversationId }) });
+    expect(a.status).toBe(202);
+    expect(b.status).toBe(200); // dedupe-hit — no second queue row
+    expect(await prisma.messageOutbox.count({ where: { organizationId: orgId } })).toBe(1);
+    expect(await prisma.message.count({ where: { conversationId, direction: "outbound" } })).toBe(1);
   });
 });
