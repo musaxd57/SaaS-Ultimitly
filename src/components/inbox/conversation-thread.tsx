@@ -24,7 +24,7 @@ import { Badge } from "@/components/ui/badge";
 import { Separator } from "@/components/ui/separator";
 import { CONVERSATION_STATUS, PRIORITY, REPLY_TONE, type ReplyTone } from "@/lib/constants";
 import { cn } from "@/lib/utils";
-import { intentLabel, langLabel, displaySenderName, riskTypeLabel, sourceLabel } from "@/lib/ui-labels";
+import { intentLabel, langLabel, displaySenderName, riskTypeLabel, sourceLabel, displayableSources } from "@/lib/ui-labels";
 
 export interface ThreadMessage {
   id: string;
@@ -533,10 +533,10 @@ export function ConversationThread({ conversationId, messages, status, priority,
               </p>
             ) : null}
 
-            {suggestion.usedSources && suggestion.usedSources.length > 0 ? (
+            {suggestion.usedSources && displayableSources(suggestion.usedSources).length > 0 ? (
               <p className="text-xs text-muted-foreground">
                 <span className="font-medium">Kullandığı bağlam:</span>{" "}
-                {suggestion.usedSources.map(sourceLabel).join(" · ")}
+                {displayableSources(suggestion.usedSources).map(sourceLabel).join(" · ")}
               </p>
             ) : null}
             {suggestion.missingInfo && suggestion.missingInfo.length > 0 ? (

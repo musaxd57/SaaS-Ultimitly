@@ -4,7 +4,7 @@ import { useState } from "react";
 import { Sparkles, Loader2 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
-import { intentLabel, langLabel, riskLabel, aiSourceLabel, riskTypeLabel, sourceLabel } from "@/lib/ui-labels";
+import { intentLabel, langLabel, riskLabel, aiSourceLabel, riskTypeLabel, sourceLabel, displayableSources } from "@/lib/ui-labels";
 
 interface TestResult {
   reply: string;
@@ -159,12 +159,12 @@ export function AiTestCard({ properties }: { properties: { id: string; name: str
               <p>
                 Bu mesaj gerçek kanalda{" "}
                 <strong>{result.closingKind === "praise" ? "salt olumlu geri bildirim" : "kapanış"}</strong>{" "}
-                sayılır — aşağıdaki taslak gönderilmez.{" "}
+                sayılır.{" "}
                 {result.closingReplyEnabled
-                  ? "Nezaket yanıtı ayarınız AÇIK; misafire gidecek mesaj (aynı mesaja bir kez):"
+                  ? "Nezaket yanıtı ayarınız AÇIK — misafire otomatik olarak ŞU mesaj GÖNDERİLİR (aynı mesaja bir kez):"
                   : result.closingKind === "praise"
-                    ? "Nezaket yanıtı ayarınız kapalı: bu mesaj normal AI akışına gider (taslak onayınıza düşer)."
-                    : "Nezaket yanıtı ayarınız kapalı: hiçbir otomatik yanıt gitmez, konuşma sessizce kapanmış sayılır."}
+                    ? "Nezaket yanıtı ayarınız kapalı: bu mesaj normal AI akışına düşer — aşağıdaki taslak otomatik gönderilmez, onayınıza sunulur."
+                    : "Nezaket yanıtı ayarınız kapalı: hiçbir otomatik yanıt gönderilmez; konuşma sessizce kapanmış sayılır."}
               </p>
               {result.closingReplyEnabled && result.closingReplyPreview ? (
                 <pre className="whitespace-pre-wrap rounded border border-sky-200 bg-white p-2 font-sans text-sky-900">
@@ -188,8 +188,8 @@ export function AiTestCard({ properties }: { properties: { id: string; name: str
           {riskTypeLabel(result.riskType) ? (
             <p className="text-xs font-medium text-orange-700">İnsan incelemesi: {riskTypeLabel(result.riskType)}</p>
           ) : null}
-          {result.usedSources && result.usedSources.length > 0 ? (
-            <p className="text-xs text-muted-foreground">Kullandığı bağlam: {result.usedSources.map(sourceLabel).join(" · ")}</p>
+          {result.usedSources && displayableSources(result.usedSources).length > 0 ? (
+            <p className="text-xs text-muted-foreground">Kullandığı bağlam: {displayableSources(result.usedSources).map(sourceLabel).join(" · ")}</p>
           ) : null}
           {result.missingInfo && result.missingInfo.length > 0 ? (
             <p className="text-xs text-amber-700">Eksik bilgi: {result.missingInfo.join(" · ")}</p>

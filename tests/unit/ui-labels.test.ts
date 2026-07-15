@@ -6,6 +6,8 @@ import {
   langLabel,
   channelLabel,
   riskLabel,
+  sourceLabel,
+  displayableSources,
 } from "@/lib/ui-labels";
 
 // The stored senderName "GuestOps AI" is a DB-level classification marker that
@@ -63,5 +65,34 @@ describe("riskLabel", () => {
     expect(riskLabel("low")).toBe("Düşük risk");
     expect(riskLabel("high")).toBe("Yüksek risk");
     expect(riskLabel("none")).toBe("Risk yok");
+  });
+});
+
+// Evidence chips ("Kullandığı bağlam") must read as Turkish labels, never as raw
+// field tokens like "reservation:guestName" — that leak confused a real user.
+describe("sourceLabel", () => {
+  it("maps every whitelisted evidence source to a Turkish label", () => {
+    expect(sourceLabel("kb:wifi")).toBe("Bilgi tabanı: Wi-Fi");
+    expect(sourceLabel("property:checkInTime")).toBe("Giriş saati");
+    expect(sourceLabel("property:name")).toBe("Daire adı");
+    expect(sourceLabel("property:city")).toBe("Şehir");
+    expect(sourceLabel("reservation:guestName")).toBe("Rezervasyon: Misafir adı");
+    expect(sourceLabel("reservation:arrivalDate")).toBe("Rezervasyon: Giriş tarihi");
+    expect(sourceLabel("reservation:departureDate")).toBe("Rezervasyon: Çıkış tarihi");
+    expect(sourceLabel("reservation:status")).toBe("Rezervasyon: Rezervasyon durumu");
+    expect(sourceLabel("history")).toBe("Önceki yazışma");
+  });
+});
+
+describe("displayableSources", () => {
+  it("drops only the guest-name evidence from display (kept in data for audit)", () => {
+    expect(displayableSources(["kb:wifi", "reservation:guestName", "reservation:status"])).toEqual([
+      "kb:wifi",
+      "reservation:status",
+    ]);
+  });
+
+  it("returns empty when guest-name was the only evidence (chip row hides entirely)", () => {
+    expect(displayableSources(["reservation:guestName"])).toEqual([]);
   });
 });

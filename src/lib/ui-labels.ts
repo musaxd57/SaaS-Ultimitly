@@ -101,11 +101,26 @@ const KB_TR: Record<string, string> = {
 };
 const PROP_TR: Record<string, string> = {
   checkInTime: "Giriş saati", checkOutTime: "Çıkış saati", address: "Adres",
+  name: "Daire adı", city: "Şehir",
+};
+const RES_TR: Record<string, string> = {
+  guestName: "Misafir adı", arrivalDate: "Giriş tarihi", departureDate: "Çıkış tarihi",
+  status: "Rezervasyon durumu",
 };
 export function sourceLabel(src: string): string {
   if (src.startsWith("kb:")) return `Bilgi tabanı: ${KB_TR[src.slice(3)] ?? src.slice(3)}`;
   if (src.startsWith("property:")) return PROP_TR[src.slice(9)] ?? src;
-  if (src.startsWith("reservation:")) return `Rezervasyon: ${src.slice(12)}`;
+  if (src.startsWith("reservation:")) return `Rezervasyon: ${RES_TR[src.slice(12)] ?? src.slice(12)}`;
   if (src === "history") return "Önceki yazışma";
   return src;
+}
+
+/**
+ * The evidence entries worth SHOWING. The guest's name is used by practically
+ * every reply (the greeting), so listing it as "context" is noise that only
+ * confuses — it is dropped from display while staying intact in the data
+ * (Message.aiSourcesJson / export) for audit.
+ */
+export function displayableSources(srcs: string[]): string[] {
+  return srcs.filter((s) => s !== "reservation:guestName");
 }
