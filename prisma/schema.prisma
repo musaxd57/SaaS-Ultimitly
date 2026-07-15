@@ -70,6 +70,11 @@ model Organization {
   // host as before. OPT-IN per org, default OFF — the landing promise ("complaints
   // are never auto-answered") stays true unless the host knowingly enables this.
   autoHoldingReplyEnabled Boolean @default(false)
+  // Opt-in courtesy reply to a bare closing "teşekkürler / thanks / 👍" (default OFF =
+  // today's behavior: such closings are silently skipped). When ON, ONE deterministic
+  // "you're welcome" line goes out in the guest's language — never twice in a row
+  // (a thanks to the courtesy itself is always left alone, so no pleasantry ping-pong).
+  autoClosingReplyEnabled Boolean @default(false)
   // Smart operational-task routing (opt-in, default OFF): when ON, a guest message
   // that escalates to the host AND carries a physical-operations signal
   // (maintenance / restock / cleaning) also opens a deduped, SLA-dated task so the

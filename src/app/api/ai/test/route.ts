@@ -60,7 +60,7 @@ export const POST = withManage(async (session, req) => {
 
   const org = await prisma.organization.findUnique({
     where: { id: session.organizationId },
-    select: { aiStyleProfile: true },
+    select: { aiStyleProfile: true, aiSignature: true },
   });
 
   // Same pipeline as the inbox. We attach a SAMPLE reservation (today's
@@ -91,5 +91,12 @@ export const POST = withManage(async (session, req) => {
     styleProfile: org?.aiStyleProfile,
   });
 
-  return jsonOk({ ...result, property: property.name });
+  // PREVIEW PARITY: the real send path appends the host's configured signature to
+  // every AI reply — show it here too, or the playground looks like the signature
+  // setting doesn't work. The machine-prepared disclosure note is deliberately NOT
+  // added: it only rides genuine AUTO-sends (same rule as the inbox suggest path).
+  const signature = org?.aiSignature?.trim();
+  const reply = signature && result.reply ? `${result.reply.trimEnd()}\n\n${signature}` : result.reply;
+
+  return jsonOk({ ...result, reply, property: property.name });
 });

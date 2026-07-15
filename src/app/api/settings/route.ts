@@ -5,7 +5,7 @@ import { withManage } from "@/lib/route-guard";
 // Organization-level settings the UI can change. Booleans are the auto-reply
 // switches; the hour fields define the channel auto-reply active window;
 // aiReplyTone / aiSignature shape the AI's voice.
-const BOOLEAN_FIELDS = ["autoReplyHospitable", "autoWelcome", "autoCheckin", "autoCheckout", "autoHoldingReplyEnabled", "autoTaskFromMessageEnabled", "autoSupplyRequestEnabled", "icalShowGuestName", "qrChatPinRequired"] as const;
+const BOOLEAN_FIELDS = ["autoReplyHospitable", "autoWelcome", "autoCheckin", "autoCheckout", "autoHoldingReplyEnabled", "autoClosingReplyEnabled", "autoTaskFromMessageEnabled", "autoSupplyRequestEnabled", "icalShowGuestName", "qrChatPinRequired"] as const;
 const HOUR_FIELDS = ["autoReplyStartHour", "autoReplyEndHour"] as const;
 const VALID_TONES = ["formal", "warm", "short", "luxury"] as const;
 const SIGNATURE_MAX = 600;

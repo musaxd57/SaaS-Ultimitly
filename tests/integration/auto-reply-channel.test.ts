@@ -643,6 +643,86 @@ describe("applyChannelAutoReply", () => {
   });
 });
 
+describe("closing courtesy — opt-in 'Rica ederiz' reply to a bare thanks", () => {
+  beforeEach(async () => {
+    await resetDb();
+    vi.clearAllMocks();
+    vi.stubEnv("AUTO_REPLY_ENABLED", "1");
+    mockSend.mockResolvedValue({ ok: true, providerMessageId: "prov-1" });
+  });
+  afterEach(() => vi.unstubAllEnvs());
+
+  /** Thread that ends with a bare guest closing, org toggle ON + signature set. */
+  async function seedClosing(closingBody = "Tamam, çok teşekkürler! 🙏") {
+    const { orgId, conversationId } = await seed({ aiSignature: "Sevgiler,\nMusa" });
+    await prisma.organization.update({ where: { id: orgId }, data: { autoClosingReplyEnabled: true } });
+    await prisma.message.create({
+      data: {
+        conversationId, direction: "outbound", senderName: "Host", body: "Wi-Fi şifresi Nuve2025.",
+        createdAt: new Date(Date.now() - 30_000),
+      },
+    });
+    await prisma.message.create({
+      data: { conversationId, direction: "inbound", senderName: "Alex", body: closingBody, createdAt: new Date() },
+    });
+    return { orgId, conversationId };
+  }
+
+  it("toggle ON: sends ONE deterministic courtesy (guest language + note + signature), NO model call", async () => {
+    const { conversationId } = await seedClosing();
+    const out = await applyChannelAutoReply(conversationId);
+    expect(out.sent).toBe(true);
+    expect(mockSuggest).not.toHaveBeenCalled(); // deterministic — no OpenAI spend
+    expect(mockSend).toHaveBeenCalledTimes(1);
+    const body = mockSend.mock.calls[0][1] as string;
+    expect(body.startsWith("Rica ederiz!")).toBe(true); // "teşekkürler" → Turkish text
+    expect(body).toContain(AUTO_NOTE_TR); //                disclosure note (org default ON)
+    expect(body.endsWith("Sevgiler,\nMusa")).toBe(true); // host signature closes the message
+    // Persisted with the loop-guard marker; the thread is answered.
+    const msg = await prisma.message.findFirstOrThrow({
+      where: { conversationId, direction: "outbound", aiIntent: "closing_courtesy" },
+    });
+    expect(msg.externalId).toBe("prov-1");
+    expect((await prisma.conversation.findUniqueOrThrow({ where: { id: conversationId } })).status).toBe("answered");
+  });
+
+  it("LOOP GUARD: a second thanks (to the courtesy itself) gets NO reply — no pleasantry ping-pong", async () => {
+    const { conversationId } = await seedClosing();
+    await applyChannelAutoReply(conversationId); // courtesy goes out
+    await prisma.message.create({
+      data: { conversationId, direction: "inbound", senderName: "Alex", body: "Sağ olun 🙏", createdAt: new Date() },
+    });
+    await prisma.conversation.update({ where: { id: conversationId }, data: { status: "new" } }); // new inbound re-opens
+    const out2 = await applyChannelAutoReply(conversationId);
+    expect(out2.sent).toBe(false);
+    expect(out2.skippedReason).toBe("closing_ack"); // falls through to the classic silent skip
+    expect(mockSend).toHaveBeenCalledTimes(1); // still only the FIRST courtesy
+  });
+
+  it("pure-emoji closing ('👍') uses the ORG's language, not English", async () => {
+    const { conversationId } = await seedClosing("👍"); // org language default "tr"
+    await applyChannelAutoReply(conversationId);
+    expect((mockSend.mock.calls[0][1] as string).startsWith("Rica ederiz!")).toBe(true);
+  });
+
+  it("dry-run NEVER sends the courtesy (preview stays side-effect-free)", async () => {
+    const { conversationId } = await seedClosing();
+    const out = await applyChannelAutoReply(conversationId, { dryRun: true });
+    expect(out.sent).toBe(false);
+    expect(out.skippedReason).toBe("closing_ack");
+    expect(mockSend).not.toHaveBeenCalled();
+  });
+
+  it("delivery failure releases the answered-claim so the thread is not falsely closed", async () => {
+    mockSend.mockResolvedValue({ ok: false, error: "HTTP 500" });
+    const { conversationId } = await seedClosing();
+    const out = await applyChannelAutoReply(conversationId);
+    expect(out.sent).toBe(false);
+    expect((await prisma.conversation.findUniqueOrThrow({ where: { id: conversationId } })).status).toBe("new");
+    expect(await prisma.message.count({ where: { conversationId, aiIntent: "closing_courtesy" } })).toBe(0);
+  });
+});
+
 describe("applyChannelAutoReply — Durable Outbox (flag ON, #5/#6)", () => {
   beforeEach(async () => {
     await resetDb();

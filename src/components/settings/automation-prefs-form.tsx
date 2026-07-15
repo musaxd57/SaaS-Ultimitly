@@ -15,12 +15,14 @@ export function AutomationPrefsForm({
   disclosure,
   holdHours,
   holdingAck,
+  closingReply,
   taskFromMessage,
   supplyRequest,
 }: {
   disclosure: boolean;
   holdHours: number;
   holdingAck: boolean;
+  closingReply: boolean;
   taskFromMessage: boolean;
   supplyRequest: boolean;
 }) {
@@ -29,6 +31,7 @@ export function AutomationPrefsForm({
   const [autoReplyDisclosure, setDisclosure] = useState(disclosure);
   const [handoffHoldHours, setHoldHours] = useState(String(holdHours));
   const [autoHoldingReplyEnabled, setHoldingAck] = useState(holdingAck);
+  const [autoClosingReplyEnabled, setClosingReply] = useState(closingReply);
   const [autoTaskFromMessageEnabled, setTaskFromMessage] = useState(taskFromMessage);
   const [autoSupplyRequestEnabled, setSupplyRequest] = useState(supplyRequest);
   const [busy, setBusy] = useState(false);
@@ -48,6 +51,7 @@ export function AutomationPrefsForm({
           autoReplyDisclosure,
           handoffHoldHours: Number(handoffHoldHours),
           autoHoldingReplyEnabled,
+          autoClosingReplyEnabled,
           autoTaskFromMessageEnabled,
           autoSupplyRequestEnabled,
         }),
@@ -101,6 +105,25 @@ export function AutomationPrefsForm({
             detayını ya da fotoğrafını paylaşırsanız çözümü hızlandırır." Karar vermez, söz vermez;
             konuşma yine "Sorunlu" olarak size düşer ve e-posta ile haber verilir. Kapalıyken (varsayılan)
             şikayetlere hiçbir otomatik mesaj gitmez.
+          </span>
+        </span>
+      </label>
+
+      <label className="flex items-start gap-3">
+        <input
+          type="checkbox"
+          checked={autoClosingReplyEnabled}
+          onChange={(e) => { setClosingReply(e.target.checked); setSaved(false); }}
+          className="mt-0.5 size-4"
+        />
+        <span className="text-sm">
+          <span className="font-medium">Teşekkür mesajına nezaket yanıtı</span>
+          <span className="block text-xs text-muted-foreground">
+            Açarsanız: misafir konuşmayı &ldquo;teşekkürler / tamam / 👍&rdquo; gibi kısa bir kapanışla
+            bitirdiğinde, kendi dilinde tek satırlık bir &ldquo;Rica ederiz!&rdquo; yanıtı otomatik gider.
+            Aynı kapanışa yalnızca <span className="font-medium">bir kez</span> yanıt verilir — misafir
+            nezaket yanıtına tekrar &ldquo;sağ olun&rdquo; derse sohbet uzatılmaz. Kapalıyken (varsayılan)
+            bu tür mesajlara hiçbir otomatik yanıt gitmez; konuşma sessizce kapanmış sayılır.
           </span>
         </span>
       </label>

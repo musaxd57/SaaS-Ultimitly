@@ -59,6 +59,7 @@ export default async function SettingsPage({
         alertEmail: true,
         autoReplyDisclosure: true,
         autoHoldingReplyEnabled: true,
+        autoClosingReplyEnabled: true,
         autoTaskFromMessageEnabled: true,
         autoSupplyRequestEnabled: true,
         icalShowGuestName: true,
@@ -326,6 +327,7 @@ export default async function SettingsPage({
             disclosure={org?.autoReplyDisclosure ?? true}
             holdHours={org?.handoffHoldHours ?? 12}
             holdingAck={org?.autoHoldingReplyEnabled ?? false}
+            closingReply={org?.autoClosingReplyEnabled ?? false}
             taskFromMessage={org?.autoTaskFromMessageEnabled ?? false}
             supplyRequest={org?.autoSupplyRequestEnabled ?? false}
           />

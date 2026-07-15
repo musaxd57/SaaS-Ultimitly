@@ -295,6 +295,136 @@ async function maybeSendHoldingAck(opts: {
   return true;
 }
 
+// ---------------------------------------------------------------------------
+// Opt-in COURTESY reply to a bare closing ("teşekkürler / thanks / 👍"). By
+// default such closings are silently skipped (isClosingAck) — that stays the
+// product default. When the org turns on `autoClosingReplyEnabled`, ONE short,
+// deterministic "you're welcome" line goes out in the guest's language. Never
+// twice in a row: if OUR latest outbound was itself this courtesy, the guest is
+// thanking the thank-you and the thread is left alone (no pleasantry ping-pong).
+// ---------------------------------------------------------------------------
+const CLOSING_COURTESY_INTENT = "closing_courtesy"; // Message.aiIntent marker = the loop guard
+const CLOSING_COURTESY_TEXTS: Record<string, string> = {
+  tr: "Rica ederiz! Başka bir ihtiyacınız olursa yazmanız yeterli.",
+  en: "You're very welcome! If you need anything else, just send us a message.",
+  de: "Sehr gerne! Wenn Sie noch etwas brauchen, schreiben Sie uns einfach.",
+  fr: "Avec plaisir ! S'il vous faut quoi que ce soit, écrivez-nous simplement.",
+  ar: "على الرحب والسعة! إذا احتجتم إلى أي شيء آخر يكفي أن تراسلونا.",
+  ru: "Пожалуйста! Если понадобится что-то ещё, просто напишите нам.",
+};
+
+/**
+ * Send the opt-in closing courtesy if every gate allows it. Mirrors the
+ * holding-ack's self-contained gating (master env switch, org toggle, premium,
+ * token) and the MAIN auto-send's idempotency mechanism: the guest's closing
+ * re-opened the thread as "new", so an atomic new/waiting→answered claim is the
+ * cross-replica lock — the loser sends nothing. Returns true when sent/enqueued.
+ */
+async function maybeSendClosingCourtesy(opts: {
+  organizationId: string;
+  conversation: {
+    id: string;
+    channel: string;
+    guestIdentifier: string;
+    externalReservationId: string | null;
+  };
+  /** Thread messages (oldest→newest) — used for the courtesy-to-courtesy loop guard. */
+  messages: { direction: string; aiIntent: string | null }[];
+  lastInbound: { id: string; body: string };
+  org: { autoClosingReplyEnabled: boolean; autoReplyDisclosure: boolean; aiSignature: string | null; language: string };
+}): Promise<boolean> {
+  if (process.env.AUTO_REPLY_ENABLED !== "1") return false;
+  if (!opts.org.autoClosingReplyEnabled) return false;
+  // LOOP GUARD: our latest outbound was itself the courtesy → the guest is
+  // thanking the thank-you. Stay silent, or the two sides ping-pong forever.
+  const lastOutbound = [...opts.messages].reverse().find((m) => m.direction === "outbound");
+  if (lastOutbound?.aiIntent === CLOSING_COURTESY_INTENT) return false;
+  if (!(await premiumAllowed(opts.organizationId))) return false;
+  const token = await getOrgHospitableToken(opts.organizationId);
+  if (!token) return false;
+
+  // A pure-emoji closing ("👍") carries no language signal — use the org's own
+  // language instead of defaulting to English.
+  const hasLetters = /\p{L}/u.test(opts.lastInbound.body);
+  const lang = (hasLetters ? detectGuestLanguage(opts.lastInbound.body) : opts.org.language || "tr")
+    .slice(0, 2)
+    .toLowerCase();
+  const text = CLOSING_COURTESY_TEXTS[lang] ?? CLOSING_COURTESY_TEXTS.en;
+  const note = automatedReplyNote(lang, opts.org.autoReplyDisclosure);
+  const signature = opts.org.aiSignature?.trim();
+  const body = [text, ...(note ? [note] : []), ...(signature ? [signature] : [])].join("\n\n");
+
+  // Cross-replica idempotency claim (same as the main auto-send): only the run
+  // that flips new/waiting→answered may deliver; failure releases the claim.
+  const claim = await prisma.conversation.updateMany({
+    where: { id: opts.conversation.id, status: { in: ["new", "waiting"] } },
+    data: { status: "answered" },
+  });
+  if (claim.count === 0) return false;
+
+  // ── Durable Outbox (flag ON) — deterministic key: one courtesy per closing msg.
+  if (durableOutboxEnabled() && opts.conversation.externalReservationId) {
+    try {
+      await enqueueOutbound({
+        organizationId: opts.organizationId,
+        conversationId: opts.conversation.id,
+        channel: opts.conversation.channel,
+        externalReservationId: opts.conversation.externalReservationId,
+        body,
+        senderName: "GuestOps AI", // classification magic string (unchanged)
+        authorType: "ai",
+        messageType: "ai",
+        aiIntent: CLOSING_COURTESY_INTENT,
+        idempotencyKey: `closing:${opts.conversation.id}:${opts.lastInbound.id}`,
+      });
+    } catch {
+      await prisma.conversation
+        .update({ where: { id: opts.conversation.id }, data: { status: "new" } })
+        .catch(() => {});
+      return false;
+    }
+    return true;
+  }
+
+  const delivery = await sendOnChannel(
+    {
+      channel: opts.conversation.channel,
+      guestIdentifier: opts.conversation.guestIdentifier,
+      externalReservationId: opts.conversation.externalReservationId,
+    },
+    body,
+    token,
+  );
+  if (!delivery.ok) {
+    // Release the claim so a later pass may retry (or fall back to the silent skip).
+    await prisma.conversation
+      .update({ where: { id: opts.conversation.id }, data: { status: "new" } })
+      .catch(() => {});
+    return false;
+  }
+
+  await prisma
+    .$transaction([
+      prisma.message.create({
+        data: {
+          conversationId: opts.conversation.id,
+          direction: "outbound",
+          authorType: "ai",
+          senderName: "GuestOps AI",
+          body,
+          aiIntent: CLOSING_COURTESY_INTENT, // ALSO the loop guard for the next closing
+          ...(delivery.providerMessageId ? { externalId: delivery.providerMessageId } : {}),
+        },
+      }),
+      prisma.conversation.update({
+        where: { id: opts.conversation.id },
+        data: { lastMessageAt: new Date(), skippedReason: null },
+      }),
+    ])
+    .catch(() => {});
+  return true;
+}
+
 // A short, warm note (in the guest's language) appended to AUTO-sent replies so
 // the guest knows the message was machine-prepared and a human will correct any
 // slip. Manual replies (host-reviewed) never carry it. Set AUTO_REPLY_DISCLOSURE=0
@@ -721,6 +851,7 @@ export async function applyChannelAutoReply(
               aiSignature: true,
               aiStyleProfile: true,
               autoReplyDisclosure: true,
+              autoClosingReplyEnabled: true,
               handoffHoldHours: true,
             },
           },
@@ -808,6 +939,25 @@ export async function applyChannelAutoReply(
   // thread a human just wrapped up. Deterministic and conservative: a question
   // or any extra content ("teşekkürler, peki wifi şifresi?") never matches.
   if (isClosingAck(last.body) && messages.some((m) => m.direction === "outbound")) {
+    // Opt-in courtesy: when the org enabled it, answer the closing ONCE with a
+    // deterministic "you're welcome" (never in dry-run; never to the courtesy's
+    // own thanks — loop guard inside). Any gate saying no falls through to the
+    // plain silent skip, so the default behaviour is untouched.
+    if (org.autoClosingReplyEnabled && !options.dryRun) {
+      const courtesySent = await maybeSendClosingCourtesy({
+        organizationId: conversation.property.organizationId,
+        conversation: {
+          id: conversation.id,
+          channel: conversation.channel,
+          guestIdentifier: conversation.guestIdentifier,
+          externalReservationId: conversation.externalReservationId,
+        },
+        messages,
+        lastInbound: { id: last.id, body: last.body },
+        org,
+      });
+      if (courtesySent) return { sent: true, ...meta };
+    }
     if (!options.dryRun) await persistRiskVisibility(conversation.id, "closing_ack");
     return { sent: false, skippedReason: "closing_ack", ...meta };
   }
