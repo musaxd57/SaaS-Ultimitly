@@ -1,5 +1,6 @@
 import { prisma } from "@/lib/db";
 import { suggestReply } from "@/lib/ai";
+import { isClosingAck } from "@/lib/ai/fallback";
 import { badRequest, jsonOk, tooManyRequests, paymentRequired } from "@/lib/api";
 import { withManage } from "@/lib/route-guard";
 import { rateLimit } from "@/lib/rate-limit";
@@ -60,7 +61,7 @@ export const POST = withManage(async (session, req) => {
 
   const org = await prisma.organization.findUnique({
     where: { id: session.organizationId },
-    select: { aiStyleProfile: true, aiSignature: true },
+    select: { aiStyleProfile: true, aiSignature: true, autoClosingReplyEnabled: true },
   });
 
   // Same pipeline as the inbox. We attach a SAMPLE reservation (today's
@@ -98,5 +99,15 @@ export const POST = withManage(async (session, req) => {
   const signature = org?.aiSignature?.trim();
   const reply = signature && result.reply ? `${result.reply.trimEnd()}\n\n${signature}` : result.reply;
 
-  return jsonOk({ ...result, reply, property: property.name });
+  return jsonOk({
+    ...result,
+    reply,
+    property: property.name,
+    // TRANSPARENCY: on the real channel a PURE closing ("teşekkürler / 👍") never
+    // gets the model draft above — it is either silently skipped or (opt-in)
+    // answered with the one-line courtesy. Tell the card so the host isn't left
+    // wondering why the playground and the live behaviour differ.
+    closingAck: isClosingAck(message),
+    closingReplyEnabled: org?.autoClosingReplyEnabled ?? false,
+  });
 });

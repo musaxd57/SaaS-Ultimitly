@@ -57,4 +57,22 @@ describe("POST /api/ai/test — signature preview parity", () => {
     const json = await res.json();
     expect(json.reply).not.toContain("Sevgiler");
   });
+
+  it("flags a PURE closing (channel would skip/courtesy it) and mirrors the org toggle", async () => {
+    const { orgId } = await seed();
+    const closing = await (await POST(req({ message: "Tamam, teşekkürler! 🙏" }), ctx)).json();
+    expect(closing.closingAck).toBe(true);
+    expect(closing.closingReplyEnabled).toBe(false); // default OFF
+
+    await prisma.organization.update({ where: { id: orgId }, data: { autoClosingReplyEnabled: true } });
+    const closing2 = await (await POST(req({ message: "👍" }), ctx)).json();
+    expect(closing2.closingAck).toBe(true);
+    expect(closing2.closingReplyEnabled).toBe(true);
+
+    // Thanks + extra content is NOT a closing — the model answers it normally.
+    const mixed = await (await POST(req({ message: "Çok teşekkürler, her şey harikaydı! 😊" }), ctx)).json();
+    expect(mixed.closingAck).toBe(false);
+    const question = await (await POST(req({ message: "Teşekkürler! Peki wifi şifresi nedir?" }), ctx)).json();
+    expect(question.closingAck).toBe(false);
+  });
 });
