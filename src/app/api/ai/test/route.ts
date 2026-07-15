@@ -1,7 +1,13 @@
 import { prisma } from "@/lib/db";
 import { suggestReply } from "@/lib/ai";
 import { isClosingAck, isPositiveFeedback } from "@/lib/ai/fallback";
-import { composeClosingCourtesy, closingCourtesyLanguage, type CourtesyKind } from "@/lib/automation";
+import {
+  composeClosingCourtesy,
+  closingCourtesyLanguage,
+  passesAutoReplySafetyGate,
+  automatedReplyNote,
+  type CourtesyKind,
+} from "@/lib/automation";
 import { badRequest, jsonOk, tooManyRequests, paymentRequired } from "@/lib/api";
 import { withManage } from "@/lib/route-guard";
 import { rateLimit } from "@/lib/rate-limit";
@@ -100,12 +106,32 @@ export const POST = withManage(async (session, req) => {
     styleProfile: org?.aiStyleProfile,
   });
 
-  // PREVIEW PARITY: the real send path appends the host's configured signature to
-  // every AI reply — show it here too, or the playground looks like the signature
-  // setting doesn't work. The machine-prepared disclosure note is deliberately NOT
-  // added: it only rides genuine AUTO-sends (same rule as the inbox suggest path).
+  // The REAL auto-send verdict — the exact production gate (intent blocklist,
+  // risk word-nets, injection veto, source + confidence), mirroring the landing
+  // demo (#27). Drives both the "would auto-send" line on the card and whether
+  // the disclosure note belongs in the preview.
+  const wouldAutoSend = passesAutoReplySafetyGate(
+    {
+      intent: result.intent,
+      riskLevel: result.riskLevel,
+      confidence: result.confidence,
+      source: result.source,
+      riskType: result.riskType ?? null,
+    },
+    message,
+  );
+
+  // PREVIEW PARITY: show EXACTLY what would leave the building. An AUTO-send
+  // carries reply + machine-note + signature (same order as the real sender);
+  // a manual/approval draft carries reply + signature only — the note never
+  // rides host-reviewed messages, so it is previewed ONLY when the gate says
+  // this message would truly go out on its own.
   const signature = org?.aiSignature?.trim();
-  const reply = signature && result.reply ? `${result.reply.trimEnd()}\n\n${signature}` : result.reply;
+  const note = wouldAutoSend ? automatedReplyNote(result.detectedLanguage, org?.autoReplyDisclosure ?? true) : null;
+  const parts = [result.reply?.trimEnd() ?? ""];
+  if (note) parts.push(note);
+  if (signature) parts.push(signature);
+  const reply = result.reply ? parts.join("\n\n") : result.reply;
 
   // TRANSPARENCY: on the real channel a PURE closing ("teşekkürler / 👍") never
   // gets the model draft above — it is either silently skipped or (opt-in)
@@ -133,6 +159,7 @@ export const POST = withManage(async (session, req) => {
     ...result,
     reply,
     property: property.name,
+    wouldAutoSend,
     closingAck: closingKind !== null, // backwards-compatible flag for the card
     closingKind,
     closingReplyEnabled,

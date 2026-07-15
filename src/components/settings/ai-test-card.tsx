@@ -25,6 +25,8 @@ interface TestResult {
   /** "ack" = bare thanks/ok; "praise" = pure compliment. */
   closingKind?: "ack" | "praise" | null;
   closingReplyEnabled?: boolean;
+  /** REAL production-gate verdict: would this reply auto-send (toggle permitting)? */
+  wouldAutoSend?: boolean;
   /** The EXACT courtesy message the real channel would send (custom-or-default
    *  text + note + signature) — only set for a pure closing with the toggle ON. */
   closingReplyPreview?: string | null;
@@ -170,6 +172,12 @@ export function AiTestCard({ properties }: { properties: { id: string; name: str
                 </pre>
               ) : null}
             </div>
+          ) : result.wouldAutoSend ? (
+            <p className="text-xs text-emerald-700">
+              Güvenlik kapısı temiz + güven yüksek → oto-yanıt açıkken bu mesaj{" "}
+              <strong>otomatik gönderilir</strong>. Aşağıdaki metin — otomatik yanıt notu ve imza dahil —
+              misafire birebir gidecek olandır.
+            </p>
           ) : result.confidence < 0.75 ? (
             <p className="text-xs text-amber-600">
               Güven %75&apos;in altında → bu mesaja otomatik cevap <strong>gönderilmez</strong>, sizin
@@ -186,7 +194,12 @@ export function AiTestCard({ properties }: { properties: { id: string; name: str
           {result.missingInfo && result.missingInfo.length > 0 ? (
             <p className="text-xs text-amber-700">Eksik bilgi: {result.missingInfo.join(" · ")}</p>
           ) : null}
-          <pre className="whitespace-pre-wrap font-sans text-sm">{result.reply}</pre>
+          {/* On a closing/pure-praise the model draft is DEAD weight: an ack never
+              sends anything, and with the courtesy ON the blue preview above IS the
+              outgoing message — showing a second, never-sent text only confuses. */}
+          {result.closingAck && (result.closingKind === "ack" || result.closingReplyEnabled) ? null : (
+            <pre className="whitespace-pre-wrap font-sans text-sm">{result.reply}</pre>
+          )}
         </div>
       ) : null}
     </div>

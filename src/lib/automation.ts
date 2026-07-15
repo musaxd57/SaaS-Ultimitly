@@ -483,8 +483,9 @@ async function maybeSendClosingCourtesy(opts: {
 // A short, warm note (in the guest's language) appended to AUTO-sent replies so
 // the guest knows the message was machine-prepared and a human will correct any
 // slip. Manual replies (host-reviewed) never carry it. Set AUTO_REPLY_DISCLOSURE=0
-// to turn it off.
-function automatedReplyNote(lang: string | undefined, orgEnabled: boolean): string | null {
+// to turn it off. Exported so the settings playground can compose an auto-send
+// preview with the SAME note (preview parity — never a second copy of the text).
+export function automatedReplyNote(lang: string | undefined, orgEnabled: boolean): string | null {
   // env=0 is a GLOBAL operator kill-switch; otherwise the per-org toggle decides.
   if (process.env.AUTO_REPLY_DISCLOSURE === "0" || !orgEnabled) return null;
   const l = (lang ?? "en").slice(0, 2).toLowerCase();
