@@ -47,6 +47,20 @@ const nextConfig = {
         source: "/c/:path*",
         headers: [{ key: "Referrer-Policy", value: "no-referrer" }],
       },
+      // Brand assets are MEANT to be embedded by OTHER sites (Hospitable's OAuth
+      // consent screen hotlinks the app logo; partner directories do the same).
+      // The global CORP: same-site above makes browsers BLOCK exactly that
+      // cross-origin <img> load — the consent screen showed a broken "Lixus AI
+      // logo" box. These two public files opt back into cross-origin embedding
+      // (last matching header wins in Next). Everything else stays same-site.
+      ...["/lixus-logo.png", "/lixus-logo-icon.png"].map((source) => ({
+        source,
+        headers: [
+          { key: "Cross-Origin-Resource-Policy", value: "cross-origin" },
+          { key: "Access-Control-Allow-Origin", value: "*" },
+          { key: "Cache-Control", value: "public, max-age=86400" },
+        ],
+      })),
     ];
   },
   // Pin the workspace root to this project so Next doesn't pick a stray
