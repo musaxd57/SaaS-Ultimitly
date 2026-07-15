@@ -304,14 +304,46 @@ async function maybeSendHoldingAck(opts: {
 // thanking the thank-you and the thread is left alone (no pleasantry ping-pong).
 // ---------------------------------------------------------------------------
 const CLOSING_COURTESY_INTENT = "closing_courtesy"; // Message.aiIntent marker = the loop guard
+// SHORT on purpose: a closing gets a closing, not a paragraph. The host can
+// replace this entirely with their own line (Organization.closingReplyText).
 const CLOSING_COURTESY_TEXTS: Record<string, string> = {
-  tr: "Rica ederiz! Başka bir ihtiyacınız olursa yazmanız yeterli.",
-  en: "You're very welcome! If you need anything else, just send us a message.",
-  de: "Sehr gerne! Wenn Sie noch etwas brauchen, schreiben Sie uns einfach.",
-  fr: "Avec plaisir ! S'il vous faut quoi que ce soit, écrivez-nous simplement.",
-  ar: "على الرحب والسعة! إذا احتجتم إلى أي شيء آخر يكفي أن تراسلونا.",
-  ru: "Пожалуйста! Если понадобится что-то ещё, просто напишите нам.",
+  tr: "Rica ederiz, iyi günler dileriz! 😊",
+  en: "You're very welcome! 😊",
+  de: "Sehr gerne! 😊",
+  fr: "Avec plaisir ! 😊",
+  ar: "على الرحب والسعة! 😊",
+  ru: "Пожалуйста! 😊",
 };
+
+/**
+ * Which language the courtesy should use for a given closing message: the
+ * guest's detected language when the closing has letters; a pure-emoji "👍"
+ * carries no signal, so the org's own language wins (never a silent English default).
+ */
+export function closingCourtesyLanguage(closingBody: string, orgLanguage: string): string {
+  const hasLetters = /\p{L}/u.test(closingBody);
+  return (hasLetters ? detectGuestLanguage(closingBody) : orgLanguage || "tr").slice(0, 2).toLowerCase();
+}
+
+/**
+ * The EXACT guest-facing courtesy body: the host's custom line (verbatim, any
+ * language) when set, else the short built-in default in `lang`; then the
+ * machine-note (per org disclosure setting) and the host's signature — the same
+ * composition every auto-send uses. Exported so the settings playground can
+ * preview PRECISELY what would go out (no drift between preview and send).
+ */
+export function composeClosingCourtesy(opts: {
+  lang: string;
+  customText: string | null;
+  disclosureEnabled: boolean;
+  signature: string | null;
+}): string {
+  const custom = opts.customText?.trim();
+  const text = custom || (CLOSING_COURTESY_TEXTS[opts.lang] ?? CLOSING_COURTESY_TEXTS.en);
+  const note = automatedReplyNote(opts.lang, opts.disclosureEnabled);
+  const signature = opts.signature?.trim();
+  return [text, ...(note ? [note] : []), ...(signature ? [signature] : [])].join("\n\n");
+}
 
 /**
  * Send the opt-in closing courtesy if every gate allows it. Mirrors the
@@ -331,7 +363,13 @@ async function maybeSendClosingCourtesy(opts: {
   /** Thread messages (oldest→newest) — used for the courtesy-to-courtesy loop guard. */
   messages: { direction: string; aiIntent: string | null }[];
   lastInbound: { id: string; body: string };
-  org: { autoClosingReplyEnabled: boolean; autoReplyDisclosure: boolean; aiSignature: string | null; language: string };
+  org: {
+    autoClosingReplyEnabled: boolean;
+    closingReplyText: string | null;
+    autoReplyDisclosure: boolean;
+    aiSignature: string | null;
+    language: string;
+  };
 }): Promise<boolean> {
   if (process.env.AUTO_REPLY_ENABLED !== "1") return false;
   if (!opts.org.autoClosingReplyEnabled) return false;
@@ -343,16 +381,13 @@ async function maybeSendClosingCourtesy(opts: {
   const token = await getOrgHospitableToken(opts.organizationId);
   if (!token) return false;
 
-  // A pure-emoji closing ("👍") carries no language signal — use the org's own
-  // language instead of defaulting to English.
-  const hasLetters = /\p{L}/u.test(opts.lastInbound.body);
-  const lang = (hasLetters ? detectGuestLanguage(opts.lastInbound.body) : opts.org.language || "tr")
-    .slice(0, 2)
-    .toLowerCase();
-  const text = CLOSING_COURTESY_TEXTS[lang] ?? CLOSING_COURTESY_TEXTS.en;
-  const note = automatedReplyNote(lang, opts.org.autoReplyDisclosure);
-  const signature = opts.org.aiSignature?.trim();
-  const body = [text, ...(note ? [note] : []), ...(signature ? [signature] : [])].join("\n\n");
+  const lang = closingCourtesyLanguage(opts.lastInbound.body, opts.org.language);
+  const body = composeClosingCourtesy({
+    lang,
+    customText: opts.org.closingReplyText,
+    disclosureEnabled: opts.org.autoReplyDisclosure,
+    signature: opts.org.aiSignature,
+  });
 
   // Cross-replica idempotency claim (same as the main auto-send): only the run
   // that flips new/waiting→answered may deliver; failure releases the claim.
@@ -852,6 +887,7 @@ export async function applyChannelAutoReply(
               aiStyleProfile: true,
               autoReplyDisclosure: true,
               autoClosingReplyEnabled: true,
+              closingReplyText: true,
               handoffHoldHours: true,
             },
           },

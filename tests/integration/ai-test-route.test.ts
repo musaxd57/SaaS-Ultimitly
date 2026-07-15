@@ -63,6 +63,7 @@ describe("POST /api/ai/test — signature preview parity", () => {
     const closing = await (await POST(req({ message: "Tamam, teşekkürler! 🙏" }), ctx)).json();
     expect(closing.closingAck).toBe(true);
     expect(closing.closingReplyEnabled).toBe(false); // default OFF
+    expect(closing.closingReplyPreview).toBeNull(); //  nothing would be sent
 
     await prisma.organization.update({ where: { id: orgId }, data: { autoClosingReplyEnabled: true } });
     const closing2 = await (await POST(req({ message: "👍" }), ctx)).json();
@@ -74,5 +75,21 @@ describe("POST /api/ai/test — signature preview parity", () => {
     expect(mixed.closingAck).toBe(false);
     const question = await (await POST(req({ message: "Teşekkürler! Peki wifi şifresi nedir?" }), ctx)).json();
     expect(question.closingAck).toBe(false);
+  });
+
+  it("closing preview shows the EXACT outgoing courtesy — default text, or the host's custom line, + signature", async () => {
+    const { orgId } = await seed("Sevgiler,\nMusa");
+    await prisma.organization.update({ where: { id: orgId }, data: { autoClosingReplyEnabled: true } });
+
+    // Default text (Turkish closing → Turkish default), signature at the end.
+    const def = await (await POST(req({ message: "Tamam, teşekkürler! 🙏" }), ctx)).json();
+    expect(def.closingReplyPreview.startsWith("Rica ederiz")).toBe(true);
+    expect(def.closingReplyPreview.endsWith("Sevgiler,\nMusa")).toBe(true);
+
+    // Custom text wins — verbatim, even for a non-Turkish closing.
+    await prisma.organization.update({ where: { id: orgId }, data: { closingReplyText: "Ne demek, her zaman bekleriz!" } });
+    const custom = await (await POST(req({ message: "thanks!" }), ctx)).json();
+    expect(custom.closingReplyPreview.startsWith("Ne demek, her zaman bekleriz!")).toBe(true);
+    expect(custom.closingReplyPreview.endsWith("Sevgiler,\nMusa")).toBe(true);
   });
 });

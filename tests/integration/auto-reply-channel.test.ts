@@ -675,7 +675,7 @@ describe("closing courtesy — opt-in 'Rica ederiz' reply to a bare thanks", () 
     expect(mockSuggest).not.toHaveBeenCalled(); // deterministic — no OpenAI spend
     expect(mockSend).toHaveBeenCalledTimes(1);
     const body = mockSend.mock.calls[0][1] as string;
-    expect(body.startsWith("Rica ederiz!")).toBe(true); // "teşekkürler" → Turkish text
+    expect(body.startsWith("Rica ederiz")).toBe(true); // "teşekkürler" → Turkish default
     expect(body).toContain(AUTO_NOTE_TR); //                disclosure note (org default ON)
     expect(body.endsWith("Sevgiler,\nMusa")).toBe(true); // host signature closes the message
     // Persisted with the loop-guard marker; the thread is answered.
@@ -702,7 +702,20 @@ describe("closing courtesy — opt-in 'Rica ederiz' reply to a bare thanks", () 
   it("pure-emoji closing ('👍') uses the ORG's language, not English", async () => {
     const { conversationId } = await seedClosing("👍"); // org language default "tr"
     await applyChannelAutoReply(conversationId);
-    expect((mockSend.mock.calls[0][1] as string).startsWith("Rica ederiz!")).toBe(true);
+    expect((mockSend.mock.calls[0][1] as string).startsWith("Rica ederiz")).toBe(true);
+  });
+
+  it("CUSTOM text: the host's own line is sent VERBATIM (any guest language), note + signature still follow", async () => {
+    const { orgId, conversationId } = await seedClosing("thanks, perfect!"); // ENGLISH closing
+    await prisma.organization.update({
+      where: { id: orgId },
+      data: { closingReplyText: "Ne demek, her zaman bekleriz!" },
+    });
+    const out = await applyChannelAutoReply(conversationId);
+    expect(out.sent).toBe(true);
+    const body = mockSend.mock.calls[0][1] as string;
+    expect(body.startsWith("Ne demek, her zaman bekleriz!")).toBe(true); // custom wins over language default
+    expect(body.endsWith("Sevgiler,\nMusa")).toBe(true); // signature still closes the message
   });
 
   it("dry-run NEVER sends the courtesy (preview stays side-effect-free)", async () => {

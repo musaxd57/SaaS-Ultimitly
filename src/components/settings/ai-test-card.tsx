@@ -23,6 +23,9 @@ interface TestResult {
    *  one-line courtesy when closingReplyEnabled). */
   closingAck?: boolean;
   closingReplyEnabled?: boolean;
+  /** The EXACT courtesy message the real channel would send (custom-or-default
+   *  text + note + signature) — only set for a pure closing with the toggle ON. */
+  closingReplyPreview?: string | null;
 }
 
 // A few ready-made probes covering the behaviours that matter most.
@@ -148,13 +151,20 @@ export function AiTestCard({ properties }: { properties: { id: string; name: str
             </Badge>
           </div>
           {result.closingAck ? (
-            <p className="text-xs text-sky-700">
-              Bu mesaj gerçek kanalda <strong>kapanış</strong> sayılır (salt teşekkür/onay) — aşağıdaki
-              taslak hiçbir zaman gönderilmez.{" "}
-              {result.closingReplyEnabled
-                ? "Nezaket yanıtı ayarınız AÇIK: misafire yalnızca tek satırlık “Rica ederiz!” mesajı gider (aynı kapanışa bir kez)."
-                : "Nezaket yanıtı ayarınız kapalı: hiçbir otomatik yanıt gitmez, konuşma sessizce kapanmış sayılır."}
-            </p>
+            <div className="space-y-1.5 rounded-md bg-sky-50 p-2.5 text-xs text-sky-800">
+              <p>
+                Bu mesaj gerçek kanalda <strong>kapanış</strong> sayılır (salt teşekkür/onay) — aşağıdaki
+                taslak hiçbir zaman gönderilmez.{" "}
+                {result.closingReplyEnabled
+                  ? "Nezaket yanıtı ayarınız AÇIK; misafire gidecek mesaj (aynı kapanışa bir kez):"
+                  : "Nezaket yanıtı ayarınız kapalı: hiçbir otomatik yanıt gitmez, konuşma sessizce kapanmış sayılır."}
+              </p>
+              {result.closingReplyEnabled && result.closingReplyPreview ? (
+                <pre className="whitespace-pre-wrap rounded border border-sky-200 bg-white p-2 font-sans text-sky-900">
+                  {result.closingReplyPreview}
+                </pre>
+              ) : null}
+            </div>
           ) : result.confidence < 0.75 ? (
             <p className="text-xs text-amber-600">
               Güven %75&apos;in altında → bu mesaja otomatik cevap <strong>gönderilmez</strong>, sizin

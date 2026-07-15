@@ -9,6 +9,7 @@ const BOOLEAN_FIELDS = ["autoReplyHospitable", "autoWelcome", "autoCheckin", "au
 const HOUR_FIELDS = ["autoReplyStartHour", "autoReplyEndHour"] as const;
 const VALID_TONES = ["formal", "warm", "short", "luxury"] as const;
 const SIGNATURE_MAX = 600;
+const CLOSING_TEXT_MAX = 300; // a courtesy is one line, not a letter
 
 /** Update organization-level settings (auto-reply window/toggle + AI tone/signature). */
 export const PATCH = withManage(async (session, req) => {
@@ -82,6 +83,22 @@ export const PATCH = withManage(async (session, req) => {
       } else {
         // Empty string clears the signature.
         update.aiSignature = trimmed.length === 0 ? null : trimmed;
+      }
+    }
+  }
+
+  // Host-written courtesy line for the opt-in closing reply. Empty clears it →
+  // the built-in per-language default goes out; set → sent VERBATIM (any language).
+  if ("closingReplyText" in data) {
+    const raw = data.closingReplyText;
+    if (raw !== null && typeof raw !== "string") {
+      errors.closingReplyText = "Metin olmalı.";
+    } else {
+      const trimmed = (raw ?? "").toString().trim();
+      if (trimmed.length > CLOSING_TEXT_MAX) {
+        errors.closingReplyText = `En fazla ${CLOSING_TEXT_MAX} karakter.`;
+      } else {
+        update.closingReplyText = trimmed.length === 0 ? null : trimmed;
       }
     }
   }

@@ -16,6 +16,7 @@ export function AutomationPrefsForm({
   holdHours,
   holdingAck,
   closingReply,
+  closingText,
   taskFromMessage,
   supplyRequest,
 }: {
@@ -23,6 +24,7 @@ export function AutomationPrefsForm({
   holdHours: number;
   holdingAck: boolean;
   closingReply: boolean;
+  closingText: string;
   taskFromMessage: boolean;
   supplyRequest: boolean;
 }) {
@@ -32,6 +34,7 @@ export function AutomationPrefsForm({
   const [handoffHoldHours, setHoldHours] = useState(String(holdHours));
   const [autoHoldingReplyEnabled, setHoldingAck] = useState(holdingAck);
   const [autoClosingReplyEnabled, setClosingReply] = useState(closingReply);
+  const [closingReplyText, setClosingText] = useState(closingText);
   const [autoTaskFromMessageEnabled, setTaskFromMessage] = useState(taskFromMessage);
   const [autoSupplyRequestEnabled, setSupplyRequest] = useState(supplyRequest);
   const [busy, setBusy] = useState(false);
@@ -52,6 +55,7 @@ export function AutomationPrefsForm({
           handoffHoldHours: Number(handoffHoldHours),
           autoHoldingReplyEnabled,
           autoClosingReplyEnabled,
+          closingReplyText,
           autoTaskFromMessageEnabled,
           autoSupplyRequestEnabled,
         }),
@@ -127,6 +131,28 @@ export function AutomationPrefsForm({
           </span>
         </span>
       </label>
+
+      {autoClosingReplyEnabled ? (
+        <div className="ml-7">
+          <label htmlFor="closing-text" className="block text-sm font-medium">
+            Nezaket yanıtı metni (isteğe bağlı)
+          </label>
+          <p className="mb-1.5 text-xs text-muted-foreground">
+            Boş bırakırsanız misafirin dilinde kısa hazır metin gider (Türkçe: &ldquo;Rica ederiz, iyi
+            günler dileriz! 😊&rdquo;). Buraya yazarsanız <span className="font-medium">her dilde aynen
+            bu metin</span> gönderilir; imzanız yine sonuna eklenir.
+          </p>
+          <textarea
+            id="closing-text"
+            value={closingReplyText}
+            onChange={(e) => { setClosingText(e.target.value); setSaved(false); }}
+            rows={2}
+            maxLength={300}
+            placeholder="Örn. Rica ederiz, keyifli konaklamalar!"
+            className="w-full rounded-md border border-input bg-background px-3 py-2 text-sm"
+          />
+        </div>
+      ) : null}
 
       <label className="flex items-start gap-3">
         <input

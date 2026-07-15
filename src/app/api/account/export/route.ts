@@ -49,6 +49,7 @@ export const GET = withManage(async (session) => {
         autoReplyDisclosure: true,
         autoHoldingReplyEnabled: true,
         autoClosingReplyEnabled: true,
+        closingReplyText: true,
         autoTaskFromMessageEnabled: true,
         autoSupplyRequestEnabled: true,
         autoWelcome: true,
