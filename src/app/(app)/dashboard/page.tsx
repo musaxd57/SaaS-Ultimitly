@@ -212,16 +212,39 @@ export default async function DashboardPage() {
         </CardContent>
       </Card>
 
-      {/* Stat cards */}
-      <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
-        <StatCard label="Bugünkü Girişler" value={arrivals.length} icon={LogIn} />
-        <StatCard label="Bugünkü Çıkışlar" value={departures.length} icon={LogOut} />
+      {/* Stat row — ONE row, no duplicates: arrivals/departures counts already
+          live on the list cards right below (their badges), so tiles repeating
+          them were pure filler. Every tile here is information the lists do NOT
+          show, and every tile carries a hint line so none is a bare number. */}
+      <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
         <StatCard
           label="Acil Görevler"
           value={stats.urgentTasks}
           icon={AlertTriangle}
           tone={stats.urgentTasks > 0 ? "destructive" : "default"}
+          hint="acil öncelikli açık görev"
           href="/tasks"
+        />
+        <StatCard
+          label="Bu Gece Kalan"
+          value={stayingCount}
+          icon={Users}
+          hint="bu gece evde kalan misafir"
+        />
+        <StatCard
+          label="Doluluk (bugün)"
+          value={`%${stats.occupancyRate}`}
+          icon={BedDouble}
+          hint={`${stats.occupiedToday}/${stats.totalProperties} mülk dolu`}
+          href="/reports"
+        />
+        <StatCard
+          label="Sorunlu Konuşmalar"
+          value={stats.problemConversations}
+          icon={AlertTriangle}
+          tone={stats.problemConversations > 0 ? "destructive" : "default"}
+          hint="insan incelemesi bekleyen"
+          href="/inbox?status=problem"
         />
       </div>
 
@@ -377,29 +400,6 @@ export default async function DashboardPage() {
         </Card>
       </div>
 
-      {/* Secondary stats */}
-      <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
-        <StatCard
-          label="Bu Gece Kalan"
-          value={stayingCount}
-          icon={Users}
-          hint="bu gece evde kalan misafir"
-        />
-        <StatCard
-          label="Doluluk (bugün)"
-          value={`%${stats.occupancyRate}`}
-          icon={BedDouble}
-          hint={`${stats.occupiedToday}/${stats.totalProperties} mülk dolu`}
-          href="/reports"
-        />
-        <StatCard
-          label="Sorunlu Konuşmalar"
-          value={stats.problemConversations}
-          icon={AlertTriangle}
-          tone={stats.problemConversations > 0 ? "destructive" : "default"}
-          href="/inbox?status=problem"
-        />
-      </div>
     </>
   );
 }
