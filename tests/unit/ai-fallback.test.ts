@@ -278,6 +278,20 @@ describe("isPositiveFeedback — pure compliments only, deny-list fail-closed", 
     }
   });
 
+  it("WHITELIST hardening (Codex): praise wrapping an UNLISTED problem word never passes", () => {
+    // A deny-list cannot enumerate every complaint verb — these four carry NO
+    // listed keyword, yet a cheerful canned reply would be a disaster. The
+    // whitelist blocks them because "küf/açılmadı/düştü/except/gas" are unknown.
+    for (const msg of [
+      "Her şey harikaydı, yalnız banyoda küf vardı",
+      "Çok memnun kaldık, kapı kilidi açılmadı",
+      "Harikaydı, çocuğumuz düştü",
+      "Everything was great except the room smelled like gas",
+    ]) {
+      expect(isPositiveFeedback(msg), msg).toBe(false);
+    }
+  });
+
   it("rejects anything that is not PURE praise — question/digits/contrast/request/risk (over-blocking is safe)", () => {
     for (const msg of [
       "Harikaydı, wifi şifresi nedir?", //                        question

@@ -244,46 +244,64 @@ const CLOSING_TOKENS = new Set([
 // PURE POSITIVE FEEDBACK detector ("Çok teşekkürler, her şey harikaydı!").
 // The praise sibling of isClosingAck: lets the courtesy path answer a pure
 // compliment deterministically instead of the model improvising an emotional
-// draft. DENY-LIST based (holdingAckBlockedSignals emsali) and DELIBERATELY
-// over-blocking — any question mark, digit, contrast word ("ama/but"), ANY
-// intent keyword (refund/checkout/wifi/…), injection, review-threat,
-// off-platform-payment or safety signal sends the message down the NORMAL
-// model + safety-gate flow, exactly as today. A false negative costs nothing;
-// a false positive could mark a hidden request "answered" — so we never guess.
+// draft.
+//
+// WHITELIST-based, like isClosingAck — NOT a deny-list (Codex hardening). A
+// deny-list can never enumerate every complaint verb: "kapı kilidi açılmadı"
+// and "çocuğumuz düştü" carry no listed keyword yet must NEVER get a cheerful
+// canned reply. So the rule is inverted: EVERY token must belong to a closed
+// praise/glue vocabulary AND at least one must be a genuine praise anchor —
+// one unknown word ("açılmadı", "düştü", "küf", "except", "gas"…) and the
+// message takes the NORMAL model + safety-gate flow, exactly as today. A false
+// negative costs nothing; a false positive answers a hidden problem — so the
+// detector only ever recognizes what it fully understands.
 // ---------------------------------------------------------------------------
-const PRAISE_PHRASES = [
-  // Turkish
-  "harika", "harikaydı", "harikaydi", "mükemmel", "mukemmel", "süper", "super",
-  "çok güzel", "cok guzel", "çok iyi", "cok iyi", "çok rahat", "cok rahat",
-  "bayıldık", "bayildik", "bayıldım", "bayildim", "memnun kal", "çok memnun", "cok memnun",
-  "tertemiz", "pırıl pırıl", "piril piril", "muhteşem", "muhtesem", "şahane", "sahane",
-  "efsane", "keyif aldık", "keyif aldik", "çok beğendik", "cok begendik",
+// Genuine praise words — at least ONE required (a bare thanks is isClosingAck's job).
+const PRAISE_ANCHORS = new Set([
+  // Turkish (common inflections spelled out — an unlisted inflection just → model)
+  "harika", "harikaydı", "harikaydi", "harikasınız", "harikasiniz",
+  "mükemmel", "mukemmel", "mükemmeldi", "mukemmeldi",
+  "süperdi", "superdi", "muhteşem", "muhtesem", "muhteşemdi", "muhtesemdi",
+  "şahane", "sahane", "şahaneydi", "sahaneydi", "efsane", "efsaneydi",
+  "bayıldık", "bayildik", "bayıldım", "bayildim",
+  "memnun", "güzeldi", "guzeldi", "iyiydi", "rahattı", "rahatti",
+  "temizdi", "tertemiz", "tertemizdi", "keyifliydi", "beğendik", "begendik",
   // English
-  "amazing", "wonderful", "fantastic", "great stay", "was great", "everything was great",
-  "loved", "lovely", "excellent", "awesome", "beautiful", "spotless", "very clean",
-  "so clean", "had a great time", "enjoyed", "highly recommend",
-];
-const PRAISE_CONTRAST = /(^|\s)(ama|fakat|ancak|keşke|keske|lakin|yalnız|yalniz|but|however|except|although|though|unfortunately)(\s|,|\.|$)/;
+  "amazing", "wonderful", "fantastic", "perfect", "excellent", "awesome",
+  "lovely", "loved", "beautiful", "spotless", "enjoyed", "recommend",
+  "comfortable", "cozy", "clean", "great", // "great" alone: isClosingAck wins first, so no conflict
+]);
+// Benign glue a pure compliment may contain. CLOSING_TOKENS (thanks/ok/great…)
+// are also allowed — the sets overlap in spirit, so reuse them (below).
+const PRAISE_GLUE = new Set([
+  // Turkish
+  "her", "şey", "ev", "daire", "yer", "yerdi", "konaklama", "konaklamaydı", "konaklamaydi",
+  "bir", "ve", "de", "da", "gerçekten", "gercekten", "cidden", "için", "icin",
+  "kaldık", "kaldik", "kaldım", "kaldim", "size", "sizin", "sizden", "burası", "burasi",
+  // English
+  "the", "a", "an", "we", "you", "it", "was", "were", "is", "are", "everything",
+  "place", "apartment", "flat", "house", "stay", "time", "had", "have", "our", "your",
+  "really", "truly", "absolutely", "very", "here", "again", "definitely", "highly",
+  "this", "that", "everyone", "hosts", "host",
+]);
 
-/** True only for a SHORT, pure compliment with zero request/risk signals. */
+/** True only for a SHORT compliment built ENTIRELY from known praise vocabulary. */
 export function isPositiveFeedback(message: string): boolean {
   const raw = message.trim();
   if (!raw || raw.length > 200) return false; // essays → model
   const m = raw.toLowerCase();
   if (m.includes("?") || m.includes("？")) return false; // a question is never pure praise
   if (/\d/.test(m)) return false; // times/dates/amounts = a request hiding in praise
-  if (!PRAISE_PHRASES.some((p) => m.includes(p))) return false;
-  if (PRAISE_CONTRAST.test(m)) return false; // "harikaydı AMA…" smuggles a complaint
-  if (detectPromptInjection(raw)) return false;
-  if (hasUnnegatedProblemWord(m)) return false;
-  if (REVIEW_THREAT_PHRASES.some((p) => m.includes(p))) return false;
-  if (OFFPLATFORM_PAYMENT_PHRASES.some((p) => m.includes(p))) return false;
-  if (SAFETY_CRITICAL_WORDS.some((w) => m.includes(w))) return false;
-  // ANY operational intent keyword (refund/cancel/checkout/wifi/parking/…)
-  // disqualifies — praise wrapped around a request must reach the model+gate.
-  const intents = Object.keys(KEYWORDS) as Exclude<Intent, "general">[];
-  if (intents.some((i) => matchesIntentKeywords(raw, i))) return false;
-  return true;
+  if (detectPromptInjection(raw)) return false; // belt — the whitelist blocks these anyway
+  // Strip punctuation/emoji; what remains must be ONLY whitelisted words.
+  const cleaned = m.replace(/[^\p{L}\s]/gu, " ").replace(/\s+/g, " ").trim();
+  if (!cleaned) return false; // pure emoji is a closing, not praise
+  const tokens = cleaned.split(" ");
+  if (tokens.length > 12) return false;
+  if (!tokens.every((t) => PRAISE_ANCHORS.has(t) || PRAISE_GLUE.has(t) || CLOSING_TOKENS.has(t))) {
+    return false; // ONE unknown word → the model + safety gate decide, as today
+  }
+  return tokens.some((t) => PRAISE_ANCHORS.has(t));
 }
 
 /** True only for a short, pure closing/ack ("Tamam, teşekkürler!", "ok thanks", "👍"). */

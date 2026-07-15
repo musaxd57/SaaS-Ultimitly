@@ -320,13 +320,15 @@ const CLOSING_COURTESY_TEXTS: Record<CourtesyKind, Record<string, string>> = {
     ar: "على الرحب والسعة! 😊",
     ru: "Пожалуйста! 😊",
   },
+  // TIME-AGNOSTIC on purpose (Codex): praise often arrives PAST-tense ("her şey
+  // harikaydı") — "keyifli bir konaklama dileriz" would read oddly after checkout.
   praise: {
-    tr: "Güzel geri bildiriminiz için teşekkür ederiz. Keyifli bir konaklama dileriz.",
-    en: "Thank you for the kind feedback. We wish you a pleasant stay.",
-    de: "Vielen Dank für das schöne Feedback. Wir wünschen Ihnen einen angenehmen Aufenthalt.",
-    fr: "Merci pour ce gentil retour. Nous vous souhaitons un agréable séjour.",
-    ar: "شكرًا لملاحظاتكم اللطيفة. نتمنى لكم إقامة ممتعة.",
-    ru: "Спасибо за тёплый отзыв. Желаем вам приятного пребывания.",
+    tr: "Güzel geri bildiriminiz için teşekkür ederiz.",
+    en: "Thank you for the kind feedback.",
+    de: "Vielen Dank für das schöne Feedback.",
+    fr: "Merci pour ce gentil retour.",
+    ar: "شكرًا لملاحظاتكم اللطيفة.",
+    ru: "Спасибо за тёплый отзыв.",
   },
 };
 
