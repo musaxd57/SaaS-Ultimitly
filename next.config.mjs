@@ -61,6 +61,14 @@ const nextConfig = {
     serverActions: {
       bodySizeLimit: "5mb",
     },
+    // Client Router Cache lifetime. Next 15 defaults DYNAMIC pages to 0s, which
+    // turns every back/forward navigation ("← Mesajlar") into a full server
+    // re-render — session check + Prisma queries + RSC stream on each click,
+    // felt as sluggish paging. 30s serves recently visited pages instantly from
+    // the client cache. Freshness stays correct: every mutating component in
+    // the app calls router.refresh() (which purges this cache) and the inbox
+    // runs a 30s AutoRefresh anyway — the window matches that cadence.
+    staleTimes: { dynamic: 30 },
   },
   webpack: (config, { dev }) => {
     // Disable webpack's persistent filesystem cache for production builds. On CI
