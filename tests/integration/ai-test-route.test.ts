@@ -70,11 +70,13 @@ describe("POST /api/ai/test — signature preview parity", () => {
     expect(closing2.closingAck).toBe(true);
     expect(closing2.closingReplyEnabled).toBe(true);
 
-    // Thanks + extra content is NOT a closing — the model answers it normally.
+    // Pure praise is the PRAISE kind (courtesy-class) — not a bare closing.
     const mixed = await (await POST(req({ message: "Çok teşekkürler, her şey harikaydı! 😊" }), ctx)).json();
-    expect(mixed.closingAck).toBe(false);
+    expect(mixed.closingKind).toBe("praise");
+    // Thanks + a real question is NEITHER — the model answers it normally.
     const question = await (await POST(req({ message: "Teşekkürler! Peki wifi şifresi nedir?" }), ctx)).json();
     expect(question.closingAck).toBe(false);
+    expect(question.closingKind).toBeNull();
   });
 
   it("closing preview shows the EXACT outgoing courtesy — default text, or the host's custom line, + signature", async () => {
@@ -91,5 +93,16 @@ describe("POST /api/ai/test — signature preview parity", () => {
     const custom = await (await POST(req({ message: "thanks!" }), ctx)).json();
     expect(custom.closingReplyPreview.startsWith("Ne demek, her zaman bekleriz!")).toBe(true);
     expect(custom.closingReplyPreview.endsWith("Sevgiler,\nMusa")).toBe(true);
+  });
+
+  it("PRAISE preview: sober feedback text, no machine-note, no emotion claims", async () => {
+    const { orgId } = await seed("Sevgiler,\nMusa");
+    await prisma.organization.update({ where: { id: orgId }, data: { autoClosingReplyEnabled: true } });
+    const praise = await (await POST(req({ message: "Çok teşekkürler, her şey harikaydı! 😊" }), ctx)).json();
+    expect(praise.closingKind).toBe("praise");
+    expect(praise.closingReplyPreview.startsWith("Güzel geri bildiriminiz için teşekkür ederiz.")).toBe(true);
+    expect(praise.closingReplyPreview).not.toContain("otomatik asistanımızca"); // note dropped by design
+    expect(praise.closingReplyPreview).not.toContain("sevindim"); //               üslup kuralı
+    expect(praise.closingReplyPreview.endsWith("Sevgiler,\nMusa")).toBe(true);
   });
 });

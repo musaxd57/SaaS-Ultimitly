@@ -121,13 +121,15 @@ export function AutomationPrefsForm({
           className="mt-0.5 size-4"
         />
         <span className="text-sm">
-          <span className="font-medium">Teşekkür mesajına nezaket yanıtı</span>
+          <span className="font-medium">Teşekkür ve övgü mesajına nezaket yanıtı</span>
           <span className="block text-xs text-muted-foreground">
             Açarsanız: misafir konuşmayı &ldquo;teşekkürler / tamam / 👍&rdquo; gibi kısa bir kapanışla
-            bitirdiğinde, kendi dilinde tek satırlık bir &ldquo;Rica ederiz!&rdquo; yanıtı otomatik gider.
-            Aynı kapanışa yalnızca <span className="font-medium">bir kez</span> yanıt verilir — misafir
-            nezaket yanıtına tekrar &ldquo;sağ olun&rdquo; derse sohbet uzatılmaz. Kapalıyken (varsayılan)
-            bu tür mesajlara hiçbir otomatik yanıt gitmez; konuşma sessizce kapanmış sayılır.
+            bitirdiğinde ya da <span className="font-medium">salt övgü</span> yazdığında (&ldquo;her şey
+            harikaydı!&rdquo;), kendi dilinde tek satırlık kibar bir yanıt otomatik gider. İçinde soru,
+            talep veya şikâyet izi olan mesajlar bu yola <span className="font-medium">girmez</span> —
+            normal güvenlik akışına düşer. Aynı mesaja yalnızca bir kez yanıt verilir; nezaket yanıtına
+            gelen ikinci &ldquo;sağ olun&rdquo; sohbeti uzatmaz. Bu kısa yanıta otomatik-yanıt notu
+            eklenmez, imzanız eklenir. Kapalıyken (varsayılan) davranış bugünkü gibidir.
           </span>
         </span>
       </label>

@@ -22,6 +22,8 @@ interface TestResult {
    *  channel never sends the model draft for these (silent skip, or the opt-in
    *  one-line courtesy when closingReplyEnabled). */
   closingAck?: boolean;
+  /** "ack" = bare thanks/ok; "praise" = pure compliment. */
+  closingKind?: "ack" | "praise" | null;
   closingReplyEnabled?: boolean;
   /** The EXACT courtesy message the real channel would send (custom-or-default
    *  text + note + signature) — only set for a pure closing with the toggle ON. */
@@ -153,11 +155,14 @@ export function AiTestCard({ properties }: { properties: { id: string; name: str
           {result.closingAck ? (
             <div className="space-y-1.5 rounded-md bg-sky-50 p-2.5 text-xs text-sky-800">
               <p>
-                Bu mesaj gerçek kanalda <strong>kapanış</strong> sayılır (salt teşekkür/onay) — aşağıdaki
-                taslak hiçbir zaman gönderilmez.{" "}
+                Bu mesaj gerçek kanalda{" "}
+                <strong>{result.closingKind === "praise" ? "salt olumlu geri bildirim" : "kapanış"}</strong>{" "}
+                sayılır — aşağıdaki taslak gönderilmez.{" "}
                 {result.closingReplyEnabled
-                  ? "Nezaket yanıtı ayarınız AÇIK; misafire gidecek mesaj (aynı kapanışa bir kez):"
-                  : "Nezaket yanıtı ayarınız kapalı: hiçbir otomatik yanıt gitmez, konuşma sessizce kapanmış sayılır."}
+                  ? "Nezaket yanıtı ayarınız AÇIK; misafire gidecek mesaj (aynı mesaja bir kez):"
+                  : result.closingKind === "praise"
+                    ? "Nezaket yanıtı ayarınız kapalı: bu mesaj normal AI akışına gider (taslak onayınıza düşer)."
+                    : "Nezaket yanıtı ayarınız kapalı: hiçbir otomatik yanıt gitmez, konuşma sessizce kapanmış sayılır."}
               </p>
               {result.closingReplyEnabled && result.closingReplyPreview ? (
                 <pre className="whitespace-pre-wrap rounded border border-sky-200 bg-white p-2 font-sans text-sky-900">

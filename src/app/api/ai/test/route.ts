@@ -1,7 +1,7 @@
 import { prisma } from "@/lib/db";
 import { suggestReply } from "@/lib/ai";
-import { isClosingAck } from "@/lib/ai/fallback";
-import { composeClosingCourtesy, closingCourtesyLanguage } from "@/lib/automation";
+import { isClosingAck, isPositiveFeedback } from "@/lib/ai/fallback";
+import { composeClosingCourtesy, closingCourtesyLanguage, type CourtesyKind } from "@/lib/automation";
 import { badRequest, jsonOk, tooManyRequests, paymentRequired } from "@/lib/api";
 import { withManage } from "@/lib/route-guard";
 import { rateLimit } from "@/lib/rate-limit";
@@ -113,14 +113,18 @@ export const POST = withManage(async (session, req) => {
   // enabled, hand it the EXACT outgoing message (same composition as the real
   // send: custom-or-default text + machine note + signature) so the preview can
   // never drift from what the guest would actually receive.
-  const closingAck = isClosingAck(message);
+  const closingKind: CourtesyKind | null = isClosingAck(message)
+    ? "ack"
+    : isPositiveFeedback(message)
+      ? "praise"
+      : null;
   const closingReplyEnabled = org?.autoClosingReplyEnabled ?? false;
   const closingReplyPreview =
-    closingAck && closingReplyEnabled && org
+    closingKind && closingReplyEnabled && org
       ? composeClosingCourtesy({
+          kind: closingKind,
           lang: closingCourtesyLanguage(message, org.language),
           customText: org.closingReplyText,
-          disclosureEnabled: org.autoReplyDisclosure,
           signature: org.aiSignature,
         })
       : null;
@@ -129,7 +133,8 @@ export const POST = withManage(async (session, req) => {
     ...result,
     reply,
     property: property.name,
-    closingAck,
+    closingAck: closingKind !== null, // backwards-compatible flag for the card
+    closingKind,
     closingReplyEnabled,
     closingReplyPreview,
   });

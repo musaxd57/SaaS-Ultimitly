@@ -240,6 +240,52 @@ const CLOSING_TOKENS = new Set([
   "спасибо", "хорошо", "ладно", "отлично", "понятно", "شكرا", "تمام", "حسنا", "ممتاز",
 ]);
 
+// ---------------------------------------------------------------------------
+// PURE POSITIVE FEEDBACK detector ("Çok teşekkürler, her şey harikaydı!").
+// The praise sibling of isClosingAck: lets the courtesy path answer a pure
+// compliment deterministically instead of the model improvising an emotional
+// draft. DENY-LIST based (holdingAckBlockedSignals emsali) and DELIBERATELY
+// over-blocking — any question mark, digit, contrast word ("ama/but"), ANY
+// intent keyword (refund/checkout/wifi/…), injection, review-threat,
+// off-platform-payment or safety signal sends the message down the NORMAL
+// model + safety-gate flow, exactly as today. A false negative costs nothing;
+// a false positive could mark a hidden request "answered" — so we never guess.
+// ---------------------------------------------------------------------------
+const PRAISE_PHRASES = [
+  // Turkish
+  "harika", "harikaydı", "harikaydi", "mükemmel", "mukemmel", "süper", "super",
+  "çok güzel", "cok guzel", "çok iyi", "cok iyi", "çok rahat", "cok rahat",
+  "bayıldık", "bayildik", "bayıldım", "bayildim", "memnun kal", "çok memnun", "cok memnun",
+  "tertemiz", "pırıl pırıl", "piril piril", "muhteşem", "muhtesem", "şahane", "sahane",
+  "efsane", "keyif aldık", "keyif aldik", "çok beğendik", "cok begendik",
+  // English
+  "amazing", "wonderful", "fantastic", "great stay", "was great", "everything was great",
+  "loved", "lovely", "excellent", "awesome", "beautiful", "spotless", "very clean",
+  "so clean", "had a great time", "enjoyed", "highly recommend",
+];
+const PRAISE_CONTRAST = /(^|\s)(ama|fakat|ancak|keşke|keske|lakin|yalnız|yalniz|but|however|except|although|though|unfortunately)(\s|,|\.|$)/;
+
+/** True only for a SHORT, pure compliment with zero request/risk signals. */
+export function isPositiveFeedback(message: string): boolean {
+  const raw = message.trim();
+  if (!raw || raw.length > 200) return false; // essays → model
+  const m = raw.toLowerCase();
+  if (m.includes("?") || m.includes("？")) return false; // a question is never pure praise
+  if (/\d/.test(m)) return false; // times/dates/amounts = a request hiding in praise
+  if (!PRAISE_PHRASES.some((p) => m.includes(p))) return false;
+  if (PRAISE_CONTRAST.test(m)) return false; // "harikaydı AMA…" smuggles a complaint
+  if (detectPromptInjection(raw)) return false;
+  if (hasUnnegatedProblemWord(m)) return false;
+  if (REVIEW_THREAT_PHRASES.some((p) => m.includes(p))) return false;
+  if (OFFPLATFORM_PAYMENT_PHRASES.some((p) => m.includes(p))) return false;
+  if (SAFETY_CRITICAL_WORDS.some((w) => m.includes(w))) return false;
+  // ANY operational intent keyword (refund/cancel/checkout/wifi/parking/…)
+  // disqualifies — praise wrapped around a request must reach the model+gate.
+  const intents = Object.keys(KEYWORDS) as Exclude<Intent, "general">[];
+  if (intents.some((i) => matchesIntentKeywords(raw, i))) return false;
+  return true;
+}
+
 /** True only for a short, pure closing/ack ("Tamam, teşekkürler!", "ok thanks", "👍"). */
 export function isClosingAck(message: string): boolean {
   const raw = message.trim().toLowerCase();

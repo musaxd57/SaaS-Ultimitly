@@ -8,6 +8,7 @@ import { classifyMessage, suggestReply, summarizeHostStyle } from "@/lib/ai";
 import {
   classifyFallback,
   isClosingAck,
+  isPositiveFeedback,
   detectPromptInjection,
   holdingAckEligible,
   holdingAckBlockedSignals,
@@ -304,15 +305,29 @@ async function maybeSendHoldingAck(opts: {
 // thanking the thank-you and the thread is left alone (no pleasantry ping-pong).
 // ---------------------------------------------------------------------------
 const CLOSING_COURTESY_INTENT = "closing_courtesy"; // Message.aiIntent marker = the loop guard
+export type CourtesyKind = "ack" | "praise";
 // SHORT on purpose: a closing gets a closing, not a paragraph. The host can
-// replace this entirely with their own line (Organization.closingReplyText).
-const CLOSING_COURTESY_TEXTS: Record<string, string> = {
-  tr: "Rica ederiz, iyi günler dileriz! 😊",
-  en: "You're very welcome! 😊",
-  de: "Sehr gerne! 😊",
-  fr: "Avec plaisir ! 😊",
-  ar: "على الرحب والسعة! 😊",
-  ru: "Пожалуйста! 😊",
+// replace these entirely with their own line (Organization.closingReplyText).
+// Two kinds share ONE toggle + ONE custom text: "ack" answers a bare thanks,
+// "praise" answers a pure compliment — sober wording, no emotion claims
+// ("çok sevindim" yasak: üslup kuralı), no promises.
+const CLOSING_COURTESY_TEXTS: Record<CourtesyKind, Record<string, string>> = {
+  ack: {
+    tr: "Rica ederiz, iyi günler dileriz! 😊",
+    en: "You're very welcome! 😊",
+    de: "Sehr gerne! 😊",
+    fr: "Avec plaisir ! 😊",
+    ar: "على الرحب والسعة! 😊",
+    ru: "Пожалуйста! 😊",
+  },
+  praise: {
+    tr: "Güzel geri bildiriminiz için teşekkür ederiz. Keyifli bir konaklama dileriz.",
+    en: "Thank you for the kind feedback. We wish you a pleasant stay.",
+    de: "Vielen Dank für das schöne Feedback. Wir wünschen Ihnen einen angenehmen Aufenthalt.",
+    fr: "Merci pour ce gentil retour. Nous vous souhaitons un agréable séjour.",
+    ar: "شكرًا لملاحظاتكم اللطيفة. نتمنى لكم إقامة ممتعة.",
+    ru: "Спасибо за тёплый отзыв. Желаем вам приятного пребывания.",
+  },
 };
 
 /**
@@ -327,22 +342,24 @@ export function closingCourtesyLanguage(closingBody: string, orgLanguage: string
 
 /**
  * The EXACT guest-facing courtesy body: the host's custom line (verbatim, any
- * language) when set, else the short built-in default in `lang`; then the
- * machine-note (per org disclosure setting) and the host's signature — the same
- * composition every auto-send uses. Exported so the settings playground can
- * preview PRECISELY what would go out (no drift between preview and send).
+ * language) when set, else the short built-in default for (kind, lang); then
+ * the host's signature. The "machine-prepared" note is DELIBERATELY absent
+ * here (unlike model auto-sends): the text is fixed by the host or by us, so
+ * there is nothing a disclaimer could correct — a pleasantry stays a
+ * pleasantry. Exported so the settings playground previews PRECISELY what
+ * would go out (no drift between preview and send).
  */
 export function composeClosingCourtesy(opts: {
+  kind: CourtesyKind;
   lang: string;
   customText: string | null;
-  disclosureEnabled: boolean;
   signature: string | null;
 }): string {
   const custom = opts.customText?.trim();
-  const text = custom || (CLOSING_COURTESY_TEXTS[opts.lang] ?? CLOSING_COURTESY_TEXTS.en);
-  const note = automatedReplyNote(opts.lang, opts.disclosureEnabled);
+  const defaults = CLOSING_COURTESY_TEXTS[opts.kind];
+  const text = custom || (defaults[opts.lang] ?? defaults.en);
   const signature = opts.signature?.trim();
-  return [text, ...(note ? [note] : []), ...(signature ? [signature] : [])].join("\n\n");
+  return [text, ...(signature ? [signature] : [])].join("\n\n");
 }
 
 /**
@@ -363,10 +380,11 @@ async function maybeSendClosingCourtesy(opts: {
   /** Thread messages (oldest→newest) — used for the courtesy-to-courtesy loop guard. */
   messages: { direction: string; aiIntent: string | null }[];
   lastInbound: { id: string; body: string };
+  /** "ack" = bare thanks/ok; "praise" = pure compliment (isPositiveFeedback). */
+  kind: CourtesyKind;
   org: {
     autoClosingReplyEnabled: boolean;
     closingReplyText: string | null;
-    autoReplyDisclosure: boolean;
     aiSignature: string | null;
     language: string;
   };
@@ -383,9 +401,9 @@ async function maybeSendClosingCourtesy(opts: {
 
   const lang = closingCourtesyLanguage(opts.lastInbound.body, opts.org.language);
   const body = composeClosingCourtesy({
+    kind: opts.kind,
     lang,
     customText: opts.org.closingReplyText,
-    disclosureEnabled: opts.org.autoReplyDisclosure,
     signature: opts.org.aiSignature,
   });
 
@@ -974,11 +992,26 @@ export async function applyChannelAutoReply(
   // needs no answer — skip BEFORE spending a model call, and never butt into a
   // thread a human just wrapped up. Deterministic and conservative: a question
   // or any extra content ("teşekkürler, peki wifi şifresi?") never matches.
-  if (isClosingAck(last.body) && messages.some((m) => m.direction === "outbound")) {
-    // Opt-in courtesy: when the org enabled it, answer the closing ONCE with a
-    // deterministic "you're welcome" (never in dry-run; never to the courtesy's
-    // own thanks — loop guard inside). Any gate saying no falls through to the
-    // plain silent skip, so the default behaviour is untouched.
+  const closingKind: CourtesyKind | null = isClosingAck(last.body)
+    ? "ack"
+    : isPositiveFeedback(last.body)
+      ? "praise"
+      : null;
+  if (closingKind && messages.some((m) => m.direction === "outbound")) {
+    // LOOP GUARD (both kinds): our latest outbound was itself the courtesy →
+    // the guest is thanking/complimenting the thank-you. Stay SILENT — neither
+    // a second courtesy nor a model draft (which would resurrect the gushy
+    // improv this feature exists to replace).
+    const lastOutbound = [...messages].reverse().find((m) => m.direction === "outbound");
+    if (lastOutbound?.aiIntent === CLOSING_COURTESY_INTENT) {
+      if (!options.dryRun) await persistRiskVisibility(conversation.id, "closing_ack");
+      return { sent: false, skippedReason: "closing_ack", ...meta };
+    }
+    // Opt-in courtesy: when the org enabled it, answer the closing / pure
+    // compliment ONCE with a deterministic line (never in dry-run). Any gate
+    // saying no falls through: an "ack" keeps the classic silent skip, a
+    // "praise" continues to the NORMAL model + safety-gate flow — exactly
+    // today's behaviour.
     if (org.autoClosingReplyEnabled && !options.dryRun) {
       const courtesySent = await maybeSendClosingCourtesy({
         organizationId: conversation.property.organizationId,
@@ -990,12 +1023,15 @@ export async function applyChannelAutoReply(
         },
         messages,
         lastInbound: { id: last.id, body: last.body },
+        kind: closingKind,
         org,
       });
       if (courtesySent) return { sent: true, ...meta };
     }
-    if (!options.dryRun) await persistRiskVisibility(conversation.id, "closing_ack");
-    return { sent: false, skippedReason: "closing_ack", ...meta };
+    if (closingKind === "ack") {
+      if (!options.dryRun) await persistRiskVisibility(conversation.id, "closing_ack");
+      return { sent: false, skippedReason: "closing_ack", ...meta };
+    }
   }
 
   const kbRaw = await prisma.knowledgeBaseItem.findMany({
