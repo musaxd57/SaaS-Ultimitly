@@ -7,19 +7,31 @@ import { syncCalendarSource } from "@/lib/import/sync";
 import { fetchFeedText } from "@/lib/net/pinned-fetch";
 import { ANON_NAME } from "@/lib/data-retention";
 
+// Fixture dates are DYNAMIC (relative to the run date). The original hardcoded
+// 2026-07-1x dates were a time bomb: the day the first stay's DTEND slipped into
+// the past, its checkout cleaning task (only created for future departures)
+// stopped being generated and the count assertions broke — with zero code change.
+const DAY = 86_400_000;
+const icsDate = (daysFromToday: number) =>
+  new Date(Date.now() + daysFromToday * DAY).toISOString().slice(0, 10).replace(/-/g, "");
+const E1_START = icsDate(5);
+const E1_END = icsDate(9);
+const E2_START = icsDate(11);
+const E2_END = icsDate(13);
+
 const ICS = `BEGIN:VCALENDAR
 VERSION:2.0
 PRODID:-//Airbnb//Hosting Calendar//EN
 BEGIN:VEVENT
 UID:abc-123@airbnb.com
-DTSTART;VALUE=DATE:20260710
-DTEND;VALUE=DATE:20260714
+DTSTART;VALUE=DATE:${E1_START}
+DTEND;VALUE=DATE:${E1_END}
 SUMMARY:Ahmet Yılmaz
 END:VEVENT
 BEGIN:VEVENT
 UID:def-456@airbnb.com
-DTSTART;VALUE=DATE:20260720
-DTEND;VALUE=DATE:20260722
+DTSTART;VALUE=DATE:${E2_START}
+DTEND;VALUE=DATE:${E2_END}
 SUMMARY:Jane Doe
 END:VEVENT
 END:VCALENDAR`;
@@ -101,8 +113,9 @@ describe("syncCalendarSource", () => {
       data: { guestName: ANON_NAME },
     });
 
-    // The feed still carries the real name, with a shifted departure date.
-    const shifted = ICS.replace("DTEND;VALUE=DATE:20260714", "DTEND;VALUE=DATE:20260715");
+    // The feed still carries the real name, with a shifted (+1 day) departure date.
+    const shiftedEnd = icsDate(10);
+    const shifted = ICS.replace(`DTEND;VALUE=DATE:${E1_END}`, `DTEND;VALUE=DATE:${shiftedEnd}`);
     mockFetch(shifted);
     const second = await syncCalendarSource(source.id);
 
@@ -113,7 +126,9 @@ describe("syncCalendarSource", () => {
     // Name stays anonymized — the feed cannot write PII back.
     expect(anon?.guestName).toBe(ANON_NAME);
     // Non-PII dates still refresh so occupancy stays correct.
-    expect(anon?.departureDate.toISOString().slice(0, 10)).toBe("2026-07-15");
+    expect(anon?.departureDate.toISOString().slice(0, 10)).toBe(
+      `${shiftedEnd.slice(0, 4)}-${shiftedEnd.slice(4, 6)}-${shiftedEnd.slice(6, 8)}`,
+    );
 
     // A row that was NOT anonymized still updates its name normally.
     const jane = await prisma.reservation.findFirst({
@@ -139,15 +154,15 @@ describe("syncCalendarSource", () => {
 VERSION:2.0
 BEGIN:VEVENT
 UID:abc-123@airbnb.com
-DTSTART;VALUE=DATE:20260710
-DTEND;VALUE=DATE:20260714
+DTSTART;VALUE=DATE:${E1_START}
+DTEND;VALUE=DATE:${E1_END}
 SUMMARY:Ahmet Yılmaz
 STATUS:CANCELLED
 END:VEVENT
 BEGIN:VEVENT
 UID:def-456@airbnb.com
-DTSTART;VALUE=DATE:20260720
-DTEND;VALUE=DATE:20260722
+DTSTART;VALUE=DATE:${E2_START}
+DTEND;VALUE=DATE:${E2_END}
 SUMMARY:Jane Doe
 END:VEVENT
 END:VCALENDAR`;
@@ -165,14 +180,14 @@ END:VCALENDAR`;
 VERSION:2.0
 BEGIN:VEVENT
 UID:fut-1@airbnb.com
-DTSTART;VALUE=DATE:20270301
-DTEND;VALUE=DATE:20270305
+DTSTART;VALUE=DATE:${icsDate(200)}
+DTEND;VALUE=DATE:${icsDate(204)}
 SUMMARY:Guest One
 END:VEVENT
 BEGIN:VEVENT
 UID:fut-2@airbnb.com
-DTSTART;VALUE=DATE:20270310
-DTEND;VALUE=DATE:20270312
+DTSTART;VALUE=DATE:${icsDate(210)}
+DTEND;VALUE=DATE:${icsDate(212)}
 SUMMARY:Guest Two
 END:VEVENT
 END:VCALENDAR`;
@@ -180,8 +195,8 @@ END:VCALENDAR`;
 VERSION:2.0
 BEGIN:VEVENT
 UID:fut-1@airbnb.com
-DTSTART;VALUE=DATE:20270301
-DTEND;VALUE=DATE:20270305
+DTSTART;VALUE=DATE:${icsDate(200)}
+DTEND;VALUE=DATE:${icsDate(204)}
 SUMMARY:Guest One
 END:VEVENT
 END:VCALENDAR`;
