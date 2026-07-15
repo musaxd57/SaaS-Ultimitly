@@ -361,8 +361,8 @@ async function lifecycleVeto(row: OutboxRow, now: Date): Promise<string | null> 
   });
   if (!res) return "reservation_gone";
   if (res.status === "cancelled") return "reservation_cancelled";
-  // A completed stay is stale for welcome/check-in, but a CHECK-OUT is legitimately due the
-  // evening before departure (status may already have flipped) — its `window_passed` date guard
+  // A completed stay is stale for welcome/check-in, but a CHECK-OUT is legitimately due on the
+  // departure day itself (status may already have flipped) — its `window_passed` date guard
   // below handles a truly-past departure. This keeps the flag-ON veto consistent with the
   // flag-OFF checkout query (which includes `completed`) so the two paths never disagree.
   const type = row.messageType;
@@ -371,8 +371,11 @@ async function lifecycleVeto(row: OutboxRow, now: Date): Promise<string | null> 
   if (type === "welcome" && res.welcomeSentAt) return "already_sent";
   if (type === "checkin" && res.checkinSentAt) return "already_sent";
   if (type === "checkout" && res.checkoutSentAt) return "already_sent";
-  // Window passed: a check-in / check-out whose stay is already over is stale.
-  if ((type === "checkin" || type === "checkout") && res.departureDate < now) return "window_passed";
+  // Window passed. A check-in whose stay is already over is stale. A CHECK-OUT is enqueued the
+  // MORNING OF departure while departureDate sits at local midnight — i.e. already "in the past"
+  // at send time — so it only goes stale once the departure DAY itself is over (midnight + 24h).
+  if (type === "checkin" && res.departureDate < now) return "window_passed";
+  if (type === "checkout" && res.departureDate.getTime() + 86_400_000 < now.getTime()) return "window_passed";
   return null;
 }
 

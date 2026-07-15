@@ -409,12 +409,12 @@ export default async function SettingsPage({
         </CardHeader>
         <CardContent className="space-y-3">
           <p className="text-sm text-muted-foreground">
-            Açıkken, çıkıştan <strong>bir gün önce akşam 18:00&apos;da</strong> o dairenin{" "}
+            Açıkken, <strong>çıkış günü sabah 08:00&apos;da</strong> o dairenin{" "}
             <strong>Çıkış Mesajı</strong> bilgi tabanı girişi, misafirin adıyla{" "}
-            <strong>tek sefer</strong> gönderilir. Metnin içine{" "}
+            <strong>tek sefer</strong> aynı-gün hatırlatması olarak gönderilir. Metnin içine{" "}
             <code className="rounded bg-muted px-1 py-0.5 text-xs">{"{isim}"}</code> yazın (örn.
-            &quot;Merhaba {"{isim}"}, yarın çıkış günü...&quot;). Tek gecelik konaklamalara{" "}
-            <strong>gönderilmez</strong>; çıkış girişi olmayan daireler atlanır.
+            &quot;Merhaba {"{isim}"}, bugün çıkış günü...&quot;). Çıkış girişi olmayan daireler
+            atlanır.
           </p>
           <div className="flex flex-wrap items-center gap-3">
             <AutoReplyToggle
@@ -422,7 +422,7 @@ export default async function SettingsPage({
               label="Otomatik çıkış mesajı"
               enabled={org?.autoCheckout ?? false}
               locked={automationLocked}
-              title="Açıkken: çıkıştan bir gün önce akşam 18:00'da, o dairenin çıkış mesajı misafire bir kez otomatik gider. Tek gecelik konaklamalara gönderilmez. Ana şalter (AUTO_REPLY_ENABLED) da açık olmalı."
+              title="Açıkken: çıkış günü sabah 08:00'da, o dairenin çıkış mesajı misafire bir kez aynı-gün hatırlatması olarak gider. Ana şalter (AUTO_REPLY_ENABLED) da açık olmalı."
             />
           </div>
         </CardContent>
@@ -433,31 +433,10 @@ export default async function SettingsPage({
         endHour={org?.autoReplyEndHour ?? 9}
       />
 
-      <Card className="max-w-2xl">
-        <CardHeader>
-          <CardTitle className="text-base text-muted-foreground">Yapay Zekâ ve Veri Kullanımı</CardTitle>
-        </CardHeader>
-        <CardContent className="space-y-3">
-          <p className="text-sm text-muted-foreground">
-            Yapay zekâ bir yanıt hazırlarken yalnızca misafirin mesajını, konuşma geçmişini, mülk
-            bilgilerinizi, rezervasyon özetini (misafir adı ve tarihler) ve bilgi tabanınızı bağlam olarak
-            kullanır. Misafirin telefon ve e-posta bilgisi modele gönderilmez.
-          </p>
-          <p className="text-sm text-muted-foreground">
-            Şikayet, iade, iptal, güvenlik, ayrımcılık gibi riskli mesajlar otomatik sonuçlandırılmaz; her
-            zaman insan incelemesine bırakılır.
-          </p>
-          <p className="text-sm text-muted-foreground">
-            Veriler, yapay zekâ sağlayıcısının (OpenAI) API varsayılanı gereği model eğitiminde kullanılmaz.
-            Ayrıntı için{" "}
-            <a href="/gizlilik" className="underline hover:text-foreground">
-              Gizlilik Politikası
-            </a>
-            .
-          </p>
-        </CardContent>
-      </Card>
-
+      {/* KVKK aydınlatma (AI/veri kullanımı) BİLİNÇLİ olarak yalnız Gizlilik
+          Politikası'nda (/gizlilik) yaşar — buradaki tekrar-kart kullanıcı
+          isteğiyle kaldırıldı (2026-07-15). Yükümlülük politika metniyle
+          karşılanıyor; ayarları tekrar kalabalıklaştırma. */}
       {session.role === "owner" && !isOperator ? (
         <Card className="max-w-2xl border-destructive/30">
           <CardHeader>

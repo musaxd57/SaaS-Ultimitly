@@ -2125,13 +2125,16 @@ export async function previewCheckins(
 }
 
 /**
- * Send the per-apartment check-out message the EVENING BEFORE the guest's
- * departure: from 18:00 (org timezone) onward, for bookings whose check-out is
- * the next day. Sent once per reservation (checkoutSentAt). Body comes from the
- * apartment's "checkout" knowledge-base entry, personalised with the guest's
- * first name. Single-night stays are skipped (the evening-before would land on
- * the arrival/welcome day). Gated behind AUTO_REPLY_ENABLED + the org
- * autoCheckout toggle. Apartments without a checkout entry are skipped.
+ * Send the per-apartment check-out message ON THE DEPARTURE DAY as a same-day
+ * reminder: between 08:00 and 12:00 (org timezone), for bookings checking out
+ * today. 08:00 gives the guest a wake-up-and-pack window before the typical
+ * 11:00-12:00 checkout (Airbnb's own reminder cadence: native checkout
+ * instructions surface to the guest the morning of departure). The 12:00 cap
+ * exists so a delayed run never "reminds" a guest who already left. Sent once
+ * per reservation (checkoutSentAt). Body comes from the apartment's "checkout"
+ * knowledge-base entry, personalised with the guest's first name. Gated behind
+ * AUTO_REPLY_ENABLED + the org autoCheckout toggle. Apartments without a
+ * checkout entry are skipped.
  */
 export async function sendDueCheckouts(
   organizationId: string,
@@ -2150,10 +2153,11 @@ export async function sendDueCheckouts(
 
   const now = new Date();
   const tz = org.timezone ?? "Europe/Istanbul";
-  // Only from 18:00 onward, the day BEFORE departure.
-  if (currentHourInTimeZone(tz, now) < 18) return { sent: 0, considered: 0 };
-  // The calendar date of "tomorrow" in the org timezone — check-out must be then.
-  const tomorrowKey = dateKeyInTimeZone(addDays(now, 1), tz);
+  // Same-day reminder window: 08:00-11:59 org time on the departure day.
+  const hour = currentHourInTimeZone(tz, now);
+  if (hour < 8 || hour >= 12) return { sent: 0, considered: 0 };
+  // The calendar date of "today" in the org timezone — check-out must be today.
+  const todayKey = dateKeyInTimeZone(now, tz);
   // Only message bookings created AFTER checkout was switched on
   // (autoCheckoutEnabledAt), so enabling never messages guests already mid-stay
   // from before. No baseline yet → nothing is sent.
@@ -2176,7 +2180,6 @@ export async function sendDueCheckouts(
       channel: true,
       sourceReference: true,
       propertyId: true,
-      arrivalDate: true,
       departureDate: true,
       property: { select: { name: true } },
     },
@@ -2189,17 +2192,14 @@ export async function sendDueCheckouts(
   let sent = 0;
 
   for (const r of reservations) {
-    // Only when check-out is tomorrow (so the message lands the evening before).
-    // Compare the departure's calendar day in the ORG timezone against tomorrowKey
-    // (also org tz). A UTC day-key disagreed by a day for departures stored at
-    // Istanbul midnight, so checkout messages effectively never sent.
-    if (dateKeyInTimeZone(r.departureDate, tz) !== tomorrowKey) continue;
-    // Skip single-night stays: the evening-before would collide with the
-    // arrival/welcome day, so these never get an automatic check-out message.
-    const nights = Math.round(
-      (r.departureDate.getTime() - r.arrivalDate.getTime()) / 86_400_000,
-    );
-    if (nights <= 1) continue;
+    // Only when check-out is TODAY (same-day reminder). Compare the departure's
+    // calendar day in the ORG timezone against todayKey (also org tz). A UTC
+    // day-key disagreed by a day for departures stored at Istanbul midnight, so
+    // checkout messages effectively never sent.
+    // (No single-night skip anymore: that guard existed because the old
+    // evening-before send collided with the arrival day; a morning-of reminder
+    // is exactly as useful for a one-night guest.)
+    if (dateKeyInTimeZone(r.departureDate, tz) !== todayKey) continue;
 
     const tpl = await prisma.knowledgeBaseItem.findFirst({
       where: { propertyId: r.propertyId, category: "checkout", isActive: true },

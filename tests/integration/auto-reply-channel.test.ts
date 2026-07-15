@@ -1347,8 +1347,7 @@ describe("sendDueCheckouts", () => {
         },
       });
     }
-    // Default to a multi-night stay (arrival 3 days before departure) so the
-    // single-night skip doesn't apply unless a test opts into it.
+    // Default to a multi-night stay (arrival 3 days before departure).
     const arrival = opts.arrival ?? addDays(opts.departure, -3);
     await prisma.reservation.create({
       data: {
@@ -1364,8 +1363,8 @@ describe("sendDueCheckouts", () => {
     return { orgId: org.id };
   }
 
-  it("sends the check-out message the evening before (after 18:00), personalised", async () => {
-    vi.setSystemTime(new Date("2026-06-14T15:00:00Z")); // 18:00 Istanbul, day before
+  it("sends the check-out message on the departure day morning (08:00-12:00), personalised", async () => {
+    vi.setSystemTime(new Date("2026-06-15T06:00:00Z")); // 09:00 Istanbul, departure day
     const { orgId } = await seedCheckout({ departure: new Date("2026-06-15T00:00:00Z") });
     const out = await sendDueCheckouts(orgId);
     expect(out.sent).toBe(1);
@@ -1375,9 +1374,9 @@ describe("sendDueCheckouts", () => {
 
   it("sends for a checkout stored at Istanbul midnight (org-tz day-key fix)", async () => {
     // Load-bearing regression: departure stored at Istanbul midnight (21:00Z the
-    // previous UTC day). The old UTC day-key read it as the previous day so the
-    // message never sent; the org-tz key matches "tomorrow" correctly.
-    vi.setSystemTime(new Date("2026-06-14T15:00:00Z")); // 18:00 Istanbul, eve of Jun 15
+    // previous UTC day). A UTC day-key reads it as the previous day so the
+    // message would never send; the org-tz key matches "today" correctly.
+    vi.setSystemTime(new Date("2026-06-15T06:00:00Z")); // 09:00 Istanbul, Jun 15
     const { orgId } = await seedCheckout({
       departure: new Date("2026-06-14T21:00:00Z"), // Istanbul midnight of Jun 15
     });
@@ -1385,7 +1384,7 @@ describe("sendDueCheckouts", () => {
   });
 
   it("does not message bookings made before checkout was switched on", async () => {
-    vi.setSystemTime(new Date("2026-06-14T15:00:00Z")); // 18:00 Istanbul, day before
+    vi.setSystemTime(new Date("2026-06-15T06:00:00Z")); // 09:00 Istanbul, departure day
     const { orgId } = await seedCheckout({ departure: new Date("2026-06-15T00:00:00Z") });
     // Pin both timestamps to FIXED instants so the gate (reservation.createdAt >=
     // autoCheckoutEnabledAt) is deterministic regardless of the real wall clock:
@@ -1404,35 +1403,41 @@ describe("sendDueCheckouts", () => {
     expect(mockSend).not.toHaveBeenCalled();
   });
 
-  it("does not send before 18:00", async () => {
-    vi.setSystemTime(new Date("2026-06-14T12:00:00Z")); // 15:00 Istanbul
+  it("does not send before 08:00 (guest may still be asleep)", async () => {
+    vi.setSystemTime(new Date("2026-06-15T04:00:00Z")); // 07:00 Istanbul, departure day
     const { orgId } = await seedCheckout({ departure: new Date("2026-06-15T00:00:00Z") });
     expect((await sendDueCheckouts(orgId)).sent).toBe(0);
     expect(mockSend).not.toHaveBeenCalled();
   });
 
-  it("does not send on the departure day itself (it already went the night before)", async () => {
-    vi.setSystemTime(new Date("2026-06-15T15:00:00Z")); // 18:00 Istanbul, departure day
+  it("does not send from 12:00 onward (a late run must not remind a guest who already left)", async () => {
+    vi.setSystemTime(new Date("2026-06-15T10:00:00Z")); // 13:00 Istanbul, departure day
     const { orgId } = await seedCheckout({ departure: new Date("2026-06-15T00:00:00Z") });
     expect((await sendDueCheckouts(orgId)).sent).toBe(0);
     expect(mockSend).not.toHaveBeenCalled();
   });
 
-  it("does not send when check-out is not tomorrow", async () => {
-    vi.setSystemTime(new Date("2026-06-14T18:00:00Z")); // 21:00 Istanbul
+  it("does not send the evening before anymore (same-day reminder only)", async () => {
+    vi.setSystemTime(new Date("2026-06-14T15:00:00Z")); // 18:00 Istanbul, day before
+    const { orgId } = await seedCheckout({ departure: new Date("2026-06-15T00:00:00Z") });
+    expect((await sendDueCheckouts(orgId)).sent).toBe(0);
+    expect(mockSend).not.toHaveBeenCalled();
+  });
+
+  it("does not send when check-out is not today", async () => {
+    vi.setSystemTime(new Date("2026-06-14T06:00:00Z")); // 09:00 Istanbul
     const { orgId } = await seedCheckout({ departure: new Date("2026-06-20T00:00:00Z") });
     expect((await sendDueCheckouts(orgId)).sent).toBe(0);
     expect(mockSend).not.toHaveBeenCalled();
   });
 
-  it("does not send to single-night reservations", async () => {
-    vi.setSystemTime(new Date("2026-06-14T15:00:00Z")); // 18:00 Istanbul, eve of check-out
+  it("sends to single-night reservations too (the old skip only protected the evening-before send)", async () => {
+    vi.setSystemTime(new Date("2026-06-15T06:00:00Z")); // 09:00 Istanbul, departure day
     const { orgId } = await seedCheckout({
       arrival: new Date("2026-06-14T00:00:00Z"),
       departure: new Date("2026-06-15T00:00:00Z"), // 1 night
     });
-    expect((await sendDueCheckouts(orgId)).sent).toBe(0);
-    expect(mockSend).not.toHaveBeenCalled();
+    expect((await sendDueCheckouts(orgId)).sent).toBe(1);
   });
 
   it("does nothing when autoCheckout is off", async () => {
