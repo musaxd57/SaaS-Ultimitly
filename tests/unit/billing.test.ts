@@ -9,10 +9,30 @@ vi.mock("@/lib/db", () => ({
 }));
 
 import { prisma } from "@/lib/db";
-import { getEntitlement, canAddProperty, billingEnforced, premiumAllowed } from "@/lib/billing/subscription";
+import { getEntitlement, canAddProperty, billingEnforced, premiumAllowed, isFounderOrg } from "@/lib/billing/subscription";
 
 const findUnique = vi.mocked(prisma.subscription.findUnique);
 const count = vi.mocked(prisma.property.count);
+
+// The single arbiter of founder/internal treatment: the entitlement guard AND
+// the settings page (which swaps the customer billing card for the internal
+// note) both key off this — a stale sandbox/test Subscription row must never
+// present the founder as a paying customer.
+describe("isFounderOrg", () => {
+  afterEach(() => vi.unstubAllEnvs());
+
+  it("true ONLY for the exact PRIMARY_ORG_ID", () => {
+    vi.stubEnv("PRIMARY_ORG_ID", "founder-org");
+    expect(isFounderOrg("founder-org")).toBe(true);
+    expect(isFounderOrg("customer-org")).toBe(false);
+  });
+
+  it("false for EVERY org when PRIMARY_ORG_ID is unset (never covers a customer by default)", () => {
+    vi.stubEnv("PRIMARY_ORG_ID", "");
+    expect(isFounderOrg("")).toBe(false);
+    expect(isFounderOrg("any-org")).toBe(false);
+  });
+});
 
 describe("billing entitlements (safe-by-default)", () => {
   beforeEach(() => vi.clearAllMocks());

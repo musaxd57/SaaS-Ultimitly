@@ -72,6 +72,18 @@ export function billingEnforced(): boolean {
 }
 
 /** Resolve an organization's current entitlement (permissive default). */
+/**
+ * Is this the founder's OWN org (internal access)? Keyed strictly off the
+ * explicit PRIMARY_ORG_ID env — the founder's fixed org id — so it can never
+ * accidentally cover a customer org. This is the ONE source for founder
+ * treatment: the entitlement guard below forces access on, and the settings
+ * page hides the customer billing card (plans / Paddle portal / invoices) —
+ * internal access is an explicit entitlement, not a lookalike subscription.
+ */
+export function isFounderOrg(organizationId: string): boolean {
+  return Boolean(process.env.PRIMARY_ORG_ID) && organizationId === process.env.PRIMARY_ORG_ID;
+}
+
 export async function getEntitlement(organizationId: string): Promise<Entitlement> {
   const sub = await prisma.subscription.findUnique({ where: { organizationId } });
   if (!sub) {
@@ -124,10 +136,8 @@ export async function getEntitlement(organizationId: string): Promise<Entitlemen
   // Founder safety net: the primary org (the founder's OWN org) must NEVER be
   // paywalled — not even by a real test payment that creates a Subscription row
   // which later lapses/expires, nor by a mis-mapped webhook. Force access on
-  // WITHOUT distorting the displayed plan/status (those stay truthful). Keyed
-  // strictly off the explicit PRIMARY_ORG_ID env (the founder's fixed org id),
-  // so it can never accidentally cover a customer org.
-  if (!active && process.env.PRIMARY_ORG_ID && organizationId === process.env.PRIMARY_ORG_ID) {
+  // WITHOUT distorting the displayed plan/status (those stay truthful).
+  if (!active && isFounderOrg(organizationId)) {
     active = true;
   }
 

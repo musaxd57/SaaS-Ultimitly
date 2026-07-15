@@ -17,7 +17,7 @@ import { TwoFactorCard } from "@/components/settings/two-factor-card";
 import { HospitableConnectCard } from "@/components/settings/hospitable-connect-card";
 import { PaddlePlans } from "@/components/settings/paddle-plans";
 import { getConnectionInfo } from "@/lib/hospitable-credentials";
-import { getEntitlement, premiumAllowed } from "@/lib/billing/subscription";
+import { getEntitlement, premiumAllowed, isFounderOrg } from "@/lib/billing/subscription";
 import { planChangeEnabled } from "@/lib/billing/plan-change";
 import { DEFAULT_PLANS } from "@/lib/billing/plans";
 import { isSuperAdmin } from "@/lib/admin";
@@ -163,7 +163,28 @@ export default async function SettingsPage({
         </CardContent>
       </Card>
 
-      {paddleReady && entitlement ? (
+      {/* FOUNDER ORG: internal access is an explicit entitlement (isFounderOrg →
+          never paywalled), NOT a subscription. A leftover sandbox/test Paddle row
+          must not masquerade as a paying "İşletme" customer, and the portal /
+          plan-change buttons would hit real Paddle APIs with a stale providerRef
+          (the portal link visibly errored). Customers' billing card is untouched. */}
+      {paddleReady && entitlement && isFounderOrg(session.organizationId) ? (
+        <Card className="max-w-2xl">
+          <CardHeader>
+            <CardTitle className="text-base">Aboneliğiniz</CardTitle>
+          </CardHeader>
+          <CardContent className="space-y-2">
+            <p className="text-sm">
+              <strong>Kurucu hesabı — dahili erişim.</strong> Bu hesapta tüm özellikler Paddle
+              aboneliğinden bağımsız olarak açıktır ve ödeme alınmaz.
+            </p>
+            <p className="text-xs text-muted-foreground">
+              Müşterilerin gördüğü plan/portal kartı bu hesapta gösterilmez. Gerçek ödeme veya plan
+              değişikliği testleri için ayrı bir test müşteri hesabı kullanın.
+            </p>
+          </CardContent>
+        </Card>
+      ) : paddleReady && entitlement ? (
         <Card className="max-w-2xl">
           <CardHeader>
             <CardTitle className="text-base">Aboneliğiniz</CardTitle>
