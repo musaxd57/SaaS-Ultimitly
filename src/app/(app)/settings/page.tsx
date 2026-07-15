@@ -123,7 +123,11 @@ export default async function SettingsPage({
     managedSub?.status !== "canceled";
 
   return (
-    <>
+    // Settings is a stack of narrow (max-w-2xl) cards. Left-anchored inside the
+    // shell's wide content column they hug the sidebar and leave a huge empty
+    // right half on desktop — so the whole page lives in its own CENTERED
+    // narrow column instead (the standard settings-page composition).
+    <div className="mx-auto w-full max-w-2xl space-y-6">
       <PageHeader
         title="Ayarlar"
         description="AI'nın sesi ve otomatik mesaj ayarları."
@@ -468,6 +472,6 @@ export default async function SettingsPage({
           </CardContent>
         </Card>
       ) : null}
-    </>
+    </div>
   );
 }
