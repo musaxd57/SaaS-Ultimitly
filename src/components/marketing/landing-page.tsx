@@ -117,7 +117,7 @@ const COMPARE: { chip: string; icon: typeof PenLine; title: string; body: string
     chip: "Lixus’un yolu",
     icon: ShieldCheck,
     title: "Sınırı belli otomasyon",
-    body: "Cevabı bilgi tabanınızda yazan iş saniyeler içinde biter; yorum ve karar isteyen konuşma olduğu gibi önünüze gelir. Hızı makineden, sağduyuyu sizden alırsınız.",
+    body: "Cevabı net olan sorular — Wi-Fi, giriş saati, otopark — anında yanıtlanır. Karar gerektiren konuşmalar ise olduğu gibi size gelir: misafir beklemede kalmaz, kontrol sizden çıkmaz.",
     ours: true,
   },
 ];
@@ -608,8 +608,8 @@ export function LandingPage() {
             <Quote className="absolute -top-4 left-8 size-8 rounded-full bg-primary p-1.5 text-primary-foreground" aria-hidden="true" />
             <div className="space-y-4 text-[15px] leading-relaxed text-foreground/90">
               <p>
-                On civarında daireyi kendim işletiyorum. Bu işin görünmeyen mesaisi mesajlaşmadır: giriş
-                saati, otopark, şifre… aynı sorular, her hafta, çoğu gece yarısı.
+                Ev sahipliğinin görünmeyen mesaisi mesajlaşmadır: giriş saati, otopark, şifre… aynı
+                sorular, her hafta, çoğu gece yarısı.
               </p>
               <p>
                 Hazır araçları denedim. Kimi yalnızca öneri hazırlıyordu — gönderme zahmeti yine bende
@@ -623,7 +623,7 @@ export function LandingPage() {
                 olan bilir.
               </p>
             </div>
-            <p className="mt-6 text-sm font-semibold">— Lixus AI’ın kurucusu</p>
+            <p className="mt-6 text-sm font-semibold">— Musa Çınar, Lixus AI’ın kurucusu</p>
           </Reveal>
 
           {/* Red lines — the one place the closed list is spelled out */}
@@ -645,7 +645,8 @@ export function LandingPage() {
               ))}
             </div>
             <p className="mt-4 text-xs text-muted-foreground">
-              Bu başlıklarda yazılım taslağı hazırlar, sizi anında bilgilendirir — ama son sözü asla kendisi
+              Bu başlıklardan biri tespit edildiğinde konuşma panelde &ldquo;sorunlu&rdquo; olarak işaretlenir,
+              size anında e-posta ile haber verilir ve yanıt taslağı hazır bekler — ama son sözü asla yazılım
               söylemez.
             </p>
           </Reveal>
