@@ -16,6 +16,10 @@ import {
   ClipboardCheck,
   BarChart3,
   BookOpen,
+  PenLine,
+  Bot,
+  Quote,
+  Ban,
 } from "lucide-react";
 import { buttonVariants } from "@/components/ui/button";
 import { BrandMark } from "@/components/brand";
@@ -91,6 +95,45 @@ const TIER_META: Record<1 | 2 | 3, { chip: string; cls: string }> = {
   2: { chip: "Yatıştırır + bilgi toplar", cls: "bg-yellow-50 text-yellow-800" },
   3: { chip: "Durur, size bırakır", cls: "bg-amber-50 text-amber-700" },
 };
+
+// The market context: two familiar-but-costly ways to handle guest messages,
+// and the bounded middle path Lixus takes. Fresh copy on purpose — the safety
+// promise is already stated elsewhere on the page, so this section sells the
+// TIME/TRUST trade-off instead of restating it.
+const COMPARE: { chip: string; icon: typeof PenLine; title: string; body: string; ours?: boolean }[] = [
+  {
+    chip: "Eski usul",
+    icon: PenLine,
+    title: "Hepsini kendiniz yazmak",
+    body: "Uykudan, yemekten, tatilden çalınan dakikalar. Geç kalan her cevap, misafirin başka bir ilana bakması için bir fırsattır — siz de telefondan hiç kopamazsınız.",
+  },
+  {
+    chip: "Diğer uç",
+    icon: Bot,
+    title: "Hepsini bota devretmek",
+    body: "Sınır çizilmemiş bir bot, kurnaz bir mesajla konudan çıkarılabilir; gergin bir pazarlıkta ağzından ne çıkacağını önceden kimse bilemez. Bunu fark eden misafirin güvenini geri kazanmak zordur.",
+  },
+  {
+    chip: "Lixus’un yolu",
+    icon: ShieldCheck,
+    title: "Sınırı belli otomasyon",
+    body: "Cevabı bilgi tabanınızda yazan iş saniyeler içinde biter; yorum ve karar isteyen konuşma olduğu gibi önünüze gelir. Hızı makineden, sağduyuyu sizden alırsınız.",
+    ours: true,
+  },
+];
+
+// The enumerated red lines — the closed set the safety gate enforces in code.
+// Shown once, as a single explicit commitment (the rest of the page mentions
+// safety in passing; this is the concrete list a host can hold us to).
+const RED_LINES = [
+  "Para ve iade talepleri",
+  "Şikayetlerin çözümü",
+  "Rezervasyon iptalleri",
+  "Güvenlik ve acil durumlar",
+  "Kötü yorum pazarlıkları",
+  "Platform dışı ödeme teklifleri",
+  "İnsanla görüşme talepleri",
+];
 
 const FEATURES = [
   {
@@ -202,6 +245,14 @@ const FAQS = [
   {
     q: "İstediğim zaman durdurabilir miyim?",
     a: "Evet. Otomatik gönderimi tek tıkla kapatabilir, aboneliğinizi dilediğiniz zaman sonlandırabilirsiniz. Taahhüt yok.",
+  },
+  {
+    q: "Misafir, yanıtın yapay zekâdan geldiğini anlar mı?",
+    a: "Bu sizin seçiminiz. Varsayılan olarak otomatik yanıtların altına kısa bir bilgilendirme notu eklenir — şeffaflığın güveni artırdığını düşünüyoruz. Dilerseniz bu notu ayarlardan kapatırsınız. Her iki durumda da yanıtlar sizin girdiğiniz bilgilerden ve sizin üslubunuzdan üretilir.",
+  },
+  {
+    q: "Misafir verileri nasıl saklanıyor?",
+    a: "Veriler KVKK gözetilerek işlenir: misafir kişisel verileri saklama süresi dolunca anonimleştirilir, tüm verinizi dilediğinizde tek dosya hâlinde indirebilir, hesabınızı sildiğinizde kalıcı olarak sildirebilirsiniz. Misafir mesajları yalnızca size yanıt üretmek için kullanılır; reklam veya başka amaçla işlenmez.",
   },
 ];
 
@@ -507,6 +558,97 @@ export function LandingPage() {
               </div>
             </Reveal>
           ) : null}
+        </div>
+      </section>
+
+      {/* The trade-off: manual vs. unbounded bot vs. bounded automation */}
+      <section className="border-t border-border bg-card/40 py-20">
+        <div className="mx-auto max-w-6xl px-4 sm:px-6">
+          <Reveal as="h2" className="text-center text-3xl font-bold tracking-tight">
+            Mesaj yüküne iki eski çözüm, bir yenisi
+          </Reveal>
+          <Reveal as="p" delay={80} className="mx-auto mt-3 max-w-2xl text-center text-muted-foreground">
+            Tek dairede idare edilir; daireler çoğaldıkça misafir mesajları sessizce yarı zamanlı bir işe
+            dönüşür. Bugüne kadarki iki seçenek de bir şeyden vazgeçmenizi istiyordu — ya zamanınızdan ya
+            kontrolünüzden.
+          </Reveal>
+          <div className="mt-12 grid gap-6 md:grid-cols-3">
+            {COMPARE.map((c, i) => (
+              <Reveal
+                key={c.title}
+                delay={i * 90}
+                className={cn(
+                  "card-lift flex flex-col rounded-xl border bg-card p-6",
+                  c.ours ? "border-primary ring-1 ring-primary" : "border-border",
+                )}
+              >
+                <span
+                  className={cn(
+                    "inline-flex w-fit items-center gap-1.5 rounded-full px-2.5 py-1 text-xs font-medium",
+                    c.ours ? "bg-primary text-primary-foreground" : "bg-muted text-muted-foreground",
+                  )}
+                >
+                  <c.icon className="size-3.5" aria-hidden="true" /> {c.chip}
+                </span>
+                <h3 className="mt-4 text-lg font-semibold">{c.title}</h3>
+                <p className="mt-2 text-sm text-muted-foreground">{c.body}</p>
+              </Reveal>
+            ))}
+          </div>
+        </div>
+      </section>
+
+      {/* Founder story + the enumerated red lines (stated ONCE, concretely) */}
+      <section className="border-t border-border py-20">
+        <div className="mx-auto max-w-3xl px-4 sm:px-6">
+          <Reveal as="h2" className="text-center text-3xl font-bold tracking-tight">
+            Bunu bir yazılım şirketi değil, bir ev sahibi başlattı
+          </Reveal>
+          <Reveal delay={100} className="relative mt-10 rounded-2xl border border-border bg-card p-8 shadow-sm">
+            <Quote className="absolute -top-4 left-8 size-8 rounded-full bg-primary p-1.5 text-primary-foreground" aria-hidden="true" />
+            <div className="space-y-4 text-[15px] leading-relaxed text-foreground/90">
+              <p>
+                On civarında daireyi kendim işletiyorum. Bu işin görünmeyen mesaisi mesajlaşmadır: giriş
+                saati, otopark, şifre… aynı sorular, her hafta, çoğu gece yarısı.
+              </p>
+              <p>
+                Hazır araçları denedim. Kimi yalnızca öneri hazırlıyordu — gönderme zahmeti yine bende
+                kalıyordu. Kimi de her şeyi robota devrediyordu; oysa hassas bir konuşmada botun ne
+                söyleyeceğini kimse garanti edemez. Ben ortasını istedim: cevabı belli olan işi benim
+                ağzımdan anında halletsin, yorum isteyen her şeyi bana getirsin.
+              </p>
+              <p>
+                Lixus’u önce kendi dairelerim için kurdum; sizin açtığınız panel, benim misafirlerimi
+                yönettiğim panelin ta kendisi. Bir aracın nasıl çalışması gerektiğini en iyi, ona muhtaç
+                olan bilir.
+              </p>
+            </div>
+            <p className="mt-6 text-sm font-semibold">— Lixus AI’ın kurucusu</p>
+          </Reveal>
+
+          {/* Red lines — the one place the closed list is spelled out */}
+          <Reveal delay={160} className="mt-8 rounded-2xl border border-border bg-card/60 p-6">
+            <p className="flex items-center gap-2 text-sm font-semibold">
+              <Ban className="size-4 text-primary" aria-hidden="true" /> Koda gömülü kırmızı çizgiler
+            </p>
+            <p className="mt-1.5 text-sm text-muted-foreground">
+              Şu yedi başlıkta son söz hiçbir zaman yazılımın değildir — hangi ayarı açarsanız açın:
+            </p>
+            <div className="mt-4 flex flex-wrap gap-2">
+              {RED_LINES.map((r) => (
+                <span
+                  key={r}
+                  className="inline-flex items-center rounded-full border border-border bg-background px-3 py-1 text-xs font-medium text-foreground/80"
+                >
+                  {r}
+                </span>
+              ))}
+            </div>
+            <p className="mt-4 text-xs text-muted-foreground">
+              Bu başlıklarda yazılım taslağı hazırlar, sizi anında bilgilendirir — ama son sözü asla kendisi
+              söylemez.
+            </p>
+          </Reveal>
         </div>
       </section>
 
