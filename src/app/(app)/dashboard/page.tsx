@@ -199,16 +199,14 @@ export default async function DashboardPage() {
       {/* Getting-started guide — only until the account is fully set up. */}
       {!onboardingDone ? <OnboardingGuide steps={onboardingSteps} /> : null}
 
-      {/* AI daily summary */}
+      {/* AI daily summary — compact one-liner (same footprint as the tasks
+          note): label and text share the line, no icon tile, p-3. */}
       <Card className="border-primary/20 bg-accent/40">
-        <CardContent className="flex gap-3 p-5">
-          <div className="flex size-9 shrink-0 items-center justify-center rounded-lg bg-primary text-primary-foreground">
-            <Sparkles className="size-5" />
-          </div>
-          <div className="space-y-1">
-            <p className="text-sm font-semibold">AI Günlük Operasyon Özeti</p>
-            <p className="text-sm text-muted-foreground">{summary}</p>
-          </div>
+        <CardContent className="flex items-start gap-2.5 p-3 text-sm">
+          <Sparkles className="mt-0.5 size-4 shrink-0 text-primary" />
+          <p className="text-muted-foreground">
+            <strong className="text-foreground">AI Günlük Özet:</strong> {summary}
+          </p>
         </CardContent>
       </Card>
 
