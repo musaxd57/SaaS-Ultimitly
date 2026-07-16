@@ -2,7 +2,6 @@ import { describe, it, expect, beforeEach, vi } from "vitest";
 import { NextRequest } from "next/server";
 import { prisma, resetDb } from "../helpers/db";
 import type { SessionPayload } from "@/lib/auth";
-import { zonedDayRange } from "@/lib/timezone";
 
 // Org-timezone uçtan uca: Ayarlar'dan kapalı-set doğrulamayla yazılır; otomasyon
 // gün sınırları (previewWelcomes) ve hazırlık planı (getPrepPlan) org'un YEREL
@@ -34,7 +33,15 @@ function patch(body: unknown) {
   return PATCH(req, ctx);
 }
 
-/** Org + property + "NY gününe 2 saat kala varan" airbnb rezervasyonu. */
+// DETERMİNİSTİK pin (Codex: acele etme, emin ol) — canlı `new Date()` yerine sabit
+// bir an. 2026-07-16 yaz → NY=EDT (UTC-4), Istanbul=UTC+3 (yıl boyu). Bu an için:
+//   Istanbul gün başlangıcı = 2026-07-15T21:00Z, NY gün başlangıcı = 2026-07-16T04:00Z.
+// Varış bu iki sınırın ARASINDA (02:00Z) → Istanbul için "bugün" (>=21:00Z-dün),
+// NY için "henüz bugün değil" (<04:00Z). Böylece saat kaç olursa olsun test aynı.
+const PINNED_NOW = new Date("2026-07-16T05:00:00.000Z");
+const GAP_ARRIVAL = new Date("2026-07-16T02:00:00.000Z");
+
+/** Org + property + iki-dilim sınırının arasına düşen airbnb rezervasyonu. */
 async function seedOrgWithEdgeArrival(timezone: string | undefined, ref: string) {
   const org = await prisma.organization.create({
     data: { name: `Org ${ref}`, ...(timezone ? { timezone } : {}) },
@@ -46,16 +53,12 @@ async function seedOrgWithEdgeArrival(timezone: string | undefined, ref: string)
       supplyProfileJson: JSON.stringify({ carsaf_takimi: 2 }),
     },
   });
-  // New York "bugün"ünün başlangıcından 2 saat ÖNCE: NY için dünün akşamı,
-  // Istanbul için bugünün içi (NY start 04/05:00Z − 2h ≥ Istanbul start 21:00Z-dün).
-  const nyStart = zonedDayRange(new Date(), "America/New_York").start;
-  const arrival = new Date(nyStart.getTime() - 2 * 60 * 60 * 1000);
   await prisma.reservation.create({
     data: {
       propertyId: property.id,
       guestName: "Test Misafir",
-      arrivalDate: arrival,
-      departureDate: new Date(arrival.getTime() + 3 * 86_400_000),
+      arrivalDate: GAP_ARRIVAL,
+      departureDate: new Date(GAP_ARRIVAL.getTime() + 3 * 86_400_000),
       status: "confirmed",
       channel: "airbnb",
       sourceReference: `sr-${ref}`,
@@ -93,8 +96,8 @@ describe("org-timezone", () => {
     const nyOrg = await seedOrgWithEdgeArrival("America/New_York", "ny");
     const istOrg = await seedOrgWithEdgeArrival(undefined, "ist"); // default Istanbul
 
-    const nyRows = await previewWelcomes(nyOrg.id);
-    const istRows = await previewWelcomes(istOrg.id);
+    const nyRows = await previewWelcomes(nyOrg.id, 12, PINNED_NOW);
+    const istRows = await previewWelcomes(istOrg.id, 12, PINNED_NOW);
     expect(nyRows).toHaveLength(0); // NY takviminde konaklama dün başladı
     expect(istRows).toHaveLength(1); // Istanbul takviminde hâlâ "bugün"
   });
@@ -103,8 +106,8 @@ describe("org-timezone", () => {
     const nyOrg = await seedOrgWithEdgeArrival("America/New_York", "ny2");
     const istOrg = await seedOrgWithEdgeArrival(undefined, "ist2");
 
-    const nyPlan = await getPrepPlan(nyOrg.id);
-    const istPlan = await getPrepPlan(istOrg.id);
+    const nyPlan = await getPrepPlan(nyOrg.id, { now: PINNED_NOW });
+    const istPlan = await getPrepPlan(istOrg.id, { now: PINNED_NOW });
     expect(nyPlan.totalArrivals).toBe(0); // NY planında varış geçmişte
     expect(istPlan.totalArrivals).toBe(1); // Istanbul planında bugünün varışı
   });

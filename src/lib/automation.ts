@@ -2011,6 +2011,7 @@ export interface WelcomePreview {
 export async function previewWelcomes(
   organizationId: string,
   limit = 12,
+  now: Date = new Date(), // injectable for deterministic day-boundary tests
 ): Promise<WelcomePreview[]> {
   const org = await prisma.organization.findUnique({
     where: { id: organizationId },
@@ -2018,7 +2019,6 @@ export async function previewWelcomes(
   });
   const signature = org?.aiSignature?.trim();
 
-  const now = new Date();
   const horizon = new Date(now.getTime() + 45 * 24 * 60 * 60 * 1000);
 
   const reservations = await prisma.reservation.findMany({
