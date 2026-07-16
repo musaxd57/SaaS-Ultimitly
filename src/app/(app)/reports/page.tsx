@@ -226,9 +226,7 @@ export default async function ReportsPage() {
             )}
           </CardContent>
         </Card>
-      </div>
 
-      <div className="grid gap-4 lg:grid-cols-2">
         {/* Complaints by property */}
         <Card>
           <CardHeader className="flex-row items-center justify-between space-y-0">
@@ -237,19 +235,20 @@ export default async function ReportsPage() {
             </CardTitle>
             <Badge tone={ai.openProblems > 0 ? "destructive" : "muted"}>{ai.openProblems}</Badge>
           </CardHeader>
-          <CardContent className="space-y-2">
+          <CardContent>
             {ai.problemsByProperty.length === 0 ? (
               <EmptyState title="Açık şikayet yok" className="py-6" />
             ) : (
-              ai.problemsByProperty.map((p) => (
-                <div
-                  key={p.propertyName}
-                  className="flex items-center justify-between rounded-lg border border-border px-3 py-2 text-sm"
-                >
-                  <span className="font-medium">{p.propertyName}</span>
-                  <Badge tone="destructive">{p.count}</Badge>
-                </div>
-              ))
+              // One bordered container with row dividers — per-row borders made
+              // a box-in-box grid that read heavy/noisy.
+              <div className="divide-y divide-border rounded-lg border border-border">
+                {ai.problemsByProperty.map((p) => (
+                  <div key={p.propertyName} className="flex items-center justify-between px-3 py-2 text-sm">
+                    <span className="font-medium">{p.propertyName}</span>
+                    <Badge tone="destructive">{p.count}</Badge>
+                  </div>
+                ))}
+              </div>
             )}
           </CardContent>
         </Card>
@@ -267,25 +266,28 @@ export default async function ReportsPage() {
               <EmptyState title="Son 30 günde riskli mesaj yok" className="py-6" />
             ) : (
               <>
-                <div className="flex items-center justify-between rounded-lg border border-border px-3 py-2">
-                  <span>Yüksek riskli mesaj</span>
-                  <Badge tone={riskCount("high") > 0 ? "destructive" : "muted"}>{riskCount("high")}</Badge>
-                </div>
-                <div className="flex items-center justify-between rounded-lg border border-border px-3 py-2">
-                  <span>Orta riskli mesaj</span>
-                  <Badge tone={riskCount("medium") > 0 ? "secondary" : "muted"}>{riskCount("medium")}</Badge>
-                </div>
-                <div className="flex items-center justify-between rounded-lg border border-border px-3 py-2">
-                  <span>Şikayet — size bırakıldı</span>
-                  <Badge tone="muted">{heldCount("keyword_escalated") + heldCount("escalated_to_human")}</Badge>
-                </div>
-                <div className="flex items-center justify-between rounded-lg border border-border px-3 py-2">
-                  <span>Düşük güven — onay bekledi</span>
-                  <Badge tone="muted">{heldCount("low_confidence_or_risky")}</Badge>
-                </div>
-                <div className="flex items-center justify-between rounded-lg border border-border px-3 py-2">
-                  <span>Size bırakılanlardan yanıtladığınız</span>
-                  <Badge tone={heldResolved > 0 ? "success" : "muted"}>{heldResolved}</Badge>
+                {/* Single container + dividers (not five bordered boxes) — calmer, shorter. */}
+                <div className="divide-y divide-border rounded-lg border border-border">
+                  <div className="flex items-center justify-between px-3 py-2">
+                    <span>Yüksek riskli mesaj</span>
+                    <Badge tone={riskCount("high") > 0 ? "destructive" : "muted"}>{riskCount("high")}</Badge>
+                  </div>
+                  <div className="flex items-center justify-between px-3 py-2">
+                    <span>Orta riskli mesaj</span>
+                    <Badge tone={riskCount("medium") > 0 ? "secondary" : "muted"}>{riskCount("medium")}</Badge>
+                  </div>
+                  <div className="flex items-center justify-between px-3 py-2">
+                    <span>Şikayet — size bırakıldı</span>
+                    <Badge tone="muted">{heldCount("keyword_escalated") + heldCount("escalated_to_human")}</Badge>
+                  </div>
+                  <div className="flex items-center justify-between px-3 py-2">
+                    <span>Düşük güven — onay bekledi</span>
+                    <Badge tone="muted">{heldCount("low_confidence_or_risky")}</Badge>
+                  </div>
+                  <div className="flex items-center justify-between px-3 py-2">
+                    <span>Size bırakılanlardan yanıtladığınız</span>
+                    <Badge tone={heldResolved > 0 ? "success" : "muted"}>{heldResolved}</Badge>
+                  </div>
                 </div>
                 {riskTypeRows.length > 0 ? (
                   <div className="space-y-1 border-t border-border pt-2">
@@ -308,8 +310,9 @@ export default async function ReportsPage() {
           </CardContent>
         </Card>
 
-        {/* Occupancy by property */}
-        <Card>
+        {/* Occupancy by property — full-width row: the donut + per-property bars
+            need the space, and an odd card count otherwise leaves an empty cell. */}
+        <Card className="lg:col-span-2">
           <CardHeader>
             <CardTitle className="flex items-center gap-2 text-base">
               <BedDouble className="size-4 text-muted-foreground" /> Doluluk (daireye göre)

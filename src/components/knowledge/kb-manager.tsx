@@ -92,6 +92,16 @@ export function KbManager({
   const [creating, setCreating] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [listError, setListError] = useState<string | null>(null);
+  // Long entries (check-in instructions etc.) are CLAMPED to a preview by
+  // default so the list stays scannable; per-item toggle expands in place.
+  const [expandedIds, setExpandedIds] = useState<Set<string>>(new Set());
+  const toggleExpanded = (id: string) =>
+    setExpandedIds((prev) => {
+      const next = new Set(prev);
+      if (next.has(id)) next.delete(id);
+      else next.add(id);
+      return next;
+    });
   const [form, setForm] = useState({
     propertyId: properties[0]?.id ?? "",
     category: "general",
@@ -487,9 +497,26 @@ export function KbManager({
                         </div>
                       </div>
                     ) : (
-                      <p className="mt-1.5 whitespace-pre-wrap text-sm text-muted-foreground">
-                        {item.content}
-                      </p>
+                      <>
+                        <p
+                          className={cn(
+                            "mt-1.5 whitespace-pre-wrap text-sm text-muted-foreground",
+                            !expandedIds.has(item.id) && "line-clamp-3",
+                          )}
+                        >
+                          {item.content}
+                        </p>
+                        {/* Rough proxy for "would clamp": long or multi-line content. */}
+                        {item.content.length > 160 || item.content.includes("\n") ? (
+                          <button
+                            type="button"
+                            onClick={() => toggleExpanded(item.id)}
+                            className="mt-1 text-xs font-medium text-primary hover:underline"
+                          >
+                            {expandedIds.has(item.id) ? "Daralt" : "Devamını göster"}
+                          </button>
+                        ) : null}
+                      </>
                     )}
 
                     {copyId === item.id ? (

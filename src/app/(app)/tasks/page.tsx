@@ -121,21 +121,16 @@ export default async function TasksPage({
         ) : null}
       </PageHeader>
 
+      {/* Compact one-liner (was a tall always-open explainer card pushing the
+          board below the fold — the board IS the page, the note is a footnote). */}
       <Card className="border-primary/20 bg-accent/40">
-        <CardContent className="flex gap-3 p-5">
-          <div className="flex size-9 shrink-0 items-center justify-center rounded-lg bg-primary text-primary-foreground">
-            <Sparkles className="size-5" />
-          </div>
-          <div className="space-y-1 text-sm">
-            <p className="font-semibold">Görevleri AI yönetir</p>
-            <p className="text-muted-foreground">
-              Her yeni rezervasyonda AI otomatik olarak <strong>check-in hazırlık</strong> ve{" "}
-              <strong>çıkış temizliği</strong> görevlerini doğru tarihlerle açar. Eksik kalan olursa
-              yukarıda bir <strong>“Eksik görevleri oluştur”</strong> düğmesi belirir; görünmüyorsa tüm
-              görevler zaten oluşmuş demektir. Dilediğinizde <strong>“Yeni görev”</strong> ile elle de
-              ekleyebilir, ekibinize atayabilir, fotoğraflı kontrol notu ekleyebilirsiniz.
-            </p>
-          </div>
+        <CardContent className="flex items-center gap-2.5 p-3 text-sm">
+          <Sparkles className="size-4 shrink-0 text-primary" />
+          <p className="text-muted-foreground">
+            <strong className="text-foreground">Görevleri AI yönetir:</strong> her rezervasyonda
+            check-in hazırlık + çıkış temizliği otomatik açılır; eksik olursa üstte “Eksik görevleri
+            oluştur” belirir. “Yeni görev” ile elle de ekleyebilirsiniz.
+          </p>
         </CardContent>
       </Card>
 

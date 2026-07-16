@@ -164,9 +164,9 @@ export default async function HazirlikPage({
                 <PackageOpen className="size-4 text-muted-foreground" /> Daire Bazında
               </CardTitle>
             </CardHeader>
-            <CardContent className="space-y-4">
+            <CardContent className="space-y-3">
               {plan.perProperty.map((p) => (
-                <div key={p.propertyId} className="border-b border-border pb-3 last:border-0 last:pb-0">
+                <div key={p.propertyId} className="border-b border-border pb-2.5 last:border-0 last:pb-0">
                   <p className="mb-1.5 text-sm font-medium">
                     {p.propertyName}{" "}
                     <span className="text-xs font-normal text-muted-foreground">· {p.arrivals} giriş</span>

@@ -410,32 +410,32 @@ export function TaskBoard({ tasks, canManage = true }: { tasks: TaskCardData[]; 
 
   return (
     <div className="space-y-3">
-      {/* Time window — so far-future tasks (e.g. August arrivals) don't all dump in */}
-      <div className="flex flex-wrap gap-2">
-        {timeFilters.map((f) => {
-          const count = tasks.filter((t) => inWindow(t, f.value)).length;
-          const active = timeRange === f.value;
-          return (
-            <button
-              key={f.value}
-              type="button"
-              onClick={() => setTimeRange(f.value)}
-              className={cn(
-                "rounded-full border px-3 py-1 text-sm font-medium transition-colors",
-                active
-                  ? "border-primary bg-primary text-primary-foreground"
-                  : "border-border bg-card text-muted-foreground hover:bg-accent",
-              )}
-            >
-              {f.label} <span className="opacity-70">({count})</span>
-            </button>
-          );
-        })}
-      </div>
-
-      {/* Share the cleaning list over WhatsApp / copy — the cleaner doesn't log in */}
-      {cleaningTasks.length > 0 ? (
-        <div>
+      {/* ONE control row: time-window filters left, cleaning-share right —
+          stacked full-width rows piled up a tall header before the board. */}
+      <div className="flex flex-wrap items-center justify-between gap-2">
+        <div className="flex flex-wrap gap-2">
+          {timeFilters.map((f) => {
+            const count = tasks.filter((t) => inWindow(t, f.value)).length;
+            const active = timeRange === f.value;
+            return (
+              <button
+                key={f.value}
+                type="button"
+                onClick={() => setTimeRange(f.value)}
+                className={cn(
+                  "rounded-full border px-3 py-1 text-sm font-medium transition-colors",
+                  active
+                    ? "border-primary bg-primary text-primary-foreground"
+                    : "border-border bg-card text-muted-foreground hover:bg-accent",
+                )}
+              >
+                {f.label} <span className="opacity-70">({count})</span>
+              </button>
+            );
+          })}
+        </div>
+        {/* Share the cleaning list over WhatsApp / copy — the cleaner doesn't log in */}
+        {cleaningTasks.length > 0 ? (
           <button
             type="button"
             onClick={() => setShareOpen((s) => !s)}
@@ -443,8 +443,11 @@ export function TaskBoard({ tasks, canManage = true }: { tasks: TaskCardData[]; 
           >
             <Share2 className="size-3.5" /> Temizlik listesini paylaş ({cleaningTasks.length})
           </button>
-          {shareOpen ? (
-            <div className="mt-2 space-y-2 rounded-lg border border-border bg-muted/30 p-3">
+        ) : null}
+      </div>
+
+      {cleaningTasks.length > 0 && shareOpen ? (
+        <div className="space-y-2 rounded-lg border border-border bg-muted/30 p-3">
               <pre className="max-h-48 overflow-auto whitespace-pre-wrap break-words text-xs text-foreground">
                 {shareText}
               </pre>
@@ -466,12 +469,10 @@ export function TaskBoard({ tasks, canManage = true }: { tasks: TaskCardData[]; 
                   {copied ? "Kopyalandı" : "Kopyala"}
                 </button>
               </div>
-              <p className="text-[11px] text-muted-foreground">
-                Liste yukarıdaki filtreye göre oluşur (ör. “Bu hafta”). Temizlikçine WhatsApp&apos;tan
-                gönder ya da kopyalayıp yapıştır.
-              </p>
-            </div>
-          ) : null}
+          <p className="text-[11px] text-muted-foreground">
+            Liste yukarıdaki filtreye göre oluşur (ör. “Bu hafta”). Temizlikçine WhatsApp&apos;tan
+            gönder ya da kopyalayıp yapıştır.
+          </p>
         </div>
       ) : null}
 

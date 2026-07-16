@@ -1,10 +1,9 @@
 import Link from "next/link";
-import { Send, Bot, Sparkles, ListOrdered } from "lucide-react";
+import { Send, ListOrdered } from "lucide-react";
 import { requireAuth } from "@/lib/auth";
 import { canManage } from "@/lib/api";
 import { prisma } from "@/lib/db";
 import { PageHeader } from "@/components/page-header";
-import { Card, CardContent } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { EmptyState } from "@/components/empty-state";
 import { getConnectionInfo } from "@/lib/hospitable-credentials";
@@ -269,42 +268,37 @@ export default async function SentPage({
           description="Seçtiğiniz türde gönderilmiş mesaj bulunmuyor."
         />
       ) : (
-        <div className="space-y-2">
+        // Compact divided list (inbox pattern) — one Card+shadow per row read
+        // heavy, and the icon tile duplicated what the type badge already says.
+        <div className="divide-y divide-border overflow-hidden rounded-xl border border-border bg-card">
           {visibleItems.map((it) => (
-            <Card key={it.id}>
-              <CardContent className="flex items-start gap-3 p-4">
-                <div className="mt-0.5 flex size-8 shrink-0 items-center justify-center rounded-lg bg-primary/10 text-primary">
-                  {it.kind === "reply" ? <Bot className="size-4" /> : <Sparkles className="size-4" />}
-                </div>
-                <div className="min-w-0 flex-1">
-                  <div className="flex flex-wrap items-center gap-2">
-                    <span className="text-sm font-medium">{it.guest}</span>
-                    <Badge tone="muted">{it.property}</Badge>
-                    <Badge
-                      tone={
-                        it.kind === "welcome"
-                          ? "success"
-                          : it.kind === "checkin"
-                            ? "default"
-                            : it.kind === "checkout"
-                              ? "muted"
-                              : "secondary"
-                      }
-                    >
-                      {it.kind === "welcome"
-                        ? "Karşılama"
-                        : it.kind === "checkin"
-                          ? "Giriş"
-                          : it.kind === "checkout"
-                            ? "Çıkış"
-                            : "Oto-yanıt"}
-                    </Badge>
-                    <span className="ml-auto text-xs text-muted-foreground">{fromNow(it.when)}</span>
-                  </div>
-                  <p className="mt-1 text-sm text-muted-foreground">{it.preview}</p>
-                </div>
-              </CardContent>
-            </Card>
+            <div key={it.id} className="px-4 py-3">
+              <div className="flex flex-wrap items-center gap-2">
+                <span className="text-sm font-medium">{it.guest}</span>
+                <Badge tone="muted">{it.property}</Badge>
+                <Badge
+                  tone={
+                    it.kind === "welcome"
+                      ? "success"
+                      : it.kind === "checkin"
+                        ? "default"
+                        : it.kind === "checkout"
+                          ? "muted"
+                          : "secondary"
+                  }
+                >
+                  {it.kind === "welcome"
+                    ? "Karşılama"
+                    : it.kind === "checkin"
+                      ? "Giriş"
+                      : it.kind === "checkout"
+                        ? "Çıkış"
+                        : "Oto-yanıt"}
+                </Badge>
+                <span className="ml-auto text-xs text-muted-foreground">{fromNow(it.when)}</span>
+              </div>
+              <p className="mt-1 text-sm text-muted-foreground">{it.preview}</p>
+            </div>
           ))}
         </div>
       )}

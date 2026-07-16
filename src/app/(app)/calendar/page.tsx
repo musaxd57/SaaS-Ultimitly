@@ -212,11 +212,13 @@ export default async function CalendarPage({
                     <div
                       key={key}
                       className={cn(
-                        "min-h-[92px] rounded-lg border p-1.5 text-xs",
+                        // Tight cell: a 6-week month must fit ONE laptop screen
+                        // (user ask) — 92px-high cells pushed the grid past it.
+                        "min-h-[64px] rounded-lg border p-1 text-xs",
                         isToday ? "border-primary/60 bg-accent/40" : "border-border",
                       )}
                     >
-                      <div className="mb-1 flex items-center justify-between">
+                      <div className="mb-0.5 flex items-center justify-between">
                         <span className={cn("font-semibold", isToday && "text-primary")}>{dayNum}</span>
                         {info.occupied.size > 0 ? (
                           <span

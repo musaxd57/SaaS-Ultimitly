@@ -82,27 +82,29 @@ export default async function InboxPage({
         </LinkButton>
       </PageHeader>
 
-      <div className="flex flex-wrap gap-2">
-        {filters.map((f) => {
-          const active = (status ?? "") === f.value;
-          return (
-            <Link
-              key={f.value || "all"}
-              href={f.value ? `/inbox?status=${f.value}` : "/inbox"}
-              className={cn(
-                "rounded-full border px-3 py-1 text-sm transition-colors",
-                active
-                  ? "border-primary bg-primary text-primary-foreground"
-                  : "border-border bg-card text-muted-foreground hover:bg-accent",
-              )}
-            >
-              {f.label}
-            </Link>
-          );
-        })}
-      </div>
-
-      <form method="GET" className="flex flex-wrap items-center gap-2">
+      {/* Filters + search share ONE row (two stacked full-width rows wasted a
+          vertical band before the list). Wraps naturally on narrow screens. */}
+      <div className="flex flex-wrap items-center justify-between gap-2">
+        <div className="flex flex-wrap gap-2">
+          {filters.map((f) => {
+            const active = (status ?? "") === f.value;
+            return (
+              <Link
+                key={f.value || "all"}
+                href={f.value ? `/inbox?status=${f.value}` : "/inbox"}
+                className={cn(
+                  "rounded-full border px-3 py-1 text-sm transition-colors",
+                  active
+                    ? "border-primary bg-primary text-primary-foreground"
+                    : "border-border bg-card text-muted-foreground hover:bg-accent",
+                )}
+              >
+                {f.label}
+              </Link>
+            );
+          })}
+        </div>
+        <form method="GET" className="flex flex-wrap items-center gap-2">
         {status ? <input type="hidden" name="status" value={status} /> : null}
         <input
           name="q"
@@ -121,7 +123,8 @@ export default async function InboxPage({
             Aramayı temizle
           </Link>
         ) : null}
-      </form>
+        </form>
+      </div>
 
       {conversations.length === 0 ? (
         <EmptyState
