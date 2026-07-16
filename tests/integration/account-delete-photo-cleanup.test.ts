@@ -35,4 +35,17 @@ describe("deleteAccountData — photo cleanup failure visibility", () => {
     expect(vi.mocked(reportError)).toHaveBeenCalledTimes(1);
     expect(String(vi.mocked(reportError).mock.calls[0][0])).toContain("photo cleanup");
   });
+
+  it("ChatUsage silme org-delete ile AYNI transaction'da (Codex P3): başarılı erasure'da sayaçlar da gider", async () => {
+    const org = await prisma.organization.create({ data: { name: "Sayaçlı Org" } });
+    const property = await prisma.property.create({ data: { organizationId: org.id, name: "Daire" } });
+    await prisma.chatUsage.create({ data: { propertyId: property.id, day: "2026-07-16", count: 3 } });
+    expect(await prisma.chatUsage.count({ where: { propertyId: property.id } })).toBe(1);
+
+    await expect(deleteAccountData(org.id)).resolves.toBeUndefined();
+
+    // Org gitti VE FK'sız ChatUsage de aynı tx içinde temizlendi (tx atomik).
+    expect(await prisma.organization.findUnique({ where: { id: org.id } })).toBeNull();
+    expect(await prisma.chatUsage.count({ where: { propertyId: property.id } })).toBe(0);
+  });
 });

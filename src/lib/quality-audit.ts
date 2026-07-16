@@ -90,6 +90,22 @@ export async function collectAuditSample(
   const limit = clampLimit(opts.limit);
   const since = new Date(Date.now() - days * 86_400_000);
 
+  // GÖNDERİLMEMİŞ TASLAKLARI DIŞLA (Codex, reports.ts FAZ-0 emsali): durable
+  // outbox'a giren bir AI yanıtının Message satırı ENQUEUE'da yazılır ama misafire
+  // ulaşmadıysa (queued/canceled/failed/review) GÖNDERİLMİŞ sayılmaz — denetçi
+  // yalnız GERÇEKTEN teslim edilmiş yanıtları değerlendirmeli, yoksa prompt/test
+  // önerileri yanlış veriyle yönlenir. Flag kapalıyken bu liste boş (etki yok).
+  const undelivered = await prisma.messageOutbox.findMany({
+    where: {
+      organizationId,
+      status: { not: "sent" },
+      messageId: { not: null },
+      createdAt: { gte: since },
+    },
+    select: { messageId: true },
+  });
+  const undeliveredIds = undelivered.map((r) => r.messageId).filter((id): id is string => Boolean(id));
+
   const aiMessages = await prisma.message.findMany({
     where: {
       createdAt: { gte: since },
@@ -102,6 +118,7 @@ export async function collectAuditSample(
         { authorType: null, senderName: { in: [...LEGACY_AI_SENDER_NAMES] } },
         { aiAssisted: true },
       ],
+      ...(undeliveredIds.length ? { id: { notIn: undeliveredIds } } : {}),
     },
     orderBy: { createdAt: "desc" },
     take: limit,
@@ -124,6 +141,21 @@ export async function collectAuditSample(
     },
   });
 
+  // Property adı REDAKSİYONU (Codex): iç mülk etiketi ("Serdar'ı Ekrem 2" gibi
+  // kişisel/dahili olabilir) ham hâliyle Claude'a gitmemeli — prompt "PII redakte
+  // edildi" diyor, bu iddia property adı için de doğru olmalı. Her mülke oturuma-
+  // özel bir takma isim ("Daire-1", "Daire-2") verilir; denetçi mülk-bazında
+  // gruplayabilir ama gerçek etiketi görmez.
+  const propertyAlias = new Map<string, string>();
+  const aliasFor = (name: string): string => {
+    let a = propertyAlias.get(name);
+    if (!a) {
+      a = `Daire-${propertyAlias.size + 1}`;
+      propertyAlias.set(name, a);
+    }
+    return a;
+  };
+
   const pairs: AuditPair[] = [];
   for (const m of aiMessages) {
     // Yanıtın hemen öncesindeki misafir mesajı — denetçinin "neye cevap verdi"
@@ -136,7 +168,7 @@ export async function collectAuditSample(
     const names = [m.conversation.reservation?.guestName, m.conversation.guestIdentifier];
     pairs.push({
       messageId: m.id,
-      property: m.conversation.property.name,
+      property: aliasFor(m.conversation.property.name),
       at: m.createdAt.toISOString(),
       guest: prev ? redactForAudit(prev.body, names) : null,
       ai: redactForAudit(m.body, names),

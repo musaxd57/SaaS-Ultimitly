@@ -75,6 +75,16 @@ describe("object keys — the tenant boundary, fail-closed", () => {
     expect(isAcceptablePhotoUrl("/uploads/orgA/1-a.jpg", "orgA")).toBe(true);
     expect(isAcceptablePhotoUrl("/uploads/whatever.png", "orgA")).toBe(true);
   });
+
+  it("isAcceptablePhotoUrl: taskId verilince key'in TASK segmenti de eşleşmeli (Codex — org-içi çapraz-görev)", () => {
+    const taskA = STORAGE_PHOTO_URL_PREFIX + "org/orgA/task/t1/1-a.jpg";
+    expect(isAcceptablePhotoUrl(taskA, "orgA", "t1")).toBe(true); // doğru görev
+    expect(isAcceptablePhotoUrl(taskA, "orgA", "t2")).toBe(false); // t1'in foto'su t2'ye yazılamaz
+    // taskId verilmezse (geriye uyumluluk) yalnız org kontrol edilir.
+    expect(isAcceptablePhotoUrl(taskA, "orgA")).toBe(true);
+    // Yanlış org, taskId doğru olsa bile reddedilir.
+    expect(isAcceptablePhotoUrl(taskA, "orgB", "t1")).toBe(false);
+  });
 });
 
 describe("storage config — default OFF, fail-closed on any missing piece", () => {

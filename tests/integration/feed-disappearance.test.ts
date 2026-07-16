@@ -108,14 +108,34 @@ describe("feed-disappearance reconciliation (#23, FAZ 2)", () => {
     expect((await prisma.reservation.findUniqueOrThrow({ where: { id: r.id } })).feedMissingCount).toBeNull();
   });
 
-  it("a SUSPICIOUS sudden drop is treated as partial — no miss counted, baseline moves, warns", async () => {
+  it("a SUSPICIOUS sudden drop is treated as partial — no miss counted, baseline KORUNUR (Codex), warns", async () => {
     const { propertyId, sourceId } = await seedSource();
     await prisma.calendarSource.update({ where: { id: sourceId }, data: { lastFeedEventCount: 10 } });
     const missing = await mkRes(propertyId, sourceId, "uid-gone");
     const rec = await reconcile(sourceId, propertyId, ["uid-other"], new Date()); // 1 event vs baseline 10
     expect(rec.warning).toMatch(/düşüş/i);
     expect((await prisma.reservation.findUniqueOrThrow({ where: { id: missing.id } })).feedMissingCount).toBeNull();
-    expect((await prisma.calendarSource.findUniqueOrThrow({ where: { id: sourceId } })).lastFeedEventCount).toBe(1);
+    // Baz DÜŞÜK değere ÇEKİLMEZ: aksi hâlde aynı kısmi feed sonraki turda "güvenilir"
+    // sayılıp kaybolan 90 rezervasyonu iptal edebilirdi (Codex karantine-defeat).
+    expect((await prisma.calendarSource.findUniqueOrThrow({ where: { id: sourceId } })).lastFeedEventCount).toBe(10);
+  });
+
+  it("KARANTİNE KALICI (Codex): tekrarlanan aynı kısmi feed (100→10, 10, 10) 24s+2-miss sonrası bile iptal ETMEZ", async () => {
+    const { propertyId, sourceId } = await seedSource();
+    await prisma.calendarSource.update({ where: { id: sourceId }, data: { lastFeedEventCount: 100 } });
+    const missing = await mkRes(propertyId, sourceId, "uid-gone");
+    const present = Array.from({ length: 10 }, (_, i) => `uid-p${i}`);
+    // 3 ardışık kısmi tur, aralarında 12'şer saat (toplam >24s, ≥2 miss penceresi).
+    const t0 = Date.now();
+    for (let i = 0; i < 3; i++) {
+      const rec = await reconcile(sourceId, propertyId, present, new Date(t0 + i * 12 * 3_600_000));
+      expect(rec.cancelled).toBe(0); // HİÇBİR turda iptal yok — baz 100'de kalıyor, hep şüpheli
+    }
+    // Kayıp rezervasyon hâlâ canlı ve miss saymadı (karantina bozulmadı).
+    const r = await prisma.reservation.findUniqueOrThrow({ where: { id: missing.id } });
+    expect(r.status).toBe("confirmed");
+    expect(r.feedMissingCount).toBeNull();
+    expect((await prisma.calendarSource.findUniqueOrThrow({ where: { id: sourceId } })).lastFeedEventCount).toBe(100);
   });
 
   it("SOURCE BINDING: a stay bound to ANOTHER source is never touched (two feeds, same UID)", async () => {

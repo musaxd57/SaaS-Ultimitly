@@ -49,7 +49,8 @@ async function makeOperatorSession(): Promise<SessionPayload> {
 /** Müşteri org'u: PII'li misafir mesajı + AI yanıtı olan tek konuşma. */
 async function seedCustomerOrg() {
   const org = await prisma.organization.create({ data: { name: "Müşteri Konaklama" } });
-  const property = await prisma.property.create({ data: { organizationId: org.id, name: "Daire 1" } });
+  // Dahili/kişisel görünümlü mülk etiketi — property adı redaksiyon testi için.
+  const property = await prisma.property.create({ data: { organizationId: org.id, name: "Serdar'ı Ekrem 2" } });
   const reservation = await prisma.reservation.create({
     data: {
       propertyId: property.id,
@@ -152,12 +153,41 @@ describe("POST /api/admin/quality-audit — Claude gölge denetçisi", () => {
     expect(sent).not.toContain("Kayahan");
     expect(sent).not.toContain("532 123 45 67");
     expect(sent).toContain("[Misafir]");
+    // Property adı REDAKSİYONU (Codex): iç etiket ("Serdar'ı Ekrem 2") gitmez,
+    // oturuma-özel takma isim ("Daire-1") gider.
+    expect(sent).not.toContain("Serdar");
+    expect(sent).toContain("Daire-1");
 
     const audit = await prisma.auditLog.findFirst({ where: { action: "admin.quality_audit" } });
     expect(audit?.organizationId).toBe(org.id);
 
     // SALT-OKUMA garantisi: denetim hiçbir mesaja/konuşmaya yazmadı.
     expect(await prisma.message.count()).toBe(2);
+  });
+
+  it("GÖNDERİLMEMİŞ TASLAK dışlanır (Codex): teslim edilmemiş outbox satırına bağlı AI mesajı örnekleme girmez", async () => {
+    const org = await seedCustomerOrg();
+    // AI mesajını bul, ona bağlı PENDING (teslim edilmemiş) bir outbox satırı yaz.
+    const aiMsg = await prisma.message.findFirstOrThrow({ where: { authorType: "ai" } });
+    const conv = await prisma.conversation.findFirstOrThrow();
+    await prisma.messageOutbox.create({
+      data: {
+        organizationId: org.id,
+        conversationId: conv.id,
+        messageId: aiMsg.id,
+        channel: "airbnb",
+        externalReservationId: "ext-1",
+        body: aiMsg.body,
+        idempotencyKey: "idem-unsent-1",
+        status: "pending", // ASLA teslim edilmedi
+      },
+    });
+    session = await makeOperatorSession();
+    const res = await POST(req({ organizationId: org.id }));
+    expect(res.status).toBe(200);
+    const data = await res.json();
+    expect(data.sampleSize).toBe(0); // gönderilmemiş taslak sayılmaz
+    expect(createMock).not.toHaveBeenCalled(); // boş örneklem → Claude'a hiç gidilmez
   });
 
   it("AI yanıtı olmayan org: sampleSize 0, Claude'a HİÇ gidilmez (maliyet 0)", async () => {

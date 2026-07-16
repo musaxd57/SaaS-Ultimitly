@@ -507,6 +507,26 @@ async function processOne(row: OutboxRow, token: string, deps: Required<Pick<Dra
   const now = deps.now();
   const providerToken = await deps.tokenFor(row.organizationId);
 
+  // TENANT ISOLATION (Codex): a row whose org has NO usable token — i.e. the org
+  // DISCONNECTED after enqueue — must NEVER reach the provider. Without this guard
+  // the null token flows in as `undefined` and hospitableFetch falls back to the
+  // GLOBAL env (founder) token → a cross-tenant send (this org's reservation via
+  // the founder's Hospitable account). Park the row back to `pending` with backoff
+  // — NO provider call, NO attempt spent — so it delivers once the org reconnects.
+  // Applies to BOTH the reconciling and sending paths (reconcile also hits the API).
+  if (!providerToken) {
+    // Claimed rows are always "sending" or "reconciling" here (both hit the API).
+    await settle(row, token, row.status as OutboxStatus, {
+      status: "pending",
+      availableAt: new Date(now.getTime() + backoffMs(row.attemptCount, row.id)),
+      lastErrorKind: "disconnected",
+      claimedBy: null,
+      claimExpiresAt: null,
+    });
+    acc.retried++;
+    return;
+  }
+
   if (row.status === "reconciling") {
     const { found, providerMessageId } = await deps.reconcile(row, providerToken);
     if (found) {

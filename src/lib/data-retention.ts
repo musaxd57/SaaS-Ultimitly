@@ -392,12 +392,14 @@ export async function deleteAccountData(organizationId: string): Promise<void> {
     select: { id: true },
   });
   const propIds = props.map((p) => p.id);
-  if (propIds.length > 0) {
-    await prisma.chatUsage.deleteMany({ where: { propertyId: { in: propIds } } });
-  }
-  // Everything else cascades from the organization row — AND the storage deletion
-  // intents are written in the SAME transaction (atomic; see the note above).
+  // Everything else cascades from the organization row — AND the ChatUsage delete
+  // (no FK, wouldn't cascade) + storage deletion intents are written in the SAME
+  // transaction (Codex P3): if the org-delete rolls back, the usage counters must
+  // NOT already be gone (an account that lives on with wiped counters). Atomic.
   await prisma.$transaction(async (tx) => {
+    if (propIds.length > 0) {
+      await tx.chatUsage.deleteMany({ where: { propertyId: { in: propIds } } });
+    }
     await tx.organization.delete({ where: { id: organizationId } });
     if (storageKeys.length > 0) await enqueueStorageDeletions(tx, organizationId, storageKeys);
   });

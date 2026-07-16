@@ -48,7 +48,7 @@ export const PATCH = withAuth<{ id: string }>(async (session, req, { params }) =
   // The schema only checks the URL SHAPE; without this a member could store a photoUrl
   // pointing at another tenant's object key, which task DELETE / erasure would later
   // enqueue for deletion. Belt-and-braces with the deletion choke point + serve guard.
-  if (d.photoUrl !== undefined && !isAcceptablePhotoUrl(d.photoUrl, session.organizationId)) {
+  if (d.photoUrl !== undefined && !isAcceptablePhotoUrl(d.photoUrl, session.organizationId, id)) {
     return badRequest({ photoUrl: "Geçersiz görsel bağlantısı." });
   }
 

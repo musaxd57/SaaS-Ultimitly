@@ -150,6 +150,21 @@ describe("outbox worker — send, concurrency, crash points", () => {
     expect(row.lastErrorKind).toBe("definitive_failure");
   });
 
+  it("TENANT İZOLASYONU (Codex): org enqueue SONRASI bağlantısını kaybederse (token null) provider ÇAĞRILMAZ, satır pending'e park edilir", async () => {
+    const { outboxId } = await enqueueOne();
+    const send = okSend("SHOULD-NOT-SEND");
+    // tokenFor null döndürür (worker'ın gerçek default'u: getOrgHospitableToken →
+    // null → undefined). Bu, hospitableFetch'in env founder token'ına düşmesine yol
+    // açan tam senaryo. Guard olmadan send çağrılıp başka tenant'ın token'ı kullanılırdı.
+    const res = await drainOutboxOnce({ send, tokenFor: async () => undefined });
+    expect(send).not.toHaveBeenCalled(); // provider'a HİÇ gidilmedi — cross-tenant gönderim yok
+    const row = await outbox(outboxId);
+    expect(row.status).toBe("pending"); // yeniden bağlanınca teslim edilmek üzere park
+    expect(row.lastErrorKind).toBe("disconnected");
+    expect(row.availableAt.getTime()).toBeGreaterThan(Date.now() - 1000); // backoff ile geleceğe
+    expect(res.sent).toBe(0);
+  });
+
   it("an AMBIGUOUS result is NEVER blind-resent — it holds ambiguous, then reconciles", async () => {
     const { outboxId } = await enqueueOne();
     const send = vi.fn<OutboxSendFn>(async () => ({ ok: false, error: "HTTP 500 server error" }));

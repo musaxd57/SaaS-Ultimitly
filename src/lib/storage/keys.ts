@@ -51,6 +51,12 @@ export function orgIdFromKey(key: string): string | null {
   return key.split("/")[1] ?? null;
 }
 
+/** The task segment of a valid key (null when the key is not safe). */
+export function taskIdFromKey(key: string): string | null {
+  if (!isSafeObjectKey(key)) return null;
+  return key.split("/")[3] ?? null;
+}
+
 /** photoUrl stored in the DB for a storage-backed photo (same-origin relative → passes the existing validator). */
 export function photoUrlForKey(key: string): string {
   return STORAGE_PHOTO_URL_PREFIX + key;
@@ -69,13 +75,17 @@ export function keyFromPhotoUrl(url: string | null | undefined): string | null {
 
 /**
  * Guard a client-supplied photoUrl at WRITE time: a STORAGE url must resolve to a
- * safe key whose org segment equals `organizationId`. Returns true for a non-storage
- * (legacy /uploads) url — this only rejects a storage url that is malformed or points
- * at ANOTHER tenant, so a poisoned cross-org row can never be stored in the first place
- * (defense-in-depth alongside the deletion choke point + the serve-time org check).
+ * safe key whose org segment equals `organizationId` AND (when a taskId is given)
+ * whose task segment equals `taskId`. Returns true for a non-storage (legacy
+ * /uploads) url — this only rejects a storage url that is malformed, points at
+ * ANOTHER tenant, or (Codex) belongs to a DIFFERENT task in the same org: without
+ * the taskId check a member could PATCH task-A's object key onto task-B, and
+ * deleting task-B would enqueue task-A's still-referenced object for deletion.
+ * Defense-in-depth alongside the deletion choke point + the serve-time org check.
  */
-export function isAcceptablePhotoUrl(url: string, organizationId: string): boolean {
+export function isAcceptablePhotoUrl(url: string, organizationId: string, taskId?: string): boolean {
   if (!isStoragePhotoUrl(url)) return true; // legacy /uploads or plain path — unaffected here
   const key = keyFromPhotoUrl(url);
-  return key !== null && orgIdFromKey(key) === organizationId;
+  if (key === null || orgIdFromKey(key) !== organizationId) return false;
+  return taskId === undefined || taskIdFromKey(key) === taskId;
 }

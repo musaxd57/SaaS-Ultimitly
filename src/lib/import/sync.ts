@@ -314,7 +314,13 @@ export async function reconcileFeedDisappearance(opts: {
       return;
     }
     // RELIABILITY GATE 2 — a suspicious sudden drop is treated as a partial feed: skip miss
-    // tracking this run, but move the baseline so a GENUINE mass-removal reconciles next run.
+    // tracking this run AND keep the TRUSTED baseline (Codex). Earlier this lowered the
+    // baseline to the suspicious count, which QUARANTINE-DEFEATED itself: 100→10 skipped once,
+    // but baseline became 10, so the SAME partial feed (10) was no longer "suspicious" next run
+    // → the 90 missing rows accrued misses and could mass-cancel after 2 misses + 24h. Keeping
+    // the high baseline means a sustained partial NEVER reconciles until a FULL feed reappears
+    // (≥ ratio of the baseline) — the deliberate, safe bias for this feature (mass-cancel = never
+    // again). A genuinely-shrunk feed simply won't auto-cancel; the host sees the rows linger.
     if (
       src.lastFeedEventCount != null &&
       src.lastFeedEventCount >= SUSPICIOUS_DROP_MIN_BASE &&
@@ -323,7 +329,7 @@ export async function reconcileFeedDisappearance(opts: {
       warning = `Takvim akışı ${src.lastFeedEventCount} → ${eventCount} ani düşüş (kısmi olabilir) — kayıp uzlaştırması bu turda atlandı.`;
       await tx.calendarSource.update({
         where: { id: source.id },
-        data: { lastFeedEventCount: eventCount, lastReconcileAt: runStartedAt },
+        data: { lastReconcileAt: runStartedAt }, // baseline KORUNUR — suspicious sayı bazı ezmez
       });
       return;
     }
