@@ -8,11 +8,16 @@ const nextConfig = {
   reactStrictMode: true,
   // Don't advertise the framework (minor info-leak hardening).
   poweredByHeader: false,
-  // Safe, additive security headers on every response. The Content-Security-Policy
-  // is REPORT-ONLY: it never blocks anything (so it cannot break the app), it only
-  // surfaces violations in the browser console — groundwork for an enforced policy
-  // later (which would need nonces for Next's inline bootstrap). All header-only.
+  // Safe, additive security headers on every response. CSP is TWO-TIER (Codex P2):
+  //  * ENFORCED: only the directives that cannot break a Next.js app because the
+  //    app never uses the features they gate — object-src (plugins), base-uri
+  //    (<base> hijack), frame-ancestors (clickjacking; mirrors X-Frame-Options).
+  //  * REPORT-ONLY: the FULL policy incl. script-src. Enforcing script-src needs
+  //    per-request nonces for Next's inline bootstrap (ayrı altyapı turu) —
+  //    'unsafe-inline'ı enforce etmek koruma katmaz, nonce'suz sıkılaştırmak
+  //    paneli komple kırar. Gözlem katmanı o tur için veri toplar.
   async headers() {
+    const cspEnforced = ["object-src 'none'", "base-uri 'self'", "frame-ancestors 'self'"].join("; ");
     const cspReportOnly = [
       "default-src 'self'",
       "base-uri 'self'",
@@ -37,6 +42,7 @@ const nextConfig = {
           { key: "Cross-Origin-Opener-Policy", value: "same-origin" },
           { key: "Cross-Origin-Resource-Policy", value: "same-site" },
           { key: "X-Permitted-Cross-Domain-Policies", value: "none" },
+          { key: "Content-Security-Policy", value: cspEnforced },
           { key: "Content-Security-Policy-Report-Only", value: cspReportOnly },
         ],
       },

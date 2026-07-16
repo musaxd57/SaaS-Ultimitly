@@ -141,4 +141,24 @@ describe("POST /api/account/password (e-mail code flow)", () => {
     });
     expect(u?.pwChangeCodeHash).toBeNull();
   });
+
+  it("YARIŞ (Codex P1): aynı geçerli kodla iki PARALEL confirm — yalnız biri geçer, epoch TEK artar", async () => {
+    await POST(req({ action: "request" }));
+    const code = codeFromEmail();
+    const [a, b] = await Promise.all([
+      POST(req({ action: "confirm", code, newPassword: "yarisSifre111" })),
+      POST(req({ action: "confirm", code, newPassword: "yarisSifre222" })),
+    ]);
+    // Koşulsuz çifte yazma yok: tam olarak biri 200, diğeri 400 (kod tüketildi).
+    expect([a.status, b.status].sort()).toEqual([200, 400]);
+
+    const u = await prisma.user.findUniqueOrThrow({ where: { id: session.userId } });
+    expect(u.sessionEpoch).toBe(1); // tek bump — kaybeden epoch'a dokunamadı
+    expect(u.pwChangeCodeHash).toBeNull(); // kod tek seferde yandı
+    // Geçerli şifre KAZANANINKİ; kaybedenki asla yazılmadı (last-writer-wins yok).
+    const winnerPw = a.status === 200 ? "yarisSifre111" : "yarisSifre222";
+    const loserPw = a.status === 200 ? "yarisSifre222" : "yarisSifre111";
+    expect(await verifyPassword(winnerPw, u.passwordHash)).toBe(true);
+    expect(await verifyPassword(loserPw, u.passwordHash)).toBe(false);
+  });
 });

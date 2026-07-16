@@ -136,16 +136,21 @@ export async function POST(req: NextRequest) {
         where: { id: session.userId },
         select: { pwChangeCodeHash: true },
       });
-      const ok = user?.pwChangeCodeHash ? await verifyPassword(code, user.pwChangeCodeHash) : false;
-      if (!ok) {
+      const codeHash = user?.pwChangeCodeHash ?? null;
+      if (!codeHash || !(await verifyPassword(code, codeHash))) {
         // Wrong code — the attempt was already counted by the atomic claim above.
         return badRequest({ code: "Kod hatalı." });
       }
 
-      // Code valid → set the new password and burn the code.
+      // Code valid → CONSUME the code and set the password in ONE conditional
+      // write (Codex P1): the WHERE pins the exact hash we just verified, so of
+      // two parallel confirms racing the same code only the FIRST matches — the
+      // second sees count=0 (hash already NULLed, or replaced by a newer code)
+      // and is rejected. Kills last-writer-wins on the password and enforces the
+      // code's single-use promise (email-verify atomic-consume emsali).
       const passwordHash = await hashPassword(newPassword);
-      await prisma.user.update({
-        where: { id: session.userId },
+      const consumed = await prisma.user.updateMany({
+        where: { id: session.userId, pwChangeCodeHash: codeHash },
         data: {
           passwordHash,
           pwChangeCodeHash: null,
@@ -156,6 +161,9 @@ export async function POST(req: NextRequest) {
           sessionEpoch: { increment: 1 },
         },
       });
+      if (consumed.count === 0) {
+        return badRequest({ code: "Kod az önce kullanıldı. Yeni bir kod isteyin." });
+      }
       await writeAudit({
         organizationId: session.organizationId,
         actorUserId: session.actorUserId ?? session.userId,

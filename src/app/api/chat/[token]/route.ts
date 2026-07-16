@@ -8,6 +8,7 @@ import { verifyReservationPin } from "@/lib/guest-chat-pin";
 import { sendQrEscalationAlertBounded, qrEscalationEventId } from "@/lib/guest-chat-alerts";
 import { jsonOk, badRequest, tooManyRequests } from "@/lib/api";
 import { rateLimit, clientIp } from "@/lib/rate-limit";
+import { isUniqueViolation } from "@/lib/db-errors";
 
 export const dynamic = "force-dynamic";
 
@@ -134,20 +135,40 @@ async function recordGuestChat(
   });
   let conversationId: string;
   if (!existing) {
-    const created = await prisma.conversation.create({
-      data: {
-        propertyId,
-        channel: "chat",
-        guestIdentifier: reservation.guestName,
-        status: "answered",
-        priority: escalated ? "urgent" : "standard",
-        lastMessageAt: now,
-        reservationId: reservation.id,
-        externalReservationId: marker,
-      },
-      select: { id: true },
-    });
-    conversationId = created.id;
+    // DETERMİNİSTİK id = rezervasyon başına tek QR konuşması, PK üzerinden
+    // atomik (Codex P1): iki eşzamanlı "ilk mesaj" aynı id'yi yaratmaya çalışır,
+    // PostgreSQL PK'sı birini P2002 ile düşürür — kaybeden kazananın satırını
+    // kullanır. Migration'sız unique: externalReservationId'ye tablo-geneli
+    // @@unique koymak Hospitable satırlarını da bağlardı (aynı rezervasyonun
+    // birden çok gerçek thread'i meşru), o yüzden kapsam SADECE QR id'si.
+    // Eski (rastgele id'li) QR konuşmaları yukarıdaki findFirst ile bulunmaya
+    // devam eder — onlar için bu yol hiç koşmaz.
+    const qrConversationId = `qrconv_${reservation.id}`;
+    try {
+      const created = await prisma.conversation.create({
+        data: {
+          id: qrConversationId,
+          propertyId,
+          channel: "chat",
+          guestIdentifier: reservation.guestName,
+          status: "answered",
+          priority: escalated ? "urgent" : "standard",
+          lastMessageAt: now,
+          reservationId: reservation.id,
+          externalReservationId: marker,
+        },
+        select: { id: true },
+      });
+      conversationId = created.id;
+    } catch (err) {
+      if (!isUniqueViolation(err, ["id"])) throw err;
+      // Yarışı kaybeden istek: kazananın satırına devam et (mesaj kaybolmaz).
+      await prisma.conversation.update({
+        where: { id: qrConversationId },
+        data: { lastMessageAt: now, ...(escalated ? { priority: "urgent" } : {}) },
+      });
+      conversationId = qrConversationId;
+    }
   } else {
     await prisma.conversation.update({
       where: { id: existing.id },

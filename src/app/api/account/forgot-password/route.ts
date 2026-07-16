@@ -138,15 +138,17 @@ export async function POST(req: NextRequest) {
         where: { email },
         select: { id: true, organizationId: true, pwResetCodeHash: true },
       });
-      const ok = user?.pwResetCodeHash ? await verifyPassword(code, user.pwResetCodeHash) : false;
-      if (!ok || !user) {
+      const codeHash = user?.pwResetCodeHash ?? null;
+      if (!user || !codeHash || !(await verifyPassword(code, codeHash))) {
         return badRequest({ code: GENERIC_CONFIRM });
       }
 
-      // Code valid → set the new password and burn the code.
+      // Code valid → CONSUME + set password in ONE conditional write (Codex P1,
+      // logged-in flow ile aynı desen): WHERE doğruladığımız hash'i pinler; aynı
+      // kodla yarışan iki confirm'den yalnız İLKİ eşleşir, ikincisi count=0 alır.
       const passwordHash = await hashPassword(newPassword);
-      await prisma.user.update({
-        where: { id: user.id },
+      const consumed = await prisma.user.updateMany({
+        where: { id: user.id, pwResetCodeHash: codeHash },
         data: {
           passwordHash,
           pwResetCodeHash: null,
@@ -158,6 +160,9 @@ export async function POST(req: NextRequest) {
           sessionEpoch: { increment: 1 },
         },
       });
+      if (consumed.count === 0) {
+        return badRequest({ code: GENERIC_CONFIRM });
+      }
       await writeAudit({
         organizationId: user.organizationId,
         actorUserId: user.id,

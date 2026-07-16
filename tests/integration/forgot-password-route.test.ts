@@ -120,4 +120,22 @@ describe("POST /api/account/forgot-password (public reset)", () => {
     const u = await prisma.user.findUnique({ where: { email: EMAIL }, select: { pwResetCodeHash: true } });
     expect(u?.pwResetCodeHash).toBeNull();
   });
+
+  it("YARIŞ (Codex P1): aynı geçerli kodla iki PARALEL confirm — yalnız biri geçer, kod tek yanar", async () => {
+    await POST(req({ action: "request", email: EMAIL }));
+    const code = codeFromEmail();
+    const [a, b] = await Promise.all([
+      POST(req({ action: "confirm", email: EMAIL, code, newPassword: "yarisSifre111" })),
+      POST(req({ action: "confirm", email: EMAIL, code, newPassword: "yarisSifre222" })),
+    ]);
+    expect([a.status, b.status].sort()).toEqual([200, 400]);
+
+    const u = await prisma.user.findUniqueOrThrow({ where: { email: EMAIL } });
+    expect(u.sessionEpoch).toBe(1); // tek bump
+    expect(u.pwResetCodeHash).toBeNull();
+    const winnerPw = a.status === 200 ? "yarisSifre111" : "yarisSifre222";
+    const loserPw = a.status === 200 ? "yarisSifre222" : "yarisSifre111";
+    expect(await verifyPassword(winnerPw, u.passwordHash)).toBe(true);
+    expect(await verifyPassword(loserPw, u.passwordHash)).toBe(false);
+  });
 });

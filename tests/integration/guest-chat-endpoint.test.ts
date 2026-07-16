@@ -234,4 +234,36 @@ describe("POST /api/chat/[token] (public QR concierge)", () => {
     expect(mockSuggest).not.toHaveBeenCalled();
     expect(await prisma.conversation.count({ where: { propertyId } })).toBe(0);
   });
+
+  it("YARIŞ (Codex P1): aynı cihazdan iki PARALEL ilk mesaj rezervasyona TEK konuşma açar", async () => {
+    const { propertyId } = await makeOrgWithProperty();
+    const token = await enableChat(propertyId);
+
+    // Cihazı bağla (ilk mesaj) ve çerezi al; sonra konuşmayı silerek "cihaz
+    // bağlı ama konuşma henüz yok" ilk-oluşturma durumunu yeniden kur (host
+    // reset sonrası ile aynı durum) — yarış tam bu pencerede yaşanır.
+    const first = await call(token, "İlk bağlama mesajı");
+    expect(first.status).toBe(200);
+    const cookie = deviceCookie(first);
+    await prisma.message.deleteMany({ where: { conversation: { propertyId } } });
+    await prisma.conversation.deleteMany({ where: { propertyId } });
+
+    const [a, b] = await Promise.all([
+      call(token, "Paralel mesaj A", cookie),
+      call(token, "Paralel mesaj B", cookie),
+    ]);
+    expect(a.status).toBe(200);
+    expect(b.status).toBe(200); // yarışı kaybeden istek de mesajını KAYBETMEZ
+
+    // Deterministik PK sayesinde interleaving ne olursa olsun TEK konuşma.
+    const convos = await prisma.conversation.findMany({ where: { propertyId } });
+    expect(convos).toHaveLength(1);
+    const reservation = await prisma.reservation.findFirstOrThrow({ where: { propertyId } });
+    expect(convos[0].id).toBe(`qrconv_${reservation.id}`);
+    // Her iki misafir mesajı da aynı thread'de (2 inbound + 2 bot yanıtı).
+    const inbound = await prisma.message.count({
+      where: { conversationId: convos[0].id, direction: "inbound" },
+    });
+    expect(inbound).toBe(2);
+  });
 });
