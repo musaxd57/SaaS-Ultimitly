@@ -300,6 +300,13 @@ export default async function AdminPage() {
             gönderimi etkilemez. &quot;Kapı&quot; kolonu kapının <strong>kararıdır</strong> (teslimat
             değil). Bu tablo Aşama-2 insan değerlendirmesinin ham girdisidir.
           </p>
+          <p className="rounded-lg border border-amber-300 bg-amber-50 p-3 text-xs text-amber-800">
+            <strong>Hukuk notu:</strong> Akash (GLM) üçüncü bir veri işleyendir. Misafir mesajı
+            redakte edilerek gönderilir (ad/telefon/e-posta maskeli) ama kendi hesabın dışındaki
+            müşterilerde geniş açmadan önce Akash için DPA + gizlilik metnindeki alt-işleyen
+            listesine ekleme (KVKK m.9) tamamlanmalı. Şu an tek işletmeye pinlemek için Railway&apos;e{" "}
+            <code className="font-mono">SHADOW_AI_ORG_IDS</code> ekle.
+          </p>
           {!shadowAiEnabled() ? (
             <p className="rounded-lg border border-dashed border-border bg-muted/40 p-3 text-sm text-muted-foreground">
               Pasif: Railway&apos;e <code className="font-mono text-xs">SHADOW_AI_ENABLED=1</code>{" "}

@@ -98,6 +98,11 @@ export function QualityAuditCard({
         gönderilmez, hiçbir prompt değişmez — öneriler ancak insan onayıyla koda işlenir. Misafir
         adı, e-posta ve telefon Claude&apos;a gitmeden redakte edilir.
       </p>
+      <p className="rounded-lg border border-amber-300 bg-amber-50 p-3 text-xs text-amber-800">
+        <strong>Hukuk notu:</strong> Anthropic (Claude) üçüncü bir veri işleyendir. Kendi hesabın
+        dışındaki müşterilerin yanıtlarında düzenli kullanmadan önce Anthropic için DPA + gizlilik
+        metnindeki alt-işleyen listesine ekleme (KVKK m.9) tamamlanmalı.
+      </p>
 
       {!configured ? (
         <p className="rounded-lg border border-dashed border-border bg-muted/40 p-3 text-sm text-muted-foreground">
