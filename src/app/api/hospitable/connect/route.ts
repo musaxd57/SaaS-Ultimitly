@@ -78,12 +78,19 @@ export async function POST(req: NextRequest) {
     try {
       info = await verifyToken(token);
     } catch (err) {
+      // 402/403 = the token is FINE but the Hospitable plan doesn't include API
+      // access (Essentials tier). Say so honestly — otherwise the host is told
+      // "token invalid" and blames their (correct) token. This is the #1
+      // onboarding barrier, so the message must be actionable, not misleading.
+      const status = err instanceof HospitableError ? err.status : undefined;
       const msg =
-        err instanceof HospitableError
-          ? "Token geçersiz ya da Hospitable'a ulaşılamadı."
-          : err instanceof Error
-            ? err.message
-            : "Doğrulama başarısız.";
+        status === 402 || status === 403
+          ? "Token doğru ama Hospitable planınız API erişimi içermiyor (ör. Essentials). Rezervasyon ve mesajları çekebilmek için Hospitable'da API erişimli bir plana (Starter ve üzeri) geçmeniz gerekir."
+          : err instanceof HospitableError
+            ? "Token geçersiz ya da Hospitable'a ulaşılamadı."
+            : err instanceof Error
+              ? err.message
+              : "Doğrulama başarısız.";
       return NextResponse.json({ ok: false, error: msg }, { status: 400 });
     }
 
