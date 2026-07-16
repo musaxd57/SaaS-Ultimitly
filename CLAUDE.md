@@ -116,8 +116,14 @@ Hospitable panelini kullanmadan, yalnızca Lixus'un çektiği veriyi (property/r
 **message:write**) alsın. Amaç: bugünkü **$29/ay Hospitable-app maliyet engelini kaldırmak** (asıl müşteri-
 edinme engeli). Fiyat hipotezi ~$7/daire (placeholder). Sıra: ÖNCE fizibilite SONRA fiyat. Pitch: "Lixus
 = Hospitable'ı Türkiye'de büyüten dağıtım kanalı" (kazan-kazan).
+**DOĞRULANMIŞ (web, 2026-07-16 — help.hospitable.com):** Public API/PAT erişimi ÜCRETLİ planlarda (Host/
+Professional/Mogul); **ücretsiz Essentials'ta API YOK** → Lixus'a mesaj/rezervasyon çekilemez (connect kartı
++ 402-hata bunu artık dürüstçe söylüyor). PAT yolu: my.hospitable.com → **Apps** (veya Settings→Integrations) →
+**Access tokens** sekmesi → "+ Add new" (ESKİ "Settings→API" YANLIŞTI, düzeltildi); PAT 1 yıl geçerli, yalnız
+owner/admin üretir, okuma+yazma izni gerekir (mesaj gönderimi için write). Fiyatlar: Host $25.52/Professional
+$51.92/Mogul $87.12 (yıllık aylık) + ücretsiz Essentials.
 **Durum (Patrick, 2026-07-02):** Connect KAPANDI (tam mesajlaşma yok, sadece Airbnb-bağlama). **Public API
-+ OAuth vendor flow** tek yol (host'un $29 Hospitable aboneliği ŞART). White-label/reseller ŞU AN YOK ("trafik
++ OAuth vendor flow** tek yol (host'un ÜCRETLİ Hospitable aboneliği ŞART). White-label/reseller ŞU AN YOK ("trafik
 gösterince pilot konuş" — kapı açık). **YENİ FIRSAT:** Patrick "tek ana hesap altında birden fazla host mülkü
 yönetmek mümkün, bariyeri düşürebilir, white-label'lanabilir" dedi → property-manager modeli. ⚠️ Mimari not
 (kullanıcı onayı gerek, kod DEĞİL): "tek hesap→çoklu tenant" bugünkü per-org token modelinden farklı, tenant-

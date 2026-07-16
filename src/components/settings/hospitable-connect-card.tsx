@@ -192,11 +192,22 @@ export function HospitableConnectCard({
           <div className="rounded-md border bg-muted/40 p-3 text-sm text-muted-foreground">
             <p className="mb-1.5 font-medium text-foreground">Bağlantı anahtarı nasıl alınır? (2 dakika)</p>
             <ol className="list-decimal space-y-1 pl-4">
-              <li>Hospitable hesabınızda <strong>Settings → API</strong> bölümüne girin.</li>
-              <li><strong>&quot;Create Personal Access Token&quot;</strong> deyin ve bir isim verin.</li>
-              <li>Oluşan anahtarı <strong>kopyalayın</strong> (<code>hospitable_pat_...</code> ile başlar).</li>
+              <li>
+                <strong>my.hospitable.com</strong>&apos;da giriş yapın; kenar menüden{" "}
+                <strong>Apps</strong> (veya <strong>Settings → Integrations</strong>) →{" "}
+                <strong>Access tokens</strong> sekmesine gidin.
+              </li>
+              <li>
+                <strong>&quot;+ Add new&quot;</strong> ile yeni bir anahtar oluşturun, bir isim verin
+                ve <strong>okuma + yazma</strong> izni seçin (mesaj gönderimi için yazma gerekir).
+              </li>
+              <li>Oluşan anahtarı <strong>kopyalayın</strong> (bir daha gösterilmez).</li>
               <li>Aşağıdaki kutuya <strong>yapıştırın → Bağla</strong>.</li>
             </ol>
+            <p className="mt-1.5 text-xs">
+              Not: Anahtarı yalnız hesap sahibi veya tam-yetkili yönetici oluşturabilir; anahtar
+              1 yıl geçerlidir.
+            </p>
             <p className="mt-1.5 text-xs">
               🔒 Token <strong>şifreli olarak</strong> saklanır; sadece bu hesabın mülklerine erişir
               ve bir daha hiç görüntülenmez — biz bile göremeyiz.
@@ -215,7 +226,7 @@ export function HospitableConnectCard({
                 type="password"
                 value={token}
                 onChange={(e) => setToken(e.target.value)}
-                placeholder="hospitable_pat_..."
+                placeholder="Hospitable access token"
                 autoComplete="off"
               />
             </Field>
