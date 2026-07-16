@@ -159,6 +159,47 @@ describe("recordShadowVerdict — GLM gölge Aşama-1", () => {
     expect(await prisma.shadowVerdict.count()).toBe(1);
   });
 
+  it("VERİ MİNİMİZASYONU (Codex): telefon/e-posta/ad Akash'a HAM gitmez — placeholder gider, risk kelimeleri kalır", async () => {
+    const fetchMock = vi.fn<(input: RequestInfo | URL, init?: RequestInit) => Promise<Response>>(
+      async () => glmResponse({ verdict: "escalate", riskType: "money_refund", confidence: 0.9 }),
+    );
+    vi.stubGlobal("fetch", fetchMock);
+    const org = await seedOrg();
+    await recordShadowVerdict({
+      organizationId: org.id,
+      triggerId: "m10",
+      guestMessage:
+        "Ben Yılmaz Kayahan, paramı geri istiyorum! Beni 0532 123 45 67 numarasından veya yilmaz.k@example.com adresinden arayın.",
+      guestName: "Yılmaz Kayahan",
+      gateDecision: "human_review",
+    });
+    const sentBody = String(fetchMock.mock.calls[0]?.[1]?.body);
+    // Ham tanımlayıcılar fetch gövdesinde YOK…
+    expect(sentBody).not.toContain("0532 123 45 67");
+    expect(sentBody).not.toContain("yilmaz.k@example.com");
+    expect(sentBody).not.toContain("Yılmaz");
+    // …placeholder'lar VAR ve risk anlamı bozulmadı.
+    expect(sentBody).toContain("[PHONE]");
+    expect(sentBody).toContain("[EMAIL]");
+    expect(sentBody).toContain("[Misafir]");
+    expect(sentBody).toContain("paramı geri istiyorum");
+  });
+
+  it("STALE PENDING (Codex): yarım kalan claim satırı KÖR RETRY tetiklemez, 'pending' olarak görünür kalır", async () => {
+    const org = await seedOrg();
+    // Simüle çökme: claim yazılmış, hüküm hiç gelmemiş.
+    await prisma.shadowVerdict.create({
+      data: { organizationId: org.id, triggerId: "m11", gateDecision: "auto_sent", model: "x", error: "pending" },
+    });
+    const fetchMock = vi.fn();
+    vi.stubGlobal("fetch", fetchMock);
+    await recordShadowVerdict({ organizationId: org.id, triggerId: "m11", guestMessage: "x", gateDecision: "auto_sent" });
+    expect(fetchMock).not.toHaveBeenCalled(); // dedupe: aynı mesaj yeniden Akash'a gitmez
+    const row = await prisma.shadowVerdict.findFirstOrThrow({ where: { triggerId: "m11" } });
+    expect(row.error).toBe("pending"); // sessizce silinmez/değişmez — kartta "yarım" görünür
+    expect(row.verdict).toBeNull();
+  });
+
   it("dev upstream gövdesi (Codex #4): byte tavanı aşımı belleğe alınmaz, satıra arıza yazılır", async () => {
     vi.stubGlobal("fetch", vi.fn(async () => new Response("x".repeat(200_000), { status: 200 })));
     const org = await seedOrg();

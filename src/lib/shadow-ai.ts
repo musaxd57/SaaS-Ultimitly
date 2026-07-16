@@ -3,6 +3,7 @@ import "server-only";
 import { prisma } from "@/lib/db";
 import { isUniqueViolation } from "@/lib/db-errors";
 import { redactSensitive } from "@/lib/report-error";
+import { redactNameFromBody } from "@/lib/data-retention";
 import { RISK_TYPES } from "@/lib/risk-events";
 
 // ---------------------------------------------------------------------------
@@ -32,9 +33,12 @@ import { RISK_TYPES } from "@/lib/risk-events";
 //   SHADOW_AI_ORG_IDS     — opsiyonel virgüllü org allowlist'i (boş = tüm org'lar);
 //                           pilotu tek işletmeye (örn. Nuve) pinlemek için
 //
-// KVKK: misafir mesajı SINIFLANDIRMA için modele gider (birincil motor OpenAI'ye
-// gittiği gibi — Akash da ikinci veri işleyendir, DPA notu LEGAL listesinde) ama
-// bu tabloya ASLA yazılmaz: at-rest yalnız kapalı-set kodlar + opak id'ler.
+// KVKK — VERİ MİNİMİZASYONU (Codex): misafir mesajı Akash'a gitmeden ÖNCE
+// redakte edilir — telefon/e-posta/uzun kod-token placeholder olur ([PHONE]/
+// [EMAIL]/[NUM]), bilinen misafir adı [Misafir] olur. Risk ANLAMI bozulmaz
+// (şikayet/para/güvenlik kelimeleri aynen kalır; sınıflandırma için kimlik
+// gerekmez). Tabloya ise mesajın HİÇBİR hâli yazılmaz: at-rest yalnız kapalı-set
+// kodlar + opak id'ler. Akash yine ikinci veri işleyendir (DPA notu LEGAL'de).
 // ---------------------------------------------------------------------------
 
 const VERDICTS = new Set(["allow", "hold", "escalate"]);
@@ -104,8 +108,10 @@ export interface ShadowInput {
   conversationId?: string | null;
   /** Gölgelenen inbound Message id — org ile birlikte dedupe anahtarı. */
   triggerId: string;
-  /** Misafir mesajı — modele gider, tabloya YAZILMAZ. */
+  /** Misafir mesajı — REDAKTE EDİLEREK modele gider, tabloya YAZILMAZ. */
   guestMessage: string;
+  /** Bilinen misafir adı/tanımlayıcısı — mesaj içinde geçiyorsa redakte edilir. */
+  guestName?: string | null;
   gateDecision: "auto_sent" | "human_review";
   gateRiskLevel?: string | null;
   gateRiskType?: string | null;
@@ -218,7 +224,14 @@ export async function recordShadowVerdict(input: ShadowInput): Promise<void> {
           model,
           messages: [
             { role: "system", content: SHADOW_SYSTEM_PROMPT },
-            { role: "user", content: input.guestMessage.slice(0, MESSAGE_CAP) },
+            // Veri minimizasyonu: önce bilinen ad (metin hâlâ hamken), sonra
+            // değer-şekilli PII (telefon/e-posta/uzun kod) placeholder'lanır.
+            {
+              role: "user",
+              content: redactSensitive(
+                redactNameFromBody(input.guestMessage, input.guestName ? [input.guestName] : []),
+              ).slice(0, MESSAGE_CAP),
+            },
           ],
           temperature: 0,
           max_tokens: 200,

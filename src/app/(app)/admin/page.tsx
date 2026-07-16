@@ -347,7 +347,11 @@ export default async function AdminPage() {
                         <td className="py-1.5 pr-3">{r.riskType ?? "—"}</td>
                         <td className="py-1.5 pr-3">{r.confidence != null ? r.confidence.toFixed(2) : "—"}</td>
                         <td className="py-1.5">
-                          {r.error ? (
+                          {r.error === "pending" ? (
+                            // Claim yazıldı ama süreç hüküm gelmeden öldü — kör
+                            // retry YOK (dedupe engeller); insan görsün diye ayrı etiket.
+                            <span className="text-muted-foreground">yarım</span>
+                          ) : r.error ? (
                             <span className="text-destructive">arıza</span>
                           ) : r.agrees === true ? (
                             <span className="text-emerald-600">uyumlu</span>
