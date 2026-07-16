@@ -10,6 +10,7 @@ import { TaskBoard, type TaskCardData } from "@/components/tasks/task-board";
 import { BackfillTasksButton } from "@/components/tasks/backfill-button";
 import { safeJsonParse, cn, daysUntilDate, formatDayInTz } from "@/lib/utils";
 import { zonedDayRange } from "@/lib/automation";
+import { orgTimezone } from "@/lib/timezone";
 
 export const dynamic = "force-dynamic";
 
@@ -26,6 +27,14 @@ export default async function TasksPage({
   // A repeated ?propertyId= param arrives as string[] at runtime; take the first
   // so a bare array never reaches Prisma on this scalar field (would throw).
   const propertyId = Array.isArray(sp.propertyId) ? sp.propertyId[0] : sp.propertyId;
+
+  // Day bucketing ("Bugün" filter, cleaning-gap count) follows the HOST'S
+  // calendar day (org.timezone; default Istanbul — unchanged for existing orgs).
+  const orgRow = await prisma.organization.findUnique({
+    where: { id: session.organizationId },
+    select: { timezone: true },
+  });
+  const TZ = orgTimezone(orgRow?.timezone);
 
   const [tasks, properties, reservationsMissingTasks] = await Promise.all([
     prisma.task.findMany({
@@ -72,18 +81,17 @@ export default async function TasksPage({
             property: { organizationId: session.organizationId },
             status: { not: "cancelled" },
             tasks: { none: { type: "cleaning" } },
-            departureDate: { gte: zonedDayRange(new Date(), "Europe/Istanbul").start },
+            departureDate: { gte: zonedDayRange(new Date(), TZ).start },
           },
         })
       : Promise.resolve(0),
   ]);
 
   // Drives the Bugün / Bu hafta / Bu ay filter. Each task is bucketed by the
-  // Istanbul calendar day of its dueAt (daysUntilDate) — the SAME basis the card's
-  // date label uses (formatDayInTz) — so a task shown as "10 Haz" always lands in
-  // "Bugün" on the 10th (the host's Istanbul day), no matter what time-of-day it
-  // was stored at (Hospitable UTC-midnight, iCal local-noon, or Istanbul-midnight).
-  const TZ = "Europe/Istanbul"; // Türkiye, UTC+3 year-round
+  // org-local calendar day of its dueAt (daysUntilDate) — the SAME basis the
+  // card's date label uses (formatDayInTz) — so a task shown as "10 Haz" always
+  // lands in "Bugün" on the 10th (the host's local day), no matter what
+  // time-of-day it was stored at (UTC-midnight, iCal local-noon, or local-midnight).
   const now = new Date();
 
   const cards: TaskCardData[] = tasks.map((t) => {

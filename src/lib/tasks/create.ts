@@ -1,6 +1,7 @@
 import "server-only";
 
 import { prisma } from "@/lib/db";
+import { orgTimezone } from "@/lib/timezone";
 import { detectOperationalTask, buildOperationalTaskData } from "./detect";
 
 export type CreateOperationalTaskResult =
@@ -28,10 +29,17 @@ export async function createOperationalTaskFromMessage(ctx: {
   const detected = detectOperationalTask(ctx.message, ctx.ai ?? {});
   if (!detected) return { status: "none" };
 
+  // Dedupe day-bucket in the HOST'S calendar day (org.timezone), not a fixed one.
+  const property = await prisma.property.findUnique({
+    where: { id: ctx.propertyId },
+    select: { organization: { select: { timezone: true } } },
+  });
+
   const data = buildOperationalTaskData(detected, {
     propertyId: ctx.propertyId,
     message: ctx.message,
     now: ctx.now,
+    timezone: orgTimezone(property?.organization?.timezone),
   });
 
   // Intra-day dedupe: skip if an OPEN task with the same key already exists. Non-

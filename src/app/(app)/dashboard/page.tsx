@@ -1,5 +1,6 @@
 import Link from "next/link";
 import { zonedDayRange } from "@/lib/automation";
+import { orgTimezone } from "@/lib/timezone";
 import {
   LogIn,
   LogOut,
@@ -37,7 +38,7 @@ export default async function DashboardPage() {
     where: { id: orgId },
     select: { timezone: true, aiSignature: true, autoReplyHospitable: true },
   });
-  const { start: dayStart, end: dayEnd } = zonedDayRange(now, org?.timezone ?? "Europe/Istanbul");
+  const { start: dayStart, end: dayEnd } = zonedDayRange(now, orgTimezone(org?.timezone));
   const scope = { property: { organizationId: orgId } };
 
   const [stats, arrivalsRaw, departuresRaw, conversations, tasksToday] = await Promise.all([
@@ -201,7 +202,7 @@ export default async function DashboardPage() {
           day: "numeric",
           month: "long",
           year: "numeric",
-          timeZone: org?.timezone ?? "Europe/Istanbul",
+          timeZone: orgTimezone(org?.timezone),
         })}
       />
 

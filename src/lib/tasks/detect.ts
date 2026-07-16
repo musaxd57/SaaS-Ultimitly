@@ -13,10 +13,10 @@ import { TASK_TYPE } from "@/lib/constants";
 // safety-gate tweak never silently reroutes tasks, and a task-net tweak never
 // weakens the gate. Do NOT wire these into passesAutoReplySafetyGate.
 
-// Dedupe day-key timezone. Turkey-focused product; the org default is
-// Europe/Istanbul. The key only buckets tasks by calendar day, so an exact
-// per-org tz is unnecessary here.
-const TZ = "Europe/Istanbul";
+// Dedupe day-key timezone: the ORG's zone (caller passes it; default stays
+// Europe/Istanbul). The key buckets tasks by the host's calendar day, so an
+// org abroad gets its own local-day collapse window.
+import { DEFAULT_TIMEZONE } from "@/lib/timezone";
 
 export type OperationalTaskType = "maintenance" | "restock" | "cleaning";
 
@@ -143,9 +143,9 @@ export interface OperationalTaskData {
   dedupeKey: string;
 }
 
-/** Istanbul "YYYY-MM-DD" of an instant (Postgres-safe, en-CA yields ISO order). */
-function dayKey(now: Date): string {
-  return now.toLocaleDateString("en-CA", { timeZone: TZ });
+/** Org-local "YYYY-MM-DD" of an instant (Postgres-safe, en-CA yields ISO order). */
+function dayKey(now: Date, tz: string): string {
+  return now.toLocaleDateString("en-CA", { timeZone: tz });
 }
 
 /**
@@ -155,9 +155,10 @@ function dayKey(now: Date): string {
  */
 export function buildOperationalTaskData(
   detected: DetectedTask,
-  ctx: { propertyId: string; message: string; now?: Date },
+  ctx: { propertyId: string; message: string; now?: Date; timezone?: string },
 ): OperationalTaskData {
   const now = ctx.now ?? new Date();
+  const tz = ctx.timezone ?? DEFAULT_TIMEZONE;
   const label = TASK_TYPE.label(detected.type); // "Bakım" | "Eksik Eşya" | "Temizlik"
   return {
     type: detected.type,
@@ -169,6 +170,6 @@ export function buildOperationalTaskData(
     // issue on the same day collapses (guest re-sends "musluk akıtıyor"), but two
     // DISTINCT same-category problems ("klima bozuk" + "musluk akıtıyor", or
     // "havlu eksik" + "şampuan bitti") stay separate, each an actionable task.
-    dedupeKey: `${ctx.propertyId}:${detected.type}:${detected.topic.replace(/\s+/g, "-")}:${dayKey(now)}`,
+    dedupeKey: `${ctx.propertyId}:${detected.type}:${detected.topic.replace(/\s+/g, "-")}:${dayKey(now, tz)}`,
   };
 }

@@ -10,6 +10,7 @@ import { AutoReplyToggle } from "@/components/inbox/auto-reply-toggle";
 import { AiTestCard } from "@/components/settings/ai-test-card";
 import { TestEmailButton } from "@/components/settings/test-email-button";
 import { AlertEmailForm } from "@/components/settings/alert-email-form";
+import { TimezoneForm } from "@/components/settings/timezone-form";
 import { AutomationPrefsForm } from "@/components/settings/automation-prefs-form";
 import { IcalPrivacyForm } from "@/components/settings/ical-privacy-form";
 import { AccountCard } from "@/components/settings/account-card";
@@ -57,6 +58,7 @@ export default async function SettingsPage({
         aiSignature: true,
         aiStyleProfile: true,
         alertEmail: true,
+        timezone: true,
         autoReplyDisclosure: true,
         autoHoldingReplyEnabled: true,
         autoClosingReplyEnabled: true,
@@ -334,6 +336,15 @@ export default async function SettingsPage({
             E-postaların geldiğini doğrulamak için bir test maili gönderin:
           </p>
           <TestEmailButton />
+        </CardContent>
+      </Card>
+
+      <Card className="max-w-2xl">
+        <CardHeader>
+          <CardTitle className="text-base">Saat Dilimi</CardTitle>
+        </CardHeader>
+        <CardContent>
+          <TimezoneForm initial={org?.timezone ?? "Europe/Istanbul"} />
         </CardContent>
       </Card>
 

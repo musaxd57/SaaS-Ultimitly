@@ -1,6 +1,7 @@
 import "server-only";
 
 import { prisma } from "@/lib/db";
+import { orgTimezone, zonedDayRange } from "@/lib/timezone";
 import {
   SUPPLY_ITEMS,
   SUPPLY_ITEM_KEYS,
@@ -15,9 +16,6 @@ import {
 // uses). plan = Σ_property (arrivals × profile).
 
 const KEY_SET = new Set<string>(SUPPLY_ITEM_KEYS);
-// Istanbul is UTC+3 year-round (no DST since 2016) — a fixed offset is safe and
-// matches the calendar/reports day bucketing.
-const IST_OFFSET_MS = 3 * 60 * 60 * 1000;
 
 export type SupplyProfile = Partial<Record<SupplyItemKey, number>>;
 
@@ -65,11 +63,8 @@ export function buildSupplyChecklist(profile: SupplyProfile): { label: string; d
   }));
 }
 
-/** Istanbul-local midnight (as a UTC instant) of the day containing `now`. */
-function istanbulDayStart(now: Date): Date {
-  const key = now.toLocaleDateString("en-CA", { timeZone: "Europe/Istanbul" }); // YYYY-MM-DD
-  return new Date(Date.parse(`${key}T00:00:00Z`) - IST_OFFSET_MS);
-}
+// (Sabit istanbulDayStart kaldırıldı — gün başlangıcı artık org.timezone ile
+//  zonedDayRange'den gelir; DST'li dilimlerde sabit-offset matematiği yanlıştı.)
 
 export interface PrepPlanItem extends SupplyItemDef {
   qty: number;
@@ -120,16 +115,21 @@ export async function getPrepPlan(
 ): Promise<PrepPlan> {
   const days = Math.max(1, Math.min(opts.days ?? 7, 60));
   const now = opts.now ?? new Date();
-  const start = istanbulDayStart(now);
-  const end = new Date(start.getTime() + days * 24 * 60 * 60 * 1000);
 
   const [org, properties] = await Promise.all([
-    prisma.organization.findUnique({ where: { id: organizationId }, select: { supplyStockJson: true } }),
+    prisma.organization.findUnique({
+      where: { id: organizationId },
+      select: { supplyStockJson: true, timezone: true },
+    }),
     prisma.property.findMany({
       where: { organizationId },
       select: { id: true, name: true, supplyProfileJson: true },
     }),
   ]);
+  // "Today" starts at the HOST'S local midnight (org.timezone), matching the
+  // dashboard/calendar day bucketing. Horizon = fixed days*24h from that start.
+  const start = zonedDayRange(now, orgTimezone(org?.timezone)).start;
+  const end = new Date(start.getTime() + days * 24 * 60 * 60 * 1000);
   const stock = parseSupplyProfile(org?.supplyStockJson); // same { key: qty } shape
   const hasStock = Object.keys(stock).length > 0;
   const empty: PrepPlan = { days, start, end, totalArrivals: 0, linen: [], consumables: [], perProperty: [], missingProfile: [], hasStock };

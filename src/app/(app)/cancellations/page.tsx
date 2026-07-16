@@ -8,8 +8,7 @@ import { Badge } from "@/components/ui/badge";
 import { RESERVATION_CHANNEL } from "@/lib/constants";
 import { cn, formatDate } from "@/lib/utils";
 import { zonedDayRange } from "@/lib/automation";
-
-const TZ = "Europe/Istanbul"; // Türkiye, UTC+3 year-round
+import { orgTimezone, zonedDateStart } from "@/lib/timezone";
 
 export const dynamic = "force-dynamic";
 
@@ -23,23 +22,23 @@ const PERIODS: { value: Period; label: string }[] = [
 
 /**
  * Date window (by stay arrival date) for the selected period, anchored to the
- * host's Istanbul calendar — NOT the server's zone (Railway is UTC). Hospitable
- * stores arrivalDate at Istanbul-midnight-UTC and iCal/CSV at noon-UTC, so a UTC
- * boundary mis-buckets a stay by a day; we mirror tasks/page.tsx & automation.ts
- * and key off the Istanbul day. Boundaries are computed as Istanbul calendar
- * days, then each mapped to its exact Istanbul-midnight (and 23:59:59.999) UTC
- * instant via zonedDayRange. Null = no filter ("Tümü"). */
-function windowFor(period: Period): { gte: Date; lte: Date } | null {
+ * HOST'S calendar (org.timezone) — NOT the server's zone (Railway is UTC).
+ * Hospitable stores arrivalDate at local-midnight-UTC and iCal/CSV at noon-UTC,
+ * so a UTC boundary mis-buckets a stay by a day; we mirror tasks/page.tsx &
+ * automation.ts and key off the org-local day. Calendar-day boundaries map to
+ * exact UTC instants via zonedDateStart (probe-date yaklaşımı UTC'nin batısındaki
+ * dilimlerde bir gün kayardı). Null = no filter ("Tümü"). */
+function windowFor(period: Period, tz: string): { gte: Date; lte: Date } | null {
   const now = new Date();
   if (period === "all") return null;
 
-  // Today's Istanbul calendar day boundaries (start = Istanbul-midnight UTC).
-  const today = zonedDayRange(now, TZ);
+  // Today's org-local calendar day boundaries (start = local-midnight UTC instant).
+  const today = zonedDayRange(now, tz);
   if (period === "day") return { gte: today.start, lte: today.end };
 
-  // The Istanbul calendar Y-M-D of "today", used to derive week/month edges.
+  // The org-local calendar Y-M-D of "today", used to derive week/month edges.
   const key = new Intl.DateTimeFormat("en-CA", {
-    timeZone: TZ,
+    timeZone: tz,
     year: "numeric",
     month: "2-digit",
     day: "2-digit",
@@ -48,19 +47,21 @@ function windowFor(period: Period): { gte: Date; lte: Date } | null {
 
   if (period === "week") {
     // Week starts Monday (matches the previous weekStartsOn: 1). Compute the
-    // Mon/Sun calendar days via UTC date math on the Istanbul Y-M-D, then map
-    // each boundary day back to its Istanbul instant through zonedDayRange.
+    // Mon/Sun calendar day NUMBERS via UTC date math on the local Y-M-D (pure
+    // calendar arithmetic), then map each day to its local instant directly.
     const dow = new Date(Date.UTC(y, m - 1, d)).getUTCDay(); // 0=Sun..6=Sat
     const sinceMonday = (dow + 6) % 7; // Mon→0 .. Sun→6
-    const monday = new Date(Date.UTC(y, m - 1, d - sinceMonday));
-    const sunday = new Date(Date.UTC(y, m - 1, d - sinceMonday + 6));
-    return { gte: zonedDayRange(monday, TZ).start, lte: zonedDayRange(sunday, TZ).end };
+    return {
+      gte: zonedDateStart(y, m, d - sinceMonday, tz),
+      lte: new Date(zonedDateStart(y, m, d - sinceMonday + 7, tz).getTime() - 1),
+    };
   }
 
-  // month: first and last calendar day of the Istanbul month.
-  const first = new Date(Date.UTC(y, m - 1, 1));
-  const last = new Date(Date.UTC(y, m, 0)); // day 0 of next month = last day of this one
-  return { gte: zonedDayRange(first, TZ).start, lte: zonedDayRange(last, TZ).end };
+  // month: first day of the local month → last instant before next month's 1st.
+  return {
+    gte: zonedDateStart(y, m, 1, tz),
+    lte: new Date(zonedDateStart(y, m + 1, 1, tz).getTime() - 1),
+  };
 }
 
 /**
@@ -83,7 +84,11 @@ export default async function CancellationsPage({
   // bare array never reaches Prisma on this scalar field (would throw).
   const propertyId = Array.isArray(sp.propertyId) ? sp.propertyId[0] : sp.propertyId;
   const period: Period = PERIODS.some((p) => p.value === sp.period) ? (sp.period as Period) : "all";
-  const win = windowFor(period);
+  const orgRow = await prisma.organization.findUnique({
+    where: { id: session.organizationId },
+    select: { timezone: true },
+  });
+  const win = windowFor(period, orgTimezone(orgRow?.timezone));
 
   const [reservations, properties] = await Promise.all([
     prisma.reservation.findMany({

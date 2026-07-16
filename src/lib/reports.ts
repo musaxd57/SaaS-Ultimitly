@@ -3,16 +3,24 @@ import { prisma } from "@/lib/db";
 import { Prisma } from "@prisma/client";
 import { reservationAmount } from "@/lib/money";
 import { computeResponseEpisodes } from "@/lib/response-episodes";
-import { zonedDayRange } from "@/lib/automation";
+import { orgTimezone, zonedDayRange, zonedDateStart } from "@/lib/timezone";
 
-// Reporting day/occupancy math is anchored to the host's Istanbul calendar
-// (UTC+3, no DST) — Railway runs UTC and Hospitable stores arrivalDate at
-// Istanbul-midnight-UTC, so bucketing by the server's UTC day shifts month-edge
-// nights by a day. istDayKey returns the Istanbul "YYYY-MM-DD" of an instant;
-// zonedDayRange maps an Istanbul calendar day to its exact UTC boundaries.
-const REPORT_TZ = "Europe/Istanbul";
+// Reporting day/occupancy math is anchored to the HOST'S calendar day
+// (org.timezone, default Europe/Istanbul) — Railway runs UTC and arrivalDates
+// land at local-midnight-UTC, so bucketing by the server's UTC day shifts
+// month-edge nights by a day. dayKeyTz returns the org-local "YYYY-MM-DD" of an
+// instant; zonedDayRange maps an org-local calendar day to its UTC boundaries.
 const DAY_MS = 24 * 60 * 60 * 1000;
-const istDayKey = (d: Date): string => d.toLocaleDateString("en-CA", { timeZone: REPORT_TZ });
+const dayKeyTz = (d: Date, tz: string): string => d.toLocaleDateString("en-CA", { timeZone: tz });
+
+/** The org's report timezone (one cheap PK read; bozuk/boş değer → Istanbul). */
+async function reportTz(orgId: string): Promise<string> {
+  const org = await prisma.organization.findUnique({
+    where: { id: orgId },
+    select: { timezone: true },
+  });
+  return orgTimezone(org?.timezone);
+}
 
 export interface OpsStats {
   arrivalsToday: number;
@@ -38,7 +46,7 @@ export async function getOpsStats(orgId: string): Promise<OpsStats> {
     where: { id: orgId },
     select: { timezone: true },
   });
-  const { start: dayStart, end: dayEnd } = zonedDayRange(now, org?.timezone ?? "Europe/Istanbul");
+  const { start: dayStart, end: dayEnd } = zonedDayRange(now, orgTimezone(org?.timezone));
   const activeStatus = { in: ["confirmed", "completed"] };
 
   const [
@@ -156,18 +164,15 @@ export interface MonthlyReport {
 
 export async function getMonthlyReport(orgId: string): Promise<MonthlyReport> {
   const now = new Date();
-  // Month window anchored to the host's ISTANBUL calendar month — same class of
-  // fix as the occupancy day-keys. date-fns startOfMonth/endOfMonth use the
-  // server's UTC month, which shifts the 21:00–24:00 UTC window (already the 1st
-  // in Istanbul) and month-edge nights into the wrong month. Istanbul is fixed
-  // UTC+3 (no DST) — the same assumption the shared day-key helpers rely on.
-  // End is EXCLUSIVE (first instant of the next Istanbul month) → `lt`.
-  const [istYear, istMonth] = istDayKey(now).split("-").map(Number);
-  const IST_OFFSET_MS = 3 * 60 * 60 * 1000;
-  const monthStart = new Date(Date.UTC(istYear, istMonth - 1, 1) - IST_OFFSET_MS);
-  const monthEnd = new Date(
-    Date.UTC(istMonth === 12 ? istYear + 1 : istYear, istMonth === 12 ? 0 : istMonth, 1) - IST_OFFSET_MS,
-  );
+  // Month window anchored to the HOST'S calendar month (org.timezone) — same
+  // class of fix as the occupancy day-keys. date-fns startOfMonth/endOfMonth use
+  // the server's UTC month, which shifts month-edge nights into the wrong month.
+  // zonedDateStart handles DST'li zones correctly (the old fixed UTC+3 math
+  // couldn't). End is EXCLUSIVE (first instant of the next local month) → `lt`.
+  const tz = await reportTz(orgId);
+  const [locYear, locMonth] = dayKeyTz(now, tz).split("-").map(Number);
+  const monthStart = zonedDateStart(locYear, locMonth, 1, tz);
+  const monthEnd = zonedDateStart(locYear, locMonth + 1, 1, tz);
 
   const [reservations, completedTasks, totalTasks, messagesCount] = await Promise.all([
     prisma.reservation.findMany({
@@ -244,16 +249,17 @@ export interface PropertyOccupancy {
 }
 
 export async function getOccupancyByProperty(orgId: string): Promise<PropertyOccupancy[]> {
-  // Anchor every month/day boundary to the host's Istanbul calendar (not the
-  // server's UTC day). zonedDayRange maps an Istanbul calendar day to its exact
-  // UTC [midnight, 23:59:59.999] instant, so a stay stored at Istanbul-midnight-
-  // UTC lands on the correct night instead of shifting a day at the month edge.
-  const istKey = istDayKey(new Date()); // "YYYY-MM-DD" — today in Istanbul
-  const [iy, im, todayDayOfMonth] = istKey.split("-").map(Number);
+  // Anchor every month/day boundary to the HOST'S calendar (org.timezone, not the
+  // server's UTC day). zonedDateStart maps a local calendar day to its exact UTC
+  // midnight instant, so a stay stored at local-midnight-UTC lands on the correct
+  // night instead of shifting a day at the month edge.
+  const tz = await reportTz(orgId);
+  const locKey = dayKeyTz(new Date(), tz); // "YYYY-MM-DD" — today, org-local
+  const [iy, im, todayDayOfMonth] = locKey.split("-").map(Number);
 
-  const thisMonthStart = zonedDayRange(new Date(Date.UTC(iy, im - 1, 1)), REPORT_TZ).start;
-  const thisMonthEnd = zonedDayRange(new Date(Date.UTC(iy, im, 0)), REPORT_TZ).end;
-  const lastMonthStart = zonedDayRange(new Date(Date.UTC(iy, im - 2, 1)), REPORT_TZ).start;
+  const thisMonthStart = zonedDateStart(iy, im, 1, tz);
+  const thisMonthEnd = new Date(zonedDateStart(iy, im + 1, 1, tz).getTime() - 1);
+  const lastMonthStart = zonedDateStart(iy, im - 1, 1, tz);
 
   const properties = await prisma.property.findMany({
     where: { organizationId: orgId },
@@ -266,9 +272,9 @@ export async function getOccupancyByProperty(orgId: string): Promise<PropertyOcc
   //
   // Cut both windows off at the same day-of-month so the delta is like-for-like
   // (this-month-to-date vs last-month-over-the-same-days). countOccupiedDays
-  // counts each Istanbul day cur with rangeStart <= cur < rangeEnd, so an
-  // exclusive end at "Istanbul-midnight of day N" yields exactly days 1..N-1.
-  const thisMonthCutoff = zonedDayRange(new Date(Date.UTC(iy, im - 1, todayDayOfMonth)), REPORT_TZ).start;
+  // counts each org-local day cur with rangeStart <= cur < rangeEnd, so an
+  // exclusive end at "local midnight of day N" yields exactly days 1..N-1.
+  const thisMonthCutoff = zonedDateStart(iy, im, todayDayOfMonth, tz);
   const daysInLastMonth = new Date(Date.UTC(iy, im - 1, 0)).getUTCDate();
   // Clamp the comparison window to last month's length (e.g. today=31, last
   // month had 30 days → compare the full 30 elapsed nights of last month). The
@@ -276,7 +282,7 @@ export async function getOccupancyByProperty(orgId: string): Promise<PropertyOcc
   // is daysInLastMonth + 1 — capping at daysInLastMonth would count only 1..29
   // and silently drop last month's final night from the delta baseline.
   const lastMonthCutoffDay = Math.min(todayDayOfMonth, daysInLastMonth + 1);
-  const lastMonthCutoff = zonedDayRange(new Date(Date.UTC(iy, im - 2, lastMonthCutoffDay)), REPORT_TZ).start;
+  const lastMonthCutoff = zonedDateStart(iy, im - 1, lastMonthCutoffDay, tz);
 
   // Denominators = elapsed nights in each window (days 1..cutoff-1). max(1, …)
   // guards day-1 of the month / empty windows from a divide-by-zero.
@@ -317,9 +323,9 @@ export async function getOccupancyByProperty(orgId: string): Promise<PropertyOcc
     for (const r of reservations) {
       const start = r.arrivalDate > rangeStart ? r.arrivalDate : rangeStart;
       const end = r.departureDate < rangeEnd ? r.departureDate : rangeEnd;
-      let cur = zonedDayRange(start, REPORT_TZ).start; // Istanbul-midnight of start's day
+      let cur = zonedDayRange(start, tz).start; // org-local midnight of start's day
       while (cur < end) {
-        occupied.add(istDayKey(cur));
+        occupied.add(dayKeyTz(cur, tz));
         cur = new Date(cur.getTime() + DAY_MS);
       }
     }
@@ -460,10 +466,11 @@ export async function getOccupancyForecast(
   orgId: string,
   daysAhead = 30,
 ): Promise<OccupancyForecast> {
-  // Istanbul calendar days (UTC+3, no DST): "today" is the Istanbul-midnight UTC
-  // instant and each day steps 24h, so the overlap test buckets Hospitable stays
-  // (stored at Istanbul-midnight-UTC) on the correct night, not one day early.
-  const today = zonedDayRange(new Date(), REPORT_TZ).start;
+  // Org-local calendar days: "today" is the local-midnight UTC instant and each
+  // day steps 24h, so the overlap test buckets stays (stored at local-midnight-
+  // UTC) on the correct night, not one day early.
+  const tz = await reportTz(orgId);
+  const today = zonedDayRange(new Date(), tz).start;
   const forecastEnd = new Date(today.getTime() + daysAhead * DAY_MS);
 
   const [totalProperties, reservations] = await Promise.all([
@@ -487,7 +494,7 @@ export async function getOccupancyForecast(
   for (let i = 0; i < daysAhead; i++) {
     const day = new Date(today.getTime() + i * DAY_MS);
     const dayEnd = new Date(day.getTime() + DAY_MS);
-    const dateStr = istDayKey(day);
+    const dateStr = dayKeyTz(day, tz);
 
     // Count distinct properties occupied on this day
     const occupiedProperties = new Set<string>();
@@ -538,14 +545,15 @@ export interface HostPerformanceScore {
 export async function getHostPerformanceScore(orgId: string): Promise<HostPerformanceScore> {
   const now = new Date();
   const thirtyDaysAgo = new Date(now.getTime() - 30 * 24 * 60 * 60 * 1000);
-  // Istanbul-anchored month/day window (mirrors getOccupancyByProperty) so the
-  // task due-window keys off the host's calendar day, not the server's UTC day —
-  // otherwise, in the Istanbul 00:00–03:00 band the cutoff jumps back a whole UTC
+  // Org-local month/day window (mirrors getOccupancyByProperty) so the task
+  // due-window keys off the host's calendar day, not the server's UTC day —
+  // otherwise, in the local 00:00–03:00 band the cutoff jumps back a whole UTC
   // day and mis-scores task completion.
-  const istKey = istDayKey(now);
-  const [iy, im] = istKey.split("-").map(Number);
-  const monthStart = zonedDayRange(new Date(Date.UTC(iy, im - 1, 1)), REPORT_TZ).start;
-  const todayStart = zonedDayRange(now, REPORT_TZ).start;
+  const tz = await reportTz(orgId);
+  const locKey = dayKeyTz(now, tz);
+  const [iy, im] = locKey.split("-").map(Number);
+  const monthStart = zonedDateStart(iy, im, 1, tz);
+  const todayStart = zonedDayRange(now, tz).start;
 
   // 1. Response rate — EPISODE-BASED (Codex #33): every consecutive guest-message
   //    run that STARTED in the last 30 days counts once (clock = first message of

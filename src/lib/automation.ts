@@ -1,6 +1,9 @@
 import "server-only";
 import { addDays } from "date-fns";
 import { prisma } from "@/lib/db";
+import { orgTimezone, zonedDayRange, currentHourInTimeZone, dateKeyInTimeZone } from "@/lib/timezone";
+// Geriye dönük uyumluluk: bu yardımcılar uzun süre buradan import edildi.
+export { zonedDayRange, currentHourInTimeZone } from "@/lib/timezone";
 import { isUniqueViolation } from "@/lib/db-errors";
 import { recordRiskEvent } from "@/lib/risk-events";
 import { reservationAmountNumber } from "@/lib/money";
@@ -500,20 +503,9 @@ export function automatedReplyNote(lang: string | undefined, orgEnabled: boolean
   return notes[l] ?? notes.en;
 }
 
-/** Current hour (0-23) in the given IANA timezone (e.g. "Europe/Istanbul"). */
-export function currentHourInTimeZone(timeZone: string, now: Date = new Date()): number {
-  try {
-    const formatted = new Intl.DateTimeFormat("en-US", {
-      timeZone,
-      hour: "numeric",
-      hour12: false,
-    }).format(now);
-    const hour = parseInt(formatted, 10) % 24;
-    return Number.isNaN(hour) ? now.getHours() : hour;
-  } catch {
-    return now.getHours();
-  }
-}
+// currentHourInTimeZone / dateKeyInTimeZone / zonedDayRange artık @/lib/timezone'da
+// (supply/detect gibi modüller automation'a döngü kurmadan kullanabilsin diye);
+// mevcut importçular için buradan re-export edilir.
 
 /**
  * Is `hour` inside the [startHour, endHour) window?
@@ -546,7 +538,7 @@ export async function createReservationTasks(reservationId: string): Promise<num
       arrivalDate: true,
       departureDate: true,
       status: true,
-      property: { select: { supplyProfileJson: true } },
+      property: { select: { supplyProfileJson: true, organization: { select: { timezone: true } } } },
     },
   });
   if (!r || r.status === "cancelled") return 0;
@@ -568,12 +560,12 @@ export async function createReservationTasks(reservationId: string): Promise<num
   });
   const has = new Set(existing.map((t) => t.type));
 
-  // "Today" boundary in the host's timezone (Istanbul) — matches the dashboard and
-  // the missing-tasks count. date-fns startOfDay uses the server's UTC day, which
-  // is 3h behind Istanbul; reservation dates land at Istanbul midnight (BEFORE UTC
-  // midnight), so a UTC gate wrongly treats TODAY's checkout as past and creates
-  // nothing. That is exactly why "Eksik görevleri oluştur" reported 0 created.
-  const todayStart = zonedDayRange(new Date(), "Europe/Istanbul").start;
+  // "Today" boundary in the HOST'S timezone (org.timezone) — matches the dashboard
+  // and the missing-tasks count. date-fns startOfDay uses the server's UTC day;
+  // reservation dates land at local midnight (BEFORE UTC midnight for UTC+ zones),
+  // so a UTC gate wrongly treats TODAY's checkout as past and creates nothing.
+  // That is exactly why "Eksik görevleri oluştur" reported 0 created.
+  const todayStart = zonedDayRange(new Date(), orgTimezone(r.property?.organization?.timezone)).start;
   const data: {
     propertyId: string;
     reservationId: string;
@@ -949,7 +941,7 @@ export async function applyChannelAutoReply(
       if (!options.dryRun) await persistRiskVisibility(conversation.id, "reservation_ended");
       return { sent: false, skippedReason: "reservation_ended", ...meta };
     }
-    if (conversation.reservation.departureDate < zonedDayRange(new Date(), org.timezone).start) {
+    if (conversation.reservation.departureDate < zonedDayRange(new Date(), orgTimezone(org.timezone)).start) {
       // Istanbul day boundary (not server UTC) — otherwise a guest still checked in
       // on checkout-day morning (departureDate at Istanbul midnight = before UTC
       // midnight) would be wrongly treated as departed and the reply skipped.
@@ -1616,62 +1608,7 @@ function guestFirstName(name: string): string | null {
   return first;
 }
 
-/** Calendar date (YYYY-MM-DD) of `d` as seen in the given IANA timezone. */
-function dateKeyInTimeZone(d: Date, tz: string): string {
-  try {
-    return new Intl.DateTimeFormat("en-CA", {
-      timeZone: tz,
-      year: "numeric",
-      month: "2-digit",
-      day: "2-digit",
-    }).format(d);
-  } catch {
-    return d.toISOString().slice(0, 10);
-  }
-}
-
-/** How far ahead (ms) the IANA `tz` is from UTC at the given instant. */
-function tzOffsetMs(tz: string, at: Date): number {
-  try {
-    const parts = new Intl.DateTimeFormat("en-US", {
-      timeZone: tz,
-      hour12: false,
-      year: "numeric",
-      month: "2-digit",
-      day: "2-digit",
-      hour: "2-digit",
-      minute: "2-digit",
-      second: "2-digit",
-    }).formatToParts(at);
-    const f = Object.fromEntries(parts.map((p) => [p.type, p.value]));
-    const asUtc = Date.UTC(
-      Number(f.year),
-      Number(f.month) - 1,
-      Number(f.day),
-      Number(f.hour) % 24,
-      Number(f.minute),
-      Number(f.second),
-    );
-    return asUtc - at.getTime();
-  } catch {
-    return 0;
-  }
-}
-
-/**
- * UTC [start, end] instants spanning the calendar day of `now` as seen in the
- * IANA `tz` (e.g. "Europe/Istanbul"). Use this so "today's arrivals/departures"
- * are bucketed by the host's local day, not the server's UTC day.
- */
-export function zonedDayRange(now: Date, tz: string): { start: Date; end: Date } {
-  const key = dateKeyInTimeZone(now, tz); // "YYYY-MM-DD" in tz
-  const [y, m, d] = key.split("-").map(Number);
-  const utcMidnight = Date.UTC(y, m - 1, d, 0, 0, 0, 0);
-  const offsetMs = tzOffsetMs(tz, new Date(utcMidnight));
-  const start = new Date(utcMidnight - offsetMs);
-  const end = new Date(start.getTime() + 24 * 60 * 60 * 1000 - 1);
-  return { start, end };
-}
+// (dateKeyInTimeZone / tzOffsetMs / zonedDayRange → @/lib/timezone'a taşındı)
 
 // Placeholder the host can drop into a welcome template — {isim} / {ad} / {name}
 // — replaced with the guest's first name when the message is sent.
@@ -1760,7 +1697,7 @@ export async function sendDueWelcomes(
 
   const org = await prisma.organization.findUnique({
     where: { id: organizationId },
-    select: { autoWelcome: true, autoWelcomeEnabledAt: true, aiSignature: true },
+    select: { autoWelcome: true, autoWelcomeEnabledAt: true, aiSignature: true, timezone: true },
   });
   if (!org || !org.autoWelcome) return { sent: 0, considered: 0 };
 
@@ -1788,8 +1725,8 @@ export async function sendDueWelcomes(
       // never drop a real Hospitable reservation — it just skips iCal/manual ones.
       channel: { notIn: ["ics", "manual"] },
       createdAt: { gte: baseline }, // only bookings created since welcome was enabled
-      // Istanbul day boundary (not server UTC) so today's arrival isn't dropped.
-      arrivalDate: { gte: zonedDayRange(now, "Europe/Istanbul").start },
+      // Org-local day boundary (not server UTC) so today's arrival isn't dropped.
+      arrivalDate: { gte: zonedDayRange(now, orgTimezone(org.timezone)).start },
     },
     select: {
       id: true,
@@ -1897,7 +1834,7 @@ export async function sendDueCheckins(
 
   const org = await prisma.organization.findUnique({
     where: { id: organizationId },
-    select: { autoCheckin: true, autoCheckinEnabledAt: true, aiSignature: true },
+    select: { autoCheckin: true, autoCheckinEnabledAt: true, aiSignature: true, timezone: true },
   });
   if (!org || !org.autoCheckin) return { sent: 0, considered: 0 };
 
@@ -1920,7 +1857,7 @@ export async function sendDueCheckins(
       channel: { notIn: ["ics", "manual"] }, // only Hospitable-messageable bookings (never iCal/manual)
       createdAt: { gte: baseline }, // only bookings created since this was enabled
       arrivalDate: {
-        gte: zonedDayRange(now, "Europe/Istanbul").start, // not for stays already begun/past (Istanbul day)
+        gte: zonedDayRange(now, orgTimezone(org.timezone)).start, // not for stays already begun/past (org-local day)
         lte: addDays(now, CHECKIN_LEAD_DAYS), // …only once within the lead window
       },
     },
@@ -2021,7 +1958,7 @@ export async function previewWelcomes(
 ): Promise<WelcomePreview[]> {
   const org = await prisma.organization.findUnique({
     where: { id: organizationId },
-    select: { aiSignature: true },
+    select: { aiSignature: true, timezone: true },
   });
   const signature = org?.aiSignature?.trim();
 
@@ -2034,7 +1971,7 @@ export async function previewWelcomes(
       status: "confirmed",
       sourceReference: { not: null },
       channel: { notIn: ["ics", "manual"] }, // match the sender filter (preview == reality)
-      arrivalDate: { gte: zonedDayRange(now, "Europe/Istanbul").start, lte: horizon },
+      arrivalDate: { gte: zonedDayRange(now, orgTimezone(org?.timezone)).start, lte: horizon },
     },
     select: {
       guestName: true,
@@ -2079,7 +2016,7 @@ export async function previewCheckins(
 ): Promise<WelcomePreview[]> {
   const org = await prisma.organization.findUnique({
     where: { id: organizationId },
-    select: { aiSignature: true },
+    select: { aiSignature: true, timezone: true },
   });
   const signature = org?.aiSignature?.trim();
 
@@ -2092,7 +2029,7 @@ export async function previewCheckins(
       status: "confirmed",
       sourceReference: { not: null },
       channel: { notIn: ["ics", "manual"] }, // match the sender filter (preview == reality)
-      arrivalDate: { gte: zonedDayRange(now, "Europe/Istanbul").start, lte: horizon },
+      arrivalDate: { gte: zonedDayRange(now, orgTimezone(org?.timezone)).start, lte: horizon },
     },
     select: {
       guestName: true,
@@ -2152,7 +2089,7 @@ export async function sendDueCheckouts(
   if (!token) return { sent: 0, considered: 0 };
 
   const now = new Date();
-  const tz = org.timezone ?? "Europe/Istanbul";
+  const tz = orgTimezone(org.timezone);
   // Same-day reminder window: 08:00-11:59 org time on the departure day.
   const hour = currentHourInTimeZone(tz, now);
   if (hour < 8 || hour >= 12) return { sent: 0, considered: 0 };
@@ -2417,7 +2354,7 @@ export async function previewCheckouts(
 ): Promise<WelcomePreview[]> {
   const org = await prisma.organization.findUnique({
     where: { id: organizationId },
-    select: { aiSignature: true },
+    select: { aiSignature: true, timezone: true },
   });
   const signature = org?.aiSignature?.trim();
   const now = new Date();
@@ -2431,7 +2368,7 @@ export async function previewCheckouts(
       // Mirror the live sender: iCal/manual bookings are never messaged, so the
       // preview must not list them as "would send" either.
       channel: { notIn: ["ics", "manual"] },
-      departureDate: { gte: zonedDayRange(now, "Europe/Istanbul").start, lte: horizon },
+      departureDate: { gte: zonedDayRange(now, orgTimezone(org?.timezone)).start, lte: horizon },
     },
     select: {
       guestName: true,

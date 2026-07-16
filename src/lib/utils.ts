@@ -33,6 +33,10 @@ const dateFmt = new Intl.DateTimeFormat("tr-TR", {
 // Message/task timestamps are real instants (not date-only). Render them in the
 // app's operating timezone so the wall-clock time matches Airbnb/Hospitable and
 // the host's own clock — NOT the server's UTC. (Türkiye is UTC+3 year-round.)
+// BİLİNÇLİ KAPSAM (org-timezone turu, 07-16): doğruluk katmanı (gün sınırları,
+// saat kapıları, rapor kovalama) org.timezone'a bağlandı; buradaki GÖSTERİM
+// varsayılanı Istanbul kaldı — düzinelerce çağrı yerine tz parametresi taşımak
+// ayrı bir görüntüleme-katmanı turu (daysUntilDate/formatDayInTz zaten tz alır).
 const APP_TIME_ZONE = "Europe/Istanbul";
 
 const dateTimeFmt = new Intl.DateTimeFormat("tr-TR", {

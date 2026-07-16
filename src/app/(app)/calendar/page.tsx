@@ -2,6 +2,7 @@ import Link from "next/link";
 import { ChevronLeft, ChevronRight, LogIn, LogOut } from "lucide-react";
 import { requireAuth } from "@/lib/auth";
 import { prisma } from "@/lib/db";
+import { orgTimezone } from "@/lib/timezone";
 import { PageHeader } from "@/components/page-header";
 import { Card, CardContent } from "@/components/ui/card";
 import { cn } from "@/lib/utils";
@@ -34,7 +35,7 @@ export default async function CalendarPage({
     where: { id: orgId },
     select: { timezone: true },
   });
-  const tz = org?.timezone ?? "Europe/Istanbul";
+  const tz = orgTimezone(org?.timezone);
 
   // Selected month: ?month=YYYY-MM (validated), defaulting to the current
   // month in the org's timezone.

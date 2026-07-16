@@ -1,6 +1,7 @@
 import { prisma } from "@/lib/db";
 import { badRequest, jsonOk } from "@/lib/api";
 import { withManage } from "@/lib/route-guard";
+import { isValidTimeZone } from "@/lib/timezone";
 
 // Organization-level settings the UI can change. Booleans are the auto-reply
 // switches; the hour fields define the channel auto-reply active window;
@@ -115,6 +116,18 @@ export const PATCH = withManage(async (session, req) => {
         // Empty clears it → falls back to the env ALERT_EMAIL.
         update.alertEmail = trimmed.length === 0 ? null : trimmed.toLowerCase();
       }
+    }
+  }
+
+  // Org timezone: reports, day buckets and automation hour-gates run on this.
+  // CLOSED SET — only IANA zones the runtime actually knows (isValidTimeZone);
+  // free text would silently break every Intl call downstream.
+  if ("timezone" in data) {
+    const raw = data.timezone;
+    if (typeof raw !== "string" || !isValidTimeZone(raw.trim())) {
+      errors.timezone = "Geçerli bir saat dilimi seçin (örn. Europe/Istanbul).";
+    } else {
+      update.timezone = raw.trim();
     }
   }
 

@@ -1,6 +1,7 @@
 import { createHash, timingSafeEqual } from "crypto";
 import { prisma } from "@/lib/db";
 import { daysUntilDate } from "@/lib/utils";
+import { orgTimezone } from "@/lib/timezone";
 import { premiumAllowed } from "@/lib/billing/subscription";
 import { qrPinEnabled } from "@/lib/guest-chat-pin";
 import {
@@ -196,18 +197,16 @@ export async function bindOrCheckStay(
   return { status: "mismatch" };
 }
 
-const APP_TZ = "Europe/Istanbul";
-
 /** "HH:MM" → minutes since midnight (tolerant of a single-digit hour). */
 function hhmmToMinutes(s: string): number {
   const m = /(\d{1,2}):(\d{2})/.exec(s ?? "");
   return m ? Number(m[1]) * 60 + Number(m[2]) : 0;
 }
 
-/** Current wall-clock time in the app timezone as minutes since midnight. */
-function nowMinutesInTz(now: Date): number {
+/** Current wall-clock time in the ORG's timezone as minutes since midnight. */
+function nowMinutesInTz(now: Date, tz: string): number {
   const hhmm = new Intl.DateTimeFormat("en-GB", {
-    timeZone: APP_TZ,
+    timeZone: tz,
     hour: "2-digit",
     minute: "2-digit",
     hour12: false,
@@ -272,8 +271,9 @@ export async function resolveGuestChat(
       city: true,
       chatEnabled: true,
       // Org strict-mode toggle (Faz 5): when on, EVERY not-yet-claimed stay needs
-      // a PIN. Read here so the PIN gate is computed in one place.
-      organization: { select: { qrChatPinRequired: true } },
+      // a PIN. Read here so the PIN gate is computed in one place. timezone: the
+      // open-window (check-in/out hour gate) runs on the HOST'S local clock.
+      organization: { select: { qrChatPinRequired: true, timezone: true } },
     },
   });
   if (!property || !property.chatEnabled) return null;
@@ -325,21 +325,22 @@ export async function resolveGuestChat(
   // would return that not-yet-started row and (a) CLOSE the chat for the guest
   // currently on-site the afternoon before turnover, and (b) on turnover morning
   // serve the on-site guest's thread under the next guest's id (cross-guest PII).
+  const tz = orgTimezone(property.organization?.timezone);
   const isOpenNow = (r: { arrivalDate: Date; departureDate: Date }): boolean => {
-    const arrDiff = daysUntilDate(r.arrivalDate, now); // 0 = today, >0 future, <0 past
-    const depDiff = daysUntilDate(r.departureDate, now);
-    // Symmetric HARD gate (Istanbul): on the arrival day the chat only opens once the
-    // property's check-in time is reached — not from the day-start. This closes the
-    // turnover window (prev guest checked out, next guest not yet checked in) so a
-    // cleaner / past guest can't scan the fixed QR and claim the INCOMING stay's chat
-    // before the real guest arrives. Trade-off (documented): a host-approved EARLY
-    // check-in can't use the QR chat until the official check-in time.
+    const arrDiff = daysUntilDate(r.arrivalDate, now, tz); // 0 = today, >0 future, <0 past
+    const depDiff = daysUntilDate(r.departureDate, now, tz);
+    // Symmetric HARD gate (org-local clock): on the arrival day the chat only opens
+    // once the property's check-in time is reached — not from the day-start. This
+    // closes the turnover window (prev guest checked out, next guest not yet checked
+    // in) so a cleaner / past guest can't scan the fixed QR and claim the INCOMING
+    // stay's chat before the real guest arrives. Trade-off (documented): a host-
+    // approved EARLY check-in can't use the QR chat until the official check-in time.
     const afterCheckin =
       arrDiff < 0 ||
-      (arrDiff === 0 && nowMinutesInTz(now) >= hhmmToMinutes(property.checkInTime));
+      (arrDiff === 0 && nowMinutesInTz(now, tz) >= hhmmToMinutes(property.checkInTime));
     const beforeCheckout =
       depDiff > 0 ||
-      (depDiff === 0 && nowMinutesInTz(now) < hhmmToMinutes(property.checkOutTime));
+      (depDiff === 0 && nowMinutesInTz(now, tz) < hhmmToMinutes(property.checkOutTime));
     return afterCheckin && beforeCheckout;
   };
   const activeRow = candidates.find(isOpenNow) ?? null;
