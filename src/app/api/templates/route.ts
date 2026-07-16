@@ -6,7 +6,11 @@ import { zodFieldErrors } from "@/lib/validators";
 import { DEFAULT_TEMPLATES } from "@/lib/templates";
 
 const templateCreateSchema = z.object({
-  propertyId: z.string().optional().or(z.literal("")).transform((v) => v || null),
+  // "Tüm mülkler" (org-wide template) arrives as null from the form — nullish
+  // accepts null/undefined/string; ""/null both normalize to null. The old
+  // string-only shape REJECTED null, so creating an org-wide template 400'd
+  // with a bare "Doğrulama hatası" (user-reported bug).
+  propertyId: z.string().max(50).nullish().transform((v) => v || null),
   category: z.string().min(1, "Kategori gerekli").max(80),
   title: z.string().min(2, "Başlık gerekli").max(300),
   body: z.string().min(2, "İçerik gerekli").max(20000),

@@ -68,7 +68,10 @@ export function TemplateManager({ properties, customTemplates, defaultTemplates,
       });
       const data = await res.json().catch(() => ({}));
       if (!res.ok) {
-        setError(data.error ?? "Şablon oluşturulamadı");
+        // Surface the FIELD message ("Başlık gerekli") — the generic top-level
+        // error alone ("Doğrulama hatası") told the user nothing actionable.
+        const fieldMsg = data.fields ? (Object.values(data.fields)[0] as string) : null;
+        setError(fieldMsg ?? data.error ?? "Şablon oluşturulamadı");
         return;
       }
       setForm({ title: "", body: "", category: "general", language: "tr", propertyId: "" });

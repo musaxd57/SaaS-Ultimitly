@@ -146,7 +146,12 @@ export function AppShell({ user, superAdmin, guestChatEnabled, impersonating, ch
   );
 
   return (
-    <div className="min-h-screen lg:grid lg:grid-cols-[16rem_1fr]">
+    // zoom: .95 — the panel's global visual scale. The user compared pages at
+    // browser zoom 90-95% vs 100% and picked ~95 for EVERY panel page ("öküz
+    // gibi yayılmasın"): same layout, everything ~5% smaller, like a built-in
+    // Ctrl-minus. CSS zoom scales layout correctly (unlike transform) and is
+    // supported everywhere modern; older Firefox ignores it → falls back to 100%.
+    <div className="min-h-screen lg:grid lg:grid-cols-[16rem_1fr]" style={{ zoom: 0.95 }}>
       {/* Desktop sidebar */}
       <aside className="sticky top-0 hidden h-screen border-r border-border bg-card lg:block">
         {sidebarBody}

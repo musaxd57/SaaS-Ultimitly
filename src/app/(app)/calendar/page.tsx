@@ -212,9 +212,10 @@ export default async function CalendarPage({
                     <div
                       key={key}
                       className={cn(
-                        // Tight cell: a 6-week month must fit ONE laptop screen
-                        // (user ask) — 92px-high cells pushed the grid past it.
-                        "min-h-[64px] rounded-lg border p-1 text-xs",
+                        // Comfortable-but-compact cells. The user later relaxed
+                        // the one-screen constraint ("aşağıya doğru büyüyebilir")
+                        // — 64px felt cramped, 92px sprawled; 80px is the middle.
+                        "min-h-[80px] rounded-lg border p-1 text-xs",
                         isToday ? "border-primary/60 bg-accent/40" : "border-border",
                       )}
                     >
