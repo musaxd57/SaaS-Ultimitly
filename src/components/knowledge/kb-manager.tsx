@@ -264,8 +264,9 @@ export function KbManager({
 
   return (
     <div className="grid gap-4 lg:grid-cols-3">
-      {/* Create */}
-      <Card className="lg:col-span-1">
+      {/* Create — self-start: grid satırı sağdaki uzun mülk listesi kadar uzar;
+          form kartı içeriği kadar kalmalı, en aşağıya kadar sündürülmemeli. */}
+      <Card className="lg:col-span-1 lg:self-start">
         <CardHeader>
           <CardTitle className="flex items-center gap-2 text-base">
             <Plus className="size-4 text-muted-foreground" /> Yeni Bilgi

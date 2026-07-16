@@ -332,9 +332,6 @@ export default async function SettingsPage({
             hesabınızın e-posta adresi kullanılır.
           </p>
           <AlertEmailForm initial={org?.alertEmail ?? ""} />
-          <p className="text-xs text-muted-foreground">
-            E-postaların geldiğini doğrulamak için bir test maili gönderin:
-          </p>
           <TestEmailButton />
         </CardContent>
       </Card>
