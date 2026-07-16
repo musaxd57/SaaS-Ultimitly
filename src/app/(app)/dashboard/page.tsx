@@ -12,7 +12,6 @@ import {
   Users,
 } from "lucide-react";
 import { requireAuth } from "@/lib/auth";
-import { canManage } from "@/lib/api";
 import { prisma } from "@/lib/db";
 import { getOpsStats, buildDailySummary } from "@/lib/reports";
 import { getConnectionInfo } from "@/lib/hospitable-credentials";
@@ -100,23 +99,12 @@ export default async function DashboardPage() {
 
   // "Başlarken" onboarding: compute setup progress. The card only renders until
   // every step is done, then disappears for established accounts.
-  const [connection, conversationCount, kbCount, premiumOk, outboxStuck, overdueTasks] =
-    await Promise.all([
-      getConnectionInfo(orgId),
-      prisma.conversation.count({ where: scope }),
-      prisma.knowledgeBaseItem.count({ where: { isActive: true, ...scope } }),
-      premiumAllowed(orgId),
-      // Attention queue: outbox rows a human must look at (failed = retryable
-      // from /sent/queue, review = ambiguous send, blocked = Hospitable 402).
-      prisma.messageOutbox.count({
-        where: { organizationId: orgId, status: { in: ["failed", "review", "blocked"] } },
-      }),
-      // Overdue = due BEFORE today and still open (today's tasks are the normal
-      // workload — the list below already shows them; overdue is the debt).
-      prisma.task.count({
-        where: { ...scope, status: { not: "done" }, dueAt: { lt: dayStart } },
-      }),
-    ]);
+  const [connection, conversationCount, kbCount, premiumOk] = await Promise.all([
+    getConnectionInfo(orgId),
+    prisma.conversation.count({ where: scope }),
+    prisma.knowledgeBaseItem.count({ where: { isActive: true, ...scope } }),
+    premiumAllowed(orgId),
+  ]);
   const onboardingSteps: OnboardingStep[] = [
     {
       done: connection.connected,
@@ -231,44 +219,6 @@ export default async function DashboardPage() {
         </CardContent>
       </Card>
 
-      {/* Attention queue (Codex audit): ONE amber band for everything that needs
-          a human — hidden entirely on a clean day. Each item deep-links to where
-          it gets fixed. Connection loss only nags ESTABLISHED accounts; during
-          onboarding the guide above already owns that message. */}
-      {(() => {
-        const attention: { label: string; href: string }[] = [];
-        if (stats.problemConversations > 0)
-          attention.push({
-            label: `${stats.problemConversations} sorunlu konuşma yanıt bekliyor`,
-            href: "/inbox?status=problem",
-          });
-        if (outboxStuck > 0 && canManage(session))
-          attention.push({
-            label: `${outboxStuck} gönderim takıldı (başarısız/incelemede)`,
-            href: "/sent/queue",
-          });
-        if (overdueTasks > 0)
-          attention.push({ label: `${overdueTasks} görev gecikmiş`, href: "/tasks" });
-        if (!connection.connected && onboardingDone && canManage(session))
-          attention.push({
-            label: "Airbnb / Booking bağlantısı pasif — mesajlar akmıyor",
-            href: "/settings#hospitable",
-          });
-        if (attention.length === 0) return null;
-        return (
-          <div className="rounded-lg border border-amber-300 bg-amber-50 px-4 py-2.5 text-sm text-amber-900">
-            <span className="font-semibold">Dikkat gerektirenler:</span>{" "}
-            {attention.map((a, i) => (
-              <span key={a.href}>
-                {i > 0 ? <span className="mx-1.5 text-amber-400">·</span> : null}
-                <Link href={a.href} className="underline underline-offset-2 hover:text-amber-950">
-                  {a.label}
-                </Link>
-              </span>
-            ))}
-          </div>
-        );
-      })()}
 
       {/* Stat row — ONE row, no duplicates: arrivals/departures counts already
           live on the list cards right below (their badges), so tiles repeating

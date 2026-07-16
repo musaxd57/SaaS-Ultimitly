@@ -5,7 +5,7 @@ import Link from "next/link";
 import { usePathname, useRouter } from "next/navigation";
 import { Menu, X, LogOut, Loader2, Shield, ArrowLeft } from "lucide-react";
 import { BrandMark } from "@/components/brand";
-import { NAV_GROUPS, titleForPath } from "@/lib/nav";
+import { NAV_ITEMS, titleForPath } from "@/lib/nav";
 import { USER_ROLE, type UserRole } from "@/lib/constants";
 import { Avatar } from "@/components/ui/avatar";
 import { Button } from "@/components/ui/button";
@@ -67,45 +67,30 @@ export function AppShell({ user, superAdmin, guestChatEnabled, impersonating, ch
   // Staff (cleaning crew) only get the Tasks tab — every other page is
   // owner/manager-only (middleware redirects them away; this hides the links).
   const isStaff = user.role === "staff";
-  const visible = (href: string) => {
-    if (isStaff) return href === "/tasks";
+  const navItems = NAV_ITEMS.filter((i) => {
+    if (isStaff) return i.href === "/tasks";
     // The QR "Misafir Sohbetleri" tab only shows when the feature is enabled.
-    if (href === "/guest-chats") return Boolean(guestChatEnabled);
+    if (i.href === "/guest-chats") return Boolean(guestChatEnabled);
     return true;
-  };
-  // Grouped sidebar (Codex audit): sections with tiny headings; a group whose
-  // items are all filtered out disappears (staff sees only Görevler, no headings).
-  const navGroups = NAV_GROUPS.map((g) => ({
-    ...g,
-    items: g.items.filter((i) => visible(i.href)),
-  })).filter((g) => g.items.length > 0);
+  });
 
   const navLinks = (
-    <nav className="flex flex-1 flex-col gap-3">
-      {navGroups.map((group) => (
-        <div key={group.label ?? "top"} className="flex flex-col gap-1">
-          {group.label && navGroups.length > 1 ? (
-            <p className="px-3 pt-1 text-[11px] font-semibold uppercase tracking-wider text-muted-foreground/70">
-              {group.label}
-            </p>
-          ) : null}
-          {group.items.map(({ href, label, icon: Icon }) => (
-            <Link
-              key={href}
-              href={href}
-              onClick={() => setMobileOpen(false)}
-              className={cn(
-                "flex items-center gap-3 rounded-md px-3 py-2 text-sm font-medium transition-colors",
-                isActive(href)
-                  ? "bg-primary text-primary-foreground"
-                  : "text-muted-foreground hover:bg-accent hover:text-accent-foreground",
-              )}
-            >
-              <Icon className="size-4.5 shrink-0" />
-              {label}
-            </Link>
-          ))}
-        </div>
+    <nav className="flex flex-1 flex-col gap-1">
+      {navItems.map(({ href, label, icon: Icon }) => (
+        <Link
+          key={href}
+          href={href}
+          onClick={() => setMobileOpen(false)}
+          className={cn(
+            "flex items-center gap-3 rounded-md px-3 py-2 text-sm font-medium transition-colors",
+            isActive(href)
+              ? "bg-primary text-primary-foreground"
+              : "text-muted-foreground hover:bg-accent hover:text-accent-foreground",
+          )}
+        >
+          <Icon className="size-4.5 shrink-0" />
+          {label}
+        </Link>
       ))}
     </nav>
   );
