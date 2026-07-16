@@ -22,6 +22,7 @@ export async function resetDb(): Promise<void> {
   await prisma.webhookEvent.deleteMany();
   await prisma.lead.deleteMany(); // no FK relation → must be cleared explicitly
   await prisma.storageDeletion.deleteMany(); // no org FK (survives cascade) → clear explicitly
+  await prisma.rateLimitCounter.deleteMany(); // no FK; DB-backed limits must not leak across tests
   await prisma.property.deleteMany();
   await prisma.user.deleteMany();
   await prisma.organization.deleteMany();

@@ -15,7 +15,7 @@ import type { UserRole } from "@/lib/constants";
 export async function POST(req: NextRequest) {
   try {
     // Throttle login attempts per IP: 10 tries / 5 minutes (anti brute-force).
-    const limited = rateLimit(`login:${clientIp(req)}`, 10, 5 * 60 * 1000);
+    const limited = await rateLimit(`login:${clientIp(req)}`, 10, 5 * 60 * 1000);
     if (!limited.ok) {
       return NextResponse.json(
         { error: "Çok fazla deneme. Lütfen biraz sonra tekrar deneyin." },
@@ -31,7 +31,7 @@ export async function POST(req: NextRequest) {
     // Per-ACCOUNT throttle (in addition to the per-IP one above): an attacker
     // rotating IPs otherwise gets unlimited password / 2FA-code guesses against
     // one account. Generous cap so a legitimate user is not locked out.
-    const acct = rateLimit(`login-acct:${email}`, 20, 15 * 60 * 1000);
+    const acct = await rateLimit(`login-acct:${email}`, 20, 15 * 60 * 1000);
     if (!acct.ok) {
       return NextResponse.json(
         { error: "Bu hesap için çok fazla deneme. Lütfen biraz sonra tekrar deneyin." },

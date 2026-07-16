@@ -25,7 +25,7 @@ import { writeAudit } from "@/lib/audit";
 // the SESSION → IDOR-proof. Rate-limited so a click-loop can't spam Paddle.
 export const POST = withManage(async (session, req) => {
   if (!planChangeEnabled()) return notFound();
-  const limited = rateLimit(`plan-change:${session.organizationId}`, 12, 60 * 60 * 1000);
+  const limited = await rateLimit(`plan-change:${session.organizationId}`, 12, 60 * 60 * 1000);
   if (!limited.ok) return tooManyRequests(limited.retryAfter);
   if (!isPaddleConfigured()) return badRequest({ error: "Abonelik yönetimi şu anda kullanılamıyor." });
 

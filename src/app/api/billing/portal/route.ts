@@ -11,7 +11,7 @@ import { createPortalSession, isPaddleConfigured } from "@/lib/payments/paddle";
 // from the SESSION (never the body) → IDOR-proof; withManage restricts it to
 // owner/manager. The returned link is single-use + short-lived → never cached.
 export const POST = withManage(async (session) => {
-  const limited = rateLimit(`billing-portal:${session.organizationId}`, 12, 60 * 60 * 1000);
+  const limited = await rateLimit(`billing-portal:${session.organizationId}`, 12, 60 * 60 * 1000);
   if (!limited.ok) return tooManyRequests(limited.retryAfter);
 
   if (!isPaddleConfigured()) {

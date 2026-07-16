@@ -21,7 +21,7 @@ export const POST = withManage(async (session, req) => {
   // lapsed/free org must not spend on AI summaries when billing is enforced.
   if (!(await premiumAllowed(session.organizationId))) return paymentRequired();
   // Cost gate: an AI call per request → cap per org.
-  const limited = rateLimit(`supply-ai:${session.organizationId}`, 20, 60 * 60 * 1000);
+  const limited = await rateLimit(`supply-ai:${session.organizationId}`, 20, 60 * 60 * 1000);
   if (!limited.ok) {
     return NextResponse.json(
       { error: "Çok fazla istek. Biraz sonra tekrar deneyin." },

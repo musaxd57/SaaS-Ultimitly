@@ -31,7 +31,7 @@ export const POST = withManage(async (session, req) => {
   if (!(await premiumAllowed(session.organizationId))) return paymentRequired();
 
   // Playground calls OpenAI ($). Throttle per user to cap spend on abuse.
-  const limited = rateLimit(`ai-test:${session.userId}`, 15, 60_000);
+  const limited = await rateLimit(`ai-test:${session.userId}`, 15, 60_000);
   if (!limited.ok) return tooManyRequests(limited.retryAfter);
 
   const body = (await req.json().catch(() => null)) as

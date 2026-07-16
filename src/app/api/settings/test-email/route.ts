@@ -12,7 +12,7 @@ import { rateLimit } from "@/lib/rate-limit";
 
 export const POST = withManage(async (session) => {
   // Sends real SMTP mail — throttle hard so it can't be used to email-bomb.
-  const limited = rateLimit(`test-email:${session.userId}`, 5, 60_000);
+  const limited = await rateLimit(`test-email:${session.userId}`, 5, 60_000);
   if (!limited.ok) return tooManyRequests(limited.retryAfter);
 
   // Per-tenant: send to THIS org's own alert address, else the env fallback.

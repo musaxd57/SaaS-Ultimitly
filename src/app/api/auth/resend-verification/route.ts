@@ -17,14 +17,14 @@ export const dynamic = "force-dynamic";
 // account exists / its state). Sends only for a real, still-unverified self-serve
 // account. Rate-limited per IP and per email (inbox-bomb defense).
 export async function POST(req: NextRequest) {
-  const ipLimit = rateLimit(`verify-resend:${clientIp(req)}`, 8, 15 * 60_000);
+  const ipLimit = await rateLimit(`verify-resend:${clientIp(req)}`, 8, 15 * 60_000);
   if (!ipLimit.ok) return tooManyRequests(ipLimit.retryAfter);
 
   const data = (await req.json().catch(() => null)) as { email?: unknown } | null;
   const email = typeof data?.email === "string" ? data.email.trim().toLowerCase() : "";
   if (!email || !/^[^@\s]+@[^@\s]+\.[^@\s]+$/.test(email)) return jsonOk({ ok: true });
 
-  const acctLimit = rateLimit(`verify-resend-acct:${email}`, 4, 15 * 60_000);
+  const acctLimit = await rateLimit(`verify-resend-acct:${email}`, 4, 15 * 60_000);
   if (!acctLimit.ok) return tooManyRequests(acctLimit.retryAfter);
 
   const user = await prisma.user.findUnique({

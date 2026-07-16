@@ -35,7 +35,7 @@ export async function POST(req: NextRequest) {
 
   // Each verify hits Hospitable (outbound) on user input — throttle to stop
   // quota burn / token probing. Generous for a human connecting their account.
-  const limited = rateLimit(`hosp-connect:${session.actorUserId ?? session.userId}`, 8, 60_000);
+  const limited = await rateLimit(`hosp-connect:${session.actorUserId ?? session.userId}`, 8, 60_000);
   if (!limited.ok) return tooManyRequests(limited.retryAfter);
 
   try {

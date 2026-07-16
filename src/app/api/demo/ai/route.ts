@@ -50,7 +50,7 @@ export async function POST(req: NextRequest) {
   if (process.env.LANDING_DEMO_ENABLED !== "1") return notFound();
 
   try {
-    const limited = rateLimit(`demo-ai:${clientIp(req)}`, 6, 60 * 60_000); // 6 / hour / IP
+    const limited = await rateLimit(`demo-ai:${clientIp(req)}`, 6, 60 * 60_000); // 6 / hour / IP
     if (!limited.ok) return tooManyRequests(limited.retryAfter);
 
     const body = (await req.json().catch(() => null)) as { message?: unknown } | null;

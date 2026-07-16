@@ -40,7 +40,7 @@ export async function POST(req: NextRequest) {
   const session = await requireSession();
   if (!session) return unauthorized();
   // Throttle 2FA management (enable/disable code attempts) — anti code brute-force.
-  const limited = rateLimit(`2fa:${session.userId}`, 10, 10 * 60_000);
+  const limited = await rateLimit(`2fa:${session.userId}`, 10, 10 * 60_000);
   if (!limited.ok) return tooManyRequests(limited.retryAfter);
   try {
     const data = await req.json().catch(() => null);

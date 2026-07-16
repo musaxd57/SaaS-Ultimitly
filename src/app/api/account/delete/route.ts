@@ -27,7 +27,7 @@ export async function POST(req: NextRequest) {
   if (session.actorUserId) return forbidden("İşletme hesabındayken (impersonation) silme yapılamaz.");
   if (session.role !== "owner") return forbidden("Hesabı yalnızca sahip rolü silebilir.");
 
-  const limited = rateLimit(`account-delete:${session.userId}`, 5, 15 * 60_000);
+  const limited = await rateLimit(`account-delete:${session.userId}`, 5, 15 * 60_000);
   if (!limited.ok) return tooManyRequests(limited.retryAfter);
 
   try {

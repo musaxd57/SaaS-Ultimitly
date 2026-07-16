@@ -14,7 +14,7 @@ function esc(s: string): string {
 // review in the Operator Panel.
 export async function POST(req: NextRequest) {
   try {
-    const limited = rateLimit(`lead:${clientIp(req)}`, 5, 60 * 60_000); // 5 / hour
+    const limited = await rateLimit(`lead:${clientIp(req)}`, 5, 60 * 60_000); // 5 / hour
     if (!limited.ok) {
       return NextResponse.json(
         { error: "Çok fazla istek. Lütfen biraz sonra tekrar deneyin." },

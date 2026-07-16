@@ -31,6 +31,19 @@ model SystemLock {
   updatedAt   DateTime @updatedAt
 }
 
+// Distributed fixed-window rate-limit counters (multi-replica safe; replaces the
+// per-instance in-memory map as the AUTHORITY — memory stays as DB-error fallback).
+// One row per active key; hits are a single atomic INSERT ... ON CONFLICT upsert
+// on the DB clock. Expired rows are reset in place on next hit and swept by the
+// scheduled sync. No FK on purpose: keys span orgs, IPs and users.
+model RateLimitCounter {
+  key     String   @id
+  count   Int
+  resetAt DateTime
+
+  @@index([resetAt])
+}
+
 // Public "request a demo / free trial" leads captured from the marketing landing
 // page (no account yet). The operator reviews these in the Operator Panel.
 model Lead {

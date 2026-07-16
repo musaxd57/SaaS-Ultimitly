@@ -13,7 +13,7 @@ import { cleanupStaleReservations } from "@/lib/reservations-cleanup";
  */
 export const POST = withManage(async (session) => {
   // Verifies every property against Hospitable (outbound burst) — throttle per org.
-  const limited = rateLimit(`cleanup-dup:${session.organizationId}`, 4, 60_000);
+  const limited = await rateLimit(`cleanup-dup:${session.organizationId}`, 4, 60_000);
   if (!limited.ok) return tooManyRequests(limited.retryAfter);
 
   const [conversations, reservations] = await Promise.all([

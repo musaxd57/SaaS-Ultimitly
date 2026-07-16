@@ -14,7 +14,7 @@ export async function GET(req: NextRequest) {
   // Throttle by IP: this endpoint issues a login session on a token match and
   // scans an unindexed column, so an unauthenticated flood could brute-force
   // tokens and hammer the DB. A legit user clicks the emailed link once or twice.
-  const limited = rateLimit(`verify-email:${clientIp(req)}`, 20, 60 * 60 * 1000);
+  const limited = await rateLimit(`verify-email:${clientIp(req)}`, 20, 60 * 60 * 1000);
   if (!limited.ok) {
     return new NextResponse("Too many requests", {
       status: 429,

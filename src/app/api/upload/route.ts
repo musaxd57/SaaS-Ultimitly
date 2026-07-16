@@ -25,7 +25,7 @@ function randomHex(n: number): string {
 export const POST = withAuth(async (session, req) => {
   // Per-user throttle: uploads write to disk; staff keep access (task photos are
   // their core flow) but a stuck client / abuse can't fill the volume.
-  const limited = rateLimit(`upload:${session.userId}`, 30, 60 * 60 * 1000);
+  const limited = await rateLimit(`upload:${session.userId}`, 30, 60 * 60 * 1000);
   if (!limited.ok) return tooManyRequests(limited.retryAfter);
 
   const formData = await req.formData();

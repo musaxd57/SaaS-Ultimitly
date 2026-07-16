@@ -18,7 +18,7 @@ export async function POST() {
   if (!session) return unauthorized();
   if (!(await premiumAllowed(session.organizationId))) return paymentRequired();
 
-  const limited = rateLimit(`preview-welcome:${session.userId}`, 6, 60_000);
+  const limited = await rateLimit(`preview-welcome:${session.userId}`, 6, 60_000);
   if (!limited.ok) return tooManyRequests(limited.retryAfter);
 
   try {

@@ -21,7 +21,7 @@ export const POST = withManage<{ id: string }>(async (session, req, { params }) 
 
   // Each reply sends to Hospitable (+ optional OpenAI translate). Throttle per
   // conversation so a stuck client or abuse can't spam the guest / burn quota.
-  const limited = rateLimit(`reply:${id}`, 20, 60_000);
+  const limited = await rateLimit(`reply:${id}`, 20, 60_000);
   if (!limited.ok) return tooManyRequests(limited.retryAfter);
 
   const conversation = await prisma.conversation.findFirst({

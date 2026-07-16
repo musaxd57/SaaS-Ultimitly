@@ -28,7 +28,7 @@ export async function POST(req: NextRequest) {
     const userAgent = req.headers.get("user-agent")?.slice(0, 512) ?? null;
 
     // Throttle sign-ups per IP: 5 / hour (anti-spam / abuse).
-    const limited = rateLimit(`register:${ip}`, 5, 60 * 60 * 1000);
+    const limited = await rateLimit(`register:${ip}`, 5, 60 * 60 * 1000);
     if (!limited.ok) {
       return NextResponse.json(
         { error: "Çok fazla deneme. Lütfen biraz sonra tekrar deneyin." },

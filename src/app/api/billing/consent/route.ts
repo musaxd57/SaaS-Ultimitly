@@ -18,7 +18,7 @@ export const POST = withManage(async (session, req) => {
   // Light per-user cap so a script can't bloat the table; generous for real use
   // (no human opens checkout 20×/hour). Best-effort on the client, so a 429 here
   // never blocks the purchase — earlier accepted records already stand.
-  const limited = rateLimit(`checkout-consent:${session.userId}`, 20, 60 * 60 * 1000);
+  const limited = await rateLimit(`checkout-consent:${session.userId}`, 20, 60 * 60 * 1000);
   if (!limited.ok) return tooManyRequests(limited.retryAfter);
 
   const data = await req.json().catch(() => null);

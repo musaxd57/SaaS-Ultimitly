@@ -21,7 +21,7 @@ import { withSyncLock } from "@/lib/scheduled-sync";
 export const POST = withManage(async (session) => {
   // A manual sync is a wide Hospitable sweep — throttle per org so the button
   // can't be spammed into the channel's own rate limit.
-  const limited = rateLimit(`manual-sync:${session.organizationId}`, 6, 60_000);
+  const limited = await rateLimit(`manual-sync:${session.organizationId}`, 6, 60_000);
   if (!limited.ok) return tooManyRequests(limited.retryAfter);
 
   if (!(await hasOrgHospitable(session.organizationId))) {

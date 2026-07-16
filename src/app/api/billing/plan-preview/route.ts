@@ -12,7 +12,7 @@ import { planChangeEnabled, resolvePlanChange, signPlanChangeToken } from "@/lib
 // The preview amounts are best-effort (Paddle owns the real charge on apply).
 export const POST = withManage(async (session, req) => {
   if (!planChangeEnabled()) return notFound();
-  const limited = rateLimit(`plan-preview:${session.organizationId}`, 30, 60 * 60 * 1000);
+  const limited = await rateLimit(`plan-preview:${session.organizationId}`, 30, 60 * 60 * 1000);
   if (!limited.ok) return tooManyRequests(limited.retryAfter);
   if (!isPaddleConfigured()) return badRequest({ error: "Abonelik yönetimi şu anda kullanılamıyor." });
 

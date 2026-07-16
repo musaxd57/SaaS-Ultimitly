@@ -20,7 +20,7 @@ export const POST = withManage<{ id: string }>(async (session, req, { params }) 
   if (!(await premiumAllowed(session.organizationId))) return paymentRequired();
 
   // Translation calls OpenAI ($). Throttle per user to cap spend on abuse.
-  const limited = rateLimit(`translate:${session.userId}`, 30, 60_000);
+  const limited = await rateLimit(`translate:${session.userId}`, 30, 60_000);
   if (!limited.ok) return tooManyRequests(limited.retryAfter);
 
   // Verify conversation belongs to org

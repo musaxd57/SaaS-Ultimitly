@@ -8,6 +8,7 @@ import { reportError } from "@/lib/report-error";
 import { premiumAllowed } from "@/lib/billing/subscription";
 import { sendDueTrialReminders } from "@/lib/billing/trial-reminders";
 import { anonymizeOldGuestData, purgeOldLeads } from "@/lib/data-retention";
+import { sweepExpiredRateLimits } from "@/lib/rate-limit";
 import { durableOutboxEnabled } from "@/lib/outbox/flag";
 import { drainOutboxOnce, hasDrainableOutbox, reactivateBlockedOutbox } from "@/lib/outbox/worker";
 import { drainStorageDeletions, hasPendingStorageDeletions } from "@/lib/storage/deletion-queue";
@@ -305,6 +306,13 @@ export async function runScheduledSync(): Promise<ScheduledSyncTotals> {
           await purgeOldLeads();
         } catch (err) {
           await reportError("scheduled-sync lead-purge", err);
+        }
+        // Distributed rate-limit hygiene: drop counters whose window ended (keys
+        // that never return — one-off IPs — would otherwise accumulate forever).
+        try {
+          await sweepExpiredRateLimits();
+        } catch (err) {
+          await reportError("scheduled-sync rate-limit-sweep", err);
         }
         // Reverse-trial reminder emails ("ending soon" / "ended"). No-op unless
         // BILLING_ENFORCED is on; idempotent + per-tenant. Best-effort.

@@ -17,7 +17,7 @@ export async function GET(
 ) {
   // Public + unauthenticated: cap per-IP so a single client can't hammer it.
   // Generous — legitimate calendar subscribers poll infrequently per IP.
-  const limited = rateLimit(`ical:${clientIp(req)}`, 60, 60_000);
+  const limited = await rateLimit(`ical:${clientIp(req)}`, 60, 60_000);
   if (!limited.ok) {
     return new Response("Too many requests", {
       status: 429,

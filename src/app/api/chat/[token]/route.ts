@@ -227,7 +227,7 @@ async function handlePinUnlock(
 
   // Stricter per-IP cap for PIN guesses, in addition to the durable per-
   // reservation lockout inside verifyReservationPin.
-  const pinLimit = rateLimit(`guestchat-pin:${clientIp(req)}`, 8, 5 * 60_000);
+  const pinLimit = await rateLimit(`guestchat-pin:${clientIp(req)}`, 8, 5 * 60_000);
   if (!pinLimit.ok) return tooManyRequests(pinLimit.retryAfter);
 
   const verdict = await verifyReservationPin(res.id, pin);
@@ -249,7 +249,7 @@ async function handlePinUnlock(
 // guest can't read it — the chat is closed after checkout), so no PII leak.
 export async function GET(req: NextRequest, { params }: { params: Promise<{ token: string }> }) {
   if (process.env.GUEST_CHAT_ENABLED !== "1") return notFound();
-  const limited = rateLimit(`guestchat-get:${clientIp(req)}`, 60, 60_000);
+  const limited = await rateLimit(`guestchat-get:${clientIp(req)}`, 60, 60_000);
   if (!limited.ok) return tooManyRequests(limited.retryAfter);
 
   const { token } = await params;
@@ -300,7 +300,7 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ tok
   if (process.env.GUEST_CHAT_ENABLED !== "1") return notFound();
 
   // Public + unauthenticated → cap per IP first.
-  const ipLimit = rateLimit(`guestchat-ip:${clientIp(req)}`, 20, 60_000);
+  const ipLimit = await rateLimit(`guestchat-ip:${clientIp(req)}`, 20, 60_000);
   if (!ipLimit.ok) return tooManyRequests(ipLimit.retryAfter);
 
   const { token } = await params;

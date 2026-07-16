@@ -55,7 +55,7 @@ export async function POST(req: NextRequest) {
 
   // Throttle the whole flow per user (covers code-request e-mail spam AND
   // confirm attempts). The wrong-code attempt counter below adds a second cap.
-  const limited = rateLimit(`pw-change:${session.userId}`, 8, 10 * 60_000);
+  const limited = await rateLimit(`pw-change:${session.userId}`, 8, 10 * 60_000);
   if (!limited.ok) return tooManyRequests(limited.retryAfter);
 
   try {
@@ -66,7 +66,7 @@ export async function POST(req: NextRequest) {
     if (action === "request") {
       // Tighter, separate cap on code REQUESTS specifically — stops both inbox-
       // bombing and "re-roll a fresh code to refill the guess budget" abuse.
-      const reqLimit = rateLimit(`pw-change-req:${session.userId}`, 4, 15 * 60_000);
+      const reqLimit = await rateLimit(`pw-change-req:${session.userId}`, 4, 15 * 60_000);
       if (!reqLimit.ok) return tooManyRequests(reqLimit.retryAfter);
 
       const code = verificationCode();

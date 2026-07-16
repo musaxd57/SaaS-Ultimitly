@@ -46,7 +46,7 @@ const GENERIC_CONFIRM =
 
 export async function POST(req: NextRequest) {
   // Per-IP cap over the whole flow (enumeration / code-spray defense).
-  const ipLimit = rateLimit(`forgot:${clientIp(req)}`, 12, 15 * 60_000);
+  const ipLimit = await rateLimit(`forgot:${clientIp(req)}`, 12, 15 * 60_000);
   if (!ipLimit.ok) return tooManyRequests(ipLimit.retryAfter);
 
   try {
@@ -61,7 +61,7 @@ export async function POST(req: NextRequest) {
     // the account exists; only sends mail when it does.
     if (action === "request") {
       // Per-account request cap (inbox-bomb + "re-roll a fresh code" defense).
-      const reqLimit = rateLimit(`forgot-req:${email}`, 4, 15 * 60_000);
+      const reqLimit = await rateLimit(`forgot-req:${email}`, 4, 15 * 60_000);
       if (!reqLimit.ok) return tooManyRequests(reqLimit.retryAfter);
 
       const user = await prisma.user.findUnique({ where: { email }, select: { id: true } });
@@ -108,7 +108,7 @@ export async function POST(req: NextRequest) {
       if (!/^\d{8}$/.test(code)) {
         return badRequest({ code: "8 haneli doğrulama kodunu girin." });
       }
-      const confLimit = rateLimit(`forgot-confirm:${email}`, 8, 10 * 60_000);
+      const confLimit = await rateLimit(`forgot-confirm:${email}`, 8, 10 * 60_000);
       if (!confLimit.ok) return tooManyRequests(confLimit.retryAfter);
 
       // Atomically CLAIM one guess slot — only succeeds if a live, unexpired code

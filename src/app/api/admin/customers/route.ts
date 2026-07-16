@@ -27,7 +27,7 @@ export async function POST(req: NextRequest) {
   if (!session) return unauthorized();
   if (!isSuperAdmin(session)) return unauthorized();
 
-  const limited = rateLimit(`admin-create:${session.actorUserId ?? session.userId}`, 20, 60 * 60_000);
+  const limited = await rateLimit(`admin-create:${session.actorUserId ?? session.userId}`, 20, 60 * 60_000);
   if (!limited.ok) return tooManyRequests(limited.retryAfter);
 
   try {

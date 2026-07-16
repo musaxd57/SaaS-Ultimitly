@@ -1,30 +1,77 @@
 import { describe, it, expect, vi, beforeEach } from "vitest";
-import { rateLimit, clientIp, __resetRateLimit } from "@/lib/rate-limit";
+import { prisma } from "../helpers/db";
+import { rateLimit, clientIp, sweepExpiredRateLimits, __resetRateLimit } from "@/lib/rate-limit";
 
-describe("rateLimit", () => {
-  beforeEach(() => __resetRateLimit());
+// Dağıtık (DB-destekli) sabit-pencere limiter. Otorite Postgres satırı: limitler
+// replikalar arasında ve deploy/restart sonrasında da tutar. DB hatasında yerel
+// bellek sayacı devrede kalır (koruma asla tamamen kapanmaz).
 
-  it("allows up to the limit, then blocks with a retry-after", () => {
+describe("rateLimit (DB-backed)", () => {
+  beforeEach(async () => {
+    __resetRateLimit();
+    await prisma.rateLimitCounter.deleteMany();
+    vi.restoreAllMocks();
+  });
+
+  it("allows up to the limit, then blocks with a retry-after", async () => {
     const key = "k";
     for (let i = 0; i < 3; i++) {
-      expect(rateLimit(key, 3, 60_000).ok).toBe(true);
+      expect((await rateLimit(key, 3, 60_000)).ok).toBe(true);
     }
-    const blocked = rateLimit(key, 3, 60_000);
+    const blocked = await rateLimit(key, 3, 60_000);
     expect(blocked.ok).toBe(false);
+    expect(blocked.retryAfter).toBeGreaterThan(0);
+    expect(blocked.retryAfter).toBeLessThanOrEqual(61);
+  });
+
+  it("tracks keys independently", async () => {
+    expect((await rateLimit("a", 1, 60_000)).ok).toBe(true);
+    expect((await rateLimit("a", 1, 60_000)).ok).toBe(false);
+    expect((await rateLimit("b", 1, 60_000)).ok).toBe(true); // different key unaffected
+  });
+
+  it("resets after the window elapses (expired row is reset in place)", async () => {
+    expect((await rateLimit("w", 1, 60_000)).ok).toBe(true);
+    expect((await rateLimit("w", 1, 60_000)).ok).toBe(false);
+    // Deterministic expiry: force the window end into the past instead of sleeping.
+    await prisma.rateLimitCounter.update({
+      where: { key: "w" },
+      data: { resetAt: new Date(Date.now() - 1000) },
+    });
+    expect((await rateLimit("w", 1, 60_000)).ok).toBe(true);
+    const row = await prisma.rateLimitCounter.findUniqueOrThrow({ where: { key: "w" } });
+    expect(row.count).toBe(1); // fresh window, not a stale continuation
+  });
+
+  it("PARALEL isteklerde atomiktir: limit 5 iken 10 eşzamanlı istekten tam 5'i geçer", async () => {
+    const results = await Promise.all(
+      Array.from({ length: 10 }, () => rateLimit("burst", 5, 60_000)),
+    );
+    expect(results.filter((r) => r.ok)).toHaveLength(5);
+    const row = await prisma.rateLimitCounter.findUniqueOrThrow({ where: { key: "burst" } });
+    expect(row.count).toBe(10); // her hit sayıldı, karar count<=limit ile verildi
+  });
+
+  it("DB hatasında yerel bellek sayacına düşer — koruma tamamen kapanmaz", async () => {
+    vi.spyOn(prisma, "$queryRaw").mockRejectedValue(new Error("db down"));
+    expect((await rateLimit("fb", 2, 60_000)).ok).toBe(true);
+    expect((await rateLimit("fb", 2, 60_000)).ok).toBe(true);
+    const blocked = await rateLimit("fb", 2, 60_000);
+    expect(blocked.ok).toBe(false); // bellek fallback'i de sınırı uyguluyor
     expect(blocked.retryAfter).toBeGreaterThan(0);
   });
 
-  it("tracks keys independently", () => {
-    expect(rateLimit("a", 1, 60_000).ok).toBe(true);
-    expect(rateLimit("a", 1, 60_000).ok).toBe(false);
-    expect(rateLimit("b", 1, 60_000).ok).toBe(true); // different key unaffected
-  });
-
-  it("resets after the window elapses", async () => {
-    expect(rateLimit("w", 1, 20).ok).toBe(true);
-    expect(rateLimit("w", 1, 20).ok).toBe(false);
-    await new Promise((r) => setTimeout(r, 30));
-    expect(rateLimit("w", 1, 20).ok).toBe(true);
+  it("sweepExpiredRateLimits yalnız süresi geçmiş satırları siler", async () => {
+    await prisma.rateLimitCounter.createMany({
+      data: [
+        { key: "old", count: 3, resetAt: new Date(Date.now() - 10 * 60_000) },
+        { key: "live", count: 1, resetAt: new Date(Date.now() + 60_000) },
+      ],
+    });
+    const swept = await sweepExpiredRateLimits();
+    expect(swept).toBe(1);
+    expect(await prisma.rateLimitCounter.findUnique({ where: { key: "old" } })).toBeNull();
+    expect(await prisma.rateLimitCounter.findUnique({ where: { key: "live" } })).not.toBeNull();
   });
 });
 

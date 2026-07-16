@@ -20,7 +20,7 @@ export async function POST() {
 
   // This preview fans out one model call per awaiting conversation on the shared
   // platform key — throttle per user so it can't be POST-spammed for cost.
-  const limited = rateLimit(`preview-autoreply:${session.userId}`, 6, 60_000);
+  const limited = await rateLimit(`preview-autoreply:${session.userId}`, 6, 60_000);
   if (!limited.ok) return tooManyRequests(limited.retryAfter);
 
   try {

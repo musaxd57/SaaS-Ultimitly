@@ -14,7 +14,7 @@ export const POST = withManage<{ id: string }>(async (session, req, { params }) 
   if (!(await premiumAllowed(session.organizationId))) return paymentRequired();
 
   // Each suggestion calls OpenAI ($). Throttle per user to cap spend on abuse.
-  const limited = rateLimit(`ai-suggest:${session.userId}`, 20, 60_000);
+  const limited = await rateLimit(`ai-suggest:${session.userId}`, 20, 60_000);
   if (!limited.ok) return tooManyRequests(limited.retryAfter);
 
   const conversation = await prisma.conversation.findFirst({
