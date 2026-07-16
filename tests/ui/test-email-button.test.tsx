@@ -53,4 +53,20 @@ describe("TestEmailButton (UI)", () => {
     });
     expect(screen.queryByText(/doğrulamak için bir test maili/)).toBeNull();
   });
+
+  it("uyarı adresi DEĞİŞİNCE buton geri gelir ve eski adrese ait bayat onay satırı silinir", async () => {
+    vi.stubGlobal(
+      "fetch",
+      vi.fn(async () => new Response(JSON.stringify({ ok: true, to: "eski@adres.com" }), { status: 200 })),
+    );
+    render(<TestEmailButton />);
+    await userEvent.click(screen.getByRole("button", { name: /Test e-postası gönder/ }));
+    await waitFor(() => expect(screen.getByText(/eski@adres.com/)).toBeTruthy());
+    // AlertEmailForm'un başarılı kaydında yaydığı event:
+    window.dispatchEvent(new Event("lixus-alert-email-saved"));
+    await waitFor(() => {
+      expect(screen.getByRole("button", { name: /Test e-postası gönder/ })).toBeTruthy();
+    });
+    expect(screen.queryByText(/eski@adres.com/)).toBeNull(); // yanıltıcı satır gitti
+  });
 });

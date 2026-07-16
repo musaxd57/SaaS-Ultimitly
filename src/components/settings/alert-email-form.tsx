@@ -4,6 +4,7 @@ import { useState } from "react";
 import { Loader2, Check, Mail } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
+import { ALERT_EMAIL_SAVED_EVENT, TEST_EMAIL_SENT_KEY } from "@/components/settings/test-email-button";
 
 /**
  * Per-tenant alert e-mail: where THIS account's urgent complaint/refund alerts
@@ -28,8 +29,17 @@ export function AlertEmailForm({ initial }: { initial: string }) {
         body: JSON.stringify({ alertEmail: email.trim() }),
       });
       const data = await res.json().catch(() => ({}));
-      if (res.ok) setSaved(true);
-      else setError(data.fields?.alertEmail ?? data.error ?? "Kaydedilemedi.");
+      if (res.ok) {
+        setSaved(true);
+        // Adres değişti → yeni adres henüz doğrulanmadı: test butonunu geri
+        // getir (tek-seferlik gizleme bayrağını düşür + bayat sonucu temizlet).
+        try {
+          localStorage.removeItem(TEST_EMAIL_SENT_KEY);
+        } catch {
+          // storage yoksa buton zaten görünürdü
+        }
+        window.dispatchEvent(new Event(ALERT_EMAIL_SAVED_EVENT));
+      } else setError(data.fields?.alertEmail ?? data.error ?? "Kaydedilemedi.");
     } catch {
       setError("Bağlantı hatası.");
     } finally {

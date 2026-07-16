@@ -8,7 +8,10 @@ import { Button } from "@/components/ui/button";
 // isteği — tek seferlik kurulum aracı, sürekli duran bir düğme değil). Bayrak
 // tarayıcıda (localStorage) tutulur; sunucu tarafında bir "test edildi" alanı
 // taşımaya değmez, temizlenirse buton zararsızca geri gelir.
-const STORAGE_KEY = "lixus-test-email-sent";
+export const TEST_EMAIL_SENT_KEY = "lixus-test-email-sent";
+// Uyarı adresi DEĞİŞİNCE yeni adres test edilmemiş demektir — AlertEmailForm bu
+// event'i yayınlar, buton geri gelir ve eski adrese ait bayat onay satırı silinir.
+export const ALERT_EMAIL_SAVED_EVENT = "lixus-alert-email-saved";
 
 export function TestEmailButton() {
   const [busy, setBusy] = useState(false);
@@ -19,10 +22,16 @@ export function TestEmailButton() {
 
   useEffect(() => {
     try {
-      if (localStorage.getItem(STORAGE_KEY) === "1") setHidden(true);
+      if (localStorage.getItem(TEST_EMAIL_SENT_KEY) === "1") setHidden(true);
     } catch {
       // storage kapalıysa buton görünür kalır — zararsız
     }
+    const onAlertEmailSaved = () => {
+      setHidden(false);
+      setResult(null); // eski adrese ait onay/hata satırı artık yanıltıcı
+    };
+    window.addEventListener(ALERT_EMAIL_SAVED_EVENT, onAlertEmailSaved);
+    return () => window.removeEventListener(ALERT_EMAIL_SAVED_EVENT, onAlertEmailSaved);
   }, []);
 
   async function run() {
@@ -34,7 +43,7 @@ export function TestEmailButton() {
       if (res.ok) {
         setResult({ ok: true, msg: `Test e-postası gönderildi → ${data.to}. Gelen kutunu kontrol et.` });
         try {
-          localStorage.setItem(STORAGE_KEY, "1");
+          localStorage.setItem(TEST_EMAIL_SENT_KEY, "1");
         } catch {
           // storage yoksa yalnız bu oturumda gizlenir
         }
