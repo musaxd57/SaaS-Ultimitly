@@ -85,7 +85,7 @@ export async function POST(req: NextRequest) {
       const status = err instanceof HospitableError ? err.status : undefined;
       const msg =
         status === 402 || status === 403
-          ? "Token doğru ama Hospitable planınız API erişimi içermiyor (ör. Essentials). Rezervasyon ve mesajları çekebilmek için Hospitable'da API erişimli bir plana (Starter ve üzeri) geçmeniz gerekir."
+          ? "Token doğru ama Hospitable planınız API erişimi içermiyor. Rezervasyon ve mesajları Lixus'a çekebilmek için Hospitable'da API erişimi olan (ücretli) bir plana geçmeniz gerekir."
           : err instanceof HospitableError
             ? "Token geçersiz ya da Hospitable'a ulaşılamadı."
             : err instanceof Error

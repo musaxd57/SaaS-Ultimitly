@@ -47,7 +47,7 @@ describe("POST /api/hospitable/connect — plan (Essentials) gerçeği", () => {
     const res = await POST(req({ token: "hospitable_pat_gecerli_ama_planlockli" }));
     expect(res.status).toBe(400);
     const data = await res.json();
-    expect(data.error).toContain("API erişimli bir plana"); // "token geçersiz" DEĞİL
+    expect(data.error).toContain("API erişimi"); // plan-adı bağımsız, yeteneğe göre
     expect(data.error).not.toContain("geçersiz");
     // Token saklanmadı — org bağlantısız kaldı.
     const org = await prisma.organization.findUniqueOrThrow({ where: { id: orgId } });

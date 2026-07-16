@@ -185,9 +185,9 @@ export function HospitableConnectCard({
           ) : null}
           <div className="mb-2 rounded-md border border-amber-300 bg-amber-50 p-3 text-sm text-amber-800">
             <strong>Önce:</strong> Airbnb/Booking mesaj ve rezervasyonlarınızı Lixus&apos;a çekebilmek
-            için Hospitable hesabınızın <strong>API erişimli bir planda</strong> olması gerekir
-            (Starter ve üzeri). <strong>Essentials</strong> planı API erişimi içermez — bu planda
-            anahtar oluştursanız bile mesajlar çekilemez.
+            için Hospitable hesabınızın <strong>API erişimi içeren (ücretli) bir planda</strong>{" "}
+            olması gerekir. Hospitable&apos;ın ücretsiz planı API erişimi içermez — bu planda anahtar
+            oluştursanız bile mesajlar çekilemez.
           </div>
           <div className="rounded-md border bg-muted/40 p-3 text-sm text-muted-foreground">
             <p className="mb-1.5 font-medium text-foreground">Bağlantı anahtarı nasıl alınır? (2 dakika)</p>
