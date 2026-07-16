@@ -123,9 +123,15 @@ Professional/Mogul); **ücretsiz Essentials'ta API YOK + Connected Integrations 
 (token'ın doğru olduğunu ASLA iddia etme — 403'te token yetkisi eksik olabilir). Hospitable **partnerlerden PAT
 yerine OAuth vendor flow BEKLİYOR** (bizde "Hospitable ile Bağlan" = OAuth ana yol; PAT fallback). PAT yolu:
 my.hospitable.com → **Apps** (veya Settings→Integrations) →
-**Access tokens** sekmesi → "+ Add new" (ESKİ "Settings→API" YANLIŞTI, düzeltildi); PAT 1 yıl geçerli, yalnız
-owner/admin üretir, okuma+yazma izni gerekir (mesaj gönderimi için write). Fiyatlar: Host $25.52/Professional
-$51.92/Mogul $87.12 (yıllık aylık) + ücretsiz Essentials.
+**API access** → **Access tokens** sekmesi → "+ Add new" (canlı UI + web doğrulandı; ESKİ "Settings→API"
+YANLIŞ, "API access" ara adımı EKSİKTİ — düzeltildi); PAT 1 yıl geçerli, yalnız owner/admin üretir, **Read+Write**
+izni gerekir (mesaj gönderimi için write), kopyalarken Hospitable şifresi sorulur. Fiyatlar: Host $25.52/
+Professional $51.92/Mogul $87.12 (yıllık aylık) + ücretsiz Essentials. **OAuth 500 gözlemi (2026-07-16, ekran
+görüntüsü):** "Hospitable ile Bağlan" → auth.hospitable.com sayfası YÜKLENDİ ama Hospitable'ın KENDİ backend'i
+(`/api/oauth/authorize`) 500 döndü = HATA BİZDE DEĞİL (bizim rota yalnız doğru authorize URL'ye redirect eder +
+state cookie; sayfa açıldı demek redirect_uri kabul edildi). En güçlü hipotez: yetkilendirilen Hospitable hesabının
+AKTİF ÜCRETLİ aboneliği yok (Nuve'ninki 402'ye düştü / Essentials) → Hospitable entegrasyonu veremeyip 500'lüyor
+(kesin teyit Hospitable log'u ister). Connect kartındaki amber plan-uyarısı artık OAuth butonunun DA ÜSTÜNDE.
 **Durum (Patrick, 2026-07-02):** Connect KAPANDI (tam mesajlaşma yok, sadece Airbnb-bağlama). **Public API
 + OAuth vendor flow** tek yol (host'un ÜCRETLİ Hospitable aboneliği ŞART). White-label/reseller ŞU AN YOK ("trafik
 gösterince pilot konuş" — kapı açık). **YENİ FIRSAT:** Patrick "tek ana hesap altında birden fazla host mülkü

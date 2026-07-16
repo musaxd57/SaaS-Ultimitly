@@ -149,8 +149,8 @@ export function HospitableConnectCard({
             </div>
           </Field>
           <p className="text-xs text-muted-foreground">
-            🔒 Bağlı ve kilitli. Token <strong>şifreli olarak</strong> saklanıyor — biz dahil
-            <strong> hiç kimse göremez/kopyalayamaz</strong>. Değiştirmek için &quot;Değiştir&quot;e basın.
+            🔒 Bağlı ve kilitli. Token <strong>şifreli</strong> saklanıyor ve arayüzde tekrar
+            görüntülenmez. Değiştirmek için &quot;Değiştir&quot;e basın.
           </p>
           <div className="flex flex-wrap gap-2">
             <Button type="button" variant="outline" disabled={busy !== null} onClick={() => { setEditing(true); setError(null); setDone(null); }}>
@@ -170,6 +170,15 @@ export function HospitableConnectCard({
       {/* FORM VIEW — not connected, or operator clicked "Değiştir". */}
       {showForm ? (
         <>
+          {/* Plan uyarısı EN ÜSTTE — hem "Hospitable ile Bağlan" (OAuth) hem elle
+              token yolu bu gerekliliğe tabi. Ücretsiz planda OAuth yetkilendirmesi de
+              Hospitable tarafında hata verebilir. */}
+          <div className="rounded-md border border-amber-300 bg-amber-50 p-3 text-sm text-amber-800">
+            <strong>Önce:</strong> Airbnb/Booking mesaj ve rezervasyonlarınızı Lixus&apos;a çekebilmek
+            için Hospitable hesabınızın <strong>API erişimi içeren (ücretli) bir planda</strong>{" "}
+            olması gerekir. Hospitable&apos;ın ücretsiz planı API erişimi içermez — bu planda
+            bağlanmayı denerseniz Hospitable tarafında hata alırsınız veya mesajlar çekilemez.
+          </div>
           {oauthEnabled ? (
             <div className="space-y-2">
               <a href="/api/hospitable/oauth/authorize">
@@ -183,25 +192,23 @@ export function HospitableConnectCard({
               </div>
             </div>
           ) : null}
-          <div className="mb-2 rounded-md border border-amber-300 bg-amber-50 p-3 text-sm text-amber-800">
-            <strong>Önce:</strong> Airbnb/Booking mesaj ve rezervasyonlarınızı Lixus&apos;a çekebilmek
-            için Hospitable hesabınızın <strong>API erişimi içeren (ücretli) bir planda</strong>{" "}
-            olması gerekir. Hospitable&apos;ın ücretsiz planı API erişimi içermez — bu planda anahtar
-            oluştursanız bile mesajlar çekilemez.
-          </div>
           <div className="rounded-md border bg-muted/40 p-3 text-sm text-muted-foreground">
             <p className="mb-1.5 font-medium text-foreground">Bağlantı anahtarı nasıl alınır? (2 dakika)</p>
             <ol className="list-decimal space-y-1 pl-4">
               <li>
                 <strong>my.hospitable.com</strong>&apos;da giriş yapın; kenar menüden{" "}
                 <strong>Apps</strong> (veya <strong>Settings → Integrations</strong>) →{" "}
-                <strong>Access tokens</strong> sekmesine gidin.
+                <strong>API access</strong> → <strong>Access tokens</strong> sekmesine gidin.
               </li>
               <li>
                 <strong>&quot;+ Add new&quot;</strong> ile yeni bir anahtar oluşturun, bir isim verin
-                ve <strong>okuma + yazma</strong> izni seçin (mesaj gönderimi için yazma gerekir).
+                ve <strong>Read and Write</strong> (okuma + yazma) iznini seçin — mesaj gönderimi için
+                yazma izni gerekir.
               </li>
-              <li>Oluşan anahtarı <strong>kopyalayın</strong> (bir daha gösterilmez).</li>
+              <li>
+                Anahtarı <strong>kopyalayın</strong> (kopyalarken Hospitable hesap şifreniz
+                sorulabilir; anahtar bir daha gösterilmez).
+              </li>
               <li>Aşağıdaki kutuya <strong>yapıştırın → Bağla</strong>.</li>
             </ol>
             <p className="mt-1.5 text-xs">
@@ -209,8 +216,9 @@ export function HospitableConnectCard({
               1 yıl geçerlidir.
             </p>
             <p className="mt-1.5 text-xs">
-              🔒 Token <strong>şifreli olarak</strong> saklanır; sadece bu hesabın mülklerine erişir
-              ve bir daha hiç görüntülenmez — biz bile göremeyiz.
+              🔒 Token <strong>uçtan uca şifreli</strong> saklanır ve yalnızca bu işletmenin
+              Hospitable mülklerine erişmek için kullanılır; kaydedildikten sonra arayüzde tekrar
+              görüntülenmez.
             </p>
           </div>
           <form
