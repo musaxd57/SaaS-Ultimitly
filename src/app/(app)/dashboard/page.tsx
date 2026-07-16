@@ -255,11 +255,15 @@ export default async function DashboardPage() {
             </CardTitle>
             <Badge tone="muted">{arrivals.length}</Badge>
           </CardHeader>
-          <CardContent className="space-y-2">
+          <CardContent>
             {arrivals.length === 0 ? (
               <EmptyState title="Bugün giriş yok" className="py-6" />
             ) : (
-              arrivals.map((r) => (
+              // Busy days (10-15+ arrivals) scroll INSIDE the card (~7 rows
+              // visible) instead of stretching the whole page — the header
+              // badge still shows the full count, nothing is hidden.
+              <div className="max-h-96 space-y-2 overflow-y-auto pr-1">
+              {arrivals.map((r) => (
                 <div
                   key={r.id}
                   className="flex items-center justify-between gap-2 rounded-lg border border-border px-3 py-2"
@@ -272,7 +276,8 @@ export default async function DashboardPage() {
                     {r.property.checkInTime}
                   </span>
                 </div>
-              ))
+              ))}
+              </div>
             )}
           </CardContent>
         </Card>
@@ -285,11 +290,12 @@ export default async function DashboardPage() {
             </CardTitle>
             <Badge tone="muted">{departures.length}</Badge>
           </CardHeader>
-          <CardContent className="space-y-2">
+          <CardContent>
             {departures.length === 0 ? (
               <EmptyState title="Bugün çıkış yok" className="py-6" />
             ) : (
-              departures.map((r) => (
+              <div className="max-h-96 space-y-2 overflow-y-auto pr-1">
+              {departures.map((r) => (
                 <div
                   key={r.id}
                   className="flex items-center justify-between gap-2 rounded-lg border border-border px-3 py-2"
@@ -309,7 +315,8 @@ export default async function DashboardPage() {
                     ) : null}
                   </div>
                 </div>
-              ))
+              ))}
+              </div>
             )}
           </CardContent>
         </Card>
