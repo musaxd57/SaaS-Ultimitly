@@ -18,6 +18,20 @@ function pgBin(): string {
 }
 
 export default function setup() {
+  // Cross-platform escape hatch (Codex audit): the provisioning below is
+  // Linux-only (`su postgres`, /tmp, GNU ls). On Windows/macOS point
+  // TEST_DATABASE_URL at any empty local PostgreSQL database and the harness
+  // only pushes the schema into it — no server provisioning, no teardown.
+  // vitest.config.ts uses the same variable for the suite's DATABASE_URL.
+  const external = process.env.TEST_DATABASE_URL?.trim();
+  if (external) {
+    execSync("npx prisma db push --accept-data-loss --skip-generate", {
+      stdio: "inherit",
+      env: { ...process.env, DATABASE_URL: external },
+    });
+    return () => {};
+  }
+
   const BIN = pgBin();
 
   // Start clean: stop any leftover server on this data dir, wipe it, re-init.

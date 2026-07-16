@@ -12,8 +12,11 @@ import { reportError } from "@/lib/report-error";
 // Why Paddle: the business runs under an Italian Partita IVA selling to Turkish
 // customers. Paddle is a Merchant of Record — it is the seller of record and
 // collects/remits VAT in every jurisdiction, so the owner never registers for
-// VAT abroad. iyzico (Turkish-tax-registration only) stays DORMANT as a fallback
-// if a Turkish entity is ever used; nothing here removes it.
+// VAT abroad. The dormant iyzico fallback (webhook + client) was REMOVED
+// 2026-07-16 (Codex audit): Paddle is locked in as MoR, and a half-built
+// webhook with placeholder shared-secret auth was a foot-gun waiting for
+// someone to set IYZICO_WEBHOOK_SECRET. If a Turkish entity ever needs
+// iyzico, rebuild it with real signature verification (git history has the old code).
 //
 // Webhook signature (Paddle Billing):
 //   header  Paddle-Signature: ts=<unix>;h1=<hex hmac>

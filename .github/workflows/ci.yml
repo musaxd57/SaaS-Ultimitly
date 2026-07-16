@@ -16,8 +16,10 @@ concurrency:
   group: ${{ github.workflow }}-${{ github.ref }}
   cancel-in-progress: true
 
-# Note: this CI is independent of the Railway deploy ("Wait for CI" is off), so a
-# red run never blocks production — it just surfaces regressions early.
+# Note: whether Railway waits for this CI is a RAILWAY PANEL setting ("Wait for
+# CI") — verify it there, not here. If it is off, a red run never blocks the
+# deploy (regressions surface but ship); if on, red blocks. Keep this comment
+# claim-free so it can't drift from the panel state.
 jobs:
   verify:
     runs-on: ubuntu-latest

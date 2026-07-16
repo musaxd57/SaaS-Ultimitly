@@ -3,7 +3,7 @@ import { randomBytes } from "crypto";
 
 // ---------------------------------------------------------------------------
 // Hospitable OAuth vendor flow ("Hospitable ile Bağlan" one-click connect).
-// DORMANT until the client credentials are set — mirrors the Paddle/Iyzico
+// DORMANT until the client credentials are set — mirrors the Paddle
 // dormant-adapter pattern: nothing here is called automatically, and the UI
 // button only renders when isHospitableOAuthConfigured() is true, so the
 // existing manual Personal-Access-Token flow (hospitable/connect route) keeps

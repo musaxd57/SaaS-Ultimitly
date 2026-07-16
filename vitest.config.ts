@@ -24,7 +24,11 @@ export default defineConfig({
     // front (see tests/global-setup.ts) — this URL must match it.
     globalSetup: ["tests/global-setup.ts"],
     env: {
-      DATABASE_URL: "postgresql://postgres@localhost:5433/guestops_test?schema=public",
+      // TEST_DATABASE_URL = cross-platform override (Windows/macOS): point it at
+      // an empty local PostgreSQL DB and global-setup skips Linux provisioning.
+      DATABASE_URL:
+        process.env.TEST_DATABASE_URL?.trim() ||
+        "postgresql://postgres@localhost:5433/guestops_test?schema=public",
       AUTH_SECRET: "test-secret-min-16-characters-long",
       // Force the deterministic AI path; never call OpenAI from tests.
       OPENAI_API_KEY: "",
