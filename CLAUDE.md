@@ -117,8 +117,12 @@ Hospitable panelini kullanmadan, yalnızca Lixus'un çektiği veriyi (property/r
 edinme engeli). Fiyat hipotezi ~$7/daire (placeholder). Sıra: ÖNCE fizibilite SONRA fiyat. Pitch: "Lixus
 = Hospitable'ı Türkiye'de büyüten dağıtım kanalı" (kazan-kazan).
 **DOĞRULANMIŞ (web, 2026-07-16 — help.hospitable.com):** Public API/PAT erişimi ÜCRETLİ planlarda (Host/
-Professional/Mogul); **ücretsiz Essentials'ta API YOK** → Lixus'a mesaj/rezervasyon çekilemez (connect kartı
-+ 402-hata bunu artık dürüstçe söylüyor). PAT yolu: my.hospitable.com → **Apps** (veya Settings→Integrations) →
+Professional/Mogul); **ücretsiz Essentials'ta API YOK + Connected Integrations YOK** → Lixus'a mesaj/rezervasyon
+çekilemez. ⚠️ Essentials'ın connect'te 402 mi 403 mü döndüğü CANLI payload olmadan KESİN DEĞİL → connect route
+İKİSİNİ AYRI map'ler: 402=abonelik API'yi kapsamıyor (plana yönlendir), 403=plan VEYA token yetkileri yetersiz
+(token'ın doğru olduğunu ASLA iddia etme — 403'te token yetkisi eksik olabilir). Hospitable **partnerlerden PAT
+yerine OAuth vendor flow BEKLİYOR** (bizde "Hospitable ile Bağlan" = OAuth ana yol; PAT fallback). PAT yolu:
+my.hospitable.com → **Apps** (veya Settings→Integrations) →
 **Access tokens** sekmesi → "+ Add new" (ESKİ "Settings→API" YANLIŞTI, düzeltildi); PAT 1 yıl geçerli, yalnız
 owner/admin üretir, okuma+yazma izni gerekir (mesaj gönderimi için write). Fiyatlar: Host $25.52/Professional
 $51.92/Mogul $87.12 (yıllık aylık) + ücretsiz Essentials.

@@ -42,14 +42,26 @@ describe("POST /api/hospitable/connect — plan (Essentials) gerçeği", () => {
     session = { userId: user.id, organizationId: orgId, role: "owner", email: "s@x.com", name: "Sahip", sessionEpoch: 0 };
   });
 
-  it("402 (plan API erişimi içermiyor): DÜRÜST plan-mesajı döner, token SAKLANMAZ", async () => {
+  it("402 (abonelik API'yi kapsamıyor): plan-mesajı döner, token SAKLANMAZ", async () => {
     verifyMock.mockRejectedValue(new HospitableError("Hospitable API hatası (HTTP 402)", 402));
-    const res = await POST(req({ token: "hospitable_pat_gecerli_ama_planlockli" }));
+    const res = await POST(req({ token: "gecerli-ama-plan-kilitli" }));
     expect(res.status).toBe(400);
     const data = await res.json();
-    expect(data.error).toContain("API erişimi"); // plan-adı bağımsız, yeteneğe göre
+    expect(data.error).toContain("aboneliğiniz API erişimini kapsamıyor");
     expect(data.error).not.toContain("geçersiz");
     // Token saklanmadı — org bağlantısız kaldı.
+    const org = await prisma.organization.findUniqueOrThrow({ where: { id: orgId } });
+    expect(org.hospitableTokenEnc).toBeNull();
+  });
+
+  it("403 (plan VEYA token yetkileri): ikisini de kontrol ettirir, token'ın doğru olduğunu İDDİA ETMEZ", async () => {
+    verifyMock.mockRejectedValue(new HospitableError("Hospitable API hatası (HTTP 403)", 403));
+    const res = await POST(req({ token: "belki-yetkisiz-token" }));
+    expect(res.status).toBe(400);
+    const data = await res.json();
+    expect(data.error).toContain("token'ın yetkileri"); // hem plan hem token yetkisi olasılığı
+    expect(data.error).toContain("okuma+yazma");
+    expect(data.error).not.toContain("Token doğru"); // 403'te token doğruluğu İDDİA EDİLMEZ
     const org = await prisma.organization.findUniqueOrThrow({ where: { id: orgId } });
     expect(org.hospitableTokenEnc).toBeNull();
   });

@@ -78,19 +78,28 @@ export async function POST(req: NextRequest) {
     try {
       info = await verifyToken(token);
     } catch (err) {
-      // 402/403 = the token is FINE but the Hospitable plan doesn't include API
-      // access (Essentials tier). Say so honestly — otherwise the host is told
-      // "token invalid" and blames their (correct) token. This is the #1
-      // onboarding barrier, so the message must be actionable, not misleading.
+      // Essentials (ücretsiz) plan Public API'yi KAPSAMAZ (web-doğrulandı: yalnız
+      // Host/Professional/Mogul). Ama 402 mi 403 mü döndüğü canlı payload olmadan
+      // KESİN DEĞİL, ve ikisi FARKLI anlamlar taşır — token'ın doğruluğunu ASLA
+      // iddia etme (403'te token yetkileri eksik olabilir).
       const status = err instanceof HospitableError ? err.status : undefined;
-      const msg =
-        status === 402 || status === 403
-          ? "Token doğru ama Hospitable planınız API erişimi içermiyor. Rezervasyon ve mesajları Lixus'a çekebilmek için Hospitable'da API erişimi olan (ücretli) bir plana geçmeniz gerekir."
-          : err instanceof HospitableError
-            ? "Token geçersiz ya da Hospitable'a ulaşılamadı."
-            : err instanceof Error
-              ? err.message
-              : "Doğrulama başarısız.";
+      let msg: string;
+      if (status === 402) {
+        // Payment Required → abonelik/plan API'yi kapsamıyor. Plana yönlendir.
+        msg =
+          "Hospitable aboneliğiniz API erişimini kapsamıyor. Rezervasyon ve mesajları Lixus'a çekebilmek için Hospitable'da API erişimi olan (ücretli) bir plana geçmeniz gerekir.";
+      } else if (status === 403) {
+        // Forbidden → plan kısıtı VEYA token'ın yetkileri (okuma/yazma) yetersiz
+        // olabilir. Hangisi olduğunu iddia ETME; ikisini de kontrol ettir.
+        msg =
+          "Hospitable planınız veya bu token'ın yetkileri API erişimine izin vermiyor. API erişimli (ücretli) bir planda olduğunuzdan ve token'ın okuma+yazma iznine sahip olduğundan emin olun.";
+      } else if (err instanceof HospitableError) {
+        msg = "Token geçersiz ya da Hospitable'a ulaşılamadı.";
+      } else if (err instanceof Error) {
+        msg = err.message;
+      } else {
+        msg = "Doğrulama başarısız.";
+      }
       return NextResponse.json({ ok: false, error: msg }, { status: 400 });
     }
 
