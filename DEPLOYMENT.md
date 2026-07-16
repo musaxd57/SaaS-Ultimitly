@@ -239,6 +239,25 @@ tükenir; toplu geri-doldurma (backfill) yapılırsa ayrı bir tur + [KARAR] ola
 
 ---
 
+## 8) Claude kalite üst-denetçisi — opsiyonel, anahtar yoksa PASİF
+
+Operatör panelindeki "AI Kalite Denetçisi (Claude — gölge)" kartı. **Salt-okuma gölge denetim:**
+gönderilmiş AI yanıtlarını (misafir adı/e-posta/telefon redakte edilmiş hâlde) Claude'a
+değerlendirtir; rapor + prompt/test önerisi döner. Claude mesaj GÖNDEREMEZ, prompt DEĞİŞTİREMEZ —
+öneriler ancak insan onayıyla koda işlenir. Canlı misafir motoru gpt-5.1 olarak kalır.
+
+| Env | Zorunlu | Açıklama |
+| --- | --- | --- |
+| `ANTHROPIC_API_KEY` | özellik için evet | console.anthropic.com API anahtarı. Yokken kart pasif metin gösterir; boot/health etkilenmez. |
+| `QUALITY_AUDIT_MODEL` | hayır | Varsayılan `claude-opus-4-8`. |
+
+Açılış: anahtarı Railway'e ekle → redeploy → /admin kartından "Denetimi çalıştır" (1-2 dk sürebilir;
+tek senkron çağrı, boş örneklemde API'ye hiç gidilmez). Her çalıştırma denetim kaydına düşer
+(`admin.quality_audit`). Not: geniş müşteri verisinde düzenli kullanım öncesi DPA/KVKK aktarım
+kararı gerekir (CLAUDE.md LEGAL listesi).
+
+---
+
 ## Özet akış
 
 ```

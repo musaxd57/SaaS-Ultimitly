@@ -8,6 +8,8 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { AddCustomerForm } from "@/components/admin/add-customer-form";
 import { ImpersonateButton } from "@/components/admin/impersonate-button";
 import { Reset2faForm } from "@/components/admin/reset-2fa-form";
+import { QualityAuditCard } from "@/components/admin/quality-audit-card";
+import { qualityAuditConfigured } from "@/lib/quality-audit";
 import { LeadActions } from "@/components/admin/lead-actions";
 
 export const dynamic = "force-dynamic";
@@ -241,6 +243,19 @@ export default async function AdminPage() {
         </CardHeader>
         <CardContent>
           <Reset2faForm />
+        </CardContent>
+      </Card>
+
+      <Card className="max-w-2xl">
+        <CardHeader>
+          <CardTitle className="text-base">AI Kalite Denetçisi (Claude — gölge)</CardTitle>
+        </CardHeader>
+        <CardContent>
+          <QualityAuditCard
+            orgs={orgs.map((o) => ({ id: o.id, name: o.name }))}
+            defaultOrgId={primaryId ?? ""}
+            configured={qualityAuditConfigured()}
+          />
         </CardContent>
       </Card>
 

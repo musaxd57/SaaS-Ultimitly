@@ -29,6 +29,8 @@ const AUDIT_ACTION_LABELS: Record<string, string> = {
   "outbox.manual_retry": "Gönderim yeniden kuyruğa alındı",
   "impersonate.enter": "Müşteri hesabına girildi",
   "impersonate.exit": "Müşteri hesabından çıkıldı",
+  "admin.2fa_reset": "2FA operatör tarafından sıfırlandı",
+  "admin.quality_audit": "AI kalite denetimi çalıştırıldı (Claude)",
 };
 
 /** Turkish label for an audit action; falls back to the raw action if unknown. */

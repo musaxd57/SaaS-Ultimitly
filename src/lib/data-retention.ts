@@ -33,7 +33,7 @@ const MIN_NAME_LEN = 3; // skip 2-char names ("Al"/"Su") — too collision-prone
  * redact both (longest first). Boundaries are Unicode-aware (JS \b is ASCII-only
  * and breaks on Turkish ç/ğ/ı/ö/ş/ü). Insertion is literal; idempotent.
  */
-function redactNameFromBody(body: string, names: string[]): string {
+export function redactNameFromBody(body: string, names: string[]): string {
   const tokens = Array.from(
     new Set(names.flatMap((n) => { const full = n.trim(); return [full, full.split(/\s+/)[0] ?? ""]; })),
   )
