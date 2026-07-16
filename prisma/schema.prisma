@@ -154,6 +154,7 @@ model Organization {
 
   users            User[]
   riskEvents       RiskEvent[]
+  shadowVerdicts   ShadowVerdict[]
   messageOutbox    MessageOutbox[]
   properties       Property[]
   automationRules  AutomationRule[]
@@ -806,6 +807,35 @@ model RiskEvent {
 
   @@unique([organizationId, surface, triggerId, finalDecision])
   @@index([organizationId, occurredAt])
+}
+
+// GLM/Akash GÖLGE katmanı — Aşama-1 (kullanıcı planı 07-16). İkinci modelin aynı
+// inbound mesaj için BAĞIMSIZ güvenlik hükmü, kod kapısının NİHAİ kararının yanına
+// kaydedilir. YETKİSİ SIFIR: fire-and-forget, gönderimi asla bloklamaz/geciktirmez/
+// onaylamaz. Amaç: insan değerlendirmesiyle risk-kaçırma + yanlış-alarm oranını
+// ölçmek; ancak Aşama-3'te (AYRI tur) veto-only yetki konuşulur. PII-FREE at rest:
+// kapalı-set kodlar + opak id'ler; mesaj gövdesi ASLA bu tabloya yazılmaz.
+model ShadowVerdict {
+  id             String  @id @default(cuid())
+  organizationId String
+  conversationId String? // FK'sız opak id (RiskEvent emsali) — KVKK silme org CASCADE ile
+  triggerId      String // gölgelenen inbound Message id (RiskEvent.triggerId ile aynı)
+  gateDecision   String // kod kapısının NİHAİ kararı: auto_sent | human_review
+  gateRiskLevel  String? // kapı anındaki model seviyesi (clamped) — kıyas bağlamı
+  gateRiskType   String?
+  verdict        String? // GLM: allow | hold | escalate; NULL = çağrı/parse başarısız
+  riskType       String? // GLM'in risk sınıfı (RiskEvent ile AYNI kapalı set) veya null
+  confidence     Float? // 0-1 aralığı dışı → NULL (asla uydurma değer)
+  agrees         Boolean? // kolaylık: (verdict==allow) == (gateDecision==auto_sent); NULL=başarısız
+  model          String // hangi gölge model koştu (env değişirse ayrışsın)
+  latencyMs      Int?
+  error          String? // redakte, kısa arıza nedeni (yalnız başarısız çağrıda)
+  createdAt      DateTime @default(now())
+
+  organization Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+
+  @@unique([organizationId, triggerId]) // mesaj başına TEK gölge hükmü (retry dedupe)
+  @@index([createdAt])
 }
 
 // Durable Outbox (#8): a persistent, claim-safe queue for messages we send OUT to

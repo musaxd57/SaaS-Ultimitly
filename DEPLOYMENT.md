@@ -258,6 +258,27 @@ kararı gerekir (CLAUDE.md LEGAL listesi).
 
 ---
 
+## 9) GLM gölge pilotu (Aşama-1) — opsiyonel, DEFAULT KAPALI
+
+İkinci model (GLM, Akash) her otomatik-yanıt kararında misafir mesajını bağımsız
+sınıflandırır ve hükmü YALNIZ KAYDEDER — gönderimi asla etkilemez (fire-and-forget,
+karar yetkisi sıfır). /admin "GLM Gölge Pilotu" kartında uyum oranı + son kayıtlar.
+
+| Env | Zorunlu | Açıklama |
+| --- | --- | --- |
+| `SHADOW_AI_ENABLED` | evet (`1`) | Açık anahtar. Yokken tamamen pasif. |
+| `SHADOW_AI_API_KEY` | hayır | Yoksa `SUPPLY_AI_API_KEY` kullanılır (aynı Akash hesabı). |
+| `SHADOW_AI_BASE_URL` | hayır | Yoksa `SUPPLY_AI_BASE_URL`, o da yoksa api.akashml.com/v1. |
+| `SHADOW_AI_MODEL` | hayır | Varsayılan `zai-org/GLM-5.2`. |
+| `SHADOW_AI_SAMPLE_CAP` | hayır | Pilot tavanı (varsayılan 200 kayıt; dolunca sessizce durur). |
+
+Açılış: `SHADOW_AI_ENABLED=1` ekle → redeploy. SUPPLY_AI_* zaten tanımlıysa başka
+env gerekmez. Aşama-2: pilot dolunca /admin kartındaki "ayrıştı" satırları birlikte
+değerlendirilir; Aşama-3 (veto-only yetki) ancak o değerlendirme güven verirse ayrı
+bir turda konuşulur. Not: Akash da ikinci bir veri işleyendir (KVKK/DPA notu).
+
+---
+
 ## Özet akış
 
 ```

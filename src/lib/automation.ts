@@ -6,6 +6,7 @@ import { orgTimezone, zonedDayRange, currentHourInTimeZone, dateKeyInTimeZone } 
 export { zonedDayRange, currentHourInTimeZone } from "@/lib/timezone";
 import { isUniqueViolation } from "@/lib/db-errors";
 import { recordRiskEvent } from "@/lib/risk-events";
+import { recordShadowVerdict } from "@/lib/shadow-ai";
 import { reservationAmountNumber } from "@/lib/money";
 import { classifyMessage, suggestReply, summarizeHostStyle } from "@/lib/ai";
 import {
@@ -1237,6 +1238,17 @@ export async function applyChannelAutoReply(
         reason: "escalated_to_human",
         confidence: result.confidence,
       });
+      // GLM gölge (Aşama-1): bağımsız ikinci hüküm, karar yetkisi SIFIR.
+      // await YOK — gönderim/escalation yolunu bir milisaniye bile bekletmez.
+      void recordShadowVerdict({
+        organizationId: conversation.property.organizationId,
+        conversationId: conversation.id,
+        triggerId: last.id,
+        guestMessage: last.body,
+        gateDecision: "human_review",
+        gateRiskLevel: result.riskLevel,
+        gateRiskType: result.riskType ?? detectRiskType(last.body),
+      });
       return { sent: false, skippedReason: "escalated_to_human", ...meta };
     }
     if (!options.dryRun) {
@@ -1257,6 +1269,15 @@ export async function applyChannelAutoReply(
         riskType: result.riskType ?? detectRiskType(last.body),
         reason: "low_confidence_or_risky",
         confidence: result.confidence,
+      });
+      void recordShadowVerdict({
+        organizationId: conversation.property.organizationId,
+        conversationId: conversation.id,
+        triggerId: last.id,
+        guestMessage: last.body,
+        gateDecision: "human_review",
+        gateRiskLevel: result.riskLevel,
+        gateRiskType: result.riskType ?? detectRiskType(last.body),
       });
     }
     return { sent: false, skippedReason: "low_confidence_or_risky", ...meta };
@@ -1367,6 +1388,15 @@ export async function applyChannelAutoReply(
       reason: "gate_passed",
       confidence: result.confidence,
     });
+    void recordShadowVerdict({
+      organizationId: conversation.property.organizationId,
+      conversationId: conversation.id,
+      triggerId: last.id,
+      guestMessage: last.body,
+      gateDecision: "auto_sent",
+      gateRiskLevel: result.riskLevel,
+      gateRiskType: result.riskType,
+    });
     return { sent: true, queued: true, draft, ...meta };
   }
 
@@ -1463,6 +1493,15 @@ export async function applyChannelAutoReply(
     riskType: result.riskType,
     reason: "gate_passed",
     confidence: result.confidence,
+  });
+  void recordShadowVerdict({
+    organizationId: conversation.property.organizationId,
+    conversationId: conversation.id,
+    triggerId: last.id,
+    guestMessage: last.body,
+    gateDecision: "auto_sent",
+    gateRiskLevel: result.riskLevel,
+    gateRiskType: result.riskType,
   });
   return { sent: true, draft, ...meta };
 }

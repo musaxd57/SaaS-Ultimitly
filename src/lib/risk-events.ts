@@ -27,7 +27,9 @@ const LEVELS = new Set(["none", "low", "medium", "high"]);
 // leaks concatenated names/digits ("adalovelace555…"). A value either IS one
 // of the known codes or it becomes NULL — guest text can never survive.
 const REASONS = new Set(["escalated_to_human", "low_confidence_or_risky", "keyword_escalated", "gate_passed"]);
-const RISK_TYPES = new Set([
+// Exported: the shadow layer (shadow-ai.ts) clamps the second model's riskType
+// to the SAME closed set so the two columns stay directly comparable.
+export const RISK_TYPES = new Set([
   "complaint", "money_refund", "cancellation", "human_request", "review_threat",
   "platform_policy", "safety_emergency", "discrimination", "rule_violation",
   "access_security", "prompt_injection",
