@@ -688,6 +688,32 @@ describe("closing courtesy — opt-in 'Rica ederiz' reply to a bare thanks", () 
     expect((await prisma.conversation.findUniqueOrThrow({ where: { id: conversationId } })).status).toBe("answered");
   });
 
+  it("GÖLGE kapsamı (Codex #5): nezaket kapanışı da ShadowVerdict'e düşer (gateDecision=auto_sent)", async () => {
+    vi.stubEnv("SHADOW_AI_ENABLED", "1");
+    vi.stubEnv("SHADOW_AI_API_KEY", "test-key");
+    const fetchMock = vi.fn(async () =>
+      new Response(
+        JSON.stringify({ choices: [{ message: { content: '{"verdict":"allow","riskType":"none","confidence":0.9}' } }] }),
+        { status: 200 },
+      ),
+    );
+    vi.stubGlobal("fetch", fetchMock);
+    try {
+      const { conversationId } = await seedClosing();
+      const out = await applyChannelAutoReply(conversationId);
+      expect(out.sent).toBe(true);
+      // Gölge fire-and-forget (unawaited) — satırın yazılmasını bekle.
+      await vi.waitFor(async () => {
+        expect(await prisma.shadowVerdict.count()).toBe(1);
+      });
+      const row = await prisma.shadowVerdict.findFirstOrThrow();
+      expect(row.gateDecision).toBe("auto_sent"); // whitelist yanlış-pozitifi olsaydı GLM burada ayrışırdı
+      expect(row.verdict).toBe("allow");
+    } finally {
+      vi.unstubAllGlobals();
+    }
+  });
+
   it("LOOP GUARD: a second thanks (to the courtesy itself) gets NO reply — no pleasantry ping-pong", async () => {
     const { conversationId } = await seedClosing();
     await applyChannelAutoReply(conversationId); // courtesy goes out

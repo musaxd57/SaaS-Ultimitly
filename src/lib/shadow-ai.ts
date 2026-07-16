@@ -25,8 +25,12 @@ import { RISK_TYPES } from "@/lib/risk-events";
 //   SHADOW_AI_ENABLED=1   — açık anahtar (yoksa modül tamamen pasif)
 //   SHADOW_AI_API_KEY     — yoksa SUPPLY_AI_API_KEY kullanılır (aynı Akash hesabı)
 //   SHADOW_AI_BASE_URL    — yoksa SUPPLY_AI_BASE_URL, o da yoksa api.akashml.com/v1
+//                           (HTTPS ZORUNLU — http verilirse modül pasif kalır ve
+//                           loglar: Bearer + misafir mesajı asla düz metin gitmez)
 //   SHADOW_AI_MODEL       — default zai-org/GLM-5.2
 //   SHADOW_AI_SAMPLE_CAP  — pilot tavanı, default 200 satır (dolunca sessizce durur)
+//   SHADOW_AI_ORG_IDS     — opsiyonel virgüllü org allowlist'i (boş = tüm org'lar);
+//                           pilotu tek işletmeye (örn. Nuve) pinlemek için
 //
 // KVKK: misafir mesajı SINIFLANDIRMA için modele gider (birincil motor OpenAI'ye
 // gittiği gibi — Akash da ikinci veri işleyendir, DPA notu LEGAL listesinde) ama
@@ -39,7 +43,29 @@ const DEFAULT_CAP = 200;
 const MESSAGE_CAP = 1500; // sınıflandırmaya yeter; uzun mesajın kuyruğu kırpılır
 
 export function shadowAiEnabled(): boolean {
-  return process.env.SHADOW_AI_ENABLED === "1" && Boolean(shadowKey());
+  if (process.env.SHADOW_AI_ENABLED !== "1" || !shadowKey()) return false;
+  // HTTPS zorunlu (iCal emsali): http base URL = anahtar + misafir mesajı düz
+  // metin sızar. Yanlış yapılandırma tavanı yakmasın diye modül pasif kalır.
+  if (!shadowBaseUrl().startsWith("https://")) {
+    warnThrottled("SHADOW_AI_BASE_URL https değil — gölge pasif (anahtar/mesaj düz metin gönderilmez)");
+    return false;
+  }
+  return true;
+}
+
+/** Opsiyonel org allowlist'i: set edilmişse yalnız o org'lar gölgelenir. */
+function orgAllowed(organizationId: string): boolean {
+  const raw = process.env.SHADOW_AI_ORG_IDS?.trim();
+  if (!raw) return true;
+  return raw.split(",").map((s) => s.trim()).filter(Boolean).includes(organizationId);
+}
+
+let lastWarnAt = 0;
+function warnThrottled(msg: string) {
+  const now = Date.now();
+  if (now - lastWarnAt < 60_000) return;
+  lastWarnAt = now;
+  console.error(`[shadow-ai] ${msg}`);
 }
 
 function shadowKey(): string | undefined {
@@ -111,22 +137,73 @@ export function parseShadowVerdict(text: string): {
   }
 }
 
+// Upstream yanıtı için bellek tavanı: 200 token'lık JSON birkaç KB'dir; bozuk/
+// kötü niyetli dev gövde belleği şişirmesin (iCal readBodyCapped emsali).
+const RESPONSE_BYTE_CAP = 64 * 1024;
+
+/** Yanıt gövdesini byte tavanıyla oku; aşarsa bağlantıyı kesip fırlat. */
+async function readBodyCapped(res: Response, cap: number): Promise<string> {
+  const reader = res.body?.getReader();
+  if (!reader) return "";
+  const chunks: Uint8Array[] = [];
+  let total = 0;
+  for (;;) {
+    const { done, value } = await reader.read();
+    if (done) break;
+    total += value.byteLength;
+    if (total > cap) {
+      await reader.cancel().catch(() => {});
+      throw new Error("response_too_large");
+    }
+    chunks.push(value);
+  }
+  return Buffer.concat(chunks).toString("utf8");
+}
+
 /**
  * Gölge hükmü kaydet. Çağıran AWAIT ETMEZ (`void recordShadowVerdict(...)`) —
  * bu fonksiyon hiçbir koşulda reject etmez ve gönderim semantiğine dokunmaz.
  * dryRun yollarından ÇAĞRILMAZ (recordRiskEvent ile aynı yerleşim kuralı).
+ *
+ * CLAIM-FIRST (Codex): satır, model çağrısından ÖNCE "pending" olarak yazılır —
+ * @@unique(org,trigger) sayesinde aynı mesajın ikinci işlenişi Akash'a HİÇ
+ * gitmeden düşer (çifte istek + çifte veri aktarımı yok). Çağrı bitince satır
+ * nihai hükümle güncellenir; süreç ortada ölürse satır "pending" olarak görünür
+ * (kartta arıza gibi ele alınır, sessizce kaybolmaz).
  */
 export async function recordShadowVerdict(input: ShadowInput): Promise<void> {
   try {
     if (!shadowAiEnabled()) return;
     if (!GATE_DECISIONS.has(input.gateDecision) || !input.triggerId) return;
+    if (!orgAllowed(input.organizationId)) return;
 
-    // Pilot tavanı: ilk ~N mesaj (global). Dolunca sessizce durur — Aşama-2
-    // değerlendirmesi bitmeden sınırsız veri/maliyet birikmesin.
+    // Pilot tavanı: ilk ~N kayıt (global). Sayım ile claim arası dar bir yarış
+    // penceresi var — olası taşma en fazla o an uçuştaki istek sayısı kadar
+    // (tek haneli, maliyeti önemsiz); dedupe ise claim'de %100 atomik.
     const existing = await prisma.shadowVerdict.count();
     if (existing >= sampleCap()) return;
 
     const model = shadowModel();
+
+    // ATOMİK CLAIM: önce satır. P2002 = bu mesaj zaten gölgelendi → modele gitme.
+    try {
+      await prisma.shadowVerdict.create({
+        data: {
+          organizationId: input.organizationId,
+          conversationId: input.conversationId ?? null,
+          triggerId: input.triggerId,
+          gateDecision: input.gateDecision,
+          gateRiskLevel: input.gateRiskLevel ?? null,
+          gateRiskType: input.gateRiskType && RISK_TYPES.has(input.gateRiskType) ? input.gateRiskType : null,
+          model,
+          error: "pending",
+        },
+      });
+    } catch (err) {
+      if (isUniqueViolation(err, ["organizationId", "triggerId"])) return; // dedupe: Akash'a çifte istek YOK
+      throw err;
+    }
+
     const startedAt = Date.now();
     let verdict: string | null = null;
     let riskType: string | null = null;
@@ -152,13 +229,18 @@ export async function recordShadowVerdict(input: ShadowInput): Promise<void> {
         // promise tutmasın (unawaited olsa bile kaynak tüketir).
         signal: AbortSignal.timeout(15000),
       });
+      const bodyText = await readBodyCapped(res, RESPONSE_BYTE_CAP);
       if (!res.ok) {
-        error = redactSensitive(`HTTP ${res.status} ${(await res.text().catch(() => "")).slice(0, 150)}`).slice(0, 200);
+        error = redactSensitive(`HTTP ${res.status} ${bodyText.slice(0, 150)}`).slice(0, 200);
       } else {
-        const data = (await res.json()) as { choices?: { message?: { content?: string } }[] };
-        const text = (data?.choices?.[0]?.message?.content ?? "")
-          .replace(/<think>[\s\S]*?<\/think>/gi, "")
-          .trim();
+        let content = "";
+        try {
+          const data = JSON.parse(bodyText) as { choices?: { message?: { content?: string } }[] };
+          content = data?.choices?.[0]?.message?.content ?? "";
+        } catch {
+          // bozuk JSON gövde → aşağıda unparseable_verdict olarak raporlanır
+        }
+        const text = content.replace(/<think>[\s\S]*?<\/think>/gi, "").trim();
         const parsed = parseShadowVerdict(text);
         verdict = parsed.verdict;
         riskType = parsed.riskType;
@@ -169,29 +251,23 @@ export async function recordShadowVerdict(input: ShadowInput): Promise<void> {
       error = redactSensitive(e instanceof Error ? `${e.name}: ${e.message}` : String(e)).slice(0, 200);
     }
 
-    await prisma.shadowVerdict.create({
+    await prisma.shadowVerdict.update({
+      where: {
+        organizationId_triggerId: { organizationId: input.organizationId, triggerId: input.triggerId },
+      },
       data: {
-        organizationId: input.organizationId,
-        conversationId: input.conversationId ?? null,
-        triggerId: input.triggerId,
-        gateDecision: input.gateDecision,
-        gateRiskLevel: input.gateRiskLevel ?? null,
-        gateRiskType: input.gateRiskType && RISK_TYPES.has(input.gateRiskType) ? input.gateRiskType : null,
         verdict,
         riskType,
         confidence,
         // allow ⇔ auto_sent uyuşması; hold/escalate ikisi de "insana" sayılır.
         agrees: verdict ? (verdict === "allow") === (input.gateDecision === "auto_sent") : null,
-        model,
         latencyMs: Date.now() - startedAt,
         error,
       },
     });
   } catch (err) {
-    // Retry/çift-tetik: aynı mesajın ikinci gölgesi sessizce düşer.
-    if (isUniqueViolation(err, ["organizationId", "triggerId"])) return;
-    // Başka her şey de yutulur — gölge, mesajlaşmayı ASLA etkileyemez. Sessiz
-    // ölüm görünür kalsın diye log (reportError e-postası burada aşırı olur).
+    // Her şey yutulur — gölge, mesajlaşmayı ASLA etkileyemez. Sessiz ölüm
+    // görünür kalsın diye log (reportError e-postası burada aşırı olur).
     console.error("[shadow-ai] persist/beklenmedik hata:", err instanceof Error ? err.message : err);
   }
 }

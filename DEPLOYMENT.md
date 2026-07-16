@@ -268,9 +268,10 @@ karar yetkisi sıfır). /admin "GLM Gölge Pilotu" kartında uyum oranı + son k
 | --- | --- | --- |
 | `SHADOW_AI_ENABLED` | evet (`1`) | Açık anahtar. Yokken tamamen pasif. |
 | `SHADOW_AI_API_KEY` | hayır | Yoksa `SUPPLY_AI_API_KEY` kullanılır (aynı Akash hesabı). |
-| `SHADOW_AI_BASE_URL` | hayır | Yoksa `SUPPLY_AI_BASE_URL`, o da yoksa api.akashml.com/v1. |
+| `SHADOW_AI_BASE_URL` | hayır | Yoksa `SUPPLY_AI_BASE_URL`, o da yoksa api.akashml.com/v1. HTTPS ZORUNLU (http → modül pasif). |
 | `SHADOW_AI_MODEL` | hayır | Varsayılan `zai-org/GLM-5.2`. |
 | `SHADOW_AI_SAMPLE_CAP` | hayır | Pilot tavanı (varsayılan 200 kayıt; dolunca sessizce durur). |
+| `SHADOW_AI_ORG_IDS` | hayır | Virgüllü org allowlist'i — pilotu tek işletmeye (örn. Nuve) pinlemek için. Boş = tüm org'lar. |
 
 Açılış: `SHADOW_AI_ENABLED=1` ekle → redeploy. SUPPLY_AI_* zaten tanımlıysa başka
 env gerekmez. Aşama-2: pilot dolunca /admin kartındaki "ayrıştı" satırları birlikte

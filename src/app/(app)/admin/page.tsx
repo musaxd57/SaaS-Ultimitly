@@ -295,9 +295,10 @@ export default async function AdminPage() {
         </CardHeader>
         <CardContent className="space-y-3">
           <p className="text-sm text-muted-foreground">
-            İkinci model (GLM/Akash) her otomatik-yanıt kararında aynı misafir mesajını bağımsız
-            sınıflandırır; hükmü yalnız <strong>kaydedilir</strong> — gönderimi etkilemez. Bu tablo
-            Aşama-2 insan değerlendirmesinin ham girdisidir (risk-kaçırma / yanlış-alarm oranı).
+            İkinci model (GLM/Akash) her otomatik-yanıt kararında (nezaket kapanışı dahil) aynı
+            misafir mesajını bağımsız sınıflandırır; hükmü yalnız <strong>kaydedilir</strong> —
+            gönderimi etkilemez. &quot;Kapı&quot; kolonu kapının <strong>kararıdır</strong> (teslimat
+            değil). Bu tablo Aşama-2 insan değerlendirmesinin ham girdisidir.
           </p>
           {!shadowAiEnabled() ? (
             <p className="rounded-lg border border-dashed border-border bg-muted/40 p-3 text-sm text-muted-foreground">
@@ -338,7 +339,10 @@ export default async function AdminPage() {
                           {r.createdAt.toLocaleString("tr-TR", { dateStyle: "short", timeStyle: "short", timeZone: "Europe/Istanbul" })}
                         </td>
                         <td className="py-1.5 pr-3">{r.organization.name}</td>
-                        <td className="py-1.5 pr-3">{r.gateDecision === "auto_sent" ? "gönderdi" : "insana"}</td>
+                        {/* "onayladı" (≠ teslim edildi): outbox worker'ın send-time
+                            vetosu kapı-sonrası bir yaşam-döngüsü olayıdır — gölge,
+                            KARARLARI kıyaslar, teslimatı değil. */}
+                        <td className="py-1.5 pr-3">{r.gateDecision === "auto_sent" ? "onayladı" : "insana"}</td>
                         <td className="py-1.5 pr-3">{r.verdict ?? "—"}</td>
                         <td className="py-1.5 pr-3">{r.riskType ?? "—"}</td>
                         <td className="py-1.5 pr-3">{r.confidence != null ? r.confidence.toFixed(2) : "—"}</td>

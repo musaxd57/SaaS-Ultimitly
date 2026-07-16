@@ -121,13 +121,51 @@ describe("recordShadowVerdict — GLM gölge Aşama-1", () => {
     expect(await prisma.shadowVerdict.count()).toBe(1);
   });
 
-  it("dedupe: aynı mesajın ikinci gölgesi sessizce düşer (tek satır)", async () => {
-    vi.stubGlobal("fetch", vi.fn(async () => glmResponse({ verdict: "allow", riskType: "none", confidence: 0.9 })));
+  it("dedupe CLAIM-FIRST (Codex #2): ikinci işleyiş Akash'a HİÇ gitmez — tek fetch + tek satır", async () => {
+    const fetchMock = vi.fn(async () => glmResponse({ verdict: "allow", riskType: "none", confidence: 0.9 }));
+    vi.stubGlobal("fetch", fetchMock);
     const org = await seedOrg();
     const input = { organizationId: org.id, triggerId: "m6", guestMessage: "Wifi?", gateDecision: "auto_sent" as const };
     await recordShadowVerdict(input);
     await recordShadowVerdict(input);
+    expect(fetchMock).toHaveBeenCalledTimes(1); // çifte istek = çifte veri aktarımı YOK
     expect(await prisma.shadowVerdict.count()).toBe(1);
+  });
+
+  it("HTTPS zorunlu (Codex #4): http base URL → modül pasif (ne çağrı ne satır)", async () => {
+    vi.stubEnv("SHADOW_AI_BASE_URL", "http://api.akashml.com/v1");
+    const fetchMock = vi.fn();
+    vi.stubGlobal("fetch", fetchMock);
+    expect(shadowAiEnabled()).toBe(false);
+    const org = await seedOrg();
+    await recordShadowVerdict({ organizationId: org.id, triggerId: "m7", guestMessage: "x", gateDecision: "auto_sent" });
+    expect(fetchMock).not.toHaveBeenCalled();
+    expect(await prisma.shadowVerdict.count()).toBe(0);
+  });
+
+  it("org allowlist'i (Codex): SHADOW_AI_ORG_IDS set ise liste dışı org gölgelenmez", async () => {
+    vi.stubEnv("SHADOW_AI_ORG_IDS", "baska-org-id");
+    const fetchMock = vi.fn();
+    vi.stubGlobal("fetch", fetchMock);
+    const org = await seedOrg();
+    await recordShadowVerdict({ organizationId: org.id, triggerId: "m8", guestMessage: "x", gateDecision: "auto_sent" });
+    expect(fetchMock).not.toHaveBeenCalled();
+    expect(await prisma.shadowVerdict.count()).toBe(0);
+
+    // Listedeki org normal gölgelenir.
+    vi.stubEnv("SHADOW_AI_ORG_IDS", `baska-org-id, ${org.id}`);
+    vi.stubGlobal("fetch", vi.fn(async () => glmResponse({ verdict: "allow", riskType: "none", confidence: 0.9 })));
+    await recordShadowVerdict({ organizationId: org.id, triggerId: "m8", guestMessage: "x", gateDecision: "auto_sent" });
+    expect(await prisma.shadowVerdict.count()).toBe(1);
+  });
+
+  it("dev upstream gövdesi (Codex #4): byte tavanı aşımı belleğe alınmaz, satıra arıza yazılır", async () => {
+    vi.stubGlobal("fetch", vi.fn(async () => new Response("x".repeat(200_000), { status: 200 })));
+    const org = await seedOrg();
+    await recordShadowVerdict({ organizationId: org.id, triggerId: "m9", guestMessage: "x", gateDecision: "auto_sent" });
+    const row = await prisma.shadowVerdict.findFirstOrThrow();
+    expect(row.verdict).toBeNull();
+    expect(row.error).toContain("response_too_large");
   });
 });
 

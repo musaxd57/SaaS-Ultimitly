@@ -1022,7 +1022,19 @@ export async function applyChannelAutoReply(
         kind: closingKind,
         org,
       });
-      if (courtesySent) return { sent: true, ...meta };
+      if (courtesySent) {
+        // Gölge kapsamı (Codex): nezaket kapanışı da bir OTOMATİK GÖNDERİM
+        // kararıdır (whitelist yanlış-pozitifi olsaydı GLM burada "escalate"
+        // diyecekti) — pilot bu kararı da görsün. Karar yetkisi yine sıfır.
+        void recordShadowVerdict({
+          organizationId: conversation.property.organizationId,
+          conversationId: conversation.id,
+          triggerId: last.id,
+          guestMessage: last.body,
+          gateDecision: "auto_sent",
+        });
+        return { sent: true, ...meta };
+      }
     }
     if (closingKind === "ack") {
       if (!options.dryRun) await persistRiskVisibility(conversation.id, "closing_ack");
