@@ -734,17 +734,21 @@ describe("syncHospitable — plan property limit", () => {
     ]);
     await syncHospitable(orgId);
 
-    // Simulate an outbound path (auto-reply/manual/outbox) stamping lastMessageAt
-    // with a FUTURE wall-clock time — well past the last guest message.
+    // The sync set the outbound-immune cursor to the provider's last_message_at.
     const conv = await prisma.conversation.findFirst({ where: { externalReservationId: "res-9" } });
+    expect(conv?.syncCursorAt?.toISOString()).toBe("2026-06-01T10:00:00.000Z");
+
+    // Simulate an outbound path (auto-reply/manual/outbox) stamping lastMessageAt
+    // with a FUTURE wall-clock time. Outbound touches ONLY lastMessageAt, never
+    // syncCursorAt — so the skip-check cursor stays clean at 10:00.
     await prisma.conversation.update({
       where: { id: conv!.id },
       data: { lastMessageAt: new Date("2026-06-01T23:00:00Z") },
     });
 
-    // Second sync: a NEW guest message at 11:00 — AFTER the last guest msg (09:00)
-    // but BEFORE the polluted lastMessageAt (23:00). The OLD skip-check
-    // (lastMessageAt >= incomingLast) would drop it; the new one must import it.
+    // Second sync: a NEW guest message at 11:00 — AFTER the cursor (10:00) but
+    // BEFORE the polluted lastMessageAt (23:00). A lastMessageAt-based skip-check
+    // would drop it; the syncCursorAt-based one imports it.
     mockReservations.mockResolvedValue([
       { id: "res-9", code: "HMLOSS", platform: "airbnb", conversation_id: "conv-9",
         conversation_language: "en", last_message_at: "2026-06-01T11:00:00Z" },
@@ -762,5 +766,8 @@ describe("syncHospitable — plan property limit", () => {
     expect(result.skipped).toBe(0); // NOT skipped despite the future lastMessageAt
     const msg = await prisma.message.findFirst({ where: { externalId: "2003" } });
     expect(msg?.body).toBe("Great, we will arrive at 13:30."); // the guest message survived
+    // Cursor advanced to the new provider timestamp; lastMessageAt stays as UI set it.
+    const after = await prisma.conversation.findFirst({ where: { externalReservationId: "res-9" } });
+    expect(after?.syncCursorAt?.toISOString()).toBe("2026-06-01T11:00:00.000Z");
   });
 });

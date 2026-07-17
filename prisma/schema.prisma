@@ -437,6 +437,13 @@ model Conversation {
   status          String   @default("new") // new | waiting | answered | problem | closed
   priority        String   @default("standard") // urgent | standard | low
   lastMessageAt   DateTime @default(now())
+  // Sync skip-check cursor: the provider's reservation.last_message_at as of our
+  // last successful import. WRITTEN ONLY by the message-sync (hospitable-sync),
+  // never by outbound paths — so it can't be polluted with wall-clock now() the
+  // way lastMessageAt is (which caused a fetch→reply-window guest message to be
+  // wrongly skipped = message loss). Nullable → db-push/backfill safe (null =
+  // "never synced" → import, never skip). Independent of any message's created_at.
+  syncCursorAt    DateTime?
   // Channel-provider identifiers (e.g. Hospitable) used to sync messages and
   // send replies back on the original channel (Airbnb, Booking, ...).
   externalReservationId  String? // Hospitable reservation UUID (reply target)

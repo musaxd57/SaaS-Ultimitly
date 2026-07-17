@@ -232,31 +232,17 @@ export async function syncHospitable(
         try {
           const existingConv = await prisma.conversation.findFirst({
             where: { propertyId, externalReservationId: String(reservation.id) },
-            select: {
-              id: true,
-              reservationId: true,
-              // Skip-check cursor: the newest GUEST message we've imported, by its
-              // PROVIDER timestamp. Deliberately NOT conversation.lastMessageAt —
-              // outbound paths (auto-reply, manual reply, outbox) stamp that column
-              // with wall-clock now(), which can exceed a guest message that arrived
-              // in the fetch→reply window; comparing that against the provider's
-              // incomingLast would wrongly skip the thread and the guest message
-              // would never be imported (message loss). Guest rows always carry the
-              // provider's created_at, so they are a safe, monotone cursor. Cost of
-              // the fix: a thread where WE spoke last (no newer guest message) is
-              // re-fetched each run instead of skipped — idempotent, and acceptable
-              // at current scale. (A busy-account optimization would persist a
-              // dedicated provider-message-id cursor; see CLAUDE.md open items.)
-              messages: {
-                where: { authorType: "guest" },
-                orderBy: { createdAt: "desc" },
-                take: 1,
-                select: { createdAt: true },
-              },
-            },
+            // Skip-check cursor = syncCursorAt, NOT lastMessageAt. lastMessageAt is
+            // stamped with wall-clock now() by outbound paths (auto-reply, manual
+            // reply, outbox), so it can exceed a guest message that arrived in the
+            // fetch→reply window and would then be wrongly skipped (message loss).
+            // syncCursorAt is written ONLY by this sync (the provider's
+            // reservation.last_message_at) and never by outbound, so it stays on the
+            // provider's time axis and doesn't depend on any message's created_at.
+            // null → never-synced → don't skip (import), so the cursor backfills.
+            select: { id: true, reservationId: true, syncCursorAt: true },
           });
-          const lastGuestAt = existingConv?.messages[0]?.createdAt ?? null;
-          if (existingConv && lastGuestAt && lastGuestAt >= incomingLast) {
+          if (existingConv?.syncCursorAt && existingConv.syncCursorAt >= incomingLast) {
             // Up to date — skip the message fetch (rate-limit saver). But still
             // backfill the reservation link if it's missing, so an already-imported
             // thread gets its correct guest/dates context (and the ended-booking
@@ -546,6 +532,7 @@ async function importThread(
         status: computedStatus,
         priority: "standard",
         lastMessageAt: createCursor, // bumped to the real latest after the loop
+        syncCursorAt: createCursor, // same idempotency: advanced after the loop
         // Link to the local reservation row (same property + same Hospitable
         // reservation id) so the AI replies with the correct guest/dates and
         // skips finished/cancelled bookings. Null when no reservation matched.
@@ -686,15 +673,17 @@ async function importThread(
     }
   }
 
-  // All messages are now written — safe to advance the cursor to the provider's
+  // All messages are now written — safe to advance the cursors to the provider's
   // latest. If the loop above threw, execution never reaches here (the caller
-  // catches), so the cursor stays behind and the next sync re-fetches the tail.
-  if (createCursor.getTime() !== lastMessageAt.getTime()) {
-    await prisma.conversation.update({
-      where: { id: conversationId },
-      data: { lastMessageAt },
-    });
-  }
+  // catches), so the cursors stay behind and the next sync re-fetches the tail.
+  // lastMessageAt = UI/auto-reply "last activity"; syncCursorAt = the outbound-
+  // immune skip-check cursor. Unconditional so a null syncCursorAt (freshly added
+  // column / first sync of an existing thread) always gets set — otherwise that
+  // thread would be re-fetched every run and never start saving requests.
+  await prisma.conversation.update({
+    where: { id: conversationId },
+    data: { lastMessageAt, syncCursorAt: lastMessageAt },
+  });
 
   return newMessages;
 }
