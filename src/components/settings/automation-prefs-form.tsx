@@ -69,7 +69,11 @@ export function AutomationPrefsForm({
         setSaved(true);
         startTransition(() => router.refresh());
       } else {
-        setError(data.fields?.handoffHoldHours ?? data.fields?.autoReplyDisclosure ?? data.error ?? "Kaydedilemedi.");
+        // Surface the SPECIFIC field message (e.g. the offer payment-method
+        // rejection) instead of the generic "Doğrulama hatası" — otherwise the host
+        // can't tell what to fix. Any field error wins; falls back to the general one.
+        const fieldError = data.fields ? (Object.values(data.fields)[0] as string | undefined) : undefined;
+        setError(fieldError ?? data.error ?? "Kaydedilemedi.");
       }
     } catch {
       setError("Bağlantı hatası.");
