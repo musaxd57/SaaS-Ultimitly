@@ -1,7 +1,7 @@
 import { type NextRequest, NextResponse } from "next/server";
 import { Prisma } from "@prisma/client";
 import { prisma } from "@/lib/db";
-import { jsonOk, unauthorized } from "@/lib/api";
+import { jsonOk, unauthorized, readTextCapped, MAX_WEBHOOK_BODY_BYTES, BodyTooLargeError, payloadTooLarge } from "@/lib/api";
 import { reportError, redactSensitive } from "@/lib/report-error";
 import {
   getPaddleWebhookSecret,
@@ -323,8 +323,16 @@ export async function POST(req: NextRequest) {
   const secret = getPaddleWebhookSecret();
   if (!secret) return NextResponse.json({ disabled: true }, { status: 200 });
 
-  // Signature is over the RAW bytes — read text BEFORE any JSON parse.
-  const rawBody = await req.text();
+  // Signature is over the RAW bytes — read text BEFORE any JSON parse, but CAP it:
+  // this is an anonymous public endpoint and the read happens before the signature
+  // check, so an oversized body would otherwise be buffered into memory first (OOM).
+  let rawBody: string;
+  try {
+    rawBody = await readTextCapped(req, MAX_WEBHOOK_BODY_BYTES);
+  } catch (err) {
+    if (err instanceof BodyTooLargeError) return payloadTooLarge();
+    throw err;
+  }
   const ok = verifyPaddleSignature({
     signatureHeader: req.headers.get("paddle-signature"),
     rawBody,

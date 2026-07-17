@@ -1,7 +1,7 @@
 import { type NextRequest } from "next/server";
 import { prisma } from "@/lib/db";
 import { hashPassword, verifyPassword } from "@/lib/auth/password";
-import { badRequest, jsonOk, serverError, tooManyRequests } from "@/lib/api";
+import { badRequest, jsonOk, serverError, tooManyRequests, parseJsonBody, payloadTooLarge } from "@/lib/api";
 import { rateLimit, clientIp } from "@/lib/rate-limit";
 import { writeAudit } from "@/lib/audit";
 import { emailService } from "@/lib/email";
@@ -50,7 +50,9 @@ export async function POST(req: NextRequest) {
   if (!ipLimit.ok) return tooManyRequests(ipLimit.retryAfter);
 
   try {
-    const data = await req.json().catch(() => null);
+    const bodyResult = await parseJsonBody<Record<string, unknown>>(req);
+    if (!bodyResult.ok && bodyResult.tooLarge) return payloadTooLarge();
+    const data = bodyResult.ok ? bodyResult.data : null;
     const action = typeof data?.action === "string" ? data.action : "";
     const email = typeof data?.email === "string" ? data.email.trim().toLowerCase() : "";
     if (!email || !/^[^@\s]+@[^@\s]+\.[^@\s]+$/.test(email)) {

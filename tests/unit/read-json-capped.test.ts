@@ -1,5 +1,5 @@
 import { describe, it, expect } from "vitest";
-import { readJsonCapped, BodyTooLargeError, MAX_JSON_BODY_BYTES } from "@/lib/api";
+import { readJsonCapped, readTextCapped, BodyTooLargeError, MAX_JSON_BODY_BYTES } from "@/lib/api";
 
 const jsonReq = (body: string) =>
   new Request("http://t/api/x", { method: "POST", body, headers: { "content-type": "application/json" } });
@@ -49,5 +49,28 @@ describe("readJsonCapped (body-size cap)", () => {
 
   it("default cap is 64 KB", () => {
     expect(MAX_JSON_BODY_BYTES).toBe(64 * 1024);
+  });
+
+  it("ACTIVELY cancels the stream (not just releaseLock) when the cap is exceeded", async () => {
+    let cancelled = false;
+    const stream = new ReadableStream<Uint8Array>({
+      start(c) {
+        c.enqueue(new TextEncoder().encode("a".repeat(4096)));
+        // do NOT close — leave it open so cancel() actually has something to cancel
+      },
+      cancel() {
+        cancelled = true; // reader.cancel() propagates here; releaseLock alone would not
+      },
+    });
+    // Feed the stream directly (a real Request would re-wrap it and hide the cancel).
+    const req = { headers: new Headers(), body: stream } as unknown as Request;
+    await expect(readTextCapped(req, 1024)).rejects.toBeInstanceOf(BodyTooLargeError);
+    expect(cancelled).toBe(true); // the oversized body was cancelled, not drained
+  });
+
+  it("readTextCapped returns raw text (webhook path) and enforces the cap", async () => {
+    expect(await readTextCapped(jsonReq("raw signed body"))).toBe("raw signed body");
+    await expect(readTextCapped(jsonReq("a".repeat(2048)), 1024)).rejects.toBeInstanceOf(BodyTooLargeError);
+    expect(await readTextCapped(new Request("http://t/api/x", { method: "POST" }))).toBe(""); // no body → ""
   });
 });

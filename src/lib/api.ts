@@ -151,24 +151,25 @@ export function payloadTooLarge(message = "İstek gövdesi çok büyük.") {
   return NextResponse.json({ error: message }, { status: 413 });
 }
 
+// Webhook bodies (Paddle) are raw TEXT verified by an HMAC signature, so they can't
+// use readJsonCapped; a larger cap covers the biggest legitimate event (subscription
+// with many line items) while still bounding an anonymous OOM attempt.
+export const MAX_WEBHOOK_BODY_BYTES = 256 * 1024;
+
 /**
- * Read + JSON-parse a request body with a HARD byte cap. Rejects (a) IMMEDIATELY
- * when a Content-Length header exceeds the cap (cheap, no read), and (b) MID-STREAM
- * when the actual bytes exceed it — so a lying or absent Content-Length can't
- * smuggle a huge body past the header check. Throws BodyTooLargeError over the cap;
- * a malformed/empty body throws a SyntaxError (JSON.parse) which the caller maps to
- * a 400. Callers: `catch (e) { if (e instanceof BodyTooLargeError) return
- * payloadTooLarge(); return badRequest({...}); }`.
+ * Read a request body as TEXT with a HARD byte cap. Rejects (a) IMMEDIATELY when a
+ * Content-Length header exceeds the cap (cheap, no read), and (b) MID-STREAM when the
+ * actual bytes exceed it — so a lying or absent Content-Length can't smuggle a huge
+ * body past the header check. On overflow it ACTIVELY cancels the stream (not just
+ * releaseLock) so we stop pulling the rest of the body into memory, then throws
+ * BodyTooLargeError. Raw-text form for webhooks whose HMAC is over the exact bytes.
  */
-export async function readJsonCapped<T = unknown>(
-  req: Request,
-  maxBytes: number = MAX_JSON_BODY_BYTES,
-): Promise<T> {
+export async function readTextCapped(req: Request, maxBytes: number = MAX_JSON_BODY_BYTES): Promise<string> {
   const declared = Number(req.headers.get("content-length"));
   if (Number.isFinite(declared) && declared > maxBytes) throw new BodyTooLargeError();
 
   const stream = req.body;
-  if (!stream) return JSON.parse("") as T; // no body → SyntaxError → caller 400
+  if (!stream) return "";
 
   const reader = stream.getReader();
   const chunks: Uint8Array[] = [];
@@ -179,14 +180,19 @@ export async function readJsonCapped<T = unknown>(
       if (done) break;
       if (!value) continue;
       total += value.byteLength;
-      if (total > maxBytes) throw new BodyTooLargeError();
+      if (total > maxBytes) {
+        // releaseLock alone leaves the source producing; cancel tells the upstream
+        // to stop so an oversized body isn't drained into memory.
+        await reader.cancel();
+        throw new BodyTooLargeError();
+      }
       chunks.push(value);
     }
   } finally {
     try {
       reader.releaseLock();
     } catch {
-      /* already released */
+      /* already released/cancelled */
     }
   }
 
@@ -196,7 +202,20 @@ export async function readJsonCapped<T = unknown>(
     buf.set(c, offset);
     offset += c.byteLength;
   }
-  return JSON.parse(new TextDecoder().decode(buf)) as T;
+  return new TextDecoder().decode(buf);
+}
+
+/**
+ * Read + JSON-parse a request body with a HARD byte cap (see readTextCapped). Throws
+ * BodyTooLargeError over the cap; a malformed/empty body throws a SyntaxError which
+ * the caller maps to a 400. Callers: `catch (e) { if (e instanceof BodyTooLargeError)
+ * return payloadTooLarge(); return badRequest({...}); }`.
+ */
+export async function readJsonCapped<T = unknown>(
+  req: Request,
+  maxBytes: number = MAX_JSON_BODY_BYTES,
+): Promise<T> {
+  return JSON.parse(await readTextCapped(req, maxBytes)) as T; // "" → SyntaxError → caller 400
 }
 
 /**
