@@ -51,14 +51,14 @@ describe("POST /api/webhooks/paddle", () => {
     const res = await POST(req(body, null));
     expect(res.status).toBe(200);
     expect(await res.json()).toEqual({ disabled: true });
-    expect(await prisma.webhookEvent.count()).toBe(0);
+    expect(await prisma.webhookEvent.count({ where: { providerEventId: "evt_x" } })).toBe(0);
   });
 
   it("rejects a bad signature with 401 and stores nothing", async () => {
     const body = JSON.stringify({ event_id: "evt_bad", event_type: "subscription.activated", data: {} });
     const res = await POST(req(body, "ts=123;h1=deadbeef"));
     expect(res.status).toBe(401);
-    expect(await prisma.webhookEvent.count()).toBe(0);
+    expect(await prisma.webhookEvent.count({ where: { providerEventId: "evt_bad" } })).toBe(0);
   });
 
   it("applies subscription.activated → upserts the org's Subscription", async () => {
@@ -143,7 +143,7 @@ describe("POST /api/webhooks/paddle", () => {
       },
     });
     expect((await POST(req(body, sign(body)))).status).toBe(200); // recorded only
-    expect(await prisma.subscription.count()).toBe(0); // nothing applied to any org
+    expect(await prisma.subscription.count({ where: { organizationId: orgId } })).toBe(0); // this org untouched (org-scoped so a parallel worker can't leak in)
   });
 
   it("INVALID consentId + forged org → binds NOTHING", async () => {
@@ -159,7 +159,7 @@ describe("POST /api/webhooks/paddle", () => {
       },
     });
     expect((await POST(req(body, sign(body)))).status).toBe(200);
-    expect(await prisma.subscription.count()).toBe(0);
+    expect(await prisma.subscription.count({ where: { organizationId: orgId } })).toBe(0);
   });
 
   it("consent priceId ≠ event priceId → REJECTED (nothing applied)", async () => {
@@ -174,7 +174,7 @@ describe("POST /api/webhooks/paddle", () => {
       },
     });
     expect((await POST(req(body, sign(body)))).status).toBe(200);
-    expect(await prisma.subscription.count()).toBe(0);
+    expect(await prisma.subscription.count({ where: { organizationId: orgId } })).toBe(0);
   });
 
   it("EXPIRED consent (> TTL) → REJECTED", async () => {
@@ -200,7 +200,7 @@ describe("POST /api/webhooks/paddle", () => {
       },
     });
     expect((await POST(req(body, sign(body)))).status).toBe(200);
-    expect(await prisma.subscription.count()).toBe(0);
+    expect(await prisma.subscription.count({ where: { organizationId: orgId } })).toBe(0);
   });
 
   it("LATE retry — occurred_at was fresh at payment, delivered >24h later → ACCEPTED (no lost entitlement)", async () => {
@@ -238,7 +238,7 @@ describe("POST /api/webhooks/paddle", () => {
       data: { id: "sub_future", status: "active", custom_data: { consentId }, items: [{ price: { id: "pri_pro" } }] },
     });
     expect((await POST(req(body, sign(body)))).status).toBe(200);
-    expect(await prisma.subscription.count()).toBe(0);
+    expect(await prisma.subscription.count({ where: { organizationId: orgId } })).toBe(0);
   });
 
   it("consent genuinely STALE at payment time (occurred_at − consent > 24h) → REJECTED", async () => {
@@ -262,7 +262,7 @@ describe("POST /api/webhooks/paddle", () => {
       data: { id: "sub_stale", status: "active", custom_data: { consentId: consent.id }, items: [{ price: { id: "pri_pro" } }] },
     });
     expect((await POST(req(body, sign(body)))).status).toBe(200);
-    expect(await prisma.subscription.count()).toBe(0);
+    expect(await prisma.subscription.count({ where: { organizationId: orgId } })).toBe(0);
   });
 
   it("transaction + subscription events safely SHARE one consentId (both bind to the consent org)", async () => {
@@ -339,7 +339,7 @@ describe("POST /api/webhooks/paddle", () => {
       data: { id: "sub_unknown", status: "active", custom_data: { consentId: staleConsent.id }, items: [{ price: { id: "pri_pro" } }] },
     });
     expect((await POST(req(body, sign(body)))).status).toBe(200);
-    expect(await prisma.subscription.count()).toBe(0);
+    expect(await prisma.subscription.count({ where: { organizationId: orgId } })).toBe(0);
   });
 
   it("forged organizationId is NEVER used (unknown providerRef, no valid consent)", async () => {
@@ -517,7 +517,7 @@ describe("POST /api/webhooks/paddle", () => {
     const res = await POST(req(body, sign(body)));
     expect(res.status).toBe(200);
     expect(await prisma.webhookEvent.findUnique({ where: { providerEventId: "evt_nolink" } })).not.toBeNull();
-    expect(await prisma.subscription.count()).toBe(0);
+    expect(await prisma.subscription.count({ where: { organizationId: orgId } })).toBe(0);
   });
 });
 
