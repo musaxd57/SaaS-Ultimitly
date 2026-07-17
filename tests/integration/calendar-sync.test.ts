@@ -40,6 +40,18 @@ SUMMARY:Jane Doe
 END:VEVENT
 END:VCALENDAR`;
 
+// A feed with N distinct valid bookings — used to prove a systematic write outage
+// alerts ONCE, not once-per-row. Guest names are distinctive ("Guest 0"…) so the
+// test can assert none of them leak into the single aggregate alert.
+function bigIcs(n: number): string {
+  const events = Array.from(
+    { length: n },
+    (_, i) =>
+      `BEGIN:VEVENT\nUID:bulk-${i}@airbnb.com\nDTSTART;VALUE=DATE:${E1_START}\nDTEND;VALUE=DATE:${E1_END}\nSUMMARY:Guest ${i}\nEND:VEVENT`,
+  ).join("\n");
+  return `BEGIN:VCALENDAR\nVERSION:2.0\nPRODID:-//Airbnb//Hosting Calendar//EN\n${events}\nEND:VCALENDAR`;
+}
+
 function mockFetch(body: string, ok = true) {
   return ok
     ? vi.mocked(fetchFeedText).mockResolvedValue(body)
@@ -403,8 +415,35 @@ describe("codex round-4: atomic legacy adoption", () => {
 
     expect(result.imported).toBe(1); // the first row landed
     expect(result.errors.length).toBe(1); // the second row failed
-    expect(reportErrorMock).toHaveBeenCalled(); // the real cause was logged, not swallowed by a bare catch
+    expect(reportErrorMock).toHaveBeenCalledTimes(1); // logged (not swallowed), and exactly once per run
     const src = await prisma.calendarSource.findUniqueOrThrow({ where: { id: source.id } });
     expect(src.lastStatus).toBe("error"); // a partial import must NOT report "ok"
+  });
+
+  it("#4: a WHOLE-import outage alerts EXACTLY once (no per-row event flood), lastStatus=error", async () => {
+    reportErrorMock.mockClear();
+    const { propertyId } = await makeOrgWithProperty();
+    const source = await prisma.calendarSource.create({
+      data: { propertyId, label: "Airbnb", url: "https://example.com/cal.ics" },
+    });
+    // 100 valid bookings; EVERY write fails (simulates a DB outage / schema drift).
+    mockFetch(bigIcs(100));
+    vi.spyOn(prisma.reservation, "create").mockRejectedValue(new Error("db outage"));
+
+    const result = await syncCalendarSource(source.id);
+
+    expect(result.imported).toBe(0);
+    expect(result.errors.length).toBe(100); // all 100 rows failed
+    // THE INVARIANT: ONE aggregate alert for the whole run, NOT 100. A per-row
+    // reportError would emit 100 Sentry events + 100 log lines on a single outage.
+    expect(reportErrorMock).toHaveBeenCalledTimes(1);
+    const src = await prisma.calendarSource.findUniqueOrThrow({ where: { id: source.id } });
+    expect(src.lastStatus).toBe("error");
+    // The single alert carries an AGGREGATE COUNT and NO row/guest data.
+    const [ctx, reportedErr] = reportErrorMock.mock.calls[0];
+    expect(ctx).toBe("import.sync");
+    const msg = (reportedErr as Error).message;
+    expect(msg).toContain("100 satır"); // aggregate count present
+    expect(msg).not.toContain("Guest"); // no guest name / row data leaked in
   });
 });

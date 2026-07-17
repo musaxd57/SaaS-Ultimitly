@@ -103,6 +103,9 @@ export async function syncCalendarSource(sourceId: string): Promise<SyncResult> 
   // Every UID seen in THIS feed (incl. cancelled ones) → used below to reconcile
   // reservations that silently disappeared from the feed.
   const seenRefs = new Set<string>();
+  // #4 (Codex): keep only the FIRST row-failure sample; a SINGLE aggregate
+  // reportError fires after the loop (never one-per-row → no event/log flood).
+  let firstRowError: unknown;
 
   for (const row of rows) {
     if (row.sourceReference) seenRefs.add(row.sourceReference);
@@ -230,11 +233,30 @@ export async function syncCalendarSource(sourceId: string): Promise<SyncResult> 
     } catch (err) {
       // Surface the real cause — a BARE catch here hid systematic failures (schema
       // drift, a DB outage) so an import that dropped rows still looked fine and no
-      // one was alerted. reportError never throws and redacts PII.
-      reportError("import.sync.reservation", err);
+      // one was alerted. But do NOT alert PER ROW: a systematic fault can fail EVERY
+      // row, and one Sentry event + log line per row means hundreds/thousands of
+      // duplicates (the alert email is throttled per-context, but the Sentry events
+      // and Railway logs are NOT). Keep just the FIRST sample; a single aggregate
+      // reportError fires after the loop.
+      if (result.errors.length === 0) firstRowError = err;
       result.errors.push("Kaydetme sırasında bir sorun oluştu, tekrar deneyin.");
       result.skipped++;
     }
+  }
+
+  // #4 (Codex): ONE alert per sync run — never per row. If ANY row failed, report
+  // exactly once here with an AGGREGATE count + the representative cause. No guest
+  // name / body / row data is added — only the failure count; redactSensitive still
+  // strips PII from the sample. Context stays stable ("import.sync") so the email
+  // throttle keys per run-type, not per varying count. Fire-and-forget (never throws).
+  if (result.errors.length > 0) {
+    const sample =
+      firstRowError instanceof Error ? firstRowError : new Error(String(firstRowError));
+    const aggregate = new Error(
+      `${result.errors.length} satır kaydedilemedi — örnek hata: ${sample.message}`,
+    );
+    aggregate.stack = sample.stack;
+    void reportError("import.sync", aggregate);
   }
 
   // Feed-disappearance reconciliation (#23, FAZ 2) — DEFAULT OFF. All the mass-cancel guards
