@@ -79,10 +79,15 @@ riskType birlikte human_request (tasarlanmış devir mesajı + AI 12s susar).
 (kanıt, KODDA doğrulanır — uydurma kaynak düşer), `missingInfo`. UI: öneri paneli/test kartı "İnsan
 incelemesi: X" + "Kullandığı bağlam" + "Eksik bilgi"; inbox amber rozet; Raporlar "AI Risk Görünümü
 (30g)" kartı. Persist: `Conversation.{skippedReason,lastRiskLevel,lastRiskType}` + `Message.aiSourcesJson`.
-**GOLDEN SET** (`tests/unit/golden-scenarios.test.ts`): ~50 sabit senaryo, kapıya bilerek zararsız
+**GOLDEN SET** (`tests/unit/golden-scenarios.test.ts`): ~105 sabit senaryo, kapıya bilerek zararsız
 0.9-güven verilir → "model yanlış sınıflandırsa bile kod vetolar mı" asserte edilir. **KURAL: prompt/
 kelime-ağı değişikliği yapan HERKES golden seti çalıştırır; yeni risk sınıfına hem tehdit hem övgü-
-tuzağı senaryosu ekler.** Fallback secret-gate: wifi/checkin/adres KB içeriği SADECE confirmed/
+tuzağı senaryosu ekler.** **3 YENİ desen (araştırma turu 07-16, web-doğrulanmış):** öz-zarar/ruh
+sağlığı krizi (→safety_emergency, deterministik `SAFETY_CRITICAL_WORDS`'e katlandı, bot asla oto-yanıt
+vermez, şefkatli+acil-yardıma yönlendiren taslak+insana devir) · squatting/çıkışı-reddetme (→rule_violation,
+yeni `OVERSTAY_REFUSAL_PHRASES` net, red-çapalı; NORMAL uzatma talebi squatting DEĞİL) · kodlanmış/obfuske
+injection (base64/ters-metin, INJECTION_PATTERNS'e yüksek-hassasiyet marker). Deterministik yol OpenAI'sız
+da vetolar; #1 tıbbi-acil zaten kapsanıyordu. Fallback secret-gate: wifi/checkin/adres KB içeriği SADECE confirmed/
 completed konaklamada (QR `verifiedActiveStay` flag'i ile). Üslup kuralları: duygu beyanı yasak,
 temenni yasak, çelişki yasak, dolgu-soru yasak, misafire HER ZAMAN "siz", ben-dili (nezaket çoğul).
 

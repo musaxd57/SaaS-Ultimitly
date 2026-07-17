@@ -347,6 +347,11 @@ const INJECTION_PATTERNS: RegExp[] = [
   /sistem (promptu|talimatı)/i, // NOT "sistem mesajı" — "Airbnb'den sistem mesajı geldi" is a normal guest sentence
   /artık .{0,30}(rolündesin|olarak davran)/i,
   /yeni rolün/i,
+  // OBFUSKE/KODLANMIŞ talimat kurulumu (2025 saldırı deseni): normal misafir
+  // ASLA "bunu base64 çöz ve uygula" demez → yüksek-hassasiyet, düşük yanlış-pozitif.
+  /base64/i,
+  /decode (this|the following|and)/i,
+  /(kodu çöz|ters çevir|tersten oku|read this backwards|reverse the following)/i,
 ];
 
 /** True when a guest message contains classic prompt-injection phrasing. */
@@ -393,6 +398,30 @@ const SAFETY_CRITICAL_WORDS = [
   // burning smell, flooding. Over-matching is the safe side (never a wrong send).
   "gas", "smell of gas", "smells like gas", "sparks", "sparking", "burning smell",
   "smells burning", "flooding", "water pouring", "pouring through", "electric shock", "monoxide",
+  // ÖZ-ZARAR / RUH SAĞLIĞI KRİZİ — bir konaklama sorunu DEĞİL, bir CAN güvenliği
+  // sinyalidir. safety_emergency'e katlandı ki (a) kapı otomatik-göndermeyi ASLA
+  // yapmasın (bot bir krize cevap vermemeli — insan devralır), (b) holding-ack da
+  // otomatik dışlansın. Yüksek-hassasiyet ifadeler: gündelik hayal-kırıklığı
+  // abartısı ("öleceğim ya") bunlara UYMAZ; over-eskalasyon zaten güvenli taraf.
+  "intihar", "kendime zarar", "canıma kıy", "canima kiy", "yaşamak istemiyorum",
+  "yasamak istemiyorum", "hayatıma son", "hayatima son", "ölmek istiyorum", "olmek istiyorum",
+  "kill myself", "end my life", "suicidal", "suicide", "harm myself", "hurt myself",
+  "want to die", "don't want to live", "dont want to live", "no reason to live",
+];
+
+// SQUATTING / TAHLİYE-REDDİ — misafir çıkışı REDDEDİYOR / süresiz kalma sinyali
+// veriyor (yasal boyut: tahliye, KBS, komşu/sonraki rezervasyon). Ev sahibi karar
+// verir, bot ASLA otomatik pazarlık yapmaz. DİKKAT: normal uzatma talebi ("1 gece
+// daha kalabilir miyim?", "geç çıkış") REDDE ÇAPALANMADIĞI için buraya UYMAZ —
+// yalnız açık red/direnme ifadeleri (over-flag'lemek güvenli taraf).
+const OVERSTAY_REFUSAL_PHRASES = [
+  "çıkmak istemiyorum", "cikmak istemiyorum", "çıkmayacağım", "cikmayacagim",
+  "gitmiyorum", "gitmeyeceğim", "gitmeyecegim", "daireden çıkmam", "daireden cikmam",
+  "evden çıkmam", "evden cikmam", "gidecek yerim yok", "zorla çıkaramaz", "zorla cikaramaz",
+  "çıkartamazsınız", "cikartamazsiniz", "tahliye edemez", "beni çıkaramaz", "beni cikaramaz",
+  "not leaving", "won't leave", "wont leave", "refuse to leave", "refuse to check out",
+  "not checking out", "nowhere to go", "you can't evict", "you cant evict", "can't make me leave",
+  "cant make me leave",
 ];
 
 // RULE VIOLATION (pet in a no-pet listing, party/event, over-capacity guests,
@@ -440,6 +469,8 @@ export function detectRiskType(message: string): string | null {
   // pet/party/over-capacity/discriminatory-exclusion message auto-sent an
   // unauthorized approval. These are host-only decisions (see prompts.ts §4).
   if (DISCRIMINATION_PHRASES.some((p) => m.includes(p))) return "discrimination";
+  // Squatting/tahliye-reddi = ev sahibi + hukuk kararı → rule_violation (host-only).
+  if (OVERSTAY_REFUSAL_PHRASES.some((p) => m.includes(p))) return "rule_violation";
   if (RULE_VIOLATION_PHRASES.some((p) => m.includes(p))) return "rule_violation";
   if (classifyFallback(message).isComplaint) return "complaint";
   return null;
