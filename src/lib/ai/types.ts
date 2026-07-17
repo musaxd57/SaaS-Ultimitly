@@ -49,6 +49,14 @@ export interface SuggestReplyInput {
   /** Neighbouring bookings (same property) for early-checkin/late-checkout calls. */
   adjacency?: AdjacencyContext | null;
   /**
+   * Host-configured late-checkout / stay-extension offer (their own price/terms),
+   * or null/empty when not set. Surfaced ONLY on an actual late-checkout / extend
+   * request — an explicit, host-scoped exception to the "never quote a price" rule.
+   * The reply stays payment-method-neutral and still defers final confirmation to
+   * the host. Empty/absent → today's behavior (no price, defer to host).
+   */
+  lateCheckoutOfferText?: string | null;
+  /**
    * PUBLIC anonymous surface (QR concierge) where the caller has ALREADY
    * verified an active stay but deliberately passes no reservation PII.
    * Suppresses the "prospective guest / complete your booking" framing while

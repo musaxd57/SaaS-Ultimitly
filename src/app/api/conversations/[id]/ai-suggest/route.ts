@@ -62,7 +62,7 @@ export const POST = withManage<{ id: string }>(async (session, req, { params }) 
   // Same learned style profile the auto-reply pass uses, for consistent voice.
   const org = await prisma.organization.findUnique({
     where: { id: session.organizationId },
-    select: { aiStyleProfile: true },
+    select: { aiStyleProfile: true, lateCheckoutOfferText: true },
   });
 
   // Turnover context (neighbouring bookings) for early-checkin/late-checkout.
@@ -101,6 +101,7 @@ export const POST = withManage<{ id: string }>(async (session, req, { params }) 
     language: lastInbound.language || "tr",
     styleProfile: org?.aiStyleProfile,
     adjacency,
+    lateCheckoutOfferText: org?.lateCheckoutOfferText,
   });
 
   await prisma.message.update({

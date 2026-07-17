@@ -17,6 +17,7 @@ export function AutomationPrefsForm({
   holdingAck,
   closingReply,
   closingText,
+  lateCheckoutOffer,
   taskFromMessage,
   supplyRequest,
 }: {
@@ -25,6 +26,7 @@ export function AutomationPrefsForm({
   holdingAck: boolean;
   closingReply: boolean;
   closingText: string;
+  lateCheckoutOffer: string;
   taskFromMessage: boolean;
   supplyRequest: boolean;
 }) {
@@ -35,6 +37,7 @@ export function AutomationPrefsForm({
   const [autoHoldingReplyEnabled, setHoldingAck] = useState(holdingAck);
   const [autoClosingReplyEnabled, setClosingReply] = useState(closingReply);
   const [closingReplyText, setClosingText] = useState(closingText);
+  const [lateCheckoutOfferText, setLateCheckoutOffer] = useState(lateCheckoutOffer);
   const [autoTaskFromMessageEnabled, setTaskFromMessage] = useState(taskFromMessage);
   const [autoSupplyRequestEnabled, setSupplyRequest] = useState(supplyRequest);
   const [busy, setBusy] = useState(false);
@@ -56,6 +59,7 @@ export function AutomationPrefsForm({
           autoHoldingReplyEnabled,
           autoClosingReplyEnabled,
           closingReplyText,
+          lateCheckoutOfferText,
           autoTaskFromMessageEnabled,
           autoSupplyRequestEnabled,
         }),
@@ -194,6 +198,30 @@ export function AutomationPrefsForm({
           </span>
         </span>
       </label>
+
+      <div className="rounded-md border border-dashed border-muted-foreground/30 p-3">
+        <label htmlFor="late-checkout-offer" className="block text-sm font-medium">
+          Geç çıkış / uzatma teklifi (isteğe bağlı)
+        </label>
+        <p className="mb-1.5 text-xs text-muted-foreground">
+          Buraya kendi <span className="font-medium">geç çıkış / konaklama uzatma</span> teklifinizi
+          (fiyat ve koşullar) yazarsanız, bir misafir geç çıkış veya kalışı uzatmayı sorduğunda AI
+          bu teklifi <span className="font-medium">yalnızca o soruda</span> misafire iletir ve son
+          onayı size bırakır (&ldquo;uygunluğu ev sahibimiz netleştirecek&rdquo;). Boş bırakırsanız
+          (varsayılan) AI fiyat söylemez, konuyu doğrudan size yönlendirir. AI{" "}
+          <span className="font-medium">ödeme yöntemine girmez</span> — nakit/elden ya da platform
+          üzerinden demez; ödemeyi misafirle siz ayarlarsınız.
+        </p>
+        <textarea
+          id="late-checkout-offer"
+          value={lateCheckoutOfferText}
+          onChange={(e) => { setLateCheckoutOffer(e.target.value); setSaved(false); }}
+          rows={3}
+          maxLength={400}
+          placeholder="Örn. Geç çıkış (en geç 14:00) müsaitliğe göre 500 TL'dir. Bir gün uzatma için lütfen belirtin, birlikte ayarlayalım."
+          className="w-full rounded-md border border-input bg-background px-3 py-2 text-sm"
+        />
+      </div>
 
       <div>
         <label htmlFor="hold-hours" className="block text-sm font-medium">

@@ -63,6 +63,7 @@ export default async function SettingsPage({
         autoHoldingReplyEnabled: true,
         autoClosingReplyEnabled: true,
         closingReplyText: true,
+        lateCheckoutOfferText: true,
         autoTaskFromMessageEnabled: true,
         autoSupplyRequestEnabled: true,
         icalShowGuestName: true,
@@ -363,6 +364,7 @@ export default async function SettingsPage({
             holdingAck={org?.autoHoldingReplyEnabled ?? false}
             closingReply={org?.autoClosingReplyEnabled ?? false}
             closingText={org?.closingReplyText ?? ""}
+            lateCheckoutOffer={org?.lateCheckoutOfferText ?? ""}
             taskFromMessage={org?.autoTaskFromMessageEnabled ?? false}
             supplyRequest={org?.autoSupplyRequestEnabled ?? false}
           />

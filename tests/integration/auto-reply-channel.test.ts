@@ -702,9 +702,15 @@ describe("closing courtesy — opt-in 'Rica ederiz' reply to a bare thanks", () 
       const { conversationId } = await seedClosing();
       const out = await applyChannelAutoReply(conversationId);
       expect(out.sent).toBe(true);
-      // Gölge fire-and-forget (unawaited) — satırın yazılmasını bekle.
+      // Gölge fire-and-forget (unawaited) — satırın FİNAL hâlini bekle. Claim-first
+      // yazımda satır önce error:"pending" olarak açılır (verdict henüz null);
+      // yalnızca count'u beklemek satırı model-çağrısı tamamlanmadan okuyabilir
+      // (yarış). Satırın HEM var olmasını HEM de hükmün yazılmasını (pending'den
+      // çıkmasını) bekle — yoksa "row yok" ya da "hâlâ pending" okunabilir.
       await vi.waitFor(async () => {
-        expect(await prisma.shadowVerdict.count()).toBe(1);
+        const r = await prisma.shadowVerdict.findFirst();
+        expect(r).not.toBeNull();
+        expect(r?.error).not.toBe("pending");
       });
       const row = await prisma.shadowVerdict.findFirstOrThrow();
       expect(row.gateDecision).toBe("auto_sent"); // whitelist yanlış-pozitifi olsaydı GLM burada ayrışırdı

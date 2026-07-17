@@ -11,6 +11,7 @@ const HOUR_FIELDS = ["autoReplyStartHour", "autoReplyEndHour"] as const;
 const VALID_TONES = ["formal", "warm", "short", "luxury"] as const;
 const SIGNATURE_MAX = 600;
 const CLOSING_TEXT_MAX = 300; // a courtesy is one line, not a letter
+const OFFER_TEXT_MAX = 400; // late-checkout offer: a short price/terms line (matches the prompt sanitizer cap)
 
 /** Update organization-level settings (auto-reply window/toggle + AI tone/signature). */
 export const PATCH = withManage(async (session, req) => {
@@ -100,6 +101,24 @@ export const PATCH = withManage(async (session, req) => {
         errors.closingReplyText = `En fazla ${CLOSING_TEXT_MAX} karakter.`;
       } else {
         update.closingReplyText = trimmed.length === 0 ? null : trimmed;
+      }
+    }
+  }
+
+  // Host-written late-checkout / stay-extension offer. Empty clears it → the AI
+  // reverts to today's behavior (never quotes a price, defers to the host). When
+  // set, the AI may surface it on an actual late-checkout request — payment-neutral,
+  // confirmation still routed to the host (see prompts.ts offer block).
+  if ("lateCheckoutOfferText" in data) {
+    const raw = data.lateCheckoutOfferText;
+    if (raw !== null && typeof raw !== "string") {
+      errors.lateCheckoutOfferText = "Metin olmalı.";
+    } else {
+      const trimmed = (raw ?? "").toString().trim();
+      if (trimmed.length > OFFER_TEXT_MAX) {
+        errors.lateCheckoutOfferText = `En fazla ${OFFER_TEXT_MAX} karakter.`;
+      } else {
+        update.lateCheckoutOfferText = trimmed.length === 0 ? null : trimmed;
       }
     }
   }

@@ -92,6 +92,15 @@ model Organization {
   // closing regardless of the guest's language (the host owns the words); when
   // null/empty, the built-in short per-language default goes out ("Rica ederiz!").
   closingReplyText String?
+  // Host-written late-checkout / stay-extension offer (optional; opt-in by simply
+  // filling it in — empty = today's behavior where the AI never quotes a price and
+  // just defers to the host). When set, and ONLY when a guest actually asks about a
+  // late checkout / extending their stay, the AI MAY surface this offer (including
+  // any price the host wrote) as the host's standing terms — an explicit exception
+  // to the "never write a price" rule (Section 7.5), scoped to THIS host-owned text.
+  // The AI stays PAYMENT-METHOD-NEUTRAL (never says cash NOR "via the platform") and
+  // still routes the final confirmation to the host — the host arranges collection.
+  lateCheckoutOfferText String?
   // Smart operational-task routing (opt-in, default OFF): when ON, a guest message
   // that escalates to the host AND carries a physical-operations signal
   // (maintenance / restock / cleaning) also opens a deduped, SLA-dated task so the

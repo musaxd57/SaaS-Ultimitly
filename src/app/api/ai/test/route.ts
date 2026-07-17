@@ -73,6 +73,7 @@ export const POST = withManage(async (session, req) => {
       aiSignature: true,
       autoClosingReplyEnabled: true,
       closingReplyText: true,
+      lateCheckoutOfferText: true,
       autoReplyDisclosure: true,
       language: true,
     },
@@ -104,6 +105,7 @@ export const POST = withManage(async (session, req) => {
     tone,
     language: "tr",
     styleProfile: org?.aiStyleProfile,
+    lateCheckoutOfferText: org?.lateCheckoutOfferText,
   });
 
   // The REAL auto-send verdict — the exact production gate (intent blocklist,

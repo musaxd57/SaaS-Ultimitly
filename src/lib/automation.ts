@@ -902,6 +902,7 @@ export async function applyChannelAutoReply(
               autoReplyDisclosure: true,
               autoClosingReplyEnabled: true,
               closingReplyText: true,
+              lateCheckoutOfferText: true,
               handoffHoldHours: true,
             },
           },
@@ -1096,6 +1097,7 @@ export async function applyChannelAutoReply(
     language: org.language ?? "tr",
     styleProfile: org.aiStyleProfile,
     adjacency,
+    lateCheckoutOfferText: org.lateCheckoutOfferText,
   });
 
   // If the guest stated their own departure time, record it on the reservation
