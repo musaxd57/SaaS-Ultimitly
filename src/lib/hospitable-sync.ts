@@ -532,7 +532,13 @@ async function importThread(
         status: computedStatus,
         priority: "standard",
         lastMessageAt: createCursor, // bumped to the real latest after the loop
-        syncCursorAt: createCursor, // same idempotency: advanced after the loop
+        // syncCursorAt stays NULL until the message loop FULLY succeeds. Writing
+        // createCursor here would defeat the idempotency for a single-message (or
+        // all-same-timestamp) thread where createCursor === incomingLast: the row
+        // would be "current" the instant it's created, so if a message write then
+        // throws (caught per-reservation above) the loop-end update never runs and
+        // the next sync skips the thread — losing the message. null = never-synced
+        // → import (never skip), and the loop-end update fills it in on success.
         // Link to the local reservation row (same property + same Hospitable
         // reservation id) so the AI replies with the correct guest/dates and
         // skips finished/cancelled bookings. Null when no reservation matched.

@@ -770,4 +770,43 @@ describe("syncHospitable — plan property limit", () => {
     const after = await prisma.conversation.findFirst({ where: { externalReservationId: "res-9" } });
     expect(after?.syncCursorAt?.toISOString()).toBe("2026-06-01T11:00:00.000Z");
   });
+
+  it("does NOT advance the cursor when a message write throws mid-loop on a NEW single-message thread (retries, no loss)", async () => {
+    const { orgId } = await makeOrgWithProperty();
+    mockProperties.mockResolvedValue([{ id: "hosp-prop-1", name: "Test Property" }]);
+    // Single-message thread → createCursor === incomingLast (both 10:00): the row
+    // would be "current" the instant it's created if the create wrote the cursor.
+    mockReservations.mockResolvedValue([
+      { id: "res-loss2", code: "HM1", platform: "airbnb", conversation_id: "c1",
+        conversation_language: "en", last_message_at: "2026-06-02T10:00:00Z" },
+    ]);
+    mockMessages.mockResolvedValue([
+      { id: 3001, body: "Tek mesaj", sender_type: "guest", sender_role: "guest",
+        sender: { full_name: "Deniz" }, created_at: "2026-06-02T10:00:00Z" },
+    ]);
+
+    // First sync: force the message write to throw ONCE, mid-loop (after the
+    // conversation row is created). importThread throws → caught per-reservation.
+    // Later calls delegate to the REAL create (mockImplementation) so the second
+    // sync below writes for real. (No mockRestore — restoring a Prisma delegate
+    // method breaks it; this is the last test in the file so the spy can't leak.)
+    const realCreate = prisma.message.create.bind(prisma.message);
+    vi.spyOn(prisma.message, "create")
+      .mockRejectedValueOnce(new Error("db blip"))
+      .mockImplementation(((a: Parameters<typeof realCreate>[0]) => realCreate(a)) as never);
+    await syncHospitable(orgId);
+
+    const conv = await prisma.conversation.findFirst({ where: { externalReservationId: "res-loss2" } });
+    expect(conv).not.toBeNull(); // the conversation row was created
+    expect(conv?.syncCursorAt).toBeNull(); // ← the fix: cursor NOT advanced (message unwritten)
+
+    // Second sync: the write succeeds now → the thread is NOT skipped (null cursor)
+    // and the message is finally imported.
+    const result = await syncHospitable(orgId);
+    expect(result.skipped).toBe(0);
+    const msg = await prisma.message.findFirst({ where: { conversationId: conv!.id, externalId: "3001" } });
+    expect(msg?.body).toBe("Tek mesaj"); // the message survived the mid-loop failure
+    const healed = await prisma.conversation.findFirst({ where: { externalReservationId: "res-loss2" } });
+    expect(healed?.syncCursorAt?.toISOString()).toBe("2026-06-02T10:00:00.000Z"); // now advanced
+  });
 });
