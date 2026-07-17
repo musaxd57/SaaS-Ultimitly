@@ -120,7 +120,7 @@ export const PATCH = withManage(async (session, req) => {
         errors.lateCheckoutOfferText = `En fazla ${OFFER_TEXT_MAX} karakter.`;
       } else if (OFFER_PAYMENT_METHOD_RX.test(trimmed)) {
         errors.lateCheckoutOfferText =
-          "Teklif metni ödeme yöntemi içeremez (elden/nakit/IBAN/havale vb.). Ödemeler her zaman platform üzerinden alınır; yalnızca fiyat/koşul yazın.";
+          "Teklif metni ödeme yöntemi içeremez (elden/nakit/IBAN/havale vb.). Yalnızca fiyat ve koşulları yazın; tahsilatı siz yönetirsiniz.";
       } else {
         update.lateCheckoutOfferText = trimmed.length === 0 ? null : trimmed;
       }
