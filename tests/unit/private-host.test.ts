@@ -23,7 +23,19 @@ describe("isPrivateHost (SSRF guard)", () => {
       "::1",
       "[::1]",
       "fe80::1",
+      "fea0::1", // link-local upper part of fe80::/10 (was missed by "fe80:" prefix)
+      "feb0::1",
       "fc00::1",
+      "fec0::1", // site-local (deprecated but routable)
+      // IPv4-mapped IPv6 — every spelling must decode to the private octets, not
+      // just the dotted form (Node echoes an isIP literal verbatim).
+      "::ffff:127.0.0.1", // dotted
+      "::ffff:7f00:1", // hex → 127.0.0.1
+      "[::ffff:7f00:1]",
+      "::ffff:a9fe:a9fe", // hex → 169.254.169.254 (cloud metadata)
+      "::ffff:169.254.169.254",
+      "::127.0.0.1", // IPv4-compatible (deprecated)
+      "64:ff9b::a9fe:a9fe", // NAT64 → 169.254.169.254
       "",
     ]) {
       expect(isPrivateHost(h)).toBe(true);
@@ -39,6 +51,8 @@ describe("isPrivateHost (SSRF guard)", () => {
       "172.15.0.1", // just below the private 172.16-31 range
       "172.32.0.1", // just above
       "example.com",
+      "::ffff:8.8.8.8", // public IPv4 mapped — must NOT be over-blocked
+      "::ffff:0808:0808", // same, hex form (8.8.8.8)
     ]) {
       expect(isPrivateHost(h)).toBe(false);
     }

@@ -1,5 +1,6 @@
 import { NextResponse } from "next/server";
-import { requireSession, unauthorized, paymentRequired, tooManyRequests } from "@/lib/api";
+import { paymentRequired, tooManyRequests } from "@/lib/api";
+import { withManage } from "@/lib/route-guard";
 import { premiumAllowed } from "@/lib/billing/subscription";
 import { rateLimit } from "@/lib/rate-limit";
 import { previewChannelAutoReplies } from "@/lib/automation";
@@ -13,9 +14,9 @@ import { previewChannelAutoReplies } from "@/lib/automation";
 // the active-hours window on purpose, so it works any time of day.
 // ---------------------------------------------------------------------------
 
-export async function POST() {
-  const session = await requireSession();
-  if (!session) return unauthorized();
+// withManage: owner/manager only (parity with the sibling ai/test route) — a
+// preview surfaces guest inbox content + AI drafts, which the staff clamp forbids.
+export const POST = withManage(async (session) => {
   if (!(await premiumAllowed(session.organizationId))) return paymentRequired();
 
   // This preview fans out one model call per awaiting conversation on the shared
@@ -39,4 +40,4 @@ export async function POST() {
     const message = err instanceof Error ? err.message : "Önizleme başarısız oldu.";
     return NextResponse.json({ ok: false, error: message });
   }
-}
+});

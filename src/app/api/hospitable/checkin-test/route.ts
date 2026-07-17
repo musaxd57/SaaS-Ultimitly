@@ -1,5 +1,6 @@
 import { NextResponse } from "next/server";
-import { requireSession, unauthorized, paymentRequired, tooManyRequests } from "@/lib/api";
+import { paymentRequired, tooManyRequests } from "@/lib/api";
+import { withManage } from "@/lib/route-guard";
 import { premiumAllowed } from "@/lib/billing/subscription";
 import { rateLimit } from "@/lib/rate-limit";
 import { previewCheckins } from "@/lib/automation";
@@ -13,9 +14,9 @@ import { previewCheckins } from "@/lib/automation";
 // "Giriş Talimatı" entry before going live, and flags apartments missing it.
 // ---------------------------------------------------------------------------
 
-export async function POST() {
-  const session = await requireSession();
-  if (!session) return unauthorized();
+// withManage: owner/manager only (parity with ai/test) — surfaces upcoming
+// guests' names + booking details the staff clamp is designed to withhold.
+export const POST = withManage(async (session) => {
   if (!(await premiumAllowed(session.organizationId))) return paymentRequired();
 
   const limited = await rateLimit(`preview-checkin:${session.userId}`, 6, 60_000);
@@ -28,4 +29,4 @@ export async function POST() {
     const message = err instanceof Error ? err.message : "Önizleme başarısız oldu.";
     return NextResponse.json({ ok: false, error: message });
   }
-}
+});
