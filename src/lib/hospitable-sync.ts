@@ -232,9 +232,31 @@ export async function syncHospitable(
         try {
           const existingConv = await prisma.conversation.findFirst({
             where: { propertyId, externalReservationId: String(reservation.id) },
-            select: { id: true, lastMessageAt: true, reservationId: true },
+            select: {
+              id: true,
+              reservationId: true,
+              // Skip-check cursor: the newest GUEST message we've imported, by its
+              // PROVIDER timestamp. Deliberately NOT conversation.lastMessageAt —
+              // outbound paths (auto-reply, manual reply, outbox) stamp that column
+              // with wall-clock now(), which can exceed a guest message that arrived
+              // in the fetch→reply window; comparing that against the provider's
+              // incomingLast would wrongly skip the thread and the guest message
+              // would never be imported (message loss). Guest rows always carry the
+              // provider's created_at, so they are a safe, monotone cursor. Cost of
+              // the fix: a thread where WE spoke last (no newer guest message) is
+              // re-fetched each run instead of skipped — idempotent, and acceptable
+              // at current scale. (A busy-account optimization would persist a
+              // dedicated provider-message-id cursor; see CLAUDE.md open items.)
+              messages: {
+                where: { authorType: "guest" },
+                orderBy: { createdAt: "desc" },
+                take: 1,
+                select: { createdAt: true },
+              },
+            },
           });
-          if (existingConv?.lastMessageAt && existingConv.lastMessageAt >= incomingLast) {
+          const lastGuestAt = existingConv?.messages[0]?.createdAt ?? null;
+          if (existingConv && lastGuestAt && lastGuestAt >= incomingLast) {
             // Up to date — skip the message fetch (rate-limit saver). But still
             // backfill the reservation link if it's missing, so an already-imported
             // thread gets its correct guest/dates context (and the ended-booking

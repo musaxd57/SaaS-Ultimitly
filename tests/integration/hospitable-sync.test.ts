@@ -716,4 +716,51 @@ describe("syncHospitable — plan property limit", () => {
     conv = await prisma.conversation.findFirst({ where: { externalReservationId: "res-ph-1" } });
     expect(conv?.guestIdentifier).toBe("Zeynep Kaya");
   });
+
+  it("does NOT skip a thread when lastMessageAt was stamped past a new guest message (message-loss guard)", async () => {
+    const { orgId } = await makeOrgWithProperty();
+    mockProperties.mockResolvedValue([{ id: "hosp-prop-1", name: "Test Property" }]);
+
+    // First sync: one guest message (09:00) + our host reply (10:00).
+    mockReservations.mockResolvedValue([
+      { id: "res-9", code: "HMLOSS", platform: "airbnb", conversation_id: "conv-9",
+        conversation_language: "en", last_message_at: "2026-06-01T10:00:00Z" },
+    ]);
+    mockMessages.mockResolvedValue([
+      { id: 2001, body: "Is early check-in possible?", sender_type: "guest", sender_role: "guest",
+        sender: { full_name: "Sam Guest" }, created_at: "2026-06-01T09:00:00Z" },
+      { id: 2002, body: "Yes, from 13:00.", sender_type: "host", sender_role: "host",
+        sender: { full_name: "Host" }, created_at: "2026-06-01T10:00:00Z" },
+    ]);
+    await syncHospitable(orgId);
+
+    // Simulate an outbound path (auto-reply/manual/outbox) stamping lastMessageAt
+    // with a FUTURE wall-clock time — well past the last guest message.
+    const conv = await prisma.conversation.findFirst({ where: { externalReservationId: "res-9" } });
+    await prisma.conversation.update({
+      where: { id: conv!.id },
+      data: { lastMessageAt: new Date("2026-06-01T23:00:00Z") },
+    });
+
+    // Second sync: a NEW guest message at 11:00 — AFTER the last guest msg (09:00)
+    // but BEFORE the polluted lastMessageAt (23:00). The OLD skip-check
+    // (lastMessageAt >= incomingLast) would drop it; the new one must import it.
+    mockReservations.mockResolvedValue([
+      { id: "res-9", code: "HMLOSS", platform: "airbnb", conversation_id: "conv-9",
+        conversation_language: "en", last_message_at: "2026-06-01T11:00:00Z" },
+    ]);
+    mockMessages.mockResolvedValue([
+      { id: 2001, body: "Is early check-in possible?", sender_type: "guest", sender_role: "guest",
+        sender: { full_name: "Sam Guest" }, created_at: "2026-06-01T09:00:00Z" },
+      { id: 2002, body: "Yes, from 13:00.", sender_type: "host", sender_role: "host",
+        sender: { full_name: "Host" }, created_at: "2026-06-01T10:00:00Z" },
+      { id: 2003, body: "Great, we will arrive at 13:30.", sender_type: "guest", sender_role: "guest",
+        sender: { full_name: "Sam Guest" }, created_at: "2026-06-01T11:00:00Z" },
+    ]);
+    const result = await syncHospitable(orgId);
+
+    expect(result.skipped).toBe(0); // NOT skipped despite the future lastMessageAt
+    const msg = await prisma.message.findFirst({ where: { externalId: "2003" } });
+    expect(msg?.body).toBe("Great, we will arrive at 13:30."); // the guest message survived
+  });
 });
