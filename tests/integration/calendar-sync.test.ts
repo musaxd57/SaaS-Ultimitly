@@ -3,9 +3,13 @@ import { prisma, resetDb, makeOrgWithProperty } from "../helpers/db";
 // The feed HTTP layer (node:https + pinned lookup + byte-cap) is unit-tested in
 // pinned-fetch.test.ts; here we mock it to feed the sync ENGINE fixed ICS text.
 vi.mock("@/lib/net/pinned-fetch", () => ({ fetchFeedText: vi.fn() }));
+vi.mock("@/lib/report-error", () => ({ reportError: vi.fn().mockResolvedValue(undefined) }));
 import { syncCalendarSource } from "@/lib/import/sync";
 import { fetchFeedText } from "@/lib/net/pinned-fetch";
+import { reportError } from "@/lib/report-error";
 import { ANON_NAME } from "@/lib/data-retention";
+
+const reportErrorMock = vi.mocked(reportError);
 
 // Fixture dates are DYNAMIC (relative to the run date). The original hardcoded
 // 2026-07-1x dates were a time bomb: the day the first stay's DTEND slipped into
@@ -376,5 +380,31 @@ describe("codex round-4: atomic legacy adoption", () => {
     const row = await prisma.reservation.findFirst({ where: { propertyId, sourceReference: "race-1" } });
     expect(row?.status).toBe("confirmed");
     expect(row?.calendarSourceId).toBe(s2.id);
+  });
+
+  it("#4: a mid-import row failure is REPORTED and surfaces as 'error' — not a silent 'ok'", async () => {
+    reportErrorMock.mockClear();
+    const { propertyId } = await makeOrgWithProperty();
+    const source = await prisma.calendarSource.create({
+      data: { propertyId, label: "Airbnb", url: "https://example.com/cal.ics" },
+    });
+    mockFetch(ICS); // two bookings (Ahmet, Jane)
+
+    // Fail the SECOND row's write with a systematic error (NOT a dedupe-hit, which is
+    // handled separately). The first row still lands → this is a PARTIAL import.
+    const realCreate = prisma.reservation.create.bind(prisma.reservation);
+    let n = 0;
+    vi.spyOn(prisma.reservation, "create").mockImplementation(((a: Parameters<typeof realCreate>[0]) => {
+      n += 1;
+      return n === 2 ? Promise.reject(new Error("db blip")) : realCreate(a);
+    }) as never);
+
+    const result = await syncCalendarSource(source.id);
+
+    expect(result.imported).toBe(1); // the first row landed
+    expect(result.errors.length).toBe(1); // the second row failed
+    expect(reportErrorMock).toHaveBeenCalled(); // the real cause was logged, not swallowed by a bare catch
+    const src = await prisma.calendarSource.findUniqueOrThrow({ where: { id: source.id } });
+    expect(src.lastStatus).toBe("error"); // a partial import must NOT report "ok"
   });
 });

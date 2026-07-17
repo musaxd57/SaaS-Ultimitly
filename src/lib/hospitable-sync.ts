@@ -524,11 +524,26 @@ async function importThread(
   // the existing-thread branch below and used by the message loop's era filter.
   let scrubbedThread = false;
   if (!existing) {
+    // KVKK resurrection guard on CREATE — mirrors the UPDATE branch below. If the
+    // linked stay was anonymized by the retention sweep (guestName === ANON_NAME) —
+    // a thread that first appears / re-appears AFTER the sweep (row deleted or a new
+    // message arrives on an old, scrubbed booking) — we must NOT write the real
+    // channel name, and the era filter (eraCutoff) must engage; otherwise re-importing
+    // resurrects the scrubbed guest name + the redacted message bodies.
+    let createScrubbed = false;
+    if (localReservationId) {
+      const linked = await prisma.reservation.findUnique({
+        where: { id: localReservationId },
+        select: { guestName: true },
+      });
+      createScrubbed = linked?.guestName === ANON_NAME;
+    }
+    scrubbedThread = createScrubbed;
     const created = await prisma.conversation.create({
       data: {
         propertyId,
         channel,
-        guestIdentifier: guestName,
+        guestIdentifier: createScrubbed ? ANON_ID : guestName,
         status: computedStatus,
         priority: "standard",
         lastMessageAt: createCursor, // bumped to the real latest after the loop

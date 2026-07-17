@@ -2,6 +2,7 @@ import "server-only";
 import { Prisma } from "@prisma/client";
 import { prisma } from "@/lib/db";
 import { isUniqueViolation } from "@/lib/db-errors";
+import { reportError } from "@/lib/report-error";
 import { parseIcs } from "@/lib/import/ics";
 import { createReservationTasks, removeAutoTasksForCancelledReservation } from "@/lib/automation";
 import { isPrivateHost, resolvesToPrivate } from "@/lib/net/private-host";
@@ -226,7 +227,11 @@ export async function syncCalendarSource(sourceId: string): Promise<SyncResult> 
         await createReservationTasks(created.id);
         result.imported++;
       }
-    } catch {
+    } catch (err) {
+      // Surface the real cause — a BARE catch here hid systematic failures (schema
+      // drift, a DB outage) so an import that dropped rows still looked fine and no
+      // one was alerted. reportError never throws and redacts PII.
+      reportError("import.sync.reservation", err);
       result.errors.push("Kaydetme sırasında bir sorun oluştu, tekrar deneyin.");
       result.skipped++;
     }
@@ -260,7 +265,9 @@ export async function syncCalendarSource(sourceId: string): Promise<SyncResult> 
     where: { id: sourceId },
     data: {
       lastSyncedAt: new Date(),
-      lastStatus: result.errors.length && result.imported + result.updated === 0 ? "error" : "ok",
+      // ANY error surfaces as "error" — a PARTIAL import (some rows failed) must not
+      // report "ok" and hide the failures. The summary line carries the exact counts.
+      lastStatus: result.errors.length ? "error" : "ok",
       lastResult: summary,
     },
   });

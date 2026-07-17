@@ -1,5 +1,6 @@
 import { describe, it, expect, beforeEach, afterEach, vi } from "vitest";
 import { prisma, resetDb, makeOrgWithProperty } from "../helpers/db";
+import { ANON_NAME, ANON_ID } from "@/lib/data-retention";
 
 // Mock the Hospitable API client so the sync runs against fixed fixtures.
 vi.mock("@/lib/hospitable", () => ({
@@ -808,5 +809,49 @@ describe("syncHospitable — plan property limit", () => {
     expect(msg?.body).toBe("Tek mesaj"); // the message survived the mid-loop failure
     const healed = await prisma.conversation.findFirst({ where: { externalReservationId: "res-loss2" } });
     expect(healed?.syncCursorAt?.toISOString()).toBe("2026-06-02T10:00:00.000Z"); // now advanced
+  });
+
+  it("KVKK: CREATE branch does NOT resurrect PII when the linked stay is already scrubbed (no prior conversation)", async () => {
+    vi.stubEnv("DATA_RETENTION_MONTHS", "24");
+    try {
+      const { orgId, propertyId } = await makeOrgWithProperty();
+      // The retention sweep already anonymized this OLD stay; crucially NO conversation
+      // row exists yet, so importThread takes the CREATE branch (not UPDATE). Without
+      // the CREATE-branch guard the sync would write the channel's real name + re-import
+      // the old body → PII resurrection.
+      await prisma.reservation.create({
+        data: {
+          propertyId,
+          guestName: ANON_NAME, // scrubbed sentinel
+          arrivalDate: new Date("2023-01-01"),
+          departureDate: new Date("2023-01-04"),
+          channel: "booking",
+          status: "confirmed",
+          sourceReference: "res-crscrub",
+        },
+      });
+      mockProperties.mockResolvedValue([{ id: "hosp-prop-1", name: "Test Property" }]);
+      mockReservations.mockResolvedValue([
+        { id: "res-crscrub", platform: "booking", arrival_date: "2023-01-01", departure_date: "2023-01-04",
+          conversation_id: "conv-cr", last_message_at: "2023-01-02T10:00:00Z",
+          guest: { full_name: "Ada Lovelace" } }, // the channel STILL has the real name
+      ]);
+      mockMessages.mockResolvedValue([
+        { id: 5001, body: "Merhaba, ben Ada Lovelace", sender_type: "guest", sender_role: "guest", created_at: "2023-01-01T09:00:00Z" },
+      ]);
+
+      await syncHospitable(orgId);
+
+      const conv = await prisma.conversation.findFirstOrThrow({
+        where: { propertyId, externalReservationId: "res-crscrub" },
+      });
+      expect(conv.guestIdentifier).toBe(ANON_ID); // placeholder written, NOT the real name
+      // The pre-cutoff message must NOT re-import (era filter engages on CREATE too).
+      const msgs = await prisma.message.findMany({ where: { conversationId: conv.id } });
+      expect(msgs.some((m) => m.body.includes("Ada Lovelace"))).toBe(false); // no resurrection
+      expect(msgs).toHaveLength(0);
+    } finally {
+      vi.unstubAllEnvs();
+    }
   });
 });
