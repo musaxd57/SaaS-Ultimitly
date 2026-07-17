@@ -140,15 +140,24 @@ async function refreshOrgOAuthToken(
       // failed with. Two overlapping refreshes both send the SAME old token;
       // Hospitable rotates refresh tokens (single-use), so the winner persists
       // a fresh token and the loser gets invalid_grant on the now-spent old one.
-      // An unconditional clear here would wipe the winner's just-saved valid
-      // token — comparing the stored blob against ours makes the loser a no-op.
-      const current = await prisma.organization.findUnique({
-        where: { id: orgId },
-        select: { hospitableRefreshTokenEnc: true },
+      // An unconditional clear here would wipe the winner's just-saved valid token.
+      //
+      // ATOMIC: a findUnique-then-clear (check-then-act) still races the winner's
+      // persist — the winner can rotate in a fresh token BETWEEN our read and our
+      // clear, and we'd then wipe it (lost update). Putting the blob in the
+      // updateMany WHERE makes the clear a no-op the instant the winner has rotated
+      // (0 rows matched) — no read-then-act window. Mirrors clearOrgHospitableToken's
+      // field set, gated on the token still being ours.
+      await prisma.organization.updateMany({
+        where: { id: orgId, hospitableRefreshTokenEnc: refreshTokenEnc },
+        data: {
+          hospitableTokenEnc: null,
+          hospitableRefreshTokenEnc: null,
+          hospitableTokenExpiresAt: null,
+          hospitableLabel: null,
+          hospitableConnectedAt: null,
+        },
       });
-      if (current?.hospitableRefreshTokenEnc === refreshTokenEnc) {
-        await clearOrgHospitableToken(orgId);
-      }
       return null;
     }
 

@@ -176,6 +176,40 @@ describe("hospitable-credentials (OAuth token refresh)", () => {
     expect(info.ownToken).toBe(false);
   });
 
+  it("#6: a loser refresh does NOT wipe the token a concurrent WINNER just rotated in (atomic conditional clear)", async () => {
+    const org = await makeOrg("Org");
+    await setOrgHospitableOAuthTokens(
+      org.id,
+      { accessToken: "access-loser", refreshToken: "refresh-loser", expiresAt: new Date(Date.now() - 1000) },
+      "5 mülk",
+    );
+    mockGetConfig.mockReturnValue(FAKE_CONFIG);
+    // Two overlapping refreshes send the SAME (single-use) old token. The WINNER
+    // rotates a fresh VALID token into the org row; OUR (loser) refresh then fails
+    // with invalid_grant on the now-spent token. Simulate the winner persisting mid-flight.
+    mockRefresh.mockImplementation(async () => {
+      await setOrgHospitableOAuthTokens(
+        org.id,
+        { accessToken: "access-WINNER", refreshToken: "refresh-WINNER", expiresAt: new Date(Date.now() + 12 * 3600 * 1000) },
+        "5 mülk",
+      );
+      throw new HospitableOAuthError("invalid_grant", true);
+    });
+
+    expect(await getOrgHospitableToken(org.id)).toBeNull(); // our loser cycle returns null
+
+    // The conditional clear must be a NO-OP because the stored blob is no longer the
+    // one we failed with → the winner's fresh token SURVIVES (not wiped). An
+    // unconditional clear would have disconnected a perfectly healthy connection.
+    const info = await getConnectionInfo(org.id);
+    expect(info.connected).toBe(true);
+    expect(info.ownToken).toBe(true);
+    // The winner's token is intact and usable — no refresh needed (it isn't expired).
+    mockRefresh.mockClear();
+    expect(await getOrgHospitableToken(org.id)).toBe("access-WINNER");
+    expect(mockRefresh).not.toHaveBeenCalled();
+  });
+
   it("a transient failure (network/5xx) does NOT clear the connection — retried next cycle", async () => {
     const org = await makeOrg("Org");
     await setOrgHospitableOAuthTokens(
