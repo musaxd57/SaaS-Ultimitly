@@ -23,12 +23,11 @@ function clamp01(n: number): number {
 // auto-send floor, so an off-taxonomy answer can never be sent unreviewed.
 /** The closed riskType label set (WHY risky). A LABEL only — the send decision
  * stays in code; the gate may tighten on these but never loosen. Unknown model
- * output clamps to null so a novel label can never carry meaning downstream. */
-export const RISK_TYPES = new Set([
-  "complaint", "money_refund", "cancellation", "human_request", "review_threat",
-  "platform_policy", "safety_emergency", "discrimination", "rule_violation",
-  "access_security", "prompt_injection",
-]);
+ * output clamps to null so a novel label can never carry meaning downstream.
+ * SINGLE SOURCE: defined in risk-events.ts (the persistence layer that also feeds
+ * shadow-ai's clamp) and re-exported here so the two can never drift apart. */
+import { RISK_TYPES } from "@/lib/risk-events";
+export { RISK_TYPES };
 
 /**
  * Evidence claims are VERIFIED against the actual request context — the model

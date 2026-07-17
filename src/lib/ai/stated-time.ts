@@ -16,8 +16,10 @@ const HHMM = /^([01]?\d|2[0-3]):([0-5]\d)$/;
 // ç[ıi]k / ayr[ıi]l: JS toLowerCase maps ASCII "I" to "i" (not "ı"), so an
 // all-caps "ÇIKACAĞIZ" lowercases to "çikacağiz" — match both vowels.
 // "check[\s-]?out" never matches "check-in" (the "out" is required).
+// (?<!a) excludes "açık" (open/clear) — a very common word that embeds "çık" and
+// would otherwise falsely mark any nearby time as a stated checkout time.
 const CHECKOUT_CUE =
-  /ç[ıi]k|ayr[ıi]l|terk|boşalt|bosalt|check[\s-]?out|leav|depart|vacat|auscheck/;
+  /(?<!a)ç[ıi]k|ayr[ıi]l|terk|boşalt|bosalt|check[\s-]?out|leav|depart|vacat|auscheck/;
 
 /** True when `message` plausibly states HH:MM AS A CHECKOUT TIME. */
 export function timeStatedInMessage(hhmm: string, message: string): boolean {

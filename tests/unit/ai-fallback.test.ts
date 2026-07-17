@@ -1,5 +1,5 @@
 import { describe, it, expect } from "vitest";
-import { classifyFallback, suggestReplyFallback, isClosingAck, isPositiveFeedback, detectPromptInjection } from "@/lib/ai/fallback";
+import { classifyFallback, suggestReplyFallback, isClosingAck, isPositiveFeedback, detectPromptInjection, detectRiskType, detectGuestLanguage } from "@/lib/ai/fallback";
 import type { SuggestReplyInput } from "@/lib/ai/types";
 
 function baseInput(overrides: Partial<SuggestReplyInput> = {}): SuggestReplyInput {
@@ -147,6 +147,15 @@ describe("isClosingAck (deterministic closing/ack detector)", () => {
     expect(isClosingAck("")).toBe(false);
     // Long messages never match even if they contain closing words.
     expect(isClosingAck("Thank you for everything, we really enjoyed our stay here and would love to come back")).toBe(false);
+  });
+
+  it("NEVER treats a negative/anger emoji as an ack (audit: 👎 must not get 'Rica ederiz 😊')", () => {
+    for (const msg of ["👎", "😡", "😠", "🤬", "💩", "👎👎", "ok 👎", "tamam 😡"]) {
+      expect(isClosingAck(msg), msg).toBe(false);
+    }
+    // A positive/neutral emoji is still a valid pure-emoji ack.
+    expect(isClosingAck("🙏")).toBe(true);
+    expect(isClosingAck("👍👍")).toBe(true);
   });
 });
 
@@ -307,5 +316,57 @@ describe("isPositiveFeedback — pure compliments only, deny-list fail-closed", 
     ]) {
       expect(isPositiveFeedback(msg), msg).toBe(false);
     }
+  });
+});
+
+describe("kelime-ağı boşlukları (denetim turu 07-17) — tehdit + tuzak", () => {
+  it("LEGAL threat routes to a human (mahkeme/avukat/dava/sue/lawyer)", () => {
+    for (const m of [
+      "Avukatıma danışacağım ve sizi mahkemeye vereceğim.",
+      "I'll take legal action, my lawyer will call you.",
+      "Bu iş savcılığa taşınır, dava açacağım.",
+      "You will hear from my attorney, I'll sue you.",
+    ]) {
+      expect(detectRiskType(m), m).toBe("complaint");
+      expect(classifyFallback(m).isComplaint, m).toBe(true);
+    }
+    // TRAP: a calm mention of a lawyer-friend with no threat should not read as a
+    // legal threat on the (anchored) net — no "avukatım/dava/mahkeme" trigger word.
+    expect(classifyFallback("Odada kaldık, çok teşekkürler!").isComplaint).toBe(false);
+  });
+
+  it("DISCOUNT negotiation is money-sensitive (would-be offer auto-quote blocked)", () => {
+    for (const m of [
+      "Uzun kalırsak indirim var mı?",
+      "İki gece daha kalsak indirim yapar mısınız?",
+      "Can I get a discount for a longer stay?",
+      "Could you lower the price a bit?",
+    ]) {
+      expect(detectRiskType(m), m).toBe("money_refund");
+    }
+    // TRAP: a plain late-checkout question is NOT a discount ask (must stay auto-eligible).
+    expect(detectRiskType("Geç çıkış saati kaçta olabilir?")).not.toBe("money_refund");
+    // TRAP: bare pre-booking pricing must not trip the anchored discount net.
+    expect(detectRiskType("İndirimli sezon fiyatlarınız nedir?")).not.toBe("money_refund");
+  });
+
+  it("TR electrical / carbon-monoxide emergency → safety_emergency", () => {
+    for (const m of [
+      "Mutfakta priz kıvılcım çıkarıyor, elektrik kaçağı var!",
+      "Kablodan yanık koku geliyor.",
+      "Karbonmonoksit alarmı çalıyor.",
+    ]) {
+      expect(detectRiskType(m), m).toBe("safety_emergency");
+    }
+    // TRAP: an ordinary appliance question is not a safety emergency.
+    expect(detectRiskType("Elektrikli su ısıtıcısı nasıl çalışıyor?")).not.toBe("safety_emergency");
+  });
+
+  it("detectGuestLanguage no longer mislabels German/French as Turkish", () => {
+    expect(detectGuestLanguage("Die Wohnung ist wunderschön, für uns perfekt. Danke!")).toBe("de");
+    expect(detectGuestLanguage("Bonjour, l'appartement est très bien, merci pour tout")).toBe("fr");
+    // Turkish still detected via its distinctive letters ç/ğ/ı/ş.
+    expect(detectGuestLanguage("Şifreyi öğrenebilir miyim?")).toBe("tr");
+    expect(detectGuestLanguage("Nasılsınız, giriş kaçta?")).toBe("tr");
   });
 });

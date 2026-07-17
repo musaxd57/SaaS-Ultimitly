@@ -158,6 +158,10 @@ export async function translate(
 
     if (!res.ok) return { ok: false, reason: "failed" };
     const data = await res.json();
+    // Truncated output (hit max_tokens) = a HALF translation. Never send it —
+    // fail closed so the caller keeps the message queued for a human, matching
+    // ai/index.ts's finish_reason==="length" → fallback handling.
+    if (data?.choices?.[0]?.finish_reason === "length") return { ok: false, reason: "failed" };
     const translated = (data?.choices?.[0]?.message?.content as string | undefined)
       ?.trim()
       .slice(0, MAX_OUTPUT_CHARS);

@@ -52,6 +52,21 @@ const OFFPLATFORM_PAYMENT_PHRASES = [
   "bank transfer", "wire transfer", "money transfer", "venmo", "paypal", "zelle", "revolut", "papara",
 ];
 
+// LEGAL threats — "I'll take you to court / my lawyer / file with the authorities".
+// A liability/pressure signal the HOST (never the bot) must handle. There was NO
+// deterministic net for these, so a model miss could auto-answer a legal threat.
+// Anchored (not bare "avukat"/"court") so a casual mention is less likely to hit.
+const LEGAL_THREAT_PHRASES = [
+  "mahkemeye ver", "mahkemeye vereceğim", "mahkemeye verecegim", "mahkemelik", "mahkemeye başvur",
+  "dava açacağım", "dava acacagim", "dava açarım", "dava acarim", "dava edeceğim", "dava edecegim",
+  "avukatım", "avukatıma", "avukatima", "avukata danış", "avukata danis", "avukat tut",
+  "yasal işlem", "yasal islem", "yasal yollar", "hukuki işlem", "hukuki islem", "hukuki süreç", "hukuki surec",
+  "savcılığa", "savciliga", "tüketici hakem", "tuketici hakem", "tüketici mahkeme", "tuketici mahkeme",
+  "take you to court", "take legal action", "legal action", "see you in court",
+  "my lawyer", "call my lawyer", "get a lawyer", "hire a lawyer", "my attorney",
+  "sue you", "i'll sue", "will sue", "file a lawsuit", "lawsuit", "press charges",
+];
+
 const KEYWORDS: Record<Exclude<Intent, "general">, string[]> = {
   complaint: [
     // NB: bare "problem"/"sorun" are NOT listed here — they appear in very common
@@ -92,6 +107,8 @@ const KEYWORDS: Record<Exclude<Intent, "general">, string[]> = {
     "insetti", "terribile", "pessimo", "deluso", "delusa", "perdita d'acqua",
     // Bad-review / rating threats (REVIEW_THREAT_PHRASES below) — extortion-adjacent.
     ...REVIEW_THREAT_PHRASES,
+    // Legal threats (court/lawyer/authorities) — liability, host-only, never auto-answered.
+    ...LEGAL_THREAT_PHRASES,
   ],
   refund: [
     "iade", "geri ödeme", "geri odeme", "refund", "para iadesi", "ücret iade", "paramı geri",
@@ -102,7 +119,13 @@ const KEYWORDS: Record<Exclude<Intent, "general">, string[]> = {
     // Concession / partial-refund asks. Anchored — NOT bare "indirim"/"discount",
     // which would wrongly match pre-booking pricing ("indirimli sezon").
     "telafi", "tazminat", "indirim mümkün", "indirim yapabilir", "fiyattan düş", "ücretten düş",
+    // Discount NEGOTIATION asks (still anchored — NOT bare "indirim"/"discount",
+    // which match pre-booking pricing). Without these "uzun kalırsak indirim var
+    // mı?" reads as late_checkout/general and, with the offer block active, could
+    // auto-quote a price to a money negotiation the design reserves for a human.
+    "indirim var", "indirim yapar", "indirim olur", "indirim alabilir", "indirim sağla", "indirim sagla",
     "compensate", "compensation", "give us a discount", "offer a discount",
+    "get a discount", "any discount", "a discount?", "lower the price", "reduce the price",
     "إعادة المال", "restituire i soldi", "soldi indietro",
     // Escalation / chargeback threats — always route to a human, never auto-answer.
     "chargeback", "charge back", "dispute", "resolution center",
@@ -304,11 +327,19 @@ export function isPositiveFeedback(message: string): boolean {
   return tokens.some((t) => PRAISE_ANCHORS.has(t));
 }
 
+// Dissatisfaction / anger emoji: 👎 😡 😠 😤 💩 🤬 🤮 🖕 ⛔ ❌. A message carrying
+// one of these is a NEGATIVE signal — it must never be read as a cheerful "ack"
+// (which would auto-send "Rica ederiz! 😊" to an unhappy guest with no model call
+// and no safety gate). Pure-emoji "👎" empties `cleaned` and used to return true.
+const NEGATIVE_EMOJI =
+  /[\u{1F44E}\u{1F621}\u{1F620}\u{1F624}\u{1F4A9}\u{1F92C}\u{1F92E}\u{1F595}\u{26D4}\u{274C}]/u;
+
 /** True only for a short, pure closing/ack ("Tamam, teşekkürler!", "ok thanks", "👍"). */
 export function isClosingAck(message: string): boolean {
   const raw = message.trim().toLowerCase();
   if (!raw || raw.length > 60) return false;
   if (raw.includes("?") || raw.includes("？")) return false; // a question is never a closing
+  if (NEGATIVE_EMOJI.test(raw)) return false; // 👎/😡 = dissatisfaction, never an ack
   // Strip punctuation/emoji; what remains must be ONLY closing words.
   const cleaned = raw.replace(/[^\p{L}\p{N}\s]/gu, " ").replace(/\s+/g, " ").trim();
   if (!cleaned) return true; // pure emoji/punctuation ("👍", "🙏")
@@ -366,10 +397,13 @@ export function detectPromptInjection(message: string): boolean {
  */
 export function detectGuestLanguage(message: string): string {
   const msgLower = message.toLowerCase();
-  if (/[çğıöşü]/.test(msgLower) || /\b(merhaba|teşekkür|nasıl|nerede|şifre|için|değil|var mı|selam|günaydın)\b/.test(msgLower)) {
+  // TR marker letters ç/ğ/ı/ş are distinctive; ö/ü were REMOVED because they are
+  // common in German ("schön", "für", "grüße") and made the de/fr branches below
+  // dead — a German fallback message was mislabeled "tr" (wrong-language ack/close).
+  if (/[çğış]/.test(msgLower) || /\b(merhaba|teşekkür|nasıl|nerede|şifre|için|değil|var mı|selam|günaydın)\b/.test(msgLower)) {
     return "tr";
   }
-  if (/\b(ich |sie |bitte|danke|hallo|ist |und |für )\b/.test(msgLower)) return "de";
+  if (/\b(ich |sie |bitte|danke|hallo|ist |und |für |schön|grüße)\b/.test(msgLower)) return "de";
   if (/\b(je |vous |bonjour|merci|est |les |pour )\b/.test(msgLower)) return "fr";
   if (/[؀-ۿ]/.test(message)) return "ar"; // Arabic script
   if (/[Ѐ-ӿ]/.test(message)) return "ru"; // Cyrillic script
@@ -398,6 +432,12 @@ const SAFETY_CRITICAL_WORDS = [
   // burning smell, flooding. Over-matching is the safe side (never a wrong send).
   "gas", "smell of gas", "smells like gas", "sparks", "sparking", "burning smell",
   "smells burning", "flooding", "water pouring", "pouring through", "electric shock", "monoxide",
+  // TR electrical-fire / carbon-monoxide vocab (EN "sparks/monoxide" was covered,
+  // the TR equivalents were not). Over-matching is the safe side — it only ever
+  // withholds a holding-ack and forces the silent-escalate path.
+  "elektrik kaçağı", "elektrik kacagi", "elektrik kaçag", "kaçak yapıyor", "kacak yapiyor",
+  "kıvılcım", "kivilcim", "priz yanı", "priz kıvılcım", "kablo yanı", "kablo tütüyor",
+  "elektrik çarp", "elektrik carp", "karbonmonoksit", "karbon monoksit", "yanık koku", "yanik koku",
   // ÖZ-ZARAR / RUH SAĞLIĞI KRİZİ — bir konaklama sorunu DEĞİL, bir CAN güvenliği
   // sinyalidir. safety_emergency'e katlandı ki (a) kapı otomatik-göndermeyi ASLA
   // yapmasın (bot bir krize cevap vermemeli — insan devralır), (b) holding-ack da
