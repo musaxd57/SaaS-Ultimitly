@@ -1,4 +1,13 @@
 import { z } from "zod";
+
+// The host-written late-checkout offer is relayed to guests as the host's word and
+// can be auto-surfaced, so it must never carry a payment METHOD — Airbnb/Booking TOS
+// forbid off-platform/cash arrangements. Deterministic backstop for the prompt's
+// payment-neutral rule; settings PATCH rejects a match. (Lives here, not in the
+// route module, because Next forbids non-handler exports from a route file.)
+export const OFFER_PAYMENT_METHOD_RX =
+  /elden|nakit|nakden|kapıda|iban|havale|\beft\b|western union|money ?gram|papara|\bcash\b|wire transfer|bank transfer|paypal|venmo|zelle/i;
+
 import {
   RESERVATION_STATUS,
   RESERVATION_CHANNEL,

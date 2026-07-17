@@ -348,7 +348,7 @@ export async function resolveGuestChat(
   // PIN gate (Faz 5): env master switch AND (this stay has a PIN OR org strict mode).
   // Computed from the hash PRESENCE only; the hash itself is never returned.
   const pinRequired =
-    open && qrPinEnabled() && (Boolean(activeRow.chatPinHash) || property.organization.qrChatPinRequired);
+    open && qrPinEnabled() && (Boolean(activeRow.chatPinHash) || property.organization?.qrChatPinRequired);
   // Strip chatPinHash from the exposed shape.
   const activeReservation: GuestChatContext["activeReservation"] = activeRow
     ? {

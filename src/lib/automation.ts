@@ -618,9 +618,10 @@ export async function createReservationTasks(reservationId: string): Promise<num
  * (check-in prep / cleaning) so the cleaning list never shows work for a guest who
  * isn't coming. Only the auto task TYPES (check-in prep / cleaning) are removed;
  * tasks of OTHER types on the booking (maintenance/laundry/…) are preserved, and
- * only incomplete ones (a task already "done" stays as history). NB: there is no
- * isAuto flag, so a host's own manually-created cleaning/checkin_prep task on this
- * reservation is removed too — acceptable, since a cancelled stay needs neither.
+ * only incomplete ones (a task already "done" stays as history). Scoped to
+ * origin:"system" (see the where-clause) so a host's OWN manually-created or a
+ * message-driven (ai) check-in/cleaning task on this reservation SURVIVES the
+ * cancellation — only lifecycle-generated tasks are dropped.
  * Best-effort + idempotent: safe to call on every sync. Returns the number removed.
  */
 export async function removeAutoTasksForCancelledReservation(reservationId: string): Promise<number> {

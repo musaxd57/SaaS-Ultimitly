@@ -1,5 +1,5 @@
 import { describe, it, expect } from "vitest";
-import { OFFER_PAYMENT_METHOD_RX } from "@/app/api/settings/route";
+import { OFFER_PAYMENT_METHOD_RX } from "@/lib/validators";
 
 // The host-written late-checkout offer is relayed to guests as the host's word and
 // can be auto-surfaced, so it must never carry a payment METHOD (Airbnb/Booking TOS

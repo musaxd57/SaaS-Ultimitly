@@ -1,6 +1,7 @@
 import "server-only";
 
 import { prisma } from "@/lib/db";
+import { reportError } from "@/lib/report-error";
 
 // Human-readable Turkish labels for the dotted audit actions, so the operator
 // panel reads "Başarılı giriş" instead of "auth.login_success". Additive: an
@@ -63,9 +64,12 @@ export async function writeAudit(entry: {
       },
     });
   } catch (err) {
-    // Never let an audit write affect the real action — but do leave a breadcrumb
-    // in the server logs (and Sentry, which captures console.error) so a silently
-    // dropped audit trail is at least visible to operators.
+    // Never let an audit write affect the real action — but surface the drop.
+    // console.error alone is NOT captured anywhere central (no Sentry SDK hooks
+    // console); reportError is the only path to the error sink, so a silently
+    // dropped security/KVKK audit trail (impersonation, 2FA-reset, plan-change)
+    // stays visible to operators. reportError never throws and redacts PII.
     console.error("[audit] dropped entry", entry.action, err);
+    void reportError("audit.write", err);
   }
 }

@@ -66,7 +66,12 @@ export function StructuredData({ faqs }: { faqs: { q: string; a: string }[] }) {
     "@graph": [organization, website, software, faqPage],
   };
 
+  // Escape "<" as < so a literal </script> in any value can never break out
+  // of the JSON-LD script element (defense-in-depth; inputs are static today).
   return (
-    <script type="application/ld+json" dangerouslySetInnerHTML={{ __html: JSON.stringify(graph) }} />
+    <script
+      type="application/ld+json"
+      dangerouslySetInnerHTML={{ __html: JSON.stringify(graph).replace(/</g, "\\u003c") }}
+    />
   );
 }

@@ -1,5 +1,6 @@
 import { prisma } from "@/lib/db";
 import { badRequest, jsonOk } from "@/lib/api";
+import { OFFER_PAYMENT_METHOD_RX } from "@/lib/validators";
 import { withManage } from "@/lib/route-guard";
 import { isValidTimeZone } from "@/lib/timezone";
 
@@ -12,13 +13,6 @@ const VALID_TONES = ["formal", "warm", "short", "luxury"] as const;
 const SIGNATURE_MAX = 600;
 const CLOSING_TEXT_MAX = 300; // a courtesy is one line, not a letter
 const OFFER_TEXT_MAX = 400; // late-checkout offer: a short price/terms line (matches the prompt sanitizer cap)
-// The offer is relayed to guests as the host's own word, so it must never carry a
-// payment METHOD — Airbnb/Booking TOS forbid off-platform/cash arrangements. This
-// is the DETERMINISTIC backstop for the prompt's payment-neutral rule (the model
-// is told to stay neutral, but a host who writes "500 TL, elden ödeme" would have
-// it relayed verbatim + possibly auto-sent). Host writes price/terms, not how to pay.
-export const OFFER_PAYMENT_METHOD_RX =
-  /elden|nakit|nakden|kapıda|iban|havale|\beft\b|western union|money ?gram|papara|\bcash\b|wire transfer|bank transfer|paypal|venmo|zelle/i;
 
 /** Update organization-level settings (auto-reply window/toggle + AI tone/signature). */
 export const PATCH = withManage(async (session, req) => {

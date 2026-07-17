@@ -88,5 +88,17 @@ export function checkProductionEnv(env) {
     }
   }
 
+  // Automation heartbeat. The 2-min sync + auto-reply + welcome/check-in/checkout
+  // engine runs ONLY when CRON_SECRET is set: the internal cron returns early
+  // without it and the external /api/cron/sync 401s. Missing it means automation
+  // silently stops while /api/health stays 200 — a silent outage. WARN (not error)
+  // so a deployment that drives sync by some other means is never blocked, but the
+  // most common misconfiguration is surfaced at boot instead of discovered later.
+  if (!(env.CRON_SECRET ?? "").trim()) {
+    warnings.push(
+      "CRON_SECRET is missing — the sync/auto-reply engine will not run (internal cron idle, external cron 401s).",
+    );
+  }
+
   return { errors, warnings };
 }
