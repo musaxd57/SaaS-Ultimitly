@@ -227,12 +227,18 @@ export async function getMonthlyReport(orgId: string): Promise<MonthlyReport> {
   for (const [cur, sum] of revenueDec) revenueMap.set(cur, sum.toDecimalPlaces(2).toNumber());
 
   return {
-    monthLabel: now.toLocaleDateString("tr-TR", { month: "long", year: "numeric" }),
+    // Label in the ORG's timezone (the data window is org-local via zonedDateStart);
+    // a bare toLocaleDateString would use the server's UTC month in the first hours
+    // of a new month and could disagree with the window it labels.
+    monthLabel: now.toLocaleDateString("tr-TR", { month: "long", year: "numeric", timeZone: tz }),
     reservationsCount: distinctReservations.length,
     revenueByCurrency: Array.from(revenueMap, ([currency, total]) => ({ currency, total })),
     completedTasks,
     totalTasks,
-    taskCompletionRate: totalTasks > 0 ? Math.round((completedTasks / totalTasks) * 100) : 0,
+    // completedTasks (done THIS month) and totalTasks (created THIS month) are
+    // different populations — a task opened last month and finished this month
+    // would push the ratio over 100. Clamp so the rate is always a valid percent.
+    taskCompletionRate: totalTasks > 0 ? Math.min(100, Math.round((completedTasks / totalTasks) * 100)) : 0,
     messagesCount,
   };
 }

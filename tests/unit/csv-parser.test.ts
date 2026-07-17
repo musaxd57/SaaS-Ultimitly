@@ -64,6 +64,20 @@ describe("parseCsv — RFC 4180 fields", () => {
     expect(rows[0]).toMatchObject({ guestName: "Ayşe", totalAmount: 1234.56, currency: "EUR" });
     expect(rows[0].arrivalDate.getMonth()).toBe(6); // July (DD.MM.YYYY)
   });
+
+  it("Turkish thousands separator with no decimals is not read as a fraction", () => {
+    const amt = (v: string) =>
+      parseCsv(`misafir,giriş,çıkış,tutar\nAyşe,10.07.2026,14.07.2026,"${v}"`)[0].totalAmount;
+    expect(amt("1.500")).toBe(1500); // ₺1.500 = 1500, NOT 1.5 (the 1000× bug)
+    expect(amt("12.000")).toBe(12000);
+    expect(amt("1.234.567")).toBe(1234567);
+    expect(amt("500.000")).toBe(500000);
+    // Decimals still parse correctly alongside the thousands fix.
+    expect(amt("2.500,50")).toBe(2500.5);
+    expect(amt("1.5")).toBe(1.5); // genuine 1-digit decimal
+    expect(amt("1,50")).toBe(1.5); // 2-digit decimal (50 kuruş)
+    expect(amt("1500")).toBe(1500);
+  });
 });
 
 describe("parseCsv — calendar validation (row-level skip)", () => {

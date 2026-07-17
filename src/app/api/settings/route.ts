@@ -12,6 +12,13 @@ const VALID_TONES = ["formal", "warm", "short", "luxury"] as const;
 const SIGNATURE_MAX = 600;
 const CLOSING_TEXT_MAX = 300; // a courtesy is one line, not a letter
 const OFFER_TEXT_MAX = 400; // late-checkout offer: a short price/terms line (matches the prompt sanitizer cap)
+// The offer is relayed to guests as the host's own word, so it must never carry a
+// payment METHOD — Airbnb/Booking TOS forbid off-platform/cash arrangements. This
+// is the DETERMINISTIC backstop for the prompt's payment-neutral rule (the model
+// is told to stay neutral, but a host who writes "500 TL, elden ödeme" would have
+// it relayed verbatim + possibly auto-sent). Host writes price/terms, not how to pay.
+export const OFFER_PAYMENT_METHOD_RX =
+  /elden|nakit|nakden|kapıda|iban|havale|\beft\b|western union|money ?gram|papara|\bcash\b|wire transfer|bank transfer|paypal|venmo|zelle/i;
 
 /** Update organization-level settings (auto-reply window/toggle + AI tone/signature). */
 export const PATCH = withManage(async (session, req) => {
@@ -117,6 +124,9 @@ export const PATCH = withManage(async (session, req) => {
       const trimmed = (raw ?? "").toString().trim();
       if (trimmed.length > OFFER_TEXT_MAX) {
         errors.lateCheckoutOfferText = `En fazla ${OFFER_TEXT_MAX} karakter.`;
+      } else if (OFFER_PAYMENT_METHOD_RX.test(trimmed)) {
+        errors.lateCheckoutOfferText =
+          "Teklif metni ödeme yöntemi içeremez (elden/nakit/IBAN/havale vb.). Ödemeler her zaman platform üzerinden alınır; yalnızca fiyat/koşul yazın.";
       } else {
         update.lateCheckoutOfferText = trimmed.length === 0 ? null : trimmed;
       }

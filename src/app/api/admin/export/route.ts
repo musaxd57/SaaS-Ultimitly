@@ -110,6 +110,9 @@ export async function GET(req: NextRequest) {
     headers: {
       "Content-Type": "application/json; charset=utf-8",
       "Content-Disposition": `attachment; filename="${filename}"`,
+      // Never let a proxy/browser cache a file full of guest PII (parity with the
+      // self-service account/export route).
+      "Cache-Control": "no-store",
     },
   });
 }

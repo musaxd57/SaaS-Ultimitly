@@ -86,15 +86,28 @@ function parseDate(raw: string): Date | null {
 }
 
 // ---------------------------------------------------------------------------
-// Amount: the LAST separator (. or ,) is the decimal point; earlier ones are
-// thousands groupings — so both "1.234,56" (EU) and "1,234.56" (US) → 1234.56.
+// Amount. The last separator is USUALLY the decimal point ("1.234,56" EU and
+// "1,234.56" US → 1234.56), EXCEPT when it's actually a thousands separator with
+// no decimals at all — the common Turkish "₺1.500" (=1500) / "12.000" (=12000).
+// Rule: a trailing group of EXACTLY 3 digits is a THOUSANDS group (not a decimal)
+// when there's more than one separator OR the leading group is 1-3 digits. A
+// trailing group of 1, 2, or 4+ digits is always a decimal ("1.5", "1,50", "1.2345").
 // ---------------------------------------------------------------------------
 function parseAmount(raw: string): number | undefined {
   const cleaned = raw.replace(/[^\d.,]/g, "");
   if (!cleaned) return undefined;
   const lastSep = Math.max(cleaned.lastIndexOf("."), cleaned.lastIndexOf(","));
-  const normalized =
-    lastSep === -1 ? cleaned : `${cleaned.slice(0, lastSep).replace(/[.,]/g, "")}.${cleaned.slice(lastSep + 1)}`;
+  if (lastSep === -1) {
+    const n = parseFloat(cleaned);
+    return Number.isNaN(n) ? undefined : n;
+  }
+  const afterLast = cleaned.slice(lastSep + 1);
+  const sepCount = (cleaned.match(/[.,]/g) ?? []).length;
+  const leadingDigits = cleaned.slice(0, lastSep).replace(/[.,]/g, "").length;
+  const isThousands = afterLast.length === 3 && (sepCount > 1 || leadingDigits <= 3);
+  const normalized = isThousands
+    ? cleaned.replace(/[.,]/g, "")
+    : `${cleaned.slice(0, lastSep).replace(/[.,]/g, "")}.${afterLast}`;
   const n = parseFloat(normalized);
   return Number.isNaN(n) ? undefined : n;
 }
