@@ -2,7 +2,10 @@ import { describe, it, expect, beforeEach, afterEach, vi } from "vitest";
 import { prisma, resetDb } from "../helpers/db";
 
 vi.mock("@/lib/ai", () => ({ suggestReply: vi.fn(), classifyMessage: vi.fn() }));
-vi.mock("@/lib/messaging", () => ({ sendOnChannel: vi.fn() }));
+vi.mock("@/lib/messaging", async (orig) => ({
+  ...(await orig<typeof import("@/lib/messaging")>()),
+  sendOnChannel: vi.fn(),
+}));
 vi.mock("@/lib/hospitable-credentials", () => ({
   getOrgHospitableToken: vi.fn().mockResolvedValue("test-token"),
 }));

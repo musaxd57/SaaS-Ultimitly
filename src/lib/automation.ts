@@ -21,7 +21,7 @@ import {
 } from "@/lib/ai/fallback";
 import { premiumAllowed } from "@/lib/billing/subscription";
 import { redactSensitive } from "@/lib/report-error";
-import { sendOnChannel } from "@/lib/messaging";
+import { sendOnChannel, isDefinitiveSendFailure } from "@/lib/messaging";
 import { createHash } from "crypto";
 import { durableOutboxEnabled } from "@/lib/outbox/flag";
 import { enqueueOutbound, enqueueProactive } from "@/lib/outbox/enqueue";
@@ -1443,10 +1443,18 @@ export async function applyChannelAutoReply(
     token,
   );
   if (!delivery.ok) {
-    // Release the claim so a later cycle retries this still-unanswered message.
-    await prisma.conversation
-      .update({ where: { id: conversation.id }, data: { status: "new" } })
-      .catch(() => {});
+    // DEFINITIVE failure (HTTP 4xx≠408) → nothing delivered → release the claim
+    // (status→new) so a later cycle re-models and retries. AMBIGUOUS (timeout/5xx/
+    // network) → the reply MAY have reached the guest → KEEP the claim (leave status
+    // "answered") so we never re-model + re-POST a possibly-delivered answer
+    // (duplicate). The next sync re-imports it if it delivered; if the guest writes
+    // again the thread reopens to "new" on its own. Mirrors the manual-reply route +
+    // the lifecycle senders via the shared isDefinitiveSendFailure().
+    if (isDefinitiveSendFailure(delivery.error)) {
+      await prisma.conversation
+        .update({ where: { id: conversation.id }, data: { status: "new" } })
+        .catch(() => {});
+    }
     return { sent: false, skippedReason: `send_failed: ${delivery.error ?? "unknown"}`, draft, ...meta };
   }
 
@@ -1862,13 +1870,21 @@ export async function sendDueWelcomes(
       token,
     );
     if (!delivery.ok) {
-      await prisma.reservation
-        .updateMany({
-          where: { sourceReference: r.sourceReference, property: { organizationId } },
-          data: { welcomeSentAt: null },
-        })
-        .catch(() => {}); // a rollback blip must not break the loop (retries next run)
-      continue; // send failed → un-claim, retry next run
+      // DEFINITIVE failure (HTTP 4xx≠408) → nothing delivered → un-claim so a later
+      // run retries. AMBIGUOUS (timeout/5xx/network) → the welcome MAY have reached
+      // the guest → KEEP welcomeSentAt so we never re-POST a possibly-delivered
+      // proactive message (a duplicate is worse than a rare silent miss). Mirrors the
+      // manual-reply route via the shared isDefinitiveSendFailure(). Durable Outbox
+      // (flag ON) handles this via reconcile/review; this is the flag-OFF direct path.
+      if (isDefinitiveSendFailure(delivery.error)) {
+        await prisma.reservation
+          .updateMany({
+            where: { sourceReference: r.sourceReference, property: { organizationId } },
+            data: { welcomeSentAt: null },
+          })
+          .catch(() => {}); // a rollback blip must not break the loop (retries next run)
+      }
+      continue; // definitive → un-claimed for retry; ambiguous → claim held (no re-POST)
     }
     sent++;
   }
@@ -1983,13 +1999,19 @@ export async function sendDueCheckins(
       token,
     );
     if (!delivery.ok) {
-      await prisma.reservation
-        .updateMany({
-          where: { sourceReference: r.sourceReference, property: { organizationId } },
-          data: { checkinSentAt: null },
-        })
-        .catch(() => {}); // a rollback blip must not break the loop (retries next run)
-      continue; // send failed → un-claim, retry next run
+      // DEFINITIVE failure (HTTP 4xx≠408) → nothing delivered → un-claim for retry.
+      // AMBIGUOUS (timeout/5xx/network) → the check-in message MAY have reached the
+      // guest → KEEP checkinSentAt so we never re-POST it (duplicate). Mirrors the
+      // manual-reply route via the shared isDefinitiveSendFailure() (flag-OFF path).
+      if (isDefinitiveSendFailure(delivery.error)) {
+        await prisma.reservation
+          .updateMany({
+            where: { sourceReference: r.sourceReference, property: { organizationId } },
+            data: { checkinSentAt: null },
+          })
+          .catch(() => {}); // a rollback blip must not break the loop (retries next run)
+      }
+      continue; // definitive → un-claimed for retry; ambiguous → claim held (no re-POST)
     }
     sent++;
   }
@@ -2243,13 +2265,19 @@ export async function sendDueCheckouts(
       token,
     );
     if (!delivery.ok) {
-      await prisma.reservation
-        .updateMany({
-          where: { sourceReference: r.sourceReference, property: { organizationId } },
-          data: { checkoutSentAt: null },
-        })
-        .catch(() => {}); // a rollback blip must not break the loop (retries next run)
-      continue; // send failed → un-claim, retry next run
+      // DEFINITIVE failure (HTTP 4xx≠408) → nothing delivered → un-claim for retry.
+      // AMBIGUOUS (timeout/5xx/network) → the checkout message MAY have reached the
+      // guest → KEEP checkoutSentAt so we never re-POST it (duplicate). Mirrors the
+      // manual-reply route via the shared isDefinitiveSendFailure() (flag-OFF path).
+      if (isDefinitiveSendFailure(delivery.error)) {
+        await prisma.reservation
+          .updateMany({
+            where: { sourceReference: r.sourceReference, property: { organizationId } },
+            data: { checkoutSentAt: null },
+          })
+          .catch(() => {}); // a rollback blip must not break the loop (retries next run)
+      }
+      continue; // definitive → un-claimed for retry; ambiguous → claim held (no re-POST)
     }
     sent++;
   }

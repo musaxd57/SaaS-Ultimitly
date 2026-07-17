@@ -12,7 +12,10 @@ vi.mock("@/lib/api", async (orig) => {
   const actual = await orig<typeof import("@/lib/api")>();
   return { ...actual, requireSession: vi.fn(async () => session) };
 });
-vi.mock("@/lib/messaging", () => ({ sendOnChannel: vi.fn(async () => ({ ok: true, id: "sent-1" })) }));
+vi.mock("@/lib/messaging", async (orig) => ({
+  ...(await orig<typeof import("@/lib/messaging")>()),
+  sendOnChannel: vi.fn(async () => ({ ok: true, id: "sent-1" })),
+}));
 vi.mock("@/lib/hospitable-credentials", () => ({ getOrgHospitableToken: vi.fn(async () => "tok") }));
 
 import { sendOnChannel } from "@/lib/messaging";

@@ -4,7 +4,10 @@ import { prisma, resetDb } from "../helpers/db";
 
 // Force the AI + transport to be deterministic mocks.
 vi.mock("@/lib/ai", () => ({ suggestReply: vi.fn(), classifyMessage: vi.fn() }));
-vi.mock("@/lib/messaging", () => ({ sendOnChannel: vi.fn() }));
+vi.mock("@/lib/messaging", async (orig) => ({
+  ...(await orig<typeof import("@/lib/messaging")>()),
+  sendOnChannel: vi.fn(),
+}));
 // The org is "connected" — return a fixed token so auto-reply delivery proceeds.
 vi.mock("@/lib/hospitable-credentials", () => ({
   getOrgHospitableToken: vi.fn().mockResolvedValue("test-token"),
@@ -327,7 +330,7 @@ describe("applyChannelAutoReply", () => {
   });
 
   it("does NOT persist a reply when delivery fails (send-first safety)", async () => {
-    mockSend.mockResolvedValue({ ok: false, error: "429" });
+    mockSend.mockResolvedValue({ ok: false, error: "HTTP 429 Too Many Requests" }); // definitive → claim released
     const { conversationId } = await seed();
     const out = await applyChannelAutoReply(conversationId);
 
@@ -580,14 +583,27 @@ describe("applyChannelAutoReply", () => {
     expect(mockSuggest.mock.calls.length).toBe(2);
   });
 
-  it("claim-then-send: a delivery failure releases the claim (status back to 'new') so it retries (#3b)", async () => {
-    mockSend.mockResolvedValueOnce({ ok: false, error: "boom" });
+  it("claim-then-send: a DEFINITIVE (4xx) delivery failure releases the claim (status back to 'new') so it retries (#3b)", async () => {
+    mockSend.mockResolvedValueOnce({ ok: false, error: "HTTP 400 Bad Request" });
     const { conversationId } = await seed();
     const out = await applyChannelAutoReply(conversationId);
     expect(out.sent).toBe(false);
     expect(out.skippedReason).toContain("send_failed");
     const conv = await prisma.conversation.findUnique({ where: { id: conversationId } });
     expect(conv?.status).toBe("new"); // claim released → retryable next cycle
+    expect(await prisma.message.count({ where: { conversationId, direction: "outbound" } })).toBe(0);
+  });
+
+  it("claim-then-send: an AMBIGUOUS (5xx/timeout) delivery failure KEEPS the claim (status 'answered') so it is NOT re-modeled/re-sent", async () => {
+    // The POST may have reached the guest despite the error → releasing the claim
+    // would re-model + re-POST a possibly-delivered reply (duplicate). Hold it.
+    mockSend.mockResolvedValueOnce({ ok: false, error: "HTTP 503 Service Unavailable" });
+    const { conversationId } = await seed();
+    const out = await applyChannelAutoReply(conversationId);
+    expect(out.sent).toBe(false);
+    expect(out.skippedReason).toContain("send_failed");
+    const conv = await prisma.conversation.findUnique({ where: { id: conversationId } });
+    expect(conv?.status).toBe("answered"); // claim HELD — no re-send of a possibly-delivered reply
     expect(await prisma.message.count({ where: { conversationId, direction: "outbound" } })).toBe(0);
   });
 
@@ -1202,9 +1218,12 @@ describe("sendDueWelcomes", () => {
     expect(mockSend).toHaveBeenCalledTimes(1);
   });
 
-  it("rolls back the claim when the send fails, so it retries next run", async () => {
+  it("rolls back the claim on a DEFINITIVE (4xx) send failure, so it retries next run", async () => {
     const { orgId, reservationId } = await seedWelcome();
-    mockSend.mockResolvedValueOnce({ ok: false, error: "429" });
+    // HTTP 429 = provider refused (rate-limited), nothing delivered → definitive →
+    // safe to un-claim and retry. (Ambiguous 5xx/timeout — claim held — is covered
+    // in outbox-lifecycle.test.ts.)
+    mockSend.mockResolvedValueOnce({ ok: false, error: "HTTP 429 Too Many Requests" });
     expect((await sendDueWelcomes(orgId)).sent).toBe(0);
     // Claim rolled back → not marked sent, so the next run can retry.
     const after = await prisma.reservation.findUnique({ where: { id: reservationId } });

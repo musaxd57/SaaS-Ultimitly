@@ -2,7 +2,7 @@ import { NextResponse } from "next/server";
 import { prisma } from "@/lib/db";
 import { isUniqueViolation } from "@/lib/db-errors";
 import { conversationReplySchema, zodFieldErrors } from "@/lib/validators";
-import { sendOnChannel } from "@/lib/messaging";
+import { sendOnChannel, isDefinitiveSendFailure } from "@/lib/messaging";
 import { getOrgHospitableToken } from "@/lib/hospitable-credentials";
 import { badRequest, jsonOk, notFound, tooManyRequests, paymentRequired } from "@/lib/api";
 import { withManage } from "@/lib/route-guard";
@@ -137,7 +137,7 @@ export const POST = withManage<{ id: string }>(async (session, req, { params }) 
     // guest despite the error (Codex: this claim is dedup, not an outbox) — so
     // the claim stays held for its TTL and the user is told to CHECK the thread
     // before resending; the next sync imports the message if it did deliver.
-    const definitive = /HTTP (4\d\d)/.test(outcome.error ?? "") && !/HTTP 408/.test(outcome.error ?? "");
+    const definitive = isDefinitiveSendFailure(outcome.error);
     if (definitive) {
       await releaseOutboundSend(id, parsed.data.body);
       return NextResponse.json(

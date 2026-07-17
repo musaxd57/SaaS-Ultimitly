@@ -52,3 +52,19 @@ export async function sendOnChannel(
 
   return { ok: true, skipped: true };
 }
+
+/**
+ * Classify a FAILED send for the claim-then-send rollback decision. DEFINITIVE (the
+ * provider rejected the request — HTTP 4xx EXCEPT 408 Request Timeout) means nothing
+ * was delivered, so the caller may safely un-claim and retry the same body now.
+ * Everything else — a timeout (incl. 408), a network drop, or a 5xx — is AMBIGUOUS:
+ * the message MAY have reached the guest despite the error, so the caller MUST NOT
+ * re-POST it (that would deliver a duplicate). SINGLE SOURCE OF TRUTH shared by the
+ * manual-reply route and the proactive lifecycle senders (welcome/check-in/checkout)
+ * so the two can never drift. Matches on the "HTTP <code>" that sendMessage surfaces
+ * in `error`; a non-HTTP error (network/abort) has no 4xx and is treated as ambiguous.
+ */
+export function isDefinitiveSendFailure(error: string | null | undefined): boolean {
+  const e = error ?? "";
+  return /HTTP (4\d\d)/.test(e) && !/HTTP 408/.test(e);
+}

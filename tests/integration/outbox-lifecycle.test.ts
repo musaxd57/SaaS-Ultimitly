@@ -7,7 +7,12 @@ import { OUTBOX_MAX_ATTEMPTS } from "@/lib/outbox/state";
 // FAZ 1 — welcome / check-in / check-out (proactive) + holding-ack wired to the durable outbox.
 // The provider transport + token are mocked; the sender loops (sendDue*) are exercised with the
 // flag ON so the enqueue → worker-delivers → *SentAt-stamp-on-delivery contract is covered E2E.
-vi.mock("@/lib/messaging", () => ({ sendOnChannel: vi.fn() }));
+// Mock ONLY sendOnChannel; keep the real isDefinitiveSendFailure (the rollback
+// classifier the senders now call) so its actual logic is exercised.
+vi.mock("@/lib/messaging", async (orig) => ({
+  ...(await orig<typeof import("@/lib/messaging")>()),
+  sendOnChannel: vi.fn(),
+}));
 vi.mock("@/lib/hospitable-credentials", () => ({ getOrgHospitableToken: vi.fn().mockResolvedValue("test-token") }));
 // Spy the ops pager so the `blocked` test can assert it fires EXACTLY ONCE (no per-pass storm).
 vi.mock("@/lib/report-error", () => ({ reportError: vi.fn().mockResolvedValue(undefined) }));
@@ -339,5 +344,35 @@ describe("outbox lifecycle (FAZ 1) — flag OFF: the proven inline path is uncha
     expect(mockSend).toHaveBeenCalledTimes(1); // inline send
     expect((await prisma.reservation.findFirstOrThrow({ where: { sourceReference: source } })).welcomeSentAt).toBeInstanceOf(Date);
     expect(await prisma.messageOutbox.count({ where: { organizationId: orgId } })).toBe(0); // NO outbox row
+  });
+
+  it("AMBIGUOUS failure (5xx/timeout) KEEPS welcomeSentAt → next run does NOT re-POST (no duplicate)", async () => {
+    const { orgId, source } = await seedWelcome();
+    mockSend.mockResolvedValue({ ok: false, error: "HTTP 503 Service Unavailable" });
+    const out = await sendDueWelcomes(orgId);
+    expect(mockSend).toHaveBeenCalledTimes(1); // attempted inline
+    expect(out.sent).toBe(0); // not counted as delivered
+    // Claim HELD despite the ambiguous failure — the welcome MAY have reached the guest.
+    expect((await prisma.reservation.findFirstOrThrow({ where: { sourceReference: source } })).welcomeSentAt).toBeInstanceOf(Date);
+    // Next run: welcomeSentAt still stamped → the claim (count=0) skips it → NO second POST.
+    mockSend.mockClear();
+    const out2 = await sendDueWelcomes(orgId);
+    expect(mockSend).not.toHaveBeenCalled(); // no re-POST of a possibly-delivered message
+    expect(out2.sent).toBe(0);
+  });
+
+  it("DEFINITIVE failure (4xx) un-claims welcomeSentAt → next run retries cleanly", async () => {
+    const { orgId, source } = await seedWelcome();
+    mockSend.mockResolvedValue({ ok: false, error: "HTTP 400 Bad Request" });
+    await sendDueWelcomes(orgId);
+    // Claim ROLLED BACK — the provider refused, nothing was delivered, safe to retry.
+    expect((await prisma.reservation.findFirstOrThrow({ where: { sourceReference: source } })).welcomeSentAt).toBeNull();
+    // Next run re-attempts and (this time) succeeds.
+    mockSend.mockClear();
+    mockSend.mockResolvedValue({ ok: true });
+    const out2 = await sendDueWelcomes(orgId);
+    expect(mockSend).toHaveBeenCalledTimes(1); // re-attempted after the definitive failure
+    expect(out2.sent).toBe(1);
+    expect((await prisma.reservation.findFirstOrThrow({ where: { sourceReference: source } })).welcomeSentAt).toBeInstanceOf(Date);
   });
 });
