@@ -129,3 +129,89 @@ export async function propertyInOrg(propertyId: string, organizationId: string) 
   });
   return Boolean(property);
 }
+
+// ---------------------------------------------------------------------------
+// Body-size cap. Next 15 route handlers have NO built-in request-body limit
+// (experimental.serverActions.bodySizeLimit is Server-Actions-only), so an
+// UNAUTHENTICATED POST could buffer an unbounded body into memory before any
+// zod/length check runs → OOM / noisy-neighbor on the shared instance. Rate limits
+// bound the request COUNT, not the request SIZE. 64 KB is ample for every JSON
+// payload we accept (the largest is a KB entry / offer text, well under this).
+// ---------------------------------------------------------------------------
+export const MAX_JSON_BODY_BYTES = 64 * 1024;
+
+export class BodyTooLargeError extends Error {
+  constructor() {
+    super("request body exceeds the size cap");
+    this.name = "BodyTooLargeError";
+  }
+}
+
+export function payloadTooLarge(message = "İstek gövdesi çok büyük.") {
+  return NextResponse.json({ error: message }, { status: 413 });
+}
+
+/**
+ * Read + JSON-parse a request body with a HARD byte cap. Rejects (a) IMMEDIATELY
+ * when a Content-Length header exceeds the cap (cheap, no read), and (b) MID-STREAM
+ * when the actual bytes exceed it — so a lying or absent Content-Length can't
+ * smuggle a huge body past the header check. Throws BodyTooLargeError over the cap;
+ * a malformed/empty body throws a SyntaxError (JSON.parse) which the caller maps to
+ * a 400. Callers: `catch (e) { if (e instanceof BodyTooLargeError) return
+ * payloadTooLarge(); return badRequest({...}); }`.
+ */
+export async function readJsonCapped<T = unknown>(
+  req: Request,
+  maxBytes: number = MAX_JSON_BODY_BYTES,
+): Promise<T> {
+  const declared = Number(req.headers.get("content-length"));
+  if (Number.isFinite(declared) && declared > maxBytes) throw new BodyTooLargeError();
+
+  const stream = req.body;
+  if (!stream) return JSON.parse("") as T; // no body → SyntaxError → caller 400
+
+  const reader = stream.getReader();
+  const chunks: Uint8Array[] = [];
+  let total = 0;
+  try {
+    for (;;) {
+      const { done, value } = await reader.read();
+      if (done) break;
+      if (!value) continue;
+      total += value.byteLength;
+      if (total > maxBytes) throw new BodyTooLargeError();
+      chunks.push(value);
+    }
+  } finally {
+    try {
+      reader.releaseLock();
+    } catch {
+      /* already released */
+    }
+  }
+
+  const buf = new Uint8Array(total);
+  let offset = 0;
+  for (const c of chunks) {
+    buf.set(c, offset);
+    offset += c.byteLength;
+  }
+  return JSON.parse(new TextDecoder().decode(buf)) as T;
+}
+
+/**
+ * Drop-in for the `await req.json().catch(() => null)` pattern with the byte cap
+ * added. Returns `{ ok: true, data }` on success, or `{ ok: false, tooLarge }`
+ * where `tooLarge` distinguishes an over-cap body (→ the route should 413 via
+ * payloadTooLarge()) from a malformed/empty body (→ the route's own 400/badRequest).
+ */
+export async function parseJsonBody<T = unknown>(
+  req: Request,
+  maxBytes: number = MAX_JSON_BODY_BYTES,
+): Promise<{ ok: true; data: T } | { ok: false; tooLarge: boolean }> {
+  try {
+    return { ok: true, data: await readJsonCapped<T>(req, maxBytes) };
+  } catch (err) {
+    return { ok: false, tooLarge: err instanceof BodyTooLargeError };
+  }
+}

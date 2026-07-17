@@ -6,7 +6,7 @@ import { resolveGuestChat, bindOrCheckStay, guestChatAiPausedFromMessages, type 
 import { guestChatDisplayRole } from "@/lib/message-author";
 import { verifyReservationPin } from "@/lib/guest-chat-pin";
 import { sendQrEscalationAlertBounded, qrEscalationEventId } from "@/lib/guest-chat-alerts";
-import { jsonOk, badRequest, tooManyRequests } from "@/lib/api";
+import { jsonOk, badRequest, tooManyRequests, parseJsonBody, payloadTooLarge } from "@/lib/api";
 import { rateLimit, clientIp } from "@/lib/rate-limit";
 import { isUniqueViolation } from "@/lib/db-errors";
 
@@ -326,7 +326,9 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ tok
 
   const { token } = await params;
 
-  const body = (await req.json().catch(() => null)) as { message?: unknown; pin?: unknown } | null;
+  const bodyResult = await parseJsonBody<{ message?: unknown; pin?: unknown }>(req);
+  if (!bodyResult.ok && bodyResult.tooLarge) return payloadTooLarge();
+  const body = bodyResult.ok ? bodyResult.data : null;
   const pinInput = typeof body?.pin === "string" ? body.pin : null;
   const message = typeof body?.message === "string" ? body.message.trim() : "";
 

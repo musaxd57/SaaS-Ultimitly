@@ -3,7 +3,7 @@ import { prisma } from "@/lib/db";
 import { loginSchema, zodFieldErrors } from "@/lib/validators";
 import { verifyPassword } from "@/lib/auth/password";
 import { setSessionCookie, hasTrustedDevice, setTrustedDeviceCookie } from "@/lib/auth";
-import { badRequest, jsonOk, serverError } from "@/lib/api";
+import { badRequest, jsonOk, serverError, parseJsonBody, payloadTooLarge } from "@/lib/api";
 import { rateLimit, clientIp } from "@/lib/rate-limit";
 import { decryptSecret } from "@/lib/crypto";
 import { verifyTotpStep } from "@/lib/auth/totp";
@@ -23,7 +23,9 @@ export async function POST(req: NextRequest) {
       );
     }
 
-    const data = await req.json().catch(() => null);
+    const bodyResult = await parseJsonBody(req);
+    if (!bodyResult.ok && bodyResult.tooLarge) return payloadTooLarge();
+    const data = bodyResult.ok ? bodyResult.data : null;
     const parsed = loginSchema.safeParse(data);
     if (!parsed.success) return badRequest(zodFieldErrors(parsed.error));
 

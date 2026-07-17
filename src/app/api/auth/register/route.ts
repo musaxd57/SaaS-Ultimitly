@@ -2,7 +2,7 @@ import { NextResponse, type NextRequest } from "next/server";
 import { prisma } from "@/lib/db";
 import { registerSchema, zodFieldErrors } from "@/lib/validators";
 import { hashPassword } from "@/lib/auth/password";
-import { badRequest, jsonOk, serverError } from "@/lib/api";
+import { badRequest, jsonOk, serverError, parseJsonBody, payloadTooLarge } from "@/lib/api";
 import { rateLimit, clientIp } from "@/lib/rate-limit";
 import { emailService } from "@/lib/email";
 import { makeVerifyToken, VERIFY_TTL_MS, verifyEmailHtml, verifyUrl } from "@/lib/auth/email-verify";
@@ -36,7 +36,9 @@ export async function POST(req: NextRequest) {
       );
     }
 
-    const data = await req.json().catch(() => null);
+    const bodyResult = await parseJsonBody<{ consent?: unknown }>(req);
+    if (!bodyResult.ok && bodyResult.tooLarge) return payloadTooLarge();
+    const data = bodyResult.ok ? bodyResult.data : null;
     const parsed = registerSchema.safeParse(data);
     if (!parsed.success) return badRequest(zodFieldErrors(parsed.error));
 

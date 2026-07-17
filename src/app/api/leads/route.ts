@@ -1,7 +1,7 @@
 import { NextResponse, type NextRequest } from "next/server";
 import { prisma } from "@/lib/db";
 import { leadSchema, zodFieldErrors } from "@/lib/validators";
-import { badRequest, jsonOk, serverError } from "@/lib/api";
+import { badRequest, jsonOk, serverError, parseJsonBody, payloadTooLarge } from "@/lib/api";
 import { rateLimit, clientIp } from "@/lib/rate-limit";
 import { emailService } from "@/lib/email";
 
@@ -22,7 +22,9 @@ export async function POST(req: NextRequest) {
       );
     }
 
-    const data = await req.json().catch(() => null);
+    const bodyResult = await parseJsonBody(req);
+    if (!bodyResult.ok && bodyResult.tooLarge) return payloadTooLarge();
+    const data = bodyResult.ok ? bodyResult.data : null;
     // Honeypot: a hidden "website" field that only bots fill. Pretend success so
     // the bot doesn't learn it was rejected, but store nothing.
     if (data && typeof (data as { website?: unknown }).website === "string" && (data as { website: string }).website.trim()) {

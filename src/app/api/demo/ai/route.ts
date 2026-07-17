@@ -2,7 +2,7 @@ import { type NextRequest, NextResponse } from "next/server";
 import { prisma } from "@/lib/db";
 import { suggestReply } from "@/lib/ai";
 import { passesAutoReplySafetyGate } from "@/lib/automation";
-import { badRequest, jsonOk, notFound, serverError, tooManyRequests } from "@/lib/api";
+import { badRequest, jsonOk, notFound, serverError, tooManyRequests, parseJsonBody, payloadTooLarge } from "@/lib/api";
 import { rateLimit, clientIp } from "@/lib/rate-limit";
 
 // ---------------------------------------------------------------------------
@@ -53,7 +53,9 @@ export async function POST(req: NextRequest) {
     const limited = await rateLimit(`demo-ai:${clientIp(req)}`, 6, 60 * 60_000); // 6 / hour / IP
     if (!limited.ok) return tooManyRequests(limited.retryAfter);
 
-    const body = (await req.json().catch(() => null)) as { message?: unknown } | null;
+    const bodyResult = await parseJsonBody<{ message?: unknown }>(req);
+    if (!bodyResult.ok && bodyResult.tooLarge) return payloadTooLarge();
+    const body = bodyResult.ok ? bodyResult.data : null;
     const message = typeof body?.message === "string" ? body.message.trim() : "";
     if (!message) return badRequest({ message: "Bir mesaj yazın." });
     if (message.length > MAX_MESSAGE) {
