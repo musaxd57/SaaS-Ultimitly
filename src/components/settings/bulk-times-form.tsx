@@ -70,20 +70,22 @@ export function BulkTimesForm({
             karşılama bilgisinde bu saatler kullanılır.
           </p>
           <div className="grid gap-3 sm:grid-cols-2">
+            {/* Native time picker (same as the property form): the host taps a
+                clock and picks HH:MM — no need to type the ":00" by hand. */}
             <Field label="Check-in" htmlFor="bulk-checkin">
               <Input
                 id="bulk-checkin"
+                type="time"
                 value={checkInTime}
                 onChange={(e) => { setCheckIn(e.target.value); setResult(null); }}
-                placeholder="14:00"
               />
             </Field>
             <Field label="Check-out" htmlFor="bulk-checkout">
               <Input
                 id="bulk-checkout"
+                type="time"
                 value={checkOutTime}
                 onChange={(e) => { setCheckOut(e.target.value); setResult(null); }}
-                placeholder="11:00"
               />
             </Field>
           </div>
