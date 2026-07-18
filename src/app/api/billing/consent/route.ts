@@ -3,6 +3,7 @@ import { badRequest, jsonOk, tooManyRequests, readJsonCappedOrNull } from "@/lib
 import { withManage } from "@/lib/route-guard";
 import { rateLimit, clientIp } from "@/lib/rate-limit";
 import { LEGAL_VERSION } from "@/lib/legal-entity";
+import { LEGAL_TEXT_HASH } from "@/lib/legal-text-hash";
 import { paddlePriceToPlanCode } from "@/lib/payments/paddle";
 import { checkoutConsentSchema, zodFieldErrors } from "@/lib/validators";
 
@@ -44,6 +45,7 @@ export const POST = withManage(async (session, req) => {
       planCode: derivedPlanCode ?? parsed.data.planCode, // price-derived is authoritative
       priceId: parsed.data.priceId,
       legalVersion: LEGAL_VERSION, // server-side, not client-supplied
+      legalTextHash: LEGAL_TEXT_HASH, // tamper-evident companion (see lib/legal-text-hash.ts)
       ip: clientIp(req), // rightmost XFF (platform-observed), spoof-resistant
       userAgent: req.headers.get("user-agent")?.slice(0, 512) ?? null, // capped free text
     },

@@ -63,6 +63,7 @@ export const GET = withManage(async (session) => {
             id: true, name: true, email: true, role: true, createdAt: true,
             // Consent evidence belongs to the user — part of their data.
             acceptedTermsAt: true, privacyAcceptedAt: true, acceptedLegalVersion: true,
+            acceptedLegalTextHash: true,
             twoFactorEnabledAt: true,
           },
         },
@@ -173,7 +174,7 @@ export const GET = withManage(async (session) => {
       where: { organizationId: orgId },
       select: {
         id: true, userId: true, planCode: true, priceId: true,
-        legalVersion: true, ip: true, userAgent: true, createdAt: true,
+        legalVersion: true, legalTextHash: true, ip: true, userAgent: true, createdAt: true,
       },
       orderBy: { createdAt: "asc" },
     }),

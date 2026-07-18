@@ -28,6 +28,7 @@ vi.mock("@/lib/email", () => ({
 import { emailService } from "@/lib/email";
 
 import { LEGAL_VERSION } from "@/lib/legal-entity";
+import { LEGAL_TEXT_HASH } from "@/lib/legal-text-hash";
 import { POST as register } from "@/app/api/auth/register/route";
 import { POST as login } from "@/app/api/auth/login/route";
 import { GET as verifyEmail } from "@/app/api/auth/verify-email/route";
@@ -130,6 +131,7 @@ describe("registration → verification → login", () => {
     // one checkbox → both acceptances share the same instant
     expect(u?.privacyAcceptedAt?.getTime()).toBe(u?.acceptedTermsAt?.getTime());
     expect(u?.acceptedLegalVersion).toBe(LEGAL_VERSION);
+    expect(u?.acceptedLegalTextHash).toBe(LEGAL_TEXT_HASH); // tamper-evident companion
     expect(u?.acceptedIp).toBe("5.6.7.8"); // rightmost hop, spoofed leftmost discarded
     expect(u?.acceptedUserAgent).toBe("TestBrowser/1.0");
   });
@@ -147,6 +149,7 @@ describe("registration → verification → login", () => {
     expect(res.status).toBe(201);
     const u = await prisma.user.findUnique({ where: { email: "noua@x.com" } });
     expect(u?.acceptedLegalVersion).toBe(LEGAL_VERSION); // version always stamped
+    expect(u?.acceptedLegalTextHash).toBe(LEGAL_TEXT_HASH); // hash always stamped too
     expect(u?.acceptedIp).toBe("unknown"); // clientIp fallback when no XFF/x-real-ip
     expect(u?.acceptedUserAgent).toBeNull(); // header absent → null (not "")
   });

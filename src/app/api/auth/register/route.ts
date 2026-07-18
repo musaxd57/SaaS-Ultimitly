@@ -8,6 +8,7 @@ import { emailService } from "@/lib/email";
 import { makeVerifyToken, VERIFY_TTL_MS, verifyEmailHtml, verifyUrl } from "@/lib/auth/email-verify";
 import { newTrialSubscriptionData } from "@/lib/billing/subscription";
 import { LEGAL_VERSION } from "@/lib/legal-entity";
+import { LEGAL_TEXT_HASH } from "@/lib/legal-text-hash";
 
 export async function POST(req: NextRequest) {
   try {
@@ -75,6 +76,7 @@ export async function POST(req: NextRequest) {
           acceptedTermsAt: acceptedAt,
           privacyAcceptedAt: acceptedAt,
           acceptedLegalVersion: LEGAL_VERSION,
+          acceptedLegalTextHash: LEGAL_TEXT_HASH,
           acceptedIp: ip,
           acceptedUserAgent: userAgent,
           emailVerifyTokenHash: hash,

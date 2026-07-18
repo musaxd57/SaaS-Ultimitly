@@ -46,6 +46,7 @@ describe("GET /api/account/export — complete + secret-free", () => {
         emailVerifyTokenHash: "SECRET_VERIFY_HASH_VALUE",
         acceptedTermsAt: new Date(),
         acceptedLegalVersion: "2026-06",
+        acceptedLegalTextHash: "hash-abc",
       },
     });
     await prisma.organization.update({
@@ -91,7 +92,7 @@ describe("GET /api/account/export — complete + secret-free", () => {
       data: { organizationId: orgId, amountMinor: 89900, currency: "TRY", status: "paid", provider: "paddle", providerRef: "txn_1" },
     });
     await prisma.checkoutConsent.create({
-      data: { organizationId: orgId, userId: user.id, planCode: "pro", priceId: "pri_1", legalVersion: "2026-06", ip: "5.6.7.8" },
+      data: { organizationId: orgId, userId: user.id, planCode: "pro", priceId: "pri_1", legalVersion: "2026-06", legalTextHash: "hash-abc", ip: "5.6.7.8" },
     });
     await prisma.riskEvent.create({
       data: { organizationId: orgId, surface: "auto_reply", triggerId: "m-1", finalDecision: "human_review", riskLevel: "high", riskType: "complaint", reason: "escalated_to_human" },
@@ -128,10 +129,11 @@ describe("GET /api/account/export — complete + secret-free", () => {
     expect(data.billing.subscription).toMatchObject({ planCode: "pro", providerRef: "sub_123" });
     expect(data.billing.invoices[0]).toMatchObject({ amountMinor: 89900, status: "paid" });
     expect(data.auditLogs.some((a: { action: string }) => a.action === "data.export_self")).toBe(false); // written AFTER the read — next export shows it
-    expect(data.checkoutConsents[0]).toMatchObject({ planCode: "pro", legalVersion: "2026-06" });
+    expect(data.checkoutConsents[0]).toMatchObject({ planCode: "pro", legalVersion: "2026-06", legalTextHash: "hash-abc" });
     expect(data.riskEvents[0]).toMatchObject({ finalDecision: "human_review", riskType: "complaint" });
     expect(data.organization.aiSignature).toBe("Sevgiler, Nuve"); // settings included
     expect(data.organization.users[0].acceptedLegalVersion).toBe("2026-06"); // consent evidence
+    expect(data.organization.users[0].acceptedLegalTextHash).toBe("hash-abc"); // tamper-evident companion
 
     // SECRET SCAN on the raw output — values AND field names.
     for (const leak of [

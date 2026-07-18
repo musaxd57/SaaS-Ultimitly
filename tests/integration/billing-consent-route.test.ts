@@ -3,6 +3,7 @@ import { NextRequest } from "next/server";
 import { prisma, resetDb } from "../helpers/db";
 import { __resetRateLimit } from "@/lib/rate-limit";
 import { LEGAL_VERSION } from "@/lib/legal-entity";
+import { LEGAL_TEXT_HASH } from "@/lib/legal-text-hash";
 import type { SessionPayload } from "@/lib/auth";
 
 // route-guard's withAuth reads requireSession from @/lib/api (cross-module) — mock
@@ -62,6 +63,7 @@ describe("POST /api/billing/consent (checkout distance-sales evidence)", () => {
       planCode: "pro",
       priceId: "pri_123",
       legalVersion: LEGAL_VERSION,
+      legalTextHash: LEGAL_TEXT_HASH, // tamper-evident companion
       ip: "5.6.7.8", // rightmost XFF, spoofed leftmost discarded
       userAgent: "TestBrowser/1.0",
     });

@@ -220,6 +220,11 @@ model User {
   // sign-up. Together they back an "I never accepted" dispute with a real record.
   privacyAcceptedAt     DateTime?
   acceptedLegalVersion  String?
+  // Tamper-evident companion to acceptedLegalVersion: a sha256 of the ACTUAL
+  // legal-page text at signup (see lib/legal-text-hash.ts), so a forgotten
+  // LEGAL_VERSION bump on a real text edit can't silently understate what the
+  // user saw. Nullable — existing accounts predate this field.
+  acceptedLegalTextHash String?
   acceptedIp            String?
   acceptedUserAgent     String?
   // Session invalidation counter. Bumped on password change/reset → a stolen JWT
@@ -662,6 +667,10 @@ model CheckoutConsent {
   planCode       String // plan being purchased at acceptance time
   priceId        String // the exact Paddle price id shown
   legalVersion   String // LEGAL_VERSION at acceptance — which text was accepted
+  // Tamper-evident companion to legalVersion (see lib/legal-text-hash.ts).
+  // Nullable — rows written before this field existed (the live Paddle test
+  // included) predate it.
+  legalTextHash  String?
   ip             String? // server-derived (rightmost XFF), spoof-resistant
   userAgent      String? // request UA, length-capped
   createdAt      DateTime @default(now()) // = checkoutLegalAcceptedAt
