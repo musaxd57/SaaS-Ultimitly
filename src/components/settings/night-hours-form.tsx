@@ -52,7 +52,7 @@ export function NightHoursForm({
   }
 
   return (
-    <Card className="max-w-2xl">
+    <Card>
       <CardHeader>
         <CardTitle className="flex items-center gap-2 text-base">
           <Moon className="size-4 text-muted-foreground" /> Oto-yanıt Aktif Saat Aralığı

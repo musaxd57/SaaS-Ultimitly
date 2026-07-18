@@ -57,7 +57,7 @@ export function AiVoiceForm({
   }
 
   return (
-    <Card className="max-w-2xl">
+    <Card>
       <CardHeader>
         <CardTitle className="flex items-center gap-2 text-base">
           <Sparkles className="size-4 text-muted-foreground" /> AI&apos;nın Sesi

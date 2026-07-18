@@ -49,7 +49,7 @@ export function BulkTimesForm({
   }
 
   return (
-    <Card className="max-w-2xl">
+    <Card>
       <CardHeader>
         <CardTitle className="flex items-center gap-2 text-base">
           <Clock className="size-4 text-muted-foreground" /> Tüm Dairelerin Check-in / Check-out Saati

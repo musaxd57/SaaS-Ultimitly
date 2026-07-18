@@ -17,8 +17,12 @@ import { AccountCard } from "@/components/settings/account-card";
 import { TwoFactorCard } from "@/components/settings/two-factor-card";
 import { HospitableConnectCard } from "@/components/settings/hospitable-connect-card";
 import { PaddlePlans } from "@/components/settings/paddle-plans";
-import { SettingsTabs, type SettingsTab } from "@/components/settings/settings-tabs";
-import { deriveInitialTabId } from "@/lib/settings-tabs";
+import {
+  SettingsSections,
+  type SettingsViewGroup,
+  type SettingsViewItem,
+} from "@/components/settings/settings-sections";
+import { SETTINGS_NAV, deriveInitialViewId } from "@/lib/settings-nav";
 import { getConnectionInfo } from "@/lib/hospitable-credentials";
 import { getEntitlement, premiumAllowed, isFounderOrg } from "@/lib/billing/subscription";
 import { planChangeEnabled } from "@/lib/billing/plan-change";
@@ -40,7 +44,8 @@ export default async function SettingsPage({
   // incl. while impersonating) can also do it for a non-technical customer.
   // Staff/manager-only users just see a neutral note.
   const isOperator = isSuperAdmin(session);
-  const canManageChannel = session.role === "owner" || isOperator;
+  const isOwner = session.role === "owner";
+  const canManageChannel = isOwner || isOperator;
   const hospitableInfo = canManageChannel ? await getConnectionInfo(session.organizationId) : null;
   const me = await prisma.user.findUnique({
     where: { id: session.userId },
@@ -91,10 +96,11 @@ export default async function SettingsPage({
 
   const masterOn = process.env.AUTO_REPLY_ENABLED === "1";
 
-  // Paddle plan/upgrade card — only for owner/manager, and only when Paddle is
-  // configured (client token + at least one price id). Dormant otherwise, so the
-  // card (and its whole tab) never appears until billing is wired up. Price ids are public.
-  const canManageBilling = session.role === "owner" || session.role === "manager";
+  // Paddle plan/upgrade card — OWNER only (billing is an account-owner concern),
+  // and only when Paddle is configured (client token + at least one price id).
+  // Dormant otherwise, so the whole Faturalandırma section never appears until
+  // billing is wired up. Price ids are public. (API auth stays withManage — this
+  // is a nav-visibility choice, not an authorization change.)
   const paddleClientToken = process.env.NEXT_PUBLIC_PADDLE_CLIENT_TOKEN?.trim() || "";
   const paddleEnv = process.env.NEXT_PUBLIC_PADDLE_ENV?.trim() === "production" ? "production" : "sandbox";
   const paddlePriceByCode: Record<string, string> = {
@@ -103,7 +109,7 @@ export default async function SettingsPage({
     business: process.env.PADDLE_PRICE_ISLETME?.trim() || "",
   };
   const paddleReady =
-    canManageBilling &&
+    isOwner &&
     Boolean(paddleClientToken) &&
     Object.values(paddlePriceByCode).some((id) => id.length > 0);
   const entitlement = paddleReady ? await getEntitlement(session.organizationId) : null;
@@ -127,10 +133,8 @@ export default async function SettingsPage({
     Boolean(managedSub?.providerRef) &&
     managedSub?.status !== "canceled";
 
-  const isOwner = session.role === "owner";
-
-  // ── Tab 1: Yapay Zeka — the product's core (voice + how it answers) ──────────
-  const aiPanel = (
+  // ── İşletme Ayarları › Yapay Zekâ — voice + how the AI answers ───────────────
+  const aiView = (
     <>
       <AiVoiceForm
         tone={org?.aiReplyTone ?? "warm"}
@@ -140,7 +144,7 @@ export default async function SettingsPage({
       />
 
       {properties.length > 0 ? (
-        <Card className="max-w-2xl">
+        <Card>
           <CardHeader>
             <CardTitle className="text-base">AI&apos;yı Deneyin</CardTitle>
           </CardHeader>
@@ -150,7 +154,7 @@ export default async function SettingsPage({
         </Card>
       ) : null}
 
-      <Card className="max-w-2xl">
+      <Card>
         <CardHeader>
           <CardTitle className="text-base">Otomasyon Tercihleri</CardTitle>
         </CardHeader>
@@ -167,28 +171,13 @@ export default async function SettingsPage({
           />
         </CardContent>
       </Card>
-
-      <Card className="max-w-2xl">
-        <CardHeader>
-          <CardTitle className="text-base">Acil Bildirim E-postası</CardTitle>
-        </CardHeader>
-        <CardContent className="space-y-3">
-          <p className="text-sm text-muted-foreground">
-            Misafir <strong>şikayet/iade</strong> yazınca, aşağıdaki <strong>kendi adresinize</strong>{" "}
-            anında uyarı maili gider (uyurken bile kaçırmazsınız). Adresi boş bırakırsanız
-            hesabınızın e-posta adresi kullanılır.
-          </p>
-          <AlertEmailForm initial={org?.alertEmail ?? ""} />
-          <TestEmailButton />
-        </CardContent>
-      </Card>
     </>
   );
 
-  // ── Tab 2: Otomatik Mesajlar — the scheduled messages the host turns on ──────
-  const autoMessagesPanel = (
+  // ── İşletme Ayarları › Otomatik Mesajlar — the scheduled messages ────────────
+  const autoMessagesView = (
     <>
-      <Card className="max-w-2xl">
+      <Card>
         <CardHeader>
           <CardTitle className="text-base">Otomatik Karşılama Mesajı</CardTitle>
         </CardHeader>
@@ -214,7 +203,7 @@ export default async function SettingsPage({
         </CardContent>
       </Card>
 
-      <Card className="max-w-2xl">
+      <Card>
         <CardHeader>
           <CardTitle className="text-base">Otomatik Giriş Bilgileri Mesajı</CardTitle>
         </CardHeader>
@@ -241,7 +230,7 @@ export default async function SettingsPage({
         </CardContent>
       </Card>
 
-      <Card className="max-w-2xl">
+      <Card>
         <CardHeader>
           <CardTitle className="text-base">Otomatik Çıkış Mesajı</CardTitle>
         </CardHeader>
@@ -273,11 +262,11 @@ export default async function SettingsPage({
     </>
   );
 
-  // ── Tab 3: Bağlantı ve Takvim — channel connection + calendar/scheduling ─────
-  const connectionPanel = (
+  // ── İşletme Ayarları › Bağlantılar — channel connection + calendar feed ──────
+  const connectionsView = (
     <>
       {canManageChannel && hospitableInfo ? (
-        <Card id="hospitable" className="max-w-2xl scroll-mt-24">
+        <Card id="hospitable" className="scroll-mt-24">
           <CardHeader>
             <CardTitle className="text-base">Airbnb / Booking Bağlantısı</CardTitle>
           </CardHeader>
@@ -290,7 +279,7 @@ export default async function SettingsPage({
           </CardContent>
         </Card>
       ) : (
-        <Card id="hospitable" className="max-w-2xl scroll-mt-24">
+        <Card id="hospitable" className="scroll-mt-24">
           <CardHeader>
             <CardTitle className="text-base">Kanal Bağlantısı (Airbnb / Booking)</CardTitle>
           </CardHeader>
@@ -309,16 +298,7 @@ export default async function SettingsPage({
         defaultCheckOut={sampleProperty?.checkOutTime ?? "11:00"}
       />
 
-      <Card className="max-w-2xl">
-        <CardHeader>
-          <CardTitle className="text-base">Saat Dilimi</CardTitle>
-        </CardHeader>
-        <CardContent>
-          <TimezoneForm initial={org?.timezone ?? "Europe/Istanbul"} />
-        </CardContent>
-      </Card>
-
-      <Card className="max-w-2xl">
+      <Card>
         <CardHeader>
           <CardTitle className="text-base">Takvim Akışı Gizliliği</CardTitle>
         </CardHeader>
@@ -329,16 +309,46 @@ export default async function SettingsPage({
     </>
   );
 
-  // ── Tab 4: Faturalandırma — subscription (owner/manager, only when Paddle-ready) ──
+  // ── İşletme Ayarları › Bildirimler — complaint alert email ───────────────────
+  const notificationsView = (
+    <Card>
+      <CardHeader>
+        <CardTitle className="text-base">Acil Bildirim E-postası</CardTitle>
+      </CardHeader>
+      <CardContent className="space-y-3">
+        <p className="text-sm text-muted-foreground">
+          Misafir <strong>şikayet/iade</strong> yazınca, aşağıdaki <strong>kendi adresinize</strong>{" "}
+          anında uyarı maili gider (uyurken bile kaçırmazsınız). Adresi boş bırakırsanız
+          hesabınızın e-posta adresi kullanılır.
+        </p>
+        <AlertEmailForm initial={org?.alertEmail ?? ""} />
+        <TestEmailButton />
+      </CardContent>
+    </Card>
+  );
+
+  // ── İşletme Ayarları › Saat Dilimi ───────────────────────────────────────────
+  const timezoneView = (
+    <Card>
+      <CardHeader>
+        <CardTitle className="text-base">Saat Dilimi</CardTitle>
+      </CardHeader>
+      <CardContent>
+        <TimezoneForm initial={org?.timezone ?? "Europe/Istanbul"} />
+      </CardContent>
+    </Card>
+  );
+
+  // ── Faturalandırma — subscription (OWNER only, only when Paddle-ready) ────────
   // FOUNDER ORG: internal access is an explicit entitlement (isFounderOrg → never
   // paywalled), NOT a subscription. A leftover sandbox/test Paddle row must not
   // masquerade as a paying customer, and portal/plan-change buttons would hit real
   // Paddle APIs with a stale providerRef — so the founder sees an internal-access
   // note instead of the plan cards.
-  const billingPanel =
+  const billingView =
     paddleReady && entitlement ? (
       isFounderOrg(session.organizationId) ? (
-        <Card className="max-w-2xl">
+        <Card>
           <CardHeader>
             <CardTitle className="text-base">Aboneliğiniz</CardTitle>
           </CardHeader>
@@ -354,7 +364,7 @@ export default async function SettingsPage({
           </CardContent>
         </Card>
       ) : (
-        <Card className="max-w-2xl">
+        <Card>
           <CardHeader>
             <CardTitle className="text-base">Aboneliğiniz</CardTitle>
           </CardHeader>
@@ -385,10 +395,10 @@ export default async function SettingsPage({
       )
     ) : null;
 
-  // ── Tab 5: Hesap ve Güvenlik — identity + security, then owner-only data/danger zone ──
-  const accountPanel = (
+  // ── Hesap ve Güvenlik — identity + security, then owner-only data/danger zone ──
+  const accountView = (
     <>
-      <Card className="max-w-2xl">
+      <Card>
         <CardHeader>
           <CardTitle className="text-base">Hesap / Giriş Bilgileri</CardTitle>
         </CardHeader>
@@ -397,7 +407,7 @@ export default async function SettingsPage({
         </CardContent>
       </Card>
 
-      <Card className="max-w-2xl">
+      <Card>
         <CardHeader>
           <CardTitle className="text-base">İki Adımlı Giriş (2FA)</CardTitle>
         </CardHeader>
@@ -410,7 +420,7 @@ export default async function SettingsPage({
       </Card>
 
       {isOwner ? (
-        <Card className="max-w-2xl">
+        <Card>
           <CardHeader>
             <CardTitle className="text-base">Verileriniz (KVKK)</CardTitle>
           </CardHeader>
@@ -463,7 +473,7 @@ export default async function SettingsPage({
           isteğiyle kaldırıldı (2026-07-15). Yükümlülük politika metniyle
           karşılanıyor; ayarları tekrar kalabalıklaştırma. */}
       {isOwner && !isOperator ? (
-        <Card className="max-w-2xl border-destructive/30">
+        <Card className="border-destructive/30">
           <CardHeader>
             <CardTitle className="text-base text-destructive">Hesabı Sil</CardTitle>
           </CardHeader>
@@ -475,65 +485,72 @@ export default async function SettingsPage({
     </>
   );
 
-  // Build the tab list, then filter to the tabs that actually have content for
-  // THIS role (server-side, so a host can never land on a hidden/empty tab). The
-  // billing tab is the only one that can vanish (staff, or Paddle not configured);
-  // every other tab always renders content for every role.
-  const allTabs: (SettingsTab & { visible: boolean })[] = [
-    { id: "yapay-zeka", label: "Yapay Zeka", visible: true, content: aiPanel },
-    { id: "otomatik-mesajlar", label: "Otomatik Mesajlar", visible: true, content: autoMessagesPanel },
-    { id: "baglanti-takvim", label: "Bağlantı ve Takvim", visible: true, content: connectionPanel },
-    { id: "faturalandirma", label: "Faturalandırma", visible: Boolean(billingPanel), content: billingPanel },
-    { id: "hesap-guvenlik", label: "Hesap ve Güvenlik", visible: true, content: accountPanel },
-  ];
-  const visibleTabs = allTabs.filter((t) => t.visible);
-  const initialTabId = deriveInitialTabId({
-    hospitable: hospitableResult,
-    tab: tabParam,
-    visibleIds: visibleTabs.map((t) => t.id),
-  });
+  // Map view id → its rendered content, then build the nav groups (labels come
+  // from SETTINGS_NAV) filtered to the views that actually have content for THIS
+  // role. Faturalandırma is the only view that can vanish (non-owner, or Paddle
+  // not configured); every İşletme view + Hesap ve Güvenlik always has content.
+  const viewContent: Record<string, React.ReactNode> = {
+    "yapay-zeka": aiView,
+    "otomatik-mesajlar": autoMessagesView,
+    baglantilar: connectionsView,
+    bildirimler: notificationsView,
+    "saat-dilimi": timezoneView,
+    faturalandirma: billingView,
+    "hesap-guvenlik": accountView,
+  };
+
+  const groups: SettingsViewGroup[] = SETTINGS_NAV.map((g) => ({
+    label: g.label,
+    items: g.items
+      .filter((i) => viewContent[i.id] != null)
+      .map<SettingsViewItem>((i) => ({ id: i.id, label: i.label, content: viewContent[i.id] })),
+  })).filter((g) => g.items.length > 0);
+
+  const visibleIds = groups.flatMap((g) => g.items.map((i) => i.id));
+  const initialViewId = deriveInitialViewId({ hospitable: hospitableResult, tab: tabParam, visibleIds });
 
   return (
-    // Settings is a stack of narrow (max-w-2xl) cards. Left-anchored inside the
-    // shell's wide content column they hug the sidebar and leave a huge empty
-    // right half on desktop — so the whole page lives in its own CENTERED
-    // narrow column instead (the standard settings-page composition).
-    <div className="mx-auto w-full max-w-2xl space-y-6">
+    // Settings uses the FULL shell width (not the old narrow centered column): a
+    // compact sticky nav on the left, wide content on the right.
+    <div className="w-full space-y-6">
       <PageHeader
         title="Ayarlar"
         description="AI'nın sesi ve otomatik mesaj ayarları."
       />
 
-      {/* Master-switch status is operator-only plumbing — customers never see it.
-          It stays ABOVE the tab strip (global, not part of any one tab). */}
+      {/* Master-switch status is operator-only plumbing (an env var, not an in-app
+          toggle) — a COMPACT one-line status row, not the old full banner. */}
       {isOperator ? (
         <div
           className={
             masterOn
-              ? "rounded-lg border border-emerald-300 bg-emerald-50 px-4 py-3 text-sm text-emerald-800"
-              : "rounded-lg border border-amber-300 bg-amber-50 px-4 py-3 text-sm text-amber-800"
+              ? "flex flex-wrap items-center gap-2 rounded-md border border-emerald-300 bg-emerald-50 px-3 py-1.5 text-xs text-emerald-800"
+              : "flex flex-wrap items-center gap-2 rounded-md border border-amber-300 bg-amber-50 px-3 py-1.5 text-xs text-amber-800"
           }
         >
-          {masterOn ? (
-            <>
-              <strong>Otomatik gönderim ana şalteri: AÇIK.</strong> Aşağıdaki seçenekler
-              (gece oto-yanıt / otomatik karşılama) açıksa, mesajlar gerçekten gönderilir.
-            </>
-          ) : (
-            <>
-              <strong>Otomatik gönderim ana şalteri: KAPALI.</strong> Aşağıdaki seçenekleri açsanız
-              bile <strong>hiçbir otomatik mesaj gönderilmez</strong>. Açmak için Railway&apos;de
-              <code className="mx-1 rounded bg-amber-100 px-1 py-0.5">AUTO_REPLY_ENABLED=1</code>
-              ayarlayın.
-            </>
-          )}
+          <span
+            className={
+              masterOn
+                ? "inline-block size-2 rounded-full bg-emerald-500"
+                : "inline-block size-2 rounded-full bg-amber-500"
+            }
+            aria-hidden
+          />
+          <span>
+            <strong>Otomatik gönderim ana şalteri: {masterOn ? "AÇIK" : "KAPALI"}.</strong>{" "}
+            {masterOn ? (
+              "Aşağıdaki seçenekler açıksa mesajlar gerçekten gönderilir."
+            ) : (
+              <>
+                Açmak için Railway&apos;de{" "}
+                <code className="rounded bg-amber-100 px-1 py-0.5">AUTO_REPLY_ENABLED=1</code>.
+              </>
+            )}
+          </span>
         </div>
       ) : null}
 
-      <SettingsTabs
-        tabs={visibleTabs.map(({ id, label, content }) => ({ id, label, content }))}
-        initialTabId={initialTabId}
-      />
+      <SettingsSections groups={groups} initialViewId={initialViewId} />
     </div>
   );
 }
