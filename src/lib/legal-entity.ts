@@ -7,8 +7,8 @@
 export const SELLER = {
   unvan: "Zeynep Cinar",
   adres: "Via Francesco Olgiati, Milano, Lombardia, 20143, İtalya",
-  mersisVergi: "[P.IVA NO]",
-  telefon: "[TELEFON — ülke koduyla, örn. +39...]",
+  mersisVergi: "14237210969",
+  telefon: "+39 348 752 45 31",
   eposta: "iletisimlixusai@gmail.com",
 };
 
