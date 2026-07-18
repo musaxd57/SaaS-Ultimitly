@@ -92,6 +92,41 @@ describe("syncHospitable", () => {
     expect(await prisma.message.count()).toBe(2);
   });
 
+  it("dedups thread messages with ONE batched query, not a findFirst per message (N+1 removed)", async () => {
+    const { orgId } = await makeOrgWithProperty();
+    mockProperties.mockResolvedValue([{ id: "hosp-prop-n1", name: "Test Property" }]);
+    mockReservations.mockResolvedValue([
+      { id: "res-n1", code: "HMN1", platform: "airbnb", conversation_id: "conv-n1",
+        conversation_language: "en", last_message_at: "2026-06-05T10:00:00Z" },
+    ]);
+    // Three ALL-INBOUND messages: the outbound adopt-and-heal path (which has its
+    // OWN findFirst) is never taken, so the only message.findFirst calls would be
+    // the old per-message dedup lookup. After the fix that becomes a single findMany.
+    mockMessages.mockResolvedValue([
+      { id: 5001, body: "Msg one", sender_type: "guest", sender_role: "guest", sender: { full_name: "Gwen" }, created_at: "2026-06-05T08:00:00Z" },
+      { id: 5002, body: "Msg two", sender_type: "guest", sender_role: "guest", sender: { full_name: "Gwen" }, created_at: "2026-06-05T09:00:00Z" },
+      { id: 5003, body: "Msg three", sender_type: "guest", sender_role: "guest", sender: { full_name: "Gwen" }, created_at: "2026-06-05T10:00:00Z" },
+    ]);
+
+    // Passthrough spy (no mockRestore — restoring a Prisma delegate breaks it; the
+    // impl delegates to the real method so later tests are unaffected).
+    const realFindFirst = prisma.message.findFirst.bind(prisma.message);
+    const findFirstSpy = vi
+      .spyOn(prisma.message, "findFirst")
+      .mockImplementation(((a: Parameters<typeof realFindFirst>[0]) => realFindFirst(a)) as never);
+
+    const result = await syncHospitable(orgId);
+
+    expect(result.messages).toBe(3); // all three imported
+    // The N+1 is gone: dedup no longer issues one findFirst per message (was 3, now 0).
+    expect(findFirstSpy).toHaveBeenCalledTimes(0);
+
+    // Behaviour preserved: a re-sync imports nothing new.
+    const second = await syncHospitable(orgId);
+    expect(second.messages).toBe(0);
+    expect(await prisma.message.count()).toBe(3);
+  });
+
   it("adopts an app-sent reply that has no provider id instead of duplicating it (externalId-null heal)", async () => {
     const { orgId } = await makeOrgWithProperty();
     mockProperties.mockResolvedValue([{ id: "hosp-prop-1", name: "Test Property" }]);

@@ -613,6 +613,17 @@ async function importThread(
   // Newer messages still import normally; a missing timestamp on a scrubbed
   // thread skips (fail-closed for privacy).
   const eraCutoff = scrubbedThread ? retentionCutoff() : null;
+  // Load THIS conversation's existing message externalIds ONCE, then check
+  // membership in memory. Previously each incoming message ran its own findFirst
+  // — an N+1 (one query per message) on every thread sync.
+  const seenExternalIds = new Set(
+    (
+      await prisma.message.findMany({
+        where: { conversationId, externalId: { not: null } },
+        select: { externalId: true },
+      })
+    ).map((r) => r.externalId!),
+  );
   let newMessages = 0;
   for (const m of ordered) {
     const externalId = m.id != null ? String(m.id) : null;
@@ -623,11 +634,11 @@ async function importThread(
       if (!msgAt || msgAt < eraCutoff) continue;
     }
 
-    const exists = await prisma.message.findFirst({
-      where: { conversationId, externalId },
-      select: { id: true },
-    });
-    if (exists) continue;
+    if (seenExternalIds.has(externalId)) continue;
+    // Reserve it: past this point we WILL persist (or heal) a row carrying this
+    // externalId, so a repeated id later in the SAME batch skips too — matching
+    // the old per-message DB lookup that would have seen the just-written row.
+    seenExternalIds.add(externalId);
 
     const inbound = isGuestMessage(m);
     if (!inbound) {
