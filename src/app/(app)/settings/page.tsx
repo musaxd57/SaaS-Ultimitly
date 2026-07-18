@@ -487,14 +487,25 @@ export default async function SettingsPage({
 
   // Map view id → its rendered content, then build the nav groups (labels come
   // from SETTINGS_NAV) filtered to the views that actually have content for THIS
-  // role. Faturalandırma is the only view that can vanish (non-owner, or Paddle
+  // role. İşletme Ayarları is kept to just THREE sub-views (so the left nav isn't
+  // fragmented): AI ve Otomasyon merges the AI cards + the scheduled auto-messages;
+  // Genel merges notifications + timezone. Nothing is removed — same cards, fewer
+  // pages. Faturalandırma is the only view that can vanish (non-owner, or Paddle
   // not configured); every İşletme view + Hesap ve Güvenlik always has content.
   const viewContent: Record<string, React.ReactNode> = {
-    "yapay-zeka": aiView,
-    "otomatik-mesajlar": autoMessagesView,
+    "ai-otomasyon": (
+      <>
+        {aiView}
+        {autoMessagesView}
+      </>
+    ),
     baglantilar: connectionsView,
-    bildirimler: notificationsView,
-    "saat-dilimi": timezoneView,
+    genel: (
+      <>
+        {notificationsView}
+        {timezoneView}
+      </>
+    ),
     faturalandirma: billingView,
     "hesap-guvenlik": accountView,
   };

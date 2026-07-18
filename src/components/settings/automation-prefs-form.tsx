@@ -43,6 +43,27 @@ export function AutomationPrefsForm({
   const [busy, setBusy] = useState(false);
   const [saved, setSaved] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  // Baseline of every field as last persisted; the Kaydet button stays disabled
+  // until at least one field differs from it. Refreshed after a successful save.
+  const [baseline, setBaseline] = useState({
+    autoReplyDisclosure: disclosure,
+    handoffHoldHours: String(holdHours),
+    autoHoldingReplyEnabled: holdingAck,
+    autoClosingReplyEnabled: closingReply,
+    closingReplyText: closingText,
+    lateCheckoutOfferText: lateCheckoutOffer,
+    autoTaskFromMessageEnabled: taskFromMessage,
+    autoSupplyRequestEnabled: supplyRequest,
+  });
+  const dirty =
+    autoReplyDisclosure !== baseline.autoReplyDisclosure ||
+    handoffHoldHours !== baseline.handoffHoldHours ||
+    autoHoldingReplyEnabled !== baseline.autoHoldingReplyEnabled ||
+    autoClosingReplyEnabled !== baseline.autoClosingReplyEnabled ||
+    closingReplyText !== baseline.closingReplyText ||
+    lateCheckoutOfferText !== baseline.lateCheckoutOfferText ||
+    autoTaskFromMessageEnabled !== baseline.autoTaskFromMessageEnabled ||
+    autoSupplyRequestEnabled !== baseline.autoSupplyRequestEnabled;
 
   async function save(e: React.FormEvent) {
     e.preventDefault();
@@ -67,6 +88,16 @@ export function AutomationPrefsForm({
       const data = await res.json().catch(() => ({}));
       if (res.ok) {
         setSaved(true);
+        setBaseline({
+          autoReplyDisclosure,
+          handoffHoldHours,
+          autoHoldingReplyEnabled,
+          autoClosingReplyEnabled,
+          closingReplyText,
+          lateCheckoutOfferText,
+          autoTaskFromMessageEnabled,
+          autoSupplyRequestEnabled,
+        });
         startTransition(() => router.refresh());
       } else {
         // Surface the SPECIFIC field message (e.g. the offer payment-method
@@ -248,11 +279,11 @@ export function AutomationPrefsForm({
 
       {error ? <p className="text-sm text-destructive">{error}</p> : null}
       <div className="flex items-center gap-3">
-        <Button type="submit" disabled={busy}>
+        <Button type="submit" disabled={busy || !dirty}>
           {busy ? <Loader2 className="size-4 animate-spin" /> : <Check className="size-4" />}
           Kaydet
         </Button>
-        {saved ? (
+        {saved && !dirty ? (
           <span className="inline-flex items-center gap-1 text-sm font-medium text-emerald-600">
             <Check className="size-4" /> Kaydedildi
           </span>

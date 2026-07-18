@@ -1,7 +1,8 @@
 // Settings-page navigation contract (pure — no React, safe on server + client +
 // tests). Three top-level sections; the org-scoped "İşletme Ayarları" section is
-// split into sub-views. The slugs are the stable `?tab=` URL contract — keep them
-// stable so a shared/bookmarked `/settings?tab=baglantilar` link keeps working.
+// split into a small number of sub-views (kept deliberately few so the left nav
+// doesn't feel fragmented). The slugs are the stable `?tab=` URL contract — keep
+// them stable so a shared/bookmarked `/settings?tab=baglantilar` link keeps working.
 
 export interface SettingsNavItem {
   id: string;
@@ -21,11 +22,9 @@ export const SETTINGS_NAV: SettingsNavGroup[] = [
   {
     label: "İşletme Ayarları",
     items: [
-      { id: "yapay-zeka", label: "Yapay Zekâ" },
-      { id: "otomatik-mesajlar", label: "Otomatik Mesajlar" },
-      { id: "baglantilar", label: "Bağlantılar" },
-      { id: "bildirimler", label: "Bildirimler" },
-      { id: "saat-dilimi", label: "Saat Dilimi" },
+      { id: "ai-otomasyon", label: "AI ve Otomasyon" }, // AI voice/test/prefs + scheduled messages
+      { id: "baglantilar", label: "Bağlantılar" }, // Hospitable + calendar/iCal
+      { id: "genel", label: "Genel" }, // notifications + timezone
     ],
   },
   { label: null, items: [{ id: "faturalandirma", label: "Faturalandırma" }] },
@@ -38,9 +37,9 @@ export const SETTINGS_VIEW_IDS = SETTINGS_NAV.flatMap((g) => g.items.map((i) => 
 // the OAuth callback and the dashboard `#hospitable` deep-link both target it.
 export const CONNECTION_VIEW_ID = "baglantilar";
 
-// The product's core surface (AI voice + how it answers) — where a returning host
+// The product's core surface (AI voice + automation) — where a returning host
 // most often lands, so it is the default when no param/hash steers elsewhere.
-export const DEFAULT_VIEW_ID = "yapay-zeka";
+export const DEFAULT_VIEW_ID = "ai-otomasyon";
 
 /**
  * Decide which view is active on FIRST PAINT, from the server-readable inputs only

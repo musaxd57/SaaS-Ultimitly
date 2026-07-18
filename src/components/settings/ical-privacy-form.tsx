@@ -15,9 +15,11 @@ export function IcalPrivacyForm({ showGuestName }: { showGuestName: boolean }) {
   const router = useRouter();
   const [, startTransition] = useTransition();
   const [icalShowGuestName, setShow] = useState(showGuestName);
+  const [baseline, setBaseline] = useState(showGuestName);
   const [busy, setBusy] = useState(false);
   const [saved, setSaved] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const dirty = icalShowGuestName !== baseline;
 
   async function save(e: React.FormEvent) {
     e.preventDefault();
@@ -33,6 +35,7 @@ export function IcalPrivacyForm({ showGuestName }: { showGuestName: boolean }) {
       const data = await res.json().catch(() => ({}));
       if (res.ok) {
         setSaved(true);
+        setBaseline(icalShowGuestName);
         startTransition(() => router.refresh());
       } else {
         setError(data.fields?.icalShowGuestName ?? data.error ?? "Kaydedilemedi.");
@@ -67,11 +70,11 @@ export function IcalPrivacyForm({ showGuestName }: { showGuestName: boolean }) {
 
       {error ? <p className="text-sm text-destructive">{error}</p> : null}
       <div className="flex items-center gap-3">
-        <Button type="submit" disabled={busy}>
+        <Button type="submit" disabled={busy || !dirty}>
           {busy ? <Loader2 className="size-4 animate-spin" /> : <Check className="size-4" />}
           Kaydet
         </Button>
-        {saved ? (
+        {saved && !dirty ? (
           <span className="inline-flex items-center gap-1 text-sm font-medium text-emerald-600">
             <Check className="size-4" /> Kaydedildi
           </span>

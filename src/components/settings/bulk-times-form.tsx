@@ -19,9 +19,12 @@ export function BulkTimesForm({
   const [, startTransition] = useTransition();
   const [checkInTime, setCheckIn] = useState(defaultCheckIn);
   const [checkOutTime, setCheckOut] = useState(defaultCheckOut);
+  const [baseCheckIn, setBaseCheckIn] = useState(defaultCheckIn);
+  const [baseCheckOut, setBaseCheckOut] = useState(defaultCheckOut);
   const [saving, setSaving] = useState(false);
   const [result, setResult] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
+  const dirty = checkInTime !== baseCheckIn || checkOutTime !== baseCheckOut;
 
   async function save(e: React.FormEvent) {
     e.preventDefault();
@@ -40,6 +43,8 @@ export function BulkTimesForm({
         return;
       }
       setResult(`${data.updated} daireye uygulandı.`);
+      setBaseCheckIn(checkInTime);
+      setBaseCheckOut(checkOutTime);
       startTransition(() => router.refresh());
     } catch {
       setError("Bağlantı hatası.");
@@ -83,11 +88,11 @@ export function BulkTimesForm({
             </Field>
           </div>
           <div className="flex items-center gap-3">
-            <Button type="submit" disabled={saving}>
+            <Button type="submit" disabled={saving || !dirty}>
               {saving ? <Loader2 className="size-4 animate-spin" /> : <Check className="size-4" />}
               Tüm dairelere uygula
             </Button>
-            {result ? (
+            {result && !dirty ? (
               <span className="inline-flex items-center gap-1 text-sm font-medium text-emerald-600">
                 <Check className="size-4" /> {result}
               </span>

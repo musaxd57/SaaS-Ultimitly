@@ -109,11 +109,11 @@ export function SettingsSections({
           {groups.map((g, gi) => (
             <div key={`nav-${gi}`}>
               {g.label ? (
-                <p className="px-3 pb-1 text-xs font-semibold uppercase tracking-wide text-muted-foreground">
+                <p className="px-3 pb-1.5 text-xs font-semibold uppercase tracking-wide text-foreground/60">
                   {g.label}
                 </p>
               ) : null}
-              <ul className="space-y-0.5">
+              <ul className="space-y-1">
                 {g.items.map((i) => {
                   const isActive = i.id === active;
                   return (
@@ -123,10 +123,10 @@ export function SettingsSections({
                         aria-current={isActive ? "page" : undefined}
                         onClick={() => selectView(i.id)}
                         className={cn(
-                          "w-full rounded-md px-3 py-1.5 text-left text-sm transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-1",
+                          "block w-full rounded-md border-l-2 px-3 py-2 text-left text-sm transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-1",
                           isActive
-                            ? "bg-accent font-medium text-foreground"
-                            : "text-muted-foreground hover:bg-accent/50 hover:text-foreground",
+                            ? "border-primary bg-primary/10 font-semibold text-primary"
+                            : "border-transparent font-medium text-foreground/70 hover:bg-muted hover:text-foreground",
                         )}
                       >
                         {i.label}

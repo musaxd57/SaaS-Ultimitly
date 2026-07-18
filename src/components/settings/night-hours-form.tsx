@@ -22,9 +22,12 @@ export function NightHoursForm({
   const [, startTransition] = useTransition();
   const [start, setStart] = useState(startHour);
   const [end, setEnd] = useState(endHour);
+  const [baseStart, setBaseStart] = useState(startHour);
+  const [baseEnd, setBaseEnd] = useState(endHour);
   const [saving, setSaving] = useState(false);
   const [saved, setSaved] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const dirty = start !== baseStart || end !== baseEnd;
 
   async function save(e: React.FormEvent) {
     e.preventDefault();
@@ -43,6 +46,8 @@ export function NightHoursForm({
         return;
       }
       setSaved(true);
+      setBaseStart(start);
+      setBaseEnd(end);
       startTransition(() => router.refresh());
     } catch {
       setError("Bağlantı hatası.");
@@ -84,11 +89,11 @@ export function NightHoursForm({
             </Field>
           </div>
           <div className="flex items-center gap-3">
-            <Button type="submit" disabled={saving}>
+            <Button type="submit" disabled={saving || !dirty}>
               {saving ? <Loader2 className="size-4 animate-spin" /> : <Check className="size-4" />}
               Kaydet
             </Button>
-            {saved ? (
+            {saved && !dirty ? (
               <span className="inline-flex items-center gap-1 text-sm font-medium text-emerald-600">
                 <Check className="size-4" /> Kaydedildi ({pad(start)}–{pad(end)})
               </span>

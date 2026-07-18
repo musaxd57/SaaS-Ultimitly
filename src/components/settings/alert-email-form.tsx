@@ -13,9 +13,11 @@ import { ALERT_EMAIL_SAVED_EVENT, TEST_EMAIL_SENT_KEY } from "@/components/setti
  */
 export function AlertEmailForm({ initial }: { initial: string }) {
   const [email, setEmail] = useState(initial);
+  const [baseline, setBaseline] = useState(initial);
   const [busy, setBusy] = useState(false);
   const [saved, setSaved] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const dirty = email.trim() !== baseline.trim();
 
   async function save(e: React.FormEvent) {
     e.preventDefault();
@@ -31,6 +33,7 @@ export function AlertEmailForm({ initial }: { initial: string }) {
       const data = await res.json().catch(() => ({}));
       if (res.ok) {
         setSaved(true);
+        setBaseline(email.trim());
         // Adres değişti → yeni adres henüz doğrulanmadı: test butonunu geri
         // getir (tek-seferlik gizleme bayrağını düşür + bayat sonucu temizlet).
         try {
@@ -61,9 +64,9 @@ export function AlertEmailForm({ initial }: { initial: string }) {
           placeholder="ornek@mail.com"
         />
       </div>
-      <Button type="submit" variant="outline" disabled={busy}>
-        {busy ? <Loader2 className="size-4 animate-spin" /> : saved ? <Check className="size-4 text-emerald-600" /> : <Mail className="size-4" />}
-        {saved ? "Kaydedildi" : "Kaydet"}
+      <Button type="submit" variant="outline" disabled={busy || !dirty}>
+        {busy ? <Loader2 className="size-4 animate-spin" /> : saved && !dirty ? <Check className="size-4 text-emerald-600" /> : <Mail className="size-4" />}
+        {saved && !dirty ? "Kaydedildi" : "Kaydet"}
       </Button>
       {error ? <p className="w-full text-xs text-destructive">{error}</p> : null}
     </form>

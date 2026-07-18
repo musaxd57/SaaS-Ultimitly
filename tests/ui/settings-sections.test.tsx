@@ -7,8 +7,7 @@ const GROUPS: SettingsViewGroup[] = [
   {
     label: "İşletme Ayarları",
     items: [
-      { id: "yapay-zeka", label: "Yapay Zekâ", content: <div>AI GÖRÜNÜMÜ</div> },
-      { id: "otomatik-mesajlar", label: "Otomatik Mesajlar", content: <div>MESAJ GÖRÜNÜMÜ</div> },
+      { id: "ai-otomasyon", label: "AI ve Otomasyon", content: <div>AI GÖRÜNÜMÜ</div> },
       {
         id: "baglantilar",
         label: "Bağlantılar",
@@ -19,8 +18,7 @@ const GROUPS: SettingsViewGroup[] = [
           </div>
         ),
       },
-      { id: "bildirimler", label: "Bildirimler", content: <div>BİLDİRİM GÖRÜNÜMÜ</div> },
-      { id: "saat-dilimi", label: "Saat Dilimi", content: <div>SAAT GÖRÜNÜMÜ</div> },
+      { id: "genel", label: "Genel", content: <div>GENEL GÖRÜNÜMÜ</div> },
     ],
   },
   { label: null, items: [{ id: "faturalandirma", label: "Faturalandırma", content: <div>FATURA GÖRÜNÜMÜ</div> }] },
@@ -43,46 +41,46 @@ describe("SettingsSections (UI)", () => {
   afterEach(() => cleanup());
 
   it("renders the desktop nav grouped, with the İşletme Ayarları header + a mobile select", () => {
-    render(<SettingsSections groups={GROUPS} initialViewId="yapay-zeka" />);
+    render(<SettingsSections groups={GROUPS} initialViewId="ai-otomasyon" />);
     expect(within(nav()).getByText("İşletme Ayarları")).toBeTruthy(); // group header
     // Mobile accessible section picker exists and groups the İşletme views.
     const select = screen.getByLabelText("Ayarlar bölümü") as HTMLSelectElement;
-    expect(select.value).toBe("yapay-zeka");
+    expect(select.value).toBe("ai-otomasyon");
     expect(select.querySelector('optgroup[label="İşletme Ayarları"]')).toBeTruthy();
   });
 
   it("marks the initial view active and shows only its panel", () => {
-    render(<SettingsSections groups={GROUPS} initialViewId="yapay-zeka" />);
-    expect(within(nav()).getByRole("button", { name: "Yapay Zekâ" }).getAttribute("aria-current")).toBe("page");
+    render(<SettingsSections groups={GROUPS} initialViewId="ai-otomasyon" />);
+    expect(within(nav()).getByRole("button", { name: "AI ve Otomasyon" }).getAttribute("aria-current")).toBe("page");
     expect(activePanel()?.textContent).toContain("AI GÖRÜNÜMÜ");
   });
 
   it("clicking a left-nav item switches the visible panel", () => {
-    render(<SettingsSections groups={GROUPS} initialViewId="yapay-zeka" />);
+    render(<SettingsSections groups={GROUPS} initialViewId="ai-otomasyon" />);
     fireEvent.click(within(nav()).getByRole("button", { name: "Hesap ve Güvenlik" }));
     expect(activePanel()?.textContent).toContain("HESAP GÖRÜNÜMÜ");
     expect(within(nav()).getByRole("button", { name: "Hesap ve Güvenlik" }).getAttribute("aria-current")).toBe("page");
-    expect(within(nav()).getByRole("button", { name: "Yapay Zekâ" }).getAttribute("aria-current")).toBeNull();
+    expect(within(nav()).getByRole("button", { name: "AI ve Otomasyon" }).getAttribute("aria-current")).toBeNull();
   });
 
   it("the mobile <select> switches the visible panel too", () => {
-    render(<SettingsSections groups={GROUPS} initialViewId="yapay-zeka" />);
-    fireEvent.change(screen.getByLabelText("Ayarlar bölümü"), { target: { value: "bildirimler" } });
-    expect(activePanel()?.textContent).toContain("BİLDİRİM GÖRÜNÜMÜ");
+    render(<SettingsSections groups={GROUPS} initialViewId="ai-otomasyon" />);
+    fireEvent.change(screen.getByLabelText("Ayarlar bölümü"), { target: { value: "genel" } });
+    expect(activePanel()?.textContent).toContain("GENEL GÖRÜNÜMÜ");
   });
 
   it("inactive panels stay MOUNTED (form input survives a view switch)", () => {
     render(<SettingsSections groups={GROUPS} initialViewId="baglantilar" />);
     fireEvent.change(screen.getByLabelText("feed"), { target: { value: "gizli-feed" } });
-    fireEvent.click(within(nav()).getByRole("button", { name: "Yapay Zekâ" }));
+    fireEvent.click(within(nav()).getByRole("button", { name: "AI ve Otomasyon" }));
     fireEvent.click(within(nav()).getByRole("button", { name: "Bağlantılar" }));
     expect((screen.getByLabelText("feed") as HTMLInputElement).value).toBe("gizli-feed");
   });
 
   it("reflects the active view in ?tab= without a navigation (replaceState)", () => {
-    render(<SettingsSections groups={GROUPS} initialViewId="yapay-zeka" />);
-    fireEvent.click(within(nav()).getByRole("button", { name: "Saat Dilimi" }));
-    expect(new URL(window.location.href).searchParams.get("tab")).toBe("saat-dilimi");
+    render(<SettingsSections groups={GROUPS} initialViewId="ai-otomasyon" />);
+    fireEvent.click(within(nav()).getByRole("button", { name: "Genel" }));
+    expect(new URL(window.location.href).searchParams.get("tab")).toBe("genel");
   });
 
   it("#hospitable deep-link → activates the Bağlantılar view + scrolls the card", async () => {
@@ -93,7 +91,7 @@ describe("SettingsSections (UI)", () => {
       cb(0);
       return 0;
     });
-    render(<SettingsSections groups={GROUPS} initialViewId="yapay-zeka" />);
+    render(<SettingsSections groups={GROUPS} initialViewId="ai-otomasyon" />);
     await waitFor(() =>
       expect(within(nav()).getByRole("button", { name: "Bağlantılar" }).getAttribute("aria-current")).toBe("page"),
     );
@@ -103,7 +101,7 @@ describe("SettingsSections (UI)", () => {
 
   it("omits a filtered-out view (e.g. billing hidden for non-owner)", () => {
     const noBilling: SettingsViewGroup[] = GROUPS.filter((g) => g.items[0].id !== "faturalandirma");
-    render(<SettingsSections groups={noBilling} initialViewId="yapay-zeka" />);
+    render(<SettingsSections groups={noBilling} initialViewId="ai-otomasyon" />);
     expect(within(nav()).queryByRole("button", { name: "Faturalandırma" })).toBeNull();
     expect(screen.queryByText("FATURA GÖRÜNÜMÜ")).toBeNull();
   });

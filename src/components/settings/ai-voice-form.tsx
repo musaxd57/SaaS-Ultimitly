@@ -27,9 +27,12 @@ export function AiVoiceForm({
   const [, startTransition] = useTransition();
   const [aiReplyTone, setTone] = useState(tone);
   const [aiSignature, setSignature] = useState(signature);
+  const [baseTone, setBaseTone] = useState(tone);
+  const [baseSignature, setBaseSignature] = useState(signature);
   const [saving, setSaving] = useState(false);
   const [saved, setSaved] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const dirty = aiReplyTone !== baseTone || aiSignature !== baseSignature;
 
   async function save(e: React.FormEvent) {
     e.preventDefault();
@@ -48,6 +51,8 @@ export function AiVoiceForm({
         return;
       }
       setSaved(true);
+      setBaseTone(aiReplyTone);
+      setBaseSignature(aiSignature);
       startTransition(() => router.refresh());
     } catch {
       setError("Bağlantı hatası.");
@@ -97,11 +102,11 @@ export function AiVoiceForm({
           </Field>
 
           <div className="flex items-center gap-3">
-            <Button type="submit" disabled={saving}>
+            <Button type="submit" disabled={saving || !dirty}>
               {saving ? <Loader2 className="size-4 animate-spin" /> : <Check className="size-4" />}
               Kaydet
             </Button>
-            {saved ? (
+            {saved && !dirty ? (
               <span className="inline-flex items-center gap-1 text-sm font-medium text-emerald-600">
                 <Check className="size-4" /> Kaydedildi
               </span>

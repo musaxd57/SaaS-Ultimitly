@@ -11,9 +11,11 @@ import { Button } from "@/components/ui/button";
  */
 export function TimezoneForm({ initial }: { initial: string }) {
   const [tz, setTz] = useState(initial || "Europe/Istanbul");
+  const [baseline, setBaseline] = useState(initial || "Europe/Istanbul");
   const [busy, setBusy] = useState(false);
   const [saved, setSaved] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const dirty = tz !== baseline;
 
   // Tarayıcının bildiği tam IANA listesi; desteklemeyen eski tarayıcıda kısa
   // yedek liste (kaydedilen değeri sunucu yine doğrular).
@@ -40,8 +42,10 @@ export function TimezoneForm({ initial }: { initial: string }) {
         body: JSON.stringify({ timezone: tz }),
       });
       const data = await res.json().catch(() => ({}));
-      if (res.ok) setSaved(true);
-      else setError(data.fields?.timezone ?? data.error ?? "Kaydedilemedi.");
+      if (res.ok) {
+        setSaved(true);
+        setBaseline(tz); // new baseline → button disables until the next change
+      } else setError(data.fields?.timezone ?? data.error ?? "Kaydedilemedi.");
     } catch {
       setError("Bağlantı hatası.");
     } finally {
@@ -74,9 +78,9 @@ export function TimezoneForm({ initial }: { initial: string }) {
             ))}
           </select>
         </div>
-        <Button type="submit" variant="outline" disabled={busy}>
-          {busy ? <Loader2 className="size-4 animate-spin" /> : saved ? <Check className="size-4 text-emerald-600" /> : <Globe className="size-4" />}
-          {saved ? "Kaydedildi" : "Kaydet"}
+        <Button type="submit" variant="outline" disabled={busy || !dirty}>
+          {busy ? <Loader2 className="size-4 animate-spin" /> : saved && !dirty ? <Check className="size-4 text-emerald-600" /> : <Globe className="size-4" />}
+          {saved && !dirty ? "Kaydedildi" : "Kaydet"}
         </Button>
       </div>
       {error ? <p className="text-xs text-destructive">{error}</p> : null}

@@ -12,15 +12,9 @@ const ALL = [...SETTINGS_VIEW_IDS];
 const NO_BILLING = ALL.filter((id) => id !== "faturalandirma");
 
 describe("settings-nav structure", () => {
-  it("has exactly one grouped section (İşletme Ayarları) + two standalone sections", () => {
+  it("İşletme Ayarları is kept to THREE sub-views (not fragmented) + two standalone sections", () => {
     expect(SETTINGS_NAV[0].label).toBe("İşletme Ayarları");
-    expect(SETTINGS_NAV[0].items.map((i) => i.id)).toEqual([
-      "yapay-zeka",
-      "otomatik-mesajlar",
-      "baglantilar",
-      "bildirimler",
-      "saat-dilimi",
-    ]);
+    expect(SETTINGS_NAV[0].items.map((i) => i.id)).toEqual(["ai-otomasyon", "baglantilar", "genel"]);
     // Standalone top-level sections carry no group header.
     const standalone = SETTINGS_NAV.slice(1);
     expect(standalone.map((g) => g.items[0].id)).toEqual(["faturalandirma", "hesap-guvenlik"]);
@@ -44,7 +38,7 @@ describe("deriveInitialViewId (settings view precedence)", () => {
 
   it("a valid, visible ?tab= is honored", () => {
     expect(deriveInitialViewId({ tab: "faturalandirma", visibleIds: ALL })).toBe("faturalandirma");
-    expect(deriveInitialViewId({ tab: "bildirimler", visibleIds: ALL })).toBe("bildirimler");
+    expect(deriveInitialViewId({ tab: "genel", visibleIds: ALL })).toBe("genel");
   });
 
   it("a ?tab= HIDDEN for this role falls back to the default (never an empty panel)", () => {
@@ -58,7 +52,7 @@ describe("deriveInitialViewId (settings view precedence)", () => {
 
   it("no param → the AI view (product core) is the default", () => {
     expect(deriveInitialViewId({ visibleIds: ALL })).toBe(DEFAULT_VIEW_ID);
-    expect(DEFAULT_VIEW_ID).toBe("yapay-zeka");
+    expect(DEFAULT_VIEW_ID).toBe("ai-otomasyon");
   });
 
   it("hospitable wins even over an explicit ?tab=", () => {
@@ -68,7 +62,7 @@ describe("deriveInitialViewId (settings view precedence)", () => {
   });
 
   it("hospitable is ignored if the connection view is not visible (defensive)", () => {
-    const noConnection = ["yapay-zeka", "hesap-guvenlik"];
+    const noConnection = ["ai-otomasyon", "hesap-guvenlik"];
     expect(deriveInitialViewId({ hospitable: "connected", visibleIds: noConnection })).toBe(
       DEFAULT_VIEW_ID,
     );

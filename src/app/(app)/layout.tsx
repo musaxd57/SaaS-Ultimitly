@@ -54,6 +54,13 @@ export default async function AppLayout({ children }: { children: React.ReactNod
   const isOperator = Boolean(session.actorUserId) || isSuperAdmin(session);
   const limited = billingEnforced() && !entitlement.active && !isOperator;
 
+  // Sidebar plan summary — OWNER only (billing is an account-owner concern; the
+  // Faturalandırma settings section is owner-only too). A trial shows the days left.
+  const planLabel =
+    entitlement.trialing && entitlement.trialDaysLeft != null
+      ? `${entitlement.planName} · deneme ${entitlement.trialDaysLeft}g`
+      : entitlement.planName;
+
   return (
     <AppShell
       user={{
@@ -64,6 +71,7 @@ export default async function AppLayout({ children }: { children: React.ReactNod
       }}
       superAdmin={isSuperAdmin(session)}
       guestChatEnabled={process.env.GUEST_CHAT_ENABLED === "1"}
+      plan={session.role === "owner" ? { label: planLabel, href: "/billing" } : undefined}
       impersonating={
         session.actorUserId
           ? { actorName: session.actorName ?? session.actorEmail ?? "Operatör", orgName: org.name }

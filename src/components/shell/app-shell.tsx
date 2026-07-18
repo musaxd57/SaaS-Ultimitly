@@ -16,10 +16,13 @@ interface AppShellProps {
   superAdmin?: boolean;
   guestChatEnabled?: boolean;
   impersonating?: { actorName: string; orgName: string } | null;
+  // Subscription summary shown in the sidebar user card; clicking it opens billing.
+  // Undefined → the card is not a link and shows no plan (e.g. non-owner roles).
+  plan?: { label: string; href: string };
   children: React.ReactNode;
 }
 
-export function AppShell({ user, superAdmin, guestChatEnabled, impersonating, children }: AppShellProps) {
+export function AppShell({ user, superAdmin, guestChatEnabled, impersonating, plan, children }: AppShellProps) {
   const pathname = usePathname();
   const router = useRouter();
   const [mobileOpen, setMobileOpen] = useState(false);
@@ -75,7 +78,7 @@ export function AppShell({ user, superAdmin, guestChatEnabled, impersonating, ch
   });
 
   const navLinks = (
-    <nav className="flex flex-1 flex-col gap-1">
+    <nav className="flex flex-col gap-1">
       {navItems.map(({ href, label, icon: Icon }) => (
         <Link
           key={href}
@@ -95,11 +98,32 @@ export function AppShell({ user, superAdmin, guestChatEnabled, impersonating, ch
     </nav>
   );
 
+  // Card body reused whether or not the card is a billing link.
+  const userCardInner = (
+    <>
+      <div className="flex items-center gap-2">
+        <Avatar name={user.name} className="size-8" />
+        <div className="min-w-0">
+          <p className="truncate text-sm font-medium">{user.name}</p>
+          <p className="truncate text-xs text-muted-foreground">{USER_ROLE.label(user.role)}</p>
+        </div>
+      </div>
+      {plan ? (
+        <div className="mt-2 flex items-center justify-between gap-2 border-t border-border/60 pt-2">
+          <span className="text-xs text-muted-foreground">Abonelik</span>
+          <span className="truncate text-xs font-semibold text-foreground">{plan.label}</span>
+        </div>
+      ) : null}
+    </>
+  );
+
   const sidebarBody = (
-    // overflow-y-auto so on short viewports the nav + user card scroll instead of
-    // clipping the bottom items (13+ menu entries can exceed a short screen).
-    <div className="flex h-full flex-col gap-6 overflow-y-auto p-4">
-      <div className="flex items-center justify-between px-1">
+    // Fixed logo (top) + a SINGLE scrolling nav area + a user card PINNED to the
+    // bottom. The nav owns the overflow (min-h-0 lets the flex child shrink so it
+    // actually scrolls), so on any viewport height the card sits at the very
+    // bottom — it never floats up into the middle.
+    <div className="flex h-full flex-col p-4">
+      <div className="flex shrink-0 items-center justify-between px-1">
         <Link href="/dashboard" className="flex items-center gap-2" onClick={() => setMobileOpen(false)}>
           <div className="flex size-8 items-center justify-center rounded-lg bg-primary text-primary-foreground">
             <BrandMark className="size-5" />
@@ -117,31 +141,37 @@ export function AppShell({ user, superAdmin, guestChatEnabled, impersonating, ch
           <X className="size-5" />
         </button>
       </div>
-      {navLinks}
-      {superAdmin ? (
-        <Link
-          href="/admin"
-          onClick={() => setMobileOpen(false)}
-          className={cn(
-            "flex items-center gap-3 rounded-md px-3 py-2 text-sm font-medium transition-colors",
-            isActive("/admin")
-              ? "bg-primary text-primary-foreground"
-              : "text-muted-foreground hover:bg-accent hover:text-accent-foreground",
-          )}
-        >
-          <Shield className="size-4.5 shrink-0" />
-          Operatör Paneli
-        </Link>
-      ) : null}
-      <div className="rounded-lg border border-border bg-muted/40 p-3">
-        <div className="flex items-center gap-2">
-          <Avatar name={user.name} className="size-8" />
-          <div className="min-w-0">
-            <p className="truncate text-sm font-medium">{user.name}</p>
-            <p className="truncate text-xs text-muted-foreground">{USER_ROLE.label(user.role)}</p>
-          </div>
-        </div>
+
+      <div className="mt-6 flex min-h-0 flex-1 flex-col gap-1 overflow-y-auto">
+        {navLinks}
+        {superAdmin ? (
+          <Link
+            href="/admin"
+            onClick={() => setMobileOpen(false)}
+            className={cn(
+              "flex items-center gap-3 rounded-md px-3 py-2 text-sm font-medium transition-colors",
+              isActive("/admin")
+                ? "bg-primary text-primary-foreground"
+                : "text-muted-foreground hover:bg-accent hover:text-accent-foreground",
+            )}
+          >
+            <Shield className="size-4.5 shrink-0" />
+            Operatör Paneli
+          </Link>
+        ) : null}
       </div>
+
+      {plan ? (
+        <Link
+          href={plan.href}
+          onClick={() => setMobileOpen(false)}
+          className="mt-4 block shrink-0 rounded-lg border border-border bg-muted/40 p-3 transition-colors hover:bg-muted/70"
+        >
+          {userCardInner}
+        </Link>
+      ) : (
+        <div className="mt-4 shrink-0 rounded-lg border border-border bg-muted/40 p-3">{userCardInner}</div>
+      )}
     </div>
   );
 
@@ -212,7 +242,16 @@ export function AppShell({ user, superAdmin, guestChatEnabled, impersonating, ch
           </div>
         </header>
         <main className="flex-1 px-4 py-6 sm:px-6 lg:px-8">
-          <div className="mx-auto w-full max-w-6xl space-y-6">{children}</div>
+          {/* Settings uses the two-column (side-nav + content) layout, so it gets a
+              wider container; every other page stays at the reading-width cap. */}
+          <div
+            className={cn(
+              "mx-auto w-full space-y-6",
+              pathname.startsWith("/settings") ? "max-w-7xl" : "max-w-6xl",
+            )}
+          >
+            {children}
+          </div>
         </main>
       </div>
     </div>
