@@ -50,6 +50,16 @@ const AUTO_REPLY_MIN_CONFIDENCE = 0.75;
 // the risk as "low". This is a belt-and-suspenders on top of the riskLevel gate.
 const NEVER_AUTO_REPLY_INTENTS = new Set(["complaint", "refund", "early_departure"]);
 
+// riskType is a LABEL, but a high-stakes label is itself a red flag: if the model
+// names any of these, never auto-send even when it (inconsistently) scored the
+// risk low. Exported so the real-time QR concierge gate escalates on the SAME set
+// (single source of truth → the two gates can't drift apart).
+export const HIGH_STAKES_RISK_TYPES = new Set([
+  "money_refund", "cancellation", "review_threat", "platform_policy",
+  "safety_emergency", "discrimination", "access_security", "prompt_injection",
+  "complaint", "human_request", "rule_violation",
+]);
+
 /** Only safe, confident drafts may be auto-sent; everything else waits for a human.
  * Exported for the golden scenario suite — the gate is the product's core safety
  * promise, so its verdicts are pinned by fixed test scenarios. */
@@ -127,14 +137,9 @@ export function passesAutoReplySafetyGate(
   ) {
     return false;
   }
-  // riskType is a LABEL, but a high-stakes label is itself a red flag: if the
-  // model names any of these, never auto-send even when it (inconsistently)
-  // scored the risk low. Tightens only — an empty/null label changes nothing.
-  const HIGH_STAKES_RISK_TYPES = new Set([
-    "money_refund", "cancellation", "review_threat", "platform_policy",
-    "safety_emergency", "discrimination", "access_security", "prompt_injection",
-    "complaint", "human_request", "rule_violation",
-  ]);
+  // A high-stakes label (HIGH_STAKES_RISK_TYPES, module scope — shared with the QR
+  // gate) is itself a red flag: if the model names one, never auto-send even when
+  // it (inconsistently) scored the risk low. Tightens only — null label changes nothing.
   // Sole exemption: the designed handoff ack — model intent AND label both say
   // human_request. Any OTHER high-stakes label (even alongside a human_request
   // intent) holds for a human.

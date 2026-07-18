@@ -2,6 +2,7 @@ import { type NextRequest, type NextResponse } from "next/server";
 import { prisma } from "@/lib/db";
 import { suggestReply } from "@/lib/ai";
 import { classifyFallback, detectPromptInjection, detectRiskType } from "@/lib/ai/fallback";
+import { HIGH_STAKES_RISK_TYPES } from "@/lib/automation";
 import { resolveGuestChat, bindOrCheckStay, guestChatAiPausedFromMessages, type GuestChatContext } from "@/lib/guest-chat";
 import { guestChatDisplayRole } from "@/lib/message-author";
 import { verifyReservationPin } from "@/lib/guest-chat-pin";
@@ -82,7 +83,7 @@ function setStayCookie(res: NextResponse, name: string, secret: string, departur
  * there is no human at the doorway. Returns true when the bot must NOT answer.
  */
 function mustEscalate(
-  result: { intent: string; riskLevel: string; confidence: number; source: string },
+  result: { intent: string; riskLevel: string; confidence: number; source: string; riskType?: string | null },
   message: string,
   /** Reservation guest name (Airbnb-controlled) — the model sees it in the prompt,
    *  so an injection planted in the NAME must escalate even on a benign message. */
@@ -91,6 +92,12 @@ function mustEscalate(
   if (guestName && detectPromptInjection(guestName)) return true;
   if (result.source !== "openai") return true; // canned fallback → host handles it
   if (ESCALATE_INTENTS.has(result.intent)) return true; // money/complaint/human
+  // Parity with the inbox auto-send gate: a high-stakes riskType LABEL from the
+  // model (review_threat / platform_policy / access_security / money_refund / …)
+  // is itself a red flag — escalate even when the model scored riskLevel low. No
+  // handoff-ack exemption here: at the doorway there's no human to hand off to in
+  // real time, so human_request escalates too (already covered by ESCALATE_INTENTS).
+  if (result.riskType && HIGH_STAKES_RISK_TYPES.has(result.riskType)) return true;
   // Cross-check the guest's own words against the deterministic detector — catches
   // an angry/refund message the model under-rated as benign.
   const fb = classifyFallback(message);

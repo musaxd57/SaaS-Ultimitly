@@ -194,6 +194,20 @@ describe("POST /api/chat/[token] (public QR concierge)", () => {
     expect(json.escalated).toBe(true);
   });
 
+  it("escalates a benign-worded message the model LABELS high-stakes (riskType parity with the inbox gate)", async () => {
+    // intent=general + riskLevel low + confidence high + benign wording → the
+    // intent, fallback, injection, detectRiskType, riskLevel and confidence checks
+    // ALL pass. The ONLY thing that should hold this back is the model's own
+    // high-stakes riskType label — the parity the inbox auto-send gate already has.
+    mockSuggest.mockResolvedValue(
+      result({ intent: "general", riskLevel: "low", confidence: 0.9, riskType: "review_threat" }),
+    );
+    const { propertyId } = await makeOrgWithProperty();
+    const token = await enableChat(propertyId);
+    const json = await (await call(token, "Otoparkı nasıl kullanabilirim?")).json();
+    expect(json.escalated).toBe(true);
+  });
+
   it("escalates a low-confidence answer rather than guessing at the doorway", async () => {
     mockSuggest.mockResolvedValue(result({ confidence: 0.5 }));
     const { propertyId } = await makeOrgWithProperty();
