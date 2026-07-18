@@ -163,7 +163,15 @@ sorumlusu) 30-gün yükümlülüğünü yerine getirebilsin diye gereken tasarı
    red kapsamında tutulur (2021/1104 emsali); ret metni host'a hazır şablonla verilir.
 5. **Süreç:** host UI'dan talep → kapsam önizleme → onay → imha + tombstone + AuditLog
    (≥3 yıl) + alt-işleyen bildirim listesi (m.11). 30-gün SLA notu UI'da.
-6. **Durum (2026-07-18 güncel): araştırma-temelli öneriler DOLU** — istisna kapsamı (§5) ve
-   yeni-veri sınırı (madde 3) resmî mevzuat/emsalle gerekçelendirildi; açık [HUKUK KARARI]
-   kalmadı, yalnız **[AVUKAT İMZASI]** (öneri setinin onayı). İmza sonrası kod turu: m40
-   (ErasureTombstone + ingress guard'ları + host UI) — tasarım hazır, mekanik uygulama.
+6. **Durum (2026-07-18, m40 KOD YAZILDI):** `ErasureTombstone` tablosu (m40) + `src/lib/erasure.ts`
+   (hash/normalize + guard + `eraseReservationData` yürütücüsü) + ingress guard'ları
+   (hospitable-sync rezervasyon-kapısı + mesaj-cutoff birleşimi; iCal UID-kapısı) +
+   host yüzeyi (`GET/POST /api/reservations/[id]/erase`, withManage + audit "kvkk.guest_erasure"
+   [yalnız sayılar] + mülk sayfasında onaylı kontrol). **Yüzey `GUEST_ERASURE_ENABLED=1`
+   default KAPALI; guard'lar HER ZAMAN AÇIK** (tombstone yoksa no-op — hiçbir şey hash'lenmez).
+   Kırmızı-önce testler: satırlar tamamen silinmişken provider re-send → hiçbir şey re-import
+   olmaz · yeni-veri sınırı (sonraki konaklama girer, pre-erasure mesaj girmez) · era-bloğu ·
+   iCal UID-guard · flag-off 404 · staff 403 · IDOR · at-rest ham-PII-yok. **[AVUKAT İMZASI]**
+   önerilerin onayı için hâlâ beklenir (flag açılmadan önce); belgelenmiş tavizler: CSV/manuel
+   import guard'lanmadı (host'un kendi dosyası — sorumluluk host'ta) · kanal (Airbnb/Hospitable)
+   kopyasını Lixus silemez, UI bunu açıkça söyler.
