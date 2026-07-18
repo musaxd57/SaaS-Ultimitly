@@ -164,6 +164,7 @@ model Organization {
   users            User[]
   riskEvents       RiskEvent[]
   shadowVerdicts   ShadowVerdict[]
+  erasureTombstones ErasureTombstone[]
   messageOutbox    MessageOutbox[]
   properties       Property[]
   automationRules  AutomationRule[]
@@ -939,5 +940,32 @@ model StorageDeletion {
 
   // Drain due-query: pending rows ordered by availableAt.
   @@index([status, availableAt])
+  @@index([organizationId])
+}
+
+// KVKK explicit-erasure tombstones — migration 40 (design: docs/DATA-RETENTION-
+// ERASURE-DRAFT.md §8c). One row = "data matching this hashed identifier, from
+// on/before erasedAt, may NEVER re-enter via sync/import" — the durable guard
+// that makes an explicit deletion request (Law 6698 art. 11 via art. 7; Deletion
+// Regulation art. 8: erased data must stay 'tekrar kullanılamaz') survive a
+// provider re-sync. Carries NO raw PII: identifiers are HMAC-SHA256 hashes
+// (keyed from ENCRYPTION_KEY), captured AT REQUEST TIME before the scrub.
+// Lawful basis for keeping the hash itself: art. 5/2-ç (fulfilling the erasure
+// duty) — domestic precedent: commercial-email OPT-OUT records must themselves
+// be retained (Ticari İletişim Yönetmeliği m.13). Kept while the org lives
+// (the provider can re-send the same data at any time); org delete cascades.
+model ErasureTombstone {
+  id             String   @id @default(cuid())
+  organizationId String
+  keyType        String // source_reference | guest_external_id | guest_email | guest_phone (closed set, app-enforced)
+  keyHash        String // HMAC-SHA256("type:normalized-value") hex — never the raw value
+  erasedAt       DateTime // cutoff: matching data at/before this instant never re-imports
+  createdAt      DateTime @default(now())
+
+  organization Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+
+  // Same identifier erased twice → single row (createMany skipDuplicates).
+  // NEW table → adding @@unique is safe (the populated-table rule doesn't apply).
+  @@unique([organizationId, keyHash])
   @@index([organizationId])
 }

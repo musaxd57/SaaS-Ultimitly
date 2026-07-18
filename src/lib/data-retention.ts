@@ -22,7 +22,10 @@ import { prisma } from "@/lib/db";
 // overwrite the sentinel with fresh channel PII (KVKK resurrection guard).
 export const ANON_NAME = "Eski misafir";
 export const ANON_ID = "Misafir";
-const ANON_BODY = "[saklama süresi doldu — içerik silindi]";
+// Exported for the explicit-erasure executor (src/lib/erasure.ts): it reuses the
+// EXACT same scrub sentinels as the retention sweep, so every existing
+// resurrection guard / classifier keeps working unchanged on erased threads.
+export const ANON_BODY = "[saklama süresi doldu — içerik silindi]";
 const ANON_BODY_NAME = "[Misafir]"; // in-body name redaction — keeps the host's record, drops the name
 const MIN_NAME_LEN = 3; // skip 2-char names ("Al"/"Su") — too collision-prone
 

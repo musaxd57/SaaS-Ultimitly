@@ -6,6 +6,7 @@ import { reportError } from "@/lib/report-error";
 import { parseIcs } from "@/lib/import/ics";
 import { createReservationTasks, removeAutoTasksForCancelledReservation } from "@/lib/automation";
 import { isPrivateHost, resolvesToPrivate } from "@/lib/net/private-host";
+import { loadErasureGuard } from "@/lib/erasure";
 import { fetchFeedText } from "@/lib/net/pinned-fetch";
 import { ANON_NAME } from "@/lib/data-retention";
 
@@ -60,13 +61,22 @@ function channelFromLabel(label: string): string {
 export async function syncCalendarSource(sourceId: string): Promise<SyncResult> {
   const result: SyncResult = { imported: 0, updated: 0, skipped: 0, errors: [] };
 
-  const source = await prisma.calendarSource.findUnique({ where: { id: sourceId } });
+  const source = await prisma.calendarSource.findUnique({
+    where: { id: sourceId },
+    include: { property: { select: { organizationId: true } } },
+  });
   if (!source) {
     result.errors.push("Takvim kaynağı bulunamadı.");
     return result;
   }
 
   const channel = channelFromLabel(source.label);
+
+  // KVKK explicit-erasure gate (m40): inert with zero tombstones. iCal rows carry
+  // only a UID (no guest id/email/phone), so matching is by source_reference
+  // alone — DELIBERATE: hashing free-text SUMMARY names would false-positive on
+  // namesakes, and the erased stay's own UID is exactly what a feed re-delivers.
+  const erasureGuard = await loadErasureGuard(source.property.organizationId);
 
   // Fetch-start stamp — the ordering key for the disappearance reconciliation (a slower older
   // run must never overwrite a newer run's result). Captured BEFORE the network call.
@@ -118,6 +128,14 @@ export async function syncCalendarSource(sourceId: string): Promise<SyncResult> 
       isNaN(row.departureDate.getTime()) ||
       row.departureDate <= row.arrivalDate
     ) {
+      result.skipped++;
+      continue;
+    }
+    // Explicitly-erased stay re-appearing in the feed → never re-import (KVKK
+    // Regulation art. 8: erased data must stay unusable). Placed AFTER the
+    // seenRefs.add above on purpose: the UID *is* present in the feed, and the
+    // disappearance-reconcile must keep seeing it (a guard skip is not a vanish).
+    if (!erasureGuard.isEmpty && erasureGuard.blocksSourceReference(row.sourceReference)) {
       result.skipped++;
       continue;
     }

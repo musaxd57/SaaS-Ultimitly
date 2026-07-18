@@ -394,6 +394,33 @@ describe("codex round-4: atomic legacy adoption", () => {
     expect(row?.calendarSourceId).toBe(s2.id);
   });
 
+  it("KVKK m40: an explicitly-erased UID re-appearing in the feed is skipped (tombstone guard)", async () => {
+    const { orgId, propertyId } = await makeOrgWithProperty();
+    const source = await prisma.calendarSource.create({
+      data: { propertyId, label: "Airbnb", url: "https://example.com/cal.ics" },
+    });
+    // Tombstone the FIRST event's UID (as the erasure executor would); the feed
+    // still carries both events — exactly the re-delivery the guard must stop.
+    const { tombstoneKeyHash } = await import("@/lib/erasure");
+    await prisma.erasureTombstone.create({
+      data: {
+        organizationId: orgId,
+        keyType: "source_reference",
+        keyHash: tombstoneKeyHash("source_reference", "abc-123@airbnb.com")!,
+        erasedAt: new Date(),
+      },
+    });
+    mockFetch(ICS); // two bookings: abc-123 (Ahmet) + def-456 (Jane)
+
+    const result = await syncCalendarSource(source.id);
+
+    expect(result.imported).toBe(1); // only Jane
+    expect(result.skipped).toBeGreaterThanOrEqual(1);
+    expect(await prisma.reservation.count({ where: { sourceReference: "abc-123@airbnb.com" } })).toBe(0);
+    const jane = await prisma.reservation.findFirst({ where: { sourceReference: "def-456@airbnb.com" } });
+    expect(jane?.guestName).toBe("Jane Doe"); // untombstoned rows import untouched
+  });
+
   it("#4: a mid-import row failure is REPORTED and surfaces as 'error' — not a silent 'ok'", async () => {
     reportErrorMock.mockClear();
     const { propertyId } = await makeOrgWithProperty();

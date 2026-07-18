@@ -18,6 +18,7 @@ import { createReservationTasks, removeAutoTasksForCancelledReservation } from "
 import { recordSupplyRequestFromMessage } from "@/lib/supply";
 import { billingEnforced, getEntitlement } from "@/lib/billing/subscription";
 import { ANON_NAME, ANON_ID, retentionCutoff } from "@/lib/data-retention";
+import { loadErasureGuard } from "@/lib/erasure";
 
 // ---------------------------------------------------------------------------
 // Hospitable → Inbox synchronisation
@@ -121,6 +122,11 @@ export async function syncHospitable(
   const token = await getOrgHospitableToken(organizationId);
   if (!token) return result;
 
+  // KVKK explicit-erasure gate (m40): one read per run; with zero tombstones the
+  // guard is inert (nothing hashed, nothing checked). Non-empty → each incoming
+  // reservation is matched below BEFORE any row is written.
+  const erasureGuard = await loadErasureGuard(organizationId);
+
   // 1. Link/create properties, capped at the org's PLAN property limit (only
   // while billing is enforced). This is the only place a host's chosen Lixus
   // tier can matter for Hospitable sync: an org whose real Hospitable account
@@ -196,6 +202,33 @@ export async function syncHospitable(
 
     for (const reservation of reservations) {
       if (!reservation || !reservation.id) continue;
+
+      // KVKK erasure gate: an explicitly-erased stay (source_reference tombstone)
+      // never re-imports — that object IS the erased data (Regulation art. 8:
+      // "tekrar kullanılamaz"). A PERSON match (guest id/email/phone) blocks only
+      // stays of the erased era (departure ≤ erasedAt; unknown date fails closed);
+      // a stay that begins after the request is NEW data and proceeds (§8c-3).
+      let erasureCutoff: Date | null = null;
+      if (!erasureGuard.isEmpty) {
+        const g = reservation.guest;
+        const guardInput = {
+          guestExternalId: g?.id ? String(g.id) : null,
+          guestEmail: str(g?.email) ?? null,
+          guestPhone: str(g?.phone) ?? null,
+        };
+        const departure =
+          parseDate(reservation.departure_date) ?? parseDate(reservation.check_out);
+        if (
+          erasureGuard.blocksSourceReference(String(reservation.id)) ||
+          erasureGuard.blocksGuestStay(guardInput, departure)
+        ) {
+          result.skipped++;
+          continue;
+        }
+        // Allowed stay of a tombstoned guest: pre-erasure messages still never
+        // re-import (belt-and-suspenders for re-used provider threads).
+        erasureCutoff = erasureGuard.messageCutoffFor(guardInput);
+      }
 
       // Store the reservation (guest, dates, status) — drives the dashboard and
       // the welcome message. Guarded so one bad record can't abort the sync.
@@ -275,7 +308,7 @@ export async function syncHospitable(
       if (messages.length === 0) continue;
 
       try {
-        const imported = await importThread(propertyId, reservation, messages, localReservationId);
+        const imported = await importThread(propertyId, reservation, messages, localReservationId, erasureCutoff);
         result.conversations++;
         result.messages += imported;
       } catch (err) {
@@ -479,6 +512,9 @@ async function importThread(
   reservation: HospitableReservation,
   messages: HospitableMessage[],
   localReservationId: string | null,
+  /** KVKK explicit-erasure cutoff for a tombstoned guest's ALLOWED new stay:
+   *  messages at/before this instant never (re-)import. Null = no tombstone. */
+  erasureCutoff: Date | null = null,
 ): Promise<number> {
   const reservationId = String(reservation.id);
   const channel = toChannel(reservation.platform);
@@ -623,7 +659,17 @@ async function importThread(
   // docs/DATA-RETENTION-ERASURE-DRAFT.md §8 and pending a legal decision. The
   // "newer messages import normally" behaviour here is a property of the
   // time-based policy, NOT a general KVKK rule.
-  const eraCutoff = scrubbedThread ? retentionCutoff() : null;
+  //
+  // The EXPLICIT-erasure regime plugs in right here (m40): erasureCutoff carries a
+  // tombstoned guest's erasedAt, so on their allowed NEW stay any pre-erasure
+  // message still never re-imports. The two cutoffs merge (stricter wins).
+  const retention = scrubbedThread ? retentionCutoff() : null;
+  const eraCutoff =
+    retention && erasureCutoff
+      ? retention > erasureCutoff
+        ? retention
+        : erasureCutoff
+      : retention ?? erasureCutoff;
   // Load THIS conversation's existing message externalIds ONCE, then check
   // membership in memory. Previously each incoming message ran its own findFirst
   // — an N+1 (one query per message) on every thread sync.
