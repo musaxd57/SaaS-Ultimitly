@@ -1184,7 +1184,11 @@ export async function applyChannelAutoReply(
               autoTaskFromMessageEnabled: true,
               autoReplyDisclosure: true,
               aiSignature: true,
-              users: { orderBy: { createdAt: "asc" }, take: 1, select: { email: true } },
+              // The OWNER's email (role-filtered) — NOT merely the oldest user: a
+              // staff-first org would otherwise leak the guest name + message body
+              // + property to a staff account (same class of bug fixed in the QR
+              // escalation alert). Falls back to nothing (never staff, never env).
+              users: { where: { role: "owner" }, orderBy: { createdAt: "asc" }, take: 1, select: { email: true } },
             },
           });
           const to = alertOrg?.alertEmail?.trim() || alertOrg?.users[0]?.email?.trim();
@@ -2310,11 +2314,13 @@ export async function sendDueAlerts(
       autoTaskFromMessageEnabled: true,
       autoReplyDisclosure: true,
       aiSignature: true,
-      // Oldest user = the org's owner (who signed up) — used as the per-tenant
-      // fallback so a customer who didn't set an alert address still gets THEIR
-      // own alerts. We must NOT fall back to env ALERT_EMAIL here: that is the
-      // operator's address, so other tenants' complaints would leak to the operator.
-      users: { orderBy: { createdAt: "asc" }, take: 1, select: { email: true } },
+      // The OWNER's email (role-filtered) — used as the per-tenant fallback so a
+      // customer who didn't set an alert address still gets THEIR own alerts.
+      // MUST be role-scoped, not "oldest user": a staff-first org would otherwise
+      // leak the guest name + message body to a staff account. And we must NOT
+      // fall back to env ALERT_EMAIL: that is the operator's address, so other
+      // tenants' complaints would leak to the operator.
+      users: { where: { role: "owner" }, orderBy: { createdAt: "asc" }, take: 1, select: { email: true } },
     },
   });
   // Per-tenant recipient: this org's own alert address, else the org owner's

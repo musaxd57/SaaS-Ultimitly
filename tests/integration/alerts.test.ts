@@ -94,6 +94,29 @@ describe("sendDueAlerts", () => {
     expect(conv?.status).toBe("problem");
   });
 
+  it("Codex P1: alerts the OWNER even when an OLDER staff user exists (no PII leak to staff)", async () => {
+    const { orgId } = await seedConversation({ body: "Oda berbat, şikayetçiyim!" });
+    // A staff account that predates the owner (impersonation/backfill/reorg). The
+    // old "oldest user" query would send the guest name + message body HERE.
+    await prisma.user.create({
+      data: {
+        organizationId: orgId,
+        name: "Staff",
+        email: "staff@example.com",
+        passwordHash: "x",
+        role: "staff",
+        createdAt: new Date("2020-01-01T00:00:00Z"), // older than the owner
+      },
+    });
+
+    const out = await sendDueAlerts(orgId);
+
+    expect(out.alerted).toBe(1);
+    const [to] = mockSend.mock.calls[0];
+    expect(to).toBe("owner@example.com"); // role-filtered → the owner
+    expect(to).not.toBe("staff@example.com"); // NEVER the older staff account
+  });
+
   it("records ONE RiskEvent per escalation (history wired end-to-end; re-run adds none)", async () => {
     // Codex #32: the keyword escalation must land in the append-only history —
     // decision-level fields only, no fabricated riskLevel on the keyword path.

@@ -60,7 +60,9 @@ export async function sendDueTrialReminders(now: Date = new Date()): Promise<Tri
       trialEndedSentAt: true,
       organization: {
         select: {
-          users: { orderBy: { createdAt: "asc" }, take: 1, select: { email: true, name: true } },
+          // The OWNER (role-filtered), not merely the oldest user — a staff-first
+          // org would otherwise address the trial notice to a staff account.
+          users: { where: { role: "owner" }, orderBy: { createdAt: "asc" }, take: 1, select: { email: true, name: true } },
         },
       },
     },
