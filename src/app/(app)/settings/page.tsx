@@ -17,6 +17,8 @@ import { AccountCard } from "@/components/settings/account-card";
 import { TwoFactorCard } from "@/components/settings/two-factor-card";
 import { HospitableConnectCard } from "@/components/settings/hospitable-connect-card";
 import { PaddlePlans } from "@/components/settings/paddle-plans";
+import { SettingsTabs, type SettingsTab } from "@/components/settings/settings-tabs";
+import { deriveInitialTabId } from "@/lib/settings-tabs";
 import { getConnectionInfo } from "@/lib/hospitable-credentials";
 import { getEntitlement, premiumAllowed, isFounderOrg } from "@/lib/billing/subscription";
 import { planChangeEnabled } from "@/lib/billing/plan-change";
@@ -29,10 +31,10 @@ export const dynamic = "force-dynamic";
 export default async function SettingsPage({
   searchParams,
 }: {
-  searchParams: Promise<{ hospitable?: string }>;
+  searchParams: Promise<{ hospitable?: string; tab?: string }>;
 }) {
   const session = await requireAuth();
-  const { hospitable: hospitableResult } = await searchParams;
+  const { hospitable: hospitableResult, tab: tabParam } = await searchParams;
   // The channel token belongs to THIS account. Its OWNER can connect it
   // themselves (self-service, with instructions), and the operator (super-admin,
   // incl. while impersonating) can also do it for a non-technical customer.
@@ -91,7 +93,7 @@ export default async function SettingsPage({
 
   // Paddle plan/upgrade card — only for owner/manager, and only when Paddle is
   // configured (client token + at least one price id). Dormant otherwise, so the
-  // card never appears until billing is wired up. Price ids are public.
+  // card (and its whole tab) never appears until billing is wired up. Price ids are public.
   const canManageBilling = session.role === "owner" || session.role === "manager";
   const paddleClientToken = process.env.NEXT_PUBLIC_PADDLE_CLIENT_TOKEN?.trim() || "";
   const paddleEnv = process.env.NEXT_PUBLIC_PADDLE_ENV?.trim() === "production" ? "production" : "sandbox";
@@ -125,191 +127,17 @@ export default async function SettingsPage({
     Boolean(managedSub?.providerRef) &&
     managedSub?.status !== "canceled";
 
-  return (
-    // Settings is a stack of narrow (max-w-2xl) cards. Left-anchored inside the
-    // shell's wide content column they hug the sidebar and leave a huge empty
-    // right half on desktop — so the whole page lives in its own CENTERED
-    // narrow column instead (the standard settings-page composition).
-    <div className="mx-auto w-full max-w-2xl space-y-6">
-      <PageHeader
-        title="Ayarlar"
-        description="AI'nın sesi ve otomatik mesaj ayarları."
+  const isOwner = session.role === "owner";
+
+  // ── Tab 1: Yapay Zeka — the product's core (voice + how it answers) ──────────
+  const aiPanel = (
+    <>
+      <AiVoiceForm
+        tone={org?.aiReplyTone ?? "warm"}
+        signature={org?.aiSignature ?? ""}
+        name={session.name}
+        styleProfile={org?.aiStyleProfile}
       />
-
-      {/* Master-switch status is operator-only plumbing — customers never see it. */}
-      {isOperator ? (
-        <div
-          className={
-            masterOn
-              ? "rounded-lg border border-emerald-300 bg-emerald-50 px-4 py-3 text-sm text-emerald-800"
-              : "rounded-lg border border-amber-300 bg-amber-50 px-4 py-3 text-sm text-amber-800"
-          }
-        >
-          {masterOn ? (
-            <>
-              <strong>Otomatik gönderim ana şalteri: AÇIK.</strong> Aşağıdaki seçenekler
-              (gece oto-yanıt / otomatik karşılama) açıksa, mesajlar gerçekten gönderilir.
-            </>
-          ) : (
-            <>
-              <strong>Otomatik gönderim ana şalteri: KAPALI.</strong> Aşağıdaki seçenekleri açsanız
-              bile <strong>hiçbir otomatik mesaj gönderilmez</strong>. Açmak için Railway&apos;de
-              <code className="mx-1 rounded bg-amber-100 px-1 py-0.5">AUTO_REPLY_ENABLED=1</code>
-              ayarlayın.
-            </>
-          )}
-        </div>
-      ) : null}
-
-      <Card className="max-w-2xl">
-        <CardHeader>
-          <CardTitle className="text-base">Hesap / Giriş Bilgileri</CardTitle>
-        </CardHeader>
-        <CardContent>
-          <AccountCard email={session.email} />
-        </CardContent>
-      </Card>
-
-      {/* FOUNDER ORG: internal access is an explicit entitlement (isFounderOrg →
-          never paywalled), NOT a subscription. A leftover sandbox/test Paddle row
-          must not masquerade as a paying "İşletme" customer, and the portal /
-          plan-change buttons would hit real Paddle APIs with a stale providerRef
-          (the portal link visibly errored). Customers' billing card is untouched. */}
-      {paddleReady && entitlement && isFounderOrg(session.organizationId) ? (
-        <Card className="max-w-2xl">
-          <CardHeader>
-            <CardTitle className="text-base">Aboneliğiniz</CardTitle>
-          </CardHeader>
-          <CardContent className="space-y-2">
-            <p className="text-sm">
-              <strong>Kurucu hesabı — dahili erişim.</strong> Bu hesapta tüm özellikler Paddle
-              aboneliğinden bağımsız olarak açıktır ve ödeme alınmaz.
-            </p>
-            <p className="text-xs text-muted-foreground">
-              Müşterilerin gördüğü plan/portal kartı bu hesapta gösterilmez. Gerçek ödeme veya plan
-              değişikliği testleri için ayrı bir test müşteri hesabı kullanın.
-            </p>
-          </CardContent>
-        </Card>
-      ) : paddleReady && entitlement ? (
-        <Card className="max-w-2xl">
-          <CardHeader>
-            <CardTitle className="text-base">Aboneliğiniz</CardTitle>
-          </CardHeader>
-          <CardContent>
-            <PaddlePlans
-              clientToken={paddleClientToken}
-              environment={paddleEnv}
-              email={session.email}
-              organizationId={session.organizationId}
-              currentPlanCode={entitlement.planCode}
-              currentPlanName={entitlement.planName}
-              grandfathered={entitlement.grandfathered}
-              active={entitlement.active}
-              trialDaysLeft={entitlement.trialDaysLeft}
-              manageable={canManagePaddleSub}
-              planChangeEnabled={canManagePaddleSub && planChangeEnabled()}
-              plans={DEFAULT_PLANS.map((p) => ({
-                code: p.code,
-                name: p.name,
-                priceMinor: p.priceMinor,
-                currency: p.currency,
-                propertyLimit: p.propertyLimit,
-                priceId: paddlePriceByCode[p.code] ?? "",
-              }))}
-            />
-          </CardContent>
-        </Card>
-      ) : null}
-
-      <Card className="max-w-2xl">
-        <CardHeader>
-          <CardTitle className="text-base">İki Adımlı Giriş (2FA)</CardTitle>
-        </CardHeader>
-        <CardContent>
-          <TwoFactorCard
-            initialEnabled={Boolean(me?.twoFactorEnabledAt)}
-            initialRecoveryRemaining={recoveryRemaining}
-          />
-        </CardContent>
-      </Card>
-
-      {session.role === "owner" ? (
-        <Card className="max-w-2xl">
-          <CardHeader>
-            <CardTitle className="text-base">Verileriniz (KVKK)</CardTitle>
-          </CardHeader>
-          <CardContent className="space-y-3">
-            {/* Copy mirrors the export route's ACTUAL content (Codex #34 completed):
-                the export now really is comprehensive, so the broad claim is honest. */}
-            <p className="text-sm text-muted-foreground">
-              İşletmenize ait verileri — daireler, rezervasyonlar, misafir konuşmaları ve mesajlar
-              (AI karar bilgileri dâhil), görevler ve görev güncellemeleri (fotoğraflar bağlantı
-              olarak), takvim kaynakları, tedarik kayıtları, bilgi bankası, şablonlar, kullanıcı
-              listesi, abonelik ve faturalar, denetim ve onay kayıtları — tek bir JSON dosyası
-              olarak indirebilirsiniz. Şifreler, 2FA anahtarları ve Hospitable bağlantı
-              token&apos;ları hiçbir zaman dâhil edilmez.
-            </p>
-            <a
-              href="/api/account/export"
-              className="inline-flex items-center justify-center rounded-md border border-border bg-card px-4 py-2 text-sm font-medium hover:bg-accent"
-            >
-              Verilerimi indir (JSON)
-            </a>
-            <p className="text-xs text-muted-foreground">
-              Belirli bir misafire ait verileri silmek için ilgili rezervasyonu ve konuşmayı
-              panelden silebilirsiniz; biri diğerini otomatik silmez, bu yüzden tam silme için ikisini de silin.{" "}
-              {session.role === "owner" && !isOperator ? (
-                <>
-                  Hesabınızın tamamen silinmesini aşağıdaki <strong>“Hesabı Sil”</strong> bölümünden
-                  yapabilirsiniz.
-                </>
-              ) : (
-                <>
-                  Hesabın tamamen silinmesi için{" "}
-                  <a href="mailto:iletisimlixusai@gmail.com" className="underline hover:text-foreground">
-                    iletisimlixusai@gmail.com
-                  </a>{" "}
-                  adresine yazın.
-                </>
-              )}{" "}
-              Verilerinizin nasıl işlendiğini{" "}
-              <a href="/gizlilik" className="underline hover:text-foreground">
-                Gizlilik Politikası
-              </a>
-              ’nda görebilirsiniz.
-            </p>
-          </CardContent>
-        </Card>
-      ) : null}
-
-      {canManageChannel && hospitableInfo ? (
-        <Card id="hospitable" className="max-w-2xl scroll-mt-24">
-          <CardHeader>
-            <CardTitle className="text-base">Airbnb / Booking Bağlantısı</CardTitle>
-          </CardHeader>
-          <CardContent>
-            <HospitableConnectCard
-              info={hospitableInfo}
-              oauthEnabled={isHospitableOAuthConfigured()}
-              oauthResult={hospitableResult}
-            />
-          </CardContent>
-        </Card>
-      ) : (
-        <Card className="max-w-2xl">
-          <CardHeader>
-            <CardTitle className="text-base">Kanal Bağlantısı (Airbnb / Booking)</CardTitle>
-          </CardHeader>
-          <CardContent>
-            <p className="text-sm text-muted-foreground">
-              Airbnb / Booking bağlantınız <strong>operatörünüz tarafından kurulur ve yönetilir</strong>.
-              Sizin bir şey yapmanıza gerek yok — bağlantı kurulduğunda misafir mesajlarınız otomatik
-              olarak buraya akmaya başlar.
-            </p>
-          </CardContent>
-        </Card>
-      )}
 
       {properties.length > 0 ? (
         <Card className="max-w-2xl">
@@ -321,37 +149,6 @@ export default async function SettingsPage({
           </CardContent>
         </Card>
       ) : null}
-
-      <Card className="max-w-2xl">
-        <CardHeader>
-          <CardTitle className="text-base">Acil Bildirim E-postası</CardTitle>
-        </CardHeader>
-        <CardContent className="space-y-3">
-          <p className="text-sm text-muted-foreground">
-            Misafir <strong>şikayet/iade</strong> yazınca, aşağıdaki <strong>kendi adresinize</strong>{" "}
-            anında uyarı maili gider (uyurken bile kaçırmazsınız). Adresi boş bırakırsanız
-            hesabınızın e-posta adresi kullanılır.
-          </p>
-          <AlertEmailForm initial={org?.alertEmail ?? ""} />
-          <TestEmailButton />
-        </CardContent>
-      </Card>
-
-      <Card className="max-w-2xl">
-        <CardHeader>
-          <CardTitle className="text-base">Saat Dilimi</CardTitle>
-        </CardHeader>
-        <CardContent>
-          <TimezoneForm initial={org?.timezone ?? "Europe/Istanbul"} />
-        </CardContent>
-      </Card>
-
-      <AiVoiceForm
-        tone={org?.aiReplyTone ?? "warm"}
-        signature={org?.aiSignature ?? ""}
-        name={session.name}
-        styleProfile={org?.aiStyleProfile}
-      />
 
       <Card className="max-w-2xl">
         <CardHeader>
@@ -373,18 +170,24 @@ export default async function SettingsPage({
 
       <Card className="max-w-2xl">
         <CardHeader>
-          <CardTitle className="text-base">Takvim Akışı Gizliliği</CardTitle>
+          <CardTitle className="text-base">Acil Bildirim E-postası</CardTitle>
         </CardHeader>
-        <CardContent>
-          <IcalPrivacyForm showGuestName={org?.icalShowGuestName ?? false} />
+        <CardContent className="space-y-3">
+          <p className="text-sm text-muted-foreground">
+            Misafir <strong>şikayet/iade</strong> yazınca, aşağıdaki <strong>kendi adresinize</strong>{" "}
+            anında uyarı maili gider (uyurken bile kaçırmazsınız). Adresi boş bırakırsanız
+            hesabınızın e-posta adresi kullanılır.
+          </p>
+          <AlertEmailForm initial={org?.alertEmail ?? ""} />
+          <TestEmailButton />
         </CardContent>
       </Card>
+    </>
+  );
 
-      <BulkTimesForm
-        defaultCheckIn={sampleProperty?.checkInTime ?? "14:00"}
-        defaultCheckOut={sampleProperty?.checkOutTime ?? "11:00"}
-      />
-
+  // ── Tab 2: Otomatik Mesajlar — the scheduled messages the host turns on ──────
+  const autoMessagesPanel = (
+    <>
       <Card className="max-w-2xl">
         <CardHeader>
           <CardTitle className="text-base">Otomatik Karşılama Mesajı</CardTitle>
@@ -467,12 +270,199 @@ export default async function SettingsPage({
         startHour={org?.autoReplyStartHour ?? 0}
         endHour={org?.autoReplyEndHour ?? 9}
       />
+    </>
+  );
+
+  // ── Tab 3: Bağlantı ve Takvim — channel connection + calendar/scheduling ─────
+  const connectionPanel = (
+    <>
+      {canManageChannel && hospitableInfo ? (
+        <Card id="hospitable" className="max-w-2xl scroll-mt-24">
+          <CardHeader>
+            <CardTitle className="text-base">Airbnb / Booking Bağlantısı</CardTitle>
+          </CardHeader>
+          <CardContent>
+            <HospitableConnectCard
+              info={hospitableInfo}
+              oauthEnabled={isHospitableOAuthConfigured()}
+              oauthResult={hospitableResult}
+            />
+          </CardContent>
+        </Card>
+      ) : (
+        <Card id="hospitable" className="max-w-2xl scroll-mt-24">
+          <CardHeader>
+            <CardTitle className="text-base">Kanal Bağlantısı (Airbnb / Booking)</CardTitle>
+          </CardHeader>
+          <CardContent>
+            <p className="text-sm text-muted-foreground">
+              Airbnb / Booking bağlantınız <strong>operatörünüz tarafından kurulur ve yönetilir</strong>.
+              Sizin bir şey yapmanıza gerek yok — bağlantı kurulduğunda misafir mesajlarınız otomatik
+              olarak buraya akmaya başlar.
+            </p>
+          </CardContent>
+        </Card>
+      )}
+
+      <BulkTimesForm
+        defaultCheckIn={sampleProperty?.checkInTime ?? "14:00"}
+        defaultCheckOut={sampleProperty?.checkOutTime ?? "11:00"}
+      />
+
+      <Card className="max-w-2xl">
+        <CardHeader>
+          <CardTitle className="text-base">Saat Dilimi</CardTitle>
+        </CardHeader>
+        <CardContent>
+          <TimezoneForm initial={org?.timezone ?? "Europe/Istanbul"} />
+        </CardContent>
+      </Card>
+
+      <Card className="max-w-2xl">
+        <CardHeader>
+          <CardTitle className="text-base">Takvim Akışı Gizliliği</CardTitle>
+        </CardHeader>
+        <CardContent>
+          <IcalPrivacyForm showGuestName={org?.icalShowGuestName ?? false} />
+        </CardContent>
+      </Card>
+    </>
+  );
+
+  // ── Tab 4: Faturalandırma — subscription (owner/manager, only when Paddle-ready) ──
+  // FOUNDER ORG: internal access is an explicit entitlement (isFounderOrg → never
+  // paywalled), NOT a subscription. A leftover sandbox/test Paddle row must not
+  // masquerade as a paying customer, and portal/plan-change buttons would hit real
+  // Paddle APIs with a stale providerRef — so the founder sees an internal-access
+  // note instead of the plan cards.
+  const billingPanel =
+    paddleReady && entitlement ? (
+      isFounderOrg(session.organizationId) ? (
+        <Card className="max-w-2xl">
+          <CardHeader>
+            <CardTitle className="text-base">Aboneliğiniz</CardTitle>
+          </CardHeader>
+          <CardContent className="space-y-2">
+            <p className="text-sm">
+              <strong>Kurucu hesabı — dahili erişim.</strong> Bu hesapta tüm özellikler Paddle
+              aboneliğinden bağımsız olarak açıktır ve ödeme alınmaz.
+            </p>
+            <p className="text-xs text-muted-foreground">
+              Müşterilerin gördüğü plan/portal kartı bu hesapta gösterilmez. Gerçek ödeme veya plan
+              değişikliği testleri için ayrı bir test müşteri hesabı kullanın.
+            </p>
+          </CardContent>
+        </Card>
+      ) : (
+        <Card className="max-w-2xl">
+          <CardHeader>
+            <CardTitle className="text-base">Aboneliğiniz</CardTitle>
+          </CardHeader>
+          <CardContent>
+            <PaddlePlans
+              clientToken={paddleClientToken}
+              environment={paddleEnv}
+              email={session.email}
+              organizationId={session.organizationId}
+              currentPlanCode={entitlement.planCode}
+              currentPlanName={entitlement.planName}
+              grandfathered={entitlement.grandfathered}
+              active={entitlement.active}
+              trialDaysLeft={entitlement.trialDaysLeft}
+              manageable={canManagePaddleSub}
+              planChangeEnabled={canManagePaddleSub && planChangeEnabled()}
+              plans={DEFAULT_PLANS.map((p) => ({
+                code: p.code,
+                name: p.name,
+                priceMinor: p.priceMinor,
+                currency: p.currency,
+                propertyLimit: p.propertyLimit,
+                priceId: paddlePriceByCode[p.code] ?? "",
+              }))}
+            />
+          </CardContent>
+        </Card>
+      )
+    ) : null;
+
+  // ── Tab 5: Hesap ve Güvenlik — identity + security, then owner-only data/danger zone ──
+  const accountPanel = (
+    <>
+      <Card className="max-w-2xl">
+        <CardHeader>
+          <CardTitle className="text-base">Hesap / Giriş Bilgileri</CardTitle>
+        </CardHeader>
+        <CardContent>
+          <AccountCard email={session.email} />
+        </CardContent>
+      </Card>
+
+      <Card className="max-w-2xl">
+        <CardHeader>
+          <CardTitle className="text-base">İki Adımlı Giriş (2FA)</CardTitle>
+        </CardHeader>
+        <CardContent>
+          <TwoFactorCard
+            initialEnabled={Boolean(me?.twoFactorEnabledAt)}
+            initialRecoveryRemaining={recoveryRemaining}
+          />
+        </CardContent>
+      </Card>
+
+      {isOwner ? (
+        <Card className="max-w-2xl">
+          <CardHeader>
+            <CardTitle className="text-base">Verileriniz (KVKK)</CardTitle>
+          </CardHeader>
+          <CardContent className="space-y-3">
+            {/* Copy mirrors the export route's ACTUAL content (Codex #34 completed):
+                the export now really is comprehensive, so the broad claim is honest. */}
+            <p className="text-sm text-muted-foreground">
+              İşletmenize ait verileri — daireler, rezervasyonlar, misafir konuşmaları ve mesajlar
+              (AI karar bilgileri dâhil), görevler ve görev güncellemeleri (fotoğraflar bağlantı
+              olarak), takvim kaynakları, tedarik kayıtları, bilgi bankası, şablonlar, kullanıcı
+              listesi, abonelik ve faturalar, denetim ve onay kayıtları — tek bir JSON dosyası
+              olarak indirebilirsiniz. Şifreler, 2FA anahtarları ve Hospitable bağlantı
+              token&apos;ları hiçbir zaman dâhil edilmez.
+            </p>
+            <a
+              href="/api/account/export"
+              className="inline-flex items-center justify-center rounded-md border border-border bg-card px-4 py-2 text-sm font-medium hover:bg-accent"
+            >
+              Verilerimi indir (JSON)
+            </a>
+            <p className="text-xs text-muted-foreground">
+              Belirli bir misafire ait verileri silmek için ilgili rezervasyonu ve konuşmayı
+              panelden silebilirsiniz; biri diğerini otomatik silmez, bu yüzden tam silme için ikisini de silin.{" "}
+              {isOwner && !isOperator ? (
+                <>
+                  Hesabınızın tamamen silinmesini aşağıdaki <strong>“Hesabı Sil”</strong> bölümünden
+                  yapabilirsiniz.
+                </>
+              ) : (
+                <>
+                  Hesabın tamamen silinmesi için{" "}
+                  <a href="mailto:iletisimlixusai@gmail.com" className="underline hover:text-foreground">
+                    iletisimlixusai@gmail.com
+                  </a>{" "}
+                  adresine yazın.
+                </>
+              )}{" "}
+              Verilerinizin nasıl işlendiğini{" "}
+              <a href="/gizlilik" className="underline hover:text-foreground">
+                Gizlilik Politikası
+              </a>
+              ’nda görebilirsiniz.
+            </p>
+          </CardContent>
+        </Card>
+      ) : null}
 
       {/* KVKK aydınlatma (AI/veri kullanımı) BİLİNÇLİ olarak yalnız Gizlilik
           Politikası'nda (/gizlilik) yaşar — buradaki tekrar-kart kullanıcı
           isteğiyle kaldırıldı (2026-07-15). Yükümlülük politika metniyle
           karşılanıyor; ayarları tekrar kalabalıklaştırma. */}
-      {session.role === "owner" && !isOperator ? (
+      {isOwner && !isOperator ? (
         <Card className="max-w-2xl border-destructive/30">
           <CardHeader>
             <CardTitle className="text-base text-destructive">Hesabı Sil</CardTitle>
@@ -482,6 +472,68 @@ export default async function SettingsPage({
           </CardContent>
         </Card>
       ) : null}
+    </>
+  );
+
+  // Build the tab list, then filter to the tabs that actually have content for
+  // THIS role (server-side, so a host can never land on a hidden/empty tab). The
+  // billing tab is the only one that can vanish (staff, or Paddle not configured);
+  // every other tab always renders content for every role.
+  const allTabs: (SettingsTab & { visible: boolean })[] = [
+    { id: "yapay-zeka", label: "Yapay Zeka", visible: true, content: aiPanel },
+    { id: "otomatik-mesajlar", label: "Otomatik Mesajlar", visible: true, content: autoMessagesPanel },
+    { id: "baglanti-takvim", label: "Bağlantı ve Takvim", visible: true, content: connectionPanel },
+    { id: "faturalandirma", label: "Faturalandırma", visible: Boolean(billingPanel), content: billingPanel },
+    { id: "hesap-guvenlik", label: "Hesap ve Güvenlik", visible: true, content: accountPanel },
+  ];
+  const visibleTabs = allTabs.filter((t) => t.visible);
+  const initialTabId = deriveInitialTabId({
+    hospitable: hospitableResult,
+    tab: tabParam,
+    visibleIds: visibleTabs.map((t) => t.id),
+  });
+
+  return (
+    // Settings is a stack of narrow (max-w-2xl) cards. Left-anchored inside the
+    // shell's wide content column they hug the sidebar and leave a huge empty
+    // right half on desktop — so the whole page lives in its own CENTERED
+    // narrow column instead (the standard settings-page composition).
+    <div className="mx-auto w-full max-w-2xl space-y-6">
+      <PageHeader
+        title="Ayarlar"
+        description="AI'nın sesi ve otomatik mesaj ayarları."
+      />
+
+      {/* Master-switch status is operator-only plumbing — customers never see it.
+          It stays ABOVE the tab strip (global, not part of any one tab). */}
+      {isOperator ? (
+        <div
+          className={
+            masterOn
+              ? "rounded-lg border border-emerald-300 bg-emerald-50 px-4 py-3 text-sm text-emerald-800"
+              : "rounded-lg border border-amber-300 bg-amber-50 px-4 py-3 text-sm text-amber-800"
+          }
+        >
+          {masterOn ? (
+            <>
+              <strong>Otomatik gönderim ana şalteri: AÇIK.</strong> Aşağıdaki seçenekler
+              (gece oto-yanıt / otomatik karşılama) açıksa, mesajlar gerçekten gönderilir.
+            </>
+          ) : (
+            <>
+              <strong>Otomatik gönderim ana şalteri: KAPALI.</strong> Aşağıdaki seçenekleri açsanız
+              bile <strong>hiçbir otomatik mesaj gönderilmez</strong>. Açmak için Railway&apos;de
+              <code className="mx-1 rounded bg-amber-100 px-1 py-0.5">AUTO_REPLY_ENABLED=1</code>
+              ayarlayın.
+            </>
+          )}
+        </div>
+      ) : null}
+
+      <SettingsTabs
+        tabs={visibleTabs.map(({ id, label, content }) => ({ id, label, content }))}
+        initialTabId={initialTabId}
+      />
     </div>
   );
 }
