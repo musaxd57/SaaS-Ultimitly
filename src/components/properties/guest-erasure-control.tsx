@@ -5,10 +5,13 @@ import { useRouter } from "next/navigation";
 import { Button } from "@/components/ui/button";
 import { ShieldAlert, Loader2 } from "lucide-react";
 
-// KVKK guest-level explicit erasure (m40) — per-reservation host control.
-// Two-step: preview the scope (counts) → explicit confirm → irreversible scrub.
-// Copy is deliberately HONEST: our copy is anonymized + tombstoned; the channel's
-// (Airbnb/Hospitable) copy is NOT ours to delete, and the legal clock is 30 days.
+// KVKK guest-level explicit erasure (m40) — per-reservation OWNER control.
+// Two-step: preview the scope (counts) → explicit confirm → irreversible mask.
+// Copy is deliberately HONEST and legally careful: we say "kalıcı olarak
+// silinir (maskelenir)" — deletion in the Regulation-art.-8 sense — and never
+// claim technical "anonimleştirme" (art.-10 bar is higher). The channel's
+// (Airbnb/Hospitable) copy is NOT ours to delete, and the m.13 clock is
+// "en geç 30 gün içinde sonuçlandırılır".
 
 interface Scope {
   conversations: number;
@@ -63,7 +66,7 @@ export function GuestErasureControl({
   if (phase === "done") {
     return (
       <p className="mt-1 text-xs text-muted-foreground">
-        KVKK: misafir verisi kalıcı olarak anonimleştirildi (senkron geri getiremez).
+        KVKK: misafir verisi kalıcı olarak silindi (maskelendi; senkron geri getiremez).
       </p>
     );
   }
@@ -88,13 +91,13 @@ export function GuestErasureControl({
         <div className="space-y-1.5 rounded-md border border-destructive/40 bg-destructive/5 p-2 text-xs">
           <p className="font-medium text-destructive">
             Geri alınamaz: misafirin adı/iletişim bilgileri ve {scope?.inboundMessages ?? 0} misafir
-            mesajının içeriği anonimleştirilir ({scope?.conversations ?? 0} konuşma; ev sahibi
-            kayıtlarında yalnız ad redakte edilir).
+            mesajının içeriği kalıcı olarak silinir (maskelenir; {scope?.conversations ?? 0} konuşma —
+            ev sahibi kayıtlarında yalnız ad redakte edilir).
           </p>
           <p className="text-muted-foreground">
             Senkron bu veriyi bir daha İÇERİ ALMAZ (kalıcı koruma kaydı). Airbnb/Hospitable&apos;daki
-            kopyayı Lixus silemez — misafir kanala ayrıca başvurmalıdır. Yasal süre: talepten
-            itibaren 30 gün.
+            kopyayı Lixus silemez — misafir kanala ayrıca başvurmalıdır. Talep, ulaştığı tarihten
+            itibaren en geç 30 gün içinde sonuçlandırılır (KVKK m.13).
           </p>
           <div className="flex gap-2">
             <Button
@@ -106,7 +109,7 @@ export function GuestErasureControl({
               onClick={execute}
             >
               {phase === "working" ? <Loader2 className="size-3 animate-spin" /> : null}
-              Evet, kalıcı anonimleştir
+              Evet, kalıcı olarak sil
             </Button>
             <Button
               type="button"

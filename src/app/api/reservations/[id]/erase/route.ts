@@ -1,4 +1,4 @@
-import { jsonOk, notFound, serverError } from "@/lib/api";
+import { jsonOk, notFound, forbidden, serverError } from "@/lib/api";
 import { withManage } from "@/lib/route-guard";
 import {
   guestErasureEnabled,
@@ -13,15 +13,17 @@ import { writeAudit } from "@/lib/audit";
 //   POST → execute: tombstones + irreversible scrub (same mechanic as the
 //          retention sweep) in one transaction. See src/lib/erasure.ts.
 //
-// OWNER/MANAGER only (withManage) and strictly org-scoped: the erasure lib
-// itself re-binds the reservation to the caller's org (cross-org id → null →
-// generic 404, fail closed). Dormant unless GUEST_ERASURE_ENABLED=1 (the
-// ingress GUARDS are always on; only this request surface is gated).
-// The audit records counts ONLY — never the guest's identifiers.
+// OWNER ONLY (Codex hardening): the action is irreversible and legally loaded,
+// so it is stricter than withManage's owner+manager — a manager gets 403.
+// Strictly org-scoped: the erasure lib itself re-binds the reservation to the
+// caller's org (cross-org id → null → generic 404, fail closed). Dormant unless
+// GUEST_ERASURE_ENABLED=1 (the ingress GUARDS are always on; only this request
+// surface is gated). The audit records counts ONLY — never guest identifiers.
 // ---------------------------------------------------------------------------
 
 export const GET = withManage<{ id: string }>(async (session, _req, { params }) => {
   if (!guestErasureEnabled()) return notFound(); // feature dormant → invisible
+  if (session.role !== "owner") return forbidden();
   const { id } = await params;
   const scope = await previewReservationErasure(session.organizationId, id);
   if (!scope) return notFound();
@@ -30,6 +32,7 @@ export const GET = withManage<{ id: string }>(async (session, _req, { params }) 
 
 export const POST = withManage<{ id: string }>(async (session, _req, { params }) => {
   if (!guestErasureEnabled()) return notFound();
+  if (session.role !== "owner") return forbidden();
   const { id } = await params;
   try {
     const scope = await eraseReservationData(session.organizationId, id);

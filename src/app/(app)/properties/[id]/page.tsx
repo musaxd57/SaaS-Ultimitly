@@ -253,7 +253,7 @@ export default async function PropertyDetailPage({
                     {showPinControls && r.status !== "cancelled" ? (
                       <ReservationPinControl reservationId={r.id} initialHasPin={Boolean(r.chatPinHash)} />
                     ) : null}
-                    {canManage && guestErasureEnabled() ? (
+                    {session.role === "owner" && guestErasureEnabled() ? (
                       <GuestErasureControl reservationId={r.id} initialErased={r.guestName === ANON_NAME} />
                     ) : null}
                   </div>

@@ -109,6 +109,15 @@ describe("/api/reservations/[id]/erase — KVKK guest erasure surface", () => {
     expect(meta).not.toContain("example.com"); // …or contact details
   });
 
+  it("MANAGER cannot erase (OWNER-only 403 — stricter than withManage; Codex pin) and nothing changes", async () => {
+    const { reservationId } = await seed("manager");
+    expect((await GET(req(reservationId, "GET"), ctx(reservationId))).status).toBe(403);
+    expect((await POST(req(reservationId, "POST"), ctx(reservationId))).status).toBe(403);
+    const row = await prisma.reservation.findUniqueOrThrow({ where: { id: reservationId } });
+    expect(row.guestName).toBe("Ada Lovelace");
+    expect(await prisma.erasureTombstone.count()).toBe(0);
+  });
+
   it("STAFF cannot erase (withManage 403) and nothing changes", async () => {
     const { reservationId } = await seed("staff");
     const res = await POST(req(reservationId, "POST"), ctx(reservationId));
