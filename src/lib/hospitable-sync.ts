@@ -612,6 +612,17 @@ async function importThread(
   // so re-importing would BOTH duplicate them AND resurrect the guest's name.
   // Newer messages still import normally; a missing timestamp on a scrubbed
   // thread skips (fail-closed for privacy).
+  //
+  // SCOPE (KVKK — do not overstate): the guards above implement the TIME-BASED
+  // anonymization policy only (Law 6698 art. 7, ex-officio destruction when the
+  // retention period ends). A guest's EXPLICIT erasure request (art. 11 via art. 7;
+  // Deletion Regulation art. 12) is a SEPARATE regime: "silme" must leave the data
+  // "hiçbir şekilde erişilemez ve tekrar kullanılamaz" (Regulation art. 8), so a
+  // sync re-import after such a request would undo the erasure — that path needs a
+  // DURABLE per-request tombstone (erasedAt cutoff), designed in
+  // docs/DATA-RETENTION-ERASURE-DRAFT.md §8 and pending a legal decision. The
+  // "newer messages import normally" behaviour here is a property of the
+  // time-based policy, NOT a general KVKK rule.
   const eraCutoff = scrubbedThread ? retentionCutoff() : null;
   // Load THIS conversation's existing message externalIds ONCE, then check
   // membership in memory. Previously each incoming message ran its own findFirst
