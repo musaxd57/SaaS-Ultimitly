@@ -1,5 +1,5 @@
 import { prisma } from "@/lib/db";
-import { jsonOk, badRequest, forbidden } from "@/lib/api";
+import { jsonOk, badRequest, forbidden, readJsonCappedOrNull } from "@/lib/api";
 import { withManage } from "@/lib/route-guard";
 import { generateChatToken } from "@/lib/guest-chat";
 import { writeAudit } from "@/lib/audit";
@@ -10,7 +10,7 @@ import { writeAudit } from "@/lib/audit";
 // printed) QR.
 export const POST = withManage<{ id: string }>(async (session, req, { params }) => {
   const { id } = await params;
-  const body = (await req.json().catch(() => null)) as { enabled?: unknown } | null;
+  const body = (await readJsonCappedOrNull(req)) as { enabled?: unknown } | null;
   if (typeof body?.enabled !== "boolean") {
     return badRequest({ enabled: "enabled alanı boolean olmalı." });
   }

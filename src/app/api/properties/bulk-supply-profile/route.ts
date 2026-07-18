@@ -1,5 +1,5 @@
 import { prisma } from "@/lib/db";
-import { badRequest, jsonOk } from "@/lib/api";
+import { badRequest, jsonOk, readJsonCappedOrNull } from "@/lib/api";
 import { withManage } from "@/lib/route-guard";
 import { serializeSupplyProfile } from "@/lib/supply";
 
@@ -8,7 +8,7 @@ import { serializeSupplyProfile } from "@/lib/supply";
 // 20 flats fills it once and copies rather than clicking through each one. Mirrors
 // bulk-times. Org-scoped (no IDOR); overwrites existing per-property profiles.
 export const POST = withManage(async (session, req) => {
-  const data = (await req.json().catch(() => null)) as
+  const data = (await readJsonCappedOrNull(req)) as
     | { supplyProfile?: unknown; propertyIds?: unknown }
     | null;
   if (!data || typeof data !== "object" || typeof data.supplyProfile !== "object" || data.supplyProfile === null) {

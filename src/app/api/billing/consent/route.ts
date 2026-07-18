@@ -1,5 +1,5 @@
 import { prisma } from "@/lib/db";
-import { badRequest, jsonOk, tooManyRequests } from "@/lib/api";
+import { badRequest, jsonOk, tooManyRequests, readJsonCappedOrNull } from "@/lib/api";
 import { withManage } from "@/lib/route-guard";
 import { rateLimit, clientIp } from "@/lib/rate-limit";
 import { LEGAL_VERSION } from "@/lib/legal-entity";
@@ -21,7 +21,7 @@ export const POST = withManage(async (session, req) => {
   const limited = await rateLimit(`checkout-consent:${session.userId}`, 20, 60 * 60 * 1000);
   if (!limited.ok) return tooManyRequests(limited.retryAfter);
 
-  const data = await req.json().catch(() => null);
+  const data = await readJsonCappedOrNull(req);
   const parsed = checkoutConsentSchema.safeParse(data);
   if (!parsed.success) return badRequest(zodFieldErrors(parsed.error));
 

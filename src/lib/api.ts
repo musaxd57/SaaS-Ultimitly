@@ -234,3 +234,28 @@ export async function parseJsonBody<T = unknown>(
     return { ok: false, tooLarge: err instanceof BodyTooLargeError };
   }
 }
+
+/**
+ * Byte-capped drop-in for the ubiquitous `await req.json().catch(() => null)`
+ * pattern on AUTHENTICATED routes (Codex P2): identical null-on-malformed
+ * semantics, but the underlying read ABORTS the stream once the cap is exceeded
+ * so a logged-in tenant can't overload the shared instance with a giant body.
+ * An over-cap body also returns null (→ the route's existing 400), which is fine
+ * — the DoS is prevented by the stream cancel, not by the status code.
+ *
+ * Default T = `any` on purpose: this is a faithful drop-in for `req.json()`
+ * (which is typed `Promise<any>`), so existing routes that access body fields
+ * without a cast keep type-checking exactly as before. Pass an explicit T for
+ * stricter typing where wanted.
+ */
+// eslint-disable-next-line @typescript-eslint/no-explicit-any
+export async function readJsonCappedOrNull<T = any>(
+  req: Request,
+  maxBytes: number = MAX_JSON_BODY_BYTES,
+): Promise<T | null> {
+  try {
+    return await readJsonCapped<T>(req, maxBytes);
+  } catch {
+    return null;
+  }
+}

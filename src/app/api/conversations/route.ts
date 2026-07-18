@@ -1,6 +1,6 @@
 import { prisma } from "@/lib/db";
 import { conversationCreateSchema, zodFieldErrors } from "@/lib/validators";
-import { badRequest, jsonOk, propertyInOrg } from "@/lib/api";
+import { badRequest, jsonOk, propertyInOrg, readJsonCappedOrNull } from "@/lib/api";
 import { withManage } from "@/lib/route-guard";
 import { applyInboundMessageRules } from "@/lib/automation";
 
@@ -26,7 +26,7 @@ export const GET = withManage(async (session, req) => {
 
 // Creating a conversation is an owner/manager action; staff are read + tasks.
 export const POST = withManage(async (session, req) => {
-  const data = await req.json().catch(() => null);
+  const data = await readJsonCappedOrNull(req);
   const parsed = conversationCreateSchema.safeParse(data);
   if (!parsed.success) return badRequest(zodFieldErrors(parsed.error));
   const d = parsed.data;

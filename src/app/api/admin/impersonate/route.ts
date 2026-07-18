@@ -1,5 +1,5 @@
 import { type NextRequest } from "next/server";
-import { requireSession, unauthorized, badRequest, jsonOk, serverError } from "@/lib/api";
+import { requireSession, unauthorized, badRequest, jsonOk, serverError, readJsonCappedOrNull } from "@/lib/api";
 import { isSuperAdmin, enterOrganization } from "@/lib/admin";
 
 // ---------------------------------------------------------------------------
@@ -15,7 +15,7 @@ export async function POST(req: NextRequest) {
   if (!isSuperAdmin(session)) return unauthorized();
 
   try {
-    const data = await req.json().catch(() => null);
+    const data = await readJsonCappedOrNull(req);
     const organizationId = typeof data?.organizationId === "string" ? data.organizationId : "";
     if (!organizationId) return badRequest({ organizationId: "organizationId gerekli" });
 

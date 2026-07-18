@@ -1,5 +1,5 @@
 import { prisma } from "@/lib/db";
-import { badRequest, jsonOk } from "@/lib/api";
+import { badRequest, jsonOk, readJsonCappedOrNull } from "@/lib/api";
 import { withManage } from "@/lib/route-guard";
 import { isPrivateHost } from "@/lib/net/private-host";
 
@@ -12,7 +12,7 @@ export const POST = withManage<{ id: string }>(async (session, req, { params }) 
   });
   if (!property) return badRequest({ propertyId: "Geçersiz mülk" });
 
-  const data = await req.json().catch(() => null);
+  const data = await readJsonCappedOrNull(req);
   const label = String(data?.label ?? "").trim();
   const url = String(data?.url ?? "").trim();
 

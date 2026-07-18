@@ -1,6 +1,6 @@
 import { prisma } from "@/lib/db";
 import { reservationUpdateSchema, zodFieldErrors } from "@/lib/validators";
-import { badRequest, jsonOk, notFound } from "@/lib/api";
+import { badRequest, jsonOk, notFound, readJsonCappedOrNull } from "@/lib/api";
 import { withManage } from "@/lib/route-guard";
 
 async function findScoped(id: string, orgId: string) {
@@ -13,7 +13,7 @@ async function findScoped(id: string, orgId: string) {
 export const PATCH = withManage<{ id: string }>(async (session, req, { params }) => {
   const { id } = await params;
   if (!(await findScoped(id, session.organizationId))) return notFound();
-  const data = await req.json().catch(() => null);
+  const data = await readJsonCappedOrNull(req);
   const parsed = reservationUpdateSchema.safeParse(data);
   if (!parsed.success) return badRequest(zodFieldErrors(parsed.error));
 

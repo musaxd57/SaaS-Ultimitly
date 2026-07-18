@@ -1,6 +1,6 @@
 import { type NextRequest } from "next/server";
 import { prisma } from "@/lib/db";
-import { requireSession, unauthorized, badRequest, jsonOk, serverError } from "@/lib/api";
+import { requireSession, unauthorized, badRequest, jsonOk, serverError, readJsonCappedOrNull } from "@/lib/api";
 import { isSuperAdmin } from "@/lib/admin";
 import { writeAudit } from "@/lib/audit";
 
@@ -27,7 +27,7 @@ export async function POST(req: NextRequest) {
   if (!isSuperAdmin(session)) return unauthorized();
 
   try {
-    const data = await req.json().catch(() => null);
+    const data = await readJsonCappedOrNull(req);
     const email = typeof data?.email === "string" ? data.email.trim().toLowerCase() : "";
     if (!email) return badRequest({ email: "Kullanıcının e-posta adresi gerekli." });
 

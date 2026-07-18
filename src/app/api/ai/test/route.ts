@@ -8,7 +8,7 @@ import {
   automatedReplyNote,
   type CourtesyKind,
 } from "@/lib/automation";
-import { badRequest, jsonOk, tooManyRequests, paymentRequired } from "@/lib/api";
+import { badRequest, jsonOk, tooManyRequests, paymentRequired, readJsonCappedOrNull } from "@/lib/api";
 import { withManage } from "@/lib/route-guard";
 import { rateLimit } from "@/lib/rate-limit";
 import { premiumAllowed } from "@/lib/billing/subscription";
@@ -34,7 +34,7 @@ export const POST = withManage(async (session, req) => {
   const limited = await rateLimit(`ai-test:${session.userId}`, 15, 60_000);
   if (!limited.ok) return tooManyRequests(limited.retryAfter);
 
-  const body = (await req.json().catch(() => null)) as
+  const body = (await readJsonCappedOrNull(req)) as
     | { message?: unknown; propertyId?: unknown; tone?: unknown }
     | null;
   const message = typeof body?.message === "string" ? body.message.trim() : "";

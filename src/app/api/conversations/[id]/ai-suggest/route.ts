@@ -2,7 +2,7 @@ import { prisma } from "@/lib/db";
 import { aiSuggestSchema } from "@/lib/validators";
 import { suggestReply } from "@/lib/ai";
 import { getAdjacency } from "@/lib/turnover";
-import { badRequest, jsonOk, notFound, tooManyRequests, paymentRequired } from "@/lib/api";
+import { badRequest, jsonOk, notFound, tooManyRequests, paymentRequired, readJsonCappedOrNull } from "@/lib/api";
 import { withManage } from "@/lib/route-guard";
 import { rateLimit } from "@/lib/rate-limit";
 import { premiumAllowed } from "@/lib/billing/subscription";
@@ -27,7 +27,7 @@ export const POST = withManage<{ id: string }>(async (session, req, { params }) 
   });
   if (!conversation) return notFound();
 
-  const parsed = aiSuggestSchema.safeParse((await req.json().catch(() => ({}))) ?? {});
+  const parsed = aiSuggestSchema.safeParse((await readJsonCappedOrNull(req)) ?? {});
   const tone = parsed.success ? parsed.data.tone : "warm";
 
   const lastInbound = [...conversation.messages]

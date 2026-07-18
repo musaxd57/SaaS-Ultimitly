@@ -1,6 +1,6 @@
 import { NextResponse, type NextRequest } from "next/server";
 import { prisma } from "@/lib/db";
-import { requireSession, unauthorized, badRequest, jsonOk, serverError } from "@/lib/api";
+import { requireSession, unauthorized, badRequest, jsonOk, serverError, readJsonCappedOrNull } from "@/lib/api";
 import { isSuperAdmin } from "@/lib/admin";
 import { writeAudit } from "@/lib/audit";
 import { QualityAuditError, qualityAuditConfigured, runQualityAudit } from "@/lib/quality-audit";
@@ -24,7 +24,7 @@ export async function POST(req: NextRequest) {
       });
     }
 
-    const data = await req.json().catch(() => ({}) as Record<string, unknown>);
+    const data = (await readJsonCappedOrNull<Record<string, unknown>>(req)) ?? {};
     const organizationId =
       (typeof data?.organizationId === "string" && data.organizationId.trim()) ||
       process.env.PRIMARY_ORG_ID ||

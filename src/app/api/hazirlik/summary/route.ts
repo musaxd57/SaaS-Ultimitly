@@ -1,5 +1,5 @@
 import { NextResponse } from "next/server";
-import { jsonOk, paymentRequired } from "@/lib/api";
+import { jsonOk, paymentRequired, readJsonCappedOrNull } from "@/lib/api";
 import { withManage } from "@/lib/route-guard";
 import { rateLimit } from "@/lib/rate-limit";
 import { premiumAllowed } from "@/lib/billing/subscription";
@@ -29,7 +29,7 @@ export const POST = withManage(async (session, req) => {
     );
   }
 
-  const body = (await req.json().catch(() => ({}))) as { days?: number };
+  const body = ((await readJsonCappedOrNull(req)) ?? {}) as { days?: number };
   const days = [1, 7, 14].includes(Number(body.days)) ? Number(body.days) : 7;
 
   const plan = await getPrepPlan(session.organizationId, { days });

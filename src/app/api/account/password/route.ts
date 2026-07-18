@@ -7,8 +7,7 @@ import {
   badRequest,
   jsonOk,
   serverError,
-  tooManyRequests,
-} from "@/lib/api";
+  tooManyRequests, readJsonCappedOrNull } from "@/lib/api";
 import { rateLimit } from "@/lib/rate-limit";
 import { writeAudit } from "@/lib/audit";
 import { emailService } from "@/lib/email";
@@ -59,7 +58,7 @@ export async function POST(req: NextRequest) {
   if (!limited.ok) return tooManyRequests(limited.retryAfter);
 
   try {
-    const data = await req.json().catch(() => null);
+    const data = await readJsonCappedOrNull(req);
     const action = typeof data?.action === "string" ? data.action : "";
 
     // STEP 1 — e-mail a verification code to the signed-in user's own address.

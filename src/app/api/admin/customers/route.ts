@@ -2,7 +2,7 @@ import { type NextRequest } from "next/server";
 import { prisma } from "@/lib/db";
 import { registerSchema, zodFieldErrors } from "@/lib/validators";
 import { hashPassword } from "@/lib/auth/password";
-import { requireSession, unauthorized, badRequest, jsonOk, serverError, tooManyRequests } from "@/lib/api";
+import { requireSession, unauthorized, badRequest, jsonOk, serverError, tooManyRequests, readJsonCappedOrNull } from "@/lib/api";
 import { isSuperAdmin } from "@/lib/admin";
 import { rateLimit } from "@/lib/rate-limit";
 import { writeAudit } from "@/lib/audit";
@@ -31,7 +31,7 @@ export async function POST(req: NextRequest) {
   if (!limited.ok) return tooManyRequests(limited.retryAfter);
 
   try {
-    const data = await req.json().catch(() => null);
+    const data = await readJsonCappedOrNull(req);
     const parsed = registerSchema.safeParse(data);
     if (!parsed.success) return badRequest(zodFieldErrors(parsed.error));
 

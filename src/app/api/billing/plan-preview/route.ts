@@ -1,4 +1,4 @@
-import { badRequest, jsonOk, notFound, tooManyRequests } from "@/lib/api";
+import { badRequest, jsonOk, notFound, tooManyRequests, readJsonCappedOrNull } from "@/lib/api";
 import { withManage } from "@/lib/route-guard";
 import { prisma } from "@/lib/db";
 import { NextResponse } from "next/server";
@@ -16,7 +16,7 @@ export const POST = withManage(async (session, req) => {
   if (!limited.ok) return tooManyRequests(limited.retryAfter);
   if (!isPaddleConfigured()) return badRequest({ error: "Abonelik yönetimi şu anda kullanılamıyor." });
 
-  const data = (await req.json().catch(() => null)) as { planCode?: unknown } | null;
+  const data = (await readJsonCappedOrNull(req)) as { planCode?: unknown } | null;
   const planCode = typeof data?.planCode === "string" ? data.planCode : "";
 
   const r = await resolvePlanChange(session.organizationId, planCode);

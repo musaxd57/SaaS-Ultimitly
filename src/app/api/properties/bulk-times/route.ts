@@ -1,5 +1,5 @@
 import { prisma } from "@/lib/db";
-import { badRequest, jsonOk } from "@/lib/api";
+import { badRequest, jsonOk, readJsonCappedOrNull } from "@/lib/api";
 import { withManage } from "@/lib/route-guard";
 
 // Apply one check-in / check-out time to ALL of the org's properties at once.
@@ -8,7 +8,7 @@ import { withManage } from "@/lib/route-guard";
 const TIME_RE = /^([01]?\d|2[0-3]):[0-5]\d$/; // H:MM or HH:MM, 00:00–23:59
 
 export const POST = withManage(async (session, req) => {
-  const data = await req.json().catch(() => null);
+  const data = await readJsonCappedOrNull(req);
   if (!data || typeof data !== "object") {
     return badRequest({ _: "Geçerli bir gövde gerekli." });
   }

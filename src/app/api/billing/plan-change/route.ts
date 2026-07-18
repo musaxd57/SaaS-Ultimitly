@@ -1,6 +1,6 @@
 import { NextResponse } from "next/server";
 import { prisma } from "@/lib/db";
-import { badRequest, jsonOk, notFound, tooManyRequests } from "@/lib/api";
+import { badRequest, jsonOk, notFound, tooManyRequests, readJsonCappedOrNull } from "@/lib/api";
 import { withManage } from "@/lib/route-guard";
 import { rateLimit } from "@/lib/rate-limit";
 import {
@@ -29,7 +29,7 @@ export const POST = withManage(async (session, req) => {
   if (!limited.ok) return tooManyRequests(limited.retryAfter);
   if (!isPaddleConfigured()) return badRequest({ error: "Abonelik yönetimi şu anda kullanılamıyor." });
 
-  const data = (await req.json().catch(() => null)) as
+  const data = (await readJsonCappedOrNull(req)) as
     | { planCode?: unknown; previewToken?: unknown }
     | null;
   const planCode = typeof data?.planCode === "string" ? data.planCode : "";

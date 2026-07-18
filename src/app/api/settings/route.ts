@@ -1,5 +1,5 @@
 import { prisma } from "@/lib/db";
-import { badRequest, jsonOk } from "@/lib/api";
+import { badRequest, jsonOk, readJsonCappedOrNull } from "@/lib/api";
 import { OFFER_PAYMENT_METHOD_RX } from "@/lib/validators";
 import { withManage } from "@/lib/route-guard";
 import { isValidTimeZone } from "@/lib/timezone";
@@ -16,7 +16,7 @@ const OFFER_TEXT_MAX = 400; // late-checkout offer: a short price/terms line (ma
 
 /** Update organization-level settings (auto-reply window/toggle + AI tone/signature). */
 export const PATCH = withManage(async (session, req) => {
-  const data = await req.json().catch(() => null);
+  const data = await readJsonCappedOrNull(req);
   if (!data || typeof data !== "object") {
     return badRequest({ _: "Geçerli bir gövde gerekli." });
   }

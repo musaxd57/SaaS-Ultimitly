@@ -1,6 +1,6 @@
 import { prisma } from "@/lib/db";
 import { kbSchema, zodFieldErrors } from "@/lib/validators";
-import { badRequest, jsonOk, propertyInOrg } from "@/lib/api";
+import { badRequest, jsonOk, propertyInOrg, readJsonCappedOrNull } from "@/lib/api";
 import { withManage } from "@/lib/route-guard";
 
 export const GET = withManage(async (session, req) => {
@@ -19,7 +19,7 @@ export const GET = withManage(async (session, req) => {
 });
 
 export const POST = withManage(async (session, req) => {
-  const data = await req.json().catch(() => null);
+  const data = await readJsonCappedOrNull(req);
   const parsed = kbSchema.safeParse(data);
   if (!parsed.success) return badRequest(zodFieldErrors(parsed.error));
   const d = parsed.data;

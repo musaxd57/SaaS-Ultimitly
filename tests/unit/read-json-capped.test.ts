@@ -1,5 +1,5 @@
 import { describe, it, expect } from "vitest";
-import { readJsonCapped, readTextCapped, BodyTooLargeError, MAX_JSON_BODY_BYTES } from "@/lib/api";
+import { readJsonCapped, readTextCapped, readJsonCappedOrNull, BodyTooLargeError, MAX_JSON_BODY_BYTES } from "@/lib/api";
 
 const jsonReq = (body: string) =>
   new Request("http://t/api/x", { method: "POST", body, headers: { "content-type": "application/json" } });
@@ -66,6 +66,14 @@ describe("readJsonCapped (body-size cap)", () => {
     const req = { headers: new Headers(), body: stream } as unknown as Request;
     await expect(readTextCapped(req, 1024)).rejects.toBeInstanceOf(BodyTooLargeError);
     expect(cancelled).toBe(true); // the oversized body was cancelled, not drained
+  });
+
+  it("readJsonCappedOrNull (Codex P2 auth-route drop-in): parses under cap, returns null on malformed AND over-cap", async () => {
+    // Faithful `req.json().catch(() => null)` replacement — same null-on-bad, plus the cap.
+    expect(await readJsonCappedOrNull(jsonReq(JSON.stringify({ a: 1 })))).toEqual({ a: 1 });
+    expect(await readJsonCappedOrNull(jsonReq("{bad"))).toBeNull(); // malformed → null
+    expect(await readJsonCappedOrNull(chunkedReq("a".repeat(2048)), 1024)).toBeNull(); // over-cap → null (stream capped)
+    expect(await readJsonCappedOrNull(new Request("http://t/api/x", { method: "POST" }))).toBeNull(); // empty → null
   });
 
   it("readTextCapped returns raw text (webhook path) and enforces the cap", async () => {

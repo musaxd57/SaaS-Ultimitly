@@ -1,6 +1,6 @@
 import { prisma } from "@/lib/db";
 import { propertySchema, zodFieldErrors } from "@/lib/validators";
-import { badRequest, jsonOk, notFound } from "@/lib/api";
+import { badRequest, jsonOk, notFound, readJsonCappedOrNull } from "@/lib/api";
 import { withManage } from "@/lib/route-guard";
 import { serializeSupplyProfile } from "@/lib/supply";
 
@@ -21,7 +21,7 @@ export const PATCH = withManage<{ id: string }>(async (session, req, { params })
   });
   if (!existing) return notFound();
 
-  const data = await req.json().catch(() => null);
+  const data = await readJsonCappedOrNull(req);
   const parsed = propertySchema.partial().safeParse(data);
   if (!parsed.success) return badRequest(zodFieldErrors(parsed.error));
   const d = parsed.data;

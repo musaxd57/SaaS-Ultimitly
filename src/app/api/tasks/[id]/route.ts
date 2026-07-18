@@ -1,6 +1,6 @@
 import { prisma } from "@/lib/db";
 import { taskUpdateSchema, zodFieldErrors } from "@/lib/validators";
-import { badRequest, jsonOk, notFound, canManage, forbidden } from "@/lib/api";
+import { badRequest, jsonOk, notFound, canManage, forbidden, readJsonCappedOrNull } from "@/lib/api";
 import { withAuth, withManage } from "@/lib/route-guard";
 import { emailService } from "@/lib/email";
 import { taskAssignedEmail } from "@/lib/email-templates";
@@ -39,7 +39,7 @@ export const PATCH = withAuth<{ id: string }>(async (session, req, { params }) =
     return forbidden("Bu görev size atanmamış.");
   }
 
-  const data = await req.json().catch(() => null);
+  const data = await readJsonCappedOrNull(req);
   const parsed = taskUpdateSchema.safeParse(data);
   if (!parsed.success) return badRequest(zodFieldErrors(parsed.error));
   const d = parsed.data;

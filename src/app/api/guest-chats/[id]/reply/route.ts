@@ -1,6 +1,6 @@
 import { type NextRequest, NextResponse } from "next/server";
 import { prisma } from "@/lib/db";
-import { requireSession, unauthorized, canManage, forbidden, jsonOk, badRequest, notFound } from "@/lib/api";
+import { requireSession, unauthorized, canManage, forbidden, jsonOk, badRequest, notFound, readJsonCappedOrNull } from "@/lib/api";
 import { claimOutboundSend } from "@/lib/outbound-claim";
 
 // The host replies to a QR guest-chat thread from the "Misafir Sohbetleri" tab.
@@ -14,7 +14,7 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ id:
   if (!canManage(session)) return forbidden();
 
   const { id } = await params;
-  const body = (await req.json().catch(() => null)) as { body?: unknown } | null;
+  const body = (await readJsonCappedOrNull(req)) as { body?: unknown } | null;
   const text = typeof body?.body === "string" ? body.body.trim() : "";
   if (!text) return badRequest({ body: "Bir mesaj yazın." });
   if (text.length > 2000) return badRequest({ body: "Mesaj çok uzun (en fazla 2000 karakter)." });

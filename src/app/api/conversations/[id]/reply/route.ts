@@ -4,7 +4,7 @@ import { isUniqueViolation } from "@/lib/db-errors";
 import { conversationReplySchema, zodFieldErrors } from "@/lib/validators";
 import { sendOnChannel, isDefinitiveSendFailure } from "@/lib/messaging";
 import { getOrgHospitableToken } from "@/lib/hospitable-credentials";
-import { badRequest, jsonOk, notFound, tooManyRequests, paymentRequired } from "@/lib/api";
+import { badRequest, jsonOk, notFound, tooManyRequests, paymentRequired, readJsonCappedOrNull } from "@/lib/api";
 import { withManage } from "@/lib/route-guard";
 import { rateLimit } from "@/lib/rate-limit";
 import { premiumAllowed } from "@/lib/billing/subscription";
@@ -35,7 +35,7 @@ export const POST = withManage<{ id: string }>(async (session, req, { params }) 
   });
   if (!conversation) return notFound();
 
-  const rawData = await req.json().catch(() => null);
+  const rawData = await readJsonCappedOrNull(req);
   const parsed = conversationReplySchema.safeParse(rawData);
   if (!parsed.success) return badRequest(zodFieldErrors(parsed.error));
 

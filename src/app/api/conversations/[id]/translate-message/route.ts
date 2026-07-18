@@ -1,7 +1,7 @@
 import { prisma } from "@/lib/db";
 import { z } from "zod";
 import { NextResponse } from "next/server";
-import { badRequest, jsonOk, notFound, tooManyRequests, paymentRequired } from "@/lib/api";
+import { badRequest, jsonOk, notFound, tooManyRequests, paymentRequired, readJsonCappedOrNull } from "@/lib/api";
 import { withManage } from "@/lib/route-guard";
 import { rateLimit } from "@/lib/rate-limit";
 import { premiumAllowed } from "@/lib/billing/subscription";
@@ -30,7 +30,7 @@ export const POST = withManage<{ id: string }>(async (session, req, { params }) 
   });
   if (!conversation) return notFound();
 
-  const data = await req.json().catch(() => null);
+  const data = await readJsonCappedOrNull(req);
   const parsed = translateSchema.safeParse(data);
   if (!parsed.success) return badRequest(zodFieldErrors(parsed.error));
 

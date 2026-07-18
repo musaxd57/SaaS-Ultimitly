@@ -1,7 +1,7 @@
 import { type NextRequest } from "next/server";
 import { z } from "zod";
 import { prisma } from "@/lib/db";
-import { requireSession, unauthorized, badRequest, notFound, jsonOk, serverError } from "@/lib/api";
+import { requireSession, unauthorized, badRequest, notFound, jsonOk, serverError, readJsonCappedOrNull } from "@/lib/api";
 import { isSuperAdmin } from "@/lib/admin";
 
 // ---------------------------------------------------------------------------
@@ -29,7 +29,7 @@ export async function PATCH(req: NextRequest, ctx: { params: Promise<{ id: strin
 
   try {
     const { id } = await ctx.params;
-    const parsed = patchSchema.safeParse(await req.json().catch(() => null));
+    const parsed = patchSchema.safeParse(await readJsonCappedOrNull(req));
     if (!parsed.success) return badRequest({ form: "Geçersiz istek" });
     const { status, note, followUpAt } = parsed.data;
 

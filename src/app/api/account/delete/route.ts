@@ -9,8 +9,7 @@ import {
   forbidden,
   jsonOk,
   serverError,
-  tooManyRequests,
-} from "@/lib/api";
+  tooManyRequests, readJsonCappedOrNull } from "@/lib/api";
 import { rateLimit } from "@/lib/rate-limit";
 import { deleteAccountData } from "@/lib/data-retention";
 
@@ -31,7 +30,7 @@ export async function POST(req: NextRequest) {
   if (!limited.ok) return tooManyRequests(limited.retryAfter);
 
   try {
-    const data = await req.json().catch(() => null);
+    const data = await readJsonCappedOrNull(req);
     const password = typeof data?.password === "string" ? data.password : "";
     if (!password) return badRequest({ password: "Onaylamak için şifrenizi girin." });
 

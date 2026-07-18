@@ -1,6 +1,6 @@
 import { prisma } from "@/lib/db";
 import { taskSchema, zodFieldErrors } from "@/lib/validators";
-import { badRequest, jsonOk, propertyInOrg, canManage } from "@/lib/api";
+import { badRequest, jsonOk, propertyInOrg, canManage, readJsonCappedOrNull } from "@/lib/api";
 import { withAuth, withManage } from "@/lib/route-guard";
 
 export const GET = withAuth(async (session, req) => {
@@ -27,7 +27,7 @@ export const GET = withAuth(async (session, req) => {
 });
 
 export const POST = withManage(async (session, req) => {
-  const data = await req.json().catch(() => null);
+  const data = await readJsonCappedOrNull(req);
   const parsed = taskSchema.safeParse(data);
   if (!parsed.success) return badRequest(zodFieldErrors(parsed.error));
   const d = parsed.data;

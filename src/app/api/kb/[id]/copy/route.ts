@@ -1,5 +1,5 @@
 import { prisma } from "@/lib/db";
-import { badRequest, jsonOk, notFound } from "@/lib/api";
+import { badRequest, jsonOk, notFound, readJsonCappedOrNull } from "@/lib/api";
 import { withManage } from "@/lib/route-guard";
 
 // Copy a knowledge-base entry to one or more OTHER apartments. Lets the host
@@ -22,7 +22,7 @@ export const POST = withManage<{ id: string }>(async (session, req, { params }) 
   });
   if (!source) return notFound();
 
-  const body = await req.json().catch(() => null);
+  const body = await readJsonCappedOrNull(req);
   const requested: unknown = body?.targetPropertyIds;
   const ids = Array.isArray(requested)
     ? requested.filter((x): x is string => typeof x === "string")

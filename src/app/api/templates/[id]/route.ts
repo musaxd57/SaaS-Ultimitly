@@ -1,6 +1,6 @@
 import { prisma } from "@/lib/db";
 import { z } from "zod";
-import { badRequest, jsonOk, notFound } from "@/lib/api";
+import { badRequest, jsonOk, notFound, readJsonCappedOrNull } from "@/lib/api";
 import { withManage } from "@/lib/route-guard";
 import { zodFieldErrors } from "@/lib/validators";
 
@@ -22,7 +22,7 @@ export const PATCH = withManage<{ id: string }>(async (session, req, { params })
   });
   if (!existing) return notFound();
 
-  const data = await req.json().catch(() => null);
+  const data = await readJsonCappedOrNull(req);
   const parsed = templateUpdateSchema.safeParse(data);
   if (!parsed.success) return badRequest(zodFieldErrors(parsed.error));
 

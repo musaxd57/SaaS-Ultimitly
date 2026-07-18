@@ -1,6 +1,6 @@
 import { type NextRequest } from "next/server";
 import { prisma } from "@/lib/db";
-import { requireSession, unauthorized, badRequest, jsonOk, serverError, tooManyRequests } from "@/lib/api";
+import { requireSession, unauthorized, badRequest, jsonOk, serverError, tooManyRequests, readJsonCappedOrNull } from "@/lib/api";
 import { rateLimit } from "@/lib/rate-limit";
 import { encryptSecret, decryptSecret } from "@/lib/crypto";
 import { generateSecret, otpauthUri, verifyTotp, verifyTotpStep } from "@/lib/auth/totp";
@@ -43,7 +43,7 @@ export async function POST(req: NextRequest) {
   const limited = await rateLimit(`2fa:${session.userId}`, 10, 10 * 60_000);
   if (!limited.ok) return tooManyRequests(limited.retryAfter);
   try {
-    const data = await req.json().catch(() => null);
+    const data = await readJsonCappedOrNull(req);
     const action = typeof data?.action === "string" ? data.action : "";
     const code = typeof data?.code === "string" ? data.code : "";
 

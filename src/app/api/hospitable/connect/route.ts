@@ -1,5 +1,5 @@
 import { type NextRequest, NextResponse } from "next/server";
-import { requireSession, unauthorized, serverError, tooManyRequests } from "@/lib/api";
+import { requireSession, unauthorized, serverError, tooManyRequests, readJsonCappedOrNull } from "@/lib/api";
 import { rateLimit } from "@/lib/rate-limit";
 import { verifyToken, HospitableError } from "@/lib/hospitable";
 import { isSuperAdmin } from "@/lib/admin";
@@ -39,7 +39,7 @@ export async function POST(req: NextRequest) {
   if (!limited.ok) return tooManyRequests(limited.retryAfter);
 
   try {
-    const data = await req.json().catch(() => null);
+    const data = await readJsonCappedOrNull(req);
 
     // Claim the deployment's env token onto this org (primary-org migration).
     if (data?.claimEnv === true) {
