@@ -19,8 +19,7 @@ import { GuestChatSettings } from "@/components/properties/guest-chat-settings";
 import { ReservationPinControl } from "@/components/properties/reservation-pin-control";
 import { listReservationsForPinManagement } from "@/lib/guest-chat-pin";
 import { GuestErasureControl } from "@/components/properties/guest-erasure-control";
-import { guestErasureEnabled } from "@/lib/erasure";
-import { ANON_NAME } from "@/lib/data-retention";
+import { guestErasureEnabled, reservationsWithSourceTombstone } from "@/lib/erasure";
 import { generateCalendarToken } from "@/lib/export/ics";
 import { KB_CATEGORY, RESERVATION_STATUS } from "@/lib/constants";
 import { formatDate } from "@/lib/utils";
@@ -52,6 +51,14 @@ export default async function PropertyDetailPage({
   // PIN control + strict-mode toggle only appear when it's on AND the host can manage.
   const pinFeatureEnabled = process.env.QR_PIN_ENABLED === "1";
   const showPinControls = canManage && process.env.GUEST_CHAT_ENABLED === "1" && pinFeatureEnabled && property.chatEnabled;
+
+  // KVKK explicit-erasure (m40): the "already erased" state is decided by an actual
+  // TOMBSTONE, not merely a masked name — a retention-anonymized row (no tombstone)
+  // must still offer the erasure button, not falsely read as "permanently erased".
+  const showErasure = session.role === "owner" && guestErasureEnabled();
+  const erasedIds = showErasure
+    ? await reservationsWithSourceTombstone(session.organizationId, property.reservations)
+    : new Set<string>();
 
   // For PIN management the "last 5 by arrival desc" list is WRONG (Codex 3): a
   // fully-booked apartment pushes the CURRENTLY-STAYING guest out behind future
@@ -253,8 +260,8 @@ export default async function PropertyDetailPage({
                     {showPinControls && r.status !== "cancelled" ? (
                       <ReservationPinControl reservationId={r.id} initialHasPin={Boolean(r.chatPinHash)} />
                     ) : null}
-                    {session.role === "owner" && guestErasureEnabled() ? (
-                      <GuestErasureControl reservationId={r.id} initialErased={r.guestName === ANON_NAME} />
+                    {showErasure ? (
+                      <GuestErasureControl reservationId={r.id} initialErased={erasedIds.has(r.id)} />
                     ) : null}
                   </div>
                 ))

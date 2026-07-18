@@ -39,19 +39,28 @@ export const POST = withManage<{ id: string }>(async (session, _req, { params })
     if (!scope) return notFound();
 
     // Legal requirement (Deletion Regulation art. 7: destruction operations are
-    // logged and kept ≥3 years) — counts only, no personal data.
-    await writeAudit({
-      organizationId: session.organizationId,
-      actorUserId: session.userId,
-      action: "kvkk.guest_erasure",
-      metadata: {
-        reservationId: scope.reservationId,
-        conversations: scope.conversations,
-        inboundMessages: scope.inboundMessages,
-        outboundMessages: scope.outboundMessages,
-        tombstoneKeys: scope.tombstoneKeys,
-      },
-    }).catch(() => {});
+    // LOGGED and kept ≥3 years). Metadata = the opaque reservationId + counts;
+    // NO guest identifiers (name/contact/body). This audit is MANDATORY, so a
+    // write failure must be surfaced (reportError), not silently swallowed — the
+    // erasure itself already committed, so we don't fail the response, but ops
+    // must see the missing legal record and can re-record it.
+    try {
+      await writeAudit({
+        organizationId: session.organizationId,
+        actorUserId: session.userId,
+        action: "kvkk.guest_erasure",
+        metadata: {
+          reservationId: scope.reservationId, // opaque row id — not personal data
+          conversations: scope.conversations,
+          inboundMessages: scope.inboundMessages,
+          outboundMessages: scope.outboundMessages,
+          tombstoneKeys: scope.tombstoneKeys,
+        },
+      });
+    } catch (auditErr) {
+      const { reportError } = await import("@/lib/report-error");
+      void reportError(`kvkk.guest_erasure audit FAILED res:${scope.reservationId}`, auditErr).catch(() => {});
+    }
 
     return jsonOk({ ok: true, scope });
   } catch (err) {

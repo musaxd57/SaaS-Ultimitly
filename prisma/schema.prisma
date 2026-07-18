@@ -965,6 +965,12 @@ model ErasureTombstone {
   // lawyer sets a bounded period, rows get a date and the guard ignores them
   // once expired. [AVUKAT İMZASI] decides which; code supports both.
   expiresAt      DateTime?
+  // Fingerprint of the HMAC key that produced keyHash (m42, Codex P1). The "v1:"
+  // prefix marks the SCHEME, not the SECRET VALUE — so a rotated/mistyped secret
+  // would silently produce non-matching hashes. loadErasureGuard fails CLOSED
+  // when a live row's fingerprint ≠ the current key's (nullable = legacy/unknown,
+  // also treated as a mismatch → block). Reveals nothing (derived from the key).
+  keyFingerprint String?
   createdAt      DateTime @default(now())
 
   organization Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)

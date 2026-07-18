@@ -23,7 +23,9 @@ import { syncHospitable } from "@/lib/hospitable-sync";
 import {
   eraseReservationData,
   previewReservationErasure,
+  reservationsWithSourceTombstone,
   __resetErasureHashKey,
+  tombstoneKeyHash as tombstoneKeyHashForTest,
 } from "@/lib/erasure";
 
 const mockProperties = vi.mocked(listProperties);
@@ -148,6 +150,82 @@ describe("KVKK explicit erasure (m40) — executor", () => {
     const again = await eraseReservationData(orgId, reservationId);
     expect(again).not.toBeNull();
     expect(await prisma.erasureTombstone.count()).toBe(4); // still one row per key
+  });
+
+  it("Codex P1: outbox body carrying the send text is redacted; an unsent unclaimed row is canceled", async () => {
+    const { orgId, propertyId, reservationId, conversationId } = await seedErasedStay();
+    // A pending (unsent, unclaimed) outbox row + a sent one, both carrying PII.
+    await prisma.messageOutbox.create({
+      data: {
+        organizationId: orgId, conversationId, reservationId,
+        channel: "airbnb", body: "Merhaba Ada Lovelace, hoş geldiniz!",
+        idempotencyKey: "ob-pending-1", status: "pending",
+      },
+    });
+    await prisma.messageOutbox.create({
+      data: {
+        organizationId: orgId, conversationId, reservationId,
+        channel: "airbnb", body: "Ada Lovelace, çıkış bilgisi...",
+        idempotencyKey: "ob-sent-1", status: "sent", sentAt: new Date(),
+      },
+    });
+
+    await eraseReservationData(orgId, reservationId);
+
+    const pending = await prisma.messageOutbox.findFirstOrThrow({ where: { idempotencyKey: "ob-pending-1" } });
+    expect(pending.body).toBe(ANON_BODY); // PII gone
+    expect(pending.status).toBe("canceled"); // won't deliver the sentinel
+    const sent = await prisma.messageOutbox.findFirstOrThrow({ where: { idempotencyKey: "ob-sent-1" } });
+    expect(sent.body).toBe(ANON_BODY); // retained copy minimized
+    expect(sent.status).toBe("sent"); // terminal, untouched
+    const anyOutbox = JSON.stringify(await prisma.messageOutbox.findMany());
+    expect(anyOutbox).not.toContain("Ada Lovelace");
+  });
+
+  it("Codex P2: re-erasing the same guest via a LATER stay ADVANCES the guest-key cutoff (erasedAt = max)", async () => {
+    const { orgId, propertyId, reservationId } = await seedErasedStay();
+    // A SECOND stay of the same guest (same email/phone/id).
+    const stayB = await prisma.reservation.create({
+      data: {
+        propertyId, guestName: GUEST.full_name, guestEmail: GUEST.email,
+        guestPhone: GUEST.phone, guestExternalId: GUEST.id, sourceReference: "res-erase-2",
+        arrivalDate: new Date(Date.now() - 10 * DAY), departureDate: new Date(Date.now() - 7 * DAY),
+        status: "completed", channel: "airbnb",
+      },
+    });
+    await eraseReservationData(orgId, reservationId); // erase A → guest-key tombstones at ~now
+    // Backdate every tombstone to simulate a much-earlier first erasure.
+    const old = new Date("2020-01-01T00:00:00Z");
+    await prisma.erasureTombstone.updateMany({ where: { organizationId: orgId }, data: { erasedAt: old } });
+
+    await eraseReservationData(orgId, stayB.id); // erase B (same guest) → must bump the shared keys
+
+    const emailHash = tombstoneKeyHashForTest(orgId, "guest_email", GUEST.email)!;
+    const emailTomb = await prisma.erasureTombstone.findFirstOrThrow({
+      where: { organizationId: orgId, keyHash: emailHash },
+    });
+    expect(emailTomb.erasedAt.getTime()).toBeGreaterThan(new Date("2021-01-01").getTime()); // advanced past the backdate
+  });
+
+  it("Codex P1 (UI): only an EXPLICITLY-erased row is flagged erased — a retention-masked row still offers the button", async () => {
+    const { orgId, propertyId, reservationId } = await seedErasedStay();
+    // A separate row the RETENTION sweep masked (ANON_NAME) but that was NEVER
+    // explicitly erased — no tombstone. It must NOT read as "erased".
+    const retentionMasked = await prisma.reservation.create({
+      data: {
+        propertyId, guestName: ANON_NAME, sourceReference: "res-retention-only",
+        arrivalDate: new Date("2022-01-01"), departureDate: new Date("2022-01-04"),
+        status: "completed", channel: "airbnb",
+      },
+    });
+    await eraseReservationData(orgId, reservationId); // explicit tombstone for THIS one
+
+    const flagged = await reservationsWithSourceTombstone(orgId, [
+      { id: reservationId, sourceReference: "res-erase-1" },
+      { id: retentionMasked.id, sourceReference: "res-retention-only" },
+    ]);
+    expect(flagged.has(reservationId)).toBe(true); // explicitly erased
+    expect(flagged.has(retentionMasked.id)).toBe(false); // masked-only → button stays
   });
 
   it("is tenant-scoped: a foreign org's reservation id erases NOTHING", async () => {
@@ -430,6 +508,61 @@ describe("KVKK explicit erasure (m40) — sync resurrection guards", () => {
       vi.unstubAllEnvs();
       __resetErasureHashKey();
     }
+  });
+
+  it("Codex P1: a WRONG HMAC secret (rotation/mistype) → fingerprint mismatch → guard BLOCKS everything (no silent resurrection)", async () => {
+    const { orgId, reservationId, conversationId } = await seedErasedStay();
+    await eraseReservationData(orgId, reservationId); // tombstones written with the dev key + its fingerprint
+    await prisma.message.deleteMany({ where: { conversationId } });
+    await prisma.conversation.delete({ where: { id: conversationId } });
+    await prisma.reservation.delete({ where: { id: reservationId } });
+
+    // Operator sets a DIFFERENT secret — new hashes won't match the stored v1
+    // rows. The fingerprint check catches this and fails closed.
+    vi.stubEnv("ERASURE_HMAC_SECRET", "a-completely-different-erasure-secret-40c");
+    __resetErasureHashKey();
+    try {
+      mockProperties.mockResolvedValue([{ id: "hosp-prop-1", name: "Test Property" }]);
+      mockReservations.mockResolvedValue([
+        { id: "res-erase-1", platform: "airbnb", arrival_date: iso(-30), departure_date: iso(-27),
+          conversation_id: "conv-erase-1", last_message_at: iso(-27), guest: GUEST },
+      ]);
+      mockMessages.mockResolvedValue([
+        { id: 8201, body: "Merhaba, ben Ada Lovelace", sender_type: "guest", sender_role: "guest", created_at: iso(-28) },
+      ]);
+
+      const result = await syncHospitable(orgId);
+      expect(result.reservations).toBe(0); // fingerprint mismatch → BLOCK_ALL
+      expect(await prisma.reservation.count({ where: { sourceReference: "res-erase-1" } })).toBe(0);
+      expect(await prisma.message.count()).toBe(0);
+    } finally {
+      vi.unstubAllEnvs();
+      __resetErasureHashKey();
+    }
+  });
+
+  it("Codex P2: an OVERLAPPING stay (arrival before, departure AFTER the request) is blocked — not mistaken for new activity", async () => {
+    const { orgId, reservationId } = await seedErasedStay();
+    await eraseReservationData(orgId, reservationId); // erasedAt ≈ now
+
+    mockProperties.mockResolvedValue([{ id: "hosp-prop-1", name: "Test Property" }]);
+    mockReservations.mockResolvedValue([
+      {
+        id: "res-overlap-1", // different ref, same guest, STARTED before the request…
+        platform: "airbnb",
+        arrival_date: iso(-2), // arrival BEFORE erasedAt
+        departure_date: iso(2), // …but departs AFTER it (ongoing at request time)
+        conversation_id: "conv-overlap-1",
+        last_message_at: iso(0),
+        guest: GUEST,
+      },
+    ]);
+
+    const result = await syncHospitable(orgId);
+    // Departure-based logic would treat this as "new" (departure > erasedAt) and
+    // import it. Arrival-based correctly blocks the overlapping/erased-era stay.
+    expect(result.skipped).toBeGreaterThanOrEqual(1);
+    expect(await prisma.reservation.count({ where: { sourceReference: "res-overlap-1" } })).toBe(0);
   });
 
   it("no tombstones → the guard is inert (normal import untouched)", async () => {

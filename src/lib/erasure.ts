@@ -108,6 +108,19 @@ export function __resetErasureHashKey(): void {
   keyMissingLastReport.clear();
 }
 
+/**
+ * A short, non-reversible FINGERPRINT of the CURRENT HMAC key (Codex P1). The
+ * "v1:" hash prefix only marks the SCHEME version — it does NOT change when the
+ * SECRET VALUE changes, so a rotated/mistyped secret would silently produce
+ * hashes that no longer match the stored v1 rows and the tombstones would go
+ * quietly ineffective. Every tombstone stores this fingerprint at write time;
+ * loadErasureGuard fails CLOSED when a live row's fingerprint doesn't match the
+ * current key (see there). Derived from the key itself → reveals nothing.
+ */
+export function currentKeyFingerprint(): string {
+  return createHmac("sha256", hashKey()).update("erasure-key-fingerprint").digest("hex").slice(0, 16);
+}
+
 /** Normalize an identifier per type so the same real-world value always hashes
  *  identically (email case/space, phone formatting). Returns null when the value
  *  is too weak to be a safe match key (empty / junk-short phone). */
@@ -200,12 +213,13 @@ export interface ErasureGuard {
   /** ABSOLUTE block: this exact stay (by provider ref) was erased on request. */
   blocksSourceReference(sourceReference: string | null | undefined): boolean;
   /**
-   * Era block for a PERSON key match: true when the incoming stay belongs to the
-   * erased era (departure at/before the request's erasedAt — or unknown, which
-   * fails closed for privacy). A stay that begins after the request proceeds
-   * (new-data boundary).
+   * Era block for a PERSON key match, decided by ARRIVAL (Codex P2): the new-data
+   * boundary is "a stay that BEGINS after the request". So block when the stay
+   * arrives at/before erasedAt (erased era OR still-ongoing/overlapping at the
+   * request), and also when arrival is unknown (fail closed). Only a stay whose
+   * arrival is strictly after erasedAt is genuinely new processing → allowed.
    */
-  blocksGuestStay(input: TombstoneKeyInput, departureDate: Date | null): boolean;
+  blocksGuestStay(input: TombstoneKeyInput, arrivalDate: Date | null): boolean;
   /**
    * Extra message-era cutoff for an ALLOWED stay of a tombstoned guest: messages
    * created at/before the erasure instant never re-import (belt-and-suspenders —
@@ -250,21 +264,35 @@ export async function loadErasureGuard(
       organizationId,
       OR: [{ expiresAt: null }, { expiresAt: { gt: new Date() } }],
     },
-    select: { keyHash: true, erasedAt: true },
+    select: { keyHash: true, erasedAt: true, keyFingerprint: true },
   });
   if (rows.length === 0) return EMPTY_GUARD;
-  try {
-    hashKey(); // tombstones exist → the key MUST be available to match them
-  } catch (err) {
-    // Throttled: at most one report per org per window — the guard is loaded
-    // once per Hospitable run but once per ROW on the iCal path, and the cron
-    // fires every 2 minutes; unthrottled this would flood Sentry/logs.
+
+  // The key MUST be available AND match the one that produced these rows. A
+  // missing secret throws; a WRONG secret (rotated/mistyped) computes a
+  // fingerprint that won't match the stored one — both mean we can't reliably
+  // match, so we fail CLOSED (block everything) rather than let erased data back
+  // in silently. Report throttled per org (guard loads once per Hospitable run
+  // but once per ROW on iCal; the cron fires every 2 min).
+  const reportOnce = async (reason: string, err: unknown) => {
     const now = Date.now();
     if (now - (keyMissingLastReport.get(organizationId) ?? 0) >= KEY_MISSING_REPORT_THROTTLE_MS) {
       keyMissingLastReport.set(organizationId, now);
       const { reportError } = await import("@/lib/report-error");
-      void reportError(`erasure-guard key unavailable org:${organizationId}`, err).catch(() => {});
+      void reportError(`erasure-guard ${reason} org:${organizationId}`, err).catch(() => {});
     }
+  };
+  let fp: string;
+  try {
+    fp = currentKeyFingerprint();
+  } catch (err) {
+    await reportOnce("key unavailable", err);
+    return BLOCK_ALL_GUARD;
+  }
+  // Any live row hashed under a DIFFERENT key can no longer be matched → the
+  // current key can't guarantee protection for THIS org → block everything.
+  if (rows.some((r) => r.keyFingerprint !== fp)) {
+    await reportOnce("key fingerprint mismatch (rotation/misconfig)", new Error("tombstone key fingerprint mismatch"));
     return BLOCK_ALL_GUARD;
   }
   const byHash = new Map(rows.map((r) => [r.keyHash, r.erasedAt]));
@@ -285,11 +313,12 @@ export async function loadErasureGuard(
       const h = tombstoneKeyHash(organizationId, "source_reference", sourceReference);
       return h !== null && byHash.has(h);
     },
-    blocksGuestStay(input, departureDate) {
+    blocksGuestStay(input, arrivalDate) {
       const erasedAt = guestEraFor(input);
       if (!erasedAt) return false;
-      if (!departureDate) return true; // unknown era on an erased guest → fail closed
-      return departureDate.getTime() <= erasedAt.getTime();
+      if (!arrivalDate) return true; // unknown arrival on an erased guest → fail closed
+      // New processing ONLY when the stay begins strictly after the request.
+      return arrivalDate.getTime() <= erasedAt.getTime();
     },
     messageCutoffFor(input) {
       return guestEraFor(input);
@@ -336,6 +365,39 @@ async function loadScope(organizationId: string, reservationId: string) {
   return { reservation, conversations, convIds, inboundMessages, outboundMessages };
 }
 
+/**
+ * Which of these reservations were EXPLICITLY erased (have a source_reference
+ * tombstone) — distinct from merely retention-masked rows (Codex P1). The UI uses
+ * this so a time-based ANON_NAME row still shows the erasure button, and only a
+ * genuinely-erased row shows "permanently deleted, sync won't restore". Returns
+ * an empty set if the HMAC key is unavailable (never claim erased without proof).
+ */
+export async function reservationsWithSourceTombstone(
+  organizationId: string,
+  reservations: { id: string; sourceReference: string | null }[],
+): Promise<Set<string>> {
+  let byHash: { id: string; hash: string }[];
+  try {
+    byHash = reservations
+      .map((r) => {
+        const hash = r.sourceReference
+          ? tombstoneKeyHash(organizationId, "source_reference", r.sourceReference)
+          : null;
+        return hash ? { id: r.id, hash } : null;
+      })
+      .filter((x): x is { id: string; hash: string } => x !== null);
+  } catch {
+    return new Set(); // key unavailable → prove nothing
+  }
+  if (byHash.length === 0) return new Set();
+  const rows = await prisma.erasureTombstone.findMany({
+    where: { organizationId, keyHash: { in: byHash.map((x) => x.hash) } },
+    select: { keyHash: true },
+  });
+  const present = new Set(rows.map((r) => r.keyHash));
+  return new Set(byHash.filter((x) => present.has(x.hash)).map((x) => x.id));
+}
+
 /** What WOULD be masked — shown to the host before they confirm. No writes. */
 export async function previewReservationErasure(
   organizationId: string,
@@ -356,6 +418,7 @@ export async function previewReservationErasure(
  *  executor transaction AND re-run post-commit (verify pass) — see RACE MODEL. */
 async function maskReservationRows(
   db: Prisma.TransactionClient,
+  organizationId: string,
   reservationId: string,
   names: string[],
 ): Promise<void> {
@@ -401,6 +464,33 @@ async function maskReservationRows(
       notes: null,
     },
   });
+
+  // MessageOutbox rows carry the exact SEND text (PII) even after the Message is
+  // masked (Codex P1). Redact the body of every outbox row linked to this erased
+  // data; a not-yet-delivered, UNCLAIMED row is also canceled so the worker never
+  // delivers the sentinel. (A claimed in-flight row — durable-outbox + erasure
+  // both ON and a send to THIS guest mid-POST — has its body redacted but is left
+  // for the worker to finish: documented, vanishingly narrow, and the sentinel is
+  // non-PII.) org-scoped WHERE so a null reservationId link can't reach another tenant.
+  const outboxLink = {
+    organizationId,
+    OR: [
+      { reservationId },
+      ...(convIds.length ? [{ conversationId: { in: convIds } }] : []),
+    ],
+  };
+  await db.messageOutbox.updateMany({
+    where: {
+      ...outboxLink,
+      status: { in: ["pending", "ambiguous"] },
+      claimedBy: null,
+    },
+    data: { body: ANON_BODY, status: "canceled" },
+  });
+  await db.messageOutbox.updateMany({
+    where: { ...outboxLink, body: { not: ANON_BODY } },
+    data: { body: ANON_BODY },
+  });
 }
 
 /**
@@ -430,6 +520,8 @@ export async function eraseReservationData(
     ...conversations.map((c) => c.guestIdentifier),
   ].filter((n): n is string => Boolean(n));
 
+  const fp = currentKeyFingerprint(); // which key produced these hashes (Codex P1)
+
   await prisma.$transaction(async (tx) => {
     // Org-scoped mutual exclusion (auto-released at commit/rollback) — the same
     // lock every tombstone-scoped ingress write-transaction takes (RACE MODEL).
@@ -441,11 +533,21 @@ export async function eraseReservationData(
           keyType: k.keyType,
           keyHash: k.keyHash,
           erasedAt,
+          keyFingerprint: fp,
         })),
         skipDuplicates: true, // re-erasing the same guest → single row per key
       });
+      // A repeat erasure of the SAME guest must ADVANCE the cutoff (Codex P2):
+      // createMany(skipDuplicates) leaves a pre-existing key at its OLD erasedAt.
+      // Bump only rows that are older (exact max semantics), refresh the
+      // fingerprint, and clear any prior expiry (a fresh request has no bound
+      // unless the lawyer sets one).
+      await tx.erasureTombstone.updateMany({
+        where: { organizationId, keyHash: { in: keys.map((k) => k.keyHash) }, erasedAt: { lt: erasedAt } },
+        data: { erasedAt, keyFingerprint: fp, expiresAt: null },
+      });
     }
-    await maskReservationRows(tx, reservation.id, names);
+    await maskReservationRows(tx, organizationId, reservation.id, names);
   },
   // The lock acquire can WAIT behind a long ingress write-transaction (a big
   // thread import holds the org lock for its whole TX) — give the executor the
@@ -458,7 +560,7 @@ export async function eraseReservationData(
   // transaction can have written fresh rows the in-TX mask never saw. Re-read
   // and re-mask once — idempotent, and every later sync is blocked by the
   // now-committed tombstones anyway.
-  await maskReservationRows(prisma, reservation.id, names);
+  await maskReservationRows(prisma, organizationId, reservation.id, names);
 
   return {
     reservationId: reservation.id,

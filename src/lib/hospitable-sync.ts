@@ -211,19 +211,21 @@ export async function syncHospitable(
       // KVKK erasure semantics: an explicitly-erased stay (source_reference
       // tombstone) never re-imports — that object IS the erased data (Regulation
       // art. 8: "tekrar kullanılamaz"). A PERSON match (guest id/email/phone)
-      // blocks only stays of the erased era (departure ≤ erasedAt; unknown date
-      // fails closed); a stay beginning after the request is NEW data (§8c-3).
+      // blocks any stay that BEGINS at/before the request (arrival ≤ erasedAt;
+      // unknown arrival fails closed); only a stay beginning AFTER it is NEW data
+      // (§8c-3). Decided by ARRIVAL so an ongoing/overlapping stay at request time
+      // isn't mistaken for new activity (Codex P2).
       const g = reservation.guest;
       const guardInput = {
         guestExternalId: g?.id ? String(g.id) : null,
         guestEmail: str(g?.email) ?? null,
         guestPhone: str(g?.phone) ?? null,
       };
-      const departure = parseDate(reservation.departure_date) ?? parseDate(reservation.check_out);
+      const arrival = parseDate(reservation.arrival_date) ?? parseDate(reservation.check_in);
       const erasureBlocks = (guard: ErasureGuard): boolean =>
         !guard.isEmpty &&
         (guard.blocksSourceReference(String(reservation.id)) ||
-          guard.blocksGuestStay(guardInput, departure));
+          guard.blocksGuestStay(guardInput, arrival));
 
       // Cheap PRE-fetch gate on the run-start guard — an OPTIMIZATION ONLY
       // (saves the message fetch). It is never the write authority: the

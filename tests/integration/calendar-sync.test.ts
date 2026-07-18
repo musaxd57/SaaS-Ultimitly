@@ -401,12 +401,13 @@ describe("codex round-4: atomic legacy adoption", () => {
     });
     // Tombstone the FIRST event's UID (as the erasure executor would); the feed
     // still carries both events — exactly the re-delivery the guard must stop.
-    const { tombstoneKeyHash } = await import("@/lib/erasure");
+    const { tombstoneKeyHash, currentKeyFingerprint } = await import("@/lib/erasure");
     await prisma.erasureTombstone.create({
       data: {
         organizationId: orgId,
         keyType: "source_reference",
         keyHash: tombstoneKeyHash(orgId, "source_reference", "abc-123@airbnb.com")!,
+        keyFingerprint: currentKeyFingerprint(), // else the guard fails closed (BLOCK_ALL)
         erasedAt: new Date(),
       },
     });
