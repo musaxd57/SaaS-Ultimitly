@@ -563,7 +563,7 @@ describe("codex round-5: pending settle via the REAL handler", () => {
     const origCreate = prisma.subscription.create;
     // Emulate a racing replica: it creates the row first, our create hits P2002,
     // the handler falls back to the guarded updateMany (count 1) → settle.
-    prisma.subscription.create = (async (args: { data: Record<string, unknown> }) => {
+    prisma.subscription.create = (async (_args: { data: Record<string, unknown> }) => {
       await origCreate.call(prisma.subscription, {
         data: { organizationId: orgId, planCode: "free", status: "past_due", provider: "paddle", providerRef: "sub_p4" },
       });

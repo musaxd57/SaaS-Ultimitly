@@ -153,7 +153,7 @@ describe("KVKK explicit erasure (m40) — executor", () => {
   });
 
   it("Codex P1: outbox body carrying the send text is redacted; an unsent unclaimed row is canceled", async () => {
-    const { orgId, propertyId, reservationId, conversationId } = await seedErasedStay();
+    const { orgId, reservationId, conversationId } = await seedErasedStay();
     // A pending (unsent, unclaimed) outbox row + a sent one, both carrying PII.
     await prisma.messageOutbox.create({
       data: {

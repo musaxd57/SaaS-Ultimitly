@@ -60,7 +60,7 @@ export function AiVoiceForm({
     <Card className="max-w-2xl">
       <CardHeader>
         <CardTitle className="flex items-center gap-2 text-base">
-          <Sparkles className="size-4 text-muted-foreground" /> AI'nın Sesi
+          <Sparkles className="size-4 text-muted-foreground" /> AI&apos;nın Sesi
         </CardTitle>
       </CardHeader>
       <CardContent>

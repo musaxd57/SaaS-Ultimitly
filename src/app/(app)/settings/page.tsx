@@ -153,7 +153,7 @@ export default async function SettingsPage({
           ) : (
             <>
               <strong>Otomatik gönderim ana şalteri: KAPALI.</strong> Aşağıdaki seçenekleri açsanız
-              bile <strong>hiçbir otomatik mesaj gönderilmez</strong>. Açmak için Railway'de
+              bile <strong>hiçbir otomatik mesaj gönderilmez</strong>. Açmak için Railway&apos;de
               <code className="mx-1 rounded bg-amber-100 px-1 py-0.5">AUTO_REPLY_ENABLED=1</code>
               ayarlayın.
             </>

@@ -162,7 +162,7 @@ describe("tier-2 holding acknowledgement — model path (applyChannelAutoReply)"
 
   it("model-detected MILD complaint (keywords missed) → escalate + ack in the model's language", async () => {
     // No complaint keywords ("hiç hoş değil" dışında kalsın): keywords miss, model catches.
-    const { org, conversation } = await seed({
+    const { conversation } = await seed({
       holdingAck: true,
       guestMessage: "The vibe here is not what we hoped for at all, quite let down.",
     });
@@ -181,7 +181,7 @@ describe("tier-2 holding acknowledgement — model path (applyChannelAutoReply)"
   });
 
   it("HIGH-risk model verdict never gets the ack (silent draft + escalation only)", async () => {
-    const { org, conversation } = await seed({
+    const { conversation } = await seed({
       holdingAck: true,
       guestMessage: "Something feels seriously wrong with this place.",
     });

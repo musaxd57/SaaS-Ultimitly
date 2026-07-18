@@ -130,7 +130,7 @@ export function GuestChatSettings({
   return (
     <div className="space-y-3">
       <p className="text-xs text-muted-foreground">
-        Dairenin içine asacağınız QR'ı okutan misafir, bilgi tabanından genel sorularını yapay zekâya
+        Dairenin içine asacağınız QR&apos;ı okutan misafir, bilgi tabanından genel sorularını yapay zekâya
         sorar; çözülemeyen konu size mesaj olarak düşer. Güvenlik için kapı kodu/Wi-Fi burada
         paylaşılmaz.
       </p>
@@ -189,7 +189,7 @@ export function GuestChatSettings({
               onClick={downloadQr}
               className="inline-flex h-9 items-center gap-1.5 rounded-md bg-primary px-3 text-sm font-medium text-primary-foreground hover:bg-primary/90"
             >
-              <Download className="size-4" /> QR'ı indir (PNG)
+              <Download className="size-4" /> QR&apos;ı indir (PNG)
             </button>
             <p className="text-[11px] text-muted-foreground">
               Statik ve süresiz QR — bir kez yazdırıp daireye asın, güncellemeye gerek kalmaz.

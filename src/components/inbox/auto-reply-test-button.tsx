@@ -2,7 +2,6 @@
 
 import { useState } from "react";
 import { FlaskConical, Loader2, X, Check, Clock } from "lucide-react";
-import { cn } from "@/lib/utils";
 
 interface Preview {
   guestIdentifier: string;

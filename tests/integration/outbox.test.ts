@@ -446,7 +446,7 @@ describe("outbox Codex P1/P2 — reservation rate limit + AI send-time veto", ()
     const { orgId, propertyId } = await makeOrgWithProperty();
     const c = await makeConvo(propertyId);
     const r = await enqueueOutbound(baseArgs(orgId, c.id));
-    let clock = Date.now();
+    const clock = Date.now();
     const now = () => new Date(clock);
     const send: OutboxSendFn = async () => ({ ok: false, error: "Hospitable API hatası (HTTP 429)", retryAfterMs: 45_000 });
     await drainOutboxOnce({ send, tokenFor: async () => "t", now });

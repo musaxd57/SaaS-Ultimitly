@@ -437,7 +437,7 @@ export function LandingPage() {
             Kurulumu 20 saniyede izleyin
           </Reveal>
           <Reveal as="p" delay={80} className="mx-auto mt-3 max-w-xl text-center text-muted-foreground">
-            Ücretsiz dene → hesap aç → e-posta onayı → bağlantıyı kur → token'ı yapıştır. Hepsi bu.
+            Ücretsiz dene → hesap aç → e-posta onayı → bağlantıyı kur → token&apos;ı yapıştır. Hepsi bu.
           </Reveal>
           <Reveal delay={120} className="mt-10">
             <DemoFrame />

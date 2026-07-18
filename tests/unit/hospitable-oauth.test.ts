@@ -6,7 +6,6 @@ import {
   buildAuthorizeUrl,
   exchangeCodeForToken,
   refreshAccessToken,
-  HospitableOAuthError,
   type HospitableOAuthConfig,
 } from "@/lib/hospitable-oauth";
 

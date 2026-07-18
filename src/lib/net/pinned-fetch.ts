@@ -115,6 +115,10 @@ export function fetchFeedText(rawUrl: string, opts: FeedFetchOptions): Promise<s
 
   return new Promise<string>((resolve, reject) => {
     let settled = false;
+    // Assigned exactly once (see setTimeout below), but AFTER `req` exists (the
+    // callback destroys req), so it can't be a const at declaration; `cleanup`
+    // only runs once that single assignment has happened.
+    // eslint-disable-next-line prefer-const
     let deadline: NodeJS.Timeout | undefined;
     const cleanup = () => {
       if (deadline) clearTimeout(deadline);

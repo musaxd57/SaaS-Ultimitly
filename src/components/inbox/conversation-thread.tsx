@@ -238,7 +238,7 @@ export function ConversationThread({ conversationId, messages, status, priority,
     setShowTemplates(false);
   }
 
-  async function translateMessage(messageId: string, body: string) {
+  async function translateMessage(messageId: string) {
     if (translations[messageId]) {
       // Toggle off
       setTranslations((prev) => {
@@ -329,7 +329,7 @@ export function ConversationThread({ conversationId, messages, status, priority,
               <div className="mt-0.5 px-1">
                 <button
                   type="button"
-                  onClick={() => translateMessage(m.id, m.body)}
+                  onClick={() => translateMessage(m.id)}
                   disabled={translatingId === m.id}
                   className="flex items-center gap-1 text-[10px] text-muted-foreground hover:text-primary"
                 >

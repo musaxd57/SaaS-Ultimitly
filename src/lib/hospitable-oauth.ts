@@ -16,7 +16,7 @@ import { randomBytes } from "crypto";
 // ---------------------------------------------------------------------------
 
 export const OAUTH_STATE_COOKIE = "hospitable_oauth_state";
-const STATE_MAX_AGE = 10 * 60; // 10 minutes — just long enough for the redirect round-trip
+export const STATE_MAX_AGE = 10 * 60; // 10 minutes — just long enough for the redirect round-trip
 const DEFAULT_AUTHORIZE_URL = "https://auth.hospitable.com/oauth/authorize";
 const DEFAULT_TOKEN_URL = "https://auth.hospitable.com/oauth/token";
 

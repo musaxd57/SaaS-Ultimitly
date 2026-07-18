@@ -255,7 +255,6 @@ export interface ReservationEmailData {
 export function reservationCreatedEmail(
   reservation: ReservationEmailData,
   property: PropertyEmailData,
-  orgName: string,
 ): string {
   const arrivalLabel = new Date(reservation.arrivalDate).toLocaleDateString("tr-TR", {
     weekday: "long",

@@ -8,6 +8,7 @@ import {
   buildAuthorizeUrl,
   packOAuthStateCookie,
   OAUTH_STATE_COOKIE,
+  STATE_MAX_AGE,
 } from "@/lib/hospitable-oauth";
 
 // Starts the "Hospitable ile Bağlan" one-click OAuth flow: mints a CSRF state,
@@ -44,7 +45,7 @@ export async function GET(req: NextRequest) {
     secure: process.env.NODE_ENV === "production",
     sameSite: "lax",
     path: "/",
-    maxAge: 600,
+    maxAge: STATE_MAX_AGE,
   });
   return res;
 }

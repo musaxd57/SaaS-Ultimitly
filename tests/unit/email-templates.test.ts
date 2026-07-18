@@ -29,7 +29,6 @@ describe("email templates escape guest/user-controlled HTML", () => {
         notes: xss,
       },
       { name: "Nuve 2" },
-      "Nuve",
     );
     expect(html).not.toContain("<img src=x");
     expect(html).toContain("&lt;img src=x");

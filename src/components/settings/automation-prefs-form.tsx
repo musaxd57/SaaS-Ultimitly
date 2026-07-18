@@ -112,10 +112,10 @@ export function AutomationPrefsForm({
           <span className="font-medium">Hafif şikayette otomatik ön-yanıt</span>
           <span className="block text-xs text-muted-foreground">
             Açarsanız: para/iade, iptal, güvenlik, kötü-yorum tehdidi gibi sinyaller İÇERMEYEN hafif
-            şikayetlerde misafire anında tek bir bekletme mesajı gider — "Bunun için özür dileriz.
+            şikayetlerde misafire anında tek bir bekletme mesajı gider — &ldquo;Bunun için özür dileriz.
             Mesajınızı ev sahibimize ilettim; en kısa sürede sizinle ilgilenecek. Sorunun kısa bir
-            detayını ya da fotoğrafını paylaşırsanız çözümü hızlandırır." Karar vermez, söz vermez;
-            konuşma yine "Sorunlu" olarak size düşer ve e-posta ile haber verilir. Kapalıyken (varsayılan)
+            detayını ya da fotoğrafını paylaşırsanız çözümü hızlandırır.&rdquo; Karar vermez, söz vermez;
+            konuşma yine &ldquo;Sorunlu&rdquo; olarak size düşer ve e-posta ile haber verilir. Kapalıyken (varsayılan)
             şikayetlere hiçbir otomatik mesaj gitmez.
           </span>
         </span>
@@ -174,12 +174,12 @@ export function AutomationPrefsForm({
         <span className="text-sm">
           <span className="font-medium">Mesajlardan otomatik görev oluştur</span>
           <span className="block text-xs text-muted-foreground">
-            Açarsanız: bir misafir mesajı size "Sorunlu" olarak düştüğünde ve içinde fiziksel bir
+            Açarsanız: bir misafir mesajı size &ldquo;Sorunlu&rdquo; olarak düştüğünde ve içinde fiziksel bir
             operasyon sinyali varsa (arıza/bozuk cihaz, eksik malzeme, temizlik şikayeti) otomatik
             olarak bir <span className="font-medium">görev</span> açılır — kategori, öncelik ve teslim
             süresiyle (SLA). Aynı mülkte aynı gün aynı konu için tek görev oluşur (mükerrer engellenir).
             Görev, Görevler (Kanban) ekranınıza düşer. Kapalıyken (varsayılan) davranış aynı kalır:
-            sadece "Sorunlu" işareti + e-posta, görev açılmaz.
+            sadece &ldquo;Sorunlu&rdquo; işareti + e-posta, görev açılmaz.
           </span>
         </span>
       </label>
@@ -195,9 +195,9 @@ export function AutomationPrefsForm({
           <span className="font-medium">Misafir mesajından ekstra malzeme talebi</span>
           <span className="block text-xs text-muted-foreground">
             Açarsanız: bir misafir <span className="font-medium">açıkça</span> ekstra havlu/çarşaf
-            <span className="font-medium"> isterse</span> (ör. "bir havlu daha alabilir miyiz"), o dairenin
-            Hazırlık planına <span className="font-medium">+1</span> eklenir. Soru ("ekstra havlu var mı?"),
-            fiyat ("ücretli mi?") ve ret ("istemiyorum/getirmeyin") <span className="font-medium">tetiklemez</span>.
+            <span className="font-medium"> isterse</span> (ör. &ldquo;bir havlu daha alabilir miyiz&rdquo;), o dairenin
+            Hazırlık planına <span className="font-medium">+1</span> eklenir. Soru (&ldquo;ekstra havlu var mı?&rdquo;),
+            fiyat (&ldquo;ücretli mi?&rdquo;) ve ret (&ldquo;istemiyorum/getirmeyin&rdquo;) <span className="font-medium">tetiklemez</span>.
             Mesaj çözümlemesi kusursuz değildir; bu yüzden varsayılan KAPALI — açmak sizin tercihiniz.
           </span>
         </span>

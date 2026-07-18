@@ -1,7 +1,7 @@
 import { describe, it, expect, beforeEach, vi } from "vitest";
 import { NextRequest } from "next/server";
 import { prisma, resetDb, makeOrgWithProperty } from "../helpers/db";
-import { listOutboxDeliveries, requeueFailedOutbox, canManualRetry } from "@/lib/outbox/ops";
+import { listOutboxDeliveries, canManualRetry } from "@/lib/outbox/ops";
 import { drainOutboxOnce, type OutboxSendFn } from "@/lib/outbox/worker";
 import type { SessionPayload } from "@/lib/auth";
 

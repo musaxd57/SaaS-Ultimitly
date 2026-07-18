@@ -701,11 +701,6 @@ export async function applyReservationCreatedRules(reservationId: string): Promi
     city: r.property.city,
   };
 
-  const orgRecord = await prisma.organization.findUnique({
-    where: { id: r.property.organizationId },
-    select: { name: true },
-  });
-
   const html = reservationCreatedEmail(
     {
       id: r.id,
@@ -720,7 +715,6 @@ export async function applyReservationCreatedRules(reservationId: string): Promi
       notes: r.notes,
     },
     propertyData,
-    orgRecord?.name ?? "GuestOps",
   );
 
   for (const user of orgUsers) {
