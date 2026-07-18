@@ -18,6 +18,9 @@ import { CalendarSources } from "@/components/properties/calendar-sources";
 import { GuestChatSettings } from "@/components/properties/guest-chat-settings";
 import { ReservationPinControl } from "@/components/properties/reservation-pin-control";
 import { listReservationsForPinManagement } from "@/lib/guest-chat-pin";
+import { GuestErasureControl } from "@/components/properties/guest-erasure-control";
+import { guestErasureEnabled } from "@/lib/erasure";
+import { ANON_NAME } from "@/lib/data-retention";
 import { generateCalendarToken } from "@/lib/export/ics";
 import { KB_CATEGORY, RESERVATION_STATUS } from "@/lib/constants";
 import { formatDate } from "@/lib/utils";
@@ -249,6 +252,9 @@ export default async function PropertyDetailPage({
                     </div>
                     {showPinControls && r.status !== "cancelled" ? (
                       <ReservationPinControl reservationId={r.id} initialHasPin={Boolean(r.chatPinHash)} />
+                    ) : null}
+                    {canManage && guestErasureEnabled() ? (
+                      <GuestErasureControl reservationId={r.id} initialErased={r.guestName === ANON_NAME} />
                     ) : null}
                   </div>
                 ))
