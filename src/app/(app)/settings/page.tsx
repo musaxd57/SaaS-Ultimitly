@@ -262,51 +262,54 @@ export default async function SettingsPage({
     </>
   );
 
-  // ── İşletme Ayarları › Bağlantılar — channel connection + calendar feed ──────
-  const connectionsView = (
-    <>
-      {canManageChannel && hospitableInfo ? (
-        <Card id="hospitable" className="scroll-mt-24">
-          <CardHeader>
-            <CardTitle className="text-base">Airbnb / Booking Bağlantısı</CardTitle>
-          </CardHeader>
-          <CardContent>
-            <HospitableConnectCard
-              info={hospitableInfo}
-              oauthEnabled={isHospitableOAuthConfigured()}
-              oauthResult={hospitableResult}
-            />
-          </CardContent>
-        </Card>
-      ) : (
-        <Card id="hospitable" className="scroll-mt-24">
-          <CardHeader>
-            <CardTitle className="text-base">Kanal Bağlantısı (Airbnb / Booking)</CardTitle>
-          </CardHeader>
-          <CardContent>
-            <p className="text-sm text-muted-foreground">
-              Airbnb / Booking bağlantınız <strong>operatörünüz tarafından kurulur ve yönetilir</strong>.
-              Sizin bir şey yapmanıza gerek yok — bağlantı kurulduğunda misafir mesajlarınız otomatik
-              olarak buraya akmaya başlar.
-            </p>
-          </CardContent>
-        </Card>
-      )}
-
-      <BulkTimesForm
-        defaultCheckIn={sampleProperty?.checkInTime ?? "14:00"}
-        defaultCheckOut={sampleProperty?.checkOutTime ?? "11:00"}
-      />
-
-      <Card>
+  // ── İşletme Ayarları › Bağlantılar — channel connection only ─────────────────
+  const hospitableView =
+    canManageChannel && hospitableInfo ? (
+      <Card id="hospitable" className="scroll-mt-24">
         <CardHeader>
-          <CardTitle className="text-base">Takvim Akışı Gizliliği</CardTitle>
+          <CardTitle className="text-base">Airbnb / Booking Bağlantısı</CardTitle>
         </CardHeader>
         <CardContent>
-          <IcalPrivacyForm showGuestName={org?.icalShowGuestName ?? false} />
+          <HospitableConnectCard
+            info={hospitableInfo}
+            oauthEnabled={isHospitableOAuthConfigured()}
+            oauthResult={hospitableResult}
+          />
         </CardContent>
       </Card>
-    </>
+    ) : (
+      <Card id="hospitable" className="scroll-mt-24">
+        <CardHeader>
+          <CardTitle className="text-base">Kanal Bağlantısı (Airbnb / Booking)</CardTitle>
+        </CardHeader>
+        <CardContent>
+          <p className="text-sm text-muted-foreground">
+            Airbnb / Booking bağlantınız <strong>operatörünüz tarafından kurulur ve yönetilir</strong>.
+            Sizin bir şey yapmanıza gerek yok — bağlantı kurulduğunda misafir mesajlarınız otomatik
+            olarak buraya akmaya başlar.
+          </p>
+        </CardContent>
+      </Card>
+    );
+
+  // Check-in/out times feed AI replies + welcome/check-in messages → AI ve Otomasyon.
+  const bulkTimesView = (
+    <BulkTimesForm
+      defaultCheckIn={sampleProperty?.checkInTime ?? "14:00"}
+      defaultCheckOut={sampleProperty?.checkOutTime ?? "11:00"}
+    />
+  );
+
+  // Calendar-feed guest-name privacy → Genel.
+  const icalPrivacyView = (
+    <Card>
+      <CardHeader>
+        <CardTitle className="text-base">Takvim Akışı Gizliliği</CardTitle>
+      </CardHeader>
+      <CardContent>
+        <IcalPrivacyForm showGuestName={org?.icalShowGuestName ?? false} />
+      </CardContent>
+    </Card>
   );
 
   // ── İşletme Ayarları › Bildirimler — complaint alert email ───────────────────
@@ -497,13 +500,15 @@ export default async function SettingsPage({
       <>
         {aiView}
         {autoMessagesView}
+        {bulkTimesView}
       </>
     ),
-    baglantilar: connectionsView,
+    baglantilar: hospitableView,
     genel: (
       <>
         {notificationsView}
         {timezoneView}
+        {icalPrivacyView}
       </>
     ),
     faturalandirma: billingView,

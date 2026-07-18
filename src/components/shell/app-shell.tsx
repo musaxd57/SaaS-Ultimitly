@@ -181,9 +181,14 @@ export function AppShell({ user, superAdmin, guestChatEnabled, impersonating, pl
     // gibi yayılmasın"): same layout, everything ~5% smaller, like a built-in
     // Ctrl-minus. CSS zoom scales layout correctly (unlike transform) and is
     // supported everywhere modern; older Firefox ignores it → falls back to 100%.
-    <div className="min-h-screen lg:grid lg:grid-cols-[16rem_1fr]" style={{ zoom: 0.95 }}>
+    //
+    // Height compensation: `zoom:.95` also scales `100vh` down to 95% of the real
+    // viewport, which left the sidebar/main ~5vh SHORT of the bottom ("havada
+    // duruyor"). Sizing full-height elements to `100vh / .95` makes them render at
+    // exactly 100vh after the zoom. (If the .95 ever changes, update these too.)
+    <div className="min-h-[calc(100vh/0.95)] lg:grid lg:grid-cols-[16rem_1fr]" style={{ zoom: 0.95 }}>
       {/* Desktop sidebar */}
-      <aside className="sticky top-0 hidden h-screen border-r border-border bg-card lg:block">
+      <aside className="sticky top-0 hidden h-[calc(100vh/0.95)] border-r border-border bg-card lg:block">
         {sidebarBody}
       </aside>
 
@@ -202,7 +207,7 @@ export function AppShell({ user, superAdmin, guestChatEnabled, impersonating, pl
       ) : null}
 
       {/* Main column */}
-      <div className="flex min-h-screen flex-col">
+      <div className="flex min-h-[calc(100vh/0.95)] flex-col">
         {impersonating ? (
           <div className="flex flex-wrap items-center justify-between gap-2 bg-amber-500 px-4 py-2 text-sm font-medium text-amber-950 sm:px-6">
             <span>
