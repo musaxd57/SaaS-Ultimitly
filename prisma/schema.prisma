@@ -295,6 +295,10 @@ model Property {
   calendarSources  CalendarSource[]
 
   @@index([organizationId])
+  // Public QR concierge chat resolves a property by its secret chatToken on every
+  // guest message; index that lookup (chatToken is app-level unique, not a DB
+  // @unique — see the field comment — so a plain index is the right tool).
+  @@index([chatToken])
 }
 
 // Durable per-apartment daily counter for PAID guest-chat AI calls. The in-memory
