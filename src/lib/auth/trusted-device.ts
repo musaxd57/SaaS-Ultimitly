@@ -44,7 +44,11 @@ export async function verifyTrustedDeviceToken(
 ): Promise<boolean> {
   if (!token) return false;
   try {
-    const { payload } = await jwtVerify(token, getSecretKey());
+    // Pin the algorithm (matches session.ts): without an allowlist, jose would
+    // accept ANY alg the token header declares. Our tokens are always HS256, so
+    // reject anything else — defense-in-depth against algorithm-confusion. (Even
+    // if bypassed this only skips the 2FA prompt; the password is still required.)
+    const { payload } = await jwtVerify(token, getSecretKey(), { algorithms: ["HS256"] });
     return (
       payload.purpose === PURPOSE &&
       payload.userId === userId &&
