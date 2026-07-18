@@ -1,7 +1,7 @@
 import { describe, it, expect, beforeEach, vi } from "vitest";
 import { NextRequest } from "next/server";
 import { prisma, resetDb } from "../helpers/db";
-import { hashPassword } from "@/lib/auth/password";
+import { hashPassword, verifyPassword, dummyVerifyPassword } from "@/lib/auth/password";
 import { __resetRateLimit } from "@/lib/rate-limit";
 import { encryptSecret } from "@/lib/crypto";
 import { generateSecret, totp } from "@/lib/auth/totp";
@@ -10,6 +10,17 @@ import { generateSecret, totp } from "@/lib/auth/totp";
 vi.mock("@/lib/auth", async (orig) => {
   const actual = await orig<typeof import("@/lib/auth")>();
   return { ...actual, setSessionCookie: vi.fn().mockResolvedValue(undefined) };
+});
+
+// Keep the REAL bcrypt behaviour, but make the two verify paths observable so we
+// can pin the constant-time branch (dummy compare runs for an unknown email).
+vi.mock("@/lib/auth/password", async (orig) => {
+  const actual = await orig<typeof import("@/lib/auth/password")>();
+  return {
+    ...actual,
+    verifyPassword: vi.fn(actual.verifyPassword),
+    dummyVerifyPassword: vi.fn(actual.dummyVerifyPassword),
+  };
 });
 
 import { POST } from "@/app/api/auth/login/route";
@@ -48,6 +59,21 @@ describe("POST /api/auth/login", () => {
   it("rejects a malformed body with 400", async () => {
     const res = await POST(loginReq({ email: "not-an-email", password: "" }));
     expect(res.status).toBe(400);
+  });
+
+  it("unknown email still runs a bcrypt comparison (constant-time; blocks user enumeration)", async () => {
+    const res = await POST(loginReq({ email: "ghost@example.com", password: "whatever" }, "7.0.0.1"));
+    expect(res.status).toBe(401);
+    // The dummy compare ran (equal work to a real verify); the real verify did NOT.
+    expect(vi.mocked(dummyVerifyPassword)).toHaveBeenCalledTimes(1);
+    expect(vi.mocked(verifyPassword)).not.toHaveBeenCalled();
+  });
+
+  it("known email runs the REAL verify, never the dummy", async () => {
+    const res = await POST(loginReq({ email: "musa@example.com", password: "nope" }, "7.0.0.2"));
+    expect(res.status).toBe(401);
+    expect(vi.mocked(verifyPassword)).toHaveBeenCalledTimes(1);
+    expect(vi.mocked(dummyVerifyPassword)).not.toHaveBeenCalled();
   });
 
   it("rate-limits after 10 attempts from the same IP (429 + Retry-After)", async () => {

@@ -1,7 +1,7 @@
 import { NextResponse, type NextRequest } from "next/server";
 import { prisma } from "@/lib/db";
 import { loginSchema, zodFieldErrors } from "@/lib/validators";
-import { verifyPassword } from "@/lib/auth/password";
+import { verifyPassword, dummyVerifyPassword } from "@/lib/auth/password";
 import { setSessionCookie, hasTrustedDevice, setTrustedDeviceCookie } from "@/lib/auth";
 import { badRequest, jsonOk, serverError, parseJsonBody, payloadTooLarge } from "@/lib/api";
 import { rateLimit, clientIp } from "@/lib/rate-limit";
@@ -42,7 +42,16 @@ export async function POST(req: NextRequest) {
     }
 
     const user = await prisma.user.findUnique({ where: { email } });
-    const ok = user ? await verifyPassword(parsed.data.password, user.passwordHash) : false;
+    // Constant-time: ALWAYS spend one bcrypt comparison. When the email is
+    // unknown there is no hash to check, so compare against a fixed dummy hash
+    // instead — otherwise the fast "no user" path leaks (by response latency)
+    // which emails are registered (user enumeration).
+    let ok = false;
+    if (user) {
+      ok = await verifyPassword(parsed.data.password, user.passwordHash);
+    } else {
+      await dummyVerifyPassword(parsed.data.password);
+    }
     if (!user || !ok) {
       // Record a failed attempt against a KNOWN account (targeted-attack signal).
       // Unknown emails have no org to scope to — the rate limiter covers those.
