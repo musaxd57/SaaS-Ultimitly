@@ -99,6 +99,7 @@ export function AiTestCard({ properties }: { properties: { id: string; name: str
         <select
           value={propertyId}
           onChange={(e) => setPropertyId(e.target.value)}
+          aria-label="Test için daire seçin"
           className="w-full rounded-md border border-input bg-background px-3 py-2 text-sm"
         >
           {properties.map((p) => (

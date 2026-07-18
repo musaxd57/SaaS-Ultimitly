@@ -1,6 +1,6 @@
 // @vitest-environment jsdom
 import { describe, it, expect, vi, afterEach } from "vitest";
-import { render, screen, cleanup } from "@testing-library/react";
+import { render, screen, cleanup, fireEvent } from "@testing-library/react";
 
 vi.mock("next/navigation", () => ({ useRouter: () => ({ push: vi.fn(), refresh: vi.fn() }) }));
 
@@ -20,5 +20,12 @@ describe("DeleteAccountCard — silinir/saklanır transparency (KVKK)", () => {
     expect(screen.getByText(/finansal iskeleti/i)).toBeTruthy();
     // the irreversible action is still present
     expect(screen.getByRole("button", { name: /kalıcı olarak sil/i })).toBeTruthy();
+  });
+
+  it("labels the confirm password input for screen readers (a11y)", () => {
+    render(<DeleteAccountCard />);
+    fireEvent.click(screen.getByRole("button", { name: /kalıcı olarak sil/i }));
+    // getByLabelText matches the aria-label (NOT the placeholder) → pins the label.
+    expect(screen.getByLabelText("Şifreniz")).toBeTruthy();
   });
 });

@@ -91,6 +91,7 @@ export function DeleteAccountCard() {
             type="password"
             value={password}
             placeholder="Şifreniz"
+            aria-label="Şifreniz"
             autoComplete="current-password"
             onChange={(e) => setPassword(e.target.value)}
           />

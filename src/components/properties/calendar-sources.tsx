@@ -179,11 +179,13 @@ export function CalendarSources({ propertyId, sources, canManage = true }: Props
         <div className="space-y-2 rounded-lg border border-dashed border-border p-3">
           <Input
             placeholder="Kaynak adı (örn. Airbnb, Booking)"
+            aria-label="Takvim kaynağı adı"
             value={label}
             onChange={(e) => setLabel(e.target.value)}
           />
           <Input
             placeholder="https://www.airbnb.com/calendar/ical/...ics"
+            aria-label="Takvim (.ics) bağlantısı"
             value={url}
             onChange={(e) => setUrl(e.target.value)}
           />
