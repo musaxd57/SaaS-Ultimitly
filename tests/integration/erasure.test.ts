@@ -122,11 +122,11 @@ describe("KVKK explicit erasure (m40) — executor", () => {
     expect(outbound.body).not.toContain("Ada"); // host record kept, name redacted
     expect(outbound.body).toContain("[Misafir]");
 
-    // Tombstones: 4 keys, hex-only, and NO raw identifier anywhere in the table.
+    // Tombstones: 4 keys, versioned hex-only, and NO raw identifier in the table.
     const tombs = await prisma.erasureTombstone.findMany();
     expect(tombs).toHaveLength(4);
     for (const t of tombs) {
-      expect(t.keyHash).toMatch(/^[0-9a-f]{64}$/);
+      expect(t.keyHash).toMatch(/^v1:[0-9a-f]{64}$/); // versioned — rotation ships as v2, never a silent mismatch
       expect(t.keyHash).not.toContain("ada");
       expect(t.keyHash.includes("5551234567")).toBe(false);
     }
@@ -150,6 +150,86 @@ describe("KVKK explicit erasure (m40) — executor", () => {
     expect(await eraseReservationData(other.id, reservationId)).toBeNull();
     const res = await prisma.reservation.findUniqueOrThrow({ where: { id: reservationId } });
     expect(res.guestName).toBe(GUEST.full_name); // untouched
+  });
+
+  it("TOCTOU (Codex-1): PII written by a racing stale-guard sync in the commit window is caught by the VERIFY PASS", async () => {
+    // A sync run that loaded its guard BEFORE the erasure can still be mid-flight
+    // while the erasure transaction commits — and can land fresh PII rows the
+    // in-TX mask never saw. The __afterTxHook seam injects exactly that write into
+    // the commit→verify window; without the post-commit verify pass this test is
+    // RED (the racer's conversation + message keep the guest's name).
+    const { orgId, propertyId, reservationId } = await seedErasedStay();
+    let racerConvId = "";
+    const scope = await eraseReservationData(orgId, reservationId, async () => {
+      const racerConv = await prisma.conversation.create({
+        data: {
+          propertyId,
+          reservationId,
+          externalReservationId: "res-erase-1",
+          channel: "airbnb",
+          guestIdentifier: GUEST.full_name, // the racing sync writes the REAL name back
+          status: "answered",
+          priority: "standard",
+          lastMessageAt: new Date(),
+        },
+      });
+      racerConvId = racerConv.id;
+      await prisma.message.create({
+        data: {
+          conversationId: racerConv.id,
+          direction: "inbound",
+          senderName: GUEST.full_name,
+          body: "Merhaba, ben Ada Lovelace (yarışan sync'ten)",
+          externalId: "race-m1",
+        },
+      });
+      await prisma.reservation.update({
+        where: { id: reservationId },
+        data: { guestName: GUEST.full_name, guestEmail: GUEST.email }, // racer un-scrubs the row
+      });
+    });
+    expect(scope).not.toBeNull();
+
+    // Verify pass re-masked EVERYTHING the racer wrote.
+    const res = await prisma.reservation.findUniqueOrThrow({ where: { id: reservationId } });
+    expect(res.guestName).toBe(ANON_NAME);
+    expect(res.guestEmail).toBeNull();
+    const conv = await prisma.conversation.findUniqueOrThrow({ where: { id: racerConvId } });
+    expect(conv.guestIdentifier).toBe(ANON_ID);
+    const msg = await prisma.message.findFirstOrThrow({ where: { conversationId: racerConvId } });
+    expect(msg.body).toBe(ANON_BODY);
+    expect(msg.body).not.toContain("Ada");
+  });
+
+  it("m41 expiry: a tombstone past its legal retention bound stops guarding (data may flow again)", async () => {
+    const { orgId, reservationId, conversationId } = await seedErasedStay();
+    await eraseReservationData(orgId, reservationId);
+    await prisma.message.deleteMany({ where: { conversationId } });
+    await prisma.conversation.delete({ where: { id: conversationId } });
+    await prisma.reservation.delete({ where: { id: reservationId } });
+    // Lawyer-set bound elapsed: expire EVERY tombstone of the org.
+    await prisma.erasureTombstone.updateMany({
+      where: { organizationId: orgId },
+      data: { expiresAt: new Date(Date.now() - 1000) },
+    });
+
+    mockProperties.mockResolvedValue([{ id: "hosp-prop-1", name: "Test Property" }]);
+    mockReservations.mockResolvedValue([
+      {
+        id: "res-erase-1",
+        platform: "airbnb",
+        arrival_date: iso(-30),
+        departure_date: iso(-27),
+        conversation_id: "conv-erase-1",
+        last_message_at: iso(-27),
+        guest: GUEST,
+      },
+    ]);
+
+    const result = await syncHospitable(orgId);
+    // Expired guard = inert → the reservation imports again (retention bound honored).
+    expect(result.reservations).toBe(1);
+    expect(await prisma.reservation.count({ where: { sourceReference: "res-erase-1" } })).toBe(1);
   });
 });
 

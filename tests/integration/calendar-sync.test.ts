@@ -406,7 +406,7 @@ describe("codex round-4: atomic legacy adoption", () => {
       data: {
         organizationId: orgId,
         keyType: "source_reference",
-        keyHash: tombstoneKeyHash("source_reference", "abc-123@airbnb.com")!,
+        keyHash: tombstoneKeyHash(orgId, "source_reference", "abc-123@airbnb.com")!,
         erasedAt: new Date(),
       },
     });

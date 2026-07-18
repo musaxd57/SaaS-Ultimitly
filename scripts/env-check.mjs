@@ -60,6 +60,29 @@ export function checkProductionEnv(env) {
     }
   }
 
+  // KVKK guest-erasure tombstone HMAC secret (m40). ONLY enforced when the
+  // host-facing surface is switched on (GUEST_ERASURE_ENABLED=1) — with it off no
+  // tombstone can be created, the ingress guards are inert on an empty table, and
+  // an env-off deployment is never blocked. When on, a DEDICATED secret is
+  // required (never the session/crypto secrets doubled up): tombstone matching
+  // must survive an AUTH_SECRET/ENCRYPTION_KEY rotation, and a leak of one secret
+  // must not let anyone recompute guest-identifier hashes. NEVER rotate it once
+  // tombstones exist — matching would silently break (erasure guard goes blind).
+  if ((env.GUEST_ERASURE_ENABLED ?? "").trim() === "1") {
+    const erasureSecret = (env.ERASURE_HMAC_SECRET ?? "").trim();
+    if (!erasureSecret) {
+      errors.push("ERASURE_HMAC_SECRET is missing — REQUIRED when GUEST_ERASURE_ENABLED=1 (no fallback in production).");
+    } else if (erasureSecret === DEV_PLACEHOLDER_SECRET) {
+      errors.push("ERASURE_HMAC_SECRET is the dev placeholder — set a real random secret.");
+    } else if (erasureSecret === authSecret) {
+      errors.push("ERASURE_HMAC_SECRET must be independent of AUTH_SECRET (they are currently equal).");
+    } else if (erasureSecret === encKey) {
+      errors.push("ERASURE_HMAC_SECRET must be independent of ENCRYPTION_KEY (they are currently equal).");
+    } else if (erasureSecret.length < 32) {
+      errors.push("ERASURE_HMAC_SECRET must be at least 32 characters.");
+    }
+  }
+
   // Private object storage (S3/R2) — ONLY enforced when the feature is switched
   // on (STORAGE_ENABLED=1/true). With it off the storage system is dormant and
   // none of these are needed, so an env-off deployment is never blocked. When

@@ -958,8 +958,13 @@ model ErasureTombstone {
   id             String   @id @default(cuid())
   organizationId String
   keyType        String // source_reference | guest_external_id | guest_email | guest_phone (closed set, app-enforced)
-  keyHash        String // HMAC-SHA256("type:normalized-value") hex — never the raw value
+  keyHash        String // versioned "v1:" + HMAC-SHA256("orgId|type:normalized-value") hex — never the raw value (org in the domain: same identifier in two tenants hashes differently)
   erasedAt       DateTime // cutoff: matching data at/before this instant never re-imports
+  // Legal retention bound for the tombstone ITSELF (m41): null = kept while the
+  // org lives (current default — the provider can re-send at any time). If the
+  // lawyer sets a bounded period, rows get a date and the guard ignores them
+  // once expired. [AVUKAT İMZASI] decides which; code supports both.
+  expiresAt      DateTime?
   createdAt      DateTime @default(now())
 
   organization Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)

@@ -22,6 +22,7 @@ function gate(env: Record<string, string>, prod = true) {
       ...process.env,
       NODE_ENV: prod ? "production" : "development",
       AUTH_SECRET: "", ENCRYPTION_KEY: "", QR_PIN_ENABLED: "", QR_PIN_PEPPER: "",
+      GUEST_ERASURE_ENABLED: "", ERASURE_HMAC_SECRET: "",
       ...env,
     },
     encoding: "utf8",
@@ -64,6 +65,29 @@ describe("checkProductionEnv (pure gate logic — single source)", () => {
     expect(
       checkProductionEnv({ ...base, QR_PIN_ENABLED: "1", QR_PIN_PEPPER: DEV_PLACEHOLDER_SECRET }).errors.join(),
     ).toMatch(/placeholder/);
+  });
+
+  it("ERASURE_HMAC_SECRET (m40, Codex-2): required only when GUEST_ERASURE_ENABLED=1, dedicated + ≥32 + ≠AUTH_SECRET/ENCRYPTION_KEY", () => {
+    const base = { AUTH_SECRET: REAL_AUTH, ENCRYPTION_KEY: REAL_ENC };
+    const REAL_ERASURE = "a-fourth-distinct-erasure-hmac-secret-40x";
+    // Feature OFF → no secret needed (deploy never blocked; guards inert on empty table).
+    expect(checkProductionEnv({ ...base }).errors).toHaveLength(0);
+    expect(
+      checkProductionEnv({ ...base, GUEST_ERASURE_ENABLED: "1", ERASURE_HMAC_SECRET: REAL_ERASURE }).errors,
+    ).toHaveLength(0);
+    // Feature ON → the dedicated secret is enforced, never a doubled-up secret.
+    expect(checkProductionEnv({ ...base, GUEST_ERASURE_ENABLED: "1" }).errors.join()).toMatch(
+      /ERASURE_HMAC_SECRET is missing/,
+    );
+    expect(
+      checkProductionEnv({ ...base, GUEST_ERASURE_ENABLED: "1", ERASURE_HMAC_SECRET: REAL_AUTH }).errors.join(),
+    ).toMatch(/independent of AUTH_SECRET/);
+    expect(
+      checkProductionEnv({ ...base, GUEST_ERASURE_ENABLED: "1", ERASURE_HMAC_SECRET: REAL_ENC }).errors.join(),
+    ).toMatch(/independent of ENCRYPTION_KEY/);
+    expect(
+      checkProductionEnv({ ...base, GUEST_ERASURE_ENABLED: "1", ERASURE_HMAC_SECRET: "too-short" }).errors.join(),
+    ).toMatch(/at least 32/);
   });
 });
 
