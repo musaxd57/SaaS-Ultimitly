@@ -171,7 +171,21 @@ sorumlusu) 30-gün yükümlülüğünü yerine getirebilsin diye gereken tasarı
    default KAPALI; guard'lar HER ZAMAN AÇIK** (tombstone yoksa no-op — hiçbir şey hash'lenmez).
    Kırmızı-önce testler: satırlar tamamen silinmişken provider re-send → hiçbir şey re-import
    olmaz · yeni-veri sınırı (sonraki konaklama girer, pre-erasure mesaj girmez) · era-bloğu ·
-   iCal UID-guard · flag-off 404 · staff 403 · IDOR · at-rest ham-PII-yok. **[AVUKAT İMZASI]**
-   önerilerin onayı için hâlâ beklenir (flag açılmadan önce); belgelenmiş tavizler: CSV/manuel
-   import guard'lanmadı (host'un kendi dosyası — sorumluluk host'ta) · kanal (Airbnb/Hospitable)
-   kopyasını Lixus silemez, UI bunu açıkça söyler.
+   iCal UID-guard · flag-off 404 · manager/staff 403 (OWNER-only) · IDOR · at-rest ham-PII-yok.
+   **YAPISAL TOCTOU GARANTİSİ (Codex, 2. sertleştirme):** ingress yazıcıları (hospitable-sync
+   rezervasyon-TX + thread-TX; iCal satır-TX) provider verisini KİLİT DIŞINDA çeker, DB
+   yazımını erasure ile AYNI org-scoped advisory xact lock altında yapar ve guard'ı KİLİT
+   İÇİNDE taze okur → iki kesin sıralama: sync önce yazdıysa erasure ardından maskeler;
+   erasure öncedeyse sync taze tombstone'u görüp YAZMAZ. Commit-sonrası verify-pass artık
+   yalnız EK EMNİYET (ana güvence değildir). Kırmızı-önce tam-zamanlama testleri: erasure,
+   sync'in fetch'i SIRASINDA commit olur (mock içine enjekte) → in-lock guard yazımı engeller
+   (Hospitable + iCal, satırlar silinmiş varyant dahil). **FAIL-CLOSED:** tombstone VARKEN
+   `ERASURE_HMAC_SECRET` yoksa (flag sonradan kapatılsa bile) eşleşme imkânsız → guard HER
+   ŞEYİ bloklar, sync o org'a hiçbir şey almaz (testli; secret KALDIRILAMAZ — belgelendi).
+   **expiresAt ŞARTI:** UI'daki "senkron geri getiremez" vaadi yalnız `expiresAt=null`
+   (org-ömrü) iken mutlaktır; avukat süreli saklama seçerse flag O KARARA KADAR KAPALI kalır
+   ve süre ancak "upstream geçmişi artık erişilemez" garantisiyle + UI metni birlikte
+   güncellenerek kullanılabilir. **[AVUKAT İMZASI]** önerilerin onayı için hâlâ beklenir
+   (flag açılmadan önce); belgelenmiş tavizler: CSV/manuel import guard'lanmadı (host'un
+   kendi dosyası — sorumluluk host'ta) · kanal (Airbnb/Hospitable) kopyasını Lixus silemez,
+   UI bunu açıkça söyler.
