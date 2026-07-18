@@ -5,10 +5,10 @@
 // final legal text. The [bracketed] values are obvious placeholders so an
 // unfinished form is never mistaken for a finalized one.
 export const SELLER = {
-  unvan: "[SATICI ÜNVANI / AD SOYAD]",
-  adres: "[AÇIK ADRES]",
-  mersisVergi: "[MERSİS NO / VERGİ DAİRESİ ve NO — şahıs şirketi ise TCKN]",
-  telefon: "[TELEFON]",
+  unvan: "Zeynep Cinar",
+  adres: "Via Francesco Olgiati, Milano, Lombardia, 20143, İtalya",
+  mersisVergi: "[P.IVA NO]",
+  telefon: "[TELEFON — ülke koduyla, örn. +39...]",
   eposta: "iletisimlixusai@gmail.com",
 };
 
