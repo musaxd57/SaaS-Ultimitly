@@ -31,19 +31,21 @@ import { ANON_NAME, ANON_ID, ANON_BODY, redactNameFromBody } from "@/lib/data-re
 // reservation named in the request itself (source_reference key) is blocked
 // ABSOLUTELY, independent of dates: that object IS the erased data.
 //
-// RACE MODEL (Codex hardening): a sync run loads the guard ONCE, so a request
-// erased MID-RUN is protected by layers, not by the stale map:
-//   • a single findMany is statement-snapshot-consistent → the guard can never
-//     see a TORN tombstone set;
-//   • rows scrubbed by the executor keep their ANON sentinels + message
-//     externalIds, so the sync's own resurrection guards + id-dedup hold even
-//     with a stale (pre-erasure) map;
-//   • the one genuinely unguarded interleave — a stale-guard sync WRITING fresh
-//     PII inside/around the erasure transaction — is closed by the executor's
-//     POST-COMMIT VERIFY PASS below, which re-reads and re-masks anything that
-//     slipped in. The executor also takes an org-scoped advisory xact lock so
-//     two concurrent erasures (or a future writer that honors the same lock)
-//     serialize instead of interleaving.
+// RACE MODEL (Codex hardening, STRUCTURAL): every tombstone-scoped ingress
+// writer (hospitable-sync, iCal import) fetches provider data OUTSIDE any lock,
+// then performs its DB WRITES inside a transaction that (a) first acquires the
+// SAME org-scoped advisory xact lock the erasure executor holds, and (b)
+// RE-READS the guard INSIDE that lock (loadErasureGuard with the tx client).
+// That leaves exactly two possible orderings — the two-orderings theorem:
+//   • sync's write-TX commits FIRST → the erasure executor runs after it and
+//     masks whatever the sync wrote (its TX + verify pass see those rows);
+//   • erasure's TX commits FIRST → the sync's in-lock guard reload sees the
+//     fresh tombstones and refuses to write.
+// A stale PRE-loaded guard is therefore only ever an optimization (fetch
+// saver); it is never the authority for a write. Supporting layers (defense in
+// depth, NOT the main guarantee): statement-snapshot guard reads (no torn set),
+// ANON sentinels + message-id dedup on masked rows, and the executor's
+// post-commit VERIFY PASS re-masking anything written around its window.
 // ---------------------------------------------------------------------------
 
 /** Feature switch for the HOST-FACING request surface (route + UI). The ingress
@@ -163,6 +165,22 @@ export function buildTombstoneKeys(
 // feed-reconcile namespace (23) and the outbox claim locks.
 const ERASURE_LOCK_NS = 40;
 
+/** A client the guard/lock helpers can run on — the global client or a tx. */
+export type ErasureDb = Prisma.TransactionClient | typeof prisma;
+
+/**
+ * Acquire the org-scoped erasure advisory lock on THIS transaction (auto-released
+ * at commit/rollback). Shared by the erasure executor and every tombstone-scoped
+ * ingress write-transaction — the single mutual-exclusion point of the RACE
+ * MODEL above. $executeRaw, not $queryRaw: pg_advisory_xact_lock returns void,
+ * which $queryRaw cannot deserialize.
+ */
+export async function acquireErasureLock(tx: Prisma.TransactionClient, organizationId: string): Promise<void> {
+  await tx.$executeRaw(
+    Prisma.sql`SELECT pg_advisory_xact_lock(${ERASURE_LOCK_NS}::int4, hashtext(${organizationId}))`,
+  );
+}
+
 // ---------------------------------------------------------------------------
 // Ingress guard — one DB read per sync run, in-memory matching per record.
 // ---------------------------------------------------------------------------
@@ -194,14 +212,31 @@ const EMPTY_GUARD: ErasureGuard = {
   messageCutoffFor: () => null,
 };
 
+// FAIL-CLOSED guard (Codex): tombstones EXIST but the HMAC key is unavailable
+// (e.g. the flag was later switched off and ERASURE_HMAC_SECRET removed — the
+// existing tombstones must keep protecting regardless of the flag). Without the
+// key nothing can be matched, so the only privacy-safe answer is to block EVERY
+// candidate: the sync imports nothing for this org until the secret is restored.
+// Loud on purpose — this is a misconfiguration, not a normal state.
+const BLOCK_ALL_GUARD: ErasureGuard = {
+  isEmpty: false,
+  blocksSourceReference: () => true,
+  blocksGuestStay: () => true,
+  messageCutoffFor: () => null,
+};
+
 /**
  * Load the org's LIVE tombstones once (Map keyHash→erasedAt). Empty ⇒ no-op
  * guard that never hashes anything (also keeps envs without the dedicated
  * secret working until the first tombstone exists). Rows whose legal retention
- * bound has passed (expiresAt ≤ now) no longer guard (m41).
+ * bound has passed (expiresAt ≤ now) no longer guard (m41). Pass a transaction
+ * client to read INSIDE an advisory-locked write-transaction (see RACE MODEL).
  */
-export async function loadErasureGuard(organizationId: string): Promise<ErasureGuard> {
-  const rows = await prisma.erasureTombstone.findMany({
+export async function loadErasureGuard(
+  organizationId: string,
+  db: ErasureDb = prisma,
+): Promise<ErasureGuard> {
+  const rows = await db.erasureTombstone.findMany({
     where: {
       organizationId,
       OR: [{ expiresAt: null }, { expiresAt: { gt: new Date() } }],
@@ -209,6 +244,13 @@ export async function loadErasureGuard(organizationId: string): Promise<ErasureG
     select: { keyHash: true, erasedAt: true },
   });
   if (rows.length === 0) return EMPTY_GUARD;
+  try {
+    hashKey(); // tombstones exist → the key MUST be available to match them
+  } catch (err) {
+    const { reportError } = await import("@/lib/report-error");
+    void reportError(`erasure-guard key unavailable org:${organizationId}`, err).catch(() => {});
+    return BLOCK_ALL_GUARD;
+  }
   const byHash = new Map(rows.map((r) => [r.keyHash, r.erasedAt]));
 
   const guestEraFor = (input: TombstoneKeyInput): Date | null => {
@@ -373,12 +415,9 @@ export async function eraseReservationData(
   ].filter((n): n is string => Boolean(n));
 
   await prisma.$transaction(async (tx) => {
-    // Org-scoped mutual exclusion (auto-released at commit/rollback).
-    // $executeRaw, not $queryRaw: pg_advisory_xact_lock returns void, which
-    // $queryRaw cannot deserialize.
-    await tx.$executeRaw(
-      Prisma.sql`SELECT pg_advisory_xact_lock(${ERASURE_LOCK_NS}::int4, hashtext(${organizationId}))`,
-    );
+    // Org-scoped mutual exclusion (auto-released at commit/rollback) — the same
+    // lock every tombstone-scoped ingress write-transaction takes (RACE MODEL).
+    await acquireErasureLock(tx, organizationId);
     if (keys.length) {
       await tx.erasureTombstone.createMany({
         data: keys.map((k) => ({
@@ -391,7 +430,11 @@ export async function eraseReservationData(
       });
     }
     await maskReservationRows(tx, reservation.id, names);
-  });
+  },
+  // The lock acquire can WAIT behind a long ingress write-transaction (a big
+  // thread import holds the org lock for its whole TX) — give the executor the
+  // same ceiling so a busy sync never times the erasure out.
+  { timeout: 180_000, maxWait: 15_000 });
 
   if (__afterTxHook) await __afterTxHook();
 

@@ -18,7 +18,12 @@ import { createReservationTasks, removeAutoTasksForCancelledReservation } from "
 import { recordSupplyRequestFromMessage } from "@/lib/supply";
 import { billingEnforced, getEntitlement } from "@/lib/billing/subscription";
 import { ANON_NAME, ANON_ID, retentionCutoff } from "@/lib/data-retention";
-import { loadErasureGuard } from "@/lib/erasure";
+import { loadErasureGuard, acquireErasureLock } from "@/lib/erasure";
+import type { ErasureDb, ErasureGuard } from "@/lib/erasure";
+
+/** A deferred supply-detection call — executed only AFTER the thread's
+ *  write-transaction commits (the message FK must exist). */
+type SupplyJob = Parameters<typeof recordSupplyRequestFromMessage>[0];
 
 // ---------------------------------------------------------------------------
 // Hospitable → Inbox synchronisation
@@ -203,49 +208,61 @@ export async function syncHospitable(
     for (const reservation of reservations) {
       if (!reservation || !reservation.id) continue;
 
-      // KVKK erasure gate: an explicitly-erased stay (source_reference tombstone)
-      // never re-imports — that object IS the erased data (Regulation art. 8:
-      // "tekrar kullanılamaz"). A PERSON match (guest id/email/phone) blocks only
-      // stays of the erased era (departure ≤ erasedAt; unknown date fails closed);
-      // a stay that begins after the request is NEW data and proceeds (§8c-3).
-      let erasureCutoff: Date | null = null;
-      if (!erasureGuard.isEmpty) {
-        const g = reservation.guest;
-        const guardInput = {
-          guestExternalId: g?.id ? String(g.id) : null,
-          guestEmail: str(g?.email) ?? null,
-          guestPhone: str(g?.phone) ?? null,
-        };
-        const departure =
-          parseDate(reservation.departure_date) ?? parseDate(reservation.check_out);
-        if (
-          erasureGuard.blocksSourceReference(String(reservation.id)) ||
-          erasureGuard.blocksGuestStay(guardInput, departure)
-        ) {
-          result.skipped++;
-          continue;
-        }
-        // Allowed stay of a tombstoned guest: pre-erasure messages still never
-        // re-import (belt-and-suspenders for re-used provider threads).
-        erasureCutoff = erasureGuard.messageCutoffFor(guardInput);
+      // KVKK erasure semantics: an explicitly-erased stay (source_reference
+      // tombstone) never re-imports — that object IS the erased data (Regulation
+      // art. 8: "tekrar kullanılamaz"). A PERSON match (guest id/email/phone)
+      // blocks only stays of the erased era (departure ≤ erasedAt; unknown date
+      // fails closed); a stay beginning after the request is NEW data (§8c-3).
+      const g = reservation.guest;
+      const guardInput = {
+        guestExternalId: g?.id ? String(g.id) : null,
+        guestEmail: str(g?.email) ?? null,
+        guestPhone: str(g?.phone) ?? null,
+      };
+      const departure = parseDate(reservation.departure_date) ?? parseDate(reservation.check_out);
+      const erasureBlocks = (guard: ErasureGuard): boolean =>
+        !guard.isEmpty &&
+        (guard.blocksSourceReference(String(reservation.id)) ||
+          guard.blocksGuestStay(guardInput, departure));
+
+      // Cheap PRE-fetch gate on the run-start guard — an OPTIMIZATION ONLY
+      // (saves the message fetch). It is never the write authority: the
+      // authoritative check re-reads the guard INSIDE each write-transaction
+      // below, under the erasure advisory lock (two-orderings guarantee).
+      if (erasureBlocks(erasureGuard)) {
+        result.skipped++;
+        continue;
       }
 
       // Store the reservation (guest, dates, status) — drives the dashboard and
       // the welcome message. Guarded so one bad record can't abort the sync.
-      // Capture its local id so the conversation can be linked to it below.
+      // WRITE-TX #1: the upsert runs inside the org-scoped erasure lock with a
+      // FRESH guard read — either this commits before an erasure (which then
+      // masks it) or it sees the erasure's tombstones and refuses (RACE MODEL).
       let localReservationId: string | null = null;
       try {
-        localReservationId = await upsertReservationCalendar(propertyId, reservation);
+        const r1 = await prisma.$transaction(
+          async (tx) => {
+            await acquireErasureLock(tx, organizationId);
+            const fresh = await loadErasureGuard(organizationId, tx);
+            if (erasureBlocks(fresh)) return { blocked: true as const, id: null };
+            return { blocked: false as const, id: await upsertReservationCalendar(tx, propertyId, reservation) };
+          },
+          { timeout: 60_000, maxWait: 15_000 },
+        );
+        if (r1.blocked) {
+          result.skipped++;
+          continue;
+        }
+        localReservationId = r1.id;
         if (localReservationId) {
           result.reservations++;
-          // Auto-create check-in/cleaning tasks for this booking. Idempotent: skips
-          // past stays AND reservations that already have tasks, so re-running every
-          // sync is safe. Best-effort — a task failure must never break the sync.
-          // This makes Hospitable bookings drop tasks automatically, like iCal does.
+          // Auto-create check-in/cleaning tasks for this booking (idempotent,
+          // best-effort) — AFTER the commit so the FK target exists and the
+          // lock is held only for the write itself.
           await createReservationTasks(localReservationId).catch(() => {});
           // If the booking flipped to cancelled, remove its still-pending auto
-          // tasks so the cleaning/check-in list isn't left with work for a guest
-          // who isn't coming. No-op for active bookings. Best-effort.
+          // tasks. No-op for active bookings. Best-effort.
           await removeAutoTasksForCancelledReservation(localReservationId).catch(() => {});
         }
       } catch (err) {
@@ -307,10 +324,37 @@ export async function syncHospitable(
       }
       if (messages.length === 0) continue;
 
+      // WRITE-TX #2: thread import under the SAME lock + another FRESH guard
+      // read (the provider fetch above deliberately happened OUTSIDE the lock).
+      // The messageCutoffFor comes from the fresh guard, so a tombstoned guest's
+      // allowed new stay still never re-imports pre-erasure lines.
       try {
-        const imported = await importThread(propertyId, reservation, messages, localReservationId, erasureCutoff);
+        const r2 = await prisma.$transaction(
+          async (tx) => {
+            await acquireErasureLock(tx, organizationId);
+            const fresh = await loadErasureGuard(organizationId, tx);
+            if (erasureBlocks(fresh)) return null;
+            return importThread(
+              tx,
+              propertyId,
+              reservation,
+              messages,
+              localReservationId,
+              fresh.isEmpty ? null : fresh.messageCutoffFor(guardInput),
+            );
+          },
+          { timeout: 180_000, maxWait: 15_000 },
+        );
+        if (r2 === null) {
+          result.skipped++;
+          continue;
+        }
         result.conversations++;
-        result.messages += imported;
+        result.messages += r2.imported;
+        // Deferred supply detection — the message FKs exist only after commit.
+        for (const job of r2.supplyJobs) {
+          await recordSupplyRequestFromMessage(job).catch(() => {});
+        }
       } catch (err) {
         console.error(`[Hospitable sync] thread import failed for ${reservation.id}`, err);
       }
@@ -326,6 +370,7 @@ export async function syncHospitable(
  * (correct guest/dates context), or null when nothing was written.
  */
 async function upsertReservationCalendar(
+  db: ErasureDb,
   propertyId: string,
   reservation: HospitableReservation,
 ): Promise<string | null> {
@@ -335,7 +380,7 @@ async function upsertReservationCalendar(
   if (!arrivalDate || !departureDate) return null;
 
   // FK safety: only write if the property genuinely exists.
-  const propertyExists = await prisma.property.findUnique({
+  const propertyExists = await db.property.findUnique({
     where: { id: propertyId },
     select: { id: true },
   });
@@ -383,7 +428,7 @@ async function upsertReservationCalendar(
     typeof reservation.total_price === "number" ? reservation.total_price : null;
   const currency = str(reservation.currency) ?? "EUR";
 
-  const existing = await prisma.reservation.findFirst({
+  const existing = await db.reservation.findFirst({
     where: { propertyId, sourceReference: srcRef },
     select: { id: true, guestName: true },
   });
@@ -395,7 +440,7 @@ async function upsertReservationCalendar(
     // and Booking/direct channels return the real name forever. Dates/status
     // (non-PII) still refresh so occupancy stays correct.
     const scrubbed = existing.guestName === ANON_NAME;
-    await prisma.reservation.update({
+    await db.reservation.update({
       where: { id: existing.id },
       data: {
         ...(!scrubbed && resolvedGuestName !== null ? { guestName: resolvedGuestName } : {}),
@@ -413,7 +458,7 @@ async function upsertReservationCalendar(
   }
 
   try {
-    const created = await prisma.reservation.create({
+    const created = await db.reservation.create({
       data: {
         propertyId,
         guestName,
@@ -438,7 +483,7 @@ async function upsertReservationCalendar(
     // adopt it (field updates catch up on the next pass). Any other unique
     // violation is a real error and must surface.
     if (isUniqueViolation(err, ["propertyId", "sourceReference"])) {
-      const raced = await prisma.reservation.findFirst({
+      const raced = await db.reservation.findFirst({
         where: { propertyId, sourceReference: srcRef },
         select: { id: true },
       });
@@ -508,6 +553,7 @@ async function linkProperty(
 
 /** Create/update the conversation for a reservation and import its new messages. */
 async function importThread(
+  db: ErasureDb,
   propertyId: string,
   reservation: HospitableReservation,
   messages: HospitableMessage[],
@@ -515,7 +561,7 @@ async function importThread(
   /** KVKK explicit-erasure cutoff for a tombstoned guest's ALLOWED new stay:
    *  messages at/before this instant never (re-)import. Null = no tombstone. */
   erasureCutoff: Date | null = null,
-): Promise<number> {
+): Promise<{ imported: number; supplyJobs: SupplyJob[] }> {
   const reservationId = String(reservation.id);
   const channel = toChannel(reservation.platform);
   const language = str(reservation.conversation_language) ?? "tr";
@@ -542,7 +588,7 @@ async function importThread(
   const lastMessage = ordered[ordered.length - 1];
   const computedStatus = lastMessage && isGuestMessage(lastMessage) ? "new" : "answered";
 
-  const existing = await prisma.conversation.findFirst({
+  const existing = await db.conversation.findFirst({
     where: { propertyId, externalReservationId: reservationId },
     select: { id: true, status: true, reservationId: true, guestIdentifier: true },
   });
@@ -568,14 +614,14 @@ async function importThread(
     // resurrects the scrubbed guest name + the redacted message bodies.
     let createScrubbed = false;
     if (localReservationId) {
-      const linked = await prisma.reservation.findUnique({
+      const linked = await db.reservation.findUnique({
         where: { id: localReservationId },
         select: { guestName: true },
       });
       createScrubbed = linked?.guestName === ANON_NAME;
     }
     scrubbedThread = createScrubbed;
-    const created = await prisma.conversation.create({
+    const created = await db.conversation.create({
       data: {
         propertyId,
         channel,
@@ -612,7 +658,7 @@ async function importThread(
     // linked reservation) fall back to the identifier sentinel (privacy-safe).
     let scrubbed: boolean;
     if (localReservationId) {
-      const linked = await prisma.reservation.findUnique({
+      const linked = await db.reservation.findUnique({
         where: { id: localReservationId },
         select: { guestName: true },
       });
@@ -621,7 +667,7 @@ async function importThread(
       scrubbed = existing.guestIdentifier === ANON_ID;
     }
     scrubbedThread = scrubbed;
-    await prisma.conversation.update({
+    await db.conversation.update({
       where: { id: existing.id },
       data: {
         // lastMessageAt is intentionally NOT advanced here — bumped after the loop.
@@ -675,13 +721,14 @@ async function importThread(
   // — an N+1 (one query per message) on every thread sync.
   const seenExternalIds = new Set(
     (
-      await prisma.message.findMany({
+      await db.message.findMany({
         where: { conversationId, externalId: { not: null } },
         select: { externalId: true },
       })
     ).map((r) => r.externalId!),
   );
   let newMessages = 0;
+  const supplyJobs: SupplyJob[] = [];
   for (const m of ordered) {
     const externalId = m.id != null ? String(m.id) : null;
     const body = str(m.body);
@@ -708,14 +755,14 @@ async function importThread(
       // (chronological pairing for repeated identical texts) and heal its id so
       // every future sync dedups normally. Inbound is never adopted, and a real
       // externalId is never overwritten.
-      const orphan = await prisma.message.findFirst({
+      const orphan = await db.message.findFirst({
         where: { conversationId, direction: "outbound", externalId: null, body },
         orderBy: { createdAt: "asc" },
         select: { id: true },
       });
       if (orphan) {
         try {
-          await prisma.message.update({ where: { id: orphan.id }, data: { externalId } });
+          await db.message.update({ where: { id: orphan.id }, data: { externalId } });
         } catch (err) {
           // The canonical row with this externalId already exists (raced in) —
           // healing the orphan would duplicate the key. Leave the orphan; the
@@ -727,7 +774,7 @@ async function importThread(
     }
     let created: { id: string };
     try {
-      created = await prisma.message.create({
+      created = await db.message.create({
         data: {
           conversationId,
           direction: inbound ? "inbound" : "outbound",
@@ -750,15 +797,17 @@ async function importThread(
       throw err;
     }
     newMessages++;
-    // Pick up an explicit "extra towel/sheet" ask → adds +1 to the prep plan.
-    // Best-effort, deduped by message id; must never break the sync.
+    // Supply detection ("extra towel/sheet" ask → +1 to the prep plan) is
+    // COLLECTED here and executed by the caller AFTER the write-transaction
+    // commits: it references the just-created message id (FK), which does not
+    // exist outside the transaction until commit. Best-effort as before.
     if (inbound) {
-      await recordSupplyRequestFromMessage({
+      supplyJobs.push({
         propertyId,
         message: body,
         sourceMessageId: created.id,
         reservationId: localReservationId,
-      }).catch(() => {});
+      });
     }
   }
 
@@ -769,10 +818,10 @@ async function importThread(
   // immune skip-check cursor. Unconditional so a null syncCursorAt (freshly added
   // column / first sync of an existing thread) always gets set — otherwise that
   // thread would be re-fetched every run and never start saving requests.
-  await prisma.conversation.update({
+  await db.conversation.update({
     where: { id: conversationId },
     data: { lastMessageAt, syncCursorAt: lastMessageAt },
   });
 
-  return newMessages;
+  return { imported: newMessages, supplyJobs };
 }

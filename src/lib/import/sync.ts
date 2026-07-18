@@ -6,7 +6,7 @@ import { reportError } from "@/lib/report-error";
 import { parseIcs } from "@/lib/import/ics";
 import { createReservationTasks, removeAutoTasksForCancelledReservation } from "@/lib/automation";
 import { isPrivateHost, resolvesToPrivate } from "@/lib/net/private-host";
-import { loadErasureGuard } from "@/lib/erasure";
+import { loadErasureGuard, acquireErasureLock } from "@/lib/erasure";
 import { fetchFeedText } from "@/lib/net/pinned-fetch";
 import { ANON_NAME } from "@/lib/data-retention";
 
@@ -72,11 +72,12 @@ export async function syncCalendarSource(sourceId: string): Promise<SyncResult> 
 
   const channel = channelFromLabel(source.label);
 
-  // KVKK explicit-erasure gate (m40): inert with zero tombstones. iCal rows carry
-  // only a UID (no guest id/email/phone), so matching is by source_reference
-  // alone — DELIBERATE: hashing free-text SUMMARY names would false-positive on
-  // namesakes, and the erased stay's own UID is exactly what a feed re-delivers.
-  const erasureGuard = await loadErasureGuard(source.property.organizationId);
+  // KVKK explicit-erasure gate (m40): iCal rows carry only a UID (no guest
+  // id/email/phone), so matching is by source_reference alone — DELIBERATE:
+  // hashing free-text SUMMARY names would false-positive on namesakes, and the
+  // erased stay's own UID is exactly what a feed re-delivers. The guard is
+  // read FRESH inside each row's write-transaction below (RACE MODEL) — no
+  // stale run-start copy is ever the write authority.
 
   // Fetch-start stamp — the ordering key for the disappearance reconciliation (a slower older
   // run must never overwrite a newer run's result). Captured BEFORE the network call.
@@ -131,96 +132,96 @@ export async function syncCalendarSource(sourceId: string): Promise<SyncResult> 
       result.skipped++;
       continue;
     }
-    // Explicitly-erased stay re-appearing in the feed → never re-import (KVKK
-    // Regulation art. 8: erased data must stay unusable). Placed AFTER the
-    // seenRefs.add above on purpose: the UID *is* present in the feed, and the
-    // disappearance-reconcile must keep seeing it (a guard skip is not a vanish).
-    if (!erasureGuard.isEmpty && erasureGuard.blocksSourceReference(row.sourceReference)) {
-      result.skipped++;
-      continue;
-    }
-
+    // WRITE-TX (RACE MODEL, erasure.ts): every row write runs inside the
+    // org-scoped erasure advisory lock with a FRESH guard read — either this
+    // commits before an erasure (which then masks it) or it sees the fresh
+    // tombstones and refuses. The stale pre-loaded guard is NOT the authority.
+    // Task side effects run AFTER the commit (lock held only for the write).
+    // NOTE: the CREATE dedupe-hit (P2002) now aborts the row-transaction and is
+    // classified in the OUTER catch — same skip semantics as before.
     try {
-      // BOUND-FIRST lookup (Codex round-5): match a row already owned by THIS
-      // source; only a LIVE event may fall back to a legacy calendarSourceId=NULL
-      // row (one-time adoption). A CANCELLED event never touches an unowned row —
-      // safer default: an upstream-cancelled legacy row simply stays until a live
-      // match or manual cleanup (bounded staleness, zero cross-source risk).
-      const bound = row.sourceReference
-        ? await prisma.reservation.findFirst({
-            where: { propertyId: source.propertyId, sourceReference: row.sourceReference, calendarSourceId: source.id },
-            select: { id: true, guestName: true, status: true },
-          })
-        : null;
-      const legacy =
-        !bound && row.sourceReference && row.status !== "CANCELLED"
-          ? await prisma.reservation.findFirst({
-              where: { propertyId: source.propertyId, sourceReference: row.sourceReference, calendarSourceId: null },
-              select: { id: true, guestName: true, status: true },
-            })
-          : null;
-      const existing = bound ?? legacy;
-
-      // Feed explicitly marks the booking CANCELLED → reflect it locally (cancel +
-      // drop the auto tasks), never import it as a live stay.
-      if (row.status === "CANCELLED") {
-        if (existing && existing.status !== "cancelled") {
-          // Only a row ALREADY bound to this source may be cancelled (ownership
-          // re-checked atomically inside the UPDATE; legacy NULL is never here —
-          // the lookup above excludes it for CANCELLED events).
-          const resC = await prisma.reservation.updateMany({
-            where: { id: existing.id, calendarSourceId: source.id },
-            data: { status: "cancelled" },
-          });
-          if (resC.count === 1) {
-            await removeAutoTasksForCancelledReservation(existing.id);
-            result.updated++;
-          } else {
-            result.skipped++;
+      const action = await prisma.$transaction(
+        async (tx): Promise<
+          | { kind: "erased" | "skip" }
+          | { kind: "cancelled" | "updated" | "created"; id: string }
+        > => {
+          await acquireErasureLock(tx, source.property.organizationId);
+          const fresh = await loadErasureGuard(source.property.organizationId, tx);
+          // Explicitly-erased stay re-appearing in the feed → never re-import
+          // (KVKK Regulation art. 8: erased data must stay unusable). Checked
+          // AFTER the seenRefs.add above on purpose: the UID *is* present in the
+          // feed, and the disappearance-reconcile must keep seeing it.
+          if (!fresh.isEmpty && fresh.blocksSourceReference(row.sourceReference)) {
+            return { kind: "erased" };
           }
-        } else {
-          result.skipped++;
-        }
-        continue;
-      }
 
-      if (existing) {
-        // KVKK resurrection guard: once the retention sweep has anonymized this
-        // row (guestName === ANON_NAME), NEVER let a re-import write the guest's
-        // name/notes back from the feed. Dates (non-PII) still refresh so
-        // occupancy stays correct. Mirrors the hospitable-sync.ts guard.
-        const scrubbed = existing.guestName === ANON_NAME;
-        // ATOMIC adoption: ownership re-checked inside the UPDATE (count 0 = a
-        // concurrent source claimed the legacy NULL row first → not ours, skip).
-        const resU = await prisma.reservation.updateMany({
-          where: { id: existing.id, OR: [{ calendarSourceId: source.id }, { calendarSourceId: null }] },
-          data: {
-            ...(scrubbed
-              ? {}
-              : {
-                  guestName: row.guestName.slice(0, 200),
-                  notes: row.notes ? row.notes.slice(0, 5000) : null,
-                }),
-            arrivalDate: row.arrivalDate,
-            departureDate: row.departureDate,
-            // (Re-)bind to THIS source: legacy pre-binding rows heal on their
-            // first match, making them reconcilable again — safely scoped.
-            calendarSourceId: source.id,
-            // Re-confirm a stay that had been cancelled but now reappears live.
-            ...(existing.status === "cancelled" ? { status: "confirmed" } : {}),
-          },
-        });
-        if (resU.count === 0) {
-          result.skipped++;
-          continue;
-        }
-        // Backfill tasks for reservations imported before task automation existed.
-        await createReservationTasks(existing.id);
-        result.updated++;
-      } else {
-        let created;
-        try {
-          created = await prisma.reservation.create({
+          // BOUND-FIRST lookup (Codex round-5): match a row already owned by THIS
+          // source; only a LIVE event may fall back to a legacy calendarSourceId=NULL
+          // row (one-time adoption). A CANCELLED event never touches an unowned row —
+          // safer default: an upstream-cancelled legacy row simply stays until a live
+          // match or manual cleanup (bounded staleness, zero cross-source risk).
+          const bound = row.sourceReference
+            ? await tx.reservation.findFirst({
+                where: { propertyId: source.propertyId, sourceReference: row.sourceReference, calendarSourceId: source.id },
+                select: { id: true, guestName: true, status: true },
+              })
+            : null;
+          const legacy =
+            !bound && row.sourceReference && row.status !== "CANCELLED"
+              ? await tx.reservation.findFirst({
+                  where: { propertyId: source.propertyId, sourceReference: row.sourceReference, calendarSourceId: null },
+                  select: { id: true, guestName: true, status: true },
+                })
+              : null;
+          const existing = bound ?? legacy;
+
+          // Feed explicitly marks the booking CANCELLED → reflect it locally (cancel +
+          // drop the auto tasks), never import it as a live stay.
+          if (row.status === "CANCELLED") {
+            if (existing && existing.status !== "cancelled") {
+              // Only a row ALREADY bound to this source may be cancelled (ownership
+              // re-checked atomically inside the UPDATE; legacy NULL is never here —
+              // the lookup above excludes it for CANCELLED events).
+              const resC = await tx.reservation.updateMany({
+                where: { id: existing.id, calendarSourceId: source.id },
+                data: { status: "cancelled" },
+              });
+              if (resC.count === 1) return { kind: "cancelled", id: existing.id };
+            }
+            return { kind: "skip" };
+          }
+
+          if (existing) {
+            // KVKK resurrection guard: once the retention sweep has anonymized this
+            // row (guestName === ANON_NAME), NEVER let a re-import write the guest's
+            // name/notes back from the feed. Dates (non-PII) still refresh so
+            // occupancy stays correct. Mirrors the hospitable-sync.ts guard.
+            const scrubbed = existing.guestName === ANON_NAME;
+            // ATOMIC adoption: ownership re-checked inside the UPDATE (count 0 = a
+            // concurrent source claimed the legacy NULL row first → not ours, skip).
+            const resU = await tx.reservation.updateMany({
+              where: { id: existing.id, OR: [{ calendarSourceId: source.id }, { calendarSourceId: null }] },
+              data: {
+                ...(scrubbed
+                  ? {}
+                  : {
+                      guestName: row.guestName.slice(0, 200),
+                      notes: row.notes ? row.notes.slice(0, 5000) : null,
+                    }),
+                arrivalDate: row.arrivalDate,
+                departureDate: row.departureDate,
+                // (Re-)bind to THIS source: legacy pre-binding rows heal on their
+                // first match, making them reconcilable again — safely scoped.
+                calendarSourceId: source.id,
+                // Re-confirm a stay that had been cancelled but now reappears live.
+                ...(existing.status === "cancelled" ? { status: "confirmed" } : {}),
+              },
+            });
+            if (resU.count === 0) return { kind: "skip" };
+            return { kind: "updated", id: existing.id };
+          }
+
+          const created = await tx.reservation.create({
             data: {
               propertyId: source.propertyId,
               guestName: row.guestName.slice(0, 200),
@@ -234,21 +235,41 @@ export async function syncCalendarSource(sourceId: string): Promise<SyncResult> 
               currency: "EUR",
             },
           });
-        } catch (err) {
-          // DEDUPE-HIT on @@unique([propertyId, sourceReference]) ONLY: the UID
-          // already exists on a row BOUND TO ANOTHER SOURCE (our bound-first
-          // lookup deliberately doesn't see it) or raced in. Source-binding
-          // rule: never mutate another source's row — skip.
-          if (isUniqueViolation(err, ["propertyId", "sourceReference"])) {
-            result.skipped++;
-            continue;
-          }
-          throw err;
-        }
-        await createReservationTasks(created.id);
-        result.imported++;
+          return { kind: "created", id: created.id };
+        },
+        { timeout: 60_000, maxWait: 15_000 },
+      );
+
+      // Post-commit side effects + counters (idempotent, best-effort as before).
+      switch (action.kind) {
+        case "erased":
+        case "skip":
+          result.skipped++;
+          break;
+        case "cancelled":
+          await removeAutoTasksForCancelledReservation(action.id);
+          result.updated++;
+          break;
+        case "updated":
+          // Backfill tasks for reservations imported before task automation existed.
+          await createReservationTasks(action.id);
+          result.updated++;
+          break;
+        case "created":
+          await createReservationTasks(action.id);
+          result.imported++;
+          break;
       }
     } catch (err) {
+      // DEDUPE-HIT on @@unique([propertyId, sourceReference]) ONLY: the UID
+      // already exists on a row BOUND TO ANOTHER SOURCE (our bound-first lookup
+      // deliberately doesn't see it) or raced in. Source-binding rule: never
+      // mutate another source's row — skip. (The P2002 aborts the row-TX, so it
+      // surfaces HERE now; nothing else was written in that TX by design.)
+      if (isUniqueViolation(err, ["propertyId", "sourceReference"])) {
+        result.skipped++;
+        continue;
+      }
       // Surface the real cause — a BARE catch here hid systematic failures (schema
       // drift, a DB outage) so an import that dropped rows still looked fine and no
       // one was alerted. But do NOT alert PER ROW: a systematic fault can fail EVERY

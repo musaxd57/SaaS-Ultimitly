@@ -421,6 +421,45 @@ describe("codex round-4: atomic legacy adoption", () => {
     expect(jane?.guestName).toBe("Jane Doe"); // untombstoned rows import untouched
   });
 
+  it("KVKK m40 STRUCTURAL TOCTOU: erasure (+ row deletion) lands WHILE the feed is being fetched → the in-lock row-TX guard still blocks the re-create", async () => {
+    // Codex's exact timing for the iCal path: the sync would load any run-start
+    // state BEFORE the fetch; the erasure commits DURING the fetch and the local
+    // rows are then gone entirely (no ANON sentinel left to protect them). Only
+    // the FRESH in-lock guard read inside the row write-transaction can refuse
+    // the re-create — without it (pre-fix) "Ahmet Yılmaz" comes back verbatim.
+    const { orgId, propertyId } = await makeOrgWithProperty();
+    const source = await prisma.calendarSource.create({
+      data: { propertyId, label: "Airbnb", url: "https://example.com/cal.ics" },
+    });
+    const reservation = await prisma.reservation.create({
+      data: {
+        propertyId,
+        guestName: "Ahmet Yılmaz",
+        sourceReference: "abc-123@airbnb.com",
+        calendarSourceId: source.id,
+        arrivalDate: new Date(Date.now() + 5 * DAY),
+        departureDate: new Date(Date.now() + 9 * DAY),
+        status: "confirmed",
+        channel: "airbnb",
+      },
+    });
+    const { eraseReservationData } = await import("@/lib/erasure");
+    vi.mocked(fetchFeedText).mockImplementation(async () => {
+      await eraseReservationData(orgId, reservation.id); // tombstone + mask, mid-fetch
+      await prisma.reservation.delete({ where: { id: reservation.id } }); // sentinel gone too
+      return ICS; // the feed still carries abc-123 with the real name
+    });
+
+    const result = await syncCalendarSource(source.id);
+
+    expect(await prisma.reservation.count({ where: { propertyId, sourceReference: "abc-123@airbnb.com" } })).toBe(0);
+    expect(await prisma.reservation.count({ where: { propertyId, guestName: "Ahmet Yılmaz" } })).toBe(0);
+    expect(result.skipped).toBeGreaterThanOrEqual(1);
+    // The untombstoned second event still imports normally (property-scoped
+    // count — the paddle-webhook lesson: never assert on a WHERE-less count).
+    expect(await prisma.reservation.count({ where: { propertyId, sourceReference: "def-456@airbnb.com" } })).toBe(1);
+  });
+
   it("#4: a mid-import row failure is REPORTED and surfaces as 'error' — not a silent 'ok'", async () => {
     reportErrorMock.mockClear();
     const { propertyId } = await makeOrgWithProperty();
@@ -431,11 +470,15 @@ describe("codex round-4: atomic legacy adoption", () => {
 
     // Fail the SECOND row's write with a systematic error (NOT a dedupe-hit, which is
     // handled separately). The first row still lands → this is a PARTIAL import.
-    const realCreate = prisma.reservation.create.bind(prisma.reservation);
+    // Injection point = the row WRITE-TRANSACTION: since m40's locked row-TX, row
+    // writes go through tx.* clients, which a spy on the global delegate can't
+    // reach — failing the 2nd $transaction call IS the 2nd row's write failing.
+    const realTx = prisma.$transaction.bind(prisma);
     let n = 0;
-    vi.spyOn(prisma.reservation, "create").mockImplementation(((a: Parameters<typeof realCreate>[0]) => {
+    vi.spyOn(prisma, "$transaction").mockImplementation(((arg: unknown, opts?: unknown) => {
       n += 1;
-      return n === 2 ? Promise.reject(new Error("db blip")) : realCreate(a);
+      if (n === 2) return Promise.reject(new Error("db blip"));
+      return (realTx as (a: unknown, o?: unknown) => Promise<unknown>)(arg, opts);
     }) as never);
 
     const result = await syncCalendarSource(source.id);
@@ -454,8 +497,9 @@ describe("codex round-4: atomic legacy adoption", () => {
       data: { propertyId, label: "Airbnb", url: "https://example.com/cal.ics" },
     });
     // 100 valid bookings; EVERY write fails (simulates a DB outage / schema drift).
+    // Injected at the row write-transaction (see the mid-import test note).
     mockFetch(bigIcs(100));
-    vi.spyOn(prisma.reservation, "create").mockRejectedValue(new Error("db outage"));
+    vi.spyOn(prisma, "$transaction").mockRejectedValue(new Error("db outage"));
 
     const result = await syncCalendarSource(source.id);
 

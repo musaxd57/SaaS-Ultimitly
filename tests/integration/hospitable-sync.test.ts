@@ -821,28 +821,35 @@ describe("syncHospitable — plan property limit", () => {
         sender: { full_name: "Deniz" }, created_at: "2026-06-02T10:00:00Z" },
     ]);
 
-    // First sync: force the message write to throw ONCE, mid-loop (after the
-    // conversation row is created). importThread throws → caught per-reservation.
-    // Later calls delegate to the REAL create (mockImplementation) so the second
-    // sync below writes for real. (No mockRestore — restoring a Prisma delegate
-    // method breaks it; this is the last test in the file so the spy can't leak.)
-    const realCreate = prisma.message.create.bind(prisma.message);
-    vi.spyOn(prisma.message, "create")
-      .mockRejectedValueOnce(new Error("db blip"))
-      .mockImplementation(((a: Parameters<typeof realCreate>[0]) => realCreate(a)) as never);
+    // First sync: fail the THREAD WRITE-TRANSACTION (since m40's locked write-TX
+    // the whole thread import — conversation + messages + cursor — is one atomic
+    // TX, so a spy on the global message delegate can't reach the tx client; the
+    // injection point is the 2nd $transaction call: TX#1 = reservation upsert,
+    // TX#2 = this thread). Later calls delegate to the REAL $transaction so the
+    // second sync below writes for real. (No mockRestore — file convention.)
+    const realTx = prisma.$transaction.bind(prisma);
+    let txCall = 0;
+    vi.spyOn(prisma, "$transaction").mockImplementation(((arg: unknown, opts?: unknown) => {
+      txCall += 1;
+      if (txCall === 2) return Promise.reject(new Error("db blip"));
+      return (realTx as (a: unknown, o?: unknown) => Promise<unknown>)(arg, opts);
+    }) as never);
     await syncHospitable(orgId);
 
-    const conv = await prisma.conversation.findFirst({ where: { externalReservationId: "res-loss2" } });
-    expect(conv).not.toBeNull(); // the conversation row was created
-    expect(conv?.syncCursorAt).toBeNull(); // ← the fix: cursor NOT advanced (message unwritten)
+    // The m38 no-loss guarantee is now STRUCTURAL: the failed thread-TX rolled
+    // back WHOLE — no conversation row, no partial messages, no cursor. Nothing
+    // exists that could make the next run skip the thread.
+    const convAfterFail = await prisma.conversation.findFirst({ where: { externalReservationId: "res-loss2" } });
+    expect(convAfterFail).toBeNull();
 
-    // Second sync: the write succeeds now → the thread is NOT skipped (null cursor)
-    // and the message is finally imported.
+    // Second sync: the write succeeds now → the thread imports fully and the
+    // cursor advances only WITH the message (atomic).
     const result = await syncHospitable(orgId);
     expect(result.skipped).toBe(0);
-    const msg = await prisma.message.findFirst({ where: { conversationId: conv!.id, externalId: "3001" } });
-    expect(msg?.body).toBe("Tek mesaj"); // the message survived the mid-loop failure
     const healed = await prisma.conversation.findFirst({ where: { externalReservationId: "res-loss2" } });
+    expect(healed).not.toBeNull();
+    const msg = await prisma.message.findFirst({ where: { conversationId: healed!.id, externalId: "3001" } });
+    expect(msg?.body).toBe("Tek mesaj"); // the message survived the failed first attempt
     expect(healed?.syncCursorAt?.toISOString()).toBe("2026-06-02T10:00:00.000Z"); // now advanced
   });
 

@@ -18,6 +18,7 @@ import { syncHospitable } from "@/lib/hospitable-sync";
 import {
   eraseReservationData,
   previewReservationErasure,
+  __resetErasureHashKey,
 } from "@/lib/erasure";
 
 const mockProperties = vi.mocked(listProperties);
@@ -330,6 +331,90 @@ describe("KVKK explicit erasure (m40) — sync resurrection guards", () => {
 
     expect(result.skipped).toBeGreaterThanOrEqual(1);
     expect(await prisma.reservation.count({ where: { sourceReference: "res-old-8" } })).toBe(0);
+  });
+
+  it("STRUCTURAL TOCTOU (Codex): erasure commits WHILE the sync is mid-run (stale run-start guard) → the in-lock write-TX guard still blocks", async () => {
+    // Exact timing Codex asked for: the sync loads its run-start guard when NO
+    // tombstone exists, passes the cheap pre-gate, and fetches the thread — the
+    // erasure commits DURING that fetch (injected into the listMessages mock).
+    // The write-transaction must re-read the guard under the shared advisory
+    // lock and refuse. Without the in-TX re-check (pre-fix) the provider's NEW
+    // pre-erasure message (m-3) imports with full PII — red-first.
+    const { orgId, reservationId, conversationId } = await seedErasedStay();
+
+    mockProperties.mockResolvedValue([{ id: "hosp-prop-1", name: "Test Property" }]);
+    mockReservations.mockResolvedValue([
+      {
+        id: "res-erase-1", // the same stay — will be tombstoned MID-RUN
+        platform: "airbnb",
+        arrival_date: iso(-30),
+        departure_date: iso(-27),
+        conversation_id: "conv-erase-1",
+        last_message_at: iso(-26), // newer than any cursor → thread is fetched
+        guest: GUEST,
+      },
+    ]);
+    mockMessages.mockImplementation(async () => {
+      // The erasure lands exactly between the run-start guard load and the write.
+      await eraseReservationData(orgId, reservationId);
+      return [
+        // A pre-erasure line the local DB does NOT have (new external id): the
+        // id-dedup can't save us here — only the fresh in-lock guard can.
+        { id: 8003, body: "Merhaba, ben Ada Lovelace (m-3)", sender_type: "guest", sender_role: "guest", created_at: iso(-28) },
+      ];
+    });
+
+    const result = await syncHospitable(orgId);
+
+    expect(result.skipped).toBeGreaterThanOrEqual(1);
+    // The mid-run message never landed; the seeded thread is masked, not grown.
+    expect(await prisma.message.count({ where: { externalId: "8003" } })).toBe(0);
+    const msgs = await prisma.message.findMany({ where: { conversationId } });
+    expect(msgs).toHaveLength(2);
+    expect(msgs.some((m) => m.body.includes("Ada"))).toBe(false);
+    const res = await prisma.reservation.findUniqueOrThrow({ where: { id: reservationId } });
+    expect(res.guestName).toBe(ANON_NAME);
+  });
+
+  it("FAIL-CLOSED (Codex): tombstones exist + ERASURE_HMAC_SECRET unavailable (flag off, prod) → sync imports NOTHING, never PII", async () => {
+    const { orgId, reservationId, conversationId } = await seedErasedStay();
+    await eraseReservationData(orgId, reservationId); // tombstones written with the dev key
+    await prisma.message.deleteMany({ where: { conversationId } });
+    await prisma.conversation.delete({ where: { id: conversationId } });
+    await prisma.reservation.delete({ where: { id: reservationId } });
+
+    // The operator later removed the secret (flag off does NOT retire the
+    // tombstones — they must keep protecting). In production there is no
+    // fallback, so matching is impossible → the guard must block EVERYTHING.
+    vi.stubEnv("NODE_ENV", "production");
+    vi.stubEnv("ERASURE_HMAC_SECRET", "");
+    __resetErasureHashKey();
+    try {
+      mockProperties.mockResolvedValue([{ id: "hosp-prop-1", name: "Test Property" }]);
+      mockReservations.mockResolvedValue([
+        {
+          id: "res-erase-1",
+          platform: "airbnb",
+          arrival_date: iso(-30),
+          departure_date: iso(-27),
+          conversation_id: "conv-erase-1",
+          last_message_at: iso(-27),
+          guest: GUEST,
+        },
+      ]);
+      mockMessages.mockResolvedValue([
+        { id: 8101, body: "Merhaba, ben Ada Lovelace", sender_type: "guest", sender_role: "guest", created_at: iso(-28) },
+      ]);
+
+      const result = await syncHospitable(orgId); // must not throw
+      expect(result.reservations).toBe(0);
+      expect(result.skipped).toBeGreaterThanOrEqual(1);
+      expect(await prisma.reservation.count({ where: { sourceReference: "res-erase-1" } })).toBe(0);
+      expect(await prisma.message.count()).toBe(0);
+    } finally {
+      vi.unstubAllEnvs();
+      __resetErasureHashKey();
+    }
   });
 
   it("no tombstones → the guard is inert (normal import untouched)", async () => {
