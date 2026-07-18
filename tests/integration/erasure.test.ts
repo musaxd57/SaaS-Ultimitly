@@ -12,6 +12,11 @@ vi.mock("@/lib/hospitable", () => ({
 vi.mock("@/lib/hospitable-credentials", () => ({
   getOrgHospitableToken: vi.fn().mockResolvedValue("test-token"),
 }));
+// Observable (and silenced) alert channel for the fail-closed throttle pin —
+// erasure.ts reaches reportError via dynamic import, which this intercepts too.
+vi.mock("@/lib/report-error", () => ({ reportError: vi.fn().mockResolvedValue(undefined) }));
+import { reportError } from "@/lib/report-error";
+const reportErrorMock = vi.mocked(reportError);
 
 import { listProperties, listReservations, listMessages } from "@/lib/hospitable";
 import { syncHospitable } from "@/lib/hospitable-sync";
@@ -411,6 +416,16 @@ describe("KVKK explicit erasure (m40) — sync resurrection guards", () => {
       expect(result.skipped).toBeGreaterThanOrEqual(1);
       expect(await prisma.reservation.count({ where: { sourceReference: "res-erase-1" } })).toBe(0);
       expect(await prisma.message.count()).toBe(0);
+
+      // ALARM HYGIENE (Codex op note): the block is unconditional, but the alert
+      // is throttled per org — a second full sync run PLUS iCal-style repeated
+      // guard loads in the same window must not add events (the 2-minute cron
+      // would otherwise flood Sentry/logs while the email throttle hides it).
+      expect(reportErrorMock).toHaveBeenCalledTimes(1);
+      await syncHospitable(orgId);
+      const { loadErasureGuard } = await import("@/lib/erasure");
+      for (let i = 0; i < 5; i++) await loadErasureGuard(orgId); // per-row iCal pattern
+      expect(reportErrorMock).toHaveBeenCalledTimes(1); // still exactly one
     } finally {
       vi.unstubAllEnvs();
       __resetErasureHashKey();

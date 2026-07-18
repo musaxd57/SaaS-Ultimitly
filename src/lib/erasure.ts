@@ -93,10 +93,19 @@ function hashKey(): Buffer {
   return cachedKey;
 }
 
-/** Test hook: forget the derived key (env stubs). */
+// Alarm hygiene for the FAIL-CLOSED path (Codex op note): with the secret
+// missing, the 2-minute cron (and iCal's per-row guard loads) would otherwise
+// emit a reportError EACH time — email is already throttled per context, but
+// every call is still a Sentry event + a Railway log line (the #4 aggregate
+// lesson). One report per org per window; the BLOCK itself stays unconditional.
+const KEY_MISSING_REPORT_THROTTLE_MS = 10 * 60 * 1000;
+const keyMissingLastReport = new Map<string, number>();
+
+/** Test hook: forget the derived key + the fail-closed report throttle (env stubs). */
 export function __resetErasureHashKey(): void {
   cachedKey = null;
   cachedFrom = null;
+  keyMissingLastReport.clear();
 }
 
 /** Normalize an identifier per type so the same real-world value always hashes
@@ -247,8 +256,15 @@ export async function loadErasureGuard(
   try {
     hashKey(); // tombstones exist → the key MUST be available to match them
   } catch (err) {
-    const { reportError } = await import("@/lib/report-error");
-    void reportError(`erasure-guard key unavailable org:${organizationId}`, err).catch(() => {});
+    // Throttled: at most one report per org per window — the guard is loaded
+    // once per Hospitable run but once per ROW on the iCal path, and the cron
+    // fires every 2 minutes; unthrottled this would flood Sentry/logs.
+    const now = Date.now();
+    if (now - (keyMissingLastReport.get(organizationId) ?? 0) >= KEY_MISSING_REPORT_THROTTLE_MS) {
+      keyMissingLastReport.set(organizationId, now);
+      const { reportError } = await import("@/lib/report-error");
+      void reportError(`erasure-guard key unavailable org:${organizationId}`, err).catch(() => {});
+    }
     return BLOCK_ALL_GUARD;
   }
   const byHash = new Map(rows.map((r) => [r.keyHash, r.erasedAt]));
