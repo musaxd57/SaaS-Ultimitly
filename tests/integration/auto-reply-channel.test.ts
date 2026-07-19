@@ -755,6 +755,14 @@ describe("closing courtesy — opt-in 'Rica ederiz' reply to a bare thanks", () 
     expect((mockSend.mock.calls[0][1] as string).startsWith("Rica ederiz")).toBe(true);
   });
 
+  it("DEFINITIVE courtesy delivery failure (4xx) RELEASES the claim → status back to 'new' (may retry)", async () => {
+    mockSend.mockResolvedValue({ ok: false, error: "HTTP 400 bad request" });
+    const { conversationId } = await seedClosing();
+    const out = await applyChannelAutoReply(conversationId);
+    expect(out.sent).toBe(false);
+    expect((await prisma.conversation.findUniqueOrThrow({ where: { id: conversationId } })).status).toBe("new");
+  });
+
   it("CUSTOM text: the host's own line is sent VERBATIM (any guest language), signature still follows", async () => {
     const { orgId, conversationId } = await seedClosing("thanks, perfect!"); // ENGLISH closing
     await prisma.organization.update({
@@ -890,13 +898,21 @@ describe("closing courtesy — opt-in 'Rica ederiz' reply to a bare thanks", () 
     expect(mockSend).not.toHaveBeenCalled();
   });
 
-  it("delivery failure releases the answered-claim so the thread is not falsely closed", async () => {
-    mockSend.mockResolvedValue({ ok: false, error: "HTTP 500" });
+  it("AMBIGUOUS delivery failure (5xx/timeout) HOLDS the answered-claim — no duplicate courtesy", async () => {
+    // Was reverted to "new" on ANY failure, which let a later pass re-claim and send
+    // a DUPLICATE "Rica ederiz" when the 5xx had actually delivered (audit fix). The
+    // thread was a bare closing, so "answered" is appropriate; the courtesy may have
+    // reached the guest and must never be blindly re-sent. Parity with the main paths.
+    mockSend.mockResolvedValue({ ok: false, error: "HTTP 500" }); // 5xx = ambiguous
     const { conversationId } = await seedClosing();
     const out = await applyChannelAutoReply(conversationId);
     expect(out.sent).toBe(false);
-    expect((await prisma.conversation.findUniqueOrThrow({ where: { id: conversationId } })).status).toBe("new");
-    expect(await prisma.message.count({ where: { conversationId, aiIntent: "closing_courtesy" } })).toBe(0);
+    expect(mockSend).toHaveBeenCalledTimes(1); // exactly ONE POST
+    expect((await prisma.conversation.findUniqueOrThrow({ where: { id: conversationId } })).status).toBe("answered");
+    expect(await prisma.message.count({ where: { conversationId, aiIntent: "closing_courtesy" } })).toBe(0); // unconfirmed → not recorded
+    // A later pass sends nothing — the held claim blocks a duplicate.
+    await applyChannelAutoReply(conversationId);
+    expect(mockSend).toHaveBeenCalledTimes(1);
   });
 });
 

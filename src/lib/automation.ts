@@ -460,10 +460,18 @@ async function maybeSendClosingCourtesy(opts: {
     token,
   );
   if (!delivery.ok) {
-    // Release the claim so a later pass may retry (or fall back to the silent skip).
-    await prisma.conversation
-      .update({ where: { id: opts.conversation.id }, data: { status: "new" } })
-      .catch(() => {});
+    // DEFINITIVE (4xx≠408): nothing was delivered → release the claim so a later
+    // pass may retry (or fall back to the silent skip). AMBIGUOUS (timeout/5xx/
+    // network): the courtesy MAY already have reached the guest, so reverting to
+    // "new" would let the next pass re-claim and send a DUPLICATE courtesy — HOLD
+    // the claim (stays "answered") instead. Parity with the auto-reply/lifecycle/
+    // manual paths' isDefinitiveSendFailure(); the silent local-record gap is the
+    // accepted ambiguous trade-off ("a duplicate is worse than a rare silent miss").
+    if (isDefinitiveSendFailure(delivery.error)) {
+      await prisma.conversation
+        .update({ where: { id: opts.conversation.id }, data: { status: "new" } })
+        .catch(() => {});
+    }
     return false;
   }
 
