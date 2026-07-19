@@ -244,7 +244,7 @@ describe("KVKK explicit erasure (m40) — executor", () => {
     // RED (the racer's conversation + message keep the guest's name).
     const { orgId, propertyId, reservationId } = await seedErasedStay();
     let racerConvId = "";
-    const scope = await eraseReservationData(orgId, reservationId, async () => {
+    const scope = await eraseReservationData(orgId, reservationId, { __afterTxHook: async () => {
       const racerConv = await prisma.conversation.create({
         data: {
           propertyId,
@@ -271,7 +271,7 @@ describe("KVKK explicit erasure (m40) — executor", () => {
         where: { id: reservationId },
         data: { guestName: GUEST.full_name, guestEmail: GUEST.email }, // racer un-scrubs the row
       });
-    });
+    } });
     expect(scope).not.toBeNull();
 
     // Verify pass re-masked EVERYTHING the racer wrote.
@@ -283,6 +283,38 @@ describe("KVKK explicit erasure (m40) — executor", () => {
     const msg = await prisma.message.findFirstOrThrow({ where: { conversationId: racerConvId } });
     expect(msg.body).toBe(ANON_BODY);
     expect(msg.body).not.toContain("Ada");
+  });
+
+  it("MANDATORY audit is ATOMIC: the AuditLog row commits together with the scrub", async () => {
+    const { orgId, reservationId } = await seedErasedStay();
+    const owner = await prisma.user.create({
+      data: { organizationId: orgId, name: "O", email: "owner-erase@x.com", passwordHash: "x", role: "owner" },
+    });
+    await eraseReservationData(orgId, reservationId, { actorUserId: owner.id });
+    // The scrub happened…
+    const r = await prisma.reservation.findUniqueOrThrow({ where: { id: reservationId } });
+    expect(r.guestName).toBe(ANON_NAME);
+    // …and exactly one legal audit row was written by the acting owner, counts only.
+    const audits = await prisma.auditLog.findMany({
+      where: { organizationId: orgId, action: "kvkk.guest_erasure" },
+    });
+    expect(audits).toHaveLength(1);
+    expect(audits[0].actorUserId).toBe(owner.id);
+    expect(audits[0].metadataJson ?? "").not.toContain("Ada"); // never the guest name
+  });
+
+  it("MANDATORY audit failure ROLLS BACK the erasure (never destroy without a log)", async () => {
+    const { orgId, reservationId } = await seedErasedStay();
+    // Force the in-transaction audit insert to fail via the actorUserId FK (no such
+    // user). Deletion Regulation art. 7 requires the destruction to be logged, so
+    // the whole transaction must roll back: no scrub, no tombstone, and it throws.
+    await expect(
+      eraseReservationData(orgId, reservationId, { actorUserId: "no-such-user-id" }),
+    ).rejects.toThrow();
+    const r = await prisma.reservation.findUniqueOrThrow({ where: { id: reservationId } });
+    expect(r.guestName).toBe(GUEST.full_name); // untouched — erasure rolled back
+    expect(r.guestEmail).toBe(GUEST.email);
+    expect(await prisma.erasureTombstone.count({ where: { organizationId: orgId } })).toBe(0);
   });
 
   it("m41 expiry: a tombstone past its legal retention bound stops guarding (data may flow again)", async () => {

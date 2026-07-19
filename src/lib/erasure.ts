@@ -3,6 +3,7 @@ import "server-only";
 import { createHmac, scryptSync } from "crypto";
 import { Prisma } from "@prisma/client";
 import { prisma } from "@/lib/db";
+import { writeAuditInTx } from "@/lib/audit";
 import { ANON_NAME, ANON_ID, ANON_BODY, redactNameFromBody } from "@/lib/data-retention";
 
 // ---------------------------------------------------------------------------
@@ -505,10 +506,17 @@ async function maskReservationRows(
 export async function eraseReservationData(
   organizationId: string,
   reservationId: string,
-  /** TEST-ONLY seam: runs between the transaction commit and the verify pass —
-   *  lets a test deterministically simulate a racing write in that window. */
-  __afterTxHook?: () => Promise<void>,
+  opts?: {
+    /** The owner who requested the erasure — recorded on the MANDATORY, in-transaction
+     *  AuditLog row (Deletion Regulation art. 7). Null in direct-lib tests. */
+    actorUserId?: string | null;
+    /** TEST-ONLY seam: runs between the transaction commit and the verify pass —
+     *  lets a test deterministically simulate a racing write in that window. */
+    __afterTxHook?: () => Promise<void>;
+  },
 ): Promise<ErasureScope | null> {
+  const actorUserId = opts?.actorUserId ?? null;
+  const __afterTxHook = opts?.__afterTxHook;
   const scope = await loadScope(organizationId, reservationId);
   if (!scope) return null;
   const { reservation, conversations, convIds } = scope;
@@ -548,6 +556,25 @@ export async function eraseReservationData(
       });
     }
     await maskReservationRows(tx, organizationId, reservation.id, names);
+
+    // MANDATORY audit, IN THIS TRANSACTION (Codex P1-B): Deletion Regulation art. 7
+    // requires the destruction to be LOGGED, so the legal record commits together
+    // with the scrub — never one without the other. If this insert fails the whole
+    // erasure rolls back and the route surfaces a 500 (the owner retries); we never
+    // destroy without a log. Counts ONLY — never guest identifiers. This is the one
+    // audit that must be atomic, so it does NOT use the fire-and-forget writeAudit.
+    await writeAuditInTx(tx, {
+      organizationId,
+      actorUserId,
+      action: "kvkk.guest_erasure",
+      metadata: {
+        reservationId: reservation.id, // opaque row id — not personal data
+        conversations: convIds.length,
+        inboundMessages: scope.inboundMessages,
+        outboundMessages: scope.outboundMessages,
+        tombstoneKeys: keys.length,
+      },
+    });
   },
   // The lock acquire can WAIT behind a long ingress write-transaction (a big
   // thread import holds the org lock for its whole TX) — give the executor the

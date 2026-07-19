@@ -1,5 +1,6 @@
 import "server-only";
 
+import { Prisma } from "@prisma/client";
 import { prisma } from "@/lib/db";
 import { reportError } from "@/lib/report-error";
 
@@ -32,6 +33,7 @@ const AUDIT_ACTION_LABELS: Record<string, string> = {
   "impersonate.exit": "Müşteri hesabından çıkıldı",
   "admin.2fa_reset": "2FA operatör tarafından sıfırlandı",
   "admin.quality_audit": "AI kalite denetimi çalıştırıldı (Claude)",
+  "kvkk.guest_erasure": "KVKK misafir verisi silindi (sayılar)",
 };
 
 /** Turkish label for an audit action; falls back to the raw action if unknown. */
@@ -74,4 +76,33 @@ export async function writeAudit(entry: {
     console.error("[audit] dropped entry", entry.action, err);
     void reportError(`audit.write:${entry.action}`, err);
   }
+}
+
+/**
+ * MANDATORY, ATOMIC audit write — the opposite contract from writeAudit above.
+ * Writes through a caller-provided transaction client and DOES throw on failure,
+ * so the caller's transaction rolls back if the audit can't be recorded. Use ONLY
+ * when the audit is legally required to be inseparable from the action it records:
+ * KVKK guest-erasure (Deletion Regulation art. 7 requires the destruction to be
+ * LOGGED, so "destroy without a log" is not an acceptable success state). Do NOT
+ * use for ordinary audits — a login/impersonation must never fail because its log
+ * write hiccuped; those keep the fire-and-forget writeAudit.
+ */
+export async function writeAuditInTx(
+  tx: Prisma.TransactionClient,
+  entry: {
+    organizationId: string;
+    actorUserId?: string | null;
+    action: string;
+    metadata?: Record<string, unknown>;
+  },
+): Promise<void> {
+  await tx.auditLog.create({
+    data: {
+      organizationId: entry.organizationId,
+      actorUserId: entry.actorUserId ?? null,
+      action: entry.action,
+      metadataJson: entry.metadata ? JSON.stringify(entry.metadata) : null,
+    },
+  });
 }

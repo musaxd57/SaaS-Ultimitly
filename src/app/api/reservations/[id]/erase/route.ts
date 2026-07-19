@@ -5,7 +5,6 @@ import {
   previewReservationErasure,
   eraseReservationData,
 } from "@/lib/erasure";
-import { writeAudit } from "@/lib/audit";
 
 // ---------------------------------------------------------------------------
 // KVKK guest-level EXPLICIT erasure (m40) — host management surface.
@@ -35,33 +34,16 @@ export const POST = withManage<{ id: string }>(async (session, _req, { params })
   if (session.role !== "owner") return forbidden();
   const { id } = await params;
   try {
-    const scope = await eraseReservationData(session.organizationId, id);
+    // The MANDATORY audit (Deletion Regulation art. 7: destruction is LOGGED) is
+    // now written INSIDE the erasure transaction (see eraseReservationData) so the
+    // scrub + tombstones + legal record commit atomically — we never destroy
+    // without a log. If the audit can't be written the whole erasure rolls back and
+    // this throws → 500 below, and the owner retries. The audit records COUNTS ONLY,
+    // never guest identifiers.
+    const scope = await eraseReservationData(session.organizationId, id, {
+      actorUserId: session.userId,
+    });
     if (!scope) return notFound();
-
-    // Legal requirement (Deletion Regulation art. 7: destruction operations are
-    // LOGGED and kept ≥3 years). Metadata = the opaque reservationId + counts;
-    // NO guest identifiers (name/contact/body). This audit is MANDATORY, so a
-    // write failure must be surfaced (reportError), not silently swallowed — the
-    // erasure itself already committed, so we don't fail the response, but ops
-    // must see the missing legal record and can re-record it.
-    try {
-      await writeAudit({
-        organizationId: session.organizationId,
-        actorUserId: session.userId,
-        action: "kvkk.guest_erasure",
-        metadata: {
-          reservationId: scope.reservationId, // opaque row id — not personal data
-          conversations: scope.conversations,
-          inboundMessages: scope.inboundMessages,
-          outboundMessages: scope.outboundMessages,
-          tombstoneKeys: scope.tombstoneKeys,
-        },
-      });
-    } catch (auditErr) {
-      const { reportError } = await import("@/lib/report-error");
-      void reportError(`kvkk.guest_erasure audit FAILED res:${scope.reservationId}`, auditErr).catch(() => {});
-    }
-
     return jsonOk({ ok: true, scope });
   } catch (err) {
     return serverError(undefined, err);
