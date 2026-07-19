@@ -216,7 +216,7 @@ export function PaddlePlans({
             displayMode: "overlay",
             theme: "light",
             locale: "tr",
-            successUrl: `${window.location.origin}/settings`,
+            successUrl: `${window.location.origin}/settings?tab=faturalandirma`,
           },
         });
       } catch {

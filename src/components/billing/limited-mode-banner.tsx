@@ -15,7 +15,7 @@ export function LimitedModeBanner() {
         Ücretsiz deneme süreniz doldu — <strong>otomatik yanıtlar kapalı.</strong> Panelleri
         kullanmaya devam edebilirsiniz; otomatik mesajlaşmayı açmak için bir plan seçin.
       </span>
-      <Link href="/settings" className="font-medium underline underline-offset-2">
+      <Link href="/settings?tab=faturalandirma" className="font-medium underline underline-offset-2">
         Planları görün
       </Link>
     </div>
