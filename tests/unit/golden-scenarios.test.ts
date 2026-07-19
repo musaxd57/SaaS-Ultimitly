@@ -1,5 +1,5 @@
 import { describe, it, expect } from "vitest";
-import { classifyFallback, detectPromptInjection, isClosingAck, suggestReplyFallback, detectRiskType } from "@/lib/ai/fallback";
+import { classifyFallback, detectPromptInjection, isClosingAck, isPositiveFeedback, suggestReplyFallback, detectRiskType } from "@/lib/ai/fallback";
 import { passesAutoReplySafetyGate } from "@/lib/automation";
 import type { SuggestReplyInput } from "@/lib/ai/types";
 
@@ -169,6 +169,11 @@ const SCENARIOS: Scenario[] = [
   { name: "ırk temelli dışlama (EN, discrimination)", message: "No black cleaners in the apartment, please.", autoSendVeto: true, riskType: "discrimination" },
   // Övgü-tuzakları: benign, MUST NOT veto ------------------------------------
   { name: "misafir kendi kökeni — tuzak (TR, ayrımcılık DEĞİL)", message: "Biz siyahi bir aileyiz, ekstra havlu alabilir miyiz?", autoSendVeto: false, riskType: null },
+  // Co-occurrence (audit fix): a message that is BOTH human_request AND a
+  // host-only high-stakes class must resolve to the high-stakes label so the
+  // deterministic backstop escalates instead of the handoff-ack auto-answering it.
+  { name: "ayrımcılık + insan-talebi birlikte (discrimination öncelikli)", message: "Ev sahibiyle konuşmak istiyorum; ayrıca temizlikçi Türk olsun, Suriyeli göndermeyin.", autoSendVeto: true, riskType: "discrimination" },
+  { name: "squatting + insan-talebi birlikte (rule_violation öncelikli)", message: "Rezervasyon bitti ama daireden çıkmayacağım; gerçek bir kişiyle görüşmek istiyorum.", autoSendVeto: true, riskType: "rule_violation" },
   { name: "check-in talimatı isteme — injection DEĞİL (EN)", message: "Could you send the check-in instructions again please?", autoSendVeto: false, injection: false },
 
   // --- Araştırma turu (2026-07-16): 3 yeni desen — TEHDİT + İYİ-NİYET tuzağı ----
@@ -235,6 +240,18 @@ describe("GOLDEN SET — riskType gate cross-check (Faz-B: label tightens, never
     expect(passesAutoReplySafetyGate(r, "Klima bozuk, bir insanla görüşmek istiyorum")).toBe(false);
   });
 
+  it("handoff-ack is DENIED when the message also carries discrimination/rule_violation words (deterministic backstop wins)", () => {
+    // Regression pin for the precedence fix: even when the MODEL labels BOTH intent
+    // and riskType human_request (the designed handoff exemption), a co-occurring
+    // host-only high-stakes phrase must still escalate — detectRiskType now ranks
+    // discrimination/rule_violation above human_request, so step-6 fires first.
+    const handoff = { intent: "human_request", riskLevel: "low", confidence: 0.9, source: "openai", riskType: "human_request" };
+    expect(passesAutoReplySafetyGate(handoff, "Ev sahibiyle konuşmak istiyorum; ayrıca temizlikçi Türk olsun, Suriyeli göndermeyin.")).toBe(false);
+    expect(passesAutoReplySafetyGate(handoff, "Rezervasyon bitti ama daireden çıkmayacağım; gerçek bir kişiyle görüşmek istiyorum.")).toBe(false);
+    // A PURE human_request (no high-stakes co-occurrence) still flows as designed.
+    expect(passesAutoReplySafetyGate(handoff, "Gerçek bir kişiyle görüşmek istiyorum lütfen")).toBe(true);
+  });
+
   it("null riskType changes nothing (old behavior byte-identical)", () => {
     const r = { intent: "wifi", riskLevel: "none", confidence: 0.9, source: "openai", riskType: null };
     expect(passesAutoReplySafetyGate(r, "Merhaba, wifi şifresi nedir?")).toBe(true);
@@ -278,6 +295,18 @@ describe("GOLDEN SET — closing-ack (boş sohbete cevap üretme)", () => {
     for (const msg of ["Teşekkürler, peki çıkış saat kaçta?", "ok but where do I leave the key?"]) {
       expect(isClosingAck(msg)).toBe(false);
     }
+  });
+  it("negatif emoji ile 'övgü' asla salt-övgü sayılmaz (isClosingAck ile parite)", () => {
+    // Audit fix: isPositiveFeedback strips emoji before its whitelist check, so a
+    // sarcastic "harika 👎" used to read as praise → cheerful canned reply with NO
+    // model call and NO safety gate. The 👎/😡 guard now blocks it (both praise and
+    // closing paths), so a dissatisfied guest is routed to the normal flow.
+    for (const msg of ["harika 👎", "çok güzeldi 😡", "great 🖕"]) {
+      expect(isPositiveFeedback(msg)).toBe(false);
+      expect(isClosingAck(msg)).toBe(false);
+    }
+    // A genuine short compliment still qualifies (feature intact).
+    expect(isPositiveFeedback("her şey harikaydı, teşekkürler")).toBe(true);
   });
 });
 

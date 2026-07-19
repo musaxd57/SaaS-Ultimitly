@@ -314,6 +314,7 @@ export function isPositiveFeedback(message: string): boolean {
   if (!raw || raw.length > 200) return false; // essays → model
   const m = raw.toLowerCase();
   if (m.includes("?") || m.includes("？")) return false; // a question is never pure praise
+  if (NEGATIVE_EMOJI.test(m)) return false; // 👎/😡 = dissatisfaction, never praise (parity with isClosingAck)
   if (/\d/.test(m)) return false; // times/dates/amounts = a request hiding in praise
   if (detectPromptInjection(raw)) return false; // belt — the whitelist blocks these anyway
   // Strip punctuation/emoji; what remains must be ONLY whitelisted words.
@@ -503,15 +504,22 @@ export function detectRiskType(message: string): string | null {
   if (OFFPLATFORM_PAYMENT_PHRASES.some((p) => m.includes(p))) return "platform_policy";
   if (matchesIntentKeywords(message, "refund")) return "money_refund";
   if (matchesIntentKeywords(message, "early_departure")) return "cancellation";
-  if (matchesIntentKeywords(message, "human_request")) return "human_request";
   // discrimination + rule_violation had NO deterministic detector — the gate
   // relied solely on the model's self-reported label, so a model miss on a
   // pet/party/over-capacity/discriminatory-exclusion message auto-sent an
   // unauthorized approval. These are host-only decisions (see prompts.ts §4).
+  //
+  // They MUST rank ABOVE human_request (audit fix): the gate's deterministic
+  // HIGH-STAKES backstop reads this label, and a message that is BOTH — "I want to
+  // talk to the host, and don't send a <group> cleaner" — would otherwise resolve
+  // to human_request, which the gate's designed handoff-ack exemption can
+  // auto-answer, silently downgrading a tier-3 escalation to a soft handoff. With
+  // discrimination/rule_violation first, the co-occurring case escalates.
   if (DISCRIMINATION_PHRASES.some((p) => m.includes(p))) return "discrimination";
   // Squatting/tahliye-reddi = ev sahibi + hukuk kararı → rule_violation (host-only).
   if (OVERSTAY_REFUSAL_PHRASES.some((p) => m.includes(p))) return "rule_violation";
   if (RULE_VIOLATION_PHRASES.some((p) => m.includes(p))) return "rule_violation";
+  if (matchesIntentKeywords(message, "human_request")) return "human_request";
   if (classifyFallback(message).isComplaint) return "complaint";
   return null;
 }
