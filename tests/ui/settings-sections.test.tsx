@@ -1,4 +1,5 @@
 // @vitest-environment jsdom
+import { useEffect } from "react";
 import { describe, it, expect, vi, beforeEach, afterEach } from "vitest";
 import { render, screen, fireEvent, waitFor, cleanup, within } from "@testing-library/react";
 import { SettingsSections, type SettingsViewGroup } from "@/components/settings/settings-sections";
@@ -87,6 +88,51 @@ describe("SettingsSections (UI)", () => {
     // Switching away keeps it mounted (form state survives) — just hidden.
     fireEvent.click(within(nav()).getByRole("button", { name: "AI ve Otomasyon" }));
     expect(screen.getByText("FATURA GÖRÜNÜMÜ")).toBeTruthy();
+  });
+
+  it("does NOT run the billing panel's mount side-effect (e.g. Paddle SDK) until it is visited", () => {
+    // Directly proves the P3 goal: the billing panel's on-mount work (loading +
+    // initializing Paddle's third-party script) never fires for an owner who only
+    // uses the AI view. We stand a mount-spy in for the SDK load.
+    const paddleMount = vi.fn();
+    function FakeBillingPanel() {
+      useEffect(() => { paddleMount(); }, []);
+      return <div>FATURA GÖRÜNÜMÜ</div>;
+    }
+    const groups: SettingsViewGroup[] = [
+      { label: "İşletme Ayarları", items: [{ id: "ai-otomasyon", label: "AI ve Otomasyon", content: <div>AI</div> }] },
+      { label: null, items: [{ id: "faturalandirma", label: "Faturalandırma", content: <FakeBillingPanel /> }] },
+    ];
+    render(<SettingsSections groups={groups} initialViewId="ai-otomasyon" />);
+    expect(paddleMount).not.toHaveBeenCalled(); // AI view → billing never mounted → no SDK
+
+    fireEvent.click(within(nav()).getByRole("button", { name: "Faturalandırma" }));
+    expect(paddleMount).toHaveBeenCalledTimes(1); // visited once → loaded once
+
+    // Switch away and back: it stays mounted, so the effect does NOT run again.
+    fireEvent.click(within(nav()).getByRole("button", { name: "AI ve Otomasyon" }));
+    fireEvent.click(within(nav()).getByRole("button", { name: "Faturalandırma" }));
+    expect(paddleMount).toHaveBeenCalledTimes(1);
+  });
+
+  it("?tab= deep-link (initialViewId=faturalandirma) mounts the billing panel immediately on first paint", () => {
+    // deriveInitialViewId maps ?tab=faturalandirma → this initialViewId on the
+    // server, so a shared/bookmarked billing link mounts billing right away.
+    render(<SettingsSections groups={GROUPS} initialViewId="faturalandirma" />);
+    expect(activePanel()?.textContent).toContain("FATURA GÖRÜNÜMÜ");
+    expect(screen.getByText("FATURA GÖRÜNÜMÜ")).toBeTruthy();
+  });
+
+  it("form state in a LAZILY-mounted panel survives switching away and back", () => {
+    // Start on AI (Bağlantılar not yet mounted); open it, type into its feed input,
+    // switch to another view, come back → the typed value is still there.
+    render(<SettingsSections groups={GROUPS} initialViewId="ai-otomasyon" />);
+    expect(screen.queryByLabelText("feed")).toBeNull(); // Bağlantılar not mounted yet
+    fireEvent.click(within(nav()).getByRole("button", { name: "Bağlantılar" }));
+    fireEvent.change(screen.getByLabelText("feed"), { target: { value: "gizli-feed" } });
+    fireEvent.click(within(nav()).getByRole("button", { name: "Genel" }));
+    fireEvent.click(within(nav()).getByRole("button", { name: "Bağlantılar" }));
+    expect((screen.getByLabelText("feed") as HTMLInputElement).value).toBe("gizli-feed");
   });
 
   it("reflects the active view in ?tab= without a navigation (replaceState)", () => {
