@@ -112,6 +112,12 @@ export interface ShadowInput {
   guestMessage: string;
   /** Bilinen misafir adı/tanımlayıcısı — mesaj içinde geçiyorsa redakte edilir. */
   guestName?: string | null;
+  /** Rezervasyonun GERÇEK adı (iCal SUMMARY / manuel / check-in sonrası Airbnb).
+   *  guestIdentifier bir placeholder olabilir ("Misafir", "Rezervasyon <kod>"),
+   *  bu durumda gerçek ad yalnız burada bulunur → o da redakte edilmeli, yoksa
+   *  placeholder-kimlikli konuşmalarda gerçek ad Akash'a ham gider (quality-audit
+   *  ile parite). */
+  reservationGuestName?: string | null;
   gateDecision: "auto_sent" | "human_review";
   gateRiskLevel?: string | null;
   gateRiskType?: string | null;
@@ -229,7 +235,12 @@ export async function recordShadowVerdict(input: ShadowInput): Promise<void> {
             {
               role: "user",
               content: redactSensitive(
-                redactNameFromBody(input.guestMessage, input.guestName ? [input.guestName] : []),
+                redactNameFromBody(
+                  input.guestMessage,
+                  // BOTH names: the reservation's real booking name AND the
+                  // (possibly placeholder) identifier — parity with quality-audit.
+                  [input.reservationGuestName, input.guestName].filter((n): n is string => Boolean(n)),
+                ),
               ).slice(0, MESSAGE_CAP),
             },
           ],

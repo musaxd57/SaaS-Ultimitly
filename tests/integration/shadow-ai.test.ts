@@ -185,6 +185,29 @@ describe("recordShadowVerdict — GLM gölge Aşama-1", () => {
     expect(sentBody).toContain("paramı geri istiyorum");
   });
 
+  it("VERİ MİNİMİZASYONU (audit): guestIdentifier placeholder olsa bile rezervasyonun GERÇEK adı redakte edilir", async () => {
+    // The identifier is a placeholder ("Rezervasyon 42") but the message names the
+    // real booking guest — the reservation's real name must be redacted too, else
+    // it egresses to Akash un-redacted (parity with quality-audit / the fix).
+    const fetchMock = vi.fn<(input: RequestInfo | URL, init?: RequestInit) => Promise<Response>>(
+      async () => glmResponse({ verdict: "escalate", riskType: "complaint", confidence: 0.9 }),
+    );
+    vi.stubGlobal("fetch", fetchMock);
+    const org = await seedOrg();
+    await recordShadowVerdict({
+      organizationId: org.id,
+      triggerId: "m11",
+      guestMessage: "Ben Ada Lovelace, dairede gürültü çok fazla.",
+      guestName: "Rezervasyon 42", // placeholder identifier — drops to [Misafir]
+      reservationGuestName: "Ada Lovelace", // the REAL booking name
+      gateDecision: "human_review",
+    });
+    const sentBody = String(fetchMock.mock.calls[0]?.[1]?.body);
+    expect(sentBody).not.toContain("Ada Lovelace"); // real name redacted
+    expect(sentBody).not.toContain("Ada");
+    expect(sentBody).toContain("gürültü"); // risk meaning preserved
+  });
+
   it("STALE PENDING (Codex): yarım kalan claim satırı KÖR RETRY tetiklemez, 'pending' olarak görünür kalır", async () => {
     const org = await seedOrg();
     // Simüle çökme: claim yazılmış, hüküm hiç gelmemiş.
