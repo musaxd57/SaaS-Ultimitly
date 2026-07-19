@@ -63,9 +63,17 @@ describe("propertySchema", () => {
     expect(parsed.checkInTime).toBe("15:00");
     expect(parsed.checkOutTime).toBe("11:00");
 
-    // Format-only check: rejects anything that is not two-digit HH:MM.
+    // Format check: rejects anything that is not two-digit HH:MM.
     expect(propertySchema.safeParse({ name: "Loft", checkInTime: "9:5" }).success).toBe(false);
     expect(propertySchema.safeParse({ name: "Loft", checkInTime: "noon" }).success).toBe(false);
+    // RANGE check (the fix): out-of-range times used to slip through /^\d{2}:\d{2}$/
+    // and break the QR hour-gate / get quoted to guests.
+    for (const bad of ["99:99", "45:00", "24:00", "23:70", "29:70"]) {
+      expect(propertySchema.safeParse({ name: "Loft", checkInTime: bad }).success).toBe(false);
+    }
+    for (const ok of ["00:00", "09:30", "23:59", "15:00"]) {
+      expect(propertySchema.safeParse({ name: "Loft", checkInTime: ok }).success).toBe(true);
+    }
   });
 });
 

@@ -27,7 +27,14 @@ function parseIcsDate(value: string): Date | null {
     const year = parseInt(clean.slice(0, 4), 10);
     const month = parseInt(clean.slice(4, 6), 10) - 1;
     const day = parseInt(clean.slice(6, 8), 10);
-    return new Date(year, month, day, 12, 0, 0); // noon to avoid TZ edge cases
+    const d = new Date(year, month, day, 12, 0, 0); // noon to avoid TZ edge cases
+    // new Date(...) ROLLS OVER an invalid calendar date (20260231 → 3 Mar) instead
+    // of erroring, and the value is a valid Date (not NaN) so the downstream
+    // isNaN guard never catches it → a booking imports on the WRONG day. Verify the
+    // components survived the round-trip and reject if they didn't. (csv.ts makeDate
+    // does the same; VALUE=DATE is exactly the format Airbnb/Booking feeds emit.)
+    if (d.getFullYear() !== year || d.getMonth() !== month || d.getDate() !== day) return null;
+    return d;
   }
 
   // DateTime: YYYYMMDDTHHmmssZ or YYYYMMDDTHHmmss

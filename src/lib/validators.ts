@@ -71,8 +71,13 @@ export const propertySchema = z.object({
   address: z.string().max(300).optional().or(z.literal("")),
   city: z.string().max(120).optional().or(z.literal("")),
   country: z.string().max(120).optional().or(z.literal("")),
-  checkInTime: z.string().regex(/^\d{2}:\d{2}$/, "SS:DD formatında olmalı").default("15:00"),
-  checkOutTime: z.string().regex(/^\d{2}:\d{2}$/, "SS:DD formatında olmalı").default("11:00"),
+  // RANGE-checked HH:MM (00:00–23:59). The old /^\d{2}:\d{2}$/ accepted "99:99" /
+  // "45:00" / "29:70" verbatim, which then breaks the QR isOpenNow hour-gate and
+  // gets quoted to guests. Keep the original TWO-DIGIT contract (the form is a
+  // native <input type="time"> → always HH:MM) and just add the range, mirroring
+  // the bulk-times route's rejection of out-of-range values.
+  checkInTime: z.string().regex(/^([01]\d|2[0-3]):[0-5]\d$/, "SS:DD formatında olmalı (00:00–23:59)").default("15:00"),
+  checkOutTime: z.string().regex(/^([01]\d|2[0-3]):[0-5]\d$/, "SS:DD formatında olmalı (00:00–23:59)").default("11:00"),
   cleaningBufferMinutes: z.coerce.number().int().min(0).max(1440).default(120),
   notes: z.string().max(5000).optional().or(z.literal("")),
   // Supply/linen prep profile: qty-per-arrival for known items only. Partial (any
