@@ -11,6 +11,19 @@ const BOOLEAN_FIELDS = ["autoReplyHospitable", "autoWelcome", "autoCheckin", "au
 const HOUR_FIELDS = ["autoReplyStartHour", "autoReplyEndHour"] as const;
 const VALID_TONES = ["formal", "warm", "short", "luxury"] as const;
 const SIGNATURE_MAX = 600;
+
+// Strict numeric coercion for the integer fields. Number("") / Number(null) /
+// Number("  ") / Number(false) all === 0, so a cleared or omitted-as-"" field would
+// silently persist 0 — a 0-hour handoff hold resumes the AI immediately after a
+// human-handoff request, and a 0 auto-reply window is a real value too. The client
+// already guards the blank box, but a direct API call bypasses that. Accept only a
+// real number or a non-empty numeric string; everything else → NaN → range check
+// rejects it (400).
+function toIntOrNaN(value: unknown): number {
+  if (typeof value === "number") return value;
+  if (typeof value === "string" && value.trim() !== "") return Number(value);
+  return NaN;
+}
 const CLOSING_TEXT_MAX = 300; // a courtesy is one line, not a letter
 const OFFER_TEXT_MAX = 400; // late-checkout offer: a short price/terms line (matches the prompt sanitizer cap)
 
@@ -61,7 +74,7 @@ export const PATCH = withManage(async (session, req) => {
   }
   for (const field of HOUR_FIELDS) {
     if (field in data) {
-      const n = Number(data[field]);
+      const n = toIntOrNaN(data[field]);
       if (!Number.isInteger(n) || n < 0 || n > 23) errors[field] = "0-23 arası bir saat olmalı.";
       else update[field] = n;
     }
@@ -160,7 +173,7 @@ export const PATCH = withManage(async (session, req) => {
   }
 
   if ("handoffHoldHours" in data) {
-    const n = Number(data.handoffHoldHours);
+    const n = toIntOrNaN(data.handoffHoldHours);
     if (!Number.isInteger(n) || n < 0 || n > 72) errors.handoffHoldHours = "0-72 arası saat olmalı.";
     else update.handoffHoldHours = n;
   }
