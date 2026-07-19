@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState, type ReactNode } from "react";
+import { useEffect, useRef, useState, type ReactNode } from "react";
 import { cn } from "@/lib/utils";
 import { CONNECTION_VIEW_ID } from "@/lib/settings-nav";
 
@@ -38,22 +38,46 @@ export function SettingsSections({
   initialViewId: string;
 }) {
   const [active, setActive] = useState(initialViewId);
+  // Mount a panel's content only once it has been the active view at least once,
+  // then keep it mounted (so a half-typed form survives switching away and back).
+  // A panel the user never opens is never mounted → its client effects don't run.
+  // This matters for Faturalandırma: it loads Paddle's third-party SDK on mount, so
+  // without this every owner who opens Settings (defaulting to the AI view) would
+  // fetch + initialize Paddle even if they never touch billing. `?tab=`/`#hospitable`
+  // seed the active view before paint, so a deep-linked panel mounts immediately.
+  const [seen, setSeen] = useState<Set<string>>(() => new Set([initialViewId]));
+  useEffect(() => {
+    setSeen((prev) => (prev.has(active) ? prev : new Set(prev).add(active)));
+  }, [active]);
   const allItems = groups.flatMap((g) => g.items);
 
   // `#hospitable` (dashboard "Bağlantıyı kur") — hash is client-only, so do it
-  // after mount to avoid a hydration mismatch, then scroll the (now-visible)
-  // connection card into view.
+  // after mount to avoid a hydration mismatch. Activate the connection view; the
+  // actual scroll waits until its panel is mounted (the effect below), because with
+  // lazy mounting the card isn't in the DOM until the view is first shown.
+  const scrollToHospitable = useRef(false);
   useEffect(() => {
     if (typeof window === "undefined") return;
     if (window.location.hash === "#hospitable" && allItems.some((i) => i.id === CONNECTION_VIEW_ID)) {
+      scrollToHospitable.current = true;
       setActive(CONNECTION_VIEW_ID);
-      requestAnimationFrame(() => {
-        document.getElementById("hospitable")?.scrollIntoView({ behavior: "smooth", block: "start" });
-      });
     }
     // Run once on mount only.
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
+
+  // Once the connection view is active AND its panel is mounted (in `seen`), scroll
+  // the Hospitable card into view. Runs after the render that actually mounts the
+  // card, so getElementById finds it.
+  useEffect(() => {
+    if (!scrollToHospitable.current) return;
+    if (active === CONNECTION_VIEW_ID && seen.has(CONNECTION_VIEW_ID)) {
+      scrollToHospitable.current = false;
+      requestAnimationFrame(() => {
+        document.getElementById("hospitable")?.scrollIntoView({ behavior: "smooth", block: "start" });
+      });
+    }
+  }, [active, seen]);
 
   function selectView(id: string) {
     setActive(id);
@@ -150,7 +174,8 @@ export function SettingsSections({
             hidden={i.id !== active}
             className="space-y-6"
           >
-            {i.content}
+            {/* Render once visited; keep mounted afterward (form state survives). */}
+            {seen.has(i.id) ? i.content : null}
           </section>
         ))}
       </div>

@@ -77,6 +77,18 @@ describe("SettingsSections (UI)", () => {
     expect((screen.getByLabelText("feed") as HTMLInputElement).value).toBe("gizli-feed");
   });
 
+  it("lazily mounts a panel: unvisited content is absent, then mounts on first open and STAYS mounted", () => {
+    // The billing panel loads Paddle's third-party SDK on mount, so it must NOT
+    // mount until the owner actually opens it (they land on AI by default).
+    render(<SettingsSections groups={GROUPS} initialViewId="ai-otomasyon" />);
+    expect(screen.queryByText("FATURA GÖRÜNÜMÜ")).toBeNull(); // never visited → not mounted
+    fireEvent.click(within(nav()).getByRole("button", { name: "Faturalandırma" }));
+    expect(screen.getByText("FATURA GÖRÜNÜMÜ")).toBeTruthy(); // opened → mounted
+    // Switching away keeps it mounted (form state survives) — just hidden.
+    fireEvent.click(within(nav()).getByRole("button", { name: "AI ve Otomasyon" }));
+    expect(screen.getByText("FATURA GÖRÜNÜMÜ")).toBeTruthy();
+  });
+
   it("reflects the active view in ?tab= without a navigation (replaceState)", () => {
     render(<SettingsSections groups={GROUPS} initialViewId="ai-otomasyon" />);
     fireEvent.click(within(nav()).getByRole("button", { name: "Genel" }));
