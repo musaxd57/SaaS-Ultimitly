@@ -67,6 +67,14 @@ export function AutomationPrefsForm({
 
   async function save(e: React.FormEvent) {
     e.preventDefault();
+    // Guard BEFORE sending: Number("") === 0, so a cleared hold-hours box would
+    // silently persist a 0-hour hold (AI resumes immediately after a human-handoff
+    // request). Blank is a mistake, not a choice — an explicit "0" still works.
+    if (handoffHoldHours.trim() === "") {
+      setSaved(false);
+      setError("İnsan devri bekleme süresi boş olamaz — 0 ile 72 arası bir saat girin.");
+      return;
+    }
     setBusy(true);
     setError(null);
     setSaved(false);
@@ -88,13 +96,20 @@ export function AutomationPrefsForm({
       const data = await res.json().catch(() => ({}));
       if (res.ok) {
         setSaved(true);
+        // Mirror the server's normalization (trim; empty→null is displayed as "")
+        // so the on-screen value matches what was stored and whitespace-only
+        // edits can't re-enable Kaydet as a phantom "unsaved change".
+        const normClosing = closingReplyText.trim();
+        const normOffer = lateCheckoutOfferText.trim();
+        setClosingText(normClosing);
+        setLateCheckoutOffer(normOffer);
         setBaseline({
           autoReplyDisclosure,
           handoffHoldHours,
           autoHoldingReplyEnabled,
           autoClosingReplyEnabled,
-          closingReplyText,
-          lateCheckoutOfferText,
+          closingReplyText: normClosing,
+          lateCheckoutOfferText: normOffer,
           autoTaskFromMessageEnabled,
           autoSupplyRequestEnabled,
         });

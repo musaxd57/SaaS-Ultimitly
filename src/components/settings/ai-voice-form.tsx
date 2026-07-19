@@ -52,7 +52,11 @@ export function AiVoiceForm({
       }
       setSaved(true);
       setBaseTone(aiReplyTone);
-      setBaseSignature(aiSignature);
+      // Mirror the server's trim (empty→null displays as "") so whitespace-only
+      // edits can't re-enable Kaydet and the shown value matches what's stored.
+      const normSignature = aiSignature.trim();
+      setSignature(normSignature);
+      setBaseSignature(normSignature);
       startTransition(() => router.refresh());
     } catch {
       setError("Bağlantı hatası.");

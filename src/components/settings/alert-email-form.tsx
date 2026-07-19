@@ -17,7 +17,9 @@ export function AlertEmailForm({ initial }: { initial: string }) {
   const [busy, setBusy] = useState(false);
   const [saved, setSaved] = useState(false);
   const [error, setError] = useState<string | null>(null);
-  const dirty = email.trim() !== baseline.trim();
+  // Lowercase like the server does — otherwise typing the STORED address with
+  // different casing would look like an unsaved change (phantom dirty).
+  const dirty = email.trim().toLowerCase() !== baseline.trim().toLowerCase();
 
   async function save(e: React.FormEvent) {
     e.preventDefault();
@@ -33,7 +35,11 @@ export function AlertEmailForm({ initial }: { initial: string }) {
       const data = await res.json().catch(() => ({}));
       if (res.ok) {
         setSaved(true);
-        setBaseline(email.trim());
+        // Mirror the server's normalization (trim + lowercase) so the visible
+        // value equals what was actually stored.
+        const normalized = email.trim().toLowerCase();
+        setEmail(normalized);
+        setBaseline(normalized);
         // Adres değişti → yeni adres henüz doğrulanmadı: test butonunu geri
         // getir (tek-seferlik gizleme bayrağını düşür + bayat sonucu temizlet).
         try {

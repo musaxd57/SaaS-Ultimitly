@@ -17,10 +17,17 @@ export function BulkTimesForm({
 }) {
   const router = useRouter();
   const [, startTransition] = useTransition();
-  const [checkInTime, setCheckIn] = useState(defaultCheckIn);
-  const [checkOutTime, setCheckOut] = useState(defaultCheckOut);
-  const [baseCheckIn, setBaseCheckIn] = useState(defaultCheckIn);
-  const [baseCheckOut, setBaseCheckOut] = useState(defaultCheckOut);
+  // Legacy rows may hold un-padded "9:30" (the old free-text era accepted H:MM);
+  // <input type="time"> treats that as invalid and renders EMPTY, with dirty=false
+  // so it couldn't even be re-saved. Zero-pad on the way in.
+  const padTime = (t: string) => {
+    const m = /^(\d{1,2}):(\d{2})$/.exec(t.trim());
+    return m ? `${m[1].padStart(2, "0")}:${m[2]}` : t;
+  };
+  const [checkInTime, setCheckIn] = useState(padTime(defaultCheckIn));
+  const [checkOutTime, setCheckOut] = useState(padTime(defaultCheckOut));
+  const [baseCheckIn, setBaseCheckIn] = useState(padTime(defaultCheckIn));
+  const [baseCheckOut, setBaseCheckOut] = useState(padTime(defaultCheckOut));
   const [saving, setSaving] = useState(false);
   const [result, setResult] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);

@@ -1,6 +1,7 @@
 "use client";
 
-import { useMemo, useState } from "react";
+import { useMemo, useState, useTransition } from "react";
+import { useRouter } from "next/navigation";
 import { Loader2, Check, Globe } from "lucide-react";
 import { Button } from "@/components/ui/button";
 
@@ -10,6 +11,8 @@ import { Button } from "@/components/ui/button";
  * kapalı-set doğrular (IANA); varsayılan Europe/Istanbul.
  */
 export function TimezoneForm({ initial }: { initial: string }) {
+  const router = useRouter();
+  const [, startTransition] = useTransition();
   const [tz, setTz] = useState(initial || "Europe/Istanbul");
   const [baseline, setBaseline] = useState(initial || "Europe/Istanbul");
   const [busy, setBusy] = useState(false);
@@ -45,6 +48,9 @@ export function TimezoneForm({ initial }: { initial: string }) {
       if (res.ok) {
         setSaved(true);
         setBaseline(tz); // new baseline → button disables until the next change
+        // The zone drives server-rendered day boundaries/hour windows elsewhere
+        // on this page — refresh like every sibling form so they don't go stale.
+        startTransition(() => router.refresh());
       } else setError(data.fields?.timezone ?? data.error ?? "Kaydedilemedi.");
     } catch {
       setError("Bağlantı hatası.");

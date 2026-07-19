@@ -20,7 +20,14 @@ export const POST = withManage(async (session, req) => {
     if (field in data) {
       const v = String(data[field] ?? "").trim();
       if (!TIME_RE.test(v)) errors[field] = "Saat SS:DD biçiminde olmalı (örn. 14:00).";
-      else update[field] = v;
+      else {
+        // Store zero-padded HH:MM even when H:MM was sent: the property-form
+        // validator requires \d{2}:\d{2} and the settings <input type="time">
+        // renders an un-padded "9:30" as EMPTY — un-padded rows would show blank
+        // times the host can't re-save (dirty=false against the same raw value).
+        const [h, m] = v.split(":");
+        update[field] = `${h.padStart(2, "0")}:${m}`;
+      }
     }
   }
 
