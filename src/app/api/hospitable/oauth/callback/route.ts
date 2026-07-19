@@ -81,6 +81,15 @@ export async function GET(req: NextRequest) {
     return clearStateCookie(NextResponse.redirect(`${base}/settings?hospitable=connected`));
   } catch (err) {
     const reason = err instanceof HospitableError ? "invalid_token" : "exchange_failed";
+    // A non-Hospitable error is an INTERNAL fault (encryptSecret / the DB write in
+    // setOrgHospitableOAuthTokens), NOT the provider rejecting us — surface it so a
+    // systemic ENCRYPTION_KEY/DB failure that breaks "Hospitable ile Bağlan" for
+    // every host pages ops instead of being silently mislabeled as an external
+    // Hospitable error. (The sibling PAT-connect route already reportErrors this.)
+    if (!(err instanceof HospitableError)) {
+      const { reportError } = await import("@/lib/report-error");
+      void reportError("hospitable.oauth.callback", err).catch(() => {});
+    }
     return clearStateCookie(
       NextResponse.redirect(`${base}/settings?hospitable=${reason}`),
     );

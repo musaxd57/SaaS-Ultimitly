@@ -1,6 +1,7 @@
 "use client";
 
 import { useState } from "react";
+import { useRouter } from "next/navigation";
 import { KeyRound, Copy, Loader2, MessageSquareText } from "lucide-react";
 
 /**
@@ -31,6 +32,7 @@ export function ReservationPinControl({
   reservationId: string;
   initialHasPin: boolean;
 }) {
+  const router = useRouter();
   const [hasPin, setHasPin] = useState(initialHasPin);
   const [pin, setPin] = useState<string | null>(null); // shown once after (re)generate
   const [busy, setBusy] = useState(false);
@@ -53,6 +55,10 @@ export function ReservationPinControl({
       }
       setPin(data.pin);
       setHasPin(true);
+      // The sibling "N stays without a chat code" banner is server-rendered from
+      // pinlessActiveUpcoming — refresh so its count reflects the code we just made.
+      // router.refresh() keeps this component's state, so the shown-once PIN stays.
+      router.refresh();
     } catch {
       setError("Bağlantı hatası. Lütfen tekrar deneyin.");
     } finally {
@@ -71,6 +77,7 @@ export function ReservationPinControl({
       }
       setPin(null);
       setHasPin(false);
+      router.refresh(); // re-count the sibling "stays without a code" banner
     } catch {
       setError("Bağlantı hatası. Lütfen tekrar deneyin.");
     } finally {

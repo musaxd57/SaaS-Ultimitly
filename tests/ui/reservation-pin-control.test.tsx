@@ -1,6 +1,12 @@
 // @vitest-environment jsdom
 import { describe, it, expect, vi, beforeEach, afterEach } from "vitest";
 import { render, screen, fireEvent, cleanup } from "@testing-library/react";
+
+// The control calls router.refresh() after generate/remove so the sibling
+// "N stays without a code" banner re-counts — mock the router in this jsdom test.
+const refresh = vi.fn();
+vi.mock("next/navigation", () => ({ useRouter: () => ({ refresh }) }));
+
 import { ReservationPinControl } from "@/components/properties/reservation-pin-control";
 
 // Faz 5 UX rounds: explicit removal confirmation ("Vazgeç" / "Kodu kaldır") and
