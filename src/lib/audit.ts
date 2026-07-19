@@ -67,9 +67,11 @@ export async function writeAudit(entry: {
     // Never let an audit write affect the real action — but surface the drop.
     // console.error alone is NOT captured anywhere central (no Sentry SDK hooks
     // console); reportError is the only path to the error sink, so a silently
-    // dropped security/KVKK audit trail (impersonation, 2FA-reset, plan-change)
-    // stays visible to operators. reportError never throws and redacts PII.
+    // dropped security/KVKK audit trail (impersonation, 2FA-reset, plan-change,
+    // guest-erasure) stays visible to operators. The action is folded into the
+    // context so ops can tell WHICH mandatory legal record dropped (and re-record
+    // it) without opening the payload. reportError never throws and redacts PII.
     console.error("[audit] dropped entry", entry.action, err);
-    void reportError("audit.write", err);
+    void reportError(`audit.write:${entry.action}`, err);
   }
 }
