@@ -57,3 +57,16 @@ export function withManage<P = Record<string, never>>(handler: AuthedHandler<P>)
     return handler(session, req, ctx);
   });
 }
+
+/** withAuth + the OWNER-only gate (stricter than withManage). Billing/payment and
+ *  legally-loaded actions are an account-owner concern — a manager gets 403. The
+ *  UI already hides these surfaces from non-owners, so this closes the gap where a
+ *  manager could reach the route directly. (An owner-only route with its own
+ *  feature-gate that must run FIRST, e.g. the erasure route, keeps its inline
+ *  `role !== "owner"` check after the gate instead of using this.) */
+export function withOwner<P = Record<string, never>>(handler: AuthedHandler<P>) {
+  return withAuth<P>((session, req, ctx) => {
+    if (session.role !== "owner") return forbidden();
+    return handler(session, req, ctx);
+  });
+}

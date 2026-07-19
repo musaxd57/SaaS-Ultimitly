@@ -1,7 +1,7 @@
 import { NextResponse } from "next/server";
 import { prisma } from "@/lib/db";
 import { badRequest, jsonOk, notFound, tooManyRequests, readJsonCappedOrNull } from "@/lib/api";
-import { withManage } from "@/lib/route-guard";
+import { withOwner } from "@/lib/route-guard";
 import { rateLimit } from "@/lib/rate-limit";
 import {
   getSubscriptionCurrentPriceId,
@@ -21,9 +21,10 @@ import { writeAudit } from "@/lib/audit";
 // Apply an in-app plan change. Upgrade → charged immediately (prorated); downgrade
 // → takes effect at the next billing period. Paddle owns the proration + charge;
 // the resulting webhook updates the local subscription row. Gated behind
-// PADDLE_PLAN_CHANGE_ENABLED (404 while off). withManage → owner/manager; org from
-// the SESSION → IDOR-proof. Rate-limited so a click-loop can't spam Paddle.
-export const POST = withManage(async (session, req) => {
+// PADDLE_PLAN_CHANGE_ENABLED (404 while off). withOwner → account owner only
+// (billing is owner-scoped, matching the UI); org from the SESSION → IDOR-proof.
+// Rate-limited so a click-loop can't spam Paddle.
+export const POST = withOwner(async (session, req) => {
   if (!planChangeEnabled()) return notFound();
   const limited = await rateLimit(`plan-change:${session.organizationId}`, 12, 60 * 60 * 1000);
   if (!limited.ok) return tooManyRequests(limited.retryAfter);

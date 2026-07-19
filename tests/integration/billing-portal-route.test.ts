@@ -63,9 +63,17 @@ describe("POST /api/billing/portal (Paddle customer portal link)", () => {
     expect(json.url).toContain("portal.paddle.com");
   });
 
-  it("403 for a staff member (billing is owner/manager only)", async () => {
+  it("403 for a staff member (billing is owner-only)", async () => {
     await makePaddleSub();
     session = { ...(session as SessionPayload), role: "staff" };
+    expect((await POST(req(), ctx)).status).toBe(403);
+  });
+
+  it("403 for a MANAGER too — billing is owner-only (withOwner), matching the UI", async () => {
+    // The UI hides billing from managers; the API now matches so a manager can't
+    // mint a portal (cancel / card) link via a direct call.
+    await makePaddleSub();
+    session = { ...(session as SessionPayload), role: "manager" };
     expect((await POST(req(), ctx)).status).toBe(403);
   });
 

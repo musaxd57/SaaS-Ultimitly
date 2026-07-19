@@ -1,6 +1,6 @@
 import { prisma } from "@/lib/db";
 import { badRequest, jsonOk, serverError, tooManyRequests } from "@/lib/api";
-import { withManage } from "@/lib/route-guard";
+import { withOwner } from "@/lib/route-guard";
 import { rateLimit } from "@/lib/rate-limit";
 import { createPortalSession, isPaddleConfigured } from "@/lib/payments/paddle";
 
@@ -8,9 +8,10 @@ import { createPortalSession, isPaddleConfigured } from "@/lib/payments/paddle";
 // owner/manager can change plan, cancel, or update their card. Everything is done
 // in Paddle's own tested UI (Paddle owns the proration: upgrade immediate,
 // downgrade at period end), so we never compute charges ourselves. The org comes
-// from the SESSION (never the body) → IDOR-proof; withManage restricts it to
-// owner/manager. The returned link is single-use + short-lived → never cached.
-export const POST = withManage(async (session) => {
+// from the SESSION (never the body) → IDOR-proof; withOwner restricts it to the
+// account owner (billing is an owner concern; the UI hides it from managers, so
+// the API matches). The returned link is single-use + short-lived → never cached.
+export const POST = withOwner(async (session) => {
   const limited = await rateLimit(`billing-portal:${session.organizationId}`, 12, 60 * 60 * 1000);
   if (!limited.ok) return tooManyRequests(limited.retryAfter);
 

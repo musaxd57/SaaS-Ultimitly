@@ -79,6 +79,18 @@ describe("plan change routes (gated, PATCH /subscriptions)", () => {
     await prisma.$disconnect();
   });
 
+  it("owner-only (withOwner): a MANAGER gets 403 on preview AND apply, no Paddle call", async () => {
+    // Billing is owner-scoped in the UI; the API matches so a manager can't drive a
+    // plan change via a direct request. The guard runs before the body is read.
+    session = { ...(session as SessionPayload), role: "manager" };
+    expect((await PREVIEW(req({ planCode: "business" }), ctx)).status).toBe(403);
+    expect(
+      (await CHANGE(req({ planCode: "business", previewToken: tok("pri_isletme", "upgrade") }), ctx)).status,
+    ).toBe(403);
+    expect(previewMock).not.toHaveBeenCalled();
+    expect(updateMock).not.toHaveBeenCalled();
+  });
+
   it("preview: pro→business is an upgrade (immediate proration)", async () => {
     const res = await PREVIEW(req({ planCode: "business" }), ctx);
     expect(res.status).toBe(200);

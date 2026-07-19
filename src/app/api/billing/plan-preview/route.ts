@@ -1,5 +1,5 @@
 import { badRequest, jsonOk, notFound, tooManyRequests, readJsonCappedOrNull } from "@/lib/api";
-import { withManage } from "@/lib/route-guard";
+import { withOwner } from "@/lib/route-guard";
 import { prisma } from "@/lib/db";
 import { NextResponse } from "next/server";
 import { rateLimit } from "@/lib/rate-limit";
@@ -8,9 +8,10 @@ import { planChangeEnabled, resolvePlanChange, signPlanChangeToken } from "@/lib
 
 // Preview an in-app plan change WITHOUT applying it, so the confirm dialog can show
 // the exact prorated charge Paddle will make. Gated behind PADDLE_PLAN_CHANGE_ENABLED
-// (404 while off). withManage → owner/manager; org comes from the SESSION → IDOR-proof.
+// (404 while off). withOwner → account owner only (billing is owner-scoped, matching
+// the UI); org comes from the SESSION → IDOR-proof.
 // The preview amounts are best-effort (Paddle owns the real charge on apply).
-export const POST = withManage(async (session, req) => {
+export const POST = withOwner(async (session, req) => {
   if (!planChangeEnabled()) return notFound();
   const limited = await rateLimit(`plan-preview:${session.organizationId}`, 30, 60 * 60 * 1000);
   if (!limited.ok) return tooManyRequests(limited.retryAfter);
