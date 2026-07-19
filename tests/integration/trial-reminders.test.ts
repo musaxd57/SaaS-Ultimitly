@@ -61,6 +61,9 @@ describe("reverse-trial reminder emails", () => {
     expect(mockSend).toHaveBeenCalledTimes(1);
     expect(mockSend.mock.calls[0][0]).toBe("owner@example.com"); // per-tenant recipient
     expect(mockSend.mock.calls[0][1]).toMatch(/bitiyor/i);
+    // The CTA deep-links to the billing view — /settings now defaults to the AI
+    // view, so a bare /settings would land the owner on AI settings, not the plans.
+    expect(mockSend.mock.calls[0][2]).toContain("/settings?tab=faturalandirma");
 
     const sub = await prisma.subscription.findUniqueOrThrow({ where: { organizationId: orgId } });
     expect(sub.trialEndingSentAt).not.toBeNull();
@@ -80,6 +83,7 @@ describe("reverse-trial reminder emails", () => {
     expect(r1.ended).toBe(1);
     expect(mockSend).toHaveBeenCalledTimes(1);
     expect(mockSend.mock.calls[0][1]).toMatch(/sona erdi/i);
+    expect(mockSend.mock.calls[0][2]).toContain("/settings?tab=faturalandirma"); // CTA → billing view
 
     const sub = await prisma.subscription.findUniqueOrThrow({ where: { organizationId: orgId } });
     expect(sub.trialEndedSentAt).not.toBeNull();

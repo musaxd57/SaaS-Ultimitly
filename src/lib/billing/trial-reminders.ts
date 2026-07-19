@@ -29,10 +29,14 @@ const ENDING_SOON_DAYS = Number(process.env.TRIAL_REMINDER_DAYS) || 1;
 // Don't email about a trial that ended more than this long ago (safety bound).
 const ENDED_GRACE_DAYS = 30;
 
-/** Absolute settings URL for the email CTA (no request host in cron context). */
+/** Absolute settings URL for the email CTA (no request host in cron context).
+ *  Deep-links to the Faturalandırma view — the trial CTA is "see your plans", and
+ *  /settings now defaults to the AI view, so a bare /settings would land the owner
+ *  on AI settings instead of the plan cards. (?tab= is honored on first paint;
+ *  falls back to the default view if billing isn't visible.) */
 function settingsUrl(): string {
   const base = (process.env.APP_BASE_URL || "https://www.lixusai.com").replace(/\/+$/, "");
-  return `${base}/settings`;
+  return `${base}/settings?tab=faturalandirma`;
 }
 
 export type TrialReminderResult = { ending: number; ended: number };
