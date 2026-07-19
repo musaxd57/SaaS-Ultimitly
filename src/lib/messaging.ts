@@ -46,7 +46,16 @@ export async function sendOnChannel(
 
   if (!isInternal) {
     // Multi-tenant: deliver via the connecting org's own Hospitable token.
-    const r = await sendMessage(target.externalReservationId!, body, token);
+    // SINGLE-SHOT ({ retries: 0 }), like the durable outbox worker: POST /messages
+    // is NON-IDEMPOTENT, so a client-level retry on a 5xx/timeout/network error can
+    // re-deliver a message that actually landed on attempt 0 (the response was just
+    // lost) → the guest gets it twice. The caller's claim-then-send already owns the
+    // ambiguous outcome (hold the claim, never blindly re-POST — see
+    // isDefinitiveSendFailure), so retrying inside the client would only re-open the
+    // duplicate window the project's "a duplicate is worse than a rare silent miss"
+    // invariant forbids. Exactly one POST; the caller decides what to do with a
+    // failure. (GET/list calls keep their retries — those are idempotent.)
+    const r = await sendMessage(target.externalReservationId!, body, token, { retries: 0 });
     return { ok: r.ok, error: r.error, providerMessageId: r.id ?? null };
   }
 

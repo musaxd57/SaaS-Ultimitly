@@ -20,7 +20,10 @@ describe("sendOnChannel", () => {
 
     expect(outcome.ok).toBe(true);
     // Third arg is the per-org token (undefined here → env fallback in the client).
-    expect(mockHospitable).toHaveBeenCalledWith("res-1", "Merhaba", undefined);
+    // Fourth arg pins SINGLE-SHOT delivery: a non-idempotent POST must never be
+    // client-retried on a 5xx/timeout (that re-opens the in-fetch duplicate window);
+    // the caller's claim-then-send owns the ambiguous outcome. Parity with the outbox.
+    expect(mockHospitable).toHaveBeenCalledWith("res-1", "Merhaba", undefined, { retries: 0 });
   });
 
   it("is a no-op for manual threads with nothing to deliver", async () => {
