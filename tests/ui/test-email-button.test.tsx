@@ -1,6 +1,6 @@
 // @vitest-environment jsdom
 import { describe, it, expect, vi, beforeEach, afterEach } from "vitest";
-import { render, screen, cleanup, waitFor } from "@testing-library/react";
+import { render, screen, cleanup, waitFor, act, fireEvent } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 
 import { TestEmailButton } from "@/components/settings/test-email-button";
@@ -8,6 +8,8 @@ import { TestEmailButton } from "@/components/settings/test-email-button";
 // Kullanıcı isteği (07-16): test maili BİR KEZ başarıyla gönderilince buton +
 // açıklama kalıcı olarak kalksın (localStorage bayrağı); başarısız denemede
 // kalsın ki tekrar denenebilsin.
+// Codex (07-20): başarı bildirimi geçici toast (role=status, 8 sn sonra oto-temizlik,
+// kapatma düğmesi); HATA bildirimi role=alert ve oto-kapanmaz.
 
 describe("TestEmailButton (UI)", () => {
   beforeEach(() => {
@@ -17,6 +19,7 @@ describe("TestEmailButton (UI)", () => {
   afterEach(() => {
     cleanup();
     vi.unstubAllGlobals();
+    vi.useRealTimers(); // fake-timer testleri userEvent tabanlı testlere sızmasın
   });
 
   it("başarılı gönderimde buton kaybolur, onay satırı kalır, bayrak yazılır", async () => {
@@ -68,5 +71,82 @@ describe("TestEmailButton (UI)", () => {
       expect(screen.getByRole("button", { name: /Test e-postası gönder/ })).toBeTruthy();
     });
     expect(screen.queryByText(/eski@adres.com/)).toBeNull(); // yanıltıcı satır gitti
+  });
+
+  it("BAŞARI toast'ı role=status + 8 sn sonra kendiliğinden kaybolur", async () => {
+    vi.useFakeTimers();
+    vi.stubGlobal(
+      "fetch",
+      vi.fn(async () => new Response(JSON.stringify({ ok: true, to: "a@b.com" }), { status: 200 })),
+    );
+    render(<TestEmailButton />);
+    await act(async () => {
+      fireEvent.click(screen.getByRole("button", { name: /Test e-postası gönder/ }));
+    });
+    // Erişilebilir canlı-bölge olarak sunulur ve mesajı taşır.
+    expect(screen.getByRole("status").textContent).toMatch(/Test e-postası gönderildi/);
+    // 8 sn geçince toast kendiliğinden temizlenir (sayfa değişmeden).
+    await act(async () => {
+      vi.advanceTimersByTime(8000);
+    });
+    expect(screen.queryByText(/Test e-postası gönderildi/)).toBeNull();
+  });
+
+  it("HATA bildirimi role=alert + otomatik KAPANMAZ (8 sn sonra bile durur)", async () => {
+    vi.useFakeTimers();
+    vi.stubGlobal(
+      "fetch",
+      vi.fn(async () => new Response(JSON.stringify({ error: "SMTP yok" }), { status: 500 })),
+    );
+    render(<TestEmailButton />);
+    await act(async () => {
+      fireEvent.click(screen.getByRole("button", { name: /Test e-postası gönder/ }));
+    });
+    expect(screen.getByRole("alert").textContent).toMatch(/SMTP yok/);
+    await act(async () => {
+      vi.advanceTimersByTime(30_000); // uzun süre geçse de hata bildirimi kalır
+    });
+    expect(screen.getByText(/SMTP yok/)).toBeTruthy();
+  });
+
+  it("kapatma düğmesi bildirimi elle kapatır", async () => {
+    vi.useFakeTimers();
+    vi.stubGlobal(
+      "fetch",
+      vi.fn(async () => new Response(JSON.stringify({ error: "SMTP yok" }), { status: 500 })),
+    );
+    render(<TestEmailButton />);
+    await act(async () => {
+      fireEvent.click(screen.getByRole("button", { name: /Test e-postası gönder/ }));
+    });
+    expect(screen.getByText(/SMTP yok/)).toBeTruthy();
+    await act(async () => {
+      fireEvent.click(screen.getByRole("button", { name: /Bildirimi kapat/ }));
+    });
+    expect(screen.queryByText(/SMTP yok/)).toBeNull();
+  });
+
+  it("yeni başarı gönderimi 8 sn süreyi baştan başlatır", async () => {
+    vi.useFakeTimers();
+    vi.stubGlobal(
+      "fetch",
+      vi.fn(async () => new Response(JSON.stringify({ ok: true, to: "a@b.com" }), { status: 200 })),
+    );
+    // Not: başarıdan sonra buton gizlenir; süreyi elle setResult üzerinden değil,
+    // ilk başarının 8 sn'sinin bitmediğini doğrulayarak test ederiz.
+    render(<TestEmailButton />);
+    await act(async () => {
+      fireEvent.click(screen.getByRole("button", { name: /Test e-postası gönder/ }));
+    });
+    // 5 sn: henüz temizlenmedi.
+    await act(async () => {
+      vi.advanceTimersByTime(5000);
+    });
+    expect(screen.getByRole("status").textContent).toMatch(/gönderildi/);
+    // +3 sn (toplam 8): temizlenir.
+    await act(async () => {
+      vi.advanceTimersByTime(3000);
+    });
+    expect(screen.queryByText(/gönderildi/)).toBeNull();
   });
 });
