@@ -111,6 +111,11 @@ temenni yasak, çelişki yasak, dolgu-soru yasak, misafire HER ZAMAN "siz", ben-
   ⚠️ **Akash artık CANLI ikinci veri işleyen** → gizlilik metni alt-işleyen listesi + DPA (LEGAL listesinde) artık
   teorik değil AKTİF gereksinim (redakte veri + tek gerçek müşteri Nuve=founder → geniş açılıştan ÖNCE ŞART).
   /admin "GLM Gölge Pilotu" kartı uyum %'sini gösterir; Aşama-2 (insan değerlendirmesi) pilot dolunca.
+  ⚠️ **PİLOTU YALNIZ NUVE'DE ÇALIŞTIRMA İMKÂNI (unutma):** `SHADOW_AI_ORG_IDS=<Nuve organizationId>` (=`PRIMARY_ORG_ID`
+  `cmpwcnpdz0000oz1yw4wof2o1`, virgülle çoklu) Railway'de SET edilirse gölge YALNIZ o org(lar)da koşar. **ŞU AN SET
+  DEĞİL** → `SHADOW_AI_ENABLED=1` ile `REGISTRATION_OPEN=1` altında kaydolan DİĞER uygun işletmelerin redakte
+  mesajları da Akash'a gider. Pilotu tek org'a sınırlamak (önerilen: Akash'a yalnız Nuve verisi) için bu env'i ekle
+  (shadow-ai.ts `orgAllowed`: boş=tüm org'lar, doluysa allowlist). Alt-işleyen/DPA aciliyetini de düşürür.
 - **Hospitable OAuth** (`HOSPITABLE_OAUTH_CLIENT_ID/SECRET`) canlı → "Hospitable ile Bağlan" butonu
   çalışıyor (uçtan-uca gerçek hesapla doğrulandı). **`TRUST_CF_HEADER` EKLEME** (origin CF arkasında
   değil, Paddle webhook direkt gelir → default=rightmost XFF doğru).
