@@ -135,8 +135,13 @@ describe("KVKK explicit erasure (m40) — executor", () => {
     expect(tombs).toHaveLength(4);
     for (const t of tombs) {
       expect(t.keyHash).toMatch(/^v1:[0-9a-f]{64}$/); // versioned — rotation ships as v2, never a silent mismatch
-      expect(t.keyHash).not.toContain("ada");
-      expect(t.keyHash.includes("5551234567")).toBe(false);
+      // NB: we do NOT substring-check the hex digest against the guest NAME — the
+      // name is deliberately never a tombstone key (namesake false-positives), and a
+      // short all-hex fragment ("ada") collides with ~6% of random digests (a real
+      // flake). The raw-PII-at-rest guarantee is asserted below against the whole
+      // serialized table, using values that carry NON-hex characters and therefore
+      // can never collide with a digest.
+      expect(t.keyHash.includes("5551234567")).toBe(false); // phone digits never verbatim in the HMAC
     }
     const serialized = JSON.stringify(tombs);
     expect(serialized).not.toContain("Ada");

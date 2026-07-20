@@ -18,7 +18,11 @@ describe("erasure tombstone hashing", () => {
     expect(a).toBe(b);
     expect(a).not.toBe(c);
     expect(a).toMatch(/^v1:[0-9a-f]{64}$/); // versioned HMAC-SHA256 hex — no raw value survives
-    expect(a).not.toContain("ada");
+    // Assert the raw value doesn't survive using a needle with NON-hex characters
+    // ("lovelace" → l,o,v ∉ [0-9a-f]) so it can never collide with the digest. An
+    // earlier `not.toContain("ada")` was fragile: "ada" is valid hex and can appear
+    // in a digest by chance.
+    expect(a).not.toContain("lovelace");
   });
 
   it("same phone in different formatting hashes identically (digits-only normalize)", () => {
