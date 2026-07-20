@@ -109,6 +109,10 @@ jobs:
       # A real (non-placeholder) secret — the production boot assertion refuses
       # the dev placeholder by design.
       AUTH_SECRET: ci-e2e-secret-not-used-outside-this-job-42
+      # The production boot gate now REQUIRES a mail provider (verify-env). This
+      # job never sends mail (2-test smoke), so give it a dummy key purely to
+      # satisfy the gate — it is NOT a real Resend key and no send path runs here.
+      RESEND_API_KEY: ci-e2e-provider-not-used
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-node@v4
