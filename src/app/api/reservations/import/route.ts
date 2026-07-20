@@ -1,7 +1,7 @@
 import { prisma } from "@/lib/db";
 import { toAmountDec } from "@/lib/money";
 import { isUniqueViolation } from "@/lib/db-errors";
-import { badRequest, jsonOk, contentLengthOverLimit } from "@/lib/api";
+import { badRequest, jsonOk, readFormDataCapped, payloadTooLarge, BodyTooLargeError } from "@/lib/api";
 import { withManage } from "@/lib/route-guard";
 import { parseIcs } from "@/lib/import/ics";
 import { parseCsv, CsvParseError } from "@/lib/import/csv";
@@ -10,14 +10,17 @@ import { createReservationTasks } from "@/lib/automation";
 const IMPORT_MAX_BYTES = 5 * 1024 * 1024;
 
 export const POST = withManage(async (session, req) => {
-  // OOM guard: req.formData() buffers the ENTIRE body into memory before the
-  // per-file size check below can run, so reject an over-cap request by its
-  // Content-Length FIRST (a several-hundred-MB .csv/.ics would otherwise spike the
-  // shared replica's memory). Margin above the file cap for the multipart envelope.
-  const tooLarge = contentLengthOverLimit(req, IMPORT_MAX_BYTES + 1024 * 1024);
-  if (tooLarge) return tooLarge;
-
-  const formData = await req.formData();
+  // OOM guard: read the multipart body with a HARD byte cap (Content-Length pre-check
+  // + streaming cancel-on-overflow) so a several-hundred-MB .csv/.ics — even with a
+  // missing/lying Content-Length or a chunked body — can't buffer into the shared
+  // replica's memory before the per-file check below. Margin for the multipart envelope.
+  let formData: FormData;
+  try {
+    formData = await readFormDataCapped(req, IMPORT_MAX_BYTES + 1024 * 1024);
+  } catch (e) {
+    if (e instanceof BodyTooLargeError) return payloadTooLarge();
+    return badRequest({ file: "Dosya okunamadı." });
+  }
   const file = formData.get("file") as File | null;
   const propertyId = formData.get("propertyId") as string | null;
 

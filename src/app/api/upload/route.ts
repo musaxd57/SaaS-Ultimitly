@@ -1,7 +1,7 @@
 import { writeFile, mkdir } from "fs/promises";
 import { join } from "path";
 import { prisma } from "@/lib/db";
-import { badRequest, jsonOk, notFound, forbidden, serverError, canManage, tooManyRequests, contentLengthOverLimit } from "@/lib/api";
+import { badRequest, jsonOk, notFound, forbidden, serverError, canManage, tooManyRequests, readFormDataCapped, payloadTooLarge, BodyTooLargeError } from "@/lib/api";
 import { rateLimit } from "@/lib/rate-limit";
 import { withAuth } from "@/lib/route-guard";
 import { sniffImageExt } from "@/lib/image-validation";
@@ -28,14 +28,17 @@ export const POST = withAuth(async (session, req) => {
   const limited = await rateLimit(`upload:${session.userId}`, 30, 60 * 60 * 1000);
   if (!limited.ok) return tooManyRequests(limited.retryAfter);
 
-  // OOM guard: req.formData() buffers the ENTIRE body into memory before the
-  // per-file size check below can run, so reject an over-cap request by its
-  // Content-Length FIRST. Allow the 5 MB image plus ~1 MB for the multipart
-  // envelope + other fields.
-  const tooLarge = contentLengthOverLimit(req, MAX_SIZE_BYTES + 1024 * 1024);
-  if (tooLarge) return tooLarge;
-
-  const formData = await req.formData();
+  // OOM guard: read the multipart body with a HARD byte cap (Content-Length pre-check
+  // + streaming cancel-on-overflow), so a missing/lying Content-Length or a chunked
+  // body can't buffer a huge upload into memory before the per-file check below runs.
+  // Allow the 5 MB image plus ~1 MB for the multipart envelope + other fields.
+  let formData: FormData;
+  try {
+    formData = await readFormDataCapped(req, MAX_SIZE_BYTES + 1024 * 1024);
+  } catch (e) {
+    if (e instanceof BodyTooLargeError) return payloadTooLarge();
+    return badRequest({ file: "Dosya okunamadı." });
+  }
   const file = formData.get("file") as File | null;
 
   if (!file) return badRequest({ file: "Dosya gerekli" });

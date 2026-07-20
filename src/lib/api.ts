@@ -152,20 +152,68 @@ export function payloadTooLarge(message = "İstek gövdesi çok büyük.") {
 }
 
 /**
- * Reject a request whose DECLARED Content-Length already exceeds `maxBytes`, BEFORE
- * the body is read. MULTIPART routes (req.formData() / req.arrayBuffer()) buffer the
- * WHOLE body into memory first, so a per-file size check on the parsed result runs
- * too late — a several-hundred-MB upload has already spiked the replica's memory.
- * This header pre-check is the cheap first line: returns a 413 Response to
- * short-circuit, or null to proceed. A missing/lying Content-Length can't be caught
- * here (chunked uploads), so keep the post-parse per-file size cap as the second
- * line — but every real browser/curl upload sends Content-Length, which is the OOM
- * vector this closes. (readTextCapped already does this for TEXT/JSON bodies; form
- * data has no streaming-cap equivalent, hence the header guard.)
+ * Read a MULTIPART form body with a HARD byte cap, WITHOUT buffering an oversized
+ * request into memory. req.formData() reads the WHOLE body first, so a per-file size
+ * check on the parsed result is too late — a several-hundred-MB upload has already
+ * OOM'd the replica. Two layers:
+ *   (a) cheap: an honest Content-Length over the cap → reject immediately, no read;
+ *   (b) streaming: count bytes as they arrive and, the moment they exceed the cap,
+ *       ACTIVELY cancel the source stream (stop draining it) and fail — so a MISSING
+ *       or LYING Content-Length, or a chunked body, can't smuggle a huge payload in.
+ * We do NOT hand-roll a multipart parser: the byte-capped stream is handed to the
+ * platform's proven Request.formData(). Throws BodyTooLargeError on overflow; a
+ * malformed multipart surfaces as the underlying parser error (caller → 400). Keep a
+ * per-FILE size cap after parsing too (the request cap allows the file + envelope).
  */
-export function contentLengthOverLimit(req: Request, maxBytes: number): Response | null {
+export async function readFormDataCapped(req: Request, maxBytes: number): Promise<FormData> {
   const declared = Number(req.headers.get("content-length"));
-  return Number.isFinite(declared) && declared > maxBytes ? payloadTooLarge() : null;
+  if (Number.isFinite(declared) && declared > maxBytes) throw new BodyTooLargeError();
+
+  const source = req.body;
+  if (!source) return new FormData(); // nothing to parse
+
+  const reader = source.getReader();
+  let total = 0;
+  let overflowed = false;
+  const capped = new ReadableStream<Uint8Array>({
+    async pull(controller) {
+      const { done, value } = await reader.read();
+      if (done) {
+        controller.close();
+        return;
+      }
+      total += value.byteLength;
+      if (total > maxBytes) {
+        overflowed = true;
+        await reader.cancel().catch(() => {}); // stop the upstream — never drain it
+        controller.error(new BodyTooLargeError());
+        return;
+      }
+      controller.enqueue(value);
+    },
+    async cancel(reason) {
+      await reader.cancel(reason).catch(() => {});
+    },
+  });
+
+  // Re-wrap with the ORIGINAL content-type (multipart boundary) but WITHOUT the
+  // content-length (the body is now a stream); the multipart parser keys on the
+  // boundary, not the length.
+  const headers = new Headers(req.headers);
+  headers.delete("content-length");
+  const cappedReq = new Request(req.url, {
+    method: "POST",
+    headers,
+    body: capped,
+    duplex: "half",
+  } as RequestInit & { duplex: "half" });
+
+  try {
+    return await cappedReq.formData();
+  } catch (err) {
+    if (overflowed || err instanceof BodyTooLargeError) throw new BodyTooLargeError();
+    throw err; // malformed multipart → caller maps to 400
+  }
 }
 
 // Webhook bodies (Paddle) are raw TEXT verified by an HMAC signature, so they can't

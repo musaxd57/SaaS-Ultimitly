@@ -1,5 +1,5 @@
 import { describe, it, expect } from "vitest";
-import { readJsonCapped, readTextCapped, readJsonCappedOrNull, contentLengthOverLimit, BodyTooLargeError, MAX_JSON_BODY_BYTES } from "@/lib/api";
+import { readJsonCapped, readTextCapped, readJsonCappedOrNull, readFormDataCapped, BodyTooLargeError, MAX_JSON_BODY_BYTES } from "@/lib/api";
 
 const jsonReq = (body: string) =>
   new Request("http://t/api/x", { method: "POST", body, headers: { "content-type": "application/json" } });
@@ -83,22 +83,79 @@ describe("readJsonCapped (body-size cap)", () => {
   });
 });
 
-describe("contentLengthOverLimit (multipart OOM header guard)", () => {
-  // A constructed Request doesn't populate content-length (it's set on the wire by a
-  // real client), and it's a forbidden header to set manually — so stub headers.get
-  // to exercise the helper's decision directly.
-  const stub = (contentLength: string | null) =>
-    ({ headers: { get: (k: string) => (k === "content-length" ? contentLength : null) } }) as unknown as Request;
+describe("readFormDataCapped (multipart OOM streaming cap)", () => {
+  const enc = new TextEncoder();
+  const BOUNDARY = "----capTest";
+  const head = enc.encode(
+    `--${BOUNDARY}\r\nContent-Disposition: form-data; name="file"; filename="big.csv"\r\nContent-Type: text/csv\r\n\r\n`,
+  );
+  const foot = enc.encode(`\r\n--${BOUNDARY}--\r\n`);
 
-  it("returns a 413 Response when the declared Content-Length exceeds the cap", () => {
-    const res = contentLengthOverLimit(stub(String(10 * 1024 * 1024)), 5 * 1024 * 1024);
-    expect(res).not.toBeNull();
-    expect(res!.status).toBe(413);
+  /** A VALID multipart stream whose file part is `fileBytes` long, 64 KB/chunk. */
+  function multipartStream(fileBytes: number, hooks: { onPull?: () => void; onCancel?: () => void } = {}) {
+    let headSent = false;
+    let sent = 0;
+    return new ReadableStream<Uint8Array>({
+      pull(c) {
+        hooks.onPull?.();
+        if (!headSent) {
+          headSent = true;
+          c.enqueue(head);
+          return;
+        }
+        if (sent < fileBytes) {
+          const n = Math.min(64 * 1024, fileBytes - sent);
+          sent += n;
+          c.enqueue(new Uint8Array(n));
+          return;
+        }
+        c.enqueue(foot);
+        c.close();
+      },
+      cancel() {
+        hooks.onCancel?.();
+      },
+    });
+  }
+  const streamReq = (body: ReadableStream<Uint8Array>, extraHeaders?: Record<string, string>) =>
+    ({
+      url: "http://t/api/x",
+      headers: new Headers({ "content-type": `multipart/form-data; boundary=${BOUNDARY}`, ...extraHeaders }),
+      body,
+    }) as unknown as Request;
+
+  it("parses a normal small multipart body (delegates to the real parser)", async () => {
+    const fd = new FormData();
+    fd.set("file", new File(["hello,world"], "a.csv", { type: "text/csv" }));
+    fd.set("propertyId", "p1");
+    const out = await readFormDataCapped(new Request("http://t/api/x", { method: "POST", body: fd }), 1024 * 1024);
+    expect((out.get("file") as File).name).toBe("a.csv");
+    expect(out.get("propertyId")).toBe("p1");
   });
 
-  it("returns null when within the cap, absent (chunked), or non-numeric", () => {
-    expect(contentLengthOverLimit(stub("1024"), 5 * 1024 * 1024)).toBeNull(); // under
-    expect(contentLengthOverLimit(stub(null), 5 * 1024 * 1024)).toBeNull(); // absent
-    expect(contentLengthOverLimit(stub("abc"), 5 * 1024 * 1024)).toBeNull(); // NaN → proceed
+  it("CHUNKED (no Content-Length) over the cap → BodyTooLargeError, source CANCELLED and NOT fully drained", async () => {
+    let pulls = 0;
+    let cancelled = false;
+    const stream = multipartStream(4 * 1024 * 1024, { onPull: () => pulls++, onCancel: () => (cancelled = true) });
+    await expect(readFormDataCapped(streamReq(stream), 256 * 1024)).rejects.toBeInstanceOf(BodyTooLargeError);
+    expect(cancelled).toBe(true); // upstream told to stop
+    // 256 KB cap / 64 KB chunks → overflow after ~5 pulls, FAR fewer than the ~64 a
+    // fully-drained 4 MB file would need → proves it stopped without buffering it all.
+    expect(pulls).toBeLessThan(20);
+  });
+
+  it("a LYING (small) Content-Length does NOT bypass the streaming cap", async () => {
+    let cancelled = false;
+    const stream = multipartStream(2 * 1024 * 1024, { onCancel: () => (cancelled = true) });
+    // Declared 1 KB (under the cap) but the real body is 2 MB → the header check
+    // passes, the streaming cap must still catch it.
+    const req = streamReq(stream, { "content-length": "1000" });
+    await expect(readFormDataCapped(req, 256 * 1024)).rejects.toBeInstanceOf(BodyTooLargeError);
+    expect(cancelled).toBe(true);
+  });
+
+  it("an HONEST over-cap Content-Length is rejected up front (cheap first layer)", async () => {
+    const req = { url: "http://t/api/x", headers: new Headers({ "content-length": String(10 * 1024 * 1024) }), body: null } as unknown as Request;
+    await expect(readFormDataCapped(req, 5 * 1024 * 1024)).rejects.toBeInstanceOf(BodyTooLargeError);
   });
 });
