@@ -4,6 +4,7 @@ import {
   isHospitableOAuthConfigured,
   generateOAuthState,
   buildAuthorizeUrl,
+  isTrustedRedirectUri,
   exchangeCodeForToken,
   refreshAccessToken,
   type HospitableOAuthConfig,
@@ -71,7 +72,9 @@ describe("buildAuthorizeUrl", () => {
   };
 
   it("includes client_id, redirect_uri, response_type, scope, and state", () => {
-    const url = new URL(buildAuthorizeUrl(config, "state-abc"));
+    const authUrl = buildAuthorizeUrl(config, "state-abc");
+    expect(authUrl).not.toBeNull();
+    const url = new URL(authUrl!);
     expect(url.origin + url.pathname).toBe("https://auth.example.com/authorize");
     expect(url.searchParams.get("client_id")).toBe("client-1");
     expect(url.searchParams.get("redirect_uri")).toBe(config.redirectUri);
@@ -81,6 +84,53 @@ describe("buildAuthorizeUrl", () => {
     expect(url.searchParams.get("scope")).toBe(
       "property:read reservation:read message:read message:write",
     );
+  });
+
+  it("HTTPS-pin: fail-closed (null, NO redirect) when the authorize URL is insecure", () => {
+    // Non-localhost http → refused in every environment; no redirect is produced.
+    expect(buildAuthorizeUrl({ ...config, authorizeUrl: "http://auth.example.com/authorize" }, "s")).toBeNull();
+    expect(buildAuthorizeUrl({ ...config, authorizeUrl: "not-a-url" }, "s")).toBeNull();
+  });
+});
+
+describe("isTrustedRedirectUri (OAuth callback allowlist)", () => {
+  afterEach(() => vi.unstubAllEnvs());
+
+  it("the canonical callback is trusted in every environment", () => {
+    vi.stubEnv("NODE_ENV", "production");
+    expect(isTrustedRedirectUri("https://www.lixusai.com/api/hospitable/oauth/callback")).toBe(true);
+    vi.stubEnv("NODE_ENV", "test");
+    expect(isTrustedRedirectUri("https://www.lixusai.com/api/hospitable/oauth/callback")).toBe(true);
+  });
+
+  it("PRODUCTION accepts ONLY the canonical callback — a full allowlist of one", () => {
+    vi.stubEnv("NODE_ENV", "production");
+    expect(isTrustedRedirectUri("https://staging.lixusai.com/api/hospitable/oauth/callback")).toBe(false);
+    expect(isTrustedRedirectUri("http://localhost:3000/api/hospitable/oauth/callback")).toBe(false);
+    expect(isTrustedRedirectUri("https://evil.example/api/hospitable/oauth/callback")).toBe(false);
+  });
+
+  it("DEV/TEST also allows our own *.lixusai.com over https and localhost over http", () => {
+    vi.stubEnv("NODE_ENV", "test");
+    expect(isTrustedRedirectUri("https://staging.lixusai.com/api/hospitable/oauth/callback")).toBe(true);
+    expect(isTrustedRedirectUri("http://localhost:3000/api/hospitable/oauth/callback")).toBe(true);
+    expect(isTrustedRedirectUri("http://127.0.0.1:3000/cb")).toBe(true);
+    // Still refuses a foreign host and a non-localhost http.
+    expect(isTrustedRedirectUri("https://evil.example/cb")).toBe(false);
+    expect(isTrustedRedirectUri("http://evil.example/cb")).toBe(false);
+    expect(isTrustedRedirectUri("not-a-url")).toBe(false);
+  });
+});
+
+describe("getHospitableOAuthConfig — fail-closed on an untrusted redirect URI", () => {
+  afterEach(() => vi.unstubAllEnvs());
+
+  it("returns null (OAuth dormant) when HOSPITABLE_OAUTH_REDIRECT_URI is a foreign host", () => {
+    vi.stubEnv("HOSPITABLE_OAUTH_CLIENT_ID", "client-1");
+    vi.stubEnv("HOSPITABLE_OAUTH_CLIENT_SECRET", "secret-1");
+    vi.stubEnv("HOSPITABLE_OAUTH_REDIRECT_URI", "https://evil.example/api/hospitable/oauth/callback");
+    expect(getHospitableOAuthConfig()).toBeNull();
+    expect(isHospitableOAuthConfigured()).toBe(false);
   });
 });
 

@@ -161,6 +161,20 @@ export function checkProductionEnv(env) {
     }
   }
 
+  // HOSPITABLE_OAUTH_REDIRECT_URI receives the returned OAuth authorization CODE,
+  // so in production it must be the EXACT canonical callback (a full trusted
+  // allowlist of one) — not merely https. A wrong/hostile value would receive the
+  // code. Unset → the code's canonical default is used → no error. The PROVIDED
+  // value is never printed (it can carry flow parameters); only the expected
+  // canonical constant (public, hardcoded) is shown to guide the fix.
+  const CANONICAL_OAUTH_REDIRECT = "https://www.lixusai.com/api/hospitable/oauth/callback";
+  const oauthRedirectUri = (env.HOSPITABLE_OAUTH_REDIRECT_URI ?? "").trim();
+  if (oauthRedirectUri && oauthRedirectUri !== CANONICAL_OAUTH_REDIRECT) {
+    errors.push(
+      `HOSPITABLE_OAUTH_REDIRECT_URI must be exactly ${CANONICAL_OAUTH_REDIRECT} in production — it receives the OAuth authorization code.`,
+    );
+  }
+
   // Automation heartbeat. The 2-min sync + auto-reply + welcome/check-in/checkout
   // engine runs ONLY when CRON_SECRET is set: the internal cron returns early
   // without it and the external /api/cron/sync 401s. Missing it means automation

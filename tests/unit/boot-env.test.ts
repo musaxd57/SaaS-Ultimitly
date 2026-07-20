@@ -30,6 +30,7 @@ function gate(env: Record<string, string>, prod = true) {
       // deterministic regardless of the local .env (each defaults to https in code).
       HOSPITABLE_API_BASE_URL: "", SUPPLY_AI_BASE_URL: "", SHADOW_AI_BASE_URL: "",
       HOSPITABLE_OAUTH_AUTHORIZE_URL: "", HOSPITABLE_OAUTH_TOKEN_URL: "",
+      HOSPITABLE_OAUTH_REDIRECT_URI: "",
       ...env,
     },
     encoding: "utf8",
@@ -98,6 +99,25 @@ describe("checkProductionEnv (pure gate logic — single source)", () => {
     expect(
       checkProductionEnv({ ...base, HOSPITABLE_OAUTH_TOKEN_URL: "http://auth.hospitable.com/oauth/token" }).errors.join(),
     ).toMatch(/HOSPITABLE_OAUTH_TOKEN_URL must be an https/);
+  });
+
+  it("OAuth redirect (P2): production accepts ONLY the exact canonical callback", () => {
+    const base = { AUTH_SECRET: REAL_AUTH, ENCRYPTION_KEY: REAL_ENC, RESEND_API_KEY: REAL_RESEND };
+    const CANONICAL = "https://www.lixusai.com/api/hospitable/oauth/callback";
+    // Unset → default canonical → no error.
+    expect(checkProductionEnv({ ...base }).errors).toHaveLength(0);
+    // Exact canonical → OK.
+    expect(checkProductionEnv({ ...base, HOSPITABLE_OAUTH_REDIRECT_URI: CANONICAL }).errors).toHaveLength(0);
+    // Any other value (foreign host, staging, http) → error — the code returns here.
+    expect(
+      checkProductionEnv({ ...base, HOSPITABLE_OAUTH_REDIRECT_URI: "https://evil.example/cb" }).errors.join(),
+    ).toMatch(/HOSPITABLE_OAUTH_REDIRECT_URI must be exactly/);
+    expect(
+      checkProductionEnv({
+        ...base,
+        HOSPITABLE_OAUTH_REDIRECT_URI: "https://staging.lixusai.com/api/hospitable/oauth/callback",
+      }).errors.join(),
+    ).toMatch(/HOSPITABLE_OAUTH_REDIRECT_URI must be exactly/);
   });
 
   it("QR_PIN_PEPPER (Codex 4): required only when QR_PIN_ENABLED=1, separate + ≥32 + ≠AUTH_SECRET", () => {
@@ -214,6 +234,28 @@ describe("scripts/verify-env.mjs — the prestart boot gate", () => {
         false,
       ).status,
     ).toBe(0);
+  });
+
+  it("PROD + non-canonical OAuth redirect URI → non-zero exit (provided value not printed)", () => {
+    const r = gate({
+      AUTH_SECRET: REAL_AUTH,
+      ENCRYPTION_KEY: REAL_ENC,
+      RESEND_API_KEY: REAL_RESEND,
+      HOSPITABLE_OAUTH_REDIRECT_URI: "https://evil.example/api/hospitable/oauth/callback",
+    });
+    expect(r.status).toBe(1);
+    expect(r.stderr).toMatch(/HOSPITABLE_OAUTH_REDIRECT_URI must be exactly/);
+    expect(r.stdout + r.stderr).not.toContain("evil.example"); // the hostile value is never echoed
+  });
+
+  it("PROD + exact canonical OAuth redirect URI → exit 0", () => {
+    const r = gate({
+      AUTH_SECRET: REAL_AUTH,
+      ENCRYPTION_KEY: REAL_ENC,
+      RESEND_API_KEY: REAL_RESEND,
+      HOSPITABLE_OAUTH_REDIRECT_URI: "https://www.lixusai.com/api/hospitable/oauth/callback",
+    });
+    expect(r.status).toBe(0);
   });
 
   it("DEV with empty secrets → exit 0 (development/test not blocked)", () => {

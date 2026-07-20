@@ -20,6 +20,34 @@ export const OAUTH_STATE_COOKIE = "hospitable_oauth_state";
 export const STATE_MAX_AGE = 10 * 60; // 10 minutes — just long enough for the redirect round-trip
 const DEFAULT_AUTHORIZE_URL = "https://auth.hospitable.com/oauth/authorize";
 const DEFAULT_TOKEN_URL = "https://auth.hospitable.com/oauth/token";
+// The ONE trusted production callback that receives the OAuth authorization code.
+export const CANONICAL_OAUTH_REDIRECT_URI = "https://www.lixusai.com/api/hospitable/oauth/callback";
+
+// Loopback hosts allowed to receive the callback over http in dev/test only.
+const LOCAL_CALLBACK_HOSTS = new Set(["localhost", "127.0.0.1", "[::1]", "::1"]);
+
+/**
+ * Is `uri` a TRUSTED redirect target for the OAuth authorization code?
+ *   production : the canonical callback ONLY (a full trusted-allowlist of one) —
+ *                a wrong/hostile value must never receive the code.
+ *   dev / test : the canonical callback, OR https to our own *.lixusai.com, OR
+ *                http to localhost (a local callback while developing).
+ * The URI is never logged (it can carry flow parameters).
+ */
+export function isTrustedRedirectUri(uri: string): boolean {
+  if (uri === CANONICAL_OAUTH_REDIRECT_URI) return true;
+  if (process.env.NODE_ENV === "production") return false; // canonical only in prod
+  let u: URL;
+  try {
+    u = new URL(uri);
+  } catch {
+    return false;
+  }
+  const host = u.hostname.toLowerCase();
+  if (u.protocol === "https:" && (host === "lixusai.com" || host.endsWith(".lixusai.com"))) return true;
+  if (u.protocol === "http:" && LOCAL_CALLBACK_HOSTS.has(host)) return true;
+  return false;
+}
 
 export interface HospitableOAuthConfig {
   clientId: string;
@@ -36,9 +64,12 @@ export function getHospitableOAuthConfig(): HospitableOAuthConfig | null {
   if (!clientId || !clientSecret) return null;
   const authorizeUrl = process.env.HOSPITABLE_OAUTH_AUTHORIZE_URL?.trim() || DEFAULT_AUTHORIZE_URL;
   const tokenUrl = process.env.HOSPITABLE_OAUTH_TOKEN_URL?.trim() || DEFAULT_TOKEN_URL;
-  const redirectUri =
-    process.env.HOSPITABLE_OAUTH_REDIRECT_URI?.trim() ||
-    "https://www.lixusai.com/api/hospitable/oauth/callback";
+  const redirectUri = process.env.HOSPITABLE_OAUTH_REDIRECT_URI?.trim() || CANONICAL_OAUTH_REDIRECT_URI;
+  // Fail-closed: an untrusted redirect URI (wrong host / http in production)
+  // disables OAuth entirely — the authorization code must never be sent anywhere
+  // but the canonical callback. The boot gate refuses it loudly in production; this
+  // is the runtime backstop. The URI is not logged.
+  if (!isTrustedRedirectUri(redirectUri)) return null;
   return { clientId, clientSecret, authorizeUrl, tokenUrl, redirectUri };
 }
 
@@ -78,7 +109,13 @@ export function parseOAuthStateCookie(
   return { state: parts[0], organizationId: parts[1], userId: parts[2] };
 }
 
-export function buildAuthorizeUrl(config: HospitableOAuthConfig, state: string): string {
+export function buildAuthorizeUrl(config: HospitableOAuthConfig, state: string): string | null {
+  // Fail-closed: never build a browser redirect to an insecure authorize endpoint
+  // — the whole handshake (including the returned code) would ride that scheme. The
+  // boot gate refuses an http HOSPITABLE_OAUTH_AUTHORIZE_URL in production; this is
+  // the runtime backstop (production → https only; dev/test → localhost http ok).
+  // The URL is never logged.
+  if (!isSecureExternalUrl(config.authorizeUrl)) return null;
   const url = new URL(config.authorizeUrl);
   url.searchParams.set("client_id", config.clientId);
   url.searchParams.set("redirect_uri", config.redirectUri);

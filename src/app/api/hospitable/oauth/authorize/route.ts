@@ -35,7 +35,14 @@ export async function GET(req: NextRequest) {
   }
 
   const state = generateOAuthState();
-  const res = NextResponse.redirect(buildAuthorizeUrl(config, state));
+  const authorizeUrl = buildAuthorizeUrl(config, state);
+  if (!authorizeUrl) {
+    // Fail-closed: the configured authorize endpoint is not https (config error).
+    // Do NOT produce a redirect or set the state cookie — send the operator back
+    // to Settings with the same generic marker used when OAuth is not configured.
+    return NextResponse.redirect(`${base}/settings?hospitable=not_configured`);
+  }
+  const res = NextResponse.redirect(authorizeUrl);
   // Bind the round-trip to the INITIATING org+user (not just CSRF): the callback
   // rejects if the session context changed mid-flow (e.g. impersonation exit),
   // so the tokens can never be saved to a different tenant than the one that
