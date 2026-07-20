@@ -26,6 +26,10 @@ function gate(env: Record<string, string>, prod = true) {
       AUTH_SECRET: "", ENCRYPTION_KEY: "", QR_PIN_ENABLED: "", QR_PIN_PEPPER: "",
       GUEST_ERASURE_ENABLED: "", ERASURE_HMAC_SECRET: "",
       RESEND_API_KEY: "", EMAIL_HOST: "", EMAIL_USER: "", EMAIL_PASS: "",
+      // Clear the secret-bearing URL overrides so the https-pin check is
+      // deterministic regardless of the local .env (each defaults to https in code).
+      HOSPITABLE_API_BASE_URL: "", SUPPLY_AI_BASE_URL: "", SHADOW_AI_BASE_URL: "",
+      HOSPITABLE_OAUTH_AUTHORIZE_URL: "", HOSPITABLE_OAUTH_TOKEN_URL: "",
       ...env,
     },
     encoding: "utf8",
@@ -67,6 +71,33 @@ describe("checkProductionEnv (pure gate logic — single source)", () => {
     expect(
       checkProductionEnv({ ...secrets, EMAIL_HOST: "smtp.x.com", EMAIL_USER: "u" }).errors.join(),
     ).toMatch(/PARTIALLY configured/);
+  });
+
+  it("HTTPS-pin (P2): a SET secret-bearing external URL must be https; unset is fine", () => {
+    const base = { AUTH_SECRET: REAL_AUTH, ENCRYPTION_KEY: REAL_ENC, RESEND_API_KEY: REAL_RESEND };
+    // Unset overrides → the code's https defaults are used → no error.
+    expect(checkProductionEnv({ ...base }).errors).toHaveLength(0);
+    // https overrides → OK.
+    expect(
+      checkProductionEnv({
+        ...base,
+        HOSPITABLE_API_BASE_URL: "https://public.api.hospitable.com/v2",
+        SUPPLY_AI_BASE_URL: "https://api.akashml.com/v1",
+        SHADOW_AI_BASE_URL: "https://api.akashml.com/v1",
+        HOSPITABLE_OAUTH_AUTHORIZE_URL: "https://auth.hospitable.com/oauth/authorize",
+        HOSPITABLE_OAUTH_TOKEN_URL: "https://auth.hospitable.com/oauth/token",
+      }).errors,
+    ).toHaveLength(0);
+    // http override → error, per variable (a secret would ride plaintext).
+    expect(checkProductionEnv({ ...base, SUPPLY_AI_BASE_URL: "http://api.akashml.com/v1" }).errors.join()).toMatch(
+      /SUPPLY_AI_BASE_URL must be an https/,
+    );
+    expect(
+      checkProductionEnv({ ...base, HOSPITABLE_API_BASE_URL: "http://public.api.hospitable.com/v2" }).errors.join(),
+    ).toMatch(/HOSPITABLE_API_BASE_URL must be an https/);
+    expect(
+      checkProductionEnv({ ...base, HOSPITABLE_OAUTH_TOKEN_URL: "http://auth.hospitable.com/oauth/token" }).errors.join(),
+    ).toMatch(/HOSPITABLE_OAUTH_TOKEN_URL must be an https/);
   });
 
   it("QR_PIN_PEPPER (Codex 4): required only when QR_PIN_ENABLED=1, separate + ≥32 + ≠AUTH_SECRET", () => {
@@ -152,6 +183,37 @@ describe("scripts/verify-env.mjs — the prestart boot gate", () => {
 
   it("DEV + no email provider → exit 0 (dev/test never blocked)", () => {
     expect(gate({ AUTH_SECRET: REAL_AUTH, ENCRYPTION_KEY: REAL_ENC }, false).status).toBe(0);
+  });
+
+  it("PROD + http secret-bearing URL → non-zero exit (HTTPS-pin, before traffic)", () => {
+    const r = gate({
+      AUTH_SECRET: REAL_AUTH,
+      ENCRYPTION_KEY: REAL_ENC,
+      RESEND_API_KEY: REAL_RESEND,
+      SUPPLY_AI_BASE_URL: "http://api.akashml.com/v1",
+    });
+    expect(r.status).toBe(1);
+    expect(r.stderr).toMatch(/SUPPLY_AI_BASE_URL must be an https/);
+    expect(r.stdout + r.stderr).not.toContain("api.akashml.com"); // never prints the URL value
+  });
+
+  it("PROD + https secret-bearing URL → exit 0 (override accepted)", () => {
+    const r = gate({
+      AUTH_SECRET: REAL_AUTH,
+      ENCRYPTION_KEY: REAL_ENC,
+      RESEND_API_KEY: REAL_RESEND,
+      HOSPITABLE_API_BASE_URL: "https://public.api.hospitable.com/v2",
+    });
+    expect(r.status).toBe(0);
+  });
+
+  it("DEV + http secret-bearing URL → exit 0 (dev/test never blocked)", () => {
+    expect(
+      gate(
+        { AUTH_SECRET: REAL_AUTH, ENCRYPTION_KEY: REAL_ENC, SUPPLY_AI_BASE_URL: "http://localhost:9000/v1" },
+        false,
+      ).status,
+    ).toBe(0);
   });
 
   it("DEV with empty secrets → exit 0 (development/test not blocked)", () => {

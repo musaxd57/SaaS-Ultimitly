@@ -2,6 +2,7 @@ import "server-only";
 
 import type { PrepPlan } from "@/lib/supply";
 import { reportError, redactSensitive } from "@/lib/report-error";
+import { isSecureExternalUrl } from "@/lib/secure-url";
 
 // Optional, cosmetic AI summary for the prep/shopping plan ("bu hafta çöp poşeti
 // al" tarzı). OpenAI-COMPATIBLE (works with akashML / any /v1/chat/completions):
@@ -64,6 +65,13 @@ export async function generateSupplySummary(plan: PrepPlan): Promise<SupplySumma
   if (!planHasBuyables(plan)) return { ok: false, reason: "empty_plan" };
 
   const base = (process.env.SUPPLY_AI_BASE_URL?.trim() || "https://api.akashml.com/v1").replace(/\/$/, "");
+  // HTTPS-pin (P2): never send the Bearer API key to an insecure endpoint. Fail
+  // BEFORE the network call — production requires https, dev/test allows only
+  // localhost http (secure-url.ts). The URL is not logged (it can carry a token).
+  if (!isSecureExternalUrl(base)) {
+    void reportError("supply-ai", new Error("SUPPLY_AI_BASE_URL is not an https endpoint — refused (no key sent)"));
+    return { ok: false, reason: "insecure_base_url" };
+  }
   const model = process.env.SUPPLY_AI_MODEL?.trim() || "zai-org/GLM-5.2";
   const url = `${base}/chat/completions`;
 

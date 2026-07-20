@@ -135,6 +135,32 @@ export function checkProductionEnv(env) {
     }
   }
 
+  // HTTPS-pin (P2, Codex). Any env-overridable EXTERNAL service URL that carries a
+  // secret in transit — an API key / bearer token / OAuth client_secret — MUST be
+  // https:// in production; an http override would send the credential in
+  // plaintext. Each is an OPTIONAL override (unset → the code's built-in https
+  // default is used → no error); enforced only when SET. A localhost-http endpoint
+  // is a dev/test convenience allowed ONLY by the runtime guard (secure-url.ts),
+  // never here. DATABASE_URL and Railway-internal service addresses are
+  // deliberately NOT included — they are not credential-bearing external HTTP
+  // endpoints. Only field NAMES are printed. Mirror of secure-url.ts (same rule,
+  // enforced before the TS runtime so a bad override never reaches `next start`).
+  const SECRET_BEARING_URL_VARS = [
+    "HOSPITABLE_API_BASE_URL", // per-tenant Bearer token → Hospitable API
+    "SUPPLY_AI_BASE_URL", // Bearer AI key → akashML/OpenAI-compatible endpoint
+    "SHADOW_AI_BASE_URL", // Bearer AI key → shadow classifier endpoint
+    "HOSPITABLE_OAUTH_AUTHORIZE_URL", // OAuth handshake (auth code rides this scheme)
+    "HOSPITABLE_OAUTH_TOKEN_URL", // client_secret is POSTed to this URL
+  ];
+  for (const name of SECRET_BEARING_URL_VARS) {
+    const val = (env[name] ?? "").trim();
+    if (val && !/^https:\/\//i.test(val)) {
+      errors.push(
+        `${name} must be an https:// URL in production — it carries a secret in transit; an http endpoint would leak it.`,
+      );
+    }
+  }
+
   // Automation heartbeat. The 2-min sync + auto-reply + welcome/check-in/checkout
   // engine runs ONLY when CRON_SECRET is set: the internal cron returns early
   // without it and the external /api/cron/sync 401s. Missing it means automation

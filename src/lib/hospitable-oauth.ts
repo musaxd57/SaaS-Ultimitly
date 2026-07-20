@@ -1,5 +1,6 @@
 import "server-only";
 import { randomBytes } from "crypto";
+import { isSecureExternalUrl } from "@/lib/secure-url";
 
 // ---------------------------------------------------------------------------
 // Hospitable OAuth vendor flow ("Hospitable ile Bağlan" one-click connect).
@@ -135,6 +136,14 @@ async function postTokenRequest(
   config: HospitableOAuthConfig,
   body: Record<string, string>,
 ): Promise<HospitableTokenSet> {
+  // HTTPS-pin (P2): the client_secret is POSTed to this URL — never over http.
+  // authFailure:false because this is a CONFIG problem, not a dead credential, so
+  // it must not clear the stored refresh token. No network call is made. The URL
+  // is not included in the message. (The boot gate also refuses an http
+  // HOSPITABLE_OAUTH_TOKEN_URL in production.)
+  if (!isSecureExternalUrl(config.tokenUrl)) {
+    throw new HospitableOAuthError("OAuth token URL is not https — refused (no client_secret sent).", false);
+  }
   let res: Response;
   try {
     res = await fetch(config.tokenUrl, {

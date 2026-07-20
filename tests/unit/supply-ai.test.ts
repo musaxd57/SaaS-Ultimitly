@@ -38,6 +38,17 @@ describe("supply-ai", () => {
     expect(fetchMock).not.toHaveBeenCalled();
   });
 
+  it("HTTPS-pin (P2): an insecure base URL is REFUSED with no network call (no key sent)", async () => {
+    vi.stubEnv("SUPPLY_AI_API_KEY", "sk-test");
+    // Non-localhost http → refused in every environment (secure-url.ts). The key
+    // must never ride plaintext, so the fetch is skipped entirely.
+    vi.stubEnv("SUPPLY_AI_BASE_URL", "http://api.akashml.com/v1");
+    const fetchMock = vi.fn();
+    vi.stubGlobal("fetch", fetchMock);
+    expect(await generateSupplySummary(basePlan)).toEqual({ ok: false, reason: "insecure_base_url" });
+    expect(fetchMock).not.toHaveBeenCalled();
+  });
+
   it("does not call the network for an empty plan even when configured", async () => {
     vi.stubEnv("SUPPLY_AI_API_KEY", "sk-test");
     const fetchMock = vi.fn();

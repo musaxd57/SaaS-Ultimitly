@@ -5,6 +5,7 @@ import { isUniqueViolation } from "@/lib/db-errors";
 import { redactSensitive } from "@/lib/report-error";
 import { redactNameFromBody } from "@/lib/data-retention";
 import { RISK_TYPES } from "@/lib/risk-events";
+import { isSecureExternalUrl } from "@/lib/secure-url";
 
 // ---------------------------------------------------------------------------
 // GLM/Akash GÖLGE katmanı — Aşama-1 (kullanıcı planı 07-16).
@@ -48,10 +49,11 @@ const MESSAGE_CAP = 1500; // sınıflandırmaya yeter; uzun mesajın kuyruğu k�
 
 export function shadowAiEnabled(): boolean {
   if (process.env.SHADOW_AI_ENABLED !== "1" || !shadowKey()) return false;
-  // HTTPS zorunlu (iCal emsali): http base URL = anahtar + misafir mesajı düz
+  // HTTPS-pin (P2, iCal emsali): http base URL = anahtar + misafir mesajı düz
   // metin sızar. Yanlış yapılandırma tavanı yakmasın diye modül pasif kalır.
-  if (!shadowBaseUrl().startsWith("https://")) {
-    warnThrottled("SHADOW_AI_BASE_URL https değil — gölge pasif (anahtar/mesaj düz metin gönderilmez)");
+  // secure-url.ts: production'da yalnız https; dev/test'te localhost-http serbest.
+  if (!isSecureExternalUrl(shadowBaseUrl())) {
+    warnThrottled("SHADOW_AI_BASE_URL güvenli değil — gölge pasif (anahtar/mesaj düz metin gönderilmez)");
     return false;
   }
   return true;

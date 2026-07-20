@@ -1,5 +1,7 @@
 import "server-only";
 
+import { isSecureExternalUrl } from "@/lib/secure-url";
+
 // ---------------------------------------------------------------------------
 // Hospitable Public API v2 client
 // Docs: https://developer.hospitable.com/docs/public-api-docs
@@ -79,6 +81,14 @@ async function hospitableFetch<T>(
   }
 
   const url = path.startsWith("http") ? path : `${baseUrl()}${path}`;
+
+  // HTTPS-pin (P2): never send the per-tenant Bearer token to an insecure
+  // endpoint. Fail BEFORE any network call (no partial send, no retry) — the boot
+  // gate already refuses an http HOSPITABLE_API_BASE_URL in production, so this is
+  // defence-in-depth. The URL is not included in the error (it can carry a token).
+  if (!isSecureExternalUrl(url)) {
+    throw new HospitableError("Hospitable API base URL is not https — refused (no token sent).");
+  }
 
   for (let attempt = 0; ; attempt++) {
     let res: Response;
