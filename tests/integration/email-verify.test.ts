@@ -33,7 +33,9 @@ import { POST as register } from "@/app/api/auth/register/route";
 import { POST as login } from "@/app/api/auth/login/route";
 import { GET as verifyEmail } from "@/app/api/auth/verify-email/route";
 
-const mockSend = vi.mocked(emailService.send);
+// register + resend-verification now go through sendReporting (checked result — not
+// fire-and-forget), so the verification link + "was it sent" assertions read it.
+const mockSendReporting = vi.mocked(emailService.sendReporting);
 
 function postReq(url: string, body: unknown, extraHeaders?: Record<string, string>) {
   return new NextRequest(url, {
@@ -111,7 +113,34 @@ describe("registration → verification → login", () => {
     expect(u?.emailVerifiedAt).toBeNull();
     expect(u?.emailVerifyTokenHash).toBeTruthy();
     expect(u?.acceptedTermsAt).not.toBeNull(); // KVKK consent recorded
-    expect(mockSend).toHaveBeenCalledOnce();
+    expect(mockSendReporting).toHaveBeenCalledOnce();
+  });
+
+  it("verification-email failure → 503 (NOT a false 201), account KEPT and resend-able", async () => {
+    // Fail-open fix: the mailer reports a failure — the caller must NOT pretend the
+    // account is ready. It returns a secret-free 503, keeps the account (its verify
+    // token is intact so the user can resend), and never deletes it or wraps the send
+    // in the DB transaction.
+    mockSendReporting.mockResolvedValueOnce({ ok: false, error: "Resend HTTP 500 — upstream down" });
+    const res = await register(
+      postReq("http://localhost/api/auth/register", {
+        organizationName: "Acme",
+        name: "Ada",
+        email: "mailfail@x.com",
+        password: "secret123",
+        consent: true,
+      }),
+    );
+    expect(res.status).toBe(503);
+    const json = await res.json();
+    expect(json.accountCreated).toBe(true);
+    expect(json).not.toMatchObject({ verifyEmail: true }); // never the success shape
+    expect(String(json.error ?? "")).not.toContain("Resend HTTP 500"); // no provider detail leaked
+    // Account KEPT with a live verify token → resend works later.
+    const u = await prisma.user.findUnique({ where: { email: "mailfail@x.com" } });
+    expect(u).not.toBeNull();
+    expect(u?.emailVerifiedAt).toBeNull();
+    expect(u?.emailVerifyTokenHash).toBeTruthy();
   });
 
   it("records KVKK consent EVIDENCE: privacy timestamp, legal version, IP (rightmost XFF), User-Agent", async () => {
@@ -166,7 +195,7 @@ describe("registration → verification → login", () => {
     );
     expect(res.status).toBe(400);
     expect(await prisma.user.findUnique({ where: { email: "noconsent@x.com" } })).toBeNull();
-    expect(mockSend).not.toHaveBeenCalled();
+    expect(mockSendReporting).not.toHaveBeenCalled();
   });
 
   it("clicking the e-mailed link verifies the account + clears the token", async () => {
@@ -179,7 +208,7 @@ describe("registration → verification → login", () => {
         consent: true,
       }),
     );
-    const html = String(mockSend.mock.calls[0][2]);
+    const html = String(mockSendReporting.mock.calls[0][2]);
     const token = html.match(/token=([a-f0-9]{64})/)?.[1];
     expect(token).toBeTruthy();
 
@@ -234,7 +263,7 @@ describe("registration → verification → login", () => {
         { host: "attacker.evil.com" }, // attacker-controlled Host header
       ),
     );
-    const html = String(mockSend.mock.calls[0][2]);
+    const html = String(mockSendReporting.mock.calls[0][2]);
     expect(html).not.toContain("attacker.evil.com"); // token never leaves for the attacker's domain
     expect(html).toContain("https://www.lixusai.com/api/auth/verify-email?token=");
   });
@@ -256,8 +285,8 @@ describe("registration → verification → login", () => {
       postReq("http://localhost/api/auth/resend-verification", { email: "resend@x.com" }, { host: "attacker.evil.com" }),
     );
     expect(res.status).toBe(200);
-    expect(mockSend).toHaveBeenCalledOnce();
-    const html = String(mockSend.mock.calls[0][2]);
+    expect(mockSendReporting).toHaveBeenCalledOnce();
+    const html = String(mockSendReporting.mock.calls[0][2]);
     expect(html).not.toContain("attacker.evil.com");
     expect(html).toContain("https://www.lixusai.com/api/auth/verify-email?token=");
   });

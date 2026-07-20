@@ -5,6 +5,7 @@ import { badRequest, jsonOk, serverError, tooManyRequests, parseJsonBody, payloa
 import { rateLimit, clientIp } from "@/lib/rate-limit";
 import { writeAudit } from "@/lib/audit";
 import { emailService } from "@/lib/email";
+import { reportError } from "@/lib/report-error";
 
 // ---------------------------------------------------------------------------
 // PUBLIC "forgot my password" RESET (logged OUT). Mirrors the logged-in
@@ -91,11 +92,13 @@ export async function POST(req: NextRequest) {
       );
       if (!sent.ok) {
         // Couldn't deliver → don't leave a dangling code. Stay generic (no
-        // different error shape that would leak existence).
+        // different error shape that would leak existence), but page ops (redacted —
+        // never the recipient/reset code) so a mail outage isn't silently swallowed.
         await prisma.user.update({
           where: { id: user.id },
           data: { pwResetCodeHash: null, pwResetCodeExpiresAt: null },
         });
+        void reportError("account.forgot_password", new Error(sent.error ?? "email send failed"));
       }
       return jsonOk({ ok: true });
     }

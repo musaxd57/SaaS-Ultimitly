@@ -3,6 +3,7 @@ import { prisma } from "@/lib/db";
 import { jsonOk, tooManyRequests, parseJsonBody, payloadTooLarge } from "@/lib/api";
 import { rateLimit, clientIp } from "@/lib/rate-limit";
 import { emailService } from "@/lib/email";
+import { reportError } from "@/lib/report-error";
 import {
   makeVerifyToken,
   VERIFY_TTL_MS,
@@ -40,11 +41,15 @@ export async function POST(req: NextRequest) {
       where: { id: user.id },
       data: { emailVerifyTokenHash: hash, emailVerifyExpiresAt: new Date(Date.now() + VERIFY_TTL_MS) },
     });
-    await emailService.send(
+    const sent = await emailService.sendReporting(
       email,
       "Lixus AI — E-postanı doğrula",
       verifyEmailHtml(user.name, verifyUrl(raw)),
     );
+    // The response is DELIBERATELY uniform (always 200 — a different shape on failure
+    // would only appear for real unverified accounts → account enumeration). But a
+    // genuine send failure must page ops, not vanish (redacted — no recipient/token).
+    if (!sent.ok) void reportError("auth.resend_verification", new Error(sent.error ?? "email send failed"));
   }
   return jsonOk({ ok: true });
 }

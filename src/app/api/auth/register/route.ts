@@ -5,6 +5,7 @@ import { hashPassword } from "@/lib/auth/password";
 import { badRequest, jsonOk, serverError, parseJsonBody, payloadTooLarge } from "@/lib/api";
 import { rateLimit, clientIp } from "@/lib/rate-limit";
 import { emailService } from "@/lib/email";
+import { reportError } from "@/lib/report-error";
 import { makeVerifyToken, VERIFY_TTL_MS, verifyEmailHtml, verifyUrl } from "@/lib/auth/email-verify";
 import { newTrialSubscriptionData } from "@/lib/billing/subscription";
 import { LEGAL_VERSION } from "@/lib/legal-entity";
@@ -91,13 +92,30 @@ export async function POST(req: NextRequest) {
       return { org, user };
     });
 
-    // No auto-login: the account stays inert until the inbox is confirmed
-    // (anti-bot). Clicking the e-mailed link sets emailVerifiedAt + the session.
-    await emailService.send(
+    // No auto-login: the account stays inert until the inbox is confirmed (anti-bot).
+    // The verification email is sent OUTSIDE the DB transaction (a slow/failed
+    // provider must never roll back or block the account write), and we CHECK the
+    // result — NOT fire-and-forget. On failure: keep the account (its verify token is
+    // valid → the user can request a resend), page ops (reportError), and return a
+    // secret-free 503 — never a false 201 that promises "check your inbox" when
+    // nothing was sent. We do NOT delete the account on a provider error.
+    const sent = await emailService.sendReporting(
       email,
       "Lixus AI — E-postanı doğrula",
       verifyEmailHtml(user.name, verifyUrl(raw)),
     );
+    if (!sent.ok) {
+      void reportError("auth.register.verify_email", new Error(sent.error ?? "email send failed"));
+      return NextResponse.json(
+        {
+          error:
+            "Hesabınız oluşturuldu ancak doğrulama e-postası şu anda gönderilemedi. Lütfen birkaç dakika sonra giriş sayfasından “doğrulama e-postasını yeniden gönder” ile tekrar deneyin.",
+          accountCreated: true,
+          verifyEmailFailed: true,
+        },
+        { status: 503 },
+      );
+    }
     return jsonOk({ ok: true, verifyEmail: true }, 201);
   } catch (err) {
     return serverError(undefined, err);

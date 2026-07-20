@@ -111,6 +111,30 @@ export function checkProductionEnv(env) {
     }
   }
 
+  // Transactional email provider. The app sends account-critical mail — email
+  // verification, password-reset codes, operator alerts — so production MUST have a
+  // working provider; without one those flows fail OPEN (silently "succeed" while no
+  // mail is sent, or the DEV console fallback would echo a verification link). Accept
+  // Resend (HTTP API — works where Railway blocks SMTP ports) OR a COMPLETE SMTP set
+  // (host + user + pass). A PARTIAL SMTP config is an error (it would fail every send
+  // at runtime). Only field NAMES are printed. Enforced in production only (dev/test
+  // never blocked — verify-env just warns).
+  const hasResend = Boolean((env.RESEND_API_KEY ?? "").trim());
+  const smtpHost = (env.EMAIL_HOST ?? "").trim();
+  const smtpUser = (env.EMAIL_USER ?? "").trim();
+  const smtpPass = (env.EMAIL_PASS ?? "").trim();
+  if (!hasResend) {
+    if (!smtpHost && !smtpUser && !smtpPass) {
+      errors.push(
+        "No email provider configured — set RESEND_API_KEY, or a complete SMTP set (EMAIL_HOST + EMAIL_USER + EMAIL_PASS). Verification/password-reset/alert mail fails open without one.",
+      );
+    } else if (!(smtpHost && smtpUser && smtpPass)) {
+      errors.push(
+        "SMTP is only PARTIALLY configured — EMAIL_HOST, EMAIL_USER and EMAIL_PASS are ALL required (or set RESEND_API_KEY instead).",
+      );
+    }
+  }
+
   // Automation heartbeat. The 2-min sync + auto-reply + welcome/check-in/checkout
   // engine runs ONLY when CRON_SECRET is set: the internal cron returns early
   // without it and the external /api/cron/sync 401s. Missing it means automation

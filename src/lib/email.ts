@@ -18,6 +18,17 @@ export interface SendEmailOptions {
 // A plain-text alternative for every email. HTML-only mail scores worse with spam
 // filters (Gmail/Outlook) and renders poorly in text clients; a text part raises
 // inbox placement — important for the account-takeover-sensitive password code.
+// Strip e-mail addresses + long digit runs from a provider error before it hits the
+// logs — a provider's 4xx body can echo the recipient. Self-contained (no import of
+// report-error's redactSensitive, which would create an email.ts ↔ report-error.ts
+// cycle). Not a full PII scrubber; just the shapes a mail-provider error can carry.
+function scrubForLog(s: string | undefined): string {
+  return (s ?? "")
+    .replace(/[A-Za-z0-9._%+-]+@[A-Za-z0-9.-]+\.[A-Za-z]{2,}/g, "[EMAIL]")
+    .replace(/\b\d{6,}\b/g, "[NUM]")
+    .slice(0, 300);
+}
+
 function htmlToText(html: string): string {
   return html
     .replace(/<style[\s\S]*?<\/style>/gi, " ")
@@ -100,6 +111,15 @@ class EmailService {
       return;
     }
     if (!this.isConfigured()) {
+      // PRODUCTION must have a provider (the verify-env boot gate enforces it), so
+      // this is a defense-in-depth path. NEVER echo the recipient / subject / body /
+      // verification token to the logs (a verification/reset link in Railway logs is
+      // an account-takeover vector). Log a SECRET-FREE line only.
+      if (process.env.NODE_ENV === "production") {
+        console.error("[EmailService] No email provider configured in production — email NOT sent.");
+        return;
+      }
+      // DEV / TEST ONLY: echo so the verification/reset link is usable locally.
       console.log(
         `\n[EmailService DEV] ─────────────────────────────────────\n` +
           `To:      ${to}\n` +
@@ -110,7 +130,11 @@ class EmailService {
       return;
     }
     const result = await this.sendReporting(to, subject, html);
-    if (!result.ok) console.error("[EmailService] Failed to send email:", result.error);
+    // Secret-free: never the recipient/subject/body/token — only a scrubbed provider
+    // error (a provider's 4xx body can echo the "to" address). email.ts can't import
+    // report-error's redactor (report-error imports emailService → cycle), so scrub
+    // e-mail addresses + long digit runs locally.
+    if (!result.ok) console.error("[EmailService] send failed:", scrubForLog(result.error));
   }
 
   /**
