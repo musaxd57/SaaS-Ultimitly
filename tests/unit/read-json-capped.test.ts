@@ -1,5 +1,5 @@
 import { describe, it, expect } from "vitest";
-import { readJsonCapped, readTextCapped, readJsonCappedOrNull, BodyTooLargeError, MAX_JSON_BODY_BYTES } from "@/lib/api";
+import { readJsonCapped, readTextCapped, readJsonCappedOrNull, contentLengthOverLimit, BodyTooLargeError, MAX_JSON_BODY_BYTES } from "@/lib/api";
 
 const jsonReq = (body: string) =>
   new Request("http://t/api/x", { method: "POST", body, headers: { "content-type": "application/json" } });
@@ -80,5 +80,25 @@ describe("readJsonCapped (body-size cap)", () => {
     expect(await readTextCapped(jsonReq("raw signed body"))).toBe("raw signed body");
     await expect(readTextCapped(jsonReq("a".repeat(2048)), 1024)).rejects.toBeInstanceOf(BodyTooLargeError);
     expect(await readTextCapped(new Request("http://t/api/x", { method: "POST" }))).toBe(""); // no body → ""
+  });
+});
+
+describe("contentLengthOverLimit (multipart OOM header guard)", () => {
+  // A constructed Request doesn't populate content-length (it's set on the wire by a
+  // real client), and it's a forbidden header to set manually — so stub headers.get
+  // to exercise the helper's decision directly.
+  const stub = (contentLength: string | null) =>
+    ({ headers: { get: (k: string) => (k === "content-length" ? contentLength : null) } }) as unknown as Request;
+
+  it("returns a 413 Response when the declared Content-Length exceeds the cap", () => {
+    const res = contentLengthOverLimit(stub(String(10 * 1024 * 1024)), 5 * 1024 * 1024);
+    expect(res).not.toBeNull();
+    expect(res!.status).toBe(413);
+  });
+
+  it("returns null when within the cap, absent (chunked), or non-numeric", () => {
+    expect(contentLengthOverLimit(stub("1024"), 5 * 1024 * 1024)).toBeNull(); // under
+    expect(contentLengthOverLimit(stub(null), 5 * 1024 * 1024)).toBeNull(); // absent
+    expect(contentLengthOverLimit(stub("abc"), 5 * 1024 * 1024)).toBeNull(); // NaN → proceed
   });
 });

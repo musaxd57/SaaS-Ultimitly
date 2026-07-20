@@ -151,6 +151,23 @@ export function payloadTooLarge(message = "İstek gövdesi çok büyük.") {
   return NextResponse.json({ error: message }, { status: 413 });
 }
 
+/**
+ * Reject a request whose DECLARED Content-Length already exceeds `maxBytes`, BEFORE
+ * the body is read. MULTIPART routes (req.formData() / req.arrayBuffer()) buffer the
+ * WHOLE body into memory first, so a per-file size check on the parsed result runs
+ * too late — a several-hundred-MB upload has already spiked the replica's memory.
+ * This header pre-check is the cheap first line: returns a 413 Response to
+ * short-circuit, or null to proceed. A missing/lying Content-Length can't be caught
+ * here (chunked uploads), so keep the post-parse per-file size cap as the second
+ * line — but every real browser/curl upload sends Content-Length, which is the OOM
+ * vector this closes. (readTextCapped already does this for TEXT/JSON bodies; form
+ * data has no streaming-cap equivalent, hence the header guard.)
+ */
+export function contentLengthOverLimit(req: Request, maxBytes: number): Response | null {
+  const declared = Number(req.headers.get("content-length"));
+  return Number.isFinite(declared) && declared > maxBytes ? payloadTooLarge() : null;
+}
+
 // Webhook bodies (Paddle) are raw TEXT verified by an HMAC signature, so they can't
 // use readJsonCapped; a larger cap covers the biggest legitimate event (subscription
 // with many line items) while still bounding an anonymous OOM attempt.

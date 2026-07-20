@@ -38,6 +38,19 @@ describe("POST /api/reservations/import — CSV fail-closed", () => {
     await prisma.$disconnect();
   });
 
+  it("OOM guard: an over-cap body is rejected by Content-Length (413) BEFORE req.formData() buffers it", async () => {
+    // >6 MB (5 MB file cap + 1 MB envelope). A 413 proves the header pre-check fired
+    // FIRST; if it hadn't, formData() would buffer the whole thing and the later
+    // file.size check would 400 — so asserting 413 specifically pins the OOM guard.
+    const big = new NextRequest("http://localhost/api/reservations/import", {
+      method: "POST",
+      headers: { "content-length": String(7 * 1024 * 1024) }, // > 6 MB cap
+    });
+    const res = await POST(big, { params: Promise.resolve({}) });
+    expect(res.status).toBe(413);
+    expect(await prisma.reservation.count({ where: { propertyId } })).toBe(0);
+  });
+
   it("a structurally broken CSV (column mismatch) → 400, imports NOTHING", async () => {
     const csv = "guest_name,arrival,departure\nAda,2026-07-10,2026-07-14,EXTRA";
     const res = await POST(importReq(propertyId, csv), { params: Promise.resolve({}) });

@@ -1,7 +1,7 @@
 import { writeFile, mkdir } from "fs/promises";
 import { join } from "path";
 import { prisma } from "@/lib/db";
-import { badRequest, jsonOk, notFound, forbidden, serverError, canManage, tooManyRequests } from "@/lib/api";
+import { badRequest, jsonOk, notFound, forbidden, serverError, canManage, tooManyRequests, contentLengthOverLimit } from "@/lib/api";
 import { rateLimit } from "@/lib/rate-limit";
 import { withAuth } from "@/lib/route-guard";
 import { sniffImageExt } from "@/lib/image-validation";
@@ -27,6 +27,13 @@ export const POST = withAuth(async (session, req) => {
   // their core flow) but a stuck client / abuse can't fill the volume.
   const limited = await rateLimit(`upload:${session.userId}`, 30, 60 * 60 * 1000);
   if (!limited.ok) return tooManyRequests(limited.retryAfter);
+
+  // OOM guard: req.formData() buffers the ENTIRE body into memory before the
+  // per-file size check below can run, so reject an over-cap request by its
+  // Content-Length FIRST. Allow the 5 MB image plus ~1 MB for the multipart
+  // envelope + other fields.
+  const tooLarge = contentLengthOverLimit(req, MAX_SIZE_BYTES + 1024 * 1024);
+  if (tooLarge) return tooLarge;
 
   const formData = await req.formData();
   const file = formData.get("file") as File | null;

@@ -1,21 +1,30 @@
 import { prisma } from "@/lib/db";
 import { toAmountDec } from "@/lib/money";
 import { isUniqueViolation } from "@/lib/db-errors";
-import { badRequest, jsonOk } from "@/lib/api";
+import { badRequest, jsonOk, contentLengthOverLimit } from "@/lib/api";
 import { withManage } from "@/lib/route-guard";
 import { parseIcs } from "@/lib/import/ics";
 import { parseCsv, CsvParseError } from "@/lib/import/csv";
 import { createReservationTasks } from "@/lib/automation";
 
+const IMPORT_MAX_BYTES = 5 * 1024 * 1024;
+
 export const POST = withManage(async (session, req) => {
+  // OOM guard: req.formData() buffers the ENTIRE body into memory before the
+  // per-file size check below can run, so reject an over-cap request by its
+  // Content-Length FIRST (a several-hundred-MB .csv/.ics would otherwise spike the
+  // shared replica's memory). Margin above the file cap for the multipart envelope.
+  const tooLarge = contentLengthOverLimit(req, IMPORT_MAX_BYTES + 1024 * 1024);
+  if (tooLarge) return tooLarge;
+
   const formData = await req.formData();
   const file = formData.get("file") as File | null;
   const propertyId = formData.get("propertyId") as string | null;
 
   if (!file) return badRequest({ file: "Dosya gerekli" });
-  // Cap the upload BEFORE buffering it into a string — an authenticated user
-  // POSTing a several-hundred-MB file would otherwise OOM the shared replica.
-  if (file.size > 5 * 1024 * 1024) return badRequest({ file: "Dosya çok büyük (en fazla 5 MB)." });
+  // Second line (for a missing/lying Content-Length): the per-file size cap, still
+  // BEFORE file.text() buffers a second copy into a string.
+  if (file.size > IMPORT_MAX_BYTES) return badRequest({ file: "Dosya çok büyük (en fazla 5 MB)." });
   if (!propertyId) return badRequest({ propertyId: "Mülk seçin" });
 
   // Verify the property belongs to this organization.
