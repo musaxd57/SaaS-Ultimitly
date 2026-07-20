@@ -149,6 +149,23 @@ describe("KVKK explicit erasure (m40) — executor", () => {
     expect(serialized).not.toContain("res-erase-1");
   });
 
+  it("tombstone SCHEMA is hash-only — no raw-PII column EXISTS (structural, not just value-level)", async () => {
+    const { orgId, reservationId } = await seedErasedStay();
+    await eraseReservationData(orgId, reservationId);
+    const tomb = await prisma.erasureTombstone.findFirstOrThrow({ where: { organizationId: orgId } });
+    // Prisma returns EVERY scalar column, so Object.keys is the row's SHAPE (the
+    // schema), not just this row's values: a future `guestName`/`body` column would
+    // appear here and fail the test — the guarantee is that the table can NEVER
+    // carry raw PII, only opaque hashes + metadata.
+    const columns = Object.keys(tomb).sort();
+    expect(columns).toEqual(
+      ["createdAt", "erasedAt", "expiresAt", "id", "keyFingerprint", "keyHash", "keyType", "organizationId"].sort(),
+    );
+    for (const forbidden of ["guestName", "guestEmail", "guestPhone", "guestExternalId", "body", "name", "email", "phone"]) {
+      expect(columns).not.toContain(forbidden);
+    }
+  });
+
   it("re-erasing the same stay is idempotent (skipDuplicates — no unique-violation throw)", async () => {
     const { orgId, reservationId } = await seedErasedStay();
     await eraseReservationData(orgId, reservationId);
