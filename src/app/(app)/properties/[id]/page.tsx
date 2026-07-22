@@ -28,8 +28,10 @@ export const dynamic = "force-dynamic";
 
 export default async function PropertyDetailPage({
   params,
+  searchParams,
 }: {
   params: Promise<{ id: string }>;
+  searchParams: Promise<{ gecmis?: string | string[] }>;
 }) {
   const session = await requireAuth();
   // Staff get a read-only view; only owner/manager see edit/delete/sync controls
@@ -64,12 +66,48 @@ export default async function PropertyDetailPage({
   // KVKK explicit-erasure (m40): the "already erased" state is decided by an actual
   // TOMBSTONE, not merely a masked name — a retention-anonymized row (no tombstone)
   // must still offer the erasure button, not falsely read as "permanently erased".
-  // Computed over the SAME reservationList that is RENDERED (audit fix): computing
-  // it over the last-5 while the pin-list renders active+upcoming made an erased
-  // stay outside the last-5 falsely show as "not erased".
   const showErasure = session.role === "owner" && guestErasureEnabled();
+
+  // KVKK erasure REACH (Codex 07-22, P2): the rendered list above is capped (last-5
+  // or active+upcoming-25), and the erasure control only renders on listed rows — so
+  // an OLD guest's deletion request (KVKK m.11, 30-day SLA) had NO UI surface at all.
+  // When erasure is enabled, a separate PAGED full-history list (newest first) makes
+  // every reservation reachable without changing anyone else's default view. Always
+  // server-side paginated — never an unbounded render.
+  const HISTORY_PAGE_SIZE = 25;
+  const rawHistPage = (await searchParams)?.gecmis;
+  const parsedHistPage = Number.parseInt(
+    (Array.isArray(rawHistPage) ? rawHistPage[0] : rawHistPage) ?? "",
+    10,
+  );
+  const historyPage =
+    Number.isFinite(parsedHistPage) && parsedHistPage >= 1 ? Math.min(parsedHistPage, 10_000) : 1;
+  const historyRows = showErasure
+    ? await prisma.reservation.findMany({
+        where: { propertyId: property.id },
+        orderBy: [{ arrivalDate: "desc" }, { id: "desc" }], // deterministic across equal dates
+        skip: (historyPage - 1) * HISTORY_PAGE_SIZE,
+        take: HISTORY_PAGE_SIZE + 1, // +1 row = "has a next page" probe
+        select: {
+          id: true,
+          guestName: true,
+          arrivalDate: true,
+          departureDate: true,
+          status: true,
+          sourceReference: true,
+        },
+      })
+    : [];
+  const historyHasNext = historyRows.length > HISTORY_PAGE_SIZE;
+  const historyList = historyRows.slice(0, HISTORY_PAGE_SIZE);
+
+  // Erasure state computed over EVERY rendered row (audit fix precedent): the main
+  // list AND the history page — an id appearing in both gets one consistent answer.
   const erasedIds = showErasure
-    ? await reservationsWithSourceTombstone(session.organizationId, reservationList)
+    ? await reservationsWithSourceTombstone(session.organizationId, [
+        ...reservationList,
+        ...historyList,
+      ])
     : new Set<string>();
   // Strict mode with PIN-less active/upcoming stays = those chats are locked until
   // the host generates a code — surface a clear warning on the toggle.
@@ -271,6 +309,70 @@ export default async function PropertyDetailPage({
               )}
             </CardContent>
           </Card>
+
+          {showErasure ? (
+            <Card>
+              <CardHeader>
+                <CardTitle className="flex items-center gap-2 text-base">
+                  <CalendarDays className="size-4 text-muted-foreground" /> Tüm Rezervasyonlar
+                  (KVKK Silme)
+                </CardTitle>
+              </CardHeader>
+              <CardContent className="space-y-2">
+                <p className="text-xs text-muted-foreground">
+                  Silme talebi gönderen misafirin konaklaması yukarıdaki listede yoksa burada
+                  bulun — tüm geçmiş, en yeniden eskiye, sayfa sayfa.
+                </p>
+                {historyList.length === 0 ? (
+                  <p className="text-sm text-muted-foreground">
+                    {historyPage > 1 ? "Bu sayfada kayıt yok." : "Rezervasyon yok."}
+                  </p>
+                ) : (
+                  historyList.map((r) => (
+                    <div key={r.id} className="border-b border-border/50 pb-2 last:border-0 last:pb-0">
+                      <div className="flex items-center justify-between gap-2">
+                        <div className="min-w-0">
+                          <p className="truncate text-sm font-medium">{r.guestName}</p>
+                          <p className="text-xs text-muted-foreground">
+                            {formatDate(r.arrivalDate)} – {formatDate(r.departureDate)}
+                          </p>
+                        </div>
+                        <Badge tone={RESERVATION_STATUS.tone(r.status)}>
+                          {RESERVATION_STATUS.label(r.status)}
+                        </Badge>
+                      </div>
+                      <GuestErasureControl reservationId={r.id} initialErased={erasedIds.has(r.id)} />
+                    </div>
+                  ))
+                )}
+                {historyPage > 1 || historyHasNext ? (
+                  <div className="flex items-center justify-between pt-1 text-sm">
+                    {historyPage > 1 ? (
+                      <Link
+                        className="text-primary hover:underline"
+                        href={`/properties/${property.id}?gecmis=${historyPage - 1}`}
+                      >
+                        ← Daha yeni
+                      </Link>
+                    ) : (
+                      <span />
+                    )}
+                    <span className="text-xs text-muted-foreground">Sayfa {historyPage}</span>
+                    {historyHasNext ? (
+                      <Link
+                        className="text-primary hover:underline"
+                        href={`/properties/${property.id}?gecmis=${historyPage + 1}`}
+                      >
+                        Daha eski →
+                      </Link>
+                    ) : (
+                      <span />
+                    )}
+                  </div>
+                ) : null}
+              </CardContent>
+            </Card>
+          ) : null}
         </div>
       </div>
     </>
