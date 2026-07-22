@@ -1,4 +1,4 @@
-import { describe, it, expect, afterEach } from "vitest";
+import { describe, it, expect, afterEach, vi } from "vitest";
 import { createHmac } from "node:crypto";
 import {
   verifyPaddleSignature,
@@ -56,15 +56,16 @@ describe("verifyPaddleSignature", () => {
 
 describe("paddlePriceToPlanCode", () => {
   afterEach(() => {
-    delete process.env.PADDLE_PRICE_BASLANGIC;
-    delete process.env.PADDLE_PRICE_PRO;
-    delete process.env.PADDLE_PRICE_ISLETME;
+    // vi.stubEnv (not a raw delete): unstub RESTORES any .env-provided value —
+    // a raw `delete` would wipe it and leak "unconfigured" into later test files
+    // (the exact cross-file flake paddle-portal.test.ts documents).
+    vi.unstubAllEnvs();
   });
 
   it("maps configured price ids to plan codes; unknown → null", () => {
-    process.env.PADDLE_PRICE_BASLANGIC = "pri_baslangic";
-    process.env.PADDLE_PRICE_PRO = "pri_pro";
-    process.env.PADDLE_PRICE_ISLETME = "pri_isletme";
+    vi.stubEnv("PADDLE_PRICE_BASLANGIC", "pri_baslangic");
+    vi.stubEnv("PADDLE_PRICE_PRO", "pri_pro");
+    vi.stubEnv("PADDLE_PRICE_ISLETME", "pri_isletme");
     expect(paddlePriceToPlanCode("pri_baslangic")).toBe("free");
     expect(paddlePriceToPlanCode("pri_pro")).toBe("pro");
     expect(paddlePriceToPlanCode("pri_isletme")).toBe("business");

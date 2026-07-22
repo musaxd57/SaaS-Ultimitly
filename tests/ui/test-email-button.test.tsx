@@ -126,14 +126,17 @@ describe("TestEmailButton (UI)", () => {
     expect(screen.queryByText(/SMTP yok/)).toBeNull();
   });
 
-  it("yeni başarı gönderimi 8 sn süreyi baştan başlatır", async () => {
+  it("BAŞARI toast'ı 8. sn'den ÖNCE temizlenmez (süre tam 8 sn)", async () => {
+    // Dürüst kapsam (07-20 test-denetimi): başarıdan sonra buton gizlendiği için
+    // UI'da ikinci gönderim — dolayısıyla gözlemlenebilir bir "restart" — mümkün
+    // değil (timer yeniden-kurulumu useEffect [result] ile kod düzeyinde var ama
+    // arayüzden sürülemez). Bu test yalnız GERÇEKTEN doğrulanabilir olanı pinler:
+    // toast 5. sn'de HÂLÂ durur, 8. sn'de kaybolur — yani zamanlayıcı erken ateşlemez.
     vi.useFakeTimers();
     vi.stubGlobal(
       "fetch",
       vi.fn(async () => new Response(JSON.stringify({ ok: true, to: "a@b.com" }), { status: 200 })),
     );
-    // Not: başarıdan sonra buton gizlenir; süreyi elle setResult üzerinden değil,
-    // ilk başarının 8 sn'sinin bitmediğini doğrulayarak test ederiz.
     render(<TestEmailButton />);
     await act(async () => {
       fireEvent.click(screen.getByRole("button", { name: /Test e-postası gönder/ }));

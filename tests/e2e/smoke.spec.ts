@@ -16,6 +16,8 @@ test("login → dashboard with the seeded owner", async ({ page }) => {
   await page.fill("#password", "demo1234");
   await page.getByRole("button", { name: /giriş/i }).click();
   await page.waitForURL("**/dashboard", { timeout: 30_000 });
-  // The app shell rendered with real session data (org name from the seed).
-  await expect(page.locator("body")).toContainText(/Çıkış|Panel|Gösterge|Lixus/i);
+  // The authenticated app shell rendered. "Lixus" is deliberately EXCLUDED — the
+  // brand chrome also renders on the unauthenticated landing page, so matching it
+  // would make this assertion vacuous; only auth-only nav labels prove a session.
+  await expect(page.locator("body")).toContainText(/Çıkış|Panel|Gösterge/i);
 });
