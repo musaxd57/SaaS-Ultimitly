@@ -30,13 +30,19 @@ function scrubForLog(s: string | undefined): string {
 }
 
 function htmlToText(html: string): string {
+  // Decodes exactly the entities our own esc() helpers emit (&quot;/&#39; were
+  // missing — a guest name or message with an apostrophe showed literally as
+  // "it&#39;s" in the plain-text part). &amp; is decoded LAST so an escaped
+  // literal like "&amp;lt;" can never double-decode into a bogus "<".
   return html
     .replace(/<style[\s\S]*?<\/style>/gi, " ")
     .replace(/<[^>]+>/g, " ")
-    .replace(/&amp;/g, "&")
     .replace(/&lt;/g, "<")
     .replace(/&gt;/g, ">")
     .replace(/&nbsp;/g, " ")
+    .replace(/&quot;/g, '"')
+    .replace(/&#39;/g, "'")
+    .replace(/&amp;/g, "&")
     .replace(/\s+/g, " ")
     .trim();
 }

@@ -135,7 +135,7 @@ export function taskAssignedEmail(
           <table width="100%" cellpadding="0" cellspacing="0">
             <tr>
               <td style="width:50%;padding-right:8px;">
-                <p style="margin:0 0 4px;color:#94a3b8;font-size:11px;font-weight:600;text-transform:uppercase;">MÜL K</p>
+                <p style="margin:0 0 4px;color:#94a3b8;font-size:11px;font-weight:600;text-transform:uppercase;">MÜLK</p>
                 <p style="margin:0;color:#0f172a;font-size:14px;font-weight:600;">${esc(property.name)}</p>
                 ${property.city ? `<p style="margin:0;color:#64748b;font-size:12px;">${esc(property.city)}</p>` : ""}
               </td>
