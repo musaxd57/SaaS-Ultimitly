@@ -52,14 +52,6 @@ export default async function PropertyDetailPage({
   const pinFeatureEnabled = process.env.QR_PIN_ENABLED === "1";
   const showPinControls = canManage && process.env.GUEST_CHAT_ENABLED === "1" && pinFeatureEnabled && property.chatEnabled;
 
-  // KVKK explicit-erasure (m40): the "already erased" state is decided by an actual
-  // TOMBSTONE, not merely a masked name — a retention-anonymized row (no tombstone)
-  // must still offer the erasure button, not falsely read as "permanently erased".
-  const showErasure = session.role === "owner" && guestErasureEnabled();
-  const erasedIds = showErasure
-    ? await reservationsWithSourceTombstone(session.organizationId, property.reservations)
-    : new Set<string>();
-
   // For PIN management the "last 5 by arrival desc" list is WRONG (Codex 3): a
   // fully-booked apartment pushes the CURRENTLY-STAYING guest out behind future
   // bookings, so the host couldn't reach it to set a PIN. When the controls are
@@ -68,6 +60,17 @@ export default async function PropertyDetailPage({
   const reservationList = showPinControls
     ? await listReservationsForPinManagement(property.id)
     : property.reservations;
+
+  // KVKK explicit-erasure (m40): the "already erased" state is decided by an actual
+  // TOMBSTONE, not merely a masked name — a retention-anonymized row (no tombstone)
+  // must still offer the erasure button, not falsely read as "permanently erased".
+  // Computed over the SAME reservationList that is RENDERED (audit fix): computing
+  // it over the last-5 while the pin-list renders active+upcoming made an erased
+  // stay outside the last-5 falsely show as "not erased".
+  const showErasure = session.role === "owner" && guestErasureEnabled();
+  const erasedIds = showErasure
+    ? await reservationsWithSourceTombstone(session.organizationId, reservationList)
+    : new Set<string>();
   // Strict mode with PIN-less active/upcoming stays = those chats are locked until
   // the host generates a code — surface a clear warning on the toggle.
   const pinlessActiveUpcoming = showPinControls

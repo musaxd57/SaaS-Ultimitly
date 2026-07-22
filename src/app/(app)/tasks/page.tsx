@@ -176,11 +176,19 @@ export default async function TasksPage({
         <EmptyState
           icon={ListChecks}
           title="Görev yok"
-          description="Yeni rezervasyonlarda görevler otomatik açılır. Eksik kalan varsa yukarıdaki düğmeyle tamamlayabilir, dilerseniz aşağıdan elle de görev ekleyebilirsiniz."
+          description={
+            canManage
+              ? "Yeni rezervasyonlarda görevler otomatik açılır. Eksik kalan varsa aşağıdan elle de görev ekleyebilirsiniz."
+              : "Yeni rezervasyonlarda görevler otomatik açılır. Size atanmış bir görev olduğunda burada listelenir."
+          }
         >
-          <LinkButton href="/tasks/new" size="sm">
-            <Plus className="size-4" /> Görev ekle
-          </LinkButton>
+          {/* Staff can't create tasks (/tasks/new redirects them back) — only show
+              the button to managers/owners so it never dead-ends. */}
+          {canManage ? (
+            <LinkButton href="/tasks/new" size="sm">
+              <Plus className="size-4" /> Görev ekle
+            </LinkButton>
+          ) : null}
         </EmptyState>
       ) : (
         <TaskBoard tasks={cards} canManage={canManage} />

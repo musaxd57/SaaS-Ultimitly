@@ -115,7 +115,12 @@ export async function listReservationsForPinManagement(propertyId: string, now: 
     where: { propertyId, departureDate: { gte: new Date(now.getTime() - 24 * 60 * 60 * 1000) } },
     orderBy: { arrivalDate: "asc" },
     take: 25,
-    select: { id: true, guestName: true, arrivalDate: true, departureDate: true, status: true, chatPinHash: true },
+    select: {
+      id: true, guestName: true, arrivalDate: true, departureDate: true, status: true, chatPinHash: true,
+      // Needed so the property page can decide the KVKK erasure state over THIS
+      // exact list (source_reference tombstone match), not the separate last-5.
+      sourceReference: true,
+    },
   });
 }
 

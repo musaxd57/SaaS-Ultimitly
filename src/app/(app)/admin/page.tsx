@@ -68,6 +68,11 @@ export default async function AdminPage() {
   // Gölge pilot özeti: uyum oranı + iki yönlü ayrışma sayısı (Aşama-2 ham girdisi).
   const shadowTotal = shadowRows.length;
   const shadowOk = shadowRows.filter((r) => r.verdict !== null);
+  // Split the no-verdict rows the way the table below does: "pending" = a claim
+  // whose process died before a verdict (shown "yarım", NOT a failure), vs a real
+  // error string (shown "arıza"). The summary used to lump both into "arıza".
+  const shadowHalf = shadowRows.filter((r) => r.error === "pending").length;
+  const shadowError = shadowRows.filter((r) => r.error && r.error !== "pending").length;
   const shadowAgree = shadowOk.filter((r) => r.agrees === true).length;
   const shadowStricter = shadowOk.filter(
     (r) => r.agrees === false && r.gateDecision === "auto_sent",
@@ -324,7 +329,7 @@ export default async function AdminPage() {
                   {shadowOk.length > 0 ? Math.round((shadowAgree / shadowOk.length) * 100) : 0}%
                 </strong>{" "}
                 · GLM daha sıkı <strong>{shadowStricter}</strong> · GLM daha gevşek{" "}
-                <strong>{shadowLooser}</strong> · arıza {shadowTotal - shadowOk.length}
+                <strong>{shadowLooser}</strong> · yarım {shadowHalf} · arıza {shadowError}
               </p>
               <div className="overflow-x-auto">
                 <table className="w-full text-xs">
