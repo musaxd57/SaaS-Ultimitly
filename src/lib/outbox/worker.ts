@@ -516,8 +516,17 @@ async function processOne(row: OutboxRow, token: string, deps: Required<Pick<Dra
   // Applies to BOTH the reconciling and sending paths (reconcile also hits the API).
   if (!providerToken) {
     // Claimed rows are always "sending" or "reconciling" here (both hit the API).
+    // THE PARK DESTINATION MATTERS (07-20 audit, P1): a `sending` row was never
+    // POSTed, so `pending` is safe — it re-sends after reconnect. A `reconciling`
+    // row was ALREADY POSTed once with an ambiguous outcome (timeout/5xx — the
+    // guest MAY have received it): parking THAT to `pending` would make the next
+    // drain claim it as a fresh send and blind-re-POST → duplicate message. It
+    // must park back to `ambiguous`, whose only exit is another RECONCILE (a
+    // provider read, never a blind send). Token-miss here is routine, not just a
+    // real disconnect (an OAuth refresh can transiently fail near expiry).
+    const parked: OutboxStatus = row.status === "reconciling" ? "ambiguous" : "pending";
     await settle(row, token, row.status as OutboxStatus, {
-      status: "pending",
+      status: parked,
       availableAt: new Date(now.getTime() + backoffMs(row.attemptCount, row.id)),
       lastErrorKind: "disconnected",
       claimedBy: null,

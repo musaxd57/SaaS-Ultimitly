@@ -165,6 +165,35 @@ describe("outbox worker — send, concurrency, crash points", () => {
     expect(res.sent).toBe(0);
   });
 
+  it("token-yok guard'ı (07-20, P1): AMBIGUOUS satır pending'e DEĞİL ambiguous'a geri parkedilir — kör re-POST kapısı açılmaz", async () => {
+    const { outboxId } = await enqueueOne();
+    // 1) İlk gönderim ambiguous düşer (5xx) — misafir mesajı ALMIŞ olabilir.
+    const send = vi.fn<OutboxSendFn>(async () => ({ ok: false, error: "HTTP 500 server error" }));
+    let clock = Date.now();
+    const now = () => new Date(clock);
+    await drainOutboxOnce({ send, tokenFor: async () => "t", now });
+    expect(await outbox(outboxId)).toMatchObject({ status: "ambiguous" });
+    expect(send).toHaveBeenCalledTimes(1);
+
+    // 2) Reconcile claim'i tam token-miss anına denk gelir (OAuth refresh'in geçici
+    // başarısızlığı — gerçek disconnect şart değil). ESKİ kod satırı pending'e
+    // atıyordu → sonraki drain onu TAZE gönderim sanıp kör re-POST ederdi (çift
+    // mesaj). Doğrusu: ambiguous'a geri park — tek çıkışı RECONCILE.
+    clock += 60 * 60_000;
+    await drainOutboxOnce({ send, tokenFor: async () => undefined, now });
+    const parked = await outbox(outboxId);
+    expect(parked.status).toBe("ambiguous"); // pending DEĞİL
+    expect(parked.lastErrorKind).toBe("disconnected");
+    expect(send).toHaveBeenCalledTimes(1); // provider'a gidilmedi
+
+    // 3) Token dönünce satır RECONCILE edilir — ikinci POST asla olmaz.
+    clock += 60 * 60_000;
+    const reconcile: OutboxReconcileFn = async () => ({ found: true, providerMessageId: "RC-2" });
+    await drainOutboxOnce({ send, reconcile, tokenFor: async () => "t", now });
+    expect(send).toHaveBeenCalledTimes(1); // hâlâ TEK gönderim
+    expect(await outbox(outboxId)).toMatchObject({ status: "sent", providerMessageId: "RC-2" });
+  });
+
   it("an AMBIGUOUS result is NEVER blind-resent — it holds ambiguous, then reconciles", async () => {
     const { outboxId } = await enqueueOne();
     const send = vi.fn<OutboxSendFn>(async () => ({ ok: false, error: "HTTP 500 server error" }));
