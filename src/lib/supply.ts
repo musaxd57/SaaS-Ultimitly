@@ -1,6 +1,7 @@
 import "server-only";
 
 import { prisma } from "@/lib/db";
+import { foldTurkishLower } from "@/lib/ai/fallback";
 import { orgTimezone, zonedDayRange } from "@/lib/timezone";
 import {
   SUPPLY_ITEMS,
@@ -259,7 +260,8 @@ const REQUEST_ITEMS: { key: SupplyItemKey; words: string[] }[] = [
 
 /** Detect explicit extra-linen requests in a guest message. Empty when none. */
 export function detectSupplyRequest(message: string): { itemKey: SupplyItemKey; qty: number }[] {
-  const m = message.toLowerCase();
+  // foldTurkishLower: a sentence-initial İ ("İki havlu daha…") must still match.
+  const m = foldTurkishLower(message);
   // Guards first (order-independent): refusal or an availability/price question
   // means it is NOT a request, even if extra/item words are present.
   if (REQUEST_NEGATIONS.some((w) => m.includes(w))) return [];

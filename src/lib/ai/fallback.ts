@@ -30,7 +30,7 @@ const REVIEW_THREAT_PHRASES = [
   "bir yıldız ver", "1 yıldız ver", "tek yıldız ver",
   "leave a bad review", "leave a negative review", "write a bad review",
   "give you a bad review", "leave you a bad review", "1 star review", "one star review",
-  "leave 1 star", "give 1 star", "one-star review",
+  "leave 1 star", "give 1 star", "one-star review", "1-star review", "1-star rating",
   // Turkish review threats (threat-anchored so pre-booking "yorumları okudum"
   // and praise "siz bir yıldızsınız" never match). Without these a TR review
   // threat only reads as a generic "complaint", mislabeling riskType and
@@ -198,6 +198,19 @@ const PROBLEM_NEGATIONS = [
   "нет проблем", "без проблем", "بدون مشكلة", "لا مشكلة",
 ];
 
+/**
+ * Lowercase for KEYWORD MATCHING with the Turkish İ fixed. In JS,
+ * "İ".toLowerCase() yields "i" + U+0307 (combining dot above) — so every keyword
+ * spelled with a plain "i" ("iade", "iptal", "intihar", "iğrenç"…) silently fails
+ * to substring-match a sentence-initial İ, which Turkish mobile keyboards
+ * auto-capitalize ("İade istiyorum" → the refund net went blind). Stripping the
+ * combining dot AFTER lowercasing folds those back. This only ever ADDS matches
+ * (U+0307 never appears in our keyword lists), so it can't weaken any net.
+ */
+export function foldTurkishLower(s: string): string {
+  return s.toLowerCase().replace(/\u0307/g, "");
+}
+
 /** True when a bare "problem"/"sorun" survives after stripping negated phrases. */
 function hasUnnegatedProblemWord(m: string): boolean {
   if (!m.includes("problem") && !m.includes("sorun")) return false;
@@ -207,7 +220,7 @@ function hasUnnegatedProblemWord(m: string): boolean {
 }
 
 function detectIntent(message: string): Intent {
-  const m = message.toLowerCase();
+  const m = foldTurkishLower(message);
   // Order matters: complaint / refund / early-departure (sensitive) take precedence,
   // then an explicit human request, then the operational intents.
   const order: Exclude<Intent, "general">[] = [
@@ -312,7 +325,7 @@ const PRAISE_GLUE = new Set([
 export function isPositiveFeedback(message: string): boolean {
   const raw = message.trim();
   if (!raw || raw.length > 200) return false; // essays → model
-  const m = raw.toLowerCase();
+  const m = foldTurkishLower(raw);
   if (m.includes("?") || m.includes("？")) return false; // a question is never pure praise
   if (NEGATIVE_EMOJI.test(m)) return false; // 👎/😡 = dissatisfaction, never praise (parity with isClosingAck)
   if (/\d/.test(m)) return false; // times/dates/amounts = a request hiding in praise
@@ -337,7 +350,7 @@ const NEGATIVE_EMOJI =
 
 /** True only for a short, pure closing/ack ("Tamam, teşekkürler!", "ok thanks", "👍"). */
 export function isClosingAck(message: string): boolean {
-  const raw = message.trim().toLowerCase();
+  const raw = foldTurkishLower(message.trim());
   if (!raw || raw.length > 60) return false;
   if (raw.includes("?") || raw.includes("？")) return false; // a question is never a closing
   if (NEGATIVE_EMOJI.test(raw)) return false; // 👎/😡 = dissatisfaction, never an ack
@@ -397,7 +410,7 @@ export function detectPromptInjection(message: string): boolean {
  * (English by default, mirror the guest when they use another language).
  */
 export function detectGuestLanguage(message: string): string {
-  const msgLower = message.toLowerCase();
+  const msgLower = foldTurkishLower(message);
   // TR marker letters ç/ğ/ı/ş are distinctive; ö/ü were REMOVED because they are
   // common in German ("schön", "für", "grüße") and made the de/fr branches below
   // dead — a German fallback message was mislabeled "tr" (wrong-language ack/close).
@@ -415,7 +428,7 @@ export function detectGuestLanguage(message: string): string {
  * (detectIntent's precedence hides co-present signals — complaint wins over
  * refund — so eligibility checks need direct access.) */
 export function matchesIntentKeywords(message: string, intent: Exclude<Intent, "general">): boolean {
-  const m = message.toLowerCase();
+  const m = foldTurkishLower(message);
   return KEYWORDS[intent].some((kw) => m.includes(kw));
 }
 
@@ -498,7 +511,7 @@ const DISCRIMINATION_PHRASES = [
  */
 export function detectRiskType(message: string): string | null {
   if (detectPromptInjection(message)) return "prompt_injection";
-  const m = message.toLowerCase();
+  const m = foldTurkishLower(message);
   if (SAFETY_CRITICAL_WORDS.some((w) => m.includes(w))) return "safety_emergency";
   if (REVIEW_THREAT_PHRASES.some((p) => m.includes(p))) return "review_threat";
   if (OFFPLATFORM_PAYMENT_PHRASES.some((p) => m.includes(p))) return "platform_policy";
@@ -536,7 +549,7 @@ export function holdingAckBlockedSignals(message: string): boolean {
   if (matchesIntentKeywords(message, "refund")) return true;
   if (matchesIntentKeywords(message, "early_departure")) return true;
   if (matchesIntentKeywords(message, "human_request")) return true;
-  const m = message.toLowerCase();
+  const m = foldTurkishLower(message);
   if (REVIEW_THREAT_PHRASES.some((p) => m.includes(p))) return true;
   if (SAFETY_CRITICAL_WORDS.some((w) => m.includes(w))) return true;
   return false;
