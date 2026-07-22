@@ -153,16 +153,38 @@ describe("outbox worker — send, concurrency, crash points", () => {
   it("TENANT İZOLASYONU (Codex): org enqueue SONRASI bağlantısını kaybederse (token null) provider ÇAĞRILMAZ, satır pending'e park edilir", async () => {
     const { outboxId } = await enqueueOne();
     const send = okSend("SHOULD-NOT-SEND");
+    let clock = Date.now();
+    const now = () => new Date(clock);
     // tokenFor null döndürür (worker'ın gerçek default'u: getOrgHospitableToken →
     // null → undefined). Bu, hospitableFetch'in env founder token'ına düşmesine yol
     // açan tam senaryo. Guard olmadan send çağrılıp başka tenant'ın token'ı kullanılırdı.
-    const res = await drainOutboxOnce({ send, tokenFor: async () => undefined });
+    const res = await drainOutboxOnce({ send, tokenFor: async () => undefined, now });
     expect(send).not.toHaveBeenCalled(); // provider'a HİÇ gidilmedi — cross-tenant gönderim yok
-    const row = await outbox(outboxId);
+    let row = await outbox(outboxId);
     expect(row.status).toBe("pending"); // yeniden bağlanınca teslim edilmek üzere park
     expect(row.lastErrorKind).toBe("disconnected");
-    expect(row.availableAt.getTime()).toBeGreaterThan(Date.now() - 1000); // backoff ile geleceğe
+    expect(row.availableAt.getTime()).toBeGreaterThan(clock - 1000); // backoff ile geleceğe
     expect(res.sent).toBe(0);
+    // (Codex 07-22, P1) Token-miss bir provider DENEMESİ değildir: claim'in artırdığı
+    // attemptCount geri alınmalı (429/402 paritesi). Aksi hâlde uzun bir disconnect
+    // hiçbir gönderim yapılmadan TÜM retry bütçesini yakar → reconnect sonrası ilk
+    // gerçek hata doğrudan `failed` olurdu.
+    expect(row.attemptCount).toBe(0);
+    // Art arda birkaç token-miss de bütçeyi YAKMAZ.
+    for (let i = 0; i < 3; i++) {
+      clock += 60 * 60_000; // backoff penceresini geç
+      await drainOutboxOnce({ send, tokenFor: async () => undefined, now });
+    }
+    row = await outbox(outboxId);
+    expect(row.status).toBe("pending");
+    expect(row.attemptCount).toBe(0); // hâlâ sıfır — hiç gerçek deneme olmadı
+    expect(send).not.toHaveBeenCalled();
+    // Reconnect: TAM retry bütçesiyle teslim edilir.
+    clock += 60 * 60_000;
+    await drainOutboxOnce({ send, tokenFor: async () => "t", now });
+    row = await outbox(outboxId);
+    expect(row.status).toBe("sent");
+    expect(row.attemptCount).toBe(1); // ilk GERÇEK deneme = 1
   });
 
   it("token-yok guard'ı (07-20, P1): AMBIGUOUS satır pending'e DEĞİL ambiguous'a geri parkedilir — kör re-POST kapısı açılmaz", async () => {
@@ -185,6 +207,16 @@ describe("outbox worker — send, concurrency, crash points", () => {
     expect(parked.status).toBe("ambiguous"); // pending DEĞİL
     expect(parked.lastErrorKind).toBe("disconnected");
     expect(send).toHaveBeenCalledTimes(1); // provider'a gidilmedi
+    // (Codex 07-22, P1) Token-miss reconcile-claim'i de deneme SAYMAZ: attemptCount
+    // adım-1'in gerçek POST'unda kaldığı 1'de kalmalı. Aksi hâlde her token-miss
+    // sayaç yakar → reconnect sonrası İLK başarısız reconcile satırı doğrudan
+    // `review`a düşürebilirdi (insan işi kuyruğu şişer, mesaj askıda kalır).
+    expect(parked.attemptCount).toBe(1);
+    for (let i = 0; i < 3; i++) {
+      clock += 60 * 60_000;
+      await drainOutboxOnce({ send, tokenFor: async () => undefined, now });
+    }
+    expect((await outbox(outboxId)).attemptCount).toBe(1); // hâlâ 1 — bütçe yakılmadı
 
     // 3) Token dönünce satır RECONCILE edilir — ikinci POST asla olmaz.
     clock += 60 * 60_000;

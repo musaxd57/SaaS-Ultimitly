@@ -528,6 +528,11 @@ async function processOne(row: OutboxRow, token: string, deps: Required<Pick<Dra
     await settle(row, token, row.status as OutboxStatus, {
       status: parked,
       availableAt: new Date(now.getTime() + backoffMs(row.attemptCount, row.id)),
+      // The claim already incremented attemptCount but NO provider call happened —
+      // undo it (429/402 parity), or a long disconnect would silently burn the whole
+      // retry budget: the first REAL failure after reconnect would then jump straight
+      // to `failed`, and an ambiguous row's first failed reconcile straight to `review`.
+      attemptCount: { decrement: 1 },
       lastErrorKind: "disconnected",
       claimedBy: null,
       claimExpiresAt: null,
