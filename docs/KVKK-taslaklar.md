@@ -5,9 +5,10 @@
 > götürüp **kesinleştirmen için başlangıç noktasıdır** — avukatın işini ucuzlatır.
 > `[KÖŞELİ PARANTEZ]` alanları şirketin kurulunca dolacak.
 
-## 0) ÖNCE ŞİRKET
-Bu metinlerin hepsi "veri sorumlusu" olarak **senin işletmeni** (ünvan, adres, MERSİS/
-vergi no) ister. O yüzden **önce şahıs şirketi** kur, sonra bunları doldur.
+## 0) ŞİRKET BİLGİLERİ ✅ (2026-07-18)
+Satıcı/işletme bilgileri (ünvan, adres, P.IVA, telefon) `src/lib/legal-entity.ts`
+içinde gerçek değerlerle dolduruldu — bu taslaklardaki `[KÖŞELİ PARANTEZ]` alanları
+oradan beslenir; avukat yalnız doğruluğunu teyit eder.
 
 ---
 
@@ -26,9 +27,13 @@ ise "veri sorumlusu"yuz.
 | Resend | E-posta gönderimi | ABD |
 | Railway | Sunucu/barındırma | AB/ABD |
 | Paddle | Ödeme altyapısı (Merchant of Record) | ABD/İngiltere |
+| Akash/GLM | İkinci AI sınıflandırıcı (gölge pilot — karar yetkisi YOK; yalnız REDAKTE misafir mesajı: ad/telefon/e-posta maskeli) | ABD/dağıtık |
+| Anthropic (Claude) | AI kalite denetçisi (salt-okuma gölge; REDAKTE örneklem) | ABD |
 
-*(2026-07-13 düzeltme: ödeme sağlayıcı iyzico değil, canlıdaki Paddle. Kod-doğrulamalı
-saklama süreleri + imha mekanizmaları için `docs/saklama-ve-imha-politikasi.md` esastır.)*
+*(2026-07-22 güncelleme: ödeme sağlayıcı Paddle [iyzico değil]; Akash/GLM + Anthropic
+ikinci/üçüncü AI veri işleyen olarak eklendi — ikisi de redakte veriyle çalışır, DPA +
+KVKK m.9 mekanizması avukat listesinde. Kod-doğrulamalı saklama süreleri + imha
+mekanizmaları için `docs/saklama-ve-imha-politikasi.md` esastır.)*
 
 **Yurt dışı aktarım (en kritik cümle — avukat mekanizmayı seçince netleşir):**
 > "Misafir mesajları, yanıt üretmek amacıyla OpenAI'a (ABD) aktarılır. Bu aktarım, KVKK
@@ -60,8 +65,8 @@ genelde "standart sözleşme" yolunu önerir; aşağı bak.)*
 2. **Amaçla sınırlılık:** Veri yalnızca misafir mesajlarını yanıtlamak/operasyon için işlenir.
 3. **Gizlilik:** Erişen personel gizlilikle yükümlüdür.
 4. **Güvenlik tedbirleri:** Şifreleme (token/2FA), erişim kontrolü, denetim kaydı (mevcut).
-5. **Alt-işleyenler:** Hospitable, OpenAI, Resend, Railway, iyzico (yukarıdaki tablo);
-   OpenAI'a yurt dışı aktarım açıkça belirtilir.
+5. **Alt-işleyenler:** Hospitable, OpenAI, Resend, Railway, Paddle, Akash/GLM,
+   Anthropic (yukarıdaki tablo); AI sağlayıcılarına yurt dışı aktarım açıkça belirtilir.
 6. **İhlal bildirimi:** Bir veri ihlalinde ev sahibine gecikmeksizin bildirilir.
 7. **İade/imha:** Sözleşme bitince veri silinir/iade edilir (saklama politikasına göre).
 8. **Tarafların yükümlülüğü:** Ev sahibi, misafirlere aydınlatma yapmaktan sorumludur;
@@ -70,7 +75,8 @@ genelde "standart sözleşme" yolunu önerir; aşağı bak.)*
 ---
 
 ## 4) OPENAI YURT DIŞI AKTARIMI — bu "kağıt imzala" değil, SÜREÇ
-- OpenAI'ın kendi **DPA**'sını çevrimiçi kabul et (OpenAI panelinden).
+- ~~OpenAI'ın kendi **DPA**'sını çevrimiçi kabul et~~ ✅ **İMZALANDI (2026-07-18,
+  DocuSign; AB adresi → taraf OpenAI Ireland Ltd., canlıdaki API hesabıyla eşleşik).**
 - KVKK **Standart Sözleşmesi**: KVKK Kurumu'nun **resmî hazır formu** vardır (serbest yazılmaz).
   Doldurup imzalarsın ve **5 iş günü içinde Kurul'a bildirirsin.** → **Avukat bu formu yönetir.**
 - "API verisi eğitimde kullanılmaz" ayarını OpenAI hesabında doğrula ve belgele.

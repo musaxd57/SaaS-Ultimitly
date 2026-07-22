@@ -92,21 +92,27 @@ yeniden import etmez — public metindeki "teknik kontroller uygulanır" cümles
   (parola/2FA/verify hash'leri, şifreli Hospitable token'ları) HARİÇ — pin testli.
 - **Başvuru kanalı:** gizlilik sayfasındaki iletişim adresi; 30 gün taahhüdü public
   metinde mevcut (`gizlilik/page.tsx:195`).
+- **Misafir-düzeyi AÇIK silme (m.11) — bu belgeden SONRA eklendi (m40-42):**
+  rezervasyon bazlı silme + `ErasureTombstone` (HMAC hash'li, ham PII'siz) sync/iCal
+  diriltme-guard'ları; host yüzeyi `GUEST_ERASURE_ENABLED` default KAPALI + owner-only,
+  flag açılışı [AVUKAT İMZASI] sonrası. Ayrıntı + iki-rejim hukuki analiz:
+  `docs/DATA-RETENTION-ERASURE-DRAFT.md` §8 (o belge bu konuda esastır).
 
 ## 3) Alt işleyen listesi (kod-doğrulanmış envanter)
 
 | Alt işleyen | İşlev (kod kanıtı) | Veri | Durum |
 |---|---|---|---|
-| OpenAI (ABD) | AI yanıt üretimi (`ai/index.ts:127`) | Misafir adı+tarihler+mesaj gövdeleri+KB; telefon/e-posta GÖNDERİLMEZ; QR yolunda ad da gitmez | `[KARAR-DPA-OPENAI]` DPA + KVKK m.9 mekanizması (Standart Sözleşme) — CLAUDE.md LEGAL listesi |
+| OpenAI | AI yanıt üretimi (`ai/index.ts:127`) | Misafir adı+tarihler+mesaj gövdeleri+KB; telefon/e-posta GÖNDERİLMEZ; QR yolunda ad da gitmez | DPA ✅ **imzalandı 2026-07-18** (DocuSign; taraf OpenAI Ireland Ltd., canlı API hesabıyla eşleşik) — KALAN: KVKK m.9 Standart Sözleşme + Kurul bildirimi (CLAUDE.md LEGAL) |
 | Paddle (MoR) | Ödeme/abonelik + webhook | Ödeme kimliği, tutar, customer_id; kart verisi Lixus'a hiç gelmez | `[KARAR-DPA-PADDLE]` MoR sözleşme metni avukatta |
 | Hospitable (ABD) | Kanal senkronu (per-tenant şifreli token) | Rezervasyon+mesaj verisinin KAYNAĞI | `[KARAR-DPA-HOSPITABLE]` |
 | Resend (ABD) / SMTP | Transactional e-posta (email.ts) | Alıcı e-posta + içerik | Domain/SPF/DKIM/DMARC açık iş; `[KARAR-EMAIL-LOG]` |
 | Railway (AB/ABD) | Barındırma + PostgreSQL + log | Tüm veri at-rest | `[KARAR-YEDEK]`, `[KARAR-LOG-SÜRE]` |
 | Sentry (ops.) | Hata izleme — yalnız `SENTRY_DSN` set ise; gönderim öncesi `redactSensitive` | Redakte hata metni | `[KARAR-SENTRY]` canlı env doğrula |
+| Akash/GLM | Gölge sınıflandırıcı Aşama-1 (`shadow-ai.ts`; karar yetkisi SIFIR, yalnız kıyas kaydı) — `SHADOW_AI_ENABLED=1` CANLI (2026-07-20) | REDAKTE misafir mesajı (ad→[Misafir], telefon/e-posta/uzun kod maskeli); at-rest gövde tutulmaz | `[KARAR-DPA-AKASH]` DPA + m.9 — geniş açılış ÖNCESİ şart (bugün redakte veri + tek gerçek müşteri=founder; `SHADOW_AI_ORG_IDS` ile Nuve'ye pinlenebilir) |
+| Anthropic (Claude) | Kalite üst-denetçisi (`quality-audit.ts`; salt-okuma gölge, operatör tetikler) — `ANTHROPIC_API_KEY` yokken pasif | REDAKTE örneklem (ad/telefon/e-posta maskeli, ≤60 yanıt, 700 kar. tavan) | `[KARAR-DPA-ANTHROPIC]` DPA + m.9 — düzenli kullanım öncesi şart |
 
-Not: `docs/KVKK-taslaklar.md` §1 tablosunda ödeme sağlayıcı "iyzico" yazıyor — kod ve
-canlı Paddle (MoR); o taslak avukata giderken bu satır Paddle olarak düzeltilmeli
-(bu belge esas alınsın).
+Not: `docs/KVKK-taslaklar.md` alt-işleyen listesi 2026-07-22'de bu belgeyle hizalandı
+(iyzico→Paddle düzeltildi; Akash/GLM + Anthropic eklendi). Çelişki hâlinde bu belge esastır.
 
 ## 4) Açık kararlar (tek liste — kapatılmadan belge nihai olmaz)
 
@@ -122,7 +128,7 @@ canlı Paddle (MoR); o taslak avukata giderken bu satır Paddle olarak düzeltil
 6. `[KARAR-LEAD-SÜRE]` `LEAD_RETENTION_MONTHS` canlıya yazılacak değer (öneri 12-24).
 7. `[KARAR-YEDEK]` + `[KARAR-PGDUMP]` Railway yedek/PITR süresi + manuel dump imhası.
 8. `[KARAR-LOG-SÜRE]`, `[KARAR-SENTRY]`, `[KARAR-EMAIL-LOG]` sağlayıcı saklama süreleri.
-9. `[KARAR-DPA-*]` OpenAI/Paddle/Hospitable/Resend DPA'ları + KVKK m.9 mekanizması +
+9. `[KARAR-DPA-*]` Paddle/Hospitable/Resend/Akash/Anthropic DPA'ları (OpenAI ✅ 07-18) + KVKK m.9 mekanizması +
    VERBİS kaydı (CLAUDE.md LEGAL listesiyle aynı).
 10. Public `gizlilik` metnine somut süre yazılacak mı (yazılırsa LEGAL_VERSION artışı +
     consent-evidence etkisi birlikte planlanır — bu turda bilinçli DOKUNULMADI).

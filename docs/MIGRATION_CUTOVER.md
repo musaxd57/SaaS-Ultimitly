@@ -73,14 +73,19 @@ no-ops against the already-matching schema → prod recovers cleanly. Because th
 cutover applies **zero** DDL (only the already-applied `0_init` exists), there is
 nothing half-applied to unwind.
 
-## From then on — how to add a schema change
+## From then on — how to add a schema change (current project protocol)
 
 1. Edit `prisma/schema.prisma`.
-2. Generate a migration locally:
-   `npx prisma migrate dev --name <change>` (against a local dev DB).
-3. Commit the new `prisma/migrations/<timestamp>_<change>/` folder.
+2. Generate the migration SQL with **`prisma migrate diff`** (the project standard —
+   NOT `migrate dev`): `npx prisma migrate diff --from-migrations ./prisma/migrations
+   --to-schema-datamodel ./prisma/schema.prisma --script` → save under a new
+   zero-padded `prisma/migrations/NN_<change>/migration.sql` folder.
+3. Verify on a throwaway Postgres: `migrate deploy` 00→N from scratch, then
+   `migrate diff --exit-code` (zero drift). CI's migration-chain job repeats this.
 4. Push → prod boot's `migrate deploy` applies exactly that reviewed migration.
 
-The old rule ("never add `@unique`/required-no-default to a populated table") is
-no longer a boot-crash landmine — such a change is now a migration you review
-(and can write a safe, backfilled version of) before it ever runs in prod.
+⚠️ The old rule **still applies**: adding `@unique` / required-without-default /
+a drop to a POPULATED table fails at `migrate deploy` if live data violates it —
+the failure just moved from a surprise boot-diff to a reviewable migration. The
+working protocol (see m18-20 in CLAUDE.md) is: clean/verify prod duplicates
+FIRST, then ship the constraint as its own migration.

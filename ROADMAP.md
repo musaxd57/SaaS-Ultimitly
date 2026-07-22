@@ -7,23 +7,26 @@
 > geri alınabilir. E-posta/para akışına dokunan adımlar onayla ve ilk canlı
 > denemeler birlikte doğrulanarak açılır. (Ayrıntılı proje hafızası: `CLAUDE.md`.)
 >
-> Son güncelleme: 2026-07-13
+> Son güncelleme: 2026-07-22
 
 ---
 
 ## 🎯 Gerçek durum: kod hazır, iş başlamadı
 
 Mühendislik bir MVP'nin ~%90'ı — paneller cilalı, güvenlik kapısı sağlam, billing/
-reverse-trial canlı, Paddle production kuruldu, ~930 test yeşil. **Ama henüz tek
-ödeyen müşteri yok ve çekirdek özellik (oto-yanıt) gerçek müşteride canlı denenmedi.**
-Asıl belirsizlik kodda değil, burada. Sıradaki gerçek iş (önem sırasıyla):
+reverse-trial canlı, Paddle production'da **gerçek ödemeyle uçtan uca doğrulandı**
+(2026-07-18: Başlangıç gerçek kartla alındı → in-app Pro upgrade), 1.500+ test yeşil.
+**Ama henüz dışarıdan ödeyen müşteri yok ve çekirdek özellik (oto-yanıt) gerçek
+misafirde canlı denenmedi** (Nuve'nin Hospitable aboneliği 402/pasif). Asıl belirsizlik
+kodda değil, burada. Sıradaki gerçek iş (önem sırasıyla):
 
-1. **Çekirdeği canlı doğrula** — `AUTO_REPLY_ENABLED=1` artık açık; Hospitable
+1. **Çekirdeği canlı doğrula** — `AUTO_REPLY_ENABLED=1` açık; Hospitable
    yenilenince Nuve'nin kendi dairelerinde **ilk gerçek gönderimleri birlikte izle**.
 2. **Kendi ürününü kullan** bir hafta — sonra **1 tanıdık host'a** ücretsiz kur,
    gerçek geri bildirim al (para vermeden "kullanır mıydın?").
-3. **Paddle'da küçük bir gerçek ödeme** test et (zincir prod'da da çalışsın).
-4. Paralelde **avukat/mali müşavir** (KVKK Standart Sözleşme + e-fatura).
+3. ~~Paddle'da küçük bir gerçek ödeme test et~~ ✅ 2026-07-18 (satın alma + upgrade canlı).
+4. Paralelde **avukat/mali müşavir** — OpenAI DPA ✅ imzalandı (07-18); kalan:
+   KVKK Standart Sözleşme + VERBİS + e-fatura.
 
 ---
 
@@ -33,7 +36,7 @@ Asıl belirsizlik kodda değil, burada. Sıradaki gerçek iş (önem sırasıyla
 |-----|--------|-------|
 | **0** | Temel, Güvenlik, İzleme | ✅ Bitti |
 | **1** | Ürün Derinliği & Tutundurma | 🔜 Çekirdek launch-hazır; ek özellikler sırada |
-| **2** | Ödeme (Paddle) | ✅ Production CANLI · kalan: ilk gerçek ödeme |
+| **2** | Ödeme (Paddle) | ✅ Production CANLI · gerçek ödeme + upgrade doğrulandı (07-18) |
 | **3** | Dayanıklılık | 🔜 |
 | **4** | Yasal Uyum (KVKK) | 🟡 Kod kısmı yapıldı · sözleşme/VERBİS avukatta |
 | **5** | Ölçek (ekip, mobil, CRM) | 2027+ |
@@ -59,26 +62,27 @@ Fiyat: **₺449 / ₺899 / ₺1.699** (düz-tier, İşletme 25 daireye kadar).
 **✅ Yapıldı:** tablolar + entitlement · webhook (imza/idempotent) + checkout UI · sandbox
 uçtan-uca · reverse-trial + freemium (`BILLING_ENFORCED` canlı) · self-serve kayıt + e-posta
 doğrulama · **KYB onayı GEÇTİ + production env CANLI** (canlı Paddle anahtarı, www webhook aktif).
-- [ ] **İlk gerçek ödeme testi** (prod price id + secret teyidi + küçük canlı ödeme birlikte)
+- [x] **İlk gerçek ödeme testi** ✅ 2026-07-18 — Başlangıç gerçek kartla satın alındı, in-app Pro upgrade doğrulandı (Paddle dashboard: MRR/abone/işlem kanıtlı)
 - [ ] e-Arşiv/fatura akışı (mali müşavire danış)
 
 > Subscription'ı olmayan org = *grandfathered → sınırsız* → mevcut müşteri ve kurucu asla bloklanmaz.
 
 ## 🏗️ Faz 3 — Dayanıklılık
 - [x] Dependabot
-- [ ] **Mesaj dedup'unu DB kısıtına taşı** `@@unique([conversationId, externalId])` — *önce prod dedup* (dolu tabloya `@unique` boot'ta patlar)
+- [x] **Mesaj dedup DB kısıtında** ✅ m18-20 (Message/Reservation/Subscription unique'leri; prod önce temizlendi 2026-07-13)
+- [ ] Conversation `@@unique([propertyId, externalReservationId])` — aynı protokol (önce prod dupe kontrolü), ayrı migration turu
 - [x] **`db push` → migration** geçişi (boot `migrate deploy`, 17 migration, CI migration-chain kapısı)
 - [ ] Gelen kutusu **sayfalama** (veri büyüdükçe)
-- [ ] Sync kilidi için fencing-token / heartbeat
+- [x] Sync kilidi fencing-token ✅ (SystemLock, m6)
 
 ## ⚖️ Faz 4 — Yasal Uyum (KVKK)
 **✅ Kod kısmı yapıldı:** Terms'e veri-işleyen (DPA) maddesi · retention/anonimleştirme
 (`DATA_RETENTION_MONTHS`, env-gated) · hesap silme route'u + Ayarlar kartı.
 **⏳ Senin/avukatın (para almadan ölçeklenmeden ÖNCE):**
-- [ ] **OpenAI DPA** imzala (dashboard'da tek form — ucuz, bugün yapılabilir)
+- [x] **OpenAI DPA** ✅ imzalandı 2026-07-18 (DocuSign; AB adresi → OpenAI Ireland tarafıyla)
 - [ ] **KVKK Standart Sözleşme** (OpenAI ABD aktarımı) + Kurul'a 5 iş günü bildirim
 - [ ] **VERBİS** kaydı değerlendirmesi
-- [ ] İhlal müdahale planı (72 saat bildirim) · `legal-entity.ts` [parantez] alanları
+- [ ] İhlal müdahale planı (72 saat bildirim) — (`legal-entity.ts` alanları ✅ 07-18'de gerçek değerlerle dolduruldu)
 
 ## 🟣 Faz 5 — Ölçek (2027+)
 Ekip rolleri & atama · PWA/mobil · misafir CRM · akıllı kilit (Nuki) · white-label ·
@@ -90,7 +94,7 @@ Ekip rolleri & atama · PWA/mobil · misafir CRM · akıllı kilit (Nuki) · whi
 | Konu | Durum / Not |
 |------|-------------|
 | Çekirdeği canlı doğrula | `AUTO_REPLY_ENABLED=1` açık → Hospitable yenilenince ilk gönderimleri birlikte izle |
-| İlk gerçek ödeme | Paddle prod CANLI → küçük gerçek ödemeyi birlikte test |
+| İlk gerçek ödeme | ✅ Yapıldı (07-18): gerçek kartla satın alma + in-app upgrade doğrulandı |
 | İlk müşteri | 1 tanıdık host'a kur, geri bildirim al (asıl risk: birisi öder mi?) |
-| Avukat / mali müşavir | OpenAI DPA + KVKK Standart Sözleşme + VERBİS + e-fatura |
+| Avukat / mali müşavir | OpenAI DPA ✅ · kalan: KVKK Standart Sözleşme + VERBİS + e-fatura + guest-erasure imzası |
 | Hospitable | Nuve aboneliği bitik (402) → yenilenince veri canlanır |

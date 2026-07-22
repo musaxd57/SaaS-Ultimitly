@@ -19,8 +19,10 @@ Build, depodaki **Dockerfile** ile yapılır. Boot komutu sabittir:
 `npx prisma migrate deploy && npm run start` — önce commit'lenmiş migration'lar
 uygulanır (`prisma/migrations/`; şema-diff YOK), sonra `npm run start`'ın
 `prestart` kancası ortam doğrulamasını çalıştırır (`scripts/verify-env.mjs` —
-production'da eksik/placeholder `AUTH_SECRET` veya eksik `ENCRYPTION_KEY`
-boot'u temiz şekilde durdurur), en son Next.js başlar. `PORT`'u elle
+production'da eksik/placeholder `AUTH_SECRET`, eksik `ENCRYPTION_KEY`, e-posta
+sağlayıcısı yokluğu (Resend VEYA eksiksiz SMTP şart), http'li dış-servis URL'leri
+ve canonical-dışı OAuth redirect boot'u temiz şekilde durdurur), en son Next.js
+başlar. `PORT`'u elle
 eklemeyin (Railway verir). Sağlık kontrolü `railway.json` ile `/api/health`'e
 bağlıdır: yeni container 200 dönmeden trafik almaz.
 
@@ -45,7 +47,7 @@ bağlıdır: yeni container 200 dönmeden trafik almaz.
 | `OPENAI_API_KEY` | OpenAI anahtarı (boşsa şablon fallback) |
 | `OPENAI_MODEL` | `gpt-5.1` |
 
-**E-posta (şifre kodu / uyarı mailleri)** — Resend tercih edilir, yoksa SMTP:
+**E-posta — production'da ZORUNLU (boot kapısı):** Resend VEYA eksiksiz SMTP olmalı; yarım SMTP (host/user/pass'ten biri eksik) boot'u durdurur. Resend tercih edilir:
 
 | Değişken | Değer |
 |---|---|
@@ -63,6 +65,8 @@ bağlıdır: yeni container 200 dönmeden trafik almaz.
 | `QR_ESCALATION_EMAIL_ENABLED` | `1` → QR sohbeti eskalasyona düşünce host'a e-posta (varsayılan KAPALI; içerikte misafir metni yok, olay başına dedupe, alıcı org alertEmail → owner) |
 | `QR_PIN_ENABLED` | `1` → rezervasyona özel QR sohbet PIN'i (Faz 5, varsayılan KAPALI). Host rezervasyon başına 6 haneli kod üretir; misafir sohbeti cihazında açmak için kodu girer. KAPALI deploy mevcut sohbetleri değiştirmez; PIN'siz eski rezervasyonlar ilk-tarayan cihaz-bağlama akışında kalır (org "strict" moda geçmedikçe) |
 | `QR_PIN_PEPPER` | QR PIN HMAC pepper'ı. **`QR_PIN_ENABLED=1` iken prod'da ZORUNLU** (boot gate: eksik/placeholder/<32 karakter/AUTH_SECRET'e eşit ise başlatmayı reddeder — AUTH_SECRET fallback prod'da kullanılmaz). Feature kapalıyken gerekmez. Rotasyonu tüm PIN'leri geçersiz kılar (host yeniden üretir) — kısa ömürlü kod olduğu için kabul edilebilir |
+| `GUEST_ERASURE_ENABLED` | `1` → rezervasyon bazlı KVKK m.11 misafir-silme yüzeyi (owner-only; varsayılan KAPALI). **Açmadan önce [AVUKAT İMZASI] + ilk gerçek silmeyi birlikte doğrulayın** (önce pg_dump). Diriltme-guard'ları flag'den bağımsız hep açıktır (boş tablo=no-op) |
+| `ERASURE_HMAC_SECRET` | Tombstone anahtar-hash sırrı. **`GUEST_ERASURE_ENABLED=1` iken prod'da ZORUNLU** (boot kapısı; ≥32, AUTH_SECRET/ENCRYPTION_KEY'den bağımsız, **ASLA rotasyon** — tombstone var + secret yok/yanlış → o org'un sync'i fail-closed durur) |
 | `DATA_RETENTION_MONTHS` | KVKK: bu aydan eski misafir PII'si (ad/mesaj) otomatik anonimleştirilir (ör. `24`). Boş = kapalı |
 | `TRIAL_EMAILS_ENABLED` | `1` → deneme-hatırlatma mailleri açık (varsayılan KAPALI/dormant). Açmadan önce ilk gönderimi birlikte doğrulayın |
 | `TRIAL_REMINDER_DAYS` | Deneme bitmeden kaç gün kala "bitiyor" maili gider (varsayılan `1` = 1 gün önce). Mailler yalnızca `BILLING_ENFORCED=true` **ve** `TRIAL_EMAILS_ENABLED=1` iken gider |
