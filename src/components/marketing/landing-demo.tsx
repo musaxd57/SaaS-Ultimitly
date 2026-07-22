@@ -134,9 +134,14 @@ export function LandingDemo() {
                 <ShieldAlert className="mt-0.5 size-3.5 shrink-0" />
                 <span>
                   Bu mesaj otomatik yanıtlanmaz —{" "}
-                  {risky || result.confidence >= 0.75
+                  {risky
                     ? "güvenlik kapısı riskli/hassas konu tespit etti"
-                    : "güven eşiğin altında"}
+                    : result.confidence < 0.75
+                      ? "güven eşiğin altında"
+                      : // Yüksek güven + görünürde risksiz ama sunucu kapısı yine de
+                        // tutmuş (ör. iade/iptal sınıfı, injection vetosu) → yanlış
+                        // "riskli tespit edildi" iddiası yerine dürüst genel neden.
+                        "güvenlik kapısı bu konuyu insan onayı gerektiren sınıfta tutuyor"}
                   , ev sahibinin onayına bırakılır. Güvenlik kapısı tam olarak böyle çalışır.
                 </span>
               </>

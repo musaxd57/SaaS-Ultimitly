@@ -23,16 +23,21 @@ export default async function GuestChatsPage() {
   const session = await requireAuth();
   if (session.role !== "owner" && session.role !== "manager") redirect("/dashboard");
 
-  const conversations = await prisma.conversation.findMany({
+  const rows = await prisma.conversation.findMany({
     where: { property: { organizationId: session.organizationId }, channel: "chat" },
     include: {
       property: { select: { name: true } },
       reservation: { select: { guestName: true, arrivalDate: true, departureDate: true } },
-      messages: { orderBy: { createdAt: "asc" } },
+      // Bounded per thread (07-20 perf audit): messages-per-thread is otherwise
+      // unbounded, so 200 threads × a chatty stay ballooned both the query payload
+      // and the rendered DOM. Take the LAST 100 (desc) and flip back to
+      // chronological below — a QR stay virtually never exceeds that.
+      messages: { orderBy: { createdAt: "desc" }, take: 100 },
     },
     orderBy: { lastMessageAt: "desc" },
     take: 200,
   });
+  const conversations = rows.map((c) => ({ ...c, messages: c.messages.slice().reverse() }));
 
   return (
     <>

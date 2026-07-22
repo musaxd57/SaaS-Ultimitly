@@ -84,7 +84,10 @@ describe("POST /api/auth/login", () => {
     const blocked = await POST(loginReq({ email: "musa@example.com", password: "nope" }, "9.9.9.9"));
     expect(blocked.status).toBe(429);
     expect(blocked.headers.get("Retry-After")).toBeTruthy();
-  });
+    // 20s: 10 sequential REAL bcrypt verifies (deliberate — the timing-equalization
+    // fix means every attempt costs a hash) ≈ 5-10s on a loaded box; the 5s default
+    // made this compute-bound test flake under load.
+  }, 20_000);
 
   it("limits each IP independently", async () => {
     for (let i = 0; i < 11; i++) {
@@ -93,7 +96,8 @@ describe("POST /api/auth/login", () => {
     // A fresh IP is still allowed (gets 401, not 429).
     const other = await POST(loginReq({ email: "musa@example.com", password: "nope" }, "3.3.3.3"));
     expect(other.status).toBe(401);
-  });
+    // 20s: 12 sequential bcrypt verifies — same compute-bound margin as above.
+  }, 20_000);
 });
 
 // 2FA verification + replay protection at the ROUTE level (not just the totp lib).

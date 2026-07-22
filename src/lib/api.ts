@@ -9,8 +9,10 @@ export type { SessionPayload };
  *  session epoch: a stolen token whose sessionEpoch no longer matches the user's
  *  current DB value (bumped on password change/reset, or if the user was deleted)
  *  is rejected here, so every authed API route returns 401 without any per-route
- *  change. One indexed primary-key lookup; fail-OPEN on a transient DB error so a
- *  blip can never mass-logout (the JWT signature is still valid). */
+ *  change. One indexed primary-key lookup; FAIL-CLOSED on a DB error (see the
+ *  catch below) — an unverifiable token is denied on the API surface. Page
+ *  RENDERS use the more lenient requireAuth, so a DB blip degrades browsing,
+ *  never authorizes a stale token to act. */
 export async function requireSession(): Promise<SessionPayload | null> {
   const session = await getSession();
   if (!session) return null;

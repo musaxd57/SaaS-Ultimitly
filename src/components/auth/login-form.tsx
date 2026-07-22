@@ -41,11 +41,21 @@ export function LoginForm() {
       return;
     }
     try {
-      await fetch("/api/auth/resend-verification", {
+      const res = await fetch("/api/auth/resend-verification", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ email }),
       });
+      // Bir 429/5xx yanıtı throw ETMEZ — ok kontrolü olmadan kullanıcıya yalan
+      // "gönderildi" gösterilir ve hiç gelmeyecek bir e-postayı bekler.
+      if (!res.ok) {
+        setError(
+          res.status === 429
+            ? "Çok sık denendi — birkaç dakika sonra tekrar deneyin."
+            : "Bağlantı gönderilemedi. Lütfen tekrar deneyin.",
+        );
+        return;
+      }
       setResent(true);
     } catch {
       setError("Bağlantı hatası. Lütfen tekrar deneyin.");
