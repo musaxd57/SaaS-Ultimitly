@@ -183,8 +183,9 @@ async function persistRiskVisibility(
 //
 // The three-tier model: (1) low-risk questions auto-send; (3) high-risk
 // messages get a silent draft + host escalation. This is tier (2): a MILD
-// complaint (no money/cancellation/human-request/review-threat/safety/injection
-// signals — see holdingAckEligible) gets ONE immediate, deterministic,
+// complaint (NO deterministic high-stakes signal — money/cancellation/human-
+// request/review-threat/safety/injection/discrimination/rule-violation/
+// off-platform payment; see holdingAckEligible) gets ONE immediate, deterministic,
 // non-committal acknowledgement so the guest isn't left hanging at 3am, while
 // the conversation STAYS flagged "problem" and the host is still emailed. The
 // text never promises a remedy, never admits fault, only acknowledges + asks
@@ -220,8 +221,9 @@ async function maybeSendHoldingAck(opts: {
   /** Model-detected language when available; falls back to the heuristic. */
   language?: string | null;
   /** True on the model path: the model already labelled this a (non-high)
-   * complaint, so keyword-complaint isn't required — only the blocking
-   * signals (money/threat/safety/human/injection) are checked. */
+   * complaint, so keyword-complaint isn't required — only the deterministic
+   * blocking signals (any non-complaint risk label; see
+   * holdingAckBlockedSignals) are checked. */
   complaintConfirmed?: boolean;
 }): Promise<boolean> {
   // Same master switches as every other automatic guest message.

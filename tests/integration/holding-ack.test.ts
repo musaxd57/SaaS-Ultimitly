@@ -112,6 +112,14 @@ describe("tier-2 holding acknowledgement — keyword path (sendDueAlerts)", () =
       "Bunu düzeltmezseniz kötü yorum yapacağım, bir yıldız veririm", // review threat
       "Dairede yoğun gaz kokusu var!", // safety-critical
       "Klima bozuk, ev sahibiyle konuşmak istiyorum", // wants a human
+      // (Codex 07-22, P2) detectRiskType bu sınıfları yakalıyordu ama holding-ack
+      // blok listesi onları içermiyordu → tier-3 eskalasyonla BİRLİKTE otomatik
+      // özür/holding mesajı gidebiliyordu. Şikayet + yüksek-riskli sinyal
+      // co-occurrence'ında ack SUSMALI (eskalasyon e-postası yine gider):
+      "Daire çok kirli, temizlikçi suriyeli olmasın lütfen", // discrimination
+      "Klima bozuk, ayrıca yarın burada parti yapacağız", // rule violation (party)
+      "Ev çok kirli, ayrıca yarın çıkmayacağım buradan", // overstay refusal
+      "Daire kirli geldi, isterseniz elden ödeme yapayım kalan geceler için", // off-platform payment
     ]) {
       vi.clearAllMocks();
       const { org, conversation } = await seed({ holdingAck: true, guestMessage });
@@ -190,6 +198,25 @@ describe("tier-2 holding acknowledgement — model path (applyChannelAutoReply)"
     expect(r.skippedReason).toBe("escalated_to_human");
     expect(mockSend).not.toHaveBeenCalled();
     expect(await outboundBodies(conversation.id)).toHaveLength(0);
+  });
+
+  it("(Codex 07-22, P2) model MILD şikayet dese bile mesajda AYRIMCILIK talebi varsa ack SUSAR (co-occurrence)", async () => {
+    // Şikayet keyword'leri bilerek YOK ("not what we hoped" — mevcut mild-model testinin
+    // deseni) → keyword yolu atlar, model medium-complaint der → escalation dalı
+    // complaintConfirmed=true ile holdingAckBlockedSignals'a düşer. Mesajın içindeki
+    // "no syrians" deterministik discrimination ağına takılır: eskalasyon olur ama
+    // otomatik özür/holding mesajı GÖNDERİLMEZ (tier-3'e tier-2 nezaketi eklenmez).
+    const { conversation } = await seed({
+      holdingAck: true,
+      guestMessage: "The vibe here is not what we hoped for at all. Also, no syrians as cleaners please.",
+    });
+    mockSuggest.mockResolvedValue(modelComplaint("medium"));
+    const r = await applyChannelAutoReply(conversation.id);
+    expect(r.sent).toBe(false);
+    expect(r.skippedReason).toBe("escalated_to_human");
+    expect(mockSend).not.toHaveBeenCalled(); // ack YOK
+    expect(await outboundBodies(conversation.id)).toHaveLength(0);
+    expect(mockEmail).toHaveBeenCalledTimes(1); // eskalasyon e-postası yine gitti
   });
 });
 
