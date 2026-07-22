@@ -412,7 +412,7 @@ async function main() {
     // the DB Plan table never bills a wrong amount if checkout ever reads it.
     { code: "free", name: "Başlangıç", propertyLimit: 2, priceMinor: 44900, currency: "TRY", interval: "month", sortOrder: 0 },
     { code: "pro", name: "Pro", propertyLimit: 7, priceMinor: 89900, currency: "TRY", interval: "month", sortOrder: 1 },
-    { code: "business", name: "İşletme", propertyLimit: null, priceMinor: 169900, currency: "TRY", interval: "month", sortOrder: 2 },
+    { code: "business", name: "İşletme", propertyLimit: 25, priceMinor: 169900, currency: "TRY", interval: "month", sortOrder: 2 },
   ];
   for (const plan of seedPlans) {
     await prisma.plan.upsert({ where: { code: plan.code }, create: plan, update: plan });

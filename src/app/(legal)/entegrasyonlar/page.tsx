@@ -47,7 +47,7 @@ export default function IntegrationsPage() {
           </span>
           <div>
             <h2 className="text-xl font-semibold">Hospitable</h2>
-            <p className="text-sm text-muted-foreground">Airbnb · Booking.com · Vrbo bağlantısı</p>
+            <p className="text-sm text-muted-foreground">Airbnb · Booking.com bağlantısı</p>
           </div>
         </div>
 

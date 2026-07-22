@@ -15,7 +15,9 @@ const nextConfig = {
   //  * REPORT-ONLY: the FULL policy incl. script-src. Enforcing script-src needs
   //    per-request nonces for Next's inline bootstrap (ayrı altyapı turu) —
   //    'unsafe-inline'ı enforce etmek koruma katmaz, nonce'suz sıkılaştırmak
-  //    paneli komple kırar. Gözlem katmanı o tur için veri toplar.
+  //    paneli komple kırar. NOT: `report-uri`/`report-to` YOK — ihlaller yalnız
+  //    ziyaretçinin KENDİ tarayıcı konsolunda görünür, merkezi toplanmaz. Nonce
+  //    turunda script-src'i enforce'a çekerken bir rapor endpoint'i de eklenir.
   async headers() {
     const cspEnforced = ["object-src 'none'", "base-uri 'self'", "frame-ancestors 'self'"].join("; ");
     const cspReportOnly = [

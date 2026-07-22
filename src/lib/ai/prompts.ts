@@ -569,13 +569,13 @@ function buildAdjacencyBlock(
 
   const before = previousDeparture
     ? sameDay(previousDeparture, reservation.arrivalDate)
-      ? `Giriş günü AYNI dairede önceki misafir saat ${property.checkOutTime}'da çıkıyor → DEVİR GÜNÜ. Erken giriş ancak çıkış + temizlik sonrası mümkün (pencere ${property.checkOutTime}–${property.checkInTime}).`
+      ? `Giriş günü AYNI dairede önceki misafir saat ${property.checkOutTime} itibarıyla çıkıyor → DEVİR GÜNÜ. Erken giriş ancak çıkış + temizlik sonrası mümkün (pencere ${property.checkOutTime}–${property.checkInTime}).`
       : `Giriş gününden önce daire boş (önceki çıkış: ${fmtDate(previousDeparture)}). Erken girişte devir baskısı yok.`
     : `Giriş öncesi kayıtlı önceki rezervasyon yok (daire muhtemelen müsait).`;
 
   const after = nextArrival
     ? sameDay(nextArrival, reservation.departureDate)
-      ? `Çıkış günü AYNI daireye sonraki misafir saat ${property.checkInTime}'da giriyor → DEVİR GÜNÜ. Geç çıkış sınırlı; temizlik için ${property.checkOutTime}–${property.checkInTime} penceresi gerekiyor.`
+      ? `Çıkış günü AYNI daireye sonraki misafir saat ${property.checkInTime} itibarıyla giriyor → DEVİR GÜNÜ. Geç çıkış sınırlı; temizlik için ${property.checkOutTime}–${property.checkInTime} penceresi gerekiyor.`
       : `Çıkıştan sonraki ilk giriş: ${fmtDate(nextArrival)}. Geç çıkışta devir baskısı düşük.`
     : `Çıkış sonrası kayıtlı sonraki rezervasyon yok (geç çıkış daha esnek olabilir).`;
 

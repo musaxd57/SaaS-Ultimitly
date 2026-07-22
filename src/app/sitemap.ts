@@ -14,6 +14,9 @@ const LEGAL_UPDATED = new Date(`${LEGAL_VERSION}-01`);
 export default function sitemap(): MetadataRoute.Sitemap {
   return [
     { url: BASE, lastModified: LANDING_UPDATED, changeFrequency: "weekly", priority: 1 },
+    // Public, indexable content page (own metadata + footer link, NOT
+    // robots-disallowed) — it belongs in the sitemap like the landing page.
+    { url: `${BASE}/entegrasyonlar`, lastModified: LANDING_UPDATED, changeFrequency: "yearly", priority: 0.3 },
     { url: `${BASE}/gizlilik`, lastModified: LEGAL_UPDATED, changeFrequency: "yearly", priority: 0.2 },
     { url: `${BASE}/kosullar`, lastModified: LEGAL_UPDATED, changeFrequency: "yearly", priority: 0.2 },
     { url: `${BASE}/on-bilgilendirme`, lastModified: LEGAL_UPDATED, changeFrequency: "yearly", priority: 0.2 },

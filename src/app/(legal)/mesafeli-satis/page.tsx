@@ -16,9 +16,9 @@ export default function DistanceSalesPage() {
       </header>
 
       <div className="rounded-lg border border-warning/40 bg-warning/10 p-3 text-xs leading-relaxed text-amber-700">
-        ⚠️ <strong>Taslak:</strong> Bu sözleşme bir başlangıç şablonudur. Köşeli parantezli
-        [alanları] kendi işletme bilgilerinizle doldurun ve ödemeleri açmadan önce bir
-        hukuk danışmanına inceletin.
+        ⚠️ <strong>Taslak:</strong> Bu sözleşme bir başlangıç şablonudur. Satıcı ve işletme
+        bilgilerinin doğruluğunu teyit edin ve ödemeleri açmadan önce bir hukuk danışmanına
+        inceletin.
       </div>
 
       {SECTIONS.map((s) => (
