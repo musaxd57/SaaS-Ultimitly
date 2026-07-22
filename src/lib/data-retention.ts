@@ -133,6 +133,34 @@ export async function anonymizeOldGuestData(now: Date = new Date()): Promise<{ a
         : []),
       // Outbound bodies: keep the host's record, remove only the guest's name.
       ...bodyRedactions.map((r) => prisma.message.update({ where: { id: r.id }, data: { body: r.body } })),
+      // Outbox delivery artifacts duplicate the SENT text (greetings carry the
+      // guest's first name; hosts may have typed PII into replies) — without this
+      // they would outlive the retention window at rest. Mirror the explicit-
+      // erasure scrub (erasure.ts parity): a stale undelivered UNCLAIMED row is
+      // canceled (a 24-month-old pending row must never deliver a sentinel later),
+      // then every remaining linked body is anonymized. The host's readable record
+      // stays on Message (name-redacted above); /sent/queue never shows bodies.
+      prisma.messageOutbox.updateMany({
+        where: {
+          OR: [
+            { reservationId: { in: resIds } },
+            ...(convIds.length ? [{ conversationId: { in: convIds } }] : []),
+          ],
+          status: { in: ["pending", "ambiguous"] },
+          claimedBy: null,
+        },
+        data: { body: ANON_BODY, status: "canceled" },
+      }),
+      prisma.messageOutbox.updateMany({
+        where: {
+          OR: [
+            { reservationId: { in: resIds } },
+            ...(convIds.length ? [{ conversationId: { in: convIds } }] : []),
+          ],
+          body: { not: ANON_BODY },
+        },
+        data: { body: ANON_BODY },
+      }),
       prisma.reservation.updateMany({
         where: { id: { in: resIds } },
         data: {

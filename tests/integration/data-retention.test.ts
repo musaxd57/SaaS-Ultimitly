@@ -1,7 +1,7 @@
 import { describe, it, expect, beforeEach, afterEach, vi } from "vitest";
 import { subMonths } from "date-fns";
 import { prisma, resetDb } from "../helpers/db";
-import { anonymizeOldGuestData, deleteAccountData, purgeOldLeads } from "@/lib/data-retention";
+import { anonymizeOldGuestData, deleteAccountData, purgeOldLeads, ANON_BODY } from "@/lib/data-retention";
 
 async function seedStay(opts: {
   orgName?: string;
@@ -148,6 +148,58 @@ describe("anonymizeOldGuestData (KVKK retention)", () => {
     });
     expect(intact?.guestIdentifier).toBe("Yeni Misafir");
     expect(intact?.messages[0].body).toContain("Merhaba");
+  });
+});
+
+describe("anonymizeOldGuestData — MessageOutbox scrub (erasure parity)", () => {
+  beforeEach(async () => {
+    await resetDb();
+  });
+  afterEach(() => {
+    vi.unstubAllEnvs();
+  });
+
+  it("scrubs outbox delivery artifacts of an old stay: bodies anonymized, stale pending row canceled", async () => {
+    vi.stubEnv("DATA_RETENTION_MONTHS", "24");
+    const old = await seedStay({ departedMonthsAgo: 30, guestName: "John Old", body: "Klima bozuk" });
+    const org = await prisma.conversation.findUniqueOrThrow({
+      where: { id: old.conversationId },
+      select: { property: { select: { organizationId: true } } },
+    });
+    const organizationId = org.property.organizationId;
+    // Delivered artifact carrying the guest's name (greeting) — body must be scrubbed,
+    // terminal status kept.
+    await prisma.messageOutbox.create({
+      data: {
+        organizationId,
+        conversationId: old.conversationId,
+        reservationId: old.reservationId,
+        channel: "airbnb",
+        body: "Merhaba John, hoş geldiniz! Kapı kodu 4821.",
+        idempotencyKey: "ret-sent-1",
+        status: "sent",
+      },
+    });
+    // Stale UNDELIVERED, unclaimed row — a 24-month-old pending send must be
+    // canceled (never delivered later as a sentinel), body scrubbed.
+    await prisma.messageOutbox.create({
+      data: {
+        organizationId,
+        conversationId: old.conversationId,
+        channel: "airbnb",
+        body: "Merhaba John, geç check-in bilgisi.",
+        idempotencyKey: "ret-pend-1",
+        status: "pending",
+      },
+    });
+
+    expect((await anonymizeOldGuestData()).anonymized).toBe(1);
+
+    const rows = await prisma.messageOutbox.findMany();
+    expect(rows).toHaveLength(2);
+    for (const r of rows) expect(r.body).toBe(ANON_BODY); // no guest name at rest
+    expect(rows.find((r) => r.idempotencyKey === "ret-pend-1")?.status).toBe("canceled");
+    expect(rows.find((r) => r.idempotencyKey === "ret-sent-1")?.status).toBe("sent"); // terminal status kept
   });
 });
 

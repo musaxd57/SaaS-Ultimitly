@@ -13,7 +13,7 @@ import {
   type HospitableMessage,
 } from "@/lib/hospitable";
 import { getOrgHospitableToken } from "@/lib/hospitable-credentials";
-import { reportError } from "@/lib/report-error";
+import { reportError, redactSensitive } from "@/lib/report-error";
 import { createReservationTasks, removeAutoTasksForCancelledReservation } from "@/lib/automation";
 import { recordSupplyRequestFromMessage } from "@/lib/supply";
 import { billingEnforced, getEntitlement } from "@/lib/billing/subscription";
@@ -61,6 +61,15 @@ async function resolvePropertyLimitState(organizationId: string): Promise<Proper
   if (ent.propertyLimit == null) return null; // unlimited (grandfathered or no-cap plan)
   const current = await prisma.property.count({ where: { organizationId } });
   return { limit: ent.propertyLimit, current };
+}
+
+// Per-row sync failures stay console-only (the run-level aggregate reportError
+// pages ops), but the ERROR TEXT is scrubbed first: a validation-shaped Prisma
+// error renders its input argument VALUES, which on these rows can include the
+// guest's name/email/phone — Railway logs must never carry them (KVKK). Message
+// only, no raw object/stack (the stack adds no PII but the object echoes inputs).
+function scrubErr(err: unknown): string {
+  return redactSensitive(err instanceof Error ? err.message : String(err));
 }
 
 function str(value: unknown): string | null {
@@ -160,7 +169,7 @@ export async function syncHospitable(
       // A DB error on ONE listing must not abort the whole org's sync (mirrors the
       // reservation loop). Notably a P2002 on the GLOBAL-@unique hospitableId when
       // the same Airbnb account is linked under another org — log and move on.
-      console.error(`[Hospitable sync] linkProperty failed for ${hp.id}`, err);
+      console.error(`[Hospitable sync] linkProperty failed for ${hp.id}`, scrubErr(err));
     }
   }
 
@@ -192,7 +201,7 @@ export async function syncHospitable(
       authFailureReported = true;
       void reportError(`hospitable-auth org:${organizationId}`, err);
     } else {
-      console.error(`[Hospitable sync] ${context}`, err);
+      console.error(`[Hospitable sync] ${context}`, scrubErr(err));
     }
   };
 
@@ -268,7 +277,7 @@ export async function syncHospitable(
           await removeAutoTasksForCancelledReservation(localReservationId).catch(() => {});
         }
       } catch (err) {
-        console.error(`[Hospitable sync] reservation upsert failed for ${reservation.id}`, err);
+        console.error(`[Hospitable sync] reservation upsert failed for ${reservation.id}`, scrubErr(err));
       }
 
       // Message thread import — only for reservations that have a conversation.
@@ -313,7 +322,7 @@ export async function syncHospitable(
           // A transient DB error on the skip-check must NOT abort the whole
           // property's remaining reservations — log and fall through to a normal
           // import (which is idempotent), losing only this cycle's skip savings.
-          console.error(`[Hospitable sync] skip-check failed for ${reservation.id}`, err);
+          console.error(`[Hospitable sync] skip-check failed for ${reservation.id}`, scrubErr(err));
         }
       }
 
@@ -358,7 +367,7 @@ export async function syncHospitable(
           await recordSupplyRequestFromMessage(job).catch(() => {});
         }
       } catch (err) {
-        console.error(`[Hospitable sync] thread import failed for ${reservation.id}`, err);
+        console.error(`[Hospitable sync] thread import failed for ${reservation.id}`, scrubErr(err));
       }
     }
   }
