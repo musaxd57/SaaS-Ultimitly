@@ -312,6 +312,53 @@ describe("outbox lifecycle (FAZ 1) — flag ON", () => {
     expect((await prisma.messageOutbox.findFirstOrThrow({ where: { idempotencyKey: "co-past" } })).status).toBe("canceled");
   });
 
+  it("C3 (Codex 07-23): checkout vetosu ORG-TZ TAKVİM GÜNÜ ile çalışır — Berlin'in 23/25 saatlik günlerinde kaymaz", async () => {
+    // fa515e5 otomasyonun mesaj-SEÇİM penceresini düzeltmişti; worker'ın gönderim-anı
+    // vetosu ise sabit `departureDate + 24h` kullanıyordu → 25 saatlik departure
+    // gününde (geri alma) kuyruktaki checkout YEREL GÜN BİTMEDEN 1 saat erken iptal
+    // ediliyor, 23 saatlik günde (ileri alma) ertesi yerel güne 1 saat sarkıyordu.
+    // Kural artık sendDueCheckouts ile aynı: yalnız now'ın org-tz tarih anahtarı
+    // departure'ın tarih anahtarını GEÇİNCE window_passed. (Istanbul paritesi C2'de pinli.)
+    const { orgId, propertyId } = await makeOrgWithProperty();
+    await prisma.organization.update({ where: { id: orgId }, data: { timezone: "Europe/Berlin" } });
+    const mkRow = async (departure: Date, ref: string, key: string) => {
+      const res = await prisma.reservation.create({
+        data: {
+          propertyId, guestName: "G", channel: "airbnb", status: "confirmed",
+          arrivalDate: new Date(departure.getTime() - 3 * 86_400_000), departureDate: departure,
+          sourceReference: ref,
+        },
+      });
+      await prisma.messageOutbox.create({
+        data: {
+          organizationId: orgId, conversationId: null, messageId: null, reservationId: res.id, channel: "airbnb",
+          externalReservationId: ref, messageType: "checkout", body: "x", idempotencyKey: key, status: "pending",
+          availableAt: new Date("2026-01-01T00:00:00Z"), // her iki sabit saatten önce due
+        },
+      });
+      return res.id;
+    };
+
+    // 25 SAATLİK GÜN (2026-10-25, geri alma): departure = Berlin yerel geceyarısı
+    // = 2026-10-24T22:00Z. now = AYNI yerel günün 23:30'u (CET) = 2026-10-25T22:30Z
+    // → departure + 24.5h: eski sabit-24h kod burada VETOLARDI (erken iptal).
+    const dstId = await mkRow(new Date("2026-10-24T22:00:00Z"), "res-dst25", "co-dst25");
+    const first = okDeliver();
+    await drainOutboxOnce({ send: first.send, tokenFor: async () => "t", batchSize: 10, now: () => new Date("2026-10-25T22:30:00Z") });
+    expect(first.calls()).toBe(1); // yerel gün bitmeden ASLA veto edilmez
+    expect((await prisma.reservation.findUniqueOrThrow({ where: { id: dstId } })).checkoutSentAt).toBeInstanceOf(Date);
+
+    // 23 SAATLİK GÜN (2026-03-29, ileri alma): departure = 2026-03-28T23:00Z (CET
+    // geceyarısı). now = ERTESİ yerel günün 00:30'u (CEST) = 2026-03-29T22:30Z
+    // → departure + 23.5h: eski kod hâlâ İZİN VERİRDİ (geç kalmış gönderim).
+    await mkRow(new Date("2026-03-28T23:00:00Z"), "res-dst23", "co-dst23");
+    const second = okDeliver();
+    const r2 = await drainOutboxOnce({ send: second.send, tokenFor: async () => "t", batchSize: 10, now: () => new Date("2026-03-29T22:30:00Z") });
+    expect(second.calls()).toBe(0); // yerel gün geçti → provider'a gidilmez
+    expect(r2.canceled).toBe(1);
+    expect((await prisma.messageOutbox.findFirstOrThrow({ where: { idempotencyKey: "co-dst23" } })).status).toBe("canceled");
+  });
+
   it("proactive enqueue is idempotent on the deterministic key (replay/restart safe)", async () => {
     const { orgId, reservationId } = await seedWelcome();
     const args = {

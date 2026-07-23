@@ -2210,7 +2210,9 @@ export async function sendDueCheckouts(
       createdAt: { gte: baseline }, // only bookings created since checkout was enabled
       // +3 CALENDAR days in org-tz (addZonedDays), not date-fns addDays (+72h):
       // DST geçiş günlerinde sabit saat-adımı pencere ucunu yerel geceyarısından
-      // kaydırıyordu (Codex 07-23 #4 "checkout veto" penceresi).
+      // kaydırıyordu. Bu yalnız mesaj-SEÇİM penceresidir — asıl gönderim-anı
+      // checkout vetosu outbox worker'ındaki lifecycleVeto'da yaşar ve AYNI
+      // org-tz takvim-günü kuralını kullanır (Codex 07-23; iki yol ayrışamaz).
       departureDate: { gte: zonedDayRange(now, tz).start, lt: addZonedDays(zonedDayRange(now, tz).start, 3, tz) },
     },
     select: {

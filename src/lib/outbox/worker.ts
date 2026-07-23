@@ -3,6 +3,7 @@ import "server-only";
 import { randomUUID } from "node:crypto";
 import { Prisma } from "@prisma/client";
 import { prisma } from "@/lib/db";
+import { orgTimezone, dateKeyInTimeZone } from "@/lib/timezone";
 import { reportError } from "@/lib/report-error";
 import { getOrgHospitableToken } from "@/lib/hospitable-credentials";
 import { sendMessage } from "@/lib/hospitable";
@@ -357,7 +358,11 @@ async function lifecycleVeto(row: OutboxRow, now: Date): Promise<string | null> 
   if (!row.externalReservationId) return "no_destination";
   const res = await prisma.reservation.findFirst({
     where: { sourceReference: row.externalReservationId, property: { organizationId: row.organizationId } },
-    select: { status: true, departureDate: true, welcomeSentAt: true, checkinSentAt: true, checkoutSentAt: true },
+    select: {
+      status: true, departureDate: true, welcomeSentAt: true, checkinSentAt: true, checkoutSentAt: true,
+      // Org timezone for the checkout window rule below (same lookup, no extra query).
+      property: { select: { organization: { select: { timezone: true } } } },
+    },
   });
   if (!res) return "reservation_gone";
   if (res.status === "cancelled") return "reservation_cancelled";
@@ -373,9 +378,16 @@ async function lifecycleVeto(row: OutboxRow, now: Date): Promise<string | null> 
   if (type === "checkout" && res.checkoutSentAt) return "already_sent";
   // Window passed. A check-in whose stay is already over is stale. A CHECK-OUT is enqueued the
   // MORNING OF departure while departureDate sits at local midnight — i.e. already "in the past"
-  // at send time — so it only goes stale once the departure DAY itself is over (midnight + 24h).
+  // at send time — so it only goes stale once the departure DAY itself is over. "Day" is the
+  // ORG-TIMEZONE calendar day (same rule as sendDueCheckouts, Codex 07-23): the old fixed
+  // `departureDate + 24h` canceled a queued checkout an hour EARLY on a 25-hour DST fall-back
+  // day (before the local day ended) and let it linger an hour LATE on a 23-hour spring-forward
+  // day. Date-key comparison is also representation-agnostic within the day.
   if (type === "checkin" && res.departureDate < now) return "window_passed";
-  if (type === "checkout" && res.departureDate.getTime() + 86_400_000 < now.getTime()) return "window_passed";
+  if (type === "checkout") {
+    const tz = orgTimezone(res.property?.organization?.timezone);
+    if (dateKeyInTimeZone(now, tz) > dateKeyInTimeZone(res.departureDate, tz)) return "window_passed";
+  }
   return null;
 }
 
