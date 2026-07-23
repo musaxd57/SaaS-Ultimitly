@@ -119,6 +119,15 @@ export const reservationUpdateSchema = z.object({
 // --- Conversation / Messages ------------------------------------------------
 export const conversationReplySchema = z.object({
   body: z.string().min(1, "Mesaj boş olamaz").max(10000),
+  // Client-generated idempotency id (Codex 07-23): one id per COMPOSED message,
+  // reused across double-clicks/retries of that same message and regenerated
+  // after a successful send. Replaces the 120s wall-clock bucket for outbox
+  // dedupe (two identical POSTs straddling a bucket boundary got different
+  // keys). Optional: absent (old clients) falls back to the bucket key.
+  requestId: z
+    .string()
+    .regex(/^[A-Za-z0-9-]{8,64}$/, "Geçersiz istek kimliği")
+    .optional(),
   // Reserved sender names: "GuestOps AI" is the AI-message classification magic
   // string (reports count on it) and "Lixus AI" is its rendered brand alias — a
   // manual reply claiming either would self-inflate the org's AI metrics or

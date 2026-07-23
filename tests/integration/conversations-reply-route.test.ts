@@ -262,6 +262,30 @@ describe("POST /api/conversations/[id]/reply — staff RBAC gate", () => {
     expect((await prisma.conversation.findUniqueOrThrow({ where: { id: conversationId } })).status).toBe("waiting");
   });
 
+  it("Durable Outbox ON (Codex 07-23): AYNI requestId tek satıra düşer (bucket-sınırı yarışı yok); FARKLI requestId bilinçli ikinci gönderimdir; bozuk format 400", async () => {
+    vi.stubEnv("DURABLE_OUTBOX_ENABLED", "1");
+    owner();
+    const rid = "11111111-2222-4333-8444-555555555555";
+    // Aynı compose'un double-click/retry'ı: aynı requestId → tek kuyruk satırı.
+    const a = await POST(req(conversationId, { body: "Aynı metin", requestId: rid }), { params: Promise.resolve({ id: conversationId }) });
+    const b = await POST(req(conversationId, { body: "Aynı metin", requestId: rid }), { params: Promise.resolve({ id: conversationId }) });
+    expect(a.status).toBe(202);
+    expect(b.status).toBe(200); // dedupe-hit
+    expect(await prisma.messageOutbox.count({ where: { organizationId: orgId } })).toBe(1);
+    // FARKLI requestId = host aynı metni BİLEREK ikinci kez yolladı → ayrı satır
+    // (eski 120s bucket bunu metin+zaman'a bağlıyordu; artık niyet client'ta).
+    const c = await POST(req(conversationId, { body: "Aynı metin", requestId: "99999999-8888-4777-8666-555555555544" }), {
+      params: Promise.resolve({ id: conversationId }),
+    });
+    expect(c.status).toBe(202);
+    expect(await prisma.messageOutbox.count({ where: { organizationId: orgId } })).toBe(2);
+    // Bozuk/format-dışı requestId fail-closed 400 (sessizce bucket'a düşmez).
+    const d = await POST(req(conversationId, { body: "x", requestId: "kötü format!!" }), {
+      params: Promise.resolve({ id: conversationId }),
+    });
+    expect(d.status).toBe(400);
+  });
+
   it("Durable Outbox ON: a double-submit of the same text dedupes to ONE queued row (200)", async () => {
     vi.stubEnv("DURABLE_OUTBOX_ENABLED", "1");
     owner();

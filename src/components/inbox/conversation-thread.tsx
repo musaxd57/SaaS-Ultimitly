@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useTransition } from "react";
+import { useRef, useState, useTransition } from "react";
 import { useRouter } from "next/navigation";
 import {
   Sparkles,
@@ -104,6 +104,8 @@ export function ConversationThread({ conversationId, messages, status, priority,
   const [suggestLoading, setSuggestLoading] = useState(false);
   const [suggestError, setSuggestError] = useState<string | null>(null);
   const [sending, setSending] = useState(false);
+  // Composed-message idempotency id — see sendReply (Codex 07-23).
+  const requestIdRef = useRef<string | null>(null);
   const [sendError, setSendError] = useState<string | null>(null);
   const [queuedNote, setQueuedNote] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
@@ -148,13 +150,20 @@ export function ConversationThread({ conversationId, messages, status, priority,
     setSending(true);
     setSendError(null);
     setQueuedNote(null);
+    // Per-message idempotency id (Codex 07-23): minted lazily for the CURRENT
+    // composed message and kept across error retries/double-clicks, so the server
+    // collapses them to one queued send; cleared only after a SUCCESSFUL send
+    // (the next message gets a fresh id).
+    if (!requestIdRef.current) requestIdRef.current = crypto.randomUUID();
+    const requestId = requestIdRef.current;
     try {
       const res = await fetch(`/api/conversations/${conversationId}/reply`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ body, aiAssisted }),
+        body: JSON.stringify({ body, aiAssisted, requestId }),
       });
       if (res.ok) {
+        requestIdRef.current = null;
         setComposer("");
         setSuggestion(null);
         // Durable Outbox (flag ON): a 202 means QUEUED, not yet delivered — say so

@@ -12,6 +12,8 @@ import {
   backoffMs,
   classifySendResult,
   type OutboxStatus,
+  canTransition,
+  isOutboxStatus,
 } from "./state";
 
 // ---------------------------------------------------------------------------
@@ -294,6 +296,19 @@ async function settle(
   // (conversationId, externalId) unique when a concurrent sync already linked the same
   // provider id — must NEVER roll back the "sent" transition, or the row would be
   // re-claimed and RE-SENT (a duplicate). So: settle the row first, then best-effort link.
+  // STATE GATE (Codex 07-23): every settle flows through the closed transition
+  // map. A buggy caller (the reconciling→pending token-miss bug was exactly this
+  // class) is REFUSED instead of corrupting the machine: nothing is written, the
+  // claim simply expires (claimExpiresAt) and the row re-enters the normal flow
+  // from its REAL current state; the bug is surfaced loudly (secret-free).
+  const targetStatus = data.status;
+  if (typeof targetStatus === "string" && (!isOutboxStatus(targetStatus) || !canTransition(fromStatus, targetStatus))) {
+    await reportError(
+      "outbox-illegal-transition",
+      new Error(`outbox: illegal transition ${fromStatus} -> ${String(targetStatus)} (outbox=${row.id})`),
+    ).catch(() => {});
+    return false;
+  }
   const upd = await prisma.messageOutbox.updateMany({
     where: { id: row.id, claimedBy: token, status: fromStatus },
     data,
@@ -648,6 +663,71 @@ async function processOne(row: OutboxRow, token: string, deps: Required<Pick<Dra
 }
 
 /**
+ * DELIVERY-EFFECT HEALER (Codex 07-23). applyDeliveryEffect is deliberately
+ * best-effort — delivery truth lives on the outbox row — so a crash/DB blip
+ * between settle("sent") and the side-effect update can leave a DELIVERED
+ * message whose effects never landed: the thread stuck in "new"/"waiting", a
+ * lifecycle *SentAt still null (the flag-OFF sender would then re-send it —
+ * lifecycleOutboxOwns fences that, but the stamp should still exist), or
+ * Message.externalId unlinked (sync dedup falls back to adopt-and-heal).
+ * Every drain re-applies those effects IDEMPOTENTLY for recently-sent rows:
+ * every UPDATE is guarded (status still new/waiting; stamp still null;
+ * externalId still null) so re-running is a no-op. holding_ack is excluded by
+ * design (the thread must STAY "problem"). Bounded: 48h window, small take.
+ * lastMessageAt is deliberately not healed (display-only since m38).
+ */
+async function healDeliveryEffects(now: Date): Promise<void> {
+  const since = new Date(now.getTime() - 48 * 60 * 60 * 1000);
+  // (1) Reply rows (manual / ai / legacy-null): the conversation should read
+  // "answered". Never touches problem/closed threads (guarded IN-list).
+  const replyRows = await prisma.messageOutbox.findMany({
+    where: {
+      status: "sent",
+      sentAt: { gte: since },
+      conversationId: { not: null },
+      OR: [{ messageType: { in: ["manual", "ai"] } }, { messageType: null }],
+    },
+    select: { conversationId: true, messageId: true, providerMessageId: true },
+    take: 200,
+  });
+  const convIds = [...new Set(replyRows.map((r) => r.conversationId as string))];
+  if (convIds.length > 0) {
+    await prisma.conversation.updateMany({
+      where: { id: { in: convIds }, status: { in: ["new", "waiting"] } },
+      data: { status: "answered" },
+    });
+  }
+  for (const r of replyRows) {
+    if (r.messageId && r.providerMessageId) {
+      await prisma.message.updateMany({
+        where: { id: r.messageId, externalId: null },
+        data: { externalId: r.providerMessageId },
+      });
+    }
+  }
+  // (2) Lifecycle rows: the reservation's *SentAt stamp should be set (with the
+  // row's real delivery instant, not "now").
+  const lifecycleRows = await prisma.messageOutbox.findMany({
+    where: {
+      status: "sent",
+      sentAt: { gte: since },
+      reservationId: { not: null },
+      messageType: { in: ["welcome", "checkin", "checkout"] },
+    },
+    select: { reservationId: true, messageType: true, sentAt: true },
+    take: 200,
+  });
+  for (const r of lifecycleRows) {
+    const field =
+      r.messageType === "welcome" ? "welcomeSentAt" : r.messageType === "checkin" ? "checkinSentAt" : "checkoutSentAt";
+    await prisma.reservation.updateMany({
+      where: { id: r.reservationId as string, [field]: null },
+      data: { [field]: r.sentAt ?? now },
+    });
+  }
+}
+
+/**
  * Drain one batch. Fail-CLOSED: if the CLAIM itself errors we abort (never proceed
  * blind). A single row that throws is isolated (reported) so it can't poison the
  * batch — its claim simply expires and is recovered on a later pass.
@@ -691,5 +771,15 @@ export async function drainOutboxOnce(deps: DrainDeps = {}): Promise<DrainResult
       await reportError(`outbox-row ${row.id}`, err);
     }
   }
+  // Heal missed delivery side-effects (idempotent; never blocks the drain result).
+  try {
+    await healDeliveryEffects(nowDate);
+  } catch (err) {
+    await reportError("outbox-heal", err);
+  }
   return acc;
 }
+
+// Test seam: `settle` is internal by design; exported ONLY so the illegal-transition
+// regression test can prove the runtime state gate refuses a bad write. Not public API.
+export const __internals = { settle };

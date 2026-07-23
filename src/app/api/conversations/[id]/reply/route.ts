@@ -90,8 +90,14 @@ export const POST = withManage<{ id: string }>(async (session, req, { params }) 
   // Falls through to the proven claim-then-send when the flag is OFF (default) or the
   // thread is internal (nothing to deliver). ──
   if (durableOutboxEnabled() && !isInternal && conversation.externalReservationId) {
+    // Idempotency (Codex 07-23): prefer the CLIENT's per-message requestId — a
+    // double-click or network retry of the same composed message reuses one id,
+    // so it can never straddle a time-bucket boundary into two keys. Fallback
+    // (old clients / absent id): the body-digest + 2-min wall-clock bucket.
     const digest = createHash("sha256").update(parsed.data.body).digest("base64url").slice(0, 24);
-    const idempotencyKey = `manual:${id}:${digest}:${Math.floor(Date.now() / 120_000)}`;
+    const idempotencyKey = parsed.data.requestId
+      ? `manual:${id}:req:${parsed.data.requestId}`
+      : `manual:${id}:${digest}:${Math.floor(Date.now() / 120_000)}`;
     const enq = await enqueueOutbound({
       organizationId: session.organizationId,
       conversationId: id,
