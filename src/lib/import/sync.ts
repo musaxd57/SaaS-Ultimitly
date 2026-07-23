@@ -323,7 +323,7 @@ export async function syncCalendarSource(sourceId: string): Promise<SyncResult> 
       // inside reportError); the run result also carries an operator-visible
       // "⚠" line (lastResult), so the panel shows it without breaking the import.
       reconcileWarning = "Kaybolma-uzlaştırma hatası — feed iptalleri bu koşuda uygulanamadı";
-      void reportError(`ical.reconcile:${source.id}`, err instanceof Error ? err : new Error(String(err)));
+      await reportError(`ical.reconcile:${source.id}`, err instanceof Error ? err : new Error(String(err))).catch(() => {});
     }
   }
 

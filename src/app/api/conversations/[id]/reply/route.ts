@@ -110,6 +110,22 @@ export const POST = withManage<{ id: string }>(async (session, req, { params }) 
       aiAssisted,
       idempotencyKey,
     });
+    // (Codex r2 #3) requestId'li dedupe-hit'te İÇERİK eşleşmesi ŞART: aynı id'yi
+    // FARKLI gövdeyle yeniden kullanmak istemci hatasıdır — sessizce ilk mesajı
+    // döndürmek yeni mesajı YUTAR. 409 = "id'yi yeniden üret". (Bucket yolunda
+    // gövde zaten anahtarın parçası → farklı gövde farklı anahtar üretir.)
+    if (enq.deduped && parsed.data.requestId) {
+      const existing = await prisma.messageOutbox.findUnique({
+        where: { organizationId_idempotencyKey: { organizationId: session.organizationId, idempotencyKey } },
+        select: { body: true },
+      });
+      if (existing && existing.body !== replyBody) {
+        return NextResponse.json(
+          { error: "Bu istek kimliği farklı bir içerikle kullanılmış — lütfen tekrar gönderin." },
+          { status: 409 },
+        );
+      }
+    }
     const message = await prisma.message.findUnique({ where: { id: enq.messageId } });
     // 202 = accepted/queued (NOT yet delivered — the UI shows "sıraya alındı"); a
     // dedupe-hit is a 200 no-op (the identical message is already queued/sent).

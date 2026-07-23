@@ -104,8 +104,10 @@ export function ConversationThread({ conversationId, messages, status, priority,
   const [suggestLoading, setSuggestLoading] = useState(false);
   const [suggestError, setSuggestError] = useState<string | null>(null);
   const [sending, setSending] = useState(false);
-  // Composed-message idempotency id — see sendReply (Codex 07-23).
-  const requestIdRef = useRef<string | null>(null);
+  // Composed-message idempotency id — see sendReply (Codex 07-23). Payload'a
+  // BAĞLI: gövde/aiAssisted değişirse YENİ id üretilir (aynı id + farklı içerik
+  // sunucuda 409'dur — Codex r2 #3); aynı payload'ın retry'ı aynı id'yi taşır.
+  const requestIdRef = useRef<{ id: string; body: string; aiAssisted: boolean } | null>(null);
   const [sendError, setSendError] = useState<string | null>(null);
   const [queuedNote, setQueuedNote] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
@@ -150,12 +152,15 @@ export function ConversationThread({ conversationId, messages, status, priority,
     setSending(true);
     setSendError(null);
     setQueuedNote(null);
-    // Per-message idempotency id (Codex 07-23): minted lazily for the CURRENT
-    // composed message and kept across error retries/double-clicks, so the server
-    // collapses them to one queued send; cleared only after a SUCCESSFUL send
-    // (the next message gets a fresh id).
-    if (!requestIdRef.current) requestIdRef.current = crypto.randomUUID();
-    const requestId = requestIdRef.current;
+    // Per-message idempotency id (Codex 07-23): minted for the CURRENT composed
+    // payload and kept across error retries/double-clicks of the SAME payload;
+    // any body/aiAssisted change mints a fresh id (server 409-guards reuse with
+    // different content). Cleared after a SUCCESSFUL send.
+    const cur = requestIdRef.current;
+    if (!cur || cur.body !== body || cur.aiAssisted !== aiAssisted) {
+      requestIdRef.current = { id: crypto.randomUUID(), body, aiAssisted };
+    }
+    const requestId = (requestIdRef.current as { id: string }).id;
     try {
       const res = await fetch(`/api/conversations/${conversationId}/reply`, {
         method: "POST",

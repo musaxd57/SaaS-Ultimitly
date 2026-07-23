@@ -109,6 +109,64 @@ describe("outbox sertleştirme — state gate + delivery-effect healer", () => {
     expect(noSend).not.toHaveBeenCalled(); // healer asla provider'a gitmez
   });
 
+  it("HEALER (Codex r2 #1): teslimden SONRA yeni inbound geldiyse thread answered'a EZİLMEZ; eski inbound engel değildir", async () => {
+    const { orgId, propertyId } = await seedOrgProp();
+    const sentAt = new Date(Date.now() - 60 * 60 * 1000);
+    const mk = async (gid: string, inboundAt: Date | null) => {
+      const c = await prisma.conversation.create({
+        data: { propertyId, guestIdentifier: gid, channel: "airbnb", status: "new", externalReservationId: `res-${gid}` },
+      });
+      if (inboundAt) {
+        await prisma.message.create({
+          data: { conversationId: c.id, direction: "inbound", senderName: "Guest", body: "soru", createdAt: inboundAt },
+        });
+      }
+      await prisma.messageOutbox.create({
+        data: {
+          organizationId: orgId, conversationId: c.id, messageId: null, channel: "airbnb",
+          externalReservationId: `res-${gid}`, messageType: "manual", body: "x",
+          idempotencyKey: `nb-${gid}`, status: "sent", sentAt,
+        },
+      });
+      return c.id;
+    };
+    // (a) Teslimden SONRA yeni misafir mesajı → thread HAKLI olarak "new"; healer DOKUNMAMALI
+    //     (aksi hâlde cevaplanmamış misafir mesajı "answered" arkasına gizlenir).
+    const newerId = await mk("newer", new Date(sentAt.getTime() + 10 * 60 * 1000));
+    // (b) Inbound teslimden ÖNCE → kaçmış etki normal iyileşir.
+    const olderId = await mk("older", new Date(sentAt.getTime() - 10 * 60 * 1000));
+    await drainOutboxOnce({ send: noSend, tokenFor: async () => "t" });
+    expect((await prisma.conversation.findUniqueOrThrow({ where: { id: newerId } })).status).toBe("new"); // EZİLMEDİ
+    expect((await prisma.conversation.findUniqueOrThrow({ where: { id: olderId } })).status).toBe("answered"); // iyileşti
+  });
+
+  it("HEALER (Codex r2 #2): 250+ adayda take-penceresi AÇLIK yaratmaz — sayfalama TÜM eksik-etkili satırları işler", async () => {
+    const { orgId, propertyId } = await seedOrgProp();
+    const N = 250;
+    const sentAt = new Date(Date.now() - 60 * 60 * 1000);
+    // 250 ayrı conversation (hepsi "new") + her birine sent reply satırı.
+    await prisma.conversation.createMany({
+      data: Array.from({ length: N }, (_, i) => ({
+        propertyId, guestIdentifier: `bulk-${i}`, channel: "airbnb", status: "new",
+        externalReservationId: `res-bulk-${i}`,
+      })),
+    });
+    const convs = await prisma.conversation.findMany({ where: { propertyId }, select: { id: true } });
+    expect(convs.length).toBe(N);
+    await prisma.messageOutbox.createMany({
+      data: convs.map((c, i) => ({
+        organizationId: orgId, conversationId: c.id, channel: "airbnb",
+        externalReservationId: `res-bulk-${i}`, messageType: "manual", body: "x",
+        idempotencyKey: `bulk-${i}`, status: "sent", sentAt,
+      })),
+    });
+    // TEK drain bütün adayları (sayfalayarak) işlemeli — take:200'e takılıp
+    // kalan 50'yi süresiz aç bırakmamalı.
+    await drainOutboxOnce({ send: noSend, tokenFor: async () => "t" });
+    const remaining = await prisma.conversation.count({ where: { propertyId, status: "new" } });
+    expect(remaining).toBe(0);
+  });
+
   it("HEALER: lifecycle sent + damga null → *SentAt satırın GERÇEK sentAt'iyle damgalanır; ikinci koşu no-op", async () => {
     const { orgId, propertyId } = await seedOrgProp();
     const deliveredAt = new Date(Date.now() - 2 * 60 * 60 * 1000);

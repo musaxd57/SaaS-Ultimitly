@@ -678,52 +678,126 @@ async function processOne(row: OutboxRow, token: string, deps: Required<Pick<Dra
  */
 async function healDeliveryEffects(now: Date): Promise<void> {
   const since = new Date(now.getTime() - 48 * 60 * 60 * 1000);
-  // (1) Reply rows (manual / ai / legacy-null): the conversation should read
-  // "answered". Never touches problem/closed threads (guarded IN-list).
-  const replyRows = await prisma.messageOutbox.findMany({
-    where: {
-      status: "sent",
-      sentAt: { gte: since },
-      conversationId: { not: null },
-      OR: [{ messageType: { in: ["manual", "ai"] } }, { messageType: null }],
-    },
-    select: { conversationId: true, messageId: true, providerMessageId: true },
-    take: 200,
-  });
-  const convIds = [...new Set(replyRows.map((r) => r.conversationId as string))];
-  if (convIds.length > 0) {
-    await prisma.conversation.updateMany({
-      where: { id: { in: convIds }, status: { in: ["new", "waiting"] } },
-      data: { status: "answered" },
+  const PAGE = 200;
+  const MAX_PAGES = 25; // güvenlik tavanı — 48h penceresinde 5000+ satır beklenmez
+
+  // ---- (1) Reply satırları (manual / ai / legacy-null) ----
+  // CURSOR SAYFALAMA (Codex r2 #2): sabit take, pencerede >take zaten-iyileşmiş
+  // satır varken eksik-etkili satırları süresiz AÇ bırakabilirdi. Deterministik
+  // id-cursor'la TÜM pencere her drain'de taranır; iyileşmiş satırların maliyeti
+  // yalnız sayfa okumasıdır (etki-eksikliği ön-filtreleri aşağıda).
+  let cursor: string | null = null;
+  for (let page = 0; page < MAX_PAGES; page++) {
+    const rows: {
+      id: string;
+      conversationId: string | null;
+      messageId: string | null;
+      providerMessageId: string | null;
+      sentAt: Date | null;
+    }[] = await prisma.messageOutbox.findMany({
+      where: {
+        status: "sent",
+        sentAt: { gte: since },
+        conversationId: { not: null },
+        OR: [{ messageType: { in: ["manual", "ai"] } }, { messageType: null }],
+      },
+      select: { id: true, conversationId: true, messageId: true, providerMessageId: true, sentAt: true },
+      orderBy: { id: "asc" },
+      ...(cursor ? { cursor: { id: cursor }, skip: 1 } : {}),
+      take: PAGE,
     });
-  }
-  for (const r of replyRows) {
-    if (r.messageId && r.providerMessageId) {
-      await prisma.message.updateMany({
-        where: { id: r.messageId, externalId: null },
-        data: { externalId: r.providerMessageId },
+    if (rows.length === 0) break;
+    cursor = rows[rows.length - 1].id;
+
+    // Conversation başına bu sayfadaki EN GEÇ teslim anı.
+    const latestByConv = new Map<string, Date>();
+    for (const r of rows) {
+      const cid = r.conversationId as string;
+      const t = r.sentAt ?? now;
+      const prev = latestByConv.get(cid);
+      if (!prev || t > prev) latestByConv.set(cid, t);
+    }
+    const needIds = (
+      await prisma.conversation.findMany({
+        where: { id: { in: [...latestByConv.keys()] }, status: { in: ["new", "waiting"] } },
+        select: { id: true },
+      })
+    ).map((c) => c.id);
+    for (const cid of needIds) {
+      const deliveredAt = latestByConv.get(cid) as Date;
+      // (Codex r2 #1) Teslimden SONRA yeni bir INBOUND geldiyse thread HAKLI
+      // olarak new/waiting'tedir — answered'a EZMEK cevaplanmamış misafir
+      // mesajını gizlerdi. Guard tek UPDATE statement'ında (ilişki filtresi):
+      // yalnız "teslimden yeni inbound YOK" ise iyileştir.
+      await prisma.conversation.updateMany({
+        where: {
+          id: cid,
+          status: { in: ["new", "waiting"] },
+          messages: { none: { direction: "inbound", createdAt: { gt: deliveredAt } } },
+        },
+        data: { status: "answered" },
       });
     }
+    // externalId linki: yalnız hâlâ null olan mesajlar (ön-filtre → çoğu sayfada 0 iş).
+    const linkable = rows.filter((r) => r.messageId && r.providerMessageId);
+    if (linkable.length > 0) {
+      const missing = new Set(
+        (
+          await prisma.message.findMany({
+            where: { id: { in: linkable.map((r) => r.messageId as string) }, externalId: null },
+            select: { id: true },
+          })
+        ).map((m) => m.id),
+      );
+      for (const r of linkable) {
+        if (!missing.has(r.messageId as string)) continue;
+        await prisma.message.updateMany({
+          where: { id: r.messageId as string, externalId: null },
+          data: { externalId: r.providerMessageId },
+        });
+      }
+    }
+    if (rows.length < PAGE) break;
   }
-  // (2) Lifecycle rows: the reservation's *SentAt stamp should be set (with the
-  // row's real delivery instant, not "now").
-  const lifecycleRows = await prisma.messageOutbox.findMany({
-    where: {
-      status: "sent",
-      sentAt: { gte: since },
-      reservationId: { not: null },
-      messageType: { in: ["welcome", "checkin", "checkout"] },
-    },
-    select: { reservationId: true, messageType: true, sentAt: true },
-    take: 200,
-  });
-  for (const r of lifecycleRows) {
-    const field =
-      r.messageType === "welcome" ? "welcomeSentAt" : r.messageType === "checkin" ? "checkinSentAt" : "checkoutSentAt";
-    await prisma.reservation.updateMany({
-      where: { id: r.reservationId as string, [field]: null },
-      data: { [field]: r.sentAt ?? now },
+
+  // ---- (2) Lifecycle satırları: *SentAt damgası (satırın GERÇEK sentAt'iyle) ----
+  cursor = null;
+  for (let page = 0; page < MAX_PAGES; page++) {
+    const rows: { id: string; reservationId: string | null; messageType: string | null; sentAt: Date | null }[] =
+      await prisma.messageOutbox.findMany({
+      where: {
+        status: "sent",
+        sentAt: { gte: since },
+        reservationId: { not: null },
+        messageType: { in: ["welcome", "checkin", "checkout"] },
+      },
+      select: { id: true, reservationId: true, messageType: true, sentAt: true },
+      orderBy: { id: "asc" },
+      ...(cursor ? { cursor: { id: cursor }, skip: 1 } : {}),
+      take: PAGE,
     });
+    if (rows.length === 0) break;
+    cursor = rows[rows.length - 1].id;
+    const stampByRes = new Map(
+      (
+        await prisma.reservation.findMany({
+          where: { id: { in: [...new Set(rows.map((r) => r.reservationId as string))] as string[] } },
+          select: { id: true, welcomeSentAt: true, checkinSentAt: true, checkoutSentAt: true },
+        })
+      ).map((r) => [r.id, r]),
+    );
+    for (const r of rows) {
+      const st = stampByRes.get(r.reservationId as string);
+      if (!st) continue;
+      const field =
+        r.messageType === "welcome" ? "welcomeSentAt" : r.messageType === "checkin" ? "checkinSentAt" : "checkoutSentAt";
+      if (st[field] !== null) continue; // zaten damgalı — iş yok (ön-filtre)
+      await prisma.reservation.updateMany({
+        where: { id: r.reservationId as string, [field]: null },
+        data: { [field]: r.sentAt ?? now },
+      });
+    }
+    if (rows.length < PAGE) break;
   }
 }
 

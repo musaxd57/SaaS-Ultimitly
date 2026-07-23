@@ -279,6 +279,13 @@ describe("POST /api/conversations/[id]/reply — staff RBAC gate", () => {
     });
     expect(c.status).toBe(202);
     expect(await prisma.messageOutbox.count({ where: { organizationId: orgId } })).toBe(2);
+    // (Codex r2 #3) AYNI requestId + FARKLI gövde = istemci hatası — sessiz
+    // dedupe İLK mesajı döndürüp YENİ mesajı yutardı; 409 dönmeli, kuyruk büyümemeli.
+    const e = await POST(req(conversationId, { body: "BAMBAŞKA metin", requestId: rid }), {
+      params: Promise.resolve({ id: conversationId }),
+    });
+    expect(e.status).toBe(409);
+    expect(await prisma.messageOutbox.count({ where: { organizationId: orgId } })).toBe(2); // yeni satır YOK
     // Bozuk/format-dışı requestId fail-closed 400 (sessizce bucket'a düşmez).
     const d = await POST(req(conversationId, { body: "x", requestId: "kötü format!!" }), {
       params: Promise.resolve({ id: conversationId }),

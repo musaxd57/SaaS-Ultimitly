@@ -57,6 +57,31 @@ describe("AppShell — mobil drawer modal sözleşmesi + logout res.ok", () => {
     expect(document.activeElement).toBe(burger); // focus restore
   });
 
+  it("impersonation exit: HTTP 500'de /admin'e YÖNLENDİRME YOK (yanlış bağlam riski); 200'de gider", async () => {
+    render(
+      <AppShell
+        user={{ name: "Owner", email: "o@x.com", role: "owner", orgName: "Org" } as never}
+        superAdmin={false}
+        guestChatEnabled={false}
+        impersonating={{ orgName: "Müşteri", actorName: "Operatör" } as never}
+      >
+        <div>içerik</div>
+      </AppShell>,
+    );
+    const exitBtn = screen.getByRole("button", { name: /Kendi hesabıma dön/ });
+    vi.stubGlobal("fetch", vi.fn(async () => new Response("boom", { status: 500 })));
+    await act(async () => {
+      fireEvent.click(exitBtn);
+    });
+    expect(push).not.toHaveBeenCalled(); // impersonation hâlâ aktif — /admin'e gitmek yanlış bağlam olurdu
+    vi.stubGlobal("fetch", vi.fn(async () => new Response("{}", { status: 200 })));
+    await act(async () => {
+      fireEvent.click(screen.getByRole("button", { name: /Kendi hesabıma dön/ }));
+    });
+    expect(push).toHaveBeenCalledWith("/admin");
+    vi.unstubAllGlobals();
+  });
+
   it("logout: HTTP 500'de YÖNLENDİRME YOK (buton geri açılır); 200'de /login'e gider", async () => {
     renderShell();
     const logoutBtn = screen.getAllByRole("button", { name: /Çıkış/ })[0];
