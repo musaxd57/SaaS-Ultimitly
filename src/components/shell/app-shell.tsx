@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import Link from "next/link";
 import { usePathname, useRouter } from "next/navigation";
 import { Menu, X, LogOut, Loader2, Shield, ArrowLeft } from "lucide-react";
@@ -26,13 +26,21 @@ export function AppShell({ user, superAdmin, guestChatEnabled, impersonating, pl
   const pathname = usePathname();
   const router = useRouter();
   const [mobileOpen, setMobileOpen] = useState(false);
+  const drawerRef = useRef<HTMLElement | null>(null);
+  const menuButtonRef = useRef<HTMLButtonElement | null>(null);
   const [loggingOut, setLoggingOut] = useState(false);
   const [exiting, setExiting] = useState(false);
 
   async function exitImpersonation() {
     setExiting(true);
     try {
-      await fetch("/api/admin/exit", { method: "POST" });
+      const res = await fetch("/api/admin/exit", { method: "POST" });
+      if (!res.ok) {
+        // 500'de impersonation hâlâ AKTİF — /admin'e gitmek yanlış bağlamda
+        // işlem riski olurdu; operatör yeniden dener (Codex 07-23 #7).
+        setExiting(false);
+        return;
+      }
       router.push("/admin");
       router.refresh();
     } catch {
@@ -41,20 +49,64 @@ export function AppShell({ user, superAdmin, guestChatEnabled, impersonating, pl
     }
   }
 
-  // Close the mobile sidebar with Escape (accessibility).
+  // Mobile drawer modal contract (Codex 07-23 #7): Escape-close (mevcuttu) +
+  // body scroll-lock + focus move-in/trap/restore. Dialog semantiği drawer
+  // <aside>'ında (role="dialog" aria-modal).
   useEffect(() => {
     if (!mobileOpen) return;
+    const prevOverflow = document.body.style.overflow;
+    document.body.style.overflow = "hidden"; // arkaplan drawer altında kaymasın
+    const prevFocus = document.activeElement as HTMLElement | null;
+    // Cleanup, effect KURULDUĞU andaki düğme referansını kullanır (lint kuralı:
+    // ref.current cleanup anında değişmiş olabilir).
+    const menuButton = menuButtonRef.current;
+    drawerRef.current?.focus();
     const onKey = (e: KeyboardEvent) => {
-      if (e.key === "Escape") setMobileOpen(false);
+      if (e.key === "Escape") {
+        setMobileOpen(false);
+        return;
+      }
+      if (e.key !== "Tab") return;
+      // Focus trap: Tab drawer içinde döner (screen-reader/klavye kullanıcısı
+      // görünmez arkaplana düşmez).
+      const root = drawerRef.current;
+      if (!root) return;
+      const focusables = root.querySelectorAll<HTMLElement>(
+        'a[href], button:not([disabled]), [tabindex]:not([tabindex="-1"])',
+      );
+      if (focusables.length === 0) return;
+      const first = focusables[0];
+      const last = focusables[focusables.length - 1];
+      const active = document.activeElement;
+      if (e.shiftKey && (active === first || active === root)) {
+        e.preventDefault();
+        last.focus();
+      } else if (!e.shiftKey && active === last) {
+        e.preventDefault();
+        first.focus();
+      }
     };
     window.addEventListener("keydown", onKey);
-    return () => window.removeEventListener("keydown", onKey);
+    return () => {
+      window.removeEventListener("keydown", onKey);
+      document.body.style.overflow = prevOverflow;
+      // Focus restore: tetikleyen öğeye (yoksa hamburger'a) geri dön.
+      (prevFocus ?? menuButton)?.focus?.();
+    };
   }, [mobileOpen]);
 
   async function logout() {
     setLoggingOut(true);
     try {
-      await fetch("/api/auth/logout", { method: "POST" });
+      // fetch HTTP 500'de throw ETMEZ (Codex 07-23 #7): res.ok kontrolsüz
+      // yönlendirme, çerez temizlenmemişken kullanıcıyı login'e atıp "çıktım"
+      // sandırıyordu. Başarısızsa butonu geri aç — oturum gerçekten kapanana
+      // dek yönlendirme yok.
+      const res = await fetch("/api/auth/logout", { method: "POST" });
+      if (!res.ok) {
+        setLoggingOut(false);
+        return;
+      }
       router.push("/login");
       router.refresh();
     } catch {
@@ -200,7 +252,14 @@ export function AppShell({ user, superAdmin, guestChatEnabled, impersonating, pl
             onClick={() => setMobileOpen(false)}
             aria-hidden
           />
-          <aside className="absolute left-0 top-0 h-full w-64 border-r border-border bg-card shadow-xl">
+          <aside
+            ref={drawerRef}
+            role="dialog"
+            aria-modal="true"
+            aria-label="Ana menü"
+            tabIndex={-1}
+            className="absolute left-0 top-0 h-full w-64 border-r border-border bg-card shadow-xl outline-none"
+          >
             {sidebarBody}
           </aside>
         </div>
@@ -229,10 +288,12 @@ export function AppShell({ user, superAdmin, guestChatEnabled, impersonating, pl
         <header className="sticky top-0 z-30 flex h-14 items-center justify-between gap-3 border-b border-border bg-card/95 px-4 backdrop-blur sm:px-6">
           <div className="flex items-center gap-3">
             <button
+              ref={menuButtonRef}
               type="button"
               className="rounded-md p-2 text-muted-foreground hover:bg-accent lg:hidden"
               onClick={() => setMobileOpen(true)}
               aria-label="Menüyü aç"
+              aria-expanded={mobileOpen}
             >
               <Menu className="size-5" />
             </button>
