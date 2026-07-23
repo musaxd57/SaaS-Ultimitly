@@ -3,12 +3,15 @@
 > ⚠️ **BUNLAR TASLAKTIR. AVUKAT ONAYI OLMADAN YAYINA/İMZAYA KOYMA.**
 > Ben (yazılım asistanı) avukat değilim. Bu metinler, bir KVKK/bilişim avukatına
 > götürüp **kesinleştirmen için başlangıç noktasıdır** — avukatın işini ucuzlatır.
-> `[KÖŞELİ PARANTEZ]` alanları şirketin kurulunca dolacak.
+> `[KÖŞELİ PARANTEZ]` alanları avukat kopyası hazırlanırken `src/lib/legal-entity.ts`
+> içindeki gerçek SELLER değerlerinden **ELLE** doldurulur (statik .md koddan otomatik
+> beslenmez — manuel senkron).
 
 ## 0) ŞİRKET BİLGİLERİ ✅ (2026-07-18)
 Satıcı/işletme bilgileri (ünvan, adres, P.IVA, telefon) `src/lib/legal-entity.ts`
-içinde gerçek değerlerle dolduruldu — bu taslaklardaki `[KÖŞELİ PARANTEZ]` alanları
-oradan beslenir; avukat yalnız doğruluğunu teyit eder.
+içinde gerçek değerlerle dolu. Bu dosyadaki `[LIXUS ÜNVAN]` gibi köşeli alanlar
+BİLEREK placeholder bırakıldı (tek gerçek kaynak legal-entity.ts kalsın, kopya
+drift etmesin): avukata giden kopyada oradan ELLE doldurulur.
 
 ---
 
@@ -27,7 +30,7 @@ ise "veri sorumlusu"yuz.
 | Resend | E-posta gönderimi | ABD |
 | Railway | Sunucu/barındırma | AB/ABD |
 | Paddle | Ödeme altyapısı (Merchant of Record) | ABD/İngiltere |
-| Akash/GLM | İkinci AI sınıflandırıcı (gölge pilot — karar yetkisi YOK; yalnız REDAKTE misafir mesajı: ad/telefon/e-posta maskeli) | ABD/dağıtık |
+| Akash/GLM | İkinci AI sınıflandırıcı (gölge pilot — karar yetkisi YOK; yalnız REDAKTE misafir mesajı: ad/telefon/e-posta maskeli) | Küresel dağıtık ağ — konum seçilen sağlayıcı/bölgeye bağlı, DPA/sözleşmede teyit edilecek |
 | Anthropic (Claude) | AI kalite denetçisi (salt-okuma gölge; REDAKTE örneklem) | ABD |
 
 *(2026-07-22 güncelleme: ödeme sağlayıcı Paddle [iyzico değil]; Akash/GLM + Anthropic

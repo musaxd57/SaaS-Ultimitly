@@ -77,11 +77,17 @@ nothing half-applied to unwind.
 
 1. Edit `prisma/schema.prisma`.
 2. Generate the migration SQL with **`prisma migrate diff`** (the project standard —
-   NOT `migrate dev`): `npx prisma migrate diff --from-migrations ./prisma/migrations
-   --to-schema-datamodel ./prisma/schema.prisma --script` → save under a new
-   zero-padded `prisma/migrations/NN_<change>/migration.sql` folder.
-3. Verify on a throwaway Postgres: `migrate deploy` 00→N from scratch, then
-   `migrate diff --exit-code` (zero drift). CI's migration-chain job repeats this.
+   NOT `migrate dev`). `--from-migrations` needs a **shadow database** (Prisma
+   replays the migration history into it), and the schema has no `shadowDatabaseUrl`,
+   so pass it explicitly — a **throwaway local DB, NEVER the production URL** (the
+   shadow DB gets wiped):
+   `npx prisma migrate diff --from-migrations ./prisma/migrations
+   --to-schema-datamodel ./prisma/schema.prisma
+   --shadow-database-url postgresql://postgres@localhost:5432/shadow --script`
+   → save under a new zero-padded `prisma/migrations/NN_<change>/migration.sql` folder.
+3. Verify on a throwaway Postgres: `migrate deploy` 00→N from scratch, then the same
+   `migrate diff … --shadow-database-url … --exit-code` (zero drift). CI's
+   migration-chain job runs exactly this pair (see `.github/workflows/ci.yml`).
 4. Push → prod boot's `migrate deploy` applies exactly that reviewed migration.
 
 ⚠️ The old rule **still applies**: adding `@unique` / required-without-default /
