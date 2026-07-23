@@ -33,6 +33,10 @@ const FEED_MAX_BYTES = 10 * 1024 * 1024;
 // Cadence note: iCal sync is USER-TRIGGERED (manual /api/calendar/sync — NOT the cron),
 // so there is no guaranteed interval → the wall-clock MIN duration is the authoritative
 // guard; the count threshold only ensures a single anomalous run can never cancel.
+// Test-only fault seam: deterministically blow up the reconcile step so the
+// catch path (aggregate alarm + import-survives) is testable. Always null in prod.
+export const __reconcileHooks: { forceError: Error | null } = { forceError: null };
+
 export function feedReconcileEnabled(): boolean {
   return process.env.ICAL_DISAPPEARANCE_RECONCILE_ENABLED === "1";
 }
@@ -306,11 +310,20 @@ export async function syncCalendarSource(sourceId: string): Promise<SyncResult> 
   let reconcileWarning: string | null = null;
   if (feedReconcileEnabled()) {
     try {
+      if (__reconcileHooks.forceError) throw __reconcileHooks.forceError;
       const rec = await reconcileFeedDisappearance({ source, channel, seenRefs, runStartedAt });
       result.updated += rec.cancelled;
       reconcileWarning = rec.warning;
-    } catch {
-      // never fail the import on reconciliation
+    } catch (err) {
+      // Never fail the import on reconciliation — but never stay SILENT either
+      // (Codex 07-23 #6): if reconcile keeps crashing while the flag is on,
+      // feed cancellations simply stop applying and the operator could not see
+      // it. Per-source context → reportError's own context-throttle collapses a
+      // crash-loop into ONE aggregate alarm per source (error text is redacted
+      // inside reportError); the run result also carries an operator-visible
+      // "⚠" line (lastResult), so the panel shows it without breaking the import.
+      reconcileWarning = "Kaybolma-uzlaştırma hatası — feed iptalleri bu koşuda uygulanamadı";
+      void reportError(`ical.reconcile:${source.id}`, err instanceof Error ? err : new Error(String(err)));
     }
   }
 

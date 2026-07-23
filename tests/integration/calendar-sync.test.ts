@@ -6,6 +6,7 @@ vi.mock("@/lib/net/pinned-fetch", () => ({ fetchFeedText: vi.fn() }));
 vi.mock("@/lib/report-error", () => ({ reportError: vi.fn().mockResolvedValue(undefined) }));
 import { syncCalendarSource } from "@/lib/import/sync";
 import { fetchFeedText } from "@/lib/net/pinned-fetch";
+import { __reconcileHooks } from "@/lib/import/sync";
 import { reportError } from "@/lib/report-error";
 import { ANON_NAME } from "@/lib/data-retention";
 
@@ -64,6 +65,35 @@ describe("syncCalendarSource", () => {
   });
   afterEach(() => {
     vi.restoreAllMocks();
+    vi.unstubAllEnvs();
+    __reconcileHooks.forceError = null;
+  });
+
+  it("(Codex 07-23 #6) reconcile ÇÖKSE bile import BOZULMAZ; kaynak-başına TEK aggregate alarm + operatör-görünür ⚠ uyarısı", async () => {
+    // Eski kod `catch {}` ile tamamen sessizdi: flag açıkken reconcile sürekli
+    // patlarsa feed iptalleri uygulanmıyor ve operatör bunu GÖREMİYORDU.
+    vi.stubEnv("ICAL_DISAPPEARANCE_RECONCILE_ENABLED", "1");
+    const { propertyId } = await makeOrgWithProperty();
+    const source = await prisma.calendarSource.create({
+      data: { propertyId, label: "Airbnb", url: "https://example.com/cal.ics" },
+    });
+    mockFetch(ICS);
+    __reconcileHooks.forceError = new Error("simulated reconcile crash");
+
+    const result = await syncCalendarSource(source.id);
+
+    // Import SAĞLAM: rezervasyonlar geldi, koşu başarısız sayılmadı.
+    expect(result.imported).toBe(2);
+    expect(await prisma.reservation.count({ where: { propertyId } })).toBe(2);
+    // Operatör-görünür uyarı kaynağın lastResult'unda (panel bunu gösterir) ve
+    // koşu "error" SAYILMAZ (import başarılı — yalnız reconcile adımı düştü).
+    const src = await prisma.calendarSource.findUniqueOrThrow({ where: { id: source.id } });
+    expect(src.lastResult).toContain("⚠");
+    expect(src.lastResult).toContain("uzlaştırma hatası");
+    expect(src.lastStatus).toBe("ok");
+    // Kaynak-başına context'li TEK alarm (reportError'ın context-throttle'ı
+    // crash-loop'u kaynak başına aggregate'e katlar).
+    expect(reportErrorMock).toHaveBeenCalledWith(`ical.reconcile:${source.id}`, expect.any(Error));
   });
 
   it("imports reservations from a fetched iCal feed", async () => {
