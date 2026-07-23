@@ -286,6 +286,17 @@ describe("POST /api/conversations/[id]/reply — staff RBAC gate", () => {
     });
     expect(e.status).toBe(409);
     expect(await prisma.messageOutbox.count({ where: { organizationId: orgId } })).toBe(2); // yeni satır YOK
+    // (Codex r3) Aynı id + aynı gövde ama FARKLI aiAssisted da 409: sessiz dedupe
+    // AI-kredisi metriğini yanlış bırakırdı (rapor aiAssisted'e göre sayar).
+    const rid2 = "22222222-3333-4444-8555-666666666666";
+    const f1 = await POST(req(conversationId, { body: "Kredi testi", requestId: rid2, aiAssisted: false }), {
+      params: Promise.resolve({ id: conversationId }),
+    });
+    expect(f1.status).toBe(202);
+    const f2 = await POST(req(conversationId, { body: "Kredi testi", requestId: rid2, aiAssisted: true }), {
+      params: Promise.resolve({ id: conversationId }),
+    });
+    expect(f2.status).toBe(409);
     // Bozuk/format-dışı requestId fail-closed 400 (sessizce bucket'a düşmez).
     const d = await POST(req(conversationId, { body: "x", requestId: "kötü format!!" }), {
       params: Promise.resolve({ id: conversationId }),

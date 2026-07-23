@@ -110,16 +110,21 @@ export const POST = withManage<{ id: string }>(async (session, req, { params }) 
       aiAssisted,
       idempotencyKey,
     });
-    // (Codex r2 #3) requestId'li dedupe-hit'te İÇERİK eşleşmesi ŞART: aynı id'yi
-    // FARKLI gövdeyle yeniden kullanmak istemci hatasıdır — sessizce ilk mesajı
-    // döndürmek yeni mesajı YUTAR. 409 = "id'yi yeniden üret". (Bucket yolunda
-    // gövde zaten anahtarın parçası → farklı gövde farklı anahtar üretir.)
+    // (Codex r2 #3 + r3) requestId'li dedupe-hit'te PAYLOAD eşleşmesi ŞART —
+    // gövde VE aiAssisted: aynı id'yi farklı gövdeyle kullanmak yeni mesajı
+    // YUTAR; aynı gövde + farklı aiAssisted ise AI-kredisi metriğini yanlış
+    // bırakır (raporlar Message.aiAssisted'e göre sayar). 409 = "id'yi yeniden
+    // üret" (client payload değişince zaten yeni UUID basar). Bucket yolunda
+    // gövde anahtarın parçası → farklı gövde farklı anahtar üretir.
     if (enq.deduped && parsed.data.requestId) {
       const existing = await prisma.messageOutbox.findUnique({
         where: { organizationId_idempotencyKey: { organizationId: session.organizationId, idempotencyKey } },
-        select: { body: true },
+        select: { body: true, messageId: true },
       });
-      if (existing && existing.body !== replyBody) {
+      const existingMsg = existing?.messageId
+        ? await prisma.message.findUnique({ where: { id: existing.messageId }, select: { aiAssisted: true } })
+        : null;
+      if (existing && (existing.body !== replyBody || (existingMsg != null && existingMsg.aiAssisted !== aiAssisted))) {
         return NextResponse.json(
           { error: "Bu istek kimliği farklı bir içerikle kullanılmış — lütfen tekrar gönderin." },
           { status: 409 },
