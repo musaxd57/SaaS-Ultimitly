@@ -85,11 +85,23 @@ function tzOffsetMs(tz: string, at: Date): number {
 export function zonedDayRange(now: Date, tz: string): { start: Date; end: Date } {
   const key = dateKeyInTimeZone(now, tz); // "YYYY-MM-DD" in tz
   const [y, m, d] = key.split("-").map(Number);
-  const utcMidnight = Date.UTC(y, m - 1, d, 0, 0, 0, 0);
-  const offsetMs = tzOffsetMs(tz, new Date(utcMidnight));
-  const start = new Date(utcMidnight - offsetMs);
-  const end = new Date(start.getTime() + 24 * 60 * 60 * 1000 - 1);
+  const start = zonedDateStart(y, m, d, tz);
+  // End = NEXT local midnight − 1ms, NOT start + fixed 24h (Codex 07-23 #4):
+  // DST'li dilimlerde (Berlin/Roma…) geçiş günleri 23 veya 25 saat sürer —
+  // sabit 24h o günlerde pencereyi 1 saat kaydırıyordu. Türkiye'de görünmezdi
+  // (DST yok). Date.UTC taşma-normalizasyonu sayesinde d+1 ay/yıl sınırını
+  // kendiliğinden devirir.
+  const end = new Date(zonedDateStart(y, m, d + 1, tz).getTime() - 1);
   return { start, end };
+}
+
+/** `date`'in `tz`'deki TAKVİM gününe n gün ekleyip O günün yerel-geceyarısı UTC
+ *  anını döner. Gün-yürüyüşleri ve gün-sınırlı horizon uçları için sabit
+ *  `+ n*24h` yerine bunu kullan — DST'li dilimlerde 23/25 saatlik günler sabit
+ *  adımı yerel geceyarısından kaydırır (Istanbul'da ikisi birebir aynıdır). */
+export function addZonedDays(date: Date, n: number, tz: string): Date {
+  const [y, m, d] = dateKeyInTimeZone(date, tz).split("-").map(Number);
+  return zonedDateStart(y, m, d + n, tz);
 }
 
 /**
@@ -100,8 +112,17 @@ export function zonedDayRange(now: Date, tz: string): { start: Date; end: Date }
  * çalışmayan yerini alır.
  */
 export function zonedDateStart(y: number, m: number, d: number, tz: string): Date {
-  const utcMidnight = Date.UTC(y, m - 1, d, 0, 0, 0, 0);
-  return new Date(utcMidnight - tzOffsetMs(tz, new Date(utcMidnight)));
+  const wallMidnightUtc = Date.UTC(y, m - 1, d, 0, 0, 0, 0);
+  // FIXED-POINT offset çözümü (Codex 07-23 #4): yerel geceyarısının UTC anı T,
+  // T = duvar − offset(T) denklemini sağlar. Eski kod offset'i duvar-değerinin
+  // UTC-okunuşunda ölçüyordu; DST geçişi o iki an arasına düşerse 1 saat şaşar.
+  // Bir tahmin + bir arıtma her gerçek IANA kuralında (geçişleri gece 01:00+
+  // olan Avrupa/TR/ABD dahil) doğru sonucu verir. Geçişi tam GECEYARISINA denk
+  // gelen egzotik dilimlerde (yerel 00:00 hiç yoksa) sonuç komşu saate düşebilir
+  // — deterministik ve sınırlıdır; hedef pazarların hiçbirinde görülmez.
+  let t = wallMidnightUtc - tzOffsetMs(tz, new Date(wallMidnightUtc));
+  t = wallMidnightUtc - tzOffsetMs(tz, new Date(t));
+  return new Date(t);
 }
 
 /** Current hour (0-23) in the given IANA timezone (e.g. "Europe/Istanbul"). */

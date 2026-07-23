@@ -2,7 +2,7 @@ import "server-only";
 
 import { prisma } from "@/lib/db";
 import { foldTurkishLower } from "@/lib/ai/fallback";
-import { orgTimezone, zonedDayRange } from "@/lib/timezone";
+import { orgTimezone, zonedDayRange, addZonedDays } from "@/lib/timezone";
 import {
   SUPPLY_ITEMS,
   SUPPLY_ITEM_KEYS,
@@ -128,9 +128,11 @@ export async function getPrepPlan(
     }),
   ]);
   // "Today" starts at the HOST'S local midnight (org.timezone), matching the
-  // dashboard/calendar day bucketing. Horizon = fixed days*24h from that start.
-  const start = zonedDayRange(now, orgTimezone(org?.timezone)).start;
-  const end = new Date(start.getTime() + days * 24 * 60 * 60 * 1000);
+  // dashboard/calendar day bucketing. Horizon end = +days CALENDAR days (not
+  // fixed 24h steps — DST'li dilimlerde geçiş günü sınırı kaydırırdı; Istanbul'da birebir aynı).
+  const supplyTz = orgTimezone(org?.timezone);
+  const start = zonedDayRange(now, supplyTz).start;
+  const end = addZonedDays(start, days, supplyTz);
   const stock = parseSupplyProfile(org?.supplyStockJson); // same { key: qty } shape
   const hasStock = Object.keys(stock).length > 0;
   const empty: PrepPlan = { days, start, end, totalArrivals: 0, linen: [], consumables: [], perProperty: [], missingProfile: [], hasStock };

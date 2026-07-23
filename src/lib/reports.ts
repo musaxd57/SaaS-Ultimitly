@@ -3,7 +3,7 @@ import { prisma } from "@/lib/db";
 import { Prisma } from "@prisma/client";
 import { reservationAmount } from "@/lib/money";
 import { computeResponseEpisodes } from "@/lib/response-episodes";
-import { orgTimezone, zonedDayRange, zonedDateStart } from "@/lib/timezone";
+import { orgTimezone, zonedDayRange, zonedDateStart, addZonedDays } from "@/lib/timezone";
 
 // Reporting day/occupancy math is anchored to the HOST'S calendar day
 // (org.timezone, default Europe/Istanbul) — Railway runs UTC and arrivalDates
@@ -316,10 +316,11 @@ export async function getOccupancyByProperty(orgId: string): Promise<PropertyOcc
     else byProperty.set(r.propertyId, [r]);
   }
 
-  // rangeStart/rangeEnd are UTC instants marking Istanbul-day boundaries. Walk
-  // the stay in Istanbul calendar days (24h steps — Istanbul has no DST) and
-  // collect each distinct Istanbul day-key inside the window; departure day is
-  // exclusive (checkout is not an occupied night).
+  // rangeStart/rangeEnd are UTC instants marking org-local day boundaries. Walk
+  // the stay in org-local CALENDAR days (addZonedDays, not fixed 24h steps —
+  // DST'li dilimlerde 23/25 saatlik günler sabit adımı geceyarısından kaydırır;
+  // Codex 07-23 #4) and collect each distinct local day-key inside the window;
+  // departure day is exclusive (checkout is not an occupied night).
   function countOccupiedDays(
     reservations: { arrivalDate: Date; departureDate: Date }[],
     rangeStart: Date,
@@ -332,7 +333,7 @@ export async function getOccupancyByProperty(orgId: string): Promise<PropertyOcc
       let cur = zonedDayRange(start, tz).start; // org-local midnight of start's day
       while (cur < end) {
         occupied.add(dayKeyTz(cur, tz));
-        cur = new Date(cur.getTime() + DAY_MS);
+        cur = addZonedDays(cur, 1, tz);
       }
     }
     return occupied.size;

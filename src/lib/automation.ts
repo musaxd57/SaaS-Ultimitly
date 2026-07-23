@@ -1,7 +1,7 @@
 import "server-only";
 import { addDays } from "date-fns";
 import { prisma } from "@/lib/db";
-import { orgTimezone, zonedDayRange, currentHourInTimeZone, dateKeyInTimeZone } from "@/lib/timezone";
+import { orgTimezone, zonedDayRange, currentHourInTimeZone, dateKeyInTimeZone, addZonedDays } from "@/lib/timezone";
 // Geriye dönük uyumluluk: bu yardımcılar uzun süre buradan import edildi.
 export { zonedDayRange, currentHourInTimeZone } from "@/lib/timezone";
 import { isUniqueViolation } from "@/lib/db-errors";
@@ -2208,7 +2208,10 @@ export async function sendDueCheckouts(
       sourceReference: { not: null },
       channel: { notIn: ["ics", "manual"] }, // only Hospitable-messageable bookings (never iCal/manual)
       createdAt: { gte: baseline }, // only bookings created since checkout was enabled
-      departureDate: { gte: zonedDayRange(now, tz).start, lt: addDays(zonedDayRange(now, tz).start, 3) },
+      // +3 CALENDAR days in org-tz (addZonedDays), not date-fns addDays (+72h):
+      // DST geçiş günlerinde sabit saat-adımı pencere ucunu yerel geceyarısından
+      // kaydırıyordu (Codex 07-23 #4 "checkout veto" penceresi).
+      departureDate: { gte: zonedDayRange(now, tz).start, lt: addZonedDays(zonedDayRange(now, tz).start, 3, tz) },
     },
     select: {
       id: true,
