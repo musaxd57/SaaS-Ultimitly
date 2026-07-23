@@ -1,6 +1,6 @@
 # Boot: `prisma db push` → `prisma migrate deploy` — cutover runbook
 
-**Why:** today the container boots with `prisma db push`, which diffs the schema
+**Why:** the container used to boot with `prisma db push`, which diffed the schema
 against the live DB every deploy. That is how the `chatToken @unique` outage
 happened (adding a unique constraint to a populated table → boot crash-loop).
 Moving to `prisma migrate deploy` means every schema change ships as a **reviewed
@@ -24,54 +24,19 @@ then `deploy` is a clean no-op.
 
 ---
 
-## Phase 2 — baseline the PROD database (one-time, run by you)
+## Phase 2 + 3 — how the cutover was done (historical record)
 
-This writes a single `_prisma_migrations` row recording `0_init` as already
-applied. **It runs no SQL and touches zero app data** — it just tells Prisma
-"these tables already exist, don't recreate them."
+Phase 2 baselined the LIVE prod DB with `npx prisma migrate resolve --applied 0_init`
+(writes one `_prisma_migrations` row, zero SQL/data touched; verified with
+`migrate status`). Phase 3 flipped the Dockerfile CMD from `db push` to
+`migrate deploy` — prod printed "No pending migrations to apply." and served
+normally. ⚠️ `resolve --applied` is ONLY for an existing populated DB; a fresh/empty
+DB just gets `migrate deploy`, which creates the tables.
 
-Run it against **prod** (from a shell where `DATABASE_URL` points at the prod DB —
-e.g. the Railway service shell, or `railway run`):
-
-```bash
-npx prisma migrate resolve --applied 0_init
-```
-
-Expected output: `Migration 0_init marked as applied.`
-
-Verify (optional): `npx prisma migrate status` → should say the database is up to
-date / `0_init` applied. Prod is still serving on the old `db push` boot at this
-point — nothing has changed for users yet.
-
-> ⚠️ Do NOT run this against an EMPTY database. It only baselines an EXISTING
-> populated DB. A fresh/empty DB should just get `migrate deploy` (Phase 3), which
-> creates the tables.
-
-## Phase 3 — flip the boot command (the cutover; auto-deploys)
-
-Only after Phase 2 succeeds. Change the last line of `Dockerfile`:
-
-```dockerfile
-# from:
-CMD ["sh", "-c", "npx prisma db push --skip-generate && npm run start"]
-# to:
-CMD ["sh", "-c", "npx prisma migrate deploy && npm run start"]
-```
-
-Commit + push → Railway redeploys → boot runs `migrate deploy`. Because prod is
-already baselined and there are no migrations after `0_init`, it prints
-**"No pending migrations to apply."** and serves normally. (A fresh/empty DB, e.g.
-a new environment, gets all 20 tables created instead.)
-
-Watch the first deploy's logs together to confirm a clean boot.
-
-## Rollback
-
-If the flipped boot ever misbehaves, `git revert` the Phase-3 (Dockerfile) commit
-and push → boot returns to `db push`, which ignores `_prisma_migrations` and
-no-ops against the already-matching schema → prod recovers cleanly. Because the
-cutover applies **zero** DDL (only the already-applied `0_init` exists), there is
-nothing half-applied to unwind.
+**Rollback (still valid):** if a `migrate deploy` boot ever misbehaves with nothing
+half-applied, `git revert` the Dockerfile commit → `db push` boot no-ops against the
+matching schema and prod recovers. (With 44 real migrations now in the chain this is
+a last resort — prefer fixing forward.)
 
 ## From then on — how to add a schema change (current project protocol)
 
