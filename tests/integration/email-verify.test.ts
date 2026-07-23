@@ -66,12 +66,40 @@ describe("email-verify helpers", () => {
     expect(hash).toBe(hashVerifyToken(raw));
   });
 
-  it("appBaseUrl is a FIXED trusted base — never influenced by any request", () => {
+  it("appBaseUrl is a FIXED trusted base — canonical-pinned (Codex 07-23 #2)", () => {
     expect(appBaseUrl()).toBe("https://www.lixusai.com"); // canonical default (APP_URL unset)
+    // Trusted values pass through:
+    vi.stubEnv("APP_URL", "https://www.lixusai.com/");
+    expect(appBaseUrl()).toBe("https://www.lixusai.com"); // trailing slash normalized
+    vi.stubEnv("APP_URL", "http://localhost:3000");
+    expect(appBaseUrl()).toBe("http://localhost:3000"); // dev/test localhost carve-out
+    // UNTRUSTED values fail CLOSED to canonical — verification tokens ride these
+    // links, so a foreign/http origin must never become the link base:
     vi.stubEnv("APP_URL", "https://app.example.com");
-    expect(appBaseUrl()).toBe("https://app.example.com");
+    expect(appBaseUrl()).toBe("https://www.lixusai.com"); // foreign https → canonical
+    vi.stubEnv("APP_URL", "https://www.lixusai.eu");
+    expect(appBaseUrl()).toBe("https://www.lixusai.com"); // .eu DELİBERATELY not allowlisted yet
     vi.stubEnv("APP_URL", "not-a-url");
     expect(appBaseUrl()).toBe("https://www.lixusai.com"); // invalid → canonical
+    vi.unstubAllEnvs();
+  });
+
+  it("PRODUCTION: appBaseUrl accepts ONLY the exact canonical origin (localhost dahil hiçbir şey)", () => {
+    vi.stubEnv("NODE_ENV", "production");
+    vi.stubEnv("APP_URL", "https://www.lixusai.com");
+    expect(appBaseUrl()).toBe("https://www.lixusai.com");
+    for (const bad of [
+      "http://www.lixusai.com", // http'li canonical bile RED
+      "https://evil.example",
+      "https://www.lixusai.eu",
+      "http://localhost:3000", // prod'da localhost carve-out YOK
+    ]) {
+      vi.stubEnv("APP_URL", bad);
+      expect(appBaseUrl()).toBe("https://www.lixusai.com");
+    }
+    // isAllowedHost'un APP_URL dalı da güvenilmeyen host'u AÇMAZ:
+    vi.stubEnv("APP_URL", "https://evil.example");
+    expect(baseUrlFromHost("evil.example")).toBe("https://www.lixusai.com");
     vi.unstubAllEnvs();
   });
 

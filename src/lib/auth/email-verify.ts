@@ -42,20 +42,54 @@ export function hashVerifyToken(raw: string): string {
 
 const CANONICAL_BASE = "https://www.lixusai.com";
 const CANONICAL_HOSTS = new Set(["www.lixusai.com", "lixusai.com"]);
+// `new URL(...).hostname` renders IPv6 WITH brackets — match secure-url.ts.
+const LOCAL_HOSTNAMES = new Set(["localhost", "127.0.0.1", "[::1]", "::1"]);
 
-/** The FIXED, trusted public base URL — never derived from a request. `APP_URL`
- *  (validated http/https) or the canonical default. Use this for anything that
- *  leaves our trust boundary (email links, OAuth redirect_uri): the Host header
- *  is attacker-controllable, so a verify link built from it could carry the raw
- *  token to an attacker's domain (host-header injection). */
+/** May this APP_URL value serve as the OUTBOUND-link base (Codex 07-23 #2)?
+ *  E-mail verification links carry the RAW token, so the base must be beyond
+ *  doubt: production accepts ONLY the exact canonical origin — not merely
+ *  https (a foreign https origin would receive the tokens), and deliberately
+ *  NOT lixusai.eu: the EU instance is a SEPARATE deployment of this codebase
+ *  with its own env/DB, and defines its own canonical there. Dev/test also
+ *  accept the localhost family (http OK) so local flows work. Origin-based:
+ *  a path/trailing slash on the canonical origin is fine (the base is rebuilt
+ *  from protocol+host anyway). Unparseable / non-http(s) → false (fail closed).
+ *  Never log the value from here. */
+export function isTrustedAppUrl(rawUrl: string | undefined | null): boolean {
+  if (!rawUrl) return false;
+  let u: URL;
+  try {
+    u = new URL(rawUrl.trim());
+  } catch {
+    return false;
+  }
+  if (u.protocol !== "https:" && u.protocol !== "http:") return false;
+  if (`${u.protocol}//${u.host}`.toLowerCase() === CANONICAL_BASE) return true;
+  if (process.env.NODE_ENV === "production") return false;
+  return LOCAL_HOSTNAMES.has(u.hostname.toLowerCase());
+}
+
+let warnedUntrustedAppUrl = false;
+
+/** The FIXED, trusted public base URL — never derived from a request. A TRUSTED
+ *  `APP_URL` (see isTrustedAppUrl) or the canonical default. Use this for
+ *  anything that leaves our trust boundary (email links, OAuth redirect_uri):
+ *  the Host header is attacker-controllable, so a verify link built from it
+ *  could carry the raw token to an attacker's domain (host-header injection).
+ *  An UNTRUSTED APP_URL fails CLOSED to the canonical (and the boot gate in
+ *  scripts/env-check.mjs already refuses to start production with one) — the
+ *  value itself is never logged. */
 export function appBaseUrl(): string {
   const env = process.env.APP_URL?.trim();
   if (env) {
-    try {
+    if (isTrustedAppUrl(env)) {
       const u = new URL(env);
-      if (u.protocol === "https:" || u.protocol === "http:") return `${u.protocol}//${u.host}`;
-    } catch {
-      // fall through to canonical
+      return `${u.protocol}//${u.host}`;
+    }
+    if (!warnedUntrustedAppUrl) {
+      warnedUntrustedAppUrl = true;
+      // Value-free by design: an APP_URL can be hostile/typo'd — name the field, never echo it.
+      console.warn("[app-url] APP_URL güvenilir değil — canonical base'e düşüldü (değer loglanmaz).");
     }
   }
   return CANONICAL_BASE;
@@ -71,7 +105,11 @@ function isAllowedHost(host: string): boolean {
   if (h === "127.0.0.1" || h.startsWith("127.0.0.1:")) return true;
   if (CANONICAL_HOSTS.has(h)) return true;
   try {
-    if (process.env.APP_URL && new URL(process.env.APP_URL).host.toLowerCase() === h) return true;
+    // Only a TRUSTED APP_URL may extend the allowlist (Codex 07-23 #2): before
+    // this check, a hostile APP_URL both fed appBaseUrl AND opened this host
+    // gate for in-browser redirects.
+    if (process.env.APP_URL && isTrustedAppUrl(process.env.APP_URL) && new URL(process.env.APP_URL).host.toLowerCase() === h)
+      return true;
   } catch {
     // ignore
   }

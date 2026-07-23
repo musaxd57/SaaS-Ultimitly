@@ -175,6 +175,22 @@ export function checkProductionEnv(env) {
     );
   }
 
+  // APP_URL is the trusted base for OUTBOUND links (e-mail verification links
+  // carry the RAW token) — in production it must be EXACTLY the canonical
+  // origin, not merely https: a wrong/hostile origin would receive the tokens
+  // we mail. Unset → the code's canonical default is used → no error. The
+  // PROVIDED value is never printed; only the expected canonical (public,
+  // hardcoded) is shown to guide the fix. lixusai.eu is DELIBERATELY not
+  // allowlisted: the EU instance is a separate deployment with its own env and
+  // will pin its own canonical there. Trailing slash tolerated (origin-equal).
+  const CANONICAL_APP_URL = "https://www.lixusai.com";
+  const appUrl = (env.APP_URL ?? "").trim();
+  if (appUrl && appUrl.replace(/\/+$/, "") !== CANONICAL_APP_URL) {
+    errors.push(
+      `APP_URL must be exactly ${CANONICAL_APP_URL} in production — e-mail verification links are built from it.`,
+    );
+  }
+
   // Automation heartbeat. The 2-min sync + auto-reply + welcome/check-in/checkout
   // engine runs ONLY when CRON_SECRET is set: the internal cron returns early
   // without it and the external /api/cron/sync 401s. Missing it means automation

@@ -30,7 +30,7 @@ function gate(env: Record<string, string>, prod = true) {
       // deterministic regardless of the local .env (each defaults to https in code).
       HOSPITABLE_API_BASE_URL: "", SUPPLY_AI_BASE_URL: "", SHADOW_AI_BASE_URL: "",
       HOSPITABLE_OAUTH_AUTHORIZE_URL: "", HOSPITABLE_OAUTH_TOKEN_URL: "",
-      HOSPITABLE_OAUTH_REDIRECT_URI: "",
+      HOSPITABLE_OAUTH_REDIRECT_URI: "", APP_URL: "",
       ...env,
     },
     encoding: "utf8",
@@ -234,6 +234,41 @@ describe("scripts/verify-env.mjs — the prestart boot gate", () => {
         false,
       ).status,
     ).toBe(0);
+  });
+
+  it("APP_URL canonical pin (Codex 07-23 #2): prod'da yalnız exact canonical; unset serbest", () => {
+    const secrets = { AUTH_SECRET: REAL_AUTH, ENCRYPTION_KEY: REAL_ENC, RESEND_API_KEY: REAL_RESEND };
+    // Unset → kodun canonical default'u → hata yok.
+    expect(checkProductionEnv({ ...secrets }).errors).toHaveLength(0);
+    // Exact canonical (trailing slash toleranslı) → hata yok.
+    expect(checkProductionEnv({ ...secrets, APP_URL: "https://www.lixusai.com" }).errors).toHaveLength(0);
+    expect(checkProductionEnv({ ...secrets, APP_URL: "https://www.lixusai.com/" }).errors).toHaveLength(0);
+    // http'li canonical / yabancı origin / .eu → hata (doğrulama token linkleri buradan).
+    for (const bad of ["http://www.lixusai.com", "https://evil.example", "https://www.lixusai.eu"]) {
+      expect(checkProductionEnv({ ...secrets, APP_URL: bad }).errors.join()).toMatch(/APP_URL must be exactly/);
+    }
+  });
+
+  it("PROD + kötü APP_URL → non-zero exit; SAĞLANAN değer asla basılmaz", () => {
+    const r = gate({
+      AUTH_SECRET: REAL_AUTH,
+      ENCRYPTION_KEY: REAL_ENC,
+      RESEND_API_KEY: REAL_RESEND,
+      APP_URL: "http://evil-app.example",
+    });
+    expect(r.status).toBe(1);
+    expect(r.stderr).toMatch(/APP_URL must be exactly/);
+    expect(r.stdout + r.stderr).not.toContain("evil-app.example"); // hostile değer asla echo edilmez
+  });
+
+  it("PROD + exact canonical APP_URL → exit 0", () => {
+    const r = gate({
+      AUTH_SECRET: REAL_AUTH,
+      ENCRYPTION_KEY: REAL_ENC,
+      RESEND_API_KEY: REAL_RESEND,
+      APP_URL: "https://www.lixusai.com",
+    });
+    expect(r.status).toBe(0);
   });
 
   it("PROD + non-canonical OAuth redirect URI → non-zero exit (provided value not printed)", () => {
