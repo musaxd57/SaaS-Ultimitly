@@ -32,7 +32,7 @@ function result(over: Partial<SuggestReplyResult> = {}): SuggestReplyResult {
   };
 }
 
-function call(token: string, message: unknown, cookie?: string) {
+function call(token: string, message: unknown, cookie?: string, extra?: Record<string, unknown>) {
   const headers: Record<string, string> = {
     "content-type": "application/json",
     "x-forwarded-for": "203.0.113.5",
@@ -41,7 +41,7 @@ function call(token: string, message: unknown, cookie?: string) {
   const req = new Request(`http://localhost/api/chat/${token}`, {
     method: "POST",
     headers,
-    body: JSON.stringify({ message }),
+    body: JSON.stringify({ message, ...extra }),
   });
   return POST(req as never, { params: Promise.resolve({ token }) });
 }
@@ -279,5 +279,72 @@ describe("POST /api/chat/[token] (public QR concierge)", () => {
       where: { conversationId: convos[0].id, direction: "inbound" },
     });
     expect(inbound).toBe(2);
+  });
+
+  // ── requestId idempotency (Codex 07-24 #2): a lost-response retry must not
+  // duplicate the guest message, burn a second paid model call, or re-escalate. ──
+  describe("requestId idempotency", () => {
+    const RID = "aaaaaaaa-1111-2222-3333-bbbbbbbbbbbb";
+
+    it("same requestId + same message → processed ONCE; the retry is a deduped no-op", async () => {
+      const { propertyId } = await makeOrgWithProperty();
+      const token = await enableChat(propertyId);
+      const first = await call(token, "Çöp ne zaman toplanıyor?", undefined, { requestId: RID });
+      expect(first.status).toBe(200);
+      const cookie = deviceCookie(first);
+
+      const retry = await call(token, "Çöp ne zaman toplanıyor?", cookie, { requestId: RID });
+      expect(retry.status).toBe(200);
+      expect((await retry.json()).deduped).toBe(true);
+
+      expect(mockSuggest).toHaveBeenCalledTimes(1); // no second paid model call
+      expect(await prisma.message.count({ where: { direction: "inbound" } })).toBe(1);
+      expect(await prisma.message.count({ where: { direction: "outbound" } })).toBe(1);
+      // The per-apartment daily AI budget burned once, not twice.
+      expect((await prisma.chatUsage.findFirstOrThrow()).count).toBe(1);
+    });
+
+    it("a FRESH requestId with the same text is a DELIBERATE repeat → recorded again ('ok' twice works)", async () => {
+      const { propertyId } = await makeOrgWithProperty();
+      const token = await enableChat(propertyId);
+      const first = await call(token, "ok", undefined, { requestId: RID });
+      const cookie = deviceCookie(first);
+      const second = await call(token, "ok", cookie, {
+        requestId: "cccccccc-4444-5555-6666-dddddddddddd",
+      });
+      expect(second.status).toBe(200);
+      expect((await second.json()).deduped).toBeUndefined();
+      expect(await prisma.message.count({ where: { direction: "inbound" } })).toBe(2);
+    });
+
+    it("malformed requestId → 400, nothing recorded, no model call", async () => {
+      const { propertyId } = await makeOrgWithProperty();
+      const token = await enableChat(propertyId);
+      const res = await call(token, "merhaba", undefined, { requestId: "x; DROP TABLE" });
+      expect(res.status).toBe(400);
+      expect(mockSuggest).not.toHaveBeenCalled();
+      expect(await prisma.message.count()).toBe(0);
+    });
+
+    it("PRE-RECORD failure releases the claim — a crashed attempt does not swallow the retry", async () => {
+      const { propertyId } = await makeOrgWithProperty();
+      const token = await enableChat(propertyId);
+      // Bind the device first (mirrors the page-open GET) so the failing POST and
+      // its retry share the stay cookie.
+      const warm = await call(token, "merhaba");
+      const cookie = deviceCookie(warm);
+
+      mockSuggest.mockRejectedValueOnce(new Error("model down"));
+      await expect(call(token, "Çöp günü hangi gün?", cookie, { requestId: RID })).rejects.toThrow("model down");
+      expect(await prisma.message.count({ where: { body: "Çöp günü hangi gün?" } })).toBe(0); // nothing persisted
+
+      // Same id retried → the released claim lets it process normally.
+      const retry = await call(token, "Çöp günü hangi gün?", cookie, { requestId: RID });
+      expect(retry.status).toBe(200);
+      expect((await retry.json()).deduped).toBeUndefined();
+      expect(
+        await prisma.message.count({ where: { body: "Çöp günü hangi gün?", direction: "inbound" } }),
+      ).toBe(1);
+    });
   });
 });

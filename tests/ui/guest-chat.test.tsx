@@ -1,6 +1,6 @@
 // @vitest-environment jsdom
 import { describe, it, expect, vi, beforeEach, afterEach } from "vitest";
-import { render, screen, fireEvent, cleanup } from "@testing-library/react";
+import { render, screen, fireEvent, cleanup, waitFor } from "@testing-library/react";
 import { GuestChat } from "@/components/guest-chat/guest-chat";
 
 type Msg = { id: string; role: "guest" | "ai" | "host" | "resume"; text: string };
@@ -45,7 +45,37 @@ describe("GuestChat (UI, two-way)", () => {
     await screen.findByText("Çöp salı günü."); // AI reply (after re-fetch)
     const postCall = fn.mock.calls.find((c) => (c[1] as RequestInit | undefined)?.method === "POST");
     expect(postCall?.[0]).toBe("/api/chat/tok123");
-    expect(JSON.parse(String((postCall![1] as RequestInit).body))).toEqual({ message: "Çöp ne zaman?" });
+    const parsed = JSON.parse(String((postCall![1] as RequestInit).body)) as { message: string; requestId?: string };
+    expect(parsed.message).toBe("Çöp ne zaman?");
+    // Idempotency id rides along on every send (server contract: [A-Za-z0-9-]{8,64}).
+    expect(parsed.requestId).toMatch(/^[A-Za-z0-9-]{8,64}$/);
+  });
+
+  it("requestId: a failed retry of the SAME text reuses one id; the next message after success gets a fresh one", async () => {
+    const bodies: { message: string; requestId?: string }[] = [];
+    let failNext = true;
+    const fn = vi.fn((_url: string, opts?: RequestInit) => {
+      const method = opts?.method ?? "GET";
+      if (method === "GET") return Promise.resolve({ ok: true, json: async () => ({ open: true, messages: [] }) });
+      bodies.push(JSON.parse(String(opts!.body)));
+      if (failNext) return Promise.resolve({ ok: false, json: async () => ({}) });
+      return Promise.resolve({ ok: true, json: async () => ({ escalated: false, reply: "tamam" }) });
+    });
+    vi.stubGlobal("fetch", fn);
+    render(<GuestChat token="t" />);
+
+    typeAndSend("merhaba");
+    await screen.findByText(/yanıt veremiyorum/); // failure → rollback restored the text
+    failNext = false;
+    fireEvent.click(screen.getByRole("button", { name: "Gönder" })); // retry same text
+    await waitFor(() => expect(bodies.length).toBe(2));
+    expect(bodies[0].requestId).toMatch(/^[A-Za-z0-9-]{8,64}$/);
+    expect(bodies[1].requestId).toBe(bodies[0].requestId); // retry carries the SAME id → server dedupes
+
+    typeAndSend("ikinci soru");
+    await waitFor(() => expect(bodies.length).toBe(3));
+    expect(bodies[2].requestId).toMatch(/^[A-Za-z0-9-]{8,64}$/);
+    expect(bodies[2].requestId).not.toBe(bodies[0].requestId); // fresh message → fresh id
   });
 
   it("renders a manual host reply as 'İşletme ekibi' with a takeover separator", async () => {

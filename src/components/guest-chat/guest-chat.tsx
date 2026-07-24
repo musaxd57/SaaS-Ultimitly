@@ -48,6 +48,11 @@ export function GuestChat({ token }: { token: string }) {
   // poll reads to avoid clobbering the optimistic bubble mid-send.
   const loadSeq = useRef(0);
   const sendingRef = useRef(false);
+  // Per-composed-message idempotency id (Codex 07-24 #2, composer parity): a
+  // connection-loss retry of the SAME text reuses one id, so the server dedupes
+  // instead of recording the guest message + AI reply twice. Editing the text
+  // mints a fresh id; a successful send clears it.
+  const requestIdRef = useRef<{ id: string; text: string } | null>(null);
 
   const loadHistory = useCallback(async () => {
     const seq = ++loadSeq.current;
@@ -114,11 +119,19 @@ export function GuestChat({ token }: { token: string }) {
       setMessages((m) => m.filter((x) => x.id !== tmpId));
       setInput(text);
     };
+    // Same text (a retry after a failure) reuses the id; new/edited text mints
+    // a fresh one — a deliberate identical follow-up gets a new id too, because
+    // a successful send clears the ref below.
+    const cur = requestIdRef.current;
+    if (!cur || cur.text !== text) {
+      requestIdRef.current = { id: crypto.randomUUID(), text };
+    }
+    const requestId = (requestIdRef.current as { id: string }).id;
     try {
       const res = await fetch(`/api/chat/${token}`, {
         method: "POST",
         headers: { "content-type": "application/json" },
-        body: JSON.stringify({ message: text }),
+        body: JSON.stringify({ message: text, requestId }),
       });
       if (!res.ok) {
         rollback();
@@ -132,7 +145,8 @@ export function GuestChat({ token }: { token: string }) {
       };
       if (data.pinRequired) {
         // The stay needs the host's code (e.g. the device cookie lapsed) — send
-        // nothing, drop back to the PIN entry screen.
+        // nothing, drop back to the PIN entry screen. The id is KEPT: after the
+        // unlock, re-sending the restored text is the same composed message.
         rollback();
         setPinRequired(true);
         return;
@@ -143,6 +157,7 @@ export function GuestChat({ token }: { token: string }) {
         setBoundElsewhere(true);
         return;
       }
+      requestIdRef.current = null; // delivered (or deduped) — next message is new
       await loadHistory();
     } catch {
       rollback();

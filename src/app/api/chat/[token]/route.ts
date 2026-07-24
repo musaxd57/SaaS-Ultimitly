@@ -1,4 +1,4 @@
-import { type NextRequest, type NextResponse } from "next/server";
+import { type NextRequest, NextResponse } from "next/server";
 import { prisma } from "@/lib/db";
 import { suggestReply } from "@/lib/ai";
 import { classifyFallback, detectPromptInjection, detectRiskType } from "@/lib/ai/fallback";
@@ -10,6 +10,7 @@ import { sendQrEscalationAlertBounded, qrEscalationEventId } from "@/lib/guest-c
 import { jsonOk, badRequest, tooManyRequests, parseJsonBody, payloadTooLarge } from "@/lib/api";
 import { rateLimit, clientIp } from "@/lib/rate-limit";
 import { isUniqueViolation } from "@/lib/db-errors";
+import { claimOutboundSend, releaseOutboundSend } from "@/lib/outbound-claim";
 
 export const dynamic = "force-dynamic";
 
@@ -333,11 +334,20 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ tok
 
   const { token } = await params;
 
-  const bodyResult = await parseJsonBody<{ message?: unknown; pin?: unknown }>(req);
+  const bodyResult = await parseJsonBody<{ message?: unknown; pin?: unknown; requestId?: unknown }>(req);
   if (!bodyResult.ok && bodyResult.tooLarge) return payloadTooLarge();
   const body = bodyResult.ok ? bodyResult.data : null;
   const pinInput = typeof body?.pin === "string" ? body.pin : null;
   const message = typeof body?.message === "string" ? body.message.trim() : "";
+  // Client-generated idempotency id (Codex 07-24 #2, composer parity): one id per
+  // COMPOSED guest message, reused across connection-loss retries of that same
+  // message. Optional — an old open tab without it keeps today's behaviour.
+  // Malformed → 400 (same contract as the manual reply route).
+  const requestIdRaw = body?.requestId;
+  if (requestIdRaw !== undefined && (typeof requestIdRaw !== "string" || !/^[A-Za-z0-9-]{8,64}$/.test(requestIdRaw))) {
+    return badRequest({ requestId: "Geçersiz istek kimliği." });
+  }
+  const requestId = typeof requestIdRaw === "string" ? requestIdRaw : null;
 
   const ctx = await resolveGuestChat(token);
   if (!ctx) return notFound();
@@ -395,13 +405,51 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ tok
     return out;
   };
 
+  // ── Idempotency claim (Codex 07-24 #2, claim-then-process): if the server
+  // recorded the exchange but the RESPONSE was lost, the client restores the
+  // typed text and the guest re-sends — without this, the retry duplicated the
+  // guest message, burned a second paid model call, and could re-escalate. The
+  // claim key binds the stay + the client's per-message id + the body digest
+  // (claimOutboundSend hashes the body), so a DELIBERATE identical follow-up
+  // ("ok" twice) still works: each composed message carries a fresh id. ──
+  const claimScopeId = requestId ? `qr-in:${res.id}:${requestId}` : null;
+  if (claimScopeId) {
+    const claimed = await claimOutboundSend(claimScopeId, message);
+    if (claimed === "duplicate") {
+      // Already processed (or still in flight). The client is GET-authoritative —
+      // it reloads the thread and renders whatever the first attempt recorded.
+      return finalize({ deduped: true });
+    }
+    if (claimed === "unavailable") {
+      // Fail CLOSED like the manual reply path: without the claim store a
+      // lost-response retry could double-process (double AI spend + duplicate
+      // escalation), so refuse honestly instead.
+      return NextResponse.json(
+        { error: "Şu anda gönderilemedi — lütfen birazdan tekrar deneyin." },
+        { status: 503 },
+      );
+    }
+  }
+  // Everything below funnels its persistence through record(): on a failure
+  // BEFORE anything was recorded the claim is released (catch at the bottom),
+  // so a claim never guards zero work — the guest's retry is processed, not
+  // swallowed. After a successful record the claim deliberately stays: the
+  // retry dedupes onto the recorded exchange.
+  let recorded = false;
+  const record = async (botReply: string | null, escalated: boolean) => {
+    const out = await recordGuestChat(ctx.property.id, res, message, botReply, escalated);
+    recorded = true;
+    return out;
+  };
+  try {
+
   // HOST HANDOFF (pre-check): if a human host has already replied in this thread,
   // the AI has handed off for the rest of the stay. Record the guest's message for
   // the host and DON'T spend a (paid) model call — the human owns the conversation.
   // Re-checked once more just before an AI reply would be stored (send-time veto
   // below), which also catches a host reply that lands WHILE the model is running.
   if (await guestChatAiPaused(ctx.property.id, res.id)) {
-    await recordGuestChat(ctx.property.id, res, message, null, true);
+    await record(null, true);
     return finalize({ handoff: true, reply: HANDOFF_REPLY });
   }
 
@@ -423,7 +471,7 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ tok
 
   if (usage.count > DAILY_AI_CAP) {
     const reply = "Sorunuzu ev sahibine ilettim; en kısa sürede size dönecek.";
-    const { inboundMessageId } = await recordGuestChat(ctx.property.id, res, message, reply, true);
+    const { inboundMessageId } = await record(reply, true);
     // "İlettim" is only true if the host finds out — env-gated (default OFF),
     // deduped per EVENT, response-time bounded, never throws (Codex #15).
     await sendQrEscalationAlertBounded({
@@ -478,14 +526,14 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ tok
   // race window from the model-call duration to a few ms; a fully atomic guard would
   // need a schema flag, out of scope). The guest's message is still recorded for the host.
   if (await guestChatAiPaused(ctx.property.id, res.id)) {
-    await recordGuestChat(ctx.property.id, res, message, null, true);
+    await record(null, true);
     return finalize({ handoff: true, reply: HANDOFF_REPLY });
   }
 
   const reply = escalate
     ? "Bu sorunuzu ev sahibine ilettim; en kısa sürede size dönecek."
     : result.reply;
-  const { inboundMessageId } = await recordGuestChat(ctx.property.id, res, message, reply, escalate);
+  const { inboundMessageId } = await record(reply, escalate);
   if (escalate) {
     await sendQrEscalationAlertBounded({
       organizationId: ctx.property.organizationId,
@@ -497,4 +545,11 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ tok
     });
   }
   return finalize({ escalated: escalate, reply });
+
+  } catch (err) {
+    // Pre-record failure (model/DB error before anything persisted) → release so
+    // the guest's retry is processed instead of deduped against zero work.
+    if (claimScopeId && !recorded) await releaseOutboundSend(claimScopeId, message);
+    throw err;
+  }
 }
