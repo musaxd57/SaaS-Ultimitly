@@ -282,6 +282,67 @@ export function detectSupplyRequest(message: string): { itemKey: SupplyItemKey; 
  * the triggering message so a re-sync can't double-count. Best-effort; never throws.
  * Returns how many request rows were created.
  */
+// Self-heal window/bounds for sweepMissedSupplyDerivations (below): wide enough
+// that a derivation lost to a transient failure is retried across many 2-min
+// sync cycles; the take-cap only bounds a pathological backlog (and is REPORTED
+// by the caller, never silently truncated).
+const SUPPLY_SWEEP_WINDOW_MS = 48 * 60 * 60 * 1000;
+const SUPPLY_SWEEP_TAKE = 500;
+
+/**
+ * Self-healing sweep (Codex 07-24 #5). The inline per-import derivation call in
+ * the sync is best-effort — when it failed transiently AFTER the message row
+ * committed, the next sync deduped the message by externalId and never
+ * re-emitted the job: the supply request was silently lost FOREVER. Detection
+ * is a pure function of the message row and recordSupplyRequestFromMessage
+ * dedupes on @@unique([sourceMessageId, itemKey]), so re-deriving a bounded
+ * recent window every run is an idempotent no-op for everything already
+ * handled — only the lost ones materialize. Scope matches the inline path
+ * EXACTLY: synced channel threads only (externalReservationId set, channel not
+ * "chat") — QR concierge and manual threads were never derived inline and must
+ * not start now. The org toggle short-circuits first (default OFF → one read).
+ */
+export async function sweepMissedSupplyDerivations(
+  organizationId: string,
+  now: Date = new Date(),
+): Promise<{ scanned: number; created: number; capped: boolean }> {
+  const org = await prisma.organization.findUnique({
+    where: { id: organizationId },
+    select: { autoSupplyRequestEnabled: true },
+  });
+  if (!org?.autoSupplyRequestEnabled) return { scanned: 0, created: 0, capped: false };
+  const rows = await prisma.message.findMany({
+    where: {
+      direction: "inbound",
+      createdAt: { gte: new Date(now.getTime() - SUPPLY_SWEEP_WINDOW_MS) },
+      conversation: {
+        channel: { not: "chat" },
+        externalReservationId: { not: null },
+        property: { organizationId },
+      },
+    },
+    orderBy: { createdAt: "desc" },
+    take: SUPPLY_SWEEP_TAKE,
+    select: {
+      id: true,
+      body: true,
+      conversation: { select: { propertyId: true, reservationId: true } },
+    },
+  });
+  let created = 0;
+  for (const row of rows) {
+    // Pure keyword pass in memory — only detector HITS touch the DB again.
+    if (detectSupplyRequest(row.body).length === 0) continue;
+    created += await recordSupplyRequestFromMessage({
+      propertyId: row.conversation.propertyId,
+      message: row.body,
+      sourceMessageId: row.id,
+      reservationId: row.conversation.reservationId,
+    });
+  }
+  return { scanned: rows.length, created, capped: rows.length === SUPPLY_SWEEP_TAKE };
+}
+
 export async function recordSupplyRequestFromMessage(ctx: {
   propertyId: string;
   message: string;

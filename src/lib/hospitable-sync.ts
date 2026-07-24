@@ -15,7 +15,7 @@ import {
 import { getOrgHospitableToken } from "@/lib/hospitable-credentials";
 import { reportError, redactSensitive } from "@/lib/report-error";
 import { createReservationTasks, removeAutoTasksForCancelledReservation } from "@/lib/automation";
-import { recordSupplyRequestFromMessage } from "@/lib/supply";
+import { recordSupplyRequestFromMessage, sweepMissedSupplyDerivations } from "@/lib/supply";
 import { billingEnforced, getEntitlement } from "@/lib/billing/subscription";
 import { ANON_NAME, ANON_ID, retentionCutoff } from "@/lib/data-retention";
 import { loadErasureGuard, acquireErasureLock } from "@/lib/erasure";
@@ -129,6 +129,10 @@ export async function syncHospitable(
     skipped: 0,
     propertiesCapped: 0,
   };
+  // Run-level aggregate for failed inline supply derivations (alerted once at
+  // the end — a per-row alert would flood; a bare catch hid them entirely).
+  let supplyFailures = 0;
+  let firstSupplyError: unknown = null;
 
   // Multi-tenant: use THIS org's own Hospitable token. If it has no connection
   // (and isn't the primary org falling back to env), there is nothing to pull —
@@ -363,13 +367,48 @@ export async function syncHospitable(
         result.conversations++;
         result.messages += r2.imported;
         // Deferred supply detection — the message FKs exist only after commit.
+        // Failures are COUNTED for the run-level aggregate alert below (they
+        // used to vanish in a bare catch), and the end-of-run sweep re-derives
+        // anything missed, so a transient error is a delay — not permanent loss.
         for (const job of r2.supplyJobs) {
-          await recordSupplyRequestFromMessage(job).catch(() => {});
+          try {
+            await recordSupplyRequestFromMessage(job);
+          } catch (err) {
+            supplyFailures++;
+            if (firstSupplyError === null) firstSupplyError = err;
+          }
         }
       } catch (err) {
         console.error(`[Hospitable sync] thread import failed for ${reservation.id}`, scrubErr(err));
       }
     }
+  }
+
+  // Supply-derivation visibility + self-heal (Codex 07-24 #5). Before this, a
+  // transient failure after the message committed was PERMANENT silent loss:
+  // the next sync deduped the message by externalId and never re-emitted the
+  // job. One aggregate alert per run (first sample + count — PII-free, the
+  // error text is scrubbed inside reportError)…
+  if (supplyFailures > 0) {
+    void reportError(
+      `supply-derivation org:${organizationId} failures:${supplyFailures}`,
+      firstSupplyError instanceof Error ? firstSupplyError : new Error(String(firstSupplyError)),
+    );
+  }
+  // …and an idempotent sweep over the recent window re-derives whatever was
+  // missed (dedupe on [sourceMessageId,itemKey] makes re-runs no-ops), so the
+  // loss heals on the next cycle. Best-effort: never fails the sync itself.
+  try {
+    const sweep = await sweepMissedSupplyDerivations(organizationId);
+    if (sweep.capped) {
+      // No silent caps: the window hit the take-limit, older rows were not
+      // rescanned this run (they get their turn as the window slides).
+      console.warn(
+        `[Hospitable sync] supply sweep hit its scan cap for org ${organizationId} (scanned ${sweep.scanned})`,
+      );
+    }
+  } catch (err) {
+    console.error("[Hospitable sync] supply sweep failed", scrubErr(err));
   }
 
   return result;
