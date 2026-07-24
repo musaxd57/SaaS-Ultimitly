@@ -7,6 +7,7 @@ import { rateLimit, clientIp } from "@/lib/rate-limit";
 import { emailService } from "@/lib/email";
 import { reportError } from "@/lib/report-error";
 import { makeVerifyToken, VERIFY_TTL_MS, verifyEmailHtml, verifyUrl } from "@/lib/auth/email-verify";
+import { emailOutboxEnabled, enqueueIdentityEmail, kickEmailOutboxDrain } from "@/lib/email-outbox";
 import { newTrialSubscriptionData } from "@/lib/billing/subscription";
 import { LEGAL_VERSION } from "@/lib/legal-entity";
 import { LEGAL_TEXT_HASH } from "@/lib/legal-text-hash";
@@ -59,6 +60,7 @@ export async function POST(req: NextRequest) {
 
     const passwordHash = await hashPassword(parsed.data.password);
     const { raw, hash } = makeVerifyToken();
+    const verifyExpiresAt = new Date(Date.now() + VERIFY_TTL_MS);
     const { user } = await prisma.$transaction(async (tx) => {
       const org = await tx.organization.create({
         data: { name: parsed.data.organizationName },
@@ -81,7 +83,7 @@ export async function POST(req: NextRequest) {
           acceptedIp: ip,
           acceptedUserAgent: userAgent,
           emailVerifyTokenHash: hash,
-          emailVerifyExpiresAt: new Date(Date.now() + VERIFY_TTL_MS),
+          emailVerifyExpiresAt: verifyExpiresAt,
         },
       });
       // Start the reverse-trial: full Pro free for 14 days (no card). Harmless
@@ -89,8 +91,26 @@ export async function POST(req: NextRequest) {
       await tx.subscription.create({
         data: { organizationId: org.id, ...newTrialSubscriptionData() },
       });
+      // Durable outbox (Tur-4, flag ON): the verification send-intent joins THIS
+      // transaction, so 201 ⟺ account + verify-hash + outbox row committed
+      // together — a "mail kuyrukta" 201 can never lie about a half-created
+      // state, and a provider outage no longer 503s the registration.
+      if (emailOutboxEnabled()) {
+        await enqueueIdentityEmail(tx, {
+          userId: user.id,
+          kind: "verify_email",
+          secret: raw,
+          recipient: email,
+          expiresAt: verifyExpiresAt,
+        });
+      }
       return { org, user };
     });
+
+    if (emailOutboxEnabled()) {
+      kickEmailOutboxDrain();
+      return jsonOk({ ok: true, verifyEmail: true }, 201);
+    }
 
     // No auto-login: the account stays inert until the inbox is confirmed (anti-bot).
     // The verification email is sent OUTSIDE the DB transaction (a slow/failed

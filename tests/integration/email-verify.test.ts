@@ -1,4 +1,4 @@
-import { describe, it, expect, beforeEach, afterAll, vi } from "vitest";
+import { describe, it, expect, beforeEach, afterEach, afterAll, vi } from "vitest";
 import { NextRequest } from "next/server";
 import { prisma, resetDb } from "../helpers/db";
 import { __resetRateLimit } from "@/lib/rate-limit";
@@ -26,6 +26,14 @@ vi.mock("@/lib/email", () => ({
   emailService: { send: vi.fn(async () => {}), sendReporting: vi.fn(async () => ({ ok: true })) },
 }));
 import { emailService } from "@/lib/email";
+
+// Outbox (Tur-4): the inline kick is mocked so its fire-and-forget drain can't
+// race the assertions — the flag-ON tests drain EXPLICITLY.
+vi.mock("@/lib/email-outbox", async (orig) => {
+  const actual = await orig<typeof import("@/lib/email-outbox")>();
+  return { ...actual, kickEmailOutboxDrain: vi.fn() };
+});
+import { drainEmailOutboxOnce } from "@/lib/email-outbox";
 
 import { LEGAL_VERSION } from "@/lib/legal-entity";
 import { LEGAL_TEXT_HASH } from "@/lib/legal-text-hash";
@@ -355,5 +363,84 @@ describe("registration → verification → login", () => {
     });
     const res = await login(postReq("http://localhost/api/auth/login", { email: "founder@x.com", password: "secret123" }));
     expect(res.status).toBe(200);
+  });
+});
+
+// ── Tur-4: EMAIL_OUTBOX_ENABLED=1 — register/resend queue the verification
+// link instead of sending synchronously. 201 ⟺ hesap+hash+outbox TEK commit.
+describe("register + resend — durable outbox (flag ON)", () => {
+  beforeEach(() => {
+    vi.stubEnv("EMAIL_OUTBOX_ENABLED", "1");
+  });
+  afterEach(() => vi.unstubAllEnvs());
+
+  function linkFromLastMail(): string {
+    const html = String(mockSendReporting.mock.calls.at(-1)?.[2] ?? "");
+    const m = html.match(/href="([^"]+)"/);
+    if (!m) throw new Error("no link in e-mail");
+    return m[1];
+  }
+
+  it("ATOMİK 201 (Codex kapanış 2): kayıt tek TX'te hesap+hash+outbox yazar; SENKRON e-posta yok; drain sonrası link doğrular", async () => {
+    const res = await register(
+      postReq("http://localhost/api/auth/register", {
+        organizationName: "Acme",
+        name: "Ada",
+        email: "ada@x.com",
+        password: "secret123",
+        consent: true,
+      }),
+    );
+    expect(res.status).toBe(201);
+    expect(mockSendReporting).not.toHaveBeenCalled(); // eski writer devre dışı
+
+    const user = await prisma.user.findUniqueOrThrow({ where: { email: "ada@x.com" } });
+    expect(user.emailVerifyTokenHash).toBeTruthy();
+    const row = await prisma.emailOutbox.findFirstOrThrow();
+    expect(row.kind).toBe("verify_email");
+    expect(row.status).toBe("pending");
+    expect(row.userId).toBe(user.id); // aynı commit'in parçası
+
+    await drainEmailOutboxOnce();
+    expect(mockSendReporting).toHaveBeenCalledTimes(1);
+    expect(mockSendReporting.mock.calls[0][0]).toBe("ada@x.com");
+    const link = linkFromLastMail();
+    const verify = await verifyEmail(new NextRequest(link, { headers: { host: "www.lixusai.com" } }));
+    expect([200, 302, 307]).toContain(verify.status); // link works end-to-end
+    const after = await prisma.user.findUniqueOrThrow({ where: { email: "ada@x.com" } });
+    expect(after.emailVerifiedAt).toBeTruthy();
+  });
+
+  it("RESEND: yeni token eski teslim-edilmemiş linki süperseder; yalnız YENİ link gönderilir ve doğrular", async () => {
+    await register(
+      postReq("http://localhost/api/auth/register", {
+        organizationName: "Acme",
+        name: "Ada",
+        email: "ada@x.com",
+        password: "secret123",
+        consent: true,
+      }),
+    );
+    // İlk link HİÇ teslim edilmeden kullanıcı "yeniden gönder" der.
+    const res = await resendVerification(
+      postReq("http://localhost/api/auth/resend-verification", { email: "ada@x.com" }),
+    );
+    expect(res.status).toBe(200);
+    expect(mockSendReporting).not.toHaveBeenCalled(); // resend de senkron göndermez
+
+    const rows = await prisma.emailOutbox.findMany({ orderBy: { version: "asc" } });
+    expect(rows.map((r) => [r.version, r.status])).toEqual([
+      [1, "canceled"], // superseded — eski token'ın maili ASLA gitmez
+      [2, "pending"],
+    ]);
+
+    await drainEmailOutboxOnce();
+    expect(mockSendReporting).toHaveBeenCalledTimes(1); // tek mail: yenisi
+    const link = linkFromLastMail();
+    const verify = await verifyEmail(new NextRequest(link, { headers: { host: "www.lixusai.com" } }));
+    expect([200, 302, 307]).toContain(verify.status);
+    expect(
+      (await prisma.user.findUniqueOrThrow({ where: { email: "ada@x.com" } })).emailVerifiedAt,
+    ).toBeTruthy();
   });
 });

@@ -11,6 +11,7 @@ import {
   verifyUrl,
   needsEmailVerification,
 } from "@/lib/auth/email-verify";
+import { emailOutboxEnabled, enqueueIdentityEmail, kickEmailOutboxDrain } from "@/lib/email-outbox";
 
 export const dynamic = "force-dynamic";
 
@@ -37,9 +38,30 @@ export async function POST(req: NextRequest) {
   // Only a genuinely-unverified, gated account gets a fresh link.
   if (user && needsEmailVerification(user)) {
     const { raw, hash } = makeVerifyToken();
+    const expiresAt = new Date(Date.now() + VERIFY_TTL_MS);
+    if (emailOutboxEnabled()) {
+      // Durable outbox (Tur-4): new token hash + send-intent in ONE transaction
+      // (the enqueue supersedes any still-undelivered previous link, so only
+      // the newest token's e-mail goes out). No provider call on this path.
+      await prisma.$transaction(async (tx) => {
+        await tx.user.update({
+          where: { id: user.id },
+          data: { emailVerifyTokenHash: hash, emailVerifyExpiresAt: expiresAt },
+        });
+        await enqueueIdentityEmail(tx, {
+          userId: user.id,
+          kind: "verify_email",
+          secret: raw,
+          recipient: email,
+          expiresAt,
+        });
+      });
+      kickEmailOutboxDrain();
+      return jsonOk({ ok: true });
+    }
     await prisma.user.update({
       where: { id: user.id },
-      data: { emailVerifyTokenHash: hash, emailVerifyExpiresAt: new Date(Date.now() + VERIFY_TTL_MS) },
+      data: { emailVerifyTokenHash: hash, emailVerifyExpiresAt: expiresAt },
     });
     const sent = await emailService.sendReporting(
       email,

@@ -273,6 +273,38 @@ describe("email-outbox", () => {
     expect(await prisma.emailOutbox.count()).toBe(0);
   });
 
+  it("WRITER HARİTASI PİNİ: kimlik hash kolonlarına dokunan dosyalar KAPALI listedir — yeni bir writer outbox'ı sessizce atlayamaz", async () => {
+    // Codex şartı: hash/token üreten tüm writer'lar haritalandı ve flag-ON
+    // yolunda ortak enqueue'ya bağlandı (her rotanın kendi "senkron send YOK"
+    // testi var). Bu pin, İLERİDE eklenecek bir yazıcının bu listeye — ve
+    // dolayısıyla outbox kararına — uğramadan sızmasını engeller. `: true`
+    // (select) eşleşmeleri yazım sayılmaz.
+    const { readdirSync, readFileSync, statSync } = await import("node:fs");
+    const { join } = await import("node:path");
+    const hits = new Set<string>();
+    const walk = (dir: string) => {
+      for (const name of readdirSync(dir)) {
+        const p = join(dir, name);
+        if (statSync(p).isDirectory()) walk(p);
+        else if (/\.tsx?$/.test(name)) {
+          const src = readFileSync(p, "utf8");
+          if (/(emailVerifyTokenHash|pwResetCodeHash|pwChangeCodeHash)\s*:\s*(?!true\b)/.test(src)) {
+            hits.add(p.replace(/\\/g, "/").replace(/^.*?src\//, "src/"));
+          }
+        }
+      }
+    };
+    walk("src");
+    expect([...hits].sort()).toEqual([
+      "src/app/api/account/forgot-password/route.ts", //  request+confirm (outbox'a bağlı)
+      "src/app/api/account/password/route.ts", //         request+confirm (outbox'a bağlı)
+      "src/app/api/auth/register/route.ts", //            kayıt (outbox'a bağlı)
+      "src/app/api/auth/resend-verification/route.ts", // yeniden gönder (outbox'a bağlı)
+      "src/app/api/auth/verify-email/route.ts", //        TÜKETİM (hash'i null'lar — gönderim yok)
+      "src/lib/email-outbox.ts", //                       liveness fallback okuması (?? null desenleri)
+    ]);
+  });
+
   it("KICK: a rejecting drain produces NO unhandled rejection (funnels into reportError)", async () => {
     const unhandled: unknown[] = [];
     const onUnhandled = (err: unknown) => unhandled.push(err);
