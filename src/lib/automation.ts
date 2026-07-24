@@ -1156,15 +1156,23 @@ export async function applyChannelAutoReply(
   };
   if (!passesAutoReplySafetyGate(result, last.body, gateContext)) {
     // If the block was driven by a MODEL-detected sensitive signal (complaint /
-    // refund / early-departure intent, or medium/high risk) — not mere low
-    // confidence — actively escalate to the host so it never sits silently in the
-    // inbox. The keyword path (sendDueAlerts) already handles keyword-detectable
-    // cases and flags "problem" BEFORE this runs; this closes the "model saw it,
-    // keywords missed it" gap. Atomic status claim → can't double-email.
+    // refund / early-departure intent, medium/high risk, OR a high-stakes
+    // riskType label) — not mere low confidence — actively escalate to the host
+    // so it never sits silently in the inbox. The keyword path (sendDueAlerts)
+    // already handles keyword-detectable cases and flags "problem" BEFORE this
+    // runs; this closes the "model saw it, keywords missed it" gap. The riskType
+    // leg (Codex 07-24 #1) covers the model's INCONSISTENT verdicts: riskLevel
+    // "low" but riskType "safety_emergency"/"review_threat"/… — the gate blocks
+    // the send on that label alone, so without this leg the thread sat silently
+    // as low_confidence_or_risky. No handoff-ack exemption here: if the pair
+    // (human_request/human_request) failed the gate anyway, the guest asked for
+    // a human and got NO reply — the host must know. Atomic status claim →
+    // can't double-email.
     const modelSensitive =
       result.source === "openai" &&
       (NEVER_AUTO_REPLY_INTENTS.has(result.intent) ||
-        (result.riskLevel !== "none" && result.riskLevel !== "low"));
+        (result.riskLevel !== "none" && result.riskLevel !== "low") ||
+        (result.riskType != null && HIGH_STAKES_RISK_TYPES.has(result.riskType)));
     if (!options.dryRun && modelSensitive) {
       try {
         const claimed = await prisma.conversation.updateMany({

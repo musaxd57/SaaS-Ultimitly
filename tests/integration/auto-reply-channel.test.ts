@@ -154,6 +154,47 @@ describe("applyChannelAutoReply — model-detected complaint escalation", () => 
     expect(mockEmail).toHaveBeenCalledTimes(1);
   });
 
+  it("escalates when the model names a HIGH-STAKES riskType but inconsistently scores riskLevel LOW (Codex 07-24 #1)", async () => {
+    // The model's own label says "high stakes" while its riskLevel says "low" —
+    // the gate already blocks the send on the label alone, but the thread used
+    // to sit SILENTLY as low_confidence_or_risky (no "problem", no host email).
+    // The message carries no deterministic keyword, so only the model saw it.
+    for (const riskType of ["review_threat", "safety_emergency", "access_security"]) {
+      vi.clearAllMocks();
+      mockSuggest.mockResolvedValue({
+        ...SAFE_REPLY,
+        intent: "general",
+        riskLevel: "low",
+        riskType,
+        confidence: 0.9,
+      });
+      const { orgId, conversationId } = await seed({
+        guestMessage: "Bu durumu nasıl değerlendireceğimi düşüneceğim.",
+      });
+      await addOwner(orgId, `owner-${riskType}@test.com`);
+
+      const out = await applyChannelAutoReply(conversationId);
+      expect(out.sent).toBe(false);
+      expect(out.skippedReason).toBe("escalated_to_human"); // NOT the silent skip
+      expect(mockSend).not.toHaveBeenCalled();
+      const conv = await prisma.conversation.findUnique({ where: { id: conversationId } });
+      expect(conv?.status).toBe("problem");
+      expect(conv?.priority).toBe("urgent");
+      expect(conv?.lastRiskType).toBe(riskType);
+      expect(mockEmail).toHaveBeenCalledTimes(1); // host actively notified
+    }
+  });
+
+  it("mere LOW CONFIDENCE (no sensitive label) still does NOT escalate — silent human review, no email", async () => {
+    mockSuggest.mockResolvedValue({ ...SAFE_REPLY, intent: "general", riskLevel: "low", confidence: 0.4 });
+    const { orgId, conversationId } = await seed({ guestMessage: "Yarın hava nasıl olur acaba?" });
+    await addOwner(orgId);
+    const out = await applyChannelAutoReply(conversationId);
+    expect(out.skippedReason).toBe("low_confidence_or_risky");
+    expect((await prisma.conversation.findUnique({ where: { id: conversationId } }))?.status).toBe("new");
+    expect(mockEmail).not.toHaveBeenCalled(); // over-alerting would train the host to ignore alerts
+  });
+
   it("does NOT escalate or email a normal safe message (it auto-sends)", async () => {
     mockSuggest.mockResolvedValue(SAFE_REPLY);
     const { orgId, conversationId } = await seed();
