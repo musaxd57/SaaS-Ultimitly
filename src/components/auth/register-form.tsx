@@ -24,9 +24,25 @@ export function RegisterForm() {
   const [sent, setSent] = useState(false);
   const [consent, setConsent] = useState(false);
 
+  /** Sunucudan gelen hata bir DURUM'dur ("bu e-posta zaten kayıtlı"), kullanıcı o
+   *  alanı düzeltmeye başlayınca BAYATLAR — yoksa yeni yazılan (bomboş) adresin
+   *  altında hâlâ "zaten kayıtlı" yazar ve üstteki özet kutusu ekranda kalır.
+   *  Giriş ve şifre-sıfırlama formlarındaki kuralın aynısı; zamanlayıcı YOK. */
+  function clearFieldError(key: string) {
+    setFields((prev) => {
+      if (!prev[key]) return prev;
+      const next = { ...prev };
+      delete next[key];
+      return next;
+    });
+    setError((prev) => (prev ? null : prev));
+  }
+
   function update(key: keyof typeof form) {
-    return (e: React.ChangeEvent<HTMLInputElement>) =>
+    return (e: React.ChangeEvent<HTMLInputElement>) => {
       setForm((f) => ({ ...f, [key]: e.target.value }));
+      clearFieldError(key);
+    };
   }
 
   async function onSubmit(e: React.FormEvent) {
@@ -149,7 +165,10 @@ export function RegisterForm() {
           <input
             type="checkbox"
             checked={consent}
-            onChange={(e) => setConsent(e.target.checked)}
+            onChange={(e) => {
+              setConsent(e.target.checked);
+              clearFieldError("consent");
+            }}
             className="mt-0.5 size-4 shrink-0 rounded border-input"
             required
           />

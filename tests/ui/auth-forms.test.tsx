@@ -137,6 +137,38 @@ describe("RegisterForm — başarı ekranı çıkmaz değildir", () => {
     vi.unstubAllGlobals();
   });
 
+  it("'zaten kayıtlı' hatası E-POSTA DÜZELTİLİNCE kalkar — yeni adresin altında asılı kalmaz", async () => {
+    vi.stubGlobal(
+      "fetch",
+      vi.fn(
+        async () =>
+          new Response(
+            JSON.stringify({
+              error: "Doğrulama hatası",
+              fields: { email: "Bu e-posta adresi zaten kayıtlı" },
+            }),
+            { status: 400 },
+          ),
+      ),
+    );
+    render(<RegisterForm />);
+    typeInto(/İşletme adı/, "Nuve");
+    typeInto(/Adınız/, "Musa");
+    typeInto(/E-posta/, "kayitli@ornek.com");
+    typeInto(/Şifre/, "sifre12345");
+    fireEvent.click(screen.getByRole("checkbox"));
+    await act(async () => {
+      fireEvent.click(screen.getByRole("button", { name: /Hesap Oluştur/ }));
+    });
+    await screen.findByText("Bu e-posta adresi zaten kayıtlı");
+    expect(screen.getByText("Doğrulama hatası")).toBeTruthy();
+
+    // Kullanıcı adresi değiştiriyor: hem alan hatası hem üstteki özet gitmeli.
+    typeInto(/E-posta/, "yepyeni@ornek.com");
+    expect(screen.queryByText("Bu e-posta adresi zaten kayıtlı")).toBeNull();
+    expect(screen.queryByText("Doğrulama hatası")).toBeNull();
+  });
+
   it("kayıt sonrası doğrulama ekranı giriş sayfasına yol verir (mail gelmezse kurtarma oradadır)", async () => {
     vi.stubGlobal(
       "fetch",
