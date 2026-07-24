@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { FlaskConical, Loader2, X, Check, Clock } from "lucide-react";
 
 interface Preview {
@@ -22,6 +22,54 @@ export function AutoReplyTestButton({ locked = false }: { locked?: boolean }) {
   const [open, setOpen] = useState(false);
   const [previews, setPreviews] = useState<Preview[] | null>(null);
   const [error, setError] = useState<string | null>(null);
+  const dialogRef = useRef<HTMLDivElement | null>(null);
+  const triggerRef = useRef<HTMLButtonElement | null>(null);
+
+  // Modal contract (Codex 07-24 #8 — same pattern as the mobile drawer in
+  // app-shell): body scroll-lock + Escape close + focus move-in/trap/restore.
+  // role="dialog" aria-modal alone announces a modal without behaving like one.
+  useEffect(() => {
+    if (!open) return;
+    const prevOverflow = document.body.style.overflow;
+    document.body.style.overflow = "hidden"; // arkaplan modal altında kaymasın
+    const prevFocus = document.activeElement as HTMLElement | null;
+    // Cleanup uses the trigger captured when the effect RAN (ref.current may
+    // have changed by cleanup time — same lint rule as the drawer).
+    const trigger = triggerRef.current;
+    dialogRef.current?.focus();
+    const onKey = (e: KeyboardEvent) => {
+      if (e.key === "Escape") {
+        setOpen(false);
+        return;
+      }
+      if (e.key !== "Tab") return;
+      // Focus trap: Tab cycles inside the dialog (keyboard/screen-reader users
+      // never land on the inert background).
+      const root = dialogRef.current;
+      if (!root) return;
+      const focusables = root.querySelectorAll<HTMLElement>(
+        'a[href], button:not([disabled]), [tabindex]:not([tabindex="-1"])',
+      );
+      if (focusables.length === 0) return;
+      const first = focusables[0];
+      const last = focusables[focusables.length - 1];
+      const active = document.activeElement;
+      if (e.shiftKey && (active === first || active === root)) {
+        e.preventDefault();
+        last.focus();
+      } else if (!e.shiftKey && active === last) {
+        e.preventDefault();
+        first.focus();
+      }
+    };
+    window.addEventListener("keydown", onKey);
+    return () => {
+      window.removeEventListener("keydown", onKey);
+      document.body.style.overflow = prevOverflow;
+      // Focus restore: back to whatever opened the modal (else the trigger).
+      (prevFocus ?? trigger)?.focus?.();
+    };
+  }, [open]);
 
   async function runTest() {
     setBusy(true);
@@ -50,6 +98,7 @@ export function AutoReplyTestButton({ locked = false }: { locked?: boolean }) {
   return (
     <>
       <button
+        ref={triggerRef}
         type="button"
         onClick={runTest}
         disabled={busy || locked}
@@ -70,10 +119,12 @@ export function AutoReplyTestButton({ locked = false }: { locked?: boolean }) {
           onClick={() => setOpen(false)}
         >
           <div
+            ref={dialogRef}
             role="dialog"
             aria-modal="true"
             aria-label="Oto-yanıt testi (önizleme)"
-            className="mt-8 w-full max-w-2xl overflow-hidden rounded-xl border border-border bg-card shadow-xl"
+            tabIndex={-1}
+            className="mt-8 w-full max-w-2xl overflow-hidden rounded-xl border border-border bg-card shadow-xl outline-none"
             onClick={(e) => e.stopPropagation()}
           >
             <div className="flex items-center justify-between border-b border-border px-5 py-3">
