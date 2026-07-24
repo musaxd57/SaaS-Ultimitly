@@ -40,9 +40,11 @@ function verificationCode(): string {
 // so the two can never drift apart.
 
 // Same generic message whether the email is unknown, the code is wrong, expired,
-// or exhausted — so the response never reveals whether an account exists.
+// superseded by a newer code, or exhausted — the response never reveals which
+// (nor whether an account exists). Wording matches the on-screen CTA
+// ("Kodu tekrar gönder") and stays deliberately soft/cause-free.
 const GENERIC_CONFIRM =
-  "Kod geçersiz, süresi dolmuş ya da çok fazla denendi. “Kod gönder” ile yeni bir kod isteyin.";
+  "Bu kod artık kullanılamıyor. Süresi dolmuş veya daha yeni bir kod oluşturulmuş olabilir. “Kodu tekrar gönder” ile yeni bir kod isteyin.";
 
 export async function POST(req: NextRequest) {
   // Per-IP cap over the whole flow (enumeration / code-spray defense).

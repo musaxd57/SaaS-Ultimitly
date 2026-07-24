@@ -149,7 +149,9 @@ export async function POST(req: NextRequest) {
           data: { pwChangeCodeHash: null, pwChangeCodeExpiresAt: null },
         });
         return badRequest({
-          code: "Kod geçersiz, süresi dolmuş ya da çok fazla denendi. “Kod gönder” ile yeni bir kod isteyin.",
+          // Same soft, cause-free wording as forgot-password; aligned with the
+          // "Kodu tekrar gönder" CTA. Never differentiates the real reason.
+          code: "Bu kod artık kullanılamıyor. Süresi dolmuş veya daha yeni bir kod oluşturulmuş olabilir. “Kodu tekrar gönder” ile yeni bir kod isteyin.",
         });
       }
 
