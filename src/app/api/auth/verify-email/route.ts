@@ -1,0 +1,60 @@
+import { NextResponse, type NextRequest } from "next/server";
+import { prisma } from "@/lib/db";
+import { setSessionCookie } from "@/lib/auth";
+import { hashVerifyToken, baseUrlFromHost } from "@/lib/auth/email-verify";
+import { rateLimit, clientIp } from "@/lib/rate-limit";
+import type { UserRole } from "@/lib/constants";
+
+export const dynamic = "force-dynamic";
+
+// Click target of the verification e-mail. Validates the token, marks the account
+// verified, signs the user in, and redirects to the dashboard. On a bad/expired
+// token it redirects to /login with a flag so the page can offer "resend".
+export async function GET(req: NextRequest) {
+  // Throttle by IP: this endpoint issues a login session on a token match and
+  // scans an unindexed column, so an unauthenticated flood could brute-force
+  // tokens and hammer the DB. A legit user clicks the emailed link once or twice.
+  const limited = await rateLimit(`verify-email:${clientIp(req)}`, 20, 60 * 60 * 1000);
+  if (!limited.ok) {
+    return new NextResponse("Too many requests", {
+      status: 429,
+      headers: { "Retry-After": String(limited.retryAfter) },
+    });
+  }
+  const token = req.nextUrl.searchParams.get("token")?.trim() ?? "";
+  // Redirect to the PUBLIC host (from the Host header), not req.nextUrl.origin
+  // which is the internal localhost:8080 behind Railway/Cloudflare.
+  const base = baseUrlFromHost(req.headers.get("host"));
+  const fail = (reason: string) => NextResponse.redirect(`${base}/login?verify=${reason}`);
+
+  if (!token) return fail("missing");
+
+  const hash = hashVerifyToken(token);
+  const user = await prisma.user.findFirst({
+    where: { emailVerifyTokenHash: hash, emailVerifyExpiresAt: { gt: new Date() } },
+    select: { id: true, organizationId: true, role: true, email: true, name: true, sessionEpoch: true },
+  });
+  if (!user) return fail("expired");
+
+  // ATOMIC single-use consume (same burn pattern as TOTP): the update is
+  // conditioned on the token hash STILL being set, so of N concurrent clicks on
+  // the same link exactly one matches and mints a session — a plain
+  // findFirst→update let every racer through. Losers fall to "expired"; the
+  // account is verified by then, so a normal login succeeds.
+  const consumed = await prisma.user.updateMany({
+    where: { id: user.id, emailVerifyTokenHash: hash, emailVerifyExpiresAt: { gt: new Date() } },
+    data: { emailVerifiedAt: new Date(), emailVerifyTokenHash: null, emailVerifyExpiresAt: null },
+  });
+  if (consumed.count !== 1) return fail("expired");
+
+  await setSessionCookie({
+    userId: user.id,
+    organizationId: user.organizationId,
+    role: user.role as UserRole,
+    email: user.email,
+    name: user.name,
+    sessionEpoch: user.sessionEpoch,
+  });
+
+  return NextResponse.redirect(`${base}/dashboard`);
+}

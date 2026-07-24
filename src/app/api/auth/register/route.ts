@@ -1,0 +1,143 @@
+import { NextResponse, type NextRequest } from "next/server";
+import { prisma } from "@/lib/db";
+import { registerSchema, zodFieldErrors } from "@/lib/validators";
+import { hashPassword } from "@/lib/auth/password";
+import { badRequest, jsonOk, serverError, parseJsonBody, payloadTooLarge } from "@/lib/api";
+import { rateLimit, clientIp } from "@/lib/rate-limit";
+import { emailService } from "@/lib/email";
+import { reportError } from "@/lib/report-error";
+import { makeVerifyToken, VERIFY_TTL_MS, verifyEmailHtml, verifyUrl } from "@/lib/auth/email-verify";
+import { emailOutboxEnabled, enqueueIdentityEmail, kickEmailOutboxDrain } from "@/lib/email-outbox";
+import { newTrialSubscriptionData } from "@/lib/billing/subscription";
+import { LEGAL_VERSION } from "@/lib/legal-entity";
+import { LEGAL_TEXT_HASH } from "@/lib/legal-text-hash";
+
+export async function POST(req: NextRequest) {
+  try {
+    // SECURITY: public sign-up is CLOSED by default. While the app shares a single
+    // Hospitable token, a new org would sync the owner's Airbnb data — so no one
+    // else may create an account until per-org channel connections exist. Flip
+    // REGISTRATION_OPEN=1 only when the product is truly multi-tenant.
+    if (process.env.REGISTRATION_OPEN !== "1") {
+      return NextResponse.json({ error: "Kayıt şu an kapalı." }, { status: 403 });
+    }
+
+    // Capture the request context ONCE — reused both for the per-IP throttle and
+    // for the KVKK consent-evidence record persisted below. clientIp() reads the
+    // rightmost X-Forwarded-For hop (the value Railway's proxy observed, not a
+    // client-spoofable one); the User-Agent is attacker-controlled free text, so
+    // it's length-capped and stored only as an informational record.
+    const ip = clientIp(req);
+    const userAgent = req.headers.get("user-agent")?.slice(0, 512) ?? null;
+
+    // Throttle sign-ups per IP: 5 / hour (anti-spam / abuse).
+    const limited = await rateLimit(`register:${ip}`, 5, 60 * 60 * 1000);
+    if (!limited.ok) {
+      return NextResponse.json(
+        { error: "Çok fazla deneme. Lütfen biraz sonra tekrar deneyin." },
+        { status: 429, headers: { "Retry-After": String(limited.retryAfter) } },
+      );
+    }
+
+    const bodyResult = await parseJsonBody<{ consent?: unknown }>(req);
+    if (!bodyResult.ok && bodyResult.tooLarge) return payloadTooLarge();
+    const data = bodyResult.ok ? bodyResult.data : null;
+    const parsed = registerSchema.safeParse(data);
+    if (!parsed.success) return badRequest(zodFieldErrors(parsed.error));
+
+    // KVKK: explicit, informed consent to the Terms + Privacy Policy is required
+    // to register (backs the "kaydolarak kabul edersiniz" claim with a real
+    // record). The client disables submit until checked; enforce it server-side.
+    if (data?.consent !== true) {
+      return badRequest({
+        consent: "Devam etmek için Kullanım Koşulları ve Gizlilik Politikası'nı onaylamalısınız.",
+      });
+    }
+
+    const email = parsed.data.email.toLowerCase();
+    const existing = await prisma.user.findUnique({ where: { email } });
+    if (existing) return badRequest({ email: "Bu e-posta adresi zaten kayıtlı" });
+
+    const passwordHash = await hashPassword(parsed.data.password);
+    const { raw, hash } = makeVerifyToken();
+    const verifyExpiresAt = new Date(Date.now() + VERIFY_TTL_MS);
+    const { user } = await prisma.$transaction(async (tx) => {
+      const org = await tx.organization.create({
+        data: { name: parsed.data.organizationName },
+      });
+      // One checkbox covers Terms + Privacy, so both acceptances share the same
+      // instant. Version + IP + UA make the consent record defensible against a
+      // later "I never accepted" dispute (which text, when, from where).
+      const acceptedAt = new Date();
+      const user = await tx.user.create({
+        data: {
+          organizationId: org.id,
+          name: parsed.data.name,
+          email,
+          passwordHash,
+          role: "owner",
+          acceptedTermsAt: acceptedAt,
+          privacyAcceptedAt: acceptedAt,
+          acceptedLegalVersion: LEGAL_VERSION,
+          acceptedLegalTextHash: LEGAL_TEXT_HASH,
+          acceptedIp: ip,
+          acceptedUserAgent: userAgent,
+          emailVerifyTokenHash: hash,
+          emailVerifyExpiresAt: verifyExpiresAt,
+        },
+      });
+      // Start the reverse-trial: full Pro free for 14 days (no card). Harmless
+      // while billing is dormant — counts as active until BILLING_ENFORCED is on.
+      await tx.subscription.create({
+        data: { organizationId: org.id, ...newTrialSubscriptionData() },
+      });
+      // Durable outbox (Tur-4, flag ON): the verification send-intent joins THIS
+      // transaction, so 201 ⟺ account + verify-hash + outbox row committed
+      // together — a "mail kuyrukta" 201 can never lie about a half-created
+      // state, and a provider outage no longer 503s the registration.
+      if (emailOutboxEnabled()) {
+        await enqueueIdentityEmail(tx, {
+          userId: user.id,
+          kind: "verify_email",
+          secret: raw,
+          recipient: email,
+          expiresAt: verifyExpiresAt,
+        });
+      }
+      return { org, user };
+    });
+
+    if (emailOutboxEnabled()) {
+      kickEmailOutboxDrain();
+      return jsonOk({ ok: true, verifyEmail: true }, 201);
+    }
+
+    // No auto-login: the account stays inert until the inbox is confirmed (anti-bot).
+    // The verification email is sent OUTSIDE the DB transaction (a slow/failed
+    // provider must never roll back or block the account write), and we CHECK the
+    // result — NOT fire-and-forget. On failure: keep the account (its verify token is
+    // valid → the user can request a resend), page ops (reportError), and return a
+    // secret-free 503 — never a false 201 that promises "check your inbox" when
+    // nothing was sent. We do NOT delete the account on a provider error.
+    const sent = await emailService.sendReporting(
+      email,
+      "Lixus AI — E-postanı doğrula",
+      verifyEmailHtml(user.name, verifyUrl(raw)),
+    );
+    if (!sent.ok) {
+      void reportError("auth.register.verify_email", new Error(sent.error ?? "email send failed"));
+      return NextResponse.json(
+        {
+          error:
+            "Hesabınız oluşturuldu ancak doğrulama e-postası şu anda gönderilemedi. Lütfen birkaç dakika sonra giriş sayfasından “doğrulama e-postasını yeniden gönder” ile tekrar deneyin.",
+          accountCreated: true,
+          verifyEmailFailed: true,
+        },
+        { status: 503 },
+      );
+    }
+    return jsonOk({ ok: true, verifyEmail: true }, 201);
+  } catch (err) {
+    return serverError(undefined, err);
+  }
+}

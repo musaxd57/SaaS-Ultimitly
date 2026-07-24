@@ -1,0 +1,245 @@
+import { describe, it, expect, beforeEach, afterEach, vi } from "vitest";
+import { prisma, resetDb } from "../helpers/db";
+import { recordShadowVerdict, parseShadowVerdict, shadowAiEnabled } from "@/lib/shadow-ai";
+
+// GLM gölge Aşama-1 sözleşmeleri: default KAPALI · karar yetkisi SIFIR (asla
+// fırlatmaz, dönüşü kullanılmaz) · hüküm kapalı sete clamp'lenir · mesaj gövdesi
+// modele gider ama tabloya ASLA yazılmaz · pilot tavanı dolunca sessizce durur ·
+// aynı mesajın ikinci gölgesi dedupe ile düşer.
+
+const GUEST_MSG = "Klima çalışmıyor ve paramı geri istiyorum, yoksa kötü yorum yazacağım!";
+
+function glmResponse(body: unknown) {
+  return new Response(
+    JSON.stringify({ choices: [{ message: { content: typeof body === "string" ? body : JSON.stringify(body) } }] }),
+    { status: 200 },
+  );
+}
+
+async function seedOrg() {
+  return prisma.organization.create({ data: { name: "Gölge Org" } });
+}
+
+describe("recordShadowVerdict — GLM gölge Aşama-1", () => {
+  beforeEach(async () => {
+    await resetDb();
+    vi.restoreAllMocks();
+    vi.stubEnv("SHADOW_AI_ENABLED", "1");
+    vi.stubEnv("SHADOW_AI_API_KEY", "test-key");
+  });
+  afterEach(() => {
+    vi.unstubAllEnvs();
+    vi.unstubAllGlobals();
+  });
+
+  it("DEFAULT KAPALI: flag yokken ne API çağrısı ne satır", async () => {
+    vi.stubEnv("SHADOW_AI_ENABLED", "");
+    const fetchMock = vi.fn();
+    vi.stubGlobal("fetch", fetchMock);
+    expect(shadowAiEnabled()).toBe(false);
+    const org = await seedOrg();
+    await recordShadowVerdict({
+      organizationId: org.id, triggerId: "m1", guestMessage: GUEST_MSG, gateDecision: "auto_sent",
+    });
+    expect(fetchMock).not.toHaveBeenCalled();
+    expect(await prisma.shadowVerdict.count()).toBe(0);
+  });
+
+  it("başarılı hüküm: satır clamp'li yazılır, mesaj MODELE gider ama TABLOYA yazılmaz", async () => {
+    const fetchMock = vi.fn<(input: RequestInfo | URL, init?: RequestInit) => Promise<Response>>(
+      async () => glmResponse({ verdict: "escalate", riskType: "money_refund", confidence: 0.92 }),
+    );
+    vi.stubGlobal("fetch", fetchMock);
+    const org = await seedOrg();
+    await recordShadowVerdict({
+      organizationId: org.id,
+      conversationId: "c1",
+      triggerId: "m1",
+      guestMessage: GUEST_MSG,
+      gateDecision: "human_review",
+      gateRiskLevel: "high",
+      gateRiskType: "money_refund",
+    });
+
+    // Modele giden istek misafir mesajını içeriyor (sınıflandırma girdisi).
+    const sentBody = String(fetchMock.mock.calls[0]?.[1]?.body);
+    expect(sentBody).toContain("paramı geri istiyorum");
+
+    const row = await prisma.shadowVerdict.findFirstOrThrow();
+    expect(row.verdict).toBe("escalate");
+    expect(row.riskType).toBe("money_refund");
+    expect(row.confidence).toBeCloseTo(0.92);
+    expect(row.agrees).toBe(true); // kapı insana verdi, GLM de escalate dedi
+    expect(row.error).toBeNull();
+    expect(row.model).toContain("GLM");
+    // KVKK: satırın HİÇBİR alanında misafir metni yok.
+    expect(JSON.stringify(row)).not.toContain("paramı geri");
+  });
+
+  it("ayrışma yönü: kapı GÖNDERDİ + GLM escalate → agrees=false (GLM daha sıkı)", async () => {
+    vi.stubGlobal("fetch", vi.fn(async () => glmResponse({ verdict: "escalate", riskType: "complaint", confidence: 0.8 })));
+    const org = await seedOrg();
+    await recordShadowVerdict({
+      organizationId: org.id, triggerId: "m2", guestMessage: "Wifi şifresi?", gateDecision: "auto_sent",
+    });
+    const row = await prisma.shadowVerdict.findFirstOrThrow();
+    expect(row.agrees).toBe(false);
+    expect(row.gateDecision).toBe("auto_sent");
+  });
+
+  it("API hatasında ASLA fırlatmaz: satır verdict=NULL + redakte error ile yazılır", async () => {
+    vi.stubGlobal("fetch", vi.fn(async () => { throw new Error("ECONNREFUSED api.akashml.com"); }));
+    const org = await seedOrg();
+    await expect(
+      recordShadowVerdict({ organizationId: org.id, triggerId: "m3", guestMessage: "x", gateDecision: "auto_sent" }),
+    ).resolves.toBeUndefined();
+    const row = await prisma.shadowVerdict.findFirstOrThrow();
+    expect(row.verdict).toBeNull();
+    expect(row.agrees).toBeNull();
+    expect(row.error).toContain("ECONNREFUSED");
+  });
+
+  it("çözümlenemeyen model çıktısı: verdict=NULL + unparseable_verdict", async () => {
+    vi.stubGlobal("fetch", vi.fn(async () => glmResponse("Elbette! Bu mesaj güvenli görünüyor.")));
+    const org = await seedOrg();
+    await recordShadowVerdict({ organizationId: org.id, triggerId: "m4", guestMessage: "x", gateDecision: "auto_sent" });
+    const row = await prisma.shadowVerdict.findFirstOrThrow();
+    expect(row.verdict).toBeNull();
+    expect(row.error).toBe("unparseable_verdict");
+  });
+
+  it("pilot tavanı: cap dolunca yeni çağrı/satır YOK (sessiz durur)", async () => {
+    vi.stubEnv("SHADOW_AI_SAMPLE_CAP", "1");
+    const org = await seedOrg();
+    await prisma.shadowVerdict.create({
+      data: { organizationId: org.id, triggerId: "önceki", gateDecision: "auto_sent", model: "x" },
+    });
+    const fetchMock = vi.fn();
+    vi.stubGlobal("fetch", fetchMock);
+    await recordShadowVerdict({ organizationId: org.id, triggerId: "m5", guestMessage: "x", gateDecision: "auto_sent" });
+    expect(fetchMock).not.toHaveBeenCalled();
+    expect(await prisma.shadowVerdict.count()).toBe(1);
+  });
+
+  it("dedupe CLAIM-FIRST (Codex #2): ikinci işleyiş Akash'a HİÇ gitmez — tek fetch + tek satır", async () => {
+    const fetchMock = vi.fn(async () => glmResponse({ verdict: "allow", riskType: "none", confidence: 0.9 }));
+    vi.stubGlobal("fetch", fetchMock);
+    const org = await seedOrg();
+    const input = { organizationId: org.id, triggerId: "m6", guestMessage: "Wifi?", gateDecision: "auto_sent" as const };
+    await recordShadowVerdict(input);
+    await recordShadowVerdict(input);
+    expect(fetchMock).toHaveBeenCalledTimes(1); // çifte istek = çifte veri aktarımı YOK
+    expect(await prisma.shadowVerdict.count()).toBe(1);
+  });
+
+  it("HTTPS zorunlu (Codex #4): http base URL → modül pasif (ne çağrı ne satır)", async () => {
+    vi.stubEnv("SHADOW_AI_BASE_URL", "http://api.akashml.com/v1");
+    const fetchMock = vi.fn();
+    vi.stubGlobal("fetch", fetchMock);
+    expect(shadowAiEnabled()).toBe(false);
+    const org = await seedOrg();
+    await recordShadowVerdict({ organizationId: org.id, triggerId: "m7", guestMessage: "x", gateDecision: "auto_sent" });
+    expect(fetchMock).not.toHaveBeenCalled();
+    expect(await prisma.shadowVerdict.count()).toBe(0);
+  });
+
+  it("org allowlist'i (Codex): SHADOW_AI_ORG_IDS set ise liste dışı org gölgelenmez", async () => {
+    vi.stubEnv("SHADOW_AI_ORG_IDS", "baska-org-id");
+    const fetchMock = vi.fn();
+    vi.stubGlobal("fetch", fetchMock);
+    const org = await seedOrg();
+    await recordShadowVerdict({ organizationId: org.id, triggerId: "m8", guestMessage: "x", gateDecision: "auto_sent" });
+    expect(fetchMock).not.toHaveBeenCalled();
+    expect(await prisma.shadowVerdict.count()).toBe(0);
+
+    // Listedeki org normal gölgelenir.
+    vi.stubEnv("SHADOW_AI_ORG_IDS", `baska-org-id, ${org.id}`);
+    vi.stubGlobal("fetch", vi.fn(async () => glmResponse({ verdict: "allow", riskType: "none", confidence: 0.9 })));
+    await recordShadowVerdict({ organizationId: org.id, triggerId: "m8", guestMessage: "x", gateDecision: "auto_sent" });
+    expect(await prisma.shadowVerdict.count()).toBe(1);
+  });
+
+  it("VERİ MİNİMİZASYONU (Codex): telefon/e-posta/ad Akash'a HAM gitmez — placeholder gider, risk kelimeleri kalır", async () => {
+    const fetchMock = vi.fn<(input: RequestInfo | URL, init?: RequestInit) => Promise<Response>>(
+      async () => glmResponse({ verdict: "escalate", riskType: "money_refund", confidence: 0.9 }),
+    );
+    vi.stubGlobal("fetch", fetchMock);
+    const org = await seedOrg();
+    await recordShadowVerdict({
+      organizationId: org.id,
+      triggerId: "m10",
+      guestMessage:
+        "Ben Yılmaz Kayahan, paramı geri istiyorum! Beni 0532 123 45 67 numarasından veya yilmaz.k@example.com adresinden arayın.",
+      guestName: "Yılmaz Kayahan",
+      gateDecision: "human_review",
+    });
+    const sentBody = String(fetchMock.mock.calls[0]?.[1]?.body);
+    // Ham tanımlayıcılar fetch gövdesinde YOK…
+    expect(sentBody).not.toContain("0532 123 45 67");
+    expect(sentBody).not.toContain("yilmaz.k@example.com");
+    expect(sentBody).not.toContain("Yılmaz");
+    // …placeholder'lar VAR ve risk anlamı bozulmadı.
+    expect(sentBody).toContain("[PHONE]");
+    expect(sentBody).toContain("[EMAIL]");
+    expect(sentBody).toContain("[Misafir]");
+    expect(sentBody).toContain("paramı geri istiyorum");
+  });
+
+  it("VERİ MİNİMİZASYONU (audit): guestIdentifier placeholder olsa bile rezervasyonun GERÇEK adı redakte edilir", async () => {
+    // The identifier is a placeholder ("Rezervasyon 42") but the message names the
+    // real booking guest — the reservation's real name must be redacted too, else
+    // it egresses to Akash un-redacted (parity with quality-audit / the fix).
+    const fetchMock = vi.fn<(input: RequestInfo | URL, init?: RequestInit) => Promise<Response>>(
+      async () => glmResponse({ verdict: "escalate", riskType: "complaint", confidence: 0.9 }),
+    );
+    vi.stubGlobal("fetch", fetchMock);
+    const org = await seedOrg();
+    await recordShadowVerdict({
+      organizationId: org.id,
+      triggerId: "m11",
+      guestMessage: "Ben Ada Lovelace, dairede gürültü çok fazla.",
+      guestName: "Rezervasyon 42", // placeholder identifier — drops to [Misafir]
+      reservationGuestName: "Ada Lovelace", // the REAL booking name
+      gateDecision: "human_review",
+    });
+    const sentBody = String(fetchMock.mock.calls[0]?.[1]?.body);
+    expect(sentBody).not.toContain("Ada Lovelace"); // real name redacted
+    expect(sentBody).not.toContain("Ada");
+    expect(sentBody).toContain("gürültü"); // risk meaning preserved
+  });
+
+  it("STALE PENDING (Codex): yarım kalan claim satırı KÖR RETRY tetiklemez, 'pending' olarak görünür kalır", async () => {
+    const org = await seedOrg();
+    // Simüle çökme: claim yazılmış, hüküm hiç gelmemiş.
+    await prisma.shadowVerdict.create({
+      data: { organizationId: org.id, triggerId: "m11", gateDecision: "auto_sent", model: "x", error: "pending" },
+    });
+    const fetchMock = vi.fn();
+    vi.stubGlobal("fetch", fetchMock);
+    await recordShadowVerdict({ organizationId: org.id, triggerId: "m11", guestMessage: "x", gateDecision: "auto_sent" });
+    expect(fetchMock).not.toHaveBeenCalled(); // dedupe: aynı mesaj yeniden Akash'a gitmez
+    const row = await prisma.shadowVerdict.findFirstOrThrow({ where: { triggerId: "m11" } });
+    expect(row.error).toBe("pending"); // sessizce silinmez/değişmez — kartta "yarım" görünür
+    expect(row.verdict).toBeNull();
+  });
+
+  it("dev upstream gövdesi (Codex #4): byte tavanı aşımı belleğe alınmaz, satıra arıza yazılır", async () => {
+    vi.stubGlobal("fetch", vi.fn(async () => new Response("x".repeat(200_000), { status: 200 })));
+    const org = await seedOrg();
+    await recordShadowVerdict({ organizationId: org.id, triggerId: "m9", guestMessage: "x", gateDecision: "auto_sent" });
+    const row = await prisma.shadowVerdict.findFirstOrThrow();
+    expect(row.verdict).toBeNull();
+    expect(row.error).toContain("response_too_large");
+  });
+});
+
+describe("parseShadowVerdict — kapalı-set clamp", () => {
+  it("bilinmeyen verdict/riskType/aralık-dışı güven → NULL (asla uydurma değer)", () => {
+    expect(parseShadowVerdict('{"verdict":"nuke","riskType":"vibes","confidence":7}')).toEqual({
+      verdict: null, riskType: null, confidence: null,
+    });
+    expect(parseShadowVerdict('önsöz {"verdict":"hold","riskType":"complaint","confidence":0.5} sonsöz')).toEqual({
+      verdict: "hold", riskType: "complaint", confidence: 0.5,
+    });
+  });
+});

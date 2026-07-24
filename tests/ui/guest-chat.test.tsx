@@ -1,0 +1,190 @@
+// @vitest-environment jsdom
+import { describe, it, expect, vi, beforeEach, afterEach } from "vitest";
+import { render, screen, fireEvent, cleanup, waitFor } from "@testing-library/react";
+import { GuestChat } from "@/components/guest-chat/guest-chat";
+
+type Msg = { id: string; role: "guest" | "ai" | "host" | "resume"; text: string };
+
+// A tiny stateful fake server: GET returns the thread; POST appends the guest
+// message + an AI reply (mirrors recordGuestChat), then the client re-fetches.
+function setupFetch(initial: Msg[]) {
+  const server = { messages: [...initial], open: true };
+  const fn = vi.fn((_url: string, opts?: RequestInit) => {
+    const method = opts?.method ?? "GET";
+    if (method === "GET") {
+      return Promise.resolve({ ok: true, json: async () => ({ open: server.open, messages: server.messages }) });
+    }
+    const body = JSON.parse(String(opts!.body)) as { message: string };
+    server.messages.push({ id: `g${server.messages.length}`, role: "guest", text: body.message });
+    server.messages.push({ id: `a${server.messages.length}`, role: "ai", text: "Çöp salı günü." });
+    return Promise.resolve({ ok: true, json: async () => ({ escalated: false, reply: "Çöp salı günü." }) });
+  });
+  vi.stubGlobal("fetch", fn);
+  return fn;
+}
+
+function typeAndSend(text: string) {
+  fireEvent.change(screen.getByPlaceholderText(/Sorunuzu yazın/), { target: { value: text } });
+  fireEvent.click(screen.getByRole("button", { name: "Gönder" }));
+}
+
+describe("GuestChat (UI, two-way)", () => {
+  beforeEach(() => vi.clearAllMocks());
+  afterEach(() => {
+    cleanup();
+    vi.unstubAllGlobals();
+  });
+
+  it("sends a message and shows the AI reply from the re-fetched history", async () => {
+    const fn = setupFetch([]);
+    render(<GuestChat token="tok123" />);
+
+    typeAndSend("Çöp ne zaman?");
+
+    await screen.findByText("Çöp ne zaman?"); // guest bubble
+    await screen.findByText("Çöp salı günü."); // AI reply (after re-fetch)
+    const postCall = fn.mock.calls.find((c) => (c[1] as RequestInit | undefined)?.method === "POST");
+    expect(postCall?.[0]).toBe("/api/chat/tok123");
+    const parsed = JSON.parse(String((postCall![1] as RequestInit).body)) as { message: string; requestId?: string };
+    expect(parsed.message).toBe("Çöp ne zaman?");
+    // Idempotency id rides along on every send (server contract: [A-Za-z0-9-]{8,64}).
+    expect(parsed.requestId).toMatch(/^[A-Za-z0-9-]{8,64}$/);
+  });
+
+  it("requestId: a failed retry of the SAME text reuses one id; the next message after success gets a fresh one", async () => {
+    const bodies: { message: string; requestId?: string }[] = [];
+    let failNext = true;
+    const fn = vi.fn((_url: string, opts?: RequestInit) => {
+      const method = opts?.method ?? "GET";
+      if (method === "GET") return Promise.resolve({ ok: true, json: async () => ({ open: true, messages: [] }) });
+      bodies.push(JSON.parse(String(opts!.body)));
+      if (failNext) return Promise.resolve({ ok: false, json: async () => ({}) });
+      return Promise.resolve({ ok: true, json: async () => ({ escalated: false, reply: "tamam" }) });
+    });
+    vi.stubGlobal("fetch", fn);
+    render(<GuestChat token="t" />);
+
+    typeAndSend("merhaba");
+    await screen.findByText(/yanıt veremiyorum/); // failure → rollback restored the text
+    failNext = false;
+    fireEvent.click(screen.getByRole("button", { name: "Gönder" })); // retry same text
+    await waitFor(() => expect(bodies.length).toBe(2));
+    expect(bodies[0].requestId).toMatch(/^[A-Za-z0-9-]{8,64}$/);
+    expect(bodies[1].requestId).toBe(bodies[0].requestId); // retry carries the SAME id → server dedupes
+
+    typeAndSend("ikinci soru");
+    await waitFor(() => expect(bodies.length).toBe(3));
+    expect(bodies[2].requestId).toMatch(/^[A-Za-z0-9-]{8,64}$/);
+    expect(bodies[2].requestId).not.toBe(bodies[0].requestId); // fresh message → fresh id
+  });
+
+  it("renders a manual host reply as 'İşletme ekibi' with a takeover separator", async () => {
+    setupFetch([
+      { id: "g1", role: "guest", text: "Klima bozuk" },
+      { id: "h1", role: "host", text: "Hemen ilgileniyorum, kusura bakmayın." },
+    ]);
+    render(<GuestChat token="t" />);
+
+    await screen.findByText("Hemen ilgileniyorum, kusura bakmayın.");
+    await screen.findByText("👥 İşletme ekibi"); // team label — never a host personal name
+    await screen.findByText("İşletme ekibi görüşmeye katıldı"); // takeover separator, once
+  });
+
+  it("shows the 'AI re-enabled' separator (no bubble) after the host resumes the AI", async () => {
+    setupFetch([
+      { id: "g1", role: "guest", text: "Klima bozuk" },
+      { id: "h1", role: "host", text: "Ben ilgileniyorum." },
+      { id: "r1", role: "resume", text: "Lixus AI yeniden etkinleştirildi" },
+      { id: "a1", role: "ai", text: "Çöp salı günü." },
+    ]);
+    render(<GuestChat token="t" />);
+
+    await screen.findByText("İşletme ekibi görüşmeye katıldı"); // team joined
+    await screen.findByText("Çöp salı günü."); // AI answers again after resume
+    // The resume marker renders ONLY as a separator, never as a chat bubble → its
+    // text appears exactly once.
+    expect(screen.getAllByText("Lixus AI yeniden etkinleştirildi")).toHaveLength(1);
+  });
+
+  it("labels the bot reply as 'Lixus AI'", async () => {
+    setupFetch([{ id: "a1", role: "ai", text: "Çöp salı günü." }]);
+    render(<GuestChat token="t" />);
+    await screen.findByText("Çöp salı günü.");
+    await screen.findByText(/Lixus AI$/); // bot sender label ("🤖 Lixus AI"), not the header title
+  });
+
+  it("shows the branded assistant title (never an internal property name)", async () => {
+    setupFetch([]);
+    render(<GuestChat token="t" />);
+    // The header shows the fixed brand — the guest page no longer has any prop
+    // through which a host's private Property.name could ever be rendered.
+    await screen.findByText("Lixus AI Misafir Asistanı");
+    // The AI-disclosure notice appears ONCE under the title (not per message).
+    await screen.findByText(/Gerektiğinde işletme ekibi görüşmeye katılabilir/);
+  });
+
+  it("shows a friendly error when the POST fails", async () => {
+    const fn = vi.fn((_url: string, opts?: RequestInit) => {
+      const method = opts?.method ?? "GET";
+      if (method === "GET") return Promise.resolve({ ok: true, json: async () => ({ open: true, messages: [] }) });
+      return Promise.resolve({ ok: false, json: async () => ({}) });
+    });
+    vi.stubGlobal("fetch", fn);
+    render(<GuestChat token="t" />);
+
+    typeAndSend("merhaba");
+
+    await screen.findByText(/yanıt veremiyorum/);
+  });
+
+  it("PIN gate: shows the PIN entry when the server requires it, then unlocks", async () => {
+    // GET reports pinRequired until an unlock POST succeeds; then GET returns the thread.
+    let unlocked = false;
+    const fn = vi.fn((_url: string, opts?: RequestInit) => {
+      const method = opts?.method ?? "GET";
+      if (method === "GET") {
+        return unlocked
+          ? Promise.resolve({ ok: true, status: 200, json: async () => ({ open: true, messages: [{ id: "a1", role: "ai", text: "Hoş geldiniz." }] }) })
+          : Promise.resolve({ ok: true, status: 200, json: async () => ({ open: true, pinRequired: true, messages: [] }) });
+      }
+      // POST unlock
+      const body = JSON.parse(String(opts!.body)) as { pin?: string };
+      if (body.pin === "123456") {
+        unlocked = true;
+        return Promise.resolve({ ok: true, status: 200, json: async () => ({ unlocked: true }) });
+      }
+      return Promise.resolve({ ok: true, status: 200, json: async () => ({ pinRequired: true, pinError: true }) });
+    });
+    vi.stubGlobal("fetch", fn);
+    render(<GuestChat token="tok" />);
+
+    // PIN entry visible.
+    const input = await screen.findByPlaceholderText("Giriş kodu");
+    // Wrong PIN → generic error.
+    fireEvent.change(input, { target: { value: "000000" } });
+    fireEvent.click(screen.getByRole("button", { name: /Sohbeti aç/ }));
+    await screen.findByText(/Kod hatalı/);
+    // Correct PIN → unlocks and the chat thread loads.
+    fireEvent.change(screen.getByPlaceholderText("Giriş kodu"), { target: { value: "123456" } });
+    fireEvent.click(screen.getByRole("button", { name: /Sohbeti aç/ }));
+    await screen.findByText("Hoş geldiniz.");
+    const postPin = fn.mock.calls.find((c) => {
+      const b = (c[1] as RequestInit | undefined)?.body;
+      return b && JSON.parse(String(b)).pin === "123456";
+    });
+    expect(postPin).toBeTruthy();
+  });
+
+  it("PIN gate: too many attempts shows a rate-limit message", async () => {
+    const fn = vi.fn((_url: string, opts?: RequestInit) => {
+      const method = opts?.method ?? "GET";
+      if (method === "GET") return Promise.resolve({ ok: true, status: 200, json: async () => ({ open: true, pinRequired: true, messages: [] }) });
+      return Promise.resolve({ ok: false, status: 429, json: async () => ({}) });
+    });
+    vi.stubGlobal("fetch", fn);
+    render(<GuestChat token="t" />);
+    fireEvent.change(await screen.findByPlaceholderText("Giriş kodu"), { target: { value: "111111" } });
+    fireEvent.click(screen.getByRole("button", { name: /Sohbeti aç/ }));
+    await screen.findByText(/Çok fazla deneme/);
+  });
+});

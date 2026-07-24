@@ -1,0 +1,72 @@
+import { type NextRequest } from "next/server";
+import {
+  requireSession,
+  unauthorized,
+  forbidden,
+  serverError,
+  canManage,
+  type SessionPayload,
+} from "@/lib/api";
+
+// ---------------------------------------------------------------------------
+// Route auth wrappers. Fold the repeated preamble — requireSession → 401, the
+// owner/manager gate, and try/catch → serverError (Sentry) — into one place so
+// the SAFE path is the default and a route author can't forget a step.
+//
+// IMPORTANT: these are AUTH-only. They inject the (non-null) session but do NOT
+// org-scope anything — every handler still carries its own
+// `organizationId: session.organizationId` / `propertyInOrg` / findFirst gate
+// (tenant isolation stays where the query is). Do NOT wrap public/secret routes
+// (webhooks, cron, health, token routes), super-admin routes, or routes with a
+// custom gate — they keep guarding themselves.
+//
+// Kept in a SEPARATE module (not api.ts) on purpose: withAuth imports
+// requireSession from @/lib/api as a cross-module reference, so a test that
+// `vi.mock("@/lib/api", { requireSession })` is still honoured through the
+// wrapper. (An intra-module call inside api.ts would bypass that mock.)
+// ---------------------------------------------------------------------------
+type RouteCtx<P> = { params: Promise<P> };
+
+type AuthedHandler<P> = (
+  session: SessionPayload,
+  req: NextRequest,
+  ctx: RouteCtx<P>,
+) => Promise<Response> | Response;
+
+/** Require a valid session; inject it, capture unexpected throws → 500 (Sentry).
+ *  `ctx` is REQUIRED (Next's route-type validation demands a non-optional second
+ *  parameter for dynamic segments). Next always passes it; tests that invoke a
+ *  handler directly must pass it too (e.g. `{ params: Promise.resolve({}) }` for
+ *  a collection route). */
+export function withAuth<P = Record<string, never>>(handler: AuthedHandler<P>) {
+  return async (req: NextRequest, ctx: RouteCtx<P>): Promise<Response> => {
+    const session = await requireSession();
+    if (!session) return unauthorized();
+    try {
+      return await handler(session, req, ctx);
+    } catch (err) {
+      return serverError(undefined, err);
+    }
+  };
+}
+
+/** withAuth + the owner/manager gate (config & destructive actions). */
+export function withManage<P = Record<string, never>>(handler: AuthedHandler<P>) {
+  return withAuth<P>((session, req, ctx) => {
+    if (!canManage(session)) return forbidden();
+    return handler(session, req, ctx);
+  });
+}
+
+/** withAuth + the OWNER-only gate (stricter than withManage). Billing/payment and
+ *  legally-loaded actions are an account-owner concern — a manager gets 403. The
+ *  UI already hides these surfaces from non-owners, so this closes the gap where a
+ *  manager could reach the route directly. (An owner-only route with its own
+ *  feature-gate that must run FIRST, e.g. the erasure route, keeps its inline
+ *  `role !== "owner"` check after the gate instead of using this.) */
+export function withOwner<P = Record<string, never>>(handler: AuthedHandler<P>) {
+  return withAuth<P>((session, req, ctx) => {
+    if (session.role !== "owner") return forbidden();
+    return handler(session, req, ctx);
+  });
+}

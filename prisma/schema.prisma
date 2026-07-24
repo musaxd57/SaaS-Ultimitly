@@ -1,0 +1,1025 @@
+// Lixus AI - Prisma schema
+// ----------------------------------------------------------------------------
+// PostgreSQL (Railway). Conventions kept portable + simple:
+//   * "enum-like" fields are plain Strings, validated in the app layer (Zod).
+//   * JSON payloads are stored as String (JSON.stringify / JSON.parse).
+// Deploy applies REAL migrations at boot via `prisma migrate deploy` (see
+// Dockerfile + docs/MIGRATION_CUTOVER.md). RULE: every schema edit needs a
+// migration file (prisma migrate diff), verified on a throwaway Postgres.
+// Never add a `@unique`/required-no-default column to a POPULATED table.
+// ----------------------------------------------------------------------------
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+// Cross-instance mutex. A holder writes a future `lockedUntil`; others can only
+// acquire once that time has passed (or the holder releases by resetting it),
+// so the scheduled sync runs once at a time even across multiple replicas.
+model SystemLock {
+  name        String   @id
+  lockedUntil DateTime
+  // Fencing token: a random value written by whoever currently holds the lock.
+  // releaseLock only clears the row when this still matches its own token, so a
+  // run that overran the TTL can't wipe the lock a newer run has since taken.
+  holder      String?
+  updatedAt   DateTime @updatedAt
+}
+
+// Distributed fixed-window rate-limit counters (multi-replica safe; replaces the
+// per-instance in-memory map as the AUTHORITY — memory stays as DB-error fallback).
+// One row per active key; hits are a single atomic INSERT ... ON CONFLICT upsert
+// on the DB clock. Expired rows are reset in place on next hit and swept by the
+// scheduled sync. No FK on purpose: keys span orgs, IPs and users.
+model RateLimitCounter {
+  key     String   @id
+  count   Int
+  resetAt DateTime
+
+  @@index([resetAt])
+}
+
+// Public "request a demo / free trial" leads captured from the marketing landing
+// page (no account yet). The operator reviews these in the Operator Panel.
+model Lead {
+  id         String    @id @default(cuid())
+  name       String
+  email      String
+  phone      String?
+  message    String?
+  handled    Boolean   @default(false)
+  // Mini sales pipeline (operator panel): new → contacted → demo → won | lost.
+  status     String    @default("new")
+  note       String? // operator's follow-up note
+  followUpAt DateTime? // when to get back to this lead
+  consentAt  DateTime? // KVKK açık rıza zaman damgası (onay kutusu işaretlendiğinde)
+  createdAt  DateTime  @default(now())
+
+  @@index([createdAt])
+}
+
+model Organization {
+  id                         String    @id @default(cuid())
+  name                       String
+  plan                       String    @default("free") // free | pro | business
+  timezone                   String    @default("Europe/Istanbul")
+  language                   String    @default("tr") // default UI/AI language
+  // Where this org's urgent complaint/refund alert e-mails go. Per-tenant: each
+  // customer sets their OWN address. Falls back to the ALERT_EMAIL env when null.
+  alertEmail                 String?
+  // Per-tenant automation prefs (each customer controls their own):
+  //  - autoReplyDisclosure: append the "(machine-prepared)" note to AUTO sends.
+  //  - handoffHoldHours: hours the AI stays silent after a guest asks for a human.
+  autoReplyDisclosure        Boolean   @default(true)
+  handoffHoldHours           Int       @default(12)
+  // Tier-2 "holding acknowledgement": when ON, a MILD complaint (no money/legal/
+  // safety/threat signals) gets one immediate, deterministic non-committal ack
+  // ("passed to our host, sharing a detail helps") while STILL escalating to the
+  // host as before. OPT-IN per org, default OFF — the landing promise ("complaints
+  // are never auto-answered") stays true unless the host knowingly enables this.
+  autoHoldingReplyEnabled    Boolean   @default(false)
+  // Opt-in courtesy reply to a bare closing "teşekkürler / thanks / 👍" (default OFF =
+  // today's behavior: such closings are silently skipped). When ON, ONE deterministic
+  // "you're welcome" line goes out in the guest's language — never twice in a row
+  // (a thanks to the courtesy itself is always left alone, so no pleasantry ping-pong).
+  autoClosingReplyEnabled    Boolean   @default(false)
+  // Host-written courtesy line (optional). When set, it is sent VERBATIM for every
+  // closing regardless of the guest's language (the host owns the words); when
+  // null/empty, the built-in short per-language default goes out ("Rica ederiz!").
+  closingReplyText           String?
+  // Host-written late-checkout / stay-extension offer (optional; opt-in by simply
+  // filling it in — empty = today's behavior where the AI never quotes a price and
+  // just defers to the host). When set, and ONLY when a guest actually asks about a
+  // late checkout / extending their stay, the AI MAY surface this offer (including
+  // any price the host wrote) as the host's standing terms — an explicit exception
+  // to the "never write a price" rule (Section 7.5), scoped to THIS host-owned text.
+  // The AI stays PAYMENT-METHOD-NEUTRAL (never says cash NOR "via the platform") and
+  // still routes the final confirmation to the host — the host arranges collection.
+  lateCheckoutOfferText      String?
+  // Smart operational-task routing (opt-in, default OFF): when ON, a guest message
+  // that escalates to the host AND carries a physical-operations signal
+  // (maintenance / restock / cleaning) also opens a deduped, SLA-dated task so the
+  // host can action it — not just a "problem" flag + email. Additive & reversible;
+  // OFF = today's behavior (escalation only, no task on the channel-sync path).
+  autoTaskFromMessageEnabled Boolean   @default(false)
+  // Opt-in (default OFF): when a guest message EXPLICITLY asks for extra linen/towels,
+  // add +1 to that property's prep plan. Off = the detector never runs. Kept opt-in
+  // because message parsing is imperfect — the host chooses to trust it.
+  autoSupplyRequestEnabled   Boolean   @default(false)
+  // iCal privacy: the public per-property calendar feed (subscribed to by Airbnb/
+  // Booking/Google Calendar) HIDES the guest's name by default — KVKK data
+  // minimization, the feed only needs busy/free dates. A host who wants the name
+  // in their own calendar can opt in. Applies to every property feed of the org.
+  icalShowGuestName          Boolean   @default(false)
+  // QR concierge PIN — STRICT mode (Faz 5, #14; opt-in, default OFF). When OFF, a
+  // stay requires a PIN only if the host generated one for THAT reservation
+  // (gentle opt-in, no surprise). When ON, EVERY not-yet-claimed stay requires a
+  // PIN — a reservation with no PIN is fail-closed (chat locked until the host
+  // generates one), fully closing the turnover / wrong-scanner gap. Only takes
+  // effect while the global QR_PIN_ENABLED env switch is on.
+  qrChatPinRequired          Boolean   @default(false)
+  // When true, safe/high-confidence channel (Airbnb / Booking via Hospitable)
+  // guest messages are auto-answered; gated to active-hours window in org timezone.
+  // Complaints and risky messages always wait for a human.
+  autoReplyHospitable        Boolean   @default(false)
+  autoReplyStartHour         Int       @default(0) // window start hour 0-23 (inclusive)
+  autoReplyEndHour           Int       @default(9) // window end hour 0-23 (exclusive)
+  aiReplyTone                String    @default("warm") // AI reply tone: formal | warm | short | luxury
+  aiSignature                String? // optional sign-off appended to every AI reply (host name + contact)
+  autoWelcome                Boolean   @default(false) // send the per-apartment welcome message on reservation confirmation
+  autoCheckin                Boolean   @default(false) // send the per-apartment check-in info message a few days before arrival
+  autoCheckout               Boolean   @default(false) // send the per-apartment check-out message on departure day (08:00)
+  autoReplyEnabledAt         DateTime? // when night auto-reply was last switched on (only answer messages after this)
+  autoWelcomeEnabledAt       DateTime? // when welcome was switched on (only greet bookings created after this — never the backlog)
+  autoCheckinEnabledAt       DateTime? // when check-in info was switched on (only message bookings created after this)
+  autoCheckoutEnabledAt      DateTime? // when checkout was switched on (only message bookings created after this)
+  aiStyleProfile             String? // distilled guide of the host's own reply style, learned from past messages
+  aiStyleProfileAt           DateTime? // when the style profile was last refreshed (throttles regeneration)
+  // Per-customer Hospitable connection (multi-tenant). Each org connects its OWN
+  // Hospitable account; the Personal Access Token is stored ENCRYPTED here (see
+  // lib/crypto). Null = not connected — the "primary" org may instead fall back
+  // to the global HOSPITABLE_API_TOKEN env (see lib/hospitable-credentials).
+  hospitableTokenEnc         String?
+  hospitableLabel            String? // human label for the connected account (e.g. "8 mülk")
+  hospitableConnectedAt      DateTime? // when this org connected its own Hospitable token
+  // OAuth-connected orgs only (the "Hospitable ile Bağlan" flow). A pasted PAT
+  // never expires, so these stay null for PAT connections — getOrgHospitableToken
+  // treats null hospitableTokenExpiresAt as "doesn't expire" (existing behavior,
+  // unchanged) and only refreshes when this is set and in the past.
+  hospitableRefreshTokenEnc  String? // encrypted OAuth refresh token
+  hospitableTokenExpiresAt   DateTime? // when hospitableTokenEnc's access token expires
+  // On-hand supply stock { supplyItemKey: qty } — subtracted from the prep plan so
+  // /hazirlik shows the NET shortfall ("net alınacak") instead of the gross need.
+  // Null/empty = not tracked → plan shows gross (today's behavior). Org-level: a
+  // host buys supplies centrally, so stock is a single pool, not per-apartment.
+  supplyStockJson            String?
+  createdAt                  DateTime  @default(now())
+  updatedAt                  DateTime  @updatedAt
+
+  users             User[]
+  riskEvents        RiskEvent[]
+  shadowVerdicts    ShadowVerdict[]
+  erasureTombstones ErasureTombstone[]
+  messageOutbox     MessageOutbox[]
+  properties        Property[]
+  automationRules   AutomationRule[]
+  auditLogs         AuditLog[]
+  messageTemplates  MessageTemplate[]
+  subscription      Subscription?
+  invoices          Invoice[]
+  checkoutConsents  CheckoutConsent[]
+}
+
+model User {
+  id                    String    @id @default(cuid())
+  organizationId        String
+  name                  String
+  email                 String    @unique
+  passwordHash          String
+  role                  String    @default("owner") // owner | manager | staff
+  // Two-factor auth (TOTP / authenticator app). Secret stored ENCRYPTED (see
+  // lib/crypto). 2FA is ACTIVE only once twoFactorEnabledAt is set (after the
+  // user confirms a first code), so a half-finished setup never locks anyone out.
+  twoFactorSecret       String?
+  twoFactorEnabledAt    DateTime?
+  // Last accepted TOTP time-step — rejects replay of an already-used code.
+  twoFactorLastStep     Int?
+  // Password-change e-mail verification: a short-lived 8-digit code is e-mailed
+  // to the user and stored here HASHED (never plaintext). Changing the password
+  // requires entering the matching, unexpired code — it proves control of the
+  // inbox, so no current password is needed (and a stale logged-in session alone
+  // can no longer silently change the password).
+  pwChangeCodeHash      String?
+  pwChangeCodeExpiresAt DateTime?
+  pwChangeCodeAttempts  Int       @default(0)
+  // Forgot-password RESET (logged OUT) — separate from pwChangeCode* so a public
+  // reset request can never burn/overwrite a code the user is mid-using in Settings.
+  pwResetCodeHash       String?
+  pwResetCodeExpiresAt  DateTime?
+  pwResetCodeAttempts   Int       @default(0)
+  // E-mail verification (self-serve sign-up anti-bot). Null emailVerifiedAt = not
+  // yet verified. The link token is stored sha256-HASHED (deterministic so it can
+  // be looked up by hash). Existing users (created before EMAIL_VERIFY_REQUIRED_FROM)
+  // are NEVER gated at login, so this can't lock out the founder / current accounts.
+  emailVerifiedAt       DateTime?
+  emailVerifyTokenHash  String?
+  emailVerifyExpiresAt  DateTime?
+  // KVKK: when the user accepted Terms + Privacy at sign-up (informed-consent
+  // record). Nullable → existing accounts (created before the consent checkbox)
+  // stay valid and are never blocked.
+  acceptedTermsAt       DateTime?
+  // KVKK consent EVIDENCE (all nullable → existing accounts untouched, safe on a
+  // populated table). privacyAcceptedAt = the moment Privacy was accepted (same
+  // click as Terms today); acceptedLegalVersion = which legal-text release was
+  // shown (LEGAL_VERSION); acceptedIp/acceptedUserAgent = the request context at
+  // sign-up. Together they back an "I never accepted" dispute with a real record.
+  privacyAcceptedAt     DateTime?
+  acceptedLegalVersion  String?
+  // Tamper-evident companion to acceptedLegalVersion: a sha256 of the ACTUAL
+  // legal-page text at signup (see lib/legal-text-hash.ts), so a forgotten
+  // LEGAL_VERSION bump on a real text edit can't silently understate what the
+  // user saw. Nullable — existing accounts predate this field.
+  acceptedLegalTextHash String?
+  acceptedIp            String?
+  acceptedUserAgent     String?
+  // Session invalidation counter. Bumped on password change/reset → a stolen JWT
+  // (which carries the old value) stops matching, so it dies within one request
+  // instead of surviving up to 14 days. Defaulted → db-push safe + no mass-logout
+  // on deploy (existing users + legacy tokens both read 0).
+  sessionEpoch          Int       @default(0)
+  createdAt             DateTime  @default(now())
+  updatedAt             DateTime  @updatedAt
+
+  organization     Organization            @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  assignedTasks    Task[]                  @relation("TaskAssignee")
+  taskUpdates      TaskUpdate[]
+  auditLogs        AuditLog[]
+  checkoutConsents CheckoutConsent[]
+  recoveryCodes    TwoFactorRecoveryCode[]
+  emailOutbox      EmailOutbox[]
+
+  @@index([organizationId])
+  // verify-email looks a user up BY token hash on every emailed-link click —
+  // that was a full-table scan (rate-limited, but still). Plain index, not
+  // unique: 256-bit random values collide never; uniqueness isn't the contract.
+  @@index([emailVerifyTokenHash])
+}
+
+// 2FA recovery codes (Codex #20). One row per single-use code, stored as a
+// sha256 HASH — the plaintext exists only in the generation response (shown
+// once). Atomic burn = conditional updateMany on usedAt (TOTP-burn pattern).
+// Regeneration deletes the user's old rows first (old codes die together).
+// Cascade: User is deleted via the Organization cascade on erasure → these
+// rows follow automatically. NEW table → zero risk to populated tables.
+model TwoFactorRecoveryCode {
+  id        String    @id @default(cuid())
+  userId    String
+  codeHash  String // sha256(hex) of the normalized code — NEVER the plaintext
+  createdAt DateTime  @default(now())
+  usedAt    DateTime? // single-use: set atomically on consume; non-null = dead
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@unique([userId, codeHash])
+  @@index([userId])
+}
+
+model Property {
+  id                    String   @id @default(cuid())
+  organizationId        String
+  name                  String
+  address               String?
+  city                  String?
+  country               String?
+  checkInTime           String   @default("15:00")
+  checkOutTime          String   @default("11:00")
+  cleaningBufferMinutes Int      @default(120)
+  notes                 String?
+  // Supply/linen prep profile: JSON object { supplyItemKey: qtyPerArrival } the host
+  // fills once (e.g. {"carsaf_takimi":2,"havlu":4,"cop_poseti":2}). Drives the
+  // deterministic prep/shopping plan (arrivals-in-range × this). Null = not set →
+  // the property is nudged in the plan but blocks nothing. Additive & nullable.
+  supplyProfileJson     String?
+  icalToken             String?  @unique // secret token for the public iCal export feed
+  chatToken             String? // secret token for the public guest QR concierge chat (random 2×UUID → app-level unique; NOT a DB @unique, which would break `db push` on a populated table)
+  chatEnabled           Boolean  @default(false) // per-apartment master switch for the public chat (off by default)
+  hospitableId          String?  @unique // linked Hospitable property UUID (channel sync)
+  createdAt             DateTime @default(now())
+  updatedAt             DateTime @updatedAt
+
+  organization     Organization        @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  reservations     Reservation[]
+  conversations    Conversation[]
+  tasks            Task[]
+  knowledgeBase    KnowledgeBaseItem[]
+  messageTemplates MessageTemplate[]
+  supplyRequests   SupplyRequest[]
+  calendarSources  CalendarSource[]
+
+  @@index([organizationId])
+  // Public QR concierge chat resolves a property by its secret chatToken on every
+  // guest message; index that lookup (chatToken is app-level unique, not a DB
+  // @unique — see the field comment — so a plain index is the right tool).
+  @@index([chatToken])
+}
+
+// Durable per-apartment daily counter for PAID guest-chat AI calls. The in-memory
+// limiter resets on every restart (and isn't shared across replicas), so an
+// attacker holding one QR token could re-trigger the cap each boot; this DB-backed
+// counter bounds the spend to a true daily cap. One tiny row per apartment/day.
+model ChatUsage {
+  propertyId String
+  day        String // YYYY-MM-DD (UTC) rate window
+  count      Int      @default(0)
+  updatedAt  DateTime @updatedAt
+
+  @@id([propertyId, day])
+  @@index([day]) // optional housekeeping: prune old windows
+}
+
+// A subscribed external iCal URL (Airbnb, Booking.com, etc.) that is fetched
+// periodically to pull reservations into the property automatically.
+model CalendarSource {
+  id                 String    @id @default(cuid())
+  propertyId         String
+  label              String // "Airbnb", "Booking.com", "Etstur" ...
+  url                String
+  lastSyncedAt       DateTime?
+  lastStatus         String? // "ok" | "error"
+  lastResult         String? // human-readable summary of the last sync
+  // Feed-disappearance reconciliation state (migration 31, nullable-first, flag-gated).
+  // lastFeedEventCount = # of UIDs in the last RELIABLE feed (suspicious-drop guard baseline);
+  // lastReconcileAt = fetch-start of the last reliable reconciliation (stale-run ordering: a
+  // slower older run never overwrites a newer one's result).
+  lastFeedEventCount Int?
+  lastReconcileAt    DateTime?
+  createdAt          DateTime  @default(now())
+  updatedAt          DateTime  @updatedAt
+
+  property Property @relation(fields: [propertyId], references: [id], onDelete: Cascade)
+
+  @@index([propertyId])
+}
+
+model Reservation {
+  id                         String    @id @default(cuid())
+  propertyId                 String
+  guestName                  String
+  guestPhone                 String?
+  guestEmail                 String?
+  guestExternalId            String? // Hospitable stable guest id — links the SAME person across stays (returning-guest)
+  arrivalDate                DateTime
+  departureDate              DateTime
+  channel                    String    @default("manual") // manual | airbnb | booking | direct | other
+  status                     String    @default("confirmed") // pending | confirmed | cancelled | completed
+  totalAmount                Float?
+  // Faz-A shadow (Codex #26, expand/contract): authoritative-in-waiting Decimal
+  // twin of totalAmount. Dual-written by every writer; readers prefer this and
+  // fall back to the Float. The Float column is NOT dropped/renamed in this
+  // phase (old deployments keep writing it during cutover; a deep-sync healing
+  // pass backfills any Float-only rows). Faz B/C: flip reads to Dec-only, then
+  // drop the Float — separate, later round.
+  totalAmountDec             Decimal?  @db.Decimal(12, 2)
+  currency                   String    @default("EUR")
+  sourceReference            String?
+  notes                      String?
+  welcomeSentAt              DateTime? // set once the auto welcome message has been delivered
+  checkinSentAt              DateTime? // set once the auto check-in info message has been delivered
+  checkoutSentAt             DateTime? // set once the auto check-out message has been delivered
+  // Feed-disappearance reconciliation (migration 31, nullable-first, flag-gated, source-bound).
+  // A confirmed/pending future stay bound to a calendar source whose UID vanishes from CONSECUTIVE
+  // RELIABLE feed runs is a candidate for upstream-cancel — but only after BOTH a miss-count
+  // threshold AND a minimum wall-clock duration, and reset the moment it reappears.
+  feedLastSeenAt             DateTime? // last reliable feed run that still contained this UID
+  feedMissingCount           Int? //      consecutive reliable runs missing it (NULL = 0)
+  feedFirstMissingAt         DateTime? // when the current missing streak began (min-duration anchor)
+  guestCheckoutTime          String? // guest's own stated departure time (e.g. "18:00"); null → use property default
+  // Per-stay QR concierge device binding: the FIRST device to open the chat this
+  // stay claims it (sha256 of an httpOnly per-stay secret). Any other device
+  // scanning the same fixed physical QR gets no history — so a past guest/cleaner
+  // holding the QR photo can't read the current guest's chat. Rotates per stay
+  // (each reservation starts null → rebinds fresh). Pseudonymous technical
+  // identifier (hash + timestamp, no direct identity) — KVKK classification
+  // pending legal confirmation (see docs/saklama-ve-imha-politikasi.md).
+  chatBoundHash              String? // sha256(hex) of the current stay's device secret; null = unbound
+  chatBoundAt                DateTime? // when this stay's chat was first claimed by a device
+  // QR escalation e-mail claim (Codex #15): the atomic send-claim for the LAST
+  // escalated QR-chat message the host was e-mailed about. Dedupe is bound to
+  // the EVENT (triggering Message id) — the same message can never double-mail,
+  // while a genuinely new incident always alerts; the timestamp adds only a
+  // SHORT anti-flood cooldown (minutes, not hours). Both nullable → populated-
+  // table safe; the whole feature is env-gated (default OFF).
+  qrEscalationEmailAt        DateTime?
+  qrEscalationEmailMessageId String? // inbound Message id of the last alerted event
+  // Per-reservation QR concierge PIN (Faz 5, #14). The host generates a PIN and
+  // gives it to the booked guest (e.g. in the check-in message); the guest must
+  // enter it to CLAIM this stay's chat on their device — closing the "cleaner /
+  // past guest / neighbour scans the fixed QR" gap that first-scan device
+  // binding alone left open. Stored as an HMAC(server pepper, reservationId:PIN)
+  // — NEVER the plaintext PIN — so a DB read can't recover or offline-brute-force
+  // a low-entropy PIN (the pepper is a server secret, not in the DB). The whole
+  // feature is env-gated (QR_PIN_ENABLED, default OFF); all fields nullable /
+  // defaulted → populated-table safe, old deployments ignore them.
+  chatPinHash                String? // HMAC-SHA256 hex of the current PIN; null = no PIN set
+  chatPinSetAt               DateTime? // when the PIN was last (re)generated — regeneration overwrites the hash, instantly invalidating the old PIN
+  chatPinFailedCount         Int       @default(0) // durable wrong-PIN counter (brute-force lockout; survives restarts + is multi-replica atomic)
+  chatPinLockedUntil         DateTime? // when set & in the future, PIN entry is locked (too many wrong attempts)
+  // Which iCal CalendarSource imported this row (plain id, no FK — a deleted
+  // source simply leaves rows unbound). Feed reconciliation may ONLY cancel rows
+  // bound to the SAME source: without this, a feed cancelled every same-channel
+  // booking it had never seen (other feeds, Hospitable) — mass-cancel (Codex).
+  calendarSourceId           String?
+  createdAt                  DateTime  @default(now())
+  updatedAt                  DateTime  @updatedAt
+
+  property       Property        @relation(fields: [propertyId], references: [id], onDelete: Cascade)
+  conversations  Conversation[]
+  tasks          Task[]
+  supplyRequests SupplyRequest[]
+
+  // Sync de-dup looks up (propertyId, sourceReference) once per reservation on
+  // every 2-min cron — index it so that's a seek, not a per-row scan.
+  // UNIQUE (was a plain index): one provider/feed reference = one reservation
+  // row per property (prod pre-verified duplicate-free after the 114-pair merge).
+  // NULL sourceReference (manual rows) stays distinct/unconstrained.
+  @@unique([propertyId, sourceReference])
+  @@index([propertyId])
+  @@index([arrivalDate])
+  @@index([departureDate]) // checkout / cleaning / report queries filter by this
+  @@index([guestExternalId]) // returning-guest lookup by the stable guest id
+  // Org-scoped date-range report aggregates (occupancy / forecast) filter by
+  // property AND a date window; composite indexes let those seek instead of
+  // scanning the global date index and discarding other orgs' rows at scale.
+  @@index([propertyId, arrivalDate])
+  @@index([propertyId, departureDate])
+}
+
+model Conversation {
+  id                     String    @id @default(cuid())
+  propertyId             String
+  reservationId          String?
+  channel                String    @default("manual") // manual | whatsapp | email | airbnb | booking
+  guestIdentifier        String // name / phone / email used to address the guest
+  status                 String    @default("new") // new | waiting | answered | problem | closed
+  priority               String    @default("standard") // urgent | standard | low
+  lastMessageAt          DateTime  @default(now())
+  // Sync skip-check cursor: the provider's reservation.last_message_at as of our
+  // last successful import. WRITTEN ONLY by the message-sync (hospitable-sync),
+  // never by outbound paths — so it can't be polluted with wall-clock now() the
+  // way lastMessageAt is (which caused a fetch→reply-window guest message to be
+  // wrongly skipped = message loss). Nullable → db-push/backfill safe (null =
+  // "never synced" → import, never skip). Independent of any message's created_at.
+  syncCursorAt           DateTime?
+  // Channel-provider identifiers (e.g. Hospitable) used to sync messages and
+  // send replies back on the original channel (Airbnb, Booking, ...).
+  externalReservationId  String? // Hospitable reservation UUID (reply target)
+  externalConversationId String? // Hospitable conversation UUID
+  // When set & in the future, auto-reply is paused for this thread — the guest
+  // asked to speak to a human, so we hand off and let the host take over.
+  autoReplyHoldUntil     DateTime?
+  // Last time the channel auto-reply pass MODELED this thread and left it "new"
+  // (low confidence / globally disabled). Used to skip re-spending a model call on
+  // the same unchanged message every tick; a new guest message advances
+  // lastMessageAt past this, making the thread eligible again. Nullable → db-push safe.
+  autoReplyAttemptedAt   DateTime?
+  // Risk visibility (Faz-A): why the AI last held back on this thread (stable
+  // per-message reasons only: escalated_to_human | complaint |
+  // low_confidence_or_risky | closing_ack | human_hold | reservation_ended;
+  // null after a successful auto-send) + the model's last risk verdict.
+  skippedReason          String?
+  lastRiskLevel          String?
+  // Faz-B: WHY risky (closed label set, code-clamped) — reports/inbox only.
+  lastRiskType           String?
+  createdAt              DateTime  @default(now())
+  updatedAt              DateTime  @updatedAt
+
+  property    Property     @relation(fields: [propertyId], references: [id], onDelete: Cascade)
+  reservation Reservation? @relation(fields: [reservationId], references: [id], onDelete: SetNull)
+  messages    Message[]
+
+  @@index([propertyId])
+  @@index([status])
+  @@index([externalReservationId])
+  @@index([lastMessageAt]) // inbox is ordered by recency
+  // Composite for the hot path: inbox/dashboard/cron filter by status and sort
+  // by lastMessageAt within an org's properties (one index instead of filter+sort).
+  @@index([propertyId, status, lastMessageAt])
+}
+
+model Message {
+  id               String   @id @default(cuid())
+  conversationId   String
+  direction        String // inbound | outbound
+  senderName       String
+  body             String
+  language         String   @default("tr")
+  aiSuggestedReply String?
+  aiConfidence     Float?
+  aiIntent         String?
+  // Faz-B evidence: JSON array of the sources the AI grounded this reply on
+  // (e.g. ["kb:wifi","property:checkInTime"]). Auto-sends only; audit trail.
+  aiSourcesJson    String?
+  externalId       String? // provider message id (e.g. Hospitable) — sync dedup
+  // True when this outbound reply was drafted by the AI and approved by a human
+  // (one-click "Onayla ve gönder"). Lets reports credit host-approved AI replies,
+  // not only fully-automatic "GuestOps AI" sends. Defaulted → db-push safe.
+  aiAssisted       Boolean  @default(false)
+  // Canonical, typed authorship (migration 28): guest | ai | host | system. This is
+  // the RELIABLE classifier — senderName above is DISPLAY/AUDIT only and must never
+  // drive a security/state decision. systemEventType names a closed system event when
+  // authorType = system (e.g. guest_chat_ai_resumed). NULLABLE: additive on a
+  // populated table + old-deployment INSERT compat; new code dual-writes it and reads
+  // prefer it (deriveMessageAuthor is the transitional fallback for any NULL row).
+  authorType       String?
+  systemEventType  String?
+  createdAt        DateTime @default(now())
+
+  conversation Conversation @relation(fields: [conversationId], references: [id], onDelete: Cascade)
+
+  // UNIQUE (was a plain index): the DB is now the dedupe arbiter for imported
+  // provider messages — racing syncs get P2002 (treated as dedupe-hit in code).
+  // NULL externalId (pre-heal app sends) stays distinct/unconstrained.
+  @@unique([conversationId, externalId])
+  @@index([conversationId])
+  @@index([conversationId, createdAt]) // fetch a thread's latest message fast
+}
+
+model Task {
+  id              String    @id @default(cuid())
+  propertyId      String
+  reservationId   String?
+  type            String    @default("cleaning") // cleaning | laundry | restock | checkin_prep | checkout_review | maintenance
+  title           String
+  description     String?
+  assignedToId    String?
+  dueAt           DateTime?
+  status          String    @default("todo") // todo | in_progress | awaiting_review | done
+  priority        String    @default("standard") // urgent | standard | low
+  checklistJson   String? // JSON-encoded array of { label, done }
+  // Smart-task routing (Faz A): the guest Message this task was auto-created from
+  // (audit trail; plain id, no FK — the message may be swept by KVKK retention),
+  // and an intra-day dedupe key "{propertyId}:{type}:{YYYY-MM-DD Istanbul}" so
+  // repeated messages about the same issue on the same day don't pile up. Both
+  // null for manually-created and reservation-lifecycle tasks.
+  sourceMessageId String?
+  dedupeKey       String?
+  // Who created this task: manual (host) | system (reservation lifecycle:
+  // checkin_prep/cleaning) | ai (message-driven: smart-task / complaint).
+  // Cancellation cleanup deletes ONLY origin="system" — a host's own task tied
+  // to a reservation must survive the booking being cancelled. DB default is
+  // "manual" (fail-safe: an unstamped row is PROTECTED from auto-deletion).
+  origin          String    @default("manual")
+  createdAt       DateTime  @default(now())
+  updatedAt       DateTime  @updatedAt
+
+  property    Property     @relation(fields: [propertyId], references: [id], onDelete: Cascade)
+  reservation Reservation? @relation(fields: [reservationId], references: [id], onDelete: SetNull)
+  assignedTo  User?        @relation("TaskAssignee", fields: [assignedToId], references: [id], onDelete: SetNull)
+  updates     TaskUpdate[]
+
+  @@index([propertyId])
+  @@index([status])
+  @@index([assignedToId])
+  // createReservationTasks / backfill look up tasks by reservationId per row.
+  @@index([reservationId])
+  // Smart-task dedupe lookup: findFirst by dedupeKey among non-done tasks.
+  @@index([dedupeKey])
+}
+
+// A guest's one-off extra-supply request ("bir havlu daha alabilir miyim?") picked
+// up from an inbound message. Added to the prep plan so the host prepares the extra
+// item. Deduped per triggering message (sourceMessageId). A NEW table → zero risk to
+// existing tables; cascades away with the property, reservation link SetNull.
+model SupplyRequest {
+  id              String   @id @default(cuid())
+  propertyId      String
+  reservationId   String?
+  itemKey         String // one of the SUPPLY_ITEMS keys
+  qty             Int      @default(1)
+  sourceMessageId String? // the inbound Message it was detected from (dedup)
+  createdAt       DateTime @default(now())
+
+  property    Property     @relation(fields: [propertyId], references: [id], onDelete: Cascade)
+  reservation Reservation? @relation(fields: [reservationId], references: [id], onDelete: SetNull)
+
+  // DB-level dedup backstop (new table → safe): one request per (message, item).
+  // Postgres treats NULL sourceMessageId as distinct, so manual/no-message rows
+  // never collide. Makes the app-level findFirst race-proof.
+  @@unique([sourceMessageId, itemKey])
+  @@index([propertyId, createdAt])
+}
+
+model TaskUpdate {
+  id        String   @id @default(cuid())
+  taskId    String
+  userId    String?
+  status    String?
+  note      String?
+  photoUrl  String?
+  createdAt DateTime @default(now())
+
+  task Task  @relation(fields: [taskId], references: [id], onDelete: Cascade)
+  user User? @relation(fields: [userId], references: [id], onDelete: SetNull)
+
+  @@index([taskId])
+}
+
+model KnowledgeBaseItem {
+  id         String   @id @default(cuid())
+  propertyId String
+  category   String   @default("general") // location | checkin | wifi | rules | parking | trash | cleaning | faq | local_tips | general
+  title      String
+  content    String
+  language   String   @default("tr")
+  isActive   Boolean  @default(true)
+  createdAt  DateTime @default(now())
+  updatedAt  DateTime @updatedAt
+
+  property Property @relation(fields: [propertyId], references: [id], onDelete: Cascade)
+
+  @@index([propertyId])
+  @@index([category])
+}
+
+model AutomationRule {
+  id             String   @id @default(cuid())
+  organizationId String
+  name           String
+  triggerType    String // reservation_created | checkout_completed | message_received | complaint_detected
+  conditionJson  String? // JSON-encoded condition
+  actionJson     String // JSON-encoded action
+  isEnabled      Boolean  @default(true)
+  createdAt      DateTime @default(now())
+  updatedAt      DateTime @updatedAt
+
+  organization Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+
+  @@index([organizationId])
+}
+
+model AuditLog {
+  id             String   @id @default(cuid())
+  organizationId String
+  actorUserId    String?
+  action         String
+  metadataJson   String?
+  createdAt      DateTime @default(now())
+
+  organization Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  actor        User?        @relation(fields: [actorUserId], references: [id], onDelete: SetNull)
+
+  @@index([organizationId])
+}
+
+// Distance-selling (Mesafeli Satış) consent EVIDENCE captured at CHECKOUT — the
+// server-side counterpart to the client checkbox in paddle-plans.tsx. One row per
+// acceptance (repeatable: a user may go through checkout more than once), written
+// by /api/billing/consent right before Paddle's overlay opens. Mirrors AuditLog's
+// org+actor shape; cascades away with the org on erasure (like Invoice/Subscription).
+model CheckoutConsent {
+  id             String   @id @default(cuid())
+  organizationId String
+  userId         String? // who accepted (session user); SetNull if that user is later removed
+  planCode       String // plan being purchased at acceptance time
+  priceId        String // the exact Paddle price id shown
+  legalVersion   String // LEGAL_VERSION at acceptance — which text was accepted
+  // Tamper-evident companion to legalVersion (see lib/legal-text-hash.ts).
+  // Nullable — rows written before this field existed (the live Paddle test
+  // included) predate it.
+  legalTextHash  String?
+  ip             String? // server-derived (rightmost XFF), spoof-resistant
+  userAgent      String? // request UA, length-capped
+  createdAt      DateTime @default(now()) // = checkoutLegalAcceptedAt
+
+  organization Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  user         User?        @relation(fields: [userId], references: [id], onDelete: SetNull)
+
+  @@index([organizationId])
+}
+
+model MessageTemplate {
+  id             String   @id @default(cuid())
+  organizationId String
+  propertyId     String? // null = org-wide
+  category       String
+  title          String
+  body           String
+  language       String   @default("tr")
+  isActive       Boolean  @default(true)
+  createdAt      DateTime @default(now())
+  updatedAt      DateTime @updatedAt
+
+  organization Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  property     Property?    @relation(fields: [propertyId], references: [id], onDelete: Cascade)
+
+  @@index([organizationId])
+}
+
+// ---------------------------------------------------------------------------
+// Billing (Faz 2). ADDITIVE & DORMANT. These tables hold subscription/billing
+// state but NOTHING is paywalled until billing is *explicitly* enforced
+// (env BILLING_ENFORCED=true) AND existing orgs are backfilled as active.
+// Default behaviour (see lib/billing): an org with no Subscription row is
+// treated as grandfathered → active → unlimited, so live customers are never
+// blocked. New rows are only created by the (future) checkout flow.
+// ---------------------------------------------------------------------------
+
+// Catalog of available plans. Limits follow the roadmap (1–2 / 3–7 / 8+).
+model Plan {
+  id            String   @id @default(cuid())
+  code          String   @unique // free | pro | business (mirrors Organization.plan)
+  name          String
+  propertyLimit Int? // max properties; null = unlimited
+  priceMinor    Int      @default(0) // price in smallest unit (kuruş for TRY); 0 = free
+  currency      String   @default("TRY")
+  interval      String   @default("month") // month | year
+  isActive      Boolean  @default(true)
+  sortOrder     Int      @default(0)
+  createdAt     DateTime @default(now())
+  updatedAt     DateTime @updatedAt
+}
+
+// One subscription per organization (the billing source of truth).
+model Subscription {
+  id                String    @id @default(cuid())
+  organizationId    String    @unique
+  planCode          String    @default("free")
+  status            String    @default("active") // active | trialing | past_due | canceled | grandfathered
+  provider          String    @default("iyzico") // iyzico | paytr | paddle | trial | manual
+  providerRef       String? // provider's subscription reference
+  trialEndsAt       DateTime? // reverse-trial: when the free 14-day Pro trial ends
+  trialEndingSentAt DateTime? // "denemen bitiyor" reminder email sent at (idempotency)
+  trialEndedSentAt  DateTime? // "deneme bitti" email sent at (idempotency)
+  currentPeriodEnd  DateTime?
+  cancelAtPeriodEnd Boolean   @default(false)
+  // Stable anchor for the past_due dunning grace: set once on the first
+  // transition INTO past_due, cleared on any non-past_due status. Grace counts
+  // from here instead of the auto-bumping updatedAt (which every dunning webhook
+  // pushed forward, so the window never elapsed → unpaid orgs kept access).
+  pastDueSince      DateTime?
+  // occurred_at of the newest Paddle subscription event we've applied. A later
+  // event whose occurred_at is not newer is ignored, so a late/stale event can't
+  // overwrite a fresher active/canceled state and flip access the wrong way.
+  lastEventAt       DateTime?
+  // Paddle customer id (ctm_...), stored by the webhook from events whose org was
+  // resolved AUTHORITATIVELY (consent/providerRef — never client custom_data).
+  // KVKK erasure uses THIS to attribute Paddle-generated customer.* events (they
+  // carry no custom_data), so it can never learn another tenant's customer id.
+  customerId        String?
+  createdAt         DateTime  @default(now())
+  updatedAt         DateTime  @updatedAt
+
+  organization Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  invoices     Invoice[]
+
+  // One provider subscription can bind to exactly ONE org (prod pre-verified
+  // duplicate-free). NULLs are distinct: trial/manual rows (providerRef null)
+  // are unaffected. Mirrors Invoice's [provider, providerRef] key.
+  @@unique([provider, providerRef])
+  @@index([status])
+}
+
+model Invoice {
+  id             String    @id @default(cuid())
+  organizationId String
+  subscriptionId String?
+  amountMinor    Int
+  currency       String    @default("TRY")
+  status         String    @default("pending") // pending | paid | failed | refunded
+  provider       String    @default("iyzico")
+  providerRef    String?
+  eArchiveStatus String    @default("none") // none | requested | issued | error
+  metadataJson   String?
+  issuedAt       DateTime  @default(now())
+  paidAt         DateTime?
+
+  organization Organization  @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  subscription Subscription? @relation(fields: [subscriptionId], references: [id], onDelete: SetNull)
+
+  // One Invoice per provider transaction — DB-level idempotency the webhook's
+  // findFirst-then-create couldn't guarantee under concurrent delivery (D1).
+  // Postgres treats NULL providerRef as distinct → manual/legacy rows unaffected.
+  // The migration pre-dedups (keeps the oldest per pair) before adding this, so
+  // a populated table can never fail boot.
+  @@unique([provider, providerRef])
+  @@index([organizationId])
+  @@index([status])
+}
+
+// Raw provider webhook events, stored idempotently (process each once).
+model WebhookEvent {
+  id              String    @id @default(cuid())
+  provider        String    @default("iyzico")
+  eventType       String?
+  providerEventId String?   @unique // idempotency key
+  payloadJson     String
+  status          String    @default("received") // received | processed | error
+  error           String?
+  processedAt     DateTime?
+  createdAt       DateTime  @default(now())
+
+  @@index([provider, status])
+}
+
+// Append-only decision history for the AI risk pipeline (Codex #32). One row =
+// one FINAL, DETERMINISTIC code decision (never raw model output): the auto-
+// reply gate verdict or the keyword-alert escalation. PII-FREE BY DESIGN: no
+// guest text, names, contacts or prompts — only closed-set enums + opaque ids.
+// Reports aggregate the last 30 days from THIS history instead of the mutable
+// Conversation snapshot (which lost every prior decision). No backfill: history
+// starts at feature activation, and the report says so.
+model RiskEvent {
+  id             String   @id @default(cuid())
+  organizationId String
+  // Plain metadata ids (NO FK — ChatUsage precedent): history survives
+  // property/conversation cleanup; KVKK deletion is guaranteed by the
+  // organization CASCADE below. Opaque cuids, never PII.
+  propertyId     String?
+  conversationId String?
+  surface        String // auto_reply | alerts (QR may join later)
+  // The inbound Message id that forced this decision — with organizationId +
+  // finalDecision it forms the TENANT-SCOPED retry-idempotency key: a retried
+  // pass can't double-log, a LEGITIMATE later transition (held -> sent) still
+  // records, and two tenants sharing a trigger string can never mask each other.
+  triggerId      String
+  finalDecision  String // auto_sent | human_review
+  riskLevel      String? // none|low|medium|high (code-clamped); NULL on the keyword path (no model verdict — never fabricate one)
+  riskType       String? // closed set (clamped in code) or null
+  reason         String? // closed-set code (escalated_to_human, low_confidence_or_risky, keyword_escalated[_ack], gate_passed) — NEVER guest text
+  confidence     Float? // model confidence at decision time (0-1) — feeds threshold tuning
+  occurredAt     DateTime @default(now())
+
+  organization Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+
+  @@unique([organizationId, surface, triggerId, finalDecision])
+  @@index([organizationId, occurredAt])
+}
+
+// GLM/Akash GÖLGE katmanı — Aşama-1 (kullanıcı planı 07-16). İkinci modelin aynı
+// inbound mesaj için BAĞIMSIZ güvenlik hükmü, kod kapısının NİHAİ kararının yanına
+// kaydedilir. YETKİSİ SIFIR: fire-and-forget, gönderimi asla bloklamaz/geciktirmez/
+// onaylamaz. Amaç: insan değerlendirmesiyle risk-kaçırma + yanlış-alarm oranını
+// ölçmek; ancak Aşama-3'te (AYRI tur) veto-only yetki konuşulur. PII-FREE at rest:
+// kapalı-set kodlar + opak id'ler; mesaj gövdesi ASLA bu tabloya yazılmaz.
+model ShadowVerdict {
+  id             String   @id @default(cuid())
+  organizationId String
+  conversationId String? // FK'sız opak id (RiskEvent emsali) — KVKK silme org CASCADE ile
+  triggerId      String // gölgelenen inbound Message id (RiskEvent.triggerId ile aynı)
+  gateDecision   String // kod kapısının NİHAİ kararı: auto_sent | human_review
+  gateRiskLevel  String? // kapı anındaki model seviyesi (clamped) — kıyas bağlamı
+  gateRiskType   String?
+  verdict        String? // GLM: allow | hold | escalate; NULL = çağrı/parse başarısız
+  riskType       String? // GLM'in risk sınıfı (RiskEvent ile AYNI kapalı set) veya null
+  confidence     Float? // 0-1 aralığı dışı → NULL (asla uydurma değer)
+  agrees         Boolean? // kolaylık: (verdict==allow) == (gateDecision==auto_sent); NULL=başarısız
+  model          String // hangi gölge model koştu (env değişirse ayrışsın)
+  latencyMs      Int?
+  error          String? // redakte, kısa arıza nedeni (yalnız başarısız çağrıda)
+  createdAt      DateTime @default(now())
+
+  organization Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+
+  @@unique([organizationId, triggerId]) // mesaj başına TEK gölge hükmü (retry dedupe)
+  @@index([createdAt])
+}
+
+// Durable Outbox (#8): a persistent, claim-safe queue for messages we send OUT to
+// the guest's channel (Hospitable → Airbnb / Booking / ...). The send INTENT is
+// written durably in the SAME transaction as the local Message, so a crash / timeout
+// / replica-race can neither lose it nor double-send it. State machine + transitions
+// live in src/lib/outbox/state.ts (closed set). DORMANT until DURABLE_OUTBOX_ENABLED
+// is on — when off, nothing enqueues and no worker runs, so the live send path is
+// exactly today's claim-then-send.
+//
+// FK policy (mirrors RiskEvent): organizationId is the ONLY foreign key (onDelete
+// Cascade → KVKK / account erasure purges the tenant's outbox). conversationId /
+// messageId / reservationId are OPAQUE ids (no FK): the row carries its own send
+// TARGET snapshot (channel + externalReservationId + body), so a later conversation /
+// message delete can never orphan the worker into an unsendable state. Payload holds
+// ONLY what the send needs — never a token, auth header, PIN, pepper or credential.
+model MessageOutbox {
+  id                    String    @id @default(cuid())
+  organizationId        String
+  // NULLABLE (migration 30): a PROACTIVE lifecycle send (welcome/checkin/checkout) has no
+  // conversation and no local Message — it is a pure send-intent keyed to a reservation.
+  conversationId        String?
+  messageId             String? // the local Message this send corresponds to (null for proactive lifecycle)
+  reservationId         String?
+  // Closed-set discriminator (migration 30): manual | ai | holding_ack | welcome | checkin | checkout.
+  // NULL = a legacy reply row (rolling-deploy / pre-30) → treated as a normal reply on delivery.
+  // The worker DERIVES the delivery side-effect from this (reply → mark answered; lifecycle →
+  // stamp the reservation's *SentAt; holding_ack → keep the thread in "problem"). No separate
+  // denormalized effect column — the mapping is stable and lives in code (deriveDeliveryEffect).
+  messageType           String?
+  // Send target snapshot — the worker delivers WITHOUT re-reading the conversation.
+  channel               String // manual | airbnb | booking | ...
+  externalReservationId String? // Hospitable reservation UUID (the delivery destination)
+  body                  String // the exact text to deliver (minimum needed to send)
+  // Tenant-scoped idempotency: the SAME logical message never enqueues or sends twice.
+  idempotencyKey        String
+  // State machine (closed set — see src/lib/outbox/state.ts).
+  status                String    @default("pending")
+  attemptCount          Int       @default(0)
+  availableAt           DateTime  @default(now()) // not eligible before this (backoff gate)
+  claimedAt             DateTime?
+  claimExpiresAt        DateTime?
+  claimedBy             String? // worker fencing token (only the holder may complete/release)
+  providerMessageId     String? // provider's id — written ONLY after a confirmed / reconciled send
+  lastErrorKind         String? // closed: definitive_failure | ambiguous (never a raw provider body)
+  lastErrorCode         String? // sanitized short code (e.g. "HTTP 500", "timeout") — no secrets
+  sentAt                DateTime?
+  reconciledAt          DateTime?
+  createdAt             DateTime  @default(now())
+  updatedAt             DateTime  @updatedAt
+
+  organization Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+
+  // One outbox row per logical message per tenant (double-enqueue / replay → dedupe-hit).
+  @@unique([organizationId, idempotencyKey])
+  // Worker due-query: claimable rows ordered by (status, availableAt).
+  @@index([status, availableAt])
+  @@index([organizationId, status])
+}
+
+// Durable deletion intents for PRIVATE object storage (S3/R2) — migration 32.
+// A row = "this object key must eventually be deleted from the bucket". Written in
+// the SAME transaction as (or immediately before) the DB delete that orphans the
+// object, so a provider outage can never turn the DB operation into a silent
+// object leak: the intent persists and is retried by the scheduled drain.
+// NO relation to Organization ON PURPOSE (ChatUsage precedent — opaque tenant id):
+// rows must SURVIVE the org-cascade so a KVKK account erasure can still remove the
+// org's objects from the bucket AFTER the org row is gone. Keys carry no guest PII
+// (org/task cuids + a random filename only).
+model StorageDeletion {
+  id             String    @id @default(cuid())
+  objectKey      String    @unique // idempotency anchor: the same object never queues twice
+  organizationId String // opaque tenant id (NOT an FK — see note above)
+  status         String    @default("pending") // pending | deleted (closed set, app-enforced)
+  attemptCount   Int       @default(0)
+  availableAt    DateTime  @default(now()) // backoff gate — not eligible before this
+  lastError      String? // sanitized short code (e.g. "HTTP 500") — never a provider body/secret
+  deletedAt      DateTime?
+  createdAt      DateTime  @default(now())
+  updatedAt      DateTime  @updatedAt
+
+  // Drain due-query: pending rows ordered by availableAt.
+  @@index([status, availableAt])
+  @@index([organizationId])
+}
+
+// KVKK explicit-erasure tombstones — migration 40 (design: docs/DATA-RETENTION-
+// ERASURE-DRAFT.md §8c). One row = "data matching this hashed identifier, from
+// on/before erasedAt, may NEVER re-enter via sync/import" — the durable guard
+// that makes an explicit deletion request (Law 6698 art. 11 via art. 7; Deletion
+// Regulation art. 8: erased data must stay 'tekrar kullanılamaz') survive a
+// provider re-sync. Carries NO raw PII: identifiers are HMAC-SHA256 hashes
+// (keyed from ENCRYPTION_KEY), captured AT REQUEST TIME before the scrub.
+// Lawful basis for keeping the hash itself: art. 5/2-ç (fulfilling the erasure
+// duty) — domestic precedent: commercial-email OPT-OUT records must themselves
+// be retained (Ticari İletişim Yönetmeliği m.13). Kept while the org lives
+// (the provider can re-send the same data at any time); org delete cascades.
+model ErasureTombstone {
+  id             String    @id @default(cuid())
+  organizationId String
+  keyType        String // source_reference | guest_external_id | guest_email | guest_phone (closed set, app-enforced)
+  keyHash        String // versioned "v1:" + HMAC-SHA256("orgId|type:normalized-value") hex — never the raw value (org in the domain: same identifier in two tenants hashes differently)
+  erasedAt       DateTime // cutoff: matching data at/before this instant never re-imports
+  // Legal retention bound for the tombstone ITSELF (m41): null = kept while the
+  // org lives (current default — the provider can re-send at any time). If the
+  // lawyer sets a bounded period, rows get a date and the guard ignores them
+  // once expired. [AVUKAT İMZASI] decides which; code supports both.
+  expiresAt      DateTime?
+  // Fingerprint of the HMAC key that produced keyHash (m42, Codex P1). The "v1:"
+  // prefix marks the SCHEME, not the SECRET VALUE — so a rotated/mistyped secret
+  // would silently produce non-matching hashes. loadErasureGuard fails CLOSED
+  // when a live row's fingerprint ≠ the current key's (nullable = legacy/unknown,
+  // also treated as a mismatch → block). Reveals nothing (derived from the key).
+  keyFingerprint String?
+  createdAt      DateTime  @default(now())
+
+  organization Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+
+  // Same identifier erased twice → single row (createMany skipDuplicates).
+  // NEW table → adding @@unique is safe (the populated-table rule doesn't apply).
+  @@unique([organizationId, keyHash])
+  @@index([organizationId])
+}
+
+// Durable outbox for IDENTITY e-mails (Tur-4, docs/EMAIL-OUTBOX-DESIGN.md):
+// verify_email / pw_reset_code / pw_change_code. The row is the delivery
+// authority (an in-process poller + the 2-min cron drain it); the secret and
+// the recipient snapshot live ONLY in payloadEnc — AES-256-GCM bound via AAD
+// to (id, userId, kind), NULLed on every terminal transition (sent / canceled /
+// terminal failed / expiry). `version` is the per-(user,kind) generation
+// counter: a new request supersedes older undelivered rows, and the currency
+// gate (no higher version + User hash still live) makes a stale row's
+// resurrection structurally impossible. NEW table → additive, populated-table
+// rules don't apply. User cascade: account erasure removes queued rows too.
+model EmailOutbox {
+  id             String    @id // pre-generated UUID — participates in the AAD
+  userId         String
+  kind           String // verify_email | pw_reset_code | pw_change_code
+  version        Int
+  payloadEnc     String? // encrypted {secret, recipient}; NULL once undeliverable/delivered
+  status         String    @default("pending") // pending | claimed | sending | sent | failed | canceled
+  attemptCount   Int       @default(0)
+  nextAttemptAt  DateTime  @default(now())
+  claimedBy      String?
+  claimExpiresAt DateTime?
+  expiresAt      DateTime // the SECRET's own TTL — never send past this
+  sentAt         DateTime?
+  lastError      String? // scrubbed provider error (no recipient/secret ever)
+  createdAt      DateTime  @default(now())
+  updatedAt      DateTime  @updatedAt
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@unique([userId, kind, version])
+  @@index([status, nextAttemptAt])
+}

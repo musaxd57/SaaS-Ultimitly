@@ -1,0 +1,184 @@
+"use client";
+
+import { useEffect, useRef, useState, type ReactNode } from "react";
+import { cn } from "@/lib/utils";
+import { CONNECTION_VIEW_ID } from "@/lib/settings-nav";
+
+export interface SettingsViewItem {
+  id: string;
+  label: string;
+  content: ReactNode;
+}
+
+export interface SettingsViewGroup {
+  label: string | null;
+  items: SettingsViewItem[];
+}
+
+/**
+ * Two-level settings navigation. The server renders EVERY view's cards once (one
+ * data pass) and hands them in as `groups[].items[].content`; this component only
+ * toggles which panel is visible. Inactive panels stay MOUNTED (`hidden` =
+ * display:none), so a half-typed form survives switching views.
+ *
+ * Desktop: a compact sticky nav on the LEFT, content on the right (no horizontal
+ * tab strip / scrollbar). Mobile: an accessible native <select> section picker.
+ *
+ * `initialViewId` is computed on the server (deriveInitialViewId) so first paint
+ * is already correct for `?hospitable=` / `?tab=`. The URL hash is the one thing
+ * the server can't see, so `/settings#hospitable` (dashboard onboarding) is
+ * resolved here after mount: switch to the connection view, then scroll its card
+ * into view.
+ */
+export function SettingsSections({
+  groups,
+  initialViewId,
+}: {
+  groups: SettingsViewGroup[];
+  initialViewId: string;
+}) {
+  const [active, setActive] = useState(initialViewId);
+  // Mount a panel's content only once it has been the active view at least once,
+  // then keep it mounted (so a half-typed form survives switching away and back).
+  // A panel the user never opens is never mounted → its client effects don't run.
+  // This matters for Faturalandırma: it loads Paddle's third-party SDK on mount, so
+  // without this every owner who opens Settings (defaulting to the AI view) would
+  // fetch + initialize Paddle even if they never touch billing. `?tab=`/`#hospitable`
+  // seed the active view before paint, so a deep-linked panel mounts immediately.
+  const [seen, setSeen] = useState<Set<string>>(() => new Set([initialViewId]));
+  useEffect(() => {
+    setSeen((prev) => (prev.has(active) ? prev : new Set(prev).add(active)));
+  }, [active]);
+  const allItems = groups.flatMap((g) => g.items);
+
+  // `#hospitable` (dashboard "Bağlantıyı kur") — hash is client-only, so do it
+  // after mount to avoid a hydration mismatch. Activate the connection view; the
+  // actual scroll waits until its panel is mounted (the effect below), because with
+  // lazy mounting the card isn't in the DOM until the view is first shown.
+  const scrollToHospitable = useRef(false);
+  useEffect(() => {
+    if (typeof window === "undefined") return;
+    if (window.location.hash === "#hospitable" && allItems.some((i) => i.id === CONNECTION_VIEW_ID)) {
+      scrollToHospitable.current = true;
+      setActive(CONNECTION_VIEW_ID);
+    }
+    // Run once on mount only.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+
+  // Once the connection view is active AND its panel is mounted (in `seen`), scroll
+  // the Hospitable card into view. Runs after the render that actually mounts the
+  // card, so getElementById finds it.
+  useEffect(() => {
+    if (!scrollToHospitable.current) return;
+    if (active === CONNECTION_VIEW_ID && seen.has(CONNECTION_VIEW_ID)) {
+      scrollToHospitable.current = false;
+      requestAnimationFrame(() => {
+        document.getElementById("hospitable")?.scrollIntoView({ behavior: "smooth", block: "start" });
+      });
+    }
+  }, [active, seen]);
+
+  function selectView(id: string) {
+    setActive(id);
+    // Reflect the view in the URL (?tab=) for refresh/share, WITHOUT a Next
+    // navigation — a real nav would re-run the server component and discard every
+    // panel's in-progress form state. replaceState keeps the single server pass.
+    if (typeof window !== "undefined") {
+      const url = new URL(window.location.href);
+      url.searchParams.set("tab", id);
+      url.hash = "";
+      window.history.replaceState(null, "", url.toString());
+    }
+  }
+
+  const activeLabel = allItems.find((i) => i.id === active)?.label ?? "";
+
+  return (
+    <div className="lg:grid lg:grid-cols-[13rem_minmax(0,1fr)] lg:gap-8">
+      {/* Mobile: accessible section picker (no horizontal tab strip). */}
+      <div className="mb-5 lg:hidden">
+        <label htmlFor="settings-section-select" className="mb-1.5 block text-sm font-medium">
+          Ayarlar bölümü
+        </label>
+        <select
+          id="settings-section-select"
+          value={active}
+          onChange={(e) => selectView(e.target.value)}
+          className="w-full rounded-md border border-input bg-card px-3 py-2 text-sm"
+        >
+          {groups.map((g, gi) =>
+            g.label ? (
+              <optgroup key={`g-${gi}`} label={g.label}>
+                {g.items.map((i) => (
+                  <option key={i.id} value={i.id}>
+                    {i.label}
+                  </option>
+                ))}
+              </optgroup>
+            ) : (
+              g.items.map((i) => (
+                <option key={i.id} value={i.id}>
+                  {i.label}
+                </option>
+              ))
+            ),
+          )}
+        </select>
+      </div>
+
+      {/* Desktop: compact sticky left nav. */}
+      <nav aria-label="Ayarlar bölümleri" className="hidden lg:block">
+        <div className="sticky top-20 space-y-4">
+          {groups.map((g, gi) => (
+            <div key={`nav-${gi}`}>
+              {g.label ? (
+                <p className="px-3 pb-1.5 text-xs font-semibold uppercase tracking-wide text-foreground/60">
+                  {g.label}
+                </p>
+              ) : null}
+              <ul className="space-y-1">
+                {g.items.map((i) => {
+                  const isActive = i.id === active;
+                  return (
+                    <li key={i.id}>
+                      <button
+                        type="button"
+                        aria-current={isActive ? "page" : undefined}
+                        onClick={() => selectView(i.id)}
+                        className={cn(
+                          "block w-full rounded-md border-l-2 px-3 py-2 text-left text-sm transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-1",
+                          isActive
+                            ? "border-primary bg-primary/10 font-semibold text-primary"
+                            : "border-transparent font-medium text-foreground/70 hover:bg-muted hover:text-foreground",
+                        )}
+                      >
+                        {i.label}
+                      </button>
+                    </li>
+                  );
+                })}
+              </ul>
+            </div>
+          ))}
+        </div>
+      </nav>
+
+      {/* Content: every panel mounted, only the active one shown. */}
+      <div className="min-w-0 space-y-6">
+        {allItems.map((i) => (
+          <section
+            key={i.id}
+            role="region"
+            aria-label={i.id === active ? activeLabel : i.label}
+            hidden={i.id !== active}
+            className="space-y-6"
+          >
+            {/* Render once visited; keep mounted afterward (form state survives). */}
+            {seen.has(i.id) ? i.content : null}
+          </section>
+        ))}
+      </div>
+    </div>
+  );
+}

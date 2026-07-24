@@ -1,0 +1,95 @@
+import { describe, it, expect, beforeEach, afterAll } from "vitest";
+import { prisma, resetDb, makeOrgWithProperty } from "../helpers/db";
+import { getHostPerformanceScore } from "@/lib/reports";
+
+// Codex #33 red-first pins against the OLD conversation-level metric:
+//  A) an OLD conversation the guest just wrote to again was EXCLUDED entirely
+//     (the filter was conversation.createdAt >= 30d, not activity);
+//  B) only the FIRST inbound/outbound pair was measured — later slow/unanswered
+//     episodes in the same thread were invisible (rate stuck at 100%).
+
+const H = 60 * 60 * 1000;
+
+describe("responseRate — episode-based over ACTIVE conversations", () => {
+  let orgId: string;
+  let propertyId: string;
+
+  beforeEach(async () => {
+    await resetDb();
+    const made = await makeOrgWithProperty();
+    orgId = made.orgId;
+    propertyId = made.propertyId;
+  });
+  afterAll(async () => {
+    await prisma.$disconnect();
+  });
+
+  async function seedConversation(createdAt: Date, msgs: { dir: "inbound" | "outbound"; at: Date }[]) {
+    const conv = await prisma.conversation.create({
+      data: {
+        propertyId,
+        guestIdentifier: "G",
+        channel: "airbnb",
+        createdAt,
+        lastMessageAt: msgs[msgs.length - 1]?.at ?? createdAt,
+      },
+    });
+    for (const m of msgs) {
+      await prisma.message.create({
+        data: { conversationId: conv.id, direction: m.dir, senderName: "x", body: "b", createdAt: m.at },
+      });
+    }
+  }
+
+  it("A) an old-but-ACTIVE conversation counts (old code excluded it → rate was null)", async () => {
+    const now = Date.now();
+    const created = new Date(now - 60 * 24 * H); // conversation opened 60 days ago
+    await seedConversation(created, [
+      { dir: "inbound", at: new Date(now - 5 * H) }, // guest wrote AGAIN yesterday-ish
+      { dir: "outbound", at: new Date(now - 4 * H) }, // answered in 1h
+    ]);
+    const score = await getHostPerformanceScore(orgId);
+    expect(score.breakdown.responseRate).toBe(100); // old code: null (thread invisible)
+  });
+
+  it("B) later slow/expired episodes drag the rate down; a FRESH question is PENDING (out of the denominator)", async () => {
+    const now = Date.now();
+    const created = new Date(now - 10 * 24 * H);
+    await seedConversation(created, [
+      // ep1: answered fast (this is ALL the old metric ever saw)
+      { dir: "inbound", at: new Date(now - 9 * 24 * H) },
+      { dir: "outbound", at: new Date(now - 9 * 24 * H + 1 * H) },
+      // ep2: answered after 30h — late stays late
+      { dir: "inbound", at: new Date(now - 5 * 24 * H) },
+      { dir: "outbound", at: new Date(now - 5 * 24 * H + 30 * H) },
+      // ep3: unanswered for 30h — SLA expired → failed
+      { dir: "inbound", at: new Date(now - 30 * H) },
+    ]);
+    const score = await getHostPerformanceScore(orgId);
+    expect(score.breakdown.responseRate).toBe(33); // 1 of 3 (fast / late / expired)
+
+    // ep4: guest wrote 5 minutes ago — PENDING, must NOT move the denominator
+    // (Codex: instantly counting it as a miss unfairly tanks the report).
+    await prisma.message.create({
+      data: {
+        conversationId: (await prisma.conversation.findFirstOrThrow()).id,
+        direction: "inbound", senderName: "G", body: "b",
+        createdAt: new Date(now - 5 * 60 * 1000),
+      },
+    });
+    const score2 = await getHostPerformanceScore(orgId);
+    expect(score2.breakdown.responseRate).toBe(33); // unchanged — still 1 of 3
+  });
+
+  it("C) NO eligible episode (only a pending one) → responseRate is NULL — never 0, NaN or Infinity", async () => {
+    const now = Date.now();
+    // The org's ONLY activity: a guest question from 5 minutes ago (pending).
+    await seedConversation(new Date(now - 2 * H), [
+      { dir: "inbound", at: new Date(now - 5 * 60 * 1000) },
+    ]);
+    const score = await getHostPerformanceScore(orgId);
+    expect(score.breakdown.responseRate).toBeNull(); // excluded metric, not a fake score
+    expect(Number.isNaN(score.score)).toBe(false); // composite never poisoned
+    expect(Number.isFinite(score.score)).toBe(true);
+  });
+});

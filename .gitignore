@@ -1,0 +1,42 @@
+# dependencies
+/node_modules
+/.pnp
+.pnp.js
+
+# next.js
+/.next/
+/out/
+next-env.d.ts
+
+# production
+/build
+
+# misc
+.DS_Store
+*.pem
+
+# debug
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+
+# local env files
+.env
+.env*.local
+
+# database (SQLite dev db)
+/prisma/dev.db
+/prisma/dev.db-journal
+*.db
+*.db-journal
+
+# typescript
+*.tsbuildinfo
+
+# uploads (local file storage for MVP)
+/public/uploads/*
+!/public/uploads/.gitkeep
+
+# Playwright E2E artifacts
+/test-results/
+/playwright-report/
