@@ -112,6 +112,19 @@ export function clientIp(req: Request): string {
     if (cfIp?.trim()) return cfIp.trim();
   }
 
+  // Railway documents X-Real-IP as the edge-set client IP; if its proxy chain
+  // ever appends an INTERNAL hop as the rightmost XFF entry, every client would
+  // collapse into one shared rate-limit bucket. TRUST_X_REAL_IP=1 makes
+  // x-real-ip authoritative — but ONLY flip it after verifying a LIVE request's
+  // headers on the actual deployment (Codex 07-24 #6): if the platform passed a
+  // client-supplied x-real-ip through instead of overwriting it, trusting it
+  // would let a client rotate its rate-limit identity per request. Default OFF
+  // keeps today's rightmost-XFF behaviour.
+  if (process.env.TRUST_X_REAL_IP === "1") {
+    const realIp = req.headers.get("x-real-ip");
+    if (realIp?.trim()) return realIp.trim();
+  }
+
   const xff = req.headers.get("x-forwarded-for");
   if (xff) {
     // Trust the RIGHTMOST hop (appended by the platform proxy, e.g. Railway), not

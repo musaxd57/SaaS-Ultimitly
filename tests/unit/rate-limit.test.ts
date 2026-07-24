@@ -96,6 +96,28 @@ describe("clientIp", () => {
     expect(clientIp(req)).toBe("5.6.7.8"); // rightmost XFF hop (platform-appended)
   });
 
+  it("IGNORES x-real-ip by default when XFF is present — flipping authority needs live-header verification", () => {
+    const req = new Request("http://x", {
+      headers: { "x-real-ip": "7.7.7.7", "x-forwarded-for": "1.2.3.4, 5.6.7.8" },
+    });
+    expect(clientIp(req)).toBe("5.6.7.8"); // today's behaviour pinned
+  });
+
+  it("prefers x-real-ip over XFF only when TRUST_X_REAL_IP=1 (verified Railway edge header)", () => {
+    vi.stubEnv("TRUST_X_REAL_IP", "1");
+    try {
+      const req = new Request("http://x", {
+        headers: { "x-real-ip": "7.7.7.7", "x-forwarded-for": "1.2.3.4, 5.6.7.8" },
+      });
+      expect(clientIp(req)).toBe("7.7.7.7");
+      // Absent/blank x-real-ip still falls back to the rightmost XFF hop.
+      const noReal = new Request("http://x", { headers: { "x-forwarded-for": "1.2.3.4, 5.6.7.8" } });
+      expect(clientIp(noReal)).toBe("5.6.7.8");
+    } finally {
+      vi.unstubAllEnvs();
+    }
+  });
+
   it("prefers cf-connecting-ip only when TRUST_CF_HEADER=1 (origin locked behind Cloudflare)", () => {
     vi.stubEnv("TRUST_CF_HEADER", "1");
     try {
