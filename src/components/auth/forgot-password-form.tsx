@@ -126,7 +126,14 @@ export function ForgotPasswordForm() {
               autoComplete="one-time-code"
               placeholder="8 haneli kod"
               value={code}
-              onChange={(e) => setCode(e.target.value)}
+              // Hata bir DURUM mesajı ("bu kod artık geçerli değil"), zaman aşımıyla
+              // değil kullanıcı düzeltmeye başlayınca kalkar. (Resend / yeniden
+              // gönderim zaten setError(null) yapıyor.) Timer bilinçli YOK: metin
+              // okunurken kaybolursa kullanıcı aynı eski kodu tekrar dener.
+              onChange={(e) => {
+                setCode(e.target.value);
+                if (error) setError(null);
+              }}
               autoFocus
               required
             />
