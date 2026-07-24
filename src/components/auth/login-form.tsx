@@ -26,20 +26,35 @@ export function LoginForm() {
   // when the verify link was bad/expired (?verify= flag from the verify route).
   const [needsVerify, setNeedsVerify] = useState(false);
   const [resent, setResent] = useState(false);
+  const [resending, setResending] = useState(false);
 
   useEffect(() => {
     const v = new URLSearchParams(window.location.search).get("verify");
     if (v === "expired" || v === "missing") {
       setNeedsVerify(true);
-      setError("Doğrulama bağlantısı geçersiz ya da süresi dolmuş. E-postanı gir ve yeni bağlantı iste.");
+      setError(
+        "Doğrulama bağlantısı geçersiz ya da süresi dolmuş. E-posta adresinizi girip yeni bağlantı isteyin.",
+      );
     }
   }, []);
 
+  /** Kimlik alanlarından biri düzenlenince ekrandaki hata bir DURUM olarak bayatlar
+   *  (şifre sıfırlamadaki ile aynı kural: hata zamanla değil, kullanıcı düzeltmeye
+   *  başlayınca kalkar). E-posta değişirse "gönderildi" durumu da sıfırlanır — yoksa
+   *  yanlış adrese gönderdikten sonra doğru adres için tekrar isteme yolu kapanıyordu
+   *  (buton "gönderildi" metniyle yer değiştirdiği için sayfa yenilemeden çıkış yoktu). */
+  function clearStaleFeedback(opts: { resetResent?: boolean } = {}) {
+    setError((e) => (e ? null : e));
+    if (opts.resetResent) setResent(false);
+  }
+
   async function resendVerification() {
     if (!email) {
-      setError("Önce e-posta adresini gir.");
+      setError("Önce e-posta adresinizi girin.");
       return;
     }
+    if (resending) return;
+    setResending(true);
     try {
       const res = await fetch("/api/auth/resend-verification", {
         method: "POST",
@@ -56,9 +71,12 @@ export function LoginForm() {
         );
         return;
       }
+      setError(null); // başarıda eski kırmızı uyarı ekranda kalmasın
       setResent(true);
     } catch {
       setError("Bağlantı hatası. Lütfen tekrar deneyin.");
+    } finally {
+      setResending(false);
     }
   }
 
@@ -115,14 +133,15 @@ export function LoginForm() {
       {needsVerify ? (
         <div className="rounded-md border border-amber-300 bg-amber-50 px-3 py-2.5 text-sm text-amber-900">
           {resent ? (
-            <p>Yeni doğrulama bağlantısı gönderildi — gelen kutunu (ve spam&apos;i) kontrol et.</p>
+            <p>Yeni doğrulama bağlantısı gönderildi. Gelmediyse spam klasörünü kontrol edin.</p>
           ) : (
             <button
               type="button"
               onClick={resendVerification}
-              className="font-medium text-amber-900 underline hover:no-underline"
+              disabled={resending}
+              className="font-medium text-amber-900 underline hover:no-underline disabled:opacity-60"
             >
-              Doğrulama mailini tekrar gönder
+              {resending ? "Gönderiliyor…" : "Doğrulama bağlantısını tekrar gönder"}
             </button>
           )}
         </div>
@@ -134,7 +153,10 @@ export function LoginForm() {
           type="email"
           autoComplete="email"
           value={email}
-          onChange={(e) => setEmail(e.target.value)}
+          onChange={(e) => {
+            setEmail(e.target.value);
+            clearStaleFeedback({ resetResent: true });
+          }}
           required
         />
       </div>
@@ -145,7 +167,10 @@ export function LoginForm() {
           type="password"
           autoComplete="current-password"
           value={password}
-          onChange={(e) => setPassword(e.target.value)}
+          onChange={(e) => {
+            setPassword(e.target.value);
+            clearStaleFeedback();
+          }}
           required
         />
         {!twoFactor ? (
@@ -167,14 +192,17 @@ export function LoginForm() {
               useRecovery ? "XXXX-XXXX-XXXX" : "Authenticator uygulamasındaki 6 haneli kod"
             }
             value={code}
-            onChange={(e) => setCode(e.target.value)}
+            onChange={(e) => {
+              setCode(e.target.value);
+              clearStaleFeedback();
+            }}
             autoFocus
             required
           />
           <p className="text-xs text-muted-foreground">
             {useRecovery
-              ? "Kurtarma kodların tek kullanımlıktır — kullandığın kod geçersiz olur."
-              : "Telefonundaki Authenticator uygulamasını aç ve Lixus AI kodunu gir."}
+              ? "Kurtarma kodlarınız tek kullanımlıktır — kullandığınız kod geçersiz olur."
+              : "Telefonunuzdaki Authenticator uygulamasını açıp Lixus AI kodunu girin."}
           </p>
           <button
             type="button"
@@ -194,7 +222,7 @@ export function LoginForm() {
               onChange={(e) => setRememberDevice(e.target.checked)}
               className="size-4 rounded border-input"
             />
-            Bu cihazı 30 gün hatırla — tekrar kod sorma
+            Bu cihazı 30 gün hatırla — tekrar kod sorulmasın
           </label>
         </div>
       ) : null}

@@ -62,14 +62,25 @@ export function RegisterForm() {
 
   if (sent) {
     return (
-      <div className="space-y-3 rounded-md border border-emerald-300 bg-emerald-50 px-4 py-5 text-sm text-emerald-900">
-        <p className="font-semibold">Hesabın oluşturuldu — son bir adım kaldı! 📧</p>
-        <p>
-          <strong>{form.email}</strong> adresine bir <strong>doğrulama bağlantısı</strong> gönderdik.
-          Maildeki butona tıkla; giriş otomatik tamamlanır.
-        </p>
-        <p className="text-xs text-emerald-700">
-          Mail birkaç dakikada gelmezse spam/gereksiz klasörüne bak. Bağlantı 24 saat geçerlidir.
+      <div className="space-y-4">
+        <div className="space-y-3 rounded-md border border-emerald-300 bg-emerald-50 px-4 py-5 text-sm text-emerald-900">
+          <p className="font-semibold">Hesabınız oluşturuldu — son bir adım kaldı! 📧</p>
+          <p>
+            <strong>{form.email}</strong> adresine bir <strong>doğrulama bağlantısı</strong>{" "}
+            gönderdik. Maildeki butona tıklayın; giriş otomatik tamamlanır.
+          </p>
+          <p className="text-xs text-emerald-700">
+            Bağlantı gelmediyse spam/gereksiz klasörünü kontrol edin. Bağlantı 24 saat geçerlidir.
+          </p>
+        </div>
+        {/* Çıkış yolu: bu ekran eskiden çıkmazdı — mail gelmezse yeniden gönderme
+            imkânı giriş sayfasında olduğu hâlde oraya bir bağlantı yoktu. */}
+        <p className="text-center text-sm text-muted-foreground">
+          Bağlantıyı kullandıktan sonra{" "}
+          <Link href="/login" className="font-medium text-primary hover:underline">
+            giriş sayfasından
+          </Link>{" "}
+          devam edebilirsiniz; mail gelmediyse oradan yeniden gönderebilirsiniz.
         </p>
       </div>
     );
