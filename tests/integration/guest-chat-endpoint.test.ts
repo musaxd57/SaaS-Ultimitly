@@ -317,6 +317,40 @@ describe("POST /api/chat/[token] (public QR concierge)", () => {
       expect(await prisma.message.count({ where: { direction: "inbound" } })).toBe(2);
     });
 
+    it("same requestId + DIFFERENT message → 409 (Codex r2): neither swallowed nor double-processed", async () => {
+      const { propertyId } = await makeOrgWithProperty();
+      const token = await enableChat(propertyId);
+      const first = await call(token, "Çöp ne zaman toplanıyor?", undefined, { requestId: RID });
+      expect(first.status).toBe(200);
+      const cookie = deviceCookie(first);
+
+      const reused = await call(token, "Bambaşka bir mesaj", cookie, { requestId: RID });
+      expect(reused.status).toBe(409); // loud contract violation, not a silent dedupe
+      expect(await prisma.message.count({ where: { body: "Bambaşka bir mesaj" } })).toBe(0);
+      expect(mockSuggest).toHaveBeenCalledTimes(1); // second body never reached the model
+      // The original claim is untouched: the SAME payload still dedupes.
+      const retry = await call(token, "Çöp ne zaman toplanıyor?", cookie, { requestId: RID });
+      expect((await retry.json()).deduped).toBe(true);
+    });
+
+    it("TTL: a crashed claim holder cannot lock the retry out forever — the expired row is swept", async () => {
+      const { propertyId } = await makeOrgWithProperty();
+      const token = await enableChat(propertyId);
+      const reservation = await prisma.reservation.findFirstOrThrow({ where: { propertyId } });
+      // A claim row left behind by a process that died mid-flight, past its TTL.
+      await prisma.systemLock.create({
+        data: {
+          name: `outbound-send:qr-in:${reservation.id}:${RID}`,
+          lockedUntil: new Date(Date.now() - 1000),
+          holder: "stale-digest-of-a-dead-run",
+        },
+      });
+      const res = await call(token, "Çöp ne zaman toplanıyor?", undefined, { requestId: RID });
+      expect(res.status).toBe(200);
+      expect((await res.json()).deduped).toBeUndefined(); // processed, not deduped
+      expect(await prisma.message.count({ where: { direction: "inbound" } })).toBe(1);
+    });
+
     it("malformed requestId → 400, nothing recorded, no model call", async () => {
       const { propertyId } = await makeOrgWithProperty();
       const token = await enableChat(propertyId);

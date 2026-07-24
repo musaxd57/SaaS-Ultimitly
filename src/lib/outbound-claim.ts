@@ -64,3 +64,55 @@ export async function claimOutboundSend(conversationId: string, body: string): P
 export async function releaseOutboundSend(conversationId: string, body: string): Promise<void> {
   await prisma.systemLock.deleteMany({ where: { name: claimName(conversationId, body) } }).catch(() => {});
 }
+
+// ---------------------------------------------------------------------------
+// Keyed variant (QR guest chat, Codex 07-24 r2): the claim key is the caller's
+// SCOPE id alone (e.g. qr-in:{reservationId}:{requestId}) and the payload
+// digest is stored IN the row (SystemLock.holder). A duplicate can then be
+// CLASSIFIED instead of guessed: same digest → a true retry of the same
+// composed message ("duplicate" → dedupe); different digest → the id was
+// REUSED with different content ("mismatch" → the caller 409s, so the second
+// message is neither silently swallowed nor double-processed). The body-in-key
+// scheme above cannot make this distinction — a different body just misses the
+// existing claim entirely.
+// ---------------------------------------------------------------------------
+
+export type KeyedOutboundClaim = "claimed" | "duplicate" | "mismatch" | "unavailable";
+
+export async function claimKeyedOutboundSend(scopeId: string, body: string): Promise<KeyedOutboundClaim> {
+  const now = new Date();
+  const digest = createHash("sha256").update(body).digest("base64url").slice(0, 24);
+  const name = `${PREFIX}${scopeId}`;
+  // Same opportunistic sweep as claimOutboundSend: an EXPIRED claim (its holder
+  // crashed mid-flight, or the work simply finished long ago) must never block a
+  // retry — after the TTL the row is dropped and the retry claims fresh.
+  await prisma.systemLock
+    .deleteMany({ where: { name: { startsWith: PREFIX }, lockedUntil: { lt: now } } })
+    .catch(() => {});
+  try {
+    await prisma.systemLock.create({
+      data: { name, lockedUntil: new Date(now.getTime() + CLAIM_TTL_MS), holder: digest },
+    });
+    return "claimed";
+  } catch (err) {
+    if (err instanceof Prisma.PrismaClientKnownRequestError && err.code === "P2002") {
+      try {
+        const row = await prisma.systemLock.findUnique({ where: { name }, select: { holder: true } });
+        // Row vanished between the failed create and this read (a racing sweep on
+        // a just-expired row) — refuse honestly; the client's next retry claims.
+        if (!row) return "unavailable";
+        return row.holder === digest ? "duplicate" : "mismatch";
+      } catch {
+        return "unavailable";
+      }
+    }
+    // Store down → fail CLOSED (same reasoning as claimOutboundSend).
+    return "unavailable";
+  }
+}
+
+/** Release a keyed claim after a failure that recorded NOTHING (the retry must
+ *  be processed, not deduped against zero work). */
+export async function releaseKeyedOutboundSend(scopeId: string): Promise<void> {
+  await prisma.systemLock.deleteMany({ where: { name: `${PREFIX}${scopeId}` } }).catch(() => {});
+}

@@ -17,7 +17,7 @@ import { sendQrEscalationAlertBounded, qrEscalationEventId } from "@/lib/guest-c
 import { jsonOk, badRequest, tooManyRequests, parseJsonBody, payloadTooLarge } from "@/lib/api";
 import { rateLimit, clientIp } from "@/lib/rate-limit";
 import { isUniqueViolation } from "@/lib/db-errors";
-import { claimOutboundSend, releaseOutboundSend } from "@/lib/outbound-claim";
+import { claimKeyedOutboundSend, releaseKeyedOutboundSend } from "@/lib/outbound-claim";
 
 export const dynamic = "force-dynamic";
 
@@ -420,20 +420,30 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ tok
     return out;
   };
 
-  // ── Idempotency claim (Codex 07-24 #2, claim-then-process): if the server
-  // recorded the exchange but the RESPONSE was lost, the client restores the
-  // typed text and the guest re-sends — without this, the retry duplicated the
-  // guest message, burned a second paid model call, and could re-escalate. The
-  // claim key binds the stay + the client's per-message id + the body digest
-  // (claimOutboundSend hashes the body), so a DELIBERATE identical follow-up
-  // ("ok" twice) still works: each composed message carries a fresh id. ──
+  // ── Idempotency claim (Codex 07-24 #2 + r2, claim-then-process): if the
+  // server recorded the exchange but the RESPONSE was lost, the client restores
+  // the typed text and the guest re-sends — without this, the retry duplicated
+  // the guest message, burned a second paid model call, and could re-escalate.
+  // The claim key is stay+requestId; the body digest is stored IN the row, so a
+  // duplicate is CLASSIFIED: same payload → deduped no-op; same id with a
+  // DIFFERENT body (buggy/tampered client — ours mints a fresh id per composed
+  // text) → 409, neither swallowed nor double-processed. A DELIBERATE identical
+  // follow-up ("ok" twice) still works: each composed message carries a fresh
+  // id. Claim TTL (120s) bounds a crashed holder: the expired row is swept on
+  // the next claim, so a retry is never locked out forever. ──
   const claimScopeId = requestId ? `qr-in:${res.id}:${requestId}` : null;
   if (claimScopeId) {
-    const claimed = await claimOutboundSend(claimScopeId, message);
+    const claimed = await claimKeyedOutboundSend(claimScopeId, message);
     if (claimed === "duplicate") {
       // Already processed (or still in flight). The client is GET-authoritative —
       // it reloads the thread and renders whatever the first attempt recorded.
       return finalize({ deduped: true });
+    }
+    if (claimed === "mismatch") {
+      return NextResponse.json(
+        { error: "Bu istek kimliği farklı bir içerikle kullanılmış — lütfen tekrar gönderin." },
+        { status: 409 },
+      );
     }
     if (claimed === "unavailable") {
       // Fail CLOSED like the manual reply path: without the claim store a
@@ -582,7 +592,7 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ tok
   } catch (err) {
     // Pre-record failure (model/DB error before anything persisted) → release so
     // the guest's retry is processed instead of deduped against zero work.
-    if (claimScopeId && !recorded) await releaseOutboundSend(claimScopeId, message);
+    if (claimScopeId && !recorded) await releaseKeyedOutboundSend(claimScopeId);
     throw err;
   }
 }
