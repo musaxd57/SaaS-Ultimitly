@@ -155,10 +155,12 @@ export function ForgotPasswordForm() {
           >
             {cooldown > 0 ? `Kodu tekrar gönder (${cooldown})` : "Kodu tekrar gönder"}
           </button>
-          {/* Koşulsuz yardım satırı — hesap var/yok ayrımı yapmaz (enumeration-safe);
-              kaldırılan "kayıtlıysa gönderdik" kutusunun tek faydalı kısmı bu. */}
-          <p className="text-center text-sm text-muted-foreground">
-            Gelen kutunu ve spam klasörünü kontrol et.
+          {/* KOŞULLU yardım (yaygın desen: "Don't see it? Check your spam folder"):
+              kullanıcı zaten gelen kutusuna bakıyor — ona "gelen kutuna bak" demek
+              boş emir; yalnız kod GELMEDİYSE spam anlamlı. Hesap var/yok ayrımı
+              yapmaz (enumeration-safe), formun geri kalanıyla aynı resmî dil. */}
+          <p className="text-center text-xs text-muted-foreground">
+            Kod gelmediyse spam klasörünü kontrol edin.
           </p>
         </form>
       )}
