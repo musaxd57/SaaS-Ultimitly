@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { useRouter } from "next/navigation";
 import Link from "next/link";
 import { Loader2 } from "lucide-react";
@@ -23,6 +23,51 @@ export function RegisterForm() {
   const [loading, setLoading] = useState(false);
   const [sent, setSent] = useState(false);
   const [consent, setConsent] = useState(false);
+  // Doğrulama bağlantısını YENİDEN GÖNDERME, başarı ekranının kendisinde durur.
+  // Eskiden bu seçenek yalnız giriş sayfasında ve ancak BAŞARISIZ bir giriş
+  // denemesinden sonra beliriyordu — yani kullanıcı, maili gelmediğinde önce
+  // giremeyeceğini keşfetmek zorundaydı. Bekleme sayacı hem kotayı (adres başına
+  // 15 dk'da 4 istek) korur hem de "az önce gönderdik" gerçeğini görünür kılar.
+  const RESEND_COOLDOWN_SEC = 60;
+  const [resendCooldown, setResendCooldown] = useState(0);
+  const [resending, setResending] = useState(false);
+  const [resendDone, setResendDone] = useState(false);
+  const [resendError, setResendError] = useState<string | null>(null);
+
+  useEffect(() => {
+    if (resendCooldown <= 0) return;
+    const t = setTimeout(() => setResendCooldown((c) => c - 1), 1000);
+    return () => clearTimeout(t);
+  }, [resendCooldown]);
+
+  async function resendVerification() {
+    if (resending || resendCooldown > 0) return;
+    setResending(true);
+    setResendError(null);
+    try {
+      const res = await fetch("/api/auth/resend-verification", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ email: form.email }),
+      });
+      // fetch 429/5xx'te throw ETMEZ: res.ok bakılmazsa kullanıcıya yalan
+      // "gönderildi" gösterilir ve hiç gelmeyecek bir maili bekler.
+      if (!res.ok) {
+        setResendError(
+          res.status === 429
+            ? "Çok sık denendi — birkaç dakika sonra tekrar deneyin."
+            : "Bağlantı gönderilemedi. Lütfen tekrar deneyin.",
+        );
+        return;
+      }
+      setResendDone(true);
+      setResendCooldown(RESEND_COOLDOWN_SEC);
+    } catch {
+      setResendError("Bağlantı hatası. Lütfen tekrar deneyin.");
+    } finally {
+      setResending(false);
+    }
+  }
 
   /** Sunucudan gelen hata bir DURUM'dur ("bu e-posta zaten kayıtlı"), kullanıcı o
    *  alanı düzeltmeye başlayınca BAYATLAR — yoksa yeni yazılan (bomboş) adresin
@@ -65,6 +110,9 @@ export function RegisterForm() {
       if (data.verifyEmail) {
         // Anti-bot: the account is inert until the e-mailed link is clicked.
         setSent(true);
+        // Bağlantı AZ ÖNCE gönderildi: yeniden-gönder düğmesi sayaçla açılır —
+        // hemen basmak yeni bir şey getirmez, sadece kotayı yerdi.
+        setResendCooldown(RESEND_COOLDOWN_SEC);
         return;
       }
       router.push("/dashboard");
@@ -91,17 +139,32 @@ export function RegisterForm() {
         </div>
         {/* Çıkış yolu: bu ekran eskiden çıkmazdı — mail gelmezse yeniden gönderme
             imkânı giriş sayfasında olduğu hâlde oraya bir bağlantı yoktu. */}
-        {/* Yeniden gönderme seçeneği giriş sayfasında, ANCAK giriş denemesinden
-            sonra beliriyor (sunucu doğrulanmamış hesapta needsVerification
-            döndürünce sarı kutu açılıyor) — metin bu yüzden "giriş yapmayı
-            deneyin" diyor; "orada bir buton var" demek eksik tarif olurdu. */}
+        <div className="space-y-2">
+          <button
+            type="button"
+            onClick={resendVerification}
+            disabled={resending || resendCooldown > 0}
+            className="w-full rounded-md border border-border px-4 py-2 text-sm font-medium transition-colors hover:bg-accent disabled:opacity-50"
+          >
+            {resending
+              ? "Gönderiliyor…"
+              : resendCooldown > 0
+                ? `Bağlantıyı yeniden gönder (${resendCooldown})`
+                : "Bağlantıyı yeniden gönder"}
+          </button>
+          {resendDone && resendCooldown > 0 ? (
+            <p className="text-center text-xs text-emerald-700">Yeni bağlantı gönderildi.</p>
+          ) : null}
+          {resendError ? (
+            <p className="text-center text-xs text-destructive">{resendError}</p>
+          ) : null}
+        </div>
         <p className="text-center text-sm text-muted-foreground">
           Bağlantıyı kullandıktan sonra{" "}
           <Link href="/login" className="font-medium text-primary hover:underline">
             giriş sayfasından
           </Link>{" "}
-          devam edebilirsiniz. Bağlantı gelmediyse giriş yapmayı deneyin; doğrulama
-          e-postasını yeniden gönderme seçeneği orada çıkar.
+          devam edebilirsiniz.
         </p>
       </div>
     );

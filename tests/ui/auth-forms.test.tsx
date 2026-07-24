@@ -21,6 +21,9 @@ function typeInto(label: RegExp | string, value: string) {
   fireEvent.change(screen.getByLabelText(label), { target: { value } });
 }
 
+/** Kayıt başarı ekranındaki yeniden-gönder bekleme süresi (register-form ile aynı). */
+const RESEND_COOLDOWN_SEC = 60;
+
 describe("LoginForm — doğrulama e-postası kurtarma yolu", () => {
   beforeEach(() => {
     cleanup();
@@ -133,6 +136,7 @@ describe("LoginForm — doğrulama e-postası kurtarma yolu", () => {
 describe("RegisterForm — başarı ekranı çıkmaz değildir", () => {
   beforeEach(() => {
     cleanup();
+    vi.useRealTimers(); // önceki test sahte zamanlayıcıyla düşerse buraya sızmasın
     vi.clearAllMocks();
     vi.unstubAllGlobals();
   });
@@ -167,6 +171,62 @@ describe("RegisterForm — başarı ekranı çıkmaz değildir", () => {
     typeInto(/E-posta/, "yepyeni@ornek.com");
     expect(screen.queryByText("Bu e-posta adresi zaten kayıtlı")).toBeNull();
     expect(screen.queryByText("Doğrulama hatası")).toBeNull();
+  });
+
+  it("başarı ekranında 'yeniden gönder' DOĞRUDAN durur: sayaç dolunca kayıt adresine yeni bağlantı gider", async () => {
+    // Codex: kurtarma yolunun giriş sayfasında, üstelik BAŞARISIZ bir giriş
+    // denemesinin arkasında saklı olması gizli bir akıştı. Buton artık burada.
+    // shouldAdvanceTime: sahte zamanlayıcı açıkken testing-library'nin bekleyicileri
+    // (findBy*/waitFor) gerçek zamana ihtiyaç duyar — bu bayrak olmadan test kilitlenir.
+    vi.useFakeTimers({ shouldAdvanceTime: true });
+    const calls: unknown[] = [];
+    vi.stubGlobal(
+      "fetch",
+      vi.fn(async (url: string, opts?: RequestInit) => {
+        calls.push({ url, body: JSON.parse(String(opts?.body)) });
+        return new Response(JSON.stringify({ ok: true, verifyEmail: true }), { status: 201 });
+      }),
+    );
+    try {
+      render(<RegisterForm />);
+      typeInto(/İşletme adı/, "Nuve");
+      typeInto(/Adınız/, "Musa");
+      typeInto(/E-posta/, "yeni@ornek.com");
+      typeInto(/Şifre/, "sifre12345");
+      fireEvent.click(screen.getByRole("checkbox"));
+      await act(async () => {
+        fireEvent.click(screen.getByRole("button", { name: /Hesap Oluştur/ }));
+      });
+      const btn = (await screen.findByRole("button", { name: /yeniden gönder/i })) as HTMLButtonElement;
+      // Mail az önce gitti → sayaç dolana kadar kilitli (kota korunur).
+      expect(btn.disabled).toBe(true);
+      await act(async () => {
+        fireEvent.click(btn);
+      });
+      expect(calls).toHaveLength(1); // kilitliyken tık isteğe dönüşmez
+
+      // Sayaç bitince buton açılır ve KAYIT adresine yeniden gönderir. Geri sayım
+      // zincirleme setTimeout ile ilerlediği için her saniye kendi act turunu ister
+      // (tek seferde 61 sn atlamak yalnız İLK adımı işletir).
+      for (let i = 0; i < RESEND_COOLDOWN_SEC + 1; i++) {
+        await act(async () => {
+          vi.advanceTimersByTime(1000);
+        });
+      }
+      const ready = (await screen.findByRole("button", { name: /yeniden gönder/i })) as HTMLButtonElement;
+      expect(ready.disabled).toBe(false);
+      await act(async () => {
+        fireEvent.click(ready);
+      });
+      expect(calls).toHaveLength(2);
+      expect(calls[1]).toMatchObject({
+        url: "/api/auth/resend-verification",
+        body: { email: "yeni@ornek.com" },
+      });
+      await screen.findByText("Yeni bağlantı gönderildi.");
+    } finally {
+      vi.useRealTimers();
+    }
   });
 
   it("kayıt sonrası doğrulama ekranı giriş sayfasına yol verir (mail gelmezse kurtarma oradadır)", async () => {
