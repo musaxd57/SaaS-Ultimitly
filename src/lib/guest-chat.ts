@@ -1,4 +1,5 @@
 import { createHash, timingSafeEqual } from "crypto";
+import { Prisma } from "@prisma/client";
 import { prisma } from "@/lib/db";
 import { daysUntilDate } from "@/lib/utils";
 import { orgTimezone } from "@/lib/timezone";
@@ -67,6 +68,38 @@ export function guestChatAiPausedFromMessages(
     return true; // host reply → paused
   }
   return false; // no host activity at all → AI active
+}
+
+// ---------------------------------------------------------------------------
+// Per-thread advisory lock (Codex 07-24 #4). The host-handoff contract is "the
+// AI must never talk over the host", but the guest route's send-time re-check
+// and its message insert were two separate statements — a host reply committing
+// between them still let the AI reply land BEHIND the host's message. Both
+// writers (the guest route's recheck+insert transaction and the host reply
+// route's insert transaction) now serialize on this per-conversation
+// pg_advisory_xact_lock, so whichever commits first is visible to the other:
+// host first → the in-tx recheck sees it and vetoes the AI reply; AI first →
+// the host reply simply lands after it (honest ordering, no talk-over).
+// ---------------------------------------------------------------------------
+
+/** A client the lock/record helpers can run on — the global client or a tx. */
+export type GuestChatDb = Prisma.TransactionClient | typeof prisma;
+
+// Namespace disjoint from erasure (40) and feed-reconcile (23).
+const GUEST_CHAT_LOCK_NS = 41;
+
+/**
+ * Acquire the per-conversation guest-chat advisory lock on THIS transaction
+ * (auto-released at commit/rollback). $executeRaw, not $queryRaw:
+ * pg_advisory_xact_lock returns void, which $queryRaw cannot deserialize.
+ */
+export async function acquireGuestChatThreadLock(
+  tx: Prisma.TransactionClient,
+  conversationId: string,
+): Promise<void> {
+  await tx.$executeRaw(
+    Prisma.sql`SELECT pg_advisory_xact_lock(${GUEST_CHAT_LOCK_NS}::int4, hashtext(${conversationId}))`,
+  );
 }
 
 // CONTENT-level guard (belt to the category suspenders). The category filter

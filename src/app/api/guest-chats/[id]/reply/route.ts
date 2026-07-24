@@ -2,6 +2,7 @@ import { type NextRequest, NextResponse } from "next/server";
 import { prisma } from "@/lib/db";
 import { requireSession, unauthorized, canManage, forbidden, jsonOk, badRequest, notFound, readJsonCappedOrNull } from "@/lib/api";
 import { claimOutboundSend } from "@/lib/outbound-claim";
+import { acquireGuestChatThreadLock } from "@/lib/guest-chat";
 
 // The host replies to a QR guest-chat thread from the "Misafir Sohbetleri" tab.
 // The reply is stored as an OUTBOUND message with the host's name (so it's shown
@@ -36,8 +37,13 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ id:
     return NextResponse.json({ error: "Şu anda kaydedilemedi — birazdan tekrar deneyin." }, { status: 503 });
   }
 
-  const [message] = await prisma.$transaction([
-    prisma.message.create({
+  // Per-thread advisory lock (Codex 07-24 #4): serializes this insert against
+  // the guest route's paused-recheck+insert transaction, so an AI reply already
+  // past its recheck can't slip in AFTER this host reply — and our commit is
+  // guaranteed visible to any recheck that runs after us. See guest-chat.ts.
+  const message = await prisma.$transaction(async (tx) => {
+    await acquireGuestChatThreadLock(tx, convo.id);
+    const created = await tx.message.create({
       data: {
         conversationId: convo.id,
         direction: "outbound",
@@ -49,12 +55,13 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ id:
         body: text,
         language: "tr",
       },
-    }),
-    prisma.conversation.update({
+    });
+    await tx.conversation.update({
       where: { id: convo.id },
       data: { lastMessageAt: new Date() },
-    }),
-  ]);
+    });
+    return created;
+  });
 
   return jsonOk(message, 201);
 }

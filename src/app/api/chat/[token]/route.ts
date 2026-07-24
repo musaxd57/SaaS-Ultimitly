@@ -3,7 +3,14 @@ import { prisma } from "@/lib/db";
 import { suggestReply } from "@/lib/ai";
 import { classifyFallback, detectPromptInjection, detectRiskType } from "@/lib/ai/fallback";
 import { HIGH_STAKES_RISK_TYPES } from "@/lib/automation";
-import { resolveGuestChat, bindOrCheckStay, guestChatAiPausedFromMessages, type GuestChatContext } from "@/lib/guest-chat";
+import {
+  resolveGuestChat,
+  bindOrCheckStay,
+  guestChatAiPausedFromMessages,
+  acquireGuestChatThreadLock,
+  type GuestChatContext,
+  type GuestChatDb,
+} from "@/lib/guest-chat";
 import { guestChatDisplayRole } from "@/lib/message-author";
 import { verifyReservationPin } from "@/lib/guest-chat-pin";
 import { sendQrEscalationAlertBounded, qrEscalationEventId } from "@/lib/guest-chat-alerts";
@@ -116,79 +123,83 @@ function mustEscalate(
 }
 
 /**
- * Record a guest-chat exchange (the guest's question + the bot's reply) for the
- * host. Kept OUT of the Airbnb inbox: a dedicated per-stay conversation
+ * Ensure the stay's dedicated QR conversation row exists and return its id.
+ * Kept OUT of the Airbnb inbox: a per-stay conversation
  * ("qr-chat:<propertyId>:<reservationId>", channel "chat") that the separate
- * "Misafir Sohbetleri" tab reads. Escalated exchanges are flagged ("problem" +
- * urgent) so the host can spot the ones that needed them. The synthetic marker
- * can never collide with a real Hospitable thread (those are UUIDs).
+ * "Misafir Sohbetleri" tab reads. status is always "answered" so these never
+ * leak into the Airbnb inbox/dashboard counts (which key on new/waiting/
+ * problem). Runs OUTSIDE the record transaction on purpose: the P2002
+ * lose-the-race catch below cannot live inside an interactive transaction
+ * (PostgreSQL aborts the whole tx on a unique violation).
  */
-async function recordGuestChat(
+async function ensureGuestChatConversation(
   propertyId: string,
   reservation: { id: string; guestName: string },
+): Promise<string> {
+  const marker = `qr-chat:${propertyId}:${reservation.id}`;
+  const existing = await prisma.conversation.findFirst({
+    where: { propertyId, externalReservationId: marker },
+    select: { id: true },
+  });
+  if (existing) return existing.id;
+  // DETERMİNİSTİK id = rezervasyon başına tek QR konuşması, PK üzerinden
+  // atomik (Codex P1): iki eşzamanlı "ilk mesaj" aynı id'yi yaratmaya çalışır,
+  // PostgreSQL PK'sı birini P2002 ile düşürür — kaybeden kazananın satırını
+  // kullanır. Migration'sız unique: externalReservationId'ye tablo-geneli
+  // @@unique koymak Hospitable satırlarını da bağlardı (aynı rezervasyonun
+  // birden çok gerçek thread'i meşru), o yüzden kapsam SADECE QR id'si.
+  // Eski (rastgele id'li) QR konuşmaları yukarıdaki findFirst ile bulunmaya
+  // devam eder — onlar için bu yol hiç koşmaz.
+  const qrConversationId = `qrconv_${reservation.id}`;
+  try {
+    const created = await prisma.conversation.create({
+      data: {
+        id: qrConversationId,
+        propertyId,
+        channel: "chat",
+        guestIdentifier: reservation.guestName,
+        status: "answered",
+        priority: "standard",
+        lastMessageAt: new Date(),
+        reservationId: reservation.id,
+        externalReservationId: marker,
+      },
+      select: { id: true },
+    });
+    return created.id;
+  } catch (err) {
+    if (!isUniqueViolation(err, ["id"])) throw err;
+    // Yarışı kaybeden istek: kazananın satırına devam et (mesaj kaybolmaz).
+    return qrConversationId;
+  }
+}
+
+/**
+ * Record a guest-chat exchange (the guest's question + the bot's reply) on an
+ * EXISTING conversation. Runs on the given client — inside the per-thread
+ * locked transaction on the guest route — so the paused-recheck and this
+ * insert are atomic against a concurrent host reply. Escalated exchanges are
+ * flagged via priority "urgent" (and stay urgent once set).
+ */
+async function recordGuestChatExchange(
+  db: GuestChatDb,
+  conversationId: string,
+  guestName: string,
   guestMessage: string,
   // null → HOST HANDOFF: store ONLY the guest's inbound message (the AI is paused;
   // the host replies). A string is the bot's reply, stored as a "Lixus AI" outbound.
   botReply: string | null,
   escalated: boolean,
 ): Promise<{ inboundMessageId: string }> {
-  const marker = `qr-chat:${propertyId}:${reservation.id}`;
-  const now = new Date();
-  // status is always "answered" so these never leak into the Airbnb inbox/dashboard
-  // counts (which key on new/waiting/problem); escalation is flagged via priority
-  // "urgent" (and stays urgent once set). The separate tab reads channel "chat".
-  const existing = await prisma.conversation.findFirst({
-    where: { propertyId, externalReservationId: marker },
-    select: { id: true },
+  await db.conversation.update({
+    where: { id: conversationId },
+    data: { lastMessageAt: new Date(), ...(escalated ? { priority: "urgent" } : {}) },
   });
-  let conversationId: string;
-  if (!existing) {
-    // DETERMİNİSTİK id = rezervasyon başına tek QR konuşması, PK üzerinden
-    // atomik (Codex P1): iki eşzamanlı "ilk mesaj" aynı id'yi yaratmaya çalışır,
-    // PostgreSQL PK'sı birini P2002 ile düşürür — kaybeden kazananın satırını
-    // kullanır. Migration'sız unique: externalReservationId'ye tablo-geneli
-    // @@unique koymak Hospitable satırlarını da bağlardı (aynı rezervasyonun
-    // birden çok gerçek thread'i meşru), o yüzden kapsam SADECE QR id'si.
-    // Eski (rastgele id'li) QR konuşmaları yukarıdaki findFirst ile bulunmaya
-    // devam eder — onlar için bu yol hiç koşmaz.
-    const qrConversationId = `qrconv_${reservation.id}`;
-    try {
-      const created = await prisma.conversation.create({
-        data: {
-          id: qrConversationId,
-          propertyId,
-          channel: "chat",
-          guestIdentifier: reservation.guestName,
-          status: "answered",
-          priority: escalated ? "urgent" : "standard",
-          lastMessageAt: now,
-          reservationId: reservation.id,
-          externalReservationId: marker,
-        },
-        select: { id: true },
-      });
-      conversationId = created.id;
-    } catch (err) {
-      if (!isUniqueViolation(err, ["id"])) throw err;
-      // Yarışı kaybeden istek: kazananın satırına devam et (mesaj kaybolmaz).
-      await prisma.conversation.update({
-        where: { id: qrConversationId },
-        data: { lastMessageAt: now, ...(escalated ? { priority: "urgent" } : {}) },
-      });
-      conversationId = qrConversationId;
-    }
-  } else {
-    await prisma.conversation.update({
-      where: { id: existing.id },
-      data: { lastMessageAt: now, ...(escalated ? { priority: "urgent" } : {}) },
-    });
-    conversationId = existing.id;
-  }
   // createManyAndReturn: the inbound row's id is the escalation-alert EVENT
   // identity (dedupe anchor) — same insert semantics, ids back in one round.
-  const created = await prisma.message.createManyAndReturn({
+  const created = await db.message.createManyAndReturn({
     data: [
-      { conversationId, direction: "inbound", authorType: "guest", senderName: reservation.guestName, body: guestMessage.slice(0, MAX_MESSAGE), language: "tr" },
+      { conversationId, direction: "inbound", authorType: "guest", senderName: guestName, body: guestMessage.slice(0, MAX_MESSAGE), language: "tr" },
       ...(botReply !== null
         ? [{ conversationId, direction: "outbound", authorType: "ai", senderName: "Lixus AI", body: botReply.slice(0, MAX_MESSAGE), language: "tr" }]
         : []),
@@ -208,9 +219,13 @@ async function recordGuestChat(
  * resume marker (senderName = AI_RESUME_MARKER, written by the panel button)
  * re-opens. No schema flag. A new reservation opens a fresh thread → AI active.
  */
-async function guestChatAiPaused(propertyId: string, reservationId: string): Promise<boolean> {
+async function guestChatAiPaused(
+  propertyId: string,
+  reservationId: string,
+  db: GuestChatDb = prisma,
+): Promise<boolean> {
   const marker = `qr-chat:${propertyId}:${reservationId}`;
-  const convo = await prisma.conversation.findFirst({
+  const convo = await db.conversation.findFirst({
     where: { propertyId, externalReservationId: marker },
     select: {
       messages: {
@@ -435,9 +450,28 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ tok
   // so a claim never guards zero work — the guest's retry is processed, not
   // swallowed. After a successful record the claim deliberately stays: the
   // retry dedupes onto the recorded exchange.
+  //
+  // ATOMIC HANDOFF GUARD (Codex 07-24 #4): when the record carries a BOT reply,
+  // the paused-recheck and the insert run in ONE transaction holding the
+  // per-thread advisory lock — the same lock the host reply route takes. A host
+  // reply committing at any point before our insert is therefore VISIBLE to the
+  // recheck (the lock forces commit-then-see ordering), so the AI can never
+  // append behind the host's message; `handedOff: true` reports the veto and
+  // only the guest's inbound was stored. The old non-transactional "send-time
+  // veto" this replaces was best-effort — a host reply landing between the
+  // check and the insert still got talked over.
   let recorded = false;
   const record = async (botReply: string | null, escalated: boolean) => {
-    const out = await recordGuestChat(ctx.property.id, res, message, botReply, escalated);
+    const conversationId = await ensureGuestChatConversation(ctx.property.id, res);
+    const out = await prisma.$transaction(async (tx) => {
+      await acquireGuestChatThreadLock(tx, conversationId);
+      if (botReply !== null && (await guestChatAiPaused(ctx.property.id, res.id, tx))) {
+        const r = await recordGuestChatExchange(tx, conversationId, res.guestName, message, null, true);
+        return { ...r, handedOff: true };
+      }
+      const r = await recordGuestChatExchange(tx, conversationId, res.guestName, message, botReply, escalated);
+      return { ...r, handedOff: false };
+    });
     recorded = true;
     return out;
   };
@@ -471,7 +505,10 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ tok
 
   if (usage.count > DAILY_AI_CAP) {
     const reply = "Sorunuzu ev sahibine ilettim; en kısa sürede size dönecek.";
-    const { inboundMessageId } = await record(reply, true);
+    const { inboundMessageId, handedOff } = await record(reply, true);
+    // A host reply raced in → the human owns the thread; the canned line was
+    // vetoed under the lock and only the guest's message was stored.
+    if (handedOff) return finalize({ handoff: true, reply: HANDOFF_REPLY });
     // "İlettim" is only true if the host finds out — env-gated (default OFF),
     // deduped per EVENT, response-time bounded, never throws (Codex #15).
     await sendQrEscalationAlertBounded({
@@ -520,20 +557,16 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ tok
   // prompt, the deterministic backstop is already in place.)
   const escalate = mustEscalate(result, message, res.guestName);
 
-  // SEND-TIME VETO: a host may have replied WHILE the model ran (seconds). Re-check
-  // now — immediately before we would store the AI reply — and veto it if the human
-  // has taken over: the AI must never talk over the host. Best-effort (shrinks the
-  // race window from the model-call duration to a few ms; a fully atomic guard would
-  // need a schema flag, out of scope). The guest's message is still recorded for the host.
-  if (await guestChatAiPaused(ctx.property.id, res.id)) {
-    await record(null, true);
-    return finalize({ handoff: true, reply: HANDOFF_REPLY });
-  }
-
+  // SEND-TIME VETO: a host may have replied WHILE the model ran (seconds). The
+  // authoritative check now lives INSIDE record() — recheck + insert run under
+  // the per-thread advisory lock shared with the host reply route, so a host
+  // reply committing at any point before our insert structurally vetoes the AI
+  // answer (handedOff below). The guest's message is still recorded for the host.
   const reply = escalate
     ? "Bu sorunuzu ev sahibine ilettim; en kısa sürede size dönecek."
     : result.reply;
-  const { inboundMessageId } = await record(reply, escalate);
+  const { inboundMessageId, handedOff } = await record(reply, escalate);
+  if (handedOff) return finalize({ handoff: true, reply: HANDOFF_REPLY });
   if (escalate) {
     await sendQrEscalationAlertBounded({
       organizationId: ctx.property.organizationId,

@@ -1,6 +1,11 @@
 import { describe, it, expect, beforeEach, afterEach, vi } from "vitest";
 import { prisma, resetDb, makeOrgWithProperty, daysFromNow } from "../helpers/db";
-import { generateChatToken, AI_RESUME_MARKER, guestChatAiPausedFromMessages } from "@/lib/guest-chat";
+import {
+  generateChatToken,
+  AI_RESUME_MARKER,
+  guestChatAiPausedFromMessages,
+  acquireGuestChatThreadLock,
+} from "@/lib/guest-chat";
 import { __resetRateLimit } from "@/lib/rate-limit";
 import type { SuggestReplyResult } from "@/lib/ai/types";
 
@@ -249,6 +254,50 @@ describe("QR host handoff (AI pause + send-time veto)", () => {
     const lastGuest = msgs.filter((m) => m.direction === "inbound").at(-1);
     expect(lastGuest?.authorType).toBe("guest"); // never system/host — it's a guest inbound
     expect(mockSuggest).not.toHaveBeenCalled(); // still paused; the guest can't re-enable the AI
+  });
+
+  it("ATOMIC LOCK (Codex 07-24 #4): a host reply committing AFTER the send-time check can no longer be talked over", async () => {
+    const { propertyId } = await makeOrgWithProperty();
+    const token = await enableChat(propertyId);
+    const first = await call(token, "Merhaba");
+    const cookie = deviceCookie(first);
+    const convo = await prisma.conversation.findFirstOrThrow({ where: { propertyId, channel: "chat" } });
+
+    // Orchestrated race: a host-reply transaction takes the per-thread lock and
+    // inserts its message, but holds the lock (uncommitted) while the guest POST
+    // runs. Pre-lock code sailed past the (non-transactional) send-time re-check
+    // — the uncommitted host reply was invisible — and appended the AI reply
+    // BEHIND the host's message. With the lock, the POST's recheck+insert
+    // transaction blocks until the host commits, then sees the reply and vetoes.
+    let releaseHold!: () => void;
+    const hold = new Promise<void>((r) => (releaseHold = r));
+    const hostTx = prisma.$transaction(async (tx) => {
+      await acquireGuestChatThreadLock(tx, convo.id);
+      await tx.message.create({
+        data: {
+          conversationId: convo.id, direction: "outbound", authorType: "host",
+          senderName: "Ev Sahibi Adı", body: "Ben ilgileniyorum.", language: "tr",
+        },
+      });
+      await hold; // keep the lock while the guest POST races
+    });
+    await new Promise((r) => setTimeout(r, 100)); // hostTx holds the lock
+    const racing = call(token, "Otopark var mı?", cookie);
+    await new Promise((r) => setTimeout(r, 150)); // POST reaches the lock and waits
+    releaseHold();
+    await hostTx;
+
+    const res = await racing;
+    expect(res.status).toBe(200);
+    expect((await res.json()).handoff).toBe(true); // vetoed under the lock
+
+    const msgs = await chatMessages(propertyId);
+    const hostIdx = msgs.findIndex((m) => m.authorType === "host");
+    expect(hostIdx).toBeGreaterThan(-1);
+    // Nothing but the guest's own message may follow the host's takeover — the
+    // raced AI answer is structurally impossible, not merely unlikely.
+    expect(msgs.slice(hostIdx + 1).map((m) => m.direction)).toEqual(["inbound"]);
+    expect(msgs.filter((m) => m.senderName === "Lixus AI")).toHaveLength(1); // only the first exchange's reply
   });
 
   it("the AI's OWN 'Lixus AI' reply does not count as a host takeover", async () => {
