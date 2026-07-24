@@ -118,10 +118,6 @@ export function ForgotPasswordForm() {
         </form>
       ) : (
         <form onSubmit={confirm} className="space-y-4">
-          <p className="rounded-md bg-muted/50 px-3 py-2 text-sm text-muted-foreground">
-            <strong>{email}</strong> kayıtlıysa bir kod gönderdik. Gelen kutunu (ve spam klasörünü)
-            kontrol et.
-          </p>
           <div className="space-y-2">
             <Label htmlFor="code">Doğrulama kodu</Label>
             <Input
@@ -159,6 +155,11 @@ export function ForgotPasswordForm() {
           >
             {cooldown > 0 ? `Kodu tekrar gönder (${cooldown})` : "Kodu tekrar gönder"}
           </button>
+          {/* Koşulsuz yardım satırı — hesap var/yok ayrımı yapmaz (enumeration-safe);
+              kaldırılan "kayıtlıysa gönderdik" kutusunun tek faydalı kısmı bu. */}
+          <p className="text-center text-sm text-muted-foreground">
+            Gelen kutunu ve spam klasörünü kontrol et.
+          </p>
         </form>
       )}
 
