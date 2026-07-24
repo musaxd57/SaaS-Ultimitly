@@ -192,6 +192,61 @@ describe("guest-chat-pin — storage + verify (DB)", () => {
     expect((await verifyReservationPin(reservationId, pin)).status).toBe("locked");
   });
 
+  it("ROTATION RACE (Codex 07-24 #3a): regen between the read and the slot → OLD PIN refused, NEW state untouched", async () => {
+    const { reservationId } = await makeReservation();
+    const oldPin = await setReservationPin(reservationId);
+    let newPin = "";
+    // Deterministic interleave: the verify's stale read completes, then the host
+    // regenerates the PIN BEFORE the verify continues. Without the hash-CAS on
+    // the slot, the stale request validated the OLD pin against the OLD hash and
+    // returned "ok" — accepting a rotated-away PIN.
+    // Manual one-shot seam (NOT vi.spyOn): the Prisma client is a proxy without
+    // own-property descriptors, so spyOn's mockRestore leaves the method
+    // undefined for the rest of the file. The wrapper self-deactivates into a
+    // pure passthrough after its single firing — semantically transparent.
+    const origFind = prisma.reservation.findUnique.bind(prisma.reservation);
+    let fired = false;
+    // @ts-expect-error test seam on the delegate proxy
+    prisma.reservation.findUnique = async (args: never) => {
+      if (fired) return origFind(args as never);
+      fired = true;
+      const row = await origFind(args as never);
+      newPin = await setReservationPin(reservationId); // rotation lands mid-verify
+      return row;
+    };
+    const verdict = await verifyReservationPin(reservationId, oldPin);
+    expect(fired).toBe(true);
+    expect(verdict.status).toBe("invalid"); // stale request can NOT unlock
+    // The rotation's fresh state is untouched: no burned attempt, no lockout.
+    const row = await prisma.reservation.findUniqueOrThrow({ where: { id: reservationId } });
+    expect(row.chatPinFailedCount).toBe(0);
+    expect(row.chatPinLockedUntil).toBeNull();
+    expect((await verifyReservationPin(reservationId, newPin)).status).toBe("ok");
+  });
+
+  it("ROTATION RACE (Codex 07-24 #3b): regen between the slot and the success-write → stale 'ok' discarded", async () => {
+    const { reservationId } = await makeReservation();
+    const oldPin = await setReservationPin(reservationId);
+    let newPin = "";
+    // The FIRST updateMany is the slot reservation; rotate right after it, before
+    // the compare + confirm-write. The success verdict must be contingent on the
+    // hash-scoped confirm write actually touching the row (count === 1).
+    const origUpdate = prisma.reservation.updateMany.bind(prisma.reservation);
+    let fired = false;
+    // @ts-expect-error test seam on the delegate proxy (see #3a note)
+    prisma.reservation.updateMany = async (args: never) => {
+      if (fired) return origUpdate(args as never);
+      fired = true;
+      const out = await origUpdate(args as never);
+      newPin = await setReservationPin(reservationId);
+      return out;
+    };
+    const verdict = await verifyReservationPin(reservationId, oldPin);
+    expect(fired).toBe(true);
+    expect(verdict.status).toBe("invalid"); // confirm-CAS refused the stale success
+    expect((await verifyReservationPin(reservationId, newPin)).status).toBe("ok");
+  });
+
   it("a SUCCESSFUL verify resets the failed-attempt counter", async () => {
     const { reservationId } = await makeReservation();
     const pin = await setReservationPin(reservationId);

@@ -170,18 +170,28 @@ export async function verifyReservationPin(
   const slot = await prisma.reservation.updateMany({
     where: {
       id: reservationId,
-      chatPinHash: { not: null },
+      // CAS on the hash we READ (Codex 07-24 #3): the slot is only granted while
+      // the PIN is still the one this request will compare against. If the host
+      // regenerates the PIN between our read and here, the condition fails and
+      // the stale request is refused below — it can never validate (or burn an
+      // attempt of) the NEW PIN's state with the OLD hash.
+      chatPinHash: row.chatPinHash,
       OR: [{ chatPinLockedUntil: null }, { chatPinLockedUntil: { lt: now } }],
       chatPinFailedCount: { lt: QR_PIN_MAX_ATTEMPTS },
     },
     data: { chatPinFailedCount: { increment: 1 } },
   });
   if (slot.count === 0) {
-    // Budget spent (or a race locked it first) → ensure the lock is set, refuse.
+    // Disambiguate: the slot can now also be refused because the hash CHANGED
+    // (host regenerated mid-verify) or was cleared — a stale request, not a
+    // spent budget. Refuse WITHOUT setting the lockout (the new PIN's fresh
+    // counter must not be locked by a request that raced the rotation).
     const cur = await prisma.reservation.findUnique({
       where: { id: reservationId },
-      select: { chatPinLockedUntil: true },
+      select: { chatPinHash: true, chatPinLockedUntil: true },
     });
+    if (!cur?.chatPinHash) return { status: "no_pin" };
+    if (cur.chatPinHash !== row.chatPinHash) return { status: "invalid" };
     let until = cur?.chatPinLockedUntil ?? null;
     if (!until || until <= now) {
       until = new Date(now.getTime() + QR_PIN_LOCKOUT_MS);
@@ -197,14 +207,23 @@ export async function verifyReservationPin(
 
   // We hold a slot → now it's safe to compare (timing-safe).
   if (safeEqualHex(hashPin(reservationId, pin), row.chatPinHash)) {
-    // Success → reset the counter. Scope the write to the SAME hash so a PIN
-    // regenerated in between doesn't get its fresh counter wiped by a stale success.
-    await prisma.reservation
-      .updateMany({
+    // CONFIRM the success with a hash-scoped conditional write (Codex 07-24 #3):
+    // "ok" is only returned when the PIN we just validated is STILL the active
+    // one at write time. If the host regenerated it between the slot and here,
+    // count === 0 and the stale success is discarded — the old PIN can never
+    // unlock the stay after a rotation, however narrow the window. The same
+    // write resets the counter (scoped to the same hash, so a fresh counter is
+    // never wiped by a stale success). A store error also refuses (fail-closed:
+    // an unconfirmable success is not a success; the guest simply retries).
+    try {
+      const confirmed = await prisma.reservation.updateMany({
         where: { id: reservationId, chatPinHash: row.chatPinHash },
         data: { chatPinFailedCount: 0, chatPinLockedUntil: null },
-      })
-      .catch(() => {});
+      });
+      if (confirmed.count === 0) return { status: "invalid" };
+    } catch {
+      return { status: "invalid" };
+    }
     return { status: "ok" };
   }
 
