@@ -9,6 +9,7 @@ import { premiumAllowed } from "@/lib/billing/subscription";
 import { sendDueTrialReminders } from "@/lib/billing/trial-reminders";
 import { anonymizeOldGuestData, purgeOldLeads } from "@/lib/data-retention";
 import { sweepExpiredRateLimits } from "@/lib/rate-limit";
+import { drainEmailOutboxOnce, sweepEmailOutbox } from "@/lib/email-outbox";
 import { durableOutboxEnabled } from "@/lib/outbox/flag";
 import { drainOutboxOnce, hasDrainableOutbox, reactivateBlockedOutbox } from "@/lib/outbox/worker";
 import { drainStorageDeletions, hasPendingStorageDeletions } from "@/lib/storage/deletion-queue";
@@ -320,6 +321,15 @@ export async function runScheduledSync(): Promise<ScheduledSyncTotals> {
           await sendDueTrialReminders();
         } catch (err) {
           await reportError("scheduled-sync trial-reminders", err);
+        }
+        // Identity e-mail outbox: the 2-min RECOVERY net behind the 15s poller
+        // (crash recovery + retention sweep + a drain pass so external-cron-only
+        // deployments still deliver). No-op while EMAIL_OUTBOX_ENABLED is off.
+        try {
+          await sweepEmailOutbox();
+          await drainEmailOutboxOnce();
+        } catch (err) {
+          await reportError("scheduled-sync email-outbox", err);
         }
       }
       return totals;

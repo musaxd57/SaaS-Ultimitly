@@ -42,6 +42,35 @@ export function encryptSecret(plain: string): string {
   return ["v1", iv.toString("base64"), tag.toString("base64"), enc.toString("base64")].join(".");
 }
 
+/**
+ * AAD-BOUND variant (v2) for values whose ciphertext must be usable ONLY in its
+ * original context (e.g. an EmailOutbox row: AAD carries rowId+userId+kind, so a
+ * ciphertext copied onto another row/user/kind fails authentication). Same key,
+ * same layout with a "v2" prefix. decrypt throws on tamper/garble/wrong-AAD.
+ */
+export function encryptSecretBound(plain: string, aad: string): string {
+  const iv = randomBytes(12);
+  const cipher = createCipheriv(ALG, key(), iv);
+  cipher.setAAD(Buffer.from(aad, "utf8"));
+  const enc = Buffer.concat([cipher.update(plain, "utf8"), cipher.final()]);
+  const tag = cipher.getAuthTag();
+  return ["v2", iv.toString("base64"), tag.toString("base64"), enc.toString("base64")].join(".");
+}
+
+export function decryptSecretBound(payload: string, aad: string): string {
+  const [v, ivb, tagb, datab] = payload.split(".");
+  if (v !== "v2" || !ivb || !tagb || !datab) {
+    throw new Error("Bozuk şifreli veri.");
+  }
+  const decipher = createDecipheriv(ALG, key(), Buffer.from(ivb, "base64"));
+  decipher.setAAD(Buffer.from(aad, "utf8"));
+  decipher.setAuthTag(Buffer.from(tagb, "base64"));
+  return Buffer.concat([
+    decipher.update(Buffer.from(datab, "base64")),
+    decipher.final(),
+  ]).toString("utf8");
+}
+
 /** Decrypt a value produced by {@link encryptSecret}. Throws if tampered or garbled. */
 export function decryptSecret(payload: string): string {
   const [v, ivb, tagb, datab] = payload.split(".");

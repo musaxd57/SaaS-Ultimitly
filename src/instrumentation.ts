@@ -64,6 +64,40 @@ export async function register() {
   setTimeout(tick, 15_000);
   setInterval(tick, INTERVAL_MS);
   console.log("[internal-cron] in-process scheduler started (every 2 min)");
+
+  // ── Identity e-mail outbox poller (Tur-4). NOT a separate worker service —
+  // a persistent in-process loop; delivery durability comes from the DB row,
+  // this only bounds latency (a reset code is watched for on screen, so the
+  // 2-min cron alone is too slow). Same localhost-fetch pattern as above (no
+  // Prisma/nodemailer in this bundle); SKIP LOCKED claims make any number of
+  // replicas polling concurrently safe. Gated at boot on the flag: a Railway
+  // env change restarts the process, so a boot-time read is authoritative —
+  // and the endpoint itself no-ops when the flag is off (defence in depth).
+  // With INTERNAL_CRON_DISABLED=1 this poller is off too (we returned above);
+  // such deployments deliver via the external scheduler's /api/cron/sync pass
+  // (worst-case latency = that cron's interval) or by also scheduling
+  // /api/cron/email-outbox externally.
+  if (process.env.EMAIL_OUTBOX_ENABLED === "1") {
+    const g2 = globalThis as typeof globalThis & { __lixusEmailOutboxPollerStarted?: boolean };
+    if (!g2.__lixusEmailOutboxPollerStarted) {
+      g2.__lixusEmailOutboxPollerStarted = true;
+      const outboxUrl = `http://127.0.0.1:${port}/api/cron/email-outbox`;
+      const outboxTick = async () => {
+        try {
+          const res = await fetch(outboxUrl, {
+            headers: { Authorization: `Bearer ${secret}` },
+            signal: AbortSignal.timeout(30_000),
+          });
+          if (!res.ok) console.error(`[email-outbox-poller] tick HTTP ${res.status}`);
+        } catch (err) {
+          console.error("[email-outbox-poller] tick failed", err);
+        }
+      };
+      setTimeout(outboxTick, 20_000);
+      setInterval(outboxTick, 15_000);
+      console.log("[email-outbox-poller] in-process poller started (every 15s)");
+    }
+  }
 }
 
 // NOTE: a global Next.js `onRequestError` crash-net was attempted here but reverted
