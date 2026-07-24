@@ -6,6 +6,12 @@ import { rateLimit, clientIp } from "@/lib/rate-limit";
 import { writeAudit } from "@/lib/audit";
 import { emailService } from "@/lib/email";
 import { reportError } from "@/lib/report-error";
+import {
+  emailOutboxEnabled,
+  enqueueIdentityEmail,
+  kickEmailOutboxDrain,
+  resetCodeEmailHtml,
+} from "@/lib/email-outbox";
 
 // ---------------------------------------------------------------------------
 // PUBLIC "forgot my password" RESET (logged OUT). Mirrors the logged-in
@@ -29,16 +35,9 @@ function verificationCode(): string {
   return String(n).padStart(8, "0");
 }
 
-function codeEmailHtml(code: string): string {
-  return `
-    <div style="font-family:system-ui,Arial,sans-serif;max-width:480px;margin:0 auto">
-      <h2 style="color:#111">Lixus AI — Şifre sıfırlama kodu</h2>
-      <p>Şifrenizi sıfırlamak için doğrulama kodunuz:</p>
-      <p style="font-size:28px;font-weight:700;letter-spacing:4px;margin:16px 0">${code}</p>
-      <p style="color:#555">Bu kod <strong>10 dakika</strong> geçerlidir. Bu isteği siz yapmadıysanız
-      bu e-postayı yok sayın — şifreniz değişmez.</p>
-    </div>`;
-}
+// The e-mail template lives in email-outbox.ts (resetCodeEmailHtml) — ONE
+// source for both the outbox worker and this route's legacy synchronous path,
+// so the two can never drift apart.
 
 // Same generic message whether the email is unknown, the code is wrong, expired,
 // or exhausted — so the response never reveals whether an account exists.
@@ -72,23 +71,61 @@ export async function POST(req: NextRequest) {
         // Spend a comparable bcrypt cost so the not-found path isn't measurably
         // faster than the real path (removes a cheap timing oracle).
         await hashPassword(verificationCode());
+        // Outbox parity (Tur-4): the known-user path writes one short local
+        // transaction; mirror a comparable no-op write here so the work
+        // profiles stay close. bcrypt remains the dominant cost either way —
+        // absolute constant time is NOT claimed (rate limits stay the first
+        // line of defence).
+        if (emailOutboxEnabled()) {
+          await prisma.user.updateMany({
+            where: { id: "__timing_parity__" },
+            data: { pwResetCodeAttempts: 0 },
+          });
+        }
         return jsonOk({ ok: true });
       }
 
       const code = verificationCode();
       const codeHash = await hashPassword(code);
+      const expiresAt = new Date(Date.now() + CODE_TTL_MS);
+
+      // ── Durable outbox (Tur-4, flag ON): hash + send-intent in ONE
+      // transaction, NO provider call on the request path (the synchronous
+      // network leg was the forgot-password timing oracle — and a provider
+      // outage used to silently burn the code). Delivery is owned by the 15s
+      // poller / 2-min cron; the kick below only shortens the wait and can
+      // never produce an unhandled rejection. ──
+      if (emailOutboxEnabled()) {
+        await prisma.$transaction(async (tx) => {
+          await tx.user.update({
+            where: { id: user.id },
+            data: { pwResetCodeHash: codeHash, pwResetCodeExpiresAt: expiresAt, pwResetCodeAttempts: 0 },
+          });
+          await enqueueIdentityEmail(tx, {
+            userId: user.id,
+            kind: "pw_reset_code",
+            secret: code,
+            recipient: email,
+            expiresAt,
+          });
+        });
+        kickEmailOutboxDrain();
+        return jsonOk({ ok: true });
+      }
+
+      // Legacy synchronous path (flag OFF) — unchanged behaviour.
       await prisma.user.update({
         where: { id: user.id },
         data: {
           pwResetCodeHash: codeHash,
-          pwResetCodeExpiresAt: new Date(Date.now() + CODE_TTL_MS),
+          pwResetCodeExpiresAt: expiresAt,
           pwResetCodeAttempts: 0,
         },
       });
       const sent = await emailService.sendReporting(
         email,
         "Lixus AI — Şifre sıfırlama kodu",
-        codeEmailHtml(code),
+        resetCodeEmailHtml(code),
       );
       if (!sent.ok) {
         // Couldn't deliver → don't leave a dangling code. Stay generic (no

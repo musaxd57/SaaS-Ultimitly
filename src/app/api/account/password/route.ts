@@ -11,6 +11,12 @@ import {
 import { rateLimit } from "@/lib/rate-limit";
 import { writeAudit } from "@/lib/audit";
 import { emailService } from "@/lib/email";
+import {
+  emailOutboxEnabled,
+  enqueueIdentityEmail,
+  kickEmailOutboxDrain,
+  changeCodeEmailHtml,
+} from "@/lib/email-outbox";
 
 // ---------------------------------------------------------------------------
 // Change the signed-in user's password — gated by an E-MAIL VERIFICATION CODE,
@@ -37,16 +43,8 @@ function verificationCode(): string {
   return String(n).padStart(8, "0");
 }
 
-function codeEmailHtml(code: string): string {
-  return `
-    <div style="font-family:system-ui,Arial,sans-serif;max-width:480px;margin:0 auto">
-      <h2 style="color:#111">Lixus AI — Şifre değiştirme kodu</h2>
-      <p>Hesabınızın şifresini değiştirmek için doğrulama kodunuz:</p>
-      <p style="font-size:28px;font-weight:700;letter-spacing:4px;margin:16px 0">${code}</p>
-      <p style="color:#555">Bu kod <strong>10 dakika</strong> geçerlidir. Bu isteği siz yapmadıysanız
-      bu e-postayı yok sayın — şifreniz değişmez.</p>
-    </div>`;
-}
+// The e-mail template lives in email-outbox.ts (changeCodeEmailHtml) — ONE
+// source for both the outbox worker and this route's legacy synchronous path.
 
 export async function POST(req: NextRequest) {
   const session = await requireSession();
@@ -70,11 +68,35 @@ export async function POST(req: NextRequest) {
 
       const code = verificationCode();
       const codeHash = await hashPassword(code);
+      const expiresAt = new Date(Date.now() + CODE_TTL_MS);
+
+      // Durable outbox (Tur-4, flag ON): hash + send-intent in ONE transaction;
+      // no provider call on the request path. A provider outage becomes a
+      // scheduled retry instead of "code e-mail failed, try later".
+      if (emailOutboxEnabled()) {
+        await prisma.$transaction(async (tx) => {
+          await tx.user.update({
+            where: { id: session.userId },
+            data: { pwChangeCodeHash: codeHash, pwChangeCodeExpiresAt: expiresAt, pwChangeCodeAttempts: 0 },
+          });
+          await enqueueIdentityEmail(tx, {
+            userId: session.userId,
+            kind: "pw_change_code",
+            secret: code,
+            recipient: session.email,
+            expiresAt,
+          });
+        });
+        kickEmailOutboxDrain();
+        return jsonOk({ ok: true });
+      }
+
+      // Legacy synchronous path (flag OFF) — unchanged behaviour.
       await prisma.user.update({
         where: { id: session.userId },
         data: {
           pwChangeCodeHash: codeHash,
-          pwChangeCodeExpiresAt: new Date(Date.now() + CODE_TTL_MS),
+          pwChangeCodeExpiresAt: expiresAt,
           pwChangeCodeAttempts: 0,
         },
       });
@@ -82,7 +104,7 @@ export async function POST(req: NextRequest) {
       const sent = await emailService.sendReporting(
         session.email,
         "Lixus AI — Şifre değiştirme kodu",
-        codeEmailHtml(code),
+        changeCodeEmailHtml(code),
       );
       if (!sent.ok) {
         // Couldn't deliver → don't leave a dangling code lying around.

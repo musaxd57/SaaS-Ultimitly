@@ -1,4 +1,4 @@
-import { describe, it, expect, beforeEach, vi } from "vitest";
+import { describe, it, expect, beforeEach, afterEach, vi } from "vitest";
 import { NextRequest } from "next/server";
 import { prisma, resetDb } from "../helpers/db";
 import { verifyPassword } from "@/lib/auth/password";
@@ -24,7 +24,16 @@ vi.mock("@/lib/email", () => ({
   },
 }));
 
+// Outbox (Tur-4): the inline kick is mocked so the fire-and-forget drain can't
+// race the assertions — tests drain EXPLICITLY; the kick call itself is pinned.
+vi.mock("@/lib/email-outbox", async (orig) => {
+  const actual = await orig<typeof import("@/lib/email-outbox")>();
+  return { ...actual, kickEmailOutboxDrain: vi.fn() };
+});
+
 import { POST } from "@/app/api/account/password/route";
+import { drainEmailOutboxOnce, kickEmailOutboxDrain } from "@/lib/email-outbox";
+import { emailService } from "@/lib/email";
 
 function req(body: unknown) {
   return new NextRequest("http://localhost/api/account/password", {
@@ -160,5 +169,42 @@ describe("POST /api/account/password (e-mail code flow)", () => {
     const loserPw = a.status === 200 ? "yarisSifre222" : "yarisSifre111";
     expect(await verifyPassword(winnerPw, u.passwordHash)).toBe(true);
     expect(await verifyPassword(loserPw, u.passwordHash)).toBe(false);
+  });
+});
+
+// ── Tur-4: EMAIL_OUTBOX_ENABLED=1 — the code request queues instead of sending.
+describe("account/password — durable outbox (flag ON)", () => {
+  beforeEach(async () => {
+    await resetDb();
+    __resetRateLimit();
+    vi.clearAllMocks();
+    lastEmailHtml = "";
+    emailOk = true;
+    vi.stubEnv("EMAIL_OUTBOX_ENABLED", "1");
+    const org = await prisma.organization.create({ data: { name: "Org" } });
+    const user = await prisma.user.create({
+      data: { organizationId: org.id, name: "U", email: "u@example.com", passwordHash: "old", role: "owner" },
+    });
+    session = { userId: user.id, organizationId: org.id, role: "owner", email: "u@example.com", name: "U", sessionEpoch: 0 };
+  });
+  afterEach(() => vi.unstubAllEnvs());
+
+  it("ESKİ WRITER DEVRE DIŞI: request senkron göndermez; satır + hash atomik; drain sonrası confirm uçtan uca çalışır", async () => {
+    const res = await POST(req({ action: "request" }));
+    expect(res.status).toBe(200);
+    expect(vi.mocked(emailService.sendReporting)).not.toHaveBeenCalled();
+    expect(kickEmailOutboxDrain).toHaveBeenCalledTimes(1);
+    const row = await prisma.emailOutbox.findFirstOrThrow();
+    expect(row.kind).toBe("pw_change_code");
+    expect(row.status).toBe("pending");
+
+    await drainEmailOutboxOnce();
+    expect(vi.mocked(emailService.sendReporting)).toHaveBeenCalledTimes(1);
+    expect(vi.mocked(emailService.sendReporting).mock.calls[0][0]).toBe("u@example.com");
+    const code = codeFromEmail();
+    const conf = await POST(req({ action: "confirm", code, newPassword: "yeniSifre123" }));
+    expect(conf.status).toBe(200);
+    const u = await prisma.user.findUniqueOrThrow({ where: { id: session.userId } });
+    expect(await verifyPassword("yeniSifre123", u.passwordHash)).toBe(true);
   });
 });
