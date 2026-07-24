@@ -81,6 +81,37 @@ describe("LoginForm — doğrulama e-postası kurtarma yolu", () => {
     });
   });
 
+  it("YARIŞ: istek uçarken adres değişirse, ESKİ isteğin geç cevabı yeni adrese 'gönderildi' demez", async () => {
+    // Alan gönderim sırasında kilitli DEĞİL (yazım hatası düzeltilebilmeli), bu
+    // yüzden cevap gönderildiği adrese bağlanır: adres değiştiyse sonuç bayattır.
+    let resolve!: (r: Response) => void;
+    const inflight = new Promise<Response>((r) => (resolve = r));
+    const sentTo: string[] = [];
+    vi.stubGlobal(
+      "fetch",
+      vi.fn((_url: string, opts?: RequestInit) => {
+        sentTo.push(JSON.parse(String(opts?.body)).email);
+        return inflight;
+      }),
+    );
+    render(<LoginForm />);
+    typeInto(/E-posta/, "eski@ornek.com");
+    await act(async () => {
+      fireEvent.click(await screen.findByRole("button", { name: /tekrar gönder/ }));
+    });
+    // Cevap gelmeden kullanıcı adresi düzeltiyor…
+    typeInto(/E-posta/, "yeni@ornek.com");
+    // …ve ESKİ isteğin cevabı şimdi geliyor.
+    await act(async () => {
+      resolve(new Response("{}", { status: 200 }));
+    });
+    expect(sentTo).toEqual(["eski@ornek.com"]); // mail yalnız eski adrese gitti
+    expect(screen.queryByText(/gönderildi/)).toBeNull(); // yeni adres için YALAN onay yok
+    // Yeni adres için istek hâlâ mümkün (buton kilitli kalmadı).
+    const btn = (await screen.findByRole("button", { name: /tekrar gönder/ })) as HTMLButtonElement;
+    expect(btn.disabled).toBe(false);
+  });
+
   it("hata bir DURUM'dur: şifre düzeltilmeye başlanınca kaybolur (zaman aşımıyla değil)", async () => {
     window.history.replaceState({}, "", "/login");
     vi.stubGlobal(

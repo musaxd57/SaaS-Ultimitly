@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect } from "react";
+import { useState, useEffect, useRef } from "react";
 import { useRouter } from "next/navigation";
 import Link from "next/link";
 import { Loader2 } from "lucide-react";
@@ -27,6 +27,15 @@ export function LoginForm() {
   const [needsVerify, setNeedsVerify] = useState(false);
   const [resent, setResent] = useState(false);
   const [resending, setResending] = useState(false);
+  // Uçuştaki yeniden-gönderimin SONUCU, isteğin gönderildiği adrese bağlıdır.
+  // Alan gönderim sırasında KİLİTLENMEZ (kullanıcı yeni fark ettiği yazım
+  // hatasını düzeltebilmeli), o yüzden geç gelen cevabın hangi adrese ait
+  // olduğunu bilmek gerekir: adres bu arada değiştiyse eski sonuç YOK SAYILIR —
+  // aksi hâlde ekran, hiç mail gitmemiş YENİ adres için "gönderildi" derdi.
+  const latestEmail = useRef(email);
+  useEffect(() => {
+    latestEmail.current = email;
+  }, [email]);
 
   useEffect(() => {
     const v = new URLSearchParams(window.location.search).get("verify");
@@ -55,12 +64,17 @@ export function LoginForm() {
     }
     if (resending) return;
     setResending(true);
+    const target = email; // bu isteğin SAHİBİ olan adres
     try {
       const res = await fetch("/api/auth/resend-verification", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ email }),
+        body: JSON.stringify({ email: target }),
       });
+      // Yarış kapısı: cevap dönene kadar kullanıcı adresi değiştirmişse bu sonuç
+      // BAYATTIR — ne başarı ne hata gösterilir (yeni adres için hiçbir şey
+      // gönderilmedi). Sadece `resending` finally'de düşer, buton yeniden aktif olur.
+      if (latestEmail.current !== target) return;
       // Bir 429/5xx yanıtı throw ETMEZ — ok kontrolü olmadan kullanıcıya yalan
       // "gönderildi" gösterilir ve hiç gelmeyecek bir e-postayı bekler.
       if (!res.ok) {
@@ -74,6 +88,7 @@ export function LoginForm() {
       setError(null); // başarıda eski kırmızı uyarı ekranda kalmasın
       setResent(true);
     } catch {
+      if (latestEmail.current !== target) return; // bayat hata da gösterilmez
       setError("Bağlantı hatası. Lütfen tekrar deneyin.");
     } finally {
       setResending(false);
