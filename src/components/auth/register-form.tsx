@@ -91,12 +91,17 @@ export function RegisterForm() {
         </div>
         {/* Çıkış yolu: bu ekran eskiden çıkmazdı — mail gelmezse yeniden gönderme
             imkânı giriş sayfasında olduğu hâlde oraya bir bağlantı yoktu. */}
+        {/* Yeniden gönderme seçeneği giriş sayfasında, ANCAK giriş denemesinden
+            sonra beliriyor (sunucu doğrulanmamış hesapta needsVerification
+            döndürünce sarı kutu açılıyor) — metin bu yüzden "giriş yapmayı
+            deneyin" diyor; "orada bir buton var" demek eksik tarif olurdu. */}
         <p className="text-center text-sm text-muted-foreground">
           Bağlantıyı kullandıktan sonra{" "}
           <Link href="/login" className="font-medium text-primary hover:underline">
             giriş sayfasından
           </Link>{" "}
-          devam edebilirsiniz; mail gelmediyse oradan yeniden gönderebilirsiniz.
+          devam edebilirsiniz. Bağlantı gelmediyse giriş yapmayı deneyin; doğrulama
+          e-postasını yeniden gönderme seçeneği orada çıkar.
         </p>
       </div>
     );

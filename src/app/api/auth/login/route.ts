@@ -72,7 +72,8 @@ export async function POST(req: NextRequest) {
     if (needsEmailVerification(user)) {
       return NextResponse.json(
         {
-          error: "E-postanı doğrulaman gerekiyor. Kayıt sırasında gönderdiğimiz doğrulama bağlantısına tıkla.",
+          error:
+            "E-postanızı doğrulamanız gerekiyor. Kayıt sırasında gönderdiğimiz doğrulama bağlantısına tıklayın.",
           needsVerification: true,
         },
         { status: 403 },

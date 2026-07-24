@@ -65,7 +65,7 @@ export async function POST(req: NextRequest) {
     });
     const sent = await emailService.sendReporting(
       email,
-      "Lixus AI — E-postanı doğrula",
+      "Lixus AI — E-postanızı doğrulayın",
       verifyEmailHtml(user.name, verifyUrl(raw)),
     );
     // The response is DELIBERATELY uniform (always 200 — a different shape on failure

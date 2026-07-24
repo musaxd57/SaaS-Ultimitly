@@ -187,7 +187,7 @@ function renderIdentityEmail(
   switch (kind) {
     case "verify_email":
       return {
-        subject: "Lixus AI — E-postanı doğrula",
+        subject: "Lixus AI — E-postanızı doğrulayın",
         html: verifyEmailHtml(userName, verifyUrl(secret)),
       };
     case "pw_reset_code":

@@ -121,7 +121,7 @@ export async function POST(req: NextRequest) {
     // nothing was sent. We do NOT delete the account on a provider error.
     const sent = await emailService.sendReporting(
       email,
-      "Lixus AI — E-postanı doğrula",
+      "Lixus AI — E-postanızı doğrulayın",
       verifyEmailHtml(user.name, verifyUrl(raw)),
     );
     if (!sent.ok) {
