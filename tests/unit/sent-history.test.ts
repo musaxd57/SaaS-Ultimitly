@@ -73,7 +73,9 @@ describe("mergeSentPage — çok kaynaklı gönderim geçmişi sayfalama", () =>
     const size = 10;
     // Referans, kodun kullandığı TAM sıra olmalı (when DESC, id DESC) — zaman-yalnız
     // bir referans, eşitlikte sort kararlılığına bel bağlar ve testi kırılgan yapar.
-    const truth = [...a, ...b].sort((x, y) => compareSentRows(x.when, x.id, y.when, y.id));
+    const truth = [...a, ...b].sort((x, y) =>
+      compareSentRows({ when: x.when, id: x.id, rank: 0 }, { when: y.when, id: y.id, rank: 0 }),
+    );
     for (let page = 1; page <= 4; page++) {
       const got = mergeSentPage(
         [a.slice(0, page * size), b.slice(0, page * size)],
@@ -130,6 +132,32 @@ describe("mergeSentPage — çok kaynaklı gönderim geçmişi sayfalama", () =>
     const sqlOrder = [...source].sort((x, y) => (x.id < y.id ? 1 : -1)).map((r) => r.id); // id DESC
     const merged = ids(mergeSentPage([[...source]], 1, 10, whenOf, keyOf));
     expect(merged).toEqual(sqlOrder);
+  });
+
+  it("aynı when VE aynı ham id — kaynak sırası son anahtar olarak sırayı TAM yapar", () => {
+    // Ham id'ler AYRI TABLOLARDAN geliyor; veritabanı iki farklı tablodaki satırın
+    // aynı id'yi taşımasını yasaklamıyor (pratikte cuid ile ihtimali yok denecek
+    // kadar düşük, ama tanımsız sıra bırakmak istemiyoruz). Kaynak sırası EN SON
+    // anahtar: kaynak içinde sabit olduğu için SQL sırasına dokunmaz.
+    const same = new Date(Date.UTC(2026, 0, 1, 12, 0, 0));
+    const collide = "identical-id";
+    const first: Row[] = [{ id: collide, when: same }];
+    const second: Row[] = [{ id: collide, when: same }];
+    // Deterministik: önce gelen KAYNAK önce çıkar, ve iki koşuda da aynı sonuç.
+    const run = () => mergeSentPage([first, second], 1, 10, whenOf, keyOf);
+    expect(run()).toEqual([first[0], second[0]]);
+    expect(run()).toEqual([first[0], second[0]]);
+    // Ters kaynak sırası → ters sonuç (yani rank GERÇEKTEN belirleyici).
+    expect(mergeSentPage([second, first], 1, 10, whenOf, keyOf)).toEqual([second[0], first[0]]);
+    // Karşılaştırıcı doğrudan: rank yalnız when ve id eşitken devreye girer.
+    const k = (rank: number) => ({ when: same, id: collide, rank });
+    expect(compareSentRows(k(0), k(1))).toBeLessThan(0);
+    expect(compareSentRows(k(1), k(0))).toBeGreaterThan(0);
+    expect(compareSentRows(k(0), k(0))).toBe(0);
+    // Farklı id'de rank hiç konuşmaz (kaynak-içi SQL sırası korunur).
+    expect(
+      compareSentRows({ when: same, id: "b", rank: 9 }, { when: same, id: "a", rank: 0 }),
+    ).toBeLessThan(0); // id DESC → "b" önce, rank'e rağmen
   });
 
   it("clampPage çöp/negatif/taşkın girdiyi güvenli aralığa çeker (devasa OFFSET yok)", () => {

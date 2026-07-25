@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect } from "react";
+import { useState, useEffect, useRef } from "react";
 import Link from "next/link";
 import { Loader2 } from "lucide-react";
 import { Button } from "@/components/ui/button";
@@ -17,12 +17,23 @@ export function ForgotPasswordForm() {
   const [error, setError] = useState<string | null>(null);
   const [loading, setLoading] = useState(false);
   const [cooldown, setCooldown] = useState(0);
+  const emailRef = useRef<HTMLInputElement>(null);
+  // "E-posta adresini değiştir" sonrası odağı alana taşımak için tek-atımlık
+  // bayrak. `autoFocus` KULLANILMAZ: o, sayfa ilk açıldığında da odağı çalardı —
+  // burada yalnız kullanıcının kendi başlattığı geri dönüşte odak taşınmalı.
+  const [focusEmail, setFocusEmail] = useState(false);
 
   useEffect(() => {
     if (cooldown <= 0) return;
     const t = setTimeout(() => setCooldown((c) => c - 1), 1000);
     return () => clearTimeout(t);
   }, [cooldown]);
+
+  useEffect(() => {
+    if (!focusEmail) return;
+    emailRef.current?.focus();
+    setFocusEmail(false);
+  }, [focusEmail]);
 
   async function requestCode(e?: React.FormEvent) {
     e?.preventDefault();
@@ -54,12 +65,21 @@ export function ForgotPasswordForm() {
    *  yenilemekti). `email` KORUNUR: yazım hatasını düzeltmek, adresi baştan
    *  yazmaktan kolaydır. Bayat durum (eski kod + eski hata) temizlenir; bekleme
    *  sayacı da sıfırlanır — yanlış adresi düzeltmek cezalandırılacak bir şey değil,
-   *  sunucu tarafı hız sınırı zaten kötüye kullanımı karşılıyor. */
+   *  sunucu tarafı hız sınırı zaten kötüye kullanımı karşılıyor.
+   *
+   *  `newPassword` de temizlenir (Codex): BAŞKA bir adres için hazırlanmış şifre
+   *  bellekte asılı kalmamalı — kullanıcı hangi hesap için yazdığını unutabilir ve
+   *  yeni adrese farkında olmadan o şifreyi kurabilirdi.
+   *
+   *  Odak e-posta alanına taşınır: geri dönmenin TEK sebebi adresi düzeltmek,
+   *  kullanıcıyı bir de alanı aramaya zorlamak gereksiz. */
   function backToEmailStep() {
     setStep("request");
     setCode("");
+    setNewPassword("");
     setError(null);
     setCooldown(0);
+    setFocusEmail(true);
   }
 
   async function confirm(e: React.FormEvent) {
@@ -115,6 +135,7 @@ export function ForgotPasswordForm() {
             <Label htmlFor="email">E-posta</Label>
             <Input
               id="email"
+              ref={emailRef}
               type="email"
               autoComplete="email"
               value={email}

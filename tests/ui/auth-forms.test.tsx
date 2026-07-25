@@ -201,12 +201,17 @@ describe("ForgotPasswordForm — yanlış yazılan e-posta düzeltilebilir", () 
       fireEvent.click(screen.getByRole("button", { name: /E-posta adresini değiştir/ }));
     });
     expect(screen.queryByText("Kod geçersiz")).toBeNull();
-    // Yeni kod istenince eski kod alanı boş başlamalı.
+    // Odak doğrudan e-posta alanında: geri dönmenin TEK sebebi adresi düzeltmek.
+    const emailField = (await screen.findByLabelText(/E-posta/)) as HTMLInputElement;
+    expect(document.activeElement).toBe(emailField);
+    // Yeni kod istenince eski kod VE eski şifre alanı boş başlamalı — başka adres
+    // için hazırlanmış şifre bellekte asılı kalmamalı (Codex).
     await act(async () => {
       fireEvent.click(screen.getByRole("button", { name: "Kod gönder" }));
     });
     const codeField = (await screen.findByLabelText(/Doğrulama kodu/)) as HTMLInputElement;
     expect(codeField.value).toBe("");
+    expect((screen.getByLabelText(/Yeni şifre/) as HTMLInputElement).value).toBe("");
   });
 });
 
