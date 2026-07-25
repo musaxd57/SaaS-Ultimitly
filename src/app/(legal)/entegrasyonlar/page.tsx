@@ -63,15 +63,15 @@ export default function IntegrationsPage() {
             kontrolümüzde değil, bayatlar) → resmî fiyat sayfasına link. */}
         <div className="mt-4 rounded-xl border border-amber-300/60 bg-amber-50/60 p-4 text-sm leading-relaxed text-amber-900 dark:border-amber-400/30 dark:bg-amber-400/10 dark:text-amber-200">
           <p className="font-semibold">Bağlantı için ücretli bir Hospitable planı gerekir</p>
-          <p className="mt-1">
-            Mesaj ve rezervasyon akışı Hospitable’ın API / Connected Integrations erişimini kullanır.
-            Bu erişim yalnızca ücretli planlarda (<strong>Host</strong>, <strong>Professional</strong>,{" "}
-            <strong>Mogul</strong>) bulunur; ücretsiz <strong>Essentials</strong> planında API ve
-            Connected Integrations yoktur, dolayısıyla Lixus AI’ya mesaj akmaz.
+          <p className="mt-1.5">
+            Mesaj ve rezervasyon akışı Hospitable’ın API erişimini kullanır; bu erişim yalnızca{" "}
+            <strong>Host</strong>, <strong>Professional</strong> ve <strong>Mogul</strong>{" "}
+            planlarında var. Ücretsiz <strong>Essentials</strong> planında yoktur — Lixus AI’ya mesaj
+            akmaz.
           </p>
           <p className="mt-2">
-            <strong>Hospitable ücreti Lixus AI aboneliğine dahil değildir</strong> ve doğrudan
-            Hospitable’a ödenir. Güncel tutar için{" "}
+            <strong>Bu ücret Lixus AI aboneliğine dahil değildir</strong>, doğrudan Hospitable’a
+            ödenir. Güncel tutar için{" "}
             <a
               href="https://hospitable.com/pricing"
               target="_blank"

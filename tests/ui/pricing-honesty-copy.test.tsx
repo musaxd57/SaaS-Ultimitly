@@ -46,6 +46,15 @@ describe("Fiyat kartları — KDV dahil ve Hospitable ön koşulu yazılı", () 
     return container;
   }
 
+  /** Fiyat kartlarının hemen altındaki dipnot kutusu. */
+  function pricingNote(container: HTMLElement): HTMLElement {
+    const line = Array.from(container.querySelectorAll("p")).find((p) =>
+      p.textContent?.includes("KDV dahildir"),
+    );
+    if (!line?.parentElement) throw new Error("fiyat dipnotu bulunamadı");
+    return line.parentElement;
+  }
+
   it("listelenen fiyatın KDV DAHİL ve ödenecek tutar olduğunu söyler", () => {
     const text = landing().textContent ?? "";
     expect(text).toContain("KDV dahildir");
@@ -56,9 +65,22 @@ describe("Fiyat kartları — KDV dahil ve Hospitable ön koşulu yazılı", () 
   it("Hospitable'ın ÜCRETLİ plan gerektirdiğini ve ücretin DAHİL OLMADIĞINI söyler", () => {
     const text = landing().textContent ?? "";
     expect(text).toContain("Hospitable");
-    expect(text).toMatch(/Host.*Professional.*Mogul/s);
-    expect(text).toContain("Essentials");
-    expect(text).toContain("Lixus aboneliğine dahil değildir");
+    expect(text).toContain("ücretli bir Hospitable planı gerekir");
+    expect(text).toContain("dahil değildir");
+  });
+
+  it("KART ALTI NOT kısa kalır — plan adı/Essentials ayrıntısı orada DEĞİL", () => {
+    // Bu bir DİPNOT; fiyat kartlarıyla yarışmamalı. Ayrıntı SSS'te ve
+    // /entegrasyonlar'da yaşar — orada okumayı SEÇEN kullanıcı için doğru yer.
+    //
+    // İddia NOTA kapsanır, sayfanın geneline değil: ilk yazımda tüm sayfada
+    // "Essentials" arandı ve SSS cevabındaki meşru geçiş kırmızı verdi.
+    const note = pricingNote(landing());
+    expect(note.textContent).toContain("KDV dahildir");
+    expect(note.textContent).not.toContain("Essentials");
+    expect(note.textContent).not.toContain("Connected Integrations");
+    // Dipnot ölçüsünde kalsın (uzun paragraf kartlarla yarışıyordu).
+    expect((note.textContent ?? "").length).toBeLessThan(260);
   });
 
   it("Hospitable RAKAMI sabitlenmez — resmî fiyat sayfasına link verilir", () => {

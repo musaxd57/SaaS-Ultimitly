@@ -709,26 +709,28 @@ export function LandingPage() {
                   Integrations erişimi ÜCRETLİ Hospitable planı ister; bu ücret
                   Lixus aboneliğine DAHİL DEĞİLDİR. Rakam yazmıyoruz (bizim
                   kontrolümüzde değil, bayatlar) — resmî fiyat sayfasına link. */}
-          <div className="mx-auto mt-8 max-w-2xl space-y-2 text-center text-sm text-muted-foreground">
+          {/* Kısa tutulur: bu bir DİPNOT, kartlarla yarışmamalı. Ayrıntı (hangi
+              planlar, Essentials'ta neden olmaz) /entegrasyonlar sayfasında.
+              Burada yalnız iki cümlelik gerçek + resmî fiyat linki. */}
+          <div className="mx-auto mt-8 max-w-lg space-y-1.5 text-center text-sm text-muted-foreground">
             <p>
-              <strong className="text-foreground">Fiyatlara KDV dahildir</strong> — ödeyeceğiniz tutar
-              budur, ödeme adımında üstüne vergi eklenmez. Satış ve faturalandırma Paddle (Merchant of
-              Record) üzerinden yapılır.
+              <strong className="font-medium text-foreground">Fiyatlara KDV dahildir</strong> —
+              ödeyeceğiniz tutar budur.
             </p>
             <p>
-              Airbnb / Booking bağlantısı{" "}
-              <strong className="text-foreground">Hospitable</strong> üzerinden kurulur. Hospitable’ın
-              API / Connected Integrations erişimi ücretli planlarında (Host, Professional, Mogul)
-              bulunur; ücretsiz Essentials planında bu erişim yoktur.{" "}
-              <strong className="text-foreground">Hospitable ücreti Lixus aboneliğine dahil değildir</strong>{" "}
-              ve doğrudan Hospitable’a ödenir —{" "}
+              Airbnb ve Booking bağlantısı Hospitable üzerinden kurulur.{" "}
+              <strong className="font-medium text-foreground">
+                API erişimli ücretli bir Hospitable planı gerekir
+              </strong>
+              ; Hospitable ücreti Lixus AI aboneliğine{" "}
+              <strong className="font-medium text-foreground">dahil değildir</strong>.{" "}
               <a
                 href="https://hospitable.com/pricing"
                 target="_blank"
                 rel="noopener noreferrer"
-                className="font-medium text-foreground underline underline-offset-2"
+                className="underline underline-offset-2 hover:text-foreground"
               >
-                güncel Hospitable fiyatları
+                Planları inceleyin
               </a>
               .
             </p>
