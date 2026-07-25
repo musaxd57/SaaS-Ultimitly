@@ -1,4 +1,5 @@
 import Link from "next/link";
+import { redirect } from "next/navigation";
 import { ListChecks, Plus, Sparkles } from "lucide-react";
 import { requireAuth } from "@/lib/auth";
 import { prisma } from "@/lib/db";
@@ -128,8 +129,6 @@ export default async function TasksPage({
   // sütun İÇİ sıralama böylece doğru kalır: aktif iş en yakın tarihli önce,
   // tamamlananlar en yeni önce.
   const tasks = [...activeTasks, ...doneTasks];
-  const doneFrom = doneTasks.length === 0 ? 0 : (donePage - 1) * DONE_PAGE_SIZE + 1;
-  const doneTo = doneTasks.length === 0 ? 0 : (donePage - 1) * DONE_PAGE_SIZE + doneTasks.length;
   const doneHref = (p: number) => {
     const q = new URLSearchParams();
     if (propertyId) q.set("propertyId", propertyId);
@@ -137,6 +136,17 @@ export default async function TasksPage({
     const qs = q.toString();
     return qs ? `/tasks?${qs}` : "/tasks";
   };
+
+  // Taşan sayfa numarası, toplam BİLİNDİKTEN sonra son geçerli sayfaya çekilir
+  // (Codex P3 — URL/UX temizliği). Yalnız "geri dön" düğmesi koymak yetmezdi:
+  // ?tamamlanan=999999'da "Önceki" bir sonraki BOŞ sayfaya giderdi, yani çıkış
+  // tek tık olmazdı. Döngü riski yok — hedef lastDonePage'dir ve koşul yalnız
+  // donePage > lastDonePage iken kurulur (yönlendirme sonrası eşit olur).
+  const lastDonePage = Math.max(1, Math.ceil(doneTotal / DONE_PAGE_SIZE));
+  if (donePage > lastDonePage) redirect(doneHref(lastDonePage));
+
+  const doneFrom = doneTasks.length === 0 ? 0 : (donePage - 1) * DONE_PAGE_SIZE + 1;
+  const doneTo = doneTasks.length === 0 ? 0 : (donePage - 1) * DONE_PAGE_SIZE + doneTasks.length;
 
   const cards: TaskCardData[] = tasks.map((t) => {
     const parsedChecklist = safeJsonParse<ChecklistItem[]>(t.checklistJson, []);

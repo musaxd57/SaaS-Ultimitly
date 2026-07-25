@@ -434,17 +434,46 @@ describe("Görevler — aktif iş sınırsız, tamamlananlar sayfalı", () => {
     expect(t3).toContain("Tamamlandı: 101–120 / 120");
   });
 
-  it("son sayfayı aşan ?tamamlanan= 'Görev yok' demez (kayıt var, pencere boş)", async () => {
+  it("taşan ?tamamlanan= SON GEÇERLİ sayfaya çekilir (boş sayfada bırakmaz)", async () => {
+    // Yalnız "geri dön" düğmesi yetmezdi: ?tamamlanan=999999'da "Önceki" bir
+    // sonraki BOŞ sayfaya giderdi. Toplam bilindikten sonra clamp edilir.
     const org = await prisma.organization.create({ data: { name: "Overflow Org" } });
     const property = await prisma.property.create({
       data: { organizationId: org.id, name: "Daire H" },
     });
+    for (let i = 0; i < 60; i++) {
+      await prisma.task.create({
+        data: { propertyId: property.id, type: "cleaning", title: `BITEN-${i}`, status: "done" },
+      });
+    }
+    mockAuth.mockResolvedValue(sessionFor(org.id));
+
+    // 60 tamamlanmış → son geçerli sayfa 2.
+    await expect(TasksPage({ searchParams: sp({ tamamlanan: "999999" }) })).rejects.toThrow(
+      "NEXT_REDIRECT:/tasks?tamamlanan=2",
+    );
+    // Daire filtresi de korunur.
+    await expect(
+      TasksPage({ searchParams: sp({ propertyId: property.id, tamamlanan: "40" }) }),
+    ).rejects.toThrow(`NEXT_REDIRECT:/tasks?propertyId=${property.id}&tamamlanan=2`);
+    // Geçerli sayfa yönlendirilmez (döngü yok).
+    expect(treeText(await TasksPage({ searchParams: sp({ tamamlanan: "2" }) }))).toContain(
+      "Tamamlandı: 51–60 / 60",
+    );
+  });
+
+  it("hiç tamamlanmış görev yokken taşan sayfa 1'e çekilir", async () => {
+    const org = await prisma.organization.create({ data: { name: "Empty Done Org" } });
+    const property = await prisma.property.create({
+      data: { organizationId: org.id, name: "Daire I" },
+    });
     await prisma.task.create({
-      data: { propertyId: property.id, type: "cleaning", title: "BITEN-tek", status: "done" },
+      data: { propertyId: property.id, type: "cleaning", title: "AKTIF-tek", status: "todo" },
     });
     mockAuth.mockResolvedValue(sessionFor(org.id));
 
-    const text = treeText(await TasksPage({ searchParams: sp({ tamamlanan: "9" }) }));
-    expect(text).not.toContain("Görev yok");
+    await expect(TasksPage({ searchParams: sp({ tamamlanan: "5" }) })).rejects.toThrow(
+      "NEXT_REDIRECT:/tasks",
+    );
   });
 });
