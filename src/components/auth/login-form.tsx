@@ -8,7 +8,9 @@ import Link from "next/link";
 import { Loader2 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
-import { Label } from "@/components/ui/label";
+
+/** Form-bazlı hata düğümünün id'si; alanlara aria-describedby ile bağlanır. */
+const FORM_ERROR_ID = "login-form-error";
 
 export function LoginForm() {
   const router = useRouter();
@@ -27,6 +29,14 @@ export function LoginForm() {
   // E-mail verification: shown when login is blocked for an unverified account, or
   // when the verify link was bad/expired (?verify= flag from the verify route).
   const [needsVerify, setNeedsVerify] = useState(false);
+  /**
+   * ALANA ATFEDİLEBİLEN hatalar. Genel `error`den ayrı tutulur çünkü ikisinin
+   * doğru davranışı FARKLIDIR: alan hatası o alanı `aria-invalid` yapar ve
+   * `aria-describedby` ile ona bağlanır; "e-posta VEYA şifre hatalı" gibi
+   * atfedilemeyen bir hatada hangi alanın yanlış olduğu BİLİNMEZ — ikisini de
+   * geçersiz ilan etmek doğru yazılmış adresi de suçlamak olurdu.
+   */
+  const [fieldError, setFieldError] = useState<{ email?: string; code?: string }>({});
   const [resent, setResent] = useState(false);
   const [resending, setResending] = useState(false);
   // Uçuştaki yeniden-gönderimin SONUCU, isteğin gönderildiği adrese bağlıdır.
@@ -56,12 +66,15 @@ export function LoginForm() {
    *  (buton "gönderildi" metniyle yer değiştirdiği için sayfa yenilemeden çıkış yoktu). */
   function clearStaleFeedback(opts: { resetResent?: boolean } = {}) {
     setError((e) => (e ? null : e));
+    setFieldError((f) => (f.email || f.code ? {} : f));
     if (opts.resetResent) setResent(false);
   }
 
   async function resendVerification() {
     if (!email) {
-      setError("Önce e-posta adresinizi girin.");
+      // Bu hata TAM OLARAK e-posta alanına aittir — genel banda düşürülürse
+      // ekran okuyucu kullanıcısı hangi alanı dolduracağını bilemez.
+      setFieldError({ email: "Önce e-posta adresinizi girin." });
       return;
     }
     if (resending) return;
@@ -120,7 +133,9 @@ export function LoginForm() {
       // Account has 2FA: password accepted, now prompt for the 6-digit code.
       if (data?.twoFactorRequired) {
         setTwoFactor(true);
-        setError(res.ok ? null : (data.error ?? "Doğrulama kodu hatalı"));
+        // Kod hatası kod alanına aittir (e-posta/şifre zaten kabul edildi).
+        if (res.ok) setFieldError({});
+        else setFieldError({ code: data.error ?? "Doğrulama kodu hatalı" });
         return;
       }
       if (!res.ok) {
@@ -144,9 +159,11 @@ export function LoginForm() {
 
   return (
     <form onSubmit={onSubmit} className="space-y-4">
-      {error ? (
-        <FormError>{error}</FormError>
-      ) : null}
+      {/* Atfedilemeyen (form-bazlı) hata: duyurulur ve AŞAĞIDAKİ iki alana
+          `aria-describedby` ile bağlanır — alana geri dönen kullanıcı hatayı
+          tekrar duyar. `aria-invalid` KONMAZ: hangisinin yanlış olduğu
+          bilinmiyor, ikisini de geçersiz ilan etmek yanlış bilgi olurdu. */}
+      <FormError id={FORM_ERROR_ID}>{error}</FormError>
       {needsVerify ? (
         <div className="rounded-md border border-amber-300 bg-amber-50 px-3 py-2.5 text-sm text-amber-900">
           {resent ? (
@@ -163,11 +180,12 @@ export function LoginForm() {
           )}
         </div>
       ) : null}
-      <Field label="E-posta" htmlFor="email">
+      <Field label="E-posta" htmlFor="email" error={fieldError.email}>
         <Input
           id="email"
           type="email"
           autoComplete="email"
+          aria-describedby={error ? FORM_ERROR_ID : undefined}
           value={email}
           onChange={(e) => {
             setEmail(e.target.value);
@@ -176,12 +194,12 @@ export function LoginForm() {
           required
         />
       </Field>
-      <div className="space-y-2">
-        <Label htmlFor="password">Şifre</Label>
+      <Field label="Şifre" htmlFor="password">
         <Input
           id="password"
           type="password"
           autoComplete="current-password"
+          aria-describedby={error ? FORM_ERROR_ID : undefined}
           value={password}
           onChange={(e) => {
             setPassword(e.target.value);
@@ -189,17 +207,20 @@ export function LoginForm() {
           }}
           required
         />
-        {!twoFactor ? (
-          <div className="text-right">
-            <Link href="/sifremi-unuttum" className="text-sm text-primary hover:underline">
-              Şifremi unuttum?
-            </Link>
-          </div>
-        ) : null}
-      </div>
+      </Field>
+      {!twoFactor ? (
+        <div className="text-right">
+          <Link href="/sifremi-unuttum" className="text-sm text-primary hover:underline">
+            Şifremi unuttum?
+          </Link>
+        </div>
+      ) : null}
       {twoFactor ? (
-        <div className="space-y-2">
-          <Label htmlFor="code">{useRecovery ? "Kurtarma kodu" : "Doğrulama kodu"}</Label>
+        <Field
+          label={useRecovery ? "Kurtarma kodu" : "Doğrulama kodu"}
+          htmlFor="code"
+          error={fieldError.code}
+        >
           <Input
             id="code"
             inputMode={useRecovery ? "text" : "numeric"}
@@ -215,6 +236,10 @@ export function LoginForm() {
             autoFocus
             required
           />
+        </Field>
+      ) : null}
+      {twoFactor ? (
+        <div className="space-y-2">
           <p className="text-xs text-muted-foreground">
             {useRecovery
               ? "Kurtarma kodlarınız tek kullanımlıktır — kullandığınız kod geçersiz olur."

@@ -1,12 +1,12 @@
 "use client";
 
 import { useState, useEffect, useRef } from "react";
+import { Field } from "@/components/form-field";
 import { FormError } from "@/components/form-error";
 import Link from "next/link";
 import { Loader2 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
-import { Label } from "@/components/ui/label";
 
 type Step = "request" | "confirm" | "done";
 
@@ -16,6 +16,17 @@ export function ForgotPasswordForm() {
   const [code, setCode] = useState("");
   const [newPassword, setNewPassword] = useState("");
   const [error, setError] = useState<string | null>(null);
+  /**
+   * Sunucu `fields.email` / `fields.code` / `fields.newPassword` ayrımını ZATEN
+   * yapıyordu; istemci hepsini tek genel banda topluyordu, yani bilgi vardı ama
+   * çöpe gidiyordu. Ekran okuyucu kullanıcısı "kod mu yanlış, şifre mi kısa"
+   * ayrımını yapamıyordu. Ayrım korunur → hata DOĞRU alana bağlanır.
+   */
+  const [fieldError, setFieldError] = useState<{
+    email?: string;
+    code?: string;
+    newPassword?: string;
+  }>({});
   const [loading, setLoading] = useState(false);
   const [cooldown, setCooldown] = useState(0);
   const emailRef = useRef<HTMLInputElement>(null);
@@ -40,6 +51,7 @@ export function ForgotPasswordForm() {
     e?.preventDefault();
     setLoading(true);
     setError(null);
+    setFieldError({});
     try {
       const res = await fetch("/api/account/forgot-password", {
         method: "POST",
@@ -48,7 +60,8 @@ export function ForgotPasswordForm() {
       });
       const data = await res.json().catch(() => ({}));
       if (!res.ok) {
-        setError(data.fields?.email ?? data.error ?? "İstek başarısız oldu.");
+        if (data.fields?.email) setFieldError({ email: data.fields.email });
+        else setError(data.error ?? "İstek başarısız oldu.");
         return;
       }
       setStep("confirm");
@@ -79,6 +92,7 @@ export function ForgotPasswordForm() {
     setCode("");
     setNewPassword("");
     setError(null);
+    setFieldError({});
     setCooldown(0);
     setFocusEmail(true);
   }
@@ -87,6 +101,7 @@ export function ForgotPasswordForm() {
     e.preventDefault();
     setLoading(true);
     setError(null);
+    setFieldError({});
     try {
       const res = await fetch("/api/account/forgot-password", {
         method: "POST",
@@ -95,9 +110,9 @@ export function ForgotPasswordForm() {
       });
       const data = await res.json().catch(() => ({}));
       if (!res.ok) {
-        setError(
-          data.fields?.code ?? data.fields?.newPassword ?? data.error ?? "İşlem başarısız oldu.",
-        );
+        if (data.fields?.code) setFieldError({ code: data.fields.code });
+        else if (data.fields?.newPassword) setFieldError({ newPassword: data.fields.newPassword });
+        else setError(data.error ?? "İşlem başarısız oldu.");
         return;
       }
       setStep("done");
@@ -132,8 +147,12 @@ export function ForgotPasswordForm() {
 
       {step === "request" ? (
         <form onSubmit={requestCode} className="space-y-4">
-          <div className="space-y-2">
-            <Label htmlFor="email">E-posta</Label>
+          <Field
+            label="E-posta"
+            htmlFor="email"
+            error={fieldError.email}
+            hint="Hesabınıza kayıtlı e-postaya 8 haneli bir sıfırlama kodu göndereceğiz."
+          >
             <Input
               id="email"
               ref={emailRef}
@@ -143,10 +162,7 @@ export function ForgotPasswordForm() {
               onChange={(e) => setEmail(e.target.value)}
               required
             />
-            <p className="text-xs text-muted-foreground">
-              Hesabınıza kayıtlı e-postaya 8 haneli bir sıfırlama kodu göndereceğiz.
-            </p>
-          </div>
+          </Field>
           <Button type="submit" className="w-full" disabled={loading}>
             {loading ? <Loader2 className="size-4 animate-spin" /> : null}
             Kod gönder
@@ -168,8 +184,7 @@ export function ForgotPasswordForm() {
               E-posta adresini değiştir
             </button>
           </p>
-          <div className="space-y-2">
-            <Label htmlFor="code">Doğrulama kodu</Label>
+          <Field label="Doğrulama kodu" htmlFor="code" error={fieldError.code}>
             <Input
               id="code"
               inputMode="numeric"
@@ -183,23 +198,26 @@ export function ForgotPasswordForm() {
               onChange={(e) => {
                 setCode(e.target.value);
                 if (error) setError(null);
+                setFieldError((f) => (f.code ? {} : f));
               }}
               autoFocus
               required
             />
-          </div>
-          <div className="space-y-2">
-            <Label htmlFor="newPassword">Yeni şifre</Label>
+          </Field>
+          <Field label="Yeni şifre" htmlFor="newPassword" error={fieldError.newPassword}>
             <Input
               id="newPassword"
               type="password"
               autoComplete="new-password"
               placeholder="En az 8 karakter"
               value={newPassword}
-              onChange={(e) => setNewPassword(e.target.value)}
+              onChange={(e) => {
+                setNewPassword(e.target.value);
+                setFieldError((f) => (f.newPassword ? {} : f));
+              }}
               required
             />
-          </div>
+          </Field>
           <Button type="submit" className="w-full" disabled={loading}>
             {loading ? <Loader2 className="size-4 animate-spin" /> : null}
             Şifreyi sıfırla
