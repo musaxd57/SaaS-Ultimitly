@@ -41,6 +41,8 @@ import { requireAuth } from "@/lib/auth";
 import GuestChatsPage from "@/app/(app)/guest-chats/page";
 import GuestChatDetailPage from "@/app/(app)/guest-chats/[id]/page";
 import CancellationsPage from "@/app/(app)/cancellations/page";
+import TasksPage from "@/app/(app)/tasks/page";
+import { TaskBoard } from "@/components/tasks/task-board";
 
 const mockAuth = vi.mocked(requireAuth);
 
@@ -79,6 +81,26 @@ function hrefs(root: unknown): string[] {
   };
   walk(root);
   return found;
+}
+
+/** Panoya PROP olarak geçen kart başlıkları (client bileşen render EDİLMEZ). */
+function boardTaskTitles(root: unknown): string[] {
+  const titles: string[] = [];
+  const walk = (node: unknown): void => {
+    if (node == null || typeof node === "boolean") return;
+    if (Array.isArray(node)) {
+      for (const n of node) walk(n);
+      return;
+    }
+    if (React.isValidElement(node)) {
+      if (node.type === TaskBoard) {
+        for (const t of (node.props as { tasks: { title: string }[] }).tasks) titles.push(t.title);
+      }
+      walk((node.props as { children?: unknown }).children);
+    }
+  };
+  walk(root);
+  return titles;
 }
 
 function sessionFor(orgId: string, role = "owner") {
@@ -370,5 +392,59 @@ describe("İptaller — sayfalama + grup dürüstlüğü", () => {
     for (const h of filterLinks) expect(h).not.toContain("sayfa=");
     // …ama sayfa gezinme bağlantısı sayfayı taşır (130 kayıt → 3. sayfa var).
     expect(links).toContain("/cancellations?sayfa=3");
+  });
+});
+
+describe("Görevler — aktif iş sınırsız, tamamlananlar sayfalı", () => {
+  beforeEach(async () => {
+    await resetDb();
+    vi.clearAllMocks();
+  });
+
+  it("aktif kartların HEPSİ yüklenir; tamamlananlar 50/sayfa ve TOPLAM yazılı", async () => {
+    const org = await prisma.organization.create({ data: { name: "Task Org" } });
+    const property = await prisma.property.create({
+      data: { organizationId: org.id, name: "Daire G" },
+    });
+    // 60 aktif + 120 tamamlanmış: aktifin tamamı görünmeli, tamamlanan sayfalanmalı.
+    for (let i = 0; i < 60; i++) {
+      await prisma.task.create({
+        data: { propertyId: property.id, type: "cleaning", title: `AKTIF-${String(i).padStart(3, "0")}`, status: "todo" },
+      });
+    }
+    for (let i = 0; i < 120; i++) {
+      await prisma.task.create({
+        data: { propertyId: property.id, type: "cleaning", title: `BITEN-${String(i).padStart(3, "0")}`, status: "done" },
+      });
+    }
+    mockAuth.mockResolvedValue(sessionFor(org.id));
+
+    const p1 = await TasksPage({ searchParams: sp({}) });
+    const t1 = treeText(p1);
+    expect(t1).toContain("Tamamlandı: 1–50 / 120"); // aralık + GERÇEK toplam
+    // Aktif iş HİÇ sınırlanmaz — 60'ın tamamı panoya gidiyor. Kartlar client
+    // bileşene PROP olarak geçtiği için ağaç metninde değil, prop'ta aranır.
+    const boardTitles = boardTaskTitles(p1);
+    expect(boardTitles.filter((t) => t.startsWith("AKTIF-"))).toHaveLength(60);
+    expect(boardTitles.filter((t) => t.startsWith("BITEN-"))).toHaveLength(50); // sayfa 1'i
+    expect(hrefs(p1)).toContain("/tasks?tamamlanan=2");
+
+    // Son sayfa: eski kayıtlar ERİŞİLEBİLİR (tavan yok).
+    const t3 = treeText(await TasksPage({ searchParams: sp({ tamamlanan: "3" }) }));
+    expect(t3).toContain("Tamamlandı: 101–120 / 120");
+  });
+
+  it("son sayfayı aşan ?tamamlanan= 'Görev yok' demez (kayıt var, pencere boş)", async () => {
+    const org = await prisma.organization.create({ data: { name: "Overflow Org" } });
+    const property = await prisma.property.create({
+      data: { organizationId: org.id, name: "Daire H" },
+    });
+    await prisma.task.create({
+      data: { propertyId: property.id, type: "cleaning", title: "BITEN-tek", status: "done" },
+    });
+    mockAuth.mockResolvedValue(sessionFor(org.id));
+
+    const text = treeText(await TasksPage({ searchParams: sp({ tamamlanan: "9" }) }));
+    expect(text).not.toContain("Görev yok");
   });
 });

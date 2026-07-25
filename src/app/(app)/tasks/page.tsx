@@ -11,17 +11,20 @@ import { BackfillTasksButton } from "@/components/tasks/backfill-button";
 import { safeJsonParse, cn, daysUntilDate, formatDayInTz } from "@/lib/utils";
 import { zonedDayRange } from "@/lib/automation";
 import { orgTimezone } from "@/lib/timezone";
+import { clampPage, MAX_LIST_PAGE } from "@/lib/pagination";
 
 export const dynamic = "force-dynamic";
 
-// Görev panosu bir KANBAN — sayfalama burada yanlış araç olurdu (sayfa 2'deki
-// "Yapılacak" kartı görünmezse iş kaybolur). Sınırsız büyüme zaten TAMAMEN
-// "Tamamlandı" sütununda: aktif iş gerçek operasyonla doğal olarak sınırlıdır,
-// biten görevler ise sonsuza dek birikir. Bu yüzden aktif kartların HEPSİ
-// yüklenir, tamamlananlar en yeniden başlayarak sınırlanır ve sınır EKRANDA
-// SÖYLENİR.
-const DONE_LIMIT = 50;
-const DONE_LIMIT_EXPANDED = 500;
+// Görev panosu bir KANBAN — panonun TAMAMINI sayfalamak yanlış araç olurdu
+// (sayfa 2'deki "Yapılacak" kartı görünmezse iş kaybolur). Sınırsız büyüme zaten
+// TAMAMEN "Tamamlandı" sütununda: aktif iş gerçek operasyonla doğal olarak
+// sınırlıdır, biten görevler ise sonsuza dek birikir. Bu yüzden aktif kartların
+// HEPSİ yüklenir; yalnız TAMAMLANANLAR sayfalanır.
+//
+// Neden tavan değil sayfalama (Codex): sabit bir tavan, sayıyı ekranda yazsa
+// bile eski kayıtları ERİŞİLEMEZ bırakıyordu. "Gizli" demek erişim sağlamaz —
+// sütun sayfalanınca tavan tamamen kalkar ve geçmişin tamamı gezilebilir.
+const DONE_PAGE_SIZE = 50;
 
 type ChecklistItem = { label: string; done: boolean };
 
@@ -45,8 +48,10 @@ export default async function TasksPage({
   });
   const TZ = orgTimezone(orgRow?.timezone);
 
-  const expandedDone = (Array.isArray(sp.tamamlanan) ? sp.tamamlanan[0] : sp.tamamlanan) === "hepsi";
-  const doneLimit = expandedDone ? DONE_LIMIT_EXPANDED : DONE_LIMIT;
+  const donePage = clampPage(
+    Array.isArray(sp.tamamlanan) ? sp.tamamlanan[0] : sp.tamamlanan,
+    MAX_LIST_PAGE,
+  );
   const taskWhere = {
     property: { organizationId: session.organizationId },
     // Staff see ONLY tasks assigned to them (they don't get the whole board).
@@ -76,7 +81,8 @@ export default async function TasksPage({
       where: { ...taskWhere, status: "done" },
       include: taskInclude,
       orderBy: [{ updatedAt: "desc" }, { id: "desc" }],
-      take: doneLimit,
+      skip: (donePage - 1) * DONE_PAGE_SIZE,
+      take: DONE_PAGE_SIZE,
     }),
     prisma.task.count({ where: { ...taskWhere, status: "done" } }),
     // Property filter chips: managers see the whole portfolio; STAFF must only
@@ -122,7 +128,15 @@ export default async function TasksPage({
   // sütun İÇİ sıralama böylece doğru kalır: aktif iş en yakın tarihli önce,
   // tamamlananlar en yeni önce.
   const tasks = [...activeTasks, ...doneTasks];
-  const hiddenDone = doneTotal - doneTasks.length;
+  const doneFrom = doneTasks.length === 0 ? 0 : (donePage - 1) * DONE_PAGE_SIZE + 1;
+  const doneTo = doneTasks.length === 0 ? 0 : (donePage - 1) * DONE_PAGE_SIZE + doneTasks.length;
+  const doneHref = (p: number) => {
+    const q = new URLSearchParams();
+    if (propertyId) q.set("propertyId", propertyId);
+    if (p > 1) q.set("tamamlanan", String(p));
+    const qs = q.toString();
+    return qs ? `/tasks?${qs}` : "/tasks";
+  };
 
   const cards: TaskCardData[] = tasks.map((t) => {
     const parsedChecklist = safeJsonParse<ChecklistItem[]>(t.checklistJson, []);
@@ -202,7 +216,11 @@ export default async function TasksPage({
         </div>
       ) : null}
 
-      {tasks.length === 0 ? (
+      {/* "Görev yok" YALNIZ gerçekten hiç görev yokken. Tamamlananlarda son sayfayı
+          aşmış bir ?tamamlanan= değeri bu ekranı yanlış gösterirdi (kayıt var ama
+          bu pencerede yok) — o durumda pano + sayfalayıcı render edilir ki
+          kullanıcı geri dönebilsin. */}
+      {activeTasks.length === 0 && doneTotal === 0 ? (
         <EmptyState
           icon={ListChecks}
           title="Görev yok"
@@ -223,24 +241,33 @@ export default async function TasksPage({
       ) : (
         <>
           <TaskBoard tasks={cards} canManage={canManage} />
-          {/* Sınır SESSİZ DEĞİL: kaç tamamlanmış görevin gizlendiği yazılı ve
-              açma yolu var. Aktif iş hiç sınırlanmaz, o yüzden burada yalnız
-              "Tamamlandı" sütunundan söz edilir. */}
-          {hiddenDone > 0 ? (
-            <p className="pt-3 text-xs text-muted-foreground">
-              Tamamlanan {doneTotal} görevin en yeni {doneTasks.length} tanesi gösteriliyor;{" "}
-              {hiddenDone} tanesi gizli.{" "}
-              {expandedDone ? (
-                <>Bu daire için görüntüleme tavanına ({DONE_LIMIT_EXPANDED}) ulaşıldı.</>
-              ) : (
-                <Link
-                  href={propertyId ? `/tasks?propertyId=${propertyId}&tamamlanan=hepsi` : "/tasks?tamamlanan=hepsi"}
-                  className="text-primary hover:underline"
-                >
-                  Daha fazlasını göster
-                </Link>
-              )}
-            </p>
+          {/* Yalnız "Tamamlandı" sütunu sayfalanır — aktif iş hiç sınırlanmaz.
+              Aralık + GERÇEK toplam yazılı ve geçmişin TAMAMI gezilebilir:
+              tavan yok, dolayısıyla erişilemez eski kayıt da yok. */}
+          {doneTotal > DONE_PAGE_SIZE ? (
+            <div className="flex items-center justify-between pt-3 text-xs text-muted-foreground">
+              <span>
+                Tamamlandı: {doneFrom}–{doneTo} / {doneTotal}
+              </span>
+              <div className="flex gap-2">
+                {donePage > 1 ? (
+                  <Link
+                    href={doneHref(donePage - 1)}
+                    className="rounded-md border border-border px-2.5 py-1 hover:bg-accent"
+                  >
+                    Önceki
+                  </Link>
+                ) : null}
+                {doneTo < doneTotal ? (
+                  <Link
+                    href={doneHref(donePage + 1)}
+                    className="rounded-md border border-border px-2.5 py-1 hover:bg-accent"
+                  >
+                    Sonraki
+                  </Link>
+                ) : null}
+              </div>
+            </div>
           ) : null}
         </>
       )}
