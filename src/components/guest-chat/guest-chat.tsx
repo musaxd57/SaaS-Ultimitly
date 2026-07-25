@@ -354,7 +354,12 @@ export function GuestChat({ token }: { token: string }) {
         ) : null}
         {error ? (
           <div className="flex justify-start">
-            <div className="max-w-[85%] rounded-2xl rounded-bl-sm border border-destructive/40 bg-destructive/10 px-3 py-2 text-sm text-destructive">
+            {/* Misafirin gördüğü hata da SESSİZDİ. Baloncuk görünümü bilinçli
+                (sohbet akışının parçası), yalnız duyuru eklendi. */}
+            <div
+              role="alert"
+              className="max-w-[85%] rounded-2xl rounded-bl-sm border border-destructive/40 bg-destructive/10 px-3 py-2 text-sm text-destructive"
+            >
               {error}
             </div>
           </div>

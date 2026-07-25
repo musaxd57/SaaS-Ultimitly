@@ -1,6 +1,7 @@
 "use client";
 
 import { useState, useTransition } from "react";
+import { FormError } from "@/components/form-error";
 import { confirmDialog } from "@/lib/confirm";
 import { toast } from "@/lib/toast";
 import { useRouter } from "next/navigation";
@@ -128,7 +129,7 @@ export function TemplateManager({ properties, customTemplates, defaultTemplates,
           <CardContent>
             <form onSubmit={handleCreate} className="space-y-4">
               {error ? (
-                <p className="rounded-md bg-destructive/10 px-3 py-2 text-sm text-destructive">{error}</p>
+                <FormError>{error}</FormError>
               ) : null}
 
               <div className="grid gap-4 sm:grid-cols-2">

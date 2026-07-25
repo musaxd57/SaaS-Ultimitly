@@ -1,6 +1,7 @@
 "use client";
 
 import { useState } from "react";
+import { FormError } from "@/components/form-error";
 import { Sparkles, Loader2, ShieldAlert, CheckCircle2 } from "lucide-react";
 
 // Public "try the AI" block on the landing page. Talks to /api/demo/ai, which
@@ -113,7 +114,7 @@ export function LandingDemo() {
       </div>
 
       {error ? (
-        <p className="mt-3 rounded-md bg-destructive/10 px-3 py-2 text-sm text-destructive">{error}</p>
+        <FormError className="mt-3">{error}</FormError>
       ) : null}
 
       {result ? (

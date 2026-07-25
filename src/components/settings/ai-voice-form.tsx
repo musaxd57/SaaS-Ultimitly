@@ -1,6 +1,7 @@
 "use client";
 
 import { useState, useTransition } from "react";
+import { FormError } from "@/components/form-error";
 import { useRouter } from "next/navigation";
 import { Loader2, Check, Sparkles } from "lucide-react";
 import { Button } from "@/components/ui/button";
@@ -75,7 +76,7 @@ export function AiVoiceForm({
       <CardContent>
         <form onSubmit={save} className="space-y-4">
           {error ? (
-            <p className="rounded-md bg-destructive/10 px-3 py-2 text-sm text-destructive">{error}</p>
+            <FormError>{error}</FormError>
           ) : null}
 
           <Field label="Yanıt tonu" htmlFor="ai-tone">

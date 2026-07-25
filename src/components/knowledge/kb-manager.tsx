@@ -1,6 +1,7 @@
 "use client";
 
 import { useState, useTransition } from "react";
+import { FormError } from "@/components/form-error";
 import { confirmDialog } from "@/lib/confirm";
 import { useRouter } from "next/navigation";
 import { Loader2, Plus, Trash2, ToggleLeft, ToggleRight, Copy, Pencil, Check, X } from "lucide-react";
@@ -282,7 +283,7 @@ export function KbManager({
         <CardContent>
           <form onSubmit={create} className="space-y-3">
             {error ? (
-              <p className="rounded-md bg-destructive/10 px-3 py-2 text-sm text-destructive">{error}</p>
+              <FormError>{error}</FormError>
             ) : null}
             <div>
               <p className="mb-1.5 text-xs font-medium text-muted-foreground">
@@ -359,7 +360,7 @@ export function KbManager({
       {/* List */}
       <div className="space-y-4 lg:col-span-2">
         {listError ? (
-          <p className="rounded-md bg-destructive/10 px-3 py-2 text-sm text-destructive">{listError}</p>
+          <FormError>{listError}</FormError>
         ) : null}
         {grouped.length === 0 ? (
           <Card>

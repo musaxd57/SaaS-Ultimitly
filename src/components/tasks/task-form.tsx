@@ -1,6 +1,7 @@
 "use client";
 
 import { useState } from "react";
+import { FormError } from "@/components/form-error";
 import { useRouter } from "next/navigation";
 import { Loader2 } from "lucide-react";
 import { Button } from "@/components/ui/button";
@@ -65,7 +66,7 @@ export function TaskForm({
   return (
     <form onSubmit={onSubmit} className="space-y-4">
       {error ? (
-        <p className="rounded-md bg-destructive/10 px-3 py-2 text-sm text-destructive">{error}</p>
+        <FormError>{error}</FormError>
       ) : null}
 
       <Field label="Başlık" htmlFor="title" error={fields.title}>
