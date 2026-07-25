@@ -1,6 +1,6 @@
 "use client";
 
-import { useRef, useState, useTransition } from "react";
+import { useEffect, useRef, useState, useTransition } from "react";
 import { useRouter } from "next/navigation";
 import {
   Sparkles,
@@ -114,6 +114,9 @@ export function ConversationThread({ conversationId, messages, status, priority,
 
   // Template picker state
   const [showTemplates, setShowTemplates] = useState(false);
+  const templatesWrapRef = useRef<HTMLDivElement | null>(null);
+  const templatesPanelRef = useRef<HTMLDivElement | null>(null);
+  const templatesTriggerRef = useRef<HTMLButtonElement | null>(null);
   const [templates, setTemplates] = useState<TemplateItem[]>([]);
   const [templatesLoading, setTemplatesLoading] = useState(false);
   const [templatesError, setTemplatesError] = useState(false);
@@ -208,6 +211,44 @@ export function ConversationThread({ conversationId, messages, status, priority,
     }
   }
 
+  // Açılır yüzey davranışı. Klavye kullanıcısı için kritik: panel açılınca odak
+  // içeri girmeli, kapanınca TETİKLEYİCİYE dönmeli (yoksa odak sayfanın başına
+  // düşer ve kullanıcı yerini kaybeder). Escape ve dışarı tıklama da kapatır —
+  // eskiden yalnız küçük "X" düğmesi vardı.
+  useEffect(() => {
+    if (!showTemplates) return;
+    const panel = templatesPanelRef.current;
+    // Odağı panele al (panel programatik odak alabilsin diye tabIndex -1).
+    panel?.focus();
+    function onKeyDown(e: KeyboardEvent) {
+      if (e.key === "Escape") {
+        e.stopPropagation();
+        setShowTemplates(false);
+      }
+    }
+    function onPointerDown(e: MouseEvent | TouchEvent) {
+      const wrap = templatesWrapRef.current;
+      if (wrap && e.target instanceof Node && !wrap.contains(e.target)) setShowTemplates(false);
+    }
+    document.addEventListener("keydown", onKeyDown);
+    document.addEventListener("mousedown", onPointerDown);
+    return () => {
+      document.removeEventListener("keydown", onKeyDown);
+      document.removeEventListener("mousedown", onPointerDown);
+    };
+  }, [showTemplates]);
+
+  // Kapanışta odağı tetikleyiciye GERİ ver — yalnız panel gerçekten açıldıysa,
+  // yoksa ilk render'da odak çalınırdı.
+  const templatesWasOpen = useRef(false);
+  useEffect(() => {
+    if (showTemplates) templatesWasOpen.current = true;
+    else if (templatesWasOpen.current) {
+      templatesWasOpen.current = false;
+      templatesTriggerRef.current?.focus();
+    }
+  }, [showTemplates]);
+
   async function loadTemplates() {
     if (templates.length > 0) {
       setShowTemplates((s) => !s);
@@ -287,8 +328,15 @@ export function ConversationThread({ conversationId, messages, status, priority,
       {/* Header: status & priority controls */}
       <div className="flex flex-wrap items-center gap-3 border-b border-border p-4">
         <div className="flex items-center gap-2">
-          <span className="text-xs text-muted-foreground">Durum</span>
+          {/* Görsel etiket ARTIK gerçek bir <label>: eskiden <span> olduğu için
+              kontrolün programatik adı yoktu, ekran okuyucu yalnız "seçim kutusu"
+              diyordu. id, konuşmaya bağlı — aynı sayfada iki thread açılırsa
+              id'ler çakışmaz. */}
+          <label htmlFor={`conv-status-${conversationId}`} className="text-xs text-muted-foreground">
+            Durum
+          </label>
           <Select
+            id={`conv-status-${conversationId}`}
             value={status}
             disabled={busy}
             onChange={(e) => changeField("status", e.target.value)}
@@ -302,8 +350,11 @@ export function ConversationThread({ conversationId, messages, status, priority,
           </Select>
         </div>
         <div className="flex items-center gap-2">
-          <span className="text-xs text-muted-foreground">Öncelik</span>
+          <label htmlFor={`conv-priority-${conversationId}`} className="text-xs text-muted-foreground">
+            Öncelik
+          </label>
           <Select
+            id={`conv-priority-${conversationId}`}
             value={priority}
             disabled={busy}
             onChange={(e) => changeField("priority", e.target.value)}
@@ -437,9 +488,21 @@ export function ConversationThread({ conversationId, messages, status, priority,
             ))}
           </Select>
 
-          {/* Template picker */}
-          <div className="relative">
-            <Button onClick={loadTemplates} disabled={templatesLoading} size="sm" variant="outline">
+          {/* Template picker — açılır yüzey sözleşmesi: tetikleyici durumu
+              duyurur (aria-expanded/haspopup), panel role="dialog" + adlandırılmış,
+              Escape ve dışarı tıklama kapatır, odak içeri alınır ve kapanınca
+              TETİKLEYİCİYE geri verilir (uygulamadaki mobil drawer'la aynı sözleşme). */}
+          <div className="relative" ref={templatesWrapRef}>
+            <Button
+              ref={templatesTriggerRef}
+              onClick={loadTemplates}
+              disabled={templatesLoading}
+              size="sm"
+              variant="outline"
+              aria-haspopup="dialog"
+              aria-expanded={showTemplates}
+              aria-controls={showTemplates ? `conv-templates-${conversationId}` : undefined}
+            >
               {templatesLoading ? (
                 <Loader2 className="size-4 animate-spin" />
               ) : (
@@ -449,9 +512,20 @@ export function ConversationThread({ conversationId, messages, status, priority,
               <ChevronDown className="size-3.5 opacity-60" />
             </Button>
             {showTemplates ? (
-              <div className="absolute left-0 top-full z-20 mt-1 max-h-80 w-80 max-w-[calc(100vw-2rem)] overflow-y-auto rounded-lg border border-border bg-card p-1 shadow-lg">
+              <div
+                id={`conv-templates-${conversationId}`}
+                ref={templatesPanelRef}
+                role="dialog"
+                tabIndex={-1}
+                aria-modal="false"
+                aria-labelledby={`conv-templates-title-${conversationId}`}
+                className="absolute left-0 top-full z-20 mt-1 max-h-80 w-80 max-w-[calc(100vw-2rem)] overflow-y-auto rounded-lg border border-border bg-card p-1 shadow-lg"
+              >
                 <div className="flex items-center justify-between px-2 py-1.5">
-                  <span className="text-xs font-semibold text-muted-foreground">
+                  <span
+                    id={`conv-templates-title-${conversationId}`}
+                    className="text-xs font-semibold text-muted-foreground"
+                  >
                     Mesaj Şablonları
                   </span>
                   <button
@@ -595,20 +669,45 @@ export function ConversationThread({ conversationId, messages, status, priority,
       {/* Composer — owner/manager only; staff see a read-only thread. */}
       {canReply ? (
         <div className="space-y-2 p-4">
+          {/* Placeholder bir AD DEĞİLDİR (yazmaya başlayınca kaybolur ve bazı
+              ekran okuyucular hiç okumaz) → görünmez ama gerçek bir etiket.
+              Gönderim hatası hem alana BAĞLI (aria-describedby + aria-invalid)
+              hem de DUYURULUR (role="alert"); eskiden yalnız görsel bir satırdı. */}
+          <label htmlFor={`conv-composer-${conversationId}`} className="sr-only">
+            Misafire cevabınız
+          </label>
           <Textarea
+            id={`conv-composer-${conversationId}`}
             value={composer}
             onChange={(e) => setComposer(e.target.value)}
             placeholder="Cevabınızı yazın veya AI önerisini kullanın..."
             className="min-h-[80px]"
+            aria-describedby={
+              [sendError ? `conv-send-error-${conversationId}` : null,
+               queuedNote ? `conv-send-note-${conversationId}` : null]
+                .filter(Boolean)
+                .join(" ") || undefined
+            }
+            {...(sendError ? { "aria-invalid": true } : {})}
           />
           {sendError ? (
-            <p className="flex items-start gap-2 rounded-md bg-destructive/10 px-2.5 py-2 text-xs text-destructive">
+            <p
+              id={`conv-send-error-${conversationId}`}
+              role="alert"
+              className="flex items-start gap-2 rounded-md bg-destructive/10 px-2.5 py-2 text-xs text-destructive"
+            >
               <AlertTriangle className="mt-0.5 size-3.5 shrink-0" />
               {sendError}
             </p>
           ) : null}
           {queuedNote ? (
-            <p className="rounded-md bg-primary/10 px-2.5 py-2 text-xs text-primary">{queuedNote}</p>
+            <p
+              id={`conv-send-note-${conversationId}`}
+              role="status"
+              className="rounded-md bg-primary/10 px-2.5 py-2 text-xs text-primary"
+            >
+              {queuedNote}
+            </p>
           ) : null}
           <div className="flex justify-end">
             <Button onClick={() => sendReply(composer)} disabled={sending || !composer.trim()}>
