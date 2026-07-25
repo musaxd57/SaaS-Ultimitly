@@ -5,6 +5,7 @@ import { buttonVariants } from "@/components/ui/button";
 import { useRouter } from "next/navigation";
 import { Download, Loader2, Check, X } from "lucide-react";
 import { cn } from "@/lib/utils";
+import { useRestoreFocusOnIdle } from "@/lib/use-restore-focus";
 
 /**
  * Pull guest conversations from Hospitable (Airbnb / Booking) into the inbox.
@@ -13,9 +14,14 @@ import { cn } from "@/lib/utils";
 export function HospitableSyncButton() {
   const router = useRouter();
   const [busy, setBusy] = useState(false);
+  // Uzun süren çekme işlemi boyunca düğme disabled → odak <body>'ye düşerdi;
+  // sonuç role="status" ile duyuruluyor ama klavye kullanıcısı yerini
+  // kaybediyordu (gerekçe: lib/use-restore-focus.ts).
+  const { ref: btnRef, arm } = useRestoreFocusOnIdle<HTMLButtonElement>(busy);
   const [result, setResult] = useState<{ ok: boolean; text: string } | null>(null);
 
   async function sync() {
+    arm();
     setBusy(true);
     setResult(null);
     try {
@@ -43,6 +49,7 @@ export function HospitableSyncButton() {
   return (
     <div className="flex items-center gap-2">
       <button
+        ref={btnRef}
         type="button"
         onClick={sync}
         disabled={busy}

@@ -41,4 +41,13 @@ describe("AutoReplyToggle (UI)", () => {
     await waitFor(() => expect(window.alert).toHaveBeenCalled());
     expect(btn.textContent).toContain("Açık"); // unchanged on failure
   });
+
+  it("istek bitince odak ANAHTARA geri döner (disabled odağı düşürmüştü)", async () => {
+    render(<AutoReplyToggle field="autoWelcome" label="Otomatik karşılama" enabled={false} />);
+    const btn = screen.getByRole("button");
+    fireEvent.click(btn);
+    // Odak geri gelince ekran okuyucu düğmeyi aria-pressed durumuyla birlikte
+    // YENİDEN okur — kullanıcı anahtarın yeni hâlini duyar.
+    await waitFor(() => expect(document.activeElement).toBe(btn));
+  });
 });

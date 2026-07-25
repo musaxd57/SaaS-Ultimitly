@@ -162,3 +162,34 @@ describe("DeleteButton — onay olmadan silme İSTEĞİ GİTMEZ", () => {
     await waitFor(() => expect(fetchSpy).toHaveBeenCalledTimes(1));
   });
 });
+
+describe("DeleteButton — başarısız silmede odak kaybolmaz", () => {
+  beforeEach(() => {
+    cleanup();
+    __resetConfirmForTest();
+    vi.unstubAllGlobals();
+  });
+
+  it("silme HATA verirse odak SİL düğmesine döner (yeniden denenebilsin)", async () => {
+    vi.stubGlobal("fetch", vi.fn(async () => new Response(null, { status: 500 })));
+    render(
+      <>
+        <ConfirmHost />
+        <DeleteButton endpoint="/api/x/1" confirmText="Silinsin mi?" />
+      </>,
+    );
+    const trigger = screen.getByRole("button", { name: /Sil/ });
+
+    await act(async () => {
+      fireEvent.click(trigger);
+    });
+    await act(async () => {
+      fireEvent.click(within(await screen.findByRole("dialog")).getByRole("button", { name: "Sil" }));
+    });
+
+    // Diyalog odağı tetikleyiciye iade eder, AMA hemen ardından setLoading(true)
+    // düğmeyi disabled yapar → odak <body>'ye düşer. Hata dalında düğme geri
+    // gelir ama odak gelmezdi: kullanıcı yeniden denemek için baştan Tab'lamalı.
+    await waitFor(() => expect(document.activeElement).toBe(trigger));
+  });
+});

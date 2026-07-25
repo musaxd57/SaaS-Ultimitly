@@ -2,6 +2,7 @@
 
 import { useState } from "react";
 import { toast } from "@/lib/toast";
+import { useRestoreFocusOnIdle } from "@/lib/use-restore-focus";
 import { useRouter } from "next/navigation";
 import { Bot, Loader2, Lock } from "lucide-react";
 import { cn } from "@/lib/utils";
@@ -29,8 +30,12 @@ export function AutoReplyToggle({
   const router = useRouter();
   const [on, setOn] = useState(enabled);
   const [busy, setBusy] = useState(false);
+  // `disabled={busy}` odağı düşürür; anahtarın yeni hâlinin duyulması için
+  // odak geri verilir (gerekçe: lib/use-restore-focus.ts).
+  const { ref: btnRef, arm } = useRestoreFocusOnIdle<HTMLButtonElement>(busy);
 
   async function toggle() {
+    arm();
     if (locked) return;
     const next = !on;
     setBusy(true);
@@ -64,6 +69,7 @@ export function AutoReplyToggle({
     // `aria-pressed` ile durum artık ekran okuyucuya da bildiriliyor — eskiden
     // yalnız görünür metindeydi.
     <button
+      ref={btnRef}
       type="button"
       onClick={toggle}
       disabled={busy || locked}

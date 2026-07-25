@@ -183,6 +183,20 @@ describe("AppShell — çıkış başarısız olduğunda SEBEBİ söylenir", () 
     expect(push).not.toHaveBeenCalled(); // oturum kapanmadan yönlendirme yok
   });
 
+  it("çıkış BAŞARISIZ olunca odak ÇIKIŞ düğmesine döner (yeniden denenebilsin)", async () => {
+    // Başarısız çıkışta kullanıcı HÂLÂ oturumda ve tek yapması gereken tekrar
+    // denemek. `disabled={loggingOut}` odağı <body>'ye düşürüyordu; hata
+    // duyuruluyor ama düğmeye ulaşmak için baştan Tab'lamak gerekiyordu.
+    vi.stubGlobal("fetch", vi.fn(async () => new Response("{}", { status: 500 })));
+    render(<AppShell {...shellProps}>içerik</AppShell>);
+    const btn = screen.getAllByRole("button", { name: /Çıkış/ })[0];
+    await act(async () => {
+      fireEvent.click(btn);
+    });
+    await screen.findByRole("alert");
+    await waitFor(() => expect(document.activeElement).toBe(btn));
+  });
+
   it("ağ hatasında da sessiz kalmaz ve uyarı kapatılabilir", async () => {
     vi.stubGlobal("fetch", vi.fn(async () => { throw new Error("network"); }));
     render(<AppShell {...shellProps}>içerik</AppShell>);

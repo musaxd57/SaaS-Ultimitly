@@ -207,3 +207,107 @@ describe("ConversationThread — canlı bölge TEKRAR duyurur", () => {
     expect(live.textContent).toContain("Mesaj gönderildi.");
   });
 });
+
+// ---------------------------------------------------------------------------
+// KALAN ODAK KAYIPLARI — gönderim/durum/öncelik için kapatılan sınıfın aynısı:
+// `disabled` olan kontrol odağı <body>'ye düşürür ve yeniden etkinleşince odak
+// KENDİLİĞİNDEN geri gelmez. Bu dosyada daha önce sendReply ve changeField
+// kapatılmıştı; çeviri ve AI-öner aynı gözle taranmamıştı.
+// ---------------------------------------------------------------------------
+describe("ConversationThread — çeviri ve AI-öner odak iadesi", () => {
+  beforeEach(() => {
+    cleanup();
+    vi.clearAllMocks();
+    vi.unstubAllGlobals();
+  });
+
+  const suggestion = JSON.stringify({
+    intent: "general",
+    confidence: 0.9,
+    reply: "Merhaba, memnuniyetle yardımcı olurum.",
+    risk: null,
+    source: "fallback",
+    riskLevel: "none",
+    usedSources: [],
+    missingInfo: [],
+    detectedLanguage: "tr",
+  });
+
+  it("çeviri bitince odak ÇEVİR düğmesine döner", async () => {
+    vi.stubGlobal(
+      "fetch",
+      vi.fn(async () => new Response(JSON.stringify({ translation: "Hello" }), { status: 200 })),
+    );
+    render(<ConversationThread {...baseProps} />);
+    const btn = screen.getByRole("button", { name: /Çevir/ });
+    await act(async () => {
+      fireEvent.click(btn);
+    });
+    // Düğme istek boyunca disabled → odak body'ye düşmüştü; geri gelmeli.
+    expect(document.activeElement).toBe(btn);
+  });
+
+  it("AI önerisi gelince odak ÖNER düğmesine döner", async () => {
+    vi.stubGlobal("fetch", vi.fn(async () => new Response(suggestion, { status: 200 })));
+    render(<ConversationThread {...baseProps} />);
+    const btn = screen.getByRole("button", { name: "AI cevap öner" });
+    await act(async () => {
+      fireEvent.click(btn);
+    });
+    expect(document.activeElement).toBe(btn);
+  });
+
+  it("NUDGE'dan tetiklenince (düğme unmount olur) odak kalıcı öner düğmesine düşer", async () => {
+    vi.stubGlobal("fetch", vi.fn(async () => new Response(suggestion, { status: 200 })));
+    render(<ConversationThread {...baseProps} />);
+    // Nudge kartı `!suggestLoading` koşullu: tıklanan düğme tıklandığı ANDA
+    // DOM'dan kalkar — istek bitince odak verilecek hedef artık yok. Yedek
+    // hedef: hâlâ ekranda duran "AI cevap öner".
+    const nudge = screen.getByRole("button", { name: "AI ile cevapla" });
+    await act(async () => {
+      fireEvent.click(nudge);
+    });
+    expect(screen.queryByRole("button", { name: "AI ile cevapla" })).toBeNull(); // gerçekten unmount
+    expect(document.activeElement).toBe(screen.getByRole("button", { name: "AI cevap öner" }));
+  });
+
+  it("AĞ HATASINDA da gönderim odağı yazma kutusuna döner (yalnız başarıda değil)", async () => {
+    vi.stubGlobal("fetch", vi.fn(async () => Promise.reject(new Error("ağ koptu"))));
+    render(<ConversationThread {...baseProps} />);
+    const box = screen.getByLabelText("Misafire cevabınız");
+    fireEvent.change(box, { target: { value: "Merhaba" } });
+    await act(async () => {
+      fireEvent.click(screen.getByRole("button", { name: /Gönder/ }));
+    });
+    // Hata role="alert" ile duyuruluyor; metin kutuda duruyor — düzeltmenin
+    // doğal yeri orası. Eskiden odak iadesi try içindeydi, catch yolu atlıyordu.
+    expect(document.activeElement).toBe(box);
+  });
+});
+
+describe("HospitableSyncButton — odak iadesi", () => {
+  beforeEach(() => {
+    cleanup();
+    vi.clearAllMocks();
+    vi.unstubAllGlobals();
+  });
+
+  it("çekme bitince odak düğmeye döner (sonuç zaten role=status ile duyuruluyor)", async () => {
+    vi.stubGlobal(
+      "fetch",
+      vi.fn(async () =>
+        new Response(
+          JSON.stringify({ ok: true, properties: 1, reservations: 2, conversations: 3, messages: 4 }),
+          { status: 200 },
+        ),
+      ),
+    );
+    const { HospitableSyncButton } = await import("@/components/inbox/hospitable-sync-button");
+    render(<HospitableSyncButton />);
+    const btn = screen.getByRole("button", { name: /Mesajları çek/ });
+    await act(async () => {
+      fireEvent.click(btn);
+    });
+    expect(document.activeElement).toBe(btn);
+  });
+});

@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useRef, useState } from "react";
+import { useRestoreFocusOnIdle } from "@/lib/use-restore-focus";
 import Link from "next/link";
 import { usePathname, useRouter } from "next/navigation";
 import { Menu, X, LogOut, Loader2, Shield, ArrowLeft } from "lucide-react";
@@ -29,6 +30,11 @@ export function AppShell({ user, superAdmin, guestChatEnabled, impersonating, pl
   const drawerRef = useRef<HTMLElement | null>(null);
   const menuButtonRef = useRef<HTMLButtonElement | null>(null);
   const [loggingOut, setLoggingOut] = useState(false);
+  // Çıkış BAŞARISIZ olursa kullanıcı hâlâ oturumdadır ve tek yapması gereken
+  // tekrar denemektir. `disabled={loggingOut}` odağı <body>'ye düşürüyordu:
+  // hata duyuruluyor ama düğmeye ulaşmak için baştan Tab'lamak gerekiyordu.
+  // (Başarıda zaten /login'e gidilir; isConnected kapısı boşa odaklamayı önler.)
+  const { ref: logoutBtnRef, arm: armLogout } = useRestoreFocusOnIdle<HTMLButtonElement>(loggingOut);
   const [exiting, setExiting] = useState(false);
   // Çıkış/operatör-çıkışı BAŞARISIZ olduğunda buton eskiden sessizce geri
   // açılıyordu (Codex): kullanıcı tıklamasının hiç işlemediğini sanıyor ve aynı
@@ -105,6 +111,7 @@ export function AppShell({ user, superAdmin, guestChatEnabled, impersonating, pl
   }, [mobileOpen]);
 
   async function logout() {
+    armLogout();
     setLoggingOut(true);
     setShellError(null);
     try {
@@ -313,7 +320,7 @@ export function AppShell({ user, superAdmin, guestChatEnabled, impersonating, pl
           </div>
           <div className="flex items-center gap-3">
             <span className="hidden text-sm text-muted-foreground sm:inline">{user.orgName}</span>
-            <Button variant="ghost" size="sm" onClick={logout} disabled={loggingOut}>
+            <Button ref={logoutBtnRef} variant="ghost" size="sm" onClick={logout} disabled={loggingOut}>
               {loggingOut ? <Loader2 className="size-4 animate-spin" /> : <LogOut className="size-4" />}
               <span className="hidden sm:inline">Çıkış</span>
             </Button>

@@ -3,6 +3,7 @@
 import { useState } from "react";
 import { toast } from "@/lib/toast";
 import { confirmDialog } from "@/lib/confirm";
+import { useRestoreFocusOnIdle } from "@/lib/use-restore-focus";
 import { useRouter } from "next/navigation";
 import { Loader2, Trash2 } from "lucide-react";
 import { Button } from "@/components/ui/button";
@@ -22,10 +23,16 @@ export function DeleteButton({
 }: DeleteButtonProps) {
   const router = useRouter();
   const [loading, setLoading] = useState(false);
+  // Diyalog odağı tetikleyiciye iade eder, AMA hemen ardından setLoading(true)
+  // düğmeyi disabled yapıp odağı <body>'ye düşürür. BAŞARIDA satır/sayfa zaten
+  // gider (isConnected kapısı boşa odaklamayı önler); HATA dalında düğme geri
+  // gelir ve kullanıcı yeniden denemek için odağı orada bulmalıdır.
+  const { ref: btnRef, arm } = useRestoreFocusOnIdle<HTMLButtonElement>(loading);
 
   async function onDelete() {
     if (!(await confirmDialog({ title: confirmText, confirmLabel: label, destructive: true })))
       return;
+    arm();
     setLoading(true);
     try {
       const res = await fetch(endpoint, { method: "DELETE" });
@@ -43,7 +50,7 @@ export function DeleteButton({
   }
 
   return (
-    <Button variant="destructive" size="sm" onClick={onDelete} disabled={loading}>
+    <Button ref={btnRef} variant="destructive" size="sm" onClick={onDelete} disabled={loading}>
       {loading ? <Loader2 className="size-4 animate-spin" /> : <Trash2 className="size-4" />}
       {label}
     </Button>

@@ -138,6 +138,13 @@ export function ConversationThread({ conversationId, messages, status, priority,
   const prioritySelectRef = useRef<HTMLSelectElement | null>(null);
   /** İstek bitince odağın döneceği öğe. */
   const restoreFocusRef = useRef<HTMLElement | null>(null);
+  /** AI-öner: tıklanan tetikleyici. Nudge kartındaki düğme tıklandığı ANDA
+   *  unmount olur (kart `!suggestLoading` koşullu) — o durumda yedek hedef
+   *  kalıcı "AI cevap öner" düğmesidir. */
+  const suggestRestoreRef = useRef<HTMLButtonElement | null>(null);
+  const suggestButtonRef = useRef<HTMLButtonElement | null>(null);
+  /** Çeviri: tıklanan "Çevir" düğmesi (mesaj başına ayrı düğme var). */
+  const translateRestoreRef = useRef<HTMLButtonElement | null>(null);
 
   // Template picker state
   const [showTemplates, setShowTemplates] = useState(false);
@@ -219,14 +226,16 @@ export function ConversationThread({ conversationId, messages, status, priority,
         const data = await res.json().catch(() => null);
         setSendError(data?.error ?? "Mesaj gönderilemedi.");
       }
-      // Buton gönderim boyunca `sending`, başarıdan sonra da `!composer.trim()`
-      // ile DISABLED kalıyor → odak <body>'ye düşüyordu. Yazma kutusuna dön:
-      // konuşmaya devam etmenin doğal yeri orası.
-      if (composerRef.current?.isConnected) composerRef.current.focus();
     } catch {
       setSendError("Mesaj gönderilemedi.");
     } finally {
       setSending(false);
+      // Buton gönderim boyunca `sending`, başarıdan sonra da `!composer.trim()`
+      // ile DISABLED kalıyor → odak <body>'ye düşüyordu. Yazma kutusuna dön:
+      // konuşmaya devam etmenin (ya da hatada düzeltmenin) doğal yeri orası.
+      // FINALLY'de: eskiden try içindeydi, ağ hatası (catch) yolu atlanıyordu.
+      // Textarea hiçbir zaman disabled olmadığı için focus güvenle tutar.
+      if (composerRef.current?.isConnected) composerRef.current.focus();
     }
   }
 
@@ -264,6 +273,26 @@ export function ConversationThread({ conversationId, messages, status, priority,
     restoreFocusRef.current = null;
     if (el?.isConnected && !(el as HTMLSelectElement).disabled) el.focus();
   }, [busy]);
+
+  // AI-öner bitince odak tetikleyiciye döner; tetikleyici (nudge) unmount
+  // olduysa kalıcı öner düğmesine düşer. `clicked` null ise hiç tıklama
+  // olmamıştır — ilk mount'ta odak ÇALINMAZ.
+  useEffect(() => {
+    if (suggestLoading) return;
+    const clicked = suggestRestoreRef.current;
+    suggestRestoreRef.current = null;
+    if (!clicked) return;
+    const target = clicked.isConnected && !clicked.disabled ? clicked : suggestButtonRef.current;
+    if (target?.isConnected && !target.disabled) target.focus();
+  }, [suggestLoading]);
+
+  // Çeviri bitince odak o mesajın "Çevir" düğmesine döner.
+  useEffect(() => {
+    if (translatingId !== null) return;
+    const el = translateRestoreRef.current;
+    translateRestoreRef.current = null;
+    if (el?.isConnected && !el.disabled) el.focus();
+  }, [translatingId]);
 
   // Açılır yüzey davranışı. Klavye kullanıcısı için kritik: panel açılınca odak
   // içeri girmeli, kapanınca TETİKLEYİCİYE dönmeli (yoksa odak sayfanın başına
@@ -475,7 +504,10 @@ export function ConversationThread({ conversationId, messages, status, priority,
               <div className="mt-0.5 px-1">
                 <button
                   type="button"
-                  onClick={() => translateMessage(m.id)}
+                  onClick={(e) => {
+                    if (!translations[m.id]) translateRestoreRef.current = e.currentTarget;
+                    translateMessage(m.id);
+                  }}
                   disabled={translatingId === m.id}
                   // Bu bir aç/kapa yüzeyi: durumu ve neyi açtığını bildirir.
                   aria-expanded={Boolean(translations[m.id])}
@@ -556,14 +588,30 @@ export function ConversationThread({ conversationId, messages, status, priority,
                 AI saniyeler içinde sizin tonunuzla bir cevap hazırlasın — onaylayın ya da düzenleyin.
               </span>
             </p>
-            <Button onClick={handleSuggest} disabled={suggestLoading} size="sm" className="shrink-0">
+            <Button
+              onClick={(e) => {
+                suggestRestoreRef.current = e.currentTarget;
+                handleSuggest();
+              }}
+              disabled={suggestLoading}
+              size="sm"
+              className="shrink-0"
+            >
               <Sparkles className="size-4" /> AI ile cevapla
             </Button>
           </div>
         ) : null}
         <div className="flex flex-wrap items-center gap-2">
           {canReply ? (
-            <Button onClick={handleSuggest} disabled={suggestLoading} size="sm">
+            <Button
+              ref={suggestButtonRef}
+              onClick={(e) => {
+                suggestRestoreRef.current = e.currentTarget;
+                handleSuggest();
+              }}
+              disabled={suggestLoading}
+              size="sm"
+            >
               {suggestLoading ? (
                 <Loader2 className="size-4 animate-spin" />
               ) : (
