@@ -1,6 +1,8 @@
 "use client";
 
 import { useState, useEffect, useRef } from "react";
+import { Field } from "@/components/form-field";
+import { FormError } from "@/components/form-error";
 import { useRouter } from "next/navigation";
 import Link from "next/link";
 import { Loader2 } from "lucide-react";
@@ -143,7 +145,7 @@ export function LoginForm() {
   return (
     <form onSubmit={onSubmit} className="space-y-4">
       {error ? (
-        <p className="rounded-md bg-destructive/10 px-3 py-2 text-sm text-destructive">{error}</p>
+        <FormError>{error}</FormError>
       ) : null}
       {needsVerify ? (
         <div className="rounded-md border border-amber-300 bg-amber-50 px-3 py-2.5 text-sm text-amber-900">
@@ -161,8 +163,7 @@ export function LoginForm() {
           )}
         </div>
       ) : null}
-      <div className="space-y-2">
-        <Label htmlFor="email">E-posta</Label>
+      <Field label="E-posta" htmlFor="email">
         <Input
           id="email"
           type="email"
@@ -174,7 +175,7 @@ export function LoginForm() {
           }}
           required
         />
-      </div>
+      </Field>
       <div className="space-y-2">
         <Label htmlFor="password">Şifre</Label>
         <Input

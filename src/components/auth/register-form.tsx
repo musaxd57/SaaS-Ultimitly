@@ -1,12 +1,13 @@
 "use client";
 
 import { useState, useEffect } from "react";
+import { Field } from "@/components/form-field";
+import { FormError } from "@/components/form-error";
 import { useRouter } from "next/navigation";
 import Link from "next/link";
 import { Loader2 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
-import { Label } from "@/components/ui/label";
 
 type Fields = Record<string, string>;
 
@@ -179,11 +180,8 @@ export function RegisterForm() {
           alınmaz; dilerseniz ücretsiz sürümle devam edebilirsiniz.
         </p>
       </div>
-      {error ? (
-        <p className="rounded-md bg-destructive/10 px-3 py-2 text-sm text-destructive">{error}</p>
-      ) : null}
-      <div className="space-y-2">
-        <Label htmlFor="organizationName">İşletme adı</Label>
+      <FormError>{error}</FormError>
+      <Field label="İşletme adı" htmlFor="organizationName" error={fields.organizationName}>
         <Input
           id="organizationName"
           value={form.organizationName}
@@ -191,17 +189,11 @@ export function RegisterForm() {
           placeholder="Örn. Bosphorus Stays"
           required
         />
-        {fields.organizationName ? (
-          <p className="text-xs text-destructive">{fields.organizationName}</p>
-        ) : null}
-      </div>
-      <div className="space-y-2">
-        <Label htmlFor="name">Adınız</Label>
+      </Field>
+      <Field label="Adınız" htmlFor="name" error={fields.name}>
         <Input id="name" value={form.name} onChange={update("name")} required />
-        {fields.name ? <p className="text-xs text-destructive">{fields.name}</p> : null}
-      </div>
-      <div className="space-y-2">
-        <Label htmlFor="email">E-posta</Label>
+      </Field>
+      <Field label="E-posta" htmlFor="email" error={fields.email}>
         <Input
           id="email"
           type="email"
@@ -210,10 +202,10 @@ export function RegisterForm() {
           onChange={update("email")}
           required
         />
-        {fields.email ? <p className="text-xs text-destructive">{fields.email}</p> : null}
-      </div>
-      <div className="space-y-2">
-        <Label htmlFor="password">Şifre</Label>
+      </Field>
+      {/* Kural artik ipucu olarak KALICI: hata belirince kaybolmuyor
+          (Field ikisini birden gosterir ve ikisini de describedby'a baglar). */}
+      <Field label="Şifre" htmlFor="password" error={fields.password} hint="En az 8 karakter.">
         <Input
           id="password"
           type="password"
@@ -222,12 +214,7 @@ export function RegisterForm() {
           onChange={update("password")}
           required
         />
-        {fields.password ? (
-          <p className="text-xs text-destructive">{fields.password}</p>
-        ) : (
-          <p className="text-xs text-muted-foreground">En az 8 karakter.</p>
-        )}
-      </div>
+      </Field>
       <div className="space-y-1">
         <label className="flex items-start gap-2 text-xs text-muted-foreground">
           <input

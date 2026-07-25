@@ -1,6 +1,7 @@
 "use client";
 
 import { useState, useEffect, useRef } from "react";
+import { FormError } from "@/components/form-error";
 import Link from "next/link";
 import { Loader2 } from "lucide-react";
 import { Button } from "@/components/ui/button";
@@ -126,7 +127,7 @@ export function ForgotPasswordForm() {
   return (
     <div className="space-y-4">
       {error ? (
-        <p className="rounded-md bg-destructive/10 px-3 py-2 text-sm text-destructive">{error}</p>
+        <FormError>{error}</FormError>
       ) : null}
 
       {step === "request" ? (
