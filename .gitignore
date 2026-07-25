@@ -40,3 +40,4 @@ yarn-error.log*
 # Playwright E2E artifacts
 /test-results/
 /playwright-report/
+shots/

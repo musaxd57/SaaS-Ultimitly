@@ -1,6 +1,7 @@
 "use client";
 
 import { useState } from "react";
+import { buttonVariants } from "@/components/ui/button";
 import { useRouter } from "next/navigation";
 import { Download, Loader2, Check, X } from "lucide-react";
 import { cn } from "@/lib/utils";
@@ -46,13 +47,22 @@ export function HospitableSyncButton() {
         onClick={sync}
         disabled={busy}
         title="Airbnb / Booking konuşmalarını Hospitable'dan çek (sadece okuma — hiçbir şey gönderilmez)"
-        className="inline-flex items-center gap-2 rounded-full border border-border bg-card px-3 py-1.5 text-sm font-medium text-muted-foreground transition-colors hover:bg-accent disabled:opacity-50"
+        // Kompakt SECONDARY: başlıktaki tek primary komut "Yeni konuşma".
+        // Yükseklik/radius diğer kontrollerle aynı (h-8 · rounded-md = 6px).
+        className={cn(buttonVariants({ variant: "outline", size: "sm" }), "text-muted-foreground")}
       >
-        {busy ? <Loader2 className="size-4 animate-spin" /> : <Download className="size-4" />}
+        {busy ? (
+          <Loader2 className="size-4 animate-spin" aria-hidden="true" />
+        ) : (
+          <Download className="size-4" aria-hidden="true" />
+        )}
         {busy ? "Çekiliyor…" : "Mesajları çek"}
       </button>
       {result ? (
         <span
+          // Uzun süren çekme işleminin TEK sonucu bu satır; canlı bölge olmadan
+          // ekran okuyucu kullanıcısı ne başarıyı ne hatayı duyuyordu.
+          role="status"
           className={cn(
             "inline-flex items-center gap-1 text-xs font-medium",
             result.ok ? "text-emerald-600" : "text-destructive",

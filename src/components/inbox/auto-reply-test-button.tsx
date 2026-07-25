@@ -1,6 +1,8 @@
 "use client";
 
 import { useEffect, useRef, useState } from "react";
+import { buttonVariants } from "@/components/ui/button";
+import { cn } from "@/lib/utils";
 import { FlaskConical, Loader2, X, Check, Clock } from "lucide-react";
 
 interface Preview {
@@ -66,8 +68,15 @@ export function AutoReplyTestButton({ locked = false }: { locked?: boolean }) {
     return () => {
       window.removeEventListener("keydown", onKey);
       document.body.style.overflow = prevOverflow;
-      // Focus restore: back to whatever opened the modal (else the trigger).
-      (prevFocus ?? trigger)?.focus?.();
+      // Focus restore. `prevFocus` TEK BAŞINA yetmez: modal `runTest()` içinden
+      // açılıyor ve orada önce `setBusy(true)` çalışıyor → tetikleyici
+      // `disabled` oluyor → tarayıcı odağı <body>'ye atıyor. Yani effect
+      // koştuğunda `document.activeElement` zaten <body> idi ve `?? trigger`
+      // yedeğine HİÇ ulaşılmıyordu; kapanışta `body.focus()` çağrılıp odak
+      // sayfanın başına düşüyordu. Artık <body> gerçek bir hedef sayılmıyor.
+      const restore =
+        prevFocus && prevFocus !== document.body && prevFocus.isConnected ? prevFocus : trigger;
+      restore?.focus?.();
     };
   }, [open]);
 
@@ -107,9 +116,13 @@ export function AutoReplyTestButton({ locked = false }: { locked?: boolean }) {
             ? "Aboneliğiniz aktif değil — açmak için Ayarlar'dan bir plan seçin."
             : "Oto-yanıtın şu an ne göndereceğini göster — hiçbir şey gönderilmez (test)."
         }
-        className="inline-flex items-center gap-2 rounded-full border border-border bg-card px-3 py-1.5 text-sm font-medium text-muted-foreground transition-colors hover:bg-accent disabled:opacity-50"
+        className={cn(buttonVariants({ variant: "outline", size: "sm" }), "text-muted-foreground")}
       >
-        {busy ? <Loader2 className="size-4 animate-spin" /> : <FlaskConical className="size-4" />}
+        {busy ? (
+          <Loader2 className="size-4 animate-spin" aria-hidden="true" />
+        ) : (
+          <FlaskConical className="size-4" aria-hidden="true" />
+        )}
         {busy ? "Hazırlanıyor…" : "Oto-yanıt testi"}
       </button>
 
@@ -144,7 +157,18 @@ export function AutoReplyTestButton({ locked = false }: { locked?: boolean }) {
               </button>
             </div>
 
-            <div className="max-h-[60vh] space-y-4 overflow-y-auto px-5 py-4">
+            {/* Kaydırılabilir ama İÇİNDE tek bir odaklanabilir öğe yok (yalnız
+                p/section/div/span). Odak modal kökünde durduğu ve gövde
+                scroll-lock'lu olduğu için 60vh'nin altında kalan önizlemeler
+                fare olmadan HİÇ okunamıyordu. tabIndex={0} kutuyu klavyeyle
+                odaklanabilir yapar → ok tuşlarıyla kaydırılır; role+ad da onu
+                gezinilebilir bir bölge yapar. */}
+            <div
+              tabIndex={0}
+              role="group"
+              aria-label="Önizleme listesi"
+              className="max-h-[60vh] space-y-4 overflow-y-auto px-5 py-4 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-ring"
+            >
               {error ? (
                 <p className="text-sm text-destructive">{error}</p>
               ) : previews && previews.length === 0 ? (

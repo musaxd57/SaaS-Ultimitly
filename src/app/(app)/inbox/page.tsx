@@ -1,9 +1,10 @@
 import Link from "next/link";
-import { MessageSquare, Plus, AlertTriangle } from "lucide-react";
+import { MessageSquare, Plus, AlertTriangle, Search, X } from "lucide-react";
 import { requireAuth } from "@/lib/auth";
 import { prisma } from "@/lib/db";
 import { PageHeader } from "@/components/page-header";
 import { LinkButton } from "@/components/ui/link-button";
+import { buttonVariants } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { EmptyState } from "@/components/empty-state";
 import { AutoReplyToggle } from "@/components/inbox/auto-reply-toggle";
@@ -21,6 +22,35 @@ export const dynamic = "force-dynamic";
 /** Sayfa başına konuşma. Ekran eskiden org'un TÜM konuşmalarını çekiyordu —
  *  müşteri büyüdükçe SSR, hydration ve DOM maliyeti sınırsız artıyordu. */
 const PAGE_SIZE = 50;
+
+/**
+ * Sayfalama düğmesi. Uçlarda düğme KAYBOLMAZ, devre dışı görünür: yoksa
+ * "Önceki" ilk sayfada yok olup "Sonraki" sola zıplıyordu (her sayfa geçişinde
+ * düğmeler yer değiştiriyordu). Devre dışı hâl bir <span>'dir — odaklanılamaz,
+ * yani klavye kullanıcısı tıklanamayan bir durağa takılmaz.
+ */
+function LinkOrDisabled({ href, label }: { href: string | null; label: string }) {
+  const base =
+    "inline-flex h-8 items-center rounded-md border px-3 text-xs font-medium transition-colors";
+  if (!href) {
+    return (
+      <span aria-hidden="true" className={cn(base, "border-border/60 text-muted-foreground/40")}>
+        {label}
+      </span>
+    );
+  }
+  return (
+    <Link
+      href={href}
+      className={cn(
+        base,
+        "border-border hover:bg-accent focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-1",
+      )}
+    >
+      {label}
+    </Link>
+  );
+}
 
 export default async function InboxPage({
   searchParams,
@@ -89,6 +119,7 @@ export default async function InboxPage({
 
   const from = conversations.length === 0 ? 0 : (page - 1) * PAGE_SIZE + 1;
   const to = conversations.length === 0 ? 0 : (page - 1) * PAGE_SIZE + conversations.length;
+  const totalPages = Math.max(1, Math.ceil(total / PAGE_SIZE));
 
   const pad = (h: number) => String(h).padStart(2, "0");
   const activeWindow = `${pad(org?.autoReplyStartHour ?? 0)}:00–${pad(org?.autoReplyEndHour ?? 9)}:00`;
@@ -111,18 +142,23 @@ export default async function InboxPage({
         </LinkButton>
       </PageHeader>
 
-      {/* Filters + search share ONE row (two stacked full-width rows wasted a
-          vertical band before the list). Wraps naturally on narrow screens. */}
+      {/* Filtreler + arama TEK satır. Tüm kontroller aynı yükseklikte (h-8) ve
+          aynı radius'ta (rounded-md = 6px); arama kutusu ile "Ara" düğmesi
+          `flex-nowrap` ile birlikte tutulur, yani düğme alt satıra düşmez. */}
       <div className="flex flex-wrap items-center justify-between gap-2">
-        <div className="flex flex-wrap gap-2">
+        <div className="flex flex-wrap gap-1.5">
           {filters.map((f) => {
             const active = (status ?? "") === f.value;
             return (
               <Link
                 key={f.value || "all"}
                 href={hrefFor({ status: f.value })}
+                // Hangi filtrenin uygulandığı EskİDEN yalnız renkle söyleniyordu:
+                // ekran okuyucu kullanıcısı kısa bir liste görünce bunun filtre
+                // sonucu mu yoksa gerçekten az kayıt mı olduğunu ayırt edemiyordu.
+                aria-current={active ? "page" : undefined}
                 className={cn(
-                  "rounded-full border px-3 py-1 text-sm transition-colors",
+                  "inline-flex h-8 items-center rounded-md border px-3 text-xs font-medium transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-1",
                   active
                     ? "border-primary bg-primary text-primary-foreground"
                     : "border-border bg-card text-muted-foreground hover:bg-accent",
@@ -133,25 +169,49 @@ export default async function InboxPage({
             );
           })}
         </div>
-        <form method="GET" className="flex flex-wrap items-center gap-2">
-        {status ? <input type="hidden" name="status" value={status} /> : null}
-        <input
-          name="q"
-          defaultValue={query}
-          placeholder="Misafir adına göre ara…"
-          className="w-full max-w-xs rounded-lg border border-border bg-card px-3 py-1.5 text-sm placeholder:text-muted-foreground focus:outline-none focus:ring-1 focus:ring-ring"
-        />
-        <button type="submit" className="rounded-lg border border-border bg-card px-3 py-1.5 text-sm hover:bg-accent">
-          Ara
-        </button>
-        {query ? (
-          <Link
-            href={status ? `/inbox?status=${status}` : "/inbox"}
-            className="text-sm text-muted-foreground hover:text-foreground"
+        <form method="GET" role="search" className="flex flex-nowrap items-center gap-1.5">
+          {status ? <input type="hidden" name="status" value={status} /> : null}
+          {/* Placeholder bir AD DEĞİLDİR: arama yapıldıktan sonra kutu dolu
+              geldiği için hiç görünmez ve bazı ekran okuyucular hiç okumaz
+              (conversation-thread.tsx composer'ıyla aynı desen). */}
+          <label htmlFor="inbox-search" className="sr-only">
+            Misafir adına göre ara
+          </label>
+          <div className="relative">
+            <Search
+              className="pointer-events-none absolute left-2.5 top-1/2 size-3.5 -translate-y-1/2 text-muted-foreground"
+              aria-hidden="true"
+            />
+            <input
+              id="inbox-search"
+              name="q"
+              type="search"
+              defaultValue={query}
+              placeholder="Misafir adına göre ara…"
+              className="h-8 w-40 rounded-md border border-border bg-card pl-8 pr-2 text-xs placeholder:text-muted-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-1 sm:w-56"
+            />
+          </div>
+          {/* Enter zaten formu gönderir (native submit); düğme fare kullanıcısı
+              için ve `shrink-0` ile alt satıra düşmez. */}
+          <button
+            type="submit"
+            className={cn(buttonVariants({ variant: "outline", size: "sm" }), "shrink-0")}
           >
-            Aramayı temizle
-          </Link>
-        ) : null}
+            Ara
+          </button>
+          {query ? (
+            <Link
+              href={status ? `/inbox?status=${status}` : "/inbox"}
+              aria-label="Aramayı temizle"
+              title="Aramayı temizle"
+              className={cn(
+                buttonVariants({ variant: "ghost", size: "sm" }),
+                "shrink-0 px-2 text-muted-foreground",
+              )}
+            >
+              <X className="size-3.5" aria-hidden="true" />
+            </Link>
+          ) : null}
         </form>
       </div>
 
@@ -189,7 +249,14 @@ export default async function InboxPage({
                     {c.guestIdentifier}
                   </p>
                   {c.priority === "urgent" ? (
-                    <AlertTriangle className="size-3.5 text-destructive" />
+                    <>
+                      {/* İkon TEK BAŞINA bilgi taşıyamaz: lucide <svg>'leri
+                          ne <title> ne aria taşır (kod-doğrulandı), yani ekran
+                          okuyucu kullanıcısı satırın ACİL olduğunu HİÇ
+                          öğrenmiyordu. Listenin tek amacı önceliklendirme. */}
+                      <AlertTriangle className="size-3.5 shrink-0 text-destructive" aria-hidden="true" />
+                      <span className="sr-only">Acil</span>
+                    </>
                   ) : null}
                   <span className="text-xs text-muted-foreground">· {c.property.name}</span>
                 </div>
@@ -207,28 +274,28 @@ export default async function InboxPage({
             );
           })}
 
-          <div className="flex items-center justify-between pt-1 text-sm text-muted-foreground">
+          {/* "1–4 / 4" bir makine çıktısıydı: tek sayfalık bir listede aralık
+              da sayfa da anlamsız. Tek sayfa → sadece toplam; çok sayfa →
+              nerede olduğunu SÖYLEYEN cümle. Tek sayfada sayfalama düğmeleri
+              hiç basılmaz (tıklanacak bir şey yokken görünmemeli). */}
+          <div className="flex items-center justify-between gap-3 px-4 py-3 text-xs text-muted-foreground">
             <span>
-              {from}–{to} / {total}
+              {totalPages > 1
+                ? `${total} konuşmadan ${from}–${to} arası · Sayfa ${page} / ${totalPages}`
+                : `${total} konuşma`}
             </span>
-            <div className="flex gap-2">
-              {page > 1 ? (
-                <Link
-                  href={hrefFor({ sayfa: page - 1 })}
-                  className="rounded-md border border-border px-3 py-1 hover:bg-accent"
-                >
-                  Önceki
-                </Link>
-              ) : null}
-              {to < total ? (
-                <Link
-                  href={hrefFor({ sayfa: page + 1 })}
-                  className="rounded-md border border-border px-3 py-1 hover:bg-accent"
-                >
-                  Sonraki
-                </Link>
-              ) : null}
-            </div>
+            {totalPages > 1 ? (
+              <div className="flex shrink-0 gap-1.5">
+                <LinkOrDisabled
+                  href={page > 1 ? hrefFor({ sayfa: page - 1 }) : null}
+                  label="Önceki"
+                />
+                <LinkOrDisabled
+                  href={page < totalPages ? hrefFor({ sayfa: page + 1 }) : null}
+                  label="Sonraki"
+                />
+              </div>
+            ) : null}
           </div>
         </div>
       )}
