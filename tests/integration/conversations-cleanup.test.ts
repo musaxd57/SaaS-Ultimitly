@@ -40,7 +40,7 @@ describe("cleanupDuplicateConversations", () => {
     await resetDb();
   });
 
-  it("removes a stale duplicate whose messages are all in the keeper (no message loss)", async () => {
+  it("reconnect (FARKLI ext id, aynı tarihler) artık SİLİNMEZ — kanıt gelene kadar review", async () => {
     const { orgId, propertyId } = await makeOrgWithProperty();
     // Reconnect split Mohammad across two reservation IDs: the new thread has the
     // full history, the old one is a subset.
@@ -75,12 +75,17 @@ describe("cleanupDuplicateConversations", () => {
 
     const res = await cleanupDuplicateConversations(orgId);
 
-    expect(res).toMatchObject({ removed: 1, groups: 1, needsReview: 0 });
+    // RETIRED BEHAVIOUR (Codex, audit 07-25): this used to delete the stale copy
+    // on the theory that a reconnect re-issues the reservation id for one real
+    // stay. That theory is unproven (live payload unavailable, official API docs
+    // 403), so DIFFERENT externalReservationId values no longer license a
+    // delete — identical dates included. The scenario is kept here as the record
+    // of what changed; the case that still auto-dedupes (EQUAL identifier) is
+    // pinned in the "tarih eşitliği kimlik DEĞİLDİR" block.
+    expect(res).toMatchObject({ removed: 0, groups: 1, needsReview: 1 });
     expect(await prisma.conversation.findUnique({ where: { id: keeper.id } })).not.toBeNull();
-    expect(await prisma.conversation.findUnique({ where: { id: stale.id } })).toBeNull();
-    // The kept thread is untouched; the stale copy's messages are gone (not orphaned).
-    expect(await prisma.message.count({ where: { conversationId: keeper.id } })).toBe(2);
-    expect(await prisma.message.count()).toBe(2);
+    expect(await prisma.conversation.findUnique({ where: { id: stale.id } })).not.toBeNull();
+    expect(await prisma.message.count()).toBe(3); // hiçbir mesaj kaybolmadı
   });
 
   it("does NOT delete a duplicate that holds a message the keeper lacks", async () => {
@@ -191,37 +196,6 @@ describe("cleanupDuplicateConversations — kimlik kanıtı olmadan SİLMEZ", ()
     expect(await prisma.message.count({ where: { conversationId: older.id } })).toBe(2);
   });
 
-  it("RECONNECT (aynı konaklama, sağlayıcı id'yi yeniden üretmiş) → hâlâ dedupe edilir", async () => {
-    // Amaçlanan senaryo korunmalı: aynı stay, iki farklı externalReservationId,
-    // bağlı rezervasyonların tarihleri BİREBİR aynı.
-    const { propertyId, orgId } = await makeOrgWithProperty();
-    const a = await stay(propertyId, "2026-07-10", "2026-07-13");
-    const b = await stay(propertyId, "2026-07-10", "2026-07-13"); // aynı tarihler
-
-    const stale = await prisma.conversation.create({
-      data: {
-        propertyId, channel: "airbnb", guestIdentifier: "Ahmet Yılmaz", status: "new",
-        externalReservationId: "old-id", reservationId: a.id,
-        messages: { create: [{ direction: "inbound", senderName: "Ahmet Yılmaz", body: "Merhaba" }] },
-      },
-      select: { id: true },
-    });
-    await prisma.conversation.create({
-      data: {
-        propertyId, channel: "airbnb", guestIdentifier: "Ahmet Yılmaz", status: "new",
-        externalReservationId: "new-id", reservationId: b.id,
-        messages: { create: [
-          { direction: "inbound", senderName: "Ahmet Yılmaz", body: "Merhaba" },
-          { direction: "inbound", senderName: "Ahmet Yılmaz", body: "Anahtar nerede?" },
-        ] },
-      },
-    });
-
-    const res = await cleanupDuplicateConversations(orgId);
-    expect(res.removed).toBe(1);
-    expect(await prisma.conversation.count({ where: { id: stale.id } })).toBe(0);
-  });
-
   it("externalConversationId ÇELİŞİYORSA (iki gerçek thread) → needsReview", async () => {
     const { propertyId, orgId } = await makeOrgWithProperty();
     const s = await stay(propertyId, "2026-08-01", "2026-08-04");
@@ -253,6 +227,105 @@ describe("cleanupDuplicateConversations — kimlik kanıtı olmadan SİLMEZ", ()
     const { propertyId, orgId } = await makeOrgWithProperty();
     await makeConv(propertyId, { guest: "Zeynep", ext: "e1", bodies: ["Merhaba"] });
     await makeConv(propertyId, { guest: "Zeynep", ext: "e2", bodies: ["Merhaba", "Tamam"] });
+
+    const res = await cleanupDuplicateConversations(orgId);
+    expect(res.removed).toBe(0);
+    expect(res.needsReview).toBe(1);
+  });
+});
+
+// ---------------------------------------------------------------------------
+// CODEX DÜZELTMESİ (0aabf70 tam kapatmamıştı): GİRİŞ+ÇIKIŞ TARİHLERİNİN
+// EŞİTLİĞİ REZERVASYON KİMLİĞİ DEĞİLDİR.
+//
+// İlk düzeltme "iki bağlı rezervasyonun tarihleri aynıysa aynı konaklamadır"
+// diyordu. Bu, "sağlayıcı reconnect'te rezervasyon id'sini yeniden üretti"
+// HİPOTEZİNİ silme gerekçesine çeviriyor — oysa o hipotez henüz kanıtlanmadı
+// (canlı Hospitable payload'ı görülemedi, resmî API belgesi 403 döndü).
+// Kanıtlanana kadar tarih benzerliği SİLME SEBEBİ OLAMAZ.
+//
+// Otomatik silme artık YALNIZ eşit bir KİMLİK varsa:
+//   · aynı non-null yerel reservationId, VEYA
+//   · aynı non-null externalReservationId
+// ve externalConversationId çelişkisi yoksa. Kimliklerden biri eksikse ya da
+// externalReservationId'ler FARKLIYSA (tarihler aynı olsa bile) → needsReview.
+// ---------------------------------------------------------------------------
+describe("cleanupDuplicateConversations — tarih eşitliği kimlik DEĞİLDİR", () => {
+  beforeEach(async () => {
+    await resetDb();
+  });
+
+  it("AYNI tarihler fakat FARKLI externalReservationId → SİLİNMEZ, mesajlar korunur", async () => {
+    const { propertyId, orgId } = await makeOrgWithProperty();
+    const window = {
+      guestName: "Selin Kaya",
+      arrivalDate: new Date("2026-09-01"),
+      departureDate: new Date("2026-09-05"),
+      status: "completed",
+      channel: "airbnb",
+    };
+    const r1 = await prisma.reservation.create({ data: { propertyId, ...window }, select: { id: true } });
+    const r2 = await prisma.reservation.create({ data: { propertyId, ...window }, select: { id: true } });
+
+    const older = await prisma.conversation.create({
+      data: {
+        propertyId, channel: "airbnb", guestIdentifier: "Selin Kaya", status: "new",
+        externalReservationId: "res-AAA", reservationId: r1.id,
+        lastMessageAt: new Date(Date.now() - 3_600_000),
+        messages: { create: [{ direction: "inbound", senderName: "Selin Kaya", body: "Merhaba" }] },
+      },
+      select: { id: true },
+    });
+    await prisma.conversation.create({
+      data: {
+        propertyId, channel: "airbnb", guestIdentifier: "Selin Kaya", status: "new",
+        externalReservationId: "res-BBB", reservationId: r2.id,
+        messages: { create: [
+          { direction: "inbound", senderName: "Selin Kaya", body: "Merhaba" },
+          { direction: "inbound", senderName: "Selin Kaya", body: "Otopark var mı?" },
+        ] },
+      },
+    });
+
+    const res = await cleanupDuplicateConversations(orgId);
+
+    expect(res.removed).toBe(0);
+    expect(res.needsReview).toBe(1);
+    expect(await prisma.conversation.count({ where: { id: older.id } })).toBe(1);
+    expect(await prisma.message.count({ where: { conversationId: older.id } })).toBe(1);
+  });
+
+  it("AYNI externalReservationId (yarış artığı) → dedupe edilir", async () => {
+    // Kimlik EŞİT: tek sağlayıcı thread'i için iki satır oluşmuş. Bu, unique
+    // migration'ın kısıtlayacağı popülasyonun ta kendisi.
+    const { propertyId, orgId } = await makeOrgWithProperty();
+    const stale = await makeConv(propertyId, { guest: "Emre", ext: "res-SAME", bodies: ["Merhaba"] });
+    await makeConv(propertyId, { guest: "Emre", ext: "res-SAME", bodies: ["Merhaba", "Anahtar?"] });
+
+    const res = await cleanupDuplicateConversations(orgId);
+    expect(res.removed).toBe(1);
+    expect(await prisma.conversation.count({ where: { id: stale.id } })).toBe(0);
+  });
+
+  it("KİMLİK EKSİKSE (aynı ext, ama conversation id'leri çelişiyor) → needsReview", async () => {
+    const { propertyId, orgId } = await makeOrgWithProperty();
+    await prisma.conversation.create({
+      data: {
+        propertyId, channel: "airbnb", guestIdentifier: "Deniz", status: "new",
+        externalReservationId: "res-SAME", externalConversationId: "conv-1",
+        messages: { create: [{ direction: "inbound", senderName: "Deniz", body: "Merhaba" }] },
+      },
+    });
+    await prisma.conversation.create({
+      data: {
+        propertyId, channel: "airbnb", guestIdentifier: "Deniz", status: "new",
+        externalReservationId: "res-SAME", externalConversationId: "conv-2",
+        messages: { create: [
+          { direction: "inbound", senderName: "Deniz", body: "Merhaba" },
+          { direction: "inbound", senderName: "Deniz", body: "Ek" },
+        ] },
+      },
+    });
 
     const res = await cleanupDuplicateConversations(orgId);
     expect(res.removed).toBe(0);

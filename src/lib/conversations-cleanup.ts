@@ -27,15 +27,16 @@ import { prisma } from "@/lib/db";
 // newer one. The older stay — messages and all — was destroyed by a manager
 // pressing a maintenance button, with no flag and no undo.
 //
-// So a duplicate is now deleted ONLY when the two rows are PROVABLY the same
-// stay:
+// So a duplicate is now deleted ONLY when the two rows carry an EQUAL
+// IDENTIFIER:
 //   (a) identical non-null local reservationId, OR
-//   (b) both link to reservations with the SAME arrival AND departure date —
-//       this is the reconnect case the tool exists for (the provider re-issued
-//       the reservation id for one real stay).
-// No linked reservation on either side ⇒ identity cannot be proven ⇒ review.
-// Conflicting non-null externalConversationId ⇒ possibly two genuine provider
-// threads ⇒ review, never delete.
+//   (b) identical non-null externalReservationId.
+// Missing or DIFFERING identifiers ⇒ review. Conflicting non-null
+// externalConversationId ⇒ possibly two genuine provider threads ⇒ review.
+//
+// Dates are NOT identity. Treating "same arrival+departure" as the same stay
+// would bake in the unproven theory that a reconnect re-issues the reservation
+// id, and use it to justify an irreversible delete.
 //
 // Deliberately conservative: needsReview costs the host a manual look; a wrong
 // delete costs them a guest's history permanently.
@@ -60,27 +61,41 @@ function normGuest(name: string | null): string {
 /** The identity signals a conversation carries about WHICH stay it belongs to. */
 interface StayIdentity {
   reservationId: string | null;
+  externalReservationId: string | null;
   externalConversationId: string | null;
-  reservation: { id: string; arrivalDate: Date; departureDate: Date } | null;
 }
 
 /**
  * Are these two rows PROVABLY the same stay? Fail-closed: anything we cannot
  * prove returns false and the caller leaves the row alone.
  *
- * Same local reservation is conclusive. Otherwise the reconnect case — the
- * provider re-issued the reservation id for one real stay — is recognised by
- * two DIFFERENT reservation rows describing the SAME window. Two different
- * stays by the same guest in the same apartment necessarily differ in at least
- * one of those dates, which is exactly what stops them from merging.
+ * Proof means an EQUAL IDENTIFIER — same local reservationId, or same provider
+ * externalReservationId. Nothing else counts.
+ *
+ * DATE EQUALITY IS NOT IDENTITY (Codex). An earlier version treated "two linked
+ * reservations covering the same window" as the same stay, on the theory that a
+ * reconnect makes the provider re-issue the reservation id. That theory is
+ * UNPROVEN — the live Hospitable payload could not be inspected (Nuve's
+ * subscription is 402) and the official API reference returned 403 — so it must
+ * not license an irreversible delete. Two rows with DIFFERENT
+ * externalReservationId values therefore go to review even when their dates
+ * match exactly.
+ *
+ * Consequence, stated plainly: the reconnect cleanup this tool was originally
+ * written for is now DISABLED pending that proof. What still auto-dedupes is
+ * the race artefact — two rows for ONE provider reservation — which is exactly
+ * the population the Conversation unique would constrain.
  */
 function sameStay(a: StayIdentity, b: StayIdentity): boolean {
   if (a.reservationId && b.reservationId && a.reservationId === b.reservationId) return true;
-  if (!a.reservation || !b.reservation) return false; // unlinked ⇒ unprovable
-  return (
-    a.reservation.arrivalDate.getTime() === b.reservation.arrivalDate.getTime() &&
-    a.reservation.departureDate.getTime() === b.reservation.departureDate.getTime()
-  );
+  if (
+    a.externalReservationId &&
+    b.externalReservationId &&
+    a.externalReservationId === b.externalReservationId
+  ) {
+    return true;
+  }
+  return false; // missing or differing identifiers ⇒ unprovable ⇒ review
 }
 
 /**
@@ -112,11 +127,10 @@ export async function cleanupDuplicateConversations(
       propertyId: true,
       guestIdentifier: true,
       lastMessageAt: true,
+      // Identity: only EQUAL identifiers license a delete (see sameStay).
       reservationId: true,
+      externalReservationId: true,
       externalConversationId: true,
-      // Stay identity: the dates are what make "same stay" provable across a
-      // provider id re-issue.
-      reservation: { select: { id: true, arrivalDate: true, departureDate: true } },
       messages: { select: { body: true } },
     },
   });
