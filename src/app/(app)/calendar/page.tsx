@@ -131,12 +131,39 @@ export default async function CalendarPage({
     year: "numeric",
     timeZone: "UTC",
   }).format(monthStart);
+  const monthName = new Intl.DateTimeFormat("tr-TR", { month: "long", timeZone: "UTC" }).format(
+    monthStart,
+  );
   const prevMonth = `${monthNum === 1 ? year - 1 : year}-${String(monthNum === 1 ? 12 : monthNum - 1).padStart(2, "0")}`;
   const nextMonth = `${monthNum === 12 ? year + 1 : year}-${String(monthNum === 12 ? 1 : monthNum + 1).padStart(2, "0")}`;
   const monthHref = (m: string) =>
     `/calendar?month=${m}${propertyFilter ? `&property=${propertyFilter}` : ""}`;
   const propertyHref = (id?: string) => `/calendar?month=${month}${id ? `&property=${id}` : ""}`;
   const totalProperties = propertyFilter ? 1 : properties.length;
+
+  // Bir hücrede kaç giriş/çıkış satırı gösterilir. Grid hücresi derli toplu
+  // kalsın diye giriş ve çıkış AYRI AYRI kırpılır — ama kırpılan her satır
+  // SAYILIR. Eskiden "+N diğer" yalnız `giriş+çıkış > 6` iken basılıyordu:
+  // 5 giriş / 0 çıkış olan bir günde 2 misafir hiç söylenmeden kayboluyordu,
+  // satır göründüğünde de sayı (toplam−6) gerçekte gizlenenden farklıydı.
+  const CELL_CAP = 3;
+  const splitCell = (info: DayInfo) => {
+    const arrivals = info.arrivals.slice(0, CELL_CAP);
+    const departures = info.departures.slice(0, CELL_CAP);
+    return {
+      arrivals,
+      departures,
+      hidden:
+        info.arrivals.length - arrivals.length + (info.departures.length - departures.length),
+    };
+  };
+
+  // Mobil ajanda: yalnız HAREKETLİ günler, dikey liste, kırpma YOK. Aylık grid
+  // 860px'e sabitlenmişti; telefonda (≈390px) — hatta sol menülü masaüstünde
+  // (≈704px içerik) — takvim ancak yatay sürüklenerek okunabiliyordu.
+  const agendaDays = Array.from({ length: daysInMonth }, (_, i) => i + 1)
+    .map((dayNum) => ({ dayNum, key: keyOf(dayNum), info: days.get(keyOf(dayNum))! }))
+    .filter(({ info }) => info.arrivals.length > 0 || info.departures.length > 0);
 
   return (
     <>
@@ -195,8 +222,62 @@ export default async function CalendarPage({
             </Link>
           </div>
 
-          <div className="overflow-x-auto">
-            <div className="min-w-[860px]">
+          {/* Mobil (md altı): AJANDA. Yalnız hareketli günler, dikey liste,
+              kırpma yok — telefonda takvimi yatay sürüklemek gerekmez. */}
+          <div className="md:hidden">
+            {agendaDays.length === 0 ? (
+              <p className="py-6 text-center text-sm text-muted-foreground">
+                Bu ayda giriş veya çıkış yok.
+              </p>
+            ) : (
+              <ul className="divide-y divide-border">
+                {agendaDays.map(({ dayNum, key, info }) => {
+                  const isToday = key === todayKey;
+                  return (
+                    <li key={key} className="py-2.5">
+                      <div className="mb-1 flex items-center justify-between gap-2">
+                        <span className={cn("text-sm font-semibold", isToday && "text-primary")}>
+                          {dayNum} {monthName} · {WEEKDAYS[(firstWeekday + dayNum - 1) % 7]}
+                          {isToday ? " · bugün" : ""}
+                        </span>
+                        {info.occupied.size > 0 ? (
+                          <span className="shrink-0 rounded-full bg-primary/10 px-1.5 py-0.5 text-[10px] font-medium text-primary">
+                            {info.occupied.size}/{totalProperties} dolu
+                          </span>
+                        ) : null}
+                      </div>
+                      <div className="space-y-0.5 text-xs">
+                        {info.arrivals.map((a, j) => (
+                          <p key={`ma-${j}`} className="flex items-center gap-1.5 text-emerald-700">
+                            <LogIn className="size-3 shrink-0" />
+                            <span className="truncate">
+                              {a.guest}
+                              {propertyFilter ? "" : ` · ${a.property}`}
+                            </span>
+                          </p>
+                        ))}
+                        {info.departures.map((d, j) => (
+                          <p key={`md-${j}`} className="flex items-center gap-1.5 text-amber-700">
+                            <LogOut className="size-3 shrink-0" />
+                            <span className="truncate">
+                              {d.guest}
+                              {propertyFilter ? "" : ` · ${d.property}`}
+                            </span>
+                          </p>
+                        ))}
+                      </div>
+                    </li>
+                  );
+                })}
+              </ul>
+            )}
+          </div>
+
+          {/* md ve üstü: aylık grid. Genişlik 860 → 640: sol menülü masaüstünde
+              içerik ≈704px, artık kaydırmasız sığar. overflow-x-auto yalnız
+              emniyet kemeri olarak kalır. */}
+          <div className="hidden overflow-x-auto md:block">
+            <div className="min-w-[640px]">
               <div className="grid grid-cols-7 gap-1">
                 {WEEKDAYS.map((w) => (
                   <div key={w} className="px-1.5 py-1 text-center text-xs font-medium uppercase text-muted-foreground">
@@ -208,7 +289,7 @@ export default async function CalendarPage({
                   const key = keyOf(dayNum);
                   const info = days.get(key)!;
                   const isToday = key === todayKey;
-                  const cap = 3; // keep busy days one tidy cell
+                  const cell = splitCell(info);
                   return (
                     <div
                       key={key}
@@ -232,21 +313,21 @@ export default async function CalendarPage({
                         ) : null}
                       </div>
                       <div className="space-y-0.5">
-                        {info.arrivals.slice(0, cap).map((a, j) => (
+                        {cell.arrivals.map((a, j) => (
                           <p key={`a-${j}`} className="flex items-center gap-1 truncate text-emerald-700" title={`Giriş: ${a.guest} — ${a.property}`}>
                             <LogIn className="size-3 shrink-0" />
                             <span className="truncate">{a.guest}{propertyFilter ? "" : ` · ${a.property}`}</span>
                           </p>
                         ))}
-                        {info.departures.slice(0, cap).map((d, j) => (
+                        {cell.departures.map((d, j) => (
                           <p key={`d-${j}`} className="flex items-center gap-1 truncate text-amber-700" title={`Çıkış: ${d.guest} — ${d.property}`}>
                             <LogOut className="size-3 shrink-0" />
                             <span className="truncate">{d.guest}{propertyFilter ? "" : ` · ${d.property}`}</span>
                           </p>
                         ))}
-                        {info.arrivals.length + info.departures.length > cap * 2 ? (
+                        {cell.hidden > 0 ? (
                           <p className="text-[10px] text-muted-foreground">
-                            +{info.arrivals.length + info.departures.length - cap * 2} diğer
+                            +{cell.hidden} diğer
                           </p>
                         ) : null}
                       </div>
