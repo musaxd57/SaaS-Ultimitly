@@ -46,6 +46,8 @@ export default async function ConversationPage({
     ? await getReturningGuestInfo(session.organizationId, {
         id: conversation.reservation.id,
         guestExternalId: conversation.reservation.guestExternalId,
+        // Ölçüt: "bu konaklamadan ÖNCE gelenler" (takvimdeki şu an DEĞİL).
+        arrivalDate: conversation.reservation.arrivalDate,
       })
     : null;
   // Liste bilinçli kısa (kart dar bir kenar çubuğunda). Gizlenen satır sayısı

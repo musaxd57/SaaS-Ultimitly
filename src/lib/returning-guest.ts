@@ -7,7 +7,17 @@ import { prisma } from "@/lib/db";
 // — the only RELIABLE per-person key (Airbnb masks email/phone, and name
 // collides). No name/email fuzzy matching, so there are no false "welcome back"
 // positives. Returns null unless the current reservation has a guest id AND at
-// least one other (non-cancelled) stay shares it.
+// least one EARLIER (non-cancelled) stay shares it.
+//
+// "ÖNCEKİ" ölçütü MEVCUT REZERVASYONUN GELİŞİNE göredir, takvimdeki "şu an"a
+// göre değil. Sebep: rozet "N. konaklama" diyor, yani BU konaklamanın misafirin
+// bu işletmedeki sırası. Host ileri tarihli bir rezervasyona baktığında da doğru
+// cevabı almalı: Ağustos + Ekim rezervasyonu olan misafirde Ekim'e bakılınca
+// "2. konaklama" doğrudur, Ağustos'a bakılınca rozet HİÇ çıkmamalıdır.
+//
+// Eskiden yalnız `id != current` + `status != cancelled` filtreleniyordu, yani
+// misafirin İLERİ TARİHLİ ikinci rezervasyonu da sayılıyordu: kişi daha hiç
+// gelmemişken ilk konaklamasında rozet "2. konaklama" diyordu.
 // ---------------------------------------------------------------------------
 
 export interface PastStay {
@@ -41,7 +51,7 @@ export const PAST_STAYS_SHOWN = 5;
 
 export async function getReturningGuestInfo(
   orgId: string,
-  current: { id: string; guestExternalId: string | null },
+  current: { id: string; guestExternalId: string | null; arrivalDate: Date },
 ): Promise<ReturningGuestInfo | null> {
   if (!current.guestExternalId) return null;
 
@@ -52,6 +62,10 @@ export async function getReturningGuestInfo(
     guestExternalId: current.guestExternalId,
     id: { not: current.id }, // exclude the current reservation
     status: { not: "cancelled" as const }, // don't count dead bookings
+    // Yalnız BUNDAN ÖNCE gelen konaklamalar (↑ tepe yorumu). Kesin `lt`: aynı
+    // gün gelen kardeş rezervasyon (farklı daire) "önceki" sayılmaz — sıralama
+    // belirsiz olurdu, ihtiyatlı yön rozeti göstermemektir.
+    arrivalDate: { lt: current.arrivalDate },
   };
 
   // Sayı ve liste AYRI sorgular: liste gösterim için kısa, sayı tam. Aynı WHERE
