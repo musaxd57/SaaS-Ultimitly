@@ -1,6 +1,7 @@
 "use client";
 
 import { useState } from "react";
+import { confirmDialog } from "@/lib/confirm";
 import { useRouter } from "next/navigation";
 import { Loader2, Check, Copy } from "lucide-react";
 import { Button } from "@/components/ui/button";
@@ -73,9 +74,13 @@ export function SupplyProfileForm({
   async function applyToSelected() {
     if (busy || targets.size === 0) return;
     const many = targets.size > 1;
-    if (!confirm(`Bu profil seçili ${targets.size} daireye uygulanacak ve mevcut profil${many ? "lerinin" : "inin"} yerini alacak. Emin misiniz?`)) {
-      return;
-    }
+    const ok = await confirmDialog({
+      title: `Bu profil seçili ${targets.size} daireye uygulansın mı?`,
+      body: `Seçili daire${many ? "lerin" : "nin"} mevcut profil${many ? "leri" : "i"} bu değerlerle DEĞİŞTİRİLİR.`,
+      confirmLabel: "Uygula",
+      destructive: true,
+    });
+    if (!ok) return;
     setBusy(true);
     setError(null);
     setSaved(false);

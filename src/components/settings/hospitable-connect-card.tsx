@@ -1,6 +1,7 @@
 "use client";
 
 import { useState } from "react";
+import { confirmDialog } from "@/lib/confirm";
 import { useRouter } from "next/navigation";
 import { Loader2, Check, Link2, Plug, Unplug, Lock, Pencil } from "lucide-react";
 import { Button } from "@/components/ui/button";
@@ -76,7 +77,13 @@ export function HospitableConnectCard({
   }
 
   async function disconnect() {
-    if (!confirm("Bağlantıyı kesmek istediğinize emin misiniz? Misafir mesajları çekme/gönderme durur.")) return;
+    const ok = await confirmDialog({
+      title: "Hospitable bağlantısını kesmek istiyor musunuz?",
+      body: "Misafir mesajlarını çekme ve gönderme durur. Mevcut verileriniz silinmez.",
+      confirmLabel: "Bağlantıyı kes",
+      destructive: true,
+    });
+    if (!ok) return;
     setBusy("disconnect");
     setError(null);
     setDone(null);

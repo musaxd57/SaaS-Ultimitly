@@ -1,5 +1,7 @@
 import type { Metadata } from "next";
 import { Inter } from "next/font/google";
+import { Toaster } from "@/components/toaster";
+import { ConfirmHost } from "@/components/confirm-host";
 import "./globals.css";
 
 const inter = Inter({
@@ -47,7 +49,14 @@ export default function RootLayout({
 }: Readonly<{ children: React.ReactNode }>) {
   return (
     <html lang="tr" className={inter.variable}>
-      <body className="min-h-screen bg-background font-sans antialiased">{children}</body>
+      <body className="min-h-screen bg-background font-sans antialiased">
+        {children}
+        {/* Kökte mount edilir: toast() çağıran bileşen ağaçta nerede olursa
+            olsun bir dinleyici HER ZAMAN vardır (aksi halde lib native alert'e
+            düşer — sessiz hata yok). */}
+        <Toaster />
+        <ConfirmHost />
+      </body>
     </html>
   );
 }

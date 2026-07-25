@@ -1,6 +1,8 @@
 "use client";
 
 import { useState } from "react";
+import { confirmDialog } from "@/lib/confirm";
+import { toast } from "@/lib/toast";
 import { useRouter } from "next/navigation";
 import { Loader2, LogIn } from "lucide-react";
 import { Button } from "@/components/ui/button";
@@ -11,7 +13,12 @@ export function ImpersonateButton({ organizationId, orgName }: { organizationId:
   const [busy, setBusy] = useState(false);
 
   async function enter() {
-    if (!confirm(`"${orgName}" hesabına girilecek. Onun gelen kutusunu/ayarlarını göreceksin. Devam?`)) return;
+    const ok = await confirmDialog({
+      title: `"${orgName}" hesabına girilecek.`,
+      body: "Onun gelen kutusunu ve ayarlarını göreceksin.",
+      confirmLabel: "Hesaba gir",
+    });
+    if (!ok) return;
     setBusy(true);
     try {
       const res = await fetch("/api/admin/impersonate", {
@@ -24,11 +31,11 @@ export function ImpersonateButton({ organizationId, orgName }: { organizationId:
         router.refresh();
       } else {
         setBusy(false);
-        alert("Hesaba girilemedi.");
+        toast.error("Hesaba girilemedi.");
       }
     } catch {
       setBusy(false);
-      alert("Bağlantı hatası.");
+      toast.error("Bağlantı hatası.");
     }
   }
 

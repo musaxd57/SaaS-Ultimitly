@@ -1,6 +1,7 @@
 "use client";
 
 import { useState } from "react";
+import { toast } from "@/lib/toast";
 import { useRouter } from "next/navigation";
 import { Loader2, ListPlus } from "lucide-react";
 import { Button } from "@/components/ui/button";
@@ -22,17 +23,18 @@ export function BackfillTasksButton({ count }: { count?: number }) {
       const data = await res.json().catch(() => null);
       if (res.ok) {
         const created: number = data?.created ?? 0;
-        window.alert(
-          created > 0
-            ? `${created} görev oluşturuldu.`
-            : "Yeni görev oluşturulmadı — tüm rezervasyonların görevleri zaten var veya geçmiş tarihli.",
-        );
+        // Bu dal BAŞARIDIR — hata tonuyla gösterilmemeli.
+        if (created > 0) toast.success(`${created} görev oluşturuldu.`);
+        else
+          toast.info(
+            "Yeni görev oluşturulmadı — tüm rezervasyonların görevleri zaten var veya geçmiş tarihli.",
+          );
         router.refresh();
       } else {
-        window.alert("Görevler oluşturulamadı.");
+        toast.error("Görevler oluşturulamadı.");
       }
     } catch {
-      window.alert("Bağlantı hatası. Lütfen tekrar deneyin.");
+      toast.error("Bağlantı hatası. Lütfen tekrar deneyin.");
     } finally {
       setBusy(false);
     }

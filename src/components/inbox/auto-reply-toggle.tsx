@@ -1,6 +1,7 @@
 "use client";
 
 import { useState } from "react";
+import { toast } from "@/lib/toast";
 import { useRouter } from "next/navigation";
 import { Bot, Loader2, Lock } from "lucide-react";
 import { cn } from "@/lib/utils";
@@ -43,10 +44,10 @@ export function AutoReplyToggle({
         setOn(next);
         router.refresh();
       } else {
-        window.alert("Ayar güncellenemedi.");
+        toast.error("Ayar güncellenemedi.");
       }
     } catch {
-      window.alert("Bağlantı hatası. Lütfen tekrar deneyin.");
+      toast.error("Bağlantı hatası. Lütfen tekrar deneyin.");
     } finally {
       setBusy(false);
     }

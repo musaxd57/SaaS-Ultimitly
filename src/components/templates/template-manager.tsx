@@ -1,6 +1,8 @@
 "use client";
 
 import { useState, useTransition } from "react";
+import { confirmDialog } from "@/lib/confirm";
+import { toast } from "@/lib/toast";
 import { useRouter } from "next/navigation";
 import { Loader2, Plus, Trash2, Globe, Building2, ChevronDown, ChevronRight } from "lucide-react";
 import { Button } from "@/components/ui/button";
@@ -85,14 +87,20 @@ export function TemplateManager({ properties, customTemplates, defaultTemplates,
   }
 
   async function handleDelete(id: string) {
-    if (!window.confirm("Bu şablonu silmek istediğinize emin misiniz?")) return;
+    const ok = await confirmDialog({
+      title: "Bu şablonu silmek istiyor musunuz?",
+      body: "Şablon kalıcı olarak silinir; gönderilmiş mesajlar etkilenmez.",
+      confirmLabel: "Sil",
+      destructive: true,
+    });
+    if (!ok) return;
     setBusyId(id);
     try {
       const res = await fetch(`/api/templates/${id}`, { method: "DELETE" });
-      if (!res.ok) window.alert("Şablon silinemedi.");
+      if (!res.ok) toast.error("Şablon silinemedi.");
       else refresh();
     } catch {
-      window.alert("Bağlantı hatası. Lütfen tekrar deneyin.");
+      toast.error("Bağlantı hatası. Lütfen tekrar deneyin.");
     } finally {
       setBusyId(null);
     }

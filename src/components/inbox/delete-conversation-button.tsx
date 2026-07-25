@@ -1,22 +1,28 @@
 "use client";
 
 import { useState } from "react";
+import { confirmDialog } from "@/lib/confirm";
+import { toast } from "@/lib/toast";
 import { useRouter } from "next/navigation";
 import { Loader2, Trash2 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 
 /**
  * Delete a conversation (and all of its messages) and return to the inbox.
- * Guarded by a confirm() since it is irreversible.
+ * Guarded by the shared confirm dialog since it is irreversible.
  */
 export function DeleteConversationButton({ conversationId }: { conversationId: string }) {
   const router = useRouter();
   const [busy, setBusy] = useState(false);
 
   async function remove() {
-    if (!window.confirm("Bu konuşmayı ve tüm mesajlarını kalıcı olarak silmek istiyor musunuz?")) {
-      return;
-    }
+    const ok = await confirmDialog({
+      title: "Bu konuşmayı silmek istiyor musunuz?",
+      body: "Konuşma ve TÜM mesajları kalıcı olarak silinir. Bu işlem geri alınamaz.",
+      confirmLabel: "Sil",
+      destructive: true,
+    });
+    if (!ok) return;
     setBusy(true);
     try {
       const res = await fetch(`/api/conversations/${conversationId}`, { method: "DELETE" });
@@ -25,11 +31,11 @@ export function DeleteConversationButton({ conversationId }: { conversationId: s
         router.refresh();
       } else {
         setBusy(false);
-        window.alert("Konuşma silinemedi.");
+        toast.error("Konuşma silinemedi.");
       }
     } catch {
       setBusy(false);
-      window.alert("Bağlantı hatası. Lütfen tekrar deneyin.");
+      toast.error("Bağlantı hatası. Lütfen tekrar deneyin.");
     }
   }
 

@@ -1,6 +1,8 @@
 "use client";
 
 import { useRef, useState, useTransition } from "react";
+import { confirmDialog } from "@/lib/confirm";
+import { toast } from "@/lib/toast";
 import { useRouter } from "next/navigation";
 import { Loader2, Trash2, User, Clock, CheckSquare, Camera, FileText, ChevronDown, ChevronRight, Share2, Copy, Check } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
@@ -95,12 +97,12 @@ export function TaskBoard({ tasks, canManage = true }: { tasks: TaskCardData[]; 
       if (!res.ok) {
         // The Select is controlled by the server prop, so it snaps back on its own;
         // tell the user why the change didn't stick.
-        window.alert(res.status === 403 ? "Bu işlem için yetkiniz yok." : "Görev durumu güncellenemedi.");
+        toast.error(res.status === 403 ? "Bu işlem için yetkiniz yok." : "Görev durumu güncellenemedi.");
         return;
       }
       startTransition(() => router.refresh());
     } catch {
-      window.alert("Bağlantı hatası. Lütfen tekrar deneyin.");
+      toast.error("Bağlantı hatası. Lütfen tekrar deneyin.");
     } finally {
       setBusyId(null);
     }
@@ -119,29 +121,35 @@ export function TaskBoard({ tasks, canManage = true }: { tasks: TaskCardData[]; 
         body: JSON.stringify({ checklist: next }),
       });
       if (!res.ok) {
-        window.alert(res.status === 403 ? "Bu işlem için yetkiniz yok." : "Güncellenemedi.");
+        toast.error(res.status === 403 ? "Bu işlem için yetkiniz yok." : "Güncellenemedi.");
         return;
       }
       startTransition(() => router.refresh());
     } catch {
-      window.alert("Bağlantı hatası. Lütfen tekrar deneyin.");
+      toast.error("Bağlantı hatası. Lütfen tekrar deneyin.");
     } finally {
       setBusyId(null);
     }
   }
 
   async function remove(id: string) {
-    if (!window.confirm("Bu görevi silmek istediğinize emin misiniz?")) return;
+    const ok = await confirmDialog({
+      title: "Bu görevi silmek istiyor musunuz?",
+      body: "Görev ve notları kalıcı olarak silinir.",
+      confirmLabel: "Sil",
+      destructive: true,
+    });
+    if (!ok) return;
     setBusyId(id);
     try {
       const res = await fetch(`/api/tasks/${id}`, { method: "DELETE" });
       if (!res.ok) {
-        window.alert(res.status === 403 ? "Görev silme yetkiniz yok (yalnızca yönetici)." : "Görev silinemedi.");
+        toast.error(res.status === 403 ? "Görev silme yetkiniz yok (yalnızca yönetici)." : "Görev silinemedi.");
         return;
       }
       startTransition(() => router.refresh());
     } catch {
-      window.alert("Bağlantı hatası. Lütfen tekrar deneyin.");
+      toast.error("Bağlantı hatası. Lütfen tekrar deneyin.");
     } finally {
       setBusyId(null);
     }
@@ -159,7 +167,7 @@ export function TaskBoard({ tasks, canManage = true }: { tasks: TaskCardData[]; 
       fd.append("taskId", id);
       const uploadRes = await fetch("/api/upload", { method: "POST", body: fd });
       if (!uploadRes.ok) {
-        window.alert("Fotoğraf yüklenemedi.");
+        toast.error("Fotoğraf yüklenemedi.");
         return;
       }
       const { url } = await uploadRes.json();
@@ -170,12 +178,12 @@ export function TaskBoard({ tasks, canManage = true }: { tasks: TaskCardData[]; 
       });
       if (!patchRes.ok) {
         // The image uploaded but didn't attach — say so instead of failing silently.
-        window.alert("Fotoğraf kaydedilemedi, tekrar deneyin.");
+        toast.error("Fotoğraf kaydedilemedi, tekrar deneyin.");
         return;
       }
       startTransition(() => router.refresh());
     } catch {
-      window.alert("Bağlantı hatası. Lütfen tekrar deneyin.");
+      toast.error("Bağlantı hatası. Lütfen tekrar deneyin.");
     } finally {
       setUploadingId(null);
       if (fileInputRefs.current[id]) fileInputRefs.current[id]!.value = "";
@@ -268,7 +276,7 @@ export function TaskBoard({ tasks, canManage = true }: { tasks: TaskCardData[]; 
       setCopied(true);
       setTimeout(() => setCopied(false), 2000);
     } catch {
-      window.alert("Kopyalanamadı. Listeyi elle seçip kopyalayabilirsiniz.");
+      toast.error("Kopyalanamadı. Listeyi elle seçip kopyalayabilirsiniz.");
     }
   }
 

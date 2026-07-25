@@ -1,6 +1,8 @@
 "use client";
 
 import { useState } from "react";
+import { toast } from "@/lib/toast";
+import { confirmDialog } from "@/lib/confirm";
 import { useRouter } from "next/navigation";
 import { Loader2, Trash2 } from "lucide-react";
 import { Button } from "@/components/ui/button";
@@ -22,7 +24,8 @@ export function DeleteButton({
   const [loading, setLoading] = useState(false);
 
   async function onDelete() {
-    if (!window.confirm(confirmText)) return;
+    if (!(await confirmDialog({ title: confirmText, confirmLabel: label, destructive: true })))
+      return;
     setLoading(true);
     try {
       const res = await fetch(endpoint, { method: "DELETE" });
@@ -31,11 +34,11 @@ export function DeleteButton({
         router.refresh();
       } else {
         setLoading(false);
-        window.alert("Silme işlemi başarısız oldu.");
+        toast.error("Silme işlemi başarısız oldu.");
       }
     } catch {
       setLoading(false);
-      window.alert("Bağlantı hatası. Lütfen tekrar deneyin.");
+      toast.error("Bağlantı hatası. Lütfen tekrar deneyin.");
     }
   }
 

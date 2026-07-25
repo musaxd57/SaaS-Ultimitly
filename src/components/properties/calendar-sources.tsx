@@ -1,6 +1,8 @@
 "use client";
 
 import { useState } from "react";
+import { confirmDialog } from "@/lib/confirm";
+import { toast } from "@/lib/toast";
 import { useRouter } from "next/navigation";
 import { Loader2, RefreshCw, Trash2, Plus, CheckCircle2, AlertCircle } from "lucide-react";
 import { Button } from "@/components/ui/button";
@@ -81,7 +83,7 @@ export function CalendarSources({ propertyId, sources, canManage = true }: Props
       const res = await fetch(`/api/calendar-sources/${id}/sync`, { method: "POST" });
       const data = await res.json().catch(() => null);
       if (!res.ok) {
-        window.alert("Senkronizasyon başarısız oldu.");
+        toast.error("Senkronizasyon başarısız oldu.");
       } else if (
         // The endpoint returns 200 even when the feed couldn't be fetched/parsed
         // (bad URL, unreachable, empty). Surface that instead of a silent "success".
@@ -89,27 +91,33 @@ export function CalendarSources({ propertyId, sources, canManage = true }: Props
         data.errors.length > 0 &&
         (data.imported ?? 0) + (data.updated ?? 0) === 0
       ) {
-        window.alert(`Senkronizasyon başarısız: ${data.errors[0]}`);
+        toast.error(`Senkronizasyon başarısız: ${data.errors[0]}`);
         router.refresh(); // still refresh so the error badge + zaman damgası güncellensin
       } else {
         router.refresh();
       }
     } catch {
-      window.alert("Bağlantı hatası. Lütfen tekrar deneyin.");
+      toast.error("Bağlantı hatası. Lütfen tekrar deneyin.");
     } finally {
       setBusyId(null);
     }
   }
 
   async function deleteSource(id: string) {
-    if (!window.confirm("Bu takvim bağlantısını silmek istiyor musunuz?")) return;
+    const ok = await confirmDialog({
+      title: "Bu takvim bağlantısını silmek istiyor musunuz?",
+      body: "Bu kaynaktan gelen rezervasyonlar artık güncellenmez.",
+      confirmLabel: "Sil",
+      destructive: true,
+    });
+    if (!ok) return;
     setBusyId(id);
     try {
       const res = await fetch(`/api/calendar-sources/${id}`, { method: "DELETE" });
       if (res.ok) router.refresh();
-      else window.alert("Takvim bağlantısı silinemedi.");
+      else toast.error("Takvim bağlantısı silinemedi.");
     } catch {
-      window.alert("Bağlantı hatası. Lütfen tekrar deneyin.");
+      toast.error("Bağlantı hatası. Lütfen tekrar deneyin.");
     } finally {
       setBusyId(null);
     }

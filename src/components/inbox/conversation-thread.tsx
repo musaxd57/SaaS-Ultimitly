@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useRef, useState, useTransition } from "react";
+import { toast } from "@/lib/toast";
 import { useRouter } from "next/navigation";
 import {
   Sparkles,
@@ -202,10 +203,10 @@ export function ConversationThread({ conversationId, messages, status, priority,
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ [field]: value }),
       });
-      if (!res.ok) window.alert("Güncellenemedi. Yetkiniz yoksa yöneticinize danışın.");
+      if (!res.ok) toast.error("Güncellenemedi. Yetkiniz yoksa yöneticinize danışın.");
       else refresh();
     } catch {
-      window.alert("Bağlantı hatası. Lütfen tekrar deneyin.");
+      toast.error("Bağlantı hatası. Lütfen tekrar deneyin.");
     } finally {
       setBusy(false);
     }
@@ -314,10 +315,10 @@ export function ConversationThread({ conversationId, messages, status, priority,
         const data = await res.json();
         setTranslations((prev) => ({ ...prev, [messageId]: data.translation }));
       } else {
-        window.alert("Çeviri yapılamadı. Lütfen tekrar deneyin.");
+        toast.error("Çeviri yapılamadı. Lütfen tekrar deneyin.");
       }
     } catch {
-      window.alert("Bağlantı hatası. Lütfen tekrar deneyin.");
+      toast.error("Bağlantı hatası. Lütfen tekrar deneyin.");
     } finally {
       setTranslatingId(null);
     }

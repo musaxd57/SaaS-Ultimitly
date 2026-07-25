@@ -1,6 +1,7 @@
 "use client";
 
 import { useState, useTransition } from "react";
+import { confirmDialog } from "@/lib/confirm";
 import { useRouter } from "next/navigation";
 import { Loader2, Plus, Trash2, ToggleLeft, ToggleRight, Copy, Pencil, Check, X } from "lucide-react";
 import { Button } from "@/components/ui/button";
@@ -159,7 +160,13 @@ export function KbManager({
   }
 
   async function remove(id: string) {
-    if (!window.confirm("Bu bilgiyi silmek istediğinize emin misiniz?")) return;
+    const ok = await confirmDialog({
+      title: "Bu bilgiyi silmek istiyor musunuz?",
+      body: "AI bundan sonra bu bilgiyi cevaplarında kullanamaz.",
+      confirmLabel: "Sil",
+      destructive: true,
+    });
+    if (!ok) return;
     setBusyId(id);
     setListError(null);
     try {
