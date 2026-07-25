@@ -9,8 +9,13 @@ import { RESERVATION_CHANNEL } from "@/lib/constants";
 import { cn, formatDate } from "@/lib/utils";
 import { zonedDayRange } from "@/lib/automation";
 import { orgTimezone, zonedDateStart } from "@/lib/timezone";
+import { clampPage, MAX_LIST_PAGE } from "@/lib/pagination";
 
 export const dynamic = "force-dynamic";
+
+/** Sayfa başına iptal kaydı. Ekran eskiden sabit 200 satırda SESSİZCE kesiliyordu
+ *  ve tümünü gösteriyormuş gibi davranıyordu. */
+const PAGE_SIZE = 50;
 
 type Period = "day" | "week" | "month" | "all";
 const PERIODS: { value: Period; label: string }[] = [
@@ -76,7 +81,7 @@ function windowFor(period: Period, tz: string): { gte: Date; lte: Date } | null 
 export default async function CancellationsPage({
   searchParams,
 }: {
-  searchParams: Promise<{ propertyId?: string; period?: string }>;
+  searchParams: Promise<{ propertyId?: string; period?: string; sayfa?: string }>;
 }) {
   const session = await requireAuth();
   const sp = await searchParams;
@@ -90,17 +95,25 @@ export default async function CancellationsPage({
   });
   const win = windowFor(period, orgTimezone(orgRow?.timezone));
 
-  const [reservations, properties] = await Promise.all([
+  const page = clampPage(sp.sayfa, MAX_LIST_PAGE);
+  // Sayım ve listeleme AYNI koşulu paylaşır — ayrışırsa sayaç yalan söyler.
+  const where = {
+    property: { organizationId: session.organizationId },
+    status: "cancelled",
+    ...(propertyId ? { propertyId } : {}),
+    ...(win ? { arrivalDate: { gte: win.gte, lte: win.lte } } : {}),
+  };
+
+  const [total, reservations, properties] = await Promise.all([
+    prisma.reservation.count({ where }),
     prisma.reservation.findMany({
-      where: {
-        property: { organizationId: session.organizationId },
-        status: "cancelled",
-        ...(propertyId ? { propertyId } : {}),
-        ...(win ? { arrivalDate: { gte: win.gte, lte: win.lte } } : {}),
-      },
+      where,
       include: { property: { select: { id: true, name: true } } },
-      orderBy: { arrivalDate: "desc" },
-      take: 200,
+      // TAM SIRA: aynı arrivalDate'i taşıyan iptaller sayfa sınırında kaymasın
+      // (Gönderilenler ekranındaki aynı ders — tekrar/kayıp riski).
+      orderBy: [{ arrivalDate: "desc" }, { id: "desc" }],
+      skip: (page - 1) * PAGE_SIZE,
+      take: PAGE_SIZE,
     }),
     prisma.property.findMany({
       where: { organizationId: session.organizationId },
@@ -111,12 +124,17 @@ export default async function CancellationsPage({
 
   // Build a href that preserves the other filter (so picking a property keeps the
   // period and vice-versa). "all"/empty values are dropped for clean URLs.
-  function href(next: { propertyId?: string | null; period?: Period }): string {
+  function href(next: { propertyId?: string | null; period?: Period; sayfa?: number }): string {
     const pid = next.propertyId === undefined ? propertyId : next.propertyId;
     const per = next.period === undefined ? period : next.period;
+    // Filtre değişince sayfa 1'e döner: 7. sayfadayken daire değiştirip boş ekran
+    // görmek, "kayıt yok" sanılan bir hata gibi okunur.
+    const changesFilter = next.propertyId !== undefined || next.period !== undefined;
+    const pg = changesFilter ? 1 : (next.sayfa ?? page);
     const q = new URLSearchParams();
     if (pid) q.set("propertyId", pid);
     if (per && per !== "all") q.set("period", per);
+    if (pg > 1) q.set("sayfa", String(pg));
     const qs = q.toString();
     return qs ? `/cancellations?${qs}` : "/cancellations";
   }
@@ -137,6 +155,11 @@ export default async function CancellationsPage({
     byProperty.set(r.property.id, entry);
   }
   const groups = [...byProperty.values()].sort((a, b) => a.name.localeCompare(b.name, "tr"));
+
+  const from = reservations.length === 0 ? 0 : (page - 1) * PAGE_SIZE + 1;
+  const to = reservations.length === 0 ? 0 : (page - 1) * PAGE_SIZE + reservations.length;
+  const hasPrev = page > 1;
+  const hasNext = to < total;
 
   return (
     <>
@@ -178,6 +201,14 @@ export default async function CancellationsPage({
         </Card>
       ) : (
         <div className="space-y-4">
+          {/* Gruplar YALNIZ BU SAYFADAKİ kayıtlardan oluşur — söylenmezse ekran,
+              o daireye ait iptallerin tamamını gösteriyormuş gibi okunur. */}
+          {total > reservations.length ? (
+            <p className="text-xs text-muted-foreground">
+              Toplam {total} iptalden {from}–{to} arası gösteriliyor; aşağıdaki daire grupları bu
+              sayfadaki kayıtlara aittir.
+            </p>
+          ) : null}
           {groups.map((g) => (
             <Card key={g.name}>
               <CardHeader className="flex-row items-center justify-between gap-2 space-y-0">
@@ -206,6 +237,30 @@ export default async function CancellationsPage({
               </CardContent>
             </Card>
           ))}
+
+          <div className="flex items-center justify-between pt-1 text-sm text-muted-foreground">
+            <span>
+              {from}–{to} / {total}
+            </span>
+            <div className="flex gap-2">
+              {hasPrev ? (
+                <Link
+                  href={href({ sayfa: page - 1 })}
+                  className="rounded-md border border-border px-3 py-1 hover:bg-accent"
+                >
+                  Önceki
+                </Link>
+              ) : null}
+              {hasNext ? (
+                <Link
+                  href={href({ sayfa: page + 1 })}
+                  className="rounded-md border border-border px-3 py-1 hover:bg-accent"
+                >
+                  Sonraki
+                </Link>
+              ) : null}
+            </div>
+          </div>
         </div>
       )}
     </>

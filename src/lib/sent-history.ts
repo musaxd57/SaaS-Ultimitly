@@ -100,9 +100,6 @@ export function compareSentRows(a: SentSortKey, b: SentSortKey): number {
   return a.rank - b.rank; // kaynak sırası ASC — SON anahtar
 }
 
-/** `?sayfa=` değerini 1..max aralığına kelepçeler (çöp girdi → 1). */
-export function clampPage(raw: string | undefined, max: number): number {
-  const n = Number.parseInt(raw ?? "", 10);
-  if (!Number.isFinite(n) || n < 1) return 1;
-  return Math.min(n, Math.max(1, max));
-}
+// Sayfa kelepçesi ortak modülde (İptaller / Misafir Sohbetleri de kullanıyor);
+// burada yalnız yeniden dışa verilir ki mevcut çağıranlar bozulmasın.
+export { clampPage } from "./pagination";
