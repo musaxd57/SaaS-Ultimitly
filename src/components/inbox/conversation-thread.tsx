@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useRef, useState, useTransition } from "react";
+import { FormError } from "@/components/form-error";
 import { toast } from "@/lib/toast";
 import { useRouter } from "next/navigation";
 import {
@@ -405,17 +406,33 @@ export function ConversationThread({ conversationId, messages, status, priority,
                   type="button"
                   onClick={() => translateMessage(m.id)}
                   disabled={translatingId === m.id}
+                  // Bu bir aç/kapa yüzeyi: durumu ve neyi açtığını bildirir.
+                  aria-expanded={Boolean(translations[m.id])}
+                  aria-controls={translations[m.id] ? `msg-translation-${m.id}` : undefined}
                   className="flex items-center gap-1 text-[10px] text-muted-foreground hover:text-primary"
                 >
                   {translatingId === m.id ? (
-                    <Loader2 className="size-3 animate-spin" />
+                    <Loader2 className="size-3 animate-spin" aria-hidden="true" />
                   ) : (
-                    <Languages className="size-3" />
+                    <Languages className="size-3" aria-hidden="true" />
                   )}
                   {translations[m.id] ? "Çeviriyi gizle" : "Çevir"}
+                  {/* Konuşmadaki HER misafir mesajının altında aynı düğme var;
+                      ekran okuyucunun düğme listesinde/rotorunda hepsi "Çevir"
+                      görünüyordu — kullanıcı hangi mesajı çevireceğini
+                      seçemiyordu. Bağlam GÖRÜNÜR METNİN ARDINA eklenir, aria-label
+                      ile EZİLMEZ: erişilebilir ad hâlâ "Çevir" ile başlar, yani
+                      sesle kontrol kullanıcısı "Çevir" diyerek tıklayabilir
+                      (SC 2.5.3). Zaman damgası kullanılır, misafir adı DEĞİL. */}
+                  <span className="sr-only"> — {m.createdAtLabel} tarihli mesaj</span>
                 </button>
                 {translations[m.id] ? (
-                  <p className="mt-1 rounded-md bg-blue-50 px-2 py-1 text-xs text-blue-800">
+                  <p
+                    id={`msg-translation-${m.id}`}
+                    // Çeviri SESSİZCE beliriyordu; artık geldiği duyulur.
+                    role="status"
+                    className="mt-1 rounded-md bg-blue-50 px-2 py-1 text-xs text-blue-800"
+                  >
                     {translations[m.id]}
                   </p>
                 ) : null}
@@ -591,14 +608,16 @@ export function ConversationThread({ conversationId, messages, status, priority,
 
         </div>
 
-        {suggestError ? (
-          <p className="rounded-md bg-destructive/10 px-3 py-2 text-sm text-destructive">
-            {suggestError}
-          </p>
-        ) : null}
+        {/* AI öneri hatası SESSİZDİ: aynı dosyada gönderim hatası (sendError)
+            doğru şekilde role="alert" taşıyor, yani bu bilinçli bir tercih
+            değil atlanmış bir daldı. Kullanıcı "AI cevap öner"e basıyor, istek
+            düşüyor, hiçbir geri bildirim almadan tekrar tekrar basıyordu. */}
+        <FormError>{suggestError}</FormError>
 
         {suggestion ? (
-          <div className="space-y-3 rounded-lg border border-primary/30 bg-accent/40 p-3">
+          // Öneri, güven rozeti ve "İnsan incelemesi" uyarısı ekrana SESSİZCE
+          // geliyordu; artık geldiği duyulur (kesinti YOK — status, alert değil).
+          <div role="status" className="space-y-3 rounded-lg border border-primary/30 bg-accent/40 p-3">
             <div className="flex flex-wrap items-center gap-2">
               <span className="flex items-center gap-1.5 text-sm font-semibold">
                 <Bot className="size-4 text-primary" /> AI Önerisi

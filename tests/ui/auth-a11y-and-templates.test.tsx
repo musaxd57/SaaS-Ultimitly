@@ -172,3 +172,43 @@ describe("Şablon paneli — yüklenirken YANLIŞ bilgi vermez", () => {
     await waitFor(() => expect(screen.queryByRole("dialog")).toBeNull());
   });
 });
+
+// ---------------------------------------------------------------------------
+// Konuşma ekranındaki kalan doğrulanmış a11y bulguları.
+// ---------------------------------------------------------------------------
+describe("Konuşma ekranı — duyurular ve ayırt edilebilir düğme adları", () => {
+  beforeEach(reset);
+
+  it("her 'Çevir' düğmesinin adı BENZERSİZ (rotorda ayırt edilebilir)", () => {
+    const props = {
+      ...threadProps,
+      messages: [
+        { id: "m1", direction: "inbound", body: "A", senderName: "Ada", createdAtLabel: "1 Oca 10:00" },
+        { id: "m2", direction: "inbound", body: "B", senderName: "Ada", createdAtLabel: "1 Oca 11:00" },
+      ],
+    } as unknown as React.ComponentProps<typeof ConversationThread>;
+    render(<ConversationThread {...props} />);
+
+    const buttons = screen.getAllByRole("button", { name: /Çevir/ });
+    expect(buttons).toHaveLength(2);
+    const names = buttons.map((b) => b.textContent);
+    expect(new Set(names).size).toBe(2); // eskiden ikisi de sadece "Çevir" idi
+    // Görünür metin adın BAŞINDA kalır (sesle kontrol "Çevir" diyerek tıklar).
+    expect(names[0]!.startsWith("Çevir")).toBe(true);
+  });
+
+  it("AI öneri hatası DUYURULUR (role=alert) — eskiden sessizdi", async () => {
+    vi.stubGlobal(
+      "fetch",
+      vi.fn(async () => new Response(JSON.stringify({ error: "AI şu an yanıt veremedi." }), { status: 500 })),
+    );
+    render(<ConversationThread {...threadProps} />);
+    await act(async () => {
+      // İki tetikleyici var (bekleyen-misafir kartı + ana düğme); ikisi de
+      // handleSuggest çağırır, ilkini kullanmak yeter.
+      fireEvent.click(screen.getAllByRole("button", { name: /AI cevap öner|AI ile cevapla/ })[0]);
+    });
+    const alert = await screen.findByRole("alert");
+    expect(alert.textContent).toContain("AI şu an yanıt veremedi.");
+  });
+});
