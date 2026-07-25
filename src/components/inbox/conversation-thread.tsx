@@ -251,8 +251,16 @@ export function ConversationThread({ conversationId, messages, status, priority,
   }, [showTemplates]);
 
   async function loadTemplates() {
+    // Açıksa KAPAT — koşul `templates.length > 0` idi, yani şablon listesi boş
+    // kalan bir hesapta (yeni müşteri) ya da yükleme hata verdiğinde tetikleyici
+    // tek yönlü bir şaltere dönüyordu: her basış `setShowTemplates(true)`.
+    // Paneli aynı düğmeyle kapatmak mümkün değildi.
+    if (showTemplates) {
+      setShowTemplates(false);
+      return;
+    }
     if (templates.length > 0) {
-      setShowTemplates((s) => !s);
+      setShowTemplates(true);
       return;
     }
     setTemplatesLoading(true);
@@ -538,7 +546,18 @@ export function ConversationThread({ conversationId, messages, status, priority,
                     <X className="size-3.5" />
                   </button>
                 </div>
-                {templatesError ? (
+                {/* YÜKLENİYOR dalı önce gelmeli: panel fetch'ten ÖNCE açılıyor
+                    (loadTemplates önce setShowTemplates(true) yapıyor), dolayısıyla
+                    bu dal olmadan `templates` hâlâ [] iken ekrana "Şablon
+                    bulunamadı" YANLIŞ bilgisi basılıyordu — üstelik odak panele
+                    taşındığı için ekran okuyucu açılış metni olarak tam da bu
+                    yanlış cümleyi okuyordu. */}
+                {templatesLoading ? (
+                  <p className="flex items-center gap-2 p-3 text-xs text-muted-foreground">
+                    <Loader2 className="size-3.5 animate-spin" aria-hidden="true" />
+                    Şablonlar yükleniyor…
+                  </p>
+                ) : templatesError ? (
                   <p className="p-3 text-xs text-destructive">
                     Şablonlar yüklenemedi. Lütfen tekrar deneyin.
                   </p>
