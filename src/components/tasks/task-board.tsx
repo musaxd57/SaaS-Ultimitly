@@ -48,6 +48,14 @@ export function TaskBoard({ tasks, canManage = true }: { tasks: TaskCardData[]; 
   const [busyId, setBusyId] = useState<string | null>(null);
   const [uploadingId, setUploadingId] = useState<string | null>(null);
   const [noteMap, setNoteMap] = useState<Record<string, string>>({});
+  /** noteMap'in REF aynası. Gerekçesi: bir istek beklerken kullanıcı metni
+   *  değiştirebilir; `await`ten sonra GÜNCEL değeri senkron okuyabilmek şart
+   *  (state okuması o anki render'ın kapanışıdır, bayattır). */
+  const noteMapRef = useRef<Record<string, string>>({});
+  function setNoteValue(id: string, value: string) {
+    noteMapRef.current = { ...noteMapRef.current, [id]: value };
+    setNoteMap(noteMapRef.current);
+  }
   const [noteError, setNoteError] = useState<Record<string, string>>({});
   /** Not kaydının GÖRÜNÜR durumu (id → "saving" | "saved"). Zamanlayıcı yok:
    *  "saved" kullanıcı yeniden yazmaya başlayınca temizlenir. */
@@ -202,8 +210,14 @@ export function TaskBoard({ tasks, canManage = true }: { tasks: TaskCardData[]; 
         setNoteStatus((prev) => ({ ...prev, [id]: undefined }));
         return;
       }
-      setNoteMap((prev) => ({ ...prev, [id]: "" }));
-      setNoteStatus((prev) => ({ ...prev, [id]: "saved" }));
+      // Sonuç GÖNDERİLEN metne bağlanır (Codex): A uçarken kullanıcı B yazdıysa
+      // A'nın yanıtı B'yi ne SİLMELİ ne de "Kaydedildi" diye onaylamalı — ikisi de
+      // yalan olurdu (biri veri kaybı, diğeri sahte onay). Alan yalnız hâlâ
+      // gönderilen metni taşıyorsa temizlenir; değiştiyse B durur, durum sıfırlanır
+      // ve düğme yeniden aktifleşir → B kaydedilebilir.
+      const unchanged = noteMapRef.current[id] === note;
+      if (unchanged) setNoteValue(id, "");
+      setNoteStatus((prev) => ({ ...prev, [id]: unchanged ? "saved" : undefined }));
       startTransition(() => router.refresh());
     } catch {
       setNoteError((prev) => ({ ...prev, [id]: "Bağlantı hatası, not kaydedilemedi." }));
@@ -397,7 +411,7 @@ export function TaskBoard({ tasks, canManage = true }: { tasks: TaskCardData[]; 
               aria-label={`Görev notu: ${t.title}`}
               value={noteMap[t.id] ?? ""}
               onChange={(e) => {
-                setNoteMap((prev) => ({ ...prev, [t.id]: e.target.value }));
+                setNoteValue(t.id, e.target.value);
                 // Yazmaya başlayınca "Kaydedildi" kalkar (zamanlayıcı YOK).
                 setNoteStatus((prev) => (prev[t.id] ? { ...prev, [t.id]: undefined } : prev));
               }}

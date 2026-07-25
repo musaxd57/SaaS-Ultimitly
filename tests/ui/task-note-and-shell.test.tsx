@@ -98,6 +98,52 @@ describe("TaskBoard — not kaydı görünür ve etiketli", () => {
     expect(fetchMock).toHaveBeenCalledTimes(1);
   });
 
+  it("YARIŞ: A kaydedilirken metin B olunca, A biten istekte B ne silinir ne 'Kaydedildi' der", async () => {
+    // Codex: sonuç GÖNDERİLEN metne bağlanmalı. Aksi hâlde A'nın yanıtı gelince
+    // (a) alan temizlenip B YOK OLUYOR, (b) hiç kaydedilmemiş B için "Kaydedildi"
+    // yazıyordu — iki kere yalan.
+    let resolveA!: (r: Response) => void;
+    const inflight = new Promise<Response>((r) => (resolveA = r));
+    const bodies: string[] = [];
+    let first = true;
+    vi.stubGlobal(
+      "fetch",
+      vi.fn((_url: string, opts?: RequestInit) => {
+        bodies.push(JSON.parse(String(opts?.body)).note);
+        if (first) {
+          first = false;
+          return inflight;
+        }
+        return Promise.resolve(new Response("{}", { status: 200 }));
+      }),
+    );
+    await openDetails();
+    const field = screen.getByLabelText(/Görev notu/) as HTMLTextAreaElement;
+    fireEvent.change(field, { target: { value: "A" } });
+    await act(async () => {
+      fireEvent.click(screen.getByRole("button", { name: "Notu kaydet" }));
+    });
+    // Cevap gelmeden kullanıcı metni değiştiriyor…
+    fireEvent.change(field, { target: { value: "B" } });
+    // …ve A'nın cevabı şimdi geliyor.
+    await act(async () => {
+      resolveA(new Response("{}", { status: 200 }));
+    });
+
+    expect((screen.getByLabelText(/Görev notu/) as HTMLTextAreaElement).value).toBe("B"); // silinmedi
+    expect(screen.queryByText("Kaydedildi")).toBeNull(); // B için YALAN onay yok
+    expect(screen.queryByText("Kaydediliyor…")).toBeNull(); // takılı durum yok
+
+    // B yeniden kaydedilebilir ve GİDEN gövde B'dir.
+    const btn = screen.getByRole("button", { name: "Notu kaydet" }) as HTMLButtonElement;
+    expect(btn.disabled).toBe(false);
+    await act(async () => {
+      fireEvent.click(btn);
+    });
+    await waitFor(() => expect(bodies).toEqual(["A", "B"]));
+    await screen.findByText("Kaydedildi");
+  });
+
   it("başarısız kayıtta yazılan not KAYBOLMAZ ve hata görünür", async () => {
     vi.stubGlobal("fetch", vi.fn(async () => new Response("{}", { status: 500 })));
     await openDetails();
