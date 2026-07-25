@@ -82,7 +82,9 @@ describe("GET /api/account/export — complete + secret-free", () => {
       data: { taskId: task.id, userId: user.id, status: "done", note: "bitti", photoUrl: "/uploads/x/foto.jpg" },
     });
     await prisma.calendarSource.create({
-      data: { propertyId, label: "Airbnb", url: "https://example.com/cal.ics?s=feedsecret" },
+      // iCal feed URL = a CAPABILITY SECRET (whoever holds it reads the booking
+      // calendar, no auth). Sentinel so the secret-scan below covers it too.
+      data: { propertyId, label: "Airbnb", url: "https://example.com/cal.ics?s=SECRET_FEED_TOKEN_VALUE" },
     });
     await prisma.supplyRequest.create({
       data: { propertyId, itemKey: "towel", qty: 2, sourceMessageId: "m-1" },
@@ -113,6 +115,7 @@ describe("GET /api/account/export — complete + secret-free", () => {
     "hospitableTokenEnc",
     "hospitableRefreshTokenEnc",
     "SECRET_RECOVERY_HASH_VALUE",
+    "SECRET_FEED_TOKEN_VALUE",
     "codeHash",
     "recoveryCodes",
   ];
@@ -143,7 +146,15 @@ describe("GET /api/account/export — complete + secret-free", () => {
     // Every family present (was missing from the old export entirely).
     const prop = data.organization.properties[0];
     expect(prop.tasks[0].updates[0]).toMatchObject({ note: "bitti", photoUrl: "/uploads/x/foto.jpg" });
-    expect(prop.calendarSources[0].url).toContain("feedsecret"); // user's OWN credential — portability
+    // Feed URL is MASKED, not raw (audit 07-25). The old contract exported it
+    // verbatim on a data-portability argument; that lost to the leak surface —
+    // the export is a file that travels (mail, cloud, support ticket) while the
+    // UI already refuses to render the value. Masked metadata keeps the row
+    // RECOGNISABLE (host + tail) without carrying the capability.
+    expect(prop.calendarSources[0].url).toBeUndefined();
+    expect(prop.calendarSources[0].urlMasked).toContain("example.com");
+    expect(prop.calendarSources[0].urlMasked).not.toContain("SECRET_FEED_TOKEN_VALUE");
+    expect(prop.calendarSources[0].hasUrl).toBe(true);
     expect(prop.supplyRequests[0]).toMatchObject({ itemKey: "towel", qty: 2 });
     expect(prop.reservations[0].welcomeSentAt).toBeTruthy();
     expect(prop.conversations[0].lastRiskType).toBe("complaint");

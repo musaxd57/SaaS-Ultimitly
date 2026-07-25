@@ -14,6 +14,37 @@ import { prisma } from "@/lib/db";
 // encrypted Hospitable tokens, no recovery-code hashes — the export tests scan
 // the serialized output for these field names and seeded values.
 // ---------------------------------------------------------------------------
+/**
+ * Replace every calendar-feed `url` with masked metadata, in place on the
+ * already-selected payload.
+ *
+ * Done as a post-pass rather than in the `select` so the allowlist above stays
+ * the single readable inventory of what the export covers — and so BOTH routes
+ * (self-service + operator) get it from the one shared builder, with no way for
+ * one to drift back to the raw value.
+ *
+ * Kept: host + last 6 chars (identical policy to the UI's maskFeedUrl) plus a
+ * `hasUrl` flag, so a host reading their export can still tell which feed each
+ * row is and that one is configured.
+ */
+function maskFeedUrls<T extends { properties?: { calendarSources?: { url: string }[] }[] }>(org: T): T {
+  for (const property of org.properties ?? []) {
+    for (const source of property.calendarSources ?? []) {
+      const raw = source.url;
+      const masked = source as unknown as { url?: unknown; urlMasked: string; hasUrl: boolean };
+      delete masked.url;
+      masked.hasUrl = Boolean(raw);
+      try {
+        const u = new URL(raw);
+        masked.urlMasked = `${u.protocol}//${u.host}/…${raw.slice(-6)}`;
+      } catch {
+        masked.urlMasked = `…${raw.slice(-6)}`;
+      }
+    }
+  }
+  return org;
+}
+
 export async function buildOrganizationDataExport(organizationId: string) {
   const [org, subscription, invoices, auditLogs, checkoutConsents, riskEvents, messageDelivery] = await Promise.all([
     prisma.organization.findUnique({
@@ -65,6 +96,15 @@ export async function buildOrganizationDataExport(organizationId: string) {
             checkOutTime: true,
             notes: true,
             createdAt: true,
+            // FEED URL IS A CAPABILITY SECRET — never exported verbatim.
+            // Anyone holding it can read the property's booking calendar from
+            // the channel, with no authentication. The UI already refuses to
+            // render it in full (calendar-sources.tsx maskFeedUrl); the export
+            // used to ship it raw, which is the same secret in a downloadable
+            // file. `url` is replaced by masked metadata below — enough for the
+            // host to tell WHICH feed a row is, useless to a leak.
+            // At-rest encryption of the stored column is a separate migration
+            // round (expand/contract), deliberately not bundled here.
             calendarSources: {
               select: {
                 id: true, label: true, url: true, lastSyncedAt: true,
@@ -190,7 +230,7 @@ export async function buildOrganizationDataExport(organizationId: string) {
   ]);
   if (!org) return null;
   return {
-    organization: org,
+    organization: maskFeedUrls(org),
     billing: { subscription, invoices },
     auditLogs,
     checkoutConsents,
