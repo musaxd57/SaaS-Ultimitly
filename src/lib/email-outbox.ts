@@ -40,6 +40,16 @@ import { verifyUrl, verifyEmailHtml } from "@/lib/auth/email-verify";
 // and claim-expiry recovery. The single accepted residue: a provider call that
 // already started cannot be stopped — at most ONE stale e-mail, whose code no
 // longer verifies anyway.
+//
+// DELIVERY GUARANTEE = AT-LEAST-ONCE, NOT EXACTLY-ONCE. Be honest about this:
+// once the provider call is in flight we cannot know whether it landed. A
+// worker that dies mid-send leaves a `sending` row whose outcome is unknowable,
+// so recovery re-sends — a duplicate identity e-mail is possible and is the
+// DELIBERATE trade (a lost password-reset mail is worse than a duplicate one).
+// What IS bounded: the duplicate can only be the CURRENT generation's secret
+// (the currency gate cancels superseded rows), and the number of such attempts
+// is capped by attemptCount/backoff/expiry — `sending` recovery costs budget
+// exactly because it might already have delivered.
 // ---------------------------------------------------------------------------
 
 export type EmailOutboxKind = "verify_email" | "pw_reset_code" | "pw_change_code";
@@ -71,9 +81,20 @@ function aadFor(id: string, userId: string, kind: string): string {
 export const EMAIL_OUTBOX_MAX_ATTEMPTS = 5;
 // Attempt N failure → wait BACKOFF[N-1] (bounded by the secret's own expiry).
 const BACKOFF_MS = [60_000, 5 * 60_000, 15 * 60_000, 60 * 60_000];
-// Must exceed the worst-case provider call so an in-flight `sending` row is
-// never recovered (and possibly re-sent) while its send is still running.
+/**
+ * Per-row LEASE length. Must exceed the worst-case single provider call so an
+ * in-flight `sending` row is never recovered mid-send: Resend aborts at 15s
+ * (email.ts viaResend), SMTP caps each phase at 12s (viaSmtp) — both far under
+ * this. The lease is re-stamped from DB `now()` at the claimed→sending CAS, so
+ * it is measured from THIS row's send, not from when the batch started.
+ *
+ * The earlier bug: the lease was computed once per batch and written to all
+ * rows, so with 10 rows × a real network call the LAST row's lease could expire
+ * before its send began — the sweep then "recovered" it and a second drain sent
+ * the same identity e-mail again.
+ */
 export const EMAIL_OUTBOX_CLAIM_TTL_MS = 3 * 60_000;
+const CLAIM_TTL_SECONDS = Math.floor(EMAIL_OUTBOX_CLAIM_TTL_MS / 1000);
 
 // Retention for OPERATIONAL metadata (payloadEnc is long gone by then).
 const SENT_RETENTION_MS = 7 * 24 * 60 * 60 * 1000;
@@ -319,7 +340,10 @@ export async function drainEmailOutboxOnce(deps: EmailDrainDeps = {}): Promise<E
 
   for (const row of rows) {
     try {
-      await processClaimedRow(row, claimToken, send, now, result);
+      // NO batch-level clock is passed on: each row re-reads time at the moment
+      // it needs it (lease from DB now(), liveness/backoff/sentAt from a fresh
+      // Date). A long batch must not make later rows reason about a stale past.
+      await processClaimedRow(row, claimToken, send, result);
     } catch (err) {
       // One poison row must not abort the batch; the claim TTL re-frees it.
       void reportError(`email-outbox.row:${row.id}`, err instanceof Error ? err : new Error(String(err)));
@@ -332,7 +356,6 @@ async function processClaimedRow(
   row: ClaimedRow,
   claimToken: string,
   send: NonNullable<EmailDrainDeps["send"]>,
-  now: Date,
   result: EmailDrainResult,
 ): Promise<void> {
   const cancelSelf = async (): Promise<void> => {
@@ -362,22 +385,32 @@ async function processClaimedRow(
   // window); before it, a superseding enqueue serializes on the same lock.
   const gate = await prisma.$transaction(async (tx) => {
     await acquireEmailOutboxLock(tx, row.userId, row.kind as EmailOutboxKind);
+    // FRESH time — not the batch's start. A row processed 3 minutes into a slow
+    // batch must judge liveness/expiry against NOW, not against the past.
+    const gateNow = new Date();
     const user = await tx.user.findUnique({ where: { id: row.userId }, select: LIVENESS_SELECT });
-    const current = await rowIsCurrent(tx, row, user, now);
+    const current = await rowIsCurrent(tx, row, user, gateNow);
     const recipientOk =
       user != null && user.email.toLowerCase() === payload.recipient.toLowerCase();
-    if (!current || !recipientOk) {
+    if (!current || !recipientOk || row.expiresAt <= gateNow) {
       await tx.emailOutbox.updateMany({
         where: { id: row.id, claimedBy: claimToken, status: "claimed" },
         data: { status: "canceled", payloadEnc: null, claimedBy: null, claimExpiresAt: null },
       });
       return { go: false as const };
     }
-    const cas = await tx.emailOutbox.updateMany({
-      where: { id: row.id, claimedBy: claimToken, status: "claimed" },
-      data: { status: "sending" },
-    });
-    return { go: cas.count === 1, name: user.name };
+    // CAS + LEASE RENEWAL in one statement, stamped from DB `now()`: the lease
+    // starts when THIS row's send is about to start. Raw SQL because the new
+    // expiry must be computed server-side (a client-side Date would re-introduce
+    // clock skew between app replicas).
+    const cas = await tx.$executeRaw(Prisma.sql`
+      UPDATE "EmailOutbox"
+      SET "status" = 'sending',
+          "claimExpiresAt" = now() + make_interval(secs => ${CLAIM_TTL_SECONDS}),
+          "updatedAt" = now()
+      WHERE "id" = ${row.id} AND "claimedBy" = ${claimToken} AND "status" = 'claimed'
+    `);
+    return { go: cas === 1, name: user.name };
   });
   if (!gate.go) {
     result.canceled++;
@@ -390,7 +423,8 @@ async function processClaimedRow(
   if (outcome.ok) {
     const done = await prisma.emailOutbox.updateMany({
       where: { id: row.id, claimedBy: claimToken, status: "sending" },
-      data: { status: "sent", sentAt: now, payloadEnc: null, claimedBy: null, claimExpiresAt: null, lastError: null },
+      // sentAt = when the send ACTUALLY returned, not when the batch began.
+      data: { status: "sent", sentAt: new Date(), payloadEnc: null, claimedBy: null, claimExpiresAt: null, lastError: null },
     });
     if (done.count === 1) result.sent++;
     else void reportError("email-outbox.lost-claim", new Error(`sent settle missed for row ${row.id}`));
@@ -402,8 +436,10 @@ async function processClaimedRow(
   // closed). A current row retries with backoff until attempts/expiry run out.
   await prisma.$transaction(async (tx) => {
     await acquireEmailOutboxLock(tx, row.userId, row.kind as EmailOutboxKind);
+    // FRESH time again: the provider call itself consumed real seconds.
+    const settleNow = new Date();
     const user = await tx.user.findUnique({ where: { id: row.userId }, select: LIVENESS_SELECT });
-    const current = await rowIsCurrent(tx, row, user, now);
+    const current = await rowIsCurrent(tx, row, user, settleNow);
     if (!current) {
       const c = await tx.emailOutbox.updateMany({
         where: { id: row.id, claimedBy: claimToken, status: "sending" },
@@ -414,7 +450,7 @@ async function processClaimedRow(
     }
     const attempts = row.attemptCount + 1;
     const backoff = BACKOFF_MS[Math.min(attempts - 1, BACKOFF_MS.length - 1)];
-    const nextAt = new Date(now.getTime() + backoff);
+    const nextAt = new Date(settleNow.getTime() + backoff);
     const terminal = attempts >= EMAIL_OUTBOX_MAX_ATTEMPTS || nextAt >= row.expiresAt;
     const settled = await tx.emailOutbox.updateMany({
       where: { id: row.id, claimedBy: claimToken, status: "sending" },
@@ -451,19 +487,22 @@ async function processClaimedRow(
 }
 
 /**
- * Recovery + retention sweep (the 2-min scheduled sync). Recovery: rows whose
- * claim expired (worker crashed mid-flight) go back to `pending` when still
- * current, `canceled` when stale — through the SAME currency gate, so a crash
- * can't resurrect a superseded generation either. Retention: sent rows after
- * 7 days, canceled/failed after 30 (payloadEnc is already NULL by then).
+ * Recovery + retention sweep (the 2-min scheduled sync). Recovery runs through
+ * the SAME currency gate (a crash can't resurrect a superseded generation), but
+ * SPLITS on the status it found: `claimed` = never reached the provider →
+ * requeue free of charge; `sending` = ambiguous provider attempt → costs an
+ * attempt and takes backoff. Retention: sent rows after 7 days, canceled/failed
+ * after 30 (payloadEnc is already NULL by then).
  */
-export async function sweepEmailOutbox(now: Date = new Date()): Promise<{ recovered: number; canceled: number; deleted: number }> {
-  const out = { recovered: 0, canceled: 0, deleted: 0 };
+export async function sweepEmailOutbox(
+  now: Date = new Date(),
+): Promise<{ recovered: number; canceled: number; failed: number; deleted: number }> {
+  const out = { recovered: 0, canceled: 0, failed: 0, deleted: 0 };
   if (!emailOutboxEnabled()) return out;
 
   const stuck = await prisma.emailOutbox.findMany({
     where: { status: { in: ["claimed", "sending"] }, claimExpiresAt: { lt: now } },
-    select: { id: true, userId: true, kind: true, version: true, payloadEnc: true, attemptCount: true, expiresAt: true },
+    select: { id: true, userId: true, kind: true, status: true, version: true, payloadEnc: true, attemptCount: true, expiresAt: true },
     take: 100,
   });
   for (const row of stuck) {
@@ -471,15 +510,65 @@ export async function sweepEmailOutbox(now: Date = new Date()): Promise<{ recove
       await acquireEmailOutboxLock(tx, row.userId, row.kind as EmailOutboxKind);
       const user = await tx.user.findUnique({ where: { id: row.userId }, select: LIVENESS_SELECT });
       const current = await rowIsCurrent(tx, row, user, now);
+      const where = { id: row.id, status: row.status, claimExpiresAt: { lt: now } };
+
+      if (!current) {
+        const c = await tx.emailOutbox.updateMany({
+          where,
+          data: { status: "canceled", payloadEnc: null, claimedBy: null, claimExpiresAt: null },
+        });
+        if (c.count === 1) out.canceled++;
+        return;
+      }
+
+      // THE TWO RECOVERIES ARE NOT THE SAME EVENT:
+      //
+      //  · `claimed` expired → the worker died BEFORE the pre-send CAS, so the
+      //    provider was never called. Nothing was attempted; charging an attempt
+      //    would burn the budget for work that never happened.
+      //
+      //  · `sending` expired → the worker died AFTER the CAS, i.e. DURING or
+      //    AROUND a provider call. Whether the mail went out is UNKNOWABLE from
+      //    here. We therefore treat it as a real (ambiguous) attempt: it costs
+      //    budget and takes backoff, so a provider that keeps hanging cannot be
+      //    retried forever. This is the honest reading — see the at-least-once
+      //    note in the module header.
+      if (row.status === "claimed") {
+        const r = await tx.emailOutbox.updateMany({
+          where,
+          data: { status: "pending", nextAttemptAt: now, claimedBy: null, claimExpiresAt: null },
+        });
+        if (r.count === 1) out.recovered++;
+        return;
+      }
+
+      const attempts = row.attemptCount + 1;
+      const backoff = BACKOFF_MS[Math.min(attempts - 1, BACKOFF_MS.length - 1)];
+      const nextAt = new Date(now.getTime() + backoff);
+      const terminal = attempts >= EMAIL_OUTBOX_MAX_ATTEMPTS || nextAt >= row.expiresAt;
       const r = await tx.emailOutbox.updateMany({
-        where: { id: row.id, status: { in: ["claimed", "sending"] }, claimExpiresAt: { lt: now } },
-        data: current
-          ? { status: "pending", nextAttemptAt: now, claimedBy: null, claimExpiresAt: null }
-          : { status: "canceled", payloadEnc: null, claimedBy: null, claimExpiresAt: null },
+        where,
+        data: terminal
+          ? {
+              status: "failed",
+              attemptCount: attempts,
+              payloadEnc: null,
+              claimedBy: null,
+              claimExpiresAt: null,
+              lastError: "lease expired while sending (ambiguous)",
+            }
+          : {
+              status: "pending",
+              attemptCount: attempts,
+              nextAttemptAt: nextAt,
+              claimedBy: null,
+              claimExpiresAt: null,
+              lastError: "lease expired while sending (ambiguous)",
+            },
       });
       if (r.count === 1) {
-        if (current) out.recovered++;
-        else out.canceled++;
+        if (terminal) out.failed++;
+        else out.recovered++;
       }
     });
   }

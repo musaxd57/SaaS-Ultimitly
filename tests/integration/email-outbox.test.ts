@@ -7,6 +7,7 @@ import {
   kickEmailOutboxDrain,
   emailOutboxEnabled,
   EMAIL_OUTBOX_MAX_ATTEMPTS,
+  EMAIL_OUTBOX_CLAIM_TTL_MS,
 } from "@/lib/email-outbox";
 
 // ---------------------------------------------------------------------------
@@ -55,7 +56,7 @@ describe("email-outbox", () => {
     expect(emailOutboxEnabled()).toBe(false);
     const send = okSend();
     expect(await drainEmailOutboxOnce({ send })).toEqual({ claimed: 0, sent: 0, retried: 0, failed: 0, canceled: 0 });
-    expect(await sweepEmailOutbox()).toEqual({ recovered: 0, canceled: 0, deleted: 0 });
+    expect(await sweepEmailOutbox()).toEqual({ recovered: 0, canceled: 0, failed: 0, deleted: 0 });
     expect(send).not.toHaveBeenCalled();
   });
 
@@ -226,15 +227,21 @@ describe("email-outbox", () => {
   it("RECOVERY (Codex 3): an expired claim from a crashed worker → current row back to pending and delivered; STALE row → canceled", async () => {
     const u = await makeUser();
     await enqueueReset(u.id, "11111111", u.email);
-    // Crash simulation: claimed long ago, claim TTL passed, worker gone.
+    // Crash simulation: the worker died BEFORE the pre-send CAS, so the row is
+    // still `claimed` and the provider was never called. That path requeues at
+    // once and costs no attempt. (The `sending` variant — an AMBIGUOUS attempt —
+    // now takes backoff instead of retrying immediately; it is pinned in the
+    // "lease ve kurtarma bütçesi" block below. This test used to simulate the
+    // crash with `sending` and assert an instant re-send, which encoded the old
+    // behaviour where an ambiguous attempt was free.)
     await prisma.emailOutbox.updateMany({
-      data: { status: "sending", claimedBy: "dead-worker", claimExpiresAt: new Date(Date.now() - 1000) },
+      data: { status: "claimed", claimedBy: "dead-worker", claimExpiresAt: new Date(Date.now() - 1000) },
     });
     const rec = await sweepEmailOutbox();
     expect(rec.recovered).toBe(1);
     const send = okSend();
     await drainEmailOutboxOnce({ send });
-    expect(send).toHaveBeenCalledTimes(1); // delivered exactly once after recovery
+    expect(send).toHaveBeenCalledTimes(1); // requeued and delivered
 
     // Stale variant: crashed claim AND a newer generation exists → canceled.
     await prisma.emailOutbox.deleteMany();
@@ -316,5 +323,185 @@ describe("email-outbox", () => {
     } finally {
       process.off("unhandledRejection", onUnhandled);
     }
+  });
+});
+
+// ---------------------------------------------------------------------------
+// CANLI BULGU (denetim 07-25, EMAIL_OUTBOX_ENABLED=1 Railway'de AÇIK).
+//
+// Lease (claim ömrü) PARTİ BAŞINDA hesaplanan tek bir `now`dan türetiliyordu ve
+// partideki 10 satıra AYNI `claimExpiresAt` yazılıyordu. Satırlar sırayla ve her
+// biri gerçek bir sağlayıcı çağrısıyla işlendiği için partinin SONUNDAKİ satırın
+// lease'i, kendi gönderimi daha başlamadan dolabiliyordu → sweep onu "çökmüş
+// worker" sanıp geri alıyor, ikinci bir drain aynı kimlik e-postasını TEKRAR
+// gönderiyordu (canlı şifre-sıfırlama/doğrulama kodu ikinci kez gider).
+//
+// İkinci kusur: kurtarma `attemptCount` artırmıyordu, yani deneme bütçesi hiç
+// tükenmiyordu. Ama iki kurtarma AYNI ŞEY DEĞİL:
+//   · `claimed` süresi doldu  → sağlayıcıya HİÇ gidilmedi  → bütçe TÜKETİLMEZ
+//   · `sending` süresi doldu  → sağlayıcıya gidilmiş OLABİLİR (belirsiz) →
+//     bütçe TÜKETİLİR, backoff/max-attempt/expiry kurallarına girer
+// ---------------------------------------------------------------------------
+
+describe("email-outbox — lease ve kurtarma bütçesi (canlı)", () => {
+  beforeEach(async () => {
+    await resetDb();
+    vi.clearAllMocks();
+    vi.stubEnv("EMAIL_OUTBOX_ENABLED", "1");
+  });
+  afterEach(() => vi.unstubAllEnvs());
+
+  it("YAVAŞ PARTİ: lease HER SATIRDA kendi gönderimi başlarken YENİLENİR", async () => {
+    // Asıl mekanizma budur. Sahte bir gelecek saatiyle test etmek işe yaramaz:
+    // parti-başı lease'i ile satır-başı lease'i hızlı bir testte aynı ana denk
+    // gelir. Onun yerine DB'deki DEĞERİ ölçüyoruz — geç satırın gönderimi
+    // sırasında `claimExpiresAt`, claim anında yazılan parti-başı değerinden
+    // KESİN OLARAK BÜYÜK olmalı. Hatalı kodda ikisi eşittir.
+    const ids: string[] = [];
+    for (let i = 0; i < 10; i++) {
+      const u = await makeUser(`slow${i}@x.com`);
+      ids.push(await enqueueReset(u.id, `code-${i}`, u.email));
+    }
+
+    const sentTo: string[] = [];
+    let batchLease: Date | null = null;
+    let lateRowLease: Date | null = null;
+    let n = 0;
+
+    const send: SendFn = async (to) => {
+      n++;
+      const live = await prisma.emailOutbox.findMany({
+        where: { status: { in: ["claimed", "sending"] } },
+        select: { status: true, claimExpiresAt: true },
+      });
+      if (n === 1) {
+        // Henüz işlenmemiş (claimed) satırların taşıdığı parti-başı lease'i.
+        batchLease = live.find((r) => r.status === "claimed")?.claimExpiresAt ?? null;
+      }
+      if (n === 10) {
+        lateRowLease = live.find((r) => r.status === "sending")?.claimExpiresAt ?? null;
+      }
+      sentTo.push(to);
+      return { ok: true };
+    };
+
+    await drainEmailOutboxOnce({ send, batchSize: 10 });
+
+    expect(batchLease).not.toBeNull();
+    expect(lateRowLease).not.toBeNull();
+    // Geç satırın lease'i, parti claim'inde yazılandan İLERİDE olmalı.
+    expect(lateRowLease!.getTime()).toBeGreaterThan(batchLease!.getTime());
+
+    // Ve hiçbir alıcıya iki kez gidilmemiş olmalı.
+    const counts = new Map<string, number>();
+    for (const to of sentTo) counts.set(to, (counts.get(to) ?? 0) + 1);
+    expect([...counts.values()].filter((c) => c > 1)).toEqual([]);
+    expect(await prisma.emailOutbox.count({ where: { status: "sent" } })).toBe(10);
+  });
+
+  it("SWEEP parti ORTASINDA koşsa bile çift gönderim yok; bütçe DOĞRU satıra yazılır", async () => {
+    // Kuyrukta bekleyen bir satırın lease'i dolarsa sweep onu pending'e alır —
+    // bu GÜVENLİDİR: deneme yazılmaz ve orijinal worker o satıra geldiğinde
+    // pre-send CAS'i (claimedBy eşleşmesi) tutmaz, yani İKİNCİ KEZ GÖNDERMEZ.
+    //
+    // Not: sweep'e verilen sahte gelecek, o an GÖNDERİMDE olan satırın yenilenmiş
+    // lease'ini de geçtiği için o satır da kurtarılır — ve `sending` olduğu için
+    // DENEME YAZILIR. Bu doğrudur: gönderim yapılmış OLABİLİR. Testin pinlediği
+    // şey bütçenin DOĞRU satıra yazılması: kuyruktakine 0, gönderimdekine 1.
+    const u1 = await makeUser("proc@x.com");
+    const u2 = await makeUser("queued@x.com");
+    await enqueueReset(u1.id, "p1", u1.email);
+    await enqueueReset(u2.id, "q1", u2.email);
+
+    const sentTo: string[] = [];
+    let swept = false;
+    const send: SendFn = async (to) => {
+      sentTo.push(to);
+      if (!swept) {
+        swept = true;
+        // İlk satır GÖNDERİMDEYKEN, parti claim'ini geçmişe düşüren bir sweep.
+        await sweepEmailOutbox(new Date(Date.now() + EMAIL_OUTBOX_CLAIM_TTL_MS + 1_000));
+      }
+      return { ok: true };
+    };
+
+    await drainEmailOutboxOnce({ send, batchSize: 2 });
+
+    // Aynı alıcıya iki kez gidilmemeli (asıl değişmez).
+    const counts = new Map<string, number>();
+    for (const to of sentTo) counts.set(to, (counts.get(to) ?? 0) + 1);
+    expect([...counts.values()].filter((c) => c > 1)).toEqual([]);
+
+    // Bütçe ayrımı: kuyrukta bekleyen (claimed) satır 0, gönderimdeyken
+    // kurtarılan (sending) satır 1 deneme taşımalı.
+    const attempts = (
+      await prisma.emailOutbox.findMany({ select: { attemptCount: true } })
+    )
+      .map((r) => r.attemptCount)
+      .sort();
+    expect(attempts).toEqual([0, 1]);
+  });
+
+  it("`claimed` süre aşımı kurtarması deneme bütçesini TÜKETMEZ (sağlayıcıya gidilmedi)", async () => {
+    const u = await makeUser("claimedexp@x.com");
+    const id = await enqueueReset(u.id, "c1", u.email);
+    // Worker satırı claim etti ve ÖNCE çöktü: statü `claimed`, lease geçmişte.
+    await prisma.emailOutbox.update({
+      where: { id },
+      data: {
+        status: "claimed",
+        claimedBy: "dead-worker",
+        claimExpiresAt: new Date(Date.now() - 60_000),
+        attemptCount: 0,
+      },
+    });
+
+    const out = await sweepEmailOutbox(new Date());
+    expect(out.recovered).toBe(1);
+
+    const row = await prisma.emailOutbox.findUniqueOrThrow({ where: { id } });
+    expect(row.status).toBe("pending");
+    expect(row.attemptCount).toBe(0); // HİÇ denenmedi → bütçe harcanmaz
+  });
+
+  it("`sending` süre aşımı kurtarması deneme bütçesini TÜKETİR (belirsiz sağlayıcı girişimi)", async () => {
+    const u = await makeUser("sendingexp@x.com");
+    const id = await enqueueReset(u.id, "c2", u.email);
+    await prisma.emailOutbox.update({
+      where: { id },
+      data: {
+        status: "sending",
+        claimedBy: "dead-worker",
+        claimExpiresAt: new Date(Date.now() - 60_000),
+        attemptCount: 0,
+      },
+    });
+
+    const out = await sweepEmailOutbox(new Date());
+    expect(out.recovered).toBe(1);
+
+    const row = await prisma.emailOutbox.findUniqueOrThrow({ where: { id } });
+    expect(row.status).toBe("pending");
+    expect(row.attemptCount).toBe(1); // gönderilmiş OLABİLİR → sayılır
+    expect(row.nextAttemptAt.getTime()).toBeGreaterThan(Date.now()); // backoff uygulandı
+  });
+
+  it("`sending` kurtarması max-attempt'e ULAŞIR — sonsuz döngü yok", async () => {
+    const u = await makeUser("budget@x.com");
+    const id = await enqueueReset(u.id, "c3", u.email, 24 * 60 * 60_000); // uzun TTL
+    await prisma.emailOutbox.update({
+      where: { id },
+      data: {
+        status: "sending",
+        claimedBy: "dead",
+        claimExpiresAt: new Date(Date.now() - 60_000),
+        attemptCount: EMAIL_OUTBOX_MAX_ATTEMPTS - 1,
+      },
+    });
+
+    await sweepEmailOutbox(new Date());
+    const row = await prisma.emailOutbox.findUniqueOrThrow({ where: { id } });
+    expect(row.status).toBe("failed"); // bütçe bitti → terminal
+    expect(row.payloadEnc).toBeNull(); // secret temizlendi
   });
 });
