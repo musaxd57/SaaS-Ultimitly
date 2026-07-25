@@ -110,7 +110,10 @@ export default async function DashboardPage() {
     {
       done: connection.connected,
       title: "Airbnb / Booking bağlantınızı kurun",
-      desc: "Airbnb / Booking bağlantınızı Ayarlar'dan kurun — misafir mesajlarınız otomatik akmaya başlar.",
+      // Açıklama başlığı TEKRARLAMAZ. Altı adımın beşi yeni bilgi veriyordu,
+      // bu biri "bağlantınızı kurun"u iki kez söylüyordu: ilk açılışta en çok
+      // okunan yüzeyde ölü metin, mobilde de üç satır boşa yer.
+      desc: "Bağlandıktan sonra rezervasyonlarınız ve misafir mesajlarınız buraya otomatik akar.",
       href: "/settings#hospitable",
       cta: "Bağlantıyı kur",
     },

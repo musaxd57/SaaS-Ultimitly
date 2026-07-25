@@ -39,6 +39,7 @@ vi.mock("next/navigation", () => ({
 
 import { requireAuth } from "@/lib/auth";
 import InboxPage from "@/app/(app)/inbox/page";
+import { EmptyState } from "@/components/empty-state";
 
 const mockAuth = vi.mocked(requireAuth);
 
@@ -311,5 +312,82 @@ describe("Inbox — aralık dışı sayfa", () => {
     //  "throw etmemesi", metni değil.)
     const tree = await InboxPage({ searchParams: sp({ sayfa: "5" }) });
     expect(paginationLabels(tree)).toEqual([]);
+  });
+});
+
+describe("Inbox — filtre/arama SONUÇSUZ kaldığında", () => {
+  beforeEach(async () => {
+    await resetDb();
+    vi.clearAllMocks();
+  });
+
+  /**
+   * EmptyState'in başlık/açıklaması PROP'tur — treeText göremez. Ayrıca
+   * "title prop'u olan ilk element"i almak YETMEZ: PageHeader da title taşır
+   * ve ilk o gelir; ilk yazımda testlerden biri PageHeader'ın "Mesajlar"ını
+   * ölçüp VAKUM biçimde yeşil oldu. Bileşen KİMLİĞİYLE eşleştiriyoruz.
+   */
+  function emptyState(tree: unknown): { title: string; description: string } | null {
+    let found: { title: string; description: string } | null = null;
+    const walk = (node: unknown): void => {
+      if (found || node == null || typeof node === "boolean") return;
+      if (Array.isArray(node)) {
+        for (const n of node) walk(n);
+        return;
+      }
+      if (!React.isValidElement(node)) return;
+      if (node.type === EmptyState) {
+        const p = node.props as { title?: unknown; description?: unknown };
+        found = { title: String(p.title ?? ""), description: String(p.description ?? "") };
+        return;
+      }
+      walk((node.props as { children?: unknown }).children);
+    };
+    walk(tree);
+    return found;
+  }
+
+  // BULUNAN HATA: sayfa YALNIZ `conversations.length === 0` diye bakıyordu ve
+  // sebebi ayırt etmiyordu. 900 konuşması olan bir host "Sorunlu" filtresine
+  // basıp o an sorunlu konuşması yoksa "Henüz misafir mesajı yok / Airbnb
+  // bağlantısını kurunca mesajlar akar" görüyordu: bağlantı KURULU, mesajlar
+  // VAR. Metin sadece yanlış değil, yanlış eylemi de öneriyordu ("Yeni
+  // konuşma") — doğru eylem filtreyi kaldırmaktı.
+  //
+  // Bu, taşan-sayfa clamp'iyle AYNI sınıf ("kayıt var, bu pencerede yok"); orada
+  // kapatılmış, burada açık kalmıştı.
+
+  it("SORUÇSUZ arama 'hiç mesaj yok' DEMEZ ve aramayı temizlemeyi önerir", async () => {
+    const org = await seed("Inbox Arama Bos", 12);
+    mockAuth.mockResolvedValue(sessionFor(org.id));
+    const tree = await InboxPage({ searchParams: sp({ q: "BöyleBirMisafirYok" }) });
+
+    const es = emptyState(tree)!;
+    const text = `${es.title} ${es.description}`;
+    expect(text).not.toContain("Henüz misafir mesajı yok");
+    expect(text).not.toContain("otomatik buraya akar"); // bağlantı kurulum metni
+    expect(text).toContain("BöyleBirMisafirYok"); // aranan terim geri gösterilir
+    // Doğru çıkış yolu ekranda: filtreyi temizleyen bir bağlantı.
+    const hrefs = elementsWithProp(tree, "href").map((p) => String(p.href));
+    expect(hrefs).toContain("/inbox");
+  });
+
+  it("SONUÇSUZ durum filtresi de 'hiç mesaj yok' DEMEZ", async () => {
+    const org = await seed("Inbox Filtre Bos", 12); // hepsi "new"
+    mockAuth.mockResolvedValue(sessionFor(org.id));
+    const tree = await InboxPage({ searchParams: sp({ status: "problem" }) });
+
+    const es = emptyState(tree)!;
+    expect(`${es.title} ${es.description}`).not.toContain("Henüz misafir mesajı yok");
+  });
+
+  it("GERÇEKTEN sıfır konuşmada eski kurulum metni AYNEN kalır", async () => {
+    // Karşı yön: filtre yokken boş kutu hâlâ yeni kullanıcıyı yönlendirmeli.
+    const org = await seed("Inbox Gercek Bos", 0);
+    mockAuth.mockResolvedValue(sessionFor(org.id));
+    const tree = await InboxPage({ searchParams: sp({}) });
+
+    const es = emptyState(tree)!;
+    expect(`${es.title} ${es.description}`).toContain("misafir mesaj");
   });
 });

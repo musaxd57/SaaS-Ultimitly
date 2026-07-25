@@ -266,19 +266,46 @@ export default async function InboxPage({
       </div>
 
       {conversations.length === 0 ? (
-        <EmptyState
-          icon={MessageSquare}
-          title={connection.connected ? "Konuşma yok" : "Henüz misafir mesajı yok"}
-          description={
-            connection.connected
-              ? "Misafir mesajları geldikçe burada listelenir. Dilerseniz elle de konuşma başlatabilirsiniz."
-              : "Airbnb / Booking bağlantısını kurunca misafir mesajları otomatik buraya akar. Dilerseniz şimdi elle konuşma başlatabilirsiniz."
-          }
-        >
-          <LinkButton href="/inbox/new" size="sm">
-            <Plus className="size-4" /> Yeni konuşma
-          </LinkButton>
-        </EmptyState>
+        /**
+         * Boş ekranın SEBEBİ ayırt edilir. Eskiden tek bir dal vardı: 900
+         * konuşması olan bir host "Sorunlu" filtresine basıp o an sorunlu
+         * konuşması yoksa "Henüz misafir mesajı yok — Airbnb bağlantısını
+         * kurunca mesajlar akar" görüyordu. Bağlantı KURULU, mesajlar VAR;
+         * metin hem yanlıştı hem de yanlış eylemi öneriyordu ("Yeni konuşma"),
+         * oysa doğru eylem filtreyi kaldırmaktı.
+         *
+         * Taşan-sayfa clamp'iyle aynı sınıf ("kayıt var, bu pencerede yok");
+         * orası kapatılmıştı, burası açık kalmıştı.
+         */
+        status || query ? (
+          <EmptyState
+            icon={Search}
+            title="Bu filtreyle eşleşen konuşma yok"
+            description={
+              query
+                ? `“${query}” ile eşleşen misafir bulunamadı. Arama yalnız misafir adında yapılır.`
+                : "Seçili durumda konuşma yok. Başka bir durum seçebilir ya da filtreyi kaldırabilirsiniz."
+            }
+          >
+            <LinkButton href="/inbox" size="sm" variant="outline">
+              Filtreleri temizle
+            </LinkButton>
+          </EmptyState>
+        ) : (
+          <EmptyState
+            icon={MessageSquare}
+            title={connection.connected ? "Konuşma yok" : "Henüz misafir mesajı yok"}
+            description={
+              connection.connected
+                ? "Misafir mesajları geldikçe burada listelenir. Dilerseniz elle de konuşma başlatabilirsiniz."
+                : "Airbnb / Booking bağlantısını kurunca misafir mesajları otomatik buraya akar. Dilerseniz şimdi elle konuşma başlatabilirsiniz."
+            }
+          >
+            <LinkButton href="/inbox/new" size="sm">
+              <Plus className="size-4" /> Yeni konuşma
+            </LinkButton>
+          </EmptyState>
+        )
       ) : (
         <div className="space-y-2">
           {totalPages > 1 ? pagerBar("üst") : null}
