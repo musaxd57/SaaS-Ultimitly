@@ -709,32 +709,15 @@ export function LandingPage() {
                   Integrations erişimi ÜCRETLİ Hospitable planı ister; bu ücret
                   Lixus aboneliğine DAHİL DEĞİLDİR. Rakam yazmıyoruz (bizim
                   kontrolümüzde değil, bayatlar) — resmî fiyat sayfasına link. */}
-          {/* Kısa tutulur: bu bir DİPNOT, kartlarla yarışmamalı. Ayrıntı (hangi
-              planlar, Essentials'ta neden olmaz) /entegrasyonlar sayfasında.
-              Burada yalnız iki cümlelik gerçek + resmî fiyat linki. */}
-          <div className="mx-auto mt-8 max-w-lg space-y-1.5 text-center text-sm text-muted-foreground">
-            <p>
-              <strong className="font-medium text-foreground">Fiyatlara KDV dahildir</strong> —
-              ödeyeceğiniz tutar budur.
-            </p>
-            <p>
-              Airbnb ve Booking bağlantısı Hospitable üzerinden kurulur.{" "}
-              <strong className="font-medium text-foreground">
-                API erişimli ücretli bir Hospitable planı gerekir
-              </strong>
-              ; Hospitable ücreti Lixus AI aboneliğine{" "}
-              <strong className="font-medium text-foreground">dahil değildir</strong>.{" "}
-              <a
-                href="https://hospitable.com/pricing"
-                target="_blank"
-                rel="noopener noreferrer"
-                className="underline underline-offset-2 hover:text-foreground"
-              >
-                Planları inceleyin
-              </a>
-              .
-            </p>
-          </div>
+          {/* TEK SATIRLIK dipnot. Kartların altındaki uzun paragraf onlarla
+              yarışıyordu (kullanıcı kararı: sil).
+              Hospitable ön koşulu ana sayfadan KAYBOLMADI — SSS'teki "Hangi
+              platformları destekliyor?" cevabı ücretli plan şartını ve ücretin
+              Lixus'a dahil olmadığını söylüyor; tam ayrıntı + resmî fiyat linki
+              /entegrasyonlar sayfasında. Aşağıdaki test her ikisini de pinler. */}
+          <p className="mx-auto mt-8 max-w-md text-center text-xs text-muted-foreground">
+            Fiyatlara KDV dahildir; ödeme adımında ek vergi eklenmez.
+          </p>
           <p className="mt-6 text-center text-sm text-muted-foreground">
             25’ten fazla daire mi yönetiyorsunuz?{" "}
             <a href="#demo" className="font-medium text-foreground underline underline-offset-2">

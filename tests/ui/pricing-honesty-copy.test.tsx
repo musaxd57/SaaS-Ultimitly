@@ -46,49 +46,44 @@ describe("Fiyat kartları — KDV dahil ve Hospitable ön koşulu yazılı", () 
     return container;
   }
 
-  /** Fiyat kartlarının hemen altındaki dipnot kutusu. */
+  /** Fiyat kartlarının hemen altındaki TEK SATIRLIK dipnot. */
   function pricingNote(container: HTMLElement): HTMLElement {
     const line = Array.from(container.querySelectorAll("p")).find((p) =>
       p.textContent?.includes("KDV dahildir"),
     );
-    if (!line?.parentElement) throw new Error("fiyat dipnotu bulunamadı");
-    return line.parentElement;
+    if (!line) throw new Error("fiyat dipnotu bulunamadı");
+    return line;
   }
 
-  it("listelenen fiyatın KDV DAHİL ve ödenecek tutar olduğunu söyler", () => {
-    const text = landing().textContent ?? "";
-    expect(text).toContain("KDV dahildir");
-    // "ödeme adımında vergi eklenir" gibi TERSİ bir vaat kalmamalı.
-    expect(text).not.toMatch(/ödeme adımında.{0,20}vergi eklen(ir|ecek)/i);
-  });
-
-  it("Hospitable'ın ÜCRETLİ plan gerektirdiğini ve ücretin DAHİL OLMADIĞINI söyler", () => {
-    const text = landing().textContent ?? "";
-    expect(text).toContain("Hospitable");
-    expect(text).toContain("ücretli bir Hospitable planı gerekir");
-    expect(text).toContain("dahil değildir");
-  });
-
-  it("KART ALTI NOT kısa kalır — plan adı/Essentials ayrıntısı orada DEĞİL", () => {
-    // Bu bir DİPNOT; fiyat kartlarıyla yarışmamalı. Ayrıntı SSS'te ve
-    // /entegrasyonlar'da yaşar — orada okumayı SEÇEN kullanıcı için doğru yer.
-    //
-    // İddia NOTA kapsanır, sayfanın geneline değil: ilk yazımda tüm sayfada
-    // "Essentials" arandı ve SSS cevabındaki meşru geçiş kırmızı verdi.
+  it("listelenen fiyatın KDV DAHİL olduğunu ve ek vergi EKLENMEDİĞİNİ söyler", () => {
     const note = pricingNote(landing());
     expect(note.textContent).toContain("KDV dahildir");
-    expect(note.textContent).not.toContain("Essentials");
-    expect(note.textContent).not.toContain("Connected Integrations");
-    // Dipnot ölçüsünde kalsın (uzun paragraf kartlarla yarışıyordu).
-    expect((note.textContent ?? "").length).toBeLessThan(260);
+    expect(note.textContent).toContain("ek vergi eklenmez");
   });
 
-  it("Hospitable RAKAMI sabitlenmez — resmî fiyat sayfasına link verilir", () => {
-    const container = landing();
-    const link = container.querySelector(`a[href="${HOSPITABLE_PRICING}"]`);
-    expect(link).not.toBeNull();
-    // Bizim sayfamızda Hospitable'ın $ tutarı YAZMAZ (bayatlar).
-    expect(container.textContent ?? "").not.toMatch(/\$\s?\d+[.,]?\d*\s*\/?\s*(ay|mo)/i);
+  it("KART ALTI NOT tek satırlık dipnottur — Hospitable ayrıntısı orada DEĞİL", () => {
+    // Uzun paragraf fiyat kartlarıyla yarışıyordu (kullanıcı kararı: sil).
+    // İddia NOTA kapsanır, sayfanın geneline değil: daha önce tüm sayfada
+    // "Essentials" arandı ve SSS cevabındaki MEŞRU geçiş kırmızı vermişti.
+    const note = pricingNote(landing());
+    expect(note.textContent).not.toContain("Hospitable");
+    expect((note.textContent ?? "").length).toBeLessThan(90);
+  });
+
+  it("ANA SAYFA Hospitable ön koşulunu YİNE söyler (SSS'te) — dürüstlük kaybolmadı", () => {
+    // Dipnot silindi ama vaat silinmedi: hostun ücretli Hospitable planı
+    // gerektiğini ve bunun Lixus'a dahil olmadığını ana sayfa hâlâ söylüyor.
+    const text = landing().textContent ?? "";
+    expect(text).toContain("Hospitable");
+    expect(text).toMatch(/Host.*Professional.*Mogul/s);
+    expect(text).toContain("Essentials");
+    expect(text).toContain("Lixus aboneliğine dahil değildir");
+  });
+
+  it("Hospitable RAKAMI hiçbir yerde sabitlenmez", () => {
+    // Rakam bizim kontrolümüzde değil → bayat/yanlış bilgi üretir. Resmî fiyat
+    // sayfası linki /entegrasyonlar'da (aşağıdaki blokta pinli).
+    expect(landing().textContent ?? "").not.toMatch(/\$\s?\d+[.,]?\d*\s*\/?\s*(ay|mo)/i);
   });
 });
 
