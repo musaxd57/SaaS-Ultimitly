@@ -53,9 +53,14 @@ const SELECT_STATUSES = TASK_STATUS.options.filter(
  *
  * Gecikme METİNLE yazılır, yalnız renkle değil (WCAG 1.4.1).
  *
- * "done" ASLA geciken sayılmaz — aşağıdaki `inWindow` ile BİREBİR aynı tanım.
- * İki ayrı "geciken" tanımı olsaydı kart rozeti, "Geciken (N)" sayacının
- * saymadığı bir şeyi geciken diye gösterirdi.
+ * "done" ASLA geciken sayılmaz — GECİKME için aşağıdaki `inWindow` ile birebir
+ * aynı tanım. İki ayrı "geciken" tanımı olsaydı kart rozeti, "Geciken (N)"
+ * sayacının saymadığı bir şeyi geciken diye gösterirdi.
+ *
+ * "Bugün" işaretinde ise done BİLİNÇLİ olarak filtreden AYRIŞIR: "Bugün (N)"
+ * sayacı bugüne tarihli tamamlanmış görevi de sayar (o pencerenin işi), ama
+ * işaret "bugün YAPILACAK" demektir — bitmiş bir kartta bekleyen iş varmış
+ * izlenimi verirdi. Tamamlanmış kart zaten sönük ve "Tamamlandı" sütununda.
  *
  * Gelecekteki görevlere ek YOK: 50 kartın hepsinde rozet, rozeti gürültüye
  * çevirir ve tam da ayırt etmesi gereken şeyi ayırt edilemez yapar.

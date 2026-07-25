@@ -110,6 +110,16 @@ describe("TaskBoard — geciken görev kartta GÖRÜNÜR", () => {
     expect(dueLine(container, "19 Tem 2026").textContent).not.toContain("gecikti");
   });
 
+  it("BUGÜNE tarihli TAMAMLANMIŞ görev 'Bugün' demez (bekleyen iş izlenimi yok)", () => {
+    // Bilinçli asimetri: "Bugün (N)" FİLTRESİ bugüne tarihli tamamlanmış görevi
+    // de sayar (o pencerenin işi), ama KART işareti "bugün YAPILACAK" demektir.
+    // Bitmiş bir kartta bu izlenim yanlış olurdu.
+    const { container } = render(
+      <TaskBoard tasks={[card({ dueDays: 0, status: "done", dueLabel: "25 Tem 2026" })]} />,
+    );
+    expect(dueLine(container, "25 Tem 2026").textContent).not.toContain("Bugün");
+  });
+
   it("tarihi olmayan görevde tarih satırı hiç basılmaz", () => {
     const { container } = render(
       <TaskBoard tasks={[card({ dueDays: null, dueLabel: null })]} />,
