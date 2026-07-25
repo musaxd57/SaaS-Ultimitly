@@ -7,15 +7,13 @@ import { PageHeader } from "@/components/page-header";
 import { Card, CardContent } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { LinkButton } from "@/components/ui/link-button";
-import { guestChatAiPausedFromMessages } from "@/lib/guest-chat";
+import { guestChatPausedByConversation } from "@/lib/guest-chat";
 import { clampPage, MAX_LIST_PAGE } from "@/lib/pagination";
 import { formatDate, fromNow, truncate } from "@/lib/utils";
 
 export const dynamic = "force-dynamic";
 
 const PAGE_SIZE = 25;
-/** "İnsan desteğinde" rozeti için taranan son mesaj sayısı — aşağıdaki nota bak. */
-const HANDOFF_WINDOW = 50;
 
 /**
  * "Misafir Sohbetleri" — the QR concierge transcripts, kept SEPARATE from the
@@ -53,26 +51,13 @@ export default async function GuestChatsPage({
         property: { select: { name: true } },
         reservation: { select: { guestName: true, arrivalDate: true, departureDate: true } },
         _count: { select: { messages: true } },
-        // İki iş için son mesajlar: (a) listedeki tek satırlık önizleme,
-        // (b) "İnsan desteğinde" rozetinin türetimi. GÖVDE yalnız en yenisinde
-        // lazım ama Prisma alan-başına farklı take veremiyor; yine de burada
-        // okunan mesaj sayısı eski ekranın 1/2'si ve satır başına DOM'a hiç
-        // basılmıyor. Rozet, devir işaretini son HANDOFF_WINDOW mesaj içinde
-        // arar; daha eskide kalmış bir devir (üstüne yalnız misafir mesajı
-        // gelmişse) listede rozetsiz görünebilir — DETAY sayfası tam pencereyi
-        // okuduğu için orası yetkili kaynaktır.
+        // Yalnız TEK satır: listedeki bir cümlelik önizleme. Devir rozeti buradan
+        // türetilmez — pencere dışına düşen bir devir rozeti sessizce yok ederdi;
+        // aşağıdaki OTORİTER sorgu kullanılır.
         messages: {
           orderBy: [{ createdAt: "desc" }, { id: "desc" }],
-          take: HANDOFF_WINDOW,
-          select: {
-            id: true,
-            body: true,
-            direction: true,
-            senderName: true,
-            authorType: true,
-            systemEventType: true,
-            createdAt: true,
-          },
+          take: 1,
+          select: { id: true, body: true },
         },
       },
       // TAM SIRA: eşit lastMessageAt'te sayfa sınırı kaymasın (aynı ders,
@@ -83,19 +68,19 @@ export default async function GuestChatsPage({
     }),
   ]);
 
-  const threads = rows.map((c) => {
-    const chronological = c.messages.slice().reverse();
-    return {
-      id: c.id,
-      title: `${c.property.name} · ${c.reservation?.guestName ?? c.guestIdentifier}`,
-      stay: c.reservation,
-      urgent: c.priority === "urgent",
-      aiPaused: guestChatAiPausedFromMessages(chronological),
-      messageCount: c._count.messages,
-      last: c.messages[0] ?? null, // en yenisi (desc sıradan)
-      lastMessageAt: c.lastMessageAt,
-    };
-  });
+  // Rozet OTORİTER: konuşma başına tek DISTINCT ON satırı (bkz. guest-chat.ts).
+  // Böylece liste ile detay sayfası ASLA ayrışmaz.
+  const pausedByConv = await guestChatPausedByConversation(rows.map((c) => c.id));
+  const threads = rows.map((c) => ({
+    id: c.id,
+    title: `${c.property.name} · ${c.reservation?.guestName ?? c.guestIdentifier}`,
+    stay: c.reservation,
+    urgent: c.priority === "urgent",
+    aiPaused: pausedByConv.get(c.id) ?? false,
+    messageCount: c._count.messages,
+    last: c.messages[0] ?? null, // en yenisi (desc sıradan)
+    lastMessageAt: c.lastMessageAt,
+  }));
 
   const from = threads.length === 0 ? 0 : (page - 1) * PAGE_SIZE + 1;
   const to = threads.length === 0 ? 0 : (page - 1) * PAGE_SIZE + threads.length;

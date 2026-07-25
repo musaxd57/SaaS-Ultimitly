@@ -7,6 +7,7 @@ import { premiumAllowed } from "@/lib/billing/subscription";
 import { qrPinEnabled } from "@/lib/guest-chat-pin";
 import {
   LEGACY_AI_RESUME_SENDER,
+  LEGACY_AI_SENDER_NAMES,
   resolveMessageAuthor,
   SYSTEM_EVENT_GUEST_CHAT_AI_RESUMED,
 } from "@/lib/message-author";
@@ -412,4 +413,47 @@ export async function resolveGuestChat(
   const knowledgeBase = kbRaw.filter((k) => !looksLikeSecret(`${k.title}\n${k.content}`));
 
   return { property: propertyPublic, open: true, activeReservation, knowledgeBase, pinRequired };
+}
+
+/**
+ * Birden çok QR sohbeti için "AI duraklatıldı mı" durumunu OTORİTER hesaplar —
+ * thread'lerin mesajlarını çekmeden.
+ *
+ * Neden gerekli: liste ekranı rozeti önce satır başına son N mesajdan türetiyordu.
+ * Devir işareti o pencerenin dışında kaldığında (üstüne yalnız misafir mesajı
+ * gelmişse) rozet SESSİZCE kaybolabiliyordu. Müşteriye gösterilen bir rozetin
+ * "bazen yanlış" olması kabul edilebilir bir taviz değil (Codex).
+ *
+ * Nasıl kesin: `guestChatAiPausedFromMessages` zaten yalnız EN YENİ "misafir de
+ * AI de olmayan" mesaja bakar — host yanıtı ise duraklatılmış, AI-yeniden-etkin
+ * işareti ise etkin, hiç yoksa etkin. O tek satır konuşma başına DISTINCT ON ile
+ * getirilir: tek sorgu, konuşma başına tek satır, gövde okunmaz.
+ *
+ * Aday küme = OUTBOUND ve AI olmayan mesajlar. Misafir mesajları inbound olduğu
+ * için doğal olarak elenir; eski (authorType NULL) satırlarda AI, senderName ile
+ * ayrılır — resolveMessageAuthor ile aynı kural.
+ */
+export async function guestChatPausedByConversation(
+  conversationIds: string[],
+): Promise<Map<string, boolean>> {
+  const out = new Map<string, boolean>();
+  if (conversationIds.length === 0) return out;
+  const rows = await prisma.$queryRaw<
+    { conversationId: string; direction: string; senderName: string; authorType: string | null; systemEventType: string | null }[]
+  >(Prisma.sql`
+    SELECT DISTINCT ON ("conversationId")
+      "conversationId", "direction", "senderName", "authorType", "systemEventType"
+    FROM "Message"
+    WHERE "conversationId" IN (${Prisma.join(conversationIds)})
+      AND "direction" = 'outbound'
+      AND ("authorType" IS NULL OR "authorType" <> 'ai')
+      AND NOT ("authorType" IS NULL AND "senderName" IN (${Prisma.join([...LEGACY_AI_SENDER_NAMES])}))
+    ORDER BY "conversationId", "createdAt" DESC, "id" DESC
+  `);
+  for (const r of rows) {
+    // Tek satırlık zaman çizelgesi: fonksiyon sondan başa yürüdüğü için bu
+    // satırın verdiği cevap, tüm geçmişin vereceği cevapla AYNIDIR.
+    out.set(r.conversationId, guestChatAiPausedFromMessages([r]));
+  }
+  return out; // satırı olmayan konuşma → devir yok → AI etkin (varsayılan false)
 }

@@ -16,8 +16,15 @@ export const dynamic = "force-dynamic";
 
 /** Varsayılan pencere: bir QR konaklaması bunu neredeyse hiç aşmaz. */
 const RECENT_WINDOW = 200;
-/** "Tümünü göster" tavanı — tek sayfayı yine de sınırlı tutar. */
-const FULL_WINDOW = 2000;
+/** Her "önceki 200" tıklamasında pencerenin büyüme miktarı. */
+const WINDOW_STEP = 200;
+/**
+ * SERT TAVAN. Tek seferde "tümünü göster" demek eski sorunu geri getirirdi:
+ * 10.000 mesajlık bir thread yine dev DOM üretirdi. Bunun yerine pencere
+ * KADEMELİ büyür (200'er) ve burada durur; tavana gelindiğinde ekran bunu
+ * söyler ve bunun bir görüntüleme sınırı olduğunu (veri kaybı değil) belirtir.
+ */
+const MAX_WINDOW = 1000;
 
 /**
  * Tek QR sohbetinin tam yazışması + yanıt kutusu.
@@ -31,14 +38,17 @@ export default async function GuestChatDetailPage({
   searchParams,
 }: {
   params: Promise<{ id: string }>;
-  searchParams: Promise<{ hepsi?: string }>;
+  searchParams: Promise<{ mesaj?: string }>;
 }) {
   const session = await requireAuth();
   if (session.role !== "owner" && session.role !== "manager") redirect("/dashboard");
   const { id } = await params;
-  const { hepsi } = await searchParams;
-  const showAll = hepsi === "1";
-  const window = showAll ? FULL_WINDOW : RECENT_WINDOW;
+  const { mesaj } = await searchParams;
+  // Kademeli pencere: 200 → 400 → … → MAX_WINDOW. Çöp/taşkın girdi kelepçelenir.
+  const requested = Number.parseInt(Array.isArray(mesaj) ? mesaj[0] : mesaj ?? "", 10);
+  const windowSize = Number.isFinite(requested)
+    ? Math.min(MAX_WINDOW, Math.max(RECENT_WINDOW, Math.ceil(requested / WINDOW_STEP) * WINDOW_STEP))
+    : RECENT_WINDOW;
 
   // Org-scoped WHERE: başka kiracının thread'i notFound() ile aynı cevabı alır.
   const convo = await prisma.conversation.findFirst({
@@ -57,7 +67,7 @@ export default async function GuestChatDetailPage({
       messages: {
         // TAM SIRA (eşit damgada sayfa/pencere sınırı kaymasın).
         orderBy: [{ createdAt: "desc" }, { id: "desc" }],
-        take: window,
+        take: windowSize,
       },
     },
   });
@@ -106,11 +116,17 @@ export default async function GuestChatDetailPage({
           {hidden > 0 ? (
             <p className="rounded-md bg-muted/40 px-3 py-2 text-xs text-muted-foreground">
               En yeni {messages.length} mesaj gösteriliyor; {hidden} eski mesaj gizli.{" "}
-              {showAll ? (
-                <>Bu sohbet görüntüleme tavanını ({FULL_WINDOW}) aşıyor.</>
+              {windowSize >= MAX_WINDOW ? (
+                <>
+                  Tek sayfada en fazla {MAX_WINDOW} mesaj gösterilir (tarayıcıyı kilitlememek
+                  için). Daha eskisi silinmedi, yalnız burada görüntülenmiyor.
+                </>
               ) : (
-                <Link href={`/guest-chats/${convo.id}?hepsi=1`} className="text-primary hover:underline">
-                  Tümünü göster
+                <Link
+                  href={`/guest-chats/${convo.id}?mesaj=${windowSize + WINDOW_STEP}`}
+                  className="text-primary hover:underline"
+                >
+                  Önceki {Math.min(WINDOW_STEP, hidden)} mesajı yükle
                 </Link>
               )}
             </p>
