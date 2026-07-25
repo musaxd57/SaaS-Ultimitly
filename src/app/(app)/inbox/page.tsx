@@ -14,13 +14,18 @@ import { CONVERSATION_STATUS } from "@/lib/constants";
 import { getConnectionInfo } from "@/lib/hospitable-credentials";
 import { premiumAllowed } from "@/lib/billing/subscription";
 import { fromNow, truncate, cn } from "@/lib/utils";
+import { clampPage, MAX_LIST_PAGE } from "@/lib/pagination";
 
 export const dynamic = "force-dynamic";
+
+/** Sayfa başına konuşma. Ekran eskiden org'un TÜM konuşmalarını çekiyordu —
+ *  müşteri büyüdükçe SSR, hydration ve DOM maliyeti sınırsız artıyordu. */
+const PAGE_SIZE = 50;
 
 export default async function InboxPage({
   searchParams,
 }: {
-  searchParams: Promise<{ status?: string; q?: string }>;
+  searchParams: Promise<{ status?: string; q?: string; sayfa?: string }>;
 }) {
   const session = await requireAuth();
   const sp = await searchParams;
@@ -30,19 +35,27 @@ export default async function InboxPage({
   const status = Array.isArray(sp.status) ? sp.status[0] : sp.status;
   const query = (Array.isArray(sp.q) ? sp.q[0] : sp.q)?.trim() ?? "";
 
-  const [conversations, org, connection] = await Promise.all([
+  const page = clampPage(Array.isArray(sp.sayfa) ? sp.sayfa[0] : sp.sayfa, MAX_LIST_PAGE);
+  // Sayım ve listeleme AYNI koşulu paylaşır — ayrışırsa sayaç yalan söyler.
+  const where = {
+    property: { organizationId: session.organizationId },
+    channel: { not: "chat" }, // QR guest chats live in their own "Misafir Sohbetleri" tab
+    ...(status ? { status } : {}),
+    ...(query ? { guestIdentifier: { contains: query, mode: "insensitive" as const } } : {}),
+  };
+
+  const [total, conversations, org, connection] = await Promise.all([
+    prisma.conversation.count({ where }),
     prisma.conversation.findMany({
-      where: {
-        property: { organizationId: session.organizationId },
-        channel: { not: "chat" }, // QR guest chats live in their own "Misafir Sohbetleri" tab
-        ...(status ? { status } : {}),
-        ...(query ? { guestIdentifier: { contains: query, mode: "insensitive" } } : {}),
-      },
+      where,
       include: {
         property: { select: { name: true } },
-        messages: { orderBy: { createdAt: "desc" }, take: 1 },
+        messages: { orderBy: [{ createdAt: "desc" }, { id: "desc" }], take: 1 },
       },
-      orderBy: { lastMessageAt: "desc" },
+      // TAM SIRA: eşit lastMessageAt'te sayfa sınırı kaymasın (tekrar/kayıp).
+      orderBy: [{ lastMessageAt: "desc" }, { id: "desc" }],
+      skip: (page - 1) * PAGE_SIZE,
+      take: PAGE_SIZE,
     }),
     prisma.organization.findUnique({
       where: { id: session.organizationId },
@@ -60,6 +73,22 @@ export default async function InboxPage({
   const automationLocked = !(await premiumAllowed(session.organizationId));
 
   const filters = [{ value: "", label: "Tümü" }, ...CONVERSATION_STATUS.options];
+
+  /** Filtre + aramayı koruyan bağlantı. Durum/arama değişince sayfa 1'e döner:
+   *  7. sayfadayken filtre değiştirip boş ekran görmek "kayıt yok" sanılır. */
+  function hrefFor(next: { status?: string; sayfa?: number }): string {
+    const st = next.status === undefined ? (status ?? "") : next.status;
+    const pg = next.status !== undefined ? 1 : (next.sayfa ?? page);
+    const q = new URLSearchParams();
+    if (st) q.set("status", st);
+    if (query) q.set("q", query);
+    if (pg > 1) q.set("sayfa", String(pg));
+    const qs = q.toString();
+    return qs ? `/inbox?${qs}` : "/inbox";
+  }
+
+  const from = conversations.length === 0 ? 0 : (page - 1) * PAGE_SIZE + 1;
+  const to = conversations.length === 0 ? 0 : (page - 1) * PAGE_SIZE + conversations.length;
 
   const pad = (h: number) => String(h).padStart(2, "0");
   const activeWindow = `${pad(org?.autoReplyStartHour ?? 0)}:00–${pad(org?.autoReplyEndHour ?? 9)}:00`;
@@ -91,7 +120,7 @@ export default async function InboxPage({
             return (
               <Link
                 key={f.value || "all"}
-                href={f.value ? `/inbox?status=${f.value}` : "/inbox"}
+                href={hrefFor({ status: f.value })}
                 className={cn(
                   "rounded-full border px-3 py-1 text-sm transition-colors",
                   active
@@ -177,6 +206,30 @@ export default async function InboxPage({
             </Link>
             );
           })}
+
+          <div className="flex items-center justify-between pt-1 text-sm text-muted-foreground">
+            <span>
+              {from}–{to} / {total}
+            </span>
+            <div className="flex gap-2">
+              {page > 1 ? (
+                <Link
+                  href={hrefFor({ sayfa: page - 1 })}
+                  className="rounded-md border border-border px-3 py-1 hover:bg-accent"
+                >
+                  Önceki
+                </Link>
+              ) : null}
+              {to < total ? (
+                <Link
+                  href={hrefFor({ sayfa: page + 1 })}
+                  className="rounded-md border border-border px-3 py-1 hover:bg-accent"
+                >
+                  Sonraki
+                </Link>
+              ) : null}
+            </div>
+          </div>
         </div>
       )}
     </>
