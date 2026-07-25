@@ -48,6 +48,10 @@ export default async function ConversationPage({
         guestExternalId: conversation.reservation.guestExternalId,
       })
     : null;
+  // Liste bilinçli kısa (kart dar bir kenar çubuğunda). Gizlenen satır sayısı
+  // YAZILIR: "26. konaklama" rozetinin altında 5 satır görüp gerisini yok
+  // sanmak, kırpmayı sessiz veri kaybına çevirirdi.
+  const hiddenStays = returning ? returning.stayCount - 1 - returning.pastStays.length : 0;
 
   const [kb, adjacency, tasks, outboxRows] = await Promise.all([
     prisma.knowledgeBaseItem.findMany({
@@ -212,12 +216,17 @@ const SKIP_REASON_LABELS: Record<string, string> = {
                     <div className="mt-2 space-y-1 rounded-md border border-warning/30 bg-warning/10 p-2">
                       <Badge tone="warning">🔁 {returning.stayCount}. konaklama</Badge>
                       <ul className="space-y-0.5 text-xs text-muted-foreground">
-                        {returning.pastStays.slice(0, 5).map((s) => (
+                        {returning.pastStays.map((s) => (
                           <li key={s.id}>
                             {s.propertyName} · {formatDate(s.arrivalDate)}–{formatDate(s.departureDate)}
                           </li>
                         ))}
                       </ul>
+                      {hiddenStays > 0 ? (
+                        <p className="text-xs text-muted-foreground">
+                          ve {hiddenStays} önceki konaklama daha
+                        </p>
+                      ) : null}
                     </div>
                   ) : null}
                   {turnoverIn || turnoverOut ? (

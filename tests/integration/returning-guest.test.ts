@@ -60,6 +60,32 @@ describe("getReturningGuestInfo (stable guest id only — no false positives)", 
     expect(await getReturningGuestInfo(orgId, { id: current.id, guestExternalId: "g2" })).toBeNull();
   });
 
+  it("çok konaklamalı misafirde SAYI doğrudur (liste kısa, sayı tam)", async () => {
+    // BULUNAN HATA: sorgu `take: 20` ile sınırlıydı ve `stayCount` DÖNEN SATIR
+    // SAYISINDAN türetiliyordu. 25 önceki konaklaması olan misafirde rozet
+    // "21. konaklama" diyordu — kırpma değil, YANLIŞ SAYI. Ekranda kesin bir
+    // rakam gibi duruyor ve host bunu misafirle konuşurken kullanıyor.
+    const { propertyId, orgId } = await makeOrgWithProperty();
+    for (let i = 0; i < 25; i++) {
+      await stay(propertyId, {
+        guestExternalId: "vip",
+        arrivalDate: daysFromNow(-100 + i),
+        departureDate: daysFromNow(-99 + i),
+      });
+    }
+    const current = await stay(propertyId, { guestExternalId: "vip", status: "confirmed" });
+
+    const info = await getReturningGuestInfo(orgId, { id: current.id, guestExternalId: "vip" });
+    expect(info!.stayCount).toBe(26); // 25 önceki + bu konaklama
+    // Liste bilinçli kısa (kart bir kenar çubuğunda) — ama sayı tam.
+    expect(info!.pastStays.length).toBeLessThanOrEqual(5);
+    expect(info!.pastStays.length).toBeGreaterThan(0);
+    // En yeniler önce: listedeki ilk satır en son konaklama olmalı.
+    expect(info!.pastStays[0].arrivalDate.getTime()).toBeGreaterThan(
+      info!.pastStays[info!.pastStays.length - 1].arrivalDate.getTime(),
+    );
+  });
+
   it("NEVER matches across organizations (tenant isolation)", async () => {
     const a = await makeOrgWithProperty();
     const b = await makeOrgWithProperty();
