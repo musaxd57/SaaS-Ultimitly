@@ -30,14 +30,22 @@ export function AppShell({ user, superAdmin, guestChatEnabled, impersonating, pl
   const menuButtonRef = useRef<HTMLButtonElement | null>(null);
   const [loggingOut, setLoggingOut] = useState(false);
   const [exiting, setExiting] = useState(false);
+  // Çıkış/operatör-çıkışı BAŞARISIZ olduğunda buton eskiden sessizce geri
+  // açılıyordu (Codex): kullanıcı tıklamasının hiç işlemediğini sanıyor ve aynı
+  // düğmeye basıp duruyordu. Yönlendirme YAPMAMAK doğru ve testli — eksik olan
+  // yalnızca SEBEBİ SÖYLEMEKTİ. Ortak bir toast altyapısı henüz yok, o yüzden
+  // satır içi + role="alert" (ekran okuyucu da duyar).
+  const [shellError, setShellError] = useState<string | null>(null);
 
   async function exitImpersonation() {
     setExiting(true);
+    setShellError(null);
     try {
       const res = await fetch("/api/admin/exit", { method: "POST" });
       if (!res.ok) {
         // 500'de impersonation hâlâ AKTİF — /admin'e gitmek yanlış bağlamda
         // işlem riski olurdu; operatör yeniden dener (Codex 07-23 #7).
+        setShellError("Müşteri hesabından çıkılamadı — hâlâ bu hesaptasınız. Tekrar deneyin.");
         setExiting(false);
         return;
       }
@@ -45,6 +53,7 @@ export function AppShell({ user, superAdmin, guestChatEnabled, impersonating, pl
       router.refresh();
     } catch {
       // Network reject — let the operator retry instead of a stuck spinner.
+      setShellError("Bağlantı hatası — müşteri hesabından çıkılamadı. Tekrar deneyin.");
       setExiting(false);
     }
   }
@@ -97,6 +106,7 @@ export function AppShell({ user, superAdmin, guestChatEnabled, impersonating, pl
 
   async function logout() {
     setLoggingOut(true);
+    setShellError(null);
     try {
       // fetch HTTP 500'de throw ETMEZ (Codex 07-23 #7): res.ok kontrolsüz
       // yönlendirme, çerez temizlenmemişken kullanıcıyı login'e atıp "çıktım"
@@ -104,6 +114,7 @@ export function AppShell({ user, superAdmin, guestChatEnabled, impersonating, pl
       // dek yönlendirme yok.
       const res = await fetch("/api/auth/logout", { method: "POST" });
       if (!res.ok) {
+        setShellError("Çıkış yapılamadı — oturumunuz hâlâ açık. Tekrar deneyin.");
         setLoggingOut(false);
         return;
       }
@@ -111,6 +122,7 @@ export function AppShell({ user, superAdmin, guestChatEnabled, impersonating, pl
       router.refresh();
     } catch {
       // Network reject — reset so the user can retry (session stays until cleared).
+      setShellError("Bağlantı hatası — çıkış yapılamadı, oturumunuz hâlâ açık.");
       setLoggingOut(false);
     }
   }
@@ -307,6 +319,26 @@ export function AppShell({ user, superAdmin, guestChatEnabled, impersonating, pl
             </Button>
           </div>
         </header>
+        {/* Kabuk hatası (çıkış / operatör çıkışı). role="alert" + aria-live:
+            ekran okuyucu da duyar. Kapatılabilir — hata bir DURUM'dur, zaman
+            aşımıyla değil kullanıcı kapatınca ya da yeni deneme başlayınca gider. */}
+        {shellError ? (
+          <div
+            role="alert"
+            aria-live="assertive"
+            className="flex items-start justify-between gap-3 border-b border-destructive/30 bg-destructive/10 px-4 py-2 text-sm text-destructive sm:px-6"
+          >
+            <span>{shellError}</span>
+            <button
+              type="button"
+              onClick={() => setShellError(null)}
+              aria-label="Uyarıyı kapat"
+              className="shrink-0 rounded px-1 font-medium hover:underline"
+            >
+              Kapat
+            </button>
+          </div>
+        ) : null}
         <main className="flex-1 px-4 py-6 sm:px-6 lg:px-8">
           {/* Settings uses the two-column (side-nav + content) layout, so it gets a
               wider container; every other page stays at the reading-width cap. */}

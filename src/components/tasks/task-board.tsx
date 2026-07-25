@@ -49,6 +49,14 @@ export function TaskBoard({ tasks, canManage = true }: { tasks: TaskCardData[]; 
   const [uploadingId, setUploadingId] = useState<string | null>(null);
   const [noteMap, setNoteMap] = useState<Record<string, string>>({});
   const [noteError, setNoteError] = useState<Record<string, string>>({});
+  /** Not kaydının GÖRÜNÜR durumu (id → "saving" | "saved"). Zamanlayıcı yok:
+   *  "saved" kullanıcı yeniden yazmaya başlayınca temizlenir. */
+  const [noteStatus, setNoteStatus] = useState<Record<string, "saving" | "saved" | undefined>>({});
+  /** Çift-gönderim kilidi REF'te, state'te DEĞİL: "Notu kaydet" düğmesine
+   *  tıklamak textarea'yı BLUR eder, yani tıklama + blur art arda saveNote
+   *  çağırır. State güncellemesi asenkron olduğu için ikinci çağrı henüz
+   *  "saving" görmez ve İKİ istek giderdi. Ref senkron okunur, pencere kapanır. */
+  const savingNotes = useRef<Set<string>>(new Set());
   const [, startTransition] = useTransition();
   const fileInputRefs = useRef<Record<string, HTMLInputElement | null>>({});
   // Cards are compact by default (note input + photo hidden) so 50+ tasks don't
@@ -166,10 +174,22 @@ export function TaskBoard({ tasks, canManage = true }: { tasks: TaskCardData[]; 
     }
   }
 
-  async function handleNoteBlur(id: string) {
+  /**
+   * Notu kaydet. Eskiden YALNIZ blur'da ve GÖRÜNÜR bir durum olmadan koşuyordu
+   * (Codex): kullanıcı sayfadan ayrılırken notun gidip gitmediğini anlayamıyordu.
+   * Artık açık bir "Kaydet" düğmesi var, blur güvenlik ağı olarak KALIYOR ve
+   * durum ekranda: "Kaydediliyor…" → "Kaydedildi".
+   *
+   * "Kaydedildi" bir ZAMANLAYICIYLA silinmez — kullanıcı yeniden yazmaya
+   * başlayınca kalkar (formların geri kalanındaki kuralın aynısı).
+   */
+  async function saveNote(id: string) {
     const note = noteMap[id];
     if (!note?.trim()) return;
+    if (savingNotes.current.has(id)) return; // blur + düğme çift göndermesin
+    savingNotes.current.add(id);
     setNoteError((prev) => ({ ...prev, [id]: "" }));
+    setNoteStatus((prev) => ({ ...prev, [id]: "saving" }));
     try {
       const res = await fetch(`/api/tasks/${id}`, {
         method: "PATCH",
@@ -179,12 +199,17 @@ export function TaskBoard({ tasks, canManage = true }: { tasks: TaskCardData[]; 
       if (!res.ok) {
         // Keep the typed note so it isn't lost; tell the user it didn't save.
         setNoteError((prev) => ({ ...prev, [id]: "Not kaydedilemedi, tekrar deneyin." }));
+        setNoteStatus((prev) => ({ ...prev, [id]: undefined }));
         return;
       }
       setNoteMap((prev) => ({ ...prev, [id]: "" }));
+      setNoteStatus((prev) => ({ ...prev, [id]: "saved" }));
       startTransition(() => router.refresh());
     } catch {
       setNoteError((prev) => ({ ...prev, [id]: "Bağlantı hatası, not kaydedilemedi." }));
+      setNoteStatus((prev) => ({ ...prev, [id]: undefined }));
+    } finally {
+      savingNotes.current.delete(id);
     }
   }
 
@@ -301,6 +326,10 @@ export function TaskBoard({ tasks, canManage = true }: { tasks: TaskCardData[]; 
           disabled={busyId === t.id}
           onChange={(e) => setStatus(t.id, e.target.value)}
           className="mt-2 h-9 text-xs"
+          // Görsel bir etiketi yok (kart zaten dar) — ekran okuyucu için HANGİ
+          // görevin durumu olduğu da söylenir, yoksa 20 kartta 20 tane
+          // ayırt edilemez "seçim kutusu" duyulur.
+          aria-label={`Görev durumu: ${t.title}`}
         >
           {SELECT_STATUSES.map((o) => (
             <option key={o.value} value={o.value}>
@@ -364,15 +393,38 @@ export function TaskBoard({ tasks, canManage = true }: { tasks: TaskCardData[]; 
 
             {/* Note input */}
             <textarea
-              placeholder="Not ekle… (kaydetmek için kutudan çıkın)"
+              placeholder="Not ekle…"
+              aria-label={`Görev notu: ${t.title}`}
               value={noteMap[t.id] ?? ""}
-              onChange={(e) => setNoteMap((prev) => ({ ...prev, [t.id]: e.target.value }))}
-              onBlur={() => handleNoteBlur(t.id)}
+              onChange={(e) => {
+                setNoteMap((prev) => ({ ...prev, [t.id]: e.target.value }));
+                // Yazmaya başlayınca "Kaydedildi" kalkar (zamanlayıcı YOK).
+                setNoteStatus((prev) => (prev[t.id] ? { ...prev, [t.id]: undefined } : prev));
+              }}
+              onBlur={() => saveNote(t.id)} // güvenlik ağı: düğmeye basmayı unutan kaybetmesin
               rows={2}
               className={cn(
                 "mt-2 w-full resize-none rounded border border-border bg-muted/30 px-2 py-1.5 text-xs placeholder:text-muted-foreground/60 focus:outline-none focus:ring-1 focus:ring-ring",
               )}
             />
+            <div className="mt-1 flex items-center justify-between gap-2">
+              {/* Durum GÖRÜNÜR: kullanıcı notun gidip gitmediğini artık biliyor. */}
+              <span aria-live="polite" className="text-[11px] text-muted-foreground">
+                {noteStatus[t.id] === "saving"
+                  ? "Kaydediliyor…"
+                  : noteStatus[t.id] === "saved"
+                    ? "Kaydedildi"
+                    : ""}
+              </span>
+              <button
+                type="button"
+                onClick={() => saveNote(t.id)}
+                disabled={!noteMap[t.id]?.trim() || noteStatus[t.id] === "saving"}
+                className="rounded border border-border px-2 py-1 text-[11px] font-medium hover:bg-accent disabled:opacity-50"
+              >
+                Notu kaydet
+              </button>
+            </div>
             {noteError[t.id] ? (
               <p className="mt-1 text-xs text-destructive">{noteError[t.id]}</p>
             ) : null}
