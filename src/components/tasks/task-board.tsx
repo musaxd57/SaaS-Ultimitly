@@ -45,6 +45,31 @@ const SELECT_STATUSES = TASK_STATUS.options.filter(
   (o) => o.value === "todo" || o.value === "in_progress" || o.value === "done",
 );
 
+/**
+ * Kartın tarih satırındaki ACİLİYET eki. Geciken görev, gelecekteki bir görevle
+ * bire bir aynı görünüyordu (aynı gri saat ikonu + aynı gri tarih): aciliyeti
+ * öğrenmenin tek yolu "Geciken" filtresine tıklamaktı, yani hostun geciktiğini
+ * ZATEN bilmesi gerekiyordu. Panonun ev sahibi için tek asıl sorusu budur.
+ *
+ * Gecikme METİNLE yazılır, yalnız renkle değil (WCAG 1.4.1).
+ *
+ * "done" ASLA geciken sayılmaz — aşağıdaki `inWindow` ile BİREBİR aynı tanım.
+ * İki ayrı "geciken" tanımı olsaydı kart rozeti, "Geciken (N)" sayacının
+ * saymadığı bir şeyi geciken diye gösterirdi.
+ *
+ * Gelecekteki görevlere ek YOK: 50 kartın hepsinde rozet, rozeti gürültüye
+ * çevirir ve tam da ayırt etmesi gereken şeyi ayırt edilemez yapar.
+ */
+function dueEmphasis(t: TaskCardData): { text: string; className: string } | null {
+  if (t.dueDays == null || t.status === "done") return null;
+  if (t.dueDays < 0) {
+    const late = -t.dueDays;
+    return { text: `${late} gün gecikti`, className: "font-medium text-destructive" };
+  }
+  if (t.dueDays === 0) return { text: "Bugün", className: "font-medium text-foreground" };
+  return null;
+}
+
 export function TaskBoard({ tasks, canManage = true }: { tasks: TaskCardData[]; canManage?: boolean }) {
   const router = useRouter();
   const [busyId, setBusyId] = useState<string | null>(null);
@@ -281,6 +306,7 @@ export function TaskBoard({ tasks, canManage = true }: { tasks: TaskCardData[]; 
   }
 
   function renderCard(t: TaskCardData) {
+    const due = dueEmphasis(t);
     return (
       <div
         key={t.id}
@@ -322,8 +348,9 @@ export function TaskBoard({ tasks, canManage = true }: { tasks: TaskCardData[]; 
             </p>
           ) : null}
           {t.dueLabel ? (
-            <p className="flex items-center gap-1">
-              <Clock className="size-3" /> {t.dueLabel}
+            <p className={cn("flex items-center gap-1", due?.className)}>
+              <Clock className="size-3 shrink-0" /> {t.dueLabel}
+              {due ? <span>· {due.text}</span> : null}
             </p>
           ) : null}
           {t.checklist ? (
