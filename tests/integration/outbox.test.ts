@@ -341,17 +341,49 @@ describe("outbox Faz-B — Codex #1/#2/#4/#6/#7", () => {
     expect((await outbox(b.outboxId)).status).toBe("pending"); // waits for the first to resolve
   });
 
-  it("#2 single-flight: TWO concurrent workers send at most ONE message of one thread", async () => {
+  it("#2 single-flight: while one send is IN FLIGHT, a second worker claims nothing of that thread", async () => {
     const { a, b } = await twoInOneConvo();
     let calls = 0;
-    const send: OutboxSendFn = async () => {
-      calls++;
-      return { ok: true, providerMessageId: "p" };
-    };
-    await Promise.all([
-      drainOutboxOnce({ send, tokenFor: async () => "t", batchSize: 10 }),
-      drainOutboxOnce({ send, tokenFor: async () => "t", batchSize: 10 }),
-    ]);
+
+    // ÇAKIŞMA ZORLANIR, VARSAYILMAZ. Eskiden iki drain `Promise.all` ile
+    // başlatılıp "aynı anda koşuyorlar" varsayılıyordu; claim fazı NON-BLOCKING
+    // bir advisory kilitle (pg_try_advisory_xact_lock) serileştiği için, birinci
+    // drain ikincisi başlamadan BİTERSE ikinci işçi kilidi temiz alır, `a` artık
+    // "sent" olduğundan `b` sıradaki MEŞRU satırdır ve gönderilir. Yani 2
+    // gönderim o senaryoda DOĞRU davranıştı — test yükün altında (CI) haksız
+    // yere kırmızıya dönüyordu. Artık birinci işçi `send` İÇİNDE tutuluyor:
+    // claim commit'lenmiş, kilit bırakılmış, satır `sending` durumunda. Test
+    // edilmek İSTENEN değişmez tam olarak budur.
+    let firstIsSending!: () => void;
+    const inFlight = new Promise<void>((r) => (firstIsSending = r));
+    let releaseFirst!: () => void;
+    const gate = new Promise<void>((r) => (releaseFirst = r));
+
+    const first = drainOutboxOnce({
+      send: async () => {
+        calls++;
+        firstIsSending();
+        await gate;
+        return { ok: true, providerMessageId: "p" };
+      },
+      tokenFor: async () => "t",
+      batchSize: 10,
+    });
+
+    await inFlight; // birinci satır GERÇEKTEN uçuşta
+    const second = await drainOutboxOnce({
+      send: async () => {
+        calls++;
+        return { ok: true, providerMessageId: "p2" };
+      },
+      tokenFor: async () => "t",
+      batchSize: 10,
+    });
+    expect(second.claimed).toBe(0); // aynı thread'in ikinci satırına DOKUNULMAZ
+
+    releaseFirst();
+    await first;
+
     expect(calls).toBe(1); // no parallel/duplicate send of the same conversation
     expect((await outbox(a.outboxId)).status).toBe("sent");
     expect((await outbox(b.outboxId)).status).toBe("pending");
