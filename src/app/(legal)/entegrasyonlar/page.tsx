@@ -57,6 +57,33 @@ export default function IntegrationsPage() {
           resmi bir Airbnb yazılım ortağıdır ve bağlantıyı güvenli şekilde sağlar.
         </p>
 
+        {/* ÖN KOŞUL — sayfanın en üstünde, bağlan düğmesinden ÖNCE. Bu, ürünü
+            denemek isteyen hostun karşılaşacağı ilk gerçek maliyet; kurulumun
+            ortasında öğrenmesi kötü bir sürpriz olur. Rakam YAZILMAZ (bizim
+            kontrolümüzde değil, bayatlar) → resmî fiyat sayfasına link. */}
+        <div className="mt-4 rounded-xl border border-amber-300/60 bg-amber-50/60 p-4 text-sm leading-relaxed text-amber-900 dark:border-amber-400/30 dark:bg-amber-400/10 dark:text-amber-200">
+          <p className="font-semibold">Bağlantı için ücretli bir Hospitable planı gerekir</p>
+          <p className="mt-1">
+            Mesaj ve rezervasyon akışı Hospitable’ın API / Connected Integrations erişimini kullanır.
+            Bu erişim yalnızca ücretli planlarda (<strong>Host</strong>, <strong>Professional</strong>,{" "}
+            <strong>Mogul</strong>) bulunur; ücretsiz <strong>Essentials</strong> planında API ve
+            Connected Integrations yoktur, dolayısıyla Lixus AI’ya mesaj akmaz.
+          </p>
+          <p className="mt-2">
+            <strong>Hospitable ücreti Lixus AI aboneliğine dahil değildir</strong> ve doğrudan
+            Hospitable’a ödenir. Güncel tutar için{" "}
+            <a
+              href="https://hospitable.com/pricing"
+              target="_blank"
+              rel="noopener noreferrer"
+              className="font-medium underline underline-offset-2"
+            >
+              Hospitable fiyat sayfasına
+            </a>{" "}
+            bakın.
+          </p>
+        </div>
+
         <div className="mt-6 grid gap-4 sm:grid-cols-3">
           {HIGHLIGHTS.map((h) => (
             <div key={h.title} className="rounded-xl border border-border p-4">

@@ -232,7 +232,7 @@ const FAQS = [
   },
   {
     q: "Hangi platformları destekliyor?",
-    a: "Airbnb ve Booking.com misafir mesajlarını destekler. Bağlantıyı kurulumda adım adım gösteriyoruz; sonrasında her iki platformu tek panelden yönetirsiniz.",
+    a: "Airbnb ve Booking.com misafir mesajlarını destekler. Bağlantı, resmî Airbnb yazılım ortağı Hospitable üzerinden kurulur ve Hospitable'ın API / Connected Integrations erişimi ücretli planlarında (Host, Professional, Mogul) bulunur — ücretsiz Essentials planında bu erişim yoktur. Bu ücret Hospitable'a aittir, Lixus aboneliğine dahil değildir. Bağlantıyı kurulumda adım adım gösteriyoruz; sonrasında her iki platformu tek panelden yönetirsiniz.",
   },
   {
     q: "Kurulum zor mu? Teknik bilgi gerekir mi?",
@@ -699,7 +699,41 @@ export function LandingPage() {
               </Reveal>
             ))}
           </div>
-          <p className="mt-8 text-center text-sm text-muted-foreground">
+          {/* Fiyatın NE OLDUĞU ve NEYİ KAPSAMADIĞI, kartların hemen altında.
+              (a) KDV DAHİL: Paddle'a giden fiyat vergi-dahil yapılandırılmış —
+                  plan-değişim önizlemesindeki tutar Paddle'ın `grand_total`'ı
+                  (src/lib/payments/paddle.ts) ve listedeki rakamla birebir aynı
+                  çıkıyor. Yani ödeme adımında üstüne vergi EKLENMEZ.
+              (b) Hospitable ayrı: müşteri-edinmedeki en büyük sürpriz maliyet
+                  bu. Bağlantı Hospitable üzerinden kurulur ve API/Connected
+                  Integrations erişimi ÜCRETLİ Hospitable planı ister; bu ücret
+                  Lixus aboneliğine DAHİL DEĞİLDİR. Rakam yazmıyoruz (bizim
+                  kontrolümüzde değil, bayatlar) — resmî fiyat sayfasına link. */}
+          <div className="mx-auto mt-8 max-w-2xl space-y-2 text-center text-sm text-muted-foreground">
+            <p>
+              <strong className="text-foreground">Fiyatlara KDV dahildir</strong> — ödeyeceğiniz tutar
+              budur, ödeme adımında üstüne vergi eklenmez. Satış ve faturalandırma Paddle (Merchant of
+              Record) üzerinden yapılır.
+            </p>
+            <p>
+              Airbnb / Booking bağlantısı{" "}
+              <strong className="text-foreground">Hospitable</strong> üzerinden kurulur. Hospitable’ın
+              API / Connected Integrations erişimi ücretli planlarında (Host, Professional, Mogul)
+              bulunur; ücretsiz Essentials planında bu erişim yoktur.{" "}
+              <strong className="text-foreground">Hospitable ücreti Lixus aboneliğine dahil değildir</strong>{" "}
+              ve doğrudan Hospitable’a ödenir —{" "}
+              <a
+                href="https://hospitable.com/pricing"
+                target="_blank"
+                rel="noopener noreferrer"
+                className="font-medium text-foreground underline underline-offset-2"
+              >
+                güncel Hospitable fiyatları
+              </a>
+              .
+            </p>
+          </div>
+          <p className="mt-6 text-center text-sm text-muted-foreground">
             25’ten fazla daire mi yönetiyorsunuz?{" "}
             <a href="#demo" className="font-medium text-foreground underline underline-offset-2">
               Büyük portföyler için bize ulaşın
