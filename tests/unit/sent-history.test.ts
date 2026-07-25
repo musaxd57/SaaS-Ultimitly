@@ -1,6 +1,7 @@
 import { describe, it, expect } from "vitest";
 import {
   mergeSentPage,
+  compareSentRows,
   clampPage,
   SENT_PAGE_SIZE,
   MAX_MERGED_PAGE,
@@ -32,6 +33,7 @@ function series(prefix: string, count: number, startMinutesAgo: number): Row[] {
 }
 
 const whenOf = (r: Row) => r.when;
+const keyOf = (r: Row) => r.id;
 const ids = (rows: Row[]) => rows.map((r) => r.id);
 
 describe("mergeSentPage — çok kaynaklı gönderim geçmişi sayfalama", () => {
@@ -45,6 +47,7 @@ describe("mergeSentPage — çok kaynaklı gönderim geçmişi sayfalama", () =>
       page,
       SENT_PAGE_SIZE,
       whenOf,
+      keyOf,
     );
     // 3. sayfa = 101–150. arası oto-yanıtlar; eski davranışta bunlar erişilemezdi.
     expect(ids(got)).toEqual(ids(replies.slice(100, 150)));
@@ -53,7 +56,7 @@ describe("mergeSentPage — çok kaynaklı gönderim geçmişi sayfalama", () =>
   it("kaynakları zamana göre örer — eski bir satır asla yeninin ÜSTÜNDE çıkmaz", () => {
     const a = series("a", 4, 0); // a1(en yeni) … a4, dakika başlarında
     const b = series("b", 4, 0.5); // b1 … b4, tam a'ların ARASINA düşüyor
-    const got = mergeSentPage([a, b], 1, 8, whenOf);
+    const got = mergeSentPage([a, b], 1, 8, whenOf, keyOf);
     expect(ids(got)).toEqual(["a1", "b1", "a2", "b2", "a3", "b3", "a4", "b4"]);
     for (let i = 1; i < got.length; i++) {
       expect(got[i - 1].when.getTime()).toBeGreaterThanOrEqual(got[i].when.getTime());
@@ -68,13 +71,16 @@ describe("mergeSentPage — çok kaynaklı gönderim geçmişi sayfalama", () =>
     const a = series("a", 60, 0);
     const b = series("b", 60, 30); // yarısı a'nın arasına düşüyor
     const size = 10;
-    const truth = [...a, ...b].sort((x, y) => y.when.getTime() - x.when.getTime());
+    // Referans, kodun kullandığı TAM sıra olmalı (when DESC, id DESC) — zaman-yalnız
+    // bir referans, eşitlikte sort kararlılığına bel bağlar ve testi kırılgan yapar.
+    const truth = [...a, ...b].sort((x, y) => compareSentRows(x.when, x.id, y.when, y.id));
     for (let page = 1; page <= 4; page++) {
       const got = mergeSentPage(
         [a.slice(0, page * size), b.slice(0, page * size)],
         page,
         size,
         whenOf,
+        keyOf,
       );
       expect(ids(got)).toEqual(ids(truth.slice((page - 1) * size, page * size)));
     }
@@ -82,9 +88,48 @@ describe("mergeSentPage — çok kaynaklı gönderim geçmişi sayfalama", () =>
 
   it("son sayfa kısa olabilir, taşan sayfa boş döner (çökmez)", () => {
     const a = series("a", 12, 0);
-    expect(ids(mergeSentPage([a], 2, 10, whenOf))).toEqual(ids(a.slice(10, 12)));
-    expect(mergeSentPage([a], 5, 10, whenOf)).toEqual([]);
-    expect(mergeSentPage([[]], 1, 10, whenOf)).toEqual([]);
+    expect(ids(mergeSentPage([a], 2, 10, whenOf, keyOf))).toEqual(ids(a.slice(10, 12)));
+    expect(mergeSentPage([a], 5, 10, whenOf, keyOf)).toEqual([]);
+    expect(mergeSentPage([[]], 1, 10, whenOf, keyOf)).toEqual([]);
+  });
+
+  it("EŞİT damgalı farklı türler sayfalar arasında ne TEKRARLANIR ne KAYBOLUR", () => {
+    // Codex: zaman tek başına sıra vermez. Toplu import (createMany) ya da aynı
+    // saniyede atılan iki damga aynı `when`i taşır; böyle bir kümede sıra
+    // "herhangi biri" olursa satır 1. sayfada da 2. sayfada da çıkabilir ya da
+    // hiçbirinde çıkmaz. Tam sıra (when DESC, id DESC) bunu imkânsız kılar.
+    const same = new Date(Date.UTC(2026, 0, 1, 12, 0, 0));
+    const replies = Array.from({ length: 30 }, (_, i) => ({ id: `msg-${String(i).padStart(3, "0")}`, when: same }));
+    const welcomes = Array.from({ length: 30 }, (_, i) => ({ id: `res-${String(i).padStart(3, "0")}`, when: same }));
+    const size = 10;
+    const seen: string[] = [];
+    for (let page = 1; page <= 6; page++) {
+      // Ekranın davranışı: her kaynaktan sayfa*boyut satır — DB de aynı tam sırayı
+      // (ORDER BY <kolon> DESC, "id" DESC) uyguladığı için dilimler bu sırada gelir.
+      const src = (rows: Row[]) => [...rows].sort((x, y) => (x.id < y.id ? 1 : -1)).slice(0, page * size);
+      seen.push(...ids(mergeSentPage([src(replies), src(welcomes)], page, size, whenOf, keyOf)));
+    }
+    expect(seen).toHaveLength(60); // 6 sayfa × 10 — hiç eksik yok
+    expect(new Set(seen).size).toBe(60); // hiç tekrar yok
+    expect(new Set(seen)).toEqual(new Set([...replies, ...welcomes].map((r) => r.id)));
+    // Sıra da deterministik: id DESC → "res-*" (r>m) önce, sonra "msg-*".
+    expect(seen[0]).toBe("res-029");
+    expect(seen[59]).toBe("msg-000");
+  });
+
+  it("global sıra, her kaynağın KENDİ sırasıyla örtüşür (over-fetch kanıtının ön koşulu)", () => {
+    // Kanıt "bir satır kendi kaynağının en yenilerinden düşmüşse global pencereye
+    // giremez" der. Bu ancak global karşılaştırıcı, kaynak-içi sırayla AYNI ise
+    // geçerlidir. Önekli görüntü id'siyle (welcome-… / r-…) sıralamak bunu bozardı.
+    const same = new Date(Date.UTC(2026, 0, 1, 12, 0, 0));
+    const source: Row[] = [
+      { id: "b", when: same },
+      { id: "c", when: same },
+      { id: "a", when: same },
+    ];
+    const sqlOrder = [...source].sort((x, y) => (x.id < y.id ? 1 : -1)).map((r) => r.id); // id DESC
+    const merged = ids(mergeSentPage([[...source]], 1, 10, whenOf, keyOf));
+    expect(merged).toEqual(sqlOrder);
   });
 
   it("clampPage çöp/negatif/taşkın girdiyi güvenli aralığa çeker (devasa OFFSET yok)", () => {

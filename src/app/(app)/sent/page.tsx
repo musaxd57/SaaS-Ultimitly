@@ -31,6 +31,10 @@ interface SentItem {
   preview: string;
   /** true → önizleme BUGÜNKÜ şablondan üretildi, gönderilen metnin kopyası DEĞİL. */
   templatePreview: boolean;
+  /** HAM veritabanı id'si — sıralamanın ikincil anahtarı. Ekrandaki önekli `id`
+   *  DEĞİL: global sıra, her kaynağın SQL sırasıyla (`… DESC, "id" DESC`) birebir
+   *  örtüşmek ZORUNDA (bkz. sent-history.ts). */
+  sortKey: string;
 }
 
 // The guest's first name, used to resolve {isim}/{ad}/{name} tokens in the
@@ -152,7 +156,9 @@ export default async function SentPage({
               select: { guestIdentifier: true, property: { select: { name: true } } },
             },
           },
-          orderBy: { createdAt: "desc" },
+          // TAM SIRA: eşit damgalı satırlarda sayfa sınırı kaymasın diye ikincil
+          // anahtar zorunlu — yoksa aynı satır iki sayfada çıkar ya da hiç çıkmaz.
+          orderBy: [{ createdAt: "desc" }, { id: "desc" }],
           skip: perSourceSkip,
           take: perSourceTake,
         })
@@ -161,7 +167,7 @@ export default async function SentPage({
       ? prisma.reservation.findMany({
           where: lifecycleWhere("welcome"),
           select: lifecycleSelect,
-          orderBy: { welcomeSentAt: "desc" },
+          orderBy: [{ welcomeSentAt: "desc" }, { id: "desc" }],
           skip: perSourceSkip,
           take: perSourceTake,
         })
@@ -170,7 +176,7 @@ export default async function SentPage({
       ? prisma.reservation.findMany({
           where: lifecycleWhere("checkin"),
           select: lifecycleSelect,
-          orderBy: { checkinSentAt: "desc" },
+          orderBy: [{ checkinSentAt: "desc" }, { id: "desc" }],
           skip: perSourceSkip,
           take: perSourceTake,
         })
@@ -179,7 +185,7 @@ export default async function SentPage({
       ? prisma.reservation.findMany({
           where: lifecycleWhere("checkout"),
           select: lifecycleSelect,
-          orderBy: { checkoutSentAt: "desc" },
+          orderBy: [{ checkoutSentAt: "desc" }, { id: "desc" }],
           skip: perSourceSkip,
           take: perSourceTake,
         })
@@ -214,6 +220,7 @@ export default async function SentPage({
     property: r.property.name,
     preview: "", // aşağıda KB araması sonrası doldurulur
     templatePreview: true,
+    sortKey: r.id,
   });
 
   const merged = mergeSentPage<SentItem>(
@@ -226,6 +233,7 @@ export default async function SentPage({
         property: m.conversation.property.name,
         preview: truncate(m.body, 120),
         templatePreview: false,
+        sortKey: m.id,
       })),
       welcomes.map((w) => toItem(w, "welcome", w.welcomeSentAt as Date)),
       checkins.map((c) => toItem(c, "checkin", c.checkinSentAt as Date)),
@@ -236,6 +244,7 @@ export default async function SentPage({
     activeType ? 1 : page,
     SENT_PAGE_SIZE,
     (it) => it.when,
+    (it) => it.sortKey,
   );
 
   // Lifecycle message bodies aren't persisted — only the sent-at flag is. To show

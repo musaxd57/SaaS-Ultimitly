@@ -48,11 +48,31 @@ export function mergeSentPage<T>(
   page: number,
   pageSize: number,
   whenOf: (item: T) => Date,
+  keyOf: (item: T) => string,
 ): T[] {
   const all = sources.flat();
-  all.sort((a, b) => whenOf(b).getTime() - whenOf(a).getTime());
+  all.sort((a, b) => compareSentRows(whenOf(a), keyOf(a), whenOf(b), keyOf(b)));
   const start = Math.max(0, (page - 1) * pageSize);
   return all.slice(start, start + pageSize);
+}
+
+/**
+ * TAM SIRA: `when DESC, id DESC`. Zaman tek başına sıra vermez — aynı damgayı
+ * taşıyan iki kayıt (toplu import, aynı saniyede iki damga) arasında hem
+ * Postgres hem JS "herhangi bir" sıra seçmekte serbesttir, ve bu sıra iki farklı
+ * sorgu arasında DEĞİŞEBİLİR. Sonuç klasik kararsız-sayfalama hatası: bir satır
+ * 1. sayfada da 2. sayfada da çıkar (tekrar) ya da hiçbirinde çıkmaz (kayıp).
+ *
+ * `keyOf` HAM veritabanı id'si olmalı — ekrandaki önekli görüntü id'si (`r-…`,
+ * `welcome-…`) DEĞİL. Sebep: over-fetch kanıtının ön koşulu, global sıranın her
+ * kaynağın KENDİ sırasıyla (SQL `ORDER BY <kolon> DESC, "id" DESC`) birebir
+ * örtüşmesi. Önek eklemek sırayı türe göre bozar ve kanıtı geçersiz kılar.
+ */
+export function compareSentRows(aWhen: Date, aKey: string, bWhen: Date, bKey: string): number {
+  const dt = bWhen.getTime() - aWhen.getTime();
+  if (dt !== 0) return dt;
+  if (aKey === bKey) return 0;
+  return aKey < bKey ? 1 : -1; // id DESC
 }
 
 /** `?sayfa=` değerini 1..max aralığına kelepçeler (çöp girdi → 1). */
