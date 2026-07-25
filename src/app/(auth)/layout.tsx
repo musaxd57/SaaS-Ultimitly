@@ -44,7 +44,22 @@ export default function AuthLayout({ children }: { children: React.ReactNode }) 
 
       {/* Form panel */}
       <div className="flex items-center justify-center p-6">
-        <div className="w-full max-w-sm">{children}</div>
+        <div className="w-full max-w-sm space-y-6">
+          {/* Mobil marka: soldaki panel lg altında tamamen gizli olduğu için
+              telefonda ekranda hiçbir marka işareti kalmıyordu — kullanıcı
+              "hangi siteye şifremi giriyorum?" sorusuna cevapsız kalıyor, ki bu
+              bir giriş ekranında güven sorunudur. Masaüstünde panel zaten
+              markayı taşıdığı için burada TEKRAR gösterilmez. */}
+          <div className="flex items-center justify-center gap-2 lg:hidden">
+            <div className="flex size-9 items-center justify-center rounded-lg bg-primary text-primary-foreground">
+              <BrandMark className="size-6" />
+            </div>
+            <span className="text-lg font-semibold tracking-tight">
+              Lixus <span className="text-muted-foreground">AI</span>
+            </span>
+          </div>
+          {children}
+        </div>
       </div>
     </div>
   );

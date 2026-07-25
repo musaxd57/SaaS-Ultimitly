@@ -4,7 +4,9 @@ import { LoginForm } from "@/components/auth/login-form";
 // noindex: an auth form is not search content (robots.ts also disallows /login;
 // this is the belt-and-braces page-level signal, like the (app) layout).
 export const metadata: Metadata = {
-  title: "Giriş — Lixus AI",
+  // Kök metadata şablonu zaten "%s · Lixus AI" ekliyor; burada markayı tekrar
+  // yazmak sekmede "Giriş — Lixus AI · Lixus AI" üretiyordu.
+  title: "Giriş",
   robots: { index: false, follow: false },
 };
 

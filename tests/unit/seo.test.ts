@@ -1,5 +1,5 @@
 import { describe, it, expect } from "vitest";
-import { readdirSync } from "node:fs";
+import { readdirSync, readFileSync } from "node:fs";
 import { join } from "node:path";
 import sitemap from "@/app/sitemap";
 import robots from "@/app/robots";
@@ -20,6 +20,29 @@ describe("sitemap", () => {
     for (const e of entries) {
       // A per-request timestamp would be within milliseconds of now.
       expect(Math.abs(Date.now() - (e.lastModified as Date).getTime())).toBeGreaterThan(60_000);
+    }
+  });
+});
+
+describe("sayfa başlıkları", () => {
+  it("auth sayfaları markayı TEKRAR eklemez (kök şablon zaten ekliyor)", () => {
+    // Kök metadata `template: "%s · Lixus AI"` uyguluyor. Sayfa başlığına markayı
+    // bir kez daha yazmak sekmede "Giriş — Lixus AI · Lixus AI" üretiyordu.
+    // Kaynak dosyadan okunur (modül import'u yan etki çalıştırır); şablonun kendisi
+    // de pinli, yoksa "düzeltme" şablon değişince sessizce yanlışa döner.
+    const root = readFileSync(join(process.cwd(), "src", "app", "layout.tsx"), "utf8");
+    expect(root).toContain('template: "%s · Lixus AI"');
+
+    const authDir = join(process.cwd(), "src", "app", "(auth)");
+    const pages = readdirSync(authDir, { withFileTypes: true })
+      .filter((d) => d.isDirectory())
+      .map((d) => join(authDir, d.name, "page.tsx"));
+    expect(pages.length).toBeGreaterThan(0);
+    for (const file of pages) {
+      const src = readFileSync(file, "utf8");
+      const title = /title:\s*"([^"]+)"/.exec(src)?.[1];
+      expect(title, `${file} başlıksız`).toBeTruthy();
+      expect(title, `${file} markayı tekrarlıyor`).not.toMatch(/Lixus/i);
     }
   });
 });

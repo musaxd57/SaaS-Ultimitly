@@ -2,7 +2,8 @@ import type { Metadata } from "next";
 import { redirect } from "next/navigation";
 import { RegisterForm } from "@/components/auth/register-form";
 
-export const metadata: Metadata = { title: "Kayıt — Lixus AI" };
+// Marka kök şablondan gelir ("%s · Lixus AI") — burada tekrarlanmaz.
+export const metadata: Metadata = { title: "Kayıt" };
 
 // Read REGISTRATION_OPEN at RUNTIME, not build time. Without this the page is
 // statically prerendered and the env value is frozen at build — so flipping

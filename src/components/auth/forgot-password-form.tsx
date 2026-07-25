@@ -48,6 +48,20 @@ export function ForgotPasswordForm() {
     }
   }
 
+  /** Kod ekranından e-posta adımına DÖNÜŞ. Uç nokta enumeration-safe olduğu için
+   *  adres kayıtlı olmasa da kod ekranına geçiliyor — yani harf hatası yapan
+   *  kullanıcı, gelmeyecek bir kodu bekleyerek kilitleniyordu (tek çıkış sayfayı
+   *  yenilemekti). `email` KORUNUR: yazım hatasını düzeltmek, adresi baştan
+   *  yazmaktan kolaydır. Bayat durum (eski kod + eski hata) temizlenir; bekleme
+   *  sayacı da sıfırlanır — yanlış adresi düzeltmek cezalandırılacak bir şey değil,
+   *  sunucu tarafı hız sınırı zaten kötüye kullanımı karşılıyor. */
+  function backToEmailStep() {
+    setStep("request");
+    setCode("");
+    setError(null);
+    setCooldown(0);
+  }
+
   async function confirm(e: React.FormEvent) {
     e.preventDefault();
     setLoading(true);
@@ -118,6 +132,20 @@ export function ForgotPasswordForm() {
         </form>
       ) : (
         <form onSubmit={confirm} className="space-y-4">
+          {/* Hangi adrese gidildiği burada YAZILI olmalı: yazım hatası ancak
+              görülürse fark edilir, ve fark edildiğinde çıkış yolu hemen yanında
+              durmalı. Adres kullanıcının kendi yazdığı değer — hesap var/yok
+              bilgisi vermez, enumeration güvenliği bozulmaz. */}
+          <p className="text-sm text-muted-foreground">
+            Kod <span className="font-medium text-foreground">{email}</span> adresine gönderildi.{" "}
+            <button
+              type="button"
+              onClick={backToEmailStep}
+              className="font-medium text-primary hover:underline"
+            >
+              E-posta adresini değiştir
+            </button>
+          </p>
           <div className="space-y-2">
             <Label htmlFor="code">Doğrulama kodu</Label>
             <Input

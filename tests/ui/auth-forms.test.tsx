@@ -16,6 +16,7 @@ vi.mock("next/navigation", () => ({ useRouter: () => ({ push, refresh }) }));
 
 import { LoginForm } from "@/components/auth/login-form";
 import { RegisterForm } from "@/components/auth/register-form";
+import { ForgotPasswordForm } from "@/components/auth/forgot-password-form";
 
 function typeInto(label: RegExp | string, value: string) {
   fireEvent.change(screen.getByLabelText(label), { target: { value } });
@@ -130,6 +131,82 @@ describe("LoginForm — doğrulama e-postası kurtarma yolu", () => {
     await screen.findByText("Giriş başarısız oldu");
     typeInto(/Şifre/, "yanlis2");
     expect(screen.queryByText("Giriş başarısız oldu")).toBeNull();
+  });
+});
+
+describe("ForgotPasswordForm — yanlış yazılan e-posta düzeltilebilir", () => {
+  beforeEach(() => {
+    cleanup();
+    vi.useRealTimers();
+    vi.clearAllMocks();
+    vi.unstubAllGlobals();
+  });
+
+  it("kod ekranından e-postaya DÖNÜLEBİLİR ve ikinci istek YENİ adrese gider", async () => {
+    // Uç nokta enumeration-safe: adres kayıtlı olsun olmasın kod ekranına geçer.
+    // Dolayısıyla harf hatası yapan kullanıcı, gelmeyecek bir kodu bekleyerek
+    // kilitleniyordu — sayfayı yenilemeden geri dönüş yolu yoktu.
+    const sentTo: string[] = [];
+    vi.stubGlobal(
+      "fetch",
+      vi.fn(async (_url: string, opts?: RequestInit) => {
+        sentTo.push(JSON.parse(String(opts?.body)).email);
+        return new Response("{}", { status: 200 });
+      }),
+    );
+    render(<ForgotPasswordForm />);
+    typeInto(/E-posta/, "musa@gmial.com"); // yazım hatası
+    await act(async () => {
+      fireEvent.click(screen.getByRole("button", { name: "Kod gönder" }));
+    });
+
+    // Kod ekranındayız ve hangi adrese gittiği GÖRÜNÜYOR (hatayı fark etmenin tek yolu).
+    await screen.findByLabelText(/Doğrulama kodu/);
+    expect(screen.getByText("musa@gmial.com")).toBeTruthy();
+
+    // Geri dön: alan eski değerle DOLU gelmeli (yeniden yazdırmak kabalık olurdu).
+    await act(async () => {
+      fireEvent.click(screen.getByRole("button", { name: /E-posta adresini değiştir/ }));
+    });
+    const field = (await screen.findByLabelText(/E-posta/)) as HTMLInputElement;
+    expect(field.value).toBe("musa@gmial.com");
+
+    // Düzelt ve tekrar gönder → ikinci istek DOĞRU adrese gider.
+    typeInto(/E-posta/, "musa@gmail.com");
+    await act(async () => {
+      fireEvent.click(screen.getByRole("button", { name: "Kod gönder" }));
+    });
+    await waitFor(() => expect(sentTo).toEqual(["musa@gmial.com", "musa@gmail.com"]));
+  });
+
+  it("geri dönüş eski kodu ve hatayı temizler (bayat durum taşınmaz)", async () => {
+    let reply = new Response("{}", { status: 200 });
+    vi.stubGlobal("fetch", vi.fn(async () => reply));
+    render(<ForgotPasswordForm />);
+    typeInto(/E-posta/, "a@b.com");
+    await act(async () => {
+      fireEvent.click(screen.getByRole("button", { name: "Kod gönder" }));
+    });
+    typeInto(/Doğrulama kodu/, "12345678");
+    typeInto(/Yeni şifre/, "yenisifre123"); // jsdom zorunlu alanı boşken formu göndermez
+    // Yanlış kod → hata görünür.
+    reply = new Response(JSON.stringify({ error: "Kod geçersiz" }), { status: 400 });
+    await act(async () => {
+      fireEvent.click(screen.getByRole("button", { name: "Şifreyi sıfırla" }));
+    });
+    await screen.findByText("Kod geçersiz");
+
+    reply = new Response("{}", { status: 200 });
+    await act(async () => {
+      fireEvent.click(screen.getByRole("button", { name: /E-posta adresini değiştir/ }));
+    });
+    expect(screen.queryByText("Kod geçersiz")).toBeNull();
+    // Yeni kod istenince eski kod alanı boş başlamalı.
+    await act(async () => {
+      fireEvent.click(screen.getByRole("button", { name: "Kod gönder" }));
+    });
+    const codeField = (await screen.findByLabelText(/Doğrulama kodu/)) as HTMLInputElement;
+    expect(codeField.value).toBe("");
   });
 });
 
