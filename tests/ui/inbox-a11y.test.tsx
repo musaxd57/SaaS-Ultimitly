@@ -127,3 +127,50 @@ describe("ConversationThread — şablon açılır yüzeyi dialog sözleşmesi",
     await waitFor(() => expect(screen.queryByRole("dialog")).toBeNull());
   });
 });
+
+describe("ConversationThread — odak kaybı ve sessiz başarı", () => {
+  beforeEach(() => {
+    cleanup();
+    vi.clearAllMocks();
+    vi.unstubAllGlobals();
+  });
+
+  it("mesaj geçmişi klavyeyle kaydırılabilir ve ADLANDIRILMIŞ", () => {
+    render(<ConversationThread {...baseProps} />);
+    const history = screen.getByRole("group", { name: "Mesaj geçmişi" });
+    // Kutunun içinde odak durağı olmayan giden mesajlar da vardı; kutunun
+    // KENDİSİ odaklanabilir olmadan ok tuşlarıyla kaydırmak mümkün değildi.
+    expect(history.getAttribute("tabindex")).toBe("0");
+  });
+
+  it("BAŞARILI gönderimde duyuru yapılır ve odak yazma kutusuna DÖNER", async () => {
+    vi.stubGlobal("fetch", vi.fn(async () => new Response(null, { status: 200 })));
+    render(<ConversationThread {...baseProps} />);
+    const box = screen.getByLabelText("Misafire cevabınız");
+    fireEvent.change(box, { target: { value: "Merhaba" } });
+    await act(async () => {
+      fireEvent.click(screen.getByRole("button", { name: /Gönder/ }));
+    });
+
+    // Eskiden 200 dalı TAMAMEN sessizdi (yalnız hata ve 202 duyuruluyordu).
+    await waitFor(() =>
+      expect(screen.getByRole("status").textContent).toContain("Mesaj gönderildi."),
+    );
+    // Buton başarıdan sonra `!composer.trim()` ile disabled kalıyor → odak
+    // <body>'ye düşüyordu.
+    expect(document.activeElement).toBe(box);
+  });
+
+  it("durum değişiminde başarı DUYURULUR ve odak seçime döner", async () => {
+    vi.stubGlobal("fetch", vi.fn(async () => new Response(null, { status: 200 })));
+    render(<ConversationThread {...baseProps} />);
+    const select = screen.getByLabelText("Durum");
+    await act(async () => {
+      fireEvent.change(select, { target: { value: "problem" } });
+    });
+    await waitFor(() =>
+      expect(screen.getByRole("status").textContent).toContain("Durum güncellendi."),
+    );
+    expect(document.activeElement).toBe(select);
+  });
+});

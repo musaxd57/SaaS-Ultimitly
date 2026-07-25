@@ -113,6 +113,20 @@ export function ConversationThread({ conversationId, messages, status, priority,
   const [sendError, setSendError] = useState<string | null>(null);
   const [queuedNote, setQueuedNote] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
+  /**
+   * İşlem sonucu duyurusu (görünmez canlı bölge). `disabled` olan bir düğme/
+   * seçim odağı KAYBETTİRİR (tarayıcı odağı <body>'ye atar), o yüzden hem
+   * sonucu duyurmak hem odağı geri vermek gerekiyor — yoksa klavye kullanıcısı
+   * "gönderdim mi, oldu mu?" bilmeden sayfanın başına düşüyor.
+   * Toast kullanılmadı: durum/öncelik çok sık değişen kontroller, her seferinde
+   * görsel bir kutu çıkarmak gürültü olurdu.
+   */
+  const [liveStatus, setLiveStatus] = useState("");
+  const composerRef = useRef<HTMLTextAreaElement | null>(null);
+  const statusSelectRef = useRef<HTMLSelectElement | null>(null);
+  const prioritySelectRef = useRef<HTMLSelectElement | null>(null);
+  /** İstek bitince odağın döneceği öğe. */
+  const restoreFocusRef = useRef<HTMLElement | null>(null);
 
   // Template picker state
   const [showTemplates, setShowTemplates] = useState(false);
@@ -183,12 +197,21 @@ export function ConversationThread({ conversationId, messages, status, priority,
           if (data?.outbox?.status === "queued") {
             setQueuedNote("Mesaj sıraya alındı — birazdan gönderilecek.");
           }
+        } else {
+          // 200 = TESLİM. Eskiden bu dal tamamen sessizdi: yalnız hata
+          // (role="alert") ve 202 kuyruk notu (role="status") duyuluyordu.
+          // Kutu temizlenip balon listeye sessizce ekleniyordu.
+          setLiveStatus("Mesaj gönderildi.");
         }
         refresh();
       } else {
         const data = await res.json().catch(() => null);
         setSendError(data?.error ?? "Mesaj gönderilemedi.");
       }
+      // Buton gönderim boyunca `sending`, başarıdan sonra da `!composer.trim()`
+      // ile DISABLED kalıyor → odak <body>'ye düşüyordu. Yazma kutusuna dön:
+      // konuşmaya devam etmenin doğal yeri orası.
+      if (composerRef.current?.isConnected) composerRef.current.focus();
     } catch {
       setSendError("Mesaj gönderilemedi.");
     } finally {
@@ -205,13 +228,31 @@ export function ConversationThread({ conversationId, messages, status, priority,
         body: JSON.stringify({ [field]: value }),
       });
       if (!res.ok) toast.error("Güncellenemedi. Yetkiniz yoksa yöneticinize danışın.");
-      else refresh();
+      else {
+        // BAŞARIDA da haber ver: eskiden yalnız hata duyuluyordu, başarı
+        // tamamen sessizdi (kullanıcı durumu çektim mi bilmiyordu).
+        setLiveStatus(field === "status" ? "Durum güncellendi." : "Öncelik güncellendi.");
+        refresh();
+      }
     } catch {
       toast.error("Bağlantı hatası. Lütfen tekrar deneyin.");
     } finally {
+      // `disabled={busy}` odağı <body>'ye düşürmüştü — geri ver. Odaklama
+      // BURADA yapılamaz: setBusy(false) henüz işlenmediği için öğe hâlâ
+      // disabled ve .focus() sessizce hiçbir şey yapmaz. Hedefi işaretle,
+      // yeniden render'dan SONRA effect odaklasın.
+      restoreFocusRef.current = field === "status" ? statusSelectRef.current : prioritySelectRef.current;
       setBusy(false);
     }
   }
+
+  // Kontroller yeniden etkinleştikten SONRA odağı iade et.
+  useEffect(() => {
+    if (busy) return;
+    const el = restoreFocusRef.current;
+    restoreFocusRef.current = null;
+    if (el?.isConnected && !(el as HTMLSelectElement).disabled) el.focus();
+  }, [busy]);
 
   // Açılır yüzey davranışı. Klavye kullanıcısı için kritik: panel açılınca odak
   // içeri girmeli, kapanınca TETİKLEYİCİYE dönmeli (yoksa odak sayfanın başına
@@ -335,6 +376,12 @@ export function ConversationThread({ conversationId, messages, status, priority,
 
   return (
     <div className="flex flex-col rounded-xl border border-border bg-card">
+      {/* Görünmez canlı bölge: gönderim/durum sonuçları buraya yazılır.
+          Ekranda yer kaplamaz ama ekran okuyucu okur. */}
+      <p role="status" aria-live="polite" className="sr-only">
+        {liveStatus}
+      </p>
+
       {/* Header: status & priority controls */}
       <div className="flex flex-wrap items-center gap-3 border-b border-border p-4">
         <div className="flex items-center gap-2">
@@ -346,6 +393,7 @@ export function ConversationThread({ conversationId, messages, status, priority,
             Durum
           </label>
           <Select
+            ref={statusSelectRef}
             id={`conv-status-${conversationId}`}
             value={status}
             disabled={busy}
@@ -364,6 +412,7 @@ export function ConversationThread({ conversationId, messages, status, priority,
             Öncelik
           </label>
           <Select
+            ref={prioritySelectRef}
             id={`conv-priority-${conversationId}`}
             value={priority}
             disabled={busy}
@@ -383,7 +432,18 @@ export function ConversationThread({ conversationId, messages, status, priority,
       </div>
 
       {/* Messages */}
-      <div className="scrollbar-thin max-h-[44vh] space-y-3 overflow-y-auto p-4">
+      {/* 44vh'de kirpilan kaydirilabilir kutu. Icindeki TEK odaklanabilir oge
+          gelen mesajlardaki "Cevir" dugmesi; son gelen mesajdan SONRAKI giden
+          yanitlar (host'un/AI'in en son cevabi - en cok okunan satir) hicbir
+          odak duraginin altinda kaliyordu, yani klavye kullanicisi kendi son
+          cevabini fare olmadan goremiyordu. tabIndex={0} kutuyu ok tuslariyla
+          kaydirilabilir yapar. */}
+      <div
+        tabIndex={0}
+        role="group"
+        aria-label="Mesaj geçmişi"
+        className="scrollbar-thin max-h-[44vh] space-y-3 overflow-y-auto p-4 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-ring"
+      >
         {messages.map((m) => (
           <div
             key={m.id}
@@ -716,6 +776,7 @@ export function ConversationThread({ conversationId, messages, status, priority,
             Misafire cevabınız
           </label>
           <Textarea
+            ref={composerRef}
             id={`conv-composer-${conversationId}`}
             value={composer}
             onChange={(e) => setComposer(e.target.value)}
