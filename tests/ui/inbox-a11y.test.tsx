@@ -174,3 +174,36 @@ describe("ConversationThread — odak kaybı ve sessiz başarı", () => {
     expect(document.activeElement).toBe(select);
   });
 });
+
+describe("ConversationThread — canlı bölge TEKRAR duyurur", () => {
+  beforeEach(() => {
+    cleanup();
+    vi.clearAllMocks();
+    vi.unstubAllGlobals();
+  });
+
+  it("art arda İKİ gönderim de duyurulur (aynı metin sessizleşmemeli)", async () => {
+    vi.stubGlobal("fetch", vi.fn(async () => new Response(null, { status: 200 })));
+    render(<ConversationThread {...baseProps} />);
+    const box = screen.getByLabelText("Misafire cevabınız");
+
+    async function send(text: string) {
+      fireEvent.change(box, { target: { value: text } });
+      await act(async () => {
+        fireEvent.click(screen.getByRole("button", { name: /Gönder/ }));
+      });
+    }
+
+    await send("Birinci");
+    const live = screen.getByRole("status");
+    const firstNode = live.firstElementChild;
+    expect(live.textContent).toContain("Mesaj gönderildi.");
+
+    await send("İkinci");
+    // aria-live YALNIZ DOM değişiminde duyurur. Aynı metni tekrar set etmek
+    // React'te no-op'tur (Object.is) → metin düğümü hiç değişmez → ekran
+    // okuyucu İKİNCİ gönderimi HİÇ duymaz. Yeni bir düğüm eklenmeli.
+    expect(live.firstElementChild).not.toBe(firstNode);
+    expect(live.textContent).toContain("Mesaj gönderildi.");
+  });
+});

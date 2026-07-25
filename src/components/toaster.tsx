@@ -65,13 +65,22 @@ export function Toaster() {
 
   return (
     <div
-      className="pointer-events-none fixed inset-x-0 bottom-0 z-[100] flex flex-col items-center gap-2 p-4 sm:items-end"
-      // Yığının kendisi bir bölge; tek tek satırlar kendi role'lerini taşır.
+      // ROL ŞART: rolü olmayan bir <div>'e konan aria-label çoğu yardımcı
+      // teknoloji tarafından YOK SAYILIR — yani etiket hiçbir işe yaramıyordu.
+      // Bölge olarak işaretlenince kullanıcı bildirimlere gezinerek ulaşabilir.
+      // Tek tek satırlar kendi canlı-bölge role'lerini ayrıca taşır.
+      role="region"
       aria-label="Bildirimler"
+      className="pointer-events-none fixed inset-x-0 bottom-0 z-[100] flex flex-col items-center gap-2 p-4 sm:items-end"
     >
       {hiddenCount > 0 ? (
         <p
-          role="status"
+          // GÖRSEL amaçlı: sayaç ekran okuyucuya DUYURULMAZ. Her bildirim
+          // zaten GELDİĞİ anda okundu (o sırada çiziliydi) ve görünenler
+          // kapatıldıkça eskiler DOM'a geri eklenip yeniden duyuruluyor.
+          // Canlı bölge yapılsaydı her değişimde "+2 önceki bildirim" tekrar
+          // okunur, gerçek hataların üstünü örterdi.
+          aria-hidden="true"
           className="pointer-events-auto w-full max-w-sm rounded-lg border border-border bg-card px-3 py-1.5 text-xs text-muted-foreground shadow"
         >
           +{hiddenCount} önceki bildirim — görünenleri kapatınca sırayla açılır
@@ -89,7 +98,7 @@ export function Toaster() {
               STYLES[t.variant],
             )}
           >
-            <Icon className="mt-0.5 size-4 shrink-0" />
+            <Icon className="mt-0.5 size-4 shrink-0" aria-hidden="true" />
             <span className="flex-1 leading-snug">{t.text}</span>
             <button
               type="button"

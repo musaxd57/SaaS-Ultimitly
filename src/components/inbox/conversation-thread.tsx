@@ -121,7 +121,18 @@ export function ConversationThread({ conversationId, messages, status, priority,
    * Toast kullanılmadı: durum/öncelik çok sık değişen kontroller, her seferinde
    * görsel bir kutu çıkarmak gürültü olurdu.
    */
-  const [liveStatus, setLiveStatus] = useState("");
+  const [liveStatus, setLiveStatus] = useState<{ text: string; seq: number }>({
+    text: "",
+    seq: 0,
+  });
+  /**
+   * Duyuruyu TETİKLER. Doğrudan `setState(metin)` yetmez: aynı metni tekrar
+   * set etmek React'te no-op'tur (Object.is), DOM hiç değişmez ve `aria-live`
+   * YALNIZ DOM değişiminde duyurur — yani art arda iki gönderimin ikincisi
+   * SESSİZ kalırdı. Artan `seq` her seferinde canlı bölgeye YENİ bir düğüm
+   * ekler; düğüm eklenmesi ekran okuyucuda güvenilir bir duyuru tetikleyicisidir.
+   */
+  const announce = (text: string) => setLiveStatus((p) => ({ text, seq: p.seq + 1 }));
   const composerRef = useRef<HTMLTextAreaElement | null>(null);
   const statusSelectRef = useRef<HTMLSelectElement | null>(null);
   const prioritySelectRef = useRef<HTMLSelectElement | null>(null);
@@ -201,7 +212,7 @@ export function ConversationThread({ conversationId, messages, status, priority,
           // 200 = TESLİM. Eskiden bu dal tamamen sessizdi: yalnız hata
           // (role="alert") ve 202 kuyruk notu (role="status") duyuluyordu.
           // Kutu temizlenip balon listeye sessizce ekleniyordu.
-          setLiveStatus("Mesaj gönderildi.");
+          announce("Mesaj gönderildi.");
         }
         refresh();
       } else {
@@ -231,7 +242,7 @@ export function ConversationThread({ conversationId, messages, status, priority,
       else {
         // BAŞARIDA da haber ver: eskiden yalnız hata duyuluyordu, başarı
         // tamamen sessizdi (kullanıcı durumu çektim mi bilmiyordu).
-        setLiveStatus(field === "status" ? "Durum güncellendi." : "Öncelik güncellendi.");
+        announce(field === "status" ? "Durum güncellendi." : "Öncelik güncellendi.");
         refresh();
       }
     } catch {
@@ -379,7 +390,7 @@ export function ConversationThread({ conversationId, messages, status, priority,
       {/* Görünmez canlı bölge: gönderim/durum sonuçları buraya yazılır.
           Ekranda yer kaplamaz ama ekran okuyucu okur. */}
       <p role="status" aria-live="polite" className="sr-only">
-        {liveStatus}
+        {liveStatus.text ? <span key={liveStatus.seq}>{liveStatus.text}</span> : null}
       </p>
 
       {/* Header: status & priority controls */}

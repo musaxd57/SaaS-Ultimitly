@@ -397,3 +397,35 @@ describe("yapısal pinler", () => {
     expect(bare).toEqual([]);
   });
 });
+
+// ===========================================================================
+// ÖRTÜ (backdrop) — native confirm'in yerine geçen KORUMA
+// ===========================================================================
+describe("ConfirmHost — tam ekran örtü", () => {
+  beforeEach(resetAll);
+
+  it("diyalog açıkken arkadaki sayfayı KAPATAN bir örtü vardır", async () => {
+    render(<ConfirmHost />);
+    await act(async () => {
+      void confirmDialog({ title: "Silinsin mi?", destructive: true });
+    });
+
+    const dialog = screen.getByRole("dialog");
+    const backdrop = dialog.parentElement!;
+    const cls = backdrop.className;
+
+    // NEDEN KRİTİK: native window.confirm girişi BLOKLAR, bu yüzden çağrı
+    // yerlerindeki "busy" bayrağı onaydan SONRA kurulsa bile ikinci bir tık
+    // hiç gelmiyordu. Asenkron diyalogda o koruma YOK — yerini bu örtü alır:
+    // tetikleyici örtünün ALTINDA kalır, ikinci tık ona ulaşamaz. Örtü
+    // kaldırılır/şeffaflaştırılırsa "iki kez sil" penceresi yeniden açılır.
+    expect(cls).toContain("fixed");
+    expect(cls).toContain("inset-0");
+    expect(cls).toMatch(/z-\[\d+\]/);
+    // Tıklamayı geçiren bir sınıf EKLENMEMELİ.
+    expect(cls).not.toContain("pointer-events-none");
+    // Örtünün kendisi kapatmaz: yıkıcı işlemde yanlışlıkla dışarı tıklamak
+    // "vazgeç" saymamalı — çıkış yolları AÇIK düğmeler ve Escape.
+    expect(backdrop.onclick).toBeFalsy();
+  });
+});

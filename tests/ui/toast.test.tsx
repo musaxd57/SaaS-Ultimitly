@@ -85,6 +85,19 @@ describe("toast — ortak bildirim", () => {
     expect(screen.queryByText("Yüklenemedi.")).toBeNull();
   });
 
+  it("yığın ADLANDIRILMIŞ bir bölgedir ve taşma sayacı DUYURULMAZ", () => {
+    render(<Toaster />);
+    act(() => {
+      for (let i = 1; i <= 6; i++) toast.error(`Hata ${i}`);
+    });
+    // Rolü olmayan bir div'e konan aria-label yok sayılırdı.
+    expect(screen.getByRole("region", { name: "Bildirimler" })).toBeTruthy();
+    // Sayaç görsel bir ipucu; canlı bölge OLMAMALI (her değişimde tekrar
+    // okunup gerçek hataların üstünü örterdi).
+    const counter = screen.getByText(/\+2 önceki bildirim/);
+    expect(counter.getAttribute("aria-hidden")).toBe("true");
+  });
+
   it("FAIL-SAFE: Toaster mount edilmemişse sessiz kalmaz, alert'e düşer", () => {
     const alertSpy = vi.fn();
     vi.stubGlobal("alert", alertSpy);

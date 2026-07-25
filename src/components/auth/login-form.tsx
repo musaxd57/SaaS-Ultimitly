@@ -101,6 +101,7 @@ export function LoginForm() {
         return;
       }
       setError(null); // başarıda eski kırmızı uyarı ekranda kalmasın
+      setFieldError({}); // "önce e-posta girin" uyarısı da bayatladı
       setResent(true);
     } catch {
       if (latestEmail.current !== target) return; // bayat hata da gösterilmez
@@ -114,6 +115,10 @@ export function LoginForm() {
     e.preventDefault();
     setLoading(true);
     setError(null);
+    // Alan hataları da sıfırlanır. `error` ile `fieldError` AYRI state'ler
+    // olduğundan, birini temizleyip diğerini unutmak alanı yanlışlıkla
+    // "geçersiz" damgalı bırakır — üstelik yeni istek henüz sonuçlanmamıştır.
+    setFieldError({});
     try {
       const res = await fetch("/api/auth/login", {
         method: "POST",
@@ -251,6 +256,9 @@ export function LoginForm() {
               setUseRecovery((v) => !v);
               setCode("");
               setError(null);
+              // Alan boşaltıldı ve TÜRÜ değişti: "Doğrulama kodu hatalı"
+              // artık geçerli değil, alanı damgalı bırakmamalı.
+              setFieldError({});
             }}
             className="text-xs text-primary underline hover:no-underline"
           >

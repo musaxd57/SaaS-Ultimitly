@@ -226,3 +226,59 @@ describe("Şifremi unuttum formu", () => {
     expect(screen.getByLabelText("Yeni şifre").getAttribute("aria-invalid")).toBeNull();
   });
 });
+
+// ---------------------------------------------------------------------------
+// BAYAT ALAN HATASI — `error` ile `fieldError` ayrıldığında ortaya çıkan risk.
+// Eskiden TEK bir `error` state'i vardı ve onu temizleyen her yol hatayı
+// gerçekten siliyordu. Alan hataları ayrı bir state'e taşınınca, `error`i
+// temizleyen ama `fieldError`i unutan yollar alanı YANLIŞLIKLA "geçersiz"
+// damgalı bırakır — üstelik kullanıcı o alanı çoktan boşaltmış olur.
+// ---------------------------------------------------------------------------
+describe("Giriş formu — bayat alan hatası bırakmaz", () => {
+  beforeEach(reset);
+
+  async function reachTwoFactorError() {
+    vi.stubGlobal(
+      "fetch",
+      vi.fn(async () =>
+        jsonResponse({ twoFactorRequired: true, error: "Doğrulama kodu hatalı" }, 401),
+      ),
+    );
+    render(<LoginForm />);
+    fireEvent.change(screen.getByLabelText("E-posta"), { target: { value: "a@b.com" } });
+    fireEvent.change(screen.getByLabelText("Şifre"), { target: { value: "sifre1234" } });
+    await submitForm(screen.getByLabelText("E-posta"));
+    const code = await screen.findByLabelText("Doğrulama kodu");
+    await waitFor(() => expect(code.getAttribute("aria-invalid")).toBe("true"));
+  }
+
+  it("kurtarma koduna geçince ESKİ kod hatası kalkar", async () => {
+    await reachTwoFactorError();
+
+    await act(async () => {
+      fireEvent.click(screen.getByRole("button", { name: /kurtarma kodu kullan/i }));
+    });
+
+    // Alan boşaltıldı ve TÜRÜ değişti; eski hata artık geçerli değil.
+    const recovery = screen.getByLabelText("Kurtarma kodu");
+    expect(recovery.getAttribute("aria-invalid")).toBeNull();
+    expect(screen.queryByText("Doğrulama kodu hatalı")).toBeNull();
+  });
+
+  it("yeniden gönderimde eski alan hatası taşınmaz", async () => {
+    await reachTwoFactorError();
+
+    // İkinci deneme GENEL bir hatayla düşerse, kod alanı eski mesajla
+    // damgalı kalmamalı — yoksa ekranda iki farklı hata görünür.
+    vi.stubGlobal(
+      "fetch",
+      vi.fn(async () => jsonResponse({ error: "Giriş başarısız oldu" }, 401)),
+    );
+    await submitForm(screen.getByLabelText("Doğrulama kodu"));
+
+    await waitFor(() =>
+      expect(screen.getByRole("alert").textContent).toContain("Giriş başarısız oldu"),
+    );
+    expect(screen.getByLabelText("Doğrulama kodu").getAttribute("aria-invalid")).toBeNull();
+  });
+});
