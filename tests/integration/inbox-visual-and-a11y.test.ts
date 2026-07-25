@@ -28,6 +28,14 @@ vi.mock("next/headers", () => ({
   headers: async () => new Map([["host", "localhost:3000"]]),
   cookies: async () => ({ get: () => undefined }),
 }));
+vi.mock("next/navigation", () => ({
+  redirect: (to: string) => {
+    throw new Error(`NEXT_REDIRECT:${to}`);
+  },
+  notFound: () => {
+    throw new Error("NEXT_NOT_FOUND");
+  },
+}));
 
 import { requireAuth } from "@/lib/auth";
 import InboxPage from "@/app/(app)/inbox/page";
@@ -156,7 +164,8 @@ describe("Inbox sayacı — makine çıktısı değil, cümle", () => {
 
     const tree = await InboxPage({ searchParams: sp({}) });
     expect(treeText(tree)).toContain("55 konuşmadan 1–50 arası · Sayfa 1 / 2");
-    expect(paginationLabels(tree)).toEqual(["Önceki", "Sonraki"]);
+    // Çubuk artık HEM ÜSTTE HEM ALTTA basılıyor → 2 değil 4 düğme.
+    expect(paginationLabels(tree)).toEqual(["Önceki", "Sonraki", "Önceki", "Sonraki"]);
   });
 
   it("ÇOK sayfa, 2. sayfa: aralık ve sayfa numarası ilerler", async () => {
@@ -216,5 +225,91 @@ describe("Inbox erişilebilirliği", () => {
     const text = treeText(await InboxPage({ searchParams: sp({}) }));
     // lucide <svg> ne <title> ne aria taşır (kod-doğrulandı) → sr-only metin şart.
     expect(text).toContain("Acil");
+  });
+});
+
+describe("Inbox sayfalama — üstte ve altta", () => {
+  beforeEach(async () => {
+    await resetDb();
+    vi.clearAllMocks();
+  });
+
+  /** Ağaçtaki <nav> etiketleri. */
+  function navLabels(root: unknown): string[] {
+    return elementsWithProp(root, "aria-label")
+      .map((p) => String(p["aria-label"]))
+      .filter((l) => l.startsWith("Sayfalama"));
+  }
+
+  it("ÇOK sayfada aynı kontroller HEM ÜSTTE HEM ALTTA basılır", async () => {
+    const org = await seed("Inbox Pager", 55);
+    mockAuth.mockResolvedValue(sessionFor(org.id));
+    const tree = await InboxPage({ searchParams: sp({}) });
+
+    // İki ayrı <nav>: ekran okuyucunun düğme listesinde özdeş "Önceki"leri
+    // ayırt edebilmesi için adları FARKLI.
+    expect(navLabels(tree)).toEqual(["Sayfalama (üst)", "Sayfalama (alt)"]);
+    // Her iki çubukta da iki düğme → toplam 4.
+    expect(paginationLabels(tree)).toEqual(["Önceki", "Sonraki", "Önceki", "Sonraki"]);
+  });
+
+  it("TEK sayfada iki çubuk da düğme BASMAZ", async () => {
+    const org = await seed("Inbox Pager Tek", 10);
+    mockAuth.mockResolvedValue(sessionFor(org.id));
+    const tree = await InboxPage({ searchParams: sp({}) });
+
+    expect(navLabels(tree)).toEqual([]);
+    expect(paginationLabels(tree)).toEqual([]);
+  });
+
+  it("sayfalama bağlantıları FİLTRE ve ARAMAYI korur", async () => {
+    const org = await seed("Inbox Pager Filtre", 55);
+    mockAuth.mockResolvedValue(sessionFor(org.id));
+    const tree = await InboxPage({ searchParams: sp({ status: "new", q: "Misafir" }) });
+
+    const hrefs = elementsWithProp(tree, "href")
+      .map((p) => String(p.href))
+      .filter((h) => h.includes("sayfa="));
+    expect(hrefs.length).toBeGreaterThan(0);
+    // Sayfa değişirken filtre/arama DÜŞMEZ — yoksa 2. sayfada bambaşka bir
+    // liste görünür ve kullanıcı filtreyi kaybettiğini fark etmez.
+    for (const h of hrefs) {
+      expect(h).toContain("status=new");
+      expect(h).toContain("q=Misafir");
+    }
+  });
+});
+
+describe("Inbox — aralık dışı sayfa", () => {
+  beforeEach(async () => {
+    await resetDb();
+    vi.clearAllMocks();
+  });
+
+  it("taşan sayfa SON GEÇERLİ sayfaya yönlendirilir (boş ekran + yanlış mesaj yerine)", async () => {
+    const org = await seed("Inbox Tasan", 55); // 2 sayfa
+    mockAuth.mockResolvedValue(sessionFor(org.id));
+    await expect(InboxPage({ searchParams: sp({ sayfa: "9" }) })).rejects.toThrow(
+      "NEXT_REDIRECT:/inbox?sayfa=2",
+    );
+  });
+
+  it("yönlendirme FİLTRE ve ARAMAYI korur", async () => {
+    const org = await seed("Inbox Tasan Filtre", 55);
+    mockAuth.mockResolvedValue(sessionFor(org.id));
+    // Hepsi "new": filtre 2 sayfa bırakır.
+    await expect(
+      InboxPage({ searchParams: sp({ status: "new", q: "Misafir", sayfa: "9" }) }),
+    ).rejects.toThrow(/NEXT_REDIRECT:\/inbox\?status=new&q=Misafir&sayfa=2/);
+  });
+
+  it("GERÇEKTEN kayıt yoksa yönlendirme YOK — boş durum doğrudur", async () => {
+    const org = await seed("Inbox Bos", 0);
+    mockAuth.mockResolvedValue(sessionFor(org.id));
+    // Sonsuz yönlendirme döngüsü olmamalı: kayıt yokken clamp devreye GİRMEZ.
+    // (EmptyState'in başlığı PROP olduğu için treeText'te görünmez — sözleşme
+    //  "throw etmemesi", metni değil.)
+    const tree = await InboxPage({ searchParams: sp({ sayfa: "5" }) });
+    expect(paginationLabels(tree)).toEqual([]);
   });
 });

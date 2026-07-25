@@ -1,4 +1,5 @@
 import Link from "next/link";
+import { redirect } from "next/navigation";
 import { MessageSquare, Plus, AlertTriangle, Search, X } from "lucide-react";
 import { requireAuth } from "@/lib/auth";
 import { prisma } from "@/lib/db";
@@ -120,6 +121,55 @@ export default async function InboxPage({
   const from = conversations.length === 0 ? 0 : (page - 1) * PAGE_SIZE + 1;
   const to = conversations.length === 0 ? 0 : (page - 1) * PAGE_SIZE + conversations.length;
   const totalPages = Math.max(1, Math.ceil(total / PAGE_SIZE));
+  /**
+   * Aralık dışı sayfa → SON GEÇERLİ sayfaya clamp (görevler ekranıyla aynı
+   * karar). Yoksa `?status=new&sayfa=2` gibi bir adres — filtreyi daraltıp
+   * sayfada kalmak yeter — boş bir ekran ve "Henüz misafir mesajı yok"
+   * mesajı gösteriyordu: mesaj VAR, o filtrede 2. sayfa yok. Kullanıcı bunu
+   * "hiç kaydım kalmamış" diye okur.
+   */
+  if (total > 0 && page > totalPages) redirect(hrefFor({ sayfa: totalPages }));
+
+  /**
+   * Sayaç + sayfalama çubuğu. Çok sayfalı listede listenin HEM ÜSTÜNDE HEM
+   * ALTINDA basılır: aksi hâlde "Sonraki"ye basmak için 50 satır aşağı inmek,
+   * sonra yeni sayfanın başına dönüp tekrar inmek gerekiyordu.
+   *
+   * Bağlantılar `hrefFor` üzerinden üretilir → aktif FİLTRE ve ARAMA korunur
+   * (yalnız `sayfa` değişir).
+   *
+   * Her kopya kendi `<nav>` adını taşır ("üst"/"alt"): iki özdeş "Önceki"
+   * düğmesi ekran okuyucunun düğme listesinde ayırt edilemez olurdu.
+   *
+   * "1–4 / 4" bir makine çıktısıydı: tek sayfalık listede aralık da sayfa da
+   * anlamsız → tek sayfa yalnız toplamı yazar ve sayfalama düğmeleri HİÇ
+   * basılmaz (tıklanacak bir şey yokken görünmemeli).
+   */
+  function pagerBar(position: "üst" | "alt") {
+    const summary =
+      totalPages > 1
+        ? `${total} konuşmadan ${from}–${to} arası · Sayfa ${page} / ${totalPages}`
+        : `${total} konuşma`;
+    return (
+      <div
+        className={cn(
+          "flex items-center justify-between gap-3 text-xs text-muted-foreground",
+          position === "üst" ? "px-1 pb-1" : "px-4 py-3",
+        )}
+      >
+        <span>{summary}</span>
+        {totalPages > 1 ? (
+          <nav aria-label={`Sayfalama (${position})`} className="flex shrink-0 gap-1.5">
+            <LinkOrDisabled href={page > 1 ? hrefFor({ sayfa: page - 1 }) : null} label="Önceki" />
+            <LinkOrDisabled
+              href={page < totalPages ? hrefFor({ sayfa: page + 1 }) : null}
+              label="Sonraki"
+            />
+          </nav>
+        ) : null}
+      </div>
+    );
+  }
 
   const pad = (h: number) => String(h).padStart(2, "0");
   const activeWindow = `${pad(org?.autoReplyStartHour ?? 0)}:00–${pad(org?.autoReplyEndHour ?? 9)}:00`;
@@ -230,7 +280,9 @@ export default async function InboxPage({
           </LinkButton>
         </EmptyState>
       ) : (
-        <div className="divide-y divide-border overflow-hidden rounded-xl border border-border bg-card">
+        <div className="space-y-2">
+          {totalPages > 1 ? pagerBar("üst") : null}
+          <div className="divide-y divide-border overflow-hidden rounded-xl border border-border bg-card">
           {conversations.map((c) => {
             // Highlight threads still needing attention (guest waiting / escalated).
             const unread = c.status === "new" || c.status === "waiting" || c.status === "problem";
@@ -274,28 +326,7 @@ export default async function InboxPage({
             );
           })}
 
-          {/* "1–4 / 4" bir makine çıktısıydı: tek sayfalık bir listede aralık
-              da sayfa da anlamsız. Tek sayfa → sadece toplam; çok sayfa →
-              nerede olduğunu SÖYLEYEN cümle. Tek sayfada sayfalama düğmeleri
-              hiç basılmaz (tıklanacak bir şey yokken görünmemeli). */}
-          <div className="flex items-center justify-between gap-3 px-4 py-3 text-xs text-muted-foreground">
-            <span>
-              {totalPages > 1
-                ? `${total} konuşmadan ${from}–${to} arası · Sayfa ${page} / ${totalPages}`
-                : `${total} konuşma`}
-            </span>
-            {totalPages > 1 ? (
-              <div className="flex shrink-0 gap-1.5">
-                <LinkOrDisabled
-                  href={page > 1 ? hrefFor({ sayfa: page - 1 }) : null}
-                  label="Önceki"
-                />
-                <LinkOrDisabled
-                  href={page < totalPages ? hrefFor({ sayfa: page + 1 }) : null}
-                  label="Sonraki"
-                />
-              </div>
-            ) : null}
+            {pagerBar("alt")}
           </div>
         </div>
       )}
