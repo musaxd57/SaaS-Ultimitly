@@ -117,7 +117,52 @@ export async function anonymizeOldGuestData(now: Date = new Date()): Promise<{ a
       if (red !== m.body) bodyRedactions.push({ id: m.id, body: red });
     }
 
+    // Lifecycle tasks embed the guest's REAL NAME in their title
+    // ("Çıkış temizliği - Ahmet Yılmaz" / "Ahmet Yılmaz girişi için hazırlık" —
+    // createReservationTasks). Nothing else in this sweep reaches Task, so the
+    // name used to outlive the retention window in the task list; worse,
+    // Task.reservationId is onDelete:SetNull, so deleting the booking later would
+    // strip the only link that could ever find it. Same helper as the outbound
+    // bodies: word-boundary safe, idempotent, and the host's own work record
+    // ("Çıkış temizliği") stays readable. Descriptions are fixed template text.
+    const namesByRes = new Map<string, string[]>();
+    for (const [resId, name] of resNameById) {
+      if (name) namesByRes.set(resId, [name]);
+    }
+    for (const c of convs) {
+      if (!c.reservationId || !c.guestIdentifier) continue;
+      namesByRes.set(c.reservationId, [...(namesByRes.get(c.reservationId) ?? []), c.guestIdentifier]);
+    }
+    const tasks = await prisma.task.findMany({
+      where: { reservationId: { in: resIds } },
+      select: { id: true, reservationId: true, title: true },
+    });
+    const titleRedactions: { id: string; title: string }[] = [];
+    const namesByTask = new Map<string, string[]>();
+    for (const t of tasks) {
+      const names = t.reservationId ? namesByRes.get(t.reservationId) ?? [] : [];
+      namesByTask.set(t.id, names);
+      const red = redactNameFromBody(t.title, names);
+      if (red !== t.title) titleRedactions.push({ id: t.id, title: red });
+    }
+    // Crew notes on those tasks are free text a human typed ("Ahmet'in odası…") —
+    // same class as an outbound reply, so the same treatment: the note stays as the
+    // host's operational record, only the identifying token goes.
+    const noteRows = tasks.length
+      ? await prisma.taskUpdate.findMany({
+          where: { taskId: { in: tasks.map((t) => t.id) }, note: { not: null } },
+          select: { id: true, taskId: true, note: true },
+        })
+      : [];
+    const noteRedactions: { id: string; note: string }[] = [];
+    for (const n of noteRows) {
+      const red = redactNameFromBody(n.note ?? "", namesByTask.get(n.taskId) ?? []);
+      if (red !== n.note) noteRedactions.push({ id: n.id, note: red });
+    }
+
     await prisma.$transaction([
+      ...titleRedactions.map((t) => prisma.task.update({ where: { id: t.id }, data: { title: t.title } })),
+      ...noteRedactions.map((n) => prisma.taskUpdate.update({ where: { id: n.id }, data: { note: n.note } })),
       // The guest's OWN messages (inbound) carry their words/PII — scrub the body.
       ...(convIds.length
         ? [

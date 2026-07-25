@@ -454,6 +454,33 @@ async function maskReservationRows(
       data: { guestIdentifier: ANON_ID },
     });
   }
+  // Lifecycle tasks carry the guest's REAL NAME in their title (createReservationTasks:
+  // "Çıkış temizliği - Ada"), which no other scrub in this sweep reaches — the host was
+  // told the stay's data is masked while the name stayed on the task board. Scoped to
+  // THIS reservation's tasks (an unlinked task on the same property is out of scope);
+  // same redaction helper as the outbound bodies, so it is idempotent and the verify
+  // pass can re-run it safely. Descriptions are fixed template text, no PII.
+  const tasks = await db.task.findMany({
+    where: { reservationId },
+    select: { id: true, title: true },
+  });
+  for (const t of tasks) {
+    const red = redactNameFromBody(t.title, allNames);
+    if (red !== t.title) await db.task.update({ where: { id: t.id }, data: { title: red } });
+  }
+  // Crew notes on those tasks are free text a human typed — same class as an
+  // outbound reply: the note survives as the host's record, the name does not.
+  if (tasks.length) {
+    const notes = await db.taskUpdate.findMany({
+      where: { taskId: { in: tasks.map((t) => t.id) }, note: { not: null } },
+      select: { id: true, note: true },
+    });
+    for (const n of notes) {
+      const red = redactNameFromBody(n.note ?? "", allNames);
+      if (red !== n.note) await db.taskUpdate.update({ where: { id: n.id }, data: { note: red } });
+    }
+  }
+
   await db.reservation.updateMany({
     where: { id: reservationId },
     data: {

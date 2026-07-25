@@ -105,6 +105,51 @@ describe("anonymizeOldGuestData (KVKK retention)", () => {
     expect((await anonymizeOldGuestData()).anonymized).toBe(0);
   });
 
+  it("redacts the guest name from LIFECYCLE TASK titles (they embed it verbatim)", async () => {
+    // createReservationTasks writes the guest's real name INTO the title
+    // ("Çıkış temizliği - Ada Lovelace"). Task is not reachable from the message /
+    // reservation scrubs, so without this the name outlived the retention window
+    // in the task list — and Task.reservationId is SetNull, so a later reservation
+    // delete would even strip the link that could find it.
+    vi.stubEnv("DATA_RETENTION_MONTHS", "24");
+    const old = await seedStay({ departedMonthsAgo: 30, guestName: "Ada Lovelace", body: "Eski" });
+    const recent = await seedStay({ departedMonthsAgo: 1, guestName: "Jane New", body: "Yeni" });
+    const oldTask = await prisma.task.create({
+      data: {
+        propertyId: old.propertyId,
+        reservationId: old.reservationId,
+        type: "cleaning",
+        origin: "system",
+        title: "Çıkış temizliği - Ada Lovelace",
+        status: "done", // history rows are exactly the ones that linger
+        updates: { create: [{ note: "Ada Lovelace çıkışta anahtarı kutuya bıraktı." }] },
+      },
+    });
+    const recentTask = await prisma.task.create({
+      data: {
+        propertyId: recent.propertyId,
+        reservationId: recent.reservationId,
+        type: "checkin_prep",
+        origin: "system",
+        title: "Jane New girişi için hazırlık",
+      },
+    });
+
+    await anonymizeOldGuestData();
+
+    const scrubbed = await prisma.task.findUniqueOrThrow({ where: { id: oldTask.id } });
+    expect(scrubbed.title).not.toContain("Ada");
+    expect(scrubbed.title).not.toContain("Lovelace");
+    expect(scrubbed.title).toContain("Çıkış temizliği"); // the host's own work record survives
+    // Crew note: free text a human typed — the record stays, the name goes.
+    const note = await prisma.taskUpdate.findFirstOrThrow({ where: { taskId: oldTask.id } });
+    expect(note.note).not.toContain("Ada");
+    expect(note.note).toContain("anahtarı kutuya bıraktı");
+    // In-window stay untouched — the crew still sees who is arriving.
+    const untouched = await prisma.task.findUniqueOrThrow({ where: { id: recentTask.id } });
+    expect(untouched.title).toBe("Jane New girişi için hazırlık");
+  });
+
   it("anonymizes ORPHANED conversations (no reservation link) by their own age", async () => {
     // Reproduces the real gap: a thread whose reservation the host deleted
     // (reservationId → null via SetNull) is unreachable through the reservation

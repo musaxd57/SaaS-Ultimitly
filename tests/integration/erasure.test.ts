@@ -149,6 +149,42 @@ describe("KVKK explicit erasure (m40) — executor", () => {
     expect(serialized).not.toContain("res-erase-1");
   });
 
+  it("masks the guest name inside LIFECYCLE TASK titles of the erased stay", async () => {
+    // The host presses "erase this guest's data" and is told the data is masked.
+    // createReservationTasks had written the real name into the task TITLE
+    // ("Çıkış temizliği - Ada Lovelace"), which no other scrub reaches — so the
+    // name stayed visible in the task list after an m.11 erasure.
+    const { orgId, propertyId, reservationId } = await seedErasedStay();
+    const task = await prisma.task.create({
+      data: {
+        propertyId,
+        reservationId,
+        type: "cleaning",
+        origin: "system",
+        title: "Çıkış temizliği - Ada Lovelace",
+        status: "done",
+        updates: { create: [{ note: "Ada Lovelace'in odası temizlendi." }] },
+      },
+    });
+    // A task on the SAME property but a DIFFERENT stay must not be touched.
+    const other = await prisma.task.create({
+      data: { propertyId, type: "maintenance", origin: "manual", title: "Ada Lovelace kombi kontrolü" },
+    });
+
+    await eraseReservationData(orgId, reservationId);
+
+    const masked = await prisma.task.findUniqueOrThrow({ where: { id: task.id } });
+    expect(masked.title).not.toContain("Ada");
+    expect(masked.title).toContain("[Misafir]");
+    expect(masked.title).toContain("Çıkış temizliği");
+    // Crew note too — Turkish apostrophe suffix ("Ada Lovelace'in") must still match.
+    const note = await prisma.taskUpdate.findFirstOrThrow({ where: { taskId: task.id } });
+    expect(note.note).not.toContain("Ada");
+    expect(note.note).toContain("odası temizlendi");
+    const untouched = await prisma.task.findUniqueOrThrow({ where: { id: other.id } });
+    expect(untouched.title).toBe("Ada Lovelace kombi kontrolü"); // unlinked → out of scope
+  });
+
   it("tombstone SCHEMA is hash-only — no raw-PII column EXISTS (structural, not just value-level)", async () => {
     const { orgId, reservationId } = await seedErasedStay();
     await eraseReservationData(orgId, reservationId);
