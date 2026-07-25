@@ -7,8 +7,19 @@ import { cn } from "@/lib/utils";
 
 /** Bilgi/başarı kendiliğinden kapanır; HATA kapanmaz (okunmadan gitmemeli). */
 const AUTO_DISMISS_MS = 6000;
-/** Ekranı kaplamasın: en yeni N bildirim tutulur. */
+/**
+ * Ekranı kaplamasın diye AYNI ANDA en fazla bu kadarı ÇİZİLİR — ama fazlası
+ * ATILMAZ. Eskiden `slice(-MAX_VISIBLE)` uygulanıyordu: art arda 6 hata olunca
+ * ilk ikisi iz bırakmadan siliniyordu, yani bu bileşenin kapatmak için var
+ * olduğu "sessiz hata" sorununu kendisi üretiyordu. Artık taşanlar sayılır
+ * ("+N önceki bildirim") ve görünenler kapatıldıkça sırayla ortaya çıkar.
+ */
 const MAX_VISIBLE = 4;
+/**
+ * Patolojik döngüye karşı sert tavan. 50 kapatılmamış bildirim birikmişse zaten
+ * çok daha büyük bir arıza var; bellek/DOM'u korumak için en eskiler düşer.
+ */
+const HARD_CAP = 50;
 
 const ICONS = {
   error: AlertTriangle,
@@ -35,7 +46,10 @@ export function Toaster() {
 
   useEffect(() => {
     return subscribeToasts((message) => {
-      setItems((prev) => [...prev, message].slice(-MAX_VISIBLE));
+      setItems((prev) => {
+        const next = [...prev, message];
+        return next.length > HARD_CAP ? next.slice(-HARD_CAP) : next;
+      });
       if (message.variant !== "error") {
         setTimeout(() => dismiss(message.id), AUTO_DISMISS_MS);
       }
@@ -44,13 +58,26 @@ export function Toaster() {
 
   if (items.length === 0) return null;
 
+  // En yeniler çizilir; geride kalanlar SAYILIR ve görünenler kapatıldıkça
+  // sırayla ortaya çıkar — hiçbiri sessizce kaybolmaz.
+  const visible = items.slice(-MAX_VISIBLE);
+  const hiddenCount = items.length - visible.length;
+
   return (
     <div
       className="pointer-events-none fixed inset-x-0 bottom-0 z-[100] flex flex-col items-center gap-2 p-4 sm:items-end"
       // Yığının kendisi bir bölge; tek tek satırlar kendi role'lerini taşır.
       aria-label="Bildirimler"
     >
-      {items.map((t) => {
+      {hiddenCount > 0 ? (
+        <p
+          role="status"
+          className="pointer-events-auto w-full max-w-sm rounded-lg border border-border bg-card px-3 py-1.5 text-xs text-muted-foreground shadow"
+        >
+          +{hiddenCount} önceki bildirim — görünenleri kapatınca sırayla açılır
+        </p>
+      ) : null}
+      {visible.map((t) => {
         const Icon = ICONS[t.variant];
         return (
           <div

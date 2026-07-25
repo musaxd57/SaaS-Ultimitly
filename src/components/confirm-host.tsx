@@ -4,57 +4,118 @@ import { useCallback, useEffect, useId, useRef, useState } from "react";
 import { Button } from "@/components/ui/button";
 import { registerConfirmHandler, type ConfirmOptions } from "@/lib/confirm";
 
-type Pending = { options: ConfirmOptions; resolve: (value: boolean) => void };
+type Pending = {
+  id: number;
+  options: ConfirmOptions;
+  resolve: (value: boolean) => void;
+  /** Bu soru sorulduğunda odakta olan öğe — kapanışta oraya dönülür. */
+  restore: HTMLElement | null;
+};
+
+/** Diyalog içinde Tab ile gezilebilecek öğeler (panelin kendisi tabIndex -1). */
+const FOCUSABLE =
+  'button:not([disabled]), [href], input:not([disabled]), select:not([disabled]), textarea:not([disabled]), [tabindex]:not([tabindex="-1"])';
+
+let sequence = 0;
 
 /**
  * Onay diyaloğunu ekrana basan tek yüzey. Kök layout'ta mount edilir.
  *
- * Uygulamadaki mobil drawer / şablon paneliyle AYNI sözleşme: role="dialog" +
- * aria-modal, adlandırılmış başlık, Escape ile kapanma, odak içeri alınır ve
- * kapanınca ÇAĞIRAN öğeye geri verilir.
+ * SÖZ (promise) DİSİPLİNİ — bu bileşenin en kritik özelliği:
+ *   • Çözülmeyen bir söz, çağrı yerinde sessizce asılı kalan bir "sil" akışı
+ *     demektir (kullanıcı düğmeye bastı, hiçbir şey olmadı, hata da yok).
+ *   • Bu yüzden bekleyen sorular bir KUYRUKTA tutulur: ikinci bir çağrı
+ *     birincinin resolver'ını EZEMEZ (tek bir `pending` state'i tutulsaydı
+ *     birinci söz sonsuza dek asılı kalırdı).
+ *   • Host unmount olursa kuyruktaki HER söz `false` ile kapatılır — yıkıcı
+ *     işlemde güvenli yön REDDETMEKTİR.
+ *   • `resolve` state güncelleyicisinin İÇİNDE çağrılmaz (güncelleyici saf
+ *     kalmalı; React onu iki kez çalıştırabilir).
  *
- * Kapanış yolu ne olursa olsun (onay, vazgeç, Escape, arka plan) söz MUTLAKA
- * çözülür — çözülmeyen bir söz, çağrı yerinde sessizce asılı kalan bir "sil"
- * işlemi demek olurdu.
+ * Erişilebilirlik: role="dialog" + aria-modal, adlandırılmış başlık, Escape ile
+ * vazgeçme, odak içeri alınır, Tab ile İÇERİDE HAPSOLUR ve kapanınca çağıran
+ * öğeye döner.
  */
 export function ConfirmHost() {
-  const [pending, setPending] = useState<Pending | null>(null);
+  const [queue, setQueue] = useState<Pending[]>([]);
+  /** Kuyruğun senkron aynası: unmount temizliğinde ve settle'da bayat state okumamak için. */
+  const queueRef = useRef<Pending[]>([]);
   const panelRef = useRef<HTMLDivElement | null>(null);
-  const restoreRef = useRef<HTMLElement | null>(null);
   const titleId = useId();
   const bodyId = useId();
 
+  const current = queue[0] ?? null;
+
   useEffect(() => {
-    return registerConfirmHandler(
+    const unregister = registerConfirmHandler(
       (options) =>
         new Promise<boolean>((resolve) => {
-          restoreRef.current =
-            document.activeElement instanceof HTMLElement ? document.activeElement : null;
-          setPending({ options, resolve });
+          const item: Pending = {
+            id: ++sequence,
+            options,
+            resolve,
+            restore:
+              document.activeElement instanceof HTMLElement ? document.activeElement : null,
+          };
+          queueRef.current = [...queueRef.current, item];
+          setQueue(queueRef.current);
         }),
     );
+    return () => {
+      unregister();
+      // Ekrandan kalkıyoruz: bekleyen hiçbir soruyu ASILI BIRAKMA.
+      const stranded = queueRef.current;
+      queueRef.current = [];
+      for (const item of stranded) item.resolve(false);
+    };
   }, []);
 
   const settle = useCallback((value: boolean) => {
-    setPending((current) => {
-      current?.resolve(value);
-      return null;
-    });
-    // Kullanıcı yerini kaybetmesin: odak çağıran düğmeye döner.
-    const restore = restoreRef.current;
-    restoreRef.current = null;
-    if (restore?.isConnected) restore.focus();
+    const [head, ...rest] = queueRef.current;
+    if (!head) return; // çift tıklama / yarış: ikinci çağrı sessiz no-op
+    queueRef.current = rest;
+    setQueue(rest);
+    head.resolve(value); // güncelleyicinin DIŞINDA → yan etkisiz state güncellemesi
+    // Sırada başka soru varsa odağı ona bırak; kuyruk boşaldıysa çağırana dön.
+    if (rest.length === 0 && head.restore?.isConnected) head.restore.focus();
   }, []);
 
   useEffect(() => {
-    if (!pending) return;
+    if (!current) return;
     panelRef.current?.focus();
+
     const onKeyDown = (e: KeyboardEvent) => {
       if (e.key === "Escape") {
         e.stopPropagation();
         settle(false); // Escape = vazgeç (yıkıcı işlemde güvenli yön)
+        return;
+      }
+      if (e.key !== "Tab") return;
+      // ODAK HAPSİ: aria-modal="true" demek yetmez, Tab gerçekten dışarı
+      // çıkabiliyorsa bu beyan yalan olur.
+      const panel = panelRef.current;
+      if (!panel) return;
+      const nodes = Array.from(panel.querySelectorAll<HTMLElement>(FOCUSABLE));
+      const active = document.activeElement as HTMLElement | null;
+      if (nodes.length === 0) {
+        e.preventDefault();
+        panel.focus();
+        return;
+      }
+      const first = nodes[0];
+      const last = nodes[nodes.length - 1];
+      if (!active || !panel.contains(active)) {
+        e.preventDefault();
+        first.focus();
+      } else if (e.shiftKey && active === first) {
+        e.preventDefault();
+        last.focus();
+      } else if (!e.shiftKey && active === last) {
+        e.preventDefault();
+        first.focus();
       }
     };
+
     document.addEventListener("keydown", onKeyDown);
     const previousOverflow = document.body.style.overflow;
     document.body.style.overflow = "hidden";
@@ -62,15 +123,18 @@ export function ConfirmHost() {
       document.removeEventListener("keydown", onKeyDown);
       document.body.style.overflow = previousOverflow;
     };
-  }, [pending, settle]);
+  }, [current, settle]);
 
-  if (!pending) return null;
+  if (!current) return null;
 
-  const { title, body, confirmLabel, cancelLabel, destructive } = pending.options;
+  const { title, body, confirmLabel, cancelLabel, destructive } = current.options;
 
   return (
     <div className="fixed inset-0 z-[110] flex items-center justify-center bg-black/40 p-4">
       <div
+        // key: sıradaki soruya geçerken panel gerçekten yeniden monte olsun
+        // (odak efekti tetiklensin, eski içerik yapışıp kalmasın).
+        key={current.id}
         ref={panelRef}
         role="dialog"
         aria-modal="true"

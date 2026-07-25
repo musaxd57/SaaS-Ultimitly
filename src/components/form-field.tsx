@@ -22,15 +22,23 @@ interface FieldProps {
  *     alan geçersiz görünmemeli),
  *   • hata `role="alert"` taşır, yani sonradan belirdiğinde DUYURULUR.
  *
+ * HATA VE İPUCU BİRLİKTE: ipucu, hata belirdi diye GİZLENMEZ. Eskiden hata
+ * varken ipucu hiç render edilmiyordu — oysa kullanıcı "Temizliğe ayrılan
+ * süre" gibi bir açıklamaya tam da yanlış değer girdiği anda ihtiyaç duyar.
+ * İkisi birden varken `aria-describedby` İKİSİNİ de gösterir; hata ÖNCE gelir,
+ * yani ekran okuyucu önce sorunu, sonra rehberliği okur.
+ *
  * id'ler `htmlFor`dan TÜRETİLİR, `useId` ile değil: bu bileşen sunucuda da
- * render edilebilmeli ve hook onu client'a mahkûm ederdi. 55 çağıranın 54'ü
- * zaten `htmlFor` veriyor; vermeyen tek çağıranda bağlama yapılamaz ama hata
- * yine duyurulur (sessizce bozulmaz).
+ * render edilebilmeli ve hook onu client'a mahkûm ederdi. Çağıranların
+ * TAMAMI (54/54) `htmlFor` veriyor — testle pinli. `htmlFor` yoksa bağlama
+ * yapılamaz ama hata yine duyurulur (sessizce bozulmaz).
  */
 export function Field({ label, htmlFor, error, hint, children, className }: FieldProps) {
   const errorId = htmlFor ? `${htmlFor}-error` : undefined;
   const hintId = htmlFor ? `${htmlFor}-hint` : undefined;
-  const describedBy = error ? errorId : hint ? hintId : undefined;
+  // Hata ÖNCE: duyuru sırası "önce sorun, sonra rehberlik".
+  const describedBy =
+    [error ? errorId : null, hint ? hintId : null].filter(Boolean).join(" ") || undefined;
 
   // Tek bir element çocuğa aria bağlarını enjekte et. Birden fazla çocuk /
   // fragment durumunda kime bağlanacağı belirsizdir → dokunulmaz.
@@ -54,7 +62,8 @@ export function Field({ label, htmlFor, error, hint, children, className }: Fiel
         <p id={errorId} role="alert" className="text-xs text-destructive">
           {error}
         </p>
-      ) : hint ? (
+      ) : null}
+      {hint ? (
         <p id={hintId} className="text-xs text-muted-foreground">
           {hint}
         </p>
