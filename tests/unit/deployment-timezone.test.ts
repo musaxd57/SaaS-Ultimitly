@@ -101,6 +101,44 @@ describe("resolveNewOrgTimezone — tarayıcı ipucu + doğrulama", () => {
   });
 });
 
+describe("org yaratan yollar — kapalı liste", () => {
+  it("WRITER HARİTASI PİNİ: Organization yaratan HER yol dilimi AÇIKÇA yazar", async () => {
+    // Kayıt rotasını düzeltmek yetmiyordu: operatör panelinden yaratılan müşteri
+    // org'u da şema varsayılanına düşüyordu (.com'da doğru, .eu'da değil). Bu pin
+    // İLERİDE eklenecek üçüncü bir yaratıcının aynı sessiz varsayılana düşmesini
+    // engeller — listeye girmeden fark edilmemesi imkânsız.
+    const { readdirSync, readFileSync, statSync } = await import("node:fs");
+    const { join } = await import("node:path");
+    const creators = new Map<string, string>();
+    const walk = (dir: string) => {
+      for (const name of readdirSync(dir)) {
+        const p = join(dir, name);
+        if (statSync(p).isDirectory()) walk(p);
+        else if (/\.tsx?$/.test(name)) {
+          const src = readFileSync(p, "utf8");
+          if (/\borganization\.create\s*\(/.test(src)) {
+            creators.set(p.replace(/\\/g, "/").replace(/^.*?src\//, "src/"), src);
+          }
+        }
+      }
+    };
+    walk("src");
+
+    expect([...creators.keys()].sort()).toEqual([
+      "src/app/api/admin/customers/route.ts", // operatör → deployment varsayılanı
+      "src/app/api/auth/register/route.ts", //   herkese açık kayıt → tarayıcı dilimi
+    ]);
+
+    // Her biri create çağrısında timezone GEÇİRMELİ — şema varsayılanına
+    // güvenmek .com dışında yanlış cevaptır.
+    for (const [file, src] of creators) {
+      const call = src.match(/organization\.create\s*\(([\s\S]{0,400})/);
+      expect(call, `${file}: organization.create okunamadı`).not.toBeNull();
+      expect(call![1], `${file}: create çağrısında timezone YOK`).toMatch(/timezone/);
+    }
+  });
+});
+
 describe("boot kapısı — APP_DEFAULT_TIMEZONE", () => {
   const base = {
     NODE_ENV: "production",

@@ -7,6 +7,7 @@ import { isSuperAdmin } from "@/lib/admin";
 import { rateLimit } from "@/lib/rate-limit";
 import { writeAudit } from "@/lib/audit";
 import { newTrialSubscriptionData } from "@/lib/billing/subscription";
+import { appDefaultTimezone } from "@/lib/app-config";
 
 // Billing lifecycle the operator chooses for a new customer. ALWAYS creates a
 // Subscription row so an operator-created org can never silently fall into
@@ -48,7 +49,13 @@ export async function POST(req: NextRequest) {
 
     const passwordHash = await hashPassword(parsed.data.password);
     const { org } = await prisma.$transaction(async (tx) => {
-      const org = await tx.organization.create({ data: { name: parsed.data.organizationName } });
+      // Deployment default, NOT the operator's browser zone: this org belongs to a
+      // customer who isn't here, and stamping it with wherever the operator happens
+      // to be sitting would be a confident wrong answer. The customer sets their own
+      // zone in Ayarlar; until then the deployment default is the honest guess.
+      const org = await tx.organization.create({
+        data: { name: parsed.data.organizationName, timezone: appDefaultTimezone() },
+      });
       await tx.user.create({
         data: {
           organizationId: org.id,
