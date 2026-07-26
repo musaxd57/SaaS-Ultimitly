@@ -211,6 +211,80 @@ export function pickKeeper(rows: ConversationRow[], messageCount: Map<string, nu
   })[0];
 }
 
+/**
+ * TEK KAYNAK sınıflandırma. Dry-run SAYAR, apply UYGULAR — ikisi de burayı
+ * çağırır, böylece "onaylanan plan" ile "uygulanan plan" aynı koddan doğar.
+ * Saf: DB'ye dokunmaz, yalnız verilen satırlar üzerinde karar verir.
+ */
+export function classifyGroup(rows: ConversationRow[], msgs: MessageRow[]) {
+  const perConv = new Map<string, number>();
+  for (const m of msgs) perConv.set(m.conversationId, (perConv.get(m.conversationId) ?? 0) + 1);
+  const keeper = pickKeeper(rows, perConv);
+  const losers = rows.filter((r) => r.id !== keeper.id);
+
+  // ── Konuşma alanları: politikası olmayan/çelişen alan → FAIL-CLOSED ──
+  let failed: FailReason | null = null;
+  let keeperWinsDiff = false;
+  for (const [field, policy] of Object.entries(CONVERSATION_FIELD_POLICY)) {
+    const values = rows.map((r) => r[field]);
+    if (values.every((v) => sameScalar(v, values[0]))) continue;
+    switch (policy) {
+      case "identity_key":
+        failed ??= "conversation_field_conflict"; // gruplama bozuk — imkânsız olmalı
+        break;
+      case "single_non_null": {
+        const nonNull = values.filter((v) => v !== null && v !== undefined);
+        if (new Set(nonNull.map((v) => String(v))).size > 1) {
+          failed ??= field === "reservationId" ? "reservation_id_conflict" : "external_conversation_id_conflict";
+        }
+        break;
+      }
+      case "keeper_wins":
+        keeperWinsDiff = true;
+        break;
+      case "anon_guard":
+      case "status_rank":
+      case "max_wins":
+      case "min_wins":
+      case "row_identity":
+      case "system_managed":
+        break; // açık politikası var; fark beklenen
+    }
+  }
+
+  // ── Mesaj sınıflandırması ────────────────────────────────────────────
+  const keeperByExt = new Map<string, MessageRow>();
+  for (const m of msgs) {
+    if (m.conversationId === keeper.id && m.externalId != null) keeperByExt.set(String(m.externalId), m);
+  }
+  const moveUniqueIds: string[] = [];
+  const moveNullIds: string[] = [];
+  const dropExactIds: string[] = [];
+  let conflicting = 0;
+  for (const m of msgs) {
+    if (m.conversationId === keeper.id) continue;
+    if (m.externalId == null) {
+      moveNullIds.push(m.id); // güvenle eşleştirilemez → TAŞINIR, asla düşürülmez
+      continue;
+    }
+    const twin = keeperByExt.get(String(m.externalId));
+    if (!twin) {
+      moveUniqueIds.push(m.id);
+      continue;
+    }
+    const strictEqual = Object.entries(MESSAGE_FIELD_POLICY)
+      .filter(([, p]) => p === "strict")
+      .every(([f]) => sameScalar(m[f], twin[f]));
+    // CANONICAL = keeper'daki kopya (deterministik: kısıt gereği konuşma başına
+    // externalId tektir, dolayısıyla "keeper'ınki" tek ve belirsizliksizdir).
+    if (strictEqual) dropExactIds.push(m.id);
+    else conflicting++;
+  }
+  if (conflicting > 0) failed ??= "message_content_conflict";
+
+  return { keeper, losers, failed, keeperWinsDiff, moveUniqueIds, moveNullIds, dropExactIds, conflicting };
+}
+
 export type FailReason =
   | "conversation_field_conflict"
   | "reservation_id_conflict"
@@ -348,91 +422,24 @@ export async function planConversationDedupe(
         })) as unknown as MessageRow[];
         report.messages.in_conflict_groups += msgs.length;
 
-        const perConv = new Map<string, number>();
-        for (const m of msgs) perConv.set(m.conversationId, (perConv.get(m.conversationId) ?? 0) + 1);
+        const plan = classifyGroup(rows, msgs);
+        if (plan.keeperWinsDiff) report.groups.keeper_wins_differences++;
+        report.messages.conflicting_blocking += plan.conflicting;
 
-        const keeper = pickKeeper(rows, perConv);
-        const losers = rows.filter((r) => r.id !== keeper.id);
-
-        // ── Konuşma alanları: politikası olmayan/çelişen alan → FAIL-CLOSED ──
-        let failed: FailReason | null = null;
-        let keeperWinsDiff = false;
-        for (const [field, policy] of Object.entries(CONVERSATION_FIELD_POLICY)) {
-          const values = rows.map((r) => r[field]);
-          const allSame = values.every((v) => sameScalar(v, values[0]));
-          if (allSame) continue;
-          switch (policy) {
-            case "identity_key":
-              failed ??= "conversation_field_conflict"; // gruplama bozuk — imkânsız olmalı
-              break;
-            case "single_non_null": {
-              const nonNull = values.filter((v) => v !== null && v !== undefined);
-              const distinct = new Set(nonNull.map((v) => String(v)));
-              if (distinct.size > 1) {
-                failed ??=
-                  field === "reservationId" ? "reservation_id_conflict" : "external_conversation_id_conflict";
-              }
-              break;
-            }
-            case "keeper_wins":
-              keeperWinsDiff = true;
-              break;
-            case "anon_guard":
-            case "status_rank":
-            case "max_wins":
-            case "min_wins":
-            case "row_identity":
-            case "system_managed":
-              break; // açık politikası var; fark beklenen
-          }
-        }
-        if (keeperWinsDiff) report.groups.keeper_wins_differences++;
-
-        // ── Mesaj sınıflandırması ────────────────────────────────────────────
-        const keeperByExt = new Map<string, MessageRow>();
-        for (const m of msgs) {
-          if (m.conversationId === keeper.id && m.externalId != null) {
-            keeperByExt.set(String(m.externalId), m);
-          }
-        }
-        let moveUnique = 0;
-        let moveNull = 0;
-        let dropExact = 0;
-        let conflicting = 0;
-        for (const m of msgs) {
-          if (m.conversationId === keeper.id) continue;
-          if (m.externalId == null) {
-            moveNull++; // güvenle eşleştirilemez → TAŞINIR, asla düşürülmez
-            continue;
-          }
-          const twin = keeperByExt.get(String(m.externalId));
-          if (!twin) {
-            moveUnique++;
-            continue;
-          }
-          const strictEqual = Object.entries(MESSAGE_FIELD_POLICY)
-            .filter(([, p]) => p === "strict")
-            .every(([f]) => sameScalar(m[f], twin[f]));
-          if (strictEqual) dropExact++;
-          else conflicting++;
-        }
-        report.messages.conflicting_blocking += conflicting;
-        if (conflicting > 0) failed ??= "message_content_conflict";
-
-        if (failed) {
+        if (plan.failed) {
           report.groups.fail_closed++;
-          report.groups.fail_reasons[failed]++;
+          report.groups.fail_reasons[plan.failed]++;
           continue; // plan üretilmez; bu gruba APPLY de dokunmayacak
         }
 
         report.groups.planned++;
         report.conversations.keepers++;
-        plannedLosers += losers.length;
-        report.messages.planned_move_unique += moveUnique;
-        report.messages.planned_move_null_external += moveNull;
-        plannedDrops += dropExact;
+        plannedLosers += plan.losers.length;
+        report.messages.planned_move_unique += plan.moveUniqueIds.length;
+        report.messages.planned_move_null_external += plan.moveNullIds.length;
+        plannedDrops += plan.dropExactIds.length;
 
-        const loserIds = losers.map((l) => l.id);
+        const loserIds = plan.losers.map((l) => l.id);
         report.relations.message_outbox_repoint += await tx.messageOutbox.count({
           where: { conversationId: { in: loserIds } },
         });
