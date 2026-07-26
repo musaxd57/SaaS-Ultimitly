@@ -228,11 +228,16 @@ export async function applyConversationDedupe(
   opts: {
     expectations: ApplyExpectations;
     deployedSha?: string;
-    allowPrimary?: boolean;
     timeouts?: ReturnType<typeof resolveTimeouts>;
     /** TEST-ONLY: git/deploy kapısını atlar. Üretim yolunda ASLA kullanılmaz. */
     skipDeployGate?: boolean;
     cwd?: string;
+    /**
+     * Transaction'ın İLK ifadesinden hemen önce çağrılır. Çağrılmadıysa hata
+     * kapılardan geldi ve HİÇBİR transaction açılmadı demektir — "değişiklik
+     * yok" ancak o zaman DÜRÜSTÇE söylenebilir.
+     */
+    onTransactionStart?: () => void;
   },
 ): Promise<ApplyOutcome> {
   assertPolicyCoverage();
@@ -242,6 +247,7 @@ export async function applyConversationDedupe(
 
   return prisma.$transaction(
     async (tx) => {
+      opts.onTransactionStart?.();
       await tx.$executeRawUnsafe(`SET LOCAL statement_timeout = ${timeouts.statementMs}`);
       await tx.$executeRawUnsafe(`SET LOCAL lock_timeout = ${timeouts.lockMs}`);
       await tx.$executeRawUnsafe(`SET LOCAL idle_in_transaction_session_timeout = ${timeouts.idleTxMs}`);
@@ -453,6 +459,48 @@ export function formatApplyOutcome(o: ApplyOutcome): string[] {
   return L;
 }
 
+/**
+ * Hata sınıflandırması — "hiçbir değişiklik yapılmadı" İDDİASI NE ZAMAN KURULABİLİR?
+ *
+ * · Kapı hatası (transaction HİÇ açılmadı) → kesin: değişiklik yok.
+ * · Transaction İÇİNDEKİ guard hatası → PostgreSQL rollback eder → değişiklik yok.
+ * · Bunların DIŞINDA (bağlantı kopması, süreç ölümü, bilinmeyen hata) → SONUÇ
+ *   BELİRSİZ. Commit tam o anda gerçekleşmiş OLABİLİR. Burada "değişiklik yok"
+ *   demek yalan olur ve operatörü apply'ı TEKRAR çalıştırmaya iter — asıl
+ *   tehlike budur. Bu yüzden ayrı çıkış kodu (3) ve açık talimat veriliyor.
+ */
+export function classifyApplyFailure(
+  enteredTransaction: boolean,
+  err: unknown,
+): { ambiguous: boolean; exitCode: number; lines: string[] } {
+  const msg = err instanceof Error ? err.message : "";
+  const isOurGuard = /rollback|geri alındı|APPLY_PHASE_A|DEDUPE_|DESTEKLENMEYEN|politika haritası|İÇERMİYOR|BİLİNMİYOR/i.test(msg);
+  const deterministic = !enteredTransaction || isOurGuard;
+  if (deterministic) {
+    return {
+      ambiguous: false,
+      exitCode: 1,
+      lines: [
+        `[dedupe-apply] BAŞARISIZ — hiçbir değişiklik yapılmadı: ${msg || (err as Error)?.name || "Error"}`,
+        enteredTransaction
+          ? "  (transaction içi guard → PostgreSQL rollback etti)"
+          : "  (kapı hatası → transaction hiç açılmadı)",
+      ],
+    };
+  }
+  return {
+    ambiguous: true,
+    exitCode: 3,
+    lines: [
+      `[dedupe-apply] BAŞARISIZ — SONUÇ BELİRSİZ: ${(err as Error)?.name ?? "Error"}`,
+      "  Commit tam o anda gerçekleşmiş OLABİLİR; uygulandı da denemez, uygulanmadı da.",
+      "  ⚠️ APPLY'I TEKRAR ÇALIŞTIRMA.",
+      "  Önce SALT-OKUMA dry-run koş: 7 grup görünüyorsa hiçbir şey olmamış,",
+      "  0 grup görünüyorsa işlem commit olmuş demektir. Kararı ona göre ver.",
+    ],
+  };
+}
+
 async function main() {
   if (process.env.DEDUPE_APPLY !== "1") {
     console.error("[dedupe-apply] DEDUPE_APPLY=1 verilmedi — VARSAYILAN KAPALI, hiçbir şey yapılmadı.");
@@ -465,20 +513,23 @@ async function main() {
     return;
   }
   let prisma: PrismaClient | undefined;
+  let enteredTransaction = false;
   try {
     const expectations = resolveExpectations(process.env);
     prisma = new PrismaClient();
     const outcome = await applyConversationDedupe(prisma, {
       expectations,
       deployedSha: process.env.APPLY_PHASE_A_DEPLOYED_SHA,
+      onTransactionStart: () => {
+        enteredTransaction = true;
+      },
     });
     console.log(formatApplyOutcome(outcome).join("\n"));
     process.exitCode = 0;
   } catch (e) {
-    const msg = e instanceof Error ? e.message : "";
-    const known = /rollback|beklenen|APPLY_PHASE_A|DEDUPE_|Faz A|DESTEKLENMEYEN|ÇELİŞKİ|politika haritası/i.test(msg);
-    console.error(`[dedupe-apply] BAŞARISIZ (hiçbir değişiklik yapılmadı): ${known ? msg : ((e as Error)?.name ?? "Error")}`);
-    process.exitCode = 1;
+    const verdict = classifyApplyFailure(enteredTransaction, e);
+    console.error(verdict.lines.join("\n"));
+    process.exitCode = verdict.exitCode;
   } finally {
     await prisma?.$disconnect();
   }

@@ -13,6 +13,7 @@ import {
   applyConversationDedupe,
   assertPhaseADeployed,
   assertReferenceCoverage,
+  classifyApplyFailure,
   inventoryConversationReferences,
   mergedConversationFields,
   resolveExpectations,
@@ -174,6 +175,42 @@ describe("apply — kapılar (varsayılan KAPALI)", () => {
 
   it("beklenen Faz A commit'i sabittir", () => {
     expect(PHASE_A_COMMIT).toBe("3effd99");
+  });
+
+  // "Hiçbir değişiklik yapılmadı" bir İDDİADIR ve her hatada kurulamaz.
+  // Commit anındaki bağlantı kaybı BELİRSİZDİR; orada bu cümleyi kurmak
+  // operatörü apply'ı TEKRAR çalıştırmaya iter — asıl tehlike budur.
+  describe("hata sınıflandırması — belirsizlik gizlenmez", () => {
+    it("kapı hatası (transaction hiç açılmadı) → kesin: değişiklik yok", () => {
+      const v = classifyApplyFailure(false, new Error("APPLY_PHASE_A_DEPLOYED_SHA yok"));
+      expect(v.ambiguous).toBe(false);
+      expect(v.exitCode).toBe(1);
+      expect(v.lines.join("\n")).toContain("hiçbir değişiklik yapılmadı");
+      expect(v.lines.join("\n")).toContain("transaction hiç açılmadı");
+    });
+
+    it("transaction içi guard → rollback, değişiklik yok", () => {
+      const v = classifyApplyFailure(true, new Error("grup 8 ≠ beklenen 7 — rollback"));
+      expect(v.ambiguous).toBe(false);
+      expect(v.exitCode).toBe(1);
+      expect(v.lines.join("\n")).toContain("rollback etti");
+    });
+
+    it("bağlantı kaybı → BELİRSİZ; 'değişiklik yok' DENMEZ ve retry YASAK", () => {
+      const err = Object.assign(new Error("Connection terminated unexpectedly"), {
+        name: "PrismaClientKnownRequestError",
+      });
+      const v = classifyApplyFailure(true, err);
+      const text = v.lines.join("\n");
+      expect(v.ambiguous).toBe(true);
+      expect(v.exitCode).toBe(3); // deterministik hatadan AYRI kod
+      expect(text).toContain("SONUÇ BELİRSİZ");
+      expect(text).toContain("TEKRAR ÇALIŞTIRMA");
+      expect(text).toContain("dry-run");
+      expect(text).not.toContain("hiçbir değişiklik yapılmadı");
+      // Ham hata metni (bağlantı dizesi taşıyabilir) basılmaz — yalnız tip.
+      expect(text).not.toContain("Connection terminated");
+    });
   });
 
   it("beklenen sayı TUTMAZSA hiçbir yazma yapılmaz", async () => {
