@@ -1,4 +1,4 @@
-// DEPLOYMENT-LEVEL locale / currency. Server-only by design.
+// DEPLOYMENT-LEVEL locale / currency / default timezone. Server-only by design.
 //
 // The .com and .eu instances are SEPARATE deployments of this codebase, each with
 // its own env and database (see auth/email-verify.ts). That is what makes a
@@ -16,10 +16,22 @@
 //                     authoritative over the deployment setting; a stored amount is
 //                     never re-labelled with a different symbol.
 //   organization tz   Organization.timezone. Says NOTHING about money. A host in
-//                     Europe/Berlin may still be billed in TRY.
+//                     Europe/Berlin may still be billed in TRY. This file only
+//                     supplies the DEFAULT for a brand-new org
+//                     (APP_DEFAULT_TIMEZONE); the per-org value lives in the DB
+//                     and the host can change it in Settings.
 //
 // No conversion happens anywhere in this codebase. A number is only ever rendered
 // with the currency it is actually denominated in — formatting is not conversion.
+// And a timezone is never INFERRED from a locale or a currency: those three are
+// independent inputs, and guessing one from another is wrong for every host who
+// doesn't sit at the intersection.
+
+// DEFAULT_TIMEZONE / isValidTimeZone come from lib/timezone.ts, which stays
+// deliberately env-free (it is imported all over the app, including from code
+// that runs in the browser). Reading env is this module's job; the direction of
+// that import must not reverse.
+import { DEFAULT_TIMEZONE, isValidTimeZone } from "@/lib/timezone";
 
 /** Shipped default — the .com deployment. Changing this changes .com. */
 export const DEFAULT_LOCALE = "tr-TR";
@@ -61,6 +73,55 @@ export function isValidCurrencyCode(value: string): boolean {
 export function appLocale(env: NodeJS.ProcessEnv = process.env): string {
   const raw = (env.APP_LOCALE ?? "").trim();
   return raw && isValidLocale(raw) ? raw : DEFAULT_LOCALE;
+}
+
+/**
+ * Default IANA timezone for organizations created on THIS deployment. Unset →
+ * Europe/Istanbul, which is both the shipped .com answer and the column default
+ * that every existing org already carries, so leaving it unset changes nothing.
+ *
+ * Only a DEFAULT. It is the answer when the browser tells us nothing usable; the
+ * real per-org value is whatever resolveNewOrgTimezone() settles on at sign-up
+ * and whatever the host later picks in Settings.
+ *
+ * An invalid value falls back rather than throwing — a bad env must not break
+ * sign-up — and the boot gate refuses to start production with one, so this
+ * fallback is a dev safety net, not a way to run misconfigured.
+ */
+export function appDefaultTimezone(env: NodeJS.ProcessEnv = process.env): string {
+  const raw = (env.APP_DEFAULT_TIMEZONE ?? "").trim();
+  return raw && isValidTimeZone(raw) ? raw : DEFAULT_TIMEZONE;
+}
+
+/** Longest real IANA zone name is ~32 chars; this is slack, not a limit anyone hits. */
+const MAX_TIMEZONE_LENGTH = 64;
+
+/**
+ * Settle the timezone for a NEW organization from the browser's own report
+ * (`Intl.DateTimeFormat().resolvedOptions().timeZone`, posted by the sign-up
+ * form), falling back to this deployment's default.
+ *
+ * The candidate is CLIENT-SUPPLIED, so it is validated against the real IANA set
+ * before it can reach the database. The blast radius is small either way — a host
+ * can only set their own org's zone, and Settings already lets them change it —
+ * but an unvalidated value would put junk in a column that drives day boundaries
+ * and send windows.
+ *
+ * Anything unusable — absent, blank, wrong type, over-long, not a zone Intl knows
+ * — falls back silently. It must NEVER reject a registration: a stale browser
+ * reporting an odd zone is not a reason to refuse someone an account, and the
+ * host can correct it in Settings in one click.
+ */
+export function resolveNewOrgTimezone(
+  candidate: unknown,
+  env: NodeJS.ProcessEnv = process.env,
+): string {
+  if (typeof candidate === "string") {
+    const v = candidate.trim();
+    // Length first: a megabyte of junk should never reach Intl.
+    if (v && v.length <= MAX_TIMEZONE_LENGTH && isValidTimeZone(v)) return v;
+  }
+  return appDefaultTimezone(env);
 }
 
 /**

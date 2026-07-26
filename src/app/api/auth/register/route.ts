@@ -11,6 +11,7 @@ import { emailOutboxEnabled, enqueueIdentityEmail, kickEmailOutboxDrain } from "
 import { newTrialSubscriptionData } from "@/lib/billing/subscription";
 import { LEGAL_VERSION } from "@/lib/legal-entity";
 import { LEGAL_TEXT_HASH } from "@/lib/legal-text-hash";
+import { resolveNewOrgTimezone } from "@/lib/app-config";
 
 export async function POST(req: NextRequest) {
   try {
@@ -39,7 +40,7 @@ export async function POST(req: NextRequest) {
       );
     }
 
-    const bodyResult = await parseJsonBody<{ consent?: unknown }>(req);
+    const bodyResult = await parseJsonBody<{ consent?: unknown; timezone?: unknown }>(req);
     if (!bodyResult.ok && bodyResult.tooLarge) return payloadTooLarge();
     const data = bodyResult.ok ? bodyResult.data : null;
     const parsed = registerSchema.safeParse(data);
@@ -58,12 +59,23 @@ export async function POST(req: NextRequest) {
     const existing = await prisma.user.findUnique({ where: { email } });
     if (existing) return badRequest({ email: "Bu e-posta adresi zaten kayıtlı" });
 
+    // Operating timezone for the new org. The sign-up form posts the browser's own
+    // IANA zone; resolveNewOrgTimezone validates it and falls back to this
+    // deployment's default (APP_DEFAULT_TIMEZONE, itself validated) when it is
+    // absent or unusable. Read OUTSIDE registerSchema on purpose — like `consent`
+    // — so a browser reporting an odd zone can never turn into a 400 that blocks
+    // someone from signing up. Until now this column was never written and every
+    // org started on Europe/Istanbul, which is right for .com and wrong anywhere
+    // else: it drives report day boundaries, automated-message hour windows and
+    // the QR concierge's open-hours gate.
+    const timezone = resolveNewOrgTimezone(data?.timezone);
+
     const passwordHash = await hashPassword(parsed.data.password);
     const { raw, hash } = makeVerifyToken();
     const verifyExpiresAt = new Date(Date.now() + VERIFY_TTL_MS);
     const { user } = await prisma.$transaction(async (tx) => {
       const org = await tx.organization.create({
-        data: { name: parsed.data.organizationName },
+        data: { name: parsed.data.organizationName, timezone },
       });
       // One checkbox covers Terms + Privacy, so both acceptances share the same
       // instant. Version + IP + UA make the consent record defensible against a

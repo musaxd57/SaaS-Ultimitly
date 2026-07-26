@@ -7,9 +7,16 @@
 // okuma yolu yine de orgTimezone() ile korunur (bozuk/eski değer asla Intl'i
 // patlatamaz — sessizce Istanbul'a düşer).
 //
-// NOT (bilinçli kapsam): mesaj/görev ZAMAN DAMGASI gösterimi (utils.ts
-// APP_TIME_ZONE) hâlâ Istanbul — o ayrı bir görüntüleme-katmanı turu; buradaki
-// iş doğruluk katmanı (pencere/kova/sınır hesapları).
+// Görüntüleme katmanı da bağlandı: utils.ts'teki formatDateTime/formatTime/
+// fromNow artık trailing bir tz alır ve TÜM çağrı yerleri org dilimini geçiriyor
+// (APP_TIME_ZONE yalnız imzadaki varsayılan olarak duruyor). Bu dosyanın işi
+// doğruluk katmanı — pencere/kova/gün-sınırı hesapları.
+//
+// YENİ ORG'un dilimi: kayıt sırasında tarayıcının bildirdiği IANA değeri
+// doğrulanıp yazılır, yoksa deployment varsayılanına (APP_DEFAULT_TIMEZONE)
+// düşer — app-config.ts'teki resolveNewOrgTimezone. Bu dosya bilinçli olarak
+// ENV OKUMAZ: her yerden (istemci dahil) import ediliyor, env okuma app-config'in
+// işi. Bağımlılık yönü app-config → timezone; tersi OLMAMALI.
 
 export const DEFAULT_TIMEZONE = "Europe/Istanbul";
 

@@ -220,6 +220,28 @@ export function checkProductionEnv(env) {
     if (!localeOk) errors.push(`APP_LOCALE is not a locale Intl accepts: ${locale}`);
   }
 
+  // Default IANA timezone for NEW organizations on this deployment. Optional —
+  // unset means Europe/Istanbul, the shipped .com answer and the existing column
+  // default, so nothing changes. When SET it must be a zone Intl accepts: a
+  // deployment that meant Europe/Berlin but typo'd would silently create every
+  // new org on the Istanbul calendar, and the damage (wrong day boundaries,
+  // messages sent at the wrong local hour) is invisible until a host notices.
+  // NOT derived from APP_LOCALE or APP_BILLING_CURRENCY — those say nothing about
+  // where a host operates. Values are safe to print (not secrets).
+  const defaultTimezone = (env.APP_DEFAULT_TIMEZONE ?? "").trim();
+  if (defaultTimezone) {
+    let tzOk = false;
+    try {
+      new Intl.DateTimeFormat("en-US", { timeZone: defaultTimezone });
+      tzOk = true;
+    } catch {
+      tzOk = false;
+    }
+    if (!tzOk) {
+      errors.push(`APP_DEFAULT_TIMEZONE is not an IANA time zone Intl accepts: ${defaultTimezone}`);
+    }
+  }
+
   const billingCurrency = (env.APP_BILLING_CURRENCY ?? "").trim();
   const billingCurrencyCode = billingCurrency.toUpperCase();
   let billingCurrencyValid = false;

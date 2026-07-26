@@ -11,6 +11,24 @@ import { Input } from "@/components/ui/input";
 
 type Fields = Record<string, string>;
 
+/**
+ * The browser's own IANA timezone, for the org we're about to create. Reports,
+ * "today" boundaries, automated-message hour windows and the QR concierge's
+ * open-hours gate all run on the org's zone, and until this was sent every new
+ * org started on Europe/Istanbul — correct for Turkey, wrong for anyone else.
+ *
+ * Best-effort by design: the server VALIDATES this and falls back to the
+ * deployment default, and the host can change it in Settings. Returns "" rather
+ * than throwing on an ancient browser, so sign-up never depends on it.
+ */
+function browserTimezone(): string {
+  try {
+    return Intl.DateTimeFormat().resolvedOptions().timeZone || "";
+  } catch {
+    return "";
+  }
+}
+
 export function RegisterForm() {
   const router = useRouter();
   const [form, setForm] = useState({
@@ -100,7 +118,7 @@ export function RegisterForm() {
       const res = await fetch("/api/auth/register", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ ...form, consent }),
+        body: JSON.stringify({ ...form, consent, timezone: browserTimezone() }),
       });
       const data = await res.json().catch(() => ({}));
       if (!res.ok) {
