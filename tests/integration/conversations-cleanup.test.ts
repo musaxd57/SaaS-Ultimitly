@@ -296,8 +296,13 @@ describe("cleanupDuplicateConversations — tarih eşitliği kimlik DEĞİLDİR"
   });
 
   it("AYNI externalReservationId (yarış artığı) → dedupe edilir", async () => {
-    // Kimlik EŞİT: tek sağlayıcı thread'i için iki satır oluşmuş. Bu, unique
-    // migration'ın kısıtlayacağı popülasyonun ta kendisi.
+    // Kimlik EŞİT: tek sağlayıcı rezervasyonu için iki satır oluşmuş.
+    //
+    // Bu vaka, planlanan `@@unique([propertyId, externalReservationId])` ile
+    // ÖRTÜŞÜR — ama ikisi AYNI TANIM DEĞİLDİR (Codex). Kesişirler, hiçbiri
+    // diğerini kapsamaz: cleanup aynı yerel reservationId'yi de kabul eder
+    // (unique etmez), unique ise farklı guestIdentifier'lı çifti bloklar
+    // (cleanup onları guest'e göre grupladığı için hiç karşılaştırmaz).
     const { propertyId, orgId } = await makeOrgWithProperty();
     const stale = await makeConv(propertyId, { guest: "Emre", ext: "res-SAME", bodies: ["Merhaba"] });
     await makeConv(propertyId, { guest: "Emre", ext: "res-SAME", bodies: ["Merhaba", "Anahtar?"] });
