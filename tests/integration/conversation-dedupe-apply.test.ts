@@ -7,6 +7,7 @@ import { beforeEach, describe, expect, it } from "vitest";
 
 import { prisma, resetDb, makeOrgWithProperty } from "../helpers/db";
 import { planConversationDedupe } from "../../scripts/dryrun-conversation-dedupe";
+import type { Row } from "../../scripts/apply-conversation-dedupe";
 import {
   PHASE_A_COMMIT,
   __applyHooks,
@@ -39,10 +40,16 @@ async function conv(
   propertyId: string,
   o: Partial<{
     externalConversationId: string | null;
+    reservationId: string | null;
     status: string;
+    priority: string;
     createdAt: Date;
     lastMessageAt: Date;
+    skippedReason: string | null;
+    lastRiskLevel: string | null;
+    lastRiskType: string | null;
     autoReplyHoldUntil: Date | null;
+    autoReplyAttemptedAt: Date | null;
     syncCursorAt: Date | null;
   }> = {},
 ) {
@@ -54,10 +61,16 @@ async function conv(
       externalReservationId: EXT,
       externalConversationId:
         "externalConversationId" in o ? o.externalConversationId! : "prov-conv-1",
+      reservationId: o.reservationId ?? null,
       status: o.status ?? "answered",
+      priority: o.priority ?? "standard",
       createdAt: o.createdAt ?? T0,
       lastMessageAt: o.lastMessageAt ?? T0,
+      skippedReason: o.skippedReason ?? null,
+      lastRiskLevel: o.lastRiskLevel ?? null,
+      lastRiskType: o.lastRiskType ?? null,
       autoReplyHoldUntil: o.autoReplyHoldUntil ?? null,
+      autoReplyAttemptedAt: o.autoReplyAttemptedAt ?? null,
       syncCursorAt: o.syncCursorAt ?? null,
     },
   });
@@ -357,25 +370,25 @@ describe("apply — başarı yolu", () => {
     expect(await prisma.messageOutbox.count({ where: { conversationId: b.id } })).toBe(0);
   });
 
-  it("kolon birleştirme YÖNLÜ: problem kazanır, hold MAX, cursor en ihtiyatlı", async () => {
+  it("IDENTITY-ONLY: canlı durum eşitse hiçbir şey yazılmaz, kimlik alanı eksikse aktarılır", async () => {
+    // Codex denetimi B1/B2/B4 sonrası: mergedConversationFields artık YALNIZ
+    // single_non_null (kimlik) alanlarına dokunur. Burada status/priority/vb.
+    // HER İKİ satırda da eşit (conv()'in varsayılanları) — apply hiçbir
+    // canlı-durum yazmaz. NOT: reservationId burada KULLANILMAZ — pickKeeper
+    // reservationId'si OLAN satırı keeper seçtiği için (identity-önce tie-break),
+    // "keeper'da eksik, loser'da dolu" senaryosu reservationId için asla
+    // gerçekleşemez; externalConversationId ise pickKeeper'ı ETKİLEMEZ, o yüzden
+    // transfer testi bu alanla yapılır. a daha çok mesajlıdır → keeper a olur,
+    // externalConversationId'si NULL'dur; b'deki değer a'ya aktarılır.
     const { propertyId } = await makeOrgWithProperty();
-    const a = await conv(propertyId, {
-      createdAt: T0,
-      status: "answered",
-      autoReplyHoldUntil: T0,
-      syncCursorAt: T1,
-    });
-    const b = await conv(propertyId, {
-      createdAt: T1,
-      status: "problem",
-      autoReplyHoldUntil: T1,
-      syncCursorAt: null,
-    });
+    const a = await conv(propertyId, { createdAt: T0, externalConversationId: null }); // kimlik YOK
+    const b = await conv(propertyId, { createdAt: T1, externalConversationId: "prov-conv-1" });
     await msg(a.id, "m1");
     await msg(a.id, "m2");
     await msg(b.id, "m1");
 
     const plan = await planConversationDedupe(prisma, { allowPrimary: true });
+    expect(plan.groups.planned).toBe(1); // canlı durum eşit -> fail-closed DEĞİL
     await applyConversationDedupe(prisma, {
       ...GATE,
       expectations: {
@@ -386,14 +399,78 @@ describe("apply — başarı yolu", () => {
     });
 
     const keeper = await prisma.conversation.findUniqueOrThrow({ where: { id: a.id } });
-    expect(keeper.status).toBe("problem"); // dikkat isteyen kazandı
-    expect(keeper.autoReplyHoldUntil?.getTime()).toBe(T1.getTime()); // devir penceresi kısalmadı
-    expect(keeper.syncCursorAt).toBeNull(); // NULL = en ihtiyatlı
-    expect(keeper.createdAt.getTime()).toBe(T0.getTime()); // en eski doğuş
-    // Saf birleştirici de aynı yönü vermeli (DB'siz kanıt).
-    const merged = mergedConversationFields([a, b] as never);
-    expect(merged.status).toBe("problem");
-    expect(merged.syncCursorAt).toBeNull();
+    expect(keeper.externalConversationId).toBe("prov-conv-1"); // kimlik aktarıldı
+    expect(keeper.status).toBe("answered"); // conv() varsayılanı — YAZILMADI, değişmedi
+    expect(keeper.createdAt.getTime()).toBe(T0.getTime()); // dokunulmadı (yalnız identity yazılır)
+  });
+
+  it("saf mergedConversationFields: keeper doluysa dokunmaz, boşsa loser'dan aktarır", () => {
+    const keeper = { id: "a", reservationId: null } as unknown as Row;
+    const loser = { id: "b", reservationId: "res-1" } as unknown as Row;
+    const merged = mergedConversationFields([keeper, loser], keeper);
+    expect(merged.reservationId).toBe("res-1");
+
+    const keeperFilled = { id: "a", reservationId: "res-existing" } as unknown as Row;
+    const merged2 = mergedConversationFields([keeperFilled, loser], keeperFilled);
+    expect(merged2.reservationId).toBeUndefined(); // zaten dolu — dokunulmaz
+  });
+});
+
+describe("apply — CANLI DURUM farkı (Codex denetimi B1/B2/B4)", () => {
+  beforeEach(async () => {
+    await resetDb();
+  });
+
+  it("closed + new → HİÇBİR ŞEY yazılmaz/silinmez, tam rollback", async () => {
+    const { propertyId } = await makeOrgWithProperty();
+    const closed = await conv(propertyId, { status: "closed", createdAt: T0 });
+    const isNew = await conv(propertyId, { status: "new", createdAt: T1 });
+    await msg(closed.id, "m1");
+    await msg(isNew.id, "m1");
+
+    await expect(
+      applyConversationDedupe(prisma, { ...GATE, expectations: { groups: 1, losers: 1, exactDuplicates: 1 } }),
+    ).rejects.toThrow(/Kilit altında ÇELİŞKİ bulundu \(live_state_conflict/);
+
+    // "closed" ASLA "new" olmadı, hiçbir satır silinmedi.
+    expect(await prisma.conversation.count({ where: { propertyId } })).toBe(2);
+    const rows = await prisma.conversation.findMany({ where: { propertyId } });
+    expect(rows.find((r) => r.id === closed.id)?.status).toBe("closed");
+    expect(rows.find((r) => r.id === isNew.id)?.status).toBe("new");
+  });
+
+  it("escalation beşlisi parçalanmaz: fark varsa TÜMÜ birlikte fail-closed", async () => {
+    const { propertyId } = await makeOrgWithProperty();
+    const a = await conv(propertyId, {
+      status: "answered",
+      priority: "standard",
+      skippedReason: null,
+      lastRiskLevel: null,
+      lastRiskType: null,
+      createdAt: T0,
+    });
+    const b = await conv(propertyId, {
+      status: "problem",
+      priority: "urgent",
+      skippedReason: "complaint",
+      lastRiskLevel: "high",
+      lastRiskType: "complaint",
+      createdAt: T1,
+    });
+    await msg(a.id, "m1");
+    await msg(b.id, "m1");
+
+    await expect(
+      applyConversationDedupe(prisma, { ...GATE, expectations: { groups: 1, losers: 1, exactDuplicates: 1 } }),
+    ).rejects.toThrow(/live_state_conflict/);
+
+    // Escalation quintet'in HİÇBİRİ kısmen taşınmadı — a hâlâ eskisi gibi.
+    const keeper = await prisma.conversation.findUniqueOrThrow({ where: { id: a.id } });
+    expect(keeper.status).toBe("answered");
+    expect(keeper.priority).toBe("standard");
+    expect(keeper.skippedReason).toBeNull();
+    expect(keeper.lastRiskLevel).toBeNull();
+    expect(keeper.lastRiskType).toBeNull();
   });
 });
 
@@ -457,6 +534,7 @@ describe("apply — idempotency ve eşzamanlılık", () => {
   beforeEach(async () => {
     await resetDb();
     __importThreadHooks.afterCanonicalRead = null;
+    __applyHooks.afterRowLock = null;
   });
 
   it("İKİNCİ koşu no-op", async () => {
@@ -523,6 +601,7 @@ describe("apply — idempotency ve eşzamanlılık", () => {
       applyLockedAt = Date.now();
     };
 
+    let applyError: unknown = null;
     try {
       const syncPromise = prisma
         .$transaction((tx) => importThread(tx, propertyId, reservation, messages, null), {
@@ -536,14 +615,19 @@ describe("apply — idempotency ve eşzamanlılık", () => {
       const applyPromise = (async () => {
         await new Promise((r) => setTimeout(r, APPLY_DELAY_MS)); // sync kilidi önce alsın
         applyRequestedAt = Date.now();
-        return applyConversationDedupe(prisma, {
-          ...GATE,
-          expectations: {
-            groups: plan.groups.planned,
-            losers: plan.conversations.losers_planned,
-            exactDuplicates: plan.messages.planned_drop_exact_duplicate,
-          },
-        });
+        try {
+          return await applyConversationDedupe(prisma, {
+            ...GATE,
+            expectations: {
+              groups: plan.groups.planned,
+              losers: plan.conversations.losers_planned,
+              exactDuplicates: plan.messages.planned_drop_exact_duplicate,
+            },
+          });
+        } catch (err) {
+          applyError = err;
+          return null;
+        }
       })();
       await Promise.all([syncPromise, applyPromise]);
     } finally {
@@ -551,7 +635,7 @@ describe("apply — idempotency ve eşzamanlılık", () => {
       __importThreadHooks.afterCanonicalRead = null;
     }
 
-    // ASIL İDDİA: apply kilit için GERÇEKTEN BEKLEDİ.
+    // ASIL İDDİA #1: apply kilit için GERÇEKTEN BEKLEDİ.
     //
     // İki ayrı JS saatiyle "apply, sync'ten sonra kilitledi" demek sınırda ±1ms
     // flake üretiyordu (DB devri anlık; iki callback aynı milisaniyeye düşüyor).
@@ -561,13 +645,152 @@ describe("apply — idempotency ve eşzamanlılık", () => {
     const waited = applyLockedAt - applyRequestedAt;
     expect(waited).toBeGreaterThanOrEqual(HOLD_MS - APPLY_DELAY_MS - 120);
 
-    // Ve sonuç doğru: tek konuşma, sync'in mesajı KAYBOLMADI.
-    expect(await prisma.conversation.count({ where: { propertyId } })).toBe(1);
-    const keeper = await prisma.conversation.findFirstOrThrow({ where: { propertyId } });
-    const ids = (
-      await prisma.message.findMany({ where: { conversationId: keeper.id }, select: { externalId: true } })
+    // ASIL İDDİA #2 (Codex B1/B4 sonrası): sync tam da bu iki-satırlık grubun
+    // BİRİNİ günceller (existing bulunan satır "new"a döner, diğeri "answered"
+    // kalır) — apply artık bunu rank ile SESSİZCE çözmüyor, live_state_conflict
+    // ile fail-closed oluyor. Bu, tam da kullanıcı direktifinin 4. maddesi:
+    // "canlı durum farkı varsa rank kullanma, grubu fail-closed bırak."
+    expect(applyError).toBeInstanceOf(Error);
+    expect((applyError as Error).message).toMatch(/live_state_conflict/);
+
+    // Ve sonuç doğru: TAM rollback — iki satır da duruyor, sync'in mesajı
+    // KAYBOLMADI (apply'ın reddi hiçbir şeyi silmedi/yarım bırakmadı).
+    expect(await prisma.conversation.count({ where: { propertyId } })).toBe(2);
+    const allIds = (
+      await prisma.message.findMany({ where: { conversation: { propertyId } }, select: { externalId: true } })
     ).map((m) => m.externalId);
-    expect(ids).toContain("m4");
-    expect(ids).toHaveLength(4); // m1,m2,m3 (tekil) + m4
+    expect(allIds).toContain("m4");
+    expect(allIds).toHaveLength(7); // a:m1,m2,m3 + b:m1,m2,m3 + sync'in m4'ü
+  });
+
+  it("FOR UPDATE ALTINDA eşzamanlı autoReplyHoldUntil yazımı KAYBOLMAZ (Codex B2)", async () => {
+    // Senaryo: apply bu grubun satırlarını FOR UPDATE ile kilitledikten hemen
+    // sonra (afterRowLock), auto-reply/escalation benzeri BAŞKA bir yazıcı
+    // (NS-43 ALMADAN, gerçek koddaki gibi düz bir prisma.conversation.update)
+    // keeper'ın autoReplyHoldUntil'ini günceller. Bu yazım apply'ın tuttuğu
+    // satır kilidinde BEKLEMELİDİR; apply commit ettikten SONRA uygulanmalı
+    // VE apply'ın kendisi bu alanı hiç yazmadığı için kaybolmamalıdır.
+    const { a } = await seedRaceArtifact(); // keeper = a (pickKeeper: en eski createdAt)
+    const plan = await planConversationDedupe(prisma, { allowPrimary: true });
+    const HOLD_MS = 300;
+    const FUTURE_HOLD = new Date("2026-06-01T00:00:00Z");
+
+    let fired = false;
+    let dispatchedAt = 0;
+    let completedAt = 0;
+    let concurrentWrite: Promise<unknown> | null = null;
+    __applyHooks.afterRowLock = async () => {
+      if (fired) return;
+      fired = true;
+      dispatchedAt = Date.now();
+      // AYRI bağlantı/oturum: apply'ın transaction'ının İÇİNDE DEĞİL — gerçek
+      // eşzamanlı bir yazıcıyı taklit eder (automation.ts'in kendi yazıcıları
+      // da NS-43 almadan, ayrı bir çağrı olarak yazar).
+      concurrentWrite = prisma.conversation
+        .update({ where: { id: a.id }, data: { autoReplyHoldUntil: FUTURE_HOLD } })
+        .then(() => {
+          completedAt = Date.now();
+        });
+      await new Promise((r) => setTimeout(r, HOLD_MS)); // apply'i kilit tutarken YAVAŞLAT
+    };
+
+    try {
+      await applyConversationDedupe(prisma, {
+        ...GATE,
+        expectations: {
+          groups: plan.groups.planned,
+          losers: plan.conversations.losers_planned,
+          exactDuplicates: plan.messages.planned_drop_exact_duplicate,
+        },
+      });
+      await concurrentWrite; // apply commit ettiyse artık cozulmus olmali
+    } finally {
+      __applyHooks.afterRowLock = null;
+    }
+
+    // ASIL İDDİA: eşzamanlı yazıcı GERÇEKTEN BEKLEDİ (apply'ın kilidi tutmasi
+    // kadar) — anında geçmedi.
+    expect(completedAt).toBeGreaterThan(0);
+    expect(completedAt - dispatchedAt).toBeGreaterThanOrEqual(HOLD_MS - 120);
+
+    // VE değer KAYBOLMADI: apply autoReplyHoldUntil'e hiç dokunmadığı için
+    // eşzamanlı yazıcının değeri aynen duruyor.
+    const keeper = await prisma.conversation.findUniqueOrThrow({ where: { id: a.id } });
+    expect(keeper.autoReplyHoldUntil?.getTime()).toBe(FUTURE_HOLD.getTime());
+  });
+
+  it("FOR UPDATE ALTINDA kaybedene gelen mesaj İNSERT'i SESSİZCE kaybolmaz (Codex B3)", async () => {
+    // Senaryo: apply loser satırını kilitledikten hemen sonra, o loser'a
+    // referans veren BAĞIMSIZ bir Message INSERT'i denenir (gerçek koddaki
+    // manuel-yanıt/auto-reply INSERT'lerinin taklidi). Message.conversationId
+    // FK'si bu INSERT için ebeveyn satırda FOR KEY SHARE ister — apply'ın
+    // FOR UPDATE'iyle ÇAKIŞIR, yani INSERT apply bitene kadar BLOKLANIR.
+    // Apply loser'ı SİLDİKTEN sonra bu INSERT ya (a) hâlâ bloklanıyorsa asla
+    // commit olmaz, ya da (b) tam o anda serbest kalırsa FK ihlaliyle AÇIKÇA
+    // reddedilir — HİÇBİR durumda "sessizce yazılıp sonra cascade ile
+    // kaybolma" olmaz.
+    const { b } = await seedRaceArtifact(); // loser = b (pickKeeper: b daha yeni)
+    const plan = await planConversationDedupe(prisma, { allowPrimary: true });
+    const HOLD_MS = 300;
+
+    let fired = false;
+    let dispatchedAt = 0;
+    let settledAt = 0;
+    let outcome: "resolved" | "rejected" | null = null;
+    let insertPromise: Promise<unknown> | null = null;
+    __applyHooks.afterRowLock = async () => {
+      if (fired) return;
+      fired = true;
+      dispatchedAt = Date.now();
+      insertPromise = prisma.message
+        .create({
+          data: {
+            conversationId: b.id, // LOSER — apply bunu birazdan silecek
+            direction: "inbound",
+            senderName: "Yarış Misafiri",
+            body: "Kilit sırasında gelen mesaj",
+            language: "tr",
+            externalId: "race-insert-1",
+            aiAssisted: false,
+            authorType: "guest",
+          },
+        })
+        .then(
+          () => {
+            outcome = "resolved";
+            settledAt = Date.now();
+          },
+          () => {
+            outcome = "rejected";
+            settledAt = Date.now();
+          },
+        );
+      await new Promise((r) => setTimeout(r, HOLD_MS)); // apply'i kilit tutarken YAVAŞLAT
+    };
+
+    try {
+      await applyConversationDedupe(prisma, {
+        ...GATE,
+        expectations: {
+          groups: plan.groups.planned,
+          losers: plan.conversations.losers_planned,
+          exactDuplicates: plan.messages.planned_drop_exact_duplicate,
+        },
+      });
+      await insertPromise;
+    } finally {
+      __applyHooks.afterRowLock = null;
+    }
+
+    // ASIL İDDİA: INSERT GERÇEKTEN BEKLEDİ — apply'ın satırı silmesinden ÖNCE
+    // sessizce commit olmadı.
+    expect(outcome).not.toBeNull();
+    expect(settledAt - dispatchedAt).toBeGreaterThanOrEqual(HOLD_MS - 120);
+    // Ebeveyn (loser) artık silinmiş olduğu için INSERT ya FK ihlaliyle
+    // REDDEDİLİR ya da hiç commit olmamıştır — "yazıldı ama sonra sessizce
+    // cascade ile silindi" senaryosu YAPISAL olarak imkânsız: reddedilen
+    // bir INSERT hiçbir zaman satır üretmez.
+    expect(outcome).toBe("rejected");
+    expect(await prisma.message.count({ where: { externalId: "race-insert-1" } })).toBe(0);
   });
 });

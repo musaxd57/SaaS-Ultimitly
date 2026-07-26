@@ -36,7 +36,6 @@ import {
   assertPolicyCoverage,
   classifyGroup,
   resolveTimeouts,
-  statusRank,
 } from "./dryrun-conversation-dedupe";
 
 /** Faz A (kimlik kilidi) commit'i — apply'ın ön koşulu. */
@@ -46,14 +45,23 @@ const CONVERSATION_IDENTITY_LOCK_NS = 43;
 /** erasure.ts ile aynı namespace — global kilit sırası 40 → 43 korunur. */
 const ERASURE_LOCK_NS = 40;
 
-type Row = Record<string, unknown> & { id: string };
+export type Row = Record<string, unknown> & { id: string };
 
 /**
  * TEST-ONLY seam: tüm kilitler ALINDIKTAN hemen sonra ateşlenir. Testler
  * "apply, sync'i gerçekten bekletiyor mu" sorusunu ZAMANLAMAYA bağlı olmadan
  * ölçmek için kullanır. Üretimde null → sıfır maliyet, sıfır davranış.
  */
-export const __applyHooks: { afterLocks: null | (() => Promise<void>) } = { afterLocks: null };
+export const __applyHooks: {
+  afterLocks: null | (() => Promise<void>);
+  /**
+   * Bir grubun FOR UPDATE satır kilitleri alındıktan HEMEN sonra, o grubun
+   * kilitli konuşma id'leriyle çağrılır. Testler bunu, kilit TUTULURKEN
+   * deterministik bir eşzamanlı yazma/insert denemesi enjekte etmek için
+   * kullanır (B2/B3 kırmızı-önce testleri). Üretimde null → sıfır maliyet.
+   */
+  afterRowLock: null | ((conversationIds: string[]) => Promise<void>);
+} = { afterLocks: null, afterRowLock: null };
 
 export interface ApplyExpectations {
   groups: number;
@@ -179,47 +187,30 @@ export function resolveExpectations(env: Record<string, string | undefined>): Ap
   };
 }
 
-/** Politika yönlerine göre keeper'a yazılacak alanları hesaplar (saf). */
-export function mergedConversationFields(rows: Row[]): Record<string, unknown> {
+/**
+ * IDENTITY-ONLY birleştirme (Codex denetimi B1/B2/B4, 2026-07-26 sonrası).
+ *
+ * Yazılan TEK şey: keeper'da NULL olan bir kimlik-bağlantı alanına (yalnız
+ * `single_non_null` politikalı `reservationId`/`externalConversationId`),
+ * grup içinde bulunan non-null değerin aktarılmasıdır. `classifyGroup` zaten
+ * iki dolu-fakat-FARKLI değeri fail-closed'a düşürdüğü için buraya ulaşan
+ * her `single_non_null` alanda en fazla BİR distinct non-null değer vardır —
+ * bu yüzden "hangisini seçelim" belirsizliği yoktur.
+ *
+ * `live_state` politikalı HİÇBİR alan (status, priority, skippedReason,
+ * lastRiskLevel, lastRiskType, lastMessageAt, syncCursorAt,
+ * autoReplyHoldUntil, autoReplyAttemptedAt) burada YOKTUR — ne okunur ne
+ * yazılır. `keeper_wins`/`anon_guard` (channel, guestIdentifier, createdAt)
+ * da yazılmaz; keeper'ın kendi değeri neyse o kalır.
+ */
+export function mergedConversationFields(rows: Row[], keeper: Row): Record<string, unknown> {
   const out: Record<string, unknown> = {};
-  const maxDate = (f: string) => {
-    const vals = rows.map((r) => r[f] as Date | null).filter((v): v is Date => v instanceof Date);
-    return vals.length ? new Date(Math.max(...vals.map((d) => d.getTime()))) : null;
-  };
-  const minDateConservative = (f: string) => {
-    const vals = rows.map((r) => r[f] as Date | null);
-    // NULL = "hiç senklenmedi" → EN İHTİYATLI değer; varsa o kazanır.
-    if (vals.some((v) => v == null)) return null;
-    return new Date(Math.min(...(vals as Date[]).map((d) => d.getTime())));
-  };
-  const singleNonNull = (f: string) => rows.map((r) => r[f]).find((v) => v != null) ?? null;
-
   for (const [field, policy] of Object.entries(CONVERSATION_FIELD_POLICY)) {
-    switch (policy) {
-      case "status_rank": {
-        const best = rows.reduce((a, b) => (statusRank(String(b.status)) > statusRank(String(a.status)) ? b : a));
-        out.status = best.status;
-        break;
-      }
-      case "max_wins":
-        out[field] = maxDate(field);
-        break;
-      case "min_wins":
-        out[field] = minDateConservative(field);
-        break;
-      case "single_non_null":
-        out[field] = singleNonNull(field);
-        break;
-      // keeper_wins / anon_guard: keeper'ın değeri zaten yerinde, YAZILMAZ
-      // (anon_guard için kritik: kaybedenden ad OKUNMAZ).
-      // row_identity / identity_key / system_managed: dokunulmaz.
-      default:
-        break;
-    }
+    if (policy !== "single_non_null") continue;
+    if (keeper[field] != null) continue; // keeper'da zaten var — dokunma, gereksiz yazım yok
+    const resolved = rows.map((r) => r[field]).find((v) => v != null) ?? null;
+    if (resolved != null) out[field] = resolved;
   }
-  // createdAt min_wins ile hesaplandı; null gelemez (NOT NULL kolon) ama
-  // fail-safe: hesaplanamadıysa keeper'ınkini koru.
-  if (out.createdAt == null) delete out.createdAt;
   return out;
 }
 
@@ -318,8 +309,50 @@ export async function applyConversationDedupe(
       const refs = { messageOutbox: 0, riskEvent: 0, shadowVerdict: 0 };
 
       for (const key of keys) {
-        const rows = (await tx.conversation.findMany({
+        // ── 0) DETERMİNİSTİK FOR UPDATE — id ASC sırayla, TEK TEK ─────────────
+        //
+        // Codex denetimi B2/B3 (2026-07-26): NS-43 yalnız `importThread`'i
+        // serileştirir. Auto-reply, insana-devir escalation'ı, manuel yanıt
+        // rotası ve outbox healer bu satırları NS-43 ALMADAN günceller/mesaj
+        // ekler. `SELECT ... FOR UPDATE` bunu PostgreSQL'in KENDİ kilit
+        // mekanizmasıyla kapatır:
+        //   (a) bu satırları güncelleyen HERHANGİ bir eşzamanlı UPDATE, biz
+        //       transaction'ı bitirene kadar BLOKLANIR (B2 — lost update artık
+        //       imkânsız: zaten bu alanları hiç YAZMIYORUZ, o yüzden bloke
+        //       olan yazıcı bizim commit'imizden SONRA kendi güncel durumuna
+        //       sorunsuz uygulanır);
+        //   (b) Message.conversationId FK'si bir INSERT sırasında ebeveyn
+        //       satırda FOR KEY SHARE ister; FOR UPDATE bununla ÇAKIŞIR — yani
+        //       bu gruba yeni bir Message INSERT'i de aynı şekilde bloklanır
+        //       (B3 — check-then-delete penceresi kapanır: satır kilitliyken
+        //       hiçbir INSERT commit olamaz, biz silene kadar bekler ya da
+        //       biz commit ettikten sonra FK ihlaliyle AÇIKÇA başarısız olur;
+        //       "sessizce cascade ile kaybolma" senaryosu yapısal olarak yok).
+        //
+        // Tek tek (id ASC) kilitleniyor — tek bir `WHERE id = ANY(...)` DEĞİL —
+        // çünkü PostgreSQL'in ORDER BY + FOR UPDATE ile locking'i SIRALAMASI
+        // planlayıcıya bağlıdır (sort ile lock'un hangisi önce çalışır garanti
+        // değildir). Ayrı round-trip'lerle kilitlemek, kilit alım SIRASINI
+        // istemci tarafında MUTLAK olarak sabitler.
+        const toLock = await tx.conversation.findMany({
           where: { propertyId: key.propertyId, externalReservationId: key.externalReservationId },
+          select: { id: true },
+          orderBy: { id: "asc" },
+        });
+        for (const { id } of toLock) {
+          await tx.$queryRawUnsafe(`SELECT id FROM "Conversation" WHERE id = $1 FOR UPDATE`, id);
+        }
+        if (__applyHooks.afterRowLock) {
+          await __applyHooks.afterRowLock(toLock.map((r) => r.id));
+        }
+
+        // ── 1) KİLİT ALTINDA taze veriyle YENİDEN OKU ─────────────────────────
+        // Bu, classifyGroup'un kullanacağı TEK doğru kaynaktır — yukarıdaki
+        // `toLock` okuması yalnız "hangi id'leri kilitleyeceğiz" sorusuna
+        // cevaptı, karara KATILMAZ (o an bayat olabilirdi).
+        const rows = (await tx.conversation.findMany({
+          where: { id: { in: toLock.map((r) => r.id) } },
+          orderBy: { id: "asc" },
         })) as unknown as Row[];
         const msgs = (await tx.message.findMany({
           where: { conversationId: { in: rows.map((r) => r.id) } },
@@ -327,20 +360,23 @@ export async function applyConversationDedupe(
 
         const plan = classifyGroup(rows, msgs);
         // TEK fark/çelişki → HİÇBİR yazma yapmadan rollback (all-or-nothing).
+        // CANLI DURUM farkı da (live_state_conflict) buraya düşer: rank/tahmin
+        // YOK, hangi alan(lar) farklıysa adıyla raporlanır.
         if (plan.failed) {
-          throw new Error(`Kilit altında ÇELİŞKİ bulundu (${plan.failed}) — tüm işlem geri alındı`);
+          const detail = plan.liveStateDiffFields.length ? `: ${plan.liveStateDiffFields.join(",")}` : "";
+          throw new Error(`Kilit altında ÇELİŞKİ bulundu (${plan.failed}${detail}) — tüm işlem geri alındı`);
         }
 
         const loserIds = plan.losers.map((l) => l.id);
         losers += loserIds.length;
 
-        // 1) Tam eşit fazlalık kopyaları düşür (canonical = keeper'daki satır).
+        // 2) Tam eşit fazlalık kopyaları düşür (canonical = keeper'daki satır).
         if (plan.dropExactIds.length) {
           const res = await tx.message.deleteMany({ where: { id: { in: plan.dropExactIds } } });
           if (res.count !== plan.dropExactIds.length) throw new Error("duplicate silme sayısı tutmadı — rollback");
           dropped += res.count;
         }
-        // 2) Benzersiz ve anahtarsız mesajları TAŞI (asla düşürme).
+        // 3) Benzersiz ve anahtarsız mesajları TAŞI (asla düşürme).
         const toMove = [...plan.moveUniqueIds, ...plan.moveNullIds];
         if (toMove.length) {
           const res = await tx.message.updateMany({
@@ -351,7 +387,28 @@ export async function applyConversationDedupe(
           movedUnique += plan.moveUniqueIds.length;
           movedNull += plan.moveNullIds.length;
         }
-        // 3) FK'sız referansları keeper'a repoint et.
+
+        // 4) Kimlik alanlarını (YALNIZ identity) birleştir — canlı durum YOK.
+        const merged = mergedConversationFields(rows, plan.keeper);
+        if (Object.keys(merged).length) {
+          await tx.conversation.update({ where: { id: plan.keeper.id }, data: merged });
+        }
+
+        // 5) SİLMEDEN HEMEN ÖNCE — kilit altında mesaj + referans envanterini
+        //    YENİDEN doğrula (Codex denetimi #5).
+        //
+        //    Message: FOR UPDATE + FK sayesinde bu noktada YENİ bir satır
+        //    OLAMAZ (kilit boyunca herhangi bir INSERT bloklanmış olurdu);
+        //    `stray === 0` garantilidir, yine de AÇIKÇA doğrulanır (savunma
+        //    derinliği — varsayım değil, ölçüm).
+        //
+        //    MessageOutbox/RiskEvent/ShadowVerdict FK'SIZ: satır kilidi
+        //    onları OTOMATİK korumaz (FK olmadığı için INSERT hiçbir tuple
+        //    kilidi istemez). Bu yüzden repoint BURADA — mümkün olan EN GEÇ
+        //    noktada, silmeden hemen önce — çalıştırılır: idempotent
+        //    olduğundan güvenle (yeniden) çalıştırılabilir, ve pencereyi bu
+        //    tek round-trip'e indirger (sıfıra indiren bir FK yok, dürüstçe
+        //    kalan tek artık budur).
         refs.messageOutbox += (
           await tx.messageOutbox.updateMany({
             where: { conversationId: { in: loserIds } },
@@ -370,20 +427,14 @@ export async function applyConversationDedupe(
             data: { conversationId: plan.keeper.id },
           })
         ).count;
-
-        // 4) Kolonları YÖNLÜ birleştir.
-        const merged = mergedConversationFields(rows);
-        if (Object.keys(merged).length) {
-          await tx.conversation.update({ where: { id: plan.keeper.id }, data: merged });
-        }
-
-        // 5) Boşalan kaybedenleri sil (mesajları kalmamış olmalı).
         const stray = await tx.message.count({ where: { conversationId: { in: loserIds } } });
         if (stray !== 0) throw new Error("kaybedende mesaj kaldı — rollback");
+
+        // 6) Boşalan kaybedenleri sil.
         const del = await tx.conversation.deleteMany({ where: { id: { in: loserIds } } });
         if (del.count !== loserIds.length) throw new Error("kaybeden silme sayısı tutmadı — rollback");
 
-        // 6) SON KOŞULLAR — KİLİTLENMİŞ KAPSAMA scoped.
+        // 7) SON KOŞULLAR — KİLİTLENMİŞ KAPSAMA scoped.
         //
         // ⚠️ Buradaki iddialar bilinçli olarak GLOBAL DEĞİL. Global "önce−sonra"
         // eşitliği, apply sürerken BAŞKA bir thread'e mesaj yazan eşzamanlı bir

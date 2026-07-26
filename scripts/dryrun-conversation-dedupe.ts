@@ -70,14 +70,25 @@ export type ConversationMergePolicy =
   | "row_identity"
   /** Kimlik anahtarının parçası — tanım gereği eşit; farklıysa gruplama bozuk demektir. */
   | "identity_key"
-  /** Keeper'ın değeri yaşar. Fark KABUL EDİLİR ama SAYILIR (sessiz değil). */
+  /** Keeper'ın değeri yaşar; ASLA yazılmaz. Fark KABUL EDİLİR ama SAYILIR (sessiz değil). */
   | "keeper_wins"
-  /** En büyük (en yeni) kazanır. */
-  | "max_wins"
-  /** En küçük (en eski/en ihtiyatlı) kazanır. */
-  | "min_wins"
-  /** "Dikkat isteyen" durum kazanır (problem > new > waiting > answered > closed). */
-  | "status_rank"
+  /**
+   * CANLI DURUM — Codex denetimi B1/B2/B4 (2026-07-26). Bu alan üzerinde
+   * ASLA birleştirme/heuristik/rank uygulanmaz ve ASLA yazılmaz. İki satır
+   * arasında değeri FARKLIYSA tüm grup FAIL-CLOSED olur (rank/tahmin YOK —
+   * yalnız 7 grup varken tahminle birleştirmek gereksiz risktir).
+   *
+   * Neden: bu alanlar READ COMMITTED altında, apply'ın transaction başında
+   * okuduğu bir ANLIK GÖRÜNTÜDEN yazılırsa, apply sürerken bu aynı satırları
+   * güncelleyen eşzamanlı bir yazıcının (auto-reply, insana-devir, escalation,
+   * manuel yanıt, outbox healer — hiçbiri NS-43 almaz) yaptığı değişiklik
+   * SESSİZCE ezilir ("lost update"). En somut örnek: `autoReplyHoldUntil`
+   * insana devir penceresidir — apply'ın onu silmesi/eskiye döndürmesi AI'yı
+   * host'un üstüne konuşturabilir. Bu politika altında hem yazma hem de bu
+   * riskin kendisi ortadan kalkar: FOR UPDATE + değer eşitse zaten yazacak
+   * bir şey yok, farklıysa grup hiç işlenmiyor.
+   */
+  | "live_state"
   /** En fazla BİR farklı non-null değer olabilir; iki farklı non-null → FAIL-CLOSED. */
   | "single_non_null"
   /** Misafir kimliği: KVKK anonimleştirme sentinel'ine gerçek ad geri YAZILMAZ. */
@@ -93,32 +104,40 @@ export const CONVERSATION_FIELD_POLICY: Record<
   propertyId: "identity_key",
   externalReservationId: "identity_key",
   // İki satır FARKLI yerel rezervasyona bağlıysa bunlar aynı konaklama değildir.
+  // (Bu identity-transfer alanıdır, canlı durum DEĞİLDİR: sync tarafından yalnız
+  // "eksikse doldur" olarak yazılır, aktif traffic'in üstüne yazılmaz.)
   reservationId: "single_non_null",
   // Sağlayıcı iki FARKLI thread id'si verdiyse birleştirme yasak (preflight'ın
   // "ÇELİŞKİ" kovasının plan tarafındaki karşılığı).
   externalConversationId: "single_non_null",
-  // "Sorunlu" bayrağı ASLA düşmemeli — şikâyet gizlenirdi. Ters yön (closed →
-  // answered) bilinçli taviz: görünürlüğü ARTIRAN yön güvenli olandır.
-  status: "status_rank",
-  // İnsana devir penceresi KISALMAMALI; AI host'un üstüne konuşmamalı.
-  autoReplyHoldUntil: "max_wins",
-  // Gelen kutusu sıralaması doğru kalsın (sessizce unutulmasın).
-  lastMessageAt: "max_wins",
-  // Modeli boşuna tekrar çağırmamak için tutulan damga; en yenisi doğru bilgi.
-  autoReplyAttemptedAt: "max_wins",
-  // İHTİYATLI YÖN: cursor ileri alınırsa import ATLANIR = mesaj kaybı.
-  // Geri almak yalnız idempotent bir yeniden import demektir.
-  syncCursorAt: "min_wins",
-  // Thread'in gerçek doğuşu en eskisidir.
-  createdAt: "min_wins",
+  // "Sorunlu"/"kapalı"/"beklemede" bir insan/sistem KARARIdır. Codex B1: eski
+  // rank (closed→new gibi) AI'yı host'un kapattığı bir thread'de yeniden
+  // silahlandırabiliyordu. Artık heuristik YOK: fark varsa fail-closed.
+  status: "live_state",
+  // İnsana devir penceresi — Codex B2: apply'ın stale-snapshot'tan yazması
+  // eşzamanlı bir escalation'ın az önce yazdığı 12 saatlik pencereyi silebilirdi.
+  autoReplyHoldUntil: "live_state",
+  // Gelen kutusu sıralaması — cosmetik değil ama yine de identity-dışı; yazma yok.
+  lastMessageAt: "live_state",
+  // Auto-reply cost-guard damgası; eşzamanlı yazıcı elindeki değeri korur.
+  autoReplyAttemptedAt: "live_state",
+  // Sync skip-check cursor; apply'ın bunu yazması/geri alması import'u
+  // öngörülemez kılar. Dokunma.
+  syncCursorAt: "live_state",
+  // Escalation dörtlüsü (status ile BİRLİKTE tek atomik yazılır —
+  // automation.ts:1178). Codex B4: eskiden yalnız status taşınıyor, bu
+  // dördü taşınmıyordu — "yarım escalation". Artık status ile AYNI politika:
+  // fark varsa fail-closed, hiçbiri taşınmaz/yazılmaz.
+  priority: "live_state",
+  skippedReason: "live_state",
+  lastRiskLevel: "live_state",
+  lastRiskType: "live_state",
+  // Thread'in doğuşu: yalnız CREATE anında yazılır, hiçbir yazıcı sonradan
+  // güncellemez — "canlı" değildir, yarış riski taşımaz. Bilgi amaçlı, YAZILMAZ.
+  createdAt: "keeper_wins",
   guestIdentifier: "anon_guard",
-  // Görüntüleme/analitik alanları: risk bayrağı zaten `status` üzerinden
-  // korunuyor. Fark olursa SAYILIR, sessiz geçmez.
+  // Yalnız create'te yazılır, sonradan hiçbir yol güncellemez. Bilgi amaçlı.
   channel: "keeper_wins",
-  priority: "keeper_wins",
-  skippedReason: "keeper_wins",
-  lastRiskLevel: "keeper_wins",
-  lastRiskType: "keeper_wins",
   updatedAt: "system_managed",
 };
 
@@ -172,11 +191,14 @@ export function assertPolicyCoverage(): void {
   check("Message", Object.keys(Prisma.MessageScalarFieldEnum), Object.keys(MESSAGE_FIELD_POLICY));
 }
 
-/** Dikkat isteyen durum kazanır. closed → answered yönü bilinçli tavizdir. */
-const STATUS_RANK: Record<string, number> = { problem: 5, new: 4, waiting: 3, answered: 2, closed: 1 };
-export function statusRank(s: string): number {
-  return STATUS_RANK[s] ?? 0;
-}
+/**
+ * `live_state` politikalı TÜM alan adları — politika haritasından TÜRETİLİR
+ * (elle ikinci bir liste tutulmaz, sürüklenemez). Rapor ve sınıflandırma bu
+ * kümeyi kullanır.
+ */
+export const LIVE_STATE_FIELDS: string[] = Object.entries(CONVERSATION_FIELD_POLICY)
+  .filter(([, p]) => p === "live_state")
+  .map(([f]) => f);
 
 // `anon_guard` (guestIdentifier) bir APPLY yükümlülüğüdür, dry-run ölçümü değil:
 // birleştirme kaybedenden ad OKUMAZ (keeper'ın değeri yaşar), dolayısıyla
@@ -225,6 +247,7 @@ export function classifyGroup(rows: ConversationRow[], msgs: MessageRow[]) {
   // ── Konuşma alanları: politikası olmayan/çelişen alan → FAIL-CLOSED ──
   let failed: FailReason | null = null;
   let keeperWinsDiff = false;
+  const liveStateDiffFields: string[] = [];
   for (const [field, policy] of Object.entries(CONVERSATION_FIELD_POLICY)) {
     const values = rows.map((r) => r[field]);
     if (values.every((v) => sameScalar(v, values[0]))) continue;
@@ -239,13 +262,16 @@ export function classifyGroup(rows: ConversationRow[], msgs: MessageRow[]) {
         }
         break;
       }
+      case "live_state":
+        // Rank/heuristik YOK — yalnız 7 grup varken tahminle birleştirmek
+        // gereksiz risk (Codex). Fark = grubu TAMAMEN fail-closed yap.
+        liveStateDiffFields.push(field);
+        failed ??= "live_state_conflict";
+        break;
       case "keeper_wins":
+      case "anon_guard":
         keeperWinsDiff = true;
         break;
-      case "anon_guard":
-      case "status_rank":
-      case "max_wins":
-      case "min_wins":
       case "row_identity":
       case "system_managed":
         break; // açık politikası var; fark beklenen
@@ -282,13 +308,24 @@ export function classifyGroup(rows: ConversationRow[], msgs: MessageRow[]) {
   }
   if (conflicting > 0) failed ??= "message_content_conflict";
 
-  return { keeper, losers, failed, keeperWinsDiff, moveUniqueIds, moveNullIds, dropExactIds, conflicting };
+  return {
+    keeper,
+    losers,
+    failed,
+    keeperWinsDiff,
+    liveStateDiffFields,
+    moveUniqueIds,
+    moveNullIds,
+    dropExactIds,
+    conflicting,
+  };
 }
 
 export type FailReason =
   | "conversation_field_conflict"
   | "reservation_id_conflict"
   | "external_conversation_id_conflict"
+  | "live_state_conflict"
   | "message_content_conflict";
 
 export interface DedupeReport {
@@ -309,6 +346,14 @@ export interface DedupeReport {
     fail_reasons: Record<FailReason, number>;
     /** `keeper_wins` politikalı bir alanın farklı çıktığı grup sayısı (sessiz değil). */
     keeper_wins_differences: number;
+    /**
+     * CANLI DURUM farkları — Codex denetimi B1/B2/B4 sonrası eklendi. Her
+     * `live_state` alanı için, o alanın en az bir grup içinde FARKLI çıktığı
+     * grup sayısı. Bir grup birden fazla alanda farklı olabilir; bu sayılar
+     * birbirini DIŞLAMAZ. Yalnız bilgi amaçlı — kararı zaten `fail_reasons.
+     * live_state_conflict` veriyor.
+     */
+    live_state_diff_by_field: Record<string, number>;
   };
   conversations: { affected: number; keepers: number; losers_planned: number };
   messages: {
@@ -387,9 +432,11 @@ export async function planConversationDedupe(
             conversation_field_conflict: 0,
             reservation_id_conflict: 0,
             external_conversation_id_conflict: 0,
+            live_state_conflict: 0,
             message_content_conflict: 0,
           },
           keeper_wins_differences: 0,
+          live_state_diff_by_field: Object.fromEntries(LIVE_STATE_FIELDS.map((f) => [f, 0])),
         },
         conversations: { affected: 0, keepers: 0, losers_planned: 0 },
         messages: {
@@ -424,6 +471,7 @@ export async function planConversationDedupe(
 
         const plan = classifyGroup(rows, msgs);
         if (plan.keeperWinsDiff) report.groups.keeper_wins_differences++;
+        for (const field of plan.liveStateDiffFields) report.groups.live_state_diff_by_field[field]++;
         report.messages.conflicting_blocking += plan.conflicting;
 
         if (plan.failed) {
@@ -486,9 +534,15 @@ export function formatDedupeReport(r: DedupeReport): string[] {
   L.push(pad("    · konuşma alanı çelişkisi", r.groups.fail_reasons.conversation_field_conflict));
   L.push(pad("    · farklı yerel reservationId", r.groups.fail_reasons.reservation_id_conflict));
   L.push(pad("    · farklı externalConversationId", r.groups.fail_reasons.external_conversation_id_conflict));
+  L.push(pad("    · CANLI DURUM farkı (identity-only — Codex B1/B2/B4)", r.groups.fail_reasons.live_state_conflict));
   L.push(pad("    · mesaj içerik çelişkisi", r.groups.fail_reasons.message_content_conflict));
   L.push(pad("  keeper_wins alanı farklı çıkan grup", r.groups.keeper_wins_differences));
   if (r.groups.capped) L.push(`  ⚠ GRUP TAVANI (${MAX_GROUPS}) AŞILDI — bu koşu tamamı kapsamıyor.`);
+  L.push("");
+  L.push("--- Canlı durum farkları (yalnız bilgi; fail_reasons.live_state_conflict karar verir) ---");
+  for (const field of LIVE_STATE_FIELDS) {
+    L.push(pad(`  ${field}`, r.groups.live_state_diff_by_field[field] ?? 0));
+  }
   L.push("");
   L.push("--- Konuşmalar ---");
   L.push(pad("Etkilenen satır", r.conversations.affected));

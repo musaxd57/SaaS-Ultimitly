@@ -4,12 +4,13 @@ import { Prisma } from "@prisma/client";
 import { prisma, resetDb, makeOrgWithProperty } from "../helpers/db";
 import {
   CONVERSATION_FIELD_POLICY,
+  LIVE_STATE_FIELDS,
   MESSAGE_FIELD_POLICY,
   assertPolicyCoverage,
+  classifyGroup,
   formatDedupeReport,
   planConversationDedupe,
   pickKeeper,
-  statusRank,
 } from "../../scripts/dryrun-conversation-dedupe";
 
 // ---------------------------------------------------------------------------
@@ -32,6 +33,13 @@ type ConvOverrides = Partial<{
   priority: string;
   createdAt: Date;
   lastMessageAt: Date;
+  channel: string;
+  skippedReason: string | null;
+  lastRiskLevel: string | null;
+  lastRiskType: string | null;
+  autoReplyHoldUntil: Date | null;
+  autoReplyAttemptedAt: Date | null;
+  syncCursorAt: Date | null;
 }>;
 
 async function conv(propertyId: string, o: ConvOverrides = {}) {
@@ -39,7 +47,7 @@ async function conv(propertyId: string, o: ConvOverrides = {}) {
     data: {
       propertyId,
       guestIdentifier: "Test Misafir",
-      channel: "airbnb",
+      channel: o.channel ?? "airbnb",
       externalReservationId: EXT,
       // `??` KULLANMA: açık `null` ile "verilmedi" ayrı şeylerdir; `??` açık
       // null'ı yutup varsayılanı yazardı ve NULL senaryosu hiç test edilmezdi.
@@ -49,6 +57,12 @@ async function conv(propertyId: string, o: ConvOverrides = {}) {
       priority: o.priority ?? "standard",
       createdAt: o.createdAt ?? T0,
       lastMessageAt: o.lastMessageAt ?? T1,
+      skippedReason: o.skippedReason ?? null,
+      lastRiskLevel: o.lastRiskLevel ?? null,
+      lastRiskType: o.lastRiskType ?? null,
+      autoReplyHoldUntil: o.autoReplyHoldUntil ?? null,
+      autoReplyAttemptedAt: o.autoReplyAttemptedAt ?? null,
+      syncCursorAt: o.syncCursorAt ?? null,
     },
   });
 }
@@ -88,10 +102,34 @@ describe("dedupe dry-run — alan envanteri (Codex şart #3)", () => {
   it("Conversation'ın TÜM scalar alanlarının açık bir politikası var", () => {
     const schema = Object.keys(Prisma.ConversationScalarFieldEnum).sort();
     expect(Object.keys(CONVERSATION_FIELD_POLICY).sort()).toEqual(schema);
-    // lastMessageAt gibi kolay unutulan alanlar gerçekten kapsanmış olmalı.
-    expect(CONVERSATION_FIELD_POLICY.lastMessageAt).toBe("max_wins");
-    expect(CONVERSATION_FIELD_POLICY.syncCursorAt).toBe("min_wins");
-    expect(CONVERSATION_FIELD_POLICY.status).toBe("status_rank");
+    // Codex denetimi B1/B2/B4 (2026-07-26) sonrası: bu alanların HİÇBİRİ
+    // birleştirilmez/yazılmaz — farklıysa grup FAIL-CLOSED olur.
+    expect(CONVERSATION_FIELD_POLICY.lastMessageAt).toBe("live_state");
+    expect(CONVERSATION_FIELD_POLICY.syncCursorAt).toBe("live_state");
+    expect(CONVERSATION_FIELD_POLICY.status).toBe("live_state");
+    expect(CONVERSATION_FIELD_POLICY.autoReplyHoldUntil).toBe("live_state");
+    expect(CONVERSATION_FIELD_POLICY.autoReplyAttemptedAt).toBe("live_state");
+    expect(CONVERSATION_FIELD_POLICY.priority).toBe("live_state");
+    expect(CONVERSATION_FIELD_POLICY.skippedReason).toBe("live_state");
+    expect(CONVERSATION_FIELD_POLICY.lastRiskLevel).toBe("live_state");
+    expect(CONVERSATION_FIELD_POLICY.lastRiskType).toBe("live_state");
+    // createdAt/channel artık "canlı" sayılmıyor: hiçbir yazıcı create'ten
+    // sonra bunları güncellemiyor, yarış riski taşımıyorlar — bilgi amaçlı.
+    expect(CONVERSATION_FIELD_POLICY.createdAt).toBe("keeper_wins");
+    expect(CONVERSATION_FIELD_POLICY.channel).toBe("keeper_wins");
+    expect(LIVE_STATE_FIELDS.sort()).toEqual(
+      [
+        "status",
+        "priority",
+        "skippedReason",
+        "lastRiskLevel",
+        "lastRiskType",
+        "lastMessageAt",
+        "syncCursorAt",
+        "autoReplyHoldUntil",
+        "autoReplyAttemptedAt",
+      ].sort(),
+    );
   });
 
   it("Message'ın TÜM scalar alanlarının açık bir kıyas politikası var", () => {
@@ -115,11 +153,6 @@ describe("dedupe dry-run — alan envanteri (Codex şart #3)", () => {
     expect(() => assertPolicyCoverage()).not.toThrow();
   });
 
-  it("durum sıralaması DİKKAT İSTEYENİ korur", () => {
-    expect(statusRank("problem")).toBeGreaterThan(statusRank("new"));
-    expect(statusRank("new")).toBeGreaterThan(statusRank("answered"));
-    expect(statusRank("answered")).toBeGreaterThan(statusRank("closed"));
-  });
 });
 
 describe("dedupe dry-run — kapılar", () => {
@@ -299,14 +332,115 @@ describe("dedupe dry-run — konuşma alanı çelişkileri", () => {
     expect(rep.groups.fail_reasons.reservation_id_conflict).toBe(1);
   });
 
-  it("keeper_wins alanındaki fark SESSİZ geçmez — sayılır", async () => {
+  it("keeper_wins alanındaki fark (channel) SESSİZ geçmez — sayılır ama bloklamaz", async () => {
+    // priority artık live_state (aşağıdaki describe bloğu); keeper_wins'te
+    // KALAN tek örnek channel — hiçbir yazıcı create'ten sonra güncellemez,
+    // yarış riski yok, bu yüzden fark SAYILIR ama grup yine PLANLANIR.
     const { propertyId } = await makeOrgWithProperty();
-    await conv(propertyId, { priority: "urgent", createdAt: T0 });
-    await conv(propertyId, { priority: "standard", createdAt: T1 });
+    await conv(propertyId, { channel: "airbnb", createdAt: T0 });
+    await conv(propertyId, { channel: "booking", createdAt: T1 });
 
     const r = await planConversationDedupe(prisma, ALLOW);
     expect(r.groups.planned).toBe(1);
     expect(r.groups.keeper_wins_differences).toBe(1);
+  });
+});
+
+describe("dedupe dry-run — CANLI DURUM farkları (Codex denetimi B1/B2/B4)", () => {
+  beforeEach(async () => {
+    await resetDb();
+  });
+
+  it("closed + new HİÇBİR KOŞULDA 'new' üretmez — fail-closed, rank/tahmin YOK", async () => {
+    // B1: eski rank (problem>new>waiting>answered>closed) closed+new'de "new"
+    // veriyordu — auto-reply cron'u tam olarak status:"new" seçtiği için host'un
+    // kapattığı bir thread'i yeniden silahlandırıyordu. Artık heuristik YOK.
+    const { propertyId } = await makeOrgWithProperty();
+    const closed = await conv(propertyId, { status: "closed", createdAt: T0 });
+    const isNew = await conv(propertyId, { status: "new", createdAt: T1 });
+
+    const r = await planConversationDedupe(prisma, ALLOW);
+    expect(r.groups.planned).toBe(0);
+    expect(r.groups.fail_closed).toBe(1);
+    expect(r.groups.fail_reasons.live_state_conflict).toBe(1);
+    expect(r.groups.live_state_diff_by_field.status).toBe(1);
+
+    // Ve gerçekten HİÇBİR ŞEY değişmedi — özellikle "closed" asla "new" olmadı.
+    const rows = await prisma.conversation.findMany({ where: { propertyId } });
+    expect(rows.find((x) => x.id === closed.id)?.status).toBe("closed");
+    expect(rows.find((x) => x.id === isNew.id)?.status).toBe("new");
+  });
+
+  it("escalation BEŞLİSİ parçalanmaz: biri farklıysa TÜMÜ fail-closed'a düşer", async () => {
+    // B4: eskiden yalnız status taşınıyordu, priority/skippedReason/
+    // lastRiskLevel/lastRiskType taşınmıyordu — "yarım escalation". Artık
+    // beşi de AYNI politika (live_state): fark varsa hiçbiri aktarılmaz,
+    // grup bütünüyle fail-closed olur.
+    const { propertyId } = await makeOrgWithProperty();
+    await conv(propertyId, {
+      status: "answered",
+      priority: "standard",
+      skippedReason: null,
+      lastRiskLevel: null,
+      lastRiskType: null,
+      createdAt: T0,
+    });
+    await conv(propertyId, {
+      status: "problem",
+      priority: "urgent",
+      skippedReason: "complaint",
+      lastRiskLevel: "high",
+      lastRiskType: "complaint",
+      createdAt: T1,
+    });
+
+    const r = await planConversationDedupe(prisma, ALLOW);
+    expect(r.groups.planned).toBe(0);
+    expect(r.groups.fail_reasons.live_state_conflict).toBe(1);
+    // Beşi de fark listesinde — hiçbiri "sessizce" geçmiyor.
+    for (const f of ["status", "priority", "skippedReason", "lastRiskLevel", "lastRiskType"]) {
+      expect(r.groups.live_state_diff_by_field[f]).toBe(1);
+    }
+  });
+
+  it.each(LIVE_STATE_FIELDS)("live_state alanı '%s' farklıysa grup fail-closed olur", async (field) => {
+    const { propertyId } = await makeOrgWithProperty();
+    const isDate =
+      field === "lastMessageAt" ||
+      field === "autoReplyHoldUntil" ||
+      field === "autoReplyAttemptedAt" ||
+      field === "syncCursorAt";
+    // conv()'in kendi varsayılanları alan-alan FARKLI (lastMessageAt→T1,
+    // diğer tarihler→null, status→"answered", priority→"standard") — sadece
+    // ONE tarafı override etmek bazı alanlarda (örn. lastMessageAt) YANLIŞLIKLA
+    // iki tarafı da AYNI değere getirebilirdi. Bu yüzden HER iki satırın da
+    // hedef alanı AÇIKÇA ve FARKLI değerlerle yazılıyor.
+    const baseline: unknown = isDate ? T0 : field === "status" ? "answered" : field === "priority" ? "standard" : null;
+    const changed: unknown = isDate ? T1 : field === "status" ? "problem" : field === "priority" ? "urgent" : "farkli-deger";
+    const a = await conv(propertyId, { createdAt: T0, [field]: baseline } as unknown as ConvOverrides);
+    await conv(propertyId, { createdAt: T1, [field]: changed } as unknown as ConvOverrides);
+
+    const r = await planConversationDedupe(prisma, ALLOW);
+    expect(r.groups.fail_reasons.live_state_conflict).toBe(1);
+    expect(r.groups.live_state_diff_by_field[field]).toBe(1);
+    // Hiçbir konuşma silinmedi/değişmedi.
+    expect(await prisma.conversation.count({ where: { id: a.id } })).toBe(1);
+  });
+
+  it("classifyGroup saf seviyede: canlı durum eşitse grup PLANLANIR (yazma yok ama izin var)", () => {
+    const rows = [
+      { id: "a", propertyId: "p", externalReservationId: "e", reservationId: null, externalConversationId: "c",
+        status: "answered", priority: "standard", skippedReason: null, lastRiskLevel: null, lastRiskType: null,
+        lastMessageAt: T0, syncCursorAt: null, autoReplyHoldUntil: null, autoReplyAttemptedAt: null,
+        guestIdentifier: "M", channel: "airbnb", createdAt: T0 },
+      { id: "b", propertyId: "p", externalReservationId: "e", reservationId: null, externalConversationId: "c",
+        status: "answered", priority: "standard", skippedReason: null, lastRiskLevel: null, lastRiskType: null,
+        lastMessageAt: T0, syncCursorAt: null, autoReplyHoldUntil: null, autoReplyAttemptedAt: null,
+        guestIdentifier: "M", channel: "airbnb", createdAt: T1 },
+    ];
+    const plan = classifyGroup(rows, []);
+    expect(plan.failed).toBeNull();
+    expect(plan.liveStateDiffFields).toEqual([]);
   });
 });
 
