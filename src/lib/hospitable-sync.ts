@@ -1,5 +1,6 @@
 import "server-only";
 
+import { Prisma } from "@prisma/client";
 import { prisma } from "@/lib/db";
 import { isUniqueViolation } from "@/lib/db-errors";
 import { toAmountDec } from "@/lib/money";
@@ -343,8 +344,8 @@ export async function syncHospitable(
       // read (the provider fetch above deliberately happened OUTSIDE the lock).
       // The messageCutoffFor comes from the fresh guard, so a tombstoned guest's
       // allowed new stay still never re-imports pre-erasure lines.
-      try {
-        const r2 = await prisma.$transaction(
+      const runImportTx = () =>
+        prisma.$transaction(
           async (tx) => {
             await acquireErasureLock(tx, organizationId);
             const fresh = await loadErasureGuard(organizationId, tx);
@@ -360,6 +361,26 @@ export async function syncHospitable(
           },
           { timeout: 180_000, maxWait: 15_000 },
         );
+      try {
+        // FORWARD-COMPATIBILITY with @@unique([propertyId, externalReservationId]).
+        // The identity lock makes a same-thread P2002 unreachable BETWEEN two
+        // lock-respecting importers, but a writer that bypasses the lock could
+        // still win the race. PostgreSQL aborts the WHOLE transaction on a unique
+        // violation, so the recovery cannot live inside it (a catch there would
+        // run in an already-aborted tx) — it is a single bounded RETRY of the
+        // transaction. The retry re-acquires the lock and its canonical read now
+        // finds the winner's row, so it UPDATES instead of creating: no message is
+        // lost and no second conversation appears. Dormant today (the constraint
+        // does not exist yet), armed the moment the migration lands. Bounded to
+        // ONE retry on purpose — a second failure is not a race, it is a bug, and
+        // must surface rather than loop.
+        let r2: Awaited<ReturnType<typeof runImportTx>>;
+        try {
+          r2 = await runImportTx();
+        } catch (err) {
+          if (!isUniqueViolation(err, ["propertyId", "externalReservationId"])) throw err;
+          r2 = await runImportTx();
+        }
         if (r2 === null) {
           result.skipped++;
           continue;
@@ -601,8 +622,66 @@ async function linkProperty(
   return created.id;
 }
 
-/** Create/update the conversation for a reservation and import its new messages. */
-async function importThread(
+// ---------------------------------------------------------------------------
+// CONVERSATION IDENTITY LOCK (Faz A — unique migration'dan ÖNCE)
+//
+// KORUNAN INVARIANT: bir (propertyId, externalReservationId) çifti için EN FAZLA
+// TEK Conversation satırı. `importThread` bugüne kadar bunu çıplak
+// findFirst → create ile uyguluyordu; iki eşzamanlı koşucu (scheduled-sync
+// SystemLock TTL'i uzun bir deep-sweep ortasında dolduğunda ikinci koşucu
+// başlar) aynı rezervasyon için İKİ konuşma açabilir ve tüm mesajlar iki kez
+// yazılır — 2026-07-26 prod preflight'ı tam olarak bu izi buldu (7 grup, her
+// biri 2 satır, hepsinde AYNI externalConversationId = sağlayıcı tek thread
+// vermiş, çift satır bizim yarışımız).
+//
+// NEDEN AYRI BİR KİLİT (erasure kilidi zaten varken):
+//   · Erasure kilidi ORG kapsamlı ve amacı KVKK silme yarışı. Kimlik
+//     invariant'ının onun yan etkisine yaslanması kırılgan: erasure yolu
+//     değişirse/kaldırılırsa invariant SESSİZCE korumasız kalır.
+//   · Kapsam doğru olsun: kilit rezervasyon kimliğinde, org'da değil — aynı
+//     org'un farklı thread'leri paralel işlenmeye devam eder.
+//   · Kilit `importThread`'in İÇİNDE alınır, çağıranın iyi niyetine bağlı
+//     değildir: fonksiyonu kim çağırırsa çağırsın garanti onunla gelir.
+//
+// KİLİT SIRASI (deadlock önlemi): erasure(NS 40, org) → identity(NS 43, thread).
+// Sync'in iki write-TX'i erasure kilidini ZATEN importThread'den önce alır;
+// başka hiçbir yol NS 43'ü NS 40'tan önce almaz.
+//
+// PROVIDER FETCH KİLİDİN DIŞINDA: `listMessages` çağrısı bu TX'e girmeden önce
+// yapılır (bkz. WRITE-TX #2 yorumu). Ağ gecikmesi kilidi tutmaz.
+const CONVERSATION_IDENTITY_LOCK_NS = 43;
+
+/**
+ * Acquire the per-(property, provider-reservation) advisory lock on THIS
+ * transaction (auto-released at commit/rollback). $executeRaw, not $queryRaw:
+ * pg_advisory_xact_lock returns void, which $queryRaw cannot deserialize.
+ */
+export async function acquireConversationIdentityLock(
+  tx: ErasureDb,
+  propertyId: string,
+  externalReservationId: string,
+): Promise<void> {
+  await tx.$executeRaw(
+    Prisma.sql`SELECT pg_advisory_xact_lock(${CONVERSATION_IDENTITY_LOCK_NS}::int4, hashtext(${`${propertyId}:${externalReservationId}`}))`,
+  );
+}
+
+/**
+ * TEST-ONLY seam: bir gecikme enjekte ederek "canonical satırı okudum ama henüz
+ * yazmadım" penceresini yapay olarak genişletir. Üretimde `null` → sıfır maliyet,
+ * sıfır davranış. (iCal `__reconcileHooks` deseninin aynısı.)
+ */
+export const __importThreadHooks: { afterCanonicalRead: null | (() => Promise<void>) } = {
+  afterCanonicalRead: null,
+};
+
+/**
+ * Create/update the conversation for a reservation and import its new messages.
+ *
+ * Exported so the parallel-import race test can drive two of these concurrently
+ * against a real PostgreSQL; production callers stay inside this module.
+ */
+export async function importThread(
   db: ErasureDb,
   propertyId: string,
   reservation: HospitableReservation,
@@ -613,6 +692,12 @@ async function importThread(
   erasureCutoff: Date | null = null,
 ): Promise<{ imported: number; supplyJobs: SupplyJob[] }> {
   const reservationId = String(reservation.id);
+
+  // IDENTITY LOCK — the FIRST thing this transaction does for this thread, so the
+  // canonical read below and the create/update that follows are one indivisible
+  // step against any concurrent importer of the SAME thread. Transaction-scoped:
+  // held until the caller's TX commits or rolls back, never leaked.
+  await acquireConversationIdentityLock(db, propertyId, reservationId);
   const channel = toChannel(reservation.platform);
   const language = str(reservation.conversation_language) ?? "tr";
   const lastMessageAt = parseDate(reservation.last_message_at) ?? new Date();
@@ -638,10 +723,15 @@ async function importThread(
   const lastMessage = ordered[ordered.length - 1];
   const computedStatus = lastMessage && isGuestMessage(lastMessage) ? "new" : "answered";
 
+  // CANONICAL READ — authoritative because it runs INSIDE the identity lock: a
+  // concurrent importer of this same thread is either fully committed (so we see
+  // its row and UPDATE) or still blocked on the lock (so it will see ours).
   const existing = await db.conversation.findFirst({
     where: { propertyId, externalReservationId: reservationId },
     select: { id: true, status: true, reservationId: true, guestIdentifier: true },
   });
+  // Widen the read→write window on demand (tests only; null in production).
+  if (__importThreadHooks.afterCanonicalRead) await __importThreadHooks.afterCanonicalRead();
 
   // Cursor idempotency: do NOT advance lastMessageAt to the provider's latest until
   // ALL messages below are written. If the message loop throws mid-way (caught by
