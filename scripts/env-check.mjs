@@ -221,40 +221,78 @@ export function checkProductionEnv(env) {
   }
 
   const billingCurrency = (env.APP_BILLING_CURRENCY ?? "").trim();
+  const billingCurrencyCode = billingCurrency.toUpperCase();
+  let billingCurrencyValid = false;
   if (billingCurrency) {
-    const code = billingCurrency.toUpperCase();
-    let currencyOk = /^[A-Z]{3}$/.test(code);
-    if (currencyOk) {
+    billingCurrencyValid = /^[A-Z]{3}$/.test(billingCurrencyCode);
+    if (billingCurrencyValid) {
       try {
-        new Intl.NumberFormat("en", { style: "currency", currency: code }).format(1);
+        new Intl.NumberFormat("en", { style: "currency", currency: billingCurrencyCode }).format(1);
       } catch {
-        currencyOk = false;
+        billingCurrencyValid = false;
       }
     }
-    if (!currencyOk) {
+    if (!billingCurrencyValid) {
       errors.push(`APP_BILLING_CURRENCY must be a valid 3-letter ISO 4217 code (got: ${billingCurrency}).`);
     }
   }
 
+  // Duplicated from PLAN_PRICE_ENV_KEYS in src/lib/app-config.ts on purpose: this
+  // file is plain ESM that runs BEFORE the TS runtime, so it cannot import that
+  // module. Keep the two lists in step — the runtime resolver and this gate must
+  // agree on what "configured" means, or the gate would pass a deployment the
+  // runtime then refuses (or worse, the reverse).
+  const PLAN_PRICE_KEYS = ["PLAN_PRICE_BASLANGIC_MINOR", "PLAN_PRICE_PRO_MINOR", "PLAN_PRICE_ISLETME_MINOR"];
+  const PADDLE_PRICE_ID_KEYS = ["PADDLE_PRICE_BASLANGIC", "PADDLE_PRICE_PRO", "PADDLE_PRICE_ISLETME"];
+
   // Plan prices are MINOR-UNIT INTEGERS (kuruş/cent). A float or a signed value
   // here would mean charging a wrong amount, so reject rather than fall back.
-  for (const key of ["PLAN_PRICE_BASLANGIC_MINOR", "PLAN_PRICE_PRO_MINOR", "PLAN_PRICE_ISLETME_MINOR"]) {
+  for (const key of PLAN_PRICE_KEYS) {
     const raw = (env[key] ?? "").trim();
     if (raw && !/^\d+$/.test(raw)) {
       errors.push(`${key} must be a whole number of minor units (kuruş/cent), no decimals or signs (got: ${raw}).`);
     }
   }
 
-  // Setting a non-default billing currency without also setting prices would ship
-  // the TRY numbers labelled with another symbol — the exact "format-only
-  // conversion" this codebase forbids. Warn loudly; the operator may be mid-setup.
-  if (billingCurrency && billingCurrency.toUpperCase() !== "TRY") {
-    const anyPriceSet = ["PLAN_PRICE_BASLANGIC_MINOR", "PLAN_PRICE_PRO_MINOR", "PLAN_PRICE_ISLETME_MINOR"].some(
-      (k) => (env[k] ?? "").trim(),
-    );
-    if (!anyPriceSet) {
-      warnings.push(
-        `APP_BILLING_CURRENCY is ${billingCurrency.toUpperCase()} but no PLAN_PRICE_*_MINOR is set — the shipped TRY amounts would be shown with that currency. Set the prices for this deployment.`,
+  // A billing currency OTHER than the shipped one (TRY) is only a valid production
+  // config when this deployment ALSO supplies, completely:
+  //
+  //   • all three DISPLAY prices — otherwise the shipped lira numbers would be
+  //     printed with a foreign symbol, which is a false price, not a formatting
+  //     choice. A PARTIAL set is not "mid-setup, mostly fine": the plans left
+  //     unset are exactly the ones that would lie, and the config LOOKS done.
+  //
+  //   • all three PADDLE price ids — these decide what is actually CHARGED. Prices
+  //     shown from PLAN_PRICE_* and money taken via a Paddle price id are two
+  //     independent settings, so a deployment can advertise €39 while charging
+  //     against a lira price object. Requiring the ids to be re-supplied here
+  //     forces that decision to be made deliberately for this deployment.
+  //
+  // These are ERRORS, not warnings: production must not start.
+  //
+  // HONEST LIMIT — a Paddle price id is an opaque `pri_...` string, so their
+  // PRESENCE is checkable here but their DENOMINATION is not. Nothing in this file
+  // can prove `pri_x` is a euro price. A runtime cross-check (compare the currency
+  // Paddle quotes in previewSubscriptionUpdate against this setting) was considered
+  // and deliberately NOT built: Paddle supports per-country price overrides, so a
+  // foreign customer can legitimately be quoted a currency other than the
+  // deployment's, and a blocking check would refuse real upgrades on the live .com
+  // account. Verifying the ids' denomination stays a MANUAL step of bringing a
+  // non-TRY deployment up, against the real Paddle account.
+  //
+  // Skipped when the code itself is invalid: that error already stops the boot,
+  // and the runtime falls back to TRY prices in TRY, so no lie is reachable.
+  if (billingCurrencyValid && billingCurrencyCode !== "TRY") {
+    const missingPrices = PLAN_PRICE_KEYS.filter((k) => !(env[k] ?? "").trim());
+    if (missingPrices.length > 0) {
+      errors.push(
+        `APP_BILLING_CURRENCY is ${billingCurrencyCode} but these plan prices are missing: ${missingPrices.join(", ")}. All three are REQUIRED for a non-TRY deployment — otherwise the shipped TRY amounts would be displayed with the ${billingCurrencyCode} symbol.`,
+      );
+    }
+    const missingIds = PADDLE_PRICE_ID_KEYS.filter((k) => !(env[k] ?? "").trim());
+    if (missingIds.length > 0) {
+      errors.push(
+        `APP_BILLING_CURRENCY is ${billingCurrencyCode} but these Paddle price ids are missing: ${missingIds.join(", ")}. All three are REQUIRED for a non-TRY deployment — the displayed price and the charged price must be configured together.`,
       );
     }
   }

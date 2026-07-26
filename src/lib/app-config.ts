@@ -63,10 +63,72 @@ export function appLocale(env: NodeJS.ProcessEnv = process.env): string {
   return raw && isValidLocale(raw) ? raw : DEFAULT_LOCALE;
 }
 
+/**
+ * The three plan-price env vars, in catalog order (Başlangıç, Pro, İşletme).
+ * These decide what we DISPLAY. What is actually CHARGED comes from a separate
+ * set (PADDLE_PRICE_BASLANGIC / _PRO / _ISLETME), and for a non-TRY deployment
+ * the boot gate requires BOTH sets — see scripts/env-check.mjs. That gate keeps
+ * its own copy of these names because it is plain ESM that runs before the TS
+ * runtime and cannot import this module; keep the two lists in step.
+ */
+export const PLAN_PRICE_ENV_KEYS = [
+  "PLAN_PRICE_BASLANGIC_MINOR",
+  "PLAN_PRICE_PRO_MINOR",
+  "PLAN_PRICE_ISLETME_MINOR",
+] as const;
+
+export type ResolvedBilling = {
+  /** The currency every displayed subscription price is denominated in. */
+  currency: string;
+  /**
+   * Whether PLAN_PRICE_*_MINOR overrides may be used at all. False only in the
+   * misconfigured case below, where the supplied numbers were meant for a
+   * currency we are refusing to use.
+   */
+  useEnvPrices: boolean;
+};
+
+/**
+ * Resolve the billing currency AND whether the env prices may be used, as ONE
+ * decision. Everything that shows a subscription price reads this — never the
+ * currency and the prices through two independent lookups.
+ *
+ * That single-resolver rule is load-bearing, not tidiness. The settings page
+ * passes `currency={appBillingCurrency()}` and `plans={defaultPlans()}` as
+ * SEPARATE props; if those two could disagree, the plan-change dialog would
+ * render a lira amount with a euro sign — the precise thing this file forbids.
+ *
+ * Three cases:
+ *
+ *  1. No currency set, invalid, or the shipped one → shipped currency, and
+ *     per-plan price overrides ARE honoured. They are denominated in the same
+ *     currency as the shipped defaults, so overriding one and inheriting the
+ *     others is coherent. This is today's .com and it is untouched.
+ *
+ *  2. A different currency AND all three prices supplied → both are used.
+ *
+ *  3. A different currency with any price missing or malformed → the currency is
+ *     REFUSED along with the partial prices. Prices and currency move together
+ *     or not at all: honouring the currency alone would relabel lira as euro,
+ *     and honouring the partial prices alone would show €39 as ₺39. Falling all
+ *     the way back to the shipped pair is the only outcome that states something
+ *     true. Production never reaches this case — scripts/env-check.mjs refuses to
+ *     boot on it — but the invariant must not depend on that gate having run.
+ */
+export function resolveBilling(env: NodeJS.ProcessEnv = process.env): ResolvedBilling {
+  const requested = (env.APP_BILLING_CURRENCY ?? "").trim().toUpperCase();
+  if (!requested || !isValidCurrencyCode(requested) || requested === DEFAULT_BILLING_CURRENCY) {
+    return { currency: DEFAULT_BILLING_CURRENCY, useEnvPrices: true };
+  }
+  const complete = PLAN_PRICE_ENV_KEYS.every((k) => explicitPlanPriceMinor(k, env) !== null);
+  return complete
+    ? { currency: requested, useEnvPrices: true }
+    : { currency: DEFAULT_BILLING_CURRENCY, useEnvPrices: false };
+}
+
 /** Resolve the subscription billing currency. Same fallback contract as above. */
 export function appBillingCurrency(env: NodeJS.ProcessEnv = process.env): string {
-  const raw = (env.APP_BILLING_CURRENCY ?? "").trim().toUpperCase();
-  return raw && isValidCurrencyCode(raw) ? raw : DEFAULT_BILLING_CURRENCY;
+  return resolveBilling(env).currency;
 }
 
 /**
@@ -84,9 +146,22 @@ export function planPriceMinor(
   fallbackMinor: number,
   env: NodeJS.ProcessEnv = process.env,
 ): number {
+  return explicitPlanPriceMinor(key, env) ?? fallbackMinor;
+}
+
+/**
+ * Same read as planPriceMinor but WITHOUT a fallback: null means "this deployment
+ * did not supply a usable price for this plan". Unset and malformed both return
+ * null on purpose — a value the parser rejects is not a configured price, and
+ * counting it as one is how a half-configured deployment slips through.
+ */
+export function explicitPlanPriceMinor(
+  key: string,
+  env: NodeJS.ProcessEnv = process.env,
+): number | null {
   const raw = (env[key] ?? "").trim();
-  if (!raw) return fallbackMinor;
-  if (!/^\d+$/.test(raw)) return fallbackMinor; // no signs, no decimals, no floats
+  if (!raw) return null;
+  if (!/^\d+$/.test(raw)) return null; // no signs, no decimals, no floats
   const n = Number.parseInt(raw, 10);
-  return Number.isSafeInteger(n) ? n : fallbackMinor;
+  return Number.isSafeInteger(n) ? n : null;
 }

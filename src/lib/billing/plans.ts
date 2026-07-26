@@ -1,4 +1,4 @@
-import { appBillingCurrency, planPriceMinor } from "@/lib/app-config";
+import { planPriceMinor, resolveBilling } from "@/lib/app-config";
 
 // Plan catalog (Faz 2). Pure data — safe to import anywhere (no secrets, no DB).
 // Property limits follow the roadmap: Başlangıç 1–2, Pro 3–7, İşletme 8+ (∞).
@@ -45,17 +45,26 @@ export const SHIPPED_PRICE_MINOR = {
  * deployment configured for EUR must be given EUR prices, because relabelling a
  * lira figure with a euro sign would be a lie.
  *
+ * Currency and prices are resolved TOGETHER (resolveBilling) rather than read
+ * independently: a deployment that names a foreign currency without supplying all
+ * three prices in it gets neither. `useEnvPrices` is false only in that case, and
+ * then the partial env numbers are ignored too — they were denominated in the
+ * currency we just refused, so showing 3900 as ₺39 would be a different lie in
+ * the same family.
+ *
  * Read at call time rather than frozen at module load so tests can drive it
  * through env without module-cache games.
  */
 export function defaultPlans(env: NodeJS.ProcessEnv = process.env): PlanDef[] {
-  const currency = appBillingCurrency(env);
+  const { currency, useEnvPrices } = resolveBilling(env);
+  const price = (key: string, shipped: number) =>
+    useEnvPrices ? planPriceMinor(key, shipped, env) : shipped;
   return [
     {
       code: "free",
       name: "Başlangıç",
       propertyLimit: 2,
-      priceMinor: planPriceMinor("PLAN_PRICE_BASLANGIC_MINOR", SHIPPED_PRICE_MINOR.free, env),
+      priceMinor: price("PLAN_PRICE_BASLANGIC_MINOR", SHIPPED_PRICE_MINOR.free),
       currency,
       interval: "month",
       sortOrder: 0,
@@ -64,7 +73,7 @@ export function defaultPlans(env: NodeJS.ProcessEnv = process.env): PlanDef[] {
       code: "pro",
       name: "Pro",
       propertyLimit: 7,
-      priceMinor: planPriceMinor("PLAN_PRICE_PRO_MINOR", SHIPPED_PRICE_MINOR.pro, env),
+      priceMinor: price("PLAN_PRICE_PRO_MINOR", SHIPPED_PRICE_MINOR.pro),
       currency,
       interval: "month",
       sortOrder: 1,
@@ -73,7 +82,7 @@ export function defaultPlans(env: NodeJS.ProcessEnv = process.env): PlanDef[] {
       code: "business",
       name: "İşletme",
       propertyLimit: 25,
-      priceMinor: planPriceMinor("PLAN_PRICE_ISLETME_MINOR", SHIPPED_PRICE_MINOR.business, env),
+      priceMinor: price("PLAN_PRICE_ISLETME_MINOR", SHIPPED_PRICE_MINOR.business),
       currency,
       interval: "month",
       sortOrder: 2,

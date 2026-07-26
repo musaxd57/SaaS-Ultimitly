@@ -166,19 +166,172 @@ describe("boot kapısı — geçersiz locale/currency üretimi DURDURUR", () => 
     const { errors } = checkProductionEnv({ ...base, PLAN_PRICE_PRO_MINOR: "899.00" });
     expect(errors.some((e: string) => e.includes("PLAN_PRICE_PRO_MINOR"))).toBe(true);
   });
+});
 
-  it("TRY dışı para birimi + fiyat YOKSA uyarır (lira tutarı yabancı sembolle basılırdı)", () => {
-    const { warnings, errors } = checkProductionEnv({ ...base, APP_BILLING_CURRENCY: "EUR" });
-    expect(errors.some((e: string) => e.includes("APP_BILLING_CURRENCY"))).toBe(false); // geçerli kod
-    expect(warnings.some((w: string) => w.includes("APP_BILLING_CURRENCY"))).toBe(true);
+// ---------------------------------------------------------------------------
+// TRY DIŞI PARA BİRİMİ = FAIL-CLOSED BOOT KAPISI.
+//
+// Bu bölüm tek bir kuralı pinler: TRY dışı bir para birimi seçildiyse ÜÇ plan
+// fiyatı da ÜÇ Paddle price id'si de ZORUNLUDUR. Biri bile eksikse boot DURUR
+// (uyarı DEĞİL, hata). Gerekçe iki tarafı da vurur:
+//   • fiyat eksikse → gönderilen TRY rakamları yabancı sembolle basılırdı,
+//   • price id eksik/eski ise → müşteri €X görüp ₺X ödeyebilirdi.
+// Eski sözleşme yalnız uyarıyordu ve `.some()` kullandığı için TEK fiyat
+// verilince uyarı bile susuyordu — ikisi de burada kırmızıyla kapatıldı.
+// ---------------------------------------------------------------------------
+describe("boot kapısı — TRY dışı para birimi fiyatsız BAŞLAYAMAZ", () => {
+  const base = {
+    NODE_ENV: "production",
+    AUTH_SECRET: "a-real-production-secret-value-32ch",
+    ENCRYPTION_KEY: "a-different-real-production-key-32c",
+    DATABASE_URL: "postgresql://u@h:5432/d",
+    RESEND_API_KEY: "re_x",
+  } as unknown as Record<string, string | undefined>;
+
+  const EUR_PRICES = {
+    PLAN_PRICE_BASLANGIC_MINOR: "1900",
+    PLAN_PRICE_PRO_MINOR: "3900",
+    PLAN_PRICE_ISLETME_MINOR: "7900",
+  };
+  const EUR_IDS = {
+    PADDLE_PRICE_BASLANGIC: "pri_eur_baslangic",
+    PADDLE_PRICE_PRO: "pri_eur_pro",
+    PADDLE_PRICE_ISLETME: "pri_eur_isletme",
+  };
+  const priceErrors = (env: Record<string, string | undefined>) =>
+    checkProductionEnv(env).errors.filter((e: string) => /PLAN_PRICE|PADDLE_PRICE/.test(e));
+
+  it("HİÇ fiyat yok → HATA (boot durur), uyarıyla geçiştirilmez", () => {
+    const { errors, warnings } = checkProductionEnv({ ...base, APP_BILLING_CURRENCY: "EUR", ...EUR_IDS });
+    expect(errors.some((e: string) => e.includes("PLAN_PRICE"))).toBe(true);
+    // Uyarıya düşürülmüş bir kalıntı kalmadığını da pinle.
+    expect(warnings.some((w: string) => w.includes("PLAN_PRICE"))).toBe(false);
   });
 
-  it("para birimi + fiyatlar BİRLİKTE verilirse uyarı yok", () => {
-    const { warnings } = checkProductionEnv({
+  it("YALNIZ BİR fiyat var → yine HATA (kısmi config sessizce geçemez)", () => {
+    const errs = priceErrors({
       ...base,
       APP_BILLING_CURRENCY: "EUR",
+      ...EUR_IDS,
       PLAN_PRICE_PRO_MINOR: "3900",
     });
-    expect(warnings.some((w: string) => w.includes("APP_BILLING_CURRENCY"))).toBe(false);
+    expect(errs.length).toBeGreaterThan(0);
+    // Hata mesajı EKSİK OLANLARI adıyla söylemeli; verilen tekini suçlamamalı.
+    const joined = errs.join(" | ");
+    expect(joined).toContain("PLAN_PRICE_BASLANGIC_MINOR");
+    expect(joined).toContain("PLAN_PRICE_ISLETME_MINOR");
+  });
+
+  it("üç fiyat tam ama Paddle price id'leri eksik → HATA (gösterilen fiyat satılamaz/yanlış tahsil edilir)", () => {
+    const errs = priceErrors({ ...base, APP_BILLING_CURRENCY: "EUR", ...EUR_PRICES });
+    expect(errs.some((e: string) => e.includes("PADDLE_PRICE"))).toBe(true);
+  });
+
+  it("üç fiyat + üç price id TAM → para birimi yüzünden hata YOK", () => {
+    const { errors } = checkProductionEnv({
+      ...base,
+      APP_BILLING_CURRENCY: "EUR",
+      ...EUR_PRICES,
+      ...EUR_IDS,
+    });
+    expect(errors.filter((e: string) => /APP_BILLING_CURRENCY|PLAN_PRICE|PADDLE_PRICE/.test(e))).toEqual([]);
+  });
+
+  it("TRY varsayılanı (.com): fiyatsız da, kısmi override ile de HATA YOK", () => {
+    // Env hiç verilmemiş — bugünkü canlı .com.
+    expect(priceErrors({ ...base })).toEqual([]);
+    // Açıkça TRY + tek plan fiyatı override — aynı para biriminde, meşru.
+    expect(priceErrors({ ...base, APP_BILLING_CURRENCY: "TRY", PLAN_PRICE_PRO_MINOR: "120000" })).toEqual([]);
+    // Paddle price id'leri .com'da da zorunlu DEĞİL (billing uykudayken kurulabilir).
+    expect(priceErrors({ ...base, PLAN_PRICE_PRO_MINOR: "120000" })).toEqual([]);
+  });
+
+  it("geçersiz para birimi kodu → fiyat hatası ÜRETMEZ (zaten kod hatası var, çift alarm yok)", () => {
+    const { errors } = checkProductionEnv({ ...base, APP_BILLING_CURRENCY: "TRYX" });
+    expect(errors.some((e: string) => e.includes("APP_BILLING_CURRENCY"))).toBe(true);
+    expect(errors.filter((e: string) => /PLAN_PRICE|PADDLE_PRICE/.test(e))).toEqual([]);
+  });
+});
+
+// ---------------------------------------------------------------------------
+// AYNI KURALIN ÇALIŞMA-ZAMANI KARŞILIĞI.
+//
+// Boot kapısı bir PROSEDÜR; tek başına bırakılırsa kapının atlandığı her ortamda
+// (dev, test, kapı devre dışı bir kurulum) yalan geri gelir. Bu yüzden kural
+// KODUN İÇİNDE de duruyor: para birimi ve fiyatlar BİRLİKTE geçerlidir, biri
+// eksikse İKİSİ de gönderilen TRY değerlerine düşer. Böylece "bir tutar asla
+// ait olmadığı para biriminin sembolüyle basılmaz" invaryantı yapısaldır.
+//
+// Kritik nokta: Ayarlar sayfası para birimini (appBillingCurrency) ve fiyatları
+// (defaultPlans) AYRI AYRI okuyor. İki okuma ayrışırsa yalan başka kapıdan geri
+// gelir — bu yüzden ikisi de TEK çözücüden (resolveBilling) besleniyor.
+// ---------------------------------------------------------------------------
+describe("çalışma zamanı — para birimi ve fiyatlar birlikte düşer", () => {
+  const eur = (extra: Record<string, string> = {}) =>
+    ({ APP_BILLING_CURRENCY: "EUR", ...extra }) as unknown as NodeJS.ProcessEnv;
+
+  it("EUR + fiyat YOK → TRY fiyatları EUR sembolüyle BASILMAZ (para birimi de TRY'ye döner)", () => {
+    const env = eur();
+    expect(appBillingCurrency(env)).toBe("TRY");
+    const plans = defaultPlans(env);
+    expect(plans.map((p) => [p.priceMinor, p.currency])).toEqual([
+      [44900, "TRY"],
+      [89900, "TRY"],
+      [169900, "TRY"],
+    ]);
+  });
+
+  it("EUR + KISMİ fiyat → kısmi rakam da kullanılmaz (yanlış tutar/yanlış sembol ikisi de yok)", () => {
+    const env = eur({ PLAN_PRICE_PRO_MINOR: "3900" });
+    expect(appBillingCurrency(env)).toBe("TRY");
+    // 3900 EUR-cent niyetiyle yazılmıştı; ₺39 diye basılamaz.
+    expect(defaultPlans(env).map((p) => p.priceMinor)).toEqual([44900, 89900, 169900]);
+  });
+
+  it("EUR + ÜÇ fiyat TAM → hem para birimi hem rakamlar env'den gelir", () => {
+    const env = eur({
+      PLAN_PRICE_BASLANGIC_MINOR: "1900",
+      PLAN_PRICE_PRO_MINOR: "3900",
+      PLAN_PRICE_ISLETME_MINOR: "7900",
+    });
+    expect(appBillingCurrency(env)).toBe("EUR");
+    expect(defaultPlans(env).map((p) => [p.priceMinor, p.currency])).toEqual([
+      [1900, "EUR"],
+      [3900, "EUR"],
+      [7900, "EUR"],
+    ]);
+  });
+
+  it("EUR + bir fiyat BOZUK (float) → eksik sayılır, TRY'ye düşer", () => {
+    const env = eur({
+      PLAN_PRICE_BASLANGIC_MINOR: "1900",
+      PLAN_PRICE_PRO_MINOR: "39.00", // minor birim değil
+      PLAN_PRICE_ISLETME_MINOR: "7900",
+    });
+    expect(appBillingCurrency(env)).toBe("TRY");
+    expect(defaultPlans(env).map((p) => p.priceMinor)).toEqual([44900, 89900, 169900]);
+  });
+
+  it("Ayarlar sayfasının İKİ ayrı okuması asla ayrışamaz", () => {
+    // page.tsx: currency={appBillingCurrency()} + plans={defaultPlans()} — ikisi
+    // ayrı çağrı. Her env kombinasyonunda aynı para birimini vermeliler.
+    const cases: NodeJS.ProcessEnv[] = [
+      {} as NodeJS.ProcessEnv,
+      eur(),
+      eur({ PLAN_PRICE_PRO_MINOR: "3900" }),
+      eur({ PLAN_PRICE_BASLANGIC_MINOR: "1900", PLAN_PRICE_PRO_MINOR: "3900", PLAN_PRICE_ISLETME_MINOR: "7900" }),
+      { APP_BILLING_CURRENCY: "XX" } as unknown as NodeJS.ProcessEnv,
+      { APP_BILLING_CURRENCY: "TRY", PLAN_PRICE_PRO_MINOR: "120000" } as unknown as NodeJS.ProcessEnv,
+    ];
+    for (const env of cases) {
+      const fromCurrency = appBillingCurrency(env);
+      for (const plan of defaultPlans(env)) expect(plan.currency).toBe(fromCurrency);
+    }
+  });
+
+  it("TRY varsayılanında tek plan override'ı hâlâ çalışır (.com davranışı)", () => {
+    const env = { PLAN_PRICE_PRO_MINOR: "120000" } as unknown as NodeJS.ProcessEnv;
+    expect(appBillingCurrency(env)).toBe("TRY");
+    expect(defaultPlans(env).map((p) => p.priceMinor)).toEqual([44900, 120000, 169900]);
   });
 });
