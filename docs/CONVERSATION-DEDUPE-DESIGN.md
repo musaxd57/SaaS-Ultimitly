@@ -1,8 +1,19 @@
-# Conversation dedupe — DRY-RUN aracı tasarımı (Faz B)
+# Conversation dedupe — DRY-RUN aracı (Faz B)
 
-> **Durum: YALNIZ TASARIM.** Kod yazılmadı, prod'a dokunulmadı, dedupe
-> çalıştırılmadı, migration üretilmedi. Uygulama kullanıcının açık onayına bağlı.
-> Önkoşul: gerçek yazma öncesinde **yeniden `pg_dump`**.
+> **Durum: DRY-RUN KODU YAZILDI, ÇALIŞTIRILMADI.**
+> `scripts/dryrun-conversation-dedupe.ts` — salt-okuma, **apply yolu YOK**.
+> Prod'a dokunulmadı, dedupe çalıştırılmadı, migration üretilmedi.
+> Gerçek yazma ayrı tur + açık onay + **taze `pg_dump`** ister.
+
+## Codex şartları — nasıl karşılandı
+
+| Şart | Karşılık |
+|---|---|
+| **#1** P2002 retry yalnız beklenen Conversation bileşik kısıtı için | `isUniqueViolation(err, ["propertyId","externalReservationId"])` (set eşitliği) — Message hedefli P2002 eşleşmez. **Davranışsal negatif regresyon testi** `tests/integration/sync-p2002-retry-scope.test.ts`: Message kısıtı → importThread **1 kez** çağrılır (retry yok); Conversation kısıtı → **tam 2 kez** (bir retry). |
+| **#2** "Hiçbir mesaj silinmez" netleştirildi | Aşağıda §5 — invariant artık **"hiçbir BENZERSİZ mesaj/olay kaybolmaz"**. |
+| **#3** Alan envanteri + her alana açık politika | §4 ve §5 — `Record<keyof Prisma.ConversationScalarFieldEnum, …>` ile **derleme zamanı eksiksiz**, ayrıca `assertPolicyCoverage()` ile runtime fail-closed. |
+| **#4** Yalnız sayı raporla | §6 — çıktı listesi; rapor uzunluğunun veri hacminden bağımsız olduğu testle pinli. |
+| **#5** Dry-run zorunlu read-only, apply bu turda yok | `SET TRANSACTION READ ONLY` + `REPEATABLE READ` + 3 zaman aşımı; dosyada tek bir UPDATE/DELETE/INSERT yok. |
 
 ## 0. Neden şimdi güvenli bir zemin var
 
@@ -35,9 +46,9 @@ gücü en yüksek kova bu.
 
 ## 2. Değişmez kurallar (aracın sözleşmesi)
 
-1. **DRY-RUN varsayılan ve tek başına çalıştırılabilir.** Yazma yalnız açık
-   `--apply` + ayrıca ortam değişkeni onayıyla; ikisi birden yoksa salt-okuma.
-2. **Hiçbir mesaj silinmez.** Ne dry-run'da ne apply'da. Kayıp = kabul edilemez.
+1. **DRY-RUN tek mod.** Bu turda apply yolu YAZILMADI; araçta yazma yeteneği yok.
+2. **Hiçbir BENZERSİZ mesaj/olay kaybolmaz** (↓§5 — eski "hiçbir satır silinmez"
+   ifadesi hem yanlış hem mekanik olarak imkânsızdı).
 3. **`externalConversationId` çelişkisi = o grup için FAIL-CLOSED.** Grup
    raporlanır, plan üretilmez, apply o gruba dokunmaz. (Bugün 0, ama araç
    ölçtüğü ana göre davranır, geçmiş rapora güvenmez.)
@@ -62,38 +73,59 @@ Sıralama ölçütleri, ilk ayrımda karar (hepsi tek sorguda, `ORDER BY`):
 4. ölçüt sayesinde iki farklı koşu **aynı keeper'ı** seçer; plan tekrar
 üretilebilir ve karşılaştırılabilir.
 
-## 4. Kolon birleştirme — "keeper kazanır" YETMEZ
+## 4. Conversation alan envanteri — EKSİKSİZ, derleme zamanı zorlanan
 
-Kritik incelik: keeper'ın mesaj-dışı kolonları hayatta kalır. Körü körüne
-keeper'ı almak **insan/AI kararını sessizce düşürebilir**. Her kolon için yön
-açıkça seçilir:
+`CONVERSATION_FIELD_POLICY: Record<keyof typeof Prisma.ConversationScalarFieldEnum, …>`
+→ şemaya yeni bir kolon eklenirse **dosya derlenmez**; politika seçmeden
+ilerlemek imkânsızdır. Ayrıca `assertPolicyCoverage()` runtime'da da
+şema ↔ harita eşitliğini doğrular ve sapmada dry-run'ı **durdurur**.
+18 scalar alanın tamamı:
 
-| Kolon | Kural | Neden |
+| Kolon | Politika | Neden |
 |---|---|---|
-| `status` | **problem > new > waiting > answered > closed** önceliği; grup içindeki en "dikkat isteyen" değer kazanır | "Sorunlu" bayrağı düşerse şikâyet gizlenir |
-| `autoReplyHoldUntil` | **MAX** (null en zayıf) | İnsana devir penceresi kısalmamalı; AI host'un üstüne konuşmamalı |
-| `lastMessageAt` | **MAX** | Gelen kutusu sıralaması doğru kalsın |
-| `syncCursorAt` | **MIN** (biri NULL ise NULL) | İhtiyatlı yön: yeniden import idempotent, atlama ise mesaj kaybı |
-| `reservationId` | non-null olan; ikisi de non-null ve FARKLI ise → **fail-closed** | İki farklı yerel konaklamaya bağlı satırlar birleştirilemez |
-| `guestIdentifier` | keeper'ınki; keeper `ANON_*` sentinel'i ise diğerinden gerçek ad **ASLA geri yazılmaz** | KVKK diriltme guard'ı |
-| `priority`, `skippedReason`, `lastRiskLevel`, `lastRiskType` | keeper | Görüntüleme/analitik; risk bayrağı `status` üzerinden zaten korunuyor |
-| `externalConversationId` | tek non-null değer; çelişki → fail-closed (kural 3) | — |
+| `id` | `row_identity` | Kaybeden satır kalkar; birleşecek şey yok |
+| `propertyId`, `externalReservationId` | `identity_key` | Tanım gereği eşit; farklıysa gruplama bozuk → fail |
+| `status` | `status_rank` | **problem > new > waiting > answered > closed.** "Sorunlu" düşerse şikâyet gizlenir. `closed → answered` yönü bilinçli taviz: **görünürlüğü artıran** yön güvenlidir |
+| `autoReplyHoldUntil` | `max_wins` | İnsana devir penceresi KISALMAMALI |
+| `lastMessageAt` | `max_wins` | Gelen kutusu sıralaması (sessizce unutulmadı) |
+| `autoReplyAttemptedAt` | `max_wins` | En yeni damga doğru bilgi |
+| `syncCursorAt` | `min_wins` | İhtiyatlı: ileri alınırsa import ATLANIR = mesaj kaybı |
+| `createdAt` | `min_wins` | Thread'in gerçek doğuşu |
+| `reservationId` | `single_non_null` | İki FARKLI yerel konaklama → **fail-closed** |
+| `externalConversationId` | `single_non_null` | İki FARKLI sağlayıcı thread'i → **fail-closed** |
+| `guestIdentifier` | `anon_guard` | KVKK sentinel'ine gerçek ad geri yazılmaz |
+| `channel`, `priority`, `skippedReason`, `lastRiskLevel`, `lastRiskType` | `keeper_wins` | Görüntüleme/analitik; risk bayrağı `status`'te korunuyor. **Fark olursa SAYILIR** (`keeper_wins_differences`) — sessiz geçmez |
+| `updatedAt` | `system_managed` | Prisma yönetir |
 
-## 5. Mesaj taşıma planı — çakışmalar sayıyla
+## 5. Mesaj sınıflandırması — invariant DÜZELTİLDİ
 
-`Message @@unique([conversationId, externalId])` var. Kaybeden satırın
-mesajları keeper'a taşınırken üç sınıf çıkar:
+**"Hiçbir mesaj satırı silinmez" YANLIŞTI ve mekanik olarak İMKÂNSIZ.**
+`Message @@unique([conversationId, externalId])` yüzünden keeper'da zaten var
+olan bir `externalId`'yi taşımak kısıtı ihlal eder; kaybeden satırı yerinde
+bırakmak da mümkün değildir (kaybeden konuşma silinince cascade götürür).
+Doğru invariant: **hiçbir BENZERSİZ mesaj/olay kaybolmaz.**
 
 | Sınıf | Tanım | Plan |
 |---|---|---|
-| **taşınabilir** | `externalId` keeper'da YOK | `UPDATE conversationId` |
-| **çakışan** | `externalId` keeper'da VAR **ve gövde AYNI** | Aynı sağlayıcı mesajının ikinci kopyası — keeper'daki kalır, kaybedendeki artık gereksizdir. **Silme kararı ayrı onaya bırakılır**; varsayılan plan "bırak, raporla" |
-| **çelişkili** | `externalId` aynı, **gövde FARKLI** | **FAIL-CLOSED** — grup planlanmaz, insana gider |
-| **anahtarsız** | `externalId IS NULL` (iyileşmemiş giden mesaj) | **Taşınır**, asla düşürülmez. `dup > silent miss` invariant'ı |
+| **benzersiz** | `externalId` keeper'da YOK | `UPDATE conversationId` — taşınır |
+| **tam eşit kopya** | `externalId` aynı **ve TÜM anlamlı alanlar eşit** | Tek canonical (keeper'ınki) kalır; fazlalık kopya düşer. Kaybolan **olay yok** |
+| **çelişkili** | `externalId` aynı, **herhangi bir anlamlı alan farklı** | **FAIL-CLOSED** — grup hiç planlanmaz |
+| **anahtarsız** | `externalId IS NULL` | Güvenle eşleştirilemez → **tamamı taşınır, asla düşürülmez** (gövdeleri aynı olsa bile) |
 
-Beklenti (7 grup, aynı thread iki kez import edilmiş): mesajların büyük
-kısmı **çakışan** sınıfına düşer. Dry-run bunu sayıyla doğrulayacak; sayı
-beklentiye uymazsa bu, planı uygulamadan önce durup bakmak için sebeptir.
+"Anlamlı alan" = `MESSAGE_FIELD_POLICY`'de `strict` olan HER ŞEY (15 scalar'ın
+13'ü): `externalId`, `direction`, `senderName`, `body`, `language`,
+`createdAt` (sağlayıcı zamanı), `authorType`, `systemEventType` ve **AI
+işaretlerinin tamamı** (`aiAssisted`, `aiIntent`, `aiConfidence`,
+`aiSourcesJson`, `aiSuggestedReply`). `aiAssisted` özellikle kritik: raporlar
+AI-kredisini `Message.aiAssisted` üzerinden sayar, yanlış kopyayı seçmek
+faturaya komşu bir sayıyı sessizce kaydırırdı.
+
+⚠️ **Gerçekçi fail-closed beklentisi:** `senderName` thread bazında çözülür
+(`senderFullName(m) ?? guestName`), yani ad henüz çözülmemişken import edilen
+kopyada "Misafir" yazıyor olabilir; `createdAt` de sağlayıcı zamanı
+ayrıştırılamazsa yerel `now()`'a düşer. Bu iki alan 7 grubun bir kısmını
+fail-closed'a itebilir. **Bu bir arıza değil, tasarımın çalıştığının
+kanıtıdır** — dry-run sayıyı gösterecek, kararı veriyle vereceğiz.
 
 ## 6. FK'sız tablolar
 
@@ -103,7 +135,24 @@ keeper'a **repoint** eder (`updateMany`). Prod'da bugün üçü de **0**, ama
 araç sayıyı ölçer ve sıfır olmayan durumda repoint'i plana yazar —
 "bugün sıfır" bir kod garantisi değildir.
 
-## 7. Apply aşaması (AYRI ONAY — bu turda YOK)
+## 6b. Dry-run çıktısı — yalnız sayılar
+
+Rapor **hiçbir** ham id, ad, gövde, URL veya hash etiketi basmaz; uzunluğu
+veri hacminden bağımsızdır (testle pinli). Basılanlar:
+
+- grup: çakışan / planlanan / **fail-closed** (+ 4 ayrı sebep sayacı) /
+  `keeper_wins` farkı olan grup / tavan aşıldı mı
+- konuşma: etkilenen / keeper / kaybeden (planlanan gruplarda)
+- mesaj: çakışan gruplardaki toplam / taşınacak **benzersiz** / taşınacak
+  `externalId` **NULL** / **tam eşit duplicate** / **çelişkili** (grubu
+  fail-closed yapan)
+- ilişkili modeller: `MessageOutbox`, `RiskEvent`, `ShadowVerdict` referansı
+- **birleşme öncesi → beklenen sonrası**: Conversation ve Message toplamları
+
+Çıkış kodu: `0` temiz · `10` planlanacak grup var · `20` en az bir
+fail-closed grup var · `1` hata.
+
+## 7. Apply aşaması (AYRI ONAY — bu turda YAZILMADI)
 
 Sıra, atlanmaz:
 
