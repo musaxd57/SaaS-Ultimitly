@@ -457,8 +457,13 @@ describe("outbox Codex P1/P2 — reservation rate limit + AI send-time veto", ()
     const { orgId, propertyId } = await makeOrgWithProperty();
     const rows = [];
     for (let i = 0; i < n; i++) {
+      // The Conversation deliberately carries NO externalReservationId. The rate
+      // cap keys off MessageOutbox.externalReservationId (worker.ts partitions by
+      // it), never the conversation's — and since migration 45 N conversations
+      // cannot share one provider reservation id anyway. Leaving it null keeps
+      // the fixture both truthful and faithful to what this test measures.
       const c = await prisma.conversation.create({
-        data: { propertyId, channel: "airbnb", guestIdentifier: `G${i}`, status: "new", externalReservationId: "res-shared" },
+        data: { propertyId, channel: "airbnb", guestIdentifier: `G${i}`, status: "new" },
       });
       const r = await enqueueOutbound(
         baseArgs(orgId, c.id, { idempotencyKey: `k${i}`, externalReservationId: "res-shared", body: `m${i}` }),

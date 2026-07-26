@@ -229,3 +229,76 @@ describe("sync — unique KURULDUKTAN sonraki dünya provası", () => {
     expect(await prisma.message.count()).toBe(3);
   });
 });
+
+// ---------------------------------------------------------------------------
+// ZORUNLU SIRA — ADIM (6). Yukarıdaki "dünya provası" kısıtı KENDİ kurduğu
+// geçici index ile taklit ediyordu. Migration 45 geldiğine göre bu blok
+// ŞEMANIN KENDİ kısıtıyla koşar: harness `db push` yaptığı için
+// `Conversation_propertyId_externalReservationId_key` zaten yerinde. Hiçbir
+// DDL kurulmaz, hiçbir DDL düşürülmez — ölçülen şey üretimdeki gerçek dünya.
+// ---------------------------------------------------------------------------
+describe("sync — migration 45 KURULUYKEN iki paralel sync (zorunlu sıra adım 6)", () => {
+  beforeEach(async () => {
+    await resetDb();
+    __importThreadHooks.afterCanonicalRead = null;
+  });
+
+  afterEach(() => {
+    __importThreadHooks.afterCanonicalRead = null;
+  });
+
+  it("kısıt ŞEMADAN gelirken: TEK conversation + TEK mesaj seti, P2002 hiç yok", async () => {
+    // Önce kısıtın GERÇEKTEN orada olduğunu kanıtla — yoksa bu test, koruması
+    // olmayan bir dünyayı ölçüp boş güvence üretir.
+    const idx = await prisma.$queryRawUnsafe<{ indexname: string }[]>(
+      `SELECT indexname FROM pg_indexes
+       WHERE tablename = 'Conversation'
+         AND indexname = 'Conversation_propertyId_externalReservationId_key'`,
+    );
+    expect(idx).toHaveLength(1);
+
+    const { propertyId } = await makeOrgWithProperty();
+    __importThreadHooks.afterCanonicalRead = delayOnce(250);
+
+    const a = runImport(propertyId);
+    await new Promise((r) => setTimeout(r, 50)); // A kilidi kesin önce alsın
+    const b = runImport(propertyId);
+    // İkisi de HATASIZ biter: NS-43 kilidi sırayı zorlar, unique hiç ihlal
+    // edilmez. Burada throw olsaydı kilit değil kısıt çalışıyor demekti.
+    await expect(Promise.all([a, b])).resolves.toHaveLength(2);
+
+    const convs = await prisma.conversation.findMany({
+      where: { propertyId, externalReservationId: EXT_RES },
+      select: { id: true },
+    });
+    expect(convs).toHaveLength(1);
+    expect(await prisma.message.count({ where: { conversationId: convs[0].id } })).toBe(3);
+    expect(await prisma.message.count()).toBe(3); // hiçbir mesaj başka satıra kaçmadı
+  });
+
+  it("kısıt manuel konuşmaları BAĞLAMAZ (externalReservationId NULL, NULLS DISTINCT)", async () => {
+    // Ürünü kıracak tek hata NULLS NOT DISTINCT olurdu: mülk başına tek manuel
+    // konuşmaya inerdi. Bu test o regresyonu doğrudan yakalar.
+    const { propertyId } = await makeOrgWithProperty();
+    for (const n of [1, 2, 3]) {
+      await prisma.conversation.create({
+        data: {
+          propertyId,
+          guestIdentifier: `Manuel Misafir ${n}`,
+          channel: "manual",
+          // externalReservationId BİLEREK yazılmıyor → NULL
+        },
+      });
+    }
+    expect(
+      await prisma.conversation.count({ where: { propertyId, externalReservationId: null } }),
+    ).toBe(3);
+  });
+
+  it("AYNI kimlik FARKLI mülkte serbest (kısıt propertyId ile kapsanmış)", async () => {
+    const one = await makeOrgWithProperty();
+    const two = await makeOrgWithProperty();
+    await Promise.all([runImport(one.propertyId), runImport(two.propertyId)]);
+    expect(await prisma.conversation.count()).toBe(2);
+  });
+});

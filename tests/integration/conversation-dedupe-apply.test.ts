@@ -3,9 +3,15 @@ import { mkdtempSync, rmSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 
-import { beforeEach, describe, expect, it } from "vitest";
+import { afterAll, beforeAll, beforeEach, describe, expect, it } from "vitest";
 
-import { prisma, resetDb, makeOrgWithProperty } from "../helpers/db";
+import {
+  prisma,
+  resetDb,
+  makeOrgWithProperty,
+  dropConversationIdentityUnique,
+  restoreConversationIdentityUnique,
+} from "../helpers/db";
 import { planConversationDedupe } from "../../scripts/dryrun-conversation-dedupe";
 import type { Row } from "../../scripts/apply-conversation-dedupe";
 import {
@@ -20,6 +26,15 @@ import {
   resolveExpectations,
 } from "../../scripts/apply-conversation-dedupe";
 import { importThread, __importThreadHooks } from "@/lib/hospitable-sync";
+
+// MIGRATION 45 ESCAPE HATCH. This file's whole purpose is to seed the duplicate
+// rows that `@@unique([propertyId, externalReservationId])` forbids, so the
+// index comes off for this file and goes back on afterwards. Sequential test
+// files (fileParallelism: false) make that safe, and the unconditional restore
+// doubles as a leak check.
+beforeAll(dropConversationIdentityUnique);
+afterAll(restoreConversationIdentityUnique);
+
 
 // ---------------------------------------------------------------------------
 // Faz C — APPLY. Tek, all-or-nothing transaction.

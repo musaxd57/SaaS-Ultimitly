@@ -307,7 +307,13 @@ describe("KVKK explicit erasure (m40) — executor", () => {
         data: {
           propertyId,
           reservationId,
-          externalReservationId: "res-erase-1",
+          // A DISTINCT provider thread id, not the seeded one. Since migration 45
+          // a racing sync can no longer open a second row for the SAME thread —
+          // it would hit the unique and retry into the existing row. A second
+          // thread on the same local stay is still possible (nothing constrains
+          // reservationId), and that is the race this test is actually about:
+          // fresh PII landing in the commit→verify window.
+          externalReservationId: "res-erase-1-racer",
           channel: "airbnb",
           guestIdentifier: GUEST.full_name, // the racing sync writes the REAL name back
           status: "answered",

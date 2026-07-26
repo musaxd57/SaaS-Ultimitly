@@ -482,8 +482,29 @@ model Conversation {
   reservation Reservation? @relation(fields: [reservationId], references: [id], onDelete: SetNull)
   messages    Message[]
 
+  // THREAD IDENTITY (migration 45). One provider thread = at most one row.
+  //
+  // `importThread` already enforced this in application code (canonical read
+  // under the NS-43 advisory lock), but a bare read-then-create cannot survive
+  // two runners: the 2026-07-26 production preflight found seven duplicate
+  // pairs, every one of them carrying the SAME provider externalConversationId
+  // — our own race, not a provider shape. Those pairs were merged; this makes
+  // the invariant structural instead of merely intended.
+  //
+  // NULL SEMANTICS ARE LOAD-BEARING: PostgreSQL treats NULLs as distinct, so
+  // manually created conversations (which never set externalReservationId)
+  // stay unconstrained — many per property, as the product requires. Do NOT
+  // convert this to NULLS NOT DISTINCT; that would collapse manual
+  // conversations to one per property and break the product.
+  //
+  // In practice this binds exactly two writers: the channel sync (provider
+  // reservation UUID) and QR guest chat ("qr-chat:{propertyId}:{reservationId}").
+  // Their value spaces cannot collide. Both handle the resulting P2002.
+  @@unique([propertyId, externalReservationId])
   @@index([propertyId])
   @@index([status])
+  // Kept DESPITE the composite unique above: that index leads with propertyId,
+  // so it cannot serve a lookup by externalReservationId alone.
   @@index([externalReservationId])
   @@index([lastMessageAt]) // inbox is ordered by recency
   // Composite for the hot path: inbox/dashboard/cron filter by status and sort

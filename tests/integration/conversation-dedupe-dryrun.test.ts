@@ -1,7 +1,13 @@
-import { beforeEach, describe, expect, it } from "vitest";
+import { afterAll, beforeAll, beforeEach, describe, expect, it } from "vitest";
 import { Prisma } from "@prisma/client";
 
-import { prisma, resetDb, makeOrgWithProperty } from "../helpers/db";
+import {
+  prisma,
+  resetDb,
+  makeOrgWithProperty,
+  dropConversationIdentityUnique,
+  restoreConversationIdentityUnique,
+} from "../helpers/db";
 import {
   CONVERSATION_FIELD_POLICY,
   LIVE_STATE_FIELDS,
@@ -12,6 +18,15 @@ import {
   planConversationDedupe,
   pickKeeper,
 } from "../../scripts/dryrun-conversation-dedupe";
+
+// MIGRATION 45 ESCAPE HATCH. This file's whole purpose is to seed the duplicate
+// rows that `@@unique([propertyId, externalReservationId])` forbids, so the
+// index comes off for this file and goes back on afterwards. Sequential test
+// files (fileParallelism: false) make that safe, and the unconditional restore
+// doubles as a leak check.
+beforeAll(dropConversationIdentityUnique);
+afterAll(restoreConversationIdentityUnique);
+
 
 // ---------------------------------------------------------------------------
 // Faz B — DRY-RUN dedupe planlayıcı.

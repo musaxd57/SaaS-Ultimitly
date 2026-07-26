@@ -1,11 +1,24 @@
-import { beforeEach, describe, expect, it } from "vitest";
+import { afterAll, beforeAll, beforeEach, describe, expect, it } from "vitest";
 
-import { prisma, resetDb } from "../helpers/db";
+import {
+  prisma,
+  resetDb,
+  dropConversationIdentityUnique,
+  restoreConversationIdentityUnique,
+} from "../helpers/db";
 import {
   collectPreflight,
   decide,
   formatReport,
 } from "../../scripts/preflight-conversation-dupes.mjs";
+
+// MIGRATION 45 ESCAPE HATCH. The preflight exists to FIND the duplicates the
+// constraint now forbids, so it can only be tested against a database where the
+// index is absent — exactly the pre-migration world it was written for. Files
+// run sequentially (fileParallelism: false), and the restore doubles as a check
+// that the schema comes back intact.
+beforeAll(dropConversationIdentityUnique);
+afterAll(restoreConversationIdentityUnique);
 
 // ---------------------------------------------------------------------------
 // Preflight — GERÇEK PostgreSQL karşısında.

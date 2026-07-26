@@ -55,3 +55,36 @@ const DAY = 24 * 60 * 60 * 1000;
 export function daysFromNow(days: number): Date {
   return new Date(Date.now() + days * DAY);
 }
+
+// ---------------------------------------------------------------------------
+// Migration 45's identity unique, and the narrow escape hatch for the tooling
+// that exists BECAUSE it did not used to be there.
+//
+// The dedupe planner/apply and the duplicate-cleanup path can only be tested by
+// SEEDING the very duplicates the constraint forbids. Those files therefore drop
+// the index for their own duration and put it back afterwards. Safe because
+// vitest runs test FILES sequentially (fileParallelism: false in
+// vitest.config.ts) — no other file is touching this database meanwhile.
+//
+// The restore wipes the database FIRST. These files seed duplicates in every
+// case and `resetDb` runs per-test in beforeEach, so the last case's fixtures
+// are still present when afterAll fires — rebuilding a unique index over them
+// would fail on data the file is entitled to have created. Wiping first makes
+// the CREATE a real assertion about the SCHEMA rather than a complaint about
+// leftover fixtures.
+// ---------------------------------------------------------------------------
+
+/** Prisma's generated name for `@@unique([propertyId, externalReservationId])`. */
+export const CONVERSATION_IDENTITY_INDEX = "Conversation_propertyId_externalReservationId_key";
+
+export async function dropConversationIdentityUnique(): Promise<void> {
+  await prisma.$executeRawUnsafe(`DROP INDEX IF EXISTS "${CONVERSATION_IDENTITY_INDEX}"`);
+}
+
+export async function restoreConversationIdentityUnique(): Promise<void> {
+  await resetDb();
+  await prisma.$executeRawUnsafe(`DROP INDEX IF EXISTS "${CONVERSATION_IDENTITY_INDEX}"`);
+  await prisma.$executeRawUnsafe(
+    `CREATE UNIQUE INDEX "${CONVERSATION_IDENTITY_INDEX}" ON "Conversation"("propertyId", "externalReservationId")`,
+  );
+}

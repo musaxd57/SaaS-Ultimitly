@@ -1,6 +1,21 @@
-import { describe, it, expect, beforeEach } from "vitest";
-import { prisma, resetDb, makeOrgWithProperty } from "../helpers/db";
+import { afterAll, beforeAll, describe, it, expect, beforeEach } from "vitest";
+import {
+  prisma,
+  resetDb,
+  makeOrgWithProperty,
+  dropConversationIdentityUnique,
+  restoreConversationIdentityUnique,
+} from "../helpers/db";
 import { cleanupDuplicateConversations } from "@/lib/conversations-cleanup";
+
+// MIGRATION 45 ESCAPE HATCH. This file's whole purpose is to seed the duplicate
+// rows that `@@unique([propertyId, externalReservationId])` forbids, so the
+// index comes off for this file and goes back on afterwards. Sequential test
+// files (fileParallelism: false) make that safe, and the unconditional restore
+// doubles as a leak check.
+beforeAll(dropConversationIdentityUnique);
+afterAll(restoreConversationIdentityUnique);
+
 
 async function makeConv(
   propertyId: string,
