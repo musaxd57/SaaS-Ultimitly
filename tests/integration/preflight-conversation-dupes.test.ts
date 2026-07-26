@@ -255,6 +255,41 @@ describe("preflight — sınıflandırma ve sayım", () => {
     expect(s.groups.hosp_conflicting).toBe(1); // farklı conv id → ÇELİŞKİ
     expect(s.groups.qr_groups).toBe(1); // legacy QR çifti AYRI kovada
     expect(s.groups.max_group_rows).toBe(2);
+    // Grup büyüklüğü dağılımı: dedupe'un "keeper seç + N-1 birleştir" işi.
+    expect(s.groups.groups_of_2).toBe(5);
+    expect(s.groups.groups_of_3_plus).toBe(0);
+  });
+
+  it("marker'ını paylaşmayan legacy QR satırı çakışma SAYILMAZ", async () => {
+    // Codex düzeltmesinin canlı-veri karşılığı: eski-id'li tek bir QR satırı
+    // unique'i ihlal etmez, dolayısıyla dedupe gerektirmez.
+    const org = await prisma.organization.create({ data: { name: "Tek Legacy" } });
+    const prop = await prisma.property.create({
+      data: { organizationId: org.id, name: "Daire" },
+    });
+    const res = await prisma.reservation.create({
+      data: {
+        propertyId: prop.id,
+        guestName: "Misafir",
+        arrivalDate: new Date("2026-08-01T00:00:00Z"),
+        departureDate: new Date("2026-08-05T00:00:00Z"),
+      },
+    });
+    await prisma.conversation.create({
+      data: {
+        // rastgele cuid = legacy (qrconv_ deseninde DEĞİL), ama TEK satır
+        propertyId: prop.id,
+        guestIdentifier: "Misafir",
+        channel: "chat",
+        reservationId: res.id,
+        externalReservationId: `qr-chat:${prop.id}:${res.id}`,
+      },
+    });
+
+    const s = await collectPreflight(prisma, ALLOW);
+    expect(s.qr.qr_legacy).toBe(1); // legacy VAR
+    expect(s.groups.qr_groups).toBe(0); // ama çakışma YOK
+    expect(decide(s)).toEqual({ code: "TEMIZ", exitCode: 0 });
   });
 
   it("aynı externalReservationId farklı mülkteyse çakışma DEĞİLDİR", async () => {
@@ -284,7 +319,6 @@ describe("preflight — sınıflandırma ve sayım", () => {
     const s = await collectPreflight(prisma, ALLOW);
     expect(s.totals.total).toBe(0);
     expect(s.groups.hosp_groups).toBe(0);
-    expect(s.sample).toEqual([]);
     expect(s.impact.conversations).toBe(0);
     expect(decide(s)).toEqual({ code: "TEMIZ", exitCode: 0 });
   });
@@ -309,29 +343,49 @@ describe("preflight — karar ve çıktı hijyeni", () => {
     expect(decide(s)).toEqual({ code: "DEDUPE_GEREKLI", exitCode: 10 });
   });
 
-  it("LIMIT'li örnek listesi TAM sayıları BOZMAZ", async () => {
-    await seed();
-    const s = await collectPreflight(prisma, { ...ALLOW, sampleLimit: 1 });
-    expect(s.sample).toHaveLength(1);
-    // Kırpma yalnız listeyi ilgilendirir; kovalar hâlâ tam.
-    expect(s.groups.hosp_groups).toBe(4);
-    expect(s.groups.qr_groups).toBe(1);
-    // En riskli grup (çelişkili) listenin başına gelir — kırpılırsa gözden kaçmaz.
-    expect(s.sample[0].distinct_conv).toBe(2);
+  it("çıktı YALNIZ kategori + sayıdan oluşur; grup başına satır üretmez", async () => {
+    // Rapor uzunluğu veri hacminden BAĞIMSIZ olmalı: çakışan grup sayısı
+    // artınca satır sayısı artmamalı. Grup başına bir satır (veya kimlikten
+    // türetilmiş bir etiket) basan her tasarım bu testte kırılır.
+    const { propA } = await seed();
+    const before = await collectPreflight(prisma, ALLOW);
+    const beforeLines = formatReport(before, decide(before)).length;
+
+    for (let i = 0; i < 12; i++) {
+      const ext = `res-uuid-extra-${i}`;
+      for (let k = 0; k < 2; k++) {
+        await prisma.conversation.create({
+          data: {
+            propertyId: propA,
+            guestIdentifier: "Misafir",
+            channel: "airbnb",
+            externalReservationId: ext,
+            externalConversationId: `conv-extra-${i}`,
+          },
+        });
+      }
+    }
+
+    const s = await collectPreflight(prisma, ALLOW);
+    expect(s.groups.hosp_groups).toBe(16); // 4 + 12 yeni grup
+    // Karar dalı iki tarafta da AYNI (çelişkili grup duruyor) → satır farkı
+    // yalnız "veri hacmi rapora sızdı mı" sorusunu ölçer.
+    expect(decide(s).code).toBe(decide(before).code);
+    expect(formatReport(s, decide(s)).length).toBe(beforeLines); // rapor BÜYÜMEDİ
   });
 
   it("çıktının hiçbir yerinde ham kimlik/PII yok", async () => {
     const { orgId, propA, propB } = await seed();
     const s = await collectPreflight(prisma, ALLOW);
-    const rendered = [JSON.stringify(s.sample), formatReport(s, decide(s)).join("\n")].join("\n");
+    const rendered = [JSON.stringify(s), formatReport(s, decide(s)).join("\n")].join("\n");
 
     // propA/propB QR markerının İÇİNDE gömülü ("qr-chat:{propertyId}:{resId}"),
     // dolayısıyla marker'ın herhangi bir parçasının sızması bu listeyle yakalanır.
+    // JSON.stringify(s) TÜM dönüş değerini tarar: yeni bir alan kimlik taşırsa
+    // yalnız raporu değil ham sonucu da yakalar.
     for (const secret of [...Object.values(IDS), orgId, propA, propB, "Misafir", "QR Legacy"]) {
       expect(rendered).not.toContain(secret);
     }
-    // Etiket yine de gruplar arası ayrım yapabilmeli (dry-run dedupe ile eşleştirme).
-    expect(new Set(s.sample.map((g: { label: string }) => g.label)).size).toBe(s.sample.length);
   });
 
   it("rapor NULL semantiği uyarısını ve zorunlu sırayı her zaman taşır", async () => {

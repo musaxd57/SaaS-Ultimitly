@@ -33,10 +33,13 @@
 // markerları tasarım gereği tekrar eder ve `externalConversationId` taşımaz,
 // yani "sağlayıcı kanıtı yok" görünürler. Bu yüzden AYRI sayılırlar.
 //
-// ⚠️ LEGACY QR RİSKİ: deterministik `qrconv_{reservationId}` id'sinden ÖNCEKİ
-//    rastgele-id'li QR satırları aynı marker'ı paylaşıyor olabilir. Aynı
-//    rezervasyon için iki legacy QR satırı varsa unique migration PATLAR —
-//    Hospitable ile hiç ilgisi olmayan bir sebepten. Ayrıca ölçülür.
+// ⚠️ LEGACY QR RİSKİ — DAR TANIM: deterministik `qrconv_{reservationId}`
+//    id'sinden ÖNCEKİ rastgele-id'li QR satırları aynı marker'ı paylaşıyor
+//    OLABİLİR. Migration'ı patlatan şey legacy satırın VARLIĞI değil, aynı
+//    marker'ın BİRDEN FAZLA satırda olmasıdır — tek başına duran bir legacy
+//    satır kısıtı hiç ihlal etmez. O yüzden karar YALNIZ çakışan gruplara
+//    (`qr_groups`) bakar; `qr_legacy` sayısı sadece dedupe'ta keeper seçimini
+//    kolaylaştıran bağlam bilgisidir.
 //
 // ─── POSTGRESQL NULL SEMANTİĞİ (dokunma) ───────────────────────────────────
 // `(propertyId, NULL)` çiftleri UNIQUE altında sınırsız tekrar edebilir →
@@ -91,8 +94,14 @@ import { PrismaClient, Prisma } from "@prisma/client";
 export const QR_PREFIX = "qr-chat:";
 const QR_LIKE = `${QR_PREFIX}%`;
 
-/** Örnek listesi sert tavanı: rapor asla sınırsız satır basmaz. */
-export const SAMPLE_LIMIT = 50;
+// RAPOR YALNIZ KATEGORİ + SAYI BASAR — grup başına satır/etiket YOK.
+// Daha önce burada `substr(md5(propertyId || ':' || ext), 1, 8)` etiketli sınırlı
+// bir örnek listesi vardı; kaldırıldı. Gerekçe (Codex): md5 hızlı ve kırık bir
+// özettir, ilk 8 hanesi de HAM KİMLİKTEN türetilmiş KALICI bir parmak izidir —
+// "geri döndürülemez güvenli kimlik" diye tanıtılamaz. Karar sorusunu zaten
+// agregat kovalar cevaplıyor; dedupe planlaması için gereken tek ek bilgi olan
+// grup büyüklüğü dağılımı da saf sayı olarak (groups_of_2 / groups_of_3_plus)
+// veriliyor. Kimlik basmayan tek doğru cevap: hiç basmamak.
 
 /**
  * Zaman aşımı tavanları. `0` = sınırsız olduğu için ASLA kabul edilmez;
@@ -140,7 +149,6 @@ export function resolveTimeouts(env) {
 export async function collectPreflight(prisma, opts = {}) {
   const timeouts = opts.timeouts ?? resolveTimeouts();
   const allowPrimary = opts.allowPrimary ?? false;
-  const sampleLimit = opts.sampleLimit ?? SAMPLE_LIMIT;
 
   return prisma.$transaction(
     async (tx) => {
@@ -218,40 +226,19 @@ export async function collectPreflight(prisma, opts = {}) {
             COUNT(*) FILTER (WHERE is_qr)::int AS qr_groups,
             COALESCE(SUM(n_rows) FILTER (WHERE NOT is_qr), 0)::int AS hosp_rows,
             COALESCE(SUM(n_rows) FILTER (WHERE is_qr), 0)::int AS qr_rows,
-            COALESCE(MAX(n_rows), 0)::int AS max_group_rows
+            COALESCE(MAX(n_rows), 0)::int AS max_group_rows,
+            -- Grup büyüklüğü dağılımı: dedupe'un "keeper seç + N-1 birleştir"
+            -- işinin ne kadar basit olduğunu söyler. KATEGORİ + SAYI; hiçbir
+            -- gruba ait tekil satır/etiket üretilmez.
+            COUNT(*) FILTER (WHERE n_rows = 2)::int AS groups_of_2,
+            COUNT(*) FILTER (WHERE n_rows > 2)::int AS groups_of_3_plus
           FROM g
         `
       )[0];
 
       const conflictGroups = groups.hosp_groups + groups.qr_groups;
 
-      // ── 3) SINIRLI örnek — ham kimlik YERİNE geri-döndürülemez etiket ──────
-      // Etiket md5(propertyId:externalReservationId)'in ilk 8 hanesi: preflight
-      // çıktısıyla ileriki DRY-RUN dedupe çıktısını, hiçbir kimlik basmadan
-      // satır satır eşleştirmeye yarar. LIMIT sert; rapor asla şişmez.
-      const sample = conflictGroups
-        ? await tx.$queryRaw`
-            WITH g AS (
-              SELECT "propertyId" AS pid,
-                     "externalReservationId" AS ext,
-                     ("externalReservationId" LIKE ${QR_LIKE}) AS is_qr,
-                     COUNT(*)::int AS n_rows,
-                     COUNT(DISTINCT "externalConversationId")::int AS distinct_conv,
-                     COUNT(*) FILTER (WHERE "externalConversationId" IS NULL)::int AS null_conv
-              FROM "Conversation"
-              WHERE "externalReservationId" IS NOT NULL
-              GROUP BY "propertyId", "externalReservationId"
-              HAVING COUNT(*) > 1
-            )
-            SELECT substr(md5(pid || ':' || ext), 1, 8) AS label,
-                   is_qr, n_rows, distinct_conv, null_conv
-            FROM g
-            ORDER BY (distinct_conv > 1) DESC, n_rows DESC, label ASC
-            LIMIT ${sampleLimit}
-          `
-        : [];
-
-      // ── 4) Bağlı kayıt hacmi — dedupe planı için (içerik YOK, yalnız sayı) ─
+      // ── 3) Bağlı kayıt hacmi — dedupe planı için (içerik YOK, yalnız sayı) ─
       // RiskEvent / ShadowVerdict / MessageOutbox'ta conversationId üzerinde FK
       // YOK: bir konuşma silinirse bu satırlar DANGLING kalır. MessageOutbox
       // için bu belgeli bir taviz DEĞİL (kuyruktaki gönderim yok olan konuşmayı
@@ -283,7 +270,13 @@ export async function collectPreflight(prisma, opts = {}) {
           )[0]
         : { conversations: 0, qr_conversations: 0, messages: 0, outbox: 0, risk_events: 0, shadow_verdicts: 0 };
 
-      // ── 5) Legacy QR satırları — migration'ı Hospitable'dan bağımsız patlatır ─
+      // ── 4) Legacy QR satırları — SAYIM, KARAR DEĞİL ───────────────────────
+      // `qrconv_{reservationId}` taşımayan (deterministik-id düzeltmesinden
+      // ÖNCEKİ) QR satırları. TEK BAŞINA unique'i ENGELLEMEZ: bir legacy satır
+      // ancak AYNI marker'ı başka bir satırla paylaşıyorsa kısıtı ihlal eder —
+      // ve o durum zaten `qr_groups` içinde sayılıyor. Buradaki sayı yalnız
+      // dedupe planlamasına yarar: QR çakışması varsa keeper'ı seçmek kolay mı
+      // (deterministik id hangi tarafta), onu söyler.
       const qr = (
         await tx.$queryRaw`
           SELECT COUNT(*)::int AS qr_total,
@@ -295,7 +288,7 @@ export async function collectPreflight(prisma, opts = {}) {
         `
       )[0];
 
-      return { ctx, totals, groups, sample, impact, qr, timeouts, sampleLimit };
+      return { ctx, totals, groups, impact, qr, timeouts };
     },
     {
       isolationLevel: Prisma.TransactionIsolationLevel.RepeatableRead,
@@ -307,24 +300,38 @@ export async function collectPreflight(prisma, opts = {}) {
   );
 }
 
-/** Saf karar fonksiyonu — DB'siz test edilebilir. */
+/**
+ * Saf karar fonksiyonu — DB'siz test edilebilir.
+ *
+ * Kararı YALNIZ çakışan grup sayısı belirler: unique kısıtını ihlal eden şey
+ * aynı `(propertyId, externalReservationId)` üzerinde BİRDEN FAZLA satırdır.
+ * `qr_legacy` bilinçli olarak kararın DIŞINDA (Codex düzeltmesi): tek başına
+ * duran, marker'ını kimseyle paylaşmayan eski-id'li bir QR satırı migration'ı
+ * engellemez — engelleyen QR satırları zaten `qr_groups` içinde sayılır.
+ * Onu da karara katmak, hiçbir çakışması olmayan bir veritabanını "dedupe
+ * gerekli" diye işaretlerdi (yanlış alarm, gereksiz prod dokunuşu).
+ */
 export function decide(stats) {
-  const { groups, qr } = stats;
+  const { groups } = stats;
   const conflictGroups = groups.hosp_groups + groups.qr_groups;
   if (groups.hosp_conflicting > 0) {
     return { code: "CELISKI", exitCode: 20 };
   }
-  if (conflictGroups > 0 || qr.qr_legacy > 0) {
+  if (conflictGroups > 0) {
     return { code: "DEDUPE_GEREKLI", exitCode: 10 };
   }
   return { code: "TEMIZ", exitCode: 0 };
 }
 
-/** Saf biçimlendirici — hiçbir ham kimlik/PII içermez. */
+/**
+ * Saf biçimlendirici — YALNIZ kategori ve sayı basar.
+ * Hiçbir satır/grup için kimlik, kimlikten türetilmiş etiket veya örnek liste
+ * üretmez; dolayısıyla çıktı uzunluğu veri hacminden bağımsızdır.
+ */
 export function formatReport(stats, decision) {
   // Zaman aşımı değerleri rapora NİYETTEN değil, sunucunun kendi
   // `current_setting` cevabından (ctx) basılır — gerçekten uygulandığı görünsün.
-  const { ctx, totals, groups, sample, impact, qr, sampleLimit } = stats;
+  const { ctx, totals, groups, impact, qr } = stats;
   const pad = (label, value) => `${String(label).padEnd(52)} ${value}`;
   const L = [];
 
@@ -347,7 +354,11 @@ export function formatReport(stats, decision) {
   L.push(pad("  manuel (externalReservationId NULL)", totals.manual_null));
   L.push(pad("  QR (qr-chat: marker)", totals.qr));
   L.push(pad("  Hospitable (rezervasyon UUID)", totals.hospitable));
-  L.push(pad("  · bunlardan legacy QR (qrconv_ dışı id)", qr.qr_legacy));
+  L.push(pad("  · QR'ların legacy olanı (qrconv_ dışı id)", qr.qr_legacy));
+  L.push("");
+  L.push("NOT: legacy QR sayısı TEK BAŞINA unique'i engellemez — engelleyen QR");
+  L.push("     satırları aşağıdaki 'QR grup' satırında sayılıdır. Bu rakam yalnız");
+  L.push("     dedupe'ta keeper seçmenin ne kadar kolay olduğunu gösterir.");
   L.push("");
   L.push("NOT: manuel satırlar kısıtlamayı İLGİLENDİRMEZ — PostgreSQL'de NULL'lar");
   L.push("     distinct sayılır. `NULLS NOT DISTINCT` KULLANILMAMALI (mülk başına");
@@ -360,24 +371,12 @@ export function formatReport(stats, decision) {
   L.push(pad("  · karışık (değer + NULL) → belirsiz", groups.hosp_mixed));
   L.push(pad("  · hepsi NULL → sağlayıcı kanıtı yok", groups.hosp_all_null));
   L.push(pad("  · FARKLI conversation id → ÇELİŞKİ", groups.hosp_conflicting));
-  L.push(pad("QR grup (legacy çift satır)", groups.qr_groups));
+  L.push(pad("QR grup (aynı marker'ı paylaşan satırlar)", groups.qr_groups));
+  L.push("");
+  L.push(pad("Grup büyüklüğü: tam 2 satır", groups.groups_of_2));
+  L.push(pad("Grup büyüklüğü: 3+ satır", groups.groups_of_3_plus));
   L.push(pad("En kalabalık gruptaki satır sayısı", groups.max_group_rows));
   L.push("");
-
-  if (sample.length) {
-    L.push(`--- Örnek gruplar (en fazla ${sampleLimit}; etiket = md5 ilk 8, kimlik DEĞİL) ---`);
-    for (const g of sample) {
-      const kind = g.is_qr ? "QR  " : "HOSP";
-      const verdict = g.distinct_conv > 1 ? "ÇELİŞKİ" : g.distinct_conv === 0 ? "kanıt-yok" : g.null_conv > 0 ? "karışık" : "aynı";
-      L.push(
-        `  ${g.label}  ${kind}  satır=${g.n_rows}  farklı-conv=${g.distinct_conv}  null-conv=${g.null_conv}  → ${verdict}`,
-      );
-    }
-    if (sample.length === sampleLimit) {
-      L.push(`  … LİSTE ${sampleLimit} SATIRDA KIRPILDI (yukarıdaki sayılar TAM).`);
-    }
-    L.push("");
-  }
 
   L.push("--- Dedupe'un taşıyacağı bağlı kayıt hacmi ---");
   L.push(pad("Etkilenen konuşma satırı", impact.conversations));
@@ -402,9 +401,9 @@ export function formatReport(stats, decision) {
       L.push("   'karışık' / 'kanıt-yok' grupları otomatik silmeye UYGUN DEĞİL:");
       L.push("   sağlayıcı kanıtı eksik → gözetimli, elde onaylı dedupe.");
     }
-    if (qr.qr_legacy) {
-      L.push("   Legacy QR satırları AYRI bir iş: deterministik qrconv_ id'si");
-      L.push("   keeper'ı belirler, Hospitable yarışıyla karıştırma.");
+    if (groups.qr_groups) {
+      L.push("   QR çakışmaları AYRI bir iş: deterministik qrconv_ id'si keeper'ı");
+      L.push("   belirler, Hospitable yarışıyla karıştırma.");
     }
   } else {
     L.push("✅ Çakışma YOK. Unique migration bu veriyle sorunsuz uygulanır.");

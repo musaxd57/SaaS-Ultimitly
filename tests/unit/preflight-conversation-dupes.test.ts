@@ -81,10 +81,23 @@ describe("preflight — decide (saf karar)", () => {
     ).toEqual({ code: "CELISKI", exitCode: 20 });
   });
 
-  it("legacy QR satırı tek başına da migration'ı riske atar → dedupe gerekli", () => {
-    // Hospitable tarafı tamamen temizken bile: aynı marker'ı paylaşan iki
-    // legacy QR satırı unique migration'ını Hospitable'dan bağımsız patlatır.
-    expect(decide(stats({ qr: { qr_legacy: 2 } }))).toEqual({
+  it("legacy QR satırı TEK BAŞINA kararı değiştirmez", () => {
+    // ÖNCEKİ SÖZLEŞME YANLIŞTI (Codex): `qr_legacy > 0` tek başına
+    // DEDUPE_GEREKLI veriyordu. Kısıtı ihlal eden şey eski-id'li bir satırın
+    // VARLIĞI değil, aynı marker'ın BİRDEN FAZLA satırda olmasıdır — ve o
+    // popülasyon zaten `qr_groups` ile sayılıyor. Marker'ını kimseyle
+    // paylaşmayan bir legacy satır unique'i engellemez; onu karara katmak
+    // tertemiz bir veritabanını "dedupe gerekli" diye işaretlerdi.
+    expect(decide(stats({ qr: { qr_total: 9, qr_legacy: 4 } }))).toEqual({
+      code: "TEMIZ",
+      exitCode: 0,
+    });
+  });
+
+  it("çakışan QR grubu ise kararı DEĞİŞTİRİR", () => {
+    // Ayırt edici karşı-örnek: aynı legacy sayısı, fakat bu kez marker
+    // paylaşan gerçek bir grup var.
+    expect(decide(stats({ groups: { qr_groups: 1 }, qr: { qr_total: 9, qr_legacy: 4 } }))).toEqual({
       code: "DEDUPE_GEREKLI",
       exitCode: 10,
     });
