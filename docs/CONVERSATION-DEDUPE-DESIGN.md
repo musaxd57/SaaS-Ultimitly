@@ -36,7 +36,7 @@ doğrulayarak karşılar.
 | `externalConversationId` | 7 grubun **tamamında AYNI** |
 | Çelişkili / karışık / kanıtsız grup | **0 / 0 / 0** |
 | Etkilenen Conversation | 14 |
-| Korunacak Message | 58 |
+| Gruplardaki mesaj satırı | 58 — 29 tam-eşit duplicate düşer, 29 canonical kalır |
 | MessageOutbox / RiskEvent / ShadowVerdict | **0 / 0 / 0** |
 | QR / manuel çakışması | 0 |
 

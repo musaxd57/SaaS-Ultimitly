@@ -58,7 +58,8 @@ Kısıt fiilen yalnız **sync** ve **QR** satırlarını bağlar.
 
 ### `CONCURRENTLY` gerekli mi? — HAYIR
 
-Tablo **1328 satır**. Düz `CREATE UNIQUE INDEX` milisaniyeler sürer ve bu
+Tablo **1328 satır** (dedupe APPLY'ından SONRA ölçülen prod değeri; apply
+öncesi 1335 idi, 7 loser silindi). Düz `CREATE UNIQUE INDEX` milisaniyeler sürer ve bu
 sürede yalnız SHARE kilidi tutar (okumalar akmaya devam eder).
 `CONCURRENTLY`'nin bedeli ise gerçek: başarısız olursa arkada **INVALID index**
 bırakır ve elle `DROP` istemez — bu, boot-time `migrate deploy` için düz

@@ -6,15 +6,29 @@ import { isUniqueViolation } from "@/lib/db-errors";
 import type { HospitableMessage, HospitableReservation } from "@/lib/hospitable";
 
 // ---------------------------------------------------------------------------
-// FAZ A — sync tarafı, unique HENÜZ YOKKEN yarışı önlüyor mu?
+// FAZ A — sync tarafındaki NS-43 kimlik kilidi.
 //
 // 2026-07-26 prod preflight'ı 7 çakışan grup buldu; hepsi TAM 2 satır ve
 // hepsinde `externalConversationId` AYNI. Yani sağlayıcı tek thread verdi,
 // iki satırı BİZ açtık: `importThread`in çıplak findFirst → create'i iki
 // eşzamanlı koşucuda ikisi de "yok" görüp ikisi de yaratabiliyordu.
 //
-// Bu dosya kilidi GERÇEK PostgreSQL'de kanıtlar. Kilit olmadan bu testler
-// kırmızıdır (mutasyonla doğrulandı): iki konuşma + iki kat mesaj oluşur.
+// ⚠️ ARIZA BİÇİMİ MIGRATION 45 İLE DEĞİŞTİ. Yukarıdaki "iki konuşma + iki kat
+// mesaj" tablosu kilidin YAZILDIĞI andaki (unique'ten ÖNCEKİ) dünyaya aittir;
+// bugünkü davranış O DEĞİL. Artık `@@unique([propertyId, externalReservationId])`
+// yürürlükte, dolayısıyla kilit kaldırılsa bile ikinci yazım veritabanı
+// tarafından engellenir — çift satır oluşmaz. Bu dosyadaki testler yine de
+// kırmızıya döner, ama başka bir sebeple: `runImport` `importThread`i DOĞRUDAN
+// çağırır (çağırandaki tek-seferlik retry sarmalayıcısından geçmez), o yüzden
+// kaybeden koşucu P2002 ile reddedilir ve `Promise.all` reject eder.
+//
+// KİLİT NEDEN HÂLÂ GEREKLİ — kısıt onun yerine geçmez:
+// Kilit, iki eşzamanlı import'un İKİSİNİN DE İLK denemede BAŞARILI olmasını
+// sağlar; kaybeden, kanonik okumasında kazananın satırını görüp UPDATE yoluna
+// girer. Kısıt ise yalnız son çare bir backstop'tur: onunla yetinilseydi her
+// eşzamanlı import bir HATA yolu üretir, `runImportTx`in tek-seferlik retry'ına
+// bağımlı kalınır ve o retry'ın da düşmesi gerçek bir başarısızlığa dönerdi.
+// Yani seri davranış TASARIM, unique yalnız EMNİYET KEMERİ.
 //
 // PROD'A DOKUNULMAZ: yalnız throwaway test veritabanı. Dedupe/migration YOK.
 // ---------------------------------------------------------------------------
