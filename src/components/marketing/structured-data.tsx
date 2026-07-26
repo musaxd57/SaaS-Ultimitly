@@ -1,4 +1,4 @@
-import { DEFAULT_PLANS } from "@/lib/billing/plans";
+import { defaultPlans } from "@/lib/billing/plans";
 import { SELLER } from "@/lib/legal-entity";
 
 const SITE = "https://www.lixusai.com";
@@ -35,7 +35,7 @@ export function StructuredData({ faqs }: { faqs: { q: string; a: string }[] }) {
     operatingSystem: "Web",
     inLanguage: "tr-TR",
     description: DESCRIPTION,
-    offers: DEFAULT_PLANS.map((p) => ({
+    offers: defaultPlans().map((p) => ({
       "@type": "Offer",
       name: p.name,
       price: (p.priceMinor / 100).toFixed(2),

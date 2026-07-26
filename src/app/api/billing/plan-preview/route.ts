@@ -42,7 +42,8 @@ export const POST = withOwner(async (session, req) => {
   return jsonOk({
     mode: r.mode, // "upgrade" | "downgrade"
     targetName: r.target.name,
-    targetMonthly: r.target.priceMinor / 100,
+    // MINOR UNITS: the client formats it; a float major would round-trip badly.
+    targetMonthlyMinor: r.target.priceMinor,
     immediateTotal: preview?.immediateTotal ?? null, // charged now (upgrade); null on downgrade
     recurringTotal: preview?.recurringTotal ?? null,
     previewToken,

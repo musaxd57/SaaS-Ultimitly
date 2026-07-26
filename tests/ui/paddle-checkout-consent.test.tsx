@@ -23,6 +23,8 @@ function renderPlans() {
       active={false}
       trialDaysLeft={12}
       plans={plans}
+      locale="tr-TR"
+      currency="TRY"
     />,
   );
 }

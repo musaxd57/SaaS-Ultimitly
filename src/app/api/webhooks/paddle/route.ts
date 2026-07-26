@@ -293,7 +293,22 @@ async function applyTransactionEvent(
   const totals = details?.totals as Record<string, unknown> | undefined;
   const grand = str(totals?.grand_total) ?? str((data.totals as Record<string, unknown> | undefined)?.grand_total);
   const amountMinor = grand ? Number.parseInt(grand, 10) : NaN;
-  const currency = str(data.currency_code) ?? "TRY";
+
+  // FAIL-CLOSED on a missing currency. This row is the billing record of a real
+  // charge; the currency belongs to the EVENT, and Paddle sends currency_code on
+  // every transaction. If it is ever absent we do NOT invent one — stamping the
+  // deployment's currency (or the old hardcoded "TRY") would silently mislabel a
+  // charge that may have been taken in another currency, and no conversion has
+  // happened. Skip the row and page instead: a missing invoice is recoverable
+  // from Paddle, a wrong one corrupts the books.
+  const currency = str(data.currency_code);
+  if (!currency) {
+    await reportError(
+      "paddle-webhook",
+      new Error(`transaction ${providerRef} has no currency_code — invoice NOT written (fail-closed)`),
+    );
+    return;
+  }
 
   const sub = await prisma.subscription.findUnique({ where: { organizationId }, select: { id: true } });
 

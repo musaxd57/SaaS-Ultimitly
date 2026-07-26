@@ -4,6 +4,7 @@ import { useCallback, useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
 import Link from "next/link";
 import { LEGAL_VERSION } from "@/lib/legal-entity";
+import { formatMinor } from "@/lib/utils";
 
 // Paddle.js is loaded from Paddle's CDN at runtime (no npm dependency, matching
 // the rest of the dependency-free billing code). Minimal typings for the bits we
@@ -92,6 +93,8 @@ export function PaddlePlans({
   manageable = false,
   planChangeEnabled = false,
   plans,
+  locale,
+  currency,
 }: {
   clientToken: string;
   environment: "sandbox" | "production";
@@ -113,6 +116,13 @@ export function PaddlePlans({
    *  preview the prorated charge, then apply via PATCH /subscriptions. */
   planChangeEnabled?: boolean;
   plans: PlanOption[];
+  /** Deployment display locale (server-resolved: appLocale()). Digit grouping and
+   *  symbol placement only — says nothing about which currency is charged. */
+  locale: string;
+  /** Deployment billing currency (server-resolved: appBillingCurrency()). Used ONLY
+   *  for the preview fallback, where no Paddle response is available to state it.
+   *  When Paddle DOES answer, its own currency wins — see recurringTotal. */
+  currency: string;
 }) {
   const router = useRouter();
   const [ready, setReady] = useState(false);
@@ -122,7 +132,7 @@ export function PaddlePlans({
     planCode: string;
     name: string;
     mode: "upgrade" | "downgrade";
-    targetMonthly: number;
+    targetMonthlyMinor: number;
     immediateTotal: string | null;
     recurringTotal: string | null;
     previewToken: string;
@@ -267,7 +277,7 @@ export function PaddlePlans({
         error?: string;
         mode?: "upgrade" | "downgrade";
         targetName?: string;
-        targetMonthly?: number;
+        targetMonthlyMinor?: number;
         immediateTotal?: string | null;
         recurringTotal?: string | null;
         previewToken?: string;
@@ -280,7 +290,7 @@ export function PaddlePlans({
         planCode,
         name: data.targetName ?? planCode,
         mode: data.mode,
-        targetMonthly: data.targetMonthly ?? 0,
+        targetMonthlyMinor: data.targetMonthlyMinor ?? 0,
         immediateTotal: data.immediateTotal ?? null,
         recurringTotal: data.recurringTotal ?? null,
         previewToken: data.previewToken,
@@ -415,7 +425,7 @@ export function PaddlePlans({
                 <>
                   <strong>{pending.name}</strong> planına <strong>yükseltiyorsunuz</strong>. Şimdi{" "}
                   <strong>{pending.immediateTotal}</strong> tahsil edilecek, ardından aylık{" "}
-                  {pending.recurringTotal ?? `${pending.targetMonthly.toLocaleString("tr-TR")} ₺`}.
+                  {pending.recurringTotal ?? formatMinor(pending.targetMonthlyMinor, currency, locale)}.
                 </>
               ) : (
                 // Fail-closed: never let the customer authorize a charge without the
@@ -432,7 +442,7 @@ export function PaddlePlans({
                 <strong>{pending.name}</strong> planına <strong>düşürüyorsunuz</strong>. Değişiklik{" "}
                 <strong>hemen</strong> geçerli olur (yeni plan limitleri anında uygulanır); aradaki fark
                 bir sonraki faturanıza yansıtılır. Yeni aylık ücret{" "}
-                {pending.recurringTotal ?? `${pending.targetMonthly.toLocaleString("tr-TR")} ₺`}.
+                {pending.recurringTotal ?? formatMinor(pending.targetMonthlyMinor, currency, locale)}.
               </>
             )}
           </p>
@@ -474,7 +484,10 @@ export function PaddlePlans({
             currentPlanCode,
           });
           const isUpgrade = currentIndex >= 0 && i > currentIndex;
-          const price = (p.priceMinor / 100).toLocaleString("tr-TR");
+          // Para birimi PLANDAN gelir; sembol JSX'e gömülü DEĞİL. Aksi hâlde
+          // EUR fiyatlı bir deployment tutarı ₺ ile basardı — dönüşüm yapmadan
+          // sembol değiştirmek yanlış beyandır.
+          const price = formatMinor(p.priceMinor, p.currency, locale);
           const limit = p.propertyLimit == null ? "Sınırsız daire" : `${p.propertyLimit} daireye kadar`;
           return (
             <div
@@ -487,7 +500,7 @@ export function PaddlePlans({
             >
               <p className="text-sm font-semibold">{p.name}</p>
               <p className="mt-0.5 text-lg font-bold">
-                {price} <span className="text-xs font-normal text-muted-foreground">₺/ay</span>
+                {price} <span className="text-xs font-normal text-muted-foreground">/ay</span>
               </p>
               <p className="mb-2 text-xs text-muted-foreground">{limit}</p>
               {isCurrent ? (

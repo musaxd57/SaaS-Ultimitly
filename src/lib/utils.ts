@@ -6,16 +6,62 @@ export function cn(...inputs: ClassValue[]) {
   return twMerge(clsx(inputs));
 }
 
-export function formatCurrency(amount: number | null | undefined, currency = "EUR") {
+// Number/date FORMATTING locale. Deliberately a plain constant here, not a read of
+// APP_LOCALE: this module is imported by client components too, and process.env is
+// not available there. Server callers that want the deployment's configured locale
+// pass it in explicitly (appLocale() in @/lib/app-config). Formatting locale says
+// nothing about currency — the two are independent inputs everywhere below.
+const DEFAULT_DISPLAY_LOCALE = "tr-TR";
+
+/**
+ * Render a money amount.
+ *
+ * `currency` is the currency the amount IS DENOMINATED IN — always taken from the
+ * record itself (Reservation.currency from the channel, Invoice.currency from the
+ * payment event), never guessed from the locale, the deployment or the org's
+ * timezone. Nothing here converts: changing the symbol without converting the
+ * number would misstate what the guest actually paid.
+ *
+ * `locale` only decides digit grouping and symbol placement.
+ */
+export function formatCurrency(
+  amount: number | null | undefined,
+  currency = "EUR",
+  locale: string = DEFAULT_DISPLAY_LOCALE,
+) {
   if (amount === null || amount === undefined) return "—";
   try {
-    return new Intl.NumberFormat("tr-TR", {
+    return new Intl.NumberFormat(locale, {
       style: "currency",
       currency,
       maximumFractionDigits: 0,
     }).format(amount);
   } catch {
     return `${amount} ${currency}`;
+  }
+}
+
+/**
+ * Money in MINOR UNITS (kuruş, cent) → display string. Integers end to end: plan
+ * prices must never round-trip through a float. Same currency contract as
+ * formatCurrency — the caller states what the amount is denominated in.
+ */
+export function formatMinor(
+  amountMinor: number,
+  currency: string,
+  locale: string = DEFAULT_DISPLAY_LOCALE,
+) {
+  const major = amountMinor / 100;
+  try {
+    return new Intl.NumberFormat(locale, {
+      style: "currency",
+      currency,
+      // Whole prices stay whole (₺449, not ₺449,00); a price with kuruş shows them.
+      minimumFractionDigits: amountMinor % 100 === 0 ? 0 : 2,
+      maximumFractionDigits: 2,
+    }).format(major);
+  } catch {
+    return `${major} ${currency}`;
   }
 }
 

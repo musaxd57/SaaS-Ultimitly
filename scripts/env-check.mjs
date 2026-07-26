@@ -203,5 +203,61 @@ export function checkProductionEnv(env) {
     );
   }
 
+  // DEPLOYMENT LOCALE / BILLING CURRENCY. Both are OPTIONAL — unset means the
+  // shipped .com defaults (tr-TR / TRY) and nothing changes. But a value that IS
+  // set and invalid must stop the boot rather than silently fall back: a .eu
+  // instance meant to bill in EUR that quietly reverts to TRY would quote and
+  // charge the wrong currency. Values are safe to print (not secrets).
+  const locale = (env.APP_LOCALE ?? "").trim();
+  if (locale) {
+    let localeOk = false;
+    try {
+      new Intl.NumberFormat(locale);
+      localeOk = true;
+    } catch {
+      localeOk = false;
+    }
+    if (!localeOk) errors.push(`APP_LOCALE is not a locale Intl accepts: ${locale}`);
+  }
+
+  const billingCurrency = (env.APP_BILLING_CURRENCY ?? "").trim();
+  if (billingCurrency) {
+    const code = billingCurrency.toUpperCase();
+    let currencyOk = /^[A-Z]{3}$/.test(code);
+    if (currencyOk) {
+      try {
+        new Intl.NumberFormat("en", { style: "currency", currency: code }).format(1);
+      } catch {
+        currencyOk = false;
+      }
+    }
+    if (!currencyOk) {
+      errors.push(`APP_BILLING_CURRENCY must be a valid 3-letter ISO 4217 code (got: ${billingCurrency}).`);
+    }
+  }
+
+  // Plan prices are MINOR-UNIT INTEGERS (kuruş/cent). A float or a signed value
+  // here would mean charging a wrong amount, so reject rather than fall back.
+  for (const key of ["PLAN_PRICE_BASLANGIC_MINOR", "PLAN_PRICE_PRO_MINOR", "PLAN_PRICE_ISLETME_MINOR"]) {
+    const raw = (env[key] ?? "").trim();
+    if (raw && !/^\d+$/.test(raw)) {
+      errors.push(`${key} must be a whole number of minor units (kuruş/cent), no decimals or signs (got: ${raw}).`);
+    }
+  }
+
+  // Setting a non-default billing currency without also setting prices would ship
+  // the TRY numbers labelled with another symbol — the exact "format-only
+  // conversion" this codebase forbids. Warn loudly; the operator may be mid-setup.
+  if (billingCurrency && billingCurrency.toUpperCase() !== "TRY") {
+    const anyPriceSet = ["PLAN_PRICE_BASLANGIC_MINOR", "PLAN_PRICE_PRO_MINOR", "PLAN_PRICE_ISLETME_MINOR"].some(
+      (k) => (env[k] ?? "").trim(),
+    );
+    if (!anyPriceSet) {
+      warnings.push(
+        `APP_BILLING_CURRENCY is ${billingCurrency.toUpperCase()} but no PLAN_PRICE_*_MINOR is set — the shipped TRY amounts would be shown with that currency. Set the prices for this deployment.`,
+      );
+    }
+  }
+
   return { errors, warnings };
 }

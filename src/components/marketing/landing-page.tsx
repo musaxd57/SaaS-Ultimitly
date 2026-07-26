@@ -30,7 +30,9 @@ import { DemoFrame } from "@/components/marketing/demo-frame";
 import { LandingDemo } from "@/components/marketing/landing-demo";
 import { NavScroll } from "@/components/marketing/nav-scroll";
 import { MobileNav } from "@/components/marketing/mobile-nav";
-import { cn } from "@/lib/utils";
+import { cn, formatMinor } from "@/lib/utils";
+import { defaultPlans } from "@/lib/billing/plans";
+import { appLocale } from "@/lib/app-config";
 
 // Public marketing landing page (logged-out visitors). Turkish-first, sells the
 // real edges: native Turkish AI, safety (no auto-reply on complaints), 24/7,
@@ -168,8 +170,11 @@ const FEATURES = [
   },
 ];
 
-// Display tiers — keep PRICES + property ranges in sync with src/lib/billing/plans.ts
-// (DEFAULT_PLANS). Reverse-trial: 14 gün tam Pro ücretsiz (kart yok), sonra plan seçilir.
+// Display tiers. PRICES ARE NOT WRITTEN HERE — they come from defaultPlans(), the
+// same deployment config the settings checkout card reads, so the landing page and
+// the paid flow cannot disagree. (They used to be literals like "₺449" and drift
+// was only prevented by a comment.) Reverse-trial: 14 gün tam Pro ücretsiz (kart
+// yok), sonra plan seçilir.
 // TÜM ücretli planlar AYNI çekirdek ürün özelliklerini alır (kod'da per-özellik kilit
 // YOK — premiumAllowed tek boolean; enforcement yalnız propertyLimit). Planlar SADECE
 // daire sayısı + destek seviyesiyle ayrışır. Özellikleri üst plana özelmiş gibi
@@ -177,7 +182,7 @@ const FEATURES = [
 const TIERS = [
   {
     name: "Başlangıç",
-    price: "₺449",
+    planCode: "free",
     unit: "/ay",
     desc: "1–2 daireli ev sahipleri için",
     features: [
@@ -193,7 +198,7 @@ const TIERS = [
   },
   {
     name: "Pro",
-    price: "₺899",
+    planCode: "pro",
     unit: "/ay",
     desc: "3–7 daireli profesyonel hostlar",
     features: [
@@ -205,7 +210,7 @@ const TIERS = [
   },
   {
     name: "İşletme",
-    price: "₺1.699",
+    planCode: "business",
     unit: "/ay",
     desc: "8–25 daireli profesyoneller",
     features: [
@@ -296,6 +301,12 @@ const PANELS = [
 ];
 
 export function LandingPage() {
+  // Prices come from the SAME deployment config the settings checkout reads, so
+  // the public page and the paid flow can never quote different numbers.
+  const locale = appLocale();
+  const priceByCode = new Map(
+    defaultPlans().map((p) => [p.code, formatMinor(p.priceMinor, p.currency, locale)]),
+  );
   // Optional WhatsApp contact — set NEXT_PUBLIC_WHATSAPP to a BUSINESS number
   // (digits only, with country code). If unset, only the e-mail contact shows.
   const whatsapp = process.env.NEXT_PUBLIC_WHATSAPP?.replace(/\D/g, "");
@@ -679,7 +690,7 @@ export function LandingPage() {
                 <h3 className="text-lg font-semibold">{t.name}</h3>
                 <p className="mt-1 text-sm text-muted-foreground">{t.desc}</p>
                 <div className="mt-4 flex items-baseline gap-1">
-                  <span className="text-3xl font-bold">{t.price}</span>
+                  <span className="text-3xl font-bold">{priceByCode.get(t.planCode) ?? "—"}</span>
                   <span className="text-sm text-muted-foreground">{t.unit}</span>
                 </div>
                 <ul className="mt-6 flex-1 space-y-2.5">

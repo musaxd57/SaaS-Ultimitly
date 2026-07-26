@@ -508,6 +508,29 @@ describe("POST /api/webhooks/paddle", () => {
     expect(inv?.providerRef).toBe("txn_1");
   });
 
+  it("currency_code YOKSA Invoice YAZILMAZ — sessiz TRY damgası atılmaz (fail-closed)", () => {
+    // Fatura gerçek bir tahsilatın kaydı; para birimi OLAYA aittir. Eksikse
+    // uydurmak (eski sabit "TRY" ya da deployment para birimi) dönüşüm
+    // yapılmadan yanlış etiket demektir — kayıt hiç yazılmaz, hata raporlanır.
+    return (async () => {
+      const body = JSON.stringify({
+        event_id: "evt_tx_nocur",
+        event_type: "transaction.completed",
+        data: {
+          id: "txn_nocur",
+          status: "completed",
+          custom_data: { consentId },
+          // currency_code BİLEREK YOK
+          details: { totals: { grand_total: "89900" } },
+        },
+      });
+      const res = await POST(req(body, sign(body)));
+      // Webhook 200 döner (Paddle'ı sonsuz retry'a sokmayız — veri sorunu, geçici değil).
+      expect(res.status).toBe(200);
+      expect(await prisma.invoice.count({ where: { providerRef: "txn_nocur" } })).toBe(0);
+    })();
+  });
+
   it("records an event with no custom_data without creating a Subscription (no crash)", async () => {
     const body = JSON.stringify({
       event_id: "evt_nolink",

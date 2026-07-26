@@ -26,7 +26,8 @@ import { SETTINGS_NAV, deriveInitialViewId } from "@/lib/settings-nav";
 import { getConnectionInfo } from "@/lib/hospitable-credentials";
 import { getEntitlement, premiumAllowed, isFounderOrg } from "@/lib/billing/subscription";
 import { planChangeEnabled } from "@/lib/billing/plan-change";
-import { DEFAULT_PLANS } from "@/lib/billing/plans";
+import { defaultPlans } from "@/lib/billing/plans";
+import { appLocale, appBillingCurrency } from "@/lib/app-config";
 import { isSuperAdmin } from "@/lib/admin";
 import { isHospitableOAuthConfigured } from "@/lib/hospitable-oauth";
 
@@ -384,7 +385,9 @@ export default async function SettingsPage({
               trialDaysLeft={entitlement.trialDaysLeft}
               manageable={canManagePaddleSub}
               planChangeEnabled={canManagePaddleSub && planChangeEnabled()}
-              plans={DEFAULT_PLANS.map((p) => ({
+              locale={appLocale()}
+              currency={appBillingCurrency()}
+              plans={defaultPlans().map((p) => ({
                 code: p.code,
                 name: p.name,
                 priceMinor: p.priceMinor,

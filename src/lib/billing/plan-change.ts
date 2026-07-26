@@ -3,7 +3,7 @@ import "server-only";
 import { createHmac, randomBytes, timingSafeEqual } from "crypto";
 import { Prisma } from "@prisma/client";
 import { prisma } from "@/lib/db";
-import { DEFAULT_PLANS, planByCode, type PlanDef } from "./plans";
+import { defaultPlans, planByCode, type PlanDef } from "./plans";
 
 // ---------------------------------------------------------------------------
 // In-app plan change (upgrade / downgrade). Paddle's hosted customer portal does
@@ -30,9 +30,9 @@ export type PlanChangeMode = "upgrade" | "downgrade" | "same" | "unknown";
  * (caller rejects); no known current (e.g. grandfathered) → treat as "upgrade".
  */
 export function planChangeMode(currentCode: string, targetCode: string): PlanChangeMode {
-  const tgt = DEFAULT_PLANS.find((p) => p.code === targetCode);
+  const tgt = defaultPlans().find((p) => p.code === targetCode);
   if (!tgt) return "unknown";
-  const cur = DEFAULT_PLANS.find((p) => p.code === currentCode);
+  const cur = defaultPlans().find((p) => p.code === currentCode);
   if (!cur) return "upgrade";
   if (cur.code === tgt.code) return "same";
   return tgt.sortOrder > cur.sortOrder ? "upgrade" : "downgrade";
