@@ -3,6 +3,7 @@ import { headers } from "next/headers";
 import { notFound } from "next/navigation";
 import { ArrowLeft, BookOpen, CalendarDays, CalendarSync, ArrowDownToLine, QrCode } from "lucide-react";
 import { requireAuth } from "@/lib/auth";
+import { orgTimezone } from "@/lib/timezone";
 import { prisma } from "@/lib/db";
 import { PageHeader } from "@/components/page-header";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
@@ -44,7 +45,7 @@ export default async function PropertyDetailPage({
       knowledgeBase: { where: { isActive: true }, orderBy: { category: "asc" } },
       reservations: { orderBy: { arrivalDate: "desc" }, take: 5 },
       calendarSources: { orderBy: { createdAt: "asc" } },
-      organization: { select: { qrChatPinRequired: true } },
+      organization: { select: { qrChatPinRequired: true, timezone: true } },
     },
   });
   if (!property) notFound();
@@ -203,6 +204,7 @@ export default async function PropertyDetailPage({
               <CalendarSources
                 propertyId={property.id}
                 canManage={canManage}
+                tz={orgTimezone(property.organization?.timezone)}
                 sources={property.calendarSources.map((s) => ({
                   id: s.id,
                   label: s.label,

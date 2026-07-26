@@ -23,6 +23,11 @@ interface Props {
   sources: CalendarSourceRow[];
   /** Staff (read-only) see the sources but can't add/sync/delete (API also 403s). */
   canManage?: boolean;
+  /** Host's operating timezone — `lastSyncedAt` is a real instant, so its
+   *  past-30-days absolute-day fallback must read on the host's calendar.
+   *  Resolved server-side (orgTimezone) and passed down; a client component
+   *  cannot read the org row itself. */
+  tz?: string;
 }
 
 /** Feed URLs embed bearer-like export secrets (Codex #21) — never render the
@@ -41,7 +46,7 @@ function maskFeedUrl(url: string): string {
  * Manage external iCal subscriptions (Airbnb, Booking.com …) for a property.
  * Reservations are pulled in on demand via the per-source "Senkronla" button.
  */
-export function CalendarSources({ propertyId, sources, canManage = true }: Props) {
+export function CalendarSources({ propertyId, sources, canManage = true, tz }: Props) {
   const router = useRouter();
   const [label, setLabel] = useState("");
   const [url, setUrl] = useState("");
@@ -174,7 +179,7 @@ export function CalendarSources({ propertyId, sources, canManage = true }: Props
                     <CheckCircle2 className="size-3 text-emerald-600" />
                   )}
                   <span className="text-muted-foreground">
-                    {fromNow(s.lastSyncedAt)} · {s.lastResult ?? ""}
+                    {fromNow(s.lastSyncedAt, tz)} · {s.lastResult ?? ""}
                   </span>
                 </p>
               )}
