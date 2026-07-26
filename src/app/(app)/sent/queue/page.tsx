@@ -2,6 +2,8 @@ import Link from "next/link";
 import { redirect } from "next/navigation";
 import { ListOrdered, ArrowLeft, ExternalLink } from "lucide-react";
 import { requireAuth } from "@/lib/auth";
+import { orgTimezone } from "@/lib/timezone";
+import { prisma } from "@/lib/db";
 import { canManage } from "@/lib/api";
 import { PageHeader } from "@/components/page-header";
 import { Card, CardContent } from "@/components/ui/card";
@@ -76,6 +78,13 @@ export default async function OutboxQueuePage({
   const sp = await searchParams;
   const activeStatus = sp.status && (OUTBOX_STATUSES as readonly string[]).includes(sp.status) ? sp.status : null;
   const pageParam = Number.parseInt(sp.page ?? "1", 10);
+
+  // "x gün önce" 30 günü aşınca mutlak güne düşer — host'un takvim günü.
+  const orgRow = await prisma.organization.findUnique({
+    where: { id: session.organizationId },
+    select: { timezone: true },
+  });
+  const TZ = orgTimezone(orgRow?.timezone);
 
   const list = await listOutboxDeliveries(session.organizationId, {
     status: activeStatus,
@@ -167,8 +176,8 @@ export default async function OutboxQueuePage({
                     </div>
                     {meta.note ? <p className="text-xs text-muted-foreground">{meta.note}</p> : null}
                     <p className="text-xs text-muted-foreground">
-                      Oluşturuldu {fromNow(row.createdAt)}
-                      {row.sentAt ? ` · iletildi ${fromNow(row.sentAt)}` : ""}
+                      Oluşturuldu {fromNow(row.createdAt, TZ)}
+                      {row.sentAt ? ` · iletildi ${fromNow(row.sentAt, TZ)}` : ""}
                     </p>
                     {row.conversationId ? (
                       <Link

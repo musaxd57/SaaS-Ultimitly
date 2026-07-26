@@ -1,6 +1,7 @@
 import { notFound } from "next/navigation";
 import { ArrowLeft, Building2, CalendarDays, BookOpen, Clock, ArrowLeftRight, CheckSquare } from "lucide-react";
 import { requireAuth } from "@/lib/auth";
+import { orgTimezone } from "@/lib/timezone";
 import { canManage } from "@/lib/api";
 import { prisma } from "@/lib/db";
 import { reservationAmountNumber } from "@/lib/money";
@@ -39,6 +40,14 @@ export default async function ConversationPage({
     },
   });
   if (!conversation) notFound();
+
+  // Message stamps are real instants → render on the host's wall clock, not the
+  // server's. Date-only reservation values below keep using formatDate (UTC).
+  const orgRow = await prisma.organization.findUnique({
+    where: { id: session.organizationId },
+    select: { timezone: true },
+  });
+  const TZ = orgTimezone(orgRow?.timezone);
 
   // Returning-guest context — matched only by the reliable Hospitable guest id
   // (never name/email), so there are no false "welcome back" positives.
@@ -109,7 +118,7 @@ export default async function ConversationPage({
       authorType: m.authorType,
       body: m.body,
       outboxStatus: outboxByMessage.get(m.id) ?? null,
-      createdAtLabel: formatDateTime(m.createdAt),
+      createdAtLabel: formatDateTime(m.createdAt, TZ),
     }));
 
   // Values for substituting {{placeholders}} in message templates.

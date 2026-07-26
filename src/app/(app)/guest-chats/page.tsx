@@ -2,6 +2,7 @@ import Link from "next/link";
 import { redirect } from "next/navigation";
 import { AlertTriangle, QrCode, Building2, MessageSquare } from "lucide-react";
 import { requireAuth } from "@/lib/auth";
+import { orgTimezone } from "@/lib/timezone";
 import { prisma } from "@/lib/db";
 import { PageHeader } from "@/components/page-header";
 import { Card, CardContent } from "@/components/ui/card";
@@ -33,6 +34,13 @@ export default async function GuestChatsPage({
   if (session.role !== "owner" && session.role !== "manager") redirect("/dashboard");
   const { sayfa } = await searchParams;
   const page = clampPage(sayfa, MAX_LIST_PAGE);
+
+  // "x gün önce" 30 günü aşınca mutlak güne düşer — host'un takvim günü.
+  const orgRow = await prisma.organization.findUnique({
+    where: { id: session.organizationId },
+    select: { timezone: true },
+  });
+  const TZ = orgTimezone(orgRow?.timezone);
 
   const where = {
     property: { organizationId: session.organizationId },
@@ -173,7 +181,7 @@ export default async function GuestChatsPage({
                   ) : null}
                   {t.aiPaused ? <Badge tone="default">🙋 İnsan desteğinde</Badge> : null}
                   <span className="ml-auto text-xs text-muted-foreground">
-                    {t.lastMessageAt ? fromNow(t.lastMessageAt) : "—"}
+                    {t.lastMessageAt ? fromNow(t.lastMessageAt, TZ) : "—"}
                   </span>
                 </div>
                 <p className="mt-1 text-sm text-muted-foreground">

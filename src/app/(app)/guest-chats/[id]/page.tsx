@@ -2,6 +2,7 @@ import Link from "next/link";
 import { redirect, notFound } from "next/navigation";
 import { AlertTriangle, ArrowLeft } from "lucide-react";
 import { requireAuth } from "@/lib/auth";
+import { orgTimezone } from "@/lib/timezone";
 import { prisma } from "@/lib/db";
 import { PageHeader } from "@/components/page-header";
 import { Card, CardContent } from "@/components/ui/card";
@@ -72,6 +73,14 @@ export default async function GuestChatDetailPage({
     },
   });
   if (!convo) notFound();
+
+  // Sohbet baloncuklarının damgası gerçek an → host'un duvar saati. Aşağıdaki
+  // rezervasyon giriş/çıkış TARİHLERİ date-only, formatDate ile UTC'de kalır.
+  const orgRow = await prisma.organization.findUnique({
+    where: { id: session.organizationId },
+    select: { timezone: true },
+  });
+  const TZ = orgTimezone(orgRow?.timezone);
 
   const messages = convo.messages.slice().reverse(); // kronolojik
   const hidden = convo._count.messages - messages.length;
@@ -172,7 +181,7 @@ export default async function GuestChatDetailPage({
                     }
                   >
                     {guest ? "👤 Misafir" : host ? "🙋 Siz" : "🤖 Lixus AI"} ·{" "}
-                    {formatDateTime(m.createdAt)}
+                    {formatDateTime(m.createdAt, TZ)}
                   </p>
                 </div>
               </div>

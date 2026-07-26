@@ -31,39 +31,54 @@ const dateFmt = new Intl.DateTimeFormat("tr-TR", {
 });
 
 // Message/task timestamps are real instants (not date-only). Render them in the
-// app's operating timezone so the wall-clock time matches Airbnb/Hospitable and
-// the host's own clock — NOT the server's UTC. (Türkiye is UTC+3 year-round.)
-// BİLİNÇLİ KAPSAM (org-timezone turu, 07-16): doğruluk katmanı (gün sınırları,
-// saat kapıları, rapor kovalama) org.timezone'a bağlandı; buradaki GÖSTERİM
-// varsayılanı Istanbul kaldı — düzinelerce çağrı yerine tz parametresi taşımak
-// ayrı bir görüntüleme-katmanı turu (daysUntilDate/formatDayInTz zaten tz alır).
+// HOST's operating timezone so the wall clock matches Airbnb/Hospitable and the
+// host's own clock — NOT the server's UTC.
+//
+// The default stays Europe/Istanbul: the column `Organization.timezone` has had
+// that default since 00_init, so every existing org renders exactly as before.
+// Callers that know the org (server pages already selecting `timezone`, resolved
+// through `orgTimezone()`) pass it explicitly — mirroring `formatDayInTz` and
+// `daysUntilDate`, which have taken a trailing tz all along.
+//
+// ⚠️ `formatDate` deliberately does NOT take a tz. It renders DATE-ONLY booking
+// values (arrival/departure, stored at UTC midnight) and is pinned to UTC so the
+// day shown is the booked day itself. Giving it a timezone would shift those
+// days for any zone west of UTC. Instants use formatDateTime/formatTime/
+// formatDayInTz; date-only values use formatDate. Keep that line clean.
 const APP_TIME_ZONE = "Europe/Istanbul";
 
-const dateTimeFmt = new Intl.DateTimeFormat("tr-TR", {
-  day: "2-digit",
-  month: "short",
-  hour: "2-digit",
-  minute: "2-digit",
-  timeZone: APP_TIME_ZONE,
-});
+// Intl.DateTimeFormat construction is the expensive part, and these render once
+// per row in long lists. Memoise per (kind, tz) so a per-call tz costs nothing
+// after the first row. Keys come from our own code, never user input.
+const fmtCache = new Map<string, Intl.DateTimeFormat>();
+function cachedFmt(key: string, tz: string, opts: Intl.DateTimeFormatOptions) {
+  const k = `${key}|${tz}`;
+  let f = fmtCache.get(k);
+  if (!f) {
+    f = new Intl.DateTimeFormat("tr-TR", { ...opts, timeZone: tz });
+    fmtCache.set(k, f);
+  }
+  return f;
+}
 
 export function formatDate(date: Date | string | null | undefined) {
   if (!date) return "—";
   return dateFmt.format(new Date(date));
 }
 
-export function formatDateTime(date: Date | string | null | undefined) {
+export function formatDateTime(date: Date | string | null | undefined, tz: string = APP_TIME_ZONE) {
   if (!date) return "—";
-  return dateTimeFmt.format(new Date(date));
-}
-
-export function formatTime(date: Date | string | null | undefined) {
-  if (!date) return "—";
-  return new Date(date).toLocaleTimeString("tr-TR", {
+  return cachedFmt("dt", tz, {
+    day: "2-digit",
+    month: "short",
     hour: "2-digit",
     minute: "2-digit",
-    timeZone: APP_TIME_ZONE,
-  });
+  }).format(new Date(date));
+}
+
+export function formatTime(date: Date | string | null | undefined, tz: string = APP_TIME_ZONE) {
+  if (!date) return "—";
+  return cachedFmt("t", tz, { hour: "2-digit", minute: "2-digit" }).format(new Date(date));
 }
 
 /**
@@ -105,8 +120,16 @@ export function formatDayInTz(date: Date | string | null | undefined, tz: string
   }).format(new Date(date));
 }
 
-/** Relative "x ago" style label in Turkish, coarse-grained. */
-export function fromNow(date: Date | string | null | undefined) {
+/**
+ * Relative "x ago" style label in Turkish, coarse-grained.
+ *
+ * Past 30 days it falls back to an absolute day. That fallback renders in `tz`,
+ * NOT UTC: every caller passes a true instant (lastMessageAt, sentAt, createdAt,
+ * lastSyncedAt), and for an instant the host's calendar day is the correct one.
+ * The old UTC fallback showed the previous day for anything stamped after
+ * 21:00 UTC in Istanbul.
+ */
+export function fromNow(date: Date | string | null | undefined, tz: string = APP_TIME_ZONE) {
   if (!date) return "—";
   const d = new Date(date).getTime();
   const diff = Date.now() - d;
@@ -117,7 +140,7 @@ export function fromNow(date: Date | string | null | undefined) {
   if (hr < 24) return `${hr} sa önce`;
   const day = Math.round(hr / 24);
   if (day < 30) return `${day} gün önce`;
-  return formatDate(date);
+  return formatDayInTz(date, tz);
 }
 
 export function initials(name: string) {

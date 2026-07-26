@@ -2,6 +2,7 @@ import Link from "next/link";
 import { Send, ListOrdered } from "lucide-react";
 import type { Prisma } from "@prisma/client";
 import { requireAuth } from "@/lib/auth";
+import { orgTimezone } from "@/lib/timezone";
 import { canManage } from "@/lib/api";
 import { prisma } from "@/lib/db";
 import { PageHeader } from "@/components/page-header";
@@ -103,6 +104,13 @@ export default async function SentPage({
   // Karma ("Tümü") görünüm sayfa başına 4 kaynaktan sayfa*boyut satır okuduğu için
   // TAVANLI; tür seçilince tek kaynak + skip/take çalışır ve derinlik sınırsızdır.
   const page = clampPage(sayfa, activeType ? MAX_TYPED_PAGE : MAX_MERGED_PAGE);
+
+  // "x gün önce" 30 günü aşınca mutlak güne düşer — host'un takvim günü.
+  const orgRow = await prisma.organization.findUnique({
+    where: { id: orgId },
+    select: { timezone: true },
+  });
+  const TZ = orgTimezone(orgRow?.timezone);
   const wants = (k: SentKind) => !activeType || activeType === k;
 
   // Sayım ve listeleme AYNI koşulu paylaşsın diye where'ler tek yerde: ikisi
@@ -400,7 +408,7 @@ export default async function SentPage({
                   >
                     {KIND_LABEL[it.kind]}
                   </Badge>
-                  <span className="ml-auto text-xs text-muted-foreground">{fromNow(it.when)}</span>
+                  <span className="ml-auto text-xs text-muted-foreground">{fromNow(it.when, TZ)}</span>
                 </div>
                 <p className="mt-1 text-sm text-muted-foreground">
                   {it.templatePreview ? (

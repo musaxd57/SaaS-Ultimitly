@@ -1,5 +1,14 @@
 import { describe, it, expect } from "vitest";
-import { formatCurrency, formatDate, initials, truncate, safeJsonParse, fromNow } from "@/lib/utils";
+import {
+  formatCurrency,
+  formatDate,
+  formatDateTime,
+  formatTime,
+  initials,
+  truncate,
+  safeJsonParse,
+  fromNow,
+} from "@/lib/utils";
 
 describe("formatCurrency", () => {
   it("renders an em dash for null/undefined", () => {
@@ -60,5 +69,60 @@ describe("fromNow", () => {
   });
   it("renders an em dash for empty input", () => {
     expect(fromNow(null)).toBe("—");
+  });
+});
+
+// ---------------------------------------------------------------------------
+// ORG-TIMEZONE GÖSTERİM KATMANI (.eu / yurt dışı müşteri hazırlığı).
+//
+// Doğruluk katmanı (gün sınırları, saat kapıları) org.timezone'a çoktan bağlıydı;
+// GÖSTERİM Europe/Istanbul'a çakılıydı. Artık gerçek an render eden yardımcılar
+// (formatDateTime / formatTime / fromNow'un mutlak-gün fallback'i) çağıranın
+// verdiği tz'yi kullanır. `formatDate` BİLEREK dışarıda: date-only rezervasyon
+// değerlerini UTC'de tutar, tz verilirse UTC'nin batısındaki dilimlerde gün kayar.
+// ---------------------------------------------------------------------------
+describe("gösterim katmanı org.timezone'u izler", () => {
+  // 2026-06-04T22:30Z → Istanbul'da 5 Haziran 01:30, Londra'da 4 Haziran 23:30.
+  const LATE = "2026-06-04T22:30:00.000Z";
+
+  it("formatDateTime verilen tz'de render eder (varsayılan Istanbul korunur)", () => {
+    const ist = formatDateTime(LATE);
+    expect(ist).toBe(formatDateTime(LATE, "Europe/Istanbul")); // varsayılan = Istanbul
+    const lon = formatDateTime(LATE, "Europe/London");
+    expect(lon).not.toBe(ist); // tz gerçekten uygulanıyor
+    expect(ist).toContain("05 Haz");
+    expect(lon).toContain("04 Haz");
+  });
+
+  it("formatTime verilen tz'nin duvar saatini verir", () => {
+    expect(formatTime(LATE, "Europe/Istanbul")).toBe("01:30");
+    expect(formatTime(LATE, "Europe/London")).toBe("23:30");
+    expect(formatTime(LATE, "UTC")).toBe("22:30");
+    expect(formatTime(LATE)).toBe(formatTime(LATE, "Europe/Istanbul"));
+  });
+
+  it("formatDate tz ALMAZ — date-only değer her yerde aynı günü gösterir", () => {
+    // Regresyon kilidi: biri formatDate'e tz eklerse rezervasyon günü kayar.
+    expect(formatDate(LATE)).toBe("04 Haz 2026");
+    expect((formatDate as (d: unknown, tz?: unknown) => string).length).toBe(1);
+  });
+
+  it("fromNow 30 günü aşınca tz-farkında mutlak güne düşer", () => {
+    // 40 gün önce, UTC'de günün son yarım saati: Istanbul'da ERTESİ gün.
+    const old = new Date(Date.now() - 40 * 86_400_000);
+    old.setUTCHours(22, 30, 0, 0);
+    const iso = old.toISOString();
+    const ist = fromNow(iso, "Europe/Istanbul");
+    const utc = fromNow(iso, "UTC");
+    expect(ist).not.toBe(utc); // eski davranış ikisini de UTC gününe düşürüyordu
+    expect(fromNow(iso)).toBe(ist); // varsayılan Istanbul
+  });
+
+  it("farklı tz'ler formatter önbelleğinde birbirine karışmaz", () => {
+    const a = formatDateTime(LATE, "Europe/Istanbul");
+    const b = formatDateTime(LATE, "Europe/London");
+    expect(formatDateTime(LATE, "Europe/Istanbul")).toBe(a); // ikinci okuma aynı
+    expect(formatDateTime(LATE, "Europe/London")).toBe(b);
+    expect(a).not.toBe(b);
   });
 });

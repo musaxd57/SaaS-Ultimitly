@@ -38,7 +38,8 @@ export default async function DashboardPage() {
     where: { id: orgId },
     select: { timezone: true, aiSignature: true, autoReplyHospitable: true },
   });
-  const { start: dayStart, end: dayEnd } = zonedDayRange(now, orgTimezone(org?.timezone));
+  const TZ = orgTimezone(org?.timezone);
+  const { start: dayStart, end: dayEnd } = zonedDayRange(now, TZ);
   const scope = { property: { organizationId: orgId } };
 
   const [stats, arrivalsRaw, departuresRaw, conversations, tasksToday] = await Promise.all([
@@ -205,7 +206,7 @@ export default async function DashboardPage() {
           day: "numeric",
           month: "long",
           year: "numeric",
-          timeZone: orgTimezone(org?.timezone),
+          timeZone: TZ,
         })}
       />
 
@@ -410,7 +411,7 @@ export default async function DashboardPage() {
                   </div>
                   <p className="mt-0.5 text-xs text-muted-foreground">
                     {TASK_TYPE.label(t.type)} · {t.property.name}
-                    {t.dueAt ? ` · ${formatTime(t.dueAt)}` : ""}
+                    {t.dueAt ? ` · ${formatTime(t.dueAt, TZ)}` : ""}
                   </p>
                 </Link>
               ))

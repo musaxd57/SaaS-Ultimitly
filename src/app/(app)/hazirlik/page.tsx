@@ -8,6 +8,7 @@ import { supplyAiConfigured } from "@/lib/supply-ai";
 import { SupplyAiSummary } from "@/components/supply/supply-ai-summary";
 import { SupplyStockForm } from "@/components/supply/supply-stock-form";
 import { formatDayInTz } from "@/lib/utils";
+import { orgTimezone } from "@/lib/timezone";
 import { PackageOpen, ShoppingCart, WashingMachine } from "lucide-react";
 
 export const dynamic = "force-dynamic";
@@ -53,8 +54,9 @@ export default async function HazirlikPage({
   const canManage = session.role === "owner" || session.role === "manager";
   const org = await prisma.organization.findUnique({
     where: { id: session.organizationId },
-    select: { supplyStockJson: true },
+    select: { supplyStockJson: true, timezone: true },
   });
+  const TZ = orgTimezone(org?.timezone);
   const stock = parseSupplyProfile(org?.supplyStockJson);
   // Split by what you actually need to buy/prepare vs. what stock already covers,
   // so a fully-stocked item doesn't sit in the shopping list showing "0".
@@ -64,8 +66,8 @@ export default async function HazirlikPage({
   const nothingToBuy = buyConsumables.length === 0 && buyLinen.length === 0;
   const rangeLabel =
     days === 1
-      ? formatDayInTz(plan.start)
-      : `${formatDayInTz(plan.start)} – ${formatDayInTz(new Date(plan.end.getTime() - 1))}`;
+      ? formatDayInTz(plan.start, TZ)
+      : `${formatDayInTz(plan.start, TZ)} – ${formatDayInTz(new Date(plan.end.getTime() - 1), TZ)}`;
 
   return (
     <>

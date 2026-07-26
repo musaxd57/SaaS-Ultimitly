@@ -2,6 +2,7 @@ import Link from "next/link";
 import { redirect } from "next/navigation";
 import { MessageSquare, Plus, AlertTriangle, Search, X } from "lucide-react";
 import { requireAuth } from "@/lib/auth";
+import { orgTimezone } from "@/lib/timezone";
 import { prisma } from "@/lib/db";
 import { PageHeader } from "@/components/page-header";
 import { LinkButton } from "@/components/ui/link-button";
@@ -94,6 +95,7 @@ export default async function InboxPage({
         autoReplyHospitable: true,
         autoReplyStartHour: true,
         autoReplyEndHour: true,
+        timezone: true,
       },
     }),
     getConnectionInfo(session.organizationId),
@@ -102,6 +104,10 @@ export default async function InboxPage({
   // Free/expired tier: automation is suppressed server-side — render the
   // controls inert so they don't misleadingly read "Açık".
   const automationLocked = !(await premiumAllowed(session.organizationId));
+
+  // "x gün önce" etiketi 30 günü aşınca mutlak güne düşer — o gün host'un
+  // takvim günü olmalı, sunucunun UTC'si değil.
+  const TZ = orgTimezone(org?.timezone);
 
   const filters = [{ value: "", label: "Tümü" }, ...CONVERSATION_STATUS.options];
 
@@ -347,7 +353,7 @@ export default async function InboxPage({
                 <Badge tone={CONVERSATION_STATUS.tone(c.status)}>
                   {CONVERSATION_STATUS.label(c.status)}
                 </Badge>
-                <span className="text-[11px] text-muted-foreground">{fromNow(c.lastMessageAt)}</span>
+                <span className="text-[11px] text-muted-foreground">{fromNow(c.lastMessageAt, TZ)}</span>
               </div>
             </Link>
             );
