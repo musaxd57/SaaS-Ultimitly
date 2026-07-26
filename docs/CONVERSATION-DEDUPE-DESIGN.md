@@ -1,9 +1,18 @@
 # Conversation dedupe — DRY-RUN aracı (Faz B)
 
-> **Durum: DRY-RUN KODU YAZILDI, ÇALIŞTIRILMADI.**
-> `scripts/dryrun-conversation-dedupe.ts` — salt-okuma, **apply yolu YOK**.
-> Prod'a dokunulmadı, dedupe çalıştırılmadı, migration üretilmedi.
-> Gerçek yazma ayrı tur + açık onay + **taze `pg_dump`** ister.
+> ## ✅ KAPANDI — 2026-07-26. Dry-run koştu, apply uygulandı, migration 45 canlı.
+> 7 grup birleşti · 7 loser silindi · 29 tam-eşit duplicate düştü · benzersiz/NULL
+> mesaj kaybı 0 · Conversation 1335→1328, Message 17465→17436.
+>
+> ⚠️ **§4'teki alan politikası tablosu SÜPERSEDE EDİLDİ** (`6ad385b`). Orada
+> yazan `status_rank` / `max_wins` / `min_wins` **artık kullanılmıyor**: apply
+> **identity-only** çalışır (yalnız `reservationId`/`externalConversationId`, o da
+> keeper NULL'ken) ve dokuz canlı-durum alanının HERHANGİ birinde fark varsa grup
+> `live_state_conflict` ile fail-closed olur — rank/tahmin YOK. Sebep: eski rank
+> `closed`+`new`'i `new` yapıp AI'yı host'un kapattığı thread'de yeniden
+> silahlandırabiliyordu. Tablo tasarım anındaki hâliyle, TARİHSEL KAYIT olarak
+> duruyor; yürürlükteki sözleşme `scripts/dryrun-conversation-dedupe.ts`
+> içindeki `CONVERSATION_FIELD_POLICY`'dir.
 
 ## Codex şartları — nasıl karşılandı
 
@@ -152,7 +161,7 @@ veri hacminden bağımsızdır (testle pinli). Basılanlar:
 Çıkış kodu: `0` temiz · `10` planlanacak grup var · `20` en az bir
 fail-closed grup var · `1` hata.
 
-## 7. Apply aşaması (AYRI ONAY — bu turda YAZILMADI)
+## 7. Apply aşaması — bu sıra AYNEN uygulandı (2026-07-26)
 
 Sıra, atlanmaz:
 

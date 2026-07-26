@@ -174,23 +174,15 @@ Ardından `schema.prisma`'daki `@@unique` geri alınıp yeniden deploy. Migratio
 
 ---
 
-## 5. Adım planı
+## 5. Adım planı — TAMAMLANDI
 
-### Adım 1 — QR forward-compat (MIGRATION YOK, push GÜVENLİ)
-- `ensureGuestChatConversation` iki kısıtı da kabul etsin (§2)
-- Bayat yorumu düzelt (§2)
-- **Kırmızı-önce test:** composite-unique kurulu test DB'sinde iki eşzamanlı ilk-tarama → tek konuşma, 500 YOK, mesaj kaybı YOK. Düzeltme geri alınınca test kırmızıya dönmeli.
-- Full suite + typecheck + lint + build + CI 4/4 → push
+Her iki adım da uygulandı ve prod'da doğrulandı (ayrıntı yukarıdaki kapanış
+notunda): Adım 1 QR ileri-uyumluluk `6c06e0b`, Adım 2 migration 45 `436722c`.
+Push'un dört ön koşulu (Adım 1 canlıda · taze `pg_dump` · o an dry-run "Çakışan
+grup 0" · deploy izlenerek) sırayla karşılandı.
 
-### Adım 2 — migration paketi (push = DEPLOY, açık onay ŞART)
-- `schema.prisma`'ya `@@unique([propertyId, externalReservationId])`
-- `prisma migrate diff --from-migrations ./prisma/migrations --to-schema-datamodel ./prisma/schema.prisma --shadow-database-url postgresql://postgres@localhost:5432/shadow --script` → `prisma/migrations/45_conversation_identity_unique/migration.sql`
-- Taze throwaway PG'de **00→45 `migrate deploy`** + `migrate diff --exit-code` ile **sıfır-drift** doğrulaması
-- **Zorunlu sıra adım (6):** uzatılmış kilit süresiyle iki paralel sync → **TEK conversation + TEK mesaj seti** pinlenir. (Bugün mevcut kırmızı-önce kanıt bunun yarısı: kilit kaldırılınca unique'in P2002 fırlattığı `conversation-dedupe-apply.test.ts`'te zaten pinli — eksik olan, kilit + unique BİRLİKTEyken tek satır/tek mesaj iddiası.)
-- Test harness `db push` kullandığı için `@@unique` şemaya girdiği an tüm entegrasyon testleri kısıtla koşar — **regresyon buradan yakalanır**
-- Push, ancak: (a) Adım 1 canlıda, (b) taze `pg_dump` alınmış, (c) o an dry-run `Çakışan grup 0` diyor, (d) kullanıcı deploy'u izlemeye hazır — dördü birden sağlanınca
-
----
+Migration üretme/sıfır-drift komutlarının kalıcı hâli CLAUDE.md'nin "Migration
+ZORUNLU" maddesinde — burada tekrarlanmıyor.
 
 ## 6. Açık kalan tek belirsizlik (dürüst kayıt)
 
