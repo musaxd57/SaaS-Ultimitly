@@ -1,6 +1,13 @@
 # Conversation `@@unique([propertyId, externalReservationId])` — migration tasarımı
 
-> Durum: **TASARIM. KOD YOK, MIGRATION YOK, PUSH-TO-DEPLOY YOK.**
+> ## ✅ KAPANDI — 2026-07-26. Migration 45 prod'da CANLI ve DB'den doğrulandı.
+> `436722c` push edildi, CI 4/4, Railway ACTIVE, healthcheck 200.
+> `_prisma_migrations`: `45_conversation_identity_unique` finished_at DOLU,
+> rolled_back_at BOŞ, applied_steps_count=1 · index `indisunique=t indisvalid=t`.
+> Adım 1 (QR ileri-uyumluluk) `6c06e0b` ile ÖNCE canlıya alındı.
+> Aşağıdaki metin tasarım anındaki hâliyle korunmuştur (tarihsel kayıt).
+>
+> Durum (o an): **TASARIM. KOD YOK, MIGRATION YOK, PUSH-TO-DEPLOY YOK.**
 > Tarih: 2026-07-26 · Ön koşul zinciri: preflight ✅ → Faz A (`3effd99`) ✅ →
 > dry-run ✅ → **apply ✅** (apply=0, verify=0; 7 grup birleşti, 7 loser silindi,
 > 29 tam-eşit duplicate düştü, benzersiz/NULL mesaj kaybı 0, FK'sız referans 0).
