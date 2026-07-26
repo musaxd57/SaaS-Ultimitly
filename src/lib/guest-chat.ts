@@ -4,6 +4,7 @@ import { prisma } from "@/lib/db";
 import { daysUntilDate } from "@/lib/utils";
 import { orgTimezone } from "@/lib/timezone";
 import { premiumAllowed } from "@/lib/billing/subscription";
+import { isUniqueViolation } from "@/lib/db-errors";
 import { qrPinEnabled } from "@/lib/guest-chat-pin";
 import {
   LEGACY_AI_RESUME_SENDER,
@@ -101,6 +102,95 @@ export async function acquireGuestChatThreadLock(
   await tx.$executeRaw(
     Prisma.sql`SELECT pg_advisory_xact_lock(${GUEST_CHAT_LOCK_NS}::int4, hashtext(${conversationId}))`,
   );
+}
+
+/**
+ * TEST-ONLY seam: widens the window between the canonical read and the create
+ * in `ensureGuestChatConversation`, so the race branches can be exercised
+ * deterministically. Null in production.
+ */
+export const __guestChatHooks: { afterCanonicalRead: null | (() => Promise<void>) } = {
+  afterCanonicalRead: null,
+};
+
+/** QR marker prefix — the preflight/dedupe tooling classifies rows off this. */
+export const QR_CONVERSATION_MARKER_PREFIX = "qr-chat:";
+
+/**
+ * The single QR conversation for one stay, created on first scan.
+ *
+ * IDENTITY: `(propertyId, "qr-chat:{propertyId}:{reservationId}")`. That key is
+ * derived purely from ids we already hold, so two concurrent first-scans of the
+ * same stay compute the SAME key and the SAME deterministic primary key —
+ * a duplicate is therefore a lost race, never a second legitimate thread.
+ *
+ * WHY TWO ACCEPTED P2002 TARGETS (2026-07-26): the row is protected by the
+ * deterministic PK today, and additionally by the planned composite
+ * `@@unique([propertyId, externalReservationId])`. A racing insert violates
+ * BOTH at once, and PostgreSQL does not guarantee WHICH index it reports. So
+ * both targets are treated as "expected race"; every OTHER P2002 rethrows —
+ * a foreign unique violation must never be swallowed here.
+ *
+ * On the composite target the winner's id is NOT assumed: the row is re-read
+ * from the identity key. Missing, or carrying an id other than the
+ * deterministic one, means our identity model is wrong — fail closed and let
+ * the caller surface it rather than hand back an id that may not exist.
+ *
+ * (Historical note: an earlier comment claimed several genuine threads per
+ * reservation were legitimate. The 2026-07-26 production preflight measured
+ * the opposite — all seven conflicting groups carried the SAME provider
+ * `externalConversationId` — so the duplicates were our own race, not a
+ * provider shape. Scoped to what was measured: on the API surface this app
+ * uses, one stay maps to one thread.)
+ */
+export async function ensureGuestChatConversation(
+  propertyId: string,
+  reservation: { id: string; guestName: string },
+  db: GuestChatDb = prisma,
+): Promise<string> {
+  const marker = `${QR_CONVERSATION_MARKER_PREFIX}${propertyId}:${reservation.id}`;
+  const existing = await db.conversation.findFirst({
+    where: { propertyId, externalReservationId: marker },
+    select: { id: true },
+  });
+  if (existing) return existing.id;
+  if (__guestChatHooks.afterCanonicalRead) await __guestChatHooks.afterCanonicalRead();
+
+  const qrConversationId = `qrconv_${reservation.id}`;
+  try {
+    const created = await db.conversation.create({
+      data: {
+        id: qrConversationId,
+        propertyId,
+        channel: "chat",
+        guestIdentifier: reservation.guestName,
+        status: "answered",
+        priority: "standard",
+        lastMessageAt: new Date(),
+        reservationId: reservation.id,
+        externalReservationId: marker,
+      },
+      select: { id: true },
+    });
+    return created.id;
+  } catch (err) {
+    // PK reported → a row with exactly this id exists; that IS the canonical row.
+    if (isUniqueViolation(err, ["id"])) return qrConversationId;
+    if (!isUniqueViolation(err, ["propertyId", "externalReservationId"])) throw err;
+
+    // Composite reported → re-read from the identity key, never assume the id.
+    const winner = await db.conversation.findFirst({
+      where: { propertyId, externalReservationId: marker },
+      select: { id: true },
+    });
+    if (!winner) {
+      throw new Error("QR konusma kimlik catismasi: kazanan satir bulunamadi");
+    }
+    if (winner.id !== qrConversationId) {
+      throw new Error("QR konusma kimlik catismasi: beklenmeyen satir kimligi");
+    }
+    return winner.id;
+  }
 }
 
 // CONTENT-level guard (belt to the category suspenders). The category filter
