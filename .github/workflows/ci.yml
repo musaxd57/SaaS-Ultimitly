@@ -28,7 +28,15 @@ jobs:
     container:
       image: node:20-bookworm
     steps:
+      # TAM GEÇMİŞ — yalnız bu job'da. Dedupe apply'ının güvenlik kapısı
+      # `git merge-base --is-ancestor <Faz A> <deploy SHA>` ile çalışır; sığ
+      # (varsayılan depth=1) bir checkout'ta Faz A commit'i NESNE OLARAK
+      # bulunmaz ve kapı doğru şekilde reddeder — ama o zaman testler
+      # gerçek ancestry'yi hiç sınayamaz. build/e2e/migration-chain job'ları
+      # git geçmişine bakmadığı için BİLİNÇLİ olarak sığ bırakıldı.
       - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
 
       - name: Install PostgreSQL (for the integration test harness)
         run: |

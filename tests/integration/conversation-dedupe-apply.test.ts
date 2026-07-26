@@ -1,3 +1,8 @@
+import { execFileSync } from "node:child_process";
+import { mkdtempSync, rmSync, writeFileSync } from "node:fs";
+import { tmpdir } from "node:os";
+import { join } from "node:path";
+
 import { beforeEach, describe, expect, it } from "vitest";
 
 import { prisma, resetDb, makeOrgWithProperty } from "../helpers/db";
@@ -105,17 +110,70 @@ describe("apply — kapılar (varsayılan KAPALI)", () => {
     ).toThrow(/negatif olmayan/);
   });
 
-  it("Faz A deploy SHA'sı yoksa ya da Faz A'yı içermiyorsa DURUR", () => {
-    expect(() => assertPhaseADeployed(undefined)).toThrow(/APPLY_PHASE_A_DEPLOYED_SHA/);
-    expect(() => assertPhaseADeployed("   ")).toThrow(/APPLY_PHASE_A_DEPLOYED_SHA/);
-    // Faz A'DAN ÖNCEKİ bir commit → içermiyor.
-    expect(() => assertPhaseADeployed("6c40aac")).toThrow(/İÇERMİYOR|bilinmiyor/);
-    expect(() => assertPhaseADeployed("boyle-bir-sha-yok")).toThrow(/İÇERMİYOR|bilinmiyor/);
+  // Kapı GERÇEK `git merge-base --is-ancestor` üzerinde sınanır — davranış
+  // MOCK'LANMAZ. Sahte bir git runner yalnız kendi dallanmamızı ölçer ve boş
+  // güvence üretirdi. Bunun yerine geçici, gerçek bir depo kurulur:
+  //   base ──▶ phaseA ──▶ descendant        (ayrı dalda: unrelated)
+  it("gerçek git deposunda ancestry doğru sınıflanır ve shallow YANLIŞ YEŞİL üretemez", () => {
+    const repo = mkdtempSync(join(tmpdir(), "phase-a-gate-"));
+    const shallow = mkdtempSync(join(tmpdir(), "phase-a-shallow-"));
+    const g = (args: string[], cwd = repo) =>
+      execFileSync("git", args, { cwd, encoding: "utf8" }).trim();
+    try {
+      g(["init", "-q", "-b", "main"]);
+      g(["config", "user.email", "t@example.com"]);
+      g(["config", "user.name", "T"]);
+      const commit = (m: string) => {
+        writeFileSync(join(repo, "f.txt"), m);
+        g(["add", "."]);
+        g(["commit", "-q", "-m", m]);
+        return g(["rev-parse", "HEAD"]);
+      };
+      const base = commit("base");
+      const phaseA = commit("phaseA");
+      const descendant = commit("descendant");
+      // Aynı temelden AYRI dal → phaseA'yı içermez.
+      g(["checkout", "-q", "-b", "other", base]);
+      const unrelated = commit("unrelated");
+      g(["checkout", "-q", "main"]);
+
+      const opts = { cwd: repo, requiredCommit: phaseA };
+      // 1) Faz A'yı İÇEREN SHA kabul edilir.
+      expect(() => assertPhaseADeployed(descendant, opts)).not.toThrow();
+      expect(() => assertPhaseADeployed(phaseA, opts)).not.toThrow(); // kendisi de ata
+      // 2) ESKİ (non-ancestor) SHA reddedilir.
+      expect(() => assertPhaseADeployed(base, opts)).toThrow(/İÇERMİYOR/);
+      // 3) Farklı daldaki (non-ancestor) SHA reddedilir.
+      expect(() => assertPhaseADeployed(unrelated, opts)).toThrow(/İÇERMİYOR/);
+      // 4) Repoda BULUNMAYAN SHA fail-closed reddedilir.
+      expect(() => assertPhaseADeployed("0".repeat(40), opts)).toThrow(/BİLİNMİYOR|shallow/);
+
+      // 5) SIĞ GEÇMİŞ YANLIŞ YEŞİL ÜRETEMEZ: depth=1 klonda phaseA nesnesi
+      //    yoktur; kapı "kabul" DEĞİL, fail-closed vermelidir.
+      execFileSync("git", ["clone", "-q", "--depth", "1", `file://${repo}`, shallow], {
+        encoding: "utf8",
+      });
+      const shallowHead = execFileSync("git", ["rev-parse", "HEAD"], {
+        cwd: shallow,
+        encoding: "utf8",
+      }).trim();
+      expect(shallowHead).toBe(descendant);
+      expect(() =>
+        assertPhaseADeployed(shallowHead, { cwd: shallow, requiredCommit: phaseA }),
+      ).toThrow(/BİLİNMİYOR|shallow/);
+    } finally {
+      rmSync(repo, { recursive: true, force: true });
+      rmSync(shallow, { recursive: true, force: true });
+    }
   });
 
-  it("Faz A'yı İÇEREN bir SHA kabul edilir", () => {
-    expect(() => assertPhaseADeployed(PHASE_A_COMMIT)).not.toThrow();
-    expect(() => assertPhaseADeployed("HEAD")).not.toThrow();
+  it("deploy SHA verilmezse DURUR", () => {
+    expect(() => assertPhaseADeployed(undefined)).toThrow(/APPLY_PHASE_A_DEPLOYED_SHA/);
+    expect(() => assertPhaseADeployed("   ")).toThrow(/APPLY_PHASE_A_DEPLOYED_SHA/);
+  });
+
+  it("beklenen Faz A commit'i sabittir", () => {
+    expect(PHASE_A_COMMIT).toBe("3effd99");
   });
 
   it("beklenen sayı TUTMAZSA hiçbir yazma yapılmaz", async () => {

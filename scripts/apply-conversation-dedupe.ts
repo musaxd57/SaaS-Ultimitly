@@ -129,15 +129,37 @@ export function assertReferenceCoverage(): void {
  * O adım insana aittir; buradaki kapı onu bilinçli ve doğrulanmış bir eylem
  * yapar. git yoksa / SHA bilinmiyorsa fail-closed.
  */
-export function assertPhaseADeployed(sha: string | undefined, cwd = process.cwd()): void {
+export function assertPhaseADeployed(
+  sha: string | undefined,
+  opts: { cwd?: string; requiredCommit?: string } = {},
+): void {
   const value = (sha ?? "").trim();
   if (!value) throw new Error("APPLY_PHASE_A_DEPLOYED_SHA yok — Railway'de ACTIVE commit'i ver");
+  const required = opts.requiredCommit ?? PHASE_A_COMMIT;
+  const cwd = opts.cwd ?? process.cwd();
+  // GERÇEK git — davranış mock'lanMAZ. `merge-base --is-ancestor` semantiği
+  // testlerde gerçek bir geçici depoda sınanır; sahte bir runner yalnız kendi
+  // dallanmamızı ölçer, boş güvence üretir.
+  const git = (args: string[]) => void execFileSync("git", args, { cwd, stdio: "ignore" });
+
+  // 1) BİLİNİYOR MU — "içermiyor" ile "hiç bilmiyorum"u AYIR.
+  //    Sığ (shallow) bir klonda Faz A commit'i nesne olarak bulunmaz ve
+  //    `merge-base` yine hata verir; ikisini aynı mesaja yıkmak operatöre
+  //    "deploy yanlış" dedirtir, oysa sorun klonun derinliğidir.
+  for (const ref of [required, value]) {
+    try {
+      git(["cat-file", "-e", `${ref}^{commit}`]);
+    } catch {
+      throw new Error(
+        `Commit ${ref} bu klonda BİLİNMİYOR — sığ (shallow) klon olabilir; tam geçmişle çalıştır`,
+      );
+    }
+  }
+  // 2) İÇERİYOR MU.
   try {
-    execFileSync("git", ["merge-base", "--is-ancestor", PHASE_A_COMMIT, value], { cwd, stdio: "ignore" });
+    git(["merge-base", "--is-ancestor", required, value]);
   } catch {
-    throw new Error(
-      `Verilen deploy SHA Faz A'yı (${PHASE_A_COMMIT}) İÇERMİYOR ya da bilinmiyor — apply durduruldu`,
-    );
+    throw new Error(`Verilen deploy SHA Faz A'yı (${required}) İÇERMİYOR — apply durduruldu`);
   }
 }
 
@@ -215,7 +237,7 @@ export async function applyConversationDedupe(
 ): Promise<ApplyOutcome> {
   assertPolicyCoverage();
   assertReferenceCoverage();
-  if (!opts.skipDeployGate) assertPhaseADeployed(opts.deployedSha, opts.cwd);
+  if (!opts.skipDeployGate) assertPhaseADeployed(opts.deployedSha, { cwd: opts.cwd });
   const timeouts = opts.timeouts ?? resolveTimeouts();
 
   return prisma.$transaction(
