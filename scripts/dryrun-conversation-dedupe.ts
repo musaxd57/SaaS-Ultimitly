@@ -28,7 +28,6 @@
 // hash/etiket BASILMAZ (preflight ile aynı disiplin, aynı test).
 // ---------------------------------------------------------------------------
 
-import { pathToFileURL } from "node:url";
 import { Prisma, PrismaClient } from "@prisma/client";
 
 // ── Zaman aşımı kapıları (preflight ile birebir sözleşme) ──────────────────
@@ -538,5 +537,11 @@ async function main() {
   }
 }
 
-const invokedDirectly = process.argv[1] && import.meta.url === pathToFileURL(process.argv[1]).href;
-if (invokedDirectly) await main();
+// Doğrudan çalıştırma tespiti — BİLEREK `import.meta.url` DEĞİL ve top-level
+// `await` YOK: bu dosya `.ts` kalmak ZORUNDA (tsconfig yalnız `**/*.ts` içerir;
+// `.mts`'e taşımak onu typecheck DIŞINA atar ve alan-envanteri sözleşmesinin
+// derleme-zamanı garantisini kaybederiz). tsx ise `.ts`'i CJS'e çevirdiği için
+// orada top-level await ve import.meta çalışmaz. argv tabanlı kontrol her iki
+// dünyada da doğru sonuç verir; vitest altında argv[1] test koşucusudur → false.
+const invokedDirectly = /dryrun-conversation-dedupe\.(ts|js|mjs|cjs)$/.test(process.argv[1] ?? "");
+if (invokedDirectly) void main();
