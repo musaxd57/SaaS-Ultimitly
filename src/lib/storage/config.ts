@@ -24,6 +24,18 @@ export interface StorageConfig {
   region: string;
   accessKeyId: string;
   secretAccessKey: string;
+  /**
+   * Address objects as `{endpoint}/{bucket}/{key}` instead of the default
+   * `{bucket}.{endpointHost}/{key}`. DEFAULT FALSE — virtual-hosted is what the
+   * modern providers want (Tigris, which backs Railway Buckets, dropped
+   * path-style for buckets created after Feb 2025; AWS deprecated it too).
+   * Left available because self-hosted providers (MinIO) still speak path-style.
+   *
+   * NOT cosmetic: host and canonical URI are both signed, so choosing wrong
+   * yields SignatureDoesNotMatch / AccessDenied — a failure that reads as bad
+   * credentials and sends you looking in the wrong place.
+   */
+  pathStyle: boolean;
 }
 
 function flagOn(v: string | undefined): boolean {
@@ -47,9 +59,16 @@ export function getStorageConfig(env: Record<string, string | undefined> = proce
     return null;
   }
   if (url.protocol !== "https:") return null;
-  // Bucket goes into a URL path segment — keep it to the S3 naming charset.
+  // Bucket goes into a URL path segment or a host label — S3 naming charset either way.
   if (!/^[a-z0-9][a-z0-9.-]{1,61}[a-z0-9]$/.test(bucket)) return null;
-  return { endpoint, bucket, region, accessKeyId, secretAccessKey };
+  const pathStyle = flagOn(env.STORAGE_PATH_STYLE);
+  // A DOTTED bucket name is legal in a path segment but breaks virtual-hosted
+  // addressing: "a.b" + ".provider.dev" is a two-label subdomain, which a
+  // "*.provider.dev" wildcard certificate does not cover, so TLS fails before
+  // any request is made. Refuse here rather than surfacing an inscrutable
+  // certificate error at upload time. Harmless under path-style.
+  if (!pathStyle && bucket.includes(".")) return null;
+  return { endpoint, bucket, region, accessKeyId, secretAccessKey, pathStyle };
 }
 
 /** Provider credentials present (governs signed GET + deletion drain). */

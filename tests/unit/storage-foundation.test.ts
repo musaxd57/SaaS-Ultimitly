@@ -14,13 +14,17 @@ import { presignGetUrl, signedRequest, SIGNED_URL_MAX_TTL_S } from "@/lib/storag
 import { checkProductionEnv } from "../../scripts/env-check.mjs";
 
 const SECRET = "super-secret-provider-key-DO-NOT-LEAK";
+/** Virtual-hosted — the default, and what the live provider requires. */
 const CONFIG = {
   endpoint: "https://acc.r2.cloudflarestorage.com",
   bucket: "lixus-photos",
   region: "auto",
   accessKeyId: "AKIDEXAMPLE",
   secretAccessKey: SECRET,
+  pathStyle: false,
 };
+/** Path-style — the legacy shape, kept for providers that still need it. */
+const PATH_STYLE_CONFIG = { ...CONFIG, pathStyle: true };
 
 describe("object keys — the tenant boundary, fail-closed", () => {
   it("builds an org/task-scoped key and round-trips through the photoUrl helpers", () => {
@@ -118,14 +122,73 @@ describe("storage config — default OFF, fail-closed on any missing piece", () 
   it("plain-http endpoint is rejected (signed URLs must never travel plaintext)", () => {
     expect(getStorageConfig({ ...FULL, STORAGE_ENDPOINT: "http://insecure.example.com" })).toBeNull();
   });
+
+  it("adresleme varsayılanı VIRTUAL-HOSTED; path-style açık tercihtir", () => {
+    expect(getStorageConfig(FULL)?.pathStyle).toBe(false);
+    expect(getStorageConfig({ ...FULL, STORAGE_PATH_STYLE: "1" })?.pathStyle).toBe(true);
+    expect(getStorageConfig({ ...FULL, STORAGE_PATH_STYLE: "true" })?.pathStyle).toBe(true);
+    // Tanınmayan değer = KAPALI (canlı sağlayıcının istediği yön güvenli yön).
+    for (const v of ["", " ", "0", "false", "evet", "yes"]) {
+      expect(getStorageConfig({ ...FULL, STORAGE_PATH_STYLE: v })?.pathStyle, v).toBe(false);
+    }
+  });
+
+  it("NOKTALI bucket adı virtual-hosted'da REDDEDİLİR (joker sertifika eşleşmez)", () => {
+    // "a.b" + ".t3.storageapi.dev" → iki seviyeli alt alan; *.t3.storageapi.dev
+    // joker sertifikası bunu KAPSAMAZ, yani TLS el sıkışması çuvallar. Yükleme
+    // anında anlaşılması güç bir sertifika hatası yerine burada fail-closed.
+    const dotted = { ...FULL, STORAGE_BUCKET: "lixus.photos" };
+    expect(getStorageConfig(dotted)).toBeNull();
+    // Path-style'da nokta zararsız — bucket host'a değil yola giriyor.
+    expect(getStorageConfig({ ...dotted, STORAGE_PATH_STYLE: "1" })?.bucket).toBe("lixus.photos");
+  });
 });
 
 describe("SigV4 presign — short-lived, deterministic, secret never leaves the HMAC", () => {
   const KEY = "org/o1/task/t1/123-abc.jpg";
   const NOW = new Date("2026-07-14T12:00:00.000Z");
 
+  // -------------------------------------------------------------------------
+  // ADRESLEME BİÇİMİ. Bu imzalayıcı path-style yazılmıştı (/{bucket}/{key}).
+  // Canlı sağlayıcı (Railway Buckets = Tigris) 19.02.2025 SONRASI oluşturulan
+  // bucket'larda path-style'ı KALDIRDI — yani o yolla imza tutmaz. Varsayılan
+  // artık virtual-hosted ({bucket}.{host}/{key}); path-style hâlâ mümkün ama
+  // artık AÇIK bir tercih (STORAGE_PATH_STYLE).
+  //
+  // Bu ayrım imzanın İÇİNE girer: host ve canonical URI imzalanan metnin
+  // parçasıdır, dolayısıyla yanlış biçim "AccessDenied/SignatureDoesNotMatch"
+  // olarak döner — kimlik bilgisi hatası gibi görünen ama aslında adresleme
+  // olan bir arıza. İki modun imzasının FARKLI olduğunu asserte ediyoruz;
+  // aynı çıksaydı host'un imzaya girmediği anlamına gelirdi.
+  // -------------------------------------------------------------------------
+  it("VIRTUAL-HOSTED (varsayılan): bucket host'a taşınır, yol yalnız key'dir", () => {
+    const u = new URL(presignGetUrl(CONFIG, KEY, { now: NOW }));
+    expect(u.host).toBe(`${CONFIG.bucket}.acc.r2.cloudflarestorage.com`);
+    expect(u.pathname).toBe(`/${KEY}`);
+    expect(u.protocol).toBe("https:");
+  });
+
+  it("PATH-STYLE (opt-in): eski biçim BİREBİR korunur", () => {
+    const u = new URL(presignGetUrl(PATH_STYLE_CONFIG, KEY, { now: NOW }));
+    expect(u.origin).toBe(CONFIG.endpoint);
+    expect(u.pathname).toBe(`/${CONFIG.bucket}/${KEY}`);
+  });
+
+  it("adresleme biçimi İMZAYA girer (host imzalanmamış olsaydı aynı çıkardı)", () => {
+    const sig = (c: typeof CONFIG) =>
+      new URL(presignGetUrl(c, KEY, { now: NOW })).searchParams.get("X-Amz-Signature");
+    expect(sig(CONFIG)).not.toBe(sig(PATH_STYLE_CONFIG));
+    expect(sig(CONFIG)).toMatch(/^[0-9a-f]{64}$/);
+    // PUT/DELETE de aynı biçimi izler.
+    const vh = signedRequest(CONFIG, "PUT", KEY, new Uint8Array([1]), NOW);
+    const ps = signedRequest(PATH_STYLE_CONFIG, "PUT", KEY, new Uint8Array([1]), NOW);
+    expect(vh.url).toBe(`https://${CONFIG.bucket}.acc.r2.cloudflarestorage.com/${KEY}`);
+    expect(ps.url).toBe(`${CONFIG.endpoint}/${CONFIG.bucket}/${KEY}`);
+    expect(vh.headers.authorization).not.toBe(ps.headers.authorization);
+  });
+
   it("produces a bucket-scoped signed GET URL with a clamped expiry and NO secret material", () => {
-    const url = presignGetUrl(CONFIG, KEY, { expiresSeconds: 300, now: NOW });
+    const url = presignGetUrl(PATH_STYLE_CONFIG, KEY, { expiresSeconds: 300, now: NOW });
     const u = new URL(url);
     expect(u.origin).toBe(CONFIG.endpoint);
     expect(u.pathname).toBe(`/${CONFIG.bucket}/${KEY}`);
@@ -152,8 +215,8 @@ describe("SigV4 presign — short-lived, deterministic, secret never leaves the 
   });
 
   it("header-signed PUT/DELETE requests carry the auth header, never the raw secret", () => {
-    const put = signedRequest(CONFIG, "PUT", KEY, new Uint8Array([1, 2, 3]), NOW);
-    const del = signedRequest(CONFIG, "DELETE", KEY, null, NOW);
+    const put = signedRequest(PATH_STYLE_CONFIG, "PUT", KEY, new Uint8Array([1, 2, 3]), NOW);
+    const del = signedRequest(PATH_STYLE_CONFIG, "DELETE", KEY, null, NOW);
     for (const r of [put, del]) {
       expect(r.url).toBe(`${CONFIG.endpoint}/${CONFIG.bucket}/${KEY}`);
       expect(r.headers.authorization).toContain("AWS4-HMAC-SHA256 Credential=AKIDEXAMPLE/");
@@ -182,12 +245,35 @@ describe("env-check — storage vars REQUIRED only when STORAGE_ENABLED is on; n
     }
   });
 
+  it("BOOT: geçersiz bucket adı SESSİZ no-op değil, HATA olmalı", () => {
+    // Yaşanan tuzak: sağlayıcı panelinde "Lixus-uploads" yazıyor, insana normal
+    // görünüyor, ama S3 adlandırması küçük harf istiyor → getStorageConfig null
+    // döner ve bayrak AÇIKken depolama sessizce kapalı kalır. Boot'ta yakala.
+    const errs = (b: string, extra: Record<string, string> = {}) =>
+      checkProductionEnv({
+        ...BASE,
+        STORAGE_ENABLED: "1",
+        STORAGE_ENDPOINT: "https://acc.r2.cloudflarestorage.com",
+        STORAGE_ACCESS_KEY_ID: "ak",
+        STORAGE_SECRET_ACCESS_KEY: SECRET,
+        STORAGE_BUCKET: b,
+        ...extra,
+      }).errors.filter((e: string) => e.includes("STORAGE_BUCKET"));
+    expect(errs("Lixus-uploads").length, "büyük harf").toBeGreaterThan(0);
+    expect(errs("ab").length, "çok kısa").toBeGreaterThan(0);
+    expect(errs("-leading").length, "harf/rakamla başlamıyor").toBeGreaterThan(0);
+    expect(errs("lixus-uploads-ssokr6h6veq"), "sağlayıcının verdiği gerçek ad").toEqual([]);
+    // Noktalı ad: virtual-hosted'da HATA, path-style'da serbest.
+    expect(errs("lixus.photos").length).toBeGreaterThan(0);
+    expect(errs("lixus.photos", { STORAGE_PATH_STYLE: "1" })).toEqual([]);
+  });
+
   it("flag on + everything set → no storage errors; http endpoint → error; secret value never echoed", () => {
     const full = {
       ...BASE,
       STORAGE_ENABLED: "true",
       STORAGE_ENDPOINT: "https://acc.r2.cloudflarestorage.com",
-      STORAGE_BUCKET: "b",
+      STORAGE_BUCKET: "lixus-photos", // must be a REAL S3-legal name now (was "b")
       STORAGE_ACCESS_KEY_ID: "ak",
       STORAGE_SECRET_ACCESS_KEY: SECRET,
     };

@@ -97,8 +97,27 @@ export function checkProductionEnv(env) {
     } else if (!/^https:\/\//i.test(endpoint)) {
       errors.push("STORAGE_ENDPOINT must be an https:// URL.");
     }
-    if (!(env.STORAGE_BUCKET ?? "").trim()) {
+    // Bucket name is validated to the SAME rule the runtime applies
+    // (src/lib/storage/config.ts). Without this the flag can be on while
+    // getStorageConfig() quietly returns null — "I switched storage on and
+    // nothing happened", with no error anywhere. An uppercase letter is the
+    // easy way to hit it: providers hand out names that look fine to a human
+    // but are not S3-legal, and uploads keep silently going to local disk.
+    const storageBucket = (env.STORAGE_BUCKET ?? "").trim();
+    const storagePathStyle = ["1", "true"].includes((env.STORAGE_PATH_STYLE ?? "").trim().toLowerCase());
+    if (!storageBucket) {
       errors.push("STORAGE_BUCKET is missing — REQUIRED when STORAGE_ENABLED is on.");
+    } else if (!/^[a-z0-9][a-z0-9.-]{1,61}[a-z0-9]$/.test(storageBucket)) {
+      errors.push(
+        "STORAGE_BUCKET is not a valid S3 bucket name (lowercase letters, digits, dots and hyphens; 3-63 chars; must start and end alphanumeric). Copy it exactly as the provider shows it — some append a unique suffix.",
+      );
+    } else if (!storagePathStyle && storageBucket.includes(".")) {
+      // Virtual-hosted puts the bucket in the hostname, where a dot adds a
+      // label the provider's wildcard certificate does not cover — TLS fails
+      // before the request is even sent.
+      errors.push(
+        "STORAGE_BUCKET contains a dot, which cannot be addressed virtual-hosted (the provider's wildcard certificate would not match). Use a bucket without dots, or set STORAGE_PATH_STYLE=1 if the provider still supports path-style.",
+      );
     }
     if (!(env.STORAGE_ACCESS_KEY_ID ?? "").trim()) {
       errors.push("STORAGE_ACCESS_KEY_ID is missing — REQUIRED when STORAGE_ENABLED is on.");

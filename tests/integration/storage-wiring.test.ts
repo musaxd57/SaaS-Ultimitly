@@ -179,7 +179,15 @@ describe("serve — authenticated 302 to a SHORT-LIVED signed URL, tenant-checke
     const res = await serveGET(req, serveCtx(key));
     expect(res.status).toBe(302);
     const loc = res.headers.get("location")!;
-    expect(loc.startsWith(`${STORAGE_ENV.STORAGE_ENDPOINT}/${STORAGE_ENV.STORAGE_BUCKET}/${key}?`)).toBe(true);
+    // Virtual-hosted addressing (the default): bucket lives in the HOST, the
+    // path carries only the key. Asserted on the parsed URL rather than a
+    // string prefix so the tenant-scoped key is checked as a real path.
+    const target = new URL(loc);
+    expect(target.host).toBe(
+      `${STORAGE_ENV.STORAGE_BUCKET}.${new URL(STORAGE_ENV.STORAGE_ENDPOINT).host}`,
+    );
+    expect(target.pathname).toBe(`/${key}`);
+    expect(target.protocol).toBe("https:");
     expect(loc).toContain("X-Amz-Expires=300"); // short-lived
     expect(loc).toContain("X-Amz-Signature=");
     expect(loc).not.toContain(SECRET); // credential never leaves the signer

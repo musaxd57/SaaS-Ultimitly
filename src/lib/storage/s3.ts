@@ -4,8 +4,9 @@ import { createHash, createHmac } from "node:crypto";
 import type { StorageConfig } from "./config";
 
 // ---------------------------------------------------------------------------
-// Minimal AWS Signature V4 for an S3-compatible provider (AWS S3 / Cloudflare
-// R2, path-style addressing). NO SDK dependency on purpose (repo convention —
+// Minimal AWS Signature V4 for an S3-compatible provider (Tigris — which backs
+// Railway Buckets — plus AWS S3 / Cloudflare R2). Virtual-hosted addressing by
+// default, path-style available via config. NO SDK dependency on purpose (repo convention —
 // the CSV parser precedent): presigning is pure crypto, and PUT/DELETE are one
 // signed fetch each. Everything is deterministic given (config, key, now), so
 // tests pin exact behavior offline — no bucket required.
@@ -45,6 +46,37 @@ function signingKey(secret: string, dateStamp: string, region: string): Buffer {
 }
 
 /**
+ * Where the request goes and what gets signed, for one object.
+ *
+ * Virtual-hosted (the default) puts the bucket in the HOST and leaves only the
+ * key in the path; path-style keeps the bucket as the first path segment. Both
+ * the host header and the canonical URI are inputs to the signature, so this is
+ * not a cosmetic choice: address it the way the provider does not expect and
+ * every call comes back SignatureDoesNotMatch — which reads as a credentials
+ * problem and sends you hunting in the wrong place.
+ *
+ * Path-style keeps using `config.endpoint` verbatim so its output is unchanged
+ * from before this split existed.
+ */
+function addressing(
+  config: StorageConfig,
+  key: string,
+): { base: string; host: string; canonicalUri: string } {
+  const url = new URL(config.endpoint);
+  if (config.pathStyle) {
+    return {
+      base: config.endpoint,
+      host: url.host,
+      canonicalUri: `/${rfc3986(config.bucket)}/${encodeKeyPath(key)}`,
+    };
+  }
+  // Bucket as a host label. getStorageConfig rejects a dotted bucket in this
+  // mode, so this can never produce a name a wildcard certificate misses.
+  const host = `${config.bucket}.${url.host}`;
+  return { base: `${url.protocol}//${host}`, host, canonicalUri: `/${encodeKeyPath(key)}` };
+}
+
+/**
  * Presign a GET for one object — the ONLY way a stored photo is ever served.
  * Query-string SigV4 with UNSIGNED-PAYLOAD; TTL clamped to [1s, 15min].
  */
@@ -56,9 +88,8 @@ export function presignGetUrl(
   const now = opts.now ?? new Date();
   const expires = Math.min(SIGNED_URL_MAX_TTL_S, Math.max(1, Math.floor(opts.expiresSeconds ?? SIGNED_URL_DEFAULT_TTL_S)));
   const { amzDate, dateStamp } = amzTimestamps(now);
-  const host = new URL(config.endpoint).host;
+  const { base, host, canonicalUri } = addressing(config, key);
   const scope = `${dateStamp}/${config.region}/${SERVICE}/aws4_request`;
-  const canonicalUri = `/${rfc3986(config.bucket)}/${encodeKeyPath(key)}`;
 
   // Already in canonical (sorted-by-name) order.
   const query: [string, string][] = [
@@ -76,7 +107,7 @@ export function presignGetUrl(
     .update(stringToSign)
     .digest("hex");
 
-  return `${config.endpoint}${canonicalUri}?${canonicalQuery}&X-Amz-Signature=${signature}`;
+  return `${base}${canonicalUri}?${canonicalQuery}&X-Amz-Signature=${signature}`;
 }
 
 /** Header-signed request pieces for PUT/DELETE (server-to-provider calls). */
@@ -88,9 +119,8 @@ export function signedRequest(
   now: Date = new Date(),
 ): { url: string; headers: Record<string, string> } {
   const { amzDate, dateStamp } = amzTimestamps(now);
-  const host = new URL(config.endpoint).host;
+  const { base, host, canonicalUri } = addressing(config, key);
   const scope = `${dateStamp}/${config.region}/${SERVICE}/aws4_request`;
-  const canonicalUri = `/${rfc3986(config.bucket)}/${encodeKeyPath(key)}`;
   const payloadHash = sha256Hex(payload ?? new Uint8Array(0));
 
   const signedHeaders = "host;x-amz-content-sha256;x-amz-date";
@@ -102,7 +132,7 @@ export function signedRequest(
     .digest("hex");
 
   return {
-    url: `${config.endpoint}${canonicalUri}`,
+    url: `${base}${canonicalUri}`,
     headers: {
       "x-amz-date": amzDate,
       "x-amz-content-sha256": payloadHash,
