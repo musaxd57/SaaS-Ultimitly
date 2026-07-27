@@ -5,7 +5,7 @@ import { Prisma } from "@prisma/client";
 import { prisma, resetDb } from "../helpers/db";
 import { POST } from "@/app/api/webhooks/paddle/route";
 
-const SECRET = "pdl_ntfset_testsecret";
+const SECRET = "test-webhook-hmac-key-not-a-real-secret";
 
 function sign(body: string): string {
   const ts = Math.floor(Date.now() / 1000);

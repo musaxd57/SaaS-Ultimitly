@@ -6,7 +6,7 @@ import {
   paddleStatusToLocal,
 } from "@/lib/payments/paddle";
 
-const SECRET = "pdl_ntfset_testsecret";
+const SECRET = "test-webhook-hmac-key-not-a-real-secret";
 
 /** Build a valid Paddle-Signature header for a body at time `ts`. */
 function sign(body: string, ts: number, secret = SECRET): string {
@@ -31,7 +31,7 @@ describe("verifyPaddleSignature", () => {
   });
 
   it("rejects a wrong secret", () => {
-    const header = sign(body, now, "pdl_ntfset_wrong");
+    const header = sign(body, now, "test-webhook-hmac-key-wrong");
     expect(verifyPaddleSignature({ signatureHeader: header, rawBody: body, secret: SECRET, now })).toBe(false);
   });
 
