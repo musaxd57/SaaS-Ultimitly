@@ -2,6 +2,7 @@ import { describe, it, expect, beforeEach, vi } from "vitest";
 import { NextRequest } from "next/server";
 import { prisma, resetDb } from "../helpers/db";
 import type { SessionPayload } from "@/lib/auth";
+import { photoUrlForKey } from "@/lib/storage/keys";
 
 let session: SessionPayload;
 vi.mock("@/lib/api", async (orig) => {
@@ -138,5 +139,101 @@ describe("PATCH /api/tasks/[id] — staff field restriction", () => {
     const res = await DELETE(patchReq({}), ctx());
     expect(res.status).toBe(404);
     expect(await prisma.task.findUnique({ where: { id: taskId } })).not.toBeNull();
+  });
+});
+
+describe("görev kartı — NOT kaydetmek FOTOĞRAFI gizlememeli", () => {
+  // GERÇEK KULLANICIDA ÇIKTI: temizlik fotoğrafı yüklendi, kartta göründü;
+  // ardından "yapıldı" notu kaydedilince fotoğraf ekrandan KAYBOLDU.
+  //
+  // Sebep: her not/foto/durum değişikliği AYRI bir TaskUpdate satırı açıyor
+  // (route.ts taskUpdate.create). Kart ise yalnız EN SON satırı okuyordu
+  // (`updates: { take: 1 }`) — o satırda not var, foto yok. Veri kaybı YOK:
+  // foto hem bucket'ta hem önceki satırda duruyordu, sadece gösterilmiyordu.
+  //
+  // Kapsam itirafı: sayfa bir server component, doğrudan render edilmiyor.
+  // Bu test kullanıcının GERÇEK sırasını üretir ve sayfanın artık kullandığı
+  // sorguyu birebir koşar — hata veri katmanında yaşadığı için doğru katman.
+  // Ayrıca ESKİ yaklaşımın bu senaryoda başarısız olduğunu da asserte eder,
+  // yoksa test boşuna yeşil olabilirdi.
+  beforeEach(async () => {
+    await resetDb();
+    vi.clearAllMocks();
+    const org = await prisma.organization.create({ data: { name: "Org" } });
+    orgId = org.id;
+    const owner = await prisma.user.create({
+      data: { organizationId: org.id, name: "Owner", email: "o@x.com", passwordHash: "x", role: "owner" },
+    });
+    ownerId = owner.id;
+    const property = await prisma.property.create({ data: { organizationId: org.id, name: "Daire 1" } });
+    const task = await prisma.task.create({
+      data: { propertyId: property.id, type: "cleaning", title: "Temizlik", status: "todo", priority: "standard" },
+    });
+    taskId = task.id;
+    session = { userId: ownerId, organizationId: orgId, role: "owner", email: "o@x.com", name: "Owner", sessionEpoch: 0 };
+  });
+
+  // Rota fotoğrafın BU org'a ve BU göreve ait bir anahtar taşımasını şart koşuyor
+  // (route.ts isAcceptablePhotoUrl) — uydurma bir anahtar 400 döner. Gerçek
+  // yardımcılarla kurup o kapıdan da geçtiğimizi doğruluyoruz.
+  const photoFor = (name: string) => photoUrlForKey(`org/${orgId}/task/${taskId}/${name}`);
+
+  it("önce foto, SONRA not: kart hâlâ fotoğrafı bulur", async () => {
+    const PHOTO = photoFor("123-abc.jpg");
+    expect((await PATCH(patchReq({ photoUrl: PHOTO }), ctx())).status).toBe(200);
+    expect((await PATCH(patchReq({ note: "yapıldı" }), ctx())).status).toBe(200);
+
+    // ESKİ davranış: en son satır → notu var, fotoğrafı YOK (hatanın kendisi).
+    const newest = await prisma.taskUpdate.findMany({
+      where: { taskId },
+      select: { photoUrl: true, note: true },
+      orderBy: { createdAt: "desc" },
+      take: 1,
+    });
+    expect(newest[0]?.note).toBe("yapıldı");
+    expect(newest[0]?.photoUrl).toBeNull(); // ← kart burayı okuduğu için foto kayboluyordu
+
+    // YENİ davranış (sayfanın kullandığı sorgu): fotoğrafı olan en son satır.
+    const photoRows = await prisma.taskUpdate.findMany({
+      where: { taskId: { in: [taskId] }, photoUrl: { not: null } },
+      select: { taskId: true, photoUrl: true },
+      orderBy: { createdAt: "desc" },
+    });
+    const latestPhotoByTask = new Map<string, string>();
+    for (const row of photoRows) {
+      if (row.photoUrl && !latestPhotoByTask.has(row.taskId)) latestPhotoByTask.set(row.taskId, row.photoUrl);
+    }
+    expect(latestPhotoByTask.get(taskId)).toBe(PHOTO);
+  });
+
+  it("İKİ fotoğraf yüklenirse EN YENİSİ gösterilir", async () => {
+    const PHOTO = photoFor("123-abc.jpg");
+    const older = photoFor("111-old.jpg");
+    expect((await PATCH(patchReq({ photoUrl: older }), ctx())).status).toBe(200);
+    expect((await PATCH(patchReq({ photoUrl: PHOTO }), ctx())).status).toBe(200);
+    const photoRows = await prisma.taskUpdate.findMany({
+      where: { taskId: { in: [taskId] }, photoUrl: { not: null } },
+      select: { taskId: true, photoUrl: true },
+      orderBy: { createdAt: "desc" },
+    });
+    expect(photoRows[0]?.photoUrl).toBe(PHOTO); // eskisi değil
+  });
+});
+
+describe("REGRESYON PİNİ — kart fotoğrafı 'son güncelleme'ye geri bağlanmasın", () => {
+  it("tasks/page.tsx fotoğrafı FOTOĞRAFLI son satırdan alır, son satırdan DEĞİL", async () => {
+    // Yukarıdaki veri testi bu dosyanın kendisini korumuyor: sayfayı eski hâline
+    // döndürdüğümde yine yeşil kalıyordu (ölçtüğü şey sorgu kuralı, sayfa değil).
+    // Bu repoda aynı sorun için kullanılan desen kaynak taramasıdır (bkz.
+    // canonical-origin ve deployment-timezone pinleri) — gelecekte biri
+    // "sadeleştirme" niyetiyle `updates[0]`a dönerse test derhal kırmızıya döner.
+    const { readFileSync } = await import("node:fs");
+    const src = readFileSync("src/app/(app)/tasks/page.tsx", "utf8");
+    expect(src, "fotoğraflı son satırı çeken sorgu kaybolmuş").toMatch(
+      /photoUrl:\s*\{\s*not:\s*null\s*\}/,
+    );
+    expect(src, "latestPhotoUrl yeniden 'son güncelleme'ye bağlanmış").not.toMatch(
+      /latestPhotoUrl:\s*latestUpdate/,
+    );
   });
 });

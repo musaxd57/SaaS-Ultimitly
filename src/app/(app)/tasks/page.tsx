@@ -148,6 +148,25 @@ export default async function TasksPage({
   const doneFrom = doneTasks.length === 0 ? 0 : (donePage - 1) * DONE_PAGE_SIZE + 1;
   const doneTo = doneTasks.length === 0 ? 0 : (donePage - 1) * DONE_PAGE_SIZE + doneTasks.length;
 
+  // The LATEST PHOTO, which is not the same thing as the photo on the latest
+  // update. Every note, photo and status change writes its own TaskUpdate row,
+  // so a note saved after a photo produced a newer row carrying note-but-no-
+  // photo — and the card, reading only that newest row, stopped showing a
+  // cleaning photo that was still perfectly well stored. The proof appeared to
+  // vanish the moment someone wrote "yapıldı" next to it.
+  //
+  // Scoped to the tasks actually on screen and ordered newest-first, so the
+  // first row seen for a task is its most recent photo.
+  const photoRows = await prisma.taskUpdate.findMany({
+    where: { taskId: { in: tasks.map((t) => t.id) }, photoUrl: { not: null } },
+    select: { taskId: true, photoUrl: true },
+    orderBy: { createdAt: "desc" },
+  });
+  const latestPhotoByTask = new Map<string, string>();
+  for (const row of photoRows) {
+    if (row.photoUrl && !latestPhotoByTask.has(row.taskId)) latestPhotoByTask.set(row.taskId, row.photoUrl);
+  }
+
   const cards: TaskCardData[] = tasks.map((t) => {
     const parsedChecklist = safeJsonParse<ChecklistItem[]>(t.checklistJson, []);
     // Guard against a stored non-array JSON scalar (e.g. "foo") slipping past
@@ -165,7 +184,7 @@ export default async function TasksPage({
       dueLabel: t.dueAt ? formatDayInTz(t.dueAt, TZ) : null,
       dueDays: t.dueAt ? daysUntilDate(t.dueAt, now, TZ) : null,
       checklist: checklist.length > 0 ? { items: checklist } : null,
-      latestPhotoUrl: latestUpdate?.photoUrl ?? null,
+      latestPhotoUrl: latestPhotoByTask.get(t.id) ?? null,
       latestNote: latestUpdate?.note ?? null,
     };
   });
