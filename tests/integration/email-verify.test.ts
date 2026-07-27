@@ -62,6 +62,11 @@ beforeEach(async () => {
   vi.clearAllMocks();
   process.env.REGISTRATION_OPEN = "1";
 });
+// DOSYA GENELİNDE env temizliği. Bazı testler APP_URL/NODE_ENV stub'lıyor ve
+// temizliği kendi son satırlarında yapıyordu — bir assertion patlayınca o satıra
+// hiç gelinmiyor ve stub SONRAKİ testlere sızıyordu (tek gerçek hata, ardından
+// alâkasız 4 test daha kırmızı). Buradan temizlenince hata nerede ise orada kalır.
+afterEach(() => vi.unstubAllEnvs());
 afterAll(async () => {
   delete process.env.REGISTRATION_OPEN;
   await prisma.$disconnect();
@@ -85,11 +90,13 @@ describe("email-verify helpers", () => {
     // links, so a foreign/http origin must never become the link base:
     vi.stubEnv("APP_URL", "https://app.example.com");
     expect(appBaseUrl()).toBe("https://www.lixusai.com"); // foreign https → canonical
+    // .eu ARTIK kabul ediliyor: APP_URL bu deployment'ın KİMLİĞİ ve .eu de bizim
+    // origin'imiz (DEPLOYABLE_ORIGINS). Eskiden .com'a düşüyordu — yani .eu'da
+    // doğrulama linki müşteriyi hesabının OLMADIĞI deployment'a yolluyordu.
     vi.stubEnv("APP_URL", "https://www.lixusai.eu");
-    expect(appBaseUrl()).toBe("https://www.lixusai.com"); // .eu DELİBERATELY not allowlisted yet
+    expect(appBaseUrl()).toBe("https://www.lixusai.eu");
     vi.stubEnv("APP_URL", "not-a-url");
     expect(appBaseUrl()).toBe("https://www.lixusai.com"); // invalid → canonical
-    vi.unstubAllEnvs();
   });
 
   it("PRODUCTION: appBaseUrl accepts ONLY the exact canonical origin (localhost dahil hiçbir şey)", () => {
@@ -99,16 +106,20 @@ describe("email-verify helpers", () => {
     for (const bad of [
       "http://www.lixusai.com", // http'li canonical bile RED
       "https://evil.example",
-      "https://www.lixusai.eu",
+      "https://www.lixusai.com.evil.com", // sonek hilesi
       "http://localhost:3000", // prod'da localhost carve-out YOK
     ]) {
       vi.stubEnv("APP_URL", bad);
-      expect(appBaseUrl()).toBe("https://www.lixusai.com");
+      expect(appBaseUrl(), `${bad} kabul edilmemeli`).toBe("https://www.lixusai.com");
     }
     // isAllowedHost'un APP_URL dalı da güvenilmeyen host'u AÇMAZ:
     vi.stubEnv("APP_URL", "https://evil.example");
     expect(baseUrlFromHost("evil.example")).toBe("https://www.lixusai.com");
-    vi.unstubAllEnvs();
+    // TERS YÖN: .eu deployment'ında .com ARTIK yabancıdır. Tek yönlü düşünmek
+    // yeterli değil — iki deployment birbirinin tabanını kabul etmemeli.
+    vi.stubEnv("APP_URL", "https://www.lixusai.eu");
+    expect(appBaseUrl()).toBe("https://www.lixusai.eu");
+    expect(baseUrlFromHost("www.lixusai.com")).toBe("https://www.lixusai.eu");
   });
 
   it("verifyUrl ignores the Host entirely — the emailed link is host-injection-proof", () => {

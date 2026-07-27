@@ -1,7 +1,8 @@
+import { appCanonicalOrigin } from "@/lib/app-config";
 import { defaultPlans } from "@/lib/billing/plans";
 import { SELLER } from "@/lib/legal-entity";
 
-const SITE = "https://www.lixusai.com";
+const SITE = appCanonicalOrigin();
 const DESCRIPTION =
   "Airbnb ve Booking misafir mesajlarını 7/24, güvenle yanıtlayan yapay zekâ. Misafiriniz hangi dilde yazarsa o dilde cevap alır; şikayet ve iade gibi riskli konuları otomatik yanıtlamaz, size bırakır.";
 

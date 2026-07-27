@@ -161,33 +161,60 @@ export function checkProductionEnv(env) {
     }
   }
 
-  // HOSPITABLE_OAUTH_REDIRECT_URI receives the returned OAuth authorization CODE,
-  // so in production it must be the EXACT canonical callback (a full trusted
-  // allowlist of one) — not merely https. A wrong/hostile value would receive the
-  // code. Unset → the code's canonical default is used → no error. The PROVIDED
-  // value is never printed (it can carry flow parameters); only the expected
-  // canonical constant (public, hardcoded) is shown to guide the fix.
-  const CANONICAL_OAUTH_REDIRECT = "https://www.lixusai.com/api/hospitable/oauth/callback";
-  const oauthRedirectUri = (env.HOSPITABLE_OAUTH_REDIRECT_URI ?? "").trim();
-  if (oauthRedirectUri && oauthRedirectUri !== CANONICAL_OAUTH_REDIRECT) {
+  // DEPLOYMENT IDENTITY. APP_URL is the trusted base for OUTBOUND links (e-mail
+  // verification links carry the RAW token), and every other domain-derived value
+  // — the OAuth callback, canonical/OpenGraph URLs, robots, sitemap — is now
+  // derived from it in one place (appCanonicalOrigin in src/lib/app-config.ts).
+  //
+  // MIRRORS DEPLOYABLE_ORIGINS there — a CLOSED list. Not "any https": a wrong or
+  // hostile origin would receive the tokens we mail. Unset → the shipped .com
+  // origin → no error. Trailing slash/path tolerated (compared as origins). The
+  // PROVIDED value is never printed; only the accepted list (public) is shown.
+  const DEPLOYABLE_ORIGINS = ["https://www.lixusai.com", "https://www.lixusai.eu"];
+  const toOrigin = (raw) => {
+    try {
+      const u = new URL(raw);
+      if (u.protocol !== "https:" && u.protocol !== "http:") return null;
+      return `${u.protocol}//${u.host}`.toLowerCase();
+    } catch {
+      return null;
+    }
+  };
+  const appUrl = (env.APP_URL ?? "").trim();
+  const appUrlOrigin = appUrl ? toOrigin(appUrl) : null;
+  const appUrlOk = !appUrl || (appUrlOrigin !== null && DEPLOYABLE_ORIGINS.includes(appUrlOrigin));
+  if (!appUrlOk) {
     errors.push(
-      `HOSPITABLE_OAUTH_REDIRECT_URI must be exactly ${CANONICAL_OAUTH_REDIRECT} in production — it receives the OAuth authorization code.`,
+      `APP_URL must be one of ${DEPLOYABLE_ORIGINS.join(", ")} in production — e-mail verification links are built from it, so the origin must be one we own. Adding an origin is a code change (DEPLOYABLE_ORIGINS).`,
+    );
+  }
+  // Everything below compares against the origin this deployment actually resolves
+  // to, so a .eu instance is checked against .eu — not against a hardcoded .com.
+  const canonicalOrigin = appUrlOk && appUrlOrigin ? appUrlOrigin : DEPLOYABLE_ORIGINS[0];
+
+  // HOSPITABLE_OAUTH_REDIRECT_URI receives the returned OAuth authorization CODE,
+  // so in production it must be EXACTLY this deployment's callback — not merely
+  // https, and NOT the other deployment's (handing a .eu customer's code to .com
+  // is precisely the cross-domain mistake this catches). Unset → derived default.
+  // The PROVIDED value is never printed (it can carry flow parameters).
+  const expectedOAuthRedirect = `${canonicalOrigin}/api/hospitable/oauth/callback`;
+  const oauthRedirectUri = (env.HOSPITABLE_OAUTH_REDIRECT_URI ?? "").trim();
+  if (oauthRedirectUri && oauthRedirectUri !== expectedOAuthRedirect) {
+    errors.push(
+      `HOSPITABLE_OAUTH_REDIRECT_URI must be exactly ${expectedOAuthRedirect} in production — it receives the OAuth authorization code.`,
     );
   }
 
-  // APP_URL is the trusted base for OUTBOUND links (e-mail verification links
-  // carry the RAW token) — in production it must be EXACTLY the canonical
-  // origin, not merely https: a wrong/hostile origin would receive the tokens
-  // we mail. Unset → the code's canonical default is used → no error. The
-  // PROVIDED value is never printed; only the expected canonical (public,
-  // hardcoded) is shown to guide the fix. lixusai.eu is DELIBERATELY not
-  // allowlisted: the EU instance is a separate deployment with its own env and
-  // will pin its own canonical there. Trailing slash tolerated (origin-equal).
-  const CANONICAL_APP_URL = "https://www.lixusai.com";
-  const appUrl = (env.APP_URL ?? "").trim();
-  if (appUrl && appUrl.replace(/\/+$/, "") !== CANONICAL_APP_URL) {
+  // APP_BASE_URL was a SECOND, ungated source of truth: only the trial-reminder
+  // e-mail read it, with its own hardcoded .com fallback, so a .eu deployment
+  // would have mailed customers a button to a site where they have no account.
+  // The code no longer reads it. A leftover value that disagrees with the
+  // canonical origin is a misconfiguration, and it fails LOUDLY here rather than
+  // sitting in the environment looking meaningful.
+  const appBaseUrl = (env.APP_BASE_URL ?? "").trim();
+  if (appBaseUrl && toOrigin(appBaseUrl) !== canonicalOrigin) {
     errors.push(
-      `APP_URL must be exactly ${CANONICAL_APP_URL} in production — e-mail verification links are built from it.`,
+      `APP_BASE_URL must match the deployment origin (${canonicalOrigin}) or be removed — it is no longer read, and a divergent value means the environment disagrees with itself.`,
     );
   }
 

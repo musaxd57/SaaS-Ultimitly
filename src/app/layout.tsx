@@ -1,3 +1,4 @@
+import { appCanonicalOrigin } from "@/lib/app-config";
 import type { Metadata } from "next";
 import { Inter } from "next/font/google";
 import { Toaster } from "@/components/toaster";
@@ -14,7 +15,7 @@ const DESCRIPTION =
   "Airbnb ve Booking misafir mesajlarını 7/24, güvenle yanıtlayan yapay zekâ. Misafiriniz hangi dilde yazarsa o dilde cevap alır; şikayet ve iade gibi riskli konuları otomatik yanıtlamaz, size bırakır. Temizlik ve check-in görevleri otomatik, tüm operasyon tek panelde.";
 
 export const metadata: Metadata = {
-  metadataBase: new URL("https://www.lixusai.com"),
+  metadataBase: new URL(appCanonicalOrigin()),
   title: {
     default: "Lixus AI — Airbnb & Booking için AI Misafir Asistanı",
     template: "%s · Lixus AI",
@@ -29,7 +30,7 @@ export const metadata: Metadata = {
   openGraph: {
     type: "website",
     locale: "tr_TR",
-    url: "https://www.lixusai.com",
+    url: appCanonicalOrigin(),
     siteName: "Lixus AI",
     title: "Lixus AI — Airbnb & Booking için AI Misafir Asistanı",
     description: DESCRIPTION,

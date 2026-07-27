@@ -243,9 +243,14 @@ describe("scripts/verify-env.mjs — the prestart boot gate", () => {
     // Exact canonical (trailing slash toleranslı) → hata yok.
     expect(checkProductionEnv({ ...secrets, APP_URL: "https://www.lixusai.com" }).errors).toHaveLength(0);
     expect(checkProductionEnv({ ...secrets, APP_URL: "https://www.lixusai.com/" }).errors).toHaveLength(0);
-    // http'li canonical / yabancı origin / .eu → hata (doğrulama token linkleri buradan).
-    for (const bad of ["http://www.lixusai.com", "https://evil.example", "https://www.lixusai.eu"]) {
-      expect(checkProductionEnv({ ...secrets, APP_URL: bad }).errors.join()).toMatch(/APP_URL must be exactly/);
+    // .eu de BİZİM origin'imiz — deployment kimliği olarak kabul edilir (kapalı
+    // liste DEPLOYABLE_ORIGINS). Eskiden reddediliyordu ve .eu boot edemiyordu.
+    expect(checkProductionEnv({ ...secrets, APP_URL: "https://www.lixusai.eu" }).errors).toHaveLength(0);
+    // http'li canonical / yabancı origin / sonek hilesi → hata (token linkleri buradan).
+    for (const bad of ["http://www.lixusai.com", "https://evil.example", "https://www.lixusai.com.evil.com"]) {
+      expect(checkProductionEnv({ ...secrets, APP_URL: bad }).errors.join(), `${bad} reddedilmeli`).toMatch(
+        /APP_URL must be one of/,
+      );
     }
   });
 
@@ -257,7 +262,7 @@ describe("scripts/verify-env.mjs — the prestart boot gate", () => {
       APP_URL: "http://evil-app.example",
     });
     expect(r.status).toBe(1);
-    expect(r.stderr).toMatch(/APP_URL must be exactly/);
+    expect(r.stderr).toMatch(/APP_URL must be one of/);
     expect(r.stdout + r.stderr).not.toContain("evil-app.example"); // hostile değer asla echo edilmez
   });
 

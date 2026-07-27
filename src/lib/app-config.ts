@@ -33,6 +33,64 @@
 // that import must not reverse.
 import { DEFAULT_TIMEZONE, isValidTimeZone } from "@/lib/timezone";
 
+/**
+ * Origins this codebase may be deployed under — a CLOSED list, first entry is the
+ * shipped default (.com).
+ *
+ * This is the deployment's IDENTITY, and it is the single input every
+ * domain-derived value reads: e-mail link bases, the OAuth callback, canonical /
+ * OpenGraph URLs, robots and sitemap. It used to be hardcoded in nine places
+ * across four different mechanisms, which is why ".eu is just env vars" was not
+ * actually true — an APP_URL of lixusai.eu was refused by the boot gate, and with
+ * the gate bypassed a verification link would have pointed at .com, sending the
+ * customer to a deployment where their token does not exist.
+ *
+ * Closed on purpose, exactly like SUPPORTED_BILLING_CURRENCIES. E-mail
+ * verification links carry the RAW token, so the base must be beyond doubt:
+ * "any https origin" would let a mistyped or hostile APP_URL receive them.
+ * Adding an origin is a reviewed code change, not an env value.
+ */
+export const DEPLOYABLE_ORIGINS = ["https://www.lixusai.com", "https://www.lixusai.eu"] as const;
+
+/** The shipped origin — this is what .com resolves to and it must not move. */
+export const DEFAULT_APP_ORIGIN: string = DEPLOYABLE_ORIGINS[0];
+
+/**
+ * The public origin THIS deployment publishes under, from APP_URL.
+ *
+ * Normalised to a bare origin, so a path or trailing slash on an allowed value is
+ * fine. Anything not on the list — a foreign host, a suffix trick
+ * ("lixusai.com.evil.com"), plain http, an unparseable string — falls back to the
+ * shipped origin rather than being honoured: fail-closed, because the fallback is
+ * the one origin we know is ours. The boot gate refuses to start production with
+ * an off-list value, so this fallback is a safety net, not a way to run
+ * misconfigured. The value is never logged (it can be hostile or a typo).
+ */
+export function appCanonicalOrigin(env: NodeJS.ProcessEnv = process.env): string {
+  const raw = (env.APP_URL ?? "").trim();
+  if (!raw) return DEFAULT_APP_ORIGIN;
+  let origin: string;
+  try {
+    const u = new URL(raw);
+    if (u.protocol !== "https:" && u.protocol !== "http:") return DEFAULT_APP_ORIGIN;
+    origin = `${u.protocol}//${u.host}`.toLowerCase();
+  } catch {
+    return DEFAULT_APP_ORIGIN;
+  }
+  return (DEPLOYABLE_ORIGINS as readonly string[]).includes(origin) ? origin : DEFAULT_APP_ORIGIN;
+}
+
+/**
+ * Hosts that count as "our own site" for an IN-BROWSER redirect on this
+ * deployment: the canonical host plus its apex (www.lixusai.com + lixusai.com).
+ * Derived so a .eu deployment gets its own pair and never treats .com as local.
+ */
+export function canonicalHosts(env: NodeJS.ProcessEnv = process.env): Set<string> {
+  const host = new URL(appCanonicalOrigin(env)).host.toLowerCase();
+  const apex = host.startsWith("www.") ? host.slice(4) : host;
+  return new Set([host, apex]);
+}
+
 /** Shipped default — the .com deployment. Changing this changes .com. */
 export const DEFAULT_LOCALE = "tr-TR";
 /** Shipped default — the .com deployment bills in Turkish lira. */

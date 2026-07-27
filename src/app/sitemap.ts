@@ -1,7 +1,11 @@
+import { appCanonicalOrigin } from "@/lib/app-config";
 import type { MetadataRoute } from "next";
 import { LEGAL_VERSION } from "@/lib/legal-entity";
 
-const BASE = "https://www.lixusai.com";
+// Bu deployment'ın kendi origin'i (app-config, kapalı allowlist). İki
+// deployment aynı canonical'ı yayınlarsa .eu içeriği .com'un duplikatı
+// olarak indekslenir; .com'da değer aynen eskisi.
+const BASE = appCanonicalOrigin();
 
 // FIXED lastModified dates (Codex #38): stamping `new Date()` on every request
 // told crawlers the whole site changed every time it was asked — dishonest and

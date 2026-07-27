@@ -1,4 +1,6 @@
 import "server-only";
+
+import { appCanonicalOrigin } from "@/lib/app-config";
 import { randomBytes } from "crypto";
 import { isSecureExternalUrl } from "@/lib/secure-url";
 
@@ -21,7 +23,12 @@ export const STATE_MAX_AGE = 10 * 60; // 10 minutes — just long enough for the
 const DEFAULT_AUTHORIZE_URL = "https://auth.hospitable.com/oauth/authorize";
 const DEFAULT_TOKEN_URL = "https://auth.hospitable.com/oauth/token";
 // The ONE trusted production callback that receives the OAuth authorization code.
-export const CANONICAL_OAUTH_REDIRECT_URI = "https://www.lixusai.com/api/hospitable/oauth/callback";
+/** The OAuth callback for THIS deployment — derived from its canonical origin
+ *  (app-config), so a .eu instance registers and expects its own .eu callback
+ *  instead of being locked to .com. On .com the value is unchanged. */
+export function canonicalOAuthRedirectUri(): string {
+  return `${appCanonicalOrigin()}/api/hospitable/oauth/callback`;
+}
 
 // Loopback hosts allowed to receive the callback over http in dev/test only.
 const LOCAL_CALLBACK_HOSTS = new Set(["localhost", "127.0.0.1", "[::1]", "::1"]);
@@ -35,7 +42,7 @@ const LOCAL_CALLBACK_HOSTS = new Set(["localhost", "127.0.0.1", "[::1]", "::1"])
  * The URI is never logged (it can carry flow parameters).
  */
 export function isTrustedRedirectUri(uri: string): boolean {
-  if (uri === CANONICAL_OAUTH_REDIRECT_URI) return true;
+  if (uri === canonicalOAuthRedirectUri()) return true;
   if (process.env.NODE_ENV === "production") return false; // canonical only in prod
   let u: URL;
   try {
@@ -44,7 +51,9 @@ export function isTrustedRedirectUri(uri: string): boolean {
     return false;
   }
   const host = u.hostname.toLowerCase();
-  if (u.protocol === "https:" && (host === "lixusai.com" || host.endsWith(".lixusai.com"))) return true;
+  // dev/test convenience: any https host in the canonical domain family.
+  const apex = new URL(appCanonicalOrigin()).host.toLowerCase().replace(/^www\./, "");
+  if (u.protocol === "https:" && (host === apex || host.endsWith(`.${apex}`))) return true;
   if (u.protocol === "http:" && LOCAL_CALLBACK_HOSTS.has(host)) return true;
   return false;
 }
@@ -64,7 +73,7 @@ export function getHospitableOAuthConfig(): HospitableOAuthConfig | null {
   if (!clientId || !clientSecret) return null;
   const authorizeUrl = process.env.HOSPITABLE_OAUTH_AUTHORIZE_URL?.trim() || DEFAULT_AUTHORIZE_URL;
   const tokenUrl = process.env.HOSPITABLE_OAUTH_TOKEN_URL?.trim() || DEFAULT_TOKEN_URL;
-  const redirectUri = process.env.HOSPITABLE_OAUTH_REDIRECT_URI?.trim() || CANONICAL_OAUTH_REDIRECT_URI;
+  const redirectUri = process.env.HOSPITABLE_OAUTH_REDIRECT_URI?.trim() || canonicalOAuthRedirectUri();
   // Fail-closed: an untrusted redirect URI (wrong host / http in production)
   // disables OAuth entirely — the authorization code must never be sent anywhere
   // but the canonical callback. The boot gate refuses it loudly in production; this

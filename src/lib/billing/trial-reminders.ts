@@ -4,6 +4,7 @@ import { prisma } from "@/lib/db";
 import { emailService } from "@/lib/email";
 import { trialEndingSoonEmail, trialEndedEmail } from "@/lib/email-templates";
 import { billingEnforced } from "./subscription";
+import { appBaseUrl } from "@/lib/auth/email-verify";
 
 // ---------------------------------------------------------------------------
 // Reverse-trial reminder emails. Fired from the scheduled-sync DEEP pass.
@@ -35,8 +36,13 @@ const ENDED_GRACE_DAYS = 30;
  *  on AI settings instead of the plan cards. (?tab= is honored on first paint;
  *  falls back to the default view if billing isn't visible.) */
 function settingsUrl(): string {
-  const base = (process.env.APP_BASE_URL || "https://www.lixusai.com").replace(/\/+$/, "");
-  return `${base}/settings?tab=faturalandirma`;
+  // Uses the SAME base as every other outbound link (appBaseUrl → the deployment's
+  // canonical origin). It used to read its own APP_BASE_URL with a hardcoded .com
+  // fallback — a second, ungated source of truth that would have mailed a .eu
+  // customer a button to a site where they have no account. APP_BASE_URL is no
+  // longer read here; the boot gate refuses to start if it is set to anything
+  // other than the canonical, so a stale value fails loudly instead of diverging.
+  return `${appBaseUrl()}/settings?tab=faturalandirma`;
 }
 
 export type TrialReminderResult = { ending: number; ended: number };
