@@ -35,6 +35,7 @@ olmadan push etme. PR sadece kullanıcı isterse.
   Postgres'te sıfır-drift doğrula. Yoksa şema↔DB sessizce ayrışır, deploy'da patlar.
 - **Dolu tabloya ASLA `@unique`/required-no-default/drop ekleme** — boot'ta patlar
   (chatToken outage dersi). App-level benzersizlik + findFirst kullan. Index + yeni tablo güvenli.
+- **Repo 07-27 (2)'de PRIVATE yapıldı** (öncesinde public'ti — kullanıcı kararı). Gerekçe: oto-yanıt kapısı bir KARA LİSTE (`SAFETY_CRITICAL_WORDS`/`INJECTION_PATTERNS`/`OVERSTAY_REFUSAL_PHRASES`/intent blocklist) → yayınlanmış kara liste = kaçınma haritası · `prompts.ts` ürünün kalbi · CLAUDE.md strateji+canlı env durumunu taşıyor. ⚠️ **BEDELİ:** public repo'da GitHub Actions dakikaları SINIRSIZ, private'da Free planda **ayda 2000 dk**. Bir push ≈ 8 job-dakikası (verify 4 + build 1 + e2e 2 + migration-chain 0.8) → **~250 push/ay tavanı**. Bugün sorun değil; yoğun bir agent turunda 20-30 push olabiliyor, ay sonuna doğru CI "kota doldu" diye durursa SEBEBİ BUDUR (kod değil). Çare: Actions ayarlarından job kısma veya plan yükseltme.
 - **Git:** push author "Unverified" olmasın → `user.email noreply@anthropic.com`, `user.name Claude`.
   Tag push proxy'de çalışmaz → yedek TAG değil BRANCH (`backup/stable-YYYY-MM-DD`).
   Commit mesajında backtick KULLANMA (bash çalıştırıp kelime düşürür) → heredoc kullan.
