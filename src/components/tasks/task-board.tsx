@@ -211,6 +211,10 @@ export function TaskBoard({ tasks, canManage = true }: { tasks: TaskCardData[]; 
         toast.error("Fotoğraf kaydedilemedi, tekrar deneyin.");
         return;
       }
+      // Say so. Failure was announced and success was not, which reads as "it
+      // didn't save" — and the nearby Kaydet button being disabled (correctly:
+      // it belongs to the note, and the note is empty) confirms the wrong guess.
+      toast.success("Fotoğraf kaydedildi.");
       startTransition(() => router.refresh());
     } catch {
       toast.error("Bağlantı hatası. Lütfen tekrar deneyin.");
