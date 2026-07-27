@@ -38,30 +38,55 @@ export const DEFAULT_LOCALE = "tr-TR";
 /** Shipped default — the .com deployment bills in Turkish lira. */
 export const DEFAULT_BILLING_CURRENCY = "TRY";
 
-/** Does the runtime's Intl actually accept this as a locale? */
+/**
+ * Does this runtime actually have locale DATA for this tag?
+ *
+ * `new Intl.NumberFormat(tag)` is not the test: it only throws on a structurally
+ * malformed tag. "zz-ZZ", "qq" and "xx-XX" are perfectly well-formed BCP-47 and
+ * construct without complaint — they just silently fall back to the default
+ * locale. So a typo'd APP_LOCALE would pass every check and then quietly format
+ * nothing the way the operator intended.
+ *
+ * `supportedLocalesOf` answers the real question, and it does not over-reject:
+ * tr-TR, de-DE, en, en-US, fr, it-IT and extension subtags (tr-TR-u-nu-latn) all
+ * come back supported. It still throws RangeError on malformed input, hence the
+ * try/catch.
+ */
 export function isValidLocale(value: string): boolean {
   const v = value.trim();
   if (!v) return false;
   try {
-    // Throws RangeError on a structurally invalid tag. A well-formed but unknown
-    // tag falls back to the default locale rather than throwing, which is fine:
-    // formatting still works and never crashes a page.
-    return Intl.NumberFormat.supportedLocalesOf([v]).length > 0 || new Intl.NumberFormat(v) !== null;
+    return Intl.NumberFormat.supportedLocalesOf([v]).length > 0;
   } catch {
     return false;
   }
 }
 
-/** ISO 4217: exactly three letters, and one Intl will format with. */
-export function isValidCurrencyCode(value: string): boolean {
+/**
+ * Currencies this product can actually BILL in — a closed list, not a format check.
+ *
+ * "Can Intl format it?" is the wrong question and was the wrong check: Intl
+ * happily renders "EUU 1.00", "ZZZ 1.00", "QQQ 1.00" for codes that are not
+ * currencies at all, so a single mistyped letter in APP_BILLING_CURRENCY used to
+ * sail through. Even the real ISO 4217 list would be too loose — XXX is a
+ * genuine code meaning "no currency", and nothing can be billed in it.
+ *
+ * The list is closed on purpose. Supporting a currency is not a formatting
+ * concern: it needs three plan prices denominated in it AND three Paddle price
+ * ids that charge in it (see scripts/env-check.mjs). Adding one is therefore a
+ * deliberate code change, reviewed alongside those values — which is exactly the
+ * forcing function we want.
+ *
+ * SCOPE: this governs the SUBSCRIPTION currency only. Record currencies — a
+ * guest's booking (Reservation.currency) or a real charge (Invoice.currency) —
+ * are never validated against this and never restricted; a USD booking renders
+ * as USD. formatCurrency takes whatever the record says.
+ */
+export const SUPPORTED_BILLING_CURRENCIES = ["TRY", "EUR"] as const;
+
+export function isSupportedBillingCurrency(value: string): boolean {
   const v = value.trim().toUpperCase();
-  if (!/^[A-Z]{3}$/.test(v)) return false;
-  try {
-    new Intl.NumberFormat("en", { style: "currency", currency: v }).format(1);
-    return true;
-  } catch {
-    return false;
-  }
+  return (SUPPORTED_BILLING_CURRENCIES as readonly string[]).includes(v);
 }
 
 /**
@@ -178,7 +203,7 @@ export type ResolvedBilling = {
  */
 export function resolveBilling(env: NodeJS.ProcessEnv = process.env): ResolvedBilling {
   const requested = (env.APP_BILLING_CURRENCY ?? "").trim().toUpperCase();
-  if (!requested || !isValidCurrencyCode(requested) || requested === DEFAULT_BILLING_CURRENCY) {
+  if (!requested || !isSupportedBillingCurrency(requested) || requested === DEFAULT_BILLING_CURRENCY) {
     return { currency: DEFAULT_BILLING_CURRENCY, useEnvPrices: true };
   }
   const complete = PLAN_PRICE_ENV_KEYS.every((k) => explicitPlanPriceMinor(k, env) !== null);
@@ -212,9 +237,19 @@ export function planPriceMinor(
 
 /**
  * Same read as planPriceMinor but WITHOUT a fallback: null means "this deployment
- * did not supply a usable price for this plan". Unset and malformed both return
- * null on purpose — a value the parser rejects is not a configured price, and
- * counting it as one is how a half-configured deployment slips through.
+ * did not supply a usable price for this plan". Unset, malformed, zero and
+ * beyond-safe-integer all return null on purpose — a value the parser refuses is
+ * not a configured price, and counting it as one is how a half-configured
+ * deployment slips through the completeness check.
+ *
+ * Zero is rejected because all three plans are PAID. The `free` plan code is
+ * legacy naming (Başlangıç is the paid entry tier) and there is no permanent free
+ * tier, so a 0 here means a typo or a half-finished edit — and it would ship a
+ * "€0 / ₺0" plan card to real customers.
+ *
+ * Above Number.isSafeInteger the parsed value is no longer the number that was
+ * written, so it is refused rather than silently charged as something else.
+ * scripts/env-check.mjs applies the identical rule; tests pin the two in step.
  */
 export function explicitPlanPriceMinor(
   key: string,
@@ -224,5 +259,6 @@ export function explicitPlanPriceMinor(
   if (!raw) return null;
   if (!/^\d+$/.test(raw)) return null; // no signs, no decimals, no floats
   const n = Number.parseInt(raw, 10);
-  return Number.isSafeInteger(n) ? n : null;
+  if (!Number.isSafeInteger(n)) return null;
+  return n > 0 ? n : null;
 }

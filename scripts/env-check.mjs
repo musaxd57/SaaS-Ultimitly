@@ -208,16 +208,22 @@ export function checkProductionEnv(env) {
   // set and invalid must stop the boot rather than silently fall back: a .eu
   // instance meant to bill in EUR that quietly reverts to TRY would quote and
   // charge the wrong currency. Values are safe to print (not secrets).
+  // MIRRORS isValidLocale in src/lib/app-config.ts. `new Intl.NumberFormat(tag)`
+  // is NOT the test — it only throws on a malformed tag, so well-formed but
+  // data-less tags ("zz-ZZ", "qq", "xx-XX") construct fine and then silently fall
+  // back to the default locale. supportedLocalesOf asks whether this runtime
+  // actually has data for the tag, and does not over-reject real ones.
   const locale = (env.APP_LOCALE ?? "").trim();
   if (locale) {
     let localeOk = false;
     try {
-      new Intl.NumberFormat(locale);
-      localeOk = true;
+      localeOk = Intl.NumberFormat.supportedLocalesOf([locale]).length > 0;
     } catch {
       localeOk = false;
     }
-    if (!localeOk) errors.push(`APP_LOCALE is not a locale Intl accepts: ${locale}`);
+    if (!localeOk) {
+      errors.push(`APP_LOCALE is not a locale this runtime has data for: ${locale}`);
+    }
   }
 
   // Default IANA timezone for NEW organizations on this deployment. Optional —
@@ -242,20 +248,24 @@ export function checkProductionEnv(env) {
     }
   }
 
+  // MIRRORS SUPPORTED_BILLING_CURRENCIES in src/lib/app-config.ts — a CLOSED list,
+  // not a format check. "Does Intl format it?" was the old test and it was wrong:
+  // Intl renders "EUU 1.00" and "ZZZ 1.00" happily, so one mistyped letter used to
+  // reach production. Even the full ISO 4217 list would be too loose (XXX is a real
+  // code meaning "no currency"). Supporting a currency requires three plan prices
+  // AND three Paddle price ids denominated in it, so the list is deliberately a
+  // code change. Applies to the SUBSCRIPTION currency only — a guest's booking in
+  // USD is a record currency and is never restricted.
+  const SUPPORTED_BILLING_CURRENCIES = ["TRY", "EUR"];
   const billingCurrency = (env.APP_BILLING_CURRENCY ?? "").trim();
   const billingCurrencyCode = billingCurrency.toUpperCase();
   let billingCurrencyValid = false;
   if (billingCurrency) {
-    billingCurrencyValid = /^[A-Z]{3}$/.test(billingCurrencyCode);
-    if (billingCurrencyValid) {
-      try {
-        new Intl.NumberFormat("en", { style: "currency", currency: billingCurrencyCode }).format(1);
-      } catch {
-        billingCurrencyValid = false;
-      }
-    }
+    billingCurrencyValid = SUPPORTED_BILLING_CURRENCIES.includes(billingCurrencyCode);
     if (!billingCurrencyValid) {
-      errors.push(`APP_BILLING_CURRENCY must be a valid 3-letter ISO 4217 code (got: ${billingCurrency}).`);
+      errors.push(
+        `APP_BILLING_CURRENCY must be one of ${SUPPORTED_BILLING_CURRENCIES.join(", ")} (got: ${billingCurrency}). Adding a currency requires plan prices and Paddle price ids in it — it is a code change, not an env value.`,
+      );
     }
   }
 
@@ -267,12 +277,30 @@ export function checkProductionEnv(env) {
   const PLAN_PRICE_KEYS = ["PLAN_PRICE_BASLANGIC_MINOR", "PLAN_PRICE_PRO_MINOR", "PLAN_PRICE_ISLETME_MINOR"];
   const PADDLE_PRICE_ID_KEYS = ["PADDLE_PRICE_BASLANGIC", "PADDLE_PRICE_PRO", "PADDLE_PRICE_ISLETME"];
 
-  // Plan prices are MINOR-UNIT INTEGERS (kuruş/cent). A float or a signed value
-  // here would mean charging a wrong amount, so reject rather than fall back.
+  // EXACT MIRROR of explicitPlanPriceMinor in src/lib/app-config.ts. Returns the
+  // parsed minor-unit amount, or null when this is not a usable price. The two
+  // implementations must agree on every input — if the gate accepted something the
+  // runtime refuses, the deployment would boot and then silently fall back to the
+  // shipped defaults; if it refused something the runtime accepts, a working
+  // deployment would be blocked. A parity test drives the same table through both.
+  const parsePlanPrice = (raw) => {
+    const v = (raw ?? "").trim();
+    if (!v) return null;
+    if (!/^\d+$/.test(v)) return null; // no signs, no decimals, no floats
+    const n = Number.parseInt(v, 10);
+    if (!Number.isSafeInteger(n)) return null; // beyond this the value is not what was written
+    return n > 0 ? n : null; // every plan is PAID — 0 is a typo, not a price
+  };
+
+  // Plan prices are MINOR-UNIT INTEGERS (kuruş/cent). A float, a signed value, a
+  // zero or a beyond-safe-integer amount would all mean charging something other
+  // than what was written, so reject rather than fall back.
   for (const key of PLAN_PRICE_KEYS) {
     const raw = (env[key] ?? "").trim();
-    if (raw && !/^\d+$/.test(raw)) {
-      errors.push(`${key} must be a whole number of minor units (kuruş/cent), no decimals or signs (got: ${raw}).`);
+    if (raw && parsePlanPrice(raw) === null) {
+      errors.push(
+        `${key} must be a whole number of minor units (kuruş/cent) greater than 0 and within Number.isSafeInteger — no decimals, signs or zero (got: ${raw}).`,
+      );
     }
   }
 
@@ -305,7 +333,11 @@ export function checkProductionEnv(env) {
   // Skipped when the code itself is invalid: that error already stops the boot,
   // and the runtime falls back to TRY prices in TRY, so no lie is reachable.
   if (billingCurrencyValid && billingCurrencyCode !== "TRY") {
-    const missingPrices = PLAN_PRICE_KEYS.filter((k) => !(env[k] ?? "").trim());
+    // Counts only prices that PARSE — presence is not configuration. A key set to
+    // "0" or "abc" looks supplied but yields no usable amount, and treating it as
+    // present would let an incomplete non-TRY deployment through the completeness
+    // check (the malformed-value error above names it separately).
+    const missingPrices = PLAN_PRICE_KEYS.filter((k) => parsePlanPrice(env[k]) === null);
     if (missingPrices.length > 0) {
       errors.push(
         `APP_BILLING_CURRENCY is ${billingCurrencyCode} but these plan prices are missing: ${missingPrices.join(", ")}. All three are REQUIRED for a non-TRY deployment — otherwise the shipped TRY amounts would be displayed with the ${billingCurrencyCode} symbol.`,

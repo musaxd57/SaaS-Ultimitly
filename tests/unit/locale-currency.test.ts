@@ -3,9 +3,11 @@ import { describe, it, expect } from "vitest";
 import {
   DEFAULT_BILLING_CURRENCY,
   DEFAULT_LOCALE,
+  SUPPORTED_BILLING_CURRENCIES,
   appBillingCurrency,
   appLocale,
-  isValidCurrencyCode,
+  explicitPlanPriceMinor,
+  isSupportedBillingCurrency,
   isValidLocale,
   planPriceMinor,
 } from "@/lib/app-config";
@@ -33,13 +35,56 @@ describe("app-config — doğrulayıcılar", () => {
     expect(isValidLocale("!!not-a-locale!!")).toBe(false);
   });
 
-  it("currency: yalnız 3 harfli geçerli ISO 4217", () => {
-    expect(isValidCurrencyCode("TRY")).toBe(true);
-    expect(isValidCurrencyCode("eur")).toBe(true); // büyük harfe çevrilir
-    expect(isValidCurrencyCode("TR")).toBe(false); // 2 harf
-    expect(isValidCurrencyCode("TRYX")).toBe(false); // 4 harf
-    expect(isValidCurrencyCode("1UR")).toBe(false); // rakam
-    expect(isValidCurrencyCode("")).toBe(false);
+  it("currency: yalnız FATURALAYABİLDİĞİMİZ para birimleri — biçimlenebilirlik YETMEZ", () => {
+    expect(isSupportedBillingCurrency("TRY")).toBe(true);
+    expect(isSupportedBillingCurrency("EUR")).toBe(true);
+    expect(isSupportedBillingCurrency("eur")).toBe(true); // büyük harfe çevrilir
+    expect(isSupportedBillingCurrency("TR")).toBe(false); // 2 harf
+    expect(isSupportedBillingCurrency("TRYX")).toBe(false); // 4 harf
+    expect(isSupportedBillingCurrency("1UR")).toBe(false); // rakam
+    expect(isSupportedBillingCurrency("")).toBe(false);
+    // ASIL BULGU: Intl bunları sorunsuz BİÇİMLENDİRİR ("EUU 1.00"), yani eski
+    // "Intl kabul ediyor mu" kontrolü hepsini geçiriyordu. EUR yerine EUU yazan
+    // bir env değişkeni sessizce üretime çıkardı.
+    for (const bogus of ["EUU", "ZZZ", "QQQ", "ABC"]) {
+      expect(isSupportedBillingCurrency(bogus), `${bogus} kabul edilmemeli`).toBe(false);
+    }
+    // XXX gerçek bir ISO 4217 kodudur ("para birimi yok") ama faturalanamaz.
+    expect(isSupportedBillingCurrency("XXX")).toBe(false);
+    // Gerçek ama DESTEKLENMEYEN para birimleri de reddedilir: üç plan fiyatı ve
+    // üç Paddle price id'si olmadan bir para birimi eklenemez, o yüzden liste
+    // bilinçli olarak kapalıdır (genişletmek kod değişikliğidir).
+    expect(isSupportedBillingCurrency("USD")).toBe(false);
+    expect(isSupportedBillingCurrency("GBP")).toBe(false);
+    expect([...SUPPORTED_BILLING_CURRENCIES]).toEqual(["TRY", "EUR"]);
+  });
+
+  it("locale: YAPISAL olarak geçerli ama VERİSİ olmayan etiket reddedilir", () => {
+    // zz-ZZ / qq / xx-XX BCP-47 açısından iyi biçimli, `new Intl.NumberFormat`
+    // bunlarda FIRLATMAZ — sessizce varsayılana düşer. Eski kontrol bu yüzden
+    // hepsini geçiriyordu ve "geçersiz değer boot'u durdurur" sözleşmesi yalandı.
+    for (const bogus of ["zz-ZZ", "qq", "xx-XX"]) {
+      expect(isValidLocale(bogus), `${bogus} kabul edilmemeli`).toBe(false);
+    }
+    // Gerçek locale'ler geçmeye devam eder (aşırı-reddetme YOK):
+    for (const good of ["tr-TR", "de-DE", "en", "en-US", "fr", "it-IT"]) {
+      expect(isValidLocale(good), `${good} kabul edilmeli`).toBe(true);
+    }
+  });
+
+  it("fiyat: 0 ve güvenli-tamsayı ÜSTÜ değerler yapılandırılmış SAYILMAZ", () => {
+    const env = (v: string) => ({ PLAN_PRICE_PRO_MINOR: v }) as unknown as NodeJS.ProcessEnv;
+    const read = (v: string) => explicitPlanPriceMinor("PLAN_PRICE_PRO_MINOR", env(v));
+    expect(read("120000")).toBe(120000);
+    // Üç planın ÜÇÜ DE ücretli (Başlangıç "free" kodunu taşısa da ücretli giriş
+    // seviyesidir; kalıcı ücretsiz sürüm YOK) → 0 geçerli bir fiyat değildir.
+    expect(read("0")).toBeNull();
+    expect(read("00")).toBeNull();
+    // Number.isSafeInteger sınırının üstü: sessizce yuvarlanmış bir tutar
+    // tahsil etmektense yapılandırılmamış say.
+    expect(read("99999999999999999999")).toBeNull();
+    expect(read("9007199254740993")).toBeNull(); // MAX_SAFE_INTEGER + 2
+    expect(read("9007199254740991")).toBe(9007199254740991); // tam sınır geçer
   });
 
   it("env boşsa .com varsayılanları döner", () => {
@@ -333,5 +378,173 @@ describe("çalışma zamanı — para birimi ve fiyatlar birlikte düşer", () =
     const env = { PLAN_PRICE_PRO_MINOR: "120000" } as unknown as NodeJS.ProcessEnv;
     expect(appBillingCurrency(env)).toBe("TRY");
     expect(defaultPlans(env).map((p) => p.priceMinor)).toEqual([44900, 120000, 169900]);
+  });
+});
+
+// ---------------------------------------------------------------------------
+// BOOT ↔ RUNTIME PARİTESİ.
+//
+// Boot kapısı (scripts/env-check.mjs) düz ESM'dir ve TS runtime'ından ÖNCE
+// koştuğu için app-config.ts'i import EDEMEZ — kurallar zorunlu olarak iki yerde
+// yazılı. Kod paylaşımı mümkün olmadığına göre eşitliği DAVRANIŞ üzerinden
+// pinliyoruz: aşağıdaki tablo her girdiyi HEM kapıdan HEM runtime'dan geçirir ve
+// aynı kararı vermelerini şart koşar.
+//
+// Ayrışma neden tehlikeli: kapının kabul edip runtime'ın reddettiği bir değer
+// sessizce gönderilen varsayılanlara düşer (yanlış fiyat/para birimi görünür);
+// tersi ise çalışabilir bir deployment'ı boot'ta durdurur.
+// ---------------------------------------------------------------------------
+describe("boot ↔ runtime — aynı sözleşme", () => {
+  const base = {
+    NODE_ENV: "production",
+    AUTH_SECRET: "a-real-production-secret-value-32ch",
+    ENCRYPTION_KEY: "a-different-real-production-key-32c",
+    DATABASE_URL: "postgresql://u@h:5432/d",
+    RESEND_API_KEY: "re_x",
+    CRON_SECRET: "x",
+  } as unknown as Record<string, string | undefined>;
+
+  const EUR_IDS = {
+    PADDLE_PRICE_BASLANGIC: "pri_a",
+    PADDLE_PRICE_PRO: "pri_b",
+    PADDLE_PRICE_ISLETME: "pri_c",
+  };
+
+  describe("para birimi", () => {
+    // [kod, kabul edilmeli mi]
+    const CASES: [string, boolean][] = [
+      ["TRY", true],
+      ["EUR", true],
+      ["eur", true],
+      ["EUU", false], // Intl biçimlendirir ama para birimi DEĞİL
+      ["ZZZ", false],
+      ["XXX", false], // gerçek ISO kodu ("para birimi yok"), faturalanamaz
+      ["USD", false], // gerçek ama bu üründe desteklenmiyor
+      ["TRYX", false],
+      ["1UR", false],
+    ];
+
+    // Fiyatlar HER İKİ tarafta da eksiksiz verilir: burada ölçülen şey yalnız
+    // KODUN kabul edilip edilmediği. Eksik fiyat ayrı bir kural (yukarıdaki
+    // bölüm) ve karıştırılırsa geçerli EUR bile "reddedildi" görünür.
+    const PRICES = {
+      PLAN_PRICE_BASLANGIC_MINOR: "1900",
+      PLAN_PRICE_PRO_MINOR: "3900",
+      PLAN_PRICE_ISLETME_MINOR: "7900",
+    };
+
+    it.each(CASES)("%s → kapı ve runtime aynı kararı verir", (code, shouldAccept) => {
+      // Runtime: kabul edilmeyen kod gönderilen TRY'ye düşer.
+      const runtimeAccepted =
+        appBillingCurrency({
+          APP_BILLING_CURRENCY: code,
+          ...PRICES,
+        } as unknown as NodeJS.ProcessEnv) === code.toUpperCase();
+      // Kapı: kabul edilmeyen kod APP_BILLING_CURRENCY hatası üretir.
+      const gateRejected = checkProductionEnv({
+        ...base,
+        APP_BILLING_CURRENCY: code,
+        ...PRICES,
+        ...EUR_IDS,
+      }).errors.some((e: string) => e.includes("APP_BILLING_CURRENCY"));
+      if (shouldAccept) {
+        // TRY zaten varsayılan; "kabul" onun için de doğru sonucu verir.
+        expect(runtimeAccepted, `${code} runtime'da kabul edilmeli`).toBe(true);
+        expect(gateRejected, `${code} kapıda reddedilmemeli`).toBe(false);
+      } else {
+        expect(runtimeAccepted, `${code} runtime'da reddedilmeli`).toBe(false);
+        expect(gateRejected, `${code} kapıda reddedilmeli`).toBe(true);
+      }
+    });
+  });
+
+  describe("plan fiyatı", () => {
+    // [ham değer, geçerli bir fiyat mı]
+    const CASES: [string, boolean][] = [
+      ["120000", true],
+      ["1900", true],
+      ["9007199254740991", true], // MAX_SAFE_INTEGER
+      ["0", false], // ücretsiz plan yok
+      ["00", false],
+      ["-5", false],
+      ["12.5", false],
+      ["abc", false],
+      ["99999999999999999999", false], // güvenli tamsayı üstü
+      ["9007199254740993", false],
+    ];
+
+    it.each(CASES)("%s → kapı ve runtime aynı kararı verir", (raw, isValidPrice) => {
+      const runtimeAccepted =
+        explicitPlanPriceMinor(
+          "PLAN_PRICE_PRO_MINOR",
+          { PLAN_PRICE_PRO_MINOR: raw } as unknown as NodeJS.ProcessEnv,
+        ) !== null;
+      const gateRejected = checkProductionEnv({
+        ...base,
+        PLAN_PRICE_PRO_MINOR: raw,
+      }).errors.some((e: string) => e.includes("PLAN_PRICE_PRO_MINOR"));
+      expect(runtimeAccepted, `${raw} runtime kararı`).toBe(isValidPrice);
+      expect(gateRejected, `${raw} kapı kararı`).toBe(!isValidPrice);
+    });
+
+    it("eksiksizlik kontrolü YALNIZ geçerli değerleri sayar — 0 'verilmiş' sayılmaz", () => {
+      // EUR + üç fiyat "verilmiş" görünüyor ama biri 0: eksik muamelesi görmeli,
+      // yoksa €0'lık bir Pro planı yayına çıkardı.
+      const { errors } = checkProductionEnv({
+        ...base,
+        APP_BILLING_CURRENCY: "EUR",
+        ...EUR_IDS,
+        PLAN_PRICE_BASLANGIC_MINOR: "1900",
+        PLAN_PRICE_PRO_MINOR: "0",
+        PLAN_PRICE_ISLETME_MINOR: "7900",
+      });
+      expect(errors.some((e: string) => e.includes("PLAN_PRICE_PRO_MINOR"))).toBe(true);
+      // Runtime de aynı sonuca varır: para birimi TRY'ye düşer.
+      expect(
+        appBillingCurrency({
+          APP_BILLING_CURRENCY: "EUR",
+          PLAN_PRICE_BASLANGIC_MINOR: "1900",
+          PLAN_PRICE_PRO_MINOR: "0",
+          PLAN_PRICE_ISLETME_MINOR: "7900",
+        } as unknown as NodeJS.ProcessEnv),
+      ).toBe("TRY");
+    });
+  });
+
+  describe("locale", () => {
+    const CASES: [string, boolean][] = [
+      ["tr-TR", true],
+      ["de-DE", true],
+      ["en", true],
+      ["zz-ZZ", false], // yapısal olarak geçerli, verisi YOK
+      ["qq", false],
+      ["xx-XX", false],
+      ["!!bad!!", false],
+    ];
+
+    it.each(CASES)("%s → kapı ve runtime aynı kararı verir", (tag, shouldAccept) => {
+      const runtimeAccepted =
+        appLocale({ APP_LOCALE: tag } as unknown as NodeJS.ProcessEnv) === tag;
+      const gateRejected = checkProductionEnv({ ...base, APP_LOCALE: tag }).errors.some(
+        (e: string) => e.includes("APP_LOCALE"),
+      );
+      expect(runtimeAccepted, `${tag} runtime kararı`).toBe(shouldAccept);
+      expect(gateRejected, `${tag} kapı kararı`).toBe(!shouldAccept);
+    });
+  });
+
+  it(".com REGRESYONU: env hiç verilmezse tek bir locale/currency/price hatası bile yok", () => {
+    const { errors } = checkProductionEnv({ ...base });
+    expect(
+      errors.filter((e: string) => /APP_LOCALE|APP_BILLING_CURRENCY|PLAN_PRICE|PADDLE_PRICE/.test(e)),
+    ).toEqual([]);
+    // Ve runtime çıktısı bire bir aynı.
+    const plans = defaultPlans({} as unknown as NodeJS.ProcessEnv);
+    expect(plans.map((p) => [p.priceMinor, p.currency])).toEqual([
+      [44900, "TRY"],
+      [89900, "TRY"],
+      [169900, "TRY"],
+    ]);
+    expect(appLocale({} as unknown as NodeJS.ProcessEnv)).toBe("tr-TR");
   });
 });
