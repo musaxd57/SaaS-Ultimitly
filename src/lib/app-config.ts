@@ -180,15 +180,35 @@ export function appDefaultTimezone(env: NodeJS.ProcessEnv = process.env): string
 const MAX_TIMEZONE_LENGTH = 64;
 
 /**
- * Settle the timezone for a NEW organization from the browser's own report
- * (`Intl.DateTimeFormat().resolvedOptions().timeZone`, posted by the sign-up
- * form), falling back to this deployment's default.
+ * Does this deployment trust the browser's own timezone report when creating a
+ * new organization? DEFAULT OFF, and off is the .com answer.
  *
- * The candidate is CLIENT-SUPPLIED, so it is validated against the real IANA set
- * before it can reach the database. The blast radius is small either way — a host
- * can only set their own org's zone, and Settings already lets them change it —
- * but an unvalidated value would put junk in a column that drives day boundaries
- * and send windows.
+ * Every .com customer is a Turkish host renting out Turkish properties, so the
+ * deployment default is right in almost every case and the browser only adds a
+ * way to be WRONG: someone signing up while abroad silently starts on the wrong
+ * calendar, and the symptom — automated messages at the wrong hour, "Bugün"
+ * showing yesterday — does not look like a timezone bug, so it goes unreported.
+ *
+ * A genuinely multi-timezone deployment (.eu) turns this on and gets each host's
+ * real zone. Same code, different env: the DEPLOYMENT decides whether the hint is
+ * worth trusting; the client never does. Unrecognized values read as OFF, which
+ * is the safe direction — a typo costs a deterministic default, not a wrong one.
+ */
+export function trustsBrowserTimezone(env: NodeJS.ProcessEnv = process.env): boolean {
+  const v = (env.APP_TRUST_BROWSER_TIMEZONE ?? "").trim().toLowerCase();
+  return v === "1" || v === "true";
+}
+
+/**
+ * Settle the timezone for a NEW organization: the browser's own report
+ * (`Intl.DateTimeFormat().resolvedOptions().timeZone`, posted by the sign-up
+ * form) when this deployment trusts it, otherwise the deployment default.
+ *
+ * The candidate is CLIENT-SUPPLIED, so even on a deployment that trusts it, it is
+ * validated against the real IANA set before it can reach the database. The blast
+ * radius is small either way — a host can only set their own org's zone, and
+ * Settings already lets them change it — but an unvalidated value would put junk
+ * in a column that drives day boundaries and send windows.
  *
  * Anything unusable — absent, blank, wrong type, over-long, not a zone Intl knows
  * — falls back silently. It must NEVER reject a registration: a stale browser
@@ -199,7 +219,7 @@ export function resolveNewOrgTimezone(
   candidate: unknown,
   env: NodeJS.ProcessEnv = process.env,
 ): string {
-  if (typeof candidate === "string") {
+  if (trustsBrowserTimezone(env) && typeof candidate === "string") {
     const v = candidate.trim();
     // Length first: a megabyte of junk should never reach Intl.
     if (v && v.length <= MAX_TIMEZONE_LENGTH && isValidTimeZone(v)) return v;

@@ -14,12 +14,19 @@ import { POST as register } from "@/app/api/auth/register/route";
 // KAYITTA SAAT DİLİMİ — uçtan uca.
 //
 // Organization.timezone şemada Europe/Istanbul default'lu ve kayıt rotası bu
-// alanı HİÇ yazmıyordu. Türkiye'de doğru cevap; .eu'da değil. Tarayıcı kendi
-// IANA dilimini bildiriyor, sunucu DOĞRULUYOR ve org'a yazıyor.
+// alanı HİÇ yazmıyordu. Artık AÇIKÇA yazıyor — ama neyi yazacağına DEPLOYMENT
+// karar veriyor, istemci değil:
 //
-// Değerin istemciden gelmesi güvenlik açısından sınırlı: host yalnız KENDİ
-// org'unun dilimini etkiler ve zaten Ayarlar'dan değiştirebilir. Yine de
-// doğrulanmadan yazılmaz — DB'ye çöp girmesin.
+//   .com (bayrak KAPALI, varsayılan) → daima APP_DEFAULT_TIMEZONE. Her müşteri
+//   Türkiye'deki daireleri yöneten bir Türk host; tarayıcı yalnızca YANLIŞ OLMA
+//   YOLU ekler (yurt dışındayken kaydolmak) ve yanlış dilim neredeyse görünmez:
+//   belirti "mesaj tuhaf saatte gitti" olur, saat dilimi hatasına benzemez.
+//
+//   .eu (APP_TRUST_BROWSER_TIMEZONE=1) → tarayıcının bildirdiği gerçek dilim.
+//
+// Tarayıcı her iki hâlde de dilimini GÖNDERİR; değişen, sunucunun ona inanıp
+// inanmadığıdır. Bu yüzden .eu'yu açmak env değişikliği, istemci değişikliği
+// değil. Bayrak açıkken bile değer DOĞRULANIR — DB'ye çöp girmesin.
 // ---------------------------------------------------------------------------
 
 let n = 0;
@@ -54,36 +61,57 @@ beforeEach(async () => {
   vi.clearAllMocks();
   process.env.REGISTRATION_OPEN = "1";
   delete process.env.APP_DEFAULT_TIMEZONE;
+  delete process.env.APP_TRUST_BROWSER_TIMEZONE;
 });
 afterAll(async () => {
   delete process.env.REGISTRATION_OPEN;
   delete process.env.APP_DEFAULT_TIMEZONE;
+  delete process.env.APP_TRUST_BROWSER_TIMEZONE;
   await prisma.$disconnect();
 });
 
-describe("kayıt — Organization.timezone", () => {
-  it("tarayıcının bildirdiği geçerli dilim org'a YAZILIR", async () => {
+describe("kayıt — .com (bayrak KAPALI): tarayıcı dilimi YOK SAYILIR", () => {
+  it("tarayıcı Berlin dese bile org İstanbul'da başlar", async () => {
+    // Asıl korunan senaryo: Türk host Almanya'da tatildeyken kaydoluyor.
     const org = await registerAndReadOrg({ timezone: "Europe/Berlin" });
-    expect(org.timezone).toBe("Europe/Berlin");
+    expect(org.timezone).toBe("Europe/Istanbul");
   });
 
-  it("dilim hiç gönderilmezse .com varsayılanı korunur (eski davranışın aynısı)", async () => {
+  it("dilim hiç gönderilmezse de İstanbul (kayıt öncesi davranışın aynısı)", async () => {
     const org = await registerAndReadOrg({});
     expect(org.timezone).toBe("Europe/Istanbul");
   });
 
-  it("APP_DEFAULT_TIMEZONE ayarlıysa fallback ODUR (.eu)", async () => {
+  it("APP_DEFAULT_TIMEZONE ayarlıysa TEK kaynak odur — tarayıcı yine ezemez", async () => {
+    process.env.APP_DEFAULT_TIMEZONE = "Europe/Lisbon";
+    const org = await registerAndReadOrg({ timezone: "America/New_York" });
+    expect(org.timezone).toBe("Europe/Lisbon");
+  });
+});
+
+describe("kayıt — .eu (APP_TRUST_BROWSER_TIMEZONE=1): tarayıcı dilimi YAZILIR", () => {
+  beforeEach(() => {
+    process.env.APP_TRUST_BROWSER_TIMEZONE = "1";
+  });
+
+  it("tarayıcının bildirdiği geçerli dilim org'a yazılır", async () => {
+    const org = await registerAndReadOrg({ timezone: "Europe/Berlin" });
+    expect(org.timezone).toBe("Europe/Berlin");
+  });
+
+  it("bayrak açıkken bile deployment varsayılanı fallback olarak durur", async () => {
     process.env.APP_DEFAULT_TIMEZONE = "Europe/Berlin";
     const org = await registerAndReadOrg({});
     expect(org.timezone).toBe("Europe/Berlin");
   });
 
-  it("geçersiz dilim kaydı REDDETMEZ — sessizce varsayılana düşer", async () => {
-    // Eski/tuhaf bir tarayıcının çöp göndermesi kimseyi kayıttan alıkoymamalı.
+  it("bayrak açıkken bile geçersiz değer kaydı REDDETMEZ — varsayılana düşer", async () => {
     const org = await registerAndReadOrg({ timezone: "Mars/Olympus" });
     expect(org.timezone).toBe("Europe/Istanbul");
   });
+});
 
+describe("kayıt — dilimden bağımsız güvenceler", () => {
   it("dilim alanı string DEĞİLSE de kayıt geçer (400 değil)", async () => {
     const org = await registerAndReadOrg({ timezone: { evil: true } });
     expect(org.timezone).toBe("Europe/Istanbul");

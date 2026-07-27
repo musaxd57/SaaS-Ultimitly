@@ -1,6 +1,6 @@
 import { describe, it, expect } from "vitest";
 
-import { appDefaultTimezone, resolveNewOrgTimezone } from "@/lib/app-config";
+import { appDefaultTimezone, resolveNewOrgTimezone, trustsBrowserTimezone } from "@/lib/app-config";
 import { DEFAULT_TIMEZONE } from "@/lib/timezone";
 import { checkProductionEnv } from "../../scripts/env-check.mjs";
 
@@ -42,16 +42,58 @@ describe("appDefaultTimezone — deployment varsayılanı", () => {
   });
 });
 
-describe("resolveNewOrgTimezone — tarayıcı ipucu + doğrulama", () => {
-  it("geçerli tarayıcı dilimi KULLANILIR (varsayılanı ezer)", () => {
-    expect(resolveNewOrgTimezone("Europe/Berlin", env({}))).toBe("Europe/Berlin");
-    expect(resolveNewOrgTimezone("America/New_York", env({}))).toBe("America/New_York");
-    // Deployment varsayılanı Berlin olsa bile gerçek misafir dilimi kazanır.
-    expect(resolveNewOrgTimezone("Asia/Dubai", env({ APP_DEFAULT_TIMEZONE: "Europe/Berlin" }))).toBe(
+describe("tarayıcı dilimine GÜVEN — deployment kararı, varsayılan KAPALI", () => {
+  // .com'un cevabı KAPALI. Her .com müşterisi Türkiye'deki daireleri yöneten bir
+  // Türk host: deployment varsayılanı neredeyse her zaman doğru, tarayıcı ise
+  // yalnızca YANLIŞ OLMA YOLU ekliyor — yurt dışındayken kaydolan bir host
+  // sessizce yanlış takvimle başlar ve belirti (mesajın yanlış saatte gitmesi,
+  // "Bugün"ün dünü göstermesi) saat dilimi hatasına BENZEMEZ.
+  //
+  // Çok-dilimli bir deployment (.eu) bunu 1 yapıp tarayıcının gerçek dilimini
+  // alır. Aynı kod, farklı env — kararı DEPLOYMENT verir, istemci asla.
+  it("bayrak yokken tarayıcının dilimi YOK SAYILIR (.com)", () => {
+    expect(trustsBrowserTimezone(env({}))).toBe(false);
+    expect(resolveNewOrgTimezone("Europe/Berlin", env({}))).toBe("Europe/Istanbul");
+    expect(resolveNewOrgTimezone("America/New_York", env({}))).toBe("Europe/Istanbul");
+    // Geçerli bir IANA değeri olması fark etmez — sorun geçerlilik değil, yetki.
+    expect(resolveNewOrgTimezone("Asia/Dubai", env({}))).toBe("Europe/Istanbul");
+  });
+
+  it("bayrak açıkken tarayıcının dilimi KULLANILIR (.eu)", () => {
+    const on = (extra: Record<string, string> = {}) =>
+      env({ APP_TRUST_BROWSER_TIMEZONE: "1", ...extra });
+    expect(trustsBrowserTimezone(on())).toBe(true);
+    expect(resolveNewOrgTimezone("Europe/Berlin", on())).toBe("Europe/Berlin");
+    expect(resolveNewOrgTimezone("America/New_York", on())).toBe("America/New_York");
+    // Deployment varsayılanı Berlin olsa bile host'un gerçek dilimi kazanır.
+    expect(resolveNewOrgTimezone("Asia/Dubai", on({ APP_DEFAULT_TIMEZONE: "Europe/Berlin" }))).toBe(
       "Asia/Dubai",
+    );
+    expect(trustsBrowserTimezone(env({ APP_TRUST_BROWSER_TIMEZONE: "true" }))).toBe(true);
+  });
+
+  it("tanınmayan bayrak değeri KAPALI sayılır (yanlış yön güvenli yön)", () => {
+    for (const v of ["", " ", "0", "false", "evet", "yes", "on", "İ", "1 "]) {
+      expect(trustsBrowserTimezone(env({ APP_TRUST_BROWSER_TIMEZONE: v })), v).toBe(
+        v.trim() === "1",
+      );
+    }
+    // Yazım hatası → varsayılana düşer, tarayıcıya güvenilmez.
+    expect(resolveNewOrgTimezone("Europe/Berlin", env({ APP_TRUST_BROWSER_TIMEZONE: "yes" }))).toBe(
+      "Europe/Istanbul",
     );
   });
 
+  it("bayrak AÇIK olsa bile doğrulama katmanı aynen çalışır", () => {
+    const on = env({ APP_TRUST_BROWSER_TIMEZONE: "1" });
+    expect(resolveNewOrgTimezone("Mars/Olympus", on)).toBe("Europe/Istanbul");
+    expect(resolveNewOrgTimezone("A".repeat(5000), on)).toBe("Europe/Istanbul");
+    expect(resolveNewOrgTimezone(42, on)).toBe("Europe/Istanbul");
+    expect(() => resolveNewOrgTimezone(null, on)).not.toThrow();
+  });
+});
+
+describe("resolveNewOrgTimezone — doğrulama (bayraktan bağımsız)", () => {
   it("eksik/boş değer → deployment varsayılanı", () => {
     expect(resolveNewOrgTimezone(undefined, env({}))).toBe("Europe/Istanbul");
     expect(resolveNewOrgTimezone("", env({}))).toBe("Europe/Istanbul");
@@ -87,17 +129,21 @@ describe("resolveNewOrgTimezone — tarayıcı ipucu + doğrulama", () => {
 
   it("saat dilimi para biriminden veya locale'den TAHMİN EDİLMEZ", () => {
     // Almanca arayüz + euro faturalama: hiçbiri saat dilimini oynatmaz.
-    const money = env({
+    const money = {
       APP_LOCALE: "de-DE",
       APP_BILLING_CURRENCY: "EUR",
       PLAN_PRICE_BASLANGIC_MINOR: "1900",
       PLAN_PRICE_PRO_MINOR: "3900",
       PLAN_PRICE_ISLETME_MINOR: "7900",
-    });
-    expect(appDefaultTimezone(money)).toBe("Europe/Istanbul");
-    expect(resolveNewOrgTimezone(undefined, money)).toBe("Europe/Istanbul");
-    // Ters yön de doğru: İstanbul dilimi, EUR faturalamayı iptal etmez.
-    expect(resolveNewOrgTimezone("Europe/Istanbul", money)).toBe("Europe/Istanbul");
+    };
+    expect(appDefaultTimezone(env(money))).toBe("Europe/Istanbul");
+    expect(resolveNewOrgTimezone(undefined, env(money))).toBe("Europe/Istanbul");
+    // Dördüncü bağımsız girdi: EUR faturalama tarayıcı-güvenini de AÇMAZ.
+    expect(trustsBrowserTimezone(env(money))).toBe(false);
+    expect(resolveNewOrgTimezone("Europe/Berlin", env(money))).toBe("Europe/Istanbul");
+    // Ters yön de doğru: güven açıkken bile İstanbul dilimi EUR'yu iptal etmez.
+    const both = env({ ...money, APP_TRUST_BROWSER_TIMEZONE: "1" });
+    expect(resolveNewOrgTimezone("Europe/Istanbul", both)).toBe("Europe/Istanbul");
   });
 });
 
@@ -126,7 +172,7 @@ describe("org yaratan yollar — kapalı liste", () => {
 
     expect([...creators.keys()].sort()).toEqual([
       "src/app/api/admin/customers/route.ts", // operatör → deployment varsayılanı
-      "src/app/api/auth/register/route.ts", //   herkese açık kayıt → tarayıcı dilimi
+      "src/app/api/auth/register/route.ts", //   kayıt → resolveNewOrgTimezone (bayrağa bağlı)
     ]);
 
     // Her biri create çağrısında timezone GEÇİRMELİ — şema varsayılanına

@@ -59,15 +59,20 @@ export async function POST(req: NextRequest) {
     const existing = await prisma.user.findUnique({ where: { email } });
     if (existing) return badRequest({ email: "Bu e-posta adresi zaten kayıtlı" });
 
-    // Operating timezone for the new org. The sign-up form posts the browser's own
-    // IANA zone; resolveNewOrgTimezone validates it and falls back to this
-    // deployment's default (APP_DEFAULT_TIMEZONE, itself validated) when it is
-    // absent or unusable. Read OUTSIDE registerSchema on purpose — like `consent`
-    // — so a browser reporting an odd zone can never turn into a 400 that blocks
-    // someone from signing up. Until now this column was never written and every
-    // org started on Europe/Istanbul, which is right for .com and wrong anywhere
-    // else: it drives report day boundaries, automated-message hour windows and
-    // the QR concierge's open-hours gate.
+    // Operating timezone for the new org — it drives report day boundaries,
+    // automated-message hour windows and the QR concierge's open-hours gate.
+    //
+    // The sign-up form posts the browser's own IANA zone, but the SERVER decides
+    // whether that hint is worth anything: resolveNewOrgTimezone honors it only on
+    // a deployment that opted in (APP_TRUST_BROWSER_TIMEZONE), and otherwise uses
+    // the deployment default. On .com the flag is off by design — every customer
+    // is a Turkish host with Turkish properties, so the browser can only introduce
+    // a wrong answer (signing up from abroad) with nothing to gain. The client
+    // keeps REPORTING the zone either way; trusting it is a deployment decision,
+    // so opening .eu needs an env change and no client change.
+    //
+    // Read OUTSIDE registerSchema on purpose — like `consent` — so a browser
+    // reporting an odd zone can never turn into a 400 that blocks a sign-up.
     const timezone = resolveNewOrgTimezone(data?.timezone);
 
     const passwordHash = await hashPassword(parsed.data.password);
