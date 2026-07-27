@@ -2,6 +2,7 @@ import "server-only";
 
 import { createHmac, timingSafeEqual } from "crypto";
 import { reportError } from "@/lib/report-error";
+import { appLocale } from "@/lib/app-config";
 
 // ---------------------------------------------------------------------------
 // Paddle Billing client (Faz 2). DORMANT until PADDLE_WEBHOOK_SECRET (webhook)
@@ -236,17 +237,29 @@ type PaddleTotals = { grand_total?: string; currency_code?: string };
 type PaddleTxn = { details?: { totals?: PaddleTotals } };
 
 /** Format a Paddle minor-unit total ("kuruş" string) as a tr-TR currency string. */
+/**
+ * Format an amount Paddle quoted.
+ *
+ * The CURRENCY comes from Paddle's own response — that is the real denomination
+ * of the charge and it always wins; nothing here converts. The LOCALE is this
+ * deployment's (APP_LOCALE), not a hardcoded "tr-TR": the client renders the
+ * fallback amount with formatMinor(..., appLocale()), so pinning the server side
+ * to Turkish made the same figure appear in two different formats inside one
+ * dialog, and put Turkish grouping in front of a .eu customer. On .com appLocale()
+ * resolves to tr-TR, so the output is byte-identical to before.
+ */
 function formatPaddleTotal(minor: string | undefined, currency: string | null): string | null {
   if (minor === undefined) return null;
   const n = Number(minor);
   if (!Number.isFinite(n)) return null;
   const amount = n / 100;
+  const locale = appLocale();
   try {
     return currency
-      ? new Intl.NumberFormat("tr-TR", { style: "currency", currency }).format(amount)
-      : amount.toLocaleString("tr-TR");
+      ? new Intl.NumberFormat(locale, { style: "currency", currency }).format(amount)
+      : amount.toLocaleString(locale);
   } catch {
-    return amount.toLocaleString("tr-TR");
+    return amount.toLocaleString(locale);
   }
 }
 
