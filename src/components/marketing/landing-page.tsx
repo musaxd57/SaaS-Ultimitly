@@ -264,7 +264,7 @@ const FAQS = [
 // Honest trust chips: "KVKK odaklı" (not an absolute compliance certification
 // claim while the DPA/legal work is in progress) and "otomatik sonuçlandırmaz"
 // (the opt-in holding acknowledgement exists — resolution is always human).
-const TRUST = ["Türkiye’de geliştirildi", "KVKK odaklı tasarım", "Şikayeti otomatik sonuçlandırmaz", "Kullanıcı dostu arayüz"];
+const TRUST = ["Türkiye’de geliştirildi", "KVKK odaklı tasarım", "Yanıt Sürenizi Kısaltır", "Kullanıcı dostu arayüz"];
 
 // The real panels a customer uses — shown as little "screens" on the landing.
 const PANELS = [
