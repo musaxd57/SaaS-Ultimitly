@@ -42,17 +42,17 @@ const STEPS = [
   {
     icon: Plug,
     title: "1. Hesabınızı bağlayın",
-    body: "Airbnb / Booking bağlantınızı birkaç tıkla ekleyin — kod yok, teknik bilgi yok. Takılırsanız adım adım yanınızdayız.",
+    body: "Airbnb / Booking hesabınızı birkaç adımda bağlayın.",
   },
   {
     icon: Brain,
-    title: "2. AI sizi öğrenir",
-    body: "Önceki cevaplarınızdan üslubunuzu, dairelerinizi ve sık sorulan soruları öğrenir; zamanla size daha çok benzer. Sadece sizin girdiğiniz bilgilerden konuşur — bilmediğini uydurmaz, size sorar.",
+    title: "2. AI işletmenizi öğrenir",
+    body: "Üslubunuzu, daire bilgilerinizi ve sık sorulan soruları öğrenir; ",
   },
   {
     icon: MessageSquareReply,
-    title: "3. Gerisini o halleder",
-    body: "Misafir mesajları gece 3’te bile, sizin tonunuzla yanıtlanır. İsterseniz önce siz onaylayın, isterseniz tamamen AI’a bırakın — kontrol her zaman sizde.",
+    title: "3. Mesajlar yanıtlanır",
+    body: "Soruların sizin üslubunuzla yanıtlanır. Dilerseniz gönderimden önce onaylarsınız; riskli konular doğrudan size bırakılır.",
   },
 ];
 
