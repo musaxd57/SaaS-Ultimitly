@@ -338,6 +338,14 @@ model CalendarSource {
   // slower older run never overwrites a newer one's result).
   lastFeedEventCount Int?
   lastReconcileAt    DateTime?
+  // At-rest encryption of `url` (expand-contract — docs/CALENDAR-URL-ENCRYPTION-DESIGN.md).
+  // Feed URLs carry credentials in their query string, so the column is a secret.
+  // Phases 0-3: dual-write + read-prefers-urlEnc with plaintext fallback; `url`
+  // stays authoritative until the forward-only contract phase, which runs ONLY
+  // with explicit user approval. urlKeyFp = ENCRYPTION_KEY fingerprint at write
+  // time (wrong key becomes a diagnosable error, not silent garbage).
+  urlEnc             String?
+  urlKeyFp           String?
   createdAt          DateTime  @default(now())
   updatedAt          DateTime  @updatedAt
 

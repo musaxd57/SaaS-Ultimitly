@@ -87,6 +87,10 @@ yüzden diğer fazlardan sert:
      Tek bir uyuşmazlık = Faz 4 İPTAL, önce neden ayrışmış bulunur.
      `COUNT(*) WHERE urlEnc IS NULL` yalnız ilk hızlı ön kontroldür.
   3. Prod'da Faz 3 en az bir tam sync döngüsü sorunsuz koşmuş olmalı.
+  4. **Anahtar yedeği DOĞRULANMIŞ olmalı (Codex, ön şart):** `ENCRYPTION_KEY`
+     DB yedeğinden AYRI ve güvenli bir yerde (Railway dışı, örn. parola kasası)
+     yedekli — contract sonrası anahtarsız DB yedeği okunamaz şifreli metindir
+     (ayrıntı §5). Yedeğin VARLIĞI Faz 4 başlamadan teyit edilir.
 
 Gerçek drop İSTENİRSE ayrı bir m47 ve ayrı karar — zorunlu değil.
 
