@@ -46,7 +46,7 @@ noktaya kurulur. Bu, projedeki en dar expand-contract yüzeylerinden biri.
   fingerprint emsali) — yanlış anahtarla açılış "sessiz çöp" değil, teşhisli
   hata olur.
 
-## 4. Fazlar (her biri ayrı deploy, her biri tek başına geri alınabilir)
+## 4. Fazlar (her biri ayrı deploy; Faz 0–3 geri alınabilir, Faz 4 İLERİ-YÖNLÜ)
 
 **Faz 0 — additive migration (m46 adayı):** `urlEnc String?` + `urlKeyFp
 String?`. Nullable, default yok, index yok → dolu tabloya güvenli (boot
@@ -69,12 +69,26 @@ DIŞI kalır + aggregate alarm (iCal aggregate-alarm emsali), ASLA düz kolona
 sessiz düşme — aksi hâlde şifreleme "varmış gibi" olur. Rollback = eski kod;
 `url` hâlâ dolu ve doğru.
 
-**Faz 4 — contract (EN SON, acele YOK):** prod'da Faz 3 en az bir tam sync
-döngüsü sorunsuz koştuktan sonra: create artık `url`'e **sabit sentinel**
-(`"enc:"`) yazar (kolon NOT NULL kaldığı için NULL yapılamaz — drop etmek de
-ayrı migration ve boot riski; sentinel en ucuz güvenli adım), backfill'in
-ikizi eski satırların `url`'ünü sentinel'e çevirir. Gerçek drop İSTENİRSE
-ayrı bir m47 ve ayrı karar — zorunlu değil.
+**Faz 4 — contract (EN SON, acele YOK — GERİ ALINAMAZ, Codex düzeltmesi):**
+create artık `url`'e **sabit sentinel** (`"enc:"`) yazar (kolon NOT NULL
+kaldığı için NULL yapılamaz — drop etmek de ayrı migration ve boot riski;
+sentinel en ucuz güvenli adım), backfill'in ikizi eski satırların `url`'ünü
+sentinel'e çevirir. Bu bir **ileri-yönlü contract adımıdır**: sentinel
+yazıldığı an düz URL bu satırdan silinmiştir ve "eski kodu deploy et"
+rollback'i ARTIK ÇALIŞMAZ (eski kod sentinel'i URL sanır). Ön şartları bu
+yüzden diğer fazlardan sert:
+
+  1. **Taze pg_dump** — Faz 4'ten hemen önce, doğrulanmış (prod dupe-temizliği
+     emsalindeki gibi restore-edilebilirliği bilinen) bir yedek.
+  2. **TAM çöz-ve-karşılaştır doğrulaması** (sayım YETMEZ — Codex düzeltmesi):
+     her satır için `decryptSecretBound(urlEnc, aad)` GERÇEKTEN çözülür,
+     `urlKeyFp` mevcut anahtarın parmak iziyle eşleşir ve çözülen değer
+     `url` kolonundaki düz metinle **birebir** (===) karşılaştırılır.
+     Tek bir uyuşmazlık = Faz 4 İPTAL, önce neden ayrışmış bulunur.
+     `COUNT(*) WHERE urlEnc IS NULL` yalnız ilk hızlı ön kontroldür.
+  3. Prod'da Faz 3 en az bir tam sync döngüsü sorunsuz koşmuş olmalı.
+
+Gerçek drop İSTENİRSE ayrı bir m47 ve ayrı karar — zorunlu değil.
 
 ## 5. Etkileşimler (denetlendi)
 
@@ -86,6 +100,11 @@ ayrı bir m47 ve ayrı karar — zorunlu değil.
 * **Sync güvenliği:** `sync.ts:96` hostname re-check'i erişimciden dönen ÇÖZÜLMÜŞ
   değerle aynen çalışır — DNS-rebind pinine dokunulmaz.
 * **Boot kapısı:** yeni env YOK → env-check değişmez.
+* **Anahtar yedeği (Codex, operasyonel):** Faz 4 sonrası DB yedeği TEK BAŞINA
+  işe yaramaz — URL'ler ancak `ENCRYPTION_KEY` ile açılır. Kural: DB yedeğinin
+  yanında `ENCRYPTION_KEY` de **ayrı ve güvenli bir yerde** (Railway dışı,
+  örn. parola kasası) yedeklenmiş olmalı; bu Faz 4 ön-şart listesine dahildir.
+  Anahtar ROTASYON yasağı zaten mutlak — bu yedek "kayıp" senaryosu içindir.
 
 ## 6. Test planı (uygulama turunda, kırmızı-önce)
 
@@ -96,6 +115,11 @@ ayrı bir m47 ve ayrı karar — zorunlu değil.
 4. backfill idempotency: iki koşu = tek sonuç.
 5. export secret-scan: ciphertext ve düz URL ikisi de dışarı sızmaz.
 6. sentinel sonrası eski okuma yolunun ÖLDÜĞÜ (Faz 4 pini).
+7. **erişimci-atlatma pini (Codex, yapısal):** kaynak-tarama testi —
+   `src/` altında `.url` erişimi calendar-source satırlarında YALNIZ
+   erişimci modülünde geçebilir (canonical-origin literal-pini ve
+   deployment-timezone writer-haritası emsali). Faz 3'te yeşile bağlanır;
+   sonradan erişimciyi atlayan yeni kod derhal kırmızı olur.
 
 ## 7. Bilinçli sınırlar
 
