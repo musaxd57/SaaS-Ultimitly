@@ -1,27 +1,53 @@
 #!/usr/bin/env -S npx tsx
 // ---------------------------------------------------------------------------
-// SALT-OKUMA doğrulayıcı — CalendarSource.url şifrelemesi (Faz 2/4 kontrolü).
+// SALT-OKUMA doğrulayıcı — CalendarSource.url şifrelemesi.
 //
-// Hiçbir şey YAZMAZ. Her satırı tek tek açar ve raporlar:
-//   • urlEnc NULL sayısı (backfill sonrası 0 beklenir)
-//   • parmak izi uyuşmazlığı / çözülemeyen / düz-metinle birebir uyuşmayan
+// Hiçbir şey YAZMAZ. İki modu var:
 //
-// Sayım yeterli değildir (Codex düzeltmesi): "kaç satır dolu" değil, "her
-// satır GERÇEKTEN açılıyor ve düz metinle === eşit mi" sorusuna cevap verir.
+// PRE-CONTRACT (varsayılan): her satırı açar, parmak izini ve çözülen değerin
+// düz `url` kolonuyla === eşitliğini raporlar. Faz 2 sonrası / Faz 4 öncesi
+// kontrol budur (--expect-complete ile NULL kalan satır da hata sayılır).
 //
-// Kullanım:  DATABASE_URL=... ENCRYPTION_KEY=... npx tsx scripts/verify-calendar-url-enc.ts
-//   --expect-complete : urlEnc NULL kalan satır da HATA sayılır (backfill
-//                       sonrası ve Faz 4 öncesi bu bayrakla koşulur).
+// POST-CONTRACT (--post-contract): contract SONRASI düz kolon sentinel taşır,
+// === karşılaştırma tanım gereği imkânsızdır. Bu mod yerine post durumu
+// asserte eder: her satırda url === sentinel VE urlEnc mevcut anahtarla
+// GERÇEKTEN çözülüyor. Düz metin kalmış / çözülemeyen satır = hata.
 //
+// Sayım yeterli değildir (Codex düzeltmesi): iki mod da her satırı tek tek açar.
+//
+// Kullanım:  DATABASE_URL=... ENCRYPTION_KEY=... npx tsx scripts/verify-calendar-url-enc.ts [--expect-complete | --post-contract]
 // Çıkış kodu: her şey temizse 0; herhangi bir uyuşmazlıkta 1.
 // ---------------------------------------------------------------------------
 import { PrismaClient } from "@prisma/client";
-import { verifyCalendarSourceUrlEnc } from "../src/lib/calendar-source-url-core";
+import {
+  verifyCalendarSourceUrlContract,
+  verifyCalendarSourceUrlEnc,
+} from "../src/lib/calendar-source-url-core";
 
 const expectComplete = process.argv.includes("--expect-complete");
+const postContract = process.argv.includes("--post-contract");
 const prisma = new PrismaClient();
 
 async function main() {
+  if (postContract) {
+    const r = await verifyCalendarSourceUrlContract(prisma);
+    console.log("── CalendarSource.urlEnc doğrulaması (POST-CONTRACT, salt-okuma) ──");
+    console.log(`toplam satır          : ${r.total}`);
+    console.log(`sağlıklı (sentinel+çözülür): ${r.ok}`);
+    console.log(`düz metin KALAN       : ${r.plaintextRemaining}`);
+    console.log(`urlEnc NULL           : ${r.nullEnc}`);
+    console.log(`parmak izi uyuşmazlığı: ${r.fpMismatch}`);
+    console.log(`çözülemeyen           : ${r.decryptFailed}`);
+    if (r.badIds.length > 0) console.log(`sorunlu satır id'leri : ${r.badIds.join(", ")}`);
+    if (r.ok !== r.total) {
+      console.error("SONUÇ: BAŞARISIZ — contract durumu eksik/bozuk.");
+      process.exitCode = 1;
+    } else {
+      console.log("SONUÇ: TEMİZ ✓ — tüm satırlar sentinel'li ve şifreli değer çözülüyor.");
+    }
+    return;
+  }
+
   const r = await verifyCalendarSourceUrlEnc(prisma);
   console.log("── CalendarSource.urlEnc doğrulaması (salt-okuma) ──");
   console.log(`toplam satır          : ${r.total}`);
