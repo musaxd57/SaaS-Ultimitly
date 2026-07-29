@@ -94,6 +94,28 @@ yüzden diğer fazlardan sert:
 
 Gerçek drop İSTENİRSE ayrı bir m47 ve ayrı karar — zorunlu değil.
 
+**DURUM (2026-07-29): Faz 4 KODU HAZIR, PROD'DA KOŞULMADI.** Ön şartların
+dördü de sağlandı (post-sync dump + 8/8 tam çöz-karşılaştır + urlEnc yolundan
+gerçek prod sync + ayrı anahtar yedeği). Uygulama iki parça:
+
+* **Parça A (deploy edilebilir, davranış değiştirmez):** create'in sentinel
+  yazımı `CALENDAR_URL_CONTRACT_ENABLED` bayrağının arkasında (**DEFAULT
+  KAPALI**, yalnız `"1"` açar; mutasyon-testli parite — bayrak kapalıyken
+  bugünkü dual-write birebir). Erişimciye `sentinel-without-ciphertext`
+  fail-closed dalı eklendi (sentinel hiçbir koşulda URL gibi dönmez). Mülk
+  sayfası maskeyi artık SUNUCUDA üretir (ham URL RSC payload'ına binmez);
+  create 201 gövdesi sır taşımaz.
+* **Parça B (geri alınamaz an, YALNIZ operatör + açık onay):**
+  `scripts/contract-calendar-url-sentinel.ts` — dry-run varsayılan, sayı-kapılı
+  apply, satır başına SON-AN çöz+`===` kanıtı olmadan sentinel YAZMAZ (toplu ön
+  doğrulama bayatlayabilir; bu yazma anında koşar), CAS'lı update, apply
+  sonrası otomatik post-contract tam doğrulama. Rollback aracı:
+  `scripts/restore-calendar-url-plaintext.ts` — anahtar sağlamken sentinel
+  satırları urlEnc'ten geri yazar (dump restore'a gerek kalmadan).
+  `verify-calendar-url-enc.ts --post-contract` post durumunu her satırı açarak
+  asserte eder. Üçü de taze yerel PG'de uçtan uca prova edildi (contract →
+  post-verify → restore → pre-verify birebir başlangıç durumu).
+
 ## 5. Etkileşimler (denetlendi)
 
 * **Export:** `data-export.ts` maskesi erişimciye bağlanır; ciphertext ASLA
