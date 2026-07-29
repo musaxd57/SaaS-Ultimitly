@@ -208,3 +208,232 @@ html {
     transform: none !important;
   }
 }
+
+/* ============================================================
+   Lixus building (landing hero, ≥xl) — the living-building scene.
+   Pure CSS by design: the component ships ZERO JS (server component),
+   so the landing's LCP pays nothing for the decoration. Everything is
+   theme-token driven except the warm window light, which is scoped
+   below. Prefix lxb- keeps these out of Tailwind's way.
+   ============================================================ */
+.lxb-stage {
+  --lxb-warm: 42 86% 62%;
+  position: relative;
+  display: grid;
+  place-items: center;
+  min-height: 460px;
+  isolation: isolate;
+  animation: lxb-enter 0.8s cubic-bezier(0.16, 1, 0.3, 1) both;
+}
+@keyframes lxb-enter {
+  from { opacity: 0; transform: translateX(14px); }
+  to { opacity: 1; transform: none; }
+}
+.lxb-scene { position: relative; width: 210px; height: 330px; perspective: 1100px; }
+.lxb-building {
+  position: absolute;
+  inset: 0;
+  transform-style: preserve-3d;
+  transform: rotateX(5deg) rotateY(-24deg);
+  transition: transform 0.7s cubic-bezier(0.16, 1, 0.3, 1);
+}
+.lxb-stage:hover .lxb-building { transform: rotateX(3deg) rotateY(-14deg) translateY(-6px); }
+/* Front facade sits in the z=0 plane; the flank and roof hinge off its edges,
+   which is what makes the corner REAL (no clip-path fakery). */
+.lxb-front {
+  position: absolute;
+  inset: 0;
+  display: grid;
+  grid-template-columns: repeat(4, 1fr);
+  grid-template-rows: repeat(5, 1fr) 52px;
+  gap: 13px 15px;
+  padding: 38px 22px 12px;
+  border: 1px solid hsl(var(--border));
+  border-radius: 3px 3px 0 0;
+  background: linear-gradient(
+    180deg,
+    color-mix(in srgb, hsl(var(--card)) 94%, hsl(var(--primary)) 6%),
+    color-mix(in srgb, hsl(var(--card)) 85%, hsl(var(--primary)) 15%)
+  );
+  box-shadow: 0 30px 60px -30px hsl(222 47% 11% / 0.45);
+}
+.lxb-front::after {
+  content: "";
+  position: absolute;
+  left: 0; right: 0; bottom: 0;
+  height: 9px;
+  background: color-mix(in srgb, hsl(var(--primary)) 26%, hsl(var(--card)));
+  border-radius: 0 0 2px 2px;
+}
+.lxb-flank {
+  position: absolute;
+  top: 0; bottom: 0; left: 100%;
+  width: 56px;
+  transform-origin: left center;
+  transform: rotateY(90deg);
+  background: linear-gradient(
+    180deg,
+    color-mix(in srgb, hsl(var(--primary)) 30%, hsl(var(--card))),
+    color-mix(in srgb, hsl(var(--primary)) 44%, hsl(var(--card)))
+  );
+  border-radius: 0 3px 0 0;
+}
+.lxb-flank::before {
+  content: "";
+  position: absolute;
+  inset: 38px 12px 12px;
+  background: repeating-linear-gradient(180deg, transparent 0 42px, hsl(var(--primary-foreground) / 0.14) 42px 44px);
+}
+.lxb-top {
+  position: absolute;
+  left: 0; right: 0; top: 0;
+  height: 56px;
+  transform-origin: center top;
+  transform: rotateX(-90deg);
+  background: color-mix(in srgb, hsl(var(--primary)) 18%, hsl(var(--card)));
+  border-radius: 3px 3px 0 0;
+}
+/* Rooftop mast + slow aviation beacon: the "alive and on the air" cue. */
+.lxb-mast {
+  position: absolute;
+  top: -30px; left: 26%;
+  width: 3px; height: 30px;
+  background: hsl(var(--primary) / 0.85);
+  border-radius: 1.5px;
+}
+.lxb-beacon {
+  position: absolute;
+  top: -3px; left: -2px;
+  width: 6px; height: 6px;
+  border-radius: 50%;
+  background: hsl(var(--lxb-warm));
+  opacity: 0.3;
+  animation: lxb-beacon 5s ease-in-out infinite;
+}
+@keyframes lxb-beacon {
+  0%, 84%, 100% { opacity: 0.3; box-shadow: none; }
+  90% { opacity: 1; box-shadow: 0 0 8px hsl(var(--lxb-warm) / 0.6); }
+}
+/* Brand as architectural lettering on the facade (not a UI chip). */
+.lxb-lettering {
+  position: absolute;
+  top: 15px; left: 0; right: 0;
+  text-align: center;
+  font-size: 8.5px;
+  font-weight: 600;
+  letter-spacing: 0.32em;
+  text-indent: 0.32em;
+  color: hsl(var(--primary) / 0.5);
+}
+.lxb-win {
+  border: 1px solid hsl(var(--border));
+  border-radius: 2.5px;
+  background: color-mix(in srgb, hsl(var(--muted)) 85%, hsl(var(--background)));
+  box-shadow: inset 0 1px 2px hsl(222 47% 11% / 0.05);
+}
+.lxb-win--ground { align-self: end; height: 60%; }
+/* Steady evening lights: warm, STILL — the calm baseline. */
+.lxb-lit { background: hsl(var(--lxb-warm) / 0.4); border-color: hsl(var(--lxb-warm) / 0.5); }
+/* One window breathes very slowly — the building's pulse. */
+.lxb-breath { animation: lxb-breath 9s ease-in-out infinite; }
+.lxb-breath--late { animation-delay: 4.5s; }
+@keyframes lxb-breath {
+  0%, 100% { background: hsl(var(--lxb-warm) / 0.28); }
+  50% { background: hsl(var(--lxb-warm) / 0.5); }
+}
+/* The flat that got the message: lights up once per 13s story cycle. */
+.lxb-target { animation: lxb-target 13s ease-in-out infinite; }
+@keyframes lxb-target {
+  0%, 21% { background: color-mix(in srgb, hsl(var(--muted)) 85%, hsl(var(--background))); box-shadow: inset 0 1px 2px hsl(222 47% 11% / 0.05); }
+  27%, 66% { background: hsl(var(--lxb-warm) / 0.88); box-shadow: 0 0 12px hsl(var(--lxb-warm) / 0.35); }
+  76%, 100% { background: color-mix(in srgb, hsl(var(--muted)) 85%, hsl(var(--background))); box-shadow: inset 0 1px 2px hsl(222 47% 11% / 0.05); }
+}
+.lxb-door {
+  grid-column: 2 / span 2;
+  position: relative;
+  align-self: end;
+  height: 100%;
+  border-radius: 3px 3px 0 0;
+  background: color-mix(in srgb, hsl(var(--primary)) 55%, hsl(var(--card)));
+  box-shadow: inset 0 0 0 1px hsl(var(--primary) / 0.25);
+}
+.lxb-door::before {
+  content: "";
+  position: absolute;
+  left: 50%; top: 6px; bottom: 0;
+  width: 1px;
+  background: hsl(var(--primary-foreground) / 0.28);
+}
+.lxb-door::after {
+  content: "";
+  position: absolute;
+  left: -8px; right: -8px; top: -7px;
+  height: 3px;
+  border-radius: 2px;
+  background: hsl(var(--primary) / 0.45);
+}
+.lxb-ground {
+  position: absolute;
+  left: 50%; bottom: 34px;
+  width: 240px; height: 26px;
+  transform: translateX(-54%);
+  border-radius: 50%;
+  background: radial-gradient(closest-side, hsl(222 47% 11% / 0.2), transparent 70%);
+  filter: blur(6px);
+  transition: transform 0.7s, opacity 0.7s;
+}
+.lxb-stage:hover .lxb-ground { transform: translateX(-54%) scale(0.94); opacity: 0.85; }
+/* The story, told by two skeleton-text bubbles (language-free). They live on a
+   FLAT layer anchored to the scene, outside the 3D transform, so they stay
+   crisp and readable. Guest gray in → target window glows → navy reply out. */
+.lxb-bubble {
+  position: absolute;
+  display: flex;
+  align-items: center;
+  gap: 7px;
+  border-radius: 11px;
+  padding: 8px 11px;
+  opacity: 0;
+  pointer-events: none;
+}
+.lxb-lines { display: grid; gap: 4px; }
+.lxb-lines i { display: block; height: 4px; border-radius: 2px; }
+.lxb-in {
+  left: -52px; top: 37%;
+  border: 1px solid hsl(var(--border));
+  background: hsl(var(--card));
+  border-bottom-right-radius: 3px;
+  box-shadow: 0 10px 26px -14px hsl(222 47% 11% / 0.4);
+  animation: lxb-in 13s ease infinite;
+}
+.lxb-in .lxb-lines i { background: hsl(var(--muted-foreground) / 0.4); }
+.lxb-in .lxb-lines i:nth-child(1) { width: 52px; }
+.lxb-in .lxb-lines i:nth-child(2) { width: 34px; }
+@keyframes lxb-in {
+  0%, 15% { opacity: 0; transform: translateY(6px); }
+  20%, 44% { opacity: 1; transform: none; }
+  50%, 100% { opacity: 0; transform: translateY(-3px); }
+}
+.lxb-out {
+  left: -36px; top: 53%;
+  background: hsl(var(--primary));
+  border-bottom-right-radius: 3px;
+  box-shadow: 0 12px 28px -14px hsl(var(--primary) / 0.6);
+  animation: lxb-out 13s ease infinite;
+}
+.lxb-out .lxb-lines i { background: hsl(var(--primary-foreground) / 0.65); }
+.lxb-out .lxb-lines i:nth-child(1) { width: 44px; }
+.lxb-out .lxb-lines i:nth-child(2) { width: 56px; }
+.lxb-out svg { color: #4ade80; }
+@keyframes lxb-out {
+  0%, 42% { opacity: 0; transform: translateY(6px); }
+  48%, 72% { opacity: 1; transform: none; }
+  80%, 100% { opacity: 0; transform: translateY(-3px); }
+}
+@media (prefers-reduced-motion: reduce) {
+  .lxb-stage, .lxb-beacon, .lxb-breath, .lxb-target, .lxb-in, .lxb-out { animation: none; }
+  .lxb-breath { background: hsl(var(--lxb-warm) / 0.4); }
+  .lxb-beacon { opacity: 0.85; }
+  .lxb-in { opacity: 1; }
+  .lxb-building, .lxb-ground { transition: none; }
+}

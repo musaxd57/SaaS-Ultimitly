@@ -30,6 +30,7 @@ import { DemoFrame } from "@/components/marketing/demo-frame";
 import { LandingDemo } from "@/components/marketing/landing-demo";
 import { NavScroll } from "@/components/marketing/nav-scroll";
 import { MobileNav } from "@/components/marketing/mobile-nav";
+import { LixusBuilding } from "@/components/marketing/lixus-building";
 import { cn, formatMinor } from "@/lib/utils";
 import { defaultPlans } from "@/lib/billing/plans";
 import { appLocale } from "@/lib/app-config";
@@ -353,41 +354,49 @@ export function LandingPage() {
         </div>
       </header>
 
-      {/* Hero */}
+      {/* Hero. Below xl this renders exactly as before (single centered column —
+          the grid has one visible child); at xl the text left-aligns and the
+          living building appears beside it. Every layout change hides behind
+          xl: so phones and tablets are untouched. */}
       <section className="relative overflow-hidden">
         <div className="hero-aura" aria-hidden="true" />
-        <div className="relative z-10 mx-auto max-w-6xl px-4 py-20 text-center sm:px-6 sm:py-28">
-          <span className="badge-in inline-flex items-center gap-1.5 rounded-full border border-border bg-accent/60 px-3 py-1 text-xs font-medium text-accent-foreground shadow-sm ring-1 ring-border/50">
-            <ShieldCheck className="size-3.5" aria-hidden="true" /> Airbnb &amp; Booking ev sahipleri için yapay zekâ asistanı
-          </span>
-          <Reveal as="h1" delay={60} className="mx-auto mt-6 max-w-3xl text-4xl font-bold tracking-tight sm:text-5xl">
-            Misafir mesajlarını <span className="text-primary">7/24, güvenle</span> yanıtlayan yapay zekâ.
-          </Reveal>
-          <Reveal as="p" delay={140} className="mx-auto mt-5 max-w-2xl text-base text-muted-foreground sm:text-lg">
-            Özelleştirilebilir otomatik yanıtlama — misafiriniz hangi dilde yazarsa o dilde cevap
-            alır. Şikayet, iade gibi riskli konuları otomatik yanıtlamaz, size bırakır.
-          </Reveal>
-          <Reveal delay={220} className="mt-8 flex flex-col items-center justify-center gap-3 sm:flex-row">
-            <Link href="/register" className={cn(buttonVariants({ size: "lg" }), "cta-glow cta-arrow w-full sm:w-auto")}>
-              14 gün ücretsiz dene <ArrowRight className="size-4" aria-hidden="true" />
-            </Link>
-            <a href="#nasil" className={cn(buttonVariants({ variant: "outline", size: "lg" }), "w-full sm:w-auto")}>
-              Nasıl çalışır?
-            </a>
-          </Reveal>
-          <p className="mt-4 text-sm text-muted-foreground">
-            Kredi kartı gerekmez · Dakikalar içinde kurulum · İstediğiniz zaman iptal
-          </p>
-          {/* Trust strip (honest, pre-launch) */}
-          <div className="mt-8 flex flex-wrap items-center justify-center gap-2">
-            {TRUST.map((t) => (
-              <span
-                key={t}
-                className="inline-flex items-center gap-1.5 rounded-full border border-border bg-card/80 px-3 py-1.5 text-xs font-medium text-foreground/80 shadow-sm"
-              >
-                <Check className="size-3 text-primary" aria-hidden="true" /> {t}
+        <div className="relative z-10 mx-auto max-w-6xl px-4 py-20 sm:px-6 sm:py-28 xl:max-w-7xl">
+          <div className="grid items-center gap-10 xl:grid-cols-[minmax(0,1fr)_360px]">
+            <div className="text-center xl:text-left">
+              <span className="badge-in inline-flex items-center gap-1.5 rounded-full border border-border bg-accent/60 px-3 py-1 text-xs font-medium text-accent-foreground shadow-sm ring-1 ring-border/50">
+                <ShieldCheck className="size-3.5" aria-hidden="true" /> Airbnb &amp; Booking ev sahipleri için yapay zekâ asistanı
               </span>
-            ))}
+              <Reveal as="h1" delay={60} className="mx-auto mt-6 max-w-3xl text-4xl font-bold tracking-tight sm:text-5xl xl:mx-0">
+                Misafir mesajlarını <span className="text-primary">7/24, güvenle</span> yanıtlayan yapay zekâ.
+              </Reveal>
+              <Reveal as="p" delay={140} className="mx-auto mt-5 max-w-2xl text-base text-muted-foreground sm:text-lg xl:mx-0">
+                Özelleştirilebilir otomatik yanıtlama — misafiriniz hangi dilde yazarsa o dilde cevap
+                alır. Şikayet, iade gibi riskli konuları otomatik yanıtlamaz, size bırakır.
+              </Reveal>
+              <Reveal delay={220} className="mt-8 flex flex-col items-center justify-center gap-3 sm:flex-row xl:justify-start">
+                <Link href="/register" className={cn(buttonVariants({ size: "lg" }), "cta-glow cta-arrow w-full sm:w-auto")}>
+                  14 gün ücretsiz dene <ArrowRight className="size-4" aria-hidden="true" />
+                </Link>
+                <a href="#nasil" className={cn(buttonVariants({ variant: "outline", size: "lg" }), "w-full sm:w-auto")}>
+                  Nasıl çalışır?
+                </a>
+              </Reveal>
+              <p className="mt-4 text-sm text-muted-foreground">
+                Kredi kartı gerekmez · Dakikalar içinde kurulum · İstediğiniz zaman iptal
+              </p>
+              {/* Trust strip (honest, pre-launch) */}
+              <div className="mt-8 flex flex-wrap items-center justify-center gap-2 xl:justify-start">
+                {TRUST.map((t) => (
+                  <span
+                    key={t}
+                    className="inline-flex items-center gap-1.5 rounded-full border border-border bg-card/80 px-3 py-1.5 text-xs font-medium text-foreground/80 shadow-sm"
+                  >
+                    <Check className="size-3 text-primary" aria-hidden="true" /> {t}
+                  </span>
+                ))}
+              </div>
+            </div>
+            <LixusBuilding />
           </div>
         </div>
       </section>
