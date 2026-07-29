@@ -94,7 +94,19 @@ yüzden diğer fazlardan sert:
 
 Gerçek drop İSTENİRSE ayrı bir m47 ve ayrı karar — zorunlu değil.
 
-**DURUM (2026-07-29): Faz 4 KODU HAZIR, PROD'DA KOŞULMADI.** Ön şartların
+## ✅ DURUM: TAMAMLANDI (2026-07-29) — Faz 0-4 hepsi canlıda
+
+Faz 4 contract prod'da uygulandı: `CALENDAR_URL_CONTRACT_ENABLED=1` kalıcı,
+8/8 satır sentinel'lendi (0 red), post-contract doğrulama iki bağımsız koşuda
+da 8/8 sağlıklı. Prod'da düz feed URL'i kalmadı. **Bundan sonra doğrulama
+YALNIZ `--post-contract` modudur** (varsayılan mod, düz kolonla karşılaştırdığı
+için tanım gereği sahte uyuşmazlık raporlar). **Kurtarma = DB yedeği +
+`ENCRYPTION_KEY` birlikte**; anahtar sağlamken `restore-calendar-url-plaintext.ts`
+düz metne tam geri dönüş sağlar. m47 (kolon DROP) yazılmadı ve gerekli değil.
+
+Aşağıdaki planlama metni tarihsel kayıt olarak korunuyor.
+
+**HAZIRLIK KAYDI (2026-07-29): Faz 4 kodu.** Ön şartların
 dördü de sağlandı (post-sync dump + 8/8 tam çöz-karşılaştır + urlEnc yolundan
 gerçek prod sync + ayrı anahtar yedeği). Uygulama iki parça:
 
