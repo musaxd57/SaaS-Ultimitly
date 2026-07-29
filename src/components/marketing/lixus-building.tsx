@@ -43,9 +43,7 @@ export function LixusBuilding() {
               {WINDOWS.map((extra, i) => (
                 <span key={i} data-testid="lxb-window" className={cn("lxb-win", extra)} />
               ))}
-              <span data-testid="lxb-window" className="lxb-win lxb-win--ground" />
               <span data-testid="lxb-door" className="lxb-door" />
-              <span data-testid="lxb-window" className="lxb-win lxb-win--ground" />
             </div>
           </div>
           <div className="lxb-bubble lxb-in">

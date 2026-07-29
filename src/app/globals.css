@@ -331,7 +331,6 @@ html {
   background: color-mix(in srgb, hsl(var(--muted)) 85%, hsl(var(--background)));
   box-shadow: inset 0 1px 2px hsl(222 47% 11% / 0.05);
 }
-.lxb-win--ground { align-self: end; height: 60%; }
 /* Steady evening lights: warm, STILL — the calm baseline. */
 .lxb-lit { background: hsl(var(--lxb-warm) / 0.4); border-color: hsl(var(--lxb-warm) / 0.5); }
 /* One window breathes very slowly — the building's pulse. */

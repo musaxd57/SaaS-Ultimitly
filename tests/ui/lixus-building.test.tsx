@@ -15,9 +15,9 @@ import { LixusBuilding } from "@/components/marketing/lixus-building";
 afterEach(cleanup);
 
 describe("LixusBuilding", () => {
-  it("22 pencere + kapı + cephe tabelası render olur", () => {
+  it("20 pencere + kapı + cephe tabelası render olur", () => {
     render(<LixusBuilding />);
-    expect(screen.getAllByTestId("lxb-window")).toHaveLength(22);
+    expect(screen.getAllByTestId("lxb-window")).toHaveLength(20);
     expect(screen.getByTestId("lxb-door")).toBeTruthy();
     expect(screen.getByText("LIXUS AI")).toBeTruthy();
   });
