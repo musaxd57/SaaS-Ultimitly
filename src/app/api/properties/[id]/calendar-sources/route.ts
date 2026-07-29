@@ -1,7 +1,9 @@
+import { randomUUID } from "crypto";
 import { prisma } from "@/lib/db";
 import { badRequest, jsonOk, readJsonCappedOrNull } from "@/lib/api";
 import { withManage } from "@/lib/route-guard";
 import { isPrivateHost } from "@/lib/net/private-host";
+import { encryptCalendarSourceUrl } from "@/lib/calendar-source-url";
 
 export const POST = withManage<{ id: string }>(async (session, req, { params }) => {
   const { id: propertyId } = await params;
@@ -36,8 +38,13 @@ export const POST = withManage<{ id: string }>(async (session, req, { params }) 
     return badRequest({ url: "Geçerli bir http(s) iCal bağlantısı girin" });
   }
 
+  // DUAL-WRITE (phase 1 of the url-encryption expand-contract): the plaintext
+  // column stays authoritative while readers migrate, and urlEnc carries the
+  // same value AAD-bound to this exact row+org. The AAD needs the row id, so
+  // the id is generated up front (EmailOutbox m44 precedent).
+  const id = randomUUID();
   const source = await prisma.calendarSource.create({
-    data: { propertyId, label, url },
+    data: { id, propertyId, label, url, ...encryptCalendarSourceUrl(url, id, session.organizationId) },
   });
   return jsonOk(source, 201);
 });

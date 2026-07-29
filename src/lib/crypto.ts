@@ -1,6 +1,6 @@
 import "server-only";
 
-import { createCipheriv, createDecipheriv, randomBytes, scryptSync } from "crypto";
+import { createCipheriv, createDecipheriv, createHmac, randomBytes, scryptSync } from "crypto";
 
 // ---------------------------------------------------------------------------
 // Tiny authenticated-encryption box for secrets at rest (e.g. each customer's
@@ -69,6 +69,16 @@ export function decryptSecretBound(payload: string, aad: string): string {
     decipher.update(Buffer.from(datab, "base64")),
     decipher.final(),
   ]).toString("utf8");
+}
+
+/**
+ * Short fingerprint of the ACTIVE encryption key (erasure.ts precedent). Stored
+ * next to AAD-bound ciphertexts (e.g. CalendarSource.urlKeyFp) so a wrong or
+ * rotated key surfaces as a diagnosable mismatch instead of a bare GCM auth
+ * failure. Derived via HMAC so the fingerprint reveals nothing about the key.
+ */
+export function encryptionKeyFingerprint(): string {
+  return createHmac("sha256", key()).update("lixus-enc-key-fingerprint").digest("hex").slice(0, 16);
 }
 
 /** Decrypt a value produced by {@link encryptSecret}. Throws if tampered or garbled. */
