@@ -81,7 +81,7 @@
   <div class="sub">Lixus AI — yapay zekâ destekli misafir iletişimi yazılımı (SaaS)</div>
   <table class="meta">
     <tr><td>Talep eden</td><td>Zeynep Cinar — Lixus AI</td></tr>
-    <tr><td>Tarih</td><td>27 Temmuz 2026</td></tr>
+    <tr><td>Tarih</td><td>29 Temmuz 2026</td></tr>
     <tr><td>Konu</td><td>Yayında olan bir yazılım hizmetinin KVKK, tüketici ve satıcı-kimliği yükümlülükleri</td></tr>
     <tr><td>Aciliyet</td><td>Bölüm 2'deki üç soru geniş müşteri kabulünü <strong>bloke etmektedir</strong></td></tr>
   </table>
@@ -93,7 +93,7 @@ tamamı kaynak kod üzerinden doğrulanmıştır; varsayım içermez. Amacımız
 müşterilere açmadan önce yükümlülüklerimizi eksiksiz yerine getirmektir.</p>
 
 <p>Belge şu şekilde okunabilir: <strong>Bölüm 1</strong> işi ve veri akışını tanıtır,
-<strong>Bölüm 2–8</strong> cevabını beklediğimiz soruları içerir, <strong>Bölüm 10</strong>
+<strong>Bölüm 2–10</strong> cevabını beklediğimiz soruları içerir, <strong>Bölüm 11</strong>
 ise sizden talep ettiğimiz somut çıktıların listesidir.</p>
 
 <h2>1. İşletme ve hizmetin tanımı</h2>
@@ -225,12 +225,12 @@ kaynak koddan doğrulanmış gerçek durumu göstermektedir.</p>
   </tr>
   <tr>
     <td><strong>Anthropic</strong></td><td>ABD</td>
-    <td>Kalite denetimi için örnek yanıtlar (yazılımda mevcut; anahtar tanımlıysa çalışır)</td>
+    <td>Kalite denetimi için örnek yanıtlar — <strong>üretim ortamında API anahtarı tanımlı</strong>, özellik yönetici tetiklemeli</td>
     <td>SÖZLEŞME YOK</td>
   </tr>
   <tr>
     <td><strong>Railway</strong></td><td>ABD</td>
-    <td><strong>Veritabanının tamamı</strong> — tüm müşteri ve misafir kişisel verileri burada saklanır</td>
+    <td><strong>Veritabanının tamamı</strong> + görev fotoğrafları (Railway'in "Buckets" nesne depolaması — erişime kapalı, kısa ömürlü imzalı bağlantı)</td>
     <td>SÖZLEŞME YOK</td>
   </tr>
   <tr>
@@ -265,6 +265,7 @@ kaynak koddan doğrulanmış gerçek durumu göstermektedir.</p>
     <li>Bir sağlayıcı yalnızca <strong>kişisel verisi çıkarılmış (redakte)</strong> veri alıyorsa yine de alt işleyen sayılır mı ve gizlilik metninde listelenmesi gerekir mi? (Akash bu durumdadır.)</li>
     <li>Gizlilik politikamıza eklenecek <strong>alt işleyen paragrafının tam metnini</strong> istiyoruz.</li>
     <li>Veritabanımızın fiziksel olarak <strong>ABD'de</strong> bulunması başlı başına bir sorun mudur? Türkiye'de barındırma zorunluluğumuz var mıdır?</li>
+    <li><strong>Altyapının altındaki altyapı:</strong> Fotoğraf depolamayı Railway'in kendi ürünü olarak satın alıyoruz (sözleşme ve fatura Railway'le), ancak teknik uç nokta <strong>Tigris Data</strong> adlı başka bir şirketin altyapısında çalışıyor. Alt işleyen listesinde Railway'i saymak yeterli midir, yoksa Railway'in bu alt yüklenicisi ayrıca mı sayılmalıdır? Genel kural nedir — alt işleyenin alt işleyenini nereye kadar listeleriz?</li>
   </ol>
 </div>
 
@@ -348,7 +349,24 @@ istiyoruz.</strong></p>
   </ol>
 </div>
 
-<h2>8. Ticari elektronik ileti</h2>
+<h2>8. Turizm amaçlı kiralama mevzuatı (7464 ve 1774 sayılı Kanunlar)</h2>
+<div class="fact">
+  <p><strong>Tespit:</strong> Müşterilerimiz 7464 sayılı Kanun kapsamında turizm amaçlı kiralama
+  yapan ev sahipleri. Yazılımımız ilan yayınlamaz, rezervasyon almaz, ödeme aracılık etmez —
+  yalnızca ev sahibinin kendi platform hesaplarındaki mesajlaşmasına yardımcı olur. Sistemimizde
+  misafir adı ile giriş-çıkış tarihleri (rezervasyon kaydı olarak) zaten tutulmaktadır.</p>
+</div>
+<div class="q">
+  <span class="lbl">SORULARIMIZ</span>
+  <ol type="a">
+    <li>7464'ün elektronik ticaret/aracı hizmet sağlayıcılara yönelik yükümlülük ve cezaları bizim konumumuzu kapsar mı? (İlan/rezervasyon platformu olmadığımız değerlendirmemizi teyit eder misiniz?)</li>
+    <li>İzin belgeli konutlarda 1774 sayılı Kimlik Bildirme Kanunu uygulanıyor. Ev sahibinin bu yükümlülüğü <strong>tam olarak nedir</strong>: günü gününe tutulan ve kolluk incelemesine hazır bir kayıt yeterli midir, yoksa kolluk sistemlerine anlık elektronik bildirim mi gerekir?</li>
+    <li>Elimizdeki rezervasyon verisinden ev sahibine "kimlik ve geliş-gidiş kayıt dökümü" çıktısı sunmamız bu yükümlülüğe yardımcı bir araç olur mu; sunarsak üzerimize ek bir sorumluluk geçer mi?</li>
+    <li>Müşterinin izin belgesi olup olmadığını sormak/saklamak bize bir denetim yükümlülüğü doğurur mu?</li>
+  </ol>
+</div>
+
+<h2>9. Ticari elektronik ileti</h2>
 <p>Sistemin gönderdiği e-postalar: e-posta doğrulama, şifre sıfırlama, iki adımlı doğrulama kodu,
 "deneme süreniz bitiyor" hatırlatması, ev sahibine giden "misafir şikâyeti var" uyarısı.</p>
 <div class="q">
@@ -360,7 +378,7 @@ istiyoruz.</strong></p>
   </ol>
 </div>
 
-<h2>9. İleriye dönük — Avrupa açılışı <span class="low">DÜŞÜK ÖNCELİK</span></h2>
+<h2>10. İleriye dönük — Avrupa açılışı <span class="low">DÜŞÜK ÖNCELİK</span></h2>
 <p>Aynı yazılımı ilerleyen dönemde Avrupa'da euro ile satmayı planlıyoruz (ayrı alan adı, ayrı
 veritabanı, ayrı fiyatlandırma). Bu henüz karara bağlanmadı; ancak aynı görüşme içinde sormanın
 maliyeti düşürdüğünü düşündüğümüz için ekliyoruz.</p>
@@ -373,7 +391,7 @@ maliyeti düşürdüğünü düşündüğümüz için ekliyoruz.</p>
   </ol>
 </div>
 
-<h2 class="pb">10. Sizden talep ettiğimiz çıktılar</h2>
+<h2 class="pb">11. Sizden talep ettiğimiz çıktılar</h2>
 <p>Aşağıdakileri <strong>yazılı metin</strong> olarak istiyoruz. Metinleri olduğu gibi yazılıma
 işleyeceğiz; bu nedenle "şu yönde düzenleme yapılmalıdır" biçiminde değil, doğrudan kullanılabilir
 cümleler hâlinde olmasını rica ediyoruz.</p>
@@ -389,6 +407,7 @@ cümleler hâlinde olmasını rica ediyoruz.</p>
   <li><strong>VERBİS kayıt gerekliliği kararı</strong>, gerekliyse kayıt hizmeti (Bölüm 4)</li>
   <li><strong>Mesafeli Satış Sözleşmesi ve Ön Bilgilendirme Formu'nun revizyonu</strong> — yabancı satıcı ve Merchant of Record yapısına göre (Bölüm 2.1–2.2)</li>
   <li><strong>Yapay zekâ şeffaflık ibaresinin zorunlu olup olmadığı</strong> ve zorunluysa metni (Bölüm 7)</li>
+  <li><strong>7464/1774 kapsam görüşü</strong> — aracı sayılıp sayılmadığımız + kimlik-kayıt yükümlülüğünün niteliği (Bölüm 8)</li>
 </ol>
 
 <div class="fact">
@@ -396,7 +415,8 @@ cümleler hâlinde olmasını rica ediyoruz.</p>
   ispatlayabilmek için metinlerin bir <strong>sürüm damgası</strong> tutulmaktadır. Metinler
   kesinleştiğinde bize <em>tek seferde ve topluca</em> iletmenizi rica ediyoruz — parça parça gelen
   değişiklikler her seferinde yeni bir sürüm damgası doğurur ve geçmiş onay kayıtlarını
-  karmaşıklaştırır.</p>
+  karmaşıklaştırır. Nihai metinleri ve görüşlerinizi <strong>yazılı ve tarihli</strong> (e-posta
+  yeterlidir) iletmenizi rica ederiz — onaylarınızı arşivleyeceğiz.</p>
 </div>
 
 <h2>Ek A — İşinize yarayabilecek teknik gerçekler</h2>
@@ -410,11 +430,13 @@ Hepsi kaynak kod üzerinden doğrulanmıştır.</p>
   <li>Müşteri, kendisine ve misafirlerine ait tüm veriyi panelden <strong>tek tuşla dışa aktarabilir</strong> (makine okunur biçimde).</li>
   <li>Hesap silindiğinde bağlı tüm kayıtlar silinir; yalnızca fatura iskeleti korunur ve içindeki kişisel veriler maskelenir.</li>
   <li>Takvim paylaşım bağlantılarında misafir adı <strong>varsayılan olarak gizlidir</strong>.</li>
+  <li>Görev fotoğrafları erişime kapalı nesne depolamada tutulur; görüntüleme yalnız oturumlu ve aynı-işletme kontrollü, <strong>5 dakikalık imzalı bağlantılarla</strong> yapılır.</li>
+  <li>Takvim bağlantı adresleri (kimlik bilgisi taşır) veritabanında <strong>satıra bağlı AES-256-GCM ile şifrelenmeye</strong> başlanmıştır; kurcalanmış/uyumsuz değer sistemce reddedilir.</li>
   <li>Yapay zekâya gönderilen istemlerde misafir adı gibi alanlar ayrıştırılarak işlenir; modelin sistem talimatını değiştirmeye yönelik girişimler (prompt injection) ayrı bir mekanizmayla engellenir.</li>
 </ul>
 
 <div class="foot">
-  <p><strong>Belge hakkında:</strong> Bu belgedeki teknik tespitler, 27 Temmuz 2026 tarihli
+  <p><strong>Belge hakkında:</strong> Bu belgedeki teknik tespitler, 29 Temmuz 2026 tarihli
   kaynak kod üzerinden doğrulanmıştır. Hukuki nitelendirme içermez; nitelendirme talebimizin
   konusudur. Herhangi bir maddede ek teknik ayrıntı gerekirse (veritabanı tablo envanteri,
   veri akış şeması, sağlayıcı sözleşmeleri) talep etmeniz yeterlidir.</p>
