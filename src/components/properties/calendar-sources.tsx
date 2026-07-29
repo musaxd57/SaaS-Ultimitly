@@ -46,8 +46,14 @@ function maskFeedUrl(url: string): string {
  * Manage external iCal subscriptions (Airbnb, Booking.com …) for a property.
  * Reservations are pulled in on demand via the per-source "Senkronla" button.
  */
+/** Preset source names: the two channels ~every Turkish host uses get one-tap
+ *  chips; "Diğer" keeps the free-text path open (Vrbo, Google Takvim, PMS
+ *  exports…) — the API contract is unchanged, label is still a plain string. */
+const PRESET_SOURCES = ["Airbnb", "Booking.com"] as const;
+
 export function CalendarSources({ propertyId, sources, canManage = true, tz }: Props) {
   const router = useRouter();
+  const [preset, setPreset] = useState<string | null>(null); // "Airbnb" | "Booking.com" | "custom" | null
   const [label, setLabel] = useState("");
   const [url, setUrl] = useState("");
   const [adding, setAdding] = useState(false);
@@ -56,8 +62,20 @@ export function CalendarSources({ propertyId, sources, canManage = true, tz }: P
 
   async function addSource() {
     setError(null);
-    if (label.trim().length < 2 || !/^https?:\/\/.+/i.test(url.trim())) {
-      setError("Kaynak adı ve geçerli bir http(s) bağlantısı gerekli.");
+    const effectiveLabel = preset === "custom" ? label.trim() : (preset ?? "");
+    if (!preset) {
+      setError("Önce kaynağı seçin: Airbnb, Booking.com veya Diğer.");
+      return;
+    }
+    if (effectiveLabel.length < 2) {
+      setError("Kaynak adı gerekli (örn. Vrbo, Google Takvim).");
+      return;
+    }
+    // https-only, matching the server rule exactly (feed URLs embed secrets;
+    // the API rejects http). Validating here too saves a round-trip and avoids
+    // a misleading "http(s)" hint the server would contradict.
+    if (!/^https:\/\/.+/i.test(url.trim())) {
+      setError("Yalnızca https ile başlayan iCal bağlantısı kabul edilir.");
       return;
     }
     setAdding(true);
@@ -65,9 +83,10 @@ export function CalendarSources({ propertyId, sources, canManage = true, tz }: P
       const res = await fetch(`/api/properties/${propertyId}/calendar-sources`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ label: label.trim(), url: url.trim() }),
+        body: JSON.stringify({ label: effectiveLabel, url: url.trim() }),
       });
       if (res.ok) {
+        setPreset(null);
         setLabel("");
         setUrl("");
         router.refresh();
@@ -132,7 +151,9 @@ export function CalendarSources({ propertyId, sources, canManage = true, tz }: P
     <div className="space-y-3">
       <p className="text-xs text-muted-foreground">
         Airbnb / Booking.com&apos;daki &quot;takvimi dışa aktar&quot; iCal bağlantısını buraya
-        ekleyin. &quot;Senkronla&quot; deyince rezervasyonlar otomatik düşer.
+        ekleyin. &quot;Senkronla&quot; deyince rezervasyonlar otomatik düşer. Hospitable
+        bağlıysa aynı ilanın iCal&apos;ini ayrıca eklemeyin — rezervasyonlar iki kez
+        görünebilir.
       </p>
 
       {sources.length > 0 && (
@@ -190,12 +211,35 @@ export function CalendarSources({ propertyId, sources, canManage = true, tz }: P
 
       {canManage ? (
         <div className="space-y-2 rounded-lg border border-dashed border-border p-3">
-          <Input
-            placeholder="Kaynak adı (örn. Airbnb, Booking)"
-            aria-label="Takvim kaynağı adı"
-            value={label}
-            onChange={(e) => setLabel(e.target.value)}
-          />
+          <div role="group" aria-label="Takvim kaynağı" className="flex flex-wrap gap-1.5">
+            {[...PRESET_SOURCES, "Diğer"].map((option) => {
+              const value = option === "Diğer" ? "custom" : option;
+              const active = preset === value;
+              return (
+                <button
+                  key={option}
+                  type="button"
+                  aria-pressed={active}
+                  onClick={() => setPreset(active ? null : value)}
+                  className={`rounded-full border px-3 py-1 text-xs font-medium transition-colors ${
+                    active
+                      ? "border-primary bg-primary text-primary-foreground"
+                      : "border-border bg-background text-muted-foreground hover:border-primary/50 hover:text-foreground"
+                  }`}
+                >
+                  {option}
+                </button>
+              );
+            })}
+          </div>
+          {preset === "custom" && (
+            <Input
+              placeholder="Kaynak adı (örn. Vrbo, Google Takvim)"
+              aria-label="Takvim kaynağı adı"
+              value={label}
+              onChange={(e) => setLabel(e.target.value)}
+            />
+          )}
           <Input
             placeholder="https://www.airbnb.com/calendar/ical/...ics"
             aria-label="Takvim (.ics) bağlantısı"
