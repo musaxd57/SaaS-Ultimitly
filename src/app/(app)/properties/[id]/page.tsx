@@ -22,6 +22,7 @@ import { listReservationsForPinManagement } from "@/lib/guest-chat-pin";
 import { GuestErasureControl } from "@/components/properties/guest-erasure-control";
 import { guestErasureEnabled, reservationsWithSourceTombstone } from "@/lib/erasure";
 import { generateCalendarToken } from "@/lib/export/ics";
+import { getCalendarSourceUrl, maskFeedUrl } from "@/lib/calendar-source-url";
 import { KB_CATEGORY, RESERVATION_STATUS } from "@/lib/constants";
 import { formatDate } from "@/lib/utils";
 
@@ -205,14 +206,22 @@ export default async function PropertyDetailPage({
                 propertyId={property.id}
                 canManage={canManage}
                 tz={orgTimezone(property.organization?.timezone)}
-                sources={property.calendarSources.map((s) => ({
-                  id: s.id,
-                  label: s.label,
-                  url: s.url,
-                  lastSyncedAt: s.lastSyncedAt ? s.lastSyncedAt.toISOString() : null,
-                  lastStatus: s.lastStatus,
-                  lastResult: s.lastResult,
-                }))}
+                sources={property.calendarSources.map((s) => {
+                  // Mask on the SERVER: the raw feed URL is a secret (bearer-like
+                  // query token) and must not ride to the browser in the RSC
+                  // payload — the old render-time mask still shipped the full
+                  // value. Resolve through THE accessor so encrypted (and,
+                  // post-contract, sentinel) rows display the same masked host.
+                  const resolved = getCalendarSourceUrl(s, session.organizationId);
+                  return {
+                    id: s.id,
+                    label: s.label,
+                    urlMasked: resolved.ok ? maskFeedUrl(resolved.url) : "…(çözülemedi)",
+                    lastSyncedAt: s.lastSyncedAt ? s.lastSyncedAt.toISOString() : null,
+                    lastStatus: s.lastStatus,
+                    lastResult: s.lastResult,
+                  };
+                })}
               />
             </CardContent>
           </Card>

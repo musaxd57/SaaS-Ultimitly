@@ -3,7 +3,11 @@ import { prisma } from "@/lib/db";
 import { badRequest, jsonOk, readJsonCappedOrNull } from "@/lib/api";
 import { withManage } from "@/lib/route-guard";
 import { isPrivateHost } from "@/lib/net/private-host";
-import { encryptCalendarSourceUrl } from "@/lib/calendar-source-url";
+import {
+  CALENDAR_URL_SENTINEL,
+  calendarUrlContractEnabled,
+  encryptCalendarSourceUrl,
+} from "@/lib/calendar-source-url";
 
 export const POST = withManage<{ id: string }>(async (session, req, { params }) => {
   const { id: propertyId } = await params;
@@ -38,13 +42,25 @@ export const POST = withManage<{ id: string }>(async (session, req, { params }) 
     return badRequest({ url: "Geçerli bir http(s) iCal bağlantısı girin" });
   }
 
-  // DUAL-WRITE (phase 1 of the url-encryption expand-contract): the plaintext
-  // column stays authoritative while readers migrate, and urlEnc carries the
-  // same value AAD-bound to this exact row+org. The AAD needs the row id, so
-  // the id is generated up front (EmailOutbox m44 precedent).
+  // DUAL-WRITE (phase 1 of the url-encryption expand-contract): urlEnc carries
+  // the real URL AAD-bound to this exact row+org; the AAD needs the row id, so
+  // the id is generated up front (EmailOutbox m44 precedent). What the
+  // plaintext column gets depends on the phase-4 flag: OFF (default) keeps
+  // today's dual-write with the plaintext authoritative; ON stores only the
+  // sentinel — validation above always ran on the REAL url either way.
   const id = randomUUID();
   const source = await prisma.calendarSource.create({
-    data: { id, propertyId, label, url, ...encryptCalendarSourceUrl(url, id, session.organizationId) },
+    data: {
+      id,
+      propertyId,
+      label,
+      url: calendarUrlContractEnabled() ? CALENDAR_URL_SENTINEL : url,
+      ...encryptCalendarSourceUrl(url, id, session.organizationId),
+    },
+    // The 201 body used to echo the full row — that shipped the ciphertext AND
+    // the plaintext feed URL (a secret) back over the wire for a client that
+    // only checks res.ok. Return the safe fields only.
+    select: { id: true, propertyId: true, label: true, createdAt: true },
   });
   return jsonOk(source, 201);
 });

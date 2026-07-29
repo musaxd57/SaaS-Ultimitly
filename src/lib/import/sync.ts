@@ -87,7 +87,9 @@ export async function syncCalendarSource(sourceId: string): Promise<SyncResult> 
     const msg =
       resolvedUrl.reason === "key-fingerprint-mismatch"
         ? "Takvim bağlantısı çözülemedi — şifreleme anahtarı bu kaydın anahtarıyla uyuşmuyor."
-        : "Takvim bağlantısı çözülemedi — şifreli değer bu kayda ait değil (olası kurcalama).";
+        : resolvedUrl.reason === "sentinel-without-ciphertext"
+          ? "Takvim bağlantısı çözülemedi — kayıtta şifreli değer eksik (bozuk durum)."
+          : "Takvim bağlantısı çözülemedi — şifreli değer bu kayda ait değil (olası kurcalama).";
     result.errors.push(msg);
     // Alarm on the TRANSITION into this state only — the 2-minute cron would
     // otherwise page once per pass for the same broken row.

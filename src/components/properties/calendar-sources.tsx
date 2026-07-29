@@ -12,7 +12,11 @@ import { fromNow } from "@/lib/utils";
 export interface CalendarSourceRow {
   id: string;
   label: string;
-  url: string;
+  /** Pre-masked ON THE SERVER (host + tail). The raw feed URL is a secret and
+   *  never reaches the client — render-time masking would still ship the full
+   *  value in the RSC payload, and post-contract the client couldn't mask at
+   *  all (it would only ever see the sentinel). */
+  urlMasked: string;
   lastSyncedAt: string | null;
   lastStatus: string | null;
   lastResult: string | null;
@@ -28,18 +32,6 @@ interface Props {
    *  Resolved server-side (orgTimezone) and passed down; a client component
    *  cannot read the org row itself. */
   tz?: string;
-}
-
-/** Feed URLs embed bearer-like export secrets (Codex #21) — never render the
- *  full value on screen (screenshots, shoulder-surfing, screen shares). Host +
- *  masked tail is enough to recognize which source it is. */
-function maskFeedUrl(url: string): string {
-  try {
-    const u = new URL(url);
-    return `${u.protocol}//${u.host}/…${url.slice(-6)}`;
-  } catch {
-    return `…${url.slice(-6)}`;
-  }
 }
 
 /**
@@ -191,7 +183,7 @@ export function CalendarSources({ propertyId, sources, canManage = true, tz }: P
                   </div>
                 ) : null}
               </div>
-              <p className="truncate text-xs text-muted-foreground">{maskFeedUrl(s.url)}</p>
+              <p className="truncate text-xs text-muted-foreground">{s.urlMasked}</p>
               {s.lastSyncedAt && (
                 <p className="mt-1 flex items-center gap-1 text-xs">
                   {s.lastStatus === "error" ? (
