@@ -3,6 +3,7 @@ import { Prisma } from "@prisma/client";
 import { prisma } from "@/lib/db";
 import { isUniqueViolation } from "@/lib/db-errors";
 import { reportError } from "@/lib/report-error";
+import { getCalendarSourceUrl } from "@/lib/calendar-source-url";
 import { parseIcs } from "@/lib/import/ics";
 import { createReservationTasks, removeAutoTasksForCancelledReservation } from "@/lib/automation";
 import { isPrivateHost, resolvesToPrivate } from "@/lib/net/private-host";
@@ -74,6 +75,36 @@ export async function syncCalendarSource(sourceId: string): Promise<SyncResult> 
     return result;
   }
 
+  // Resolve the feed URL through THE accessor (phase 3 of the url-encryption
+  // expand-contract) — never off the row directly. An encrypted value that
+  // fails to open means tamper, a foreign ciphertext or a wrong key, and the
+  // policy is FAIL CLOSED: this source is skipped, the plaintext column is NOT
+  // used as a fallback (that would make the encryption decorative on exactly
+  // the rows where it matters). Legacy rows (urlEnc NULL) keep working on the
+  // plaintext column until the backfill runs.
+  const resolvedUrl = getCalendarSourceUrl(source, source.property.organizationId);
+  if (!resolvedUrl.ok) {
+    const msg =
+      resolvedUrl.reason === "key-fingerprint-mismatch"
+        ? "Takvim bağlantısı çözülemedi — şifreleme anahtarı bu kaydın anahtarıyla uyuşmuyor."
+        : "Takvim bağlantısı çözülemedi — şifreli değer bu kayda ait değil (olası kurcalama).";
+    result.errors.push(msg);
+    // Alarm on the TRANSITION into this state only — the 2-minute cron would
+    // otherwise page once per pass for the same broken row.
+    if (source.lastStatus !== "error") {
+      await reportError(
+        `ical-sync: calendar-source url unreadable (${sourceId})`,
+        new Error(resolvedUrl.reason),
+      );
+    }
+    await prisma.calendarSource.update({
+      where: { id: sourceId },
+      data: { lastSyncedAt: new Date(), lastStatus: "error", lastResult: msg },
+    });
+    return result;
+  }
+  const feedUrl = resolvedUrl.url;
+
   const channel = channelFromLabel(source.label);
 
   // KVKK explicit-erasure gate (m40): iCal rows carry only a UID (no guest
@@ -93,14 +124,14 @@ export async function syncCalendarSource(sourceId: string): Promise<SyncResult> 
     // or a hostname that currently RESOLVES private. The AUTHORITATIVE guard is
     // fetchFeedText's pinned lookup, which validates the address the socket
     // actually connects to (closing the DNS-rebind TOCTOU this pre-check can't).
-    const feedHost = new URL(source.url).hostname;
+    const feedHost = new URL(feedUrl).hostname;
     if (isPrivateHost(feedHost) || (await resolvesToPrivate(feedHost))) {
       throw new Error("blocked private host");
     }
     // node:https/http GET with: pinned public-only IP, NO redirect following
     // (a 3xx is a failure, nothing to re-resolve), a declared + streamed byte
     // cap, and a 15s timeout. HTTPS keeps full cert validation.
-    text = await fetchFeedText(source.url, {
+    text = await fetchFeedText(feedUrl, {
       maxBytes: FEED_MAX_BYTES,
       timeoutMs: 15000,
       userAgent: "Lixus-AI/1.0",

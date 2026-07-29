@@ -1,4 +1,5 @@
 import { prisma } from "@/lib/db";
+import { getCalendarSourceUrl } from "@/lib/calendar-source-url";
 
 // ---------------------------------------------------------------------------
 // SINGLE-SOURCE organization data export (Codex 07-23 #5). Both KVKK data-access
@@ -27,13 +28,37 @@ import { prisma } from "@/lib/db";
  * `hasUrl` flag, so a host reading their export can still tell which feed each
  * row is and that one is configured.
  */
-function maskFeedUrls<T extends { properties?: { calendarSources?: { url: string }[] }[] }>(org: T): T {
+function maskFeedUrls<
+  T extends {
+    properties?: {
+      calendarSources?: { id: string; url: string; urlEnc: string | null; urlKeyFp: string | null }[];
+    }[];
+  },
+>(org: T, organizationId: string): T {
   for (const property of org.properties ?? []) {
-    for (const source of property.calendarSources ?? []) {
-      const raw = source.url;
-      const masked = source as unknown as { url?: unknown; urlMasked: string; hasUrl: boolean };
+    for (const src of property.calendarSources ?? []) {
+      // THE accessor (url-encryption phase 3): the mask is built from the value
+      // a sync would actually use. Ciphertext is a secret too — neither it nor
+      // its fingerprint may appear in the export, so both columns are stripped
+      // unconditionally. An unreadable ciphertext yields a diagnosis string,
+      // never the plaintext column (fail-closed, same policy as the sync).
+      const resolved = getCalendarSourceUrl(src, organizationId);
+      const raw = resolved.ok ? resolved.url : "";
+      const masked = src as unknown as {
+        url?: unknown;
+        urlEnc?: unknown;
+        urlKeyFp?: unknown;
+        urlMasked: string;
+        hasUrl: boolean;
+      };
       delete masked.url;
-      masked.hasUrl = Boolean(raw);
+      delete masked.urlEnc;
+      delete masked.urlKeyFp;
+      masked.hasUrl = resolved.ok ? Boolean(raw) : true;
+      if (!resolved.ok) {
+        masked.urlMasked = "…(çözülemedi — şifreli değer bu kayıtla uyuşmuyor)";
+        continue;
+      }
       try {
         const u = new URL(raw);
         masked.urlMasked = `${u.protocol}//${u.host}/…${raw.slice(-6)}`;
@@ -102,13 +127,13 @@ export async function buildOrganizationDataExport(organizationId: string) {
             // render it in full (calendar-sources.tsx maskFeedUrl); the export
             // used to ship it raw, which is the same secret in a downloadable
             // file. `url` is replaced by masked metadata below — enough for the
-            // host to tell WHICH feed a row is, useless to a leak.
-            // At-rest encryption of the stored column is a separate migration
-            // round (expand/contract), deliberately not bundled here.
+            // host to tell WHICH feed a row is, useless to a leak. urlEnc and
+            // urlKeyFp are selected ONLY to feed the accessor; maskFeedUrls
+            // strips both before serialization (ciphertext is a secret too).
             calendarSources: {
               select: {
-                id: true, label: true, url: true, lastSyncedAt: true,
-                lastStatus: true, lastResult: true, createdAt: true,
+                id: true, label: true, url: true, urlEnc: true, urlKeyFp: true,
+                lastSyncedAt: true, lastStatus: true, lastResult: true, createdAt: true,
               },
             },
             supplyRequests: {
@@ -230,7 +255,7 @@ export async function buildOrganizationDataExport(organizationId: string) {
   ]);
   if (!org) return null;
   return {
-    organization: maskFeedUrls(org),
+    organization: maskFeedUrls(org, organizationId),
     billing: { subscription, invoices },
     auditLogs,
     checkoutConsents,
