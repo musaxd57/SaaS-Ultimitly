@@ -183,3 +183,29 @@ describe("FAZ 3 — dual-read FAIL-CLOSED", () => {
     }
   });
 });
+
+describe("TAM DOĞRULAYICI — sayım değil, her satırı AÇAR", () => {
+  it("temiz/legacy/kurcalanmış/sürüklenmiş satırları doğru sınıflar", async () => {
+    const { verifyCalendarSourceUrlEnc } = await import("@/lib/calendar-source-url");
+    // 1) sağlam (rota ile) — ok saymalı
+    await createSource(createReq(FEED), ctx());
+    // 2) legacy — nullEnc
+    await prisma.calendarSource.create({ data: { propertyId, label: "L", url: FEED } });
+    // 3) kurcalanmış — decryptFailed
+    await prisma.calendarSource.create({
+      data: {
+        propertyId, label: "T", url: FEED,
+        urlEnc: encryptSecretBound(FEED, "calendar-source-url:v1:baska:org"),
+        urlKeyFp: encryptionKeyFingerprint(),
+      },
+    });
+    // 4) SÜRÜKLENMİŞ: şifre çözülüyor ama düz kolon sonradan değişmiş —
+    //    Faz 4 öncesi yakalanması ŞART olan sınıf (Codex: sayım yetmez).
+    const drifted = await prisma.calendarSource.findFirstOrThrow({ where: { label: "Airbnb" } });
+    await prisma.calendarSource.update({ where: { id: drifted.id }, data: { url: `${FEED}&degisti=1` } });
+
+    const r = await verifyCalendarSourceUrlEnc(prisma);
+    expect(r).toMatchObject({ total: 3, nullEnc: 1, ok: 0, fpMismatch: 0, decryptFailed: 1, plaintextMismatch: 1 });
+    expect(r.badIds).toContain(drifted.id);
+  });
+});
