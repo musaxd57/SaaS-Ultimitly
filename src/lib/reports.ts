@@ -10,7 +10,6 @@ import { orgTimezone, zonedDayRange, zonedDateStart, addZonedDays } from "@/lib/
 // land at local-midnight-UTC, so bucketing by the server's UTC day shifts
 // month-edge nights by a day. dayKeyTz returns the org-local "YYYY-MM-DD" of an
 // instant; zonedDayRange maps an org-local calendar day to its UTC boundaries.
-const DAY_MS = 24 * 60 * 60 * 1000;
 const dayKeyTz = (d: Date, tz: string): string => d.toLocaleDateString("en-CA", { timeZone: tz });
 
 /** The org's report timezone (one cheap PK read; bozuk/boş değer → Istanbul). */
@@ -473,12 +472,15 @@ export async function getOccupancyForecast(
   orgId: string,
   daysAhead = 30,
 ): Promise<OccupancyForecast> {
-  // Org-local calendar days: "today" is the local-midnight UTC instant and each
-  // day steps 24h, so the overlap test buckets stays (stored at local-midnight-
-  // UTC) on the correct night, not one day early.
+  // Org-local calendar days. "Today" is the local-midnight instant, and each
+  // step lands on the NEXT local midnight (addZonedDays) rather than +24h: in a
+  // DST timezone a day is 23 or 25 hours, so flat DAY_MS stepping walked into
+  // the repeated hour on the fall-back night and emitted the same local date
+  // twice (losing a day off the end). Istanbul has had no DST since 2016, so
+  // there addZonedDays IS exactly +24h and the .com output is unchanged.
   const tz = await reportTz(orgId);
   const today = zonedDayRange(new Date(), tz).start;
-  const forecastEnd = new Date(today.getTime() + daysAhead * DAY_MS);
+  const forecastEnd = addZonedDays(today, daysAhead, tz);
 
   const [totalProperties, reservations] = await Promise.all([
     prisma.property.count({ where: { organizationId: orgId } }),
@@ -499,8 +501,8 @@ export async function getOccupancyForecast(
 
   const days: DayForecast[] = [];
   for (let i = 0; i < daysAhead; i++) {
-    const day = new Date(today.getTime() + i * DAY_MS);
-    const dayEnd = new Date(day.getTime() + DAY_MS);
+    const day = addZonedDays(today, i, tz);
+    const dayEnd = addZonedDays(today, i + 1, tz);
     const dateStr = dayKeyTz(day, tz);
 
     // Count distinct properties occupied on this day
