@@ -248,17 +248,9 @@ export function LoginForm() {
           {useRecovery ? (
             <div className="rounded-md border border-border bg-muted/40 px-3 py-2.5 text-xs text-muted-foreground">
               <p className="mb-0.5 font-medium text-foreground">Kurtarma koduyla giriş</p>
-              <p>
-                Kaydettiğiniz tek kullanımlık kurtarma kodlarından birini girin. Kullandığınız kod
-                geçersiz olur; kalan kodlarınızı Ayarlar&apos;dan yenileyebilirsiniz.
-              </p>
-              <p className="mt-1">
-                Kurtarma kodlarınız da yoksa{" "}
-                <a href="mailto:iletisimlixusai@gmail.com" className="text-primary underline hover:no-underline">
-                  iletisimlixusai@gmail.com
-                </a>{" "}
-                adresinden bize ulaşın.
-              </p>
+              {/* Kullanıcı kararı: bu panelde YALNIZ bu tek cümle. Kilitli-kalan
+                  kullanıcının destek yolu Ayarlar'daki 2FA kartında yazılı. */}
+              <p>Her kurtarma kodu yalnızca bir kez kullanılabilir.</p>
             </div>
           ) : (
             <p className="text-xs text-muted-foreground">

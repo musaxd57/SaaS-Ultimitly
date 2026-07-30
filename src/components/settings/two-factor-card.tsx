@@ -167,9 +167,9 @@ export function TwoFactorCard({
           </p>
           {recoveryCodes ? (
             <div className="space-y-2">
-              <div className="rounded-md border border-amber-300 bg-amber-50 px-3 py-2 text-sm text-amber-900">
-                Bu kodlar yalnızca şimdi görüntüleniyor — sayfadan ayrılınca tekrar gösterilmez.
-                Güvenli bir yere kaydedin.
+              <div className="rounded-md border border-amber-300 bg-amber-50 px-3 py-1.5 text-xs text-amber-900">
+                Sayfadan ayrıldıktan sonra aynı kodları tekrar göremezsiniz. Yeni kodlar
+                oluşturursanız mevcut kodların tamamı geçersiz olur.
               </div>
               <div className="grid grid-cols-2 gap-x-6 gap-y-1 rounded-md border bg-background px-3 py-2 font-mono text-sm tracking-wider">
                 {recoveryCodes.map((c) => (

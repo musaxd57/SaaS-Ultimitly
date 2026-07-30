@@ -16,8 +16,11 @@ describe("DeleteAccountCard — silinir/saklanır transparency (KVKK)", () => {
     expect(screen.getByText(/misafir adı, telefon, e-posta/i)).toBeTruthy();
     expect(screen.getByText(/Hospitable bağlantı/i)).toBeTruthy();
     // retained-but-redacted (the surviving Paddle financial skeleton)
-    expect(screen.getByText(/Yasa gereği saklanır/i)).toBeTruthy();
-    expect(screen.getByText(/finansal iskeleti/i)).toBeTruthy();
+    // Kullanıcı kararı 07-30: başlıklı "Yasa gereği saklanır" bloğu tek satıra indi —
+    // ama İSTİSNANIN SÖYLENMESİ dürüst-kopya kuralı gereği korunur ("tüm verileriniz
+    // silinir" vaadinin tek istisnası fatura mevzuatının sakladığı finansal özet).
+    expect(screen.getByText(/Tek istisna: ödeme kayıtlarının/i)).toBeTruthy();
+    expect(screen.getByText(/finansal özeti/i)).toBeTruthy();
     // the irreversible action is still present
     expect(screen.getByRole("button", { name: /kalıcı olarak sil/i })).toBeTruthy();
   });

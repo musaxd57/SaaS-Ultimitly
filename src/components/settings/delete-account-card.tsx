@@ -49,7 +49,7 @@ export function DeleteAccountCard() {
     <div className="space-y-3">
       <p className="text-sm text-muted-foreground">
         Hesabınızı ve <strong>tüm verilerinizi</strong> kalıcı olarak siler. Bu işlem{" "}
-        <strong>geri alınamaz</strong>. (KVKK — verilerin silinmesini isteme hakkı.)
+        <strong>geri alınamaz</strong>.
       </p>
 
       <div className="rounded-lg border border-border bg-muted/30 p-3 text-xs">
@@ -61,13 +61,14 @@ export function DeleteAccountCard() {
           <li>Kullanıcı hesapları (şifre, 2FA, onay kayıtları), denetim kayıtları</li>
           <li>Abonelik ve faturalar, Hospitable bağlantı bilgileri</li>
         </ul>
-        <p className="mt-2 font-medium text-foreground">Yasa gereği saklanır (kişisel bilgiler temizlenerek)</p>
-        <ul className="mt-1 list-disc space-y-0.5 pl-4 text-muted-foreground">
-          <li>
-            Ödeme işlem kayıtlarının finansal iskeleti — işlem/abonelik kimliği, tutar, para birimi,
-            tarih ve durum. E-posta, ad-soyad, adres ve kart bilgisi bunlardan silinir.
-          </li>
-        </ul>
+        {/* "Tüm verileriniz silinir" vaadinin TEK istisnası fatura mevzuatının
+            saklattığı kişisel-verisiz finansal özet — bunu söylememek üstteki
+            cümleyi yalancı çıkarır (dürüst-kopya kuralı). Kullanıcı isteğiyle
+            başlıklı bloktan tek satıra indirildi; ayrıntı gizlilik sayfasında. */}
+        <p className="mt-2 text-muted-foreground">
+          Tek istisna: ödeme kayıtlarının kişisel bilgilerden arındırılmış finansal özeti, fatura
+          mevzuatı gereği saklanır.
+        </p>
       </div>
 
       {!open ? (
