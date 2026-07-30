@@ -7,7 +7,11 @@
 # -ExpectedSha ile KARSILASTIRIR (yanlis/bozuk dosyaya prova imkansiz) ->
 # izole kumeye restore eder (sure olculur) -> fail-closed dogrulamalar:
 #   - migration sayisi == bu klondaki prisma/migrations klasor sayisi
-#     (OTOMATIK guncel kalir - once git fetch/reset ile klonu guncelle!)
+#     (OTOMATIK guncel kalir - once klonu GUVENLI sekilde guncelle:
+#        git status --short        <- cikti verirse DUR, reset/pull YAPMA
+#        git fetch origin claude/great-edison-3zqpZ
+#        git pull --ff-only origin claude/great-edison-3zqpZ
+#      ASLA git reset --hard kullanma: yerel degisiklikleri siler.)
 #   - bitmemis migration == 0
 #   - sentinel == toplam CalendarSource (post-contract yapisal degismezi)
 #   - istege bagli -ExpectCalendarSources N ile toplam da pinlenir
