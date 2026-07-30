@@ -249,6 +249,12 @@ const FAQS = [
     a: "Evet. 14 gün boyunca tüm Pro özellikleri ücretsiz, kart gerekmez. Beğenirseniz devam edersiniz; beğenmezseniz hiçbir şey ödemezsiniz.",
   },
   {
+    q: "Deneme bitince hesabıma ne olur?",
+    // Kayıt banner'ı + LimitedModeBanner ile AYNI gerçek: silinme yok, otomatik
+    // ücret yok, sınırlı erişim; oto-yanıt ücretli planda (dürüst-kopya kuralı).
+    a: "Hiçbir şey silinmez ve otomatik ücret alınmaz. Hesabınız sınırlı erişimle açık kalır — verilerinizi ve panellerinizi görmeye devam edersiniz; otomatik yanıtlar için ücretli plan gerekir. İstediğiniz zaman abone olup kaldığınız yerden devam edebilirsiniz.",
+  },
+  {
     q: "İstediğim zaman durdurabilir miyim?",
     a: "Evet. Otomatik gönderimi tek tıkla kapatabilir, aboneliğinizi dilediğiniz zaman sonlandırabilirsiniz. Taahhüt yok.",
   },

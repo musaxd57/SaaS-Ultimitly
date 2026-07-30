@@ -12,7 +12,7 @@ const BASE = appCanonicalOrigin();
 // it dilutes recrawl priority. Bump LANDING_UPDATED when the landing content
 // actually changes; legal pages derive from the single-source LEGAL_VERSION.
 // /login is intentionally NOT listed: an auth form is not search content.
-const LANDING_UPDATED = new Date("2026-07-13");
+const LANDING_UPDATED = new Date("2026-07-30"); // yeni SSS girdisi (deneme sonrası)
 const LEGAL_UPDATED = new Date(`${LEGAL_VERSION}-01`);
 
 export default function sitemap(): MetadataRoute.Sitemap {
