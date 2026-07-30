@@ -10,6 +10,19 @@ import {
   RECOVERY_CODE_COUNT,
 } from "@/lib/auth/recovery-codes";
 import { writeAudit } from "@/lib/audit";
+import { reportError } from "@/lib/report-error";
+
+// An ACTIVE 2FA whose stored secret no longer decrypts is a SYSTEM fault, never
+// a user mistake — hiding it behind "wrong code" sends the owner into a retry
+// loop no code can ever end (lived on 07-30). Say what it is, and page the
+// operator: the fix is the admin reset-2fa escape hatch, not another attempt.
+// Still fail-closed — the broken state never allows disable/minting either.
+const SECRET_UNREADABLE_MSG =
+  "Sistem, kayıtlı 2FA anahtarını çözemiyor — kod doğru olsa da işlem yapılamaz. Operatöre başvurun (2FA sıfırlama gerekir).";
+
+function reportUnreadableSecret(userId: string) {
+  void reportError("account.2fa secret-undecryptable", new Error(`userId=${userId}`));
+}
 
 // ---------------------------------------------------------------------------
 // Two-factor auth (authenticator app) management for the signed-in user.
@@ -115,7 +128,11 @@ export async function POST(req: NextRequest) {
             secret = null;
           }
         }
-        if (!secret || !verifyTotp(secret, code)) {
+        if (!secret) {
+          reportUnreadableSecret(session.userId);
+          return badRequest({ code: SECRET_UNREADABLE_MSG });
+        }
+        if (!verifyTotp(secret, code)) {
           return badRequest({ code: "Kapatmak için geçerli bir kod girin." });
         }
       }
@@ -158,7 +175,11 @@ export async function POST(req: NextRequest) {
           secret = null;
         }
       }
-      if (!secret || !verifyTotp(secret, code)) {
+      if (!secret) {
+        reportUnreadableSecret(session.userId);
+        return badRequest({ code: SECRET_UNREADABLE_MSG });
+      }
+      if (!verifyTotp(secret, code)) {
         return badRequest({ code: "Geçerli bir doğrulama kodu girin." });
       }
       // Regeneration atomically invalidates every previous code.

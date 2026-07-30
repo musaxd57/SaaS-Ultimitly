@@ -125,11 +125,11 @@ export function TwoFactorCard({
     return (
       <div className="space-y-3">
         <p className="inline-flex items-center gap-2 text-sm font-medium text-emerald-700">
-          <ShieldCheck className="size-4" /> İki adımlı giriş AÇIK.
+          <ShieldCheck className="size-4" /> İki adımlı doğrulama etkin.
         </p>
         <p className="text-sm text-muted-foreground">
-          Girişte şifrenin yanında telefonundaki Authenticator kodunu da gireceksin. Kapatmak için
-          mevcut bir kodu gir.
+          Hesabınıza giriş yaparken şifrenize ek olarak doğrulama uygulamanızdaki 6 haneli kod
+          istenir. Kapatmak için mevcut bir kodu girin.
         </p>
         <form onSubmit={disable} className="flex flex-wrap items-end gap-2">
           <Field label="Mevcut kod" htmlFor="tf-off" className="min-w-[200px] flex-1">
@@ -148,14 +148,16 @@ export function TwoFactorCard({
           <p className="inline-flex items-center gap-2 text-sm font-medium text-foreground">
             <KeyRound className="size-4" /> Kurtarma kodları
             <span className="text-muted-foreground">
-              — {recoveryRemaining > 0 ? `${recoveryRemaining} adet kullanılmamış` : "henüz yok"}
+              —{" "}
+              {recoveryRemaining > 0
+                ? `${recoveryRemaining} adet kullanılmamış`
+                : "Durum: Henüz oluşturulmadı"}
             </span>
           </p>
           <p className="text-sm text-muted-foreground">
-            Telefonunu kaybedersen bu tek kullanımlık kodlardan biriyle giriş yapabilirsin.
-            {recoveryRemaining > 0
-              ? " Yenilersen eski kodların TAMAMI geçersiz olur."
-              : " Oluşturman şiddetle önerilir — yoksa telefon kaybında hesaba erişemezsin."}
+            Doğrulama uygulamanıza erişemediğinizde, tek kullanımlık kurtarma kodunuz ile hesabınıza
+            giriş yapabilirsiniz. Kodları güvenli bir yerde saklayın.
+            {recoveryRemaining > 0 ? " Yenilerseniz eski kodların tamamı geçersiz olur." : null}
           </p>
           {recoveryCodes ? (
             <div className="space-y-2">

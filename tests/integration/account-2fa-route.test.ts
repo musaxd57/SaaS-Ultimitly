@@ -53,6 +53,50 @@ describe("POST /api/account/2fa", () => {
     expect(u?.twoFactorEnabledAt).not.toBeNull();
   });
 
+  it("recovery_codes: SAĞLAM secret + geçerli kod → 10 kod üretir", async () => {
+    const { totp } = await import("@/lib/auth/totp");
+    const secret = "ABCDEFGHIJKLMNOP";
+    await prisma.user.update({
+      where: { id: session.userId },
+      data: { twoFactorSecret: encryptSecret(secret), twoFactorEnabledAt: new Date() },
+    });
+    const res = await POST(req({ action: "recovery_codes", code: totp(secret) }));
+    expect(res.status).toBe(200);
+    const data = await res.json();
+    expect(data.codes).toHaveLength(10);
+  });
+
+  it("ÇÖZÜLEMEYEN secret 'yanlış kod' maskesine saklanmaz: recovery_codes ayrı sistem-hatası mesajı döner", async () => {
+    // Kurcalanmış/yabancı-anahtarla şifrelenmiş secret — decryptSecret fırlatır.
+    await prisma.user.update({
+      where: { id: session.userId },
+      data: { twoFactorSecret: "v1.bozuk.bozuk.bozuk", twoFactorEnabledAt: new Date() },
+    });
+    const res = await POST(req({ action: "recovery_codes", code: "123456" }));
+    expect(res.status).toBe(400);
+    const data = await res.json();
+    expect(data.fields?.code).toContain("çözemiyor");
+    expect(data.fields?.code).not.toContain("Geçerli bir doğrulama kodu");
+    // Fail-closed: kod ASLA üretilmedi.
+    expect(await prisma.twoFactorRecoveryCode.count({ where: { userId: session.userId } })).toBe(0);
+  });
+
+  it("ÇÖZÜLEMEYEN secret'ta disable da ayrı mesaj döner ve 2FA AÇIK KALIR (fail-closed)", async () => {
+    await prisma.user.update({
+      where: { id: session.userId },
+      data: { twoFactorSecret: "v1.bozuk.bozuk.bozuk", twoFactorEnabledAt: new Date() },
+    });
+    const res = await POST(req({ action: "disable", code: "123456" }));
+    expect(res.status).toBe(400);
+    const data = await res.json();
+    expect(data.fields?.code).toContain("çözemiyor");
+    const u = await prisma.user.findUnique({
+      where: { id: session.userId },
+      select: { twoFactorEnabledAt: true },
+    });
+    expect(u?.twoFactorEnabledAt).not.toBeNull();
+  });
+
   it("allows 'setup' when 2FA is not yet active", async () => {
     const res = await POST(req({ action: "setup" }));
     expect(res.status).toBe(200);
