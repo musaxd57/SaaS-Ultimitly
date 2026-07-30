@@ -1,6 +1,7 @@
 "use client";
 
 import { useState, useEffect } from "react";
+import { useFlash } from "@/lib/use-flash";
 import { Loader2, Check, KeyRound, MailCheck } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -18,7 +19,7 @@ export function AccountCard({ email }: { email: string }) {
   const [code, setCode] = useState("");
   const [pw, setPw] = useState("");
   const [busy, setBusy] = useState(false);
-  const [done, setDone] = useState(false);
+  const [done, setDone] = useFlash<boolean>(); // 6 sn sonra kendiliğinden gider
   const [error, setError] = useState<string | null>(null);
   const [info, setInfo] = useState<string | null>(null);
   // Cooldown (seconds) after a code is sent, so "resend" can't be spammed —

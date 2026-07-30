@@ -5,6 +5,7 @@ import { Loader2, ShieldCheck, ShieldOff, Check, KeyRound, Copy } from "lucide-r
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Field } from "@/components/form-field";
+import { useFlash } from "@/lib/use-flash";
 
 /**
  * Two-factor auth (authenticator app) setup. Three states:
@@ -26,7 +27,7 @@ export function TwoFactorCard({
   const [code, setCode] = useState("");
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
-  const [done, setDone] = useState<string | null>(null);
+  const [done, setDone] = useFlash<string>(); // başarı mesajı 6 sn sonra kendiliğinden gider
   // Recovery codes: unused count + the one-time plaintext reveal after (re)gen.
   const [recoveryRemaining, setRecoveryRemaining] = useState(initialRecoveryRemaining);
   const [recoveryCodes, setRecoveryCodes] = useState<string[] | null>(null);
@@ -162,8 +163,7 @@ export function TwoFactorCard({
           {recoveryCodes ? (
             <div className="space-y-2">
               <div className="rounded-md border border-amber-300 bg-amber-50 px-3 py-2 text-sm text-amber-900">
-                Bu kodlar <strong>bir daha gösterilmeyecek</strong>. Her biri tek kullanımlıktır —
-                şifre yöneticine kaydet veya yazdır.
+                Bu kodlar <strong>bir daha gösterilmeyecek</strong> — güvenli bir yere kaydedin.
               </div>
               <div className="grid grid-cols-2 gap-x-6 gap-y-1 rounded-md border bg-background px-3 py-2 font-mono text-sm tracking-wider">
                 {recoveryCodes.map((c) => (

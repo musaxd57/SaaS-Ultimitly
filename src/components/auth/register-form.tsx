@@ -5,11 +5,33 @@ import { Field } from "@/components/form-field";
 import { FormError } from "@/components/form-error";
 import { useRouter } from "next/navigation";
 import Link from "next/link";
-import { Loader2 } from "lucide-react";
+import { Loader2, Wand2 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 
 type Fields = Record<string, string>;
+
+/**
+ * A 16-char suggested password from the browser's CSPRNG. Ambiguous glyphs
+ * (0/O, 1/l/I) are excluded — the user may need to retype it on their phone.
+ * Class coverage (lower/upper/digit/symbol) is guaranteed by construction,
+ * then the order is shuffled so the classes aren't in predictable positions.
+ */
+function suggestStrongPassword(): string {
+  const lower = "abcdefghjkmnpqrstuvwxyz";
+  const upper = "ABCDEFGHJKMNPQRSTUVWXYZ";
+  const digits = "23456789";
+  const symbols = "!@#$%*+-?";
+  const pick = (set: string, n: number) =>
+    Array.from(crypto.getRandomValues(new Uint32Array(n)), (v) => set[v % set.length]);
+  const chars = [...pick(lower, 6), ...pick(upper, 4), ...pick(digits, 4), ...pick(symbols, 2)];
+  const rnd = crypto.getRandomValues(new Uint32Array(chars.length));
+  for (let i = chars.length - 1; i > 0; i--) {
+    const j = rnd[i] % (i + 1);
+    [chars[i], chars[j]] = [chars[j], chars[i]];
+  }
+  return chars.join("");
+}
 
 /**
  * The browser's own IANA timezone, for the org we're about to create. Reports,
@@ -42,6 +64,9 @@ export function RegisterForm() {
   const [loading, setLoading] = useState(false);
   const [sent, setSent] = useState(false);
   const [consent, setConsent] = useState(false);
+  // Önerilen şifre GÖRÜNÜR yazılır (type=text) — kullanıcı kaydetmeden göremezse
+  // öneri işe yaramaz. Panoya otomatik KOPYALANMAZ (pano yöneticileri okur).
+  const [passwordSuggested, setPasswordSuggested] = useState(false);
   // Doğrulama bağlantısını YENİDEN GÖNDERME, başarı ekranının kendisinde durur.
   // Eskiden bu seçenek yalnız giriş sayfasında ve ancak BAŞARISIZ bir giriş
   // denemesinden sonra beliriyordu — yani kullanıcı, maili gelmediğinde önce
@@ -229,16 +254,40 @@ export function RegisterForm() {
       </Field>
       {/* Kural artik ipucu olarak KALICI: hata belirince kaybolmuyor
           (Field ikisini birden gosterir ve ikisini de describedby'a baglar). */}
-      <Field label="Şifre" htmlFor="password" error={fields.password} hint="En az 8 karakter.">
-        <Input
-          id="password"
-          type="password"
-          autoComplete="new-password"
-          value={form.password}
-          onChange={update("password")}
-          required
-        />
-      </Field>
+      {/* Input, Field'in DOĞRUDAN çocuğu kalmalı: Field aria-invalid/describedby'ı
+          tek element çocuğuna enjekte eder; araya sarmalayıcı girerse ekran
+          okuyucu bağı kopar (auth-field-errors testi bunu pinler). Öneri butonu
+          bu yüzden Field'in ALTINDA durur. */}
+      <div className="space-y-2">
+        <Field label="Şifre" htmlFor="password" error={fields.password} hint="En az 8 karakter.">
+          <Input
+            id="password"
+            type={passwordSuggested ? "text" : "password"}
+            autoComplete="new-password"
+            value={form.password}
+            onChange={update("password")}
+            required
+          />
+        </Field>
+        <Button
+          type="button"
+          variant="outline"
+          size="sm"
+          onClick={() => {
+            setForm((f) => ({ ...f, password: suggestStrongPassword() }));
+            clearFieldError("password");
+            setPasswordSuggested(true);
+          }}
+        >
+          <Wand2 className="size-4" /> Güçlü şifre öner
+        </Button>
+        {passwordSuggested ? (
+          <p className="text-xs text-muted-foreground">
+            Güçlü bir şifre oluşturup alana yazdık — şifre yöneticinize veya güvenli bir yere
+            kaydedin.
+          </p>
+        ) : null}
+      </div>
       <div className="space-y-1">
         <label className="flex items-start gap-2 text-xs text-muted-foreground">
           <input

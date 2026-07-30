@@ -244,12 +244,20 @@ export function LoginForm() {
         </Field>
       ) : null}
       {twoFactor ? (
-        <div className="space-y-2">
-          <p className="text-xs text-muted-foreground">
-            {useRecovery
-              ? "Kurtarma kodlarınız tek kullanımlıktır — kullandığınız kod geçersiz olur."
-              : "Telefonunuzdaki Authenticator uygulamasını açıp Lixus AI kodunu girin."}
-          </p>
+        <div className="space-y-2.5">
+          {useRecovery ? (
+            <div className="rounded-md border border-border bg-muted/40 px-3 py-2.5 text-xs text-muted-foreground">
+              <p className="mb-0.5 font-medium text-foreground">Kurtarma koduyla giriş</p>
+              <p>
+                Kaydettiğiniz tek kullanımlık kurtarma kodlarından birini girin. Kullandığınız kod
+                geçersiz olur; kalan kodlarınızı Ayarlar&apos;dan yenileyebilirsiniz.
+              </p>
+            </div>
+          ) : (
+            <p className="text-xs text-muted-foreground">
+              Telefonunuzdaki Authenticator uygulamasını açıp Lixus AI kodunu girin.
+            </p>
+          )}
           <button
             type="button"
             onClick={() => {
@@ -271,7 +279,7 @@ export function LoginForm() {
               onChange={(e) => setRememberDevice(e.target.checked)}
               className="size-4 rounded border-input"
             />
-            Bu cihazı 30 gün hatırla — tekrar kod sorulmasın
+            Bu cihazı 30 gün hatırla
           </label>
         </div>
       ) : null}

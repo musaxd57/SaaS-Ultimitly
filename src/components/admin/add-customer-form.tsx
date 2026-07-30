@@ -1,6 +1,7 @@
 "use client";
 
 import { useState } from "react";
+import { useFlash } from "@/lib/use-flash";
 import { useRouter } from "next/navigation";
 import { Loader2, UserPlus, Check } from "lucide-react";
 import { Button } from "@/components/ui/button";
@@ -22,7 +23,7 @@ export function AddCustomerForm() {
     billingMode: "trial",
   });
   const [busy, setBusy] = useState(false);
-  const [done, setDone] = useState<string | null>(null);
+  const [done, setDone] = useFlash<string>(); // 6 sn sonra kendiliğinden gider
   const [errors, setErrors] = useState<Record<string, string>>({});
 
   function set(k: keyof typeof form, v: string) {

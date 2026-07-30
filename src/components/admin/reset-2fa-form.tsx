@@ -1,6 +1,7 @@
 "use client";
 
 import { useState } from "react";
+import { useFlash } from "@/lib/use-flash";
 import { Loader2, ShieldOff, Check } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -15,7 +16,7 @@ import { Field } from "@/components/form-field";
 export function Reset2faForm() {
   const [email, setEmail] = useState("");
   const [busy, setBusy] = useState(false);
-  const [done, setDone] = useState<string | null>(null);
+  const [done, setDone] = useFlash<string>(); // 6 sn sonra kendiliğinden gider
   const [error, setError] = useState<string | null>(null);
 
   async function submit(e: React.FormEvent) {

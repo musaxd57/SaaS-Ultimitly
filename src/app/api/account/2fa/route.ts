@@ -70,7 +70,9 @@ export async function POST(req: NextRequest) {
         select: { twoFactorEnabledAt: true },
       });
       if (current?.twoFactorEnabledAt) {
-        return badRequest({ _: "2FA zaten aktif. Yenilemek için önce kapatın." });
+        return badRequest({
+          _: "İki adımlı doğrulama bu hesapta daha önce açılmış ve şu an etkin. Yeniden kurmak için önce mevcut kodunuzla kapatın.",
+        });
       }
       const secret = generateSecret();
       await prisma.user.update({
