@@ -199,9 +199,8 @@ export function RegisterForm() {
               bitince hesap silinmez ve ücret çekilmez, ama otomatik mesajlaşma
               kapanır (premiumAllowed tek kapı). "Sınırlı erişim" =
               LimitedModeBanner'ın anlattığı kısıtlı mod. */}
-          Kaydınızdan sonra e-posta adresinizi doğrulamanız için bir bağlantı göndeririz. Deneme
-          sürenizin sonunda otomatik ücret alınmaz. Abone olmazsanız hesabınız sınırlı erişimle açık
-          kalır; otomatik yanıtlar yalnızca ücretli planlarda kullanılabilir.
+          Deneme sonunda otomatik ücret alınmaz. Hesabınızı sınırlı erişimle kullanmaya devam
+          edebilirsiniz; otomatik yanıtlar için ücretli plan gerekir.
         </p>
       </div>
       <FormError>{error}</FormError>

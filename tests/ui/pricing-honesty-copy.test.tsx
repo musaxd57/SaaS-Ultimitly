@@ -127,10 +127,10 @@ describe("Kayıt formu — deneme sonrası vaat GERÇEK davranışla aynı", () 
     const text = container.textContent ?? "";
     // Eski vaat: tam bir ücretsiz sürüm varmış gibi okunuyordu.
     expect(text).not.toContain("ücretsiz sürümle devam");
-    expect(text).toContain("sınırlı erişimle açık kalır");
-    expect(text).toContain("otomatik yanıtlar yalnızca ücretli planlarda");
+    expect(text).toContain("sınırlı erişimle kullanmaya devam");
+    expect(text).toContain("otomatik yanıtlar için ücretli plan gerekir");
     // Otomatik ücret alınmadığı + kart alınmadığı vaatleri KORUNUR (doğru ve satışın çekirdeği).
-    expect(text).toContain("otomatik ücret alınmaz");
+    expect(text).toContain("Deneme sonunda otomatik ücret alınmaz");
     expect(text).toContain("Kart gerekmez");
   });
 });
@@ -147,6 +147,6 @@ describe("LimitedModeBanner ile kayıt metni AYNI şeyi söyler", () => {
 
     const { container } = render(<RegisterForm />);
     const text = container.textContent ?? "";
-    expect(text).toMatch(/hesabınız sınırlı erişimle açık kalır/i);
+    expect(text).toMatch(/sınırlı erişimle kullanmaya devam edebilirsiniz/i);
   });
 });
