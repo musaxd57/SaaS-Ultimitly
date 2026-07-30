@@ -193,16 +193,15 @@ export function RegisterForm() {
   return (
     <form onSubmit={onSubmit} className="space-y-4">
       <div className="rounded-md border border-emerald-300 bg-emerald-50 px-3 py-2.5 text-xs text-emerald-900">
-        <p className="font-semibold">14 gün ücretsiz Pro deneme — kart gerekmez.</p>
+        <p className="font-semibold">14 gün ücretsiz Pro denemesi. Kart gerekmez.</p>
         <p className="mt-0.5 text-emerald-700">
-          {/* GERÇEK davranışla birebir: deneme bitince hesap silinmez ve ücret
-              çekilmez, ama otomatik mesajlaşma kapanır (premiumAllowed tek kapı).
-              "Ücretsiz sürümle devam edebilirsiniz" ifadesi bunu tam sürüm gibi
-              okutuyordu; kullanıcının sonra göreceği LimitedModeBanner ile de
-              çelişiyordu. Sözcükler kasten o bandın sözcükleriyle aynı. */}
-          Kaydolduğunuzda hesabınızı doğrulamak için e-posta göndeririz. Deneme bitince otomatik ücret
-          alınmaz; panelleri kısıtlı modda kullanmaya devam edebilirsiniz — otomatik yanıtlar ücretli
-          plan gerektirir.
+          {/* GERÇEK davranışla birebir (kullanıcının kendi metni, 07-30): deneme
+              bitince hesap silinmez ve ücret çekilmez, ama otomatik mesajlaşma
+              kapanır (premiumAllowed tek kapı). "Sınırlı erişim" =
+              LimitedModeBanner'ın anlattığı kısıtlı mod. */}
+          Kaydınızdan sonra e-posta adresinizi doğrulamanız için bir bağlantı göndeririz. Deneme
+          sürenizin sonunda otomatik ücret alınmaz. Abone olmazsanız hesabınız sınırlı erişimle açık
+          kalır; otomatik yanıtlar yalnızca ücretli planlarda kullanılabilir.
         </p>
       </div>
       <FormError>{error}</FormError>

@@ -122,15 +122,16 @@ describe("Entegrasyonlar — ön koşul bağlan düğmesinden ÖNCE görünür",
 describe("Kayıt formu — deneme sonrası vaat GERÇEK davranışla aynı", () => {
   beforeEach(() => cleanup());
 
-  it("'ücretsiz sürüm' vaadi yerine kısıtlı-mod gerçeği yazar", () => {
+  it("'ücretsiz sürüm' vaadi yerine sınırlı-erişim gerçeği yazar", () => {
     const { container } = render(<RegisterForm />);
     const text = container.textContent ?? "";
     // Eski vaat: tam bir ücretsiz sürüm varmış gibi okunuyordu.
     expect(text).not.toContain("ücretsiz sürümle devam");
-    expect(text).toContain("kısıtlı modda");
-    expect(text).toContain("otomatik yanıtlar ücretli plan gerektirir");
-    // Kart alınmadığı vaadi KORUNUR (doğru ve satışın çekirdeği).
-    expect(text).toContain("kart gerekmez");
+    expect(text).toContain("sınırlı erişimle açık kalır");
+    expect(text).toContain("otomatik yanıtlar yalnızca ücretli planlarda");
+    // Otomatik ücret alınmadığı + kart alınmadığı vaatleri KORUNUR (doğru ve satışın çekirdeği).
+    expect(text).toContain("otomatik ücret alınmaz");
+    expect(text).toContain("Kart gerekmez");
   });
 });
 
@@ -146,6 +147,6 @@ describe("LimitedModeBanner ile kayıt metni AYNI şeyi söyler", () => {
 
     const { container } = render(<RegisterForm />);
     const text = container.textContent ?? "";
-    expect(text).toMatch(/panelleri kısıtlı modda kullanmaya devam edebilirsiniz/i);
+    expect(text).toMatch(/hesabınız sınırlı erişimle açık kalır/i);
   });
 });
