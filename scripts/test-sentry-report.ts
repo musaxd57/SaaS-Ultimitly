@@ -1,36 +1,37 @@
 #!/usr/bin/env -S npx tsx
 // ---------------------------------------------------------------------------
-// KONTROLLÜ SENTRY TESTİ — prod'a DOKUNMAZ, veritabanı KULLANMAZ.
+// KONTROLLÜ SENTRY + UYARI-EPOSTASI TESTİ — veritabanına DOKUNMAZ.
 //
-// Ne yapar: içine BİLEREK sahte PII ekilmiş (sahte e-posta, sahte token, sahte
-// parola, sahte telefon) sentetik bir hata kurar, uygulamanın KENDİ redaksiyon
-// fonksiyonundan (redactSensitive) geçirir ve uygulamanın KENDİ Sentry envelope
-// istemcisiyle (captureToSentry — reportError'ın çağırdığı fonksiyonun ta
-// kendisi) gönderir. Yani test edilen şey kopya değil, canlı kod yolu.
+// GERÇEK `reportError`'ı çağırır (kopya değil): redaksiyon → Sentry envelope
+// (SENTRY_DSN set'se) → uyarı e-postası (ERROR_ALERT_EMAIL/ALERT_EMAIL set'se,
+// Resend/SMTP hangisi yapılandırıldıysa). Hata nesnesine BİLEREK sahte PII
+// ekilir; gönderimden ÖNCE yerel kontrol bu değerlerin redaksiyondan sağ
+// çıkmadığını doğrular — sızıntı varsa HİÇBİR ŞEY gönderilmez.
 //
-// Kullanım:  SENTRY_DSN=... npx tsx scripts/test-sentry-report.ts
+// Sentry gönderimi reportError içinde fire-and-forget'tir (void captureToSentry)
+// → script, process kapanmadan isteğin tamamlanması için bekler (Codex şartı).
 //
-// Sentry > Issues ekranında aranacak işaret bu scriptin çıktısında yazar.
-// Kontrol listesi:
-//   1. Event Issues'a düştü mü? (transaction = işaret)
-//   2. Ekilen sahte değerlerin HİÇBİRİ görünmüyor olmalı — yerlerinde
-//      [REDACTED] / [EMAIL] / [PHONE] / sk-[REDACTED] olmalı.
-//   3. Gerçek bir e-posta/token/parola zaten hiç girilmedi — rapor tanım
-//      gereği PII'siz.
+// Önerilen koşum yeri: Railway servis Console'u (gerçek env + gerçek ağ çıkışı):
+//   npx tsx scripts/test-sentry-report.ts
+// Yerelden de koşulabilir: SENTRY_DSN=... npx tsx scripts/test-sentry-report.ts
 // ---------------------------------------------------------------------------
-import { captureToSentry, redactSensitive } from "../src/lib/report-error-core";
+import { redactSensitive, reportError } from "../src/lib/report-error-core";
 
 // Ekilen SAHTE değerler — hepsi uydurma, hiçbiri gerçek bir hesaba ait değil.
 const PLANTED = {
   email: "sahte-misafir@example.com",
   token: "sk-testFAKE1234567890abcdefFAKE",
-  password: 'password="CokGizliSahteParola99"',
+  password: "CokGizliSahteParola99",
   phone: "+90 555 000 11 22",
 };
 
 async function main() {
-  if (!process.env.SENTRY_DSN?.trim()) {
-    console.error("SENTRY_DSN tanımlı değil — test gönderilemez.");
+  const sentryOn = Boolean(process.env.SENTRY_DSN?.trim());
+  const alertTo = process.env.ERROR_ALERT_EMAIL || process.env.ALERT_EMAIL;
+  console.log(`SENTRY_DSN: ${sentryOn ? "SET → Sentry'ye gidecek" : "YOK → Sentry adımı atlanır"}`);
+  console.log(`Uyarı e-postası: ${alertTo ? "SET → alert gidecek" : "YOK → e-posta adımı atlanır"}`);
+  if (!sentryOn && !alertTo) {
+    console.error("İkisi de tanımsız — test edilecek yol yok.");
     process.exitCode = 1;
     return;
   }
@@ -39,34 +40,37 @@ async function main() {
   // işaret hem mesajda hem transaction'da aynen aranabilir kalır.
   const marker = `LIXUS-SENTRY-TEST-${Date.now().toString(36)}`;
   const err = new Error(
-    `${marker} — sentetik test hatası. Ekili sahte PII: ${PLANTED.email} ${PLANTED.token} ${PLANTED.password} tel ${PLANTED.phone}`,
+    `${marker} — sentetik test hatası. Ekili sahte PII: ${PLANTED.email} ${PLANTED.token} password="${PLANTED.password}" tel ${PLANTED.phone}`,
   );
 
-  // reportError'ın yaptığının birebir aynısı: önce redakte, sonra gönder.
-  const detail = redactSensitive(`${err.name}: ${err.message}\n${err.stack ?? ""}`);
-  const message = redactSensitive(err.message);
-
-  console.log("── Gönderilecek (redakte edilmiş) mesaj ──");
-  console.log(message);
-  console.log("──────────────────────────────────────────");
-
-  // Yerel ön-kontrol: ekilen değerler redaksiyondan sağ çıkmamalı.
-  const leaks = Object.entries(PLANTED).filter(([, v]) =>
-    detail.includes(v.replace(/^password="/, "").replace(/"$/, "")),
-  );
+  // Yerel ön-kontrol: reportError'ın uygulayacağı redaksiyonun AYNISI burada
+  // önceden koşulur; ekilen değerlerden biri sağ çıkarsa gönderim İPTAL.
+  const redacted = redactSensitive(`${err.name}: ${err.message}\n${err.stack ?? ""}`);
+  const leaks = Object.entries(PLANTED).filter(([, v]) => redacted.includes(v));
   if (leaks.length > 0) {
-    console.error(`YEREL KONTROL BAŞARISIZ — şu ekili değerler redakte EDİLMEDİ: ${leaks.map(([k]) => k).join(", ")}`);
+    console.error(`YEREL KONTROL BAŞARISIZ — redakte EDİLMEYEN ekili değerler: ${leaks.map(([k]) => k).join(", ")}`);
     console.error("Hiçbir şey gönderilmedi.");
     process.exitCode = 1;
     return;
   }
-  console.log("Yerel redaksiyon kontrolü TEMİZ — ekili sahte PII'nin tamamı maskelendi.");
+  console.log("Yerel redaksiyon kontrolü TEMİZ — ekili sahte PII'nin tamamı maskeleniyor.");
+  console.log("── Gönderilecek (redakte) mesaj ──");
+  console.log(redactSensitive(err.message));
+  console.log("──────────────────────────────────");
 
-  await captureToSentry(`sentry-selftest ${marker}`, err.name, message, detail);
+  await reportError(`sentry-selftest ${marker}`, err);
+
+  // reportError e-postayı await eder ama Sentry POST'u fire-and-forget başlatır;
+  // process hemen kapanırsa istek yarıda kesilir. Tamamlanması için bekle
+  // (istemcinin kendi timeout'u 8 sn — 10 sn her durumu kapatır).
+  console.log("Sentry gönderiminin tamamlanması bekleniyor (10 sn)...");
+  await new Promise((r) => setTimeout(r, 10_000));
+
   console.log("");
-  console.log("Zarf Sentry'ye POST edildi (2xx garantisi script veremez — istemci sessiz tasarım).");
-  console.log(`ŞİMDİ KONTROL ET → Sentry > Issues içinde ara: ${marker}`);
-  console.log("Event'te [EMAIL]/[REDACTED]/[PHONE] görmeli, sahte değerlerin kendisini GÖRMEMELİSİN.");
+  console.log("BİTTİ. Kontrol listesi:");
+  console.log(`  1. Sentry > Issues içinde ara: ${marker}`);
+  console.log("  2. Event'te [EMAIL]/[REDACTED]/[PHONE] görmeli, sahte değerlerin kendisini GÖRMEMELİSİN.");
+  if (alertTo) console.log("  3. Uyarı e-postası kutusunu kontrol et (konu: 'Lixus AI sistem hatası — sentry-selftest ...') — içeriği de redaktedir.");
 }
 
 main().catch((e) => {

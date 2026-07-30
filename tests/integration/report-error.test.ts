@@ -1,8 +1,10 @@
 import { describe, it, expect, beforeEach, afterEach, vi } from "vitest";
 
-vi.mock("@/lib/email", () => ({ emailService: { send: vi.fn() } }));
+// report-error-core imports "./email-core" DIRECTLY (tsx/server-only split) —
+// the mock must target that module, not the "@/lib/email" wrapper.
+vi.mock("@/lib/email-core", () => ({ emailService: { send: vi.fn() } }));
 
-import { emailService } from "@/lib/email";
+import { emailService } from "@/lib/email-core";
 import { reportError, redactSensitive, __resetReportThrottle } from "@/lib/report-error";
 
 const mockSend = vi.mocked(emailService.send);
