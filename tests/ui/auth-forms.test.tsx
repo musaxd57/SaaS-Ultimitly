@@ -124,12 +124,12 @@ describe("LoginForm — doğrulama e-postası kurtarma yolu", () => {
     );
     render(<LoginForm />);
     typeInto(/E-posta/, "a@b.com");
-    typeInto(/Şifre/, "yanlis");
+    typeInto("Şifre", "yanlis");
     await act(async () => {
       fireEvent.click(screen.getByRole("button", { name: "Giriş Yap" }));
     });
     await screen.findByText("Giriş başarısız oldu");
-    typeInto(/Şifre/, "yanlis2");
+    typeInto("Şifre", "yanlis2");
     expect(screen.queryByText("Giriş başarısız oldu")).toBeNull();
   });
 });
@@ -241,7 +241,7 @@ describe("RegisterForm — başarı ekranı çıkmaz değildir", () => {
     typeInto(/İşletme adı/, "Nuve");
     typeInto(/Adınız/, "Musa");
     typeInto(/E-posta/, "kayitli@ornek.com");
-    typeInto(/Şifre/, "sifre12345");
+    typeInto("Şifre", "sifre12345");
     fireEvent.click(screen.getByRole("checkbox"));
     await act(async () => {
       fireEvent.click(screen.getByRole("button", { name: /Hesap Oluştur/ }));
@@ -274,7 +274,7 @@ describe("RegisterForm — başarı ekranı çıkmaz değildir", () => {
       typeInto(/İşletme adı/, "Nuve");
       typeInto(/Adınız/, "Musa");
       typeInto(/E-posta/, "yeni@ornek.com");
-      typeInto(/Şifre/, "sifre12345");
+      typeInto("Şifre", "sifre12345");
       fireEvent.click(screen.getByRole("checkbox"));
       await act(async () => {
         fireEvent.click(screen.getByRole("button", { name: /Hesap Oluştur/ }));
@@ -320,7 +320,7 @@ describe("RegisterForm — başarı ekranı çıkmaz değildir", () => {
     typeInto(/İşletme adı/, "Nuve");
     typeInto(/Adınız/, "Musa");
     typeInto(/E-posta/, "yeni@ornek.com");
-    typeInto(/Şifre/, "sifre12345");
+    typeInto("Şifre", "sifre12345");
     fireEvent.click(screen.getByRole("checkbox"));
     await act(async () => {
       fireEvent.click(screen.getByRole("button", { name: /Hesap Oluştur/ }));

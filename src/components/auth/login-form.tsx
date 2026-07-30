@@ -8,6 +8,7 @@ import Link from "next/link";
 import { Loader2 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
+import { PasswordInput } from "@/components/ui/password-input";
 
 /** Form-bazlı hata düğümünün id'si; alanlara aria-describedby ile bağlanır. */
 const FORM_ERROR_ID = "login-form-error";
@@ -200,9 +201,8 @@ export function LoginForm() {
         />
       </Field>
       <Field label="Şifre" htmlFor="password">
-        <Input
+        <PasswordInput
           id="password"
-          type="password"
           autoComplete="current-password"
           aria-describedby={error ? FORM_ERROR_ID : undefined}
           value={password}
@@ -251,6 +251,13 @@ export function LoginForm() {
               <p>
                 Kaydettiğiniz tek kullanımlık kurtarma kodlarından birini girin. Kullandığınız kod
                 geçersiz olur; kalan kodlarınızı Ayarlar&apos;dan yenileyebilirsiniz.
+              </p>
+              <p className="mt-1">
+                Kurtarma kodlarınız da yoksa{" "}
+                <a href="mailto:iletisimlixusai@gmail.com" className="text-primary underline hover:no-underline">
+                  iletisimlixusai@gmail.com
+                </a>{" "}
+                adresinden bize ulaşın.
               </p>
             </div>
           ) : (

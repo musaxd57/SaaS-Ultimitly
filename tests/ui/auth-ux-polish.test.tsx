@@ -48,25 +48,21 @@ describe("TwoFactorCard — başarı mesajı kendiliğinden kaybolur", () => {
   });
 });
 
-describe("RegisterForm — güçlü şifre önerici", () => {
+describe("RegisterForm — göz ikonlu şifre alanı (uygulama içi üretici BİLİNÇLİ YOK)", () => {
   beforeEach(() => vi.clearAllMocks());
 
-  it("Öner: 16 karakterlik şifreyi alana GÖRÜNÜR yazar (type=text) ve kaydetme notu çıkar", () => {
+  it("göz düğmesi şifreyi gösterir/gizler; üretici butonu ve açıklaması yok", () => {
     render(<RegisterForm />);
     const input = document.getElementById("password") as HTMLInputElement;
     expect(input.type).toBe("password");
-    fireEvent.click(screen.getByRole("button", { name: /Güçlü şifre öner/ }));
-    expect(input.value).toHaveLength(16);
-    // Sınıf kapsamı yapısal: küçük + büyük + rakam + sembol mutlaka var.
-    expect(input.value).toMatch(/[a-z]/);
-    expect(input.value).toMatch(/[A-Z]/);
-    expect(input.value).toMatch(/[2-9]/);
-    expect(input.value).toMatch(/[!@#$%*+?-]/);
-    expect(input.type).toBe("text"); // görünür — göremediğin öneri kaydedilemez
-    expect(screen.getByText(/şifre yöneticinize/i)).toBeTruthy();
-    // İki basış iki FARKLI şifre üretmeli (CSPRNG çalışıyor).
-    const first = input.value;
-    fireEvent.click(screen.getByRole("button", { name: /Güçlü şifre öner/ }));
-    expect(input.value).not.toBe(first);
+    fireEvent.click(screen.getByRole("button", { name: "Şifreyi göster" }));
+    expect(input.type).toBe("text");
+    fireEvent.click(screen.getByRole("button", { name: "Şifreyi gizle" }));
+    expect(input.type).toBe("password");
+    // Kullanıcı kararı: tarayıcının kendi önericisiyle yarışan üretici kaldırıldı.
+    expect(screen.queryByRole("button", { name: /Güçlü şifre öner/ })).toBeNull();
+    expect(screen.queryByText(/şifre yöneticinize/i)).toBeNull();
+    // Tarayıcı önericisini tetikleyen sözleşme yerinde:
+    expect(input.autocomplete).toBe("new-password");
   });
 });

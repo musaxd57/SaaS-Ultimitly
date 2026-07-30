@@ -158,12 +158,18 @@ export function TwoFactorCard({
           <p className="text-sm text-muted-foreground">
             Doğrulama uygulamanıza erişemediğinizde, tek kullanımlık kurtarma kodunuz ile hesabınıza
             giriş yapabilirsiniz. Kodları güvenli bir yerde saklayın.
-            {recoveryRemaining > 0 ? " Yenilerseniz eski kodların tamamı geçersiz olur." : null}
+            {recoveryRemaining > 0 ? " Yenilerseniz eski kodların tamamı geçersiz olur." : null}{" "}
+            Hem uygulamaya hem kodlara erişiminizi kaybederseniz{" "}
+            <a href="mailto:iletisimlixusai@gmail.com" className="text-primary underline hover:no-underline">
+              iletisimlixusai@gmail.com
+            </a>{" "}
+            adresinden bize ulaşın.
           </p>
           {recoveryCodes ? (
             <div className="space-y-2">
               <div className="rounded-md border border-amber-300 bg-amber-50 px-3 py-2 text-sm text-amber-900">
-                Bu kodlar <strong>bir daha gösterilmeyecek</strong> — güvenli bir yere kaydedin.
+                Bu kodlar yalnızca şimdi görüntüleniyor — sayfadan ayrılınca tekrar gösterilmez.
+                Güvenli bir yere kaydedin.
               </div>
               <div className="grid grid-cols-2 gap-x-6 gap-y-1 rounded-md border bg-background px-3 py-2 font-mono text-sm tracking-wider">
                 {recoveryCodes.map((c) => (
