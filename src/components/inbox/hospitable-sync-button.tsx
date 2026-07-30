@@ -37,10 +37,10 @@ export function HospitableSyncButton() {
         });
         router.refresh();
       } else {
-        setResult({ ok: false, text: data.error ?? "Çekme başarısız" });
+        setResult({ ok: false, text: data.error ?? "Mesajlar çekilemedi. Lütfen tekrar deneyin." });
       }
     } catch {
-      setResult({ ok: false, text: "İstek gönderilemedi" });
+      setResult({ ok: false, text: "İstek gönderilemedi. Lütfen tekrar deneyin." });
     } finally {
       setBusy(false);
     }

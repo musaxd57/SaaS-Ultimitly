@@ -768,7 +768,7 @@ export function ConversationThread({ conversationId, messages, status, priority,
                     : "bg-amber-100 text-amber-800",
                 )}
               >
-                {suggestion.confidence >= 0.75 ? "AI bundan emin" : "AI emin değil — gözden geçirin"}
+                {suggestion.confidence >= 0.75 ? "AI bu cevaptan emin" : "AI emin değil — gözden geçirin"}
               </span>
             </div>
 
@@ -839,7 +839,7 @@ export function ConversationThread({ conversationId, messages, status, priority,
             id={`conv-composer-${conversationId}`}
             value={composer}
             onChange={(e) => setComposer(e.target.value)}
-            placeholder="Cevabınızı yazın veya AI önerisini kullanın..."
+            placeholder="Cevabınızı yazın veya AI önerisini kullanın…"
             className="min-h-[80px]"
             aria-describedby={
               [sendError ? `conv-send-error-${conversationId}` : null,

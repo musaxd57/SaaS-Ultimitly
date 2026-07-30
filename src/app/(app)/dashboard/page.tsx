@@ -395,7 +395,7 @@ export default async function DashboardPage() {
               <EmptyState
                 icon={CheckCircle2}
                 title="Bugün görev yok"
-                description="Bugün için planlanmış iş bulunmuyor."
+                description="Yeni rezervasyonlarda görevler otomatik açılır."
                 className="py-6"
               />
             ) : (
