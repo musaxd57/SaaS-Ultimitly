@@ -10,7 +10,7 @@ import { ImpersonateButton } from "@/components/admin/impersonate-button";
 import { Reset2faForm } from "@/components/admin/reset-2fa-form";
 import { QualityAuditCard } from "@/components/admin/quality-audit-card";
 import { qualityAuditConfigured } from "@/lib/quality-audit";
-import { shadowAiEnabled } from "@/lib/shadow-ai";
+import { shadowAiEnabled, shadowModel } from "@/lib/shadow-ai";
 import { LeadActions } from "@/components/admin/lead-actions";
 
 export const dynamic = "force-dynamic";
@@ -45,13 +45,14 @@ export default async function AdminPage() {
         organization: { select: { name: true } },
       },
     }),
-    // GLM gölge pilotu (Aşama-1) — salt-okuma özet. PII yok: kapalı-set kodlar.
+    // Gölge pilotu (Aşama-1) — salt-okuma özet. PII yok: kapalı-set kodlar.
     prisma.shadowVerdict.findMany({
       orderBy: { createdAt: "desc" },
       take: 200,
       select: {
         id: true,
         createdAt: true,
+        model: true,
         gateDecision: true,
         gateRiskType: true,
         verdict: true,
@@ -66,20 +67,25 @@ export default async function AdminPage() {
   ]);
 
   // Gölge pilot özeti: uyum oranı + iki yönlü ayrışma sayısı (Aşama-2 ham girdisi).
-  const shadowTotal = shadowRows.length;
-  const shadowOk = shadowRows.filter((r) => r.verdict !== null);
+  // YALNIZ AKTİF MODELİN satırları özetlenir — model değiştiğinde (GLM → Luna) iki
+  // pilotun satırlarını tek bir uyum oranında toplamak yanıltıcı olurdu.
+  const activeShadowModel = shadowModel();
+  const activeRows = shadowRows.filter((r) => r.model === activeShadowModel);
+  const legacyShadowCount = shadowRows.length - activeRows.length;
+  const shadowTotal = activeRows.length;
+  const shadowOk = activeRows.filter((r) => r.verdict !== null);
   // Split the no-verdict rows the way the table below does: "pending" = a claim
   // whose process died before a verdict (shown "yarım", NOT a failure), vs a real
   // error string (shown "arıza"). The summary used to lump both into "arıza".
-  const shadowHalf = shadowRows.filter((r) => r.error === "pending").length;
-  const shadowError = shadowRows.filter((r) => r.error && r.error !== "pending").length;
+  const shadowHalf = activeRows.filter((r) => r.error === "pending").length;
+  const shadowError = activeRows.filter((r) => r.error && r.error !== "pending").length;
   const shadowAgree = shadowOk.filter((r) => r.agrees === true).length;
   const shadowStricter = shadowOk.filter(
     (r) => r.agrees === false && r.gateDecision === "auto_sent",
-  ).length; // GLM daha sıkı: kapı gönderdi, GLM tutardı (olası risk-kaçırma adayı)
+  ).length; // gölge daha sıkı: kapı gönderdi, gölge tutardı (olası risk-kaçırma adayı)
   const shadowLooser = shadowOk.filter(
     (r) => r.agrees === false && r.gateDecision === "human_review",
-  ).length; // GLM daha gevşek: kapı tuttu, GLM gönderirdi (olası yanlış-alarm adayı)
+  ).length; // gölge daha gevşek: kapı tuttu, gölge gönderirdi (olası yanlış-alarm adayı)
 
   // Primary org (allowed to use the shared env token) = PRIMARY_ORG_ID, or the
   // oldest org — which is the first row since we ordered by createdAt asc.
@@ -296,28 +302,36 @@ export default async function AdminPage() {
 
       <Card className="max-w-3xl">
         <CardHeader>
-          <CardTitle className="text-base">GLM Gölge Pilotu (Aşama-1 — karar yetkisi yok)</CardTitle>
+          <CardTitle className="text-base">Gölge Pilotu (Aşama-1 — karar yetkisi yok)</CardTitle>
         </CardHeader>
         <CardContent className="space-y-3">
           <p className="text-sm text-muted-foreground">
-            İkinci model (GLM/Akash) her otomatik-yanıt kararında (nezaket kapanışı dahil) aynı
-            misafir mesajını bağımsız sınıflandırır; hükmü yalnız <strong>kaydedilir</strong> —
-            gönderimi etkilemez. &quot;Kapı&quot; kolonu kapının <strong>kararıdır</strong> (teslimat
-            değil). Bu tablo Aşama-2 insan değerlendirmesinin ham girdisidir.
+            İkinci model (<code className="font-mono text-xs">{activeShadowModel}</code>) her
+            otomatik-yanıt kararında (nezaket kapanışı dahil) aynı misafir mesajını bağımsız
+            sınıflandırır; hükmü yalnız <strong>kaydedilir</strong> — gönderimi etkilemez.
+            &quot;Kapı&quot; kolonu kapının <strong>kararıdır</strong> (teslimat değil). Bu tablo
+            Aşama-2 insan değerlendirmesinin ham girdisidir.
           </p>
           <p className="rounded-lg border border-amber-300 bg-amber-50 p-3 text-xs text-amber-800">
-            <strong>Hukuk notu:</strong> Akash (GLM) üçüncü bir veri işleyendir. Misafir mesajı
-            redakte edilerek gönderilir (ad/telefon/e-posta maskeli) ama kendi hesabın dışındaki
-            müşterilerde geniş açmadan önce Akash için DPA + gizlilik metnindeki alt-işleyen
-            listesine ekleme (KVKK m.9) tamamlanmalı. Şu an tek işletmeye pinlemek için Railway&apos;e{" "}
-            <code className="font-mono">SHADOW_AI_ORG_IDS</code> ekle.
+            <strong>Hukuk notu:</strong> Gölge, varsayılan olarak yanıt üretiminin zaten kullandığı
+            sağlayıcıya (OpenAI) gider — yeni bir alt-işleyen eklenmez. Misafir mesajı yine redakte
+            edilerek gönderilir (ad/telefon/e-posta maskeli). Endpoint başka bir sağlayıcıya
+            çevrilirse o sağlayıcı YENİ bir işleyendir: DPA + gizlilik metnindeki alt-işleyen
+            listesine ekleme (KVKK m.9) önce tamamlanmalı. Pilotu tek işletmeye pinlemek için
+            Railway&apos;e <code className="font-mono">SHADOW_AI_ORG_IDS</code> ekle.
           </p>
           {!shadowAiEnabled() ? (
             <p className="rounded-lg border border-dashed border-border bg-muted/40 p-3 text-sm text-muted-foreground">
               Pasif: Railway&apos;e <code className="font-mono text-xs">SHADOW_AI_ENABLED=1</code>{" "}
-              eklendiğinde başlar (anahtar/endpoint mevcut{" "}
-              <code className="font-mono text-xs">SUPPLY_AI_*</code> değerlerini kullanır; ilk{" "}
+              eklendiğinde başlar (anahtar verilmezse OpenAI endpoint&apos;inde{" "}
+              <code className="font-mono text-xs">OPENAI_API_KEY</code> kullanılır; model başına ilk{" "}
               200 mesajda otomatik durur).
+            </p>
+          ) : null}
+          {legacyShadowCount > 0 ? (
+            <p className="text-xs text-muted-foreground">
+              Aşağıdaki özet yalnız aktif modeli kapsar. Önceki modellerden{" "}
+              <strong>{legacyShadowCount}</strong> kayıt daha var; karışmasın diye ayrı tutuluyor.
             </p>
           ) : null}
           {shadowTotal > 0 ? (
@@ -328,7 +342,7 @@ export default async function AdminPage() {
                 <strong>
                   {shadowOk.length > 0 ? Math.round((shadowAgree / shadowOk.length) * 100) : 0}%
                 </strong>{" "}
-                · GLM daha sıkı <strong>{shadowStricter}</strong> · GLM daha gevşek{" "}
+                · gölge daha sıkı <strong>{shadowStricter}</strong> · gölge daha gevşek{" "}
                 <strong>{shadowLooser}</strong> · yarım {shadowHalf} · arıza {shadowError}
               </p>
               <div className="overflow-x-auto">
@@ -338,14 +352,14 @@ export default async function AdminPage() {
                       <th className="py-1.5 pr-3">Zaman</th>
                       <th className="py-1.5 pr-3">İşletme</th>
                       <th className="py-1.5 pr-3">Kapı</th>
-                      <th className="py-1.5 pr-3">GLM</th>
-                      <th className="py-1.5 pr-3">GLM risk</th>
+                      <th className="py-1.5 pr-3">Gölge</th>
+                      <th className="py-1.5 pr-3">Gölge riski</th>
                       <th className="py-1.5 pr-3">Güven</th>
                       <th className="py-1.5">Durum</th>
                     </tr>
                   </thead>
                   <tbody>
-                    {shadowRows.slice(0, 10).map((r) => (
+                    {activeRows.slice(0, 10).map((r) => (
                       <tr key={r.id} className="border-b border-border/60">
                         <td className="py-1.5 pr-3 whitespace-nowrap">
                           {r.createdAt.toLocaleString("tr-TR", { dateStyle: "short", timeStyle: "short", timeZone: "Europe/Istanbul" })}
@@ -380,7 +394,9 @@ export default async function AdminPage() {
               </div>
             </>
           ) : (
-            <p className="text-sm text-muted-foreground">Henüz gölge kaydı yok.</p>
+            <p className="text-sm text-muted-foreground">
+              {legacyShadowCount > 0 ? "Aktif model için henüz gölge kaydı yok." : "Henüz gölge kaydı yok."}
+            </p>
           )}
         </CardContent>
       </Card>

@@ -4,6 +4,7 @@ import { suggestReplyFallback, classifyFallback } from "./fallback";
 import { timeStatedInMessage } from "./stated-time";
 import type { ClassifyResult, SuggestReplyInput, SuggestReplyResult } from "./types";
 import type { Priority } from "@/lib/constants";
+import { isReasoningModel } from "./model-family";
 import { reportError } from "@/lib/report-error";
 
 export type { SuggestReplyInput, SuggestReplyResult, ClassifyResult } from "./types";
@@ -80,14 +81,10 @@ const KNOWN_INTENTS = new Set([
   "cleaning", "amenity", "general",
 ]);
 
-/**
- * Reasoning (o1/o3/o4…) and GPT-5 family models only accept default sampling and
- * reject a custom `temperature`. Detect them so we can omit that param (and allow
- * a longer timeout), letting ANY model be dropped in via env without breaking.
- */
-export function isReasoningModel(model: string): boolean {
-  return /^(o\d|gpt-5)/i.test(model.trim());
-}
+// Re-exported so existing importers keep working; the predicate itself lives in a
+// leaf module (see model-family.ts) because request-body shaping is needed by
+// callers that must not depend on this module.
+export { isReasoningModel } from "./model-family";
 
 /** The model used for the main guest-reply generation. */
 function replyModel(): string {

@@ -770,7 +770,7 @@ describe("closing courtesy — opt-in 'Rica ederiz' reply to a bare thanks", () 
         expect(r?.error).not.toBe("pending");
       });
       const row = await prisma.shadowVerdict.findFirstOrThrow();
-      expect(row.gateDecision).toBe("auto_sent"); // whitelist yanlış-pozitifi olsaydı GLM burada ayrışırdı
+      expect(row.gateDecision).toBe("auto_sent"); // whitelist yanlış-pozitifi olsaydı gölge burada ayrışırdı
       expect(row.verdict).toBe("allow");
     } finally {
       vi.unstubAllGlobals();

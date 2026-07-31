@@ -45,6 +45,10 @@ Hukuk sayfaları (gizlilik/koşullar/mesafeli satış/ön bilgilendirme) HER ZAM
   gün oto-yanıt oranı izleme. Aday: LUNA (maliyet profili bizim iş yükü);
   Terra muhtemelen mevcut gpt-5.1'den pahalı. Bu bir GÜNDÜZ projesi — gece
   turunda hiçbir model/kod değişikliği yapılmadı.
+  → **ADIM (1) 07-31 sabah UYGULANDI:** gölge sınıflandırıcı GLM/Akash'tan
+  `gpt-5.6-luna`'ya çevrildi (kod+test; Railway env'i kullanıcı girecek).
+  Detay ve üç yapısal düzeltme CLAUDE.md'de. Adım (2) offline replay ve adım (3)
+  A/B hâlâ AÇIK.
 
 ## REDDEDİLEN ÖNERİLER (panel itirazı — uygulanmadı)
 

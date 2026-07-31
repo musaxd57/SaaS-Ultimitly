@@ -262,25 +262,39 @@ kararı gerekir (CLAUDE.md LEGAL listesi).
 
 ---
 
-## 9) GLM gölge pilotu (Aşama-1) — opsiyonel, DEFAULT KAPALI
+## 9) Gölge pilotu (Aşama-1) — opsiyonel, DEFAULT KAPALI
 
-İkinci model (GLM, Akash) her otomatik-yanıt kararında misafir mesajını bağımsız
-sınıflandırır ve hükmü YALNIZ KAYDEDER — gönderimi asla etkilemez (fire-and-forget,
-karar yetkisi sıfır). /admin "GLM Gölge Pilotu" kartında uyum oranı + son kayıtlar.
+İkinci model her otomatik-yanıt kararında misafir mesajını bağımsız sınıflandırır ve
+hükmü YALNIZ KAYDEDER — gönderimi asla etkilemez (fire-and-forget, karar yetkisi
+sıfır). /admin "Gölge Pilotu" kartında uyum oranı + son kayıtlar. Varsayılan model
+**GPT-5.6 Luna** (OpenAI); 2026-07-31'e kadar GLM/Akash idi.
 
 | Env | Zorunlu | Açıklama |
 | --- | --- | --- |
 | `SHADOW_AI_ENABLED` | evet (`1`) | Açık anahtar. Yokken tamamen pasif. |
-| `SHADOW_AI_API_KEY` | hayır | Yoksa `SUPPLY_AI_API_KEY` kullanılır (aynı Akash hesabı). |
-| `SHADOW_AI_BASE_URL` | hayır | Yoksa `SUPPLY_AI_BASE_URL`, o da yoksa api.akashml.com/v1. HTTPS ZORUNLU (http → modül pasif). |
-| `SHADOW_AI_MODEL` | hayır | Varsayılan `zai-org/GLM-5.2`. |
-| `SHADOW_AI_SAMPLE_CAP` | hayır | Pilot tavanı (varsayılan 200 kayıt; dolunca sessizce durur). |
+| `SHADOW_AI_API_KEY` | hayır | Yoksa `OPENAI_API_KEY` kullanılır — ama YALNIZ endpoint OpenAI ise (ana anahtar üçüncü bir sağlayıcıya gönderilmez). |
+| `SHADOW_AI_BASE_URL` | hayır | Varsayılan `https://api.openai.com/v1`. HTTPS ZORUNLU (http → modül pasif). Başka sağlayıcı verilirse `SHADOW_AI_API_KEY` de zorunlu olur. |
+| `SHADOW_AI_MODEL` | hayır | Varsayılan `gpt-5.6-luna`. Model id'sini OpenAI panelinden doğrula. |
+| `SHADOW_AI_SAMPLE_CAP` | hayır | Pilot tavanı, **model başına** (varsayılan 200 kayıt; dolunca sessizce durur). |
 | `SHADOW_AI_ORG_IDS` | hayır | Virgüllü org allowlist'i — pilotu tek işletmeye (örn. Nuve) pinlemek için. Boş = tüm org'lar. |
 
-Açılış: `SHADOW_AI_ENABLED=1` ekle → redeploy. SUPPLY_AI_* zaten tanımlıysa başka
-env gerekmez. Aşama-2: pilot dolunca /admin kartındaki "ayrıştı" satırları birlikte
-değerlendirilir; Aşama-3 (veto-only yetki) ancak o değerlendirme güven verirse ayrı
-bir turda konuşulur. Not: Akash da ikinci bir veri işleyendir (KVKK/DPA notu).
+Açılış: `SHADOW_AI_ENABLED=1` + `SHADOW_AI_ORG_IDS=<org-id>` ekle → redeploy.
+`OPENAI_API_KEY` zaten tanımlı olduğundan başka env gerekmez. İstek gövdesi model
+ailesine göre şekillenir: reasoning modelleri (o-serisi, gpt-5 ailesi) `temperature`
+kabul etmez ve tavanı `max_completion_tokens` ile alır; `chat_template_kwargs`
+yalnız vLLM/GLM-uyumlu üçüncü taraf endpoint'lere gider (OpenAI 400 döner).
+
+Aşama-2: pilot dolunca /admin kartındaki "ayrıştı" satırları birlikte değerlendirilir;
+Aşama-3 (veto-only yetki) ancak o değerlendirme güven verirse ayrı bir turda konuşulur.
+
+KVKK notu: gölge varsayılan olarak yanıt üretiminin ZATEN kullandığı sağlayıcıya
+gider → yeni alt-işleyen yok, gizlilik metninde ek satır gerekmez. Endpoint başka
+bir sağlayıcıya çevrilirse (eski Akash/GLM kurulumu gibi) o sağlayıcı yeni bir veri
+işleyendir: DPA + alt-işleyen listesi (KVKK m.9) önce tamamlanmalı.
+
+Dedupe anahtarı modeli içermez: eski pilotta gölgelenmiş mesajlar yeni modelle
+TEKRAR gölgelenmez — yeni model yalnız yeni mesajlarda koşar (eski satırlarla kıyas
+istenirse çevrimdışı replay ile yapılır; anahtara model eklemek migration ister).
 
 ---
 

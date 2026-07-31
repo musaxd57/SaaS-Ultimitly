@@ -2,16 +2,17 @@ import "server-only";
 
 import { prisma } from "@/lib/db";
 import { isUniqueViolation } from "@/lib/db-errors";
+import { isReasoningModel } from "@/lib/ai/model-family";
 import { redactSensitive } from "@/lib/report-error";
 import { redactNameFromBody } from "@/lib/data-retention";
 import { RISK_TYPES } from "@/lib/risk-events";
 import { isSecureExternalUrl } from "@/lib/secure-url";
 
 // ---------------------------------------------------------------------------
-// GLM/Akash GÖLGE katmanı — Aşama-1 (kullanıcı planı 07-16).
+// GÖLGE katmanı — Aşama-1 (kullanıcı planı 07-16; model 07-31'de GLM/Akash'tan
+// OpenAI GPT-5.6 Luna'ya çevrildi).
 //
-// İkinci model (GLM, Akash'taki OpenAI-uyumlu endpoint — supply-ai ile aynı
-// altyapı) her gate kararında aynı misafir mesajını BAĞIMSIZ sınıflandırır ve
+// İkinci model her gate kararında aynı misafir mesajını BAĞIMSIZ sınıflandırır ve
 // hükmü kod kapısının nihai kararının YANINA yazılır. KARAR YETKİSİ SIFIR:
 //  * fire-and-forget — çağıran `void recordShadowVerdict(...)` der, beklemez;
 //    gönderim yolu 1 ms bile gecikmez.
@@ -25,27 +26,37 @@ import { isSecureExternalUrl } from "@/lib/secure-url";
 //
 // Env (hepsi opsiyonel; feature default KAPALI):
 //   SHADOW_AI_ENABLED=1   — açık anahtar (yoksa modül tamamen pasif)
-//   SHADOW_AI_API_KEY     — yoksa SUPPLY_AI_API_KEY kullanılır (aynı Akash hesabı)
-//   SHADOW_AI_BASE_URL    — yoksa SUPPLY_AI_BASE_URL, o da yoksa api.akashml.com/v1
+//   SHADOW_AI_API_KEY     — yoksa OPENAI_API_KEY (YALNIZ endpoint OpenAI ise —
+//                           bkz. shadowKey: ana hesabın anahtarı üçüncü bir
+//                           sağlayıcıya taşınmaz)
+//   SHADOW_AI_BASE_URL    — default https://api.openai.com/v1
 //                           (HTTPS ZORUNLU — http verilirse modül pasif kalır ve
 //                           loglar: Bearer + misafir mesajı asla düz metin gitmez)
-//   SHADOW_AI_MODEL       — default zai-org/GLM-5.2
-//   SHADOW_AI_SAMPLE_CAP  — pilot tavanı, default 200 satır (dolunca sessizce durur)
+//   SHADOW_AI_MODEL       — default gpt-5.6-luna
+//   SHADOW_AI_SAMPLE_CAP  — pilot tavanı, default 200 satır (MODEL BAŞINA; dolunca
+//                           sessizce durur)
 //   SHADOW_AI_ORG_IDS     — opsiyonel virgüllü org allowlist'i (boş = tüm org'lar);
 //                           pilotu tek işletmeye (örn. Nuve) pinlemek için
 //
-// KVKK — VERİ MİNİMİZASYONU (Codex): misafir mesajı Akash'a gitmeden ÖNCE
-// redakte edilir — telefon/e-posta/uzun kod-token placeholder olur ([PHONE]/
-// [EMAIL]/[NUM]), bilinen misafir adı [Misafir] olur. Risk ANLAMI bozulmaz
-// (şikayet/para/güvenlik kelimeleri aynen kalır; sınıflandırma için kimlik
-// gerekmez). Tabloya ise mesajın HİÇBİR hâli yazılmaz: at-rest yalnız kapalı-set
-// kodlar + opak id'ler. Akash yine ikinci veri işleyendir (DPA notu LEGAL'de).
+// KVKK — VERİ MİNİMİZASYONU (Codex): misafir mesajı modele gitmeden ÖNCE redakte
+// edilir — telefon/e-posta/uzun kod-token placeholder olur ([PHONE]/[EMAIL]/
+// [NUM]), bilinen misafir adı [Misafir] olur. Risk ANLAMI bozulmaz (şikayet/para/
+// güvenlik kelimeleri aynen kalır; sınıflandırma için kimlik gerekmez). Tabloya
+// ise mesajın HİÇBİR hâli yazılmaz: at-rest yalnız kapalı-set kodlar + opak id'ler.
+//
+// KVKK — İŞLEYEN SAYISI: varsayılan endpoint OpenAI olduğu için gölge, yanıt
+// üretiminin ZATEN kullandığı işleyenden başkasına veri açmaz — yeni alt-işleyen
+// YOK, gizlilik metninde ek satır gerekmez. Base URL başka bir sağlayıcıya
+// çevrilirse (örn. eski Akash/GLM pilotu) o sağlayıcı YENİ bir işleyendir: DPA +
+// gizlilik metnindeki alt-işleyen listesi (KVKK m.9) önce tamamlanmalı.
 // ---------------------------------------------------------------------------
 
 const VERDICTS = new Set(["allow", "hold", "escalate"]);
 const GATE_DECISIONS = new Set(["auto_sent", "human_review"]);
 const DEFAULT_CAP = 200;
 const MESSAGE_CAP = 1500; // sınıflandırmaya yeter; uzun mesajın kuyruğu kırpılır
+/** Ana modelin de kullandığı endpoint. Anahtar/gövde kuralları buna bakar. */
+const OPENAI_BASE_URL = "https://api.openai.com/v1";
 
 export function shadowAiEnabled(): boolean {
   if (process.env.SHADOW_AI_ENABLED !== "1" || !shadowKey()) return false;
@@ -74,20 +85,25 @@ function warnThrottled(msg: string) {
   console.error(`[shadow-ai] ${msg}`);
 }
 
+/**
+ * Gölgenin anahtarı. ANAHTAR-SAĞLAYICI EŞLEŞMESİ: ana hesabın OPENAI_API_KEY'i
+ * yalnız istek gerçekten OpenAI'ye gidiyorsa devreye girer. Aksi halde tek bir
+ * SHADOW_AI_BASE_URL yazımı, ana faturalandırma anahtarını üçüncü bir sağlayıcıya
+ * Bearer olarak taşırdı. Başka endpoint = kendi SHADOW_AI_API_KEY'ini ver, yoksa
+ * modül pasif kalır (fail-closed).
+ */
 function shadowKey(): string | undefined {
-  return process.env.SHADOW_AI_API_KEY?.trim() || process.env.SUPPLY_AI_API_KEY?.trim() || undefined;
+  const dedicated = process.env.SHADOW_AI_API_KEY?.trim();
+  if (dedicated) return dedicated;
+  return shadowBaseUrl() === OPENAI_BASE_URL ? process.env.OPENAI_API_KEY?.trim() || undefined : undefined;
 }
 
 function shadowBaseUrl(): string {
-  return (
-    process.env.SHADOW_AI_BASE_URL?.trim() ||
-    process.env.SUPPLY_AI_BASE_URL?.trim() ||
-    "https://api.akashml.com/v1"
-  ).replace(/\/$/, "");
+  return (process.env.SHADOW_AI_BASE_URL?.trim() || OPENAI_BASE_URL).replace(/\/$/, "");
 }
 
 export function shadowModel(): string {
-  return process.env.SHADOW_AI_MODEL?.trim() || "zai-org/GLM-5.2";
+  return process.env.SHADOW_AI_MODEL?.trim() || "gpt-5.6-luna";
 }
 
 function sampleCap(): number {
@@ -117,7 +133,7 @@ export interface ShadowInput {
   /** Rezervasyonun GERÇEK adı (iCal SUMMARY / manuel / check-in sonrası Airbnb).
    *  guestIdentifier bir placeholder olabilir ("Misafir", "Rezervasyon <kod>"),
    *  bu durumda gerçek ad yalnız burada bulunur → o da redakte edilmeli, yoksa
-   *  placeholder-kimlikli konuşmalarda gerçek ad Akash'a ham gider (quality-audit
+   *  placeholder-kimlikli konuşmalarda gerçek ad modele ham gider (quality-audit
    *  ile parite). */
   reservationGuestName?: string | null;
   gateDecision: "auto_sent" | "human_review";
@@ -180,10 +196,15 @@ async function readBodyCapped(res: Response, cap: number): Promise<string> {
  * dryRun yollarından ÇAĞRILMAZ (recordRiskEvent ile aynı yerleşim kuralı).
  *
  * CLAIM-FIRST (Codex): satır, model çağrısından ÖNCE "pending" olarak yazılır —
- * @@unique(org,trigger) sayesinde aynı mesajın ikinci işlenişi Akash'a HİÇ
+ * @@unique(org,trigger) sayesinde aynı mesajın ikinci işlenişi modele HİÇ
  * gitmeden düşer (çifte istek + çifte veri aktarımı yok). Çağrı bitince satır
  * nihai hükümle güncellenir; süreç ortada ölürse satır "pending" olarak görünür
  * (kartta arıza gibi ele alınır, sessizce kaybolmaz).
+ *
+ * NOT (model değişimi): dedupe anahtarı MODELİ İÇERMEZ — eski pilotta gölgelenmiş
+ * bir mesaj yeni modelle TEKRAR gölgelenmez. Yeni model yalnız YENİ mesajlarda
+ * koşar; eski satırlarla kıyas istenirse çevrimdışı replay ile yapılır (anahtara
+ * model eklemek migration ister, bilinçli olarak yapılmadı).
  */
 export async function recordShadowVerdict(input: ShadowInput): Promise<void> {
   try {
@@ -191,13 +212,16 @@ export async function recordShadowVerdict(input: ShadowInput): Promise<void> {
     if (!GATE_DECISIONS.has(input.gateDecision) || !input.triggerId) return;
     if (!orgAllowed(input.organizationId)) return;
 
-    // Pilot tavanı: ilk ~N kayıt (global). Sayım ile claim arası dar bir yarış
-    // penceresi var — olası taşma en fazla o an uçuştaki istek sayısı kadar
-    // (tek haneli, maliyeti önemsiz); dedupe ise claim'de %100 atomik.
-    const existing = await prisma.shadowVerdict.count();
-    if (existing >= sampleCap()) return;
-
     const model = shadowModel();
+
+    // Pilot tavanı: ilk ~N kayıt, MODEL BAŞINA. Global sayım olsaydı model
+    // değiştiğinde (GLM → Luna) eski pilotun satırları yeni pilotu daha ilk
+    // mesajda aç bırakırdı — yeni model hiç koşmaz, kart boş kalırdı. Sayım ile
+    // claim arası dar bir yarış penceresi var — olası taşma en fazla o an
+    // uçuştaki istek sayısı kadar (tek haneli, maliyeti önemsiz); dedupe ise
+    // claim'de %100 atomik.
+    const existing = await prisma.shadowVerdict.count({ where: { model } });
+    if (existing >= sampleCap()) return;
 
     // ATOMİK CLAIM: önce satır. P2002 = bu mesaj zaten gölgelendi → modele gitme.
     try {
@@ -214,7 +238,7 @@ export async function recordShadowVerdict(input: ShadowInput): Promise<void> {
         },
       });
     } catch (err) {
-      if (isUniqueViolation(err, ["organizationId", "triggerId"])) return; // dedupe: Akash'a çifte istek YOK
+      if (isUniqueViolation(err, ["organizationId", "triggerId"])) return; // dedupe: modele çifte istek YOK
       throw err;
     }
 
@@ -224,36 +248,51 @@ export async function recordShadowVerdict(input: ShadowInput): Promise<void> {
     let confidence: number | null = null;
     let error: string | null = null;
 
+    // Gövde hazırlığı da BU try'ın içinde: redaksiyon/serileştirme beklenmedik
+    // şekilde patlarsa satır sonsuza kadar "pending" kalmasın — aşağıdaki update
+    // arızayı yazar ve kartta görünür (sessiz ölüm yok).
     try {
-      const res = await fetch(`${shadowBaseUrl()}/chat/completions`, {
+      const baseUrl = shadowBaseUrl();
+      const reasoning = isReasoningModel(model);
+      const payload: Record<string, unknown> = {
+        model,
+        messages: [
+          { role: "system", content: SHADOW_SYSTEM_PROMPT },
+          // Veri minimizasyonu: önce bilinen ad (metin hâlâ hamken), sonra
+          // değer-şekilli PII (telefon/e-posta/uzun kod) placeholder'lanır.
+          {
+            role: "user",
+            content: redactSensitive(
+              redactNameFromBody(
+                input.guestMessage,
+                // BOTH names: the reservation's real booking name AND the
+                // (possibly placeholder) identifier — parity with quality-audit.
+                [input.reservationGuestName, input.guestName].filter((n): n is string => Boolean(n)),
+              ),
+            ).slice(0, MESSAGE_CAP),
+          },
+        ],
+      };
+      // GÖVDE MODEL AİLESİNE GÖRE (ai/index.ts ile aynı kural): reasoning modelleri
+      // (o-serisi, gpt-5 ailesi — Luna dahil) özel temperature'ı REDDEDER ve tavanı
+      // max_completion_tokens ile alır; o tavan gizli düşünme token'larını da
+      // kapsadığı için 200 yetmez, boş yanıt döner.
+      if (!reasoning) payload.temperature = 0;
+      if (reasoning) payload.max_completion_tokens = 2000;
+      else payload.max_tokens = 200;
+      // vLLM/GLM-uyumlu endpoint'lerde düşünme kapatılır (supply-ai ile aynı toggle).
+      // OpenAI bu ekstra alanı tanımaz ve 400 döner → yalnız üçüncü taraf endpoint'e.
+      if (baseUrl !== OPENAI_BASE_URL) payload.chat_template_kwargs = { enable_thinking: false };
+
+      const res = await fetch(`${baseUrl}/chat/completions`, {
         method: "POST",
         headers: { "Content-Type": "application/json", Authorization: `Bearer ${shadowKey()}` },
-        body: JSON.stringify({
-          model,
-          messages: [
-            { role: "system", content: SHADOW_SYSTEM_PROMPT },
-            // Veri minimizasyonu: önce bilinen ad (metin hâlâ hamken), sonra
-            // değer-şekilli PII (telefon/e-posta/uzun kod) placeholder'lanır.
-            {
-              role: "user",
-              content: redactSensitive(
-                redactNameFromBody(
-                  input.guestMessage,
-                  // BOTH names: the reservation's real booking name AND the
-                  // (possibly placeholder) identifier — parity with quality-audit.
-                  [input.reservationGuestName, input.guestName].filter((n): n is string => Boolean(n)),
-                ),
-              ).slice(0, MESSAGE_CAP),
-            },
-          ],
-          temperature: 0,
-          max_tokens: 200,
-          // GLM reasoning kapalı — düz JSON istiyoruz (supply-ai ile aynı toggle).
-          chat_template_kwargs: { enable_thinking: false },
-        }),
+        body: JSON.stringify(payload),
         // Gölge asla acele ettirmez ama sarkan upstream da sonsuza kadar
-        // promise tutmasın (unawaited olsa bile kaynak tüketir).
-        signal: AbortSignal.timeout(15000),
+        // promise tutmasın (unawaited olsa bile kaynak tüketir). Reasoning
+        // modelleri yavaş; yine de kullanıcı yolundaki 60 sn'yi vermiyoruz —
+        // gölge bir kaynağı o kadar uzun tutmayı hak etmiyor.
+        signal: AbortSignal.timeout(reasoning ? 30000 : 15000),
       });
       const bodyText = await readBodyCapped(res, RESPONSE_BYTE_CAP);
       if (!res.ok) {

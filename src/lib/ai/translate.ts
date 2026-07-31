@@ -1,5 +1,7 @@
 import "server-only";
 
+import { isReasoningModel } from "./model-family";
+
 // ---------------------------------------------------------------------------
 // translate — hospitality-aware translation via OpenAI (model from
 // OPENAI_TRANSLATE_MODEL / OPENAI_MODEL, default gpt-4.1).
@@ -24,11 +26,6 @@ const MAX_INPUT_CHARS = 6000;
 const MAX_OUTPUT_CHARS = 8000;
 const CACHE_MAX_ENTRIES = 200;
 const CACHE_TTL_MS = 6 * 60 * 60 * 1000; // 6h — same thread gets re-read soon, not forever
-
-/** Reasoning (o-series) and GPT-5 models reject custom temperature; omit it. */
-function isReasoningModel(model: string): boolean {
-  return /^(o\d|gpt-5)/i.test(model.trim());
-}
 
 // Small LRU+TTL cache: repeated "translate this message" clicks on the same
 // thread stay free, while memory stays bounded and entries age out.

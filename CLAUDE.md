@@ -129,6 +129,23 @@ temenni yasak, çelişki yasak, dolgu-soru yasak, misafire HER ZAMAN "siz", ben-
   yapısal risk KAPANDI. Alt-işleyen metni + DPA yine LEGAL listesinde (Nuve'nin kendi verisi Akash'a
   gitmeye devam ediyor) ama geniş-açılış blocker'ı olmaktan çıktı, aciliyeti düştü. Pilot genişletilecekse
   env'e virgülle org eklenir — kod değişikliği gerekmez.
+- **GÖLGE MODELİ 07-31'DE LUNA'YA ÇEVRİLDİ (kod hazır; Railway env'i KULLANICI girecek).** `shadow-ai.ts`
+  varsayılanı artık **OpenAI `gpt-5.6-luna`** (`https://api.openai.com/v1`); GLM/Akash varsayılanları kaldırıldı.
+  Üç yapısal düzeltme aynı turda: (1) **örneklem tavanı MODEL BAŞINA** — global sayım kalsaydı GLM'in doldurduğu
+  200 satır Luna'yı ilk mesajda aç bırakırdı (`count({where:{model}})`); (2) **gövde model ailesine göre** —
+  gpt-5 ailesi reasoning'dir, `temperature`/`max_tokens`/`chat_template_kwargs` üçlüsü 400 döndürüp TÜM pilotu
+  arızaya çevirirdi → reasoning'de `max_completion_tokens:2000`, `chat_template_kwargs` yalnız üçüncü taraf
+  vLLM endpoint'ine; (3) **anahtar-sağlayıcı eşleşmesi** — `OPENAI_API_KEY` fallback'i YALNIZ endpoint OpenAI
+  iken devrede; başka base URL yazılırsa ana hesabın anahtarı oraya Bearer olarak gitmez, modül pasifler.
+  ⚠️ **KVKK KAZANCI:** gölge artık yanıt üretiminin ZATEN kullandığı işleyene gidiyor → **yeni alt-işleyen YOK**,
+  gizlilik metnine ek satır gerekmez (Akash gölge için işleyen olmaktan çıkar; supply-ai hâlâ Akash'ta).
+  ⚠️ **Dedupe anahtarı modeli İÇERMEZ** (`@@unique(org,trigger)`) → GLM'in gölgelediği eski mesajlar Luna ile
+  TEKRAR gölgelenmez; Luna yalnız YENİ mesajlarda koşar. Eski satırlarla kıyas isteniyorsa çevrimdışı replay
+  (anahtara model eklemek migration ister — bilinçli olarak YAPILMADI). /admin kartı da artık yalnız AKTİF
+  modelin satırlarını özetliyor (iki pilotu tek uyum oranında toplamak yanıltıcıydı).
+  Kullanıcının Railway'de yapacağı TEK işlem: `SHADOW_AI_MODEL=gpt-5.6-luna` (model id'sini OpenAI panelinden
+  doğrula) + eski `SHADOW_AI_BASE_URL`/`SHADOW_AI_API_KEY` Akash değerleri varsa SİL. `SHADOW_AI_ENABLED=1` ve
+  `SHADOW_AI_ORG_IDS` aynen kalır.
 - **Hospitable OAuth** (`HOSPITABLE_OAUTH_CLIENT_ID/SECRET`) canlı → "Hospitable ile Bağlan" butonu
   çalışıyor (uçtan-uca gerçek hesapla doğrulandı). **`TRUST_CF_HEADER` EKLEME** (origin CF arkasında
   değil, Paddle webhook direkt gelir → default=rightmost XFF doğru).
