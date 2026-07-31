@@ -4,7 +4,7 @@ import { suggestReplyFallback, classifyFallback } from "./fallback";
 import { timeStatedInMessage } from "./stated-time";
 import type { ClassifyResult, SuggestReplyInput, SuggestReplyResult } from "./types";
 import type { Priority } from "@/lib/constants";
-import { isReasoningModel } from "./model-family";
+import { DEFAULT_OPENAI_MODEL, isReasoningModel } from "./model-family";
 import { reportError } from "@/lib/report-error";
 
 export type { SuggestReplyInput, SuggestReplyResult, ClassifyResult } from "./types";
@@ -88,7 +88,7 @@ export { isReasoningModel } from "./model-family";
 
 /** The model used for the main guest-reply generation. */
 function replyModel(): string {
-  return process.env.OPENAI_MODEL || "gpt-4.1";
+  return process.env.OPENAI_MODEL || DEFAULT_OPENAI_MODEL;
 }
 
 /** Normalize a model-returned language value to a short code (2–3 letters), else
@@ -253,7 +253,7 @@ export async function summarizeHostStyle(sampleReplies: string[]): Promise<strin
     "rakamları (bunlar gizli/değişkendir, rehbere ASLA koyma). En fazla 220 kelime, madde madde.";
   const user = `Ev sahibinin geçmiş cevapları:\n\n${samples.map((s, i) => `${i + 1}. ${s}`).join("\n")}`;
 
-  const model = process.env.OPENAI_STYLE_MODEL || process.env.OPENAI_MODEL || "gpt-4.1";
+  const model = process.env.OPENAI_STYLE_MODEL || process.env.OPENAI_MODEL || DEFAULT_OPENAI_MODEL;
   const payload: Record<string, unknown> = {
     model,
     messages: [

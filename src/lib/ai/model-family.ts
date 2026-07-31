@@ -13,3 +13,14 @@
 export function isReasoningModel(model: string): boolean {
   return /^(o\d|gpt-5)/i.test(model.trim());
 }
+
+/**
+ * Last-resort model when no `OPENAI_*_MODEL` env is set. Production sets
+ * `OPENAI_MODEL=gpt-5.1`, so this default is normally unused — it matters on the
+ * day the env var goes missing. It used to say `gpt-4.1`, which is NOT a reasoning
+ * model: losing the env would have silently changed the request shape (temperature
+ * back on, `max_tokens` instead of `max_completion_tokens`) and quietly
+ * de-calibrated a gate whose prompts and golden set were tuned on gpt-5.1.
+ * Keep this in the same family as what production runs.
+ */
+export const DEFAULT_OPENAI_MODEL = "gpt-5.1";

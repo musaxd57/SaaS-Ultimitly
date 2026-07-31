@@ -1,6 +1,6 @@
 import "server-only";
 
-import { isReasoningModel } from "./model-family";
+import { DEFAULT_OPENAI_MODEL, isReasoningModel } from "./model-family";
 
 // ---------------------------------------------------------------------------
 // translate — hospitality-aware translation via OpenAI (model from
@@ -128,7 +128,7 @@ export async function translate(
   const apiKey = process.env.OPENAI_API_KEY;
   if (!apiKey) return { ok: false, reason: "not_configured" };
 
-  const model = process.env.OPENAI_TRANSLATE_MODEL || process.env.OPENAI_MODEL || "gpt-4.1";
+  const model = process.env.OPENAI_TRANSLATE_MODEL || process.env.OPENAI_MODEL || DEFAULT_OPENAI_MODEL;
   const reasoning = isReasoningModel(model);
   const payload: Record<string, unknown> = {
     model,

@@ -143,9 +143,19 @@ temenni yasak, çelişki yasak, dolgu-soru yasak, misafire HER ZAMAN "siz", ben-
   TEKRAR gölgelenmez; Luna yalnız YENİ mesajlarda koşar. Eski satırlarla kıyas isteniyorsa çevrimdışı replay
   (anahtara model eklemek migration ister — bilinçli olarak YAPILMADI). /admin kartı da artık yalnız AKTİF
   modelin satırlarını özetliyor (iki pilotu tek uyum oranında toplamak yanıltıcıydı).
-  Kullanıcının Railway'de yapacağı TEK işlem: `SHADOW_AI_MODEL=gpt-5.6-luna` (model id'sini OpenAI panelinden
-  doğrula) + eski `SHADOW_AI_BASE_URL`/`SHADOW_AI_API_KEY` Akash değerleri varsa SİL. `SHADOW_AI_ENABLED=1` ve
-  `SHADOW_AI_ORG_IDS` aynen kalır.
+  ✅ **RAILWAY DURUMU EKRANDAN OKUNDU (07-31):** `SHADOW_AI_API_KEY` ve `SHADOW_AI_BASE_URL` **SET DEĞİL**
+  (alfabetik listede SENTRY_DSN ile SHADOW_AI_ENABLED arasında yoklar) → yeni kodda anahtar `OPENAI_API_KEY`'e,
+  endpoint OpenAI'ye düşer, ikisi de doğru. `SHADOW_AI_ENABLED` + `SHADOW_AI_ORG_IDS` + `SHADOW_AI_MODEL` set.
+  ⚠️ **Kullanıcının yapacağı TEK işlem: `SHADOW_AI_MODEL` değerini Luna model id'siyle DEĞİŞTİRMEK** (bugün
+  büyük olasılıkla `zai-org/GLM-5.2` yazıyor; öyle kalırsa istek OpenAI'ye GLM slug'ıyla gider → her satır arıza).
+  Model id'sini OpenAI panelinden birebir doğrula.
+- **`OPENAI_MODEL=gpt-5.1` RAILWAY EKRANINDAN DOĞRULANDI (07-31)** — ana yanıt modeli, stil-rehberi ve çeviri
+  hep bunu kullanıyor. `isReasoningModel("gpt-5.1")`=true → üretim ZATEN reasoning yolunda (temperature YOK,
+  `max_completion_tokens:2000`, 60 sn timeout). Prompt'lar ve golden set canlıda koşan modelle kalibre.
+  Kod içi son-çare varsayılan `gpt-4.1`→**`gpt-5.1`** yapıldı (`ai/model-family.ts DEFAULT_OPENAI_MODEL`, tek
+  kaynak, 3 çağrı yeri): env set olduğu için CANLIDA HİÇBİR ŞEY DEĞİŞMEZ; kapattığı şey sessiz düşüş —
+  `OPENAI_MODEL` bir gün Railway'den düşseydi uygulama reasoning OLMAYAN bir modele geçer, istek şekli
+  (temperature geri, `max_tokens`) sessizce değişir ve kimse fark etmezdi. Test pinli.
 - **Hospitable OAuth** (`HOSPITABLE_OAUTH_CLIENT_ID/SECRET`) canlı → "Hospitable ile Bağlan" butonu
   çalışıyor (uçtan-uca gerçek hesapla doğrulandı). **`TRUST_CF_HEADER` EKLEME** (origin CF arkasında
   değil, Paddle webhook direkt gelir → default=rightmost XFF doğru).
