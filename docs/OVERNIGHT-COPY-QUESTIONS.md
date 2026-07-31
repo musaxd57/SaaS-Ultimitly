@@ -10,9 +10,20 @@
 ## DURUM
 
 - [x] Tur 1 (BİTTİ, 23:05-00:00 Ist): Panel çekirdeği — 4 öneri panele sunuldu; 2'si oybirliğiyle UYGULANDI (dashboard boş-durum açıklaması + Mesajları çek hata metinleri), 2'si (Ö2+Ö3, 3'er ONAY) önce oybirliği kuralıyla düşmüşken kullanıcının canlı eşik güncellemesiyle (3/4 + ana ajan) UYGULANDI — toplam 4/4 öneri uygulandı
-- [ ] Tur 2 (00:23 Ist): Ayarlar (tüm bölümler) + mülk detayı + takvim/rezervasyon/iptaller
-- [ ] Tur 3 (03:23 Ist): Raporlar + Gönderilenler + /sent/queue + Bilgi Tabanı + Şablonlar + Misafir Sohbetleri (host yüzü)
-- [ ] FİNAL (06:23 Ist): yeni inceleme YOK — diff doğrulama + full gates + TEK push + CI izleme + cron sil
+- KADANS GÜNCELLEMESİ (kullanıcı, ~00:15 Ist): turlar artık HER 30 DAKİKADA (:07 ve :37).
+  Dilimler inceltildi; her tur TEK dilim alır, sırayla:
+- [x] Tur 2 (BİTTİ, ~01:15 Ist): Ayarlar — AI ve Otomasyon. 4 öneri → 4'ü de eşiği geçti, UYGULANDI: (P1) sayfa başlığı açıklaması rol-nötr revizeyle "İşletme, otomasyon ve hesap ayarlarınızı yönetin." (doğruluk denetçisi Faturalandırma'nın owner-only olduğunu kanıtladı, 3 panelist revizeyi ayrıca teyit etti) · (P2, 3/1) "0 ile 72 arasında bir saat değeri girin" · (P3, 4/4) üç toggle tooltip'inden iç env adı (AUTO_REPLY_ENABLED) çıktı, da/de uyumu düzeltildi · (P4, 3/1) iki noktasız "Kaydedilemedi" noktalandı. İtirazlar (şüpheci): P2 "aralık zaten yazıyor", P4 "tek form görüyorum, farkı fark etmem" — kayıtlı.
+- [ ] Tur 3: Ayarlar — Bağlantılar + Genel (Hospitable kartı, takvim akışı gizliliği, saat dilimi, işletme bilgileri)
+- [ ] Tur 4: Ayarlar — Hesap ve Güvenlik (şifre değiştirme, e-posta; 2FA kartı HARİÇ — bugün elden geçti) [Faturalandırma metinleri = fiyat alanı → yalnız QUESTIONS önerisi]
+- [ ] Tur 5: Mülk detayı + mülk formu + tedarik profili + takvim kaynakları kartı
+- [ ] Tur 6: Takvim + Rezervasyonlar/İptaller + rezervasyon içe aktarma
+- [ ] Tur 7: Raporlar
+- [ ] Tur 8: Gönderilenler + /sent/queue
+- [ ] Tur 9: Bilgi Tabanı + Şablonlar
+- [ ] Tur 10: Misafir Sohbetleri (host yüzü) + QR ayar kartları
+- [ ] Tur 11: Operatör/admin ekranları (müşteri yönetimi, lead CRM, reset-2fa formu)
+- Dilimler biterse: yeni inceleme YOK, boş tur notu.
+- [ ] FİNAL (06:00-11:00 Ist arası ilk tur): yeni inceleme YOK — diff doğrulama + full gates + TEK push + CI izleme + cron sil
 
 KAPSAM DIŞI (bu gece): landing, kayıt, giriş, 2FA, hesap silme — 07-30 gündüz
 kullanıcıyla birlikte elden geçirildi; "önceki metinleri sebepsiz değiştirme".
@@ -28,7 +39,13 @@ Hukuk sayfaları (gizlilik/koşullar/mesafeli satış/ön bilgilendirme) HER ZAM
 şüpheci kullanıcının itiraz gerekçeleri kayıt için: Ö2 "gözle görülmez fark",
 Ö3 "etiket zaten önerinin üstünde". İkisi de zarar değil düşük-kazanç itirazıydı.)
 
-## TUR 2'YE DEVREDİLEN NOT
+## SONRAKİ TURLARA DEVREDİLEN NOTLAR
+
+- UX yazarı (T2): üç tooltip'te terim ikiliği sürüyor ("Güvenlik ana şalteri" ×1 vs "Ana şalter" ×2) — tek terime sabitleme ayrı bir öneri olarak değerlendirilebilir.
+- UX yazarı (T2): dilim dışı iki noktasız fallback daha var (bulk-times-form.tsx:50 = Tur 3 Ayarlar-Genel dilimi, kb-manager.tsx:257 = Tur 9 Bilgi Tabanı dilimi) — kendi dilimlerinde panele götürülebilir.
+- Mobil (T1): task-board sonuç satırında ikon hizalama iyileştirmesi (shrink-0 + items-start) — CSS değişikliği, gece kapsamı DIŞI, gündüze not.
+
+## ESKİ TUR 2 NOTU
 
 - UX yazarı bulgusu: property-form.tsx:145 "İç notlar, özel talimatlar..." üç-nokta
   tipografisi — mülk ekranları Tur 2 kapsamında; Ö2 emsali yeni eşikle geçtiği

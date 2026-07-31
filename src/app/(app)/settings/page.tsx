@@ -198,7 +198,7 @@ export default async function SettingsPage({
               label="Otomatik karşılama"
               enabled={org?.autoWelcome ?? false}
               locked={automationLocked}
-              title="Açıkken: yaklaşan rezervasyon onaylarında, o dairenin karşılama mesajı misafire bir kez otomatik gider. Güvenlik ana şalteri (AUTO_REPLY_ENABLED) da açık olmalı."
+              title="Açıkken: yaklaşan rezervasyon onaylarında, o dairenin karşılama mesajı misafire bir kez otomatik gider. Güvenlik ana şalteri de açık olmalı."
             />
           </div>
         </CardContent>
@@ -225,7 +225,7 @@ export default async function SettingsPage({
               label="Otomatik giriş bilgileri"
               enabled={org?.autoCheckin ?? false}
               locked={automationLocked}
-              title="Açıkken: girişe 4 gün kala, o dairenin 'Giriş Talimatı' bilgi tabanı girişi misafire bir kez otomatik gider. Ana şalter (AUTO_REPLY_ENABLED) da açık olmalı."
+              title="Açıkken: girişe 4 gün kala, o dairenin 'Giriş Talimatı' bilgi tabanı girişi misafire bir kez otomatik gider. Ana şalter de açık olmalı."
             />
           </div>
         </CardContent>
@@ -250,7 +250,7 @@ export default async function SettingsPage({
               label="Otomatik çıkış mesajı"
               enabled={org?.autoCheckout ?? false}
               locked={automationLocked}
-              title="Açıkken: çıkış günü sabah 08:00'da, o dairenin çıkış mesajı misafire bir kez aynı-gün hatırlatması olarak gider. Ana şalter (AUTO_REPLY_ENABLED) da açık olmalı."
+              title="Açıkken: çıkış günü sabah 08:00'da, o dairenin çıkış mesajı misafire bir kez aynı-gün hatırlatması olarak gider. Ana şalter de açık olmalı."
             />
           </div>
         </CardContent>
@@ -534,7 +534,7 @@ export default async function SettingsPage({
     <div className="w-full space-y-6">
       <PageHeader
         title="Ayarlar"
-        description="AI'nın sesi ve otomatik mesaj ayarları."
+        description="İşletme, otomasyon ve hesap ayarlarınızı yönetin."
       />
 
       {/* Master-switch status is operator-only plumbing (an env var, not an in-app

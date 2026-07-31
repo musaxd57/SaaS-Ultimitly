@@ -72,7 +72,7 @@ export function AutomationPrefsForm({
     // request). Blank is a mistake, not a choice — an explicit "0" still works.
     if (handoffHoldHours.trim() === "") {
       setSaved(false);
-      setError("İnsan devri bekleme süresi boş olamaz — 0 ile 72 arası bir saat girin.");
+      setError("İnsan devri bekleme süresi boş olamaz — 0 ile 72 arasında bir saat değeri girin.");
       return;
     }
     setBusy(true);

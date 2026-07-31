@@ -48,7 +48,7 @@ export function AiVoiceForm({
       });
       const data = await res.json().catch(() => ({}));
       if (!res.ok) {
-        setError(data.fields?.aiSignature ?? data.fields?.aiReplyTone ?? data.error ?? "Kaydedilemedi");
+        setError(data.fields?.aiSignature ?? data.fields?.aiReplyTone ?? data.error ?? "Kaydedilemedi.");
         return;
       }
       setSaved(true);

@@ -43,7 +43,7 @@ export function NightHoursForm({
       });
       const data = await res.json().catch(() => ({}));
       if (!res.ok) {
-        setError(data.fields?.autoReplyStartHour ?? data.error ?? "Kaydedilemedi");
+        setError(data.fields?.autoReplyStartHour ?? data.error ?? "Kaydedilemedi.");
         return;
       }
       setSaved(true);
