@@ -1,4 +1,5 @@
 import { rateLimit } from "@/lib/rate-limit";
+import { limitsForOrg } from "@/lib/billing/plan-limits";
 
 // ---------------------------------------------------------------------------
 // ORG BAŞINA GÜNLÜK AI ÇAĞRI TAVANI.
@@ -21,21 +22,29 @@ import { rateLimit } from "@/lib/rate-limit";
 // ---------------------------------------------------------------------------
 
 const DAY_MS = 24 * 60 * 60 * 1000;
-/** Varsayılan: normal bir işletmenin günlük kullanımının çok üstünde, suistimalin
- *  çok altında. 7 daire × yoğun bir gün bile birkaç yüz çağrıyı geçmez. */
+/** Env ile ezilmediği sürece tavan PLANDAN gelir (billing/plan-limits.ts). Bu
+ *  değer yalnız acil bir müdahale kaçışıdır — normalde kullanılmaz. */
 const DEFAULT_DAILY_AI_CALLS = 750;
 
-export function dailyAiCallCap(): number {
+/** Env override — set edilmişse plandan BAĞIMSIZ olarak herkese uygulanır. */
+export function dailyAiCallCapOverride(): number | null {
   const raw = process.env.AI_DAILY_CALL_CAP?.trim();
-  if (!raw || !/^\d{1,6}$/.test(raw)) return DEFAULT_DAILY_AI_CALLS;
+  if (!raw || !/^\d{1,6}$/.test(raw)) return null;
   const n = Number(raw);
-  return n >= 1 ? n : DEFAULT_DAILY_AI_CALLS;
+  return n >= 1 ? n : null;
+}
+
+/** Geriye dönük uyumluluk + testler için: env override ya da genel varsayılan. */
+export function dailyAiCallCap(): number {
+  return dailyAiCallCapOverride() ?? DEFAULT_DAILY_AI_CALLS;
 }
 
 export interface DailyBudgetVerdict {
   ok: boolean;
   /** Saniye — tavana takılan çağrının ne kadar sonra tekrar deneyebileceği. */
   retryAfter: number;
+  /** Uygulanan tavan (hata mesajında müşteriye söylenebilsin diye). */
+  cap: number;
 }
 
 /**
@@ -47,6 +56,10 @@ export interface DailyBudgetVerdict {
  * kötü bir arıza modudur.
  */
 export async function consumeDailyAiBudget(organizationId: string): Promise<DailyBudgetVerdict> {
-  const verdict = await rateLimit(`ai-daily:${organizationId}`, dailyAiCallCap(), DAY_MS);
-  return { ok: verdict.ok, retryAfter: verdict.retryAfter };
+  // Tavan PLANA göre (Başlangıç < Pro < İşletme). Env override'ı varsa o kazanır —
+  // canlı bir arıza sırasında tek yerden kısabilmek için.
+  const override = dailyAiCallCapOverride();
+  const cap = override ?? (await limitsForOrg(organizationId)).aiCallsPerDay;
+  const verdict = await rateLimit(`ai-daily:${organizationId}`, cap, DAY_MS);
+  return { ok: verdict.ok, retryAfter: verdict.retryAfter, cap };
 }

@@ -18,6 +18,7 @@ import { sendQrEscalationAlertBounded, qrEscalationEventId } from "@/lib/guest-c
 import { jsonOk, badRequest, tooManyRequests, parseJsonBody, payloadTooLarge } from "@/lib/api";
 import { rateLimit, clientIp } from "@/lib/rate-limit";
 import { claimKeyedOutboundSend, releaseKeyedOutboundSend } from "@/lib/outbound-claim";
+import { limitsForOrg } from "@/lib/billing/plan-limits";
 
 export const dynamic = "force-dynamic";
 
@@ -42,7 +43,9 @@ const MAX_MESSAGE = 2000;
 // cancellation, complaint, or an explicit ask for a human.
 const ESCALATE_INTENTS = new Set(["complaint", "refund", "early_departure", "human_request"]);
 // Max PAID AI calls per apartment per (UTC) day — a durable cost ceiling.
-const DAILY_AI_CAP = 200;
+// Tavan artık PLANA göre (billing/plan-limits.ts): Başlangıç 50 / Pro 100 /
+// İşletme 200. Aşağıdaki sabit yalnız plan çözülemezse kullanılan son çaredir.
+const DAILY_AI_CAP_FALLBACK = 200;
 
 // Deterministic acknowledgment for a message that arrives AFTER the human team has
 // taken over the thread (host handoff). The AI stays silent for the rest of the
@@ -471,7 +474,11 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ tok
   // minutes after a complaint must still e-mail the host.
   const criticalEvent = detectRiskType(message) === "safety_emergency";
 
-  if (usage.count > DAILY_AI_CAP) {
+  const dailyAiCap =
+    (await limitsForOrg(ctx.property.organizationId).catch(() => null))?.qrQuestionsPerPropertyPerDay ??
+    DAILY_AI_CAP_FALLBACK;
+
+  if (usage.count > dailyAiCap) {
     const reply = "Sorunuzu ev sahibine ilettim; en kısa sürede size dönecek.";
     const { inboundMessageId, handedOff } = await record(reply, true);
     // A host reply raced in → the human owns the thread; the canned line was

@@ -164,6 +164,17 @@ const MAX_PAGES = 40;
  * or there is no `links.next`. If the endpoint isn't paginated it simply
  * returns the single page.
  */
+/**
+ * Tek bir listelemeden alınacak EN FAZLA satır sayısı.
+ *
+ * `MAX_PAGES` sayfa sayısını sınırlıyordu ama sayfa BOYUTUNU sağlayıcı belirler —
+ * yani satır sayısının gerçek bir tavanı yoktu. Geçmişi derin bir hesapta "mesajları
+ * çek" tek istekte on binlerce satır çekip belleğe alabilir, ardından her satır için
+ * DB işlemi koşabilirdi. Bu tavan iki tarafı da sınırlar; kardeş içe-aktarıcılarla
+ * (CSV 10.000 satır, iCal 10.000 etkinlik) da aynı büyüklükte.
+ */
+const MAX_ITEMS = 10_000;
+
 async function fetchAllPages<T>(
   path: string,
   params?: URLSearchParams,
@@ -177,6 +188,9 @@ async function fetchAllPages<T>(
     const batch = res.data ?? [];
     items.push(...batch);
 
+    // Satır tavanı: sayfa sayısı değil TOPLAM satır. Sessizce kesiyoruz —
+    // fırlatmak, geçmişi derin tek bir hesabın TÜM senkronunu durdururdu.
+    if (items.length >= MAX_ITEMS) return items.slice(0, MAX_ITEMS);
     if (batch.length === 0) break;
     const lastPage = res.meta?.last_page;
     if (typeof lastPage === "number") {

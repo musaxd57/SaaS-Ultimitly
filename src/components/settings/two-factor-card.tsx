@@ -172,10 +172,9 @@ export function TwoFactorCard({
               sıfırlarız.
             </p>
           ) : (
-            <p className="rounded-md border border-amber-300 bg-amber-50 p-3 text-sm text-amber-900">
-              <strong>Henüz kurtarma kodunuz yok.</strong> Telefonunuzu kaybederseniz hesabınıza
-              giremezsiniz. Kodları ancak doğrulama uygulamanız çalışırken üretebilirsiniz — şimdi
-              oluşturun ve güvenli bir yerde saklayın.
+            <p className="rounded-md border border-amber-300 bg-amber-50 px-2.5 py-1.5 text-xs text-amber-900">
+              <strong>Henüz kurtarma kodunuz yok.</strong> Kodlar yalnız doğrulama uygulamanız
+              çalışırken üretilebilir.
             </p>
           )}
           {recoveryCodes ? (

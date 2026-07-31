@@ -176,10 +176,11 @@ const FEATURES = [
 // the paid flow cannot disagree. (They used to be literals like "₺449" and drift
 // was only prevented by a comment.) Reverse-trial: 14 gün tam Pro ücretsiz (kart
 // yok), sonra plan seçilir.
-// TÜM ücretli planlar AYNI çekirdek ürün özelliklerini alır (kod'da per-özellik kilit
-// YOK — premiumAllowed tek boolean; enforcement yalnız propertyLimit). Planlar SADECE
-// daire sayısı + destek seviyesiyle ayrışır. Özellikleri üst plana özelmiş gibi
-// göstermeyin (Başlangıç müşterisi karşılama/giriş/çıkış + raporları da kullanır).
+// TÜM ücretli planlar AYNI ÖZELLİKLERİ alır — hiçbir özellik üst plana kilitli
+// değil. Planlar üç ölçüyle ayrışır: daire sayısı, KULLANIM HACMİ (günlük AI
+// yanıtı + daire başına bilgi kaydı, bkz. billing/plan-limits.ts) ve destek.
+// Bir özelliği üst plana özelmiş gibi göstermeyin — Başlangıç müşterisi de
+// karşılama/giriş/çıkış mesajlarını ve raporları kullanır.
 const TIERS = [
   {
     name: "Başlangıç",
@@ -188,6 +189,8 @@ const TIERS = [
     desc: "1–2 daireli ev sahipleri için",
     features: [
       "2 daireye kadar",
+      "Günde 150 AI yanıtı",
+      "Daire başına 15 bilgi kaydı",
       "Tüm AI özellikleri dahil",
       "7/24 otomatik misafir yanıtı (Türkçe + çok dilli)",
       "Otomatik karşılama, giriş ve çıkış mesajları",
@@ -204,6 +207,8 @@ const TIERS = [
     desc: "3–7 daireli profesyonel hostlar",
     features: [
       "7 daireye kadar",
+      "Günde 500 AI yanıtı",
+      "Daire başına 30 bilgi kaydı",
       "Başlangıç’taki tüm AI özellikleri",
       "Öncelikli destek",
     ],
@@ -216,6 +221,8 @@ const TIERS = [
     desc: "8–25 daireli profesyoneller",
     features: [
       "25 daireye kadar",
+      "Günde 1.500 AI yanıtı",
+      "Daire başına 60 bilgi kaydı",
       "Başlangıç’taki tüm AI özellikleri",
       "Birebir kurulum + öncelikli destek",
     ],
