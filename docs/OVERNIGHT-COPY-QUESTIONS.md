@@ -31,7 +31,20 @@ Hukuk sayfaları (gizlilik/koşullar/mesafeli satış/ön bilgilendirme) HER ZAM
 
 ## SABAH ONAYI BEKLEYEN SORULAR
 
-(henüz yok)
+(metin sorusu henüz yok)
+
+## GÜNDÜZE NOT — METİN DIŞI (kullanıcı gece iletti, 2026-07-31 ~01:30 Ist)
+
+- **GPT-5.6 Luna/Terra fiyat indirimi** (Luna $0.2/$1.2 −%80, Terra $2/$12 −%20;
+  1.05M context, Şub-2026 cutoff). Kullanıcı geçiş istiyor; ana ajan önerisi
+  KADEMELİ: pinli karar gereği (model değişimi = hot-path rekalibrasyon, yalnız
+  arıza+A/B) önce DEĞERLENDİRME — (1) Luna'yı GLM-gölge deseniyle karar-yetkisiz
+  gölge sınıflandırıcı olarak koştur (OpenAI zaten DPA'lı alt-işleyen → yeni
+  hukuk işi YOK), (2) redakte gerçek mesajlar + golden set ile offline replay
+  (intent/riskType/confidence kıyası), (3) uyum yüksekse A/B'li geçiş + birkaç
+  gün oto-yanıt oranı izleme. Aday: LUNA (maliyet profili bizim iş yükü);
+  Terra muhtemelen mevcut gpt-5.1'den pahalı. Bu bir GÜNDÜZ projesi — gece
+  turunda hiçbir model/kod değişikliği yapılmadı.
 
 ## REDDEDİLEN ÖNERİLER (panel itirazı — uygulanmadı)
 
