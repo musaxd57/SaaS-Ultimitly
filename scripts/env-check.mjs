@@ -166,8 +166,8 @@ export function checkProductionEnv(env) {
   // enforced before the TS runtime so a bad override never reaches `next start`).
   const SECRET_BEARING_URL_VARS = [
     "HOSPITABLE_API_BASE_URL", // per-tenant Bearer token → Hospitable API
-    "SUPPLY_AI_BASE_URL", // Bearer AI key → akashML/OpenAI-compatible endpoint
-    "SHADOW_AI_BASE_URL", // Bearer AI key → shadow classifier endpoint
+    "SUPPLY_AI_BASE_URL", // Bearer AI key → OpenAI-compatible endpoint
+    "SHADOW_AI_BASE_URL", // Bearer AI key → shadow classifier endpoint (OpenAI-compatible)
     "HOSPITABLE_OAUTH_AUTHORIZE_URL", // OAuth handshake (auth code rides this scheme)
     "HOSPITABLE_OAUTH_TOKEN_URL", // client_secret is POSTed to this URL
   ];

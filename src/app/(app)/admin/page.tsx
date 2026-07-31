@@ -3,7 +3,7 @@ import { redirect } from "next/navigation";
 import { requireAuth } from "@/lib/auth";
 import { prisma } from "@/lib/db";
 import { isSuperAdmin } from "@/lib/admin";
-import { clientIp } from "@/lib/rate-limit";
+import { clientIp, parseForwardedFor, pickClientHop, trustedProxyHops } from "@/lib/rate-limit";
 import { canonicalMailbox } from "@/lib/email-identity";
 import { auditActionLabel } from "@/lib/audit";
 import { PageHeader } from "@/components/page-header";
@@ -99,12 +99,19 @@ export default async function AdminPage() {
   //    Ayrı bir "clientIp" kopyası YOK — gerçek fonksiyon çağrılıyor, yoksa
   //    teşhis ile davranış zamanla ayrışırdı.
   const requestHeaders = await headers();
+  const xffChain = parseForwardedFor(requestHeaders.get("x-forwarded-for") ?? "");
+  const activeHops = trustedProxyHops();
   const proxyHeaders = {
     xff: requestHeaders.get("x-forwarded-for"),
     xRealIp: requestHeaders.get("x-real-ip"),
     cfConnectingIp: requestHeaders.get("cf-connecting-ip"),
     resolved: clientIp({ headers: requestHeaders }),
   };
+  // Bayrağı körlemesine çevirmemek için: her aday adımın ne vereceğini ÖNCEDEN
+  // göster. Operatör hangi satırın kendi adresi olduğunu bilir, karar bakışla verilir.
+  const hopPreview = xffChain.length
+    ? [1, 2, 3].filter((h) => h <= xffChain.length).map((h) => ({ hops: h, value: pickClientHop(xffChain, h) }))
+    : [];
   // 2) Deneme suistimali kanaryası. `musa+1@`, `m.usa@` ve `musa@` tek posta
   //    kutusudur ama bizim için ayrı hesaplardır → her biri kendi 14 günlük
   //    denemesini alır. Bugün maliyeti düşük (PMS bağlamayan deneme org'u
@@ -449,12 +456,11 @@ export default async function AdminPage() {
           <div className="space-y-1.5">
             <p className="text-sm font-medium">Bu isteğin proxy başlıkları</p>
             <p className="text-xs text-muted-foreground">
-              Hız limiti, istemciyi <strong>en sağdaki</strong> XFF adımından tanır (soldaki
-              istemci-kaynaklı, taklit edilebilir). <code className="font-mono">TRUST_X_REAL_IP</code>{" "}
-              ve <code className="font-mono">TRUST_CF_HEADER</code> bilerek kapalı: platformun
-              gerçekte ne gönderdiği görülmeden açılırsa, bir istemci her istekte kimliğini
-              değiştirip limiti tamamen atlayabilir. Aşağısı şu anki isteğin ham hâli — bayrağı
-              açma kararı buradan verilir.
+              Hız limiti istemciyi XFF zincirinden tanır. Zinciri istemci ancak{" "}
+              <strong>soldan</strong> uzatabilir; sağdaki adımları bizim altyapımız yazar, o yüzden
+              sağdan sayarız. Kaç adım geri sayılacağı{" "}
+              <code className="font-mono">TRUSTED_PROXY_HOPS</code> ile belirlenir (şu an{" "}
+              <strong>{activeHops}</strong>).
             </p>
             <ul className="space-y-1 rounded-lg border border-border bg-muted/40 p-3 font-mono text-xs">
               <li>x-forwarded-for: {proxyHeaders.xff ?? "—"}</li>
@@ -464,10 +470,27 @@ export default async function AdminPage() {
                 limitleyicinin kullandığı: {proxyHeaders.resolved}
               </li>
             </ul>
+            {hopPreview.length > 1 ? (
+              <div className="space-y-1">
+                <p className="text-xs text-muted-foreground">
+                  Hangi ayar hangi adresi seçer (kendi adresini tanı, ona göre karar ver):
+                </p>
+                <ul className="space-y-1 rounded-lg border border-border bg-muted/40 p-3 font-mono text-xs">
+                  {hopPreview.map((h) => (
+                    <li key={h.hops} className={h.hops === activeHops ? "font-semibold" : ""}>
+                      TRUSTED_PROXY_HOPS={h.hops} → {h.value}
+                      {h.hops === activeHops ? "  ← aktif" : ""}
+                    </li>
+                  ))}
+                </ul>
+              </div>
+            ) : null}
             <p className="text-xs text-muted-foreground">
-              Beklenen sağlıklı tablo: XFF&apos;in en sağındaki adres senin gerçek IP&apos;n olsun
-              ve iki tarayıcıdan bakınca DEĞİŞSİN. Sabit/iç bir adres görüyorsan tüm ziyaretçiler
-              tek limit kovasına düşüyor demektir.
+              Doğru ayar, <strong>kendi gerçek adresini</strong> veren satırdır. Yanlış ayarda tüm
+              ziyaretçiler tek adrese (altyapının kendi adresi) indirgenir; o zaman limitler kişi
+              başına değil global çalışır ve bir saldırgan login kovasını doldurup herkesi
+              429&apos;a düşürebilir. Beklenenden kısa bir zincirde kod, taklit edilebilir bir
+              değere düşmek yerine en sağdaki adımda kalır (limit gevşer, kimlik seçilemez).
             </p>
           </div>
 

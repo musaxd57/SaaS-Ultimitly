@@ -3,17 +3,37 @@ import "server-only";
 import type { PrepPlan } from "@/lib/supply";
 import { reportError, redactSensitive } from "@/lib/report-error";
 import { isSecureExternalUrl } from "@/lib/secure-url";
+import {
+  applyCompatModelParams,
+  compatModelMatchesEndpoint,
+  resolveCompatBaseUrl,
+  resolveCompatKey,
+} from "@/lib/ai/openai-compat";
 
 // Optional, cosmetic AI summary for the prep/shopping plan ("bu hafta çöp poşeti
-// al" tarzı). OpenAI-COMPATIBLE (works with akashML / any /v1/chat/completions):
-//   SUPPLY_AI_API_KEY   — required to enable (unset → feature hidden/no-op)
-//   SUPPLY_AI_BASE_URL  — default https://api.akashml.com/v1
-//   SUPPLY_AI_MODEL     — default zai-org/GLM-5.2 (akashML's GLM-5.2 slug)
+// al" tarzı). OpenAI-COMPATIBLE (any /v1/chat/completions):
+//   SUPPLY_AI_API_KEY   — opsiyonel; yoksa endpoint OpenAI iken OPENAI_API_KEY
+//                         (anahtar-sağlayıcı eşleşmesi: ai/openai-compat.ts)
+//   SUPPLY_AI_BASE_URL  — default https://api.openai.com/v1
+//   SUPPLY_AI_MODEL     — default gpt-5.6-luna
+// 2026-07-31'e kadar bu özellik Akash/GLM'e gidiyordu. Artık yanıt üretiminin
+// ZATEN kullandığı sağlayıcıya gidiyor → Akash veri işleyen olmaktan çıktı
+// (gizlilik metnindeki alt-işleyen listesi bir kalem sadeleşti).
 // PRIVACY: only aggregate NUMBERS + property names + counts are sent — never a
 // guest name/email/phone (the PrepPlan carries no guest PII to begin with).
 
+const DEFAULT_SUPPLY_MODEL = "gpt-5.6-luna";
+
+function supplyBaseUrl(): string {
+  return resolveCompatBaseUrl(process.env.SUPPLY_AI_BASE_URL);
+}
+
+function supplyKey(): string | undefined {
+  return resolveCompatKey(process.env.SUPPLY_AI_API_KEY, supplyBaseUrl());
+}
+
 export function supplyAiConfigured(): boolean {
-  return Boolean(process.env.SUPPLY_AI_API_KEY?.trim());
+  return Boolean(supplyKey());
 }
 
 export type SupplySummaryResult =
@@ -60,11 +80,11 @@ const SYSTEM_PROMPT =
  * usual cause. Never throws.
  */
 export async function generateSupplySummary(plan: PrepPlan): Promise<SupplySummaryResult> {
-  const key = process.env.SUPPLY_AI_API_KEY?.trim();
+  const base = supplyBaseUrl();
+  const key = supplyKey();
   if (!key) return { ok: false, reason: "not_configured" };
   if (!planHasBuyables(plan)) return { ok: false, reason: "empty_plan" };
 
-  const base = (process.env.SUPPLY_AI_BASE_URL?.trim() || "https://api.akashml.com/v1").replace(/\/$/, "");
   // HTTPS-pin (P2): never send the Bearer API key to an insecure endpoint. Fail
   // BEFORE the network call — production requires https, dev/test allows only
   // localhost http (secure-url.ts). The URL is not logged (it can carry a token).
@@ -72,29 +92,39 @@ export async function generateSupplySummary(plan: PrepPlan): Promise<SupplySumma
     void reportError("supply-ai", new Error("SUPPLY_AI_BASE_URL is not an https endpoint — refused (no key sent)"));
     return { ok: false, reason: "insecure_base_url" };
   }
-  const model = process.env.SUPPLY_AI_MODEL?.trim() || "zai-org/GLM-5.2";
+  const model = process.env.SUPPLY_AI_MODEL?.trim() || DEFAULT_SUPPLY_MODEL;
+  // Env yarım güncellendiyse (endpoint OpenAI'ye çevrildi ama SUPPLY_AI_MODEL eski
+  // satıcı slug'ında kaldı) her tıklamada 404 yerine adı konmuş bir hata dön.
+  if (!compatModelMatchesEndpoint(model, base)) {
+    return { ok: false, reason: `model_endpoint_mismatch (model=${model})` };
+  }
   const url = `${base}/chat/completions`;
 
   try {
-    const res = await fetch(url, {
-      method: "POST",
-      headers: { "Content-Type": "application/json", Authorization: `Bearer ${key}` },
-      body: JSON.stringify({
+    const payload = applyCompatModelParams(
+      {
         model,
         messages: [
           { role: "system", content: SYSTEM_PROMPT },
           { role: "user", content: planToText(plan) },
         ],
-        temperature: 0.4,
-        max_tokens: 600,
-        // GLM-5.2 is a REASONING model — left on, it returns its (English, verbose)
-        // chain-of-thought instead of a clean answer. Disable "thinking" so it emits
-        // a direct 2-3 sentence answer in `content`. This is the GLM/Qwen toggle on
-        // vLLM/SGLang backends (akashML). If an endpoint ignores it, the <think>
-        // strip + content-only parsing below still keep the visible text clean.
-        chat_template_kwargs: { enable_thinking: false },
-      }),
-      // akashML/GLM can take a few seconds; generous but bounded so a hung
+      },
+      {
+        model,
+        baseUrl: base,
+        temperature: 0.4, // özet metni: biraz akıcılık
+        maxTokens: 600,
+        // Reasoning modelinde bu tavan gizli düşünme token'larını DA kapsar;
+        // 600 bırakılsaydı yanıt boş dönerdi (finish=length).
+        maxCompletionTokens: 2000,
+      },
+    );
+
+    const res = await fetch(url, {
+      method: "POST",
+      headers: { "Content-Type": "application/json", Authorization: `Bearer ${key}` },
+      body: JSON.stringify(payload),
+      // A reasoning model can take a few seconds; generous but bounded so a hung
       // upstream can't wedge the request.
       signal: AbortSignal.timeout(30000),
     });

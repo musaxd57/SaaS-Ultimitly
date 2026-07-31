@@ -2,6 +2,12 @@ import "server-only";
 
 import { prisma } from "@/lib/db";
 import { isUniqueViolation } from "@/lib/db-errors";
+import {
+  applyCompatModelParams,
+  compatModelMatchesEndpoint,
+  resolveCompatBaseUrl,
+  resolveCompatKey,
+} from "@/lib/ai/openai-compat";
 import { isReasoningModel } from "@/lib/ai/model-family";
 import { redactSensitive } from "@/lib/report-error";
 import { redactNameFromBody } from "@/lib/data-retention";
@@ -55,8 +61,6 @@ const VERDICTS = new Set(["allow", "hold", "escalate"]);
 const GATE_DECISIONS = new Set(["auto_sent", "human_review"]);
 const DEFAULT_CAP = 200;
 const MESSAGE_CAP = 1500; // sınıflandırmaya yeter; uzun mesajın kuyruğu kırpılır
-/** Ana modelin de kullandığı endpoint. Anahtar/gövde kuralları buna bakar. */
-const OPENAI_BASE_URL = "https://api.openai.com/v1";
 
 export function shadowAiEnabled(): boolean {
   if (process.env.SHADOW_AI_ENABLED !== "1" || !shadowKey()) return false;
@@ -85,21 +89,13 @@ function warnThrottled(msg: string) {
   console.error(`[shadow-ai] ${msg}`);
 }
 
-/**
- * Gölgenin anahtarı. ANAHTAR-SAĞLAYICI EŞLEŞMESİ: ana hesabın OPENAI_API_KEY'i
- * yalnız istek gerçekten OpenAI'ye gidiyorsa devreye girer. Aksi halde tek bir
- * SHADOW_AI_BASE_URL yazımı, ana faturalandırma anahtarını üçüncü bir sağlayıcıya
- * Bearer olarak taşırdı. Başka endpoint = kendi SHADOW_AI_API_KEY'ini ver, yoksa
- * modül pasif kalır (fail-closed).
- */
+/** Gölgenin anahtarı — ANAHTAR-SAĞLAYICI EŞLEŞMESİ kuralı ai/openai-compat.ts'te. */
 function shadowKey(): string | undefined {
-  const dedicated = process.env.SHADOW_AI_API_KEY?.trim();
-  if (dedicated) return dedicated;
-  return shadowBaseUrl() === OPENAI_BASE_URL ? process.env.OPENAI_API_KEY?.trim() || undefined : undefined;
+  return resolveCompatKey(process.env.SHADOW_AI_API_KEY, shadowBaseUrl());
 }
 
 function shadowBaseUrl(): string {
-  return (process.env.SHADOW_AI_BASE_URL?.trim() || OPENAI_BASE_URL).replace(/\/$/, "");
+  return resolveCompatBaseUrl(process.env.SHADOW_AI_BASE_URL);
 }
 
 export function shadowModel(): string {
@@ -254,6 +250,9 @@ export async function recordShadowVerdict(input: ShadowInput): Promise<void> {
     try {
       const baseUrl = shadowBaseUrl();
       const reasoning = isReasoningModel(model);
+      // Env yarım güncellendiyse (endpoint OpenAI'ye çevrildi, model eski satıcı
+      // slug'ında kaldı) her mesajda 404 yerine adı konmuş tek bir hata yaz.
+      if (!compatModelMatchesEndpoint(model, baseUrl)) throw new Error("model_endpoint_mismatch");
       const payload: Record<string, unknown> = {
         model,
         messages: [
@@ -273,16 +272,14 @@ export async function recordShadowVerdict(input: ShadowInput): Promise<void> {
           },
         ],
       };
-      // GÖVDE MODEL AİLESİNE GÖRE (ai/index.ts ile aynı kural): reasoning modelleri
-      // (o-serisi, gpt-5 ailesi — Luna dahil) özel temperature'ı REDDEDER ve tavanı
-      // max_completion_tokens ile alır; o tavan gizli düşünme token'larını da
-      // kapsadığı için 200 yetmez, boş yanıt döner.
-      if (!reasoning) payload.temperature = 0;
-      if (reasoning) payload.max_completion_tokens = 2000;
-      else payload.max_tokens = 200;
-      // vLLM/GLM-uyumlu endpoint'lerde düşünme kapatılır (supply-ai ile aynı toggle).
-      // OpenAI bu ekstra alanı tanımaz ve 400 döner → yalnız üçüncü taraf endpoint'e.
-      if (baseUrl !== OPENAI_BASE_URL) payload.chat_template_kwargs = { enable_thinking: false };
+      // Gövde model ailesine + endpoint'e göre şekillenir (ai/openai-compat.ts).
+      applyCompatModelParams(payload, {
+        model,
+        baseUrl,
+        temperature: 0, // sınıflandırma: belirlenimci olsun
+        maxTokens: 200, // kapalı-set JSON hüküm birkaç token
+        maxCompletionTokens: 2000, // reasoning: gizli düşünme de bu tavandan yenir
+      });
 
       const res = await fetch(`${baseUrl}/chat/completions`, {
         method: "POST",

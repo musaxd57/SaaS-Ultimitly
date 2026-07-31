@@ -130,12 +130,48 @@ export function clientIp(req: { headers: Headers }): string {
 
   const xff = req.headers.get("x-forwarded-for");
   if (xff) {
-    // Trust the RIGHTMOST hop (appended by the platform proxy, e.g. Railway), not
-    // the leftmost which is client-supplied and trivially spoofable.
-    const parts = xff.split(",").map((s) => s.trim()).filter(Boolean);
-    if (parts.length) return parts[parts.length - 1]!;
+    const parts = parseForwardedFor(xff);
+    if (parts.length) return pickClientHop(parts, trustedProxyHops());
   }
   return req.headers.get("x-real-ip") ?? "unknown";
+}
+
+/** `a, b, c` → ["a","b","c"] (boş parçalar atılır). */
+export function parseForwardedFor(xff: string): string[] {
+  return xff.split(",").map((s) => s.trim()).filter(Boolean);
+}
+
+/**
+ * Kaç proxy'nin X-Forwarded-For'a KENDİ gördüğü adresi eklediği. Yalnız BİZİM
+ * altyapımızın eklediği adımlar sayılır — istemci ancak SOLA ekleme yapabilir,
+ * sağdaki N adımı yazan hep bizim proxy'lerimizdir.
+ *
+ * Default 1 = "en sağdakine güven" (bugüne kadarki davranış). Railway'de zincir
+ * `<istemci>, <railway-edge>` biçiminde iki adım olduğu için doğru değer 2'dir;
+ * env verilmeden davranış DEĞİŞMEZ.
+ */
+export function trustedProxyHops(): number {
+  const raw = Number(process.env.TRUSTED_PROXY_HOPS);
+  if (!Number.isFinite(raw) || raw < 1) return 1;
+  return Math.min(Math.trunc(raw), 10); // saçma büyük değer zinciri baştan okutmasın
+}
+
+/**
+ * Zincirden istemcinin adresini seç.
+ *
+ * NEDEN SAĞDAN SAYIYORUZ: istemci istediği kadar sahte adresi SOLA ekleyebilir;
+ * sağdaki adımları bizim proxy'lerimiz yazar ve taklit edilemez. `hops` kadar
+ * adımı geriye sayınca, dış proxy'mizin GÖRDÜĞÜ adres çıkar.
+ *
+ * FAIL-SAFE: zincir beklenenden KISAysa (topoloji değişti, bir adım kayboldu)
+ * istemcinin yazdığı bir değere düşmek yerine en sağdakine döneriz — o zaman
+ * herkes tek kovaya düşer (limit gevşer) ama kimse kimliğini taklit EDEMEZ.
+ * Yanlış yönün güvenli tarafı budur.
+ */
+export function pickClientHop(parts: string[], hops: number): string {
+  if (parts.length === 0) return "unknown";
+  if (parts.length < hops) return parts[parts.length - 1]!;
+  return parts[parts.length - hops]!;
 }
 
 /** Test helper: clear the in-memory fallback buckets (the DB rows are wiped by

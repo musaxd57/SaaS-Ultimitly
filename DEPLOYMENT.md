@@ -262,6 +262,30 @@ kararı gerekir (CLAUDE.md LEGAL listesi).
 
 ---
 
+## 8.5) İstemci IP'si — `TRUSTED_PROXY_HOPS` (hız limitlerinin doğruluğu)
+
+Hız limitleri istemciyi `X-Forwarded-For` zincirinden tanır. Zinciri istemci ancak
+**soldan** uzatabilir; sağdaki adımları altyapı yazar → sağdan sayılır.
+
+| Env | Zorunlu | Açıklama |
+| --- | --- | --- |
+| `TRUSTED_PROXY_HOPS` | hayır | Sağdan kaç adım geri sayılacağı. Varsayılan `1` (= en sağdaki). **Railway'de doğru değer `2`.** |
+| `TRUST_X_REAL_IP` | hayır | `x-real-ip`'i otorite yapar. Hop sayımı tercih edilir (taklit edilemez). |
+| `TRUST_CF_HEADER` | hayır | Yalnız origin GERÇEKTEN Cloudflare arkasındaysa. Bizde DEĞİL → EKLEME. |
+
+**Neden 2 (2026-07-31 canlı gözlem):** /admin "Operasyon Teşhisi" kartında gerçek
+zincir `88.254.11.170, 152.233.12.245` çıktı — soldaki müşterinin TTNet adresi,
+sağdaki `datapacket.com` yani Railway'in kendi edge'i. Varsayılan `1` ile her
+ziyaretçi aynı adrese indirgeniyor ve **bütün limitler kişi başına değil global**
+çalışıyor (bir saldırgan login kovasını doldurup herkesi 429'a düşürebilir).
+`2` ile gerçek istemci seçilir. Doğru değeri kartta gör: her ayarın hangi adresi
+seçeceği önizleniyor, kendi adresini veren satırı seç.
+
+Zincir beklenenden kısaysa kod **en sağdaki adımda kalır** (taklit edilebilir bir
+değere düşmez): limit gevşer ama kimse kimliğini seçemez.
+
+---
+
 ## 9) Gölge pilotu (Aşama-1) — opsiyonel, DEFAULT KAPALI
 
 İkinci model her otomatik-yanıt kararında misafir mesajını bağımsız sınıflandırır ve

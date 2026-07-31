@@ -20,8 +20,9 @@ describe("supply-ai", () => {
     vi.unstubAllGlobals();
   });
 
-  it("is disabled without an API key", () => {
+  it("is disabled without any usable key", () => {
     vi.stubEnv("SUPPLY_AI_API_KEY", "");
+    vi.stubEnv("OPENAI_API_KEY", "");
     expect(supplyAiConfigured()).toBe(false);
   });
 
@@ -32,6 +33,7 @@ describe("supply-ai", () => {
 
   it("does not call the network when unconfigured", async () => {
     vi.stubEnv("SUPPLY_AI_API_KEY", "");
+    vi.stubEnv("OPENAI_API_KEY", "");
     const fetchMock = vi.fn();
     vi.stubGlobal("fetch", fetchMock);
     expect(await generateSupplySummary(basePlan)).toEqual({ ok: false, reason: "not_configured" });
@@ -58,7 +60,7 @@ describe("supply-ai", () => {
     expect(fetchMock).not.toHaveBeenCalled();
   });
 
-  it("defaults to akashML's GLM-5.2 slug when SUPPLY_AI_MODEL is unset", async () => {
+  it("SUPPLY_AI_MODEL bos ise Luna'ya duser (Akash/GLM varsayilani kaldirildi)", async () => {
     vi.stubEnv("SUPPLY_AI_API_KEY", "sk-test");
     vi.stubEnv("SUPPLY_AI_MODEL", "");
     const fetchMock = vi.fn().mockResolvedValue(
@@ -67,7 +69,7 @@ describe("supply-ai", () => {
     vi.stubGlobal("fetch", fetchMock);
     await generateSupplySummary(basePlan);
     const body = JSON.parse(String((fetchMock.mock.calls[0][1] as RequestInit).body));
-    expect(body.model).toBe("zai-org/GLM-5.2");
+    expect(body.model).toBe("gpt-5.6-luna");
   });
 
   it("sends ONLY aggregate numbers (no guest PII) and extracts the reply", async () => {
@@ -94,8 +96,10 @@ describe("supply-ai", () => {
     expect(body).not.toMatch(/guest|misafir adı|@|\+90/i);
   });
 
-  it("disables thinking and strips any inline <think> block from content", async () => {
+  it("ucuncu taraf (vLLM) endpointinde thinking kapatilir + inline <think> blogu temizlenir", async () => {
     vi.stubEnv("SUPPLY_AI_API_KEY", "sk-test");
+    vi.stubEnv("SUPPLY_AI_BASE_URL", "https://api.akashml.com/v1");
+    vi.stubEnv("SUPPLY_AI_MODEL", "zai-org/GLM-5.2");
     const fetchMock = vi.fn().mockResolvedValue(
       new Response(
         JSON.stringify({ choices: [{ message: { content: "<think>let me reason in English</think>Çöp poşeti al." }, finish_reason: "stop" }] }),
@@ -104,7 +108,7 @@ describe("supply-ai", () => {
     );
     vi.stubGlobal("fetch", fetchMock);
     expect(await generateSupplySummary(basePlan)).toEqual({ ok: true, text: "Çöp poşeti al." });
-    // thinking disabled in the request (GLM/Qwen toggle)
+    // thinking disabled in the request (GLM/Qwen toggle) — yalniz ucuncu tarafta
     const body = JSON.parse(String((fetchMock.mock.calls[0][1] as RequestInit).body));
     expect(body.chat_template_kwargs).toEqual({ enable_thinking: false });
   });
@@ -124,13 +128,71 @@ describe("supply-ai", () => {
 
   it("returns a redacted reason on a non-OK upstream response (diagnosable)", async () => {
     vi.stubEnv("SUPPLY_AI_API_KEY", "sk-test");
-    vi.stubEnv("SUPPLY_AI_MODEL", "zai-org/GLM-5.2");
+    vi.stubEnv("SUPPLY_AI_MODEL", "gpt-5.6-yok-boyle");
     vi.stubGlobal("fetch", vi.fn().mockResolvedValue(new Response("model not found", { status: 404 })));
     const out = await generateSupplySummary(basePlan);
     expect(out.ok).toBe(false);
     if (!out.ok) {
       expect(out.reason).toContain("HTTP 404");
-      expect(out.reason).toContain("zai-org/GLM-5.2");
+      expect(out.reason).toContain("gpt-5.6-yok-boyle");
     }
+  });
+
+  // -------------------------------------------------------------------------
+  // Model 2026-07-31'de Akash/GLM'den OpenAI Luna'ya cevrildi. Asagidakiler o
+  // gecisin uc yapisal tuzagini pinliyor.
+  // -------------------------------------------------------------------------
+
+  it("REASONING GOVDESI: gpt-5 ailesine temperature/max_tokens/chat_template_kwargs GONDERILMEZ", async () => {
+    // Uculu birden 400 dondururdu; ustelik max_tokens=600 reasoning modelinde
+    // gizli dusunme token'lari yuzunden BOS yanit uretirdi.
+    vi.stubEnv("SUPPLY_AI_API_KEY", "sk-test");
+    const fetchMock = vi.fn().mockResolvedValue(
+      new Response(JSON.stringify({ choices: [{ message: { content: "ok" } }] }), { status: 200 }),
+    );
+    vi.stubGlobal("fetch", fetchMock);
+    await generateSupplySummary(basePlan);
+    const [url, init] = fetchMock.mock.calls[0];
+    expect(url).toBe("https://api.openai.com/v1/chat/completions");
+    const body = JSON.parse(String((init as RequestInit).body));
+    expect(body).not.toHaveProperty("temperature");
+    expect(body).not.toHaveProperty("max_tokens");
+    expect(body).not.toHaveProperty("chat_template_kwargs");
+    expect(body.max_completion_tokens).toBeGreaterThanOrEqual(1000);
+  });
+
+  it("ANAHTAR-SAGLAYICI ESLESMESI: OPENAI_API_KEY yalniz OpenAI endpointinde devreye girer", async () => {
+    vi.stubEnv("SUPPLY_AI_API_KEY", ""); // ozel anahtar yok
+    vi.stubEnv("OPENAI_API_KEY", "sk-ana-hesap");
+    expect(supplyAiConfigured()).toBe(true);
+
+    const fetchMock = vi.fn().mockResolvedValue(
+      new Response(JSON.stringify({ choices: [{ message: { content: "ok" } }] }), { status: 200 }),
+    );
+    vi.stubGlobal("fetch", fetchMock);
+    await generateSupplySummary(basePlan);
+    const headers = (fetchMock.mock.calls[0][1] as RequestInit).headers as Record<string, string>;
+    expect(headers.Authorization).toBe("Bearer sk-ana-hesap");
+
+    // Ucuncu taraf endpoint: ana hesabin anahtari ORAYA ASLA gitmez.
+    vi.stubEnv("SUPPLY_AI_BASE_URL", "https://api.akashml.com/v1");
+    const thirdParty = vi.fn();
+    vi.stubGlobal("fetch", thirdParty);
+    expect(supplyAiConfigured()).toBe(false);
+    expect(await generateSupplySummary(basePlan)).toEqual({ ok: false, reason: "not_configured" });
+    expect(thirdParty).not.toHaveBeenCalled();
+  });
+
+  it("MODEL/ENDPOINT UYUMSUZLUGU aga cikmadan yakalanir (env yarim guncellenirse)", async () => {
+    // Endpoint OpenAI'ye cevrildi ama SUPPLY_AI_MODEL eski satici slugunda kaldi:
+    // her tiklamada 404 harcamak yerine adi konmus tek bir hata.
+    vi.stubEnv("SUPPLY_AI_API_KEY", "sk-test");
+    vi.stubEnv("SUPPLY_AI_MODEL", "zai-org/GLM-5.2");
+    const fetchMock = vi.fn();
+    vi.stubGlobal("fetch", fetchMock);
+    const out = await generateSupplySummary(basePlan);
+    expect(out.ok).toBe(false);
+    if (!out.ok) expect(out.reason).toContain("model_endpoint_mismatch");
+    expect(fetchMock).not.toHaveBeenCalled();
   });
 });

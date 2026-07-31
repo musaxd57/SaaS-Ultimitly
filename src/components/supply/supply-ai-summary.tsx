@@ -6,8 +6,8 @@ import { Button } from "@/components/ui/button";
 
 /**
  * On-demand AI summary of the prep plan. Button-triggered so the model's latency
- * (akashML/GLM ~several seconds) never blocks the page render. Shown only when the
- * env has an AI provider configured. Cosmetic: the deterministic list stands alone.
+ * (a reasoning model takes several seconds) never blocks the page render. Shown only
+ * when an AI provider is configured. Cosmetic: the deterministic list stands alone.
  */
 export function SupplyAiSummary({ days, enabled }: { days: number; enabled: boolean }) {
   const [busy, setBusy] = useState(false);
