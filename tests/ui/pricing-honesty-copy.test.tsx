@@ -128,7 +128,10 @@ describe("Kayıt formu — deneme sonrası vaat GERÇEK davranışla aynı", () 
     // Eski vaat: tam bir ücretsiz sürüm varmış gibi okunuyordu.
     expect(text).not.toContain("ücretsiz sürümle devam");
     expect(text).toContain("sınırlı erişimle kullanmaya devam");
-    expect(text).toContain("otomatik yanıtlar için ücretli plan gerekir");
+    // Kapsam DAR yazılmıştı: premiumAllowed yalnız otomatik yanıtı değil AI öneri,
+    // çeviri, QR concierge ve AI hazırlık özetini de kapatıyor. Metin artık bunu
+    // söylüyor; test de dar hâline geri dönülmesini engelliyor.
+    expect(text).toContain("otomatik yanıtlar ve AI özellikleri için ücretli plan gerekir");
     // Otomatik ücret alınmadığı + kart alınmadığı vaatleri KORUNUR (doğru ve satışın çekirdeği).
     expect(text).toContain("Deneme sonunda otomatik ücret alınmaz");
     expect(text).toContain("Kart gerekmez");

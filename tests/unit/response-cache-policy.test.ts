@@ -33,8 +33,31 @@ function walk(dir: string): string[] {
   return out;
 }
 
-/** `max-age` / `s-maxage` with a NON-zero value, or an explicit `public`. */
-const CACHEABLE = /(^|[\s,;"'])public([\s,;"']|$)|(s-)?max-age\s*=\s*[1-9]/i;
+/**
+ * Bir Cache-Control değeri paylaşımlı önbelleğe girebilir mi?
+ *
+ * ⚠️ Eski sürüm `(s-)?max-age` yazıyordu — bu var olmayan `s-max-age`'i üretir ve
+ * RFC 9111'in gerçek yazımı olan **`s-maxage`**'i KAÇIRIRDI. Kaçırılan direktif
+ * tam olarak paylaşımlı önbelleğe (CDN/proxy) hitap eden tek direktiftir, yani
+ * bu testin savunduğu tehdidin ta kendisi. Denetimde `s-maxage=600` yazan sahte
+ * bir kiracı-JSON rotasının testi YEŞİL geçtiği kanıtlandı.
+ *
+ * `0*` öneki `max-age=030` gibi sıfır-dolgulu yazımı da yakalar.
+ */
+const CACHEABLE = /(^|[\s,;"'])public([\s,;"']|$)|\bs-maxage\s*=\s*0*[1-9]|\bmax-age\s*=\s*0*[1-9]/i;
+
+/** Yorumlar taramaya girmesin (gerçek kod ile yorum ayrımı). */
+function stripComments(src: string): string {
+  return src.replace(/\/\*[\s\S]*?\*\//g, "").replace(/\/\/.*$/gm, "");
+}
+
+/** Cache-Control DEĞERİ gibi görünen string literal'ler (satır sınırı tanımaz). */
+function cacheControlLiterals(src: string): string[] {
+  const literals = src.match(/"[^"\n]*"|'[^'\n]*'|`[^`\n]*`/g) ?? [];
+  return literals
+    .map((l) => l.slice(1, -1))
+    .filter((v) => /\b(max-age|s-maxage|no-store|no-cache|must-revalidate|immutable)\b/i.test(v));
+}
 
 describe("API yanıtları paylaşımlı önbelleğe girmez", () => {
   const files = walk(API_DIR);
@@ -44,15 +67,33 @@ describe("API yanıtları paylaşımlı önbelleğe girmez", () => {
   });
 
   it("hiçbir API rotası cache'lenebilir Cache-Control yazmıyor", () => {
+    // Değer, `Cache-Control` yazısıyla AYNI SATIRDA olmak zorunda değil: sabit
+    // olarak tanımlanıp başka satırda set edilebilir. O yüzden satır değil,
+    // dosyadaki Cache-Control biçimli TÜM string literal'leri tarıyoruz.
     const offenders: string[] = [];
     for (const file of files) {
-      const src = readFileSync(file, "utf8");
-      for (const line of src.split("\n")) {
-        if (!/cache-control/i.test(line)) continue;
-        if (CACHEABLE.test(line)) offenders.push(`${path.relative(API_DIR, file)}: ${line.trim()}`);
+      const src = stripComments(readFileSync(file, "utf8"));
+      for (const value of cacheControlLiterals(src)) {
+        if (CACHEABLE.test(value)) offenders.push(`${path.relative(API_DIR, file)}: ${value}`);
       }
     }
     expect(offenders).toEqual([]);
+  });
+
+  it("CACHEABLE hakemi doğru: s-maxage ve sıfır-dolgulu yazım da yakalanır", () => {
+    // Regex'in kendisi pinli — bu testin koruduğu şey listenin doğruluğu.
+    for (const safe of ["no-store", "max-age=0", "no-cache, max-age=0", "max-age=0, must-revalidate", "private"]) {
+      expect(CACHEABLE.test(safe), safe).toBe(false);
+    }
+    for (const bad of [
+      "public, max-age=60",
+      "s-maxage=600",
+      "max-age=0, s-maxage=600", // klasik CDN kalıbı — eski regex bunu KAÇIRIYORDU
+      "max-age=030",
+      "public",
+    ]) {
+      expect(CACHEABLE.test(bad), bad).toBe(true);
+    }
   });
 
   it("ETag/If-None-Match mantığı YOK — varsa zamanlama-güvenli karşılaştırma düşünülmeli", () => {
@@ -89,8 +130,15 @@ describe("global güvenlik başlıkları (next.config.mjs)", () => {
     expect(csp).toContain("object-src 'none'");
     expect(csp).toContain("base-uri 'self'");
     expect(csp).toContain("frame-ancestors 'self'");
+    // "Bu uygulama bu özelliği kullanmıyor" kanıtına dayanan, nonce GEREKTİRMEYEN
+    // dört direktif. Biri kaldırılırsa görünür olsun.
+    expect(csp).toContain("script-src-attr 'none'");
+    expect(csp).toContain("worker-src 'none'");
+    expect(csp).toContain("manifest-src 'none'");
+    expect(csp).toContain("media-src 'self'");
     // script-src enforce EDİLMEZ — nonce altyapısı gelmeden panelin tamamını kırar.
-    expect(csp).not.toContain("script-src");
+    // (script-src-attr AYRI bir direktiftir; bu kontrol onu yanlışlıkla yakalamasın.)
+    expect(csp.replace(/script-src-attr[^;]*/g, "")).not.toContain("script-src");
   });
 
   it("report-only politika uygulamayı DOĞRU anlatıyor (Paddle adlandırılmış)", async () => {
@@ -102,5 +150,14 @@ describe("global güvenlik başlıkları (next.config.mjs)", () => {
     // saymazsa "hedef politika" hiçbir zaman açılamayacak bir politikadır.
     expect(ro).toContain("https://cdn.paddle.com");
     expect(ro).toContain("connect-src 'self' https://*.paddle.com");
+    // Paddle overlay EBEVEYN dokümana harici stylesheet enjekte eder; style-src'de
+    // Paddle yoksa enforce günü checkout stilsiz açılır (denetim bulgusu).
+    expect(ro).toMatch(/style-src[^;]*cdn\.paddle\.com/);
+    // public/urun.html + public/kurulum.html Google Fonts'tan stylesheet çekiyor
+    // ve landing bu dosyayı iframe ile gömüyor.
+    expect(ro).toMatch(/style-src[^;]*fonts\.googleapis\.com/);
+    expect(ro).toMatch(/font-src[^;]*fonts\.gstatic\.com/);
+    // Sandbox AYRI origin — politika sandbox testinde de doğru olmalı.
+    expect(ro).toContain("https://sandbox-cdn.paddle.com");
   });
 });

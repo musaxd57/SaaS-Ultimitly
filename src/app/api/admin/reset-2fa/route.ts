@@ -3,6 +3,7 @@ import { prisma } from "@/lib/db";
 import { requireSession, unauthorized, badRequest, jsonOk, serverError, readJsonCappedOrNull } from "@/lib/api";
 import { isSuperAdmin } from "@/lib/admin";
 import { writeAudit } from "@/lib/audit";
+import { normalizeEmail } from "@/lib/email-identity";
 
 // ---------------------------------------------------------------------------
 // Operator panel: RESET a locked-out customer's 2FA. SUPER-ADMIN ONLY.
@@ -28,11 +29,17 @@ export async function POST(req: NextRequest) {
 
   try {
     const data = await readJsonCappedOrNull(req);
-    const email = typeof data?.email === "string" ? data.email.trim().toLowerCase() : "";
+    const email = typeof data?.email === "string" ? normalizeEmail(data.email) : "";
     if (!email) return badRequest({ email: "Kullanıcının e-posta adresi gerekli." });
 
-    const user = await prisma.user.findFirst({
-      where: { email: { equals: email, mode: "insensitive" } },
+    // AYNI HAKEM: giriş/kayıt/şifre-sıfırlama yollarıyla birebir aynı arama.
+    // Eskiden burası `mode:"insensitive"` ile findFirst yapıyordu — tek başına
+    // zararsızdı ama e-postası yalnız BÜYÜK/küçük harfte ayrışan iki satır (elle
+    // SQL/import ile doğabilir) varsa findFirst hangisini bulacağını garanti
+    // etmez ve operatör YANLIŞ hesabın 2FA'sını sıfırlayabilirdi. Kimlik kararı
+    // veren her yol artık tek biçimde: normalize et + benzersiz kolonda exact ara.
+    const user = await prisma.user.findUnique({
+      where: { email },
       select: { id: true, email: true, organizationId: true, twoFactorEnabledAt: true },
     });
     if (!user) return badRequest({ email: "Bu e-posta ile bir kullanıcı bulunamadı." });

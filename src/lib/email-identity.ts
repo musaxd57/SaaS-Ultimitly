@@ -1,3 +1,5 @@
+import { z } from "zod";
+
 // ---------------------------------------------------------------------------
 // E-POSTA KİMLİĞİ — tek normalizasyon noktası.
 //
@@ -25,6 +27,26 @@
  */
 export function normalizeEmail(input: string): string {
   return input.trim().toLowerCase();
+}
+
+/** Biçim hakemi — kayıt/giriş şemalarıyla AYNI doğrulayıcı. */
+const EMAIL_SHAPE = z.string().email().max(254);
+
+/**
+ * Adres, kimlik yoluna girebilecek biçimde mi?
+ *
+ * Zod'un e-posta doğrulayıcısı ASCII-dışını reddeder (tam-genişlik harf, sıfır-
+ * genişlik boşluk, Kiril "а", noktasız "ı", RTL override...). Kayıt ve giriş
+ * şemaları bunu zaten kullanıyordu; şifre-sıfırlama ve doğrulama-tekrar yolları
+ * ise EL YAPIMI bir regex kullanıyordu ve o regex bu karakterlerin hepsini KABUL
+ * ediyordu. Sömürülebilir değildi (öyle bir adresle hesap yaratılamıyor, arama boş
+ * dönüyor) ama iki farklı hakem demekti. Artık tek hakem var.
+ *
+ * Daha sıkı olması meşru kullanıcıyı engelleyemez: var olan HER hesap kayıt
+ * şemasından geçtiği için zaten bu doğrulamayı geçen bir adrese sahiptir.
+ */
+export function isValidEmailShape(value: string): boolean {
+  return EMAIL_SHAPE.safeParse(value).success;
 }
 
 /** Aynı posta kutusuna düşen adreslerin ortak biçimi (gmail nokta/+etiket). */

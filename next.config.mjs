@@ -33,11 +33,31 @@ const nextConfig = {
   //    `frame-src` stays broad on purpose: the landing demo video's origin comes
   //    from NEXT_PUBLIC_DEMO_VIDEO, so it isn't knowable at build time.
   async headers() {
+    // Paddle sandbox AYRI origin kullanır (sandbox-cdn / sandbox-buy ...). Canlı
+    // production'da olsa da report-only politikanın sandbox testinde de doğru
+    // olması gerekir, yoksa politika yalan söyler.
+    const paddleScript = "https://cdn.paddle.com https://sandbox-cdn.paddle.com";
     const cspEnforced = [
       "object-src 'none'",
       "base-uri 'self'",
       "frame-ancestors 'self'",
       "form-action 'self'",
+      // Aşağıdaki dördü de "bu uygulama bu özelliği HİÇ kullanmıyor" kanıtına
+      // dayanıyor (kaynak taraması: src/ + public/ genelinde sıfır eşleşme), o
+      // yüzden nonce altyapısı olmadan enforce edilebiliyorlar:
+      //  · script-src-attr: satır-içi olay özniteliği (onclick="...") YOK — React
+      //    olayları addEventListener ile bağlar. Enjekte edilen <img onerror=...>
+      //    sınıfını script-src'yi enforce ETMEDEN kapatır. script-src'den bağımsız
+      //    bir CSP3 direktifidir; desteklemeyen tarayıcı yok sayar.
+      //  · worker-src: new Worker / SharedWorker / serviceWorker YOK.
+      //  · manifest-src: rel="manifest" / .webmanifest YOK.
+      //  · media-src: <video>/<audio>/new Audio YOK ('none' değil 'self' —
+      //    ileride self-host bir mp4 eklenirse sessizce kırılmasın. Landing demo
+      //    videosu <iframe>'dir, frame-src alanındadır.)
+      "script-src-attr 'none'",
+      "worker-src 'none'",
+      "manifest-src 'none'",
+      "media-src 'self'",
     ].join("; ");
     const cspReportOnly = [
       "default-src 'self'",
@@ -45,10 +65,19 @@ const nextConfig = {
       "object-src 'none'",
       "frame-ancestors 'self'",
       "form-action 'self'",
+      "script-src-attr 'none'",
+      "worker-src 'none'",
+      "manifest-src 'none'",
+      "media-src 'self'",
       "img-src 'self' data: https:",
-      "script-src 'self' 'unsafe-inline' https://cdn.paddle.com",
-      "style-src 'self' 'unsafe-inline'",
-      "font-src 'self' data:",
+      `script-src 'self' 'unsafe-inline' ${paddleScript}`,
+      // Paddle overlay EBEVEYN dokümana HARİCİ bir stylesheet enjekte ediyor;
+      // 'unsafe-inline' harici <link> URL'ini KAPSAMAZ. Ayrıca public/urun.html
+      // ve public/kurulum.html (landing iframe'i) Google Fonts'tan stylesheet
+      // çekiyor. İkisi de yazılmazsa enforce günü overlay stilsiz açılır ve
+      // ürün turu iframe'i bozulur — yani politika hâlâ açılamaz olurdu.
+      `style-src 'self' 'unsafe-inline' ${paddleScript} https://fonts.googleapis.com`,
+      "font-src 'self' data: https://fonts.gstatic.com",
       "connect-src 'self' https://*.paddle.com",
       "frame-src 'self' https:",
     ].join("; ");

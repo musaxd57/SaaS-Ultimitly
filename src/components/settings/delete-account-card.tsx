@@ -66,7 +66,7 @@ export function DeleteAccountCard() {
             cümleyi yalancı çıkarır (dürüst-kopya kuralı). Kullanıcı isteğiyle
             başlıklı bloktan tek satıra indirildi; ayrıntı gizlilik sayfasında. */}
         <p className="mt-2 text-muted-foreground">
-          Tek istisna: ödeme kayıtlarının kişisel bilgilerden arındırılmış finansal özeti, fatura
+          İstisna: ödeme kayıtlarının kişisel bilgilerden arındırılmış finansal özeti, fatura
           mevzuatı gereği saklanır.
         </p>
       </div>

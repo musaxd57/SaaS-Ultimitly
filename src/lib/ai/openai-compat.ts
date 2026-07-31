@@ -40,7 +40,11 @@ export function resolveCompatBaseUrl(raw: string | undefined): string {
 export function resolveCompatKey(dedicated: string | undefined, baseUrl: string): string | undefined {
   const own = dedicated?.trim();
   if (own) return own;
-  return baseUrl === OPENAI_BASE_URL ? process.env.OPENAI_API_KEY?.trim() || undefined : undefined;
+  // Normalizasyonu BURADA da yap: çağıran ham env geçerse (sondaki `/` ile) anahtar
+  // sessizce düşerdi ve özellik "yapılandırılmamış" görünürdü. İdempotent.
+  return resolveCompatBaseUrl(baseUrl) === OPENAI_BASE_URL
+    ? process.env.OPENAI_API_KEY?.trim() || undefined
+    : undefined;
 }
 
 /**

@@ -105,7 +105,22 @@ describe("recordShadowVerdict — gölge Aşama-1", () => {
     await recordShadowVerdict({ organizationId: org.id, triggerId: "m4", guestMessage: "x", gateDecision: "auto_sent" });
     const row = await prisma.shadowVerdict.findFirstOrThrow();
     expect(row.verdict).toBeNull();
-    expect(row.error).toBe("unparseable_verdict");
+    expect(row.error).toContain("unparseable_verdict");
+  });
+
+  it("BOŞ YANIT teşhis edilebilir: finish_reason satıra yazılır (tavan tükendi mi?)", async () => {
+    // Reasoning modelinde gizli düşünme tavanı tüketirse content BOŞ döner. Bu
+    // ayrım kaydedilmezse operatör kartta yalnız "arıza" görür ve sebebin token
+    // tükenmesi olduğunu anlayamaz — pilot sessizce ölür.
+    vi.stubGlobal("fetch", vi.fn(async () => new Response(
+      JSON.stringify({ choices: [{ message: { content: "" }, finish_reason: "length" }] }),
+      { status: 200 },
+    )));
+    const org = await seedOrg();
+    await recordShadowVerdict({ organizationId: org.id, triggerId: "f1", guestMessage: "x", gateDecision: "auto_sent" });
+    const row = await prisma.shadowVerdict.findFirstOrThrow();
+    expect(row.verdict).toBeNull();
+    expect(row.error).toContain("finish=length");
   });
 
   it("pilot tavanı: cap dolunca yeni çağrı/satır YOK (sessiz durur)", async () => {
@@ -301,7 +316,7 @@ describe("gölge model/endpoint sözleşmesi — GPT-5.6 Luna (OpenAI)", () => {
     expect(body).not.toHaveProperty("max_tokens");
     expect(body).not.toHaveProperty("chat_template_kwargs");
     // Gizli düşünme token'ları da bu tavandan yendiği için 200 yetmez.
-    expect(body.max_completion_tokens).toBeGreaterThanOrEqual(1000);
+    expect(body.max_completion_tokens).toBeGreaterThanOrEqual(4000);
   });
 
   it("vLLM/GLM endpoint'i AÇIKÇA verilirse eski gövde korunur (temperature + max_tokens + thinking off)", async () => {

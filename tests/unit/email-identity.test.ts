@@ -1,4 +1,6 @@
 import { describe, it, expect } from "vitest";
+import { readFileSync, readdirSync, statSync } from "node:fs";
+import path from "node:path";
 import { normalizeEmail, canonicalMailbox } from "@/lib/email-identity";
 import { registerSchema, loginSchema } from "@/lib/validators";
 
@@ -67,6 +69,47 @@ describe("normalizeEmail — tek normalizasyon noktası", () => {
 
   it("adresin kendisini DEĞİŞTİRMEZ — nokta ve +etiket kimliğin parçasıdır", () => {
     expect(normalizeEmail("m.usa+lixus@gmail.com")).toBe("m.usa+lixus@gmail.com");
+  });
+});
+
+describe("SÖZLEŞME PİNİ: e-postayla kullanıcı arayan her yol tek normalizasyondan geçer", () => {
+  // Denetim bulgusu: "beş yol da aynı fonksiyonu çağırıyor" DOĞRUYDU ama hiçbir
+  // test bunu korumuyordu — biri yarın `register`'ı `.toLowerCase()`'e geri
+  // çevirse tek bir test bile kırmızıya dönmezdi. Kaynak taraması bu boşluğu
+  // kapatıyor (aynı commit'teki diğer iki pin testinin deseniyle).
+  const API_DIR = path.resolve(__dirname, "../../src/app/api");
+
+  function walk(dir: string): string[] {
+    const out: string[] = [];
+    for (const entry of readdirSync(dir)) {
+      const full = path.join(dir, entry);
+      if (statSync(full).isDirectory()) out.push(...walk(full));
+      else if (entry === "route.ts") out.push(full);
+    }
+    return out;
+  }
+
+  const routes = walk(API_DIR).map((f) => ({
+    rel: path.relative(API_DIR, f).split(path.sep).join("/"),
+    src: readFileSync(f, "utf8").replace(/\/\*[\s\S]*?\*\//g, "").replace(/\/\/.*$/gm, ""),
+  }));
+
+  it("`where: { email` yazan HER rota normalizeEmail'i çağırıyor", () => {
+    // `emailVerifyTokenHash` gibi alanlar `\bemail\b` sınırına takılmaz.
+    const byEmail = routes.filter((r) => /where:\s*\{\s*email\b/.test(r.src));
+    expect(byEmail.length).toBeGreaterThanOrEqual(5);
+    const missing = byEmail.filter((r) => !/normalizeEmail\s*\(/.test(r.src)).map((r) => r.rel);
+    expect(missing).toEqual([]);
+  });
+
+  it("kimlik yollarında ELDE normalizasyon kalmadı (tek hakem)", () => {
+    // `data.email.trim().toLowerCase()` gibi satır-içi kopyalar zamanla ayrışır.
+    const inline = routes
+      .filter((r) => /\bemail\b[^\n;]*\.toLowerCase\(\)/.test(r.src))
+      .map((r) => r.rel)
+      // leads = pazarlama CRM'i; kimlik/oturum yolu değil (giriş yapılamaz).
+      .filter((rel) => rel !== "leads/route.ts");
+    expect(inline).toEqual([]);
   });
 });
 

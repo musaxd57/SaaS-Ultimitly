@@ -200,7 +200,7 @@ export function RegisterForm() {
               kapanır (premiumAllowed tek kapı). "Sınırlı erişim" =
               LimitedModeBanner'ın anlattığı kısıtlı mod. */}
           Deneme sonunda otomatik ücret alınmaz. Hesabınızı sınırlı erişimle kullanmaya devam
-          edebilirsiniz; otomatik yanıtlar için ücretli plan gerekir.
+          edebilirsiniz; otomatik yanıtlar ve AI özellikleri için ücretli plan gerekir.
         </p>
       </div>
       <FormError>{error}</FormError>

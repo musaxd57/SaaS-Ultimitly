@@ -12,7 +12,7 @@ import {
   needsEmailVerification,
 } from "@/lib/auth/email-verify";
 import { emailOutboxEnabled, enqueueIdentityEmail, kickEmailOutboxDrain } from "@/lib/email-outbox";
-import { normalizeEmail } from "@/lib/email-identity";
+import { isValidEmailShape, normalizeEmail } from "@/lib/email-identity";
 
 export const dynamic = "force-dynamic";
 
@@ -27,7 +27,7 @@ export async function POST(req: NextRequest) {
   if (!bodyResult.ok && bodyResult.tooLarge) return payloadTooLarge();
   const data = bodyResult.ok ? bodyResult.data : null;
   const email = typeof data?.email === "string" ? normalizeEmail(data.email) : "";
-  if (!email || !/^[^@\s]+@[^@\s]+\.[^@\s]+$/.test(email)) return jsonOk({ ok: true });
+  if (!email || !isValidEmailShape(email)) return jsonOk({ ok: true });
 
   const acctLimit = await rateLimit(`verify-resend-acct:${email}`, 4, 15 * 60_000);
   if (!acctLimit.ok) return tooManyRequests(acctLimit.retryAfter);

@@ -136,9 +136,36 @@ export function clientIp(req: { headers: Headers }): string {
   return req.headers.get("x-real-ip") ?? "unknown";
 }
 
-/** `a, b, c` → ["a","b","c"] (boş parçalar atılır). */
+/**
+ * Tek bir XFF adımını kimlik olarak kullanılabilir hâle getir: köşeli parantezi
+ * ve PORTU at.
+ *
+ * NEDEN ÖNEMLİ: port bırakılırsa aynı istemcinin her TCP bağlantısı AYRI bir
+ * limit kovası olur — yani o istemci için hız limiti fiilen kapanır. Bugün
+ * gözlenen zincirde port yok, ama seçilen adım artık en dıştaki proxy'nin
+ * istemci için yazdığı giriş (hop sayımı sonrası) ve port taşıyabilecek olan tam
+ * da odur.
+ *
+ *  `[2001:db8::1]:443` → `2001:db8::1`   (parantezli IPv6 + port)
+ *  `[2001:db8::1]`     → `2001:db8::1`
+ *  `203.0.113.7:51324` → `203.0.113.7`   (IPv4 + port: TEK iki nokta)
+ *  `2001:db8::1`       → `2001:db8::1`   (çıplak IPv6: ≥2 iki nokta, DOKUNMA)
+ */
+function normalizeForwardedHop(raw: string): string {
+  if (!raw) return "";
+  if (raw.startsWith("[")) {
+    const end = raw.indexOf("]");
+    return end > 1 ? raw.slice(1, end) : raw;
+  }
+  const first = raw.indexOf(":");
+  // Tek iki nokta = "adres:port". Birden fazlaysa çıplak IPv6'dır, bölmek bozar.
+  if (first > 0 && first === raw.lastIndexOf(":")) return raw.slice(0, first);
+  return raw;
+}
+
+/** `a, b, c` → ["a","b","c"] (boş parçalar atılır, port/parantez temizlenir). */
 export function parseForwardedFor(xff: string): string[] {
-  return xff.split(",").map((s) => s.trim()).filter(Boolean);
+  return xff.split(",").map((s) => normalizeForwardedHop(s.trim())).filter(Boolean);
 }
 
 /**
@@ -167,9 +194,14 @@ export function parseForwardedFor(xff: string): string[] {
  * o yüzden bilerek seçilmedi.
  */
 export function trustedProxyHops(): number {
-  const raw = Number(process.env.TRUSTED_PROXY_HOPS);
-  if (!Number.isFinite(raw) || raw < 1) return 1;
-  return Math.min(Math.trunc(raw), 10); // saçma büyük değer zinciri baştan okutmasın
+  // SIKI ayrıştırma: `Number()` gevşektir (`0x2`→2, `2e0`→2, `2.9`→2) ve bir
+  // yazım hatasının sessizce "2" olarak okunması, güvenlik açısından fazla-tahmin
+  // yönünde (tehlikeli yön) bir sapma üretebilirdi. Yalnız düz tam sayı kabul,
+  // gerisi güvenli varsayılana (1) düşer.
+  const raw = process.env.TRUSTED_PROXY_HOPS?.trim();
+  if (!raw || !/^\d{1,2}$/.test(raw)) return 1;
+  const n = Number(raw);
+  return n >= 1 ? Math.min(n, 10) : 1; // tavan: saçma değer zinciri baştan okutmasın
 }
 
 /**

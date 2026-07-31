@@ -155,16 +155,29 @@ export function TwoFactorCard({
                 : "Durum: Henüz oluşturulmadı"}
             </span>
           </p>
-          <p className="text-sm text-muted-foreground">
-            Doğrulama uygulamanıza erişemediğinizde, tek kullanımlık kurtarma kodunuz ile hesabınıza
-            giriş yapabilirsiniz. Kodları güvenli bir yerde saklayın.
-            {recoveryRemaining > 0 ? " Yenilerseniz eski kodların tamamı geçersiz olur." : null}{" "}
-            Hem uygulamaya hem kodlara erişiminizi kaybederseniz{" "}
-            <a href="mailto:iletisimlixusai@gmail.com" className="text-primary underline hover:no-underline">
-              iletisimlixusai@gmail.com
-            </a>{" "}
-            adresinden bize ulaşın.
-          </p>
+          {/* Kod SAYISI 0 iken metin farklı olmak ZORUNDA: 2FA sıfır kurtarma
+              koduyla başlar ve kod üretmek için ÇALIŞAN bir doğrulama uygulaması
+              gerekir — yani telefon kaybolduktan SONRA üretilemez. Tek bir metin
+              kullanılırsa host "yedeğim var" sanır ve telefonunu kaybettiğinde
+              hesabı kilitlenir. */}
+          {recoveryRemaining > 0 ? (
+            <p className="text-sm text-muted-foreground">
+              Doğrulama uygulamanıza erişemediğinizde, kurtarma kodlarınızdan biriyle hesabınıza
+              giriş yapabilirsiniz. Kodları güvenli bir yerde saklayın. Yenilerseniz eski kodların
+              tamamı geçersiz olur. Hem uygulamaya hem kodlara erişiminizi kaybederseniz{" "}
+              <a href="mailto:iletisimlixusai@gmail.com" className="text-primary underline hover:no-underline">
+                iletisimlixusai@gmail.com
+              </a>{" "}
+              adresinden bize ulaşın; kimliğinizi doğruladıktan sonra iki adımlı doğrulamayı
+              sıfırlarız.
+            </p>
+          ) : (
+            <p className="rounded-md border border-amber-300 bg-amber-50 p-3 text-sm text-amber-900">
+              <strong>Henüz kurtarma kodunuz yok.</strong> Telefonunuzu kaybederseniz hesabınıza
+              giremezsiniz. Kodları ancak doğrulama uygulamanız çalışırken üretebilirsiniz — şimdi
+              oluşturun ve güvenli bir yerde saklayın.
+            </p>
+          )}
           {recoveryCodes ? (
             <div className="space-y-2">
               <div className="rounded-md border border-amber-300 bg-amber-50 px-3 py-1.5 text-xs text-amber-900">

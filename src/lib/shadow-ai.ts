@@ -278,7 +278,12 @@ export async function recordShadowVerdict(input: ShadowInput): Promise<void> {
         baseUrl,
         temperature: 0, // sınıflandırma: belirlenimci olsun
         maxTokens: 200, // kapalı-set JSON hüküm birkaç token
-        maxCompletionTokens: 2000, // reasoning: gizli düşünme de bu tavandan yenir
+        // Reasoning'de gizli düşünme token'ları DA bu tavandan yenir ve gpt-5.6
+        // ailesi effort verilmezse "medium" düşünür → 2000 tükenirse content BOŞ
+        // döner. Bu, hem örneklem tavanını hem dedupe slotunu KALICI yakar (mesaj
+        // bir daha denenmez) → pilot tek kullanılabilir kıyas üretmeden bitebilir.
+        // Tavanı yükseltmek bedava: yalnız GERÇEKTEN üretilen token faturalanır.
+        maxCompletionTokens: 4000,
       });
 
       const res = await fetch(`${baseUrl}/chat/completions`, {
@@ -296,9 +301,13 @@ export async function recordShadowVerdict(input: ShadowInput): Promise<void> {
         error = redactSensitive(`HTTP ${res.status} ${bodyText.slice(0, 150)}`).slice(0, 200);
       } else {
         let content = "";
+        let finishReason = "";
         try {
-          const data = JSON.parse(bodyText) as { choices?: { message?: { content?: string } }[] };
+          const data = JSON.parse(bodyText) as {
+            choices?: { message?: { content?: string }; finish_reason?: string }[];
+          };
           content = data?.choices?.[0]?.message?.content ?? "";
+          finishReason = data?.choices?.[0]?.finish_reason ?? "";
         } catch {
           // bozuk JSON gövde → aşağıda unparseable_verdict olarak raporlanır
         }
@@ -307,7 +316,10 @@ export async function recordShadowVerdict(input: ShadowInput): Promise<void> {
         verdict = parsed.verdict;
         riskType = parsed.riskType;
         confidence = parsed.confidence;
-        if (!verdict) error = "unparseable_verdict";
+        // finish_reason'ı DA yaz (supply-ai ile parite): "length" = tavan tükendi,
+        // yani düşünme bütçesi yetmemiş. Bu ayrım olmadan operatör kartta yalnız
+        // "arıza" görür ve sebebin token tükenmesi olduğunu ASLA anlayamaz.
+        if (!verdict) error = finishReason ? `unparseable_verdict (finish=${finishReason})` : "unparseable_verdict";
       }
     } catch (e) {
       error = redactSensitive(e instanceof Error ? `${e.name}: ${e.message}` : String(e)).slice(0, 200);

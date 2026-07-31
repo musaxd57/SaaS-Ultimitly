@@ -191,8 +191,15 @@ describe("clientIp — TRUSTED_PROXY_HOPS", () => {
       vi.stubEnv("TRUSTED_PROXY_HOPS", bad);
       expect(trustedProxyHops(), bad).toBe(1);
     }
-    vi.stubEnv("TRUSTED_PROXY_HOPS", "999");
-    expect(trustedProxyHops()).toBe(10); // tavan: zinciri baştan okutmaya çalışamaz
+    // `0x2` / `2e0` / `2.9` gibi gevşek sayı yazımları da reddedilir: bir yazım
+    // hatasının sessizce "2" okunması FAZLA-tahmin (tehlikeli) yönünde sapma
+    // üretebilirdi. Anlamsız büyük değer de güvenli varsayılana düşer.
+    for (const bad of ["0x2", "2e0", "2.9", "999", "two"]) {
+      vi.stubEnv("TRUSTED_PROXY_HOPS", bad);
+      expect(trustedProxyHops(), bad).toBe(1);
+    }
+    vi.stubEnv("TRUSTED_PROXY_HOPS", "10");
+    expect(trustedProxyHops()).toBe(10); // makul üst sınır kabul edilir
   });
 
   it("pickClientHop saf fonksiyon olarak da doğru (teşhis kartı bunu önizliyor)", () => {
@@ -205,5 +212,38 @@ describe("clientIp — TRUSTED_PROXY_HOPS", () => {
 
   it("parseForwardedFor boşlukları ve boş parçaları temizler", () => {
     expect(parseForwardedFor(" 1.1.1.1 ,, 2.2.2.2 ,")).toEqual(["1.1.1.1", "2.2.2.2"]);
+  });
+
+  it("PORT atılır: yoksa aynı istemcinin her bağlantısı ayrı kova olur (limit kapanır)", () => {
+    expect(parseForwardedFor("203.0.113.7:51324, 152.233.12.245")).toEqual([
+      "203.0.113.7",
+      "152.233.12.245",
+    ]);
+    expect(parseForwardedFor("[2001:db8::1]:443, [2606:4700::1]:80")).toEqual([
+      "2001:db8::1",
+      "2606:4700::1",
+    ]);
+  });
+
+  it("ÇIPLAK IPv6 bozulmaz (iki nokta bolluğu port sanılmamalı)", () => {
+    expect(parseForwardedFor("2001:db8::1, 152.233.12.245")).toEqual(["2001:db8::1", "152.233.12.245"]);
+    expect(parseForwardedFor("::1")).toEqual(["::1"]);
+    expect(parseForwardedFor("[2001:db8::1]")).toEqual(["2001:db8::1"]);
+  });
+
+  it("⚠️ FAZLA TAHMİN TEHLİKELİ: hops gerçekten fazlaysa saldırgan seçilen adımı YAZAR", () => {
+    // Bu test bir GÜVENCE değil, bir UYARIYI sözleşmeye çeviriyor. Fail-safe
+    // yalnız zincir KISA olduğunda devreye girer; saldırgan zinciri beklenen
+    // uzunluğa şişirirse devreye GİRMEZ ve seçilen adım onun yazdığı değerdir.
+    // Bu yüzden hop sayısı ASLA fazla tahmin edilmemeli (az tahmin güvenli).
+    vi.stubEnv("TRUSTED_PROXY_HOPS", "3");
+    const padded = new Request("http://x", {
+      // Altyapı gerçekte 1 adım ekliyor; saldırgan 2 sahte ekleyip 3'e tamamladı.
+      headers: { "x-forwarded-for": "EVIL_A, EVIL_B, 152.233.12.245" },
+    });
+    expect(clientIp(padded)).toBe("EVIL_A");
+    // Doğru ayarda (gerçek adım sayısı) aynı saldırı işe YARAMAZ:
+    vi.stubEnv("TRUSTED_PROXY_HOPS", "1");
+    expect(clientIp(padded)).toBe("152.233.12.245");
   });
 });

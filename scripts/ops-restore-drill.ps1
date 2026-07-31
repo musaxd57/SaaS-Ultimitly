@@ -78,6 +78,14 @@ try {
   if ($vals[1] -ne "0") { throw "ASSERT BASARISIZ: bitmemis_migration=$($vals[1]), beklenen 0" }
   if ($vals[2] -ne $vals[3]) { throw "ASSERT BASARISIZ: sentinel=$($vals[3]) != CalendarSource=$($vals[2]) - post-contract degismezi bozuk" }
   if ($ExpectCalendarSources -ge 0 -and $vals[2] -ne "$ExpectCalendarSources") { throw "ASSERT BASARISIZ: CalendarSource=$($vals[2]), beklenen $ExpectCalendarSources" }
+  # DENETIM BULGUSU: "sentinel == toplam" degismezi BOS tabloda trivially saglanir
+  # (0 == 0) ve `verify --post-contract` de total=0 iken "TEMIZ" der. Yani takvim
+  # verisi tamamen kaybolmus bir yedek provanin HER adimindan yesil gecerdi.
+  # -ExpectCalendarSources verilmediyse en azindan "hic satir yok" hali uyari olsun.
+  if ($ExpectCalendarSources -lt 0 -and $vals[2] -eq "0") {
+    Write-Host "UYARI: yedekte HIC CalendarSource satiri yok - 'sentinel == toplam' kontrolu bos tabloda anlamsizdir." -ForegroundColor Yellow
+    Write-Host "       Beklenen sayiyi -ExpectCalendarSources <N> ile vererek provayi anlamli hale getirin." -ForegroundColor Yellow
+  }
   Write-Host "ASSERT OK: migration=$($vals[0]), bitmemis=0, CalendarSource=$($vals[2]), sentinel=$($vals[3])" -ForegroundColor Green
   Write-Host "Yapisal kontroller gecti - simdi sifreli alanlarin anahtarla acilma kaniti..." -ForegroundColor Cyan
   $secKey = Read-Host -AsSecureString "ENCRYPTION_KEY (kasadaki deger)"
@@ -94,8 +102,34 @@ try {
   if ($pKey -ne [IntPtr]::Zero) { [Runtime.InteropServices.Marshal]::ZeroFreeGlobalAllocUnicode($pKey) }
   if ($secKey) { $secKey.Dispose() }
   Remove-Item Env:DATABASE_URL, Env:ENCRYPTION_KEY -ErrorAction SilentlyContinue
-  if ($started) { & (Join-Path $PgBin "pg_ctl.exe") -D "$dir" -s -w stop }
+  # DENETIM BULGUSU: stop'un cikis kodu okunmuyordu ve silme -SilentlyContinue ile
+  # sessizce basarisiz olabiliyordu; script yine de kosulsuz "TEMIZLIK TAMAM"
+  # yaziyordu. Bu, en kotu senaryoda TUM PROD PII'sinin %TEMP% altinda ve
+  # parolasiz bir Postgres'in 127.0.0.1:5599'da dinlemeye devam ettigi hali
+  # "temizlendi" diye gostermek demekti. Artik temizlik DOGRULANIYOR.
+  $cleanupOk = $true
+  if ($started) {
+    & (Join-Path $PgBin "pg_ctl.exe") -D "$dir" -s -w stop
+    if ($LASTEXITCODE -ne 0) {
+      $cleanupOk = $false
+      Write-Host "UYARI: pg_ctl stop basarisiz (exit $LASTEXITCODE) - kume hala calisiyor olabilir" -ForegroundColor Red
+    }
+  }
   if (Test-Path $dir) { Remove-Item -Recurse -Force $dir -ErrorAction SilentlyContinue }
   if (Test-Path $sqlDir) { Remove-Item -Recurse -Force $sqlDir -ErrorAction SilentlyContinue }
-  Write-Host "TEMIZLIK TAMAM - gecici kume, GUID klasorleri ve gizli degiskenler silindi"
+  if (Test-Path $dir) { $cleanupOk = $false }
+  if (Test-Path $sqlDir) { $cleanupOk = $false }
+  if ($cleanupOk) {
+    Write-Host "TEMIZLIK TAMAM - gecici kume, GUID klasorleri ve gizli degiskenler silindi"
+  } else {
+    Write-Host ""
+    Write-Host "!!! TEMIZLIK TAMAMLANAMADI - PROD VERISI DISKTE KALDI !!!" -ForegroundColor Red
+    Write-Host "Kalan klasor(ler):" -ForegroundColor Red
+    if (Test-Path $dir)    { Write-Host "  $dir" -ForegroundColor Red }
+    if (Test-Path $sqlDir) { Write-Host "  $sqlDir" -ForegroundColor Red }
+    Write-Host "ELLE YAP: once kumeyi durdur, sonra klasorleri sil:" -ForegroundColor Yellow
+    Write-Host "  & '$PgBin\pg_ctl.exe' -D '$dir' -m immediate stop" -ForegroundColor Yellow
+    Write-Host "  Remove-Item -Recurse -Force '$dir','$sqlDir'" -ForegroundColor Yellow
+    $global:LASTEXITCODE = 1
+  }
 }

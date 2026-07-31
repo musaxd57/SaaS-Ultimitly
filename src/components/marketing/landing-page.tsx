@@ -252,7 +252,7 @@ const FAQS = [
     q: "Deneme bitince hesabıma ne olur?",
     // Kayıt banner'ı + LimitedModeBanner ile AYNI gerçek: silinme yok, otomatik
     // ücret yok, sınırlı erişim; oto-yanıt ücretli planda (dürüst-kopya kuralı).
-    a: "Hiçbir şey silinmez ve otomatik ücret alınmaz. Hesabınız sınırlı erişimle açık kalır — verilerinizi ve panellerinizi görmeye devam edersiniz; otomatik yanıtlar için ücretli plan gerekir. İstediğiniz zaman abone olup kaldığınız yerden devam edebilirsiniz.",
+    a: "Hiçbir şey silinmez ve otomatik ücret alınmaz. Hesabınız sınırlı erişimle açık kalır — verilerinizi ve panellerinizi görmeye devam edersiniz; otomatik yanıtlar ve AI özellikleri (AI öneri, çeviri, QR concierge) için ücretli plan gerekir. İstediğiniz zaman abone olup kaldığınız yerden devam edebilirsiniz.",
   },
   {
     q: "İstediğim zaman durdurabilir miyim?",
