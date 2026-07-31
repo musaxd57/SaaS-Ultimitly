@@ -57,6 +57,14 @@ export const POST = withManage(async (session, req) => {
   const kbRaw = await prisma.knowledgeBaseItem.findMany({
     where: { propertyId: property.id, isActive: true },
     select: { category: true, title: true, content: true },
+    // ÜRETİMLE PARİTE + maliyet tavanı. Kardeş rota (ai-suggest) bilgi tabanını
+    // 40 kalemle sınırlıyor; burada sınır YOKTU. İki sonucu vardı: (1) test kartı
+    // gerçek misafir yanıtının görmediği bir bağlamla cevap üretiyordu, yani
+    // "AI'yı Deneyin" üretimi yanlış temsil ediyordu; (2) istem boyutunu KB
+    // içeriği belirlediği ve KB kalemi 20.000 karaktere kadar çıkabildiği için
+    // çağrı başına maliyetin üst sınırı yoktu — çağrı frekansı zaten dakikada 15.
+    orderBy: { updatedAt: "desc" },
+    take: 40,
   });
   const aptNumber = property.name.match(/\d+/g)?.pop() ?? property.name;
   const kb = kbRaw.map((k) => ({
