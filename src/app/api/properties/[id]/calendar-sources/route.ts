@@ -42,6 +42,19 @@ export const POST = withManage<{ id: string }>(async (session, req, { params }) 
     return badRequest({ url: "Geçerli bir http(s) iCal bağlantısı girin" });
   }
 
+  // KAYNAK SAYISI TAVANI. Tavansızdı: bir hesap tek daireye yüzlerce besleme
+  // ekleyip senkronu tetikleyebiliyordu — her biri ayrı bir dış HTTP isteği ve
+  // 15 saniyeye kadar bir istek-işleyici tutuyor. Yani hem kendi sunucumuz hem
+  // hedefteki üçüncü taraf için hacim üretme aracına dönüşüyordu.
+  // 10 gerçek kullanım için fazlasıyla yeterli: bir dairenin Airbnb + Booking +
+  // Etstur + kendi sitesi gibi en fazla 3-4 kanalı olur.
+  const sourceCount = await prisma.calendarSource.count({ where: { propertyId: property.id } });
+  if (sourceCount >= 10) {
+    return badRequest({
+      url: "Bu daire için en fazla 10 takvim bağlantısı ekleyebilirsiniz. Kullanmadığınız bağlantıları silin.",
+    });
+  }
+
   // DUAL-WRITE (phase 1 of the url-encryption expand-contract): urlEnc carries
   // the real URL AAD-bound to this exact row+org; the AAD needs the row id, so
   // the id is generated up front (EmailOutbox m44 precedent). What the

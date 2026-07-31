@@ -35,9 +35,11 @@ export interface PlanLimits {
  * kapatır. Plana bağlamak yerine sabit tutuyoruz çünkü amacı ayrıştırma değil,
  * sayı-sınırının delinmesini engellemek. Ayrışma zaten KAYIT SAYISINDA.
  *
- * 3.000 karakter ≈ 450 kelime ≈ uzun bir giriş talimatının 6-8 katı (hazır
- * şablonlarımızın en uzunu ~300 karakter). Yani meşru hiçbir kaydı kesmez.
- * Önceki değer 20.000'di — tek kayıtla istemi şişirmeye fazlasıyla yetiyordu.
+ * 3.000 karakter ≈ 420 Türkçe kelime. BOŞLUKLAR DA SAYILIR (`.length`). Hazır
+ * şablonlarımızın en uzunu ~300 karakter, yani 10 kat pay var — meşru hiçbir
+ * kaydı kesmez. Önceki değer 20.000'di; tek bir kayıtla AI istemini şişirmeye
+ * fazlasıyla yetiyordu. (Kısaca 2.000 denendi, kullanıcı 3.000'e döndürdü:
+ * "ne olur ne olmaz", ve 420 kelimeden uzun bir bilgi kaydı pratikte yazılmıyor.)
  */
 const KB_CHARS_PER_ITEM = 3_000;
 

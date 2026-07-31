@@ -43,7 +43,7 @@ describe("plan sınırları", () => {
     // Adet sınırı konunca kullanıcı her şeyi tek kayda doldurabilirdi.
     const caps = ["free", "pro", "business"].map((c) => planLimitsFor(c).kbCharsPerItem);
     expect(new Set(caps).size).toBe(1);
-    expect(caps[0]).toBeLessThanOrEqual(5_000); // eski 20.000 istemi şişirmeye yetiyordu
+    expect(caps[0]).toBe(3_000); // kullanıcı kararı; eski 20.000 istemi şişirmeye yetiyordu
   });
 
   it("bilinmeyen plan kodu EN GENİŞ sınırlara düşer (mevcut müşteriyi kesme)", () => {
