@@ -146,9 +146,25 @@ export function parseForwardedFor(xff: string): string[] {
  * altyapımızın eklediği adımlar sayılır — istemci ancak SOLA ekleme yapabilir,
  * sağdaki N adımı yazan hep bizim proxy'lerimizdir.
  *
- * Default 1 = "en sağdakine güven" (bugüne kadarki davranış). Railway'de zincir
- * `<istemci>, <railway-edge>` biçiminde iki adım olduğu için doğru değer 2'dir;
- * env verilmeden davranış DEĞİŞMEZ.
+ * Default 1 = "en sağdakine güven" (bugüne kadarki davranış). Railway'de canlı
+ * zincir `<istemci>, <railway-edge>` biçiminde iki adım olduğu için doğru değer
+ * 2'dir; env verilmeden davranış DEĞİŞMEZ.
+ *
+ * ⚠️ HANGİ YÖNDE YANILMAK GÜVENLİ: DÜŞÜK tahmin güvenli, YÜKSEK tahmin tehlikeli.
+ *  • Az sayarsan (gerçek 3, sen 2) altyapının bir adresini seçersin → herkes tek
+ *    kovaya düşer; limit gevşer ama kimse kimliğini SEÇEMEZ.
+ *  • Fazla sayarsan (gerçek 2, sen 3) saldırgan zincire tam 1 sahte adres ekleyip
+ *    uzunluğu beklentine getirir ve seçilen adım ONUN yazdığı değer olur → her
+ *    istekte kimlik değiştirip limiti tamamen atlar.
+ * Bu yüzden emin değilsen KÜÇÜK değer seç; /admin teşhis kartı hangi ayarın hangi
+ * adresi seçtiğini önizler, karar oradan verilir.
+ *
+ * NOT (2026-07-31 araştırma): Railway'in edge'inin istemcinin gönderdiği XFF'i
+ * SİLİP silmediği topluluk kaynaklarında ÇELİŞKİLİ, resmî sayfalar da okunamadı.
+ * Sağdan sayım bu soruya BAĞIMLI DEĞİL: edge siliyorsa zincir zaten `<istemci>,
+ * <edge>`; silmiyorsa saldırganın eklediği çöp SOLDA birikir ve sağdan sayım yine
+ * doğru adımı bulur. "En soldakini al" kuralı ise yalnız silme doğruysa güvenli —
+ * o yüzden bilerek seçilmedi.
  */
 export function trustedProxyHops(): number {
   const raw = Number(process.env.TRUSTED_PROXY_HOPS);

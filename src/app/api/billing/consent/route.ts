@@ -47,7 +47,13 @@ export const POST = withOwner(async (session, req) => {
       priceId: parsed.data.priceId,
       legalVersion: LEGAL_VERSION, // server-side, not client-supplied
       legalTextHash: LEGAL_TEXT_HASH, // tamper-evident companion (see lib/legal-text-hash.ts)
-      ip: clientIp(req), // rightmost XFF (platform-observed), spoof-resistant
+      // Ödeme onayının delil kaydı. clientIp() zinciri SAĞDAN sayar (taklit
+      // edilemez) ama kaç adım geri gideceğini `TRUSTED_PROXY_HOPS` söyler:
+      // Railway'de doğru değer 2, varsayılan 1. Bayrak set edilene kadar buraya
+      // müşterinin adresi DEĞİL Railway edge'inin adresi yazılır — yani bu tarihe
+      // kadarki satırlar delil olarak kişiyi işaret etmez (bilinen sınır; geçmiş
+      // satırlar bilerek DÜZELTİLMEZ, delil kaydı sonradan yeniden yazılmaz).
+      ip: clientIp(req),
       userAgent: req.headers.get("user-agent")?.slice(0, 512) ?? null, // capped free text
     },
     select: { id: true },

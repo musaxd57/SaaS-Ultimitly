@@ -25,10 +25,14 @@ export async function POST(req: NextRequest) {
     }
 
     // Capture the request context ONCE — reused both for the per-IP throttle and
-    // for the KVKK consent-evidence record persisted below. clientIp() reads the
-    // rightmost X-Forwarded-For hop (the value Railway's proxy observed, not a
-    // client-spoofable one); the User-Agent is attacker-controlled free text, so
-    // it's length-capped and stored only as an informational record.
+    // for the KVKK consent-evidence record persisted below. clientIp() walks the
+    // X-Forwarded-For chain from the RIGHT (a client can only prepend, so this is
+    // not spoofable), stepping back `TRUSTED_PROXY_HOPS` hops — on Railway the
+    // correct value is 2 and the default is 1, so until that env is set this
+    // records Railway's edge address rather than the customer's (known limit;
+    // rows written before the flag are deliberately NOT rewritten — you don't
+    // retro-edit an evidence record). The User-Agent is attacker-controlled free
+    // text, so it's length-capped and stored only as an informational record.
     const ip = clientIp(req);
     const userAgent = req.headers.get("user-agent")?.slice(0, 512) ?? null;
 

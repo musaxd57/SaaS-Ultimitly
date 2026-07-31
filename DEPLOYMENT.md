@@ -284,6 +284,18 @@ seçeceği önizleniyor, kendi adresini veren satırı seç.
 Zincir beklenenden kısaysa kod **en sağdaki adımda kalır** (taklit edilebilir bir
 değere düşmez): limit gevşer ama kimse kimliğini seçemez.
 
+⚠️ **Hangi yönde yanılmak güvenli:** düşük tahmin güvenli, yüksek tahmin tehlikeli.
+Az sayarsan altyapının adresini seçersin (limit gevşer, kimlik seçilemez); fazla
+sayarsan saldırgan zincire tam 1 sahte adres ekleyip uzunluğu beklentine getirir
+ve seçilen adım onun yazdığı değer olur. **Emin değilsen küçük değer seç.**
+
+Neden "en soldakini al" değil: Railway'in edge'inin istemci-kaynaklı XFF'i silip
+silmediği topluluk kaynaklarında çelişkili ([Railway Central Station](https://station.railway.com/questions/which-header-should-i-rely-on-for-real-c-d78a6f96),
+[edge networking dokümanı](https://docs.railway.com/networking/edge-networking) —
+ikisi de 2026-07-31'de doğrudan okunamadı). Sağdan sayım bu soruya bağımlı
+değildir: edge siliyorsa zincir zaten `<istemci>, <edge>`; silmiyorsa saldırganın
+çöpü solda birikir ve sağdan sayım yine doğru adımı bulur.
+
 ---
 
 ## 9) Gölge pilotu (Aşama-1) — opsiyonel, DEFAULT KAPALI
