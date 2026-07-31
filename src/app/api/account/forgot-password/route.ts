@@ -6,6 +6,7 @@ import { rateLimit, clientIp } from "@/lib/rate-limit";
 import { writeAudit } from "@/lib/audit";
 import { emailService } from "@/lib/email";
 import { reportError } from "@/lib/report-error";
+import { normalizeEmail } from "@/lib/email-identity";
 import {
   emailOutboxEnabled,
   enqueueIdentityEmail,
@@ -56,7 +57,7 @@ export async function POST(req: NextRequest) {
     if (!bodyResult.ok && bodyResult.tooLarge) return payloadTooLarge();
     const data = bodyResult.ok ? bodyResult.data : null;
     const action = typeof data?.action === "string" ? data.action : "";
-    const email = typeof data?.email === "string" ? data.email.trim().toLowerCase() : "";
+    const email = typeof data?.email === "string" ? normalizeEmail(data.email) : "";
     if (!email || !/^[^@\s]+@[^@\s]+\.[^@\s]+$/.test(email)) {
       return badRequest({ email: "Geçerli bir e-posta girin." });
     }

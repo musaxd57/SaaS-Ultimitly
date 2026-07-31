@@ -8,6 +8,7 @@ import { rateLimit } from "@/lib/rate-limit";
 import { writeAudit } from "@/lib/audit";
 import { newTrialSubscriptionData } from "@/lib/billing/subscription";
 import { appDefaultTimezone } from "@/lib/app-config";
+import { normalizeEmail } from "@/lib/email-identity";
 
 // Billing lifecycle the operator chooses for a new customer. ALWAYS creates a
 // Subscription row so an operator-created org can never silently fall into
@@ -36,7 +37,7 @@ export async function POST(req: NextRequest) {
     const parsed = registerSchema.safeParse(data);
     if (!parsed.success) return badRequest(zodFieldErrors(parsed.error));
 
-    const email = parsed.data.email.toLowerCase();
+    const email = normalizeEmail(parsed.data.email);
     const existing = await prisma.user.findUnique({ where: { email } });
     if (existing) return badRequest({ email: "Bu e-posta adresi zaten kayıtlı" });
 

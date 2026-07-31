@@ -12,6 +12,7 @@ import { newTrialSubscriptionData } from "@/lib/billing/subscription";
 import { LEGAL_VERSION } from "@/lib/legal-entity";
 import { LEGAL_TEXT_HASH } from "@/lib/legal-text-hash";
 import { resolveNewOrgTimezone } from "@/lib/app-config";
+import { normalizeEmail } from "@/lib/email-identity";
 
 export async function POST(req: NextRequest) {
   try {
@@ -55,7 +56,7 @@ export async function POST(req: NextRequest) {
       });
     }
 
-    const email = parsed.data.email.toLowerCase();
+    const email = normalizeEmail(parsed.data.email);
     const existing = await prisma.user.findUnique({ where: { email } });
     if (existing) return badRequest({ email: "Bu e-posta adresi zaten kayıtlı" });
 

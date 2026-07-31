@@ -1,7 +1,10 @@
+import { headers } from "next/headers";
 import { redirect } from "next/navigation";
 import { requireAuth } from "@/lib/auth";
 import { prisma } from "@/lib/db";
 import { isSuperAdmin } from "@/lib/admin";
+import { clientIp } from "@/lib/rate-limit";
+import { canonicalMailbox } from "@/lib/email-identity";
 import { auditActionLabel } from "@/lib/audit";
 import { PageHeader } from "@/components/page-header";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
@@ -86,6 +89,43 @@ export default async function AdminPage() {
   const shadowLooser = shadowOk.filter(
     (r) => r.agrees === false && r.gateDecision === "human_review",
   ).length; // gölge daha gevşek: kapı tuttu, gölge gönderirdi (olası yanlış-alarm adayı)
+
+  // ── Operatör teşhisi ────────────────────────────────────────────────────────
+  // 1) Proxy başlıkları. `TRUST_X_REAL_IP` / `TRUST_CF_HEADER` bayrakları
+  //    "önce CANLI bir isteğin başlıklarını gör" notuyla kapalı bırakıldı
+  //    (rate-limit.ts). Burası o notu tek tıkla cevaplanabilir hâle getiriyor:
+  //    yeni bir yüzey açmadan (sayfa zaten operatör-only ve force-dynamic) şu
+  //    anki isteğin ham zincirini ve limitleyicinin kullandığı IP'yi gösterir.
+  //    Ayrı bir "clientIp" kopyası YOK — gerçek fonksiyon çağrılıyor, yoksa
+  //    teşhis ile davranış zamanla ayrışırdı.
+  const requestHeaders = await headers();
+  const proxyHeaders = {
+    xff: requestHeaders.get("x-forwarded-for"),
+    xRealIp: requestHeaders.get("x-real-ip"),
+    cfConnectingIp: requestHeaders.get("cf-connecting-ip"),
+    resolved: clientIp({ headers: requestHeaders }),
+  };
+  // 2) Deneme suistimali kanaryası. `musa+1@`, `m.usa@` ve `musa@` tek posta
+  //    kutusudur ama bizim için ayrı hesaplardır → her biri kendi 14 günlük
+  //    denemesini alır. Bugün maliyeti düşük (PMS bağlamayan deneme org'u
+  //    neredeyse hiçbir şey harcamaz) ve engellemek kimlik davranışını
+  //    değiştirir + kalıcı kanonik kolon (migration) ister. O yüzden şimdilik
+  //    ENGELLEMİYORUZ, SAYIYORUZ: reklam açıldığında bu sayı sıfırdan
+  //    kalkıyorsa politika kararı zamanı gelmiş demektir.
+  const ownerEmails = await prisma.user.findMany({
+    where: { role: "owner" },
+    select: { email: true, organizationId: true },
+    take: 5000, // kanarya; tam envanter değil
+  });
+  const mailboxGroups = new Map<string, Set<string>>();
+  for (const u of ownerEmails) {
+    const box = canonicalMailbox(u.email);
+    const set = mailboxGroups.get(box) ?? new Set<string>();
+    set.add(u.organizationId);
+    mailboxGroups.set(box, set);
+  }
+  const sharedMailboxes = [...mailboxGroups.values()].filter((s) => s.size > 1);
+  const sharedMailboxOrgs = sharedMailboxes.reduce((n, s) => n + s.size, 0);
 
   // Primary org (allowed to use the shared env token) = PRIMARY_ORG_ID, or the
   // oldest org — which is the first row since we ordered by createdAt asc.
@@ -398,6 +438,61 @@ export default async function AdminPage() {
               {legacyShadowCount > 0 ? "Aktif model için henüz gölge kaydı yok." : "Henüz gölge kaydı yok."}
             </p>
           )}
+        </CardContent>
+      </Card>
+
+      <Card className="max-w-3xl">
+        <CardHeader>
+          <CardTitle className="text-base">Operasyon Teşhisi (yalnız operatör)</CardTitle>
+        </CardHeader>
+        <CardContent className="space-y-4">
+          <div className="space-y-1.5">
+            <p className="text-sm font-medium">Bu isteğin proxy başlıkları</p>
+            <p className="text-xs text-muted-foreground">
+              Hız limiti, istemciyi <strong>en sağdaki</strong> XFF adımından tanır (soldaki
+              istemci-kaynaklı, taklit edilebilir). <code className="font-mono">TRUST_X_REAL_IP</code>{" "}
+              ve <code className="font-mono">TRUST_CF_HEADER</code> bilerek kapalı: platformun
+              gerçekte ne gönderdiği görülmeden açılırsa, bir istemci her istekte kimliğini
+              değiştirip limiti tamamen atlayabilir. Aşağısı şu anki isteğin ham hâli — bayrağı
+              açma kararı buradan verilir.
+            </p>
+            <ul className="space-y-1 rounded-lg border border-border bg-muted/40 p-3 font-mono text-xs">
+              <li>x-forwarded-for: {proxyHeaders.xff ?? "—"}</li>
+              <li>x-real-ip: {proxyHeaders.xRealIp ?? "—"}</li>
+              <li>cf-connecting-ip: {proxyHeaders.cfConnectingIp ?? "—"}</li>
+              <li className="pt-1 font-semibold">
+                limitleyicinin kullandığı: {proxyHeaders.resolved}
+              </li>
+            </ul>
+            <p className="text-xs text-muted-foreground">
+              Beklenen sağlıklı tablo: XFF&apos;in en sağındaki adres senin gerçek IP&apos;n olsun
+              ve iki tarayıcıdan bakınca DEĞİŞSİN. Sabit/iç bir adres görüyorsan tüm ziyaretçiler
+              tek limit kovasına düşüyor demektir.
+            </p>
+          </div>
+
+          <div className="space-y-1.5">
+            <p className="text-sm font-medium">Deneme suistimali kanaryası</p>
+            <p className="text-xs text-muted-foreground">
+              Aynı posta kutusunun varyantları (<code className="font-mono">ad+etiket@</code>,{" "}
+              <code className="font-mono">a.d@</code>) ayrı hesap sayılır ve her biri kendi 14 günlük
+              denemesini alır. Bugün bilerek engellenmiyor; reklam açıldıktan sonra bu sayı
+              yükselirse politika kararı zamanı gelmiş demektir.
+            </p>
+            <p className="text-sm">
+              {sharedMailboxes.length === 0 ? (
+                <span className="text-muted-foreground">
+                  Aynı posta kutusundan birden çok işletme yok.
+                </span>
+              ) : (
+                <>
+                  <strong>{sharedMailboxes.length}</strong> posta kutusu ·{" "}
+                  <strong>{sharedMailboxOrgs}</strong> işletme · en büyük grup{" "}
+                  <strong>{Math.max(...sharedMailboxes.map((s) => s.size))}</strong>
+                </>
+              )}
+            </p>
+          </div>
         </CardContent>
       </Card>
 

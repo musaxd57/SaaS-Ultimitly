@@ -11,6 +11,7 @@ import { consumeRecoveryCode, remainingRecoveryCodes } from "@/lib/auth/recovery
 import { writeAudit } from "@/lib/audit";
 import { needsEmailVerification } from "@/lib/auth/email-verify";
 import type { UserRole } from "@/lib/constants";
+import { normalizeEmail } from "@/lib/email-identity";
 
 export async function POST(req: NextRequest) {
   try {
@@ -29,7 +30,7 @@ export async function POST(req: NextRequest) {
     const parsed = loginSchema.safeParse(data);
     if (!parsed.success) return badRequest(zodFieldErrors(parsed.error));
 
-    const email = parsed.data.email.toLowerCase();
+    const email = normalizeEmail(parsed.data.email);
     // Per-ACCOUNT throttle (in addition to the per-IP one above): an attacker
     // rotating IPs otherwise gets unlimited password / 2FA-code guesses against
     // one account. Generous cap so a legitimate user is not locked out.

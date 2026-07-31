@@ -9,27 +9,47 @@ const nextConfig = {
   // Don't advertise the framework (minor info-leak hardening).
   poweredByHeader: false,
   // Safe, additive security headers on every response. CSP is TWO-TIER (Codex P2):
-  //  * ENFORCED: only the directives that cannot break a Next.js app because the
-  //    app never uses the features they gate — object-src (plugins), base-uri
-  //    (<base> hijack), frame-ancestors (clickjacking; mirrors X-Frame-Options).
+  //  * ENFORCED: only the directives that cannot break this app, because the app
+  //    never uses the features they gate — object-src (plugins), base-uri (<base>
+  //    hijack), frame-ancestors (clickjacking; mirrors X-Frame-Options) and
+  //    form-action. form-action was VERIFIED before enforcing, not assumed: all 25
+  //    <form> elements are JS-handled (onSubmit + preventDefault), none carries an
+  //    `action=` attribute, and the one method="GET" search form submits to its own
+  //    URL. Paddle's checkout is an iframe — forms INSIDE it answer to that
+  //    document's CSP, not ours. So the directive costs nothing today and blocks
+  //    the classic injected-form credential exfil (<form action="https://evil">).
   //  * REPORT-ONLY: the FULL policy incl. script-src. Enforcing script-src needs
   //    per-request nonces for Next's inline bootstrap (ayrı altyapı turu) —
   //    'unsafe-inline'ı enforce etmek koruma katmaz, nonce'suz sıkılaştırmak
   //    paneli komple kırar. NOT: `report-uri`/`report-to` YOK — ihlaller yalnız
   //    ziyaretçinin KENDİ tarayıcı konsolunda görünür, merkezi toplanmaz. Nonce
   //    turunda script-src'i enforce'a çekerken bir rapor endpoint'i de eklenir.
+  //
+  //    The report-only policy must describe the app HONESTLY, or the enforcement
+  //    round is guaranteed to break billing on day one. It used to say
+  //    `script-src 'self'` and `connect-src 'self'` while the settings page loads
+  //    Paddle.js from cdn.paddle.com and Paddle talks to its own origins — i.e. the
+  //    "target" policy was one nobody could ever switch on. Paddle is now named.
+  //    `frame-src` stays broad on purpose: the landing demo video's origin comes
+  //    from NEXT_PUBLIC_DEMO_VIDEO, so it isn't knowable at build time.
   async headers() {
-    const cspEnforced = ["object-src 'none'", "base-uri 'self'", "frame-ancestors 'self'"].join("; ");
+    const cspEnforced = [
+      "object-src 'none'",
+      "base-uri 'self'",
+      "frame-ancestors 'self'",
+      "form-action 'self'",
+    ].join("; ");
     const cspReportOnly = [
       "default-src 'self'",
       "base-uri 'self'",
       "object-src 'none'",
       "frame-ancestors 'self'",
+      "form-action 'self'",
       "img-src 'self' data: https:",
-      "script-src 'self' 'unsafe-inline'",
+      "script-src 'self' 'unsafe-inline' https://cdn.paddle.com",
       "style-src 'self' 'unsafe-inline'",
       "font-src 'self' data:",
-      "connect-src 'self'",
+      "connect-src 'self' https://*.paddle.com",
       "frame-src 'self' https:",
     ].join("; ");
     return [

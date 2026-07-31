@@ -99,8 +99,11 @@ export async function sweepExpiredRateLimits(now: Date = new Date()): Promise<nu
   return r.count;
 }
 
-/** Best-effort client IP from common proxy headers (Railway/Vercel set these). */
-export function clientIp(req: Request): string {
+/** Best-effort client IP from common proxy headers (Railway/Vercel set these).
+ *  Takes anything that carries `headers` (NextRequest, Request, or the server
+ *  component `headers()` result) so the operator diagnostics card can show the
+ *  SAME answer the rate limiter uses — a second implementation would drift. */
+export function clientIp(req: { headers: Headers }): string {
   // Cloudflare's edge-verified client IP — but ONLY when the deployment says the
   // origin is actually locked behind Cloudflare (TRUST_CF_HEADER=1). The Railway
   // app domain is reachable DIRECTLY (that's how the Paddle webhook works), and a
