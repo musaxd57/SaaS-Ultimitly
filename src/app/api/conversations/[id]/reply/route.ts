@@ -13,6 +13,7 @@ import { claimOutboundSend, releaseOutboundSend } from "@/lib/outbound-claim";
 import { durableOutboxEnabled } from "@/lib/outbox/flag";
 import { enqueueOutbound } from "@/lib/outbox/enqueue";
 import { createHash } from "crypto";
+import { consumeDailyAiBudget } from "@/lib/ai/daily-budget";
 
 // Only owner/manager may send guest-facing replies (withManage). Staff are read +
 // task updates; the inbound-message and status routes stay open for their triage.
@@ -56,6 +57,17 @@ export const POST = withManage<{ id: string }>(async (session, req, { params }) 
     // org can't burn OpenAI via the manual reply path. The manual send itself
     // stays free; only the optional translate add-on is premium.
     if (!(await premiumAllowed(session.organizationId))) return paymentRequired();
+    // GÜNLÜK ORG BÜTÇESİ — YALNIZ çeviri dalında. Elle gönderimin kendisi ücretsiz
+    // kalır; tavana takılan host çevirisiz göndermeye devam edebilir. Buradaki
+    // dakikalık limitin anahtarı `reply:{conversationId}` olduğu için konuşma
+    // açarak çoğaltılabiliyordu; org bütçesi o boşluğu kapatır.
+    const budget = await consumeDailyAiBudget(session.organizationId);
+    if (!budget.ok) {
+      return tooManyRequests(
+        budget.retryAfter,
+        "Bugünkü AI kullanım sınırınıza ulaştınız. Çeviri olmadan gönderebilir veya yarın tekrar deneyebilirsiniz.",
+      );
+    }
     // FAIL-CLOSED (Codex #30): a failed translation used to fall through as the
     // ORIGINAL text — the guest received an untranslated message while the host
     // believed it went out in their language. No send on translate failure; the

@@ -70,3 +70,24 @@ export function canonicalMailbox(email: string): string {
   if (DOTTED_ALIAS_DOMAINS.has(domain)) local = local.replace(/\./g, "");
   return `${local}@${domain}`;
 }
+
+// --- Uyarı adresi sahipliği ------------------------------------------------
+
+/**
+ * Bu adres, org'un KENDİ ekibinden birine mi ait?
+ *
+ * Uyarı/rapor e-postalarının hedefi yalnız buradan geçebilir. Sebebi bir kolaylık
+ * değil güvenlik: hedef serbest bırakılırsa uygulama, doğrulanmış alan adımızdan
+ * üçüncü kişilere metin gönderen bir RÖLEYE dönüşür ve gönderim itibarımız — yani
+ * TÜM müşterilerin kimlik e-postaları — bir müşterinin insafına kalır.
+ */
+export async function isOrgMemberEmail(organizationId: string, email: string): Promise<boolean> {
+  const { prisma } = await import("@/lib/db");
+  const normalized = normalizeEmail(email);
+  if (!normalized) return false;
+  const user = await prisma.user.findFirst({
+    where: { organizationId, email: normalized },
+    select: { id: true },
+  });
+  return user !== null;
+}

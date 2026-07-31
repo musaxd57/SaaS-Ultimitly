@@ -1,9 +1,10 @@
 import { prisma } from "@/lib/db";
 import { toAmountDec } from "@/lib/money";
 import { reservationSchema, zodFieldErrors } from "@/lib/validators";
-import { badRequest, jsonOk, propertyInOrg, readJsonCappedOrNull } from "@/lib/api";
+import { badRequest, jsonOk, propertyInOrg, readJsonCappedOrNull, tooManyRequests } from "@/lib/api";
 import { withManage } from "@/lib/route-guard";
 import { applyReservationCreatedRules } from "@/lib/automation";
+import { rateLimit } from "@/lib/rate-limit";
 
 export const GET = withManage(async (session, req) => {
   const { searchParams } = new URL(req.url);
@@ -24,6 +25,10 @@ export const GET = withManage(async (session, req) => {
 });
 
 export const POST = withManage(async (session, req) => {
+  // Limitsizdi: her istek yasam-dongusu e-postasi tetikleyebiliyor.
+  const limited = await rateLimit(`reservation-create:${session.organizationId}`, 60, 60_000);
+  if (!limited.ok) return tooManyRequests(limited.retryAfter);
+
   const data = await readJsonCappedOrNull(req);
   const parsed = reservationSchema.safeParse(data);
   if (!parsed.success) return badRequest(zodFieldErrors(parsed.error));

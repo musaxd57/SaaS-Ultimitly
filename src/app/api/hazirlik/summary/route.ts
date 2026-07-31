@@ -5,6 +5,7 @@ import { rateLimit } from "@/lib/rate-limit";
 import { premiumAllowed } from "@/lib/billing/subscription";
 import { getPrepPlan } from "@/lib/supply";
 import { generateSupplySummary, supplyAiConfigured, planHasBuyables } from "@/lib/supply-ai";
+import { consumeDailyAiBudget } from "@/lib/ai/daily-budget";
 
 export const dynamic = "force-dynamic";
 
@@ -26,6 +27,14 @@ export const POST = withManage(async (session, req) => {
     return NextResponse.json(
       { error: "Çok fazla istek. Biraz sonra tekrar deneyin." },
       { status: 429, headers: { "Retry-After": String(limited.retryAfter) } },
+    );
+  }
+  // Günlük org bütçesi (ai/daily-budget.ts) — saatlik tavanın üstünde toplam sınır.
+  const budget = await consumeDailyAiBudget(session.organizationId);
+  if (!budget.ok) {
+    return NextResponse.json(
+      { error: "Bugünkü AI kullanım sınırınıza ulaştınız. Yarın otomatik olarak sıfırlanır." },
+      { status: 429, headers: { "Retry-After": String(budget.retryAfter) } },
     );
   }
 

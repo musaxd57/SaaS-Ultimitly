@@ -495,12 +495,25 @@ export default async function AdminPage() {
           </div>
 
           <div className="space-y-1.5">
-            <p className="text-sm font-medium">Deneme suistimali kanaryası</p>
+            <p className="text-sm font-medium">Aynı posta kutusundan çoklu işletme</p>
             <p className="text-xs text-muted-foreground">
-              Aynı posta kutusunun varyantları (<code className="font-mono">ad+etiket@</code>,{" "}
-              <code className="font-mono">a.d@</code>) ayrı hesap sayılır ve her biri kendi 14 günlük
-              denemesini alır. Bugün bilerek engellenmiyor; reklam açıldıktan sonra bu sayı
-              yükselirse politika kararı zamanı gelmiş demektir.
+              Gmail&apos;de <code className="font-mono">ad+etiket@</code> ve{" "}
+              <code className="font-mono">a.d@</code> aynı posta kutusudur; sistem bunları ayrı hesap
+              sayar. Aşağısı <strong>şu anda aynı anda yaşayan</strong> hesapları sayar.
+            </p>
+            {/* DÜRÜSTLÜK NOTU — bu sayı bir suistimal ölçüsü DEĞİL, sınırı burada
+                yazılı olmazsa yanlış güven verir:
+                (1) `Property.hospitableId` globalde benzersiz olduğu için art arda
+                    deneme açan biri ESKİ hesabını silmek ZORUNDA kalır; o an posta
+                    kutusu başına tek canlı org kalır ve bu sayı 0 gösterir.
+                (2) Farklı posta kutuları (kendi alan adı, tek kullanımlık servis,
+                    başka sağlayıcı) tanım gereği hiç görünmez.
+                Yani düşük bir sayı "suistimal yok" demek DEĞİLDİR. */}
+            <p className="rounded-md border border-border bg-muted/40 p-2.5 text-xs text-muted-foreground">
+              <strong>Bu sayı bir suistimal ölçüsü değildir.</strong> Art arda deneme açan biri, aynı
+              mülkleri yeniden bağlayabilmek için eski hesabını silmek zorunda kalır — o an bu sayı
+              sıfıra döner. Farklı posta kutuları da hiç görünmez. Düşük değer &quot;suistimal
+              yok&quot; anlamına gelmez; yalnızca &quot;aynı anda duran kopya hesap yok&quot; demektir.
             </p>
             <p className="text-sm">
               {sharedMailboxes.length === 0 ? (

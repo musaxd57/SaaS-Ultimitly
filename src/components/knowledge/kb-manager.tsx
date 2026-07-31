@@ -14,6 +14,7 @@ import { Badge } from "@/components/ui/badge";
 import { Field } from "@/components/form-field";
 import { KB_CATEGORY } from "@/lib/constants";
 import { cn } from "@/lib/utils";
+import { KB_ITEM_CAP } from "@/lib/ai/prompts";
 
 // Categories whose content is auto-sent verbatim to the guest (vs. read-only
 // facts the AI uses to answer questions). Only used to group the dropdown.
@@ -375,6 +376,17 @@ export function KbManager({
                 <CardTitle className="text-base">{property.name}</CardTitle>
               </CardHeader>
               <CardContent className="space-y-3">
+                {/* SESSİZ KESME OLMASIN: AI tek yanıtta en fazla KB_ITEM_CAP kalem
+                    okur. Bunu söylemezsek host, AI'nın bilmediği bir bilgiyi
+                    "eklemiştim" sanır ve yanlış cevabın sebebini asla bulamaz. */}
+                {list.filter((i) => i.isActive).length > KB_ITEM_CAP ? (
+                  <p className="rounded-md border border-amber-300 bg-amber-50 p-3 text-sm text-amber-900">
+                    Bu dairede <strong>{list.filter((i) => i.isActive).length}</strong> aktif bilgi
+                    var; AI bir yanıtta <strong>en fazla {KB_ITEM_CAP}</strong> tanesini okur (en son
+                    güncellenenler önce). Kullanılmayanları pasife alın ya da birkaç kısa kaydı tek
+                    kayıtta birleştirin — böylece AI&apos;nın neyi gördüğü belirsiz kalmaz.
+                  </p>
+                ) : null}
                 {list.map((item) => (
                   <div key={item.id} className="rounded-lg border border-border p-3">
                     <div className="flex items-start justify-between gap-2">

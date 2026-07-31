@@ -1638,6 +1638,10 @@ export async function runDueChannelAutoReplies(
   return { sent, considered: eligible.length };
 }
 
+/** Org başına "en son ne zaman DENEDİK" (başarısız denemeler dahil, ↓gerekçe). */
+const styleProfileAttemptAt = new Map<string, number>();
+const STYLE_PROFILE_ATTEMPT_MS = 6 * 60 * 60 * 1000; // 6 saat
+
 /**
  * Refresh the org's "style profile" — a short guide distilled from the host's
  * OWN past replies — so future AI drafts mirror their voice. Throttled to once
@@ -1652,6 +1656,17 @@ export async function refreshStyleProfile(
   // Premium gate: a lapsed/free org must not keep incurring OpenAI cost for the
   // background style-distillation (this ran before the premium check in the sync).
   if (!(await premiumAllowed(organizationId))) return { refreshed: false };
+
+  // ⚠️ DENETİM BULGUSU (07-31): aşağıdaki 24 saatlik throttle YALNIZCA profil bir
+  // kez üretilmişse tutar — `aiStyleProfileAt` NULL kalan org'da (ör. henüz 5 host
+  // yanıtı yazmamış YENİ müşteri ve her terk edilmiş deneme hesabı) hiç devreye
+  // girmiyordu. Sonuç: aşağıdaki `message.findMany(take:40)` her 2 dakikada bir,
+  // SONSUZA KADAR koşuyordu. Bu in-process kontrol o boşluğu kapatır: deploy'da
+  // sıfırlanır ve replikalar arası paylaşılmaz, ama bir throttle için ikisi de
+  // önemsiz — asıl kazanç aynı org'u dakikalarca tekrar sorgulamamak.
+  const lastAttempt = styleProfileAttemptAt.get(organizationId);
+  if (lastAttempt && Date.now() - lastAttempt < STYLE_PROFILE_ATTEMPT_MS) return { refreshed: false };
+  styleProfileAttemptAt.set(organizationId, Date.now());
 
   const org = await prisma.organization.findUnique({
     where: { id: organizationId },

@@ -12,6 +12,8 @@ import { badRequest, jsonOk, tooManyRequests, paymentRequired, readJsonCappedOrN
 import { withManage } from "@/lib/route-guard";
 import { rateLimit } from "@/lib/rate-limit";
 import { premiumAllowed } from "@/lib/billing/subscription";
+import { KB_ITEM_CAP } from "@/lib/ai/prompts";
+import { consumeDailyAiBudget } from "@/lib/ai/daily-budget";
 
 // ---------------------------------------------------------------------------
 // AI reply PLAYGROUND — safe dry-run.
@@ -33,6 +35,17 @@ export const POST = withManage(async (session, req) => {
   // Playground calls OpenAI ($). Throttle per user to cap spend on abuse.
   const limited = await rateLimit(`ai-test:${session.userId}`, 15, 60_000);
   if (!limited.ok) return tooManyRequests(limited.retryAfter);
+
+  // GÜNLÜK ORG BÜTÇESİ: dakikalık limit tek isteği yavaşlatır, toplam harcamayı
+  // sınırlamaz. Bu tavan hem suistimali hem kazara sonsuz döngüye giren bir
+  // istemciyi durdurur (ai/daily-budget.ts).
+  const budget = await consumeDailyAiBudget(session.organizationId);
+  if (!budget.ok) {
+    return tooManyRequests(
+      budget.retryAfter,
+      "Bugünkü AI kullanım sınırınıza ulaştınız. Yarın otomatik olarak sıfırlanır.",
+    );
+  }
 
   const body = (await readJsonCappedOrNull(req)) as
     | { message?: unknown; propertyId?: unknown; tone?: unknown }
@@ -64,7 +77,7 @@ export const POST = withManage(async (session, req) => {
     // içeriği belirlediği ve KB kalemi 20.000 karaktere kadar çıkabildiği için
     // çağrı başına maliyetin üst sınırı yoktu — çağrı frekansı zaten dakikada 15.
     orderBy: { updatedAt: "desc" },
-    take: 40,
+    take: KB_ITEM_CAP,
   });
   const aptNumber = property.name.match(/\d+/g)?.pop() ?? property.name;
   const kb = kbRaw.map((k) => ({

@@ -7,6 +7,7 @@ import { rateLimit } from "@/lib/rate-limit";
 import { premiumAllowed } from "@/lib/billing/subscription";
 import { zodFieldErrors } from "@/lib/validators";
 import { translate } from "@/lib/ai/translate";
+import { consumeDailyAiBudget } from "@/lib/ai/daily-budget";
 
 const translateSchema = z.object({
   messageId: z.string().min(1, "messageId gerekli"),
@@ -22,6 +23,17 @@ export const POST = withManage<{ id: string }>(async (session, req, { params }) 
   // Translation calls OpenAI ($). Throttle per user to cap spend on abuse.
   const limited = await rateLimit(`translate:${session.userId}`, 30, 60_000);
   if (!limited.ok) return tooManyRequests(limited.retryAfter);
+
+  // GÜNLÜK ORG BÜTÇESİ: dakikalık limit tek isteği yavaşlatır, toplam harcamayı
+  // sınırlamaz. Bu tavan hem suistimali hem kazara sonsuz döngüye giren bir
+  // istemciyi durdurur (ai/daily-budget.ts).
+  const budget = await consumeDailyAiBudget(session.organizationId);
+  if (!budget.ok) {
+    return tooManyRequests(
+      budget.retryAfter,
+      "Bugünkü AI kullanım sınırınıza ulaştınız. Yarın otomatik olarak sıfırlanır.",
+    );
+  }
 
   // Verify conversation belongs to org
   const conversation = await prisma.conversation.findFirst({

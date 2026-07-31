@@ -73,6 +73,22 @@ function decodeIcsText(s: string): string {
  * Parse an ICS string and return an array of reservation objects.
  * Skips VEVENTs that are missing required fields (DTSTART, DTEND).
  */
+/**
+ * Tek bir takvim beslemesinden alınacak EN FAZLA etkinlik sayısı.
+ *
+ * 🚨 Bu tavan yoktu ve ölçüldü: ağ katmanının 10 MB byte-cap'i (net/pinned-fetch)
+ * içeriğe bakmaz — 10 MB'lık bir feed **118.978 rezervasyon satırı** üretiyordu.
+ * İçe aktarma her satır için AYRI interaktif transaction + advisory lock + görev
+ * yaratımı koştuğu için bu, TEK bir istekte yüz binlerce DB gidiş-dönüşü demekti:
+ * bir Prisma bağlantısı yarım saat+ meşgul, on binlerce çöp görev satırı.
+ * Besleme URL'i müşteri tarafından girildiği için tetiklemesi bedava.
+ *
+ * Kardeş ayrıştırıcı CSV'de bu tavan ZATEN vardı (`csv.ts MAX_ROWS = 10_000`) —
+ * asimetri kapatıldı. 10.000 etkinlik, gerçek bir Airbnb/Booking takviminin çok
+ * üstündedir (7 daire × yıllarca rezervasyon bile bunun altında kalır).
+ */
+const MAX_EVENTS = 10_000;
+
 export function parseIcs(text: string): IcsReservation[] {
   const unfolded = unfoldLines(text);
   const lines = unfolded.split(/\r?\n/);
@@ -131,6 +147,10 @@ export function parseIcs(text: string): IcsReservation[] {
       const statusRaw = get("STATUS");
       const status = statusRaw ? statusRaw.trim().toUpperCase() : null;
 
+      // Tavan aşıldıysa SESSİZCE kes — hata fırlatmak, meşru bir feed'in geçici
+      // olarak şişmesi hâlinde tüm senkronu durdururdu. İlk 10.000 etkinlik
+      // zaten her gerçek takvimi kapsıyor.
+      if (results.length >= MAX_EVENTS) break;
       results.push({
         guestName,
         arrivalDate,

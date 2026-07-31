@@ -3,6 +3,7 @@ import "server-only";
 import { randomUUID } from "node:crypto";
 import { prisma } from "@/lib/db";
 import { syncHospitable } from "@/lib/hospitable-sync";
+import { isPrimaryOrg } from "@/lib/hospitable-credentials";
 import { HospitableError } from "@/lib/hospitable";
 import { reportError } from "@/lib/report-error";
 import { premiumAllowed } from "@/lib/billing/subscription";
@@ -39,6 +40,8 @@ export interface ScheduledSyncTotals {
   ok: boolean;
   error?: string;
   organizations: number;
+  /** Boşta olduğu için hiç işlenmeyen org sayısı (mülk yok + PMS yok). */
+  idleOrganizationsSkipped?: number;
   conversations: number;
   messages: number;
   autoReplies: number;
@@ -198,8 +201,32 @@ export async function runScheduledSync(): Promise<ScheduledSyncTotals> {
         await reportError("scheduled-sync amount-heal", err);
       }
 
-      const orgs = await prisma.organization.findMany({ select: { id: true } });
+      // BOŞTA ORG'U ATLA. Döngünün yaptığı her iş (konuşma, rezervasyon, uyarı,
+      // oto-mesaj) Property üzerinden asılıdır — mülkü OLMAYAN ve PMS bağlamamış
+      // bir org'un burada yapacak hiçbir işi yoktur. Buna rağmen bugüne kadar org
+      // başına ~12 sorgu × 2 dakikada bir × SONSUZA KADAR koşuyordu (terk edilmiş
+      // deneme hesapları için otomatik temizlik yok). Döngü SERİ ve global kilit
+      // altında olduğu için bu yük doğrudan gerçek müşterinin senkron gecikmesine
+      // dönüşüyordu.
+      //
+      // Atlama koşulu bilerek DAR: yalnız "hiç mülkü yok VE kendi token'ı yok VE
+      // env-token fallback'i de geçerli değil". Yani ilk senkronunda listelerini
+      // içeri çekecek yeni bir bağlantı ASLA atlanmaz.
+      const orgRows = await prisma.organization.findMany({
+        select: { id: true, hospitableTokenEnc: true, _count: { select: { properties: true } } },
+      });
+      const envToken = Boolean(process.env.HOSPITABLE_API_TOKEN);
+      const orgs: { id: string }[] = [];
+      for (const o of orgRows) {
+        const busy =
+          o._count.properties > 0 ||
+          o.hospitableTokenEnc !== null ||
+          (envToken && (await isPrimaryOrg(o.id)));
+        if (busy) orgs.push({ id: o.id });
+      }
       totals.organizations = orgs.length;
+      const skipped = orgRows.length - orgs.length;
+      if (skipped > 0) totals.idleOrganizationsSkipped = skipped;
 
       // Decide once per run: narrow (frequent, light) or wide (hourly catch-up).
       // Narrow keeps the every-2-min reservation sweep cheap; the wide window runs

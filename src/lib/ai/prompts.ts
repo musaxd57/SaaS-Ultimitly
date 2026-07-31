@@ -621,15 +621,57 @@ export function sanitizePromptValue(v: string | null | undefined, max = 120): st
 // ============================================================================
 // MAIN — Build the user-turn prompt
 // ============================================================================
+/**
+ * AI'nın tek seferde okuyabileceği bilgi tabanı kalemi sayısı. Rotalar veritabanı
+ * sorgusunu bununla sınırlar; host'a görünen uyarı da bu sayıyı kullanır — üç yer
+ * de tek kaynaktan okusun ki "AI 30 kalem kullanır" iddiası hep doğru kalsın.
+ */
+export const KB_ITEM_CAP = 30;
+
+/**
+ * Bilgi tabanı bloğunun KARAKTER bütçesi. Adet tavanı tek başına maliyeti
+ * SINIRLAMAZ: tek bir kalem 20.000 karaktere kadar çıkabildiği için (validators.ts)
+ * 30 kalem hâlâ 600.000 karakter demektir. İstem boyutunun üst sınırını çizen şey
+ * budur; sistem istemi ~52KB ve önbelleklidir, şişen kısım hep bu bloktur.
+ */
+export const KB_CHAR_BUDGET = 24_000;
+
+/**
+ * Bilgi tabanını bütçeye sığdır. Kesme olduğunda modele AÇIKÇA söylenir — yoksa
+ * model, atlanan bir konu sorulduğunda "bu konuda bilgim yok" diye KESİN konuşur;
+ * oysa doğru davranış insana devretmektir.
+ */
+export function packKnowledgeBase(
+  items: { category: string; title: string; content: string }[],
+): { text: string; omitted: number } {
+  if (items.length === 0) {
+    return { text: "(bilgi tabanı boş — bu mülk için kayıtlı bilgi yok)", omitted: 0 };
+  }
+  const lines: string[] = [];
+  let used = 0;
+  let omitted = 0;
+  for (const k of items) {
+    const line = `- [${k.category.toUpperCase()}] ${k.title}: ${k.content}`;
+    if (used + line.length > KB_CHAR_BUDGET && lines.length > 0) {
+      omitted += 1;
+      continue;
+    }
+    lines.push(line);
+    used += line.length;
+  }
+  if (omitted > 0) {
+    lines.push(
+      `- [NOT] Bu mülkün bilgi tabanının ${omitted} kalemi yer sınırı nedeniyle buraya alınamadı. ` +
+        "Sorulan konu yukarıda yoksa 'bilgi yok' DEME — konuyu insana devret.",
+    );
+  }
+  return { text: lines.join("\n"), omitted };
+}
+
 export function buildReplyUserPrompt(input: SuggestReplyInput): string {
   const { property, reservation, knowledgeBase, history, guestMessage, tone, language } = input;
 
-  const kb =
-    knowledgeBase.length > 0
-      ? knowledgeBase
-          .map((k) => `- [${k.category.toUpperCase()}] ${k.title}: ${k.content}`)
-          .join("\n")
-      : "(bilgi tabanı boş — bu mülk için kayıtlı bilgi yok)";
+  const kb = packKnowledgeBase(knowledgeBase).text;
 
   const res = reservation
     ? `Misafir: ${sanitizePromptValue(reservation.guestName)}

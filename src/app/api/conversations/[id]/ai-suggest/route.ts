@@ -6,6 +6,8 @@ import { badRequest, jsonOk, notFound, tooManyRequests, paymentRequired, readJso
 import { withManage } from "@/lib/route-guard";
 import { rateLimit } from "@/lib/rate-limit";
 import { premiumAllowed } from "@/lib/billing/subscription";
+import { KB_ITEM_CAP } from "@/lib/ai/prompts";
+import { consumeDailyAiBudget } from "@/lib/ai/daily-budget";
 
 export const POST = withManage<{ id: string }>(async (session, req, { params }) => {
   const { id } = await params;
@@ -16,6 +18,17 @@ export const POST = withManage<{ id: string }>(async (session, req, { params }) 
   // Each suggestion calls OpenAI ($). Throttle per user to cap spend on abuse.
   const limited = await rateLimit(`ai-suggest:${session.userId}`, 20, 60_000);
   if (!limited.ok) return tooManyRequests(limited.retryAfter);
+
+  // GÜNLÜK ORG BÜTÇESİ: dakikalık limit tek isteği yavaşlatır, toplam harcamayı
+  // sınırlamaz. Bu tavan hem suistimali hem kazara sonsuz döngüye giren bir
+  // istemciyi durdurur (ai/daily-budget.ts).
+  const budget = await consumeDailyAiBudget(session.organizationId);
+  if (!budget.ok) {
+    return tooManyRequests(
+      budget.retryAfter,
+      "Bugünkü AI kullanım sınırınıza ulaştınız. Yarın otomatik olarak sıfırlanır.",
+    );
+  }
 
   const conversation = await prisma.conversation.findFirst({
     where: { id, property: { organizationId: session.organizationId } },
@@ -41,7 +54,7 @@ export const POST = withManage<{ id: string }>(async (session, req, { params }) 
     where: { propertyId: conversation.propertyId, isActive: true },
     select: { category: true, title: true, content: true },
     orderBy: { updatedAt: "desc" },
-    take: 40, // hard cap: bound the prompt (token/cost/context)
+    take: KB_ITEM_CAP, // hard cap: bound the prompt (token/cost/context) — tek kaynak prompts.ts
   });
   // Resolve any {isim} placeholder (e.g. in the welcome template) to the
   // guest's name so a literal "{isim}" can never appear in the suggestion.

@@ -1,8 +1,9 @@
 import { prisma } from "@/lib/db";
 import { conversationCreateSchema, zodFieldErrors } from "@/lib/validators";
-import { badRequest, jsonOk, propertyInOrg, readJsonCappedOrNull } from "@/lib/api";
+import { badRequest, jsonOk, propertyInOrg, readJsonCappedOrNull, tooManyRequests } from "@/lib/api";
 import { withManage } from "@/lib/route-guard";
 import { applyInboundMessageRules } from "@/lib/automation";
+import { rateLimit } from "@/lib/rate-limit";
 
 export const GET = withManage(async (session, req) => {
   const { searchParams } = new URL(req.url);
@@ -26,6 +27,10 @@ export const GET = withManage(async (session, req) => {
 
 // Creating a conversation is an owner/manager action; staff are read + tasks.
 export const POST = withManage(async (session, req) => {
+  // Limitsizdi: her istek uyari e-postasi tetikleyebiliyordu (aciik role zincirinin halkasi) ve export boyutunu sinirsiz buyutuyordu.
+  const limited = await rateLimit(`conv-create:${session.organizationId}`, 60, 60_000);
+  if (!limited.ok) return tooManyRequests(limited.retryAfter);
+
   const data = await readJsonCappedOrNull(req);
   const parsed = conversationCreateSchema.safeParse(data);
   if (!parsed.success) return badRequest(zodFieldErrors(parsed.error));

@@ -3,6 +3,7 @@ import { badRequest, jsonOk, readJsonCappedOrNull } from "@/lib/api";
 import { OFFER_PAYMENT_METHOD_RX } from "@/lib/validators";
 import { withManage } from "@/lib/route-guard";
 import { isValidTimeZone } from "@/lib/timezone";
+import { isOrgMemberEmail, isValidEmailShape, normalizeEmail } from "@/lib/email-identity";
 
 // Organization-level settings the UI can change. Booleans are the auto-reply
 // switches; the hour fields define the channel auto-reply active window;
@@ -145,12 +146,29 @@ export const PATCH = withManage(async (session, req) => {
     if (raw !== null && typeof raw !== "string") {
       errors.alertEmail = "Metin olmalı.";
     } else {
-      const trimmed = (raw ?? "").toString().trim();
-      if (trimmed && !/^[^@\s]+@[^@\s]+\.[^@\s]+$/.test(trimmed)) {
+      const trimmed = normalizeEmail((raw ?? "").toString());
+      if (trimmed && !isValidEmailShape(trimmed)) {
         errors.alertEmail = "Geçerli bir e-posta girin.";
+      } else if (trimmed && !(await isOrgMemberEmail(session.organizationId, trimmed))) {
+        // 🚨 AÇIK E-POSTA RÖLESİ KAPATILDI (denetim bulgusu, uçtan uca kanıtlandı).
+        //
+        // Buraya HERHANGİ bir adres yazılabiliyordu — sahiplik doğrulaması yoktu.
+        // Uyarı e-postasının KONUSU (misafir adı + daire adı) ve GÖVDESİ (mesajın
+        // ilk 600 karakteri) müşteri kontrolündedir; `POST /api/conversations` de
+        // hız limitsizdi. Yani bir müşteri, BİZİM doğrulanmış alan adımızdan,
+        // üçüncü bir kişiye, kendi yazdığı metinle saatte binlerce e-posta
+        // gönderebiliyordu. Zararı kendi hesabına değil GÖNDERİM İTİBARIMIZA —
+        // alan adı kara listeye girerse TÜM müşterilerin şifre-sıfırlama ve
+        // doğrulama e-postaları teslim edilmez.
+        //
+        // Çözüm en dar kapsam: uyarılar yalnız BU İŞLETMENİN kendi ekibine gider.
+        // Bu zaten özelliğin amacı; farklı bir adres istenirse doğrulama akışı
+        // ayrı bir turdur (o zamana kadar röle kapalı kalır).
+        errors.alertEmail =
+          "Uyarı adresi, bu işletmedeki bir kullanıcının e-postası olmalı. Önce o kişiyi ekibe ekleyin.";
       } else {
         // Empty clears it → falls back to the env ALERT_EMAIL.
-        update.alertEmail = trimmed.length === 0 ? null : trimmed.toLowerCase();
+        update.alertEmail = trimmed.length === 0 ? null : trimmed;
       }
     }
   }
