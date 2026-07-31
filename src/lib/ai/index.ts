@@ -174,24 +174,35 @@ async function callOpenAI(system: string, user: string): Promise<string | null> 
  *    ve kapı bu YARIM mesajı misafire otomatik gönderebiliyordu. Tek görünür iz
  *    yoktu — ne log, ne alarm.
  *
- * Yeni davranış: tavan 4.000'e çıkarıldı (2.000 tamamlama token'ı Türkçede kaba
- * hesapla ~2.500-3.000 karakter üretebilir, yani bu tavan pratikte ERİŞİLEMEZ;
- * 2.000 ise erişilebilir bir mesafedeydi) VE tavana çarpmak artık bir OLAY:
- * rapor edilir, güven 0.5'e kısılır, yanıt yalnız taslak olarak kalır.
+ * Yeni davranış İKİ AYRI eşikle kurulur — tek bir sayıyla ikisi birden
+ * yapılamaz, ilk denemede yapılmaya çalışıldı ve GİDEN MESAJ uzunluğunu da
+ * değiştirdi (denetim yakaladı):
  *
- * Ölçek için: 4.000 karakter ≈ 560 Türkçe kelime. Prompt "2-5 cümle" diyor
- * (prompts.ts:313), 6 soruluk bir mesajın tam cevabı bile ~900 karakter.
+ *  · OTO-GÖNDERİM EŞİĞİ (2.000) — bu uzunluğun ÜSTÜNDEKİ hiçbir yanıt misafire
+ *    OTOMATİK gitmez. Eskiden 2.000'in üstü kesilip yine de gidebiliyordu;
+ *    şimdi gitmiyor. Yani kanala çıkan mesajın uzunluk davranışı DEĞİŞMEDİ,
+ *    yalnız "yarım gitme" ihtimali kalktı.
+ *  · SAKLAMA TAVANI (4.000) — DB satırını/inbox'ı/logu şişirmemek için. Host
+ *    taslağı görüp düzenleyebilsin diye gönderim eşiğinden geniş: metni 2.000'de
+ *    kesip host'a yarım göstermenin bir faydası yok.
+ *
+ * Ölçek için: 2.000 karakter ≈ 280 Türkçe kelime ≈ 20 cümle. Prompt "2-5 cümle"
+ * diyor (Bölüm 10), 6 soruluk bir mesajın TAM cevabı bile ~900 karakter — yani
+ * eşik meşru hiçbir cevabı kesmez.
  */
-const REPLY_CHAR_CAP = 4000;
+const REPLY_AUTOSEND_CAP = 2000;
+const REPLY_STORE_CAP = 4000;
 
 function capReply(text: string): { text: string; truncated: boolean } {
   const trimmed = text.trim();
-  if (trimmed.length <= REPLY_CHAR_CAP) return { text: trimmed, truncated: false };
+  if (trimmed.length <= REPLY_AUTOSEND_CAP) return { text: trimmed, truncated: false };
   void reportError(
-    "openai-reply over char cap",
-    new Error(`reply ${trimmed.length} chars > ${REPLY_CHAR_CAP}; held for human review`),
+    "openai-reply over autosend cap",
+    new Error(
+      `reply ${trimmed.length} chars > ${REPLY_AUTOSEND_CAP}; held for human review`,
+    ),
   );
-  return { text: trimmed.slice(0, REPLY_CHAR_CAP), truncated: true };
+  return { text: trimmed.slice(0, REPLY_STORE_CAP), truncated: true };
 }
 
 export async function suggestReply(input: SuggestReplyInput): Promise<SuggestReplyResult> {
@@ -231,7 +242,7 @@ export async function suggestReply(input: SuggestReplyInput): Promise<SuggestRep
               : Math.min(clamp01(Number(parsed.confidence)), 0.5),
           // Cap every free-text field the model returns — an over-long value would
           // bloat the DB row / inbox UI / logs it lands on (no token guarantee
-          // per-field). A real guest reply is well under REPLY_CHAR_CAP.
+          // per-field). ↑capReply: iki eşik, biri gönderim biri saklama.
           reply: cappedReply.text,
           risk: typeof parsed.risk === "string" && parsed.risk.trim() ? parsed.risk.slice(0, 300) : null,
           priority,

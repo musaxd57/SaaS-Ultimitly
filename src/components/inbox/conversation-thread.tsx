@@ -405,7 +405,17 @@ export function ConversationThread({ conversationId, messages, status, priority,
         const data = await res.json();
         setTranslations((prev) => ({ ...prev, [messageId]: data.translation }));
       } else {
-        toast.error("Çeviri yapılamadı. Lütfen tekrar deneyin.");
+        // "Tekrar deneyin" iki gerçek durumda YANLIŞ tavsiyeydi: günlük AI
+        // sınırı (429) ve pasif abonelik (402). İkisinde de tekrar denemek asla
+        // işe yaramaz; host geçici arıza sanıp basıp duruyordu. Sunucu zaten
+        // anlamlı bir metin döndürüyor — aynı dosyadaki "AI öner" düğmesi bunu
+        // baştan doğru yapıyordu, çeviri yapmıyordu.
+        const data = await res.json().catch(() => ({}));
+        toast.error(
+          typeof data?.error === "string" && data.error
+            ? data.error
+            : "Çeviri yapılamadı. Lütfen tekrar deneyin.",
+        );
       }
     } catch {
       toast.error("Bağlantı hatası. Lütfen tekrar deneyin.");

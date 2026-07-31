@@ -6,7 +6,7 @@ import { orgTimezone } from "@/lib/timezone";
 import { premiumAllowed } from "@/lib/billing/subscription";
 import { isUniqueViolation } from "@/lib/db-errors";
 import { qrPinEnabled } from "@/lib/guest-chat-pin";
-import { KB_ITEM_CAP } from "@/lib/ai/prompts";
+import { fetchKnowledgeBaseForPrompt } from "@/lib/ai/kb-fetch";
 import {
   LEGACY_AI_RESUME_SENDER,
   LEGACY_AI_SENDER_NAMES,
@@ -363,6 +363,8 @@ export interface GuestChatContext {
   } | null;
   /** Active KB items with secret-bearing categories removed. */
   knowledgeBase: { category: string; title: string; content: string }[];
+  /** Adet tavanı yüzünden istemin dışında kalan kalem sayısı (istem bunu modele söyler). */
+  knowledgeBaseDropped: number;
   /** True when this stay must present a PIN before it can be claimed on a device
    *  (Faz 5). Derived: QR_PIN_ENABLED env on AND (this reservation has a PIN OR the
    *  org runs strict mode). NEVER exposes the hash — only the boolean gate. */
@@ -488,27 +490,23 @@ export async function resolveGuestChat(
   // Closed → return the property (so the page can show a branded "no active stay"
   // screen) but no reservation and an empty knowledge base (nothing to answer).
   if (!open) {
-    return { property: propertyPublic, open: false, activeReservation: null, knowledgeBase: [], pinRequired: false };
+    return { property: propertyPublic, open: false, activeReservation: null, knowledgeBase: [], knowledgeBaseDropped: 0, pinRequired: false };
   }
 
-  const kbRaw = await prisma.knowledgeBaseItem.findMany({
-    where: {
-      propertyId: property.id,
-      isActive: true,
-      category: { notIn: [...QR_SECRET_CATEGORIES] },
-    },
-    select: { category: true, title: true, content: true },
-    // QR yolunda hiç tavan YOKTU — 60 aktif kayıtlı bir dairede istem sınırsız
-    // büyüyordu. Aynı tek kaynak (prompts.ts KB_ITEM_CAP) ve aynı sıralama:
-    // "en son güncellenen kazanır", host'un düzelttiği bilgi hep içeride kalsın.
-    orderBy: { updatedAt: "desc" },
-    take: KB_ITEM_CAP,
+  // QR yolunda hiç tavan YOKTU — 60 aktif kayıtlı bir dairede istem sınırsız
+  // büyüyordu. Tek yol `ai/kb-fetch.ts` (tavan + kaç kalemin düştüğü).
+  // Gizli kategoriler WHERE'de eleniyor, yani tavan yalnız GÖSTERİLEBİLİR
+  // kalemler arasından seçiyor — slot israfı yok ve düşen sayısı da doğru.
+  const { items: kbRaw, dropped: kbDropped } = await fetchKnowledgeBaseForPrompt({
+    propertyId: property.id,
+    isActive: true,
+    category: { notIn: [...QR_SECRET_CATEGORIES] },
   });
   // Drop any item whose text looks like an access secret, even in an allowed
   // category — the public bearer-token surface must never have a code in context.
   const knowledgeBase = kbRaw.filter((k) => !looksLikeSecret(`${k.title}\n${k.content}`));
 
-  return { property: propertyPublic, open: true, activeReservation, knowledgeBase, pinRequired };
+  return { property: propertyPublic, open: true, activeReservation, knowledgeBase, knowledgeBaseDropped: kbDropped, pinRequired };
 }
 
 /**

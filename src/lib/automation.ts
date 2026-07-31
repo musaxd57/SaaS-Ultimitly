@@ -9,7 +9,7 @@ import { recordRiskEvent } from "@/lib/risk-events";
 import { recordShadowVerdict } from "@/lib/shadow-ai";
 import { reservationAmountNumber } from "@/lib/money";
 import { classifyMessage, suggestReply, summarizeHostStyle } from "@/lib/ai";
-import { KB_ITEM_CAP } from "@/lib/ai/prompts";
+import { fetchKnowledgeBaseForPrompt } from "@/lib/ai/kb-fetch";
 import {
   classifyFallback,
   isClosingAck,
@@ -304,7 +304,22 @@ async function maybeSendHoldingAck(opts: {
         data: { lastMessageAt: new Date() },
       }),
     ])
-    .catch(() => {});
+    // Mesaj ZATEN misafire gitti; persist düşerse geri alınamaz. Ama sessiz
+    // kalamaz: host'un thread'inde görünmez (sync yeniden import edene kadar) ve
+    // import edilince AI atfını kaybeder → `senderName "GuestOps AI"` sayan
+    // raporlar eksik sayar. Kayıp kaçınılmazsa bile GÖRÜNÜR olmalı.
+    // ⚠️ Context string'ine konuşma id'si KOYMA: `report-error-core.ts` e-posta
+    // throttle'ını CONTEXT bazlı tutuyor, yani her konuşma ayrı bir anahtar olur
+    // ve 10 dakikalık koruma fiilen kalkar (toplu bir DB hıçkırığı = konuşma
+    // başına uyarı e-postası). Id, throttle anahtarı OLMAYAN hata mesajında.
+    .catch((err) =>
+      reportError(
+        "holding-ack persist",
+        err instanceof Error
+          ? new Error(`${err.message} (conversation ${opts.conversation.id})`)
+          : new Error(`${String(err)} (conversation ${opts.conversation.id})`),
+      ),
+    );
   return true;
 }
 
@@ -496,7 +511,22 @@ async function maybeSendClosingCourtesy(opts: {
         data: { lastMessageAt: new Date(), skippedReason: null },
       }),
     ])
-    .catch(() => {});
+    // ⚠️ BU YUTULAN HATA MİSAFİRE GÖRÜNÜR (denetim, 07-31). Mesaj ZATEN gitti;
+    // burada kaybedilen şey `aiIntent: CLOSING_COURTESY_INTENT` — ve o alan tam
+    // olarak yukarıdaki DÖNGÜ KİLİDİNİN baktığı yer. Persist düşerse sync bu
+    // mesajı sonra düz bir giden satır olarak (aiIntent null) içeri alır, kilit
+    // kaybolur ve misafir tekrar teşekkür ettiğinde İKİNCİ bir nezaket gider —
+    // yani bu özelliğin var olma sebebi olan ping-pong. Geri alınamaz, ama
+    // GÖRÜNÜR olmak zorunda: aksi hâlde ping-pong'un sebebi asla bulunamaz.
+    // Id throttle anahtarına DEĞİL hata mesajına gider (↑gerekçe: holding-ack).
+    .catch((err) =>
+      reportError(
+        "closing-courtesy persist",
+        err instanceof Error
+          ? new Error(`${err.message} (conversation ${opts.conversation.id})`)
+          : new Error(`${String(err)} (conversation ${opts.conversation.id})`),
+      ),
+    );
   return true;
 }
 
@@ -820,11 +850,32 @@ export async function applyInboundMessageRules(
       orgRecord?.name ?? "GuestOps",
     );
 
+    // BUGÜNKÜ SESSİZ-KAYIP DESENİNİN SON KOPYASI (denetim, 07-31).
+    //
+    // Yukarıdaki TX konuşmayı zaten "problem"e taşıdı. `sendDueAlerts` yalnız
+    // status:"new" seçtiği için bu satır bir daha ASLA seçilmez → e-posta
+    // gitmezse host'a giden TEK bildirim kalıcı kaybolur. Eskiden `void
+    // emailService.send(...)` idi: ne await ediliyor, ne sonucu okunuyor, ve
+    // `send()` sağlayıcı hatasında yalnız console'a yazıyor.
+    //
+    // Burada claim GERİ ALINMAZ — kardeş yollardan farkı: bu yol host'un KENDİ
+    // oluşturduğu konuşmadan tetikleniyor (POST /api/conversations), yani host
+    // zaten ekranın başında ve konuşma "Sorunlu" rozetiyle önünde duruyor. Geri
+    // almak, host'un az önce yarattığı satırın durumunu gözünün önünde geri
+    // çevirmek olurdu. Doğru davranış: gönderemediğimizi GÖRÜNÜR yapmak.
+    let alertFailures = 0;
     for (const user of orgUsers) {
-      void emailService.send(
+      const mail = await emailService.sendReporting(
         user.email,
         `Acil Şikayet: ${conversation.guestIdentifier} — ${conversation.property.name}`,
         html,
+      );
+      if (!mail.ok) alertFailures++;
+    }
+    if (alertFailures > 0) {
+      void reportError(
+        `applyInboundMessageRules org=${conversation.property.organizationId}`,
+        new Error(`complaint alert e-mail failed for ${alertFailures}/${orgUsers.length} recipient(s)`),
       );
     }
   } else if (conversation.status === "closed" || conversation.status === "answered") {
@@ -1075,15 +1126,12 @@ export async function applyChannelAutoReply(
     }
   }
 
-  const kbRaw = await prisma.knowledgeBaseItem.findMany({
-    where: { propertyId: conversation.propertyId, isActive: true },
-    select: { category: true, title: true, content: true },
-    orderBy: { updatedAt: "desc" },
-    // Tek kaynak `prompts.ts` (KB_ITEM_CAP). Burası uzun süre sabit 40'tı: test
-    // kartı ve "AI öner" 30 okurken ÜRETİM yolu 40 okuyordu, yani hem iki yüzey
-    // arasında parite yoktu hem de Bilgi Tabanı ekranındaki "AI bir yanıtta en
-    // fazla 30 tanesini okur" uyarısı yanlış sayı gösteriyordu.
-    take: KB_ITEM_CAP,
+  // Tek yol `ai/kb-fetch.ts`: tavan + "kaç tanesi düştü" oradan gelir. Burası
+  // uzun süre sabit 40'tı (test kartı ve "AI öner" 30 okurken), yani ne yüzeyler
+  // arasında parite ne de ekrandaki "en fazla 30 okur" uyarısı doğruydu.
+  const { items: kbRaw, dropped: kbDropped } = await fetchKnowledgeBaseForPrompt({
+    propertyId: conversation.propertyId,
+    isActive: true,
   });
   // Resolve any {isim} placeholder in KB entries (e.g. the welcome template) to
   // the guest's name before it reaches the model, so a literal "{isim}" can
@@ -1122,6 +1170,7 @@ export async function applyChannelAutoReply(
         }
       : null,
     knowledgeBase: kb,
+    knowledgeBaseDropped: kbDropped,
     history: messages.map((m) => ({
       direction: m.direction as "inbound" | "outbound",
       body: m.body,
@@ -1260,22 +1309,38 @@ export async function applyChannelAutoReply(
               html,
             );
             if (!mail.ok) {
-              // Yalnız `status` geri alınır — risk alanları kalır, yani inbox
-              // rozeti görünür olmaya devam eder ama satır yeniden seçilebilir.
-              // Bekletme mesajı + görev bu turda ATLANIR: tur baştan alınacak,
-              // ack'in idempotency kilidi claim olduğundan yine en fazla bir kez
-              // gider. Risk kaydı/gölge hükmü aşağıda NORMAL akışta yazılır
-              // (ikisi de tekilleştirilmiş, tekrar denemede çoğalmaz).
+              // ⚠️ BURADA CLAIM **GERİ ALINMAZ** — kardeş `sendDueAlerts`'ten
+              // BİLEREK farklı. İlk denemede burada da geri alma vardı; denetim
+              // onun İKİ regresyon getirdiğini gösterdi ve geri alındı:
+              //
+              //  1. GÜVENLİK (ağır olan): claim aynı zamanda "bu thread insana
+              //     ait" KİLİDİDİR (`:975` "problem" görünce erken döner). Geri
+              //     alınca sonraki tur modele TEKRAR sorar; model hükmü
+              //     medium→low oynarsa kapı geçebilir ve RİSKLİ sayılmış bir
+              //     mesaja otomatik cevap gider. Kapının deterministik
+              //     yedekleri `review_threat`/`platform_policy`/`access_security`
+              //     sınıflarını KAPSAMAZ (yalnız safety/rule/discrimination) —
+              //     yani bu yolda ikinci bir savunma YOK.
+              //  2. MALİYET: bu yolda yaş penceresi yok (`freshSince` sabit
+              //     damga) ve `escalated_to_human` `autoReplyAttemptedAt`
+              //     damgalamıyor → e-posta kalıcı bozuksa her escalate edilmiş
+              //     konuşma 2 dakikada bir yeniden modellenir, sonsuza kadar.
+              //
+              // `sendDueAlerts`'te geri alma DOĞRU kalır çünkü orada iki koruma
+              // da var: 72 saatlik `ALERT_MAX_AGE_MS` penceresi tekrarları
+              // sınırlar, ve o yolun claim ettiği mesajları kapının
+              // deterministik `classifyFallback` çapraz-kontrolü zaten vetolar
+              // (`fb.isComplaint || refund || early_departure`) — yani geri
+              // alınmış bir kelime-şikayeti asla otomatik yanıtlanamaz.
+              //
+              // Buradaki taviz AÇIK: e-posta gitmezse host'a bildirim ulaşmaz.
+              // Ama thread KALICI olarak "Sorunlu" kalır (inbox'ta görünür,
+              // insanın önünde) ve arıza Sentry'ye düşer. Sessiz DEĞİL —
+              // yalnız kanalı e-posta değil, panel.
               escalationMailFailed = true;
-              await prisma.conversation
-                .updateMany({
-                  where: { id: conversation.id, status: "problem" },
-                  data: { status: conversation.status },
-                })
-                .catch(() => {});
               void reportError(
                 `applyChannelAutoReply escalation org=${conversation.property.organizationId}`,
-                new Error("escalation e-mail failed; claim rolled back for retry"),
+                new Error("escalation e-mail failed; thread stays 'problem' for the host"),
               );
             }
           }
@@ -2484,7 +2549,15 @@ export async function sendDueAlerts(
 
   let alerted = 0;
   let escalationEmailFailures = 0;
+  // Bu geçiş zamanlanmış koşunun SÜRE BÜTÇESİNDEN MUAF (uyarı susturulamaz),
+  // ama muafiyet sınırsız olamaz: 50 aday × 15 sn e-posta timeout'u = 12 dakika,
+  // ve senkron kilidinin TTL'i 15 dakika. Kendi wall-clock tavanını taşır;
+  // dolduğunda kalan adaylar bir sonraki geçişe kalır (claim edilmedikleri için
+  // hiçbir şey kaybolmaz, yalnız gecikir).
+  const alertsStartedAt = Date.now();
+  const ALERT_BUDGET_MS = 60_000;
   for (const c of candidates) {
+    if (Date.now() - alertsStartedAt > ALERT_BUDGET_MS) break;
     const last = c.messages[0];
     if (!last || last.direction !== "inbound") continue;
     // Skip stale backlog surfaced by a re-sync — only alert on fresh messages.

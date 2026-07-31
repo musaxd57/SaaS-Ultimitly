@@ -188,8 +188,9 @@ const TIERS = [
     unit: "/ay",
     desc: "1–2 daireli ev sahipleri için",
     features: [
-      "Günde 150 AI yanıtı",
+      "Günde 150 AI işlemi (öneri · çeviri · test)",
       "Daire başına 15 bilgi kaydı",
+      "QR concierge: daire başına günde 50 misafir sorusu",
       "2 daireye kadar",
       "Tüm AI özellikleri dahil",
       "7/24 otomatik misafir yanıtı (Türkçe + çok dilli)",
@@ -205,8 +206,9 @@ const TIERS = [
     unit: "/ay",
     desc: "3–7 daireli profesyonel hostlar",
     features: [
-      "Günde 500 AI yanıtı",
+      "Günde 500 AI işlemi (öneri · çeviri · test)",
       "Daire başına 30 bilgi kaydı",
+      "QR concierge: daire başına günde 100 misafir sorusu",
       "7 daireye kadar",
       "Başlangıç’taki tüm AI özellikleri",
       "Öncelikli destek",
@@ -219,8 +221,9 @@ const TIERS = [
     unit: "/ay",
     desc: "8–25 daireli profesyoneller",
     features: [
-      "Günde 1.500 AI yanıtı",
+      "Günde 1.500 AI işlemi (öneri · çeviri · test)",
       "Daire başına 60 bilgi kaydı",
+      "QR concierge: daire başına günde 200 misafir sorusu",
       "25 daireye kadar",
       "Başlangıç’taki tüm AI özellikleri",
       "Birebir kurulum + öncelikli destek",

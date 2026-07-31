@@ -134,6 +134,9 @@ export async function syncHospitable(
   // the end — a per-row alert would flood; a bare catch hid them entirely).
   let supplyFailures = 0;
   let firstSupplyError: unknown = null;
+  // Mesaj içe aktarımı için AYNI görünürlük (denetim, 07-31 — ↓gerekçe).
+  let threadImportFailures = 0;
+  let firstThreadImportError: unknown = null;
 
   // Multi-tenant: use THIS org's own Hospitable token. If it has no connection
   // (and isn't the primary org falling back to env), there is nothing to pull —
@@ -400,7 +403,17 @@ export async function syncHospitable(
           }
         }
       } catch (err) {
+        // ⚠️ EN PAHALI SESSİZ KAYIP (denetim, 07-31). Buraya düşmek "bu
+        // rezervasyonun MİSAFİR MESAJLARI hiç içeri alınmadı" demektir. Eskiden
+        // yalnız `console.error` vardı ve `console.error` Sentry'ye de uyarı
+        // e-postasına da GİTMEZ (yalnız `reportError` gider) — koşu raporu ise
+        // `messages: 0, ok: true` diyordu. Yani deterministik bir hata (TX
+        // timeout, şema sürprizi) TÜM thread'leri düşürse kimse fark etmezdi.
+        // Supply türetmesinin emsali burada da uygulanıyor: satır başına DEĞİL,
+        // koşu başına TEK aggregate alarm (sağlayıcı komple düşerse sel olmasın).
         console.error(`[Hospitable sync] thread import failed for ${reservation.id}`, scrubErr(err));
+        threadImportFailures++;
+        if (firstThreadImportError === null) firstThreadImportError = err;
       }
     }
   }
@@ -414,6 +427,16 @@ export async function syncHospitable(
     void reportError(
       `supply-derivation org:${organizationId} failures:${supplyFailures}`,
       firstSupplyError instanceof Error ? firstSupplyError : new Error(String(firstSupplyError)),
+    );
+  }
+  // Mesaj içe aktarımı SUPPLY'DAN DAHA KRİTİK: supply bir yardımcı özellik,
+  // bu ise ürünün girdisi. Aynı aggregate deseni, ayrı sayaç.
+  if (threadImportFailures > 0) {
+    void reportError(
+      `thread-import org:${organizationId} failures:${threadImportFailures}`,
+      firstThreadImportError instanceof Error
+        ? firstThreadImportError
+        : new Error(String(firstThreadImportError)),
     );
   }
   // …and an idempotent sweep over the recent window re-derives whatever was

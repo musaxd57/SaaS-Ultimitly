@@ -37,11 +37,13 @@ export const PATCH = withManage<{ id: string }>(async (session, req, { params })
 
   const limits = await limitsForOrg(session.organizationId);
 
-  if (
-    typeof d.content === "string" &&
-    d.content.length > limits.kbCharsPerItem &&
-    d.content.length > existing.content.length
-  ) {
+  // Eşik: tavan VEYA (tavanın üstündeyse) MEVCUT uzunluk — hangisi büyükse.
+  // İlk sürüm sadece "yeni > eski" diyordu, yani 20.000 karakterlik eski bir
+  // kayıt BAŞKA bir 20.000 karakterlik içerikle sınırsızca yeniden yazılabiliyor
+  // ve "her şeyi tek kayda doldur" kaçışı elde bir tane eski uzun kayıt varken
+  // açık kalıyordu (denetim, 07-31). Artık o kayıt yalnız KISALABİLİR.
+  const allowedChars = Math.max(limits.kbCharsPerItem, existing.content.length);
+  if (typeof d.content === "string" && d.content.length > allowedChars) {
     return badRequest({
       content: `Tek bir bilgi kaydı en fazla ${limits.kbCharsPerItem.toLocaleString("tr-TR")} karakter olabilir. Uzun bilgileri birkaç kayda bölün — AI hepsini okur.`,
     });

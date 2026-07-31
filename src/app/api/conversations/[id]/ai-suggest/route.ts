@@ -6,8 +6,8 @@ import { badRequest, jsonOk, notFound, tooManyRequests, paymentRequired, readJso
 import { withManage } from "@/lib/route-guard";
 import { rateLimit } from "@/lib/rate-limit";
 import { premiumAllowed } from "@/lib/billing/subscription";
-import { KB_ITEM_CAP } from "@/lib/ai/prompts";
-import { consumeDailyAiBudget } from "@/lib/ai/daily-budget";
+import { fetchKnowledgeBaseForPrompt } from "@/lib/ai/kb-fetch";
+import { consumeDailyAiBudget, dailyBudgetMessage } from "@/lib/ai/daily-budget";
 
 export const POST = withManage<{ id: string }>(async (session, req, { params }) => {
   const { id } = await params;
@@ -26,7 +26,7 @@ export const POST = withManage<{ id: string }>(async (session, req, { params }) 
   if (!budget.ok) {
     return tooManyRequests(
       budget.retryAfter,
-      "Bugünkü AI kullanım sınırınıza ulaştınız. Yarın otomatik olarak sıfırlanır.",
+      dailyBudgetMessage(budget),
     );
   }
 
@@ -50,11 +50,10 @@ export const POST = withManage<{ id: string }>(async (session, req, { params }) 
     return badRequest({ _: "Öneri üretmek için bir misafir mesajı gerekli" });
   }
 
-  const kbRaw = await prisma.knowledgeBaseItem.findMany({
-    where: { propertyId: conversation.propertyId, isActive: true },
-    select: { category: true, title: true, content: true },
-    orderBy: { updatedAt: "desc" },
-    take: KB_ITEM_CAP, // hard cap: bound the prompt (token/cost/context) — tek kaynak prompts.ts
+  // Tek yol `ai/kb-fetch.ts`: tavan + kaç kalemin düştüğü oradan gelir.
+  const { items: kbRaw, dropped: kbDropped } = await fetchKnowledgeBaseForPrompt({
+    propertyId: conversation.propertyId,
+    isActive: true,
   });
   // Resolve any {isim} placeholder (e.g. in the welcome template) to the
   // guest's name so a literal "{isim}" can never appear in the suggestion.
@@ -106,6 +105,7 @@ export const POST = withManage<{ id: string }>(async (session, req, { params }) 
         }
       : null,
     knowledgeBase: kb,
+    knowledgeBaseDropped: kbDropped,
     history: conversation.messages.map((m) => ({
       direction: m.direction as "inbound" | "outbound",
       body: m.body,

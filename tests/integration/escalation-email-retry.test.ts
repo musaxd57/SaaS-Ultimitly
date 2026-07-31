@@ -140,3 +140,43 @@ describe("şikayet uyarısı e-postası — sessiz kayıp yok", () => {
     expect(mockSend).not.toHaveBeenCalled();
   });
 });
+
+// ---------------------------------------------------------------------------
+// MODEL YOLU BİLEREK FARKLI: ORADA CLAIM GERİ ALINMAZ (denetim, 07-31).
+//
+// İlk denemede model yoluna da geri alma konmuştu. Denetim İKİ regresyon
+// gösterdi ve geri alındı:
+//   1. GÜVENLİK: claim aynı zamanda "bu thread insana ait" kilidi. Geri alınca
+//      sonraki tur modele TEKRAR sorulur; model hükmü medium→low oynarsa kapı
+//      geçebilir ve RİSKLİ sayılmış bir mesaja OTOMATİK cevap gider. Kapının
+//      deterministik yedekleri review_threat/platform_policy/access_security'yi
+//      kapsamaz — o yolda ikinci savunma YOK.
+//   2. MALİYET: model yolunda yaş penceresi yok ve `escalated_to_human`
+//      `autoReplyAttemptedAt` damgalamıyor → e-posta kalıcı bozuksa her
+//      escalate edilmiş konuşma 2 dakikada bir yeniden modellenir, sonsuza dek.
+//
+// `sendDueAlerts`'te geri alma DOĞRU kalır çünkü orada iki koruma da var:
+// 72 saatlik yaş penceresi (yukarıdaki test) ve kapının deterministik
+// `classifyFallback` çapraz-kontrolü (aşağıdaki test).
+// ---------------------------------------------------------------------------
+describe("kelime yolunun geri alması neden güvenli — deterministik yedek", () => {
+  it("kapı, geri alınmış bir kelime-şikayetini modelden BAĞIMSIZ olarak vetolar", async () => {
+    const { passesAutoReplySafetyGate } = await import("@/lib/automation");
+    // Model mesajı zararsız sanıyor ve YÜKSEK güven veriyor — kapının en zor hâli.
+    const modelSaysBenign = {
+      intent: "amenity",
+      riskLevel: "none",
+      confidence: 0.98,
+      source: "openai",
+      riskType: null,
+    };
+    // `sendDueAlerts`'in claim ettiği mesaj tipi = classifyFallback'in şikayet
+    // dediği mesaj. Geri alınıp yeniden değerlendirilse bile kapı reddetmeli.
+    expect(
+      passesAutoReplySafetyGate(
+        modelSaysBenign,
+        "Daire çok kirli, param iade edilsin. Bu kabul edilemez!",
+      ),
+    ).toBe(false);
+  });
+});

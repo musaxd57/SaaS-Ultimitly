@@ -41,6 +41,13 @@ export interface SuggestReplyInput {
   property: PropertyContext;
   reservation?: ReservationContext | null;
   knowledgeBase: KbContext[];
+  /**
+   * `knowledgeBase` SORGUDA kesildiyse (adet tavanı `KB_ITEM_CAP`), kaç kalemin
+   * dışarıda kaldığı. İstem bunu modele SÖYLER: aksi hâlde AI, host'un yazdığı
+   * ama bu yanıta alınmayan bir konuda kendinden emin "bilgim yok" der — oysa
+   * doğru davranış insana devretmektir. Verilmezse 0 (kesme olmadı) sayılır.
+   */
+  knowledgeBaseDropped?: number;
   history?: HistoryMessage[];
   tone: ReplyTone;
   language: string;

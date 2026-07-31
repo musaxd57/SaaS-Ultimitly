@@ -52,8 +52,9 @@ describe("countGuestAsks — soru işareti OLMADAN da ayrı istekleri sayar", ()
   });
 
   it("iki sinyalin BÜYÜĞÜ alınır (satır sayısı vs soru işareti)", () => {
-    // 4 satır ama 2 soru işareti → 4.
-    expect(countGuestAsks("merhaba\nçıkış saati?\nçöp?\notopark var mı")).toBe(4);
+    // 4 satır ama biri sadece selamlama → 3 istek; soru işareti sayısı (2) daha
+    // küçük olduğu için satır bacağı kazanır.
+    expect(countGuestAsks("merhaba\nçıkış saati?\nçöp?\notopark var mı")).toBe(3);
   });
 
   it("normal tek satırlık mesaj 1 döner — tipik mesajın davranışı DEĞİŞMEZ", () => {
@@ -161,16 +162,39 @@ describe("uzun model yanıtı sessizce kesilip gönderilemez", () => {
       ),
     );
 
-  it("tavanı AŞAN yanıt otomatik gönderilemez: güven 0.5'e kısılır ve rapor edilir", async () => {
-    respond("A".repeat(4500));
+  it("GÖNDERİM eşiğini aşan yanıt otomatik gönderilemez: güven 0.5'e kısılır ve rapor edilir", async () => {
+    // 2.001 karakter — gönderim eşiğinin (2.000) hemen üstü.
+    respond("A".repeat(2_001));
     const result = await suggestReply(baseInput("Wifi şifresi nedir?"));
 
     expect(result.source).toBe("openai");
     // Kapı confidence >= 0.75 ister → 0.5 gönderimi bloklar, taslak host'ta kalır.
     expect(result.confidence).toBeLessThanOrEqual(0.5);
-    expect(result.reply.length).toBe(4000);
     expect(mockReportError).toHaveBeenCalled();
-    expect(mockReportError.mock.calls.some((c) => String(c[0]).includes("char cap"))).toBe(true);
+    expect(mockReportError.mock.calls.some((c) => String(c[0]).includes("autosend cap"))).toBe(
+      true,
+    );
+  });
+
+  // İKİ EŞİK bilerek ayrı: gönderim 2.000'de biter, SAKLAMA 4.000'e kadar sürer.
+  // Tek sayı ikisini birden yapamaz — ilk denemede tavan 4.000'e çıkarılınca
+  // 2.000-4.000 arası yanıtlar KESİLMEDEN kanala gidebiliyordu, yani giden
+  // mesajın uzunluk davranışı sessizce değişmişti (denetim yakaladı).
+  it("çok uzun yanıt SAKLAMA tavanında kesilir ama yine gönderilemez", async () => {
+    respond("A".repeat(9_000));
+    const result = await suggestReply(baseInput("Wifi şifresi nedir?"));
+    // Host taslağı görebilsin diye gönderim eşiğinden geniş saklanır...
+    expect(result.reply.length).toBe(4000);
+    // ...ama otomatik gönderim yine kapalı.
+    expect(result.confidence).toBeLessThanOrEqual(0.5);
+  });
+
+  it("tam 2.000 karakter SINIRDA kabul edilir (off-by-one pini)", async () => {
+    respond("A".repeat(2_000));
+    const result = await suggestReply(baseInput("Wifi şifresi nedir?"));
+    expect(result.confidence).toBeCloseTo(0.95);
+    expect(result.reply.length).toBe(2000);
+    expect(mockReportError).not.toHaveBeenCalled();
   });
 
   it("tavanın ALTINDAKİ normal yanıt hiç etkilenmez (güven korunur, kesme yok)", async () => {

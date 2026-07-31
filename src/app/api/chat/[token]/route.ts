@@ -521,6 +521,7 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ tok
     // remain banned either way (public surface; KB is pre-scrubbed upstream).
     verifiedActiveStay: true,
     knowledgeBase: ctx.knowledgeBase,
+    knowledgeBaseDropped: ctx.knowledgeBaseDropped,
     history: [],
     tone: "warm",
     language: "tr",

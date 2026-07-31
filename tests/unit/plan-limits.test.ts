@@ -70,21 +70,33 @@ describe("fiyat kartı metni kodla uyuşuyor", () => {
     "utf8",
   );
 
-  it("her planın AI ve KB sayıları kartta DOĞRU yazıyor", () => {
-    const rows: [string, string, string][] = [
-      ["free", "150", "15"],
-      ["pro", "500", "30"],
-      ["business", "1.500", "60"],
+  it("her planın AI, KB ve QR sayıları kartta DOĞRU yazıyor", () => {
+    const rows: [string, string, string, string][] = [
+      ["free", "150", "15", "50"],
+      ["pro", "500", "30", "100"],
+      ["business", "1.500", "60", "200"],
     ];
-    for (const [code, aiText, kbText] of rows) {
+    for (const [code, aiText, kbText, qrText] of rows) {
       const l = planLimitsFor(code);
       // Kod ile metin aynı sayıyı söylüyor mu?
       expect(Number(aiText.replace(".", "")), code).toBe(l.aiCallsPerDay);
       expect(Number(kbText), code).toBe(l.kbItemsPerProperty);
+      expect(Number(qrText), code).toBe(l.qrQuestionsPerPropertyPerDay);
       // Metin gerçekten kartta var mı?
-      expect(landing, code).toContain(`Günde ${aiText} AI yanıtı`);
+      expect(landing, code).toContain(`Günde ${aiText} AI işlemi`);
       expect(landing, code).toContain(`Daire başına ${kbText} bilgi kaydı`);
+      // QR kotası UYGULANIYORDU ama hiçbir yerde yazmıyordu — misafire "ev
+      // sahibine ilettim" gidiyor ve host neden olduğunu göremiyordu.
+      expect(landing, code).toContain(`QR concierge: daire başına günde ${qrText}`);
     }
+  });
+
+  it("kart 'AI YANITI' DEMEZ — sayaç misafire giden yanıtı saymıyor", () => {
+    // `consumeDailyAiBudget` yalnız panel içi işlemlerden çağrılıyor (öneri,
+    // çeviri, test, hazırlık özeti); `applyChannelAutoReply` sayaca dokunmuyor.
+    // "AI yanıtı" demek, müşterinin satın aldığını sandığı şeyle ölçülen şeyi
+    // ayrıştırırdı — iade/itiraz üreten tipik senaryo (denetim, 07-31).
+    expect(landing).not.toContain("AI yanıtı");
   });
 });
 

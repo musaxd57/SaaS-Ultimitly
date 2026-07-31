@@ -1,4 +1,4 @@
-import { getEntitlement } from "@/lib/billing/subscription";
+import { getEntitlement, isFounderOrg } from "@/lib/billing/subscription";
 
 // ---------------------------------------------------------------------------
 // PLAN BAŞINA KULLANIM SINIRLARI (kullanıcı kararı, 2026-07-31).
@@ -13,7 +13,10 @@ import { getEntitlement } from "@/lib/billing/subscription";
 //     okur — biri değişip diğeri kalırsa müşteriye yalan söylemiş oluruz.
 //  2. Sınırlar GERÇEK kullanımın belirgin üstünde. Amaç meşru host'u kısmak
 //     değil, suistimali ve kazayı durdurmak. Rakamların gerekçesi aşağıda.
-//  3. Deneme = Pro (14 gün tam Pro). Grandfathered/kurucu sınırsız.
+//  3. Deneme = Pro (14 gün tam Pro). Aboneliği olmayan (grandfathered) org ve
+//     KURUCU hesabı EN GENİŞ sınırlara düşer — kurucu muafiyeti `limitsForOrg`
+//     içinde AÇIKÇA kurulur; plan kodundan türemez (kurucunun gerçek bir Pro
+//     aboneliği var, yani plan koduna güvenmek onu Pro sınırlarına sokardı).
 // ---------------------------------------------------------------------------
 
 export interface PlanLimits {
@@ -94,14 +97,31 @@ export function planLimitsFor(planCode: string): PlanLimits {
   return LIMITS_BY_PLAN[planCode] ?? FALLBACK_LIMITS;
 }
 
-/** Bir işletmenin yürürlükteki sınırları (deneme = Pro, kurucu = en geniş). */
+/**
+ * Bir işletmenin yürürlükteki sınırları (deneme = Pro, kurucu = en geniş).
+ *
+ * ⚠️ KURUCU MUAFİYETİ AÇIKÇA YAZILIR. Bu dosyanın başındaki "kurucu sınırsız"
+ * notu bir süre YALAN söyledi: `getEntitlement` yalnız `planCode` döndürüyor ve
+ * kurucu hesabının GERÇEK bir Pro aboneliği olduğu için kurucu da Pro
+ * sınırlarına tabi oluyordu — yani ürünün sahibi kendi ürününde "sınıra
+ * ulaştınız" görebiliyordu (denetim, 07-31). `isFounderOrg` yalnız `active`'i
+ * zorluyor, planı değiştirmiyor; muafiyet burada kurulmak zorunda.
+ *
+ * Yön doğru: bu bir KULLANIM kapısı, fail-open tarafı güvenli taraftır.
+ */
 export async function limitsForOrg(organizationId: string): Promise<PlanLimits> {
+  if (isFounderOrg(organizationId)) return FALLBACK_LIMITS;
   const ent = await getEntitlement(organizationId);
   return planLimitsFor(ent.planCode);
 }
 
-/** Fiyat kartında ve hata mesajlarında kullanılacak insan-okur özet. */
+/**
+ * İnsan-okur özet. "AI YANITI" DEMEZ — sayaç misafire giden otomatik yanıtı
+ * saymıyor, yalnız panel içi işlemleri sayıyor (öneri · çeviri · test · hazırlık
+ * özeti). "Yanıt" demek, müşterinin satın aldığını sandığı şeyle ölçülen şeyi
+ * ayrıştırırdı.
+ */
 export function planLimitSummary(planCode: string): string {
   const l = planLimitsFor(planCode);
-  return `daire başına ${l.kbItemsPerProperty} bilgi kaydı · günde ${l.aiCallsPerDay} AI yanıtı`;
+  return `daire başına ${l.kbItemsPerProperty} bilgi kaydı · günde ${l.aiCallsPerDay} AI işlemi`;
 }

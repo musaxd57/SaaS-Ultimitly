@@ -59,16 +59,50 @@ describe("bilgi tabanı istem bütçesi", () => {
     expect(text).toContain("k1");
   });
 
-  it("adet tavanı TEK KAYNAKTAN okunuyor — iki AI rotası da aynı sabiti kullanır", () => {
-    // Kardeş rotalar ayrışırsa test kartı üretimi yanlış temsil eder.
+  it("adet tavanı TEK YOLDAN geçiyor — DÖRT AI yüzeyi de aynı fonksiyonu çağırır", () => {
+    // Yüzeyler ayrışırsa test kartı üretimi yanlış temsil eder, QR'da tavan hiç
+    // olmayabilir (bir kez oldu), ve düşen kalem sayısı modele söylenemez.
+    // Tavan artık rotada DEĞİL `ai/kb-fetch.ts`'te: adedi bilen tek yer orası
+    // olduğu için "kaç tanesi düştü"yü de yalnız orası hesaplayabiliyor.
     const roots = [
       "src/app/api/ai/test/route.ts",
       "src/app/api/conversations/[id]/ai-suggest/route.ts",
+      "src/lib/automation.ts", // üretim oto-yanıt yolu
+      "src/lib/guest-chat.ts", // QR concierge
     ];
     for (const rel of roots) {
       const src = readFileSync(path.resolve(__dirname, "../../", rel), "utf8");
-      expect(src, rel).toContain("take: KB_ITEM_CAP");
-      expect(src, rel).toMatch(/from "@\/lib\/ai\/prompts"/);
+      expect(src, rel).toContain("fetchKnowledgeBaseForPrompt");
+      // Kendi tavansız sorgusunu açan biri buradan görünür olur.
+      expect(src, rel).not.toMatch(/prisma\.knowledgeBaseItem\.findMany/);
+    }
+  });
+
+  it("tavanın KENDİSİ tek yerde ve düşen sayısı hesaplanıyor", () => {
+    const src = readFileSync(path.resolve(__dirname, "../../src/lib/ai/kb-fetch.ts"), "utf8");
+    expect(src).toContain("take: KB_ITEM_CAP");
+    expect(src).toMatch(/from "@\/lib\/ai\/prompts"/);
+    // "Kaç tanesi düştü" gerçekten SAYILIYOR — yoksa `omitted` hep 0 kalır ve
+    // model, host'un yazdığı bir konuda "bilgim yok" der.
+    expect(src).toContain("count(");
+    expect(src).toContain("dropped");
+  });
+
+  it("düşen kalem sayısı istemi kuran yere GERÇEKTEN ulaşıyor", () => {
+    const prompts = readFileSync(
+      path.resolve(__dirname, "../../src/lib/ai/prompts.ts"),
+      "utf8",
+    );
+    expect(prompts).toContain("input.knowledgeBaseDropped");
+    for (const rel of [
+      "src/lib/automation.ts",
+      "src/lib/guest-chat.ts",
+      "src/app/api/ai/test/route.ts",
+      "src/app/api/conversations/[id]/ai-suggest/route.ts",
+      "src/app/api/chat/[token]/route.ts",
+    ]) {
+      const src = readFileSync(path.resolve(__dirname, "../../", rel), "utf8");
+      expect(src, rel).toMatch(/knowledgeBaseDropped/);
     }
   });
 });

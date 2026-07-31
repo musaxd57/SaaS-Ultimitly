@@ -58,6 +58,27 @@ export interface DailyBudgetVerdict {
  * yapmıyordu (denetim, 07-31). Okuma başarısızsa EN GENİŞ plana düşülür:
  * kimlik kapılarında fail-closed doğrudur, KULLANIM kapılarında fail-open.
  */
+/**
+ * Tavana çarpan müşteriye gösterilecek TEK metin (dört rota da bunu kullanır).
+ *
+ * Neden gerekli: dört rotada da elle yazılmış "Yarın otomatik olarak sıfırlanır"
+ * cümlesi vardı ve YANLIŞTI. Sayaç takvim gününe değil, İLK ÇAĞRIYA çapalı sabit
+ * bir 24 saatlik pencere (`rate-limit.ts`). Saat 18:00'de dolan tavan ertesi gün
+ * 18:00'de açılır, gece yarısı değil — host sabah hâlâ kapalı görüp arıza sanıyor
+ * ve destek yazıyordu. `retryAfter` zaten hesaplanıyordu ama yalnız `Retry-After`
+ * header'ına yazılıp müşteriye hiç söylenmiyordu.
+ */
+export function dailyBudgetMessage(v: DailyBudgetVerdict): string {
+  const hours = Math.ceil(v.retryAfter / 3600);
+  const when =
+    v.retryAfter <= 0
+      ? "Birazdan"
+      : hours <= 1
+        ? `Yaklaşık ${Math.max(1, Math.ceil(v.retryAfter / 60))} dakika sonra`
+        : `Yaklaşık ${hours} saat sonra`;
+  return `Bugünkü AI kullanım sınırınıza ulaştınız (planınız: günde ${v.cap.toLocaleString("tr-TR")} AI işlemi). ${when} yeniden kullanabilirsiniz.`;
+}
+
 export async function consumeDailyAiBudget(organizationId: string): Promise<DailyBudgetVerdict> {
   // Tavan PLANA göre (Başlangıç < Pro < İşletme). Env override'ı varsa o kazanır —
   // canlı bir arıza sırasında tek yerden kısabilmek için.

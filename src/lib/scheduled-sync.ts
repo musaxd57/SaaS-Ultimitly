@@ -306,8 +306,15 @@ export async function runScheduledSync(): Promise<ScheduledSyncTotals> {
           // ürünün "riskli mesaj insana gider" sözünün taşıyıcısı. Eskiden bütçe
           // dalının ARKASINDA kalıyordu, yani senkronu sürekli 4 dakikayı aşan
           // bir org'un şikayet uyarıları SÜRESİZ susabiliyordu (gecikme değil,
-          // sessiz kayıp). Maliyeti güvenle muaf tutulacak kadar düşük: dış API
-          // yok, en fazla 50 konuşma, deterministik sınıflandırma + e-posta.
+          // sessiz kayıp).
+          //
+          // ⚠️ MUAFİYETİN BEDELİ (ilk yorum bunu YANLIŞ anlatıyordu: "dış API
+          // yok" demiştim — e-posta sağlayıcısı da bir dış API'dir): bu geçiş 50
+          // adaya kadar SERİ `sendReporting` yapabilir, her biri 15 sn timeout'a
+          // kadar. Sağlayıcı asılı kalırsa tek org 12 dakika yer ve 15 dk'lık
+          // kilit TTL'i tehlikeye girer. Bu yüzden muafiyet SINIRSIZ değil:
+          // `sendDueAlerts` kendi wall-clock bütçesini taşır (↓ALERT_BUDGET_MS)
+          // ve dolduğunda kalanları bir sonraki geçişe bırakır.
           const alert = await sendDueAlerts(org.id);
           totals.alerts += alert.alerted;
 

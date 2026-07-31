@@ -666,28 +666,70 @@ export const KB_CHAR_BUDGET = 24_000;
 export function countGuestAsks(message: string): number {
   const text = message.trim();
   if (!text) return 0;
-  const questionMarks = (text.match(/[?？]/g) ?? []).length;
+  // Tekrarlı noktalama TEK soru sayılır: "Nasılsınız??" iki soru değildir
+  // (denetim yakaladı — vurgu için ?? yazmak yaygın).
+  const questionMarks = (text.replace(/[?？!！]{2,}/g, "?").match(/[?？]/g) ?? []).length;
+  // SATIR ≠ İSTEK. Ham satır saymak, Booking/Airbnb'de çok yaygın olan
+  // "Merhaba,\n\nDün gece klima çalışmadı.\n\nTeşekkürler" biçimini 3 soru
+  // sanıyordu — ve çok-soru dalı anti-spam kurallarını KAPATTIĞI için sıradan
+  // bir mesaja gereksiz uzun cevap yazdırıyordu (denetim, 07-31).
+  // Bu yüzden SADECE tek başına selamlama/kapanış olan satırlar elenir.
+  //
+  // ⚠️ "Kelime sayısı ≥2" gibi bir kural DENENDİ ve GERİ ALINDI: kullanıcının
+  // kendi örneğindeki "nasılsınız" tek kelimedir ve yanıtlanmasını istiyor.
+  // Uzunluk bir istek ölçüsü değil; yalnız KESİN nezaket kalıpları elenebilir.
+  //
+  // Bu bir KISITLAYICI daraltma: çok-soru dalına GİRİŞİ zorlaştırır, hiçbir
+  // oto-gönderim iznini genişletmez.
   const lines = text
     .split(/\r?\n/)
     .map((l) => l.trim())
-    .filter(Boolean).length;
+    .filter(Boolean)
+    .filter((l) => {
+      if (/[?？]/.test(l)) return true;
+      return !COURTESY_ONLY_LINE.test(l.replace(/[.,!;:…]+$/u, "").trim());
+    }).length;
   return Math.max(questionMarks, lines, 1);
 }
+
+/**
+ * Tek başına bir istek TAŞIMAYAN nezaket satırları (selamlama / kapanış / imza).
+ * Yalnız `countGuestAsks` içinde, yalnız ELEMEK için kullanılır — bir oto-yanıt
+ * beyaz listesi DEĞİLDİR (CLAUDE.md: nezaket beyaz listelerine katlama
+ * uygulanmaz; burada da katlama yok, sadece bu satırı istek saymıyoruz).
+ */
+const COURTESY_ONLY_LINE =
+  /^(merhaba|selam|selamlar|iyi günler|iyi akşamlar|günaydın|teşekkürler|teşekkür ederim|teşekkürler!|sağ ol|sağolun|kolay gelsin|saygılar|saygılarımla|iyi çalışmalar|hello|hi|hey|good morning|good evening|thanks|thank you|regards|best regards|cheers|bye)$/iu;
 
 /**
  * Bilgi tabanını bütçeye sığdır. Kesme olduğunda modele AÇIKÇA söylenir — yoksa
  * model, atlanan bir konu sorulduğunda "bu konuda bilgim yok" diye KESİN konuşur;
  * oysa doğru davranış insana devretmektir.
  */
+/**
+ * @param alreadyDropped Sorgu düzeyinde (`take: KB_ITEM_CAP`) ZATEN düşmüş kalem
+ *   sayısı. Bunu almak ZORUNLU: adet tavanı SQL'de uygulandığı için bu fonksiyon
+ *   düşenleri göremiyordu ve `omitted` 0 kalıyordu → modele "yer sınırı" notu
+ *   HİÇ gitmiyordu. Sonuç: İşletme planında 60 kayıt satılan bir host'un 30'u
+ *   sessizce düşüyor ve AI, host'un GERÇEKTEN yazdığı bir konuda kendinden emin
+ *   "bilgim yok" diyebiliyordu (denetim, 07-31). Not gidince model devrediyor.
+ */
 export function packKnowledgeBase(
   items: { category: string; title: string; content: string }[],
+  alreadyDropped = 0,
 ): { text: string; omitted: number } {
   if (items.length === 0) {
-    return { text: "(bilgi tabanı boş — bu mülk için kayıtlı bilgi yok)", omitted: 0 };
+    return {
+      text:
+        alreadyDropped > 0
+          ? `(bilgi tabanı bu yanıta alınamadı — ${alreadyDropped} kalem yer sınırı nedeniyle dışarıda kaldı; 'bilgi yok' DEME, konuyu insana devret)`
+          : "(bilgi tabanı boş — bu mülk için kayıtlı bilgi yok)",
+      omitted: alreadyDropped,
+    };
   }
   const lines: string[] = [];
   let used = 0;
-  let omitted = 0;
+  let omitted = alreadyDropped;
   for (const k of items) {
     const line = `- [${k.category.toUpperCase()}] ${k.title}: ${k.content}`;
     if (used + line.length > KB_CHAR_BUDGET && lines.length > 0) {
@@ -709,7 +751,7 @@ export function packKnowledgeBase(
 export function buildReplyUserPrompt(input: SuggestReplyInput): string {
   const { property, reservation, knowledgeBase, history, guestMessage, tone, language } = input;
 
-  const kb = packKnowledgeBase(knowledgeBase).text;
+  const kb = packKnowledgeBase(knowledgeBase, input.knowledgeBaseDropped ?? 0).text;
 
   const res = reservation
     ? `Misafir: ${sanitizePromptValue(reservation.guestName)}

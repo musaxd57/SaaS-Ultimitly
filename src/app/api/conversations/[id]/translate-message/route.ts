@@ -7,7 +7,7 @@ import { rateLimit } from "@/lib/rate-limit";
 import { premiumAllowed } from "@/lib/billing/subscription";
 import { zodFieldErrors } from "@/lib/validators";
 import { translate } from "@/lib/ai/translate";
-import { consumeDailyAiBudget } from "@/lib/ai/daily-budget";
+import { consumeDailyAiBudget, dailyBudgetMessage } from "@/lib/ai/daily-budget";
 
 const translateSchema = z.object({
   messageId: z.string().min(1, "messageId gerekli"),
@@ -31,7 +31,7 @@ export const POST = withManage<{ id: string }>(async (session, req, { params }) 
   if (!budget.ok) {
     return tooManyRequests(
       budget.retryAfter,
-      "Bugünkü AI kullanım sınırınıza ulaştınız. Yarın otomatik olarak sıfırlanır.",
+      dailyBudgetMessage(budget),
     );
   }
 

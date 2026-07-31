@@ -157,8 +157,18 @@ export function KbManager({
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ isActive: !item.isActive }),
       });
-      if (!res.ok) setListError("Bilgi güncellenemedi. Lütfen tekrar deneyin.");
-      else refresh();
+      if (!res.ok) {
+        // "Tekrar deneyin" burada ZARARLI bir tavsiyeydi: aktifleştirme plan
+        // sınırına takıldıysa tekrar denemek ASLA işe yaramaz — host sonsuz bir
+        // döngüye giriyordu. Rota gerçek sebebi `fields`'ta gönderiyor.
+        const data = await res.json().catch(() => ({}));
+        const field = data.fields ? Object.values(data.fields)[0] : null;
+        setListError(
+          (typeof field === "string" ? field : null) ??
+            data.error ??
+            "Bilgi güncellenemedi. Lütfen tekrar deneyin.",
+        );
+      } else refresh();
     } catch {
       setListError("Bağlantı hatası. Lütfen tekrar deneyin.");
     } finally {
@@ -268,7 +278,12 @@ export function KbManager({
       });
       const data = await res.json().catch(() => ({}));
       if (!res.ok) {
-        setEditError(data.fields?.content ?? data.fields?.title ?? data.error ?? "Kaydedilemedi");
+        // `_` de dahil HER alan hatası okunur: plan sınırı mesajı `fields._`
+        // altında geliyor ve eski iki-alanlık liste onu kaçırıyordu.
+        const field = data.fields
+          ? (data.fields.content ?? data.fields.title ?? Object.values(data.fields)[0])
+          : null;
+        setEditError((typeof field === "string" ? field : null) ?? data.error ?? "Kaydedilemedi");
         return;
       }
       setEditId(null);

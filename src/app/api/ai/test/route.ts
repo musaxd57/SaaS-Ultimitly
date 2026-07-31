@@ -12,8 +12,8 @@ import { badRequest, jsonOk, tooManyRequests, paymentRequired, readJsonCappedOrN
 import { withManage } from "@/lib/route-guard";
 import { rateLimit } from "@/lib/rate-limit";
 import { premiumAllowed } from "@/lib/billing/subscription";
-import { KB_ITEM_CAP } from "@/lib/ai/prompts";
-import { consumeDailyAiBudget } from "@/lib/ai/daily-budget";
+import { fetchKnowledgeBaseForPrompt } from "@/lib/ai/kb-fetch";
+import { consumeDailyAiBudget, dailyBudgetMessage } from "@/lib/ai/daily-budget";
 
 // ---------------------------------------------------------------------------
 // AI reply PLAYGROUND — safe dry-run.
@@ -43,7 +43,7 @@ export const POST = withManage(async (session, req) => {
   if (!budget.ok) {
     return tooManyRequests(
       budget.retryAfter,
-      "Bugünkü AI kullanım sınırınıza ulaştınız. Yarın otomatik olarak sıfırlanır.",
+      dailyBudgetMessage(budget),
     );
   }
 
@@ -67,17 +67,14 @@ export const POST = withManage(async (session, req) => {
   });
   if (!property) return badRequest({ _: "Önce en az bir daire ekleyin." });
 
-  const kbRaw = await prisma.knowledgeBaseItem.findMany({
-    where: { propertyId: property.id, isActive: true },
-    select: { category: true, title: true, content: true },
-    // ÜRETİMLE PARİTE + maliyet tavanı. Kardeş rota (ai-suggest) bilgi tabanını
-    // 40 kalemle sınırlıyor; burada sınır YOKTU. İki sonucu vardı: (1) test kartı
-    // gerçek misafir yanıtının görmediği bir bağlamla cevap üretiyordu, yani
-    // "AI'yı Deneyin" üretimi yanlış temsil ediyordu; (2) istem boyutunu KB
-    // içeriği belirlediği ve KB kalemi 20.000 karaktere kadar çıkabildiği için
-    // çağrı başına maliyetin üst sınırı yoktu — çağrı frekansı zaten dakikada 15.
-    orderBy: { updatedAt: "desc" },
-    take: KB_ITEM_CAP,
+  // Tek yol `ai/kb-fetch.ts`. ÜRETİMLE PARİTE + maliyet tavanı: kardeş rotalar
+  // bilgi tabanını KB_ITEM_CAP ile sınırlıyor, burada sınır YOKTU. İki sonucu
+  // vardı: (1) test kartı gerçek misafir yanıtının görmediği bir bağlamla cevap
+  // üretiyordu, yani "AI'yı Deneyin" üretimi yanlış temsil ediyordu; (2) istem
+  // boyutunu KB içeriği belirlediği için çağrı başına maliyetin üst sınırı yoktu.
+  const { items: kbRaw, dropped: kbDropped } = await fetchKnowledgeBaseForPrompt({
+    propertyId: property.id,
+    isActive: true,
   });
   const aptNumber = property.name.match(/\d+/g)?.pop() ?? property.name;
   const kb = kbRaw.map((k) => ({
@@ -122,6 +119,7 @@ export const POST = withManage(async (session, req) => {
       status: "confirmed",
     },
     knowledgeBase: kb,
+    knowledgeBaseDropped: kbDropped,
     history: [],
     tone,
     language: "tr",
