@@ -42,6 +42,8 @@ export interface ScheduledSyncTotals {
   organizations: number;
   /** Boşta olduğu için hiç işlenmeyen org sayısı (mülk yok + PMS yok). */
   idleOrganizationsSkipped?: number;
+  /** Süre bütçesi dolduğu için bu geçişte atlanan org sayısı (iş kaybı değil, gecikme). */
+  budgetSkipped?: number;
   conversations: number;
   messages: number;
   autoReplies: number;
@@ -244,9 +246,35 @@ export async function runScheduledSync(): Promise<ScheduledSyncTotals> {
             forwardDays: Number(process.env.HOSPITABLE_SYNC_FORWARD_DAYS) || 120,
           };
 
+      // ⚠️ SÜRE BÜTÇESİ (denetim, 07-31). Döngü SERİ ve global kilit altında; bir
+      // kiracının yavaşlığı doğrudan diğerlerinin senkronunu geciktiriyordu. Daha
+      // kötüsü: koşu, kilidin TTL'ini (15 dk) aşarsa ikinci bir koşu aynı org için
+      // EŞZAMANLI başlar ve tüm duplicate korumasının dayandığı "aynı org iki kez
+      // koşmaz" varsayımı delinir. İki tavan bunu yapısal olarak imkânsız kılar:
+      //   · org başına 4 dk — bozuk/yavaş bir kiracı sırayı kilitleyemez,
+      //   · koşu başına 12 dk — TTL'in altında biter, kilit asla aşılmaz.
+      // Bütçe dolunca kalan org'lar ATLANIR, sonraki geçişte (2 dk) sıradan devam
+      // eder — iş kaybı değil, gecikme.
+      const passStartedAt = Date.now();
+      const PASS_BUDGET_MS = 12 * 60_000;
+      const ORG_BUDGET_MS = 4 * 60_000;
+      let budgetSkipped = 0;
+
       for (const org of orgs) {
+        if (Date.now() - passStartedAt > PASS_BUDGET_MS) {
+          budgetSkipped += 1;
+          continue;
+        }
+        const orgStartedAt = Date.now();
         try {
           const result = await syncHospitable(org.id, window);
+          if (Date.now() - orgStartedAt > ORG_BUDGET_MS) {
+            // Bu org bütçesini yedi: import bitti (yazılanlar kalıcı), ama
+            // otomasyon geçişlerini bir sonraki tura bırak ki sıradakiler aç
+            // kalmasın. Sonraki geçiş 2 dakika sonra.
+            budgetSkipped += 1;
+            continue;
+          }
           // A SUCCESSFUL sync PROVES this org's Hospitable subscription is active again (a 402
           // "subscription not active" throws a HospitableError above, skipping this line). So
           // atomically requeue any outbox rows parked as `blocked` (subscription-not-active) →
@@ -288,6 +316,12 @@ export async function runScheduledSync(): Promise<ScheduledSyncTotals> {
             await reportError(`scheduled-sync org ${org.id}`, err);
           }
         }
+      }
+      if (budgetSkipped > 0) {
+        totals.budgetSkipped = budgetSkipped;
+        console.warn(
+          `[scheduled-sync] süre bütçesi: ${budgetSkipped} org bu geçişte atlandı (sonraki turda devam eder)`,
+        );
       }
 
       // Durable Outbox drain. The flag ONLY gates NEW enqueues — the worker must

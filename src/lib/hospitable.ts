@@ -41,12 +41,24 @@ export class HospitableError extends Error {
   }
 }
 
-/** Parse a `Retry-After` header (delta-seconds form) into a bounded number of seconds. */
+/**
+ * `Retry-After` (delta-seconds) → sınırlı bekleme süresi.
+ *
+ * ⚠️ TAVAN 3600 İDİ VE BU BİR DOĞRULUK AÇIĞIYDI (denetim, 07-31). Bu uyku
+ * senkron kilidi TUTULURKEN gerçekleşiyor; kilidin TTL'i ise 15 dakika
+ * (scheduled-sync.ts). Yani tek bir 429 yanıtı kilidi TTL'in ötesine taşıyabilir,
+ * TTL dolunca İKİNCİ bir koşu aynı org için eşzamanlı başlar — ve tüm duplicate
+ * korumasının dayandığı "aynı org iki kez koşmaz" varsayımı delinir
+ * (`linkProperty` findFirst-sonra-create'i unique kısıt taşımıyor).
+ *
+ * 120 saniye yeterli: bir sonraki cron zaten 2 dakika sonra geliyor, yani bir
+ * saat uyumanın hiçbir kazancı yok — tek etkisi kilidi aşırı uzun tutmaktı.
+ */
 function parseRetryAfter(value: string | null): number | undefined {
   if (value === null || value === "") return undefined;
   const n = Number(value);
   if (!Number.isFinite(n) || n < 0) return undefined;
-  return Math.min(n, 3600); // cap at 1h so a hostile header can't park a row for days
+  return Math.min(n, 120);
 }
 
 /** True when a Personal Access Token is present in the environment. */

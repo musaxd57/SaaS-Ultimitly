@@ -12,6 +12,7 @@ vi.mock("@/lib/hospitable", () => ({
 
 import { GET } from "@/app/api/health/route";
 import { runScheduledSync } from "@/lib/scheduled-sync";
+import { clearProbeCache } from "@/lib/health-probe";
 
 function req(strict = false) {
   return new NextRequest(`http://localhost/api/health${strict ? "?strict=1" : ""}`);
@@ -39,6 +40,7 @@ async function ageHeartbeat(sec: number) {
 //   never external-service health.
 // ---------------------------------------------------------------------------
 describe("GET /api/health", () => {
+  beforeEach(() => clearProbeCache());
   beforeEach(async () => {
     await resetDb();
     vi.restoreAllMocks();

@@ -233,7 +233,7 @@ export default async function PropertyDetailPage({
               </CardTitle>
             </CardHeader>
             <CardContent>
-              <CalendarFeed feedUrl={feedUrl} />
+              <CalendarFeed feedUrl={feedUrl} propertyId={property.id} />
             </CardContent>
           </Card>
 

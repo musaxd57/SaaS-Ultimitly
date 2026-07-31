@@ -1,5 +1,6 @@
 import { NextResponse, type NextRequest } from "next/server";
 import { prisma } from "@/lib/db";
+import { clearProbeCache, readProbeCache, writeProbeCache } from "@/lib/health-probe";
 
 export const dynamic = "force-dynamic";
 
@@ -51,31 +52,49 @@ function respond(body: Health, status: 200 | 503) {
 export async function GET(req: NextRequest) {
   const strict = req.nextUrl.searchParams.get("strict") === "1";
 
+  // Kısa ömürlü memoizasyon — gerekçe ve test yardımcısı lib/health-probe.ts'te.
+  const cached = readProbeCache();
+
   // 1. DB connectivity — fatal in BOTH modes.
-  try {
-    await prisma.$queryRaw`SELECT 1`;
-  } catch {
-    return respond(
-      { ok: false, db: "down", sync: "unknown", lastSyncAgeSec: null, reason: "db_unreachable" },
-      503,
-    );
+  if (!cached) {
+    try {
+      await prisma.$queryRaw`SELECT 1`;
+    } catch {
+      clearProbeCache(); // arıza ASLA cache'lenmez
+      return respond(
+        { ok: false, db: "down", sync: "unknown", lastSyncAgeSec: null, reason: "db_unreachable" },
+        503,
+      );
+    }
   }
 
   // 2. Scheduler heartbeat, best-effort: a failed read is reported as "unknown"
   //    (strict mode decides whether that pages) — never crashes the probe.
   let lastSyncAgeSec: number | null = null;
   let sync: Health["sync"] = "unknown";
-  try {
-    const lock = await prisma.systemLock.findUnique({
-      where: { name: "scheduled-sync" },
-      select: { updatedAt: true },
-    });
-    if (lock) {
-      lastSyncAgeSec = Math.max(0, Math.round((Date.now() - lock.updatedAt.getTime()) / 1000));
-      sync = lastSyncAgeSec <= SYNC_STALE_AFTER_SEC ? "ok" : "stale";
+  if (cached) {
+    // Yaş cache'ten değil, cache ANINDAN itibaren geçen süre eklenerek verilir —
+    // yoksa 3 saniye boyunca donmuş bir yaş raporlanırdı.
+    lastSyncAgeSec =
+      cached.lastSyncAgeAtRead === null
+        ? null
+        : cached.lastSyncAgeAtRead + Math.round((Date.now() - cached.at) / 1000);
+    sync = lastSyncAgeSec !== null && lastSyncAgeSec > SYNC_STALE_AFTER_SEC ? "stale" : cached.sync;
+  } else {
+    try {
+      const lock = await prisma.systemLock.findUnique({
+        where: { name: "scheduled-sync" },
+        select: { updatedAt: true },
+      });
+      if (lock) {
+        lastSyncAgeSec = Math.max(0, Math.round((Date.now() - lock.updatedAt.getTime()) / 1000));
+        sync = lastSyncAgeSec <= SYNC_STALE_AFTER_SEC ? "ok" : "stale";
+      }
+      writeProbeCache({ at: Date.now(), lastSyncAgeAtRead: lastSyncAgeSec, sync });
+    } catch {
+      // DB answered SELECT 1 but the heartbeat row is unreadable → stay "unknown".
+      clearProbeCache();
     }
-  } catch {
-    // DB answered SELECT 1 but the heartbeat row is unreadable → stay "unknown".
   }
 
   // 3. Verdict. Normal mode is readiness-only; strict pages on a dead scheduler.
