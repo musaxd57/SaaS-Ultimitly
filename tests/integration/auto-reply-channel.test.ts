@@ -13,7 +13,15 @@ vi.mock("@/lib/hospitable-credentials", () => ({
   getOrgHospitableToken: vi.fn().mockResolvedValue("test-token"),
 }));
 // Capture host-alert emails (the model-detected complaint escalation) without sending.
-vi.mock("@/lib/email", () => ({ emailService: { send: vi.fn() } }));
+vi.mock("@/lib/email", () => ({
+  emailService: {
+    send: vi.fn(),
+    // sendDueAlerts / escalation artık SONUCU OKUYOR (sendReporting): e-posta
+    // gitmezse claim geri alınır. Mock varsayılanı "başarılı" — mevcut testlerin
+    // davranışı birebir korunur; başarısızlık senaryosu bunu tek testte ezer.
+    sendReporting: vi.fn(async () => ({ ok: true })),
+  },
+}));
 
 import { suggestReply } from "@/lib/ai";
 import { sendOnChannel } from "@/lib/messaging";
@@ -35,7 +43,9 @@ import { emailService } from "@/lib/email";
 
 const mockSuggest = vi.mocked(suggestReply);
 const mockSend = vi.mocked(sendOnChannel);
-const mockEmail = vi.mocked(emailService.send);
+// Eskalasyon e-postası artık `sendReporting` ile gidiyor: sonucu OKUNUYOR ve
+// başarısızsa claim geri alınıyor (sessiz kayıp kapatıldı). Casus o çağrıda.
+const mockEmail = vi.mocked(emailService.sendReporting);
 
 // The machine-prepared note appended to AUTO-sent replies (Turkish, since the
 // SAFE_REPLY fixture detects "tr"). The draft/preview stays clean — only the

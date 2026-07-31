@@ -6,6 +6,7 @@ import { orgTimezone } from "@/lib/timezone";
 import { premiumAllowed } from "@/lib/billing/subscription";
 import { isUniqueViolation } from "@/lib/db-errors";
 import { qrPinEnabled } from "@/lib/guest-chat-pin";
+import { KB_ITEM_CAP } from "@/lib/ai/prompts";
 import {
   LEGACY_AI_RESUME_SENDER,
   LEGACY_AI_SENDER_NAMES,
@@ -497,6 +498,11 @@ export async function resolveGuestChat(
       category: { notIn: [...QR_SECRET_CATEGORIES] },
     },
     select: { category: true, title: true, content: true },
+    // QR yolunda hiç tavan YOKTU — 60 aktif kayıtlı bir dairede istem sınırsız
+    // büyüyordu. Aynı tek kaynak (prompts.ts KB_ITEM_CAP) ve aynı sıralama:
+    // "en son güncellenen kazanır", host'un düzelttiği bilgi hep içeride kalsın.
+    orderBy: { updatedAt: "desc" },
+    take: KB_ITEM_CAP,
   });
   // Drop any item whose text looks like an access secret, even in an allowed
   // category — the public bearer-token surface must never have a code in context.

@@ -9,7 +9,15 @@ vi.mock("@/lib/messaging", async (orig) => ({
 vi.mock("@/lib/hospitable-credentials", () => ({
   getOrgHospitableToken: vi.fn().mockResolvedValue("test-token"),
 }));
-vi.mock("@/lib/email", () => ({ emailService: { send: vi.fn() } }));
+vi.mock("@/lib/email", () => ({
+  emailService: {
+    send: vi.fn(),
+    // sendDueAlerts / escalation artık SONUCU OKUYOR (sendReporting): e-posta
+    // gitmezse claim geri alınır. Mock varsayılanı "başarılı" — mevcut testlerin
+    // davranışı birebir korunur; başarısızlık senaryosu bunu tek testte ezer.
+    sendReporting: vi.fn(async () => ({ ok: true })),
+  },
+}));
 
 import { suggestReply } from "@/lib/ai";
 import { sendOnChannel } from "@/lib/messaging";
@@ -18,7 +26,9 @@ import { sendDueAlerts, applyChannelAutoReply } from "@/lib/automation";
 
 const mockSuggest = vi.mocked(suggestReply);
 const mockSend = vi.mocked(sendOnChannel);
-const mockEmail = vi.mocked(emailService.send);
+// Eskalasyon e-postası artık `sendReporting` ile gidiyor: sonucu OKUNUYOR ve
+// başarısızsa claim geri alınıyor (sessiz kayıp kapatıldı). Casus o çağrıda.
+const mockEmail = vi.mocked(emailService.sendReporting);
 
 /** Org + property + one fresh "new" conversation whose guest spoke last. */
 async function seed(opts: { holdingAck?: boolean; guestMessage: string }) {

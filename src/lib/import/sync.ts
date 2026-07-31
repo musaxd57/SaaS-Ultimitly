@@ -138,8 +138,18 @@ export async function syncCalendarSource(sourceId: string): Promise<SyncResult> 
       timeoutMs: 15000,
       userAgent: "Lixus-AI/1.0",
     });
-  } catch {
-    result.errors.push("Bağlantıya ulaşılamadı — takvim (.ics) bağlantısını kontrol edin.");
+  } catch (err) {
+    // AYIRT EDİLEBİLİR HATA: eskiden her arıza "bağlantıya ulaşılamadı" diyordu.
+    // Dosya 10 MB'ı aştığında bağlantıya ULAŞILMIŞTI — host adresi kontrol edip
+    // hiçbir sorun bulamıyor ve nerede takıldığını asla anlayamıyordu.
+    const reason = err instanceof Error ? err.message : "";
+    result.errors.push(
+      reason.includes("too large")
+        ? "Takvim dosyası çok büyük (10 MB üstü) — içe aktarılamadı."
+        : reason.startsWith("HTTP ")
+          ? `Takvim sunucusu hata döndürdü (${reason}) — bağlantının hâlâ geçerli olduğunu kontrol edin.`
+          : "Bağlantıya ulaşılamadı — takvim (.ics) bağlantısını kontrol edin.",
+    );
     await prisma.calendarSource.update({
       where: { id: sourceId },
       data: { lastSyncedAt: new Date(), lastStatus: "error", lastResult: result.errors[0] },

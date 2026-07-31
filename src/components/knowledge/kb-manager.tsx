@@ -131,7 +131,12 @@ export function KbManager({
       });
       const data = await res.json().catch(() => ({}));
       if (!res.ok) {
-        setError(data.error ?? "Bilgi eklenemedi");
+        // `badRequest` alan hatalarını `fields` altına koyar ve `error` sabit
+        // "Doğrulama hatası"dır — yalnız onu okumak, plan sınırı gibi ÖZELLİKLE
+        // yazılmış açıklayıcı mesajları çöpe atıyordu (düzenleme yolu bunu baştan
+        // doğru yapıyordu, ekleme yolu yapmıyordu).
+        const field = data.fields ? Object.values(data.fields)[0] : null;
+        setError((typeof field === "string" ? field : null) ?? data.error ?? "Bilgi eklenemedi");
         return;
       }
       setForm((f) => ({ ...f, title: "", content: "" }));
@@ -219,7 +224,15 @@ export function KbManager({
       });
       const data = await res.json().catch(() => ({}));
       if (!res.ok) {
-        setCopyMsg(data.error ?? "Kopyalanamadı");
+        const field = data.fields ? Object.values(data.fields)[0] : null;
+        setCopyMsg((typeof field === "string" ? field : null) ?? data.error ?? "Kopyalanamadı");
+        return;
+      }
+      // Kısmi başarı: sınırı dolmuş daireler atlanmış olabilir. Sessizce
+      // "başarılı" demek, host'un olmayan bir kaydı var sanmasına yol açardı.
+      if (typeof data.notice === "string") {
+        setCopyMsg(data.notice);
+        refresh();
         return;
       }
       setCopyId(null);

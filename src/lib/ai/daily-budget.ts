@@ -1,5 +1,5 @@
 import { rateLimit } from "@/lib/rate-limit";
-import { limitsForOrg } from "@/lib/billing/plan-limits";
+import { limitsForOrg, planLimitsFor } from "@/lib/billing/plan-limits";
 
 // ---------------------------------------------------------------------------
 // ORG BAŞINA GÜNLÜK AI ÇAĞRI TAVANI.
@@ -50,16 +50,22 @@ export interface DailyBudgetVerdict {
 /**
  * Bir AI çağrısını org'un günlük bütçesine yaz ve bütçe içinde mi söyle.
  *
- * FAIL-OPEN DEĞİL, FAIL-SOFT: `rateLimit` DB'ye ulaşamazsa instance-içi belleğe
- * düşer (koruma tamamen kapanmaz). Bu bilinçli — bir DB hıçkırığı yüzünden
- * ödeyen müşterinin AI'sini komple kapatmak, tavanı bir süre gevşetmekten daha
- * kötü bir arıza modudur.
+ * SAYIM fail-soft: `rateLimit` DB'ye ulaşamazsa instance-içi belleğe düşer
+ * (koruma tamamen kapanmaz). PLAN OKUMASI ise fail-OPEN: `limitsForOrg` bir DB
+ * hıçkırığında FIRLATIR ve tutulmazsa `withManage` bunu 500'e çevirir — yani
+ * ödeyen müşterinin AI'si kapanırdı; tam olarak bu yorumun "daha kötü arıza
+ * modu" dediği şey. Kardeş QR yolu bunu baştan doğru yapıyordu, burası
+ * yapmıyordu (denetim, 07-31). Okuma başarısızsa EN GENİŞ plana düşülür:
+ * kimlik kapılarında fail-closed doğrudur, KULLANIM kapılarında fail-open.
  */
 export async function consumeDailyAiBudget(organizationId: string): Promise<DailyBudgetVerdict> {
   // Tavan PLANA göre (Başlangıç < Pro < İşletme). Env override'ı varsa o kazanır —
   // canlı bir arıza sırasında tek yerden kısabilmek için.
   const override = dailyAiCallCapOverride();
-  const cap = override ?? (await limitsForOrg(organizationId)).aiCallsPerDay;
+  const cap =
+    override ??
+    (await limitsForOrg(organizationId).catch(() => null) ?? planLimitsFor("business"))
+      .aiCallsPerDay;
   const verdict = await rateLimit(`ai-daily:${organizationId}`, cap, DAY_MS);
   return { ok: verdict.ok, retryAfter: verdict.retryAfter, cap };
 }

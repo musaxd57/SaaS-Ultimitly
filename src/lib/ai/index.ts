@@ -160,12 +160,47 @@ async function callOpenAI(system: string, user: string): Promise<string | null> 
  * Suggest a guest reply. Tries OpenAI when configured; otherwise (or on any
  * failure) uses the deterministic fallback so the feature always works.
  */
+/**
+ * Misafire giden yanıtın KARAKTER tavanı.
+ *
+ * ⚠️ Buradaki sayı, `max_completion_tokens` (2000 TOKEN) ile AYNI ŞEY DEĞİL —
+ * ikisi iki farklı arızayı kapatır ve karıştırılmaları pahalıya patlar:
+ *  · TOKEN tavanı aşılırsa `finish_reason === "length"` gelir, `callOpenAI` null
+ *    döner, deterministik fallback devreye girer ve kapı `source==="openai"`
+ *    istediği için yarım cümle misafire ASLA gitmez. O yol zaten güvenliydi.
+ *  · KARAKTER tavanı ise modelin TAM ve geçerli bir JSON döndürdüğü, ama metnin
+ *    beklenenden uzun olduğu durumdur. Eskiden burada sessiz bir `slice(0,2000)`
+ *    vardı: metin cümlenin ortasından kesiliyor, `source` hâlâ "openai" kalıyor
+ *    ve kapı bu YARIM mesajı misafire otomatik gönderebiliyordu. Tek görünür iz
+ *    yoktu — ne log, ne alarm.
+ *
+ * Yeni davranış: tavan 4.000'e çıkarıldı (2.000 tamamlama token'ı Türkçede kaba
+ * hesapla ~2.500-3.000 karakter üretebilir, yani bu tavan pratikte ERİŞİLEMEZ;
+ * 2.000 ise erişilebilir bir mesafedeydi) VE tavana çarpmak artık bir OLAY:
+ * rapor edilir, güven 0.5'e kısılır, yanıt yalnız taslak olarak kalır.
+ *
+ * Ölçek için: 4.000 karakter ≈ 560 Türkçe kelime. Prompt "2-5 cümle" diyor
+ * (prompts.ts:313), 6 soruluk bir mesajın tam cevabı bile ~900 karakter.
+ */
+const REPLY_CHAR_CAP = 4000;
+
+function capReply(text: string): { text: string; truncated: boolean } {
+  const trimmed = text.trim();
+  if (trimmed.length <= REPLY_CHAR_CAP) return { text: trimmed, truncated: false };
+  void reportError(
+    "openai-reply over char cap",
+    new Error(`reply ${trimmed.length} chars > ${REPLY_CHAR_CAP}; held for human review`),
+  );
+  return { text: trimmed.slice(0, REPLY_CHAR_CAP), truncated: true };
+}
+
 export async function suggestReply(input: SuggestReplyInput): Promise<SuggestReplyResult> {
   const raw = await callOpenAI(REPLY_SYSTEM_PROMPT, buildReplyUserPrompt(input));
   if (raw) {
     try {
       const parsed = JSON.parse(raw) as Record<string, unknown>;
       if (parsed && typeof parsed.reply === "string" && parsed.reply.trim()) {
+        const cappedReply = capReply(parsed.reply);
         const priorityRaw = String(parsed.priority ?? "standard");
         const priority: Priority = (["urgent", "standard", "low"] as const).includes(
           priorityRaw as Priority,
@@ -186,13 +221,18 @@ export async function suggestReply(input: SuggestReplyInput): Promise<SuggestRep
         const intentKnown = KNOWN_INTENTS.has(intentRaw);
         return {
           intent: intentKnown ? intentRaw : "general",
-          confidence: intentKnown
-            ? clamp01(Number(parsed.confidence))
-            : Math.min(clamp01(Number(parsed.confidence)), 0.5),
+          confidence: cappedReply.truncated
+            ? // KESİLMİŞ YANIT ASLA OTOMATİK GİTMEZ. Kapı confidence ≥ 0.75
+              // ister; 0.5'e kıstığımızda yanıt taslak olarak host'a görünür
+              // ama misafire gönderilmez. (↑capReply gerekçesi.)
+              Math.min(clamp01(Number(parsed.confidence)), 0.5)
+            : intentKnown
+              ? clamp01(Number(parsed.confidence))
+              : Math.min(clamp01(Number(parsed.confidence)), 0.5),
           // Cap every free-text field the model returns — an over-long value would
-          // bloat the DB row / inbox UI / logs it lands on (no max_tokens guarantee
-          // per-field). A real guest reply is well under 2000 chars.
-          reply: parsed.reply.trim().slice(0, 2000),
+          // bloat the DB row / inbox UI / logs it lands on (no token guarantee
+          // per-field). A real guest reply is well under REPLY_CHAR_CAP.
+          reply: cappedReply.text,
           risk: typeof parsed.risk === "string" && parsed.risk.trim() ? parsed.risk.slice(0, 300) : null,
           priority,
           source: "openai",

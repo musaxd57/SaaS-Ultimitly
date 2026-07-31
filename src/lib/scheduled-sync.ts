@@ -236,25 +236,42 @@ export async function runScheduledSync(): Promise<ScheduledSyncTotals> {
       // who message now. All tunable via env, sensible defaults baked in.
       const deepEveryMs = (Number(process.env.HOSPITABLE_DEEP_EVERY_MIN) || 60) * 60_000;
       const deep = await claimDeepWindow(deepEveryMs);
+      // PENCERE SEÇİMİ (kullanıcı "sen seç" dedi, 07-31). Dört sayının hepsi
+      // env'den ezilebilir → yanlış çıkarsa deploy'suz geri alınır.
+      //  · Sık geçiş geriye 90 → 30 gün. Her 2 dakikada 3 aylık rezervasyon
+      //    listesini sayfalamanın karşılığı yoktu; çıkışından sonra yazan misafir
+      //    için 30 gün fazlasıyla yeter, kalanını saatlik geniş geçiş topluyor.
+      //  · Geniş geçiş İLERİ 540 → 365 gün. Kısa dönem kiralamada bir yıldan uzak
+      //    rezervasyon pratikte yok; sayfalama maliyetinin büyük kısmı buradaydı.
+      //  · Geniş geçiş GERİYE 540 gün AYNI KALDI — bilinçli. Mesaj içe aktarımı
+      //    rezervasyon penceresi üzerinden yürüdüğü için burayı daraltmak, eski
+      //    bir konaklamadan yazan misafirin mesajını SESSİZCE kaybetmek demektir;
+      //    bugün kapatılan arıza sınıfının ta kendisi. Ucuz değil, riskli olurdu.
       const window = deep
         ? {
             backDays: Number(process.env.HOSPITABLE_DEEP_BACK_DAYS) || 540,
-            forwardDays: Number(process.env.HOSPITABLE_DEEP_FORWARD_DAYS) || 540,
+            forwardDays: Number(process.env.HOSPITABLE_DEEP_FORWARD_DAYS) || 365,
           }
         : {
-            backDays: Number(process.env.HOSPITABLE_SYNC_BACK_DAYS) || 90,
+            backDays: Number(process.env.HOSPITABLE_SYNC_BACK_DAYS) || 30,
             forwardDays: Number(process.env.HOSPITABLE_SYNC_FORWARD_DAYS) || 120,
           };
 
-      // ⚠️ SÜRE BÜTÇESİ (denetim, 07-31). Döngü SERİ ve global kilit altında; bir
-      // kiracının yavaşlığı doğrudan diğerlerinin senkronunu geciktiriyordu. Daha
-      // kötüsü: koşu, kilidin TTL'ini (15 dk) aşarsa ikinci bir koşu aynı org için
-      // EŞZAMANLI başlar ve tüm duplicate korumasının dayandığı "aynı org iki kez
-      // koşmaz" varsayımı delinir. İki tavan bunu yapısal olarak imkânsız kılar:
-      //   · org başına 4 dk — bozuk/yavaş bir kiracı sırayı kilitleyemez,
-      //   · koşu başına 12 dk — TTL'in altında biter, kilit asla aşılmaz.
-      // Bütçe dolunca kalan org'lar ATLANIR, sonraki geçişte (2 dk) sıradan devam
-      // eder — iş kaybı değil, gecikme.
+      // ⚠️ SÜRE BÜTÇESİ (denetim, 07-31 · düzeltme 07-31). Döngü SERİ ve global
+      // kilit altında; bir kiracının yavaşlığı doğrudan diğerlerinin senkronunu
+      // geciktiriyor. Kötü hâli: koşu kilidin TTL'ini (15 dk) aşarsa ikinci bir
+      // koşu aynı org için EŞZAMANLI başlar ve tüm duplicate korumasının
+      // dayandığı "aynı org iki kez koşmaz" varsayımı delinir.
+      //
+      // ⚠️ BU TAVANLARIN GERÇEKTE NE YAPTIĞI (eski yorum fazlasını iddia
+      // ediyordu, düzeltildi): ikisi de ÇALIŞAN bir işi KESMEZ — JS tek iş
+      // parçacıklı ve `syncHospitable` bölünemez. Sağladıkları şey, YENİ iş
+      // BAŞLATMAMAK:
+      //   · koşu başına 12 dk — bu süreden sonra sıradaki org'a BAŞLANMAZ,
+      //   · org başına 4 dk — bütçesini yiyen org'un otomasyon geçişleri atlanır.
+      // Yani toplam süre 12 dk + son org'un kendi süresi kadar olabilir; TTL
+      // aşımı imkânsız DEĞİL, sadece çok daha uzak. Gerçek garanti isteniyorsa
+      // çözüm heartbeat'li kilit ya da per-org kuyruk — ikisi de ayrı iş.
       const passStartedAt = Date.now();
       const PASS_BUDGET_MS = 12 * 60_000;
       const ORG_BUDGET_MS = 4 * 60_000;
@@ -268,13 +285,13 @@ export async function runScheduledSync(): Promise<ScheduledSyncTotals> {
         const orgStartedAt = Date.now();
         try {
           const result = await syncHospitable(org.id, window);
-          if (Date.now() - orgStartedAt > ORG_BUDGET_MS) {
-            // Bu org bütçesini yedi: import bitti (yazılanlar kalıcı), ama
-            // otomasyon geçişlerini bir sonraki tura bırak ki sıradakiler aç
-            // kalmasın. Sonraki geçiş 2 dakika sonra.
-            budgetSkipped += 1;
-            continue;
-          }
+          // Sayaçlar İMPORT'un hemen ardında. Eskiden bütçe dalı bunları atlıyordu:
+          // satırlar DB'ye YAZILMIŞ ama koşu raporu 0 diyordu — kendi loglarımıza
+          // güvenilmez hâle geliyordu.
+          totals.conversations += result.conversations;
+          totals.messages += result.messages;
+          const overBudget = Date.now() - orgStartedAt > ORG_BUDGET_MS;
+
           // A SUCCESSFUL sync PROVES this org's Hospitable subscription is active again (a 402
           // "subscription not active" throws a HospitableError above, skipping this line). So
           // atomically requeue any outbox rows parked as `blocked` (subscription-not-active) →
@@ -283,11 +300,26 @@ export async function runScheduledSync(): Promise<ScheduledSyncTotals> {
           await reactivateBlockedOutbox(org.id).catch((err) =>
             reportError(`scheduled-sync reactivate-blocked ${org.id}`, err),
           );
+
+          // ŞİKAYET UYARISI SÜRE BÜTÇESİNDEN MUAF (denetim düzeltmesi).
+          // Bu geçiş şikayeti "Sorunlu" işaretleyip host'a acil e-posta atan yol;
+          // ürünün "riskli mesaj insana gider" sözünün taşıyıcısı. Eskiden bütçe
+          // dalının ARKASINDA kalıyordu, yani senkronu sürekli 4 dakikayı aşan
+          // bir org'un şikayet uyarıları SÜRESİZ susabiliyordu (gecikme değil,
+          // sessiz kayıp). Maliyeti güvenle muaf tutulacak kadar düşük: dış API
+          // yok, en fazla 50 konuşma, deterministik sınıflandırma + e-posta.
+          const alert = await sendDueAlerts(org.id);
+          totals.alerts += alert.alerted;
+
+          if (overBudget) {
+            // Bu org bütçesini yedi: import bitti (yazılanlar kalıcı), uyarılar
+            // gitti; GERİYE KALAN otomatik MİSAFİR mesajlarını sonraki tura bırak
+            // ki sıradakiler aç kalmasın. Sonraki geçiş 2 dakika sonra.
+            budgetSkipped += 1;
+            continue;
+          }
           // Keep the host's style profile fresh (self-throttles to once a day).
           await refreshStyleProfile(org.id);
-          // Flag complaints (→ "problem") BEFORE the auto-reply pass so they are
-          // routed to a human and never auto-answered.
-          const alert = await sendDueAlerts(org.id);
           // Free/expired tier (billing enforced + subscription not active): keep
           // syncing messages and host complaint-alerts, but SUPPRESS all
           // automatic guest messaging — the paid feature. Dormant-safe: while
@@ -297,13 +329,10 @@ export async function runScheduledSync(): Promise<ScheduledSyncTotals> {
           const welcome = canAutomate ? await sendDueWelcomes(org.id) : { sent: 0 };
           const checkin = canAutomate ? await sendDueCheckins(org.id) : { sent: 0 };
           const checkout = canAutomate ? await sendDueCheckouts(org.id) : { sent: 0 };
-          totals.conversations += result.conversations;
-          totals.messages += result.messages;
           totals.autoReplies += auto.sent;
           totals.welcomes += welcome.sent;
           totals.checkins += checkin.sent;
           totals.checkouts += checkout.sent;
-          totals.alerts += alert.alerted;
         } catch (err) {
           // One org failing must not abort the rest. A Hospitable 402
           // ("Subscription not active") means THIS org's Hospitable billing

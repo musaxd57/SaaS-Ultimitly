@@ -63,8 +63,20 @@ export function HospitableSyncButton() {
         ) : (
           <Download className="size-4" aria-hidden="true" />
         )}
-        {busy ? "Çekiliyor…" : "Mesajları çek"}
+        {busy ? "Mesajlar çekiliyor…" : "Mesajları çek"}
       </button>
+      {/*
+        DÜRÜST BEKLEME METNİ. İşlem gerçekten dakikalar sürebiliyor (tüm
+        rezervasyon penceresi sayfalanıyor) ve tek geri bildirim dönen bir
+        simgeydi — host "takıldı mı?" diye ikinci kez basıyordu. Gerçek bir
+        ilerleme yüzdesi göstermek sunucu tarafında adım adım raporlama ister;
+        bu satır aynı belirsizliği kuruşuna mal olmadan gideriyor.
+      */}
+      {busy ? (
+        <span role="status" className="text-xs text-muted-foreground">
+          Bu birkaç dakika sürebilir — sayfayı kapatmayın.
+        </span>
+      ) : null}
       {result ? (
         <span
           // Uzun süren çekme işleminin TEK sonucu bu satır; canlı bölge olmadan

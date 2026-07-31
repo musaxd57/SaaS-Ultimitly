@@ -2,12 +2,22 @@ import { describe, it, expect, beforeEach, afterEach, vi } from "vitest";
 import { prisma, resetDb } from "../helpers/db";
 
 // Capture outgoing emails without sending anything.
-vi.mock("@/lib/email", () => ({ emailService: { send: vi.fn() } }));
+vi.mock("@/lib/email", () => ({
+  emailService: {
+    send: vi.fn(),
+    // sendDueAlerts / escalation artık SONUCU OKUYOR (sendReporting): e-posta
+    // gitmezse claim geri alınır. Mock varsayılanı "başarılı" — mevcut testlerin
+    // davranışı birebir korunur; başarısızlık senaryosu bunu tek testte ezer.
+    sendReporting: vi.fn(async () => ({ ok: true })),
+  },
+}));
 
 import { emailService } from "@/lib/email";
 import { sendDueAlerts } from "@/lib/automation";
 
-const mockSend = vi.mocked(emailService.send);
+// Uyarı e-postası artık `sendReporting` ile gidiyor (sonucu OKUNUYOR: başarısızsa
+// claim geri alınır ve bir sonraki geçiş yeniden dener). Testler o çağrıyı izler.
+const mockSend = vi.mocked(emailService.sendReporting);
 
 async function seedConversation(opts: {
   body: string;
@@ -70,7 +80,7 @@ describe("sendDueAlerts", () => {
     // Operator env address is set — alerts must NEVER fall back to it for a
     // customer org (that would leak one tenant's complaints to the operator).
     vi.stubEnv("ALERT_EMAIL", "operator@example.com");
-    mockSend.mockResolvedValue(undefined);
+    mockSend.mockResolvedValue({ ok: true });
   });
 
   afterEach(() => {

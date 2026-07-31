@@ -9,6 +9,7 @@ import { recordRiskEvent } from "@/lib/risk-events";
 import { recordShadowVerdict } from "@/lib/shadow-ai";
 import { reservationAmountNumber } from "@/lib/money";
 import { classifyMessage, suggestReply, summarizeHostStyle } from "@/lib/ai";
+import { KB_ITEM_CAP } from "@/lib/ai/prompts";
 import {
   classifyFallback,
   isClosingAck,
@@ -20,7 +21,7 @@ import {
   detectRiskType,
 } from "@/lib/ai/fallback";
 import { premiumAllowed } from "@/lib/billing/subscription";
-import { redactSensitive } from "@/lib/report-error";
+import { redactSensitive, reportError } from "@/lib/report-error";
 import { sendOnChannel, isDefinitiveSendFailure } from "@/lib/messaging";
 import { createHash } from "crypto";
 import { durableOutboxEnabled } from "@/lib/outbox/flag";
@@ -1055,11 +1056,34 @@ export async function applyChannelAutoReply(
     }
   }
 
+  // BAĞLANTI KONTROLÜ MODEL ÇAĞRISINDAN ÖNCE (denetim, 07-31).
+  //
+  // Bu kontrol eskiden model çağrısının ALTINDAYDI ve `not_connected` bilerek
+  // `autoReplyAttemptedAt` damgalamıyordu ("koşullar değişince tekrar dene").
+  // İkisi birleşince şu oluyordu: Hospitable bağlantısı kopmuş bir org'un
+  // cevaplanmamış her konuşması, HER 2 DAKİKADA yeniden modelleniyor, üretilen
+  // taslak hiçbir yere yazılmadan atılıyordu — sonsuza kadar, tek kuruş fayda
+  // olmadan. Kontrolü öne almak damgalamaya gerek bırakmadan durdurur: host
+  // yeniden bağlandığında konuşma hâlâ uygun olduğu için normal şekilde işlenir.
+  //
+  // dryRun (önizleme/test kartı) HARİÇ: orada gönderim yok, amaç taslağı görmek.
+  let hospitableToken: string | null = null;
+  if (!options.dryRun) {
+    hospitableToken = await getOrgHospitableToken(conversation.property.organizationId);
+    if (!hospitableToken) {
+      return { sent: false, skippedReason: "not_connected", ...meta };
+    }
+  }
+
   const kbRaw = await prisma.knowledgeBaseItem.findMany({
     where: { propertyId: conversation.propertyId, isActive: true },
     select: { category: true, title: true, content: true },
     orderBy: { updatedAt: "desc" },
-    take: 40, // hard cap: bound the prompt (token/cost/context) — 40 KB items is ample
+    // Tek kaynak `prompts.ts` (KB_ITEM_CAP). Burası uzun süre sabit 40'tı: test
+    // kartı ve "AI öner" 30 okurken ÜRETİM yolu 40 okuyordu, yani hem iki yüzey
+    // arasında parite yoktu hem de Bilgi Tabanı ekranındaki "AI bir yanıtta en
+    // fazla 30 tanesini okur" uyarısı yanlış sayı gösteriyordu.
+    take: KB_ITEM_CAP,
   });
   // Resolve any {isim} placeholder in KB entries (e.g. the welcome template) to
   // the guest's name before it reaches the model, so a literal "{isim}" can
@@ -1174,6 +1198,9 @@ export async function applyChannelAutoReply(
         (result.riskLevel !== "none" && result.riskLevel !== "low") ||
         (result.riskType != null && HIGH_STAKES_RISK_TYPES.has(result.riskType)));
     if (!options.dryRun && modelSensitive) {
+      // Uyarı e-postası gitmediyse true olur: claim geri alınır ve bu turda
+      // bekletme mesajı/görev ÜRETİLMEZ (bir sonraki geçiş baştan alacak).
+      let escalationMailFailed = false;
       try {
         const claimed = await prisma.conversation.updateMany({
           where: { id: conversation.id, status: { not: "problem" } },
@@ -1221,17 +1248,42 @@ export async function applyChannelAutoReply(
               },
               alertOrg?.name ?? "Lixus AI",
             );
-            void emailService.send(
+            // Sonucu OKU (`sendReporting`) ve başarısızsa claim'i geri al.
+            // Eskiden `void emailService.send(...)` idi: `send` asla fırlatmaz,
+            // dönüşü de beklenmiyordu → sağlayıcı hatası host'a giden TEK
+            // bildirimi sessizce yutuyordu ve aşağıdaki catch'in "next sync
+            // cycle retries via sendDueAlerts" iddiası YANLIŞTI (sendDueAlerts
+            // yalnız status:"new" seçer, claim satırı çoktan "problem" yapmıştı).
+            const mail = await emailService.sendReporting(
               to,
               `⚠️ Acil misafir mesajı — ${conversation.guestIdentifier} (${conversation.property.name})`,
               html,
             );
+            if (!mail.ok) {
+              // Yalnız `status` geri alınır — risk alanları kalır, yani inbox
+              // rozeti görünür olmaya devam eder ama satır yeniden seçilebilir.
+              // Bekletme mesajı + görev bu turda ATLANIR: tur baştan alınacak,
+              // ack'in idempotency kilidi claim olduğundan yine en fazla bir kez
+              // gider. Risk kaydı/gölge hükmü aşağıda NORMAL akışta yazılır
+              // (ikisi de tekilleştirilmiş, tekrar denemede çoğalmaz).
+              escalationMailFailed = true;
+              await prisma.conversation
+                .updateMany({
+                  where: { id: conversation.id, status: "problem" },
+                  data: { status: conversation.status },
+                })
+                .catch(() => {});
+              void reportError(
+                `applyChannelAutoReply escalation org=${conversation.property.organizationId}`,
+                new Error("escalation e-mail failed; claim rolled back for retry"),
+              );
+            }
           }
           // Tier-2 holding acknowledgement (opt-in): a MILD model-detected
           // complaint (never high risk, never money/cancellation) may get one
           // immediate non-committal ack. The claim above is the idempotency
           // lock; the thread stays "problem" for the host either way.
-          if (alertOrg && result.intent === "complaint" && result.riskLevel !== "high") {
+          if (!escalationMailFailed && alertOrg && result.intent === "complaint" && result.riskLevel !== "high") {
             await maybeSendHoldingAck({
               organizationId: conversation.property.organizationId,
               conversation: {
@@ -1250,7 +1302,7 @@ export async function applyChannelAutoReply(
           // physical-operations signal (fault / restock / cleaning), open a
           // deduped, SLA-dated task so the host can action it — not just the
           // "problem" flag + email. Best-effort: never blocks the escalation.
-          if (alertOrg?.autoTaskFromMessageEnabled) {
+          if (!escalationMailFailed && alertOrg?.autoTaskFromMessageEnabled) {
             await createOperationalTaskFromMessage({
               propertyId: conversation.propertyId,
               message: last.body,
@@ -1260,9 +1312,18 @@ export async function applyChannelAutoReply(
             }).catch(() => {});
           }
         }
-      } catch {
-        // Escalation is best-effort; an email/db hiccup must never throw out of
-        // the auto-reply pass (the next sync cycle retries via sendDueAlerts).
+      } catch (err) {
+        // Escalation is best-effort; a db hiccup must never throw out of the
+        // auto-reply pass. NOT silent any more: the old comment claimed "the
+        // next sync cycle retries via sendDueAlerts", which was false — that
+        // pass only selects status:"new" and the claim above already moved the
+        // row to "problem". E-mail failure is handled explicitly (rollback)
+        // just above; what lands here is a genuine DB/unknown error, so it gets
+        // reported instead of vanishing.
+        void reportError(
+          `applyChannelAutoReply escalation org=${conversation.property.organizationId}`,
+          err,
+        );
       }
       await recordRiskEvent({
         organizationId: conversation.property.organizationId,
@@ -1351,8 +1412,9 @@ export async function applyChannelAutoReply(
   // one reply and nothing unsolicited goes out.
 
   // Deliver FIRST — never persist a reply that didn't reach the guest. Use THIS
-  // org's own Hospitable token; if it isn't connected, there is nothing to send.
-  const token = await getOrgHospitableToken(conversation.property.organizationId);
+  // org's own Hospitable token. Bağlantı ZATEN model çağrısından önce
+  // doğrulandı (↑gerekçe); burada yalnız o değer kullanılıyor.
+  const token = hospitableToken;
   if (!token) {
     return { sent: false, skippedReason: "not_connected", draft, ...meta };
   }
@@ -1618,6 +1680,14 @@ export async function runDueChannelAutoReplies(
   );
 
   let sent = 0;
+  // GÖNDERİM ARIZASI ARTIK SESSİZ DEĞİL (denetim, 07-31). `applyChannelAutoReply`
+  // hatayı bir STRING olarak döndürüyor (`send_failed: …` / `enqueue_failed: …`)
+  // ve bu döngü onu okuyan TEK yerdi — ama yalnız `sent` sayılıyor, arızalar
+  // tamamen atılıyordu: ne log, ne Sentry, ne sayaç. Yani bir misafire cevap
+  // gidememesinin hiçbir izi kalmıyordu; ancak misafir şikayet edince fark
+  // edilirdi. Koşu başına TEK toplu alarm: sağlayıcı komple düşerse her
+  // konuşma için ayrı alarm = sel olurdu.
+  const failures: string[] = [];
   for (const c of eligible) {
     const outcome = await applyChannelAutoReply(c.id);
     if (outcome.sent) {
@@ -1633,7 +1703,29 @@ export async function runDueChannelAutoReplies(
       await prisma.conversation
         .updateMany({ where: { id: c.id }, data: { autoReplyAttemptedAt: new Date() } })
         .catch(() => {});
+    } else if (
+      outcome.skippedReason?.startsWith("send_failed") ||
+      outcome.skippedReason?.startsWith("enqueue_failed")
+    ) {
+      // Yalnız SEBEBİN ETİKETİ toplanır — konuşma id'si, misafir adı ya da mesaj
+      // gövdesi ASLA. Sebep string'i zaten `redactSensitive`'den geçmiş durumda.
+      failures.push(outcome.skippedReason.split(":")[0]);
     }
+  }
+  if (failures.length > 0) {
+    const counts = failures.reduce<Record<string, number>>((acc, k) => {
+      acc[k] = (acc[k] ?? 0) + 1;
+      return acc;
+    }, {});
+    void reportError(
+      `runDueChannelAutoReplies org=${organizationId}`,
+      new Error(
+        `auto-reply delivery failed for ${failures.length}/${eligible.length} conversation(s): ` +
+          Object.entries(counts)
+            .map(([k, v]) => `${k}=${v}`)
+            .join(", "),
+      ),
+    );
   }
   return { sent, considered: eligible.length };
 }
@@ -2391,6 +2483,7 @@ export async function sendDueAlerts(
   });
 
   let alerted = 0;
+  let escalationEmailFailures = 0;
   for (const c of candidates) {
     const last = c.messages[0];
     if (!last || last.direction !== "inbound") continue;
@@ -2441,11 +2534,33 @@ export async function sendDueAlerts(
       { name: c.property.name, address: c.property.address, city: c.property.city },
       org?.name ?? "GuestOps",
     );
-    await emailService.send(
+    // GÖNDERİM SONUCU OKUNUR (`sendReporting`, `send` DEĞİL). `send()` asla
+    // fırlatmaz: sağlayıcı hatasında yalnız console'a yazar. Eskiden burada o
+    // kullanılıyordu ve sonucu kimse okumuyordu — yani Resend'in tek bir 5xx'i
+    // host'un ŞİKAYET UYARISINI KALICI OLARAK yutuyordu: claim konuşmayı zaten
+    // "problem"e taşımış olduğu için ne bu döngü (yalnız status:"new" seçer) ne
+    // de model yolu (status "problem" ise erken döner) o thread'i bir daha
+    // seçebiliyordu. Tek iz, host'un fark etmesi gereken bir inbox rozetiydi.
+    const mail = await emailService.sendReporting(
       to,
       `⚠️ Acil misafir mesajı — ${c.guestIdentifier} (${c.property.name})`,
       html,
     );
+    if (!mail.ok) {
+      // Claim'i GERİ AL ki bir sonraki geçiş yeniden denesin. YALNIZ `status`
+      // geri alınır: `skippedReason`/`lastRiskType` kalır, böylece inbox rozeti
+      // görünmeye devam eder (görünürlük kaybı yok) ama satır yeniden seçilebilir
+      // hâle gelir. Bekletme mesajı (holding ack) ve görev bilerek ATLANIR —
+      // e-posta gitmediği için tur baştan alınacak; ack'in idempotency kilidi
+      // claim olduğundan, ancak e-postanın başarılı olduğu turda bir kez çalışır.
+      // Sonsuz tekrar riski yok: ALERT_MAX_AGE_MS penceresi dışına çıkan mesaj
+      // zaten aday listesinden düşer.
+      await prisma.conversation
+        .updateMany({ where: { id: c.id, status: "problem" }, data: { status: "new" } })
+        .catch(() => {});
+      escalationEmailFailures++;
+      continue;
+    }
     alerted++;
 
     // Tier-2 holding acknowledgement (opt-in; keyword path — no model verdict
@@ -2478,6 +2593,16 @@ export async function sendDueAlerts(
         ai: { intent: cls.intent, riskType },
       }).catch(() => {});
     }
+  }
+  // Koşu başına TEK toplu alarm (PII yok: yalnız sayı). Şikayet uyarısı bu ürünün
+  // "AI karar vermez, riskli mesaj insana gider" sözünün taşıyıcısı — sessizce
+  // başarısız olması en pahalı arıza. Satır başına rapor etmiyoruz: e-posta
+  // sağlayıcısı komple düşerse 50 aday × her geçiş = alarm seli olurdu.
+  if (escalationEmailFailures > 0) {
+    void reportError(
+      `sendDueAlerts org=${organizationId}`,
+      new Error(`escalation e-mail failed for ${escalationEmailFailures} conversation(s)`),
+    );
   }
   return { alerted };
 }

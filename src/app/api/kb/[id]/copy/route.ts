@@ -1,6 +1,7 @@
 import { prisma } from "@/lib/db";
 import { badRequest, jsonOk, notFound, readJsonCappedOrNull } from "@/lib/api";
 import { withManage } from "@/lib/route-guard";
+import { limitsForOrg } from "@/lib/billing/plan-limits";
 
 // Copy a knowledge-base entry to one or more OTHER apartments. Lets the host
 // fill one apartment fully, then clone its info across the rest and only tweak
@@ -41,8 +42,27 @@ export const POST = withManage<{ id: string }>(async (session, req, { params }) 
     select: { id: true },
   });
 
+  // PLAN SINIRI KOPYALAMA YOLUNDA DA GEÇERLİ (denetim, 07-31). Bu rota eskiden
+  // hiç saymıyordu: aynı kaydı 20 kez kopyalayan host hedef dairede 20 aktif
+  // kayıt üretebiliyor, yani "daire başına N kayıt" sözü tek düğmeyle
+  // delinebiliyordu. Sayım HEDEF DAİRE BAŞINA yapılır (sınır daire başına).
+  //
+  // Kısmi başarı bilinçli: sınırı dolmuş daire ATLANIR, diğerlerine kopyalanır
+  // ve kaç tanesinin atlandığı çağırana DÖNER. Hepsini birden reddetmek, 10
+  // daireden biri dolu diye 9 başarılı kopyayı iptal etmek olurdu.
+  const limits = await limitsForOrg(session.organizationId);
   let created = 0;
+  let skippedAtLimit = 0;
   for (const t of targets) {
+    if (source.isActive) {
+      const activeCount = await prisma.knowledgeBaseItem.count({
+        where: { propertyId: t.id, isActive: true },
+      });
+      if (activeCount >= limits.kbItemsPerProperty) {
+        skippedAtLimit++;
+        continue;
+      }
+    }
     await prisma.knowledgeBaseItem.create({
       data: {
         propertyId: t.id,
@@ -56,5 +76,14 @@ export const POST = withManage<{ id: string }>(async (session, req, { params }) 
     created++;
   }
 
-  return jsonOk({ ok: true, created });
+  return jsonOk({
+    ok: true,
+    created,
+    skippedAtLimit,
+    ...(skippedAtLimit > 0
+      ? {
+          notice: `${skippedAtLimit} daire, planınızın bilgi tabanı sınırına (daire başına ${limits.kbItemsPerProperty} kayıt) ulaştığı için atlandı.`,
+        }
+      : {}),
+  });
 });
