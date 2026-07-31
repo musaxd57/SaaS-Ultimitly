@@ -74,7 +74,7 @@ export function HospitableSyncButton() {
       */}
       {busy ? (
         <span role="status" className="text-xs text-muted-foreground">
-          Bu birkaç dakika sürebilir — sayfayı kapatmayın.
+          Bu işlem birkaç dakika sürebilir — sayfayı kapatmayın.
         </span>
       ) : null}
       {result ? (
