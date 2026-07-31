@@ -10,6 +10,7 @@ import { recordShadowVerdict } from "@/lib/shadow-ai";
 import { reservationAmountNumber } from "@/lib/money";
 import { classifyMessage, suggestReply, summarizeHostStyle } from "@/lib/ai";
 import { fetchKnowledgeBaseForPrompt } from "@/lib/ai/kb-fetch";
+import { consumeDailyAiBudget } from "@/lib/ai/daily-budget";
 import {
   classifyFallback,
   isClosingAck,
@@ -1124,6 +1125,30 @@ export async function applyChannelAutoReply(
     if (!hospitableToken) {
       return { sent: false, skippedReason: "not_connected", ...meta };
     }
+
+    // GÜNLÜK AI BÜTÇESİ BU YOLU DA KAPSAR (kullanıcı kararı, 07-31).
+    //
+    // Denetim: kota panelde "günde N AI işlemi" diye satılıyordu ama en büyük
+    // harcama kalemi — misafire giden otomatik yanıt — sayaca HİÇ dokunmuyordu.
+    // Yani hem müşteriye söylenen tavan uygulanmıyordu hem de maliyet
+    // korumasının asıl hedefi kapsam dışıydı.
+    //
+    // KONUM: model çağrısının HEMEN öncesi, ucuz deterministik atlamaların
+    // (already_answered / closing_ack / outside_hours / disabled / not_connected)
+    // TAMAMINDAN sonra. Maliyet burada başlıyor; daha erken tüketmek cevaplanmayacak
+    // thread'ler için kota yakardı.
+    //
+    // dryRun HARİÇ: önizleme/test kartı kendi rotasında zaten kotadan düşüyor,
+    // burada ikinci kez saymak müşteriyi çifte cezalandırırdı.
+    //
+    // Tavana çarpınca konuşma "new" kalır ve `autoReplyAttemptedAt` DAMGALANMAZ
+    // → pencere dönünce normal şekilde yanıtlanır. Kayıp değil, gecikme; ve
+    // sebep host'a inbox'ta yazılı olarak görünür.
+    const budget = await consumeDailyAiBudget(conversation.property.organizationId);
+    if (!budget.ok) {
+      await persistRiskVisibility(conversation.id, "daily_budget");
+      return { sent: false, skippedReason: "daily_budget", ...meta };
+    }
   }
 
   // Tek yol `ai/kb-fetch.ts`: tavan + "kaç tanesi düştü" oradan gelir. Burası
@@ -1755,6 +1780,10 @@ export async function runDueChannelAutoReplies(
   const failures: string[] = [];
   for (const c of eligible) {
     const outcome = await applyChannelAutoReply(c.id);
+    // Günlük kota dolduysa bu org için geçişi BİTİR: kalan konuşmaların her biri
+    // sayacı bir kez daha artırmaktan başka bir şey yapmaz (tavan zaten aşıldı).
+    // Damgalamıyoruz → pencere dönünce hepsi normal şekilde yanıtlanır.
+    if (outcome.skippedReason === "daily_budget") break;
     if (outcome.sent) {
       sent++;
     } else if (

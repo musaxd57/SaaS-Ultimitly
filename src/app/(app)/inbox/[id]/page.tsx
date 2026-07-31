@@ -140,6 +140,10 @@ const SKIP_REASON_LABELS: Record<string, string> = {
   closing_ack: "Misafir sohbeti kapattı — cevap gerekmedi",
   human_hold: "İnsan devri istendi — AI bu konuşmada beklemede",
   reservation_ended: "Konaklama bitti/iptal — otomatik yanıt bu konuşmada kapalı",
+  // Kota dolduğunda sebep GÖRÜNÜR olmalı: aksi hâlde host "AI neden sustu?"
+  // sorusunun cevabını hiçbir yerde bulamaz (denetim, 07-31).
+  daily_budget:
+    "Günlük AI sınırınıza ulaşıldı — bu konuşma sınır yenilenince otomatik yanıtlanacak",
 };
   return (
     <>

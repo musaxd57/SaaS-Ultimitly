@@ -210,3 +210,22 @@ export const AUTOMATION_TRIGGER = optionMap<AutomationTrigger>([
   { value: "message_received", label: "Mesaj alındı", tone: "default" },
   { value: "complaint_detected", label: "Şikayet algılandı", tone: "destructive" },
 ]);
+
+// --- Yeni işletmenin oto-yanıt penceresi ------------------------------------
+//
+// ⚠️ SÖZ İLE VARSAYILANIN ÇELİŞMESİ (denetim, 07-31 · kullanıcı kararı).
+//
+// `schema.prisma` varsayılanı `autoReplyStartHour=0, autoReplyEndHour=9` idi,
+// yani yeni bir müşterinin oto-yanıtı YALNIZ 00:00–09:00 arası çalışıyordu —
+// oysa satış sayfası üç yerde "7/24" diyor. Host toggle'ı açıyor, gündüz gelen
+// hiçbir mesaja cevap gitmiyor ve sebebi ("outside_hours") hiçbir ekranda
+// yazmıyordu. Ürünün ana vaadi kutudan çıkarken tutulmuyordu.
+//
+// Kod "başlangıç == bitiş → TÜM GÜN" kuralını zaten destekliyor
+// (`isWithinActiveHours`), o yüzden 0/0 doğru varsayılan.
+//
+// ŞEMA VARSAYILANI DEĞİŞTİRİLMEDİ — bu bir migration gerektirir ve migration
+// yazmak bu turda yasak. Bunun yerine org yaratan İKİ yol da değeri AÇIKÇA
+// yazıyor. Sonuç aynı, migration yok. MEVCUT müşteriler etkilenmez: kayıtlı
+// değerleri neyse o kalır.
+export const NEW_ORG_AUTO_REPLY_WINDOW = { autoReplyStartHour: 0, autoReplyEndHour: 0 } as const;

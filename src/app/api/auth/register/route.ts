@@ -13,6 +13,7 @@ import { LEGAL_VERSION } from "@/lib/legal-entity";
 import { LEGAL_TEXT_HASH } from "@/lib/legal-text-hash";
 import { resolveNewOrgTimezone } from "@/lib/app-config";
 import { normalizeEmail } from "@/lib/email-identity";
+import { NEW_ORG_AUTO_REPLY_WINDOW } from "@/lib/constants";
 
 export async function POST(req: NextRequest) {
   try {
@@ -85,7 +86,7 @@ export async function POST(req: NextRequest) {
     const verifyExpiresAt = new Date(Date.now() + VERIFY_TTL_MS);
     const { user } = await prisma.$transaction(async (tx) => {
       const org = await tx.organization.create({
-        data: { name: parsed.data.organizationName, timezone },
+        data: { name: parsed.data.organizationName, timezone, ...NEW_ORG_AUTO_REPLY_WINDOW },
       });
       // One checkbox covers Terms + Privacy, so both acceptances share the same
       // instant. Version + IP + UA make the consent record defensible against a

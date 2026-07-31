@@ -9,6 +9,7 @@ import { writeAudit } from "@/lib/audit";
 import { newTrialSubscriptionData } from "@/lib/billing/subscription";
 import { appDefaultTimezone } from "@/lib/app-config";
 import { normalizeEmail } from "@/lib/email-identity";
+import { NEW_ORG_AUTO_REPLY_WINDOW } from "@/lib/constants";
 
 // Billing lifecycle the operator chooses for a new customer. ALWAYS creates a
 // Subscription row so an operator-created org can never silently fall into
@@ -55,7 +56,11 @@ export async function POST(req: NextRequest) {
       // to be sitting would be a confident wrong answer. The customer sets their own
       // zone in Ayarlar; until then the deployment default is the honest guess.
       const org = await tx.organization.create({
-        data: { name: parsed.data.organizationName, timezone: appDefaultTimezone() },
+        data: {
+          name: parsed.data.organizationName,
+          timezone: appDefaultTimezone(),
+          ...NEW_ORG_AUTO_REPLY_WINDOW,
+        },
       });
       await tx.user.create({
         data: {
