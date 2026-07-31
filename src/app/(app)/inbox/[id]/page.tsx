@@ -144,6 +144,12 @@ const SKIP_REASON_LABELS: Record<string, string> = {
   // sorusunun cevabını hiçbir yerde bulamaz (denetim, 07-31).
   daily_budget:
     "Günlük AI sınırınıza ulaşıldı — bu konuşma sınır yenilenince otomatik yanıtlanacak",
+  not_connected:
+    "Airbnb / Booking bağlantısı kurulu değil — otomatik yanıt gönderilemiyor. Ayarlar'dan bağlantınızı kontrol edin.",
+  // "Model emin olamadı"dan AYRI: buna ulaşılamadı demek. Geçici olduğu için
+  // konuşma damgalanmaz, servis dönünce kendiliğinden yeniden denenir.
+  ai_unavailable:
+    "AI servisine geçici olarak ulaşılamadı — bağlantı düzelince bu konuşma otomatik olarak yeniden denenecek",
 };
   return (
     <>

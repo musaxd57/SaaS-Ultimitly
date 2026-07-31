@@ -3,6 +3,7 @@ import { kbUpdateSchema, zodFieldErrors } from "@/lib/validators";
 import { badRequest, jsonOk, notFound, readJsonCappedOrNull } from "@/lib/api";
 import { withManage } from "@/lib/route-guard";
 import { limitsForOrg } from "@/lib/billing/plan-limits";
+import { KB_ITEM_CAP } from "@/lib/ai/limits";
 
 // ---------------------------------------------------------------------------
 // PLAN SINIRLARI DÜZENLEME YOLUNDA DA GEÇERLİ (denetim, 07-31).
@@ -45,7 +46,7 @@ export const PATCH = withManage<{ id: string }>(async (session, req, { params })
   const allowedChars = Math.max(limits.kbCharsPerItem, existing.content.length);
   if (typeof d.content === "string" && d.content.length > allowedChars) {
     return badRequest({
-      content: `Tek bir bilgi kaydı en fazla ${limits.kbCharsPerItem.toLocaleString("tr-TR")} karakter olabilir. Uzun bilgileri birkaç kayda bölün — AI hepsini okur.`,
+      content: `Tek bir bilgi kaydı en fazla ${limits.kbCharsPerItem.toLocaleString("tr-TR")} karakter olabilir. Uzun bilgileri birkaç kayda bölün — AI bir yanıtta en güncel ${KB_ITEM_CAP} kaydı okur.`,
     });
   }
 

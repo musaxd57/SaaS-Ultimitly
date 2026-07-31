@@ -91,6 +91,23 @@ describe("fiyat kartı metni kodla uyuşuyor", () => {
     }
   });
 
+  it("KB sayısı AI'ın okuduğu tavanı AŞIYORSA kart bunu SÖYLEMEK zorunda", async () => {
+    // İşletme 60 kayıt satıyor ama AI tek yanıtta en fazla KB_ITEM_CAP (30)
+    // okuyor. "AI cevapları buradan üretir" demek, satılan 60'ın tamamının
+    // kullanıldığını ima ederdi — müşteri parasının karşılığını almadığını
+    // düşünür. Bu test, sayılardan biri değişirse metni yeniden yazmaya zorlar.
+    const { KB_ITEM_CAP } = await import("@/lib/ai/prompts");
+    for (const code of ["free", "pro", "business"]) {
+      const l = planLimitsFor(code);
+      if (l.kbItemsPerProperty <= KB_ITEM_CAP) continue;
+      const row = landing.match(
+        new RegExp(`Daire başına ${l.kbItemsPerProperty} bilgi kaydı[^"]*`),
+      )?.[0];
+      expect(row, `${code} satırı kartta yok`).toBeTruthy();
+      expect(row, code).toContain(String(KB_ITEM_CAP));
+    }
+  });
+
   it("kart 'AI YANITI' DEMEZ — sayaç misafire giden yanıtı saymıyor", () => {
     // `consumeDailyAiBudget` yalnız panel içi işlemlerden çağrılıyor (öneri,
     // çeviri, test, hazırlık özeti); `applyChannelAutoReply` sayaca dokunmuyor.

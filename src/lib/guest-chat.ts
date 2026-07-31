@@ -505,8 +505,17 @@ export async function resolveGuestChat(
   // Drop any item whose text looks like an access secret, even in an allowed
   // category — the public bearer-token surface must never have a code in context.
   const knowledgeBase = kbRaw.filter((k) => !looksLikeSecret(`${k.title}\n${k.content}`));
+  // ⚠️ İKİ AYRI ELEME, TEK SAYAÇ OLAMAZ (denetim, 07-31). `fetchKnowledgeBaseForPrompt`
+  // yalnız SQL tavanında düşenleri sayar; `looksLikeSecret` KATEGORİYE değil
+  // İÇERİĞE baktığı için tavanı geçmiş bir kalemi burada ayrıca eleyebiliyor.
+  // Bir süre yalnız SQL sayısı geçiliyordu → istemdeki "N kalem yer sınırı
+  // nedeniyle alınamadı, 'bilgi yok' DEME, insana devret" notu eksik sayıyla
+  // gidiyor, hiç düşmemiş göründüğünde ise HİÇ gitmiyordu. Yani bu modülün var
+  // olma sebebi olan arıza (AI'ın host'un yazdığı konuda emin dille "bilgim yok"
+  // demesi) tam da en halka açık yüzeyde açıktı.
+  const droppedTotal = kbDropped + (kbRaw.length - knowledgeBase.length);
 
-  return { property: propertyPublic, open: true, activeReservation, knowledgeBase, knowledgeBaseDropped: kbDropped, pinRequired };
+  return { property: propertyPublic, open: true, activeReservation, knowledgeBase, knowledgeBaseDropped: droppedTotal, pinRequired };
 }
 
 /**

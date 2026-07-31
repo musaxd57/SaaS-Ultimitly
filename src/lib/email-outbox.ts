@@ -346,7 +346,14 @@ export async function drainEmailOutboxOnce(deps: EmailDrainDeps = {}): Promise<E
       await processClaimedRow(row, claimToken, send, result);
     } catch (err) {
       // One poison row must not abort the batch; the claim TTL re-frees it.
-      void reportError(`email-outbox.row:${row.id}`, err instanceof Error ? err : new Error(String(err)));
+      // Id CONTEXT'te DEĞİL mesajda: throttle context bazlı, satır başına ayrı
+      // kova açmak 10 dk'lık korumayı kaldırır (↑outbox/worker.ts gerekçesi).
+      void reportError(
+        "email-outbox.row",
+        err instanceof Error
+          ? new Error(`${err.message} (row ${row.id})`)
+          : new Error(`${String(err)} (row ${row.id})`),
+      );
     }
   }
   return result;

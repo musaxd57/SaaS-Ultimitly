@@ -1,7 +1,7 @@
 import { describe, it, expect, afterEach, vi } from "vitest";
 import { KB_ITEM_CAP, KB_CHAR_BUDGET, packKnowledgeBase } from "@/lib/ai/prompts";
 import { dailyAiCallCap } from "@/lib/ai/daily-budget";
-import { readFileSync } from "node:fs";
+import { readFileSync, readdirSync } from "node:fs";
 import path from "node:path";
 
 // ---------------------------------------------------------------------------
@@ -81,7 +81,7 @@ describe("bilgi tabanı istem bütçesi", () => {
   it("tavanın KENDİSİ tek yerde ve düşen sayısı hesaplanıyor", () => {
     const src = readFileSync(path.resolve(__dirname, "../../src/lib/ai/kb-fetch.ts"), "utf8");
     expect(src).toContain("take: KB_ITEM_CAP");
-    expect(src).toMatch(/from "@\/lib\/ai\/prompts"/);
+    expect(src).toMatch(/from "@\/lib\/ai\/limits"/);
     // "Kaç tanesi düştü" gerçekten SAYILIYOR — yoksa `omitted` hep 0 kalır ve
     // model, host'un yazdığı bir konuda "bilgim yok" der.
     expect(src).toContain("count(");
@@ -128,19 +128,41 @@ describe("günlük org AI bütçesi", () => {
     }
   });
 
-  it("AI harcayan HER rota günlük bütçeden geçiyor (kaynak-tarama pini)", () => {
-    // Yeni bir AI rotası bütçesiz eklenirse burası kırmızı olur.
-    const spenders = [
-      "src/app/api/ai/test/route.ts",
-      "src/app/api/conversations/[id]/ai-suggest/route.ts",
-      "src/app/api/conversations/[id]/translate-message/route.ts",
-      "src/app/api/conversations/[id]/reply/route.ts",
-      "src/app/api/hazirlik/summary/route.ts",
-    ];
-    for (const rel of spenders) {
-      const src = readFileSync(path.resolve(__dirname, "../../", rel), "utf8");
-      expect(src, rel).toContain("consumeDailyAiBudget");
-    }
+  it("AI harcayan HER rota günlük bütçeden geçiyor — AĞACI TARAR, elle liste DEĞİL", () => {
+    // ⚠️ Bu test bir süre ELLE YAZILMIŞ 5 dosyalık listeye bakıyordu ve yorumu
+    // "yeni bir AI rotası bütçesiz eklenirse burası kırmızı olur" diyordu —
+    // TAM TERSİ: liste sabit olduğu için yalnız mevcut bir rotadan bütçenin
+    // ÇIKARILMASINI yakalıyordu, YENİ bir rotanın eklenmesini asla. Nitekim
+    // `/api/hospitable/auto-reply-test` (istek başına 12 model çağrısı) tam bu
+    // kör noktada, kotasız duruyordu. Artık ağaç taranıyor.
+    const apiRoot = path.resolve(__dirname, "../../src/app/api");
+    const spenders: string[] = [];
+    const walk = (dir: string) => {
+      for (const e of readdirSync(dir, { withFileTypes: true })) {
+        const full = `${dir}/${e.name}`;
+        if (e.isDirectory()) walk(full);
+        else if (e.name === "route.ts") {
+          const src = readFileSync(full, "utf8");
+          // Modeli GERÇEKTEN çağıran (ya da çağıran bir yardımcıyı çağıran) rotalar.
+          if (/\b(suggestReply|previewChannelAutoReplies|translateMessageBody|summarizeSupplyPlan)\b/.test(src)) {
+            spenders.push(full.slice(apiRoot.length + 1));
+          }
+        }
+      }
+    };
+    walk(apiRoot);
+    // Demo rotası bilinçli istisna: kayıtsız ziyaretçiye açık, kendi IP+günlük
+    // tavanları var ve bir org'a ait olmadığı için org kotası uygulanamaz.
+    const exempt = new Set(["demo/ai/route.ts", "chat/[token]/route.ts"]);
+    const missing = spenders.filter((rel) => {
+      if (exempt.has(rel)) return false;
+      // ÇAĞRIYI ara, import satırını DEĞİL: ilk sürüm yalnız `includes(
+      // "consumeDailyAiBudget")` bakıyordu ve çağrıyı silip import'u bırakan
+      // bir mutasyon testten geçiyordu (mutasyonla ölçüldü).
+      return !/consumeDailyAiBudget\s*\(/.test(readFileSync(`${apiRoot}/${rel}`, "utf8"));
+    });
+    expect(missing, `bütçesiz AI rotası: ${missing.join(", ")}`).toEqual([]);
+    expect(spenders.length, "tarayıcı hiçbir AI rotası bulamadı — regex bozulmuş olabilir").toBeGreaterThan(3);
   });
 });
 
@@ -176,5 +198,48 @@ describe("iCal etkinlik tavanı", () => {
   it("kesme SESSİZ olur — meşru bir feed'in şişmesi tüm senkronu durdurmaz", async () => {
     const { parseIcs } = await import("@/lib/import/ics");
     expect(() => parseIcs(feed(11_000))).not.toThrow();
+  });
+});
+
+// ---------------------------------------------------------------------------
+// SİSTEM PROMPTU TARAYICIYA SIZAMAZ (denetim, 07-31).
+//
+// `prompts.ts` 75 KB: sistem promptu + 24 eğitim örneği + tüm güvenlik/kaçınma
+// talimatları. Depo tam da bu dosya yüzünden PRIVATE yapıldı ("yayınlanmış kara
+// liste = kaçınma haritası"). Bugün, SADECE bir tamsayıyı okumak için, bir
+// `"use client"` bileşeni onu import etti — yani dosya tarayıcıya giden paketin
+// bağımlılık grafiğine bağlandı. Paketleyicinin saf `const`'ları gerçekten
+// eleyip elemediği ancak üretim çıktısına bakılarak doğrulanabilir; o varsayıma
+// güvenmek yerine zincir koparıldı ve modül mühürlendi.
+// ---------------------------------------------------------------------------
+describe("prompts.ts istemci paketine bağlanamaz", () => {
+  const readFile = (rel: string) => readFileSync(path.resolve(__dirname, "../../", rel), "utf8");
+
+  it("prompts.ts `server-only` ile mühürlü — biri client'tan import ederse BUILD kırılır", () => {
+    expect(readFile("src/lib/ai/prompts.ts")).toContain('import "server-only"');
+  });
+
+  it("hiçbir istemci bileşeni / sayfa prompts.ts import etmiyor", () => {
+    const hits: string[] = [];
+    const walk = (dir: string) => {
+      for (const e of readdirSync(path.resolve(__dirname, "../../", dir), { withFileTypes: true })) {
+        const rel = `${dir}/${e.name}`;
+        if (e.isDirectory()) walk(rel);
+        else if (/\.(tsx|ts)$/.test(e.name)) {
+          const src = readFile(rel);
+          if (src.includes('from "@/lib/ai/prompts"')) hits.push(rel);
+        }
+      }
+    };
+    walk("src/components");
+    walk("src/app");
+    expect(hits, `prompts.ts şu dosyalardan import ediliyor: ${hits.join(", ")}`).toEqual([]);
+  });
+
+  it("tavanlar bağımlılıksız YAPRAK modülde (client güvenle import edebilsin)", () => {
+    const leaf = readFile("src/lib/ai/limits.ts");
+    expect(leaf).toContain("export const KB_ITEM_CAP");
+    // Yaprak = başka hiçbir şey import etmez; aksi hâlde zincir yine uzar.
+    expect(leaf).not.toMatch(/^import /m);
   });
 });

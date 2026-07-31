@@ -864,15 +864,23 @@ export async function applyInboundMessageRules(
     // zaten ekranın başında ve konuşma "Sorunlu" rozetiyle önünde duruyor. Geri
     // almak, host'un az önce yarattığı satırın durumunu gözünün önünde geri
     // çevirmek olurdu. Doğru davranış: gönderemediğimizi GÖRÜNÜR yapmak.
-    let alertFailures = 0;
-    for (const user of orgUsers) {
-      const mail = await emailService.sendReporting(
-        user.email,
-        `Acil Şikayet: ${conversation.guestIdentifier} — ${conversation.property.name}`,
-        html,
-      );
-      if (!mail.ok) alertFailures++;
-    }
+    // PARALEL: bu fonksiyon `POST /api/conversations` içinde AWAIT ediliyor,
+    // yani HTTP yanıtı bekliyor. Seri döngüde 5 yöneticili bir işletmede
+    // sağlayıcı yavaşlarsa 5 × 15 sn = 75 saniye asılı kalırdı ve host konuşmanın
+    // yaratılıp yaratılmadığını bilemezdi — sessiz kaybı düzeltirken görünür bir
+    // arıza eklemek olurdu. `allSettled`: aynı görünürlük, tek tur süresi.
+    const mails = await Promise.allSettled(
+      orgUsers.map((user) =>
+        emailService.sendReporting(
+          user.email,
+          `Acil Şikayet: ${conversation.guestIdentifier} — ${conversation.property.name}`,
+          html,
+        ),
+      ),
+    );
+    const alertFailures = mails.filter(
+      (m) => m.status === "rejected" || !m.value.ok,
+    ).length;
     if (alertFailures > 0) {
       void reportError(
         `applyInboundMessageRules org=${conversation.property.organizationId}`,
@@ -1123,6 +1131,12 @@ export async function applyChannelAutoReply(
   if (!options.dryRun) {
     hospitableToken = await getOrgHospitableToken(conversation.property.organizationId);
     if (!hospitableToken) {
+      // SEBEP GÖRÜNÜR OLMALI: bağlantı kopukken hiçbir mesaj yanıtlanmıyor ve
+      // eskiden hiçbir konuşmada sebep yazmıyordu. Bağlantı kartı da "Bağlı"
+      // dediği için (token çözülüyor = sağlıklı sayılıyor) arıza tamamen
+      // görünmez oluyordu — host "AI neden sustu?" sorusuna hiçbir yerde cevap
+      // bulamıyordu.
+      await persistRiskVisibility(conversation.id, "not_connected");
       return { sent: false, skippedReason: "not_connected", ...meta };
     }
 
@@ -1272,9 +1286,6 @@ export async function applyChannelAutoReply(
         (result.riskLevel !== "none" && result.riskLevel !== "low") ||
         (result.riskType != null && HIGH_STAKES_RISK_TYPES.has(result.riskType)));
     if (!options.dryRun && modelSensitive) {
-      // Uyarı e-postası gitmediyse true olur: claim geri alınır ve bu turda
-      // bekletme mesajı/görev ÜRETİLMEZ (bir sonraki geçiş baştan alacak).
-      let escalationMailFailed = false;
       try {
         const claimed = await prisma.conversation.updateMany({
           where: { id: conversation.id, status: { not: "problem" } },
@@ -1362,7 +1373,6 @@ export async function applyChannelAutoReply(
               // Ama thread KALICI olarak "Sorunlu" kalır (inbox'ta görünür,
               // insanın önünde) ve arıza Sentry'ye düşer. Sessiz DEĞİL —
               // yalnız kanalı e-posta değil, panel.
-              escalationMailFailed = true;
               void reportError(
                 `applyChannelAutoReply escalation org=${conversation.property.organizationId}`,
                 new Error("escalation e-mail failed; thread stays 'problem' for the host"),
@@ -1373,7 +1383,15 @@ export async function applyChannelAutoReply(
           // complaint (never high risk, never money/cancellation) may get one
           // immediate non-committal ack. The claim above is the idempotency
           // lock; the thread stays "problem" for the host either way.
-          if (!escalationMailFailed && alertOrg && result.intent === "complaint" && result.riskLevel !== "high") {
+          // ⚠️ E-POSTA BAŞARISIZLIĞI BU İKİ ŞEYİ İPTAL ETMEZ (denetim düzeltmesi).
+          // Bir ara burada `!escalationMailFailed` kapısı vardı; o kapı claim'in
+          // GERİ ALINDIĞI tasarıma aitti ("sonraki geçiş baştan alır"). Geri alma
+          // kaldırılınca sonraki geçiş de kalmadı: konuşma kalıcı "problem" olur,
+          // yani kapı, misafire gidecek bekletme mesajını ve panele düşecek görevi
+          // KALICI olarak iptal ediyordu. Üstelik savunma "kanalı e-posta değil
+          // PANEL" derken tam o panel sinyalini siliyordu. İkisi de e-postadan
+          // BAĞIMSIZ; idempotency kilidi zaten claim.
+          if (alertOrg && result.intent === "complaint" && result.riskLevel !== "high") {
             await maybeSendHoldingAck({
               organizationId: conversation.property.organizationId,
               conversation: {
@@ -1392,7 +1410,7 @@ export async function applyChannelAutoReply(
           // physical-operations signal (fault / restock / cleaning), open a
           // deduped, SLA-dated task so the host can action it — not just the
           // "problem" flag + email. Best-effort: never blocks the escalation.
-          if (!escalationMailFailed && alertOrg?.autoTaskFromMessageEnabled) {
+          if (alertOrg?.autoTaskFromMessageEnabled) {
             await createOperationalTaskFromMessage({
               propertyId: conversation.propertyId,
               message: last.body,
@@ -1445,7 +1463,7 @@ export async function applyChannelAutoReply(
     if (!options.dryRun) {
       await persistRiskVisibility(
         conversation.id,
-        "low_confidence_or_risky",
+        result.source === "openai" ? "low_confidence_or_risky" : "ai_unavailable",
         result.riskLevel,
         result.riskType ?? detectRiskType(last.body),
       );
@@ -1473,7 +1491,21 @@ export async function applyChannelAutoReply(
         gateRiskType: result.riskType ?? detectRiskType(last.body),
       });
     }
-    return { sent: false, skippedReason: "low_confidence_or_risky", ...meta };
+    // ⚠️ "MODEL EMİN OLAMADI" ile "MODELE HİÇ ULAŞILAMADI" AYNI ŞEY DEĞİL
+    // (denetim, 07-31). İkisi de buraya düşüyordu ve `runDueChannelAutoReplies`
+    // `low_confidence_or_risky` gördüğünde `autoReplyAttemptedAt` DAMGALIYOR —
+    // yani mesaj bir daha ASLA modellenmiyor. Sonuç: 30 dakikalık bir OpenAI
+    // kesintisinde o pencerede gelen HER misafir mesajı, servis geri dönse bile
+    // kalıcı olarak "insana bırakıldı" kalıyordu.
+    //
+    // Model gerçekten cevap verip emin olamadıysa damgalamak DOĞRU (aynı metni
+    // 2 dakikada bir yeniden sormanın faydası yok). Ama modele ulaşılamadıysa
+    // koşullar değişince tekrar denenmeli — tıpkı `not_connected` gibi.
+    return {
+      sent: false,
+      skippedReason: result.source === "openai" ? "low_confidence_or_risky" : "ai_unavailable",
+      ...meta,
+    };
   }
 
   const draft = {
@@ -1759,6 +1791,16 @@ export async function runDueChannelAutoReplies(
       lastMessageAt: { gte: freshSince },
     },
     select: { id: true, lastMessageAt: true, autoReplyAttemptedAt: true },
+    // ADİL VE DETERMİNİSTİK SIRA: en eski cevapsız mesaj önce. Sıra yokken DB
+    // heap sırasına kalıyordu; kota dolup `break` edilince hep aynı konuşmaların
+    // önde olacağının garantisi yoktu (açlık riski).
+    orderBy: { lastMessageAt: "asc" },
+    // Kardeş geçişlerin hepsinde tavan var; burada yoktu. İşletme planında en
+    // kötü hâl 1.500 ardışık model çağrısıydı (her biri 60 sn timeout'lu) ve
+    // senkron kilidinin TTL'i 15 dakika — aşılırsa "aynı org iki kez koşmaz"
+    // varsayımına dayanan TÜM duplicate koruması delinir. Kesilen adaylar claim
+    // edilmediği için kayıp değil, bir sonraki turda alınır.
+    take: 25,
   });
 
   // Cost guard: skip threads we already modeled for THIS message and left "new"
@@ -1783,7 +1825,21 @@ export async function runDueChannelAutoReplies(
     // Günlük kota dolduysa bu org için geçişi BİTİR: kalan konuşmaların her biri
     // sayacı bir kez daha artırmaktan başka bir şey yapmaz (tavan zaten aşıldı).
     // Damgalamıyoruz → pencere dönünce hepsi normal şekilde yanıtlanır.
-    if (outcome.skippedReason === "daily_budget") break;
+    if (outcome.skippedReason === "daily_budget") {
+      // Sebep KALAN adaylara da yazılır. Eskiden yalnız ilk reddedilen konuşma
+      // etiketleniyor, `break` hemen ardından geliyordu → geri kalan N konuşma
+      // hiçbir açıklama olmadan sessizce bekliyordu ("sebep host'a görünür"
+      // gerekçesi N-1 konuşma için geçerli değildi). Tek `updateMany`, model
+      // çağrısı yok. `autoReplyAttemptedAt` yine DAMGALANMAZ → pencere dönünce
+      // hepsi normal şekilde yanıtlanır.
+      const rest = eligible.slice(eligible.indexOf(c) + 1).map((x) => x.id);
+      if (rest.length > 0) {
+        await prisma.conversation
+          .updateMany({ where: { id: { in: rest } }, data: { skippedReason: "daily_budget" } })
+          .catch(() => {});
+      }
+      break;
+    }
     if (outcome.sent) {
       sent++;
     } else if (

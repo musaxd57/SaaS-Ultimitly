@@ -842,7 +842,16 @@ export async function drainOutboxOnce(deps: DrainDeps = {}): Promise<DrainResult
     } catch (err) {
       // Poison isolation: this row's claim will expire and be recovered later; the
       // rest of the batch continues.
-      await reportError(`outbox-row ${row.id}`, err);
+      // Satır id'si CONTEXT'e değil MESAJA: `reportError` e-posta throttle'ını
+        // context string'iyle anahtarlıyor, yani her satır ayrı bir kova olur ve
+        // 10 dk'lık koruma kalkar — sistemik bir arızada tek drain 20 ayrı uyarı
+        // e-postası + 20 ayrı Sentry Issue üretir (drain 2 dakikada bir koşar).
+        await reportError(
+          "outbox-row",
+          err instanceof Error
+            ? new Error(`${err.message} (row ${row.id})`)
+            : new Error(`${String(err)} (row ${row.id})`),
+        );
     }
   }
   // Heal missed delivery side-effects (idempotent; never blocks the drain result).

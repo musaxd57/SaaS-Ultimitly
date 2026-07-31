@@ -1,6 +1,6 @@
 import type { Prisma } from "@prisma/client";
 import { prisma } from "@/lib/db";
-import { KB_ITEM_CAP } from "@/lib/ai/prompts";
+import { KB_ITEM_CAP } from "@/lib/ai/limits";
 
 // ---------------------------------------------------------------------------
 // BİLGİ TABANINI İSTEM İÇİN ÇEK — TEK YOL (denetim, 07-31).

@@ -3,6 +3,7 @@ import { paymentRequired, tooManyRequests } from "@/lib/api";
 import { withManage } from "@/lib/route-guard";
 import { premiumAllowed } from "@/lib/billing/subscription";
 import { rateLimit } from "@/lib/rate-limit";
+import { consumeDailyAiBudget, dailyBudgetMessage } from "@/lib/ai/daily-budget";
 import { previewChannelAutoReplies } from "@/lib/automation";
 
 // ---------------------------------------------------------------------------
@@ -23,6 +24,22 @@ export const POST = withManage(async (session) => {
   // platform key — throttle per user so it can't be POST-spammed for cost.
   const limited = await rateLimit(`preview-autoreply:${session.userId}`, 6, 60_000);
   if (!limited.ok) return tooManyRequests(limited.retryAfter);
+
+  // ⚠️ GÜNLÜK KOTA BU ROTADA DA GEÇERLİ (denetim, 07-31 — GERÇEK BİR AÇIKTI).
+  //
+  // `applyChannelAutoReply` kotayı `dryRun` dışında tutuyor ve gerekçesi
+  // "önizleme kendi rotasında zaten sayılıyor" idi. Bu `/api/ai/test` için
+  // doğruydu, BU rota için değildi: `previewChannelAutoReplies` istek başına
+  // 12'ye kadar GERÇEK model çağrısı yapıyor ve sayaca hiç dokunmuyordu.
+  // Dakikada 6 istek × 12 = 72 çağrı/dakika, ~103.000/gün — Başlangıç planının
+  // tavanı 150. Yani kotanın var oluş sebebi (tek hesabın bütçeyi yakması) tam
+  // olarak bu düğmede açıktı. `ignoreToggle`+`ignoreSchedule` yüzünden org
+  // anahtarı kapalıyken ve saat penceresi dışında bile çalışıyordu.
+  //
+  // Önizleme başına TEK birim tüketiliyor (fan-out sayısı kadar değil): amaç
+  // meşru kullanıcıyı iki denemede kilitlemek değil, sınırsız döngüyü kesmek.
+  const budget = await consumeDailyAiBudget(session.organizationId);
+  if (!budget.ok) return tooManyRequests(budget.retryAfter, dailyBudgetMessage(budget));
 
   try {
     const outcomes = await previewChannelAutoReplies(session.organizationId);

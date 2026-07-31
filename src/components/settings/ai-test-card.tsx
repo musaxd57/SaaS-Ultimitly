@@ -94,6 +94,10 @@ export function AiTestCard({ properties }: { properties: { id: string; name: str
         Bir misafir mesajı yazın, AI&apos;nın gerçek cevabını görün. <strong>Hiçbir mesaj
         gönderilmez</strong> — otomatik yanıtı açmadan önce AI&apos;nın nasıl cevap verdiğini
         rahatça deneyebilirsiniz. Seçtiğiniz dairenin bilgi tabanı kullanılır.
+        {/* Her deneme gerçek bir model çağrısı ve günlük kotadan düşüyor;
+            söylenmezse onboarding'de 20 örnek deneyen müşteri kotasını farkında
+            olmadan yakar ve sebebini bilemez. */}{" "}
+        Her deneme günlük AI işlem hakkınızdan bir adet düşer.
       </p>
 
       {properties.length > 1 ? (

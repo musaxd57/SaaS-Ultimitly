@@ -177,8 +177,17 @@ export default async function InboxPage({
     );
   }
 
+  // ⚠️ BAŞLANGIÇ == BİTİŞ, KODDA "TÜM GÜN" DEMEK (`isWithinActiveHours`), ama
+  // ham saatleri basınca ekranda "00:00–00:00" çıkıyordu — yani sıfır uzunlukta
+  // bir pencere gibi okunuyor. Yeni müşteri artık tüm gün açık doğduğu için
+  // (NEW_ORG_AUTO_REPLY_WINDOW) bu, HER yeni hesabın gördüğü İLK ekranda doğru
+  // davranışı arızalı gibi anlatıyordu: "AI hiç çalışmayacak" sanıp kapatabilir.
   const pad = (h: number) => String(h).padStart(2, "0");
-  const activeWindow = `${pad(org?.autoReplyStartHour ?? 0)}:00–${pad(org?.autoReplyEndHour ?? 9)}:00`;
+  const startHour = org?.autoReplyStartHour ?? 0;
+  const endHour = org?.autoReplyEndHour ?? 0;
+  const allDay = startHour === endHour;
+  const activeWindow = allDay ? "7/24" : `${pad(startHour)}:00–${pad(endHour)}:00`;
+  const windowSentence = allDay ? "Açıkken: günün her saatinde" : `Açıkken: ${activeWindow} arası`;
 
   return (
     <>
@@ -191,7 +200,7 @@ export default async function InboxPage({
           label={`Oto-yanıt (${activeWindow})`}
           enabled={org?.autoReplyHospitable ?? false}
           locked={automationLocked}
-          title={`Açıkken: ${activeWindow} arası, AI'ın %75+ emin olduğu BASİT sorulara (çöp günü, Wi-Fi, çevre önerisi gibi) otomatik cevap verir. Şikayet, iade, riskli ve belirsiz mesajlar HER ZAMAN size kalır. "Mesajları çek" sırasında çalışır.`}
+          title={`${windowSentence}, AI'ın %75+ emin olduğu BASİT sorulara (çöp günü, Wi-Fi, çevre önerisi gibi) otomatik cevap verir. Şikayet, iade, riskli ve belirsiz mesajlar HER ZAMAN size kalır. "Mesajları çek" sırasında çalışır.`}
         />
         <LinkButton href="/inbox/new">
           <Plus className="size-4" /> Yeni konuşma

@@ -115,3 +115,31 @@ describe("countGuestAsks — selamlama/imza satırları istek DEĞİLDİR", () =
     expect(countGuestAsks("Çıkış saati kaçta? Çöp nereye? Otopark var mı?")).toBe(3);
   });
 });
+
+// ---------------------------------------------------------------------------
+// TÜRKÇE KATLAMA (CLAUDE.md "KATLAMA KURALI") — nezaket elemesinde de zorunlu.
+//
+// JS'in basit case-folding'i `İ`(U+0130) → `i` ve `I`(U+0049) → `ı` YAPMAZ.
+// Düz `/iu` bayrağıyla Türkçenin EN yaygın selamlama/kapanış biçimleri
+// elenmiyordu → satır "istek" sayılıp çok-soru dalı gereksiz açılıyor,
+// anti-spam kuralı ("tek konu, tek mesaj") düşüyordu.
+// ---------------------------------------------------------------------------
+describe("nezaket elemesi Türkçe büyük harfte de çalışır", () => {
+  it("İ ile başlayan selamlama elenir (JS toLowerCase bunu ıskalıyordu)", () => {
+    expect(countGuestAsks("İyi günler\nKlima çalışmıyor")).toBe(1);
+    expect(countGuestAsks("İyi akşamlar\nDuş akmıyor")).toBe(1);
+  });
+
+  it("TAMAMI BÜYÜK yazılmış nezaket satırları elenir", () => {
+    expect(countGuestAsks("GÜNAYDIN\nKlima çalışmıyor\nSAYGILAR")).toBe(1);
+    expect(countGuestAsks("MERHABA\nÇöp nerede")).toBe(1);
+  });
+
+  it("İngilizce büyük harf de elenir", () => {
+    expect(countGuestAsks("HELLO\nThe shower is broken\nTHANKS")).toBe(1);
+  });
+
+  it("gerçek istekler HÂLÂ sayılıyor (eleme aşırıya kaçmadı)", () => {
+    expect(countGuestAsks("saat kaçta çıkış var\nnasılsınız\nçöp nerde")).toBe(3);
+  });
+});

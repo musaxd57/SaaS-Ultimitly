@@ -1,4 +1,10 @@
+import "server-only";
 import type { ReplyTone } from "@/lib/constants";
+// Tavanlar YAPRAK modülde: tarayıcıya giden ekranlar bu dosyayı (75 KB sistem
+// promptu + eğitim örnekleri) import etmek ZORUNDA kalmasın diye. ↓ai/limits.ts
+import { KB_ITEM_CAP, KB_CHAR_BUDGET } from "@/lib/ai/limits";
+import { foldTurkishLower, foldTurkishAscii } from "@/lib/ai/fallback";
+export { KB_ITEM_CAP, KB_CHAR_BUDGET };
 import type { AdjacencyContext, SuggestReplyInput } from "./types";
 
 // ============================================================================
@@ -632,20 +638,7 @@ export function sanitizePromptValue(v: string | null | undefined, max = 120): st
 // ============================================================================
 // MAIN — Build the user-turn prompt
 // ============================================================================
-/**
- * AI'nın tek seferde okuyabileceği bilgi tabanı kalemi sayısı. Rotalar veritabanı
- * sorgusunu bununla sınırlar; host'a görünen uyarı da bu sayıyı kullanır — üç yer
- * de tek kaynaktan okusun ki "AI 30 kalem kullanır" iddiası hep doğru kalsın.
- */
-export const KB_ITEM_CAP = 30;
 
-/**
- * Bilgi tabanı bloğunun KARAKTER bütçesi. Adet tavanı tek başına maliyeti
- * SINIRLAMAZ: tek bir kalem 20.000 karaktere kadar çıkabildiği için (validators.ts)
- * 30 kalem hâlâ 600.000 karakter demektir. İstem boyutunun üst sınırını çizen şey
- * budur; sistem istemi ~52KB ve önbelleklidir, şişen kısım hep bu bloktur.
- */
-export const KB_CHAR_BUDGET = 24_000;
 
 /**
  * Misafirin mesajında KAÇ AYRI istek olduğunu deterministik olarak say.
@@ -687,7 +680,17 @@ export function countGuestAsks(message: string): number {
     .filter(Boolean)
     .filter((l) => {
       if (/[?？]/.test(l)) return true;
-      return !COURTESY_ONLY_LINE.test(l.replace(/[.,!;:…]+$/u, "").trim());
+      const bare = l.replace(/[.,!;:…]+$/u, "").trim();
+      // ⚠️ TÜRKÇE KATLAMA ZORUNLU (CLAUDE.md "KATLAMA KURALI"). JS'in basit
+      // case-folding'i `İ`(U+0130)→`i` ve `I`(U+0049)→`ı` YAPMAZ; düz `/iu`
+      // bayrağıyla "İyi günler", "GÜNAYDIN", "SAYGILAR" gibi Türkçenin EN yaygın
+      // selamlama/kapanış biçimleri elenmiyordu (ampirik doğrulandı) → satır
+      // "istek" sayılıp çok-soru dalı gereksiz açılıyor, anti-spam kuralı
+      // düşüyordu. Kural gereği burada uygulanması güvenli: bu KISITLAYICI bir
+      // eleme, hiçbir oto-gönderim iznini genişletmez.
+      return !COURTESY_LINES.some(
+        (c) => foldTurkishLower(bare) === foldTurkishLower(c) || foldTurkishAscii(bare) === foldTurkishAscii(c),
+      );
     }).length;
   return Math.max(questionMarks, lines, 1);
 }
@@ -698,8 +701,14 @@ export function countGuestAsks(message: string): number {
  * beyaz listesi DEĞİLDİR (CLAUDE.md: nezaket beyaz listelerine katlama
  * uygulanmaz; burada da katlama yok, sadece bu satırı istek saymıyoruz).
  */
-const COURTESY_ONLY_LINE =
-  /^(merhaba|selam|selamlar|iyi günler|iyi akşamlar|günaydın|teşekkürler|teşekkür ederim|teşekkürler!|sağ ol|sağolun|kolay gelsin|saygılar|saygılarımla|iyi çalışmalar|hello|hi|hey|good morning|good evening|thanks|thank you|regards|best regards|cheers|bye)$/iu;
+const COURTESY_LINES = [
+  "merhaba", "selam", "selamlar", "iyi günler", "iyi akşamlar", "iyi geceler",
+  "günaydın", "teşekkürler", "teşekkür ederim", "teşekkürler kolay gelsin",
+  "sağ ol", "sağolun", "sağ olun", "kolay gelsin", "saygılar", "saygılarımla",
+  "iyi çalışmalar", "iyi tatiller", "kolay gelsin iyi günler",
+  "hello", "hi", "hey", "good morning", "good evening", "good afternoon",
+  "thanks", "thank you", "regards", "best regards", "kind regards", "cheers", "bye",
+];
 
 /**
  * Bilgi tabanını bütçeye sığdır. Kesme olduğunda modele AÇIKÇA söylenir — yoksa

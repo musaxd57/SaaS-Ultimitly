@@ -3,6 +3,7 @@ import { kbSchema, zodFieldErrors } from "@/lib/validators";
 import { badRequest, jsonOk, propertyInOrg, readJsonCappedOrNull } from "@/lib/api";
 import { withManage } from "@/lib/route-guard";
 import { limitsForOrg } from "@/lib/billing/plan-limits";
+import { KB_ITEM_CAP } from "@/lib/ai/limits";
 
 export const GET = withManage(async (session, req) => {
   const { searchParams } = new URL(req.url);
@@ -36,7 +37,7 @@ export const POST = withManage(async (session, req) => {
   const limits = await limitsForOrg(session.organizationId);
   if (d.content.length > limits.kbCharsPerItem) {
     return badRequest({
-      content: `Tek bir bilgi kaydı en fazla ${limits.kbCharsPerItem.toLocaleString("tr-TR")} karakter olabilir. Uzun bilgileri birkaç kayda bölün — AI hepsini okur.`,
+      content: `Tek bir bilgi kaydı en fazla ${limits.kbCharsPerItem.toLocaleString("tr-TR")} karakter olabilir. Uzun bilgileri birkaç kayda bölün — AI bir yanıtta en güncel ${KB_ITEM_CAP} kaydı okur.`,
     });
   }
   const activeCount = await prisma.knowledgeBaseItem.count({

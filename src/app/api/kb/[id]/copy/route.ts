@@ -51,6 +51,19 @@ export const POST = withManage<{ id: string }>(async (session, req, { params }) 
   // ve kaç tanesinin atlandığı çağırana DÖNER. Hepsini birden reddetmek, 10
   // daireden biri dolu diye 9 başarılı kopyayı iptal etmek olurdu.
   const limits = await limitsForOrg(session.organizationId);
+
+  // KARAKTER KAPISI BURADA DA (denetim, 07-31). CLAUDE.md "POST ve PATCH ve
+  // COPY" diyordu ama COPY'de yalnız ADET kontrolü vardı: tavan ÜSTÜNDEKİ eski
+  // bir kayıt (20.000 karakter) tek düğmeyle 24 daireye çoğaltılabiliyordu —
+  // yani "her şeyi tek kayda doldur" kaçışı fan-out ile geri açılıyordu.
+  // Kaynak kaydı KİLİTLEMİYORUZ (o kendi dairesinde düzenlenebilir kalır),
+  // yalnız ÇOĞALTILMASINI reddediyoruz.
+  if (source.content.length > limits.kbCharsPerItem) {
+    return badRequest({
+      _: `Bu kayıt ${source.content.length.toLocaleString("tr-TR")} karakter ve kopyalama sınırı olan ${limits.kbCharsPerItem.toLocaleString("tr-TR")} karakteri aşıyor. Önce kaydı kısaltın, sonra kopyalayın.`,
+    });
+  }
+
   let created = 0;
   let skippedAtLimit = 0;
   for (const t of targets) {

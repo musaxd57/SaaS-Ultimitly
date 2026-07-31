@@ -137,6 +137,10 @@ export async function syncHospitable(
   // Mesaj içe aktarımı için AYNI görünürlük (denetim, 07-31 — ↓gerekçe).
   let threadImportFailures = 0;
   let firstThreadImportError: unknown = null;
+  let linkFailures = 0;
+  let firstLinkError: unknown = null;
+  let reservationUpsertFailures = 0;
+  let firstReservationError: unknown = null;
 
   // Multi-tenant: use THIS org's own Hospitable token. If it has no connection
   // (and isn't the primary org falling back to env), there is nothing to pull —
@@ -177,7 +181,14 @@ export async function syncHospitable(
       // A DB error on ONE listing must not abort the whole org's sync (mirrors the
       // reservation loop). Notably a P2002 on the GLOBAL-@unique hospitableId when
       // the same Airbnb account is linked under another org — log and move on.
+      // ⚠️ EN GENİŞ SESSİZ KAYIP: buraya düşen ilan `propertyMap`'e girmez, yani
+      // O DAİRENİN rezervasyonları da mesajları da bu koşuda HİÇ işlenmez —
+      // oto-yanıt ve şikayet eskalasyonu o daire için tamamen susar. Hata
+      // deterministikse (P2002, FK, şema sürprizi) her koşuda tekrarlanır.
+      // `console.error` Sentry'ye de uyarı e-postasına da GİTMEZ.
       console.error(`[Hospitable sync] linkProperty failed for ${hp.id}`, scrubErr(err));
+      linkFailures++;
+      if (firstLinkError === null) firstLinkError = err;
     }
   }
 
@@ -285,7 +296,12 @@ export async function syncHospitable(
           await removeAutoTasksForCancelledReservation(localReservationId).catch(() => {});
         }
       } catch (err) {
+        // Buraya düşmek "bu rezervasyon satırı DB'ye hiç yazılmadı" demektir:
+        // takvim, doluluk raporu ve karşılama/giriş/çıkış mesajları o konaklamayı
+        // hiç görmez. Aynı sessiz sınıf, aynı aggregate çözüm.
         console.error(`[Hospitable sync] reservation upsert failed for ${reservation.id}`, scrubErr(err));
+        reservationUpsertFailures++;
+        if (firstReservationError === null) firstReservationError = err;
       }
 
       // Message thread import — only for reservations that have a conversation.
@@ -425,18 +441,52 @@ export async function syncHospitable(
   // error text is scrubbed inside reportError)…
   if (supplyFailures > 0) {
     void reportError(
-      `supply-derivation org:${organizationId} failures:${supplyFailures}`,
-      firstSupplyError instanceof Error ? firstSupplyError : new Error(String(firstSupplyError)),
+      `supply-derivation org:${organizationId}`, // sayı context'te DEĞİL (↓throttle)
+      new Error(
+        `${supplyFailures} supply derivation(s) failed; first: ${
+          firstSupplyError instanceof Error ? firstSupplyError.message : String(firstSupplyError)
+        }`,
+      ),
     );
   }
   // Mesaj içe aktarımı SUPPLY'DAN DAHA KRİTİK: supply bir yardımcı özellik,
   // bu ise ürünün girdisi. Aynı aggregate deseni, ayrı sayaç.
-  if (threadImportFailures > 0) {
+  if (linkFailures > 0) {
     void reportError(
-      `thread-import org:${organizationId} failures:${threadImportFailures}`,
-      firstThreadImportError instanceof Error
-        ? firstThreadImportError
-        : new Error(String(firstThreadImportError)),
+      `property-link org:${organizationId}`,
+      new Error(
+        `${linkFailures} listing link(s) failed — those apartments imported NOTHING this run; first: ${
+          firstLinkError instanceof Error ? firstLinkError.message : String(firstLinkError)
+        }`,
+      ),
+    );
+  }
+  if (reservationUpsertFailures > 0) {
+    void reportError(
+      `reservation-upsert org:${organizationId}`,
+      new Error(
+        `${reservationUpsertFailures} reservation upsert(s) failed; first: ${
+          firstReservationError instanceof Error
+            ? firstReservationError.message
+            : String(firstReservationError)
+        }`,
+      ),
+    );
+  }
+  if (threadImportFailures > 0) {
+    // ⚠️ SAYI CONTEXT'E GİRMEZ: `reportError` e-posta throttle'ını CONTEXT
+    // string'iyle anahtarlıyor. Sayı her koşuda değiştiği için (5, sonra 6…)
+    // her koşu YENİ bir anahtar olur ve 10 dakikalık koruma fiilen kalkar;
+    // Sentry tarafında da tek arıza N ayrı Issue'ya bölünür. Sayı MESAJDA.
+    void reportError(
+      `thread-import org:${organizationId}`,
+      new Error(
+        `${threadImportFailures} thread import(s) failed; first: ${
+          firstThreadImportError instanceof Error
+            ? firstThreadImportError.message
+            : String(firstThreadImportError)
+        }`,
+      ),
     );
   }
   // …and an idempotent sweep over the recent window re-derives whatever was

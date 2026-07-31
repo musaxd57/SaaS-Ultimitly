@@ -81,7 +81,19 @@ export async function getOrgHospitableToken(orgId: string): Promise<string | nul
     let accessToken: string;
     try {
       accessToken = decryptSecret(org.hospitableTokenEnc);
-    } catch {
+    } catch (err) {
+      // ⚠️ SESSİZ DEĞİL (denetim, 07-31). Bu dala düşmek "şifreleme anahtarı
+      // yanlış/eksik ya da satır bozuk" demektir ve etkisi tek org'la sınırlı
+      // olmayabilir: hatalı bir `ENCRYPTION_KEY` ile HER kiracı aynı anda
+      // "Hospitable bağlı değil" olur, senkron ve oto-yanıt durur — ama
+      // `/api/health` 200 kalır (zamanlayıcı koşmaya devam eder) ve hiçbir yere
+      // TEK bir olay düşmezdi. Kardeş yollar (2FA gizli anahtarı, takvim feed
+      // URL'i) bunu baştan doğru yapıyordu; ürünün en kritik kimlik bilgisi
+      // istisnaydı. Context org'a göre SABİT → 10 dk'lık throttle çalışır.
+      void reportError(
+        `hospitable-token-undecryptable org:${orgId}`,
+        err instanceof Error ? err : new Error(String(err)),
+      );
       return null; // corrupt/under a rotated key → treat as disconnected
     }
 

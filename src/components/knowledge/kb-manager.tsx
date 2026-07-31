@@ -14,7 +14,9 @@ import { Badge } from "@/components/ui/badge";
 import { Field } from "@/components/form-field";
 import { KB_CATEGORY } from "@/lib/constants";
 import { cn } from "@/lib/utils";
-import { KB_ITEM_CAP } from "@/lib/ai/prompts";
+// YAPRAK modülden: `prompts.ts` (75 KB sistem promptu) tarayıcı paketinin
+// bağımlılık grafiğine ASLA girmemeli — depo tam da o dosya yüzünden private.
+import { KB_ITEM_CAP } from "@/lib/ai/limits";
 
 // Categories whose content is auto-sent verbatim to the guest (vs. read-only
 // facts the AI uses to answer questions). Only used to group the dropdown.
