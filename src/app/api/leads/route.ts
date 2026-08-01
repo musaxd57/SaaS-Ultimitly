@@ -47,7 +47,18 @@ export async function POST(req: NextRequest) {
     // AWAIT it (Railway is a long-lived server, so this reliably sends before we
     // respond) and LOG failures, so a delivery problem is visible rather than
     // silently swallowed. The DB Lead row above is the source of truth either way.
-    const to = process.env.ALERT_EMAIL?.trim();
+    // ⚠️ AYNI SIRA `report-error-core` ile (denetim, 08-01 — beşinci tur, ajan
+    // bulgusu): orası `ERROR_ALERT_EMAIL || ALERT_EMAIL` okuyor, burası yalnız
+    // ikincisini okuyordu. CLAUDE.md'nin canlı env listesinde `ERROR_ALERT_EMAIL`
+    // var, `ALERT_EMAIL` HİÇ geçmiyor → "demo talebi kaçmasın" koruması canlıda
+    // muhtemelen HİÇ çalışmıyordu ve kapalı olduğu bile görünmüyordu.
+    const to = (process.env.ERROR_ALERT_EMAIL || process.env.ALERT_EMAIL)?.trim();
+    if (!to) {
+      void reportError(
+        "lead-notify-unconfigured",
+        new Error("Demo talebi geldi ama operatör bildirim adresi ayarlı değil (ERROR_ALERT_EMAIL/ALERT_EMAIL)."),
+      );
+    }
     if (to) {
       try {
         // ⚠️ `send` DEĞİL `sendReporting` (denetim, 08-01 — üçüncü tur): `send`

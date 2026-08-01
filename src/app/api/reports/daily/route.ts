@@ -22,13 +22,25 @@ export const GET = withManage(async (session) => {
 
   const [stats, arrivals, departures] = await Promise.all([
     getOpsStats(orgId),
+    // ⚠️ SAYILARLA AYNI KÜME (denetim, 08-01 — beşinci tur, ajan bulgusu).
+    // `getOpsStats` yalnız confirmed/completed sayıyor; bu iki liste hiç
+    // süzmüyordu → yanıt "Bugün 2 giriş … Girişler: A, B, C" diyebiliyor ve
+    // İPTAL edilmiş misafirin adı bugünün giriş listesinde görünüyordu.
     prisma.reservation.findMany({
-      where: { ...scope, arrivalDate: { gte: dayStart, lt: dayEnd } },
+      where: {
+        ...scope,
+        status: { in: ["confirmed", "completed"] },
+        arrivalDate: { gte: dayStart, lt: dayEnd },
+      },
       include: { property: { select: { name: true } } },
       orderBy: { arrivalDate: "asc" },
     }),
     prisma.reservation.findMany({
-      where: { ...scope, departureDate: { gte: dayStart, lt: dayEnd } },
+      where: {
+        ...scope,
+        status: { in: ["confirmed", "completed"] },
+        departureDate: { gte: dayStart, lt: dayEnd },
+      },
       include: { property: { select: { name: true } } },
       orderBy: { departureDate: "asc" },
     }),

@@ -313,6 +313,106 @@ politikası kullanıcı kararı.
 
 ---
 
+## 4d. Beşinci denetim turunda UYGULANMAYAN bulgular (08-01) — gerekçeleriyle
+
+Beş ajan + kendi ampirik taramam. Aşağıdakiler **bilinçli olarak uygulanmadı**;
+her biri ya ENV, ya ürün kararı, ya migration ister.
+
+### (a) 🚨 `TRUSTED_PROXY_HOPS=2` — RAILWAY ENV, KULLANICI GİRECEK (en yüksek etki)
+
+Bayrak set edilmediği sürece `pickClientHop(parts, 1)` zincirin **en sağındakini**
+(Railway edge'i) döndürür → **tüm** hız limitleri kişi başına değil GLOBAL çalışır.
+Ajanın çıkardığı somut sömürü: tek bir host'tan 5 dakikada 11 `POST /api/auth/login`
+→ `login:<railway-edge>` kovası dolar → **hiçbir müşteri giriş yapamaz** (429), ~2
+istek/dk ile süresiz sürdürülebilir. Aynı çöküş `register` (5/sa), `leads` (5/sa),
+`demo-ai` (6/sa), `guestchat-ip` (20/dk), `ical` (60/dk — Airbnb/Booking takvim
+çekimi durur), `verify-resend`, `forgot` için de geçerli. **Kod değişikliği YOK** —
+/admin "Operasyon Teşhisi" kartındaki önizlemeyle doğrulayıp Railway'e ekleyin.
+
+### (b) Impersonation oturumu süper-admin yetkisini YENİDEN doğrulamıyor
+
+`requireSession` yalnız kullanıcı + aktör epoch'unu kontrol ediyor, `isSuperAdmin`
+çağrısı yok. Sonuç: bir e-postayı `SUPERADMIN_EMAILS`'ten SİLMEK açık impersonation
+oturumlarını **sonlandırmıyor**; middleware token'ı her istekte 14 gün uzattığı için
+kişi müşteri org'unda owner yetkisiyle süresiz çalışmaya devam edebilir. Tek gerçek
+iptal, şifre değişimiyle epoch bump'ı. **Dar düzeltme:** `requireSession` içinde
+`session.actorUserId` varken `isSuperAdmin(session)` de doğrulansın (false → 401).
+**Neden uygulanmadı:** her API isteğine bir kontrol ekliyor ve oturum-geçersizleştirme
+semantiğini değiştiriyor — canlı kimlik yolunda kullanıcı onayı istiyorum.
+
+### (c) Sayfa katmanındaki rol kontrolü BAYAT JWT'den okuyor
+
+`middleware.ts` staff yönlendirmesini JWT'deki `role` ile yapıyor ve her istekte
+token'ı **aynı rolle yeniden imzalayıp** 14 günü sıfırlıyor → DB'de düşürülen bir rol
+sayfa yolunda asla yürürlüğe girmiyor (`requireAuth` DB rolünü okuyor ama sayfaların
+çoğunda rol kontrolü YOK; yazma yolları kapalı, **okuma** açık kalıyor).
+Bugün etkisi sınırlı: CLAUDE.md'nin yazdığı gibi **rol değiştiren yüzey YOK** (düşürme
+elle SQL). **Dar düzeltme:** `sent/queue/page.tsx` ve `tasks/new/page.tsx` emsalindeki
+tek satırlık `canManage` redirect'i rol kontrolü olmayan `(app)` sayfalarına da
+eklensin — **ekip yönetimi eklenmeden ÖNCE ŞART** (sessionEpoch bump'ıyla birlikte).
+
+### (d) `login-acct:{email}` kovası kimlik kontrolünden ÖNCE tüketiliyor
+
+Başarılı denemeler de sayıldığı için e-postasını bilen biri hedefi kalıcı giriş
+dışı bırakabilir: 15 dakikada 21 istek (~1,4/dk) → kurban DOĞRU şifresiyle bile 429.
+Aynı desen `forgot-confirm:{email}`. **Dar düzeltme:** hesap kovasını yalnız
+BAŞARISIZ doğrulamadan sonra tüket (IP kovası zaten önde). **Neden uygulanmadı:**
+kimlik doğrulama sırasını değiştirmek zamanlama-sızıntısı yüzeyine dokunuyor
+(`dummyVerifyPassword` dengesi) — ayrı ve dikkatli bir tur hak ediyor.
+
+### (e) Kayıt rotası hesap varlığını sızdırıyor
+
+`POST /api/auth/register` var olan e-postada açıkça "zaten kayıtlı" diyor; giriş,
+şifre-sıfırlama ve doğrulama-tekrar yollarının hepsi enumeration-korumalı. **Neden
+uygulanmadı:** tekdüze yanıt, "zaten hesabınız var" e-postası gerektirir = yeni bir
+müşteri e-postası türü = ürün + e-posta akışı kararı.
+
+### (f) Hospitable bağlantı SAĞLIĞI panelde görünmüyor
+
+`connected` yalnız "şifreli token çözülüyor mu" demek. Abonelik 402'ye düşünce
+(canlı hesabın bugünkü durumu) Ayarlar hâlâ yeşil **"Bağlı."** diyor, mesaj akışı
+sessizce duruyor. **MIGRATION İSTER:** `Organization`'da `lastSyncedAt`/`lastStatus`/
+`lastError` üçlüsü yok (bu alanlar yalnız `CalendarSource`'ta var).
+
+### (g) "Hayalet rezervasyon" temizliğinde CSV sınırı
+
+Bu turda iCal satırları `calendarSourceId` ile kapsam dışına alındı, ama **CSV ile
+içe aktarılan satırların da `calendarSourceId`'si NULL** — onlar hâlâ aynı kümede.
+Tam ayrım satırın KÖKENİNİ tutan bir kolon ister = MIGRATION.
+
+### (h) Ölü kod ve tek-kaynak sapmaları (temizlik, davranış değişmez)
+
+- `assertTransition` ve `CLAIMABLE_STATUSES` (`outbox/state.ts`) **0 referans**;
+  gerçek kapı `canTransition`. Yorum var olmayan bir korumayı anlatıyor.
+  `recoverStaleClaims` `settle`'ı atlayarak doğrudan yazıyor (hiçbir kapıdan geçmiyor).
+- `getOccupancyForecast` ve `getResponseTimeStats` (`reports.ts`) üretimde **çağrılmıyor**
+  (ilkinin tek çağıranı bir test). 07-27'deki DST düzeltmesi hiç koşmayan koda yapılmış.
+- `ai/openai-compat.ts` "TEK KAYNAK … üç çağrı yeri" diyor ama **iki** dosya import
+  ediyor; ana yanıt (`ai/index.ts`) ve çeviri gövdeyi elle kuruyor. Ölçülebilir sapma:
+  stil-profili çağrısında **hiçbir çıktı tavanı yok** ve model↔endpoint uyum kontrolü
+  o yollarda hiç koşmuyor.
+- `sendDueAlerts` JSDoc'u iki kez yanlış ("ALERT_EMAIL ile açılır" — kullanılmıyor;
+  "e-posta hataları yutulur" — artık okunuyor ve claim geri alınıyor).
+- `human_hold` görünürlük yazması ULAŞILAMAZ: aday sorgusu `autoReplyHoldUntil`
+  geleceğe dönük satırları zaten dışarıda bırakıyor → inbox etiketi hiç render edilemez.
+  (`outside_hours` emsalindeki gibi aday sorgusunun DIŞINDA yazılmalı.)
+- `Task` süpürgesi rezervasyon-kapsamlı dalda `sourceMessageId` bağını kullanmıyor →
+  konuşma SONRADAN rezervasyona bağlanırsa görev iki dalın da dışında kalıyor (KVKK).
+
+### (i) Müşteri gözü — küçük ama gerçek
+
+- Görev fotoğrafları `STORAGE_ENABLED` kapalıyken **ephemeral** diske yazılıyor ve UI
+  "Fotoğraf kaydedildi." diyor; deploy'da kayboluyorlar. Bucket turuna kadar tek satır
+  uyarı gerekir.
+- Raporlar "AI **yanıtladı**" sayısı `aiAssisted` (host'un onaylayıp KENDİ gönderdiği)
+  taslakları ve yaşam-döngüsü mesajlarını da içeriyor; Gönderilenler çipi içermiyor →
+  iki ekran farklı sayı gösteriyor. Metin/sayım kararı.
+- `daily_budget` etiketi "sınır yenilenince" diyor ama pencere ilk çağrıya çapalı kayan
+  24 saat; `dailyBudgetMessage` zaten "Yaklaşık N saat sonra" üretiyor, etiket kullanmıyor.
+  Ayrıca panelde kotanın ne kadarının kullanıldığını gösteren **hiçbir yüzey yok**.
+
+---
+
 ## 5. Bekleyen eski migration işleri (CLAUDE.md'den — hatırlatma)
 
 Bunlar bugünün bulgusu değil, listede duruyor:

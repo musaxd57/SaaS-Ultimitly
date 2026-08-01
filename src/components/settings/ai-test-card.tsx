@@ -184,13 +184,22 @@ export function AiTestCard({ properties }: { properties: { id: string; name: str
               <strong>otomatik gönderilir</strong>. Aşağıdaki metin — otomatik yanıt notu ve imza dahil —
               misafire birebir gidecek olandır.
             </p>
-          ) : result.confidence < 0.75 ? (
+          ) : (
+            /* ⚠️ TEK KOŞUL: "otomatik gönderilmez" (denetim, 08-01 — beşinci tur,
+               ajan bulgusu). Eskiden YALNIZ `confidence < 0.75` dalı açıklama
+               basıyordu; kapıya YÜKSEK GÜVENLE takılan bir mesajda (intent
+               blocklist, injection vetosu, riskLevel medium — bu dallarda
+               `riskType` NULL olabilir) ekranda tek kelime uyarı YOKTU. Host
+               "%90 güven" rozetini ve cilalı taslağı görüp "demek bunu otomatik
+               gönderiyor" sanıyordu — ürünün en önemli vaadi tam da kalibrasyon
+               ekranında ters anlaşılıyordu. */
             <p className="text-xs text-amber-600">
-              Güven %75&apos;in altında → bu mesaja otomatik cevap <strong>gönderilmez</strong>, sizin
-              onayınıza bırakılır. (Yüksek güvende bile şikayet/iade/erken-çıkış gibi mesajlar her zaman
-              size kalır.)
+              {result.confidence < 0.75
+                ? "Güven %75'in altında → bu mesaja otomatik cevap gönderilmez, sizin onayınıza bırakılır."
+                : "Güvenlik kapısı bu mesajı otomatik yanıta uygun bulmadı → gönderilmez, sizin onayınıza bırakılır."}{" "}
+              (Şikayet/iade/erken-çıkış gibi mesajlar yüksek güvende bile her zaman size kalır.)
             </p>
-          ) : null}
+          )}
           {riskTypeLabel(result.riskType) ? (
             <p className="text-xs font-medium text-orange-700">İnsan incelemesi: {riskTypeLabel(result.riskType)}</p>
           ) : null}
