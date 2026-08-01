@@ -368,7 +368,7 @@ Ayrica `PASS_BUDGET_MS`/`ORG_BUDGET_MS` bunu kesmiyor; scheduled-sync.ts:265-273
 
 ---
 
-## 15. 🟠 YÜKSEK — QR concierge, `suggestReply` çağıran TEK yer olarak org günlük AI bütçesinin tamamen dışında — ve bu, kimlik doğrulaması olmayan tek yüzey
+## 15. ✅ UYGULANDI (08-01) · 🟠 YÜKSEK — QR concierge, `suggestReply` çağıran TEK yer olarak org günlük AI bütçesinin tamamen dışında — ve bu, kimlik doğrulaması olmayan tek yüzey
 **Yer:** `src/app/api/chat/[token]/route.ts:1-21,461-505 · src/lib/ai/daily-budget.ts:5-23,127-136 · src/lib/billing/plan-limits.ts:63-83,135`
 
 **Kanıt:** `daily-budget.ts:5-23` bu mekanizmanın gerekçesini yazıyor: "dakikalık limitler tek bir isteği yavaşlatır ama TOPLAM harcamayı sınırlamaz… Sayaç ORG başınadır, kullanıcı başına değil: maliyet org'a aittir ve ekip üyesi ekleyerek tavanı çoğaltmak mümkün olmamalı." `consumeDailyAiBudget`/`peekDailyAiBudget` çağıran 7 yer var (ai/test, translate-message, conversations reply, ai-suggest, auto-reply-test, hazirlik/summary, automation.ts:1173,1260) — QR rotası bu listede YOK; dosyanın import bloğunda (`route.ts:1-21`) `daily-budget` hiç geçmiyor.
@@ -392,7 +392,7 @@ Ayrıca fiyat kartı metni `plan-limits.ts:135`: `günde ${l.ai
 
 ---
 
-## 16. 🟠 YÜKSEK — QR eskalasyonu "ev sahibine ilettim" diyor ama varsayılan kurulumda ev sahibine hiçbir kanaldan ulaşmıyor: e-posta bayrağı KAPALI ve konuşma bilerek "answered" olduğu için hiçbir dikkat yüzeyine düşmüyor
+## 16. ✅ UYGULANDI (08-01) · 🟠 YÜKSEK — QR eskalasyonu "ev sahibine ilettim" diyor ama varsayılan kurulumda ev sahibine hiçbir kanaldan ulaşmıyor: e-posta bayrağı KAPALI ve konuşma bilerek "answered" olduğu için hiçbir dikkat yüzeyine düşmüyor
 **Yer:** `src/app/api/chat/[token]/route.ts:482,489-496,541-555 · src/lib/guest-chat-alerts.ts:80-82,101 · src/lib/guest-chat.ts:169-170 · src/app/(app)/dashboard/page.tsx:66`
 
 **Kanıt:** Misafire verilen söz KOŞULSUZ:

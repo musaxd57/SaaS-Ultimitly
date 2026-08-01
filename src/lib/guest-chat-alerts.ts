@@ -75,7 +75,7 @@ export function qrEscalationEventId(inboundMessageId: string, guestText: string,
   return `crit:${createHash("sha256").update(normalized).digest("hex").slice(0, 32)}`;
 }
 
-export type QrEscalationReason = "ai_escalated" | "daily_cap";
+export type QrEscalationReason = "ai_escalated" | "daily_cap" | "daily_budget";
 
 export function qrEscalationEmailEnabled(): boolean {
   return process.env.QR_ESCALATION_EMAIL_ENABLED === "1";

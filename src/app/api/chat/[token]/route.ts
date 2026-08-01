@@ -15,11 +15,16 @@ import {
 } from "@/lib/guest-chat";
 import { guestChatDisplayRole } from "@/lib/message-author";
 import { verifyReservationPin } from "@/lib/guest-chat-pin";
-import { sendQrEscalationAlertBounded, qrEscalationEventId } from "@/lib/guest-chat-alerts";
+import {
+  sendQrEscalationAlertBounded,
+  qrEscalationEventId,
+  qrEscalationEmailEnabled,
+} from "@/lib/guest-chat-alerts";
 import { jsonOk, badRequest, tooManyRequests, parseJsonBody, payloadTooLarge } from "@/lib/api";
 import { rateLimit, clientIp } from "@/lib/rate-limit";
 import { claimKeyedOutboundSend, releaseKeyedOutboundSend } from "@/lib/outbound-claim";
 import { limitsForOrg } from "@/lib/billing/plan-limits";
+import { consumeDailyAiBudget } from "@/lib/ai/daily-budget";
 
 export const dynamic = "force-dynamic";
 
@@ -54,6 +59,28 @@ const DAILY_AI_CAP_FALLBACK = 200;
 // message is still recorded so the host sees it; the client is GET-authoritative,
 // so this reply is a courtesy field, not what renders.
 const HANDOFF_REPLY = "Mesajınız işletme ekibine iletildi; en kısa sürede size dönecek.";
+
+/**
+ * ESKALASYON CEVABI — SÖZ, GERÇEĞE UYGUN OLMAK ZORUNDA (denetim, 08-01).
+ *
+ * Eski metin KOŞULSUZ "ev sahibine ilettim" diyordu. Oysa host'a giden TEK push
+ * kanalı `QR_ESCALATION_EMAIL_ENABLED` ve VARSAYILAN KAPALI; kapalıyken
+ * `maybeSendQrEscalationEmail` talebi claim bile etmeden dönüyor. İkinci bir
+ * kanal da yok: QR konuşması bilerek `status:"answered"` doğuyor, panelin
+ * dikkat listesi ise new/waiting/problem süzüyor → hiçbir yüzeye düşmüyor.
+ * Yani varsayılan kurulumda misafir "yardım yolda" sanıyor, ev sahibi hiçbir şey
+ * duymuyor — güvenlik acili dahil. Ölçülebilir bir yanlış beyandı.
+ *
+ * Bayrak AÇIKSA söz doğrudur ve aynen korunur. KAPALIYKEN metin, gerçekte olan
+ * şeyi söyler: mesaj kaydedildi ve ev sahibi sohbet ekranından görecek.
+ * ⚠️ Bayrağın kendisi ÜRÜN KARARIYLA kapalı (CLAUDE.md) — burada AÇILMIYOR,
+ * yalnız metin gerçeğe uyduruluyor.
+ */
+function escalationReply(): string {
+  return qrEscalationEmailEnabled()
+    ? "Sorunuzu ev sahibine ilettim; en kısa sürede size dönecek."
+    : "Mesajınız kaydedildi; ev sahibiniz sohbet ekranından görecek ve size dönecek.";
+}
 
 const notFound = () => new Response("Not found", { status: 404 });
 
@@ -480,7 +507,7 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ tok
     DAILY_AI_CAP_FALLBACK;
 
   if (usage.count > dailyAiCap) {
-    const reply = "Sorunuzu ev sahibine ilettim; en kısa sürede size dönecek.";
+    const reply = escalationReply();
     const { inboundMessageId, handedOff } = await record(reply, true);
     // A host reply raced in → the human owns the thread; the canned line was
     // vetoed under the lock and only the guest's message was stored.
@@ -496,6 +523,35 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ tok
       critical: criticalEvent,
     });
     return finalize({ escalated: true, reply });
+  }
+
+  // ⚠️ ORG GÜNLÜK AI BÜTÇESİ — QR BU KAPININ DIŞINDAYDI (denetim, 08-01).
+  // `suggestReply` çağıran 8 yerden 7'si org bütçesini tüketiyordu; QR rotası
+  // TEK istisnaydı ve aynı zamanda kimlik doğrulaması OLMAYAN tek AI yüzeyi.
+  // Tek tavanı DAİRE başınaydı (50/100/200) → 25 daireli bir İşletme müşterisi
+  // 25 × 200 = 5.000 model çağrısına ulaşabiliyordu, oysa aynı planın org tavanı
+  // 1.500. Yani `daily-budget.ts`'in kendi gerekçesi ("sayaç ORG başınadır;
+  // üye ekleyerek tavanı çoğaltmak mümkün olmamalı") daire-başına delinmişti ve
+  // ödeyen müşterinin OpenAI faturası tek toplam-harcama korumasının dışında
+  // büyüyebiliyordu.
+  //
+  // Tavana çarpınca DAİRE tavanıyla AYNI dal işler: model çağrısı YOK, misafire
+  // devir cevabı, host'a bildirim denemesi. Daire-başı tavan ikinci savunma
+  // olarak yerinde duruyor.
+  const budget = await consumeDailyAiBudget(ctx.property.organizationId);
+  if (!budget.ok) {
+    const escalationText = escalationReply();
+    const { inboundMessageId, handedOff } = await record(escalationText, true);
+    if (handedOff) return finalize({ handoff: true, reply: HANDOFF_REPLY });
+    await sendQrEscalationAlertBounded({
+      organizationId: ctx.property.organizationId,
+      propertyName: ctx.property.name,
+      reservationId: res.id,
+      eventId: qrEscalationEventId(inboundMessageId, message, criticalEvent),
+      reason: "daily_budget",
+      critical: criticalEvent,
+    });
+    return finalize({ escalated: true, reply: escalationText });
   }
 
   const org = await prisma.organization.findUnique({
@@ -546,7 +602,7 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ tok
   // reply committing at any point before our insert structurally vetoes the AI
   // answer (handedOff below). The guest's message is still recorded for the host.
   const reply = escalate
-    ? "Bu sorunuzu ev sahibine ilettim; en kısa sürede size dönecek."
+    ? escalationReply()
     : result.reply;
   const { inboundMessageId, handedOff } = await record(reply, escalate);
   if (handedOff) return finalize({ handoff: true, reply: HANDOFF_REPLY });
