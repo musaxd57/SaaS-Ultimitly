@@ -1,6 +1,6 @@
 import { type NextRequest } from "next/server";
 import { prisma } from "@/lib/db";
-import { requireSession, unauthorized, badRequest, jsonOk, serverError, tooManyRequests, readJsonCappedOrNull } from "@/lib/api";
+import { requireSession, unauthorized, forbidden, badRequest, jsonOk, serverError, tooManyRequests, readJsonCappedOrNull } from "@/lib/api";
 import { rateLimit } from "@/lib/rate-limit";
 import { encryptSecret, decryptSecret } from "@/lib/crypto";
 import { generateSecret, otpauthUri, verifyTotp, verifyTotpStep } from "@/lib/auth/totp";
@@ -52,6 +52,29 @@ export async function GET() {
 export async function POST(req: NextRequest) {
   const session = await requireSession();
   if (!session) return unauthorized();
+  // ⚠️ IMPERSONATION ALTINDA 2FA YÖNETİLEMEZ (denetim, 08-01).
+  //
+  // Impersonation'da `session.userId` MÜŞTERİNİN kullanıcısıdır (`admin.ts`
+  // oturumu öyle imzalar). Kapı olmadığında operatör, 2FA'sı KAPALI bir müşteri
+  // hesabında `setup` → gizli anahtarı DÜZ METİN olarak kendi alır → `enable`
+  // ile etkinleştirebiliyordu. Müşteriye hiçbir doğrulama gitmiyor, kurtarma
+  // kodları da `enable` içinde siliniyor → müşteri kendi hesabına bir daha
+  // GİREMEZ ve erişimi tamamen operatöre bağlı hâle gelir.
+  //
+  // Impersonation'ın kabul edilmiş sınırı "operatör müşteri gibi ÇALIŞABİLİR";
+  // oturum bittikten sonra da yaşayan KALICI BİR KİMLİK BİLGİSİ yaratmak o
+  // modelin dışındadır. Aynı kapı `account/delete` rotasında zaten var (emsal).
+  //
+  // Meşru destek yolu KAPANMIYOR: müşteri telefonunu kaybettiyse operatörün
+  // ayrı, süper-admin kapılı ve denetlenen yolu var → POST /api/admin/reset-2fa.
+  // GET (durum okuma) serbest kalır — operatör 2FA'nın açık olup olmadığını
+  // görebilmeli.
+  if (session.actorUserId) {
+    return forbidden(
+      "İşletme hesabındayken (impersonation) iki adımlı doğrulama yönetilemez. " +
+        "Müşteri erişimini kaybettiyse operatör panelinden 2FA sıfırlama kullanın.",
+    );
+  }
   // Throttle 2FA management (enable/disable code attempts) — anti code brute-force.
   const limited = await rateLimit(`2fa:${session.userId}`, 10, 10 * 60_000);
   if (!limited.ok) return tooManyRequests(limited.retryAfter);

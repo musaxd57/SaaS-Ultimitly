@@ -35,6 +35,37 @@ describe("POST /api/account/2fa", () => {
     session = { userId: user.id, organizationId: org.id, role: "owner", email: "u@example.com", name: "U", sessionEpoch: 0 };
   });
 
+  // -------------------------------------------------------------------------
+  // IMPERSONATION KAPISI (derin denetim, 2026-08-01).
+  //
+  // Impersonation'da oturum MÜŞTERİNİN kullanıcısıyla imzalanır. Kapı olmadan
+  // operatör, 2FA'sı kapalı bir müşteri hesabında `setup` ile gizli anahtarı
+  // DÜZ METİN olarak alıp `enable` ile etkinleştirebiliyordu; kurtarma kodları
+  // da `enable` içinde silindiği için müşteri kendi hesabına bir daha giremez
+  // ve erişimi tamamen operatöre bağlı hâle gelirdi. Oturum bittikten sonra da
+  // yaşayan KALICI bir kimlik bilgisi yaratmak impersonation modelinin dışıdır;
+  // aynı kapı `account/delete` rotasında zaten vardı (emsal).
+  // -------------------------------------------------------------------------
+  const IMPERSONATED_ACTIONS = ["setup", "enable", "disable", "recovery_codes"] as const;
+  for (const action of IMPERSONATED_ACTIONS) {
+    it(`impersonation altında '${action}' REDDEDİLİR (403)`, async () => {
+      session = { ...session, actorUserId: "operator-1", actorEmail: "op@lixusai.com" };
+      const res = await POST(req({ action, code: "123456" }));
+      expect(res.status).toBe(403);
+      // Hiçbir kimlik bilgisi yaratılmadı.
+      const after = await prisma.user.findUniqueOrThrow({ where: { id: session.userId } });
+      expect(after.twoFactorSecret).toBeNull();
+      expect(after.twoFactorEnabledAt).toBeNull();
+    });
+  }
+
+  it("impersonation yokken 'setup' NORMAL çalışır (regresyon pini)", async () => {
+    const res = await POST(req({ action: "setup" }));
+    expect(res.status).toBe(200);
+    const body = await res.json();
+    expect(typeof body.secret).toBe("string");
+  });
+
   it("rejects 'setup' when 2FA is already active — never silently disables it", async () => {
     // 2FA is live on this account.
     await prisma.user.update({

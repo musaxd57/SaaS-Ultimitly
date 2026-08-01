@@ -1,7 +1,7 @@
 import { NextResponse } from "next/server";
 import { withManage } from "@/lib/route-guard";
 import { requeueFailedOutbox } from "@/lib/outbox/ops";
-import { writeAudit } from "@/lib/audit";
+import { writeAudit, auditActor } from "@/lib/audit";
 
 // ---------------------------------------------------------------------------
 // Tenant-bound MANUAL retry for ONE definitively-failed outbox row (#8 ops
@@ -34,7 +34,7 @@ export const POST = withManage<{ id: string }>(async (session, _req, ctx) => {
 
   await writeAudit({
     organizationId: session.organizationId,
-    actorUserId: session.userId,
+    actorUserId: auditActor(session),
     action: "outbox.manual_retry",
     metadata: { outboxId: id },
   });

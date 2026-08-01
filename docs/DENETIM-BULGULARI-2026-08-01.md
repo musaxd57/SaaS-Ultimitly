@@ -355,7 +355,7 @@ Ayrica `PASS_BUDGET_MS`/`ORG_BUDGET_MS` bunu kesmiyor; scheduled-sync.ts:265-273
 
 ---
 
-## 14. 🟠 YÜKSEK — Impersonation altında yapılan plan değişikliği (gerçek, anında tahsilat) denetim kaydına MÜŞTERİ tarafından yapılmış gibi yazılıyor — operatörün izi kalmıyor.
+## 14. ✅ UYGULANDI (08-01) · 🟠 YÜKSEK — Impersonation altında yapılan plan değişikliği (gerçek, anında tahsilat) denetim kaydına MÜŞTERİ tarafından yapılmış gibi yazılıyor — operatörün izi kalmıyor.
 **Yer:** `src/app/api/billing/plan-change/route.ts:168-173, src/lib/audit.ts:51, src/lib/admin.ts:85-96`
 
 **Kanıt:** plan-change/route.ts:170 `actorUserId: session.userId`. Ama impersonation'da `session.userId` müşterinin owner'ının id'sidir: admin.ts:85-91 `setSessionCookie({ userId: owner.id, organizationId: target.id, role: owner.role, ... actorUserId })` — gerçek operatör YALNIZ `session.actorUserId`'de durur. audit.ts:51 sözleşmeyi açıkça yazıyor: `actorUserId — the REAL operator behind the action (not the impersonated user)`. Diğer 11 ayrıcalıklı rota bu sözleşmeye uyuyor (`admin/customers/route.ts:98`, `account/2fa/route.ts:107`, `hospitable/connect/route.ts:64` … hepsi `session.actorUserId ?? session.userId`); PARA hareketi yapan tek rota olan plan-change uymuyor. Ayrıca `withOwner` (route-guard.ts:67-72) yalnız `session.role !== "owner"` bakar, impersonation'da rol `owner` olduğu için kapı açıktır.
@@ -472,7 +472,7 @@ Kod-dogrulamasi: `applyChannelAutoReply`/`runDueChannelAutoReplies` cagiran BES 
 
 ---
 
-## 20. 🟡 ORTA — persistRiskVisibility'nin "ayni sebep ise yazma" korumasi risk alanlarini da atliyor: ardisik iki low_confidence_or_risky mesajda ikincisinin deterministik risk etiketi (safety_emergency / rule_violation) inbox'ta hic gorunmez.
+## 20. ✅ UYGULANDI (08-01) · 🟡 ORTA — persistRiskVisibility'nin "ayni sebep ise yazma" korumasi risk alanlarini da atliyor: ardisik iki low_confidence_or_risky mesajda ikincisinin deterministik risk etiketi (safety_emergency / rule_violation) inbox'ta hic gorunmez.
 **Yer:** `src/lib/automation.ts:162-181, src/lib/automation.ts:1482-1488, src/app/(app)/inbox/[id]/page.tsx:171-176`
 
 **Kanıt:** Guard, satiri YALNIZCA `skippedReason` degistiginde gunceller — ama ayni updateMany risk alanlarini da tasiyor:
@@ -512,7 +512,7 @@ Inbox detay sayfasi tam bu alani okuyor:
 
 ---
 
-## 21. 🟡 ORTA — statedCheckoutTime rezervasyona guvenlik kapisindan ONCE yaziliyor: insana devredilen/vetolanan bir mesaj bile Reservation.guestCheckoutTime'i degistirir ve kanit kontrolu olumsuzlamayi ayirt etmiyor.
+## 21. ✅ UYGULANDI (08-01) · 🟡 ORTA — statedCheckoutTime rezervasyona guvenlik kapisindan ONCE yaziliyor: insana devredilen/vetolanan bir mesaj bile Reservation.guestCheckoutTime'i degistirir ve kanit kontrolu olumsuzlamayi ayirt etmiyor.
 **Yer:** `src/lib/automation.ts:1242-1251, src/lib/automation.ts:1288, src/lib/ai/stated-time.ts:19-42`
 
 **Kanıt:** Yazma, kapinin ~45 satir ONCESINDE:
@@ -659,7 +659,7 @@ Satir tavani icin yazilan aciklama (:179-188) 10.000'i operatif tavan gibi sunuy
 
 ---
 
-## 29. 🟡 ORTA — Devir (handoff) durumu sohbet detay ekranında KESİLMİŞ pencereden hesaplanıyor: 200+ mesajda "İnsan desteğinde" rozeti ve "AI'yı yeniden etkinleştir" düğmesi kayboluyor, 1000+ mesajda düğme kalıcı olarak ulaşılamaz oluyor
+## 29. ✅ UYGULANDI (08-01) · 🟡 ORTA — Devir (handoff) durumu sohbet detay ekranında KESİLMİŞ pencereden hesaplanıyor: 200+ mesajda "İnsan desteğinde" rozeti ve "AI'yı yeniden etkinleştir" düğmesi kayboluyor, 1000+ mesajda düğme kalıcı olarak ulaşılamaz oluyor
 **Yer:** `src/app/(app)/guest-chats/[id]/page.tsx:19,28,68-72,87,118,191-195 · src/lib/guest-chat.ts:521-538 · src/app/api/chat/[token]/route.ts:456-459`
 
 **Kanıt:** `guest-chat.ts:521-538` bu tuzağı ADIYLA belgeliyor ve liste ekranı için otoriter bir sorgu (`guestChatPausedByConversation`, DISTINCT ON) yazılmış: "Devir işareti o pencerenin dışında kaldığında … rozet SESSİZCE kaybolabiliyordu. Müşteriye gösterilen bir rozetin 'bazen yanlış' olması kabul edilebilir bir taviz değil (Codex)." DETAY ekranı ise hâlâ eski hatalı deseni kullanıyor:
@@ -706,7 +706,7 @@ Kritik nokta: saldırgan bu yola ancak konaklama BAĞLANMAMIŞKEN girebiliyor (`
 
 ---
 
-## 31. 🟡 ORTA — statedCheckoutTime kanıt kontrolü virgül/noktalı virgülle ayrılmış cümlecikleri tek segment sayıyor; alakasız bir saat rezervasyona çıkış saati olarak yazılabiliyor.
+## 31. ✅ UYGULANDI (08-01) · 🟡 ORTA — statedCheckoutTime kanıt kontrolü virgül/noktalı virgülle ayrılmış cümlecikleri tek segment sayıyor; alakasız bir saat rezervasyona çıkış saati olarak yazılabiliyor.
 **Yer:** `src/lib/ai/stated-time.ts:35, src/lib/ai/stated-time.ts:31-34, src/lib/automation.ts:1242-1250`
 
 **Kanıt:** Segment ayırıcı yalnız `!`, `?`, satır sonu ve rakam arasında olmayan nokta: `for (const segment of message.toLowerCase().split(/(?:[!?\n]|(?<!\d)\.|\.(?!\d))+/))` (35). Virgül, noktalı virgül, tire YOK. Oysa hemen üstündeki yorum (31-34) garantiyi şöyle tanımlıyor: "the time and the checkout cue must sit in the SAME segment, so \"Dinner at 18:00. We leave tomorrow.\" can't borrow the cue from a different sentence". Aynı karşı-örnek noktadan virgüle çevrildiği anda garanti düşüyor: "Dinner at 18:00, we leave tomorrow" TEK segmenttir, `CHECKOUT_CUE` (`leav`) eşleşir, `segmentStatesTime` 18:00'i bulur ve `timeStatedInMessage` TRUE döner. Kabul edilen değer doğrudan rezervasyona yazılıyor: `await prisma.reservation.update({ where: { id: conversation.reservation.id }, data: { guestCheckoutTime: result.statedCheckoutTime } });` (automation.ts:1244-1247).
@@ -719,7 +719,7 @@ Kritik nokta: saldırgan bu yola ancak konaklama BAĞLANMAMIŞKEN girebiliyor (`
 
 ---
 
-## 32. 🟡 ORTA — Impersonation sırasında yapılan 7 hassas işlemin denetim kaydı, operatörü değil MÜŞTERİNİN kendi kullanıcısını fail olarak yazıyor — en kritiği zorunlu KVKK imha kaydı.
+## 32. ✅ UYGULANDI (08-01) · 🟡 ORTA — Impersonation sırasında yapılan 7 hassas işlemin denetim kaydı, operatörü değil MÜŞTERİNİN kendi kullanıcısını fail olarak yazıyor — en kritiği zorunlu KVKK imha kaydı.
 **Yer:** `src/app/api/reservations/[id]/erase/route.ts:44, src/app/api/reservations/[id]/chat-pin/route.ts:34,55, src/app/api/properties/[id]/chat/route.ts:36, src/app/api/properties/[id]/reset-chat/route.ts:33, src/app/api/properties/[id]/rotate-ical/route.ts:46, src/app/api/outbox/[id]/retry/route.ts:37, src/app/api/billing/plan-change/route.ts:170`
 
 **Kanıt:** Sözleşme kodda açıkça yazılı — `src/lib/audit.ts:51`: " *   actorUserId — the REAL operator behind the action (not the impersonated user)". Impersonation'da oturumun `userId` alanı ARTIK operatör değildir; `src/lib/admin.ts:85-96` müşterinin kullanıcısını üstlenir:
@@ -747,7 +747,7 @@ ve bu değer `src/lib/erasure.ts:595` üzerinden `writeAuditInTx(... action: "kv
 
 ---
 
-## 33. 🟡 ORTA — Impersonation yapan operatör, müşterinin hesabında 2FA'yı SIFIRDAN kurup etkinleştirebiliyor — gizli anahtar yalnız operatörde kalır, müşteri kendi hesabından kalıcı olarak kilitlenir.
+## 33. ✅ UYGULANDI (08-01) · 🟡 ORTA — Impersonation yapan operatör, müşterinin hesabında 2FA'yı SIFIRDAN kurup etkinleştirebiliyor — gizli anahtar yalnız operatörde kalır, müşteri kendi hesabından kalıcı olarak kilitlenir.
 **Yer:** `src/app/api/account/2fa/route.ts:52-112 (özellikle 63-83 setup, 85-112 enable)`
 
 **Kanıt:** Rota yalnız oturum ister, impersonation'a karşı HİÇBİR kapı yok:
@@ -1011,7 +1011,7 @@ Ustelik ust taraftaki dedupe seti de GET id'yi bulamaz (:956-963 yalniz DB'deki 
 
 ---
 
-## 46. 🔵 DÜŞÜK — Harf içermeyen mesajlar (yalnız emoji/noktalama) koşulsuz "kapanış onayı" sayılıyor; 🆘/🚨/🔥 gibi imdat emojileri sessizce yutuluyor.
+## 46. ✅ UYGULANDI (08-01) · 🔵 DÜŞÜK — Harf içermeyen mesajlar (yalnız emoji/noktalama) koşulsuz "kapanış onayı" sayılıyor; 🆘/🚨/🔥 gibi imdat emojileri sessizce yutuluyor.
 **Yer:** `src/lib/ai/fallback.ts:406-407, src/lib/ai/fallback.ts:396-397, src/lib/automation.ts:1068-1072, src/lib/automation.ts:1118-1121, src/lib/automation.ts:1899-1915`
 
 **Kanıt:** `isClosingAck`: `const cleaned = raw.replace(/[^\p{L}\p{N}\s]/gu, " ").replace(/\s+/g, " ").trim(); if (!cleaned) return true; // pure emoji/punctuation ("👍", "🙏")` (406-407). Tek koruma NEGATIVE_EMOJI ve o liste dar: `/[\u{1F44E}\u{1F621}\u{1F620}\u{1F624}\u{1F4A9}\u{1F92C}\u{1F92E}\u{1F595}\u{26D4}\u{274C}]/u` (396-397) — 👎😡😠😤💩🤬🤮🖕⛔❌. 🆘 (U+1F198), 🚨 (U+1F6A8), 🔥 (U+1F525), 😭 (U+1F62D), ⚠️ (U+26A0) YOK. Sonuç: `isClosingAck("🆘")` → uzunluk ≤60 ✓, "?" yok ✓, NEGATIVE_EMOJI eşleşmez ✓, `cleaned` boş → TRUE. automation.ts:1068 bunu `closingKind = "ack"` yapar, 1118-1121 model çağrısı YAPILMADAN `skippedReason: "closing_ack"` ile döner ve runDueChannelAutoReplies:1899-1915 bu sebebi "deterministic non-send" sayıp `autoReplyAttemptedAt` DAMGALAR → mesaj bir daha ASLA modellenmez.

@@ -9,7 +9,7 @@ import { Card, CardContent } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { GuestChatReply } from "@/components/guest-chats/reply-box";
 import { GuestChatResumeAi } from "@/components/guest-chats/resume-ai-button";
-import { guestChatAiPausedFromMessages } from "@/lib/guest-chat";
+import { guestChatPausedByConversation } from "@/lib/guest-chat";
 import { guestChatDisplayRole } from "@/lib/message-author";
 import { formatDate, formatDateTime } from "@/lib/utils";
 
@@ -84,7 +84,22 @@ export default async function GuestChatDetailPage({
 
   const messages = convo.messages.slice().reverse(); // kronolojik
   const hidden = convo._count.messages - messages.length;
-  const aiPaused = guestChatAiPausedFromMessages(messages);
+  // ⚠️ DEVİR DURUMU KESİLMİŞ PENCEREDEN HESAPLANAMAZ (denetim, 08-01).
+  //
+  // Eskiden `guestChatAiPausedFromMessages(messages)` çağrılıyordu — yani yalnız
+  // EKRANDAKİ pencereye bakıyordu. Devirden sonra AI susar ve `record(null, …)`
+  // yalnız misafirin satırını yazar; host'un devri tetikleyen mesajı pencerenin
+  // dışına düşerse ("son host mesajından sonra 200+ ardışık misafir mesajı")
+  // sayfa "İnsan desteğinde" rozetini ve "AI'yı yeniden başlat" düğmesini
+  // GÖSTERMEZ — host thread'i geri alamaz hâle gelir.
+  //
+  // Sunucu tarafı duraklatma DOĞRU kalıyordu (o yol tüm mesajları okur), yani
+  // AI sızıp cevap vermiyordu; arıza yalnız GÖRÜNÜRLÜKTEYDİ. Yine de düğmenin
+  // kaybolması host'un elindeki tek geri-alma yolunu gizliyordu.
+  //
+  // Artık liste ekranıyla AYNI otoriter kaynak kullanılıyor (tüm thread'i okuyan
+  // DISTINCT ON sorgusu) — iki ekran birbirinden ayrışamaz.
+  const aiPaused = (await guestChatPausedByConversation([convo.id])).get(convo.id) ?? false;
   const guestLabel = convo.reservation?.guestName ?? convo.guestIdentifier;
 
   return (

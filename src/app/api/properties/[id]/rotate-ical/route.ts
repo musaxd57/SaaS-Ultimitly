@@ -1,7 +1,7 @@
 import { prisma } from "@/lib/db";
 import { jsonOk, forbidden, serverError } from "@/lib/api";
 import { withManage } from "@/lib/route-guard";
-import { writeAudit } from "@/lib/audit";
+import { writeAudit, auditActor } from "@/lib/audit";
 import { generateCalendarToken } from "@/lib/export/ics";
 import { isUniqueViolation } from "@/lib/db-errors";
 
@@ -43,7 +43,7 @@ export const POST = withManage<{ id: string }>(async (session, _req, { params })
       await prisma.property.update({ where: { id: property.id }, data: { icalToken } });
       await writeAudit({
         organizationId: session.organizationId,
-        actorUserId: session.userId,
+        actorUserId: auditActor(session),
         action: "property.ical_token_rotated",
         // PII yok: yalnız hangi daire. Token'ın KENDİSİ asla loglanmaz.
         metadata: { propertyId: property.id },

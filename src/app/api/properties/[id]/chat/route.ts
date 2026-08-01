@@ -2,7 +2,7 @@ import { prisma } from "@/lib/db";
 import { jsonOk, badRequest, forbidden, readJsonCappedOrNull } from "@/lib/api";
 import { withManage } from "@/lib/route-guard";
 import { generateChatToken } from "@/lib/guest-chat";
-import { writeAudit } from "@/lib/audit";
+import { writeAudit, auditActor } from "@/lib/audit";
 
 // Enable/disable the public guest QR concierge for ONE apartment. Owner/manager
 // only (withManage), strictly org-scoped. Enabling lazily mints an unguessable
@@ -33,7 +33,7 @@ export const POST = withManage<{ id: string }>(async (session, req, { params }) 
 
   await writeAudit({
     organizationId: session.organizationId,
-    actorUserId: session.userId,
+    actorUserId: auditActor(session),
     action: body.enabled ? "guest_chat.enable" : "guest_chat.disable",
     metadata: { propertyId: property.id },
   }).catch(() => {});

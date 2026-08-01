@@ -1,7 +1,7 @@
 import { prisma } from "@/lib/db";
 import { jsonOk, forbidden } from "@/lib/api";
 import { withManage } from "@/lib/route-guard";
-import { writeAudit } from "@/lib/audit";
+import { writeAudit, auditActor } from "@/lib/audit";
 
 // Reset the per-stay QR chat DEVICE binding for one apartment. The concierge binds
 // the chat to the first device that opens it each stay, so a guest who loses that
@@ -30,7 +30,7 @@ export const POST = withManage<{ id: string }>(async (session, _req, { params })
 
   await writeAudit({
     organizationId: session.organizationId,
-    actorUserId: session.userId,
+    actorUserId: auditActor(session),
     action: "guest_chat.reset_binding",
     metadata: { propertyId: property.id, cleared: count },
   }).catch(() => {});

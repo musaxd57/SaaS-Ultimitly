@@ -1,5 +1,6 @@
 import { jsonOk, notFound, forbidden, serverError } from "@/lib/api";
 import { withManage } from "@/lib/route-guard";
+import { auditActor } from "@/lib/audit";
 import {
   guestErasureEnabled,
   previewReservationErasure,
@@ -41,7 +42,7 @@ export const POST = withManage<{ id: string }>(async (session, _req, { params })
     // this throws → 500 below, and the owner retries. The audit records COUNTS ONLY,
     // never guest identifiers.
     const scope = await eraseReservationData(session.organizationId, id, {
-      actorUserId: session.userId,
+      actorUserId: auditActor(session),
     });
     if (!scope) return notFound();
     return jsonOk({ ok: true, scope });

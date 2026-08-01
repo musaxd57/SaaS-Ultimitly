@@ -42,13 +42,47 @@ export function auditActionLabel(action: string): string {
 }
 
 /**
+ * DENETİM KAYDININ GERÇEK FAİLİ — TEK KAYNAK (denetim, 08-01).
+ *
+ * Impersonation'da `session.userId` MÜŞTERİNİN owner'ının id'sidir; gerçek
+ * operatör yalnız `session.actorUserId`'de durur (`admin.ts` girişte böyle
+ * imzalar). Yani faili doğrudan oturumun kullanıcı id'sinden alan bir rota, operatörün
+ * yaptığı işi MÜŞTERİ yapmış gibi kaydeder — kayıt olmamasından KÖTÜDÜR, çünkü
+ * yanlış delil üretir ("ben bu yükseltmeyi onaylamadım" savunmasında elimizdeki
+ * tek kanıt müşterinin kendi id'sini gösterir).
+ *
+ * Sözleşme 11 rotada zaten doğruydu ama 8 çağrı yerinde çıplak `session.userId`
+ * kalmıştı — aralarında PARA hareketi yapan plan-change (anında tahsilat) ve
+ * KVKK'nın zorunlu kıldığı misafir-silme kaydı da vardı. Artık kural KODDA:
+ * her rota bu yardımcıyı çağırır, kaynak-tarama testi çıplak biçimi yasaklar.
+ */
+export function auditActor(session: { userId: string; actorUserId?: string | null }): string {
+  return session.actorUserId ?? session.userId;
+}
+
+/**
+ * Impersonation izini metadata'ya ekler. `actorUserId` "kim yaptı"yı düzeltir;
+ * bu da "müşteri adına mı yapıldı" sorusunu tek bakışta cevaplar. Impersonation
+ * yoksa hiçbir alan eklemez (mevcut kayıtların şekli değişmez).
+ */
+export function auditImpersonation(session: {
+  actorUserId?: string | null;
+  actorEmail?: string | null;
+}): Record<string, unknown> {
+  return session.actorUserId
+    ? { impersonated: true, operatorEmail: session.actorEmail ?? null }
+    : {};
+}
+
+/**
  * Write an audit-log entry. FIRE-AND-FORGET and SWALLOWS errors: auditing must
  * never break or block the action it records. Use for sensitive/privileged
  * operations — above all operator impersonation (an operator entering a customer
  * org sees that customer's guest PII, so every enter/exit must leave a trace).
  *
  *   action  — dotted verb, e.g. "impersonate.enter", "customer.create"
- *   actorUserId — the REAL operator behind the action (not the impersonated user)
+ *   actorUserId — the REAL operator behind the action (not the impersonated user).
+ *                 ⚠️ Oturumdan türetiyorsan `auditActor(session)` KULLAN (↑).
  */
 export async function writeAudit(entry: {
   organizationId: string;

@@ -208,11 +208,30 @@ async function persistRiskVisibility(
   risk?: string | null,
   riskType?: string | null,
 ): Promise<void> {
+  // ⚠️ "AYNI SEBEP → YAZMA" KORUMASI RİSK ALANLARINI DA ATLIYORDU (denetim, 08-01).
+  //
+  // Koruma yalnız `skippedReason`'a bakıyordu ama aynı UPDATE `lastRiskLevel` ve
+  // `lastRiskType`'ı da taşıyor. Misafir arka arkaya İKİ mesaj yazıp ikisi de
+  // `low_confidence_or_risky` düşerse (sebep AYNI) ikinci mesajın deterministik
+  // risk etiketi — `detectRiskType` backstop'unun tam da ürettiği
+  // `safety_emergency`/`rule_violation`/`discrimination` — hiç yazılmıyordu:
+  // WHERE'in iki dalı da eşleşmiyor, 0 satır güncelleniyor, inbox rozeti BAYAT
+  // kalıyordu. Ters yön de aynı hatadan doğar: A mesajında yazılmış bir etiket,
+  // B zararsızken silinmiyordu (yanlış-pozitif rozet).
+  //
+  // Çözüm: RİSK BİLGİSİ TAŞIYAN çağrılarda koruma atlanır. Korumanın varlık
+  // sebebi (her turda tekrarlanan `human_hold` gibi sebepler için tek yazma)
+  // korunuyor — o çağrılar risk argümanı GEÇMEZ. Risk taşıyan tek çağrı yeri
+  // mesaj başına bir kez koşar (`autoReplyAttemptedAt` damgası), yani yazma
+  // sayısı pratikte artmaz.
+  const carriesRisk = risk !== undefined || riskType !== undefined;
   await prisma.conversation
     .updateMany({
       where: {
         id: conversationId,
-        OR: [{ skippedReason: null }, { skippedReason: { not: reason } }],
+        ...(carriesRisk
+          ? {}
+          : { OR: [{ skippedReason: null }, { skippedReason: { not: reason } }] }),
       },
       data: {
         skippedReason: reason,
@@ -1308,14 +1327,38 @@ export async function applyChannelAutoReply(
   // so the dashboard can show it (falling back to the property default). Guarded
   // and best-effort — never blocks the reply. Skipped on dryRun so a PREVIEW
   // ("test quality") stays side-effect-free and never mutates a reservation.
-  if (!options.dryRun && result.statedCheckoutTime && conversation.reservation) {
+  //
+  // ⚠️ SALDIRGAN KONTROLLÜ MESAJDAN GELEN SAAT YAZILMAZ (denetim, 08-01).
+  // Bu yazma güvenlik kapısından ÖNCE koşuyor ve bilinçli öyle: "yarın 11'de
+  // çıkacağız ama klima bozuk, iade istiyorum" mesajı insana devredilir ve host
+  // çıkış saatini TAM ORADA en çok ister — yazmayı kapının arkasına almak meşru
+  // veriyi kaybettirirdi. Ama iki sınıf istisnadır:
+  //   · prompt_injection → değer saldırganın seçtiği değerdir ve bir sonraki
+  //     prompt'a GERİ BESLENİR ("misafirin belirttiği çıkış saati: X"),
+  //   · rule_violation (overstay/çıkışı reddetme) → misafirin REDDETTİĞİ saat
+  //     kalıcılaşırdı ("11:00'de çıkmıyoruz" → rezervasyona 11:00).
+  // Deterministik dedektör, modelden bağımsız karar verir.
+  const statedRisk = result.statedCheckoutTime ? detectRiskType(last.body) : null;
+  const statedTimeTrusted =
+    statedRisk !== "prompt_injection" && statedRisk !== "rule_violation";
+  if (
+    !options.dryRun &&
+    result.statedCheckoutTime &&
+    statedTimeTrusted &&
+    conversation.reservation
+  ) {
     try {
       await prisma.reservation.update({
         where: { id: conversation.reservation.id },
         data: { guestCheckoutTime: result.statedCheckoutTime },
       });
-    } catch {
-      // ignore — not critical to the reply
+    } catch (err) {
+      // Sessiz `catch {}` bu repoda belgeli bir anti-desen: yanıt bloke olmasın
+      // ama kayıp da görünmez kalmasın (denetim, 08-01).
+      void reportError(
+        `statedCheckoutTime persist org=${conversation.property.organizationId}`,
+        err,
+      );
     }
   }
 

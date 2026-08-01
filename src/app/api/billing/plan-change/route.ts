@@ -16,7 +16,7 @@ import {
   resolvePlanChange,
   verifyPlanChangeToken,
 } from "@/lib/billing/plan-change";
-import { writeAudit } from "@/lib/audit";
+import { writeAudit, auditActor, auditImpersonation } from "@/lib/audit";
 
 // Apply an in-app plan change. Upgrade → charged immediately (prorated); downgrade
 // → takes effect at the next billing period. Paddle owns the proration + charge;
@@ -165,11 +165,22 @@ export const POST = withOwner(async (session, req) => {
   }
   if (result.ok) await clearPending();
 
+  // ⚠️ BU ROTA PARA HAREKETİ YAPAR (upgrade `prorated_immediately` → fark ANINDA
+  // karttan çekilir). Fail `auditActor` ile GERÇEK operatördür; `impersonation`
+  // alanları da "müşteri adına mı yapıldı" sorusunu tek bakışta cevaplar.
+  // Öncesinde `session.userId` yazılıyordu, yani operatörün başlattığı bir
+  // tahsilat kayda MÜŞTERİ yapmış gibi düşüyordu (denetim, 08-01).
   await writeAudit({
     organizationId: session.organizationId,
-    actorUserId: session.userId,
+    actorUserId: auditActor(session),
     action: "billing.plan_change",
-    metadata: { from: r.currentCode, to: planCode, mode: r.mode, reconciled: !result.ok },
+    metadata: {
+      from: r.currentCode,
+      to: planCode,
+      mode: r.mode,
+      reconciled: !result.ok,
+      ...auditImpersonation(session),
+    },
   }).catch(() => {});
 
   return jsonOk({ ok: true, mode: r.mode, reconciled: !result.ok });

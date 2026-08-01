@@ -2,7 +2,7 @@ import { prisma } from "@/lib/db";
 import { jsonOk, notFound } from "@/lib/api";
 import { withManage } from "@/lib/route-guard";
 import { qrPinEnabled, setReservationPin, clearReservationPin } from "@/lib/guest-chat-pin";
-import { writeAudit } from "@/lib/audit";
+import { writeAudit, auditActor } from "@/lib/audit";
 
 // ---------------------------------------------------------------------------
 // Per-reservation QR concierge PIN — HOST management (Faz 5, #14).
@@ -31,7 +31,7 @@ export const POST = withManage<{ id: string }>(async (session, _req, { params })
   const pin = await setReservationPin(id);
   await writeAudit({
     organizationId: session.organizationId,
-    actorUserId: session.userId,
+    actorUserId: auditActor(session),
     action: "guest_chat.pin_set",
     // NEVER the PIN — only that it was (re)generated for this reservation.
     metadata: { reservationId: id },
@@ -52,7 +52,7 @@ export const DELETE = withManage<{ id: string }>(async (session, _req, { params 
   await clearReservationPin(id);
   await writeAudit({
     organizationId: session.organizationId,
-    actorUserId: session.userId,
+    actorUserId: auditActor(session),
     action: "guest_chat.pin_clear",
     metadata: { reservationId: id },
   }).catch(() => {});

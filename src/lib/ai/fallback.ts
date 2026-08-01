@@ -444,6 +444,46 @@ export function isPositiveFeedback(message: string): boolean {
 const NEGATIVE_EMOJI =
   /[\u{1F44E}\u{1F621}\u{1F620}\u{1F624}\u{1F4A9}\u{1F92C}\u{1F92E}\u{1F595}\u{26D4}\u{274C}]/u;
 
+/**
+ * ONAY EMOJİLERİ — KAPALI BEYAZ LİSTE (denetim, 08-01).
+ *
+ * Harf içermeyen mesajlar KOŞULSUZ "kapanış onayı" sayılıyordu; tek koruma 10
+ * emojilik bir KARA LİSTEYDİ. Ampirik ölçüm: tek-emoji girdilerin ~%98'i onay
+ * sayılıyordu — 🆘 🚨 🚑 ⚠️ 🔥 😭 🤒 dahil. Sonuç iki katmanlı:
+ *   · konuşma "cevap gerekmedi" diye damgalanıyor (`autoReplyAttemptedAt`),
+ *   · inbox host'a "Misafir sohbeti kapattı — cevap gerekmedi" YAZIYOR.
+ * Yani imdat emojisi gönderen misafir için host'a AKTİF OLARAK yanlış bilgi
+ * veriliyordu.
+ *
+ * Kara liste bu iş için yapısal olarak yanlış araç (dosyanın kendi yorumu da
+ * öyle diyor): 3.500+ emoji var, listelenemez. Beyaz liste tek doğru yön ve
+ * ölçüldü: hiçbir mesaj YENİ onay kazanmıyor, yalnız kaybediyor — CLAUDE.md
+ * KATLAMA KURALI'nın istediği daraltıcı yön.
+ *
+ * Beyaz liste dışında kalan zararsız bir emoji (🥰, 💯) artık model+kapı yoluna
+ * düşer: kapı 0.75 güven ister ve prompt saf onayda düşük güven söyler → taslak
+ * olur, oto-gönderim değil. Yani maliyet birkaç model çağrısı, risk değil.
+ */
+const ACK_EMOJI_SRC =
+  "[\\u{1F44D}\\u{1F44C}\\u{1F44F}\\u{1F64F}\\u{1F91D}\\u{1F642}\\u{1F60A}\\u{263A}\\u{1F600}\\u{1F603}\\u{1F604}\\u{1F60D}\\u{1F970}\\u{2764}\\u{1F9E1}\\u{1F49B}\\u{1F49A}\\u{1F499}\\u{1F49C}\\u{1F496}\\u{1F497}\\u{1FAF6}\\u{1F4AF}\\u{2705}\\u{2714}]";
+/** Beyaz liste dışında kalan HER işaret (emoji dahil) onayı düşürür. */
+const ACK_EMOJI_STRIP = new RegExp(
+  `(?:${ACK_EMOJI_SRC}|[\\uFE0F\\u200D\\u{1F3FB}-\\u{1F3FF}\\s.,!])`,
+  "gu",
+);
+const ACK_EMOJI_HAS = new RegExp(ACK_EMOJI_SRC, "u");
+
+/**
+ * Harf içermeyen bir mesaj yalnızca ŞU İKİ ŞART birden sağlanırsa onaydır:
+ * (1) en az bir beyaz-liste emojisi var, (2) beyaz liste + boşluk/noktalama
+ * dışında hiçbir şey kalmıyor. "!!!" ya da "..." tek başına onay DEĞİLDİR —
+ * bir misafirin "…" yazması "sohbeti kapattı" demek değildir.
+ */
+function isPureAckEmoji(raw: string): boolean {
+  if (!ACK_EMOJI_HAS.test(raw)) return false;
+  return raw.replace(ACK_EMOJI_STRIP, "") === "";
+}
+
 /** True only for a short, pure closing/ack ("Tamam, teşekkürler!", "ok thanks", "👍"). */
 export function isClosingAck(message: string): boolean {
   const raw = foldTurkishLower(message.trim());
@@ -452,7 +492,7 @@ export function isClosingAck(message: string): boolean {
   if (NEGATIVE_EMOJI.test(raw)) return false; // 👎/😡 = dissatisfaction, never an ack
   // Strip punctuation/emoji; what remains must be ONLY closing words.
   const cleaned = raw.replace(/[^\p{L}\p{N}\s]/gu, " ").replace(/\s+/g, " ").trim();
-  if (!cleaned) return true; // pure emoji/punctuation ("👍", "🙏")
+  if (!cleaned) return isPureAckEmoji(raw); // ↑BEYAZ LİSTE (eskiden koşulsuz true)
   const tokens = cleaned.split(" ");
   if (tokens.length > 6) return false;
   return tokens.every((t) => CLOSING_TOKENS.has(t));
