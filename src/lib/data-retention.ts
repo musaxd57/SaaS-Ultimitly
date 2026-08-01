@@ -1,5 +1,6 @@
 import { subMonths, startOfDay } from "date-fns";
 import { prisma } from "@/lib/db";
+import { ERASABLE_STATUSES } from "@/lib/outbox/state";
 
 // ---------------------------------------------------------------------------
 // KVKK / data-retention + erasure.
@@ -205,13 +206,18 @@ export async function anonymizeOldGuestData(now: Date = new Date()): Promise<{ a
       // canceled (a 24-month-old pending row must never deliver a sentinel later),
       // then every remaining linked body is anonymized. The host's readable record
       // stays on Message (name-redacted above); /sent/queue never shows bodies.
+      //
+      // ⚠️ Kapsam `ERASABLE_STATUSES` — TEK KAYNAK, açık silmeyle ORTAK (denetim,
+      // 08-01). `blocked`/`failed`/`review` de teslim EDİLMEMİŞ ve diriltme yolu
+      // olan durumlar; listede olmadıkları için 2 yıllık bir satır abonelik
+      // yenilenince ya da ops ekranından tek tıkla gönderilebiliyordu.
       prisma.messageOutbox.updateMany({
         where: {
           OR: [
             { reservationId: { in: resIds } },
             ...(convIds.length ? [{ conversationId: { in: convIds } }] : []),
           ],
-          status: { in: ["pending", "ambiguous"] },
+          status: { in: [...ERASABLE_STATUSES] },
           claimedBy: null,
         },
         data: { body: ANON_BODY, status: "canceled" },

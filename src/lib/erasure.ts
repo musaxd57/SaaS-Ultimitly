@@ -5,6 +5,7 @@ import { Prisma } from "@prisma/client";
 import { prisma } from "@/lib/db";
 import { writeAuditInTx } from "@/lib/audit";
 import { ANON_NAME, ANON_ID, ANON_BODY, redactNameFromBody } from "@/lib/data-retention";
+import { ERASABLE_STATUSES } from "@/lib/outbox/state";
 
 // ---------------------------------------------------------------------------
 // KVKK EXPLICIT-erasure (m40/m41) — guest-level "silme talebi" (Law 6698 art. 11
@@ -509,6 +510,12 @@ async function maskReservationRows(
   // both ON and a send to THIS guest mid-POST — has its body redacted but is left
   // for the worker to finish: documented, vanishingly narrow, and the sentinel is
   // non-PII.) org-scoped WHERE so a null reservationId link can't reach another tenant.
+  //
+  // ⚠️ KAPSAM `ERASABLE_STATUSES` (denetim, 08-01). Eskiden yalnız
+  // pending+ambiguous iptal ediliyordu; `blocked` satırı ise abonelik yenilenince
+  // `reactivateBlockedOutbox` tarafından OTOMATİK olarak pending'e alınıyor,
+  // `failed`/`review` ise ops ekranından insan eliyle. Yani silinmiş misafire
+  // aylar sonra sentinel mesaj gidebiliyordu.
   const outboxLink = {
     organizationId,
     OR: [
@@ -519,7 +526,7 @@ async function maskReservationRows(
   await db.messageOutbox.updateMany({
     where: {
       ...outboxLink,
-      status: { in: ["pending", "ambiguous"] },
+      status: { in: [...ERASABLE_STATUSES] },
       claimedBy: null,
     },
     data: { body: ANON_BODY, status: "canceled" },

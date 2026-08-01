@@ -154,6 +154,15 @@ const SKIP_REASON_LABELS: Record<string, string> = {
   // sebebi buydu ve hiçbir ekranda yazmıyordu (şema varsayılanı hâlâ gece-only).
   outside_hours:
     "Oto-yanıtın aktif saat aralığı dışında — Ayarlar → Otomasyon'dan aralığı 7/24 yapabilirsiniz",
+  // Gönderim kanalı reddetti. Konuşma kaybolmaz: bir süre sonra kendiliğinden
+  // yeniden denenir (denetim, 08-01 — eskiden 2 dakikada bir sessizce yeniden
+  // denenip her seferinde kota yakıyor, host hiçbir yerde sebebi göremiyordu).
+  send_failed:
+    "Mesaj kanala iletilemedi — bağlantınızı kontrol edin, bu konuşma birazdan otomatik olarak yeniden denenecek",
+  subscription_inactive:
+    "Hospitable aboneliğiniz pasif görünüyor — mesaj gönderilemiyor. Aboneliğiniz yenilenince bu konuşma otomatik olarak yeniden denenecek.",
+  rate_limited:
+    "Kanal geçici olarak yoğun — bu konuşma kısa süre sonra otomatik olarak yeniden denenecek",
 };
   return (
     <>

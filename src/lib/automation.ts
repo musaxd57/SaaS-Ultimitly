@@ -27,6 +27,7 @@ import { sendOnChannel, isDefinitiveSendFailure } from "@/lib/messaging";
 import { createHash } from "crypto";
 import { durableOutboxEnabled } from "@/lib/outbox/flag";
 import { enqueueOutbound, enqueueProactive } from "@/lib/outbox/enqueue";
+import { classifySendResult } from "@/lib/outbox/state";
 import { getOrgHospitableToken } from "@/lib/hospitable-credentials";
 import { getAdjacency } from "@/lib/turnover";
 import { createOperationalTaskFromMessage } from "@/lib/tasks/create";
@@ -995,6 +996,20 @@ export interface ChannelAutoReplyOutcome {
 }
 
 /**
+ * Geri çekilme pencereleri — KALICI bir gönderim hatasından sonra AI'nın o
+ * konuşmada ne kadar susacağı. DAMGA DEĞİL: süre dolunca mesaj yeniden denenir,
+ * yani hiçbir misafir mesajı kalıcı olarak cevapsız bırakılmaz. Amaç yalnız
+ * SIKLIĞI düşürmek — damgasız hâlde her 2 dakikada bir model çağrısı + kota
+ * birimi yanıyordu (denetim, 08-01).
+ *
+ * 4 saat: 402 (abonelik pasif) / 401-403 (yetki) / 404-422 (istek reddedildi).
+ * Hepsi host bir şey düzeltene kadar sürer; 2 dakikada bir denemenin faydası yok.
+ */
+export const SEND_FAILURE_HOLD_MS = 4 * 60 * 60 * 1000;
+/** 429: sağlayıcı yoğun — gerçekten geçici, kısa beklet. */
+export const SEND_RATE_LIMIT_HOLD_MS = 15 * 60 * 1000;
+
+/**
  * Evaluate (and unless dryRun, deliver) an AI auto-reply for a single channel
  * conversation. All safety gates are re-checked here, so callers can pass a
  * broad candidate set safely.
@@ -1744,8 +1759,38 @@ export async function applyChannelAutoReply(
     // again the thread reopens to "new" on its own. Mirrors the manual-reply route +
     // the lifecycle senders via the shared isDefinitiveSendFailure().
     if (isDefinitiveSendFailure(delivery.error)) {
+      // ⚠️ CLAIM'İ GERİ ALMAK TEK BAŞINA SONSUZ DÖNGÜ ÜRETİYORDU (denetim, 08-01).
+      // `runDueChannelAutoReplies` `send_failed`'i "geçici" sayıp damgalamıyor →
+      // konuşma 2 dakika sonra yeniden UYGUN → model YENİDEN çağrılıyor (para) ve
+      // günlük kotadan bir birim daha yanıyor → gönderim yine AYNI kalıcı hatayla
+      // düşüyor. Tek bozuk konuşma org'un 150'lik günlük kotasını ~5 saatte
+      // tüketip GERÇEK misafirlerin oto-yanıtını `daily_budget` ile kapatıyordu.
+      // Nuve'nin canlı hesabı bugün tam bu durumda (Hospitable 402).
+      //
+      // Çözüm DAMGA DEĞİL GERİ ÇEKİLME: damga kalıcı olurdu (host bağlantısını
+      // düzeltse bile misafir o mesaja hiç cevap alamazdı). `autoReplyHoldUntil`
+      // mesajı KAYBETMEDEN sıklığı düşürür — süre dolunca kendiliğinden yeniden
+      // denenir. Süre hatanın TÜRÜNE göre; sınıflandırma dayanıklı outbox'la aynı
+      // kaynaktan (`classifySendResult`) gelir, iki yol ayrışamaz.
+      const kind = classifySendResult({ ok: false, error: delivery.error });
+      const holdMs = kind === "rate_limited" ? SEND_RATE_LIMIT_HOLD_MS : SEND_FAILURE_HOLD_MS;
       await prisma.conversation
-        .update({ where: { id: conversation.id }, data: { status: "new" } })
+        .update({
+          where: { id: conversation.id },
+          data: {
+            status: "new",
+            autoReplyHoldUntil: new Date(Date.now() + holdMs),
+            // Sebep bir KOD'dur — sağlayıcının ham hata metni ASLA DB'ye yazılmaz
+            // (misafir/rezervasyon ayrıntısı taşıyabilir). Host ekranda okunur bir
+            // açıklama görür (SKIP_REASON_LABELS).
+            skippedReason:
+              kind === "blocked"
+                ? "subscription_inactive"
+                : kind === "rate_limited"
+                  ? "rate_limited"
+                  : "send_failed",
+          },
+        })
         .catch(() => {});
     }
     return { sent: false, skippedReason: `send_failed: ${delivery.error ?? "unknown"}`, draft, ...meta };

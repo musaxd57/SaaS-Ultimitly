@@ -7,6 +7,7 @@ import { orgTimezone, dateKeyInTimeZone } from "@/lib/timezone";
 import { reportError } from "@/lib/report-error";
 import { getOrgHospitableToken } from "@/lib/hospitable-credentials";
 import { sendMessage } from "@/lib/hospitable";
+import { ANON_BODY } from "@/lib/data-retention";
 import {
   attemptsExhausted,
   backoffMs,
@@ -488,7 +489,13 @@ async function signalOutboxStuck(row: OutboxRow, state: "review" | "failed" | "b
  */
 export async function reactivateBlockedOutbox(organizationId: string, now: Date = new Date()): Promise<number> {
   const res = await prisma.messageOutbox.updateMany({
-    where: { organizationId, status: "blocked" },
+    // İKİNCİ SAVUNMA (denetim, 08-01): gövdesi temizlenmiş bir satır ASLA
+    // dirilmez. Birinci savunma süpürgelerin bu satırı `canceled` yapmasıdır
+    // (ERASABLE_STATUSES); bu koşul, süpürgenin bir gün bir bağı kaçırması
+    // hâlinde bile (ör. konuşma/rezervasyon bağı kopmuş yetim satır) silinmiş
+    // misafire sentinel metnin gitmesini engeller. Zaten anlamsız olan bir
+    // gövdeyi göndermenin hiçbir faydası yok — kaybedilen bir şey yok.
+    where: { organizationId, status: "blocked", body: { not: ANON_BODY } },
     data: {
       status: "pending",
       attemptCount: 0,

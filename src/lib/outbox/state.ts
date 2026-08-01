@@ -49,6 +49,33 @@ export const CLAIMABLE_STATUSES: readonly OutboxStatus[] = ["pending", "ambiguou
 /** Terminal statuses — the worker never touches these again automatically. */
 export const TERMINAL_STATUSES: readonly OutboxStatus[] = ["sent", "failed", "review", "canceled", "blocked"];
 
+/**
+ * Statuses a KVKK scrub (explicit erasure OR the time-based sweep) must CANCEL,
+ * not merely redact: the row was NEVER delivered and every one of them still has
+ * a path back to `pending` —
+ *   • pending / ambiguous → the worker's own drain,
+ *   • blocked             → `reactivateBlockedOutbox` (AUTOMATIC, after the org's
+ *                           Hospitable subscription comes back),
+ *   • failed / review     → a human requeue from the ops screen.
+ * Leaving any of them alive means a guest who exercised the right to be forgotten
+ * receives a message (the ANON_BODY sentinel) months after being erased.
+ *
+ * DELIBERATELY EXCLUDED — the complement of this list is the rest of
+ * OUTBOX_STATUSES and each exclusion is a decision, not an oversight:
+ *   • sent                    → it really was delivered; delivery history is not rewritten.
+ *   • canceled                → already dead.
+ *   • sending / reconciling   → CLAIMED and in flight; the documented narrow exception
+ *                               (body is redacted, the status is left to the worker).
+ * SINGLE SOURCE for both sweeps so they can never drift (audit, 08-01).
+ */
+export const ERASABLE_STATUSES: readonly OutboxStatus[] = [
+  "pending",
+  "ambiguous",
+  "blocked",
+  "failed",
+  "review",
+];
+
 // The allowed transitions. Anything not listed here is a bug and throws.
 //   pending      → sending      (worker claims a due row)
 //   sending      → sent         (definitive success)
