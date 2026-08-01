@@ -276,6 +276,43 @@ deler).
 
 ---
 
+## 4c. Hospitable bağlantısı koptuğunda HOST'a bildirim gitmiyor (ürün/e-posta kararı)
+
+**Migration DEĞİL — yeni bir MÜŞTERİ E-POSTASI türü, yani ürün + e-posta akışı
+kararı.** CLAUDE.md kuralı: "para/e-posta akışına dokunan şeyler kullanıcı
+onayıyla açılır" → tek başıma eklenmedi.
+
+### Kod doğrulaması (08-01, dördüncü tur)
+
+- `hospitable-credentials.ts` — refresh token ölünce (`authFailure`) bağlantı
+  alanları temizleniyor (`hospitableTokenEnc`/`RefreshTokenEnc`/`ExpiresAt`/
+  `Label`/`ConnectedAt` → null).
+- Ardından `getOrgHospitableToken` **null** döner → `scheduled-sync` o org'u
+  sessizce atlar. Hospitable'a hiç çağrı yapılmadığı için `hospitable-sync`'teki
+  401/403 uyarısı **hiç tetiklenmez**.
+- `email-templates.ts`'te "hospitable" geçen HİÇBİR şablon yok (grep 0). Mevcut
+  şablonlar: taskAssigned · complaintEscalation · reservationCreated ·
+  trialEndingSoon · trialEnded · qrEscalation.
+- Tek sinyal **operatöre** (kurucuya) giden `reportError`. Bu tur o sinyal
+  ayrıştırıldı: artık `hospitable-oauth-disconnected org:{id}` ayrı context'i
+  var ve yalnız silme GERÇEKTEN olduğunda (`count === 1`) atılıyor — geçici
+  hıçkırıkla karışmıyor.
+
+### Sonuç
+
+Host, ayarlara kendisi bakmadıkça bağlantısının koptuğunu **öğrenmez**; bu arada
+misafir mesajları hiç içeri girmez ve hiç yanıtlanmaz. Ödeyen bir müşteri için
+sessiz tam kesinti.
+
+### Önerilen (KULLANICI ONAYI GEREKİR)
+
+Silme yazmasından ÖNCE org owner'ına tek satırlık "Hospitable bağlantınız
+yenilenemedi, yeniden bağlanın" e-postası + **sonucunun okunması**
+(CLAIM-THEN-NOTIFY: silme = claim, e-posta = yan etki). Şablon metni ve gönderim
+politikası kullanıcı kararı.
+
+---
+
 ## 5. Bekleyen eski migration işleri (CLAUDE.md'den — hatırlatma)
 
 Bunlar bugünün bulgusu değil, listede duruyor:

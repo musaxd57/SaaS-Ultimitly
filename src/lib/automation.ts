@@ -2111,12 +2111,20 @@ async function reportLifecycleSendFailures(
     // önlemekti (yorumdaki hesap: damgasız hâlde ~432/gün).
     // 15 dakika: bildirim gerçekten kaybolduysa makul sürede tekrar denenir
     // (claim-then-notify korunur), ama tekrar ≤4/saat ile sınırlı kalır.
-    await prisma.systemLock
+    // ⚠️ GERİ ALMANIN KENDİSİ DE SESSİZ OLMAMALI (denetim, 08-01 — dördüncü tur):
+    // bu yazma düşerse pencere 6 saat yanar ve bildirim o süre boyunca hiç
+    // denenmez — düzeltmeye çalıştığımız desenin bir seviye yukarıdaki kopyası.
+    const reopened = await prisma.systemLock
       .updateMany({
         where: { name: claimedWindow },
         data: { lockedUntil: new Date(Date.now() + ALARM_RETRY_BACKOFF_MS) },
       })
-      .catch(() => {});
+      .catch(() => null);
+    if (reopened === null || reopened.count === 0) {
+      console.warn(
+        `[lifecycle-alarm] ${kind}/${organizationId}: bildirim gitmedi VE pencere geri alınamadı — bu arıza 6 saat sessiz kalacak`,
+      );
+    }
   }
 }
 
@@ -2308,8 +2316,16 @@ export async function runDueChannelAutoReplies(
       // Deterministic non-send for this message → don't re-model it next tick.
       // Transient reasons (send_failed / not_connected / already_claimed) are NOT
       // stamped, so they still retry when conditions change.
+      // ⚠️ DAMGA SUNUCU SAATİ DEĞİL, KARARIN VERİLDİĞİ MESAJIN DAMGASI (denetim,
+      // 08-01 — dördüncü tur). `new Date()` sunucu ekseninde; `lastMessageAt` ise
+      // sağlayıcının `reservation.last_message_at`'inden geliyor. İkisini
+      // karşılaştırmak, geçiş sırasında (model çağrısı başına 60 sn × 25 konuşma)
+      // gelen bir misafir mesajını damgadan ESKİ gösterip konuşmayı KALICI
+      // aday-dışı bırakabiliyordu — `syncCursorAt` dersinin aynısı. `c.lastMessageAt`
+      // yazmak eşitlik üretir; aday koşulu `lt` olduğu için bu satır düşer, ama
+      // misafir YENİ yazınca `lastMessageAt` ilerler ve konuşma geri gelir.
       await prisma.conversation
-        .updateMany({ where: { id: c.id }, data: { autoReplyAttemptedAt: new Date() } })
+        .updateMany({ where: { id: c.id }, data: { autoReplyAttemptedAt: c.lastMessageAt } })
         .catch(() => {});
     } else if (
       outcome.skippedReason?.startsWith("send_failed") ||

@@ -539,7 +539,12 @@ async function applyDeliveryEffect(row: OutboxRow, now: Date): Promise<void> {
  */
 async function applyFailureEffect(row: OutboxRow, kind: SendResultKind): Promise<void> {
   const type = row.messageType;
-  if (type && type !== "ai") return;
+  // ⚠️ `type &&` YOK (denetim, 08-01 — dördüncü tur): legacy `messageType: null`
+  // satırları (m30 öncesi) o koşulla GEÇİYORDU ve fonksiyonun kendi dokümanıyla
+  // çelişiyordu. Host'un eski manuel satırı düşerse konuşmaya AI atlama sebebi
+  // yazılmamalı — bugün yazan dört çağrının hepsi tip veriyor, bu yalnız eski
+  // satırları etkiler ama sözleşme net olmalı.
+  if (type !== "ai") return;
   if (!row.conversationId) return;
   try {
     const convo = await prisma.conversation.findUnique({
@@ -547,9 +552,35 @@ async function applyFailureEffect(row: OutboxRow, kind: SendResultKind): Promise
       select: { lastMessageAt: true },
     });
     if (!convo) return;
+    // ⚠️ DAHA YENİ MİSAFİR MESAJI VARSA DAMGALAMA (denetim, 08-01 — dördüncü tur).
+    // `review` dalına ancak 6 tükenmiş reconcile denemesinden (30 sn → 30 dk
+    // backoff) SONRA, yani saatler sonra gelinir — ve o dal `sendTimeVeto`'dan
+    // GEÇMEZ, yani `aiSendVeto`'nun "daha yeni mesaj varsa iptal et" garantisi
+    // orada yok. Damgayı konuşmanın GÜNCEL `lastMessageAt`'inden almak, o pencerede
+    // gelmiş YENİ bir misafir mesajını da susturur. Sebep yine yazılır (host görür),
+    // yalnız susturma damgası atlanır → yeni mesaj normal şekilde yanıtlanır.
+    let newerInbound = 0;
+    if (row.messageId) {
+      const draft = await prisma.message.findUnique({
+        where: { id: row.messageId },
+        select: { createdAt: true },
+      });
+      if (draft) {
+        newerInbound = await prisma.message.count({
+          where: {
+            conversationId: row.conversationId,
+            direction: "inbound",
+            createdAt: { gt: draft.createdAt },
+          },
+        });
+      }
+    }
     await prisma.conversation.updateMany({
       where: { id: row.conversationId, status: "new" },
-      data: { skippedReason: sendFailureReason(kind), autoReplyAttemptedAt: convo.lastMessageAt },
+      data: {
+        skippedReason: sendFailureReason(kind),
+        ...(newerInbound > 0 ? {} : { autoReplyAttemptedAt: convo.lastMessageAt }),
+      },
     });
   } catch (err) {
     // Sessiz `catch {}` bu repoda belgeli anti-desen: sebep yazılamazsa host
@@ -571,7 +602,13 @@ async function applyFailureEffect(row: OutboxRow, kind: SendResultKind): Promise
 async function signalOutboxStuck(row: OutboxRow, state: "review" | "failed" | "blocked"): Promise<void> {
   const t = row.messageType;
   const isLifecycle = t === "welcome" || t === "checkin" || t === "checkout";
-  if (state !== "blocked" && !isLifecycle) return;
+  // ⚠️ `manual` DA dahil (denetim, 08-01 — dördüncü tur): `applyFailureEffect`
+  // artık manuel satırlara dokunmuyor (host'un kendi mesajına AI atlama sebebi
+  // yazmak yanlış bilgiydi), ama o değişiklik manuel satırın TEK operasyonel
+  // uyarısını da kaldırıyordu. Thread rozeti ve `/sent/queue` görünürlüğü zaten
+  // duruyor; bu yalnız operatöre giden kırıntı. `failed` terminal ve satır başına
+  // BİR KEZ girilir → fırtına yok.
+  if (state !== "blocked" && !isLifecycle && !(t === "manual" && state === "failed")) return;
   const key = state === "blocked" ? "outbox-blocked" : `outbox-lifecycle-${state}`;
   await reportError(
     key,

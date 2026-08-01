@@ -246,6 +246,52 @@ describe("hospitable-credentials (OAuth token refresh)", () => {
     expect(mockRefresh).not.toHaveBeenCalled();
   });
 
+  // -------------------------------------------------------------------------
+  // PERSIST HATASI = ROTASYONLU TOKEN KAYBI (denetim, 08-01 — dördüncü tur).
+  //
+  // Refresh token'ları ROTASYONLUDUR: `refreshAccessToken` başarılı döndüyse eski
+  // token sağlayıcıda ARTIK HARCANMIŞTIR. Persist düşerse yeni token yalnız
+  // bellekte kalır ve DB'de harcanmış eski token durur → bir sonraki tur
+  // `invalid_grant` → bağlantı SİLİNİR. İlk yazımda persist, `refreshAccessToken`
+  // ile AYNI try içindeydi; yani bu KALICI kayıp geçici bir ağ hatasıyla aynı
+  // kovaya düşüyordu ve tur BOŞA gidiyordu (eski, birkaç dakikalık token dönüyordu).
+  // -------------------------------------------------------------------------
+  it("PERSIST düşerse bir kez yeniden dener ve TAZE token'ı döndürür", async () => {
+    const org = await makeOrg("Org");
+    await setOrgHospitableOAuthTokens(
+      org.id,
+      { accessToken: "access-old", refreshToken: "refresh-old", expiresAt: new Date(Date.now() - 1000) },
+      "5 mülk",
+    );
+    mockGetConfig.mockReturnValue(FAKE_CONFIG);
+    mockRefresh.mockResolvedValue({
+      accessToken: "access-new",
+      refreshToken: "refresh-new",
+      expiresAt: new Date(Date.now() + 12 * 60 * 60 * 1000),
+    });
+
+    // İlk persist yazması düşer, ikincisi (anında yeniden deneme) tutar.
+    const realUpdate = prisma.organization.update.bind(prisma.organization);
+    let calls = 0;
+    vi.spyOn(prisma.organization, "update").mockImplementation((async (args: unknown) => {
+      calls++;
+      if (calls === 1) throw new Error("transient DB write failure");
+      return realUpdate(args as never);
+    }) as never);
+
+    const token = await getOrgHospitableToken(org.id);
+
+    expect(calls).toBeGreaterThanOrEqual(2); // yeniden deneme GERÇEKTEN koştu
+    expect(token).toBe("access-new"); // ⬅️ ARIZADA eski/None dönerdi
+    // Ve yeni rotasyonlu token DB'ye yazıldı → bağlantı kopmaz.
+    const row = await prisma.organization.findUniqueOrThrow({ where: { id: org.id } });
+    expect(row.hospitableRefreshTokenEnc).not.toBeNull();
+    expect(row.hospitableTokenExpiresAt!.getTime()).toBeGreaterThan(Date.now());
+    // ⚠️ `mockRestore` YOK: bir Prisma delegesini restore etmek onu BOZAR (repoda
+    // belgeli tuzak, `hospitable-sync.test.ts` emsali). Spy zaten ilk çağrıdan
+    // sonra gerçek metoda geçiyor → sonraki testler etkilenmez.
+  });
+
   it("switching to a manually-pasted PAT clears any prior OAuth refresh/expiry state", async () => {
     const org = await makeOrg("Org");
     await setOrgHospitableOAuthTokens(

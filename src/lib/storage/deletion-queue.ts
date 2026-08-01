@@ -104,10 +104,16 @@ export async function drainStorageDeletions(
   for (const row of due) {
     try {
       await adapter.delete(row.objectKey);
-      await prisma.storageDeletion.updateMany({
-        where: { id: row.id, status: "pending" },
-        data: { status: "deleted", deletedAt: now(), lastError: null },
-      });
+      // Başarı yazması da fırlatmamalı: JSDoc "Never throws" diyor ve tek çağıran
+      // (`scheduled-sync`) bunu try/catch'e sarsa bile parti yarıda kesilirdi.
+      // Yazma düşerse obje SİLİNMİŞ ama satır `pending` kalır → sonraki geçiş aynı
+      // anahtarı yeniden siler (adapter eksik objeyi başarı sayar = zararsız).
+      await prisma.storageDeletion
+        .updateMany({
+          where: { id: row.id, status: "pending" },
+          data: { status: "deleted", deletedAt: now(), lastError: null },
+        })
+        .catch((e) => void reportError("storage-deletion-complete-write", e));
       deleted++;
     } catch (err) {
       failed++;
@@ -120,7 +126,13 @@ export async function drainStorageDeletions(
             lastError: errorCode(err), // status code only — never a body/secret
           },
         })
-        .catch(() => {});
+        // ⚠️ SESSİZ DEĞİL (denetim, 08-01 — dördüncü tur, ajan bulgusu). Bu yazma
+        // düşerse `attemptCount` ARTMAZ ve `availableAt` GEÇMİŞTE kalır → aynı
+        // satırlar her geçişte (2 dk) yeniden denenir ve backoff HİÇ BÜYÜMEZ:
+        // 30 geçiş/saat × parti başına 25 satır = saatte 750 sağlayıcı DELETE.
+        // Aşağıdaki toplu alarm "silme başarısız" der ama "backoff da yazılamadı"
+        // demez — ikisi farklı arızalar ve ikincisi sınırsız tekrar üretir.
+        .catch((e) => void reportError("storage-deletion-backoff-write", e));
     }
   }
   if (failed > 0) {

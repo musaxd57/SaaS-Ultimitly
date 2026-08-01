@@ -1175,6 +1175,40 @@ describe("applyChannelAutoReply — Durable Outbox (flag ON, #5/#6)", () => {
     expect(conv?.skippedReason).toBe("delivery_unverified");
   });
 
+  it("BELİRSİZ satır incelemeye düşerken SONRADAN gelen misafir mesajı SUSTURULMAZ", async () => {
+    // ⚠️ Bu senaryo YALNIZ `review` yolunda mümkün: `sending` dalı `sendTimeVeto`'dan
+    // geçtiği için daha yeni mesaj varsa satır zaten `canceled` olur. `reconciling`
+    // dalı ise vetodan GEÇMEZ ve oraya 6 tükenmiş denemeden (30 sn → 30 dk backoff)
+    // SONRA, yani SAATLER sonra gelinir — o pencere yeni mesaj için geniş.
+    // Damgayı konuşmanın GÜNCEL `lastMessageAt`'inden almak onu da susturuyordu
+    // (denetim, 08-01 — dördüncü tur, ajan bulgusu).
+    const { conversationId } = await seed();
+    await applyChannelAutoReply(conversationId);
+    const row = await prisma.messageOutbox.findFirstOrThrow({ where: { conversationId } });
+    await prisma.messageOutbox.update({
+      where: { id: row.id },
+      data: { status: "ambiguous", attemptCount: 6, availableAt: new Date(Date.now() - 1000) },
+    });
+
+    // Taslaktan SONRA misafir yeniden yazdı (saatler süren reconcile penceresinde).
+    const later = new Date(Date.now() + 60_000);
+    await prisma.message.create({
+      data: { conversationId, direction: "inbound", senderName: "Guest", body: "hâlâ bekliyorum", createdAt: later },
+    });
+    await prisma.conversation.update({ where: { id: conversationId }, data: { lastMessageAt: later } });
+
+    await drainOutboxOnce({
+      send: vi.fn(),
+      reconcile: vi.fn().mockResolvedValue({ found: false }),
+      tokenFor: async () => "test-token",
+    });
+    expect((await prisma.messageOutbox.findUniqueOrThrow({ where: { id: row.id } })).status).toBe("review");
+
+    const conv = await prisma.conversation.findUnique({ where: { id: conversationId } });
+    expect(conv?.skippedReason).toBe("delivery_unverified"); // sebep YİNE yazılır (host görür)
+    expect(conv?.autoReplyAttemptedAt).toBeNull(); // ⬅️ ARIZADA damgalanıp susturulurdu
+  });
+
   it("HOST'un elle gönderdiği mesaj düşerse konuşmaya AI sebebi YAZILMAZ", async () => {
     const { orgId, conversationId } = await seed();
     const msg = await prisma.message.create({

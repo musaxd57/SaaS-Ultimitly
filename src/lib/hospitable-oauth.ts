@@ -211,7 +211,23 @@ async function postTokenRequest(
     const authFailure = res.status >= 400 && res.status < 500 && res.status !== 429;
     throw new HospitableOAuthError(`Token request failed (${res.status})`, authFailure);
   }
-  const data = await res.json().catch(() => null);
+  // 🚨 GÖVDE OKUMA HATASI KİMLİK HATASI DEĞİLDİR (denetim, 08-01 — dördüncü tur).
+  // Eskiden `.catch(() => null)` idi ve `parseTokenResponse(null)` `authFailure:
+  // TRUE` fırlatıyordu → 200 ALINMIŞ ama gövde okunamamış bir yanıt (15 sn
+  // `AbortSignal.timeout` stream'i de iptal eder; bağlantı kopabilir) "bu refresh
+  // token ÖLÜ" diye sınıflanıyor ve çağıran kiracının Hospitable BAĞLANTISINI
+  // SİLİYORDU. Bu, yukarıdaki özenli 4xx/5xx/429 ayrımını tek satırla atlıyor ve
+  // modülün kendi sözleşmesinin ("authFailure:false = geçici sorun") tersiydi.
+  // Geçici sınıflandırma güvenli yön: bir sonraki tur yeniden dener.
+  let data: unknown;
+  try {
+    data = await res.json();
+  } catch (err) {
+    throw new HospitableOAuthError(
+      `Token response body unreadable: ${err instanceof Error ? err.message : "unknown"}`,
+      false,
+    );
+  }
   return parseTokenResponse(data);
 }
 

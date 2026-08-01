@@ -138,7 +138,32 @@ async function refreshOrgOAuthToken(
 
   try {
     const tokens = await refreshAccessToken(config, refreshToken);
-    await persistOAuthTokenSet(orgId, tokens);
+    // ⚠️ PERSIST KENDİ TRY'INDA (denetim, 08-01 — dördüncü tur, ajan bulgusu).
+    // Refresh token'ları ROTASYONLUDUR: bu çağrı başarılı döndüyse eski token
+    // sağlayıcıda ARTIK HARCANMIŞTIR. Persist düşerse yeni token yalnız BELLEKTE
+    // kalır, DB'de harcanmış eski token durur → bir sonraki tur `invalid_grant`
+    // → `authFailure` dalı → kiracının bağlantısı SİLİNİR (2 dk gecikmeli ama
+    // kesin). Persist'i `refreshAccessToken` ile aynı `catch`e bırakmak bu
+    // KALICI kaybı geçici bir ağ hatasıyla aynı kovaya koyuyordu.
+    // Bir kez ANINDA yeniden dene; yine düşerse AYRI ve yüksek-sinyalli bir
+    // alarm bas ve TAZE access token'ı döndür — bu tur hiç değilse tam çalışsın
+    // (eski `fallback` token'ı en fazla birkaç dakikalıktı).
+    try {
+      await persistOAuthTokenSet(orgId, tokens);
+    } catch {
+      try {
+        await persistOAuthTokenSet(orgId, tokens);
+      } catch (persistErr) {
+        void reportError(
+          `hospitable-oauth-persist org:${orgId}`,
+          new Error(
+            "Rotasyonlu refresh token ALINDI ama KAYDEDİLEMEDİ — eski token sağlayıcıda " +
+              "harcandı, bu bağlantı bir sonraki yenilemede kopacak (host yeniden bağlanmalı).",
+            { cause: persistErr },
+          ),
+        );
+      }
+    }
     return tokens.accessToken;
   } catch (err) {
     void reportError(`hospitable-oauth-refresh org:${orgId}`, err);
@@ -160,7 +185,7 @@ async function refreshOrgOAuthToken(
       // updateMany WHERE makes the clear a no-op the instant the winner has rotated
       // (0 rows matched) — no read-then-act window. Mirrors clearOrgHospitableToken's
       // field set, gated on the token still being ours.
-      await prisma.organization.updateMany({
+      const cleared = await prisma.organization.updateMany({
         where: { id: orgId, hospitableRefreshTokenEnc: refreshTokenEnc },
         data: {
           hospitableTokenEnc: null,
@@ -170,6 +195,19 @@ async function refreshOrgOAuthToken(
           hospitableConnectedAt: null,
         },
       });
+      // ⚠️ SİLME AYRI VE YÜKSEK-SİNYALLİ RAPORLANIR (denetim, 08-01 — dördüncü tur).
+      // Yukarıdaki genel `reportError` GEÇİCİ hatalarla AYNI context'i kullanıyor;
+      // operatör "ağ hıçkırığı" ile "kiracının bağlantısı KOPTU"yu ayırt edemiyordu.
+      // Bağlantı silinince o org'un senkronu sessizce atlanır (`getOrgHospitableToken`
+      // null döner) — hiçbir 401/403 uyarısı bile tetiklenmez, çünkü çağrı yapılmaz.
+      // ⚠️ HOST'A BİLDİRİM GİTMİYOR: yeni bir müşteri e-postası ürün/e-posta akışı
+      //    kararıdır, tek başıma eklemiyorum → `docs/MIGRATION-BEKLEYEN-ISLER.md`.
+      if (cleared.count === 1) {
+        void reportError(
+          `hospitable-oauth-disconnected org:${orgId}`,
+          new Error("Refresh token ölü — kiracının Hospitable bağlantısı kaldırıldı, yeniden bağlanmalı."),
+        );
+      }
       return null;
     }
 

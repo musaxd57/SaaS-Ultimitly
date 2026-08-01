@@ -226,6 +226,41 @@ describe("exchangeCodeForToken / refreshAccessToken", () => {
     });
   });
 
+  // -------------------------------------------------------------------------
+  // 🚨 GÖVDE OKUNAMAMASI KİMLİK HATASI DEĞİLDİR (denetim, 08-01 — dördüncü tur).
+  //
+  // Eskiden gövde okuması `.catch(() => null)` ile yutuluyor ve `null`
+  // `parseTokenResponse`'a gidiyordu → "access_token yok" → **authFailure:TRUE**.
+  // Yani HTTP 200 ALINMIŞ ama gövde okunamamış bir yanıt (15 sn
+  // `AbortSignal.timeout` stream'i de iptal eder; bağlantı resetlenebilir)
+  // "bu refresh token ÖLÜ" diye sınıflanıyordu — ve çağıran
+  // (`hospitable-credentials.ts`) bu sınıfta kiracının Hospitable BAĞLANTISINI
+  // SİLİYOR. Tek bir ağ titremesi, ödeyen bir müşterinin tüm misafir
+  // mesajlaşmasını durdurup yeniden bağlanmasını zorunlu kılabilirdi.
+  //
+  // Üstelik bu, aynı fonksiyonun 4xx/5xx/429 için özenle yazılmış ayrımını ve
+  // modülün kendi sözleşmesini ("authFailure:false = geçici sorun") çiğniyordu.
+  // -------------------------------------------------------------------------
+  it("gövde OKUNAMAZSA geçici sayılır (authFailure:false) — bağlantı SİLİNMEZ", async () => {
+    // 200 ama gövde stream'i patlıyor (timeout/reset). `Response.json()` reddeder.
+    const broken = {
+      ok: true,
+      status: 200,
+      json: () => Promise.reject(new Error("terminated")),
+    } as unknown as Response;
+    vi.mocked(fetch).mockResolvedValueOnce(broken);
+    await expect(refreshAccessToken(config, "ref_old")).rejects.toMatchObject({
+      authFailure: false, // ⬅️ ARIZADA true → kiracının bağlantısı silinirdi
+    });
+  });
+
+  it("GEÇERSİZ JSON gövdesi de geçici sayılır (aynı sınıf)", async () => {
+    vi.mocked(fetch).mockResolvedValueOnce(new Response("<html>gateway</html>", { status: 200 }));
+    await expect(refreshAccessToken(config, "ref_old")).rejects.toMatchObject({
+      authFailure: false,
+    });
+  });
+
   it("throws (authFailure:true) when the response has no access_token", async () => {
     vi.mocked(fetch).mockResolvedValueOnce(
       new Response(JSON.stringify({ refresh_token: "r" }), { status: 200 }),
