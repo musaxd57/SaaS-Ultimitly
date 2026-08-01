@@ -133,7 +133,14 @@ export function clientIp(req: { headers: Headers }): string {
     const parts = parseForwardedFor(xff);
     if (parts.length) return pickClientHop(parts, trustedProxyHops());
   }
-  return req.headers.get("x-real-ip") ?? "unknown";
+  // ⚠️ BAYRAK KAPALIYKEN `x-real-ip`'E DÜŞÜLMEZ (denetim, 08-01). Bayrağın
+  // varlık sebebi "bu başlık platformca eziliyor mu bilmiyoruz" — ama XFF
+  // taşımayan bir istekte bayrak yokmuş gibi davranılıyordu. Böyle bir yolda
+  // (doğrudan origin bağlantısı, ya da ileride bir edge değişikliği) saldırgan
+  // her istekte başlığı değiştirip hız-limiti kimliğini SINIRSIZCA döndürebilir,
+  // yani tüm per-IP limitleri fiilen kapanır. "unknown" ise herkesi tek kovaya
+  // koyar: limit GEVŞER ama TAKLİT EDİLEMEZ — yön kuralı gereği güvenli taraf.
+  return "unknown";
 }
 
 /**

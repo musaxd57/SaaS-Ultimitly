@@ -92,9 +92,27 @@ describe("clientIp", () => {
     expect(clientIp(new Request("http://x", { headers: { "x-forwarded-for": "9.9.9.9" } }))).toBe("9.9.9.9");
   });
 
-  it("falls back to x-real-ip then 'unknown'", () => {
-    expect(clientIp(new Request("http://x", { headers: { "x-real-ip": "9.9.9.9" } }))).toBe("9.9.9.9");
+  it("XFF yokken x-real-ip'e DÜŞMEZ — bayrak kapalıyken o başlık taklit edilebilir", () => {
+    // ⚠️ DAVRANIŞ BİLEREK DEĞİŞTİ (denetim, 2026-08-01). Eskiden XFF yoksa
+    // `x-real-ip` okunuyordu — `TRUST_X_REAL_IP` bayrağı KAPALI olsa bile.
+    // Bayrağın varlık sebebi tam olarak "bu başlık platformca eziliyor mu
+    // bilmiyoruz"du; XFF taşımayan bir yolda (doğrudan origin bağlantısı ya da
+    // ileride bir edge değişikliği) saldırgan her istekte başlığı değiştirip
+    // hız-limiti kimliğini SINIRSIZCA döndürebilir, yani tüm per-IP limitleri
+    // fiilen kapanırdı. "unknown" herkesi tek kovaya koyar: limit GEVŞER ama
+    // TAKLİT EDİLEMEZ — yön kuralı gereği güvenli taraf.
+    expect(clientIp(new Request("http://x", { headers: { "x-real-ip": "9.9.9.9" } }))).toBe(
+      "unknown",
+    );
     expect(clientIp(new Request("http://x"))).toBe("unknown");
+  });
+
+  it("bayrak AÇIKKEN x-real-ip yine kullanılabilir (kaçış kapısı duruyor)", () => {
+    vi.stubEnv("TRUST_X_REAL_IP", "1");
+    expect(clientIp(new Request("http://x", { headers: { "x-real-ip": "9.9.9.9" } }))).toBe(
+      "9.9.9.9",
+    );
+    vi.unstubAllEnvs();
   });
 
   it("IGNORES cf-connecting-ip by default — a direct-to-origin client could set it freely", () => {

@@ -110,6 +110,12 @@ export default async function InboxPage({
   const TZ = orgTimezone(org?.timezone);
 
   const filters = [{ value: "", label: "Tümü" }, ...CONVERSATION_STATUS.options];
+  // Boş-durum başlığı seçili sekmenin ADIYLA konuşsun ("Beklemede mesajınız
+  // bulunmuyor"), soyut "filtre" diliyle değil. Bilinmeyen bir status query'si
+  // gelirse nötr bir sözcüğe düşer — ekranda ham kod ASLA görünmez.
+  const statusLabel = status
+    ? (CONVERSATION_STATUS.options.find((o) => o.value === status)?.label ?? "Bu durumda")
+    : "Bekleyen";
 
   /** Filtre + aramayı koruyan bağlantı. Durum/arama değişince sayfa 1'e döner:
    *  7. sayfadayken filtre değiştirip boş ekran görmek "kayıt yok" sanılır. */
@@ -293,17 +299,29 @@ export default async function InboxPage({
          * orası kapatılmıştı, burası açık kalmıştı.
          */
         status || query ? (
+          /*
+           * METİN, SEÇİLİ DURUMUN ADIYLA KONUŞUR. Önceki hâli soyut ve
+           * ürün-diliydi ("Bu filtreyle eşleşen konuşma yok" + "Seçili durumda
+           * konuşma yok. Başka bir durum seçebilir ya da filtreyi
+           * kaldırabilirsiniz.") — host'un kafasında karşılığı olmayan bir cümle.
+           * Doğru cümle, o an baktığı sekmenin adını kullanan cümledir:
+           * "Beklemede mesajınız bulunmuyor." Bu bir İYİ HABER, hata değil.
+           */
           <EmptyState
             icon={Search}
-            title="Bu filtreyle eşleşen konuşma yok"
+            title={
+              query
+                ? "Aramanızla eşleşen misafir yok"
+                : `${statusLabel} mesajınız bulunmuyor`
+            }
             description={
               query
                 ? `“${query}” ile eşleşen misafir bulunamadı. Arama yalnız misafir adında yapılır.`
-                : "Seçili durumda konuşma yok. Başka bir durum seçebilir ya da filtreyi kaldırabilirsiniz."
+                : "Bu durumda bekleyen bir konuşmanız yok. Diğer sekmelere bakabilir ya da filtreyi temizleyebilirsiniz."
             }
           >
             <LinkButton href="/inbox" size="sm" variant="outline">
-              Filtreleri temizle
+              Filtreyi temizle
             </LinkButton>
           </EmptyState>
         ) : (

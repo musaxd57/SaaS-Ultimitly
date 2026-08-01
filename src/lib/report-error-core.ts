@@ -124,6 +124,22 @@ function parseDsn(dsn: string): SentryDsn | null {
   }
 }
 
+/**
+ * Sentry gruplama anahtarı: değişken parçaları maskelenmiş hata metni.
+ *
+ * Sayılar (`5 thread import(s) failed`), cuid/uuid'ler (`row cmpwcnp…`) ve
+ * saniye/ms damgaları her olayda farklıdır; maskelenmezse aynı arıza her koşuda
+ * YENİ bir Issue açar ve gerçek sinyal gürültüde kaybolur. Maskeleme YALNIZ
+ * gruplama içindir — tam metin `extra.message`'ta durur.
+ */
+export function groupingValue(errMessage: string): string {
+  return errMessage
+    .replace(/\b[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}\b/gi, "<uuid>")
+    .replace(/\b(?:c[a-z0-9]{24}|[a-z0-9]{25,})\b/gi, "<id>")
+    .replace(/\d+/g, "N")
+    .slice(0, 1000);
+}
+
 export async function captureToSentry(
   context: string,
   errName: string,
@@ -148,8 +164,19 @@ export async function captureToSentry(
       environment: process.env.NODE_ENV ?? "production",
       transaction: context,
       // errName/errMessage/detail must arrive PRE-REDACTED (reportError does this).
-      exception: { values: [{ type: errName, value: errMessage.slice(0, 1000) }] },
-      extra: { detail: detail.slice(0, 4000) },
+      //
+      // ⚠️ GRUPLAMA ANAHTARI NORMALLEŞTİRİLİR (denetim, 08-01). Sentry varsayılan
+      // olarak istisnayı type + value üzerinden gruplar. Bizim mesajlarımız
+      // DEĞİŞKEN değer taşıyor ("5 thread import(s) failed…", "(row abc123)") ve
+      // her koşu/satır farklı olduğu için TEK bir arıza yüzlerce ayrı Issue'ya
+      // bölünüyordu — e-posta throttle'ı context bazlı olduğu için düzeltilmişti
+      // ama Sentry bacağı düzelmemişti. Sayılar/id'ler burada maskeleniyor;
+      // GERÇEK metin `extra.message` içinde tam hâliyle duruyor, yani hiçbir
+      // teşhis bilgisi kaybolmuyor — yalnız gruplama sabitleniyor.
+      exception: {
+        values: [{ type: errName, value: groupingValue(errMessage) }],
+      },
+      extra: { detail: detail.slice(0, 4000), message: errMessage.slice(0, 1000) },
     });
     await fetch(parsed.endpoint, {
       method: "POST",

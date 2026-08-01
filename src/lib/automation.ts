@@ -10,7 +10,7 @@ import { recordShadowVerdict } from "@/lib/shadow-ai";
 import { reservationAmountNumber } from "@/lib/money";
 import { classifyMessage, suggestReply, summarizeHostStyle } from "@/lib/ai";
 import { fetchKnowledgeBaseForPrompt } from "@/lib/ai/kb-fetch";
-import { consumeDailyAiBudget } from "@/lib/ai/daily-budget";
+import { consumeDailyAiBudget, peekDailyAiBudget } from "@/lib/ai/daily-budget";
 import {
   classifyFallback,
   isClosingAck,
@@ -1029,6 +1029,11 @@ export async function applyChannelAutoReply(
   if (!options.ignoreSchedule) {
     const hour = currentHourInTimeZone(org.timezone);
     if (!isWithinActiveHours(org.autoReplyStartHour, org.autoReplyEndHour, hour)) {
+      // Sebep GÖRÜNÜR olmalı. Bu, mevcut müşterilerin (şema varsayılanı hâlâ
+      // 00:00–09:00) gündüz mesajlarının sessizce cevapsız kalmasının TEK
+      // sebebi — ve hiçbir ekranda yazmıyordu. Host "AI neden cevap vermedi?"
+      // sorusunu ancak Ayarlar'daki pencereyi kendisi fark ederse çözebiliyordu.
+      if (!options.dryRun) await persistRiskVisibility(conversation.id, "outside_hours");
       return { sent: false, skippedReason: "outside_hours", ...meta };
     }
   }
@@ -1158,7 +1163,14 @@ export async function applyChannelAutoReply(
     // Tavana çarpınca konuşma "new" kalır ve `autoReplyAttemptedAt` DAMGALANMAZ
     // → pencere dönünce normal şekilde yanıtlanır. Kayıp değil, gecikme; ve
     // sebep host'a inbox'ta yazılı olarak görünür.
-    const budget = await consumeDailyAiBudget(conversation.property.organizationId);
+    // ÖNCE BAK, SONRA TÜKET (denetim, 08-01). Eskiden burada doğrudan
+    // `consumeDailyAiBudget` vardı ve model çağrısı BAŞARISIZ olsa bile birim
+    // yanıyordu: OpenAI 30 dakika düşerse `suggestReply` fallback'e döner, kapı
+    // reddeder, konuşma damgalanmaz ve 2 dakika sonra aynı şey tekrarlanır —
+    // sıfır lira harcanmışken Başlangıç planının 150 birimi ~1 saatte biter ve
+    // servis geri dönse bile org'un TÜM oto-yanıtı 24 saat durur. Tüketim artık
+    // model GERÇEKTEN yanıt verdiğinde yapılıyor (↓`source === "openai"`).
+    const budget = await peekDailyAiBudget(conversation.property.organizationId);
     if (!budget.ok) {
       await persistRiskVisibility(conversation.id, "daily_budget");
       return { sent: false, skippedReason: "daily_budget", ...meta };
@@ -1241,6 +1253,13 @@ export async function applyChannelAutoReply(
   // Close every reply in the host's voice: append their configured signature
   // (name + contact) so guests get a personal, on-brand sign-off. Build a new
   // string — never mutate the AI result object (it may be shared / reused).
+  // Kota TÜKETİMİ burada: model gerçekten yanıt verdiyse (`source === "openai"`)
+  // bir birim düşer. Fallback (anahtar yok / 4xx / 5xx / timeout / bozuk JSON)
+  // hiçbir şeye mal olmadığı için sayılmaz — ↑`peekDailyAiBudget` gerekçesi.
+  if (!options.dryRun && result.source === "openai") {
+    await consumeDailyAiBudget(conversation.property.organizationId).catch(() => {});
+  }
+
   const signature = org.aiSignature?.trim();
   // Draft / manual "AI suggest" stays clean: the host's words + their signature.
   const replyText =
@@ -1789,11 +1808,33 @@ export async function runDueChannelAutoReplies(
       NOT: { externalReservationId: { startsWith: "qr-chat:" } },
       status: "new",
       lastMessageAt: { gte: freshSince },
+      // ⚠️ UYGUNLUK FİLTRESİ SQL'DE OLMAK ZORUNDA — TAVANLA BİRLİKTE (denetim
+      // 08-01). Bu koşul bir süre YALNIZCA JS'te uygulandı ve araya `take: 25`
+      // kondu; sıra da `lastMessageAt asc` (en eski önce). Sonuç KALICI AÇLIKTI:
+      // damgalanmış konuşmalar (`closing_ack` / `low_confidence_or_risky` /
+      // `globally_disabled`) `status:"new"` kalır ve EN ESKİ oldukları için
+      // sıranın başındadır → 25 slotu doldurup `eligible`'ı boşaltırlar ve YENİ
+      // misafir mesajları hiç seçilmez. `freshSince` sabit bir damga olduğu için
+      // (kayan pencere DEĞİL) bu küme yalnız BÜYÜR; org'un tüm oto-yanıtı
+      // sessizce ölürdü. Tavan artık UYGUN satırlara uygulanıyor.
+      AND: [
+        {
+          OR: [
+            { autoReplyAttemptedAt: null },
+            { autoReplyAttemptedAt: { lt: prisma.conversation.fields.lastMessageAt } },
+          ],
+        },
+        {
+          // İnsan devri süresince AI susuyor (`autoReplyHoldUntil`). Bu satırlar
+          // DAMGALANAMAZ — damga, devir bitince konuşmayı KALICI susturur — o
+          // yüzden adaylıktan burada düşerler ve süre dolunca kendiliğinden geri
+          // gelirler. Aksi hâlde her turda 25 slottan birini işgal ederlerdi.
+          OR: [{ autoReplyHoldUntil: null }, { autoReplyHoldUntil: { lte: new Date() } }],
+        },
+      ],
     },
     select: { id: true, lastMessageAt: true, autoReplyAttemptedAt: true },
-    // ADİL VE DETERMİNİSTİK SIRA: en eski cevapsız mesaj önce. Sıra yokken DB
-    // heap sırasına kalıyordu; kota dolup `break` edilince hep aynı konuşmaların
-    // önde olacağının garantisi yoktu (açlık riski).
+    // ADİL VE DETERMİNİSTİK SIRA: en eski cevapsız mesaj önce.
     orderBy: { lastMessageAt: "asc" },
     // Kardeş geçişlerin hepsinde tavan var; burada yoktu. İşletme planında en
     // kötü hâl 1.500 ardışık model çağrısıydı (her biri 60 sn timeout'lu) ve
@@ -1803,10 +1844,10 @@ export async function runDueChannelAutoReplies(
     take: 25,
   });
 
-  // Cost guard: skip threads we already modeled for THIS message and left "new"
-  // (low confidence / globally disabled) — re-modelling the same unchanged text
-  // every 2 minutes just burns the OpenAI key. A new guest message advances
-  // lastMessageAt past the stamp, so the thread becomes eligible again on its own.
+  // İKİNCİ SAVUNMA (SQL'dekinin aynısı). Prisma alan-referansı sessizce
+  // çalışmazsa tavan yine yanlış satırlara uygulanır; bu filtre en azından
+  // GEREKSİZ MODEL ÇAĞRISINI önler. Açlığı önleyen şey yukarıdaki SQL koşuludur,
+  // bu değil — o yüzden ikisi birden duruyor ve SQL koşulu testle pinli.
   const eligible = candidates.filter(
     (c) => !c.autoReplyAttemptedAt || c.autoReplyAttemptedAt < c.lastMessageAt,
   );
@@ -1835,7 +1876,20 @@ export async function runDueChannelAutoReplies(
       const rest = eligible.slice(eligible.indexOf(c) + 1).map((x) => x.id);
       if (rest.length > 0) {
         await prisma.conversation
-          .updateMany({ where: { id: { in: rest } }, data: { skippedReason: "daily_budget" } })
+          .updateMany({
+            // ⚠️ GERÇEK SEBEBİ EZME (denetim, 08-01). `rest` içinde model
+            // çağrısına HİÇ gelmeyecek konuşmalar da var: `human_hold` (misafir
+            // insan istedi, AI susuyor) ve `reservation_ended` (konaklama bitti).
+            // Onları `daily_budget` ile işaretlemek host'a "sınır yenilenince
+            // otomatik yanıtlanacak" diye YALAN söylüyordu — o konuşmalar sınır
+            // yenilense de asla yanıtlanmayacak. Yalnız sebebi OLMAYAN ya da
+            // zaten `daily_budget` olan satırlar güncellenir.
+            where: {
+              id: { in: rest },
+              OR: [{ skippedReason: null }, { skippedReason: "daily_budget" }],
+            },
+            data: { skippedReason: "daily_budget" },
+          })
           .catch(() => {});
       }
       break;
@@ -1845,7 +1899,13 @@ export async function runDueChannelAutoReplies(
     } else if (
       outcome.skippedReason === "low_confidence_or_risky" ||
       outcome.skippedReason === "globally_disabled" ||
-      outcome.skippedReason === "closing_ack"
+      outcome.skippedReason === "closing_ack" ||
+      // Konaklama bitti/iptal: bu mesaj için KALICI bir hayır. Damgalanmazsa
+      // konuşma `status:"new"` kalır, `lastMessageAt`'i en eski olduğu için
+      // sıranın başına oturur ve her turda aday slotu yer (denetim, 08-01).
+      // Misafir YENİ bir mesaj yazarsa `lastMessageAt` damgayı geçer ve konuşma
+      // kendiliğinden yeniden uygun olur — yani kayıp değil.
+      outcome.skippedReason === "reservation_ended"
     ) {
       // Deterministic non-send for this message → don't re-model it next tick.
       // Transient reasons (send_failed / not_connected / already_claimed) are NOT

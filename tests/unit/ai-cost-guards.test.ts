@@ -128,43 +128,72 @@ describe("günlük org AI bütçesi", () => {
     }
   });
 
-  it("AI harcayan HER rota günlük bütçeden geçiyor — AĞACI TARAR, elle liste DEĞİL", () => {
-    // ⚠️ Bu test bir süre ELLE YAZILMIŞ 5 dosyalık listeye bakıyordu ve yorumu
-    // "yeni bir AI rotası bütçesiz eklenirse burası kırmızı olur" diyordu —
-    // TAM TERSİ: liste sabit olduğu için yalnız mevcut bir rotadan bütçenin
-    // ÇIKARILMASINI yakalıyordu, YENİ bir rotanın eklenmesini asla. Nitekim
-    // `/api/hospitable/auto-reply-test` (istek başına 12 model çağrısı) tam bu
-    // kör noktada, kotasız duruyordu. Artık ağaç taranıyor.
-    const apiRoot = path.resolve(__dirname, "../../src/app/api");
-    const spenders: string[] = [];
-    const walk = (dir: string) => {
+  it("AI harcayan HER rota günlük bütçeden geçiyor — ağacı tarar VE isimler gerçek", () => {
+    // ⚠️ BU TEST İKİ KEZ SAHTE GÜVENCE VERDİ, ikisi de burada kapatıldı:
+    //  1) İlk hâli ELLE YAZILMIŞ 5 dosyalık bir listeye bakıyordu → yeni bir
+    //     rotanın eklenmesini ASLA göremezdi (nitekim kotasız bir rota o kör
+    //     noktada duruyordu).
+    //  2) Ağaç taramasına çevrildi ama regex'teki dört isimden İKİSİ
+    //     (`translateMessageBody`, `summarizeSupplyPlan`) kod tabanında HİÇ YOKTU
+    //     — uydurulmuş adlardı. Tarayıcı o iki rotayı hiç bulmuyordu; ikisinden
+    //     `consumeDailyAiBudget` silinse test yeşil kalırdı.
+    //
+    // Bu yüzden artık her sembolün GERÇEKTEN var olduğu ayrıca asserte ediliyor:
+    // bir daha uydurma isim yazılırsa test o satırda kırmızıya döner.
+    const root = path.resolve(__dirname, "../../src");
+    const apiRoot = `${root}/app/api`;
+
+    /** Modeli çağıran (ya da çağıran bir yardımcıyı çağıran) gerçek export'lar. */
+    const SPENDERS = [
+      "suggestReply",
+      "classifyMessage",
+      "summarizeHostStyle",
+      "translate",
+      "generateSupplySummary",
+      "previewChannelAutoReplies",
+    ];
+
+    const allSrc: string[] = [];
+    const walk = (dir: string, out: string[]) => {
       for (const e of readdirSync(dir, { withFileTypes: true })) {
         const full = `${dir}/${e.name}`;
-        if (e.isDirectory()) walk(full);
-        else if (e.name === "route.ts") {
-          const src = readFileSync(full, "utf8");
-          // Modeli GERÇEKTEN çağıran (ya da çağıran bir yardımcıyı çağıran) rotalar.
-          if (/\b(suggestReply|previewChannelAutoReplies|translateMessageBody|summarizeSupplyPlan)\b/.test(src)) {
-            spenders.push(full.slice(apiRoot.length + 1));
-          }
-        }
+        if (e.isDirectory()) walk(full, out);
+        else if (/\.tsx?$/.test(e.name)) out.push(full);
       }
     };
-    walk(apiRoot);
-    // Demo rotası bilinçli istisna: kayıtsız ziyaretçiye açık, kendi IP+günlük
-    // tavanları var ve bir org'a ait olmadığı için org kotası uygulanamaz.
-    const exempt = new Set(["demo/ai/route.ts", "chat/[token]/route.ts"]);
-    const missing = spenders.filter((rel) => {
-      if (exempt.has(rel)) return false;
-      // ÇAĞRIYI ara, import satırını DEĞİL: ilk sürüm yalnız `includes(
-      // "consumeDailyAiBudget")` bakıyordu ve çağrıyı silip import'u bırakan
-      // bir mutasyon testten geçiyordu (mutasyonla ölçüldü).
-      return !/consumeDailyAiBudget\s*\(/.test(readFileSync(`${apiRoot}/${rel}`, "utf8"));
+    walk(root, allSrc);
+
+    // (1) İSİMLER GERÇEK Mİ — uydurma ad = sessiz kör nokta.
+    for (const name of SPENDERS) {
+      const declared = allSrc.some((f) =>
+        new RegExp(`export (async )?function ${name}\\b`).test(readFileSync(f, "utf8")),
+      );
+      expect(declared, `"${name}" diye bir export YOK — tarayıcı bu ismi asla bulamaz`).toBe(true);
+    }
+
+    // (2) Bu sembolleri İMPORT eden her rota bütçeden geçmeli.
+    const routes = allSrc.filter((f) => f.startsWith(apiRoot) && f.endsWith("/route.ts"));
+    const spenderRoutes = routes.filter((f) => {
+      const src = readFileSync(f, "utf8");
+      return SPENDERS.some((n) => new RegExp(`\\b${n}\\b`).test(src));
     });
+
+    // Bilinçli istisnalar, gerekçesiyle:
+    //  · demo/ai      → kayıtsız ziyaretçiye açık, bir org'a ait DEĞİL (org
+    //                   kotası uygulanamaz); kendi IP + günlük tavanları var.
+    //  · chat/[token] → QR concierge, kendi DAİRE BAŞINA günlük tavanı var.
+    const exempt = new Set(["demo/ai/route.ts", "chat/[token]/route.ts"]);
+    const missing = spenderRoutes
+      .map((f) => f.slice(apiRoot.length + 1))
+      .filter((rel) => !exempt.has(rel))
+      // ÇAĞRIYI ara, import satırını DEĞİL: çağrıyı silip import'u bırakan bir
+      // mutasyon ilk sürümden geçmişti (mutasyonla ölçüldü).
+      .filter((rel) => !/consumeDailyAiBudget\s*\(/.test(readFileSync(`${apiRoot}/${rel}`, "utf8")));
+
     expect(missing, `bütçesiz AI rotası: ${missing.join(", ")}`).toEqual([]);
-    expect(spenders.length, "tarayıcı hiçbir AI rotası bulamadı — regex bozulmuş olabilir").toBeGreaterThan(3);
-  });
-});
+    // Tarayıcı gerçekten çalışıyor mu (regex bozulursa 0 bulur ve sessizce geçer).
+    expect(spenderRoutes.length, "tarayıcı hiçbir AI rotası bulamadı").toBeGreaterThanOrEqual(6);
+  });});
 
 // ---------------------------------------------------------------------------
 // TAKVİM BESLEMESİ ETKİNLİK TAVANI.

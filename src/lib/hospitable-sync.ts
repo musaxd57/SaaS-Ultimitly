@@ -141,6 +141,8 @@ export async function syncHospitable(
   let firstLinkError: unknown = null;
   let reservationUpsertFailures = 0;
   let firstReservationError: unknown = null;
+  let fetchFailures = 0;
+  let firstFetchError: unknown = null;
 
   // Multi-tenant: use THIS org's own Hospitable token. If it has no connection
   // (and isn't the primary org falling back to env), there is nothing to pull —
@@ -220,7 +222,16 @@ export async function syncHospitable(
       authFailureReported = true;
       void reportError(`hospitable-auth org:${organizationId}`, err);
     } else {
+      // ⚠️ 401/403 DIŞINDAKİ HER ŞEY (404, 429, 5xx, ağ) buraya düşüyor ve
+      // `console.error` Sentry'ye de uyarı e-postasına da GİTMEZ. Çağıranlar
+      // `continue` ediyor: `listReservations` başarısız olursa O DAİRENİN tüm
+      // rezervasyonları+mesajları, `listMessages` başarısız olursa O THREAD'in
+      // yeni misafir mesajları hiç içeri alınmaz — oto-yanıt da şikayet
+      // eskalasyonu da onları hiç görmez. Kardeş yollar (linkProperty,
+      // rezervasyon upsert) aggregate sayaç aldı, bu ikisi açıkta kalmıştı.
       console.error(`[Hospitable sync] ${context}`, scrubErr(err));
+      fetchFailures++;
+      if (firstFetchError === null) firstFetchError = err;
     }
   };
 
@@ -451,6 +462,16 @@ export async function syncHospitable(
   }
   // Mesaj içe aktarımı SUPPLY'DAN DAHA KRİTİK: supply bir yardımcı özellik,
   // bu ise ürünün girdisi. Aynı aggregate deseni, ayrı sayaç.
+  if (fetchFailures > 0) {
+    void reportError(
+      `hospitable-fetch org:${organizationId}`, // sayı context'te DEĞİL (throttle)
+      new Error(
+        `${fetchFailures} Hospitable fetch(es) failed — those apartments/threads imported NOTHING this run; first: ${
+          firstFetchError instanceof Error ? firstFetchError.message : String(firstFetchError)
+        }`,
+      ),
+    );
+  }
   if (linkFailures > 0) {
     void reportError(
       `property-link org:${organizationId}`,

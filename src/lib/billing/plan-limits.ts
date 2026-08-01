@@ -111,15 +111,24 @@ export function planLimitsFor(planCode: string): PlanLimits {
  */
 export async function limitsForOrg(organizationId: string): Promise<PlanLimits> {
   if (isFounderOrg(organizationId)) return FALLBACK_LIMITS;
-  const ent = await getEntitlement(organizationId);
+  // FAIL-OPEN BURADA, TEK YERDE (denetim, 08-01). `getEntitlement` düz bir
+  // `findUnique`; DB hıçkırığında FIRLATIR ve `withManage` bunu 500'e çevirir —
+  // yani ödeyen müşteri bilgi kaydını kaydedemez. Catch bir süre yalnız 5 çağrı
+  // yerinin 2'sinde vardı (üç KB rotası açıktaydı). Kurala göre KULLANIM
+  // kapıları fail-OPEN, kimlik kapıları fail-CLOSED; catch'i buraya almak
+  // kuralı tek yerde ve kalıcı olarak uygular.
+  const ent = await getEntitlement(organizationId).catch(() => null);
+  if (!ent) return FALLBACK_LIMITS;
   return planLimitsFor(ent.planCode);
 }
 
 /**
- * İnsan-okur özet. "AI YANITI" DEMEZ — sayaç misafire giden otomatik yanıtı
- * saymıyor, yalnız panel içi işlemleri sayıyor (öneri · çeviri · test · hazırlık
- * özeti). "Yanıt" demek, müşterinin satın aldığını sandığı şeyle ölçülen şeyi
- * ayrıştırırdı.
+ * İnsan-okur özet. "AI YANITI" DEMEZ — ama sebebi 07-31'den beri TERSİNE döndü
+ * ve yorum bir süre yalan söyledi: sayaç artık misafire giden otomatik yanıtı DA
+ * sayıyor (`automation.ts`, kullanıcı kararı). "Yanıt" dememesinin sebebi
+ * kapsamın DAHA GENİŞ olması — panel içi işlemler (öneri · çeviri · test ·
+ * hazırlık özeti) aynı kovadan yiyor. Yani "150 yanıt hakkım var" diye okuyan
+ * müşteri, panelde yaptığı işlemlerin de düştüğünü göremezdi.
  */
 export function planLimitSummary(planCode: string): string {
   const l = planLimitsFor(planCode);

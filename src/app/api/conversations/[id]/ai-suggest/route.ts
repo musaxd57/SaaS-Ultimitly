@@ -22,13 +22,6 @@ export const POST = withManage<{ id: string }>(async (session, req, { params }) 
   // GÜNLÜK ORG BÜTÇESİ: dakikalık limit tek isteği yavaşlatır, toplam harcamayı
   // sınırlamaz. Bu tavan hem suistimali hem kazara sonsuz döngüye giren bir
   // istemciyi durdurur (ai/daily-budget.ts).
-  const budget = await consumeDailyAiBudget(session.organizationId);
-  if (!budget.ok) {
-    return tooManyRequests(
-      budget.retryAfter,
-      dailyBudgetMessage(budget),
-    );
-  }
 
   const conversation = await prisma.conversation.findFirst({
     where: { id, property: { organizationId: session.organizationId } },
@@ -49,6 +42,15 @@ export const POST = withManage<{ id: string }>(async (session, req, { params }) 
   if (!lastInbound) {
     return badRequest({ _: "Öneri üretmek için bir misafir mesajı gerekli" });
   }
+
+  // KOTA, ORG KAPSAMI VE MESAJ DOĞRULAMASINDAN SONRA (denetim, 08-01).
+  // Eskiden en başta tüketiliyordu: org içindeki bir kullanıcı, 404 dönen ya
+  // da boş konuşma id'leriyle dakikada 20 istek atarak sahibin günlük kotasını
+  // TEK bir model çağrısı üretmeden bitirebiliyordu. Kota dolunca misafire
+  // giden oto-yanıt da durduğu için bu, iç bir gürültüyü misafir kaybına
+  // çeviriyordu.
+  const budget = await consumeDailyAiBudget(session.organizationId);
+  if (!budget.ok) return tooManyRequests(budget.retryAfter, dailyBudgetMessage(budget));
 
   // Tek yol `ai/kb-fetch.ts`: tavan + kaç kalemin düştüğü oradan gelir.
   const { items: kbRaw, dropped: kbDropped } = await fetchKnowledgeBaseForPrompt({

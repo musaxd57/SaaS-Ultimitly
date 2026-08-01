@@ -1,5 +1,6 @@
 import { rateLimit } from "@/lib/rate-limit";
-import { limitsForOrg, planLimitsFor } from "@/lib/billing/plan-limits";
+import { prisma } from "@/lib/db";
+import { limitsForOrg } from "@/lib/billing/plan-limits";
 
 // ---------------------------------------------------------------------------
 // ORG BAŞINA GÜNLÜK AI ÇAĞRI TAVANI.
@@ -79,14 +80,57 @@ export function dailyBudgetMessage(v: DailyBudgetVerdict): string {
   return `Bugünkü AI kullanım sınırınıza ulaştınız (planınız: günde ${v.cap.toLocaleString("tr-TR")} AI işlemi). ${when} yeniden kullanabilirsiniz.`;
 }
 
+/**
+ * Kotayı TÜKETMEDEN "yer var mı" diye bak.
+ *
+ * ⚠️ NEDEN GEREKLİ (denetim, 08-01): oto-yanıt yolunda kota model çağrısının
+ * ÖNÜNDE tüketiliyordu. OpenAI 30 dakika düşerse `suggestReply` deterministik
+ * fallback'e döner (`source:"fallback"`), kapı reddeder, konuşma damgalanmaz ve
+ * 2 dakika sonra AYNI şey tekrarlanır — her denemede bir birim yanarak. SIFIR
+ * lira harcanmış olmasına rağmen Başlangıç planının 150 birimi ~1 saatte
+ * tükenir ve servis geri dönse bile 24 saatlik pencere kapanana kadar org'un
+ * TÜM oto-yanıtı durur. Geçici bir sağlayıcı arızası, kalıcı bir gün kaybına
+ * dönüşüyordu.
+ *
+ * Çözüm: cron yolunda ÖNCE bak (tavanı uygula), model çağrısı GERÇEKTEN
+ * yapıldıysa SONRA tüket. Yarış riski yok — o yol global senkron kilidi altında
+ * koşuyor, aynı org için iki geçiş üst üste binmiyor.
+ *
+ * İnteraktif rotalar (panel düğmeleri) BU FONKSİYONU KULLANMAZ: orada isteği
+ * yapan kullanıcıdır ve suistimal kapısı "önce tüket" olmak zorundadır.
+ */
+export async function peekDailyAiBudget(organizationId: string): Promise<DailyBudgetVerdict> {
+  const override = dailyAiCallCapOverride();
+  const cap =
+    override ??
+    // `limitsForOrg` artık kendi içinde fail-open (plan-limits.ts) — burada
+    // ikinci bir catch'e gerek yok, ama zararsız olduğu için bırakılmadı:
+    // tek kaynak tek yerde kalsın.
+    (await limitsForOrg(organizationId)).aiCallsPerDay;
+  try {
+    const row = await prisma.rateLimitCounter.findUnique({
+      where: { key: `ai-daily:${organizationId}` },
+      select: { count: true, resetAt: true },
+    });
+    // Satır yok ya da pencere dolmuş → sayaç bir sonraki tüketimde sıfırlanır.
+    if (!row || row.resetAt <= new Date()) return { ok: true, retryAfter: 0, cap };
+    const retryAfter = Math.max(1, Math.ceil((row.resetAt.getTime() - Date.now()) / 1000));
+    return { ok: row.count < cap, retryAfter, cap };
+  } catch {
+    // Okuma başarısızsa KULLANIM kapısı fail-OPEN: bir DB hıçkırığı yüzünden
+    // misafirleri cevapsız bırakmak, tavanı bir tur gevşetmekten kötüdür.
+    // Gerçek tüketim adımı zaten kendi korumasını taşıyor.
+    return { ok: true, retryAfter: 0, cap };
+  }
+}
+
 export async function consumeDailyAiBudget(organizationId: string): Promise<DailyBudgetVerdict> {
   // Tavan PLANA göre (Başlangıç < Pro < İşletme). Env override'ı varsa o kazanır —
   // canlı bir arıza sırasında tek yerden kısabilmek için.
   const override = dailyAiCallCapOverride();
   const cap =
     override ??
-    (await limitsForOrg(organizationId).catch(() => null) ?? planLimitsFor("business"))
-      .aiCallsPerDay;
+    (await limitsForOrg(organizationId)).aiCallsPerDay;
   const verdict = await rateLimit(`ai-daily:${organizationId}`, cap, DAY_MS);
   return { ok: verdict.ok, retryAfter: verdict.retryAfter, cap };
 }

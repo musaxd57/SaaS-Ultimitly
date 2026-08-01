@@ -36,17 +36,6 @@ export const POST = withManage(async (session, req) => {
   const limited = await rateLimit(`ai-test:${session.userId}`, 15, 60_000);
   if (!limited.ok) return tooManyRequests(limited.retryAfter);
 
-  // GÜNLÜK ORG BÜTÇESİ: dakikalık limit tek isteği yavaşlatır, toplam harcamayı
-  // sınırlamaz. Bu tavan hem suistimali hem kazara sonsuz döngüye giren bir
-  // istemciyi durdurur (ai/daily-budget.ts).
-  const budget = await consumeDailyAiBudget(session.organizationId);
-  if (!budget.ok) {
-    return tooManyRequests(
-      budget.retryAfter,
-      dailyBudgetMessage(budget),
-    );
-  }
-
   const body = (await readJsonCappedOrNull(req)) as
     | { message?: unknown; propertyId?: unknown; tone?: unknown }
     | null;
@@ -72,6 +61,15 @@ export const POST = withManage(async (session, req) => {
   // vardı: (1) test kartı gerçek misafir yanıtının görmediği bir bağlamla cevap
   // üretiyordu, yani "AI'yı Deneyin" üretimi yanlış temsil ediyordu; (2) istem
   // boyutunu KB içeriği belirlediği için çağrı başına maliyetin üst sınırı yoktu.
+  // KOTA, DOĞRULAMADAN SONRA (denetim, 08-01). Eskiden gövde okunmadan ve
+  // mülk kontrolünden önce tüketiliyordu: boş/geçersiz gövdeyle dakikada 15
+  // istek atan biri, TEK bir model çağrısı üretmeden Başlangıç planının 150
+  // birimini ~10 dakikada yakabiliyordu. Kota dolunca (kullanıcı kararı)
+  // misafire giden oto-yanıt da durduğu için bu, panel tarafındaki bir
+  // gürültüyü misafir mesajına çeviriyordu.
+  const budget = await consumeDailyAiBudget(session.organizationId);
+  if (!budget.ok) return tooManyRequests(budget.retryAfter, dailyBudgetMessage(budget));
+
   const { items: kbRaw, dropped: kbDropped } = await fetchKnowledgeBaseForPrompt({
     propertyId: property.id,
     isActive: true,
