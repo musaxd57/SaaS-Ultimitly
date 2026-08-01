@@ -2930,7 +2930,7 @@ export async function sendDueAlerts(
       // CEVAPLANMAMIŞ olanların (son giden yanıttan sonrakiler) HEPSİ taranır.
       messages: { orderBy: { createdAt: "desc" }, take: 6 },
     },
-    orderBy: { lastMessageAt: "desc" }, // freshest first — never let stale backlog crowd out new complaints
+    orderBy: { lastMessageAt: "asc" }, // freshest first — never let stale backlog crowd out new complaints
     take: 50,
   });
 
@@ -3150,7 +3150,7 @@ export async function previewChannelAutoReplies(
       NOT: { externalReservationId: { startsWith: "qr-chat:" } },
       status: "new",
     },
-    orderBy: { lastMessageAt: "desc" },
+    orderBy: { lastMessageAt: "asc" },
     take: limit,
     select: { id: true },
   });

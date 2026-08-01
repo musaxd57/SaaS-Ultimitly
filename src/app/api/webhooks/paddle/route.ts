@@ -160,11 +160,22 @@ async function applySubscriptionEvent(
 
   // First subscription item's price → plan code (env-mapped).
   let planCode: string | null = null;
+  let unmappedPriceId: string | null = null;
   const items = data.items;
   if (Array.isArray(items) && items.length > 0) {
     const first = items[0] as Record<string, unknown>;
     const price = first.price as Record<string, unknown> | undefined;
-    planCode = paddlePriceToPlanCode(str(price?.id) ?? str(first.price_id));
+    const priceId = str(price?.id) ?? str(first.price_id);
+    planCode = paddlePriceToPlanCode(priceId);
+    // ⚠️ "FİYAT YOK" ile "FİYAT VAR AMA HARİTADA YOK" AYRI ŞEYLER (denetim, 08-01).
+    // İkincisi sessiz bir plan bozulmasıdır: aşağıdaki `updateData` planCode'u
+    // atlar ama `status`'ü YAZAR → satır `active` olur, plan kodu ESKİ değerinde
+    // kalır. Yani İşletme satın alan müşteri Pro sınırlarında kalabilir (ya da
+    // tersi, fazla hak). Hiçbir yerde iz yoktu: bu dosyada `reportError` yalnız
+    // para birimi eksikliğinde ve genel catch'te çağrılıyordu.
+    // Tetikleyici uzak değil: Paddle tarafında fiyat rotasyonu/arşivleme, yıllık
+    // fiyat, kampanya fiyatı ya da panelden elle plan değişikliği.
+    if (!planCode && priceId) unmappedPriceId = priceId;
   }
 
   // current_billing_period.ends_at → period end.
@@ -228,6 +239,33 @@ async function applySubscriptionEvent(
       .deleteMany({ where: { name: `plan-change-pending:${organizationId}`, holder: eventPriceId } })
       .catch(() => {});
   };
+  // ⚠️ SESSİZ PLAN BOZULMASI ARTIK SAYFALANIR (denetim, 08-01). Yalnız GEÇİŞTE
+  // uyarılır: `subscription.*` olayları dunning sırasında tekrar tekrar gelir,
+  // her olayda alarm üretmek Sentry+e-posta seli olurdu. Atomik `SystemLock`
+  // claim'i (repoda `plan-change-pending:{org}` emsali) org+fiyat başına TEK
+  // uyarı garanti eder; kilit yazımı hata verirse alarm ATLANIR (uyarı yolu
+  // asla webhook'u düşürmez — Paddle 5xx'te retry eder ve olay tekrarlanır).
+  if (unmappedPriceId) {
+    const key = `paddle-unmapped-price:${organizationId}:${unmappedPriceId}`;
+    try {
+      const claimed = await prisma.systemLock.createMany({
+        data: [{ name: key, lockedUntil: new Date(Date.now() + 30 * 86_400_000) }],
+        skipDuplicates: true,
+      });
+      if (claimed.count === 1) {
+        void reportError(
+          "paddle-webhook unmapped-price",
+          new Error(
+            `org=${organizationId} priceId=${unmappedPriceId} — Paddle fiyatı env haritasında YOK; ` +
+              `abonelik durumu yazılıyor ama plan kodu ESKİ değerinde kalıyor (satın alınan plan uygulanmıyor).`,
+          ),
+        );
+      }
+    } catch {
+      // Uyarı yolu asla ana akışı bozmaz.
+    }
+  }
+
   if (existing) {
     const resU = await prisma.subscription.updateMany({
       where: { organizationId, ...orderingGuard },

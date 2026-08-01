@@ -70,6 +70,42 @@ describe("POST /api/billing/consent (checkout distance-sales evidence)", () => {
     expect(rows[0].createdAt).toBeInstanceOf(Date);
   });
 
+  // -------------------------------------------------------------------------
+  // İKİNCİ ABONELİK KAPISI (derin denetim, 2026-08-01).
+  //
+  // `Subscription` org başına TEK satırdır (`organizationId @unique`). Aynı
+  // işletme için ikinci bir Paddle checkout'u tamamlanırsa webhook birincinin
+  // `providerRef`'ini EZER → ilk abonelik Paddle'da faturalanmaya DEVAM eder
+  // ama bizde görünmez olur (yenileme faturaları da yazılmaz, çünkü consent
+  // 24 saat sonra bayatlar). Kapı UI'da vardı, SUNUCUDA YOKTU.
+  // Predikat UI ile birebir aynı → yeni bloklama yüzeyi açmaz.
+  // -------------------------------------------------------------------------
+  it("canlı Paddle aboneliği varken YENİ checkout onayı REDDEDİLİR", async () => {
+    await prisma.subscription.create({
+      data: { organizationId: orgId, planCode: "pro", status: "active", provider: "paddle", providerRef: "sub_X" },
+    });
+    const res = await POST(postReq({ planCode: "business", priceId: "pri_9" }), ctx);
+    expect(res.status).toBe(400);
+    expect(await prisma.checkoutConsent.count()).toBe(0);
+  });
+
+  it("İPTAL EDİLMİŞ abonelik yeni checkout'u ENGELLEMEZ (mevcut ürün kararı)", async () => {
+    await prisma.subscription.create({
+      data: { organizationId: orgId, planCode: "pro", status: "canceled", provider: "paddle", providerRef: "sub_X" },
+    });
+    const res = await POST(postReq({ planCode: "pro", priceId: "pri_1" }), ctx);
+    expect(res.status).toBe(201);
+    expect(await prisma.checkoutConsent.count()).toBe(1);
+  });
+
+  it("deneme (providerRef'siz) satırı checkout'u ENGELLEMEZ", async () => {
+    await prisma.subscription.create({
+      data: { organizationId: orgId, planCode: "pro", status: "trialing", provider: "internal" },
+    });
+    const res = await POST(postReq({ planCode: "pro", priceId: "pri_1" }), ctx);
+    expect(res.status).toBe(201);
+  });
+
   it("FORBIDS staff (403, no row) — contract/payment authority is owner-only", async () => {
     session = { ...(session as NonNullable<typeof session>), role: "staff" };
     const res = await POST(postReq({ planCode: "pro", priceId: "pri_1" }), ctx);

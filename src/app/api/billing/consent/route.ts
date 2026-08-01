@@ -39,6 +39,28 @@ export const POST = withOwner(async (session, req) => {
     return badRequest({ planCode: "Seçilen plan ile fiyat eşleşmiyor." });
   }
 
+  // ⚠️ CANLI ABONELİĞİ OLAN ORG YENİ CHECKOUT AÇAMAZ (denetim, 08-01).
+  //
+  // Bu kapı UI'da VARDI (`settings/page.tsx` → `canManagePaddleSub` kartları
+  // kilitler) ama sunucuda YOKTU: doğrudan bir POST ya da eski bir sekme, aynı
+  // işletme için İKİNCİ bir Paddle aboneliği başlatabiliyordu. `Subscription`
+  // org başına TEK satır (`organizationId @unique`) olduğu için ikinci abonelik
+  // webhook'ta birincinin `providerRef`'ini EZER: ilk abonelik Paddle'da
+  // faturalanmaya devam eder ama bizde görünmez olur.
+  //
+  // Predikat UI ile BİREBİR AYNI (canlı = paddle + providerRef var + iptal
+  // DEĞİL) → yeni bir bloklama yüzeyi açmaz, yalnız istemciye güvenmeyi bırakır.
+  // İptal edilmiş abonelik yeni checkout açabilir (mevcut ürün kararı).
+  const live = await prisma.subscription.findUnique({
+    where: { organizationId: session.organizationId },
+    select: { provider: true, providerRef: true, status: true },
+  });
+  if (live?.provider === "paddle" && live.providerRef && live.status !== "canceled") {
+    return badRequest({
+      _: "Bu işletmenin zaten aktif bir aboneliği var. Plan değiştirmek için Faturalandırma bölümünü kullanın.",
+    });
+  }
+
   const row = await prisma.checkoutConsent.create({
     data: {
       organizationId: session.organizationId, // from session → can't record for another org

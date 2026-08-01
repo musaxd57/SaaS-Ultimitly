@@ -33,7 +33,7 @@ vi.mock("@/lib/messaging", async (orig) => {
 });
 
 import { suggestReply } from "@/lib/ai";
-import { applyChannelAutoReply } from "@/lib/automation";
+import { applyChannelAutoReply, runDueChannelAutoReplies } from "@/lib/automation";
 
 const mockSuggest = vi.mocked(suggestReply);
 
@@ -225,5 +225,108 @@ describe("yeni işletme TÜM GÜN açık doğar (7/24 sözü)", () => {
       const src = readFileSync(path.resolve(__dirname, "../../", rel), "utf8");
       expect(src, rel).toContain("NEW_ORG_AUTO_REPLY_WINDOW");
     }
+  });
+});
+
+// ---------------------------------------------------------------------------
+// ORG GEÇİŞİNİ SONLANDIRAN KOL — daha önce HİÇ test edilmiyordu (denetim, 08-01).
+//
+// Yukarıdaki dört test tek KONUŞMA seviyesinde koşuyor (`applyChannelAutoReply`).
+// Kotanın org geçişini kestiği yer ise yalnız RUN seviyesinde var: tavana
+// çarpınca `break` edilir ve kalan adaylara sebep yazılır. O daldaki
+// "GERÇEK SEBEBİ EZME" koşulu (08-01'de eklendi — `human_hold` /
+// `reservation_ended` satırlarına `daily_budget` yazmak host'a YALAN söylüyordu)
+// tek bir assertion tarafından korunmuyordu.
+// ---------------------------------------------------------------------------
+describe("günlük kota — org geçişini sonlandıran kol", () => {
+  beforeEach(async () => {
+    await resetDb();
+    mockSuggest.mockReset();
+    mockSuggest.mockResolvedValue(cleanVerdict);
+    vi.stubEnv("AUTO_REPLY_ENABLED", "1");
+  });
+  afterEach(() => vi.unstubAllEnvs());
+
+  /**
+   * Sıra DETERMİNİSTİK olmalı: geçiş `lastMessageAt asc` (en eski önce) işler.
+   * Yaşları açıkça veriyoruz ki hangi konuşmanın nerede olduğu belli olsun.
+   *   A (en eski) → yanıtlanır, kotayı tüketir
+   *   B          → kotaya çarpar, geçiş BURADA durur
+   *   C, D       → hiç işlenmez; toplu `updateMany` ile sebep alır
+   */
+  async function seedFour(propertyId: string) {
+    const ids: Record<string, string> = {};
+    const ages: [string, number][] = [["A", 10], ["B", 8], ["C", 6], ["D", 4]];
+    for (const [label, minutesAgo] of ages) {
+      const when = new Date(Date.now() - minutesAgo * 60_000);
+      const c = await prisma.conversation.create({
+        data: {
+          propertyId,
+          channel: "airbnb",
+          guestIdentifier: label,
+          externalReservationId: `res-${label}`,
+          status: "new",
+          lastMessageAt: when,
+          messages: {
+            create: [
+              { direction: "inbound", senderName: label, body: "Wifi şifresi nedir?", createdAt: when },
+            ],
+          },
+        },
+      });
+      ids[label] = c.id;
+    }
+    return ids;
+  }
+
+  async function orgWithProperty() {
+    const org = await prisma.organization.create({
+      data: { name: "Org", autoReplyHospitable: true, ...NEW_ORG_AUTO_REPLY_WINDOW },
+    });
+    const property = await prisma.property.create({
+      data: { organizationId: org.id, name: "Nuve 7" },
+    });
+    return { orgId: org.id, propertyId: property.id };
+  }
+
+  it("tavana çarpınca geçiş DURUR ve HİÇ İŞLENMEYEN adaylara sebep yazılır", async () => {
+    vi.stubEnv("AI_DAILY_CALL_CAP", "1"); // tek çağrılık tavan
+    const { orgId, propertyId } = await orgWithProperty();
+    const id = await seedFour(propertyId);
+
+    const out = await runDueChannelAutoReplies(orgId);
+    expect(out.sent).toBe(1); // yalnız A gönderildi
+
+    const a = await prisma.conversation.findUniqueOrThrow({ where: { id: id.A } });
+    expect(a.status).toBe("answered");
+
+    // C ve D hiç işlenmedi: sebep TOPLU yazma ile geldi, damga YOK.
+    for (const label of ["C", "D"]) {
+      const c = await prisma.conversation.findUniqueOrThrow({ where: { id: id[label] } });
+      expect(`${label}:${c.skippedReason}`).toBe(`${label}:daily_budget`);
+      expect(`${label}:${c.status}`).toBe(`${label}:new`); // hâlâ cevap bekliyor
+      // ⚠️ DAMGALANMAZ: pencere dönünce normal şekilde yanıtlanmalı.
+      expect(`${label}:${c.autoReplyAttemptedAt}`).toBe(`${label}:null`);
+    }
+  });
+
+  it("GERÇEK sebebi EZMEZ: zaten sebebi olan aday 'daily_budget' etiketi almaz", async () => {
+    vi.stubEnv("AI_DAILY_CALL_CAP", "1");
+    const { orgId, propertyId } = await orgWithProperty();
+    const id = await seedFour(propertyId);
+    // C hiç işlenmeyecek adaylardan biri ve ZATEN gerçek bir sebep taşıyor.
+    // Kota kolu onu ezerse host'a "sınır yenilenince yanıtlanacak" YALANI söylenir
+    // — oysa o konuşma sınır yenilense de asla yanıtlanmayacak.
+    await prisma.conversation.update({
+      where: { id: id.C },
+      data: { skippedReason: "reservation_ended" },
+    });
+
+    await runDueChannelAutoReplies(orgId);
+
+    const c = await prisma.conversation.findUniqueOrThrow({ where: { id: id.C } });
+    expect(c.skippedReason).toBe("reservation_ended"); // ⬅️ ezilirse KIRMIZI
+    const d = await prisma.conversation.findUniqueOrThrow({ where: { id: id.D } });
+    expect(d.skippedReason).toBe("daily_budget"); // sebebi olmayan satır etiketlenir
   });
 });

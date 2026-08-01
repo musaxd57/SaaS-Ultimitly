@@ -342,7 +342,7 @@ Ayrica `PASS_BUDGET_MS`/`ORG_BUDGET_MS` bunu kesmiyor; scheduled-sync.ts:265-273
 
 ---
 
-## 13. 🟠 YÜKSEK — Aynı işletme için İKİNCİ bir Paddle aboneliği açılmasını engelleyen sunucu-tarafı hiçbir kapı yok; ikinci abonelik yerel satırı ezer ve birincisi görünmez şekilde faturalanmaya devam eder.
+## 13. ✅ UYGULANDI (08-01) · 🟠 YÜKSEK — Aynı işletme için İKİNCİ bir Paddle aboneliği açılmasını engelleyen sunucu-tarafı hiçbir kapı yok; ikinci abonelik yerel satırı ezer ve birincisi görünmez şekilde faturalanmaya devam eder.
 **Yer:** `src/app/api/billing/consent/route.ts:19-64, src/components/settings/paddle-plans.tsx:526, src/app/(app)/settings/page.tsx:121-135, src/app/api/webhooks/paddle/route.ts:196-210, src/app/api/webhooks/paddle/route.ts:81-91`
 
 **Kanıt:** Checkout'un TEK zorunlu sunucu adımı consent rotası ve o rota mevcut aboneliğe hiç bakmıyor — gövdesinde `prisma.subscription` sorgusu YOK, sadece `prisma.checkoutConsent.create(...)` var. Tek koruma istemcide: paddle-plans.tsx:526 `disabled={!ready || !p.priceId || !accepted || busy || manageable}` ve `manageable` sunucudan gelen bir prop (settings/page.tsx:132 `canManagePaddleSub = managedSub?.provider === "paddle" && Boolean(managedSub?.providerRef) && managedSub?.status !== "canceled"`). Webhook tarafında ikinci aboneliğin bağlanmasını durduran bir şey yok: resolveOrgId step-1 (route.ts:87 `where: { provider: "paddle", providerRef: { in: refs } }`) yeni `sub_Y` için eşleşme bulamaz, step-2 taze consent ile org'u çözer ve updateData (route.ts:200) `...(providerRef ? { providerRef } : {})` ile TEK satırın providerRef'ini `sub_X` → `sub_Y` yapar. Organization başına tek Subscription satırı var (`schema.prisma:759 organizationId String @unique`), yani eski abonelik yerel olarak tamamen kaybolur.
@@ -442,7 +442,7 @@ Karşılaştırma: Airbnb oto-yanıt yolunda
 
 ---
 
-## 19. 🟠 YÜKSEK — Escalation testinin "MODEL YOLU" bolumu model yolunu hic test etmiyor; e-posta basarisizliginda claim'in geri ALINMAMASI kurali tum suitte pinsiz.
+## 19. ✅ UYGULANDI (08-01) · 🟠 YÜKSEK — Escalation testinin "MODEL YOLU" bolumu model yolunu hic test etmiyor; e-posta basarisizliginda claim'in geri ALINMAMASI kurali tum suitte pinsiz.
 **Yer:** `tests/integration/escalation-email-retry.test.ts:144-182, src/lib/automation.ts:1361-1398`
 
 **Kanıt:** Dosyada 144-161 satirlari arasinda buyuk bir baslik var: `// MODEL YOLU BILEREK FARKLI: ORADA CLAIM GERI ALINMAZ (denetim, 07-31)` ve altinda iki regresyonun (guvenlik + maliyet) gerekcesi yazili. Ama o basligin altindaki TEK test sudur:
@@ -646,7 +646,7 @@ Satir tavani icin yazilan aciklama (:179-188) 10.000'i operatif tavan gibi sunuy
 
 ---
 
-## 28. 🟡 ORTA — Env'de tanımlı OLMAYAN bir Paddle fiyatıyla gelen abonelik olayı, durumu sessizce "active" yapar ama planı ya ESKİ değerinde bırakır ya da EN UCUZ plana ("free"/Başlangıç) düşürür; hiçbir uyarı çıkmaz.
+## 28. ✅ UYGULANDI (08-01) · 🟡 ORTA — Env'de tanımlı OLMAYAN bir Paddle fiyatıyla gelen abonelik olayı, durumu sessizce "active" yapar ama planı ya ESKİ değerinde bırakır ya da EN UCUZ plana ("free"/Başlangıç) düşürür; hiçbir uyarı çıkmaz.
 **Yer:** `src/lib/payments/paddle.ts:103-113, src/app/api/webhooks/paddle/route.ts:161-168, src/app/api/webhooks/paddle/route.ts:197, src/app/api/webhooks/paddle/route.ts:243`
 
 **Kanıt:** paddle.ts:112 `return map[priceId] ?? null;` — bilinmeyen fiyat sessizce null. Webhook'ta iki dal ASİMETRİK: güncelleme dalı route.ts:197 `...(planCode ? { planCode } : {})` → planCode null ise ESKİ plan kodu aynen kalır (deneme satırında bu "pro"dur), buna karşılık `status` route.ts:198 koşulsuz yazılır. Yaratma dalı route.ts:243 `planCode: planCode ?? "free"` → katalogdaki EN UCUZ plan (plans.ts:66-68 `code: "free", name: "Başlangıç", propertyLimit: 2`). Hiçbir dalda `reportError`/log yok — eşleşmeyen fiyat tamamen sessiz.
@@ -774,7 +774,7 @@ return jsonOk({ secret, otpauthUri: otpauthUri(secret, session.email) });
 
 ---
 
-## 34. 🟡 ORTA — "SIRA adil: en eski cevapsiz mesaj once islenir" testi siralamayi hic olcmuyor — orderBy asc->desc mutasyonunu yakalamaz.
+## 34. ✅ UYGULANDI (08-01) · 🟡 ORTA — "SIRA adil: en eski cevapsiz mesaj once islenir" testi siralamayi hic olcmuyor — orderBy asc->desc mutasyonunu yakalamaz.
 **Yer:** `tests/integration/auto-reply-starvation.test.ts:172-184, src/lib/automation.ts:1837-1844`
 
 **Kanıt:** ```ts
@@ -823,7 +823,7 @@ for (const bad of ["public, max-age=60", "s-maxage=600", "max-age=0, s-maxage=60
 
 ---
 
-## 36. 🟡 ORTA — Gunluk kotanin org gecisini SONLANDIRAN kolu (break + kalan konusmalara sebep yazma) hic test edilmiyor; "gercek sebebi ezme" duzeltmesi mutasyonla kirilmaz.
+## 36. ✅ UYGULANDI (08-01) · 🟡 ORTA — Gunluk kotanin org gecisini SONLANDIRAN kolu (break + kalan konusmalara sebep yazma) hic test edilmiyor; "gercek sebebi ezme" duzeltmesi mutasyonla kirilmaz.
 **Yer:** `tests/integration/auto-reply-daily-budget.test.ts:87-192, src/lib/automation.ts:1869-1896`
 
 **Kanıt:** Test dosyasinin basligi "GUNLUK AI KOTASI OTO-YANITI DA KAPSAR" ve dort testin dordu de `applyChannelAutoReply(conversationId)` cagiriyor — yani TEK konusma seviyesi. `runDueChannelAutoReplies` hic cagrilmiyor (grep: `AI_DAILY_CALL_CAP` yalniz bu dosya + ai-cost-guards'ta, ai-cost-guards ise saf `dailyAiCallCap()` birim testi). Oysa kotanin org gecisini kestigi yer sadece run seviyesinde:
@@ -1037,7 +1037,7 @@ Ustelik ust taraftaki dedupe seti de GET id'yi bulamaz (:956-963 yalniz DB'deki 
 
 ---
 
-## 48. 🔵 DÜŞÜK — api-route-scoping'deki "guard TEK BASINA kapsam sayilmaz" testi mantiksal olarak bir onceki testin sonucu — bugun sifir assertion calistiriyor.
+## 48. ✅ UYGULANDI (08-01) · 🔵 DÜŞÜK — api-route-scoping'deki "guard TEK BASINA kapsam sayilmaz" testi mantiksal olarak bir onceki testin sonucu — bugun sifir assertion calistiriyor.
 **Yer:** `tests/unit/api-route-scoping.test.ts:76-85`
 
 **Kanıt:** ```ts

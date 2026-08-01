@@ -169,17 +169,40 @@ describe("oto-yanıt aday penceresi — kalıcı açlık yok", () => {
     expect(mockSuggest).toHaveBeenCalledTimes(25);
   });
 
-  it("SIRA adil: en eski cevapsız mesaj önce işlenir", async () => {
+  // ⚠️ BU TEST SIRAYI GERÇEKTEN ÖLÇMELİ (denetim, 08-01). Eski hâli İKİ konuşma
+  // kurup ikisini de tavanın (25) altında bırakıyordu → sıra ne olursa olsun
+  // İKİSİ de işleniyor ve iki assertion da doğru çıkıyordu. Yani
+  // `orderBy: { lastMessageAt: "asc" }` mutasyonu (`asc` → `desc`) testi
+  // KIRMIYORDU ve "en eski cevapsız mesaj önce" garantisi pinsizdi.
+  //
+  // Sıra ancak TAVAN AŞILDIĞINDA gözlemlenebilir — ki açlık senaryosunun kendisi
+  // odur: backlog 25'i aştığı anda yanlış sıra, en eski misafir mesajlarını her
+  // turda yeni gelenlere yendirir ve kalıcı olarak cevapsız bırakır.
+  it("SIRA adil: tavan aşıldığında EN ESKİ işlenir, en yeni bekler", async () => {
     const { orgId, propertyId } = await seedOrg();
-    const oldest = await seedConversation(propertyId, { ref: "oldest", ageDays: 5 });
-    await seedConversation(propertyId, { ref: "newer", ageDays: 1 });
+    // Tavandan (25) bir FAZLA uygun konuşma: 26 gün → 1 gün.
+    const created: { ref: string; id: string; ageDays: number }[] = [];
+    for (let i = 26; i >= 1; i--) {
+      const c = await seedConversation(propertyId, { ref: `d-${i}`, ageDays: i });
+      created.push({ ref: `d-${i}`, id: c.id, ageDays: i });
+    }
 
-    await runDueChannelAutoReplies(orgId);
+    const out = await runDueChannelAutoReplies(orgId);
+    expect(out.considered).toBe(25);
 
-    const first = await prisma.conversation.findUniqueOrThrow({
-      where: { id: oldest.id },
+    const byAge = (d: number) => created.find((c) => c.ageDays === d)!;
+    const oldest = await prisma.conversation.findUniqueOrThrow({
+      where: { id: byAge(26).id },
       select: { status: true },
     });
-    expect(first.status).toBe("answered");
+    const newest = await prisma.conversation.findUniqueOrThrow({
+      where: { id: byAge(1).id },
+      select: { status: true },
+    });
+
+    // asc (doğru): en eski 25 işlenir → en yeni tavanın dışında kalır.
+    // desc (mutasyon): tam tersi olur ve İKİ assertion da kırılır.
+    expect(oldest.status).toBe("answered");
+    expect(newest.status).toBe("new");
   });
 });
