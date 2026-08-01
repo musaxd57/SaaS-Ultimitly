@@ -227,6 +227,55 @@ definitive=X, ambiguous=Y" satırı düşüyor.
 
 ---
 
+## 4b. Kuyruk yolunda UYGULANMAYAN iki bulgu (08-01, üçüncü tur — migration DEĞİL, karar)
+
+İki denetim ajanının bulduğu ve **bilinçli olarak uygulanmayan** iki madde. İkisi
+de `DURABLE_OUTBOX_ENABLED` AÇILDIĞINDA anlam kazanır (bugün bayrak KAPALI).
+
+### (a) `RiskEvent` kuyruk yolunda ENQUEUE anında yazılıyor, satır içi yolda teslimden SONRA
+
+**Kod doğrulaması:** `automation.ts` — kuyruk dalında `recordRiskEvent({
+finalDecision: "auto_sent", reason: "gate_passed" })` enqueue'dan hemen sonra
+çağrılıyor; satır içi dalda aynı çağrı teslimat onaylandıktan sonra. Gönderim
+veto edilir ya da kalıcı olarak başarısız olursa kalıcı olarak "otomatik
+gönderildi" diyen bir kayıt kalıyor.
+
+**Neden tutarsız:** `reports.ts` AI-yanıt sayacı teslim edilmemişleri ayıklıyor
+(bugün `/sent` ekranı da öyle), ama Raporlar'daki "AI Risk Görünümü" kartı
+RiskEvent'i yalnız riskLevel/riskType/reason ile gruplayıp teslimatı hiç
+kontrol etmiyor → aynı sayfadaki iki kart ayrışabiliyor.
+
+**Neden UYGULANMADI:** doğru düzeltme kaydı `applyDeliveryEffect`'e taşımak,
+ama worker'ın elinde risk sonucu YOK (model çıktısı enqueue anında kalıyor).
+Taşımak ya satıra risk alanları eklemeyi (MIGRATION) ya da kaydı iki parçaya
+bölmeyi gerektirir. Bayrak kapalıyken canlıda etkisi sıfır → bayrak açılış
+turuna bırakıldı.
+
+### (b) `totals.autoReplies` "teslim edilen" değil "kuyruğa alınan" sayıyor
+
+**Kod doğrulaması:** kuyruk yolu teslimattan ÖNCE `sent: true` döndürüyor;
+`runDueChannelAutoReplies` yalnız `outcome.sent`'i sayıyor, `queued` bayrağını
+hiç okumuyor → koşu raporu ve `/api/cron/sync` çıktısı "gönderildi" diyor.
+
+**Neden UYGULANMADI:** kozmetik/gözlemlenebilirlik; `sent`/`queued` ayrımını
+sayaçlara taşımak `ScheduledSyncTotals` şeklini ve üç çağrı yerini değiştirir.
+Yanlış bir KARARA yol açmıyor (kimse bu sayaca bakıp mesaj göndermiyor).
+Bayrak açılış turunda `queued` ayrı sayılmalı.
+
+### (c) Kabul edilmiş taviz: enqueue ↔ teslimat arası devir penceresi yok
+
+Devir (`human_request`) hold'u artık teslimat onaylanınca kuruluyor. Enqueue ile
+drain arasında (normalde AYNI geçişte, saniyeler) misafir yeni bir mesaj yazarsa
+kuyruktaki devir satırı `superseded_by_newer_message` ile iptal edilebilir.
+**Eski davranış (enqueue'de hold) bu yarışı kapatıyordu ama KESİN bir arıza
+üretiyordu** (worker kendi satırımızı `ai_paused` diye iptal ediyordu → devir
+mesajı misafire HİÇ gitmiyordu). Nadir yarış < kesin arıza. Tam çözüm, aday
+sorgusundan düşüren ayrı bir "devir bekliyor" işareti olurdu = yeni kolon =
+MIGRATION. `aiSendVeto`'ya muafiyet yazmak REDDEDİLDİ (host-devraldı korumasını
+deler).
+
+---
+
 ## 5. Bekleyen eski migration işleri (CLAUDE.md'den — hatırlatma)
 
 Bunlar bugünün bulgusu değil, listede duruyor:

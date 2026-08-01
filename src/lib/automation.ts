@@ -1165,14 +1165,41 @@ export async function applyChannelAutoReply(
   // outbound message (no externalId) — the only shape the tail can take here — so we only touch
   // the outbox when the newest message actually looks like one, keeping the hot path free of an
   // extra query in the normal case (guest spoke last, or the last reply was truly delivered).
-  if (last.direction === "outbound" && !last.externalId) {
-    const canceled = await prisma.messageOutbox.findMany({
-      where: { conversationId: conversation.id, status: "canceled" },
+  //
+  // ⚠️ İKİ GENİŞLETME (denetim, 08-01 — üçüncü tur, ajan bulgusu):
+  //
+  // (a) KAPSAM: eskiden yalnız `canceled` ayıklanıyordu. Oysa `failed`/`blocked`/
+  //     `review` satırların taslakları da misafire ULAŞMAMIŞTIR — üstelik onlar
+  //     KALICI durumlardır. Ayıklanmadıkları için thread "cevaplanmış" görünüyordu.
+  //     `pending`/`sending`/`ambiguous`/`reconciling` BİLEREK DIŞARIDA: onlar
+  //     UÇUŞTA, birazdan ya teslim olacak ya terminal duruma düşecek; ayıklamak
+  //     her turda gereksiz bir model çağrısı + kota birimi yakardı.
+  //
+  // (b) TETİKLEYİCİ: eski koşul yalnız SON mesaj teslim edilmemiş bir outbound
+  //     iken koşuyordu. Misafir o taslaktan SONRA yazdıysa filtre atlanıyor ve
+  //     hiç ulaşmamış taslak modelin geçmişine + kapı bağlamına giriyordu → model
+  //     misafire ULAŞMAMIŞ bir cevabı vermiş sayıyor ("belirttiğim gibi…").
+  //     Host'un inbox'ta gördüğü geçmiş ile modelin gördüğü geçmiş ayrışıyordu.
+  //
+  // ⚠️ Genişletilmiş tarama YALNIZ bayrak AÇIKKEN koşar: `MessageOutbox`'ta
+  // `conversationId` index'i YOK (index eklemek migration ister, bilinçli
+  // yapılmadı) ve bayrak KAPALIYKEN tablo zaten boştur → üretim davranışı ve
+  // maliyeti BİREBİR aynı kalır.
+  const tailLooksUndelivered = last.direction === "outbound" && !last.externalId;
+  const anyUndeliveredOutbound =
+    durableOutboxEnabled() && messages.some((m) => m.direction === "outbound" && !m.externalId);
+  if (tailLooksUndelivered || anyUndeliveredOutbound) {
+    const undelivered = await prisma.messageOutbox.findMany({
+      where: {
+        conversationId: conversation.id,
+        // Terminal + teslim EDİLMEMİŞ durumlar (uçuştakiler bilinçli hariç).
+        status: { in: ["canceled", "failed", "blocked", "review"] },
+      },
       select: { messageId: true },
     });
-    const canceledIds = new Set(canceled.map((r) => r.messageId).filter(Boolean) as string[]);
-    if (canceledIds.size > 0) {
-      messages = messages.filter((m) => !canceledIds.has(m.id));
+    const undeliveredIds = new Set(undelivered.map((r) => r.messageId).filter(Boolean) as string[]);
+    if (undeliveredIds.size > 0) {
+      messages = messages.filter((m) => !undeliveredIds.has(m.id));
       if (messages.length === 0) return { sent: false, skippedReason: "no_messages", ...meta };
       last = messages[messages.length - 1];
     }

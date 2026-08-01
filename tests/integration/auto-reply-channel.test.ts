@@ -1182,6 +1182,52 @@ describe("applyChannelAutoReply — Durable Outbox (flag ON, #5/#6)", () => {
     expect(mockSuggest).not.toHaveBeenCalled();
   });
 
+  // -------------------------------------------------------------------------
+  // TESLİM EDİLMEMİŞ TASLAK MODELİN GEÇMİŞİNE GİRİYORDU (denetim 08-01, 3. tur).
+  //
+  // Ayıklama filtresi YALNIZ son mesaj teslim edilmemiş bir outbound iken
+  // koşuyordu. Misafir o taslaktan SONRA yazdıysa filtre atlanıyor ve hiç
+  // ulaşmamış taslak modelin geçmişine giriyordu → model misafire ULAŞMAMIŞ bir
+  // cevabı vermiş sayar. Host'un inbox'ta gördüğü geçmiş ile modelin gördüğü
+  // geçmiş ayrışıyordu. Kapsam da dardı: yalnız `canceled`, `failed`/`blocked`/
+  // `review` DEĞİL.
+  // -------------------------------------------------------------------------
+  it("misafir SONRA yazsa bile teslim edilmemiş taslak model geçmişine girmez", async () => {
+    const { conversationId } = await seed();
+    await applyChannelAutoReply(conversationId);
+    // Taslak kalıcı olarak başarısız oldu (misafire ULAŞMADI).
+    const row = await prisma.messageOutbox.findFirstOrThrow({ where: { conversationId } });
+    await prisma.messageOutbox.update({ where: { id: row.id }, data: { status: "failed" } });
+
+    // Misafir taslaktan SONRA yeniden yazdı → filtrenin eski tetikleyicisi atlanırdı.
+    await prisma.message.create({
+      data: {
+        conversationId,
+        direction: "inbound",
+        senderName: "Guest",
+        body: "Merhaba, cevap alamadım. Wifi şifresi nedir?",
+        createdAt: new Date(Date.now() + 1000),
+      },
+    });
+    await prisma.conversation.update({
+      where: { id: conversationId },
+      data: { autoReplyAttemptedAt: null, autoReplyHoldUntil: null, status: "new", lastMessageAt: new Date(Date.now() + 1000) },
+    });
+
+    mockSuggest.mockClear();
+    await applyChannelAutoReply(conversationId);
+
+    expect(mockSuggest).toHaveBeenCalled();
+    // ⚠️ AYRIŞTIRILMIŞ PAYLOAD üzerinden asserte edilir, JSON string'i üzerinden
+    // DEĞİL: gövde satır sonu taşıyor ve JSON'da `\n` olarak kaçışlanıyor, yani
+    // ham gövde string'i JSON içinde HİÇBİR ZAMAN birebir geçmez → `toContain`
+    // ile yazılmış ilk hâli mutasyonda YEŞİL kaldı (test kendi kendini kandırıyordu).
+    const payload = mockSuggest.mock.calls[0][0] as { history: { direction: string }[] };
+    // ⬅️ ARIZADA teslim edilmemiş taslak burada "outbound" olarak duruyordu.
+    expect(payload.history.every((h) => h.direction === "inbound")).toBe(true);
+    expect(payload.history).toHaveLength(2); // yalnız iki misafir mesajı
+  });
+
   it("the safety gate still runs BEFORE the outbox: a complaint never enqueues", async () => {
     // Guest words signal a complaint; the model mislabels it benign. The keyword
     // cross-check must veto — nothing is queued and nothing is sent.
