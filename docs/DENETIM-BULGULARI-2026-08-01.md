@@ -416,7 +416,7 @@ Karşılaştırma: Airbnb oto-yanıt yolunda
 
 ---
 
-## 17. 🟠 YÜKSEK — Deterministik prompt-injection vetosu boşluk normalizasyonu yapmıyor; çift boşluk, satır sonu veya kırılmayan boşluk (U+00A0) tüm çok-kelimeli kalıpları deliyor.
+## 17. ✅ UYGULANDI (08-01) · 🟠 YÜKSEK — Deterministik prompt-injection vetosu boşluk normalizasyonu yapmıyor; çift boşluk, satır sonu veya kırılmayan boşluk (U+00A0) tüm çok-kelimeli kalıpları deliyor.
 **Yer:** `src/lib/ai/fallback.ts:426-448, src/lib/ai/fallback.ts:457-465, src/lib/ai/fallback.ts:245-247`
 
 **Kanıt:** Kalıplar DÜZ TEK ASCII BOŞLUK içeriyor: `/ignore (all |the |your )*(previous|prior|above|earlier|your) (instructions|prompts?|rules)/i`, `/system prompt/i`, `/önceki (tüm )?talimatları (unut|yok say|görmezden gel|geçersiz kıl)/i` … Dedektör hiçbir normalizasyon yapmadan iki kez deniyor: `if (INJECTION_PATTERNS.some((re) => re.test(message))) return true; const ascii = foldTurkishAscii(message); return INJECTION_PATTERNS_ASCII.some((re) => re.test(ascii));` (462-464). `foldTurkishAscii` (245-247) yalnız `foldTurkishLower` + ı/ş/ğ/ç/ö/ü→ASCII yapıyor; boşluğa DOKUNMUYOR. Regex izlemesi: "ignore  all previous instructions" (çift boşluk) → `ignore ` ilk boşluğu yer, konum 7'de ikinci boşluk var; `(all |the |your )*` sıfır tekrar, ardından `(previous|...)` " all…" ile eşleşmez → EŞLEŞME YOK. "ignore all previous\ninstructions" → `previous` sonrası literal boşluk `\n` ile eşleşmez → EŞLEŞME YOK. "ignore all previous instructions" → ilk literal boşluk U+00A0 ile eşleşmez → EŞLEŞME YOK. Kod bu tekniği BAŞKA yerde biliyor: `sanitizePromptValue` (prompts.ts:629-636) `.replace(/\s+/g, " ")` uyguluyor — ama misafir mesajına hiç uygulanmıyor; hospitable-sync.ts:76 `str()` gövdeyi birebir saklıy
@@ -429,7 +429,7 @@ Karşılaştırma: Airbnb oto-yanıt yolunda
 
 ---
 
-## 18. 🟠 YÜKSEK — PROBLEM_NEGATIONS girdileri çapasız önek olduğu için OLUMLU şikayet kalıplarını da siliyor; "sorun yaşamaktayız" deterministik olarak şikayet sayılmıyor.
+## 18. ✅ UYGULANDI (08-01) · 🟠 YÜKSEK — PROBLEM_NEGATIONS girdileri çapasız önek olduğu için OLUMLU şikayet kalıplarını da siliyor; "sorun yaşamaktayız" deterministik olarak şikayet sayılmıyor.
 **Yer:** `src/lib/ai/fallback.ts:186-199, src/lib/ai/fallback.ts:259-265`
 
 **Kanıt:** `hasUnnegatedProblemWord` düz altdizi silmesi yapıyor: `for (const neg of PROBLEM_NEGATIONS) stripped = stripped.split(neg).join(" "); return stripped.includes("problem") || stripped.includes("sorun");` (262-264). Listede çapasız önekler var: `"sorun yaşama", "sorun yasama"` (189) ve `"hiç sorun", "hic sorun", "hiçbir sorun", "hicbir sorun"` (188). Bunlar OLUMSUZ ("sorun yaşamadık") kadar OLUMLU biçimlerin de önekidir: "sorun yaşamaktayız".split("sorun yaşama") → ["", "ktayız"] → sonuçta "sorun" KALMAZ. Aynısı "sorun yaşamaya devam ediyoruz", "sorun yaşamaya başladık", "hiçbir sorun çözülmedi" için de geçerli. Yorum (181-185) bunun yalnız "no problem / sorun yok" gibi POZİTİF kapanışlar için olduğunu söylüyor — kod ise gerçek şikayeti siliyor.
