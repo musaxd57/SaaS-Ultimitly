@@ -158,12 +158,32 @@ async function releaseLock(holder: string): Promise<void> {
  * "Mesajları çek" button to prevent duplicate rows from a manual+cron race.
  */
 export async function withSyncLock<T>(fn: () => Promise<T>): Promise<T | { locked: true }> {
-  const holder = await acquireLock();
-  if (!holder) return { locked: true };
+  // ⚠️ IN-PROCESS BAYRAĞI DA OKUNUR VE YAZILIR (denetim, 08-01).
+  //
+  // Eskiden burada YALNIZ DB kilidine bakılıyordu. `runScheduledSync` ise ayrıca
+  // modül-içi `running` bayrağını tutuyor. Sonuç iki yönlü bir delikti:
+  //   · Uzun bir koşunun ORTASINDA 15 dk'lık TTL dolarsa (429 geri çekilmesi tek
+  //     çağrıda 6 dakikaya kadar uyuyabiliyor) `acquireLock` kilidi SERBEST görür
+  //     → manuel "Mesajları çek" butonu aynı org için İKİNCİ bir senkron başlatır.
+  //   · Ters yön: manuel senkron sürerken `running` false kaldığı için cron
+  //     tick'i araya girebiliyordu.
+  // Tüm duplicate korumasının dayandığı "aynı org iki kez koşmaz" varsayımı tam
+  // buradan deliniyordu ve bu, tek replikada bile ULAŞILABİLİR tek yoldu.
+  //
+  // Yeniden-giriş (re-entrancy) sorunu YOK: `runScheduledSync` bayrağı KENDİ set
+  // eder ve `acquireLock`'u DOĞRUDAN çağırır — bu sarmalayıcıdan geçmez.
+  if (running) return { locked: true };
+  running = true;
   try {
-    return await fn();
+    const holder = await acquireLock();
+    if (!holder) return { locked: true };
+    try {
+      return await fn();
+    } finally {
+      await releaseLock(holder);
+    }
   } finally {
-    await releaseLock(holder);
+    running = false;
   }
 }
 

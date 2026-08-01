@@ -42,6 +42,39 @@ describe("runScheduledSync cross-instance lock", () => {
     expect(res.error).toBe("locked");
   });
 
+  // -------------------------------------------------------------------------
+  // IN-PROCESS GUARD (denetim, 08-01). `withSyncLock` yalnız DB kilidine
+  // bakıyordu; `runScheduledSync`'in modül-içi `running` bayrağını okumuyordu.
+  // Uzun bir koşunun ortasında 15 dk'lık TTL dolarsa (429 geri çekilmesi tek
+  // çağrıda 6 dakikaya kadar uyuyabiliyor) manuel "Mesajları çek" butonu aynı
+  // org için İKİNCİ bir senkron başlatabiliyordu — tüm duplicate korumasının
+  // dayandığı "aynı org iki kez koşmaz" varsayımı tam buradan deliniyordu.
+  // -------------------------------------------------------------------------
+  it("in-process: TTL ortada dolsa bile ikinci senkron aynı instance'ta başlayamaz", async () => {
+    let inner: unknown;
+    await withSyncLock(async () => {
+      // Kilit TTL'i biz hâlâ koşarken doldu.
+      await prisma.systemLock.update({
+        where: { name: "scheduled-sync" },
+        data: { lockedUntil: new Date(Date.now() - 1000) },
+      });
+      inner = await withSyncLock(async () => "ran-concurrently");
+    });
+    expect(inner).toEqual({ locked: true });
+  });
+
+  it("manuel senkron sürerken zamanlanmış geçiş başlamaz", async () => {
+    let res: Awaited<ReturnType<typeof runScheduledSync>> | undefined;
+    await withSyncLock(async () => {
+      await prisma.systemLock.update({
+        where: { name: "scheduled-sync" },
+        data: { lockedUntil: new Date(Date.now() - 1000) },
+      });
+      res = await runScheduledSync();
+    });
+    expect(res?.error).toBe("already_running");
+  });
+
   it("fencing: a run whose lock was taken over (TTL lapse) does not release the new owner's lock", async () => {
     await withSyncLock(async () => {
       // Simulate another replica re-acquiring after our TTL lapsed: overwrite the

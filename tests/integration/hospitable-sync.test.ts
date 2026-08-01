@@ -897,3 +897,96 @@ describe("syncHospitable — plan property limit", () => {
     }
   });
 });
+
+// ---------------------------------------------------------------------------
+// BAĞSIZ + KESİN ÖLÜ KONAKLAMA (derin denetim, 2026-08-01).
+//
+// Tarihi çözülemeyen rezervasyon için yerel satır YAZILMIYOR ama konuşma yine
+// yaratılıyor — `reservationId: null` ile. Oysa `applyChannelAutoReply`'ın
+// iptal/bitmiş konaklama kapılarının TAMAMI `if (conversation.reservation)`
+// bloğunun İÇİNDE: bağsız konuşmada o kapı HİÇ değerlendirilmiyor ve İPTAL
+// EDİLMİŞ bir konaklamaya otomatik cevap gidebiliyordu.
+//
+// ⚠️ Bulgunun önerdiği "externalReservationId var ama reservation yok → cevap
+// verme" düzeltmesi REDDEDİLDİ: rezervasyon ÖNCESİ soruya cevap vermek bilinçli
+// ürün davranışıdır (satış fırsatı) ve prompt tarafında pinlidir. Ayırt edici
+// şey SAĞLAYICI DURUMUDUR — tarih çözülemese bile okunabiliyor.
+// İkinci test tam olarak o ürün davranışını korur (tehdit + tuzak ikilisi).
+// ---------------------------------------------------------------------------
+describe("bağsız konuşma — yalnız KESİN ÖLÜ konaklamada susar", () => {
+  beforeEach(async () => {
+    await resetDb();
+    vi.clearAllMocks();
+  });
+
+  it("tarihi çözülemeyen İPTAL rezervasyonun thread'i oto-yanıta aday KALMAZ", async () => {
+    const { orgId } = await makeOrgWithProperty();
+    mockProperties.mockResolvedValue([{ id: "hp", name: "Test Property" }]);
+    mockReservations.mockResolvedValue([
+      {
+        id: "res-dead",
+        platform: "airbnb",
+        status: "cancelled",
+        conversation_id: "c",
+        last_message_at: "2026-06-09T10:00:00Z",
+        // ⬅️ TARİH YOK: arrival/departure alanları bilerek verilmedi.
+      },
+    ]);
+    mockMessages.mockResolvedValue([
+      {
+        id: 9001,
+        body: "Merhaba, wifi şifresi nedir?",
+        sender_type: "guest",
+        sender: { full_name: "Dead Guest" },
+        created_at: "2026-06-09T10:00:00Z",
+      },
+    ]);
+
+    await syncHospitable(orgId);
+    const conv = await prisma.conversation.findFirst({
+      where: { externalReservationId: "res-dead" },
+    });
+
+    expect(conv).not.toBeNull();
+    expect(conv!.reservationId).toBeNull(); // migration yok — bağsız KALIR
+    // Misafir mesajı KAYBOLMAZ (host inbox'ta görür).
+    expect(await prisma.message.count({ where: { conversationId: conv!.id } })).toBe(1);
+    // Aday sorgusu `autoReplyAttemptedAt < lastMessageAt` ister → damga geçmeli.
+    expect(conv!.autoReplyAttemptedAt).not.toBeNull();
+    expect(conv!.autoReplyAttemptedAt!.getTime()).toBeGreaterThan(conv!.lastMessageAt.getTime());
+    expect(conv!.skippedReason).toBe("reservation_ended");
+  });
+
+  it("TUZAK: tarihi çözülemeyen BEKLEMEDEKİ sorgu HÂLÂ cevaplanabilir (satış yolu)", async () => {
+    const { orgId } = await makeOrgWithProperty();
+    mockProperties.mockResolvedValue([{ id: "hp", name: "Test Property" }]);
+    mockReservations.mockResolvedValue([
+      {
+        id: "res-inq",
+        platform: "airbnb",
+        status: "request",
+        conversation_id: "c2",
+        last_message_at: "2026-06-09T10:00:00Z",
+      },
+    ]);
+    mockMessages.mockResolvedValue([
+      {
+        id: 9101,
+        body: "Temmuzda müsait mi?",
+        sender_type: "guest",
+        sender: { full_name: "Prospect" },
+        created_at: "2026-06-09T10:00:00Z",
+      },
+    ]);
+
+    await syncHospitable(orgId);
+    const conv = await prisma.conversation.findFirstOrThrow({
+      where: { externalReservationId: "res-inq" },
+    });
+
+    // Rezervasyon-öncesi cevaplama KORUNUR.
+    expect(conv.autoReplyAttemptedAt).toBeNull();
+    expect(conv.skippedReason).toBeNull();
+    expect(conv.status).toBe("new");
+  });
+});

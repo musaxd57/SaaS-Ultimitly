@@ -283,7 +283,7 @@ Oysa hemen üstündeki yorum (:304-317) tam tersini iddia ediyor: "ŞİKAYET UYA
 
 ---
 
-## 10. 🟠 YÜKSEK — Tarihi cozulemeyen rezervasyon sessizce yazilmiyor, konusma REZERVASYONSUZ dogar ve oto-yanitin 'iptal/bitmis konaklamaya cevap verme' kapisi hic calismaz.
+## 10. ✅ KISMEN UYGULANDI (08-01) · 🟠 YÜKSEK — Tarihi cozulemeyen rezervasyon sessizce yazilmiyor, konusma REZERVASYONSUZ dogar ve oto-yanitin 'iptal/bitmis konaklamaya cevap verme' kapisi hic calismaz.
 **Yer:** `src/lib/hospitable-sync.ts:545, src/lib/hospitable-sync.ts:298-308, src/lib/hospitable-sync.ts:876, src/lib/automation.ts:1012-1024`
 
 **Kanıt:** `upsertReservationCalendar` durum esleme kodundan ONCE cikiyor:
@@ -306,7 +306,7 @@ reservation null oldugunda bu iki kapi hic degerlendirilmez. Ayrica bu null donu
 
 ---
 
-## 11. 🟠 YÜKSEK — 429 geri-cekilme butcesi senkron kilidinin 15 dakikalik TTL'ini hala kolayca asiyor; parseRetryAfter yorumu bu riski KAPANDI diye anlatiyor.
+## 11. ✅ KISMEN UYGULANDI (08-01) · 🟠 YÜKSEK — 429 geri-cekilme butcesi senkron kilidinin 15 dakikalik TTL'ini hala kolayca asiyor; parseRetryAfter yorumu bu riski KAPANDI diye anlatiyor.
 **Yer:** `src/lib/hospitable.ts:28-29, src/lib/hospitable.ts:44-62, src/lib/hospitable.ts:129-133, src/lib/hospitable.ts:196, src/lib/scheduled-sync.ts:76`
 
 **Kanıt:** Tavan ISTEK BASINA degil, DENEME basina uygulaniyor:

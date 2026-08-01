@@ -349,6 +349,14 @@ export async function syncHospitable(
                 where: { id: existingConv.id },
                 data: { reservationId: localReservationId },
               });
+            } else if (
+              !localReservationId &&
+              !existingConv.reservationId &&
+              isTerminalStay(reservation)
+            ) {
+              // Mesaj yok ama thread güncel: bağsız + iptal konuşma burada da
+              // adaylıktan düşmeli, yoksa yeni mesaj gelene kadar aday kalır.
+              await fenceUnlinkedTerminalStay(propertyId, String(reservation.id), incomingLast);
             }
             result.skipped++;
             continue; // already up to date — no network call needed
@@ -417,6 +425,14 @@ export async function syncHospitable(
         }
         result.conversations++;
         result.messages += r2.imported;
+        // ⚠️ BAĞSIZ + KESİN ÖLÜ KONAKLAMA → oto-yanıt kapısını BURADA kapat
+        // (denetim, 08-01). `localReservationId` null olmanın İKİ yolu var:
+        // upsert null döndü (tarih çözülemedi / mülk yok) YA DA import TX'i
+        // fırladı (aşağıdaki catch bilinçli olarak `continue` ETMİYOR — misafir
+        // mesajı kaybolmasın). İkisini de tek koşul kapsıyor.
+        if (!localReservationId && isTerminalStay(reservation)) {
+          await fenceUnlinkedTerminalStay(propertyId, String(reservation.id), incomingLast);
+        }
         // Deferred supply detection — the message FKs exist only after commit.
         // Failures are COUNTED for the run-level aggregate alert below (they
         // used to vanish in a bare catch), and the end-of-run sweep re-derives
@@ -530,6 +546,86 @@ export async function syncHospitable(
 }
 
 /**
+ * Sağlayıcı durumunu KAPALI setimize eşler. MODÜL SEVİYESİNE ÇIKARILDI (denetim,
+ * 08-01): artık yalnız satırı YAZAN yol değil, satırı YAZAMAYAN yol da aynı
+ * kararı okuyabiliyor. Gövde birebir taşındı — davranış değişmedi.
+ *
+ * Terminal "hiç yaşanmadı" durumları (cancelled/declined/expired/not_possible/
+ * denied) hepsi "cancelled"a düşer, böylece ölü bir talebe hiçbir yaşam-döngüsü
+ * mesajı gitmez.
+ */
+function mapReservationStatus(
+  reservation: HospitableReservation,
+): "cancelled" | "pending" | "completed" | "confirmed" {
+  const rawStatus =
+    `${reservation.status ?? ""} ${reservation.reservation_status?.current?.category ?? ""}`.toLowerCase();
+  return rawStatus.includes("cancel") ||
+    rawStatus.includes("declin") ||
+    rawStatus.includes("expired") ||
+    rawStatus.includes("not_possible") ||
+    rawStatus.includes("denied")
+    ? "cancelled"
+    : rawStatus.includes("pending") || rawStatus.includes("request")
+      ? "pending"
+      : rawStatus.includes("complete") ||
+          rawStatus.includes("checked_out") ||
+          rawStatus.includes("past")
+        ? "completed"
+        : "confirmed";
+}
+
+/**
+ * "Bu konaklama bir daha yaşanmayacak." Küme, `automation.ts`'teki
+ * `reservation_ended` kapısıyla BİREBİR aynı tutulur: YALNIZ "cancelled".
+ *
+ * ⚠️ "pending"/"confirmed" (tarihsiz sorgu) BURAYA GİRMEZ — rezervasyon ÖNCESİ
+ * soru bir SATIŞ FIRSATIDIR ve ona cevap vermek bilinçli ürün davranışıdır
+ * (`prompts.ts` preBookingBlock, testle pinli). Kümeyi genişletmek bir ÜRÜN
+ * KARARIDIR, sessizce yapılmaz.
+ */
+function isTerminalStay(reservation: HospitableReservation): boolean {
+  return mapReservationStatus(reservation) === "cancelled";
+}
+
+/**
+ * BAĞSIZ THREAD + KESİN ÖLÜ KONAKLAMA → oto-yanıt adaylığını kapat (denetim, 08-01).
+ *
+ * Tarihi çözülemeyen (ya da upsert'i fırlayan) bir rezervasyon için yerel satır
+ * YAZILMIYOR; konuşma yine yaratılıyor ama `reservationId: null` ile. Oysa
+ * `applyChannelAutoReply`'ın iptal/bitmiş konaklama kapılarının TAMAMI
+ * `if (conversation.reservation)` bloğunun İÇİNDE — yani bağsız konuşmada o
+ * kapı HİÇ değerlendirilmiyor ve İPTAL EDİLMİŞ bir konaklamaya otomatik cevap
+ * gidebiliyor.
+ *
+ * ⚠️ YALNIZ `reservationId: null` satıra dokunulur: bağlı konuşmanın kapısı
+ *    zaten çalışıyor, oraya dokunmak geçici bir upsert hatasında MEŞRU bir
+ *    konuşmayı susturur.
+ * ⚠️ Susturmayı `autoReplyAttemptedAt` yapar (aday sorgusunun
+ *    `autoReplyAttemptedAt < lastMessageAt` koşulu); `skippedReason` yalnız
+ *    HOST'A GÖRÜNÜRLÜK içindir ve GERÇEK bir sebebi EZMEZ.
+ * ⚠️ KALICI SUSTURMA DEĞİL: misafir yeni mesaj yazarsa `lastMessageAt` damgayı
+ *    geçer ve konuşma yeniden uygun olur; bir sonraki senkron hâlâ iptalse
+ *    yeniden damgalar.
+ */
+async function fenceUnlinkedTerminalStay(
+  propertyId: string,
+  externalReservationId: string,
+  providerLastMessageAt: Date | null,
+): Promise<void> {
+  // Damga thread damgasını KESİN geçmeli: sağlayıcı saati ileri olabilir ve
+  // eşitlikte `<` koşulu yanlış tarafa düşerdi.
+  const stamp = new Date(Math.max(Date.now(), (providerLastMessageAt?.getTime() ?? 0) + 1000));
+  const where = { propertyId, externalReservationId, reservationId: null };
+  await prisma.conversation.updateMany({ where, data: { autoReplyAttemptedAt: stamp } }).catch(() => {});
+  await prisma.conversation
+    .updateMany({
+      where: { ...where, OR: [{ skippedReason: null }, { skippedReason: "reservation_ended" }] },
+      data: { skippedReason: "reservation_ended" },
+    })
+    .catch(() => {});
+}
+
+/**
  * Upsert a Reservation row (guest, dates, status) from a Hospitable reservation.
  * Returns the local Reservation id so the caller can link the conversation to it
  * (correct guest/dates context), or null when nothing was written.
@@ -568,26 +664,7 @@ async function upsertReservationCalendar(
   const guestExternalId = g?.id ? String(g.id) : null;
   const channel = toChannel(reservation.platform);
 
-  // Look at both the top-level status and the nested reservation_status so a
-  // cancelled booking is never treated as "confirmed" (and never welcomed).
-  // Terminal "never happened" states (cancelled/declined/expired/not_possible/
-  // denied) all map to "cancelled" so no lifecycle message reaches a dead request.
-  const rawStatus =
-    `${reservation.status ?? ""} ${reservation.reservation_status?.current?.category ?? ""}`.toLowerCase();
-  const status =
-    rawStatus.includes("cancel") ||
-    rawStatus.includes("declin") ||
-    rawStatus.includes("expired") ||
-    rawStatus.includes("not_possible") ||
-    rawStatus.includes("denied")
-    ? "cancelled"
-    : rawStatus.includes("pending") || rawStatus.includes("request")
-      ? "pending"
-      : rawStatus.includes("complete") ||
-          rawStatus.includes("checked_out") ||
-          rawStatus.includes("past")
-        ? "completed"
-        : "confirmed";
+  const status = mapReservationStatus(reservation);
 
   const totalAmount =
     typeof reservation.total_price === "number" ? reservation.total_price : null;

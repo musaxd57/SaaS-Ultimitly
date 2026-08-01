@@ -51,8 +51,17 @@ export class HospitableError extends Error {
  * korumasının dayandığı "aynı org iki kez koşmaz" varsayımı delinir
  * (`linkProperty` findFirst-sonra-create'i unique kısıt taşımıyor).
  *
- * 120 saniye yeterli: bir sonraki cron zaten 2 dakika sonra geliyor, yani bir
- * saat uyumanın hiçbir kazancı yok — tek etkisi kilidi aşırı uzun tutmaktı.
+ * ⚠️ AMA 120 SANİYE TTL SORUNUNU ÇÖZMEZ — eski yorum bunu "kapandı" diye
+ * anlatıyordu ve YANLIŞTI (denetim, 08-01). Tavan DENEME başınadır: `MAX_RETRIES`
+ * 3 olduğu için tek bir `hospitableFetch` çağrısı 3 × 120 = 6 DAKİKA uyuyabilir,
+ * üst üste üç 429'lu istek 15 dakikalık TTL'i aşar. 120 saniyenin tek yaptığı
+ * en kötü hâli 1 saatten 6 dakikaya indirmektir.
+ *
+ * TTL'i gerçekten koruyan iki mekanizma AYRI:
+ *   · `withSyncLock`'un in-process `running` bayrağı (tek replikada ulaşılabilir
+ *     tek eşzamanlılık yolunu kapatır — scheduled-sync.ts),
+ *   · ve kalan pay: bir sonraki cron zaten 2 dakika sonra geliyor, yani uzun
+ *     uykunun hiçbir kazancı yok.
  */
 function parseRetryAfter(value: string | null): number | undefined {
   if (value === null || value === "") return undefined;
