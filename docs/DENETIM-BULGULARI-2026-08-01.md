@@ -251,7 +251,7 @@ Kesin hatada (4xx≠408) damga geri alınıyor ama karşılamanın üst tarih s�
 
 ---
 
-## 9. 🟠 YÜKSEK — `sendDueAlerts`'in "süre bütçesinden MUAF, uyarı susturulamaz" garantisi çağrı yerinde delik: `syncHospitable` fırlatırsa şikayet uyarısı geçişi HİÇ koşmuyor
+## 9. ✅ UYGULANDI (08-01) · 🟠 YÜKSEK — `sendDueAlerts`'in "süre bütçesinden MUAF, uyarı susturulamaz" garantisi çağrı yerinde delik: `syncHospitable` fırlatırsa şikayet uyarısı geçişi HİÇ koşmuyor
 **Yer:** `src/lib/scheduled-sync.ts:286-287, :304-318, :343-353 · src/lib/hospitable-sync.ts:165 · src/lib/automation.ts:2644, :2697-2705`
 
 **Kanıt:** `scheduled-sync.ts` içinde uyarı geçişi, senkronla AYNI try bloğunun içinde ve ONDAN SONRA çağrılıyor:

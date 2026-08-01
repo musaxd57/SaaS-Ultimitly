@@ -283,6 +283,21 @@ export async function runScheduledSync(): Promise<ScheduledSyncTotals> {
           continue;
         }
         const orgStartedAt = Date.now();
+        // Bir org'un hatası diğerlerini durdurmaz. AYNI gövde iki try'da da
+        // kullanılıyor (senkron + otomasyon), o yüzden tek yerde duruyor.
+        const handleOrgError = async (err: unknown) => {
+          // A Hospitable 402 ("Subscription not active") means THIS org's Hospitable
+          // billing lapsed — an expected external state, not a Lixus bug — so log it
+          // (the UI connection status already reflects it) but DON'T alert-email every
+          // cycle, which would flood the inbox until they renew.
+          if (err instanceof HospitableError && err.status === 402) {
+            console.warn(`[scheduled-sync] org ${org.id}: Hospitable subscription not active (skipped)`);
+          } else {
+            await reportError(`scheduled-sync org ${org.id}`, err);
+          }
+        };
+
+        let syncOk = false;
         try {
           const result = await syncHospitable(org.id, window);
           // Sayaçlar İMPORT'un hemen ardında. Eskiden bütçe dalı bunları atlıyordu:
@@ -290,7 +305,6 @@ export async function runScheduledSync(): Promise<ScheduledSyncTotals> {
           // güvenilmez hâle geliyordu.
           totals.conversations += result.conversations;
           totals.messages += result.messages;
-          const overBudget = Date.now() - orgStartedAt > ORG_BUDGET_MS;
 
           // A SUCCESSFUL sync PROVES this org's Hospitable subscription is active again (a 402
           // "subscription not active" throws a HospitableError above, skipping this line). So
@@ -300,31 +314,54 @@ export async function runScheduledSync(): Promise<ScheduledSyncTotals> {
           await reactivateBlockedOutbox(org.id).catch((err) =>
             reportError(`scheduled-sync reactivate-blocked ${org.id}`, err),
           );
+          syncOk = true;
+        } catch (err) {
+          await handleOrgError(err);
+        }
 
-          // ŞİKAYET UYARISI SÜRE BÜTÇESİNDEN MUAF (denetim düzeltmesi).
-          // Bu geçiş şikayeti "Sorunlu" işaretleyip host'a acil e-posta atan yol;
-          // ürünün "riskli mesaj insana gider" sözünün taşıyıcısı. Eskiden bütçe
-          // dalının ARKASINDA kalıyordu, yani senkronu sürekli 4 dakikayı aşan
-          // bir org'un şikayet uyarıları SÜRESİZ susabiliyordu (gecikme değil,
-          // sessiz kayıp).
-          //
-          // ⚠️ MUAFİYETİN BEDELİ (ilk yorum bunu YANLIŞ anlatıyordu: "dış API
-          // yok" demiştim — e-posta sağlayıcısı da bir dış API'dir): bu geçiş 50
-          // adaya kadar SERİ `sendReporting` yapabilir, her biri 15 sn timeout'a
-          // kadar. Sağlayıcı asılı kalırsa tek org 12 dakika yer ve 15 dk'lık
-          // kilit TTL'i tehlikeye girer. Bu yüzden muafiyet SINIRSIZ değil:
-          // `sendDueAlerts` kendi wall-clock bütçesini taşır (↓ALERT_BUDGET_MS)
-          // ve dolduğunda kalanları bir sonraki geçişe bırakır.
+        // ŞİKAYET UYARISI SÜRE BÜTÇESİNDEN MUAF (denetim düzeltmesi).
+        // Bu geçiş şikayeti "Sorunlu" işaretleyip host'a acil e-posta atan yol;
+        // ürünün "riskli mesaj insana gider" sözünün taşıyıcısı. Eskiden bütçe
+        // dalının ARKASINDA kalıyordu, yani senkronu sürekli 4 dakikayı aşan
+        // bir org'un şikayet uyarıları SÜRESİZ susabiliyordu (gecikme değil,
+        // sessiz kayıp).
+        //
+        // ⚠️ MUAFİYET SENKRONUN TRY'INDAN DA ÇIKARILDI (denetim, 08-01). Muafiyet
+        // BÜTÇEYE karşı sağlanmıştı ama İSTİSNAYA karşı sağlanmamıştı: çağrı
+        // `syncHospitable`'ın try'ı içinde ve ONDAN SONRA duruyordu, yani
+        // Hospitable fırlattığı anda (402 abonelik pasif — Nuve'nin BUGÜNKÜ hâli;
+        // ya da 401/403/5xx) `sendDueAlerts` o org için HİÇ koşmuyordu. Bu geçiş
+        // hiçbir Hospitable API'sine dokunmuyor (yalnız DB + e-posta), yani
+        // senkronun başarısına bağlı olmasının teknik bir gerekçesi yoktu.
+        // ⚠️ SIRA KORUNDU: uyarı geçişi otomasyondan ÖNCE koşar — şikayeti
+        // "Sorunlu" işaretlemesi oto-yanıtın ikinci savunmasıdır.
+        //
+        // ⚠️ MUAFİYETİN BEDELİ (ilk yorum bunu YANLIŞ anlatıyordu: "dış API
+        // yok" demiştim — e-posta sağlayıcısı da bir dış API'dir): bu geçiş 50
+        // adaya kadar SERİ `sendReporting` yapabilir, her biri 15 sn timeout'a
+        // kadar. Sağlayıcı asılı kalırsa tek org 12 dakika yer ve 15 dk'lık
+        // kilit TTL'i tehlikeye girer. Bu yüzden muafiyet SINIRSIZ değil:
+        // `sendDueAlerts` kendi wall-clock bütçesini taşır (↓ALERT_BUDGET_MS)
+        // ve dolduğunda kalanları bir sonraki geçişe bırakır.
+        try {
           const alert = await sendDueAlerts(org.id);
           totals.alerts += alert.alerted;
+        } catch (err) {
+          await handleOrgError(err);
+        }
 
-          if (overBudget) {
-            // Bu org bütçesini yedi: import bitti (yazılanlar kalıcı), uyarılar
-            // gitti; GERİYE KALAN otomatik MİSAFİR mesajlarını sonraki tura bırak
-            // ki sıradakiler aç kalmasın. Sonraki geçiş 2 dakika sonra.
-            budgetSkipped += 1;
-            continue;
-          }
+        // Senkron patladıysa otomasyon koşmaz (eski davranış birebir): mesajlar
+        // içeri alınamamışken oto-yanıt/karşılama göndermenin anlamı yok.
+        if (!syncOk) continue;
+        if (Date.now() - orgStartedAt > ORG_BUDGET_MS) {
+          // Bu org bütçesini yedi: import bitti (yazılanlar kalıcı), uyarılar
+          // gitti; GERİYE KALAN otomatik MİSAFİR mesajlarını sonraki tura bırak
+          // ki sıradakiler aç kalmasın. Sonraki geçiş 2 dakika sonra.
+          budgetSkipped += 1;
+          continue;
+        }
+
+        try {
           // Keep the host's style profile fresh (self-throttles to once a day).
           await refreshStyleProfile(org.id);
           // Free/expired tier (billing enforced + subscription not active): keep
@@ -341,16 +378,7 @@ export async function runScheduledSync(): Promise<ScheduledSyncTotals> {
           totals.checkins += checkin.sent;
           totals.checkouts += checkout.sent;
         } catch (err) {
-          // One org failing must not abort the rest. A Hospitable 402
-          // ("Subscription not active") means THIS org's Hospitable billing
-          // lapsed — an expected external state, not a Lixus bug — so log it
-          // (the UI connection status already reflects it) but DON'T alert-email
-          // every cycle, which would flood the inbox until they renew.
-          if (err instanceof HospitableError && err.status === 402) {
-            console.warn(`[scheduled-sync] org ${org.id}: Hospitable subscription not active (skipped)`);
-          } else {
-            await reportError(`scheduled-sync org ${org.id}`, err);
-          }
+          await handleOrgError(err);
         }
       }
       if (budgetSkipped > 0) {
