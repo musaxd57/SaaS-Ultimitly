@@ -29,6 +29,17 @@ export interface ReservationCleanupResult {
   removed: number; // ghost reservations deleted
   checkedProperties: number; // properties verified against Hospitable
   skippedProperties: number; // properties not verified (fetch failed/empty) — never pruned
+  /**
+   * KÖKENİ KANITLANAMAYAN, bu yüzden SİLİNMEYEN satır sayısı (Codex kararı,
+   * 08-01). Bugün bir rezervasyonun hangi içe-aktarma yolundan geldiğini
+   * kesin söyleyen bir kolon YOK: `calendarSourceId` iCal'i ayırır ama CSV ile
+   * içe aktarılan satır da Hospitable satırı gibi NULL taşır ve `channel`
+   * ("airbnb"/"booking") iki tarafta da AYNI değerleri alır. Kanıtsız silme,
+   * host'un elle yüklediği rezervasyonu yok etmek demektir → FAIL-CLOSED:
+   * silmiyoruz, SAYIYORUZ. Kalıcı çözüm `Reservation.ingestionOrigin` (nullable
+   * migration) — `docs/MIGRATION-BEKLEYEN-ISLER.md`.
+   */
+  unprovableSkipped: number;
 }
 
 const DAY = 24 * 60 * 60 * 1000;
@@ -40,6 +51,7 @@ export async function cleanupStaleReservations(
     removed: 0,
     checkedProperties: 0,
     skippedProperties: 0,
+    unprovableSkipped: 0,
   };
 
   // Multi-tenant: verify against THIS org's own Hospitable account. No
@@ -110,9 +122,43 @@ export async function cleanupStaleReservations(
       select: { id: true, sourceReference: true },
     });
 
-    const staleIds = locals
-      .filter((l) => l.sourceReference && !seen.has(l.sourceReference))
-      .map((l) => l.id);
+    const stale = locals.filter((l) => l.sourceReference && !seen.has(l.sourceReference));
+
+    // 🚨 FAIL-CLOSED (Codex kararı, 08-01). Bir satırı "hayalet" saymak ancak
+    // KÖKENİNİN Hospitable olduğu KANITLANABİLİYORSA meşrudur. Bugün o kanıt
+    // yalnız `hospitableId` üzerinden DOLAYLI: aynı mülke CSV ile elle yüklenmiş
+    // bir rezervasyon da `calendarSourceId: null` + Hospitable'ın id uzayında
+    // OLMAYAN bir `sourceReference` taşır — yani bu filtrede tam olarak
+    // "hayalet" gibi görünür ve SİLİNİRDİ.
+    //
+    // Kanıt olarak kabul edilen TEK sinyal: satır bir Hospitable senkronunda
+    // yaratılmış bir KONUŞMAYA bağlı (`Conversation.externalReservationId` =
+    // aynı `sourceReference`). Hospitable içe aktarımı thread'i HER ZAMAN yazar
+    // (`importThread`), CSV yolu HİÇBİR konuşma yaratmaz → ayrım kesin.
+    // Kanıtlanamayan satır SİLİNMEZ, SAYILIR ve rapora çıkar.
+    //
+    // ⚠️ BİLİNEN SINIR (bilinçli, fail-closed yönü): hiç mesajlaşma olmamış bir
+    // Hospitable rezervasyonunun thread'i hiç içe aktarılmamış olabilir → konuşma
+    // yoktur → "kanıtlanamaz" sayılır ve TEMİZLENMEZ. Yani temizlik zayıflar,
+    // ama YANLIŞ SİLME olmaz. Doğru yön bu: silinen bir rezervasyon geri gelmez,
+    // temizlenmeyen bir hayalet yalnız listede durur. Kalıcı çözüm
+    // `Reservation.ingestionOrigin` kolonu (nullable migration).
+    const staleRefs = stale.map((l) => l.sourceReference as string);
+    const provenRefs = staleRefs.length
+      ? new Set(
+          (
+            await prisma.conversation.findMany({
+              where: { propertyId: p.id, externalReservationId: { in: staleRefs } },
+              select: { externalReservationId: true },
+            })
+          )
+            .map((c) => c.externalReservationId)
+            .filter((r): r is string => Boolean(r)),
+        )
+      : new Set<string>();
+
+    const staleIds = stale.filter((l) => provenRefs.has(l.sourceReference as string)).map((l) => l.id);
+    result.unprovableSkipped += stale.length - staleIds.length;
 
     if (staleIds.length > 0) {
       await prisma.reservation.deleteMany({ where: { id: { in: staleIds } } });

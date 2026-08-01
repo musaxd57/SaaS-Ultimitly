@@ -4,7 +4,7 @@ import { loginSchema, zodFieldErrors } from "@/lib/validators";
 import { verifyPassword, dummyVerifyPassword } from "@/lib/auth/password";
 import { setSessionCookie, hasTrustedDevice, setTrustedDeviceCookie } from "@/lib/auth";
 import { badRequest, jsonOk, serverError, parseJsonBody, payloadTooLarge } from "@/lib/api";
-import { rateLimit, clientIp } from "@/lib/rate-limit";
+import { rateLimit, peekRateLimit, clientIp } from "@/lib/rate-limit";
 import { decryptSecret } from "@/lib/crypto";
 import { verifyTotpStep } from "@/lib/auth/totp";
 import { consumeRecoveryCode, remainingRecoveryCodes } from "@/lib/auth/recovery-codes";
@@ -34,7 +34,15 @@ export async function POST(req: NextRequest) {
     // Per-ACCOUNT throttle (in addition to the per-IP one above): an attacker
     // rotating IPs otherwise gets unlimited password / 2FA-code guesses against
     // one account. Generous cap so a legitimate user is not locked out.
-    const acct = await rateLimit(`login-acct:${email}`, 20, 15 * 60 * 1000);
+    //
+    // ⚠️ SAYAÇ TÜKETİLMEZ, YALNIZ OKUNUR (denetim, 08-01 — beşinci tur, ajan
+    // bulgusu). Eskiden kova kimlik kontrolünden ÖNCE ve KOŞULSUZ artıyordu, yani
+    // BAŞARILI girişler de sayılıyordu → e-postasını bilen biri 15 dakikada 21
+    // istekle (~1,4/dk) hedefi KALICI olarak giriş dışı bırakabiliyordu: kurban
+    // DOĞRU şifresiyle bile 429 alıyordu. Artık sayaç yalnız DOĞRULAMA
+    // BAŞARISIZ olduğunda tüketilir (aşağıda) — kaba kuvvet koruması aynen kalır,
+    // meşru kullanıcı kendi hesabından kilitlenemez.
+    const acct = await peekRateLimit(`login-acct:${email}`, 20);
     if (!acct.ok) {
       return NextResponse.json(
         { error: "Bu hesap için çok fazla deneme. Lütfen biraz sonra tekrar deneyin." },
@@ -54,6 +62,14 @@ export async function POST(req: NextRequest) {
       await dummyVerifyPassword(parsed.data.password);
     }
     if (!user || !ok) {
+      // ⚠️ HESAP KOVASI BURADA TÜKETİLİR (denetim, 08-01 — beşinci tur).
+      // Yukarıdaki kapı yalnız OKUYOR; sayaç yalnız doğrulama BAŞARISIZ olunca
+      // artar. Böylece kaba kuvvet koruması aynen çalışır ama meşru kullanıcı
+      // kendi hesabından kilitlenemez (başarılı girişler sayılmaz) ve üçüncü bir
+      // taraf sırf e-postayı bilerek kurbanı giriş dışı bırakamaz.
+      // Bilinmeyen e-posta da sayılır: aksi hâlde sayaç hesabın VARLIĞINI
+      // sızdırırdı (enumeration) — zamanlama pariteyi bozmamak için de gerekli.
+      await rateLimit(`login-acct:${email}`, 20, 15 * 60 * 1000);
       // Record a failed attempt against a KNOWN account (targeted-attack signal).
       // Unknown emails have no org to scope to — the rate limiter covers those.
       if (user) {

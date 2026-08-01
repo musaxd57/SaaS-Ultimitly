@@ -2,6 +2,7 @@ import { NextResponse } from "next/server";
 import { getSession, type SessionPayload } from "@/lib/auth";
 import { prisma } from "@/lib/db";
 import { reportError } from "@/lib/report-error";
+import { isSuperAdmin } from "@/lib/admin";
 
 export type { SessionPayload };
 
@@ -40,6 +41,17 @@ export async function requireSession(): Promise<SessionPayload | null> {
       });
       if (!actor || actor.sessionEpoch !== session.actorSessionEpoch) return null;
     }
+    // ⚠️ OPERATÖR YETKİSİ HER İSTEKTE YENİDEN DOĞRULANIR (denetim, 08-01 — beşinci
+    // tur, ajan bulgusu; Codex sıralamasında migration'sız kapatılacaklar arasında).
+    // Impersonation oturumu bir kez basıldıktan sonra süper-admin yetkisi hiçbir
+    // yerde tekrar kontrol edilmiyordu: bir e-postayı `SUPERADMIN_EMAILS`'ten
+    // SİLMEK açık oturumları SONLANDIRMIYORDU ve middleware token'ı her istekte
+    // 14 gün uzattığı için kişi müşteri org'unda owner yetkisiyle SÜRESİZ
+    // çalışmaya devam edebiliyordu. Env'den silmek etkili bir iptal aracı olmalı.
+    //
+    // Maliyet: saf env okuması + string karşılaştırma (DB'ye gitmez).
+    // Yön: FAIL-CLOSED — yetki yoksa oturum yok.
+    if (session.actorUserId && !isSuperAdmin(session)) return null;
   } catch {
     // FAIL-CLOSED: this guards the API surface (billing / admin / integrations /
     // data export+delete / message send). If we can't confirm the token still maps

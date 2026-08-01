@@ -58,6 +58,43 @@ export async function rateLimit(key: string, limit: number, windowMs: number): P
   }
 }
 
+/**
+ * SAYACI TÜKETMEDEN OKU — "bu anahtar zaten sınırı aştı mı?"
+ * (Denetim, 08-01 — beşinci tur, ajan bulgusu.)
+ *
+ * `rateLimit` her çağrıda sayacı ARTIRIR. Bu, kimlik doğrulamasından ÖNCE
+ * çağrılan HESAP-BAZLI kovalarda bir DoS'a dönüşüyordu: e-postasını bilen biri
+ * başarısız isteklerle kovayı doldurup meşru kullanıcıyı KENDİ hesabından
+ * kilitleyebiliyordu (başarılı girişler de sayıldığı için kurban doğru şifreyle
+ * bile 429 alıyordu). Doğru desen: ÖNCE oku (kapı), doğrulama BAŞARISIZ olursa
+ * TÜKET. IP-bazlı kova zaten önde durduğu için kaba kuvvet koruması aynen kalır.
+ *
+ * Salt-okuma: hiçbir satır yazmaz/yaratmaz. Satır yoksa "temiz" döner.
+ * DB hatasında FAIL-OPEN (kapı gevşer ama giriş akışı çökmez) — tüketen yol
+ * (`rateLimit`) zaten bellek-içi yedeğe düşüyor, gerçek koruma orada.
+ */
+// ⚠️ `windowMs` PARAMETRESİ YOK: pencere DB satırının kendisinde (`resetAt`)
+// yaşıyor, salt-okuma onu yeniden hesaplamaz. Tüketen çağrı (`rateLimit`)
+// pencereyi yazan taraftır ve tek kaynak odur.
+export async function peekRateLimit(key: string, limit: number): Promise<Verdict> {
+  try {
+    const rows = await prisma.$queryRaw<Array<{ count: number; retry: number }>>`
+      SELECT
+        r."count"::int AS count,
+        CEIL(GREATEST(1, EXTRACT(EPOCH FROM (r."resetAt" - (now() AT TIME ZONE 'utc')))))::int AS retry
+      FROM "RateLimitCounter" AS r
+      WHERE r."key" = ${key} AND r."resetAt" > (now() AT TIME ZONE 'utc')
+    `;
+    const row = rows[0];
+    if (!row) return { ok: true, retryAfter: 0 }; // hiç kayıt yok / pencere dolmuş
+    if (Number(row.count) <= limit) return { ok: true, retryAfter: 0 };
+    return { ok: false, retryAfter: Math.max(1, Number(row.retry)) };
+  } catch (err) {
+    warnDbUnavailable(err);
+    return { ok: true, retryAfter: 0 };
+  }
+}
+
 // Throttled operational warning — a DB outage would otherwise log per request.
 let lastDbWarnAt = 0;
 function warnDbUnavailable(err: unknown) {

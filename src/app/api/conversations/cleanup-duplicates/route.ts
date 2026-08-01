@@ -26,5 +26,7 @@ export const POST = withManage(async (session) => {
     reservationsRemoved: reservations.removed,
     reservationsChecked: reservations.checkedProperties,
     reservationsSkipped: reservations.skippedProperties,
+    // Kökeni kanıtlanamadığı için SİLİNMEYEN satırlar (fail-closed, Codex 08-01).
+    reservationsUnprovable: reservations.unprovableSkipped,
   });
 });

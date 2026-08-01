@@ -313,6 +313,97 @@ politikası kullanıcı kararı.
 
 ---
 
+## 4e. CODEX KARARLARI (08-01) — migration etiketleri DÜZELTİLDİ
+
+Codex belgeyi gözden geçirdi. Aşağıdaki dört karar **bu belgedeki eski etiketleri
+EZER**; gerekçeleri kod-doğrulandı ve katılıyorum (biri hariç, ↓ekleme).
+
+### K1. §4'teki YAŞAM-DÖNGÜSÜ MIGRATION'I İPTAL — kolon EKLENMEZ
+
+Eski metin `Reservation`'a "üçüncü durum" kolonu + `autoReplyHoldUntil` eşdeğeri
+öneriyordu. **Yanlış:** `MessageOutbox` zaten `messageType`, `attemptCount`,
+`availableAt`, `lastErrorKind`, `providerMessageId`, `sentAt` taşıyor.
+`Reservation`'a ikinci bir yeniden-deneme durum makinesi koymak **iki ayrı gerçek**
+üretir. Doğru sıra: outbox tarafındaki kalan işler (RiskEvent zamanlaması,
+`queued`/`sent` ayrımı, devir penceresi — hepsi §4b'de) kapanır → `DURABLE_OUTBOX_ENABLED`
+kontrollü açılır → yaşam-döngüsü zaten outbox durum makinesine devrolur ve sorun
+kendiliğinden çözülür. `Reservation.lifecycleRetryAfter` benzeri kolonlar **EKLENMEZ**.
+
+**⚠️ EKLEMEM (Codex'in planındaki boşluk):** bayrak AÇILANA KADAR bayrak-KAPALI
+yaşam-döngüsü yolu üretimde hâlâ kalıcı 4xx'te her geçiş yeniden POST'luyor
+(Nuve'nin 402'si tam bu durum). Bunun için kolona GEREK YOK: `SystemLock` zaten
+alarm pencerelerinde aynı amaçla kullanılıyor →
+`lifecycle-backoff:{kind}:{reservationId}` anahtarıyla **migration'sız** geri
+çekilme yazılabilir. Bayrak açılışı gecikirse bu yapılmalı; açılış yakınsa gereksiz.
+
+### K2. CSV KÖKENİ İÇİN MIGRATION GERÇEKTEN GEREKLİ — `ingestionOrigin`
+
+`channel` yeterli değil (CSV satırı da "airbnb"/"booking" yazabilir);
+`calendarSourceId = NULL` hem CSV hem Hospitable satırlarında bulunuyor.
+
+```
+ingestionOrigin String?  // hospitable | calendar_source | csv | file_ics | manual
+```
+
+Aşamalı: (1) **hemen** kökeni kanıtlanamayan satırı otomatik temizleme →
+**BU TURDA YAPILDI** (`cleanupStaleReservations` artık fail-closed: silme için
+satırın Hospitable senkronunda yaratılmış bir KONUŞMASI şart, kanıtsız satır
+`unprovableSkipped` olarak sayılır ve rapora çıkar); (2) nullable kolonu additive
+migration ile ekle; (3) tüm yeni yazma yollarına doğru kökeni yazdır;
+(4) yalnız kanıtlanabilen eski satırları backfill et; (5) `NULL` kalanı **asla**
+otomatik silme; (6) %100 kapsama kanıtlanmadan `NOT NULL` YAPMA.
+
+### K3. BAĞLANTI SAĞLIĞI: `Organization.lastStatus` DEĞİL, AYRI MODEL
+
+Airbnb/Booking doğrudan bağlantıları geldiğinde org üzerindeki genel kolonlar kötü
+ölçekleniyor. Doğrusu:
+
+```
+IntegrationConnection
+  organizationId · provider · status
+  lastAttemptAt · lastSuccessAt · lastErrorKind · statusChangedAt
+  @@unique([organizationId, provider])
+```
+
+Ham sağlayıcı cevabı, token veya PII **tutulmaz**. Mevcut Hospitable token alanları
+ilk aşamada TAŞINMAZ — bu tablo yalnız sağlık durumu yönetir. (§4d(f)'nin yerine.)
+
+### K4. HESAP SİLME MIGRATION'I HUKUK KARARINA BAĞLI
+
+Neyin kaç yıl saklanacağı avukat tarafından kesinleşmeden yapılmaz. Sonrasında:
+`deletionRequestedAt`/`deletionEffectiveAt` bekleme süresi · PII'siz bağımsız
+`DeletionRecord` · saklanacak kayıtlarda `organizationId` nullable + `SetNull` ·
+gerekli yasal anlık görüntüler · misafir ve kullanıcı PII'sinin anonimleştirilmesi.
+**Yalnızca `organizationId`'yi nullable yapmak YETMEZ** — kayıtlar org silindikten
+sonra da anlamlı ve PII'siz kalmalı. (§1'in yerine.)
+
+### Diğer migration'lar (Codex sıralaması)
+
+`Message.authorType NOT NULL` mantıklı/düşük risk (önce prod NULL preflight) ·
+`totalAmount Float → Decimal` AYRI para turu, başka migration'la birleştirilmez ·
+`emailCanonical` deneme-suistimali politikası kararlaşana kadar bekler ·
+`CalendarSource.url` DROP (m47) acil değil, sentinel işi görüyor ·
+`autoReplyEndHour 9→0` kozmetik, bekleyebilir.
+
+### Uygulama sırası (Codex) — bu turda nereye kadar gelindi
+
+1. ~~`TRUSTED_PROXY_HOPS=2`'yi körlemesine değil, Operasyon Teşhisi ekranında
+   doğrulayarak ekle~~ ✅ **TAMAM** — kullanıcı ekledi; ters DNS kanıtı:
+   `188.119.60.236` → `236.60.119.188.srv.turk.net` (TurkNet = gerçek müşteri),
+   `212.102.36.193` → ters DNS yok (altyapı). Kart "limitleyicinin kullandığı:
+   188.119.60.236" diyor.
+2. ~~Impersonation ve login hesap-kovası açıklarını migration'sız kapat~~ ✅ **TAMAM**
+   (`requireSession` artık impersonation'da `isSuperAdmin`'i yeniden doğruluyor;
+   `login-acct` kovası `peekRateLimit` ile okunuyor, yalnız BAŞARISIZ doğrulamada
+   tüketiliyor).
+3. ~~Cleanup'ı hemen fail-closed yap~~ ✅ **TAMAM** (↑K2).
+4. `Reservation.ingestionOrigin` migration'ı — **SIRADAKİ**.
+5. `IntegrationConnection` sağlık migration'ı — ayrı tur.
+6. Hesap silme/retention migration'ı — hukuk kararı sonrası.
+7. `authorType NOT NULL` ve diğer contract işleri — en son.
+
+---
+
 ## 4d. Beşinci denetim turunda UYGULANMAYAN bulgular (08-01) — gerekçeleriyle
 
 Beş ajan + kendi ampirik taramam. Aşağıdakiler **bilinçli olarak uygulanmadı**;
