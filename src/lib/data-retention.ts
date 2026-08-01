@@ -143,14 +143,43 @@ export async function anonymizeOldGuestData(now: Date = new Date()): Promise<{ a
       if (!c.reservationId || !c.guestIdentifier) continue;
       namesByRes.set(c.reservationId, [...(namesByRes.get(c.reservationId) ?? []), c.guestIdentifier]);
     }
+    // ⚠️ İKİ BAĞ BİRDEN (denetim, 08-01 — beşinci tur, ajan bulgusu). Yalnız
+    // `reservationId` ile seçmek bir sınıfı KAÇIRIYORDU: şikayet/akıllı görev,
+    // konuşma HENÜZ rezervasyona bağlı DEĞİLKEN doğduysa `Task.reservationId`
+    // NULL kalır (`automation.ts` `conversation.reservation?.id ?? null` geçer) ve
+    // konuşma SONRADAN bağlanır (`hospitable-sync` mevcut konuşmaya
+    // `reservationId` yazar). O andan itibaren görev:
+    //   · bu dala girmez (kendi `reservationId`'si NULL),
+    //   · yetim dalına da girmez (konuşma artık bağlı),
+    // yani misafirin HAM MESAJI (`description`) ve ADI (`title`) İKİ SÜPÜRGENİN
+    // DE dışında kalıp SÜRESİZ yaşıyordu. `sourceMessageId` bağı yetim dalının
+    // zaten kullandığı bağdır; burada da kullanılır (Task'ta `conversationId`
+    // kolonu YOK — eklemek migration ister).
+    const scopedMsgIds = convIds.length
+      ? (
+          await prisma.message.findMany({
+            where: { conversationId: { in: convIds } },
+            select: { id: true },
+          })
+        ).map((m) => m.id)
+      : [];
     const tasks = await prisma.task.findMany({
-      where: { reservationId: { in: resIds } },
+      where: {
+        OR: [
+          { reservationId: { in: resIds } },
+          ...(scopedMsgIds.length ? [{ sourceMessageId: { in: scopedMsgIds } }] : []),
+        ],
+      },
       select: { id: true, reservationId: true, title: true, description: true },
     });
     const titleRedactions: { id: string; title: string; description?: string }[] = [];
     const namesByTask = new Map<string, string[]>();
+    // Bağsız (yalnız `sourceMessageId` ile yakalanan) görevlerde rezervasyon adı
+    // yok — kapsamdaki TÜM adlar kullanılır (redaksiyon kelime-sınırı güvenli ve
+    // idempotent; fazladan ad yalnız daha fazla maskeleme demektir, kayıp değil).
+    const allScopedNames = [...new Set([...namesByRes.values()].flat())];
     for (const t of tasks) {
-      const names = t.reservationId ? namesByRes.get(t.reservationId) ?? [] : [];
+      const names = t.reservationId ? namesByRes.get(t.reservationId) ?? [] : allScopedNames;
       namesByTask.set(t.id, names);
       const red = redactNameFromBody(t.title, names);
       // AÇIKLAMA misafirin HAM MESAJIDIR (şikayet / akıllı görev) — ad redaksiyonu

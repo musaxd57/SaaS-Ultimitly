@@ -457,12 +457,29 @@ async function maskReservationRows(
   }
   // Lifecycle tasks carry the guest's REAL NAME in their title (createReservationTasks:
   // "Çıkış temizliği - Ada"), which no other scrub in this sweep reaches — the host was
-  // told the stay's data is masked while the name stayed on the task board. Scoped to
-  // THIS reservation's tasks (an unlinked task on the same property is out of scope);
-  // same redaction helper as the outbound bodies, so it is idempotent and the verify
-  // pass can re-run it safely. Descriptions are fixed template text, no PII.
+  // told the stay's data is masked while the name stayed on the task board.
+  //
+  // ⚠️ İKİ BAĞ BİRDEN (denetim, 08-01 — beşinci tur, ajan bulgusu; süre-bazlı
+  // süpürgeyle BİREBİR aynı düzeltme). Yalnız `reservationId` ile seçmek şu sınıfı
+  // kaçırıyordu: şikayet/akıllı görev, konuşma HENÜZ rezervasyona bağlı DEĞİLKEN
+  // doğduysa `Task.reservationId` NULL kalır ve konuşma SONRADAN bağlanır → görev
+  // ne bu dala ne yetim dalına girer, misafirin HAM MESAJI süresiz yaşar.
+  // CLAUDE.md SCRUB KAPSAMI KURALI: aynı kolon İKİ süpürgeye birden bağlanır.
+  const scopedMsgIds = convIds.length
+    ? (
+        await db.message.findMany({
+          where: { conversationId: { in: convIds } },
+          select: { id: true },
+        })
+      ).map((m) => m.id)
+    : [];
   const tasks = await db.task.findMany({
-    where: { reservationId },
+    where: {
+      OR: [
+        { reservationId },
+        ...(scopedMsgIds.length ? [{ sourceMessageId: { in: scopedMsgIds } }] : []),
+      ],
+    },
     select: { id: true, title: true, description: true },
   });
   for (const t of tasks) {
