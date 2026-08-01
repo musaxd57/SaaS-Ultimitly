@@ -36,17 +36,22 @@ const CHECKOUT_CUE =
  */
 const CHECKOUT_NEGATION = new RegExp(
   [
+    // ⚠️ İLERİ-OLUMSUZ BAKIŞLAR ŞART. "çıkmad" tek başına "çıkma-DAN"ı,
+    // "çıkmam" ise "çıkma-MIZ"ı yakalar; ikisi de FİİL-İSİM biçimidir ve
+    // TAMAMEN MEŞRU çıkış cümleleridir ("çıkmadan önce anahtarı nereye
+    // bırakalım", "çıkmamız gereken saat 11:00 mi"). İlk yazımda çapa yoktu ve
+    // bir denetim ajanı ölçerek yakaladı (denetim, 08-01).
     // çıkmıyoruz / çıkmayacağız / çıkmadık / çıkmam / çıkmaz
     "ç[ıi]km[ıi]yor",
     "ç[ıi]kmayaca",
-    "ç[ıi]kmad",
-    "ç[ıi]kmam",
+    "ç[ıi]kmad(?!an)",
+    "ç[ıi]kmam(?![ıia])",
     "ç[ıi]kmaz",
     // ayrılmıyoruz / ayrılmayacağız / ayrılmadık / ayrılmam / ayrılmaz
     "ayr[ıi]lm[ıi]yor",
     "ayr[ıi]lmayaca",
-    "ayr[ıi]lmad",
-    "ayr[ıi]lmam",
+    "ayr[ıi]lmad(?!an)",
+    "ayr[ıi]lmam(?![ıia])",
     "ayr[ıi]lmaz",
     // "çıkış saatimizi 11'e yapmayın"
     "yapmay[ıi]n",
@@ -65,37 +70,42 @@ const CHECKOUT_NEGATION = new RegExp(
 export function timeStatedInMessage(hhmm: string, message: string): boolean {
   const parsed = HHMM.exec(hhmm.trim());
   if (!parsed) return false;
-  // Misafir çıkışı REDDEDİYORSA hiçbir saat "beyan edilmiş çıkış saati" değildir.
-  if (CHECKOUT_NEGATION.test(message.toLowerCase())) return false;
   const h = Number(parsed[1]);
   const min = Number(parsed[2]);
 
-  // Evaluate sentence by sentence: the time and the checkout cue must sit in
-  // the SAME segment, so "Dinner at 18:00. We leave tomorrow." can't borrow
-  // the cue from a different sentence to legitimize the dinner time.
-  // A dot BETWEEN digits is a time separator ("18.30"), not a sentence end.
+  // İKİ SEVİYELİ BÖLME (denetim, 08-01).
   //
-  // ⚠️ VİRGÜL/NOKTALI VİRGÜL AYIRICIYA EKLENDİ (denetim, 08-01). Ayırıcıda
-  // yalnız `. ! ? \n` vardı; Türkçede (ve konuşma dilinde İngilizcede) cümlecikler
-  // ağırlıkla VİRGÜLLE bağlandığı için garanti fiilen yoktu. Ampirik ölçüm:
-  //   "Uçağımız 19:30'da, sabah 8 gibi çıkarız."  → 19:30 KABUL ediliyordu
-  //   "Check-in 22:00, we will leave on Sunday"   → 22:00 KABUL ediliyordu
-  // Yani fonksiyonun TEK varlık sebebi olan halüsinasyon sınıfı açıktı ve
-  // misafirin hiç söylemediği bir saat rezervasyona kalıcı yazılabiliyordu.
+  // CÜMLE sınırı (`. ! ? \n`) AŞILAMAZ — fonksiyonun varlık sebebi olan
+  // halüsinasyon sınıfı tam olarak budur: "Dinner at 18:00. We leave tomorrow."
+  // farklı bir cümleden ipucu ödünç alamaz. (Rakamlar arasındaki nokta bir saat
+  // ayırıcısıdır — "18.30" — cümle sonu değil.)
   //
-  // ⚠️ ASCII TİRE AYIRICIYA EKLENMEZ: "check-out" ipucunu ikiye böler ve TÜM
-  // İngilizce "check-out at 11:00" beyanlarını sessizce öldürür (ölçüldü).
-  const segments = message.toLowerCase().split(/(?:[!?\n,;]|(?<!\d)\.|\.(?!\d))+/);
-  for (let i = 0; i < segments.length; i++) {
-    if (!CHECKOUT_CUE.test(segments[i])) continue;
-    // (a) İpucunun KENDİ cümleciği.
-    if (segmentStatesTime(segments[i], h, min)) return true;
-    // (b) İpucundan HEMEN SONRAKİ cümlecik: "yarın çıkıyoruz, saat 10:00 gibi".
-    //     Virgül ayırıcısı tek başına bu meşru kalıbı da kırıyordu (ölçüldü).
-    //     YÖN TEK: yalnız İLERİ bakılır. Geriye bakmak, düzeltilen tehdidin ta
-    //     kendisini geri açardı ("Uçağımız 19:30'da, … çıkarız" → 19:30).
-    const next = segments[i + 1];
-    if (next && segmentStatesTime(next, h, min)) return true;
+  // CÜMLECİK sınırı (`, ;`) İÇERİDE. Türkçede cümlecikler ağırlıkla virgülle
+  // bağlanır; ayırıcıya eklenmeseydi "aynı cümlecikte olmalı" garantisi fiilen
+  // yoktu ("Uçağımız 19:30'da, sabah 8 gibi çıkarız" → 19:30 kabul ediliyordu).
+  // İpucunun HEMEN ARDINDAKİ cümleciğe bakılır ("yarın çıkıyoruz, saat 10:00
+  // gibi"), ama YALNIZ AYNI CÜMLE İÇİNDE ve YALNIZ İLERİ: geriye bakmak
+  // düzeltilen tehdidin ta kendisini geri açardı.
+  //
+  // ⚠️ İLK YAZIMDA İLERİ-BAKIŞ TÜM AYIRICILAR İÇİN KOŞUYORDU ve cümle sınırını
+  // da aşıyordu — yani düzeltmenin kendisi halüsinasyon sınıfını ters yönden
+  // geri açmıştı. Bir denetim ajanı ölçerek yakaladı.
+  //
+  // ⚠️ ASCII TİRE AYIRICI DEĞİLDİR: "check-out" ipucunu böler ve TÜM İngilizce
+  // beyanları sessizce öldürür (ölçüldü, testle pinli).
+  const lower = message.toLowerCase();
+  for (const sentence of lower.split(/(?:[!?\n]|(?<!\d)\.|\.(?!\d))+/)) {
+    const clauses = sentence.split(/[,;]+/);
+    for (let i = 0; i < clauses.length; i++) {
+      if (!CHECKOUT_CUE.test(clauses[i])) continue;
+      // Olumsuzlama CÜMLECİK seviyesinde: "11:00'de çıkacağız, lütfen temizlik
+      // yapmayın" mesajında olumsuz olan İKİNCİ cümleciktir; mesaj geneline
+      // uygulanan veto bu meşru beyanı da düşürüyordu (ölçüldü).
+      if (CHECKOUT_NEGATION.test(clauses[i])) continue;
+      if (segmentStatesTime(clauses[i], h, min)) return true;
+      const next = clauses[i + 1];
+      if (next && !CHECKOUT_NEGATION.test(next) && segmentStatesTime(next, h, min)) return true;
+    }
   }
   return false;
 }

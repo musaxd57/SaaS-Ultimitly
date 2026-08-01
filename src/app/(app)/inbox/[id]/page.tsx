@@ -153,14 +153,19 @@ const SKIP_REASON_LABELS: Record<string, string> = {
   // Mevcut müşterilerin gündüz mesajlarının sessizce cevapsız kalmasının TEK
   // sebebi buydu ve hiçbir ekranda yazmıyordu (şema varsayılanı hâlâ gece-only).
   outside_hours:
-    "Oto-yanıtın aktif saat aralığı dışında — Ayarlar → Otomasyon'dan aralığı 7/24 yapabilirsiniz",
+    "Oto-yanıtın aktif saat aralığı dışında — Ayarlar → AI ve Otomasyon'dan aralığı 7/24 yapabilirsiniz",
   // Gönderim kanalı reddetti. Konuşma kaybolmaz: bir süre sonra kendiliğinden
   // yeniden denenir (denetim, 08-01 — eskiden 2 dakikada bir sessizce yeniden
   // denenip her seferinde kota yakıyor, host hiçbir yerde sebebi göremiyordu).
+  // ⚠️ SÜRE GERÇEK OLMALI (denetim, 08-01). Eski metin "birazdan" diyordu ama
+  // geri çekilme penceresi 4 SAAT (`SEND_FAILURE_HOLD_MS`) — host 10 dakika
+  // sonra bakıp hiçbir şey olmayınca "ürün bozuk" diyor ya da boşuna bekliyor.
   send_failed:
-    "Mesaj kanala iletilemedi — bağlantınızı kontrol edin, bu konuşma birazdan otomatik olarak yeniden denenecek",
+    "Mesaj kanala iletilemedi — bağlantınızı kontrol edin. Otomatik deneme yaklaşık 4 saat sonra tekrarlanır; acilse mesajı elle yanıtlayın.",
+  // Sistem yenilenmeyi İZLEMİYOR — sabit aralıklarla yeniden deniyor. Metin de
+  // bunu söylemeli (denetim, 08-01).
   subscription_inactive:
-    "Hospitable aboneliğiniz pasif görünüyor — mesaj gönderilemiyor. Aboneliğiniz yenilenince bu konuşma otomatik olarak yeniden denenecek.",
+    "Hospitable aboneliğiniz pasif görünüyor — mesaj gönderilemiyor. Abonelik yenilendikten sonra en geç birkaç saat içinde yeniden denenir.",
   rate_limited:
     "Kanal geçici olarak yoğun — bu konuşma kısa süre sonra otomatik olarak yeniden denenecek",
 };

@@ -37,6 +37,21 @@ describe("statedCheckoutTime kanıt kapısı — cümlecik sınırı", () => {
     });
   }
 
+  // ⚠️ CÜMLE SINIRI AŞILAMAZ. İlk yazımda ileri-bakış TÜM ayırıcılar için
+  // koşuyordu (`.` `!` `?` `\n` dahil) → düzeltmenin KENDİSİ, fonksiyonun varlık
+  // sebebi olan halüsinasyon sınıfını ters yönden geri açmıştı. Bir denetim
+  // ajanı ölçerek yakaladı; ileri-bakış artık YALNIZ aynı cümlenin içinde.
+  const crossSentence: [string, string][] = [
+    ["18:00", "We leave tomorrow. Dinner at 18:00."],
+    ["19:30", "Yarın çıkıyoruz. Uçağımız 19:30'da."],
+    ["23:00", "Çıkış yapacağız!\nGece 23:00'te arkadaşım gelecek."],
+  ];
+  for (const [time, msg] of crossSentence) {
+    it(`CÜMLE sınırını aşarak saat ödünç ALMAZ: ${time} ← ${msg.slice(0, 30)}…`, () => {
+      expect(timeStatedInMessage(time, msg)).toBe(false);
+    });
+  }
+
   const legit: [string, string][] = [
     ["08:00", "Uçağımız 19:30'da, sabah 8 gibi çıkarız."], // doğru saat AYNI cümlecikte
     ["10:00", "Yarın çıkıyoruz, saat 10:00 gibi"], // ipucu önce, saat SONRAKİ cümlecikte
@@ -69,10 +84,30 @@ describe("statedCheckoutTime — olumsuzlama vetosu", () => {
   }
 
   it("veto FİİLE ÇAPALI — meşru ifadeleri kırmaz (yanlış-pozitif pini)", () => {
-    // Çıplak `ma|me` eki kullanılsaydı bunların hepsi düşerdi.
+    // ⚠️ İLK YAZIMIM FAZLA GENİŞTİ ve bir denetim ajanı ölçerek yakaladı:
+    // Türkçede `-ma` hem OLUMSUZLUK hem FİİL-İSİM ekidir. `çıkmad` çapasız
+    // yazılınca "çıkma-DAN"ı, `çıkmam` ise "çıkma-MIZ"ı yakalıyordu — ikisi de
+    // TAMAMEN MEŞRU ve çok yaygın çıkış cümleleri. Aşağıdakiler o vakalar.
     expect(timeStatedInMessage("12:00", "12:00 gibi çıkarız, uygun mu")).toBe(true);
     expect(timeStatedInMessage("09:00", "sabah 9'da ayrılacağız")).toBe(true);
     expect(timeStatedInMessage("10:00", "10:00'da çıkmayı planlıyoruz")).toBe(true);
+    expect(timeStatedInMessage("11:00", "Çıkmamız gereken saat 11:00 mi?")).toBe(true);
+    expect(timeStatedInMessage("11:00", "11:00'de çıkmamız gerekiyor")).toBe(true);
+    expect(
+      timeStatedInMessage("11:00", "Çıkmadan önce anahtarı nereye bırakalım? Saat 11:00'de çıkıyoruz."),
+    ).toBe(true);
+    expect(
+      timeStatedInMessage("10:00", "Ayrılmadan önce çöpü nereye atalım, 10:00'da ayrılıyoruz"),
+    ).toBe(true);
+  });
+
+  it("olumsuzlama CÜMLECİK seviyesinde — başka cümlecikteki 'yapmayın' beyanı düşürmez", () => {
+    // Mesaj geneline uygulanan veto bu meşru beyanı da düşürüyordu (ölçüldü).
+    expect(
+      timeStatedInMessage("11:00", "11:00'de çıkacağız, lütfen sabah temizlik yapmayın"),
+    ).toBe(true);
+    // Ama ÇIKIŞA ilişkin olumsuzlama aynı cümlecikteyse yine reddedilir.
+    expect(timeStatedInMessage("11:00", "çıkış saatimizi 11:00 yapmayın lütfen")).toBe(false);
   });
 });
 

@@ -247,11 +247,28 @@ async function applySubscriptionEvent(
   // asla webhook'u düşürmez — Paddle 5xx'te retry eder ve olay tekrarlanır).
   if (unmappedPriceId) {
     const key = `paddle-unmapped-price:${organizationId}:${unmappedPriceId}`;
+    const now = new Date();
+    const nextAllowed = new Date(now.getTime() + 30 * 86_400_000);
     try {
-      const claimed = await prisma.systemLock.createMany({
-        data: [{ name: key, lockedUntil: new Date(Date.now() + 30 * 86_400_000) }],
+      // ⚠️ SÜRE GERÇEKTEN UYGULANMALI (denetim, 08-01). İlk yazımda yalnız
+      // `createMany + skipDuplicates` vardı: `lockedUntil` yazılıyor ama HİÇBİR
+      // yerde okunmuyordu ve `SystemLock` için genel bir süpürge de yok → alarm
+      // (org, fiyat) başına ÖMÜRDE BİR kez atıyordu. Operatör env haritasını
+      // düzeltip sorun aylar sonra aynı fiyatta tekrarlarsa İKİNCİ uyarı hiç
+      // gelmezdi. Şimdi: satır yoksa yarat, varsa YALNIZ süresi dolmuşsa yenile —
+      // ikisi de atomik, ikisinden biri "bu uyarıyı ben atıyorum" der.
+      const created = await prisma.systemLock.createMany({
+        data: [{ name: key, lockedUntil: nextAllowed }],
         skipDuplicates: true,
       });
+      const renewed =
+        created.count === 1
+          ? { count: 0 }
+          : await prisma.systemLock.updateMany({
+              where: { name: key, lockedUntil: { lte: now } },
+              data: { lockedUntil: nextAllowed },
+            });
+      const claimed = { count: created.count + renewed.count };
       if (claimed.count === 1) {
         void reportError(
           "paddle-webhook unmapped-price",

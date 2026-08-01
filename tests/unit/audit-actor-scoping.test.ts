@@ -106,16 +106,18 @@ describe("auditActor / auditImpersonation davranışı", () => {
   });
 
   it("impersonation izi metadata'ya işlenir", () => {
-    expect(auditImpersonation(operatorInside)).toEqual({
-      impersonated: true,
-      operatorEmail: "operator@lixusai.com",
-    });
+    expect(auditImpersonation(operatorInside)).toEqual({ impersonated: true });
   });
 
-  it("operatörün e-postası yoksa alan null olur, kayıt yine impersonated'dır", () => {
-    expect(auditImpersonation({ actorUserId: "u-operator" })).toEqual({
-      impersonated: true,
-      operatorEmail: null,
-    });
+  it("OPERATÖRÜN E-POSTASI metadata'ya YAZILMAZ (KVKK — denetim, 08-01)", () => {
+    // `AuditLog.metadataJson` müşterinin KENDİ veri ihracına HAM olarak giriyor
+    // (`data-export.ts`). Operatörün e-postası ÜÇÜNCÜ BİR KİŞİNİN kişisel
+    // verisidir ve müşteriye aktarılmamalıdır. İlk yazımda yazılıyordu ve bir
+    // güvenlik ajanı yakaladı. Delil değeri `actorUserId` (opak id) ile zaten
+    // sağlanıyor.
+    const meta = auditImpersonation(operatorInside);
+    expect(JSON.stringify(meta)).not.toContain("operator@lixusai.com");
+    expect(JSON.stringify(meta)).not.toContain("@");
+    expect(Object.keys(meta)).toEqual(["impersonated"]);
   });
 });

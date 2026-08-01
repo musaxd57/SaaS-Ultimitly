@@ -110,12 +110,22 @@ export default async function InboxPage({
   const TZ = orgTimezone(org?.timezone);
 
   const filters = [{ value: "", label: "Tümü" }, ...CONVERSATION_STATUS.options];
-  // Boş-durum başlığı seçili sekmenin ADIYLA konuşsun ("Beklemede mesajınız
-  // bulunmuyor"), soyut "filtre" diliyle değil. Bilinmeyen bir status query'si
-  // gelirse nötr bir sözcüğe düşer — ekranda ham kod ASLA görünmez.
-  const statusLabel = status
-    ? (CONVERSATION_STATUS.options.find((o) => o.value === status)?.label ?? "Bu durumda")
-    : "Bekleyen";
+  // Boş-durum başlığı seçili sekmenin ADIYLA konuşsun, soyut "filtre" diliyle
+  // değil. ⚠️ HAM DURUM ETİKETİ SIFAT DEĞİLDİR (denetim, 08-01): etiketleri
+  // doğrudan enterpole etmek "Cevaplandı mesajınız bulunmuyor" ve "Tamamlandı
+  // mesajınız bulunmuyor" gibi bozuk Türkçe üretiyordu — host bunu okuyunca
+  // ürünün çevirisinin bozuk olduğunu düşünür. Her durumun kendi CÜMLESİ var.
+  // Bilinmeyen bir status query'si nötr cümleye düşer; ham kod ASLA görünmez.
+  const EMPTY_TITLES: Record<string, string> = {
+    new: "Yeni mesajınız yok",
+    waiting: "Bekleyen mesajınız yok",
+    answered: "Cevaplanmış mesajınız yok",
+    problem: "Sorunlu mesajınız yok",
+    closed: "Tamamlanmış mesajınız yok",
+  };
+  const emptyTitle = status
+    ? (EMPTY_TITLES[status] ?? "Bu durumda mesajınız yok")
+    : "Bekleyen mesajınız yok";
 
   /** Filtre + aramayı koruyan bağlantı. Durum/arama değişince sayfa 1'e döner:
    *  7. sayfadayken filtre değiştirip boş ekran görmek "kayıt yok" sanılır. */
@@ -312,7 +322,7 @@ export default async function InboxPage({
             title={
               query
                 ? "Aramanızla eşleşen misafir yok"
-                : `${statusLabel} mesajınız bulunmuyor`
+                : emptyTitle
             }
             description={
               query

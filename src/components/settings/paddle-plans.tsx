@@ -196,21 +196,35 @@ export function PaddlePlans({
         // after the row is committed, so res.ok ⇒ the evidence exists. On any
         // failure (non-2xx or network) we stop and let the user retry.
         let consentId: string | undefined;
+        // ⚠️ SUNUCUNUN SEBEBİ EKRANA ÇIKMALI (denetim, 08-01). Eskiden gövde hiç
+        // okunmuyordu: sunucu "Bu işletmenin zaten aktif bir aboneliği var" dese
+        // bile host yalnız "Onayınız kaydedilemedi, tekrar deneyin" görüyor ve
+        // sonsuza kadar tekrar deniyordu. Sebep varsa onu göster; yoksa genel
+        // mesaja düş (ağ hatası / beklenmedik durum).
+        let serverReason: string | undefined;
         try {
           const res = await fetch("/api/billing/consent", {
             method: "POST",
             headers: { "content-type": "application/json" },
             body: JSON.stringify({ planCode, priceId }),
           });
+          const body = (await res.json().catch(() => ({}))) as {
+            consentId?: string;
+            error?: string;
+            fields?: Record<string, string>;
+          };
           if (res.ok) {
-            const cj = (await res.json().catch(() => ({}))) as { consentId?: string };
-            consentId = cj.consentId;
+            consentId = body.consentId;
+          } else {
+            serverReason = body.fields?._ ?? body.fields?.planCode ?? body.error;
           }
         } catch {
           /* network error → consentId stays undefined */
         }
         if (!consentId) {
-          setError("Onayınız kaydedilemedi, ödeme başlatılamadı. Lütfen tekrar deneyin.");
+          setError(
+            serverReason ?? "Onayınız kaydedilemedi, ödeme başlatılamadı. Lütfen tekrar deneyin.",
+          );
           return;
         }
         window.Paddle.Checkout.open({

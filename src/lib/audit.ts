@@ -64,14 +64,18 @@ export function auditActor(session: { userId: string; actorUserId?: string | nul
  * Impersonation izini metadata'ya ekler. `actorUserId` "kim yaptı"yı düzeltir;
  * bu da "müşteri adına mı yapıldı" sorusunu tek bakışta cevaplar. Impersonation
  * yoksa hiçbir alan eklemez (mevcut kayıtların şekli değişmez).
+ *
+ * ⚠️ OPERATÖRÜN E-POSTASI YAZILMAZ (denetim, 08-01 — ilk yazımda yazılıyordu ve
+ * bir güvenlik ajanı yakaladı). `AuditLog.metadataJson` müşterinin KENDİ veri
+ * ihracına HAM olarak giriyor (`data-export.ts`) → operatörün e-postası ÜÇÜNCÜ
+ * BİR KİŞİNİN kişisel verisidir ve müşteriye aktarılmamalıdır. Delil değeri
+ * `actorUserId` (opak id) ile zaten sağlanıyor; operatörün kim olduğu bizim
+ * kendi kullanıcı tablomuzdan çözülür.
  */
 export function auditImpersonation(session: {
   actorUserId?: string | null;
-  actorEmail?: string | null;
 }): Record<string, unknown> {
-  return session.actorUserId
-    ? { impersonated: true, operatorEmail: session.actorEmail ?? null }
-    : {};
+  return session.actorUserId ? { impersonated: true } : {};
 }
 
 /**

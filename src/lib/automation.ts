@@ -2912,7 +2912,18 @@ export async function sendDueAlerts(
 
   // Unanswered conversations where the guest spoke last and that aren't flagged.
   const candidates = await prisma.conversation.findMany({
-    where: { property: { organizationId }, status: "new" },
+    where: {
+      property: { organizationId },
+      status: "new",
+      // ⚠️ YAŞ PENCERESİ SQL'DE OLMAK ZORUNDA — TAVANLA BİRLİKTE (denetim, 08-01).
+      // Filtre yalnız JS'te (`continue`) uygulanıyor, tavan (`take: 50`) SQL'de
+      // duruyordu. Damgalanmış konuşmalar (`closing_ack`/`low_confidence_or_risky`/
+      // `outside_hours`) `status:"new"` KALIR ve sonsuza kadar birikir: 72 saatten
+      // eski 50 satır biriktiği anda her geçiş yalnız o bayat satırları çeker,
+      // hepsi JS'te atlanır ve YENİ ŞİKAYET HİÇ SEÇİLMEZ. Bu, aynı gün
+      // `runDueChannelAutoReplies` için kapatılan açlık sınıfının birebir aynısı.
+      lastMessageAt: { gte: new Date(Date.now() - ALERT_MAX_AGE_MS) },
+    },
     select: {
       id: true,
       guestIdentifier: true,
@@ -2930,7 +2941,11 @@ export async function sendDueAlerts(
       // CEVAPLANMAMIŞ olanların (son giden yanıttan sonrakiler) HEPSİ taranır.
       messages: { orderBy: { createdAt: "desc" }, take: 6 },
     },
-    orderBy: { lastMessageAt: "asc" }, // freshest first — never let stale backlog crowd out new complaints
+    // ⚠️ EN YENİ ÖNCE. Bu satır 08-01'de bir mutasyon-geri-alma script'inin
+    // sayı sınırı olmayan `replace`'i yüzünden KAZAYLA "asc" olmuştu (commit
+    // mesajında yoktu, yorum kodun tersini anlatıyordu). Şikayet uyarısında
+    // doğru yön "en yeni önce"dir: bayat yığın yeni şikayeti ezmemeli.
+    orderBy: { lastMessageAt: "desc" },
     take: 50,
   });
 
@@ -3150,7 +3165,11 @@ export async function previewChannelAutoReplies(
       NOT: { externalReservationId: { startsWith: "qr-chat:" } },
       status: "new",
     },
-    orderBy: { lastMessageAt: "asc" },
+    // ⚠️ EN YENİ ÖNCE. Bu satır da 08-01'de aynı hatalı geri-alma script'iyle
+    // kazayla "asc" olmuştu. Önizlemenin sorusu "AI ŞU AN ne cevap verirdi?" —
+    // "asc" ile host, aylar önceki bayat thread'leri görüyor ve günlük AI kotası
+    // (rota model çağrısından ÖNCE tüketiyor) onlara yanıyordu.
+    orderBy: { lastMessageAt: "desc" },
     take: limit,
     select: { id: true },
   });

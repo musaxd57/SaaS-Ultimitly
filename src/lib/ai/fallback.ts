@@ -206,6 +206,17 @@ const PROBLEM_NEGATIONS = [
   // "hiçbir sorun" öneki listeden çıktığı için tek başına yetmiyor).
   "sorunumuz olmadı", "sorunumuz olmadi", "sorunum olmadı", "sorunum olmadi",
   "sorunumuz yok", "sorunum yok",
+  // ⚠️ ÖVGÜ TUZAĞI (denetim, 08-01). Çapasız önekleri kaldırırken yerlerine
+  // konan tam biçimler yaygın çekimleri kapsamıyordu ve MEMNUN misafirin veda
+  // mesajı şikayet sayılıyordu — ölçüldü: "Hiçbir sorun çıkmadı, ev çok temizdi"
+  // ve "hiçbir sorunla karşılaşmadık" ikisi de şikayet oluyordu. Sonuç: host'a
+  // "⚠️ Acil misafir mesajı" e-postası + konuşmanın "Sorunlu" claim'lenmesi.
+  // Yön güvenli (aşırı-eskalasyon) ama CLAUDE.md'nin istediği övgü-tuzağı
+  // testinin tam olarak yakalaması gereken şey buydu. Hepsi TAM biçim, önek YOK.
+  "sorun çıkmadı", "sorun cikmadi", "sorun çıkmad", "sorun cikmad",
+  "sorunla karşılaşmadık", "sorunla karsilasmadik",
+  "sorunla karşılaşmadım", "sorunla karsilasmadim",
+  "sorun yaşamadan", "sorun yasamadan",
   // Permission questions about the FUTURE are asks, not complaints:
   // "arkadaşım uğrayacak, sorun olur mu?" must never flag the thread.
   "sorun olur mu", "sorun olmaz", "sorun olmasın", "sorun teşkil eder mi",
