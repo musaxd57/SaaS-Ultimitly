@@ -39,6 +39,8 @@ export function isPrivateAddress(address: string): boolean {
   // network "64:ff9b::a9fe:a9fe" reaches 169.254.169.254 (cloud metadata). Treat
   // the whole prefix as private (we never legitimately fetch a feed through it).
   if (h.startsWith("64:ff9b:")) return true;
+  // 6to4 (2002::/16) gömülü IPv4'ü taşır — 2002:7f00:1:: = 127.0.0.1.
+  if (h.startsWith("2002:")) return true;
   // IPv4, incl. EVERY IPv4-mapped/embedded IPv6 spelling. Node's dns.lookup echoes
   // an isIP()-valid literal VERBATIM (no inet_ntop normalization), and WHATWG URL
   // keeps the hex form too — so "::ffff:a9fe:a9fe" (=169.254.169.254) and
@@ -52,6 +54,15 @@ export function isPrivateAddress(address: string): boolean {
     if (a === 172 && b >= 16 && b <= 31) return true; // private
     if (a === 192 && b === 168) return true; // private
     if (a === 100 && b >= 64 && b <= 127) return true; // CGNAT (100.64.0.0/10)
+    // ⚠️ EKSİK AYRILMIŞ ARALIKLAR (denetim, 08-01 — beşinci tur, ajan bulgusu).
+    // IP-LİTERAL besleme URL'lerinde Node, custom `lookup`'ı ATLAR (ampirik
+    // doğrulandı: `hostname:"127.0.0.1"` ile lookup çağrılmıyor, "localhost" ile
+    // çağrılıyor) → pinlenmiş DNS doğrulaması devreden çıkar ve TEK savunma bu
+    // liste kalır. Yalnızca EŞLEŞME EKLER; meşru bir takvim beslemesi bu
+    // aralıklarda barınmaz.
+    if (a === 192 && b === 0) return true; // 192.0.0.0/24 IETF protokol tahsisi
+    if (a === 198 && (b === 18 || b === 19)) return true; // 198.18.0.0/15 kıyaslama ağı
+    if (a >= 224) return true; // 224/4 multicast + 240/4 ayrılmış + 255.255.255.255
   }
   return false;
 }
@@ -64,7 +75,12 @@ export function isPrivateAddress(address: string): boolean {
  * (http://127.0.0.1, http://169.254.169.254, http://10.x, localhost, [::1]).
  */
 export function isPrivateHost(hostname: string): boolean {
-  const h = hostname.toLowerCase().replace(/^\[|\]$/g, "");
+  // ⚠️ SONDAKİ NOKTA KIRPILIR (denetim, 08-01 — beşinci tur, ajan bulgusu).
+  // "localhost." ve "foo.railway.internal." tam nitelikli (FQDN) yazımlardır ve
+  // aynı adı çözerler, ama sonek karşılaştırmaları onlara UYMUYORDU. Gerçek bir
+  // SSRF açığı DEĞİL (sync yolundaki DNS kapısı yine reddeder), ama satır kabul
+  // edilip hiç çalışmayan bir kaynak olarak kalıyordu — kafa karıştırıcı.
+  const h = hostname.toLowerCase().replace(/^\[|\]$/g, "").replace(/\.$/, "");
   if (!h) return true;
   if (h === "localhost" || h.endsWith(".localhost") || h.endsWith(".local") || h.endsWith(".internal")) {
     return true;

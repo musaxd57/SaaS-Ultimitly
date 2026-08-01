@@ -98,7 +98,6 @@ export async function POST(req: NextRequest) {
       actorUserId: session.actorUserId ?? session.userId,
       action: "customer.create",
       metadata: {
-        operatorEmail: session.actorEmail ?? session.email,
         ownerEmail: email,
         orgName: parsed.data.organizationName,
         billingMode,

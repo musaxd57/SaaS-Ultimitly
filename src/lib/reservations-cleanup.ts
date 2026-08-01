@@ -81,10 +81,30 @@ export async function cleanupStaleReservations(
 
     // Hospitable-sourced rows arriving inside the window: Hospitable definitely
     // would have returned them if they still existed. Any not in `seen` are gone.
+    //
+    // 🚨 KAPSAM ŞART (denetim, 08-01 — beşinci tur, ajan bulgusu). Yukarıdaki
+    // yorum "Hospitable kökenli" diyordu ama SORGU bunu HİÇ zorlamıyordu: filtre
+    // yalnız `sourceReference != null` idi. iCal satırlarının `sourceReference`'ı
+    // VEVENT UID'i, CSV'ninki dosyadaki referans — ikisi de Hospitable'ın id
+    // uzayında DEĞİL, dolayısıyla `seen`'de asla bulunmazlar ve HEPSİ "hayalet"
+    // sayılıp KALICI SİLİNİYORDU. Prod'da 8 canlı iCal kaynağı var (CLAUDE.md
+    // 07-29). Kayıp yalnız rezervasyon satırı değil: `Task.reservationId` ve
+    // `Conversation.reservationId` SetNull olduğu için bağlar kopar ve
+    // `welcomeSentAt/checkinSentAt/checkoutSentAt` damgaları GİDER → feed yeniden
+    // senkronlanınca AYNI misafire karşılama/giriş/çıkış mesajları TEKRAR gider.
+    //
+    // ⚠️ `channel` AYIRT EDİCİ DEĞİL: `channelFromLabel` (iCal) ve `toChannel`
+    // (Hospitable) AYNI değerleri üretiyor ("airbnb"/"booking"/…). Tek güvenilir
+    // ayraç `calendarSourceId`'dir — iCal satırları kaynağa bağlıdır.
+    //
+    // ⚠️ BİLİNEN SINIR: CSV ile içe aktarılan satırların da `calendarSourceId`'si
+    // NULL'dur, yani onlar hâlâ bu kümede. Tam ayrım için satırın KÖKENİNİ tutan
+    // bir kolon gerekir = MIGRATION → `docs/MIGRATION-BEKLEYEN-ISLER.md`.
     const locals = await prisma.reservation.findMany({
       where: {
         propertyId: p.id,
         sourceReference: { not: null },
+        calendarSourceId: null,
         arrivalDate: { gte: windowStart, lte: windowEnd },
       },
       select: { id: true, sourceReference: true },

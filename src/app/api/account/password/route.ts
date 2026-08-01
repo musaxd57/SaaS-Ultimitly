@@ -7,7 +7,10 @@ import {
   badRequest,
   jsonOk,
   serverError,
-  tooManyRequests, readJsonCappedOrNull } from "@/lib/api";
+  tooManyRequests,
+  forbidden,
+  readJsonCappedOrNull,
+} from "@/lib/api";
 import { rateLimit } from "@/lib/rate-limit";
 import { writeAudit } from "@/lib/audit";
 import { emailService } from "@/lib/email";
@@ -49,6 +52,15 @@ function verificationCode(): string {
 export async function POST(req: NextRequest) {
   const session = await requireSession();
   if (!session) return unauthorized();
+  // ⚠️ OPERATÖR MÜŞTERİNİN ŞİFRE AKIŞINI TETİKLEYEMEZ (denetim, 08-01 — beşinci
+  // tur, ajan bulgusu). Kardeş rotalarda (2FA, hesap silme) bu kapı vardı, burada
+  // yoktu: operatör impersonation altında dört "kod gönder" isteğiyle müşterinin
+  // 4/15dk kovasını doldurup `pwChangeCodeHash`'ini her seferinde ezerek müşterinin
+  // KENDİ şifresini değiştirmesini engelleyebiliyordu (kod müşterinin kutusuna
+  // gittiği için ele geçirme DEĞİL — ENGELLEME).
+  if (session.actorUserId) {
+    return forbidden("İşletme hesabındayken (impersonation) şifre işlemi yapılamaz.");
+  }
 
   // Throttle the whole flow per user (covers code-request e-mail spam AND
   // confirm attempts). The wrong-code attempt counter below adds a second cap.

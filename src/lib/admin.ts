@@ -99,7 +99,9 @@ export async function enterOrganization(
     organizationId: target.id,
     actorUserId,
     action: "impersonate.enter",
-    metadata: { operatorEmail: actor, operatorName: actorName, assumedUserId: owner.id },
+    // ⚠️ Operatörün e-postası/adı YAZILMAZ — müşterinin KVKK ihracına ham giriyor
+    // (süper-admin adresinin ifşası). Aktör opak `actorUserId` ile kayıtlı.
+    metadata: { assumedUserId: owner.id },
   });
   return true;
 }
@@ -128,7 +130,7 @@ export async function exitImpersonation(): Promise<boolean> {
     organizationId: current.organizationId,
     actorUserId: current.actorUserId,
     action: "impersonate.exit",
-    metadata: { operatorEmail: current.actorEmail ?? actor.email, restoredToOrg: actor.organizationId },
+    metadata: { restoredToOrg: actor.organizationId },
   });
   await setSessionCookie({
     userId: actor.id,

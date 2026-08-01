@@ -31,7 +31,9 @@ export async function GET(req: NextRequest) {
     organizationId: orgId,
     actorUserId: session.actorUserId ?? session.userId,
     action: "data.export",
-    metadata: { operatorEmail: session.actorEmail ?? session.email },
+    // Operatör kimliği opak `actorUserId` ile kayıtlı; e-posta müşterinin KVKK
+    // ihracına ham girdiği için YAZILMAZ (denetim, 08-01 — beşinci tur).
+    metadata: {},
   });
 
   const safeName = payload.organization.name.replace(/[^a-z0-9]+/gi, "_").slice(0, 40) || "isletme";

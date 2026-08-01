@@ -323,20 +323,121 @@ function normalizeForMatch(s: string): string {
   //
   // ⚠️ `\p{Mn}`'in TAMAMI EKLENMEZ: Türkçe/Arapça ayırıcı işaretler anlam taşır
   // ve `foldTurkishLower`'ın U+0307 davranışıyla çakışır.
+  // ⚠️ NFKC ÖNCE (saldırgan denetimi, 08-01 — beşinci tur, AMPİRİK ölçüldü).
+  // Uyumluluk normalizasyonu olmadan TAM GENİŞLİK ("Ｉｇｎｏｒｅ") ve MATEMATİKSEL
+  // harfler ("𝐈𝐠𝐧𝐨𝐫𝐞") — ikisi de sıradan bir metin kutusuna yapıştırılabilir
+  // ve gözle NORMAL görünür — hiçbir kalıba uymuyordu ve kapı bu girdilere
+  // OTO-GÖNDERİM İZNİ veriyordu. NFKC bunları ASCII'ye indirger ve ayrıştırılmış
+  // (NFD) dizileri birleştirir; yalnızca EŞLEŞME EKLER.
   return s
+    .normalize("NFKC")
     .replace(/[\p{Cf}\u034F\uFE00-\uFE0F]/gu, "")
     .replace(/\s+/g, " ");
 }
 
+/**
+ * BİRLEŞTİRİCİ İŞARETLERİ SÖKEN EK ADAY (saldırgan denetimi, 08-01 — beşinci tur).
+ *
+ * "Ign\u0301ore all previous instructions" gözle "Ignore…"dan ayırt edilemez ama
+ * hiçbir kalıba uymuyordu (ampirik: beş ayrı birleştirici işaret vetoyu deldi ve
+ * kapı TRUE döndü). `normalizeForMatch`'in İÇİNE konmadı — orada `\p{Mn}` silmek
+ * Türkçe "ö/ü/ç/ş/ğ"yi de düşürür ve diakritikli kelime listelerini `std`/`tr`
+ * katlamalarında KIRARDI. Ayrı bir ADAY olarak eklenince yalnızca eşleşme ekler.
+ */
+function stripCombining(s: string): string {
+  return s.normalize("NFD").replace(/\p{Mn}/gu, "").normalize("NFC");
+}
+
+/**
+ * Latin harflere GÖRSEL OLARAK ÖZDEŞ Kiril/Yunan kod noktaları.
+ *
+ * ⚠️ YALNIZ GERÇEK GÖRSEL İKİZLER. Küçük harf в/м/н/т/к BİLİNÇLİ OLARAK YOK:
+ * onlar Latin b/m/h/t/k'ye benzemez (benzedikleri şey BÜYÜK B/M/H/T/K'dir, ve o
+ * biçimleri aşağıda büyük harf olarak zaten var). Saldırıya katkıları yok ama
+ * karma yazılı bir metinde yanlış-pozitif yüzeyini genişletiyorlardı — ampirik
+ * turda fark edildi ve çıkarıldı.
+ */
+const CONFUSABLE_TO_LATIN: Record<string, string> = {
+  "\u0430": "a", "\u0435": "e", "\u043e": "o", "\u0440": "p", "\u0441": "c",
+  "\u0443": "y", "\u0445": "x", "\u0456": "i", "\u0455": "s", "\u0458": "j",
+  "\u04bb": "h", "\u051b": "q", "\u0448": "w",
+  "\u0410": "A", "\u0415": "E", "\u041e": "O", "\u0420": "P",
+  "\u0421": "C", "\u0422": "T", "\u0425": "X", "\u041c": "M", "\u041d": "H",
+  "\u041a": "K", "\u0406": "I", "\u0405": "S", "\u0408": "J", "\u0412": "B",
+  "\u03bf": "o", "\u03b1": "a", "\u03bd": "v", "\u03c1": "p", "\u03c5": "u",
+  "\u0391": "A", "\u0392": "B", "\u0395": "E", "\u039f": "O", "\u03a1": "P",
+  "\u03a4": "T", "\u0397": "H", "\u039a": "K", "\u039c": "M", "\u039d": "N",
+};
+const CONFUSABLE_RE = new RegExp(`[${Object.keys(CONFUSABLE_TO_LATIN).join("")}]`, "gu");
+const LATIN_RE = /[A-Za-z]/;
+const CYRILLIC_GREEK_RE = /[\u0400-\u04FF\u0370-\u03FF]/;
+
+/**
+ * HOMOGLİF (görsel ikiz) SÖKEN EK ADAY (saldırgan denetimi, 08-01 — beşinci tur).
+ *
+ * AMPİRİK: "Ignore" kelimesinin TEK harfini Kiril ikiziyle değiştirmek (о U+043E,
+ * а U+0430, е U+0435, с U+0441, р U+0440, і U+0456, ѕ U+0455) injection vetosunu
+ * deliyor ve `passesAutoReplySafetyGate` TRUE dönüyordu — yani misafire OTOMATİK
+ * cevap gidiyordu. Ekranda fark GÖRÜNMEZ; kopyala-yapıştır tek adımdır.
+ *
+ * ⚠️ SÖKÜLMÜŞ BİÇİM BİR *EK ADAY*'dır, metnin YERİNE GEÇMEZ (`matchCandidates`).
+ * Bu ayrım kritiktir: `SAFETY_CRITICAL_WORDS` ve `KEYWORDS.complaint` KİRİL
+ * yazılı Rusça kelimeler barındırıyor. Sökülmüş biçim orijinalin YERİNE geçseydi
+ * gerçek bir Rusça acil ("В квартире пожар") ya da şikayet ("Отопление не
+ * работает") deterministik ağdan DÜŞERDİ — ampirik olarak ölçüldü (16 mesajlık
+ * Rusça külliyatta 2 GERÇEK tespit kayboluyordu). Ek aday olduğu için yalnızca
+ * eşleşme EKLER.
+ *
+ * ⚠️ YALNIZ KARMA YAZI SİSTEMİNDE koşar (metin hem Latin hem Kiril/Yunan harf
+ * içeriyorsa). Bu bir ÖNLEMDİR, ölçülmüş bir zarara karşı değil: 20 meşru mesaj +
+ * 16 Rusça mesajlık külliyatta koşulsuz sökme HİÇBİR yanlış-pozitif üretmedi.
+ * Yine de tutuluyor, çünkü saldırı tanımı gereği KARMA (Latin bir kalıbın içine
+ * tek Kiril harf sokulur) ve daha uzun bir Rusça metinde çarpışma İLKESEL olarak
+ * mümkün. Kapsamı dar tutmak bedava.
+ */
+function deconfuse(s: string): string {
+  if (!LATIN_RE.test(s) || !CYRILLIC_GREEK_RE.test(s)) return s;
+  return s.replace(CONFUSABLE_RE, (c) => CONFUSABLE_TO_LATIN[c] ?? c);
+}
+
+/**
+ * TEK HARF + AYIRAÇ dizilerini söken EK ADAY ("I.g.n.o.r.e", "i-g-n-o-r-e").
+ * En az DÖRT ardışık "harf+ayıraç" ister — doğal metinde pratikte görülmez
+ * (kısaltmalar "A.B.D." üç harftir), yani yanlış-pozitif yüzeyi çok dar.
+ */
+function collapseSeparated(s: string): string {
+  return s.replace(/(?:\p{L}[.\-_*·]){3,}\p{L}/gu, (run) => run.replace(/[.\-_*·]/g, ""));
+}
+
+/**
+ * Bir metnin KISITLAYICI eşleştirme için TÜM aday biçimleri. Her biri yalnızca
+ * EŞLEŞME EKLER; hiçbiri bir ağı zayıflatamaz (CLAUDE.md KATLAMA KURALI).
+ */
+function matchCandidates(norm: string): string[] {
+  const out = [norm];
+  for (const f of [stripCombining, deconfuse, collapseSeparated]) {
+    const v = f(norm);
+    if (v !== norm && !out.includes(v)) out.push(v);
+  }
+  // Kombinasyon: hem homoglif hem birleştirici işaret kullanan girdi.
+  const both = collapseSeparated(deconfuse(stripCombining(norm)));
+  if (!out.includes(both)) out.push(both);
+  return out;
+}
+
 /** Kelime a\u011f\u0131 e\u015fle\u015fmesi: metin, \u00dc\u00c7 katlamadan herhangi biriyle kelimeyi i\u00e7eriyor mu? */
 function includesAnyFold(message: string, words: readonly string[]): boolean {
-  const norm = normalizeForMatch(message);
-  const std = foldTurkishLower(norm);
-  const tr = foldTurkishLowerTr(norm);
-  const ascii = foldTurkishAscii(norm);
-  return words.some(
-    (w) => std.includes(w) || tr.includes(w) || ascii.includes(foldTurkishAscii(w)),
-  );
+  // Her ADAY biçim (görsel ikizler sökülmüş, birleştirici işaretler atılmış,
+  // ayıraçla parçalanmış) × ÜÇ katlama. Yalnızca EŞLEŞME EKLER.
+  for (const cand of matchCandidates(normalizeForMatch(message))) {
+    const std = foldTurkishLower(cand);
+    const tr = foldTurkishLowerTr(cand);
+    const ascii = foldTurkishAscii(cand);
+    if (words.some((w) => std.includes(w) || tr.includes(w) || ascii.includes(foldTurkishAscii(w)))) {
+      return true;
+    }
+  }
+  return false;
 }
 
 /** True when a bare "problem"/"sorun" survives after stripping negated phrases. */
@@ -611,10 +712,15 @@ export function detectPromptInjection(message: string): boolean {
   // Boşluk + sıfır-genişlik normalizasyonu ÖNCE (↑normalizeForMatch): kalıplar tek
   // ASCII boşlukla yazılı, metin normalize edilmezse çift boşluk / satır sonu /
   // U+00A0 hepsini deliyordu.
-  const norm = normalizeForMatch(message);
-  if (INJECTION_PATTERNS.some((re) => re.test(norm))) return true;
-  const ascii = foldTurkishAscii(norm);
-  return INJECTION_PATTERNS_ASCII.some((re) => re.test(ascii));
+  // ⚠️ ADAY BİÇİMLERİN HEPSİ (saldırgan denetimi, 08-01 — beşinci tur). Ampirik
+  // olarak ölçüldü: tek bir Kiril görsel-ikizi, tek bir birleştirici işaret, tam
+  // genişlikli harfler ya da "I.g.n.o.r.e" gibi ayıraçlı yazım vetoyu deliyor ve
+  // `passesAutoReplySafetyGate` TRUE dönüyordu (misafire OTO-GÖNDERİM izni).
+  for (const cand of matchCandidates(normalizeForMatch(message))) {
+    if (INJECTION_PATTERNS.some((re) => re.test(cand))) return true;
+    if (INJECTION_PATTERNS_ASCII.some((re) => re.test(foldTurkishAscii(cand)))) return true;
+  }
+  return false;
 }
 
 /**

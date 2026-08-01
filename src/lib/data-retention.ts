@@ -253,11 +253,26 @@ export async function anonymizeOldGuestData(now: Date = new Date()): Promise<{ a
   // the host deleted (Conversation.reservation is onDelete: SetNull). Age them by
   // their own lastMessageAt so the privacy promise ("veriler saklama süresi
   // sonunda anonimleştirilir") actually holds for every thread, not just linked ones.
+  // 🚨 `guestIdentifier != ANON_ID` KOŞULU KALDIRILDI (denetim, 08-01 — beşinci
+  // tur, ajan bulgusu). `ANON_ID` ("Misafir") aynı zamanda MEŞRU placeholder'dır:
+  // Hospitable misafir kaydını çözemezse `importThread` bu değeri yazar (iCal'de
+  // SUMMARY boşsa aynı şekilde). Kardeş modül bu çakışmayı zaten AÇIKÇA biliyor
+  // (`hospitable-sync.ts`: "ANON_ID is ALSO the legitimate no-name placeholder").
+  // Filtre "zaten temizlenmiş" varsayıyordu; sonuç, adı çözülememiş bir misafirin
+  // KENDİ mesaj gövdelerinin (telefon, adres, ne yazdıysa) 24 ay sonra da HİÇ
+  // anonimleşmemesiydi — gizlilik vaadinin doğrudan ihlali.
+  //
+  // Yerine İÇERİK koşulu: hâlâ temizlenmemiş bir inbound gövdesi olan yetimler.
+  // Bu hem doğru kümeyi seçer hem tamamen temizlenmiş satırları tekrar tekrar
+  // işlemeyi önler (eski filtrenin asıl amacı buydu).
   const orphanConvs = await prisma.conversation.findMany({
     where: {
       reservationId: null,
       lastMessageAt: { lt: cutoff },
-      guestIdentifier: { not: ANON_ID },
+      OR: [
+        { guestIdentifier: { not: ANON_ID } },
+        { messages: { some: { direction: "inbound", body: { not: ANON_BODY } } } },
+      ],
     },
     select: { id: true, guestIdentifier: true },
     take: RETENTION_BATCH,
@@ -322,6 +337,25 @@ export async function anonymizeOldGuestData(now: Date = new Date()): Promise<{ a
       prisma.conversation.updateMany({
         where: { id: { in: orphanIds } },
         data: { guestIdentifier: ANON_ID },
+      }),
+      // 🚨 OUTBOX YETİM DALINDA DA TEMİZLENİR (denetim, 08-01 — beşinci tur,
+      // ajan bulgusu). Rezervasyon dalı bunu yapıyordu, yetim dalı YAPMIYORDU.
+      // `MessageOutbox.reservationId` FK değil, yani host rezervasyonu silince
+      // konuşma yetim olur ama outbox satırı OLDUĞU GİBİ kalır: gövdesi misafire
+      // gidecek TAM METİN (adı dahil). `reactivateBlockedOutbox`'ın WHERE'inde
+      // YAŞ FİLTRESİ YOK → abonelik yenilendiğinde 2 yıllık bir mesaj gerçekten
+      // gönderilebiliyordu. Kapsam ve sıra rezervasyon dalıyla BİREBİR aynı.
+      prisma.messageOutbox.updateMany({
+        where: {
+          conversationId: { in: orphanIds },
+          status: { in: [...ERASABLE_STATUSES] },
+          claimedBy: null,
+        },
+        data: { body: ANON_BODY, status: "canceled" },
+      }),
+      prisma.messageOutbox.updateMany({
+        where: { conversationId: { in: orphanIds }, body: { not: ANON_BODY } },
+        data: { body: ANON_BODY },
       }),
       ...bodyRedactions.map((r) => prisma.message.update({ where: { id: r.id }, data: { body: r.body } })),
       ...taskRedactions.map((t) =>

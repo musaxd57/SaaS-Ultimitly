@@ -1933,6 +1933,18 @@ export async function applyChannelAutoReply(
           );
         });
     }
+    if (!isDefinitiveSendFailure(delivery.error)) {
+      // ⚠️ BELİRSİZ (timeout/5xx) — claim TUTULUR (asla kör tekrar POST'lanmaz) ama
+      // konuşmaya HİÇBİR ŞEY yazılmıyordu (denetim, 08-01 — beşinci tur, ajan
+      // bulgusu): thread "Cevaplandı" görünüyor, İÇİNDE tek bir giden balon YOK ve
+      // hiçbir açıklama da yok → host misafirin cevap aldığını sanıyordu.
+      // `delivery_unverified` metni tam da bunu dürüstçe söylüyor ("iletilmiş
+      // OLABİLİR, elle yanıtlamadan önce kanalı kontrol edin") ama üretimde
+      // ULAŞILAMAZ bir etiketti (yalnız kuyruk yolundan yazılıyordu).
+      await prisma.conversation
+        .updateMany({ where: { id: conversation.id }, data: { skippedReason: "delivery_unverified" } })
+        .catch((err) => void reportError("auto-reply-unverified-reason", err));
+    }
     return { sent: false, skippedReason: `send_failed: ${delivery.error ?? "unknown"}`, draft, ...meta };
   }
 

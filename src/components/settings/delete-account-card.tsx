@@ -59,7 +59,7 @@ export function DeleteAccountCard() {
           <li>Tüm misafir konuşmaları ve mesajları, görevler</li>
           <li>Bilgi tabanı, şablonlar, takvim bağlantıları, otomasyon kuralları</li>
           <li>Kullanıcı hesapları (şifre, 2FA, onay kayıtları), denetim kayıtları</li>
-          <li>Abonelik ve faturalar, Hospitable bağlantı bilgileri</li>
+          <li>Abonelik kaydı ve fatura geçmişi, Hospitable bağlantı bilgileri</li>
         </ul>
         {/* "Tüm verileriniz silinir" vaadinin TEK istisnası fatura mevzuatının
             saklattığı kişisel-verisiz finansal özet — bunu söylememek üstteki
@@ -68,6 +68,19 @@ export function DeleteAccountCard() {
         <p className="mt-2 text-muted-foreground">
           İstisna: ödeme kayıtlarının kişisel bilgilerden arındırılmış finansal özeti, fatura
           mevzuatı gereği saklanır.
+        </p>
+        {/* ⚠️ DÜRÜSTLÜK DÜZELTMESİ (denetim, 08-01 — beşinci tur, ajan bulgusu).
+            Liste "Abonelik ve faturalar" diyordu ve bu, aboneliğin de iptal
+            edildiği izlenimini veriyordu — oysa silme yolunda Paddle'a HİÇBİR
+            iptal çağrısı yok (`deleteAccountData` yalnız webhook redaksiyonu +
+            org silme yapar). Sonuç: hesabını silen ödeyen host kartından çekilmeye
+            DEVAM ediyor ve iptalin tek yolu olan düğme artık giremediği hesabın
+            içinde kalıyordu. Otomatik iptal para hot-path'idir → ürün kararı;
+            burada en azından gerçeği söylüyoruz. */}
+        <p className="mt-2 font-medium text-amber-700">
+          Önce aboneliğinizi iptal edin: hesabı silmek ödeme aboneliğinizi
+          <strong> durdurmaz</strong>. Faturalandırma → &quot;Aboneliği yönet&quot; bölümünden
+          iptal etmezseniz tahsilat devam eder.
         </p>
       </div>
 

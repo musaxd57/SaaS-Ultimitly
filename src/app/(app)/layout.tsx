@@ -79,7 +79,7 @@ export default async function AppLayout({ children }: { children: React.ReactNod
       }
     >
       {limited ? (
-        <LimitedModeBanner />
+        <LimitedModeBanner status={entitlement.status} />
       ) : entitlement.trialing && entitlement.trialDaysLeft != null ? (
         <TrialBanner daysLeft={entitlement.trialDaysLeft} />
       ) : null}
