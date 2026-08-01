@@ -272,8 +272,14 @@ async function applySubscriptionEvent(
       if (claimed.count === 1) {
         // ⚠️ 30 GÜNLÜK PENCERE — sonucu okumadan claim etmek, tek bir e-posta
         // hatasında operatörü BİR AY sessiz bırakırdı (denetim, 08-01).
+        // ⚠️ CONTEXT PENCERE ANAHTARIYLA AYNI GRANÜLERLİKTE OLMALI (denetim,
+        // 08-01 — üçüncü tur). Sabit bir context, `reportError`'un 10 dakikalık
+        // throttle'ını pencereden KABA yapıyordu: ikinci bir org (ya da ikinci
+        // bir fiyat) 10 dk içinde gelirse `throttled:true` döner, geri alma
+        // bilinçli olarak atlanır ve o 30 GÜNLÜK pencere HİÇ e-posta gitmeden
+        // yanardı — bu düzeltmenin kendi gerekçesi olan sessizlik geri gelirdi.
         const outcome = await reportError(
-          "paddle-webhook unmapped-price",
+          `paddle-webhook unmapped-price org=${organizationId} price=${unmappedPriceId}`,
           new Error(
             `org=${organizationId} priceId=${unmappedPriceId} — Paddle fiyatı env haritasında YOK; ` +
               `abonelik durumu yazılıyor ama plan kodu ESKİ değerinde kalıyor (satın alınan plan uygulanmıyor).`,

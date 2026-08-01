@@ -1094,6 +1094,94 @@ describe("applyChannelAutoReply — Durable Outbox (flag ON, #5/#6)", () => {
     expect(conv?.autoReplyHoldUntil).toBeNull();
   });
 
+  // -------------------------------------------------------------------------
+  // KALICI GÖNDERİM HATASI — KUYRUK YOLU KONUŞMAYA HİÇBİR ŞEY YAZMIYORDU.
+  // (Denetim 08-01, üçüncü tur — ajan bulgusu.)
+  //
+  // Satır içi yol kalıcı hatada `skippedReason` + `autoReplyHoldUntil` yazıyor.
+  // Kuyruk yolunun terminal geçişlerinin (`failed`/`blocked`/`review`) HİÇBİRİ
+  // konuşmaya dokunmuyordu → konuşma `status:"new"` + `skippedReason:null` kalır,
+  // taslak mesaj silinmediği için sonraki her geçiş `already_answered`'da durur:
+  // misafir KALICI cevapsız, host ekranında sebep YOK, alarm YOK.
+  // -------------------------------------------------------------------------
+  it("402 (abonelik pasif): kuyruk satırı blocked olunca konuşmaya SEBEP + geri çekilme yazılır", async () => {
+    const { conversationId } = await seed();
+    await applyChannelAutoReply(conversationId);
+
+    const deliver = vi.fn().mockResolvedValue({ ok: false, status: 402, error: "HTTP 402 - subscription not active" });
+    await drainOutboxOnce({ send: deliver, tokenFor: async () => "test-token" });
+
+    expect((await prisma.messageOutbox.findFirst({ where: { conversationId } }))?.status).toBe("blocked");
+    const conv = await prisma.conversation.findUnique({ where: { id: conversationId } });
+    expect(conv?.skippedReason).toBe("subscription_inactive"); // ⬅️ ARIZADA null
+    expect(conv?.autoReplyHoldUntil).toBeInstanceOf(Date);
+    expect(conv!.autoReplyHoldUntil!.getTime()).toBeGreaterThan(Date.now());
+  });
+
+  it("TUZAK: thread ARTIK 'new' değilse sebep yazılmaz (durum kararı ezilmez)", async () => {
+    // ⚠️ Burada bilerek "waiting" kullanılıyor, "problem" DEĞİL: "problem"/"closed"
+    // thread'i `aiSendVeto` daha ÖNCE iptal eder (`escalated_or_closed`) ve satır
+    // 402'ye hiç ulaşmaz — yani o senaryo bu kapıyı SINAMAZ (ilk yazımda öyleydi;
+    // mutasyon testi kapıyı kaldırdığında test yine yeşil kaldı ve yakalandı).
+    // "waiting" veto edilmeyen ama "new" de olmayan tek durum → kapının kendisi.
+    const { conversationId } = await seed();
+    await applyChannelAutoReply(conversationId);
+    await prisma.conversation.update({ where: { id: conversationId }, data: { status: "waiting" } });
+
+    const deliver = vi.fn().mockResolvedValue({ ok: false, status: 402, error: "HTTP 402 - subscription not active" });
+    await drainOutboxOnce({ send: deliver, tokenFor: async () => "test-token" });
+
+    expect((await prisma.messageOutbox.findFirst({ where: { conversationId } }))?.status).toBe("blocked");
+    const conv = await prisma.conversation.findUnique({ where: { id: conversationId } });
+    expect(conv?.status).toBe("waiting"); // durum kararı korunur
+    expect(conv?.skippedReason).toBeNull(); // ⬅️ KAPI KALKARSA burası dolar
+    expect(conv?.autoReplyHoldUntil).toBeNull();
+  });
+
+  it("BAŞARILI teslimde sebep/geri çekilme YAZILMAZ (yanlış-pozitif pini)", async () => {
+    const { conversationId } = await seed();
+    await applyChannelAutoReply(conversationId);
+    const deliver = vi.fn().mockResolvedValue({ ok: true, providerMessageId: "p-ok" });
+    await drainOutboxOnce({ send: deliver, tokenFor: async () => "test-token" });
+
+    const conv = await prisma.conversation.findUnique({ where: { id: conversationId } });
+    expect(conv?.status).toBe("answered");
+    expect(conv?.skippedReason).toBeNull();
+    expect(conv?.autoReplyHoldUntil).toBeNull();
+  });
+
+  // -------------------------------------------------------------------------
+  // `already_queued` DAMGALANMIYORDU → SONSUZ MODELLEME (denetim 08-01, 3. tur).
+  //
+  // `enqueueOutbound` dedupe'u `(org, idempotencyKey)` üzerinden çalışır ve satırın
+  // DURUMUNA bakmaz: satır bir kez terminal olduğunda anahtar SONSUZA KADAR tutulur.
+  // Damga olmadan konuşma her 2 dakikada bir yeniden modelleniyor, her turda bir
+  // model çağrısı + bir kota birimi boşa yanıyordu.
+  // -------------------------------------------------------------------------
+  it("already_queued DAMGALANIR: aynı mesaj bir daha modellenmez", async () => {
+    const { orgId, conversationId } = await seed();
+    await applyChannelAutoReply(conversationId);
+    // Satırı terminal yap ve taslağı sil: konuşma yeniden aday olur ve enqueue
+    // dedupe'a düşer (gerçek arıza dizisi).
+    const row = await prisma.messageOutbox.findFirstOrThrow({ where: { conversationId } });
+    await prisma.messageOutbox.update({ where: { id: row.id }, data: { status: "failed" } });
+    await prisma.message.delete({ where: { id: row.messageId! } });
+    await prisma.conversation.update({
+      where: { id: conversationId },
+      data: { autoReplyAttemptedAt: null, autoReplyHoldUntil: null, status: "new" },
+    });
+
+    const first = await runDueChannelAutoReplies(orgId);
+    expect(first.sent).toBe(0);
+    const conv = await prisma.conversation.findUnique({ where: { id: conversationId } });
+    expect(conv?.autoReplyAttemptedAt).not.toBeNull(); // ⬅️ ARIZADA null kalırdı
+
+    // İkinci geçiş konuşmayı ADAY olarak bile GÖRMEZ → model çağrısı YOK.
+    mockSuggest.mockClear();
+    await runDueChannelAutoReplies(orgId);
+    expect(mockSuggest).not.toHaveBeenCalled();
+  });
+
   it("the safety gate still runs BEFORE the outbox: a complaint never enqueues", async () => {
     // Guest words signal a complaint; the model mislabels it benign. The keyword
     // cross-check must veto — nothing is queued and nothing is sent.

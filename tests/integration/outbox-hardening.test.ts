@@ -109,6 +109,68 @@ describe("outbox sertleştirme — state gate + delivery-effect healer", () => {
     expect(noSend).not.toHaveBeenCalled(); // healer asla provider'a gitmez
   });
 
+  // -------------------------------------------------------------------------
+  // HEALER — DEVİR PENCERESİ (human_request) ÜÇÜNCÜ TESLİMAT ETKİSİ.
+  // (Denetim 08-01, üçüncü tur — İKİ ajan bağımsız buldu.)
+  //
+  // Devir hold'u bugün enqueue'den teslimata taşındı; ama teslimat etkileri
+  // ONARICISINA bağlanmamıştı. `settle("sent")` ile yan etki arasında bir çökme
+  // olursa mesaj TESLİM EDİLMİŞ ama AI hiç susturulmamış olurdu → host devralmışken
+  // AI 12 saat araya girebilir. Eski (enqueue'de yazan) kodda bu boşluk YOKTU.
+  // -------------------------------------------------------------------------
+  it("HEALER: kaçmış DEVİR penceresi iyileşir; pencere GERÇEK teslim anından hesaplanır", async () => {
+    const { orgId, propertyId } = await seedOrgProp();
+    const mk = async (gid: string, sentAt: Date, intent: string) => {
+      const c = await prisma.conversation.create({
+        data: {
+          propertyId,
+          guestIdentifier: gid,
+          channel: "airbnb",
+          status: "answered",
+          externalReservationId: `res-${gid}`,
+        },
+      });
+      const m = await prisma.message.create({
+        data: {
+          conversationId: c.id,
+          direction: "outbound",
+          authorType: "ai",
+          senderName: "GuestOps AI",
+          body: "x",
+          aiIntent: intent,
+        },
+      });
+      await prisma.messageOutbox.create({
+        data: {
+          organizationId: orgId, conversationId: c.id, messageId: m.id, channel: "airbnb",
+          externalReservationId: `res-${gid}`, messageType: "ai", body: "x",
+          idempotencyKey: `hh-${gid}`, status: "sent", sentAt,
+        },
+      });
+      return c.id;
+    };
+    const HOUR = 60 * 60 * 1000;
+    // (a) 1 saat önce teslim edilmiş devir → 12 saatlik pencere HÂLÂ açık → kurulur.
+    const fresh = await mk("hh1", new Date(Date.now() - HOUR), "human_request");
+    // (b) 20 saat önce teslim edilmiş devir → pencere ZATEN dolmuş → yazılmaz.
+    //     (`now` kullanılsaydı sessizlik haksız yere 12 saat UZARDI.)
+    const stale = await mk("hh2", new Date(Date.now() - 20 * HOUR), "human_request");
+    // (c) devir OLMAYAN normal yanıt → hiçbir pencere kurulmaz.
+    const plain = await mk("hh3", new Date(Date.now() - HOUR), "wifi");
+
+    await drainOutboxOnce({ send: noSend, tokenFor: async () => "t" });
+
+    const a = await prisma.conversation.findUniqueOrThrow({ where: { id: fresh } });
+    expect(a.autoReplyHoldUntil).toBeInstanceOf(Date); // ⬅️ ARIZADA null kalırdı
+    expect(a.autoReplyHoldUntil!.getTime()).toBeGreaterThan(Date.now());
+    // Pencere teslim anına çapalı: ~11 saat kaldı, 12 DEĞİL.
+    expect(a.autoReplyHoldUntil!.getTime()).toBeLessThan(Date.now() + 11.5 * HOUR);
+
+    expect((await prisma.conversation.findUniqueOrThrow({ where: { id: stale } })).autoReplyHoldUntil).toBeNull();
+    expect((await prisma.conversation.findUniqueOrThrow({ where: { id: plain } })).autoReplyHoldUntil).toBeNull();
+    expect(noSend).not.toHaveBeenCalled();
+  });
+
   it("HEALER (Codex r2 #1): teslimden SONRA yeni inbound geldiyse thread answered'a EZİLMEZ; eski inbound engel değildir", async () => {
     const { orgId, propertyId } = await seedOrgProp();
     const sentAt = new Date(Date.now() - 60 * 60 * 1000);

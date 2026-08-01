@@ -195,3 +195,47 @@ export function backoffMs(attemptCount: number, seed: string): number {
 export function attemptsExhausted(attemptCount: number): boolean {
   return attemptCount >= OUTBOX_MAX_ATTEMPTS;
 }
+
+// ---------------------------------------------------------------------------
+// GÖNDERİM HATASI GERİ ÇEKİLMESİ — İKİ YOLUN ORTAK KAYNAĞI.
+//
+// Bu iki sabit önce `automation.ts`'te yaşıyordu ve YALNIZ satır içi yol
+// kullanıyordu. Kuyruk yolu kalıcı bir hatada konuşmaya HİÇBİR ŞEY yazmıyordu
+// (denetim, 08-01 — üçüncü tur, ajan bulgusu): konuşma `status:"new"` +
+// `skippedReason:null` kalıyor, taslak mesaj silinmediği için sonraki her geçiş
+// `already_answered`'da duruyordu → misafir KALICI cevapsız, host ekranında
+// hiçbir sebep yok, alarm yok.
+//
+// Sabitleri buraya (yaprak modüle) taşımak, worker'ın `automation.ts`'i import
+// etmesini — ve bir import döngüsünü — gerektirmeden iki yolu AYNI değerlere
+// bağlıyor. `automation.ts` bunları yeniden ihraç ediyor (mevcut API korunur).
+// ---------------------------------------------------------------------------
+
+/**
+ * Kalıcı gönderim hatasında oto-yanıt geri çekilmesi. DAMGA DEĞİL GERİ ÇEKİLME:
+ * süre dolunca konuşma kendiliğinden yeniden denenir, yani hiçbir misafir mesajı
+ * kalıcı olarak cevapsız bırakılmaz. Amaç yalnız SIKLIĞI düşürmek.
+ *
+ * 4 saat: 402 (abonelik pasif) / 401-403 (yetki) / 404-422 (istek reddedildi).
+ * Hepsi host bir şey düzeltene kadar sürer; 2 dakikada bir denemenin faydası yok.
+ */
+export const SEND_FAILURE_HOLD_MS = 4 * 60 * 60 * 1000;
+/** 429: sağlayıcı yoğun — gerçekten geçici, kısa beklet. */
+export const SEND_RATE_LIMIT_HOLD_MS = 15 * 60 * 1000;
+
+/**
+ * Gönderim hatası sınıfı → konuşmaya yazılacak SEBEP KODU.
+ * ⚠️ Sağlayıcının HAM hata metni ASLA DB'ye yazılmaz (misafir/rezervasyon
+ * ayrıntısı taşıyabilir); host ekranda `SKIP_REASON_LABELS`'tan okunur bir
+ * açıklama görür.
+ */
+export function sendFailureReason(kind: SendResultKind): string {
+  if (kind === "blocked") return "subscription_inactive";
+  if (kind === "rate_limited") return "rate_limited";
+  return "send_failed";
+}
+
+/** Sebep koduna karşılık gelen geri çekilme süresi (ms). */
+export function sendFailureHoldMs(kind: SendResultKind): number {
+  return kind === "rate_limited" ? SEND_RATE_LIMIT_HOLD_MS : SEND_FAILURE_HOLD_MS;
+}

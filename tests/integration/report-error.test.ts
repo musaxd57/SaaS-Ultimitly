@@ -47,20 +47,41 @@ describe("reportError", () => {
     expect(mockSend).not.toHaveBeenCalled();
   });
 
-  it("SONUCU DÖNDÜRÜR: gönderim başarısızsa notified:false ve throttle damgası TÜKENMEZ", async () => {
-    vi.stubEnv("ERROR_ALERT_EMAIL", "ops@example.com");
-    mockSend.mockResolvedValue({ ok: false, error: "provider 500" });
-    await expect(reportError("ctx-fail", new Error("boom"))).resolves.toEqual({
-      notified: false,
-      throttled: false,
-      configured: true,
-    });
-    // Damga tüketilmediği için BİR SONRAKİ hata yeniden dener (sessiz kayıp yok).
-    mockSend.mockResolvedValue({ ok: true });
-    await expect(reportError("ctx-fail", new Error("boom2"))).resolves.toMatchObject({
-      notified: true,
-    });
-    expect(mockSend).toHaveBeenCalledTimes(2);
+  it("SONUCU DÖNDÜRÜR: gönderim başarısızsa notified:false, damga ~1 dk GERİYE çekilir", async () => {
+    // ⚠️ Damga SİLİNMEZ, GERİYE ÇEKİLİR (denetim 08-01, üçüncü tur — ajan bulgusu).
+    // Silmek 10 dakikalık kovayı tam da SAĞLAYICI BOZUKKEN devre dışı bırakıyordu;
+    // oysa kovanın var olma sebebi bu. Kanıt: `outbox/worker.ts signalOutboxStuck`
+    // SABİT bir context kullanır ("outbox-blocked") ve tek drain 20 satıra kadar
+    // çıkar → damga her başarısızlıkta silinseydi TEK drain 20 e-posta denemesi
+    // üretir, her biri 12-15 sn timeout ile senkron içinde bloklardı.
+    // Geri çekme hem tekrarı korur hem tavanı ≤1/dk yapar.
+    vi.useFakeTimers();
+    try {
+      vi.setSystemTime(new Date("2026-08-01T10:00:00Z"));
+      vi.stubEnv("ERROR_ALERT_EMAIL", "ops@example.com");
+      mockSend.mockResolvedValue({ ok: false, error: "provider 500" });
+      await expect(reportError("ctx-fail", new Error("boom"))).resolves.toEqual({
+        notified: false,
+        throttled: false,
+        configured: true,
+      });
+
+      // HEMEN ardından gelen hata SEL ÜRETMEZ (kova hâlâ çalışıyor).
+      await expect(reportError("ctx-fail", new Error("boom2"))).resolves.toMatchObject({
+        throttled: true,
+      });
+      expect(mockSend).toHaveBeenCalledTimes(1);
+
+      // ~1 dakika sonra yeniden denenir (sessiz kayıp yok).
+      vi.setSystemTime(new Date("2026-08-01T10:01:01Z"));
+      mockSend.mockResolvedValue({ ok: true });
+      await expect(reportError("ctx-fail", new Error("boom3"))).resolves.toMatchObject({
+        notified: true,
+      });
+      expect(mockSend).toHaveBeenCalledTimes(2);
+    } finally {
+      vi.useRealTimers();
+    }
   });
 
   it("throttled hâli AYRI raporlanır (çağıran kendi penceresini geri almamalı)", async () => {

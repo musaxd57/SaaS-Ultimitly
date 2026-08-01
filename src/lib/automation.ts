@@ -27,7 +27,11 @@ import { sendOnChannel, isDefinitiveSendFailure } from "@/lib/messaging";
 import { createHash } from "crypto";
 import { durableOutboxEnabled } from "@/lib/outbox/flag";
 import { enqueueOutbound, enqueueProactive } from "@/lib/outbox/enqueue";
-import { classifySendResult } from "@/lib/outbox/state";
+import {
+  classifySendResult,
+  SEND_FAILURE_HOLD_MS,
+  SEND_RATE_LIMIT_HOLD_MS,
+} from "@/lib/outbox/state";
 import { getOrgHospitableToken } from "@/lib/hospitable-credentials";
 import { getAdjacency } from "@/lib/turnover";
 import { createOperationalTaskFromMessage } from "@/lib/tasks/create";
@@ -1049,9 +1053,11 @@ export interface ChannelAutoReplyOutcome {
  * 4 saat: 402 (abonelik pasif) / 401-403 (yetki) / 404-422 (istek reddedildi).
  * Hepsi host bir şey düzeltene kadar sürer; 2 dakikada bir denemenin faydası yok.
  */
-export const SEND_FAILURE_HOLD_MS = 4 * 60 * 60 * 1000;
-/** 429: sağlayıcı yoğun — gerçekten geçici, kısa beklet. */
-export const SEND_RATE_LIMIT_HOLD_MS = 15 * 60 * 1000;
+// ⚠️ TANIM `outbox/state.ts`'e TAŞINDI (denetim, 08-01 — üçüncü tur): kuyruk
+// yolu da artık aynı geri çekilmeyi uyguluyor ve worker `automation.ts`'i import
+// edemez (döngü). Buradan yeniden ihraç ediliyor — mevcut çağrı yerleri ve
+// testler değişmedi.
+export { SEND_FAILURE_HOLD_MS, SEND_RATE_LIMIT_HOLD_MS } from "@/lib/outbox/state";
 
 /**
  * Evaluate (and unless dryRun, deliver) an AI auto-reply for a single channel
@@ -2223,7 +2229,17 @@ export async function runDueChannelAutoReplies(
       // sıranın başına oturur ve her turda aday slotu yer (denetim, 08-01).
       // Misafir YENİ bir mesaj yazarsa `lastMessageAt` damgayı geçer ve konuşma
       // kendiliğinden yeniden uygun olur — yani kayıp değil.
-      outcome.skippedReason === "reservation_ended"
+      outcome.skippedReason === "reservation_ended" ||
+      // ⚠️ KUYRUK YOLU SONSUZ MODELLEME (denetim, 08-01 — üçüncü tur, ajan bulgusu).
+      // `already_queued` = bu TAM inbound mesaj için dayanıklı bir gönderim-niyeti
+      // ZATEN var. Damgalanmadığı için konuşma her 2 dakikada bir yeniden
+      // modelleniyordu: `enqueueOutbound` dedupe'u `(org, idempotencyKey)` üzerinden
+      // çalışır ve satırın DURUMUNA bakmaz → satır bir kez `failed`/`canceled`
+      // olduğunda anahtar SONSUZA KADAR tutulur, yani her tur bir model çağrısı +
+      // bir kota birimi boşa yanardı (kalıcı 4xx döngüsünün kuyruk yolundaki eşi).
+      // Bu mesaj için KALICI bir hayır: misafir YENİ mesaj yazarsa `lastMessageAt`
+      // damgayı geçer, anahtar da değişir → konuşma kendiliğinden yeniden uygun olur.
+      outcome.skippedReason === "already_queued"
     ) {
       // Deterministic non-send for this message → don't re-model it next tick.
       // Transient reasons (send_failed / not_connected / already_claimed) are NOT

@@ -123,6 +123,23 @@ export default async function SentPage({
     OR: [{ authorType: "ai" }, { authorType: null, senderName: "GuestOps AI" }],
     conversation: { property: { organizationId: orgId }, channel: { not: "chat" } },
   };
+  // ⚠️ TESLİM EDİLMEMİŞ KUYRUK TASLAKLARI "GÖNDERİLDİ" SAYILMAZ (denetim, 08-01 —
+  // üçüncü tur, ajan bulgusu). Dayanıklı kuyruk yolunda `Message` satırı ENQUEUE
+  // anında yazılır; gönderim veto edilir / kalıcı olarak başarısız olursa satır
+  // DURUR ama misafire HİÇBİR ŞEY ULAŞMAMIŞTIR. Bu ekran outbox durumunu hiç
+  // okumadığı için host'a "gönderildi" diye gösteriyordu — oysa `reports.ts` aynı
+  // sayımdan bu satırları AÇIKÇA ayıklıyor ("Drop undelivered outbox drafts"),
+  // yani dışlama zaten ÜRÜN KARARI; eksik olan tek yüzey burasıydı. İki ekran
+  // aynı soruya farklı cevap veriyordu.
+  // ⚠️ Bayrak KAPALIYKEN tablo boş → sorgu boş liste döner, davranış birebir aynı.
+  const undelivered = await prisma.messageOutbox.findMany({
+    where: { organizationId: orgId, status: { not: "sent" }, messageId: { not: null } },
+    select: { messageId: true },
+  });
+  const undeliveredIds = undelivered
+    .map((r) => r.messageId)
+    .filter((id): id is string => Boolean(id));
+  if (undeliveredIds.length) replyWhere.id = { notIn: undeliveredIds };
   const lifecycleWhere = (kind: LifecycleKind): Prisma.ReservationWhereInput => ({
     [SENT_AT_COLUMN[kind]]: { not: null },
     property: { organizationId: orgId },

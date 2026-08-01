@@ -383,16 +383,24 @@ export async function syncHospitable(
               //    BİR KEZ; çalkalama (her turda yaz-sil) yapısal olarak imkânsız.
               // ⚠️ Yalnız sebebi ÇİTİN KENDİ sebebi olan satırda temizlenir; gerçek
               //    bir sebep (`low_confidence_or_risky`, `escalated_to_human`) ASLA ezilmez.
-              const unfence =
-                existingConv.skippedReason === "reservation_ended" && !isTerminalStay(reservation);
+              // ⚠️ İKİ AYRI YAZMA, ÇÜNKÜ İKİ AYRI KOŞUL (denetim, 08-01 — üçüncü
+              // tur, ajan bulgusu). Bağ yazması `reservationId: null` ile atomik;
+              // ama sebep temizliğini OKUNAN değere göre yapmak yarış açıyordu:
+              // okuma ile yazma arasında `applyChannelAutoReply` (bu kilidin
+              // DIŞINDA koşar) gerçek bir sebep yazarsa — `escalated_to_human`,
+              // `low_confidence_or_risky` — sessizce silinirdi. Sebep koşulu artık
+              // WHERE'de: temizlik ancak satır HÂLÂ çitin kendi sebebini
+              // taşıyorsa gerçekleşir.
               await prisma.conversation.updateMany({
-                // `reservationId: null` koşulu geçişin kendisini atomik yapar.
                 where: { id: existingConv.id, reservationId: null },
-                data: {
-                  reservationId: localReservationId,
-                  ...(unfence ? { autoReplyAttemptedAt: null, skippedReason: null } : {}),
-                },
+                data: { reservationId: localReservationId },
               });
+              if (!isTerminalStay(reservation)) {
+                await prisma.conversation.updateMany({
+                  where: { id: existingConv.id, skippedReason: "reservation_ended" },
+                  data: { autoReplyAttemptedAt: null, skippedReason: null },
+                });
+              }
             } else if (
               !localReservationId &&
               !existingConv.reservationId &&
@@ -1114,24 +1122,30 @@ export async function importThread(
         // Backfill the reservation link only when it's currently empty — never
         // overwrite an existing (possibly human-set) link.
         //
-        // ⚠️ ÇİTİN GERİ ALINMASI (denetim, 08-01 — üçüncü tur). Yukarıdaki
-        // atlama-dalıyla AYNI kusur bu yolda da vardı ve BURASI DAHA KOLAY
-        // TETİKLENİR: yeni mesaj gelen her thread buradan geçer.
-        // `fenceUnlinkedTerminalStay` damgayı BAĞSIZ + ölü konaklamaya basar;
-        // bağ kurulduğunda konaklama artık ölü DEĞİLSE damganın kalması misafiri
-        // KALICI cevapsız bırakır ve host AKTİF rezervasyonda "Konaklama bitti"
-        // okur. Yalnız bağ GEÇİŞİNDE (null→X) koşar → ömürde en fazla bir kez;
-        // yalnız çitin KENDİ sebebi temizlenir, gerçek sebepler ASLA ezilmez.
         ...(localReservationId && !existing.reservationId
-          ? {
-              reservationId: localReservationId,
-              ...(existing.skippedReason === "reservation_ended" && !isTerminalStay(reservation)
-                ? { autoReplyAttemptedAt: null, skippedReason: null }
-                : {}),
-            }
+          ? { reservationId: localReservationId }
           : {}),
       },
     });
+    // ⚠️ ÇİTİN GERİ ALINMASI (denetim, 08-01 — üçüncü tur). Yukarıdaki
+    // atlama-dalıyla AYNI kusur bu yolda da vardı ve BURASI DAHA KOLAY
+    // TETİKLENİR: yeni mesaj gelen her thread buradan geçer.
+    // `fenceUnlinkedTerminalStay` damgayı BAĞSIZ + ölü konaklamaya basar; bağ
+    // kurulduğunda konaklama artık ölü DEĞİLSE damganın kalması misafiri KALICI
+    // cevapsız bırakır ve host AKTİF rezervasyonda "Konaklama bitti" okur.
+    //
+    // ⚠️ AYRI ve KOŞULLU YAZMA: sebep temizliğini OKUNAN `existing.skippedReason`
+    // değerine göre yapmak yarış açıyordu — okuma ile yazma arasında
+    // `applyChannelAutoReply` (bu kilidin DIŞINDA koşar) gerçek bir sebep
+    // yazarsa (`escalated_to_human`, `low_confidence_or_risky`) sessizce
+    // silinirdi. Koşul artık WHERE'de. Yalnız bağ GEÇİŞİNDE koşar → ömürde en
+    // fazla bir kez; çalkalama yapısal olarak imkânsız.
+    if (localReservationId && !existing.reservationId && !isTerminalStay(reservation)) {
+      await db.conversation.updateMany({
+        where: { id: existing.id, skippedReason: "reservation_ended" },
+        data: { autoReplyAttemptedAt: null, skippedReason: null },
+      });
+    }
     conversationId = existing.id;
   }
 

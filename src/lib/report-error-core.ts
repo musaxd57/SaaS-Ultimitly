@@ -88,11 +88,20 @@ export async function reportError(context: string, err: unknown): Promise<Report
         detail,
       ).slice(0, 4000)}</pre>`,
     );
-    // Gitmediyse throttle damgasını da tüketme: bir sonraki hata yeniden dener.
-    if (!res.ok) lastEmailAt.delete(context);
+    // Gitmediyse damgayı SİLME, GERİYE ÇEK: bir sonraki hata ~1 dk sonra yeniden
+    // dener ama SEL ÜRETMEZ.
+    //
+    // ⚠️ Damgayı silmek (ilk yazım) bu 10 dakikalık kovayı tam da SAĞLAYICI
+    // BOZUKKEN devre dışı bırakıyordu — oysa kovanın var olma sebebi bu. Kanıt:
+    // `outbox/worker.ts signalOutboxStuck` SABİT bir context kullanıyor
+    // ("outbox-blocked") ve tek drain 20 satıra kadar çıkabiliyor; damga her
+    // başarısızlıkta silinseydi tek bir drain 20 e-posta DENEMESİ + 20 Sentry
+    // olayı üretir, üstelik her deneme 12-15 sn timeout ile senkron içinde
+    // bloklardı. Geri çekme hem tekrarı korur hem tavanı ≤1/dk'ya indirir.
+    if (!res.ok) lastEmailAt.set(context, now - (EMAIL_THROTTLE_MS - 60_000));
     return { notified: res.ok, throttled: false, configured: true };
   } catch {
-    lastEmailAt.delete(context);
+    lastEmailAt.set(context, now - (EMAIL_THROTTLE_MS - 60_000));
     return { notified: false, throttled: false, configured: true }; // Reporting must never throw.
   }
 }

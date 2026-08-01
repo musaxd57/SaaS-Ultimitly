@@ -12,7 +12,10 @@ import {
   attemptsExhausted,
   backoffMs,
   classifySendResult,
+  sendFailureHoldMs,
+  sendFailureReason,
   type OutboxStatus,
+  type SendResultKind,
   canTransition,
   isOutboxStatus,
 } from "./state";
@@ -502,6 +505,49 @@ async function applyDeliveryEffect(row: OutboxRow, now: Date): Promise<void> {
 }
 
 /**
+ * KALICI GÖNDERİM HATASI → KONUŞMAYA SEBEP + GERİ ÇEKİLME YAZ.
+ * (Derin denetim, 2026-08-01 — üçüncü tur, ajan bulgusu.)
+ *
+ * Satır içi yol kalıcı bir hatada konuşmayı `status:"new"` + sebep kodu +
+ * `autoReplyHoldUntil` ile işaretliyordu. Kuyruk yolu ise terminal geçişlerin
+ * (`failed`/`blocked`/`review`) HİÇBİRİNDE konuşmaya dokunmuyordu. Sonuç:
+ *   · konuşma `status:"new"` + `skippedReason:null` kalır,
+ *   · taslak `Message` silinmediği için sonraki her geçiş `already_answered`'da
+ *     durur → misafir KALICI cevapsız,
+ *   · host inbox'ta HİÇBİR sebep görmez ve hiçbir alarm düşmez
+ *     (`signalOutboxStuck` AI satırında failed/review'de bilinçli sessiz).
+ *
+ * ⚠️ MESAJ KAYBOLMAZ: satır kuyrukta durur ve `/sent/queue` ekranından
+ * tenant-bağlı yeniden denenebilir. Buradaki yazma yalnız GÖRÜNÜRLÜK + geri
+ * çekilmedir — konuşmayı yeniden aday yapmak YANLIŞ olurdu, çünkü
+ * `enqueueOutbound` aynı idempotency anahtarını dedupe eder (`already_queued`)
+ * ve her tur boşuna bir model çağrısı + kota birimi yakardı.
+ *
+ * ⚠️ Yalnız YANIT satırları: yaşam-döngüsü satırlarının konuşması yok,
+ * `holding_ack` thread'i bilerek "problem"da tutulur.
+ * ⚠️ `updateMany` + `status: "new"` koşulu: host araya girip thread'i "problem"a
+ * ya da "closed"a taşıdıysa o karar EZİLMEZ.
+ */
+async function applyFailureEffect(row: OutboxRow, now: Date, kind: SendResultKind): Promise<void> {
+  const type = row.messageType;
+  if (type && type !== "ai" && type !== "manual") return;
+  if (!row.conversationId) return;
+  try {
+    await prisma.conversation.updateMany({
+      where: { id: row.conversationId, status: "new" },
+      data: {
+        skippedReason: sendFailureReason(kind),
+        autoReplyHoldUntil: new Date(now.getTime() + sendFailureHoldMs(kind)),
+      },
+    });
+  } catch (err) {
+    // Sessiz `catch {}` bu repoda belgeli anti-desen: sebep yazılamazsa host
+    // yine sessiz kalır — iz bırakmadan geçmemeli.
+    void reportError("outbox-failure-effect", err);
+  }
+}
+
+/**
  * Emit a SECRET-FREE operational breadcrumb for a stuck outbox row: tenant + outbox id +
  * messageType + state ONLY — never the body or any guest data. Best-effort; never throws. Fires
  * at most once per row transition (each state below is entered under a claim guard, and `blocked`
@@ -631,7 +677,10 @@ async function processOne(row: OutboxRow, token: string, deps: Required<Pick<Dra
       const done = await settle(row, token, "reconciling", { status: "review", claimedBy: null, claimExpiresAt: null });
       // AMBIGUOUS → parked for review; *SentAt is NOT stamped (unverified — never a false "sent").
       // The flag-OFF sender won't re-send it because it fences on this outbox row (see automation.ts).
-      if (done) await signalOutboxStuck(row, "review");
+      if (done) {
+        await signalOutboxStuck(row, "review");
+        await applyFailureEffect(row, now, "definitive_failure");
+      }
       acc.review++;
       return;
     }
@@ -687,7 +736,10 @@ async function processOne(row: OutboxRow, token: string, deps: Required<Pick<Dra
       claimedBy: null,
       claimExpiresAt: null,
     });
-    if (done) await signalOutboxStuck(row, "blocked");
+    if (done) {
+      await signalOutboxStuck(row, "blocked");
+      await applyFailureEffect(row, now, "blocked");
+    }
     acc.blocked++;
     return;
   }
@@ -700,7 +752,10 @@ async function processOne(row: OutboxRow, token: string, deps: Required<Pick<Dra
   if (kind === "definitive_failure") {
     if (attemptsExhausted(row.attemptCount)) {
       const done = await settle(row, token, "sending", { status: "failed", lastErrorKind: "definitive_failure", lastErrorCode: errorCode(outcome.error), claimedBy: null, claimExpiresAt: null });
-      if (done) await signalOutboxStuck(row, "failed");
+      if (done) {
+        await signalOutboxStuck(row, "failed");
+        await applyFailureEffect(row, now, "definitive_failure");
+      }
       acc.failed++;
     } else {
       await settle(row, token, "sending", { status: "pending", availableAt: new Date(now.getTime() + backoffMs(row.attemptCount, row.id)), lastErrorKind: "definitive_failure", lastErrorCode: errorCode(outcome.error), claimedBy: null, claimExpiresAt: null });
@@ -741,6 +796,7 @@ async function healDeliveryEffects(now: Date): Promise<void> {
   for (let page = 0; page < MAX_PAGES; page++) {
     const rows: {
       id: string;
+      organizationId: string;
       conversationId: string | null;
       messageId: string | null;
       providerMessageId: string | null;
@@ -752,7 +808,14 @@ async function healDeliveryEffects(now: Date): Promise<void> {
         conversationId: { not: null },
         OR: [{ messageType: { in: ["manual", "ai"] } }, { messageType: null }],
       },
-      select: { id: true, conversationId: true, messageId: true, providerMessageId: true, sentAt: true },
+      select: {
+        id: true,
+        organizationId: true,
+        conversationId: true,
+        messageId: true,
+        providerMessageId: true,
+        sentAt: true,
+      },
       orderBy: { id: "asc" },
       ...(cursor ? { cursor: { id: cursor }, skip: 1 } : {}),
       take: PAGE,
@@ -806,6 +869,56 @@ async function healDeliveryEffects(now: Date): Promise<void> {
           where: { id: r.messageId as string, externalId: null },
           data: { externalId: r.providerMessageId },
         });
+      }
+    }
+    // ---- Devir penceresi (human_request) — ÜÇÜNCÜ teslimat etkisi ----
+    // (Denetim 08-01, üçüncü tur — İKİ ajan bağımsız olarak buldu.)
+    // `applyHandoffHold` bugün eklendi ama onarıcıya bağlanmamıştı: `settle("sent")`
+    // ile yan etki arasında bir çökme/DB hıçkırığı olursa mesaj TESLİM EDİLMİŞ ama
+    // AI hiç susturulmamış olur → host devralmışken AI 12 saat boyunca araya
+    // girebilir. Eski kodda hold enqueue'de yazıldığı için bu boşluk YOKTU.
+    //
+    // ⚠️ Pencere satırın GERÇEK `sentAt`'inden hesaplanır, `now`'dan DEĞİL: 20 saat
+    // önce teslim edilmiş bir devrin 12 saatlik penceresi ZATEN dolmuştur; `now`
+    // kullanmak sessizliği haksız yere 12 saat UZATIRDI.
+    // ⚠️ Yalnız `autoReplyHoldUntil: null` satıra yazılır → idempotent; dolmuş bir
+    // pencere (geçmiş tarih) null DEĞİLDİR, yeniden kurulmaz.
+    const handoffRows = rows.filter((r) => r.messageId && r.conversationId && r.sentAt);
+    if (handoffRows.length > 0) {
+      const handoffIds = new Set(
+        (
+          await prisma.message.findMany({
+            where: {
+              id: { in: handoffRows.map((r) => r.messageId as string) },
+              authorType: "ai",
+              aiIntent: "human_request",
+            },
+            select: { id: true },
+          })
+        ).map((m) => m.id),
+      );
+      if (handoffIds.size > 0) {
+        const hoursByOrg = new Map<string, number>();
+        for (const r of handoffRows) {
+          if (!handoffIds.has(r.messageId as string)) continue;
+          let hours = hoursByOrg.get(r.organizationId);
+          if (hours === undefined) {
+            const org = await prisma.organization.findUnique({
+              where: { id: r.organizationId },
+              select: { handoffHoldHours: true },
+            });
+            hours = org?.handoffHoldHours ?? (Number(process.env.HUMAN_HANDOFF_HOLD_HOURS) || 12);
+            hoursByOrg.set(r.organizationId, hours);
+          }
+          const until = new Date((r.sentAt as Date).getTime() + hours * 60 * 60 * 1000);
+          if (until <= now) continue; // pencere zaten dolmuş → yazacak bir şey yok
+          await prisma.conversation
+            .updateMany({
+              where: { id: r.conversationId as string, autoReplyHoldUntil: null },
+              data: { autoReplyHoldUntil: until },
+            })
+            .catch(() => {});
+        }
       }
     }
     if (rows.length < PAGE) break;

@@ -179,3 +179,39 @@ describe("mergeSentPage — çok kaynaklı gönderim geçmişi sayfalama", () =>
     expect(SENT_PAGE_SIZE * MAX_MERGED_PAGE).toBeLessThanOrEqual(2000);
   });
 });
+
+// ---------------------------------------------------------------------------
+// TESLİM EDİLMEMİŞ KUYRUK TASLAKLARI İKİ YÜZEYDE DE "GÖNDERİLDİ" SAYILMAZ.
+// (Derin denetim, 2026-08-01 — üçüncü tur, ajan bulgusu.)
+//
+// Dayanıklı kuyruk yolunda `Message` satırı ENQUEUE anında yazılır. Gönderim
+// veto edilir (`canceled`) ya da kalıcı olarak başarısız olursa (`failed`/
+// `blocked`/`review`) satır DURUR ama misafire HİÇBİR ŞEY ULAŞMAMIŞTIR.
+//
+// `reports.ts` bu satırları AÇIKÇA ayıklıyordu ("Drop undelivered outbox
+// drafts") — yani dışlama bir ÜRÜN KARARI. "Gönderilenler" ekranı ise outbox
+// durumunu HİÇ okumuyordu: aynı soruya iki ekran farklı cevap veriyordu ve host
+// gönderilmemiş bir mesajı gönderilmiş sanıyordu.
+//
+// ⚠️ SINIR: bu bir KAYNAK TARAMASIDIR — filtrenin doğru çalıştığını değil,
+// VAR OLDUĞUNU pinler. Bugün ekranı render eden bir entegrasyon testi yok
+// (server component + 4 kaynaklı sorgu); pin, sessiz kaybolmayı engeller.
+// ---------------------------------------------------------------------------
+describe("gönderim geçmişi — teslim edilmemiş taslaklar dışlanır", () => {
+  const SURFACES = [
+    "src/lib/reports.ts",
+    "src/app/(app)/sent/page.tsx",
+  ];
+
+  for (const file of SURFACES) {
+    it(`${file} teslim edilmemiş outbox satırlarını ayıklar`, async () => {
+      const fs = await import("node:fs/promises");
+      const src = await fs.readFile(file, "utf8");
+      // Sorgu: status != "sent" olan outbox satırlarının messageId'leri.
+      expect(src).toMatch(/messageOutbox\.findMany\(\{[\s\S]{0,400}?status:\s*\{\s*not:\s*"sent"\s*\}/);
+      // Ve bu id'lerin mesaj sorgusundan DIŞLANMASI.
+      expect(src).toMatch(/undeliveredIds/);
+      expect(src).toMatch(/notIn:\s*undeliveredIds/);
+    });
+  }
+});
