@@ -1931,13 +1931,47 @@ export async function applyChannelAutoReply(
  * ayrı alarm sel olurdu). YALNIZ hata SINIFI ve SAYI gider — rezervasyon id'si,
  * misafir adı, mesaj gövdesi ya da sağlayıcının ham hata metni ASLA.
  */
-function reportLifecycleSendFailures(
+async function reportLifecycleSendFailures(
   kind: "welcome" | "checkin" | "checkout",
   organizationId: string,
   failures: string[],
   considered: number,
-): void {
+): Promise<void> {
   if (failures.length === 0) return;
+  // ⚠️ ALARM KENDİ PENCERESİNE BAĞLI OLMAK ZORUNDA (denetim, 08-01 — ikinci tur).
+  //
+  // Yaşam-döngüsü göndericileri KESİN hatada (4xx≠408) damgayı geri alıp HER
+  // geçişte yeniden deniyor — ve Hospitable 402 "abonelik pasif" de kesin hata
+  // sayılıyor (Nuve'nin BUGÜNKÜ hâli). Yani geri çekilmesi OLMAYAN bir sonsuz
+  // döngü var. Alarmı ona çıplak bağlamak, `reportError`'un 10 dakikalık
+  // context throttle'ıyla bile GÜNDE ~432 uyarı e-postası demekti (2 dk'lık cron
+  // × 3 tür ÷ 10 dk) — ve karşılama için `arrivalDate` geçene kadar, yani AYLARCA.
+  // Bir arızayı görünür kılmak için kurulan mekanizma, gerçek arızayı gömerdi.
+  //
+  // Pencere `SystemLock` ile (org, tür) başına 6 saat (Paddle uyarısının emsali):
+  // satır yoksa yarat, varsa YALNIZ süresi dolmuşsa yenile — ikisi de atomik.
+  // ⚠️ Sonsuz tekrarın KENDİSİ hâlâ açık ve KOLON İSTİYOR (oto-yanıttaki
+  // `autoReplyHoldUntil`in `Reservation` karşılığı yok) → `docs/MIGRATION-
+  // BEKLEYEN-ISLER.md §4`. Bu değişiklik yalnız SESİ kısar, arızayı çözmez.
+  const key = `lifecycle-alarm:${kind}:${organizationId}`;
+  const now = new Date();
+  const nextAllowed = new Date(now.getTime() + 6 * 60 * 60 * 1000);
+  try {
+    const created = await prisma.systemLock.createMany({
+      data: [{ name: key, lockedUntil: nextAllowed }],
+      skipDuplicates: true,
+    });
+    const renewed =
+      created.count === 1
+        ? { count: 0 }
+        : await prisma.systemLock.updateMany({
+            where: { name: key, lockedUntil: { lte: now } },
+            data: { lockedUntil: nextAllowed },
+          });
+    if (created.count + renewed.count === 0) return; // pencere dolu → sessiz kal
+  } catch {
+    // Pencere yazılamadıysa alarmı YİNE AT: görünürlük, gürültüden önemli.
+  }
   const counts = failures.reduce<Record<string, number>>((acc, k) => {
     acc[k] = (acc[k] ?? 0) + 1;
     return acc;
@@ -2457,7 +2491,7 @@ export async function sendDueWelcomes(
     sent++;
   }
 
-  reportLifecycleSendFailures("welcome", organizationId, failures, reservations.length);
+  await reportLifecycleSendFailures("welcome", organizationId, failures, reservations.length);
   return { sent, considered: reservations.length };
 }
 
@@ -2589,7 +2623,7 @@ export async function sendDueCheckins(
     sent++;
   }
 
-  reportLifecycleSendFailures("checkin", organizationId, failures, reservations.length);
+  await reportLifecycleSendFailures("checkin", organizationId, failures, reservations.length);
   return { sent, considered: reservations.length };
 }
 
@@ -2865,7 +2899,7 @@ export async function sendDueCheckouts(
     sent++;
   }
 
-  reportLifecycleSendFailures("checkout", organizationId, failures, reservations.length);
+  await reportLifecycleSendFailures("checkout", organizationId, failures, reservations.length);
   return { sent, considered: reservations.length };
 }
 

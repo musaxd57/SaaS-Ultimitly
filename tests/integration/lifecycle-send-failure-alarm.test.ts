@@ -146,6 +146,29 @@ describe("yaşam-döngüsü gönderim arızası — koşu başına tek toplu ala
     expect(mockReport).not.toHaveBeenCalled();
   });
 
+  it("ALARM PENCEREYE BAĞLI: aynı org+tür 6 saat içinde İKİNCİ kez uyarmaz", async () => {
+    // ⚠️ Yaşam-döngüsü göndericileri kesin hatada damgayı geri alıp HER geçişte
+    // yeniden deniyor (402 dahil) — geri çekilme yok. Alarmı ona çıplak bağlamak
+    // `reportError`'un 10 dk'lık throttle'ıyla bile GÜNDE ~432 e-posta demekti.
+    const { orgId } = await seed();
+    mockSend.mockResolvedValue({ ok: false, error: "HTTP 402 - subscription not active" });
+
+    await sendDueWelcomes(orgId);
+    expect(mockReport).toHaveBeenCalledTimes(1);
+
+    // Üretimde bu 2 dakika sonrasıdır (damga geri alındığı için aday yine uygun).
+    await sendDueWelcomes(orgId);
+    expect(mockReport).toHaveBeenCalledTimes(1); // ⬅️ ARIZADA 2 olurdu
+
+    // Pencere dolunca yeniden uyarır (arıza sürüyorsa sesi tamamen kesmeyiz).
+    await prisma.systemLock.updateMany({
+      where: { name: { startsWith: "lifecycle-alarm:" } },
+      data: { lockedUntil: new Date(Date.now() - 1000) },
+    });
+    await sendDueWelcomes(orgId);
+    expect(mockReport).toHaveBeenCalledTimes(2);
+  });
+
   // Davranış testi karşılama yolunu kanıtlıyor; giriş ve çıkış göndericilerinin
   // hata dalları BİREBİR aynı kodu taşıyor. Bu kaynak-taraması ikisinin de
   // (ve ileride eklenecek dördüncü bir göndericinin) alarmsız kalmamasını pinler

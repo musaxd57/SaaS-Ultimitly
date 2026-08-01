@@ -27,6 +27,29 @@ import { isSecureExternalUrl } from "@/lib/secure-url";
 const DEFAULT_BASE_URL = "https://public.api.hospitable.com/v2";
 const TIMEOUT_MS = 20_000;
 const MAX_RETRIES = 3;
+/**
+ * TEK bir `hospitableFetch` çağrısının TOPLAM duvar-saati bütçesi — tüm denemeler
+ * VE tüm uykular dahil (denetim, 08-01).
+ *
+ * SORUN: `Retry-After` tavanı 120 sn ama DENEME BAŞINA. `MAX_RETRIES = 3` olduğu
+ * için tek bir çağrı 3 × 120 = 6 DAKİKA uyuyabiliyordu ve bu uyku SENKRON KİLİDİ
+ * TUTULURKEN gerçekleşiyor (TTL 15 dk). Üst üste üç 429'lu istek TTL'i aşıyor,
+ * TTL dolunca İKİNCİ bir koşu aynı org için eşzamanlı başlıyor ve tüm duplicate
+ * korumasının dayandığı "aynı org iki kez koşmaz" varsayımı deliniyordu.
+ * Mülk döngüsü her yinelemede yeni bir istek açtığı için 10 daireli bir hesapta
+ * en kötü hâl ~60 dakikaydı.
+ *
+ * 120 sn seçildi çünkü:
+ *   · 5xx/ağ yolunu AYNEN korur (4 × 20 sn timeout + 1+2+4 sn geri çekilme ≈ 87 sn),
+ *   · 429 yolunun kötü hâlini ~440 sn → ~140 sn'ye indirir.
+ *
+ * ⚠️ YENİ BİR HATA SINIFI AÇMAZ: denemeler tükendiğinde zaten AYNI
+ * `HospitableError` atılıyordu; bütçe yalnız aynı hatayı DAHA ERKEN getirir.
+ * Çağıranlar (senkron döngüsü, outbox) onu bugünkü gibi yakalayıp `continue`
+ * eder → "bu turu atla, 2 dakika sonra tekrar dene". `Retry-After` değeri
+ * KORUNUR, böylece outbox worker'ı sağlayıcının penceresine erteleyebilir.
+ */
+const CALL_BUDGET_MS = Number(process.env.HOSPITABLE_CALL_BUDGET_MS) || 120_000;
 
 /** Thrown when the Hospitable API returns an error or is misconfigured. */
 export class HospitableError extends Error {
@@ -57,11 +80,11 @@ export class HospitableError extends Error {
  * üst üste üç 429'lu istek 15 dakikalık TTL'i aşar. 120 saniyenin tek yaptığı
  * en kötü hâli 1 saatten 6 dakikaya indirmektir.
  *
- * TTL'i gerçekten koruyan iki mekanizma AYRI:
+ * TTL'i gerçekten koruyan ÜÇ mekanizma AYRI:
+ *   · `CALL_BUDGET_MS` — çağrı başına TOPLAM duvar-saati bütçesi (↑yukarıda),
  *   · `withSyncLock`'un in-process `running` bayrağı (tek replikada ulaşılabilir
  *     tek eşzamanlılık yolunu kapatır — scheduled-sync.ts),
- *   · ve kalan pay: bir sonraki cron zaten 2 dakika sonra geliyor, yani uzun
- *     uykunun hiçbir kazancı yok.
+ *   · `renewLock` — org döngüsünün her turunda ilerleme-tetikli kilit yenileme.
  */
 function parseRetryAfter(value: string | null): number | undefined {
   if (value === null || value === "") return undefined;
@@ -111,6 +134,11 @@ async function hospitableFetch<T>(
     throw new HospitableError("Hospitable API base URL is not https — refused (no token sent).");
   }
 
+  const callStartedAt = Date.now();
+  const remainingMs = () => CALL_BUDGET_MS - (Date.now() - callStartedAt);
+  /** Uyku + ARDINDAN gelecek denemenin timeout'u bütçeye SIĞIYOR mu? */
+  const canAfford = (waitMs: number) => waitMs + TIMEOUT_MS <= remainingMs();
+
   for (let attempt = 0; ; attempt++) {
     let res: Response;
     try {
@@ -126,7 +154,7 @@ async function hospitableFetch<T>(
       });
     } catch (err) {
       // Network error or timeout — retry with exponential backoff.
-      if (attempt < retries) {
+      if (attempt < retries && canAfford(2 ** attempt * 1000)) {
         await sleep(2 ** attempt * 1000);
         continue;
       }
@@ -136,13 +164,25 @@ async function hospitableFetch<T>(
 
     // Rate limited — wait for the server-provided window, then retry.
     if (res.status === 429 && attempt < retries) {
-      const waitSec = parseRetryAfter(res.headers.get("Retry-After")) ?? 2 ** attempt;
-      await sleep(Math.max(0, waitSec) * 1000);
+      const retryAfterSec = parseRetryAfter(res.headers.get("Retry-After"));
+      const waitMs = Math.max(0, retryAfterSec ?? 2 ** attempt) * 1000;
+      if (!canAfford(waitMs)) {
+        // ⚠️ BÜTÇE DOLDU → UYUMA. Bu uyku senkron kilidi TUTULURKEN gerçekleşir;
+        // uyumak kilidi TTL'in ötesine taşır ve ikinci bir koşu aynı org için
+        // eşzamanlı başlar. `retryAfterSec` KORUNUR: outbox worker'ı sağlayıcının
+        // kendi penceresine erteleyebilsin.
+        throw new HospitableError(
+          "Hospitable hız sınırı (HTTP 429) — çağrı bütçesi doldu, bu tur atlanıyor.",
+          429,
+          retryAfterSec,
+        );
+      }
+      await sleep(waitMs);
       continue;
     }
 
     // Transient server error — back off and retry.
-    if (res.status >= 500 && attempt < retries) {
+    if (res.status >= 500 && attempt < retries && canAfford(2 ** attempt * 1000)) {
       await sleep(2 ** attempt * 1000);
       continue;
     }

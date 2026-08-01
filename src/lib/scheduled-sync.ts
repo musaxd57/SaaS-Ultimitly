@@ -138,6 +138,30 @@ async function acquireLock(): Promise<string | null> {
   return res.count === 1 ? holder : null;
 }
 
+/**
+ * Kilidi UZAT — yalnız hâlâ BİZ tutuyorsak (fencing: `holder` WHERE'de, tıpkı
+ * `releaseLock` gibi). TTL'i büyütmek yerine CANLILIĞI KANITLAR.
+ *
+ * ⚠️ İLERLEME-TETİKLİ, `setInterval` DEĞİL. Zamanlayıcıyla atılan bir kalp atışı
+ * AĞDA ASILI KALMIŞ bir koşuyu da "canlı" gösterir ve kilidi SONSUZA KADAR
+ * tutar — senkron komple, üstelik SESSİZCE durur. Org döngüsünün her turunda
+ * çağrıldığında yenileme ancak GERÇEK ilerleme varken olur; gerçekten asılan bir
+ * koşuda yenileme de durur ve TTL doğru şekilde devreye girer.
+ *
+ * ⚠️ KAPATMADIĞI DELİK (bilinçli): TEK bir org'un kendi içinde 15 dakikayı
+ * aşması. Org içinde ilerleme noktası yok; tam çözüm `syncHospitable`'a
+ * `onProgress` geçirmek olurdu ve imza + `withSyncLock` sözleşmesi genişlerdi.
+ * `withSyncLock`'un in-process bayrağı en ulaşılabilir yolu zaten kapatıyor.
+ */
+async function renewLock(holder: string): Promise<void> {
+  await prisma.systemLock
+    .updateMany({
+      where: { name: LOCK_NAME, holder },
+      data: { lockedUntil: new Date(Date.now() + LOCK_TTL_MS) },
+    })
+    .catch(() => {});
+}
+
 async function releaseLock(holder: string): Promise<void> {
   // Fencing: only free the lock if we still hold it. If our TTL had lapsed and a
   // newer run re-acquired (writing its own token), the WHERE won't match and we
@@ -302,6 +326,8 @@ export async function runScheduledSync(): Promise<ScheduledSyncTotals> {
           budgetSkipped += 1;
           continue;
         }
+        // Bu geçiş HÂLÂ ilerliyor → kilidi tazele (↑renewLock: ilerleme-tetikli).
+        await renewLock(holder);
         const orgStartedAt = Date.now();
         // Bir org'un hatası diğerlerini durdurmaz. AYNI gövde iki try'da da
         // kullanılıyor (senkron + otomasyon), o yüzden tek yerde duruyor.

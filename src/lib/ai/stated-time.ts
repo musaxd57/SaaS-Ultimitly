@@ -22,19 +22,37 @@ const CHECKOUT_CUE =
   /(?<!a)ç[ıi]k|ayr[ıi]l|terk|boşalt|bosalt|check[\s-]?out|leav|depart|vacat|auscheck/;
 
 /**
- * OLUMSUZLAMA VETOSU (denetim, 08-01) — kanıt kontrolü fiilin YÖNÜNÜ okumuyordu.
- * Ampirik ölçüm: "saat 11:00'de çıkmayacağız" ve "çıkış saatimizi 11:00 yapmayın
- * lütfen" ikisi de KABUL ediliyordu; yani misafirin AÇIKÇA REDDETTİĞİ saat
- * rezervasyona yazılıp bir sonraki prompt'a "misafirin belirttiği çıkış saati"
- * diye geri besleniyordu.
+ * ULAÇ (gerund) İPUCU DEĞİLDİR (denetim, 08-01 — ikinci tur).
  *
- * ⚠️ Kalıplar TAM ÇEKİME çapalı. Çıplak `ma|me` eki ya da geniş `çıkmay`
- * KULLANILMAZ: Türkçede `-ma` hem olumsuzluk eki hem FİİL-İSİM ekidir, yani
- * "10:00'da çıkmayı planlıyoruz" OLUMLU bir beyandır ve geniş kalıp onu da
- * düşürürdü (kendi testim yakaladı). Yalnız gerçekten olumsuz çekimler listelenir.
- * Bu veto YALNIZCA DARALTIR: kabulü genişleten hiçbir dal eklemez.
+ * "çıkmadan önce", "ayrılmadan önce" bir ZAMAN BELİRTECİDİR, çıkış saati beyanı
+ * değil. `CHECKOUT_CUE` bunları `ç[ıi]k`/`ayr[ıi]l` ile ipucu sayıyordu; ilk
+ * turda olumsuzlama vetosuna `(?!an)` çapası koyunca veto da devreden çıktı ve
+ * ortada YENİ bir halüsinasyon sınıfı kaldı — ampirik ölçüldü:
+ *   "Çıkmadan önce 09:00'da kahvaltı yapabilir miyiz" → 09:00 KABUL
+ *   "Ayrılmadan önce 08:00'de market açık olur mu"    → 08:00 KABUL
+ * Yani misafirin kahvaltı/kargo/taksi saati rezervasyona çıkış saati diye
+ * yazılıyordu.
+ *
+ * Çözüm: ulacı ipucu testinden ÖNCE metinden SİL. Böylece ne ipucu sayılır ne
+ * de olumsuzluk sayılır — nötrleşir. Cümlecikte BAŞKA bir gerçek ipucu varsa
+ * ("…? Saat 11:00'de çıkıyoruz") o hâlâ çalışır (testli).
  */
-const CHECKOUT_NEGATION = new RegExp(
+const CHECKOUT_GERUND = /(ç[ıi]kma|ayr[ıi]lma|boşaltma|bosaltma)dan\b/g;
+
+/**
+ * AYRILMA FİİLİNİN OLUMSUZU — MESAJ SEVİYESİNDE VETO (denetim, 08-01 — ikinci tur).
+ *
+ * Olumsuzlamayı cümlecik seviyesine indirmek "11:00'de çıkacağız, temizlik
+ * yapmayın" vakasını kurtardı ama GERİ ÇEKİLMEYİ (retraction) kaybetti — ölçüldü:
+ *   "Çıkışımız 11:00, ama planı değiştirdik çıkmayacağız" → 11:00 KABUL
+ *   "Saat 11:00'de çıkıyoruz. Aslında çıkmayacağız."      → 11:00 KABUL
+ * Misafir aynı mesajda beyanını GERİ ALIYOR ve biz ilk cümleciği kanıt sayıyoruz.
+ *
+ * Ayrım net: misafir "AYRILMIYORUM" diyorsa mesajın TAMAMI kanıt olmaktan çıkar
+ * (nerede söylediği fark etmez). "Şunu yapmayın" gibi genel kalıplar ise yalnız
+ * kendi cümleciğini bağlar — başka bir cümledeki gerçek beyanı düşürmemeli.
+ */
+const DEPARTURE_REFUSAL = new RegExp(
   [
     // ⚠️ İLERİ-OLUMSUZ BAKIŞLAR ŞART. "çıkmad" tek başına "çıkma-DAN"ı,
     // "çıkmam" ise "çıkma-MIZ"ı yakalar; ikisi de FİİL-İSİM biçimidir ve
@@ -53,8 +71,6 @@ const CHECKOUT_NEGATION = new RegExp(
     "ayr[ıi]lmad(?!an)",
     "ayr[ıi]lmam(?![ıia])",
     "ayr[ıi]lmaz",
-    // "çıkış saatimizi 11'e yapmayın"
-    "yapmay[ıi]n",
     // İngilizce / diğer diller
     "won'?t leav",
     "will not leav",
@@ -65,6 +81,13 @@ const CHECKOUT_NEGATION = new RegExp(
     "nicht aus",
   ].join("|"),
 );
+
+/**
+ * CÜMLECİK seviyesinde bağlayan genel olumsuz kalıplar. "11:00'de çıkacağız,
+ * lütfen sabah temizlik yapmayın" mesajında olumsuz olan İKİNCİ cümleciktir —
+ * mesaj geneline uygulanırsa meşru beyan düşerdi (07-31 pini).
+ */
+const CLAUSE_NEGATION = /yapmay[ıi]n/;
 
 /** True when `message` plausibly states HH:MM AS A CHECKOUT TIME. */
 export function timeStatedInMessage(hhmm: string, message: string): boolean {
@@ -94,17 +117,24 @@ export function timeStatedInMessage(hhmm: string, message: string): boolean {
   // ⚠️ ASCII TİRE AYIRICI DEĞİLDİR: "check-out" ipucunu böler ve TÜM İngilizce
   // beyanları sessizce öldürür (ölçüldü, testle pinli).
   const lower = message.toLowerCase();
-  for (const sentence of lower.split(/(?:[!?\n]|(?<!\d)\.|\.(?!\d))+/)) {
+
+  // MESAJ SEVİYESİ VETO: misafir ayrılmayı REDDEDİYORSA mesajın tamamı kanıt
+  // olmaktan çıkar — geri çekilme ("çıkışımız 11:00, ama çıkmayacağız") nerede
+  // geçerse geçsin beyanı iptal eder (↑DEPARTURE_REFUSAL).
+  if (DEPARTURE_REFUSAL.test(lower)) return false;
+
+  // Ulaçları NÖTRLE: ne ipucu ne olumsuzluk sayılsınlar (↑CHECKOUT_GERUND).
+  const neutral = lower.replace(CHECKOUT_GERUND, " ");
+
+  for (const sentence of neutral.split(/(?:[!?\n]|(?<!\d)\.|\.(?!\d))+/)) {
     const clauses = sentence.split(/[,;]+/);
     for (let i = 0; i < clauses.length; i++) {
       if (!CHECKOUT_CUE.test(clauses[i])) continue;
-      // Olumsuzlama CÜMLECİK seviyesinde: "11:00'de çıkacağız, lütfen temizlik
-      // yapmayın" mesajında olumsuz olan İKİNCİ cümleciktir; mesaj geneline
-      // uygulanan veto bu meşru beyanı da düşürüyordu (ölçüldü).
-      if (CHECKOUT_NEGATION.test(clauses[i])) continue;
+      // Genel olumsuz kalıplar YALNIZ kendi cümleciğini bağlar (↑CLAUSE_NEGATION).
+      if (CLAUSE_NEGATION.test(clauses[i])) continue;
       if (segmentStatesTime(clauses[i], h, min)) return true;
       const next = clauses[i + 1];
-      if (next && !CHECKOUT_NEGATION.test(next) && segmentStatesTime(next, h, min)) return true;
+      if (next && !CLAUSE_NEGATION.test(next) && segmentStatesTime(next, h, min)) return true;
     }
   }
   return false;

@@ -101,6 +101,32 @@ describe("statedCheckoutTime — olumsuzlama vetosu", () => {
     ).toBe(true);
   });
 
+  // ⚠️ İKİNCİ TUR REGRESYONLARI (denetim ajanı ölçerek yakaladı).
+  it("ULAÇ ipucu DEĞİLDİR: 'çıkmadan önce' başka eylemin saatini meşrulaştırmaz", () => {
+    // `(?!an)` çapası olumsuzlama vetosunu doğru şekilde devreden çıkardı ama
+    // "çıkmadan/ayrılmadan" HÂLÂ ipucu sayılıyordu → misafirin kahvaltı/kargo/
+    // taksi saati rezervasyona ÇIKIŞ SAATİ diye yazılıyordu.
+    expect(timeStatedInMessage("09:00", "Çıkmadan önce 09:00'da kahvaltı yapabilir miyiz")).toBe(false);
+    expect(timeStatedInMessage("08:00", "Ayrılmadan önce 08:00'de market açık olur mu")).toBe(false);
+    expect(timeStatedInMessage("14:00", "Çıkmadan önce 14:00'te kargo gelecek")).toBe(false);
+    expect(timeStatedInMessage("07:00", "Çıkmadan 07:00'de taksi çağırabilir misiniz")).toBe(false);
+  });
+
+  it("GERİ ÇEKİLME: aynı mesajda beyanını geri alan misafirin saati yazılmaz", () => {
+    // Olumsuzlamayı cümlecik seviyesine indirmek "temizlik yapmayın" vakasını
+    // kurtardı ama GERİ ÇEKİLMEYİ kaybetti. Ayrılma fiilinin olumsuzu artık
+    // MESAJ seviyesinde veto ediyor — nerede geçerse geçsin.
+    expect(
+      timeStatedInMessage("11:00", "Çıkışımız 11:00, ama planı değiştirdik çıkmayacağız"),
+    ).toBe(false);
+    expect(
+      timeStatedInMessage("11:00", "Saat 11:00'de çıkıyoruz. Aslında çıkmayacağız."),
+    ).toBe(false);
+    expect(
+      timeStatedInMessage("11:00", "We check out at 11:00; actually we won't leave"),
+    ).toBe(false);
+  });
+
   it("olumsuzlama CÜMLECİK seviyesinde — başka cümlecikteki 'yapmayın' beyanı düşürmez", () => {
     // Mesaj geneline uygulanan veto bu meşru beyanı da düşürüyordu (ölçüldü).
     expect(

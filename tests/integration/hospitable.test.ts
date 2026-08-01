@@ -45,6 +45,45 @@ describe("hospitable client", () => {
     expect((init?.headers as Record<string, string>).Authorization).toBe("Bearer secret-token");
   });
 
+  // -------------------------------------------------------------------------
+  // ÇAĞRI BAŞINA DUVAR-SAATİ BÜTÇESİ (denetim, 08-01).
+  //
+  // `Retry-After` tavanı 120 sn ama DENEME BAŞINA: `MAX_RETRIES = 3` ile tek bir
+  // çağrı 3 × 120 = 6 DAKİKA uyuyabiliyordu — ve bu uyku SENKRON KİLİDİ
+  // TUTULURKEN gerçekleşiyor (TTL 15 dk). Üst üste üç 429'lu istek TTL'i aşıyor,
+  // TTL dolunca ikinci bir koşu aynı org için eşzamanlı başlıyor ve tüm duplicate
+  // korumasının dayandığı "aynı org iki kez koşmaz" varsayımı deliniyordu.
+  // -------------------------------------------------------------------------
+  it("BÜYÜK Retry-After'da UYUMAZ: bütçe dolunca 429'u HEMEN fırlatır", async () => {
+    vi.stubEnv("HOSPITABLE_API_TOKEN", "tok");
+    // 120 sn uyku + 20 sn timeout > 120 sn bütçe → ilk denemede bile sığmaz.
+    const fetchMock = vi
+      .spyOn(global, "fetch")
+      .mockResolvedValue(jsonResponse("rate limited", { status: 429, headers: { "Retry-After": "120" } }));
+
+    const started = Date.now();
+    await expect(listProperties()).rejects.toMatchObject({
+      name: "HospitableError",
+      status: 429,
+      // Sağlayıcının penceresi KORUNUR: outbox worker'ı ona göre erteleyebilsin.
+      retryAfterSec: 120,
+    });
+    // ⬅️ ARIZADA burada 3 × 120 sn uyunurdu (test timeout'una takılırdı).
+    expect(Date.now() - started).toBeLessThan(3_000);
+    expect(fetchMock).toHaveBeenCalledTimes(1); // hiçbir tekrar bütçeye sığmadı
+  });
+
+  it("bütçeye SIĞAN bekleme normal şekilde uygulanır (regresyon pini)", async () => {
+    vi.stubEnv("HOSPITABLE_API_TOKEN", "tok");
+    const fetchMock = vi
+      .spyOn(global, "fetch")
+      .mockResolvedValueOnce(jsonResponse("rate limited", { status: 429, headers: { "Retry-After": "0" } }))
+      .mockResolvedValueOnce(jsonResponse({ data: [] }));
+
+    await expect(listProperties()).resolves.toEqual([]);
+    expect(fetchMock).toHaveBeenCalledTimes(2); // uyudu ve tekrar denedi
+  });
+
   it("retries on HTTP 429 honouring Retry-After, then succeeds", async () => {
     vi.stubEnv("HOSPITABLE_API_TOKEN", "tok");
     const fetchMock = vi

@@ -990,3 +990,89 @@ describe("bağsız konuşma — yalnız KESİN ÖLÜ konaklamada susar", () => {
     expect(conv.status).toBe("new");
   });
 });
+
+// ---------------------------------------------------------------------------
+// İLAN YARIŞI + YAZILAMAYAN REZERVASYON SAYACI (denetim, 08-01).
+//
+// `Property.hospitableId` GLOBAL `@unique`. İki koşu aynı ilanı aynı anda
+// yaratmaya kalkarsa kaybeden P2002 alıyor ve döngünün catch'i "link failure"
+// sayıyordu → O DAİRENİN rezervasyon+mesajlarının TAMAMI o koşuda hiç işlenmiyor
+// (dosyanın kendi yorumuyla "en geniş sessiz kayıp"). Kendiliğinden iyileşiyordu
+// ama bir tur kaybediliyordu.
+//
+// ⚠️ İYİLEŞTİRMENİN EN KRİTİK PARÇASI: yeniden arama ORG KAPSAMLI olmak zorunda.
+// Kısıt GLOBAL olduğu için çakışma BAŞKA BİR ORG'un satırından da gelebilir ve
+// onu benimsemek ÇAPRAZ-KİRACI VERİ SIZINTISI olurdu. İkinci test tam olarak
+// bunu pinler.
+// ---------------------------------------------------------------------------
+describe("ilan yarışı ve yazılamayan rezervasyon", () => {
+  beforeEach(async () => {
+    await resetDb();
+    vi.clearAllMocks();
+    mockReservations.mockResolvedValue([]);
+    mockMessages.mockResolvedValue([]);
+  });
+
+  it("yarışta kaybeden koşu KENDİ org'undaki ilanı BENİMSER", async () => {
+    const { orgId } = await makeOrgWithProperty();
+    // Rakip koşu bizden önce yarattı. Adı FARKLI → isim-benimseme yolları atlanır,
+    // akış gerçekten `create` → P2002 dalına düşer.
+    await prisma.property.create({
+      data: { organizationId: orgId, name: "Rakibin Yarattığı", hospitableId: "hp-race" },
+    });
+    mockProperties.mockResolvedValue([{ id: "hp-race", name: "Yeni Daire" }]);
+
+    const res = await syncHospitable(orgId);
+
+    expect(res.properties).toBe(1); // ⬅️ ARIZADA 0 (link failure)
+    // Yeni satır YARATILMADI, mevcut olan benimsendi.
+    expect(await prisma.property.count({ where: { organizationId: orgId } })).toBe(2);
+  });
+
+  it("ÇAPRAZ-KİRACI: yabancı org'un ilanı ASLA benimsenmez", async () => {
+    const { orgId } = await makeOrgWithProperty();
+    const other = await prisma.organization.create({ data: { name: "Baska Isletme" } });
+    await prisma.property.create({
+      data: { organizationId: other.id, name: "Yabancı Daire", hospitableId: "hp-foreign" },
+    });
+    mockProperties.mockResolvedValue([{ id: "hp-foreign", name: "Bizde Yok" }]);
+
+    const res = await syncHospitable(orgId);
+
+    expect(res.properties).toBe(0); // benimsemedi — hata sayıldı
+    // Yabancı satır BİZİM org'a geçmedi.
+    const foreign = await prisma.property.findFirstOrThrow({ where: { hospitableId: "hp-foreign" } });
+    expect(foreign.organizationId).toBe(other.id);
+  });
+
+  it("tarihi çözülemeyen rezervasyon SAYILIR (sessiz kalmaz)", async () => {
+    const { orgId } = await makeOrgWithProperty();
+    mockProperties.mockResolvedValue([{ id: "hp", name: "Test Property" }]);
+    mockReservations.mockResolvedValue([
+      { id: "res-nodate", platform: "airbnb", status: "confirmed", conversation_id: "c" },
+    ]);
+
+    const res = await syncHospitable(orgId);
+
+    expect(res.reservationsUnwritable).toBe(1); // ⬅️ ARIZADA undefined
+    expect(res.reservations).toBe(0);
+  });
+
+  it("normal rezervasyonda sayaç 0 kalır (regresyon pini)", async () => {
+    const { orgId } = await makeOrgWithProperty();
+    mockProperties.mockResolvedValue([{ id: "hp", name: "Test Property" }]);
+    mockReservations.mockResolvedValue([
+      {
+        id: "res-ok",
+        platform: "airbnb",
+        status: "confirmed",
+        arrival_date: "2026-06-10",
+        departure_date: "2026-06-13",
+      },
+    ]);
+
+    const res = await syncHospitable(orgId);
+    expect(res.reservationsUnwritable).toBe(0);
+    expect(res.reservations).toBe(1);
+  });
+});

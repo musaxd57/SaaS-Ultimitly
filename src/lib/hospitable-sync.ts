@@ -49,6 +49,16 @@ export interface SyncResult {
   threads: number; // reservations that have a message thread (last_message_at)
   skipped: number; // unchanged threads skipped (no API call needed)
   propertiesCapped: number; // NEW Hospitable listings not onboarded — plan's property limit reached
+  /**
+   * Sağlayıcıda VAR ama yerel `Reservation` satırı YAZILAMADI (tarih çözülemedi /
+   * mülk yok / upsert fırladı). Bu konaklamanın thread'i REZERVASYONSUZ doğar:
+   * takvim, doluluk raporu ve yaşam-döngüsü mesajları onu hiç görmez, ve
+   * oto-yanıtın iptal/bitmiş kapısı `if (conversation.reservation)` bloğunun
+   * içinde olduğu için o konuşmada HİÇ değerlendirilmez (çit için bkz.
+   * `fenceUnlinkedTerminalStay`). Sayaç 07-31'de beş kardeşine eklenmişti; bu
+   * yol açıkta kalmıştı (denetim, 08-01).
+   */
+  reservationsUnwritable: number;
 }
 
 /** Per-sync-run counter so linkProperty can refuse to CREATE past the plan's
@@ -129,6 +139,7 @@ export async function syncHospitable(
     threads: 0,
     skipped: 0,
     propertiesCapped: 0,
+    reservationsUnwritable: 0,
   };
   // Run-level aggregate for failed inline supply derivations (alerted once at
   // the end — a per-row alert would flood; a bare catch hid them entirely).
@@ -141,6 +152,9 @@ export async function syncHospitable(
   let firstLinkError: unknown = null;
   let reservationUpsertFailures = 0;
   let firstReservationError: unknown = null;
+  /** Yalnız ETİKET taşır ("no_dates"/"no_property"/"upsert_threw") — sağlayıcı
+   *  payload'ı ya da misafir verisi ASLA (KVKK). */
+  let firstUnwritableReason: string | null = null;
   let fetchFailures = 0;
   let firstFetchError: unknown = null;
 
@@ -296,6 +310,17 @@ export async function syncHospitable(
           continue;
         }
         localReservationId = r1.id;
+        if (!localReservationId) {
+          // `upsertReservationCalendar` null döndü: tarih çözülemedi ya da mülk
+          // satırı yok. Sessiz kalmasın — kardeş sayaçların emsali.
+          result.reservationsUnwritable++;
+          if (firstUnwritableReason === null) {
+            firstUnwritableReason =
+              parseDate(reservation.arrival_date) && parseDate(reservation.departure_date)
+                ? "no_property"
+                : "no_dates";
+          }
+        }
         if (localReservationId) {
           result.reservations++;
           // Auto-create check-in/cleaning tasks for this booking (idempotent,
@@ -313,6 +338,10 @@ export async function syncHospitable(
         console.error(`[Hospitable sync] reservation upsert failed for ${reservation.id}`, scrubErr(err));
         reservationUpsertFailures++;
         if (firstReservationError === null) firstReservationError = err;
+        // Fırlayan upsert de "yerel satır yazılamadı" demektir: `continue`
+        // EDİLMİYOR (misafir mesajı kaybolmasın) → thread yine bağsız doğar.
+        result.reservationsUnwritable++;
+        if (firstUnwritableReason === null) firstUnwritableReason = "upsert_threw";
       }
 
       // Message thread import — only for reservations that have a conversation.
@@ -426,10 +455,13 @@ export async function syncHospitable(
         result.conversations++;
         result.messages += r2.imported;
         // ⚠️ BAĞSIZ + KESİN ÖLÜ KONAKLAMA → oto-yanıt kapısını BURADA kapat
-        // (denetim, 08-01). `localReservationId` null olmanın İKİ yolu var:
-        // upsert null döndü (tarih çözülemedi / mülk yok) YA DA import TX'i
-        // fırladı (aşağıdaki catch bilinçli olarak `continue` ETMİYOR — misafir
-        // mesajı kaybolmasın). İkisini de tek koşul kapsıyor.
+        // (denetim, 08-01). `localReservationId` null olmanın İKİ yolu var ve
+        // İKİSİ DE YUKARIDA: (1) `upsertReservationCalendar` null döndü (tarih
+        // çözülemedi / mülk yok), (2) REZERVASYON upsert TX'i fırladı — o catch
+        // bilinçli olarak `continue` ETMİYOR ki misafir mesajı kaybolmasın.
+        // ⚠️ THREAD-IMPORT TX'i fırlarsa akış aşağıdaki dış catch'e atlar ve bu
+        // satıra HİÇ gelinmez — o durumda çit bir sonraki geçişte kapanır
+        // (mesaj yoksa "zaten güncel" dalı, varsa buradan).
         if (!localReservationId && isTerminalStay(reservation)) {
           await fenceUnlinkedTerminalStay(propertyId, String(reservation.id), incomingLast);
         }
@@ -495,6 +527,19 @@ export async function syncHospitable(
         `${linkFailures} listing link(s) failed — those apartments imported NOTHING this run; first: ${
           firstLinkError instanceof Error ? firstLinkError.message : String(firstLinkError)
         }`,
+      ),
+    );
+  }
+  if (result.reservationsUnwritable > 0) {
+    // ⚠️ SAYI CONTEXT'E GİRMEZ: `reportError` e-posta throttle'ını CONTEXT
+    // string'iyle anahtarlıyor; sayı her koşuda değişirse her koşu YENİ anahtar
+    // olur ve 10 dakikalık koruma fiilen kalkar (kardeş alarmların dersi).
+    void reportError(
+      `reservation-unwritable org:${organizationId}`,
+      new Error(
+        `${result.reservationsUnwritable} reservation(s) had no writable local row — ` +
+          `their threads carry NO stay context (calendar/occupancy/lifecycle blind); ` +
+          `first: ${firstUnwritableReason ?? "unknown"}`,
       ),
     );
   }
@@ -575,16 +620,24 @@ function mapReservationStatus(
 }
 
 /**
- * "Bu konaklama bir daha yaşanmayacak." Küme, `automation.ts`'teki
- * `reservation_ended` kapısıyla BİREBİR aynı tutulur: YALNIZ "cancelled".
+ * "Bu konaklama bir daha yaşanmayacak."
+ *
+ * ⚠️ KÜME `automation.ts`'teki `reservation_ended` kapısının İKİ DALINI DA
+ * karşılar (denetim, 08-01 — ikinci tur). O kapı hem "cancelled" hem
+ * "departureDate < bugün" diyor; ilk yazımda yalnız "cancelled" alınmıştı ve
+ * yorum "birebir aynı" diyordu — YANLIŞTI. Sonuç: bağsız + BİTMİŞ bir
+ * konaklamanın thread'ine oto-yanıt gidiyordu, oysa BAĞLI olsaydı gitmezdi.
+ * Tarih çözülemese bile sağlayıcı DURUMU okunabiliyor (düzeltmenin premisi
+ * zaten bu), yani "completed" ayrımı elimizde.
  *
  * ⚠️ "pending"/"confirmed" (tarihsiz sorgu) BURAYA GİRMEZ — rezervasyon ÖNCESİ
  * soru bir SATIŞ FIRSATIDIR ve ona cevap vermek bilinçli ürün davranışıdır
- * (`prompts.ts` preBookingBlock, testle pinli). Kümeyi genişletmek bir ÜRÜN
- * KARARIDIR, sessizce yapılmaz.
+ * (`prompts.ts` preBookingBlock, testle pinli). Kümeyi ORAYA genişletmek bir
+ * ÜRÜN KARARIDIR, sessizce yapılmaz.
  */
 function isTerminalStay(reservation: HospitableReservation): boolean {
-  return mapReservationStatus(reservation) === "cancelled";
+  const st = mapReservationStatus(reservation);
+  return st === "cancelled" || st === "completed";
 }
 
 /**
@@ -615,14 +668,37 @@ async function fenceUnlinkedTerminalStay(
   // Damga thread damgasını KESİN geçmeli: sağlayıcı saati ileri olabilir ve
   // eşitlikte `<` koşulu yanlış tarafa düşerdi.
   const stamp = new Date(Math.max(Date.now(), (providerLastMessageAt?.getTime() ?? 0) + 1000));
-  const where = { propertyId, externalReservationId, reservationId: null };
-  await prisma.conversation.updateMany({ where, data: { autoReplyAttemptedAt: stamp } }).catch(() => {});
-  await prisma.conversation
+  // ⚠️ TEK ATOMİK YAZMA + NO-OP KORUMASI (denetim, 08-01 — ikinci tur).
+  // İlk yazımda İKİ ayrı `updateMany` vardı ve ikisi de koşulsuzdu:
+  //   · birincisi geçip ikincisi düşerse konuşma SEBEPSİZ susturulmuş olurdu
+  //     (host inbox'ta hiçbir açıklama görmez),
+  //   · ve "zaten güncel" dalı her geçişte koştuğu için iptal edilmiş her bağsız
+  //     thread'e 2 DAKİKADA BİR iki yazma düşüyordu (süresiz `updatedAt` çalkası).
+  // Artık tek yazma ve yalnız GERÇEKTEN değişecek satıra dokunuyor.
+  const res = await prisma.conversation
     .updateMany({
-      where: { ...where, OR: [{ skippedReason: null }, { skippedReason: "reservation_ended" }] },
-      data: { skippedReason: "reservation_ended" },
+      where: {
+        propertyId,
+        externalReservationId,
+        reservationId: null,
+        // Zaten damgalı VE sebebi yazılmışsa yapacak iş yok.
+        OR: [
+          { autoReplyAttemptedAt: null },
+          { autoReplyAttemptedAt: { lt: stamp } },
+          { skippedReason: null },
+        ],
+      },
+      data: { autoReplyAttemptedAt: stamp, skippedReason: "reservation_ended" },
     })
-    .catch(() => {});
+    .catch(() => null);
+  // Sessiz `catch {}` bu repoda belgeli bir anti-desen. Çit düşerse iptal edilmiş
+  // konaklamaya oto-yanıt gidebilir — iz bırakmadan geçmemeli.
+  if (res === null) {
+    void reportError(
+      "fence-unlinked-terminal-stay",
+      new Error(`property=${propertyId} — bağsız+ölü konaklamanın oto-yanıt çiti yazılamadı`),
+    );
+  }
 }
 
 /**
@@ -785,12 +861,38 @@ async function linkProperty(
   // where a plan's property-count entitlement can cap Hospitable sync.
   if (limitState && limitState.current >= limitState.limit) return null;
 
-  const created = await prisma.property.create({
-    data: { organizationId, name, hospitableId: hp.id },
-    select: { id: true },
-  });
-  if (limitState) limitState.current++;
-  return created.id;
+  try {
+    const created = await prisma.property.create({
+      data: { organizationId, name, hospitableId: hp.id },
+      select: { id: true },
+    });
+    if (limitState) limitState.current++;
+    return created.id;
+  } catch (err) {
+    // ⚠️ YARIŞTA KAYBEDEN KOŞU İLANI BENİMSER (denetim, 08-01).
+    //
+    // `Property.hospitableId` GLOBAL `@unique`. İki koşu aynı ilanı aynı anda
+    // yaratmaya kalkarsa (senkron kilidinin TTL'i uzun bir koşunun ortasında
+    // dolarsa mümkün) kaybeden P2002 alır ve döngünün catch'i "link failure"
+    // sayar → O DAİRENİN rezervasyon+mesajlarının TAMAMI o koşuda hiç işlenmez.
+    // Kendiliğinden iyileşiyor (sonraki koşuda `findFirst` bulur) ama bir tur
+    // kaybediliyor ve dosyanın kendi yorumu bunu "en geniş sessiz kayıp" diye
+    // niteliyor.
+    //
+    // ⚠️ ARAMA ORG KAPSAMLI OLMAK ZORUNDA: kısıt GLOBAL olduğu için çakışma
+    // BAŞKA BİR ORG'un satırından da gelebilir ve onu benimsemek ÇAPRAZ-KİRACI
+    // VERİ SIZINTISI olurdu. Bulunamazsa hata FIRLAR (döngünün catch'i sayar +
+    // koşu sonu toplu alarm) — sessizce yutulmaz.
+    if (isUniqueViolation(err, ["hospitableId"])) {
+      const raced = await prisma.property.findFirst({
+        where: { organizationId, hospitableId: hp.id },
+        select: { id: true },
+      });
+      // `limitState` ARTIRILMAZ: yeni satır yaratmadık, mevcut olanı bulduk.
+      if (raced) return raced.id;
+    }
+    throw err;
+  }
 }
 
 // ---------------------------------------------------------------------------

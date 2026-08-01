@@ -213,10 +213,13 @@ const PROBLEM_NEGATIONS = [
   // "⚠️ Acil misafir mesajı" e-postası + konuşmanın "Sorunlu" claim'lenmesi.
   // Yön güvenli (aşırı-eskalasyon) ama CLAUDE.md'nin istediği övgü-tuzağı
   // testinin tam olarak yakalaması gereken şey buydu. Hepsi TAM biçim, önek YOK.
-  "sorun çıkmadı", "sorun cikmadi", "sorun çıkmad", "sorun cikmad",
+  // ⚠️ TAM BİÇİM — "sorun çıkmad" gibi ÖNEK YAZILMAZ (kendi kuralımız, ↑yukarıda).
+  // İlk yazımda önek kalmıştı ve bir denetim ajanı yakaladı; bugün zararsızdı
+  // (tüm devamları olumsuz) ama kural kodda uygulanmıyordu ve bir sonraki tur
+  // bunu emsal alırdı.
+  "sorun çıkmadı", "sorun cikmadi", "sorun çıkmadan", "sorun cikmadan",
   "sorunla karşılaşmadık", "sorunla karsilasmadik",
   "sorunla karşılaşmadım", "sorunla karsilasmadim",
-  "sorun yaşamadan", "sorun yasamadan",
   // Permission questions about the FUTURE are asks, not complaints:
   // "arkadaşım uğrayacak, sorun olur mu?" must never flag the thread.
   "sorun olur mu", "sorun olmaz", "sorun olmasın", "sorun teşkil eder mi",
