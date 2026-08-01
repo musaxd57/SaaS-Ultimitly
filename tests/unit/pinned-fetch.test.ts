@@ -12,6 +12,7 @@ const dnsMock = vi.hoisted(() => ({ lookup: vi.fn() }));
 vi.mock("node:dns", () => dnsMock);
 
 import { validatingLookup, readStreamCapped, fetchFeedText, type Lookup } from "@/lib/net/pinned-fetch";
+import { isPrivateHost } from "@/lib/net/private-host";
 
 /** Drive validatingLookup and resolve to what it passed the socket callback. */
 function runLookup(
@@ -29,6 +30,61 @@ function runLookup(
 }
 
 afterEach(() => vi.clearAllMocks());
+
+// ---------------------------------------------------------------------------
+// WHATWG-NORMALİZE IPv6 BİÇİMLERİ (Codex denetimi, 2026-08-01 — madde 5).
+//
+// `new URL()` bir IPv6 literalini SIKIŞTIRIR ve küçük harfe indirir:
+// "::ffff:127.0.0.1" → "::ffff:7f00:1". Ampirik ölçümde ÜÇ biçim
+// sınıflandırıcıdan GEÇİYORDU:
+//   · "::7f00:1"              → 127.0.0.1        (IPv4-UYUMLU, "ffff:" YOK)
+//   · "::a9fe:a9fe"           → 169.254.169.254  (BULUT METADATA)
+//   · "0:0:0:0:0:ffff:7f00:1" → 127.0.0.1        (SIKIŞTIRILMAMIŞ yazım)
+//
+// İKİ kapı da sınanır (Codex'in açık isteği):
+//   1. `isPrivateHost` — IP-LİTERAL bir feed URL'i için TEK savunma. Node,
+//      host bir IP literali ise custom `lookup`'ı ATLAR, yani o yolda pinlenmiş
+//      çözümleyici hiç çalışmaz.
+//   2. `validatingLookup` — bir HOSTNAME bu adreslerden birine çözülürse
+//      bağlantı reddedilmeli (DNS-rebind yolu).
+// ---------------------------------------------------------------------------
+describe("WHATWG-normalize IPv6 — iki kapı da reddeder", () => {
+  const forms: [string, string][] = [
+    ["::7f00:1", "IPv4-uyumlu 127.0.0.1"],
+    ["::a9fe:a9fe", "IPv4-uyumlu bulut metadata"],
+    ["0:0:0:0:0:ffff:7f00:1", "sıkıştırılmamış IPv4-mapped 127.0.0.1"],
+    ["::ffff:7f00:1", "sıkıştırılmış IPv4-mapped 127.0.0.1 (regresyon)"],
+    ["::ffff:a9fe:a9fe", "sıkıştırılmış metadata (regresyon)"],
+    ["::ffff:c0a8:1", "192.168.0.1 (regresyon)"],
+  ];
+
+  for (const [addr, why] of forms) {
+    it(`1. KAPI isPrivateHost engeller: ${addr} (${why})`, () => {
+      expect(isPrivateHost(addr)).toBe(true);
+    });
+
+    it(`2. KAPI validatingLookup reddeder: ${addr}`, async () => {
+      const res = await runLookup("rebind.example.test", [{ address: addr, family: 6 }]);
+      expect(res.err).toBeTruthy();
+      expect(res.err?.code).toBe("EACCES");
+    });
+  }
+
+  it("GERÇEK public IPv6 hâlâ geçer (yanlış-pozitif pini)", async () => {
+    const pub = "2606:2800:220:1:248:1893:25c8:1946";
+    expect(isPrivateHost(pub)).toBe(false);
+    const res = await runLookup("feed.example.com", [{ address: pub, family: 6 }]);
+    expect(res.err).toBeNull();
+  });
+
+  it("public IPv6'nın son iki hextet'i loopback'e BENZESE de geçer (aşırı-eşleşme pini)", async () => {
+    // İlk 80 bit sıfır DEĞİL → IPv4-mapped/uyumlu değil, dokunulmamalı.
+    const pub = "2001:db8::7f00:1";
+    expect(isPrivateHost(pub)).toBe(false);
+    const res = await runLookup("feed.example.com", [{ address: pub, family: 6 }]);
+    expect(res.err).toBeNull();
+  });
+});
 
 describe("validatingLookup — pin only to validated PUBLIC addresses", () => {
   it("all-public answers pass; all:false → single (address,family), all:true → array", async () => {

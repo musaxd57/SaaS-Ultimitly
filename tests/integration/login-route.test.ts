@@ -150,3 +150,96 @@ describe("POST /api/auth/login — 2FA + TOTP replay", () => {
     expect(replay.status).toBe(401);
   });
 });
+
+// ---------------------------------------------------------------------------
+// 🚨 HESAP KOVASI KURBANI KİLİTLEMEZ (Codex denetimi, 08-01 — madde 1).
+//
+// `login-acct:{email}` kovası doğrulamadan ÖNCE kapı olarak kullanılıyordu.
+// Sonuç: kurbanın e-postasını bilen biri YALNIZCA HATALI parolalarla kovayı
+// doldurup hesabı KİLİTLİYORDU — kurban DOĞRU parolasıyla bile 429 alıyordu.
+// Bu, kaba kuvvet korumasını bir HİZMET ENGELLEME silahına çeviriyordu.
+//
+// Doğru sözleşme (üçü birden):
+//   1. DOĞRU parola sahibi hesap kovası yüzünden ASLA kilitlenmez.
+//   2. IP limiti aynen korunur (her istekte tüketilir).
+//   3. BAŞARISIZ hesap denemeleri yine sınırlandırılır (tavanı aşınca 429).
+//
+// ⚠️ Bilinçli taviz: kapı doğrulama SONRASINA taşındığı için tavanı aşmış bir
+// saldırgan artık istek başına bir bcrypt maliyeti doğuruyor. IP kovası
+// (10/5dk) tek-IP senaryosunu zaten kapatıyor; IP döndüren saldırgan bu
+// maliyeti ödüyor ama kurbanı kilitleyemiyor — doğru takas budur.
+// ---------------------------------------------------------------------------
+describe("login — hesap kovası kilitleme silahı DEĞİLDİR", () => {
+  const VICTIM = "musa@example.com";
+  const GOOD = "correct-horse";
+
+  // ⚠️ KENDİ beforeEach'i: bu KARDEŞ bir describe, üstteki kurulumu MİRAS ALMAZ.
+  // (İlk yazımda almadığı fark edilmemişti; testler önceki bloğun sayaçlarını
+  // görüp yanlış nedenle kırmızıya düşüyordu — vacuous kırmızı da bir tuzaktır.)
+  beforeEach(async () => {
+    await resetDb();
+    __resetRateLimit();
+    vi.clearAllMocks();
+    const org = await prisma.organization.create({ data: { name: "Org" } });
+    await prisma.user.create({
+      data: {
+        organizationId: org.id,
+        name: "Musa",
+        email: VICTIM,
+        passwordHash: await hashPassword(GOOD),
+        role: "owner",
+        emailVerifiedAt: new Date(),
+      },
+    });
+  });
+
+  async function attackerFailures(n: number, ip: string) {
+    for (let i = 0; i < n; i++) {
+      // Saldırgan HER SEFERİNDE farklı IP kullanıyor (IP kovasını atlatmak için).
+      await POST(loginReq({ email: VICTIM, password: `wrong-${i}` }, `${ip}.${i % 250}`));
+    }
+  }
+
+  it("saldırgan kovayı doldursa bile DOĞRU parola sahibi GİRER", { timeout: 60_000 }, async () => {
+    await attackerFailures(21, "9.9.9"); // tavan 20 → kova taşmış durumda
+
+    const res = await POST(loginReq({ email: VICTIM, password: GOOD }, "2.2.2.2"));
+    expect(res.status).toBe(200); // ⬅️ ARIZADA 429 idi (kurban kilitliydi)
+  });
+
+  it("BAŞARISIZ denemeler yine sınırlandırılır (koruma kaybolmadı)", { timeout: 60_000 }, async () => {
+    await attackerFailures(21, "8.8.8");
+
+    // Aynı hesaba yeni bir hatalı deneme: artık 401 değil 429.
+    const res = await POST(loginReq({ email: VICTIM, password: "still-wrong" }, "3.3.3.3"));
+    expect(res.status).toBe(429);
+    expect(res.headers.get("Retry-After")).toBeTruthy();
+  });
+
+  it("IP limiti KORUNUR (aynı IP'den 11. istek 429)", async () => {
+    for (let i = 0; i < 10; i++) {
+      await POST(loginReq({ email: VICTIM, password: `w${i}` }, "7.7.7.7"));
+    }
+    const res = await POST(loginReq({ email: VICTIM, password: GOOD }, "7.7.7.7"));
+    expect(res.status).toBe(429);
+  });
+
+  it("BAŞARILI giriş hesap kovasını TÜKETMEZ", { timeout: 30_000 }, async () => {
+    for (let i = 0; i < 5; i++) {
+      const ok = await POST(loginReq({ email: VICTIM, password: GOOD }, `4.4.4.${i}`));
+      expect(ok.status).toBe(200);
+    }
+    const row = await prisma.rateLimitCounter.findFirst({
+      where: { key: { startsWith: "login-acct:" } },
+    });
+    expect(row).toBeNull(); // hiç sayaç satırı bile yaratılmadı
+  });
+
+  it("BİLİNMEYEN e-posta da sayılır (sayaç hesabın varlığını sızdırmaz)", async () => {
+    await POST(loginReq({ email: "yok@example.com", password: "x" }, "5.5.5.5"));
+    const row = await prisma.rateLimitCounter.findFirstOrThrow({
+      where: { key: "login-acct:yok@example.com" },
+    });
+    expect(row.count).toBe(1);
+  });
+});

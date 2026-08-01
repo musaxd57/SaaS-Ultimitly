@@ -7,9 +7,28 @@ import { lookup } from "node:dns/promises";
  * v4-mapped literal reaches the private-address check unchanged (see caller).
  */
 function mappedIpv4(h: string): string | null {
+  // Noktalı yazımlar: "::ffff:127.0.0.1" ve IPv4-UYUMLU "::127.0.0.1".
   const dotted = h.match(/^::(?:ffff:)?(\d{1,3}\.\d{1,3}\.\d{1,3}\.\d{1,3})$/);
   if (dotted) return dotted[1];
-  const hex = h.match(/^::ffff:([0-9a-f]{1,4}):([0-9a-f]{1,4})$/);
+
+  // ⚠️ WHATWG-NORMALİZE HEX BİÇİMLERİ (Codex denetimi, 08-01 — madde 5).
+  // `new URL()` bir IPv6 literalini SIKIŞTIRIR ve küçük harfe indirir:
+  // "::ffff:127.0.0.1" → "::ffff:7f00:1". Ampirik olarak ölçüldü — ÜÇ biçim
+  // sınıflandırıcıdan GEÇİYORDU (isPrivateAddress=false):
+  //   · "::7f00:1"                → 127.0.0.1   (IPv4-UYUMLU, "ffff:" YOK)
+  //   · "::a9fe:a9fe"             → 169.254.169.254 (bulut metadata!)
+  //   · "0:0:0:0:0:ffff:7f00:1"   → 127.0.0.1   (SIKIŞTIRILMAMIŞ yazım)
+  // İlk ikisi yalnız `ffff:` öneki arandığı için, üçüncüsü `::` ile başlama
+  // şartı yüzünden kaçıyordu. Üçü de IP-LİTERAL bir besleme URL'iyle doğrudan
+  // kullanılabilir ve o yolda pinlenmiş `validatingLookup` HİÇ çalışmaz (Node,
+  // host bir IP literali ise custom lookup'ı atlar) → tek savunma burasıdır.
+  //
+  // `ffff:` artık OPSİYONEL ve sıkıştırılmamış "0:0:0:0:0[:ffff]" öneki de
+  // kabul ediliyor. Yalnızca EŞLEŞME EKLER: gerçek bir public IPv6 adresi bu
+  // kalıplara uymaz (ilk 80 bitin sıfır olması şartı korunuyor).
+  const hex = h.match(
+    /^(?:::|0{1,4}(?::0{1,4}){4}:)(?:ffff:)?([0-9a-f]{1,4}):([0-9a-f]{1,4})$/,
+  );
   if (hex) {
     const hi = parseInt(hex[1], 16);
     const lo = parseInt(hex[2], 16);

@@ -4,7 +4,7 @@ import { loginSchema, zodFieldErrors } from "@/lib/validators";
 import { verifyPassword, dummyVerifyPassword } from "@/lib/auth/password";
 import { setSessionCookie, hasTrustedDevice, setTrustedDeviceCookie } from "@/lib/auth";
 import { badRequest, jsonOk, serverError, parseJsonBody, payloadTooLarge } from "@/lib/api";
-import { rateLimit, peekRateLimit, clientIp } from "@/lib/rate-limit";
+import { rateLimit, clientIp } from "@/lib/rate-limit";
 import { decryptSecret } from "@/lib/crypto";
 import { verifyTotpStep } from "@/lib/auth/totp";
 import { consumeRecoveryCode, remainingRecoveryCodes } from "@/lib/auth/recovery-codes";
@@ -31,25 +31,20 @@ export async function POST(req: NextRequest) {
     if (!parsed.success) return badRequest(zodFieldErrors(parsed.error));
 
     const email = normalizeEmail(parsed.data.email);
-    // Per-ACCOUNT throttle (in addition to the per-IP one above): an attacker
-    // rotating IPs otherwise gets unlimited password / 2FA-code guesses against
-    // one account. Generous cap so a legitimate user is not locked out.
+    // ⚠️ HESAP KOVASI BURADA DEĞİL, DOĞRULAMADAN SONRA DEĞERLENDİRİLİR.
+    // (Codex denetimi, 08-01 — madde 1.) Kovayı burada KAPI olarak kullanmak,
+    // kaba kuvvet korumasını bir HİZMET ENGELLEME silahına çeviriyordu: kurbanın
+    // e-postasını bilen biri yalnızca HATALI parolalarla kovayı doldurup hesabı
+    // kilitleyebiliyor, kurban DOĞRU parolasıyla bile 429 alıyordu.
     //
-    // ⚠️ SAYAÇ TÜKETİLMEZ, YALNIZ OKUNUR (denetim, 08-01 — beşinci tur, ajan
-    // bulgusu). Eskiden kova kimlik kontrolünden ÖNCE ve KOŞULSUZ artıyordu, yani
-    // BAŞARILI girişler de sayılıyordu → e-postasını bilen biri 15 dakikada 21
-    // istekle (~1,4/dk) hedefi KALICI olarak giriş dışı bırakabiliyordu: kurban
-    // DOĞRU şifresiyle bile 429 alıyordu. Artık sayaç yalnız DOĞRULAMA
-    // BAŞARISIZ olduğunda tüketilir (aşağıda) — kaba kuvvet koruması aynen kalır,
-    // meşru kullanıcı kendi hesabından kilitlenemez.
-    const acct = await peekRateLimit(`login-acct:${email}`, 20);
-    if (!acct.ok) {
-      return NextResponse.json(
-        { error: "Bu hesap için çok fazla deneme. Lütfen biraz sonra tekrar deneyin." },
-        { status: 429, headers: { "Retry-After": String(acct.retryAfter) } },
-      );
-    }
-
+    // Doğru sözleşme: doğru parola sahibi hesap kovası yüzünden ASLA
+    // kilitlenmez; kova YALNIZCA başarısız denemeleri sınırlar (↓aşağıda).
+    // IP kovası (yukarıda) değişmedi ve her istekte tüketilmeye devam ediyor.
+    //
+    // ⚠️ BİLİNÇLİ TAKAS: kapı aşağı indiği için tavanı aşmış bir saldırgan artık
+    // istek başına bir bcrypt maliyeti doğuruyor (eskiden kapıda kesiliyordu).
+    // Tek-IP senaryosunu IP kovası zaten kapatıyor; IP döndüren saldırgan bu
+    // maliyeti öder ama kurbanı KİLİTLEYEMEZ — doğru yön budur.
     const user = await prisma.user.findUnique({ where: { email } });
     // Constant-time: ALWAYS spend one bcrypt comparison. When the email is
     // unknown there is no hash to check, so compare against a fixed dummy hash
@@ -62,14 +57,19 @@ export async function POST(req: NextRequest) {
       await dummyVerifyPassword(parsed.data.password);
     }
     if (!user || !ok) {
-      // ⚠️ HESAP KOVASI BURADA TÜKETİLİR (denetim, 08-01 — beşinci tur).
-      // Yukarıdaki kapı yalnız OKUYOR; sayaç yalnız doğrulama BAŞARISIZ olunca
-      // artar. Böylece kaba kuvvet koruması aynen çalışır ama meşru kullanıcı
-      // kendi hesabından kilitlenemez (başarılı girişler sayılmaz) ve üçüncü bir
-      // taraf sırf e-postayı bilerek kurbanı giriş dışı bırakamaz.
-      // Bilinmeyen e-posta da sayılır: aksi hâlde sayaç hesabın VARLIĞINI
-      // sızdırırdı (enumeration) — zamanlama pariteyi bozmamak için de gerekli.
-      await rateLimit(`login-acct:${email}`, 20, 15 * 60 * 1000);
+      // ⚠️ HESAP KOVASI YALNIZ BURADA — BAŞARISIZ DOĞRULAMADA — TÜKETİLİR.
+      // Böylece kaba kuvvet koruması aynen çalışır ama meşru kullanıcı kendi
+      // hesabından KİLİTLENEMEZ ve üçüncü bir taraf sırf e-postayı bilerek kurbanı
+      // giriş dışı bırakamaz. Bilinmeyen e-posta da sayılır: aksi hâlde sayacın
+      // varlığı hesabın VARLIĞINI sızdırırdı (enumeration).
+      //
+      // ⚠️ KAPSAM (silinen yorumdan taşındı): bu kova PAROLA denemelerini sayar.
+      // 2FA/kurtarma kodu denemeleri bu dala HİÇ girmez (parola doğru olduğu için)
+      // — yani hesap-bazlı bir TOTP sınırı YOK. Eski `peek` kapısı da TOTP
+      // hatalarıyla dolmuyordu, yani bu bir REGRESYON DEĞİL; ama tek dokümantasyonu
+      // silinmişti. Ayrı bir `login-2fa:{userId}` kovası açık iş olarak kayıtlı
+      // (`docs/MIGRATION-BEKLEYEN-ISLER.md`).
+      const acct = await rateLimit(`login-acct:${email}`, 20, 15 * 60 * 1000);
       // Record a failed attempt against a KNOWN account (targeted-attack signal).
       // Unknown emails have no org to scope to — the rate limiter covers those.
       if (user) {
@@ -79,6 +79,14 @@ export async function POST(req: NextRequest) {
           action: "auth.login_failed",
           metadata: { reason: "bad_password", ip: clientIp(req) },
         });
+      }
+      // Tavan aşıldıysa YANLIŞ kimlik bilgisi 429 alır — kaba kuvvet koruması
+      // burada duruyor. DOĞRU parola bu dala hiç girmediği için etkilenmez.
+      if (!acct.ok) {
+        return NextResponse.json(
+          { error: "Bu hesap için çok fazla deneme. Lütfen biraz sonra tekrar deneyin." },
+          { status: 429, headers: { "Retry-After": String(acct.retryAfter) } },
+        );
       }
       return NextResponse.json({ error: "E-posta veya şifre hatalı" }, { status: 401 });
     }

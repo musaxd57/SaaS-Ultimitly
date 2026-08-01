@@ -79,8 +79,9 @@ export function DeleteAccountCard() {
             burada en azından gerçeği söylüyoruz. */}
         <p className="mt-2 font-medium text-amber-700">
           Önce aboneliğinizi iptal edin: hesabı silmek ödeme aboneliğinizi
-          <strong> durdurmaz</strong>. Faturalandırma → &quot;Aboneliği yönet&quot; bölümünden
-          iptal etmezseniz tahsilat devam eder.
+          <strong> durdurmaz</strong>. Bu yüzden aktif bir aboneliğiniz varken silme
+          <strong> yapılamaz</strong> — Faturalandırma → &quot;Aboneliği yönet&quot; bölümünden
+          iptal ettikten sonra tekrar deneyin.
         </p>
       </div>
 

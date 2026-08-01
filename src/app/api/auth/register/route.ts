@@ -62,8 +62,32 @@ export async function POST(req: NextRequest) {
     }
 
     const email = normalizeEmail(parsed.data.email);
+    // 🚨 HESAP VARLIĞI SIZDIRILMAZ (Codex denetimi, 08-01 — madde 4).
+    //
+    // Eskiden "Bu e-posta adresi zaten kayıtlı" 400'ü dönüyordu. Giriş, şifre
+    // sıfırlama ve doğrulama-tekrar yollarının HEPSİ enumeration-korumalıyken
+    // tek kalan sızıntı buydu: saldırgan hedef adresi gönderip hesabın VARLIĞINI
+    // kesinleştiriyor, parola püskürtme öncesi hedef listesi çıkarıyordu.
+    //
+    // Artık YENİ kayıtla BİREBİR aynı yanıt döner ve HİÇBİR ŞEY yazılmaz —
+    // mevcut kullanıcının şifresi, doğrulama durumu ve tokenı DOKUNULMADAN kalır.
+    //
+    // ⚠️ ZAMANLAMA PARİTESİ ŞART: normal yol bir bcrypt (yavaş) harcıyor. Erken
+    // dönseydik yanıt gözle görülür biçimde hızlı olur ve gövde aynı olsa bile
+    // varlık YİNE sızardı. Bu yüzden aynı maliyet burada da ödenir — giriş
+    // rotasındaki `dummyVerifyPassword` emsalinin ta kendisi.
+    //
+    // ⚠️ KABUL EDİLEN UX BEDELİ: hesabı olduğunu unutan gerçek bir kullanıcı
+    // "kutunuzu kontrol edin" görür ama e-posta almaz. Standart çözüm "zaten
+    // hesabınız var" e-postasıdır — YENİ bir müşteri e-postası türü, yani ürün +
+    // e-posta akışı kararı → `docs/MIGRATION-BEKLEYEN-ISLER.md`'ye soru olarak
+    // yazıldı, tek başıma eklemiyorum. Bugünkü kaçış yolu: giriş sayfasındaki
+    // "doğrulama e-postasını yeniden gönder".
     const existing = await prisma.user.findUnique({ where: { email } });
-    if (existing) return badRequest({ email: "Bu e-posta adresi zaten kayıtlı" });
+    if (existing) {
+      await hashPassword(parsed.data.password); // zamanlama paritesi — sonuç atılır
+      return jsonOk({ ok: true, verifyEmail: true }, 201);
+    }
 
     // Operating timezone for the new org — it drives report day boundaries,
     // automated-message hour windows and the QR concierge's open-hours gate.

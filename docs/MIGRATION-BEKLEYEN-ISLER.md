@@ -313,6 +313,153 @@ politikası kullanıcı kararı.
 
 ---
 
+## 4g. Codex listesi bittikten SONRA bulunan, KAPSAM DIŞI bırakılanlar (08-01)
+
+Bağımsız denetim ajanı, yedi maddeyi doğrularken KAPSAM DIŞI iki gerçek bulgu
+daha çıkardı. Kullanıcının talimatı açıktı ("bunları yap ve dur"), o yüzden
+KODLANMADI — ama üstü örtülmesin diye buraya yazıldı. İkisi de **DAR** ve
+migration istemiyor.
+
+### (a) `forgot-password` rotasında AYNI kilitleme deseni duruyor
+
+`src/app/api/account/forgot-password/route.ts` — `forgot-confirm:{email}` kovası
+(8 / 10 dk) sıfırlama KODU kontrol edilmeden ÖNCE ve KOŞULSUZ tüketiliyor. Yani
+Codex'in madde 1'de kapattığı sınıfın birebir aynısı: kurbanın e-postasını bilen
+biri, kurbanın MEŞRU sıfırlama kodunu 10 dakika boyunca kullanılamaz yapabilir.
+
+**Dar düzeltme (login'in aynısı):** kovayı yalnız YANLIŞ koddan sonra tüket. Kod
+başına deneme sınırı (`pwResetCodeAttempts`) zaten ayrı ve duruyor.
+
+⚠️ §4e'deki "hesap-kovası açıklarını kapat ✅ TAMAM" satırı YALNIZCA GİRİŞ rotası
+içindir; bu satır o iddiayı sınırlandırır.
+
+### (b) 2FA/kurtarma kodu denemelerinde hesap-bazlı sınır YOK
+
+Giriş kovası artık yalnız PAROLA hatalarında tüketiliyor. 2FA dalına ancak parola
+DOĞRUYKEN gelinir, yani TOTP/kurtarma kodu denemeleri hiçbir hesap-bazlı kovayı
+doldurmuyor: parolayı bilen + IP döndüren biri kodları hesap sınırından bağımsız
+deneyebilir.
+
+**REGRESYON DEĞİL** — eski `peek` kapısı da TOTP hatalarıyla dolmuyordu; tek fark,
+bunu anlatan yorumun bu turda silinmiş olmasıydı (yorum geri kondu).
+
+**Dar düzeltme:** yanlış kod/kurtarma kodu dalında ayrı bir `login-2fa:{userId}`
+kovası tüket. 2FA'nın kendi atomik burn + `timingSafeEqual` korumaları duruyor.
+
+---
+
+## 4f. CODEX LİSTESİ (08-01) — madde 6 ve 7: KOD DEĞİL, KARAR
+
+### Madde 6 — `TRUSTED_PROXY_HOPS`: teşhis yöntemi (koddan env değişmez)
+
+**Koddan hiçbir env değeri değiştirilmedi ve değiştirilmeyecek.** Değer yalnız
+Railway panelinden, ÖLÇEREK girilir. Yöntem:
+
+1. **Operatör olarak `/admin` → “Operasyon Teşhisi” kartını aç.** Kart, o isteğin
+   GERÇEK `x-forwarded-for` zincirini ve her `TRUSTED_PROXY_HOPS` değerinin hangi
+   adresi seçeceğini ÖNİZLER. Karar bakışla verilir, bayrak körlemesine çevrilmez.
+2. **Zincirdeki adımları TERS DNS ile kimliklendir.** IP sorgu siteleri YANILTIR —
+   daha önce kullanıcının sorgusu Google tüneline (`googlezip.net`) düşüp alakasız
+   bir adres göstermişti. Doğru araç ters DNS:
+   - ISS adı görünüyorsa (`…srv.turk.net`, `dynamic.ttnet.com.tr`) → **gerçek müşteri**.
+   - Ters DNS YOKSA / veri-merkezi adıysa (`datapacket.com`) → **altyapı**.
+3. **Doğru değer = kartta GERÇEK MÜŞTERİ adresini seçen satır.**
+
+**08-01 ölçümü (kanıtlı):** zincir `188.119.60.236, 212.102.36.193` →
+`188.119.60.236` ters DNS `236.60.119.188.srv.turk.net` (TurkNet = müşteri),
+`212.102.36.193` ters DNS YOK (altyapı). Kart “`TRUSTED_PROXY_HOPS=2` → 188.119.60.236
+← aktif” ve “limitleyicinin kullandığı: 188.119.60.236” diyor. **Değer 2 DOĞRU ve
+kullanıcı tarafından Railway'e girildi.**
+
+**⚠️ YÖN KURALI (değişmedi):** az tahmin etmek GÜVENLİ (herkes tek kovaya düşer,
+kimlik seçilemez), fazla tahmin etmek TEHLİKELİ (saldırgan zinciri beklenen
+uzunluğa getirip seçilen adımı kendi yazar). Emin değilsen küçük değer.
+
+**⚠️ Geçmiş delil satırları BİLEREK DÜZELTİLMEZ.** `User.acceptedIp` (KVKK açık
+rıza kanıtı), `CheckoutConsent.ip` (ödeme onayı kanıtı) ve login/2FA/şifre-sıfırlama
+audit metadata'sı bayrak öncesinde edge adresini taşıyor. Yeni satırlar doğru olur;
+delil kaydı sonradan yeniden yazılmaz.
+
+---
+
+### Madde 7 — Cascade + saklama: SEÇENEKLER ve VERİ KAYBI ETKİSİ
+
+**Migration YAZILMADI.** Hukuk kararı olmadan yazılmaz. Karar netleşsin diye
+seçenekler ve her birinin bedeli aşağıda.
+
+#### Bugünkü durum (kod-doğrulandı)
+
+`Organization` silinince şu tablolar **cascade** ile gidiyor: `Invoice`,
+`CheckoutConsent`, `Subscription`, `AuditLog`. Silme işleminin kendisi audit'e
+**yazılmıyor** (grep 0) → bir org'un var olduğuna ve silindiğine dair **hiçbir iz**
+kalmıyor.
+
+CLAUDE.md'nin kendi LEGAL notu ise şunu söylüyor: `Invoice` **10 yıl** (TTK m.82),
+`CheckoutConsent` **≥3 yıl zorunlu / 10 yıl önerilen** (MSY m.20/1 + TBK m.146),
+e-ileti onay/ret **3 yıl** (Tic. İletişim Yön. m.13). Yani bugünkü davranış ile
+belgelenen saklama yükümlülüğü **çelişiyor**.
+
+⚠️ **Bu turda hesap silme ARTIK aktif ödeme aboneliği varken ENGELLENİYOR** (madde 2),
+yani "ödeyen müşteri silinip fatura kaydı da yok oluyor" yolu daralmış durumda —
+ama iptal edilmiş bir aboneliğin geçmiş faturaları hâlâ cascade ile gidiyor.
+
+#### Seçenek A — Saklanacak tabloların bağını KOPAR (Codex'in önerdiği yön)
+
+`Invoice`/`CheckoutConsent`(/gerekirse `Subscription`) üzerinde `organizationId`
+**nullable + `onDelete: SetNull`**; silmede org bağı kopar, satır kalır.
+
+- **Veri kaybı:** yok (satırlar korunur).
+- **⚠️ YETMEZ:** Codex'in vurgusu — satırın org silindikten SONRA da **anlamlı ve
+  PII'siz** kalması gerekir. Bugün `Invoice`/`CheckoutConsent` üzerinde e-posta/ad
+  gibi alanlar varsa onlar da anonimleştirilmeli, yoksa "sildik" vaadi yalan olur.
+- **Ek gereksinim:** silinen org'un kimliğini taşımayan, PII'siz bağımsız bir
+  `DeletionRecord` (ne zaman, hangi opak referans, hangi yasal dayanak) — bugün
+  silmenin hiçbir izi olmadığı için bu ayrı bir eksik.
+- **Yan etki:** raporlama/muhasebe sorguları `organizationId`'nin NULL olabileceğini
+  bilmeli.
+
+#### Seçenek B — Yumuşak silme + bekleme süresi
+
+`deletionRequestedAt` / `deletionEffectiveAt`; org hemen erişim dışı, gerçek imha
+yasal süre dolunca.
+
+- **Veri kaybı:** yok.
+- **Bedel:** "hemen sildim" vaadi değişir (metin + KVKK sayfası güncellenir),
+  bekleme penceresinde veri DURUYOR — bu, m.7 "resen imha" ile açıkça
+  gerekçelendirilmeli. **Avukat sorusu.**
+
+#### Seçenek C — Bugünkü davranış korunur, metin dürüstleştirilir
+
+Cascade kalır; gizlilik/silme metni "fatura kayıtlarınız da silinir" der.
+
+- **Veri kaybı:** var ve KASITLI.
+- **Risk:** TTK m.82 / MSY m.20 ile çelişebilir → **saf hukuk sorusu**, kod sorusu değil.
+
+#### Sorulacaklar (avukata)
+
+1. Yabancı (İtalyan) tüzel kişi Türk tüketiciye satış yaparken `Invoice`/
+   `CheckoutConsent` için hangi saklama süresi bağlayıcı?
+2. Müşteri "hesabımı sil" dediğinde bu kayıtları saklamak m.5/2-ç'ye dayanabilir mi;
+   dayanıyorsa gizlilik metninde nasıl açıklanmalı?
+3. Silme işleminin kendisi için PII'siz bir `DeletionRecord` tutmak gerekli mi?
+4. Bekleme süreli (yumuşak) silme kabul edilebilir mi, kabul edilirse üst sınır?
+
+**⚠️ İkinci ödeyen müşteriden SONRA geriye dönük yapılamaz** — kayıtlar bir kez
+silindiğinde geri gelmez. Karar ONDAN ÖNCE alınmalı.
+
+---
+
+### Madde 4'ün açık kalan UX bedeli (soru, kod değil)
+
+Kayıt artık var olan e-postada da genel 201 dönüyor (enumeration kapandı). Bedeli:
+hesabı olduğunu unutan gerçek kullanıcı "kutunuzu kontrol edin" görür ama e-posta
+almaz. Standart çözüm **"zaten hesabınız var, giriş yapın"** e-postasıdır —
+YENİ bir müşteri e-postası türü, yani ürün + e-posta akışı kararı. Tek başıma
+eklenmedi. Bugünkü kaçış yolu: giriş sayfasındaki "doğrulama e-postasını yeniden
+gönder".
+
+---
+
 ## 4e. CODEX KARARLARI (08-01) — migration etiketleri DÜZELTİLDİ
 
 Codex belgeyi gözden geçirdi. Aşağıdaki dört karar **bu belgedeki eski etiketleri
@@ -394,8 +541,8 @@ sonra da anlamlı ve PII'siz kalmalı. (§1'in yerine.)
    188.119.60.236" diyor.
 2. ~~Impersonation ve login hesap-kovası açıklarını migration'sız kapat~~ ✅ **TAMAM**
    (`requireSession` artık impersonation'da `isSuperAdmin`'i yeniden doğruluyor;
-   `login-acct` kovası `peekRateLimit` ile okunuyor, yalnız BAŞARISIZ doğrulamada
-   tüketiliyor).
+   `login-acct` kovası artık kapı DEĞİL: yalnız BAŞARISIZ doğrulamada tüketiliyor,
+   doğru parola ondan hiç etkilenmiyor).
 3. ~~Cleanup'ı hemen fail-closed yap~~ ✅ **TAMAM** (↑K2).
 4. `Reservation.ingestionOrigin` migration'ı — **SIRADAKİ**.
 5. `IntegrationConnection` sağlık migration'ı — ayrı tur.
@@ -442,7 +589,7 @@ elle SQL). **Dar düzeltme:** `sent/queue/page.tsx` ve `tasks/new/page.tsx` emsa
 tek satırlık `canManage` redirect'i rol kontrolü olmayan `(app)` sayfalarına da
 eklensin — **ekip yönetimi eklenmeden ÖNCE ŞART** (sessionEpoch bump'ıyla birlikte).
 
-### (d) `login-acct:{email}` kovası kimlik kontrolünden ÖNCE tüketiliyor
+### (d) ✅ UYGULANDI (08-01, Codex madde 1) — `login-acct` kovası kapı olmaktan çıktı
 
 Başarılı denemeler de sayıldığı için e-postasını bilen biri hedefi kalıcı giriş
 dışı bırakabilir: 15 dakikada 21 istek (~1,4/dk) → kurban DOĞRU şifresiyle bile 429.
@@ -451,7 +598,7 @@ BAŞARISIZ doğrulamadan sonra tüket (IP kovası zaten önde). **Neden uygulanm
 kimlik doğrulama sırasını değiştirmek zamanlama-sızıntısı yüzeyine dokunuyor
 (`dummyVerifyPassword` dengesi) — ayrı ve dikkatli bir tur hak ediyor.
 
-### (e) Kayıt rotası hesap varlığını sızdırıyor
+### (e) ✅ UYGULANDI (08-01, Codex madde 4) — kayıt rotası genel yanıt döndürüyor
 
 `POST /api/auth/register` var olan e-postada açıkça "zaten kayıtlı" diyor; giriş,
 şifre-sıfırlama ve doğrulama-tekrar yollarının hepsi enumeration-korumalı. **Neden

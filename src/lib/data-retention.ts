@@ -1,4 +1,5 @@
 import { subMonths, startOfDay } from "date-fns";
+import { Prisma } from "@prisma/client";
 import { prisma } from "@/lib/db";
 import { ERASABLE_STATUSES } from "@/lib/outbox/state";
 
@@ -463,7 +464,10 @@ function redactPaddlePayload(raw: string): string {
  * parse-verify before touching. status:"processed" so a Paddle retry can't re-store
  * raw PII (the webhook route only reprocesses non-"processed" rows).
  */
-async function redactPaddleWebhooksForOrg(organizationId: string): Promise<void> {
+async function redactPaddleWebhooksForOrg(
+  db: Prisma.TransactionClient | typeof prisma,
+  organizationId: string,
+): Promise<void> {
   // AUTHORITATIVE attribution anchors — read BEFORE the org row is deleted.
   // Paddle dedups customers by billing email, so a customer id is NOT guaranteed
   // unique to one org (adversarial-review finding): a cid learned loosely could
@@ -474,13 +478,13 @@ async function redactPaddleWebhooksForOrg(organizationId: string): Promise<void>
   //     when that row is anchored to one of the org's OWN provider refs.
   const customerIds = new Set<string>();
   const providerRefs = new Set<string>();
-  const sub = await prisma.subscription.findUnique({
+  const sub = await db.subscription.findUnique({
     where: { organizationId },
     select: { customerId: true, providerRef: true },
   });
   if (sub?.customerId) customerIds.add(sub.customerId);
   if (sub?.providerRef) providerRefs.add(sub.providerRef);
-  for (const inv of await prisma.invoice.findMany({
+  for (const inv of await db.invoice.findMany({
     where: { organizationId },
     select: { providerRef: true },
   })) {
@@ -489,7 +493,7 @@ async function redactPaddleWebhooksForOrg(organizationId: string): Promise<void>
 
   // Pass 1 — rows that carry OUR org id in custom_data (stamped at checkout).
   const redacted = new Set<string>();
-  const rows = await prisma.webhookEvent.findMany({
+  const rows = await db.webhookEvent.findMany({
     where: { provider: "paddle", payloadJson: { contains: organizationId } },
     select: { id: true, payloadJson: true },
   });
@@ -519,7 +523,7 @@ async function redactPaddleWebhooksForOrg(organizationId: string): Promise<void>
       belongs = false; // unparseable → not attributable to this org, skip
     }
     if (!belongs) continue;
-    await prisma.webhookEvent.update({
+    await db.webhookEvent.update({
       where: { id: r.id },
       data: { payloadJson: redactPaddlePayload(r.payloadJson), status: "processed", processedAt: new Date() },
     });
@@ -535,7 +539,7 @@ async function redactPaddleWebhooksForOrg(organizationId: string): Promise<void>
   // row of a genuinely shared customer is still redacted (ambiguous ownership;
   // the allowlist keeps the reconciliation skeleton, redaction only removes).
   for (const cid of customerIds) {
-    const cidRows = await prisma.webhookEvent.findMany({
+    const cidRows = await db.webhookEvent.findMany({
       where: { provider: "paddle", payloadJson: { contains: cid } },
       select: { id: true, payloadJson: true },
     });
@@ -555,7 +559,7 @@ async function redactPaddleWebhooksForOrg(organizationId: string): Promise<void>
         belongs = false;
       }
       if (!belongs) continue;
-      await prisma.webhookEvent.update({
+      await db.webhookEvent.update({
         where: { id: r.id },
         data: { payloadJson: redactPaddlePayload(r.payloadJson), status: "processed", processedAt: new Date() },
       });
@@ -570,10 +574,9 @@ async function redactPaddleWebhooksForOrg(organizationId: string): Promise<void>
  */
 export async function deleteAccountData(organizationId: string): Promise<void> {
   // KVKK erasure: WebhookEvent has no org FK (won't cascade) and its Paddle
-  // payload carries customer email/name/address. Keep the financial skeleton but
-  // strip the PII BEFORE the org row is gone (so it's minimized even if the
-  // delete below throws).
-  await redactPaddleWebhooksForOrg(organizationId);
+  // payload carries customer email/name/address. The financial skeleton stays,
+  // the PII goes — and this now happens INSIDE the same transaction as the org
+  // delete (↓aşağıda), not before it.
 
   // Storage-backed task photos (S3/R2): read the object keys NOW, before any
   // delete, then record the durable deletion INTENTS ATOMICALLY with the org
@@ -605,12 +608,37 @@ export async function deleteAccountData(organizationId: string): Promise<void> {
   // transaction (Codex P3): if the org-delete rolls back, the usage counters must
   // NOT already be gone (an account that lives on with wiped counters). Atomic.
   await prisma.$transaction(async (tx) => {
+    // ⚠️ WEBHOOK REDAKSİYONU ARTIK BU TX'İN İÇİNDE (Codex denetimi, 08-01 — madde 3).
+    //
+    // DAVRANIŞ DEĞİŞİMİ, bilinçli: eskiden TX'ten ÖNCE koşuyordu ve gerekçesi
+    // "silme patlasa bile PII en aza insin" idi. Bedeli tutarsız bir ara hâldi:
+    // org SİLİNMEMİŞ ama fatura webhook'ları redakte edilmiş — yani hâlâ MÜŞTERİ
+    // olan birinin kayıtları yarım budanmış oluyordu ve hiçbir yerde iz kalmıyordu.
+    // Artık ya İKİSİ de olur ya HİÇBİRİ: silme geri sarılırsa redaksiyon da sarılır.
+    //
+    // Gizlilik kaybı YOK: silme başarısız olduğunda kullanıcıya hata döner ve
+    // yeniden dener; başarılı denemede redaksiyon yine yapılır. Kalıcı olarak
+    // silinemeyen bir org zaten hâlâ müşteridir — verisinin durması TUTARLIDIR.
+    //
+    // ⚠️ SIRA ÖNEMLİ: `Subscription`/`Invoice` satırlarını OKUR ve onlar org ile
+    // birlikte cascade siliniyor → org silinmeden ÖNCE çağrılmalı.
+    await redactPaddleWebhooksForOrg(tx, organizationId);
     if (propIds.length > 0) {
       await tx.chatUsage.deleteMany({ where: { propertyId: { in: propIds } } });
     }
     await tx.organization.delete({ where: { id: organizationId } });
     if (storageKeys.length > 0) await enqueueStorageDeletions(tx, organizationId, storageKeys);
-  });
+  },
+  // 🚨 AÇIK SÜRE SINIRI ŞART (bağımsız denetim, 08-01 — bu turda AÇTIĞIM risk).
+  // Redaksiyonu bu TX'e almak, işi Prisma'nın VARSAYILAN 5 saniyelik interactive-
+  // transaction penceresine hapsetti (`db.ts` `transactionOptions` vermiyor).
+  // Redaksiyon `payloadJson: { contains }` ile İKİ kez indekslenemez bir LIKE
+  // '%…%' taraması yapıyor ve eşleşen her satıra ayrı UPDATE atıyor; `WebhookEvent`
+  // hiçbir yerde budanmıyor (grep: 0 `deleteMany`) → tablo sınırsız büyür.
+  // Süre aşılırsa P2028 ile TÜM silme geri sarılır: düzeltmeye çalıştığım "yarım
+  // redaksiyon" hâli, "hesap HİÇ silinemiyor" hâline dönüşürdü.
+  // Değerler kardeş KVKK yollarıyla birebir (`erasure.ts`, `hospitable-sync.ts`).
+  { timeout: 180_000, maxWait: 15_000 });
 
   // KVKK: task photos live on local disk (public/uploads/{orgSlug}), NOT in the DB,
   // so the cascade above leaves them. Physically remove the org's upload folder.
