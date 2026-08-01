@@ -3,6 +3,7 @@ import { taskUpdateSchema, zodFieldErrors } from "@/lib/validators";
 import { badRequest, jsonOk, notFound, canManage, forbidden, readJsonCappedOrNull } from "@/lib/api";
 import { withAuth, withManage } from "@/lib/route-guard";
 import { emailService } from "@/lib/email";
+import { reportError } from "@/lib/report-error";
 import { taskAssignedEmail } from "@/lib/email-templates";
 import { enqueueStorageDeletions } from "@/lib/storage/deletion-queue";
 import { STORAGE_PHOTO_URL_PREFIX, keyFromPhotoUrl, isAcceptablePhotoUrl } from "@/lib/storage/keys";
@@ -120,7 +121,22 @@ export const PATCH = withAuth<{ id: string }>(async (session, req, { params }) =
       { name: newAssignee.name, email: newAssignee.email },
       { name: task.property.name, address: task.property.address, city: task.property.city },
     );
-    void emailService.send(newAssignee.email, `Yeni Görev: ${task.title}`, html);
+    // ⚠️ `send` DEĞİL `sendReporting` (denetim, 08-01 — üçüncü tur). `send` sonucu
+    // YUTAR: atanan kişi görevi hiç öğrenmeyebilir ve HİÇBİR YERDE iz kalmazdı.
+    // İstek yolunda `await` etmiyoruz (yanıt gecikmesin) ama SONUCU OKUYORUZ.
+    // ⚠️ Alarm PII TAŞIMAZ: görev başlığı misafir adı taşıyabilir (KVKK süpürge
+    // kapsamında) → alarma yalnız görev ID'si girer.
+    void emailService
+      .sendReporting(newAssignee.email, `Yeni Görev: ${task.title}`, html)
+      .then((res) => {
+        if (!res.ok) {
+          void reportError(
+            "task-assign-mail",
+            new Error(`task=${task.id} — görev atama bildirimi gönderilemedi`),
+          );
+        }
+      })
+      .catch((err) => void reportError("task-assign-mail", err));
   }
 
   // Record an activity update when status / note / photo changes.

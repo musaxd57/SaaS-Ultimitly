@@ -44,6 +44,8 @@ export interface ScheduledSyncTotals {
   idleOrganizationsSkipped?: number;
   /** Süre bütçesi dolduğu için bu geçişte atlanan org sayısı (iş kaybı değil, gecikme). */
   budgetSkipped?: number;
+  /** Kilit yenilenemedi → geçiş erken kesildi (TTL aşımı / devralma). Alarm da düşer. */
+  lockLost?: boolean;
   conversations: number;
   messages: number;
   autoReplies: number;
@@ -152,14 +154,26 @@ async function acquireLock(): Promise<string | null> {
  * aşması. Org içinde ilerleme noktası yok; tam çözüm `syncHospitable`'a
  * `onProgress` geçirmek olurdu ve imza + `withSyncLock` sözleşmesi genişlerdi.
  * `withSyncLock`'un in-process bayrağı en ulaşılabilir yolu zaten kapatıyor.
+ *
+ * ⚠️ SONUCU OKUNUR (denetim, 08-01 — üçüncü tur). `count === 0` "kilit ARTIK
+ * BİZDE DEĞİL" demektir: TTL'imiz geçmiş ve BAŞKA bir replika kilidi almış
+ * (kendi token'ıyla). Bu noktadan sonra devam etmek, İKİ koşunun aynı org'lara
+ * paralel yazması demektir — kilidin var olma sebebinin ta kendisi. Eskiden
+ * `count` hiç okunmuyordu ve dönüş `void`di: kilit sessizce kaybedilir, koşu
+ * hiçbir şey olmamış gibi devam ederdi. `false` dönerse çağıran döngüyü KESER.
+ *
+ * `.catch(() => false)` bilinçli: DB hıçkırığı kilit kaybı DEĞİLDİR, ama emin
+ * de olamayız → GÜVENLİ yön durmaktır (bir geçiş atlanır, 2 dakika sonra yeni
+ * geçiş başlar; çift yazmanın bedeli çok daha ağır).
  */
-async function renewLock(holder: string): Promise<void> {
-  await prisma.systemLock
+async function renewLock(holder: string): Promise<boolean> {
+  return prisma.systemLock
     .updateMany({
       where: { name: LOCK_NAME, holder },
       data: { lockedUntil: new Date(Date.now() + LOCK_TTL_MS) },
     })
-    .catch(() => {});
+    .then((res) => res.count === 1)
+    .catch(() => false);
 }
 
 async function releaseLock(holder: string): Promise<void> {
@@ -320,6 +334,7 @@ export async function runScheduledSync(): Promise<ScheduledSyncTotals> {
       const PASS_BUDGET_MS = 12 * 60_000;
       const ORG_BUDGET_MS = 4 * 60_000;
       let budgetSkipped = 0;
+      let lockLost = false;
 
       for (const org of orgs) {
         if (Date.now() - passStartedAt > PASS_BUDGET_MS) {
@@ -327,7 +342,14 @@ export async function runScheduledSync(): Promise<ScheduledSyncTotals> {
           continue;
         }
         // Bu geçiş HÂLÂ ilerliyor → kilidi tazele (↑renewLock: ilerleme-tetikli).
-        await renewLock(holder);
+        // ⚠️ SONUÇ OKUNUR: yenileyemediysek kilit BİZDE DEĞİL (TTL geçmiş, başka
+        // bir replika almış). Devam etmek iki koşunun aynı org'lara paralel
+        // yazması demek — kilidin var olma sebebi tam olarak bu. Kalan org'lar
+        // kaybolmaz: kilidi alan koşu zaten aynı listeyi işliyor.
+        if (!(await renewLock(holder))) {
+          lockLost = true;
+          break;
+        }
         const orgStartedAt = Date.now();
         // Bir org'un hatası diğerlerini durdurmaz. AYNI gövde iki try'da da
         // kullanılıyor (senkron + otomasyon), o yüzden tek yerde duruyor.
@@ -431,6 +453,19 @@ export async function runScheduledSync(): Promise<ScheduledSyncTotals> {
         totals.budgetSkipped = budgetSkipped;
         console.warn(
           `[scheduled-sync] süre bütçesi: ${budgetSkipped} org bu geçişte atlandı (sonraki turda devam eder)`,
+        );
+      }
+      // ⚠️ KİLİT KAYBI SESSİZ GEÇMEZ. Bu, TTL'in (15 dk) gerçekten aşıldığının
+      // KANITIDIR ve tam olarak "heartbeat'li kilide geç" kararının tetikleyicisi
+      // olması gereken sinyaldir. Org sayısı ve PII taşımaz.
+      if (lockLost) {
+        totals.lockLost = true;
+        await reportError(
+          "scheduled-sync lock-lost",
+          new Error(
+            "Kilit yenilenemedi (TTL aşıldı ya da başka bir replika devraldı) — geçiş erken kesildi. " +
+              `Toplam org: ${orgs.length}.`,
+          ),
         );
       }
 

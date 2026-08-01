@@ -108,4 +108,50 @@ describe("senkron kilidi — ilerleme-tetikli kalp atışı", () => {
     // +15 dk'ya ÇEKİLMEDİ: yabancı kilide dokunulmadı.
     expect(row.lockedUntil.getTime()).toBeLessThan(Date.now() + 5 * 60_000);
   });
+
+  // -------------------------------------------------------------------------
+  // KİLİT KAYBI SESSİZ GEÇMEZ (denetim, 08-01 — üçüncü tur).
+  //
+  // `renewLock` bir `updateMany` idi ve `count`'u HİÇ OKUNMUYORDU. `count === 0`
+  // "kilit artık BİZDE DEĞİL" demektir (TTL geçmiş, başka replika devralmış) —
+  // yani tam olarak kilidin engellemek için var olduğu durum. Eski kod bunu
+  // görmeden kalan org'ları işlemeye DEVAM ediyordu: iki koşu aynı org'lara
+  // paralel yazar, `findFirst-then-create` dedupe'u delinir.
+  // -------------------------------------------------------------------------
+  it("KİLİT KAYBEDİLİRSE geçiş KESİLİR (kalan org'lar işlenmez)", async () => {
+    await orgWithProperty("A");
+    await orgWithProperty("B");
+    await orgWithProperty("C");
+
+    // İlk org turunda kilit devralınır → 2. turun başındaki yenileme başarısız.
+    let first = true;
+    mockSync.mockImplementation(async () => {
+      if (first) {
+        first = false;
+        await prisma.systemLock.update({
+          where: { name: "scheduled-sync" },
+          data: { holder: "other-run", lockedUntil: new Date(Date.now() + 60_000) },
+        });
+      }
+      return ZERO as never;
+    });
+
+    const totals = await runScheduledSync();
+
+    // ⬅️ ARIZADA 3 olurdu: kilit kaybedilmiş olmasına rağmen hepsi işlenirdi.
+    expect(mockSync).toHaveBeenCalledTimes(1);
+    expect(totals.lockLost).toBe(true);
+  });
+
+  it("KİLİT BİZDEYKEN geçiş SONUNA KADAR gider (yanlış-pozitif pini)", async () => {
+    await orgWithProperty("A");
+    await orgWithProperty("B");
+    await orgWithProperty("C");
+    mockSync.mockResolvedValue(ZERO as never);
+
+    const totals = await runScheduledSync();
+
+    expect(mockSync).toHaveBeenCalledTimes(3);
+    expect(totals.lockLost).toBeUndefined();
+  });
 });

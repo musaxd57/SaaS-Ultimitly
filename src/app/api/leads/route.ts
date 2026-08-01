@@ -4,6 +4,7 @@ import { leadSchema, zodFieldErrors } from "@/lib/validators";
 import { badRequest, jsonOk, serverError, parseJsonBody, payloadTooLarge } from "@/lib/api";
 import { rateLimit, clientIp } from "@/lib/rate-limit";
 import { emailService } from "@/lib/email";
+import { reportError } from "@/lib/report-error";
 
 function esc(s: string): string {
   return s.replace(/[&<>"]/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;" })[c] ?? c);
@@ -49,7 +50,13 @@ export async function POST(req: NextRequest) {
     const to = process.env.ALERT_EMAIL?.trim();
     if (to) {
       try {
-        await emailService.send(
+        // ⚠️ `send` DEĞİL `sendReporting` (denetim, 08-01 — üçüncü tur): `send`
+        // ASLA FIRLATMAZ, sağlayıcı hatasını yalnız console'a yazar ve `void`
+        // döner → aşağıdaki `catch` sağlayıcı 5xx'inde HİÇ ÇALIŞMIYORDU. Yani
+        // "hata görünür olsun" diye yazılmış blok, tam da görünür kılmak istediği
+        // arıza sınıfında sessizdi. Lead satırı DB'de duruyor (kayıp yok) ama
+        // operatör demo talebini FARK ETMEYEBİLİRDİ.
+        const res = await emailService.sendReporting(
           to,
           `Yeni demo talebi: ${name}`,
           `<p>Yeni bir demo / deneme talebi geldi.</p>
@@ -59,8 +66,11 @@ export async function POST(req: NextRequest) {
            }</p>
            <p>Operatör panelindeki "Demo Talepleri" bölümünde de görünür.</p>`,
         );
+        if (!res.ok) {
+          void reportError("lead-notify-mail", new Error("demo talebi bildirimi gönderilemedi"));
+        }
       } catch (e) {
-        console.error("[leads] notification email failed:", e);
+        void reportError("lead-notify-mail", e);
       }
     }
 

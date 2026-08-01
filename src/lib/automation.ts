@@ -821,11 +821,22 @@ export async function applyReservationCreatedRules(reservationId: string): Promi
     propertyData,
   );
 
+  // ⚠️ `send` DEĞİL `sendReporting` (denetim, 08-01 — üçüncü tur). `send` sonucu
+  // YUTAR ve `void` döner: sağlayıcı 5xx dönse bile burada hiçbir iz kalmazdı ve
+  // host yeni rezervasyondan HABERSİZ kalırdı. Sonuç okunuyor, arıza koşu başına
+  // TEK toplu alarma gidiyor (org'un 5 sahibi varsa 5 ayrı alarm değil).
+  // ⚠️ Alarm PII TAŞIMAZ: yalnız sayı — misafir adı/e-posta/mülk adı YOK.
+  let mailFailures = 0;
   for (const user of orgUsers) {
-    void emailService.send(
-      user.email,
-      `Yeni Rezervasyon: ${r.guestName} — ${r.property.name}`,
-      html,
+    const res = await emailService
+      .sendReporting(user.email, `Yeni Rezervasyon: ${r.guestName} — ${r.property.name}`, html)
+      .catch(() => ({ ok: false as const }));
+    if (!res.ok) mailFailures += 1;
+  }
+  if (mailFailures > 0) {
+    void reportError(
+      `reservation-created-mail org=${r.property.organizationId}`,
+      new Error(`${mailFailures}/${orgUsers.length} yeni-rezervasyon bildirimi gönderilemedi`),
     );
   }
 }
@@ -1852,7 +1863,18 @@ export async function applyChannelAutoReply(
                   : "send_failed",
           },
         })
-        .catch(() => {});
+        // ⚠️ SESSİZ `catch {}` DEĞİL (denetim, 08-01 — üçüncü tur). Bu yazma
+        // düşerse konuşma KALICI olarak "answered" (claim'li) kalır: misafir
+        // cevabı HİÇ almamıştır ama sistem cevaplanmış sayar → yeni mesaj gelene
+        // kadar kimse fark etmez. Geri alma başarısızlığı kaydın kendisidir.
+        .catch((err) => {
+          void reportError(
+            "auto-reply-claim-release",
+            new Error(`conversation=${conversation.id} — gönderim hatası sonrası claim geri alınamadı`, {
+              cause: err,
+            }),
+          );
+        });
     }
     return { sent: false, skippedReason: `send_failed: ${delivery.error ?? "unknown"}`, draft, ...meta };
   }
@@ -2520,12 +2542,18 @@ export async function sendDueWelcomes(
       const definitive = isDefinitiveSendFailure(delivery.error);
       failures.push(definitive ? "definitive" : "ambiguous");
       if (definitive) {
-        await prisma.reservation
+        // ⚠️ GERİ ALMANIN SONUCU OKUNUR (denetim, 08-01 — üçüncü tur).
+        // Damga geri alınamazsa rezervasyon KALICI olarak "gönderilmiş" sayılır
+        // ve bu mesaj bir daha ASLA denenmez — gecikme değil, kalıcı kayıp.
+        // Sessiz `catch {}` bu sınıfın kokusudur; artık toplu alarma etiket düşer
+        // (`rollback_failed`), döngü yine kırılmaz.
+        const rolled = await prisma.reservation
           .updateMany({
             where: { sourceReference: r.sourceReference, property: { organizationId } },
             data: { welcomeSentAt: null },
           })
-          .catch(() => {}); // a rollback blip must not break the loop (retries next run)
+          .catch(() => null);
+        if (rolled === null || rolled.count === 0) failures.push("rollback_failed");
       }
       continue; // definitive → un-claimed for retry; ambiguous → claim held (no re-POST)
     }
@@ -2652,12 +2680,18 @@ export async function sendDueCheckins(
       const definitive = isDefinitiveSendFailure(delivery.error);
       failures.push(definitive ? "definitive" : "ambiguous");
       if (definitive) {
-        await prisma.reservation
+        // ⚠️ GERİ ALMANIN SONUCU OKUNUR (denetim, 08-01 — üçüncü tur).
+        // Damga geri alınamazsa rezervasyon KALICI olarak "gönderilmiş" sayılır
+        // ve bu mesaj bir daha ASLA denenmez — gecikme değil, kalıcı kayıp.
+        // Sessiz `catch {}` bu sınıfın kokusudur; artık toplu alarma etiket düşer
+        // (`rollback_failed`), döngü yine kırılmaz.
+        const rolled = await prisma.reservation
           .updateMany({
             where: { sourceReference: r.sourceReference, property: { organizationId } },
             data: { checkinSentAt: null },
           })
-          .catch(() => {}); // a rollback blip must not break the loop (retries next run)
+          .catch(() => null);
+        if (rolled === null || rolled.count === 0) failures.push("rollback_failed");
       }
       continue; // definitive → un-claimed for retry; ambiguous → claim held (no re-POST)
     }
@@ -2928,12 +2962,18 @@ export async function sendDueCheckouts(
       const definitive = isDefinitiveSendFailure(delivery.error);
       failures.push(definitive ? "definitive" : "ambiguous");
       if (definitive) {
-        await prisma.reservation
+        // ⚠️ GERİ ALMANIN SONUCU OKUNUR (denetim, 08-01 — üçüncü tur).
+        // Damga geri alınamazsa rezervasyon KALICI olarak "gönderilmiş" sayılır
+        // ve bu mesaj bir daha ASLA denenmez — gecikme değil, kalıcı kayıp.
+        // Sessiz `catch {}` bu sınıfın kokusudur; artık toplu alarma etiket düşer
+        // (`rollback_failed`), döngü yine kırılmaz.
+        const rolled = await prisma.reservation
           .updateMany({
             where: { sourceReference: r.sourceReference, property: { organizationId } },
             data: { checkoutSentAt: null },
           })
-          .catch(() => {}); // a rollback blip must not break the loop (retries next run)
+          .catch(() => null);
+        if (rolled === null || rolled.count === 0) failures.push("rollback_failed");
       }
       continue; // definitive → un-claimed for retry; ambiguous → claim held (no re-POST)
     }
