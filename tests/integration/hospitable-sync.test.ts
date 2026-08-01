@@ -1076,3 +1076,208 @@ describe("ilan yarışı ve yazılamayan rezervasyon", () => {
     expect(res.reservations).toBe(1);
   });
 });
+
+// ---------------------------------------------------------------------------
+// ÇİTİN GERİ ALINMASI (derin denetim, 2026-08-01 — ÜÇÜNCÜ tur).
+//
+// `fenceUnlinkedTerminalStay` damgayı BAĞSIZ + kesin ölü konaklamaya basar ve
+// bunu `autoReplyAttemptedAt` ile yapar (aday sorgusunun
+// `autoReplyAttemptedAt < lastMessageAt` koşulu). Damga MEŞRU — ama ÇITIN
+// PREMİSİ "bağ yok" idi. Bağ sonradan kurulduğunda (sağlayıcı tarihi bir
+// sonraki geçişte döndürdü / rezervasyon upsert'i geçici hata sonrası başardı /
+// misafir tarihini değiştirip konaklama yeniden AKTİF oldu) premis ortadan
+// kalkar; damga kalırsa:
+//   · misafirin o mesajı KALICI cevapsız kalır (yeni mesaj yazana kadar), ve
+//   · host inbox'ta AKTİF bir rezervasyonun üstünde "Konaklama bitti/iptal"
+//     etiketi okur (yanlış bilgi).
+//
+// İKİ bağlama noktası var ve İLK yazımda İKİSİ DE kusurluydu:
+//   (1) "zaten güncel" atlama dalı (yeni mesaj YOK),
+//   (2) `importThread` UPDATE dalı (yeni mesaj VAR) — bu yol daha kolay tetiklenir.
+//
+// ⚠️ Geri alma YALNIZ çitin KENDİ sebebini temizler: gerçek bir sebep
+// (`low_confidence_or_risky`, `escalated_to_human`, `daily_budget`…) ASLA ezilmez.
+// ⚠️ Yalnız bağ GEÇİŞİNDE (null→X) koşar → konuşma ömründe EN FAZLA BİR KEZ.
+// ---------------------------------------------------------------------------
+describe("çit geri alınması — bağ kurulunca ölü-konaklama damgası kalkar", () => {
+  beforeEach(async () => {
+    await resetDb();
+    vi.clearAllMocks();
+    mockProperties.mockResolvedValue([{ id: "hp", name: "Test Property" }]);
+  });
+
+  /** 1. geçiş: tarihi çözülemeyen İPTAL → bağsız konuşma + çit. */
+  async function seedFenced(orgId: string) {
+    mockReservations.mockResolvedValue([
+      {
+        id: "res-unfence",
+        platform: "airbnb",
+        status: "cancelled",
+        conversation_id: "c",
+        last_message_at: "2026-06-09T10:00:00Z",
+        // TARİH YOK → yerel Reservation satırı yazılmaz → konuşma bağsız kalır.
+      },
+    ]);
+    mockMessages.mockResolvedValue([
+      {
+        id: 9201,
+        body: "Merhaba, wifi şifresi nedir?",
+        sender_type: "guest",
+        sender: { full_name: "Fenced Guest" },
+        created_at: "2026-06-09T10:00:00Z",
+      },
+    ]);
+    await syncHospitable(orgId);
+    const conv = await prisma.conversation.findFirstOrThrow({
+      where: { externalReservationId: "res-unfence" },
+    });
+    expect(conv.reservationId).toBeNull();
+    expect(conv.skippedReason).toBe("reservation_ended");
+    expect(conv.autoReplyAttemptedAt).not.toBeNull();
+    return conv;
+  }
+
+  it("importThread UPDATE dalı: yeni mesajla birlikte bağ kurulur → damga TEMİZLENİR", async () => {
+    const { orgId } = await makeOrgWithProperty();
+    await seedFenced(orgId);
+
+    // 2. geçiş: aynı rezervasyon artık AKTİF ve TARİHLİ → yerel satır yazılır.
+    // Yeni mesaj var (last_message_at ilerledi) → atlama dalı DEĞİL, importThread.
+    mockReservations.mockResolvedValue([
+      {
+        id: "res-unfence",
+        platform: "airbnb",
+        status: "accepted",
+        conversation_id: "c",
+        last_message_at: "2026-06-10T10:00:00Z",
+        arrival_date: "2099-06-15",
+        departure_date: "2099-06-20",
+      },
+    ]);
+    mockMessages.mockResolvedValue([
+      {
+        id: 9201,
+        body: "Merhaba, wifi şifresi nedir?",
+        sender_type: "guest",
+        sender: { full_name: "Fenced Guest" },
+        created_at: "2026-06-09T10:00:00Z",
+      },
+      {
+        id: 9202,
+        body: "Hâlâ bekliyorum.",
+        sender_type: "guest",
+        sender: { full_name: "Fenced Guest" },
+        created_at: "2026-06-10T10:00:00Z",
+      },
+    ]);
+    await syncHospitable(orgId);
+
+    const after = await prisma.conversation.findFirstOrThrow({
+      where: { externalReservationId: "res-unfence" },
+    });
+    expect(after.reservationId).not.toBeNull(); // bağ kuruldu
+    expect(after.skippedReason).toBeNull(); // yanlış etiket kalktı
+    expect(after.autoReplyAttemptedAt).toBeNull(); // konuşma yeniden aday
+  });
+
+  it("atlama dalı (yeni mesaj YOK): bağ kurulunca damga yine TEMİZLENİR", async () => {
+    const { orgId } = await makeOrgWithProperty();
+    await seedFenced(orgId);
+
+    // 2. geçiş: last_message_at DEĞİŞMEDİ → syncCursorAt güncel → mesaj çekilmez.
+    mockReservations.mockResolvedValue([
+      {
+        id: "res-unfence",
+        platform: "airbnb",
+        status: "accepted",
+        conversation_id: "c",
+        last_message_at: "2026-06-09T10:00:00Z",
+        arrival_date: "2099-06-15",
+        departure_date: "2099-06-20",
+      },
+    ]);
+    mockMessages.mockResolvedValue([]);
+    await syncHospitable(orgId);
+
+    const after = await prisma.conversation.findFirstOrThrow({
+      where: { externalReservationId: "res-unfence" },
+    });
+    expect(after.reservationId).not.toBeNull();
+    expect(after.skippedReason).toBeNull();
+    expect(after.autoReplyAttemptedAt).toBeNull();
+  });
+
+  it("TUZAK: konaklama HÂLÂ ölüyken bağ kurulursa damga KALIR", async () => {
+    const { orgId } = await makeOrgWithProperty();
+    await seedFenced(orgId);
+
+    // Tarih geldi ama durum HÂLÂ iptal → çitin premisi geçerli, damga kalmalı.
+    mockReservations.mockResolvedValue([
+      {
+        id: "res-unfence",
+        platform: "airbnb",
+        status: "cancelled",
+        conversation_id: "c",
+        last_message_at: "2026-06-10T10:00:00Z",
+        arrival_date: "2099-06-15",
+        departure_date: "2099-06-20",
+      },
+    ]);
+    mockMessages.mockResolvedValue([
+      {
+        id: 9203,
+        body: "Yeni mesaj",
+        sender_type: "guest",
+        sender: { full_name: "Fenced Guest" },
+        created_at: "2026-06-10T10:00:00Z",
+      },
+    ]);
+    await syncHospitable(orgId);
+
+    const after = await prisma.conversation.findFirstOrThrow({
+      where: { externalReservationId: "res-unfence" },
+    });
+    expect(after.reservationId).not.toBeNull(); // bağ kuruldu (satır artık yazılabiliyor)
+    // Bağlı + iptal → oto-yanıt kapısı ZATEN kapalı; etiket de doğru bilgi.
+    expect(after.skippedReason).toBe("reservation_ended");
+  });
+
+  it("TUZAK: GERÇEK bir atlama sebebi bağ kurulunca EZİLMEZ", async () => {
+    const { orgId } = await makeOrgWithProperty();
+    const conv = await seedFenced(orgId);
+    // Kapı gerçek bir sebep yazdı (host'un görmesi gereken bilgi).
+    await prisma.conversation.update({
+      where: { id: conv.id },
+      data: { skippedReason: "escalated_to_human" },
+    });
+
+    mockReservations.mockResolvedValue([
+      {
+        id: "res-unfence",
+        platform: "airbnb",
+        status: "accepted",
+        conversation_id: "c",
+        last_message_at: "2026-06-10T10:00:00Z",
+        arrival_date: "2099-06-15",
+        departure_date: "2099-06-20",
+      },
+    ]);
+    mockMessages.mockResolvedValue([
+      {
+        id: 9204,
+        body: "Yeni mesaj",
+        sender_type: "guest",
+        sender: { full_name: "Fenced Guest" },
+        created_at: "2026-06-10T10:00:00Z",
+      },
+    ]);
+    await syncHospitable(orgId);
+
+    const after = await prisma.conversation.findFirstOrThrow({
+      where: { externalReservationId: "res-unfence" },
+    });
+    expect(after.reservationId).not.toBeNull();
+    expect(after.skippedReason).toBe("escalated_to_human"); // ASLA ezilmez
+    expect(after.autoReplyAttemptedAt).not.toBeNull(); // damga da korunur
+  });
+});

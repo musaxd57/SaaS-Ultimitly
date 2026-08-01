@@ -24,7 +24,29 @@ function escapeHtml(s: string): string {
     .replace(/>/g, "&gt;");
 }
 
-export async function reportError(context: string, err: unknown): Promise<void> {
+/**
+ * `reportError`'ün SONUCU (denetim, 08-01 — üçüncü tur).
+ *
+ * `notified` = operatöre GERÇEKTEN bir e-posta gitti mi. Bunu döndürmek şart:
+ * bazı çağrı yerleri alarmı atmadan ÖNCE atomik bir "pencere" claim ediyor
+ * (yaşam-döngüsü 6 saat, Paddle eşlenmemiş fiyat 30 GÜN) ve bildirim düşerse o
+ * pencere BOŞUNA yanıyor. Sonucu okumadan claim etmek, CLAUDE.md'nin
+ * CLAIM-THEN-NOTIFY kuralının ihlalidir — ve bir denetim ajanı benim yazdığım
+ * "geri alma" bloğunun ÖLÜ KOD olduğunu gösterdi: `reportError` ASLA FIRLATMAZ,
+ * dolayısıyla `catch` dalı hiç çalışmıyordu ve yorum var olmayan bir korumayı
+ * anlatıyordu.
+ *
+ * `throttled` = bu context için pencere zaten doluydu (e-posta atlandı ama bu
+ * BAŞARISIZLIK DEĞİL — çağıran kendi penceresini geri almamalı).
+ * `configured` = alarm e-postası hiç yapılandırılmamış (aynı şekilde hata değil).
+ */
+export interface ReportOutcome {
+  notified: boolean;
+  throttled: boolean;
+  configured: boolean;
+}
+
+export async function reportError(context: string, err: unknown): Promise<ReportOutcome> {
   const detail = redactSensitive(
     err instanceof Error ? `${err.name}: ${err.message}\n${err.stack ?? ""}` : String(err),
   );
@@ -39,22 +61,39 @@ export async function reportError(context: string, err: unknown): Promise<void> 
   void captureToSentry(context, errName, errMessage, detail);
 
   const to = process.env.ERROR_ALERT_EMAIL || process.env.ALERT_EMAIL;
-  if (!to) return;
+  // ⚠️ `configured` HEM alıcıyı HEM sağlayıcıyı ister. Yalnız alıcıya bakmak
+  // yeterli değildi: sağlayıcı yokken `sendReporting` her seferinde
+  // `{ok:false, error:"E-posta ayarlı değil"}` döner ve çağıranlar bunu
+  // "gönderilemedi" sanıp pencerelerini SONSUZA KADAR geri alır (yapılandırma
+  // eksikliği, geçici arıza değil). Üretimde bu kombinasyon boot kapısınca
+  // zaten imkânsız; koruma dev/test içindir.
+  const providerReady = Boolean(process.env.RESEND_API_KEY || process.env.EMAIL_HOST);
+  if (!to || !providerReady) return { notified: false, throttled: false, configured: false };
 
   const now = Date.now();
-  if (now - (lastEmailAt.get(context) ?? 0) < EMAIL_THROTTLE_MS) return;
+  if (now - (lastEmailAt.get(context) ?? 0) < EMAIL_THROTTLE_MS) {
+    return { notified: false, throttled: true, configured: true };
+  }
   lastEmailAt.set(context, now);
 
   try {
-    await emailService.send(
+    // ⚠️ `send` DEĞİL `sendReporting` (denetim, 08-01). `send` sonucu YUTAR ve
+    // `void` döner — CLAUDE.md'nin "bildirim yollarında `send` KULLANILMAZ"
+    // kuralının ta kendisi, ve raportörün kendisi o kurala uymuyordu. Özyineleme
+    // riski YOK: `sendReporting` saf bir gönderimdir, `reportError` çağırmaz.
+    const res = await emailService.sendReporting(
       to,
       `⚠️ Lixus AI sistem hatası — ${context}`,
       `<p>Bir sistem hatası oluştu:</p><pre style="white-space:pre-wrap;font-size:13px">${escapeHtml(
         detail,
       ).slice(0, 4000)}</pre>`,
     );
+    // Gitmediyse throttle damgasını da tüketme: bir sonraki hata yeniden dener.
+    if (!res.ok) lastEmailAt.delete(context);
+    return { notified: res.ok, throttled: false, configured: true };
   } catch {
-    // Reporting must never throw.
+    lastEmailAt.delete(context);
+    return { notified: false, throttled: false, configured: true }; // Reporting must never throw.
   }
 }
 

@@ -24,7 +24,12 @@ import { prisma, resetDb } from "../helpers/db";
 
 vi.mock("@/lib/report-error", async (orig) => {
   const actual = await orig<typeof import("@/lib/report-error")>();
-  return { ...actual, reportError: vi.fn(async () => undefined) };
+  // Gerçek sözleşmeyi taklit et: `reportError` artık bir SONUÇ döndürüyor
+  // (bildirim gerçekten gitti mi). Varsayılan "gitti" — pencere korunur.
+  return {
+    ...actual,
+    reportError: vi.fn(async () => ({ notified: true, throttled: false, configured: true })),
+  };
 });
 vi.mock("@/lib/hospitable-credentials", () => ({
   getOrgHospitableToken: vi.fn(async () => "tok"),
@@ -167,6 +172,45 @@ describe("yaşam-döngüsü gönderim arızası — koşu başına tek toplu ala
     });
     await sendDueWelcomes(orgId);
     expect(mockReport).toHaveBeenCalledTimes(2);
+  });
+
+  // -------------------------------------------------------------------------
+  // PENCERE GERİ ALMA GERÇEKTEN ÇALIŞIYOR MU (denetim, 08-01 — üçüncü tur).
+  //
+  // İlk yazımda buradaki geri alma bir `try/catch`in `catch` dalındaydı ve
+  // `reportError` ASLA FIRLATMAZ → dal ÖLÜ KODdu; yorum var olmayan bir korumayı
+  // anlatıyordu (bir denetim ajanı yakaladı). `reportError` artık sonuç
+  // döndürüyor; bu test o sonucun GERÇEKTEN okunduğunu pinler.
+  // -------------------------------------------------------------------------
+  it("BİLDİRİM GİTMEZSE pencere geri alınır (sonraki geçiş yeniden uyarır)", async () => {
+    const { orgId } = await seed();
+    mockSend.mockResolvedValue({ ok: false, error: "HTTP 402 - subscription not active" });
+    mockReport.mockResolvedValue({ notified: false, throttled: false, configured: true });
+
+    await sendDueWelcomes(orgId);
+    expect(mockReport).toHaveBeenCalledTimes(1);
+    // Pencere yanmadı → aynı arıza bir sonraki geçişte YENİDEN uyarır.
+    await sendDueWelcomes(orgId);
+    expect(mockReport).toHaveBeenCalledTimes(2);
+  });
+
+  it("THROTTLE ve YAPILANDIRILMAMIŞ hâller BAŞARISIZLIK SAYILMAZ (pencere yanar)", async () => {
+    const { orgId } = await seed();
+    mockSend.mockResolvedValue({ ok: false, error: "HTTP 402 - subscription not active" });
+
+    // (a) throttled: "bu context zaten uyarıldı" — geri almak sonsuz tekrar olurdu.
+    mockReport.mockResolvedValue({ notified: false, throttled: true, configured: true });
+    await sendDueWelcomes(orgId);
+    await sendDueWelcomes(orgId);
+    expect(mockReport).toHaveBeenCalledTimes(1);
+
+    // (b) configured:false: alarm e-postası hiç kurulmamış — arıza değil.
+    await prisma.systemLock.deleteMany({ where: { name: { startsWith: "lifecycle-alarm:" } } });
+    mockReport.mockClear();
+    mockReport.mockResolvedValue({ notified: false, throttled: false, configured: false });
+    await sendDueWelcomes(orgId);
+    await sendDueWelcomes(orgId);
+    expect(mockReport).toHaveBeenCalledTimes(1);
   });
 
   // Davranış testi karşılama yolunu kanıtlıyor; giriş ve çıkış göndericilerinin

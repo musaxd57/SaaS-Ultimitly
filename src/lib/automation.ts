@@ -1710,7 +1710,6 @@ export async function applyChannelAutoReply(
   // the worker confirms a provider id. Flag OFF (the production default) skips this
   // whole branch → the inline claim-then-send below runs BYTE-FOR-BYTE as before.
   if (durableOutboxEnabled() && conversation.externalReservationId) {
-    const now = new Date();
     let enq;
     try {
       enq = await enqueueOutbound({
@@ -1749,15 +1748,20 @@ export async function applyChannelAutoReply(
         data: { skippedReason: null, lastRiskLevel: result.riskLevel, lastRiskType: result.riskType },
       })
       .catch(() => {});
-    if (result.intent === "human_request") {
-      const holdHours = org.handoffHoldHours ?? (Number(process.env.HUMAN_HANDOFF_HOLD_HOURS) || 12);
-      await prisma.conversation
-        .update({
-          where: { id: conversation.id },
-          data: { autoReplyHoldUntil: new Date(now.getTime() + holdHours * 60 * 60 * 1000) },
-        })
-        .catch(() => {});
-    }
+    // ⚠️ İNSAN-DEVRİ HOLD'U BURADA KURULMAZ (denetim, 08-01 — üçüncü tur).
+    //
+    // Hold aynı zamanda worker'ın `aiSendVeto` kapısıdır ("ai_paused"). Enqueue'dan
+    // SONRA kurulunca worker AYNI geçişte kendi satırımızı veto edip `canceled`
+    // yapıyordu → TASARLANMIŞ DEVİR MESAJI misafire HİÇ GİTMİYOR, üstelik konuşma
+    // 12 saat sessize alınıyordu. Daha kötüsü: hold dolunca konuşma yeniden aday
+    // olur, model YENİDEN çağrılır, `enqueueOutbound` dedupe'a düşer
+    // (`already_queued`) ve o sebep ne damgalanır ne alarma girer → 2 dakikada bir
+    // sonsuz model çağrısı + kota yakımı.
+    //
+    // Hold artık TESLİMAT ONAYLANINCA worker'da kurulur (`applyDeliveryEffect`),
+    // yani satır içi yolun semantiğiyle BİREBİR: "önce mesaj gider, SONRA AI susar".
+    // Teslimat başarısızsa hold hiç kurulmaz — bilinçli: misafir devir mesajını
+    // almadıysa AI'yı susturmak yanlış olur.
     await recordRiskEvent({
       organizationId: conversation.property.organizationId,
       propertyId: conversation.propertyId,
@@ -1997,25 +2001,30 @@ async function reportLifecycleSendFailures(
     acc[k] = (acc[k] ?? 0) + 1;
     return acc;
   }, {});
-  // SONUCU OKU. `reportError` fırlatmaz ama gövdesinde e-posta bacağı var;
-  // başarısızlıkta pencereyi geri alıp bir sonraki geçişin yeniden denemesini
-  // sağlıyoruz (`sendDueAlerts`'in geri-alma emsali).
-  try {
-    await reportError(
-      `lifecycle-send ${kind} org=${organizationId}`,
-      new Error(
-        `${kind} delivery failed for ${failures.length}/${considered} reservation(s): ` +
-          Object.entries(counts)
-            .map(([k, v]) => `${k}=${v}`)
-            .join(", "),
-      ),
-    );
-  } catch {
-    if (claimedWindow) {
-      await prisma.systemLock
-        .updateMany({ where: { name: claimedWindow }, data: { lockedUntil: new Date(0) } })
-        .catch(() => {});
-    }
+  // ⚠️ SONUCU GERÇEKTEN OKU (denetim, 08-01 — üçüncü tur). İlk yazımda burada bir
+  // `try/catch` vardı ve catch'te pencere geri alınıyordu — ama `reportError`
+  // ASLA FIRLATMAZ, yani o dal ÖLÜ KODdu ve yorum var olmayan bir korumayı
+  // anlatıyordu. Bir denetim ajanı yakaladı. Artık `reportError` sonuç döndürüyor.
+  //
+  // `throttled` ve `configured:false` BAŞARISIZLIK DEĞİLDİR: ilki "bu context
+  // zaten uyarıldı", ikincisi "alarm e-postası hiç kurulmamış". Yalnız GERÇEKTEN
+  // gönderilemediğinde pencere geri alınır ki bir sonraki geçiş yeniden denesin.
+  const outcome = await reportError(
+    `lifecycle-send ${kind} org=${organizationId}`,
+    new Error(
+      `${kind} delivery failed for ${failures.length}/${considered} reservation(s): ` +
+        Object.entries(counts)
+          .map(([k, v]) => `${k}=${v}`)
+          .join(", "),
+    ),
+  );
+  // Opsiyonel zincir bilinçli: bu bir ALARM yolu ve ASLA çağıranı bozmamalı.
+  // (Bir sarmalayıcı/mock `void` döndürürse `undefined` gelir → geri alma
+  // yapılmaz = GÜVENLİ yön: pencere korunur, yaşam-döngüsü göndericisi çökmez.)
+  if (claimedWindow && outcome?.configured && !outcome.notified && !outcome.throttled) {
+    await prisma.systemLock
+      .updateMany({ where: { name: claimedWindow }, data: { lockedUntil: new Date(0) } })
+      .catch(() => {});
   }
 }
 

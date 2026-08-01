@@ -1024,7 +1024,19 @@ describe("applyChannelAutoReply — Durable Outbox (flag ON, #5/#6)", () => {
     expect(await prisma.messageOutbox.count({ where: { conversationId } })).toBe(1); // still ONE
   });
 
-  it("human_request: the AI-pause hold is set at enqueue even though delivery is deferred", async () => {
+  // -------------------------------------------------------------------------
+  // ARIZA 1 (denetim 08-01, üçüncü tur) — KUYRUK YOLUNDA KENDİNİ VETO ETME.
+  //
+  // Bu testin ESKİ hâli BUGU PİNLİYORDU ("hold is set at enqueue"). Devir
+  // (`human_request`) mesajı kuyruğa girer girmez konuşmaya 12 saatlik AI-susma
+  // damgası basılıyordu; oysa mesaj HENÜZ GİTMEMİŞTİ. İki sonuç:
+  //   1) Worker aynı geçişte drain ederken `aiSendVeto` KENDİ satırımızı görüp
+  //      "AI duraklatılmış" diye iptal edebiliyordu → misafir devir mesajını
+  //      HİÇ almıyor, üstüne AI de 12 saat susuyor (çift kayıp).
+  //   2) Teslim kalıcı olarak başarısız olsa bile (402/4xx) damga kalıyordu.
+  // Doğru semantik satır içi yolun semantiğidir: ÖNCE mesaj gider, SONRA AI susar.
+  // -------------------------------------------------------------------------
+  it("human_request: hold enqueue'de YAZILMAZ, yalnız ONAYLI teslimden sonra kurulur", async () => {
     mockSuggest.mockResolvedValue({
       ...SAFE_REPLY,
       intent: "human_request",
@@ -1038,9 +1050,48 @@ describe("applyChannelAutoReply — Durable Outbox (flag ON, #5/#6)", () => {
     expect(out.sent).toBe(true);
     expect(out.queued).toBe(true);
     expect(mockSend).not.toHaveBeenCalled();
-    const conv = await prisma.conversation.findUnique({ where: { id: conversationId } });
+
+    // Kuyrukta bekleyen mesaj için AI HENÜZ susturulmaz.
+    let conv = await prisma.conversation.findUnique({ where: { id: conversationId } });
+    expect(conv?.autoReplyHoldUntil).toBeNull();
+
+    // Teslim onaylandı → devir penceresi ŞİMDİ açılır.
+    const deliver = vi.fn().mockResolvedValue({ ok: true, providerMessageId: "p-hr-1" });
+    await drainOutboxOnce({ send: deliver, tokenFor: async () => "test-token" });
+    conv = await prisma.conversation.findUnique({ where: { id: conversationId } });
     expect(conv?.autoReplyHoldUntil).toBeInstanceOf(Date);
     expect(conv!.autoReplyHoldUntil!.getTime()).toBeGreaterThan(Date.now());
+  });
+
+  it("human_request: teslim KALICI olarak başarısızsa hold hiç kurulmaz", async () => {
+    mockSuggest.mockResolvedValue({
+      ...SAFE_REPLY,
+      intent: "human_request",
+      reply: "Talebinizi ev sahibimize ilettim.",
+      riskLevel: "low",
+      confidence: 0.9,
+    });
+    const { conversationId } = await seed();
+    await applyChannelAutoReply(conversationId);
+
+    // Kalıcı (definitive) sağlayıcı hatası: mesaj misafire ULAŞMADI.
+    const deliver = vi.fn().mockResolvedValue({ ok: false, status: 400, error: "bad request" });
+    await drainOutboxOnce({ send: deliver, tokenFor: async () => "test-token" });
+
+    const conv = await prisma.conversation.findUnique({ where: { id: conversationId } });
+    // Misafir devir mesajını almadıysa AI'yı susturmak İKİNCİ bir kayıptır.
+    expect(conv?.autoReplyHoldUntil).toBeNull();
+  });
+
+  it("normal (human_request OLMAYAN) yanıtın teslimi hold kurmaz", async () => {
+    const { conversationId } = await seed();
+    await applyChannelAutoReply(conversationId);
+    const deliver = vi.fn().mockResolvedValue({ ok: true, providerMessageId: "p-plain-1" });
+    await drainOutboxOnce({ send: deliver, tokenFor: async () => "test-token" });
+
+    const conv = await prisma.conversation.findUnique({ where: { id: conversationId } });
+    expect(conv?.status).toBe("answered");
+    expect(conv?.autoReplyHoldUntil).toBeNull();
   });
 
   it("the safety gate still runs BEFORE the outbox: a complaint never enqueues", async () => {

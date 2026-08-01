@@ -447,6 +447,47 @@ async function stampLifecycleSent(row: OutboxRow, now: Date): Promise<void> {
  *   holding_ack             → nothing (the thread stays in "problem" for the host);
  *   manual/ai/legacy NULL    → mark the conversation "answered" (#6).
  */
+/**
+ * İNSAN DEVRİ HOLD'U — YALNIZ ONAYLANMIŞ TESLİMATTA (denetim, 08-01 — üçüncü tur).
+ *
+ * Bu hold `applyChannelAutoReply`'ın outbox dalında, ENQUEUE ANINDA kuruluyordu.
+ * Ama hold aynı zamanda `aiSendVeto`'nun "ai_paused" kapısıdır: worker aynı
+ * geçişte drain ederken KENDİ satırımızı veto edip `canceled` yapıyordu →
+ * tasarlanmış devir mesajı misafire HİÇ gitmiyor, konuşma 12 saat susuyordu.
+ *
+ * Artık teslimat ONAYLANDIKTAN sonra kurulur — satır içi yolun semantiğiyle
+ * birebir ("önce mesaj gider, sonra AI susar"). `reconciling → sent` yolu da
+ * aynı fonksiyondan geçtiği için bedava kapsanır.
+ *
+ * ⚠️ `aiSendVeto`'ya DOKUNULMADI: host devraldı / misafir yeni yazdı / thread
+ * "problem"a düştü korumalarının hepsi birebir çalışmaya devam ediyor. Muafiyet
+ * yazmak o değişmezi delerdi.
+ */
+async function applyHandoffHold(row: OutboxRow, now: Date): Promise<void> {
+  if (!row.conversationId || !row.messageId) return;
+  if (row.messageType && row.messageType !== "ai") return; // yalnız AI yanıtı
+  const msg = await prisma.message.findUnique({
+    where: { id: row.messageId },
+    select: { authorType: true, aiIntent: true },
+  });
+  if (msg?.authorType !== "ai" || msg.aiIntent !== "human_request") return;
+  const org = await prisma.organization.findUnique({
+    where: { id: row.organizationId },
+    select: { handoffHoldHours: true },
+  });
+  const hours = org?.handoffHoldHours ?? (Number(process.env.HUMAN_HANDOFF_HOLD_HOURS) || 12);
+  try {
+    await prisma.conversation.update({
+      where: { id: row.conversationId },
+      data: { autoReplyHoldUntil: new Date(now.getTime() + hours * 60 * 60 * 1000) },
+    });
+  } catch (err) {
+    // Sessiz `catch {}` bu repoda belgeli anti-desen: hold yazılamazsa AI devir
+    // penceresinde tekrar araya girebilir → iz bırakmadan geçmemeli.
+    void reportError("outbox-handoff-hold", err);
+  }
+}
+
 async function applyDeliveryEffect(row: OutboxRow, now: Date): Promise<void> {
   const type = row.messageType;
   if (type === "welcome" || type === "checkin" || type === "checkout") {
@@ -454,7 +495,10 @@ async function applyDeliveryEffect(row: OutboxRow, now: Date): Promise<void> {
     return;
   }
   if (type === "holding_ack") return; // keep the thread in "problem" — never mark answered
-  if (row.conversationId) await markConversationDelivered(row.conversationId, now);
+  if (row.conversationId) {
+    await markConversationDelivered(row.conversationId, now);
+    await applyHandoffHold(row, now);
+  }
 }
 
 /**

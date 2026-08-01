@@ -2,26 +2,75 @@ import { describe, it, expect, beforeEach, afterEach, vi } from "vitest";
 
 // report-error-core imports "./email-core" DIRECTLY (tsx/server-only split) —
 // the mock must target that module, not the "@/lib/email" wrapper.
-vi.mock("@/lib/email-core", () => ({ emailService: { send: vi.fn() } }));
+// ⚠️ `send` DEĞİL `sendReporting` (denetim, 08-01): `send` sonucu YUTAR ve `void`
+// döner — raportörün kendisi CLAUDE.md'nin "bildirim yollarında `send`
+// KULLANILMAZ" kuralını ihlal ediyordu. Artık sonuç okunuyor ve DÖNDÜRÜLÜYOR.
+vi.mock("@/lib/email-core", () => ({ emailService: { sendReporting: vi.fn() } }));
 
 import { emailService } from "@/lib/email-core";
 import { reportError, redactSensitive, __resetReportThrottle } from "@/lib/report-error";
 
-const mockSend = vi.mocked(emailService.send);
+const mockSend = vi.mocked(emailService.sendReporting);
 
 describe("reportError", () => {
   beforeEach(() => {
     vi.clearAllMocks();
     __resetReportThrottle();
-    mockSend.mockResolvedValue(undefined);
+    mockSend.mockResolvedValue({ ok: true });
+    // `configured` artık HEM alıcı HEM sağlayıcı ister (aksi hâlde çağıranlar
+    // yapılandırma eksikliğini "geçici arıza" sanıp pencerelerini sonsuza kadar
+    // geri alırdı).
+    vi.stubEnv("RESEND_API_KEY", "re_test");
   });
   afterEach(() => vi.unstubAllEnvs());
 
   it("never throws and logs without email when ERROR/ALERT email is unset", async () => {
     vi.stubEnv("ERROR_ALERT_EMAIL", "");
     vi.stubEnv("ALERT_EMAIL", "");
-    await expect(reportError("ctx", new Error("boom"))).resolves.toBeUndefined();
+    await expect(reportError("ctx", new Error("boom"))).resolves.toEqual({
+      notified: false,
+      throttled: false,
+      configured: false,
+    });
     expect(mockSend).not.toHaveBeenCalled();
+  });
+
+  it("SAĞLAYICI yoksa configured:false döner (yapılandırma eksikliği ≠ arıza)", async () => {
+    vi.stubEnv("ERROR_ALERT_EMAIL", "ops@example.com");
+    vi.stubEnv("RESEND_API_KEY", "");
+    vi.stubEnv("EMAIL_HOST", "");
+    await expect(reportError("ctx", new Error("boom"))).resolves.toEqual({
+      notified: false,
+      throttled: false,
+      configured: false,
+    });
+    expect(mockSend).not.toHaveBeenCalled();
+  });
+
+  it("SONUCU DÖNDÜRÜR: gönderim başarısızsa notified:false ve throttle damgası TÜKENMEZ", async () => {
+    vi.stubEnv("ERROR_ALERT_EMAIL", "ops@example.com");
+    mockSend.mockResolvedValue({ ok: false, error: "provider 500" });
+    await expect(reportError("ctx-fail", new Error("boom"))).resolves.toEqual({
+      notified: false,
+      throttled: false,
+      configured: true,
+    });
+    // Damga tüketilmediği için BİR SONRAKİ hata yeniden dener (sessiz kayıp yok).
+    mockSend.mockResolvedValue({ ok: true });
+    await expect(reportError("ctx-fail", new Error("boom2"))).resolves.toMatchObject({
+      notified: true,
+    });
+    expect(mockSend).toHaveBeenCalledTimes(2);
+  });
+
+  it("throttled hâli AYRI raporlanır (çağıran kendi penceresini geri almamalı)", async () => {
+    vi.stubEnv("ERROR_ALERT_EMAIL", "ops@example.com");
+    await reportError("ctx-thr", new Error("first"));
+    await expect(reportError("ctx-thr", new Error("second"))).resolves.toEqual({
+      notified: false,
+      throttled: true,
+      configured: true,
+    });
   });
 
   it("emails the operator when configured, then throttles repeats", async () => {
@@ -40,7 +89,11 @@ describe("reportError", () => {
   it("swallows email failures (reporting must not throw)", async () => {
     vi.stubEnv("ERROR_ALERT_EMAIL", "ops@example.com");
     mockSend.mockRejectedValueOnce(new Error("smtp down"));
-    await expect(reportError("ctx", "weird")).resolves.toBeUndefined();
+    await expect(reportError("ctx", "weird")).resolves.toEqual({
+      notified: false,
+      throttled: false,
+      configured: true,
+    });
   });
 
   it("posts a Sentry envelope when SENTRY_DSN is set, and skips when unset", async () => {

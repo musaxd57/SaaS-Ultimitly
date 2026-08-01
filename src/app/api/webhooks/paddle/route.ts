@@ -270,13 +270,21 @@ async function applySubscriptionEvent(
             });
       const claimed = { count: created.count + renewed.count };
       if (claimed.count === 1) {
-        void reportError(
+        // ⚠️ 30 GÜNLÜK PENCERE — sonucu okumadan claim etmek, tek bir e-posta
+        // hatasında operatörü BİR AY sessiz bırakırdı (denetim, 08-01).
+        const outcome = await reportError(
           "paddle-webhook unmapped-price",
           new Error(
             `org=${organizationId} priceId=${unmappedPriceId} — Paddle fiyatı env haritasında YOK; ` +
               `abonelik durumu yazılıyor ama plan kodu ESKİ değerinde kalıyor (satın alınan plan uygulanmıyor).`,
           ),
         );
+        if (outcome?.configured && !outcome.notified && !outcome.throttled) {
+          // Bildirim gitmedi → pencereyi geri al, sonraki olay yeniden denesin.
+          await prisma.systemLock
+            .updateMany({ where: { name: key }, data: { lockedUntil: new Date(0) } })
+            .catch(() => {});
+        }
       }
     } catch {
       // Uyarı yolu asla ana akışı bozmaz.

@@ -365,7 +365,7 @@ export async function syncHospitable(
             // reservation.last_message_at) and never by outbound, so it stays on the
             // provider's time axis and doesn't depend on any message's created_at.
             // null → never-synced → don't skip (import), so the cursor backfills.
-            select: { id: true, reservationId: true, syncCursorAt: true },
+            select: { id: true, reservationId: true, syncCursorAt: true, skippedReason: true },
           });
           if (existingConv?.syncCursorAt && existingConv.syncCursorAt >= incomingLast) {
             // Up to date — skip the message fetch (rate-limit saver). But still
@@ -374,9 +374,24 @@ export async function syncHospitable(
             // gate) without waiting for the next new message. One-time, never
             // overwrites an existing link.
             if (localReservationId && !existingConv.reservationId) {
-              await prisma.conversation.update({
-                where: { id: existingConv.id },
-                data: { reservationId: localReservationId },
+              // ⚠️ ÇİTİN GERİ ALINMASI (denetim, 08-01 — üçüncü tur).
+              // `fenceUnlinkedTerminalStay` damgayı BAĞSIZ + ölü konaklamaya basar.
+              // Bağ kurulduğunda konaklama artık ölü DEĞİLSE damga kalırsa misafirin
+              // o mesajı KALICI cevapsız kalır ve host AKTİF bir rezervasyonun
+              // üstünde "Konaklama bitti/iptal" okur.
+              // ⚠️ Yalnız BAĞ GEÇİŞİNDE (null→X) koşar → konuşma ömründe EN FAZLA
+              //    BİR KEZ; çalkalama (her turda yaz-sil) yapısal olarak imkânsız.
+              // ⚠️ Yalnız sebebi ÇİTİN KENDİ sebebi olan satırda temizlenir; gerçek
+              //    bir sebep (`low_confidence_or_risky`, `escalated_to_human`) ASLA ezilmez.
+              const unfence =
+                existingConv.skippedReason === "reservation_ended" && !isTerminalStay(reservation);
+              await prisma.conversation.updateMany({
+                // `reservationId: null` koşulu geçişin kendisini atomik yapar.
+                where: { id: existingConv.id, reservationId: null },
+                data: {
+                  reservationId: localReservationId,
+                  ...(unfence ? { autoReplyAttemptedAt: null, skippedReason: null } : {}),
+                },
               });
             } else if (
               !localReservationId &&
@@ -1001,7 +1016,14 @@ export async function importThread(
   // its row and UPDATE) or still blocked on the lock (so it will see ours).
   const existing = await db.conversation.findFirst({
     where: { propertyId, externalReservationId: reservationId },
-    select: { id: true, status: true, reservationId: true, guestIdentifier: true },
+    select: {
+      id: true,
+      status: true,
+      reservationId: true,
+      guestIdentifier: true,
+      // Çitin geri alınması için gerekli (aşağıdaki bağ-backfill dalı).
+      skippedReason: true,
+    },
   });
   // Widen the read→write window on demand (tests only; null in production).
   if (__importThreadHooks.afterCanonicalRead) await __importThreadHooks.afterCanonicalRead();
@@ -1091,8 +1113,22 @@ export async function importThread(
         ...(preserve ? {} : { status: computedStatus }),
         // Backfill the reservation link only when it's currently empty — never
         // overwrite an existing (possibly human-set) link.
+        //
+        // ⚠️ ÇİTİN GERİ ALINMASI (denetim, 08-01 — üçüncü tur). Yukarıdaki
+        // atlama-dalıyla AYNI kusur bu yolda da vardı ve BURASI DAHA KOLAY
+        // TETİKLENİR: yeni mesaj gelen her thread buradan geçer.
+        // `fenceUnlinkedTerminalStay` damgayı BAĞSIZ + ölü konaklamaya basar;
+        // bağ kurulduğunda konaklama artık ölü DEĞİLSE damganın kalması misafiri
+        // KALICI cevapsız bırakır ve host AKTİF rezervasyonda "Konaklama bitti"
+        // okur. Yalnız bağ GEÇİŞİNDE (null→X) koşar → ömürde en fazla bir kez;
+        // yalnız çitin KENDİ sebebi temizlenir, gerçek sebepler ASLA ezilmez.
         ...(localReservationId && !existing.reservationId
-          ? { reservationId: localReservationId }
+          ? {
+              reservationId: localReservationId,
+              ...(existing.skippedReason === "reservation_ended" && !isTerminalStay(reservation)
+                ? { autoReplyAttemptedAt: null, skippedReason: null }
+                : {}),
+            }
           : {}),
       },
     });
