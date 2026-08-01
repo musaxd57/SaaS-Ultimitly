@@ -835,6 +835,11 @@ export async function applyInboundMessageRules(
       status: true,
       channel: true,
       priority: true,
+      // KVKK: şikayet görevi misafirin ADINI (başlık) ve MESAJINI (açıklama)
+      // taşıyor. İki temizlik süpürgesi de kapsamı `reservationId` ile kuruyor,
+      // yani rezervasyona BAĞLI OLMAYAN bir görev onlar için görünmez. Bu alan
+      // o yüzden okunuyor (derin denetim, 08-01).
+      reservationId: true,
       property: {
         select: { name: true, address: true, city: true, organizationId: true },
       },
@@ -853,6 +858,13 @@ export async function applyInboundMessageRules(
       prisma.task.create({
         data: {
           propertyId: conversation.propertyId,
+          // ⚠️ SÜPÜRGELERİN BULABİLMESİ İÇİN ŞART (derin denetim, 08-01). Bu satır
+          // yokken görev YALNIZ `propertyId` taşıyordu; her iki temizlik süpürgesi
+          // de (`anonymizeOldGuestData` ve `maskReservationRows`) kapsamı
+          // `reservationId` üzerinden kuruyor → görev ikisi için de GÖRÜNMEZDİ.
+          // Yani başlıktaki misafir adı ve açıklamadaki mesaj metni, hem süre
+          // bazlı anonimleştirmeden hem AÇIK SİLME talebinden sağ çıkıyordu.
+          reservationId: conversation.reservationId,
           type: "maintenance",
           origin: "ai",
           title: `Şikayet: ${conversation.guestIdentifier}`,

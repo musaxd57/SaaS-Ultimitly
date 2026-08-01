@@ -124,7 +124,16 @@ export async function anonymizeOldGuestData(now: Date = new Date()): Promise<{ a
     // Task.reservationId is onDelete:SetNull, so deleting the booking later would
     // strip the only link that could ever find it. Same helper as the outbound
     // bodies: word-boundary safe, idempotent, and the host's own work record
-    // ("Çıkış temizliği") stays readable. Descriptions are fixed template text.
+    // ("Çıkış temizliği") stays readable.
+    //
+    // ⚠️ "Descriptions are fixed template text" ARTIK DOĞRU DEĞİL (derin denetim,
+    // 08-01) — ve bu yorum bir süre yanlış yöne sevk etti. Yaşam-döngüsü görevleri
+    // için doğruydu, ama ŞİKAYET görevi (`automation.ts`) ve AKILLI GÖREV
+    // (`tasks/detect.ts`) `description` alanına misafirin KENDİ MESAJINI 500
+    // karaktere kadar KELİMESİ KELİMESİNE yazıyor. O metin misafirin adını,
+    // telefonunu, sağlık durumunu — ne yazdıysa onu — taşıyabilir ve hiçbir
+    // süpürge ona dokunmuyordu. CLAUDE.md'nin kendi SCRUB KAPSAMI KURALI:
+    // "misafir metni/adı taşıyan HER yeni kolon İKİ süpürgeye birden bağlanır".
     const namesByRes = new Map<string, string[]>();
     for (const [resId, name] of resNameById) {
       if (name) namesByRes.set(resId, [name]);
@@ -135,15 +144,21 @@ export async function anonymizeOldGuestData(now: Date = new Date()): Promise<{ a
     }
     const tasks = await prisma.task.findMany({
       where: { reservationId: { in: resIds } },
-      select: { id: true, reservationId: true, title: true },
+      select: { id: true, reservationId: true, title: true, description: true },
     });
-    const titleRedactions: { id: string; title: string }[] = [];
+    const titleRedactions: { id: string; title: string; description?: string }[] = [];
     const namesByTask = new Map<string, string[]>();
     for (const t of tasks) {
       const names = t.reservationId ? namesByRes.get(t.reservationId) ?? [] : [];
       namesByTask.set(t.id, names);
       const red = redactNameFromBody(t.title, names);
-      if (red !== t.title) titleRedactions.push({ id: t.id, title: red });
+      // AÇIKLAMA misafirin HAM MESAJIDIR (şikayet / akıllı görev) — ad redaksiyonu
+      // yetmez, tıpkı `Message.body` gibi TAMAMEN anonimleştirilir. Görevin
+      // başlığı ve tipi host'un iş kaydı olarak okunur kalır.
+      const guestText = t.description && t.description !== ANON_BODY ? ANON_BODY : undefined;
+      if (red !== t.title || guestText) {
+        titleRedactions.push({ id: t.id, title: red, ...(guestText ? { description: guestText } : {}) });
+      }
     }
     // Crew notes on those tasks are free text a human typed ("Ahmet'in odası…") —
     // same class as an outbound reply, so the same treatment: the note stays as the
@@ -161,7 +176,12 @@ export async function anonymizeOldGuestData(now: Date = new Date()): Promise<{ a
     }
 
     await prisma.$transaction([
-      ...titleRedactions.map((t) => prisma.task.update({ where: { id: t.id }, data: { title: t.title } })),
+      ...titleRedactions.map((t) =>
+        prisma.task.update({
+          where: { id: t.id },
+          data: { title: t.title, ...(t.description ? { description: t.description } : {}) },
+        }),
+      ),
       ...noteRedactions.map((n) => prisma.taskUpdate.update({ where: { id: n.id }, data: { note: n.note } })),
       // The guest's OWN messages (inbound) carry their words/PII — scrub the body.
       ...(convIds.length

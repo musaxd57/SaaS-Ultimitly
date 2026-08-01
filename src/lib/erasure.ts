@@ -462,11 +462,20 @@ async function maskReservationRows(
   // pass can re-run it safely. Descriptions are fixed template text, no PII.
   const tasks = await db.task.findMany({
     where: { reservationId },
-    select: { id: true, title: true },
+    select: { id: true, title: true, description: true },
   });
   for (const t of tasks) {
     const red = redactNameFromBody(t.title, allNames);
-    if (red !== t.title) await db.task.update({ where: { id: t.id }, data: { title: red } });
+    // AÇIKLAMA misafirin HAM MESAJI olabilir (şikayet / akıllı görev) — ad
+    // redaksiyonu yetmez, `Message.body` gibi tamamen anonimleştirilir.
+    // Bu alan bir süre HİÇBİR süpürgede yoktu (derin denetim, 08-01).
+    const wipeDesc = t.description && t.description !== ANON_BODY;
+    if (red !== t.title || wipeDesc) {
+      await db.task.update({
+        where: { id: t.id },
+        data: { title: red, ...(wipeDesc ? { description: ANON_BODY } : {}) },
+      });
+    }
   }
   // Crew notes on those tasks are free text a human typed — same class as an
   // outbound reply: the note survives as the host's record, the name does not.
