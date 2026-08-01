@@ -1,6 +1,7 @@
 import "server-only";
 
 import { prisma } from "@/lib/db";
+import { reportError } from "@/lib/report-error";
 import { emailService } from "@/lib/email";
 import { trialEndingSoonEmail, trialEndedEmail } from "@/lib/email-templates";
 import { billingEnforced } from "./subscription";
@@ -104,7 +105,19 @@ export async function sendDueTrialReminders(now: Date = new Date()): Promise<Tri
         result.ended++;
       } else {
         // Roll back so a transient mail failure retries next cycle.
-        await prisma.subscription.update({ where: { id: sub.id }, data: { trialEndedSentAt: null } }).catch(() => {});
+        // ⚠️ GERİ ALMANIN SONUCU OKUNUR (denetim, 08-01 — üçüncü tur). Damga geri
+        // alınamazsa `trialEndedSentAt` dolu kalır, döngü başındaki `continue` satırı bir daha
+        // SEÇMEZ → ödeyen olabilecek müşteri denemesinin bittiğini HİÇ öğrenmez
+        // ve otomasyonu sessizce kapanır (gelir yolu, kalıcı kayıp).
+        const rolled = await prisma.subscription
+          .updateMany({ where: { id: sub.id }, data: { trialEndedSentAt: null } })
+          .catch(() => null);
+        if (rolled === null || rolled.count === 0) {
+          void reportError(
+            "trial-reminder-rollback",
+            new Error(`subscription=${sub.id} — deneme hatırlatma damgası geri alınamadı`),
+          );
+        }
       }
     } else {
       // STILL IN TRIAL — send the "ending soon" nudge once, within N days of end.
@@ -124,7 +137,19 @@ export async function sendDueTrialReminders(now: Date = new Date()): Promise<Tri
       if (sent.ok) {
         result.ending++;
       } else {
-        await prisma.subscription.update({ where: { id: sub.id }, data: { trialEndingSentAt: null } }).catch(() => {});
+        // ⚠️ GERİ ALMANIN SONUCU OKUNUR (denetim, 08-01 — üçüncü tur). Damga geri
+        // alınamazsa `trialEndingSentAt` dolu kalır, döngü başındaki `continue` satırı bir daha
+        // SEÇMEZ → ödeyen olabilecek müşteri denemesinin bittiğini HİÇ öğrenmez
+        // ve otomasyonu sessizce kapanır (gelir yolu, kalıcı kayıp).
+        const rolled = await prisma.subscription
+          .updateMany({ where: { id: sub.id }, data: { trialEndingSentAt: null } })
+          .catch(() => null);
+        if (rolled === null || rolled.count === 0) {
+          void reportError(
+            "trial-reminder-rollback",
+            new Error(`subscription=${sub.id} — deneme hatırlatma damgası geri alınamadı`),
+          );
+        }
       }
     }
   }

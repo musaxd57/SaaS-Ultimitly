@@ -173,7 +173,16 @@ async function renewLock(holder: string): Promise<boolean> {
       data: { lockedUntil: new Date(Date.now() + LOCK_TTL_MS) },
     })
     .then((res) => res.count === 1)
-    .catch(() => false);
+    // 🚨 DB HIÇKIRIĞI KİLİT KAYBI DEĞİLDİR → `true` (denetim, 08-01 — üçüncü tur;
+    // ilk hâlim `false` döndürüyordu ve bu ÇOK DAHA TEHLİKELİYDİ). Kilidi
+    // kaybetmek TTL'in (15 dk) GERÇEKTEN dolmasını gerektirir; tek bir tutarsız
+    // statement bunu ima ETMEZ. `false` dönmek, geçici bir DB hatasında geçişi
+    // İLK org'da kesiyordu — üstelik yenileme döngünün ilk turunda, kilit
+    // alındıktan saniyeler sonra koştuğu için hata kalıcıysa HİÇBİR org hiç
+    // işlenmiyor, tüm kiracıların mesaj içe aktarımı + oto-yanıtı duruyordu
+    // (üstüne saatte 30 alarm). Gerçek kayıp `count === 0` ile zaten görülür ve
+    // bir sonraki org turunda yakalanır.
+    .catch(() => true);
 }
 
 async function releaseLock(holder: string): Promise<void> {
@@ -336,17 +345,19 @@ export async function runScheduledSync(): Promise<ScheduledSyncTotals> {
       let budgetSkipped = 0;
       let lockLost = false;
 
-      for (const org of orgs) {
+      for (const [orgIndex, org] of orgs.entries()) {
         if (Date.now() - passStartedAt > PASS_BUDGET_MS) {
           budgetSkipped += 1;
           continue;
         }
         // Bu geçiş HÂLÂ ilerliyor → kilidi tazele (↑renewLock: ilerleme-tetikli).
-        // ⚠️ SONUÇ OKUNUR: yenileyemediysek kilit BİZDE DEĞİL (TTL geçmiş, başka
-        // bir replika almış). Devam etmek iki koşunun aynı org'lara paralel
+        // ⚠️ SONUÇ OKUNUR: `count === 0` "kilit BİZDE DEĞİL" demektir (TTL geçmiş,
+        // başka replika almış). Devam etmek iki koşunun aynı org'lara paralel
         // yazması demek — kilidin var olma sebebi tam olarak bu. Kalan org'lar
         // kaybolmaz: kilidi alan koşu zaten aynı listeyi işliyor.
-        if (!(await renewLock(holder))) {
+        // ⚠️ İLK TUR ATLANIR: kilit saniyeler önce `acquireLock` ile alındı,
+        // yenileme tanım gereği gereksiz — sırf bir başarısızlık yüzeyi eklerdi.
+        if (orgIndex > 0 && !(await renewLock(holder))) {
           lockLost = true;
           break;
         }

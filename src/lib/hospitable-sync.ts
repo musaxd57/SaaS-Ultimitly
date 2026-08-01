@@ -391,16 +391,27 @@ export async function syncHospitable(
               // `low_confidence_or_risky` — sessizce silinirdi. Sebep koşulu artık
               // WHERE'de: temizlik ancak satır HÂLÂ çitin kendi sebebini
               // taşıyorsa gerçekleşir.
-              await prisma.conversation.updateMany({
-                where: { id: existingConv.id, reservationId: null },
-                data: { reservationId: localReservationId },
-              });
-              if (!isTerminalStay(reservation)) {
-                await prisma.conversation.updateMany({
-                  where: { id: existingConv.id, skippedReason: "reservation_ended" },
-                  data: { autoReplyAttemptedAt: null, skippedReason: null },
-                });
-              }
+              // ⚠️ TEK TRANSACTION (denetim, 08-01 — üçüncü tur, ajan bulgusu).
+              // İki ayrı yazma olarak bırakılırsa BİRİNCİSİ tek-atımlık
+              // `reservationId: null` geçişini TÜKETİR; ikincisi düşerse konuşma
+              // KALICI `reservation_ended` kalır ve `importThread`'in aynı onarımı
+              // da devreye giremez (`!existing.reservationId` artık YANLIŞ) →
+              // misafirin bekleyen mesajı cevapsız, host AKTİF rezervasyonda
+              // "Konaklama bitti" okur. Sıra korunur; ikisi birlikte ya olur ya olmaz.
+              await prisma.$transaction([
+                prisma.conversation.updateMany({
+                  where: { id: existingConv.id, reservationId: null },
+                  data: { reservationId: localReservationId },
+                }),
+                ...(isTerminalStay(reservation)
+                  ? []
+                  : [
+                      prisma.conversation.updateMany({
+                        where: { id: existingConv.id, skippedReason: "reservation_ended" },
+                        data: { autoReplyAttemptedAt: null, skippedReason: null },
+                      }),
+                    ]),
+              ]);
             } else if (
               !localReservationId &&
               !existingConv.reservationId &&

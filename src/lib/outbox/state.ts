@@ -232,10 +232,17 @@ export const SEND_RATE_LIMIT_HOLD_MS = 15 * 60 * 1000;
 export function sendFailureReason(kind: SendResultKind): string {
   if (kind === "blocked") return "subscription_inactive";
   if (kind === "rate_limited") return "rate_limited";
+  // ⚠️ BELİRSİZ ≠ BAŞARISIZ (denetim, 08-01 — üçüncü tur, ajan bulgusu).
+  // `ambiguous` yolunda gönderim sağlayıcıya ULAŞMIŞ OLABİLİR; satır bilerek
+  // `review`e park edilir ve `*SentAt` DAMGALANMAZ ("doğrulanmadı"). Aynı satır
+  // konuşmaya "iletilemedi" yazarsa host mesajı ELLE yanıtlar ve misafir ÇİFT
+  // mesaj alır — repo hiçbir yerde sahte "sent" iddia etmezken burada sahte
+  // "iletilemedi" iddiası doğardı. Kod da metin de bunu dürüstçe söyler.
+  if (kind === "ambiguous") return "delivery_unverified";
   return "send_failed";
 }
 
-/** Sebep koduna karşılık gelen geri çekilme süresi (ms). */
+/** Sebep koduna karşılık gelen geri çekilme süresi (ms) — SATIR İÇİ yol içindir. */
 export function sendFailureHoldMs(kind: SendResultKind): number {
   return kind === "rate_limited" ? SEND_RATE_LIMIT_HOLD_MS : SEND_FAILURE_HOLD_MS;
 }

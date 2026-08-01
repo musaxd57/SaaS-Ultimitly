@@ -168,6 +168,13 @@ const SKIP_REASON_LABELS: Record<string, string> = {
     "Hospitable aboneliğiniz pasif görünüyor — mesaj gönderilemiyor. Abonelik yenilendikten sonra en geç birkaç saat içinde yeniden denenir.",
   rate_limited:
     "Kanal geçici olarak yoğun — bu konuşma kısa süre sonra otomatik olarak yeniden denenecek",
+  // ⚠️ BELİRSİZ SONUÇ (denetim, 08-01 — üçüncü tur). Mesaj misafire ULAŞMIŞ
+  // OLABİLİR: gönderim isteği zaman aşımına/5xx'e düştü ve sağlayıcı geçmişinden
+  // güvenle doğrulanamadı, bu yüzden satır bilerek incelemeye park edildi ve
+  // ASLA kör tekrar gönderilmedi. Metin host'u "elle yanıtla"ya çağırırsa misafir
+  // ÇİFT mesaj alabilir — o yüzden ÖNCE kontrol etmesini söylüyor.
+  delivery_unverified:
+    "Gönderim sonucu doğrulanamadı — mesaj iletilmiş OLABİLİR. Elle yanıtlamadan önce konuşmayı kanal üzerinden kontrol edin.",
 };
   return (
     <>

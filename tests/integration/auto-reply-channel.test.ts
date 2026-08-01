@@ -25,7 +25,7 @@ vi.mock("@/lib/email", () => ({
 
 import { suggestReply } from "@/lib/ai";
 import { sendOnChannel } from "@/lib/messaging";
-import { drainOutboxOnce } from "@/lib/outbox/worker";
+import { drainOutboxOnce, reactivateBlockedOutbox } from "@/lib/outbox/worker";
 import {
   applyChannelAutoReply,
   runDueChannelAutoReplies,
@@ -1104,7 +1104,7 @@ describe("applyChannelAutoReply — Durable Outbox (flag ON, #5/#6)", () => {
   // taslak mesaj silinmediği için sonraki her geçiş `already_answered`'da durur:
   // misafir KALICI cevapsız, host ekranında sebep YOK, alarm YOK.
   // -------------------------------------------------------------------------
-  it("402 (abonelik pasif): kuyruk satırı blocked olunca konuşmaya SEBEP + geri çekilme yazılır", async () => {
+  it("402 (abonelik pasif): kuyruk satırı blocked olunca konuşmaya SEBEP yazılır", async () => {
     const { conversationId } = await seed();
     await applyChannelAutoReply(conversationId);
 
@@ -1114,8 +1114,86 @@ describe("applyChannelAutoReply — Durable Outbox (flag ON, #5/#6)", () => {
     expect((await prisma.messageOutbox.findFirst({ where: { conversationId } }))?.status).toBe("blocked");
     const conv = await prisma.conversation.findUnique({ where: { id: conversationId } });
     expect(conv?.skippedReason).toBe("subscription_inactive"); // ⬅️ ARIZADA null
-    expect(conv?.autoReplyHoldUntil).toBeInstanceOf(Date);
-    expect(conv!.autoReplyHoldUntil!.getTime()).toBeGreaterThan(Date.now());
+    // Damga: "bu mesaj için karar verildi" — misafir YENİ yazınca yeniden aday olur.
+    expect(conv?.autoReplyAttemptedAt?.getTime()).toBe(conv?.lastMessageAt.getTime());
+  });
+
+  // -------------------------------------------------------------------------
+  // 🚨 KENDİ AÇTIĞIM REGRESYON — HOLD BİR ZAMANLAYICI DEĞİL, BİR KİLİTTİR.
+  // (Denetim 08-01, üçüncü tur; ajan yakaladı.)
+  //
+  // `applyFailureEffect`'in ilk hâli 402'de konuşmaya 4 saatlik
+  // `autoReplyHoldUntil` yazıyordu. O alan AYNI ZAMANDA `aiSendVeto`'nun
+  // "ai_paused" kapısıdır: host aboneliğini 4 saat DOLMADAN yenilediğinde
+  // `reactivateBlockedOutbox` satırı `pending` yapıyor, aynı koşunun drain'i
+  // claim ediyor ve veto hold'u görüp satırı `canceled` damgalıyordu.
+  // `canceled` satır `/sent/queue`'dan da yeniden denenemez → MESAJ KALICI KAYIP.
+  // Bu, bugün düzeltilen "enqueue'de hold" arızasıyla AYNI SINIF.
+  // -------------------------------------------------------------------------
+  it("402 sonrası abonelik yenilenince mesaj GERÇEKTEN gider (hold onu iptal etmez)", async () => {
+    const { orgId, conversationId } = await seed();
+    await applyChannelAutoReply(conversationId);
+
+    // 1. geçiş: 402 → satır `blocked`.
+    const blocked = vi.fn().mockResolvedValue({ ok: false, status: 402, error: "HTTP 402 - subscription not active" });
+    await drainOutboxOnce({ send: blocked, tokenFor: async () => "test-token" });
+    expect((await prisma.messageOutbox.findFirst({ where: { conversationId } }))?.status).toBe("blocked");
+
+    // Abonelik yenilendi → başarılı senkron satırı `pending`e döndürür.
+    expect(await reactivateBlockedOutbox(orgId)).toBe(1);
+
+    // 2. geçiş: AYNI koşunun drain'i. ⬅️ ARIZADA burada `canceled` oluyordu.
+    const ok = vi.fn().mockResolvedValue({ ok: true, providerMessageId: "p-after-402" });
+    await drainOutboxOnce({ send: ok, tokenFor: async () => "test-token" });
+
+    const row = await prisma.messageOutbox.findFirstOrThrow({ where: { conversationId } });
+    expect(row.status).toBe("sent");
+    expect(ok).toHaveBeenCalledTimes(1); // gerçekten POST edildi
+    const conv = await prisma.conversation.findUnique({ where: { id: conversationId } });
+    expect(conv?.status).toBe("answered");
+  });
+
+  it("BELİRSİZ sonuç 'iletilemedi' DEMEZ (misafire çift mesaj riski)", async () => {
+    const { conversationId } = await seed();
+    await applyChannelAutoReply(conversationId);
+    const row = await prisma.messageOutbox.findFirstOrThrow({ where: { conversationId } });
+    // Denemeler tükenmiş belirsiz satır → reconcile → `review`.
+    await prisma.messageOutbox.update({
+      where: { id: row.id },
+      data: { status: "ambiguous", attemptCount: 6, availableAt: new Date(Date.now() - 1000) },
+    });
+
+    await drainOutboxOnce({
+      send: vi.fn(),
+      reconcile: vi.fn().mockResolvedValue({ found: false }),
+      tokenFor: async () => "test-token",
+    });
+
+    expect((await prisma.messageOutbox.findFirstOrThrow({ where: { conversationId } })).status).toBe("review");
+    const conv = await prisma.conversation.findUnique({ where: { id: conversationId } });
+    // ⬅️ ARIZADA "send_failed" (kesin hata) yazıyordu; mesaj İLETİLMİŞ OLABİLİR.
+    expect(conv?.skippedReason).toBe("delivery_unverified");
+  });
+
+  it("HOST'un elle gönderdiği mesaj düşerse konuşmaya AI sebebi YAZILMAZ", async () => {
+    const { orgId, conversationId } = await seed();
+    const msg = await prisma.message.create({
+      data: { conversationId, direction: "outbound", senderName: "Host", body: "elle yazdım" },
+    });
+    await prisma.messageOutbox.create({
+      data: {
+        organizationId: orgId, conversationId, messageId: msg.id, channel: "airbnb",
+        externalReservationId: "res-1", messageType: "manual", body: "elle yazdım",
+        idempotencyKey: "manual-fail-1", status: "pending",
+      },
+    });
+
+    const deliver = vi.fn().mockResolvedValue({ ok: false, status: 402, error: "HTTP 402 - subscription not active" });
+    await drainOutboxOnce({ send: deliver, tokenFor: async () => "test-token" });
+
+    const conv = await prisma.conversation.findUnique({ where: { id: conversationId } });
+    // Host kendi mesajını zaten görüyor; buraya AI atlama sebebi yazmak yanlış bilgi.
+    expect(conv?.skippedReason).toBeNull();
   });
 
   it("TUZAK: thread ARTIK 'new' değilse sebep yazılmaz (durum kararı ezilmez)", async () => {

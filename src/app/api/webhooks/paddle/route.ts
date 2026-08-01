@@ -287,8 +287,14 @@ async function applySubscriptionEvent(
         );
         if (outcome?.configured && !outcome.notified && !outcome.throttled) {
           // Bildirim gitmedi → pencereyi geri al, sonraki olay yeniden denesin.
+          // ⚠️ EPOCH 0 DEĞİL: pencereyi tamamen serbest bırakmak, Paddle'ın kendi
+          // retry'ları altında sönümlemeyi kaldırırdı. 15 dk sonra yeniden
+          // denenir — 30 günlük pencere boşuna yanmaz, sel de olmaz.
           await prisma.systemLock
-            .updateMany({ where: { name: key }, data: { lockedUntil: new Date(0) } })
+            .updateMany({
+              where: { name: key },
+              data: { lockedUntil: new Date(now.getTime() + 15 * 60 * 1000) },
+            })
             .catch(() => {});
         }
       }

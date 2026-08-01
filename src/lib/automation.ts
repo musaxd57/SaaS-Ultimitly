@@ -27,11 +27,7 @@ import { sendOnChannel, isDefinitiveSendFailure } from "@/lib/messaging";
 import { createHash } from "crypto";
 import { durableOutboxEnabled } from "@/lib/outbox/flag";
 import { enqueueOutbound, enqueueProactive } from "@/lib/outbox/enqueue";
-import {
-  classifySendResult,
-  SEND_FAILURE_HOLD_MS,
-  SEND_RATE_LIMIT_HOLD_MS,
-} from "@/lib/outbox/state";
+import { classifySendResult, sendFailureHoldMs } from "@/lib/outbox/state";
 import { getOrgHospitableToken } from "@/lib/hospitable-credentials";
 import { getAdjacency } from "@/lib/turnover";
 import { createOperationalTaskFromMessage } from "@/lib/tasks/create";
@@ -332,7 +328,18 @@ async function maybeSendHoldingAck(opts: {
         aiIntent: "complaint",
         idempotencyKey: `holding:${opts.conversation.id}:${digest}`,
       });
-    } catch {
+    } catch (err) {
+      // ⚠️ SESSİZ DEĞİL (denetim, 08-01 — üçüncü tur, ajan bulgusu). Çağıran
+      // konuşmayı ZATEN atomik olarak "problem"a claim etti ve o claim ack'in
+      // idempotency kilidi — yani buradan `false` dönmek, opt-in Seviye-2 sözünün
+      // ("misafir gecenin 3'ünde sahipsiz kalmasın") o konuşma için SESSİZCE
+      // çiğnenmesi demek. Gövde/ad ASLA loglanmaz, yalnız konuşma id'si.
+      void reportError(
+        "holding-ack-enqueue",
+        new Error(`conversation=${opts.conversation.id} — bekletme mesajı kuyruğa alınamadı`, {
+          cause: err,
+        }),
+      );
       return false; // best-effort — a failed enqueue must not break the escalation
     }
     return true;
@@ -347,7 +354,15 @@ async function maybeSendHoldingAck(opts: {
     body,
     token,
   );
-  if (!delivery.ok) return false; // escalation already happened; ack is best-effort
+  if (!delivery.ok) {
+    // Aynı gerekçe (↑): claim tüketildi, ack bir daha denenmeyecek — iz kalmalı.
+    // Sağlayıcının HAM hata metni DB'ye/alarma girmez, yalnız konuşma id'si.
+    void reportError(
+      "holding-ack-send",
+      new Error(`conversation=${opts.conversation.id} — bekletme mesajı gönderilemedi`),
+    );
+    return false; // escalation already happened; ack is best-effort
+  }
 
   // Bookkeeping (delivery already succeeded — best-effort): record the outbound
   // message; the conversation deliberately STAYS "problem" so the host still
@@ -1053,6 +1068,13 @@ export interface ChannelAutoReplyOutcome {
  * 4 saat: 402 (abonelik pasif) / 401-403 (yetki) / 404-422 (istek reddedildi).
  * Hepsi host bir şey düzeltene kadar sürer; 2 dakikada bir denemenin faydası yok.
  */
+/**
+ * Bir alarm penceresi bildirim gönderilemediği için geri alınırken yazılan KISA
+ * geri çekilme. Sıfıra (epoch) çekmek 2 dakikalık cron'da sönümlemeyi tamamen
+ * kaldırıyordu (↓`reportLifecycleSendFailures`).
+ */
+const ALARM_RETRY_BACKOFF_MS = 15 * 60 * 1000;
+
 // ⚠️ TANIM `outbox/state.ts`'e TAŞINDI (denetim, 08-01 — üçüncü tur): kuyruk
 // yolu da artık aynı geri çekilmeyi uyguluyor ve worker `automation.ts`'i import
 // edemez (döngü). Buradan yeniden ihraç ediliyor — mevcut çağrı yerleri ve
@@ -1878,7 +1900,9 @@ export async function applyChannelAutoReply(
       // denenir. Süre hatanın TÜRÜNE göre; sınıflandırma dayanıklı outbox'la aynı
       // kaynaktan (`classifySendResult`) gelir, iki yol ayrışamaz.
       const kind = classifySendResult({ ok: false, error: delivery.error });
-      const holdMs = kind === "rate_limited" ? SEND_RATE_LIMIT_HOLD_MS : SEND_FAILURE_HOLD_MS;
+      // Süre de sebep kodu da TEK KAYNAKTAN (`outbox/state.ts`) — iki gönderim
+      // yolu ayrışamasın diye (denetim, 08-01 — üçüncü tur).
+      const holdMs = sendFailureHoldMs(kind);
       await prisma.conversation
         .update({
           where: { id: conversation.id },
@@ -2077,8 +2101,21 @@ async function reportLifecycleSendFailures(
   // (Bir sarmalayıcı/mock `void` döndürürse `undefined` gelir → geri alma
   // yapılmaz = GÜVENLİ yön: pencere korunur, yaşam-döngüsü göndericisi çökmez.)
   if (claimedWindow && outcome?.configured && !outcome.notified && !outcome.throttled) {
+    // 🚨 EPOCH 0 DEĞİL, KISA GERİ ÇEKİLME (denetim, 08-01 — üçüncü tur; ilk hâli
+    // bir SEL üretiyordu). `new Date(0)` pencereyi HEMEN serbest bırakıyordu ve
+    // `reportError`'ün başarısızlık damgası da ~1 dk geriye çekildiği için
+    // 2 dakikalık cron'da kova HİÇ tutmuyordu: 2 dk + 9 dk = 11 dk > 10 dk
+    // throttle → HER GEÇİŞ yeni bir e-posta denemesi. Üç yaşam-döngüsü türü ×
+    // 30 geçiş/saat = 90 deneme/saat, her biri 12-15 sn timeout ile senkron
+    // içinde bloklayabilir. Oysa bu pencerenin VARLIK SEBEBİ tam da o seli
+    // önlemekti (yorumdaki hesap: damgasız hâlde ~432/gün).
+    // 15 dakika: bildirim gerçekten kaybolduysa makul sürede tekrar denenir
+    // (claim-then-notify korunur), ama tekrar ≤4/saat ile sınırlı kalır.
     await prisma.systemLock
-      .updateMany({ where: { name: claimedWindow }, data: { lockedUntil: new Date(0) } })
+      .updateMany({
+        where: { name: claimedWindow },
+        data: { lockedUntil: new Date(Date.now() + ALARM_RETRY_BACKOFF_MS) },
+      })
       .catch(() => {});
   }
 }
@@ -2548,7 +2585,12 @@ export async function sendDueWelcomes(
         });
         if (!enq.deduped) sent++;
       } catch {
-        // enqueue failure → welcomeSentAt stays null → a later run retries cleanly. No stamp.
+        // enqueue failure → *SentAt stays null → a later run retries cleanly (no stamp),
+        // AMA sessiz kalmaz: kalıcı bir enqueue arızasında yaşam-döngüsü mesajları
+        // HİÇ gitmez ve hiçbir yerde iz kalmazdı (denetim, 08-01 — üçüncü tur).
+        // Doğrudan dal `failures` topluyordu, bu dal toplamıyordu → koşu başına tek
+        // toplu alarm bu yolda ASLA tetiklenmiyordu. Bayrak AÇILMADAN önce kapatıldı.
+        failures.push("enqueue_failed");
       }
       continue;
     }
@@ -2695,7 +2737,10 @@ export async function sendDueCheckins(
         });
         if (!enq.deduped) sent++;
       } catch {
-        // enqueue failure → checkinSentAt stays null → a later run retries cleanly.
+        // enqueue failure → *SentAt stays null → retries cleanly, ama SESSİZ DEĞİL
+        // (denetim, 08-01 — üçüncü tur): bu dal `failures`'a hiçbir şey itmediği için
+        // koşu başına tek toplu alarm bu yolda ASLA tetiklenmiyordu.
+        failures.push("enqueue_failed");
       }
       continue;
     }
@@ -2977,7 +3022,10 @@ export async function sendDueCheckouts(
         });
         if (!enq.deduped) sent++;
       } catch {
-        // enqueue failure → checkoutSentAt stays null → a later run retries cleanly.
+        // enqueue failure → *SentAt stays null → retries cleanly, ama SESSİZ DEĞİL
+        // (denetim, 08-01 — üçüncü tur): bu dal `failures`'a hiçbir şey itmediği için
+        // koşu başına tek toplu alarm bu yolda ASLA tetiklenmiyordu.
+        failures.push("enqueue_failed");
       }
       continue;
     }
@@ -3109,6 +3157,8 @@ export async function sendDueAlerts(
 
   let alerted = 0;
   let escalationEmailFailures = 0;
+  // Geri alma DA düşerse satır bir daha seçilemez → ayrı, daha ağır sinyal.
+  let escalationRollbackFailures = 0;
   // Bu geçiş zamanlanmış koşunun SÜRE BÜTÇESİNDEN MUAF (uyarı susturulamaz),
   // ama muafiyet sınırsız olamaz: 50 aday × 15 sn e-posta timeout'u = 12 dakika,
   // ve senkron kilidinin TTL'i 15 dakika. Kendi wall-clock tavanını taşır;
@@ -3200,9 +3250,15 @@ export async function sendDueAlerts(
       // claim olduğundan, ancak e-postanın başarılı olduğu turda bir kez çalışır.
       // Sonsuz tekrar riski yok: ALERT_MAX_AGE_MS penceresi dışına çıkan mesaj
       // zaten aday listesinden düşer.
-      await prisma.conversation
+      // ⚠️ GERİ ALMANIN SONUCU OKUNUR (denetim, 08-01 — üçüncü tur, ajan bulgusu).
+      // Bu, ürünün EN YÜKSEK BAHİSLİ bildirimi: geri alma düşerse konuşma kalıcı
+      // "problem" kalır, aday listesi yalnız `status:"new"` seçtiği için satır bir
+      // daha SEÇİLEMEZ ve host'a giden TEK acil şikayet bildirimi izsiz kaybolur.
+      // Yaşam-döngüsü göndericilerinde aynı desen zaten okunuyordu; burası atlanmıştı.
+      const rolled = await prisma.conversation
         .updateMany({ where: { id: c.id, status: "problem" }, data: { status: "new" } })
-        .catch(() => {});
+        .catch(() => null);
+      if (rolled === null || rolled.count === 0) escalationRollbackFailures++;
       escalationEmailFailures++;
       continue;
     }
@@ -3246,7 +3302,12 @@ export async function sendDueAlerts(
   if (escalationEmailFailures > 0) {
     void reportError(
       `sendDueAlerts org=${organizationId}`,
-      new Error(`escalation e-mail failed for ${escalationEmailFailures} conversation(s)`),
+      new Error(
+        `escalation e-mail failed for ${escalationEmailFailures} conversation(s)` +
+          (escalationRollbackFailures > 0
+            ? ` — ${escalationRollbackFailures} of them ALSO failed to roll back (those threads stay "problem" and will NOT be retried)`
+            : ""),
+      ),
     );
   }
   return { alerted };

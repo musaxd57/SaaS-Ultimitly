@@ -143,6 +143,43 @@ describe("senkron kilidi — ilerleme-tetikli kalp atışı", () => {
     expect(totals.lockLost).toBe(true);
   });
 
+  // -------------------------------------------------------------------------
+  // 🚨 KENDİ AÇTIĞIM REGRESYON — DB HIÇKIRIĞI KİLİT KAYBI DEĞİLDİR.
+  // (Denetim 08-01, üçüncü tur; ajan yakaladı.)
+  //
+  // `renewLock`'un ilk hâli `.catch(() => false)` yapıyordu: geçici BİR DB hatası
+  // "kilidi kaybettik" sayılıp geçişi İLK org'da kesiyordu. Yenileme döngünün ilk
+  // turunda, kilit alındıktan saniyeler sonra koştuğu için hata kalıcıysa HİÇBİR
+  // org hiç işlenmiyor, TÜM kiracıların mesaj içe aktarımı + oto-yanıtı duruyor,
+  // üstüne saatte 30 alarm üretiliyordu. Kilit kaybı TTL'in (15 dk) GERÇEKTEN
+  // dolmasını gerektirir; bir hıçkırık bunu ima etmez.
+  // -------------------------------------------------------------------------
+  it("YENİLEME HATA VERİRSE geçiş DURMAZ (hıçkırık ≠ kayıp)", async () => {
+    await orgWithProperty("A");
+    await orgWithProperty("B");
+    await orgWithProperty("C");
+    mockSync.mockResolvedValue(ZERO as never);
+
+    // `holder` içeren ilk `updateMany` = ilk `renewLock` (org #2'nin başında).
+    const real = prisma.systemLock.updateMany.bind(prisma.systemLock);
+    let thrown = false;
+    vi.spyOn(prisma.systemLock, "updateMany").mockImplementation((async (args: {
+      where?: { holder?: string };
+    }) => {
+      if (!thrown && args?.where?.holder) {
+        thrown = true;
+        throw new Error("transient DB hiccup");
+      }
+      return real(args as never);
+    }) as never);
+
+    const totals = await runScheduledSync();
+
+    expect(thrown).toBe(true); // hıçkırık gerçekten koştu
+    expect(mockSync).toHaveBeenCalledTimes(3); // ⬅️ ARIZADA 1 olurdu
+    expect(totals.lockLost).toBeUndefined(); // yanlış alarm da yok
+  });
+
   it("KİLİT BİZDEYKEN geçiş SONUNA KADAR gider (yanlış-pozitif pini)", async () => {
     await orgWithProperty("A");
     await orgWithProperty("B");

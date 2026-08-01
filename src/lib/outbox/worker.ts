@@ -12,7 +12,6 @@ import {
   attemptsExhausted,
   backoffMs,
   classifySendResult,
-  sendFailureHoldMs,
   sendFailureReason,
   type OutboxStatus,
   type SendResultKind,
@@ -505,40 +504,52 @@ async function applyDeliveryEffect(row: OutboxRow, now: Date): Promise<void> {
 }
 
 /**
- * KALICI GÖNDERİM HATASI → KONUŞMAYA SEBEP + GERİ ÇEKİLME YAZ.
- * (Derin denetim, 2026-08-01 — üçüncü tur, ajan bulgusu.)
+ * KALICI GÖNDERİM HATASI → KONUŞMAYA SEBEP YAZ (geri çekilme DEĞİL).
+ * (Derin denetim, 2026-08-01 — üçüncü tur; ilk hâli bir REGRESYON üretti, ↓.)
  *
- * Satır içi yol kalıcı bir hatada konuşmayı `status:"new"` + sebep kodu +
- * `autoReplyHoldUntil` ile işaretliyordu. Kuyruk yolu ise terminal geçişlerin
- * (`failed`/`blocked`/`review`) HİÇBİRİNDE konuşmaya dokunmuyordu. Sonuç:
- *   · konuşma `status:"new"` + `skippedReason:null` kalır,
- *   · taslak `Message` silinmediği için sonraki her geçiş `already_answered`'da
- *     durur → misafir KALICI cevapsız,
- *   · host inbox'ta HİÇBİR sebep görmez ve hiçbir alarm düşmez
- *     (`signalOutboxStuck` AI satırında failed/review'de bilinçli sessiz).
+ * Satır içi yol kalıcı bir hatada konuşmayı `status:"new"` + sebep kodu ile
+ * işaretliyordu. Kuyruk yolu ise terminal geçişlerin (`failed`/`blocked`/
+ * `review`) HİÇBİRİNDE konuşmaya dokunmuyordu → konuşma `status:"new"` +
+ * `skippedReason:null` kalır, taslak `Message` silinmediği için sonraki her
+ * geçiş `already_answered`'da durur: misafir KALICI cevapsız, host ekranında
+ * sebep YOK, alarm YOK.
  *
- * ⚠️ MESAJ KAYBOLMAZ: satır kuyrukta durur ve `/sent/queue` ekranından
- * tenant-bağlı yeniden denenebilir. Buradaki yazma yalnız GÖRÜNÜRLÜK + geri
- * çekilmedir — konuşmayı yeniden aday yapmak YANLIŞ olurdu, çünkü
- * `enqueueOutbound` aynı idempotency anahtarını dedupe eder (`already_queued`)
- * ve her tur boşuna bir model çağrısı + kota birimi yakardı.
+ * 🚨 `autoReplyHoldUntil` BURADA YAZILMAZ — DENENDİ, MESAJ KAYBETTİRİYORDU.
+ * O alan aynı zamanda `aiSendVeto`'nun "ai_paused" kapısıdır. 402 → satır
+ * `blocked` + konuşmaya 4 saatlik hold yazılıyordu; host aboneliğini 4 saat
+ * DOLMADAN yenilediğinde `reactivateBlockedOutbox` satırı `pending` yapıyor,
+ * AYNI koşunun drain'i onu claim ediyor ve veto hold'u görüp `canceled`
+ * damgalıyordu. `canceled` satır `/sent/queue`'dan da yeniden denenemez
+ * (`requeueFailedOutbox` YALNIZ `failed` kabul eder) → mesaj KALICI KAYIP.
+ * Bu, bugün düzeltilen "enqueue'de hold" arızasıyla AYNI SINIF: hold bir
+ * ZAMANLAYICI değil, bir KİLİTTİR; gönderim hatası için kullanılmaz.
  *
- * ⚠️ Yalnız YANIT satırları: yaşam-döngüsü satırlarının konuşması yok,
- * `holding_ack` thread'i bilerek "problem"da tutulur.
- * ⚠️ `updateMany` + `status: "new"` koşulu: host araya girip thread'i "problem"a
- * ya da "closed"a taşıdıysa o karar EZİLMEZ.
+ * Yerine `autoReplyAttemptedAt` damgalanır — "bu mesaj için karar verildi".
+ * Aday sorgusu `autoReplyAttemptedAt < lastMessageAt` istediği için misafir
+ * YENİ bir mesaj yazdığında konuşma kendiliğinden yeniden uygun olur; damga
+ * konuşmanın KENDİ `lastMessageAt`'inden alınır, sunucu saatinden DEĞİL
+ * (sağlayıcı saatiyle karışım, geçiş sırasında gelen bir mesajı KALICI olarak
+ * yutabiliyordu — `syncCursorAt` dersinin aynısı).
+ *
+ * ⚠️ Yalnız AI satırları: `manual` satır HOST'un kendi mesajıdır — onun
+ * gönderimi düşünce konuşmaya AI atlama sebebi yazmak yanlış bilgi olurdu
+ * (host zaten `/sent/queue`'da ve kendi ekranında görür).
+ * ⚠️ `status: "new"` koşulu: host thread'i "problem"/"closed"a taşıdıysa o karar
+ * EZİLMEZ.
  */
-async function applyFailureEffect(row: OutboxRow, now: Date, kind: SendResultKind): Promise<void> {
+async function applyFailureEffect(row: OutboxRow, kind: SendResultKind): Promise<void> {
   const type = row.messageType;
-  if (type && type !== "ai" && type !== "manual") return;
+  if (type && type !== "ai") return;
   if (!row.conversationId) return;
   try {
+    const convo = await prisma.conversation.findUnique({
+      where: { id: row.conversationId },
+      select: { lastMessageAt: true },
+    });
+    if (!convo) return;
     await prisma.conversation.updateMany({
       where: { id: row.conversationId, status: "new" },
-      data: {
-        skippedReason: sendFailureReason(kind),
-        autoReplyHoldUntil: new Date(now.getTime() + sendFailureHoldMs(kind)),
-      },
+      data: { skippedReason: sendFailureReason(kind), autoReplyAttemptedAt: convo.lastMessageAt },
     });
   } catch (err) {
     // Sessiz `catch {}` bu repoda belgeli anti-desen: sebep yazılamazsa host
@@ -679,7 +690,12 @@ async function processOne(row: OutboxRow, token: string, deps: Required<Pick<Dra
       // The flag-OFF sender won't re-send it because it fences on this outbox row (see automation.ts).
       if (done) {
         await signalOutboxStuck(row, "review");
-        await applyFailureEffect(row, now, "definitive_failure");
+        // ⚠️ `review` = BELİRSİZ: mesaj misafire ULAŞMIŞ OLABİLİR (ambiguous
+        // gönderim, sağlayıcı geçmişinden güvenle doğrulanamadı). Buraya kesin
+        // hata kodu yazmak, repo hiçbir yerde sahte "sent" iddia etmezken sahte
+        // "iletilemedi" iddiası doğurur — host metne bakıp ELLE yanıtlar ve
+        // misafir ÇİFT mesaj alır. Ayrı, dürüst bir kod kullanılır.
+        await applyFailureEffect(row, "ambiguous");
       }
       acc.review++;
       return;
@@ -738,7 +754,7 @@ async function processOne(row: OutboxRow, token: string, deps: Required<Pick<Dra
     });
     if (done) {
       await signalOutboxStuck(row, "blocked");
-      await applyFailureEffect(row, now, "blocked");
+      await applyFailureEffect(row, "blocked");
     }
     acc.blocked++;
     return;
@@ -754,7 +770,7 @@ async function processOne(row: OutboxRow, token: string, deps: Required<Pick<Dra
       const done = await settle(row, token, "sending", { status: "failed", lastErrorKind: "definitive_failure", lastErrorCode: errorCode(outcome.error), claimedBy: null, claimExpiresAt: null });
       if (done) {
         await signalOutboxStuck(row, "failed");
-        await applyFailureEffect(row, now, "definitive_failure");
+        await applyFailureEffect(row, "definitive_failure");
       }
       acc.failed++;
     } else {
@@ -785,6 +801,9 @@ async function processOne(row: OutboxRow, token: string, deps: Required<Pick<Dra
 async function healDeliveryEffects(now: Date): Promise<void> {
   const since = new Date(now.getTime() - 48 * 60 * 60 * 1000);
   const PAGE = 200;
+  // Org → devir penceresi saati. SAYFA DÖNGÜSÜNÜN DIŞINDA: içeride kurulunca
+  // 25 sayfaya kadar sıfırlanıp aynı org için tekrar tekrar sorgulanıyordu.
+  const hoursByOrg = new Map<string, number>();
   const MAX_PAGES = 25; // güvenlik tavanı — 48h penceresinde 5000+ satır beklenmez
 
   // ---- (1) Reply satırları (manual / ai / legacy-null) ----
@@ -898,7 +917,6 @@ async function healDeliveryEffects(now: Date): Promise<void> {
         ).map((m) => m.id),
       );
       if (handoffIds.size > 0) {
-        const hoursByOrg = new Map<string, number>();
         for (const r of handoffRows) {
           if (!handoffIds.has(r.messageId as string)) continue;
           let hours = hoursByOrg.get(r.organizationId);

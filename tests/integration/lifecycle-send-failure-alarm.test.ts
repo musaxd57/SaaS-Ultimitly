@@ -182,14 +182,35 @@ describe("yaşam-döngüsü gönderim arızası — koşu başına tek toplu ala
   // anlatıyordu (bir denetim ajanı yakaladı). `reportError` artık sonuç
   // döndürüyor; bu test o sonucun GERÇEKTEN okunduğunu pinler.
   // -------------------------------------------------------------------------
-  it("BİLDİRİM GİTMEZSE pencere geri alınır (sonraki geçiş yeniden uyarır)", async () => {
+  // ⚠️ GERİ ALMA "SERBEST BIRAK" DEĞİL "KISA GERİ ÇEKİLME" (denetim 08-01, üçüncü
+  // tur — ilk hâlim bir SEL üretiyordu). `new Date(0)` pencereyi HEMEN açıyordu ve
+  // `reportError`'ün başarısızlık damgası da ~1 dk geriye çekildiği için 2 dakikalık
+  // cron'da kova HİÇ tutmuyordu: 2+9=11 dk > 10 dk throttle → HER GEÇİŞ yeni bir
+  // e-posta denemesi (3 tür × 30 geçiş/saat = 90/saat, her biri 12-15 sn timeout
+  // ile senkron içinde bloklayabilir). Oysa pencerenin VARLIK SEBEBİ o seldi.
+  it("BİLDİRİM GİTMEZSE pencere KISA geri çekilmeyle açılır (sel yok, kayıp da yok)", async () => {
     const { orgId } = await seed();
     mockSend.mockResolvedValue({ ok: false, error: "HTTP 402 - subscription not active" });
     mockReport.mockResolvedValue({ notified: false, throttled: false, configured: true });
 
     await sendDueWelcomes(orgId);
     expect(mockReport).toHaveBeenCalledTimes(1);
-    // Pencere yanmadı → aynı arıza bir sonraki geçişte YENİDEN uyarır.
+
+    // Pencere GELECEĞE yazıldı, epoch'a DEĞİL → hemen ardından gelen geçiş uyarmaz.
+    const lock = await prisma.systemLock.findFirstOrThrow({
+      where: { name: { startsWith: "lifecycle-alarm:" } },
+    });
+    expect(lock.lockedUntil.getTime()).toBeGreaterThan(Date.now()); // ⬅️ ARIZADA epoch 0
+    expect(lock.lockedUntil.getTime()).toBeLessThan(Date.now() + 20 * 60_000); // ama 6 saat DE değil
+
+    await sendDueWelcomes(orgId);
+    expect(mockReport).toHaveBeenCalledTimes(1); // sel yok
+
+    // Geri çekilme dolunca YENİDEN dener — bildirim kalıcı kaybolmaz.
+    await prisma.systemLock.updateMany({
+      where: { name: { startsWith: "lifecycle-alarm:" } },
+      data: { lockedUntil: new Date(Date.now() - 1000) },
+    });
     await sendDueWelcomes(orgId);
     expect(mockReport).toHaveBeenCalledTimes(2);
   });
