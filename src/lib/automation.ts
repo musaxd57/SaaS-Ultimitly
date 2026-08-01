@@ -77,7 +77,14 @@ export function passesAutoReplySafetyGate(
   guestMessage: string,
   /** What the MODEL sees beyond the last message: recent history bodies + the
    *  (Airbnb-controlled) guest display name. Scanned for INJECTION ONLY. */
-  context?: { history?: string[]; guestName?: string | null },
+  context?: {
+    history?: string[];
+    guestName?: string | null;
+    /** Son giden yanıttan SONRA gelen, henüz cevaplanmamış misafir mesajları
+     *  (sonuncusu hariç — o `guestMessage` olarak ayrıca geliyor). Kısıtlayıcı
+     *  netler bunların HEPSİNE uygulanır; ↑gerekçe. */
+    pendingGuestMessages?: string[];
+  },
 ): boolean {
   // Never auto-send the deterministic fallback: it can't honour the language /
   // nuance rules the model follows, so if the model is unavailable we wait for a
@@ -90,6 +97,41 @@ export function passesAutoReplySafetyGate(
   // cancellation, never auto-send — even when the model under-rated it as a
   // benign, low-risk intent. This catches the dangerous misclassification case
   // (an angry or money/cancellation message labelled e.g. "amenity"/"general").
+  // ⚠️ YALNIZ SON MESAJA BAKMAK YETMEZ (derin denetim, 08-01). Misafir arka
+  // arkaya iki mesaj yazdığında — önce "daire çok kirli, param iade edilsin",
+  // 90 saniye sonra "neyse, wifi şifresi neydi?" — kapı yalnız SONUNCUYU
+  // taradığı için şikayeti HİÇ görmüyordu: zararsız son mesaj kapıdan geçiyor,
+  // AI wifi şifresini gönderiyor, konuşma "answered" oluyor ve şikayet KALICI
+  // olarak kayboluyordu (aynı sebeple `sendDueAlerts` de onu bir daha seçmiyor).
+  // Ürünün "riskli mesaj HER ZAMAN insana kalır" sözü tam burada kırılıyordu.
+  //
+  // KAPSAM DAR VE BİLİNÇLİ: yalnız CEVAPLANMAMIŞ mesajlar (son giden yanıttan
+  // sonra gelen misafir mesajları) taranır. Aşağıdaki injection yorumunun haklı
+  // uyarısı — "dünkü çözülmüş şikayet, bugünün wifi cevabını engellememeli" —
+  // bu yüzden geçerliliğini korur: bir kez cevap verdiğimizde pencere sıfırlanır.
+  const surfaces = [guestMessage, ...(context?.pendingGuestMessages ?? [])].filter(Boolean);
+  const fbAll = surfaces.map((t) => classifyFallback(t));
+  if (
+    fbAll.some(
+      (x) =>
+        x.isComplaint ||
+        x.intent === "refund" ||
+        x.intent === "early_departure" ||
+        (x.intent === "human_request" && result.intent !== "human_request"),
+    )
+  ) {
+    return false;
+  }
+  // Yüksek-riskli deterministik netler de TÜM cevaplanmamış mesajlara uygulanır.
+  if (
+    surfaces.some((t) => {
+      const d = detectRiskType(t);
+      return d === "safety_emergency" || d === "rule_violation" || d === "discrimination";
+    })
+  ) {
+    return false;
+  }
+
   const fb = classifyFallback(guestMessage);
   // human_request nuance: when the guest's own words ask for a real person, the
   // ONLY acceptable auto-reply is the model's handoff acknowledgement ("passed
@@ -1281,9 +1323,20 @@ export async function applyChannelAutoReply(
   // window (prompts.ts keeps the last 6) and both guest-name surfaces (the
   // reservation name goes into the prompt; guestIdentifier feeds the KB {isim}
   // fill) — an injection planted in any of them must veto the auto-send.
+  // CEVAPLANMAMIŞ misafir mesajları = son GİDEN mesajdan sonrakiler. Misafir arka
+  // arkaya yazdığında (şikayet + zararsız takip) kapı yalnız sonuncuyu görüyordu;
+  // artık pencerenin tamamını görüyor. Pencere, biz cevap verince sıfırlanır —
+  // yani "dünkü çözülmüş şikayet" bugünü engellemez.
+  const lastOutboundIdx = messages.map((m) => m.direction).lastIndexOf("outbound");
+  const pendingGuestMessages = messages
+    .slice(lastOutboundIdx + 1)
+    .filter((m) => m.direction === "inbound" && m.id !== last.id)
+    .map((m) => m.body);
+
   const gateContext = {
     history: [...messages.slice(-6).map((m) => m.body), conversation.guestIdentifier ?? ""],
     guestName: conversation.reservation?.guestName ?? null,
+    pendingGuestMessages,
   };
   if (!passesAutoReplySafetyGate(result, last.body, gateContext)) {
     // If the block was driven by a MODEL-detected sensitive signal (complaint /
@@ -2686,7 +2739,13 @@ export async function sendDueAlerts(
       reservationId: true,
       externalReservationId: true,
       property: { select: { name: true, address: true, city: true } },
-      messages: { orderBy: { createdAt: "desc" }, take: 1 },
+      // ⚠️ TEK MESAJ YETMEZ (derin denetim, 08-01). Misafir arka arkaya yazınca
+      // — önce şikayet, sonra zararsız bir takip — `take: 1` yalnız sonuncuyu
+      // getiriyordu, `classifyFallback` onu şikayet saymıyordu ve uyarı HİÇ
+      // gitmiyordu. Konuşma da oto-yanıtla "answered" olduğu için bir daha
+      // seçilmiyordu: şikayet KALICI kayboluyordu. Son 6 mesaj alınır, aşağıda
+      // CEVAPLANMAMIŞ olanların (son giden yanıttan sonrakiler) HEPSİ taranır.
+      messages: { orderBy: { createdAt: "desc" }, take: 6 },
     },
     orderBy: { lastMessageAt: "desc" }, // freshest first — never let stale backlog crowd out new complaints
     take: 50,
@@ -2707,9 +2766,19 @@ export async function sendDueAlerts(
     if (!last || last.direction !== "inbound") continue;
     // Skip stale backlog surfaced by a re-sync — only alert on fresh messages.
     if (Date.now() - last.createdAt.getTime() > ALERT_MAX_AGE_MS) continue;
-    const cls = classifyFallback(last.body);
-    if (!cls.isComplaint && cls.intent !== "refund") continue;
-    const riskType = detectRiskType(last.body);
+    // Mesajlar YENİDEN ESKİYE geldi; cevaplanmamış pencere = ilk giden mesaja
+    // kadar olan kısım. O pencerenin HERHANGİ birinde şikayet varsa uyarı gider.
+    const outboundAt = c.messages.findIndex((m) => m.direction === "outbound");
+    const pending = (outboundAt === -1 ? c.messages : c.messages.slice(0, outboundAt)).filter(
+      (m) => m.direction === "inbound",
+    );
+    const hit = pending.find((m) => {
+      const k = classifyFallback(m.body);
+      return k.isComplaint || k.intent === "refund";
+    });
+    if (!hit) continue;
+    const cls = classifyFallback(hit.body);
+    const riskType = detectRiskType(hit.body);
 
     // ATOMIC claim first (new → problem): routes the thread to a human, dedupes
     // the alert AND is the idempotency lock for the optional holding ack below —
@@ -2740,7 +2809,9 @@ export async function sendDueAlerts(
       propertyId: c.propertyId,
       conversationId: c.id,
       surface: "alerts",
-      triggerId: last.id,
+      // Tetikleyici ŞİKAYET mesajıdır, en son gelen zararsız takip DEĞİL:
+      // tekilleştirme anahtarı da böylece doğru satıra bağlanır.
+      triggerId: hit.id,
       finalDecision: "human_review",
       riskType,
       reason: "keyword_escalated",
@@ -2748,7 +2819,7 @@ export async function sendDueAlerts(
 
     const html = complaintEscalationEmail(
       { id: c.id, guestIdentifier: c.guestIdentifier, channel: c.channel, priority: c.priority },
-      last.body,
+      hit.body, // host ŞİKAYETİ görmeli, sonraki zararsız mesajı değil
       { name: c.property.name, address: c.property.address, city: c.property.city },
       org?.name ?? "GuestOps",
     );
@@ -2792,7 +2863,7 @@ export async function sendDueAlerts(
           guestIdentifier: c.guestIdentifier,
           externalReservationId: c.externalReservationId,
         },
-        guestMessage: last.body,
+        guestMessage: hit.body,
         org,
         language: null,
       }).catch(() => false);
@@ -2805,8 +2876,8 @@ export async function sendDueAlerts(
     if (org?.autoTaskFromMessageEnabled) {
       await createOperationalTaskFromMessage({
         propertyId: c.propertyId,
-        message: last.body,
-        sourceMessageId: last.id,
+        message: hit.body,
+        sourceMessageId: hit.id,
         reservationId: c.reservationId,
         ai: { intent: cls.intent, riskType },
       }).catch(() => {});

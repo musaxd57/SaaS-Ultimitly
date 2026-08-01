@@ -9,6 +9,7 @@ import {
   guestChatAiPausedFromMessages,
   acquireGuestChatThreadLock,
   ensureGuestChatConversation,
+  scrubStyleProfileForPublic,
   type GuestChatContext,
   type GuestChatDb,
 } from "@/lib/guest-chat";
@@ -525,7 +526,13 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ tok
     history: [],
     tone: "warm",
     language: "tr",
-    styleProfile: org?.aiStyleProfile ?? null,
+    // ⚠️ STİL REHBERİ HALKA AÇIK YÜZEYE HAM GİRMEZ (denetim, 08-01). Rehber, ev
+    // sahibinin geçmiş misafir cevaplarından bir modelle damıtılıyor ve o cevaplar
+    // rutin olarak Wi-Fi şifresi / kapı kodu içeriyor; damıtma isteminde "koyma"
+    // yazılı olması bir MODEL RİCASIDIR, deterministik garanti değil. Bu modülün
+    // değişmezi ise "sır bağlama HİÇ girmez". Aynı deterministik detektör
+    // (bilgi tabanını elediği detektör) rehbere de uygulanır.
+    styleProfile: scrubStyleProfileForPublic(org?.aiStyleProfile),
   });
 
   // (The QR model call passes reservation:null — the name never reaches the model

@@ -16,7 +16,7 @@
 
 ---
 
-## 1. 🔴 KRİTİK — Kalici (4xx) gonderim hatasi sonsuz yeniden-deneme dongusune giriyor: her turda bir OpenAI cagrisi + bir kota birimi yanar, konusma damgalanmaz ve host'a hicbir sebep gorunmez.
+## 1. ⏳ İNCELENİYOR · 🔴 KRİTİK — Kalici (4xx) gonderim hatasi sonsuz yeniden-deneme dongusune giriyor: her turda bir OpenAI cagrisi + bir kota birimi yanar, konusma damgalanmaz ve host'a hicbir sebep gorunmez.
 **Yer:** `src/lib/automation.ts:1673-1687, src/lib/automation.ts:1899-1923, src/lib/messaging.ts:76-79`
 
 **Kanıt:** applyChannelAutoReply, definitive (HTTP 4xx != 408) gonderim hatasinda claim'i GERI ALIYOR:
@@ -111,7 +111,7 @@ const tasks = await db.task.findMany({
 
 ---
 
-## 4. 🔴 KRİTİK — QR'ın "sır asla bağlamda olmaz" değişmezi `aiStyleProfile` ile deliniyor: ev sahibinin Wi-Fi/kapı kodu içeren geçmiş cevaplarından üretilmiş serbest metin, halka açık istem'e hiçbir deterministik filtre olmadan giriyor
+## 4. ✅ UYGULANDI (bu tur) · 🔴 KRİTİK — QR'ın "sır asla bağlamda olmaz" değişmezi `aiStyleProfile` ile deliniyor: ev sahibinin Wi-Fi/kapı kodu içeren geçmiş cevaplarından üretilmiş serbest metin, halka açık istem'e hiçbir deterministik filtre olmadan giriyor
 **Yer:** `src/app/api/chat/[token]/route.ts:500-503,528 · src/lib/guest-chat.ts:25-31,500-507 · src/lib/ai/prompts.ts:886-899 · src/lib/automation.ts:1985-2010 · src/lib/report-error-core.ts:69-73,103`
 
 **Kanıt:** `guest-chat.ts:25-31` modülün güvenlik tezini yazıyor: "access SECRETS (door/keybox code, Wi-Fi password) are excluded from the chat context ENTIRELY — not merely 'the model is told to decline' — so even a perfect prompt-injection has nothing to leak." Bu tez KB için gerçekten kodla kuruluyor: `QR_SECRET_CATEGORIES` kategori eleme + `looksLikeSecret` içerik eleme (`guest-chat.ts:503,507`). AMA rota, `resolveGuestChat`'in dışından İKİNCİ bir bağlam alanı ekliyor:
@@ -136,7 +136,7 @@ Bu alan hiçbir `looksLikeSecret`/kategori süzgecinden geçmiyor. Kaynağı `au
 
 ---
 
-## 5. 🔴 KRİTİK — Güvenlik kapısı ve şikayet uyarısı yalnız EN SON gelen mesaja bakıyor; arka arkaya gelen iki misafir mesajında şikayet kalıcı olarak kayboluyor.
+## 5. ✅ UYGULANDI (bu tur) · 🔴 KRİTİK — Güvenlik kapısı ve şikayet uyarısı yalnız EN SON gelen mesaja bakıyor; arka arkaya gelen iki misafir mesajında şikayet kalıcı olarak kayboluyor.
 **Yer:** `src/lib/automation.ts:1043, src/lib/automation.ts:1288, src/lib/automation.ts:93, src/lib/automation.ts:134, src/lib/automation.ts:2689, src/lib/automation.ts:2706-2711`
 
 **Kanıt:** applyChannelAutoReply: `let last = messages[messages.length - 1];` (1043) ve kapı yalnız onu görüyor: `passesAutoReplySafetyGate(result, last.body, gateContext)` (1288). Kapının içinde deterministik çapraz-kontrol de tek mesaj üzerinde: `const fb = classifyFallback(guestMessage);` (93) ve `const deterministicRisk = detectRiskType(guestMessage);` (134). Kapı yorumu (116-119) geçmişi BİLEREK yalnız injection için tarıyor: "INJECTION ONLY here: re-running the complaint/risk word nets over old messages would permanently over-block normal threads". Kelime-bazlı eskalasyon da aynı şekilde tek mesaj okuyor: `messages: { orderBy: { createdAt: "desc" }, take: 1 }` (2689) → `const last = c.messages[0];` + `if (!cls.isComplaint && cls.intent !== "refund") continue;` (2706-2711). Ama yorumun dayandığı varsayım ("eski mesaj = çözülmüş mesaj") yanlış: SON GİDEN MESAJDAN SONRAKİ tüm inbound satırlar tanım gereği CEVAPLANMAMIŞ ve hiçbir insan onları görmemiştir. hospitable-sync.ts:818 `const computedStatus = lastMessage && isGuestMessage(lastMessage) ? "new" : "answered";` — iki inbound aynı senkronda gelirse konuşma "new" olur ve son mesaj zararsız olandır.

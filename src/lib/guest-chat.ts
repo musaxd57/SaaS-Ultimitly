@@ -7,6 +7,7 @@ import { premiumAllowed } from "@/lib/billing/subscription";
 import { isUniqueViolation } from "@/lib/db-errors";
 import { qrPinEnabled } from "@/lib/guest-chat-pin";
 import { fetchKnowledgeBaseForPrompt } from "@/lib/ai/kb-fetch";
+import { foldTurkishLower, foldTurkishAscii } from "@/lib/ai/fallback";
 import {
   LEGACY_AI_RESUME_SENDER,
   LEGACY_AI_SENDER_NAMES,
@@ -218,8 +219,54 @@ const SECRET_PATTERNS: RegExp[] = [
   /(wi-?fi|wlan|kablosuz|ssid|internet\s*a[ğg])\w*[^.\n]{0,40}(["'«][^"'»\n]{2,}["'»]|[A-Za-z0-9!@#._-]*\d[A-Za-z0-9!@#._-]{3,})/i,
 ];
 
+/**
+ * ⚠️ ÜÇ KATLAMAYA BİRDEN BAKAR (CLAUDE.md "KATLAMA KURALI", denetim 08-01).
+ *
+ * Kalıplar `/i` bayrağıyla yazılmış, ama JS'in basit case-folding'i Türkçenin iki
+ * harfini ÇEVİRMEZ: `İ`(U+0130) → `i` OLMAZ, `I`(U+0049) → `ı` OLMAZ. Sonuç somut
+ * bir delikti: cümle "İnternet ağımız 'NuveEv', bağlanmak için 12345678 girin"
+ * diye başlıyorsa hiçbir kalıp eşleşmiyordu — yani Türkçede en doğal yazımıyla
+ * bir Wi-Fi şifresi, sır sayılmadan QR bağlamına girebiliyordu.
+ *
+ * Bu detektör KISITLAYICIDIR: yalnız içerik ELER, hiçbir izin genişletmez.
+ * Kural gereği katlama tam olarak burada uygulanır (nezaket/beyaz-liste
+ * kontrollerinde ASLA). Kalıplar Türkçe sözcüklerin ASCII karşılıklarını
+ * (`sifre`, `sifre|parola`) zaten içerdiği için ASCII katlaması eşleşmeyi
+ * bozmaz, yalnız EKLER.
+ */
 function looksLikeSecret(text: string): boolean {
-  return SECRET_PATTERNS.some((re) => re.test(text));
+  const variants = [text, foldTurkishLower(text), foldTurkishAscii(text)];
+  return SECRET_PATTERNS.some((re) => variants.some((v) => re.test(v)));
+}
+
+/**
+ * Ev sahibinin STİL REHBERİNİ halka açık QR yüzeyi için temizle.
+ *
+ * ⚠️ BU MODÜLÜN DEĞİŞMEZİNİ KORUR (↑dosya başı): "sırlar bağlamdan TAMAMEN
+ * çıkarılır — 'modele söyleriz reddeder' DEĞİL; öyle ki kusursuz bir prompt
+ * injection'ın bile sızdıracak bir şeyi olmasın."
+ *
+ * `aiStyleProfile` bu değişmezi deliyordu (denetim, 08-01): rehber, ev sahibinin
+ * GEÇMİŞ MİSAFİR CEVAPLARINDAN (40 örneğe kadar) bir modelle damıtılıyor ve o
+ * cevaplar rutin olarak Wi-Fi şifresi, kapı kodu ve adres içeriyor. Damıtma
+ * isteminde "bunları ASLA koyma" YAZILI — ama bu bir MODEL RİCASI, deterministik
+ * bir garanti değil. Rehber QR yoluna olduğu gibi geçiyordu, yani bilgi tabanı
+ * için kurulan tüm sır-eleme çabası yan kapıdan atlanabiliyordu.
+ *
+ * Neden satır satır: rehber madde listesidir. Tamamını atmak üslup eşlemesini
+ * (özelliğin tek faydası) yok ederdi; yalnız sır-benzeri SATIRI atmak hem faydayı
+ * hem değişmezi korur. Hiçbir temiz satır kalmazsa null döner.
+ *
+ * Aşırı-eleme GÜVENLİ yöndür: en kötü ihtimalle AI biraz daha jenerik konuşur.
+ */
+export function scrubStyleProfileForPublic(profile: string | null | undefined): string | null {
+  const raw = profile?.trim();
+  if (!raw) return null;
+  const kept = raw
+    .split(/\r?\n/)
+    .filter((line) => line.trim() && !looksLikeSecret(line));
+  const out = kept.join("\n").trim();
+  return out.length > 0 ? out : null;
 }
 
 /** Unguessable per-apartment chat token — two UUIDs, ~256-bit (icalToken style). */
