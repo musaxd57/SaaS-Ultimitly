@@ -1874,6 +1874,43 @@ export async function applyChannelAutoReply(
 }
 
 /**
+ * YAŞAM-DÖNGÜSÜ GÖNDERİM ARIZALARI ARTIK SESSİZ DEĞİL (denetim, 08-01).
+ *
+ * Üç göndericinin (karşılama / giriş bilgisi / çıkış hatırlatması) hata dalı
+ * `delivery.error`'ı yalnızca `isDefinitiveSendFailure`'a veriyor ve başka hiçbir
+ * yere yazmıyordu: ne alarm, ne log, ne sayaç. Dönen `{sent, considered}`
+ * farkını da kimse okumuyordu. Yani giriş talimatı (kapı kodunu TAŞIYAN mesaj)
+ * misafire hiç gitmese bile hiçbir yerde iz kalmıyordu — sorun ancak misafir
+ * kapıda kalınca anlaşılırdı. Bu, 07-31'de oto-yanıt için kapatılan desenin son
+ * kopyasıydı.
+ *
+ * Koşu başına TEK toplu alarm (sağlayıcı komple düşerse her rezervasyon için
+ * ayrı alarm sel olurdu). YALNIZ hata SINIFI ve SAYI gider — rezervasyon id'si,
+ * misafir adı, mesaj gövdesi ya da sağlayıcının ham hata metni ASLA.
+ */
+function reportLifecycleSendFailures(
+  kind: "welcome" | "checkin" | "checkout",
+  organizationId: string,
+  failures: string[],
+  considered: number,
+): void {
+  if (failures.length === 0) return;
+  const counts = failures.reduce<Record<string, number>>((acc, k) => {
+    acc[k] = (acc[k] ?? 0) + 1;
+    return acc;
+  }, {});
+  void reportError(
+    `lifecycle-send ${kind} org=${organizationId}`,
+    new Error(
+      `${kind} delivery failed for ${failures.length}/${considered} reservation(s): ` +
+        Object.entries(counts)
+          .map(([k, v]) => `${k}=${v}`)
+          .join(", "),
+    ),
+  );
+}
+
+/**
  * ADAY KÜMESİ — TEK KAYNAK. Hem asıl geçiş (findMany) hem "aktif saat dışında"
  * görünürlük yazımı (updateMany) bunu kullanır; iki yerde ayrı ayrı yazılsaydı
  * host'a "bu konuşma saat aralığı yüzünden bekliyor" denip aslında başka bir
@@ -2295,6 +2332,8 @@ export async function sendDueWelcomes(
 
   const signature = org.aiSignature?.trim();
   let sent = 0;
+  // Hata SINIFI etiketleri (PII yok) — koşu sonunda tek toplu alarma gider.
+  const failures: string[] = [];
 
   for (const r of reservations) {
     const welcome = await prisma.knowledgeBaseItem.findFirst({
@@ -2360,7 +2399,9 @@ export async function sendDueWelcomes(
       // proactive message (a duplicate is worse than a rare silent miss). Mirrors the
       // manual-reply route via the shared isDefinitiveSendFailure(). Durable Outbox
       // (flag ON) handles this via reconcile/review; this is the flag-OFF direct path.
-      if (isDefinitiveSendFailure(delivery.error)) {
+      const definitive = isDefinitiveSendFailure(delivery.error);
+      failures.push(definitive ? "definitive" : "ambiguous");
+      if (definitive) {
         await prisma.reservation
           .updateMany({
             where: { sourceReference: r.sourceReference, property: { organizationId } },
@@ -2373,6 +2414,7 @@ export async function sendDueWelcomes(
     sent++;
   }
 
+  reportLifecycleSendFailures("welcome", organizationId, failures, reservations.length);
   return { sent, considered: reservations.length };
 }
 
@@ -2435,6 +2477,8 @@ export async function sendDueCheckins(
 
   const signature = org.aiSignature?.trim();
   let sent = 0;
+  // Hata SINIFI etiketleri (PII yok) — koşu sonunda tek toplu alarma gider.
+  const failures: string[] = [];
 
   for (const r of reservations) {
     const tpl = await prisma.knowledgeBaseItem.findFirst({
@@ -2487,7 +2531,9 @@ export async function sendDueCheckins(
       // AMBIGUOUS (timeout/5xx/network) → the check-in message MAY have reached the
       // guest → KEEP checkinSentAt so we never re-POST it (duplicate). Mirrors the
       // manual-reply route via the shared isDefinitiveSendFailure() (flag-OFF path).
-      if (isDefinitiveSendFailure(delivery.error)) {
+      const definitive = isDefinitiveSendFailure(delivery.error);
+      failures.push(definitive ? "definitive" : "ambiguous");
+      if (definitive) {
         await prisma.reservation
           .updateMany({
             where: { sourceReference: r.sourceReference, property: { organizationId } },
@@ -2500,6 +2546,7 @@ export async function sendDueCheckins(
     sent++;
   }
 
+  reportLifecycleSendFailures("checkin", organizationId, failures, reservations.length);
   return { sent, considered: reservations.length };
 }
 
@@ -2697,6 +2744,8 @@ export async function sendDueCheckouts(
 
   const signature = org.aiSignature?.trim();
   let sent = 0;
+  // Hata SINIFI etiketleri (PII yok) — koşu sonunda tek toplu alarma gider.
+  const failures: string[] = [];
 
   for (const r of reservations) {
     // Only when check-out is TODAY (same-day reminder). Compare the departure's
@@ -2758,7 +2807,9 @@ export async function sendDueCheckouts(
       // AMBIGUOUS (timeout/5xx/network) → the checkout message MAY have reached the
       // guest → KEEP checkoutSentAt so we never re-POST it (duplicate). Mirrors the
       // manual-reply route via the shared isDefinitiveSendFailure() (flag-OFF path).
-      if (isDefinitiveSendFailure(delivery.error)) {
+      const definitive = isDefinitiveSendFailure(delivery.error);
+      failures.push(definitive ? "definitive" : "ambiguous");
+      if (definitive) {
         await prisma.reservation
           .updateMany({
             where: { sourceReference: r.sourceReference, property: { organizationId } },
@@ -2771,6 +2822,7 @@ export async function sendDueCheckouts(
     sent++;
   }
 
+  reportLifecycleSendFailures("checkout", organizationId, failures, reservations.length);
   return { sent, considered: reservations.length };
 }
 

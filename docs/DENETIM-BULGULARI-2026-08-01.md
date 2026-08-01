@@ -221,7 +221,7 @@ yani `applyDeliveryEffect` hic kosmaz, konusma asla "answered" olmaz.
 
 ---
 
-## 8. 🟠 YÜKSEK — Yaşam-döngüsü gönderimlerinin (welcome/checkin/checkout) hata dalları TAMAMEN sessiz: belirsiz hatada damga kalıyor, misafir mesajı almıyor, önizleme ekranı "gönderildi" diyor; kesin hatada sonsuz sessiz tekrar başlıyor
+## 8. ✅ KISMEN UYGULANDI (08-01: alarm; kalan MIGRATION-BEKLEYEN-ISLER §4) · 🟠 YÜKSEK — Yaşam-döngüsü gönderimlerinin (welcome/checkin/checkout) hata dalları TAMAMEN sessiz: belirsiz hatada damga kalıyor, misafir mesajı almıyor, önizleme ekranı "gönderildi" diyor; kesin hatada sonsuz sessiz tekrar başlıyor
 **Yer:** `src/lib/automation.ts:2215-2231, src/lib/automation.ts:2344-2358, src/lib/automation.ts:2615-2629 (hata dalları) · src/lib/automation.ts:2423, :2481, :2874 (önizleme) · src/lib/automation.ts:2151-2152 (sıra+tavan)`
 
 **Kanıt:** Üç göndericinin hata dalı da birebir aynı ve `delivery.error` yalnızca `isDefinitiveSendFailure`'a veriliyor, başka hiçbir yere yazılmıyor:

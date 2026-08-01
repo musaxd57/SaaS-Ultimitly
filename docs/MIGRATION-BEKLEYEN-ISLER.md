@@ -2,8 +2,9 @@
 
 > **Durum:** hiçbiri UYGULANMADI. Bu belge yalnız bulguları, kod
 > doğrulamalarını ve önerilen yolları taşır.
-> **Tarih:** 2026-07-31 · **Kaynak:** aynı gün koşan 7 salt-okuma denetim turu.
-> **Neden burada:** üçü de ya migration ister ya da ürün/operasyon kararı ister;
+> **Tarih:** 2026-07-31, **08-01'de 4. madde eklendi** · **Kaynak:** 7 salt-okuma
+> denetim turu (07-31) + derin denetim turu (08-01).
+> **Neden burada:** hepsi ya migration ister ya da ürün/operasyon kararı ister;
 > ikisi de kullanıcı onayı olmadan yapılmaz (CLAUDE.md kuralı).
 >
 > Bu turda yapılan HER ŞEY migration'sız ve geri alınabilirdi. Aşağıdakiler
@@ -175,7 +176,58 @@ açıkça yazıyor), yalnız şemayı okuyanın yanılmamasını sağlar. Düş�
 
 ---
 
-## 4. Bekleyen eski migration işleri (CLAUDE.md'den — hatırlatma)
+## 4. Yaşam-döngüsü gönderiminde "gönderildi" iddiası KANITSIZ + kalıcı hata sonsuz tekrar ediyor
+
+**Durum:** Bulgunun GÖRÜNÜRLÜK yarısı 08-01'de uygulandı (koşu başına tek toplu,
+PII'siz alarm — `reportLifecycleSendFailures`). Kalan iki yarısı KOLON ister,
+o yüzden UYGULANMADI.
+
+**Kod-doğrulaması:** `src/lib/automation.ts` — üç gönderici (`sendDueWelcomes` /
+`sendDueCheckins` / `sendDueCheckouts`) claim-then-send yapıyor: damga
+(`welcomeSentAt` / `checkinSentAt` / `checkoutSentAt`) POST'tan ÖNCE atılıyor.
+
+**(a) BELİRSİZ hatada damga TUTULUYOR ve önizleme onu "gönderildi" diye
+gösteriyor.** Bu bilinçli bir taviz ("duplicate, nadir sessiz kayıptan kötüdür")
+ve o kısmı DEĞİŞTİRMEYİN — ama önizlemenin dili yanlış:
+
+```
+alreadySent: Boolean(r.welcomeSentAt),   // automation.ts — checkin/checkout aynısı
+```
+
+Damga İKİ farklı şeyi birden temsil ediyor: "sağlayıcı teslim etti" ve
+"POST ettik ama sonucu bilmiyoruz". Host ekranda ikisini de "Gönderildi" görüyor.
+Giriş talimatı KAPI KODUNU taşıdığı için bu ayrım gerçek: misafir kapıda kalır,
+host ekranda "gönderildi" görür ve nerede arayacağını bilmez.
+
+**Neden migration:** ayrımı yapmak için üçüncü bir durum gerekiyor — ör. rezervasyon
+üzerinde `welcomeSendUnverifiedAt` (+ checkin/checkout eşleri) ya da outbox'taki
+`review` emsalinin yaşam-döngüsüne taşınması. Kolonsuz ayrım YAPILAMAZ: bugün
+"damga var" dışında hiçbir bilgi saklanmıyor.
+
+**(b) KESİN hatada (4xx≠408) damga geri alınıyor → aynı rezervasyon HER senkron
+turunda (2 dk) yeniden POST'lanıyor.** Karşılama sorgusunun üst tarih sınırı yok
+(`arrivalDate: { gte: bugün }`), sıra `arrivalDate: "asc"` ve tavan `take: 25`.
+Yani kalıcı 4xx dönen bir rezervasyon (thread kapalı / 404 / 422) girişe kadar —
+aylarca — dakikada bir sağlayıcı POST'u üretir, sırada EN ÖNDE olduğu için 25'lik
+tavanı işgal eder ve gerçek karşılamaları açlığa sokabilir.
+
+⚠️ Oto-yanıtta aynı sınıf 08-01'de `autoReplyHoldUntil` ile çözüldü (geri çekilme,
+damga değil) — **`Conversation`'da o kolon zaten vardı.** `Reservation`'da eşdeğeri
+YOK, o yüzden aynı çözüm buraya kolon eklemeden taşınamıyor.
+
+**Önerilen (KARAR SİZİN):** rezervasyon üzerinde deneme sayacı + geri çekilme
+damgası (ör. `lifecycleSendAttempts` + `lifecycleRetryAfter`), ya da tek bir
+`*SendUnverifiedAt` üçlüsüyle (a) ve (b)'yi birlikte çözmek.
+
+**Neden şimdi uygulanmadı:** kolon eklemek migration demek; CLAUDE.md kuralı
+gereği dolu tabloya kolon eklenmesi ayrı doğrulama ister ve bu belge Codex'e
+gitmek üzere hazırlanıyor. Bugün uygulanan alarm, arızanın **görünmezlik**
+kısmını kapattı: artık Sentry'de "welcome delivery failed for N/M reservation(s):
+definitive=X, ambiguous=Y" satırı düşüyor.
+
+---
+
+## 5. Bekleyen eski migration işleri (CLAUDE.md'den — hatırlatma)
 
 Bunlar bugünün bulgusu değil, listede duruyor:
 
