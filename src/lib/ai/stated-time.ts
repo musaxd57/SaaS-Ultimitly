@@ -18,8 +18,15 @@ const HHMM = /^([01]?\d|2[0-3]):([0-5]\d)$/;
 // "check[\s-]?out" never matches "check-in" (the "out" is required).
 // (?<!a) excludes "açık" (open/clear) — a very common word that embeds "çık" and
 // would otherwise falsely mark any nearby time as a stated checkout time.
+// ⚠️ YANLIŞ DOSTLAR VETOLU (saldırgan denetimi, 08-01). İpucu düz altdizi
+// taramasıydı ve alakasız kelimeleri "çıkış" sayıyordu — ölçüldü:
+//   "Çikolata bıraktık size, saat 15:00'te dönüyoruz" → 15:00 KABUL  (çik)
+//   "Vacation starts at 13:00"                        → 13:00 KABUL  (vacat)
+//   ayrıca: çiklet · çıkartma · çıkrık · çıkıntı · departman · cleaver
+// `(?<!a)` yalnız "açık" örneğini yamalamıştı. Vetolar KISITLAYICI: ipucu
+// düşürmek fonksiyonu daha az kabul eder hâle getirir (güvenli yön).
 const CHECKOUT_CUE =
-  /(?<!a)ç[ıi]k|ayr[ıi]l|terk|boşalt|bosalt|check[\s-]?out|leav|depart|vacat|auscheck/;
+  /(?<!a)ç[ıi]k(?!olata|let|artma|rık|rik|ıntı|inti)|ayr[ıi]l(?!ık|ik\b)|terk(?!os)|boşalt|bosalt|check[\s-]?out|(?<!c)leav|depart(?!man|ment)|vacat(?!ion)|auscheck/;
 
 /**
  * ULAÇ (gerund) İPUCU DEĞİLDİR (denetim, 08-01 — ikinci tur).
@@ -37,7 +44,10 @@ const CHECKOUT_CUE =
  * de olumsuzluk sayılır — nötrleşir. Cümlecikte BAŞKA bir gerçek ipucu varsa
  * ("…? Saat 11:00'de çıkıyoruz") o hâlâ çalışır (testli).
  */
-const CHECKOUT_GERUND = /(ç[ıi]kma|ayr[ıi]lma|boşaltma|bosaltma)dan\b/g;
+// `-madan` DIŞINDAKİ ulaç/zarf biçimleri de nötrlenir: "çıkarken 09:00'da market
+// açık olur mu" ölçüldü ve 09:00 KABUL ediliyordu (saldırgan denetimi, 08-01).
+const CHECKOUT_GERUND =
+  /(ç[ıi]kma|ayr[ıi]lma|boşaltma|bosaltma)dan\b|(ç[ıi]k|ayr[ıi]l)(arken|ırken|irken|acakken|ecekken)/g;
 
 /**
  * AYRILMA FİİLİNİN OLUMSUZU — MESAJ SEVİYESİNDE VETO (denetim, 08-01 — ikinci tur).
@@ -127,7 +137,16 @@ export function timeStatedInMessage(hhmm: string, message: string): boolean {
   const neutral = lower.replace(CHECKOUT_GERUND, " ");
 
   for (const sentence of neutral.split(/(?:[!?\n]|(?<!\d)\.|\.(?!\d))+/)) {
-    const clauses = sentence.split(/[,;]+/);
+    // ⚠️ BAĞLAÇLAR DA CÜMLECİK AYIRICISIDIR (saldırgan denetimi, 08-01). Ayırıcı
+    // yalnız `,;` iken tek bir "ve"/"and"/tire garantiyi deliyordu — ölçüldü:
+    //   "Akşam yemeği saat 18:00. Yarın çıkıyoruz"  → 18:00 RED  ✅
+    //   "Akşam yemeği saat 18:00 ve yarın çıkıyoruz" → 18:00 KABUL ❌
+    // Aynı iki cümle, YALNIZ bağlaç değişti. İleri bakış zaten cümle içinde
+    // kaldığı için meşru "yarın çıkıyoruz ve saat 10:00 gibi" bozulmaz.
+    // ⚠️ İKİ NOKTA rakamlar ARASINDA bölünemez — "18:00" saatin kendisidir.
+    const clauses = sentence.split(
+      /[,;]+|\s+(?:ve|and|ama|but|fakat|sonra|then|ayrıca|çünkü|because)\s+|\s+[-–—]\s+|(?<!\d):(?!\d)/,
+    );
     for (let i = 0; i < clauses.length; i++) {
       if (!CHECKOUT_CUE.test(clauses[i])) continue;
       // Genel olumsuz kalıplar YALNIZ kendi cümleciğini bağlar (↑CLAUSE_NEGATION).

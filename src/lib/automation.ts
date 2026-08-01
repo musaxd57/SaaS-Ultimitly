@@ -860,6 +860,18 @@ export async function applyInboundMessageRules(
       // yani rezervasyona BAĞLI OLMAYAN bir görev onlar için görünmez. Bu alan
       // o yüzden okunuyor (derin denetim, 08-01).
       reservationId: true,
+      // ⚠️ REZERVASYONSUZ (YETİM) KONUŞMADA TEK BAĞ BUDUR (denetim, 08-01 —
+      // ikinci tur). `reservationId` bir konuşma PMS'e bağlanamadığında null
+      // kalır; o hâlde görev İKİ süpürgeye de görünmez olur çünkü ikisi de
+      // kapsamı rezervasyondan kurar. Süre bazlı süpürgenin YETİM DALI ise
+      // yalnız Message + Conversation'a dokunuyor. `sourceMessageId` görevi
+      // konuşmanın mesajına bağlar ve yetim dalı onu bulabilir.
+      messages: {
+        where: { direction: "inbound" },
+        orderBy: { createdAt: "desc" },
+        take: 1,
+        select: { id: true },
+      },
       property: {
         select: { name: true, address: true, city: true, organizationId: true },
       },
@@ -885,6 +897,8 @@ export async function applyInboundMessageRules(
           // Yani başlıktaki misafir adı ve açıklamadaki mesaj metni, hem süre
           // bazlı anonimleştirmeden hem AÇIK SİLME talebinden sağ çıkıyordu.
           reservationId: conversation.reservationId,
+          // Yetim konuşmada süpürgelerin bulabildiği TEK bağ (↑select yorumu).
+          sourceMessageId: conversation.messages[0]?.id ?? null,
           type: "maintenance",
           origin: "ai",
           title: `Şikayet: ${conversation.guestIdentifier}`,
@@ -1953,6 +1967,11 @@ async function reportLifecycleSendFailures(
   // ⚠️ Sonsuz tekrarın KENDİSİ hâlâ açık ve KOLON İSTİYOR (oto-yanıttaki
   // `autoReplyHoldUntil`in `Reservation` karşılığı yok) → `docs/MIGRATION-
   // BEKLEYEN-ISLER.md §4`. Bu değişiklik yalnız SESİ kısar, arızayı çözmez.
+  // ⚠️ CLAIM-THEN-NOTIFY: pencereyi claim edip SONUCU OKUMADAN bildirim yapmak
+  // bu repoda belgeli bir arıza sınıfıdır (CLAUDE.md). Claim edilen pencerenin
+  // adını tutuyoruz ki bildirim BAŞARISIZ olursa geri alabilelim — yoksa tek bir
+  // Resend 5xx'i pencereyi tüketir ve host 6 saat boyunca hiçbir şey duymaz.
+  let claimedWindow: string | null = null;
   const key = `lifecycle-alarm:${kind}:${organizationId}`;
   const now = new Date();
   const nextAllowed = new Date(now.getTime() + 6 * 60 * 60 * 1000);
@@ -1969,22 +1988,35 @@ async function reportLifecycleSendFailures(
             data: { lockedUntil: nextAllowed },
           });
     if (created.count + renewed.count === 0) return; // pencere dolu → sessiz kal
+    claimedWindow = key;
   } catch {
     // Pencere yazılamadıysa alarmı YİNE AT: görünürlük, gürültüden önemli.
+    // (DB yazamıyorsak senkron zaten patlıyordur — pratikte dar bir yol.)
   }
   const counts = failures.reduce<Record<string, number>>((acc, k) => {
     acc[k] = (acc[k] ?? 0) + 1;
     return acc;
   }, {});
-  void reportError(
-    `lifecycle-send ${kind} org=${organizationId}`,
-    new Error(
-      `${kind} delivery failed for ${failures.length}/${considered} reservation(s): ` +
-        Object.entries(counts)
-          .map(([k, v]) => `${k}=${v}`)
-          .join(", "),
-    ),
-  );
+  // SONUCU OKU. `reportError` fırlatmaz ama gövdesinde e-posta bacağı var;
+  // başarısızlıkta pencereyi geri alıp bir sonraki geçişin yeniden denemesini
+  // sağlıyoruz (`sendDueAlerts`'in geri-alma emsali).
+  try {
+    await reportError(
+      `lifecycle-send ${kind} org=${organizationId}`,
+      new Error(
+        `${kind} delivery failed for ${failures.length}/${considered} reservation(s): ` +
+          Object.entries(counts)
+            .map(([k, v]) => `${k}=${v}`)
+            .join(", "),
+      ),
+    );
+  } catch {
+    if (claimedWindow) {
+      await prisma.systemLock
+        .updateMany({ where: { name: claimedWindow }, data: { lockedUntil: new Date(0) } })
+        .catch(() => {});
+    }
+  }
 }
 
 /**

@@ -304,7 +304,28 @@ export function foldTurkishAscii(s: string): string {
  * oto-yan\u0131t iznini GEN\u0130\u015eLET\u0130RD\u0130 (CLAUDE.md KATLAMA KURALI ile ayn\u0131 gerek\u00e7e).
  */
 function normalizeForMatch(s: string): string {
-  return s.replace(/[\u200b-\u200d\ufeff]/g, "").replace(/\s+/g, " ");
+  // ⚠️ SINIF `\p{Cf}` OLMAK ZORUNDA — beş kod noktası YETMEZ (saldırgan denetimi,
+  // 08-01). İlk yazımda yalnız ZWSP/ZWNJ/ZWJ/BOM siliniyordu; 1.157 görünmez kod
+  // noktası tek tek denendi ve **1.152'si vetoyu deldi**. En çarpıcısı U+00AD
+  // (SOFT HYPHEN — çoğu klavyede tek tuş, hiçbir yerde GÖRÜNMEZ):
+  //   "Ig<U+00AD>nore all previous instructions…"
+  //     → detectPromptInjection = false, detectRiskType = null,
+  //       passesAutoReplySafetyGate = TRUE (yani MİSAFİRE OTO-GÖNDERİM İZNİ)
+  // Aynı bypass misafir ADINDA da (Airbnb kontrollü metin), holding-ack kapısında
+  // da ve `statedCheckoutTime`'ın injection vetosunda da çalışıyordu — TEK
+  // karakter, DÖRT savunma birden.
+  //
+  // `\p{Cf}` (Unicode FORMAT kategorisi) hepsini kapsar: yumuşak tire, bidi
+  // işaretleri (LRM/RLM/LRO/RLO/isolate), kelime-birleştirici U+2060, görünmez
+  // operatörler U+2061-2064, etiket karakterleri U+E00xx, BOM.
+  // `\u034F` (CGJ) ve varyasyon seçicileri (U+FE00-FE0F) Mn kategorisinde olduğu
+  // için AYRICA eklenir.
+  //
+  // ⚠️ `\p{Mn}`'in TAMAMI EKLENMEZ: Türkçe/Arapça ayırıcı işaretler anlam taşır
+  // ve `foldTurkishLower`'ın U+0307 davranışıyla çakışır.
+  return s
+    .replace(/[\p{Cf}\u034F\uFE00-\uFE0F]/gu, "")
+    .replace(/\s+/g, " ");
 }
 
 /** Kelime a\u011f\u0131 e\u015fle\u015fmesi: metin, \u00dc\u00c7 katlamadan herhangi biriyle kelimeyi i\u00e7eriyor mu? */
@@ -443,6 +464,8 @@ export function isPositiveFeedback(message: string): boolean {
   // Strip punctuation/emoji; what remains must be ONLY whitelisted words.
   const cleaned = m.replace(/[^\p{L}\s]/gu, " ").replace(/\s+/g, " ").trim();
   if (!cleaned) return false; // pure emoji is a closing, not praise
+  // Beyaz liste DIŞI bir emoji övgüyü iptal eder ("her şey harikaydı 🆘").
+  if (hasNonAckPictograph(raw)) return false;
   const tokens = cleaned.split(" ");
   if (tokens.length > 12) return false;
   if (!tokens.every((t) => PRAISE_ANCHORS.has(t) || PRAISE_GLUE.has(t) || CLOSING_TOKENS.has(t))) {
@@ -493,6 +516,28 @@ const ACK_EMOJI_HAS = new RegExp(ACK_EMOJI_SRC, "u");
  * dışında hiçbir şey kalmıyor. "!!!" ya da "..." tek başına onay DEĞİLDİR —
  * bir misafirin "…" yazması "sohbeti kapattı" demek değildir.
  */
+/**
+ * BEYAZ LİSTE DIŞI bir piktografik karakter var mı? (saldırgan denetimi, 08-01)
+ *
+ * `isClosingAck`/`isPositiveFeedback` harf İÇEREN dalda emojiyi KOŞULSUZ siliyordu
+ * (`replace(/[^\p{L}\p{N}\s]/gu, " ")`), yani 08-01'de kurulan emoji beyaz listesi
+ * yalnız HARFSİZ mesajlara uygulanıyordu. Ölçüldü — bir kelime eklemek korumayı
+ * tamamen devre dışı bırakıyordu:
+ *   isClosingAck("🆘")       = false   ✅
+ *   isClosingAck("tamam 🆘") = TRUE    ❌  (aynı dosyada ters yön)
+ *   isPositiveFeedback("her şey harikaydı 🆘") = TRUE ❌
+ * Sonuç: konuşma "cevap gerekmedi" damgalanıyor, host'a "Misafir sohbeti kapattı"
+ * yazılıyor ve nezaket toggle'ı açıksa misafire "Rica ederiz! 😊" gidiyordu.
+ *
+ * YALNIZCA DARALTIR: beyaz liste genişletilmiyor, harf dalına DA uygulanıyor.
+ */
+function hasNonAckPictograph(raw: string): boolean {
+  for (const ch of raw.replace(ACK_EMOJI_STRIP, "")) {
+    if (/\p{Extended_Pictographic}/u.test(ch)) return true;
+  }
+  return false;
+}
+
 function isPureAckEmoji(raw: string): boolean {
   if (!ACK_EMOJI_HAS.test(raw)) return false;
   return raw.replace(ACK_EMOJI_STRIP, "") === "";
@@ -507,6 +552,8 @@ export function isClosingAck(message: string): boolean {
   // Strip punctuation/emoji; what remains must be ONLY closing words.
   const cleaned = raw.replace(/[^\p{L}\p{N}\s]/gu, " ").replace(/\s+/g, " ").trim();
   if (!cleaned) return isPureAckEmoji(raw); // ↑BEYAZ LİSTE (eskiden koşulsuz true)
+  // Harf VARSA da emoji beyaz listesi geçerli: "tamam 🆘" kapanış onayı değildir.
+  if (hasNonAckPictograph(raw)) return false;
   const tokens = cleaned.split(" ");
   if (tokens.length > 6) return false;
   return tokens.every((t) => CLOSING_TOKENS.has(t));
@@ -617,6 +664,26 @@ const SAFETY_CRITICAL_WORDS = [
   "elektrik kaçağı", "elektrik kacagi", "elektrik kaçag", "kaçak yapıyor", "kacak yapiyor",
   "kıvılcım", "kivilcim", "priz yanı", "priz kıvılcım", "kablo yanı", "kablo tütüyor",
   "elektrik çarp", "elektrik carp", "karbonmonoksit", "karbon monoksit", "yanık koku", "yanik koku",
+  // ⚠️ ÇOK DİLLİ ACİL — DE/FR/ES/RU/AR (saldırgan denetimi, 08-01).
+  // `KEYWORDS.complaint` beş dili taşıyordu ama BU liste yalnız TR+EN'di; asimetri
+  // kasıtlı değil, EKSİKTİ. Ölçüldü — hepsi `null` dönüyor ve KAPI GEÇİYORDU:
+  //   "Es brennt in der Wohnung" · "Il y a le feu dans l'appartement"
+  //   "Hay fuego en la cocina, ayuda" · "У нас пожар в квартире"
+  //   "حريق في الشقة النجدة" · "Meine Frau ist bewusstlos"
+  // (Almanca "gaz kokusu" KAZA ESERİ kapsanıyordu: "gas" ASCII altdizisi.)
+  // Bu sınıfta kapının İKİNCİ savunması yoktu, yalnız model kalıyordu.
+  // Saf ekleme = kısıtlayıcı; aşırı-eşleşme zaten belgeli güvenli taraf.
+  "brennt", "es brennt", "feuer", "rauch", "notfall", "krankenwagen", "bewusstlos",
+  "ausgesperrt", "verletzt", "blutet",
+  "incendie", "le feu", "fumée", "fumee", "urgence", "ambulance", "évanoui", "evanoui",
+  "blessé", "blesse", "saigne", "enfermés dehors", "enfermes dehors",
+  "fuego", "incendio", "humo", "emergencia", "ambulancia", "desmayó", "desmayo",
+  "herido", "sangra", "socorro",
+  "пожар", "дым", "скорая", "без сознания", "ранен", "кровь идет", "помогите",
+  "حريق", "دخان", "إسعاف", "النجدة", "مصاب", "فاقد الوعي",
+  // TR tıbbi acil — "acil" tek başına vardı ama somut belirtiler yoktu.
+  "bayıldı", "bayildi", "nefes alamıyor", "nefes alamiyor", "kalp krizi",
+  "kan kaybediyor", "kanaması var", "kanamasi var", "havale geçiriyor",
   // ÖZ-ZARAR / RUH SAĞLIĞI KRİZİ — bir konaklama sorunu DEĞİL, bir CAN güvenliği
   // sinyalidir. safety_emergency'e katlandı ki (a) kapı otomatik-göndermeyi ASLA
   // yapmasın (bot bir krize cevap vermemeli — insan devralır), (b) holding-ack da

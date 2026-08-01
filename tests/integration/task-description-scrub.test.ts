@@ -147,3 +147,88 @@ describe("şikayet görevi — misafir metni iki süpürgeye de bağlı", () => 
     expect(r.guestName).toBe(ANON_NAME);
   });
 });
+
+// ---------------------------------------------------------------------------
+// YETİM KONUŞMADAN DOĞAN GÖREV DE TEMİZLENİR (denetim, 08-01 — ikinci tur).
+//
+// İlk turda şikayet görevi `reservationId` ile bağlandı ve süre bazlı süpürgenin
+// REZERVASYON dalı onu bulur oldu. Ama bir konuşma PMS'e BAĞLANAMAZSA
+// (`reservationId: null` — tarihi çözülemeyen rezervasyon, manuel konuşma)
+// o dal da onu bulamaz; süpürgenin YETİM dalı ise yalnız Message + Conversation'a
+// dokunuyordu. Yani misafirin ham mesajı ve adı SÜRESİZ kalıyordu — bulgunun
+// kalan yarısı.
+//
+// Bağ `sourceMessageId`: `Task`ta `conversationId` kolonu YOK (eklemek migration
+// ister), ama görev kendisini doğuran MESAJA bağlı.
+// ---------------------------------------------------------------------------
+describe("YETİM konuşmanın görevi — süre bazlı süpürge onu da bulur", () => {
+  beforeEach(async () => {
+    await resetDb();
+    vi.stubEnv("DATA_RETENTION_MONTHS", "24");
+    mockClassify.mockReset();
+    mockClassify.mockResolvedValue({
+      intent: "complaint",
+      priority: "urgent",
+      isComplaint: true,
+      confidence: 0.9,
+    });
+  });
+  afterEach(() => vi.unstubAllEnvs());
+
+  async function seedOrphan() {
+    const org = await prisma.organization.create({ data: { name: "Org" } });
+    const property = await prisma.property.create({
+      data: { organizationId: org.id, name: "Nuve 7" },
+    });
+    const old = new Date(Date.now() - 40 * 30 * 24 * 60 * 60 * 1000); // ~40 ay
+    const conversation = await prisma.conversation.create({
+      data: {
+        propertyId: property.id,
+        reservationId: null, // ⬅️ YETİM: PMS'e bağlanamadı
+        channel: "airbnb",
+        guestIdentifier: "Ahmet Yılmaz",
+        status: "new",
+        lastMessageAt: old,
+        messages: {
+          create: [
+            { direction: "inbound", senderName: "Ahmet Yılmaz", body: GUEST_TEXT, createdAt: old },
+          ],
+        },
+      },
+    });
+    return { conversationId: conversation.id };
+  }
+
+  it("görev MESAJA bağlı doğar (yetimde tek bağ budur)", async () => {
+    const { conversationId } = await seedOrphan();
+    await applyInboundMessageRules(conversationId, GUEST_TEXT);
+
+    const task = await prisma.task.findFirstOrThrow({ where: { origin: "ai" } });
+    expect(task.reservationId).toBeNull(); // yetim — rezervasyon yok
+    expect(task.sourceMessageId).not.toBeNull(); // ⬅️ ARIZADA null olurdu
+  });
+
+  it("yetim görevinin AÇIKLAMASI ve BAŞLIĞI temizlenir", async () => {
+    const { conversationId } = await seedOrphan();
+    await applyInboundMessageRules(conversationId, GUEST_TEXT);
+
+    await anonymizeOldGuestData();
+
+    const task = await prisma.task.findFirstOrThrow({ where: { origin: "ai" } });
+    expect(task.description).toBe(ANON_BODY);
+    expect(task.description).not.toContain("0532");
+    expect(task.title).not.toContain("Ahmet Yılmaz");
+    expect(task.title).toContain("Şikayet"); // host'un iş kaydı okunur kalır
+  });
+
+  it("temizlik İDEMPOTENT (ikinci koşu bozmaz)", async () => {
+    const { conversationId } = await seedOrphan();
+    await applyInboundMessageRules(conversationId, GUEST_TEXT);
+    await anonymizeOldGuestData();
+    const first = await prisma.task.findFirstOrThrow({ where: { origin: "ai" } });
+    await anonymizeOldGuestData();
+    const second = await prisma.task.findFirstOrThrow({ where: { origin: "ai" } });
+    expect(second.title).toBe(first.title);
+    expect(second.description).toBe(first.description);
+  });
+});

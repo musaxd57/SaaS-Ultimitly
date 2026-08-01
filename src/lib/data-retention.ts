@@ -277,6 +277,43 @@ export async function anonymizeOldGuestData(now: Date = new Date()): Promise<{ a
       const red = name ? redactNameFromBody(m.body, [name]) : m.body;
       if (red !== m.body) bodyRedactions.push({ id: m.id, body: red });
     }
+    // ⚠️ YETİM DALI DA GÖREVLERE DOKUNMALI (denetim, 08-01 — ikinci tur).
+    //
+    // Bu dal yalnız Message + Conversation'ı temizliyordu. Oysa REZERVASYONSUZ
+    // bir konuşmadan da görev doğuyor (şikayet görevi + akıllı görev) ve o görev
+    // BAŞLIKTA misafirin adını, AÇIKLAMADA ham mesajını taşıyor. Rezervasyon
+    // kapsamlı dal onu bulamaz (`reservationId` null), bu dal ise Task'a hiç
+    // bakmıyordu → misafir metni SÜRESİZ kalıyordu. Bugün kapatılan bulgunun
+    // kalan yarısı.
+    //
+    // Bağ `sourceMessageId`: `Task`'ta `conversationId` kolonu YOK (eklemek
+    // migration ister), ama görev kendisini doğuran MESAJA bağlı ve o mesaj bu
+    // konuşmanın mesajları arasında.
+    const orphanMsgIds = (
+      await prisma.message.findMany({
+        where: { conversationId: { in: orphanIds } },
+        select: { id: true },
+      })
+    ).map((m) => m.id);
+    const orphanTasks = orphanMsgIds.length
+      ? await prisma.task.findMany({
+          where: { sourceMessageId: { in: orphanMsgIds } },
+          select: { id: true, title: true, description: true },
+        })
+      : [];
+    // Konuşma başına ad: yetimde `guestIdentifier` TEK ad kaynağıdır.
+    const orphanNames = orphanConvs.map((c) => c.guestIdentifier).filter(Boolean) as string[];
+    const taskRedactions: { id: string; title: string; description?: string }[] = [];
+    for (const t of orphanTasks) {
+      const redTitle = redactNameFromBody(t.title, orphanNames);
+      // Açıklama misafirin HAM MESAJI → tıpkı `Message.body` gibi tamamen
+      // anonimleştirilir; başlık ve tip host'un iş kaydı olarak okunur kalır.
+      const guestText = t.description && t.description !== ANON_BODY ? ANON_BODY : undefined;
+      if (redTitle !== t.title || guestText) {
+        taskRedactions.push({ id: t.id, title: redTitle, ...(guestText ? { description: guestText } : {}) });
+      }
+    }
+
     await prisma.$transaction([
       prisma.message.updateMany({
         where: { conversationId: { in: orphanIds }, direction: "inbound", body: { not: ANON_BODY } },
@@ -287,6 +324,12 @@ export async function anonymizeOldGuestData(now: Date = new Date()): Promise<{ a
         data: { guestIdentifier: ANON_ID },
       }),
       ...bodyRedactions.map((r) => prisma.message.update({ where: { id: r.id }, data: { body: r.body } })),
+      ...taskRedactions.map((t) =>
+        prisma.task.update({
+          where: { id: t.id },
+          data: { title: t.title, ...(t.description ? { description: t.description } : {}) },
+        }),
+      ),
     ]);
     anonymized += orphanIds.length;
   }
