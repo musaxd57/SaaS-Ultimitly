@@ -40,6 +40,7 @@ vi.mock("@/lib/report-error", () => ({ reportError: vi.fn().mockResolvedValue(un
 
 import { eraseReservationData } from "@/lib/erasure";
 import { reactivateBlockedOutbox } from "@/lib/outbox/worker";
+import { requeueFailedOutbox } from "@/lib/outbox/ops";
 import { OUTBOX_STATUSES, ERASABLE_STATUSES } from "@/lib/outbox/state";
 
 const DAY = 86_400_000;
@@ -186,6 +187,40 @@ describe("silinen misafirin outbox satırı yeniden canlanamaz", () => {
     });
     expect(await reactivateBlockedOutbox(orgId)).toBe(0);
     expect((await byKey("ob-orphan-blocked")).status).toBe("blocked");
+  });
+
+  it("İKİNCİ SAVUNMA: temizlenmiş gövdeli failed satırı ops ekranından da diriltilemez", async () => {
+    const { orgId } = await makeOrgWithProperty();
+    const row = await prisma.messageOutbox.create({
+      data: {
+        organizationId: orgId,
+        channel: "airbnb",
+        body: ANON_BODY,
+        idempotencyKey: "ob-orphan-failed",
+        status: "failed",
+        lastErrorCode: "HTTP 422",
+      },
+    });
+    const res = await requeueFailedOutbox(orgId, row.id);
+    expect(res.outcome).toBe("not_retryable");
+    expect((await byKey("ob-orphan-failed")).status).toBe("failed");
+  });
+
+  it("temizlenmemiş normal failed satırı ops ekranından NORMAL diriltilir (regresyon pini)", async () => {
+    const { orgId } = await makeOrgWithProperty();
+    const row = await prisma.messageOutbox.create({
+      data: {
+        organizationId: orgId,
+        channel: "airbnb",
+        body: "Merhaba, kapı kodunuz 1234.",
+        idempotencyKey: "ob-live-failed",
+        status: "failed",
+        lastErrorCode: "HTTP 422",
+      },
+    });
+    const res = await requeueFailedOutbox(orgId, row.id);
+    expect(res.outcome).toBe("requeued");
+    expect((await byKey("ob-live-failed")).status).toBe("pending");
   });
 
   it("temizlenmemiş normal blocked satırı NORMAL şekilde reaktive olur (regresyon pini)", async () => {

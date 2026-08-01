@@ -1,6 +1,7 @@
 import "server-only";
 
 import { prisma } from "@/lib/db";
+import { ANON_BODY } from "@/lib/data-retention";
 import { isOutboxStatus, OUTBOX_STATUSES, type OutboxStatus } from "./state";
 
 // ---------------------------------------------------------------------------
@@ -149,6 +150,12 @@ export async function requeueFailedOutbox(organizationId: string, outboxId: stri
       organizationId,
       status: "failed",
       NOT: { lastErrorCode: "HTTP 402" }, // blocked-class: reconnect requeues it, never a manual hammer
+      // İKİNCİ SAVUNMA (denetim, 08-01): gövdesi temizlenmiş satır ASLA yeniden
+      // kuyruğa alınmaz. Birinci savunma süpürgelerin bu satırı `canceled`
+      // yapmasıdır (ERASABLE_STATUSES); bu koşul, süpürge bir bağı kaçırsa bile
+      // (yetim satır) silinmiş misafire sentinel metnin tek tıkla gitmesini
+      // engeller. `reactivateBlockedOutbox` ile aynı kural.
+      body: { not: ANON_BODY },
     },
     data: {
       status: "pending",

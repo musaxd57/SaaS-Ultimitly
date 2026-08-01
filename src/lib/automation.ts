@@ -1874,6 +1874,49 @@ export async function applyChannelAutoReply(
 }
 
 /**
+ * ADAY KÜMESİ — TEK KAYNAK. Hem asıl geçiş (findMany) hem "aktif saat dışında"
+ * görünürlük yazımı (updateMany) bunu kullanır; iki yerde ayrı ayrı yazılsaydı
+ * host'a "bu konuşma saat aralığı yüzünden bekliyor" denip aslında başka bir
+ * sebeple beklemesi (ya da tersi) mümkün olurdu.
+ */
+function dueAutoReplyWhere(organizationId: string, freshSince: Date) {
+  return {
+    property: { organizationId },
+    externalReservationId: { not: null },
+    // Skip internal QR-concierge threads: they were already triaged by the
+    // chat's own gate and have no return channel (a real Hospitable id is a
+    // UUID and never starts with "qr-chat:").
+    NOT: { externalReservationId: { startsWith: "qr-chat:" } },
+    status: "new",
+    lastMessageAt: { gte: freshSince },
+    // ⚠️ UYGUNLUK FİLTRESİ SQL'DE OLMAK ZORUNDA — TAVANLA BİRLİKTE (denetim
+    // 08-01). Bu koşul bir süre YALNIZCA JS'te uygulandı ve araya `take: 25`
+    // kondu; sıra da `lastMessageAt asc` (en eski önce). Sonuç KALICI AÇLIKTI:
+    // damgalanmış konuşmalar (`closing_ack` / `low_confidence_or_risky` /
+    // `globally_disabled`) `status:"new"` kalır ve EN ESKİ oldukları için
+    // sıranın başındadır → 25 slotu doldurup `eligible`'ı boşaltırlar ve YENİ
+    // misafir mesajları hiç seçilmez. `freshSince` sabit bir damga olduğu için
+    // (kayan pencere DEĞİL) bu küme yalnız BÜYÜR; org'un tüm oto-yanıtı
+    // sessizce ölürdü. Tavan artık UYGUN satırlara uygulanıyor.
+    AND: [
+      {
+        OR: [
+          { autoReplyAttemptedAt: null },
+          { autoReplyAttemptedAt: { lt: prisma.conversation.fields.lastMessageAt } },
+        ],
+      },
+      {
+        // İnsan devri süresince AI susuyor (`autoReplyHoldUntil`). Bu satırlar
+        // DAMGALANAMAZ — damga, devir bitince konuşmayı KALICI susturur — o
+        // yüzden adaylıktan burada düşerler ve süre dolunca kendiliğinden geri
+        // gelirler. Aksi hâlde her turda 25 slottan birini işgal ederlerdi.
+        OR: [{ autoReplyHoldUntil: null }, { autoReplyHoldUntil: { lte: new Date() } }],
+      },
+    ],
+  };
+}
+
+/**
  * Run the channel auto-reply pass for an organization: if enabled AND we are
  * inside the active-hours window, auto-answer every channel conversation whose
  * last message is an unanswered guest message. Called after each sync.
@@ -1898,51 +1941,39 @@ export async function runDueChannelAutoReplies(
 
   if (!org || !org.autoReplyHospitable) return { sent: 0, considered: 0 };
 
-  const hour = currentHourInTimeZone(org.timezone);
-  if (!isWithinActiveHours(org.autoReplyStartHour, org.autoReplyEndHour, hour)) {
-    return { sent: 0, considered: 0 };
-  }
-
   // "new" = the guest spoke last and we haven't answered (see hospitable-sync).
   // Only answer messages that arrived AFTER auto-reply was switched on — never
   // the pre-existing backlog. Falls back to a 48h window if the timestamp is
   // missing (legacy orgs).
   const freshSince = org.autoReplyEnabledAt ?? new Date(Date.now() - 48 * 60 * 60 * 1000);
+
+  const hour = currentHourInTimeZone(org.timezone);
+  if (!isWithinActiveHours(org.autoReplyStartHour, org.autoReplyEndHour, hour)) {
+    // ⚠️ SEBEP BURADA YAZILMAZSA HİÇBİR YERDE YAZILMIYOR (denetim, 08-01).
+    // `applyChannelAutoReply` içinde birebir aynı kontrol var ve orası
+    // `outside_hours` sebebini persist ediyor — ama BU erken dönüş hiçbir
+    // konuşmaya dokunmadan geri döndüğü için oraya ASLA ulaşılmıyordu. Yani
+    // 07-31'de eklenen görünürlük düzeltmesi üretimde ölü koddu ve ürünün 1
+    // numaralı destek sorusu ("AI neden sustu?") ekranda cevapsız kalıyordu.
+    // Şema varsayılanı hâlâ 00:00–09:00 olduğu için bu, mevcut TÜM org'ları
+    // (Nuve dahil) gündüz boyunca ilgilendiriyor.
+    //
+    // Model çağrısı YOK — tek `updateMany`. `skippedReason: null` koşulu iki işi
+    // birden yapıyor: (1) gerçek bir sebebi (escalated_to_human / şikayet /
+    // low_confidence) EZMİYOR, (2) her konuşmaya ömründe TEK yazma düşüyor —
+    // aksi hâlde gece boyunca 2 dakikada bir aynı satırlar yeniden yazılırdı
+    // (`persistRiskVisibility`'nin "yalnız değişince yaz" kuralıyla aynı mantık).
+    await prisma.conversation
+      .updateMany({
+        where: { ...dueAutoReplyWhere(organizationId, freshSince), skippedReason: null },
+        data: { skippedReason: "outside_hours" },
+      })
+      .catch(() => {});
+    return { sent: 0, considered: 0 };
+  }
+
   const candidates = await prisma.conversation.findMany({
-    where: {
-      property: { organizationId },
-      externalReservationId: { not: null },
-      // Skip internal QR-concierge threads: they were already triaged by the
-      // chat's own gate and have no return channel (a real Hospitable id is a
-      // UUID and never starts with "qr-chat:").
-      NOT: { externalReservationId: { startsWith: "qr-chat:" } },
-      status: "new",
-      lastMessageAt: { gte: freshSince },
-      // ⚠️ UYGUNLUK FİLTRESİ SQL'DE OLMAK ZORUNDA — TAVANLA BİRLİKTE (denetim
-      // 08-01). Bu koşul bir süre YALNIZCA JS'te uygulandı ve araya `take: 25`
-      // kondu; sıra da `lastMessageAt asc` (en eski önce). Sonuç KALICI AÇLIKTI:
-      // damgalanmış konuşmalar (`closing_ack` / `low_confidence_or_risky` /
-      // `globally_disabled`) `status:"new"` kalır ve EN ESKİ oldukları için
-      // sıranın başındadır → 25 slotu doldurup `eligible`'ı boşaltırlar ve YENİ
-      // misafir mesajları hiç seçilmez. `freshSince` sabit bir damga olduğu için
-      // (kayan pencere DEĞİL) bu küme yalnız BÜYÜR; org'un tüm oto-yanıtı
-      // sessizce ölürdü. Tavan artık UYGUN satırlara uygulanıyor.
-      AND: [
-        {
-          OR: [
-            { autoReplyAttemptedAt: null },
-            { autoReplyAttemptedAt: { lt: prisma.conversation.fields.lastMessageAt } },
-          ],
-        },
-        {
-          // İnsan devri süresince AI susuyor (`autoReplyHoldUntil`). Bu satırlar
-          // DAMGALANAMAZ — damga, devir bitince konuşmayı KALICI susturur — o
-          // yüzden adaylıktan burada düşerler ve süre dolunca kendiliğinden geri
-          // gelirler. Aksi hâlde her turda 25 slottan birini işgal ederlerdi.
-          OR: [{ autoReplyHoldUntil: null }, { autoReplyHoldUntil: { lte: new Date() } }],
-        },
-      ],
-    },
+    where: dueAutoReplyWhere(organizationId, freshSince),
     select: { id: true, lastMessageAt: true, autoReplyAttemptedAt: true },
     // ADİL VE DETERMİNİSTİK SIRA: en eski cevapsız mesaj önce.
     orderBy: { lastMessageAt: "asc" },

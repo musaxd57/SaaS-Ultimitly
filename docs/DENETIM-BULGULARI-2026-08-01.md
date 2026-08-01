@@ -16,7 +16,7 @@
 
 ---
 
-## 1. ⏳ İNCELENİYOR · 🔴 KRİTİK — Kalici (4xx) gonderim hatasi sonsuz yeniden-deneme dongusune giriyor: her turda bir OpenAI cagrisi + bir kota birimi yanar, konusma damgalanmaz ve host'a hicbir sebep gorunmez.
+## 1. ✅ UYGULANDI (08-01) · 🔴 KRİTİK — Kalici (4xx) gonderim hatasi sonsuz yeniden-deneme dongusune giriyor: her turda bir OpenAI cagrisi + bir kota birimi yanar, konusma damgalanmaz ve host'a hicbir sebep gorunmez.
 **Yer:** `src/lib/automation.ts:1673-1687, src/lib/automation.ts:1899-1923, src/lib/messaging.ts:76-79`
 
 **Kanıt:** applyChannelAutoReply, definitive (HTTP 4xx != 408) gonderim hatasinda claim'i GERI ALIYOR:
@@ -52,7 +52,7 @@ Ayrica bu yolda `persistRiskVisibility` HIC cagrilmiyor -> `skippedReason` eski 
 
 ---
 
-## 2. 🔴 KRİTİK — Şikayet/akıllı görevlerin `Task.description` alanı misafirin mesajını KELİMESİ KELİMESİNE tutuyor ve HİÇBİR temizlik süpürgesi ona dokunmuyor — iki süpürgedeki yorum da açıkça "açıklamalar şablon metindir" diyerek yanlış yöne sevk ediyor
+## 2. ✅ UYGULANDI (08-01) · 🔴 KRİTİK — Şikayet/akıllı görevlerin `Task.description` alanı misafirin mesajını KELİMESİ KELİMESİNE tutuyor ve HİÇBİR temizlik süpürgesi ona dokunmuyor — iki süpürgedeki yorum da açıkça "açıklamalar şablon metindir" diyerek yanlış yöne sevk ediyor
 **Yer:** `src/lib/automation.ts:811-821, src/lib/automation.ts:1433, src/lib/automation.ts:2806, src/lib/tasks/detect.ts:166, src/lib/data-retention.ts:127 ve 136-147, src/lib/erasure.ts:462 ve 463-470`
 
 **Kanıt:** Görev yazan üç yolun ikisi misafir metnini olduğu gibi kolona koyuyor:
@@ -98,7 +98,7 @@ const tasks = await db.task.findMany({
 
 ---
 
-## 3. 🔴 KRİTİK — Erasure/retention outbox gövdesini anonimleştirirken `blocked` satırı iptal etmiyor; `reactivateBlockedOutbox` o satırı OTOMATİK canlandırıp misafire "[saklama süresi doldu — içerik silindi]" gönderiyor.
+## 3. ✅ UYGULANDI (08-01) · 🔴 KRİTİK — Erasure/retention outbox gövdesini anonimleştirirken `blocked` satırı iptal etmiyor; `reactivateBlockedOutbox` o satırı OTOMATİK canlandırıp misafire "[saklama süresi doldu — içerik silindi]" gönderiyor.
 **Yer:** `src/lib/erasure.ts:510-521, src/lib/data-retention.ts:188-208, src/lib/outbox/worker.ts:489-503, src/lib/outbox/worker.ts:414-419, src/lib/scheduled-sync.ts:300`
 
 **Kanıt:** Scrub İKİ ayrı updateMany. İptal DAR: `status: { in: ["pending", "ambiguous"] }, claimedBy: null` → `data: { body: ANON_BODY, status: "canceled" }` (erasure.ts:511-516). Gövde yazımı ise GENİŞ, status filtresi YOK: `where: { ...outboxLink, body: { not: ANON_BODY } }, data: { body: ANON_BODY }` (erasure.ts:518-521). Yani `blocked` satırın gövdesi ANON_BODY oluyor ama statüsü `blocked` kalıyor. worker.ts:490-501 `reactivateBlockedOutbox` hiçbir gövde/erasure kontrolü yapmadan `where: { organizationId, status: "blocked" }` → `data: { status: "pending", attemptCount: 0, availableAt: now, claimedBy: null, ... }`. scheduled-sync.ts:300 bunu her BAŞARILI senkrondan sonra org başına koşuyor. Sonra worker `defaultSend` satırın kendi `row.body`'sini gönderiyor (worker.ts:110 `sendMessage(row.externalReservationId, row.body, token, { retries: 0 })`). Manuel host yanıtı için hiçbir veto durdurmuyor: `sendTimeVeto` type==="manual" → `aiSendVeto` → `if (!msg || msg.authorType !== "ai") return null;` (worker.ts:349). ANON_BODY = "[saklama süresi doldu — içerik silindi]" (data-retention.ts:28).
@@ -149,7 +149,7 @@ Bu alan hiçbir `looksLikeSecret`/kategori süzgecinden geçmiyor. Kaynağı `au
 
 ---
 
-## 6. 🟠 YÜKSEK — 07-31'de eklenen "aktif saat araligi disinda" gorunurluk duzeltmesi canlida HIC calismiyor: runDueChannelAutoReplies ayni kosulu org seviyesinde kontrol edip erken donuyor.
+## 6. ✅ UYGULANDI (08-01) · 🟠 YÜKSEK — 07-31'de eklenen "aktif saat araligi disinda" gorunurluk duzeltmesi canlida HIC calismiyor: runDueChannelAutoReplies ayni kosulu org seviyesinde kontrol edip erken donuyor.
 **Yer:** `src/lib/automation.ts:1029-1039, src/lib/automation.ts:1791-1794, src/lib/automation.ts:2907, src/app/(app)/inbox/[id]/page.tsx:154-156`
 
 **Kanıt:** applyChannelAutoReply icindeki dal, gerekcesini kendisi yaziyor:
