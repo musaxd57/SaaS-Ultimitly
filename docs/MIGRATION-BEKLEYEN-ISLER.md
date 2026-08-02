@@ -320,18 +320,29 @@ daha çıkardı. Kullanıcının talimatı açıktı ("bunları yap ve dur"), o 
 KODLANMADI — ama üstü örtülmesin diye buraya yazıldı. İkisi de **DAR** ve
 migration istemiyor.
 
-### (a) `forgot-password` rotasında AYNI kilitleme deseni duruyor
+### (a) ✅ UYGULANDI (08-01) — `forgot-password` kilitleme deseni kapatıldı
 
 `src/app/api/account/forgot-password/route.ts` — `forgot-confirm:{email}` kovası
 (8 / 10 dk) sıfırlama KODU kontrol edilmeden ÖNCE ve KOŞULSUZ tüketiliyor. Yani
 Codex'in madde 1'de kapattığı sınıfın birebir aynısı: kurbanın e-postasını bilen
 biri, kurbanın MEŞRU sıfırlama kodunu 10 dakika boyunca kullanılamaz yapabilir.
 
-**Dar düzeltme (login'in aynısı):** kovayı yalnız YANLIŞ koddan sonra tüket. Kod
-başına deneme sınırı (`pwResetCodeAttempts`) zaten ayrı ve duruyor.
+**UYGULANDI:** kova artık kapı DEĞİL — yalnız BAŞARISIZ denemede (`failConfirm`)
+tüketiliyor, tavan aşılınca 429 dönüyor, DOĞRU kod ondan hiç etkilenmiyor.
+Bilinmeyen e-posta da tüketiyor (sayaç hesabın varlığını sızdırmasın). IP kovası
+(`forgot:{ip}`, 12/15dk) değişmedi.
 
-⚠️ §4e'deki "hesap-kovası açıklarını kapat ✅ TAMAM" satırı YALNIZCA GİRİŞ rotası
-içindir; bu satır o iddiayı sınırlandırır.
+**Kurban senaryosu testle üretildi:** saldırgan, kurbanın kod istemesini bile
+beklemeden 8 uydurma confirm ile kovayı zehirliyor → kurban sonra DOĞRU kodunu
+girdiğinde ESKİDEN 429 alıyordu. Şimdi 200 ve şifre gerçekten değişiyor.
+İki yönde mutasyon kanıtlı (kapı yukarı taşınınca 4 test kırmızı; başarısız
+daldaki 429 kaldırılınca sınır testi kırmızı).
+
+⚠️ **Kod-BAŞINA deneme tavanı (`MAX_CODE_ATTEMPTS`=5) BİLİNÇLİ olarak DEĞİŞMEDİ.**
+8 haneli kodun kaba kuvvetini durduran şey odur ve saldırgan onu tüketerek
+kurbanın O kodunu yakabilir — ama kurban YENİ bir kod isteyebilir (istek yolunun
+kovası ayrı). Kovanın kapattığı yol farklıydı: TAZE bir kodun İLK denemesini bile
+engelliyordu, yani kurtuluşu yoktu.
 
 ### (b) 2FA/kurtarma kodu denemelerinde hesap-bazlı sınır YOK
 

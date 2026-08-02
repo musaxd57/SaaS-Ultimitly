@@ -210,3 +210,114 @@ describe("forgot-password — durable outbox (flag ON)", () => {
     expect(u?.pwResetCodeHash).toBeTruthy(); // code stays valid for the retry
   });
 });
+
+// ---------------------------------------------------------------------------
+// 🚨 HESAP KOVASI KURBANIN SIFIRLAMASINI ENGELLEYEMEZ (Codex, 08-01 — §4g(a)).
+//
+// `forgot-confirm:{email}` kovası (8 / 10 dk) KOD KONTROL EDİLMEDEN ÖNCE ve
+// KOŞULSUZ tüketiliyordu — giriş rotasında kapatılan sınıfın birebir aynısı.
+//
+// KURBAN SENARYOSU (kurbanın kod istemesini bile BEKLEMEZ):
+//   1. Saldırgan, kurbanın e-postasına 8 uydurma "confirm" atar. Ortada canlı
+//      kod olmadığı için hepsi genel hatayla döner — ama kovayı DOLDURUR.
+//   2. Kurban ŞİMDİ sıfırlama kodu ister (istek yolunun kendi kovası ayrı).
+//   3. Kurban DOĞRU kodunu girer → 429. Şifresini sıfırlayamaz.
+//   4. Saldırgan 10 dakikada bir tekrarlayarak bunu SÜRESİZ sürdürür.
+//
+// DOĞRU SÖZLEŞME (login ile AYNI invaryant):
+//   1. DOĞRU kod, hesap kovası yüzünden ASLA reddedilmez.
+//   2. IP limiti aynen korunur.
+//   3. BAŞARISIZ denemeler yine sınırlandırılır (tavanı aşınca 429).
+//   4. Enumeration koruması korunur: bilinmeyen e-posta da kovayı tüketir ve
+//      aynı genel hatayı alır.
+// ---------------------------------------------------------------------------
+describe("forgot-password — hesap kovası kurbanı KİLİTLEYEMEZ", () => {
+  // ⚠️ KENDİ beforeEach'i: bu KARDEŞ bir describe, üstteki kurulumu MİRAS ALMAZ
+  // (kullanıcı seed'i, rate-limit sıfırlaması, `lastEmailHtml` temizliği).
+  beforeEach(async () => {
+    await resetDb();
+    __resetRateLimit();
+    vi.clearAllMocks();
+    lastEmailHtml = "";
+    emailOk = true;
+    const org = await prisma.organization.create({ data: { name: "Org" } });
+    await prisma.user.create({
+      data: { organizationId: org.id, name: "Host", email: EMAIL, passwordHash: "old", role: "owner" },
+    });
+  });
+
+  function reqFrom(body: unknown, ip: string) {
+    return new NextRequest("http://localhost/api/account/forgot-password", {
+      method: "POST",
+      headers: { "content-type": "application/json", "x-forwarded-for": ip },
+      body: JSON.stringify(body),
+    });
+  }
+
+  /** Saldırgan kovayı zehirler: canlı kod YOKKEN uydurma confirm'ler. */
+  async function poisonBucket(email: string, n: number) {
+    for (let i = 0; i < n; i++) {
+      // Her istek FARKLI IP'den — IP kovasını değil, HESAP kovasını hedefliyor.
+      await POST(reqFrom({ action: "confirm", email, code: "00000000", newPassword: "yenisifre1" }, `9.9.9.${i}`));
+    }
+  }
+
+  it("saldırgan kovayı zehirlese bile DOĞRU kod ÇALIŞIR", { timeout: 90_000 }, async () => {
+    await poisonBucket(EMAIL, 8); // tavan 8 → kova dolu
+
+    // Kurban ŞİMDİ kod ister (istek yolunun kovası ayrı, etkilenmedi).
+    const reqRes = await POST(reqFrom({ action: "request", email: EMAIL }, "2.2.2.2"));
+    expect(reqRes.status).toBe(200);
+    const code = codeFromEmail();
+
+    const res = await POST(
+      reqFrom({ action: "confirm", email: EMAIL, code, newPassword: "yepyenisifre1" }, "2.2.2.2"),
+    );
+    expect(res.status).toBe(200); // ⬅️ ARIZADA 429 (kurban kilitliydi)
+
+    // Ve şifre GERÇEKTEN değişti.
+    const u = await prisma.user.findUniqueOrThrow({ where: { email: EMAIL } });
+    expect(await verifyPassword("yepyenisifre1", u.passwordHash)).toBe(true);
+  });
+
+  it("BAŞARISIZ denemeler yine sınırlandırılır (koruma kaybolmadı)", { timeout: 90_000 }, async () => {
+    await poisonBucket(EMAIL, 8);
+
+    const res = await POST(
+      reqFrom({ action: "confirm", email: EMAIL, code: "11111111", newPassword: "yenisifre1" }, "3.3.3.3"),
+    );
+    expect(res.status).toBe(429);
+    expect(res.headers.get("Retry-After")).toBeTruthy();
+  });
+
+  it("DOĞRU kod hesap kovasını TÜKETMEZ", async () => {
+    await POST(reqFrom({ action: "request", email: EMAIL }, "4.4.4.1"));
+    const code = codeFromEmail();
+    await POST(reqFrom({ action: "confirm", email: EMAIL, code, newPassword: "yepyenisifre1" }, "4.4.4.2"));
+
+    const row = await prisma.rateLimitCounter.findFirst({
+      where: { key: { startsWith: "forgot-confirm:" } },
+    });
+    expect(row).toBeNull(); // hiç sayaç satırı bile yaratılmadı
+  });
+
+  it("ENUMERATION: bilinmeyen e-posta da kovayı tüketir ve AYNI hatayı alır", async () => {
+    const unknown = "yok@example.com";
+    const res = await POST(
+      reqFrom({ action: "confirm", email: unknown, code: "00000000", newPassword: "yenisifre1" }, "5.5.5.5"),
+    );
+    expect(res.status).toBe(400); // var olan e-postadaki yanlış kodla AYNI
+    const row = await prisma.rateLimitCounter.findFirstOrThrow({
+      where: { key: `forgot-confirm:${unknown}` },
+    });
+    expect(row.count).toBe(1);
+  });
+
+  it("IP limiti KORUNUR (aynı IP'den 13. istek 429)", { timeout: 90_000 }, async () => {
+    for (let i = 0; i < 12; i++) {
+      await POST(reqFrom({ action: "confirm", email: EMAIL, code: "00000000", newPassword: "yenisifre1" }, "7.7.7.7"));
+    }
+    const res = await POST(reqFrom({ action: "request", email: EMAIL }, "7.7.7.7"));
+    expect(res.status).toBe(429);
+  });
+});

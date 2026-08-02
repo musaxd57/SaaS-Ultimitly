@@ -44,6 +44,29 @@ function verificationCode(): string {
 // superseded by a newer code, or exhausted — the response never reveals which
 // (nor whether an account exists). Wording matches the on-screen CTA
 // ("Kodu tekrar gönder") and stays deliberately soft/cause-free.
+/**
+ * BAŞARISIZ bir "confirm" denemesini sonuçlandır: hesap kovasını TÜKET, tavan
+ * aşıldıysa 429, aksi hâlde her zamanki GENEL hata.
+ *
+ * ⚠️ Kova yalnız BURADAN tüketilir — yani doğru kod ondan hiç etkilenmez ve
+ * saldırgan başarısız isteklerle kurbanın sıfırlamasını engelleyemez (Codex,
+ * 08-01 — §4g(a); giriş rotasındaki desenin aynısı).
+ *
+ * ⚠️ BİLİNMEYEN e-posta da tüketir: aksi hâlde sayacın varlığı hesabın VARLIĞINI
+ * sızdırırdı. Dönen gövde her hâlde aynı (`GENERIC_CONFIRM`), 429 da her iki
+ * durumda ulaşılabilir → enumeration koruması korunur.
+ *
+ * ⚠️ Kod-BAŞINA deneme tavanı (`MAX_CODE_ATTEMPTS`) AYRI ve DEĞİŞMEDİ: 8 haneli
+ * kodun kaba kuvvetini durduran şey odur. Kurban tükenmiş bir kodun yerine
+ * YENİSİNİ isteyebilir (istek yolunun kendi kovası ayrıdır) — kova ise fresh bir
+ * kodun İLK denemesini bile engelliyordu, kurtuluşu olmayan tek yol buydu.
+ */
+async function failConfirm(email: string) {
+  const limit = await rateLimit(`forgot-confirm:${email}`, 8, 10 * 60_000);
+  if (!limit.ok) return tooManyRequests(limit.retryAfter);
+  return badRequest({ code: GENERIC_CONFIRM });
+}
+
 const GENERIC_CONFIRM =
   "Bu kod artık kullanılamıyor. Süresi dolmuş veya daha yeni bir kod oluşturulmuş olabilir. “Kodu tekrar gönder” ile yeni bir kod isteyin.";
 
@@ -153,9 +176,17 @@ export async function POST(req: NextRequest) {
       if (!/^\d{8}$/.test(code)) {
         return badRequest({ code: "8 haneli doğrulama kodunu girin." });
       }
-      const confLimit = await rateLimit(`forgot-confirm:${email}`, 8, 10 * 60_000);
-      if (!confLimit.ok) return tooManyRequests(confLimit.retryAfter);
-
+      // ⚠️ HESAP KOVASI BURADA DEĞİL, KOD DOĞRULANDIKTAN SONRA (Codex, 08-01 —
+      // §4g(a); giriş rotasındaki düzeltmenin BİREBİR aynısı).
+      //
+      // Kovayı burada KAPI olarak kullanmak, kaba kuvvet korumasını bir HİZMET
+      // ENGELLEME silahına çeviriyordu: saldırgan kurbanın e-postasına 8 uydurma
+      // confirm atıp kovayı doldurur (kurbanın kod istemesini bile beklemez),
+      // kurban sonra DOĞRU kodunu girse bile 429 alır ve şifresini sıfırlayamaz.
+      // 10 dakikada bir tekrarlanarak SÜRESİZ sürdürülebilirdi.
+      //
+      // Yeni sözleşme: DOĞRU kod kovadan HİÇ etkilenmez; kova YALNIZCA başarısız
+      // denemeleri sınırlar (↓`failConfirm`). IP kovası (yukarıda) değişmedi.
       // Atomically CLAIM one guess slot — only succeeds if a live, unexpired code
       // exists AND attempts are under the cap. Single conditional updateMany
       // closes the read-then-act race and caps guesses per code.
@@ -176,7 +207,7 @@ export async function POST(req: NextRequest) {
           data: { pwResetCodeHash: null, pwResetCodeExpiresAt: null },
         });
         await verifyPassword(code, await hashPassword(code));
-        return badRequest({ code: GENERIC_CONFIRM });
+        return failConfirm(email);
       }
 
       const user = await prisma.user.findUnique({
@@ -185,7 +216,7 @@ export async function POST(req: NextRequest) {
       });
       const codeHash = user?.pwResetCodeHash ?? null;
       if (!user || !codeHash || !(await verifyPassword(code, codeHash))) {
-        return badRequest({ code: GENERIC_CONFIRM });
+        return failConfirm(email);
       }
 
       // Code valid → CONSUME + set password in ONE conditional write (Codex P1,
