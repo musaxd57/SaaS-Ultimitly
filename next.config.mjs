@@ -104,6 +104,18 @@ const nextConfig = {
         source: "/c/:path*",
         headers: [{ key: "Referrer-Policy", value: "no-referrer" }],
       },
+      {
+        // Şifre sıfırlama sayfası: e-postadaki bağlantı bir challenge TOKEN'ı
+        // taşır. Token FRAGMENT'te durur (`#t=`) ve fragment zaten `Referer`'a
+        // hiç girmez — bu başlık İKİNCİ savunmadır: sayfaya bir gün query'li bir
+        // parametre (ör. `?next=`) eklenirse, global politika
+        // (`strict-origin-when-cross-origin`) onu AYNI-ORIGIN gezinmelerde tam
+        // URL olarak sızdırırdı. `no-referrer` bu yolu kapatır.
+        // (Global kural `/(.*)` de eşleşir; Next'te SON eşleşen başlık kazanır —
+        // `/c/:path*` emsalinin dayandığı davranışın aynısı.)
+        source: "/sifremi-unuttum",
+        headers: [{ key: "Referrer-Policy", value: "no-referrer" }],
+      },
       // Brand assets are MEANT to be embedded by OTHER sites (Hospitable's OAuth
       // consent screen hotlinks the app logo; partner directories do the same).
       // The global CORP: same-site above makes browsers BLOCK exactly that

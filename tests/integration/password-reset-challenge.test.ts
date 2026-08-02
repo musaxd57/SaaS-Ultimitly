@@ -62,7 +62,10 @@ async function requestChallenge(ip = "1.1.1.1"): Promise<{ token: string; code: 
   const res = await POST(req({ action: "request", email: EMAIL }, ip));
   expect(res.status).toBe(200);
   await drainEmailOutboxOnce();
-  const t = lastEmailHtml.match(/[?&]t=([0-9a-f]{64})/);
+  // ⚠️ Kasten YALNIZ fragment biçimi (`#t=`) kabul edilir. Token bir gün query
+  // parametresine (`?t=`) geri taşınırsa bu eşleşme düşer ve dosyadaki TÜM
+  // testler kırmızıya döner — taşıyıcı biçimi buradan da pinli.
+  const t = lastEmailHtml.match(/#t=([0-9a-f]{64})/);
   const c = lastEmailHtml.match(/letter-spacing:4px[^>]*>(\d{8})</);
   if (!t || !c) throw new Error(`e-postada token/kod yok: ${lastEmailHtml.slice(0, 300)}`);
   return { token: t[1], code: c[1] };
@@ -276,6 +279,74 @@ describe("PasswordResetChallenge — zorunlu saldırı testleri", () => {
     );
     expect(stillOk.status).toBe(200);
   }, 90_000);
+
+  // ── 10 ───────────────────────────────────────────────────────────────────
+  // 🚨 TAŞIYICI PİNİ (Codex, 08-02): token URL FRAGMENT'inde durur, QUERY'de
+  // değil. Query parametresi istek satırının parçasıdır → Railway edge log'u,
+  // Next istek log'u, araya giren vekiller ve e-posta güvenlik tarayıcılarının
+  // ön-ısıtma istekleri onu görür. Bu katmanların token'ı SAKLAMADIĞINI
+  // kanıtlayamayız (üçüncü taraf platform), o yüzden token'ı erişemeyecekleri
+  // yere koyuyoruz. Fragment sunucuya HİÇ gönderilmez.
+  it("10) e-postadaki bağlantı token'ı FRAGMENT'te taşır; query string YOK", async () => {
+    const c = await requestChallenge("10.0.0.1");
+
+    const href = lastEmailHtml.match(/href="([^"]+)"/)?.[1];
+    if (!href) throw new Error("e-postada bağlantı yok");
+    const url = new URL(href.replace(/&amp;/g, "&"));
+
+    // Sunucuya giden parça TEMİZ: ne query, ne yol içinde sır.
+    expect(url.search).toBe("");
+    expect(url.pathname).toBe("/sifremi-unuttum");
+    expect(url.pathname).not.toContain(c.token);
+
+    // Sır YALNIZ fragment'te.
+    expect(url.hash).toBe(`#t=${c.token}`);
+
+    // Ve hiçbir yerde `?t=` biçimi geçmiyor (e-posta gövdesinin TAMAMI taranır —
+    // düz-metin yankısı / ikinci bir bağlantı da yakalanır).
+    expect(lastEmailHtml).not.toMatch(/[?&]t=/);
+  }, 60_000);
+
+  // ── 11 ───────────────────────────────────────────────────────────────────
+  it("11) token'lı confirm E-POSTASIZ çalışır (bağlantı taze sayfa yükler)", async () => {
+    const c = await requestChallenge("11.0.0.1");
+    // Gövdede `email` YOK — istemci bağlantıdan geldiğinde o adrese sahip değil.
+    const res = await POST(req({ action: "confirm", token: c.token, code: c.code, newPassword: NEW_PASSWORD }));
+    expect(res.status).toBe(200);
+    const u = await prisma.user.findUniqueOrThrow({ where: { email: EMAIL } });
+    expect(await verifyPassword(NEW_PASSWORD, u.passwordHash)).toBe(true);
+  }, 60_000);
+
+  // ── 12 ───────────────────────────────────────────────────────────────────
+  it("12) uyuşmayan e-posta YOK SAYILIR (token sahibini sızdıran oracle yok)", async () => {
+    const c = await requestChallenge("12.0.0.1");
+    // Yabancı bir adresle aynı token: reddedilmez, sıfırlama TOKEN'IN sahibine
+    // uygulanır. Reddetmek, token'ı ele geçirene "bu hangi hesap?" sorusunu
+    // deneme yanılmayla yanıtlatırdı.
+    const res = await POST(
+      req({ action: "confirm", email: "baskasi@example.com", token: c.token, code: c.code, newPassword: NEW_PASSWORD }),
+    );
+    expect(res.status).toBe(200);
+    const u = await prisma.user.findUniqueOrThrow({ where: { email: EMAIL } });
+    expect(await verifyPassword(NEW_PASSWORD, u.passwordHash)).toBe(true);
+  }, 60_000);
+
+  // ── 13 ───────────────────────────────────────────────────────────────────
+  // ↑12'nin TERS yönü: e-posta zorunluluğu YALNIZ token'lı yolda kalkar.
+  // Token YOKSA hem `request` hem `confirm` geçerli bir adres İSTEMEYE devam
+  // eder — yoksa "e-posta gerekli" kapısı tamamen düşmüş olurdu.
+  it("13) token YOKKEN geçerli e-posta hâlâ ZORUNLU (request ve confirm)", async () => {
+    for (const body of [
+      { action: "request" },
+      { action: "request", email: "gecersiz" },
+      { action: "confirm", code: "12345678", newPassword: NEW_PASSWORD },
+      { action: "confirm", email: "gecersiz", code: "12345678", newPassword: NEW_PASSWORD },
+    ]) {
+      const res = await POST(req(body, "13.0.0.1"));
+      expect(res.status).toBe(400);
+      expect((await res.json()).fields?.email).toBe("Geçerli bir e-posta girin.");
+    }
+  }, 60_000);
 
   // ── Ek: bayrak KAPALIYKEN üretim davranışı BİREBİR eskisi ────────────────
   it("BAYRAK KAPALI: hiç challenge yazılmaz, eski akış aynen çalışır", async () => {

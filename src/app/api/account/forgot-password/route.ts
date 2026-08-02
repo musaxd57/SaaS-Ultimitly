@@ -99,7 +99,23 @@ export async function POST(req: NextRequest) {
     const data = bodyResult.ok ? bodyResult.data : null;
     const action = typeof data?.action === "string" ? data.action : "";
     const email = typeof data?.email === "string" ? normalizeEmail(data.email) : "";
-    if (!email || !isValidEmailShape(email)) {
+
+    // ── Challenge token'ı (e-postadaki bağlantıdan; istemci onu URL FRAGMENT'inden
+    // okur, ↓`forgot-password-form.tsx`) ────────────────────────────────────────
+    //
+    // Token'lı confirm E-POSTA İSTEMEZ: challenge'ı token adresler ve o yolda
+    // e-posta hiçbir yerde KULLANILMAZ — challenge ile eşleştirilmez, hız-limiti
+    // kovasının anahtarı değildir, denetim kaydına verdict'ten gelen kimlik yazılır.
+    // Bağlantı zaten kullanıcının e-postasından geldiği için adresi tekrar sormak
+    // sıfır güvenlik katar; üstelik bağlantı TAZE bir sayfa yüklediğinden istemcinin
+    // elinde o adres yoktur (React state'i o yüklemede sıfırdır).
+    //
+    // ⚠️ Uyuşmayan bir e-posta gönderilirse REDDEDİLMEZ, yok sayılır: reddetmek,
+    // token'ı ele geçirmiş birine "bu token hangi adrese ait?" sorusunu deneme
+    // yanılmayla yanıtlatan bir oracle açardı.
+    const rawToken =
+      action === "confirm" && typeof data?.token === "string" ? data.token.trim() : "";
+    if (!rawToken && (!email || !isValidEmailShape(email))) {
       return badRequest({ email: "Geçerli bir e-posta girin." });
     }
 
@@ -227,7 +243,6 @@ export async function POST(req: NextRequest) {
       // ⚠️ Bu yolda `forgot-confirm:{email}` kovası HİÇ kullanılmaz — bütçe
       // challenge satırındadır ve token'ı bilmeyen onu adresleyemez. Kovayı
       // burada da çalıştırmak, tasarımın kapattığı deliği yeniden açardı.
-      const rawToken = typeof data?.token === "string" ? data.token.trim() : "";
       if (rawToken) {
         const verdict = await verifyChallenge(rawToken, code);
         if (!verdict.ok) {

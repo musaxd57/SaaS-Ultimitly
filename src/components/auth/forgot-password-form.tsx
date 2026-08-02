@@ -29,6 +29,18 @@ export function ForgotPasswordForm() {
   }>({});
   const [loading, setLoading] = useState(false);
   const [cooldown, setCooldown] = useState(0);
+  /**
+   * E-postadaki bağlantıdan gelen challenge token'ı.
+   *
+   * 🚨 Token URL **FRAGMENT**'inde gelir (`#t=...`), query'de DEĞİL: fragment
+   * HTTP isteğinin parçası değildir, yani sunucuya, Railway edge log'una,
+   * vekillere ve `Referer` başlığına HİÇ girmez. Buradan okur okumaz adres
+   * çubuğundan da siliyoruz (↓`useEffect`), böylece tarayıcı geçmişinde de
+   * kalmaz. `sessionStorage`/`localStorage` BİLİNÇLİ KULLANILMAZ — orada
+   * yazdığımız an sekme kapansa bile diskte kalır; React state'i sayfa
+   * yenilenince kaybolur, istediğimiz tam olarak budur.
+   */
+  const [challengeToken, setChallengeToken] = useState<string | null>(null);
   const emailRef = useRef<HTMLInputElement>(null);
   // "E-posta adresini değiştir" sonrası odağı alana taşımak için tek-atımlık
   // bayrak. `autoFocus` KULLANILMAZ: o, sayfa ilk açıldığında da odağı çalardı —
@@ -46,6 +58,33 @@ export function ForgotPasswordForm() {
     emailRef.current?.focus();
     setFocusEmail(false);
   }, [focusEmail]);
+
+  /**
+   * Bağlantıdan gelindiyse token'ı fragment'ten al ve ADRES ÇUBUĞUNU TEMİZLE.
+   *
+   * Sıra önemli: önce state'e alınır, sonra `replaceState`. `replaceState`
+   * geçmişteki MEVCUT girdiyi değiştirir (yenisini eklemez) → "geri" tuşu
+   * token'lı URL'e dönemez.
+   */
+  useEffect(() => {
+    const raw = window.location.hash;
+    if (!raw) return;
+    const m = /(?:^#|&)t=([0-9a-f]{64})(?:&|$)/.exec(raw);
+    if (m) {
+      setChallengeToken(m[1]);
+      // Kullanıcı e-postasını yazma adımını atlar: bağlantı zaten challenge'ı
+      // adresliyor, geriye yalnız e-postadaki kod + yeni şifre kalıyor.
+      setStep("confirm");
+    }
+    // Eşleşme OLMASA DA temizlenir: kırpılmış/bozuk bir token da adres
+    // çubuğunda durmamalı. `history.state` KORUNUR — Next App Router'ın
+    // yönlendirici durumu o nesnede yaşıyor; `null` yazmak onu düşürürdü.
+    window.history.replaceState(
+      window.history.state,
+      "",
+      window.location.pathname + window.location.search,
+    );
+  }, []);
 
   async function requestCode(e?: React.FormEvent) {
     e?.preventDefault();
@@ -106,7 +145,16 @@ export function ForgotPasswordForm() {
       const res = await fetch("/api/account/forgot-password", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ action: "confirm", email, code, newPassword }),
+        // Token'lı yolda e-posta GÖNDERİLMEZ: challenge'ı token adresler, sunucu
+        // o yolda e-postayı hiçbir yerde kullanmaz. Bağlantıya kendi
+        // e-postasından ulaşan kullanıcıya adresini tekrar yazdırmak boş
+        // sürtünme olurdu — üstelik burada elimizde o adres YOK (bağlantı taze
+        // bir sayfa yüklüyor).
+        body: JSON.stringify(
+          challengeToken
+            ? { action: "confirm", token: challengeToken, code, newPassword }
+            : { action: "confirm", email, code, newPassword },
+        ),
       });
       const data = await res.json().catch(() => ({}));
       if (!res.ok) {
@@ -170,20 +218,29 @@ export function ForgotPasswordForm() {
         </form>
       ) : (
         <form onSubmit={confirm} className="space-y-4">
-          {/* Hangi adrese gidildiği burada YAZILI olmalı: yazım hatası ancak
-              görülürse fark edilir, ve fark edildiğinde çıkış yolu hemen yanında
-              durmalı. Adres kullanıcının kendi yazdığı değer — hesap var/yok
-              bilgisi vermez, enumeration güvenliği bozulmaz. */}
-          <p className="text-sm text-muted-foreground">
-            Kod <span className="font-medium text-foreground">{email}</span> adresine gönderildi.{" "}
-            <button
-              type="button"
-              onClick={backToEmailStep}
-              className="font-medium text-primary hover:underline"
-            >
-              E-posta adresini değiştir
-            </button>
-          </p>
+          {challengeToken ? (
+            /* Bağlantıdan gelindi: adres bilinmiyor (taze sayfa yükü) ve
+               gerekmiyor. "E-posta adresini değiştir" burada anlamsız olurdu —
+               değiştirilecek bir alan yok; onun yerine baştan başlama yolu. */
+            <p className="text-sm text-muted-foreground">
+              E-postanızdaki 8 haneli kodu girin ve yeni şifrenizi belirleyin.
+            </p>
+          ) : (
+            /* Hangi adrese gidildiği burada YAZILI olmalı: yazım hatası ancak
+               görülürse fark edilir, ve fark edildiğinde çıkış yolu hemen yanında
+               durmalı. Adres kullanıcının kendi yazdığı değer — hesap var/yok
+               bilgisi vermez, enumeration güvenliği bozulmaz. */
+            <p className="text-sm text-muted-foreground">
+              Kod <span className="font-medium text-foreground">{email}</span> adresine gönderildi.{" "}
+              <button
+                type="button"
+                onClick={backToEmailStep}
+                className="font-medium text-primary hover:underline"
+              >
+                E-posta adresini değiştir
+              </button>
+            </p>
+          )}
           <Field label="Doğrulama kodu" htmlFor="code" error={fieldError.code}>
             <Input
               id="code"
@@ -222,21 +279,40 @@ export function ForgotPasswordForm() {
             {loading ? <Loader2 className="size-4 animate-spin" /> : null}
             Şifreyi sıfırla
           </Button>
-          <button
-            type="button"
-            onClick={() => requestCode()}
-            disabled={loading || cooldown > 0}
-            className="w-full text-center text-sm text-muted-foreground hover:text-foreground disabled:opacity-50"
-          >
-            {cooldown > 0 ? `Kodu tekrar gönder (${cooldown})` : "Kodu tekrar gönder"}
-          </button>
+          {challengeToken ? (
+            /* Token'lı yolda "tekrar gönder" ÇALIŞAMAZ: istek e-posta adresi
+               ister, bağlantıdan gelen sayfada o adres yok. Süresi dolmuş /
+               denemesi tükenmiş bir bağlantının tek çıkışı baştan başlamaktır. */
+            <button
+              type="button"
+              onClick={() => {
+                setChallengeToken(null);
+                backToEmailStep();
+              }}
+              disabled={loading}
+              className="w-full text-center text-sm text-muted-foreground hover:text-foreground disabled:opacity-50"
+            >
+              Baştan başla
+            </button>
+          ) : (
+            <button
+              type="button"
+              onClick={() => requestCode()}
+              disabled={loading || cooldown > 0}
+              className="w-full text-center text-sm text-muted-foreground hover:text-foreground disabled:opacity-50"
+            >
+              {cooldown > 0 ? `Kodu tekrar gönder (${cooldown})` : "Kodu tekrar gönder"}
+            </button>
+          )}
           {/* KOŞULLU yardım (yaygın desen: "Don't see it? Check your spam folder"):
               kullanıcı zaten gelen kutusuna bakıyor — ona "gelen kutuna bak" demek
               boş emir; yalnız kod GELMEDİYSE spam anlamlı. Hesap var/yok ayrımı
               yapmaz (enumeration-safe), formun geri kalanıyla aynı resmî dil. */}
-          <p className="text-center text-xs text-muted-foreground">
-            Kod gelmediyse spam klasörünü kontrol edin.
-          </p>
+          {challengeToken ? null : (
+            <p className="text-center text-xs text-muted-foreground">
+              Kod gelmediyse spam klasörünü kontrol edin.
+            </p>
+          )}
         </form>
       )}
 

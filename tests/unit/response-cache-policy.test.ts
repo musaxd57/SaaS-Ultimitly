@@ -160,4 +160,23 @@ describe("global güvenlik başlıkları (next.config.mjs)", () => {
     // Sandbox AYRI origin — politika sandbox testinde de doğru olmalı.
     expect(ro).toContain("https://sandbox-cdn.paddle.com");
   });
+
+  // 🚨 Sır TAŞIYAN iki sayfa: QR concierge (token YOLDA) ve şifre sıfırlama
+  // (challenge token'ı FRAGMENT'te). Global politika
+  // `strict-origin-when-cross-origin` — bu, AYNI-ORIGIN gezinmelerde TAM URL'i
+  // (query dahil) `Referer` başlığına koyar. İki sayfada da `no-referrer`
+  // olmalı ve GLOBAL bloktan SONRA gelmeli: Next'te son eşleşen başlık kazanır,
+  // önce yazılırsa sessizce etkisiz kalır.
+  it.each(["/c/:path*", "/sifremi-unuttum"])(
+    "%s → Referrer-Policy: no-referrer (ve global bloktan SONRA)",
+    async (source) => {
+      const config = (await import("../../next.config.mjs")).default;
+      const blocks = await config.headers!();
+      const globalIdx = blocks.findIndex((b) => b.source === "/(.*)");
+      const idx = blocks.findIndex((b) => b.source === source);
+      expect(idx).toBeGreaterThan(globalIdx); // sıra: son eşleşen kazanır
+      const rp = blocks[idx].headers.find((h) => h.key.toLowerCase() === "referrer-policy");
+      expect(rp?.value).toBe("no-referrer");
+    },
+  );
 });

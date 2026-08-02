@@ -185,9 +185,29 @@ export function kickEmailOutboxDrain(drain: () => Promise<unknown> = drainEmailO
 // --- Rendering (single source for BOTH the outbox worker and the legacy
 // synchronous path — the two paths can never drift apart). -------------------
 
-/** Challenge sıfırlama bağlantısı — token YALNIZ burada, URL'de taşınır. */
+/**
+ * Challenge sıfırlama bağlantısı — token YALNIZ burada, URL'de taşınır.
+ *
+ * 🚨 TOKEN **FRAGMENT**'TE (`#t=`), QUERY'DE (`?t=`) DEĞİL — DEĞİŞTİRME.
+ *
+ * Fragment, HTTP isteğinin hiçbir parçası değildir: tarayıcı onu sunucuya
+ * GÖNDERMEZ. Query parametresi ise istek satırının içindedir ve önümüzdeki her
+ * katman onu görür — Railway edge'i, Next'in kendi istek log'u, araya girebilecek
+ * herhangi bir ters vekil ve e-posta güvenlik tarayıcılarının bağlantıyı önceden
+ * "ısıtan" istekleri. Bunların hiçbirinin token'ı SAKLAMADIĞINI kanıtlayamayız:
+ * Railway üçüncü taraf bir platform, log içeriği bizim sözleşmemiz değil. Bir
+ * olumsuzu kanıtlamak yerine token'ı o katmanların ERİŞEMEYECEĞİ yere koyuyoruz —
+ * kanıt gerektirmeyen tek çözüm budur (Codex, 08-02).
+ *
+ * İkinci kazanç REFERRER: `Referer` başlığı fragment'i ASLA taşımaz (spec gereği
+ * çıkarılır), query'yi ise aynı-origin gezinmelerde taşır. `next.config.mjs`
+ * `/sifremi-unuttum`'a ayrıca `Referrer-Policy: no-referrer` yazar — ikinci savunma.
+ *
+ * İstemci token'ı okur okumaz `history.replaceState` ile adres çubuğundan siler
+ * (`forgot-password-form.tsx`); yani tarayıcı geçmişinde de kalmaz.
+ */
 export function resetChallengeUrl(rawToken: string): string {
-  return `${appBaseUrl()}/sifremi-unuttum?t=${encodeURIComponent(rawToken)}`;
+  return `${appBaseUrl()}/sifremi-unuttum#t=${encodeURIComponent(rawToken)}`;
 }
 
 /**

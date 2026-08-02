@@ -41,8 +41,10 @@ hiçbir kayıt yok. Operatör görünürlüğü sıfır.
 2. **Challenge'ı adreslemek için e-postadan gelen sırrı bilmek gerekir.** Adres
    anahtarı `tokenHash`'tir; `email` ile challenge BULUNAMAZ.
 3. **Token yalnız e-posta ile kullanıcıya ulaşır.** İstek API yanıtında, log'da,
-   Sentry context'inde ya da URL dışındaki hiçbir istemci yanıtında görünmez.
-   (E-postadaki bağlantı URL'i tek istisnadır — kullanıcının erişim yolu odur.)
+   Sentry context'inde ya da hiçbir istemci yanıtında görünmez. Tek taşıyıcı
+   e-postadaki bağlantıdır ve token orada **URL fragment'inde** (`#t=`) durur —
+   query'de DEĞİL, çünkü query sunucuya/vekile/erişim log'una gider ve
+   gitmediğini kanıtlayamayız (↓§6.1).
 4. **Enumeration korunur.** Bilinmeyen ve kayıtlı e-posta dışarıdan ayırt
    edilemez: aynı gövde, aynı durum kodu, aynı bcrypt maliyeti.
 5. **E-posta bombalama açılmaz.** `forgot-req:{email}` kovası KALIR — varlık
@@ -257,13 +259,71 @@ biçimsel ayırt edilemezliği bu tasarıma dahil edildi (↓§7, §9/6).
 | Yüzey | Kural |
 |---|---|
 | İstek API yanıtı | `{ ok: true }` — token YOK, challenge id YOK |
-| E-posta gövdesi | Bağlantı (token URL'de) — **tek meşru taşıyıcı** |
+| E-posta gövdesi | Bağlantı (token URL **FRAGMENT**'inde) — **tek meşru taşıyıcı** |
 | DB | Yalnız `sha256(token)`; ham token asla |
 | Log / console | Yasak — kaynak-tarama pini |
 | Sentry | Yasak — `redactSensitive` + pin |
 | `AuditLog.metadataJson` | Yalnız challenge `id` (opak cuid), token/hash ASLA |
 | Alarm e-postaları | Yalnız sayı + sebep kodu |
-| Referrer | Sıfırlama sayfasında `Referrer-Policy: no-referrer` |
+| Referrer | `/sifremi-unuttum` → `Referrer-Policy: no-referrer` (test-pinli) |
+
+### 6.1 🚨 Token QUERY'de DEĞİL, FRAGMENT'te (Codex itirazı, 08-02)
+
+İlk tasarım bağlantıyı `…/sifremi-unuttum?t=<token>` diye kuruyordu. **Bu, bu
+belgenin kendi 3. gereksinimiyle ("log'da görünmez") çelişiyordu**: query
+parametresi HTTP istek satırının parçasıdır, yani token'ı önündeki her katman
+görür — Railway edge'i, Next'in istek log'u, araya girebilecek ters vekiller ve
+e-posta güvenlik tarayıcılarının bağlantıyı önceden açan istekleri.
+
+**Kanıtlanamayan iddia:** "Railway erişim logları query string tutmaz." Railway
+üçüncü taraf bir platformdur; log içeriği bizim sözleşmemiz değildir, davranışı
+tek taraflı değişebilir ve resmî dokümantasyon sayfaları bu ortamdan 403
+dönüyor. Bir olumsuzu kanıtlamaya çalışmak yerine token'ı o katmanların
+**erişemeyeceği** yere taşıdık.
+
+**Taşıyıcı: `…/sifremi-unuttum#t=<token>`.** Fragment tarayıcıdan sunucuya
+**hiç gönderilmez** (URL spec: istek hedefine dahil değildir) ve `Referer`
+başlığından spec gereği çıkarılır. Yani:
+
+| Sızıntı yolu | `?t=` | `#t=` |
+|---|---|---|
+| Railway edge / vekil erişim log'u | ⚠️ görür | ✅ ulaşamaz |
+| Next istek log'u | ⚠️ görür | ✅ ulaşamaz |
+| `Referer` başlığı (aynı-origin) | ⚠️ tam URL | ✅ hiç |
+| E-posta tarayıcısının ön-ısıtma isteği | ⚠️ sunucuya taşır | ✅ taşımaz |
+| Tarayıcı geçmişi / adres çubuğu | ⚠️ kalır | ✅ `replaceState` siler |
+| Sunucu-tarafı hata bağlamı | ⚠️ URL'de | ✅ URL'de değil |
+
+Üç savunma birlikte:
+1. **Fragment** — sunucuya hiç ulaşmaz (`email-outbox.ts resetChallengeUrl`).
+2. **`history.replaceState`** — istemci token'ı okur okumaz adres çubuğundan ve
+   MEVCUT geçmiş girdisinden siler; "geri" tuşu token'lı URL'e dönemez
+   (`forgot-password-form.tsx`). `sessionStorage`/`localStorage` KULLANILMAZ.
+3. **`Referrer-Policy: no-referrer`** — ikinci savunma; sayfaya bir gün query'li
+   bir parametre eklenirse global `strict-origin-when-cross-origin` onu
+   aynı-origin gezinmelerde tam URL olarak sızdırırdı.
+
+**Sentry tarafı kod-doğrulandı:** repoda tarayıcı SDK'sı YOK. `captureToSentry`
+elle yazılmıştır ve yalnız `context`/`errName`/`errMessage`/`detail` gönderir —
+istek URL'i hiçbir zaman toplanmaz. Yani fragment'in istemcide görünür olduğu
+kısa pencere bile bir olay yüzeyine bağlı değildir.
+
+**Test pinleri:** `password-reset-challenge.test.ts` #10 (bağlantı `new URL()`
+ile ayrıştırılır: `search === ""`, `hash === "#t=<token>"`, gövdenin tamamında
+`?t=` YOK) + token çıkarma regex'i yalnız `#t=` kabul eder → biçim geri
+taşınırsa dosyadaki TÜM testler kırmızıya döner. `response-cache-policy.test.ts`
+başlığı ve SIRASINI pinler (Next'te son eşleşen başlık kazanır; blok global
+bloktan önce yazılırsa sessizce etkisiz kalırdı — mutasyonla doğrulandı).
+
+### 6.2 Token'lı yolda `email` istenmez
+
+Bağlantı TAZE bir sayfa yükler; istemcinin elinde adres yoktur. Sunucu o yolda
+e-postayı zaten hiçbir yerde kullanmıyordu (challenge ile eşleştirilmiyor, kova
+anahtarı değil, denetim kimliği verdict'ten geliyor) — yani zorunlu tutmak
+dekoratif bir alan yaratıyordu. **Uyuşmayan e-posta REDDEDİLMEZ, yok sayılır:**
+reddetmek, token'ı ele geçirmiş birine "bu token hangi hesaba ait?" sorusunu
+deneme yanılmayla yanıtlatan bir oracle açardı (test #12). Token YOKKEN e-posta
+zorunluluğu aynen sürer (test #13, ters yön).
 
 ---
 
@@ -342,8 +402,9 @@ kaldır (kırmızı) **ve** koşulsuz yap (yine kırmızı).
 | `prisma/migrations/47_password_reset_challenge/migration.sql` | Yukarıdaki SQL |
 | `src/lib/auth/password-reset-challenge.ts` *(yeni)* | Token üret/hash'le, challenge yarat, atomik deneme talebi, tüket, iptal et |
 | `src/app/api/account/forgot-password/route.ts` | İstek: challenge yaz; Confirm: token yolu + eski yol (geçiş). ⚠️ Başarılı sıfırlamanın gövdesi (koşullu `updateMany` + `sessionEpoch` +1 + tüm challenge'ları kapatma + audit) TEK `finishReset()` fonksiyonunda toplanır — geçiş penceresinde iki yolun sürüklenmesini yapısal olarak engeller |
-| `src/lib/email-outbox.ts` | `resetCodeEmailHtml` → bağlantı ekle (kind aynı: `pw_reset_code`) |
-| `src/components/auth/forgot-password-form.tsx` | URL'den token oku, confirm gövdesine ekle |
+| `src/lib/email-outbox.ts` | Yeni kind `pw_reset_challenge`; `resetChallengeUrl` token'ı **fragment**'te yazar (`#t=`) |
+| `src/components/auth/forgot-password-form.tsx` | Token'ı URL **fragment**'inden oku → `history.replaceState` ile adres çubuğundan sil → confirm gövdesine ekle |
+| `next.config.mjs` | `/sifremi-unuttum` → `Referrer-Policy: no-referrer` (global bloktan SONRA) |
 | `src/lib/scheduled-sync.ts` | Deep pencereye sweep çağrısı |
 | `tests/integration/password-reset-challenge.test.ts` *(yeni)* | 9 saldırı testi |
 
@@ -363,6 +424,34 @@ kaldır (kırmızı) **ve** koşulsuz yap (yine kırmızı).
    ⚠️ Bu bayrak 08-01'de Railway'e **girildi ve ters DNS ile doğrulandı** (değer 2);
    yani bugün risk YOK. Ama bayrak düşerse bu tasarımdan bağımsız olarak
    forgot-password dâhil her hız limiti çöker — `docs/…§4f`'de belgeli.
+
+### 🚧 FAZ 2 ENGELİ — OTURUM AÇIKKEN BAĞLANTI ÇALIŞMAZ (08-02, kod-doğrulandı)
+
+`src/middleware.ts:27-32`: oturumu AÇIK bir kullanıcı `/sifremi-unuttum`'a
+giderse `/dashboard`'a yönlendirilir (`AUTH_PATHS`, satır 4). Bugün zararsız —
+sıfırlama sayfasına yalnız giriş ekranından gelinir, yani kullanıcı tanım gereği
+çıkış yapmıştır. **Bayrak açılınca (Faz 2) gerçek bir arızaya dönüşür:** e-posta
+bağlantısına, hesabına o tarayıcıdan girmiş bir kullanıcı tıklarsa panele düşer
+ve sıfırlamayı hiç yapamaz.
+
+İkinci etki (düşük şiddet): tarayıcılar yönlendirme hedefinde fragment yoksa
+kaynak URL'in fragment'ini TAŞIR → adres çubuğunda `/dashboard#t=<token>` kalır.
+Token sunucuya yine gitmez ve tek başına işe yaramaz (kod da gerekir); üstelik o
+tarayıcıda zaten geçerli bir oturum vardır — yani saldırgan modeli "oturuma
+erişebilen kişi"ye iner, ki bu token'dan çok daha değerlidir. Yine de sayfanın
+`replaceState` temizliği orada ÇALIŞMAZ.
+
+**Karar KULLANICININ** (kimlik yönlendirme semantiğini değiştirir, Faz 1'in işi
+değil). Seçenekler:
+- (a) `/sifremi-unuttum`'u "signed in → uzak tut" kuralının DIŞINA al. Sayfa
+  zaten public ve çağırdığı uç nokta enumeration-safe; oturumu olan birinin
+  şifresini sıfırlaması meşru bir istek (tam da "hesabım ele geçti" senaryosu).
+  Güvenlik kaybı kod-doğrulaması ile YOK; tek satır.
+- (b) Yönlendirmeyi koru, hedefe boş fragment yaz (`url.hash = "#"`) → tarayıcı
+  devralmaz. Akış yine kırık kalır, yalnız token taşınmaz.
+- (c) Olduğu gibi bırak → Faz 2'de oturumu açık kullanıcılar için akış kırık.
+
+**Öneri: (a).** Faz 2 onayıyla BİRLİKTE uygulanmalı, ayrı bir karar olarak.
 
 ---
 
