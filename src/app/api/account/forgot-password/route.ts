@@ -4,6 +4,11 @@ import { hashPassword, verifyPassword } from "@/lib/auth/password";
 import { badRequest, jsonOk, serverError, tooManyRequests, parseJsonBody, payloadTooLarge } from "@/lib/api";
 import { rateLimit, clientIp } from "@/lib/rate-limit";
 import { writeAudit } from "@/lib/audit";
+import {
+  issueChallenge,
+  verifyChallenge,
+  consumeChallengeAndResetPassword,
+} from "@/lib/auth/password-reset-challenge";
 import { emailService } from "@/lib/email";
 import { reportError } from "@/lib/report-error";
 import { isValidEmailShape, normalizeEmail } from "@/lib/email-identity";
@@ -26,7 +31,20 @@ import {
 //   POST { action: "confirm", email, code, newPassword } → verify → set password
 // ---------------------------------------------------------------------------
 
-const CODE_TTL_MS = 10 * 60_000; // 10 minutes
+const CODE_TTL_MS = 10 * 60_000; // 10 minutes (ESKİ akış — Faz 3'te kalkacak)
+
+/**
+ * FAZ 1 BAYRAĞI — DEFAULT KAPALI (kullanıcı kararı: prod'da AÇILMAYACAK).
+ *
+ * Kapalıyken: davranış BİREBİR eskisi gibi. Challenge satırı yazılır (çift yazma)
+ * ama confirm yolunda KULLANILMAZ ve e-postaya bağlantı EKLENMEZ — yani üretimde
+ * hiçbir kullanıcı-görünür değişiklik yok.
+ * Açıkken: e-posta bağlantı taşır, confirm token'lı yolu kabul eder; ESKİ kod
+ * yolu uçuştaki kodlar için ÇALIŞMAYA DEVAM EDER (geçiş penceresi ≥ eski TTL).
+ */
+function challengeFlowEnabled(): boolean {
+  return process.env.PASSWORD_RESET_CHALLENGE_ENABLED === "1";
+}
 const MAX_CODE_ATTEMPTS = 5;
 
 /** Crypto-strong 8-digit code (10^8 space) — the primary barrier, like the
@@ -111,6 +129,30 @@ export async function POST(req: NextRequest) {
         return jsonOk({ ok: true });
       }
 
+      // ── FAZ 1: CHALLENGE YOLU (bayrak AÇIKKEN) ──────────────────────────
+      // Bayrak KAPALIYKEN bu blok hiç çalışmaz → üretim davranışı BİREBİR eskisi.
+      //
+      // ⚠️ ÖNCEKİ CANLI CHALLENGE'LAR İPTAL EDİLMEZ: saldırganın yeni istekler
+      // göndererek kurbanın ELİNDEKİ geçerli challenge'ı düşürmesini engelleyen
+      // şey budur (kullanıcı kararı, 08-02). Canlı satır sayısı "sınırsız"
+      // değildir — `forgot-req` kovası (4/15 dk) ve TTL (30 dk) doğal tavandır.
+      if (challengeFlowEnabled()) {
+        const issued = await issueChallenge(prisma, user.id);
+        // ⚠️ Token VE kod yalnız e-postaya gider. Yanıta, log'a, AuditLog'a ya da
+        // Sentry'ye ASLA girmez — bileşik sır şifreli outbox payload'ında taşınır.
+        await prisma.$transaction(async (tx) => {
+          await enqueueIdentityEmail(tx, {
+            userId: user.id,
+            kind: "pw_reset_challenge",
+            secret: `${issued.token}.${issued.code}`,
+            recipient: email,
+            expiresAt: issued.expiresAt,
+          });
+        });
+        kickEmailOutboxDrain();
+        return jsonOk({ ok: true });
+      }
+
       const code = verificationCode();
       const codeHash = await hashPassword(code);
       const expiresAt = new Date(Date.now() + CODE_TTL_MS);
@@ -176,6 +218,46 @@ export async function POST(req: NextRequest) {
       if (!/^\d{8}$/.test(code)) {
         return badRequest({ code: "8 haneli doğrulama kodunu girin." });
       }
+
+      // ── FAZ 1: TOKEN'LI YOL ─────────────────────────────────────────────
+      // Gövdede `token` VARSA challenge yolu; YOKSA eski kod yolu (aşağıda).
+      // Bu ayrım geçiş penceresinin tamamıdır: bayrak açıldıktan sonra bile
+      // UÇUŞTAKİ eski kodlar (TTL 10 dk) çalışmaya DEVAM eder.
+      //
+      // ⚠️ Bu yolda `forgot-confirm:{email}` kovası HİÇ kullanılmaz — bütçe
+      // challenge satırındadır ve token'ı bilmeyen onu adresleyemez. Kovayı
+      // burada da çalıştırmak, tasarımın kapattığı deliği yeniden açardı.
+      const rawToken = typeof data?.token === "string" ? data.token.trim() : "";
+      if (rawToken) {
+        const verdict = await verifyChallenge(rawToken, code);
+        if (!verdict.ok) {
+          // Tüm başarısızlıklar AYNI genel hatayı alır: "token yok", "süresi
+          // dolmuş", "bütçe bitti" ve "kod yanlış" dışarıdan ayırt EDİLEMEZ.
+          return badRequest({ code: GENERIC_CONFIRM });
+        }
+        // `actorUserId` adlandırması bilinçli: `writeAudit` çağrısı kısayolla
+        // yazılabilsin diye (oturum ÖNCESİ akışın "çağıran sorumlu" deseni).
+        const { challengeId, userId: actorUserId, organizationId } = verdict;
+        const newHash = await hashPassword(newPassword);
+        const done = await consumeChallengeAndResetPassword({
+          challengeId,
+          userId: actorUserId,
+          organizationId,
+          newPasswordHash: newHash,
+        });
+        // Paralel iki DOĞRU istekte yalnız biri `true` alır — ikincisi hiçbir
+        // şey yazmadan genel hataya düşer.
+        if (!done) return badRequest({ code: GENERIC_CONFIRM });
+        await writeAudit({
+          organizationId,
+          actorUserId,
+          action: "account.password_reset",
+          // ⚠️ Token/kod/hash YOK — yalnız opak challenge id'si.
+          metadata: { via: "challenge", challengeId, ip: clientIp(req) },
+        });
+        return jsonOk({ ok: true });
+      }
+
       // ⚠️ HESAP KOVASI BURADA DEĞİL, KOD DOĞRULANDIKTAN SONRA (Codex, 08-01 —
       // §4g(a); giriş rotasındaki düzeltmenin BİREBİR aynısı).
       //

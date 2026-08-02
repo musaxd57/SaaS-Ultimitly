@@ -10,6 +10,7 @@ import { premiumAllowed } from "@/lib/billing/subscription";
 import { sendDueTrialReminders } from "@/lib/billing/trial-reminders";
 import { anonymizeOldGuestData, purgeOldLeads } from "@/lib/data-retention";
 import { sweepExpiredRateLimits } from "@/lib/rate-limit";
+import { sweepPasswordResetChallenges } from "@/lib/auth/password-reset-challenge";
 import { drainEmailOutboxOnce, sweepEmailOutbox } from "@/lib/email-outbox";
 import { durableOutboxEnabled } from "@/lib/outbox/flag";
 import { drainOutboxOnce, hasDrainableOutbox, reactivateBlockedOutbox } from "@/lib/outbox/worker";
@@ -531,6 +532,14 @@ export async function runScheduledSync(): Promise<ScheduledSyncTotals> {
           await sweepExpiredRateLimits();
         } catch (err) {
           await reportError("scheduled-sync rate-limit-sweep", err);
+        }
+        // Parola sıfırlama challenge'ları: süresi dolmuş / tüketilmiş / iptal
+        // edilmiş satırları topla. CANLI satıra dokunmaz; 24 saatlik gecikme
+        // bilinçli (destek "sıfırlayamıyorum" derse izi bir süre daha durur).
+        try {
+          await sweepPasswordResetChallenges();
+        } catch (err) {
+          await reportError("scheduled-sync pw-reset-challenge-sweep", err);
         }
         // Reverse-trial reminder emails ("ending soon" / "ended"). No-op unless
         // BILLING_ENFORCED is on; idempotent + per-tenant. Best-effort.

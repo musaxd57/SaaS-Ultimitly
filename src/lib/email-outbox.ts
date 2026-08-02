@@ -6,7 +6,7 @@ import { prisma } from "@/lib/db";
 import { encryptSecretBound, decryptSecretBound } from "@/lib/crypto";
 import { emailService } from "@/lib/email";
 import { reportError } from "@/lib/report-error";
-import { verifyUrl, verifyEmailHtml } from "@/lib/auth/email-verify";
+import { verifyUrl, verifyEmailHtml, appBaseUrl } from "@/lib/auth/email-verify";
 
 // ---------------------------------------------------------------------------
 // Durable outbox for IDENTITY e-mails (Tur-4; docs/EMAIL-OUTBOX-DESIGN.md).
@@ -52,8 +52,15 @@ import { verifyUrl, verifyEmailHtml } from "@/lib/auth/email-verify";
 // exactly because it might already have delivered.
 // ---------------------------------------------------------------------------
 
-export type EmailOutboxKind = "verify_email" | "pw_reset_code" | "pw_change_code";
-const KINDS: ReadonlySet<string> = new Set(["verify_email", "pw_reset_code", "pw_change_code"]);
+export type EmailOutboxKind = "verify_email" | "pw_reset_code" | "pw_change_code" | "pw_reset_challenge";
+const KINDS: ReadonlySet<string> = new Set([
+  "verify_email",
+  "pw_reset_code",
+  "pw_change_code",
+  // ⚠️ YENİ (Faz 1): challenge tabanlı sıfırlama. İKİ sır taşır (token + kod) ve
+  // canlılığı `User` satırında DEĞİL, `PasswordResetChallenge` satırında yaşar.
+  "pw_reset_challenge",
+]);
 
 /** Master switch — default OFF. While off the module is dead code: routes use
  *  their legacy synchronous send and the drain refuses to run. */
@@ -178,6 +185,35 @@ export function kickEmailOutboxDrain(drain: () => Promise<unknown> = drainEmailO
 // --- Rendering (single source for BOTH the outbox worker and the legacy
 // synchronous path — the two paths can never drift apart). -------------------
 
+/** Challenge sıfırlama bağlantısı — token YALNIZ burada, URL'de taşınır. */
+export function resetChallengeUrl(rawToken: string): string {
+  return `${appBaseUrl()}/sifremi-unuttum?t=${encodeURIComponent(rawToken)}`;
+}
+
+/**
+ * Challenge e-postası: BAĞLANTI (token) + 8 haneli KOD.
+ *
+ * ⚠️ İKİ SIR BİLİNÇLİ OLARAK AYRI: bağlantı challenge'ı ADRESLER, kod onu
+ * YETKİLENDİRİR. Sızmış bir URL (tarayıcı geçmişi, ekran görüntüsü, referrer)
+ * tek başına parolayı sıfırlayamaz — kod da gerekir.
+ */
+export function resetChallengeEmailHtml(url: string, code: string): string {
+  const esc = (v: string) =>
+    v.replace(/[<>&"]/g, (c) => ({ "<": "&lt;", ">": "&gt;", "&": "&amp;", '"': "&quot;" })[c] as string);
+  return `
+    <div style="font-family:system-ui,Arial,sans-serif;max-width:480px;margin:0 auto">
+      <h2 style="color:#111">Lixus AI — Şifre sıfırlama</h2>
+      <p>Şifrenizi sıfırlamak için önce aşağıdaki bağlantıyı açın:</p>
+      <p style="margin:20px 0">
+        <a href="${esc(url)}" style="background:#111;color:#fff;padding:12px 20px;border-radius:8px;text-decoration:none;display:inline-block">Şifremi sıfırla</a>
+      </p>
+      <p>Açılan sayfada bu kodu girin:</p>
+      <p style="font-size:28px;font-weight:700;letter-spacing:4px;margin:16px 0">${esc(code)}</p>
+      <p style="color:#555">Bağlantı ve kod <strong>30 dakika</strong> geçerlidir ve yalnızca bir kez
+      kullanılabilir. Bu isteği siz yapmadıysanız bu e-postayı yok sayın — şifreniz değişmez.</p>
+    </div>`;
+}
+
 export function resetCodeEmailHtml(code: string): string {
   return `
     <div style="font-family:system-ui,Arial,sans-serif;max-width:480px;margin:0 auto">
@@ -213,6 +249,19 @@ function renderIdentityEmail(
       };
     case "pw_reset_code":
       return { subject: "Lixus AI — Şifre sıfırlama kodu", html: resetCodeEmailHtml(secret) };
+    case "pw_reset_challenge": {
+      // ⚠️ BİLEŞİK SIR: "{token}.{code}". Outbox'ın tek-`secret` sözleşmesi
+      // korunur (şifreli payload, tek alan); ayırma YALNIZ burada, render anında
+      // yapılır. Token BAĞLANTIYA, kod GÖVDEYE gider — ikisi de e-posta dışına
+      // (yanıt/log/Sentry/AuditLog) ASLA çıkmaz.
+      const dot = secret.indexOf(".");
+      const token = dot > 0 ? secret.slice(0, dot) : "";
+      const code = dot > 0 ? secret.slice(dot + 1) : secret;
+      return {
+        subject: "Lixus AI — Şifre sıfırlama",
+        html: resetChallengeEmailHtml(resetChallengeUrl(token), code),
+      };
+    }
     case "pw_change_code":
       return { subject: "Lixus AI — Şifre değiştirme kodu", html: changeCodeEmailHtml(secret) };
   }
@@ -232,6 +281,9 @@ interface LivenessRow {
 }
 
 function hashLive(user: LivenessRow, kind: EmailOutboxKind, now: Date): boolean {
+  // `pw_reset_challenge` BURADA ele alınmaz: canlılığı `User` satırında değil,
+  // `PasswordResetChallenge` satırında yaşıyor (↓`rowIsCurrent`).
+  if (kind === "pw_reset_challenge") return true;
   const [hash, exp] =
     kind === "verify_email"
       ? [user.emailVerifyTokenHash, user.emailVerifyExpiresAt]
@@ -272,7 +324,24 @@ async function rowIsCurrent(
   now: Date,
 ): Promise<boolean> {
   if (!user || !KINDS.has(row.kind)) return false;
-  if (!hashLive(user, row.kind as EmailOutboxKind, now)) return false;
+  // ⚠️ CHALLENGE TÜRÜNÜN CANLILIĞI AYRI YERDE. Diğer türlerde "gönderilecek sır
+  // hâlâ kullanıcının canlı sırrı mı" sorusu `User` satırındaki hash'e bakılarak
+  // yanıtlanır; challenge'da o hash HİÇ yazılmaz. Bunun yerine kullanıcının
+  // HENÜZ tüketilmemiş, süresi dolmamış bir challenge'ı var mı diye bakılır.
+  // Yoksa (sıfırlama tamamlandı ya da süre doldu) bayat satır GÖNDERİLMEZ.
+  if (row.kind === "pw_reset_challenge") {
+    const live = await db.passwordResetChallenge.count({
+      where: {
+        userId: row.userId,
+        consumedAt: null,
+        invalidatedAt: null,
+        expiresAt: { gt: now },
+      },
+    });
+    if (live === 0) return false;
+  } else if (!hashLive(user, row.kind as EmailOutboxKind, now)) {
+    return false;
+  }
   const newer = await db.emailOutbox.count({
     where: { userId: row.userId, kind: row.kind, version: { gt: row.version } },
   });

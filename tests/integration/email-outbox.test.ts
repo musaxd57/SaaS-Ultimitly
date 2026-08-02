@@ -308,6 +308,11 @@ describe("email-outbox", () => {
       "src/app/api/auth/register/route.ts", //            kayıt (outbox'a bağlı)
       "src/app/api/auth/resend-verification/route.ts", // yeniden gönder (outbox'a bağlı)
       "src/app/api/auth/verify-email/route.ts", //        TÜKETİM (hash'i null'lar — gönderim yok)
+      // Challenge akışı (Faz 1): başarılı sıfırlamada ESKİ akışın kalıntısını
+      // (`pwResetCodeHash`) TEMİZLER — hash ÜRETMEZ, dolayısıyla outbox'a
+      // bağlanacak bir gönderim yolu yok. Kendi e-postası `pw_reset_challenge`
+      // türüyle ZATEN outbox üzerinden gidiyor.
+      "src/lib/auth/password-reset-challenge.ts",
       "src/lib/email-outbox.ts", //                       liveness fallback okuması (?? null desenleri)
     ]);
   });

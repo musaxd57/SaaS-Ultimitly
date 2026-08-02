@@ -72,7 +72,12 @@ describe("denetim kaydı — impersonation'da fail OPERATÖRDÜR", () => {
           v.includes("actorUserId,") || // parametre olarak geçirilen (çağıran sorumlu)
           v.includes("current.actorUserId") || // impersonate enter/exit'in kendisi
           v.includes("entry.actorUserId") || // audit.ts'in kendi yazıcıları
-          v.includes("string | null") || // tip bildirimi
+          // TİP BİLDİRİMİ (bir fonksiyon imzası, denetim yazımı değil). Eskiden
+          // yalnız `string | null` tanınıyordu; `actorUserId: string` şekli
+          // yanlış-pozitif üretiyordu. Gevşetme DEĞİL, DARALTMA: artık yalnız
+          // TAM bir tip ifadesi eşleşir — `actorUserId: someString` gibi gerçek
+          // bir yazım hâlâ yakalanır.
+          /^\s*string(\s*\|\s*null)?\s*[,;)]?\s*$/.test(v) ||
           v.includes("null");
         if (!ok) bad.push(`${file}: ${line.trim()}`);
       }

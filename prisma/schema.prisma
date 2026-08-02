@@ -199,6 +199,8 @@ model User {
   pwChangeCodeAttempts  Int       @default(0)
   // Forgot-password RESET (logged OUT) — separate from pwChangeCode* so a public
   // reset request can never burn/overwrite a code the user is mid-using in Settings.
+  // ⚠️ FAZ 3'te KALDIRILACAK (eski akış). `PasswordResetChallenge` bunların
+  // yerini alıyor; geçiş penceresi boyunca uçuştaki kodlar için duruyorlar.
   pwResetCodeHash       String?
   pwResetCodeExpiresAt  DateTime?
   pwResetCodeAttempts   Int       @default(0)
@@ -235,19 +237,65 @@ model User {
   createdAt             DateTime  @default(now())
   updatedAt             DateTime  @updatedAt
 
-  organization     Organization            @relation(fields: [organizationId], references: [id], onDelete: Cascade)
-  assignedTasks    Task[]                  @relation("TaskAssignee")
+  organization     Organization             @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  assignedTasks    Task[]                   @relation("TaskAssignee")
   taskUpdates      TaskUpdate[]
   auditLogs        AuditLog[]
   checkoutConsents CheckoutConsent[]
   recoveryCodes    TwoFactorRecoveryCode[]
   emailOutbox      EmailOutbox[]
+  resetChallenges  PasswordResetChallenge[]
 
   @@index([organizationId])
   // verify-email looks a user up BY token hash on every emailed-link click —
   // that was a full-table scan (rate-limited, but still). Plain index, not
   // unique: 256-bit random values collide never; uniqueness isn't the contract.
   @@index([emailVerifyTokenHash])
+}
+
+/// PAROLA SIFIRLAMA CHALLENGE'I — hesap başına DEĞİL, İSTEK başına satır.
+///
+/// 🚨 TASARIMIN TAMAMI TEK CÜMLEDE: bütçe (deneme sayısı) hesaba değil BU SATIRA
+/// aittir ve satırın TEK adresleme yolu `tokenHash`'tir. Token yalnız kullanıcının
+/// e-posta kutusuna gider; onu bilmeyen biri satırı BULAMAZ, dolayısıyla
+/// denemesini de HARCAYAMAZ.
+///
+/// Neden gerekti: eski akışta hem `forgot-req:{email}` kovası hem
+/// `User.pwResetCodeAttempts` E-POSTAYA göre anahtarlıydı ve e-posta saldırganın
+/// serbestçe yazdığı bir istek alanı. Ölçüldü: tek IP'den 9 istek/15 dk ile
+/// kurban süresiz olarak sıfırlama dışında tutulabiliyordu. Sayaçları yeniden
+/// sıralamak bunu çözmez — anahtar aynı kalır.
+///
+/// ⚠️ İKİ SIR, AYRI HASH'LER: `tokenHash` = sha256(bağlantıdaki token),
+/// `codeHash` = bcrypt(e-postadaki 8 haneli kod). Token ADRESLER, kod
+/// YETKİLENDİRİR — sızmış bir URL tek başına parolayı sıfırlayamaz. Düz değerler
+/// hiçbir kolonda tutulmaz.
+///
+/// ⚠️ AYNI ANDA BİRDEN FAZLA CANLI CHALLENGE olabilir ve yeni bir istek eskisini
+/// GEÇERSİZ KILMAZ — saldırganın yeni isteklerle kurbanın elindeki geçerli
+/// challenge'ı düşürmesini engelleyen şey budur. "Sınırsız" değildir: canlı satır
+/// sayısı `forgot-req:{email}` kovası (4/15 dk) ve TTL (30 dk) ile doğal olarak
+/// sınırlıdır; süpürge 24 saatte toplar.
+model PasswordResetChallenge {
+  id            String    @id @default(cuid())
+  userId        String
+  /// sha256(ham token) — confirm yolunun TEK arama anahtarı (`emailVerifyTokenHash` emsali).
+  tokenHash     String    @unique
+  /// bcrypt(8 haneli kod). Token'ı ele geçiren biri kodu da bilmeden ilerleyemez.
+  codeHash      String
+  attempts      Int       @default(0)
+  maxAttempts   Int       @default(5)
+  expiresAt     DateTime
+  /// Tek-kullanım hakemi: paralel iki DOĞRU istekte yalnız biri bunu yazabilir.
+  consumedAt    DateTime?
+  /// Başarılı bir sıfırlama diğer canlı challenge'ları burada kapatır.
+  invalidatedAt DateTime?
+  createdAt     DateTime  @default(now())
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId, createdAt])
+  @@index([expiresAt])
 }
 
 // 2FA recovery codes (Codex #20). One row per single-use code, stored as a
