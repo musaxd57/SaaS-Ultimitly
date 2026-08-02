@@ -20,6 +20,23 @@ import { normalizeEmail } from "@/lib/email-identity";
 //     same moment the factor is removed — a hijacked session can't ride the
 //     downgraded account.
 //   * recovery codes are wiped with the secret (they belong to the old factor).
+//
+// İKİNCİ İŞ — BAYAT KAYIT TEMİZLİĞİ (08-02):
+// `twoFactorSecret` DOLU ama `twoFactorEnabledAt` NULL olabilir. Bu "2FA açık"
+// DEMEK DEĞİLDİR: aktifliğin tek koşulu `twoFactorEnabledAt`tir (login/route.ts,
+// account/2fa/route.ts, settings/page.tsx hepsi ona bakar). Böyle bir satır
+// `setup` çağrılıp kurulum yarıda bırakıldığında doğar — secret yazılır,
+// `twoFactorEnabledAt: null` kalır.
+//
+// Bu rota eskiden öyle bir satırı REDDEDİYORDU ("zaten kapalı") → artığı
+// temizlemenin ÜRÜN YOLU YOKTU, geriye elle SQL kalıyordu. Artık iki durumu da
+// karşılıyor ve hangisini yaptığını çağırana SÖYLÜYOR.
+//
+// 🚨 BAYAT TEMİZLİKTE `sessionEpoch` ARTTIRILMAZ. Artış "canlı bir faktörü
+// kaldırdım, o faktörle açılmış oturumlar ölsün" demektir. Bayat secret hiçbir
+// şeyi yetkilendirmiyor, hiçbir oturum ona dayanmıyor → müşteriyi oturumundan
+// atmak KARŞILIĞI OLMAYAN bir kesinti olurdu. Aktif sıfırlamada artış AYNEN
+// KALIR (test-pinli).
 // ---------------------------------------------------------------------------
 
 export async function POST(req: NextRequest) {
@@ -40,11 +57,23 @@ export async function POST(req: NextRequest) {
     // veren her yol artık tek biçimde: normalize et + benzersiz kolonda exact ara.
     const user = await prisma.user.findUnique({
       where: { email },
-      select: { id: true, email: true, organizationId: true, twoFactorEnabledAt: true },
+      select: {
+        id: true,
+        email: true,
+        organizationId: true,
+        twoFactorEnabledAt: true,
+        twoFactorSecret: true,
+      },
     });
     if (!user) return badRequest({ email: "Bu e-posta ile bir kullanıcı bulunamadı." });
-    if (!user.twoFactorEnabledAt) {
-      return badRequest({ email: "Bu hesapta 2FA zaten kapalı — sıfırlanacak bir şey yok." });
+
+    const active = user.twoFactorEnabledAt !== null;
+    // ⚠️ `twoFactorSecret`in kendisi ASLA okunmaz/döndürülmez — yalnız VARLIĞI
+    // sorulur. Şifreli değer bu rotanın hiçbir çıktısına giremez.
+    const hasStaleSecret = !active && user.twoFactorSecret !== null;
+
+    if (!active && !hasStaleSecret) {
+      return badRequest({ email: "Bu hesapta 2FA zaten kapalı — temizlenecek bir şey yok." });
     }
 
     await prisma.$transaction([
@@ -54,20 +83,29 @@ export async function POST(req: NextRequest) {
           twoFactorSecret: null,
           twoFactorEnabledAt: null,
           twoFactorLastStep: null,
-          sessionEpoch: { increment: 1 }, // kill every live session with the old factor
+          // Yalnız CANLI bir faktör kaldırılırken oturumlar düşürülür (↑gerekçe).
+          ...(active ? { sessionEpoch: { increment: 1 } } : {}),
         },
       }),
+      // Bayat dalda da çalışır: `twoFactorEnabledAt` NULL iken kurtarma kodu
+      // ZATEN kullanılamaz (login o dala hiç girmez), yani bu satırlar ölü
+      // ağırlıktır. Silmek durumu sadeleştirir, hiçbir yeteneği kaldırmaz.
       prisma.twoFactorRecoveryCode.deleteMany({ where: { userId: user.id } }),
     ]);
 
     await writeAudit({
       organizationId: user.organizationId,
       actorUserId: session.actorUserId ?? session.userId,
-      action: "admin.2fa_reset",
+      // İki işlem AYRI eylem adı taşır: denetim kaydına bakan biri "müşterinin
+      // canlı 2FA'sı kaldırıldı" ile "yarım kalmış kurulum artığı silindi"yi
+      // ayırt edebilmeli — güvenlik açısından bambaşka ağırlıktalar.
+      action: active ? "admin.2fa_reset" : "admin.2fa_stale_secret_cleared",
       metadata: { targetUserId: user.id, targetEmail: user.email },
     });
 
-    return jsonOk({ ok: true });
+    // Çağıran hangi işlemin olduğunu BİLMELİ: arayüz "tüm oturumları düşürüldü"
+    // metnini bayat temizlikte basarsa operatöre YALAN söylemiş olur.
+    return jsonOk({ ok: true, outcome: active ? "reset" : "stale_cleared" });
   } catch (err) {
     return serverError(undefined, err);
   }

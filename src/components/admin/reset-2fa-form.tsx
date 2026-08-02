@@ -32,8 +32,14 @@ export function Reset2faForm() {
       });
       const data = await res.json().catch(() => ({}));
       if (res.ok) {
+        // Metin SUNUCUNUN söylediğine göre yazılır. Sabit metin, bayat-kayıt
+        // temizliğinde "tüm oturumları düşürüldü" diyerek operatöre yalan
+        // söylerdi — o dalda hiçbir oturum düşürülmez (kasıtlı: bayat secret
+        // hiçbir şeyi yetkilendirmiyor, kesinti karşılıksız olurdu).
         setDone(
-          `${email} için 2FA kapatıldı ve tüm oturumları düşürüldü. Müşteri artık yalnız şifresiyle girip 2FA'yı güvendiği telefonda yeniden açabilir.`,
+          data.outcome === "stale_cleared"
+            ? `${email} hesabında 2FA zaten KAPALIYDI; yarım kalmış kurulumdan artakalan kayıt silindi. Oturumlar düşürülmedi, müşteri için hiçbir şey değişmez. İşlem denetim kaydına yazıldı.`
+            : `${email} için 2FA kapatıldı ve tüm oturumları düşürüldü. Müşteri artık yalnız şifresiyle girip 2FA'yı güvendiği telefonda yeniden açabilir.`,
         );
         setEmail("");
       } else {

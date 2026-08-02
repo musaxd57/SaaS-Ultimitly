@@ -5,6 +5,7 @@ import {
   classifyCiphertext,
   decryptsUnderKey,
   diagnoseHospitableTokens,
+  staleUndecryptable,
   verdictFor,
   type TokenDiagnostics,
 } from "@/lib/hospitable-token-diagnostics-core";
@@ -28,9 +29,14 @@ function encryptUnder(plain: string, secret: string): string {
   return ["v1", iv.toString("base64"), c.getAuthTag().toString("base64"), enc.toString("base64")].join(".");
 }
 
-function fakeDb(orgRows: { a: string | null; r: string | null }[], twoFaRows: string[]) {
+/** `twoFaRows`: [secret, aktif mi] — aktif = `twoFactorEnabledAt` DOLU. */
+function fakeDb(orgRows: { a: string | null; r: string | null }[], twoFaRows: [string, boolean][]) {
   const organization = { findMany: vi.fn(async () => orgRows.map((o) => ({ hospitableTokenEnc: o.a, hospitableRefreshTokenEnc: o.r }))) };
-  const user = { findMany: vi.fn(async () => twoFaRows.map((s) => ({ twoFactorSecret: s }))) };
+  const user = {
+    findMany: vi.fn(async () =>
+      twoFaRows.map(([s, on]) => ({ twoFactorSecret: s, twoFactorEnabledAt: on ? new Date() : null })),
+    ),
+  };
   // ⚠️ Yazma metotları BİLEREK YOK: araç bir şey yazmaya kalkarsa test "is not a
   // function" ile patlar. "Salt-okuma" iddiası böylece yapısal olarak pinlenir.
   return { organization, user } as never;
@@ -67,7 +73,7 @@ describe("hospitable token teşhisi", () => {
           { a: foreign, r: null }, // bozuk erişim token'ı, refresh YOK
           { a: null, r: null }, // hiç bağlanmamış org
         ],
-        [good],
+        [[good, true]],
       ),
       OTHER_SECRET,
     );
@@ -75,7 +81,8 @@ describe("hospitable token teşhisi", () => {
     expect(d.organizations).toBe(3);
     expect(d.accessToken).toMatchObject({ present: 2, ok: 1, authFailed: 1, malformed: 0, okUnderAltKey: 1 });
     expect(d.refreshToken).toMatchObject({ present: 1, ok: 1, authFailed: 0 });
-    expect(d.twoFactorSecret).toMatchObject({ present: 1, ok: 1, authFailed: 0 });
+    expect(d.twoFactorActive).toMatchObject({ present: 1, ok: 1, authFailed: 0 });
+    expect(d.twoFactorStale).toMatchObject({ present: 0, ok: 0, authFailed: 0 });
     expect(d.altKeyTried).toBe(true);
   });
 
@@ -84,6 +91,51 @@ describe("hospitable token teşhisi", () => {
     expect(d.accessToken.authFailed).toBe(1);
     expect(d.accessToken.okUnderAltKey).toBe(0);
     expect(d.altKeyTried).toBe(false);
+  });
+
+  // ── 🚨 AKTİF 2FA vs BAYAT KAYIT (Ahmet Apartman senaryosu) ───────────────
+  // Gerçek aktiflik koşulu KOD-DOĞRULANDI: `twoFactorEnabledAt` DOLU olmalı.
+  // Beş karar noktası da ona bakıyor (login · account/2fa · settings sayfası ·
+  // admin/reset-2fa · disable dalı). `secret`in dolu olması TEK BAŞINA hiçbir
+  // şeyi etkinleştirmez.
+  it("secret dolu ama twoFactorEnabledAt NULL ise BAYAT sayılır, aktif değil", async () => {
+    const good = encryptSecret("x");
+    const d = await diagnoseHospitableTokens(fakeDb([], [[good, false]]));
+    expect(d.twoFactorActive.present).toBe(0);
+    expect(d.twoFactorStale).toMatchObject({ present: 1, ok: 1 });
+  });
+
+  it("ÇÖZÜLEMEYEN bayat kayıt hükmü BOZMAZ — kimse dışarıda kalmıyor", async () => {
+    // Ahmet Apartman: 2FA arayüzde KAPALI, geriye çözülemeyen bir secret kalmış.
+    // Her şey açılıyorsa hüküm TEMİZ olmalı; bayat artık "üründe arıza var"
+    // demek DEĞİLDİR (hiçbir kod yolu onu ikinci faktör saymaz).
+    const good = encryptSecret("x");
+    const foreign = encryptUnder("x", OTHER_SECRET);
+    const d = await diagnoseHospitableTokens(fakeDb([{ a: good, r: good }], [[foreign, false]]));
+    expect(d.twoFactorStale.authFailed).toBe(1);
+    expect(verdictFor(d)).toBe("clean");
+    // …ama YUTULMAZ: ayrıca raporlanır (temizlik işi + anahtar geçmişi ipucu).
+    expect(staleUndecryptable(d)).toBe(1);
+  });
+
+  it("AKTİF 2FA çözülemiyorsa hüküm BOZULUR (kullanıcı giremez)", async () => {
+    // Ters yön: aynı ciphertext AKTİF bir kayıtta olsaydı gerçek arıza olurdu.
+    const good = encryptSecret("x");
+    const foreign = encryptUnder("x", OTHER_SECRET);
+    const d = await diagnoseHospitableTokens(fakeDb([{ a: good, r: good }], [[foreign, true]]));
+    expect(d.twoFactorActive.authFailed).toBe(1);
+    expect(verdictFor(d)).toBe("isolated");
+    expect(staleUndecryptable(d)).toBe(0);
+  });
+
+  it("AÇILAN bir bayat kayıt bile anahtarın doğruluğuna KANIT sayılır", async () => {
+    // Kanıt değeri "kayıt canlı mı"ya değil, "bu anahtarla açıldı mı"ya bağlı.
+    // Bayat başarıları saymasaydık bu senaryo yanlışlıkla "genel anahtar
+    // uyuşmazlığı" (= tüm kiracılar etkilendi) diye okunurdu.
+    const d = await diagnoseHospitableTokens(
+      fakeDb([{ a: encryptUnder("x", OTHER_SECRET), r: null }], [[encryptSecret("x"), false]]),
+    );
+    expect(verdictFor(d)).toBe("isolated");
   });
 
   // ── 🚨 SIR SIZDIRMAZ ─────────────────────────────────────────────────────
@@ -113,11 +165,13 @@ describe("hospitable token teşhisi", () => {
     malformed,
     okUnderAltKey: 0,
   });
-  const diag = (a: number[], r: number[], t: number[]): TokenDiagnostics => ({
+  /** a/r/t = [ok, authFailed, malformed]; `stale` ayrı verilir. */
+  const diag = (a: number[], r: number[], t: number[], stale: number[] = [0, 0, 0]): TokenDiagnostics => ({
     organizations: 1,
     accessToken: counts(a[0], a[1], a[2]),
     refreshToken: counts(r[0], r[1], r[2]),
-    twoFactorSecret: counts(t[0], t[1], t[2]),
+    twoFactorActive: counts(t[0], t[1], t[2]),
+    twoFactorStale: counts(stale[0], stale[1], stale[2]),
     altKeyTried: false,
   });
 

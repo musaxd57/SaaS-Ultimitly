@@ -53,8 +53,17 @@ export interface TokenDiagnostics {
   organizations: number;
   accessToken: FieldCounts;
   refreshToken: FieldCounts;
-  /** Bağımsız anahtar sondası — aynı kutu, farklı tablo. */
-  twoFactorSecret: FieldCounts;
+  /**
+   * AKTİF ikinci faktör (`twoFactorEnabledAt` DOLU). Burada çözülememek GERÇEK
+   * ve ACİL bir arızadır: kullanıcı giriş yapamaz.
+   */
+  twoFactorActive: FieldCounts;
+  /**
+   * BAYAT kayıt (`twoFactorSecret` dolu ama `twoFactorEnabledAt` NULL) — yarım
+   * kalmış kurulum. Çözülememesi OPERASYONEL bir arıza DEĞİLDİR: hiçbir kod yolu
+   * bu değeri ikinci faktör saymaz (↓`verdictFor` gerekçesi).
+   */
+  twoFactorStale: FieldCounts;
   /** Çağıran alternatif anahtar verdi mi (rapor metnini buna göre yazmak için). */
   altKeyTried: boolean;
 }
@@ -136,10 +145,22 @@ export async function diagnoseHospitableTokens(
   const orgs = await db.organization.findMany({
     select: { hospitableTokenEnc: true, hospitableRefreshTokenEnc: true },
   });
+  // ⚠️ `twoFactorEnabledAt` DE seçilir — "2FA açık mı" sorusunun TEK doğru
+  // cevabı odur (kod-doğrulandı: login/route.ts, account/2fa/route.ts,
+  // settings/page.tsx, admin/reset-2fa/route.ts hepsi ona bakar). `secret`in
+  // dolu olması TEK BAŞINA hiçbir şeyi etkinleştirmez; `setup` onu yazıp
+  // `twoFactorEnabledAt: null` bırakır, yani yarım kalan her kurulum geride
+  // bayat bir secret bırakır. İkisini tek kovada saymak, zararsız bir artığı
+  // "kullanıcı giremiyor" gibi gösterirdi.
   const twoFa = await db.user.findMany({
     where: { twoFactorSecret: { not: null } },
-    select: { twoFactorSecret: true },
+    select: { twoFactorSecret: true, twoFactorEnabledAt: true },
   });
+  const pick = (active: boolean) =>
+    twoFa
+      .filter((u) => (u.twoFactorEnabledAt !== null) === active)
+      .map((u) => u.twoFactorSecret)
+      .filter((v): v is string => !!v);
 
   return {
     organizations: orgs.length,
@@ -148,7 +169,8 @@ export async function diagnoseHospitableTokens(
       orgs.map((o) => o.hospitableRefreshTokenEnc).filter((v): v is string => !!v),
       altKeySecret,
     ),
-    twoFactorSecret: tally(twoFa.map((u) => u.twoFactorSecret).filter((v): v is string => !!v), altKeySecret),
+    twoFactorActive: tally(pick(true), altKeySecret),
+    twoFactorStale: tally(pick(false), altKeySecret),
     altKeyTried: !!altKeySecret,
   };
 }
@@ -166,16 +188,33 @@ export type Verdict = "clean" | "isolated" | "global_key_mismatch" | "inconclusi
  * bir şey yok" aynı şey değildir ve ikincisini temiz raporlamak yanıltır.
  */
 export function verdictFor(d: TokenDiagnostics): Verdict {
-  const anyOk = d.accessToken.ok + d.refreshToken.ok + d.twoFactorSecret.ok;
+  // ⚠️ BAŞARILAR dört alandan da sayılır — BAYAT bir kayıt bile açılıyorsa
+  // anahtarın doğru olduğunu kanıtlar (kanıt değeri "kayıt canlı mı"ya bağlı
+  // değildir, "bu anahtarla açıldı mı"ya bağlıdır).
+  const anyOk = d.accessToken.ok + d.refreshToken.ok + d.twoFactorActive.ok + d.twoFactorStale.ok;
+  // ⚠️ HATALAR'a BAYAT kayıtlar DAHİL EDİLMEZ: hiçbir kod yolu onları ikinci
+  // faktör saymaz (`login` yalnız `twoFactorEnabledAt`e bakar), yani çözülememeleri
+  // kimseyi dışarıda bırakmaz. Saysaydık, terk edilmiş tek bir kurulum yüzünden
+  // "çalışan üründe arıza var" hükmü çıkardı. Bayat hatalar AYRICA raporlanır
+  // (↓`staleUndecryptable`) — göz ardı edilmezler, yalnız hükmü kirletmezler.
   const anyBad =
     d.accessToken.authFailed +
     d.accessToken.malformed +
     d.refreshToken.authFailed +
     d.refreshToken.malformed +
-    d.twoFactorSecret.authFailed +
-    d.twoFactorSecret.malformed;
+    d.twoFactorActive.authFailed +
+    d.twoFactorActive.malformed;
   if (anyOk === 0 && anyBad === 0) return "inconclusive";
   if (anyBad === 0) return "clean";
   if (anyOk === 0) return "global_key_mismatch";
   return "isolated";
+}
+
+/**
+ * Çözülemeyen BAYAT 2FA kaydı sayısı — operasyonel arıza DEĞİL, ama iki şey
+ * söyler: (1) temizlenecek artık var, (2) o satır yazılırken BAŞKA bir anahtar
+ * etkindi, yani aynı dönemde yazılmış diğer sırlar da şüpheli.
+ */
+export function staleUndecryptable(d: TokenDiagnostics): number {
+  return d.twoFactorStale.authFailed + d.twoFactorStale.malformed;
 }

@@ -91,10 +91,11 @@ describe("POST /api/admin/reset-2fa — operator escape hatch", () => {
     expect(audit?.organizationId).toBe(user.organizationId);
   });
 
-  it("unknown e-mail and already-off 2FA are clear field errors (no silent no-op)", async () => {
+  it("unknown e-mail and a TRULY clean account are clear field errors (no silent no-op)", async () => {
     session = await makeOperatorSession(OPERATOR_EMAIL);
     expect((await POST(req({ email: "yok@example.com" }))).status).toBe(400);
 
+    // Ne aktif faktör ne bayat secret → gerçekten temizlenecek bir şey yok.
     const org = await prisma.organization.create({ data: { name: "O2" } });
     await prisma.user.create({
       data: { organizationId: org.id, name: "N", email: "no2fa@example.com", passwordHash: "x", role: "owner" },
@@ -103,5 +104,87 @@ describe("POST /api/admin/reset-2fa — operator escape hatch", () => {
     expect(res.status).toBe(400);
     const data = await res.json();
     expect(data.fields.email).toContain("zaten kapalı");
+  });
+
+  // ── BAYAT KAYIT TEMİZLİĞİ (08-02, "Ahmet Apartman" durumu) ────────────────
+  // `setup` çağrılıp kurulum yarıda bırakılınca `twoFactorSecret` DOLU,
+  // `twoFactorEnabledAt` NULL kalır. 2FA arayüzde KAPALI görünür (doğrudur —
+  // aktifliğin tek koşulu `twoFactorEnabledAt`), ama artık geride durur.
+  // Eskiden bu rota öyle bir satırı REDDEDİYORDU → temizlemenin ürün yolu yoktu.
+  describe("bayat kayıt (secret var, twoFactorEnabledAt NULL)", () => {
+    async function seedStaleUser(sessionEpoch = 7) {
+      const org = await prisma.organization.create({ data: { name: "Ahmet Apartman" } });
+      const user = await prisma.user.create({
+        data: {
+          organizationId: org.id,
+          name: "Yarim Kurulum",
+          email: "bayat@example.com",
+          passwordHash: "x",
+          role: "owner",
+          twoFactorSecret: "cozulemeyen-eski-deger",
+          twoFactorEnabledAt: null, // ← 2FA KAPALI
+          sessionEpoch,
+        },
+      });
+      return user;
+    }
+
+    it("artığı siler, AYRI denetim eylemi yazar ve oturumları DÜŞÜRMEZ", async () => {
+      const user = await seedStaleUser(7);
+      session = await makeOperatorSession(OPERATOR_EMAIL);
+      const res = await POST(req({ email: "bayat@example.com" }));
+      expect(res.status).toBe(200);
+      expect((await res.json()).outcome).toBe("stale_cleared");
+
+      const after = await prisma.user.findUniqueOrThrow({ where: { id: user.id } });
+      expect(after.twoFactorSecret).toBeNull();
+      expect(after.twoFactorEnabledAt).toBeNull();
+      // 🚨 ASIL PİN: bayat secret hiçbir oturumu yetkilendirmiyordu → müşteriyi
+      // oturumundan atmak karşılığı olmayan bir kesinti olurdu.
+      expect(after.sessionEpoch).toBe(7);
+
+      // Denetim kaydı AYRI eylem adı taşır: "canlı 2FA kaldırıldı" ile
+      // "yarım kurulum artığı silindi" güvenlik açısından aynı ağırlıkta değil.
+      expect(await prisma.auditLog.count({ where: { action: "admin.2fa_reset" } })).toBe(0);
+      const audit = await prisma.auditLog.findFirst({
+        where: { action: "admin.2fa_stale_secret_cleared" },
+      });
+      expect(audit?.organizationId).toBe(user.organizationId);
+    });
+
+    it("aktif sıfırlama HÂLÂ oturumları düşürür (bayat dal onu gevşetmedi)", async () => {
+      // Ters yön pini: `sessionEpoch` artışı yalnız bayat dalda atlanmalı.
+      const user = await seedLockedUser();
+      session = await makeOperatorSession(OPERATOR_EMAIL);
+      const res = await POST(req({ email: user.email }));
+      expect((await res.json()).outcome).toBe("reset");
+      const after = await prisma.user.findUniqueOrThrow({ where: { id: user.id } });
+      expect(after.sessionEpoch).toBe(4);
+    });
+
+    it("operatör olmayan bayat kaydı temizleyemez (yetki kapısı aynı)", async () => {
+      const user = await seedStaleUser();
+      session = { userId: "u", organizationId: "org", role: "owner", email: "customer@example.com", name: "U", sessionEpoch: 0 };
+      expect((await POST(req({ email: "bayat@example.com" }))).status).toBe(401);
+      const after = await prisma.user.findUniqueOrThrow({ where: { id: user.id } });
+      expect(after.twoFactorSecret).not.toBeNull();
+    });
+
+    it("yanıt ve denetim kaydı şifreli değeri TAŞIMAZ", async () => {
+      await seedStaleUser();
+      session = await makeOperatorSession(OPERATOR_EMAIL);
+      const body = await (await POST(req({ email: "bayat@example.com" }))).json();
+      // Ayrıştırılmış gövde üzerinden — `JSON.stringify().toContain()` değil.
+      expect(Object.values(body)).not.toContain("cozulemeyen-eski-deger");
+      const audit = await prisma.auditLog.findFirstOrThrow({
+        where: { action: "admin.2fa_stale_secret_cleared" },
+      });
+      // `metadataJson` DB'de string tutuluyor → önce AYRIŞTIRILIR, sonra
+      // değerlere bakılır. Ham string üzerinde `toContain` aramak, kaçışlama
+      // yüzünden boş yere geçebilen assertion sınıfına girerdi (08-01 dersi).
+      const meta = JSON.parse(audit.metadataJson ?? "{}") as Record<string, unknown>;
+      expect(Object.keys(meta).sort()).toEqual(["targetEmail", "targetUserId"]);
+      expect(Object.values(meta)).not.toContain("cozulemeyen-eski-deger");
+    });
   });
 });

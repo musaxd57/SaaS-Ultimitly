@@ -23,6 +23,7 @@
 import { PrismaClient } from "@prisma/client";
 import {
   diagnoseHospitableTokens,
+  staleUndecryptable,
   verdictFor,
   type FieldCounts,
 } from "../src/lib/hospitable-token-diagnostics-core";
@@ -48,9 +49,18 @@ async function main() {
   console.log(`Organization toplam                     : ${d.organizations}`);
   block("ERISIM TOKEN'I (hospitableTokenEnc)", d.accessToken, d.altKeyTried);
   block("REFRESH TOKEN (hospitableRefreshTokenEnc)", d.refreshToken, d.altKeyTried);
+  // ⚠️ 2FA IKI KOVAYA AYRILIR. "Aktiflik" kod-dogrulanmis tek kosula baglidir:
+  // twoFactorEnabledAt DOLU. Secret'in dolu olmasi tek basina hicbir sey
+  // etkinlestirmez - `setup` onu yazip enabledAt'i null birakir, yani yarim
+  // kalan her kurulum geride bayat bir kayit birakir.
   block(
-    "BAGIMSIZ ANAHTAR SONDASI (User.twoFactorSecret - AYNI sifreleme kutusu)",
-    d.twoFactorSecret,
+    "AKTIF 2FA (twoFactorEnabledAt DOLU) - cozulemezse KULLANICI GIREMEZ",
+    d.twoFactorActive,
+    d.altKeyTried,
+  );
+  block(
+    "BAYAT KAYIT (secret var, twoFactorEnabledAt NULL) - yarim kalmis kurulum",
+    d.twoFactorStale,
     d.altKeyTried,
   );
 
@@ -69,8 +79,23 @@ async function main() {
   } else {
     console.log("HUKUM: OLCULEMEDI - sifreli hic deger yok (sayilacak sey bulunamadi).");
   }
+  const stale = staleUndecryptable(d);
+  if (stale > 0) {
+    console.log(
+      `\nAYRICA: ${stale} BAYAT 2FA kaydi cozulemiyor. Bu bir ariza DEGIL (hicbir kod yolu`,
+    );
+    console.log("  onlari ikinci faktor saymaz, kimse disarida kalmiyor) ama IKI sey soyler:");
+    console.log("   1) temizlenecek artik var -> /admin > '2FA sifirla' ayni e-posta ile;");
+    console.log("      bayat kayitta oturum DUSURULMEZ, yalniz artik silinir + denetime yazilir.");
+    console.log("   2) o satir yazilirken BASKA bir anahtar etkindi -> ayni donemde yazilmis");
+    console.log("      diger sirlar da supheli (ALT_DECRYPT_KEY sondasi bunu netlestirir).");
+  }
   if (d.altKeyTried) {
-    const altHits = d.accessToken.okUnderAltKey + d.refreshToken.okUnderAltKey + d.twoFactorSecret.okUnderAltKey;
+    const altHits =
+      d.accessToken.okUnderAltKey +
+      d.refreshToken.okUnderAltKey +
+      d.twoFactorActive.okUnderAltKey +
+      d.twoFactorStale.okUnderAltKey;
     console.log(
       altHits > 0
         ? `NOT: ${altHits} deger ALTERNATIF anahtarla acildi -> bu satirlar ENCRYPTION_KEY set edilmeden ONCE yazilmis.`
@@ -78,13 +103,16 @@ async function main() {
     );
   }
 
+  // ⚠️ Cikis kodu OPERASYONEL arizayi yansitir: bayat kayitlar 1 dondurmez
+  // (temizlik isi bir arizanin ayni sey degil - aksi halde arac "bozuk" derdi
+  // ve gercek bir ariza ciktiginda sinyal degerini kaybederdi).
   const bad =
     d.accessToken.authFailed +
     d.accessToken.malformed +
     d.refreshToken.authFailed +
     d.refreshToken.malformed +
-    d.twoFactorSecret.authFailed +
-    d.twoFactorSecret.malformed;
+    d.twoFactorActive.authFailed +
+    d.twoFactorActive.malformed;
   if (bad > 0 || v === "inconclusive") process.exitCode = 1;
 }
 
