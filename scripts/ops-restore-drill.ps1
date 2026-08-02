@@ -27,20 +27,78 @@
 #   - Turkce Windows'ta initdb --locale=C ister (non-ASCII locale hatasi).
 #   - PS 5.1 native argumanlardaki gomulu cift tirnagi bozar -> buyuk/kucuk
 #     harfli tablo adi iceren SQL dosyaya yazilip psql -f ile kosulur.
+#   - PostgreSQL surumu OTOMATIK bulunur (en yuksek kurulu surum; secim ekrana
+#     basilir). Gerekirse: -PgBin 'C:\Program Files\PostgreSQL\18\bin'
 # ---------------------------------------------------------------------------
 [CmdletBinding()]
 param(
   [Parameter(Mandatory = $true)][string]$ExpectedSha,
   [int]$ExpectCalendarSources = -1,
-  [string]$PgBin = 'C:\Program Files\PostgreSQL\17\bin',
+  # BOS = otomatik bul (en yuksek kurulu surum, asagidaki Resolve-PgBin).
+  # Elle verilen deger HER ZAMAN kazanir.
+  [string]$PgBin = '',
   [string]$DumpPattern = "lixus-prod-post-contract-*.dump"
 )
+
+# ---------------------------------------------------------------------------
+# PostgreSQL bin klasorunu BUL.
+#
+# Sabit surum numarasi yazmak her yil bayatliyor: script 17'ye pinliydi,
+# operator makinesi 18'e gecince -PgBin elle verilmeden kosmuyordu (2026-08-02).
+#
+# YON KURALI (neden EN YUKSEK surum): pg_restore, dump'i ureten surumden YENI
+# olabilir ama ESKI OLAMAZ. Provada ayrica initdb ile YEREL bir kume kuruluyor;
+# initdb/pg_ctl/psql/pg_restore'un HEPSI AYNI surumden gelmek zorunda (karisik
+# surum kume acmaz) - bu yuzden tek bir klasor secilir ve hepsi oradan cagrilir.
+#
+# TUM gerekli exe'ler AYNI klasorde aranir: "client only" kurulumlarda
+# psql/pg_restore vardir ama initdb/pg_ctl YOKTUR - yalniz pg_restore'a bakan
+# eski kontrol boyle bir kurulumu secer, prova da initdb adiminda patlardi.
+#
+# DIKKAT: Bu fonksiyon iki operator scriptinde de KOPYA duruyor, BILEREK: bunlar
+# felaket-kurtarma araclari ve ortak bir dosyaya bagimli olmamalilar (o dosya
+# eksikse arac hic calismaz - kurtarma aninda en istemedigin sey). Birini
+# degistiren OTEKINI de degistirir.
+# ---------------------------------------------------------------------------
+function Resolve-PgBin {
+  param([string]$Explicit, [string[]]$Required)
+  if ($Explicit) {
+    foreach ($exe in $Required) {
+      if (-not (Test-Path (Join-Path $Explicit $exe))) { throw "$exe bulunamadi: $Explicit" }
+    }
+    return $Explicit
+  }
+  $roots = @($env:ProgramW6432, $env:ProgramFiles, 'C:\Program Files') |
+    Where-Object { $_ } | Select-Object -Unique |
+    ForEach-Object { Join-Path $_ 'PostgreSQL' } |
+    Where-Object { Test-Path $_ }
+  if (-not $roots) { throw "PostgreSQL kurulumu bulunamadi. -PgBin ile bin klasorunu elle ver." }
+  $best = Get-ChildItem -Path $roots -Directory -ErrorAction SilentlyContinue |
+    Where-Object { $_.Name -match '^\d+$' } |
+    Sort-Object { [int]$_.Name } -Descending |
+    Where-Object {
+      $b = Join-Path $_.FullName 'bin'
+      (Test-Path $b) -and (@($Required | Where-Object { -not (Test-Path (Join-Path $b $_)) }).Count -eq 0)
+    } | Select-Object -First 1
+  if (-not $best) {
+    throw ("Gerekli araclarin (" + ($Required -join ', ') + ") tamami tek bir PostgreSQL surumunde bulunamadi. -PgBin ile elle ver.")
+  }
+  $bin = Join-Path $best.FullName 'bin'
+  # Secim GORUNUR olmali: sessiz otomatik secim, kurtarma aracinda yanlis
+  # surumle kosuldugunu fark etmemek demektir.
+  Write-Host "PostgreSQL $($best.Name) kullaniliyor: $bin"
+  return $bin
+}
 $dir = Join-Path $env:TEMP ("lixus-prova-" + [guid]::NewGuid().ToString("N"))
 $sqlDir = "$dir-sql"
 $pKey = [IntPtr]::Zero; $secKey = $null; $started = $false
 try {
   if (-not (Test-Path "scripts\verify-calendar-url-enc.ts")) { throw "Bu scripti LixusPreflight klasorunden calistir." }
-  if (-not (Test-Path (Join-Path $PgBin "pg_restore.exe"))) { throw "PostgreSQL bin klasoru bulunamadi: $PgBin" }
+  # Provanin kullandigi BES arac da ayni surumden gelmeli (karisik surum kume
+  # acmaz) - hepsi tek seferde aranir, eksik olan varsa BURADA durulur.
+  $PgBin = Resolve-PgBin -Explicit $PgBin -Required @(
+    "pg_restore.exe", "initdb.exe", "pg_ctl.exe", "createdb.exe", "psql.exe"
+  )
   $expectedMigrations = (Get-ChildItem "prisma\migrations" -Directory).Count
   if ($expectedMigrations -lt 1) { throw "prisma/migrations bos gorunuyor - klon guncel mi?" }
   Write-Host "Beklenen migration sayisi (repodan turetildi): $expectedMigrations"

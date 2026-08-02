@@ -10,16 +10,73 @@
 # Kosum (normal, yonetici OLMAYAN PowerShell):
 #   powershell -NoProfile -ExecutionPolicy Bypass -File .\scripts\ops-backup-prod.ps1
 #
+# PostgreSQL surumu OTOMATIK bulunur (en yuksek kurulu surum; secim ekrana
+# basilir). Gerekirse elle: -PgBin 'C:\Program Files\PostgreSQL\18\bin'
+#
 # Cikan SHA256'yi not et - restore provasi (ops-restore-drill.ps1) onu ister.
 # ---------------------------------------------------------------------------
 [CmdletBinding()]
 param(
-  [string]$PgBin = 'C:\Program Files\PostgreSQL\17\bin'
+  # BOS = otomatik bul (en yuksek kurulu surum, asagidaki Resolve-PgBin).
+  # Elle verilen deger HER ZAMAN kazanir.
+  [string]$PgBin = ''
 )
+
+# ---------------------------------------------------------------------------
+# PostgreSQL bin klasorunu BUL.
+#
+# Sabit surum numarasi yazmak her yil bayatliyor: script 17'ye pinliydi,
+# operator makinesi 18'e gecince -PgBin elle verilmeden kosmuyordu (2026-08-02).
+#
+# YON KURALI (neden EN YUKSEK surum): pg_dump/pg_restore sunucudan YENI
+# olabilir ama ESKI OLAMAZ - eski istemci "server version mismatch" ile yedegi
+# hic aldirmaz. Railway sunucusu yukseltilse bile en yuksek yerel surum dogru
+# secimdir; yanlis yon sessiz degil gurultulu bir arizadir ama yedegi
+# aldirmadigi icin bedeli yuksektir.
+#
+# TUM gerekli exe'ler AYNI klasorde aranir: "client only" kurulumlarda
+# psql/pg_dump vardir ama initdb/pg_ctl YOKTUR - yalniz tek bir exe'ye bakan
+# bir kontrol boyle bir kurulumu secer ve is ilerideki bir adimda patlardi.
+#
+# DIKKAT: Bu fonksiyon iki operator scriptinde de KOPYA duruyor, BILEREK: bunlar
+# felaket-kurtarma araclari ve ortak bir dosyaya bagimli olmamalilar (o dosya
+# eksikse arac hic calismaz - kurtarma aninda en istemedigin sey). Birini
+# degistiren OTEKINI de degistirir.
+# ---------------------------------------------------------------------------
+function Resolve-PgBin {
+  param([string]$Explicit, [string[]]$Required)
+  if ($Explicit) {
+    foreach ($exe in $Required) {
+      if (-not (Test-Path (Join-Path $Explicit $exe))) { throw "$exe bulunamadi: $Explicit" }
+    }
+    return $Explicit
+  }
+  $roots = @($env:ProgramW6432, $env:ProgramFiles, 'C:\Program Files') |
+    Where-Object { $_ } | Select-Object -Unique |
+    ForEach-Object { Join-Path $_ 'PostgreSQL' } |
+    Where-Object { Test-Path $_ }
+  if (-not $roots) { throw "PostgreSQL kurulumu bulunamadi. -PgBin ile bin klasorunu elle ver." }
+  $best = Get-ChildItem -Path $roots -Directory -ErrorAction SilentlyContinue |
+    Where-Object { $_.Name -match '^\d+$' } |
+    Sort-Object { [int]$_.Name } -Descending |
+    Where-Object {
+      $b = Join-Path $_.FullName 'bin'
+      (Test-Path $b) -and (@($Required | Where-Object { -not (Test-Path (Join-Path $b $_)) }).Count -eq 0)
+    } | Select-Object -First 1
+  if (-not $best) {
+    throw ("Gerekli araclarin (" + ($Required -join ', ') + ") tamami tek bir PostgreSQL surumunde bulunamadi. -PgBin ile elle ver.")
+  }
+  $bin = Join-Path $best.FullName 'bin'
+  # Secim GORUNUR olmali: sessiz otomatik secim, kurtarma aracinda yanlis
+  # surumle kosuldugunu fark etmemek demektir.
+  Write-Host "PostgreSQL $($best.Name) kullaniliyor: $bin"
+  return $bin
+}
+
 $sec = Read-Host -AsSecureString "Railway PUBLIC/PROXY DATABASE_URL"
 $ptr = [IntPtr]::Zero
 try {
-  if (-not (Test-Path (Join-Path $PgBin "pg_dump.exe"))) { throw "pg_dump bulunamadi: $PgBin" }
+  $PgBin = Resolve-PgBin -Explicit $PgBin -Required @("pg_dump.exe", "pg_restore.exe")
   $ptr = [Runtime.InteropServices.Marshal]::SecureStringToGlobalAllocUnicode($sec)
   $plain = [Runtime.InteropServices.Marshal]::PtrToStringUni($ptr)
   $u = [Uri]$plain
