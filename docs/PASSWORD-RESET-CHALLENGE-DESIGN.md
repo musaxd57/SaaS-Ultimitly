@@ -425,7 +425,22 @@ kaldır (kırmızı) **ve** koşulsuz yap (yine kırmızı).
    yani bugün risk YOK. Ama bayrak düşerse bu tasarımdan bağımsız olarak
    forgot-password dâhil her hız limiti çöker — `docs/…§4f`'de belgeli.
 
-### 🚧 FAZ 2 ENGELİ — OTURUM AÇIKKEN BAĞLANTI ÇALIŞMAZ (08-02, kod-doğrulandı)
+### ✅ ÇÖZÜLDÜ — OTURUM AÇIKKEN BAĞLANTI ÇALIŞMIYORDU (08-02, kod-doğrulandı)
+
+> **Durum: (a) seçeneği uygulandı** (kullanıcı kararı, 08-02).
+> `src/middleware.ts` artık İKİ ayrı liste tutuyor: `AUTH_PATHS` (oturumsuz
+> görülebilir sayfalar) ve `SIGNED_IN_REDIRECT_PATHS` (oturum açıkken panele
+> yollananlar). `/sifremi-unuttum` birincide VAR, ikincide YOK.
+> `/login` + `/register` davranışı DEĞİŞMEDİ.
+> Pin: `tests/unit/middleware-auth-routing.test.ts` (7 test) — üç bozulma yönü
+> de mutasyonla ayrı ayrı doğrulandı: düzeltmeyi geri alma · yönlendirmeyi
+> komple kaldırma · sayfayı `AUTH_PATHS`'ten düşürme (bu sonuncusu sayfayı
+> SESSİZCE oturum-gerektiren hâle getirirdi ve ilk testi yeşil bırakırdı).
+> ⚠️ Fragment devralma sorunu da bununla ortadan kalktı: yönlendirme olmadığı
+> için token artık `/dashboard#t=...`'e taşınamıyor, sayfanın kendi
+> `history.replaceState` temizliği çalışıyor.
+
+<details><summary>Özgün bulgu (kayıt için)</summary>
 
 `src/middleware.ts:27-32`: oturumu AÇIK bir kullanıcı `/sifremi-unuttum`'a
 giderse `/dashboard`'a yönlendirilir (`AUTH_PATHS`, satır 4). Bugün zararsız —
@@ -441,17 +456,21 @@ tarayıcıda zaten geçerli bir oturum vardır — yani saldırgan modeli "oturu
 erişebilen kişi"ye iner, ki bu token'dan çok daha değerlidir. Yine de sayfanın
 `replaceState` temizliği orada ÇALIŞMAZ.
 
-**Karar KULLANICININ** (kimlik yönlendirme semantiğini değiştirir, Faz 1'in işi
-değil). Seçenekler:
+Seçenekler:
 - (a) `/sifremi-unuttum`'u "signed in → uzak tut" kuralının DIŞINA al. Sayfa
   zaten public ve çağırdığı uç nokta enumeration-safe; oturumu olan birinin
   şifresini sıfırlaması meşru bir istek (tam da "hesabım ele geçti" senaryosu).
-  Güvenlik kaybı kod-doğrulaması ile YOK; tek satır.
+  Güvenlik kaybı kod-doğrulaması ile YOK.
 - (b) Yönlendirmeyi koru, hedefe boş fragment yaz (`url.hash = "#"`) → tarayıcı
   devralmaz. Akış yine kırık kalır, yalnız token taşınmaz.
 - (c) Olduğu gibi bırak → Faz 2'de oturumu açık kullanıcılar için akış kırık.
 
-**Öneri: (a).** Faz 2 onayıyla BİRLİKTE uygulanmalı, ayrı bir karar olarak.
+**Seçilen: (a).** ⚠️ Uygulama tek satır DEĞİLDİ: `isAuthPage` bayrağı İKİ işi
+birden yapıyordu (sayfayı public yapmak + oturum açıkken yönlendirmek), o yüzden
+sayfayı listeden çıkarmak onu sessizce oturum-gerektiren hâle getirirdi. İki
+sorumluluk ayrı listelere bölündü.
+
+</details>
 
 ---
 

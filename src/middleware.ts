@@ -1,13 +1,42 @@
 import { NextResponse, type NextRequest } from "next/server";
 import { SESSION_COOKIE, SESSION_MAX_AGE, signSession, verifySession } from "@/lib/auth/session";
 
+/** Oturum GEREKTİRMEYEN kimlik sayfaları — çıkış yapmış ziyaretçi görebilir. */
 const AUTH_PATHS = ["/login", "/register", "/sifremi-unuttum"];
+
+/**
+ * Oturum AÇIKKEN panele geri yollanan kimlik sayfaları.
+ *
+ * 🚨 `/sifremi-unuttum` BİLİNÇLİ OLARAK DIŞARIDA (08-02, Codex). Sıfırlama
+ * e-postasındaki bağlantı bu sayfaya gelir; hesabına o tarayıcıdan girmiş bir
+ * kullanıcı tıkladığında panele yönlendiriliyor ve sıfırlamayı HİÇ
+ * yapamıyordu. Üstelik tarayıcı, yönlendirme hedefinde fragment yoksa
+ * kaynağınkini TAŞIDIĞI için token `/dashboard#t=...` olarak adres çubuğunda
+ * kalıyordu — sayfanın `history.replaceState` temizliği orada çalışmaz.
+ *
+ * Güvenlik kaybı YOK: sayfa zaten public, çağırdığı uç nokta
+ * enumeration-safe ve oturumu olan biri aynı isteği çıkış yaparak ya da gizli
+ * pencereden zaten gönderebiliyordu — yani yeni bir yetenek açılmıyor. Kapattığı
+ * şey gerçek: "şifremden şüpheleniyorum, sıfırlayayım" tam olarak oturum
+ * AÇIKKEN yapılan bir taleptir.
+ *
+ * ⚠️ `/login` ve `/register` AYNEN KALIR: oradaki yönlendirme, giriş yapmış
+ * kullanıcıyı tekrar giriş formuna düşürmemek içindir ve bu değişiklik onlara
+ * DOKUNMAZ (test-pinli).
+ */
+const SIGNED_IN_REDIRECT_PATHS = ["/login", "/register"];
 
 export async function middleware(req: NextRequest) {
   const { pathname } = req.nextUrl;
   const token = req.cookies.get(SESSION_COOKIE)?.value;
   const session = await verifySession(token);
-  const isAuthPage = AUTH_PATHS.some((p) => pathname === p || pathname.startsWith(p + "/"));
+  const matches = (paths: string[]) =>
+    paths.some((p) => pathname === p || pathname.startsWith(p + "/"));
+  // İKİ AYRI SORU, tek bayrakta toplanmamalı: "bu sayfa oturumsuz görülebilir mi"
+  // (↓`isPublic`) ile "oturum açıkken panele mi yollanmalı" (↓) farklı şeyler.
+  // Tek `isAuthPage` bayrağı ikisini birden yönetiyordu; `/sifremi-unuttum`'u
+  // ondan çıkarmak sayfayı sessizce oturum-gerektiren hâle getirirdi.
+  const isAuthPage = matches(AUTH_PATHS);
   // Public pages a logged-out visitor may see: the marketing landing ("/"), the
   // legal pages, and the auth pages. Everything else requires a session.
   // "/c" = the public guest QR concierge chat (its own token auth; no session).
@@ -23,8 +52,8 @@ export async function middleware(req: NextRequest) {
     return NextResponse.redirect(url);
   }
 
-  // Signed in → keep away from auth pages.
-  if (session && isAuthPage) {
+  // Signed in → keep away from auth pages (şifre sıfırlama HARİÇ, ↑gerekçe).
+  if (session && matches(SIGNED_IN_REDIRECT_PATHS)) {
     const url = req.nextUrl.clone();
     url.pathname = "/dashboard";
     url.search = "";
