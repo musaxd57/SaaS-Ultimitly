@@ -11,6 +11,16 @@ hostlara satılır. Sahip/operatör: musaxd57 (Nuve, ~10 daire). **Türkçe önc
 Marka: **Lixus AI** (site: lixusai.com). Temel ilke: AI karar-verici değil, yardımcı
 operatör — riskli mesajlar hep insana bırakılır.
 
+## 🔒 REDAKSİYON KURALI (08-05 — repo PUBLIC yapıldı)
+**Bu dosyaya gerçek KİMLİK DEĞERİ yazma.** Yasak: org/kullanıcı id'leri · kişisel e-posta
+adresleri · token/anahtar · müşteri adları. Bunun yerine env adını ya da nereden okunacağını
+yaz (`PRIMARY_ORG_ID`, `ERROR_ALERT_EMAIL`). Gerekçe: CLAUDE.md ürünün canlı durumunu
+anlatıyor ve repo artık herkese açık — bir denetimde bu dosyadan kurucunun kişisel e-postası
+ve gerçek org id'si çıktı (ikisi de temizlendi). ⚠️ Ayrıca dosya bir DIŞ ANALİSTE verilince
+**canlı kusur listesi gibi okunuyor**: bir model, kapattığımız bugların ayrıntılı anlatımını
+taze bulgu diye raporladı ("KLIMA ÇALIŞMIYOR" örneği dahil, kelimesi kelimesine buradan).
+Hata geçmişini yazmaya devam et — ama "KAPANDI" damgası her maddede AÇIKÇA görünsün.
+
 ## 🚨 Değişmez kural
 **Çalışan ürün BOZULMAYACAK.** Her ekleme *additive*, testli, geri alınabilir. Riskli
 adımda önce yedek + kullanıcı onayı. Para/e-posta akışına dokunan şeyler kullanıcı
@@ -55,7 +65,7 @@ olmadan push etme. PR sadece kullanıcı isterse.
 - **Hospitable:** per-tenant şifreli token (`getOrgHospitableToken` = sync/gönderimin TEK
   fonksiyonu). PAT (süresiz) VEYA OAuth (12s access + 90g rotasyonlu refresh, şeffaf yenileme).
   `financials:read` YOK → gelir özelliği bilinçli KALDIRILDI, geri ekleme. Env-token fallback
-  SADECE primary org'a (`PRIMARY_ORG_ID`=Nuve `cmpwcnpdz0000oz1yw4wof2o1`).
+  SADECE primary org'a (`PRIMARY_ORG_ID` = Nuve'nin org id'si; DEĞER BURAYA YAZILMAZ ↓REDAKSİYON KURALI).
 - **Sync:** cross-instance kilit (`SystemLock` "scheduled-sync") + 2-dk in-process cron
   (instrumentation.ts, `INTERNAL_CRON_DISABLED` ile kapanır) + opsiyonel dış cron
   (`/api/cron/sync`, `CRON_SECRET` header). Hepsi `runScheduledSync`. Manuel sync `withSyncLock`.
@@ -122,7 +132,7 @@ temenni yasak, çelişki yasak, dolgu-soru yasak, misafire HER ZAMAN "siz", ben-
   teorik değil AKTİF gereksinim (redakte veri + tek gerçek müşteri Nuve=founder → geniş açılıştan ÖNCE ŞART).
   /admin "GLM Gölge Pilotu" kartı uyum %'sini gösterir; Aşama-2 (insan değerlendirmesi) pilot dolunca.
   ✅ **`SHADOW_AI_ORG_IDS` RAILWAY'DE SET (kullanıcı ekledi, 07-27 (2) doğrulandı):** değer = `PRIMARY_ORG_ID`
-  (`cmpwcnpdz0000oz1yw4wof2o1`) — ekran görüntüsünden okundu, kod tarafı `shadow-ai.ts orgAllowed`
+  (= `PRIMARY_ORG_ID`, değer Railway'de) — ekran görüntüsünden okundu, kod tarafı `shadow-ai.ts orgAllowed`
   (split(",")+trim+includes; boş=tüm org'lar, doluysa allowlist) ile eşleşme kod-doğrulandı. Sonuç: gölge
   YALNIZ Nuve'de koşar; `REGISTRATION_OPEN=1` altında Hospitable bağlayan İKİNCİ bir müşteri gelse bile
   onun redakte mesajları Akash'a GİTMEZ — 07-25'te "ikinci ödeyen müşteri = tetikleyici" diye bırakılan
@@ -171,7 +181,7 @@ temenni yasak, çelişki yasak, dolgu-soru yasak, misafire HER ZAMAN "siz", ben-
   çalışıyor (uçtan-uca gerçek hesapla doğrulandı). **`TRUST_CF_HEADER` EKLEME** (origin CF arkasında
   değil, Paddle webhook direkt gelir → default=rightmost XFF doğru).
 - **Nuve'nin Hospitable aboneliği bitik (402)** → veri donmuş anlık-görüntü; yenilenince canlı döner (bug değil).
-- **`SENTRY_DSN` + `ERROR_ALERT_EMAIL` Railway'de CANLI ve 07-30'da KANITLI:** kontrollü test Railway Console'dan koştu (`npx tsx scripts/test-sentry-report.ts` — SALT MANUEL operatör aracı, hiçbir şey otomatik çağırmaz) → Sentry Issues'a event düştü (NODE-7, transaction `sentry-selftest LIXUS-SENTRY-TEST-ms77wmtm`, env production) + Resend'den uyarı e-postası Delivered (musacinar2009@gmail.com). Ekilen sahte PII tamamı maskeli gitti (`[EMAIL]/sk-[REDACTED]/password: [REDACTED]/[PHONE]`); script, redaksiyondan tek değer sağ çıksa GÖNDERMEDEN durur. reportError→Sentry fire-and-forget olduğundan script çıkışta 10 sn bekler (flush). Kod deseni: `email-core.ts`/`report-error-core.ts` core + server-only wrapper (crypto emsali) — reportError'ın TAMAMI core'da, wrapper salt re-export; `@/lib/email`'i mock'layan test reportError'ın e-posta bacağını yakalamaz, onun mock'u `@/lib/email-core`'a yapılır.
+- **`SENTRY_DSN` + `ERROR_ALERT_EMAIL` Railway'de CANLI ve 07-30'da KANITLI:** kontrollü test Railway Console'dan koştu (`npx tsx scripts/test-sentry-report.ts` — SALT MANUEL operatör aracı, hiçbir şey otomatik çağırmaz) → Sentry Issues'a event düştü (NODE-7, transaction `sentry-selftest LIXUS-SENTRY-TEST-ms77wmtm`, env production) + Resend'den uyarı e-postası Delivered (alıcı = `ERROR_ALERT_EMAIL`, kurucunun kişisel adresi; DEĞER BURAYA YAZILMAZ). Ekilen sahte PII tamamı maskeli gitti (`[EMAIL]/sk-[REDACTED]/password: [REDACTED]/[PHONE]`); script, redaksiyondan tek değer sağ çıksa GÖNDERMEDEN durur. reportError→Sentry fire-and-forget olduğundan script çıkışta 10 sn bekler (flush). Kod deseni: `email-core.ts`/`report-error-core.ts` core + server-only wrapper (crypto emsali) — reportError'ın TAMAMI core'da, wrapper salt re-export; `@/lib/email`'i mock'layan test reportError'ın e-posta bacağını yakalamaz, onun mock'u `@/lib/email-core`'a yapılır.
 
 ## FİYAT (kesin, 2026-06-16 kullanıcı onaylı) — FLAT tier'ler
 **Başlangıç ₺449 (1-2 daire) · Pro ₺899 (3-7) · İşletme ₺1.699 (8-25 daire)**; yıllıkta 2 ay bedava.
