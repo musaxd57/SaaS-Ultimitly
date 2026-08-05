@@ -206,4 +206,100 @@ describe("redactSensitive", () => {
     expect(openai).toContain("invalid_request_error"); // error type kept (debuggable)
     expect(openai).toContain("invalid_value"); // error code kept
   });
+
+  // ── 08-05: JSON TIRNAKLI BİLEŞİK ANAHTAR DELİĞİ ──────────────────────────
+  // Ölçülen kusur: `("?)(KEY)\1` yapısı tırnaklama ile kelime-içi eşleşmeyi
+  // BİRBİRİNİ DIŞLAYAN hâle getiriyordu. `senderName=` (tırnaksız) redakte
+  // oluyordu ama `{"senderName":...}` (JSON) OLMUYORDU — yani misafirin adı ve
+  // QR sohbet token'ı ABD'de barındırılan Sentry'ye AÇIK gidiyordu.
+  //
+  // 07-30'daki canlı Sentry testi yeşil geçmişti çünkü yalnız KAPSANAN
+  // biçimleri ekmişti (`sk-`, çıplak e-posta, telefon). Test gerçekti, kapsamı
+  // dardı; çıkardığımız "tüm PII maskeli gider" sonucu ise genişti.
+  it("JSON tırnaklı BİLEŞİK anahtarların değeri de maskelenir", () => {
+    const cases: [string, string][] = [
+      ['{"senderName":"Ayse Yilmaz"}', "Ayse Yilmaz"],
+      ['{"chatToken":"abc123secretvalue"}', "abc123secretvalue"],
+      ['{"guestName":"Mehmet Demir"}', "Mehmet Demir"],
+      ['{"accessToken":"tok_live_xyz789"}', "tok_live_xyz789"],
+      ['{"a":{"b":{"senderName":"Ayse"}}}', "Ayse"], // iç içe
+      ['{"guestPhone":"05321234567"}', "05321234567"],
+    ];
+    for (const [input, secret] of cases) {
+      expect(redactSensitive(input), `sızdı: ${input}`).not.toContain(secret);
+    }
+    // Tırnaksız biçimle PARİTE (eskiden yalnız bu çalışıyordu).
+    expect(redactSensitive("senderName=Ayse Yilmaz")).not.toContain("Ayse Yilmaz");
+  });
+
+  it("SERBEST METİN alanları (content/body) maskelenir — misafir metni taşırlar", () => {
+    // `content` = OpenAI mesaj alanı, `body` = MessageOutbox gövdesi; ikisi de
+    // misafir metni taşır ve SCRUB KAPSAMI KURALI gereği korunmalı.
+    expect(redactSensitive('{"content":"wifi sifresi Ev12345"}')).not.toContain("wifi sifresi");
+    expect(redactSensitive('{"body":"dairede hirsizlik oldu"}')).not.toContain("hirsizlik");
+  });
+
+  // ── TEŞHİS KORUMALARI — bu testler BUGÜN YEŞİL ve YEŞİL KALMALI ──────────
+  // Aşırı-redaksiyon, sızıntıdan DAHA KÖTÜ bir sonuçtur: her uyarı
+  // "[REDACTED]" olursa operasyon körelir ve araç gerçek arızada işe yaramaz.
+  // Aşağıdaki her satır, anahtar listesine eklenmesi CAZİP ama YIKICI olan bir
+  // ismi yasaklar.
+  it("hata metninin kendisi KORUNUR (error/message/detail/note anahtar DEĞİL)", () => {
+    // `reportError:50-51` detail'i `${err.name}: ${err.message}` ile kurar →
+    // dize LİTERAL olarak "Error: …" ile başlar. `error`ı anahtar yapmak her
+    // yığın izinin ilk satırını yok ederdi.
+    expect(redactSensitive("Error: connect ECONNREFUSED 10.0.0.1:5432")).toContain("ECONNREFUSED");
+    expect(redactSensitive("TypeError: x is not a function")).toContain("not a function");
+    // Sağlayıcı arıza sebebi — teşhisteki en yararlı tek alan.
+    expect(redactSensitive('{"error":{"message":"model not found"}}')).toContain("model not found");
+    // `note` misafir metnini MODEL GİRDİSİ olarak da taşıyor (shadow-ai /
+    // quality-audit); anahtar yapmak gölge pilotun kıyasını bozar.
+    expect(redactSensitive("Note: we arrive late, room is cold")).toContain("we arrive late");
+  });
+
+  it("TAM-TOKEN eşleşme: Content-Type ve bodySnippet KORUNUR", () => {
+    // `content`/`body` yalnız TAM token olarak eşleşir; önek/sonek taşıyan
+    // teşhis alanları etkilenmez.
+    expect(redactSensitive("HTTP 400 Content-Type: application/json")).toContain("application/json");
+    expect(redactSensitive("bodySnippet: HTTP 402 subscription inactive")).toContain(
+      "subscription inactive",
+    );
+    expect(redactSensitive("hasContent: true")).toContain("true");
+  });
+
+  it("YIĞIN İZİ satır numaraları KORUNUR (dosya adı duyarlı kelime içerse bile)", () => {
+    // ⚠️ Bu, önerilen ilk düzeltmenin YAN ETKİSİYDİ ve ölçülerek yakalandı:
+    // anahtar kelime-içinde eşleştiği için `/app/.../email-core.ts:101:7`
+    // yolundaki satır numarası maskeleniyordu — tam da hata ayıklarken en çok
+    // istenen güvenlik dosyalarında. Token-başı lookbehind bunu kapatır.
+    expect(redactSensitive("at send (/app/src/lib/email-core.ts:101:7)")).toContain(":101:7");
+    expect(redactSensitive("at hash (/app/src/lib/auth/password.ts:12:3)")).toContain(":12:3");
+  });
+
+  it("anahtar adı bir DEĞERİN içinde geçerse dokunulmaz", () => {
+    // Redakte edilen şey ANAHTARIN değeridir, metnin içindeki anahtar adı değil.
+    expect(redactSensitive('{"detail":"the field guestName is required"}')).toContain("guestName");
+  });
+
+  // ── ReDoS SINIRLARI ──────────────────────────────────────────────────────
+  // Ulaşılabilir: `quality-audit.ts:65` ve `shadow-ai.ts:264` misafir metnini
+  // uzunluk tavanından ÖNCE redakte ediyor; QR sohbet gövde kapısı 64KB. Node
+  // tek iş parçacıklı → saniyelerce CPU, TÜM instance'ı bloke eder.
+  it("düşman girdide sınırlı sürede biter (ReDoS)", () => {
+    const measure = (s: string) => {
+      const t0 = process.hrtime.bigint();
+      redactSensitive(s);
+      return Number(process.hrtime.bigint() - t0) / 1e6;
+    };
+    // E-posta deseni — sınırsız hâlde ÖLÇÜLDÜ: 40KB → 1906 ms, 80KB → 7118 ms.
+    expect(measure("x@" + "a.".repeat(20000))).toBeLessThan(500);
+    // Alan deseni — sınırsız hâlde ÖLÇÜLDÜ: 20KB → 221 ms, 80KB → 3495 ms.
+    // ⚠️ GİRDİ BOYUTU KASTEN 60KB: ilk sürümde 20KB kullanmıştım ve sınırları
+    // kaldıran mutasyon 221 ms ile eşiğin ALTINDA kalıp testten GEÇMİŞTİ —
+    // yani koruma pinsizdi. Büyüme karesel; 60KB gerçekçi tavana yakın
+    // (`readJsonCappedOrNull` gövde kapısı 64KB).
+    expect(measure("namea".repeat(12000))).toBeLessThan(500);
+    // Gerçekçi girdide de hızlı kalmalı (regresyon değil, sağlık kontrolü).
+    expect(measure("at drain (/app/src/lib/outbox/worker.ts:97:11)\n".repeat(180))).toBeLessThan(500);
+  });
 });
