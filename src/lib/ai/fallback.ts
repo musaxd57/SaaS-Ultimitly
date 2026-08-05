@@ -440,15 +440,68 @@ function matchCandidates(norm: string): string[] {
   return out;
 }
 
+/**
+ * ÇOK KELİMELİ KALIPTA ARAYA GİREN KELİMEYE TOLERANS (kırmızı takım turu, 08-05).
+ *
+ * 🚨 ÖLÇÜLEN BOŞLUK: eşleşme düz `String.includes()` idi, yani çok kelimeli bir
+ * kalıp BİTİŞİKLİK istiyordu. Türkçede araya tek bir kelime girmesi çok doğal ve
+ * kalıbı tamamen kırıyordu:
+ *   "kötü yorum bırak"  listede VAR  →  "çok kötü BİR yorum bırakacağım" KAÇIYOR
+ * (o mesaj `review_threat` yerine yalnız `complaint` etiketi alıyordu; fark
+ * gerçek: `review_threat` seviye-2 bekletme mesajını BLOKLAR, `complaint` etmez.)
+ *
+ * Çözüm: kalıptaki her boşluk, araya EN FAZLA `PHRASE_GAP` kelime girmesine izin
+ * verir. TEK KELİMELİK girdiler aynen `includes()` ile eşleşir — davranış birebir
+ * korunur, yani bu değişiklik kelime listelerinin ezici çoğunluğu için NO-OP.
+ *
+ * ⚠️ YALNIZ KISITLAYICI yollarda etkili: `includesAnyFold`'un tüm çağıranları
+ * risk/intent ağları. Beyaz listeler (`isPositiveFeedback`/`isClosingAck`) kendi
+ * düz `includes()`'ini kullanır ve buraya HİÇ uğramaz — CLAUDE.md'nin katlama
+ * kuralı gereği (gevşetme yalnız EŞLEŞME EKLEMELİ, oto-yanıt iznini asla
+ * genişletmemeli).
+ *
+ * ⚠️ ReDoS: `\s` ve `\S` AYRIK kümeler ve tekrar SINIRLI (`{0,2}`) → belirsizlik
+ * yok, geri izleme patlaması yok. Ayrıca ölçüldü (aşağıdaki test).
+ */
+const PHRASE_GAP = 2;
+const phraseRegexCache = new Map<string, RegExp>();
+function phraseHit(hay: string, needle: string): boolean {
+  if (!needle.includes(" ")) return hay.includes(needle); // tek kelime → eski yol
+  let re = phraseRegexCache.get(needle);
+  if (!re) {
+    const esc = (x: string) => x.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+    re = new RegExp(
+      needle.split(/\s+/).map(esc).join(`(?:\\s+\\S+){0,${PHRASE_GAP}}\\s+`),
+      "u",
+    );
+    phraseRegexCache.set(needle, re);
+  }
+  return re.test(hay);
+}
+
 /** Kelime a\u011f\u0131 e\u015fle\u015fmesi: metin, \u00dc\u00c7 katlamadan herhangi biriyle kelimeyi i\u00e7eriyor mu? */
-function includesAnyFold(message: string, words: readonly string[]): boolean {
+function includesAnyFold(
+  message: string,
+  words: readonly string[],
+  // ⚠️ VARSAYILAN `false` = ESKİ davranış (bitişik eşleşme). Gevşetme
+  // OPT-IN, çünkü her yere uygulamak ÖLÇÜLDÜ ve BİR GOLDEN SENARYOYU
+  // KIRDI: `KEYWORDS.human_request` içindeki "ev sahibiyle konuş" kalıbı,
+  // araya giren tek kelimeye tolerans tanınınca "Ev sahibiyle DÜN
+  // konuştuk, otopark dahil demişti, teyit eder misiniz?" cümlesini de
+  // yakalamaya başladı — host'tan SÖZ ETMEK talep DEĞİLDİR ve o masum
+  // teyit sorusu oto-yanıt alamaz hâle geliyordu. NİYET kelimelerinde
+  // bitişiklik ANLAM TAŞIR; RİSK kalıplarında taşımaz.
+  allowWordGap = false,
+): boolean {
   // Her ADAY biçim (görsel ikizler sökülmüş, birleştirici işaretler atılmış,
   // ayıraçla parçalanmış) × ÜÇ katlama. Yalnızca EŞLEŞME EKLER.
   for (const cand of matchCandidates(normalizeForMatch(message))) {
     const std = foldTurkishLower(cand);
     const tr = foldTurkishLowerTr(cand);
     const ascii = foldTurkishAscii(cand);
-    if (words.some((w) => std.includes(w) || tr.includes(w) || ascii.includes(foldTurkishAscii(w)))) {
+    const hit = (hay: string, needle: string) =>
+      allowWordGap ? phraseHit(hay, needle) : hay.includes(needle);
+    if (words.some((w) => hit(std, w) || hit(tr, w) || hit(ascii, foldTurkishAscii(w)))) {
       return true;
     }
   }
@@ -865,8 +918,8 @@ const DISCRIMINATION_PHRASES = [
 export function detectRiskType(message: string): string | null {
   if (detectPromptInjection(message)) return "prompt_injection";
   if (includesAnyFold(message, SAFETY_CRITICAL_WORDS)) return "safety_emergency";
-  if (includesAnyFold(message, REVIEW_THREAT_PHRASES)) return "review_threat";
-  if (includesAnyFold(message, OFFPLATFORM_PAYMENT_PHRASES)) return "platform_policy";
+  if (includesAnyFold(message, REVIEW_THREAT_PHRASES, true)) return "review_threat";
+  if (includesAnyFold(message, OFFPLATFORM_PAYMENT_PHRASES, true)) return "platform_policy";
   if (matchesIntentKeywords(message, "refund")) return "money_refund";
   if (matchesIntentKeywords(message, "early_departure")) return "cancellation";
   // discrimination + rule_violation had NO deterministic detector — the gate

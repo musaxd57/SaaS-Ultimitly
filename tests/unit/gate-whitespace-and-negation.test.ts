@@ -129,6 +129,74 @@ describe("şikayet negasyonu — çapasız önek gerçek şikayeti silmez", () =
 // ~1.577 girdi koşturuldu; aşağıdakiler GEÇENLERDİ, hepsi kapatıldı.
 // ---------------------------------------------------------------------------
 // ---------------------------------------------------------------------------
+// ÇOK KELİMELİ KALIPTA ARAYA GİREN KELİME (kırmızı takım turu, 08-05).
+//
+// Eşleşme düz `String.includes()` idi → çok kelimeli kalıp BİTİŞİKLİK istiyordu.
+// Türkçede araya tek kelime girmesi çok doğal ve kalıbı tamamen kırıyordu.
+//
+// ÖLÇÜLEN: "kötü yorum bırak" listede VAR ama "çok kötü BİR yorum bırakacağım"
+// KAÇIYORDU — mesaj `review_threat` yerine yalnız `complaint` etiketi alıyordu.
+// Fark gerçek: `review_threat` seviye-2 bekletme mesajını BLOKLAR, `complaint`
+// etmez, yani opt-in bir org'da şantaj mesajına otomatik bir "ilgileniyoruz"
+// gidebiliyordu.
+//
+// ⚠️ Gevşetmenin BEDELİ ÖLÇÜLDÜ: 31 meşru mesajlık külliyatta yanlış-pozitif
+// sayısı DEĞİŞMEDİ (öncesi 2, sonrası 2 — ikisi de değişiklikten ÖNCE de vardı).
+// ⚠️ ReDoS ölçüldü: `\s` ve `\S` ayrık + tekrar sınırlı → 100KB adversarial
+// girdi 302ms, 200KB 355ms (doğrusal), normal mesaj 11ms.
+// ---------------------------------------------------------------------------
+describe("çok kelimeli kalıp — araya giren kelime kalıbı kırmıyor", () => {
+  const MISSED_BEFORE: [string, string][] = [
+    ["çok kötü bir yorum bırakacağım", "review_threat"],
+    ["kötü bir yorum yazarım", "review_threat"],
+  ];
+  it.each(MISSED_BEFORE)('"%s" → %s', (msg, expected) => {
+    expect(detectRiskType(msg)).toBe(expected);
+  });
+
+  it("BİTİŞİK hâli de aynen çalışıyor (davranış korundu)", () => {
+    // Gevşetme eskisini bozmamalı: tek kelimeler ve bitişik kalıplar eski yolla
+    // eşleşmeye devam eder (tek kelimede `phraseHit` düz `includes`'a düşer).
+    expect(detectRiskType("kötü yorum bırakacağım")).toBe("review_threat");
+    expect(detectRiskType("elden ödeme yapalım")).toBe("platform_policy");
+  });
+
+  it("ARA SINIRSIZ DEĞİL — uzak kelimeler kalıp SAYILMAZ", () => {
+    // Tolerans olmasaydı bu test anlamsız olurdu; sınır yoksa cümlenin iki
+    // ucundaki alâkasız kelimeler eşleşir ve gereksiz eskalasyon üretirdi.
+    expect(
+      detectRiskType("kötü bir gün geçirdim ama sonra güzel bir yemek yedim ve yorum sayfasına baktım"),
+    ).not.toBe("review_threat");
+  });
+
+  it("NİYET kelimelerine UYGULANMAZ — gevşetme OPT-IN (regresyon pini)", () => {
+    // 🚨 Bu testin varlık sebebi: gevşetmeyi ÖNCE her yere uyguladım ve GOLDEN
+    // SET bir senaryoyu kırdı. `KEYWORDS.human_request` içindeki
+    // "ev sahibiyle konuş" kalıbı, araya giren tek kelimeye tolerans tanınınca
+    // aşağıdaki masum cümleyi de yakalıyordu — host'tan SÖZ ETMEK talep
+    // DEĞİLDİR ve o teyit sorusu oto-yanıt alamaz hâle geliyordu.
+    // Niyet kelimelerinde bitişiklik ANLAM TAŞIR; risk kalıplarında taşımaz.
+    expect(classifyFallback("Ev sahibiyle dün konuştuk, otopark dahil demişti, teyit eder misiniz?").intent).not.toBe(
+      "human_request",
+    );
+    // Gerçek talep ise AYNEN yakalanmaya devam eder.
+    expect(classifyFallback("Ev sahibiyle konuşmak istiyorum lütfen").intent).toBe("human_request");
+  });
+
+  it("MEŞRU mesajlar hâlâ temiz (yanlış-pozitif pini)", () => {
+    const legit = [
+      "Yorumları okudum, çok güzel yazmışlar",
+      "Bir yorum bırakmak istiyorum ama nasıl yapılıyor?",
+      "Ödemeyi Airbnb üzerinden yaptım, sorun yok",
+      "Yakında banka var mı?",
+    ];
+    expect(legit.filter((m) => detectRiskType(m) === "review_threat" || detectRiskType(m) === "platform_policy")).toEqual(
+      [],
+    );
+  });
+});
+
+// ---------------------------------------------------------------------------
 // GÖRÜNMEZ KARAKTER KAPSAMI — `\p{Cf}` DE YETMİYORDU (kırmızı takım, 08-05).
 //
 // 08-01'de sınıf tek tek kod noktalarından `\p{Cf}`'e genişletilmişti. O düzeltme
