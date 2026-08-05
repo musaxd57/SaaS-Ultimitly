@@ -70,6 +70,20 @@ export async function signSession(payload: SessionPayload): Promise<string> {
     .sign(getSecretKey());
 }
 
+/**
+ * 🚨 BURASI BİR BEYAZ LİSTE — `SessionPayload`'a alan eklemek YETMEZ.
+ *
+ * Doğrulama, JWT'yi alan alan YENİDEN KURUYOR. Listeye eklenmeyen bir claim
+ * token'da yazılı olsa bile okunurken SESSİZCE DÜŞER, ve `middleware.ts` bu
+ * çıktıyı yeniden imzaladığı için bir sonraki istekte çerezden de silinir.
+ *
+ * Bu tam olarak 08-05'te `mfa` ile yaşandı: `signSession` claim'i yazıyordu,
+ * burası düşürüyordu → `isSuperAdmin` HERKESTE false döndü ve Operatör Paneli
+ * canlıda kayboldu. Kapı testliydi ama TAŞIMA testli değildi.
+ *
+ * Artık `session-payload-roundtrip.test.ts` her alanın imzala→doğrula turundan
+ * sağ çıktığını asserte ediyor; yeni bir alan buraya eklenmezse test kırmızı.
+ */
 export async function verifySession(token: string | undefined): Promise<SessionPayload | null> {
   if (!token) return null;
   try {
@@ -90,6 +104,7 @@ export async function verifySession(token: string | undefined): Promise<SessionP
         ...(typeof payload.actorEmail === "string" ? { actorEmail: payload.actorEmail } : {}),
         ...(typeof payload.actorName === "string" ? { actorName: payload.actorName } : {}),
         ...(typeof payload.actorSessionEpoch === "number" ? { actorSessionEpoch: payload.actorSessionEpoch } : {}),
+        ...(typeof payload.mfa === "boolean" ? { mfa: payload.mfa } : {}),
       };
     }
     return null;
