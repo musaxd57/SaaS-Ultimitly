@@ -45,6 +45,14 @@ export const POST = withManage(async (session, req) => {
   //
   // ⚠️ Yine de `generateSupplySummary`'nin ÜSTÜNDE — interaktif rotalarda
   // suistimal kapısı "önce tüket" olmak zorunda (`daily-budget.ts:99-101`).
+  // İKİ YÖN DE kaynak-taramasıyla pinli (`ai-budget-order.test.ts`).
+  //
+  // ⚠️ GÖZLENEBİLİR DAVRANIŞ DEĞİŞİKLİĞİ (bilinçli): kotası dolmuş bir org, boş
+  // hazırlık planında artık 429 yerine `200 {empty:true}` alıyor, ve her istek
+  // `getPrepPlan`'i (2 round-trip + groupBy) kota kapısından ÖNCE koşuyor. Yani
+  // günlük bütçe artık o okumayı korumuyor; koruyan şey saatlik `supply-ai:`
+  // limiti (20/saat/org). Takas bilinçli: model çağrılmayan bir istek için
+  // müşteriden AI birimi almak yanlıştı.
   const budget = await consumeDailyAiBudget(session.organizationId);
   if (!budget.ok) {
     return NextResponse.json(

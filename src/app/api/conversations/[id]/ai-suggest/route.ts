@@ -19,10 +19,10 @@ export const POST = withManage<{ id: string }>(async (session, req, { params }) 
   const limited = await rateLimit(`ai-suggest:${session.userId}`, 20, 60_000);
   if (!limited.ok) return tooManyRequests(limited.retryAfter);
 
-  // GÜNLÜK ORG BÜTÇESİ: dakikalık limit tek isteği yavaşlatır, toplam harcamayı
-  // sınırlamaz. Bu tavan hem suistimali hem kazara sonsuz döngüye giren bir
-  // istemciyi durdurur (ai/daily-budget.ts).
-
+  // (Günlük org bütçesi BİLEREK burada DEĞİL — org kapsamı ve mesaj
+  // doğrulamasından sonra tüketiliyor, ↓aşağıda. 08-01'de taşındı; taşımadan
+  // kalan yetim yorum 08-05'te silindi ki kimse buraya çağrıyı "geri
+  // koymasın".)
   const conversation = await prisma.conversation.findFirst({
     where: { id, property: { organizationId: session.organizationId } },
     include: {

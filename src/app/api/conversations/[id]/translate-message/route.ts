@@ -54,6 +54,16 @@ export const POST = withManage<{ id: string }>(async (session, req, { params }) 
   // rotalar için "önce tüket" kuralını açıkça yazıyor (bir sağlayıcı arızasında
   // peek-then-consume'a geçmek suistimal kapısını kaldırırdı). Değişen tek şey
   // tüketimin DOĞRULAMALARIN altına inmesi.
+  //
+  // 🚨 KALAN AÇIK — BU DÜZELTME SALDIRIYI KAPATMAZ, DARALTIR. `ai/translate.ts:118-126`
+  // dört dalda ERKEN döner (boş metin · `sourceLanguage === targetLanguage` ·
+  // uzunluk · 6 saatlik LRU isabeti) ve bunların HEPSİ anahtar kontrolünün
+  // ÜSTÜNDE — yani TEK bir geçerli konuşma+mesaj id'si olan içeriden biri, aynı
+  // dili hedef vererek dakikada 30 birimi hâlâ sıfır model çağrısıyla yakabilir
+  // (Başlangıç planı ~5 dakikada biter). Kapatmak `translate()`in dönüş
+  // sözleşmesine "model GERÇEKTEN çağrıldı mı" bilgisini eklemeyi gerektirir —
+  // ayrı bir tur, ayrı karar. Buradaki kazanç: çöp id'lerle sınırsız yakma
+  // yolu kapandı ve tüketim artık gerçekten var olan bir kaynağa bağlı.
   const budget = await consumeDailyAiBudget(session.organizationId);
   if (!budget.ok) {
     return tooManyRequests(budget.retryAfter, dailyBudgetMessage(budget));
