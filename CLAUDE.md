@@ -340,6 +340,14 @@ mutasyonla ayrı ayrı pinli (`tests/unit/middleware-auth-routing.test.ts`).
   `88.254.11.170` (07-31'de gerçek müşteri adresi diye tespit edilen ttnet adresi), Railway edge'i
   (`152.233.12.245`, datapacket) DEĞİL. Yani KVKK rıza + ödeme onayı delil kayıtları artık gerçekten
   kişiyi işaret ediyor. Eski satır kıyas için duruyor (08-02, `via:"email_code"`).
+  ✅ **RAILWAY HTTP LOG'U DOĞRUDAN KANIT (08-05):** bağlantıya tıklandığı andaki satır
+  `GET /sifremi-unuttum 200` — query string YOK, token YOK. Codex'in itirazı "token query'deyse
+  Railway log'una düşer ve düşmediğini KANITLAYAMAZSIN" idi ve haklıydı; çözüm kanıtlamak değil
+  token'ı oraya HİÇ KOYMAMAK oldu, ve platformun kendi log'u artık bunu gösteriyor. Token'ı tüketen
+  `POST /api/account/forgot-password` isteğinde token GÖVDEDE; bu log yalnız method/path/status/süre
+  tutuyor. ⚠️ Railway'de doğru sekme: **Network Logs → HTTP** (Network Flow yalnız TCP akışı gösterir,
+  Deploy Logs uygulama çıktısı). Denetim kaydı ise log'da DEĞİL, `AuditLog` tablosunda (arayüz yok):
+  `SELECT "metadataJson"::json->>'via', "metadataJson"::json->>'ip' FROM "AuditLog" WHERE action='account.password_reset'`.
   🔙 Geri alma: env'i sil → redeploy; veri temizliği GEREKMEZ (TTL süpürür).
 - **Faz 0-1 ✅ BİTTİ ve CANLIDA.** m47 uygulandı (Railway boot `migrate deploy`), CI 4/4 yeşil.
   `PASSWORD_RESET_CHALLENGE_ENABLED` **Railway'de YOK** → üretim davranışı birebir eski akış.
