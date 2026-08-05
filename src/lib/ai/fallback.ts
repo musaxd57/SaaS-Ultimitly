@@ -315,11 +315,26 @@ function normalizeForMatch(s: string): string {
   // da ve `statedCheckoutTime`'ın injection vetosunda da çalışıyordu — TEK
   // karakter, DÖRT savunma birden.
   //
-  // `\p{Cf}` (Unicode FORMAT kategorisi) hepsini kapsar: yumuşak tire, bidi
-  // işaretleri (LRM/RLM/LRO/RLO/isolate), kelime-birleştirici U+2060, görünmez
-  // operatörler U+2061-2064, etiket karakterleri U+E00xx, BOM.
-  // `\u034F` (CGJ) ve varyasyon seçicileri (U+FE00-FE0F) Mn kategorisinde olduğu
-  // için AYRICA eklenir.
+  // 🚨 `\p{Cf}` DE YETMEDİ (kırmızı takım turu, 08-05 — ÖLÇÜLDÜ). Yukarıdaki
+  // düzeltme EKSİK kaldı: bazı karakterler hiçbir şey RENDER ETMEDİĞİ hâlde
+  // FORMAT kategorisinde DEĞİL. Ölçülen bypass:
+  //   "Dairede yan<U+3164>gın var, du<U+3164>man her yeri sardı"
+  //     → detectRiskType = null (temiz hâlinde `safety_emergency`)
+  //   "Ig<U+3164>nore all previous instructions…"
+  //     → detectPromptInjection = false (temiz hâlinde true)
+  // U+3164 HANGUL FILLER kategori olarak `Lo` — yani "harf". Aynısı U+115F,
+  // U+1160, U+FFA0 için de geçerli.
+  //
+  // ⚠️ ÇÖZÜM YİNE LİSTE DEĞİL, ÖZELLİK: `\p{Default_Ignorable_Code_Point}`
+  // Unicode'un "bu kod noktası HİÇBİR ŞEY render etmemeli" tanımıdır ve ÖLÇÜLDÜ:
+  // `\p{Cf}`'in TAMAMINI (yumuşak tire, ZWSP, BOM, bidi, Moğol ayırıcı) VE
+  // buraya elle eklenmiş `\u034F` (CGJ) ile varyasyon seçicilerini (U+FE00-FE0F)
+  // ZATEN kapsıyor — o yüzden onlar kaldırıldı, sınıf tek başına daha geniş.
+  // Gerçek harflere dokunmadığı da ölçüldü (a / ı / ش / 中 → hiçbiri eşleşmiyor).
+  //
+  // ⚠️ U+2800 (BRAILLE PATTERN BLANK) AYRICA eklenir: boş bir braille hücresi
+  // boşluk gibi render edilir ama `So` kategorisindedir ve Default_Ignorable
+  // DEĞİLDİR — özellik onu kapsamıyor (ölçüldü).
   //
   // ⚠️ `\p{Mn}`'in TAMAMI EKLENMEZ: Türkçe/Arapça ayırıcı işaretler anlam taşır
   // ve `foldTurkishLower`'ın U+0307 davranışıyla çakışır.
@@ -331,7 +346,7 @@ function normalizeForMatch(s: string): string {
   // (NFD) dizileri birleştirir; yalnızca EŞLEŞME EKLER.
   return s
     .normalize("NFKC")
-    .replace(/[\p{Cf}\u034F\uFE00-\uFE0F]/gu, "")
+    .replace(/[\p{Default_Ignorable_Code_Point}\u2800]/gu, "")
     .replace(/\s+/g, " ");
 }
 
