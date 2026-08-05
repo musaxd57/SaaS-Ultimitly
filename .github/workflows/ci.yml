@@ -17,8 +17,31 @@ on:
   # Each job below therefore carries `if: github.head_ref != '<deploy branch>'`,
   # which skips exactly that PR and nothing else. The guard keys on head_ref
   # (the SOURCE branch), so it does not depend on which base the PR targets.
+  #
+  # 🚨 IKINCI KOSUL — FORK PR'LARI KOSMAZ (08-05, repo PUBLIC yapildiktan SONRA).
+  # `pull_request` eklendiginde repo PRIVATE'ti ve PR acabilen tek kisi sahibiydi.
+  # Public olunca ayni tetikleyici, INTERNETTEKI HERKESIN kodunu runner'da
+  # calistirilabilir hale getirdi: dort job `npm ci` kosuyor ve saldirganin
+  # degistirdigi package.json'in postinstall script'leri calisir (dokumante npm
+  # davranisi; agacta bugun 9 paket install-script tasiyor).
+  # Secret CALINMAZ (fork PR'inda GITHUB_TOKEN salt-okunur, secret enjekte
+  # edilmez — dokumante GitHub davranisi) ama keyfi kod calistirma gercektir.
+  #
+  # ⚠️ `npm ci --ignore-scripts` DEGERLENDIRILDI ve REDDEDILDI: saldirgan kodunu
+  # CALISTIRMAMAK yerine KISITLAMAYA calisiyor, ustelik kendi deploy dalimizin
+  # push kosularini da bozuyor. OLCULDU: `--ignore-scripts` ile `sharp/build` ve
+  # `.prisma/client` URETILMIYOR. Dogru cozum yuzeyi kaldirmak.
+  #
+  # Dependabot ETKILENMEZ: onun dallari FORK degil, bu deponun icinde acilir →
+  # `head.repo.full_name == github.repository` DOGRU olur ve CI kosar.
   pull_request:
   workflow_dispatch:
+
+# ASGARI TOKEN IZNI (08-05). Hicbir job repoya YAZMIYOR — hepsi checkout + npm +
+# test. Blok yokken kapsam DEPO AYARINDAN gelir (panelden okunur, repodan
+# gorulmez); burada acikca yazmak onu ayardan BAGIMSIZ hale getirir.
+permissions:
+  contents: read
 
 # cancel-in-progress drops superseded runs when commits land in quick succession
 # (the older run shows as "cancelled" — expected, not a failure).
@@ -37,7 +60,10 @@ jobs:
     # tetikleyicisiyle kosuyor; filtresiz `pull_request` her push'u IKINCI kez
     # (merge ref'ine karsi) kosturuyordu. `head_ref` yalniz pull_request
     # olaylarinda dolar, push'ta bostur → bu kosul push'ta DAIMA dogru.
-    if: github.head_ref != 'claude/great-edison-3zqpZ'
+    if: >-
+      github.head_ref != 'claude/great-edison-3zqpZ' &&
+      (github.event_name != 'pull_request' ||
+       github.event.pull_request.head.repo.full_name == github.repository)
     # Debian container runs as root, which the integration test global-setup
     # needs (it provisions its own PostgreSQL on :5433 via `su postgres`).
     container:
@@ -84,7 +110,10 @@ jobs:
     # tetikleyicisiyle kosuyor; filtresiz `pull_request` her push'u IKINCI kez
     # (merge ref'ine karsi) kosturuyordu. `head_ref` yalniz pull_request
     # olaylarinda dolar, push'ta bostur → bu kosul push'ta DAIMA dogru.
-    if: github.head_ref != 'claude/great-edison-3zqpZ'
+    if: >-
+      github.head_ref != 'claude/great-edison-3zqpZ' &&
+      (github.event_name != 'pull_request' ||
+       github.event.pull_request.head.repo.full_name == github.repository)
     services:
       postgres:
         image: postgres:16
@@ -127,7 +156,10 @@ jobs:
     # tetikleyicisiyle kosuyor; filtresiz `pull_request` her push'u IKINCI kez
     # (merge ref'ine karsi) kosturuyordu. `head_ref` yalniz pull_request
     # olaylarinda dolar, push'ta bostur → bu kosul push'ta DAIMA dogru.
-    if: github.head_ref != 'claude/great-edison-3zqpZ'
+    if: >-
+      github.head_ref != 'claude/great-edison-3zqpZ' &&
+      (github.event_name != 'pull_request' ||
+       github.event.pull_request.head.repo.full_name == github.repository)
     services:
       postgres:
         image: postgres:16
@@ -174,7 +206,10 @@ jobs:
     # tetikleyicisiyle kosuyor; filtresiz `pull_request` her push'u IKINCI kez
     # (merge ref'ine karsi) kosturuyordu. `head_ref` yalniz pull_request
     # olaylarinda dolar, push'ta bostur → bu kosul push'ta DAIMA dogru.
-    if: github.head_ref != 'claude/great-edison-3zqpZ'
+    if: >-
+      github.head_ref != 'claude/great-edison-3zqpZ' &&
+      (github.event_name != 'pull_request' ||
+       github.event.pull_request.head.repo.full_name == github.repository)
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-node@v4
@@ -220,7 +255,10 @@ jobs:
   # NOT: needs no DB, no secrets, no build — just the registry.
   security-audit:
     runs-on: ubuntu-latest
-    if: github.head_ref != 'claude/great-edison-3zqpZ'
+    if: >-
+      github.head_ref != 'claude/great-edison-3zqpZ' &&
+      (github.event_name != 'pull_request' ||
+       github.event.pull_request.head.repo.full_name == github.repository)
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-node@v4

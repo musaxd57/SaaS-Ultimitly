@@ -111,6 +111,46 @@ describe("yaşam-döngüsü gönderim arızası — koşu başına tek toplu ala
     expect(r.welcomeSentAt).toBeNull(); // kesin hata → claim geri alındı
   });
 
+  // ── KARDEŞ SATIRIN GERÇEK DAMGASI KORUNUR (yarış denetimi, 08-05) ──────────
+  //
+  // 🚨 BULUNAN GERÇEK YARIŞ: claim `welcomeSentAt: null` koşuluyla YALNIZ damgasız
+  // satırları damgalıyordu, ama geri alma KOŞULSUZDU — aynı `sourceReference`'ı
+  // paylaşan KARDEŞ satırın GERÇEKTEN gönderilmiş damgasını da siliyordu.
+  // Sonraki geçiş booking'i tekrar aday görür → misafire İKİNCİ (gerçek)
+  // karşılama mesajı gider. Dup satır bu üründe gerçek bir durum (relink
+  // sonrası; prod'da 114 çift temizlenmişti) ve "aynı sourceReference'ı taşıyan
+  // TÜM satırları damgala" tasarımının varlık sebebi tam da bu çift-gönderimi
+  // önlemekti — koşulsuz geri alma o garantiyi kendi kapısından deliyordu.
+  it("KESİN hata: aynı sourceReference'lı KARDEŞ satırın eski damgası SİLİNMEZ", async () => {
+    const { orgId, reservationId } = await seed();
+    // Aynı org, AYRI daire, AYNI sourceReference — ve bu satır geçen ay
+    // GERÇEKTEN gönderilmiş.
+    const sent = new Date(Date.now() - 30 * DAY);
+    const other = await prisma.property.create({ data: { organizationId: orgId, name: "Nuve 8" } });
+    const sibling = await prisma.reservation.create({
+      data: {
+        propertyId: other.id,
+        guestName: GUEST,
+        sourceReference: "res-1", // AYNI
+        channel: "airbnb",
+        status: "confirmed",
+        arrivalDate: new Date(Date.now() + 5 * DAY),
+        departureDate: new Date(Date.now() + 8 * DAY),
+        welcomeSentAt: sent, // zaten gönderilmiş
+      },
+    });
+
+    mockSend.mockResolvedValue({ ok: false, error: "HTTP 422 - rejected" });
+    await sendDueWelcomes(orgId);
+
+    // Bu koşunun damgaladığı satır geri alınır…
+    const fresh = await prisma.reservation.findUniqueOrThrow({ where: { id: reservationId } });
+    expect(fresh.welcomeSentAt).toBeNull();
+    // …ama kardeşin GERÇEK damgası aynen durur (yoksa misafire ikinci mesaj).
+    const after = await prisma.reservation.findUniqueOrThrow({ where: { id: sibling.id } });
+    expect(after.welcomeSentAt?.getTime()).toBe(sent.getTime());
+  });
+
   it("BELİRSİZ hata: alarm düşer, damga TUTULUR (asla yeniden POST edilmez)", async () => {
     const { orgId, reservationId } = await seed();
     mockSend.mockResolvedValue({ ok: false, error: "HTTP 503 - upstream" });

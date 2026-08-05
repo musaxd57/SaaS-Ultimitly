@@ -1,5 +1,6 @@
 import { describe, it, expect } from "vitest";
 import { readFileSync } from "node:fs";
+import { parse as parseYaml } from "yaml";
 import path from "node:path";
 
 // ---------------------------------------------------------------------------
@@ -105,6 +106,27 @@ describe("Dependabot PR'ları CI görür", () => {
     // yorumda da geçebilir, o yüzden satır başındaki iki-boşluk girintili
     // anahtar aranır.
     expect(ci).toMatch(/^ {2}pull_request:/m);
+  });
+
+  it("FORK PR'ları koşmaz (repo PUBLIC — yabancı kodu runner'da çalışmasın)", () => {
+    // 🚨 `pull_request` eklendiğinde repo PRIVATE'ti; PR açabilen tek kişi sahibiydi.
+    // Repo public olunca aynı tetikleyici İNTERNETTEKİ HERKESİN kodunu runner'da
+    // çalıştırılabilir hale getirdi: dört job `npm ci` koşuyor ve saldırganın
+    // değiştirdiği package.json'ın postinstall script'leri çalışır.
+    // ⚠️ `npm ci --ignore-scripts` DEĞERLENDİRİLDİ ve REDDEDİLDİ — saldırgan kodunu
+    // çalıştırmamak yerine kısıtlamaya çalışıyor ve ÖLÇÜLDÜ: `sharp/build` ile
+    // `.prisma/client` üretilmiyor, yani kendi push koşularımızı da bozardı.
+    expect(ci).toContain("github.event.pull_request.head.repo.full_name == github.repository");
+    // Dependabot ETKİLENMEZ: dalları fork değil, bu deponun içinde açılır.
+    expect(ci).toMatch(/^ {2}pull_request:/m);
+  });
+
+  it("workflow ASGARİ token izniyle koşar (depo ayarından bağımsız)", () => {
+    // Blok yokken kapsam depo ayarından gelir ve o ayar repodan GÖRÜLEMEZ.
+    // Hiçbir job repoya yazmıyor (checkout + npm + test), yani `contents: read`
+    // fonksiyonel risk taşımıyor.
+    const cfg = parseYaml(ci) as { permissions?: Record<string, string> };
+    expect(cfg.permissions).toEqual({ contents: "read" });
   });
 
   it("deploy dalının uzun ömürlü PR'ı ÇİFT koşmasın diye dışlanmış", () => {

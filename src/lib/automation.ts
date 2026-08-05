@@ -2630,9 +2630,11 @@ export async function sendDueWelcomes(
     // Claim-then-send: atomically stamp welcomeSentAt BEFORE sending so two
     // overlapping sync runs can't both deliver. Lose the claim → skip; send fails →
     // roll the claim back so it retries next run. Stamps every row for this booking.
+    // ⚠️ DAMGA DEĞİŞKENE ALINIR — geri alma bunu KOŞUL olarak kullanacak (↓).
+    const stampedAt = new Date();
     const claim = await prisma.reservation.updateMany({
       where: { sourceReference: r.sourceReference, property: { organizationId }, welcomeSentAt: null },
-      data: { welcomeSentAt: new Date() },
+      data: { welcomeSentAt: stampedAt },
     });
     if (claim.count === 0) continue; // another run already claimed/sent this booking
 
@@ -2662,7 +2664,15 @@ export async function sendDueWelcomes(
         // (`rollback_failed`), döngü yine kırılmaz.
         const rolled = await prisma.reservation
           .updateMany({
-            where: { sourceReference: r.sourceReference, property: { organizationId } },
+            // 🚨 `stampedAt` KOŞULU ŞART (yarış denetimi, 08-05). Claim YALNIZ
+            // hâlâ null olan satırları damgalar; koşulsuz bir geri alma ise aynı
+            // `sourceReference`'ı paylaşan KARDEŞ satırın GERÇEKTEN gönderilmiş
+            // damgasını da siler → sonraki geçiş booking'i tekrar aday görür ve
+            // misafire İKİNCİ (gerçek) karşılama mesajı gider. Dup satır bu üründe
+            // gerçek bir durum (relink sonrası; prod'da 114 çift temizlenmişti) ve
+            // "hepsini damgala" tasarımının varlık sebebi tam da bu çift-gönderimi
+            // önlemekti — koşulsuz geri alma o garantiyi kendi kapısından deliyordu.
+            where: { sourceReference: r.sourceReference, property: { organizationId }, welcomeSentAt: stampedAt },
             data: { welcomeSentAt: null },
           })
           .catch(() => null);
@@ -2777,9 +2787,11 @@ export async function sendDueCheckins(
     if (r.sourceReference && (await lifecycleOutboxOwns(organizationId, r.sourceReference, "checkin"))) continue;
 
     // Claim-then-send (see sendDueWelcomes) — prevents a concurrent double-send.
+    // ⚠️ DAMGA DEĞİŞKENE ALINIR — geri alma bunu KOŞUL olarak kullanacak (↓).
+    const stampedAt = new Date();
     const claim = await prisma.reservation.updateMany({
       where: { sourceReference: r.sourceReference, property: { organizationId }, checkinSentAt: null },
-      data: { checkinSentAt: new Date() },
+      data: { checkinSentAt: stampedAt },
     });
     if (claim.count === 0) continue;
 
@@ -2803,7 +2815,15 @@ export async function sendDueCheckins(
         // (`rollback_failed`), döngü yine kırılmaz.
         const rolled = await prisma.reservation
           .updateMany({
-            where: { sourceReference: r.sourceReference, property: { organizationId } },
+            // 🚨 `stampedAt` KOŞULU ŞART (yarış denetimi, 08-05). Claim YALNIZ
+            // hâlâ null olan satırları damgalar; koşulsuz bir geri alma ise aynı
+            // `sourceReference`'ı paylaşan KARDEŞ satırın GERÇEKTEN gönderilmiş
+            // damgasını da siler → sonraki geçiş booking'i tekrar aday görür ve
+            // misafire İKİNCİ (gerçek) giriş mesajı gider. Dup satır bu üründe
+            // gerçek bir durum (relink sonrası; prod'da 114 çift temizlenmişti) ve
+            // "hepsini damgala" tasarımının varlık sebebi tam da bu çift-gönderimi
+            // önlemekti — koşulsuz geri alma o garantiyi kendi kapısından deliyordu.
+            where: { sourceReference: r.sourceReference, property: { organizationId }, checkinSentAt: stampedAt },
             data: { checkinSentAt: null },
           })
           .catch(() => null);
@@ -3062,9 +3082,11 @@ export async function sendDueCheckouts(
     if (r.sourceReference && (await lifecycleOutboxOwns(organizationId, r.sourceReference, "checkout"))) continue;
 
     // Claim-then-send (see sendDueWelcomes) — prevents a concurrent double-send.
+    // ⚠️ DAMGA DEĞİŞKENE ALINIR — geri alma bunu KOŞUL olarak kullanacak (↓).
+    const stampedAt = new Date();
     const claim = await prisma.reservation.updateMany({
       where: { sourceReference: r.sourceReference, property: { organizationId }, checkoutSentAt: null },
-      data: { checkoutSentAt: new Date() },
+      data: { checkoutSentAt: stampedAt },
     });
     if (claim.count === 0) continue;
 
@@ -3088,7 +3110,15 @@ export async function sendDueCheckouts(
         // (`rollback_failed`), döngü yine kırılmaz.
         const rolled = await prisma.reservation
           .updateMany({
-            where: { sourceReference: r.sourceReference, property: { organizationId } },
+            // 🚨 `stampedAt` KOŞULU ŞART (yarış denetimi, 08-05). Claim YALNIZ
+            // hâlâ null olan satırları damgalar; koşulsuz bir geri alma ise aynı
+            // `sourceReference`'ı paylaşan KARDEŞ satırın GERÇEKTEN gönderilmiş
+            // damgasını da siler → sonraki geçiş booking'i tekrar aday görür ve
+            // misafire İKİNCİ (gerçek) çıkış mesajı gider. Dup satır bu üründe
+            // gerçek bir durum (relink sonrası; prod'da 114 çift temizlenmişti) ve
+            // "hepsini damgala" tasarımının varlık sebebi tam da bu çift-gönderimi
+            // önlemekti — koşulsuz geri alma o garantiyi kendi kapısından deliyordu.
+            where: { sourceReference: r.sourceReference, property: { organizationId }, checkoutSentAt: stampedAt },
             data: { checkoutSentAt: null },
           })
           .catch(() => null);
