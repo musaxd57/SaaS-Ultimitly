@@ -326,9 +326,24 @@ bağlantısına kendi tarayıcısından tıklayan kullanıcı panele düşüp s�
 olsaydı sayfayı listeden çıkarmak onu SESSİZCE oturum-gerektiren hâle getirirdi; üç bozulma yönü de
 mutasyonla ayrı ayrı pinli (`tests/unit/middleware-auth-routing.test.ts`).
 **🛑 NEREDE KALDIK (08-02 tur sonu — bir sonraki oturum BURADAN devam eder):**
+- 🎉 **FAZ 2 ✅ CANLIDA DOĞRULANDI (08-05, kullanıcı koştu).** `PASSWORD_RESET_CHALLENGE_ENABLED=1`
+  Railway'de AÇIK. Gerçek bir sıfırlamayla uçtan uca sınandı: e-posta ANINDA geldi (bağlantı + ayrı
+  8 haneli kod + 30 dk — eski akış 10 dk ve linksizdi) · bağlantı `/sifremi-unuttum` sayfasını **kod
+  adımında** açtı (yani token fragment'ten OKUNDU; token yokken e-posta adımı açılıyor) · adres
+  çubuğunda ne `#t=` ne `?` kaldı (`history.replaceState` temizliği çalıştı) · yeni şifre kaydoldu.
+  **Denetim kaydı TEMİZ:** `{via:"challenge", challengeId:<opak>, ip:…}` — token/kod/şifre/e-posta YOK.
+  ⚠️ "İkinci oturum düşmedi" gözlemi BUG DEĞİLDİ: aynı Chrome profilindeki iki pencere aynı çerezi
+  paylaşır, ortada tek oturum vardı. Zincirin üç halkası da test-pinli: sıfırlama epoch'u +1
+  (`password-reset-challenge.test.ts:176`) · API rotaları bayat epoch'u reddeder
+  (`session-epoch.test.ts`) · SAYFALAR da reddeder (`require-auth-failclosed.test.ts:64`).
+  ✅ **YAN KAZANIM — `TRUSTED_PROXY_HOPS=2` CANLI VERİYLE KANITLANDI:** denetim kaydındaki `ip`
+  `88.254.11.170` (07-31'de gerçek müşteri adresi diye tespit edilen ttnet adresi), Railway edge'i
+  (`152.233.12.245`, datapacket) DEĞİL. Yani KVKK rıza + ödeme onayı delil kayıtları artık gerçekten
+  kişiyi işaret ediyor. Eski satır kıyas için duruyor (08-02, `via:"email_code"`).
+  🔙 Geri alma: env'i sil → redeploy; veri temizliği GEREKMEZ (TTL süpürür).
 - **Faz 0-1 ✅ BİTTİ ve CANLIDA.** m47 uygulandı (Railway boot `migrate deploy`), CI 4/4 yeşil.
   `PASSWORD_RESET_CHALLENGE_ENABLED` **Railway'de YOK** → üretim davranışı birebir eski akış.
-- **Faz 2 ⏸️ BAŞLAMADI — AYRI, AÇIK KULLANICI ONAYI BEKLİYOR.** Bayrağı BEN AÇMAM. Koşu sırası hazır
+- ~~Faz 2 ⏸️ BAŞLAMADI~~ ✅ **BİTTİ ↑** (eski koşu sırası kayıt olarak duruyor). Eski not: AYRI, AÇIK KULLANICI ONAYI BEKLİYOR.** Bayrağı BEN AÇMAM. Koşu sırası hazır
   (aşağıdaki 0. adım kritik, yoksa 8. madde hiç test edilemez):
   **0)** Bayrak KAPALIYKEN kod iste, gelen 8 haneyi NOT ET, KULLANMA (eski TTL 10 dk; redeploy birkaç dk →
   pencere dar, yetişmezse test "başarısız" değil "sonuçsuz") · **1)** env `=1` · **2)** redeploy ACTIVE ·
