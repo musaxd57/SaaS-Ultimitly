@@ -124,6 +124,58 @@ export async function peekDailyAiBudget(organizationId: string): Promise<DailyBu
   }
 }
 
+/**
+ * QR'IN PAYI — kimliksiz yüzey org'un bütçesini TEK BAŞINA bitiremesin (08-05).
+ *
+ * 🚨 SORUN: `chat/[token]` kimlik doğrulaması OLMAYAN tek AI yüzeyi ve `chatToken`
+ * daire başına KALICI bir sır (fiziksel QR etiketi olarak dairede asılı; rezervasyon
+ * başına dönmüyor). Tek sızmış token → org'un günlük AI tavanı tükenir → o gün
+ * TÜM dairelerdeki GERÇEK Airbnb misafirlerinin oto-yanıtı kapanır.
+ *
+ * ⚠️ İLK TASARIM YANLIŞTI, SQL OKUNARAK YAKALANDI: "aynı anahtara daha düşük limit
+ * ver" önerisi KORUMA SAĞLAMIYOR. `rateLimit` sayacı KOŞULSUZ artırıyor
+ * (`rate-limit.ts`: `"count" = r."count" + 1`), karşılaştırma ondan SONRA JS'te
+ * yapılıyor. Yani limiti aşan QR çağrıları modele gitmez ama PAYLAŞILAN SAYACI
+ * YAKMAYA DEVAM EDER — 25 daire × 200 daire-tavanı = 5.000 artış, org tavanı 1.500,
+ * inbox yine kilitlenir. Tasarımı körü körüne uygulasaydım koruma KURGUSAL olurdu.
+ *
+ * DOĞRU ŞEKİL — İKİ KOVA, SIRA ÖNEMLİ:
+ *   1. QR'ın KENDİ kovası (`ai-daily-qr:{org}`, tavan = payı). Taşarsa ERKEN DÖN —
+ *      paylaşılan sayaca DOKUNMADAN. Kritik olan bu: taşan QR trafiği inbox'ın
+ *      hakkını yiyemez.
+ *   2. Geçerse org'un ORTAK tavanı da uygulanır (`ai-daily:{org}`, tavan = cap) —
+ *      böylece TOPLAM harcama `cap`'i ASLA aşmaz, yani org'un faturası korunur.
+ *
+ * Sonuç üç garanti birden: QR ≤ pay · toplam ≤ cap · inbox'a her zaman en az
+ * (cap − pay) kalır. Ve QR sessizken inbox tavanın TAMAMINI kullanabilir (ayrı
+ * "carve-out" tasarımının israfı yok).
+ *
+ * ⚠️ Migration YOK: `RateLimitCounter` jenerik key-value, yeni anahtar yeter.
+ */
+const QR_SHARE_DEFAULT = 0.3;
+
+/** Env override — `AI_DAILY_CALL_CAP` ile aynı sıkı doğrulama deseni. */
+export function dailyAiQrSharePercent(): number {
+  const raw = process.env.AI_DAILY_QR_SHARE_PERCENT?.trim();
+  if (!raw || !/^\d{1,3}$/.test(raw)) return QR_SHARE_DEFAULT * 100;
+  const n = Number(raw);
+  return n >= 1 && n <= 100 ? n : QR_SHARE_DEFAULT * 100;
+}
+
+export async function consumeDailyAiBudgetForQr(organizationId: string): Promise<DailyBudgetVerdict> {
+  const override = dailyAiCallCapOverride();
+  const cap = override ?? (await limitsForOrg(organizationId)).aiCallsPerDay;
+  const qrCeiling = Math.max(1, Math.floor((cap * dailyAiQrSharePercent()) / 100));
+
+  // 1) QR'ın kendi payı. Taşarsa paylaşılan sayaca DOKUNMADAN dön.
+  const own = await rateLimit(`ai-daily-qr:${organizationId}`, qrCeiling, DAY_MS);
+  if (!own.ok) return { ok: false, retryAfter: own.retryAfter, cap: qrCeiling };
+
+  // 2) Org'un ortak tavanı — toplam harcama `cap`'i aşmasın.
+  const shared = await rateLimit(`ai-daily:${organizationId}`, cap, DAY_MS);
+  return { ok: shared.ok, retryAfter: shared.retryAfter, cap: qrCeiling };
+}
+
 export async function consumeDailyAiBudget(organizationId: string): Promise<DailyBudgetVerdict> {
   // Tavan PLANA göre (Başlangıç < Pro < İşletme). Env override'ı varsa o kazanır —
   // canlı bir arıza sırasında tek yerden kısabilmek için.

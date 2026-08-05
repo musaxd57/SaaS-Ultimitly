@@ -418,16 +418,20 @@ export function trialEndedEmail(ownerName: string, settingsUrl: string): string 
 // ---------------------------------------------------------------------------
 export function qrEscalationEmail(
   propertyName: string,
-  reason: "ai_escalated" | "daily_cap" | "daily_budget",
+  reason: "ai_escalated" | "daily_cap" | "daily_budget" | "daily_budget_qr",
   panelUrl: string,
 ): string {
   const reasonText =
     reason === "daily_cap"
       ? "Günlük otomatik yanıt limiti dolduğu için mesaj yapay zekâ tarafından yanıtlanmadı ve size devredildi."
-      : reason === "daily_budget"
-        ? // Daire tavanından AYRI: bu, işletmenizin GÜNLÜK AI işlem hakkının dolması.
-          "Planınızın günlük AI işlem hakkı dolduğu için mesaj yapay zekâ tarafından yanıtlanmadı ve size devredildi."
-        : "Yapay zekâ, güvenlik kuralları gereği bu mesajı yanıtlamadı ve size devretti.";
+      : reason === "daily_budget_qr"
+        ? // ⚠️ DÜRÜSTLÜK: QR artık org bütçesinin yalnız REZERVE payını tüketiyor.
+          // "Planınızın hakkı doldu" demek YANLIŞ olurdu — genel hak duruyor.
+          "QR misafir sohbeti için bugün ayrılan yapay zekâ payı doldu; mesaj size devredildi. Planınızın genel AI hakkı etkilenmedi."
+        : reason === "daily_budget"
+          ? // Daire tavanından AYRI: bu, işletmenizin GÜNLÜK AI işlem hakkının dolması.
+            "Planınızın günlük AI işlem hakkı dolduğu için mesaj yapay zekâ tarafından yanıtlanmadı ve size devredildi."
+          : "Yapay zekâ, güvenlik kuralları gereği bu mesajı yanıtlamadı ve size devretti.";
   const body = `
     <h2 style="margin:0 0 8px;color:#b45309;font-size:22px;font-weight:700;">
       Misafir sohbetinde size devredilen mesaj

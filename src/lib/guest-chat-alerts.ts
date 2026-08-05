@@ -75,7 +75,11 @@ export function qrEscalationEventId(inboundMessageId: string, guestText: string,
   return `crit:${createHash("sha256").update(normalized).digest("hex").slice(0, 32)}`;
 }
 
-export type QrEscalationReason = "ai_escalated" | "daily_cap" | "daily_budget";
+// ⚠️ `daily_budget_qr` AYRI bir sebep (08-05): QR artık org bütçesinin yalnız
+// REZERVE EDİLMİŞ payını tüketiyor. O pay dolduğunda org'un GENEL AI hakkı
+// büyük ihtimalle HÂLÂ DOLU — eski `daily_budget` metnini kullanmak host'a
+// yanlış beyan olurdu ("hakkınız doldu" derken dolmamış).
+export type QrEscalationReason = "ai_escalated" | "daily_cap" | "daily_budget" | "daily_budget_qr";
 
 export function qrEscalationEmailEnabled(): boolean {
   return process.env.QR_ESCALATION_EMAIL_ENABLED === "1";

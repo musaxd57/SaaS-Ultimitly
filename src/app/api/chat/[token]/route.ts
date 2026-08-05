@@ -24,7 +24,7 @@ import { jsonOk, badRequest, tooManyRequests, parseJsonBody, payloadTooLarge } f
 import { rateLimit, clientIp } from "@/lib/rate-limit";
 import { claimKeyedOutboundSend, releaseKeyedOutboundSend } from "@/lib/outbound-claim";
 import { limitsForOrg } from "@/lib/billing/plan-limits";
-import { consumeDailyAiBudget } from "@/lib/ai/daily-budget";
+import { consumeDailyAiBudgetForQr } from "@/lib/ai/daily-budget";
 
 export const dynamic = "force-dynamic";
 
@@ -538,7 +538,9 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ tok
   // Tavana çarpınca DAİRE tavanıyla AYNI dal işler: model çağrısı YOK, misafire
   // devir cevabı, host'a bildirim denemesi. Daire-başı tavan ikinci savunma
   // olarak yerinde duruyor.
-  const budget = await consumeDailyAiBudget(ctx.property.organizationId);
+  // ⚠️ QR'A ÖZEL: kimliksiz yüzey org'un bütçesini TEK BAŞINA bitiremesin.
+  // İki kova (kendi payı + org ortak tavanı) — gerekçe `daily-budget.ts`'te.
+  const budget = await consumeDailyAiBudgetForQr(ctx.property.organizationId);
   if (!budget.ok) {
     const escalationText = escalationReply();
     const { inboundMessageId, handedOff } = await record(escalationText, true);
@@ -548,7 +550,7 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ tok
       propertyName: ctx.property.name,
       reservationId: res.id,
       eventId: qrEscalationEventId(inboundMessageId, message, criticalEvent),
-      reason: "daily_budget",
+      reason: "daily_budget_qr",
       critical: criticalEvent,
     });
     return finalize({ escalated: true, reply: escalationText });
