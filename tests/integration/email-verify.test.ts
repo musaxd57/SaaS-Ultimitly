@@ -39,7 +39,19 @@ import { LEGAL_VERSION } from "@/lib/legal-entity";
 import { LEGAL_TEXT_HASH } from "@/lib/legal-text-hash";
 import { POST as register } from "@/app/api/auth/register/route";
 import { POST as login } from "@/app/api/auth/login/route";
-import { GET as verifyEmail } from "@/app/api/auth/verify-email/route";
+import { POST as verifyEmail } from "@/app/api/auth/verify-email/route";
+
+// ⚠️ 08-05: rota GET+query'den POST+gövdeye taşındı. Token artık e-postadaki
+// bağlantının FRAGMENT'inde (`#t=`) geliyor ve istemci onu buraya POST ediyor;
+// query'de taşımak Railway edge log'una / Next istek log'una yazmak demekti ve
+// bu token TEK BAŞINA OTURUM BASIYOR (m47'deki şifre sıfırlama token'ının
+// aksine yanında ikinci faktör YOK).
+const verifyReq = (token: string) =>
+  new NextRequest("http://www.lixusai.com/api/auth/verify-email", {
+    method: "POST",
+    headers: { "content-type": "application/json" },
+    body: JSON.stringify({ token }),
+  });
 
 // register + resend-verification now go through sendReporting (checked result — not
 // fire-and-forget), so the verification link + "was it sent" assertions read it.
@@ -124,7 +136,12 @@ describe("email-verify helpers", () => {
 
   it("verifyUrl ignores the Host entirely — the emailed link is host-injection-proof", () => {
     const url = verifyUrl("a".repeat(64));
-    expect(url.startsWith("https://www.lixusai.com/api/auth/verify-email?token=")).toBe(true);
+    // Token FRAGMENT'te; sunucuya HİÇ gitmez. `new URL()` ile ayrıştırılır ki
+    // biçim geri taşınırsa (query'ye) test kırmızıya dönsün.
+    const parsed = new URL(url);
+    expect(parsed.pathname).toBe("/e-posta-dogrula");
+    expect(parsed.search).toBe("");
+    expect(parsed.hash).toBe(`#t=${"a".repeat(64)}`);
   });
 
   it("baseUrlFromHost ALLOWLISTS: real/localhost hosts pass, a forged host falls back to the fixed base", () => {
@@ -256,12 +273,12 @@ describe("registration → verification → login", () => {
       }),
     );
     const html = String(mockSendReporting.mock.calls[0][2]);
-    const token = html.match(/token=([a-f0-9]{64})/)?.[1];
+    const token = html.match(/#t=([a-f0-9]{64})/)?.[1];
     expect(token).toBeTruthy();
 
-    const res = await verifyEmail(new NextRequest(`http://www.lixusai.com/api/auth/verify-email?token=${token}`));
-    expect(res.status).toBe(307); // redirect
-    expect(res.headers.get("location")).toContain("/dashboard");
+    const res = await verifyEmail(verifyReq(token!));
+    expect(res.status).toBe(200);
+    expect((await res.json()).ok).toBe(true);
     const u = await prisma.user.findUnique({ where: { email: "ada@x.com" } });
     expect(u?.emailVerifiedAt).not.toBeNull();
     expect(u?.emailVerifyTokenHash).toBeNull();
@@ -288,12 +305,10 @@ describe("registration → verification → login", () => {
     });
 
     const responses = await Promise.all(
-      Array.from({ length: 8 }, () =>
-        verifyEmail(new NextRequest(`http://www.lixusai.com/api/auth/verify-email?token=${raw}`)),
-      ),
+      Array.from({ length: 8 }, () => verifyEmail(verifyReq(raw))),
     );
-    const winners = responses.filter((r) => r.headers.get("location")?.includes("/dashboard"));
-    const losers = responses.filter((r) => r.headers.get("location")?.includes("verify=expired"));
+    const winners = responses.filter((r: Response) => r.status === 200);
+    const losers = responses.filter((r: Response) => r.status === 400);
     expect(winners).toHaveLength(1);
     expect(losers).toHaveLength(7);
 
@@ -312,7 +327,7 @@ describe("registration → verification → login", () => {
     );
     const html = String(mockSendReporting.mock.calls[0][2]);
     expect(html).not.toContain("attacker.evil.com"); // token never leaves for the attacker's domain
-    expect(html).toContain("https://www.lixusai.com/api/auth/verify-email?token=");
+    expect(html).toContain("https://www.lixusai.com/e-posta-dogrula#t=");
   });
 
   it("HOST-INJECTION: a forged Host on RESEND does NOT poison the emailed verify link", async () => {
@@ -335,7 +350,7 @@ describe("registration → verification → login", () => {
     expect(mockSendReporting).toHaveBeenCalledOnce();
     const html = String(mockSendReporting.mock.calls[0][2]);
     expect(html).not.toContain("attacker.evil.com");
-    expect(html).toContain("https://www.lixusai.com/api/auth/verify-email?token=");
+    expect(html).toContain("https://www.lixusai.com/e-posta-dogrula#t=");
   });
 
   it("a NEW (post-cutoff) unverified account is BLOCKED from login (403), then allowed once verified", async () => {
@@ -385,11 +400,19 @@ describe("register + resend — durable outbox (flag ON)", () => {
   });
   afterEach(() => vi.unstubAllEnvs());
 
-  function linkFromLastMail(): string {
+  /** E-postadaki bağlantının FRAGMENT'inden ham token'ı çıkarır.
+   *  ⚠️ `new URL()` ile ayrıştırılır ve `search` boş olmalı: token bir gün
+   *  query'ye geri taşınırsa bu yardımcı patlar ve onu kullanan TÜM testler
+   *  kırmızıya döner (biçim buradan da pinli). */
+  function tokenFromLastMail(): string {
     const html = String(mockSendReporting.mock.calls.at(-1)?.[2] ?? "");
     const m = html.match(/href="([^"]+)"/);
     if (!m) throw new Error("no link in e-mail");
-    return m[1];
+    const u = new URL(m[1]);
+    expect(u.search).toBe("");
+    const t = u.hash.match(/^#t=(.+)$/);
+    if (!t) throw new Error(`no #t= fragment in link: ${m[1]}`);
+    return decodeURIComponent(t[1]);
   }
 
   it("ATOMİK 201 (Codex kapanış 2): kayıt tek TX'te hesap+hash+outbox yazar; SENKRON e-posta yok; drain sonrası link doğrular", async () => {
@@ -415,9 +438,8 @@ describe("register + resend — durable outbox (flag ON)", () => {
     await drainEmailOutboxOnce();
     expect(mockSendReporting).toHaveBeenCalledTimes(1);
     expect(mockSendReporting.mock.calls[0][0]).toBe("ada@x.com");
-    const link = linkFromLastMail();
-    const verify = await verifyEmail(new NextRequest(link, { headers: { host: "www.lixusai.com" } }));
-    expect([200, 302, 307]).toContain(verify.status); // link works end-to-end
+    const verify = await verifyEmail(verifyReq(tokenFromLastMail()));
+    expect(verify.status).toBe(200); // link works end-to-end
     const after = await prisma.user.findUniqueOrThrow({ where: { email: "ada@x.com" } });
     expect(after.emailVerifiedAt).toBeTruthy();
   });
@@ -447,9 +469,8 @@ describe("register + resend — durable outbox (flag ON)", () => {
 
     await drainEmailOutboxOnce();
     expect(mockSendReporting).toHaveBeenCalledTimes(1); // tek mail: yenisi
-    const link = linkFromLastMail();
-    const verify = await verifyEmail(new NextRequest(link, { headers: { host: "www.lixusai.com" } }));
-    expect([200, 302, 307]).toContain(verify.status);
+    const verify = await verifyEmail(verifyReq(tokenFromLastMail()));
+    expect(verify.status).toBe(200);
     expect(
       (await prisma.user.findUniqueOrThrow({ where: { email: "ada@x.com" } })).emailVerifiedAt,
     ).toBeTruthy();

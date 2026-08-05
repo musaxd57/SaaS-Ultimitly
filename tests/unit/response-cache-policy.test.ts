@@ -167,7 +167,7 @@ describe("global güvenlik başlıkları (next.config.mjs)", () => {
   // (query dahil) `Referer` başlığına koyar. İki sayfada da `no-referrer`
   // olmalı ve GLOBAL bloktan SONRA gelmeli: Next'te son eşleşen başlık kazanır,
   // önce yazılırsa sessizce etkisiz kalır.
-  it.each(["/c/:path*", "/sifremi-unuttum"])(
+  it.each(["/c/:path*", "/sifremi-unuttum", "/e-posta-dogrula"])(
     "%s → Referrer-Policy: no-referrer (ve global bloktan SONRA)",
     async (source) => {
       const config = (await import("../../next.config.mjs")).default;

@@ -140,8 +140,26 @@ export function baseUrlFromHost(host: string | null): string {
 /** Absolute verify URL for an e-mailed link — built from the FIXED trusted base,
  *  NEVER the request Host, so the token can't be redirected to an attacker's
  *  domain via a forged Host header. */
+/**
+ * E-posta doğrulama bağlantısı.
+ *
+ * 🚨 TOKEN **FRAGMENT**'TE (`#t=`), QUERY'DE DEĞİL — GERİ TAŞIMA. `m47`'de
+ * şifre sıfırlamada verilen kararın AYNISI, üstelik burada bahis daha yüksek:
+ * o token'ın yanında ikinci bir faktör (8 haneli kod) vardı, BU token tek
+ * başına OTURUM BASIYOR (`verify-email/route.ts`). Query, HTTP istek satırının
+ * parçasıdır — Railway edge log'u, Next istek log'u, araya giren vekiller ve
+ * e-posta güvenlik tarayıcılarının ön-ısıtma istekleri onu görür; bu
+ * katmanların token'ı saklamadığını KANITLAYAMAYIZ (üçüncü taraf platform).
+ * Fragment sunucuya HİÇ gitmez ve `Referer`'dan spec gereği çıkarılır.
+ *
+ * ⚠️ Bağlantı artık bir API ucuna değil bir SAYFAYA gidiyor: fragment yalnız
+ * istemcide görülebildiği için token'ı okuyup POST eden bir adım gerekiyor
+ * (`components/auth/verify-email-form.tsx`). Kabul edilen artık risk, m47'deki
+ * ile aynı: fragment tarayıcı geçmişinde kalır — istemci onu okur okumaz
+ * `history.replaceState` ile siler.
+ */
 export function verifyUrl(rawToken: string): string {
-  return `${appBaseUrl()}/api/auth/verify-email?token=${encodeURIComponent(rawToken)}`;
+  return `${appBaseUrl()}/e-posta-dogrula#t=${encodeURIComponent(rawToken)}`;
 }
 
 export function verifyEmailHtml(name: string, url: string): string {

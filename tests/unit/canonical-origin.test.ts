@@ -65,7 +65,7 @@ describe("appCanonicalOrigin — kapalı liste, fail-closed", () => {
 describe(".com REGRESYONU — env yokken çıktı BİREBİR bugünkü", () => {
   it("appBaseUrl / verifyUrl / OAuth callback hepsi .com", () => {
     expect(appBaseUrl()).toBe(COM);
-    expect(verifyUrl("tok123")).toBe(`${COM}/api/auth/verify-email?token=tok123`);
+    expect(verifyUrl("tok123")).toBe(`${COM}/e-posta-dogrula#t=tok123`);
     expect(canonicalOAuthRedirectUri()).toBe(`${COM}/api/hospitable/oauth/callback`);
   });
 
@@ -94,7 +94,7 @@ describe("HEPSİ BİRLİKTE — .eu'da tek bir yüzey .com'a KAÇMAZ", () => {
     vi.stubEnv("APP_URL", EU);
     // Bu testin bütün mesele buydu: eskiden doğrulama linki .com'a gidiyordu.
     expect(appBaseUrl()).toBe(EU);
-    expect(verifyUrl("tok123")).toBe(`${EU}/api/auth/verify-email?token=tok123`);
+    expect(verifyUrl("tok123")).toBe(`${EU}/e-posta-dogrula#t=tok123`);
     expect(canonicalOAuthRedirectUri()).toBe(`${EU}/api/hospitable/oauth/callback`);
     expect(isTrustedAppUrl(EU)).toBe(true);
     expect(isTrustedRedirectUri(`${EU}/api/hospitable/oauth/callback`)).toBe(true);

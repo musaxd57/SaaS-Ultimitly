@@ -101,3 +101,27 @@ describe("middleware — kimlik sayfası yönlendirmeleri", () => {
     expect(redirectTo(await reqAs("/inbox", "staff"))).toBe("/tasks");
   });
 });
+
+// ---------------------------------------------------------------------------
+// E-POSTA DOĞRULAMA SAYFASI (08-05).
+//
+// Bağlantı e-postadan gelir ve token FRAGMENT'te taşınır, yani sayfayı AÇAN
+// kişi tanım gereği henüz oturumsuzdur → public olmak ZORUNDA.
+//
+// ⚠️ `SIGNED_IN_REDIRECT_PATHS`'e EKLENMEZ (`/sifremi-unuttum` emsali): oturumu
+// açık bir kullanıcı bağlantıya tıklarsa panele yönlendirilirdi ve doğrulama
+// HİÇ yapılamazdı. Üstelik tarayıcı, yönlendirme hedefinde fragment yoksa
+// kaynağınkini TAŞIR → token `/dashboard#t=...` olarak adres çubuğunda kalırdı
+// ve sayfanın `replaceState` temizliği orada çalışmaz.
+// ---------------------------------------------------------------------------
+describe("middleware — e-posta doğrulama sayfası", () => {
+  it("oturum YOKKEN /e-posta-dogrula yönlendirilmez", async () => {
+    expect(redirectTo(await reqAs("/e-posta-dogrula", null))).toBeNull();
+  });
+
+  it("oturum AÇIKKEN de panele KAÇIRILMAZ", async () => {
+    for (const role of ["owner", "manager", "staff"] as UserRole[]) {
+      expect(redirectTo(await reqAs("/e-posta-dogrula", role)), role).toBeNull();
+    }
+  });
+});

@@ -116,6 +116,14 @@ const nextConfig = {
         source: "/sifremi-unuttum",
         headers: [{ key: "Referrer-Policy", value: "no-referrer" }],
       },
+      {
+        // E-posta dogrulama sayfasi: token FRAGMENT'te (#t=) gelir ve TEK
+        // BASINA OTURUM BASAR. Fragment zaten `Referer`'a girmez; bu baslik
+        // ikinci savunma (sayfaya bir gun query'li parametre eklenirse global
+        // `strict-origin-when-cross-origin` onu tam URL olarak sizdirirdi).
+        source: "/e-posta-dogrula",
+        headers: [{ key: "Referrer-Policy", value: "no-referrer" }],
+      },
       // Brand assets are MEANT to be embedded by OTHER sites (Hospitable's OAuth
       // consent screen hotlinks the app logo; partner directories do the same).
       // The global CORP: same-site above makes browsers BLOCK exactly that

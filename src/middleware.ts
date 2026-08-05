@@ -2,7 +2,7 @@ import { NextResponse, type NextRequest } from "next/server";
 import { SESSION_COOKIE, SESSION_MAX_AGE, signSession, verifySession } from "@/lib/auth/session";
 
 /** Oturum GEREKTİRMEYEN kimlik sayfaları — çıkış yapmış ziyaretçi görebilir. */
-const AUTH_PATHS = ["/login", "/register", "/sifremi-unuttum"];
+const AUTH_PATHS = ["/login", "/register", "/sifremi-unuttum", "/e-posta-dogrula"];
 
 /**
  * Oturum AÇIKKEN panele geri yollanan kimlik sayfaları.
