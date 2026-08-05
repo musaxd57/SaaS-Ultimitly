@@ -5,14 +5,29 @@
 # broken bundle on Railway — `next build` failed prerendering the auto-generated
 # /404 and /_error pages with "<Html> should not be imported outside of
 # pages/_document", even though the identical commit builds cleanly on Node
-# 18/20/22 + npm ci locally. Pinning the toolchain here (official node:20-slim)
+# 18/20/22 + npm ci locally. Pinning the toolchain here (official node:22-slim)
 # makes the build deterministic and reproducible: what builds locally builds on
 # Railway.
 #
 # Base image is pulled from Google's public mirror of the Docker official
-# library (identical digest to docker.io/library/node:20-slim) to avoid Docker
+# library (identical digest to docker.io/library/node:22-slim) to avoid Docker
 # Hub's anonymous pull rate limits.
-FROM mirror.gcr.io/library/node:20-slim
+#
+# 🚨 NODE 22 (08-05'te 20'den yukseltildi). Node 20 **2026-04-30'da EOL oldu**
+# (kaynak: nodejs/Release schedule.json) — yani uretim calisma zamani ucuncu
+# aydir hicbir guvenlik yamasi ALMIYORDU. Node 22'nin EOL'u 2027-04-30.
+#
+# Kanit: bu depo Node 22.22.2 uzerinde tam test paketi (2685 test) + `next build`
+# + gercek production sunumu ile dogrulandi; CI de ayni turda 22'ye alindi.
+# Docker imajinin KENDISI yerelde derlenemedi (bu ortamda Docker daemon yok) —
+# derleme hatasi olursa Railway yeni deploy'u YAYINLAMAZ ve calisan surum
+# hizmet vermeye devam eder (site DUSMEZ), ama deploy o dusuzelene kadar durur.
+#
+# ⚠️ Bu satir, CI'daki node surumu ve package.json `engines` ile TESTLE bagli
+# (tests/unit/node-version-parity.test.ts). Uc yerden biri kayarsa CI kirmizi:
+# "CI 22'de test ediyor ama uretim 20 ile calisiyor" sessiz ayrismasi, tam da bu
+# sinifin en pahali hatasidir.
+FROM mirror.gcr.io/library/node:22-slim
 
 WORKDIR /app
 

@@ -41,7 +41,7 @@ jobs:
     # Debian container runs as root, which the integration test global-setup
     # needs (it provisions its own PostgreSQL on :5433 via `su postgres`).
     container:
-      image: node:20-bookworm
+      image: node:22-bookworm
     steps:
       # TAM GEÇMİŞ — yalnız bu job'da. Dedupe apply'ının güvenlik kapısı
       # `git merge-base --is-ancestor <Faz A> <deploy SHA>` ile çalışır; sığ
@@ -98,7 +98,7 @@ jobs:
       - uses: actions/checkout@v4
       - uses: actions/setup-node@v4
         with:
-          node-version: 20
+          node-version: 22
           cache: npm
       - name: Install dependencies
         run: npm ci
@@ -150,7 +150,7 @@ jobs:
       - uses: actions/checkout@v4
       - uses: actions/setup-node@v4
         with:
-          node-version: 20
+          node-version: 22
           cache: npm
       - name: Install dependencies
         run: npm ci
@@ -179,7 +179,7 @@ jobs:
       - uses: actions/checkout@v4
       - uses: actions/setup-node@v4
         with:
-          node-version: 20
+          node-version: 22
           cache: npm
       - name: Install dependencies
         run: npm ci
@@ -225,7 +225,7 @@ jobs:
       - uses: actions/checkout@v4
       - uses: actions/setup-node@v4
         with:
-          node-version: 20
+          node-version: 22
           cache: npm
       # `npm ci` degil: audit yalnizca package-lock.json'u okur, bagimliliklarin
       # kurulmasina gerek yok (ve kurmamak, denetlenen agacin postinstall

@@ -2,6 +2,9 @@
   "name": "guestops-ai",
   "version": "0.1.0",
   "private": true,
+  "engines": {
+    "node": ">=22.0.0 <23"
+  },
   "scripts": {
     "dev": "next dev",
     "build": "prisma generate && next build",
