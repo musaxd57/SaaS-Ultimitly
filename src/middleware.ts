@@ -40,7 +40,11 @@ export async function middleware(req: NextRequest) {
   // Public pages a logged-out visitor may see: the marketing landing ("/"), the
   // legal pages, and the auth pages. Everything else requires a session.
   // "/c" = the public guest QR concierge chat (its own token auth; no session).
-  const PUBLIC_PREFIXES = ["/gizlilik", "/kosullar", "/mesafeli-satis", "/on-bilgilendirme", "/entegrasyonlar", "/c"];
+  // ⚠️ `/guvenlik` (VDP) BURADA OLMAK ZORUNDA: politikayı okuyacak kişi tanım
+  // gereği oturumsuz bir dış araştırmacıdır. Listeden düşerse `/login`'e
+  // yönlendirilir ve politika tam da hedef kitlesine kapanır — `security.txt`'in
+  // `Policy` alanı da ölü bağlantıya döner. Test-pinli.
+  const PUBLIC_PREFIXES = ["/gizlilik", "/kosullar", "/mesafeli-satis", "/on-bilgilendirme", "/entegrasyonlar", "/guvenlik", "/c"];
   const isPublic =
     pathname === "/" || isAuthPage || PUBLIC_PREFIXES.some((p) => pathname === p || pathname.startsWith(p + "/"));
 

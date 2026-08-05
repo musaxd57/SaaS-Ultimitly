@@ -14,6 +14,7 @@ const BASE = appCanonicalOrigin();
 // /login is intentionally NOT listed: an auth form is not search content.
 const LANDING_UPDATED = new Date("2026-07-30"); // yeni SSS girdisi (deneme sonrası)
 const LEGAL_UPDATED = new Date(`${LEGAL_VERSION}-01`);
+const SECURITY_UPDATED = new Date("2026-08-05"); // VDP yayımlandı
 
 export default function sitemap(): MetadataRoute.Sitemap {
   return [
@@ -25,5 +26,10 @@ export default function sitemap(): MetadataRoute.Sitemap {
     { url: `${BASE}/kosullar`, lastModified: LEGAL_UPDATED, changeFrequency: "yearly", priority: 0.2 },
     { url: `${BASE}/on-bilgilendirme`, lastModified: LEGAL_UPDATED, changeFrequency: "yearly", priority: 0.2 },
     { url: `${BASE}/mesafeli-satis`, lastModified: LEGAL_UPDATED, changeFrequency: "yearly", priority: 0.2 },
+    // VDP: keşfedilebilir OLMALI (bir güvenlik araştırmacısı onu bulamıyorsa
+    // politika işlevsizdir). ⚠️ `LEGAL_UPDATED` KULLANILMIYOR: bu sayfa
+    // onaylanan sözleşme metinlerinden bağımsız yaşıyor ve `LEGAL_VERSION`
+    // bump'ına bağlanmamalı (legal-text-hash'e de bilerek dahil değil).
+    { url: `${BASE}/guvenlik`, lastModified: SECURITY_UPDATED, changeFrequency: "yearly", priority: 0.3 },
   ];
 }

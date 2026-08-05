@@ -72,6 +72,26 @@ describe("middleware — kimlik sayfası yönlendirmeleri", () => {
     },
   );
 
+  // ── VDP: oturumsuz araştırmacı politikayı OKUYABİLMELİ ────────────────────
+  // `security.txt`'in `Policy` alanı buraya işaret ediyor. `/guvenlik`
+  // `PUBLIC_PREFIXES`'ten düşerse dış araştırmacı `/login`'e yönlendirilir ve
+  // politika tam da hedef kitlesine kapanır — yayımlanmış `Policy` bağlantısı
+  // ölü bağlantıya döner.
+  //
+  // ⚠️ Bu DAVRANIŞSAL pin, `security-txt.test.ts`'teki kaynak taramasının
+  // yerine geçer değil ONU TAMAMLAR: kaynak taraması dizenin varlığını görür,
+  // bu test yönlendirmenin gerçekten olmadığını ölçer. (Canlı doğrulama da
+  // yapıldı: taze build'de `/guvenlik` → 200, `/dashboard` → 307.)
+  it("oturum YOKKEN /guvenlik (VDP) yönlendirilmez", async () => {
+    expect(redirectTo(await reqAs("/guvenlik", null))).toBeNull();
+  });
+
+  it("oturum AÇIKKEN de /guvenlik açılır (panele kaçırılmaz)", async () => {
+    expect(redirectTo(await reqAs("/guvenlik", "owner"))).toBeNull();
+    // Temizlikçi de bir açık bildirebilir; staff `/tasks`'e kaçırılmamalı.
+    expect(redirectTo(await reqAs("/guvenlik", "staff"))).toBeNull();
+  });
+
   // ── Çevredeki kuralların bozulmadığının pini ──────────────────────────────
   it("oturum YOKKEN korumalı sayfa hâlâ /login'e yönlendirilir", async () => {
     expect(redirectTo(await reqAs("/dashboard", null))).toBe("/login");
