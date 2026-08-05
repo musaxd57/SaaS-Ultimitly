@@ -1,5 +1,11 @@
 import { describe, it, expect } from "vitest";
-import { readJsonCapped, parseJsonBody, readJsonCappedOrNull, readTextCapped } from "@/lib/api";
+import {
+  readJsonCapped,
+  parseJsonBody,
+  readJsonCappedOrNull,
+  readTextCapped,
+  UnsupportedMediaTypeError,
+} from "@/lib/api";
 
 // ---------------------------------------------------------------------------
 // TARAYICI-BOTNET KAPISI: gövde taşıyan JSON istekleri `application/json`
@@ -49,25 +55,53 @@ describe("JSON gövde kapısı — content-type", () => {
   it("RED: safelisted content-type'larla gövde geçemez (asıl saldırı)", async () => {
     // `text/plain` = cross-origin fetch'in preflight'sız gönderebildiği tip.
     for (const ct of ["text/plain", "text/plain;charset=UTF-8", "application/x-www-form-urlencoded"]) {
-      await expect(readJsonCapped(post(ct)), `geçti: ${ct}`).rejects.toThrow();
+      await expect(readJsonCapped(post(ct)), `geçti: ${ct}`).rejects.toThrow(UnsupportedMediaTypeError);
     }
   });
 
   it("RED: content-type YOKKEN gövde geçemez (Blob kaçışı)", async () => {
+    // ⚠️ Bu testin İLK hâli BOŞUNA GEÇİYORDU: `headers:{}` + STRING gövde
+    // verince undici `text/plain;charset=UTF-8`'i KENDİ ekliyor, yani test
+    // başlıksız yolu değil `text/plain`i tekrar sınıyordu (düşmanca doğrulama
+    // ölçtü). Gerçekten başlıksız istek üretmenin yolu boş tipli bir `Blob`:
     // `fetch(url,{body:new Blob([json],{type:""})})` başlığı HİÇ göndermez ve
-    // başlık yoksa istek zaten "simple" sayılır. "Başlık yoksa geçir" kuralı
+    // başlıksız istek zaten "simple" sayılır → "başlık yoksa geçir" kuralı
     // kapıyı tam buradan delerdi.
-    await expect(readJsonCapped(post(null))).rejects.toThrow();
+    const headerless = new Request(url, {
+      method: "POST",
+      body: new Blob(['{"a":1}'], { type: "" }),
+    });
+    // Varsayımın kendisi pinli: bu gerçekten başlıksız mı?
+    expect(headerless.headers.get("content-type")).toBeNull();
+    await expect(readJsonCapped(headerless)).rejects.toThrow(UnsupportedMediaTypeError);
+  });
+
+  it("RED: virgüllü (birleşmiş yinelenen) başlık geçemez", async () => {
+    // Bir medya tipi virgül içeremez; virgüllü değer yinelenmiş başlıkların
+    // birleşmiş hâlidir ve hangi değerin geçerli olduğu taraflar arasında
+    // ayrışabilir (Node ilkini tutar, bir vekil sonuncuyu seçebilir).
+    // ⚠️ `;`ten kesme TEK BAŞINA yetmiyordu: aşağıdaki ilk iki değer kesme
+    // sonrası `application/json` olup KABUL ediliyordu.
+    for (const ct of [
+      "application/json;charset=utf-8, text/plain",
+      "application/json;x, text/plain",
+      "application/json, text/plain",
+      "text/plain, application/json",
+    ]) {
+      await expect(readJsonCapped(post(ct)), `geçti: ${ct}`).rejects.toThrow(
+        UnsupportedMediaTypeError,
+      );
+    }
   });
 
   it("RED: naif kontrolleri delen biçimler (asıl uygulama tuzağı)", async () => {
     // `includes("application/json")` ÖLÜMCÜL: bu değer CORS-safelisted
     // (unsafe bayt yok, <128 karakter) → preflight YOK → kapıdan geçerdi.
-    await expect(readJsonCapped(post("text/plain; x=application/json"))).rejects.toThrow();
-    await expect(readJsonCapped(post("text/plain, application/json"))).rejects.toThrow();
+    await expect(readJsonCapped(post("text/plain; x=application/json"))).rejects.toThrow(UnsupportedMediaTypeError);
+    await expect(readJsonCapped(post("text/plain, application/json"))).rejects.toThrow(UnsupportedMediaTypeError);
     // `startsWith` de yetmez:
     for (const ct of ["application/json+evil", "application/jsonp", "application/json-seq"]) {
-      await expect(readJsonCapped(post(ct)), `geçti: ${ct}`).rejects.toThrow();
+      await expect(readJsonCapped(post(ct)), `geçti: ${ct}`).rejects.toThrow(UnsupportedMediaTypeError);
     }
   });
 
@@ -87,8 +121,13 @@ describe("JSON gövde kapısı — content-type", () => {
     // denemeler tükenir ve ÖDEME OLAYI KALICI KAYBOLUR.
     // Ayrıca Paddle'ın gerçek başlığı repodan KANITLANAMIYOR (resmî doküman
     // 403; testimizdeki değer bizim testimiz, Paddle'ın tel formatı değil).
+    // ⚠️ İki iddia da GERÇEKTEN farklı olmalı: ilk hâlde `post(null, …)` da
+    // `text/plain` üretiyordu (undici string gövdeye başlığı kendi ekliyor),
+    // yani aynı durum iki kez sınanıyordu.
     await expect(readTextCapped(post("text/plain", "ham gövde"))).resolves.toBe("ham gövde");
-    await expect(readTextCapped(post(null, "ham gövde"))).resolves.toBe("ham gövde");
+    const headerless = new Request(url, { method: "POST", body: new Blob(["ham gövde"], { type: "" }) });
+    expect(headerless.headers.get("content-type")).toBeNull();
+    await expect(readTextCapped(headerless)).resolves.toBe("ham gövde");
   });
 
   it("SÖZLEŞME KORUNDU: parseJsonBody 'tooLarge:false', OrNull 'null' döner", async () => {

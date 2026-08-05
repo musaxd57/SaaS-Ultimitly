@@ -188,12 +188,22 @@ export class UnsupportedMediaTypeError extends Error {
  *    `Application/JSON` gibi MEŞRU biçimleri reddeder. Bugün kendi istemcimiz
  *    düz küçük harf gönderdiği için fark edilmez; bir gün bir istemci charset
  *    eklediğinde üretimde patlar.
- * ⚠️ Virgüllü (yinelenen) değer de reddedilir: Node yinelenen `content-type`
- * başlığında İLKİNİ tutar, araya giren bir vekil SONUNCUYU seçebilir — iki
- * taraf aynı fikirde olmadığında güvenli yön reddetmektir.
+ * ⚠️ VİRGÜL AÇIKÇA REDDEDİLİR. Bir medya tipi virgül içeremez; virgüllü değer
+ * yinelenmiş `content-type` başlıklarının birleşmiş hâlidir. Node yinelenende
+ * İLKİNİ tutar, araya giren bir vekil SONUNCUYU seçebilir — iki taraf aynı
+ * fikirde değilse güvenli yön reddetmektir.
+ * Bu satır ÖLÇÜLEREK eklendi: `;`ten kesme tek başına yetmiyordu, çünkü
+ * `application/json;charset=utf-8, text/plain` kesme sonrası `application/json`
+ * olup KABUL ediliyordu (yorum "reddedilir" diyordu ama kod öyle yapmıyordu —
+ * var olmayan bir özelliği belgelemişim, düşmanca doğrulama yakaladı).
  */
 function mediaTypeEssence(raw: string | null): string {
   if (raw === null) return "";
+  // ⚠️ Virgül HAM değerde aranır, ÖZDE değil. İlk denemem özde arıyordu ve
+  // `application/json;charset=utf-8, text/plain` geçiyordu: virgül parametre
+  // kısmında olduğu için `;`ten kesme onu ZATEN atıyor, geriye temiz bir
+  // `application/json` kalıyordu. Ölçülerek yakalandı.
+  if (raw.includes(",")) return "";
   const semi = raw.indexOf(";");
   return (semi === -1 ? raw : raw.slice(0, semi)).trim().toLowerCase();
 }
@@ -360,6 +370,17 @@ export async function readJsonCapped<T = unknown>(
   //
   // ⚠️ KAPSAM DÜRÜSTLÜĞÜ: bu YALNIZ tarayıcı-botnet vektörünü kapatır. curl her
   // başlığı set edebilir; onu sınırlayan şey per-IP kovalarıdır, bu kapı değil.
+  // Ölçülen kalan yüzey: saldırgan IP'si başına ~236 kimliksiz yazma/saat.
+  //
+  // ⚠️ NO-OP OLDUĞU ÜÇ ROTA: `ai-suggest`, `hazirlik/summary` ve
+  // `admin/quality-audit` sonucu `?? {}` ile varsayılana çeviriyor, yani kapı
+  // orada isteği DURDURMAZ (üçü de withManage/superadmin + `SameSite=Lax`, yani
+  // cross-site POST çerezi zaten taşımaz — tehdit modeli dışında).
+  //
+  // ⚠️ ÖLÇÜLEN DURUM KODU DEĞİŞİKLİĞİ: kapı `readTextCapped`'in content-length
+  // kontrolünden ÖNCE koştuğu için, JSON OLMAYAN ve AYNI ZAMANDA çok büyük bir
+  // gövde artık 413 değil 400 alıyor. Bilinçli: sıralamayı tersine çevirmek,
+  // reddedilecek bir isteğin gövdesini okumaya başlamak demekti.
   if (req.body !== null && mediaTypeEssence(req.headers.get("content-type")) !== "application/json") {
     throw new UnsupportedMediaTypeError();
   }
