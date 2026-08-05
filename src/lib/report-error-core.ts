@@ -114,54 +114,45 @@ export function __resetReportThrottle() {
 // Sensitive JSON/kv KEYS whose VALUE must be masked. Deliberately EXCLUDES bare
 // "code"/"id"/"status"/"type" so error codes (P2002, invalid_grant), ids and
 // HTTP statuses stay visible for debugging.
-/**
- * AFFIX anahtarlar: bir anahtar TOKEN'ının HERHANGİ bir yerinde geçebilirler
- * (`senderName`, `chatToken`, `guestEmail`, `accessToken` hepsi yakalanır).
- *
- * ⚠️ 08-05'te sadeleşti: `access[_-]?token` / `refresh[_-]?token` /
- * `client[_-]?secret` / `set[_-]?cookie` / `full|first|last|guest[_-]?name`
- * alternatifleri KALDIRILDI — `token`/`secret`/`cookie`/`name` zaten affix
- * olarak eşleştiği için ölü ağırlıktılar. `*[_-]?code` ve `api[_-]?key`
- * KALIYOR: çıplak `code`/`key` bilinçli olarak listede DEĞİL (hata kodları
- * P2002/429 görünür kalsın diye), yani o bileşikler gerçekten gerekli.
- */
-const AFFIX_KEY =
-  "(?:pass(?:word|wd)?|pwd|token|secret|api[_-]?key|authorization|cookie|" +
-  "e?mail|phone|telephone|gsm|mobile|name|address|street|" +
-  "door[_-]?code|access[_-]?code|postal[_-]?code)";
-/**
- * EXACT anahtarlar: YALNIZ tam token olarak eşleşirler. Serbest METİN taşıyan
- * alanlar bunlar (`content` = OpenAI mesaj alanı, `body` = MessageOutbox
- * gövdesi) ve affix yapılamazlar: `Content-Type`, `content-length`,
- * `bodySnippet`, `hasContent` teşhis için gerekli ve maskelenmemeli.
- */
-const EXACT_KEY = "(?:content|body)";
-/** Bir anahtar token'ında geçebilecek karakterler. */
-const KEY_CH = "[A-Za-z0-9_.\\[\\]-]";
-/**
- * TOKEN BAŞI. Bu lookbehind olmadan anahtar, bir yolun ORTASINDAN eşleşebiliyor:
- * `/app/src/lib/email-core.ts:101:7` içinde `email` yakalanıp satır numarası
- * `[REDACTED]` oluyordu — tam da hata ayıklarken en çok istenen dosyalarda
- * (`email*.ts`, `password*.ts`). Ölçülerek yakalandı, test-pinli.
- */
-const KEY_START = "(?<![A-Za-z0-9_.\\[\\]/-])";
+const SENSITIVE_KEY =
+  "(?:pass(?:word|wd)?|pwd|token|access[_-]?token|refresh[_-]?token|" +
+  "client[_-]?secret|secret|api[_-]?key|authorization|cookie|set[_-]?cookie|" +
+  "e?mail|phone|telephone|gsm|mobile|full[_-]?name|first[_-]?name|last[_-]?name|" +
+  "guest[_-]?name|name|address|street|door[_-]?code|access[_-]?code|postal[_-]?code)";
 // Value matcher handles BOTH a quoted JSON value (commas/braces INSIDE the quotes
 // are part of the value — e.g. "Istanbul, Turkey") and a bare key=value token.
 // The old `[^"\n,}{]*` stopped at the first comma, so a quoted address/full_name
 // leaked its value un-redacted; the quoted branch below fixes that.
 //
-// ⚠️ `{0,40}` NİCELİK SINIRLARI YÜK TAŞIYOR. Sınırsız hâlde `"namea".repeat(N)`
-// girdisinde ÖLÇÜLEN süre: 20KB → 221 ms, 80KB → 3495 ms (karesel büyüme);
-// sınırlı hâlde ikisi de ~1 ms. Test-pinli — ama pin GİRDİ BOYUTUNA bağlı:
-// 20KB'lık bir test girdisi 221 ms ile 500 ms eşiğinin altında kalıp mutasyonu
-// KAÇIRIYOR. Bu yüzden test 60KB kullanır (gövde kapısı 64KB).
+// ─────────────────────────────────────────────────────────────────────────────
+// 🚨 BİLİNEN AÇIK — JSON TIRNAKLI BİLEŞİK ANAHTARLAR MASKELENMİYOR (08-05).
 //
-// ⚠️ Eski `("?)(KEY)\1` yapısı tırnaklama ile kelime-içi eşleşmeyi BİRBİRİNİ
-// DIŞLAYAN hâle getiriyordu: `senderName=` redakte oluyor ama `{"senderName":…}`
-// OLMUYORDU. Misafir adı ve QR token'ı ABD'deki Sentry'ye açık gidiyordu.
+// `("?)(KEY)\1` yapısı tırnaklama ile kelime-içi eşleşmeyi BİRBİRİNİ DIŞLAYAN
+// hâle getiriyor: `senderName=Ayse` redakte OLUR, `{"senderName":"Ayse"}` OLMAZ.
+// Ölçülen sızıntılar: `senderName` · `chatToken` · iç içe objeler. Yani misafir
+// adı ve QR sohbet token'ı Sentry'ye (ABD) açık gidebiliyor.
+//
+// ⚠️ BU AÇIK BİLEREK AÇIK BIRAKILDI. Denenen düzeltme (affix pencereli anahtar
+// + token-başı lookbehind) DAHA KÖTÜ çıktı ve geri alındı — düşmanca doğrulama
+// ölçtü:
+//   1. `/`-önekli anahtarlar SIZDI: `POST /api/calendar/token=SECRET` eski kodda
+//      maskeleniyordu, yeni kodda maskelenmiyordu. Sızıntı kapatırken sızıntı.
+//   2. DİZİ/OBJE değerlerde YANLIŞ GÜVENCE: `{"body":["Ayse Yilmaz …"]}` →
+//      `"body": [REDACTED]"Ayse Yilmaz …"]` — damga basılıyor, PII duruyor.
+//      Hiç maskelememekten kötü. (Hospitable 422 ve OpenAI çok-parçalı içerik
+//      tam da bu şekilde geliyor.)
+//   3. TEŞHİS KÖRLÜĞÜ: `hostname` · `filename` · `pathname` · `username` ·
+//      `modelName` (Prisma P2002 meta) · `errorName` hepsi maskelendi.
+//
+// Doğru çözümün karşılaması gereken kısıtlar (hepsi aşağıda test-pinli):
+//   · tırnaklı bileşik anahtarı yakala           · `/`+`\` önekli anahtarı KAYBETME
+//   · dizi/obje değerini ya tam tüket ya HİÇ dokunma (yarım damga YASAK)
+//   · teşhis anahtarlarını (host/file/path/user/model/error+Name) KORU
+//   · yığın izi satır numaralarını KORU          · ReDoS'a girme
+// Regex bu kısıt kümesini taşıyamıyor olabilir; ayrı bir tur, ayrı tasarım.
+// ─────────────────────────────────────────────────────────────────────────────
 const FIELD_RE = new RegExp(
-  `("?)(${KEY_START}${KEY_CH}{0,40}${AFFIX_KEY}${KEY_CH}{0,40}|${KEY_START}${EXACT_KEY})` +
-    `\\1\\s*[:=]\\s*("[^"\\n]*"|[^",}{\\n]+)`,
+  `("?)(${SENSITIVE_KEY})\\1\\s*[:=]\\s*("[^"\\n]*"|[^",}{\\n]+)`,
   "gi",
 );
 
@@ -178,7 +169,13 @@ export function redactSensitive(input: string): string {
   s = s.replace(/\b[Bb]earer\s+[A-Za-z0-9._~+/=-]+/g, "Bearer [REDACTED]");
   s = s.replace(/\bsk-[A-Za-z0-9_-]{12,}/g, "sk-[REDACTED]"); // OpenAI key
   s = s.replace(/\bwhsec_[A-Za-z0-9]+/g, "whsec_[REDACTED]"); // webhook secret
-  s = s.replace(/\beyJ[A-Za-z0-9_-]+\.[A-Za-z0-9_-]+\.[A-Za-z0-9_-]+/g, "[JWT]");
+  // ⚠️ SINIRLI (ölçüldü 08-05): sınırsız hâli katastrofik geri-izleme yapıyordu.
+  // `-` hem karakter sınıfının İÇİNDE hem de bir `\b` ürettiği için `"eyJa-"`
+  // tekrarında HER `eyJ` bir başlangıç olup asla gelmeyecek bir `.` aramak
+  // üzere metnin sonuna kadar tarıyordu: 32KB → 341 ms, 64KB → 1460 ms.
+  // Sınırlı hâlde 64KB → 78 ms; çıktı gerçek JWT'lerde BİREBİR aynı.
+  // (1024 = gerçekçi bir JWT parçasının çok üstünde.)
+  s = s.replace(/\beyJ[A-Za-z0-9_-]{1,1024}\.[A-Za-z0-9_-]{1,1024}\.[A-Za-z0-9_-]{1,1024}/g, "[JWT]");
   s = s.replace(/\b(authorization|cookie|set-cookie)\b\s*[:=]\s*[^\n]+/gi, "$1: [REDACTED]");
   // (B) field-name-aware: catches names/addresses/door-codes of any shape in JSON bodies
   s = s.replace(FIELD_RE, (_m, q, key) => `${q}${key}${q}: [REDACTED]`);
