@@ -144,7 +144,15 @@ const SENSITIVE_KEY =
 //   3. TEŞHİS KÖRLÜĞÜ: `hostname` · `filename` · `pathname` · `username` ·
 //      `modelName` (Prisma P2002 meta) · `errorName` hepsi maskelendi.
 //
-// Doğru çözümün karşılaması gereken kısıtlar (hepsi aşağıda test-pinli):
+// ⚠️ SIZAN ANAHTAR KÜMESİNİ ABARTMAMAK GEREK (ölçüldü): alan mekanizmasından
+// gerçekten sızan YALNIZ `senderName` ve `chatToken`. `guestName`/`accessToken`
+// listede TAM alternatif oldukları için zaten maskeleniyor, `guestPhone`'un
+// DEĞERİ de `[PHONE]` kuralına takılıyor. İlk raporumda beşini birden "sızıyor"
+// diye saymıştım; üçü yanlıştı.
+//
+// Doğru çözümün karşılaması gereken kısıtlar (⚠️ 6'dan 4'ü test-pinli; "tırnaklı
+// bileşik anahtarı yakala" bir `it.todo`, `\`-önekli anahtar ise HİÇ test
+// edilmiyor — "hepsi pinli" diye yazmıştım, yanlıştı):
 //   · tırnaklı bileşik anahtarı yakala           · `/`+`\` önekli anahtarı KAYBETME
 //   · dizi/obje değerini ya tam tüket ya HİÇ dokunma (yarım damga YASAK)
 //   · teşhis anahtarlarını (host/file/path/user/model/error+Name) KORU
@@ -169,13 +177,25 @@ export function redactSensitive(input: string): string {
   s = s.replace(/\b[Bb]earer\s+[A-Za-z0-9._~+/=-]+/g, "Bearer [REDACTED]");
   s = s.replace(/\bsk-[A-Za-z0-9_-]{12,}/g, "sk-[REDACTED]"); // OpenAI key
   s = s.replace(/\bwhsec_[A-Za-z0-9]+/g, "whsec_[REDACTED]"); // webhook secret
-  // ⚠️ SINIRLI (ölçüldü 08-05): sınırsız hâli katastrofik geri-izleme yapıyordu.
-  // `-` hem karakter sınıfının İÇİNDE hem de bir `\b` ürettiği için `"eyJa-"`
-  // tekrarında HER `eyJ` bir başlangıç olup asla gelmeyecek bir `.` aramak
-  // üzere metnin sonuna kadar tarıyordu: 32KB → 341 ms, 64KB → 1460 ms.
-  // Sınırlı hâlde 64KB → 78 ms; çıktı gerçek JWT'lerde BİREBİR aynı.
-  // (1024 = gerçekçi bir JWT parçasının çok üstünde.)
-  s = s.replace(/\beyJ[A-Za-z0-9_-]{1,1024}\.[A-Za-z0-9_-]{1,1024}\.[A-Za-z0-9_-]{1,1024}/g, "[JWT]");
+  // ⚠️ TEK KARAKTER SINIFI — nokta SINIFIN İÇİNDE, ayrı `\.` ayırıcı YOK.
+  //
+  // Eski `eyJ…+\.…+\.…+` biçimi katastrofik geri-izleme yapıyordu: `-` hem
+  // sınıfın içinde hem bir `\b` ürettiği için `"eyJa-"` tekrarında HER `eyJ`
+  // bir başlangıç olup asla gelmeyecek bir `.` aramak üzere metnin sonuna kadar
+  // tarıyordu (31KB → 224-291 ms, 62KB → 888-912 ms; ÜÇ koşumun aralığı —
+  // tek koşumluk mikro-benchmark %30-60 sapıyor, ilk raporladığım 341/1460
+  // sayıları bu yüzden yüksekti).
+  //
+  // 🚨 İLK DÜZELTMEM ({1,1024} segment sınırları) FAIL-OPEN'DI: 1024'ten uzun
+  // segmentli bir token HİÇ maskelenmiyordu (eskiden `[JWT]` oluyordu) — yani
+  // ReDoS'u kapatırken bir SIR SIZINTISI açmıştım. Ölçülerek yakalandı.
+  //
+  // Bu biçimde alternasyon/geri-izleme YOK, tarama doğrusal: 64KB → 2 ms
+  // (sınırlı sürüm 78 ms, sınırsız 1460 ms). Uzun segment de, gerçek JWT de
+  // MASKELENİR (fail-CLOSED). `{20,}` eşiği çıplak "eyJ" kelimesini korur.
+  // Fazla maskeleme burada GÜVENLİ yön: `eyJ` başlangıcı (base64 `{"`) pratikte
+  // token demektir.
+  s = s.replace(/\beyJ[A-Za-z0-9_.-]{20,}/g, "[JWT]");
   s = s.replace(/\b(authorization|cookie|set-cookie)\b\s*[:=]\s*[^\n]+/gi, "$1: [REDACTED]");
   // (B) field-name-aware: catches names/addresses/door-codes of any shape in JSON bodies
   s = s.replace(FIELD_RE, (_m, q, key) => `${q}${key}${q}: [REDACTED]`);
@@ -183,11 +203,25 @@ export function redactSensitive(input: string): string {
   // ⚠️ NİCELİK SINIRLARI ZORUNLU (ölçüldü 08-05): sınırsız hâli katastrofik
   // geri-izleme yapıyordu — `"x@" + "a.".repeat(N)` girdisinde 40KB → 1906 ms,
   // 80KB → 7118 ms. Ulaşılabilir bir DoS'tu: `quality-audit.ts:65` ve
-  // `shadow-ai.ts:264` misafir metnini uzunluk tavanından ÖNCE redakte ediyor
-  // ve QR sohbet gövde kapısı 64KB. Node tek iş parçacıklı → o süre boyunca
-  // TÜM instance bloke. Sınırlı hâlde 40KB → 17 ms; çıktı normal adreslerde
-  // BİREBİR aynı (RFC'nin local-part 64 / domain 255 sınırlarıyla uyumlu).
-  s = s.replace(/[A-Za-z0-9._%+-]{1,64}@[A-Za-z0-9.-]{1,255}\.[A-Za-z]{2,24}/g, "[EMAIL]");
+  // `shadow-ai.ts:264` misafir metnini uzunluk tavanından ÖNCE redakte ediyor.
+  // ⚠️ ULAŞILABİLİRLİK GEREKÇESİ DÜZELTİLDİ: önce "QR sohbet gövde kapısı 64KB"
+  // yazmıştım, YANLIŞ — `chat/[token]/route.ts:47,379` mesajı 2000 karakterde
+  // zaten kesiyor. Gerçek kapsız yol `Message.body` (`import/sync.ts`'te slice
+  // YOK) → shadow-ai / quality-audit / `automation.ts:2426`, bir de
+  // `ai/index.ts:139` (`new Error(await res.text())`). Node tek iş parçacıklı → o süre boyunca
+  // TÜM instance bloke. Sınırlı hâlde 40KB → 51 ms, 80KB → 99 ms.
+  //
+  // ⚠️ LOCAL-PART SINIRI 64 DEĞİL 256. İlk hâlim RFC'nin 64'ünü kullanıyordu ve
+  // KISMİ SIZINTI üretiyordu: 72 karakterlik bir local-part'ta eşleşme dizenin
+  // ORTASINDAN başlayıp `kirlendi[EMAIL]` çıkarıyordu — ilk 8 karakter açıkta.
+  // Bu metin `shadow-ai`/`quality-audit`'te MODEL GİRDİSİ olduğu için sessiz
+  // bir davranış değişikliği de demekti (ölçülerek yakalandı, 08-05).
+  // 256 = geçerli local-part maksimumunun (64) dört katı; o uzunlukta bir dizi
+  // zaten adres değildir, ama maskelenmesi güvenli yöndür.
+  //
+  // ⚠️ Local-part sınırı YÜK TAŞIYOR, kaldırılamaz — yalnız genişletilebilir:
+  // yalnız domain'i sınırlamak 40KB'da 1514 ms bırakıyor (ölçüldü).
+  s = s.replace(/[A-Za-z0-9._%+-]{1,256}@[A-Za-z0-9.-]{1,255}\.[A-Za-z]{2,24}/g, "[EMAIL]");
   s = s.replace(/\+?\d[\d\s().-]{8,}\d/g, "[PHONE]");
   s = s.replace(/\b\d{6,}\b/g, "[NUM]"); // long digit runs (ids/door codes); 3-digit statuses survive
   return s;

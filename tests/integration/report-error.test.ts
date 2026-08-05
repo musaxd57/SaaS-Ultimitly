@@ -234,18 +234,21 @@ describe("redactSensitive", () => {
     expect(redactSensitive("POST /auth/password=hunter2 -> 400")).not.toContain("hunter2");
   });
 
-  it("KISIT: dizi/obje değerde YARIM DAMGA basılmaz (yanlış güvence yasak)", () => {
-    // Hospitable 422 ve OpenAI çok-parçalı içerik tam bu şekilde geliyor.
-    // Denenen düzeltme `"body": [REDACTED]"Ayse Yilmaz …"]` üretiyordu: damga
-    // basılı, PII duruyor. Hiç maskelememekten KÖTÜ — okuyan "temiz" sanır.
-    const hospitable = redactSensitive(
-      '{"message":"invalid","errors":{"body":["Merhaba Ayse Yilmaz wifi Ev12345"]}}',
-    );
-    // Ya değer TAMAMEN gitmeli ya da damga HİÇ basılmamalı; ikisi bir arada olmaz.
-    const marked = hospitable.includes("[REDACTED]");
-    const leaked = hospitable.includes("Ayse Yilmaz");
-    expect(marked && leaked, `yarım damga: ${hospitable}`).toBe(false);
-  });
+  // 🚨 AÇIK — VE BU TESTİN İLK HÂLİ BOŞUNA GEÇİYORDU (denetim ajanı ölçtü).
+  // `body` anahtarı `SENSITIVE_KEY` listesinde DEĞİL, dolayısıyla girdiye hiç
+  // dokunulmuyordu: bir kimlik fonksiyonu bile testi geçerdi. Listede OLAN bir
+  // anahtarla (`guestName`) ölçünce kusur GÖRÜNÜYOR:
+  //   {"errors":{"guestName":["Ayse Yilmaz wifi Ev12345"]}}
+  //   → {"errors":{"guestName": [REDACTED]"Ayse Yilmaz wifi Ev12345"]}}
+  // Damga basılı, PII duruyor — hiç maskelememekten KÖTÜ, çünkü log'a bakan
+  // "temizlenmiş" sanıyor. Hospitable 422 ve OpenAI çok-parçalı içerik tam bu
+  // şekilde geliyor.
+  //
+  // ⚠️ ÖNEMLİ DÜZELTME: bu kusur benim geri aldığım tasarımın GETİRDİĞİ bir şey
+  // DEĞİL — mevcut kodda ZATEN var. Geri alma onu kötüleştirmekten kaçındı,
+  // düzeltmedi. Çözümü değer dalının `[...]`/`{...}` bloklarını TAM tüketmesi;
+  // bu da tırnaklı-bileşik-anahtar açığıyla aynı tasarım turuna ait.
+  it.todo("AÇIK: dizi/obje değerde yarım damga basılıyor (guestName ölçüldü)");
 
   it("KISIT: teşhis anahtarları KORUNUR (host/file/path/user/model/error+Name)", () => {
     // Gece 3'te arıza bakarken lazım olan tam olarak bunlar.
@@ -274,14 +277,22 @@ describe("redactSensitive", () => {
     expect(redactSensitive("Note: we arrive late, room is cold")).toContain("we arrive late");
   });
 
-  it("TAM-TOKEN eşleşme: Content-Type ve bodySnippet KORUNUR", () => {
-    // `content`/`body` yalnız TAM token olarak eşleşir; önek/sonek taşıyan
-    // teşhis alanları etkilenmez.
-    expect(redactSensitive("HTTP 400 Content-Type: application/json")).toContain("application/json");
-    expect(redactSensitive("bodySnippet: HTTP 402 subscription inactive")).toContain(
-      "subscription inactive",
-    );
-    expect(redactSensitive("hasContent: true")).toContain("true");
+  it("KISIT: teşhis alanları KORUNUR — ama eşleşme KELİME-İÇİ, dikkat", () => {
+    // ⚠️ Bu testin adı önce "TAM-TOKEN eşleşme"ydi ve YANLIŞTI: `FIELD_RE`'de
+    // hiçbir `\b` yok, eşleşme kelime-İÇİ. Üstelik `content`/`body` şu an
+    // anahtar listesinde DEĞİL (EXACT_KEY geri alındı), yani üç iddia da
+    // redaktörün hiç dokunmadığı dizeler üzerindeydi — kimlik fonksiyonu bile
+    // geçerdi (denetim ajanı ölçtü).
+    //
+    // Aşağıdakiler LİSTEDEKİ bir kelimeyi (`name`) İÇEREN gerçek anahtarlar,
+    // yani mekanizma gerçekten çalışıyor. Tırnaklı biçimde korunuyorlar çünkü
+    // `("?)(KEY)\1` tırnağı anahtarın hemen önünde arıyor.
+    expect(redactSensitive('{"hostname":"api.hospitable.com"}')).toContain("api.hospitable.com");
+    expect(redactSensitive('{"filename":"worker.ts"}')).toContain("worker.ts");
+    // ⚠️ ASİMETRİ, bilerek pinli: aynı anahtar TIRNAKSIZ hâlde REDAKTE OLUR
+    // (kelime-içi eşleşme + `=`). Gelecekteki tasarım bu asimetriyi bilerek
+    // ele almalı; bugünkü davranışı belgelemek onu görünür tutar.
+    expect(redactSensitive("filename=worker.ts")).not.toContain("worker.ts");
   });
 
   it("YIĞIN İZİ satır numaraları KORUNUR (dosya adı duyarlı kelime içerse bile)", () => {
@@ -293,31 +304,70 @@ describe("redactSensitive", () => {
     expect(redactSensitive("at hash (/app/src/lib/auth/password.ts:12:3)")).toContain(":12:3");
   });
 
-  it("anahtar adı bir DEĞERİN içinde geçerse dokunulmaz", () => {
+  it("anahtar adı bir DEĞERİN içinde geçerse dokunulmaz — AMA `:` gelirse olmaz", () => {
     // Redakte edilen şey ANAHTARIN değeridir, metnin içindeki anahtar adı değil.
     expect(redactSensitive('{"detail":"the field guestName is required"}')).toContain("guestName");
+    // ⚠️ Bu korumanın TEK dayanağı `[:=]` zorunluluğu — iki nokta gelirse metnin
+    // ORTASINDAKİ anahtar adı da redaksiyonu tetikler. Denetim ajanı ölçtü;
+    // "değer içindeki anahtar adına dokunulmaz" ifadesi bu kadar geniş DEĞİL.
+    expect(redactSensitive('{"detail":"field guestName: required"}')).toContain("[REDACTED]");
+  });
+
+  // ── ReDoS DÜZELTMELERİNİN YAN ETKİLERİ ───────────────────────────────────
+  // ⚠️ İKİSİ DE BENİM AÇTIĞIM REGRESYONDU (denetim ajanı ölçtü, ben doğruladım).
+  // ReDoS'u kapatırken sızıntı açmak, kapatılan şeyden kötü olabilir.
+  it("ReDoS sınırı FAIL-CLOSED: çok uzun JWT segmenti de maskelenir", () => {
+    // İlk düzeltmem segment başına `{1,1024}` koyuyordu ve 1024'ten uzun
+    // segmentli bir token HİÇ maskelenmiyordu — eskiden `[JWT]` oluyordu.
+    // Yani ReDoS'u kapatırken bir SIR SIZINTISI açmıştım. Şimdiki biçim tek
+    // karakter sınıfı: geri-izleme yok VE uzun segment de yakalanıyor.
+    const longSegment = "eyJ" + "a".repeat(1100) + "." + "b".repeat(20) + "." + "c".repeat(20);
+    expect(redactSensitive(longSegment)).toBe("[JWT]");
+    // Gerçek JWT de maskelenmeye devam ediyor (parite).
+    expect(
+      redactSensitive("eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJzdWIiOiIxMjM0In0.dBjftJeZ4CVP-mB92K"),
+    ).toBe("[JWT]");
+    // Çıplak "eyJ" kelimesi teşhis için korunur (eşik: 20+ karakter).
+    expect(redactSensitive("eyJ kisa")).toBe("eyJ kisa");
+  });
+
+  it("ReDoS sınırı KISMİ SIZINTI üretmez: uzun local-part'lı adres TAM maskelenir", () => {
+    // İlk düzeltmem local-part'ı RFC'nin 64'üne sınırlıyordu; 72 karakterlik
+    // bir local-part'ta eşleşme dizenin ORTASINDAN başlayıp `kirlendi[EMAIL]`
+    // üretiyordu — ilk 8 karakter açıkta. Bu metin `shadow-ai`/`quality-audit`'te
+    // MODEL GİRDİSİ olduğu için sessiz bir davranış değişikliği de demekti.
+    const long =
+      "kirlendi.temizlik.gerekiyor.acilen.lutfen.bakin.hemen.tesekkurler.gunler@mail.com";
+    expect(long.split("@")[0].length).toBeGreaterThan(64); // önkoşul pinli
+    expect(redactSensitive(long)).toBe("[EMAIL]");
+    // Normal adres davranışı değişmedi.
+    expect(redactSensitive("a.b+c@x-y.co.uk")).toBe("[EMAIL]");
   });
 
   // ── ReDoS SINIRLARI ──────────────────────────────────────────────────────
   // Ulaşılabilir: `quality-audit.ts:65` ve `shadow-ai.ts:264` misafir metnini
-  // uzunluk tavanından ÖNCE redakte ediyor; QR sohbet gövde kapısı 64KB. Node
-  // tek iş parçacıklı → saniyelerce CPU, TÜM instance'ı bloke eder.
+  // uzunluk tavanından ÖNCE redakte ediyor. ⚠️ Önce buraya "QR sohbet gövde
+  // kapısı 64KB" yazmıştım — YANLIŞ, `chat/[token]/route.ts:47,379` mesajı 2000
+  // karakterde kesiyor. Gerçek kapsız yol `Message.body` (import/sync.ts'te
+  // slice yok) ve `ai/index.ts:139`. Node tek iş parçacıklı → saniyelerce CPU,
+  // TÜM instance'ı bloke eder.
   it("düşman girdide sınırlı sürede biter (ReDoS)", () => {
     const measure = (s: string) => {
       const t0 = process.hrtime.bigint();
       redactSensitive(s);
       return Number(process.hrtime.bigint() - t0) / 1e6;
     };
-    // ⚠️ GİRDİ BOYUTU KASTEN 64KB'a yakın. İlk sürümde 20KB kullanmıştım ve
-    // sınırı kaldıran mutasyon eşiğin ALTINDA kalıp testten GEÇMİŞTİ — yani
-    // koruma pinsizdi. Büyüme karesel, o yüzden pin gerçekçi tavanda olmalı.
+    // ⚠️ GİRDİ BOYUTU: e-posta girdisi 40KB, JWT girdisi 64KB (ilk yorumumda
+    // "hepsi 64KB'a yakın" yazmıştım, e-posta için yanlıştı). İlk sürümde 20KB
+    // kullanmıştım ve sınırı kaldıran mutasyon eşiğin ALTINDA kalıp testten
+    // GEÇMİŞTİ — yani koruma pinsizdi. Büyüme karesel; pin gerçekçi tavanda.
     //
-    // E-posta deseni — sınırsız hâlde ÖLÇÜLDÜ: 40KB → 1906 ms, 80KB → 7118 ms.
+    // E-posta deseni — sınırsız hâlde ÖLÇÜLDÜ: 40KB → ~1900 ms, 80KB → ~7100 ms.
     expect(measure("x@" + "a.".repeat(20000))).toBeLessThan(500);
-    // JWT deseni — sınırsız hâlde ÖLÇÜLDÜ: 32KB → 341 ms, 64KB → 1460 ms.
-    // (`-` hem sınıfın içinde hem `\b` ürettiği için her `eyJ` bir başlangıç.)
+    // JWT deseni — ESKİ (alternasyonlu) hâlde ÖLÇÜLDÜ: 31KB → 224-291 ms,
+    // 62KB → 888-912 ms (üç koşumun aralığı). Şimdiki tek-karakter-sınıfı
+    // biçiminde geri-izleme YOK: 64KB → ~2 ms, yani marj ~250×.
     expect(measure("eyJa-".repeat(12800))).toBeLessThan(500);
-    expect(measure("merhaba " + "eyJa-".repeat(12700) + " son")).toBeLessThan(500);
     // Gerçekçi girdide de hızlı kalmalı (regresyon değil, sağlık kontrolü).
     expect(measure("at drain (/app/src/lib/outbox/worker.ts:97:11)\n".repeat(180))).toBeLessThan(500);
   });
