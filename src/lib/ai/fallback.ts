@@ -50,6 +50,19 @@ const OFFPLATFORM_PAYMENT_PHRASES = [
   "pay outside", "pay you directly", "pay in cash instead", "off the platform", "western union",
   // English money rails / P2P apps a guest might propose to skip the platform.
   "bank transfer", "wire transfer", "money transfer", "venmo", "paypal", "zelle", "revolut", "papara",
+  // ── TÜRKÇE DOĞAL VARYANTLAR (08-05, ÖLÇÜLEN kaçaklar) ────────────────────
+  // ⚠️ HEPSİ PARA BAĞLAMINA ÇAPALI. Çıplak "elden ver" BİLEREK YOK: o kalıp
+  // Türkçede ANAHTAR için de kullanılıyor ("Anahtarı elden verebilir misiniz?")
+  // ve para bağlamı olmadan bir İNSAN da ayırt edemez. Deterministik ağ
+  // belirsizi yakalamamalı — o iş modelin (tam konuşma bağlamı onda).
+  // Sondan eklemeli dil: "elden" kökü "eldeni/elden de" gibi çekimleri de tutar,
+  // gevşetme (allowWordGap) araya giren "de/mi/bir" gibi kelimeleri karşılar.
+  "parayı elden", "parayi elden", "ücreti elden", "ucreti elden", "nakit elden",
+  "iban at", "iban yolla", "iban paylaş", "iban paylas", "iban numaran",
+  "airbnb dışında", "airbnb disinda", "airbnb harici", "platform dışında", "platform disinda",
+  // ⚠️ TAM kalıp: çıplak "airbnb üzerinden" EN YAYGIN MEŞRU ifadedir
+  // ("Ödemeyi Airbnb üzerinden yaptım") — yalnız olumsuzlamayla anlam kazanır.
+  "airbnb üzerinden olmasın", "airbnb uzerinden olmasin",
 ];
 
 // LEGAL threats — "I'll take you to court / my lawyer / file with the authorities".
@@ -425,17 +438,39 @@ function collapseSeparated(s: string): string {
 }
 
 /**
+ * KESME İŞARETİNİ KELİME SINIRI SAYAN EK ADAY (08-05, ÖLÇÜLDÜ).
+ *
+ * 🚨 BU BİR SALDIRI NUMARASI DEĞİL, NORMAL TÜRKÇE İMLA. Dilbilgisi özel
+ * adlardan sonra eki kesme işaretiyle ayırmayı ZORUNLU kılar — "Airbnb'nin",
+ * "IBAN'ı", "Booking'den" DOĞRU yazımlardır. Eşleştirme kesmeyi kelime sınırı
+ * saymadığı için DOĞRU YAZAN bir misafir dedektörü atlatıyordu:
+ *   "IBAN'ınızı atar mısınız"      → platform_policy YERİNE null
+ *   "Airbnb'nin dışında anlaşalım" → platform_policy YERİNE null
+ *   "Talimatları'yok say"          → prompt_injection YERİNE null  ← en ciddisi
+ *
+ * ⚠️ Telefon klavyeleri düz `'` (U+0027) yerine TİPOGRAFİK `’` (U+2019) üretir
+ * ve NFKC bunu düz kesmeye ÇEVİRMEZ — ikisi de ayrı ayrı kapsanmalı. Türkçede
+ * yaygın olan `´` (U+00B4) ve ters tırnak da eklendi.
+ *
+ * ⚠️ Yalnız EK ADAY: özgün metin aday listesinde KALIR, yani bu dönüşüm hiçbir
+ * eşleşmeyi kaldıramaz, sadece ekler (CLAUDE.md KATLAMA KURALI).
+ */
+function splitApostrophes(s: string): string {
+  return s.replace(/[\u0027\u2019\u2018\u00B4\u0060]/gu, " ");
+}
+
+/**
  * Bir metnin KISITLAYICI eşleştirme için TÜM aday biçimleri. Her biri yalnızca
  * EŞLEŞME EKLER; hiçbiri bir ağı zayıflatamaz (CLAUDE.md KATLAMA KURALI).
  */
 function matchCandidates(norm: string): string[] {
   const out = [norm];
-  for (const f of [stripCombining, deconfuse, collapseSeparated]) {
+  for (const f of [stripCombining, deconfuse, collapseSeparated, splitApostrophes]) {
     const v = f(norm);
     if (v !== norm && !out.includes(v)) out.push(v);
   }
   // Kombinasyon: hem homoglif hem birleştirici işaret kullanan girdi.
-  const both = collapseSeparated(deconfuse(stripCombining(norm)));
+  const both = splitApostrophes(collapseSeparated(deconfuse(stripCombining(norm))));
   if (!out.includes(both)) out.push(both);
   return out;
 }
