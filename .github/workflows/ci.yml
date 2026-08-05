@@ -3,11 +3,21 @@ name: CI
 on:
   push:
     # claude/great-edison-3zqpZ is the branch Railway auto-deploys from — CI must
-    # run exactly where production commits land. Push-only, ONCE per commit: the
-    # branch has a long-lived open PR, so a pull_request trigger would run every
-    # push a SECOND time against the PR merge ref (observed duplicate runs) —
-    # the push run tests the exact tree Railway ships, which is the true signal.
+    # run exactly where production commits land. The push run tests the exact
+    # tree Railway ships, which is the true signal.
     branches: ["main", "claude/great-edison-3zqpZ"]
+  # DEPENDABOT KAPISI (08-05). This trigger used to be absent, and
+  # .github/dependabot.yml's own comment claimed "CI runs typecheck + tests on
+  # each PR" — it did NOT. Dependency-update PRs could be merged having seen
+  # ZERO verification, which is the cheapest supply-chain attack there is.
+  #
+  # The reason it was removed originally is real and still handled: the deploy
+  # branch has a long-lived open PR, so an unfiltered pull_request trigger runs
+  # every push a SECOND time against the PR merge ref (observed duplicate runs).
+  # Each job below therefore carries `if: github.head_ref != '<deploy branch>'`,
+  # which skips exactly that PR and nothing else. The guard keys on head_ref
+  # (the SOURCE branch), so it does not depend on which base the PR targets.
+  pull_request:
   workflow_dispatch:
 
 # cancel-in-progress drops superseded runs when commits land in quick succession
@@ -23,6 +33,11 @@ concurrency:
 jobs:
   verify:
     runs-on: ubuntu-latest
+    # Deploy dalinin uzun omurlu PR'ini ATLA — o commit'ler zaten `push`
+    # tetikleyicisiyle kosuyor; filtresiz `pull_request` her push'u IKINCI kez
+    # (merge ref'ine karsi) kosturuyordu. `head_ref` yalniz pull_request
+    # olaylarinda dolar, push'ta bostur → bu kosul push'ta DAIMA dogru.
+    if: github.head_ref != 'claude/great-edison-3zqpZ'
     # Debian container runs as root, which the integration test global-setup
     # needs (it provisions its own PostgreSQL on :5433 via `su postgres`).
     container:
@@ -65,6 +80,11 @@ jobs:
   # schema.prisma have ZERO drift — the same protocol done by hand until now.
   migration-chain:
     runs-on: ubuntu-latest
+    # Deploy dalinin uzun omurlu PR'ini ATLA — o commit'ler zaten `push`
+    # tetikleyicisiyle kosuyor; filtresiz `pull_request` her push'u IKINCI kez
+    # (merge ref'ine karsi) kosturuyordu. `head_ref` yalniz pull_request
+    # olaylarinda dolar, push'ta bostur → bu kosul push'ta DAIMA dogru.
+    if: github.head_ref != 'claude/great-edison-3zqpZ'
     services:
       postgres:
         image: postgres:16
@@ -103,6 +123,11 @@ jobs:
   # which no unit test sees. Kept tiny (2 tests) so it stays fast and unflaky.
   e2e:
     runs-on: ubuntu-latest
+    # Deploy dalinin uzun omurlu PR'ini ATLA — o commit'ler zaten `push`
+    # tetikleyicisiyle kosuyor; filtresiz `pull_request` her push'u IKINCI kez
+    # (merge ref'ine karsi) kosturuyordu. `head_ref` yalniz pull_request
+    # olaylarinda dolar, push'ta bostur → bu kosul push'ta DAIMA dogru.
+    if: github.head_ref != 'claude/great-edison-3zqpZ'
     services:
       postgres:
         image: postgres:16
@@ -145,6 +170,11 @@ jobs:
   # readers; nothing connects at build time).
   build:
     runs-on: ubuntu-latest
+    # Deploy dalinin uzun omurlu PR'ini ATLA — o commit'ler zaten `push`
+    # tetikleyicisiyle kosuyor; filtresiz `pull_request` her push'u IKINCI kez
+    # (merge ref'ine karsi) kosturuyordu. `head_ref` yalniz pull_request
+    # olaylarinda dolar, push'ta bostur → bu kosul push'ta DAIMA dogru.
+    if: github.head_ref != 'claude/great-edison-3zqpZ'
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-node@v4
@@ -158,3 +188,47 @@ jobs:
         env:
           DATABASE_URL: postgresql://postgres@localhost:5432/build_dummy
           AUTH_SECRET: ci-build-only-secret-not-used-anywhere-42
+
+  # BAGIMLILIK ZAFIYET KAPISI (08-05). "Proactive patching" is an explicit
+  # obligation in the API-partner terms we are working toward, and the honest
+  # answer to "how do you know?" has to be a mechanism, not a habit.
+  #
+  # The gate does NOT demand zero vulnerabilities — today four production
+  # advisories exist whose fix requires a BREAKING major (next@16, nodemailer@9),
+  # so a plain `npm audit --audit-level=high` would pin CI red forever, and a
+  # permanently red gate is a gate nobody reads. It demands zero UNTRIAGED
+  # vulnerabilities instead: security/audit-baseline.json records each accepted
+  # advisory with a reachability argument AND an expiry, and the script fails on
+  # (a) anything new and (b) anything whose acceptance has gone stale.
+  #
+  # Own job on purpose: when this is the red one, the job name says so and the
+  # four correctness gates above stay visibly green. Folding it into `build`
+  # would cost fewer minutes but would report a dependency advisory as a BUILD
+  # failure — the misleading-signal trap.
+  #
+  # ⚠️ CI DAKIKASI: ~1 dk/push. Private repo Free planda ayda 2000 dk ve bir push
+  # zaten ~8 job-dk → tavan ~250'den ~222 push/aya iner. Kota bir gun sikisirsa
+  # kaldirac BUDUR: bu job'i `if: github.event_name == 'pull_request'` yaparak
+  # yalniz bagimlilik degisikliklerinde kostur (bedeli: mevcut bir bagimlilik
+  # icin YENI yayimlanan bir danisma bir sonraki PR'a kadar gorunmez).
+  #
+  # ⚠️ `schedule:` DENENMEDI, cunku KOSMAZ: zamanlanmis is akislari VARSAYILAN
+  # dalda kosar, bu repoda varsayilan dal `main` ve `main` deploy dalinin 1078
+  # commit gerisinde — package-lock.json'u bile YOK. Zamanlanmis bir denetim bos
+  # bir agaci denetlerdi.
+  #
+  # NOT: needs no DB, no secrets, no build — just the registry.
+  security-audit:
+    runs-on: ubuntu-latest
+    if: github.head_ref != 'claude/great-edison-3zqpZ'
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: npm
+      # `npm ci` degil: audit yalnizca package-lock.json'u okur, bagimliliklarin
+      # kurulmasina gerek yok (ve kurmamak, denetlenen agacin postinstall
+      # script'lerini CI'da kosturmamak demektir).
+      - name: Zafiyet triaj kapisi
+        run: node scripts/audit-check.mjs

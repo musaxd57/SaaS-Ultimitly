@@ -1,6 +1,15 @@
 # Dependabot (ROADMAP Faz 3) — weekly, grouped dependency-update PRs so security
-# patches land safely without flooding the repo. CI (ci.yml) runs typecheck +
-# tests on each PR, so an update that breaks the build is caught before merge.
+# patches land safely without flooding the repo.
+#
+# ⚠️ Bu yorum 08-05'e kadar YALAN SOYLUYORDU: "CI runs typecheck + tests on each
+# PR" diyordu ama ci.yml'de `pull_request` tetikleyicisi YOKTU (yalniz `push` +
+# `workflow_dispatch`) → buradan acilan PR'lar HIC dogrulama gormeden
+# birlestirilebiliyordu. Tetikleyici geri eklendi ve `ci.yml`'in `pull_request`
+# tasidigi TESTLE pinlendi (tests/unit/audit-baseline.test.ts) — iddia bir daha
+# sessizce gerceklikten ayrilamaz.
+#
+# Simdi gecerli: her PR uzerinde verify (typecheck + lint + 2600+ test),
+# migration-chain, build, e2e ve security-audit kosar.
 version: 2
 updates:
   - package-ecosystem: "npm"

@@ -1,0 +1,81 @@
+{
+  "$comment": [
+    "BAGIMLILIK ZAFIYETI TRIAJ KAYDI — scripts/audit-check.mjs bunu okur.",
+    "",
+    "NEDEN BASELINE, NEDEN DUZ 'npm audit' DEGIL: bugun URETIM bagimliliklarinda",
+    "6 acik danisma var ve UCUNUN de duzeltmesi kirici bir major surum istiyor",
+    "(next@16, nodemailer@9). Duz bir 'npm audit --audit-level=high' kapisi CI'yi",
+    "kalici kirmiziya cevirir; kalici kirmizi bir kapi ise SINYAL DEGERINI",
+    "KAYBEDER — kimse bakmaz ve YENI bir zafiyet geldiginde de kimse fark etmez.",
+    "",
+    "Bu dosya o yuzden 'sifir zafiyet' yerine 'sifir TRIAJ EDILMEMIS zafiyet'",
+    "kapisi kurar: burada YAZILI OLMAYAN her yeni danisma CI'yi kirar.",
+    "",
+    "EXPIRES ALANI ZORUNLU (security.txt dersi, RFC 9116 §5.3 ile ayni mantik):",
+    "tarihi gecmis bir kabul de CI'yi kirar. Bayat bir muafiyet, muafiyet degil",
+    "unutulmus bir acikdir. Yenileme = tek satir tarih + tek commit; ama o commit",
+    "birinin bulguya YENIDEN bakmasini zorunlu kilar.",
+    "",
+    "KAPSAM: kapi YALNIZ uretim bagimliliklarini (npm audit --omit=dev) bloklar.",
+    "Dev bagimliliklari (vitest/vite/eslint zinciri) yalnizca UYARI olarak",
+    "raporlanir — orada danismalar cok sik ve musteri verisine ulasmiyorlar;",
+    "bloklayici yapmak yine kalici-kirmizi tuzagina duserdi."
+  ],
+  "generatedAt": "2026-08-05",
+  "accepted": [
+    {
+      "id": "GHSA-f88m-g3jw-g9cj",
+      "package": "sharp",
+      "severity": "high",
+      "title": "sharp inherited vulnerabilities in libvips",
+      "expires": "2027-02-01",
+      "reason": "ULASILAMAZ (08-05'te kapatildi). sharp yalnizca next'in gecisli bagimliligi; src/ icinde tek bir dogrudan kullanim yok (kaynak taramasi). Tek ulasilabilir yol Next'in /_next/image optimizer'iydi ve olculdu: acikken 200 + 597 bayt donuyordu. next.config.mjs'te images.unoptimized ile kapatildi (yeniden olculdu: 404) ve iki test pini birakildi (response-cache-policy.test.ts). Duzeltme next@16 major'i istiyor.",
+      "closedBy": "next@16 (major) — veya sharp kullanan bir ozellik eklenirse O GUN yeniden degerlendir"
+    },
+    {
+      "id": "GHSA-p6gq-j5cr-w38f",
+      "package": "nodemailer",
+      "severity": "high",
+      "title": "Message-level raw option bypasses disableFileAccess/disableUrlAccess",
+      "expires": "2027-02-01",
+      "reason": "ULASILAMAZ. Danisma OZELLIKLE mesaj seviyesindeki 'raw' secenegine dayaniyor. Tek cagri yerimiz email-core.ts viaSmtp(): sendMail'e SABIT alan kumesi geciyor (from/to/subject/html/text) — 'raw' YOK, 'attachments' YOK, dosya/URL referansi YOK. Ikinci savunma: uretim Resend HTTP API'sini kullaniyor, SMTP yolu EMAIL_HOST istiyor ve o env uretimde set degil.",
+      "closedBy": "nodemailer@9 (major)"
+    },
+    {
+      "id": "GHSA-6g55-p6wh-862q",
+      "package": "postcss",
+      "severity": "high",
+      "title": "Arbitrary file read via attacker-controlled sourceMappingURL",
+      "expires": "2027-02-01",
+      "reason": "BUILD-TIME ONLY. postcss yalnizca 'next build' sirasindaki CSS boru hattinda kosar; uretim calisma zamaninda CSS zaten derlenmistir. Danismalarin hepsi SALDIRGAN KONTROLLU CSS girdisi gerektiriyor — bu uygulamada CSS'in tamami repo icinde yazili, hicbir kullanici girdisi postcss'e ulasmiyor.",
+      "closedBy": "next@16 (major) — postcss next uzerinden pinli"
+    },
+    {
+      "id": "GHSA-r28c-9q8g-f849",
+      "package": "postcss",
+      "severity": "high",
+      "title": "Path Traversal in Previous Source Map Auto-Loading",
+      "expires": "2027-02-01",
+      "reason": "BUILD-TIME ONLY (GHSA-6g55-p6wh-862q ile ayni sinif, ama gerekce burada da tam yazili). Zafiyet, CSS icindeki sourceMappingURL yorumunun onceki kaynak haritasini otomatik yuklemesinden dogan dizin gecisi. postcss bu uygulamada yalnizca 'next build' sirasinda kosar; uretim calisma zamaninda CSS derlenmis haldedir ve postcss hicbir girdi islemez. Islenen tum CSS repo icinde yazili, kullanici girdisi postcss'e ulasmiyor.",
+      "closedBy": "next@16 (major)"
+    },
+    {
+      "id": "GHSA-fxqj-rqcc-2cmp",
+      "package": "postcss",
+      "severity": "moderate",
+      "title": "incomplete fix of GHSA-6g55-p6wh-862q",
+      "expires": "2027-02-01",
+      "reason": "BUILD-TIME ONLY. GHSA-6g55-p6wh-862q'nun eksik duzeltmesi: `from` secenegi verilmediginde saldirgan kontrollu sourceMappingURL hala rastgele .map dosyasi okutabiliyor. Ayni ulasilamazlik gecerli — postcss yalnizca build sirasinda kosar ve isledigi CSS'in tamami repo icinde yazili, hicbir kullanici girdisi ona ulasmiyor.",
+      "closedBy": "next@16 (major)"
+    },
+    {
+      "id": "GHSA-qx2v-qp2m-jg93",
+      "package": "postcss",
+      "severity": "moderate",
+      "title": "XSS via Unescaped </style> in CSS Stringify Output",
+      "expires": "2027-02-01",
+      "reason": "BUILD-TIME ONLY + saldirgan kontrollu CSS gerekiyor. Bu uygulamada kullanici tarafindan yazilan CSS YOK.",
+      "closedBy": "next@16 (major)"
+    }
+  ]
+}

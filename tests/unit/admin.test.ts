@@ -84,7 +84,9 @@ describe("operator panel authorization", () => {
 describe("operatör yetkisi ikinci faktör ister", () => {
   it("İDDİA YOKSA yetki YOK — eski token'lar yeniden giriş ister", () => {
     vi.stubEnv("SUPERADMIN_EMAILS", "operator@example.com");
-    const { mfa: _drop, ...legacy } = base;
+    // `mfa` ANAHTARI TAMAMEN YOK — bayraktan onceki token'in birebir sekli.
+    const legacy: Partial<SessionPayload> = { ...base };
+    delete legacy.mfa;
     expect(isSuperAdmin(legacy as SessionPayload)).toBe(false);
   });
 

@@ -140,7 +140,10 @@ describe("impersonation — ikinci faktör olmadan oturum yok", () => {
   it("mfa iddiası YOKSA impersonation oturumu düşer (yetki dururken bile)", async () => {
     const s = await seed();
     vi.stubEnv("SUPERADMIN_EMAILS", OPERATOR); // e-posta HÂLÂ listede
-    const { mfa: _drop, ...noMfa } = impersonationSession(s);
+    // `mfa` ANAHTARI TAMAMEN YOK — eski (bayrak oncesi) token'in birebir sekli.
+    // `mfa: false` ile ayni sey degil; ikisi ayri testte sinanir.
+    const noMfa: Partial<SessionPayload> = { ...impersonationSession(s) };
+    delete noMfa.mfa;
     currentSession = noMfa as SessionPayload;
     expect(await requireSession()).toBeNull();
   });
