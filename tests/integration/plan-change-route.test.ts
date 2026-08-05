@@ -249,6 +249,52 @@ describe("plan change routes (gated, PATCH /subscriptions)", () => {
     session = { ...(session as SessionPayload), role: "staff" };
     expect((await CHANGE(req({ planCode: "business" }), ctx)).status).toBe(403);
   });
+  // ── İPTAL EDİLMİŞ ABONELİK KAPISI (08-05) ───────────────────────────────────
+  // Arayüz iptal edilmiş aboneliğe plan-değişimi ZATEN açmıyor; sunucu `status`'ü
+  // seçmiyordu bile, yani doğrudan API çağrısı ölü bir Paddle id'sine PATCH
+  // gönderebiliyordu. `plan-change` Paddle'a dokunmadan ÖNCE `jti` nonce'unu
+  // tükettiği için belirsiz bir cevap müşteriyi hiç oturmayan bir "pending"
+  // durumunda bırakabilirdi.
+  it("iptal edilmiş abonelikte plan değişimi REDDEDİLİR — Paddle'a HİÇ gidilmez", async () => {
+    await prisma.subscription.update({ where: { organizationId: orgId }, data: { status: "canceled" } });
+    for (const [name, res] of [
+      ["preview", await PREVIEW(req({ planCode: "business" }), ctx)],
+      ["apply", await CHANGE(req({ planCode: "business", previewToken: tok("pri_isletme", "upgrade") }), ctx)],
+    ] as const) {
+      expect(res.status, name).toBe(400);
+      // ⚠️ Mesaj `fields.error`'da: `badRequest(fields)` argümanı ALAN HARİTASI
+      // olarak sarıyor, üstteki `error` her zaman generic "Doğrulama hatası".
+      // (İlk yazımda üst seviyeye baktım ve test haklı olarak kırmızı verdi.)
+      expect((await res.json()).fields?.error, name).toContain("iptal edilmiş");
+    }
+    // Asıl kazanç: sağlayıcıya hiç dokunulmadı, nonce harcanmadı.
+    expect(previewMock).not.toHaveBeenCalled();
+    expect(updateMock).not.toHaveBeenCalled();
+  });
+
+  it("SADECE canceled reddedilir — past_due/trialing/grandfathered plan değiştirebilir", async () => {
+    // 🚨 Bu testin varlık sebebi: "active değilse reddet" gibi daha GENİŞ bir
+    // kural, 14 günlük grace süresindeki (`past_due`) ödeyen bir müşteriyi plan
+    // değiştiremez hâle getirirdi — arayüz ona izin verdiği hâlde. Kapının DAR
+    // olduğu pinlenmezse o regresyon sessizce gelir.
+    previewMock.mockResolvedValue({ immediateTotal: 100, currency: "TRY" });
+    for (const status of ["active", "trialing", "past_due", "grandfathered"]) {
+      await prisma.subscription.update({ where: { organizationId: orgId }, data: { status } });
+      const res = await PREVIEW(req({ planCode: "business" }), ctx);
+      expect(res.status, status).toBe(200);
+    }
+  });
+
+  it("GERİ ALMA gerçek: BILLING_ALLOW_CANCELED_PLAN_CHANGE=1 eski davranışı aynen getirir", async () => {
+    // Kaçış kapısı DEKORATİF OLMAMALI. Railway'de tek env ile, deploy beklemeden
+    // geri alınabildiğini burada ölçüyoruz; yoksa "geri alınabilir" iddiası
+    // sınanmamış bir söz olurdu.
+    await prisma.subscription.update({ where: { organizationId: orgId }, data: { status: "canceled" } });
+    previewMock.mockResolvedValue({ immediateTotal: 100, currency: "TRY" });
+    vi.stubEnv("BILLING_ALLOW_CANCELED_PLAN_CHANGE", "1");
+    expect((await PREVIEW(req({ planCode: "business" }), ctx)).status).toBe(200);
+  });
+
   it("CONCURRENT applies with two DIFFERENT valid tokens: only ONE reaches Paddle", async () => {
     // First PATCH hangs in-flight; the second apply must be refused by the ATOMIC
     // pending claim (the old upsert let both through → double PATCH/charge).

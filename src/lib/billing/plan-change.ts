@@ -87,10 +87,45 @@ export async function resolvePlanChange(
 
   const sub = await prisma.subscription.findUnique({
     where: { organizationId },
-    select: { provider: true, providerRef: true, planCode: true },
+    select: { provider: true, providerRef: true, planCode: true, status: true },
   });
   if (!sub || sub.provider !== "paddle" || !sub.providerRef) {
     return { ok: false, error: "Yönetilecek bir Paddle aboneliği bulunamadı." };
+  }
+
+  // ── İPTAL EDİLMİŞ ABONELİK: PLAN DEĞİŞTİRİLEMEZ (08-05) ────────────────────
+  //
+  // SUNUCU/UI PARİTESİ. Arayüz iptal edilmiş aboneliğe plan-değişimi kartlarını
+  // ZATEN açmıyor (`settings/page.tsx`: `managedSub?.status !== "canceled"`) ve
+  // onun yerine yeni bir checkout gösteriyor. Ama sunucu `status`'ü SEÇMİYORDU
+  // bile — yani doğrudan bir API çağrısı ölü bir Paddle abonelik id'sine PATCH
+  // gönderebiliyordu.
+  //
+  // Neden önemli: `plan-change` rotası Paddle'a dokunmadan ÖNCE `jti` nonce'unu
+  // tek-kullanımlık olarak TÜKETİYOR. Paddle ölü bir id'ye BELİRSİZ (5xx/timeout)
+  // bir cevap verirse sözleşme gereği nonce tüketik kalır ve müşteri hiç
+  // oturmayacak bir "pending" durumunda bırakılır. Kapı bu yüzden Paddle'ın ne
+  // yapacağına bağlı olmamalı.
+  //
+  // ⚠️ YALNIZ `canceled` reddedilir — daha geniş bir kural (örn. "active değilse
+  // reddet") ZARARLI olurdu: `past_due` müşterisi 14 günlük grace süresinde plan
+  // değiştirebilmeli ve arayüz de buna izin veriyor. `trialing` ve
+  // `grandfathered` de aynı şekilde meşru. (Şema: active | trialing | past_due |
+  // canceled | grandfathered.)
+  //
+  // ⚠️ Kapı BURADA çünkü `resolvePlanChange` hem önizleme hem uygulama
+  // rotasının ORTAK boğaz noktası (fonksiyonun kendi doküman yorumu bunu
+  // söylüyor) — iki rotaya ayrı ayrı yazmak "biri unutulur" sınıfına girerdi.
+  //
+  // 🔙 GERİ ALMA: kod değişikliği ya da deploy GEREKMEZ. Railway'de
+  // `BILLING_ALLOW_CANCELED_PLAN_CHANGE=1` → eski davranış birebir geri gelir.
+  // (Env yokken koruma AÇIK; doğru varsayılan bu.) Kalıcı geri alma için commit
+  // tek başına revert edilebilir.
+  if (sub.status === "canceled" && process.env.BILLING_ALLOW_CANCELED_PLAN_CHANGE !== "1") {
+    return {
+      ok: false,
+      error: "Aboneliğiniz iptal edilmiş. Plan değiştirmek yerine yeni bir abonelik başlatın.",
+    };
   }
 
   const mode = planChangeMode(sub.planCode, planCode);
