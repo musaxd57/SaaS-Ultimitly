@@ -24,17 +24,6 @@ export const POST = withManage<{ id: string }>(async (session, req, { params }) 
   const limited = await rateLimit(`translate:${session.userId}`, 30, 60_000);
   if (!limited.ok) return tooManyRequests(limited.retryAfter);
 
-  // GÜNLÜK ORG BÜTÇESİ: dakikalık limit tek isteği yavaşlatır, toplam harcamayı
-  // sınırlamaz. Bu tavan hem suistimali hem kazara sonsuz döngüye giren bir
-  // istemciyi durdurur (ai/daily-budget.ts).
-  const budget = await consumeDailyAiBudget(session.organizationId);
-  if (!budget.ok) {
-    return tooManyRequests(
-      budget.retryAfter,
-      dailyBudgetMessage(budget),
-    );
-  }
-
   // Verify conversation belongs to org
   const conversation = await prisma.conversation.findFirst({
     where: { id, property: { organizationId: session.organizationId } },
@@ -51,6 +40,24 @@ export const POST = withManage<{ id: string }>(async (session, req, { params }) 
     select: { id: true, body: true, language: true },
   });
   if (!message) return notFound("Mesaj bulunamadı");
+
+  // KOTA, ORG KAPSAMI VE MESAJ DOĞRULAMASINDAN SONRA (denetim 08-05 —
+  // `ai-suggest` ve `ai/test` bunu 08-01'de zaten böyle yapıyordu, bu rota
+  // gözden kaçmıştı). Eskiden en başta tüketiliyordu: org içindeki bir
+  // kullanıcı, 404 dönen konuşma/mesaj id'leriyle dakikada 30 istek atarak
+  // sahibin günlük kotasını TEK bir model çağrısı üretmeden bitirebiliyordu.
+  // Kota dolunca misafire giden oto-yanıt da durduğu için (`automation.ts` →
+  // `skippedReason:"daily_budget"`) bu, iç bir gürültüyü misafir kaybına
+  // çeviriyordu.
+  //
+  // ⚠️ Kota HÂLÂ model çağrısının ÖNÜNDE: `daily-budget.ts:99-101` interaktif
+  // rotalar için "önce tüket" kuralını açıkça yazıyor (bir sağlayıcı arızasında
+  // peek-then-consume'a geçmek suistimal kapısını kaldırırdı). Değişen tek şey
+  // tüketimin DOĞRULAMALARIN altına inmesi.
+  const budget = await consumeDailyAiBudget(session.organizationId);
+  if (!budget.ok) {
+    return tooManyRequests(budget.retryAfter, dailyBudgetMessage(budget));
+  }
 
   const sourceLanguage = message.language || undefined;
   // Structured result (Codex #30): a failed translation must surface as an

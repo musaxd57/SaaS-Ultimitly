@@ -29,21 +29,28 @@ export const POST = withManage(async (session, req) => {
       { status: 429, headers: { "Retry-After": String(limited.retryAfter) } },
     );
   }
-  // Günlük org bütçesi (ai/daily-budget.ts) — saatlik tavanın üstünde toplam sınır.
-  const budget = await consumeDailyAiBudget(session.organizationId);
-  if (!budget.ok) {
-    return NextResponse.json(
-      { error: dailyBudgetMessage(budget) },
-      { status: 429, headers: { "Retry-After": String(budget.retryAfter) } },
-    );
-  }
-
   const body = ((await readJsonCappedOrNull(req)) ?? {}) as { days?: number };
   const days = [1, 7, 14].includes(Number(body.days)) ? Number(body.days) : 7;
 
   const plan = await getPrepPlan(session.organizationId, { days });
   if (!planHasBuyables(plan)) {
     return jsonOk({ summary: null, empty: true });
+  }
+
+  // Günlük org bütçesi (ai/daily-budget.ts) — saatlik tavanın üstünde toplam
+  // sınır. ⚠️ `planHasBuyables` erken dönüşünün ALTINDA: alınacak bir şey yoksa
+  // model HİÇ çağrılmıyor, o hâlde kota da yanmamalı. Eskiden üstteydi ve boş
+  // bir hazırlık planını tazelemek bile org'un günlük AI birimini harcıyordu
+  // (denetim 08-05; `translate-message` ile aynı sınıf).
+  //
+  // ⚠️ Yine de `generateSupplySummary`'nin ÜSTÜNDE — interaktif rotalarda
+  // suistimal kapısı "önce tüket" olmak zorunda (`daily-budget.ts:99-101`).
+  const budget = await consumeDailyAiBudget(session.organizationId);
+  if (!budget.ok) {
+    return NextResponse.json(
+      { error: dailyBudgetMessage(budget) },
+      { status: 429, headers: { "Retry-After": String(budget.retryAfter) } },
+    );
   }
 
   const result = await generateSupplySummary(plan);
