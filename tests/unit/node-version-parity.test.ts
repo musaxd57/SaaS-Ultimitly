@@ -23,11 +23,18 @@ import path from "node:path";
 const ROOT = path.resolve(__dirname, "../..");
 const read = (rel: string) => readFileSync(path.join(ROOT, rel), "utf8");
 
-/** `FROM …/node:22-slim` → 22 */
-function dockerfileMajor(): number {
-  const m = /^FROM\s+\S*node:(\d+)[-.]/m.exec(read("Dockerfile"));
-  if (!m) throw new Error("Dockerfile'da `FROM …node:<major>-…` satırı bulunamadı");
-  return Number(m[1]);
+/**
+ * Dockerfile'daki TÜM `FROM …/node:<major>-…` satırları.
+ *
+ * ⚠️ Çoğul olmak ZORUNDA: imaj 08-05'te iki aşamalı oldu (builder + runner). Tek
+ * bir `exec` yalnız İLK satırı görür ve iki aşama farklı major'a kayarsa test
+ * sessizce yeşil kalırdı — derlemenin 22'de, çalışmanın 20'de olması tam da
+ * pinlemeye çalıştığımız ayrışmanın kendisidir.
+ */
+function dockerfileMajors(): number[] {
+  const all = [...read("Dockerfile").matchAll(/^FROM\s+\S*node:(\d+)[-.]/gm)].map((m) => Number(m[1]));
+  if (all.length === 0) throw new Error("Dockerfile'da `FROM …node:<major>-…` satırı bulunamadı");
+  return all;
 }
 
 /** `node-version: 22` (setup-node) + `image: node:22-bookworm` (container) */
@@ -48,15 +55,30 @@ function enginesMajor(): number {
 }
 
 describe("Node sürümü — Dockerfile ↔ CI ↔ engines paritesi", () => {
-  const docker = dockerfileMajor();
+  // ⚠️ Bu değerler `describe` gövdesinde HESAPLANIR ama FIRLATMAZ. Erken bir
+  // sürüm burada `throw` eden bir yardımcı çağırıyordu; ayrışma testi kırmızı
+  // yapmak yerine DOSYA TOPLAMASINI çökertiyordu ("no tests" — teknik olarak
+  // sıfır-dışı çıkış, ama okuyan kişiye hangi kuralın çiğnendiğini söylemiyor).
+  // Pin, ancak okunabilir bir assertion ürettiğinde işe yarar.
+  const dockerAll = dockerfileMajors();
+  const docker = dockerAll[0];
   const { setupNode, container } = ciMajors();
 
   it("beklenen yerler GERÇEKTEN bulundu (test kendini boşa düşürmesin)", () => {
     // Bu olmadan test vacuous olurdu: bir regex hiçbir şey eşleştirmezse boş
-    // liste `every()`'den sessizce geçerdi ve pin ölü koda dönerdi.
+    // liste `toEqual([])`'den sessizce geçerdi ve pin ölü koda dönerdi.
     expect(docker).toBeGreaterThan(0);
     expect(setupNode.length).toBeGreaterThanOrEqual(4);
     expect(container.length).toBeGreaterThanOrEqual(1);
+    // İki aşamalı imaj: builder + runner. Sayı düşerse aşamalardan biri
+    // kaybolmuş demektir — ve tek aşamaya dönmek, `--omit=dev` ile ayıklanan
+    // ~330 dev paketini çalışan kaba geri koyar.
+    expect(dockerAll.length).toBe(2);
+  });
+
+  it("Dockerfile'ın HER aşaması aynı Node major'ında", () => {
+    // Çok aşamalıdaki asıl tehlike: derleme 22'de, çalışma 20'de.
+    expect(dockerAll).toEqual(dockerAll.map(() => docker));
   });
 
   it("CI'daki HER Node pini Dockerfile ile aynı major", () => {
