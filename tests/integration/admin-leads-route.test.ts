@@ -26,7 +26,7 @@ function ctx(id: string) {
 }
 
 function makeSession(email: string): SessionPayload {
-  return { userId: "u", organizationId: "org", role: "owner", email, name: "U", sessionEpoch: 0 };
+  return { userId: "u", organizationId: "org", role: "owner", email, name: "U", sessionEpoch: 0, mfa: true };
 }
 
 describe("PATCH /api/admin/leads/[id] — operator mini-CRM", () => {

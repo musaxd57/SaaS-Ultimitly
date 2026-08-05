@@ -17,7 +17,7 @@ vi.mock("@/lib/auth", async (orig) => {
 });
 
 import { setSessionCookie, clearSessionCookie } from "@/lib/auth";
-import { exitImpersonation } from "@/lib/admin";
+import { exitImpersonation, enterOrganization } from "@/lib/admin";
 
 const mockSet = vi.mocked(setSessionCookie);
 const mockClear = vi.mocked(clearSessionCookie);
@@ -73,5 +73,86 @@ describe("exitImpersonation fail-safe", () => {
     expect(result).toBe(true);
     expect(mockSet).toHaveBeenCalledTimes(1);
     expect(mockClear).not.toHaveBeenCalled();
+  });
+});
+
+// ---------------------------------------------------------------------------
+// 🚨 `mfa` İDDİASI HER İKİ GEÇİŞTE DE TAŞINIR (08-05).
+//
+// `enterOrganization` ve `exitImpersonation` payload'ı SIFIRDAN kuruyor. İddia
+// taşınmazsa operatör, müşteri org'una girer girmez `isSuperAdmin` false alır —
+// ve `api.ts:54` fail-closed olduğu için oturum KOMPLE düşer: operatör ne
+// içeride çalışabilir ne org değiştirebilir. Çıkışta taşınmazsa aynı şey kendi
+// panelinde olur.
+//
+// ⚠️ BU TESTLER MUTASYONLA GEREKÇELENDİ: iki taşımayı da tek tek silдим ve
+// mevcut 24 testin HİÇBİRİ kırmızıya dönmedi — yani sessiz bir ürün arızasıydı.
+// Yükseltme DEĞİL aktarım: iddia zaten o oturumda vardı.
+// ---------------------------------------------------------------------------
+describe("mfa iddiası impersonation geçişlerinde taşınır", () => {
+  beforeEach(async () => {
+    await resetDb();
+    vi.clearAllMocks();
+    currentSession = null;
+  });
+
+  async function seedPair() {
+    const opOrg = await prisma.organization.create({ data: { name: "Op Org" } });
+    const op = await prisma.user.create({
+      data: { organizationId: opOrg.id, name: "Op", email: "op@lixusai.com", passwordHash: "x", role: "owner" },
+    });
+    const custOrg = await prisma.organization.create({ data: { name: "Cust Org" } });
+    const cust = await prisma.user.create({
+      data: { organizationId: custOrg.id, name: "C", email: "c@x.com", passwordHash: "x", role: "owner" },
+    });
+    return { op, opOrg, cust, custOrg };
+  }
+
+  it("GİRİŞ: enterOrganization iddiayı yeni payload'a taşır", async () => {
+    const { op, opOrg, custOrg } = await seedPair();
+    const ok = await enterOrganization(
+      {
+        userId: op.id,
+        organizationId: opOrg.id,
+        role: "owner",
+        email: op.email,
+        name: "Op",
+        sessionEpoch: 0,
+        mfa: true,
+      },
+      custOrg.id,
+    );
+    expect(ok).toBe(true);
+    expect(mockSet).toHaveBeenCalledTimes(1);
+    expect(mockSet.mock.calls[0][0].mfa).toBe(true);
+  });
+
+  it("ÇIKIŞ: exitImpersonation iddiayı geri taşır", async () => {
+    const { op, cust, custOrg } = await seedPair();
+    currentSession = {
+      userId: cust.id,
+      organizationId: custOrg.id,
+      role: "owner",
+      email: cust.email,
+      name: "C",
+      sessionEpoch: 0,
+      actorUserId: op.id,
+      actorEmail: op.email,
+      actorName: "Op",
+      actorSessionEpoch: 0,
+      mfa: true,
+    };
+    expect(await exitImpersonation()).toBe(true);
+    expect(mockSet).toHaveBeenCalledTimes(1);
+    expect(mockSet.mock.calls[0][0].mfa).toBe(true);
+  });
+
+  it("TERS YÖN: iddia YOKSA uydurulmaz (koşulsuz true mutasyonunu yasaklar)", async () => {
+    const { op, opOrg, custOrg } = await seedPair();
+    await enterOrganization(
+      { userId: op.id, organizationId: opOrg.id, role: "owner", email: op.email, name: "Op", sessionEpoch: 0 },
+      custOrg.id,
+    );
+    expect(mockSet.mock.calls[0][0].mfa).toBeUndefined();
   });
 });

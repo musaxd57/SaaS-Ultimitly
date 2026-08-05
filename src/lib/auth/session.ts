@@ -33,6 +33,23 @@ export interface SessionPayload {
   // (which bumps their epoch). Absent on legacy tokens → the actor-epoch check
   // is skipped for them (backward compatible; nobody is logged out on rollout).
   actorSessionEpoch?: number;
+  /**
+   * BU OTURUM İKİNCİ FAKTÖRDEN GEÇTİ Mİ (08-05).
+   *
+   * ⚠️ "Hesapta 2FA yapılandırılmış" ile AYNI ŞEY DEĞİL — kasten. Airbnb'nin
+   * partner şartı personelin API'ye MFA ile ERİŞMESİNİ istiyor, hesabın MFA
+   * yapılandırmış olmasını değil. Aradaki fark iki gerçek yolda ortaya çıkıyor:
+   *   · kayıttan ÖNCE açılmış oturumlar — `middleware.ts` çerezi her istekte
+   *     14 gün uzattığı için bunlar hiç yeniden doğrulanmıyor, yani DB'ye
+   *     bakmak onları yakalayamaz;
+   *   · `verify-email` GET'inin şifresiz bastığı oturum.
+   * İkisi de "hesapta 2FA var" testinden geçer, bu iddiadan geçmez.
+   *
+   * Eski token'larda ALAN YOK → `undefined` → yetki düşer, yeniden giriş
+   * gerekir. Bu bilinçli: bir kez yeniden giriş, sessizce muaf kalan oturumdan
+   * iyidir. (`actorSessionEpoch` ile aynı additive desen.)
+   */
+  mfa?: boolean;
 }
 
 function getSecretKey(): Uint8Array {

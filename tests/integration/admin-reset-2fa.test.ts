@@ -31,7 +31,7 @@ async function makeOperatorSession(email: string): Promise<SessionPayload> {
   const user = await prisma.user.create({
     data: { organizationId: org.id, name: "Op", email, passwordHash: "x", role: "owner" },
   });
-  return { userId: user.id, organizationId: org.id, role: "owner", email, name: "Op", sessionEpoch: 0 };
+  return { userId: user.id, organizationId: org.id, role: "owner", email, name: "Op", sessionEpoch: 0, mfa: true };
 }
 
 async function seedLockedUser() {

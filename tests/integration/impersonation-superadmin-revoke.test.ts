@@ -69,6 +69,11 @@ function impersonationSession(s: {
     actorEmail: OPERATOR,
     actorName: "Operator",
     actorSessionEpoch: 1,
+    // ⚠️ 08-05: operatör yetkisi artık BU OTURUMUN ikinci faktörden geçmiş
+    // olmasını da istiyor. İddiasız bir impersonation oturumu `requireSession`
+    // tarafından KOMPLE reddedilir (api.ts:54 fail-closed) — burada ölçülen şey
+    // env'den silmenin etkisi olduğu için taban oturum iddiayı taşır.
+    mfa: true,
   } as SessionPayload;
 }
 
@@ -113,5 +118,37 @@ describe("impersonation — süper-admin yetkisi her istekte doğrulanır", () =
       sessionEpoch: 1,
     } as SessionPayload;
     expect(await requireSession()).not.toBeNull();
+  });
+});
+
+// ---------------------------------------------------------------------------
+// İKİNCİ FAKTÖR OLMADAN İMPERSONATION OTURUMU HİÇ GEÇERLİ DEĞİL (08-05).
+//
+// `api.ts:54` operatör yetkisini her istekte fail-closed doğruluyor. Yetki
+// artık `mfa` iddiasını da istediğine göre, ikinci faktörden geçmemiş bir
+// impersonation oturumu YETKİ KAYBIYLA değil OTURUM KAYBIYLA sonuçlanır —
+// yani operatör müşteri org'unda "yetkisiz ama içeride" kalmaz.
+// ---------------------------------------------------------------------------
+describe("impersonation — ikinci faktör olmadan oturum yok", () => {
+  beforeEach(async () => {
+    await resetDb();
+    vi.clearAllMocks();
+    currentSession = null;
+  });
+  afterEach(() => vi.unstubAllEnvs());
+
+  it("mfa iddiası YOKSA impersonation oturumu düşer (yetki dururken bile)", async () => {
+    const s = await seed();
+    vi.stubEnv("SUPERADMIN_EMAILS", OPERATOR); // e-posta HÂLÂ listede
+    const { mfa: _drop, ...noMfa } = impersonationSession(s);
+    currentSession = noMfa as SessionPayload;
+    expect(await requireSession()).toBeNull();
+  });
+
+  it("mfa iddiası FALSE ise de düşer", async () => {
+    const s = await seed();
+    vi.stubEnv("SUPERADMIN_EMAILS", OPERATOR);
+    currentSession = { ...impersonationSession(s), mfa: false };
+    expect(await requireSession()).toBeNull();
   });
 });

@@ -187,6 +187,15 @@ export async function POST(req: NextRequest) {
       email: user.email,
       name: user.name,
       sessionEpoch: user.sessionEpoch,
+      // ⚠️ BU OTURUM İKİNCİ FAKTÖRDEN GEÇTİ Mİ (08-05). Buraya ulaşmanın tek
+      // yolu ↑`twoFactorEnabledAt` dalıdır; oraya girildiyse TOTP, kurtarma kodu
+      // ya da güvenilen cihazdan biri sağlanmış demektir (üçü de "bu cihaz/kişi
+      // daha önce faktörle doğrulandı" anlamına gelir; güvenilen cihaz token'ı
+      // 2FA epoch'una bağlı, yani bilinçli bir sıfırlamayı aşamaz).
+      //
+      // 2FA açık DEĞİLSE iddia `false` — hesap şifreyle giriyor, operatör
+      // yetkisi verilmez (`admin.ts isSuperAdmin`). Giriş engellenmez.
+      mfa: Boolean(user.twoFactorEnabledAt),
     });
 
     // Security breadcrumb: a successful sign-in (who + when). Non-fatal.

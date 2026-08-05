@@ -200,7 +200,7 @@ describe("GET /api/account/export — complete + secret-free", () => {
 
     // Operatör (super-admin) kimliğiyle admin export — org DIŞI bir oturum.
     vi.stubEnv("SUPERADMIN_EMAILS", "op@lixusai.com");
-    session = { userId: "op", organizationId: "operator-org", role: "owner", email: "op@lixusai.com", name: "Op", sessionEpoch: 0 };
+    session = { userId: "op", organizationId: "operator-org", role: "owner", email: "op@lixusai.com", name: "Op", sessionEpoch: 0, mfa: true };
     const adminRes = await adminExportRoute(new NextRequest(`http://localhost/api/admin/export?orgId=${orgId}`));
     expect(adminRes.status).toBe(200);
     expect(adminRes.headers.get("cache-control")).toBe("no-store");

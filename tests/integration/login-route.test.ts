@@ -23,7 +23,12 @@ vi.mock("@/lib/auth/password", async (orig) => {
   };
 });
 
+import { setSessionCookie } from "@/lib/auth";
 import { POST } from "@/app/api/auth/login/route";
+
+const mockSetSession = vi.mocked(setSessionCookie);
+/** Son basılan oturum payload'ı (mock üzerinden). */
+const lastSession = () => mockSetSession.mock.calls.at(-1)?.[0];
 
 function loginReq(body: unknown, ip = "1.1.1.1") {
   return new NextRequest("http://localhost/api/auth/login", {
@@ -241,5 +246,67 @@ describe("login — hesap kovası kilitleme silahı DEĞİLDİR", () => {
       where: { key: "login-acct:yok@example.com" },
     });
     expect(row.count).toBe(1);
+  });
+});
+
+// ---------------------------------------------------------------------------
+// 🚨 `mfa` İDDİASI: "BU OTURUM İKİNCİ FAKTÖRDEN GEÇTİ" (08-05).
+//
+// `admin.ts isSuperAdmin` operatör yetkisini bu iddiaya bağlıyor. İddia yanlış
+// üretilirse kapı KURGUSAL olur — ve mutasyonla ölçtüm: login'i koşulsuz
+// `mfa: true` yapan değişiklik, o an mevcut 24 testin HİÇBİRİNİ kırmıyordu.
+// Yani bu dosya olmadan kontrolün sessizce yok olması mümkündü.
+//
+// İddia hesabın 2FA yapılandırmasından türetilir çünkü buraya ulaşmanın tek
+// yolu `twoFactorEnabledAt` dalıdır: oraya girildiyse TOTP, kurtarma kodu ya da
+// (2FA epoch'una bağlı) güvenilen cihazdan biri sağlanmıştır.
+// ---------------------------------------------------------------------------
+describe("login — mfa iddiası", () => {
+  const email = "mfa-claim@example.com";
+  let secret: string;
+
+  beforeEach(async () => {
+    await resetDb();
+    __resetRateLimit();
+    vi.clearAllMocks();
+    secret = generateSecret();
+  });
+
+  async function seed(with2fa: boolean) {
+    const org = await prisma.organization.create({ data: { name: "Org" } });
+    await prisma.user.create({
+      data: {
+        organizationId: org.id,
+        name: "U",
+        email,
+        passwordHash: await hashPassword("correct-horse"),
+        role: "owner",
+        emailVerifiedAt: new Date(),
+        ...(with2fa
+          ? { twoFactorSecret: encryptSecret(secret), twoFactorEnabledAt: new Date() }
+          : {}),
+      },
+    });
+  }
+
+  it("2FA KAPALI hesapta iddia FALSE — şifre tek başına operatör yetkisi vermez", async () => {
+    await seed(false);
+    const res = await POST(loginReq({ email, password: "correct-horse" }, "6.0.0.1"));
+    expect(res.status).toBe(200);
+    expect(lastSession()?.mfa).toBe(false);
+  });
+
+  it("2FA AÇIK + geçerli kodla girişte iddia TRUE", async () => {
+    await seed(true);
+    const res = await POST(loginReq({ email, password: "correct-horse", code: totp(secret) }, "6.0.0.2"));
+    expect(res.status).toBe(200);
+    expect(lastSession()?.mfa).toBe(true);
+  });
+
+  it("2FA açıkken KOD VERİLMEDEN oturum HİÇ basılmaz (iddia sızmaz)", async () => {
+    await seed(true);
+    const res = await POST(loginReq({ email, password: "correct-horse" }, "6.0.0.3"));
+    expect((await res.json()).twoFactorRequired).toBe(true);
+    expect(mockSetSession).not.toHaveBeenCalled();
   });
 });

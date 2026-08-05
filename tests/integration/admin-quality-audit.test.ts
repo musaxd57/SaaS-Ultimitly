@@ -43,7 +43,7 @@ async function makeOperatorSession(): Promise<SessionPayload> {
   const user = await prisma.user.create({
     data: { organizationId: org.id, name: "Op", email: OPERATOR_EMAIL, passwordHash: "x", role: "owner" },
   });
-  return { userId: user.id, organizationId: org.id, role: "owner", email: OPERATOR_EMAIL, name: "Op", sessionEpoch: 0 };
+  return { userId: user.id, organizationId: org.id, role: "owner", email: OPERATOR_EMAIL, name: "Op", sessionEpoch: 0, mfa: true };
 }
 
 /** Müşteri org'u: PII'li misafir mesajı + AI yanıtı olan tek konuşma. */

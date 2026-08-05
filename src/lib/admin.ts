@@ -32,9 +32,36 @@ export function actorEmail(session: SessionPayload): string {
   return (session.actorEmail ?? session.email).toLowerCase();
 }
 
-/** True when the (real) operator behind this session is a configured super-admin. */
+/**
+ * True when the (real) operator behind this session is a configured super-admin
+ * AND this session actually passed a second factor.
+ *
+ * ⚠️ İKİ KOŞUL, İKİSİ DE GEREKLİ (08-05). Airbnb partner şartı: "your
+ * organization must ensure that its personnel use multi-factor authentication
+ * to access the API Client, Scopes and Content". Bugüne kadar 2FA tamamen
+ * opt-in'di, yani `SUPERADMIN_EMAILS`'teki bir hesap YALNIZ ŞİFREYLE her müşteri
+ * org'una impersonation ile girebiliyordu.
+ *
+ * ⚠️ KAPI BURADA, ÇAĞIRANLARDA DEĞİL. 13 çağrı yeri var (6 admin rotası +
+ * `requireSession` + 3 Hospitable rotası + 3 sayfa). Ayrı bir
+ * `superAdminAllowed()` eklemek "biri unutulur" sınıfına girerdi; bu repo o
+ * dersi `api-route-scoping.test.ts` ile zaten ödedi. Tek boğaz noktası.
+ *
+ * ⚠️ GİRİŞİ ENGELLEMEZ — kasten. Kapı yalnız YETKİYİ tutar; 2FA'sız bir
+ * operatör normal owner olarak girer ve panelini kullanır. Girişi engelleyen bir
+ * tasarım, authenticator'ını kaybeden TEK operatörü kendi ürününden kilitlerdi
+ * ve kurtarma yolu (`admin/reset-2fa`) zaten superadmin oturumu istiyor →
+ * dairesel kilit. Acil durumda `SUPERADMIN_EMAILS`'ten e-postayı çıkarmak
+ * (Railway = ayrı kimlik bilgisi) hesabı normal owner'a düşürür.
+ *
+ * ⚠️ `mfa` "hesapta 2FA VAR" DEĞİL, "BU OTURUM faktörden GEÇTİ" demek. Fark
+ * gerçek: `middleware.ts` çerezi her istekte 14 gün uzattığı için kayıttan önce
+ * açılmış oturumlar hiç yeniden doğrulanmıyor, ve `verify-email` GET'i şifresiz
+ * oturum basabiliyor. İkisi de "hesapta 2FA var" testinden geçerdi.
+ */
 export function isSuperAdmin(session: SessionPayload | null): boolean {
   if (!session) return false;
+  if (session.mfa !== true) return false;
   const emails = superAdminEmails();
   return emails.has(actorEmail(session));
 }
@@ -93,6 +120,11 @@ export async function enterOrganization(
     actorEmail: actor,
     actorName,
     actorSessionEpoch,
+    // ⚠️ İDDİA TAŞINMALI. Bu payload SIFIRDAN kuruluyor; taşımazsak operatör
+    // müşteri org'una girer girmez `isSuperAdmin` false döner ve orada operatör
+    // yetkisi kalmaz (org'lar arası atlama da yapamaz). Yükseltme değil AKTARIM:
+    // iddia zaten bu oturumda vardı, girişte ikinci faktörden geçilmişti.
+    mfa: current.mfa,
   });
   // Leave a trace: an operator just gained access to this customer's guest PII.
   await writeAudit({
@@ -139,6 +171,9 @@ export async function exitImpersonation(): Promise<boolean> {
     email: actor.email,
     name: actor.name,
     sessionEpoch: actor.sessionEpoch,
+    // ⚠️ Girişteki gibi burada da TAŞINIR: müşteri org'undan çıkan operatör
+    // kendi panelinde yetkisiz kalmamalı. `enterOrganization` ile simetrik.
+    mfa: current.mfa,
   });
   return true;
 }
