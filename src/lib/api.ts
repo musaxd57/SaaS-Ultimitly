@@ -161,6 +161,43 @@ export class BodyTooLargeError extends Error {
   }
 }
 
+/**
+ * Gövde taşıyan bir JSON isteği `application/json` DEĞİL. Ayrı bir sınıf, çünkü
+ * ileride 415 döndürmek isteyen bir çağıran onu ayırt edebilsin — bugün mevcut
+ * iki kanaldan (parseJsonBody `tooLarge:false` / OrNull `null`) geçtiği için
+ * hiçbir rotanın `catch` bloğuna dokunmak gerekmiyor.
+ */
+export class UnsupportedMediaTypeError extends Error {
+  constructor() {
+    super("request body must be application/json");
+    this.name = "UnsupportedMediaTypeError";
+  }
+}
+
+/**
+ * Bir `Content-Type` başlığının MEDYA TİPİ ÖZÜ: küçük harfe indir, ilk `;`ten
+ * kes, HTTP boşluklarını kırp. Parametreler (`charset=utf-8`) YOK SAYILIR.
+ *
+ * 🚨 BU FONKSİYONU "BASİTLEŞTİRME". Üç naif alternatifin üçü de deliniyor:
+ *  · `includes("application/json")` → ÖLÜMCÜL: `text/plain; x=application/json`
+ *    CORS-safelisted'dır (unsafe bayt yok, <128 karakter) → preflight TETİKLENMEZ
+ *    → cross-origin saldırı doğrudan kapıdan geçer.
+ *  · `startsWith("application/json")` → `application/json+evil`, `.../jsonp`,
+ *    `.../json-seq` kabul eder.
+ *  · ham `=== "application/json"` → `application/json; charset=utf-8` ve
+ *    `Application/JSON` gibi MEŞRU biçimleri reddeder. Bugün kendi istemcimiz
+ *    düz küçük harf gönderdiği için fark edilmez; bir gün bir istemci charset
+ *    eklediğinde üretimde patlar.
+ * ⚠️ Virgüllü (yinelenen) değer de reddedilir: Node yinelenen `content-type`
+ * başlığında İLKİNİ tutar, araya giren bir vekil SONUNCUYU seçebilir — iki
+ * taraf aynı fikirde olmadığında güvenli yön reddetmektir.
+ */
+function mediaTypeEssence(raw: string | null): string {
+  if (raw === null) return "";
+  const semi = raw.indexOf(";");
+  return (semi === -1 ? raw : raw.slice(0, semi)).trim().toLowerCase();
+}
+
 export function payloadTooLarge(message = "İstek gövdesi çok büyük.") {
   return NextResponse.json({ error: message }, { status: 413 });
 }
@@ -294,6 +331,38 @@ export async function readJsonCapped<T = unknown>(
   req: Request,
   maxBytes: number = MAX_JSON_BODY_BYTES,
 ): Promise<T> {
+  // ── TARAYICI-BOTNET KAPISI (08-05) ────────────────────────────────────────
+  // Fetch standardı: `Content-Type` YALNIZ üç değerde CORS-safelisted
+  // (`application/x-www-form-urlencoded`, `multipart/form-data`, `text/plain`).
+  // `application/json` listede YOK → cross-origin bir `fetch` onu set ederse
+  // preflight ZORUNLU olur; `/api` altında hiçbir CORS başlığı yayınlamadığımız
+  // için preflight cevapsız kalır ve tarayıcı isteği HİÇ göndermez.
+  //
+  // Kapı olmadan saldırgan kendi sitesine tek satır koyup HER ziyaretçinin
+  // tarayıcısından `text/plain` gövdeli POST attırabiliyordu; istekler
+  // ziyaretçilerin IP'lerinden geldiği için per-IP kovaları YAPISAL olarak
+  // deliniyordu (lead spam, zorla kayıt, `/api/demo/ai` OpenAI harcaması).
+  //
+  // ⚠️ YERİ ÖNEMLİ — burası, `readTextCapped` DEĞİL. Paddle webhook'u ham gövdeyi
+  // HMAC için `readTextCapped`'ten okuyor; kapı orada olsaydı reddetme imza
+  // doğrulamasından ve `WebhookEvent` yazımından ÖNCE olur, Paddle aynı
+  // event_id ile yeniden dener, uyuşmazlık deterministik olduğu için denemeler
+  // tükenir ve ÖDEME OLAYI KALICI KAYBOLURDU. `readFormDataCapped` de ayrı
+  // kalır (foto yükleme + CSV içe aktarma multipart gönderir).
+  //
+  // ⚠️ YALNIZ GÖVDE VARKEN. Gövdesiz istek hiçbir şey kaçırmıyor; onu reddetmek
+  // "boş gövde → SyntaxError → çağıranın 400'ü" sözleşmesini bozar ve 44 rotanın
+  // catch bloğuna üçüncü bir dal ekletirdi.
+  //
+  // ⚠️ Başlık YOKKEN de reddedilir: `fetch(url,{body:new Blob([json],{type:""})})`
+  // başlığı hiç göndermez ve başlıksız istek zaten "simple" sayılır — "başlık
+  // yoksa geçir" kuralı kapıyı tam buradan delerdi.
+  //
+  // ⚠️ KAPSAM DÜRÜSTLÜĞÜ: bu YALNIZ tarayıcı-botnet vektörünü kapatır. curl her
+  // başlığı set edebilir; onu sınırlayan şey per-IP kovalarıdır, bu kapı değil.
+  if (req.body !== null && mediaTypeEssence(req.headers.get("content-type")) !== "application/json") {
+    throw new UnsupportedMediaTypeError();
+  }
   return JSON.parse(await readTextCapped(req, maxBytes)) as T; // "" → SyntaxError → caller 400
 }
 

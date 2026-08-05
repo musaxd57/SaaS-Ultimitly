@@ -13,9 +13,18 @@ const chunkedReq = (text: string) => {
     },
   });
   // duplex is required by Node's fetch Request for a stream body.
-  return new Request("http://t/api/x", { method: "POST", body: stream, duplex: "half" } as RequestInit & {
-    duplex: "half";
-  });
+  //
+  // ⚠️ `content-type` 08-05'te EKLENDİ: `readJsonCapped` artık gövde taşıyan
+  // isteklerde `application/json` istiyor (tarayıcı-botnet kapısı, api.ts).
+  // Bu yardımcının ölçtüğü şey BOYUT TAVANI; başlığı vermezsek testler kapıya
+  // takılıp tavanı hiç sınamaz — yani yeşil/kırmızı ne olursa olsun ölçüm
+  // kaybolurdu. `readTextCapped` testleri başlıksız kalabilir (kapı orada YOK).
+  return new Request("http://t/api/x", {
+    method: "POST",
+    body: stream,
+    headers: { "content-type": "application/json" },
+    duplex: "half",
+  } as RequestInit & { duplex: "half" });
 };
 
 describe("readJsonCapped (body-size cap)", () => {
