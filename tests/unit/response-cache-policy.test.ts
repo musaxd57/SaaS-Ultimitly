@@ -23,12 +23,15 @@ import path from "node:path";
 
 const API_DIR = path.resolve(__dirname, "../../src/app/api");
 
+// `.tsx` de taranır: aşağıdaki `next/image` pini bileşen dosyalarına bakmak
+// ZORUNDA (bugün React bileşenlerinin hepsi `.tsx`). API taraması için genişleme
+// zararsız — yalnız KAPSAM EKLER, hiçbir dosyayı kapsam dışına çıkarmaz.
 function walk(dir: string): string[] {
   const out: string[] = [];
   for (const entry of readdirSync(dir)) {
     const full = path.join(dir, entry);
     if (statSync(full).isDirectory()) out.push(...walk(full));
-    else if (entry.endsWith(".ts")) out.push(full);
+    else if (entry.endsWith(".ts") || entry.endsWith(".tsx")) out.push(full);
   }
   return out;
 }
@@ -179,4 +182,36 @@ describe("global güvenlik başlıkları (next.config.mjs)", () => {
       expect(rp?.value).toBe("no-referrer");
     },
   );
+
+  // ── GÖRÜNTÜ OPTIMIZER'I ─────────────────────────────────────────────────────
+  // 🚨 KAPALI KALMALI (08-05, ÖLÇÜLDÜ).
+  //
+  // `next/image` bu uygulamada hiç kullanılmıyor, ama Next'in `/_next/image` ucu
+  // varsayılan olarak AÇIK ve yerel yolları `sharp`'a besliyor. Canlı ölçüm:
+  // açıkken `?url=/lixus-logo.png&w=64&q=75` → 200 + 597 bayt (ham dosya
+  // 80.283 bayt), `unoptimized` sonrası → 404.
+  //
+  // Önemi: `sharp` (next'in geçişli bağımlılığı) GHSA-f88m-g3jw-g9cj / libvips
+  // CVE'lerini taşıyor ve düzeltmesi next@16 major'ı istiyor. `upload/route.ts`
+  // `STORAGE_ENABLED` kapalıyken dosyayı `public/uploads/{org}/` altına yazıyor
+  // → kimlik doğrulamalı bir kiracı hazırlanmış dosyayı zafiyetli koda
+  // besleyebiliyordu.
+  it("images.unoptimized AÇIK — kullanılmayan optimizer saldırı yüzeyi bırakmasın", async () => {
+    const config = (await import("../../next.config.mjs")).default;
+    expect(config.images?.unoptimized).toBe(true);
+  });
+
+  it("next/image gerçekten kullanılmıyor (kararın DAYANDIĞI varsayım pinli)", () => {
+    // Yukarıdaki karar "bu özelliği kullanmıyoruz" kanıtına dayanıyor — tek
+    // başına `unoptimized` pini, biri `next/image` kullanmaya başlarsa
+    // görüntülerin sessizce ham servis edilmesini görmez. Bu test o gün kırmızıya
+    // döner ve karar yeniden değerlendirilir (`sharp` sürümü de o gün kontrol
+    // edilir).
+    // ⚠️ Modül belirteci TIRNAK İÇİNDE aranır: `from "next/image"`,
+    // `import("next/image")` ve `require("next/image")` üçünü de yakalar, ama
+    // düz metindeki "next/image" geçişini (yorum/başlık) yakalamaz.
+    const srcFiles = walk(path.resolve(__dirname, "../../src"));
+    const users = srcFiles.filter((f) => /["']next\/image["']/.test(readFileSync(f, "utf8")));
+    expect(users.map((f) => path.relative(path.resolve(__dirname, "../.."), f))).toEqual([]);
+  });
 });

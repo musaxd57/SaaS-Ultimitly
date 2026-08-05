@@ -140,6 +140,26 @@ const nextConfig = {
       })),
     ];
   },
+  // ---------------------------------------------------------------------------
+  // GORUNTU OPTIMIZER'I KAPALI (08-05).
+  //
+  // `next/image` bu uygulamada HIC KULLANILMIYOR (kaynak taramasi: sifir
+  // eslesme) ama Next'in `/_next/image` ucu varsayilan olarak ACIK ve YEREL
+  // yollari isliyor — OLCULDU: `/_next/image?url=/lixus-logo.png&w=64&q=75`
+  // 200 + 597 bayt donuyordu (ham dosya 80.283), yani `sharp` gercekten
+  // calisiyordu.
+  //
+  // 🚨 ULASILABILIR SALDIRI YOLU: `sharp` (next'in gecisli bagimliligi) su an
+  // GHSA-f88m-g3jw-g9cj / libvips CVE'lerini tasiyor ve duzeltmesi next@16
+  // major surumu istiyor. `upload/route.ts` STORAGE_ENABLED kapaliyken (bugunku
+  // uretim) dosyayi `public/uploads/{org}/` altina yaziyor -> kimlik dogrulamali
+  // bir kiraci hazirlanmis bir dosya yukleyip `/_next/image?url=/uploads/...`
+  // isteyerek onu zafiyetli koda besleyebiliyordu.
+  //
+  // Kullanmadigimiz bir ozelligin acik birakilmasi, bedava saldiri yuzeyi.
+  // ⚠️ `next/image` bir gun kullanilirsa bu satir KALDIRILMADAN once sharp
+  // surumu kontrol edilmeli.
+  images: { unoptimized: true },
   // Pin the workspace root to this project so Next doesn't pick a stray
   // package-lock.json in a parent directory (silences the "inferred workspace
   // root" multi-lockfile warning on dev start).
