@@ -25,7 +25,7 @@ export const POST = withManage(async (session, req) => {
   const limited = await rateLimit(`supply-ai:${session.organizationId}`, 20, 60 * 60 * 1000);
   if (!limited.ok) {
     return NextResponse.json(
-      { error: "Çok fazla istek. Biraz sonra tekrar deneyin." },
+      { error: "Çok fazla istek gönderildi. Lütfen kısa bir süre bekleyip tekrar deneyin." },
       { status: 429, headers: { "Retry-After": String(limited.retryAfter) } },
     );
   }

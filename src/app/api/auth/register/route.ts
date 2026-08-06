@@ -22,7 +22,7 @@ export async function POST(req: NextRequest) {
     // else may create an account until per-org channel connections exist. Flip
     // REGISTRATION_OPEN=1 only when the product is truly multi-tenant.
     if (process.env.REGISTRATION_OPEN !== "1") {
-      return NextResponse.json({ error: "Kayıt şu an kapalı." }, { status: 403 });
+      return NextResponse.json({ error: "Yeni kayıtlar şu anda kabul edilmiyor. Lütfen daha sonra tekrar deneyin." }, { status: 403 });
     }
 
     // Capture the request context ONCE — reused both for the per-IP throttle and
@@ -57,7 +57,7 @@ export async function POST(req: NextRequest) {
     // record). The client disables submit until checked; enforce it server-side.
     if (data?.consent !== true) {
       return badRequest({
-        consent: "Devam etmek için Kullanım Koşulları ve Gizlilik Politikası'nı onaylamalısınız.",
+        consent: "Devam etmek için lütfen Kullanım Koşulları ve Gizlilik Politikası'nı kabul edin.",
       });
     }
 

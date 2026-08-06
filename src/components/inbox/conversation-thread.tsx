@@ -227,7 +227,24 @@ export function ConversationThread({ conversationId, messages, status, priority,
         setSendError(data?.error ?? "Mesaj gönderilemedi.");
       }
     } catch {
-      setSendError("Mesaj gönderilemedi.");
+      // 🚨 AĞ HATASI BELİRSİZ TESLİMATTIR — "gönderilemedi" DEMEZ (08-06).
+      //
+      // `fetch` fırladığında isteğin sunucuya ULAŞMADIĞINI bilmiyoruz: yanıt
+      // yolda kaybolmuş da olabilir, yani mesaj misafire GİTMİŞ olabilir.
+      // CLAUDE.md'nin kendi kuralı bunu yazıyor ("BELİRSİZ TESLİMAT
+      // 'İLETİLEMEDİ' DEMEZ") ve SUNUCU bu kurala uyuyor — belirsiz sağlayıcı
+      // cevabında "Gönderim doğrulanamadı — mesaj ulaşmış olabilir" diyor
+      // (`conversations/[id]/reply/route.ts`). İstemcinin ağ dalı o kurala
+      // uymuyordu: kesin bir başarısızlık iddia ediyor, host da mesajı YENİDEN
+      // YAZIYOR. Aynı metni birebir tekrar göndermek `requestId` ile deduplike
+      // edilir, ama host metni DEĞİŞTİRİRSE (ya da sayfayı yenilerse) taze bir
+      // id üretilir ve misafire İKİNCİ mesaj gider.
+      //
+      // Metin bilerek sunucununkiyle aynı yönde: önce KONTROL ET, sonra gönder.
+      setSendError(
+        "Bağlantı koptuğu için gönderim doğrulanamadı — mesaj iletilmiş olabilir. " +
+          "Tekrar göndermeden önce konuşmayı kontrol edin.",
+      );
     } finally {
       setSending(false);
       // Buton gönderim boyunca `sending`, başarıdan sonra da `!composer.trim()`

@@ -29,17 +29,17 @@ export const POST = withManage<{ id: string }>(async (session, req, { params }) 
   // All real PMS feeds are https. Legacy http rows (if any) keep syncing so no
   // live feed breaks — the requirement applies at creation.
   if (!/^https:\/\/.+/i.test(url)) {
-    return badRequest({ url: "Yalnızca https iCal bağlantısı kabul edilir (http güvensizdir)." });
+    return badRequest({ url: "Yalnızca https ile başlayan iCal bağlantısı kabul edilir (http bağlantı şifresiz taşınır)." });
   }
   if (url.length > 2000) return badRequest({ url: "Bağlantı çok uzun (en fazla 2000 karakter)" });
   // SSRF guard: this URL is fetched server-side by the sync, so reject loopback /
   // link-local / private / cloud-metadata targets (e.g. 127.0.0.1, 169.254.169.254).
   try {
     if (isPrivateHost(new URL(url).hostname)) {
-      return badRequest({ url: "İç ağ / özel adresler kabul edilmez." });
+      return badRequest({ url: "Bu bağlantı kabul edilmiyor. İç ağ / yerel adresler yerine genel erişime açık bir adres kullanın." });
     }
   } catch {
-    return badRequest({ url: "Geçerli bir http(s) iCal bağlantısı girin" });
+    return badRequest({ url: "Geçerli bir https iCal bağlantısı girin." });
   }
 
   // KAYNAK SAYISI TAVANI. Tavansızdı: bir hesap tek daireye yüzlerce besleme

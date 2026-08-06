@@ -45,7 +45,15 @@ export function GuestChatReply({ conversationId }: { conversationId: string }) {
       setText("");
       router.refresh();
     } catch {
-      setError("Bağlantı hatası. Lütfen tekrar deneyin.");
+      // Ağ hatası BELİRSİZ teslimattır (↑aynı gerekçe, 08-06): istek sunucuya
+      // ulaşmış ve mesaj kaydedilmiş olabilir, yalnız yanıt kaybolmuş olabilir.
+      // Bu yolda `requestId` YOK — sunucu (konuşma, metin) çiftiyle 120 sn
+      // deduplike ediyor; host o pencereden SONRA yeniden yazarsa misafire
+      // İKİNCİ mesaj gider. O yüzden metin "gönderilemedi" değil "kontrol edin".
+      setError(
+        "Bağlantı koptuğu için gönderim doğrulanamadı — mesaj kaydedilmiş olabilir. " +
+          "Tekrar göndermeden önce sohbeti kontrol edin.",
+      );
     } finally {
       setBusy(false);
     }

@@ -36,7 +36,7 @@ export const POST = withOwner(async (session, req) => {
   // so the validated client value stands. Store the derived code when available.
   const derivedPlanCode = paddlePriceToPlanCode(parsed.data.priceId);
   if (derivedPlanCode && derivedPlanCode !== parsed.data.planCode) {
-    return badRequest({ planCode: "Seçilen plan ile fiyat eşleşmiyor." });
+    return badRequest({ planCode: "Plan fiyatı doğrulanamadı. Lütfen sayfayı yenileyip tekrar deneyin." });
   }
 
   // ⚠️ CANLI ABONELİĞİ OLAN ORG YENİ CHECKOUT AÇAMAZ (denetim, 08-01).

@@ -1,4 +1,5 @@
 import { NextResponse } from "next/server";
+import { providerErrorMessageFromText } from "@/lib/provider-errors";
 import { prisma } from "@/lib/db";
 import { isUniqueViolation } from "@/lib/db-errors";
 import { conversationReplySchema, zodFieldErrors } from "@/lib/validators";
@@ -179,8 +180,20 @@ export const POST = withManage<{ id: string }>(async (session, req, { params }) 
     const definitive = isDefinitiveSendFailure(outcome.error);
     if (definitive) {
       await releaseOutboundSend(id, parsed.data.body);
+      // 🚨 HAM SAĞLAYICI METNİ ARTIK MÜŞTERİYE GİTMİYOR (08-06). Eskiden
+      // `outcome.error` doğrudan interpolate ediliyordu ve host şunu görüyordu:
+      //   «Mesaj gönderilemedi: Hospitable API hatası (HTTP 402): {"message":"Subscription not active"}»
+      // — ham İngilizce sağlayıcı JSON'u + HTTP kodu. `providerErrorMessageFromText`
+      // aynı string'i AYNI regex'le okuyup durum-özel bir Türkçe cümleye çeviriyor
+      // (İÇ metin değişmiyor — `isDefinitiveSendFailure` onu ayrıştırmaya devam
+      // ediyor). Ham metin log/Sentry yolunda aynen duruyor.
       return NextResponse.json(
-        { error: `Mesaj gönderilemedi: ${outcome.error ?? "bilinmeyen hata"}` },
+        {
+          error: providerErrorMessageFromText(
+            outcome.error,
+            "Mesaj gönderilemedi. Lütfen kısa bir süre sonra tekrar deneyin.",
+          ),
+        },
         { status: 502 },
       );
     }

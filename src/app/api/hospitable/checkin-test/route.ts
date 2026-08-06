@@ -1,4 +1,5 @@
 import { NextResponse } from "next/server";
+import { providerErrorMessage } from "@/lib/provider-errors";
 import { paymentRequired, tooManyRequests } from "@/lib/api";
 import { withManage } from "@/lib/route-guard";
 import { premiumAllowed } from "@/lib/billing/subscription";
@@ -26,7 +27,7 @@ export const POST = withManage(async (session) => {
     const previews = await previewCheckins(session.organizationId);
     return NextResponse.json({ ok: true, previews });
   } catch (err) {
-    const message = err instanceof Error ? err.message : "Önizleme başarısız oldu.";
+    const message = providerErrorMessage(err, "Önizleme oluşturulamadı. Lütfen kısa bir süre sonra tekrar deneyin.");
     return NextResponse.json({ ok: false, error: message });
   }
 });

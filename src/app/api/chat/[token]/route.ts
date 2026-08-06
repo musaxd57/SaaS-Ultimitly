@@ -58,7 +58,7 @@ const DAILY_AI_CAP_FALLBACK = 200;
 // stay — it re-opens only on a NEW reservation (a fresh "qr-chat:" thread). The
 // message is still recorded so the host sees it; the client is GET-authoritative,
 // so this reply is a courtesy field, not what renders.
-const HANDOFF_REPLY = "Mesajınız işletme ekibine iletildi; en kısa sürede size dönecek.";
+const HANDOFF_REPLY = "Mesajınız işletme ekibine iletildi; ekip sohbet ekranından size dönecek.";
 
 /**
  * ESKALASYON CEVABI — SÖZ, GERÇEĞE UYGUN OLMAK ZORUNDA (denetim, 08-01).
@@ -79,7 +79,7 @@ const HANDOFF_REPLY = "Mesajınız işletme ekibine iletildi; en kısa sürede s
 function escalationReply(): string {
   return qrEscalationEmailEnabled()
     ? "Sorunuzu ev sahibine ilettim; en kısa sürede size dönecek."
-    : "Mesajınız kaydedildi; ev sahibiniz sohbet ekranından görecek ve size dönecek.";
+    : "Mesajınız kaydedildi; ev sahibiniz sohbet ekranından görüntüleyebilir.";
 }
 
 const notFound = () => new Response("Not found", { status: 404 });

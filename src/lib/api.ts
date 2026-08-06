@@ -76,17 +76,17 @@ export function badRequest(fields: Record<string, string>) {
   return NextResponse.json({ error: "Doğrulama hatası", fields }, { status: 400 });
 }
 
-export function notFound(message = "Kayıt bulunamadı") {
+export function notFound(message = "Bu kayıt bulunamadı.") {
   return NextResponse.json({ error: message }, { status: 404 });
 }
 
-export function forbidden(message = "Bu işlem için yetkiniz yok") {
+export function forbidden(message = "Bu işlem için yetkiniz bulunmuyor. Gerekiyorsa işletme sahibinizle iletişime geçin.") {
   return NextResponse.json({ error: message }, { status: 403 });
 }
 
 /** 402: a paid/AI feature is used while the subscription is not active. */
 export function paymentRequired(
-  message = "Aboneliğiniz aktif değil. AI ve otomatik yanıt özellikleri için Ayarlar'dan bir plan seçin.",
+  message = "Aboneliğiniz aktif değil. AI ve otomatik yanıt özellikleri için işletme sahibinin Ayarlar → Faturalandırma bölümünden bir plan seçmesi gerekir.",
 ) {
   return NextResponse.json({ error: message }, { status: 402 });
 }
@@ -106,7 +106,10 @@ export function canManage(session: SessionPayload | null): boolean {
  * email via reportError — a plain `catch {}` here would make the failure totally
  * invisible (only `reportError`, NOT bare console.error, is captured).
  */
-export function serverError(message = "Beklenmeyen bir hata oluştu", err?: unknown) {
+export function serverError(
+  message = "Beklenmeyen bir sorun oluştu. Sayfayı yenileyip durumu kontrol edin; sorun sürerse tekrar deneyin.",
+  err?: unknown,
+) {
   if (err !== undefined) {
     // A Hospitable 402 "Subscription not active" is an EXPECTED external state —
     // the org's OWN Hospitable subscription lapsed, not a Lixus bug (the scheduled
@@ -128,7 +131,10 @@ export function serverError(message = "Beklenmeyen bir hata oluştu", err?: unkn
   return NextResponse.json({ error: message }, { status: 500 });
 }
 
-export function tooManyRequests(retryAfter: number, message = "Çok fazla istek. Lütfen biraz bekleyin.") {
+export function tooManyRequests(
+  retryAfter: number,
+  message = "Çok fazla istek gönderildi. Lütfen kısa bir süre bekleyip tekrar deneyin.",
+) {
   return NextResponse.json(
     { error: message },
     { status: 429, headers: { "Retry-After": String(Math.max(1, retryAfter)) } },
@@ -208,7 +214,7 @@ function mediaTypeEssence(raw: string | null): string {
   return (semi === -1 ? raw : raw.slice(0, semi)).trim().toLowerCase();
 }
 
-export function payloadTooLarge(message = "İstek gövdesi çok büyük.") {
+export function payloadTooLarge(message = "Gönderilen içerik çok büyük. Lütfen daha küçük bir dosya veya daha kısa bir metin gönderin.") {
   return NextResponse.json({ error: message }, { status: 413 });
 }
 

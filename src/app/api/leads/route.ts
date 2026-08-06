@@ -18,7 +18,7 @@ export async function POST(req: NextRequest) {
     const limited = await rateLimit(`lead:${clientIp(req)}`, 5, 60 * 60_000); // 5 / hour
     if (!limited.ok) {
       return NextResponse.json(
-        { error: "Çok fazla istek. Lütfen biraz sonra tekrar deneyin." },
+        { error: "Çok fazla istek gönderildi. Lütfen kısa bir süre bekleyip tekrar deneyin." },
         { status: 429, headers: { "Retry-After": String(limited.retryAfter) } },
       );
     }

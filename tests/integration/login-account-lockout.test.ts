@@ -28,10 +28,17 @@ describe("login — hesap kovasının YERİ (yapısal pin)", () => {
 
   it("kova YALNIZ başarısız-doğrulama dalında tüketilir", async () => {
     const src = await loginSource();
-    const failBranch = src.slice(
-      src.indexOf("if (!user || !ok) {"),
-      src.indexOf("E-posta veya şifre hatalı"),
-    );
+    // 🚨 SINIRLARIN BULUNDUĞUNU DOĞRULA (08-06, denetim ajanı uyarısı).
+    // Bu `slice` iki LİTERALLE sınırlanıyor ve ikincisi kullanıcıya görünen bir
+    // METİN. Biri o metni kurumsallaştırırsa `indexOf` **-1** döner, `slice(a,-1)`
+    // dosyanın SONUNA kadar keser ve aşağıdaki üç assertion **YİNE GEÇER** —
+    // yani test kırmızıya dönmez, SESSİZCE boşa düşer ve hesap-kovasının yerini
+    // koruyan güvenlik pini ölür. Bu iki satır o yolu kapatır.
+    const from = src.indexOf("if (!user || !ok) {");
+    const to = src.indexOf("E-posta veya şifre hatalı");
+    expect(from, "başarısız-doğrulama dalının başı bulunamadı — pin boşa düştü").toBeGreaterThan(-1);
+    expect(to, "sınır metni değişmiş — bu testi yeni sınıra taşı, yoksa pin ÖLÜ").toBeGreaterThan(from);
+    const failBranch = src.slice(from, to);
     expect(failBranch).toMatch(/await rateLimit\(`login-acct:/);
     // Ve tavan aşıldığında o dal 429 döndürür (koruma dekoratif değil).
     expect(failBranch).toMatch(/if \(!acct\.ok\)/);

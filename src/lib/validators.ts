@@ -1,4 +1,20 @@
 import { z } from "zod";
+import { installTurkishZodErrors } from "@/lib/zod-tr";
+
+// ⚠️ MODÜL SEVİYESİNDE, BİLİNÇLİ BİR YAN ETKİ (08-06). Zod'un VARSAYILAN hata
+// metinleri İngilizce ve doğrudan müşterinin ekranına çıkıyordu ("String must
+// contain at most 20000 character(s)"). `installTurkishZodErrors` bunları
+// Türkçeleştirir; şema içinde ÖZEL `message` verilmiş kurallar ETKİLENMEZ
+// (zod özel mesajı error map'e tercih eder — ampirik doğrulandı).
+//
+// NEDEN BURASI: kurulumun İSTEK SERVİS EDİLMEDEN ÖNCE koşması gerekiyor.
+// `instrumentation.ts`'in `register()`'ı UYGUN DEĞİL — dev'de ve
+// `INTERNAL_CRON_DISABLED=1` iken ERKEN DÖNÜYOR, yani kurulum atlanırdı.
+// Bu modül ise kaçınılmaz: kullanıcıya görünen zod hatasını biçimleyen TEK
+// fonksiyon (`zodFieldErrors`, ↓) burada ve onu 19 rota kullanıyor; kaynakta
+// `.issues`/`.format()`/`.flatten()` ile biçimleyen BAŞKA yer YOK (grep: 0).
+// Yani bir zod hatası kullanıcıya bu modül yüklenmeden ULAŞAMAZ.
+installTurkishZodErrors();
 
 // The host-written late-checkout offer is relayed to guests as the host's word and
 // can be auto-surfaced, so it must never carry a payment METHOD — Airbnb/Booking TOS

@@ -25,7 +25,7 @@ export const POST = withManage<{ id: string }>(async (session, _req, ctx) => {
     return NextResponse.json(
       {
         error:
-          "Bu kayıt yeniden kuyruğa alınamaz — yalnız kesin gönderilememiş (failed) kayıtlar tekrar denenebilir.",
+          "Bu kayıt yeniden kuyruğa alınamaz — yalnızca \"Gönderilemedi\" durumundaki kayıtlar tekrar denenebilir. \"Doğrulanamadı\" kayıtları misafire ulaşmış olabilir.",
         status: result.status,
       },
       { status: 409 },

@@ -31,10 +31,10 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ id:
   // release path is needed; the short TTL self-heals a failed create.)
   const claimed = await claimOutboundSend(convo.id, text);
   if (claimed === "duplicate") {
-    return NextResponse.json({ error: "Bu mesaj az önce gönderildi." }, { status: 409 });
+    return NextResponse.json({ error: "Bu mesaj az önce gönderildi — tekrar gönderilmedi." }, { status: 409 });
   }
   if (claimed === "unavailable") {
-    return NextResponse.json({ error: "Şu anda kaydedilemedi — birazdan tekrar deneyin." }, { status: 503 });
+    return NextResponse.json({ error: "Mesaj şu anda kaydedilemedi. Lütfen kısa bir süre sonra tekrar deneyin." }, { status: 503 });
   }
 
   // Per-thread advisory lock (Codex 07-24 #4): serializes this insert against

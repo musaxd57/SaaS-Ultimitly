@@ -190,7 +190,7 @@ export async function POST(req: NextRequest) {
         select: { twoFactorSecret: true, twoFactorEnabledAt: true },
       });
       if (!user?.twoFactorEnabledAt) {
-        return badRequest({ _: "Kurtarma kodları için önce 2FA'yı açın." });
+        return badRequest({ _: "Kurtarma kodlarını görüntülemek için önce iki adımlı doğrulamayı etkinleştirin." });
       }
       let secret: string | null = null;
       if (user.twoFactorSecret) {

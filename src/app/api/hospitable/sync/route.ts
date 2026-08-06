@@ -1,4 +1,5 @@
 import { NextResponse } from "next/server";
+import { providerErrorMessage } from "@/lib/provider-errors";
 import { tooManyRequests } from "@/lib/api";
 import { withManage } from "@/lib/route-guard";
 import { rateLimit } from "@/lib/rate-limit";
@@ -47,7 +48,7 @@ export const POST = withManage(async (session) => {
     }
     return NextResponse.json({ ok: true, ...result });
   } catch (err) {
-    const message = err instanceof Error ? err.message : "Senkronizasyon başarısız oldu.";
+    const message = providerErrorMessage(err, "Senkronizasyon şu anda tamamlanamadı. Lütfen kısa bir süre sonra tekrar deneyin.");
     return NextResponse.json({ ok: false, error: message });
   }
 });
