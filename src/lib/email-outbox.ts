@@ -276,15 +276,28 @@ export function changeCodeEmailHtml(code: string): string {
  *
  * ⚠️ Birincil eylem "giriş yap", "şifreni sıfırla" DEĞİL: kullanıcıyı istemediği
  * maillerdeki sıfırlama bağlantılarına tıklamaya alıştırmak kimlik avı eğitimidir.
+ * Aynı sebeple dipnottaki "yine de dilerseniz şifrenizi yenileyin" cümlesi
+ * KALDIRILDI (08-06): "yapmanız gereken bir şey yok" dedikten sonra bir şey
+ * yapmayı önermek kendi kendini çürütüyordu ve önerilen eylem HİÇBİR tehdidi
+ * azaltmıyordu — birinin kayıt formuna adresinizi yazması şifreniz hakkında
+ * sıfır bilgi taşır.
+ *
+ * ⚠️ "şifreniz, verileriniz ve ayarlarınız aynı" LİSTESİ DE KALDIRILDI. Sızıntı
+ * değildi (üçü de her alıcı için sabit doğru) ama "şifreniz" mailin içindeki TEK
+ * kredensiyel kelimesiydi ve okuyucunun aklında olmayan soruyu ("şifrem
+ * etkilenmiş olabilir mi?") kendisi açıp sonra kapatmak zorunda kalıyordu.
+ * "Dokunulmadı", "hiçbir şey değişmedi"den daha kesin: ikincisi zihinsel bir
+ * diff'e davet ediyor ("ne değişebilirdi ki?"), birincisi hiçbir işlemin hesaba
+ * ulaşmadığını söylüyor.
  */
 export function accountExistsEmailHtml(): string {
   return identityEmailShell({
     heading: "Zaten bir hesabınız var",
     intro:
-      "Bu e-posta adresiyle yeni bir Lixus AI hesabı oluşturulmak istendi. Adres zaten kayıtlı olduğu için <strong style=\"color:#0f172a\">yeni hesap açılmadı</strong> ve mevcut hesabınızda hiçbir şey değişmedi — şifreniz, verileriniz ve ayarlarınız aynı.",
+      "Bu e-posta adresiyle yeni bir Lixus AI hesabı oluşturulmak istendi. Adres zaten kayıtlı olduğu için <strong style=\"color:#0f172a\">yeni hesap açılmadı</strong>; mevcut hesabınıza dokunulmadı.",
     action: { label: "Giriş sayfasına git", url: `${appBaseUrl()}/login` },
     footnote:
-      "Şifrenizi hatırlamıyorsanız giriş sayfasındaki <strong>Şifremi unuttum</strong> bağlantısıyla yenileyebilirsiniz. Bu denemeyi siz yapmadıysanız yapmanız gereken bir şey yok; yine de dilerseniz şifrenizi yenileyebilirsiniz.",
+      "Şifrenizi hatırlamıyorsanız giriş sayfasındaki <strong>Şifremi unuttum</strong> bağlantısıyla yenileyebilirsiniz. Bu denemeyi siz yapmadıysanız yapmanız gereken bir şey yok.",
   });
 }
 
