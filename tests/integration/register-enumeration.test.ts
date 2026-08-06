@@ -26,10 +26,16 @@ import { POST as register } from "@/app/api/auth/register/route";
 // ⚠️ MEVCUT AKIŞ BOZULMAZ: yeni kayıt aynen 201 + doğrulama e-postası.
 // ---------------------------------------------------------------------------
 
-function registerReq(email: string) {
+function registerReq(email: string, ip?: string) {
   return new NextRequest("https://www.lixusai.com/api/auth/register", {
     method: "POST",
-    headers: { "content-type": "application/json", host: "www.lixusai.com" },
+    headers: {
+      "content-type": "application/json",
+      host: "www.lixusai.com",
+      // IP verilirse her istek FARKLI bir adresten gelmiş sayılır — IP kovasını
+      // (5/saat) devre dışı bırakıp ADRES kovasını yalıtmak için.
+      ...(ip ? { "x-forwarded-for": ip } : {}),
+    },
     body: JSON.stringify({
       organizationName: "İşletme",
       name: "Test Host",
@@ -96,6 +102,114 @@ describe("POST /api/auth/register — enumeration kapalı", () => {
     const dupBranch = src.slice(src.indexOf("if (existing)"), src.indexOf("if (existing)") + 900);
     expect(dupBranch).toMatch(/hashPassword\(/); // erken dönüş YOK, maliyet ödenir
     expect(dupBranch).not.toMatch(/zaten kayıtlı/); // eski sızdıran metin geri gelmesin
+  });
+
+  // -------------------------------------------------------------------------
+  // "ZATEN HESABIN VAR" BİLDİRİMİ (08-06).
+  //
+  // Enumeration koruması SESSİZ BİR ÇIKMAZ üretiyordu: hesabı olduğunu unutan
+  // gerçek kullanıcı "kutunuzu kontrol edin" görüp hiçbir şey almıyor, kayıt
+  // ekranındaki tek düğme "yeniden gönder" ve o da doğrulanmış hesapta sessizce
+  // yutuluyordu → kapalı döngü. Bildirim döngüyü kırar.
+  //
+  // 🚨 YANIT DEĞİŞMEZ. Bilgi HTTP kanalından değil, YALNIZ adresin sahibinin
+  // posta kutusundan akar — saldırgan kurbanın adresini yazarsa cevabı kendisi
+  // değil kurban alır.
+  // -------------------------------------------------------------------------
+  it("var olan adrese BİLDİRİM gider ama yanıt birebir aynı kalır", async () => {
+    await register(registerReq("sahip@example.com"));
+    vi.clearAllMocks();
+
+    const res = await register(registerReq("sahip@example.com"));
+    expect(res.status).toBe(201);
+    expect(await res.json()).toEqual({ ok: true, verifyEmail: true });
+
+    const { emailService } = await import("@/lib/email");
+    const calls = vi.mocked(emailService.sendReporting).mock.calls;
+    expect(calls).toHaveLength(1);
+    expect(calls[0][0]).toBe("sahip@example.com");
+    expect(calls[0][1]).toMatch(/zaten bir hesabınız var/i);
+  });
+
+  it("YENİ adreste bildirim GİTMEZ — yalnız doğrulama maili", async () => {
+    // ⚠️ Ters yön: bildirim koşulsuz gönderilirse burası kırmızı olur.
+    const res = await register(registerReq("yepyeni@example.com"));
+    expect(res.status).toBe(201);
+
+    const { emailService } = await import("@/lib/email");
+    const subjects = vi.mocked(emailService.sendReporting).mock.calls.map((c) => c[1]);
+    expect(subjects).toHaveLength(1);
+    expect(subjects[0]).toMatch(/doğrulayın/i);
+    expect(subjects[0]).not.toMatch(/zaten bir hesabınız var/i);
+  });
+
+  it("BİLDİRİM METNİ istek gövdesinden HİÇBİR ŞEY taşımaz (kimlik avı enjeksiyonu)", async () => {
+    // `registerSchema` `name` ve `organizationName` için 200 karakter SERBEST
+    // METİN kabul ediyor ve bu maili tetikleyen istek SALDIRGANDAN gelebilir.
+    // "Merhaba {name}" yazmak, kurbanın GÜVENDİĞİ bir e-postaya saldırganın
+    // metnini koymak olurdu; `escapeHtml` HTML'i kaçar ama METNİ engellemez.
+    await register(registerReq("kurban@example.com"));
+    vi.clearAllMocks();
+
+    const zehirli = new NextRequest("https://www.lixusai.com/api/auth/register", {
+      method: "POST",
+      headers: { "content-type": "application/json", host: "www.lixusai.com" },
+      body: JSON.stringify({
+        organizationName: "ACIL: hesabiniz kapatilacak",
+        name: "Buraya tiklayin hemen",
+        email: "kurban@example.com",
+        password: "sifre12345",
+        consent: true,
+      }),
+    });
+    await register(zehirli);
+
+    const { emailService } = await import("@/lib/email");
+    const html = String(vi.mocked(emailService.sendReporting).mock.calls[0][2]);
+    expect(html).not.toContain("ACIL: hesabiniz kapatilacak");
+    expect(html).not.toContain("Buraya tiklayin hemen");
+  });
+
+  it("BİLDİRİMDE eylem tetikleyen bağlantı YOK (yalnız düz gezinme)", async () => {
+    // Rota kimliksiz ve saldırgan tetikleyicisi → maildeki her token'lı bağlantı,
+    // saldırganın kurbana karşı tetiklediği bir eyleme dönüşürdü. Ayrıca e-posta
+    // tarayıcılarının ön-ısıtma istekleri tek-kullanımlık token'ı tüketir.
+    await register(registerReq("baglanti@example.com"));
+    vi.clearAllMocks();
+    await register(registerReq("baglanti@example.com"));
+
+    const { emailService } = await import("@/lib/email");
+    const html = String(vi.mocked(emailService.sendReporting).mock.calls[0][2]);
+    const hrefs = [...html.matchAll(/href="([^"]+)"/g)].map((m) => m[1]);
+    expect(hrefs.length).toBeGreaterThan(0);
+    for (const href of hrefs) {
+      expect(href).not.toMatch(/#t=|\?t=|token/i);
+      expect(new URL(href).search).toBe("");
+      expect(new URL(href).hash).toBe("");
+    }
+  });
+
+  it("ADRES BAŞINA kova dolunca mail susar ama YANIT değişmez", async () => {
+    // 🚨 HER İSTEK FARKLI IP'DEN: gerçek tehdit modeli bu. IP kovası (5/saat)
+    // tek başına yetmez çünkü saldırgan proxy/botnet ile adres döndürür; kurbanı
+    // koruyan şey ADRES başına kovadır.
+    await register(registerReq("kova@example.com", "9.9.0.1"));
+
+    const { emailService } = await import("@/lib/email");
+    const statuses: number[] = [];
+    // Kova 4/15dk → tavandan sonra bildirim susmalı, yanıt YİNE 201 olmalı.
+    for (let i = 0; i < 6; i++) {
+      const r = await register(registerReq("kova@example.com", `9.9.1.${i}`));
+      statuses.push(r.status);
+    }
+    expect(new Set(statuses)).toEqual(new Set([201]));
+
+    const notices = vi
+      .mocked(emailService.sendReporting)
+      .mock.calls.filter((c) => /zaten bir hesabınız var/i.test(String(c[1])));
+    // 429 ASLA dönmedi (yukarıda pinli) ama mail sayısı tavanla sınırlı.
+    expect(notices.length).toBeLessThanOrEqual(4);
+    expect(notices.length).toBeGreaterThan(0);
   });
 
   it("YENİ kayıt akışı bozulmadı (regresyon pini)", async () => {

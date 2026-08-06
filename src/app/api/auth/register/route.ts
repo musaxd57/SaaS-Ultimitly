@@ -7,13 +7,31 @@ import { rateLimit, clientIp } from "@/lib/rate-limit";
 import { emailService } from "@/lib/email";
 import { reportError } from "@/lib/report-error";
 import { makeVerifyToken, VERIFY_TTL_MS, verifyEmailHtml, verifyUrl } from "@/lib/auth/email-verify";
-import { emailOutboxEnabled, enqueueIdentityEmail, kickEmailOutboxDrain } from "@/lib/email-outbox";
+import {
+  emailOutboxEnabled,
+  enqueueIdentityEmail,
+  kickEmailOutboxDrain,
+  accountExistsEmailHtml,
+} from "@/lib/email-outbox";
 import { newTrialSubscriptionData } from "@/lib/billing/subscription";
 import { LEGAL_VERSION } from "@/lib/legal-entity";
 import { LEGAL_TEXT_HASH } from "@/lib/legal-text-hash";
 import { resolveNewOrgTimezone } from "@/lib/app-config";
 import { normalizeEmail } from "@/lib/email-identity";
 import { NEW_ORG_AUTO_REPLY_WINDOW } from "@/lib/constants";
+
+// ⚠️ İKİ DAL DA BU GÖVDEYİ DÖNER — sabit tek yerde tutuluyor ki zamanla
+// AYRIŞMASINLAR. Sağlayıcı arızasında "yeni hesap" dalı 503, "hesabı var" dalı
+// 201 dönseydi, arızayı bekleyen bir saldırgan için bu tek başına bir varlık
+// oracle'ı olurdu. Metnin "hesabınız oluşturuldu" demesi mevcut-hesap dalında
+// teknik olarak yanlış ama BİLİNÇLİ: enumeration koruması zaten o dalda sahte
+// bir başarı cevabı vermeye dayanıyor.
+const SEND_FAILED_503 = {
+  error:
+    "Hesabınız oluşturuldu ancak doğrulama e-postası şu anda gönderilemedi. Lütfen birkaç dakika sonra giriş sayfasından “doğrulama e-postasını yeniden gönder” ile tekrar deneyin.",
+  accountCreated: true,
+  verifyEmailFailed: true,
+} as const;
 
 export async function POST(req: NextRequest) {
   try {
@@ -83,9 +101,63 @@ export async function POST(req: NextRequest) {
     // e-posta akışı kararı → `docs/MIGRATION-BEKLEYEN-ISLER.md`'ye soru olarak
     // yazıldı, tek başıma eklemiyorum. Bugünkü kaçış yolu: giriş sayfasındaki
     // "doğrulama e-postasını yeniden gönder".
+    // 🚨 ADRES BAŞINA BİLDİRİM KOVASI — HER İKİ DALDA ve `findUnique`'ten ÖNCE
+    // tüketilir. Sebebi ince: kova yalnız "hesabı var" dalında tüketilseydi,
+    // sayacın kendisi hesabın varlığını sızdırırdı. Verdict SADECE "bildirim
+    // gönderilsin mi" kararına girer — 429 ÜRETMEZ, yanıtı DEĞİŞTİRMEZ.
+    //
+    // İki katman: 4/15dk kardeş rotalarla (`verify-resend-acct`, `forgot-req`)
+    // birebir aynı; 3/24s ise buna özel. Gerekçe: bu bildirim kullanıcının KENDİ
+    // istemediği bir maildir, saldırgan tetikler → günde 16 kopya saf tacizdir.
+    // IP kovası tek başına yetmez, saldırgan IP döndürür.
+    const notifyBurst = await rateLimit(`register-exists:${email}`, 4, 15 * 60 * 1000);
+    const notifyDaily = await rateLimit(`register-exists-day:${email}`, 3, 24 * 60 * 60 * 1000);
+    const mayNotify = notifyBurst.ok && notifyDaily.ok;
+
     const existing = await prisma.user.findUnique({ where: { email } });
     if (existing) {
       await hashPassword(parsed.data.password); // zamanlama paritesi — sonuç atılır
+      // Adres sahibine "bu adresle bir hesabın var" bildirimi. Yanıt DEĞİŞMEZ.
+      //
+      // 🚨 BAYRAK PARİTESİ ZORUNLU: bu dal, yeni-hesap dalıyla AYNI kola girmek
+      // ZORUNDA. Bayrak AÇIKKEN yeni-hesap dalı istek içinde sağlayıcıya HİÇ
+      // gitmiyor (yalnız kuyruğa yazıyor); buraya doğrudan bir gönderim koymak o
+      // dalı Resend gecikmesi kadar (tavan 15 sn) yavaşlatır ve süreyi ölçen bir
+      // saldırgana hesabın varlığını okutur — 08-06'da şifre sıfırlamada
+      // kapatılan 362 ms'lik yan kanalın katbekat büyüğü.
+      //
+      // 🚨 AYRI BİR `kind` ŞART, `verify_email` KULLANILAMAZ: `enqueueIdentityEmail`
+      // aynı (userId, kind) çiftinin bekleyen satırlarını İPTAL EDER → saldırgan
+      // buraya istek atarak kurbanın GERÇEK doğrulama mailini iptal ettirebilirdi.
+      if (mayNotify) {
+        if (emailOutboxEnabled()) {
+          await prisma.$transaction((tx) =>
+            enqueueIdentityEmail(tx, {
+              userId: existing.id,
+              kind: "account_exists",
+              // Bu türün sırrı YOK; alan sözleşme gereği zorunlu.
+              secret: "",
+              recipient: email,
+              expiresAt: new Date(Date.now() + 60 * 60 * 1000),
+            }),
+          );
+          kickEmailOutboxDrain();
+        } else {
+          const notified = await emailService.sendReporting(
+            email,
+            "Lixus AI — Bu adresle zaten bir hesabınız var",
+            accountExistsEmailHtml(),
+          );
+          if (!notified.ok) {
+            void reportError(
+              "auth.register.account_exists_notice",
+              new Error(notified.error ?? "email send failed"),
+            );
+            // ↑Yeni-hesap dalıyla BİREBİR aynı gövde — ayrışırsa oracle olur.
+            return NextResponse.json(SEND_FAILED_503, { status: 503 });
+          }
+        }
+      }
       return jsonOk({ ok: true, verifyEmail: true }, 201);
     }
 
@@ -173,15 +245,7 @@ export async function POST(req: NextRequest) {
     );
     if (!sent.ok) {
       void reportError("auth.register.verify_email", new Error(sent.error ?? "email send failed"));
-      return NextResponse.json(
-        {
-          error:
-            "Hesabınız oluşturuldu ancak doğrulama e-postası şu anda gönderilemedi. Lütfen birkaç dakika sonra giriş sayfasından “doğrulama e-postasını yeniden gönder” ile tekrar deneyin.",
-          accountCreated: true,
-          verifyEmailFailed: true,
-        },
-        { status: 503 },
-      );
+      return NextResponse.json(SEND_FAILED_503, { status: 503 });
     }
     return jsonOk({ ok: true, verifyEmail: true }, 201);
   } catch (err) {

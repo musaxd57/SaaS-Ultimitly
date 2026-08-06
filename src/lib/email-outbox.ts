@@ -53,7 +53,12 @@ import { verifyUrl, verifyEmailHtml, appBaseUrl } from "@/lib/auth/email-verify"
 // exactly because it might already have delivered.
 // ---------------------------------------------------------------------------
 
-export type EmailOutboxKind = "verify_email" | "pw_reset_code" | "pw_change_code" | "pw_reset_challenge";
+export type EmailOutboxKind =
+  | "verify_email"
+  | "pw_reset_code"
+  | "pw_change_code"
+  | "pw_reset_challenge"
+  | "account_exists";
 const KINDS: ReadonlySet<string> = new Set([
   "verify_email",
   "pw_reset_code",
@@ -61,6 +66,9 @@ const KINDS: ReadonlySet<string> = new Set([
   // ⚠️ YENİ (Faz 1): challenge tabanlı sıfırlama. İKİ sır taşır (token + kod) ve
   // canlılığı `User` satırında DEĞİL, `PasswordResetChallenge` satırında yaşar.
   "pw_reset_challenge",
+  // ⚠️ SIRSIZ TEK TÜR: "bu adresle zaten hesabın var" bildirimi. Token/kod
+  // taşımaz, bir şeyi YETKİLENDİRMEZ; yalnız adres sahibini bilgilendirir.
+  "account_exists",
 ]);
 
 /** Master switch — default OFF. While off the module is dead code: routes use
@@ -248,6 +256,38 @@ export function changeCodeEmailHtml(code: string): string {
   });
 }
 
+/**
+ * "Bu adresle zaten bir hesap var" bildirimi.
+ *
+ * 🚨 SIR TAŞIMAZ ve HİÇBİR ŞEYİ YETKİLENDİRMEZ. Diğer üç kimlik e-postasının
+ * aksine burada token/kod yok; mail yalnız adres sahibini bilgilendirir.
+ *
+ * ⚠️ KİŞİSELLEŞTİRME YOK — BİLİNÇLİ. Bu maili tetikleyen istek SALDIRGANDAN
+ * gelebilir ve `registerSchema` `name` ile `organizationName` için 200 karakter
+ * serbest metin kabul ediyor. "Merhaba {name}" yazmak, kurbanın GÜVENDİĞİ bir
+ * e-postaya saldırganın yazdığı metni koymak olurdu (kimlik avı enjeksiyonu);
+ * `escapeHtml` HTML'i kaçar ama METNİ engellemez. Aynı sebeple istek gövdesinden
+ * ya da isteğin IP/User-Agent'ından HİÇBİR şey buraya girmez.
+ *
+ * ⚠️ EYLEM TETİKLEYEN BAĞLANTI YOK — yalnız parametresiz gezinme bağlantıları.
+ * Rota kimliksiz ve saldırgan tetikleyicisi olduğu için maildeki her token'lı
+ * bağlantı, saldırganın kurbana karşı tetiklediği bir eyleme dönüşürdü; ayrıca
+ * e-posta tarayıcılarının ön-ısıtma istekleri tek-kullanımlık token'ı tüketir.
+ *
+ * ⚠️ Birincil eylem "giriş yap", "şifreni sıfırla" DEĞİL: kullanıcıyı istemediği
+ * maillerdeki sıfırlama bağlantılarına tıklamaya alıştırmak kimlik avı eğitimidir.
+ */
+export function accountExistsEmailHtml(): string {
+  return identityEmailShell({
+    heading: "Zaten bir hesabınız var",
+    intro:
+      "Bu e-posta adresiyle yeni bir Lixus AI hesabı oluşturulmak istendi. Adres zaten kayıtlı olduğu için <strong style=\"color:#0f172a\">yeni hesap açılmadı</strong> ve mevcut hesabınızda hiçbir şey değişmedi — şifreniz, verileriniz ve ayarlarınız aynı.",
+    action: { label: "Giriş sayfasına git", url: `${appBaseUrl()}/login` },
+    footnote:
+      "Şifrenizi hatırlamıyorsanız giriş sayfasındaki <strong>Şifremi unuttum</strong> bağlantısıyla yenileyebilirsiniz. Bu denemeyi siz yapmadıysanız yapmanız gereken bir şey yok; yine de dilerseniz şifrenizi yenileyebilirsiniz.",
+  });
+}
+
 const CODE_FOOTNOTE =
   "Bu kod <strong>10 dakika</strong> geçerlidir. Birden fazla kod aldıysanız en son gönderilen geçerlidir. Bu isteği siz yapmadıysanız bu e-postayı yok sayın — şifreniz değişmez.";
 
@@ -279,6 +319,14 @@ function renderIdentityEmail(
     }
     case "pw_change_code":
       return { subject: "Lixus AI — Şifre değiştirme kodu", html: changeCodeEmailHtml(secret) };
+    case "account_exists":
+      // ⚠️ `secret` KULLANILMAZ (bu türün sırrı yoktur) ve `userName` de
+      // KULLANILMAZ (↑kişiselleştirme yasağı). İmza ortak olduğu için ikisi de
+      // parametre listesinde durur.
+      return {
+        subject: "Lixus AI — Bu adresle zaten bir hesap var",
+        html: accountExistsEmailHtml(),
+      };
   }
 }
 
@@ -299,6 +347,14 @@ function hashLive(user: LivenessRow, kind: EmailOutboxKind, now: Date): boolean 
   // `pw_reset_challenge` BURADA ele alınmaz: canlılığı `User` satırında değil,
   // `PasswordResetChallenge` satırında yaşıyor (↓`rowIsCurrent`).
   if (kind === "pw_reset_challenge") return true;
+  // 🚨 `account_exists` DE BURADA ELE ALINMALI. Aşağıdaki üçlü ternary'nin SON
+  // dalı bir CATCH-ALL'dur (`pwChangeCodeHash`): burada erken dönülmezse yeni
+  // tür sessizce oraya düşer, hash NULL bulunur, `false` döner ve satır
+  // `rowIsCurrent` tarafından İPTAL edilir — e-posta HİÇ GİTMEZ ve hiçbir hata
+  // yazılmaz. TypeScript bunu YAKALAMAZ (ternary yapısı gereği tüketici).
+  // Bu türün "canlılığı" yoktur: hesabın var olması kalıcı bir olgudur, süresi
+  // dolmaz. Güncellik yalnız `rowIsCurrent`'ın version kontrolüne kalır.
+  if (kind === "account_exists") return true;
   const [hash, exp] =
     kind === "verify_email"
       ? [user.emailVerifyTokenHash, user.emailVerifyExpiresAt]
