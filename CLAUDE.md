@@ -362,30 +362,7 @@ mutasyonla ayrı ayrı pinli (`tests/unit/middleware-auth-routing.test.ts`).
   🔙 Geri alma: env'i sil → redeploy; veri temizliği GEREKMEZ (TTL süpürür).
 - **Faz 0-1 ✅ BİTTİ ve CANLIDA.** m47 uygulandı (Railway boot `migrate deploy`), CI 4/4 yeşil.
   `PASSWORD_RESET_CHALLENGE_ENABLED` **Railway'de YOK** → üretim davranışı birebir eski akış.
-- ~~Faz 2 ⏸️ BAŞLAMADI~~ ✅ **BİTTİ ↑** (eski koşu sırası kayıt olarak duruyor). Eski not: AYRI, AÇIK KULLANICI ONAYI BEKLİYOR.** Bayrağı BEN AÇMAM. Koşu sırası hazır
-  (aşağıdaki 0. adım kritik, yoksa 8. madde hiç test edilemez):
-  **0)** Bayrak KAPALIYKEN kod iste, gelen 8 haneyi NOT ET, KULLANMA (eski TTL 10 dk; redeploy birkaç dk →
-  pencere dar, yetişmezse test "başarısız" değil "sonuçsuz") · **1)** env `=1` · **2)** redeploy ACTIVE ·
-  **3)** HEMEN adım 0'daki eski kodu dene → ÇALIŞMALI (uçuştaki kod garantisi); çalışmazsa bayrağı geri al ·
-  **4)** yeni akış: bağlantı `#t=<64hex>` olmalı, içinde `?` OLMAMALI · adres çubuğu açılışta temizlenmeli ·
-  yeni şifre kaydolmalı ve İKİNCİ tarayıcıdaki oturum düşmeli · Railway/Sentry/AuditLog'da token-kod-şifre-
-  e-posta GÖRÜNMEMELİ (`via:"challenge"` + opak `challengeId` + ip olmalı).
-  ⚠️ **En olası arıza: e-posta HİÇ gelmez.** `EMAIL_OUTBOX_ENABLED=1` canlı ve `pw_reset_challenge` için
-  `rowIsCurrent` YENİ bir dal (canlılık `User` satırından değil canlı challenge SAYISINDAN okunuyor) —
-  yanlış çalışırsa satır `canceled` olur, hiç mail çıkmaz. 30 sn'de gelmezse Railway log'unda
-  `[email-outbox-poller]`. **Geri alma:** env'i sil → redeploy; veri temizliği GEREKMEZ (TTL süpürür).
-- 🚨 **BAYRAK KAPALIYKEN CANLI OLAN ARTIK RİSK (08-05, agent buldu + kod-doğrulandı):** eski akışta deneme
-  bütçesi (`pwResetCodeAttempts`, tavan 5) **HESABA** ait ve satırın adresi saldırganın serbestçe yazdığı
-  `email`. Senaryo: kurban sıfırlama ister (10 dk TTL) → saldırgan aynı pencerede 5 uydurma `confirm`
-  gönderir → sayaç dolar → kurbanın DOĞRU kodu artık claim'i geçemez VE kod aktif olarak silinir
-  (`claim.count===0` dalı `pwResetCodeHash: null` yazıyor). Her pencerede tekrarlanabilir → self-servis
-  sıfırlama süresiz engellenebilir. ⚠️ **`d10c987` bunu KAPATMADI** — o commit HIZ-LİMİTİ KOVASINI
-  düzeltti ("doğru kod kovadan etkilenmez"); DB sayacı ayrı bir mekanizma ve dokunulmadı.
-  ⚠️ **Hesaba bağlı HER bütçe bu özelliği taşır** — tavanı yükseltmek çözmez, kaba-kuvvet korumasını
-  zayıflatır. Tek yapısal çözüm bütçeyi hesaptan ÇIKARMAK: m47 tam olarak bu (bütçe satıra ait, satırın
-  TEK adresi `tokenHash`; token'ı bilmeyen satırı bulamaz, denemesini harcayamaz). Yani **Faz 2 artık
-  yalnız bir iyileştirme değil, canlı bir açığın kapatılması** — ama para/e-posta akışına dokunduğu için
-  yine AÇIK KULLANICI ONAYI ister.
+- ~~Faz 2~~ ✅ **BİTTİ** — bayrak Railway'de AÇIK, uçtan uca doğrulandı (↑üstteki blok). Adım adım koşu sırası, "en olası arıza" senaryosu ve geri-alma talimatı HARCANDI (gerekirse `git log` + `docs/PASSWORD-RESET-CHALLENGE-DESIGN.md`).
 - **Faz 3 ⏸️** eski kod yolunu kaldırmak — Faz 2'den ≥30 dk sonra, uçuştaki kodlar bitince.
 - **Faz 4 ⏸️** `pwResetCode*` kolonlarını düşürmek — kullanıcı kararıyla ERTELENDİ, migration ister.
 
