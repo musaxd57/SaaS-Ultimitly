@@ -1,6 +1,27 @@
-# Hesap ön-ele-geçirme (account pre-hijacking) — AÇIK, karar bekliyor
+# Hesap ön-ele-geçirme (account pre-hijacking) — ✅ KAPATILDI (08-06)
 
-> **Durum:** KOD DEĞİŞTİRİLMEDİ. Zincir 2026-08-06'da bir denetim ajanı tarafından
+> **Durum: KAPATILDI.** Seçenek **S1** (doğrulamada parola şartı) uygulandı; ayrıca
+> aynı turda üç yan bulgu da kapatıldı (↓"Uygulanan"). Aşağıdaki zincir anlatısı
+> TARİHÇE olarak korunuyor — düzeltmenin neyi kapattığını anlatır.
+>
+> **Uygulanan (hepsi mutasyon-doğrulandı, 6 mutasyonun 6'sı kırmızı):**
+> 1. `verify-email` artık `{token, password}` ister; parola doğrulanmadan
+>    `emailVerifiedAt` YAZILMAZ → zincirin 3. halkası kırıldı.
+> 2. Yanlış parola token'ı TÜKETMEZ (yazım hatası bağlantıyı yakmaz).
+> 3. 2FA açık hesapta oturum BASILMAZ (`requiresLogin`) — bugün ulaşılamaz bir
+>    dal, ama değişmezi pinler.
+> 4. Başka bir hesabın oturumu açıkken doğrulama REDDEDİLİR (`session_mismatch`)
+>    — sessiz hesap değişimi / login-CSRF kapandı.
+> 5. Parola sıfırlama artık canlı doğrulama token'ını da öldürür (İKİ yol da):
+>    `sessionEpoch` artışı onu öldürmüyordu, çünkü doğrulama rotası oturumu TAZE
+>    epoch'la basıyor.
+> 6. `mfa: false` kaynak-taramayla pinlendi — operatör kapısı bu yoldan açılamaz.
+>
+> ⚠️ **SIRA KISITI:** boş-parola kontrolü token aramasının SONRASINDA kalmalı.
+> `tests/e2e/security-controls.spec.ts` tarayıcı-botnet Content-Type kapısını bu
+> rota üzerinden ölçüyor ve ayrım `expired` ↔ `missing` sebep kodlarına dayanıyor.
+>
+> **Eski durum notu:** KOD DEĞİŞTİRİLMEDİ. Zincir 2026-08-06'da bir denetim ajanı tarafından
 > raporlandı ve **beş halkasının hepsi ayrı ayrı kod-doğrulandı** (aşağıda file:line).
 > Kimlik/kayıt akışına dokunmak kullanıcı onayı ister → sorduğum soru yanıtsız kaldı,
 > bu yüzden yalnız belgelendi.
@@ -70,8 +91,10 @@ edilsin. Kurban saldırganın parolasını bilmediği için 3. halka kırılır.
 - ✅ Kurtarma yolu var (önce forgot-password, sonra doğrula)
 - ❌ "Maildeki butona tıklayın; giriş otomatik tamamlanır" vaadi biter
   (`register-form.tsx:154`, mail metni `email-verify.ts:170-171`)
-- ❌ `tests/integration/email-verify.test.ts`'te **5 pin** güncellenir
-  (`:265`, `:287`, `:356`, `:418`, `:447`)
+- ❌ `tests/integration/email-verify.test.ts`'te **4 test + 1 helper** güncellenir
+  (ölçüldü: `:265`, `:287`, `:418`, `:447` + `verifyReq` helper'ı. Bu satır bir
+  dönem "5 pin" deyip `:356`'yı sayıyordu — YANLIŞTI, o test `verifyEmail`'i hiç
+  çağırmıyor, `emailVerifiedAt`'i doğrudan Prisma ile yazıyor.)
 - ❌ Rotaya 1 bcrypt (20/saat limitli — önemsiz)
 
 ### S2 — Doğrulama, oturum basmak yerine PAROLA BELİRLETSİN (davet akışı)

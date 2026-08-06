@@ -151,7 +151,7 @@ export function RegisterForm() {
           <p className="font-semibold">Hesabınız oluşturuldu — son bir adım kaldı! 📧</p>
           <p>
             <strong>{form.email}</strong> adresine bir <strong>doğrulama bağlantısı</strong>{" "}
-            gönderdik. Maildeki butona tıklayın; giriş otomatik tamamlanır.
+            gönderdik. Maildeki butona tıklayın ve az önce belirlediğiniz şifreyi girin.
           </p>
           <p className="text-xs text-emerald-700">
             Bağlantı gelmediyse spam/gereksiz klasörünü kontrol edin. Bağlantı 24 saat geçerlidir.

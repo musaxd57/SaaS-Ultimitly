@@ -344,6 +344,16 @@ export async function POST(req: NextRequest) {
           // stops matching the moment the reset completes (the core reason a user
           // resets a password they fear is compromised).
           sessionEpoch: { increment: 1 },
+          // 🚨 CANLI E-POSTA DOĞRULAMA TOKEN'I DA ÖLÜR (08-06).
+          // `sessionEpoch` artışı bu token'ı ÖLDÜRMEZ: doğrulama rotası oturumu
+          // TAZE epoch'la basar, yani sıfırlama link sahibini ATMAZDI. Senaryo:
+          // doğrulama bağlantısı sızar (iletilen mail / paylaşılan kutu / eski
+          // cihaz), sahibi doğru tepkiyi verip parolasını sıfırlar — ve link
+          // hâlâ çalışır. Üstelik hesap doğrulanmadığı için MEŞRU sahip yeni
+          // parolasıyla bile giremez (login'de 403), yani sıfırlamadan sonra
+          // içeri giren ilk taraf link sahibi olurdu.
+          emailVerifyTokenHash: null,
+          emailVerifyExpiresAt: null,
         },
       });
       if (consumed.count === 0) {

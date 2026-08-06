@@ -2,35 +2,62 @@
 
 import { useEffect, useRef, useState } from "react";
 import Link from "next/link";
-import { Loader2, CheckCircle2, AlertCircle } from "lucide-react";
+import { Loader2, CheckCircle2, AlertCircle, ShieldCheck } from "lucide-react";
 import { FormError } from "@/components/form-error";
+import { Field } from "@/components/form-field";
+import { PasswordInput } from "@/components/ui/password-input";
+import { Button } from "@/components/ui/button";
 
 // ---------------------------------------------------------------------------
 // E-POSTA DOĞRULAMA — token URL FRAGMENT'inden okunur.
 //
 // 🚨 Fragment HTTP isteğinin parçası DEĞİL: sunucuya, Railway edge log'una,
-// vekillere ve `Referer` başlığına HİÇ girmez. Bu token tek başına OTURUM
-// bastığı için (şifre sıfırlamadakinin aksine ikinci faktörü yok) sunucu
-// tarafında görünür bir yerde taşınması kabul edilemezdi.
+// vekillere ve `Referer` başlığına HİÇ girmez.
 //
 // ⚠️ `sessionStorage`/`localStorage` KULLANILMAZ — orada yazdığımız an sekme
 // kapansa bile diskte kalır. React state'i sayfa yenilenince kaybolur.
+//
+// 🚨 PAROLA ADIMI — HESAP ÖN-ELE-GEÇİRME KAPISI (08-06). KALDIRMA.
+// Sayfa eskiden mount'ta token'ı OTOMATİK POST ediyordu ve tek tıkla oturum
+// açılıyordu. Bu, bir saldırganın KURBANIN adresiyle kaydolup (register mevcut
+// e-postada enumeration'a karşı sessiz 201 döner), sonra kimliksiz
+// `resend-verification` ile kurbanın kutusuna token yollatmasına ve KURBANIN
+// tıklamasıyla hesabın doğrulanmasına izin veriyordu — ardından saldırgan KENDİ
+// parolasıyla giriyordu. Artık doğrulama için parola da gerekiyor: saldırıda
+// token kurbanda, parola saldırgandadır; ikisi bir kişide buluşmaz.
+//
+// ⚠️ Sayfa yenilenirse token kaybolur (fragment adres çubuğundan temizlendi,
+// state sıfırlandı) — kullanıcı e-postadaki bağlantıya yeniden tıklar. Token
+// TÜKENMEDİĞİ için bağlantı hâlâ çalışır; sunucu tarafında tüketim ancak parola
+// doğrulandıktan SONRA olur.
 // ---------------------------------------------------------------------------
 
-type State = "reading" | "verifying" | "done" | "failed";
+const FORM_ERROR_ID = "verify-email-form-error";
 
-const MESSAGES: Record<string, string> = {
+type State = "reading" | "form" | "submitting" | "done" | "failed";
+
+// Kurtarılamaz durumlar — kullanıcı bu sayfada bir şey yapamaz.
+const FATAL: Record<string, string> = {
   missing: "Bağlantıda doğrulama anahtarı yok. E-postadaki bağlantıyı olduğu gibi açtığınızdan emin olun.",
   expired: "Bu doğrulama bağlantısı artık geçerli değil. Süresi dolmuş ya da daha önce kullanılmış olabilir.",
+  session_mismatch:
+    "Şu an başka bir hesapla giriş yapmış durumdasınız. Önce çıkış yapın, sonra bağlantıya tekrar tıklayın.",
+  error: "Doğrulama şu an tamamlanamadı. Lütfen birazdan tekrar deneyin.",
+};
+
+// Formda kalınan durum — kullanıcı düzeltip tekrar deneyebilir.
+const RETRY: Record<string, string> = {
+  password: "Şifre hatalı. Kayıt olurken belirlediğiniz şifreyi girin.",
   error: "Doğrulama şu an tamamlanamadı. Lütfen birazdan tekrar deneyin.",
 };
 
 export function VerifyEmailForm() {
   const [state, setState] = useState<State>("reading");
+  const [token, setToken] = useState("");
+  const [password, setPassword] = useState("");
   const [reason, setReason] = useState<string>("error");
-  // Çift çağrıyı önler: React 18 StrictMode dev'de effect'i iki kez koşturur ve
-  // token TEK KULLANIMLIK — ikinci çağrı "expired" alıp kullanıcıya yanlışlıkla
-  // hata gösterirdi.
+  // React 18 StrictMode dev'de effect'i iki kez koşturur; fragment okuma ve
+  // adres çubuğu temizliği tek sefer olmalı.
   const started = useRef(false);
 
   useEffect(() => {
@@ -54,30 +81,57 @@ export function VerifyEmailForm() {
       return;
     }
 
-    setState("verifying");
-    void (async () => {
-      try {
-        const res = await fetch("/api/auth/verify-email", {
-          method: "POST",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ token: decodeURIComponent(m[1]) }),
-        });
-        if (!res.ok) {
-          const data = await res.json().catch(() => ({}));
-          setReason(typeof data.reason === "string" ? data.reason : "error");
-          setState("failed");
-          return;
-        }
-        setState("done");
-        // Oturum çerezi basıldı; tam sayfa geçişi yapılır ki sunucu bileşenleri
-        // yeni çerezle render edilsin (router.push RSC önbelleğini kullanabilir).
-        window.location.assign("/dashboard");
-      } catch {
-        setReason("error");
-        setState("failed");
-      }
-    })();
+    setToken(decodeURIComponent(m[1]));
+    setState("form");
   }, []);
+
+  async function onSubmit(e: React.FormEvent) {
+    e.preventDefault();
+    if (state === "submitting") return;
+    setState("submitting");
+    try {
+      const res = await fetch("/api/auth/verify-email", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ token, password }),
+      });
+      const data = await res.json().catch(() => ({}));
+      if (!res.ok) {
+        const code = typeof data.reason === "string" ? data.reason : "error";
+        setReason(code);
+        // Yalnız düzeltilebilir hatalarda formda kalınır; token ölmüşse ya da
+        // yabancı bir oturum açıksa bu sayfada yapılacak bir şey kalmaz.
+        setState(code in RETRY ? "form" : "failed");
+        return;
+      }
+      setState("done");
+      // 2FA açık hesapta sunucu oturum BASMAZ — kullanıcı normal girişten geçer.
+      // Tam sayfa geçişi: sunucu bileşenleri yeni çerezle render edilsin
+      // (router.push RSC önbelleğini kullanabilir).
+      window.location.assign(data.requiresLogin ? "/login" : "/dashboard");
+    } catch {
+      setReason("error");
+      setState("form");
+    }
+  }
+
+  if (state === "reading") {
+    return (
+      <p className="inline-flex items-center gap-2 text-sm text-muted-foreground">
+        <Loader2 className="size-4 animate-spin" />
+        Bağlantı okunuyor…
+      </p>
+    );
+  }
+
+  if (state === "done") {
+    return (
+      <p className="inline-flex items-center gap-2 text-sm text-muted-foreground">
+        <CheckCircle2 className="size-4 text-emerald-600" />
+        E-postanız doğrulandı, yönlendiriliyorsunuz…
+      </p>
+    );
+  }
 
   if (state === "failed") {
     return (
@@ -85,7 +139,7 @@ export function VerifyEmailForm() {
         <FormError>
           <span className="inline-flex items-start gap-1.5">
             <AlertCircle className="mt-0.5 size-4 shrink-0" />
-            {MESSAGES[reason] ?? MESSAGES.error}
+            {FATAL[reason] ?? FATAL.error}
           </span>
         </FormError>
         <p className="text-sm text-muted-foreground">
@@ -102,18 +156,45 @@ export function VerifyEmailForm() {
   }
 
   return (
-    <p className="inline-flex items-center gap-2 text-sm text-muted-foreground">
-      {state === "done" ? (
-        <>
-          <CheckCircle2 className="size-4 text-emerald-600" />
-          E-postanız doğrulandı, panele yönlendiriliyorsunuz…
-        </>
-      ) : (
-        <>
-          <Loader2 className="size-4 animate-spin" />
-          E-postanız doğrulanıyor…
-        </>
-      )}
-    </p>
+    <form onSubmit={onSubmit} className="space-y-4" noValidate>
+      <p className="inline-flex items-start gap-2 rounded-md border border-border bg-muted/40 px-3 py-2.5 text-sm text-muted-foreground">
+        <ShieldCheck className="mt-0.5 size-4 shrink-0 text-emerald-600" />
+        <span>
+          Güvenliğiniz için son bir adım: kayıt olurken belirlediğiniz{" "}
+          <strong className="text-foreground">şifreyi</strong> girin. Böylece bu hesabın gerçekten
+          size ait olduğundan emin oluyoruz.
+        </span>
+      </p>
+      <Field label="Şifreniz" htmlFor="verify-password">
+        <PasswordInput
+          id="verify-password"
+          autoComplete="current-password"
+          autoFocus
+          aria-describedby={reason in RETRY ? FORM_ERROR_ID : undefined}
+          value={password}
+          onChange={(e) => setPassword(e.target.value)}
+          required
+        />
+      </Field>
+      {reason in RETRY && state === "form" ? (
+        <FormError id={FORM_ERROR_ID}>{RETRY[reason]}</FormError>
+      ) : null}
+      <Button type="submit" className="w-full" disabled={state === "submitting" || !password}>
+        {state === "submitting" ? (
+          <>
+            <Loader2 className="mr-2 size-4 animate-spin" />
+            Doğrulanıyor…
+          </>
+        ) : (
+          "E-postamı doğrula"
+        )}
+      </Button>
+      <p className="text-center text-sm text-muted-foreground">
+        Şifrenizi hatırlamıyor musunuz?{" "}
+        <Link href="/sifremi-unuttum" className="font-medium text-primary hover:underline">
+          Şifremi unuttum
+        </Link>
+      </p>
+    </form>
   );
 }

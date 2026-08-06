@@ -167,8 +167,9 @@ export function verifyEmailHtml(name: string, url: string): string {
   return `
     <div style="font-family:system-ui,Arial,sans-serif;max-width:480px;margin:0 auto">
       <h2 style="color:#111">Lixus AI — E-postanızı doğrulayın</h2>
-      <p>Merhaba ${esc(name)}, Lixus AI hesabınız oluşturuldu. Girişi tamamlamak için
-      e-postanızı doğrulayın:</p>
+      <p>Merhaba ${esc(name)}, Lixus AI hesabınız oluşturuldu. Doğrulamayı tamamlamak
+      için aşağıdaki butona tıklayın ve <strong>kayıt olurken belirlediğiniz şifreyi</strong>
+      girin:</p>
       <p style="margin:24px 0">
         <a href="${url}" style="background:#1e293b;color:#fff;text-decoration:none;
         padding:12px 22px;border-radius:8px;font-weight:600;display:inline-block">
@@ -177,6 +178,8 @@ export function verifyEmailHtml(name: string, url: string): string {
       <p style="color:#555;font-size:13px">Buton çalışmazsa bu bağlantıyı tarayıcınıza yapıştırın:<br>
       <span style="word-break:break-all">${url}</span></p>
       <p style="color:#555;font-size:13px">Bu bağlantı <strong>24 saat</strong> geçerlidir.
-      Bu hesabı siz oluşturmadıysanız bu e-postayı yok sayın.</p>
+      Bu hesabı siz oluşturmadıysanız bu e-postayı yok sayabilirsiniz:
+      doğrulama şifre olmadan tamamlanamaz, yani sizin adresinizle açılmış bir hesap
+      doğrulanmadan kullanılamaz.</p>
     </div>`;
 }

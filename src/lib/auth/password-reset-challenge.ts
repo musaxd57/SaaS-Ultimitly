@@ -252,6 +252,11 @@ export async function consumeChallengeAndResetPassword(args: {
         pwResetCodeHash: null,
         pwResetCodeExpiresAt: null,
         pwResetCodeAttempts: 0,
+        // 🚨 Canlı e-posta doğrulama token'ı da ölür — gerekçe kardeş yolda
+        // (`forgot-password/route.ts`) uzun uzun yazılı: epoch artışı o token'ı
+        // öldürmüyor, çünkü doğrulama rotası oturumu TAZE epoch'la basıyor.
+        emailVerifyTokenHash: null,
+        emailVerifyExpiresAt: null,
       },
     });
     return true;

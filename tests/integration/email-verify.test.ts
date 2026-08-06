@@ -1,8 +1,11 @@
 import { describe, it, expect, beforeEach, afterEach, afterAll, vi } from "vitest";
 import { NextRequest } from "next/server";
+import { readFileSync } from "node:fs";
+import { join } from "node:path";
 import { prisma, resetDb } from "../helpers/db";
 import { __resetRateLimit } from "@/lib/rate-limit";
 import { hashPassword } from "@/lib/auth/password";
+import { signSession, SESSION_COOKIE } from "@/lib/auth/session";
 import {
   EMAIL_VERIFY_REQUIRED_FROM,
   needsEmailVerification,
@@ -46,11 +49,15 @@ import { POST as verifyEmail } from "@/app/api/auth/verify-email/route";
 // query'de taşımak Railway edge log'una / Next istek log'una yazmak demekti ve
 // bu token TEK BAŞINA OTURUM BASIYOR (m47'deki şifre sıfırlama token'ının
 // aksine yanında ikinci faktör YOK).
-const verifyReq = (token: string) =>
+//
+// 🚨 08-06: gövde artık PAROLA da taşıyor. Doğrulama tek sırla tamamlanamaz —
+// hesap ön-ele-geçirme kapısı (saldırgan kurbanın adresiyle kaydolur, kurban
+// linke tıklar, hesap doğrulanır, saldırgan KENDİ parolasıyla girerdi).
+const verifyReq = (token: string, password = "secret123") =>
   new NextRequest("http://www.lixusai.com/api/auth/verify-email", {
     method: "POST",
     headers: { "content-type": "application/json" },
-    body: JSON.stringify({ token }),
+    body: JSON.stringify({ token, password }),
   });
 
 // register + resend-verification now go through sendReporting (checked result — not
@@ -282,6 +289,198 @@ describe("registration → verification → login", () => {
     const u = await prisma.user.findUnique({ where: { email: "ada@x.com" } });
     expect(u?.emailVerifiedAt).not.toBeNull();
     expect(u?.emailVerifyTokenHash).toBeNull();
+  });
+
+  // -------------------------------------------------------------------------
+  // 🚨 HESAP ÖN-ELE-GEÇİRME KAPISI (08-06). Bu blok GEVŞETİLMEZ.
+  //
+  // Zincir: saldırgan KURBANIN adresiyle kaydolur (register mevcut e-postada
+  // enumeration'a karşı sessiz 201 döner) → kimliksiz `resend-verification` ile
+  // kurbanın kutusuna taze token yollatır → KURBAN tıklar → hesap doğrulanırdı →
+  // saldırgan KENDİ parolasıyla girerdi. Kapatma: doğrulama artık token VE
+  // parola ister; saldırıda o iki sır iki farklı kişidedir.
+  // -------------------------------------------------------------------------
+  it("ÖN-ELE-GEÇİRME: kurban linke tıklasa da PAROLASIZ doğrulama olmaz; saldırganın girişi 403 kalır", async () => {
+    // Saldırgan kurbanın adresiyle kaydoluyor, parolayı KENDİ seçiyor.
+    await register(
+      postReq("http://localhost/api/auth/register", {
+        organizationName: "Kurban Apart",
+        name: "Kurban",
+        email: "kurban@x.com",
+        password: "saldirgan-parolasi",
+        consent: true,
+      }),
+    );
+    const token = String(mockSendReporting.mock.calls[0][2]).match(/#t=([a-f0-9]{64})/)?.[1];
+    expect(token).toBeTruthy();
+
+    // Kurban linke tıklıyor ama parolayı BİLMİYOR — tahmin ediyor.
+    const clicked = await verifyEmail(verifyReq(token!, "kurbanin-tahmini"));
+    expect(clicked.status).toBe(400);
+    expect((await clicked.json()).reason).toBe("password");
+
+    // Hesap doğrulanMADI ve token TÜKENMEDİ (yazım hatası bağlantıyı yakmamalı).
+    const after = await prisma.user.findUnique({ where: { email: "kurban@x.com" } });
+    expect(after?.emailVerifiedAt).toBeNull();
+    expect(after?.emailVerifyTokenHash).not.toBeNull();
+
+    // Saldırgan KENDİ parolasıyla girmeyi deniyor → doğrulama kapısı KAPALI.
+    const attacker = await login(
+      postReq("http://localhost/api/auth/login", {
+        email: "kurban@x.com",
+        password: "saldirgan-parolasi",
+      }),
+    );
+    expect(attacker.status).toBe(403);
+    expect((await attacker.json()).needsVerification).toBe(true);
+  });
+
+  it("yanlış parola token'ı TÜKETMEZ — aynı bağlantı doğru parolayla hâlâ çalışır", async () => {
+    await register(
+      postReq("http://localhost/api/auth/register", {
+        organizationName: "Acme",
+        name: "Ada",
+        email: "retry@x.com",
+        password: "secret123",
+        consent: true,
+      }),
+    );
+    const token = String(mockSendReporting.mock.calls[0][2]).match(/#t=([a-f0-9]{64})/)?.[1];
+
+    const wrong = await verifyEmail(verifyReq(token!, "yanlis-parola"));
+    expect(wrong.status).toBe(400);
+
+    // ⚠️ Ters yön: koruma "hep reddet"e dönerse bu satır yakalar.
+    const right = await verifyEmail(verifyReq(token!, "secret123"));
+    expect(right.status).toBe(200);
+    const u = await prisma.user.findUnique({ where: { email: "retry@x.com" } });
+    expect(u?.emailVerifiedAt).not.toBeNull();
+  });
+
+  it("SIRA: geçersiz token, parola YOKKEN de 'expired' döner (e2e sebep-kodu sözleşmesi)", async () => {
+    // `tests/e2e/security-controls.spec.ts` tarayıcı-botnet Content-Type kapısını
+    // BU rota üzerinden ölçüyor: gövde okundu → `expired`, gövde düşürüldü →
+    // `missing`. Boş-parola kontrolü token aramasının ÖNÜNE alınırsa iki dal da
+    // ayrışamaz hale gelir ve o kapının tek davranışsal pini anlamsızlaşır.
+    const res = await verifyEmail(
+      new NextRequest("http://www.lixusai.com/api/auth/verify-email", {
+        method: "POST",
+        headers: { "content-type": "application/json" },
+        body: JSON.stringify({ token: "gecersiz" }),
+      }),
+    );
+    expect(res.status).toBe(400);
+    expect((await res.json()).reason).toBe("expired");
+  });
+
+  it("2FA açık hesapta oturum BASILMAZ — kullanıcı normal girişe yollanır", async () => {
+    // Bugün bu duruma ULAŞILAMAZ (doğrulanmamış hesap 2FA kuramaz) — guard,
+    // ileride o değişmezi bozacak bir değişikliğe karşı buranın sessizce bir
+    // 2FA atlatma kapısına dönüşmesini engeller.
+    const org = await prisma.organization.create({ data: { name: "TwoFa" } });
+    const { raw, hash } = makeVerifyToken();
+    await prisma.user.create({
+      data: {
+        organizationId: org.id,
+        name: "Ada",
+        email: "twofa@x.com",
+        passwordHash: await hashPassword("secret123"),
+        role: "owner",
+        emailVerifyTokenHash: hash,
+        emailVerifyExpiresAt: new Date(Date.now() + 60_000),
+        twoFactorEnabledAt: new Date(),
+      },
+    });
+
+    const res = await verifyEmail(verifyReq(raw));
+    expect(res.status).toBe(200);
+    expect((await res.json()).requiresLogin).toBe(true);
+    // Hesap yine de doğrulandı — yalnız oturum çerezi basılmadı.
+    const u = await prisma.user.findUnique({ where: { email: "twofa@x.com" } });
+    expect(u?.emailVerifiedAt).not.toBeNull();
+    expect(res.cookies.get("session")).toBeUndefined();
+  });
+
+  it("PAROLA SIFIRLAMA canlı doğrulama token'ını da öldürür (İKİ yol da)", () => {
+    // ⚠️ KAYNAK TARAMASI, davranış testi değil: iki sıfırlama yolunu da uçtan
+    // uca koşturmak challenge/kod harness'ı ister ve buradaki değişmez tek bir
+    // şey — `passwordHash`'i yazan her update `emailVerify*`'i de temizlemeli.
+    //
+    // Neden gerekli: `sessionEpoch` artışı doğrulama token'ını ÖLDÜRMEZ, çünkü
+    // doğrulama rotası oturumu TAZE epoch'la basar. Yani sızmış bir doğrulama
+    // bağlantısı, sahibi parolasını sıfırlasa bile çalışmaya devam ederdi —
+    // üstelik hesap doğrulanmadığı için MEŞRU sahip yeni parolasıyla bile
+    // giremezken (login 403), link sahibi girebilirdi.
+    const paths = [
+      "src/app/api/account/forgot-password/route.ts",
+      "src/lib/auth/password-reset-challenge.ts",
+    ];
+    for (const rel of paths) {
+      const src = readFileSync(join(process.cwd(), rel), "utf8");
+      // `passwordHash` yazan update bloğu ile aynı yerde token temizliği olmalı.
+      expect(src, `${rel}: passwordHash yazmıyor mu?`).toMatch(/passwordHash[,:]/);
+      expect(src, `${rel}: emailVerifyTokenHash temizlenmiyor`).toContain(
+        "emailVerifyTokenHash: null",
+      );
+      expect(src, `${rel}: emailVerifyExpiresAt temizlenmiyor`).toContain(
+        "emailVerifyExpiresAt: null",
+      );
+    }
+  });
+
+  it("verify-email ASLA `mfa: true` yazmaz — operatör kapısı bu yoldan açılamaz", () => {
+    // `admin-core.ts isSuperAdmin` `session.mfa === true` istiyor. Bu rota
+    // parolayı doğruluyor ama İKİNCİ FAKTÖRÜ doğrulamıyor; login'deki
+    // `mfa: Boolean(user.twoFactorEnabledAt)` deseni buraya "tutarlılık" adına
+    // kopyalanırsa operatör yetkisi ikinci faktör görmemiş bir oturuma açılır.
+    // Bu bir KAYNAK taraması çünkü tehlike gelecekteki bir düzenlemede.
+    const src = readFileSync(
+      join(process.cwd(), "src/app/api/auth/verify-email/route.ts"),
+      "utf8",
+    );
+    expect(src).toContain("mfa: false");
+    expect(src).not.toMatch(/mfa:\s*true/);
+    expect(src).not.toMatch(/mfa:\s*Boolean/);
+  });
+
+  it("BAŞKA hesabın oturumu açıkken doğrulama REDDEDİLİR (sessiz hesap değişimi yok)", async () => {
+    // `/e-posta-dogrula` `AUTH_PATHS`'te ama `SIGNED_IN_REDIRECT_PATHS`'te DEĞİL
+    // → oturumu açık kullanıcı sayfaya ulaşır ve `setSessionCookie` mevcut çerezi
+    // KOŞULSUZ ezer. Yabancı bir token'la gelinirse kullanıcı sessizce başka bir
+    // org'a taşınırdı (login-CSRF); operatörse aktif impersonation bağlamı düşerdi.
+    const org = await prisma.organization.create({ data: { name: "Other" } });
+    const { raw, hash } = makeVerifyToken();
+    await prisma.user.create({
+      data: {
+        organizationId: org.id,
+        name: "Hedef",
+        email: "hedef@x.com",
+        passwordHash: await hashPassword("secret123"),
+        role: "owner",
+        emailVerifyTokenHash: hash,
+        emailVerifyExpiresAt: new Date(Date.now() + 60_000),
+      },
+    });
+
+    const req = verifyReq(raw);
+    // Başka bir kullanıcının oturum çerezi taşınıyor.
+    req.cookies.set(SESSION_COOKIE, await signSession({
+      userId: "baska-kullanici",
+      organizationId: org.id,
+      role: "owner",
+      email: "baska@x.com",
+      name: "Başka",
+      sessionEpoch: 0,
+      mfa: false,
+    }));
+
+    const res = await verifyEmail(req);
+    expect(res.status).toBe(400);
+    expect((await res.json()).reason).toBe("session_mismatch");
+    // Hesap doğrulanMADI, token TÜKENMEDİ.
+    const u = await prisma.user.findUnique({ where: { email: "hedef@x.com" } });
+    expect(u?.emailVerifiedAt).toBeNull();
+    expect(u?.emailVerifyTokenHash).not.toBeNull();
   });
 
   it("RACE: concurrent clicks on the same verify link mint EXACTLY ONE session (atomic consume)", async () => {

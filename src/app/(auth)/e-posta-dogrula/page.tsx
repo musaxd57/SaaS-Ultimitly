@@ -10,7 +10,7 @@ export default function VerifyEmailPage() {
       <div className="space-y-1.5">
         <h1 className="text-xl font-semibold tracking-tight">E-posta doğrulama</h1>
         <p className="text-sm text-muted-foreground">
-          E-postandaki bağlantıyı açtın; hesabını doğruluyoruz.
+          Son adım: hesabın gerçekten sana ait olduğunu şifrenle doğrula.
         </p>
       </div>
       <VerifyEmailForm />
