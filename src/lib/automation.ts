@@ -164,31 +164,54 @@ export function passesAutoReplySafetyGate(
     const extraSurfaces = [...(context.history ?? []), context.guestName ?? ""];
     if (extraSurfaces.some((t) => t && detectPromptInjection(t))) return false;
   }
-  // Deterministic HIGH-STAKES backstop: these three classes are host-only calls
-  // that have NO other cross-check above (unlike complaint/refund/cancellation/
-  // human_request/injection). So a message whose OWN words signal them must reach
-  // a human even when the model under-rated it and it hit no complaint keyword:
-  //   - safety_emergency: "smoke everywhere, the alarm is going off"
-  //   - rule_violation:   "evcil köpeğimizi getirmek istiyoruz, sorun olur mu?"
-  //     (the "sorun olur mu" phrasing even dodges the complaint net by design)
-  //   - discrimination:   "temizlikçi Türk olsun, Suriyeli göndermeyin"
-  // detectRiskType returns one label by precedence. Restrictive-only (over-
-  // escalation is the safe side — can only PREVENT an auto-send, never cause one).
+  // ── DETERMİNİSTİK YÜKSEK-RİSK VETOSU — 3 ETİKETTEN TAM KÜMEYE (08-06) ──────
+  //
+  // 🚨 ÖLÇÜLEN AÇIK (denetim ajanı bulgusu, kendi ölçümümle birebir üretildi):
+  // bu backstop YALNIZ üç etiketi vetoluyordu, oysa `detectRiskType` ON etiket
+  // döndürebiliyor. Aradaki fark KOD TARAFINDAN TESPİT EDİLİP kod tarafından
+  // BLOKLANMAYAN bir küme bırakıyordu; o kümede kalan mesajlar için tek savunma
+  // MODELİN hükmüydü — yani kapının var olma sebebi (karar modele verilmez)
+  // tam orada delinmişti. Ölçüm (model "zararsız" dedi varsayımıyla):
+  //
+  //   "IBAN'ınızı atar mısınız?"                  → platform_policy → GEÇİYORDU
+  //   "I will leave a really bad review"          → review_threat   → GEÇİYORDU
+  //   "Sizin için düşük bir puan vereceğim"       → review_threat   → GEÇİYORDU
+  //   "Parayı size elden versem olur mu?"         → platform_policy → GEÇİYORDU
+  //
+  // Neden bu boşluk oluştu: kelime-arası boşluk toleransı (08-06'da
+  // `REVIEW_THREAT_PHRASES` + `OFFPLATFORM_PAYMENT_PHRASES`'e AÇILDI) sayesinde
+  // `detectRiskType` bu mesajları yakalıyor, ama kapının çapraz-kontrolü
+  // `classifyFallback`/`detectIntent` ve o BİTİŞİKLİK istiyor (`allowWordGap`
+  // orada KAPALI, bilerek). Yani etiketlenen küme, bloklanabilen kümeden
+  // yapısal olarak BÜYÜK — ve arada kalanlar korumasızdı.
+  //
+  // ⚠️ YÖN GÜVENLİ: `detectRiskType` KISITLAYICIDIR — yalnız bir oto-gönderimi
+  // ENGELLEYEBİLİR, asla sebep olamaz. Aşırı-eskalasyon bu depoda belgeli
+  // güvenli yöndür (aynı yorumun kendisi bunu söylüyordu).
+  //
+  // ⚠️ DEVİR MUAFİYETİ KORUNUR — AMA DETERMİNİSTİK DALDA ÖLÇÜT MODEL **INTENT**'İ,
+  // ETİKETİ DEĞİL. Bunu ilk yazımda yanlış yaptım ve `holding-ack.test.ts` yakaladı:
+  // muafiyeti model ETİKETİNE (`riskType === "human_request"`) bağlamıştım, oysa
+  // model bu akışta etiketi çoğunlukla NULL bırakıp yalnız intent'i bildiriyor →
+  // tasarlanmış devir mesajı hiç gitmez olmuştu. `human_request` bir "risk" değil
+  // bir ÜRÜN AKIŞIDIR; ayrımı yapan şey modelin mesajı devir talebi olarak OKUYUP
+  // OKUMADIĞIDIR.
+  //   · deterministik human_request + model intent human_request → devir ack'i GİDER
+  //   · deterministik human_request + model BAŞKA bir şey der    → insana bırakılır
+  // (İkisi de `holding-ack.test.ts`'te ayrı ayrı pinli.)
+  const isHandoffAck = result.intent === "human_request" && result.riskType === "human_request";
   const deterministicRisk = detectRiskType(guestMessage);
-  if (
-    deterministicRisk === "safety_emergency" ||
-    deterministicRisk === "rule_violation" ||
-    deterministicRisk === "discrimination"
-  ) {
-    return false;
-  }
+  const deterministicBlocks =
+    deterministicRisk !== null &&
+    HIGH_STAKES_RISK_TYPES.has(deterministicRisk) &&
+    !(deterministicRisk === "human_request" && result.intent === "human_request");
+  if (deterministicBlocks) return false;
   // A high-stakes label (HIGH_STAKES_RISK_TYPES, module scope — shared with the QR
   // gate) is itself a red flag: if the model names one, never auto-send even when
   // it (inconsistently) scored the risk low. Tightens only — null label changes nothing.
   // Sole exemption: the designed handoff ack — model intent AND label both say
   // human_request. Any OTHER high-stakes label (even alongside a human_request
   // intent) holds for a human.
-  const isHandoffAck = result.intent === "human_request" && result.riskType === "human_request";
   if (result.riskType && !isHandoffAck && HIGH_STAKES_RISK_TYPES.has(result.riskType)) {
     return false;
   }

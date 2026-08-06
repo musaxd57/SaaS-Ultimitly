@@ -14,62 +14,13 @@ import type { UserRole } from "@/lib/constants";
 // EMPTY → nobody is a super-admin and /admin is inaccessible (safe by default).
 // ---------------------------------------------------------------------------
 
-function superAdminEmails(): Set<string> {
-  return new Set(
-    (process.env.SUPERADMIN_EMAILS ?? "")
-      .split(",")
-      .map((e) => e.trim().toLowerCase())
-      .filter(Boolean),
-  );
-}
+// ⚠️ SAF KARAR KATMANI `admin-core.ts`'e TAŞINDI (08-06) — `auth/index.ts` de
+// `isSuperAdmin`'e ihtiyaç duyuyor ve buradan almak DAİRESEL bir bağ kuruyordu
+// (ölçüldü: `exit-impersonation.test.ts`'in 5 testi anında kırıldı). Gövde TEK,
+// burada yalnız yeniden dışa aktarılıyor → 14 çağrı yerinin hiçbiri değişmedi.
+export { actorEmail, isSuperAdmin, isImpersonating } from "@/lib/admin-core";
 
-/**
- * The REAL operator email behind a session: the impersonator when entering a
- * customer org, otherwise the session's own email. Super-admin status is always
- * judged on THIS, so an operator keeps their powers while impersonating.
- */
-export function actorEmail(session: SessionPayload): string {
-  return (session.actorEmail ?? session.email).toLowerCase();
-}
 
-/**
- * True when the (real) operator behind this session is a configured super-admin
- * AND this session actually passed a second factor.
- *
- * ⚠️ İKİ KOŞUL, İKİSİ DE GEREKLİ (08-05). Airbnb partner şartı: "your
- * organization must ensure that its personnel use multi-factor authentication
- * to access the API Client, Scopes and Content". Bugüne kadar 2FA tamamen
- * opt-in'di, yani `SUPERADMIN_EMAILS`'teki bir hesap YALNIZ ŞİFREYLE her müşteri
- * org'una impersonation ile girebiliyordu.
- *
- * ⚠️ KAPI BURADA, ÇAĞIRANLARDA DEĞİL. 13 çağrı yeri var (6 admin rotası +
- * `requireSession` + 3 Hospitable rotası + 3 sayfa). Ayrı bir
- * `superAdminAllowed()` eklemek "biri unutulur" sınıfına girerdi; bu repo o
- * dersi `api-route-scoping.test.ts` ile zaten ödedi. Tek boğaz noktası.
- *
- * ⚠️ GİRİŞİ ENGELLEMEZ — kasten. Kapı yalnız YETKİYİ tutar; 2FA'sız bir
- * operatör normal owner olarak girer ve panelini kullanır. Girişi engelleyen bir
- * tasarım, authenticator'ını kaybeden TEK operatörü kendi ürününden kilitlerdi
- * ve kurtarma yolu (`admin/reset-2fa`) zaten superadmin oturumu istiyor →
- * dairesel kilit. Acil durumda `SUPERADMIN_EMAILS`'ten e-postayı çıkarmak
- * (Railway = ayrı kimlik bilgisi) hesabı normal owner'a düşürür.
- *
- * ⚠️ `mfa` "hesapta 2FA VAR" DEĞİL, "BU OTURUM faktörden GEÇTİ" demek. Fark
- * gerçek: `middleware.ts` çerezi her istekte 14 gün uzattığı için kayıttan önce
- * açılmış oturumlar hiç yeniden doğrulanmıyor, ve `verify-email` GET'i şifresiz
- * oturum basabiliyor. İkisi de "hesapta 2FA var" testinden geçerdi.
- */
-export function isSuperAdmin(session: SessionPayload | null): boolean {
-  if (!session) return false;
-  if (session.mfa !== true) return false;
-  const emails = superAdminEmails();
-  return emails.has(actorEmail(session));
-}
-
-/** True when the current session is an operator impersonating a customer org. */
-export function isImpersonating(session: SessionPayload | null): boolean {
-  return Boolean(session?.actorUserId);
-}
 
 /**
  * Enter (impersonate) a customer organization. SUPER-ADMIN ONLY — the caller

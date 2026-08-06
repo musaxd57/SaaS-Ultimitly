@@ -397,3 +397,115 @@ describe("GOLDEN SET — context injection (geçmiş + misafir adı; model son m
     expect(passesAutoReplySafetyGate(BENIGN, "Merhaba, wifi şifresi nedir?")).toBe(true);
   });
 });
+
+// ---------------------------------------------------------------------------
+// DETERMİNİSTİK YÜKSEK-RİSK VETOSU — TAM KÜME (08-06, denetim ajanı bulgusu)
+//
+// 🚨 ÖLÇÜLEN AÇIK: `passesAutoReplySafetyGate`'in deterministik backstop'u
+// YALNIZ üç etiketi (safety_emergency / rule_violation / discrimination)
+// vetoluyordu, oysa `detectRiskType` ON etiket döndürebiliyor. Aradaki fark
+// KOD TARAFINDAN TESPİT EDİLİP kod tarafından BLOKLANMAYAN bir küme bırakıyordu
+// ve o kümede tek savunma MODELİN hükmüydü — kapının var olma sebebi ("karar
+// modele verilmez") tam orada deliniyordu.
+//
+// Sebep: kelime-arası boşluk toleransı `detectRiskType`'a açık, kapının
+// çapraz-kontrolü olan `detectIntent`'e KAPALI (bilerek) → etiketlenen küme,
+// bloklanabilen kümeden yapısal olarak BÜYÜK.
+//
+// Aşağıdaki senaryolarda model KASITLI olarak "zararsız" diyor (intent=general,
+// riskLevel=none, confidence=0.9) — yani ölçülen tek şey KODUN vetosu.
+// ---------------------------------------------------------------------------
+describe("kapı — deterministik yüksek-risk vetosu tam kümeyi kapsar", () => {
+  const modelSaysBenign = {
+    intent: "general",
+    riskLevel: "none",
+    confidence: 0.9,
+    source: "openai",
+    riskType: null,
+  };
+
+  // ⚠️ Hepsi 08-06'dan ÖNCE kapıdan GEÇİYORDU (ölçüldü) — yani bot bir
+  // platform-dışı ödeme talebine ya da kötü-yorum tehdidine otomatik cevap
+  // verebiliyordu.
+  it.each([
+    ["platform_policy — IBAN talebi", "IBAN'ınızı atar mısınız?"],
+    ["platform_policy — elden ödeme", "Parayı size elden versem olur mu?"],
+    ["review_threat — EN, araya kelime girmiş", "I will leave a really bad review"],
+    ["review_threat — EN, koşullu", "If you don't fix it I'll write a very bad review"],
+    ["review_threat — TR, düşük puan", "Sizin için düşük bir puan vereceğim"],
+    ["cancellation", "Rezervasyonu iptal etmek istiyorum"],
+  ])("%s → oto-gönderim VETOLANIR", (_ad, mesaj) => {
+    expect(passesAutoReplySafetyGate(modelSaysBenign, mesaj)).toBe(false);
+  });
+
+  // TERS YÖN — genişletme "her şeyi blokla"ya dönmedi. Bu blok olmadan
+  // `detectRiskType`'ı koşulsuz vetolayan bir mutasyon da yeşil kalırdı.
+  it.each([
+    "Wifi şifresi nedir?",
+    "Çöp hangi gün toplanıyor?",
+    "Otopark var mı?",
+    "Giriş saati kaçta?",
+    "Teşekkür ederiz, her şey harikaydı!",
+    "Ev sahibiyle dün konuştuk, otopark dahil demişti",
+    "Havlu nerede?",
+    "Klima nasıl çalışıyor?",
+    "Merhaba, yarın geliyoruz",
+    "Anahtarı nereden alacağız?",
+  ])("MEŞRU mesaj hâlâ oto-yanıtlanır: %s", (mesaj) => {
+    expect(passesAutoReplySafetyGate(modelSaysBenign, mesaj)).toBe(true);
+  });
+
+  it("TASARLANMIŞ DEVİR MUAFİYETİ korunur (kapının TEK muafiyeti)", () => {
+    // `human_request` da `HIGH_STAKES_RISK_TYPES` içinde. Muafiyet deterministik
+    // dalın da ÖNÜNDE hesaplanmasaydı bu genişletme ürünün devir akışını
+    // KIRARDI — misafir insan istediğinde devir mesajı hiç gitmezdi.
+    const handoff = {
+      intent: "human_request",
+      riskLevel: "none",
+      confidence: 0.9,
+      source: "openai",
+      riskType: "human_request",
+    };
+    expect(passesAutoReplySafetyGate(handoff, "Bir insanla görüşmek istiyorum")).toBe(true);
+  });
+
+  it("DEVİR: deterministik human_request + model INTENT human_request → gider (etiket NULL olsa da)", () => {
+    // 🚨 BU TESTİ İLK YAZIMDA YAPTIĞIM HATA İÇİN EKLEDİM. Muafiyeti model
+    // ETİKETİNE bağlamıştım; oysa model bu akışta etiketi çoğunlukla NULL
+    // bırakıp yalnız intent'i bildiriyor → tasarlanmış devir mesajı hiç
+    // gitmiyordu. `holding-ack.test.ts` yakaladı; buraya da pinlendi ki
+    // ayrım (etiket değil INTENT) golden set okunurken görünsün.
+    const intentOnly = {
+      intent: "human_request",
+      riskLevel: "low",
+      confidence: 0.9,
+      source: "openai",
+      riskType: null,
+    };
+    expect(passesAutoReplySafetyGate(intentOnly, "Gerçek bir kişiyle görüşmek istiyorum lütfen")).toBe(true);
+  });
+
+  it("DEVİR: deterministik human_request ama model BAŞKA bir şey diyor → insana bırakılır", () => {
+    const disagrees = {
+      intent: "general",
+      riskLevel: "none",
+      confidence: 0.9,
+      source: "openai",
+      riskType: null,
+    };
+    expect(passesAutoReplySafetyGate(disagrees, "Gerçek bir kişiyle görüşmek istiyorum lütfen")).toBe(false);
+  });
+
+  it("devir muafiyeti YALNIZ ikisi de human_request iken geçerli", () => {
+    // Model intent'i human_request ama etiketi BAŞKA bir yüksek-risk ise
+    // muafiyet YOKTUR — bu ayrım eskiden de vardı, genişletme onu bozmamalı.
+    const mixed = {
+      intent: "human_request",
+      riskLevel: "none",
+      confidence: 0.9,
+      source: "openai",
+      riskType: "money_refund",
+    };
+    expect(passesAutoReplySafetyGate(mixed, "Bir insanla görüşmek istiyorum")).toBe(false);
+  });
+});

@@ -27,7 +27,19 @@ export function GuestChatReply({ conversationId }: { conversationId: string }) {
         body: JSON.stringify({ body }),
       });
       if (!res.ok) {
-        setError("Gönderilemedi. Lütfen tekrar deneyin.");
+        // 🚨 SUNUCUNUN SEBEBİNİ GÖSTER — jenerik metin BURADA ZARARLIYDI (08-06).
+        //
+        // Rota iki ANLAMLI sebep döndürüyor ve ikisi de yutuluyordu:
+        //   409 «Bu mesaj az önce gönderildi.»            → mesaj GİTTİ
+        //   503 «Şu anda kaydedilemedi — birazdan…»       → gitmedi, tekrar denenebilir
+        // "Gönderilemedi. Lütfen tekrar deneyin." 409'da YANLIŞ BİLGİDİR: host
+        // mesajın gitmediğini sanıp yeniden yazar, claim TTL'i (120 sn) dolduktan
+        // sonra ikinci gönderim GERÇEKTEN gider ve MİSAFİRE ÇİFT MESAJ ulaşır.
+        // Gelen kutusu yazma kutusu bunu ZATEN doğru yapıyor
+        // (`inbox/conversation-thread.tsx`: `data?.error ?? yedek`); burası
+        // kardeşiyle hizalandı.
+        const data = (await res.json().catch(() => null)) as { error?: string } | null;
+        setError(data?.error ?? "Gönderilemedi. Lütfen tekrar deneyin.");
         return;
       }
       setText("");

@@ -2,6 +2,11 @@ import "server-only";
 import { cookies } from "next/headers";
 import { redirect } from "next/navigation";
 import { prisma } from "@/lib/db";
+// ⚠️ `@/lib/admin` DEĞİL, `@/lib/admin-core` — döngü kırıcı. `admin.ts` bu
+// modülü import ediyor; oradan almak `auth/index → admin → auth/index` döngüsü
+// kurar ve ÖLÇÜLDÜ: `exit-impersonation.test.ts`'in 5 testi anında kırıldı
+// (mock sırası bozuluyor). Gerekçe `admin-core.ts` başlığında.
+import { isSuperAdmin } from "@/lib/admin-core";
 import {
   SESSION_COOKIE,
   SESSION_MAX_AGE,
@@ -38,6 +43,27 @@ export async function getSession(): Promise<SessionPayload | null> {
 export async function requireAuth(): Promise<SessionPayload> {
   const session = await getSession();
   if (!session) redirect("/login");
+
+  // ⚠️ OPERATÖR YETKİSİ SAYFA YOLUNDA DA YENİDEN DOĞRULANIR (denetim, 08-06).
+  //
+  // 🚨 KAPATILAN AÇIK: aynı kapı `requireSession`'da (API yolu, `api.ts:54`)
+  // 08-01'de eklenmişti ve kendi yorumu amacı AÇIKÇA yazıyor: "Env'den silmek
+  // etkili bir iptal aracı olmalı". SAYFA yolu o kapıyı HİÇ taşımıyordu —
+  // burası ve `(app)/layout.tsx` yalnız aktörün EPOCH'una bakıyordu. Sonuç:
+  // bir e-postayı `SUPERADMIN_EMAILS`'ten silmek `/api/*`'ı 401'liyor ama
+  // `/inbox`, `/dashboard`, `/guest-chats`, `/reports` … sayfaları RENDER
+  // OLMAYA DEVAM ediyordu ve `session.organizationId` hâlâ MÜŞTERİNİN org'u →
+  // misafir adları, mesaj gövdeleri, rezervasyonlar okunabiliyordu. Kişi
+  // `/api/admin/exit`'i de çağıramadığı için (o da 401) müşteri org'unda
+  // KİLİTLİ ve OKUYABİLİR kalıyordu; middleware her sayfa görüntülemesinde
+  // çerezi 14 gün ileri ittiği için pencere kendi kendine kapanmıyordu.
+  //
+  // ⚠️ Kontrol try/catch'in DIŞINDA çünkü `isSuperAdmin` SAF bir env okuması +
+  // string karşılaştırmasıdır (DB'ye GİTMEZ) — aşağıdaki fail-open mantığının
+  // kapsamına girmesi yanlış olurdu; bir DB arızası bu kararı etkilemez.
+  // ⚠️ Yalnız IMPERSONATION oturumlarını ilgilendirir (`actorUserId` yoksa hiç
+  // koşmaz), yani normal müşteri oturumları bu satırdan etkilenmez.
+  if (session.actorUserId && !isSuperAdmin(session)) redirect("/api/auth/logout");
 
   // Epoch check outside try/catch's control flow: redirect() throws NEXT_REDIRECT,
   // which must NOT be swallowed by the fail-open catch below.

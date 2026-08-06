@@ -1,4 +1,4 @@
-import { describe, it, expect, vi, beforeEach } from "vitest";
+import { describe, it, expect, vi, beforeEach, afterEach } from "vitest";
 import type { SessionPayload } from "@/lib/auth/session";
 
 // requireAuth (lib/auth) runs on every page-segment render (soft-nav doesn't
@@ -74,5 +74,84 @@ describe("requireAuth — fail-open session, fail-closed capability", () => {
   it("redirects to login when there is no session cookie", async () => {
     TOKEN = "";
     await expect(requireAuth()).rejects.toThrow("REDIRECT:/login");
+  });
+});
+
+// ---------------------------------------------------------------------------
+// OPERATÖR YETKİSİ SAYFA YOLUNDA DA DOĞRULANIR (08-06 — denetim ajanı bulgusu)
+//
+// 🚨 KAPATILAN AÇIK: aynı kapı 08-01'de YALNIZ `requireSession`'a (API yolu,
+// `api.ts:54`) eklenmişti ve kendi yorumu amacı açıkça yazıyor: "Env'den silmek
+// etkili bir iptal aracı olmalı". SAYFA yolu (`requireAuth` → 22 sayfa +
+// `(app)/layout.tsx`) o kapıyı HİÇ taşımıyordu; yalnız aktörün EPOCH'una
+// bakıyordu ve dosya `admin`'i import bile etmiyordu.
+//
+// Sonuç: bir e-postayı `SUPERADMIN_EMAILS`'ten silmek `/api/*`'ı 401'liyor ama
+// `/inbox`, `/dashboard`, `/guest-chats`, `/reports` … RENDER OLMAYA DEVAM
+// ediyordu ve `session.organizationId` hâlâ MÜŞTERİNİN org'uydu → misafir
+// adları, mesaj gövdeleri, rezervasyonlar okunabiliyordu. `/api/admin/exit` de
+// 401 döndüğü için kişi müşteri org'unda KİLİTLİ ve OKUYABİLİR kalıyordu;
+// middleware çerezi her sayfa görüntülemesinde 14 gün ileri ittiği için pencere
+// kendiliğinden hiç kapanmıyordu.
+// ---------------------------------------------------------------------------
+describe("requireAuth — impersonation yetkisi her render'da doğrulanır", () => {
+  const OPERATOR = "ops@lixusai.com";
+
+  /** Operatörün müşteri org'una girdiği oturum. */
+  const impersonation: SessionPayload = {
+    ...base,
+    role: "owner",
+    actorUserId: "op1",
+    actorEmail: OPERATOR,
+    actorName: "Operator",
+    actorSessionEpoch: 0,
+    // `isSuperAdmin` İKİ koşul ister: e-posta listede VE bu oturum ikinci
+    // faktörden geçmiş (08-05). Taban oturum iddiayı taşır ki ölçülen şey
+    // env'den silmenin etkisi olsun.
+    mfa: true,
+  } as SessionPayload;
+
+  beforeEach(() => {
+    // DB tarafı SAĞLIKLI: epoch uyuyor, rol/org okunabiliyor. Böylece bir
+    // redirect görürsek sebebi KESİNLİKLE yetki kapısıdır, epoch/DB değil.
+    findUnique.mockResolvedValue({ sessionEpoch: 0, role: "owner", organizationId: "o1" });
+  });
+  afterEach(() => vi.unstubAllEnvs());
+
+  it("yetki DURUYORSA sayfa render olur (regresyon pini)", async () => {
+    vi.stubEnv("SUPERADMIN_EMAILS", OPERATOR);
+    TOKEN = await signSession(impersonation);
+    await expect(requireAuth()).resolves.toMatchObject({ actorEmail: OPERATOR });
+  });
+
+  it("e-posta SUPERADMIN_EMAILS'ten SİLİNİNCE sayfa yolu da oturumu DÜŞÜRÜR", async () => {
+    vi.stubEnv("SUPERADMIN_EMAILS", "someone-else@lixusai.com");
+    TOKEN = await signSession(impersonation);
+    // ⬅️ ARIZADA: çözülür, sayfa render olur, müşterinin misafir PII'si görünür.
+    await expect(requireAuth()).rejects.toThrow("REDIRECT:/api/auth/logout");
+  });
+
+  it("liste tamamen BOŞALINCA da düşer (fail-closed)", async () => {
+    vi.stubEnv("SUPERADMIN_EMAILS", "");
+    TOKEN = await signSession(impersonation);
+    await expect(requireAuth()).rejects.toThrow("REDIRECT:/api/auth/logout");
+  });
+
+  it("`mfa` iddiası YOKSA da düşer — API yoluyla AYNI kural", async () => {
+    // Sayfa yolunun yalnız e-posta koşulunu uygulaması, kapıyı API yolundan
+    // DAHA GEVŞEK yapardı; iki yol ayrışamaz.
+    vi.stubEnv("SUPERADMIN_EMAILS", OPERATOR);
+    const withoutMfa = { ...impersonation };
+    delete (withoutMfa as { mfa?: boolean }).mfa;
+    TOKEN = await signSession(withoutMfa as SessionPayload);
+    await expect(requireAuth()).rejects.toThrow("REDIRECT:/api/auth/logout");
+  });
+
+  it("NORMAL müşteri oturumu ETKİLENMEZ (yanlış-pozitif pini)", async () => {
+    // Kapı YALNIZ impersonation oturumlarını ilgilendirir. Bu olmadan
+    // "herkesi düşür" gibi bir kaza da testten geçerdi.
+    vi.stubEnv("SUPERADMIN_EMAILS", "");
+    TOKEN = await signSession(base); // actorUserId YOK
+    await expect(requireAuth()).resolves.toMatchObject({ userId: "u1" });
   });
 });
