@@ -68,10 +68,18 @@ export function identityEmailShell(o: IdentityEmailOptions): string {
   const code = o.code
     ? `
               <tr><td style="padding:12px 0 4px">
-                <div id="lixus-code" style="font-family:ui-monospace,SFMono-Regular,Menlo,Consolas,monospace;font-size:34px;font-weight:700;letter-spacing:8px;color:#0f172a">${escapeHtml(o.code)}</div>
+                <div id="lixus-code" style="font-family:ui-monospace,SFMono-Regular,Menlo,Consolas,monospace;font-size:34px;font-weight:700;letter-spacing:6px;text-indent:3px;color:#0f172a">${escapeHtml(o.code)}</div>
               </td></tr>`
     : "";
 
+  // ⚠️ Kod bloğundaki `text-indent:3px` SÜS DEĞİL, bir düzeltmedir:
+  // `letter-spacing` boşluğu HER karakterden sonra koyar — sonuncusu dahil — ve
+  // `text-align:center` o görünmez son boşluğu da genişliğe sayar. Sonuç, görünen
+  // rakamların gerçek merkezden yarım boşluk (6/2 = 3px) SOLA kayması. Aynı
+  // miktarda indent kaymayı geri alır. Aralık 8px'ten 6px'e indirildi: 8 haneli
+  // bir kodda 8px rakamları tek tek okutuyordu, 6px'te blok gibi okunuyor ve
+  // elle kopyalaması kolaylaşıyor. Değerler BİRBİRİNE BAĞLI — aralığı
+  // değiştiren indent'i de yarısına ayarlamalı.
   // ⚠️ Dış tablo `width="100%"`, iç tablo sabit 480 — Outlook'un tek güvenilir
   // ortalama yolu budur (`margin:0 auto` orada çalışmaz).
   return `<table role="presentation" width="100%" cellpadding="0" cellspacing="0" border="0" style="background:#f8fafc;padding:32px 16px">
