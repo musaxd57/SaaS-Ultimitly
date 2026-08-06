@@ -20,7 +20,7 @@ import {
   qrEscalationEventId,
   qrEscalationEmailEnabled,
 } from "@/lib/guest-chat-alerts";
-import { jsonOk, badRequest, tooManyRequests, parseJsonBody, payloadTooLarge } from "@/lib/api";
+import { jsonOk, badRequest, tooManyRequests, parseJsonBody, payloadTooLarge, serverError } from "@/lib/api";
 import { rateLimit, clientIp } from "@/lib/rate-limit";
 import { claimKeyedOutboundSend, releaseKeyedOutboundSend } from "@/lib/outbound-claim";
 import { limitsForOrg } from "@/lib/billing/plan-limits";
@@ -328,7 +328,32 @@ export async function GET(req: NextRequest, { params }: { params: Promise<{ toke
   return out;
 }
 
-export async function POST(req: NextRequest, { params }: { params: Promise<{ token: string }> }) {
+// ── HATA SINIRI (gözlemlenebilirlik turu, 08-06) ───────────────────────────
+//
+// 🚨 Bu rota MİSAFİRE BAKAN tek kimliksiz yüzey ve içinde `reportError` ya da
+// `serverError` HİÇ geçmiyordu (grep: 0) — kardeşi `/api/leads` ikisini de
+// kullanıyor. Aşağıdaki gövdenin tek `catch`i (claim salıverme) hatayı bilerek
+// YENİDEN FIRLATIYOR, yani model/DB arızasında Next jenerik bir 500 döner ve
+// **operatöre hiçbir sinyal ulaşmaz**: bu depoda `reportError` hata havuzuna
+// giden TEK yol (console.error hiçbir yerde toplanmıyor). Bir misafirin QR
+// sohbeti kalıcı olarak bozulabilir ve kimse bilmez.
+//
+// Sarmalayıcı SEÇİLDİ, gövdeyi try'a almak DEĞİL: 300 satırı yeniden girintilemek
+// diff'i okunamaz hale getirir ve gerçek bir kod değişikliğini içinde saklar.
+// Davranış misafir açısından AYNI (500 → 500); değişen tek şey artık RAPORLANIYOR.
+//
+// ⚠️ Hata NESNESİ verilir, misafirin mesajı DEĞİL: `serverError(msg, err)`
+// içeride `reportError`e gider ve orada `redactSensitive` koşar; gövdeyi elle
+// eklemek KVKK açısından ikinci bir PII kopyası üretirdi.
+export async function POST(req: NextRequest, ctx: { params: Promise<{ token: string }> }) {
+  try {
+    return await handleGuestChatPost(req, ctx);
+  } catch (err) {
+    return serverError("Şu anda yanıt veremiyoruz — lütfen birazdan tekrar deneyin.", err);
+  }
+}
+
+async function handleGuestChatPost(req: NextRequest, { params }: { params: Promise<{ token: string }> }) {
   // Global kill-switch read at request time (flip without a rebuild).
   if (process.env.GUEST_CHAT_ENABLED !== "1") return notFound();
 

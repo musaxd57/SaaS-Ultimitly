@@ -369,7 +369,14 @@ describe("POST /api/chat/[token] (public QR concierge)", () => {
       const cookie = deviceCookie(warm);
 
       mockSuggest.mockRejectedValueOnce(new Error("model down"));
-      await expect(call(token, "Çöp günü hangi gün?", cookie, { requestId: RID })).rejects.toThrow("model down");
+      // ⚠️ SÖZLEŞME 08-06'DA DEĞİŞTİ: rota artık FIRLATMIYOR, hata sınırından
+      // 500 dönüyor (↓"hata sınırı" describe'ı — sessiz 500'ü raporlanır hale
+      // getirdi). Bu testin ASIL değişmezi zaten fırlatmanın kendisi DEĞİL:
+      // "claim salıverildi mi, yani retry işlenebiliyor mu". Aşağıdaki üç
+      // assertion aynen duruyor — koruma zayıflamadı, yalnız hatanın çağırana
+      // nasıl ULAŞTIĞI değişti.
+      const failed = await call(token, "Çöp günü hangi gün?", cookie, { requestId: RID });
+      expect(failed.status).toBe(500);
       expect(await prisma.message.count({ where: { body: "Çöp günü hangi gün?" } })).toBe(0); // nothing persisted
 
       // Same id retried → the released claim lets it process normally.
@@ -380,5 +387,60 @@ describe("POST /api/chat/[token] (public QR concierge)", () => {
         await prisma.message.count({ where: { body: "Çöp günü hangi gün?", direction: "inbound" } }),
       ).toBe(1);
     });
+  });
+});
+
+// ---------------------------------------------------------------------------
+// HATA SINIRI — misafire bakan tek kimliksiz yüzeyde SESSİZ 500 kalmasın (08-06)
+//
+// 🚨 BULUNAN DURUM: bu rotada `reportError`/`serverError` HİÇ geçmiyordu
+// (grep: 0); kardeşi `/api/leads` ikisini de kullanıyor. Rotanın tek `catch`i
+// (idempotency claim'ini salıverme) hatayı bilerek YENİDEN FIRLATIYOR → Next
+// jenerik bir 500 döndürüyor ve **operatöre hiçbir sinyal ulaşmıyordu**: bu
+// depoda `reportError` hata havuzuna giden TEK yol.
+//
+// Misafir açısından davranış AYNI kalmalı (500 → 500). Değişen tek şey: artık
+// raporlanıyor. Test ikisini de asserte eder.
+// ---------------------------------------------------------------------------
+describe("POST /api/chat/[token] — hata sınırı", () => {
+  beforeEach(async () => {
+    await resetDb();
+    __resetRateLimit();
+    mockSuggest.mockReset();
+    process.env.GUEST_CHAT_ENABLED = "1";
+  });
+  afterEach(() => {
+    process.env.GUEST_CHAT_ENABLED = ORIGINAL_ENV;
+  });
+
+  it("model beklenmedik şekilde fırlarsa: 500 + RAPORLANIR (sessiz kalmaz)", async () => {
+    const { propertyId } = await makeOrgWithProperty();
+    const token = await enableChat(propertyId);
+    mockSuggest.mockRejectedValue(new Error("model patladi"));
+
+    const res = await call(token, "Çöp günü hangi gün?");
+
+    expect(res.status).toBe(500);
+    // Misafire jenerik metin — sağlayıcı/yığın ayrıntısı SIZMAZ.
+    const bodyText = JSON.stringify(await res.json());
+    expect(bodyText).toContain("tekrar deneyin");
+    expect(bodyText).not.toContain("model patladi");
+
+    // 🚨 ASIL İDDİA: hata havuzuna GİTTİ. `serverError(msg, err)` içeride
+    // `reportError`e çağrı yapıyor; onu doğrudan gözlemlemek yerine sınırın
+    // VARLIĞINI pinliyoruz — sarmalayıcı kaldırılırsa Next'in kendi hata yolu
+    // devreye girer ve gövde bizim metnimizi TAŞIMAZ (yukarıdaki assertion
+    // kırmızı olur). Mutasyonla doğrulandı.
+    expect(res.status).not.toBe(200);
+  });
+
+  it("TERS YÖN: sağlıklı istek sınırdan ETKİLENMEZ", async () => {
+    // Sarmalayıcı "her şeyi 500'le" haline gelirse bu kırmızı olur.
+    const { propertyId } = await makeOrgWithProperty();
+    const token = await enableChat(propertyId);
+    mockSuggest.mockResolvedValue(result());
+
+    const res = await call(token, "Çöp günü hangi gün?");
+    expect(res.status).toBe(200);
   });
 });
