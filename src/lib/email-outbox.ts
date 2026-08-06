@@ -294,10 +294,10 @@ export function accountExistsEmailHtml(): string {
   return identityEmailShell({
     heading: "Zaten bir hesabınız var",
     intro:
-      "Bu e-posta adresiyle yeni bir Lixus AI hesabı oluşturulmak istendi. Adres zaten kayıtlı olduğu için <strong style=\"color:#0f172a\">yeni hesap açılmadı</strong>; mevcut hesabınıza dokunulmadı.",
+      "Bu e-posta adresiyle yeni bir Lixus AI hesabı oluşturulmak istendi. Adres zaten kayıtlı olduğu için <strong style=\"color:#0f172a\">yeni hesap açılmadı</strong>.",
     action: { label: "Giriş sayfasına git", url: `${appBaseUrl()}/login` },
     footnote:
-      "Şifrenizi hatırlamıyorsanız giriş sayfasındaki <strong>Şifremi unuttum</strong> bağlantısıyla yenileyebilirsiniz. Bu denemeyi siz yapmadıysanız yapmanız gereken bir şey yok.",
+      "Şifrenizi hatırlamıyorsanız giriş sayfasındaki <strong>Şifremi unuttum</strong> bağlantısıyla yenileyebilirsiniz.",
   });
 }
 
