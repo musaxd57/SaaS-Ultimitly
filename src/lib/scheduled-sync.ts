@@ -9,6 +9,7 @@ import { reportError } from "@/lib/report-error";
 import { premiumAllowed } from "@/lib/billing/subscription";
 import { sendDueTrialReminders } from "@/lib/billing/trial-reminders";
 import { anonymizeOldGuestData, purgeOldLeads } from "@/lib/data-retention";
+import { sweepUnverifiedRegistrations } from "@/lib/unverified-sweep";
 import { sweepExpiredRateLimits } from "@/lib/rate-limit";
 import { sweepPasswordResetChallenges } from "@/lib/auth/password-reset-challenge";
 import { drainEmailOutboxOnce, sweepEmailOutbox } from "@/lib/email-outbox";
@@ -540,6 +541,22 @@ export async function runScheduledSync(): Promise<ScheduledSyncTotals> {
           await sweepPasswordResetChallenges();
         } catch (err) {
           await reportError("scheduled-sync pw-reset-challenge-sweep", err);
+        }
+        // Terk edilmiş DOĞRULANMAMIŞ kayıtlar: hesap ön-ele-geçirme
+        // düzeltmesinin tamamlayıcısı. Doğrulama artık parola istediği için
+        // saldırgan kurbanın adresiyle açtığı hesaba giremiyor — ama hesap
+        // orada durdukça `User.email` benzersizliği yüzünden KURBAN da kendi
+        // adresiyle kaydolamıyor (register enumeration koruması gereği sessiz
+        // 201 döner). Bu süpürge o işgali sonlandırır.
+        // 🚨 YIKICI → `UNVERIFIED_SWEEP_ENABLED` DEFAULT KAPALI; bayrak
+        // kapalıyken tek sorgu bile koşmaz.
+        try {
+          const r = await sweepUnverifiedRegistrations();
+          if (r.deleted > 0 || r.failed > 0 || r.skipped > 0) {
+            console.log(`[scheduled-sync] unverified-sweep: ${JSON.stringify(r)}`);
+          }
+        } catch (err) {
+          await reportError("scheduled-sync unverified-sweep", err);
         }
         // Reverse-trial reminder emails ("ending soon" / "ended"). No-op unless
         // BILLING_ENFORCED is on; idempotent + per-tenant. Best-effort.
