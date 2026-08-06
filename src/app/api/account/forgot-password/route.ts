@@ -1,6 +1,6 @@
 import { type NextRequest } from "next/server";
 import { prisma } from "@/lib/db";
-import { hashPassword, verifyPassword } from "@/lib/auth/password";
+import { hashPassword, verifyPassword, dummyVerifyPassword } from "@/lib/auth/password";
 import { badRequest, jsonOk, serverError, tooManyRequests, parseJsonBody, payloadTooLarge } from "@/lib/api";
 import { rateLimit, clientIp } from "@/lib/rate-limit";
 import { writeAudit } from "@/lib/audit";
@@ -303,7 +303,20 @@ export async function POST(req: NextRequest) {
           where: { email },
           data: { pwResetCodeHash: null, pwResetCodeExpiresAt: null },
         });
-        await verifyPassword(code, await hashPassword(code));
+        // 🚨 ZAMAN PARİTESİ — `dummyVerifyPassword` ŞART (e-posta boru hattı
+        // denetimi, 08-06; ÖLÇÜLDÜ). Burada eskiden `verifyPassword(code, await
+        // hashPassword(code))` vardı: bcrypt HASH + bcrypt COMPARE = İKİ işlem,
+        // oysa "yanlış kod" dalı (↓) yalnız BİR compare koşuyor.
+        //   bilinmeyen e-posta : 713 ms      (hash+compare)
+        //   yanlış kod         : 351 ms      (yalnız compare)
+        //   dummyVerifyPassword: 350 ms      ← eşleşiyor
+        // 362 ms'lik fark ağ üzerinden önemsizce ölçülür: saldırgan önce
+        // `action:"request"` ile (her zaman 200 döner) gerçek bir hesapta canlı
+        // kod oluşturur, sonra `confirm`'ün süresine bakarak hesabın VAR OLUP
+        // OLMADIĞINI öğrenir — dosyanın geri kalanının kurduğu tüm enumeration
+        // korumalarını (genel hata metni, sabit 200, hız limiti) delen bir kanal.
+        // Yorum "parity-cost" diyordu ama maliyet TERSİNE dengesizdi.
+        await dummyVerifyPassword(code);
         return failConfirm(email);
       }
 

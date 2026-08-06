@@ -4,6 +4,7 @@ import { OFFER_PAYMENT_METHOD_RX } from "@/lib/validators";
 import { withManage } from "@/lib/route-guard";
 import { isValidTimeZone } from "@/lib/timezone";
 import { isOrgMemberEmail, isValidEmailShape, normalizeEmail } from "@/lib/email-identity";
+import { writeAudit, auditActor, auditImpersonation } from "@/lib/audit";
 
 // Organization-level settings the UI can change. Booleans are the auto-reply
 // switches; the hour fields define the channel auto-reply active window;
@@ -204,6 +205,37 @@ export const PATCH = withManage(async (session, req) => {
   await prisma.organization.update({
     where: { id: session.organizationId },
     data: update,
+  });
+
+  // ── DENETİM İZİ (gözlemlenebilirlik turu, 08-06) ──────────────────────────
+  //
+  // 🚨 Bu rota GÜVENLİK-İLGİLİ anahtarlar çeviriyor ve hiçbir iz bırakmıyordu:
+  // `autoReplyHospitable` (misafire otomatik mesaj gitsin mi), `qrChatPinRequired`
+  // (QR sohbeti PIN istesin mi), `icalShowGuestName` (takvim feed'inde misafir adı
+  // görünsün mü), `alertEmail` (operasyonel alarmların GİTTİĞİ adres), aktif-saat
+  // penceresi. Bir org'da bunlardan biri değişirse "kim, ne zaman, neyi" sorusunun
+  // cevabı hiçbir yerde YOKTU — ne destek görüşmesinde ne bir olay incelemesinde.
+  // Giriş / şifre / 2FA / impersonation / plan değişimi / token rotasyonu ZATEN
+  // audit'li; ayarlar bu listede tek eksikti.
+  //
+  // ⚠️ Yalnız DEĞİŞEN ALAN ADLARI yazılır, DEĞERLER yazılmaz: `aiSignature`,
+  // `closingReplyText`, `lateCheckoutOfferText` serbest metin ve host oraya PII
+  // yazabilir; denetim kaydı ikinci bir PII kopyası olmamalı. Boole/saat gibi
+  // zararsız alanların değeri de bilinçli dışarıda — tek biçim, istisnasız kural.
+  //
+  // ⚠️ `writeAudit` fırlatmaz (kendi içinde yutar) — ayar kaydı denetim kaydı
+  // yüzünden başarısız olmamalı; kayıt en iyi çaba.
+  //
+  // `auditImpersonation` yalnız `{impersonated:true}` ekler (operatörün e-postası
+  // ASLA — kayıt müşterinin KENDİ veri ihracına ham giriyor). Kaydın var olma
+  // sebebi "kim" sorusu ve o soruda en kritik ayrım "müşteri mi yaptı, operatör
+  // müşteri adına mı" — `actorUserId` opak bir id, tek başına bunu tek bakışta
+  // söylemiyor.
+  await writeAudit({
+    organizationId: session.organizationId,
+    actorUserId: auditActor(session),
+    action: "settings.update",
+    metadata: { fields: Object.keys(update).sort(), ...auditImpersonation(session) },
   });
 
   return jsonOk(update);

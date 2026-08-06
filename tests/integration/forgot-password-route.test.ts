@@ -1,4 +1,6 @@
 import { describe, it, expect, beforeEach, afterEach, vi } from "vitest";
+import { readFileSync } from "node:fs";
+import path from "node:path";
 import { NextRequest } from "next/server";
 import { prisma, resetDb } from "../helpers/db";
 import { verifyPassword } from "@/lib/auth/password";
@@ -319,5 +321,42 @@ describe("forgot-password — hesap kovası kurbanı KİLİTLEYEMEZ", () => {
     }
     const res = await POST(reqFrom({ action: "request", email: EMAIL }, "7.7.7.7"));
     expect(res.status).toBe(429);
+  });
+});
+
+// ---------------------------------------------------------------------------
+// ZAMAN PARİTESİ — HESAP ENUMERATION ORACLE'I (e-posta boru hattı denetimi, 08-06)
+//
+// 🚨 ÖLÇÜLEN AÇIK (canlıda aktifti): `confirm`'ün "canlı kod yok / bilinmeyen
+// e-posta" dalı `verifyPassword(code, await hashPassword(code))` koşuyordu —
+// bcrypt HASH + bcrypt COMPARE = İKİ işlem — oysa "yanlış kod" dalı yalnız BİR
+// compare koşuyor. Ölçüldü: 713 ms vs 351 ms, yani 362 ms fark. Saldırgan önce
+// `action:"request"` ile (her zaman 200) gerçek bir hesapta canlı kod oluşturur,
+// sonra `confirm` süresine bakarak hesabın VAR OLUP OLMADIĞINI öğrenir — dosyanın
+// kurduğu tüm enumeration korumalarını (genel metin, sabit 200, hız limiti) deler.
+//
+// Bu test SÜRE ÖLÇMEZ (CI'da flaky olurdu). Onun yerine YAPISAL değişmezi pinler:
+// bcrypt maliyeti İKİ dalda da AYNI sayıda olmalı → kaynak, iki-işlemli deseni
+// içermemeli ve tek-işlemli `dummyVerifyPassword`'ü kullanmalı.
+// ---------------------------------------------------------------------------
+describe("forgot-password — zaman paritesi (enumeration oracle'ı)", () => {
+  const src = readFileSync(
+    path.resolve(__dirname, "../../src/app/api/account/forgot-password/route.ts"),
+    "utf8",
+  );
+
+  it("bilinmeyen-e-posta dalı TEK bcrypt kullanır (dummyVerifyPassword)", () => {
+    expect(src).toContain("dummyVerifyPassword(code)");
+  });
+
+  it("İKİ işlemli anti-desen kaynakta YOK", () => {
+    // `verifyPassword(x, await hashPassword(x))` = hash + compare = 2 bcrypt.
+    expect(src).not.toMatch(/verifyPassword\([^)]*await\s+hashPassword/);
+  });
+
+  it("yanlış-kod dalı hâlâ GERÇEK karşılaştırma yapıyor (ters yön pini)", () => {
+    // Pariteyi "her iki dalı da ucuzlat" diye sağlamak korumayı kaldırırdı:
+    // yanlış kod GERÇEK hash'e karşı sabit zamanlı karşılaştırılmalı.
+    expect(src).toMatch(/verifyPassword\(code,\s*codeHash\)/);
   });
 });
