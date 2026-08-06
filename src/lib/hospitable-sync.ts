@@ -59,6 +59,26 @@ export interface SyncResult {
    * yol açıkta kalmıştı (denetim, 08-01).
    */
   reservationsUnwritable: number;
+  /**
+   * Sağlayıcı bir mesaj DÖNDÜ ama gövdesi boş/metin-dışı olduğu için içe
+   * AKTARILAMADI (`importThread`: `if (!externalId || !body) continue`).
+   *
+   * 🚨 NEDEN SAYILIYOR (denetim, 08-06): bu atlama SESSİZ ve KALICI. Atlanan
+   * mesaj `syncCursorAt`'i durdurmuyor — imleç geçiş sonunda yine ilerliyor —
+   * dolayısıyla o mesaj bir daha HİÇ değerlendirilmiyor. Misafir yalnızca
+   * fotoğraf/ek gönderdiyse (gövde boş) host bunu gelen kutusunda HİÇ görmez ve
+   * AI kapısı da hiç çalışmaz: misafir cevapsız kalır, hiçbir yerde iz yoktur.
+   *
+   * ⚠️ DAVRANIŞ BİLEREK DEĞİŞTİRİLMEDİ, yalnız GÖRÜNÜR yapıldı. Boş gövdeli
+   * satırı yer-tutucu metinle içe aktarmak, sağlayıcının hangi olay tiplerinde
+   * boş gövde döndüğünü BİLMEDEN yapılırsa gelen kutusunu sistem satırlarıyla
+   * doldurabilir ve o satırlar AI kapısını da besler. Hospitable'ın gerçek
+   * payload'ı görülmeden (Nuve aboneliği 402) bu doğrulanamaz — bu yüzden önce
+   * ÖLÇÜM: sayaç sıfır kalırsa ortada sorun yoktur, sıfırdan büyürse gerçek
+   * payload elimizde demektir ve karar veriye dayanır. Kardeşi:
+   * `reservationsUnwritable` (aynı desen, 08-01).
+   */
+  messagesUnimportable: number;
 }
 
 /** Per-sync-run counter so linkProperty can refuse to CREATE past the plan's
@@ -140,6 +160,7 @@ export async function syncHospitable(
     skipped: 0,
     propertiesCapped: 0,
     reservationsUnwritable: 0,
+    messagesUnimportable: 0,
   };
   // Run-level aggregate for failed inline supply derivations (alerted once at
   // the end — a per-row alert would flood; a bare catch hid them entirely).
@@ -488,6 +509,7 @@ export async function syncHospitable(
         }
         result.conversations++;
         result.messages += r2.imported;
+        result.messagesUnimportable += r2.unimportable;
         // ⚠️ BAĞSIZ + KESİN ÖLÜ KONAKLAMA → oto-yanıt kapısını BURADA kapat
         // (denetim, 08-01). `localReservationId` null olmanın İKİ yolu var ve
         // İKİSİ DE YUKARIDA: (1) `upsertReservationCalendar` null döndü (tarih
@@ -574,6 +596,22 @@ export async function syncHospitable(
         `${result.reservationsUnwritable} reservation(s) had no writable local row — ` +
           `their threads carry NO stay context (calendar/occupancy/lifecycle blind); ` +
           `first: ${firstUnwritableReason ?? "unknown"}`,
+      ),
+    );
+  }
+  if (result.messagesUnimportable > 0) {
+    // ⚠️ SAYI CONTEXT'E GİRMEZ (kardeşinin dersi): `reportError` e-posta
+    // throttle'ını CONTEXT string'iyle anahtarlıyor; sayı her koşuda değişirse
+    // 10 dakikalık koruma fiilen kalkar ve 2 dakikalık cron her geçişte
+    // bildirim üretir.
+    void reportError(
+      `message-unimportable org:${organizationId}`,
+      new Error(
+        `${result.messagesUnimportable} provider message(s) had an id but NO text body — ` +
+          `skipped and NEVER re-evaluated (the sync cursor still advances). If a guest ` +
+          `sent only a photo/attachment, the host never sees it and the AI gate never runs. ` +
+          `Behaviour unchanged on purpose — this counter exists to decide with DATA whether ` +
+          `to import a placeholder row (see SyncResult.messagesUnimportable).`,
       ),
     );
   }
@@ -997,7 +1035,7 @@ export async function importThread(
   /** KVKK explicit-erasure cutoff for a tombstoned guest's ALLOWED new stay:
    *  messages at/before this instant never (re-)import. Null = no tombstone. */
   erasureCutoff: Date | null = null,
-): Promise<{ imported: number; supplyJobs: SupplyJob[] }> {
+): Promise<{ imported: number; unimportable: number; supplyJobs: SupplyJob[] }> {
   const reservationId = String(reservation.id);
 
   // IDENTITY LOCK — the FIRST thing this transaction does for this thread, so the
@@ -1202,11 +1240,35 @@ export async function importThread(
     ).map((r) => r.externalId!),
   );
   let newMessages = 0;
+  let unimportable = 0;
   const supplyJobs: SupplyJob[] = [];
   for (const m of ordered) {
     const externalId = m.id != null ? String(m.id) : null;
     const body = str(m.body);
-    if (!externalId || !body) continue; // skip non-text / unidentifiable messages
+    // ⚠️ `.trim()` ŞART — `str()` TRİMLEMİYOR (`"   ".length === 3` → truthy).
+    // Bu testi yazarken ölçüldü (08-06): yalnız boşluktan ibaret bir gövde
+    // bugüne kadar NORMAL bir mesaj gibi içe aktarılıyordu — gelen kutusunda boş
+    // bir balon, konuşma "new", ve en kötüsü AI kapısı BOŞ bir mesaja cevap
+    // üretmeye çalışıyordu (misafire boşluğa karşı otomatik yanıt gidebilirdi).
+    // Boşluk hiçbir bilgi taşımadığı için atlamak SIFIR veri kaybeder ve
+    // oto-gönderim yüzeyini DARALTIR — bu depoda güvenli yön daima budur.
+    if (!externalId || !body || !body.trim()) {
+      // 🚨 SESSİZ + KALICI ATLAMA — artık SAYILIYOR (denetim, 08-06). İmleç
+      // (`syncCursorAt`) bu satır yüzünden durmuyor, geçiş sonunda yine
+      // ilerliyor → atlanan mesaj bir daha HİÇ değerlendirilmiyor. Misafir
+      // yalnızca fotoğraf/ek gönderdiyse host onu gelen kutusunda hiç görmez.
+      // Davranış BİLEREK aynı (gerekçe: `SyncResult.messagesUnimportable`);
+      // burada yapılan tek şey körlüğü kaldırmak.
+      //
+      // ⚠️ SAYAÇ KÜMÜLATİF DEĞİL, KOŞU-BAŞINA: gövdesiz mesaj hiç kalıcı
+      // olmadığı için `seenExternalIds`'e de girmez → getirme penceresinde
+      // durduğu SÜRECE her geçişte yeniden sayılır. Bu bilinçli: soru "kaç
+      // farklı mesaj kayboldu" değil, "şu an kayıp mesaj ÜRETEN bir akış var
+      // mı". Alarm zaten context-anahtarlı 10 dk throttle'a tabi (aşağıda),
+      // yani her 2 dakikalık cron geçişi ayrı bir bildirim üretmez.
+      unimportable++;
+      continue;
+    }
     if (eraCutoff) {
       const msgAt = parseDate(m.created_at);
       if (!msgAt || msgAt < eraCutoff) continue;
@@ -1297,5 +1359,5 @@ export async function importThread(
     data: { lastMessageAt, syncCursorAt: lastMessageAt },
   });
 
-  return { imported: newMessages, supplyJobs };
+  return { imported: newMessages, unimportable, supplyJobs };
 }

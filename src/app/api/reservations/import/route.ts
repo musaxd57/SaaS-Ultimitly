@@ -6,6 +6,7 @@ import { withManage } from "@/lib/route-guard";
 import { parseIcs } from "@/lib/import/ics";
 import { parseCsv, CsvParseError } from "@/lib/import/csv";
 import { createReservationTasks } from "@/lib/automation";
+import { loadErasureGuard, acquireErasureLock } from "@/lib/erasure";
 
 const IMPORT_MAX_BYTES = 5 * 1024 * 1024;
 
@@ -80,6 +81,38 @@ export const POST = withManage(async (session, req) => {
   let skipped = 0;
   const errors: string[] = [];
 
+  // ── KVKK ERASURE INGRESS GUARD (denetim, 08-06) ───────────────────────────
+  //
+  // 🚨 BU ROTA ÜÇÜNCÜ BİR INGRESS YOLU ve tombstone kapısı YOKTU. `erasure.ts`'in
+  // kendi başlık yorumu "every tombstone-scoped ingress writer (hospitable-sync,
+  // iCal import)" diyerek İKİ yol sayıyordu — elle `.ics`/`.csv` yüklemesi
+  // listede yoktu ve `loadErasureGuard`/`acquireErasureLock` bu dosyada HİÇ
+  // geçmiyordu (grep: 0).
+  //
+  // Senaryo: misafir m.11 silme talebi yapar → host rezervasyonu siler
+  // (`eraseReservationData` maskeler + tombstone yazar) → aylar sonra host
+  // Airbnb dışa aktarımını TEKRAR yükler → aynı `sourceReference` ile silinmiş
+  // konaklama misafirin GERÇEK adıyla geri doğar. Yönetmelik m.8 "tekrar
+  // kullanılamaz" şartının doğrudan ihlali.
+  //
+  // ⚠️ KAPSAM SINIRI, DÜRÜSTÇE: bu kapı YALNIZ `sourceReference` üzerinden
+  // koruyabilir. `blocksGuestStay` burada BİLİNÇLİ olarak çağrılmaz çünkü
+  // ÇAĞRILSA DA ÖLÜ KOD olurdu: tombstone kişi-anahtarları e-posta / telefon /
+  // sağlayıcı-id'dir (`TombstoneKeyInput`), ve İKİ ayrıştırıcı da bunların
+  // HİÇBİRİNİ üretmiyor (kod-doğrulandı: `csv.ts` ve `ics.ts` yalnız
+  // `sourceReference` çıkarır). Sonuç:
+  //   · `.ics`  → UID daima var → TAM korunur
+  //   · `.csv`  → yalnız referans sütunu VARSA korunur
+  //   · referanssız düz CSV → korunamaz (eşleştirilecek anahtar yok). Misafir
+  //     ADI bilerek tombstone anahtarı DEĞİL — adlar benzersiz değil, ad-bazlı
+  //     bir kapı başka misafirlerin meşru kaydını da bloklardı.
+  //
+  // Boş tombstone kümesinde `loadErasureGuard` hiçbir şey hash'lemez ve
+  // `EMPTY_GUARD` döner → bugün (host yüzeyi `GUEST_ERASURE_ENABLED` ile KAPALI,
+  // yani hiç tombstone yok) bu blok ÖLÇÜLEBİLİR bir davranış değişikliği
+  // getirmez; ileriye dönük bir kapıdır.
+  const erasureGuard = await loadErasureGuard(session.organizationId);
+
   for (let i = 0; i < rows.length; i++) {
     const row = rows[i];
     const rowLabel = `Satır ${i + 2}`;
@@ -128,28 +161,58 @@ export const POST = withManage(async (session, req) => {
       continue;
     }
 
+    // Ucuz ÖN kapı — yalnız bir OPTİMİZASYON (yazma yetkisi DEĞİL). Yetkili
+    // kontrol aşağıda, kilidin İÇİNDE taze okunan guard'la yapılır.
+    if (!erasureGuard.isEmpty && erasureGuard.blocksSourceReference(row.sourceReference)) {
+      skipped++;
+      continue;
+    }
+
+    const data = {
+      propertyId,
+      // Clamp to the same caps the manual path enforces (validators.ts) —
+      // the import path otherwise wrote unbounded CSV fields straight to DB.
+      guestName: row.guestName.slice(0, 200),
+      arrivalDate: row.arrivalDate,
+      departureDate: row.departureDate,
+      channel: row.channel ?? "other",
+      status: "confirmed",
+      sourceReference: row.sourceReference ? row.sourceReference.slice(0, 200) : null,
+      notes: row.notes ? row.notes.slice(0, 5000) : null,
+      ...(typeof row.totalAmount === "number" && !isNaN(row.totalAmount)
+        ? {
+            totalAmount: Math.min(row.totalAmount, 100_000_000),
+            totalAmountDec: toAmountDec(Math.min(row.totalAmount, 100_000_000)),
+          }
+        : {}),
+      currency: (row.currency ?? "EUR").slice(0, 8),
+    };
+
     try {
-      const created = await prisma.reservation.create({
-        data: {
-          propertyId,
-          // Clamp to the same caps the manual path enforces (validators.ts) —
-          // the import path otherwise wrote unbounded CSV fields straight to DB.
-          guestName: row.guestName.slice(0, 200),
-          arrivalDate: row.arrivalDate,
-          departureDate: row.departureDate,
-          channel: row.channel ?? "other",
-          status: "confirmed",
-          sourceReference: row.sourceReference ? row.sourceReference.slice(0, 200) : null,
-          notes: row.notes ? row.notes.slice(0, 5000) : null,
-          ...(typeof row.totalAmount === "number" && !isNaN(row.totalAmount)
-            ? {
-                totalAmount: Math.min(row.totalAmount, 100_000_000),
-                totalAmountDec: toAmountDec(Math.min(row.totalAmount, 100_000_000)),
-              }
-            : {}),
-          currency: (row.currency ?? "EUR").slice(0, 8),
+      // WRITE-TX (RACE MODEL, erasure.ts): satır yazımı org-kapsamlı silme
+      // advisory kilidi altında, guard TAZE okunarak yapılır → ya bu commit
+      // önce olur (silme yürütücüsü sonra koşar ve yazdığımızı maskeler) ya da
+      // taze tombstone'ları görüp yazmayı reddederiz. Kardeş yollarla birebir
+      // aynı desen (`import/sync.ts:190`, `hospitable-sync.ts:299`).
+      //
+      // ⚠️ Görev yan etkisi (`createReservationTasks`) commit'ten SONRA koşar —
+      // kilit yalnız yazma boyunca tutulur.
+      // ⚠️ CREATE'in dedupe-hit'i (P2002) satır transaction'ını iptal eder ve
+      // DIŞ catch'te sınıflandırılır — atlama semantiği eskisiyle AYNI.
+      const created = await prisma.$transaction(
+        async (tx) => {
+          await acquireErasureLock(tx, session.organizationId);
+          const fresh = await loadErasureGuard(session.organizationId, tx);
+          if (!fresh.isEmpty && fresh.blocksSourceReference(row.sourceReference)) return null;
+          return await tx.reservation.create({ data });
         },
-      });
+        // Kardeş KVKK yollarıyla birebir değerler (hospitable-sync.ts:306).
+        { timeout: 60_000, maxWait: 15_000 },
+      );
+      if (!created) {
+        skipped++;
+        continue;
+      }
       await createReservationTasks(created.id);
       imported++;
     } catch (err) {

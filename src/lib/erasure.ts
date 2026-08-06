@@ -20,12 +20,21 @@ import { ERASABLE_STATUSES } from "@/lib/outbox/state";
 //    "anonim hale getirme" in the art.-10 technical sense (that bar — no linkage
 //    even when combined with other data — is higher; aggregate rows remain).
 //
-//  * Ingress guards (hospitable-sync + iCal import) — the piece that makes the
-//    erasure DURABLE: erased data must stay "tekrar kullanılamaz" (Regulation
-//    art. 8), so a provider re-sync may never re-import it — even if the local
-//    rows are later deleted entirely and the ANON_NAME sentinel can no longer
-//    protect them. Matching is hash-only; with zero tombstones every guard is a
-//    no-op (nothing is hashed, nothing is queried per row).
+//  * Ingress guards (hospitable-sync + iCal feed sync + MANUEL .ics/.csv
+//    yüklemesi) — the piece that makes the erasure DURABLE: erased data must
+//    stay "tekrar kullanılamaz" (Regulation art. 8), so a re-import may never
+//    bring it back — even if the local rows are later deleted entirely and the
+//    ANON_NAME sentinel can no longer protect them. Matching is hash-only; with
+//    zero tombstones every guard is a no-op (nothing is hashed, nothing is
+//    queried per row).
+//
+//    ⚠️ MANUEL YÜKLEME KAPSAM SINIRI (08-06, kod-doğrulandı): o yol yalnız
+//    `source_reference` anahtarıyla korunabilir — `csv.ts`/`ics.ts` misafirin
+//    e-postasını/telefonunu/sağlayıcı-id'sini HİÇ çıkarmıyor, dolayısıyla
+//    `blocksGuestStay` orada ölü kod olurdu ve bilerek çağrılmaz. Referans
+//    sütunu OLMAYAN düz bir CSV bu yüzden korunamaz; misafir ADI bilinçli
+//    olarak tombstone anahtarı DEĞİL (adlar benzersiz değil → ad-bazlı bir kapı
+//    başka misafirlerin meşru kaydını da bloklardı).
 //
 // NEW-DATA BOUNDARY (deliberate, documented in §8c-3): a stay that BEGINS after
 // the erasure request is a NEW processing activity (art. 5/2-c contract, 5/2-f

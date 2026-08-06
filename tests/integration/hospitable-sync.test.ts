@@ -1281,3 +1281,87 @@ describe("çit geri alınması — bağ kurulunca ölü-konaklama damgası kalka
     expect(after.autoReplyAttemptedAt).not.toBeNull(); // damga da korunur
   });
 });
+
+// ---------------------------------------------------------------------------
+// GÖVDESİZ SAĞLAYICI MESAJI — SESSİZ ve KALICI KAYIP artık SAYILIYOR (08-06)
+//
+// 🚨 BULUNAN DAVRANIŞ (`importThread`: `if (!externalId || !body) continue`):
+// sağlayıcı bir mesaj döndürüp gövdesini boş bırakırsa (misafir yalnız
+// fotoğraf/ek gönderdiyse) satır atlanıyor, AMA `syncCursorAt` geçiş sonunda
+// yine ilerliyor → o mesaj bir daha HİÇ değerlendirilmiyor. Host gelen kutusunda
+// hiç görmüyor, AI kapısı hiç koşmuyor, hiçbir yerde iz kalmıyor.
+//
+// ⚠️ DAVRANIŞ BİLEREK AYNI BIRAKILDI. Yer-tutucu satır yazmak, sağlayıcının
+// hangi olay tiplerinde boş gövde döndüğü BİLİNMEDEN gelen kutusunu sistem
+// satırlarıyla doldurabilir ve o satırlar AI kapısını da besler. Hospitable'ın
+// gerçek payload'ı görülmeden (Nuve aboneliği 402) bu doğrulanamaz → önce ÖLÇÜM.
+// ---------------------------------------------------------------------------
+describe("gövdesiz sağlayıcı mesajı — sessiz kayıp sayılıyor", () => {
+  beforeEach(async () => {
+    await resetDb();
+    vi.clearAllMocks();
+    mockProperties.mockResolvedValue([{ id: "hp", name: "Test Property" }]);
+    mockReservations.mockResolvedValue([
+      {
+        id: "res-nobody",
+        platform: "airbnb",
+        status: "confirmed",
+        conversation_id: "conv-nobody",
+        arrival_date: "2026-06-10",
+        departure_date: "2026-06-13",
+        last_message_at: "2026-06-10T10:00:00Z",
+      },
+    ]);
+  });
+
+  it("gövdesiz mesaj SAYILIR ve içe aktarılmaz (körlük kalktı)", async () => {
+    const { orgId } = await makeOrgWithProperty();
+    mockMessages.mockResolvedValue([
+      // Fotoğraf/ek: id VAR, gövde YOK.
+      { id: 9001, body: "", sender_type: "guest", sender_role: "guest", sender: { full_name: "Gwen" }, created_at: "2026-06-10T09:00:00Z" },
+      // Normal metin mesajı — aynı thread'de, normal içe aktarılmalı.
+      { id: 9002, body: "Merhaba", sender_type: "guest", sender_role: "guest", sender: { full_name: "Gwen" }, created_at: "2026-06-10T09:05:00Z" },
+    ]);
+
+    const res = await syncHospitable(orgId);
+
+    expect(res.messagesUnimportable).toBe(1); // ⬅️ ARIZADA undefined
+    expect(res.messages).toBe(1); // gövdeli olan girdi
+    // Atlanan satır GERÇEKTEN yazılmadı — sayaç "yazdım ama saydım" demiyor.
+    expect(await prisma.message.count({ where: { externalId: "9001" } })).toBe(0);
+    expect(await prisma.message.count({ where: { externalId: "9002" } })).toBe(1);
+  });
+
+  it("TERS YÖN: hepsi gövdeliyse sayaç 0 kalır (regresyon pini)", async () => {
+    const { orgId } = await makeOrgWithProperty();
+    mockMessages.mockResolvedValue([
+      { id: 9101, body: "Merhaba", sender_type: "guest", sender_role: "guest", sender: { full_name: "Gwen" }, created_at: "2026-06-10T09:00:00Z" },
+      { id: 9102, body: "Tesekkurler", sender_type: "guest", sender_role: "guest", sender: { full_name: "Gwen" }, created_at: "2026-06-10T09:05:00Z" },
+    ]);
+
+    const res = await syncHospitable(orgId);
+
+    expect(res.messagesUnimportable).toBe(0);
+    expect(res.messages).toBe(2);
+  });
+
+  it("SADECE BOŞLUK gövde de atlanır ve SAYILIR (bu test bir bug buldu)", async () => {
+    // 🚨 BU TEST İLK YAZILDIĞINDA KIRMIZI GELDİ ve gerçek bir kusur ortaya
+    // çıkardı: `str()` TRİMLEMİYOR (`"   ".length === 3` → truthy), yani yalnız
+    // boşluktan ibaret bir gövde NORMAL bir mesaj gibi içe aktarılıyordu —
+    // gelen kutusunda boş bir balon, konuşma "new", ve AI kapısı BOŞ bir mesaja
+    // cevap üretmeye çalışıyordu. Fotoğraf vakasının tam TERSİ arıza: orada
+    // mesaj sessizce KAYBOLUYOR, burada boşluğa otomatik CEVAP verilebiliyordu.
+    // `!body.trim()` eklendi; bu satır o düzeltmenin pini.
+    const { orgId } = await makeOrgWithProperty();
+    mockMessages.mockResolvedValue([
+      { id: 9201, body: "   ", sender_type: "guest", sender_role: "guest", sender: { full_name: "Gwen" }, created_at: "2026-06-10T09:00:00Z" },
+    ]);
+
+    const res = await syncHospitable(orgId);
+
+    expect(res.messagesUnimportable).toBe(1);
+    expect(res.messages).toBe(0);
+    expect(await prisma.message.count({ where: { externalId: "9201" } })).toBe(0);
+  });
+});
