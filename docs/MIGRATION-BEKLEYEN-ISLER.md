@@ -662,6 +662,50 @@ Tam ayrım satırın KÖKENİNİ tutan bir kolon ister = MIGRATION.
 
 ---
 
+## 6. `MessageOutbox` claim sorgusunun İKİ alt-sorgusu indekssiz (08-06, DORMANT)
+
+**Durum:** UYGULANMADI (migration). **Bugün canlı etki YOK** —
+`DURABLE_OUTBOX_ENABLED` kapalı, kuyruk boş, sorgu hiç koşmuyor. Bayrak
+AÇILMADAN ÖNCE karara bağlanmalı.
+
+**Kod-doğrulaması.** `src/lib/outbox/worker.ts:224-282` tek bir
+`UPDATE … WHERE id IN (…)` ile claim alıyor. Bugünkü indeksler (`schema.prisma`,
+`MessageOutbox`):
+
+```
+@@unique([organizationId, idempotencyKey])
+@@index([status, availableAt])
+@@index([organizationId, status])
+```
+
+Dış tarama (`status IN (…) AND availableAt <= …`) `@@index([status, availableAt])`
+ile karşılanıyor — **o kısım sorunsuz.** Karşılanmayan İKİ alt-sorgu var:
+
+1. **`NOT EXISTS` — konuşma başına tek uçuş kuralı** (`:259-268`):
+   `WHERE e."conversationId" = s."conversationId" AND …`. `conversationId`
+   üzerinde HİÇBİR indeks yok. Aday kümesindeki HER satır için ayrı bir arama.
+2. **`recent` korelasyonlu sayım — 60 sn'lik gönderim tavanı** (`:245-252`):
+   `WHERE h."organizationId" = … AND h."externalReservationId" = … AND
+   h."claimedAt" > …`. `@@index([organizationId, status])` bu üçlüye uymuyor
+   (`status` sorguda YOK, `externalReservationId` indekste yok).
+
+**Önerilen (uygulanmadı):**
+`@@index([conversationId, status])` + `@@index([organizationId, externalReservationId, claimedAt])`.
+İkisi de SAF ADDITIVE (yeni indeks; ALTER yok, kolon yok). Tablo bugün boş
+olduğu için **düz `CREATE INDEX` doğru seçim** — `CONCURRENTLY` değil (m45'te
+ölçülmüştü: başarısız concurrent build arkada INVALID indeks bırakır ve boot'taki
+`migrate deploy` için düz indeksten DAHA KÖTÜ bir arıza modudur).
+
+⚠️ **Ayrı ve DAHA ÖNEMLİ bir madde, aynı sorguda:** iç `FOR UPDATE SKIP LOCKED`
+seçiminde **`LIMIT` YOK** — `LIMIT ${batchSize}` en dışta. Yani uygun satır
+kümesinin TAMAMI kilitlenip sıralanıyor, maliyet batch'e değil BİRİKEN KUYRUĞA
+bağlı. Bu `DENETIM-BULGULARI-2026-08-01.md` #25 olarak zaten AÇIK listede duruyor
+ve **migration İSTEMEZ** (saf SQL değişikliği), ama indekslerle aynı turda
+düşünülmeli: indeks eklemek maliyeti düşürür, sınırsız kilit kümesini
+KALDIRMAZ.
+
+---
+
 ## 5. Bekleyen eski migration işleri (CLAUDE.md'den — hatırlatma)
 
 Bunlar bugünün bulgusu değil, listede duruyor:
