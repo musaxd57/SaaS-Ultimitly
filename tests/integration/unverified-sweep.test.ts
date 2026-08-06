@@ -1,6 +1,9 @@
 import { describe, it, expect, beforeEach, afterEach, vi } from "vitest";
 import { prisma, resetDb } from "../helpers/db";
+import { NextRequest } from "next/server";
 import { hashPassword } from "@/lib/auth/password";
+import { makeVerifyToken } from "@/lib/auth/email-verify";
+import { POST as verifyEmail } from "@/app/api/auth/verify-email/route";
 import { EMAIL_VERIFY_REQUIRED_FROM } from "@/lib/auth/email-verify";
 import {
   sweepUnverifiedRegistrations,
@@ -360,6 +363,60 @@ describe("terk edilmiş doğrulanmamış kayıtların süpürülmesi", () => {
     expect(res.deleted).toBe(0);
     expect(res.skippedReasons.subscription_not_trialing).toBe(1);
     expect(await orgExists(org.id)).toBe(true);
+  });
+
+  it("SINIR: 7 gün + 1 dk silinir, 6 gün 23 saat DURUR", async () => {
+    // ⚠️ 7 ELLE YAZILDI, `UNVERIFIED_MAX_AGE_DAYS`'ten TÜRETİLMEDİ. İlk yazımda
+    // sabitten türetmiştim ve test VACUOUS çıktı: sabiti 6'ya çevirince testin
+    // kendi beklentisi de kaydığı için mutasyon yeşil kaldı. Eşik bir ürün
+    // kararıdır; testin onu BAĞIMSIZ olarak iddia etmesi gerekir.
+    expect(UNVERIFIED_MAX_AGE_DAYS).toBe(7);
+    const hemenEski = await seedRegistration({
+      name: "Eski",
+      email: "eski@x.com",
+      createdAt: new Date(NOW.getTime() - (7 * DAY + 60_000)),
+    });
+    const kilPayiTaze = await seedRegistration({
+      name: "Taze",
+      email: "kilpayi@x.com",
+      createdAt: new Date(NOW.getTime() - (7 * DAY - 60 * 60_000)),
+    });
+
+    const res = await sweepUnverifiedRegistrations(NOW);
+    expect(res.deleted).toBe(1);
+    expect(await orgExists(hemenEski.org.id)).toBe(false);
+    expect(await orgExists(kilPayiTaze.org.id)).toBe(true);
+  });
+
+  it("org silinirken tıklanan doğrulama bağlantısı ÇÖKMEZ, 'expired' döner", async () => {
+    // Yarış penceresi: aday sorgusu canlı token'lı kullanıcıyı zaten DIŞLIYOR
+    // (`emailVerifyExpiresAt` gelecekte), ama satır yine de silinmiş olabilir.
+    // O durumda tüketim `updateMany` 0 satır etkiler → kullanıcı jenerik
+    // "bağlantı geçersiz" görür; istisna fırlamaz, 500 dönmez.
+    const { org, user } = await seedRegistration({
+      name: "Yaris",
+      email: "yaris@x.com",
+      createdAt: OLD,
+    });
+    const { raw, hash } = makeVerifyToken();
+    await prisma.user.update({
+      where: { id: user.id },
+      data: { emailVerifyTokenHash: hash, emailVerifyExpiresAt: new Date(NOW.getTime() - 1000) },
+    });
+
+    const res = await sweepUnverifiedRegistrations(NOW);
+    expect(res.deleted).toBe(1);
+    expect(await orgExists(org.id)).toBe(false);
+
+    const verify = await verifyEmail(
+      new NextRequest("http://www.lixusai.com/api/auth/verify-email", {
+        method: "POST",
+        headers: { "content-type": "application/json" },
+        body: JSON.stringify({ token: raw, password: "secret123" }),
+      }),
+    );
+    expect(verify.status).toBe(400);
+    expect((await verify.json()).reason).toBe("expired");
   });
 
   it("İDEMPOTANT — ikinci koşu hiçbir şey yapmaz", async () => {
