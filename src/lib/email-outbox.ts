@@ -1,4 +1,5 @@
 import "server-only";
+import { identityEmailShell } from "@/lib/email-shell";
 
 import { randomUUID } from "node:crypto";
 import { Prisma } from "@prisma/client";
@@ -218,43 +219,37 @@ export function resetChallengeUrl(rawToken: string): string {
  * tek başına parolayı sıfırlayamaz — kod da gerekir.
  */
 export function resetChallengeEmailHtml(url: string, code: string): string {
-  const esc = (v: string) =>
-    v.replace(/[<>&"]/g, (c) => ({ "<": "&lt;", ">": "&gt;", "&": "&amp;", '"': "&quot;" })[c] as string);
-  return `
-    <div style="font-family:system-ui,Arial,sans-serif;max-width:480px;margin:0 auto">
-      <h2 style="color:#111">Lixus AI — Şifre sıfırlama</h2>
-      <p>Şifrenizi sıfırlamak için önce aşağıdaki bağlantıyı açın:</p>
-      <p style="margin:20px 0">
-        <a href="${esc(url)}" style="background:#111;color:#fff;padding:12px 20px;border-radius:8px;text-decoration:none;display:inline-block">Şifremi sıfırla</a>
-      </p>
-      <p>Açılan sayfada bu kodu girin:</p>
-      <p style="font-size:28px;font-weight:700;letter-spacing:4px;margin:16px 0">${esc(code)}</p>
-      <p style="color:#555">Bağlantı ve kod <strong>30 dakika</strong> geçerlidir ve yalnızca bir kez
-      kullanılabilir. Bu isteği siz yapmadıysanız bu e-postayı yok sayın — şifreniz değişmez.</p>
-    </div>`;
+  return identityEmailShell({
+    heading: "Şifre sıfırlama",
+    intro: "Şifrenizi sıfırlamak için önce aşağıdaki bağlantıyı açın.",
+    action: { label: "Şifremi sıfırla", url },
+    codeCaption: "Açılan sayfada bu kodu girin:",
+    code,
+    footnote:
+      "Bağlantı ve kod <strong>30 dakika</strong> geçerlidir ve yalnızca bir kez kullanılabilir. Bu isteği siz yapmadıysanız bu e-postayı yok sayın — şifreniz değişmez.",
+  });
 }
 
 export function resetCodeEmailHtml(code: string): string {
-  return `
-    <div style="font-family:system-ui,Arial,sans-serif;max-width:480px;margin:0 auto">
-      <h2 style="color:#111">Lixus AI — Şifre sıfırlama kodu</h2>
-      <p>Şifrenizi sıfırlamak için doğrulama kodunuz:</p>
-      <p style="font-size:28px;font-weight:700;letter-spacing:4px;margin:16px 0">${code}</p>
-      <p style="color:#555">Bu kod <strong>10 dakika</strong> geçerlidir. Birden fazla kod aldıysanız
-      en son gönderilen geçerlidir. Bu isteği siz yapmadıysanız bu e-postayı yok sayın — şifreniz değişmez.</p>
-    </div>`;
+  return identityEmailShell({
+    heading: "Şifre sıfırlama kodu",
+    intro: "Şifrenizi sıfırlamak için doğrulama kodunuz:",
+    code,
+    footnote: CODE_FOOTNOTE,
+  });
 }
 
 export function changeCodeEmailHtml(code: string): string {
-  return `
-    <div style="font-family:system-ui,Arial,sans-serif;max-width:480px;margin:0 auto">
-      <h2 style="color:#111">Lixus AI — Şifre değiştirme kodu</h2>
-      <p>Hesabınızın şifresini değiştirmek için doğrulama kodunuz:</p>
-      <p style="font-size:28px;font-weight:700;letter-spacing:4px;margin:16px 0">${code}</p>
-      <p style="color:#555">Bu kod <strong>10 dakika</strong> geçerlidir. Birden fazla kod aldıysanız
-      en son gönderilen geçerlidir. Bu isteği siz yapmadıysanız bu e-postayı yok sayın — şifreniz değişmez.</p>
-    </div>`;
+  return identityEmailShell({
+    heading: "Şifre değiştirme kodu",
+    intro: "Hesabınızın şifresini değiştirmek için doğrulama kodunuz:",
+    code,
+    footnote: CODE_FOOTNOTE,
+  });
 }
+
+const CODE_FOOTNOTE =
+  "Bu kod <strong>10 dakika</strong> geçerlidir. Birden fazla kod aldıysanız en son gönderilen geçerlidir. Bu isteği siz yapmadıysanız bu e-postayı yok sayın — şifreniz değişmez.";
 
 function renderIdentityEmail(
   kind: EmailOutboxKind,

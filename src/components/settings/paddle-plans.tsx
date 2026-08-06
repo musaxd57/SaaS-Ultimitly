@@ -372,7 +372,7 @@ export function PaddlePlans({
       <p className="text-sm text-muted-foreground">
         Şu anki planınız:{" "}
         <strong className="text-foreground">
-          {grandfathered ? "Mevcut müşteri (sınırsız)" : currentPlanName}
+          {grandfathered ? "Tam erişim (daire sınırı yok)" : currentPlanName}
         </strong>
         {trialDaysLeft != null ? (
           <>

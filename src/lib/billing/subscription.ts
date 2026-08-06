@@ -89,7 +89,10 @@ export async function getEntitlement(organizationId: string): Promise<Entitlemen
   if (!sub) {
     return {
       planCode: "grandfathered",
-      planName: "Mevcut müşteri",
+      // Kullanıcıya görünen ad: "Mevcut müşteri" İÇ JARGONDU (faturalandırma
+      // gelmeden önceki hesap demek) ve okuyan kişiye hiçbir şey anlatmıyordu.
+      // Sahip olduğu şeyi söyle — `propertyLimit: null` zaten sınırsız.
+      planName: "Tam erişim",
       propertyLimit: null,
       status: "grandfathered",
       active: true,

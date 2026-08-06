@@ -66,7 +66,11 @@ async function requestChallenge(ip = "1.1.1.1"): Promise<{ token: string; code: 
   // parametresine (`?t=`) geri taşınırsa bu eşleşme düşer ve dosyadaki TÜM
   // testler kırmızıya döner — taşıyıcı biçimi buradan da pinli.
   const t = lastEmailHtml.match(/#t=([0-9a-f]{64})/);
-  const c = lastEmailHtml.match(/letter-spacing:4px[^>]*>(\d{8})</);
+  // ⚠️ Kod, STILDEN BAGIMSIZ `id="lixus-code"` kancasindan ayiklanir. Eskiden
+  // `letter-spacing:4px` ile eslesiyordu ve e-posta tasariminin degismesi bu
+  // dosyadaki bes testi birden kirdi — kozmetik bir degisiklik guvenlik testini
+  // dusurmemeli.
+  const c = lastEmailHtml.match(/id="lixus-code"[^>]*>(\d{8})</);
   if (!t || !c) throw new Error(`e-postada token/kod yok: ${lastEmailHtml.slice(0, 300)}`);
   return { token: t[1], code: c[1] };
 }

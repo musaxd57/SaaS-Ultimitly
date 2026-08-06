@@ -359,14 +359,6 @@ export default async function AdminPage() {
             &quot;Kapı&quot; kolonu kapının <strong>kararıdır</strong> (teslimat değil). Bu tablo
             Aşama-2 insan değerlendirmesinin ham girdisidir.
           </p>
-          <p className="rounded-lg border border-amber-300 bg-amber-50 p-3 text-xs text-amber-800">
-            <strong>Hukuk notu:</strong> Gölge, varsayılan olarak yanıt üretiminin zaten kullandığı
-            sağlayıcıya (OpenAI) gider — yeni bir alt-işleyen eklenmez. Misafir mesajı yine redakte
-            edilerek gönderilir (ad/telefon/e-posta maskeli). Endpoint başka bir sağlayıcıya
-            çevrilirse o sağlayıcı YENİ bir işleyendir: DPA + gizlilik metnindeki alt-işleyen
-            listesine ekleme (KVKK m.9) önce tamamlanmalı. Pilotu tek işletmeye pinlemek için
-            Railway&apos;e <code className="font-mono">SHADOW_AI_ORG_IDS</code> ekle.
-          </p>
           {!shadowAiEnabled() ? (
             <p className="rounded-lg border border-dashed border-border bg-muted/40 p-3 text-sm text-muted-foreground">
               Pasif: Railway&apos;e <code className="font-mono text-xs">SHADOW_AI_ENABLED=1</code>{" "}
