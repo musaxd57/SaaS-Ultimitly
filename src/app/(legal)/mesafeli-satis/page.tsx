@@ -15,11 +15,6 @@ export default function DistanceSalesPage() {
         <p className="text-sm text-muted-foreground">Son güncelleme: {LEGAL_LAST_UPDATED}</p>
       </header>
 
-      <div className="rounded-lg border border-warning/40 bg-warning/10 p-3 text-xs leading-relaxed text-amber-700">
-        ⚠️ <strong>Taslak:</strong> Bu sözleşme bir başlangıç şablonudur. Satıcı ve işletme
-        bilgilerinin doğruluğunu teyit edin ve ödemeleri açmadan önce bir hukuk danışmanına
-        inceletin.
-      </div>
 
       {SECTIONS.map((s) => (
         <section key={s.title} className="space-y-2">
