@@ -35,12 +35,42 @@ const PHONE_PREFIX = "+90";
  * telefon yazmayan her aday "+90" diye sahte bir kayıt üretmesin.
  */
 export function normalizeTrPhone(raw: string): string {
+  const d = trPhoneDigits(raw);
+  if (!d) return "";
+  return `${PHONE_PREFIX} ${d}`;
+}
+
+/**
+ * Yazılan metinden numaranın ANLAMLI rakamlarını çıkar: ülke kodu ve baştaki
+ * sıfır kırpılır, sonuç 10 haneyle SINIRLANIR.
+ *
+ * 🚨 ON HANE SINIRI GERÇEK BİR KUSURU KAPATIYOR: alan yalnız `maxLength={20}`
+ * ile sınırlıydı ve kullanıcı 19 haneli bir dizi yazabiliyordu. Bu kayıt
+ * operatör panelindeki WhatsApp bağlantısına (`wa.me/<rakamlar>`) giriyor →
+ * ÖLÜ adres, yani gelen lead hiç aranamıyor. Türkiye'de mobil numara ülke
+ * kodundan sonra tam 10 hanedir; fazlası veri değil gürültüdür.
+ */
+export function trPhoneDigits(raw: string): string {
   let d = raw.replace(/\D/g, "");
   if (d.startsWith("0090")) d = d.slice(4);
   else if (d.startsWith("90") && d.length > 10) d = d.slice(2);
   d = d.replace(/^0+/, "");
-  if (!d) return "";
-  return `${PHONE_PREFIX} ${d}`;
+  return d.slice(0, 10);
+}
+
+/**
+ * Yazarken canlı biçimlendirme: `532 123 45 67` (3-3-2-2).
+ *
+ * Türkiye'de numaralar bu öbekleme ile okunur ve yazılır; 10 haneyi bitişik
+ * göstermek hem okunmaz hem de yazarken hata yapıldığını fark etmeyi
+ * zorlaştırır. ⚠️ Yalnız BOŞLUK eklendiği için imleç sondayken (yazmanın
+ * normal hâli) yerinden oynamaz.
+ */
+export function formatTrPhone(raw: string): string {
+  const d = trPhoneDigits(raw);
+  return [d.slice(0, 3), d.slice(3, 6), d.slice(6, 8), d.slice(8, 10)]
+    .filter(Boolean)
+    .join(" ");
 }
 
 /** Public "request a demo / free trial" form on the landing page. */
@@ -118,10 +148,10 @@ export function LeadForm() {
           type="tel"
           inputMode="tel"
           autoComplete="tel-national"
-          maxLength={20}
+          maxLength={13}
           placeholder="532 123 45 67 (opsiyonel)"
           value={form.phone}
-          onChange={(e) => set("phone", e.target.value)}
+          onChange={(e) => set("phone", formatTrPhone(e.target.value))}
           className="h-full flex-1 rounded-r-md bg-transparent px-3 outline-none placeholder:text-muted-foreground"
         />
       </div>

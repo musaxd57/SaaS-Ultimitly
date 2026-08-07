@@ -1,7 +1,7 @@
 // @vitest-environment jsdom
 import { describe, it, expect, beforeEach, afterEach, vi } from "vitest";
 import { render, screen, cleanup, fireEvent } from "@testing-library/react";
-import { LeadForm, normalizeTrPhone } from "@/components/marketing/lead-form";
+import { LeadForm, normalizeTrPhone, formatTrPhone } from "@/components/marketing/lead-form";
 
 // ---------------------------------------------------------------------------
 // DEMO FORMU — sınırlar ve biçim (kullanıcı kararı, 2026-07-31).
@@ -150,5 +150,42 @@ describe("telefon normalleştirme", () => {
     // Amaç adayı reddetmek değil: satış ekibi arayacak. Yanlış numarayı
     // düzeltmek, geçerli numarayı reddetmekten daha değerli.
     expect(normalizeTrPhone("532")).toBe("+90 532");
+  });
+});
+
+describe("telefon — canlı biçimlendirme ve 10 hane sınırı", () => {
+  it("3-3-2-2 öbeklenir (Türkiye'de numara böyle okunur)", () => {
+    expect(formatTrPhone("5321234567")).toBe("532 123 45 67");
+    // Yazarken ara adımlar da bozulmamalı.
+    expect(formatTrPhone("5")).toBe("5");
+    expect(formatTrPhone("5321")).toBe("532 1");
+    expect(formatTrPhone("53212345")).toBe("532 123 45");
+  });
+
+  it("🚨 10 haneden fazlası KABUL EDİLMEZ", () => {
+    // Alan yalnız `maxLength` ile sınırlıydı ve 19 haneli bir dizi girilebiliyordu.
+    // O kayıt operatör panelindeki `wa.me/<rakamlar>` bağlantısına giriyor →
+    // ölü adres, yani gelen lead HİÇ ARANAMIYOR.
+    expect(formatTrPhone("4444444444444444444")).toBe("444 444 44 44");
+    expect(normalizeTrPhone("4444444444444444444")).toBe("+90 4444444444");
+  });
+
+  it("yapıştırılan her önek biçimi aynı sonuca iner (ters yön)", () => {
+    for (const raw of [
+      "0532 123 45 67",
+      "+90 532 123 45 67",
+      "0090 532 123 45 67",
+      "905321234567",
+      "(532) 123-45-67",
+    ]) {
+      expect(formatTrPhone(raw), raw).toBe("532 123 45 67");
+      expect(normalizeTrPhone(raw), raw).toBe("+90 5321234567");
+    }
+  });
+
+  it("boş girdi BOŞ kalır — '+90' diye sahte kayıt üretilmez", () => {
+    expect(formatTrPhone("")).toBe("");
+    expect(normalizeTrPhone("")).toBe("");
+    expect(normalizeTrPhone("abc")).toBe("");
   });
 });
