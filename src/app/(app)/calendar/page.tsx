@@ -1,9 +1,10 @@
 import Link from "next/link";
-import { ChevronLeft, ChevronRight, LogIn, LogOut } from "lucide-react";
+import { CalendarDays, ChevronLeft, ChevronRight, LogIn, LogOut } from "lucide-react";
 import { requireAuth } from "@/lib/auth";
 import { prisma } from "@/lib/db";
 import { orgTimezone } from "@/lib/timezone";
 import { PageHeader } from "@/components/page-header";
+import { EmptyState } from "@/components/empty-state";
 import { Card, CardContent } from "@/components/ui/card";
 import { cn } from "@/lib/utils";
 
@@ -226,9 +227,12 @@ export default async function CalendarPage({
               kırpma yok — telefonda takvimi yatay sürüklemek gerekmez. */}
           <div className="md:hidden">
             {agendaDays.length === 0 ? (
-              <p className="py-6 text-center text-sm text-muted-foreground">
-                Bu ayda giriş veya çıkış yok.
-              </p>
+              <EmptyState
+                icon={CalendarDays}
+                title="Bu ayda giriş veya çıkış yok"
+                description="Rezervasyon geldikçe bu listede görünecek."
+                className="py-6"
+              />
             ) : (
               <ul className="divide-y divide-border">
                 {agendaDays.map(({ dayNum, key, info }) => {

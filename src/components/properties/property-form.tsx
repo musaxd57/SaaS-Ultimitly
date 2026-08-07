@@ -3,6 +3,7 @@
 import { useState } from "react";
 import { FormError } from "@/components/form-error";
 import { useRouter } from "next/navigation";
+import { toast } from "@/lib/toast";
 import { Loader2 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -72,7 +73,12 @@ export function PropertyForm({
         setError(data.error ?? "İşlem başarısız oldu");
         return;
       }
+      // ⚠️ DÜZENLEME MODUNDA GERİ BİLDİRİM YOKTU: başarı yalnız `router.refresh()`
+      // idi ve aynı değerler yeniden çizildiği için EKRANDA HİÇBİR ŞEY
+      // DEĞİŞMİYORDU — host "Kaydet"e basıyor, hiçbir şey olmuyor sanıyor ve
+      // tekrar basıyordu. Oluşturmada yönlendirme zaten kendi onayı.
       if (mode === "create") router.push(`/properties/${data.id}`);
+      else toast.success("Kaydedildi.");
       router.refresh();
     } catch {
       setError("Bağlantı hatası.");

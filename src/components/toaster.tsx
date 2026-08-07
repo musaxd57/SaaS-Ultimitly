@@ -94,7 +94,10 @@ export function Toaster() {
             // Hata KESİNTİ ile duyurulur, diğerleri nazikçe.
             role={t.variant === "error" ? "alert" : "status"}
             className={cn(
-              "pointer-events-auto flex w-full max-w-sm items-start gap-2 rounded-lg border px-3 py-2.5 text-sm shadow-lg",
+              // `lxt-in`: giriş animasyonu. Toast'lar sert POP ediyordu; panelde
+              // zaten tanımlı `fade-up` keyframe'i kullanılmıyordu. Reduced-motion
+              // bloğu globals.css'te mevcut ve bunu da kapsıyor.
+              "lxt-in pointer-events-auto flex w-full max-w-sm items-start gap-2 rounded-lg border px-3 py-2.5 text-sm shadow-lg",
               STYLES[t.variant],
             )}
           >

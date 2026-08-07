@@ -470,3 +470,10 @@ html {
   .lxo-boost, .lxo-pop, .lxo-launch { animation: none; }
   .lxo-bar { transition: none; }
 }
+
+/* Toast girişi — `fade-up` keyframe'i zaten vardı ama hiç kullanılmıyordu:
+   bildirimler ekrana SERT pop ediyordu. Reduced-motion bloğu aşağıda. */
+.lxt-in { animation: fade-up 220ms cubic-bezier(0.16, 1, 0.3, 1) both; }
+@media (prefers-reduced-motion: reduce) {
+  .lxt-in { animation: none; }
+}

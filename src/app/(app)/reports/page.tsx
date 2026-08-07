@@ -159,7 +159,7 @@ export default async function ReportsPage() {
           <CardContent className="space-y-2">
             {score.hasData ? (
               <>
-                <p className="text-3xl font-semibold">{score.score}/100</p>
+                <p className="text-2xl font-semibold tabular-nums tracking-tight">{score.score}/100</p>
                 <p className="text-sm text-muted-foreground">{score.label}</p>
                 <div className="mt-3 space-y-1.5 border-t border-border pt-3 text-sm">
                   {score.breakdown.responseRate !== null ? (
@@ -333,7 +333,7 @@ export default async function ReportsPage() {
                   >
                     <div className="grid size-[68px] place-items-center rounded-full bg-card text-center">
                       <div>
-                        <div className="text-xl font-bold leading-none">%{overallOccupancy}</div>
+                        <div className="text-2xl font-semibold tabular-nums leading-none tracking-tight">%{overallOccupancy}</div>
                         <div className="mt-0.5 text-[10px] text-muted-foreground">ortalama</div>
                       </div>
                     </div>

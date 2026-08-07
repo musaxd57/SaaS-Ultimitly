@@ -3,8 +3,9 @@
 import { useRef, useState, useTransition } from "react";
 import { confirmDialog } from "@/lib/confirm";
 import { toast } from "@/lib/toast";
+import { EmptyState } from "@/components/empty-state";
 import { useRouter } from "next/navigation";
-import { Loader2, Trash2, User, Clock, CheckSquare, Camera, FileText, ChevronDown, ChevronRight, Share2, Copy, Check } from "lucide-react";
+import { Loader2, Trash2, User, Clock, CheckSquare, ListChecks, Camera, FileText, ChevronDown, ChevronRight, Share2, Copy, Check } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
 import { Select } from "@/components/ui/select";
 import { TASK_STATUS, TASK_TYPE, PRIORITY } from "@/lib/constants";
@@ -587,7 +588,12 @@ export function TaskBoard({ tasks, canManage = true }: { tasks: TaskCardData[]; 
       ) : null}
 
       {visible.length === 0 ? (
-        <p className="py-8 text-center text-sm text-muted-foreground">Bu filtrede görev yok.</p>
+        <EmptyState
+          icon={ListChecks}
+          title="Bu filtrede görev yok"
+          description="Filtreyi değiştirin ya da yeni bir görev ekleyin."
+          className="py-6"
+        />
       ) : (
         <div className="grid grid-cols-1 items-start gap-4 lg:grid-cols-3">
           {COLUMNS.map((col) => {

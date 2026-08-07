@@ -44,7 +44,18 @@ function treeText(root: unknown): string {
       for (const n of node) collect(n);
       return;
     }
-    if (React.isValidElement(node)) collect((node.props as { children?: unknown }).children);
+    if (React.isValidElement(node)) {
+      const props = node.props as Record<string, unknown>;
+      collect(props.children);
+      // ⚠️ METİN TAŞIYAN PROP'LAR DA TOPLANIR. Ortak bileşenler (`EmptyState`,
+      // `PageHeader`) metni `children` olarak DEĞİL `title`/`description`
+      // prop'u olarak alıyor; yalnız `children` gezilirse bir boş durum
+      // bileşene çevrildiği anda test SESSİZCE metni bulamaz hale gelir —
+      // tam da bu oldu (takvim boş durumu `EmptyState`'e taşındı).
+      for (const key of ["title", "description", "label", "value"]) {
+        if (typeof props[key] === "string") parts.push(props[key] as string);
+      }
+    }
   };
   collect(root);
   // list-pagination-pages.test.ts ile aynı: bitişik metin düğümleri ARADA

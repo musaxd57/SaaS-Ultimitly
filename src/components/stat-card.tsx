@@ -36,7 +36,7 @@ export function StatCard({
       <div className="flex items-start justify-between gap-3">
         <div className="space-y-1">
           <p className="text-sm font-medium text-muted-foreground">{label}</p>
-          <p className="text-2xl font-semibold tracking-tight text-foreground">{value}</p>
+          <p className="text-2xl font-semibold tabular-nums tracking-tight text-foreground">{value}</p>
           {hint ? <p className="text-xs text-muted-foreground">{hint}</p> : null}
         </div>
         {Icon ? (
