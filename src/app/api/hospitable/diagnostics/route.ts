@@ -1,4 +1,6 @@
 import { NextResponse } from "next/server";
+import { rateLimit } from "@/lib/rate-limit";
+import { tooManyRequests } from "@/lib/api";
 import { prisma } from "@/lib/db";
 import { withManage } from "@/lib/route-guard";
 import { listProperties, listReservations, listMessages } from "@/lib/hospitable";
@@ -30,6 +32,14 @@ function shapeOf(value: unknown, depth = 0): unknown {
 // Channel diagnostics expose the org's property list + internal ids — owner/
 // manager/operator only, never staff (withManage).
 export const GET = withManage(async (session) => {
+  // 🚨 HIZ LİMİTİ ŞART — KALDIRMA. Bu rota üç `fetchAllPages` çağrısı yapıyor
+  // (`MAX_PAGES=40` × 3) → istek başına ~120 Hospitable HTTP çağrısı. GET
+  // olduğu için tarayıcı yenilemesi/sekme geri gelmesiyle bile tetiklenir.
+  // Yakılan kota MESAJ SENKRONUYLA AYNI token'a ait: 429'lar `runScheduledSync`
+  // bütçesini yiyip GERÇEK misafir mesajlarının akmasını durdurabilirdi.
+  const limited = await rateLimit(`hospitable-diagnostics:${session.organizationId}`, 5, 15 * 60_000);
+  if (!limited.ok) return tooManyRequests(limited.retryAfter);
+
   const token = await getOrgHospitableToken(session.organizationId);
   if (!token) {
     return NextResponse.json({ ok: false, error: "Hospitable bağlı değil." });

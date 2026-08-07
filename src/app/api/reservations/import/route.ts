@@ -1,7 +1,8 @@
 import { prisma } from "@/lib/db";
+import { rateLimit } from "@/lib/rate-limit";
 import { toAmountDec } from "@/lib/money";
 import { isUniqueViolation } from "@/lib/db-errors";
-import { badRequest, jsonOk, readFormDataCapped, payloadTooLarge, BodyTooLargeError } from "@/lib/api";
+import { badRequest, jsonOk, readFormDataCapped, payloadTooLarge, BodyTooLargeError, tooManyRequests } from "@/lib/api";
 import { withManage } from "@/lib/route-guard";
 import { parseIcs } from "@/lib/import/ics";
 import { parseCsv, CsvParseError } from "@/lib/import/csv";
@@ -11,6 +12,16 @@ import { loadErasureGuard, acquireErasureLock } from "@/lib/erasure";
 const IMPORT_MAX_BYTES = 5 * 1024 * 1024;
 
 export const POST = withManage(async (session, req) => {
+  // 🚨 HIZ LİMİTİ ŞART — KALDIRMA. Bu rota SATIR BAŞINA ~9 DB gidiş-dönüşü
+  // yapıyor (dupe `findFirst` + advisory kilit + tombstone okuması + `create`
+  // hepsi satır başına AYRI transaction'da, üstüne `createReservationTasks`'ın
+  // 3 sorgusu) ve ayrıştırıcı tavanı 10.000 satır → tek istek ~90.000 ardışık
+  // sorgu. Limitsizken bir deneme hesabı bunu ardışık ve eşzamanlı tekrarlayıp
+  // PAYLAŞILAN Postgres'i tüm kiracılar için doyurabiliyordu.
+  // Org başına: gerçek bir içe aktarım nadir ve elle yapılır, 5/saat cömert.
+  const limited = await rateLimit(`reservation-import:${session.organizationId}`, 5, 60 * 60_000);
+  if (!limited.ok) return tooManyRequests(limited.retryAfter);
+
   // OOM guard: read the multipart body with a HARD byte cap (Content-Length pre-check
   // + streaming cancel-on-overflow) so a several-hundred-MB .csv/.ics — even with a
   // missing/lying Content-Length or a chunked body — can't buffer into the shared

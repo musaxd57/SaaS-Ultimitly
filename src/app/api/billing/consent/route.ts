@@ -4,7 +4,7 @@ import { withOwner } from "@/lib/route-guard";
 import { rateLimit, clientIp } from "@/lib/rate-limit";
 import { LEGAL_VERSION } from "@/lib/legal-entity";
 import { LEGAL_TEXT_HASH } from "@/lib/legal-text-hash";
-import { paddlePriceToPlanCode } from "@/lib/payments/paddle";
+import { paddlePriceToPlanCode, paddlePriceCatalogConfigured } from "@/lib/payments/paddle";
 import { checkoutConsentSchema, zodFieldErrors } from "@/lib/validators";
 
 // Server-side record of the Ön Bilgilendirme + Mesafeli Satış acceptance at
@@ -36,6 +36,20 @@ export const POST = withOwner(async (session, req) => {
   // so the validated client value stands. Store the derived code when available.
   const derivedPlanCode = paddlePriceToPlanCode(parsed.data.priceId);
   if (derivedPlanCode && derivedPlanCode !== parsed.data.planCode) {
+    return badRequest({ planCode: "Plan fiyatı doğrulanamadı. Lütfen sayfayı yenileyip tekrar deneyin." });
+  }
+  // 🚨 KATALOG DIŞI FİYAT REDDEDİLİR — GEVŞETME.
+  // Yukarıdaki çapraz-kontrol YALNIZ harita bir değer döndürünce çalışıyordu;
+  // haritada OLMAYAN bir `priceId` sessizce geçiyordu ve zincirin sonunda
+  // webhook `planCode`'a hiç dokunmadan yalnız `status:"active"` yazıyordu.
+  // Kayıt her org'a `planCode:"pro"` trial satırı açtığı için sonuç şuydu:
+  // katalog dışı bir fiyatı ödeyen org KALICI "pro" yetkisi ve Pro limitleri
+  // alıyordu. Şema `priceId` için yalnız `z.string().max(128)` diyor, yani
+  // değer tamamen istemci kontrolünde. Ürünün kataloğu ÜÇ kalem; dördüncü bir
+  // fiyatla checkout açmak tanımı gereği tutarsızlıktır.
+  // ⚠️ Kural yalnız katalog YAPILANDIRILMIŞKEN uygulanır — env'siz yerel
+  // geliştirmede her fiyat "bilinmeyen" olurdu ve akış komple kilitlenirdi.
+  if (!derivedPlanCode && paddlePriceCatalogConfigured()) {
     return badRequest({ planCode: "Plan fiyatı doğrulanamadı. Lütfen sayfayı yenileyip tekrar deneyin." });
   }
 

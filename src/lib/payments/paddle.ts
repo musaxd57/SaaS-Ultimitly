@@ -100,8 +100,8 @@ export function verifyPaddleSignature(opts: {
  * Configured via env so the same code works in sandbox and production without a
  * rebuild. Unknown price → null (event is stored but no plan change is applied).
  */
-export function paddlePriceToPlanCode(priceId: string | null | undefined): string | null {
-  if (!priceId) return null;
+/** Fiyat→plan haritası (env'den). Ürünün TÜM kataloğu bu üç kalemdir. */
+function paddlePriceCatalog(): Record<string, string> {
   const map: Record<string, string> = {};
   const baslangic = process.env.PADDLE_PRICE_BASLANGIC?.trim();
   const pro = process.env.PADDLE_PRICE_PRO?.trim();
@@ -109,7 +109,24 @@ export function paddlePriceToPlanCode(priceId: string | null | undefined): strin
   if (baslangic) map[baslangic] = "free"; // "Başlangıç" — legacy code "free"
   if (pro) map[pro] = "pro";
   if (isletme) map[isletme] = "business";
-  return map[priceId] ?? null;
+  return map;
+}
+
+export function paddlePriceToPlanCode(priceId: string | null | undefined): string | null {
+  if (!priceId) return null;
+  return paddlePriceCatalog()[priceId] ?? null;
+}
+
+/**
+ * Katalog env'den YAPILANDIRILMIŞ mı? (en az bir fiyat id'si tanımlı)
+ *
+ * ⚠️ Bu soru, "bilinmeyen fiyatı reddet" kuralının ne zaman uygulanabileceğini
+ * belirler. Katalog hiç yapılandırılmamışsa (yerel geliştirme) her fiyat
+ * bilinmezdir ve reddetmek akışı komple kilitler; yapılandırılmışsa bilinmeyen
+ * bir fiyat GERÇEK bir tutarsızlıktır.
+ */
+export function paddlePriceCatalogConfigured(): boolean {
+  return Object.keys(paddlePriceCatalog()).length > 0;
 }
 
 /** Map a Paddle subscription status to our local Subscription.status vocabulary. */

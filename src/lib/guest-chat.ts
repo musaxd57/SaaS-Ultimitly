@@ -217,6 +217,17 @@ const SECRET_PATTERNS: RegExp[] = [
   // The value is quoted or digit-bearing (SSID / password), which the keyword
   // patterns above miss. Over-redaction stays the safe side (escalate, no leak).
   /(wi-?fi|wlan|kablosuz|ssid|internet\s*a[ğg])\w*[^.\n]{0,40}(["'«][^"'»\n]{2,}["'»]|[A-Za-z0-9!@#._-]*\d[A-Za-z0-9!@#._-]{3,})/i,
+  // ⚠️ GİRİŞ İSMİ + 4+ ARDIŞIK RAKAM — kod kelimesi OLMADAN (denetim 08-07).
+  // Yukarıdaki iki kalıp da bir "kod/şifre/pin" KELİMESİ arıyordu; host
+  // "Kapı: 4590" ya da "Anahtar kutusu 7788" yazdığında hiçbiri eşleşmiyordu.
+  // Kategori elemesi de kurtarmıyor: elle ekleme formunun VARSAYILANI `general`
+  // ve `wifi`/`checkin` dışındaki her kategori isteme giriyor.
+  //
+  // 🚨 EŞİK 4 RAKAM, "herhangi bir sayı" DEĞİL — bu ayrım BİLİNÇLİ ve ÖLÇÜLDÜ.
+  // "Giriş saati 15:00" ve "Kapı 3. katta" QR concierge'in ASIL işidir; bunları
+  // elemek özelliği işe yaramaz hâle getirirdi. Erişim kodları pratikte 4-8
+  // ardışık rakamdır, saatler (15:00) ve kat numaraları o eşiği geçmez.
+  /(kap[ıi]|giri[şs]|anahtar\s*kutu|key\s*?box|keybox|door|lock|entry|gate)\w*[^.\n]{0,20}\d{4,}/i,
 ];
 
 /**

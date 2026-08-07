@@ -1,4 +1,5 @@
 import { prisma } from "@/lib/db";
+import { identityEmailShell } from "@/lib/email-shell";
 import { reportError } from "@/lib/report-error";
 import { emailService } from "@/lib/email";
 import { badRequest, jsonOk, tooManyRequests } from "@/lib/api";
@@ -35,14 +36,21 @@ export const POST = withManage(async (session) => {
     return badRequest({ _: "Uyarı e-postası ayarlı değil. Önce yukarıdaki alana bir e-posta girin." });
   }
 
-  const html =
-    `<div style="font-family:sans-serif;line-height:1.5">` +
-    `<h2>✅ Lixus AI — Test e-postası</h2>` +
-    `<p>Bu bir test mesajıdır. Bunu gördüyseniz, acil bildirim e-postalarınız <b>çalışıyor</b> 🎉</p>` +
-    `<p>Artık bir misafir şikayet/iade yazdığında bu adrese anında uyarı gelecek.</p>` +
-    `<p style="color:#888;font-size:12px">— Lixus AI</p></div>`;
+  // ⚠️ ORTAK KABUK KULLANILIR — elle inline HTML YAZILMAZ. Bu mail eskiden
+  // kendi HTML'ini kuruyordu ve ürünün geri kalanına benzemiyordu; "test
+  // mesajıdır 🎉" tonu, host'un gördüğü ilk teknik e-postayı debug artığı gibi
+  // gösteriyordu. Özellik KALDIRILMADI çünkü işlevi gerçek: alarm boru hattının
+  // çalıştığını GERÇEK bir şikayet gelmeden önce kanıtlıyor. Değişen tek şey,
+  // artık ürün gibi görünmesi ve ne olduğunu düz anlatması.
+  const html = identityEmailShell({
+    heading: "Acil bildirim adresiniz çalışıyor",
+    intro:
+      "Bu adres Lixus AI'da <strong style=\"color:#0f172a\">acil bildirim adresi</strong> olarak kayıtlı. Bir misafir şikayet, iade ya da güvenlik konusu yazdığında uyarı buraya gelecek.",
+    footnote:
+      "Bu mesajı Ayarlar &rsaquo; Bağlantılar'daki &ldquo;Test e-postası gönder&rdquo; düğmesi oluşturdu. Adresi istediğiniz zaman aynı yerden değiştirebilirsiniz.",
+  });
 
-  const result = await emailService.sendReporting(to, "✅ Lixus AI — Test e-postası", html);
+  const result = await emailService.sendReporting(to, "Lixus AI — Acil bildirim adresi doğrulandı", html);
   if (result.ok) return jsonOk({ sent: true, to });
   // ⚠️ HAM SAĞLAYICI METNİ KİRACIYA GİTMEZ. `result.error` çevrilmemiş
   // Resend/nodemailer çıktısıdır ve posta altyapısının host/port bilgisini
