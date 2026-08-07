@@ -91,6 +91,60 @@ describe("plan change routes (gated, PATCH /subscriptions)", () => {
     expect(updateMock).not.toHaveBeenCalled();
   });
 
+  // ── YILLIK ABONE KADEME DEĞİŞTİREMEZ (08-07 (2)) ─────────────────────────
+  //
+  // 🚨 Bu kapı SUNUCUDA. Ayarlar kartındaki `disabled={… || annual}` seçicinin
+  // durumuna bakıyor ve seçici her yüklemede "month" ile başlıyor → yıllık
+  // abone için buton ZATEN AKTİF geliyordu. `priceIdForPlanCode` yalnız AYLIK
+  // id döndürdüğü için tıklama, peşin ödenmiş yıllık aboneliği aylık fiyata
+  // taşırdı. İstemci kapısı kimseyi korumuyordu.
+  describe("yıllık abonelik koruması", () => {
+    const withAnnualEnv = () => {
+      vi.stubEnv("PADDLE_PRICE_BASLANGIC_YILLIK", "pri_bas_yil");
+      vi.stubEnv("PADDLE_PRICE_PRO_YILLIK", "pri_pro_yil");
+      vi.stubEnv("PADDLE_PRICE_ISLETME_YILLIK", "pri_is_yil");
+    };
+
+    it("YILLIK fiyattaki abone reddedilir — Paddle'a PATCH GİTMEZ", async () => {
+      withAnnualEnv();
+      getPriceMock.mockResolvedValue("pri_pro_yil"); // müşteri yıllık Pro'da
+      const res = await PREVIEW(req({ planCode: "business" }), ctx);
+      expect(res.status).toBe(400);
+      // Sebep `fields.error` altında (badRequest sözleşmesi) ve istemci artık
+      // ORAYI okuyor — jenerik "Doğrulama hatası" müşteriyi aynı butona
+      // sonsuza kadar bastırırdı.
+      expect((await res.json()).fields.error).toMatch(/Yıllık aboneliklerde/);
+      expect(previewMock).not.toHaveBeenCalled();
+      expect(updateMock).not.toHaveBeenCalled();
+    });
+
+    it("AYLIK fiyattaki abone normal şekilde geçer (ters yön — kapı fazla geniş değil)", async () => {
+      withAnnualEnv();
+      getPriceMock.mockResolvedValue("pri_pro"); // müşteri aylık Pro'da
+      const res = await PREVIEW(req({ planCode: "business" }), ctx);
+      expect(res.status).toBe(200);
+      expect(previewMock).toHaveBeenCalled();
+    });
+
+    it("🚨 Paddle OKUNAMAZSA reddedilir (FAIL-CLOSED)", async () => {
+      // Yanlış dönemde faturalama geri alınması zor bir PARA hatası; engellenen
+      // plan değişimi geçici bir sürtünme. Belirsizlikte durmak doğru yön.
+      withAnnualEnv();
+      getPriceMock.mockResolvedValue(null);
+      const res = await PREVIEW(req({ planCode: "business" }), ctx);
+      expect(res.status).toBe(400);
+      expect(previewMock).not.toHaveBeenCalled();
+    });
+
+    it("yıllık env YOKKEN Paddle'a HİÇ sorulmaz (davranış birebir eski)", async () => {
+      // Yıllık satmayan deployment'a ne gecikme ne yeni arıza yüzeyi eklenmeli.
+      getPriceMock.mockResolvedValue("pri_pro_yil"); // önemsiz — sorulmamalı
+      const res = await PREVIEW(req({ planCode: "business" }), ctx);
+      expect(res.status).toBe(200);
+      expect(getPriceMock).not.toHaveBeenCalled();
+    });
+  });
+
   it("preview: pro→business is an upgrade (immediate proration)", async () => {
     const res = await PREVIEW(req({ planCode: "business" }), ctx);
     expect(res.status).toBe(200);

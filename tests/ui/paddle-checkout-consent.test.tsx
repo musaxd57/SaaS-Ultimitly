@@ -7,7 +7,17 @@ vi.mock("next/navigation", () => ({ useRouter: () => ({ refresh: vi.fn() }) }));
 import { PaddlePlans } from "@/components/settings/paddle-plans";
 
 const plans = [
-  { code: "pro", name: "Pro", priceMinor: 89900, currency: "TRY", propertyLimit: 7, priceId: "pri_pro" },
+  {
+    code: "pro",
+    name: "Pro",
+    priceMinor: 89900,
+    annualPriceMinor: 899000,
+    annualMonthlyEquivalentMinor: 74917,
+    currency: "TRY",
+    propertyLimit: 7,
+    priceId: "pri_pro",
+    annualPriceId: "pri_pro_yil",
+  },
 ];
 
 function renderPlans() {

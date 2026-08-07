@@ -24,6 +24,7 @@ import {
 import { buttonVariants } from "@/components/ui/button";
 import { BrandMark } from "@/components/brand";
 import { LeadForm } from "@/components/marketing/lead-form";
+import { PricingTiers } from "@/components/marketing/pricing-tiers";
 import { StructuredData } from "@/components/marketing/structured-data";
 import { Reveal } from "@/components/marketing/reveal";
 import { DemoFrame } from "@/components/marketing/demo-frame";
@@ -32,7 +33,7 @@ import { NavScroll } from "@/components/marketing/nav-scroll";
 import { MobileNav } from "@/components/marketing/mobile-nav";
 import { LixusBuilding } from "@/components/marketing/lixus-building";
 import { cn, formatMinor } from "@/lib/utils";
-import { defaultPlans } from "@/lib/billing/plans";
+import { defaultPlans, annualPriceMinor, annualMonthlyEquivalentMinor } from "@/lib/billing/plans";
 import { appLocale } from "@/lib/app-config";
 
 // Public marketing landing page (logged-out visitors). Turkish-first, sells the
@@ -272,7 +273,7 @@ const FAQS = [
   },
   {
     q: "İstediğim zaman durdurabilir miyim?",
-    a: "Evet. Otomatik gönderimi tek tıkla kapatabilir, aboneliğinizi dilediğiniz zaman sonlandırabilirsiniz. Taahhüt yok.",
+    a: "Evet. Otomatik gönderimi tek tıkla kapatabilir, aboneliğinizi dilediğiniz zaman sonlandırabilirsiniz. Aylık planda taahhüt yoktur; yıllık planı seçerseniz bedel bir yıllık dönem için peşin alınır.",
   },
   {
     q: "Misafir, yanıtın yapay zekâdan geldiğini anlar mı?",
@@ -326,10 +327,9 @@ const PANELS = [
 export function LandingPage() {
   // Prices come from the SAME deployment config the settings checkout reads, so
   // the public page and the paid flow can never quote different numbers.
+  // (Fiyat dizgileri artık `PricingTiers`'a prop olarak, aşağıda tek yerde
+  // biçimlendiriliyor — bu harita kullanılmıyordu.)
   const locale = appLocale();
-  const priceByCode = new Map(
-    defaultPlans().map((p) => [p.code, formatMinor(p.priceMinor, p.currency, locale)]),
-  );
   // Optional WhatsApp contact — set NEXT_PUBLIC_WHATSAPP to a BUSINESS number
   // (digits only, with country code). If unset, only the e-mail contact shows.
   const whatsapp = process.env.NEXT_PUBLIC_WHATSAPP?.replace(/\D/g, "");
@@ -701,46 +701,30 @@ export function LandingPage() {
           <Reveal as="h2" className="text-center text-3xl font-bold tracking-tight">Basit, şeffaf fiyatlandırma</Reveal>
           <Reveal as="p" delay={80} className="mx-auto mt-3 max-w-xl text-center text-muted-foreground">
             <strong className="text-foreground">14 gün boyunca tüm Pro özellikleri ücretsiz</strong> — kart
-            istemeden. Beğenirseniz daire sayınıza göre seçin; daire başına değil, sabit aylık. Taahhüt yok.
+            istemeden. Beğenirseniz daire sayınıza göre seçin; daire başına değil, sabit ücret. Aylık planda dilediğiniz zaman iptal edebilirsiniz.
           </Reveal>
-          <div className="mt-12 grid gap-6 md:grid-cols-3">
-            {TIERS.map((t, i) => (
-              <Reveal
-                key={t.name}
-                delay={i * 90}
-                className={cn(
-                  "card-lift flex flex-col rounded-xl border bg-card p-6",
-                  t.highlight ? "border-primary shadow-lg ring-1 ring-primary" : "border-border",
-                )}
-              >
-                {t.highlight ? (
-                  <span className="mb-3 inline-flex w-fit rounded-full bg-primary px-2.5 py-0.5 text-xs font-medium text-primary-foreground">
-                    En popüler
-                  </span>
-                ) : null}
-                <h3 className="text-lg font-semibold">{t.name}</h3>
-                <p className="mt-1 text-sm text-muted-foreground">{t.desc}</p>
-                <div className="mt-4 flex items-baseline gap-1">
-                  <span className="text-3xl font-bold">{priceByCode.get(t.planCode) ?? "—"}</span>
-                  <span className="text-sm text-muted-foreground">{t.unit}</span>
-                </div>
-                <ul className="mt-6 flex-1 space-y-2.5">
-                  {t.features.map((feat) => (
-                    <li key={feat} className="flex items-start gap-2 text-sm">
-                      <Check className="mt-0.5 size-4 shrink-0 text-primary" aria-hidden="true" />
-                      <span>{feat}</span>
-                    </li>
-                  ))}
-                </ul>
-                <Link
-                  href="/register"
-                  className={cn(buttonVariants({ variant: t.highlight ? "default" : "outline" }), "mt-6 w-full")}
-                >
-                  Başla
-                </Link>
-              </Reveal>
-            ))}
-          </div>
+          <PricingTiers
+            tiers={TIERS}
+            annualAvailable={
+              Boolean(process.env.PADDLE_PRICE_BASLANGIC_YILLIK?.trim()) &&
+              Boolean(process.env.PADDLE_PRICE_PRO_YILLIK?.trim()) &&
+              Boolean(process.env.PADDLE_PRICE_ISLETME_YILLIK?.trim())
+            }
+            prices={Object.fromEntries(
+              defaultPlans().map((p) => [
+                p.code,
+                {
+                  monthly: formatMinor(p.priceMinor, p.currency, locale),
+                  monthlyEquivalent: formatMinor(
+                    annualMonthlyEquivalentMinor(p.priceMinor),
+                    p.currency,
+                    locale,
+                  ),
+                  annualTotal: formatMinor(annualPriceMinor(p.priceMinor), p.currency, locale),
+                },
+              ]),
+            )}
+          />
           {/* Fiyatın NE OLDUĞU ve NEYİ KAPSAMADIĞI, kartların hemen altında.
               (a) KDV DAHİL: Paddle'a giden fiyat vergi-dahil yapılandırılmış —
                   plan-değişim önizlemesindeki tutar Paddle'ın `grand_total`'ı

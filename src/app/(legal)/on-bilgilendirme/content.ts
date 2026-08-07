@@ -47,7 +47,7 @@ export const SECTIONS: Section[] = [
   {
     title: "6. Hizmet Bedeli, Vergiler ve Toplam Tutar",
     body: [
-      "Tüm planlar, fiyatlandırma sayfasında belirtilen aylık bedel üzerinden ücretlendirilir. İlan edilen fiyatlara vergiler dâhildir; ödeme adımında tahsil edilecek toplam tutar, vergiler dâhil olarak açıkça gösterilir.",
+      "Tüm planlar, fiyatlandırma sayfasında belirtilen ve seçilen faturalandırma dönemine (aylık veya yıllık) ait bedel üzerinden ücretlendirilir. Yıllık planlarda bedelin tamamı peşin tahsil edilir ve abonelik bir yıllık dönem için yenilenir. İlan edilen fiyatlara vergiler dâhildir; ödeme adımında tahsil edilecek toplam tutar, vergiler dâhil olarak açıkça gösterilir.",
       "Yeni hesaplara, ücretli bir plan seçmeden önce 14 gün ücretsiz Pro denemesi sunulur; deneme için kart bilgisi alınmaz.",
     ],
   },

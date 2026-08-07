@@ -93,3 +93,54 @@ export function defaultPlans(env: NodeJS.ProcessEnv = process.env): PlanDef[] {
 export function planByCode(code: string, env: NodeJS.ProcessEnv = process.env): PlanDef | undefined {
   return defaultPlans(env).find((p) => p.code === code);
 }
+
+// ---------------------------------------------------------------------------
+// YILLIK FATURALANDIRMA
+//
+// Ürün sözü: "yıllıkta 2 ay bedava" → 12 ay hizmet, 10 ay ücret.
+//
+// 🚨 `defaultPlans()` GENİŞLETİLMEZ — yıllık için oraya kalem EKLEME.
+// O dizi bir YETKİ KATALOĞUDUR ve üç yerde birden dönülüyor: `planChangeMode`
+// (kademe karşılaştırması), `settings/page.tsx` (kart listesi) ve JSON-LD
+// `offers`. Yıllık kalemler eklenirse kademe karşılaştırması altı elemanlı
+// olur, arayüz altı kart çizer ve yapılandırılmış veriye üç hayalet teklif
+// düşer. Yıllık bir FATURA DÖNEMİDİR, ayrı bir plan değil.
+//
+// ⚠️ Fiyat TÜRETİLİR, ayrı env'e BAĞLANMAZ. Gerekçe: "2 ay bedava" cümlesi ile
+// ekrandaki sayı aynı kaynaktan gelmeli. Ayrı bir `PLAN_PRICE_*_YILLIK_MINOR`
+// env'i eklenseydi biri diğerinden habersiz değişebilir ve site "2 ay bedava"
+// derken 11 aylık bir fiyat gösterebilirdi. Bu ilişki test-pinli.
+// ⚠️ Buradaki sayı YALNIZCA GÖSTERİMDİR — para Paddle'daki fiyattan tahsil
+// edilir. Paddle'daki yıllık fiyat aylığın 10 katı DEĞİLSE ekrandaki sayı
+// yanlış olur; ikisini birlikte değiştir.
+// ---------------------------------------------------------------------------
+
+/** Yıllık abonelikte ÖDENEN ay sayısı (12 ay hizmet − 2 ay hediye). */
+export const ANNUAL_PAID_MONTHS = 10;
+
+/** Bir aylık fiyattan yıllık toplamı türet (minor birim, tam sayı kalır). */
+export function annualPriceMinor(monthlyMinor: number): number {
+  return monthlyMinor * ANNUAL_PAID_MONTHS;
+}
+
+/**
+ * Yıllık ödeyen müşterinin AYLIK karşılığı — kartlarda kıyas için.
+ *
+ * ⚠️ TAM LİRAYA yuvarlanır, kuruşa değil. 10/12 tam bölünmüyor ve ham değer
+ * "₺749,17" gibi çıkıyor; bir BAŞLIK fiyatında kuruş göstermek hem çirkin hem
+ * de kıyası zorlaştırıyor (yanındaki aylık fiyat "₺899", kuruşsuz).
+ * ⚠️ Bu bir YAKLAŞIKTIR ve tek başına gösterilmesi YASAKTIR: ₺749 × 12 = ₺8.988
+ * iken gerçekte ₺8.990 tahsil ediliyor. Kartlardaki "yıllık … olarak
+ * faturalanır" alt satırı bu farkı kapatan şeydir — yuvarlama gizlenmiyor,
+ * kesin tutar hemen altında yazıyor. Alt satırı kaldıran, bu fonksiyonu da
+ * kaldırmak zorundadır (test-pinli).
+ */
+export function annualMonthlyEquivalentMinor(monthlyMinor: number): number {
+  const perMonth = annualPriceMinor(monthlyMinor) / 12;
+  return Math.round(perMonth / 100) * 100; // en yakın tam liraya
+}
+
+/** Yıllık seçildiğinde cepte kalan tutar (minor birim). */
+export function annualSavingsMinor(monthlyMinor: number): number {
+  return monthlyMinor * 12 - annualPriceMinor(monthlyMinor);
+}

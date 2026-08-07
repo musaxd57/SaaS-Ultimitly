@@ -5,6 +5,11 @@ import { useRouter } from "next/navigation";
 import Link from "next/link";
 import { LEGAL_VERSION } from "@/lib/legal-entity";
 import { formatMinor } from "@/lib/utils";
+import {
+  BillingPeriodToggle,
+  BillingPeriodAnnouncer,
+  type BillingPeriod,
+} from "@/components/billing-period-toggle";
 
 // Paddle.js is loaded from Paddle's CDN at runtime (no npm dependency, matching
 // the rest of the dependency-free billing code). Minimal typings for the bits we
@@ -68,9 +73,15 @@ export interface PlanOption {
   code: string;
   name: string;
   priceMinor: number;
+  /** Yıllık toplam (aylık × 10 — "2 ay bedava"). */
+  annualPriceMinor: number;
+  /** Yıllık ödeyenin aylık karşılığı — kartta kıyas için gösterilir. */
+  annualMonthlyEquivalentMinor: number;
   currency: string;
   propertyLimit: number | null;
   priceId: string; // empty when not configured in env
+  /** Yıllık Paddle fiyat id'si; env yoksa boş. */
+  annualPriceId: string;
 }
 
 /**
@@ -92,6 +103,7 @@ export function PaddlePlans({
   trialDaysLeft = null,
   manageable = false,
   planChangeEnabled = false,
+  annualAvailable = false,
   plans,
   locale,
   currency,
@@ -115,6 +127,8 @@ export function PaddlePlans({
    *  a Paddle sub. Turns the locked cards into real upgrade/downgrade buttons that
    *  preview the prorated charge, then apply via PATCH /subscriptions. */
   planChangeEnabled?: boolean;
+  /** Üç kademenin de yıllık fiyat id'si env'de var mı? Yoksa seçici çizilmez. */
+  annualAvailable?: boolean;
   plans: PlanOption[];
   /** Deployment display locale (server-resolved: appLocale()). Digit grouping and
    *  symbol placement only — says nothing about which currency is charged. */
@@ -141,6 +155,8 @@ export function PaddlePlans({
   // Distance-selling consent: the buyer must accept the Ön Bilgilendirme Formu +
   // Mesafeli Satış Sözleşmesi BEFORE a paid checkout opens. Gates every plan button.
   const [accepted, setAccepted] = useState(false);
+  const [period, setPeriod] = useState<BillingPeriod>("month");
+  const annual = annualAvailable && period === "year";
   // In-flight guard: while the consent record is being written (and checkout
   // opened) the plan buttons are disabled, so a double-click can't fire twice.
   const [busy, setBusy] = useState(false);
@@ -289,6 +305,7 @@ export function PaddlePlans({
       });
       const data = (await res.json().catch(() => ({}))) as {
         error?: string;
+        fields?: Record<string, string>;
         mode?: "upgrade" | "downgrade";
         targetName?: string;
         targetMonthlyMinor?: number;
@@ -297,7 +314,16 @@ export function PaddlePlans({
         previewToken?: string;
       };
       if (!res.ok || !data.mode || !data.previewToken) {
-        setError(data.error ?? "Plan bilgisi alınamadı. Lütfen tekrar deneyin.");
+        // ⚠️ SEBEP `fields.error` ALTINDA. `badRequest({ error })` gövdeyi
+        // `{error:"Doğrulama hatası", fields:{error:"…"}}` diye kuruyor; yalnız
+        // `data.error` okunduğunda kullanıcı HER retde jenerik "Doğrulama
+        // hatası" görüyordu — "Aboneliğiniz iptal edilmiş", "Zaten bu
+        // plandasınız" ve yıllık koruması dahil. Sebebi olmayan bir ret,
+        // müşteriyi aynı butona sonsuza kadar bastırır (checkout tarafında
+        // kapatılmış olan aynı kusur).
+        setError(
+          data.fields?.error ?? data.error ?? "Plan bilgisi alınamadı. Lütfen tekrar deneyin.",
+        );
         return;
       }
       setPending({
@@ -489,6 +515,25 @@ export function PaddlePlans({
         </div>
       ) : null}
 
+      {annualAvailable ? (
+        <div className="mb-3 flex flex-wrap items-center gap-2">
+          <BillingPeriodToggle
+            value={period}
+            /* Dönem değişince ön-bilgilendirme onayı SIFIRLANIR: onay,
+               fiyatı ve süresi farklı BAŞKA bir sözleşmeye verilmişti. */
+            onChange={(next) => {
+              setPeriod(next);
+              setAccepted(false);
+            }}
+            size="sm"
+          />
+          <span className="rounded-full bg-success/12 px-2 py-0.5 text-xs font-medium text-success">
+            2 ay bedava
+          </span>
+          <BillingPeriodAnnouncer value={period} />
+        </div>
+      ) : null}
+
       <div className="grid gap-3 sm:grid-cols-3">
         {plans.map((p, i) => {
           const isCurrent = isLockedCurrentPlan({
@@ -501,7 +546,17 @@ export function PaddlePlans({
           // Para birimi PLANDAN gelir; sembol JSX'e gömülü DEĞİL. Aksi hâlde
           // EUR fiyatlı bir deployment tutarı ₺ ile basardı — dönüşüm yapmadan
           // sembol değiştirmek yanlış beyandır.
-          const price = formatMinor(p.priceMinor, p.currency, locale);
+          // 🚨 Başlık sayısı YILLIKTA DA AYLIKTIR (landing ile aynı karar):
+          // yıllık toplamı başlığa koymak planı ilk bakışta 10 kat pahalı
+          // gösterir. Gerçekte tahsil edilen tutar alt satırda yazılı.
+          const price = formatMinor(
+            annual ? p.annualMonthlyEquivalentMinor : p.priceMinor,
+            p.currency,
+            locale,
+          );
+          // ⚠️ Checkout'a giden id DÖNEME GÖRE seçilir. Yanlış id göndermek
+          // müşteriyi başka bir fatura dönemine abone eder.
+          const activePriceId = annual ? p.annualPriceId : p.priceId;
           const limit = p.propertyLimit == null ? "Sınırsız daire" : `${p.propertyLimit} daireye kadar`;
           return (
             <div
@@ -516,6 +571,11 @@ export function PaddlePlans({
               <p className="mt-0.5 text-lg font-bold">
                 {price} <span className="text-xs font-normal text-muted-foreground">/ay</span>
               </p>
+              {annual ? (
+                <p className="text-xs text-muted-foreground">
+                  yıllık {formatMinor(p.annualPriceMinor, p.currency, locale)} olarak faturalanır
+                </p>
+              ) : null}
               <p className="mb-2 text-xs text-muted-foreground">{limit}</p>
               {isCurrent ? (
                 <button
@@ -528,7 +588,7 @@ export function PaddlePlans({
               ) : planChangeEnabled ? (
                 <button
                   type="button"
-                  disabled={changeBusy || !p.priceId || pending !== null}
+                  disabled={changeBusy || !p.priceId || pending !== null || annual}
                   onClick={() => void startChange(p.code)}
                   className="inline-flex h-8 w-full items-center justify-center rounded-md bg-primary px-3 text-xs font-medium text-primary-foreground hover:bg-primary/90 disabled:opacity-50"
                 >
@@ -537,8 +597,8 @@ export function PaddlePlans({
               ) : (
                 <button
                   type="button"
-                  disabled={!ready || !p.priceId || !accepted || busy || manageable}
-                  onClick={() => openCheckout(p.code, p.priceId)}
+                  disabled={!ready || !activePriceId || !accepted || busy || manageable}
+                  onClick={() => openCheckout(p.code, activePriceId)}
                   className="inline-flex h-8 w-full items-center justify-center rounded-md bg-primary px-3 text-xs font-medium text-primary-foreground hover:bg-primary/90 disabled:opacity-50"
                 >
                   {manageable

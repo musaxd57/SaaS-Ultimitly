@@ -4,6 +4,7 @@ import { createHmac, randomBytes, timingSafeEqual } from "crypto";
 import { Prisma } from "@prisma/client";
 import { prisma } from "@/lib/db";
 import { defaultPlans, planByCode, type PlanDef } from "./plans";
+import { getSubscriptionCurrentPriceId } from "@/lib/payments/paddle";
 
 // ---------------------------------------------------------------------------
 // In-app plan change (upgrade / downgrade). Paddle's hosted customer portal does
@@ -126,6 +127,50 @@ export async function resolvePlanChange(
       ok: false,
       error: "Aboneliğiniz iptal edilmiş. Plan değiştirmek yerine yeni bir abonelik başlatın.",
     };
+  }
+
+  // ── YILLIK ABONE KADEME DEĞİŞTİREMEZ (08-07 (2)) ───────────────────────────
+  //
+  // 🚨 BU KAPI SUNUCUDA OLMAK ZORUNDA — istemcideki `disabled` KOZMETİKTİR.
+  // Ayarlar kartındaki buton `annual` (aylık/yıllık SEÇİCİSİNİN durumu) ile
+  // kapatılıyordu, ama seçici her sayfa yüklemesinde "month" ile başlıyor →
+  // YILLIK abone sayfayı açtığında buton AKTİF geliyordu. Yani istemci kapısı
+  // hiç kimseyi korumuyordu (denetim ajanı yakaladı).
+  //
+  // Zarar somut: `priceIdForPlanCode` YALNIZ AYLIK id döndürüyor (↑:42-49) ve
+  // `planChangeMode` `sortOrder`'a bakıyor, DÖNEME değil. Bir yıllık müşteri
+  // "Yükselt" derse ₺8.990 peşin ödediği abonelik ₺899'luk AYLIK fiyata
+  // taşınır — üstelik geri dönüşü elle düzeltmek gerekir ve `Subscription`'da
+  // dönem kolonu olmadığı için sonradan tespiti de zordur.
+  //
+  // ⚠️ Dönem YERELDE BİLİNMİYOR (şemada `priceId`/dönem kolonu YOK, migration
+  // ister) → Paddle'a soruyoruz. Çağrı YALNIZ yıllık fiyat yapılandırılmışsa
+  // yapılır: yıllık satmayan bir deployment'a ne gecikme ne de yeni arıza
+  // yüzeyi eklenir, davranışı BİREBİR eskisi kalır.
+  //
+  // ⚠️ OKUNAMAZSA FAIL-CLOSED. Yön bilinçli: yanlış dönemde faturalama gerçek
+  // ve zor geri alınır bir para hatasıdır, engellenen plan değişimi ise geçici
+  // bir sürtünmedir ve mesajı bunu söyler. Aynı gerekçe `canceled` kapısında da
+  // yazılı ("Kapı Paddle'ın ne yapacağına bağlı olmamalı").
+  //
+  // 🔙 Kaçış kapısı env'i BİLEREK EKLENMEDİ: `canceled` kapısındaki hatch eski
+  // ÇALIŞAN davranışı geri getiriyor; burada geri getirilecek çalışan bir
+  // davranış yok — bayrağı açmak doğrudan yanlış faturalamayı serbest bırakır.
+  // Yıllık müşteri kademe değiştirmek isterse: iptal + yeni abonelik.
+  const annualIds = [
+    process.env.PADDLE_PRICE_BASLANGIC_YILLIK?.trim(),
+    process.env.PADDLE_PRICE_PRO_YILLIK?.trim(),
+    process.env.PADDLE_PRICE_ISLETME_YILLIK?.trim(),
+  ].filter((v): v is string => Boolean(v));
+  if (annualIds.length > 0) {
+    const currentPriceId = await getSubscriptionCurrentPriceId(sub.providerRef);
+    if (!currentPriceId || annualIds.includes(currentPriceId)) {
+      return {
+        ok: false,
+        error:
+          "Yıllık aboneliklerde plan değişikliği panelden yapılamıyor. Bize yazın, birlikte halledelim.",
+      };
+    }
   }
 
   const mode = planChangeMode(sub.planCode, planCode);

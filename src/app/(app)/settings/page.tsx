@@ -26,7 +26,7 @@ import { SETTINGS_NAV, deriveInitialViewId } from "@/lib/settings-nav";
 import { getConnectionInfo } from "@/lib/hospitable-credentials";
 import { getEntitlement, premiumAllowed, isFounderOrg } from "@/lib/billing/subscription";
 import { planChangeEnabled } from "@/lib/billing/plan-change";
-import { defaultPlans } from "@/lib/billing/plans";
+import { defaultPlans, annualPriceMinor, annualMonthlyEquivalentMinor } from "@/lib/billing/plans";
 import { appLocale, appBillingCurrency } from "@/lib/app-config";
 import { isSuperAdmin } from "@/lib/admin";
 import { isHospitableOAuthConfigured } from "@/lib/hospitable-oauth";
@@ -108,6 +108,15 @@ export default async function SettingsPage({
     free: process.env.PADDLE_PRICE_BASLANGIC?.trim() || "",
     pro: process.env.PADDLE_PRICE_PRO?.trim() || "",
     business: process.env.PADDLE_PRICE_ISLETME?.trim() || "",
+  };
+  // Yıllık fiyatlar. ⚠️ Env YOKSA boş kalır ve arayüz aylık/yıllık seçicisini
+  // HİÇ çizmez — yani yıllık satışa açılması tek başına bir env işidir, kod
+  // değişikliği değil. Üçü birden dolu olmadan seçici gösterilmez: iki kademede
+  // yıllık, birinde aylık olan bir tablo müşteriyi yanıltır.
+  const paddleAnnualPriceByCode: Record<string, string> = {
+    free: process.env.PADDLE_PRICE_BASLANGIC_YILLIK?.trim() || "",
+    pro: process.env.PADDLE_PRICE_PRO_YILLIK?.trim() || "",
+    business: process.env.PADDLE_PRICE_ISLETME_YILLIK?.trim() || "",
   };
   const paddleReady =
     isOwner &&
@@ -387,13 +396,17 @@ export default async function SettingsPage({
               planChangeEnabled={canManagePaddleSub && planChangeEnabled()}
               locale={appLocale()}
               currency={appBillingCurrency()}
+              annualAvailable={defaultPlans().every((p) => (paddleAnnualPriceByCode[p.code] ?? "") !== "")}
               plans={defaultPlans().map((p) => ({
                 code: p.code,
                 name: p.name,
                 priceMinor: p.priceMinor,
+                annualPriceMinor: annualPriceMinor(p.priceMinor),
+                annualMonthlyEquivalentMinor: annualMonthlyEquivalentMinor(p.priceMinor),
                 currency: p.currency,
                 propertyLimit: p.propertyLimit,
                 priceId: paddlePriceByCode[p.code] ?? "",
+                annualPriceId: paddleAnnualPriceByCode[p.code] ?? "",
               }))}
             />
           </CardContent>
