@@ -225,3 +225,64 @@ describe("POST /api/reservations/import — KVKK silme kapısı", () => {
     ).toEqual([]);
   });
 });
+
+// -------------------------------------------------------------------------
+// HIZ LİMİTİ — DAVRANIŞSAL PİN (denetim 08-07)
+//
+// ⚠️ Bu testler bilinçli olarak DAVRANIŞSALDIR. Kaynak taraması
+// (`toMatch(/rateLimit\(/)`) bu korumayı GÜVENİLİR ŞEKİLDE pinleyemez:
+// ölçüldü — yorum satırına alınmış bir `rateLimit(` çağrısı da, sonucu hiç
+// okunmayan bir çağrı da (`if (false && !limited.ok)`) taramayı YEŞİL
+// bırakıyor. Limitin GERÇEKTEN 429 döndürdüğü ancak çağırarak görülür.
+// -------------------------------------------------------------------------
+describe("POST /api/reservations/import — hız limiti", () => {
+  let propertyId: string;
+
+  beforeEach(async () => {
+    await resetDb();
+    vi.clearAllMocks();
+    const made = await makeOrgWithProperty();
+    propertyId = made.propertyId;
+    session = { userId: "u", organizationId: made.orgId, role: "owner", email: "o@x.com", name: "O", sessionEpoch: 0 };
+  });
+
+  const csv = "guest_name,arrival,departure,reference\nAda,2026-07-10,2026-07-14,R";
+
+  it("saatte 5 içe aktarımdan sonrası 429 (Retry-After ile)", async () => {
+    for (let i = 0; i < 5; i++) {
+      const res = await POST(importReq(propertyId, csv + i), { params: Promise.resolve({}) });
+      expect(res.status, `${i + 1}. istek limite takıldı`).toBe(200);
+    }
+    const blocked = await POST(importReq(propertyId, csv + "X"), { params: Promise.resolve({}) });
+    expect(blocked.status).toBe(429);
+    expect(Number(blocked.headers.get("Retry-After"))).toBeGreaterThan(0);
+    // Süre METİNDE de olmalı: pencere bir SAAT, genel "kısa bir süre" metni
+    // hostu boşuna tekrar denemeye iter.
+    expect((await blocked.json()).error).toMatch(/dakika/);
+  });
+
+  it("🚨 GEÇERSİZ istek bütçEYİ TÜKETMEZ — doğrulama limitten ÖNCE", async () => {
+    // Ayrıştırıcı bilinçli fail-closed: bozuk bir Airbnb dışa aktarımını
+    // düzeltmeye çalışan host, limit rotanın BAŞINDAYKEN beş denemede
+    // kotasını yakıp BİR SAAT kilitleniyordu — tek satır bile aktarılmadan.
+    for (let i = 0; i < 8; i++) {
+      // yabancı mülk → 400, hiçbir maliyet doğmadı
+      const r = await POST(importReq("baska-orgun-mulku", csv), { params: Promise.resolve({}) });
+      expect(r.status).toBe(400);
+    }
+    for (let i = 0; i < 4; i++) {
+      // yanlış dosya türü → 400
+      const form = new FormData();
+      form.set("file", new File(["x"], "rez.pdf", { type: "application/pdf" }));
+      form.set("propertyId", propertyId);
+      const r = await POST(
+        new NextRequest("http://localhost/api/reservations/import", { method: "POST", body: form }),
+        { params: Promise.resolve({}) },
+      );
+      expect(r.status).toBe(400);
+    }
+    // 12 reddedilen istekten SONRA gerçek içe aktarım hâlâ çalışmalı.
+    const ok = await POST(importReq(propertyId, csv), { params: Promise.resolve({}) });
+    expect(ok.status, "geçersiz istekler kotayı yakmış").toBe(200);
+  });
+});

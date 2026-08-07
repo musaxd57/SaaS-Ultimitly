@@ -12,16 +12,6 @@ import { loadErasureGuard, acquireErasureLock } from "@/lib/erasure";
 const IMPORT_MAX_BYTES = 5 * 1024 * 1024;
 
 export const POST = withManage(async (session, req) => {
-  // 🚨 HIZ LİMİTİ ŞART — KALDIRMA. Bu rota SATIR BAŞINA ~9 DB gidiş-dönüşü
-  // yapıyor (dupe `findFirst` + advisory kilit + tombstone okuması + `create`
-  // hepsi satır başına AYRI transaction'da, üstüne `createReservationTasks`'ın
-  // 3 sorgusu) ve ayrıştırıcı tavanı 10.000 satır → tek istek ~90.000 ardışık
-  // sorgu. Limitsizken bir deneme hesabı bunu ardışık ve eşzamanlı tekrarlayıp
-  // PAYLAŞILAN Postgres'i tüm kiracılar için doyurabiliyordu.
-  // Org başına: gerçek bir içe aktarım nadir ve elle yapılır, 5/saat cömert.
-  const limited = await rateLimit(`reservation-import:${session.organizationId}`, 5, 60 * 60_000);
-  if (!limited.ok) return tooManyRequests(limited.retryAfter);
-
   // OOM guard: read the multipart body with a HARD byte cap (Content-Length pre-check
   // + streaming cancel-on-overflow) so a several-hundred-MB .csv/.ics — even with a
   // missing/lying Content-Length or a chunked body — can't buffer into the shared
@@ -55,6 +45,34 @@ export const POST = withManage(async (session, req) => {
 
   if (!isIcs && !isCsv) {
     return badRequest({ file: "Yalnızca .ics veya .csv dosyaları kabul edilir" });
+  }
+
+  // 🚨 HIZ LİMİTİ ŞART — KALDIRMA. Bu rota SATIR BAŞINA ~9 DB gidiş-dönüşü
+  // yapıyor (dupe `findFirst` + advisory kilit + tombstone okuması + `create`
+  // hepsi satır başına AYRI transaction'da, üstüne `createReservationTasks`'ın
+  // 3 sorgusu) ve ayrıştırıcı tavanı 10.000 satır → tek istek ~90.000 ardışık
+  // sorgu. Limitsizken bir deneme hesabı bunu ardışık ve eşzamanlı tekrarlayıp
+  // PAYLAŞILAN Postgres'i tüm kiracılar için doyurabiliyordu.
+  // Org başına: gerçek bir içe aktarım nadir ve elle yapılır, 5/saat cömert.
+  //
+  // ⚠️ BÜTÇE DOĞRULAMADAN SONRA TÜKETİLİR — YUKARI TAŞIMA. Deponun AI kotası
+  // için 08-05'te verdiği kararla aynı: maliyet AŞAĞIDA başlıyor, dolayısıyla
+  // bütçe de orada tüketilmeli. Rotanın en başındayken bozuk bir Airbnb
+  // dışa aktarımını düzeltmeye çalışan host (ayrıştırıcı bilinçli fail-closed:
+  // dengesiz tırnak / kaymış sütun reddedilir) beş denemede kotasını yakıp BİR
+  // SAAT kilitli kalıyordu — üstelik tek satır bile içe aktarılmadan. Yanlış
+  // dosya türü, yabancı mülk ve eksik alan artık ÜCRETSİZ reddediliyor.
+  // Geriye kalan sınırsız yüzey yalnızca gövde okumasıdır ve o zaten sert bir
+  // bayt tavanıyla sınırlı (istek başına ~6 MB), yani asıl DoS (90.000 sorgu)
+  // tam olarak kapının arkasında kalıyor.
+  const limited = await rateLimit(`reservation-import:${session.organizationId}`, 5, 60 * 60_000);
+  if (!limited.ok) {
+    return tooManyRequests(
+      limited.retryAfter,
+      // Süreyi SÖYLE: genel metin "kısa bir süre" diyor ama buradaki pencere
+      // bir SAAT — host boşuna tekrar tekrar denemesin.
+      `Saatte en fazla 5 içe aktarım yapılabilir. Yaklaşık ${Math.ceil(limited.retryAfter / 60)} dakika sonra tekrar deneyin.`,
+    );
   }
 
   const text = await file.text();

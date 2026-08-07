@@ -244,6 +244,11 @@ describe("kaynak pinleri — geri alınması KOLAY ama tehlikeli düzeltmeler", 
   });
 
   it("mülk API'leri bearer token'ları yanıttan çıkarır", () => {
+    // ⚠️ UCUZ ERKEN UYARI — GARANTİ DEĞİL. `toContain` fonksiyonun AYNI
+    // DOSYADAKİ TANIMIYLA tatmin oluyor, yani her çağrı yeri silinse bile bu
+    // test YEŞİL kalıyor (ölçüldü). GERÇEK pin:
+    // `tests/integration/api-secret-exposure.test.ts` — rotaları çağırıp
+    // yanıtta `icalToken`/`chatToken` ANAHTARINI ve DEĞERİNİ birden arar.
     for (const rel of ["src/app/api/properties/route.ts", "src/app/api/properties/[id]/route.ts"]) {
       const src = read(rel);
       expect(src, rel).toContain("stripPropertySecrets");
@@ -254,6 +259,11 @@ describe("kaynak pinleri — geri alınması KOLAY ama tehlikeli düzeltmeler", 
   it("landing demo yanıtı iç sınıflandırma alanlarını sızdırmaz", () => {
     // `source` cevabın OpenAI'den mi fallback'ten mi geldiğini, `intent` de
     // modelin etiketini söylüyordu → kapı saatte 6 istekle haritalanabiliyordu.
+    // ⚠️ UCUZ ERKEN UYARI — GARANTİ DEĞİL: bu KARA LİSTE yalnız bildiği adları
+    // tanır, `return jsonOk({ ...result, reply })` gibi tek satırlık bir
+    // gerileme onu YEŞİL geçirip üç alanı birden sızdırır (ölçüldü). GERÇEK
+    // pin `tests/integration/demo-ai-route.test.ts` içinde ve İZİN LİSTESİDİR
+    // (`Object.keys(...)` tam eşleşme), yani BİLİNMEYEN alanı da yakalar.
     const src = read("src/app/api/demo/ai/route.ts");
     const body = src.slice(src.indexOf("return jsonOk({"));
     expect(body).not.toMatch(/\bsource:/);
@@ -264,6 +274,12 @@ describe("kaynak pinleri — geri alınması KOLAY ama tehlikeli düzeltmeler", 
   it("DoS'a açık üç ağır rota hız limiti taşır", () => {
     // Sırasıyla: satır başına ~9 sorgu × 10.000 satır · `take`siz findMany + N+1 ·
     // istek başına ~120 dış Hospitable çağrısı. Üçü de limitsizdi.
+    // ⚠️ BU TARAMA GARANTİ DEĞİL, YALNIZ UCUZ ERKEN UYARIDIR. Ölçüldü: yorum
+    // satırına alınmış bir `rateLimit(` çağrısını da, sonucu okunmayan bir
+    // çağrıyı da (`if (false && !limited.ok)`) YEŞİL geçiriyor. GERÇEK pin
+    // davranışsaldır → `tests/integration/reservations-import-route.test.ts`
+    // ("hız limiti"): 429'u, Retry-After'ı ve "geçersiz istek bütçe yakmaz"
+    // sırasını rotayı ÇAĞIRARAK asserte eder.
     for (const rel of [
       "src/app/api/reservations/import/route.ts",
       "src/app/api/tasks/backfill/route.ts",

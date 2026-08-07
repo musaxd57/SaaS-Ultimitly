@@ -52,6 +52,29 @@ describe("POST /api/demo/ai — public landing demo", () => {
     expect(call.knowledgeBase.some((k: { category: string }) => k.category === "wifi")).toBe(true);
   });
 
+  it("yanıt gövdesi TAM OLARAK dört alan taşır — iç sınıflandırma sızmaz", async () => {
+    // ⚠️ DAVRANIŞSAL PİN, kaynak taraması DEĞİL. Bu değişmez eskiden
+    // `expect(body).not.toMatch(/\bsource:/)` gibi olumsuz kaynak
+    // kontrolleriyle tutuluyordu ve ÖLÇÜLDÜ: `return jsonOk({ ...result,
+    // reply })` gibi tek satırlık gerçekçi bir gerileme o taramayı YEŞİL
+    // bırakıp `source` / `intent` / `detectedLanguage` alanlarını sızdırıyor.
+    // Kapı kayıtsız ve halka açık (IP başına 6/saat): `source` cevabın
+    // modelden mi deterministik yoldan mı geldiğini, `intent` de modelin
+    // etiketini söylüyor → saldırgan güvenlik kapısını haritalayabilir.
+    // İZİN LİSTESİ olarak yazıldı: yeni bir alan eklenirse test KIRMIZI olur
+    // ve ekleyen kişi "bu alan dışarı çıkmalı mı" sorusunu yanıtlamak zorunda
+    // kalır — kara liste yalnız BİLİNEN adları yakalar, bu ise hepsini.
+    vi.stubEnv("LANDING_DEMO_ENABLED", "1");
+    const res = await POST(req("wifi şifresi nedir?"));
+    expect(res.status).toBe(200);
+    expect(Object.keys(await res.json()).sort()).toEqual([
+      "confidence",
+      "reply",
+      "riskLevel",
+      "wouldAutoSend",
+    ]);
+  });
+
   it("stops at the durable global daily cap without calling the model", async () => {
     vi.stubEnv("LANDING_DEMO_ENABLED", "1");
     vi.stubEnv("LANDING_DEMO_DAILY_CAP", "2");

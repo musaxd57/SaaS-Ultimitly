@@ -37,13 +37,17 @@ export const GET = withManage(async (session) => {
   // olduğu için tarayıcı yenilemesi/sekme geri gelmesiyle bile tetiklenir.
   // Yakılan kota MESAJ SENKRONUYLA AYNI token'a ait: 429'lar `runScheduledSync`
   // bütçesini yiyip GERÇEK misafir mesajlarının akmasını durdurabilirdi.
-  const limited = await rateLimit(`hospitable-diagnostics:${session.organizationId}`, 5, 15 * 60_000);
-  if (!limited.ok) return tooManyRequests(limited.retryAfter);
-
+  // ⚠️ BÜTÇE "BAĞLI DEĞİL" ERKEN DÖNÜŞÜNDEN SONRA TÜKETİLİR — YUKARI TAŞIMA.
+  // Token yoksa rota HİÇBİR dış çağrı yapmıyor, yani korunacak maliyet de yok;
+  // yukarıda tüketmek Hospitable'ı henüz bağlamamış bir hostun kotasını
+  // bedelsiz yakardı (üstelik bu, kurulum sırasında en çok tıklanan ekran).
   const token = await getOrgHospitableToken(session.organizationId);
   if (!token) {
     return NextResponse.json({ ok: false, error: "Hospitable bağlı değil." });
   }
+
+  const limited = await rateLimit(`hospitable-diagnostics:${session.organizationId}`, 5, 15 * 60_000);
+  if (!limited.ok) return tooManyRequests(limited.retryAfter);
 
   const out: Record<string, unknown> = { ok: true };
 
