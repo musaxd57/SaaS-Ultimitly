@@ -161,7 +161,6 @@ export default async function DashboardPage() {
       cta: "Aç",
     },
   ];
-  const onboardingDone = onboardingSteps.every((s) => s.done);
 
   // Sort today's tasks urgent-first, then by due time.
   const priorityRank: Record<string, number> = { urgent: 0, standard: 1, low: 2 };
@@ -211,7 +210,10 @@ export default async function DashboardPage() {
       />
 
       {/* Getting-started guide — only until the account is fully set up. */}
-      {!onboardingDone ? <OnboardingGuide steps={onboardingSteps} /> : null}
+      {/* ⚠️ 6/6 kapısı ARTIK BİLEŞENİN İÇİNDE (istemci tarafı) — kutlama anı
+          "az önce bitti" bilgisini gerektiriyor ve o yalnız istemcide var.
+          Bileşen 6/6'da SSR'da da boş basar, yani flash yok. */}
+      <OnboardingGuide steps={onboardingSteps} />
 
       {/* AI daily summary — compact one-liner (same footprint as the tasks
           note): label and text share the line, no icon tile, p-3. */}

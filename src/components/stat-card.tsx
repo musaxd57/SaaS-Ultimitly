@@ -18,8 +18,8 @@ interface StatCardProps {
 const toneClasses: Record<NonNullable<StatCardProps["tone"]>, string> = {
   default: "bg-primary/10 text-primary",
   warning: "bg-warning/15 text-amber-700",
-  destructive: "bg-destructive/12 text-destructive",
-  success: "bg-success/12 text-success",
+  destructive: "bg-destructive/10 text-destructive",
+  success: "bg-success/10 text-success",
 };
 
 export function StatCard({

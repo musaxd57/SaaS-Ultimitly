@@ -72,7 +72,15 @@ export function PricingTiers({
             referans dönemde gerçekten uygulanmış bir "eski fiyat" ister. ₺899
             eski fiyat değil — toggle'ın diğer konumunda HÂLÂ SATILAN güncel
             fiyat. Bunun yerine sözün kendisi tek bir rozetle söyleniyor. */}
-        <Badge tone="success">2 ay bedava</Badge>
+        {/* 🚨 ROZET METNİ DÖNEME GÖRE DEĞİŞİR — sabit "2 ay bedava" YAZMA.
+            Aylık seçiliyken serbest duran bir "2 ay bedava" rozeti, AYLIK
+            fiyatın içinde iki ay hediye varmış gibi okunuyordu (kullanıcı
+            ekran görüntüsüyle bildirdi). Aylıkta bir DAVET ("yıllığa geç"),
+            yıllıkta bir ONAY ("aldın") olmalı — ikisi de aynı sözü söylüyor
+            ama hangi seçeneğe ait olduğu artık cümlenin içinde. */}
+        <Badge tone="success">
+          {annual ? "2 ay bedava — yıllık seçildi" : "Yıllığa geçin, 2 ay bedava"}
+        </Badge>
       </div>
       ) : null}
       {annualAvailable ? <BillingPeriodAnnouncer value={period} /> : null}

@@ -527,8 +527,9 @@ export function PaddlePlans({
             }}
             size="sm"
           />
-          <span className="rounded-full bg-success/12 px-2 py-0.5 text-xs font-medium text-success">
-            2 ay bedava
+          {/* ↑landing ile aynı gerekçe: aylıkta DAVET, yıllıkta ONAY. */}
+          <span className="rounded-full bg-success/10 px-2 py-0.5 text-xs font-medium text-success">
+            {annual ? "2 ay bedava — yıllık seçildi" : "Yıllığa geçin, 2 ay bedava"}
           </span>
           <BillingPeriodAnnouncer value={period} />
         </div>

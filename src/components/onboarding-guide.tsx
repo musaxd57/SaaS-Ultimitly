@@ -2,7 +2,7 @@
 
 import { useEffect, useState } from "react";
 import Link from "next/link";
-import { CheckCircle2, ArrowRight, Rocket, X } from "lucide-react";
+import { CheckCircle2, ArrowRight, Rocket, ChevronUp, ChevronDown } from "lucide-react";
 import { Card, CardContent } from "@/components/ui/card";
 import { cn } from "@/lib/utils";
 
@@ -14,65 +14,140 @@ export interface OnboardingStep {
   cta: string;
 }
 
-// Per-browser "I've seen it, stop showing me" flag. Kept in localStorage so the
-// dismissal needs no schema change / API call — it cannot affect the working
-// product, and the server still hides the card outright once every step is done.
+// Per-browser display state. Kept in localStorage so it needs no schema change
+// / API call — it cannot affect the working product, and the server still hides
+// the card outright once every step is done.
+//
+// 🚨 ANAHTAR ADI "dismissed" AMA ARTIK "KATLANMIŞ" DEMEK — ad KASTEN
+// DEĞİŞTİRİLMEDİ: daha önce × ile gizlemiş hostların tarayıcısında bu değer
+// duruyor ve yeni adla okunsaydı kart onlara sıfırdan AÇIK gelirdi. Aynı
+// anahtarı okuyarak o hostlar sessizlik yerine ŞERİDİ görüyor — yani düzeltme
+// geriye dönük de çalışıyor.
 const DISMISS_KEY = "lixus_onboarding_dismissed";
+// Son görülen tamamlanma sayısı. Sunucu bileşeni "az önce bir adım bitti"
+// olayını göndermiyor; farkı istemcide burada saklayarak üretiyoruz.
+const SEEN_COUNT_KEY = "lixus_onboarding_seen_count";
 
 /**
  * "Başlarken" checklist shown on the dashboard until the account is set up.
- * Guides a new customer through connect → properties → AI voice → inbox, so they
- * progress through the panels quickly. Disappears once every step is done, or
- * when the host dismisses it with the × button.
+ *
+ * 🚨 KAPATMA GERİ ALINABİLİR — "BİR DAHA GÖSTERME" YOK.
+ * Eskiden × düğmesi kartı KALICI olarak yok ediyordu: uyarı yoktu, geri dönüş
+ * yolu yoktu ve yanlışlıkla basan host kalan kurulum adımlarını bir daha
+ * göremiyordu (kullanıcı bildirdi). Artık × yerine ChevronUp var ve kapatınca
+ * `null` değil bir ŞERİT kalıyor — tek tıkla geri açılıyor.
+ * ⚠️ Onay kutusu (`confirmDialog`) BİLİNÇLİ eklenmedi: o yardımcı kendi
+ * dokümanında YIKICI işlemler için tanımlı (`lib/confirm.ts`), katlama ise
+ * görünür ve tek tıkla geri alınabilir — modal, bedelsiz bir eylemin önüne
+ * sürtünme koymak olurdu.
  */
 export function OnboardingGuide({ steps }: { steps: OnboardingStep[] }) {
   // Start shown on both server and first client render (no hydration mismatch);
-  // hide after mount if the host previously dismissed it.
-  const [dismissed, setDismissed] = useState(false);
+  // collapse after mount if the host previously collapsed it.
+  const [collapsed, setCollapsed] = useState(false);
+  // İlerleme çubuğunun BAŞLANGIÇ değeri: son görülen sayı. Mount'tan sonra
+  // gerçek değere geçiyoruz ki `transition` gerçekten koşsun (eskiden değer
+  // doğrudan yazılıyordu ve çubuk ZIPLIYORDU, animasyon hiç görünmüyordu).
+  const [seenCount, setSeenCount] = useState<number | null>(null);
+  const [barPct, setBarPct] = useState<number | null>(null);
+
+  const doneCount = steps.filter((s) => s.done).length;
+
   useEffect(() => {
+    let prev = 0;
     try {
-      if (localStorage.getItem(DISMISS_KEY) === "1") setDismissed(true);
+      if (localStorage.getItem(DISMISS_KEY) === "1") setCollapsed(true);
+      prev = Number(localStorage.getItem(SEEN_COUNT_KEY) ?? "0") || 0;
+      localStorage.setItem(SEEN_COUNT_KEY, String(doneCount));
     } catch {
       // localStorage can throw in private mode — fall back to showing the card.
     }
-  }, []);
+    setSeenCount(prev);
+    // Önce eski orana kur, SONRAKİ karede yenisine geç → geçiş tetiklenir.
+    setBarPct((prev / steps.length) * 100);
+    const raf = requestAnimationFrame(() => setBarPct((doneCount / steps.length) * 100));
+    return () => cancelAnimationFrame(raf);
+  }, [doneCount, steps.length]);
 
-  if (dismissed) return null;
-
-  const doneCount = steps.filter((s) => s.done).length;
+  // "Az önce ilerledi" — yalnız bu turda artmışsa efekt oynar, her yüklemede DEĞİL.
+  const justAdvanced = seenCount !== null && doneCount > seenCount;
   // The first not-yet-done step is the one we nudge them toward next.
   const nextIndex = steps.findIndex((s) => !s.done);
 
-  const handleDismiss = () => {
+  const setStored = (collapse: boolean) => {
     try {
-      localStorage.setItem(DISMISS_KEY, "1");
+      if (collapse) localStorage.setItem(DISMISS_KEY, "1");
+      else localStorage.removeItem(DISMISS_KEY);
     } catch {
       // Ignore — worst case the card reappears on next load.
     }
-    setDismissed(true);
+    setCollapsed(collapse);
   };
+
+  // 🚨 6/6 KAPISI SUNUCUDAN İSTEMCİYE TAŞINDI — ama SSR'da yine HİÇBİR ŞEY
+  // basılmıyor. Sebep: kutlama anı ancak "az önce bitti" bilgisiyle anlamlı ve
+  // o bilgi (son görülen sayı) yalnız istemcide var. Sunucu kapısı dururken bu
+  // dal ULAŞILAMAZDI; kapıyı komple kaldırsaydım da kurulumu ÇOKTAN bitmiş her
+  // host sayfada bir kart görüp kapatmak zorunda kalırdı.
+  // `seenCount === null` hem SSR'da hem ilk istemci render'ında geçerli → 6/6
+  // durumunda çıktı BOŞ, yani "bir an görünüp kaybolma" (flash) da olmuyor.
+  const allDone = doneCount === steps.length;
+  if (allDone && !justAdvanced) return null;
+
+  if (collapsed) {
+    return (
+      <button
+        type="button"
+        onClick={() => setStored(false)}
+        className="flex w-full items-center gap-2.5 rounded-lg border border-primary/30 bg-accent/30 px-3 py-2 text-left text-sm transition-colors hover:bg-accent/60"
+      >
+        <Rocket className="size-4 shrink-0 text-primary" aria-hidden="true" />
+        <span className="font-medium">Kurulum rehberi</span>
+        <span className="text-xs text-muted-foreground">
+          {doneCount}/{steps.length} tamam
+        </span>
+        <ChevronDown className="ml-auto size-4 shrink-0 text-muted-foreground" aria-hidden="true" />
+      </button>
+    );
+  }
 
   return (
     <Card className="border-primary/30 bg-accent/30">
       <CardContent className="relative p-5">
+        {/* ⚠️ İKON `X` DEĞİL `ChevronUp` — söz verdiği şey farklı. × "kaldır"
+            der ve host haklı olarak kalıcı sanar; chevron "katla" der. */}
         <button
           type="button"
-          onClick={handleDismiss}
-          aria-label="Kurulum rehberini gizle"
-          title="Gizle"
+          onClick={() => setStored(true)}
+          aria-label="Kurulum rehberini küçült"
+          title="Küçült"
           className="absolute right-2.5 top-2.5 inline-flex size-8 items-center justify-center rounded-md text-muted-foreground transition-colors hover:bg-accent hover:text-foreground"
         >
-          <X className="size-4" />
+          <ChevronUp className="size-4" />
         </button>
 
         <div className="flex items-center gap-3 pr-8">
-          <div className="flex size-9 shrink-0 items-center justify-center rounded-lg bg-primary text-primary-foreground">
-            <Rocket className="size-5" />
+          <div
+            className={cn(
+              "flex size-9 shrink-0 items-center justify-center rounded-lg",
+              doneCount === steps.length
+                ? "bg-success text-success-foreground"
+                : "bg-primary text-primary-foreground",
+              justAdvanced && (doneCount === steps.length ? "lxo-launch" : "lxo-boost"),
+            )}
+          >
+            <Rocket className="size-5" aria-hidden="true" />
           </div>
           <div className="flex-1">
-            <p className="text-sm font-semibold">Başlarken — kurulumun {doneCount}/{steps.length} tamam</p>
+            <p className="text-sm font-semibold">
+              {doneCount === steps.length
+                ? "Kurulum tamam — Lixus AI hazır"
+                : `Başlarken — kurulumun ${doneCount}/${steps.length} tamam`}
+            </p>
             <p className="text-xs text-muted-foreground">
-              Birkaç adımda Lixus AI misafirlerinize yanıt vermeye başlasın.
+              {doneCount === steps.length
+                ? "Her şey yerinde. Bu rehberi kapatabilirsiniz."
+                : "Birkaç adımda Lixus AI misafirlerinize yanıt vermeye başlasın."}
             </p>
           </div>
         </div>
@@ -80,8 +155,13 @@ export function OnboardingGuide({ steps }: { steps: OnboardingStep[] }) {
         {/* Progress bar */}
         <div className="mt-3 h-1.5 w-full overflow-hidden rounded-full bg-muted">
           <div
-            className="h-full rounded-full bg-primary transition-all"
-            style={{ width: `${(doneCount / steps.length) * 100}%` }}
+            className={cn(
+              "lxo-bar h-full rounded-full",
+              doneCount === steps.length ? "bg-success" : "bg-primary",
+            )}
+            // `barPct` mount'tan ÖNCE null: sunucu çıktısı gerçek oranı gösterir
+            // (JS kapalıysa da doğru), mount sonrası geçiş devralır.
+            style={{ width: `${barPct ?? (doneCount / steps.length) * 100}%` }}
           />
         </div>
 
@@ -102,7 +182,13 @@ export function OnboardingGuide({ steps }: { steps: OnboardingStep[] }) {
               >
                 <span className="shrink-0">
                   {s.done ? (
-                    <CheckCircle2 className="size-5 text-emerald-600" />
+                    <CheckCircle2
+                      className={cn(
+                        "size-5 text-emerald-600",
+                        // Yalnız YENİ tamamlananlar patlar — hepsi değil.
+                        justAdvanced && seenCount !== null && i >= seenCount && "lxo-pop",
+                      )}
+                    />
                   ) : (
                     <span
                       className={cn(

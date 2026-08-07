@@ -11,6 +11,16 @@ const config: Config = {
       },
     },
     extend: {
+      // ⚠️ ARA BOYUTLAR — kaynakta KULLANILIYOR ama varsayılan ölçekte YOK.
+      // `size-4.5` ve `size-5.5` beş yerde yazılmış (sidebar ikonları, landing
+      // adım/özellik ikonları, marka işareti) ve Tailwind bu sınıflar için
+      // HİÇ CSS ÜRETMİYORDU → ikonlar lucide'ın varsayılanı olan 24px'te
+      // kalıyordu. Yani yazarın niyeti hiç uygulanmamış: sidebar ikonu, yanındaki
+      // `size-4`/`size-5` öğelerden görünür biçimde büyüktü.
+      // Sınıfları size-5'e çevirmek yerine ölçeğe eklemek, yazılmış tasarımı
+      // olduğu gibi çalıştırır ve tamamen katkısaldır (bugün hiçbir yerde
+      // çalışan bir stili değiştirmez — çünkü bugün hiç çalışmıyorlar).
+      spacing: { "4.5": "1.125rem", "5.5": "1.375rem" },
       colors: {
         border: "hsl(var(--border))",
         input: "hsl(var(--input))",

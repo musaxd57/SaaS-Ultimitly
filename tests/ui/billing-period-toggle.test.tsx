@@ -54,10 +54,21 @@ describe("aylık/yıllık seçici — landing fiyat kartları", () => {
     // gerçekten uygulanmış bir "eski fiyat" ister. ₺899 eski fiyat değil —
     // toggle'ın diğer konumunda HÂLÂ satılan güncel fiyat.
     const { container } = renderTiers();
-    expect(screen.getByText("2 ay bedava")).toBeTruthy();
+    // 🚨 ROZET DÖNEME GÖRE KONUŞUR. Sabit "2 ay bedava" iken aylık seçiliyken
+    // serbest duruyordu ve AYLIK fiyatın içinde iki ay hediye varmış gibi
+    // okunuyordu (kullanıcı bildirdi). Aylıkta DAVET, yıllıkta ONAY.
+    expect(screen.getByText(/Yıllığa geçin, 2 ay bedava/)).toBeTruthy();
     expect(container.querySelector("s, del, .line-through")).toBeNull();
     fireEvent.click(screen.getByRole("button", { name: "Yıllık" }));
+    expect(screen.getByText(/2 ay bedava — yıllık seçildi/)).toBeTruthy();
     expect(container.querySelector("s, del, .line-through")).toBeNull();
+  });
+
+  it("🚨 aylık seçiliyken rozet BAŞINA BUYRUK '2 ay bedava' DEMEZ", () => {
+    // Mutasyon koruması: metin sabite döndürülürse bu kırmızı olur.
+    renderTiers();
+    const rozet = screen.getByText(/2 ay bedava/);
+    expect(rozet.textContent).toMatch(/Yıllığa geçin/);
   });
 
   it("erişilebilirlik: role=group + aria-pressed, ve değişim DUYURULUR", () => {
@@ -79,7 +90,7 @@ describe("yıllık env'siz yüzeyler", () => {
     // buluyordu (env'siz yerel/.eu kurulumu ya da biri env'i silerse).
     render(<PricingTiers tiers={TIERS} prices={PRICES} />);
     expect(screen.queryByRole("group", { name: "Faturalandırma dönemi" })).toBeNull();
-    expect(screen.queryByText("2 ay bedava")).toBeNull();
+    expect(screen.queryByText(/2 ay bedava/)).toBeNull();
     // ...ve aylık fiyat normal şekilde görünmeye devam eder.
     expect(screen.getByText("₺899")).toBeTruthy();
   });
