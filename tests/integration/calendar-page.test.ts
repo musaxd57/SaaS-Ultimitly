@@ -1,4 +1,5 @@
 import { describe, it, expect, beforeEach, vi } from "vitest";
+import { treeText } from "../helpers/tree-text";
 import React from "react";
 import { prisma, resetDb } from "../helpers/db";
 
@@ -31,39 +32,6 @@ import { requireAuth } from "@/lib/auth";
 import CalendarPage from "@/app/(app)/calendar/page";
 
 const mockAuth = vi.mocked(requireAuth);
-
-function treeText(root: unknown): string {
-  const parts: string[] = [];
-  const collect = (node: unknown): void => {
-    if (node == null || typeof node === "boolean") return;
-    if (typeof node === "string" || typeof node === "number") {
-      parts.push(String(node));
-      return;
-    }
-    if (Array.isArray(node)) {
-      for (const n of node) collect(n);
-      return;
-    }
-    if (React.isValidElement(node)) {
-      const props = node.props as Record<string, unknown>;
-      collect(props.children);
-      // ⚠️ METİN TAŞIYAN PROP'LAR DA TOPLANIR. Ortak bileşenler (`EmptyState`,
-      // `PageHeader`) metni `children` olarak DEĞİL `title`/`description`
-      // prop'u olarak alıyor; yalnız `children` gezilirse bir boş durum
-      // bileşene çevrildiği anda test SESSİZCE metni bulamaz hale gelir —
-      // tam da bu oldu (takvim boş durumu `EmptyState`'e taşındı).
-      for (const key of ["title", "description", "label", "value"]) {
-        if (typeof props[key] === "string") parts.push(props[key] as string);
-      }
-    }
-  };
-  collect(root);
-  // list-pagination-pages.test.ts ile aynı: bitişik metin düğümleri ARADA
-  // boşluk olmadan birleşir, yoksa "+7 diğer" gibi parçalı JSX metinleri
-  // ("+", 7, " diğer") aranamaz hale gelir.
-  return parts.join("");
-}
-
 /** Ağaçtaki tüm className değerleri (duyarlı görünürlük sınıflarını pinlemek için). */
 function classNames(root: unknown): string[] {
   const found: string[] = [];

@@ -1,4 +1,5 @@
 import { describe, it, expect, beforeEach, vi } from "vitest";
+import { treeText } from "../helpers/tree-text";
 import React from "react";
 import { prisma, resetDb } from "../helpers/db";
 
@@ -42,25 +43,6 @@ import InboxPage from "@/app/(app)/inbox/page";
 import { EmptyState } from "@/components/empty-state";
 
 const mockAuth = vi.mocked(requireAuth);
-
-function treeText(root: unknown): string {
-  const parts: string[] = [];
-  const collect = (node: unknown): void => {
-    if (node == null || typeof node === "boolean") return;
-    if (typeof node === "string" || typeof node === "number") {
-      parts.push(String(node));
-      return;
-    }
-    if (Array.isArray(node)) {
-      for (const n of node) collect(n);
-      return;
-    }
-    if (React.isValidElement(node)) collect((node.props as { children?: unknown }).children);
-  };
-  collect(root);
-  return parts.join("");
-}
-
 /** Belirli bir prop'u taşıyan tüm elementleri toplar. */
 function elementsWithProp(root: unknown, prop: string): Record<string, unknown>[] {
   const found: Record<string, unknown>[] = [];
@@ -71,6 +53,14 @@ function elementsWithProp(root: unknown, prop: string): Record<string, unknown>[
       return;
     }
     if (React.isValidElement(node)) {
+      // Ortak bileşenler (Pager, EmptyState) ağaçta OPAK — saf olanları açıyoruz.
+      // try/catch: hook'lu/async bileşen patlar, o zaman eski davranışa düşeriz.
+      if (typeof node.type === "function") {
+        try {
+          const out = (node.type as (p: unknown) => unknown)(node.props);
+          if (out && typeof (out as { then?: unknown }).then !== "function") walk(out);
+        } catch { /* açılamadı */ }
+      }
       const props = node.props as Record<string, unknown>;
       if (props[prop] !== undefined) found.push(props);
       walk(props.children);
@@ -94,6 +84,14 @@ function paginationLabels(root: unknown): string[] {
       return;
     }
     if (React.isValidElement(node)) {
+      // Ortak `Pager` ağaçta OPAK — saf bileşenleri açıyoruz ki içindeki
+      // düğmeler görünür olsun. try/catch: hook'lu/async bileşen patlar.
+      if (typeof node.type === "function") {
+        try {
+          const out2 = (node.type as (p: unknown) => unknown)(node.props);
+          if (out2 && typeof (out2 as { then?: unknown }).then !== "function") walk(out2);
+        } catch { /* açılamadı */ }
+      }
       const props = node.props as { label?: unknown; href?: unknown; children?: unknown };
       if (typeof props.label === "string" && "href" in props) out.push(props.label);
       walk(props.children);

@@ -5,6 +5,7 @@ import { requireAuth } from "@/lib/auth";
 import { orgTimezone } from "@/lib/timezone";
 import { prisma } from "@/lib/db";
 import { PageHeader } from "@/components/page-header";
+import { Pager } from "@/components/pager";
 import { Card, CardContent } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { LinkButton } from "@/components/ui/link-button";
@@ -92,8 +93,6 @@ export default async function GuestChatsPage({
 
   const from = threads.length === 0 ? 0 : (page - 1) * PAGE_SIZE + 1;
   const to = threads.length === 0 ? 0 : (page - 1) * PAGE_SIZE + threads.length;
-  const hasPrev = page > 1;
-  const hasNext = to < total;
   const hrefFor = (p: number) => (p > 1 ? `/guest-chats?sayfa=${p}` : "/guest-chats");
 
   return (
@@ -201,29 +200,13 @@ export default async function GuestChatsPage({
             ))}
           </div>
 
-          <div className="flex items-center justify-between pt-1 text-sm text-muted-foreground">
-            <span>
-              {from}–{to} / {total}
-            </span>
-            <div className="flex gap-2">
-              {hasPrev ? (
-                <Link
-                  href={hrefFor(page - 1)}
-                  className="rounded-md border border-border px-3 py-1 hover:bg-accent"
-                >
-                  Önceki
-                </Link>
-              ) : null}
-              {hasNext ? (
-                <Link
-                  href={hrefFor(page + 1)}
-                  className="rounded-md border border-border px-3 py-1 hover:bg-accent"
-                >
-                  Sonraki
-                </Link>
-              ) : null}
-            </div>
-          </div>
+          <Pager
+            page={page}
+            totalPages={Math.max(1, Math.ceil(total / PAGE_SIZE))}
+            summary={`${from}–${to} / ${total}`}
+            hrefFor={hrefFor}
+            position="üst"
+          />
         </div>
       )}
     </>

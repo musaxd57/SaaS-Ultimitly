@@ -1,4 +1,5 @@
 import { describe, it, expect, beforeEach, afterEach, vi } from "vitest";
+import { treeText } from "../helpers/tree-text";
 import React from "react";
 import { prisma, resetDb } from "../helpers/db";
 
@@ -43,25 +44,6 @@ function walk(node: unknown, visit: (el: React.ReactElement) => void): void {
     walk((node.props as { children?: unknown }).children, visit);
   }
 }
-
-function treeText(root: unknown): string {
-  const parts: string[] = [];
-  const collect = (node: unknown): void => {
-    if (node == null || typeof node === "boolean") return;
-    if (typeof node === "string" || typeof node === "number") {
-      parts.push(String(node));
-      return;
-    }
-    if (Array.isArray(node)) {
-      for (const n of node) collect(n);
-      return;
-    }
-    if (React.isValidElement(node)) collect((node.props as { children?: unknown }).children);
-  };
-  collect(root);
-  return parts.join("");
-}
-
 function erasureControls(root: unknown): { reservationId: string }[] {
   const found: { reservationId: string }[] = [];
   walk(root, (el) => {

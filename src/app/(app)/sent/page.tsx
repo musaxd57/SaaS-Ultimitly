@@ -6,6 +6,7 @@ import { orgTimezone } from "@/lib/timezone";
 import { canManage } from "@/lib/api";
 import { prisma } from "@/lib/db";
 import { PageHeader } from "@/components/page-header";
+import { Pager } from "@/components/pager";
 import { Badge } from "@/components/ui/badge";
 import { EmptyState } from "@/components/empty-state";
 import { getConnectionInfo } from "@/lib/hospitable-credentials";
@@ -439,29 +440,19 @@ export default async function SentPage({
             ))}
           </div>
 
-          <div className="flex items-center justify-between pt-1 text-sm text-muted-foreground">
-            <span>
-              {from}–{to} / {activeTotal}
-            </span>
-            <div className="flex gap-2">
-              {hasPrev ? (
-                <Link
-                  href={hrefFor(activeType, page - 1)}
-                  className="rounded-md border border-border px-3 py-1 hover:bg-accent"
-                >
-                  Önceki
-                </Link>
-              ) : null}
-              {hasNext ? (
-                <Link
-                  href={hrefFor(activeType, page + 1)}
-                  className="rounded-md border border-border px-3 py-1 hover:bg-accent"
-                >
-                  Sonraki
-                </Link>
-              ) : null}
-            </div>
-          </div>
+          {/* ⚠️ `hasNext` BURADA GEÇERSİZ KILINIYOR: karma listenin gezilebilir
+              sayfa TAVANI var (`cappedOut`), yani daha fazla kayıt olsa bile
+              ileri gidilemiyor. Bileşenin varsayılan `page < totalPages`
+              kuralı burada hiçbir yere gitmeyen aktif bir düğme gösterirdi. */}
+          <Pager
+            page={page}
+            totalPages={Math.max(1, Math.ceil(activeTotal / SENT_PAGE_SIZE))}
+            summary={`${from}–${to} / ${activeTotal}`}
+            hrefFor={(p) => hrefFor(activeType, p)}
+            hasPrev={hasPrev}
+            hasNext={hasNext}
+            position="üst"
+          />
 
           {cappedOut ? (
             <p className="text-xs text-muted-foreground">

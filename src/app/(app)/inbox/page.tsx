@@ -5,6 +5,7 @@ import { requireAuth } from "@/lib/auth";
 import { orgTimezone } from "@/lib/timezone";
 import { prisma } from "@/lib/db";
 import { PageHeader } from "@/components/page-header";
+import { Pager } from "@/components/pager";
 import { LinkButton } from "@/components/ui/link-button";
 import { buttonVariants } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
@@ -24,35 +25,6 @@ export const dynamic = "force-dynamic";
 /** Sayfa başına konuşma. Ekran eskiden org'un TÜM konuşmalarını çekiyordu —
  *  müşteri büyüdükçe SSR, hydration ve DOM maliyeti sınırsız artıyordu. */
 const PAGE_SIZE = 50;
-
-/**
- * Sayfalama düğmesi. Uçlarda düğme KAYBOLMAZ, devre dışı görünür: yoksa
- * "Önceki" ilk sayfada yok olup "Sonraki" sola zıplıyordu (her sayfa geçişinde
- * düğmeler yer değiştiriyordu). Devre dışı hâl bir <span>'dir — odaklanılamaz,
- * yani klavye kullanıcısı tıklanamayan bir durağa takılmaz.
- */
-function LinkOrDisabled({ href, label }: { href: string | null; label: string }) {
-  const base =
-    "inline-flex h-8 items-center rounded-md border px-3 text-xs font-medium transition-colors";
-  if (!href) {
-    return (
-      <span aria-hidden="true" className={cn(base, "border-border/60 text-muted-foreground/40")}>
-        {label}
-      </span>
-    );
-  }
-  return (
-    <Link
-      href={href}
-      className={cn(
-        base,
-        "border-border hover:bg-accent focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-1",
-      )}
-    >
-      {label}
-    </Link>
-  );
-}
 
 export default async function InboxPage({
   searchParams,
@@ -173,23 +145,13 @@ export default async function InboxPage({
         ? `${total} konuşmadan ${from}–${to} arası · Sayfa ${page} / ${totalPages}`
         : `${total} konuşma`;
     return (
-      <div
-        className={cn(
-          "flex items-center justify-between gap-3 text-xs text-muted-foreground",
-          position === "üst" ? "px-1 pb-1" : "px-4 py-3",
-        )}
-      >
-        <span>{summary}</span>
-        {totalPages > 1 ? (
-          <nav aria-label={`Sayfalama (${position})`} className="flex shrink-0 gap-1.5">
-            <LinkOrDisabled href={page > 1 ? hrefFor({ sayfa: page - 1 }) : null} label="Önceki" />
-            <LinkOrDisabled
-              href={page < totalPages ? hrefFor({ sayfa: page + 1 }) : null}
-              label="Sonraki"
-            />
-          </nav>
-        ) : null}
-      </div>
+      <Pager
+        page={page}
+        totalPages={totalPages}
+        summary={summary}
+        hrefFor={(p) => hrefFor({ sayfa: p })}
+        position={position}
+      />
     );
   }
 

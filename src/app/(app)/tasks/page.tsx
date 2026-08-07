@@ -4,6 +4,7 @@ import { ListChecks, Plus, Sparkles } from "lucide-react";
 import { requireAuth } from "@/lib/auth";
 import { prisma } from "@/lib/db";
 import { PageHeader } from "@/components/page-header";
+import { Pager } from "@/components/pager";
 import { LinkButton } from "@/components/ui/link-button";
 import { Card, CardContent } from "@/components/ui/card";
 import { EmptyState } from "@/components/empty-state";
@@ -274,29 +275,13 @@ export default async function TasksPage({
               Aralık + GERÇEK toplam yazılı ve geçmişin TAMAMI gezilebilir:
               tavan yok, dolayısıyla erişilemez eski kayıt da yok. */}
           {doneTotal > DONE_PAGE_SIZE ? (
-            <div className="flex items-center justify-between pt-3 text-xs text-muted-foreground">
-              <span>
-                Tamamlandı: {doneFrom}–{doneTo} / {doneTotal}
-              </span>
-              <div className="flex gap-2">
-                {donePage > 1 ? (
-                  <Link
-                    href={doneHref(donePage - 1)}
-                    className="rounded-md border border-border px-2.5 py-1 hover:bg-accent"
-                  >
-                    Önceki
-                  </Link>
-                ) : null}
-                {doneTo < doneTotal ? (
-                  <Link
-                    href={doneHref(donePage + 1)}
-                    className="rounded-md border border-border px-2.5 py-1 hover:bg-accent"
-                  >
-                    Sonraki
-                  </Link>
-                ) : null}
-              </div>
-            </div>
+            <Pager
+              page={donePage}
+              totalPages={Math.max(1, Math.ceil(doneTotal / DONE_PAGE_SIZE))}
+              summary={`Tamamlandı: ${doneFrom}–${doneTo} / ${doneTotal}`}
+              hrefFor={doneHref}
+              position="üst"
+            />
           ) : null}
         </>
       )}

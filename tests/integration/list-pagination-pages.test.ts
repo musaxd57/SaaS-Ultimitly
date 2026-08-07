@@ -1,4 +1,5 @@
 import { describe, it, expect, beforeEach, vi } from "vitest";
+import { treeText } from "../helpers/tree-text";
 import React from "react";
 import { prisma, resetDb } from "../helpers/db";
 
@@ -45,25 +46,6 @@ import TasksPage from "@/app/(app)/tasks/page";
 import { TaskBoard } from "@/components/tasks/task-board";
 
 const mockAuth = vi.mocked(requireAuth);
-
-function treeText(root: unknown): string {
-  const parts: string[] = [];
-  const collect = (node: unknown): void => {
-    if (node == null || typeof node === "boolean") return;
-    if (typeof node === "string" || typeof node === "number") {
-      parts.push(String(node));
-      return;
-    }
-    if (Array.isArray(node)) {
-      for (const n of node) collect(n);
-      return;
-    }
-    if (React.isValidElement(node)) collect((node.props as { children?: unknown }).children);
-  };
-  collect(root);
-  return parts.join("");
-}
-
 /** Ağaçtaki tüm href değerleri (sayfalama bağlantılarını doğrulamak için). */
 function hrefs(root: unknown): string[] {
   const found: string[] = [];
@@ -74,6 +56,14 @@ function hrefs(root: unknown): string[] {
       return;
     }
     if (React.isValidElement(node)) {
+      // Ortak bileşenler (Pager, EmptyState) ağaçta OPAK — saf olanları açıyoruz.
+      // try/catch: hook'lu/async bileşen patlar, o zaman eski davranışa düşeriz.
+      if (typeof node.type === "function") {
+        try {
+          const out = (node.type as (p: unknown) => unknown)(node.props);
+          if (out && typeof (out as { then?: unknown }).then !== "function") walk(out);
+        } catch { /* açılamadı */ }
+      }
       const props = node.props as { href?: unknown; children?: unknown };
       if (typeof props.href === "string") found.push(props.href);
       walk(props.children);
