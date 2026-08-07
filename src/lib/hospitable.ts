@@ -124,7 +124,13 @@ async function hospitableFetch<T>(
     throw new HospitableError("HOSPITABLE_API_TOKEN .env dosyasında tanımlı değil.");
   }
 
-  const url = path.startsWith("http") ? path : `${baseUrl()}${path}`;
+  // ⚠️ TAM-URL KAÇIŞ KAPISI KALDIRILDI. Eskiden `path` "http" ile başlıyorsa
+  // olduğu gibi kullanılıyordu — yani bir gün `links.next` gibi SAĞLAYICIDAN
+  // gelen bir değer buraya girse kiracının Bearer token'ı sağlayıcının
+  // gösterdiği HERHANGİ bir adrese giderdi. Bugün tüm çağıranlar sabit literal
+  // geçiyor ve sayfalama sayfa NUMARASI kullanıyor, yani ulaşılamazdı; kapıyı
+  // silmek o "bugün" varsayımını kalıcı hale getirir.
+  const url = `${baseUrl()}${path}`;
 
   // HTTPS-pin (P2): never send the per-tenant Bearer token to an insecure
   // endpoint. Fail BEFORE any network call (no partial send, no retry) — the boot

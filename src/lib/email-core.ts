@@ -24,8 +24,15 @@ export interface SendEmailOptions {
 // report-error's redactSensitive, which would create an email.ts ↔ report-error.ts
 // cycle). Not a full PII scrubber; just the shapes a mail-provider error can carry.
 function scrubForLog(s: string | undefined): string {
+  // ⚠️ ÖNCE KIRP, SONRA REGEX. Kardeş redaksiyon (`report-error-core.ts`) bu
+  // e-posta kalıbının niceliklerini ReDoS yüzünden sınırlamıştı; buradaki kopya
+  // sınırsız kalmıştı (ölçüldü: 64 KB girdi 20 sn). Bugün girdisi zaten
+  // kırpılmış olduğu için sömürülebilir DEĞİL — ama "çağıran kırpıyor" bir
+  // uzaklık varsayımıdır ve yeni bir çağıran onu bilmez. Kırpma en başa alındı:
+  // sonuç zaten 300 karaktere iniyordu, yani davranış değişmiyor.
   return (s ?? "")
-    .replace(/[A-Za-z0-9._%+-]+@[A-Za-z0-9.-]+\.[A-Za-z]{2,}/g, "[EMAIL]")
+    .slice(0, 2000)
+    .replace(/[A-Za-z0-9._%+-]{1,64}@[A-Za-z0-9.-]{1,255}\.[A-Za-z]{2,24}/g, "[EMAIL]")
     .replace(/\b\d{6,}\b/g, "[NUM]")
     .slice(0, 300);
 }

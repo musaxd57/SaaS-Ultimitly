@@ -474,7 +474,12 @@ export async function getSubscriptionCurrentPriceId(subscriptionId: string): Pro
     }
     return null;
   } catch (err) {
-    await reportError("paddle-subscription-get", err);
+    // ⚠️ BEKLENEN HATADA SAYFALAMA YOK — kardeşleriyle aynı kural.
+    // 08-07'de bu çağrı yıllık-abone kapısına bağlandı ve artık HER
+    // önizleme/uygulamada koşuyor. Filtresiz haliyle bayat bir `providerRef`
+    // (`entity_not_found`) org başına saatte onlarca kez Sentry'yi ve kurucunun
+    // kutusunu dolduruyordu — filtrenin var olma sebebi tam olarak bu sel.
+    if (!isExpectedPaddleError(err)) await reportError("paddle-subscription-get", err);
     return null;
   }
 }

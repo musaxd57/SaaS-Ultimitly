@@ -4,7 +4,7 @@ import https from "node:https";
 import http from "node:http";
 import { lookup as dnsLookup } from "node:dns";
 import type { Readable } from "node:stream";
-import { isPrivateAddress } from "./private-host";
+import { isPrivateAddress, isPrivateHost } from "./private-host";
 
 // ---------------------------------------------------------------------------
 // DNS-rebind (TOCTOU) hardened fetch for host-supplied iCal feeds (Codex #22).
@@ -109,6 +109,18 @@ export function fetchFeedText(rawUrl: string, opts: FeedFetchOptions): Promise<s
   const testTransport = opts.lookupOverride !== undefined;
   if (!isHttps && !(testTransport && url.protocol === "http:")) {
     return Promise.reject(new Error(`refusing non-https feed URL (${url.protocol})`));
+  }
+  // 🚨 IP-LİTERAL HOST'TA `lookup` HİÇ ÇAĞRILMAZ (Node davranışı, ölçüldü) →
+  // `https://127.0.0.1/` `validatingLookup`'ı ve dolayısıyla TÜM rebind
+  // korumasını atlar. Bugün iki çağıranın ikisi de bu kontrolü kendi tarafında
+  // yapıyor, ama fonksiyonun kendi sözleşmesi "pinned public-only IP" diyor:
+  // üçüncü bir çağıran o garantiyi DOĞRU sanarak devralır.
+  // ⚠️ `testTransport` istisnası ŞART ve http izniyle AYNI gerekçeye dayanır —
+  // loopback test sunucusu tanımı gereği private bir adrestedir. İstisnasız
+  // yazdığımda uçtan uca testlerin ALTISI birden kırmızıya döndü (ölçüldü),
+  // yani kapı gerçekten meşru bir yolu kesiyordu.
+  if (!testTransport && isPrivateHost(url.hostname)) {
+    return Promise.reject(new Error(`refusing private feed host (${url.hostname})`));
   }
   const mod = isHttps ? https : http;
   const lookup = opts.lookupOverride ?? validatingLookup;

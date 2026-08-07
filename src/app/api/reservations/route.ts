@@ -1,4 +1,5 @@
 import { prisma } from "@/lib/db";
+import { isUniqueViolation } from "@/lib/db-errors";
 import { toAmountDec } from "@/lib/money";
 import { reservationSchema, zodFieldErrors } from "@/lib/validators";
 import { badRequest, jsonOk, propertyInOrg, readJsonCappedOrNull, tooManyRequests } from "@/lib/api";
@@ -38,23 +39,39 @@ export const POST = withManage(async (session, req) => {
     return badRequest({ propertyId: "Geçersiz mülk" });
   }
 
-  const reservation = await prisma.reservation.create({
-    data: {
-      propertyId: d.propertyId,
-      guestName: d.guestName,
-      guestPhone: d.guestPhone || null,
-      guestEmail: d.guestEmail || null,
-      arrivalDate: d.arrivalDate,
-      departureDate: d.departureDate,
-      channel: d.channel,
-      status: d.status,
-      totalAmount: typeof d.totalAmount === "number" ? d.totalAmount : null,
-      totalAmountDec: toAmountDec(typeof d.totalAmount === "number" ? d.totalAmount : null),
-      currency: d.currency,
-      sourceReference: d.sourceReference || null,
-      notes: d.notes || null,
-    },
-  });
+  // ⚠️ P2002 YAKALANIR — `@@unique([propertyId, sourceReference])`. Aynı
+  // rezervasyon Hospitable/iCal'den ZATEN gelmişse elle ekleme çakışır ve
+  // yakalanmadığında Prisma hatası dışarı çıkıp 500 + Sentry sayfalaması +
+  // uyarı e-postası üretiyordu — host'a da hiçbir şey açıklamayan bir hata.
+  // İçe aktarma yolu bunu zaten yapıyor (`import/route.ts`), tekil yol
+  // unutulmuştu.
+  let reservation;
+  try {
+    reservation = await prisma.reservation.create({
+      data: {
+        propertyId: d.propertyId,
+        guestName: d.guestName,
+        guestPhone: d.guestPhone || null,
+        guestEmail: d.guestEmail || null,
+        arrivalDate: d.arrivalDate,
+        departureDate: d.departureDate,
+        channel: d.channel,
+        status: d.status,
+        totalAmount: typeof d.totalAmount === "number" ? d.totalAmount : null,
+        totalAmountDec: toAmountDec(typeof d.totalAmount === "number" ? d.totalAmount : null),
+        currency: d.currency,
+        sourceReference: d.sourceReference || null,
+        notes: d.notes || null,
+      },
+    });
+  } catch (err) {
+    if (isUniqueViolation(err, ["propertyId", "sourceReference"])) {
+      return badRequest({
+        sourceReference: "Bu referansla bir rezervasyon zaten var (kanaldan gelmiş olabilir).",
+      });
+    }
+    throw err;
+  }
 
   // Fixed automation: prepare check-in & cleaning tasks.
   await applyReservationCreatedRules(reservation.id);

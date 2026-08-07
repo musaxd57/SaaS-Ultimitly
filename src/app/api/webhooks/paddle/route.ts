@@ -411,7 +411,23 @@ async function applyTransactionEvent(
 
 export async function POST(req: NextRequest) {
   const secret = getPaddleWebhookSecret();
-  if (!secret) return NextResponse.json({ disabled: true }, { status: 200 });
+  if (!secret) {
+    // 🚨 SESSİZ OLMAMALI. 200 dönmek Paddle'a "teslim edildi" der ve olay BİR
+    // DAHA DENENMEZ: `PADDLE_WEBHOOK_SECRET` bir yazım hatası/rotasyon/env
+    // kazasıyla düşerse her `subscription.*` ve `transaction.*` olayı KALICI
+    // olarak kaybolur — müşteriler öder, yetki almaz, Invoice yazılmaz ve
+    // hiçbir alarm çıkmaz. Ters teşvik: YANLIŞ bir anahtar (401 → Paddle
+    // yeniden dener) EKSİK anahtardan daha iyi davranıyordu.
+    // 200 KORUNUYOR (bkz. "DORMANT" testi: anahtarsız kurulumda rota sessizce
+    // kapalı olmalı, 5xx sel açar) — eklenen tek şey GÖRÜNÜRLÜK.
+    // `reportError` kendi 10 dakikalık throttle'ını uygular, yani sağlıklı bir
+    // dormant kurulumda bile spam olmaz.
+    void reportError(
+      "paddle-webhook-dormant",
+      new Error("PADDLE_WEBHOOK_SECRET yok — gelen Paddle olayı ACK'lenip ATILDI"),
+    );
+    return NextResponse.json({ disabled: true }, { status: 200 });
+  }
 
   // Signature is over the RAW bytes — read text BEFORE any JSON parse, but CAP it:
   // this is an anonymous public endpoint and the read happens before the signature
