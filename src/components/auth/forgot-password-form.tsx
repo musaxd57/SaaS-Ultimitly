@@ -256,24 +256,6 @@ export function ForgotPasswordForm() {
               </button>
             </p>
           )}
-          {!challengeToken && (
-            /* Kod gelmediğinde ne yapılacağı YAZILI olmalı — kullanıcının
-               kendi başına çözemeyeceği tek durum "bu adresle hesabım yok"tur
-               ve ürün onu şu an hiçbir yerde söylemiyor. */
-            <p className="rounded-md bg-muted/60 px-3 py-2 text-xs text-muted-foreground">
-              Kod birkaç dakikada gelmezse spam klasörünü kontrol edin. Yine yoksa bu adresle
-              kayıtlı bir hesabınız olmayabilir —{" "}
-              <Link href="/register" className="font-medium text-primary hover:underline">
-                yeni hesap oluşturun
-              </Link>
-              .{" "}
-              {/* ⚠️ `/register` `REGISTRATION_OPEN!=1` iken `/login`'e yönlenir
-                  (sayfanın kendi kapısı) — bağlantı o hâlde de ÖLÜ DEĞİL, giriş
-                  ekranına düşer. Bu yüzden burada ayrı bir env kontrolü YOK:
-                  istemci bileşeni sunucu env'ini zaten okuyamaz ve okumaya
-                  çalışmak kaydın açık/kapalı olduğunu istemciye sızdırırdı. */}
-            </p>
-          )}
           <Field label="Doğrulama kodu" htmlFor="code" error={fieldError.code}>
             <Input
               id="code"
@@ -332,7 +314,16 @@ export function ForgotPasswordForm() {
               type="button"
               onClick={() => requestCode()}
               disabled={loading || cooldown > 0}
-              className="w-full text-center text-sm text-muted-foreground hover:text-foreground disabled:opacity-50"
+              /* Kod gelmediğinde kullanıcının ilk yapmak isteyeceği şey budur;
+                 sönük gri bir metin olarak "Girişe dön"den ayırt edilemiyordu.
+                 Beklerken gri (yapılacak bir şey yok), hazır olunca vurgulu ve
+                 altı çizili — yani DURUMU da anlatıyor. Birincil butonla
+                 (`Şifreyi sıfırla`) yarışmasın diye dolu buton YAPILMADI. */
+              className={
+                cooldown > 0
+                  ? "w-full text-center text-sm text-muted-foreground disabled:opacity-100"
+                  : "w-full text-center text-sm font-medium text-primary underline underline-offset-2 hover:text-primary/80"
+              }
             >
               {cooldown > 0 ? `Kodu tekrar gönder (${cooldown})` : "Kodu tekrar gönder"}
             </button>
@@ -340,10 +331,26 @@ export function ForgotPasswordForm() {
           {/* KOŞULLU yardım (yaygın desen: "Don't see it? Check your spam folder"):
               kullanıcı zaten gelen kutusuna bakıyor — ona "gelen kutuna bak" demek
               boş emir; yalnız kod GELMEDİYSE spam anlamlı. Hesap var/yok ayrımı
-              yapmaz (enumeration-safe), formun geri kalanıyla aynı resmî dil. */}
+              yapmaz (enumeration-safe), formun geri kalanıyla aynı resmî dil.
+
+              🚨 ÇIKIŞ YOLU BU SATIRDA, AYRI BİR KUTUDA DEĞİL. Önce kod alanının
+              ÜSTÜNE ikinci bir kutu koymuştum; "spam klasörünü kontrol edin"
+              cümlesi ekranda İKİ KEZ görünüyordu ve kutu, kullanıcıların
+              %95'inin geldiği asıl işi (kodu yazmak) bölüyordu.
+              ⚠️ Buna KARŞILIK zamanlayıcıya da BAĞLANMADI (`cooldown === 0`
+              önerildi, REDDEDİLDİ): bu satırın koruduğu kişi hesabı SİLİNMİŞ ya
+              da hiç kaydolmamış kullanıcıdır ve ona kod ASLA gelmeyecektir —
+              çıkışı 30 saniye sonra göstermek "beklemenin boşuna olduğunu
+              öğrenmek için bekle" demektir. Cümle zaten DİL olarak koşullu
+              ("gelmediyse"), görünürlük olarak koşullu olması gerekmiyor. */}
           {challengeToken ? null : (
             <p className="text-center text-xs text-muted-foreground">
-              Kod gelmediyse spam klasörünü kontrol edin.
+              Kod gelmediyse spam klasörünü kontrol edin. Yine yoksa bu adresle kayıtlı bir
+              hesabınız olmayabilir —{" "}
+              <Link href="/register" className="font-medium text-primary hover:underline">
+                yeni hesap oluşturun
+              </Link>
+              .
             </p>
           )}
         </form>

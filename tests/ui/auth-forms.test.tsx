@@ -202,9 +202,18 @@ describe("ForgotPasswordForm — yanlış yazılan e-posta düzeltilebilir", () 
     expect(screen.getByText(/adresine ait bir hesap varsa kod gönderildi/i)).toBeTruthy();
 
     // Ve kod gelmezse ne yapılacağı YAZILI + kayıt yolu tıklanabilir.
+    // ⚠️ TEK bir satırda. Önce kod alanının ÜSTÜNE ayrı bir kutu koymuştum ve
+    // "spam klasörünü kontrol edin" ekranda İKİ KEZ görünüyordu; kutu ayrıca
+    // kullanıcıların çoğunun geldiği asıl işi (kodu yazmak) bölüyordu.
+    expect(screen.getAllByText(/spam klasörünü kontrol edin/i)).toHaveLength(1);
     expect(screen.getByText(/kayıtlı bir hesabınız olmayabilir/i)).toBeTruthy();
     const kayit = screen.getByRole("link", { name: /yeni hesap oluşturun/i });
     expect(kayit.getAttribute("href")).toBe("/register");
+    // ⚠️ ZAMANLAYICIYA BAĞLI DEĞİL: bu satırın koruduğu kişiye kod ASLA
+    // gelmeyecek (hesabı yok/silinmiş). Bekleme sayacı hâlâ sayarken bile
+    // çıkış yolu görünür olmalı — "beklemenin boşuna olduğunu öğrenmek için
+    // bekle" bir tasarım değildir.
+    expect(screen.getByRole("button", { name: /Kodu tekrar gönder/ })).toBeTruthy();
   });
 
   it("geri dönüş eski kodu ve hatayı temizler (bayat durum taşınmaz)", async () => {
