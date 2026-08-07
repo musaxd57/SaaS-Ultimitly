@@ -179,6 +179,34 @@ describe("ForgotPasswordForm — yanlış yazılan e-posta düzeltilebilir", () 
     await waitFor(() => expect(sentTo).toEqual(["musa@gmial.com", "musa@gmail.com"]));
   });
 
+  it("🚨 kod ekranı teslimatı KESİN dille İDDİA ETMEZ + kod gelmezse çıkış yolu gösterir", async () => {
+    // Uç nokta enumeration'a karşı BİLİNMEYEN adrese de generic 200 döner.
+    // Ekran "gönderildi" derse, hesabı olmayan (ya da hesabını SİLMİŞ) kullanıcı
+    // hiç gelmeyecek bir kodu süresiz bekler: ekranda yazı VAR ama YANLIŞ ve
+    // çıkış yolu YOK — kayıt ekranındaki "zaten hesabın var" ile aynı kapalı
+    // döngü. Koşullu cümle herkese aynı gösterildiği için hiçbir şey sızdırmaz.
+    // ⚠️ Düzeltme METİNDİR, e-posta DEĞİL: `EmailOutbox.userId` zorunlu olduğu
+    // için hesapsız kuyruk satırı yazılamaz; bilinmeyen dalda doğrudan
+    // sağlayıcıya gitmek ise o dala gecikme ekleyip zamanlama oracle'ı açardı.
+    vi.stubGlobal("fetch", vi.fn(async () => new Response("{}", { status: 200 })));
+    render(<ForgotPasswordForm />);
+    typeInto(/E-posta/, "silinmis@example.com");
+    await act(async () => {
+      fireEvent.click(screen.getByRole("button", { name: "Kod gönder" }));
+    });
+    await screen.findByLabelText(/Doğrulama kodu/);
+
+    // Adres HÂLÂ görünür (yazım hatası ancak görülerek fark edilir)...
+    expect(screen.getByText("silinmis@example.com")).toBeTruthy();
+    // ...ama cümle KOŞULLU: "varsa".
+    expect(screen.getByText(/adresine ait bir hesap varsa kod gönderildi/i)).toBeTruthy();
+
+    // Ve kod gelmezse ne yapılacağı YAZILI + kayıt yolu tıklanabilir.
+    expect(screen.getByText(/kayıtlı bir hesabınız olmayabilir/i)).toBeTruthy();
+    const kayit = screen.getByRole("link", { name: /yeni hesap oluşturun/i });
+    expect(kayit.getAttribute("href")).toBe("/register");
+  });
+
   it("geri dönüş eski kodu ve hatayı temizler (bayat durum taşınmaz)", async () => {
     let reply = new Response("{}", { status: 200 });
     vi.stubGlobal("fetch", vi.fn(async () => reply));

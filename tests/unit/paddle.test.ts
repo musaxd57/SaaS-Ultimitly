@@ -3,6 +3,7 @@ import { createHmac } from "node:crypto";
 import {
   verifyPaddleSignature,
   paddlePriceToPlanCode,
+  paddlePriceCatalogConfigured,
   paddleStatusToLocal,
 } from "@/lib/payments/paddle";
 
@@ -71,6 +72,44 @@ describe("paddlePriceToPlanCode", () => {
     expect(paddlePriceToPlanCode("pri_isletme")).toBe("business");
     expect(paddlePriceToPlanCode("pri_unknown")).toBeNull();
     expect(paddlePriceToPlanCode(null)).toBeNull();
+  });
+
+  it("YILLIK fiyat id'leri AYNI plan koduna eşlenir (ayrı kod ÜRETİLMEZ)", () => {
+    // 🚨 Plan kodu bir YETKİ seviyesidir, fatura dönemi DEĞİL. `getEntitlement`,
+    // `limitsForOrg`, `canAddProperty`, deneme mantığı ve `past_due` grace'i
+    // hep bu koda bakıyor → yıllık Pro, aylık Pro ile AYNI ürünü kullanır.
+    // Ayrı bir "pro_yillik" kodu bu beş yeri birden bilinmeyen-plan dalına
+    // düşürürdü; dönem yalnız Paddle'ın kendi kayıtlarında yaşar ve para akışı
+    // ham `priceId`'ye bağlanır.
+    vi.stubEnv("PADDLE_PRICE_PRO", "pri_pro_ay");
+    vi.stubEnv("PADDLE_PRICE_PRO_YILLIK", "pri_pro_yil");
+    vi.stubEnv("PADDLE_PRICE_BASLANGIC_YILLIK", "pri_bas_yil");
+    vi.stubEnv("PADDLE_PRICE_ISLETME_YILLIK", "pri_is_yil");
+    expect(paddlePriceToPlanCode("pri_pro_ay")).toBe("pro");
+    expect(paddlePriceToPlanCode("pri_pro_yil")).toBe("pro");
+    expect(paddlePriceToPlanCode("pri_bas_yil")).toBe("free");
+    expect(paddlePriceToPlanCode("pri_is_yil")).toBe("business");
+  });
+
+  it("yıllık env'leri YOKKEN davranış BİREBİR eski (katkısal değişiklik)", () => {
+    // Bugünkü üretim durumu: yıllık henüz Paddle'da açılmadı. Bu test, eklemenin
+    // mevcut hiçbir yolu değiştirmediğini pinler — geri alma yolu env'i silmektir.
+    vi.stubEnv("PADDLE_PRICE_BASLANGIC", "pri_baslangic");
+    vi.stubEnv("PADDLE_PRICE_PRO", "pri_pro");
+    vi.stubEnv("PADDLE_PRICE_ISLETME", "pri_isletme");
+    expect(paddlePriceToPlanCode("pri_pro")).toBe("pro");
+    expect(paddlePriceToPlanCode("pri_pro_yil")).toBeNull();
+    expect(paddlePriceCatalogConfigured()).toBe(true);
+  });
+
+  it("YALNIZCA yıllık id'ler set edilmişse katalog yine YAPILANDIRILMIŞ sayılır", () => {
+    // Kısmi yapılandırma tuzağı: katalog kapısı (`!derivedPlanCode &&
+    // paddlePriceCatalogConfigured()`) "en az bir id var mı" diye soruyor.
+    // Yıllık id'ler de sayılmazsa, yalnız yıllık satan bir kurulumda kapı
+    // sessizce PASİFLEŞİR ve katalog dışı fiyat yine geçer.
+    vi.stubEnv("PADDLE_PRICE_PRO_YILLIK", "pri_pro_yil");
+    expect(paddlePriceCatalogConfigured()).toBe(true);
+    expect(paddlePriceToPlanCode("pri_pro_yil")).toBe("pro");
   });
 });
 

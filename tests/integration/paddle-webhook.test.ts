@@ -308,6 +308,61 @@ describe("POST /api/webhooks/paddle", () => {
     expect((await prisma.subscription.findUnique({ where: { organizationId: orgId } }))?.status).toBe("canceled");
   });
 
+  it("🚨 YILLIK fiyata GEÇEN abonelikte planCode UYGULANIR (bayat kalmaz)", async () => {
+    // Bağlı bir org için `resolveOrgId` providerRef'ten dönüyor ve fiyat
+    // kontrolü YALNIZ ilk-bağlanma dalında; `updateData` da
+    // `...(planCode ? { planCode } : {})` yazıyor → KATALOGDA OLMAYAN bir fiyat
+    // `status:"active"` yazar ama planCode'a HİÇ dokunmaz. Sonuç: müşteri
+    // İşletme'ye yıllık geçer, org "pro" limitlerinde asılı kalır (ya da tersi:
+    // düşürdüğü hâlde üst kademede kalır). Yıllık id katalogda OLDUĞU sürece
+    // bu dal doğru çalışır — testin pinlediği tam olarak budur.
+    process.env.PADDLE_PRICE_ISLETME_YILLIK = "pri_isletme_yil";
+    try {
+      const staleConsent = await prisma.checkoutConsent.create({
+        data: { organizationId: orgId, planCode: "pro", priceId: "pri_pro", legalVersion: "2026-06", ip: "1.2.3.4", createdAt: new Date(Date.now() - 30 * 24 * 60 * 60 * 1000) },
+        select: { id: true },
+      });
+      await prisma.subscription.create({
+        data: { organizationId: orgId, planCode: "pro", status: "active", provider: "paddle", providerRef: "sub_yil" },
+      });
+      const body = JSON.stringify({
+        event_id: "evt_yillik",
+        event_type: "subscription.updated",
+        occurred_at: new Date().toISOString(),
+        data: { id: "sub_yil", status: "active", custom_data: { consentId: staleConsent.id }, items: [{ price: { id: "pri_isletme_yil" } }] },
+      });
+      expect((await POST(req(body, sign(body)))).status).toBe(200);
+      const sub = await prisma.subscription.findUnique({ where: { organizationId: orgId } });
+      expect(sub?.status).toBe("active");
+      expect(sub?.planCode, "yıllık fiyat katalogda değilse planCode BAYAT kalır").toBe("business");
+    } finally {
+      delete process.env.PADDLE_PRICE_ISLETME_YILLIK;
+    }
+  });
+
+  it("ters yön: katalogda OLMAYAN fiyat planCode'u DEĞİŞTİRMEZ (bilinen sınır)", async () => {
+    // Bu, bugünkü davranışın DÜRÜST kaydı — bir düzeltme değil. Katalog dışı
+    // fiyat gelirse status yazılır, planCode korunur. Yani yıllık fiyatı
+    // Paddle'da açıp env'e EKLEMEMEK, org'u sessizce eski kademesinde bırakır.
+    // (Olay ayrıca 30 günde bir alarm üretir — `unmappedPriceId` dalı.)
+    const staleConsent = await prisma.checkoutConsent.create({
+      data: { organizationId: orgId, planCode: "pro", priceId: "pri_pro", legalVersion: "2026-06", ip: "1.2.3.4", createdAt: new Date(Date.now() - 30 * 24 * 60 * 60 * 1000) },
+      select: { id: true },
+    });
+    await prisma.subscription.create({
+      data: { organizationId: orgId, planCode: "pro", status: "active", provider: "paddle", providerRef: "sub_bilinmeyen" },
+    });
+    const body = JSON.stringify({
+      event_id: "evt_bilinmeyen_fiyat",
+      event_type: "subscription.updated",
+      occurred_at: new Date().toISOString(),
+      data: { id: "sub_bilinmeyen", status: "active", custom_data: { consentId: staleConsent.id }, items: [{ price: { id: "pri_env_de_yok" } }] },
+    });
+    expect((await POST(req(body, sign(body)))).status).toBe(200);
+    const sub = await prisma.subscription.findUnique({ where: { organizationId: orgId } });
+    expect(sub?.planCode, "katalog dışı fiyat planCode'u değiştirmemeli").toBe("pro");
+  });
+
   it("EXISTING sub lifecycle: 30-day-old consentId, past_due resolves via providerRef → APPLIED", async () => {
     const staleConsent = await prisma.checkoutConsent.create({
       data: { organizationId: orgId, planCode: "pro", priceId: "pri_pro", legalVersion: "2026-06", ip: "1.2.3.4", createdAt: new Date(Date.now() - 30 * 24 * 60 * 60 * 1000) },

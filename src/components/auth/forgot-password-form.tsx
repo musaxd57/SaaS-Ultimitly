@@ -229,9 +229,24 @@ export function ForgotPasswordForm() {
             /* Hangi adrese gidildiği burada YAZILI olmalı: yazım hatası ancak
                görülürse fark edilir, ve fark edildiğinde çıkış yolu hemen yanında
                durmalı. Adres kullanıcının kendi yazdığı değer — hesap var/yok
-               bilgisi vermez, enumeration güvenliği bozulmaz. */
+               bilgisi vermez, enumeration güvenliği bozulmaz.
+
+               🚨 CÜMLE KOŞULLU KURULUR ("varsa"), "gönderildi" DİYE KESİN
+               KURULMAZ — GERİ ALMA. Uç nokta enumeration'a karşı bilinmeyen
+               adrese de generic 200 döner, yani hesabı OLMAYAN (ya da hesabını
+               silmiş) biri "gönderildi" yazısını görüp hiç gelmeyecek bir kodu
+               süresiz bekliyordu: ekran bir şey yazıyor ama YANLIŞ şey yazıyor
+               ve çıkış yolu göstermiyordu — kayıt ekranındaki "zaten hesabın
+               var" ile aynı KAPALI DÖNGÜ.
+               ⚠️ Doğru çözüm burada METİNDİR, e-posta DEĞİL: `EmailOutbox.userId`
+               ZORUNLU (şema) → hesapsız satır yazılamaz; bilinen dalda kuyruğa
+               yazıp bilinmeyen dalda doğrudan sağlayıcıya gitmek ise o dala
+               Resend gecikmesi ekler = zamanlama oracle'ı (kayıt tarafında aynı
+               öneri tam bu gerekçeyle REDDEDİLDİ). Koşullu cümle HERKESE aynı
+               gösterildiği için hiçbir şey sızdırmaz. */
             <p className="text-sm text-muted-foreground">
-              Kod <span className="font-medium text-foreground">{email}</span> adresine gönderildi.{" "}
+              <span className="font-medium text-foreground">{email}</span> adresine ait bir hesap
+              varsa kod gönderildi.{" "}
               <button
                 type="button"
                 onClick={backToEmailStep}
@@ -239,6 +254,24 @@ export function ForgotPasswordForm() {
               >
                 E-posta adresini değiştir
               </button>
+            </p>
+          )}
+          {!challengeToken && (
+            /* Kod gelmediğinde ne yapılacağı YAZILI olmalı — kullanıcının
+               kendi başına çözemeyeceği tek durum "bu adresle hesabım yok"tur
+               ve ürün onu şu an hiçbir yerde söylemiyor. */
+            <p className="rounded-md bg-muted/60 px-3 py-2 text-xs text-muted-foreground">
+              Kod birkaç dakikada gelmezse spam klasörünü kontrol edin. Yine yoksa bu adresle
+              kayıtlı bir hesabınız olmayabilir —{" "}
+              <Link href="/register" className="font-medium text-primary hover:underline">
+                yeni hesap oluşturun
+              </Link>
+              .{" "}
+              {/* ⚠️ `/register` `REGISTRATION_OPEN!=1` iken `/login`'e yönlenir
+                  (sayfanın kendi kapısı) — bağlantı o hâlde de ÖLÜ DEĞİL, giriş
+                  ekranına düşer. Bu yüzden burada ayrı bir env kontrolü YOK:
+                  istemci bileşeni sunucu env'ini zaten okuyamaz ve okumaya
+                  çalışmak kaydın açık/kapalı olduğunu istemciye sızdırırdı. */}
             </p>
           )}
           <Field label="Doğrulama kodu" htmlFor="code" error={fieldError.code}>

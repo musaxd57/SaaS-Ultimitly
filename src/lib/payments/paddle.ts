@@ -100,15 +100,38 @@ export function verifyPaddleSignature(opts: {
  * Configured via env so the same code works in sandbox and production without a
  * rebuild. Unknown price → null (event is stored but no plan change is applied).
  */
-/** Fiyat→plan haritası (env'den). Ürünün TÜM kataloğu bu üç kalemdir. */
+/**
+ * Fiyat→plan haritası (env'den). Ürünün kataloğu ÜÇ KADEME, ama her kademenin
+ * AYLIK ve YILLIK fiyatı olabilir → altı olası id, üç plan kodu.
+ *
+ * 🚨 YILLIK, AYLIKLA **AYNI** PLAN KODUNA EŞLENİR — ayrı bir kod ÜRETME.
+ * Plan kodu bir YETKİ seviyesidir, bir fatura dönemi değil: `getEntitlement`,
+ * `limitsForOrg`, `canAddProperty`, deneme mantığı ve `past_due` grace'inin
+ * hepsi bu koda bakıyor. Yıllık Pro ile aylık Pro AYNI ürünü kullanır, o yüzden
+ * aynı kodu almalıdır; ayrı bir "pro_yillik" kodu uydurmak bu beş yerin hepsini
+ * birden bilinmeyen-plan dalına düşürürdü.
+ * ⚠️ Fatura DÖNEMİ burada BİLİNÇLİ olarak taşınmıyor: `Subscription`'da
+ * `priceId`/dönem kolonu YOK (şema), yani dönemi yerel satırdan öğrenmek
+ * migration ister. Bugün buna ihtiyaç yok — dönem yalnız Paddle'ın kendi
+ * kayıtlarında yaşıyor ve tüm para akışı (checkout, önizleme, uygulama, webhook
+ * settle) zaten HAM `priceId`'ye bağlanıyor, plan koduna değil.
+ * ⚠️ Yıllık env'leri EKLEMEDEN Paddle'da yıllık fiyat AÇMA: bilinmeyen fiyat
+ * checkout consent'inde 400 döner (katalog kapısı) ve webhook `planCode`'a hiç
+ * dokunmadığı için org ESKİ kademesinde asılı kalır.
+ */
 function paddlePriceCatalog(): Record<string, string> {
   const map: Record<string, string> = {};
-  const baslangic = process.env.PADDLE_PRICE_BASLANGIC?.trim();
-  const pro = process.env.PADDLE_PRICE_PRO?.trim();
-  const isletme = process.env.PADDLE_PRICE_ISLETME?.trim();
-  if (baslangic) map[baslangic] = "free"; // "Başlangıç" — legacy code "free"
-  if (pro) map[pro] = "pro";
-  if (isletme) map[isletme] = "business";
+  const put = (id: string | undefined, code: string) => {
+    const v = id?.trim();
+    if (v) map[v] = code;
+  };
+  put(process.env.PADDLE_PRICE_BASLANGIC, "free"); // "Başlangıç" — legacy code "free"
+  put(process.env.PADDLE_PRICE_PRO, "pro");
+  put(process.env.PADDLE_PRICE_ISLETME, "business");
+  // Yıllık ("yıllıkta 2 ay bedava") — env yoksa katalog aynen eskisi gibi davranır.
+  put(process.env.PADDLE_PRICE_BASLANGIC_YILLIK, "free");
+  put(process.env.PADDLE_PRICE_PRO_YILLIK, "pro");
+  put(process.env.PADDLE_PRICE_ISLETME_YILLIK, "business");
   return map;
 }
 
