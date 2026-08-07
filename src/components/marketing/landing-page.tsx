@@ -48,7 +48,7 @@ const STEPS = [
   {
     icon: Brain,
     title: "2. AI işletmenizi öğrenir",
-    body: "Üslubunuzu, daire bilgilerinizi ve sık sorulan soruları öğrenir; ",
+    body: "Üslubunuzu, daire bilgilerinizi ve sık sorulan soruları öğrenir.",
   },
   {
     icon: MessageSquareReply,
@@ -133,7 +133,10 @@ const RED_LINES = [
   "Şikayetlerin çözümü",
   "Rezervasyon iptalleri",
   "Güvenlik ve acil durumlar",
-  "Kötü yorum pazarlıkları",
+  // ⚠️ "pazarlık" DEĞİL "tehdit": riskli olan misafirin bir şey koparmak için
+  // kötü yorumla TEHDİT etmesidir; "pazarlık" hostu pazarlık yapıyor gibi
+  // gösteriyordu. Kodun kendi kelimesi de bu (`riskType: "review_threat"`).
+  "Kötü yorum tehditleri",
   "Platform dışı ödeme teklifleri",
   "İnsanla görüşme talepleri",
 ];
@@ -798,10 +801,31 @@ export function LandingPage() {
         <div className="mx-auto max-w-xl px-4 sm:px-6">
           <h2 className="text-center text-3xl font-bold tracking-tight">Kendiniz başlayın ya da birlikte kuralım</h2>
           <p className="mx-auto mt-3 max-w-md text-center text-primary-foreground/80">
-            Hemen ücretsiz deneyin ya da bilgilerinizi bırakın, size dönüp kurulumda yardımcı olalım. 14 gün
-            ücretsiz, kart yok, taahhüt yok.
+            14 gün ücretsiz, kart yok, taahhüt yok.
           </p>
-          <div className="mt-8">
+          {/* 🚨 BAŞLIK İKİ YOL VAAT EDİYOR, BÖLÜMDE TEK KONTROL VARDI (08-07).
+              Metin "Hemen ücretsiz deneyin ya da bilgilerinizi bırakın" diyordu
+              ama tıklanacak tek şey lead formuydu: kendi başına başlamak isteyen
+              ziyaretçi vaat edilen yolu bulamıyordu (sayfanın en altı — yukarı
+              kaydırıp hero'daki butonu araması gerekiyordu).
+              Düzeltme iki CTA'yı BİRBİRİNDEN AYIRMAK: birincil eylem gerçek bir
+              buton, form ise AÇIKÇA ikincil ("Kurulumda yardım ister misiniz?").
+              İkisini tek cümlede yan yana koymak birincisini zayıflatıyordu. */}
+          <div className="mt-8 flex justify-center">
+            <Link
+              href="/register"
+              className={cn(
+                buttonVariants({ size: "lg" }),
+                "cta-arrow w-full bg-background text-foreground hover:bg-background/90 sm:w-auto",
+              )}
+            >
+              14 gün ücretsiz dene <ArrowRight className="size-4" aria-hidden="true" />
+            </Link>
+          </div>
+          <div className="mt-10 border-t border-primary-foreground/20 pt-8">
+            <p className="mb-4 text-center text-sm text-primary-foreground/80">
+              Kurulumda yardım ister misiniz? Bilgilerinizi bırakın, size dönelim.
+            </p>
             <LeadForm />
           </div>
         </div>

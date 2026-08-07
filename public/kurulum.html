@@ -3,6 +3,13 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
+<!-- 🚨 BU DOSYA TEK BAŞINA BİR SAYFA DEĞİL, landing'e <iframe> ile gömülen bir
+     PARÇADIR: kendi başlığı, menüsü, CTA'sı ve footer'ı yok. robots.txt "/"
+     altındaki her şeye izin verdiği ve bu dosya (app) grubunun noindex'i
+     dışında kaldığı için arama motoru onu BAĞIMSIZ bir sayfa gibi indeksleyip
+     kullanıcıyı çıkışsız bir kırıntıya düşürebiliyordu. iframe içinde
+     gösterilmesi bundan etkilenmez — noindex yalnız arama sonuçlarını keser. -->
+<meta name="robots" content="noindex, nofollow">
 <title>Lixus AI — API Bağlama Anlatımı</title>
 <style>
   /* ⚠️ INTER KENDİ SUNUCUMUZDAN SERVİS EDİLİR — Google Fonts'a GERİ DÖNME.

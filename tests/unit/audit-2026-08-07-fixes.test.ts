@@ -364,6 +364,16 @@ describe("landing iframe'leri Google Fonts ÇEKMEZ", () => {
     }
   });
 
+  it("iframe parçaları arama motoruna KAPALI (tek başına sayfa değiller)", () => {
+    // Bu iki dosya landing'e gömülen PARÇA: başlığı, menüsü, CTA'sı yok.
+    // robots.txt "/" altındaki her şeye izin veriyor ve (app) grubunun
+    // noindex'i bunları KAPSAMIYOR → indekslenirlerse kullanıcı çıkışsız bir
+    // kırıntıya düşer. iframe içinde gösterim bundan etkilenmez.
+    for (const rel of IFRAMES) {
+      expect(read(rel), rel).toMatch(/<meta\s+name="robots"\s+content="noindex/i);
+    }
+  });
+
   it("CSP'deki Google Fonts karşılaması kaldırıldı ve geri gelmedi", () => {
     // Karşılamanın TEK sebebi bu iki dosyaydı; artık gerekmiyor. Geri eklenmesi
     // neredeyse kesinlikle <link>'lerin geri konduğu anlamına gelir.
