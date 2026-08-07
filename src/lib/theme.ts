@@ -69,7 +69,10 @@ export function isPanelPath(pathname: string): boolean {
  */
 export function themeBootScript(): string {
   const prefixes = JSON.stringify(PANEL_PATH_PREFIXES);
-  return `try{var p=${prefixes},n=location.pathname;if(p.some(function(x){return n===x||n.indexOf(x+"/")===0})){var t=localStorage.getItem(${JSON.stringify(
+  // ⚠️ `else remove` ŞART — yalnız `add` yazmak simetrisizdi. Aynı sekmede
+  // karanlık panelden tam sayfa yüklemeyle bir pazarlama sayfasına geçildiğinde
+  // (ya da tarayıcı geri/ileri ile) sınıf asılı kalabiliyordu.
+  return `try{var p=${prefixes},n=location.pathname,d=false;if(p.some(function(x){return n===x||n.indexOf(x+"/")===0})){var t=localStorage.getItem(${JSON.stringify(
     THEME_STORAGE_KEY,
-  )});if(t==="dark"||(!t&&matchMedia("(prefers-color-scheme:dark)").matches))document.documentElement.classList.add("dark")}}catch(e){}`;
+  )});d=t==="dark"||(!t&&matchMedia("(prefers-color-scheme:dark)").matches)}document.documentElement.classList.toggle("dark",d)}catch(e){}`;
 }

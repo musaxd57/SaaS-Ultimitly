@@ -296,7 +296,17 @@ export function AppShell({ user, superAdmin, guestChatEnabled, impersonating, pl
             <Button
               size="sm"
               variant="outline"
-              className="border-amber-700 dark:border-amber-500/50 bg-amber-100 dark:bg-amber-500/15 hover:bg-amber-200"
+              // 🚨 BU DÜĞMEYE `dark:` KARDEŞİ EKLENMEZ — eklendi ve GÖRÜNMEZ OLDU (ölçüldü).
+              // Düğme, karanlıkta da DOLU KALAN `bg-amber-500` bandın İÇİNDE duruyor
+              // (band bilinçli olarak dışlandı). amber-500'ün herhangi bir alfası
+              // amber-500 üzerine binince tam olarak amber-500 verir → dolgu 1.00:1,
+              // kenarlık 1.00:1. Hover da kurtarmıyordu: `dark:` kuralı sonra geldiği
+              // için `hover:bg-amber-200`ı eziyordu. Geriye yalnız yazı kalıyordu —
+              // yani operatörün impersonation'dan ÇIKMAK için tek yolu, tıklanacak
+              // bir şeye benzemiyordu.
+              // Ders: bir öğeye `dark:` eklemeden önce EBEVEYNİNİN karanlıkta ne
+              // olduğuna bakılır; dolu bir zeminin çocuğu da dolu kalmalı.
+              className="border-amber-700 bg-amber-100 hover:bg-amber-200"
               onClick={exitImpersonation}
               disabled={exiting}
             >

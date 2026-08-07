@@ -1,5 +1,6 @@
 import { appCanonicalOrigin } from "@/lib/app-config";
 import { themeBootScript } from "@/lib/theme";
+import { ThemeScope } from "@/components/theme-scope";
 import type { Metadata } from "next";
 import { Inter } from "next/font/google";
 import { Toaster } from "@/components/toaster";
@@ -62,6 +63,10 @@ export default function RootLayout({
       </head>
       <body className="min-h-screen bg-background font-sans antialiased">
         {children}
+        {/* Tema kapsamının TEK sorumlusu — her yol değişiminde doğru durumu
+            yeniden kurar. Kökte, çünkü panel dışı sayfalar (404, hata sınırı,
+            landing) panel ağacının DIŞINDA render oluyor. */}
+        <ThemeScope />
         {/* Kökte mount edilir: toast() çağıran bileşen ağaçta nerede olursa
             olsun bir dinleyici HER ZAMAN vardır (aksi halde lib native alert'e
             düşer — sessiz hata yok). */}

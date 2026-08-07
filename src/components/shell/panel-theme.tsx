@@ -24,14 +24,11 @@ export function PanelTheme() {
   const [dark, setDark] = useState<boolean | null>(null);
 
   useEffect(() => {
-    // Boot betiği sınıfı ZATEN koydu; buradan yalnız OKUYORUZ. Tekrar
-    // hesaplamak (localStorage + matchMedia) iki kaynak yaratır ve ikisi
-    // ayrışabilir — tek gerçek, DOM'daki sınıfın kendisi.
+    // ⚠️ KAPSAM SORUMLULUĞU BURADA DEĞİL — `ThemeScope` (kök layout) yönetiyor.
+    // Eskiden sınıfı bu bileşen kaldırıyordu ve 404/hata sayfalarında hiç mount
+    // olmadığı için karanlık sınıf landing'e SIZIYORDU (ölçüldü). Burada yalnız
+    // düğmenin ikonu için DOM'daki gerçeği okuyoruz.
     setDark(document.documentElement.classList.contains("dark"));
-    return () => {
-      // Panelden çıkılıyor → kapsam biter.
-      document.documentElement.classList.remove("dark");
-    };
   }, []);
 
   function toggle() {

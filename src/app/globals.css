@@ -53,7 +53,11 @@
      success/background 10.00 · warning/background 10.57
 --------------------------------------------------------------------------- */
 @layer base {
-  .dark {
+  /* ⚠️ `html.dark` — çıplak `.dark` DEĞİL. İkisi de `<html class="dark">`e
+     uyuyor ama çıplak `.dark` ile `:root` AYNI özgüllükte (0,1,0) ve kazananı
+     yalnız KAYNAK SIRASI belirliyor: bloklar bir gün yer değiştirirse karanlık
+     mod SESSİZCE ölür. `html.dark` (0,1,1) bu kırılganlığı kaldırır. */
+  html.dark {
     /* Saf siyah DEĞİL: OLED'de bulaşma yapar ve daha KOYUYA inecek yer
        bırakmaz (kuyu/oyuk yüzeyleri için alan gerekiyor). */
     --background: 222 47% 8%;
@@ -551,15 +555,9 @@ html {
    ⚠️ İkisi de `.dark` ile KAPSANMIŞ — açık modda hiçbir kural değişmiyor.
 --------------------------------------------------------------------------- */
 
-/* `card-lift` gölgesi `--foreground`a bağlıydı. Karanlıkta foreground neredeyse
-   BEYAZ olduğu için gölge bir PARILTIYA dönüyordu (yükselti aşağı değil yukarı
-   okunuyor, kart havada asılı duruyordu). Karanlıkta gölge SİYAH olmalı ve
-   zemin zaten koyu olduğu için opaklığı yükseltilmeli.
-   ⚠️ `nav-scrolled` bilerek DIŞARIDA: yalnız landing'de kullanılıyor (NavScroll
-   pazarlama bileşeni) ve landing her zaman açık tema. */
-.dark .card-lift:hover,
-.dark .card-lift:focus-within {
-  box-shadow:
-    0 1px 2px hsl(0 0% 0% / 0.5),
-    0 12px 28px -12px hsl(0 0% 0% / 0.7);
-}
+/* ⚠️ `card-lift` için karanlık gölge OVERRIDE'I YAZILDI ve SİLİNDİ (08-07 (2)).
+   Gerekçe: sınıf YALNIZ `marketing/` altında kullanılıyor (7 yer) ve landing
+   hiçbir zaman karanlık olmuyor → kural asla ateşlenemezdi. `nav-scrolled`ı tam
+   bu sebeple dışarıda bırakmıştım, sonra aynı kapsamdaki bir sınıf için override
+   yazdım. Panelde bir gün `card-lift` kullanılırsa override GEREKECEK: gölge
+   `--foreground`a bağlı ve karanlıkta beyaz bir PARILTIYA döner. */
