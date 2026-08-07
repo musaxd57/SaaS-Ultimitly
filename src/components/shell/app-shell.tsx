@@ -157,13 +157,22 @@ export function AppShell({ user, superAdmin, guestChatEnabled, impersonating, pl
           href={href}
           onClick={() => setMobileOpen(false)}
           className={cn(
-            "flex items-center gap-3 rounded-md px-3 py-2 text-sm font-medium transition-colors",
+            // Satır yüksekliği: 20 (text-sm satır kutusu) + 10 + 10 = 40px, zoom
+            // sonrası 38. Panelin `Button size=default`ı da 40 — sidebar artık
+            // her düğmeyle aynı ritimde. Yazı boyutu BİLEREK `text-sm` kalıyor
+            // (kullanıcı isteği: kutular büyüsün, font aynı kalsın).
+            "flex items-center gap-3 rounded-md px-3 py-2.5 text-sm font-medium transition-colors",
             isActive(href)
               ? "bg-primary text-primary-foreground"
               : "text-muted-foreground hover:bg-accent hover:text-accent-foreground",
           )}
         >
-          <Icon className="size-4.5 shrink-0" />
+          {/* 20px — satır yüksekliğine BEDAVA: max(20 satır kutusu, 20 ikon)=20.
+              ⚠️ Eskiden `size-4.5` yazıyordu ama ölçekte olmadığı için HİÇ CSS
+              üretmiyordu → ikonlar lucide varsayılanı 24px'te çiziliyordu. Sınıf
+              çalışır hâle gelince 18px'e düştüler ve sidebar gözle görülür
+              küçüldü; 20 hem tutarlı hem eski algıya yakın. */}
+          <Icon className="size-5 shrink-0" />
           {label}
         </Link>
       ))}
@@ -214,20 +223,27 @@ export function AppShell({ user, superAdmin, guestChatEnabled, impersonating, pl
         </button>
       </div>
 
-      <div className="mt-6 flex min-h-0 flex-1 flex-col gap-1 overflow-y-auto">
+      {/* ⚠️ `mt-4` YÜK TAŞIYOR, kozmetik değil. 40px'lik satırlarla 768px'lik
+          görünüm penceresinde toplam 803 CSS px eder ve `100vh/0.95` = 808.4'e
+          sığar (5.4 px pay). `mt-6`ya (24) geri dönmek toplamı 811'e çıkarır →
+          2.6 px taşma → tam da o boyutta gereksiz bir kaydırma çubuğu. Yan
+          kazanç: üstte 16 / altta 16 (kullanıcı kartının `mt-4`ü) simetrisi. */}
+      <div className="mt-4 flex min-h-0 flex-1 flex-col gap-1 overflow-y-auto">
         {navLinks}
         {superAdmin ? (
           <Link
             href="/admin"
             onClick={() => setMobileOpen(false)}
             className={cn(
-              "flex items-center gap-3 rounded-md px-3 py-2 text-sm font-medium transition-colors",
+              // ↑ Gezinme satırlarıyla BİREBİR aynı olmak zorunda (aynı listenin
+              // parçası gibi okunuyor); biri değişip diğeri kalırsa ayrışır.
+              "flex items-center gap-3 rounded-md px-3 py-2.5 text-sm font-medium transition-colors",
               isActive("/admin")
                 ? "bg-primary text-primary-foreground"
                 : "text-muted-foreground hover:bg-accent hover:text-accent-foreground",
             )}
           >
-            <Shield className="size-4.5 shrink-0" />
+            <Shield className="size-5 shrink-0" />
             Operatör Paneli
           </Link>
         ) : null}
