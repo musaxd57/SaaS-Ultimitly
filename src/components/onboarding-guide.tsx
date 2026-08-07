@@ -184,7 +184,7 @@ export function OnboardingGuide({ steps }: { steps: OnboardingStep[] }) {
                   {s.done ? (
                     <CheckCircle2
                       className={cn(
-                        "size-5 text-emerald-600",
+                        "size-5 text-emerald-600 dark:text-emerald-400",
                         // Yalnız YENİ tamamlananlar patlar — hepsi değil.
                         justAdvanced && seenCount !== null && i >= seenCount && "lxo-pop",
                       )}

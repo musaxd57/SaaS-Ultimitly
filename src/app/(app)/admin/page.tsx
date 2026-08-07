@@ -169,9 +169,9 @@ export default async function AdminPage() {
     }
   }
   const toneClass: Record<"green" | "amber" | "red" | "gray", string> = {
-    green: "bg-emerald-50 text-emerald-700",
-    amber: "bg-amber-50 text-amber-700",
-    red: "bg-red-50 text-red-700",
+    green: "bg-emerald-50 dark:bg-emerald-500/10 text-emerald-700 dark:text-emerald-400",
+    amber: "bg-amber-50 dark:bg-amber-500/10 text-amber-700 dark:text-amber-300",
+    red: "bg-red-50 dark:bg-red-500/10 text-red-700 dark:text-red-300",
     gray: "bg-muted text-muted-foreground",
   };
 
@@ -228,8 +228,8 @@ export default async function AdminPage() {
                         <span
                           className={
                             conn.ok
-                              ? "inline-flex items-center rounded-full bg-emerald-50 px-2 py-0.5 text-xs font-medium text-emerald-700"
-                              : "inline-flex items-center rounded-full bg-amber-50 px-2 py-0.5 text-xs font-medium text-amber-700"
+                              ? "inline-flex items-center rounded-full bg-emerald-50 dark:bg-emerald-500/10 px-2 py-0.5 text-xs font-medium text-emerald-700 dark:text-emerald-400"
+                              : "inline-flex items-center rounded-full bg-amber-50 dark:bg-amber-500/10 px-2 py-0.5 text-xs font-medium text-amber-700 dark:text-amber-300"
                           }
                         >
                           {conn.label}
@@ -290,7 +290,7 @@ export default async function AdminPage() {
                               href={`https://wa.me/${l.phone.replace(/\D/g, "")}`}
                               target="_blank"
                               rel="noopener noreferrer"
-                              className="font-medium text-emerald-600 hover:underline"
+                              className="font-medium text-emerald-600 dark:text-emerald-400 hover:underline"
                             >
                               WhatsApp
                             </a>
@@ -419,9 +419,9 @@ export default async function AdminPage() {
                           ) : r.error ? (
                             <span className="text-destructive">arıza</span>
                           ) : r.agrees === true ? (
-                            <span className="text-emerald-600">uyumlu</span>
+                            <span className="text-emerald-600 dark:text-emerald-400">uyumlu</span>
                           ) : r.agrees === false ? (
-                            <span className="text-amber-600">ayrıştı</span>
+                            <span className="text-amber-600 dark:text-amber-400">ayrıştı</span>
                           ) : (
                             "—"
                           )}

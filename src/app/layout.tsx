@@ -1,4 +1,5 @@
 import { appCanonicalOrigin } from "@/lib/app-config";
+import { themeBootScript } from "@/lib/theme";
 import type { Metadata } from "next";
 import { Inter } from "next/font/google";
 import { Toaster } from "@/components/toaster";
@@ -50,6 +51,15 @@ export default function RootLayout({
 }: Readonly<{ children: React.ReactNode }>) {
   return (
     <html lang="tr" className={inter.variable}>
+      <head>
+        {/* İlk boyamadan ÖNCE koşar → tema flaşı yok. Betik hem TERCİHİ hem
+            KAPSAMI kontrol eder: panel dışı bir yola doğrudan girildiğinde
+            `dark` sınıfı hiç eklenmez (karanlık mod yalnız panelde geçerli).
+            ⚠️ Satır-içi betik: `script-src` bugün enforce edilmiyor. Nonce
+            turunu yapan kişi buna nonce vermezse ilk boyamada tema bozulur —
+            doğru düzeltme CSP'yi gevşetmek değil, nonce eklemektir. */}
+        <script dangerouslySetInnerHTML={{ __html: themeBootScript() }} />
+      </head>
       <body className="min-h-screen bg-background font-sans antialiased">
         {children}
         {/* Kökte mount edilir: toast() çağıran bileşen ağaçta nerede olursa

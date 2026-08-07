@@ -71,7 +71,7 @@ export function AlertEmailForm({ initial }: { initial: string }) {
         />
       </div>
       <Button type="submit" variant="outline" disabled={busy || !dirty}>
-        {busy ? <Loader2 className="size-4 animate-spin" /> : saved && !dirty ? <Check className="size-4 text-emerald-600" /> : <Mail className="size-4" />}
+        {busy ? <Loader2 className="size-4 animate-spin" /> : saved && !dirty ? <Check className="size-4 text-emerald-600 dark:text-emerald-400" /> : <Mail className="size-4" />}
         {saved && !dirty ? "Kaydedildi" : "Kaydet"}
       </Button>
       {error ? <p className="w-full text-xs text-destructive">{error}</p> : null}

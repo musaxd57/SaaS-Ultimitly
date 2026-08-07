@@ -75,7 +75,7 @@ export function IcalPrivacyForm({ showGuestName }: { showGuestName: boolean }) {
           Kaydet
         </Button>
         {saved && !dirty ? (
-          <span className="inline-flex items-center gap-1 text-sm font-medium text-emerald-600">
+          <span className="inline-flex items-center gap-1 text-sm font-medium text-emerald-600 dark:text-emerald-400">
             <Check className="size-4" /> Kaydedildi
           </span>
         ) : null}

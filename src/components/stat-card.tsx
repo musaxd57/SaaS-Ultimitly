@@ -17,7 +17,7 @@ interface StatCardProps {
 
 const toneClasses: Record<NonNullable<StatCardProps["tone"]>, string> = {
   default: "bg-primary/10 text-primary",
-  warning: "bg-warning/15 text-amber-700",
+  warning: "bg-warning/15 text-amber-700 dark:text-amber-300",
   destructive: "bg-destructive/10 text-destructive",
   success: "bg-success/10 text-success",
 };

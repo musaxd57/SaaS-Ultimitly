@@ -205,7 +205,7 @@ export function GuestChatSettings({
             >
               {resetting ? "…" : "Sohbet cihaz kilidini sıfırla"}
             </button>
-            {resetDone ? <span className="ml-2 text-xs text-emerald-600">Sıfırlandı</span> : null}
+            {resetDone ? <span className="ml-2 text-xs text-emerald-600 dark:text-emerald-400">Sıfırlandı</span> : null}
             <p className="mt-1 text-[11px] text-muted-foreground">
               Sohbet, her konaklamada onu ilk açan cihaza kilitlenir (güvenlik). Misafir telefonunu
               değiştirdi veya sohbete erişemiyorsa kilidi sıfırlayın; misafir tekrar açtığında yeni cihaz
@@ -234,7 +234,7 @@ export function GuestChatSettings({
                 </span>
               </label>
               {strict && pinlessActiveUpcoming > 0 ? (
-                <div className="mt-2 rounded-md border border-amber-300 bg-amber-50 px-2.5 py-1.5 text-[11px] text-amber-900">
+                <div className="mt-2 rounded-md border border-amber-300 dark:border-amber-500/30 bg-amber-50 dark:bg-amber-500/10 px-2.5 py-1.5 text-[11px] text-amber-900 dark:text-amber-200">
                   ⚠️ Bu dairede giriş kodu olmayan {pinlessActiveUpcoming} aktif/yaklaşan konaklama var —
                   zorunlu mod açık olduğu için bu misafirler kod oluşturana kadar sohbeti açamaz. Aşağıdaki
                   rezervasyon listesinden kod oluşturun.

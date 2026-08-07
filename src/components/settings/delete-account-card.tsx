@@ -77,7 +77,7 @@ export function DeleteAccountCard() {
             DEVAM ediyor ve iptalin tek yolu olan düğme artık giremediği hesabın
             içinde kalıyordu. Otomatik iptal para hot-path'idir → ürün kararı;
             burada en azından gerçeği söylüyoruz. */}
-        <p className="mt-2 font-medium text-amber-700">
+        <p className="mt-2 font-medium text-amber-700 dark:text-amber-300">
           Önce aboneliğinizi iptal edin: hesabı silmek ödeme aboneliğinizi
           <strong> durdurmaz</strong>. Bu yüzden aktif bir aboneliğiniz varken silme
           <strong> yapılamaz</strong> — Faturalandırma → &quot;Aboneliği yönet&quot; bölümünden

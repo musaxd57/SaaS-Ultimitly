@@ -161,7 +161,7 @@ export function AiTestCard({ properties }: { properties: { id: string; name: str
             </Badge>
           </div>
           {result.closingAck ? (
-            <div className="space-y-1.5 rounded-md bg-sky-50 p-2.5 text-xs text-sky-800">
+            <div className="space-y-1.5 rounded-md bg-sky-50 dark:bg-sky-500/10 p-2.5 text-xs text-sky-800 dark:text-sky-300">
               <p>
                 Bu mesaj gerçek kanalda{" "}
                 <strong>{result.closingKind === "praise" ? "salt olumlu geri bildirim" : "kapanış"}</strong>{" "}
@@ -173,13 +173,13 @@ export function AiTestCard({ properties }: { properties: { id: string; name: str
                     : "Nezaket yanıtı ayarınız kapalı: hiçbir otomatik yanıt gönderilmez; konuşma sessizce kapanmış sayılır."}
               </p>
               {result.closingReplyEnabled && result.closingReplyPreview ? (
-                <pre className="whitespace-pre-wrap rounded border border-sky-200 bg-white p-2 font-sans text-sky-900">
+                <pre className="whitespace-pre-wrap rounded border border-sky-200 dark:border-sky-500/30 bg-white dark:bg-card p-2 font-sans text-sky-900 dark:text-sky-200">
                   {result.closingReplyPreview}
                 </pre>
               ) : null}
             </div>
           ) : result.wouldAutoSend ? (
-            <p className="text-xs text-emerald-700">
+            <p className="text-xs text-emerald-700 dark:text-emerald-400">
               Güvenlik kapısı temiz + güven yüksek → oto-yanıt açıkken bu mesaj{" "}
               <strong>otomatik gönderilir</strong>. Aşağıdaki metin — otomatik yanıt notu ve imza dahil —
               misafire birebir gidecek olandır.
@@ -193,7 +193,7 @@ export function AiTestCard({ properties }: { properties: { id: string; name: str
                "%90 güven" rozetini ve cilalı taslağı görüp "demek bunu otomatik
                gönderiyor" sanıyordu — ürünün en önemli vaadi tam da kalibrasyon
                ekranında ters anlaşılıyordu. */
-            <p className="text-xs text-amber-600">
+            <p className="text-xs text-amber-600 dark:text-amber-400">
               {result.confidence < 0.75
                 ? "Güven %75'in altında → bu mesaja otomatik cevap gönderilmez, sizin onayınıza bırakılır."
                 : "Güvenlik kapısı bu mesajı otomatik yanıta uygun bulmadı → gönderilmez, sizin onayınıza bırakılır."}{" "}
@@ -201,13 +201,13 @@ export function AiTestCard({ properties }: { properties: { id: string; name: str
             </p>
           )}
           {riskTypeLabel(result.riskType) ? (
-            <p className="text-xs font-medium text-orange-700">İnsan incelemesi: {riskTypeLabel(result.riskType)}</p>
+            <p className="text-xs font-medium text-orange-700 dark:text-orange-300">İnsan incelemesi: {riskTypeLabel(result.riskType)}</p>
           ) : null}
           {result.usedSources && displayableSources(result.usedSources).length > 0 ? (
             <p className="text-xs text-muted-foreground">Kullandığı bağlam: {displayableSources(result.usedSources).map(sourceLabel).join(" · ")}</p>
           ) : null}
           {result.missingInfo && result.missingInfo.length > 0 ? (
-            <p className="text-xs text-amber-700">Eksik bilgi: {result.missingInfo.join(" · ")}</p>
+            <p className="text-xs text-amber-700 dark:text-amber-300">Eksik bilgi: {result.missingInfo.join(" · ")}</p>
           ) : null}
           {/* On a closing/pure-praise the model draft is DEAD weight: an ack never
               sends anything, and with the courtesy ON the blue preview above IS the

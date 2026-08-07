@@ -98,7 +98,7 @@ export function AddCustomerForm() {
         Müşteri oluştur
       </Button>
       {done ? (
-        <p className="inline-flex items-center gap-1 text-sm font-medium text-emerald-600">
+        <p className="inline-flex items-center gap-1 text-sm font-medium text-emerald-600 dark:text-emerald-400">
           <Check className="size-4" /> {done}
         </p>
       ) : null}

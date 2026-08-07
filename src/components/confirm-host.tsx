@@ -130,7 +130,7 @@ export function ConfirmHost() {
   const { title, body, confirmLabel, cancelLabel, destructive } = current.options;
 
   return (
-    <div className="fixed inset-0 z-[110] flex items-center justify-center bg-black/40 p-4">
+    <div className="fixed inset-0 z-[110] flex items-center justify-center bg-black/40 dark:bg-black/60 p-4">
       <div
         // key: sıradaki soruya geçerken panel gerçekten yeniden monte olsun
         // (odak efekti tetiklensin, eski içerik yapışıp kalmasın).

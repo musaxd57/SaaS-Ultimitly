@@ -252,7 +252,7 @@ export default async function CalendarPage({
                       </div>
                       <div className="space-y-0.5 text-xs">
                         {info.arrivals.map((a, j) => (
-                          <p key={`ma-${j}`} className="flex items-center gap-1.5 text-emerald-700">
+                          <p key={`ma-${j}`} className="flex items-center gap-1.5 text-emerald-700 dark:text-emerald-400">
                             <LogIn className="size-3 shrink-0" />
                             <span className="truncate">
                               {a.guest}
@@ -261,7 +261,7 @@ export default async function CalendarPage({
                           </p>
                         ))}
                         {info.departures.map((d, j) => (
-                          <p key={`md-${j}`} className="flex items-center gap-1.5 text-amber-700">
+                          <p key={`md-${j}`} className="flex items-center gap-1.5 text-amber-700 dark:text-amber-300">
                             <LogOut className="size-3 shrink-0" />
                             <span className="truncate">
                               {d.guest}
@@ -318,13 +318,13 @@ export default async function CalendarPage({
                       </div>
                       <div className="space-y-0.5">
                         {cell.arrivals.map((a, j) => (
-                          <p key={`a-${j}`} className="flex items-center gap-1 truncate text-emerald-700" title={`Giriş: ${a.guest} — ${a.property}`}>
+                          <p key={`a-${j}`} className="flex items-center gap-1 truncate text-emerald-700 dark:text-emerald-400" title={`Giriş: ${a.guest} — ${a.property}`}>
                             <LogIn className="size-3 shrink-0" />
                             <span className="truncate">{a.guest}{propertyFilter ? "" : ` · ${a.property}`}</span>
                           </p>
                         ))}
                         {cell.departures.map((d, j) => (
-                          <p key={`d-${j}`} className="flex items-center gap-1 truncate text-amber-700" title={`Çıkış: ${d.guest} — ${d.property}`}>
+                          <p key={`d-${j}`} className="flex items-center gap-1 truncate text-amber-700 dark:text-amber-300" title={`Çıkış: ${d.guest} — ${d.property}`}>
                             <LogOut className="size-3 shrink-0" />
                             <span className="truncate">{d.guest}{propertyFilter ? "" : ` · ${d.property}`}</span>
                           </p>
@@ -345,10 +345,10 @@ export default async function CalendarPage({
           {/* Legend */}
           <div className="mt-3 flex flex-wrap items-center gap-4 text-xs text-muted-foreground">
             <span className="inline-flex items-center gap-1">
-              <LogIn className="size-3 text-emerald-700" /> Giriş
+              <LogIn className="size-3 text-emerald-700 dark:text-emerald-400" /> Giriş
             </span>
             <span className="inline-flex items-center gap-1">
-              <LogOut className="size-3 text-amber-700" /> Çıkış
+              <LogOut className="size-3 text-amber-700 dark:text-amber-300" /> Çıkış
             </span>
             <span className="inline-flex items-center gap-1">
               <span className="rounded-full bg-primary/10 px-1.5 py-0.5 text-[10px] font-medium text-primary">N dolu</span>

@@ -10,6 +10,7 @@ import { NAV_ITEMS, titleForPath } from "@/lib/nav";
 import { USER_ROLE, type UserRole } from "@/lib/constants";
 import { Avatar } from "@/components/ui/avatar";
 import { Button } from "@/components/ui/button";
+import { PanelTheme } from "@/components/shell/panel-theme";
 import { cn } from "@/lib/utils";
 
 interface AppShellProps {
@@ -295,7 +296,7 @@ export function AppShell({ user, superAdmin, guestChatEnabled, impersonating, pl
             <Button
               size="sm"
               variant="outline"
-              className="border-amber-700 bg-amber-100 hover:bg-amber-200"
+              className="border-amber-700 dark:border-amber-500/50 bg-amber-100 dark:bg-amber-500/15 hover:bg-amber-200"
               onClick={exitImpersonation}
               disabled={exiting}
             >
@@ -319,6 +320,9 @@ export function AppShell({ user, superAdmin, guestChatEnabled, impersonating, pl
             <h1 className="text-sm font-semibold sm:text-base">{titleForPath(pathname)}</h1>
           </div>
           <div className="flex items-center gap-3">
+            {/* Tema düğmesi. Sınıfın SAHİBİ bu bileşen: panelden çıkılınca
+                `dark`ı `<html>`'den kaldırıyor (karanlık mod yalnız panelde). */}
+            <PanelTheme />
             <span className="hidden text-sm text-muted-foreground sm:inline">{user.orgName}</span>
             <Button ref={logoutBtnRef} variant="ghost" size="sm" onClick={logout} disabled={loggingOut}>
               {loggingOut ? <Loader2 className="size-4 animate-spin" /> : <LogOut className="size-4" />}

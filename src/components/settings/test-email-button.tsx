@@ -99,7 +99,7 @@ export function TestEmailButton() {
           aria-live={result.ok ? "polite" : "assertive"}
           className={
             result.ok
-              ? "flex items-start justify-between gap-2 rounded-md bg-emerald-50 px-3 py-2 text-sm text-emerald-700"
+              ? "flex items-start justify-between gap-2 rounded-md bg-emerald-50 dark:bg-emerald-500/10 px-3 py-2 text-sm text-emerald-700 dark:text-emerald-400"
               : "flex items-start justify-between gap-2 rounded-md bg-destructive/10 px-3 py-2 text-sm text-destructive"
           }
         >

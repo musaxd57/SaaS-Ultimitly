@@ -326,7 +326,7 @@ export default async function DashboardPage() {
                       {r.guestCheckoutTime ?? r.property.checkOutTime}
                     </span>
                     {r.guestCheckoutTime ? (
-                      <span className="block text-[10px] font-medium text-emerald-600">
+                      <span className="block text-[10px] font-medium text-emerald-600 dark:text-emerald-400">
                         misafirin verdiği saat
                       </span>
                     ) : null}

@@ -367,7 +367,7 @@ export function KbManager({
             <Field label="İçerik" htmlFor="kb-content">
               <Textarea id="kb-content" value={form.content} onChange={(e) => set("content", e.target.value)} required />
               {form.content.includes("[") ? (
-                <p className="mt-1 text-xs text-amber-600">
+                <p className="mt-1 text-xs text-amber-600 dark:text-amber-400">
                   Köşeli parantezli [alanları] kendi bilgilerinizle değiştirmeyi unutmayın.
                 </p>
               ) : null}
@@ -410,7 +410,7 @@ export function KbManager({
                     okur. Bunu söylemezsek host, AI'nın bilmediği bir bilgiyi
                     "eklemiştim" sanır ve yanlış cevabın sebebini asla bulamaz. */}
                 {list.filter((i) => i.isActive).length > KB_ITEM_CAP ? (
-                  <p className="rounded-md border border-amber-300 bg-amber-50 p-3 text-sm text-amber-900">
+                  <p className="rounded-md border border-amber-300 dark:border-amber-500/30 bg-amber-50 dark:bg-amber-500/10 p-3 text-sm text-amber-900 dark:text-amber-200">
                     Bu dairede <strong>{list.filter((i) => i.isActive).length}</strong> aktif bilgi
                     var; AI bir yanıtta <strong>en fazla {KB_ITEM_CAP}</strong> tanesini okur (en son
                     güncellenenler önce). Kullanılmayanları pasife alın ya da birkaç kısa kaydı tek
@@ -462,7 +462,7 @@ export function KbManager({
                           aria-label={item.isActive ? "Pasifleştir" : "Aktifleştir"}
                           title={item.isActive ? "Pasifleştir" : "Aktifleştir"}
                         >
-                          {item.isActive ? <ToggleRight className="size-4 text-emerald-600" /> : <ToggleLeft className="size-4" />}
+                          {item.isActive ? <ToggleRight className="size-4 text-emerald-600 dark:text-emerald-400" /> : <ToggleLeft className="size-4" />}
                         </button>
                         <button
                           type="button"

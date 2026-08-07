@@ -189,7 +189,7 @@ export function CalendarSources({ propertyId, sources, canManage = true, tz }: P
                   {s.lastStatus === "error" ? (
                     <AlertCircle className="size-3 text-destructive" />
                   ) : (
-                    <CheckCircle2 className="size-3 text-emerald-600" />
+                    <CheckCircle2 className="size-3 text-emerald-600 dark:text-emerald-400" />
                   )}
                   <span className="text-muted-foreground">
                     {fromNow(s.lastSyncedAt, tz)} · {s.lastResult ?? ""}

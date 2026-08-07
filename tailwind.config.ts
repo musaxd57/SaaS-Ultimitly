@@ -1,6 +1,14 @@
 import type { Config } from "tailwindcss";
 
 const config: Config = {
+  // 🚨 "class" — VARSAYILAN "media" DEĞİL. İki sebep:
+  //  1. Karanlık mod yalnız PANELDE geçerli (ürün kararı); "media" kapsamı
+  //     seçmeye izin vermez, işletim sistemi tercihini her sayfaya uygular.
+  //  2. Bugün zaten bir kusur var: `(legal)/entegrasyonlar/page.tsx` içinde tek
+  //     bir `dark:` sınıfı duruyor ve "media" varsayılanı yüzünden işletim
+  //     sistemi karanlık olan ziyaretçide ŞU AN ateşleniyor — çevresindeki her
+  //     şey açık kalırken. "class"a geçmek onu da kapatıyor.
+  darkMode: "class",
   content: ["./src/**/*.{ts,tsx}"],
   theme: {
     container: {

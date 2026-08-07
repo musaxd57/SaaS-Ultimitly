@@ -76,7 +76,7 @@ export function Reset2faForm() {
       </div>
       {error ? <p className="text-sm text-destructive">{error}</p> : null}
       {done ? (
-        <p className="inline-flex items-start gap-1.5 text-sm font-medium text-emerald-600">
+        <p className="inline-flex items-start gap-1.5 text-sm font-medium text-emerald-600 dark:text-emerald-400">
           <Check className="mt-0.5 size-4 shrink-0" /> {done}
         </p>
       ) : null}

@@ -188,12 +188,12 @@ export function SupplyProfileForm({
               </Button>
             ) : null}
             {saved ? (
-              <span className="inline-flex items-center gap-1 text-sm font-medium text-emerald-600">
+              <span className="inline-flex items-center gap-1 text-sm font-medium text-emerald-600 dark:text-emerald-400">
                 <Check className="size-4" /> Kaydedildi
               </span>
             ) : null}
             {applied !== null ? (
-              <span className="inline-flex items-center gap-1 text-sm font-medium text-emerald-600">
+              <span className="inline-flex items-center gap-1 text-sm font-medium text-emerald-600 dark:text-emerald-400">
                 <Check className="size-4" /> {applied} daireye uygulandı
               </span>
             ) : null}

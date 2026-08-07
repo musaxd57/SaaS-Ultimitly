@@ -85,7 +85,7 @@ export function TimezoneForm({ initial }: { initial: string }) {
           </select>
         </div>
         <Button type="submit" variant="outline" disabled={busy || !dirty}>
-          {busy ? <Loader2 className="size-4 animate-spin" /> : saved && !dirty ? <Check className="size-4 text-emerald-600" /> : <Globe className="size-4" />}
+          {busy ? <Loader2 className="size-4 animate-spin" /> : saved && !dirty ? <Check className="size-4 text-emerald-600 dark:text-emerald-400" /> : <Globe className="size-4" />}
           {saved && !dirty ? "Kaydedildi" : "Kaydet"}
         </Button>
       </div>

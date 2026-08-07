@@ -109,27 +109,27 @@ export function ReservationPinControl({
   return (
     <div className="mt-1 space-y-1">
       {pin ? (
-        <div className="flex flex-col gap-1.5 rounded-md border border-amber-300 bg-amber-50 px-2 py-1.5">
+        <div className="flex flex-col gap-1.5 rounded-md border border-amber-300 dark:border-amber-500/30 bg-amber-50 dark:bg-amber-500/10 px-2 py-1.5">
           <div className="flex items-center gap-2">
-            <span className="font-mono text-sm tracking-[0.3em] text-amber-900">{pin}</span>
+            <span className="font-mono text-sm tracking-[0.3em] text-amber-900 dark:text-amber-200">{pin}</span>
             <button
               type="button"
               onClick={() => void copyToClipboard(pin, () => { setCopied(true); setTimeout(() => setCopied(false), 1500); })}
-              className="inline-flex h-6 items-center gap-1 rounded px-1.5 text-[11px] font-medium text-amber-900 hover:bg-amber-100"
+              className="inline-flex h-6 items-center gap-1 rounded px-1.5 text-[11px] font-medium text-amber-900 dark:text-amber-200 hover:bg-amber-100 dark:hover:bg-amber-500/20"
             >
               <Copy className="size-3" /> {copied ? "Kopyalandı" : "Kopyala"}
             </button>
-            <span className="text-[10px] text-amber-700">Bu kod bir daha gösterilmez — misafire iletin.</span>
+            <span className="text-[10px] text-amber-700 dark:text-amber-300">Bu kod bir daha gösterilmez — misafire iletin.</span>
           </div>
           <button
             type="button"
             onClick={() => void copyToClipboard(assistantMessage(pin), () => { setMsgCopied(true); setTimeout(() => setMsgCopied(false), 1500); })}
-            className="inline-flex h-6 w-fit items-center gap-1 rounded px-1.5 text-[11px] font-medium text-amber-900 hover:bg-amber-100"
+            className="inline-flex h-6 w-fit items-center gap-1 rounded px-1.5 text-[11px] font-medium text-amber-900 dark:text-amber-200 hover:bg-amber-100 dark:hover:bg-amber-500/20"
           >
             <MessageSquareText className="size-3" />
             {msgCopied ? "Mesaj kopyalandı" : "Airbnb mesajı kopyala"}
           </button>
-          <p className="text-[10px] text-amber-700">
+          <p className="text-[10px] text-amber-700 dark:text-amber-300">
             Bu kod yalnız bu rezervasyona özeldir — misafirin Airbnb mesaj dizisine yapıştırıp gönderin.
           </p>
         </div>

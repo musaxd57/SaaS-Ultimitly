@@ -119,7 +119,7 @@ export default async function HazirlikPage({
           {nothingToBuy ? (
             <Card>
               <CardContent className="py-6 text-center text-sm">
-                <span className="font-medium text-emerald-600">İhtiyaçların tümü elinizdeki stoktan karşılanıyor.</span>
+                <span className="font-medium text-emerald-600 dark:text-emerald-400">İhtiyaçların tümü elinizdeki stoktan karşılanıyor.</span>
                 <span className="block text-muted-foreground">Bu aralıkta ekstra bir şey almanıza/hazırlamanıza gerek yok.</span>
               </CardContent>
             </Card>
@@ -181,7 +181,7 @@ export default async function HazirlikPage({
                     ))}
                   </div>
                   {p.requests.length > 0 ? (
-                    <p className="mt-1 text-xs text-amber-600">
+                    <p className="mt-1 text-xs text-amber-600 dark:text-amber-400">
                       Misafir talebi: {p.requests.map((r) => `+${r.qty} ${r.label}`).join(", ")}
                     </p>
                   ) : null}

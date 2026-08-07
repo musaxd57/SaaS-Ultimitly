@@ -128,7 +128,7 @@ export function AutoReplyTestButton({ locked = false }: { locked?: boolean }) {
 
       {open ? (
         <div
-          className="fixed inset-0 z-50 flex items-start justify-center bg-black/40 p-4 sm:p-8"
+          className="fixed inset-0 z-50 flex items-start justify-center bg-black/40 dark:bg-black/60 p-4 sm:p-8"
           onClick={() => setOpen(false)}
         >
           <div
@@ -179,11 +179,11 @@ export function AutoReplyTestButton({ locked = false }: { locked?: boolean }) {
                 <>
                   {willSend.length > 0 ? (
                     <section className="space-y-2">
-                      <p className="flex items-center gap-1.5 text-xs font-semibold text-emerald-600">
+                      <p className="flex items-center gap-1.5 text-xs font-semibold text-emerald-600 dark:text-emerald-400">
                         <Check className="size-3.5" /> AI bunları otomatik gönderir ({willSend.length})
                       </p>
                       {willSend.map((p) => (
-                        <div key={`${p.propertyName}|${p.guestIdentifier}`} className="rounded-lg border border-emerald-200 bg-emerald-50/50 p-3">
+                        <div key={`${p.propertyName}|${p.guestIdentifier}`} className="rounded-lg border border-emerald-200 dark:border-emerald-500/25 bg-emerald-50/50 dark:bg-emerald-500/10 p-3">
                           <div className="mb-1 flex items-center gap-2 text-xs text-muted-foreground">
                             <span className="font-medium text-foreground">{p.guestIdentifier}</span>
                             {p.propertyName ? <span>· {p.propertyName}</span> : null}
@@ -199,7 +199,7 @@ export function AutoReplyTestButton({ locked = false }: { locked?: boolean }) {
 
                   {willWait.length > 0 ? (
                     <section className="space-y-2">
-                      <p className="flex items-center gap-1.5 text-xs font-semibold text-amber-600">
+                      <p className="flex items-center gap-1.5 text-xs font-semibold text-amber-600 dark:text-amber-400">
                         <Clock className="size-3.5" /> Bunlar size bırakılır ({willWait.length})
                       </p>
                       {willWait.map((p) => (

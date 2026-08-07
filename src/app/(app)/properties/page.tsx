@@ -100,8 +100,8 @@ export default async function PropertiesPage() {
                     <span
                       className={
                         ready.done === ready.items.length
-                          ? "ml-auto rounded-full bg-emerald-50 px-2 py-0.5 font-medium text-emerald-700"
-                          : "ml-auto rounded-full bg-amber-50 px-2 py-0.5 font-medium text-amber-700"
+                          ? "ml-auto rounded-full bg-emerald-50 dark:bg-emerald-500/10 px-2 py-0.5 font-medium text-emerald-700 dark:text-emerald-400"
+                          : "ml-auto rounded-full bg-amber-50 dark:bg-amber-500/10 px-2 py-0.5 font-medium text-amber-700 dark:text-amber-300"
                       }
                       title={
                         missing.length > 0
@@ -113,7 +113,7 @@ export default async function PropertiesPage() {
                     </span>
                   </div>
                   {missing.length > 0 ? (
-                    <p className="mt-1.5 text-xs text-amber-700/80">Eksik: {missing.join(", ")}</p>
+                    <p className="mt-1.5 text-xs text-amber-700/80 dark:text-amber-300/80">Eksik: {missing.join(", ")}</p>
                   ) : null}
                 </Card>
               </Link>

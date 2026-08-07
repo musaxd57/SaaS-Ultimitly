@@ -84,7 +84,7 @@ export function HospitableSyncButton() {
           role="status"
           className={cn(
             "inline-flex items-center gap-1 text-xs font-medium",
-            result.ok ? "text-emerald-600" : "text-destructive",
+            result.ok ? "text-emerald-600 dark:text-emerald-400" : "text-destructive",
           )}
         >
           {result.ok ? <Check className="size-3.5" /> : <X className="size-3.5" />}

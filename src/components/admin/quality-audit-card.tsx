@@ -37,8 +37,8 @@ interface AuditResult {
 }
 
 const SEVERITY_CLASS: Record<Finding["severity"], string> = {
-  high: "bg-red-50 text-red-700",
-  medium: "bg-amber-50 text-amber-700",
+  high: "bg-red-50 dark:bg-red-500/10 text-red-700 dark:text-red-300",
+  medium: "bg-amber-50 dark:bg-amber-500/10 text-amber-700 dark:text-amber-300",
   low: "bg-muted text-muted-foreground",
 };
 
@@ -169,7 +169,7 @@ export function QualityAuditCard({
               ))}
             </ul>
           ) : result.sampleSize > 0 ? (
-            <p className="text-sm font-medium text-emerald-600">Bulgu yok — incelenen yanıtlar kurallara uygun.</p>
+            <p className="text-sm font-medium text-emerald-600 dark:text-emerald-400">Bulgu yok — incelenen yanıtlar kurallara uygun.</p>
           ) : null}
 
           {result.promptSuggestions.length > 0 ? (

@@ -49,16 +49,16 @@ export interface ThreadMessage {
 // durable outbox. "sent" is the only state that means the guest actually received
 // it; every other state must stay visually distinct from a normal delivered bubble.
 const OUTBOX_STATUS_UI: Record<string, { label: string; className: string }> = {
-  pending: { label: "Sırada — gönderilmeyi bekliyor", className: "bg-amber-100 text-amber-800" },
-  sending: { label: "Gönderiliyor…", className: "bg-blue-100 text-blue-800" },
-  sent: { label: "İletildi", className: "bg-emerald-100 text-emerald-800" },
-  reconciling: { label: "Doğrulanıyor…", className: "bg-amber-100 text-amber-800" },
-  ambiguous: { label: "Doğrulanamadı — kontrol edin", className: "bg-orange-100 text-orange-800" },
-  review: { label: "Doğrulanamadı — inceleyin", className: "bg-orange-100 text-orange-800" },
-  failed: { label: "Gönderilemedi", className: "bg-red-100 text-red-800" },
+  pending: { label: "Sırada — gönderilmeyi bekliyor", className: "bg-amber-100 dark:bg-amber-500/15 text-amber-800 dark:text-amber-300" },
+  sending: { label: "Gönderiliyor…", className: "bg-blue-100 dark:bg-blue-500/15 text-blue-800 dark:text-blue-300" },
+  sent: { label: "İletildi", className: "bg-emerald-100 dark:bg-emerald-500/15 text-emerald-800 dark:text-emerald-300" },
+  reconciling: { label: "Doğrulanıyor…", className: "bg-amber-100 dark:bg-amber-500/15 text-amber-800 dark:text-amber-300" },
+  ambiguous: { label: "Doğrulanamadı — kontrol edin", className: "bg-orange-100 dark:bg-orange-500/15 text-orange-800 dark:text-orange-300" },
+  review: { label: "Doğrulanamadı — inceleyin", className: "bg-orange-100 dark:bg-orange-500/15 text-orange-800 dark:text-orange-300" },
+  failed: { label: "Gönderilemedi", className: "bg-red-100 dark:bg-red-500/15 text-red-800 dark:text-red-300" },
   // Hospitable subscription not active (402): parked, NOT lost — sends automatically once the
   // connection is restored (re-sync / reconnect). Distinct amber "paused" tone, not a red failure.
-  blocked: { label: "Abonelik pasif — bağlantı gelince gönderilecek", className: "bg-amber-100 text-amber-800" },
+  blocked: { label: "Abonelik pasif — bağlantı gelince gönderilecek", className: "bg-amber-100 dark:bg-amber-500/15 text-amber-800 dark:text-amber-300" },
   canceled: { label: "İptal edildi — yerini yeni durum aldı", className: "bg-muted text-muted-foreground" },
 };
 
@@ -561,7 +561,7 @@ export function ConversationThread({ conversationId, messages, status, priority,
                     id={`msg-translation-${m.id}`}
                     // Çeviri SESSİZCE beliriyordu; artık geldiği duyulur.
                     role="status"
-                    className="mt-1 rounded-md bg-blue-50 px-2 py-1 text-xs text-blue-800"
+                    className="mt-1 rounded-md bg-blue-50 dark:bg-blue-500/10 px-2 py-1 text-xs text-blue-800 dark:text-blue-300"
                   >
                     {translations[m.id]}
                   </p>
@@ -773,9 +773,9 @@ export function ConversationThread({ conversationId, messages, status, priority,
                 <span
                   className={cn(
                     "inline-flex items-center gap-1 rounded-full px-2 py-0.5 text-xs font-medium",
-                    suggestion.riskLevel === "low" && "bg-yellow-100 text-yellow-800",
-                    suggestion.riskLevel === "medium" && "bg-orange-100 text-orange-800",
-                    suggestion.riskLevel === "high" && "bg-red-100 text-red-800",
+                    suggestion.riskLevel === "low" && "bg-yellow-100 dark:bg-yellow-500/15 text-yellow-800 dark:text-yellow-300",
+                    suggestion.riskLevel === "medium" && "bg-orange-100 dark:bg-orange-500/15 text-orange-800 dark:text-orange-300",
+                    suggestion.riskLevel === "high" && "bg-red-100 dark:bg-red-500/15 text-red-800 dark:text-red-300",
                   )}
                 >
                   <AlertTriangle className="size-3" />
@@ -791,8 +791,8 @@ export function ConversationThread({ conversationId, messages, status, priority,
                 className={cn(
                   "ml-auto inline-flex items-center gap-1 rounded-full px-2 py-0.5 text-xs font-medium",
                   suggestion.confidence >= 0.75
-                    ? "bg-emerald-100 text-emerald-800"
-                    : "bg-amber-100 text-amber-800",
+                    ? "bg-emerald-100 dark:bg-emerald-500/15 text-emerald-800 dark:text-emerald-300"
+                    : "bg-amber-100 dark:bg-amber-500/15 text-amber-800 dark:text-amber-300",
                 )}
               >
                 {suggestion.confidence >= 0.75 ? "AI bu cevaptan emin" : "AI emin değil — gözden geçirin"}
@@ -800,7 +800,7 @@ export function ConversationThread({ conversationId, messages, status, priority,
             </div>
 
             {riskTypeLabel(suggestion.riskType) ? (
-              <p className="flex items-start gap-2 rounded-md bg-orange-50 px-2.5 py-2 text-xs text-orange-800">
+              <p className="flex items-start gap-2 rounded-md bg-orange-50 dark:bg-orange-500/10 px-2.5 py-2 text-xs text-orange-800 dark:text-orange-300">
                 <AlertTriangle className="mt-0.5 size-3.5 shrink-0" />
                 <span><span className="font-medium">İnsan incelemesi:</span> {riskTypeLabel(suggestion.riskType)}</span>
               </p>
@@ -813,20 +813,20 @@ export function ConversationThread({ conversationId, messages, status, priority,
               </p>
             ) : null}
             {suggestion.missingInfo && suggestion.missingInfo.length > 0 ? (
-              <p className="text-xs text-amber-700">
+              <p className="text-xs text-amber-700 dark:text-amber-300">
                 <span className="font-medium">Eksik bilgi:</span> {suggestion.missingInfo.join(" · ")}
               </p>
             ) : null}
 
             {suggestion.risk ? (
-              <p className="flex items-start gap-2 rounded-md bg-warning/15 px-2.5 py-2 text-xs text-amber-700">
+              <p className="flex items-start gap-2 rounded-md bg-warning/15 px-2.5 py-2 text-xs text-amber-700 dark:text-amber-300">
                 <AlertTriangle className="mt-0.5 size-3.5 shrink-0" />
                 {suggestion.risk}
               </p>
             ) : null}
 
             {suggestion.actionSuggestion ? (
-              <p className="flex items-start gap-2 rounded-md bg-blue-50 px-2.5 py-2 text-xs text-blue-800">
+              <p className="flex items-start gap-2 rounded-md bg-blue-50 dark:bg-blue-500/10 px-2.5 py-2 text-xs text-blue-800 dark:text-blue-300">
                 <Info className="mt-0.5 size-3.5 shrink-0" />
                 <span><span className="font-medium">Sizin için not:</span> {suggestion.actionSuggestion}</span>
               </p>

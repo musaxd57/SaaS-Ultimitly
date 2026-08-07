@@ -29,7 +29,7 @@ const ICONS = {
 
 const STYLES = {
   error: "border-destructive/30 bg-destructive/10 text-destructive",
-  success: "border-emerald-600/30 bg-emerald-600/10 text-emerald-800",
+  success: "border-emerald-600/30 bg-emerald-600/10 text-emerald-800 dark:text-emerald-300",
   info: "border-border bg-card text-foreground",
 } as const;
 

@@ -80,7 +80,7 @@ export function CalendarFeed({ feedUrl, propertyId }: CalendarFeedProps) {
 
       <div className="flex flex-wrap gap-2">
         <Button variant="outline" size="sm" onClick={copy}>
-          {copied ? <Check className="size-4 text-emerald-600" /> : <Copy className="size-4" />}
+          {copied ? <Check className="size-4 text-emerald-600 dark:text-emerald-400" /> : <Copy className="size-4" />}
           {copied ? "Kopyalandı" : "Bağlantıyı kopyala"}
         </Button>
         <a href={feedUrl} download className={buttonVariants({ variant: "outline", size: "sm" })}>

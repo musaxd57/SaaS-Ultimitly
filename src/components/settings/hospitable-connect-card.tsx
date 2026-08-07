@@ -121,7 +121,7 @@ export function HospitableConnectCard({
     <div className="space-y-4">
       {/* Status line */}
       {info.connected ? (
-        <div className="flex items-center gap-2 rounded-md border border-emerald-300 bg-emerald-50 px-3 py-2 text-sm text-emerald-800">
+        <div className="flex items-center gap-2 rounded-md border border-emerald-300 dark:border-emerald-500/30 bg-emerald-50 dark:bg-emerald-500/10 px-3 py-2 text-sm text-emerald-800 dark:text-emerald-300">
           <Check className="size-4 shrink-0" />
           <span>
             <strong>Bağlı.</strong>{" "}
@@ -131,7 +131,7 @@ export function HospitableConnectCard({
           </span>
         </div>
       ) : (
-        <div className="rounded-md border border-amber-300 bg-amber-50 px-3 py-2 text-sm text-amber-800">
+        <div className="rounded-md border border-amber-300 dark:border-amber-500/30 bg-amber-50 dark:bg-amber-500/10 px-3 py-2 text-sm text-amber-800 dark:text-amber-300">
           <strong>Bağlı değil.</strong> Bu hesabın misafir mesajları çekilemez/gönderilemez.
           Aşağıdan Airbnb / Booking bağlantınızı (Hospitable üzerinden) kurun.
         </div>
@@ -180,7 +180,7 @@ export function HospitableConnectCard({
           {/* Plan uyarısı EN ÜSTTE — hem "Hospitable ile Bağlan" (OAuth) hem elle
               token yolu bu gerekliliğe tabi. Ücretsiz planda OAuth yetkilendirmesi de
               Hospitable tarafında hata verebilir. */}
-          <div className="rounded-md border border-amber-300 bg-amber-50 p-3 text-sm text-amber-800">
+          <div className="rounded-md border border-amber-300 dark:border-amber-500/30 bg-amber-50 dark:bg-amber-500/10 p-3 text-sm text-amber-800 dark:text-amber-300">
             <strong>Önce:</strong> Airbnb/Booking mesaj ve rezervasyonlarınızı Lixus&apos;a çekebilmek
             için Hospitable hesabınızın <strong>API erişimi içeren (ücretli) bir planda</strong>{" "}
             olması gerekir. Hospitable&apos;ın ücretsiz planı API erişimi içermez — bu planda
@@ -262,7 +262,7 @@ export function HospitableConnectCard({
       ) : null}
 
       {done ? (
-        <p className="inline-flex items-center gap-1 text-sm font-medium text-emerald-600">
+        <p className="inline-flex items-center gap-1 text-sm font-medium text-emerald-600 dark:text-emerald-400">
           <Check className="size-4" /> {done}
         </p>
       ) : null}

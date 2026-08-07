@@ -125,7 +125,7 @@ export function TwoFactorCard({
   if (enabled) {
     return (
       <div className="space-y-3">
-        <p className="inline-flex items-center gap-2 text-sm font-medium text-emerald-700">
+        <p className="inline-flex items-center gap-2 text-sm font-medium text-emerald-700 dark:text-emerald-400">
           <ShieldCheck className="size-4" /> İki adımlı doğrulama etkin.
         </p>
         <p className="text-sm text-muted-foreground">
@@ -142,7 +142,7 @@ export function TwoFactorCard({
           </Button>
         </form>
         {error ? <p className="text-sm text-destructive">{error}</p> : null}
-        {done ? <p className="text-sm font-medium text-emerald-600">{done}</p> : null}
+        {done ? <p className="text-sm font-medium text-emerald-600 dark:text-emerald-400">{done}</p> : null}
 
         {/* ---- Recovery codes (single-use backup second factor) ---- */}
         <div className="space-y-3 rounded-md border bg-muted/30 p-3">
@@ -172,14 +172,14 @@ export function TwoFactorCard({
               sıfırlarız.
             </p>
           ) : (
-            <p className="rounded-md border border-amber-300 bg-amber-50 px-2.5 py-1.5 text-xs text-amber-900">
+            <p className="rounded-md border border-amber-300 dark:border-amber-500/30 bg-amber-50 dark:bg-amber-500/10 px-2.5 py-1.5 text-xs text-amber-900 dark:text-amber-200">
               <strong>Henüz kurtarma kodunuz yok.</strong> Kodlar yalnız doğrulama uygulamanız
               çalışırken üretilebilir.
             </p>
           )}
           {recoveryCodes ? (
             <div className="space-y-2">
-              <div className="rounded-md border border-amber-300 bg-amber-50 px-3 py-1.5 text-xs text-amber-900">
+              <div className="rounded-md border border-amber-300 dark:border-amber-500/30 bg-amber-50 dark:bg-amber-500/10 px-3 py-1.5 text-xs text-amber-900 dark:text-amber-200">
                 Sayfadan ayrıldıktan sonra aynı kodları tekrar göremezsiniz. Yeni kodlar
                 oluşturursanız mevcut kodların tamamı geçersiz olur.
               </div>
@@ -274,7 +274,7 @@ export function TwoFactorCard({
         İki adımlı girişi (2FA) kur
       </Button>
       {error ? <p className="text-sm text-destructive">{error}</p> : null}
-      {done ? <p className="text-sm font-medium text-emerald-600">{done}</p> : null}
+      {done ? <p className="text-sm font-medium text-emerald-600 dark:text-emerald-400">{done}</p> : null}
     </div>
   );
 }

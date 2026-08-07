@@ -11,7 +11,7 @@ export function TrialBanner({ daysLeft }: { daysLeft: number }) {
       ? "Ücretsiz deneme süreniz doldu — devam için bir plan seçin."
       : `Pro ücretsiz deneme: ${daysLeft} gün kaldı.`;
   return (
-    <div className="flex flex-wrap items-center justify-center gap-x-2 gap-y-1 rounded-lg border border-amber-300 bg-amber-50 px-3 py-2 text-center text-sm text-amber-900">
+    <div className="flex flex-wrap items-center justify-center gap-x-2 gap-y-1 rounded-lg border border-amber-300 dark:border-amber-500/30 bg-amber-50 dark:bg-amber-500/10 px-3 py-2 text-center text-sm text-amber-900 dark:text-amber-200">
       <span>{label}</span>
       <Link href="/settings?tab=faturalandirma" className="font-medium underline underline-offset-2">
         Planları görün

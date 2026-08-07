@@ -16,11 +16,11 @@ const STATUS_OPTIONS = [
 ];
 
 const STATUS_STYLE: Record<string, string> = {
-  new: "bg-blue-50 text-blue-700",
-  contacted: "bg-amber-50 text-amber-700",
-  demo: "bg-violet-50 text-violet-700",
-  won: "bg-emerald-50 text-emerald-700",
-  lost: "bg-zinc-100 text-zinc-500",
+  new: "bg-blue-50 dark:bg-blue-500/10 text-blue-700 dark:text-blue-300",
+  contacted: "bg-amber-50 dark:bg-amber-500/10 text-amber-700 dark:text-amber-300",
+  demo: "bg-violet-50 dark:bg-violet-500/10 text-violet-700 dark:text-violet-300",
+  won: "bg-emerald-50 dark:bg-emerald-500/10 text-emerald-700 dark:text-emerald-400",
+  lost: "bg-zinc-100 dark:bg-zinc-500/15 text-zinc-500 dark:text-zinc-400",
 };
 
 export function LeadActions({
@@ -116,7 +116,7 @@ export function LeadActions({
           Kaydet
         </button>
       ) : saved ? (
-        <span className="inline-flex items-center gap-1 text-xs font-medium text-emerald-600">
+        <span className="inline-flex items-center gap-1 text-xs font-medium text-emerald-600 dark:text-emerald-400">
           <Check className="size-3" /> Kaydedildi
         </span>
       ) : null}

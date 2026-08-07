@@ -576,7 +576,7 @@ export function TaskBoard({ tasks, canManage = true }: { tasks: TaskCardData[]; 
                   onClick={copyList}
                   className="inline-flex items-center gap-1.5 rounded-md border border-border bg-card px-3 py-1.5 text-sm hover:bg-accent"
                 >
-                  {copied ? <Check className="size-4 text-emerald-600" /> : <Copy className="size-4" />}
+                  {copied ? <Check className="size-4 text-emerald-600 dark:text-emerald-400" /> : <Copy className="size-4" />}
                   {copied ? "Kopyalandı" : "Kopyala"}
                 </button>
               </div>

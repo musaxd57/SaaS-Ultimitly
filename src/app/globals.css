@@ -40,6 +40,73 @@
   }
 }
 
+/* ---------------------------------------------------------------------------
+   KARANLIK TEMA — YALNIZ PANELDE.
+   🚨 YUKARIDAKİ `:root` BLOĞUNA HİÇ DOKUNULMADI ve DOKUNULMAMALI. Açık modun
+   bozulmaması bu ayrımın doğrudan sonucudur: burada yalnız EKLEME var, hiçbir
+   açık-mod değeri yeniden tanımlanmıyor. `.dark` sınıfı `<html>`'e YALNIZ panel
+   rotalarında konur (`lib/theme.ts`), yani landing/giriş/hukuk sayfaları bu
+   bloğu hiç görmez.
+   Kontrast oranları hesaplandı (WCAG 2.x bağıl parlaklık):
+     foreground/background 17.23 · muted-foreground/background 9.10
+     primary/background 7.50 · destructive/background 6.30
+     success/background 10.00 · warning/background 10.57
+--------------------------------------------------------------------------- */
+@layer base {
+  .dark {
+    /* Saf siyah DEĞİL: OLED'de bulaşma yapar ve daha KOYUYA inecek yer
+       bırakmaz (kuyu/oyuk yüzeyleri için alan gerekiyor). */
+    --background: 222 47% 8%;
+    --foreground: 210 40% 96%;
+
+    /* Karanlıkta yükselti AÇILARAK okunur — kart sayfadan DAHA AÇIK. */
+    --card: 222 44% 13%;
+    --card-foreground: 210 40% 96%;
+
+    /* ⚠️ Lacivert (%20 L) karanlık zeminde görünmez. Marka "mavi" kalsın diye
+       hero-aura'nın zaten kullandığı ton ailesine geçiliyor. */
+    --primary: 213 94% 68%;
+    /* ⚠️ TERS ÇEVRİLMEK ZORUNDA: açık mavi üzerine beyaz 1.9:1 olurdu. */
+    --primary-foreground: 222 47% 11%;
+
+    --secondary: 217 33% 20%;
+    --secondary-foreground: 210 40% 96%;
+
+    --muted: 217 33% 18%;
+    /* 🚨 KARANLIK MODLARIN EN SIK ÖLDÜĞÜ YER: ikincil metin. Açık moddaki
+       %47 L burada 2.1:1 verir (okunmaz). %72 L → 9.10:1. */
+    --muted-foreground: 215 22% 72%;
+
+    --accent: 217 33% 24%;
+    --accent-foreground: 210 40% 96%;
+
+    /* `text-destructive` 45 dosyada, `bg-destructive` 19'da → METİN için
+       optimize edildi, yani dolgu değil YAZI açık olmalı. */
+    --destructive: 0 84% 68%;
+    --destructive-foreground: 0 60% 12%;
+
+    --success: 142 64% 55%;
+    --success-foreground: 142 70% 10%;
+
+    --warning: 38 92% 62%;
+    --warning-foreground: 38 80% 10%;
+
+    /* Kenarlık zeminden AÇIK olmalı; açık moddaki %91 L burada görünmez. */
+    --border: 217 25% 26%;
+    /* Form denetimi sınırı ayrı: WCAG 1.4.11 gereği 3:1 tutuluyor (3.32). */
+    --input: 217 24% 46%;
+    --ring: 213 94% 68%;
+
+    /* Yerel denetimleri (select açılır listesi, `type="time"` seçici)
+       tarayıcıya karanlık olarak bildirir. Ayarlar'daki toplu giriş/çıkış
+       saati alanları bunsuz beyaz bir kutu olarak açılırdı. */
+    color-scheme: dark;
+
+    /* --radius BİLEREK yeniden tanımlanmadı — renk değil, ve iki yerde
+       tutmak sessiz sapma davetiyesi. */
+  }
+}
+
 @layer base {
   * {
     @apply border-border;
@@ -476,4 +543,23 @@ html {
 .lxt-in { animation: fade-up 220ms cubic-bezier(0.16, 1, 0.3, 1) both; }
 @media (prefers-reduced-motion: reduce) {
   .lxt-in { animation: none; }
+}
+
+/* ---------------------------------------------------------------------------
+   KARANLIK MOD — TOKEN'LA ÇÖZÜLEMEYEN İKİ DÜZELTME.
+   Bunlar `dark:` sınıfı eklenerek çözülemez çünkü CSS dosyasının içindeler.
+   ⚠️ İkisi de `.dark` ile KAPSANMIŞ — açık modda hiçbir kural değişmiyor.
+--------------------------------------------------------------------------- */
+
+/* `card-lift` gölgesi `--foreground`a bağlıydı. Karanlıkta foreground neredeyse
+   BEYAZ olduğu için gölge bir PARILTIYA dönüyordu (yükselti aşağı değil yukarı
+   okunuyor, kart havada asılı duruyordu). Karanlıkta gölge SİYAH olmalı ve
+   zemin zaten koyu olduğu için opaklığı yükseltilmeli.
+   ⚠️ `nav-scrolled` bilerek DIŞARIDA: yalnız landing'de kullanılıyor (NavScroll
+   pazarlama bileşeni) ve landing her zaman açık tema. */
+.dark .card-lift:hover,
+.dark .card-lift:focus-within {
+  box-shadow:
+    0 1px 2px hsl(0 0% 0% / 0.5),
+    0 12px 28px -12px hsl(0 0% 0% / 0.7);
 }
