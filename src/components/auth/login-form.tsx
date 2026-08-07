@@ -151,10 +151,25 @@ export function LoginForm() {
       }
       const params = new URLSearchParams(window.location.search);
       const next = params.get("next");
-      // Same-origin only: reject protocol-relative ("//evil.com") and "/\" forms.
-      const safeNext =
-        next && next.startsWith("/") && !next.startsWith("//") && !next.startsWith("/\\");
-      router.push(safeNext ? next : "/dashboard");
+      // 🚨 KARAKTER KARA LİSTESİ KULLANILMAZ — URL ÇÖZÜLÜP ORIGIN KARŞILAŞTIRILIR.
+      // Eski kapı `//` ve `/\` öneklerini eliyordu ama WHATWG URL ayrıştırıcısı
+      // TAB/LF/CR'yi URL'den SİLİYOR: ÖLÇÜLDÜ — `/<TAB>/evil.com` kapıdan geçip
+      // `https://evil.com/`e çözülüyordu (LF ve CR de aynı). Sonuç, giriş
+      // akışında açık yönlendirme: kurban GERÇEK domainde GERÇEK şifresiyle
+      // giriş yapar, hemen ardından saldırganın sayfasına fırlatılır (sahte
+      // "oturumunuz doldu" / sahte ödeme ekranı) — en ikna edici kimlik avı
+      // biçimi. Ayrıştırıcının hangi karakteri yediğini tahmin etmek yerine
+      // SONUCU sınıyoruz: nereye çözülüyorsa orası bizim origin'imiz olmalı.
+      let safeNext: string | null = null;
+      if (next) {
+        try {
+          const u = new URL(next, window.location.origin);
+          if (u.origin === window.location.origin) safeNext = u.pathname + u.search + u.hash;
+        } catch {
+          // ayrıştırılamayan değer → varsayılana düş
+        }
+      }
+      router.push(safeNext ?? "/dashboard");
       router.refresh();
     } catch {
       setError("Bağlantı hatası. Lütfen tekrar deneyin.");

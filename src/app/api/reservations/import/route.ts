@@ -175,7 +175,10 @@ export const POST = withManage(async (session, req) => {
       guestName: row.guestName.slice(0, 200),
       arrivalDate: row.arrivalDate,
       departureDate: row.departureDate,
-      channel: row.channel ?? "other",
+      // ⚠️ Elle giriş yolu `z.enum(RESERVATION_CHANNEL.values)` ile 5 değere
+      // kapalı (validators.ts); içe aktarma o kapalı seti atlıyordu ve bu alan
+      // kardeşlerinin aksine KELEPÇESİZDİ (20.000 karakterlik hücre ham yazılıyordu).
+      channel: (row.channel ?? "other").slice(0, 40),
       status: "confirmed",
       sourceReference: row.sourceReference ? row.sourceReference.slice(0, 200) : null,
       notes: row.notes ? row.notes.slice(0, 5000) : null,

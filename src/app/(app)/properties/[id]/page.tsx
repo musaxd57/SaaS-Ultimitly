@@ -1,4 +1,5 @@
 import Link from "next/link";
+import { baseUrlFromHost } from "@/lib/auth/email-verify";
 import { headers } from "next/headers";
 import { notFound } from "next/navigation";
 import { ArrowLeft, BookOpen, CalendarDays, CalendarSync, ArrowDownToLine, QrCode } from "lucide-react";
@@ -132,10 +133,17 @@ export default async function PropertyDetailPage({
     await prisma.property.update({ where: { id: property.id }, data: { icalToken } });
   }
 
+  // 🚨 HAM `Host` KULLANILMAZ — GERİ ALMA. Bu URL GİZLİ `icalToken`'ı taşıyor ve
+  // host onu kopyalayıp Airbnb/Booking'e yapıştırıyor; token o beslemenin TEK
+  // kimlik bilgisi. Sahte bir `Host` başlığı bu satırı
+  // `https://saldirgan.com/api/calendar/<token>` yapardı ve host token'ı kendi
+  // eliyle saldırgana taşırdı. `baseUrlFromHost` ALLOWLIST'li (localhost/127/
+  // canonical/APP_URL host'u); tanınmayan host canonical'a düşer.
+  // (CLAUDE.md değişmezi: "Railway arkasında hiçbir route `req.url`/Host'tan
+  // mutlak URL kurmasın" — bu sayfa o kuralın dışında kalmış tek yerdi.)
   const headerList = await headers();
-  const host = headerList.get("host") ?? "localhost:3000";
-  const protocol = host.startsWith("localhost") || host.startsWith("127.") ? "http" : "https";
-  const feedUrl = `${protocol}://${host}/api/calendar/${icalToken}`;
+  const baseUrl = baseUrlFromHost(headerList.get("host"));
+  const feedUrl = `${baseUrl}/api/calendar/${icalToken}`;
 
   return (
     <>
@@ -251,7 +259,7 @@ export default async function PropertyDetailPage({
                   enabled={property.chatEnabled}
                   url={
                     property.chatEnabled && property.chatToken
-                      ? `${protocol}://${host}/c/${property.chatToken}`
+                      ? `${baseUrl}/c/${property.chatToken}`
                       : null
                   }
                   pinFeatureEnabled={pinFeatureEnabled}

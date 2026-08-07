@@ -5,12 +5,29 @@ import { withManage } from "@/lib/route-guard";
 import { generateCalendarToken } from "@/lib/export/ics";
 import { canAddProperty } from "@/lib/billing/subscription";
 
+// ⚠️ GİZLİ TOKEN'LAR YANITTAN ÇIKARILIR — GERİ EKLEME.
+// `icalToken` takvim beslemesinin, `chatToken` QR concierge'in TEK kimlik
+// bilgisi (ikisi de bearer). Bu rotalar `select`siz çalıştığı için ikisi de düz
+// metin JSON'a giriyordu; arayüz hiçbirini okumuyor (kod-doğrulandı: components
+// altında sıfır geçiş). Kritik nokta: sayfa `chatToken`'ı yalnız
+// `canManage && GUEST_CHAT_ENABLED && chatEnabled` iken gösteriyor, API ise ÜÇ
+// koşulun hiçbirine bakmıyordu — yani kill-switch kapalıyken bile iniyordu.
+// Token ölü de değil: chat kapatılınca korunuyor ve yeniden açılınca aynı QR
+// canlanıyor. KVKK ihracının Property allowlist'i (`data-export.ts`) ikisini de
+// zaten BİLEREK dışarıda bırakıyor — bu rotalar o sözleşmenin dışında kalmıştı.
+function stripPropertySecrets<T extends Record<string, unknown>>(p: T) {
+  const rest = { ...p };
+  delete rest.icalToken;
+  delete rest.chatToken;
+  return rest;
+}
+
 export const GET = withManage(async (session) => {
   const properties = await prisma.property.findMany({
     where: { organizationId: session.organizationId },
     orderBy: { createdAt: "desc" },
   });
-  return jsonOk(properties);
+  return jsonOk(properties.map(stripPropertySecrets));
 });
 
 export const POST = withManage(async (session, req) => {
@@ -84,5 +101,5 @@ export const POST = withManage(async (session, req) => {
       );
     }
   }
-  return jsonOk(property, 201);
+  return jsonOk(stripPropertySecrets(property), 201);
 });

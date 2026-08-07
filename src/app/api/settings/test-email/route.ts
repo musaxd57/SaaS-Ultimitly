@@ -1,4 +1,5 @@
 import { prisma } from "@/lib/db";
+import { reportError } from "@/lib/report-error";
 import { emailService } from "@/lib/email";
 import { badRequest, jsonOk, tooManyRequests } from "@/lib/api";
 import { withManage } from "@/lib/route-guard";
@@ -20,7 +21,16 @@ export const POST = withManage(async (session) => {
     where: { id: session.organizationId },
     select: { alertEmail: true },
   });
-  const to = org?.alertEmail?.trim() || process.env.ALERT_EMAIL?.trim();
+  // 🚨 `process.env.ALERT_EMAIL`'E ASLA DÜŞÜLMEZ — GERİ EKLEME.
+  // O adres OPERATÖRÜN kişisel adresi. Buraya düşmek iki şey birden yapıyordu:
+  // (1) adresi kiracının ekranına basıyordu (yanıt `to` alanını döndürüyor ve
+  // `test-email-button.tsx` onu düz metin gösteriyor), (2) herhangi bir
+  // müşteriye dakikada 5 kez operatörün kutusuna posta attırma imkânı veriyordu.
+  // Deponun kendi kuralı bunu ZATEN iki yerde yasaklıyor — `automation.ts`
+  // ("we must NOT fall back to env ALERT_EMAIL: that is the operator's address")
+  // ve `guest-chat-alerts.ts` ("never the env ALERT_EMAIL"). Üretim uyarı
+  // yollarının ikisi de org sahibinin adresine düşerken bu rota tek istisnaydı.
+  const to = org?.alertEmail?.trim();
   if (!to) {
     return badRequest({ _: "Uyarı e-postası ayarlı değil. Önce yukarıdaki alana bir e-posta girin." });
   }
@@ -34,5 +44,12 @@ export const POST = withManage(async (session) => {
 
   const result = await emailService.sendReporting(to, "✅ Lixus AI — Test e-postası", html);
   if (result.ok) return jsonOk({ sent: true, to });
-  return badRequest({ _: result.error ?? "E-posta gönderilemedi." });
+  // ⚠️ HAM SAĞLAYICI METNİ KİRACIYA GİTMEZ. `result.error` çevrilmemiş
+  // Resend/nodemailer çıktısıdır ve posta altyapısının host/port bilgisini
+  // (`getaddrinfo ENOTFOUND <host>`, `connect ECONNREFUSED <ip>:<port>`, ham SMTP
+  // 5xx) sızdırır. Hospitable tarafında 08-06'da kapatılan sınıfın e-posta eşi.
+  void reportError("settings.test_email", new Error(result.error ?? "email send failed"));
+  return badRequest({
+    _: "Test e-postası şu anda gönderilemedi. Birkaç dakika sonra tekrar deneyin.",
+  });
 });

@@ -13,13 +13,28 @@ export interface IcsEvent {
   allDay?: boolean;
 }
 
-/** Escape text per RFC 5545 (commas, semicolons, backslashes, newlines). */
+/** Escape text per RFC 5545 (commas, semicolons, backslashes, newlines).
+ *
+ * 🚨 SATIR SONU ÜÇ BİÇİMİN HEPSİ KAÇIŞLANIR — `\r?\n` YETMEZ, GERİ ALMA.
+ * Eski desen TEK BAŞINA `\r`'yi (LF'siz CR) yakalamıyordu ve o karakter ham
+ * olarak beslemeye giriyordu. Ölçüldü: `guestName`/`property.name` içine CR
+ * konmuş bir kayıtta çıktıda 6 adet kaçışsız CR kalıyordu. Feed HERKESE AÇIK
+ * (`/api/calendar/[token]`) ve Airbnb/Booking/Google tarafından okunuyor; CR'yi
+ * satır sonu sayan bir ayrıştırıcıda saldırgan `END:VEVENT`/`BEGIN:VEVENT`
+ * yazıp sahte etkinlik enjekte edebilirdi. Şemalar CR'yi kabul ediyor
+ * (`.trim()` yalnız UÇLARI temizler, ortadaki CR kalır) ve değer misafir
+ * kaynaklı da olabilir (Hospitable sync / CSV içe aktarma).
+ *
+ * ⚠️ Ayrıca RFC 5545 metin değerlerinde HTAB dışındaki C0 kontrol
+ * karakterlerini yasaklıyor — onlar da düşürülür.
+ */
 function escapeIcsText(value: string): string {
   return value
     .replace(/\\/g, "\\\\")
     .replace(/;/g, "\\;")
     .replace(/,/g, "\\,")
-    .replace(/\r?\n/g, "\\n");
+    .replace(/\r\n|\r|\n/g, "\\n")
+    .replace(/[\u0000-\u0008\u000B\u000C\u000E-\u001F\u007F]/g, "");
 }
 
 /** Fold long lines to 75 octets as RFC 5545 recommends. */

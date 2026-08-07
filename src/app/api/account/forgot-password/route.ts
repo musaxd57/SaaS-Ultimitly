@@ -231,6 +231,14 @@ export async function POST(req: NextRequest) {
       if (newPassword.length < 8) {
         return badRequest({ newPassword: "Şifre en az 8 karakter olmalı." });
       }
+      // ⚠️ ÜST SINIR GİRİŞ ŞEMASIYLA AYNI OLMAK ZORUNDA (`loginSchema` 200'de
+      // kesiyor). Burada sınır olmadığı için 200'den uzun bir şifre BELİRLENİP
+      // hash'lenebiliyor, sonra aynı şifreyle GİRİŞ 400 alıyordu → kullanıcı
+      // kendi hesabından kilitleniyordu. Kayıt sırasında imkânsız olan bu durum
+      // yalnız sıfırlama/değiştirme yollarından üretilebiliyordu.
+      if (newPassword.length > 200) {
+        return badRequest({ newPassword: "Şifre en fazla 200 karakter olabilir." });
+      }
       if (!/^\d{8}$/.test(code)) {
         return badRequest({ code: "8 haneli doğrulama kodunu girin." });
       }

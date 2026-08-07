@@ -115,13 +115,17 @@ export async function POST(req: NextRequest) {
       message,
     );
 
+    // ⚠️ YALNIZ ARAYÜZÜN ÇİZDİĞİ ALANLAR DÖNER. `intent`, `detectedLanguage` ve
+    // `source` landing bileşeninde HİÇ kullanılmıyordu ama kimliksiz yanıtta
+    // gidiyordu. `source` cevabın OpenAI'den mi deterministik fallback'ten mi
+    // geldiğini, `intent` de modelin atadığı etiketi söylüyor → güvenlik kapısı
+    // saatte 6 istekle sorgulanabilir bir HARİTAYA dönüşüyordu ("hangi ifade
+    // hangi intent'e düşüyor, kapı hangi kolda vetoluyor"). Repo tam bu gerekçeyle
+    // PRIVATE yapılmıştı ("yayınlanmış kara liste = kaçınma haritası").
     return jsonOk({
       reply: result.reply,
-      intent: result.intent,
       confidence: result.confidence,
       riskLevel: result.riskLevel,
-      detectedLanguage: result.detectedLanguage,
-      source: result.source,
       wouldAutoSend,
     });
   } catch (err) {

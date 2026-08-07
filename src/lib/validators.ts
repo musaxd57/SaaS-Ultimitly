@@ -202,6 +202,15 @@ export const taskUpdateSchema = z.object({
   photoUrl: z
     .string()
     .max(2000)
+    // ⚠️ TERS BÖLÜ AYRICA REDDEDİLİR — GEVŞETME. WHATWG URL ayrıştırıcısı özel
+    // şemalarda `\`'yi `/`'ye çevirir, yani `/\evil.com` aşağıdaki
+    // protokol-göreli kapısını (`(?!\/)`) DELİP `https://evil.com/`e çözülür.
+    // ÖLÇÜLDÜ: regex `true` diyordu, `new URL("/\\evil.com", base).href` ise
+    // `https://evil.com/x.png` üretiyordu. Bu değer görev panosunda hem
+    // `<a href>` hem `<img src>` olarak çizilir → aynı org'daki personel,
+    // sahibine kimlik avı bağlantısı ya da tıksız IP/Referer sızdıran bir
+    // görsel yerleştirebilirdi.
+    .refine((v) => !v.includes("\\"), "Geçersiz görsel bağlantısı.")
     .refine((v) => /^\/(?!\/)/.test(v) || /^https:\/\//i.test(v), "Geçersiz görsel bağlantısı.")
     .optional(),
   title: z.string().max(300).optional(),

@@ -74,6 +74,18 @@ export async function sendOnChannel(
  * in `error`; a non-HTTP error (network/abort) has no 4xx and is treated as ambiguous.
  */
 export function isDefinitiveSendFailure(error: string | null | undefined): boolean {
-  const e = error ?? "";
-  return /HTTP (4\d\d)/.test(e) && !/HTTP 408/.test(e);
+  // 🚨 İLK EŞLEŞME ALINIR, `.test()` KULLANILMAZ — GERİ ALMA.
+  // `sendMessage` hatayı `"Hospitable API hatası (HTTP <status>): <gövde ilk 200>"`
+  // biçiminde kuruyor, yani GERÇEK durum en başta, SAĞLAYICININ HAM GÖVDESİ hemen
+  // arkasında. Konumdan bağımsız `.test()` gövdenin içindeki bir `HTTP 4xx`
+  // metnini de yakalıyordu:
+  //   · 5xx + gövdede "HTTP 404" → yanlışlıkla DEFINITIVE → çağıran claim'i geri
+  //     alır → sonraki geçiş aynı mesajı yeniden gönderir → misafire ÇİFT MESAJ.
+  //   · 4xx + gövdede "HTTP 408" → yanlışlıkla AMBIGUOUS → claim tutulur →
+  //     karşılama/giriş/çıkış mesajı bir daha ASLA denenmez.
+  // Kardeş okuyucular zaten ilk eşleşmeyi alıyor (`outbox/state.ts` `.match`,
+  // `provider-errors.ts` `.exec`); üçü AYNI girdide aynı sonucu vermek ZORUNDA.
+  const status = /HTTP (\d{3})/.exec(error ?? "")?.[1];
+  if (!status) return false; // ağ/abort hatası → belirsiz
+  return status.startsWith("4") && status !== "408";
 }

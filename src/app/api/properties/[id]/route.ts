@@ -4,13 +4,30 @@ import { badRequest, jsonOk, notFound, readJsonCappedOrNull } from "@/lib/api";
 import { withManage } from "@/lib/route-guard";
 import { serializeSupplyProfile } from "@/lib/supply";
 
+// ⚠️ GİZLİ TOKEN'LAR YANITTAN ÇIKARILIR — GERİ EKLEME.
+// `icalToken` takvim beslemesinin, `chatToken` QR concierge'in TEK kimlik
+// bilgisi (ikisi de bearer). Bu rotalar `select`siz çalıştığı için ikisi de düz
+// metin JSON'a giriyordu; arayüz hiçbirini okumuyor (kod-doğrulandı: components
+// altında sıfır geçiş). Kritik nokta: sayfa `chatToken`'ı yalnız
+// `canManage && GUEST_CHAT_ENABLED && chatEnabled` iken gösteriyor, API ise ÜÇ
+// koşulun hiçbirine bakmıyordu — yani kill-switch kapalıyken bile iniyordu.
+// Token ölü de değil: chat kapatılınca korunuyor ve yeniden açılınca aynı QR
+// canlanıyor. KVKK ihracının Property allowlist'i (`data-export.ts`) ikisini de
+// zaten BİLEREK dışarıda bırakıyor — bu rotalar o sözleşmenin dışında kalmıştı.
+function stripPropertySecrets<T extends Record<string, unknown>>(p: T) {
+  const rest = { ...p };
+  delete rest.icalToken;
+  delete rest.chatToken;
+  return rest;
+}
+
 export const GET = withManage<{ id: string }>(async (session, _req, { params }) => {
   const { id } = await params;
   const property = await prisma.property.findFirst({
     where: { id, organizationId: session.organizationId },
   });
   if (!property) return notFound();
-  return jsonOk(property);
+  return jsonOk(stripPropertySecrets(property));
 });
 
 export const PATCH = withManage<{ id: string }>(async (session, req, { params }) => {
@@ -60,7 +77,7 @@ export const PATCH = withManage<{ id: string }>(async (session, req, { params })
         d.supplyProfile === undefined ? undefined : serializeSupplyProfile(d.supplyProfile),
     },
   });
-  return jsonOk(property);
+  return jsonOk(stripPropertySecrets(property));
 });
 
 export const DELETE = withManage<{ id: string }>(async (session, _req, { params }) => {
