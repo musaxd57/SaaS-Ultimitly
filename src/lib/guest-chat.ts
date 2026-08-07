@@ -217,17 +217,38 @@ const SECRET_PATTERNS: RegExp[] = [
   // The value is quoted or digit-bearing (SSID / password), which the keyword
   // patterns above miss. Over-redaction stays the safe side (escalate, no leak).
   /(wi-?fi|wlan|kablosuz|ssid|internet\s*a[ğg])\w*[^.\n]{0,40}(["'«][^"'»\n]{2,}["'»]|[A-Za-z0-9!@#._-]*\d[A-Za-z0-9!@#._-]{3,})/i,
-  // ⚠️ GİRİŞ İSMİ + 4+ ARDIŞIK RAKAM — kod kelimesi OLMADAN (denetim 08-07).
+  // ⚠️ GİRİŞ İSMİ + BİTİŞİK 4-8 RAKAM — kod kelimesi OLMADAN (denetim 08-07).
   // Yukarıdaki iki kalıp da bir "kod/şifre/pin" KELİMESİ arıyordu; host
   // "Kapı: 4590" ya da "Anahtar kutusu 7788" yazdığında hiçbiri eşleşmiyordu.
   // Kategori elemesi de kurtarmıyor: elle ekleme formunun VARSAYILANI `general`
   // ve `wifi`/`checkin` dışındaki her kategori isteme giriyor.
   //
-  // 🚨 EŞİK 4 RAKAM, "herhangi bir sayı" DEĞİL — bu ayrım BİLİNÇLİ ve ÖLÇÜLDÜ.
-  // "Giriş saati 15:00" ve "Kapı 3. katta" QR concierge'in ASIL işidir; bunları
-  // elemek özelliği işe yaramaz hâle getirirdi. Erişim kodları pratikte 4-8
-  // ardışık rakamdır, saatler (15:00) ve kat numaraları o eşiği geçmez.
-  /(kap[ıi]|giri[şs]|anahtar\s*kutu|key\s*?box|keybox|door|lock|entry|gate)\w*[^.\n]{0,20}\d{4,}/i,
+  // 🚨 BİTİŞİKLİK ŞARTI (`\s*[:=#.\-–—]?\s*`) BU KALIBIN CAN DAMARI — araya
+  // "serbest metin" (`[^.\n]{0,20}` gibi) İZNİ VERME. İlk yazımı tam olarak
+  // öyleydi ve ÖLÇÜLDÜ: 12 meşru bilgi-tabanı kaleminin 6'sını birden eliyordu —
+  // ADRES ("Kapı 3, 34710 Kadıköy" → posta kodu), ACİL TELEFON ("girişindeki
+  // güvenlik 0212 555 4433"), check-in telefonu, daire numarası, yıl (2024).
+  // ⚠️ Eleme burada "güvenli yön" DEĞİLDİR: `looksLikeSecret` KALEMİN TAMAMINA
+  // (`${title}\n${content}`, ↓kb filtresi) uygulanır ve eşleşen kalem KOMPLE
+  // düşer — yani misafir "adres ne?" diye sorduğunda AI'ın elinde adres KALMAZ.
+  // Bir erişim kodu kelimenin hemen ardındadır; adres/telefon araya metin sokar.
+  //
+  // 🚨 EŞİK 4 RAKAM, ÜST SINIR 8 — ikisi de BİLİNÇLİ ve ikisi de test-pinli.
+  // Alt sınır: "Giriş saati 15:00" ve "Kapı 3. katta" QR'ın ASIL işidir.
+  // Üst sınır + `(?!\d)`: 10-11 haneli TR telefonu bitişik yazılsa bile
+  // ("Kapıcı 05321112233") 8 haneyi aşar ve eşleşemez.
+  //
+  // 🚨 `(?![\s\-.]\d)` = TELEFONUN DEVAMI KORUMASI, süs değil. Türk telefonu
+  // ÖBEKLİ yazılır ("Kapıcı 0532 111 2233") ve ilk öbek "0532" TAM 4 hanedir,
+  // yani üst sınır onu KURTARMAZ. Ayırt edici şey şu: bir erişim kodu sayısal
+  // içeriğin SONUDUR, telefon ise daha fazla rakam öbeğiyle DEVAM eder.
+  // "kapıcı" (= apartman görevlisi) Türkçe bilgi tabanlarında çok yaygın ve
+  // `kap[ıi]\w*` onu da kapsıyor → bu koruma olmadan görevlinin telefonunu
+  // taşıyan kalem KOMPLE düşerdi. Ölçüldü: bu satırsız 2/13 yanlış pozitif.
+  //
+  // ÖLÇÜLDÜ (kalıp yok / serbest-metin / bugünkü): yanlış-pozitif 0 → 6 → 0,
+  // yakalanan saldırı 0 → 11 → 13. Yani bugünkü hâl İKİ eksene göre de en iyisi.
+  /(kap[ıi]|giri[şs]|anahtar\s*kutu|key\s*?box|keybox|door|lock|entry|gate)\w*\s*[:=#.\-–—]?\s*\d{4,8}(?!\d)(?![\s\-.]\d)/i,
 ];
 
 /**

@@ -72,12 +72,17 @@ const nextConfig = {
       "img-src 'self' data: https:",
       `script-src 'self' 'unsafe-inline' ${paddleScript}`,
       // Paddle overlay EBEVEYN dokümana HARİCİ bir stylesheet enjekte ediyor;
-      // 'unsafe-inline' harici <link> URL'ini KAPSAMAZ. Ayrıca public/urun.html
-      // ve public/kurulum.html (landing iframe'i) Google Fonts'tan stylesheet
-      // çekiyor. İkisi de yazılmazsa enforce günü overlay stilsiz açılır ve
-      // ürün turu iframe'i bozulur — yani politika hâlâ açılamaz olurdu.
-      `style-src 'self' 'unsafe-inline' ${paddleScript} https://fonts.googleapis.com`,
-      "font-src 'self' data: https://fonts.gstatic.com",
+      // 'unsafe-inline' harici <link> URL'ini KAPSAMAZ → Paddle origin'i YAZILI
+      // kalmalı, yoksa enforce günü overlay stilsiz açılır.
+      // ⚠️ GOOGLE FONTS KARŞILAMASI 08-07'DE KALDIRILDI ve GERİ EKLENMEMELİ:
+      // tek sebebi public/urun.html + public/kurulum.html'in ham <link> ile
+      // fonts.googleapis.com'dan stylesheet çekmesiydi. İkisi de artık Inter'i
+      // /fonts/ altından kendi origin'imizden alıyor. Bir gün bu satırı geri
+      // eklemek gerekiyorsa sebep neredeyse kesinlikle birinin o <link>'leri
+      // geri koymuş olmasıdır — CSP'yi değil ONU düzelt (ziyaretçi IP'si
+      // Google'a gider ve alt-işleyen listemizde Google YOK).
+      `style-src 'self' 'unsafe-inline' ${paddleScript}`,
+      "font-src 'self' data:",
       "connect-src 'self' https://*.paddle.com",
       "frame-src 'self' https:",
     ].join("; ");

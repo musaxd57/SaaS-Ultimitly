@@ -156,10 +156,18 @@ describe("global güvenlik başlıkları (next.config.mjs)", () => {
     // Paddle overlay EBEVEYN dokümana harici stylesheet enjekte eder; style-src'de
     // Paddle yoksa enforce günü checkout stilsiz açılır (denetim bulgusu).
     expect(ro).toMatch(/style-src[^;]*cdn\.paddle\.com/);
-    // public/urun.html + public/kurulum.html Google Fonts'tan stylesheet çekiyor
-    // ve landing bu dosyayı iframe ile gömüyor.
-    expect(ro).toMatch(/style-src[^;]*fonts\.googleapis\.com/);
-    expect(ro).toMatch(/font-src[^;]*fonts\.gstatic\.com/);
+    // 🚨 YÖN 08-07'DE TERSİNE DÖNDÜ — ESKİ HÂLİNE GERİ ALMA.
+    // Bu iki satır eskiden Google Fonts karşılamasının VAR OLMASINI istiyordu
+    // ve o zaman DOĞRUYDU: public/urun.html + public/kurulum.html ham `<link>`
+    // ile fonts.googleapis.com'dan stylesheet çekiyordu, landing de bu
+    // dosyaları iframe'le gömüyor → karşılama yazılmasa enforce günü ürün turu
+    // bozulurdu. Artık ikisi de Inter'i `/fonts/` altından KENDİ origin'imizden
+    // alıyor (ziyaretçi IP'si Google'a gitmesin diye), yani karşılamanın sebebi
+    // ortadan kalktı ve politika bu kadar daraltılabildi.
+    // Bu satır kırmızıya dönerse birinin `<link>`leri geri koyması ÇOK OLASI —
+    // önce `public/*.html`e bak, CSP'yi gevşetmek YANLIŞ düzeltmedir.
+    expect(ro).not.toMatch(/fonts\.googleapis\.com/);
+    expect(ro).not.toMatch(/fonts\.gstatic\.com/);
     // Sandbox AYRI origin — politika sandbox testinde de doğru olmalı.
     expect(ro).toContain("https://sandbox-cdn.paddle.com");
   });

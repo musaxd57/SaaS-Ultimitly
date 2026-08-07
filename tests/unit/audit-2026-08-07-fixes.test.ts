@@ -120,16 +120,40 @@ describe("QR sır kapısı — giriş ismi + 4+ rakam", () => {
     "Gate 40021",
     "Giriş: 1234",
     "Bina kapısı 4590, sonra 3. kat",
+    "kapi 5566",
+    "lock 4321",
+    "entry 9999",
+    "KAPI 4590",
   ];
   // 🚨 Bu satırlar QR concierge'in ASIL işidir — elenirlerse özellik ölür.
+  // ⚠️ LİSTE BİLEREK "RAKAM DOLU": ilk yazımda buraya yalnız rakamsız/zararsız
+  // cümleler koymuştum ve "8/8 meşru geçti" diye ÖLÇTÜM — oysa kalıbın asıl
+  // zararı tam da RAKAM TAŞIYAN meşru içerikteydi ve o külliyat onu göremiyordu.
+  // Adres · telefon · posta kodu · yıl · daire numarası artık ŞART: kalıp
+  // serbest-metin araya izin verecek şekilde gevşetilirse ALTISI birden düşer
+  // (ölçüldü) ve misafir "adres ne?" diye sorduğunda AI'ın elinde adres kalmaz.
   const LEGITIMATE = [
+    "Moda Cad. No:12 Kapı 3, 34710 Kadıköy",
+    "Apartman girişindeki güvenlik 0212 555 4433",
+    "Giriş 15:00, geç giriş için 0532 111 2233 arayın",
+    "Daire kapı numaramız 1203",
+    // ⚠️ "kapıcı" (apartman görevlisi) `kap[ıi]\w*` tarafından KAPSANIYOR ve
+    // telefonu Türkçe'de öbekli yazılıyor — ilk öbek "0532" TAM 4 hane, yani
+    // üst sınır kurtarmıyor. Bu üç satır `(?![\s\-.]\d)` korumasını pinler.
+    "Kapıcı 0532 111 2233",
+    "Kapıcı: 0212 555 4433",
+    // Bitişik yazılan 11 haneli telefon → ÜST SINIRI (`{4,8}`) pinler.
+    "Kapıcı 05321112233",
+    "Kapı 05321112233",
+    "Giriş katındaki market 2024 yılında açıldı",
+    "Apartman giriş aidatı 2025 yılında 1500 TL",
+    "Havalimanından kapıya taksi yaklaşık 850 TL",
+    "Girişte 7/24 market var, telefonu 0216 444 5566",
+    "Kapıdan çıkınca sola, 500 metre ileride metro var",
     "Giriş saati 15:00, çıkış 11:00",
     "Kapı 3. katta, asansör sağda",
+    "Kapalı otopark 2. bodrumda, yer no 42",
     "Misafire her zaman siz diye hitap et",
-    "Kısa ve sıcak yaz, en fazla 3 cümle",
-    "Çöp konteyneri binanın arkasında",
-    "Otopark 2. bodrumda",
-    "Check-in 15:00'ten sonra",
     "Kapıyı sertçe çekmek gerekiyor",
   ];
 
@@ -139,9 +163,11 @@ describe("QR sır kapısı — giriş ismi + 4+ rakam", () => {
     }
   });
 
-  it("4 rakam eşiği korunur — saatler ve kat numaraları GEÇER (ters yön)", () => {
-    // `\d{4,}` → `\d+` yapılırsa bu satırların hepsi elenir ve test kırmızıya
-    // döner: aşırı-eleme burada "güvenli yön" DEĞİL, özelliğin kendisidir.
+  it("meşru rakamlı içerik GEÇER — adres/telefon/posta kodu/yıl (ters yön)", () => {
+    // İki gevşetme de bu testi kırmızıya çevirir:
+    //  · `\d{4,}` → `\d+`  (saatler, kat numaraları elenir)
+    //  · bitişiklik → `[^.\n]{0,20}` (adres, telefon, yıl elenir — ÖLÇÜLDÜ: 6/12)
+    // Aşırı-eleme burada "güvenli yön" DEĞİL, özelliğin kendisidir.
     for (const line of LEGITIMATE) {
       expect(scrubStyleProfileForPublic(line), line).toBe(line);
     }
@@ -150,6 +176,36 @@ describe("QR sır kapısı — giriş ismi + 4+ rakam", () => {
   it("karışık rehberde yalnız sırlı satır düşer, gerisi kalır", () => {
     const profile = ["Kısa ve sıcak yaz", "Kapı: 4590", "Giriş saati 15:00"].join("\n");
     expect(scrubStyleProfileForPublic(profile)).toBe("Kısa ve sıcak yaz\nGiriş saati 15:00");
+  });
+
+  it("BİLGİ TABANI kalem biçiminde (`başlık\\nicerik`) de doğru karar verilir", () => {
+    // 🚨 BURASI ASIL BAHİS. `looksLikeSecret` bilgi tabanında KALEMİN TAMAMINA
+    // uygulanıyor (`guest-chat.ts`: `kbRaw.filter(k => !looksLikeSecret(
+    // \`${k.title}\\n${k.content}\`))`) ve eşleşen kalem KOMPLE düşüyor — satır
+    // satır değil. Yani "Adres" kalemindeki tek bir posta kodu, ADRESİN
+    // TAMAMINI misafirin sorabileceği bağlamdan siliyordu.
+    // Aşağıdaki yardımcı aynı yüklemi kalem biçiminde ölçer: sırlı içerik
+    // düşerse `null`/kısalma, meşru içerik aynen döner.
+    const asItem = (title: string, content: string) =>
+      scrubStyleProfileForPublic(`${title}\n${content}`);
+
+    // Meşru kalemler BÜTÜN olarak hayatta kalmalı.
+    for (const [t, c] of [
+      ["Adres", "Moda Cad. No:12 Kapı 3, 34710 Kadıköy"],
+      ["Acil durum", "Apartman girişindeki güvenlik 0212 555 4433"],
+      ["Check-in", "Giriş 15:00, geç giriş için 0532 111 2233 arayın"],
+      ["Daire", "Daire kapı numaramız 1203"],
+    ] as const) {
+      expect(asItem(t, c), `${t} kalemi düştü`).toBe(`${t}\n${c}`);
+    }
+
+    // Gerçek erişim kodu taşıyan kalemde içerik satırı DÜŞMELİ.
+    for (const [t, c] of [
+      ["Giriş", "Kapı: 4590"],
+      ["Anahtar", "Anahtar kutusu 7788"],
+    ] as const) {
+      expect(asItem(t, c), `${t} sırrı sızdı`).not.toContain(c);
+    }
   });
 });
 
@@ -242,5 +298,68 @@ describe("kaynak pinleri — geri alınması KOLAY ama tehlikeli düzeltmeler", 
     ]) {
       expect(read(rel), rel).toContain("newPassword.length > 200");
     }
+  });
+});
+
+describe("landing iframe'leri Google Fonts ÇEKMEZ", () => {
+  // 🚨 `public/urun.html` ve `public/kurulum.html` landing sayfasına <iframe>
+  // ile gömülü, yani siteyi AÇAN HERKES bunları yükler. Ham
+  // `<link href="https://fonts.googleapis.com/...">` kullanıyorlardı →
+  // ziyaretçinin IP'si + User-Agent'i + Referer'i, hiçbir tıklama olmadan
+  // Google'a gidiyordu. Gizlilik metnimizin alt-işleyen listesinde Google YOK.
+  // ⚠️ Ana uygulamada bu sorun HİÇ olmadı: `next/font/google` fontu BUILD
+  // ANINDA indirip kendi origin'imizden servis eder. Bu iki statik dosya o
+  // korumanın dışında kalan tek yerdi.
+  const IFRAMES = ["public/urun.html", "public/kurulum.html"];
+  const read = (rel: string) => readFileSync(join(process.cwd(), rel), "utf8");
+  // Yorumlar elenir: dosyaların AÇIKLAMASI eski durumu anlatıyor, aranan şey
+  // gerçek bir istek üreten `<link>`/`url()`/`@import` ifadesi.
+  const withoutComments = (s: string) =>
+    s.replace(/<!--[\s\S]*?-->/g, "").replace(/\/\*[\s\S]*?\*\//g, "");
+
+  it("hiçbir landing iframe'i Google'a istek üretmez", () => {
+    for (const rel of IFRAMES) {
+      const code = withoutComments(read(rel));
+      expect(code, rel).not.toMatch(/fonts\.googleapis\.com/);
+      expect(code, rel).not.toMatch(/fonts\.gstatic\.com/);
+      // Genel kural: bu iki dosya HİÇBİR dış origin'den kaynak çekmemeli.
+      const external = [...code.matchAll(/(?:src|href)\s*=\s*["'](https?:)?\/\/[^"']+/gi)].map(
+        (m) => m[0],
+      );
+      expect(external, `${rel} dış kaynak çekiyor`).toEqual([]);
+    }
+  });
+
+  it("Inter kendi origin'imizden servis ediliyor ve dosyalar GERÇEKTEN var", () => {
+    // Yalnız kaynak taraması yetmez: biri font dosyalarını silse `@font-face`
+    // ayakta kalır, tarayıcı sessizce fallback'e düşer ve tipografi bozulur.
+    for (const rel of IFRAMES) {
+      const code = withoutComments(read(rel));
+      expect(code, rel).toContain("/fonts/inter-latin.woff2");
+      expect(code, rel).toContain("/fonts/inter-latin-ext.woff2");
+    }
+    // Türkçe için İKİSİ DE gerekli: ı/ç/ö/ü latin'de, ğ/ş/İ latin-ext'te.
+    for (const f of ["public/fonts/inter-latin.woff2", "public/fonts/inter-latin-ext.woff2"]) {
+      const buf = readFileSync(join(process.cwd(), f));
+      expect(buf.subarray(0, 4).toString("latin1"), `${f} woff2 imzası`).toBe("wOF2");
+      // woff2 başlığındaki uzunluk alanı dosya boyutuyla eşleşmeli — kesik
+      // (LFS pointer'ı / yarım kopyalanmış) dosya buradan yakalanır.
+      expect(buf.readUInt32BE(8), `${f} kesik`).toBe(buf.length);
+    }
+  });
+
+  it("CSP'deki Google Fonts karşılaması kaldırıldı ve geri gelmedi", () => {
+    // Karşılamanın TEK sebebi bu iki dosyaydı; artık gerekmiyor. Geri eklenmesi
+    // neredeyse kesinlikle <link>'lerin geri konduğu anlamına gelir.
+    // ⚠️ YORUM ELEME SATIR BAŞINA ÇAPALI OLMAK ZORUNDA. İlk yazımım
+    // `/\/\/[^\n]*/g` idi ve o kalıp `https://fonts.gstatic.com` içindeki
+    // `//`den itibaren HER ŞEYİ siliyordu — yani test tam da aradığı ipucunu
+    // kendi eliyle yok ediyor ve mutasyonda YEŞİL kalıyordu (ölçüldü).
+    const cfg = read("next.config.mjs")
+      .split("\n")
+      .filter((l) => !l.trimStart().startsWith("//"))
+      .join("\n");
+    expect(cfg).not.toMatch(/fonts\.googleapis\.com/);
+    expect(cfg).not.toMatch(/fonts\.gstatic\.com/);
   });
 });
