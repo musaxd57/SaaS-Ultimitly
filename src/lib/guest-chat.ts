@@ -204,19 +204,19 @@ export async function ensureGuestChatConversation(
 const SECRET_PATTERNS: RegExp[] = [
   // door / keybox / entry / lock + code word (TR suffixes ok), e.g. "kapı kodu",
   // "anahtar kutusu kodu", "keybox code", "giriş şifresi", "door/lock code".
-  /(kap[ıi]|giri[şs]|anahtar\s*kutu|key\s*?box|keybox|door|lock|entry|gate)\w*[\s:]{0,3}\w{0,6}[\s:]{0,3}(kod|şifre|sifre|parola|code|pin)/i,
+  /(kap[ıi]|giri[şs]|anahtar\s*kutu|key\s*?box|keybox|door|lock|entry|gate)\w{0,24}[\s:]{0,3}\w{0,6}[\s:]{0,3}(kod|şifre|sifre|parola|code|pin)/i,
   // a code/PIN/password word followed by a value, e.g. "PIN: 5678", "kodu 0000",
   // "şifre HUNTER2", "parola: abc12".
-  /(pin|kod|code|şifre|sifre|parola|password|passcode)\w*\s*[:=#]?\s*([0-9]{3,}|[^\s.\n]*\d)/i,
+  /(pin|kod|code|şifre|sifre|parola|password|passcode)\w{0,24}\s*[:=#]?\s*([0-9]{3,}|[^\s.\n]{0,64}\d)/i,
   // Wi-Fi / wireless / internet ... password word.
-  /(wi-?fi|kablosuz|internet)\w*[^.\n]{0,40}(şifre|sifre|parola|password|passcode|key)/i,
+  /(wi-?fi|kablosuz|internet)\w{0,24}[^.\n]{0,40}(şifre|sifre|parola|password|passcode|key)/i,
   // a password/parola label with a colon/equals, e.g. "Şifre: ...", "parola = ...".
-  /(şifre|sifre|parola|password|passcode)\w*\s*[:=]/i,
+  /(şifre|sifre|parola|password|passcode)\w{0,24}\s*[:=]/i,
   // Wi-Fi / network NAME or PASSWORD stated conversationally WITHOUT a secret
   // keyword — e.g. "İnternet ağımız 'NuveEv', bağlanmak için 12345678 girin".
   // The value is quoted or digit-bearing (SSID / password), which the keyword
   // patterns above miss. Over-redaction stays the safe side (escalate, no leak).
-  /(wi-?fi|wlan|kablosuz|ssid|internet\s*a[ğg])\w*[^.\n]{0,40}(["'«][^"'»\n]{2,}["'»]|[A-Za-z0-9!@#._-]*\d[A-Za-z0-9!@#._-]{3,})/i,
+  /(wi-?fi|wlan|kablosuz|ssid|internet\s*a[ğg])\w{0,24}[^.\n]{0,40}(["'«][^"'»\n]{2,64}["'»]|[A-Za-z0-9!@#._-]{0,64}\d[A-Za-z0-9!@#._-]{3,64})/i,
   // ⚠️ GİRİŞ İSMİ + BİTİŞİK 4-8 RAKAM — kod kelimesi OLMADAN (denetim 08-07).
   // Yukarıdaki iki kalıp da bir "kod/şifre/pin" KELİMESİ arıyordu; host
   // "Kapı: 4590" ya da "Anahtar kutusu 7788" yazdığında hiçbiri eşleşmiyordu.
@@ -248,7 +248,7 @@ const SECRET_PATTERNS: RegExp[] = [
   //
   // ÖLÇÜLDÜ (kalıp yok / serbest-metin / bugünkü): yanlış-pozitif 0 → 6 → 0,
   // yakalanan saldırı 0 → 11 → 13. Yani bugünkü hâl İKİ eksene göre de en iyisi.
-  /(kap[ıi]|giri[şs]|anahtar\s*kutu|key\s*?box|keybox|door|lock|entry|gate)\w*\s*[:=#.\-–—]?\s*\d{4,8}(?!\d)(?![\s\-.]\d)/i,
+  /(kap[ıi]|giri[şs]|anahtar\s*kutu|key\s*?box|keybox|door|lock|entry|gate)\w{0,24}\s*[:=#.\-–—]?\s*\d{4,8}(?!\d)(?![\s\-.]\d)/i,
 ];
 
 /**
@@ -267,7 +267,14 @@ const SECRET_PATTERNS: RegExp[] = [
  * bozmaz, yalnız EKLER.
  */
 function looksLikeSecret(text: string): boolean {
-  const variants = [text, foldTurkishLower(text), foldTurkishAscii(text)];
+  // 🚨 UZUNLUK KEMERİ — ReDoS'a karşı İKİNCİ savunma (denetim 08-07 (2)).
+  // Kalıpların nicelikleri artık sınırlı (asıl düzeltme o), ama bu fonksiyon
+  // KALEM BAŞINA 6 kalıp × 3 katlama koşuyor ve QR yolu tek istekte 30 kaleme
+  // kadar okuyor → sınırsız girdi, sınırlı kalıplarla bile toplamda ağır.
+  // Bir erişim sırrı ilk birkaç yüz karakterdedir; 4.000 sonrasını taramak
+  // tespit KAZANDIRMAZ, yalnız maliyet ekler.
+  const capped = text.length > 4000 ? text.slice(0, 4000) : text;
+  const variants = [capped, foldTurkishLower(capped), foldTurkishAscii(capped)];
   return SECRET_PATTERNS.some((re) => variants.some((v) => re.test(v)));
 }
 

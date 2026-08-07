@@ -395,10 +395,39 @@ const CONFUSABLE_TO_LATIN: Record<string, string> = {
   "\u03bf": "o", "\u03b1": "a", "\u03bd": "v", "\u03c1": "p", "\u03c5": "u",
   "\u0391": "A", "\u0392": "B", "\u0395": "E", "\u039f": "O", "\u03a1": "P",
   "\u03a4": "T", "\u0397": "H", "\u039a": "K", "\u039c": "M", "\u039d": "N",
+  // \u2500\u2500 K\u0130R\u0130L/YUNAN YETMED\u0130 (08-07 (2), denetim turu \u2014 \u00d6L\u00c7\u00dcLD\u00dc) \u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500
+  // Harita yaln\u0131z bu iki yaz\u0131 sistemini tan\u0131yordu ve sald\u0131rgan ba\u015fka bir
+  // sistemden tek harf sokarak SAFETY_EMERGENCY s\u0131n\u0131f\u0131n\u0131 d\u00fc\u015f\u00fcrebiliyordu.
+  // \u00d6l\u00e7\u00fclen iki ger\u00e7ek ka\u00e7\u0131\u015f: "Dairede ya\u0578\u0563\u0131\u0578 var" (Ermenice \u0578/\u0563) ve
+  // "\u00f6l\u1d0dek istiyorum" (k\u00fc\u00e7\u00fck-kapital \u1d0d) \u2192 `detectRiskType` NULL d\u00f6nd\u00fc.
+  // \u0130kisi de \u00fcr\u00fcn\u00fcn EN Y\u00dcKSEK bahisli s\u0131n\u0131f\u0131: yang\u0131n ihbar\u0131 ve \u00f6z-zarar.
+  // Daha k\u00f6t\u00fcs\u00fc zincirin devam\u0131: s\u0131n\u0131f `complaint`e d\u00fc\u015f\u00fcnce mesaj
+  // "holding ack" uygunu oluyor ve host o se\u00e7ene\u011fi a\u00e7m\u0131\u015fsa YANGIN bildiren
+  // misafire deterministik \u00f6z\u00fcr mesaj\u0131 gidiyor \u2014 model hi\u00e7 \u00e7a\u011fr\u0131lmadan.
+  //
+  // \u26a0\ufe0f Bunlar "fancy text generator" \u00e7\u0131kt\u0131s\u0131: kopyala-yap\u0131\u015ft\u0131r tek ad\u0131m,
+  // ekranda okunur, modele de insana da normal g\u00f6r\u00fcn\u00fcr.
+  // Ermenice
+  "\u0578": "n", "\u057d": "u", "\u0563": "q", "\u0561": "w", "\u056b": "h",
+  "\u0585": "o", "\u0581": "g", "\u0575": "j", "\u0574": "u", "\u057e": "l",
+  "\u0570": "h", "\u0566": "q", "\u0572": "n",
+  // Cherokee (\u00e7o\u011fu B\u00dcY\u00dcK Latin'e benzer)
+  "\u13a0": "D", "\u13a1": "R", "\u13a2": "T", "\u13ac": "E", "\u13b3": "W",
+  "\u13bb": "G", "\u13c0": "H", "\u13ce": "Z", "\u13d9": "V", "\u13de": "L",
+  "\u13e9": "V", "\u13ef": "C", "\u13f4": "B", "\u13a9": "Y", "\u13aa": "K",
+  // K\u0131ptice
+  "\u2c9f": "o", "\u2ca3": "p", "\u2ca5": "c", "\u2c8f": "h", "\u2c9b": "n",
+  "\u2ca7": "t", "\u2c99": "m", "\u2c95": "k", "\u2c81": "a", "\u2c89": "e",
+  "\u2c93": "i", "\u2cad": "x", "\u2ca9": "y", "\u2c83": "b", "\u2c97": "l",
+  // Latin k\u00fc\u00e7\u00fck-kapital + IPA (U+1D00 blo\u011fu ve kom\u015fular\u0131)
+  "\u1d00": "a", "\u0299": "b", "\u1d04": "c", "\u1d05": "d", "\u1d07": "e",
+  "\u0262": "g", "\u0261": "g", "\u029c": "h", "\u026a": "i", "\u1d0a": "j",
+  "\u1d0b": "k", "\u029f": "l", "\u1d0d": "m", "\u0274": "n", "\u1d0f": "o",
+  "\u1d18": "p", "\u0280": "r", "\u1d1b": "t", "\u1d1c": "u", "\u1d20": "v",
+  "\u1d21": "w", "\u028f": "y", "\u1d22": "z", "\u1d26": "G", "\u1d27": "L",
 };
 const CONFUSABLE_RE = new RegExp(`[${Object.keys(CONFUSABLE_TO_LATIN).join("")}]`, "gu");
 const LATIN_RE = /[A-Za-z]/;
-const CYRILLIC_GREEK_RE = /[\u0400-\u04FF\u0370-\u03FF]/;
 
 /**
  * HOMOGLİF (görsel ikiz) SÖKEN EK ADAY (saldırgan denetimi, 08-01 — beşinci tur).
@@ -424,7 +453,15 @@ const CYRILLIC_GREEK_RE = /[\u0400-\u04FF\u0370-\u03FF]/;
  * mümkün. Kapsamı dar tutmak bedava.
  */
 function deconfuse(s: string): string {
-  if (!LATIN_RE.test(s) || !CYRILLIC_GREEK_RE.test(s)) return s;
+  // ⚠️ KOŞUL "Latin VAR MI" — eskiden "Latin VE (Kiril|Yunan)" idi ve harita
+  // büyüyünce o kapı yeni yazı sistemlerini DIŞARIDA bırakıyordu: Ermenice tek
+  // harf sokulmuş bir yangın ihbarı hiç sökülmeden geçiyordu. Hangi sistemin
+  // söküleceğine artık HARİTA karar veriyor, ayrı bir aralık listesi değil —
+  // ikisi ayrı yerlerde tutulunca biri güncellenip diğeri unutuluyor.
+  // 🚨 RUSÇA KORUMASI AYNEN DURUYOR: Latin harf İÇERMEYEN bir metin (saf Rusça
+  // "В квартире пожар") hiç sökülmez, ve sökülen biçim zaten metnin YERİNE
+  // GEÇMEZ — `matchCandidates` içinde EK ADAY'dır, yalnız eşleşme EKLER.
+  if (!LATIN_RE.test(s)) return s;
   return s.replace(CONFUSABLE_RE, (c) => CONFUSABLE_TO_LATIN[c] ?? c);
 }
 
