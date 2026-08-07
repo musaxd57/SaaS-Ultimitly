@@ -100,9 +100,40 @@ const KEYWORDS: Record<Exclude<Intent, "general">, string[]> = {
     // to avoid English false matches (e.g. "sale"). Catches a foreign-language
     // complaint even if the model mislabels it.
     "funktioniert nicht", "kaputt", "schmutzig", "dreckig", "beschwerde", "schimmel",
-    "ne fonctionne pas", "cassé", "problème", "porter plainte", "fuite",
-    "no funciona", "está roto", "está rota", "sucio", "queja", "non funziona", "rotto", "sporco",
-    "لا يعمل", "معطل", "متسخ", "مشكلة", "شكوى",
+    "ne fonctionne pas", "cassé", "porter plainte", "fuite",
+    "no funciona", "está roto", "está rota", "sucio", "queja", "non funziona", "rotto",
+    // ── DİL PARİTESİ (08-07 (2)) — ÖLÇÜLEN İKİ SİSTEMATİK BOŞLUK ───────────
+    // 7 dil × 5 tipik şikayet ölçüldü: TR 2/5 · DE 2/5 · FR 1/5 · ES 3/5 ·
+    // RU 3/5 · AR 3/5 (EN 4/5). Kaçanlar tek tek değil, İKİ KATEGORİDE
+    // toplanıyordu ve ikisi de host'un MUTLAKA görmesi gereken türden:
+    //   (a) temel hizmetin YOKLUĞU — sıcak su / ısıtma yok
+    //   (b) GÜRÜLTÜ — komşu/sokak; host'tan başkası çözemez
+    // EN'de "no hot water"/"no heating" zaten vardı; diğer altı dilde yoktu.
+    //
+    // ⚠️ BURADA AŞIRI-EŞLEŞME BEDAVA DEĞİL — `SAFETY_CRITICAL_WORDS`'ün
+    // aksine. `complaint`, `NEVER_AUTO_REPLY_INTENTS` içinde: her yeni kelime
+    // OTO-YANITI KAPATIR. Bu yüzden yalnız tartışmasız iki kategori eklendi;
+    // "wifi çekmiyor" gibi bilgi tabanından yanıtlanabilecek şikayetler
+    // BİLİNÇLİ olarak dışarıda bırakıldı (onları complaint yapmak ürünün
+    // yaptığı işi kısar, güvenliği artırmaz).
+    "sıcak su yok", "sicak su yok", "sıcak su akmıyor", "sicak su akmiyor",
+    "kein warmes wasser", "kein heißes wasser", "kein heisses wasser", "keine heizung",
+    "pas d'eau chaude", "pas de chauffage",
+    "no hay agua caliente", "sin agua caliente", "no hay calefacción", "no hay calefaccion",
+    "нет горячей воды", "нет отопления",
+    "لا يوجد ماء ساخن", "لا يوجد تدفئة",
+    // Gürültü
+    "çok gürültülü", "cok gurultulu", "gürültüden", "gurultuden", "çok ses geliyor",
+    "too noisy", "very noisy", "so much noise",
+    "zu laut", "sehr laut", "lärm",
+    "trop bruyant", "trop de bruit",
+    "demasiado ruido", "mucho ruido", "muy ruidoso",
+    "очень шумно", "слишком шумно", "шум мешает",
+    "صاخب جدا", "ضوضاء",
+    // Kirlilik — FR `sale` TEK BAŞINA YASAK (İngilizce "sale"=indirim ile
+    // çakışır, üstteki yorum bunu zaten söylüyor) → yalnız ÖBEK olarak.
+    "très sale", "tres sale", "грязная", "грязный", "грязно", "sporco",
+    "لا يعمل", "معطل", "متسخ", "شكوى",
     "не работает", "сломан", "грязно", "проблема", "жалоба",
     // Soft / implicit complaints + dissatisfaction (negation-anchored so positives
     // like "tam beklediğim gibi" / "çok temiz" never match). Over-escalation is the
@@ -241,7 +272,7 @@ const PROBLEM_NEGATIONS = [
   "problem yok", "problemsiz",
   "kein problem", "keine probleme", "pas de problème", "pas de probleme", "sans problème", "sans probleme",
   "ningún problema", "ningun problema", "sin problema", "nessun problema", "senza problemi",
-  "нет проблем", "без проблем", "بدون مشكلة", "لا مشكلة",
+  "нет проблем", "без проблем", "بدون مشكلة", "لا مشكلة", "لا توجد مشكلة", "ليست هناك مشكلة",
 ];
 
 /**
@@ -580,12 +611,24 @@ function includesAnyFold(
   return false;
 }
 
-/** True when a bare "problem"/"sorun" survives after stripping negated phrases. */
+/**
+ * True when a bare "sorun/problem" word survives after stripping negated phrases.
+ *
+ * 🚨 FR/AR KÖKLERİ DE BURADA — düz `KEYWORDS.complaint` listesinde DEĞİL.
+ * Ölçülen hata (08-07 (2), önceden vardı): `"problème"` ve `"مشكلة"` düz listede
+ * duruyordu ve olumsuzlama korumasını komple atlıyorlardı → **"Pas de problème"**
+ * ve **"لا توجد مشكلة"** (yani "sorun YOK", gayet olumlu bir kapanış) ŞİKAYET
+ * sayılıyordu. `complaint` `NEVER_AUTO_REPLY_INTENTS` içinde olduğu için sonuç
+ * somut: teşekkür eden misafire oto-yanıt gitmiyor, host boşuna uyarılıyordu.
+ * Dosyanın kendi kuralı bunu zaten söylüyordu (↑liste başındaki not) — yalnız
+ * İngilizce/Türkçe için uygulanmıştı.
+ */
+const PROBLEM_STEMS = ["problem", "sorun", "problème", "probleme", "مشكلة"];
 function hasUnnegatedProblemWord(m: string): boolean {
-  if (!m.includes("problem") && !m.includes("sorun")) return false;
+  if (!PROBLEM_STEMS.some((w) => m.includes(w))) return false;
   let stripped = m;
   for (const neg of PROBLEM_NEGATIONS) stripped = stripped.split(neg).join(" ");
-  return stripped.includes("problem") || stripped.includes("sorun");
+  return PROBLEM_STEMS.some((w) => stripped.includes(w));
 }
 
 function detectIntent(message: string): Intent {
@@ -939,6 +982,72 @@ const SAFETY_CRITICAL_WORDS = [
   "yasamak istemiyorum", "hayatıma son", "hayatima son", "ölmek istiyorum", "olmek istiyorum",
   "kill myself", "end my life", "suicidal", "suicide", "harm myself", "hurt myself",
   "want to die", "don't want to live", "dont want to live", "no reason to live",
+
+  // ── DİL PARİTESİ TURU (08-07 (2)) — ÖLÇÜLMÜŞ BOŞLUKLAR DOLDURULDU ─────────
+  // Liste "çok dilli" görünüyordu ama kapsam KATEGORİ × DİL matrisinde delikti.
+  // Yedi dilde 7 acil senaryosu ölçüldü (yangın · gaz · tıbbi · elektrik ·
+  // su baskını · kilitli kaldı · öz-zarar): TR 6/7 · EN 6/7 · DE 4/7 · FR 3/7 ·
+  // ES 3/7 · RU 1/7 · AR 1/7. Yani Rusça ve Arapça yazan bir misafirin YANGIN
+  // dışındaki her acili deterministik ağdan SIFIR yakalanıyordu.
+  //
+  // ⚠️ SU BASKINI YEDİ DİLİN HEPSİNDE EKSİKTİ — Türkçe dahil. EN'de yalnız
+  // "flooding/water pouring" vardı, "su bastı" hiç yoktu.
+  //
+  // 🚨 KÖK SEÇERKEN ÖLÇÜLEN İKİ TUZAK (gövde kısaltmak CAZİP, ama):
+  //  · RU `искр` YASAK — "искренне" (içtenlikle) ile çakışıyor: "Искренне
+  //    благодарю" (içten teşekkür) acil sayılırdı. Tam biçimler kullanıldı.
+  //  · DE `funkt` YASAK — "funktioniert" (çalışıyor) ile çakışıyor: "Die
+  //    Heizung funktioniert nicht" (kalorifer çalışmıyor) YANGIN sayılırdı.
+  //    "funken" güvenli (funktioniert içinde geçmez).
+  // Genel kural değişmedi: aşırı-eşleşme bu listede GÜVENLİ taraf (yalnız
+  // holding-ack'i engeller, asla yanlış mesaj göndermez) — ama yaygın gündelik
+  // kelimelerle çakışan kökler yine de seçilmez, yoksa host boşuna acil
+  // e-postası alır ve alarm değerini yitirir.
+
+  // SU BASKINI / SU HASARI
+  "su bastı", "su basti", "su basıyor", "su basiyor", "her yeri su", "tavandan su",
+  "tavandan akıyor", "tavandan akiyor", "sular altında", "sular altinda", "su taştı", "su tasti",
+  "flooded", "water everywhere", "ceiling leaking", "burst pipe",
+  "überflutet", "uberflutet", "überschwemmt", "uberschwemmt", "wasserschaden", "wasser läuft", "wasser lauft",
+  "inond", "dégât des eaux", "degat des eaux", "l'eau coule",
+  "inund", "se está inundando", "fuga de agua",
+  "затопил", "затопило", "затапливает", "потоп", "заливает", "течет с потолка",
+  "تغرق", "فيضان", "تسرب المياه", "المياه تتسرب",
+
+  // ELEKTRİK / KIVILCIM / YANIK KOKUSU (TR+EN vardı, dördü yoktu)
+  "funken", "stromschlag", "brandgeruch", "riecht verbrannt", "kurzschluss",
+  "étincelle", "etincelle", "choc électrique", "choc electrique",
+  "odeur de brûlé", "odeur de brule", "court-circuit",
+  "chispa", "descarga eléctrica", "descarga electrica", "olor a quemado", "cortocircuito",
+  "искры", "искрит", "искрят", "удар током", "запах гари", "короткое замыкание",
+  "شرر", "صدمة كهربائية", "رائحة احتراق", "ماس كهربائي",
+
+  // TIBBİ ACİL (EN'de "bayıldı/nefes alamıyor" yoktu; RU/AR hiç yoktu)
+  "fainted", "unconscious", "not breathing", "can't breathe", "cant breathe",
+  "heart attack", "seizure", "choking", "collapsed",
+  "atmet nicht", "herzinfarkt", "krampfanfall", "erstickt", "zusammengebrochen",
+  "ne respire pas", "crise cardiaque", "s'étouffe", "convulsion",
+  "no respira", "infarto", "ataque al corazón", "ataque al corazon", "se atraganta", "convulsión",
+  "не дышит", "потерял сознание", "потеряла сознание", "инфаркт",
+  "сердечный приступ", "задыхается", "судорог",
+  "لا يتنفس", "لا تتنفس", "فاقدة الوعي", "نوبة قلبية", "يختنق",
+
+  // KİLİTLİ KALDI (FR tekil biçim, ES/RU/AR hiç yoktu)
+  "enfermé dehors", "enferme dehors", "porte claquée", "porte claquee",
+  "encerrado fuera", "encerrada fuera", "me quedé fuera", "me quede fuera", "no puedo entrar",
+  "не могу попасть внутрь", "не могу войти", "захлопнул дверь", "захлопнулась дверь",
+  "محبوس في الخارج", "لا أستطيع الدخول",
+
+  // ÖZ-ZARAR / RUH SAĞLIĞI (yalnız TR+EN vardı)
+  "nicht mehr leben", "will sterben", "selbstmord", "suizid", "mich umbringen",
+  "veux mourir", "me suicider", "en finir avec la vie",
+  "quiero morir", "suicidarme", "suicidio", "quitarme la vida", "acabar con mi vida",
+  "хочу умереть", "покончить с собой", "суицид", "самоубийство", "не хочу жить",
+  "أريد أن أموت", "الانتحار", "أنتحر", "لا أريد العيش",
+
+  // GAZ (RU/AR yoktu — Latin "gas" altdizisi bu iki yazı sistemini kapsamıyor)
+  "пахнет газ", "запах газ", "утечка газ",
+  "رائحة غاز", "تسرب غاز",
 ];
 
 // SQUATTING / TAHLİYE-REDDİ — misafir çıkışı REDDEDİYOR / süresiz kalma sinyali
