@@ -326,13 +326,28 @@ export async function getOccupancyByProperty(orgId: string): Promise<PropertyOcc
     rangeEnd: Date,
   ): number {
     const occupied = new Set<string>();
+    // 🚨 SINIR GÜN ANAHTARIYLA KARŞILAŞTIRILIR, HAM ZAMAN DAMGASIYLA DEĞİL
+    // (denetim 08-07 (4), ÖLÇÜLDÜ — dört vakanın dördü de yanlıştı).
+    // Eski kod `cur < end` diyordu: `cur` org-YEREL geceyarısı, `end` ise
+    // sağlayıcının HAM anı. UTC+3'te çıkış günü yerel geceyarısı (Ağu 2 00:00
+    // yerel = Ağu 1 21:00Z) çıkış anından (Ağu 2 00:00Z) ÖNCEDİR → döngü çıkış
+    // gününü de sayıyordu. Sonuç: HER konaklama +1 gece.
+    //   1 gecelik Hospitable kaydı → 2 · 3 gecelik iCal kaydı (12:00Z) → 4 ·
+    //   aynı-gün 0 gece → 1 · 7 gece → 8. Yani /reports donut'u ve her dairenin
+    //   doluluk yüzdesi sistematik olarak şişiyordu ve /calendar ile ÇELİŞİYORDU
+    //   (orası zaten `key >= arrKey && key < depKey` ile doğru sayıyor).
+    // İki taraf da artık "YYYY-MM-DD" karşılaştırması: aynı çerçeve, kayma yok.
+    const rangeEndKey = dayKeyTz(rangeEnd, tz); // DIŞLAYICI (günler 1..cutoff-1)
     for (const r of reservations) {
       const start = r.arrivalDate > rangeStart ? r.arrivalDate : rangeStart;
-      const end = r.departureDate < rangeEnd ? r.departureDate : rangeEnd;
+      const depKey = dayKeyTz(r.departureDate, tz); // çıkış günü DIŞLANIR
+      const endKey = depKey < rangeEndKey ? depKey : rangeEndKey;
       let cur = zonedDayRange(start, tz).start; // org-local midnight of start's day
-      while (cur < end) {
-        occupied.add(dayKeyTz(cur, tz));
+      let key = dayKeyTz(cur, tz);
+      while (key < endKey) {
+        occupied.add(key);
         cur = addZonedDays(cur, 1, tz);
+        key = dayKeyTz(cur, tz);
       }
     }
     return occupied.size;

@@ -1,7 +1,7 @@
 import "server-only";
 
 import { prisma } from "@/lib/db";
-import { foldTurkishLower } from "@/lib/ai/fallback";
+import { foldTurkishLower, foldTurkishLowerTr, foldTurkishAscii } from "@/lib/ai/fallback";
 import { orgTimezone, zonedDayRange, addZonedDays } from "@/lib/timezone";
 import {
   SUPPLY_ITEMS,
@@ -264,10 +264,22 @@ const REQUEST_ITEMS: { key: SupplyItemKey; words: string[] }[] = [
 export function detectSupplyRequest(message: string): { itemKey: SupplyItemKey; qty: number }[] {
   // foldTurkishLower: a sentence-initial İ ("İki havlu daha…") must still match.
   const m = foldTurkishLower(message);
+  // 🚨 OLUMSUZLAMA/SORU GUARD'LARI ÜÇ KATLAMAYI BİRDEN DENER (denetim 08-07 (4)).
+  // ÖLÇÜLDÜ: "FAZLADAN NEVRESIM LAZIM DEĞİL AMA HAVLU RICA EDERIM" →
+  // [nevresim, banyo_havlusu]; birebir aynı cümlenin küçük harflisi → []. Sebep
+  // repo'nun KATLAMA KURALI'nın bilinen yüzü: `foldTurkishLower` "LAZIM DEĞİL"i
+  // "lazim değil" yapıyor, listede ise "lazım değil" ve "lazim degir" var —
+  // ikisi de tutmuyor. Yani misafirin AÇIKÇA REDDETTİĞİ ürün alışveriş
+  // listesine giriyordu.
+  // ⚠️ YALNIZ GUARD'LARA uygulanır — bunlar KISITLAYICI (yalnız eşleşme EKLER,
+  // yani yalnız listeden DÜŞÜRÜR). `EXTRA_SIGNALS`/`REQUEST_VERBS`/`REQUEST_ITEMS`
+  // beyaz-liste yönündedir; onlara katlama eklemek listeye YANLIŞ ürün SOKAR.
+  const folds = [m, foldTurkishLowerTr(message), foldTurkishAscii(message)];
+  const hitsAny = (list: readonly string[]) => list.some((w) => folds.some((f) => f.includes(w)));
   // Guards first (order-independent): refusal or an availability/price question
   // means it is NOT a request, even if extra/item words are present.
-  if (REQUEST_NEGATIONS.some((w) => m.includes(w))) return [];
-  if (REQUEST_QUESTIONS.some((w) => m.includes(w))) return [];
+  if (hitsAny(REQUEST_NEGATIONS)) return [];
+  if (hitsAny(REQUEST_QUESTIONS)) return [];
   if (!EXTRA_SIGNALS.some((s) => m.includes(s))) return [];
   if (!REQUEST_VERBS.some((v) => m.includes(v))) return [];
   const out: { itemKey: SupplyItemKey; qty: number }[] = [];

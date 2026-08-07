@@ -98,7 +98,11 @@ describe("photoUrl — ters bölü ile dış origin'e kaçış", () => {
 
   it("meşru değerler kabul edilir (ters yön)", () => {
     expect(ok("/api/storage/photo/a/b/c/d/e.png")).toBe(true);
-    expect(ok("https://cdn.example.com/a.png")).toBe(true);
+    expect(ok("/uploads/org1/123-abc.png")).toBe(true);
+    // ⚠️ `https://cdn.example.com/a.png` bir dönem BURADA "meşru" sayılıyordu;
+    // 08-07 (4) denetiminde o izin kaldırıldı (dış host = tıksız IP/UA sızıntısı,
+    // ↓audit-2026-08-07-round4.test.ts). Ters yön artık göreli yollarla sınanır.
+    expect(ok("https://cdn.example.com/a.png")).toBe(false);
   });
 });
 

@@ -211,7 +211,20 @@ export const taskUpdateSchema = z.object({
     // sahibine kimlik avı bağlantısı ya da tıksız IP/Referer sızdıran bir
     // görsel yerleştirebilirdi.
     .refine((v) => !v.includes("\\"), "Geçersiz görsel bağlantısı.")
-    .refine((v) => /^\/(?!\/)/.test(v) || /^https:\/\//i.test(v), "Geçersiz görsel bağlantısı.")
+    // 🚨 MUTLAK `https://` İZNİ KALDIRILDI (denetim 08-07 (4)) — GERİ EKLEME.
+    // Eski hâli "gelecekteki nesne depolaması için" her HOST'a izin veriyordu ve
+    // hiçbir katman onu daraltmıyordu: `isAcceptablePhotoUrl` (storage/keys.ts:87)
+    // depolama-DIŞI her URL için ERKEN `true` döner (tasarımı öyle — yalnız
+    // depolama anahtarlarını doğrular). Sonuç ölçüldü: `staff` (en düşük yetki,
+    // temizlik ekibi) KENDİ atandığı göreve `{"photoUrl":"https://saldirgan.tld/p.png"}`
+    // yazabiliyor, değer `tasks/page.tsx`ten geçip `task-board.tsx:443,446`da
+    // SAHİBİN panosunda hem `<a href>` hem `<img src>` olarak çiziliyor ve
+    // CSP `img-src 'self' data: https:` (next.config.mjs:72) onu YÜKLÜYOR →
+    // TIKSIZ IP/User-Agent sızıntısı + kimlik avı bağlantısı.
+    // ⚠️ DAVRANIŞ KAYBI YOK: uygulama mutlak URL ÜRETMİYOR. `/api/upload`
+    // `photoUrlForKey()` = `/api/storage/photo/<key>` (GÖRELİ) döndürür, eski
+    // yol da `/uploads/…` (göreli) idi. Depolama açıldığında da göreli kalır.
+    .refine((v) => /^\/(?!\/)/.test(v), "Geçersiz görsel bağlantısı.")
     .optional(),
   title: z.string().max(300).optional(),
   description: z.string().max(5000).optional(),

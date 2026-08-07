@@ -87,9 +87,18 @@ describe("kbSchema", () => {
 });
 
 describe("taskUpdateSchema.photoUrl scheme guard", () => {
-  it("accepts a same-origin upload path and an https URL", () => {
+  it("accepts ONLY same-origin relative paths — absolute https is now rejected", () => {
+    // 🚨 SÖZLEŞME DEĞİŞTİ (denetim 08-07 (4)). Bu test bir dönem mutlak
+    // `https://` değerinin KABUL edildiğini asserte ediyordu ("gelecekteki nesne
+    // depolaması" gerekçesiyle). O izin, hiçbir katmanın daraltmadığı bir dış
+    // host kapısıydı: `isAcceptablePhotoUrl` depolama-DIŞI her URL'e erken
+    // `true` döner, değer sahibin panosunda `<img src>` olarak çizilir ve CSP
+    // `img-src … https:` onu yükler → tıksız IP/UA sızıntısı.
+    // Davranış kaybı YOK: uygulama mutlak URL üretmiyor (upload rotası
+    // `/api/storage/photo/<key>`, eski yol `/uploads/…` — ikisi de göreli).
     expect(taskUpdateSchema.safeParse({ photoUrl: "/uploads/org/pic.jpg" }).success).toBe(true);
-    expect(taskUpdateSchema.safeParse({ photoUrl: "https://cdn.example.com/a.png" }).success).toBe(true);
+    expect(taskUpdateSchema.safeParse({ photoUrl: "/api/storage/photo/o/t/x.png" }).success).toBe(true);
+    expect(taskUpdateSchema.safeParse({ photoUrl: "https://cdn.example.com/a.png" }).success).toBe(false);
   });
 
   it("rejects javascript:/data:/protocol-relative/http schemes (stored-XSS vectors)", () => {

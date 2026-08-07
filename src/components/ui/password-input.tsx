@@ -23,8 +23,11 @@ export function PasswordInput({ className, ...props }: React.InputHTMLAttributes
         type="button"
         onClick={() => setShow((s) => !s)}
         aria-label={show ? "Şifreyi gizle" : "Şifreyi göster"}
-        className="absolute inset-y-0 right-0 flex items-center px-3 text-muted-foreground transition-colors hover:text-foreground"
-        tabIndex={-1}
+        // ⚠️ `tabIndex={-1}` KALDIRILDI (WCAG 2.1.1): düğme klavyeyle
+        // ULAŞILAMIYORDU, yani `aria-label`ı da hiç okunamıyordu. Şifresini
+        // gözden geçirmek isteyen klavye/ekran-okuyucu kullanıcısının tek yolu
+        // buydu. Odak halkası eklendi ki sıraya girince görünsün.
+        className="absolute inset-y-0 right-0 flex items-center rounded-md px-3 text-muted-foreground transition-colors hover:text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
       >
         {show ? <EyeOff className="size-4" /> : <Eye className="size-4" />}
       </button>

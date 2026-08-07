@@ -194,9 +194,32 @@ export default async function CancellationsPage({
       {reservations.length === 0 ? (
         <Card>
           <CardContent className="py-10 text-center text-sm text-muted-foreground">
-            {period === "all"
-              ? "İptal edilen rezervasyon yok. Bir rezervasyon iptal/red/süresi-dolmuş olduğunda burada dairesine göre listelenir."
-              : "Bu dönemde iptal edilen rezervasyon yok. Dönemi değiştirip tekrar bakabilirsiniz."}
+            {/* ⚠️ ÜÇ AYRI BOŞLUK, ÜÇ AYRI CÜMLE (denetim 08-07 (4)).
+                Eskiden yalnız `period`e bakılıyordu, yani (a) sayfa numarası
+                listenin sonunu aştığında ve (b) bir DAİRE filtresi hiç eşleşme
+                vermediğinde de "hiç iptal yok" yazıyordu. İkisi de yalan ve
+                ikisi de ÇIKIŞSIZ: sayfalama yalnız `else` dalında çiziliyor,
+                yani bu kartta geri dönüş bağlantısı YOKTU. Kardeş sayfaların
+                (guest-chats/inbox/tasks/sent) hepsi bu durumu karşılıyor. */}
+            {page > 1 ? (
+              <>
+                Bu sayfada iptal yok — sayfa numarası listenin sonunu aşmış görünüyor.{" "}
+                <Link href={href({ sayfa: 1 })} className="text-primary hover:underline">
+                  İlk sayfaya dön
+                </Link>
+              </>
+            ) : propertyId ? (
+              <>
+                Seçili dairede{period === "all" ? "" : " bu dönemde"} iptal edilen rezervasyon yok.{" "}
+                <Link href={href({ propertyId: null })} className="text-primary hover:underline">
+                  Tüm daireleri göster
+                </Link>
+              </>
+            ) : period === "all" ? (
+              "İptal edilen rezervasyon yok. Bir rezervasyon iptal/red/süresi-dolmuş olduğunda burada dairesine göre listelenir."
+            ) : (
+              "Bu dönemde iptal edilen rezervasyon yok. Dönemi değiştirip tekrar bakabilirsiniz."
+            )}
           </CardContent>
         </Card>
       ) : (

@@ -42,7 +42,14 @@ export const PATCH = withManage<{ id: string }>(async (session, req, { params })
   // İlk sürüm sadece "yeni > eski" diyordu, yani 20.000 karakterlik eski bir
   // kayıt BAŞKA bir 20.000 karakterlik içerikle sınırsızca yeniden yazılabiliyor
   // ve "her şeyi tek kayda doldur" kaçışı elde bir tane eski uzun kayıt varken
-  // açık kalıyordu (denetim, 07-31). Artık o kayıt yalnız KISALABİLİR.
+  // açık kalıyordu (denetim, 07-31).
+  // ⚠️ YORUM DÜZELTİLDİ (08-07 (4)): burada bir dönem "artık o kayıt yalnız
+  // KISALABİLİR" yazıyordu — YANLIŞTI ve kodu okuyan birini yanıltırdı.
+  // `existing.length > cap` iken `Math.max(cap, existing.length) === existing.length`,
+  // yani kural fiilen "yeni > eski"dir: tavan üstü bir kayıt AYNI uzunlukta yeni
+  // bir içerikle yeniden yazılabilir. Bu BİLİNÇLİ — CLAUDE.md'nin kuralı
+  // "yalnız BÜYÜME reddedilir"; gerçekten kısalma-zorunlu yapmak, planı düşen
+  // müşteriyi KENDİ kaydını düzenleyemez hâle getirirdi.
   const allowedChars = Math.max(limits.kbCharsPerItem, existing.content.length);
   if (typeof d.content === "string" && d.content.length > allowedChars) {
     return badRequest({

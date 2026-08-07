@@ -284,7 +284,11 @@ export function AppShell({ user, superAdmin, guestChatEnabled, impersonating, pl
       {mobileOpen ? (
         <div className="fixed inset-0 z-50 lg:hidden">
           <div
-            className="absolute inset-0 bg-foreground/40"
+            // ⚠️ `bg-black/40` — `bg-foreground/40` DEĞİL. `--foreground` karanlıkta
+            // AÇIK renge döner, yani perde kararmak yerine sütlü bir beyaza dönüp
+            // ELEVASYONU TERSİNE çeviriyordu (drawer, çevresinden daha koyu kalıyor).
+            // Panelin diğer iki örtüsü (confirm-host, auto-reply-test) zaten bu desende.
+            className="absolute inset-0 bg-black/40 dark:bg-black/60"
             onClick={() => setMobileOpen(false)}
             aria-hidden
           />
