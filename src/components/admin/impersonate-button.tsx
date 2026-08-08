@@ -35,7 +35,7 @@ export function ImpersonateButton({ organizationId, orgName }: { organizationId:
       }
     } catch {
       setBusy(false);
-      toast.error("Bağlantı hatası.");
+      toast.error("İnternet bağlantınızda sorun var gibi görünüyor. Kontrol edip tekrar deneyin.");
     }
   }
 

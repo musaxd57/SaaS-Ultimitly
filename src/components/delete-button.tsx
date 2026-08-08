@@ -41,7 +41,7 @@ export function DeleteButton({
         router.refresh();
       } else {
         setLoading(false);
-        toast.error("Silme işlemi başarısız oldu.");
+        toast.error("Silinemedi. Sayfayı yenileyip tekrar deneyin.");
       }
     } catch {
       setLoading(false);

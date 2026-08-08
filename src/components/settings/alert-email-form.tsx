@@ -50,7 +50,7 @@ export function AlertEmailForm({ initial }: { initial: string }) {
         window.dispatchEvent(new Event(ALERT_EMAIL_SAVED_EVENT));
       } else setError(data.fields?.alertEmail ?? data.error ?? "Kaydedilemedi.");
     } catch {
-      setError("Bağlantı hatası.");
+      setError("İnternet bağlantınızda sorun var gibi görünüyor. Kontrol edip tekrar deneyin.");
     } finally {
       setBusy(false);
     }

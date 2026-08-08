@@ -58,7 +58,7 @@ export function TwoFactorCard({
     setBusy(false);
     if (ok && data.secret) setSecret(data.secret);
     // The "already active" guard returns its message in fields._, so read that first.
-    else setError(data.fields?._ ?? data.error ?? "Kurulum başlatılamadı.");
+    else setError(data.fields?._ ?? data.error ?? "İki adımlı giriş kurulumu başlatılamadı. Lütfen tekrar deneyin.");
   }
 
   async function confirmEnable(e: React.FormEvent) {

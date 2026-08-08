@@ -87,7 +87,7 @@ const RISK_TYPE_LABELS: Record<string, string> = {
   discrimination: "ayrımcılık içeriği",
   rule_violation: "kural ihlali sinyali",
   access_security: "giriş / erişim sorunu",
-  prompt_injection: "şüpheli talimat (injection)",
+  prompt_injection: "misafir mesajında şüpheli talimat",
 };
 export function riskTypeLabel(t: string | null | undefined): string | null {
   return t ? (RISK_TYPE_LABELS[t] ?? null) : null;
@@ -97,7 +97,7 @@ export function riskTypeLabel(t: string | null | undefined): string | null {
 const KB_TR: Record<string, string> = {
   wifi: "Wi-Fi", checkin: "Giriş Talimatı", checkout: "Çıkış Mesajı", welcome: "Karşılama",
   location: "Konum", rules: "Ev Kuralları", parking: "Otopark", trash: "Çöp",
-  cleaning: "Temizlik", faq: "SSS", local_tips: "Yerel Tavsiye", general: "Genel",
+  cleaning: "Temizlik", faq: "Sık Sorulanlar", local_tips: "Yerel Tavsiye", general: "Genel",
 };
 const PROP_TR: Record<string, string> = {
   checkInTime: "Giriş saati", checkOutTime: "Çıkış saati", address: "Adres",

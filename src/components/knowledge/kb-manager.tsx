@@ -144,7 +144,7 @@ export function KbManager({
       setForm((f) => ({ ...f, title: "", content: "" }));
       refresh();
     } catch {
-      setError("Bağlantı hatası.");
+      setError("İnternet bağlantınızda sorun var gibi görünüyor. Kontrol edip tekrar deneyin.");
     } finally {
       setCreating(false);
     }
@@ -250,7 +250,7 @@ export function KbManager({
       setCopyId(null);
       refresh();
     } catch {
-      setCopyMsg("Bağlantı hatası.");
+      setCopyMsg("İnternet bağlantınızda sorun var gibi görünüyor. Kontrol edip tekrar deneyin.");
     } finally {
       setCopying(false);
     }
@@ -291,7 +291,7 @@ export function KbManager({
       setEditId(null);
       refresh();
     } catch {
-      setEditError("Bağlantı hatası.");
+      setEditError("İnternet bağlantınızda sorun var gibi görünüyor. Kontrol edip tekrar deneyin.");
     } finally {
       setEditBusy(false);
     }

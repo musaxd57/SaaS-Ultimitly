@@ -36,7 +36,7 @@ export function SupplyAiSummary({ days, enabled }: { days: number; enabled: bool
         setError(data.detail ? `${data.error ?? "Özet oluşturulamadı."} (${data.detail})` : data.error ?? "Özet oluşturulamadı.");
       }
     } catch {
-      setError("Bağlantı hatası.");
+      setError("İnternet bağlantınızda sorun var gibi görünüyor. Kontrol edip tekrar deneyin.");
     } finally {
       setBusy(false);
     }

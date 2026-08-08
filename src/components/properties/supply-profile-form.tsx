@@ -100,7 +100,7 @@ export function SupplyProfileForm({
         setError(data.error ?? "Uygulanamadı.");
       }
     } catch {
-      setError("Bağlantı hatası.");
+      setError("İnternet bağlantınızda sorun var gibi görünüyor. Kontrol edip tekrar deneyin.");
     } finally {
       setBusy(false);
     }
@@ -127,7 +127,7 @@ export function SupplyProfileForm({
         setError(data.error ?? "Kaydedilemedi.");
       }
     } catch {
-      setError("Bağlantı hatası.");
+      setError("İnternet bağlantınızda sorun var gibi görünüyor. Kontrol edip tekrar deneyin.");
     } finally {
       setBusy(false);
     }

@@ -20,12 +20,12 @@ import type { HospitableConnectionInfo } from "@/lib/hospitable-credentials";
 const OAUTH_RESULT_MESSAGES: Record<string, { ok: boolean; text: string }> = {
   connected: { ok: true, text: "Hospitable ile bağlandı." },
   forbidden: { ok: false, text: "Bu işlem için yetkiniz yok." },
-  not_configured: { ok: false, text: "OAuth bağlantısı henüz hazır değil — token ile bağlanabilirsiniz." },
+  not_configured: { ok: false, text: "Tek tıkla bağlanma şu an kullanılamıyor — bağlantı anahtarıyla bağlanabilirsiniz." },
   denied: { ok: false, text: "Bağlantı izni verilmedi." },
   state_mismatch: { ok: false, text: "Bağlantı isteği doğrulanamadı, lütfen tekrar deneyin." },
   context_changed: {
     ok: false,
-    text: "Bağlantı başlatıldığı hesap/organizasyon değişti — güvenlik için kaydedilmedi. Doğru hesaptayken tekrar deneyin.",
+    text: "Bağlantı başlatıldığı başka bir hesaba geçilmiş — güvenlik için kaydedilmedi. Doğru hesaptayken tekrar deneyin.",
   },
   invalid_token: { ok: false, text: "Alınan bağlantı anahtarı geçersiz, lütfen tekrar deneyin." },
   exchange_failed: { ok: false, text: "Hospitable ile bağlantı kurulamadı, lütfen tekrar deneyin." },
@@ -70,7 +70,7 @@ export function HospitableConnectCard({
         setError(data.error ?? "Bağlanılamadı.");
       }
     } catch {
-      setError("Bağlantı hatası.");
+      setError("İnternet bağlantınızda sorun var gibi görünüyor. Kontrol edip tekrar deneyin.");
     } finally {
       setBusy(null);
     }
@@ -94,7 +94,7 @@ export function HospitableConnectCard({
         router.refresh();
       } else setError("Bağlantı kesilemedi.");
     } catch {
-      setError("Bağlantı hatası.");
+      setError("İnternet bağlantınızda sorun var gibi görünüyor. Kontrol edip tekrar deneyin.");
     } finally {
       setBusy(null);
     }

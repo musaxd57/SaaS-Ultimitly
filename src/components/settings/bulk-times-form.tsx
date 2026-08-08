@@ -55,7 +55,7 @@ export function BulkTimesForm({
       setBaseCheckOut(checkOutTime);
       startTransition(() => router.refresh());
     } catch {
-      setError("Bağlantı hatası.");
+      setError("İnternet bağlantınızda sorun var gibi görünüyor. Kontrol edip tekrar deneyin.");
     } finally {
       setSaving(false);
     }

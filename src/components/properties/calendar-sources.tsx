@@ -99,7 +99,7 @@ export function CalendarSources({ propertyId, sources, canManage = true, tz }: P
       const res = await fetch(`/api/calendar-sources/${id}/sync`, { method: "POST" });
       const data = await res.json().catch(() => null);
       if (!res.ok) {
-        toast.error("Senkronizasyon başarısız oldu.");
+        toast.error("Takvim güncellenemedi.");
       } else if (
         // The endpoint returns 200 even when the feed couldn't be fetched/parsed
         // (bad URL, unreachable, empty). Surface that instead of a silent "success".
@@ -161,7 +161,7 @@ export function CalendarSources({ propertyId, sources, canManage = true, tz }: P
                       size="sm"
                       onClick={() => syncSource(s.id)}
                       disabled={busyId === s.id}
-                      title="Şimdi senkronla"
+                      title="Şimdi güncelle"
                     >
                       {busyId === s.id ? (
                         <Loader2 className="size-4 animate-spin" />

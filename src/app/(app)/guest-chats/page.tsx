@@ -109,7 +109,7 @@ export default async function GuestChatsPage({
               <span className="flex size-14 items-center justify-center rounded-2xl bg-primary/10 text-primary">
                 <QrCode className="size-7" />
               </span>
-              <h3 className="mt-4 text-lg font-semibold">Daireniz için 7/24 misafir asistanı</h3>
+              <h3 className="mt-4 text-lg font-semibold">Daireniz için misafir asistanı</h3>
               <p className="mt-2 max-w-xl text-sm text-muted-foreground">
                 Daireye astığınız bir QR&apos;ı okutan misafir; Wi-Fi, çevredeki yerler, ulaşım gibi
                 <strong> genel sorularını</strong> yapay zekâya sorar. AI bilgi tabanınızdan yanıtlar;

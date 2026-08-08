@@ -184,7 +184,7 @@ export function complaintEscalationEmail(
 ): string {
   const body = `
     <h2 style="margin:0 0 8px;color:#ef4444;font-size:22px;font-weight:700;">
-      Şikayet Eskalasyonu
+      Şikayet — sizin ilgilenmeniz gerekiyor
     </h2>
     <p style="margin:0 0 24px;color:#64748b;font-size:15px;">
       <strong>${esc(property.name)}</strong> mülkünüzde bir misafir şikayeti tespit edildi.

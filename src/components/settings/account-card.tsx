@@ -54,7 +54,7 @@ export function AccountCard({ email }: { email: string }) {
         setError(data.fields?._ ?? data.error ?? "Kod gönderilemedi.");
       }
     } catch {
-      setError("Bağlantı hatası.");
+      setError("İnternet bağlantınızda sorun var gibi görünüyor. Kontrol edip tekrar deneyin.");
     } finally {
       setBusy(false);
     }
@@ -84,7 +84,7 @@ export function AccountCard({ email }: { email: string }) {
         );
       }
     } catch {
-      setError("Bağlantı hatası.");
+      setError("İnternet bağlantınızda sorun var gibi görünüyor. Kontrol edip tekrar deneyin.");
     } finally {
       setBusy(false);
     }

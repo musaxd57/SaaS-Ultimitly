@@ -50,7 +50,7 @@ export function AddCustomerForm() {
         setErrors(data.fields ?? { _: data.error ?? "Eklenemedi." });
       }
     } catch {
-      setErrors({ _: "Bağlantı hatası." });
+      setErrors({ _: "İnternet bağlantınızda sorun var gibi görünüyor. Kontrol edip tekrar deneyin." });
     } finally {
       setBusy(false);
     }

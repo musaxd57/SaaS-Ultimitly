@@ -46,7 +46,7 @@ export function Reset2faForm() {
         setError(data.fields?.email ?? data.fields?._ ?? data.error ?? "Sıfırlanamadı.");
       }
     } catch {
-      setError("Bağlantı hatası.");
+      setError("İnternet bağlantınızda sorun var gibi görünüyor. Kontrol edip tekrar deneyin.");
     } finally {
       setBusy(false);
     }

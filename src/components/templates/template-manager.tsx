@@ -81,7 +81,7 @@ export function TemplateManager({ properties, customTemplates, defaultTemplates,
       setShowForm(false);
       refresh();
     } catch {
-      setError("Bağlantı hatası.");
+      setError("İnternet bağlantınızda sorun var gibi görünüyor. Kontrol edip tekrar deneyin.");
     } finally {
       setCreating(false);
     }

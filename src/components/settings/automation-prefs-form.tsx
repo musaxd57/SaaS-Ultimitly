@@ -122,7 +122,7 @@ export function AutomationPrefsForm({
         setError(fieldError ?? data.error ?? "Kaydedilemedi.");
       }
     } catch {
-      setError("Bağlantı hatası.");
+      setError("İnternet bağlantınızda sorun var gibi görünüyor. Kontrol edip tekrar deneyin.");
     } finally {
       setBusy(false);
     }
@@ -223,8 +223,8 @@ export function AutomationPrefsForm({
             Açarsanız: bir misafir mesajı size &ldquo;Sorunlu&rdquo; olarak düştüğünde ve içinde fiziksel bir
             operasyon sinyali varsa (arıza/bozuk cihaz, eksik malzeme, temizlik şikayeti) otomatik
             olarak bir <span className="font-medium">görev</span> açılır — kategori, öncelik ve teslim
-            süresiyle (SLA). Aynı mülkte aynı gün aynı konu için tek görev oluşur (mükerrer engellenir).
-            Görev, Görevler (Kanban) ekranınıza düşer. Kapalıyken (varsayılan) davranış aynı kalır:
+            süresiyle. Aynı mülkte aynı gün aynı konu için tek görev oluşur (mükerrer engellenir).
+            Görev, Görevler ekranınıza düşer. Kapalıyken (varsayılan) davranış aynı kalır:
             sadece &ldquo;Sorunlu&rdquo; işareti + e-posta, görev açılmaz.
           </span>
         </span>

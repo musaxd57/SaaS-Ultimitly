@@ -59,7 +59,7 @@ const OUTBOX_STATUS_UI: Record<string, { label: string; className: string }> = {
   // Hospitable subscription not active (402): parked, NOT lost — sends automatically once the
   // connection is restored (re-sync / reconnect). Distinct amber "paused" tone, not a red failure.
   blocked: { label: "Abonelik pasif — bağlantı gelince gönderilecek", className: "bg-amber-100 dark:bg-amber-500/15 text-amber-800 dark:text-amber-300" },
-  canceled: { label: "İptal edildi — yerini yeni durum aldı", className: "bg-muted text-muted-foreground" },
+  canceled: { label: "İptal edildi — yerine yeni bir gönderim oluşturuldu", className: "bg-muted text-muted-foreground" },
 };
 
 interface TemplateItem {

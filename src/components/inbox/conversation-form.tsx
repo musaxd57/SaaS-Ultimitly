@@ -74,7 +74,7 @@ export function ConversationForm({
       router.push(`/inbox/${data.id}`);
       router.refresh();
     } catch {
-      setError("Bağlantı hatası.");
+      setError("İnternet bağlantınızda sorun var gibi görünüyor. Kontrol edip tekrar deneyin.");
     } finally {
       setLoading(false);
     }

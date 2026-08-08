@@ -178,7 +178,7 @@ export function PaddlePlans({
           });
           setReady(true);
         } catch {
-          setError("Ödeme servisi başlatılamadı.");
+          setError("Ödeme ekranı açılamadı. Sayfayı yenileyip tekrar deneyin; sorun sürerse bize yazın.");
         }
       })
       .catch(() => setError("Ödeme servisi yüklenemedi. Bağlantınızı kontrol edin."));

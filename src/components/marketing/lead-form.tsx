@@ -101,7 +101,7 @@ export function LeadForm() {
       if (res.ok) setDone(true);
       else setErrors(data.fields ?? { _: data.error ?? "Gönderilemedi." });
     } catch {
-      setErrors({ _: "Bağlantı hatası." });
+      setErrors({ _: "İnternet bağlantınızda sorun var gibi görünüyor. Kontrol edip tekrar deneyin." });
     } finally {
       setBusy(false);
     }

@@ -152,7 +152,7 @@ export function TaskBoard({ tasks, canManage = true }: { tasks: TaskCardData[]; 
         body: JSON.stringify({ checklist: next }),
       });
       if (!res.ok) {
-        toast.error(res.status === 403 ? "Bu işlem için yetkiniz yok." : "Güncellenemedi.");
+        toast.error(res.status === 403 ? "Bu işlem için yetkiniz yok." : "Güncellenemedi. Sayfayı yenileyip tekrar deneyin.");
         return;
       }
       startTransition(() => router.refresh());

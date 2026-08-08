@@ -53,7 +53,7 @@ export function TimezoneForm({ initial }: { initial: string }) {
         startTransition(() => router.refresh());
       } else setError(data.fields?.timezone ?? data.error ?? "Kaydedilemedi.");
     } catch {
-      setError("Bağlantı hatası.");
+      setError("İnternet bağlantınızda sorun var gibi görünüyor. Kontrol edip tekrar deneyin.");
     } finally {
       setBusy(false);
     }
