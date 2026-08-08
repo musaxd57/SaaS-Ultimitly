@@ -1,4 +1,5 @@
 import "server-only";
+import { RESERVATION_CHANNEL } from "@/lib/constants";
 
 // ---------------------------------------------------------------------------
 // Lixus AI — Email Templates
@@ -273,13 +274,12 @@ export function reservationCreatedEmail(
       (1000 * 60 * 60 * 24),
   );
 
-  const channelLabels: Record<string, string> = {
-    manual: "Manuel",
-    airbnb: "Airbnb",
-    booking: "Booking.com",
-    direct: "Doğrudan",
-    other: "Diğer",
-  };
+  // 🚨 KOPYA HARİTA KALDIRILDI — TEK KAYNAK `RESERVATION_CHANNEL` (denetim 08-08).
+  // Burada ayrı bir liste vardı ve DRIFT ETTİ: `ics` kanalı `constants.ts`e
+  // eklendiğinde bu ikizi kimse güncellemedi → yeni-rezervasyon e-postası
+  // "KANAL: ics" diye HAM değer basıyordu. Aynı sınıf hata rozet tarafında da
+  // yaşandı ve orada tek kaynağa bağlanarak çözülmüştü; burası atlanmıştı.
+  const channelLabel = (v: string) => RESERVATION_CHANNEL.label(v);
 
   const body = `
     <h2 style="margin:0 0 8px;color:#0f172a;font-size:22px;font-weight:700;">
@@ -313,7 +313,7 @@ export function reservationCreatedEmail(
               </td>
               <td style="padding-top:12px;">
                 <p style="margin:0 0 2px;color:#94a3b8;font-size:11px;font-weight:600;text-transform:uppercase;">KANAL</p>
-                <p style="margin:0;color:#0f172a;font-size:14px;">${channelLabels[reservation.channel] ?? esc(reservation.channel)}</p>
+                <p style="margin:0;color:#0f172a;font-size:14px;">${esc(channelLabel(reservation.channel))}</p>
               </td>
             </tr>
             ${

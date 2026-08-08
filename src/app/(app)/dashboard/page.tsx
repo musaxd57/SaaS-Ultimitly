@@ -6,7 +6,6 @@ import {
   LogOut,
   MessageSquare,
   AlertTriangle,
-  Sparkles,
   BedDouble,
   CheckCircle2,
   ListChecks,
@@ -14,7 +13,9 @@ import {
 } from "lucide-react";
 import { requireAuth } from "@/lib/auth";
 import { prisma } from "@/lib/db";
-import { getOpsStats, buildDailySummary } from "@/lib/reports";
+// ⚠️ `buildDailySummary` ARTIK KULLANILMIYOR (kart kaldırıldı) ama SİLİNMEDİ:
+// `/api/reports/daily` onu kullanıyor ve test-pinli bir JSON sözleşmesi.
+import { getOpsStats } from "@/lib/reports";
 import { getConnectionInfo } from "@/lib/hospitable-credentials";
 import { premiumAllowed } from "@/lib/billing/subscription";
 import { OnboardingGuide, type OnboardingStep } from "@/components/onboarding-guide";
@@ -169,28 +170,9 @@ export default async function DashboardPage() {
     (a, b) => (priorityRank[a.priority] ?? 1) - (priorityRank[b.priority] ?? 1),
   );
 
-  // Feed the summary the SAME deduped counts the cards/lists already show, so
-  // the sentence count can never disagree with the visible numbers. Cap the
-  // listed names to the first 3 (then "ve N diğer") so a busy day stays one
-  // tidy line instead of dumping every guest name.
-  const capGuests = (rows: { guestName: string; property: { name: string } }[]) => {
-    const names = rows.slice(0, 3).map((r) => `${r.guestName} (${r.property.name})`).join(", ");
-    const extra = rows.length - 3;
-    return extra > 0 ? `${names} ve ${extra} diğer` : names;
-  };
-  // Use the shared helper for the stats sentences (with deduped counts), then
-  // append our own capped name lists — the helper would otherwise dump every
-  // name uncapped.
-  const summaryParts = [
-    buildDailySummary(
-      { ...stats, arrivalsToday: arrivals.length, departuresToday: departures.length },
-      [],
-      [],
-    ),
-  ];
-  if (arrivals.length > 0) summaryParts.push(`Girişler: ${capGuests(arrivals)}.`);
-  if (departures.length > 0) summaryParts.push(`Çıkışlar: ${capGuests(departures)}.`);
-  const summary = summaryParts.join(" ");
+  // ⚠️ Özet HESABI da kaldırıldı (kart gitti, ↓render). `capGuests` misafir
+  // ADLARINI RSC payload'ına yazan tek yerdi ve kimse çizmiyordu; bırakmak
+  // gereksiz bir PII yüzeyi olurdu.
 
   // Guard against an empty/blank name so the greeting never shows a dangling
   // comma or trailing space (e.g. accounts created without a display name).
@@ -216,17 +198,24 @@ export default async function DashboardPage() {
           Bileşen 6/6'da SSR'da da boş basar, yani flash yok. */}
       <OnboardingGuide steps={onboardingSteps} />
 
-      {/* AI daily summary — compact one-liner (same footprint as the tasks
-          note): label and text share the line, no icon tile, p-3. */}
-      <Card className="border-primary/20 bg-accent/40">
-        <CardContent className="flex items-start gap-2.5 p-3 text-sm">
-          <Sparkles className="mt-0.5 size-4 shrink-0 text-primary" />
-          <p className="text-muted-foreground">
-            <strong className="text-foreground">AI Günlük Özet:</strong> {summary}
-          </p>
-        </CardContent>
-      </Card>
-
+      {/* 🚨 "AI GÜNLÜK ÖZET" KARTI KALDIRILDI (kullanıcı kararı 08-08) — GERİ EKLEME.
+          İKİ ayrı kusuru vardı ve ikisi de ölçüldü:
+          (1) İÇİNDE AI YOKTU. `buildDailySummary` düz string birleştirmedir; tek
+              bir model çağrısı yapmaz. "AI" etiketi ürünün kendi hakkındaki en
+              görünür yanlış beyanıydı.
+          (2) ÜRETTİĞİ HER SAYI AYNI EKRANDA ZATEN VARDI — altı cümle parçasının
+              altısı da: giriş/çıkış sayısı → liste kartlarının rozetleri;
+              doluluk % → "Doluluk (bu gece)" kutucuğu; sorunlu sayısı →
+              "Sorunlu Konuşmalar"; acil görev → "Acil Görevler"; giriş/çıkış
+              isimleri → alttaki listelerin kendisi (üstelik orada SAAT de var,
+              özet ise adları 3'te kesiyordu). Yani kart, 40 px aşağıdaki
+              bilgiyi daha eksik biçimde tekrar ediyordu.
+          ⚠️ `buildDailySummary` ve `/api/reports/daily` DURUYOR — çalışan bir
+          JSON sözleşmesi ve test-pinli; kaldırılan yalnız bu KART.
+          Gerçek bir AI özeti isteniyorsa tasarımı ayrı: kutucukların
+          GÖSTEREMEDİĞİ şeyleri söylemeli (tekrar eden arıza, cevapsız kalıp
+          çıkışı yaklaşan misafir, bilgi tabanı boşluğu) ve sakin günde HİÇ
+          görünmemeli. Önbellek tablosu ister = migration = ayrı karar. */}
 
       {/* Stat row — ONE row, no duplicates: arrivals/departures counts already
           live on the list cards right below (their badges), so tiles repeating

@@ -57,7 +57,7 @@ export function BillingPeriodToggle({
             aria-pressed={active}
             onClick={() => onChange(period)}
             className={cn(
-              "rounded-full font-medium transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-1",
+              "rounded-full font-medium transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-1 focus-visible:ring-offset-background",
               size === "sm" ? "px-3 py-1 text-xs" : "px-4 py-1.5 text-sm",
               active
                 ? "bg-primary text-primary-foreground"

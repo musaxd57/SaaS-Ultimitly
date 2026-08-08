@@ -50,7 +50,7 @@ function PagerLink({
       className={cn(
         BASE,
         "border-border bg-card text-foreground shadow-sm hover:bg-accent hover:text-accent-foreground",
-        "focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-1",
+        "focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-1 focus-visible:ring-offset-background",
       )}
     >
       {direction === "prev" ? icon : null}

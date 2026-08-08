@@ -147,7 +147,7 @@ export function SettingsSections({
                         aria-current={isActive ? "page" : undefined}
                         onClick={() => selectView(i.id)}
                         className={cn(
-                          "block w-full rounded-md border-l-2 px-3 py-2 text-left text-sm transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-1",
+                          "block w-full rounded-md border-l-2 px-3 py-2 text-left text-sm transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-1 focus-visible:ring-offset-background",
                           isActive
                             ? "border-primary bg-primary/10 font-semibold text-primary"
                             : "border-transparent font-medium text-foreground/70 hover:bg-muted hover:text-foreground",

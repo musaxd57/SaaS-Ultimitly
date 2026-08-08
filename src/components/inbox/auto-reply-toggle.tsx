@@ -76,7 +76,7 @@ export function AutoReplyToggle({
       aria-pressed={locked ? undefined : on}
       title={locked ? "Aboneliğiniz aktif değil — açmak için Ayarlar'dan bir plan seçin." : title}
       className={cn(
-        "inline-flex h-8 items-center gap-1.5 rounded-md border px-2.5 text-xs font-medium transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-1 disabled:opacity-50",
+        "inline-flex h-8 items-center gap-1.5 rounded-md border px-2.5 text-xs font-medium transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-1 focus-visible:ring-offset-background disabled:opacity-50",
         on && !locked
           ? "border-emerald-300 dark:border-emerald-500/30 bg-emerald-50 dark:bg-emerald-500/10 text-emerald-700 dark:text-emerald-400 hover:bg-emerald-100 dark:hover:bg-emerald-500/20"
           : "border-border bg-muted/50 text-muted-foreground hover:bg-accent",

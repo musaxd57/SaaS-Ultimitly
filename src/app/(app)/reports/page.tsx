@@ -176,7 +176,10 @@ export default async function ReportsPage() {
                   ) : null}
                   {score.breakdown.occupancyRate !== null ? (
                     <div className="flex items-center justify-between">
-                      <span className="text-muted-foreground">Doluluk (bugün)</span>
+                      {/* Değer `occupancyRate` = gece-katı (`arrivalDate <= dayEnd && departureDate > dayEnd`).
+                          Panel kutucuğu "(bu gece)"ye çevrilmişti, bu yüzey atlanmıştı — aynı
+                          sayı iki ekranda iki farklı adla duruyordu. */}
+                      <span className="text-muted-foreground">Doluluk (bu gece)</span>
                       <span className="font-medium">%{score.breakdown.occupancyRate}</span>
                     </div>
                   ) : null}

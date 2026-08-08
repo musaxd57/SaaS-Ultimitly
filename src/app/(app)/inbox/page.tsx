@@ -201,7 +201,7 @@ export default async function InboxPage({
                 // sonucu mu yoksa gerçekten az kayıt mı olduğunu ayırt edemiyordu.
                 aria-current={active ? "page" : undefined}
                 className={cn(
-                  "inline-flex h-8 items-center rounded-md border px-3 text-xs font-medium transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-1",
+                  "inline-flex h-8 items-center rounded-md border px-3 text-xs font-medium transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-1 focus-visible:ring-offset-background",
                   active
                     ? "border-primary bg-primary text-primary-foreground"
                     : "border-border bg-card text-muted-foreground hover:bg-accent",
@@ -231,7 +231,7 @@ export default async function InboxPage({
               type="search"
               defaultValue={query}
               placeholder="Misafir adına göre ara…"
-              className="h-8 w-40 rounded-md border border-border bg-card pl-8 pr-2 text-xs placeholder:text-muted-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-1 sm:w-56"
+              className="h-8 w-40 rounded-md border border-border bg-card pl-8 pr-2 text-xs placeholder:text-muted-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-1 focus-visible:ring-offset-background focus-visible:ring-offset-background sm:w-56"
             />
           </div>
           {/* Enter zaten formu gönderir (native submit); düğme fare kullanıcısı
