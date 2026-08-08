@@ -253,12 +253,18 @@ export function AppShell({ user, superAdmin, guestChatEnabled, impersonating, pl
         <Link
           href={plan.href}
           onClick={() => setMobileOpen(false)}
-          className="mt-4 block shrink-0 rounded-lg border border-border bg-muted/40 p-3 transition-colors hover:bg-muted/70"
+          // ⚠️ `mt-5` (20 px) — kullanıcı kutunun "çok çok az" aşağı gelmesini
+          // istedi. Üstündeki gezinme kabı `mt-4` ve TOPLAM YÜKSEKLİK BÜTÇESİ
+          // DAR: 14 satırla 768px'te 5.4 px pay vardı, `mt-5` bunun 4'ünü
+          // yiyor ve 1.4 px kalıyor — hâlâ sığıyor ama `mt-6`ya çıkmak
+          // (24 px) taşırır ve o boyutta kaydırma çubuğu doğurur.
+          className="mt-5 block shrink-0 rounded-lg border border-border bg-muted/40 p-3 transition-colors hover:bg-muted/70"
         >
           {userCardInner}
         </Link>
       ) : (
-        <div className="mt-4 shrink-0 rounded-lg border border-border bg-muted/40 p-3">{userCardInner}</div>
+        // ↑ Aynı ölçü (plan yokken çizilen ikiz) — biri değişip diğeri kalırsa ayrışır.
+        <div className="mt-5 shrink-0 rounded-lg border border-border bg-muted/40 p-3">{userCardInner}</div>
       )}
     </div>
   );

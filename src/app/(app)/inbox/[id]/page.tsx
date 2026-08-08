@@ -1,7 +1,7 @@
 import { notFound } from "next/navigation";
 import { ArrowLeft, Building2, CalendarDays, BookOpen, Clock, ArrowLeftRight, CheckSquare } from "lucide-react";
 import { requireAuth } from "@/lib/auth";
-import { orgTimezone } from "@/lib/timezone";
+import { orgTimezone, dateKeyInTimeZone } from "@/lib/timezone";
 import { canManage } from "@/lib/api";
 import { prisma } from "@/lib/db";
 import { reservationAmountNumber } from "@/lib/money";
@@ -108,12 +108,23 @@ export default async function ConversationPage({
   // Turnover day = the adjacent booking's checkout/checkin falls on the SAME
   // Istanbul calendar day as this stay's arrival/departure (daysUntilDate diffs
   // any two dates, not just "today" — reused rather than a new same-day helper).
+  // 🚨 DEVİR UYARISI YALNIZ HÂLÂ YAPILACAK İŞ İÇİNSE GÖSTERİLİR (kullanıcı kararı).
+  // Bu bant bir OPERASYON uyarısı: "temizlik çıkışla giriş arasına sıkışıyor".
+  // GEÇMİŞ bir konaklamada söyleyecek bir şey yok — iş çoktan yapıldı (ya da
+  // yapılmadı, ama artık yapılamaz. Kullanıcı ekran görüntüsüyle bildirdi:
+  // 11–12 Haziran'da biten bir rezervasyonda "devir günü" yazması gürültü.
+  // ⚠️ Karşılaştırma GÜN ANAHTARI ile: `departureDate` iCal'de 12:00Z, Hospitable'da
+  // 00:00Z damgalı — ham `Date` karşılaştırması iki kaynağı farklı ele alırdı.
+  const todayKey = dateKeyInTimeZone(new Date(), TZ);
+  const stayIsOver = conversation.reservation
+    ? dateKeyInTimeZone(conversation.reservation.departureDate, TZ) < todayKey
+    : false;
   const turnoverIn =
-    adjacency?.previousDeparture && conversation.reservation
+    !stayIsOver && adjacency?.previousDeparture && conversation.reservation
       ? daysUntilDate(adjacency.previousDeparture, conversation.reservation.arrivalDate) === 0
       : false;
   const turnoverOut =
-    adjacency?.nextArrival && conversation.reservation
+    !stayIsOver && adjacency?.nextArrival && conversation.reservation
       ? daysUntilDate(adjacency.nextArrival, conversation.reservation.departureDate) === 0
       : false;
 

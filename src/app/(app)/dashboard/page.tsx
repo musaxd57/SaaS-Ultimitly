@@ -150,9 +150,16 @@ export default async function DashboardPage() {
         premiumOk &&
         process.env.AUTO_REPLY_ENABLED === "1",
       title: "Otomatik yanıtı açın",
-      desc: "Hazır hissettiğinizde açın — basit sorular kendiliğinden yanıtlanır, şikayet gibi riskli konular her zaman size bırakılır.",
-      href: "/inbox",
-      cta: "Aç",
+      // ⚠️ METİN PLANDAN SÖZ ETMEK ZORUNDA (kullanıcı kararı). Bu adımın "done"u
+      // `premiumOk` de istiyor (↑yukarıdaki yorum) ama eski metin yalnız
+      // "hazır hissettiğinizde açın" diyordu → denemesi biten host 5/6'da
+      // kilitleniyor, gönderildiği toggle DEVRE DIŞI çiziliyor ve neden
+      // olduğunu hiçbir yerde okumuyordu.
+      desc: "Basit sorular kendiliğinden yanıtlanır, şikayet gibi riskli konular her zaman size bırakılır. Otomatik yanıt ücretli planlara dâhildir — deneme süreniz bittiyse önce planınızı seçin.",
+      // Toggle'ın ASIL evi Ayarlar (diğer AI ayarlarının yanı). `/inbox` bir
+      // liste ekranı; host oraya gidip anahtarı aramak zorunda kalıyordu.
+      href: "/settings",
+      cta: "Ayarlara git",
     },
   ];
 
