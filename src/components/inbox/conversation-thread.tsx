@@ -385,15 +385,25 @@ export function ConversationThread({ conversationId, messages, status, priority,
 
   function applyTemplate(t: TemplateItem) {
     let body = t.body;
-    // Substitute {{placeholders}} with reservation/property values when available.
+    // 🚨 TEK GEÇİŞ — SIRAYLA `split/join` YAPMA (denetim 08-07 (5), ÖLÇÜLDÜ).
+    // Eski kod `Object.entries` üzerinde döngüyordu ve her anahtar, ÖNCEKİ
+    // anahtarların YERİNE KOYDUĞU metni de yeniden tarıyordu. `guestName`
+    // sağlayıcıdan gelir ve MİSAFİR KONTROLÜNDEDİR (Airbnb görünen adı) →
+    // misafir adını `{{wifiInfo}}` yapınca, wifi yer tutucusu HİÇ GEÇMEYEN bir
+    // şablon bile KB'deki wifi kalemini yazma alanına basıyordu.
+    // ÖLÇÜLDÜ: "Merhaba {{guestName}}, {{propertyName}} …" →
+    //   "Merhaba SSID: Nuve3_5G / Sifre: Yaz2026! - Kapi kodu: 4590, Nuve 3 …"
+    // (varsayılan giriş şablonu host'a kapı kodunu tam da o KB kalemine yazmasını
+    // söylüyor, yani sızan şey rutin olarak kapı kodudur).
+    // Tek geçişte yerine konan metin BİR DAHA taranmaz → enjeksiyon imkânsız.
     if (templateVars) {
-      for (const [key, value] of Object.entries(templateVars)) {
-        if (value) body = body.split(`{{${key}}}`).join(value);
-      }
-      // Also accept the single-brace {isim}/{ad} tokens used by the automatic
-      // messages, so a host doesn't have to learn two placeholder styles.
-      const guest = templateVars.guestName;
-      if (guest) body = body.split("{isim}").join(guest).split("{ad}").join(guest);
+      const vars = templateVars;
+      body = body.replace(/\{\{(\w+)\}\}|\{(isim|ad)\}/g, (match, dblKey?: string, single?: string) => {
+        // `{isim}`/`{ad}`: otomatik mesajların tek-parantez biçimi; host iki ayrı
+        // yer tutucu stili öğrenmek zorunda kalmasın diye kabul ediliyor.
+        const value = dblKey ? vars[dblKey] : single ? vars.guestName : undefined;
+        return value ? value : match; // eşleşmeyen aşağıdaki temizlikte düşer
+      });
     }
     // Strip any remaining unfilled placeholders so guests never see raw {{...}}.
     body = body.replace(/\{\{[^}]+\}\}/g, "").replace(/\n{3,}/g, "\n\n").trim();

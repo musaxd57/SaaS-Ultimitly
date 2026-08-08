@@ -168,7 +168,16 @@ export const PATCH = withManage(async (session, req) => {
         errors.alertEmail =
           "Uyarı adresi, bu işletmedeki bir kullanıcının e-postası olmalı. Önce o kişiyi ekibe ekleyin.";
       } else {
-        // Empty clears it → falls back to the env ALERT_EMAIL.
+        // 🚨 YORUM DÜZELTİLDİ (denetim 08-07 (5)) — burada bir dönem "boş
+        // bırakınca env `ALERT_EMAIL`'e düşer" yazıyordu ve bu YANLIŞTI:
+        // deponun kendi SERT kuralı 40 satır ötede tam tersini söylüyor
+        // (`test-email/route.ts`: "`process.env.ALERT_EMAIL`'E ASLA DÜŞÜLMEZ —
+        // GERİ EKLEME", çünkü o adres OPERATÖRÜN kişisel kutusu).
+        // GERÇEK davranış: boş → NULL → alıcı org'un KENDİ en eski kullanıcısı
+        // (`automation.ts:1564` ve `:3190`, `guest-chat-alerts.ts:154`).
+        // Yorumu düzeltmenin sebebi kozmetik değil: yazdığı gibi "restore" etmeye
+        // çalışan biri kiracının şikayet/iade uyarılarını kurucunun kutusuna
+        // yönlendirirdi.
         update.alertEmail = trimmed.length === 0 ? null : trimmed;
       }
     }

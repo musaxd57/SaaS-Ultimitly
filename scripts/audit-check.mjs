@@ -60,19 +60,50 @@ function extractAdvisories(auditJson) {
 function runAudit(omitDev) {
   const args = ["audit", "--json", ...(omitDev ? ["--omit=dev"] : [])];
   try {
-    return JSON.parse(execFileSync("npm", args, { cwd: ROOT, encoding: "utf8", maxBuffer: 64 * 1024 * 1024 }));
+    return asAuditReport(
+      JSON.parse(execFileSync("npm", args, { cwd: ROOT, encoding: "utf8", maxBuffer: 64 * 1024 * 1024 })),
+    );
   } catch (err) {
     // Bulgu varsa npm sifir-disi cikar ama stdout GECERLI JSON'dur.
     const out = err?.stdout;
     if (typeof out === "string" && out.trim().startsWith("{")) {
       try {
-        return JSON.parse(out);
+        return asAuditReport(JSON.parse(out));
       } catch {
         /* asagidaki altyapi daline dus */
       }
     }
     return null;
   }
+}
+
+/**
+ * 🚨 SEKIL DOGRULAMASI — "JSON ayristirilabildi" YETMEZ (denetim 08-07 (5)).
+ *
+ * npm audit ALTYAPI hatasinda da `{` ile baslayan gecerli JSON basar:
+ *   registry erisilemez  -> {"message":"request to … ECONNREFUSED","error":{}}
+ *   lock dosyasi yok     -> {"error":{"code":"ENOLOCK", …}}
+ * Ikisi de JSON.parse'i gecer ve `vulnerabilities` ANAHTARI YOKTUR → eski kod
+ * bunu "sifir bulgu" sanip kapiyi YESIL basiyordu. Yani tedarik zinciri kapisi
+ * HICBIR SEY denetlemeden "yesil" diyordu; belgelenmis fail-open dalindan
+ * (en azindan UYARI basar) DAHA KOTU bir arıza modu.
+ *
+ * Rapor sekli dogrulanamiyorsa null → cagiran altyapi dalina duser: uyari + exit 0.
+ * Fail-open YALNIZ altyapi icin; BULGU bulundugunda kapi fail-closed kalir.
+ */
+function asAuditReport(parsed) {
+  if (!parsed || typeof parsed !== "object") return null;
+  // npm 7+ `vulnerabilities` (obje) + `metadata.vulnerabilities` (sayaclar) basar.
+  // Bos bir denetim bile ikisini de ICERIR (bos obje / sifirlar), yani varliklari
+  // "gercekten denetim kostu" kanitidir.
+  const hasAdvisoryMap = parsed.vulnerabilities && typeof parsed.vulnerabilities === "object";
+  const hasCounters =
+    parsed.metadata &&
+    typeof parsed.metadata === "object" &&
+    parsed.metadata.vulnerabilities &&
+    typeof parsed.metadata.vulnerabilities === "object";
+  if (!hasAdvisoryMap || !hasCounters) return null;
+  return parsed;
 }
 
 function main() {
