@@ -1,5 +1,6 @@
 import * as React from "react";
 import { cn } from "@/lib/utils";
+import { SlowLoadNotice } from "@/components/ui/slow-load-notice";
 
 // ---------------------------------------------------------------------------
 // YÜKLENİYOR İSKELETİ — TEK PRİMİTİF.
@@ -90,6 +91,10 @@ export function SkeletonScreen({
     <div className="lxs-in space-y-6" aria-busy="true" aria-live="polite">
       <span className="sr-only">{label}</span>
       {children}
+      {/* 10 sn'den uzun sürerse çıkış yolu (kullanıcı canlıda asılı kaldı, F5
+          düzeltti). Otomatik yenileme BİLİNÇLİ olarak yok — ↓bileşendeki
+          döngü gerekçesi. Tek istemci adası; bu dosya sunucu bileşeni kalıyor. */}
+      <SlowLoadNotice />
     </div>
   );
 }
