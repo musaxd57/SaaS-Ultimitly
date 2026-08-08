@@ -375,6 +375,20 @@ export async function runScheduledSync(): Promise<ScheduledSyncTotals> {
       // bütçe sözleşmesiyle birebir). Kırpma SESSİZ DEĞİL: aşağıda tek bir
       // `[scheduled-sync] ical:` satırı ertelenen kaynak/org sayısını ve
       // bütçenin kendisini basar.
+      // 🚨 KAPATMA ANAHTARI — VARSAYILAN AÇIK, GERİ ALMA DEPLOY GEREKTİRMEZ
+      // (denetim 08-08). Bu tur, üretimde HİÇ koşmamış bir kod yolunu açtı ve
+      // depodaki her riskli özellik env'den kapatılabiliyor
+      // (ICAL_DISAPPEARANCE_RECONCILE_ENABLED, DURABLE_OUTBOX_ENABLED,
+      // EMAIL_OUTBOX_ENABLED, STORAGE_ENABLED…). Bunun yoktu: tek geri dönüş
+      // yolu kodu revert edip yeniden deploy etmekti.
+      // ⚠️ VARSAYILAN AÇIK, çünkü bu bir ÖZELLİK değil bir ARIZA DÜZELTMESİ:
+      // kapalıyken beslemeler hiç senkronlanmıyor ve daire boş görünüyor.
+      // Bayrak "kapat" yönünde okunuyor — env yoksa davranış bugünkü hâli.
+      // ⚠️ `ICAL_PASS_BUDGET_MS=0` ile kapatılamaz (`Number("0") || 180000` →
+      // varsayılana düşer); kapatmanın TEK doğru yolu budur.
+      // Kapalıyken sessiz: her 2 dakikada log basmak gürültü olurdu; kapalı
+      // olduğu `/api/cron/sync` çıktısındaki `icalSources: 0` ile görülür.
+      const icalLegEnabled = process.env.ICAL_SCHEDULED_SYNC_DISABLED !== "1";
       const ICAL_PASS_BUDGET_MS = Number(process.env.ICAL_PASS_BUDGET_MS) || 3 * 60_000;
       const ICAL_ORG_BUDGET_MS = Number(process.env.ICAL_ORG_BUDGET_MS) || 60_000;
       let icalSpentMs = 0;
@@ -528,7 +542,7 @@ export async function runScheduledSync(): Promise<ScheduledSyncTotals> {
         // ⚠️ `ICAL_DISAPPEARANCE_RECONCILE_ENABLED` BURADAN AÇILMAZ: bu bacak
         // yalnızca `syncCalendarSource`'u çağırır, o da bayrağı KENDİ okur
         // (default KAPALI). Zamanlama uzlaştırmayı AÇMAZ.
-        if (icalSpentMs < ICAL_PASS_BUDGET_MS) {
+        if (icalLegEnabled && icalSpentMs < ICAL_PASS_BUDGET_MS) {
           const icalStartedAt = Date.now();
           try {
             const ical = await syncDueCalendarSourcesForOrg(org.id, {

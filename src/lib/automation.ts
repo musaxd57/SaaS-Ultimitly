@@ -728,17 +728,34 @@ export function automatedReplyNote(lang: string | undefined, orgEnabled: boolean
   // "bir hata olursa ekibimiz HEMEN DÜZELTİR" diyordu. Böyle bir mekanizma YOK:
   // kapıdan geçen bir oto-yanıtı sonradan kimse OKUMUYOR, yanlış olduğunu
   // anlayan bir dedektör de yok. Host, ancak misafir TEKRAR YAZARSA haberdar
-  // oluyor. Yeni metin tam olarak bunu söylüyor — yani yapı gereği DOĞRU:
-  // misafir buraya yazarsa mesaj gerçekten host'a ulaşır (şikayet yolu onu
-  // "Sorunlu" işaretleyip e-posta gönderir). Açıklama yükümlülüğü (mesajın
-  // makine tarafından hazırlandığını söylemek) aynen korunuyor.
+  // oluyor.
+  //
+  // 🚨 "BURAYA YAZIN, EV SAHİBİ DEVRALACAK" CÜMLESİ KALDIRILDI (denetim 08-08,
+  // ÖLÇÜLDÜ). O cümle bu turda eklenmişti ve gerekçesi "yapı gereği doğru" idi —
+  // DEĞİLDİ. `autoReplyHoldUntil` (botu susturan TEK alan) yalnız İKİ yerde
+  // yazılıyor: gönderim hatası geri çekilmesi ve `intent === "human_request"`.
+  // "Misafir oto-yanıttan sonra yazdı" hiçbir yerde devir sinyali DEĞİL.
+  // Ölçüldü: nazik bir düzeltmenin ("Aslında çıkış saati 11 değil mi?") beş
+  // varyantının BEŞİ de kapıdan geçip TEKRAR OTOMATİK yanıtlandı; konuşma
+  // "answered" işaretlendi ve host hiç görmedi.
+  // ⚠️ Bu, yerine geçtiği eski cümleden ("ekibimiz hemen düzeltir") DAHA KÖTÜYDÜ:
+  // eskisi belirsiz bir vaatti, yenisi misafirin UYGULAYACAĞI bir TALİMATTI.
+  // Davetin geri gelmesi için önce mekanizması yazılmalı (oto-yanıt sonrası ilk
+  // gelen mesajda hold) — o ayrı ve onaylı bir tur; metin o zamana kadar
+  // yalnızca DOĞRU olanı söyler: mesajın makine tarafından hazırlandığını.
+  // Açıklama yükümlülüğü aynen korunuyor. Gerçek bir sorun yazılırsa şikayet
+  // yolu zaten "Sorunlu" işaretleyip host'a e-posta gönderiyor — o mekanizma
+  // VAR, ama misafire söz olarak verilmiyor çünkü her mesaj için geçerli değil.
+  // ⚠️ "ev sahibimiz" ifadesi de bilerek gitti: mesaj host'un KENDİ hesabından
+  // çıkıyor ve prompt "ev sahibinin ağzından yaz" diyor — kendi kendinden
+  // "bizim ev sahibimiz" diye söz etmek, kaçınılmak istenen acente dilidir.
   const notes: Record<string, string> = {
-    tr: "(Bu yanıt otomatik asistanımızca hazırlandı. Bir yanlışlık varsa buraya yazmanız yeterli, ev sahibimiz devralacak.)",
-    en: "(This reply was prepared by our automated assistant. If something isn't right, just reply here and our host will take it from there.)",
-    de: "(Diese Antwort wurde von unserem automatischen Assistenten erstellt. Stimmt etwas nicht, antworten Sie einfach hier — unser Gastgeber übernimmt.)",
-    fr: "(Cette réponse a été préparée par notre assistant automatique. Si quelque chose ne va pas, répondez ici et notre hôte prendra le relais.)",
-    ar: "(تم إعداد هذا الرد بواسطة مساعدنا الآلي. إذا كان هناك أي خطأ، يكفي أن تردّوا هنا وسيتولى المضيف الأمر.)",
-    ru: "(Этот ответ подготовлен нашим автоматическим ассистентом. Если что-то не так, просто ответьте здесь — хозяин подключится.)",
+    tr: "(Bu yanıt otomatik asistan tarafından hazırlandı.)",
+    en: "(This reply was prepared by an automated assistant.)",
+    de: "(Diese Antwort wurde von einem automatischen Assistenten erstellt.)",
+    fr: "(Cette réponse a été préparée par un assistant automatique.)",
+    ar: "(تم إعداد هذا الرد بواسطة مساعد آلي.)",
+    ru: "(Этот ответ подготовлен автоматическим ассистентом.)",
   };
   return notes[l] ?? notes.en;
 }

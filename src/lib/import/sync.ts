@@ -231,6 +231,11 @@ export async function syncCalendarSource(sourceId: string): Promise<SyncResult> 
       const action = await prisma.$transaction(
         async (tx): Promise<
           | { kind: "erased" | "skip" }
+          // "unchanged" = satır ZATEN aynı, YAZMA YOK. `skip`ten ayrı bir kind
+          // olması ŞART: sayaç açısından ikisi de "skipped" ama yalnız bunda
+          // görev onarımı koşuyor (↓gerekçe). Aynı kind'a katlamak, onarımı
+          // gerçekten atlanan satırlara da uygulardı.
+          | { kind: "unchanged"; id: string; healTasks: boolean }
           | { kind: "cancelled" | "updated" | "created"; id: string }
         > => {
           await acquireErasureLock(tx, source.property.organizationId);
@@ -298,7 +303,24 @@ export async function syncCalendarSource(sourceId: string): Promise<SyncResult> 
               (scrubbed ||
                 (existing.guestName === row.guestName.slice(0, 200) &&
                   (existing.notes ?? null) === (row.notes ? row.notes.slice(0, 5000) : null)));
-            if (unchanged) return { kind: "skip" };
+            if (unchanged) {
+              // ⚠️ ATLAMA, GÖREV ONARIMINI DA ÖLDÜRÜYORDU (denetim 08-08).
+              // Eski koşulsuz UPDATE'in yan etkisi olarak her geçişte
+              // `createReservationTasks` çağrılıyordu ve bu, görev otomasyonundan
+              // ÖNCE içeri girmiş satırların görevlerini geriye dönük açan TEK
+              // yoldu (ayrıca create sırasında geçici bir hata olduysa onarıyordu).
+              // Yazmayı atlamak onu da atlıyordu → satır sonsuza dek görevsiz.
+              // ÇÖZÜM maliyeti sınırlamak: onarım YALNIZ konaklaması BİTMEMİŞ
+              // satırlar için koşar. Geçmiş konaklamaya görev açmak zaten
+              // anlamsız, ve bu sınır kümeyi bir dairenin gelecek rezervasyonları
+              // kadar küçültüyor (ölçülen 7.104 satırlık yükün kaynağı, çoktan
+              // bitmiş konaklamalardı).
+              return {
+                kind: "unchanged" as const,
+                id: existing.id,
+                healTasks: row.departureDate >= new Date(),
+              };
+            }
 
             // ATOMIC adoption: ownership re-checked inside the UPDATE (count 0 = a
             // concurrent source claimed the legacy NULL row first → not ours, skip).
@@ -347,6 +369,11 @@ export async function syncCalendarSource(sourceId: string): Promise<SyncResult> 
       switch (action.kind) {
         case "erased":
         case "skip":
+          result.skipped++;
+          break;
+        case "unchanged":
+          // Yazma YOK (satır zaten aynı) ama görev onarımı korunuyor — ↑gerekçe.
+          if (action.healTasks) await createReservationTasks(action.id);
           result.skipped++;
           break;
         case "cancelled":

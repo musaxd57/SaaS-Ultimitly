@@ -24,6 +24,13 @@ import { resetDb, makeOrgWithProperty } from "../helpers/db";
 
 vi.mock("@/lib/messaging", () => ({ sendOnChannel: vi.fn(async () => ({ ok: true, externalId: "x" })) }));
 
+// `withManage` oturumu `@/lib/api`den (cross-module) okuyor — sürücüsü budur.
+let session: { userId: string; organizationId: string; role: string; email: string; mfa: boolean } | null = null;
+vi.mock("@/lib/api", async (orig) => {
+  const actual = await orig<typeof import("@/lib/api")>();
+  return { ...actual, requireSession: vi.fn(async () => session) };
+});
+
 describe("iCal beslemesinden gelen rezervasyon yaşam-döngüsü adayı DEĞİLDİR", () => {
   beforeEach(async () => {
     await resetDb();
@@ -65,6 +72,53 @@ describe("iCal beslemesinden gelen rezervasyon yaşam-döngüsü adayı DEĞİLD
     });
 
     expect(candidates.map((c) => c.sourceReference)).toEqual(["hosp-2"]);
+  });
+
+  // 🚨 KAYNAK SİLİNDİKTEN SONRA DA ADAY OLMAMALI (denetim 08-08).
+  // Silme rotası, satırları öksüz bırakmamak için `calendarSourceId`yi BİLEREK
+  // null'lıyor (feed tekrar eklenince iyileşsin diye) — ama o sütun aynı zamanda
+  // yaşam-döngüsü kapısının işaretçisiydi. Yani tek bir "Sil" tıklaması kapıyı
+  // deliyordu. Artık silme kanalı da "ics" yapıyor; bu test o zinciri pinliyor.
+  it("kaynak SİLİNSE bile besleme satırı aday DEĞİL (silme kapıyı delmez)", async () => {
+    const { DELETE } = await import("@/app/api/calendar-sources/[id]/route");
+    const { orgId: organizationId, propertyId } = await makeOrgWithProperty();
+    const user = await prisma.user.create({
+      data: { organizationId, email: "o@example.com", name: "O", passwordHash: "x", role: "owner" },
+    });
+    session = { userId: user.id, organizationId, role: "owner", email: user.email, mfa: true };
+    const source = await prisma.calendarSource.create({
+      data: { propertyId, label: "Airbnb", url: "https://example.com/f.ics" },
+    });
+    const base = {
+      propertyId,
+      status: "confirmed",
+      guestName: "Deniz",
+      arrivalDate: new Date(Date.now() + 2 * 86400_000),
+      departureDate: new Date(Date.now() + 5 * 86400_000),
+    };
+    await prisma.reservation.create({
+      data: { ...base, sourceReference: "orphan-uid", channel: "airbnb", calendarSourceId: source.id },
+    });
+    await prisma.reservation.create({
+      data: { ...base, sourceReference: "hosp-live", channel: "airbnb", calendarSourceId: null },
+    });
+
+    await DELETE(new Request("http://x", { method: "DELETE" }) as never, {
+      params: Promise.resolve({ id: source.id }),
+    } as never);
+
+    const candidates = await prisma.reservation.findMany({
+      where: {
+        property: { organizationId },
+        status: "confirmed",
+        sourceReference: { not: null },
+        channel: { notIn: ["ics", "manual"] },
+        calendarSourceId: null,
+      },
+      select: { sourceReference: true },
+    });
+    // Öksüz besleme satırı ELENİR; gerçek Hospitable satırı KONTROL olarak kalır.
+    expect(candidates.map((c) => c.sourceReference)).toEqual(["hosp-live"]);
   });
 
   it("kaynak tarama: ALTI yaşam-döngüsü sorgusunun HEPSİ iki kapıyı birden taşır", async () => {

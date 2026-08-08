@@ -354,3 +354,77 @@ describe("iCal: değişmeyen besleme İKİNCİ geçişte hiçbir satır YAZMAZ",
     expect(third.updated).toBe(1);
   });
 });
+
+// ---------------------------------------------------------------------------
+// 🚨 "DEĞİŞMEDİ → YAZMA" ATLAMASI GÖREV ONARIMINI ÖLDÜRMEMELİ (08-08).
+//
+// Eski koşulsuz UPDATE'in YAN ETKİSİ olarak her geçişte `createReservationTasks`
+// çağrılıyordu ve bu, görev otomasyonundan ÖNCE içeri girmiş satırların
+// görevlerini geriye dönük açan TEK yoldu. Yazmayı atlayınca onarım da
+// atlanıyordu → satır sonsuza dek görevsiz kalıyordu.
+// Onarım geri getirildi ama BİTMEMİŞ konaklamalarla sınırlandı.
+// ---------------------------------------------------------------------------
+describe("iCal bacağının KAPATMA ANAHTARI", () => {
+  it("ICAL_SCHEDULED_SYNC_DISABLED=1 iken takvim bacağı HİÇ koşmaz, Hospitable bacağı KOŞAR", async () => {
+    const { propertyId } = await orgWithProperty("killswitch");
+    await addSource(propertyId);
+    vi.mocked(fetchFeedText).mockResolvedValue(TWO_STAYS as never);
+
+    vi.stubEnv("ICAL_SCHEDULED_SYNC_DISABLED", "1");
+    const off = await runScheduledSync();
+    vi.unstubAllEnvs();
+
+    expect(off.icalSources ?? 0).toBe(0);
+    expect(await prisma.reservation.count({ where: { propertyId } })).toBe(0);
+
+    // KONTROL: bayrak YOKKEN aynı kurulum GERÇEKTEN senkronluyor. Bu olmadan test,
+    // takvim bacağını komple bozan bir mutasyonu da yeşil geçerdi.
+    const on = await runScheduledSync();
+    expect(on.icalSources ?? 0).toBeGreaterThan(0);
+    expect(await prisma.reservation.count({ where: { propertyId } })).toBeGreaterThan(0);
+  });
+});
+
+describe("iCal: değişmemiş satırda görev onarımı", () => {
+  it("görevleri silinmiş GELECEK konaklama, ikinci geçişte görevlerini geri alır", async () => {
+    const { syncCalendarSource } = await import("@/lib/import/sync");
+    const { propertyId } = await orgWithProperty("heal-tasks");
+    const start = new Date(Date.now() + 10 * 86400_000);
+    const end = new Date(Date.now() + 13 * 86400_000);
+    const k = (d: Date) => d.toISOString().slice(0, 10).replace(/-/g, "");
+    const feed = [
+      "BEGIN:VCALENDAR",
+      "BEGIN:VEVENT",
+      "UID:heal-1@airbnb.com",
+      `DTSTART;VALUE=DATE:${k(start)}`,
+      `DTEND;VALUE=DATE:${k(end)}`,
+      "SUMMARY:Deniz",
+      "END:VEVENT",
+      "END:VCALENDAR",
+    ].join("\r\n");
+    vi.mocked(fetchFeedText).mockResolvedValue(feed as never);
+
+    const source = await addSource(propertyId);
+    await syncCalendarSource(source.id);
+    const created = await prisma.task.count({ where: { propertyId } });
+    expect(created).toBeGreaterThan(0);
+
+    // Görevler kayboldu (create sırasında geçici hata / eski kayıt senaryosu).
+    await prisma.task.deleteMany({ where: { propertyId } });
+
+    // İkinci geçiş: satır DEĞİŞMEDİ (yazma olmamalı) ama görevler geri gelmeli.
+    const second = await syncCalendarSource(source.id);
+    expect(second.updated).toBe(0); // yazma YOK — atlama hâlâ çalışıyor
+    expect(await prisma.task.count({ where: { propertyId } })).toBe(created);
+  });
+
+  // ⚠️ BURADA BİR TEST VARDI ve VACUOUS ÇIKTI — silindi, dersi kalsın.
+  // "Konaklaması bitmiş satır için onarım koşmaz" diye asserte ediyordu ve
+  // `task.count === 0` bekliyordu. Mutasyonla sınandı: `healTasks` koşulunu
+  // KALDIRINCA da YEŞİL kaldı. Sebep ölçüldü — `createReservationTasks` geçmiş
+  // tarihli konaklamaya zaten görev AÇMIYOR, yani sınırın davranışsal bir
+  // karşılığı YOK. `healTasks` saf bir MALİYET korumasıdır (bitmiş konaklama
+  // başına ~3 boşa sorgu engeller) ve maliyeti bu harness'ta gözlenemez.
+  // Vacuous bir testi tutmak, olmayan bir korumayı var sanmaktır.
+
+});

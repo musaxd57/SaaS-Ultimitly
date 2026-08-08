@@ -12,6 +12,19 @@ import { orgTimezone, zonedDayRange, zonedDateStart, addZonedDays } from "@/lib/
 // instant; zonedDayRange maps an org-local calendar day to its UTC boundaries.
 const dayKeyTz = (d: Date, tz: string): string => d.toLocaleDateString("en-CA", { timeZone: tz });
 
+/**
+ * "YYYY-MM-DD" anahtarının ERTESİ GÜNÜ — saf takvim aritmetiği.
+ *
+ * Saat diliminden BAĞIMSIZDIR ve bu bilinçlidir: gün yürüyüşünü anlık (instant)
+ * üzerinden yapmak, yerel gece yarısı olmayan günlerde sonsuz döngü üretiyordu
+ * (↓countOccupiedDays'teki gerekçe). Takvimde atlanan gün yoktur; ay/yıl taşması
+ * `Date.UTC` tarafından normalize edilir (31 Ara → 1 Oca).
+ */
+function nextDayKey(key: string): string {
+  const [y, m, d] = key.split("-").map(Number);
+  return new Date(Date.UTC(y, m - 1, d + 1)).toISOString().slice(0, 10);
+}
+
 /** The org's report timezone (one cheap PK read; bozuk/boş değer → Istanbul). */
 async function reportTz(orgId: string): Promise<string> {
   const org = await prisma.organization.findUnique({
@@ -380,12 +393,29 @@ export async function getOccupancyByProperty(orgId: string): Promise<PropertyOcc
       const start = r.arrivalDate > rangeStart ? r.arrivalDate : rangeStart;
       const depKey = dayKeyTz(r.departureDate, tz); // çıkış günü DIŞLANIR
       const endKey = depKey < rangeEndKey ? depKey : rangeEndKey;
-      let cur = zonedDayRange(start, tz).start; // org-local midnight of start's day
-      let key = dayKeyTz(cur, tz);
+      // 🚨 YÜRÜYÜŞ TAKVİM ANAHTARI ÜZERİNDE — ANLIK (instant) ÜZERİNDE DEĞİL.
+      // (denetim 08-08, ÖLÇÜLDÜ.) Eskiden `addZonedDays` ile an-an yürünüyordu ve
+      // o fonksiyon bazı dilimlerde SABİT NOKTAYA düşüyor: yerel gece yarısı
+      // OLMAYAN bir güne gelindiğinde ("saat 00:00'da ileri al" kuralı olan
+      // dilimler — America/Santiago, Havana, Asia/Beirut…) "ertesi günün 00:00'ı"
+      // istendiğinde dönen anın YEREL GÜNÜ DEĞİŞMİYOR. Ölçüldü: Santiago'da
+      // 2026-09-06 00:00 istendi → dönen anın yerel günü 2026-09-05. Döngü
+      // orada TAKILIYORDU.
+      // ⚠️ BU YAVAŞ BİR SORGU DEĞİL, SENKRON BİR CPU DÖNGÜSÜ: Node olay döngüsünü
+      // bloklar, yani TEK bir kiracının /reports'u tüm replikayı (sağlık ucu
+      // dahil) durdurur. Bugün her org Türkiye'de ve TR'de DST yok, ama
+      // `PATCH /api/settings` çalışma zamanının tanıdığı HER IANA dilimini kabul
+      // ediyor → gizli değil, yalnız henüz tetiklenmemiş.
+      // ⚠️ İLK DÜZELTMEM YALNIZ "İLERLEME YOKSA DUR" KORUMASIYDI: asılmayı
+      // bitiriyordu ama Santiago'da 29 gecelik bir konaklamayı 6 sayıyordu —
+      // yani kilitlenme yerine SESSİZ YANLIŞ SAYI. Doğru çözüm, gün yürüyüşünü
+      // saat diliminden BAĞIMSIZ hale getirmek: uçlar org dilimiyle anahtara
+      // çevrilir, aradaki günler saf takvim aritmetiğiyle üretilir. Takvimde
+      // "olmayan gün" yoktur → sabit nokta imkânsız, sayım da doğru.
+      let key = dayKeyTz(start, tz);
       while (key < endKey) {
         occupied.add(key);
-        cur = addZonedDays(cur, 1, tz);
-        key = dayKeyTz(cur, tz);
+        key = nextDayKey(key);
       }
     }
     return occupied.size;

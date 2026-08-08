@@ -42,9 +42,17 @@ export const RESERVATION_CHANNEL = optionMap<ReservationChannel>([
   { value: "booking", label: "Booking", tone: "default" },
   { value: "direct", label: "Doğrudan", tone: "success" },
   { value: "other", label: "Diğer", tone: "muted" },
-  // ⚠️ "ics" ETİKET HARİTASINDA OLMAK ZORUNDA (denetim 08-07 (6)). Takvim
-  // beslemesi senkronu (`import/sync.ts`) bu değeri ZATEN yazıyordu ama harita
-  // tanımıyordu → `optionMap.label()` ham değere düşüp rozette "ics" yazıyordu.
+  // ⚠️ "ics" ETİKET HARİTASINDA OLMAK ZORUNDA (denetim 08-07 (6)). Elle .ics
+  // YÜKLEME rotası bu değeri yazıyor ama harita tanımıyordu →
+  // `optionMap.label()` ham değere düşüp rozette "ics" yazıyordu.
+  // 🚨 DÜZELTME (08-08): burada bir dönem "takvim beslemesi senkronu bu değeri
+  // ZATEN yazıyordu" yazıyordu — YANLIŞTI ve aynı yanlış üç ayrı dosyaya
+  // yayılmıştı. Abonelik senkronu kanalı `channelFromLabel(source.label)` ile
+  // yazar ve o fonksiyon ASLA "ics" DÖNDÜRMEZ ("Airbnb" etiketli besleme →
+  // `channel:"airbnb"`). Yani "ics" değerini yazan TEK ürün yolu elle yüklemedir
+  // — ve `POST /api/reservations` de şemaca kabul eder (↓aşağıdaki not).
+  // ⚠️ Bu yüzden `channel:"ics"` bir GÜVENLİK değişmezi olarak KULLANILMAZ;
+  // beslemeden geldiğini anlamanın doğru yolu `Reservation.calendarSourceId`dir.
   // Ayrıca elle .ics YÜKLEME rotası, rozet çirkin görünmesin diye kanalı
   // "other"a EZİYORDU; oysa yaşam-döngüsü kapıları `notIn: ["ics","manual"]`
   // ile filtreliyor → yüklenen satırlar "Hospitable ile mesajlaşılabilir"
