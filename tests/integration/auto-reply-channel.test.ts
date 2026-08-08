@@ -40,6 +40,7 @@ import {
   sendDueAlerts,
 } from "@/lib/automation";
 import { emailService } from "@/lib/email";
+import { automatedReplyNote } from "@/lib/automation";
 
 const mockSuggest = vi.mocked(suggestReply);
 const mockSend = vi.mocked(sendOnChannel);
@@ -50,8 +51,19 @@ const mockEmail = vi.mocked(emailService.sendReporting);
 // The machine-prepared note appended to AUTO-sent replies (Turkish, since the
 // SAFE_REPLY fixture detects "tr"). The draft/preview stays clean — only the
 // guest-facing send carries it.
-const AUTO_NOTE_TR =
-  "(Bu yanıt otomatik asistanımızca hazırlandı; bir hata olursa ekibimiz hemen düzeltir.)";
+// 🚨 KAYNAKTAN TÜRETİLİR, ELLE YAZILMAZ (08-08). Buraya cümle SABİTLENMİŞTİ
+// ve dipnot metni düzeltilince (eski hâli tutulamayacak bir söz veriyordu:
+// "bir hata olursa ekibimiz hemen düzeltir" — öyle bir mekanizma YOK) bu
+// dosyalar kırmızıya döndü. Testin ASIL değişmezi metnin kendisi değil,
+// "dipnot OTO-gönderilen gövdeye eklenir, taslağa EKLENMEZ" paritesidir;
+// literal pin o değişmezi korumadan kopyayı DONDURUYORDU.
+const AUTO_NOTE_TR = automatedReplyNote("tr", true)!;
+// ⚠️ TÜRETİLMİŞ PİNİN TUZAĞI: dipnot bir gün boş string dönerse `toContain("")`
+// DAİMA geçer ve bu dosyadaki her dipnot iddiası sessizce anlamsızlaşır.
+// Bu satır tam olarak o hâli yakalar.
+if (!AUTO_NOTE_TR || AUTO_NOTE_TR.length < 10) {
+  throw new Error("automatedReplyNote boş/çok kısa döndü — dipnot iddiaları vacuous olurdu");
+}
 
 const SAFE_REPLY = {
   intent: "checkin",
