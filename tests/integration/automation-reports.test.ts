@@ -411,8 +411,31 @@ describe("getOpsStats", () => {
       data: { propertyId, guestName: "Leaving Today", arrivalDate: daysFromNow(-3), departureDate: new Date(), status: "confirmed" },
     });
     const stats = await getOpsStats(orgId);
-    expect(stats.occupiedToday).toBe(1); // occupancy: the flat WAS used today (overlap) → stays correct
-    expect(stats.stayingTonight).toBe(0); // ...but nobody is in the house tonight
+    // 🚨 KURAL DEĞİŞTİ (kullanıcı kararı 08-07 (6)). Bu satır bir dönem
+    // `occupiedToday: 1` diyordu ve yorumu "the flat WAS used today (overlap) →
+    // stays correct" idi. Kullanıcının kuralı bunun tersi: "bugün çıkışı olan,
+    // çıkış gününde YAZSIN ama DOLU yazmasın, aynı gün yeni misafir
+    // gelmeyecekse." Doluluk artık GECE-KATI: kimse yatmıyorsa daire boştur.
+    // Çıkış YİNE görünür — "Bugünkü Çıkışlar" listesinde ve `departuresToday`de.
+    expect(stats.departuresToday).toBe(1); // çıkış listede DURUYOR
+    expect(stats.occupiedToday).toBe(0); // ...ama doluluğa GİRMİYOR
+    expect(stats.occupancyRate).toBe(0);
+    expect(stats.stayingTonight).toBe(0);
+    expect(stats.vacatedTonight).toBe(1); // "bugün boşalan" kutucuğu bunu sayar
+  });
+
+  it("devir günü DOLU sayılır: aynı gün çıkış + yeni giriş", async () => {
+    const { orgId, propertyId } = await makeOrgWithProperty();
+    await prisma.reservation.create({
+      data: { propertyId, guestName: "Cikan", arrivalDate: daysFromNow(-3), departureDate: new Date(), status: "confirmed" },
+    });
+    await prisma.reservation.create({
+      data: { propertyId, guestName: "Gelen", arrivalDate: new Date(), departureDate: daysFromNow(2), status: "confirmed" },
+    });
+    const stats = await getOpsStats(orgId);
+    expect(stats.occupiedToday).toBe(1); // gelen misafir bu gece burada
+    expect(stats.occupancyRate).toBe(100);
+    expect(stats.vacatedTonight).toBe(0); // daire boş DEĞİL — yeniden doldu
   });
 
   it("staying-tonight counts a mid-stay guest", async () => {

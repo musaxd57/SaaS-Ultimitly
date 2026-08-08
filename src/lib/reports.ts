@@ -32,6 +32,8 @@ export interface OpsStats {
   occupiedToday: number;
   occupancyRate: number; // 0..100
   stayingTonight: number; // DISTINCT flats occupied at END-of-today (night-strict)
+  /** Bugün çıkışı olan ama bu gece BOŞ kalan DISTINCT daire sayısı. */
+  vacatedTonight: number;
 }
 
 const propertyScope = (orgId: string) => ({ property: { organizationId: orgId } });
@@ -56,7 +58,6 @@ export async function getOpsStats(orgId: string): Promise<OpsStats> {
     urgentTasks,
     openTasks,
     totalProperties,
-    occupiedRows,
     stayingRows,
   ] = await Promise.all([
     prisma.reservation.findMany({
@@ -73,7 +74,9 @@ export async function getOpsStats(orgId: string): Promise<OpsStats> {
         status: activeStatus,
         departureDate: { gte: dayStart, lte: dayEnd },
       },
-      select: { sourceReference: true, id: true },
+      // `propertyId` — "bugün boşalan" için gerekli (çıkışı olup gece dolu
+      // OLMAYAN daireler). Ek sorgu değil, sadece bir kolon daha.
+      select: { sourceReference: true, id: true, propertyId: true },
     }),
     prisma.conversation.count({
       where: { ...propertyScope(orgId), status: { in: ["new", "waiting"] } },
@@ -88,16 +91,18 @@ export async function getOpsStats(orgId: string): Promise<OpsStats> {
       where: { ...propertyScope(orgId), status: { not: "done" } },
     }),
     prisma.property.count({ where: { organizationId: orgId } }),
-    prisma.reservation.findMany({
-      where: {
-        ...propertyScope(orgId),
-        status: { in: ["confirmed", "completed"] },
-        arrivalDate: { lte: dayEnd },
-        departureDate: { gte: dayStart },
-      },
-      select: { propertyId: true },
-      distinct: ["propertyId"], // DISTINCT flats, not reservations
-    }),
+    // 🚨 DOLULUK = GECE-KATI (kullanıcı kararı 08-07 (6)). Burada eskiden AYRI bir
+    // "bugün herhangi bir anda kullanıldı" sorgusu vardı (`departureDate >= dayStart`)
+    // ve bugün ÇIKIŞ yapan, yerine kimse gelmeyen daireyi DOLU sayıyordu.
+    // Kullanıcının kuralı net: "bugün çıkışı olan çıkış gününde YAZSIN ama DOLU
+    // yazmasın, aynı gün yeni misafir gelmeyecekse." Çıkış listede kalır
+    // ("Bugünkü Çıkışlar"), doluluğa girmez.
+    // Devir günü (aynı gün çıkış + giriş) YİNE dolu sayılır: gelen rezervasyonun
+    // `departureDate`i yarına sarktığı için aşağıdaki koşulu sağlar.
+    // ⚠️ Bu, `/reports` ve `/calendar` ile aynı tanım — üç yüzey artık ÇELİŞMİYOR.
+    // Sorgu TEK: `occupiedToday` ile `stayingTonight` tanım gereği aynı kümedir,
+    // ikisini ayrı sormak bir DB gidiş-dönüşünü boşa harcıyordu.
+    //
     // "Staying tonight": occupied at END-of-today (night-strict), so a flat that
     // checks out today with no re-let is NOT counted (empty tonight). Both bounds
     // keyed to dayEnd → representation-agnostic (Hospitable midnight-UTC AND iCal
@@ -116,7 +121,16 @@ export async function getOpsStats(orgId: string): Promise<OpsStats> {
 
   // On a turnover day a single flat has both a check-out and a check-in; counting
   // reservations would push occupancy past 100%, so count DISTINCT properties.
-  const occupiedToday = occupiedRows.length;
+  // (Devir günü zaten tek satır sayılır: `distinct: ["propertyId"]`.)
+  const occupiedPropertyIds = new Set(stayingRows.map((r) => r.propertyId));
+  const occupiedToday = occupiedPropertyIds.size;
+  // "Bugün boşalan": bugün ÇIKIŞI olan ama bu gece DOLU OLMAYAN daireler.
+  // Doluluk artık gece-katı olduğu için "Doluluk" ile "Bu Gece Kalan" aynı sayıyı
+  // gösterirdi; ikinci kutucuk bunun yerine gerçekten AYRI olan bilgiyi veriyor:
+  // temizliği bugün yapılacak ve bu gece boş kalacak daire sayısı.
+  const vacatedTonight = new Set(
+    departureRows.filter((r) => !occupiedPropertyIds.has(r.propertyId)).map((r) => r.propertyId),
+  ).size;
   const occupancyRate =
     totalProperties > 0 ? Math.min(100, Math.round((occupiedToday / totalProperties) * 100)) : 0;
 
@@ -147,7 +161,8 @@ export async function getOpsStats(orgId: string): Promise<OpsStats> {
     totalProperties,
     occupiedToday,
     occupancyRate,
-    stayingTonight: stayingRows.length,
+    stayingTonight: occupiedToday, // tanım gereği aynı küme (↑tek sorgu)
+    vacatedTonight,
   };
 }
 

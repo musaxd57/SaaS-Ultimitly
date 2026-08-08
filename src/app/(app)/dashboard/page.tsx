@@ -78,12 +78,6 @@ export default async function DashboardPage() {
       orderBy: { dueAt: "asc" },
     }),
   ]);
-  // "Bu Gece Kalan" = night-strict (occupied at end-of-today) via
-  // getOpsStats.stayingTonight — a flat that checks out today with no re-let is
-  // empty tonight and is NOT counted (distinct from the overlap-based occupancy%).
-  // Label says "tonight", not "right now", so it matches that semantics exactly.
-  const stayingCount = stats.stayingTonight;
-
   // Collapse duplicate Hospitable rows (same sourceReference) but keep each
   // manual/iCal booking (null sourceReference) — mirrors getOpsStats so the
   // cards and the lists agree and never undercount.
@@ -240,17 +234,25 @@ export default async function DashboardPage() {
           hint="acil öncelikli açık görev"
           href="/tasks"
         />
+        {/* ⚠️ Eskiden burada "Bu Gece Kalan" vardı ve hint'i "bu gece evde kalan
+            MİSAFİR" diyordu — oysa DAİRE sayıyordu (`Reservation`'da kişi sayısı
+            kolonu yok, o sayı hiçbir zaman misafir sayısı olamaz). Doluluk
+            gece-katı olunca ikisi AYNI sayıyı gösterecekti; bu kutucuk artık
+            gerçekten ayrı olan bilgiyi veriyor: bugün çıkışı olan ve bu gece
+            BOŞ kalacak daireler (temizlik yapılacak, gelir yok). */}
         <StatCard
-          label="Bu Gece Kalan"
-          value={stayingCount}
+          label="Bugün Boşalan"
+          value={stats.vacatedTonight}
           icon={Users}
-          hint="bu gece evde kalan misafir"
+          hint="çıkış yaptı, bu gece boş"
         />
         <StatCard
-          label="Doluluk (bugün)"
+          // "bugün" DEĞİL "bu gece": tanım gece-katı. Bugün çıkışı olan daire,
+          // yerine yeni misafir gelmediyse dolu SAYILMAZ (kullanıcı kararı).
+          label="Doluluk (bu gece)"
           value={`%${stats.occupancyRate}`}
           icon={BedDouble}
-          hint={`${stats.occupiedToday}/${stats.totalProperties} mülk dolu`}
+          hint={`${stats.occupiedToday}/${stats.totalProperties} daire dolu`}
           href="/reports"
         />
         <StatCard
