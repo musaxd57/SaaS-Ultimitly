@@ -31,9 +31,17 @@ const FEED_MAX_BYTES = 10 * 1024 * 1024;
 // CONSECUTIVE RELIABLE runs AND for >= MIN wall-clock, is source-bound, and reappears
 // reset it atomically. Empty / suspicious-drop / non-reliable fetches never count.
 //
-// Cadence note: iCal sync is USER-TRIGGERED (manual /api/calendar/sync — NOT the cron),
-// so there is no guaranteed interval → the wall-clock MIN duration is the authoritative
-// guard; the count threshold only ensures a single anomalous run can never cancel.
+// Cadence note (GÜNCELLENDİ 08-08 — eski hâli ARTIK DOĞRU DEĞİL): bu satır bir dönem
+// "iCal sync is USER-TRIGGERED … there is no guaranteed interval" diyordu ve bu, feed'lerin
+// hiçbir zaman zamanlı senkronlanmamasının GEREKÇESİ değil SONUCUYDU. Zamanlanmış geçiş
+// artık `syncDueCalendarSourcesForOrg` üzerinden koşuyor (↓dosya sonu), yani kaynak başına
+// kadans ~`ICAL_SYNC_EVERY_MIN` (varsayılan 15 dk).
+// ⚠️ BUNUN BU BLOĞA ETKİSİ: iki eşik de AYNEN geçerli — iptal HÂLÂ >= 24 saat duvar-saati
+// İSTER, yani 15 dakikalık kadans bir konaklamayı daha erken iptal ETTİREMEZ (sayı eşiği
+// zaten 24 saatte fazlasıyla dolar; belirleyici olan duvar-saatidir). Ama bayrak bir gün
+// AÇILIRSA iptal artık İNSAN TIKLAMASI OLMADAN kendiliğinden gerçekleşebilir — eskiden
+// pratikte hiç koşmuyordu. Bayrak DEFAULT KAPALI kalır (mass-cancel olayı); açma kararı
+// bu yeni kadans bilinerek verilmelidir.
 // Test-only fault seam: deterministically blow up the reconcile step so the
 // catch path (aggregate alarm + import-survives) is testable. Always null in prod.
 export const __reconcileHooks: { forceError: Error | null } = { forceError: null };
@@ -537,4 +545,163 @@ export async function syncAllSourcesForOrg(orgId: string): Promise<SyncResult & 
   }
 
   return total;
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+// ZAMANLANMIŞ iCal GEÇİŞİ (08-08 — GERÇEK AÇIK, kod-doğrulandı)
+//
+// 🚨 BULGU: iCal beslemeleri HİÇBİR ZAMAN zamanlı senkronlanmıyordu. Zincirin
+// tamamı kullanıcı tıklamasına bağlıydı: `syncAllSourcesForOrg`'un TEK çağıranı
+// `/api/calendar/sync` (oturum-kapılı; üstelik ön yüzde HİÇBİR çağıranı yok) ve
+// `syncCalendarSource`'un tek dış çağıranı `/api/calendar-sources/[id]/sync`
+// ("Senkronla" düğmesi). `runScheduledSync` bu modülden HİÇBİR ŞEY import
+// etmiyordu. Sonuç: host Airbnb iCal bağlantısını ekliyor, bir kez tıklıyor ve
+// besleme ORADA DONUYOR — ertesi gün gelen rezervasyon panelde/takvimde
+// GÖRÜNMÜYOR, temizlik görevi doğmuyor, doluluk yanlış → ÇİFTE REZERVASYON.
+//
+// ⚠️ İKİNCİ BİR FETCH YOLU YAZILMADI: bu fonksiyon `syncCalendarSource`'u
+// çağırır, yani `fetchFeedText`in TÜM sertleştirmesi (yalnız-HTTPS, DNS-rebind
+// pinlemesi, 15 sn TOPLAM duvar-saati, 10 MB akış tavanı, redirect yok), KVKK
+// silme kapısı, kaynak-bağlama kuralları ve `reconcileFeedDisappearance`'ın
+// kaynak-başına advisory kilidi AYNEN geçerlidir.
+//
+// ⚠️ KAYNAK-BAŞINA KADANS = `lastSyncedAt`. Ayrı bir "claim" kolonu YOK ve
+// GEREKMİYOR: `syncCalendarSource` ÜÇ çıkış yolunun HEPSİNDE `lastSyncedAt`
+// yazıyor (url çözülemedi / fetch hatası / başarı), zamanlanmış geçiş de
+// global `scheduled-sync` SystemLock'u altında TEK koşu olarak sürüyor. Yan
+// fayda: host "Senkronla"ya elle bastığında damga ilerler ve zamanlayıcı o
+// kaynağı bir pencere boyunca TEKRAR çekmez — iki yol tek saati paylaşır.
+// ⚠️ Kalan tek yarış "elle tıklama ile zamanlı geçişin ÇAKIŞMASI"dır ve bu
+// BUGÜN DE VAR (iki host aynı anda tıklayabiliyor): satır-başına TX +
+// `@@unique([propertyId, sourceReference])` + `isUniqueViolation` → sonuç
+// duplicate DEĞİL, "skip". Yeni bir kilit primitifi UYDURULMADI.
+// ─────────────────────────────────────────────────────────────────────────────
+
+/** Bir kaynağın yeniden çekilmeden önce beklemesi gereken süre (kaynak-başına kadans). */
+export function icalSyncEveryMs(): number {
+  const min = Number(process.env.ICAL_SYNC_EVERY_MIN);
+  return (Number.isFinite(min) && min > 0 ? min : 15) * 60_000;
+}
+
+/**
+ * Tek geçişte bir org'dan BELLEĞE alınacak en fazla kaynak satırı. Verim sınırı
+ * DEĞİL, bellek koruması: gerçek sınır duvar-saati bütçesidir. Aşılırsa fark
+ * `deferred`'a düşer (sayım `count` ile YAPILDIĞI için tavan kırpması da
+ * görünür kalır — sessiz kırpma yok).
+ */
+const ICAL_MAX_SOURCES_PER_ORG_PASS = 100;
+
+export interface ScheduledIcalResult {
+  /** Bu geçişte işlenmeye ADAY (vadesi gelmiş) kaynak sayısı. */
+  due: number;
+  /** Bu geçişte GERÇEKTEN işlenen kaynak sayısı (hatayla bitenler DAHİL). */
+  synced: number;
+  /** Bütçe/tavan yüzünden SONRAKİ geçişe bırakılanlar. İş KAYBI değil, gecikme. */
+  deferred: number;
+  imported: number;
+  updated: number;
+  /** Hata döndüren ya da fırlatan kaynak sayısı. */
+  failed: number;
+}
+
+/**
+ * Bir org'un VADESİ GELMİŞ takvim kaynaklarını, verilen duvar-saati son anına
+ * kadar senkronlar. Zamanlanmış geçişin (`runScheduledSync`) iCal bacağı.
+ *
+ * 🚨 ASLA FIRLATMAZ: tek bir bozuk kaynak ne org döngüsünü ne de Hospitable
+ * mesaj senkronunu düşürebilir.
+ *
+ * 🚨 BESLEMESİ OLMAYAN KİRACI = TEK `count` SORGUSU, sıfır iş, sıfır hata.
+ * (`count` bilinçli olarak `findMany`'den ÖNCE: hem boş kiracıda satır
+ * yüklemiyoruz hem de tavan kırpması `deferred`'da doğru görünüyor.)
+ *
+ * ⚠️ `deadline` KOŞAN İŞİ KESMEZ — JS tek iş parçacıklı, `syncCalendarSource`
+ * bizim açımızdan bölünemez. Sağladığı şey YENİ İŞ BAŞLATMAMAKTIR; bu, deponun
+ * `PASS_BUDGET_MS`/`ORG_BUDGET_MS` disipliniyle BİREBİR aynı sözleşmedir.
+ * Tek kaynağın kendi tavanı `fetchFeedText`in 15 sn'lik toplam deadline'ıdır
+ * (artı ayrıştırma + satır yazımları).
+ */
+export async function syncDueCalendarSourcesForOrg(
+  orgId: string,
+  opts: { deadline: number; now?: Date },
+): Promise<ScheduledIcalResult> {
+  const result: ScheduledIcalResult = {
+    due: 0,
+    synced: 0,
+    deferred: 0,
+    imported: 0,
+    updated: 0,
+    failed: 0,
+  };
+  // Bütçe zaten dolmuşsa TEK SORGU BİLE koşmaz.
+  if (Date.now() >= opts.deadline) return result;
+
+  const now = opts.now ?? new Date();
+  const dueBefore = new Date(now.getTime() - icalSyncEveryMs());
+  // VADE KOŞULU: hiç senkronlanmamış (host yeni ekledi → sıradaki geçişte,
+  // yani ≤2 dakikada içeri düşer) VEYA kadans penceresi dolmuş.
+  const where: Prisma.CalendarSourceWhereInput = {
+    property: { organizationId: orgId },
+    OR: [{ lastSyncedAt: null }, { lastSyncedAt: { lt: dueBefore } }],
+  };
+
+  try {
+    result.due = await prisma.calendarSource.count({ where });
+  } catch (err) {
+    await reportError("ical.scheduled count", err instanceof Error ? err : new Error(String(err)));
+    return result;
+  }
+  if (result.due === 0) return result;
+
+  let sources: { id: string }[];
+  try {
+    sources = await prisma.calendarSource.findMany({
+      where,
+      select: { id: true },
+      // EN BAYAT ÖNCE (hiç senkronlanmamışlar en başta). Bütçe kırpınca sıradaki
+      // geçiş kaldığı yerden devam eder → aynı kaynaklar sürekli aç kalmaz.
+      orderBy: [{ lastSyncedAt: { sort: "asc", nulls: "first" } }, { id: "asc" }],
+      take: ICAL_MAX_SOURCES_PER_ORG_PASS,
+    });
+  } catch (err) {
+    await reportError("ical.scheduled list", err instanceof Error ? err : new Error(String(err)));
+    return result;
+  }
+
+  for (const s of sources) {
+    // Son an KONTROLÜ İŞ BAŞLAMADAN ÖNCE (↑sözleşme).
+    if (Date.now() >= opts.deadline) break;
+    try {
+      const r = await syncCalendarSource(s.id);
+      result.synced += 1;
+      result.imported += r.imported;
+      result.updated += r.updated;
+      if (r.errors.length > 0) result.failed += 1;
+    } catch (err) {
+      // `syncCalendarSource` sözleşme gereği fırlatmaz, ama ayrıştırma/DB gibi
+      // beklenmedik bir yol fırlatırsa: (a) org döngüsü DEVAM ETMELİ, (b) satır
+      // damgalanmalı. Damgalamazsak kaynak SONSUZA KADAR "vadesi gelmiş" kalır
+      // ve HER geçişte yeniden denenip bütçeyi yakar (kardeşlerini aç bırakır).
+      result.synced += 1;
+      result.failed += 1;
+      await reportError(
+        `ical.scheduled:${s.id}`,
+        err instanceof Error ? err : new Error(String(err)),
+      );
+      await prisma.calendarSource
+        .update({
+          where: { id: s.id },
+          data: {
+            lastSyncedAt: new Date(),
+            lastStatus: "error",
+            lastResult: "Senkronizasyon beklenmedik bir hatayla durdu.",
+          },
+        })
+        .catch(() => {});
+    }
+  }
+
+  // Hem bütçe kırpmasını hem `take` tavanını KAPSAR (`due` gerçek sayım).
+  result.deferred = Math.max(0, result.due - result.synced);
+  return result;
 }

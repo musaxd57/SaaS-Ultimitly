@@ -6,8 +6,15 @@
 //
 // An EPISODE is a run of consecutive guest (inbound) messages followed by the
 // host/AI's next outbound: the clock starts at the FIRST message of the run
-// (that's when the guest began waiting) and stops at that outbound. Episodes
-// are attributed to the window by when they START.
+// (that's when the guest began waiting) and stops at that outbound.
+//
+// WINDOW ATTRIBUTION = OVERLAP (08-08 düzeltmesi; eskiden yalnız BAŞLANGIÇ'tı).
+// Bir episode pencereyle kesişiyorsa sayılır: penceredeyken başlamış olabilir,
+// ya da daha önce başlayıp pencerenin İÇİNE sarkmış olabilir. Sadece başlangıca
+// bakmak sürekli ihmali ödüllendiriyordu — misafir ne kadar uzun bekletilirse
+// açık koşu pencere sınırını o kadar kesin aşıyor ve episode sayımdan büsbütün
+// düşüyordu. Pencereden ÖNCE hem başlayıp hem KAPANMIŞ episode geçmişe aittir
+// ve hâlâ dışarıda kalır.
 //
 // SLA CONTRACT (Codex follow-up — a guest who wrote 5 minutes ago has NOT
 // missed anything yet):
@@ -37,7 +44,15 @@ export function computeResponseEpisodes(
 
   const closeAnswered = (end: Date) => {
     if (!runStart) return;
-    if (runStart >= windowStart) {
+    // 🚨 PENCEREYE AİTLİK = ÖRTÜŞME, YALNIZ BAŞLANGIÇ DEĞİL (denetim 08-08).
+    // Eski koşul `runStart >= windowStart` idi ve tam da SÜREKLİ İHMALİ görünmez
+    // kılıyordu: bir misafir ne kadar uzun bekletilirse, açık kalan koşu pencere
+    // sınırını o kadar kesin aşıyor ve episode SAYIMDAN TAMAMEN DÜŞÜYORDU.
+    // Ölçüldü: 2 thread, biri iki kez ihmal edilmiş → "%100" (gerçek %50).
+    // Yeni kural: episode (ilk soru → yanıt) pencereyle KESİŞİYORSA sayılır.
+    // Yanıtı da pencereden ÖNCE gelmiş episode geçmişte tamamen kapanmıştır ve
+    // bu raporun dönemine ait değildir → hâlâ atlanır.
+    if (runStart >= windowStart || end >= windowStart) {
       answerable++;
       if (end.getTime() - runStart.getTime() <= DAY_MS) answeredWithin24h++;
     }
@@ -53,7 +68,12 @@ export function computeResponseEpisodes(
   }
   // Trailing unanswered run: a miss ONLY once its 24h SLA has expired; a still-
   // fresh question is PENDING and stays out of the denominator entirely.
-  if (runStart && runStart >= windowStart && now.getTime() - runStart.getTime() > DAY_MS) {
+  // Örtüşme kuralı burada başlangıç şartını TAMAMEN kaldırır: hâlâ açık bir koşu
+  // tanım gereği ŞU ANA kadar uzanır, yani pencereyle her hâlükârda kesişir. Bu
+  // dalın sonsuza kadar birikmesini konuşma seçiminin kendisi engelliyor —
+  // çağıran yalnız `lastMessageAt` penceresi içindeki thread'leri getirir, yani
+  // misafirin en son yazdığı an pencerede olmalıdır.
+  if (runStart && now.getTime() - runStart.getTime() > DAY_MS) {
     answerable++;
   }
 

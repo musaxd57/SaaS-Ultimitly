@@ -48,9 +48,11 @@ export function checkProductionEnv(env) {
   // takvim feed URL'leri KALICI olarak cozulemez hale gelir (rotasyon = ASLA).
   // Depo bu siniftan bir olayi ZATEN yasadi (`hospitable-token-undecryptable`,
   // kok neden hicbir zaman belirlenemedi).
-  // ⚠️ HATA (uyari degil) olmasi bilincli: prestart sifir-disi cikarsa Railway YENI
-  // deploy'u yayinlamaz ve CALISAN SURUM hizmet vermeye devam eder — yani site
-  // dusmez, yalnizca hatali deger fark edilmeden gecemez.
+  // ⚠️ BEDELI KUCUMSENMEZ (denetim duzeltmesi): "yalnizca yeni deploy yayinlanmaz,
+  // site dusmez" demek YANLIS olurdu. `prestart` HER konteyner acilisinda kosar
+  // (Dockerfile CMD → npm run start → prestart), yani deger bugun bosluk tasiyorsa
+  // CALISAN servis de bir daha BASLAYAMAZ: platform tasimasi, OOM yeniden baslatma
+  // ya da elle restart kalici kesintiye doner. Kapi bu yuzden KACIS KAPILI (asagi).
   // ⚠️ `key()`e `.trim()` EKLEMEK COZUM DEGIL: uretimdeki deger bugun boslukluysa
   // trim eklemek anahtari DEGISTIRIR ve tam da onlemek istedigimiz kaybi yaratir.
   //
@@ -76,17 +78,26 @@ export function checkProductionEnv(env) {
   // `retentionCutoff()` null doner ve `anonymizeOldGuestData` no-op olur; ikisi de
   // AYNI ifadeye bagli (`data-retention.ts:65,76`). Saglik ucu 200 kalir, hicbir
   // alarm cikmaz, KVKK vaadi sessizce tutulmaz olur.
-  // ⚠️ AYARLANMAMIS olmasi MESRU (retention varsayilan KAPALI) — yalnizca AYARLANMIS
-  // ama sayiya cevrilemeyen deger reddedilir.
+  // ⚠️ AYARLANMAMIS olmasi MESRU (retention varsayilan KAPALI).
+  // 🚨 KAPI CALISMA-ZAMANINDAN DAHA SIKI OLAMAZ — ILK YAZIMIM OYLEYDI (denetim,
+  // olculdu). Calisma zamani `!Number.isFinite(months) || months <= 0`
+  // (`data-retention.ts:66,77`). Yani "0" ve "-1" calisma zamaninda "KAPALI"
+  // demektir ve "0" operatorun kapatmak icin yazacagi en olasi degerdir; "24.5"
+  // ise calisiyor. Eski kapim ucunu de BOOT'U BLOKLUYORDU — bu dosyanin kendi
+  // kuralinin ihlali: "calisma zamaninin kabul ettigi bir degeri reddederse
+  // CALISAN bir kurulum bloklanir".
+  // Hedeflenen ariza SADECE sudur: operator bir SURE yazmak istedi ama deger
+  // sayiya cevrilemiyor ("24 ay", "yirmidort", "Infinity") → `Number()` NaN/sonsuz
+  // → `retentionCutoff()` null → HEM anonimlestirme HEM sync'in yeniden-ice-aktarma
+  // korumasi SESSIZCE kapanir (ikisi de ayni ifadeye bagli). Kapali-olmak-isteyen
+  // degerler ("0", "-1") bilincli olarak SERBEST birakildi.
   const retentionRaw = (env.DATA_RETENTION_MONTHS ?? "").trim();
-  if (retentionRaw) {
-    const months = Number(retentionRaw);
-    if (!Number.isFinite(months) || months <= 0 || !Number.isInteger(months)) {
-      errors.push(
-        `DATA_RETENTION_MONTHS is set but not a positive whole number ("${retentionRaw}"). ` +
-          "It would silently disable BOTH guest-data retention AND the sync's re-import guard.",
-      );
-    }
+  if (retentionRaw && !Number.isFinite(Number(retentionRaw))) {
+    errors.push(
+      `DATA_RETENTION_MONTHS is set but is not a number ("${retentionRaw}"). ` +
+        "It would silently disable BOTH guest-data retention AND the sync's re-import guard. " +
+        "Use a positive number of months, or leave it empty/0 to disable retention deliberately.",
+    );
   }
 
   // QR PIN pepper (Faz 5, #14). ONLY enforced when the feature is switched on

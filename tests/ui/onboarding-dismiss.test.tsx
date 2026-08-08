@@ -76,3 +76,57 @@ describe("OnboardingGuide katlama (UI)", () => {
     await waitFor(() => expect(screen.getByText(/Kurulum tamam/)).toBeTruthy());
   });
 });
+
+// ---------------------------------------------------------------------------
+// 🚨 DEPOLAMA ATTIĞINDA KART GÖRÜNÜR KALIR (P1 pini, 08-08).
+//
+// Bu tam olarak bir kez CANLIYA GİRMİŞ bir hatadır: `setCompletedBefore(...)`
+// `try` bloğunun İÇİNDE ve `setItem`'dan SONRA duruyordu. Gizli sekmede /
+// kota dolduğunda `setItem` atıyor, o satıra hiç gelinmiyor, `completedBefore`
+// sonsuza kadar `null` kalıyor ve render kapısı (`=== null` → return null)
+// kurulum rehberini KALICI OLARAK gizliyordu — yani catch'in "kartı göstermeye
+// düş" sözünün TAM TERSİ oluyordu.
+//
+// Denetim ajanı bu düzeltmenin DOĞRU ama PİNSİZ olduğunu ölçtü: hatayı geri
+// getiren mutasyon 3015 testin hepsini yeşil bırakıyordu. Artık bırakmıyor.
+// ---------------------------------------------------------------------------
+describe("OnboardingGuide — localStorage arızası", () => {
+  afterEach(() => {
+    cleanup();
+    vi.restoreAllMocks();
+    localStorage.clear();
+  });
+
+  it("setItem ATIYORSA kart YİNE GÖRÜNÜR (mühür yok sayılır, gizlenmez)", async () => {
+    // Okuma çalışıyor (mühür YOK), yazma atıyor — kotası dolmuş tarayıcı.
+    vi.spyOn(Storage.prototype, "setItem").mockImplementation(() => {
+      throw new DOMException("QuotaExceededError");
+    });
+
+    render(<OnboardingGuide steps={steps} />);
+
+    // Kurulum yarım (1/2) ve mühür yok → rehber GÖRÜNMELİ.
+    expect(await screen.findByText(/Başlarken/)).toBeTruthy();
+  });
+
+  it("getItem ATIYORSA da kart görünür (okuma bacağı da fail-safe)", async () => {
+    vi.spyOn(Storage.prototype, "getItem").mockImplementation(() => {
+      throw new DOMException("SecurityError");
+    });
+
+    render(<OnboardingGuide steps={steps} />);
+
+    expect(await screen.findByText(/Başlarken/)).toBeTruthy();
+  });
+
+  it("mühür BASILIYSA kart gizlenir — yani test 'her hâlde görünür' demiyor", async () => {
+    // Ters yön: pin yalnız "hep göster" deseydi, mührün tamamen bozulması da
+    // yeşil kalırdı. Bu senaryo mührün GERÇEKTEN çalıştığını asserte eder.
+    localStorage.setItem("lixus_onboarding_completed", "1");
+
+    const { container } = render(<OnboardingGuide steps={steps} />);
+
+    await waitFor(() => expect(screen.queryByText(/Başlarken/)).toBeNull());
+    expect(container.textContent).toBe("");
+  });
+});

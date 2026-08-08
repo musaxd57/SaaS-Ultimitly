@@ -290,6 +290,58 @@ const HOLDING_ACK_TEXTS: Record<string, string> = {
 };
 
 /**
+ * ⛔ İPTAL EDİLMİŞ KONAKLAMAYA OTOMATİK MİSAFİR MESAJI GİTMEZ (denetim, 08-08).
+ *
+ * `applyChannelAutoReply` bu kapıyı `:1176`'da ZATEN tutuyor, ama BEKLETME
+ * MESAJI (holding ack) yolunun ikinci çağıranı `sendDueAlerts`'tir ve ORADA
+ * hiçbir rezervasyon kontrolü YOKTU: aday sorgusu yalnız `status:"new"` +
+ * 72 saatlik tazelik penceresine bakıyor. Ölçülmüş senaryo — misafirin
+ * rezervasyonu İPTAL, misafir "Klima çalışmıyor" yazıyor → kelime yolu
+ * konuşmayı "Sorunlu" claim ediyor, host'a uyarı gidiyor ve ARDINDAN misafire
+ * "özür dileriz, ev sahibimiz en kısa sürede ilgilenecek" mesajı OTOMATİK
+ * gidiyordu. Artık gitmiyor.
+ *
+ * KARAR TABLOSU (fail-safe yön = GÖNDERME):
+ *   · bağlı rezervasyon + status "cancelled"  → ENGELLE
+ *   · bağlı rezervasyon + başka her durum      → izin ver (pending/confirmed/
+ *     completed; "completed" bir konaklama YAŞANMIŞTIR, çıkış sonrası şikayete
+ *     bekletme mesajı meşrudur — burada DARALTMA yapılmadı)
+ *   · BAĞSIZ + senkron çiti damgalı             → ENGELLE (↓)
+ *   · BAĞSIZ + damgasız                         → izin ver (↓)
+ *   · konuşma satırı yok / okuma fırlattı       → ENGELLE
+ *
+ * ⚠️ BAĞSIZ KONUŞMA TOPTAN SUSTURULMAZ. Yerel rezervasyonu olmayan bir thread
+ *    aynı zamanda REZERVASYON ÖNCESİ satış sorusudur (`prompts.ts`
+ *    preBookingBlock) ve ona cevap vermek bilinçli ürün davranışıdır. Bağsız +
+ *    ÖLÜ konaklamanın doğru yeri senkron katmanındaki `fenceUnlinkedTerminalStay`
+ *    çitidir; o çit `skippedReason:"reservation_ended"` damgasını basar. Damgayı
+ *    bugüne kadar YALNIZ model yolunun aday sorgusu okuyordu (`autoReplyAttemptedAt`
+ *    üzerinden) — `sendDueAlerts` ne o alana ne bu alana bakıyordu, yani çitin
+ *    kör noktası tam da buydu. Damga CLAIM'DEN ÖNCE okunmak zorunda: claim onu
+ *    "complaint" ile EZER, sonradan okumak daima yanlış cevap verir.
+ */
+async function autoGuestMessageBlockedByStay(opts: {
+  conversationId: string;
+  /** `skippedReason === "reservation_ended"`, çağıran thread'i claim etmeden ÖNCE. */
+  stayFencedBeforeClaim?: boolean;
+}): Promise<boolean> {
+  try {
+    const row = await prisma.conversation.findUnique({
+      where: { id: opts.conversationId },
+      select: { reservation: { select: { status: true } } },
+    });
+    if (!row) return true; // satır kayboldu → bilinmeyen durum, gönderme
+    if (row.reservation) return row.reservation.status === "cancelled";
+    return opts.stayFencedBeforeClaim === true;
+  } catch {
+    // Durum OKUNAMADI. Bu modülde bilinmeyenin güvenli yönü SUSMAKTIR: kaçırılan
+    // bir bekletme mesajı gecikmedir, iptal edilmiş konaklamaya giden bir mesaj
+    // geri alınamaz.
+    return true;
+  }
+}
+
+/**
  * Send the tier-2 holding acknowledgement if every gate allows it. The CALLER
  * must have already atomically claimed the conversation into "problem" — that
  * claim is the idempotency lock (a second replica/run loses the claim and never
@@ -312,6 +364,11 @@ async function maybeSendHoldingAck(opts: {
    * blocking signals (any non-complaint risk label; see
    * holdingAckBlockedSignals) are checked. */
   complaintConfirmed?: boolean;
+  /** `skippedReason === "reservation_ended"` as observed BEFORE the caller
+   * claimed the thread into "problem" (the claim overwrites it with
+   * "complaint", so it can never be re-read here). See
+   * autoGuestMessageBlockedByStay. */
+  stayFencedBeforeClaim?: boolean;
 }): Promise<boolean> {
   // Same master switches as every other automatic guest message.
   if (process.env.AUTO_REPLY_ENABLED !== "1") return false;
@@ -320,6 +377,17 @@ async function maybeSendHoldingAck(opts: {
     ? !holdingAckBlockedSignals(opts.guestMessage)
     : holdingAckEligible(opts.guestMessage);
   if (!eligible) return false;
+  // İptal edilmiş (ya da senkronca ölü işaretlenmiş) konaklamaya otomatik
+  // misafir mesajı YOK. Ucuz kapıların ARDINA konuldu: sorgu yalnız gerçekten
+  // bir ack'in eşiğine gelindiğinde harcanır, sıcak yol etkilenmez.
+  if (
+    await autoGuestMessageBlockedByStay({
+      conversationId: opts.conversation.id,
+      stayFencedBeforeClaim: opts.stayFencedBeforeClaim,
+    })
+  ) {
+    return false;
+  }
   if (!(await premiumAllowed(opts.organizationId))) return false;
   const token = await getOrgHospitableToken(opts.organizationId);
   if (!token) return false;
@@ -1649,6 +1717,11 @@ export async function applyChannelAutoReply(
               org: alertOrg,
               language: result.detectedLanguage,
               complaintConfirmed: true,
+              // `conversation` fonksiyonun BAŞINDA okundu → bu alan claim'den
+              // ÖNCEKİ değer. Aday sorgusu (`dueAutoReplyWhere`) çitlenmiş
+              // satırları zaten eliyor, ama bu fonksiyon doğrudan da çağrılıyor;
+              // kapı çağıranın kim olduğuna bağlı kalmamalı.
+              stayFencedBeforeClaim: conversation.skippedReason === "reservation_ended",
             }).catch(() => false);
           }
           // Smart operational task (opt-in): if this escalation carries a
@@ -3219,6 +3292,11 @@ export async function sendDueAlerts(
       propertyId: true,
       reservationId: true,
       externalReservationId: true,
+      // ⚠️ CLAIM'DEN ÖNCEKİ DEĞER. Aşağıdaki atomik claim bu alanı "complaint"
+      // ile EZİYOR, yani senkronun ölü-konaklama çitinin damgası
+      // ("reservation_ended", `fenceUnlinkedTerminalStay`) ancak BURADA
+      // okunabilir. Bekletme mesajı kapısı bunu kullanıyor.
+      skippedReason: true,
       property: { select: { name: true, address: true, city: true } },
       // ⚠️ TEK MESAJ YETMEZ (derin denetim, 08-01). Misafir arka arkaya yazınca
       // — önce şikayet, sonra zararsız bir takip — `take: 1` yalnız sonuncuyu
@@ -3359,6 +3437,8 @@ export async function sendDueAlerts(
         guestMessage: hit.body,
         org,
         language: null,
+        // Claim `skippedReason`'ı çoktan ezdi — çit damgası aday satırından okunur.
+        stayFencedBeforeClaim: c.skippedReason === "reservation_ended",
       }).catch(() => false);
     }
 

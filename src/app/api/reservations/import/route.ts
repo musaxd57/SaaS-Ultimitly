@@ -6,10 +6,31 @@ import { badRequest, jsonOk, readFormDataCapped, payloadTooLarge, BodyTooLargeEr
 import { withManage } from "@/lib/route-guard";
 import { parseIcs } from "@/lib/import/ics";
 import { parseCsv, CsvParseError } from "@/lib/import/csv";
-import { createReservationTasks } from "@/lib/automation";
+import { createReservationTasks, removeAutoTasksForCancelledReservation } from "@/lib/automation";
 import { loadErasureGuard, acquireErasureLock } from "@/lib/erasure";
 
 const IMPORT_MAX_BYTES = 5 * 1024 * 1024;
+
+/**
+ * RFC 5545 `STATUS:CANCELLED` — the booking was killed upstream.
+ *
+ * 🚨 Bu kapı YOKTU (denetim 08-08). `parseIcs` alanı ÇIKARIYOR
+ * (`IcsReservation.status`) ama rota `status: "confirmed"` yazan SABİT bir nesne
+ * kuruyordu ve `ParsedRow` tipinde `status` alanı bile yoktu → TypeScript de
+ * sessizdi (fazlalık-alan kontrolü nesne LİTERALİNE uygulanır, dizi ATAMASINA
+ * değil, yani `rows = parseIcs(text)` uyarısız geçiyordu). Sonuç: AYNI DOSYA
+ * nereden girdiğine göre İKİ FARKLI sonuç veriyordu — abonelik senkronu
+ * (`import/sync.ts`) iptali yansıtırken elle yükleme iptal edilmiş konaklamayı
+ * CANLI kaydediyor, daireyi dolu gösteriyor ve temizlik/giriş görevleri açıyordu.
+ *
+ * Karşılaştırma `parseIcs`'in ürettiği biçimden BAĞIMSIZ olsun diye burada da
+ * trim+upper yapılıyor: ayrıştırıcı bugün büyük harfe çeviriyor, ama bu kapı
+ * gelecekte durum üreten BAŞKA bir ayrıştırıcıya (örn. CSV'ye bir "status"
+ * sütunu eklenirse) da hazır olmalı.
+ */
+function isCancelledRow(status: string | null | undefined): boolean {
+  return (status ?? "").trim().toUpperCase() === "CANCELLED";
+}
 
 export const POST = withManage(async (session, req) => {
   // OOM guard: read the multipart body with a HARD byte cap (Content-Length pre-check
@@ -86,6 +107,9 @@ export const POST = withManage(async (session, req) => {
     channel?: string;
     totalAmount?: number;
     currency?: string;
+    /** VEVENT STATUS (RFC 5545), uppercased by the parser. `parseCsv` has no
+     *  status column today, so CSV rows leave this undefined = live. */
+    status?: string | null;
   };
 
   let rows: ParsedRow[] = [];
@@ -113,6 +137,7 @@ export const POST = withManage(async (session, req) => {
   }
 
   let imported = 0;
+  let cancelled = 0;
   let skipped = 0;
   const errors: string[] = [];
 
@@ -174,12 +199,103 @@ export const POST = withManage(async (session, req) => {
       continue;
     }
 
+    // Ucuz ÖN kapı — yalnız bir OPTİMİZASYON (yazma yetkisi DEĞİL). Yetkili
+    // kontrol aşağıda, kilidin İÇİNDE taze okunan guard'la yapılır.
+    //
+    // ⚠️ KONUM: dupe aramasının ÜSTÜNDE ve HER İKİ dalın (iptal + yeni kayıt)
+    // ÖNÜNDE duruyor — kardeş yol da guard'ı en başta kontrol edip `"erased"`
+    // dönüyor (`import/sync.ts`). Böylece iptal yazımı da silme kapısının AYNI
+    // TARAFINDA kalır; kapıyı iptal dalından sonra koymak, tombstone'lu bir
+    // referansın satırına yine de yazmak demek olurdu.
+    const sourceReference = row.sourceReference ?? null;
+    if (!erasureGuard.isEmpty && erasureGuard.blocksSourceReference(sourceReference)) {
+      skipped++;
+      continue;
+    }
+
+    // ── STATUS:CANCELLED — iptal edilmiş satır ASLA canlı yazılmaz ──────────
+    //
+    // Abonelik yolunun semantiği birebir taklit ediliyor (`import/sync.ts`):
+    //   · yerel satır YOKSA        → atla (iptal kaydı UYDURULMAZ, create YOK)
+    //   · yerel satır VARSA        → `status:"cancelled"` + oto görevleri sil
+    //   · zaten iptalliyse         → dokunma (idempotent)
+    //
+    // ⚠️ TEK YÖN, BİLİNÇLİ: aboneliğin "canlı görünüyorsa yeniden onayla" dalı
+    // (`sync.ts`, `existing.status === "cancelled"` → `confirmed`) buraya
+    // TAŞINMADI. Gerekçe: iptal POZİTİF KANITTIR (dosyada açıkça yazar), geri
+    // açma ise NEGATİF kanıta dayanırdı ("bu satırda iptal işareti yok") ve elle
+    // yüklenen dosya ESKİ olabilir — sürekli yoklanan bir feed'in aksine. Aynı
+    // muhakeme feed-disappearance reconcile'ının varsayılan KAPALI olmasının da
+    // gerekçesi. Yanlışlıkla iptal edilen kayıt üründen geri açılabilir
+    // (`PATCH /api/reservations/[id]` → `status`).
+    if (isCancelledRow(row.status)) {
+      // Eşleştirme anahtarı yoksa yapılacak bir şey de yok. Kardeş yol da
+      // `existing`i YALNIZ `sourceReference` varken arıyor. Doğal anahtar
+      // (misafir+tarih) yedeği burada BİLEREK kullanılmıyor: yalnızca adı ve
+      // tarihleri çakışan, elle girilmiş bir kaydı sessizce öldürebilirdi.
+      if (!sourceReference) {
+        skipped++;
+        continue;
+      }
+
+      const existing = await prisma.reservation.findFirst({
+        where: { propertyId, sourceReference },
+        select: { id: true, status: true, calendarSourceId: true },
+      });
+
+      // KAYNAK SAHİPLİĞİ: `calendarSourceId != null` = satır bir takvim
+      // ABONELİĞİNE ait. Deponun kuralı "STATUS:CANCELLED yalnız KENDİ source
+      // satırını iptal eder" (`import/sync.ts`) ve elle yükleme o kaynak
+      // DEĞİLDİR → dokunmuyoruz. Kayıp yok: aynı içerik feed'den geldiğinde
+      // aboneliğin kendi geçişi satırı zaten iptal eder; kazanç, eski bir elle
+      // dosyanın canlı bir aboneliğin satırını deviremiyor olması.
+      if (!existing || existing.status === "cancelled" || existing.calendarSourceId !== null) {
+        skipped++;
+        continue;
+      }
+
+      try {
+        // Kardeş yollarla AYNI yazma-TX deseni: org-kapsamlı silme advisory
+        // kilidi + TAZE guard okuması. Ön kapı yalnız optimizasyondu.
+        const cancelledId = await prisma.$transaction(
+          async (tx) => {
+            await acquireErasureLock(tx, session.organizationId);
+            const fresh = await loadErasureGuard(session.organizationId, tx);
+            if (!fresh.isEmpty && fresh.blocksSourceReference(sourceReference)) return null;
+            // Sahiplik ve "zaten iptalli mi" WHERE'in İÇİNDE tekrar sınanıyor →
+            // okuma ile yazma arasında araya giren bir senkron bizi yanıltamaz
+            // (kardeş yolun `updateMany` ile atomik sahiplik kontrolü aynısı).
+            const res = await tx.reservation.updateMany({
+              where: { id: existing.id, calendarSourceId: null, status: { not: "cancelled" } },
+              data: { status: "cancelled" },
+            });
+            return res.count === 1 ? existing.id : null;
+          },
+          // Kardeş KVKK yollarıyla birebir değerler.
+          { timeout: 60_000, maxWait: 15_000 },
+        );
+        if (!cancelledId) {
+          skipped++;
+          continue;
+        }
+        // Commit SONRASI yan etki — kardeş yolun `cancelled` dalıyla aynı:
+        // iptal edilmiş konaklamanın yaşam-döngüsü görevleri (yalnız
+        // origin:"system" olanlar) düşer, host'un kendi görevleri kalır.
+        await removeAutoTasksForCancelledReservation(cancelledId);
+        cancelled++;
+      } catch {
+        errors.push(`${rowLabel}: Kaydedilemedi (veritabanı hatası).`);
+        skipped++;
+      }
+      continue;
+    }
+
     // Skip duplicates: by sourceReference when present, else by the natural key
     // (guest + dates on this property) so a double-clicked / re-uploaded plain
     // CSV with no id column doesn't create full duplicate reservations + tasks.
-    const dupe = row.sourceReference
+    const dupe = sourceReference
       ? await prisma.reservation.findFirst({
-          where: { propertyId, sourceReference: row.sourceReference },
+          where: { propertyId, sourceReference },
           select: { id: true },
         })
       : await prisma.reservation.findFirst({
@@ -196,13 +312,6 @@ export const POST = withManage(async (session, req) => {
       continue;
     }
 
-    // Ucuz ÖN kapı — yalnız bir OPTİMİZASYON (yazma yetkisi DEĞİL). Yetkili
-    // kontrol aşağıda, kilidin İÇİNDE taze okunan guard'la yapılır.
-    if (!erasureGuard.isEmpty && erasureGuard.blocksSourceReference(row.sourceReference)) {
-      skipped++;
-      continue;
-    }
-
     const data = {
       propertyId,
       // Clamp to the same caps the manual path enforces (validators.ts) —
@@ -215,7 +324,7 @@ export const POST = withManage(async (session, req) => {
       // kardeşlerinin aksine KELEPÇESİZDİ (20.000 karakterlik hücre ham yazılıyordu).
       channel: (row.channel ?? "other").slice(0, 40),
       status: "confirmed",
-      sourceReference: row.sourceReference ? row.sourceReference.slice(0, 200) : null,
+      sourceReference: sourceReference ? sourceReference.slice(0, 200) : null,
       notes: row.notes ? row.notes.slice(0, 5000) : null,
       ...(typeof row.totalAmount === "number" && !isNaN(row.totalAmount)
         ? {
@@ -241,7 +350,7 @@ export const POST = withManage(async (session, req) => {
         async (tx) => {
           await acquireErasureLock(tx, session.organizationId);
           const fresh = await loadErasureGuard(session.organizationId, tx);
-          if (!fresh.isEmpty && fresh.blocksSourceReference(row.sourceReference)) return null;
+          if (!fresh.isEmpty && fresh.blocksSourceReference(sourceReference)) return null;
           return await tx.reservation.create({ data });
         },
         // Kardeş KVKK yollarıyla birebir değerler (hospitable-sync.ts:306).
@@ -266,5 +375,10 @@ export const POST = withManage(async (session, req) => {
     }
   }
 
-  return jsonOk({ imported, skipped, errors });
+  // `cancelled` EKLENDİ (additive): iptal edilen satırları `skipped` içine
+  // saymak, host'a "hiçbir şey olmadı" demek olurdu — oysa kayıt durum
+  // değiştirdi ve görevleri silindi. Kardeş `SyncResult` bunu `updated` diye
+  // sayıyor; bu rota BAŞKA hiçbir güncelleme yapmadığı için ayrı ve daha dürüst
+  // bir ad tercih edildi.
+  return jsonOk({ imported, cancelled, skipped, errors });
 });

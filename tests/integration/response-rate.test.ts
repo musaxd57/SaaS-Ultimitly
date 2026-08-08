@@ -81,6 +81,29 @@ describe("responseRate — episode-based over ACTIVE conversations", () => {
     expect(score2.breakdown.responseRate).toBe(33); // unchanged — still 1 of 3
   });
 
+  it("D) SÜREKLİ İHMAL artık görünür: 30 günden önce sorulup hâlâ yanıtlanmamış koşu sayılır", async () => {
+    // ÖLÇÜLDÜ (08-08): episode YALNIZ başlangıcına göre pencerelendiği için,
+    // misafiri ne kadar uzun bekletirsen koşu sınırı o kadar kesin aşıyor ve
+    // episode denklemden TAMAMEN düşüyordu → iki thread'in biri baştan sona
+    // ihmal edilmişken kart "%100" basıyordu.
+    const now = Date.now();
+    // A: pencere içinde soruldu, 1 saatte yanıtlandı.
+    await seedConversation(new Date(now - 3 * 24 * H), [
+      { dir: "inbound", at: new Date(now - 2 * 24 * H) },
+      { dir: "outbound", at: new Date(now - 2 * 24 * H + H) },
+    ]);
+    // B: misafir 40 gün önce sordu, yanıt YOK; 2 gün önce tekrar yazdı (araya
+    // outbound girmediği için TEK koşu, çapa 40 gün önce). Thread `lastMessageAt`
+    // ile hâlâ aktif → popülasyona giriyor ama eski kodda episode'u yok sayılıyordu.
+    await seedConversation(new Date(now - 45 * 24 * H), [
+      { dir: "inbound", at: new Date(now - 40 * 24 * H) },
+      { dir: "inbound", at: new Date(now - 2 * 24 * H) },
+    ]);
+
+    const score = await getHostPerformanceScore(orgId);
+    expect(score.breakdown.responseRate).toBe(50); // 1 / 2 — eski kod: 100
+  });
+
   it("C) NO eligible episode (only a pending one) → responseRate is NULL — never 0, NaN or Infinity", async () => {
     const now = Date.now();
     // The org's ONLY activity: a guest question from 5 minutes ago (pending).

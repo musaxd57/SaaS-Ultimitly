@@ -56,7 +56,7 @@ describe("computeResponseEpisodes", () => {
     expect(computeResponseEpisodes(msgs, WINDOW, min(25 * 60))).toEqual({ answerable: 1, answeredWithin24h: 0 });
   });
 
-  it("episodes are attributed by START: pre-window episode ignored, in-window one counted", () => {
+  it("pencereden ÖNCE başlayıp ÖNCE kapanan episode sayılmaz, penceredeki sayılır", () => {
     const old = new Date("2026-05-01T10:00:00Z"); // long before WINDOW
     const msgs = [
       inb(old), out(new Date(old.getTime() + 60_000)), // pre-window episode → ignored
@@ -72,5 +72,71 @@ describe("computeResponseEpisodes", () => {
     });
     expect(computeResponseEpisodes([out(min(0))], WINDOW, min(60))).toEqual({ answerable: 0, answeredWithin24h: 0 });
     expect(computeResponseEpisodes([], WINDOW, min(60))).toEqual({ answerable: 0, answeredWithin24h: 0 });
+  });
+});
+
+// ---------------------------------------------------------------------------
+// PENCEREYE AİTLİK = ÖRTÜŞME (08-08 denetimi, ÖLÇÜLDÜ)
+//
+// Eski kural yalnız BAŞLANGICA bakıyordu (`runStart >= windowStart`) ve tam da
+// SÜREKLİ İHMALİ görünmez kılıyordu: bir misafiri ne kadar uzun bekletirsen açık
+// koşu pencere sınırını o kadar kesin aşar ve episode denklemin TAMAMEN dışına
+// düşerdi. Yani metrik, en kötü davranışı en cömert şekilde ödüllendiriyordu.
+//
+// İKİ YÖN DE PİNLİ: pencereye sarkan koşu SAYILMALI (kuralı geri alan mutasyon
+// kırmızı) ve pencereden önce KAPANMIŞ episode sayılmaMALI (pencere kontrolünü
+// tamamen kaldıran mutasyon kırmızı).
+// ---------------------------------------------------------------------------
+describe("computeResponseEpisodes — pencere ÖRTÜŞMESİ", () => {
+  const before = (h: number) => new Date(WINDOW.getTime() - h * 60 * 60 * 1000);
+  const after = (h: number) => new Date(WINDOW.getTime() + h * 60 * 60 * 1000);
+
+  it("pencereden ÖNCE başlayıp pencere İÇİNDE yanıtlanan koşu sayılır (geç olarak)", () => {
+    // Misafir pencere açılmadan 50 saat önce sordu, yanıt pencerenin 10. saatinde
+    // geldi → 60 saat beklemiş. Eski kod bunu HİÇ görmüyordu.
+    const msgs = [inb(before(50)), out(after(10))];
+    expect(computeResponseEpisodes(msgs, WINDOW, after(20))).toEqual({
+      answerable: 1,
+      answeredWithin24h: 0,
+    });
+  });
+
+  it("pencereden ÖNCE başlayıp HÂLÂ yanıtlanmamış koşu sayılır (SLA çoktan doldu)", () => {
+    const msgs = [inb(before(50))];
+    expect(computeResponseEpisodes(msgs, WINDOW, after(10))).toEqual({
+      answerable: 1,
+      answeredWithin24h: 0,
+    });
+  });
+
+  it("pencereden ÖNCE başlayıp ÖNCE kapanan episode HÂLÂ dışarıda (kural gevşetilmedi)", () => {
+    // Yanıt penceresinin 1 ms öncesinde geldi → episode tamamen geçmişte kapandı.
+    const closedBefore = [inb(before(50)), out(new Date(WINDOW.getTime() - 1))];
+    expect(computeResponseEpisodes(closedBefore, WINDOW, after(10))).toEqual({
+      answerable: 0,
+      answeredWithin24h: 0,
+    });
+    // Sınır: TAM pencere anındaki yanıt İÇERİDEDİR (pencere kapsayıcı başlar).
+    const closedAtEdge = [inb(before(50)), out(new Date(WINDOW.getTime()))];
+    expect(computeResponseEpisodes(closedAtEdge, WINDOW, after(10))).toEqual({
+      answerable: 1,
+      answeredWithin24h: 0,
+    });
+  });
+
+  it("ÖLÇÜLEN SENARYO: sürekli ihmal edilen thread artık oranı aşağı çeker", () => {
+    // A: pencere içinde sorulmuş ve 1 saatte yanıtlanmış → 1/1.
+    const a = computeResponseEpisodes([inb(after(5)), out(after(6))], WINDOW, after(48));
+    // B: aynı misafir İKİ kez ihmal edilmiş — ilk koşu pencereden önce başlayıp
+    // pencere içinde geç yanıtlanmış, ikincisi hâlâ yanıtsız.
+    const b = computeResponseEpisodes(
+      [inb(before(30)), out(after(20)), inb(after(21))],
+      WINDOW,
+      after(48),
+    );
+    const answerable = a.answerable + b.answerable;
+    const within = a.answeredWithin24h + b.answeredWithin24h;
+    expect({ answerable, within }).toEqual({ answerable: 3, within: 1 });
+    expect(Math.round((within / answerable) * 100)).toBe(33); // eski kod: %100
   });
 });

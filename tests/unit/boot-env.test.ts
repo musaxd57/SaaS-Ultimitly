@@ -375,7 +375,7 @@ describe("boot gate — sessiz yanlış yapılandırma", () => {
     checkProductionEnv({ ...BASE, ...env }).errors.filter((e) => re.test(e));
 
   const WHITESPACE = /ENCRYPTION_KEY has leading\/trailing whitespace/;
-  const RETENTION = /DATA_RETENTION_MONTHS is set but not a positive/;
+  const RETENTION = /DATA_RETENTION_MONTHS is set but is not a number/;
 
   it("ENCRYPTION_KEY'de baştaki/sondaki boşluk REDDEDİLİR", () => {
     // `crypto-core.ts key()` env'i HAM okur; boşluklu değer BAŞKA bir anahtar
@@ -411,13 +411,24 @@ describe("boot gate — sessiz yanlış yapılandırma", () => {
     expect([...all.errors, ...all.warnings].join("\n")).not.toContain(REAL_ENC);
   });
 
-  it("DATA_RETENTION_MONTHS: ayarlanmamış MEŞRU, ayarlanmış-ama-sayı-değil REDDEDİLİR", () => {
+  it("DATA_RETENTION_MONTHS: yalnızca SAYIYA ÇEVRİLEMEYEN değer reddedilir", () => {
     // `Number("24 ay")` = NaN → `retentionCutoff()` null → hem anonimleştirme
     // hem sync'in yeniden-içe-aktarma koruması SESSİZCE kapanır (aynı ifadeye bağlılar).
     expect(errorsMatching({}, RETENTION)).toHaveLength(0); // hiç set değil
     expect(errorsMatching({ DATA_RETENTION_MONTHS: "24" }, RETENTION)).toHaveLength(0);
-    for (const bad of ["24 ay", "0", "-3", "2.5", "yirmidört"]) {
+    for (const bad of ["24 ay", "yirmidört", "Infinity", "abc"]) {
       expect(errorsMatching({ DATA_RETENTION_MONTHS: bad }, RETENTION)).toHaveLength(1);
+    }
+  });
+
+  it("🚨 KAPI ÇALIŞMA-ZAMANINDAN SIKI OLAMAZ: kapalı-demek-isteyen değerler boot'u BLOKLAMAZ", () => {
+    // Çalışma zamanı (`data-retention.ts:66,77`) `!Number.isFinite(m) || m <= 0`
+    // diyor: "0" ve "-1" KAPALI demektir, "24.5" ise ÇALIŞIR. İlk yazdığım kapı
+    // üçünü de reddediyordu → operatör retention'ı kapatmak için "0" yazsa
+    // CANLI KURULUM BAŞLAYAMAZDI (prestart her konteyner açılışında koşar).
+    // Bu test o gerilemeyi geri getirmeyi imkânsızlaştırır.
+    for (const acceptedByRuntime of ["0", "-1", "24.5"]) {
+      expect(errorsMatching({ DATA_RETENTION_MONTHS: acceptedByRuntime }, RETENTION)).toHaveLength(0);
     }
   });
 });

@@ -99,6 +99,10 @@ function normalizeLang(v: unknown): string {
   return /^[a-z]{2,3}$/.test(primary) ? primary : "und";
 }
 
+/** "Anahtar yok" alarmının süreç-içi penceresi. ↓callOpenAI'daki gerekçe. */
+let lastKeyMissingReportAt = 0;
+const KEY_MISSING_REPORT_MS = 10 * 60_000;
+
 async function callOpenAI(system: string, user: string): Promise<string | null> {
   const key = process.env.OPENAI_API_KEY;
   if (!key) {
@@ -109,12 +113,28 @@ async function callOpenAI(system: string, user: string): Promise<string | null> 
     // tek belirti "misafirlere cevap gitmiyor" ve fark edilmesi GÜNLER alır.
     // Kardeş dallar (401/5xx ve truncated) zaten raporlanıyordu; eksik olan tek
     // dal, arızanın EN SESSİZ hâliydi.
-    // ⚠️ `reportError` kendi 10 dk'lık context penceresiyle kısılır — bu, her
-    // mesajda değil pencerede bir kez alarm üretir.
-    void reportError(
-      "openai-key-missing",
-      new Error("OPENAI_API_KEY tanımlı değil — AI yanıtı üretilemiyor, oto-yanıt durdu."),
-    );
+    // 🚨 KENDİ PENCERESİ ŞART — `reportError` YALNIZ E-POSTA BACAĞINI KISAR.
+    // (İlk yazımım "reportError zaten kısıyor" diyordu; YANLIŞTI, denetimde
+    // ölçüldü.) `report-error-core.ts` sırası: `console.error` → `captureToSentry`
+    // → ANCAK SONRA throttle kontrolü. Yani kısılan tek şey e-postadır; Sentry
+    // olayı ve log satırı HER çağrıda üretilir.
+    // Bu dal ise bir DÖNGÜNÜN içindedir: anahtar yokken `suggestReply`
+    // `source:"fallback"` döner → `skippedReason:"ai_unavailable"` → o sebep
+    // `runDueChannelAutoReplies`'ta BİLEREK damgalanmaz ("modele ulaşılamadıysa
+    // koşullar düzelince tekrar denensin") → konuşma aday kalır → 2 dakikada bir,
+    // geçiş başına 25 konuşma, yanıt başına 2 OpenAI çağrısı. Kısılmasaydı günde
+    // on binlerce Sentry olayı: kota yanar ve EKLEDİĞİMİZ alarm VAR OLAN
+    // alarmları susturur. Emsal: `automation.ts`'in "koşu başına TEK toplu alarm".
+    // Pencere süreç başınadır (replika başına bir alarm) — `reportError`'ın kendi
+    // `Map`'iyle aynı granülerlik.
+    const now = Date.now();
+    if (now - lastKeyMissingReportAt >= KEY_MISSING_REPORT_MS) {
+      lastKeyMissingReportAt = now;
+      void reportError(
+        "openai-key-missing",
+        new Error("OPENAI_API_KEY tanımlı değil — AI yanıtı üretilemiyor, oto-yanıt durdu."),
+      );
+    }
     return null;
   }
   const model = replyModel();

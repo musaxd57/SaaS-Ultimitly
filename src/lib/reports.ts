@@ -305,20 +305,32 @@ export async function getOccupancyByProperty(orgId: string): Promise<PropertyOcc
   // (this-month-to-date vs last-month-over-the-same-days). countOccupiedDays
   // counts each org-local day cur with rangeStart <= cur < rangeEnd, so an
   // exclusive end at "local midnight of day N" yields exactly days 1..N-1.
-  const thisMonthCutoff = zonedDateStart(iy, im, todayDayOfMonth, tz);
+  //
+  // 🚨 BU GECE PENCEREYE DAHİLDİR (denetim 08-08, ÖLÇÜLDÜ). Cutoff eskiden
+  // BUGÜNÜN yerel geceyarısıydı, yani pencere "1 → dün" idi. Ayın 1'inde bu SIFIR
+  // gece demek: payda `max(1, 0)` ile 1'e zorlanıyor, pay zorunlu olarak 0 kalıyor
+  // ve HER DAİRE %0 okuyordu — 20 Ağustos–20 Eylül boyunca dolu bir daire 1 Eylül'de
+  // "%0", 2 Eylül'de "%100" gösteriyordu (donut ve delta dahil). Bu gece bilinmeyen
+  // bir gelecek değil: rezervasyon ya kapsıyor ya kapsamıyor, `/calendar` ve panel
+  // kutucuğu da tam olarak bu geceyi gösteriyor. Cutoff artık YARIN'ın yerel
+  // geceyarısı (dışlayıcı) → pencere 1..bugün, payda = bugünün gün numarası.
+  // (`zonedDateStart` gün taşmasını Date.UTC gibi normalize eder: 31 Ağu + 1 → 1 Eyl.)
+  const thisMonthCutoff = zonedDateStart(iy, im, todayDayOfMonth + 1, tz);
   const daysInLastMonth = new Date(Date.UTC(iy, im - 1, 0)).getUTCDate();
   // Clamp the comparison window to last month's length (e.g. today=31, last
   // month had 30 days → compare the full 30 elapsed nights of last month). The
   // cutoff is EXCLUSIVE (countOccupiedDays counts days 1..cutoff-1), so the cap
   // is daysInLastMonth + 1 — capping at daysInLastMonth would count only 1..29
   // and silently drop last month's final night from the delta baseline.
-  const lastMonthCutoffDay = Math.min(todayDayOfMonth, daysInLastMonth + 1);
+  const lastMonthCutoffDay = Math.min(todayDayOfMonth + 1, daysInLastMonth + 1);
   const lastMonthCutoff = zonedDateStart(iy, im - 1, lastMonthCutoffDay, tz);
 
-  // Denominators = elapsed nights in each window (days 1..cutoff-1). max(1, …)
-  // guards day-1 of the month / empty windows from a divide-by-zero.
-  const elapsedNightsThis = Math.max(1, todayDayOfMonth - 1);
-  const elapsedNightsLast = Math.max(1, lastMonthCutoffDay - 1);
+  // Denominators = nights in each window (days 1..cutoff-1). Both are >= 1 by
+  // construction (todayDayOfMonth >= 1), so no max(1, …) guard is needed — and
+  // none is wanted: the old guard is exactly what turned "zero nights measured"
+  // into a confident "%0" instead of a divide-by-zero anyone would have noticed.
+  const elapsedNightsThis = todayDayOfMonth;
+  const elapsedNightsLast = lastMonthCutoffDay - 1;
 
   // ONE query covering both months across ALL properties (was 2 queries per
   // property → an N+1). countOccupiedDays clamps each reservation to the target
@@ -427,70 +439,16 @@ export async function getTopTopics(orgId: string, limit = 5): Promise<TopicCount
 }
 
 // ---------------------------------------------------------------------------
-// Response Time Stats
+// (SİLİNDİ 08-08) getResponseTimeStats + ResponseTimeStats
+//
+// Hiçbir çağıranı YOKTU (src, tests, scripts — sıfır referans; docs/MIGRATION-
+// BEKLEYEN-ISLER.md de "üretimde çağrılmıyor" diye not düşmüş). Ölü olmakla
+// kalmıyor, episode ÖNCESİ hatayı da taşıyordu: konuşma başına YALNIZ ilk
+// inbound/outbound çiftini ölçüyor ve thread'leri `createdAt` ile pencereliyordu
+// (eski, aktivite-körü kapsam). Yani bir gün "hazır duruyor" diye bağlanan
+// yüzeye, aynı sayfadaki yanıt oranıyla ÇELİŞEN bir sayı verirdi.
+// Canlı ikamesi: computeResponseEpisodes (↑responseRate).
 // ---------------------------------------------------------------------------
-
-export interface ResponseTimeStats {
-  avgMinutes: number | null;
-  conversationsAnalyzed: number;
-}
-
-export async function getResponseTimeStats(orgId: string): Promise<ResponseTimeStats> {
-  const thirtyDaysAgo = new Date(Date.now() - 30 * 24 * 60 * 60 * 1000);
-
-  // Fetch conversations with messages from the last 30 days
-  const conversations = await prisma.conversation.findMany({
-    where: {
-      property: { organizationId: orgId },
-      createdAt: { gte: thirtyDaysAgo },
-    },
-    select: { id: true },
-  });
-
-  if (conversations.length === 0) {
-    return { avgMinutes: null, conversationsAnalyzed: 0 };
-  }
-
-  const conversationIds = conversations.map((c) => c.id);
-
-  // One query for ALL messages (was N+1: a findMany per conversation). The
-  // @@index([conversationId, createdAt]) keeps this fast; a global createdAt-asc
-  // order also yields per-conversation ascending order once grouped.
-  const messages = await prisma.message.findMany({
-    where: { conversationId: { in: conversationIds } },
-    select: { conversationId: true, direction: true, createdAt: true },
-    orderBy: { createdAt: "asc" },
-  });
-  const byConversation = new Map<string, { direction: string; createdAt: Date }[]>();
-  for (const m of messages) {
-    const arr = byConversation.get(m.conversationId);
-    if (arr) arr.push(m);
-    else byConversation.set(m.conversationId, [m]);
-  }
-
-  // For each conversation, find first inbound and first outbound after it
-  let totalMinutes = 0;
-  let count = 0;
-
-  for (const msgs of byConversation.values()) {
-    const firstInbound = msgs.find((m) => m.direction === "inbound");
-    if (!firstInbound) continue;
-
-    const firstOutbound = msgs.find(
-      (m) => m.direction === "outbound" && m.createdAt > firstInbound.createdAt,
-    );
-    if (!firstOutbound) continue;
-
-    const diffMs = firstOutbound.createdAt.getTime() - firstInbound.createdAt.getTime();
-    totalMinutes += diffMs / (1000 * 60);
-    count++;
-  }
-
-  return {
-    avgMinutes: count > 0 ? Math.round(totalMinutes / count) : null,
-    conversationsAnalyzed: count,
-  };
-}
 
 // ---------------------------------------------------------------------------
 // Occupancy Forecast
@@ -592,6 +550,20 @@ export interface HostPerformanceScore {
   hasData: boolean; // false when there is nothing meaningful to score yet
 }
 
+/**
+ * `part`/`whole` as a percent, or null when there is nothing to divide.
+ *
+ * CLAMPED ON PURPOSE: every consumer of `HostPerformanceScore.breakdown` renders
+ * the number straight into "%{value}". A ratio built from two different
+ * populations printed "%167" on a real account (complaint numerator scoped by
+ * createdAt, denominator by lastMessageAt) — the populations are now shared, so
+ * the clamp is the contract that keeps the type honest for the next caller too.
+ */
+export function ratePct(part: number, whole: number): number | null {
+  if (whole <= 0) return null;
+  return Math.min(100, Math.max(0, Math.round((part / whole) * 100)));
+}
+
 export async function getHostPerformanceScore(orgId: string): Promise<HostPerformanceScore> {
   const now = new Date();
   const thirtyDaysAgo = new Date(now.getTime() - 30 * 24 * 60 * 60 * 1000);
@@ -611,12 +583,26 @@ export async function getHostPerformanceScore(orgId: string): Promise<HostPerfor
   //    (lastMessageAt), not creation — an old thread the guest just wrote to
   //    again is exactly the case the metric exists for. null when no episode
   //    started in the window (excluded rather than scored 0 or 100).
+  //
+  // 🚨 QR CONCIERGE ("chat") HARİÇ — bu sayfadaki KARDEŞ metriğiyle aynı kapsam.
+  // `aiReplies` (↓getAiOpsReport) `channel: { not: "chat" }` diyor, gelen kutusu,
+  // /sent, /api/conversations ve supply türetmesi de öyle: QR sohbeti ayrı bir
+  // yüzeydir ve "Misafir Sohbetleri" sekmesinde kendi metrikleriyle yaşar. Burada
+  // filtre YOKTU, yani QR thread'leri (bot saniyeler içinde cevaplar) yanıt oranını
+  // yukarı çekiyordu — aynı kartta iki farklı popülasyon. QR thread'i ayrıca ASLA
+  // "problem" olmaz (guest-chat.ts satırı "answered" doğar, kanal oto-yanıt geçişi
+  // de `qr-chat:` önekini atlar) → şikayet oranının SADECE paydasına biniyor ve
+  // oranı sistematik olarak aşağı çekiyordu.
   const recentConversations = await prisma.conversation.findMany({
     where: {
       property: { organizationId: orgId },
       lastMessageAt: { gte: thirtyDaysAgo },
+      channel: { not: "chat" },
     },
-    select: { id: true },
+    // `status` = şikayet oranının PAYI (↓4). Ayrı bir count() sorgusu yapmak
+    // popülasyonun ikiye ayrılmasına izin veriyordu; tek satır kümesinden saymak
+    // "pay ⊆ payda" değişmezini YAPISAL olarak garanti eder.
+    select: { id: true, status: true },
   });
 
   let answerable = 0;
@@ -642,11 +628,17 @@ export async function getHostPerformanceScore(orgId: string): Promise<HostPerfor
     }
   }
 
-  const responseRate = answerable > 0 ? Math.round((answeredWithin24h / answerable) * 100) : null;
+  const responseRate = ratePct(answeredWithin24h, answerable);
 
   // 2. Task completion rate: only tasks that were already DUE before today count
   //    (a task due later isn't "missed"). null when nothing is due yet this month —
   //    this is what prevents freshly-imported future tasks from tanking the score.
+  //    ⚠️ BİLİNEN VE KABUL EDİLEN: `dueAt`i olmayan görev ne paya ne paydaya girer,
+  //    yani tarihleri silmek bileşeni komple düşürüp ağırlıkları yukarı normalize
+  //    eder (ölçüldü: 71 C → 88 B). Kapatılmadı — bu kart host'un KENDİ aynası,
+  //    dışarıya gösterilen ya da para bağlanan bir not değil; kapatmanın tek yolu
+  //    "tarihsiz görev = gecikmiş" demek ve o, metriğin yayınlanmış anlamını
+  //    ("vadesi geçmişi tamamladın mı") bozar.
   const [doneTasks, dueTasks] = await Promise.all([
     prisma.task.count({
       where: {
@@ -662,25 +654,41 @@ export async function getHostPerformanceScore(orgId: string): Promise<HostPerfor
       },
     }),
   ]);
-  const taskCompletionRate = dueTasks > 0 ? Math.round((doneTasks / dueTasks) * 100) : null;
+  const taskCompletionRate = ratePct(doneTasks, dueTasks);
 
-  // 3. Occupancy rate today. null only when there are no properties at all.
+  // 3. Occupancy rate today. null when there is nothing to measure: no properties
+  //    at all, OR no booking has ever landed on this account.
+  //
+  // 🚨 "BU GECE %0" ≠ "KÖTÜ HOST" (denetim 08-08). `occupancyRate` bir SAYIDIR,
+  // asla null değil — yani bir dairesi olan, henüz hiç rezervasyonu olmayan YENİ
+  // org'da tek bileşen `{value: 0, weight: .25}` oluyordu: `totalWeight > 0` →
+  // `hasData` TRUE → kart ilk gün "0/100 · F · Kritik" basıyordu. Boş durum
+  // ("Skor için yeterli veri yok") yalnız SIFIR daire hâlinde açılıyordu, yani
+  // ürünü kurmuş ama henüz misafir görmemiş herkes F ile karşılanıyordu.
+  // Rezervasyonu OLAN org'da gerçek %0 aynen sayılır (veri var, kötü de olsa).
   const stats = await getOpsStats(orgId);
-  const occupancyRate = stats.totalProperties > 0 ? stats.occupancyRate : null;
+  const everBooked =
+    stats.totalProperties > 0 &&
+    (await prisma.reservation.findFirst({
+      where: { ...propertyScope(orgId), status: { in: ["confirmed", "completed"] } },
+      select: { id: true },
+    })) !== null;
+  const occupancyRate = everBooked ? stats.occupancyRate : null;
 
   // 4. Complaint rate (problem conversations / all conversations in 30 days).
   //    null when there are no conversations yet.
-  const complaintConvs = await prisma.conversation.count({
-    where: {
-      property: { organizationId: orgId },
-      status: "problem",
-      createdAt: { gte: thirtyDaysAgo },
-    },
-  });
-  const complaintRate =
-    recentConversations.length > 0
-      ? Math.round((complaintConvs / recentConversations.length) * 100)
-      : null;
+  //
+  // 🚨 TEK POPÜLASYON (denetim 08-08, ÖLÇÜLDÜ). Pay eskiden AYRI bir count() idi
+  // ve `createdAt` ile pencereleniyordu, payda ise `lastMessageAt` ile. İki farklı
+  // küme, iki yönde de yanlış: 40 gün önce açılıp bugün hâlâ yazışılan 4 "sorunlu"
+  // thread + 10 aktif thread → "%0" (gerçek %40) ve skor 86→94'e çıkıyordu;
+  // Hospitable bağlandığında ise ithal anı `createdAt`e yazıldığı için 5 sorunlu /
+  // 3 aktif → "%167". Artık pay, paydanın FİLTRELENMİŞ HÂLİ: kayma imkânsız.
+  // Pencere ölçütü olarak AKTİVİTE seçildi (`lastMessageAt`) — kardeş metrik
+  // (yanıt oranı) bilinçli olarak öyle kapsanıyor ve host'un umursadığı şey hâlâ
+  // konuşulan şikayettir, 40 gün önce açılmış olması değil.
+  const complaintConvs = recentConversations.filter((c) => c.status === "problem").length;
+  const complaintRate = ratePct(complaintConvs, recentConversations.length);
 
   // Weighted score over ONLY the metrics that have data, re-normalized so the
   // weights still sum to 1. With no messages/tasks the score reflects occupancy
@@ -689,8 +697,10 @@ export async function getHostPerformanceScore(orgId: string): Promise<HostPerfor
   if (responseRate !== null) components.push({ value: responseRate, weight: 0.3 });
   if (taskCompletionRate !== null) components.push({ value: taskCompletionRate, weight: 0.25 });
   if (occupancyRate !== null) components.push({ value: occupancyRate, weight: 0.25 });
-  if (complaintRate !== null)
-    components.push({ value: 100 - Math.min(complaintRate, 100), weight: 0.2 });
+  // `ratePct` 0..100 aralığını GARANTİ eder → burada ikinci bir Math.min yok.
+  // (Vardı ve doğruydu, ama "bu değer 100'ü geçebilir" izlenimi veriyordu; tek
+  // kaynak artık ratePct ve onun kelepçesi ayrıca testli.)
+  if (complaintRate !== null) components.push({ value: 100 - complaintRate, weight: 0.2 });
 
   const totalWeight = components.reduce((s, c) => s + c.weight, 0);
   const hasData = totalWeight > 0;

@@ -16,6 +16,7 @@ import { drainEmailOutboxOnce, sweepEmailOutbox } from "@/lib/email-outbox";
 import { durableOutboxEnabled } from "@/lib/outbox/flag";
 import { drainOutboxOnce, hasDrainableOutbox, reactivateBlockedOutbox } from "@/lib/outbox/worker";
 import { drainStorageDeletions, hasPendingStorageDeletions } from "@/lib/storage/deletion-queue";
+import { syncDueCalendarSourcesForOrg } from "@/lib/import/sync";
 import {
   runDueChannelAutoReplies,
   sendDueWelcomes,
@@ -55,6 +56,20 @@ export interface ScheduledSyncTotals {
   checkins: number;
   checkouts: number;
   alerts: number;
+  /** Bu geçişte senkronlanan iCal (Kanal Takvimi) kaynağı sayısı. */
+  icalSources?: number;
+  /** iCal'den gelen YENİ rezervasyon sayısı. */
+  icalImported?: number;
+  /** iCal'den GÜNCELLENEN rezervasyon sayısı. */
+  icalUpdated?: number;
+  /** iCal bütçesi dolduğu için sonraki geçişe bırakılan KAYNAK sayısı. */
+  icalDeferred?: number;
+  /**
+   * iCal bütçesi bu geçişte hiç kalmadığı için takvim bacağına sırası HİÇ
+   * GELMEYEN org sayısı. ÜST SINIRDIR: havuz bittiğinde sorgu atılmadığı için
+   * beslemesi olmayan org'lar da bu sayıya dahildir.
+   */
+  icalOrgsDeferred?: number;
 }
 
 function zero(): ScheduledSyncTotals {
@@ -347,6 +362,29 @@ export async function runScheduledSync(): Promise<ScheduledSyncTotals> {
       let budgetSkipped = 0;
       let lockLost = false;
 
+      // ⚠️ iCal BÜTÇESİ = YUKARIDAKİ 12 DAKİKANIN İÇİNDEN AYRILMIŞ BİR PAY
+      // (üstüne EKLENEN bir süre DEĞİL). Gerekçe ölçekle ilgili: İşletme
+      // planındaki bir host 25 daire × 10 besleme = 250 kaynak tanımlayabilir ve
+      // her biri `fetchFeedText`in 15 sn'lik toplam deadline'ına kadar
+      // sürebilir → sınırsız bırakılsa TEK geçiş bir saati aşar, 15 dakikalık
+      // kilit TTL'i aşılır ve İKİNCİ bir koşu aynı org'a paralel yazar (tüm
+      // duplicate korumasının dayandığı varsayım delinir).
+      //   · geçiş başına 3 dk — TÜM org'ların iCal'i için ORTAK havuz,
+      //   · org başına 60 sn — tek kiracı havuzu tek başına yiyemesin.
+      // İkisi de YENİ İŞ BAŞLATMAYI keser, çalışanı kesmez (deponun mevcut
+      // bütçe sözleşmesiyle birebir). Kırpma SESSİZ DEĞİL: aşağıda tek bir
+      // `[scheduled-sync] ical:` satırı ertelenen kaynak/org sayısını ve
+      // bütçenin kendisini basar.
+      const ICAL_PASS_BUDGET_MS = Number(process.env.ICAL_PASS_BUDGET_MS) || 3 * 60_000;
+      const ICAL_ORG_BUDGET_MS = Number(process.env.ICAL_ORG_BUDGET_MS) || 60_000;
+      let icalSpentMs = 0;
+      let icalSources = 0;
+      let icalImported = 0;
+      let icalUpdated = 0;
+      let icalFailed = 0;
+      let icalDeferred = 0;
+      let icalOrgsDeferred = 0;
+
       for (const [orgIndex, org] of orgs.entries()) {
         if (Date.now() - passStartedAt > PASS_BUDGET_MS) {
           budgetSkipped += 1;
@@ -433,34 +471,108 @@ export async function runScheduledSync(): Promise<ScheduledSyncTotals> {
 
         // Senkron patladıysa otomasyon koşmaz (eski davranış birebir): mesajlar
         // içeri alınamamışken oto-yanıt/karşılama göndermenin anlamı yok.
-        if (!syncOk) continue;
-        if (Date.now() - orgStartedAt > ORG_BUDGET_MS) {
-          // Bu org bütçesini yedi: import bitti (yazılanlar kalıcı), uyarılar
-          // gitti; GERİYE KALAN otomatik MİSAFİR mesajlarını sonraki tura bırak
-          // ki sıradakiler aç kalmasın. Sonraki geçiş 2 dakika sonra.
-          budgetSkipped += 1;
-          continue;
+        // ⚠️ `continue` YERİNE İÇ BLOK (08-08): koşullar ve sıra BİREBİR aynı
+        // kaldı — tek sebep, aşağıdaki iCal bacağının bu iki erken çıkışın
+        // ARKASINDA kalmaması. `continue` bırakılsaydı Hospitable'ı 402 olan bir
+        // host (Nuve'nin BUGÜNKÜ hâli) takvim beslemelerini de HİÇ senkronlayamaz,
+        // yani düzeltmenin en çok ihtiyaç duyulan vakada etkisi olmazdı.
+        if (syncOk) {
+          if (Date.now() - orgStartedAt > ORG_BUDGET_MS) {
+            // Bu org bütçesini yedi: import bitti (yazılanlar kalıcı), uyarılar
+            // gitti; GERİYE KALAN otomatik MİSAFİR mesajlarını sonraki tura bırak
+            // ki sıradakiler aç kalmasın. Sonraki geçiş 2 dakika sonra.
+            budgetSkipped += 1;
+          } else {
+            try {
+              // Keep the host's style profile fresh (self-throttles to once a day).
+              await refreshStyleProfile(org.id);
+              // Free/expired tier (billing enforced + subscription not active): keep
+              // syncing messages and host complaint-alerts, but SUPPRESS all
+              // automatic guest messaging — the paid feature. Dormant-safe: while
+              // BILLING_ENFORCED is off, premiumAllowed is always true.
+              const canAutomate = await premiumAllowed(org.id);
+              const auto = canAutomate ? await runDueChannelAutoReplies(org.id) : { sent: 0 };
+              const welcome = canAutomate ? await sendDueWelcomes(org.id) : { sent: 0 };
+              const checkin = canAutomate ? await sendDueCheckins(org.id) : { sent: 0 };
+              const checkout = canAutomate ? await sendDueCheckouts(org.id) : { sent: 0 };
+              totals.autoReplies += auto.sent;
+              totals.welcomes += welcome.sent;
+              totals.checkins += checkin.sent;
+              totals.checkouts += checkout.sent;
+            } catch (err) {
+              await handleOrgError(err);
+            }
+          }
         }
 
-        try {
-          // Keep the host's style profile fresh (self-throttles to once a day).
-          await refreshStyleProfile(org.id);
-          // Free/expired tier (billing enforced + subscription not active): keep
-          // syncing messages and host complaint-alerts, but SUPPRESS all
-          // automatic guest messaging — the paid feature. Dormant-safe: while
-          // BILLING_ENFORCED is off, premiumAllowed is always true.
-          const canAutomate = await premiumAllowed(org.id);
-          const auto = canAutomate ? await runDueChannelAutoReplies(org.id) : { sent: 0 };
-          const welcome = canAutomate ? await sendDueWelcomes(org.id) : { sent: 0 };
-          const checkin = canAutomate ? await sendDueCheckins(org.id) : { sent: 0 };
-          const checkout = canAutomate ? await sendDueCheckouts(org.id) : { sent: 0 };
-          totals.autoReplies += auto.sent;
-          totals.welcomes += welcome.sent;
-          totals.checkins += checkin.sent;
-          totals.checkouts += checkout.sent;
-        } catch (err) {
-          await handleOrgError(err);
+        // ── iCal (Kanal Takvimleri) — 08-08'de eklendi ───────────────────────
+        // 🚨 KAPATILAN AÇIK: bu bacak YOKTU. `runScheduledSync` bu modülden
+        // hiçbir şey import etmiyordu; iCal'in TEK yolu kullanıcının "Senkronla"
+        // düğmesiydi. Host Airbnb bağlantısını ekliyor, bir kez tıklıyor ve
+        // besleme orada donuyordu (ertesi günkü rezervasyon panelde yok →
+        // temizlik görevi yok, doluluk yanlış, çifte rezervasyon riski).
+        //
+        // ⚠️ EN SONDA, BİLİNÇLİ. Aynı org içinde mesaj importunun, şikayet
+        // uyarısının ve oto-yanıtın ARKASINDA hiçbir feed beklemesi olmasın:
+        // asılı bir besleme bu org için HİÇBİR ŞEYİ geciktirmez, yalnız SIRADAKİ
+        // org'lara sarkabilir — ve tam olarak onun için bütçe var.
+        // ⚠️ `syncOk`'a BAĞLI DEĞİL (`sendDueAlerts` ile aynı gerekçe): iCal tek
+        // bir Hospitable API'sine dokunmuyor; Hospitable'ı 402/401 olan ya da
+        // Hospitable'ı HİÇ OLMAYAN bir host'un takvimleri senkronlanmaya devam
+        // etmeli. iCal-only kiracı zaten `syncHospitable`'dan token'sız erken
+        // döndüğü için syncOk=true olur; 402 olan kiracı için ise bu satır
+        // düzeltmenin TAMAMIDIR.
+        // ⚠️ PREMIUM KAPISI YOK — bilinçli: ücretsiz sürümde de veri senkronu
+        // (mesaj importu + uyarılar) sürüyor; kapatılan tek şey otomatik MİSAFİR
+        // mesajlaşmasıdır ve iCal importu o sınıfa girmez.
+        // ⚠️ `ICAL_DISAPPEARANCE_RECONCILE_ENABLED` BURADAN AÇILMAZ: bu bacak
+        // yalnızca `syncCalendarSource`'u çağırır, o da bayrağı KENDİ okur
+        // (default KAPALI). Zamanlama uzlaştırmayı AÇMAZ.
+        if (icalSpentMs < ICAL_PASS_BUDGET_MS) {
+          const icalStartedAt = Date.now();
+          try {
+            const ical = await syncDueCalendarSourcesForOrg(org.id, {
+              deadline: Math.min(
+                icalStartedAt + ICAL_ORG_BUDGET_MS,
+                icalStartedAt + (ICAL_PASS_BUDGET_MS - icalSpentMs),
+                passStartedAt + PASS_BUDGET_MS,
+              ),
+            });
+            icalSources += ical.synced;
+            icalImported += ical.imported;
+            icalUpdated += ical.updated;
+            icalFailed += ical.failed;
+            icalDeferred += ical.deferred;
+          } catch (err) {
+            // `syncDueCalendarSourcesForOrg` sözleşme gereği fırlatmaz; yine de
+            // bir org'un takvimi diğerlerinin geçişini düşüremez.
+            await handleOrgError(err);
+          }
+          icalSpentMs += Date.now() - icalStartedAt;
+        } else {
+          // Havuz bitti → bu org'un takvim bacağına bu geçişte HİÇ sıra gelmedi.
+          // ⚠️ BU SAYI BİR ÜST SINIRDIR, "kaç besleme kaldı" DEĞİL: havuz
+          // bittiğinde tek bir sorgu bile atmıyoruz (bütçenin amacı tam da bu),
+          // dolayısıyla bu org'un HİÇ beslemesi olmasa da sayılır. Kesin sayı
+          // istenirse org başına bir `count` gerekir — yani sistemin zaten
+          // bütçeyi aştığı anda N sorgu daha; bilinçli olarak YAPILMADI.
+          icalOrgsDeferred += 1;
         }
+      }
+      if (icalSources > 0 || icalDeferred > 0 || icalOrgsDeferred > 0) {
+        const line =
+          `[scheduled-sync] ical: ${icalSources} kaynak işlendi ` +
+          `(${icalImported} yeni, ${icalUpdated} güncellendi, ${icalFailed} hatalı) · ` +
+          `ertelenen kaynak: ${icalDeferred} · sırası gelmeyen org (üst sınır): ${icalOrgsDeferred} · ` +
+          `bütçe: geçiş ${ICAL_PASS_BUDGET_MS} ms (harcanan ${icalSpentMs} ms), org ${ICAL_ORG_BUDGET_MS} ms`;
+        // Kırpma varsa WARN: "sessizce kısaltma" yerine operatörün göreceği bir iz.
+        if (icalDeferred > 0 || icalOrgsDeferred > 0) console.warn(line);
+        else console.log(line);
+        if (icalSources > 0) totals.icalSources = icalSources;
+        if (icalImported > 0) totals.icalImported = icalImported;
+        if (icalUpdated > 0) totals.icalUpdated = icalUpdated;
+        if (icalDeferred > 0) totals.icalDeferred = icalDeferred;
+        if (icalOrgsDeferred > 0) totals.icalOrgsDeferred = icalOrgsDeferred;
       }
       if (budgetSkipped > 0) {
         totals.budgetSkipped = budgetSkipped;
