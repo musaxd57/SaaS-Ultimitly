@@ -60,6 +60,24 @@ function toneBullets(tone: ReplyTone): string[] {
   return section.split(/\n\s*-\s/).slice(1);
 }
 
+/**
+ * Fallback fixture shared by the E/F blocks below. (The D block keeps its own
+ * local `base` — it predates these and asserts different properties.)
+ */
+const base2 = (guestMessage: string, tone: ReplyTone = "warm"): SuggestReplyInput => ({
+  guestMessage,
+  property: { name: "Galata Loft", checkInTime: "15:00", checkOutTime: "11:00", address: "Galata", city: "İstanbul" },
+  reservation: {
+    guestName: "Ada Yılmaz",
+    arrivalDate: new Date(),
+    departureDate: new Date(),
+    status: "confirmed",
+  },
+  knowledgeBase: [],
+  tone,
+  language: "tr",
+});
+
 /** Every example reply in the system prompt (few-shot block), unescaped. */
 function exampleReplies(): string[] {
   const out: string[] = [];
@@ -385,5 +403,268 @@ describe("otomatik gönderilen misafir metinleri", () => {
     // isim-fiildir: "…paylaşmanız çözümü hızlandırır".
     expect(codeOnly).not.toMatch(/paylaşırsanız çözümü hızlandırır/);
     expect(codeOnly).toMatch(/paylaşmanız çözümü hızlandırır/);
+  });
+});
+
+// ===========================================================================
+// E — ÜNLEM YASAĞI (08-08, ürün sahibi kararı)
+//
+// "ünlem koymasın bence, mesaja fazla ya, bu tarz bir şey için 'teşekkür
+// ederiz!' gerek yok."
+//
+// Ünlem, YAZIYA DÖKÜLMEMİŞ bir coşku beyanıdır — Bölüm 10.6'nın duygu beyanı
+// yasağının noktalama hâli. Zorlama durur; özür/şikayet cevabında samimiyetsiz
+// okunur ("Bunun için özür dileriz!").
+//
+// 🚨 KAPSAM SINIRI — bu blok YALNIZCA MİSAFİRİN gördüğü metni bağlar:
+// shipped default şablonlar, deterministik fallback cevapları, otomatik giden
+// nezaket/bekletme metinleri ve modele ÖRNEK olarak verilen `reply` gövdeleri.
+// HOST'a bakan hiçbir yüzey (panel kopyası, hata mesajları, `actionSuggestion`,
+// operatör e-postaları, few-shot örneklerdeki MİSAFİR MESAJLARI) bu iddianın
+// menzilinde DEĞİLDİR ve olmamalıdır — aşağıda ayrıca ters yönde asserte edilir.
+// ===========================================================================
+describe("misafire giden metinde ünlem yok", () => {
+  it("hiçbir shipped default şablon ünlem taşımaz", () => {
+    for (const t of DEFAULT_TEMPLATES) {
+      expect(t.body, `template ${t.id} body`).not.toMatch(/!/);
+      expect(t.title, `template ${t.id} title`).not.toMatch(/!/);
+    }
+    // TERS YÖN: şablonlar SİLİNEREK "temizlenmiş" olmasın — hâlâ gerçek metin var.
+    expect(DEFAULT_TEMPLATES.length).toBeGreaterThan(10);
+    for (const t of DEFAULT_TEMPLATES) expect(t.body.trim().length).toBeGreaterThan(40);
+  });
+
+  it("hiçbir deterministik fallback cevabı ünlem taşımaz (her intent × her ton × iki dil)", () => {
+    const probes = [
+      "Wifi şifresi nedir?", "Otopark var mı?", "Giriş saati kaçta?", "Erken giriş yapabilir miyim?",
+      "Geç çıkış mümkün mü?", "Klima çalışmıyor, içerisi çok sıcak!", "Paramı geri istiyorum lütfen.",
+      "Yarın ayrılmak zorundayız, rezervasyonu kısaltabilir miyiz?", "Ev sahibiyle konuşmak istiyorum.",
+      "Havlu değişimi mümkün mü?", "Ne zaman çıkış yapmalıyız?", "Adres nedir?", "Merhaba, nasılsınız?",
+      "What is the wifi password?", "Is there parking?", "What time is check-in?",
+      "The air conditioning is not working at all!", "I want a refund please.",
+      "I would like to speak to the host.", "Can I get fresh towels?", "Where is the apartment?",
+    ];
+    let seen = 0;
+    for (const tone of TONES) {
+      for (const msg of probes) {
+        const reply = suggestReplyFallback(base2(msg, tone)).reply;
+        expect(reply, `${tone} / ${msg}`).not.toMatch(/!/);
+        expect(reply.trim().length, `${tone} / ${msg}`).toBeGreaterThan(0);
+        seen++;
+      }
+    }
+    // Anti-vacuity: the loop really ran.
+    expect(seen).toBe(TONES.length * probes.length);
+    // TERS YÖN: misafirin ÜNLEMLİ mesajı yine de cevaplanıyor (girdi susturulmadı).
+    expect(suggestReplyFallback(base2("Klima çalışmıyor, içerisi çok sıcak!")).reply.length)
+      .toBeGreaterThan(20);
+  });
+
+  it("modele verilen hiçbir ÖRNEK CEVAP ünlem taşımaz — ama örnek MİSAFİR MESAJLARI taşır", () => {
+    // Örnek cevaplar modelin taklit ettiği şeydir: ünlemli bir örnek, kuralı
+    // yazsak bile ünlemi ÖĞRETİR.
+    const replies = exampleReplies();
+    expect(replies.length).toBeGreaterThan(15);
+    for (const reply of replies) expect(reply).not.toMatch(/!/);
+
+    // Kaçış dizisi doğru çözülüyor mu? (Tırnak içeren örnekler var: Wi-Fi adları.)
+    // Bu olmadan regex erken kesilir ve pin sessizce yarım kalır.
+    expect(replies.some((r) => r.includes('"'))).toBe(true);
+    expect(Math.max(...replies.map((r) => r.length))).toBeGreaterThan(200);
+
+    // 🚨 TERS YÖN — kapsam sınırının KANITI: aynı prompt'taki MİSAFİR mesajları
+    // hâlâ ünlem taşıyor. Bunlar gerçekçi GİRDİ örnekleridir; temizlenirlerse
+    // model sinirli/aceleci misafiri tanımayı öğrenemez. Yani bu dosya "prompt'ta
+    // ünlem olmasın" DEMİYOR, "AI'ın ÜRETTİĞİ metinde olmasın" diyor.
+    // Öfkeli misafir örneği ünlemini KORUYOR; büyük harfli bağırma örneği de.
+    expect(REPLY_SYSTEM_PROMPT).toMatch(/çok sıcak!/);
+    expect(REPLY_SYSTEM_PROMPT).toMatch(/BU NE BİÇİM YER YA\?!/);
+  });
+
+  it("otomatik giden nezaket cevabı altı dilde de ünlemsiz", async () => {
+    const { composeClosingCourtesy } = await import("@/lib/automation");
+    const langs = ["tr", "en", "de", "fr", "ar", "ru"];
+    for (const kind of ["ack", "praise"] as const) {
+      for (const lang of langs) {
+        const text = composeClosingCourtesy({ kind, lang, customText: null, signature: null });
+        expect(text, `${kind}/${lang}`).not.toMatch(/!/);
+        expect(text.trim().length, `${kind}/${lang}`).toBeGreaterThan(3);
+      }
+    }
+    // TERS YÖN: metinler dile GÖRE hâlâ farklı (hepsi tek bir boş/İngilizce
+    // stringe çökertilerek "temizlenmiş" olmasın).
+    const acks = langs.map((l) => composeClosingCourtesy({ kind: "ack", lang: l, customText: null, signature: null }));
+    expect(new Set(acks).size).toBeGreaterThan(4);
+    // Ve host'un KENDİ metni serbesttir — bu blok host'un yazdığını sansürlemez.
+    expect(composeClosingCourtesy({ kind: "ack", lang: "tr", customText: "Ne demek!", signature: null }))
+      .toContain("!");
+  });
+
+  it("bekletme mesajı (tier-2 holding ack) altı dilde de ünlemsiz", () => {
+    const src = readFileSync(join(process.cwd(), "src/lib/automation.ts"), "utf8");
+    const block = src.match(/const HOLDING_ACK_TEXTS[^=]*=\s*\{([\s\S]*?)\n\};/);
+    expect(block, "HOLDING_ACK_TEXTS bloğu bulunamadı — pin vacuous olurdu").toBeTruthy();
+    const body = block![1];
+    const values = [...body.matchAll(/^\s*(tr|en|de|fr|ar|ru):\s*"((?:[^"\\]|\\.)*)"/gm)];
+    // Anti-vacuity: altı dilin altısı da gerçekten okundu.
+    expect(values.map((m) => m[1]).sort()).toEqual(["ar", "de", "en", "fr", "ru", "tr"]);
+    for (const m of values) {
+      expect(m[2], `holding ack ${m[1]}`).not.toMatch(/!/);
+      expect(m[2].length, `holding ack ${m[1]}`).toBeGreaterThan(40);
+    }
+  });
+
+  it("oto-yanıt dipnotu altı dilde de ünlemsiz", async () => {
+    const { automatedReplyNote } = await import("@/lib/automation");
+    for (const lang of ["tr", "en", "de", "fr", "ar", "ru", "zz"]) {
+      expect(automatedReplyNote(lang, true)!, `dil ${lang}`).not.toMatch(/!/);
+    }
+  });
+
+  it("kural MODELE DE SÖYLENİYOR — yalnız örneklerle gösterilmiyor", () => {
+    // Örnekleri temizleyip kuralı yazmamak, ilk yeniden yazımda geri döner.
+    expect(REPLY_SYSTEM_PROMPT).toMatch(/ÜNLEM İŞARETİ \(!\) KULLANMA/);
+    // Ve yansıtma kuralının bunu ezmediği AÇIKÇA yazılı (ton bloğu yasağı ezmez
+    // dersinin aynısı: misafir ünlem kullanırsa model de kullanmaya kalkardı).
+    expect(REPLY_SYSTEM_PROMPT).toMatch(/Misafir ünlem kullansa BİLE sen kullanma/);
+    // Son kontrol listesinde de var (model kendi çıktısını denetlesin).
+    expect(REPLY_SYSTEM_PROMPT).toMatch(/reply içinde ünlem işareti/);
+  });
+
+  it("ton bloklarının hiçbiri ünlem SİPARİŞ etmez", () => {
+    // Ton bloğu USER prompt'unda ve yasaktan SONRA geliyor → orada duran bir
+    // ünlem örneği yasağı fiilen ezer (bu dosyanın A bölümündeki dersin aynısı).
+    for (const tone of TONES) {
+      for (const bullet of toneBullets(tone)) {
+        if (/!/.test(bullet)) expect(bullet, `tone ${tone}`).toMatch(BAN_MARKER);
+      }
+    }
+  });
+});
+
+// ===========================================================================
+// F — SES: BEN-DİLİ / BİZ-DİLİ KARIŞIMI + KURUMSAL DİL + DİLEK KAPANIŞI
+//
+// Ürün TEK bir ev sahibine satılıyor. prompts.ts §10.5 karışımı KELİMESİ
+// KELİMESİNE yasaklıyor ("'ilettim … dönüş yapacağız' yasak") ama hem kendi
+// örneği hem de deterministik fallback tam olarak bunu yapıyordu.
+//
+// AYIRIM (§10.5'in kendi carve-out'u, dilbilgisiyle uygulanmış): GENİŞ ZAMAN
+// çoğulu ("ederiz", "dileriz", "bekleriz") kalıplaşmış NEZAKET registerıdır ve
+// serbesttir. Yasak olan EYLEM çoğuludur: belirli geçmiş (-dık), gelecek
+// (-acağız) ve şimdiki zaman (-ıyoruz). İyelik eki (-mız/-miz: "saatimiz",
+// "ağımız") ses işareti DEĞİLDİR ve asla sayılmaz.
+// ===========================================================================
+describe("ev sahibi sesi — tekil eylem, çoğul yalnız nezaket kalıbında", () => {
+  const L = "a-zA-ZçğıöşüÇĞİÖŞÜâîû";
+  const NB = `(?![${L}])`; // JS'de \b ASCII'dir; Türkçe ekte KULLANILAMAZ.
+  const SG = new RegExp(`[${L}]{2,}(?:d[ıiuü]m|t[ıiuü]m|acağım|eceğim|[ıiuü]yorum)${NB}`, "g");
+  const PL = new RegExp(`[${L}]{2,}(?:d[ıiuü]k|t[ıiuü]k|acağız|eceğiz|[ıiuü]yoruz)${NB}`, "g");
+  const find = (re: RegExp, s: string) => s.match(new RegExp(re.source, "g")) ?? [];
+
+  it("dedektörün kendisi doğru çalışıyor (pin vacuous olmasın)", () => {
+    // Yasak şekil yakalanıyor…
+    const bad = "Durumu ilettim; en kısa sürede ilgileneceğiz.";
+    expect(find(SG, bad).length && find(PL, bad).length).toBeTruthy();
+    // …nezaket geniş zamanı ve İYELİK eki yakalanmıyor.
+    for (const ok of [
+      "Bizi tercih ettiğiniz için teşekkür ederiz. İyi günler dileriz.",
+      "Çıkış saatimiz 11:00, Wi-Fi ağımız NuveApt.",
+      "Durumu ilettim; kontrol edip size döneceğim.",
+    ]) {
+      expect(find(PL, ok), ok).toEqual([]);
+    }
+  });
+
+  it("hiçbir shipped default şablon ÇOĞUL EYLEM sesi kullanmaz", () => {
+    // 🚨 "KARIŞIM YOK" DEMEK YETMEZ — mutasyonla ölçüldü (M10): şablonu BAŞTAN
+    // SONA çoğula çevirmek ("Talebinizi aldık ve dönüş yapacağız") karışım
+    // testini YEŞİL geçiyordu, çünkü ortada karıştırılacak bir tekil kalmıyor.
+    // Oysa sahibin şikayet ettiği ses tam olarak budur. Shipped şablonlar tek
+    // bir ev sahibinin ağzıdır → EYLEM çoğulu hiç bulunmamalı. Nezaket geniş
+    // zamanı ("dileriz") PL kümesinde değildir, yani serbest kalır.
+    for (const t of DEFAULT_TEMPLATES) {
+      expect(find(PL, t.body), `template ${t.id}: çoğul eylem`).toEqual([]);
+    }
+    // TERS YÖN: şablonlar birinci TEKİL eylem kullanmaya devam ediyor (fiiller
+    // tamamen silinerek "temizlenmiş" olmasın).
+    expect(DEFAULT_TEMPLATES.filter((t) => find(SG, t.body).length > 0).length).toBeGreaterThan(3);
+  });
+
+  it("İngilizce shipped şablonlarda birinci çoğul EYLEM yok", () => {
+    // Aynı ders, İngilizce tarafı: "We've received your request" karışım
+    // içermiyor ama sesi yine kurumsal. Nesne/iyelik ("with us", "our")
+    // SERBESTTİR — ses işareti değil, deyimdir.
+    //
+    // NOT: bu iddia BİLEREK yalnız ŞABLONLARA uygulanıyor. prompts.ts'teki
+    // few-shot örneklerde "I've flagged it to our team and we'll check it"
+    // kalıbı var; orada "we" az önce anılan EKİBİ kapsıyor ve İngilizcede
+    // doğal duruyor — rapora "belirsiz, karar bekliyor" olarak yazıldı.
+    const WE = /\b(?:we'(?:ve|ll|re|d)|we\s+(?:will|have|are|can|shall))\b/i;
+    const I = /\b(?:I'(?:ve|ll|m|d)|I\s+(?:will|have|am|can))\b/i;
+    const en = DEFAULT_TEMPLATES.filter((x) => x.language === "en");
+    for (const t of en) expect(WE.test(t.body), `template ${t.id}`).toBe(false);
+    // Ters yön: İngilizce şablonlar GERÇEKTEN var, birinci tekil kullanıyor ve
+    // "with us" gibi NESNE kullanımı hâlâ serbest (aşırı daraltma olmadı).
+    expect(en.length).toBeGreaterThan(3);
+    expect(en.some((t) => I.test(t.body))).toBe(true);
+    expect(en.some((t) => /\bus\b/i.test(t.body))).toBe(true);
+  });
+
+  it("hiçbir deterministik fallback cevabı sesi karıştırmaz", () => {
+    const probes = [
+      "Klima çalışmıyor, içerisi çok sıcak!", "Paramı geri istiyorum lütfen.",
+      "Yarın ayrılmak zorundayız, rezervasyonu kısaltabilir miyiz?",
+      "Ev sahibiyle konuşmak istiyorum.", "Havlu değişimi mümkün mü?",
+      "Wifi şifresi nedir?", "Otopark var mı?", "Adres nedir?", "Giriş saati kaçta?",
+    ];
+    for (const tone of TONES) {
+      for (const msg of probes) {
+        const reply = suggestReplyFallback(base2(msg, tone)).reply;
+        const sg = find(SG, reply);
+        const pl = find(PL, reply);
+        expect(sg.length > 0 && pl.length > 0, `${tone}/${msg}: [${sg}] + [${pl}]`).toBe(false);
+      }
+    }
+  });
+
+  it("modele verilen hiçbir ÖRNEK CEVAP sesi karıştırmaz", () => {
+    for (const reply of exampleReplies()) {
+      const sg = find(SG, reply);
+      const pl = find(PL, reply);
+      expect(sg.length > 0 && pl.length > 0, `örnek: ${reply.slice(0, 90)} → [${sg}] + [${pl}]`).toBe(false);
+    }
+  });
+
+  it("hiçbir shipped default şablon aşama-varsayan dilek kapanışıyla bitmez", () => {
+    // Sahibin ekran görüntüsündeki kusur: TR giriş şablonu "İyi tatiller!" ile
+    // bitiyordu. Misafir tatilde olmayabilir (iş seyahati) ve şablon elle de
+    // gönderilebiliyor — aşamayı VARSAYIYOR (§10.6).
+    for (const t of DEFAULT_TEMPLATES) {
+      expect(t.body, `template ${t.id}`).not.toMatch(STAGE_WISH);
+    }
+    // TERS YÖN: yasak METNİ hâlâ prompt'ta duruyor (yasağı silerek geçilmesin).
+    expect(REPLY_SYSTEM_PROMPT).toMatch(STAGE_WISH);
+  });
+
+  it("misafire giden hiçbir yüzey KURUMSAL muhatap adı kullanmaz", () => {
+    // Ürünü kullanan TEK bir ev sahibidir; "işletme ekibi"/"yöneticimiz" misafire
+    // yanlış bir organizasyon büyüklüğü anlatır. QR sohbetinde ayrıca İÇ ÇELİŞKİ
+    // yaratıyordu: aynı sohbetteki kardeş metin "ev sahibiniz" diyordu.
+    const CORP = /yöneticimiz|operatörümüz|işletme ekib|our manager|the business team/i;
+    for (const t of DEFAULT_TEMPLATES) expect(t.body, `template ${t.id}`).not.toMatch(CORP);
+    for (const reply of exampleReplies()) expect(reply).not.toMatch(CORP);
+
+    const qr = readFileSync(join(process.cwd(), "src/app/api/chat/[token]/route.ts"), "utf8");
+    const qrCode = qr
+      .split("\n")
+      .filter((l) => !l.trimStart().startsWith("//") && !l.trimStart().startsWith("*"))
+      .join("\n");
+    // Anti-vacuity: gerçekten misafire giden iki sabit metni okuduğumuzu kanıtla.
+    expect(qrCode).toMatch(/const HANDOFF_REPLY\s*=/);
+    expect(qrCode).toMatch(/ev sahibinize iletildi/);
+    for (const m of qrCode.matchAll(/"((?:[^"\\]|\\.)*)"/g)) expect(m[1]).not.toMatch(CORP);
+    // QR'ın misafire dönen sabit metinlerinde ünlem de yok.
+    expect(qrCode).not.toMatch(/ev sahib[^"\n]*!/);
   });
 });

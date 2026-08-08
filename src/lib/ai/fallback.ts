@@ -1201,7 +1201,10 @@ export function suggestReplyFallback(input: SuggestReplyInput): SuggestReplyResu
   switch (intent) {
     case "complaint":
       body = isTr
-        ? "Bunun için özür dileriz. Durumu hemen ekibimize ilettim; en kısa sürede ilgileneceğiz."
+        // ⚠️ "ilettim … ilgileneceğiz" prompts.ts §10.5'in KELİMESİ KELİMESİNE yasakladığı
+        // ses karışımıydı (tekil eylem + çoğul eylem aynı cümlede). İngilizce kardeşi
+        // zaten tekildi, yani iki dil BİRBİRİYLE de çelişiyordu.
+        ? "Bunun için özür dileriz. Durumu hemen ekibimize ilettim; en kısa sürede size döneceğim."
         : "Apologies for the issue you've experienced. I've notified our team right away and will get back to you as soon as possible.";
       risk = "Şikayet/olası sorun algılandı. Yöneticiye iletilmeli; otomatik karar verilmedi.";
       break;

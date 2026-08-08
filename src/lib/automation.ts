@@ -519,14 +519,18 @@ export type CourtesyKind = "ack" | "praise";
 // Two kinds share ONE toggle + ONE custom text: "ack" answers a bare thanks,
 // "praise" answers a pure compliment — sober wording, no emotion claims
 // ("çok sevindim" yasak: üslup kuralı), no promises.
+// ⚠️ ÜNLEM YOK (08-08, ürün sahibi kararı). Bu altı satır misafire OTOMATİK
+// gidiyor ve ünlem, yazıya dökülmemiş bir coşku beyanıdır — prompts.ts Bölüm 10
+// aynı yasağı modele de koyuyor, iki yüzey AYNI kuralda kalmalı. Emoji ayrı bir
+// karardır ve bilerek DURUYOR: burada değişen yalnız noktalama.
 const CLOSING_COURTESY_TEXTS: Record<CourtesyKind, Record<string, string>> = {
   ack: {
-    tr: "Rica ederiz, iyi günler dileriz! 😊",
-    en: "You're very welcome! 😊",
-    de: "Sehr gerne! 😊",
-    fr: "Avec plaisir ! 😊",
-    ar: "على الرحب والسعة! 😊",
-    ru: "Пожалуйста! 😊",
+    tr: "Rica ederiz, iyi günler dileriz. 😊",
+    en: "You're very welcome. 😊",
+    de: "Sehr gerne. 😊",
+    fr: "Avec plaisir. 😊",
+    ar: "على الرحب والسعة. 😊",
+    ru: "Пожалуйста. 😊",
   },
   // TIME-AGNOSTIC on purpose (Codex): praise often arrives PAST-tense ("her şey
   // harikaydı") — "keyifli bir konaklama dileriz" would read oddly after checkout.

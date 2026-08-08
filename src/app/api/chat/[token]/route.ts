@@ -58,7 +58,12 @@ const DAILY_AI_CAP_FALLBACK = 200;
 // stay — it re-opens only on a NEW reservation (a fresh "qr-chat:" thread). The
 // message is still recorded so the host sees it; the client is GET-authoritative,
 // so this reply is a courtesy field, not what renders.
-const HANDOFF_REPLY = "Mesajınız işletme ekibine iletildi; ekip sohbet ekranından size dönecek.";
+// ⚠️ "işletme ekibine … ekip" KURUMSAL DİLDİ (denetim 08-08). Ürünü kullanan tek
+// bir EV SAHİBİDİR (prompts.ts KURAL-4 aynı gerekçeyle "yöneticimiz/operatörümüz"ü
+// yasaklıyor) ve 20 satır aşağıdaki kardeş metin `escalationReply()` zaten
+// "ev sahibiniz" diyor — yani misafir, aynı sohbette iki farklı muhatap adı
+// duyuyordu. Söz içeriği DEĞİŞMEDİ: mesaj kaydedildi, host sohbet ekranından görür.
+const HANDOFF_REPLY = "Mesajınız ev sahibinize iletildi; sohbet ekranından size dönecek.";
 
 /**
  * ESKALASYON CEVABI — SÖZ, GERÇEĞE UYGUN OLMAK ZORUNDA (denetim, 08-01).

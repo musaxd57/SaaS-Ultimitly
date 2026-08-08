@@ -27,11 +27,11 @@ export const DEFAULT_TEMPLATES: MessageTemplate[] = [
     isDefault: true,
     body: `Merhaba {{guestName}},
 
-Hoş geldiniz! Giriş saatimiz {{checkInTime}}. Kapı kodunu ve giriş talimatlarını aşağıda bulabilirsiniz:
+Hoş geldiniz. Giriş saatimiz {{checkInTime}}. Kapı kodunu ve giriş talimatlarını aşağıda bulabilirsiniz:
 
 {{wifiInfo}}
 
-İyi tatiller!`,
+Giriş sırasında bir aksilik olursa bana yazmanız yeterli.`,
   },
   {
     id: "default-checkin-en-1",
@@ -41,11 +41,11 @@ Hoş geldiniz! Giriş saatimiz {{checkInTime}}. Kapı kodunu ve giriş talimatla
     isDefault: true,
     body: `Hello {{guestName}},
 
-Welcome! Check-in time is {{checkInTime}}. Please find the door code and arrival instructions below.
+Welcome. Check-in time is {{checkInTime}}. Please find the door code and arrival instructions below.
 
 {{wifiInfo}}
 
-Enjoy your stay!`,
+If anything comes up during check-in, just message me.`,
   },
   {
     id: "default-checkin-tr-2",
@@ -55,7 +55,7 @@ Enjoy your stay!`,
     isDefault: true,
     body: `Merhaba {{guestName}},
 
-Girişinize az kaldı. Konaklayacağınız daire: {{propertyName}}. Giriş saatimiz {{checkInTime}}, sizi bekliyoruz.`,
+Girişinize az kaldı. Konaklayacağınız daire: {{propertyName}}. Giriş saatimiz {{checkInTime}}, sizi bekliyorum.`,
   },
 
   // --- Check-out ---
@@ -69,7 +69,7 @@ Girişinize az kaldı. Konaklayacağınız daire: {{propertyName}}. Giriş saati
 
 Çıkış saatimiz {{checkOutTime}}. Anahtarı/kartı nereye bırakacağınızı çıkıştan önce ayrıca yazacağım.
 
-Bizi tercih ettiğiniz için teşekkür ederiz. Görüşmek üzere!`,
+Bizi tercih ettiğiniz için teşekkür ederim. Görüşmek üzere.`,
   },
   {
     id: "default-checkout-en-1",
@@ -81,7 +81,7 @@ Bizi tercih ettiğiniz için teşekkür ederiz. Görüşmek üzere!`,
 
 Just a reminder that check-out time is {{checkOutTime}}. I'll confirm where to leave the key/card before you go.
 
-Thank you for staying with us. See you next time!`,
+Thank you for staying with us. See you next time.`,
   },
   {
     id: "default-checkout-tr-2",
@@ -91,7 +91,7 @@ Thank you for staying with us. See you next time!`,
     isDefault: true,
     body: `Merhaba {{guestName}},
 
-Bugün çıkış günü. Çıkış saatimiz {{checkOutTime}}. Bizi tercih ettiğiniz için teşekkür ederiz.`,
+Bugün çıkış günü. Çıkış saatimiz {{checkOutTime}}. Bizi tercih ettiğiniz için teşekkür ederim.`,
   },
 
   // --- Welcome ---
@@ -101,12 +101,12 @@ Bugün çıkış günü. Çıkış saatimiz {{checkOutTime}}. Bizi tercih ettiğ
     title: "Hoş Geldiniz Mesajı (TR)",
     language: "tr",
     isDefault: true,
-    body: `Merhaba {{guestName}}, hoş geldiniz!
+    body: `Merhaba {{guestName}}, hoş geldiniz.
 
-Konaklayacağınız daire: {{propertyName}}. Konaklamanız boyunca her türlü sorunuz için buradayız. Wi-Fi bilgileri:
+Konaklayacağınız daire: {{propertyName}}. Konaklamanız boyunca her türlü sorunuz için buradayım. Wi-Fi bilgileri:
 {{wifiInfo}}
 
-Keyifli günler dileriz!`,
+Keyifli günler dileriz.`,
   },
   {
     id: "default-welcome-en-1",
@@ -114,12 +114,12 @@ Keyifli günler dileriz!`,
     title: "Welcome Message (EN)",
     language: "en",
     isDefault: true,
-    body: `Hello {{guestName}}, welcome to {{propertyName}}!
+    body: `Hello {{guestName}}, welcome to {{propertyName}}.
 
-We're here for any questions during your stay. Wi-Fi details:
+I'm here for any questions during your stay. Wi-Fi details:
 {{wifiInfo}}
 
-Enjoy your stay!`,
+Just message me if you need anything.`,
   },
   {
     id: "default-welcome-tr-2",
@@ -143,7 +143,7 @@ Giriş öncesinde detaylı bilgi paylaşacağım.`,
     isDefault: true,
     body: `Merhaba {{guestName}},
 
-Yaşadığınız sorun için özür dileriz. Konuyu hemen inceliyorum.
+Yaşadığınız sorun için özür dilerim. Konuyu hemen inceliyorum.
 
 En kısa sürede size dönüş yapacağım.`,
   },
@@ -155,7 +155,7 @@ En kısa sürede size dönüş yapacağım.`,
     isDefault: true,
     body: `Hello {{guestName}},
 
-We're sorry about the problem you've run into. I'm looking into it now and will get back to you shortly.`,
+I'm sorry about the problem you've run into. I'm looking into it now and will get back to you shortly.`,
   },
 
   // --- Rules ---
@@ -167,12 +167,12 @@ We're sorry about the problem you've run into. I'm looking into it now and will 
     isDefault: true,
     body: `Merhaba {{guestName}},
 
-{{propertyName}} için ev kurallarını hatırlatmak istedik:
+{{propertyName}} için ev kurallarını hatırlatmak istiyorum:
 • Saat 22:00'den sonra lütfen gürültü yapmayınız (bina sakinleri için).
 • Evcil hayvan ve sigara yasaktır.
 • Parti ve etkinlik organizasyonu yasaktır.
 
-Anlayışınız için teşekkürler. Keyifli konaklamalar!`,
+Anlayışınız için teşekkür ederim.`,
   },
 
   // --- Wi-Fi ---
@@ -200,7 +200,7 @@ Bağlantıyla ilgili sorun yaşarsanız hemen yazabilirsiniz.`,
 Here are your Wi-Fi details for {{propertyName}}:
 {{wifiInfo}}
 
-Let us know if you have any connection issues!`,
+Let me know if you have any connection issues.`,
   },
 
   // --- General ---
@@ -212,7 +212,7 @@ Let us know if you have any connection issues!`,
     isDefault: true,
     body: `Merhaba {{guestName}},
 
-Mesajınız için teşekkürler. Talebinizi aldık ve en kısa sürede size dönüş yapacağız.`,
+Mesajınız için teşekkürler. Talebinizi aldım ve en kısa sürede size dönüş yapacağım.`,
   },
   {
     id: "default-general-en-1",
@@ -222,7 +222,7 @@ Mesajınız için teşekkürler. Talebinizi aldık ve en kısa sürede size dön
     isDefault: true,
     body: `Hello {{guestName}},
 
-Thank you for your message. We've received your request and will get back to you as soon as possible.`,
+Thank you for your message. I've received your request and will get back to you as soon as possible.`,
   },
 ];
 

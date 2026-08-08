@@ -38,6 +38,7 @@ import {
   isWithinActiveHours,
   currentHourInTimeZone,
   sendDueAlerts,
+  composeClosingCourtesy,
 } from "@/lib/automation";
 import { emailService } from "@/lib/email";
 import { automatedReplyNote } from "@/lib/automation";
@@ -842,7 +843,18 @@ describe("closing courtesy — opt-in 'Rica ederiz' reply to a bare thanks", () 
   it("EN pure thanks gets the ENGLISH ack default", async () => {
     const { conversationId } = await seedClosing("ok thanks so much!");
     await applyChannelAutoReply(conversationId);
-    expect((mockSend.mock.calls[0][1] as string).startsWith("You're very welcome!")).toBe(true);
+    // 🚨 SÖZCÜĞÜ DEĞİL ÖZELLİĞİ PİNLE. Bu satır eskiden "You're very welcome!"
+    // metnini AYNEN donduruyordu; 08-08'de ünlem kaldırılınca test kırıldı —
+    // oysa kırılan davranış değil, testin ikinci metin kopyasıydı. Asıl
+    // değişmez "İngilizce kapanışa İNGİLİZCE varsayılan gider"dir, o yüzden
+    // beklenen değer kaynağın KENDİSİNDEN türetilir ve ayrıca Türkçe
+    // varsayılanın gitmediği asserte edilir (yoksa iddia dil seçimini sınamaz).
+    const body = mockSend.mock.calls[0][1] as string;
+    const en = composeClosingCourtesy({ kind: "ack", lang: "en", customText: null, signature: null });
+    const tr = composeClosingCourtesy({ kind: "ack", lang: "tr", customText: null, signature: null });
+    expect(en).not.toBe(tr); // anti-vacuity: iki dil gerçekten farklı
+    expect(body.startsWith(en)).toBe(true);
+    expect(body).not.toContain(tr);
   });
 
   // ── positive_feedback (Codex turu): pure compliments get the sober courtesy ──
