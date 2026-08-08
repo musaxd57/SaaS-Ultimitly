@@ -207,7 +207,7 @@ export default async function AdminPage() {
                   const conn = connection(org);
                   const isSelf = org.id === session.organizationId;
                   return (
-                    <tr key={org.id} className="border-b last:border-0">
+                    <tr key={org.id} className="border-b last:border-0 transition-colors hover:bg-muted/50">
                       <td className="px-4 py-3 font-medium">
                         {org.name}
                         {isSelf ? <span className="ml-2 text-xs text-muted-foreground">(buradasın)</span> : null}
@@ -278,7 +278,7 @@ export default async function AdminPage() {
                 </thead>
                 <tbody>
                   {leads.map((l) => (
-                    <tr key={l.id} className="border-b last:border-0 align-top">
+                    <tr key={l.id} className="border-b last:border-0 align-top transition-colors hover:bg-muted/50">
                       <td className="px-4 py-3 font-medium">{l.name}</td>
                       <td className="px-4 py-3">
                         <a href={`mailto:${l.email}`} className="text-primary hover:underline">{l.email}</a>
@@ -399,7 +399,7 @@ export default async function AdminPage() {
                   </thead>
                   <tbody>
                     {activeRows.slice(0, 10).map((r) => (
-                      <tr key={r.id} className="border-b border-border/60">
+                      <tr key={r.id} className="border-b border-border/60 transition-colors hover:bg-muted/50">
                         <td className="py-1.5 pr-3 whitespace-nowrap">
                           {r.createdAt.toLocaleString("tr-TR", { dateStyle: "short", timeStyle: "short", timeZone: "Europe/Istanbul" })}
                         </td>
@@ -544,7 +544,7 @@ export default async function AdminPage() {
                 </thead>
                 <tbody>
                   {auditLogs.map((log) => (
-                    <tr key={log.id} className="border-b last:border-0">
+                    <tr key={log.id} className="border-b last:border-0 transition-colors hover:bg-muted/50">
                       <td className="px-4 py-2.5 font-medium" title={log.action}>{auditActionLabel(log.action)}</td>
                       <td className="px-4 py-2.5 text-muted-foreground">
                         {(() => {

@@ -203,7 +203,11 @@ export function AppShell({ user, superAdmin, guestChatEnabled, impersonating, pl
     // bottom. The nav owns the overflow (min-h-0 lets the flex child shrink so it
     // actually scrolls), so on any viewport height the card sits at the very
     // bottom — it never floats up into the middle.
-    <div className="flex h-full flex-col p-4">
+    // ⚠️ `pb-2` — kullanıcı kartının ALTINDAKİ boşluk 16 px'ten 8 px'e indi
+    // (kullanıcı: "aşağıda çok ufak boşluk daha var ya, o dikdörtgeni aşağı
+    // indir"). Kart aşağı iner ve bu YÜKSEKLİK BÜTÇESİNİ YEMEZ, aksine nav'a
+    // 8 px AÇAR — `mt-5`in aldığı 4 px'i fazlasıyla geri verir.
+    <div className="flex h-full flex-col p-4 pb-2">
       <div className="flex shrink-0 items-center justify-between px-1">
         <Link href="/dashboard" className="flex items-center gap-2" onClick={() => setMobileOpen(false)}>
           <div className="flex size-8 items-center justify-center rounded-lg bg-primary text-primary-foreground">

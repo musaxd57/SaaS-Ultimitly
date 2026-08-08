@@ -32,11 +32,15 @@ export function StatCard({
   href,
 }: StatCardProps) {
   const card = (
-    <Card className={cn("p-5", href && "transition-colors hover:bg-accent/40", className)}>
+    // ⚠️ Linkli kutucuk, ölü kutucuktan AYIRT EDİLEBİLİR olmalı: eskiden tek fark
+    // `hover:bg-accent/40` idi ve açık modda #ffffff → #f5f9ff, yani ~%2'lik bir
+    // kayma — pratikte görünmüyordu. `card-lift` (globals.css) kenarlık + gölge +
+    // 220 ms geçiş getiriyor ve `prefers-reduced-motion` bloğunda ZATEN susuyor.
+    <Card className={cn("p-5", href && "card-lift cursor-pointer", className)}>
       <div className="flex items-start justify-between gap-3">
         <div className="space-y-1">
           <p className="text-sm font-medium text-muted-foreground">{label}</p>
-          <p className="text-2xl font-semibold tabular-nums tracking-tight text-foreground">{value}</p>
+          <p className="text-3xl font-semibold tabular-nums tracking-tight text-foreground">{value}</p>
           {hint ? <p className="text-xs text-muted-foreground">{hint}</p> : null}
         </div>
         {Icon ? (
@@ -54,7 +58,10 @@ export function StatCard({
   );
 
   return href ? (
-    <Link href={href} className="block">
+    <Link
+      href={href}
+      className="block rounded-xl focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 focus-visible:ring-offset-background"
+    >
       {card}
     </Link>
   ) : (
