@@ -150,3 +150,61 @@ describe("ayarlar: alertEmail yorumu artık YALAN söylemiyor", () => {
     expect(codeOnly(src)).not.toContain("ALERT_EMAIL");
   });
 });
+
+describe("🚨 iCal TZID artık ATILMIYOR — gün kayması kapandı", () => {
+  // ÖLÇÜLDÜ (denetim 08-07 (6)): TZID anahtarın PARAMETRESİNDE geliyor ve
+  // ayrıştırıcı onu okuyup ATIYORDU; saatli değer SUNUCUNUN dilimiyle kuruluyordu.
+  // Railway UTC olduğu için `TZID=Europe/Istanbul:20260805T230000` →
+  // `2026-08-05T23:00Z` oluyordu (doğrusu 20:00Z) ve org-yerel gün 6 AĞUSTOS'a
+  // kayıyordu → panelde 5 Ağustos gecesi daire BOŞ görünüyor, çifte rezervasyon.
+  // ⚠️ Airbnb/Booking `VALUE=DATE` yolladığı için ANA AKIŞ hiç etkilenmedi;
+  // takvim formundaki "Diğer" seçeneği (Google Takvim / Vrbo / PMS) TZID yollar.
+  const feed = (s: string, e: string) =>
+    `BEGIN:VCALENDAR\nBEGIN:VEVENT\nUID:x@t\n${s}\n${e}\nSUMMARY:R\nEND:VEVENT\nEND:VCALENDAR`;
+  const parse = async (s: string, e: string) => {
+    const { parseIcs } = await import("@/lib/import/ics");
+    return parseIcs(feed(s, e))[0];
+  };
+
+  it("TZID'li duvar saati DOĞRU UTC anına çevriliyor", async () => {
+    const r = await parse("DTSTART;TZID=Europe/Istanbul:20260805T230000", "DTEND;TZID=Europe/Istanbul:20260808T110000");
+    // 23:00 Istanbul = 20:00Z. Eski kod 23:00Z yazıyordu.
+    expect(r.arrivalDate.toISOString()).toBe("2026-08-05T20:00:00.000Z");
+    expect(r.departureDate.toISOString()).toBe("2026-08-08T08:00:00.000Z");
+  });
+
+  it("`Z` yolu değişmedi (referans)", async () => {
+    const r = await parse("DTSTART:20260805T200000Z", "DTEND:20260808T080000Z");
+    expect(r.arrivalDate.toISOString()).toBe("2026-08-05T20:00:00.000Z");
+  });
+
+  it("VALUE=DATE (Airbnb ANA AKIŞ) birebir aynı kaldı — öğlen çapası", async () => {
+    const r = await parse("DTSTART;VALUE=DATE:20260805", "DTEND;VALUE=DATE:20260808");
+    expect(r.arrivalDate.toISOString()).toBe("2026-08-05T12:00:00.000Z");
+    expect(r.departureDate.toISOString()).toBe("2026-08-08T12:00:00.000Z");
+  });
+
+  it("BİLİNMEYEN TZID öğlen çapasına düşer — saat kaybolur, GÜN doğru kalır", async () => {
+    // `tzOffsetMs` geçersiz dilimde 0 döner = sessizce UTC. O hâlde 23:00 yine
+    // günü kaydırırdı; bu yüzden geçersiz dilimde saati bilerek atıyoruz.
+    const r = await parse("DTSTART;TZID=Mars/Olympus:20260805T230000", "DTEND;TZID=Mars/Olympus:20260808T110000");
+    expect(r.arrivalDate.toISOString()).toBe("2026-08-05T12:00:00.000Z");
+  });
+
+  it("floating (Z yok, TZID yok) da öğlen çapası — sunucu dilimine BAĞLANMAZ", async () => {
+    const r = await parse("DTSTART:20260805T230000", "DTEND:20260808T110000");
+    expect(r.arrivalDate.toISOString()).toBe("2026-08-05T12:00:00.000Z");
+  });
+
+  it("geçersiz takvim günü hâlâ REDDEDİLİYOR (UTC getter'lara geçince bozulmadı)", async () => {
+    const { parseIcs } = await import("@/lib/import/ics");
+    expect(parseIcs(feed("DTSTART;VALUE=DATE:20260231", "DTEND;VALUE=DATE:20260305")).length).toBe(0);
+  });
+
+  it("tarih-only artık SUNUCU dilimine bağlı değil (Date.UTC)", async () => {
+    const src = codeOnly(read("src/lib/import/ics.ts"));
+    expect(src).toContain("new Date(Date.UTC(year, month, day, 12, 0, 0))");
+    expect(src).not.toContain("new Date(year, month, day, 12, 0, 0)");
+    expect(src).toContain("getUTCFullYear()"); // guard da UTC frame'de
+  });
+});

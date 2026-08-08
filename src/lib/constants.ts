@@ -35,13 +35,21 @@ export const RESERVATION_STATUS = optionMap<ReservationStatus>([
   { value: "completed", label: "Tamamlandı", tone: "muted" },
 ]);
 
-export type ReservationChannel = "manual" | "airbnb" | "booking" | "direct" | "other";
+export type ReservationChannel = "manual" | "airbnb" | "booking" | "direct" | "other" | "ics";
 export const RESERVATION_CHANNEL = optionMap<ReservationChannel>([
   { value: "manual", label: "Manuel", tone: "secondary" },
   { value: "airbnb", label: "Airbnb", tone: "destructive" },
   { value: "booking", label: "Booking", tone: "default" },
   { value: "direct", label: "Doğrudan", tone: "success" },
   { value: "other", label: "Diğer", tone: "muted" },
+  // ⚠️ "ics" ETİKET HARİTASINDA OLMAK ZORUNDA (denetim 08-07 (6)). Takvim
+  // beslemesi senkronu (`import/sync.ts`) bu değeri ZATEN yazıyordu ama harita
+  // tanımıyordu → `optionMap.label()` ham değere düşüp rozette "ics" yazıyordu.
+  // Ayrıca elle .ics YÜKLEME rotası, rozet çirkin görünmesin diye kanalı
+  // "other"a EZİYORDU; oysa yaşam-döngüsü kapıları `notIn: ["ics","manual"]`
+  // ile filtreliyor → yüklenen satırlar "Hospitable ile mesajlaşılabilir"
+  // sayılıp var olmayan bir konuşmaya giriş mesajı denemesine giriyordu.
+  { value: "ics", label: "Takvim (iCal)", tone: "muted" },
 ]);
 
 // --- Conversations ----------------------------------------------------------

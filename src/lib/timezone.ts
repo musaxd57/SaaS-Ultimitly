@@ -85,6 +85,38 @@ function tzOffsetMs(tz: string, at: Date): number {
 }
 
 /**
+ * Bir DUVAR SAATİNİ (yıl/ay/gün saat:dk:sn, `tz`'de okunduğu hâliyle) UTC anına
+ * çevirir. `zonedDateStart`'ın saat alan genel hâli.
+ *
+ * 🚨 NEDEN VAR (denetim 08-07 (6), ÖLÇÜLDÜ): iCal ayrıştırıcısı `TZID=` taşıyan
+ * bir DTSTART'ı SUNUCUNUN yerel saatinde kuruyordu. Railway UTC olduğu için
+ * `TZID=Europe/Istanbul:20260805T230000` → `2026-08-05T23:00Z` oluyordu; doğrusu
+ * `20:00Z`. Üç saatlik hata GÜNÜ kaydırıyor: konaklama panelde 6 Ağustos'ta
+ * başlıyor görünüyor, 5 Ağustos gecesi daire BOŞ sanılıyor → çifte rezervasyon.
+ *
+ * ⚠️ İKİ GEÇİŞ ŞART: ofset, çevirmeye çalıştığımız anın KENDİSİNE bağlıdır. İlk
+ * tahmini UTC sanıp ofseti alır, düzeltir, sonra DÜZELTİLMİŞ an için ofseti
+ * yeniden okuruz — DST geçiş günlerinde ikisi farklı çıkar (Türkiye'de DST yok,
+ * ama `.eu` ve "Diğer" takvim kaynakları için doğru olmak zorunda).
+ * Geçersiz/bilinmeyen `tz` → `tzOffsetMs` 0 döner, yani davranış UTC'dir; çağıran
+ * bunu bilerek ele almalı (↓ics.ts öğlen çapası).
+ */
+export function zonedWallClockToUtc(
+  y: number,
+  m: number,
+  d: number,
+  h: number,
+  mi: number,
+  s: number,
+  tz: string,
+): Date {
+  const asIfUtc = Date.UTC(y, m - 1, d, h, mi, s);
+  const first = new Date(asIfUtc - tzOffsetMs(tz, new Date(asIfUtc)));
+  const second = tzOffsetMs(tz, first);
+  return new Date(asIfUtc - second);
+}
+
+/**
  * UTC [start, end] instants spanning the calendar day of `now` as seen in the
  * IANA `tz` (e.g. "Europe/Istanbul"). Use this so "today's arrivals/departures"
  * are bucketed by the host's local day, not the server's UTC day.

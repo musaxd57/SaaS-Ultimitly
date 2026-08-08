@@ -1,3 +1,5 @@
+import { zonedWallClockToUtc, isValidTimeZone } from "@/lib/timezone";
+
 // ICS (iCalendar) parser for reservation imports.
 // Handles VEVENT blocks with DTSTART/DTEND in both date-only and datetime formats.
 
@@ -17,8 +19,19 @@ function unfoldLines(text: string): string {
   return text.replace(/\r?\n[ \t]/g, "");
 }
 
-/** Parse a DTSTART / DTEND value into a JS Date. */
-function parseIcsDate(value: string): Date | null {
+/**
+ * Parse a DTSTART / DTEND value into a JS Date.
+ *
+ * 🚨 `tzid` = the TZID parameter from the KEY (`DTSTART;TZID=Europe/Istanbul:…`).
+ * Denetim 08-07 (6)'da ÖLÇÜLDÜ: eskiden TZID okunup ATILIYORDU ve saatli değer
+ * SUNUCUNUN yerel saatinde kuruluyordu. Railway UTC olduğu için
+ * `TZID=Europe/Istanbul:20260805T230000` → `2026-08-05T23:00Z` oluyordu; doğrusu
+ * `20:00Z`. Üç saatlik hata GÜNÜ kaydırıyor: konaklama panelde 6 Ağustos'ta
+ * başlıyor görünüyor ve 5 Ağustos gecesi daire BOŞ sanılıyor → çifte rezervasyon.
+ * Airbnb/Booking `VALUE=DATE` yolladığı için ANA AKIŞ etkilenmiyordu; takvim
+ * formundaki "Diğer" seçeneği (Google Takvim / Vrbo / PMS) TZID yollar.
+ */
+function parseIcsDate(value: string, tzid?: string | null): Date | null {
   // Remove timezone id if present in the value (TZID is in the key, value is clean datetime)
   const clean = value.trim();
 
@@ -27,13 +40,21 @@ function parseIcsDate(value: string): Date | null {
     const year = parseInt(clean.slice(0, 4), 10);
     const month = parseInt(clean.slice(4, 6), 10) - 1;
     const day = parseInt(clean.slice(6, 8), 10);
-    const d = new Date(year, month, day, 12, 0, 0); // noon to avoid TZ edge cases
+    // ⚠️ `Date.UTC` — `new Date(y,m,d,12,…)` DEĞİL (denetim 08-07 (6)).
+    // Yerel kurucu SUNUCUNUN dilimini kullanır; bugün doğru sonuç veriyor çünkü
+    // Railway konteynerinde `TZ` set DEĞİL (= UTC). Bu GİZLİ bir bağımlılıktı:
+    // konteynere bir gün `TZ` verilirse öğlen çapası kayar ve kayma yalnız
+    // belirli ofsetlerde GÜNÜ değiştirir. Artık sunucu dilimine bağlı değil.
+    // Öğlen çapası UTC-11…+11 aralığının tamamında doğru takvim gününü verir.
+    const d = new Date(Date.UTC(year, month, day, 12, 0, 0));
     // new Date(...) ROLLS OVER an invalid calendar date (20260231 → 3 Mar) instead
     // of erroring, and the value is a valid Date (not NaN) so the downstream
     // isNaN guard never catches it → a booking imports on the WRONG day. Verify the
     // components survived the round-trip and reject if they didn't. (csv.ts makeDate
     // does the same; VALUE=DATE is exactly the format Airbnb/Booking feeds emit.)
-    if (d.getFullYear() !== year || d.getMonth() !== month || d.getDate() !== day) return null;
+    // UTC kurucuya geçtiğimiz için doğrulama da UTC getter'larıyla yapılmalı —
+    // yerel getter'lar sunucu diliminde farklı gün okuyup guard'ı YANLIŞ tetiklerdi.
+    if (d.getUTCFullYear() !== year || d.getUTCMonth() !== month || d.getUTCDate() !== day) return null;
     return d;
   }
 
@@ -44,14 +65,21 @@ function parseIcsDate(value: string): Date | null {
     if (z === "Z") {
       return new Date(`${y}-${mo}-${d}T${h}:${mi}:${s}Z`);
     }
-    return new Date(
-      parseInt(y, 10),
-      parseInt(mo, 10) - 1,
-      parseInt(d, 10),
-      parseInt(h, 10),
-      parseInt(mi, 10),
-      parseInt(s, 10),
-    );
+    const [ny, nmo, nd, nh, nmi, ns] = [y, mo, d, h, mi, s].map((v) => parseInt(v, 10));
+    if (tzid) {
+      // Duvar saati NAMED ZONE'da okunur → doğru UTC anı (DST dâhil, iki geçiş).
+      const at = zonedWallClockToUtc(ny, nmo, nd, nh, nmi, ns, tzid);
+      // ⚠️ Bilinmeyen/geçersiz TZID'de `tzOffsetMs` 0 döner, yani sonuç sessizce
+      // UTC olur ve saat ≥21:00 ise GÜN yine kayar. Bunu tespit edip ÖĞLEN
+      // ÇAPASINA düşüyoruz: saat kaybolur ama TAKVİM GÜNÜ her ofsette doğru kalır
+      // — bu modülde gün doğruluğu saatten önce gelir (rezervasyon = gün).
+      if (isValidTimeZone(tzid)) return at;
+      return new Date(Date.UTC(ny, nmo - 1, nd, 12, 0, 0));
+    }
+    // TZID YOK ve `Z` YOK = RFC 5545 "floating" (yerel duvar saati). Sunucunun
+    // dilimine bağlamak yanlış olurdu; org dilimini bu saf ayrıştırıcı bilmiyor.
+    // Öğlen çapası burada da GÜNÜ garanti eder (UTC-11…+11 aralığında).
+    return new Date(Date.UTC(ny, nmo - 1, nd, 12, 0, 0));
   }
 
   // Fallback: try native Date parse
@@ -119,13 +147,22 @@ export function parseIcs(text: string): IcsReservation[] {
         return fullKey ? current[fullKey] : undefined;
       };
 
+      // TZID anahtarın PARAMETRESİNDEDİR (`DTSTART;TZID=Europe/Istanbul:…`), o
+      // yüzden değerin yanında anahtarı da çıkarmak gerekiyor — eski `get()`
+      // yalnız değeri döndürüp parametreyi ATIYORDU (↑parseIcsDate gerekçesi).
+      const tzidOf = (baseKey: string): string | null => {
+        const fullKey = Object.keys(current).find((k) => k === baseKey || k.startsWith(baseKey + ";"));
+        if (!fullKey) return null;
+        return /(?:^|;)TZID=([^;:]+)/i.exec(fullKey)?.[1]?.trim() ?? null;
+      };
+
       const dtStartRaw = get("DTSTART");
       const dtEndRaw = get("DTEND");
 
       if (!dtStartRaw || !dtEndRaw) continue;
 
-      const arrivalDate = parseIcsDate(dtStartRaw);
-      const departureDate = parseIcsDate(dtEndRaw);
+      const arrivalDate = parseIcsDate(dtStartRaw, tzidOf("DTSTART"));
+      const departureDate = parseIcsDate(dtEndRaw, tzidOf("DTEND"));
 
       if (!arrivalDate || !departureDate) continue;
 

@@ -90,10 +90,16 @@ export const POST = withManage(async (session, req) => {
 
   let rows: ParsedRow[] = [];
   if (isIcs) {
-    rows = parseIcs(text).map((r) => ({
-      ...r,
-      channel: "other" as const,
-    }));
+    // 🚨 KANAL EZİLMİYOR (denetim 08-07 (6)). Burada bir dönem `channel: "other"`
+    // yazılıyordu — muhtemelen rozet ham "ics" göstermesin diye. Bedeli ağırdı:
+    // yaşam-döngüsü gönderimleri `channel: { notIn: ["ics","manual"] }` ile
+    // filtreliyor ("only Hospitable-messageable bookings — never iCal/manual"),
+    // yani ELLE YÜKLENEN bir .ics satırı o kapıyı GEÇİYOR ve var olmayan bir
+    // Hospitable konuşmasına karşılama/giriş mesajı denemesi başlatıyordu.
+    // Aynı içerik abonelik senkronundan gelince `"ics"` yazılıyordu → aynı
+    // dosya, iki farklı kanal. Rozet sorunu ETİKET HARİTASINA "ics" eklenerek
+    // çözüldü (`constants.ts`), kanal değerini bükerek değil.
+    rows = parseIcs(text);
   } else {
     // FAIL-CLOSED: a structurally broken CSV (unbalanced quote, shifted columns)
     // throws — surface a clear validation error and import NOTHING, rather than
