@@ -40,6 +40,55 @@ export function checkProductionEnv(env) {
     warnings.push("ENCRYPTION_KEY is shorter than 32 characters — prefer a longer random key.");
   }
 
+  // 🚨 BOSLUK TUZAGI — GERI DONUSU YOK (denetim 08-08, kod-dogrulandi).
+  // `crypto-core.ts key()` env'i HAM okur (`process.env.ENCRYPTION_KEY`), bu kapi
+  // ise `.trim()`liyi dogrular. Deger " abc..." gibiyse: boot GECER ama turetilen
+  // anahtar BASKADIR. Sonra biri Railway'de o bosluğu kozmetik olarak temizlerse
+  // anahtar degisir ve HER Hospitable PAT'i, HER refresh token'i, HER 2FA sirri ve
+  // takvim feed URL'leri KALICI olarak cozulemez hale gelir (rotasyon = ASLA).
+  // Depo bu siniftan bir olayi ZATEN yasadi (`hospitable-token-undecryptable`,
+  // kok neden hicbir zaman belirlenemedi).
+  // ⚠️ HATA (uyari degil) olmasi bilincli: prestart sifir-disi cikarsa Railway YENI
+  // deploy'u yayinlamaz ve CALISAN SURUM hizmet vermeye devam eder — yani site
+  // dusmez, yalnizca hatali deger fark edilmeden gecemez.
+  // ⚠️ `key()`e `.trim()` EKLEMEK COZUM DEGIL: uretimdeki deger bugun boslukluysa
+  // trim eklemek anahtari DEGISTIRIR ve tam da onlemek istedigimiz kaybi yaratir.
+  //
+  // 🚪 KACIS KAPISI ZORUNLU — VE BU KAPININ VARLIK SEBEBI SU: bu kapinin talep
+  // ettigi duzeltme (boslugu sil) ZATEN YAZMIS bir kurulumda YASAKTIR. Kacis
+  // kapisi olmasaydi boyle bir kurulumun TEK cikisi kontrolu SILMEK olurdu ve
+  // silen kisi hicbir sey ogrenmeden bilgiyi de yok ederdi. Bayrak set etmek ise
+  // "evet, anahtarimizda bosluk VAR ve ASLA temizlenmeyecek" beyanini env'de
+  // kalici olarak birakir. Depo emsali: ALLOW_PROD_SEED, BILLING_ALLOW_CANCELED_PLAN_CHANGE.
+  const encKeyRaw = env.ENCRYPTION_KEY ?? "";
+  const whitespaceAcknowledged = (env.ALLOW_ENCRYPTION_KEY_WHITESPACE ?? "").trim() === "1";
+  if (encKeyRaw && encKeyRaw !== encKeyRaw.trim() && !whitespaceAcknowledged) {
+    errors.push(
+      "ENCRYPTION_KEY has leading/trailing whitespace. The key is derived from the RAW value, " +
+        "so trimming it later would permanently break every stored token and 2FA secret. " +
+        "If NOTHING has been encrypted yet, re-set the key without whitespace. " +
+        "If this deployment is already live, do NOT trim it — set ALLOW_ENCRYPTION_KEY_WHITESPACE=1 to record that the whitespace is intentional and permanent.",
+    );
+  }
+
+  // 🚨 SESSIZ KAPANMA — "24 ay" yazimi retention'i DA yeniden-icea-aktarma
+  // korumasini DA kapatir (denetim 08-08, olculdu). `Number("24 ay")` = NaN →
+  // `retentionCutoff()` null doner ve `anonymizeOldGuestData` no-op olur; ikisi de
+  // AYNI ifadeye bagli (`data-retention.ts:65,76`). Saglik ucu 200 kalir, hicbir
+  // alarm cikmaz, KVKK vaadi sessizce tutulmaz olur.
+  // ⚠️ AYARLANMAMIS olmasi MESRU (retention varsayilan KAPALI) — yalnizca AYARLANMIS
+  // ama sayiya cevrilemeyen deger reddedilir.
+  const retentionRaw = (env.DATA_RETENTION_MONTHS ?? "").trim();
+  if (retentionRaw) {
+    const months = Number(retentionRaw);
+    if (!Number.isFinite(months) || months <= 0 || !Number.isInteger(months)) {
+      errors.push(
+        `DATA_RETENTION_MONTHS is set but not a positive whole number ("${retentionRaw}"). ` +
+          "It would silently disable BOTH guest-data retention AND the sync's re-import guard.",
+      );
+    }
+  }
+
   // QR PIN pepper (Faz 5, #14). ONLY enforced when the feature is switched on
   // (QR_PIN_ENABLED=1) — with it off the whole PIN system is dormant and no
   // pepper is needed, so an env-off deployment is never blocked. When on, the

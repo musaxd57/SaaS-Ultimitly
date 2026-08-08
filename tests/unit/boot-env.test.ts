@@ -352,3 +352,72 @@ describe("instrumentation.register — no SECOND, conflicting env source", () =>
     vi.unstubAllEnvs();
   });
 });
+
+// ---------------------------------------------------------------------------
+// İKİ SESSİZ YANLIŞ-YAPILANDIRMA KAPISI (08-08).
+//
+// Ortak nokta: ikisi de bugün HİÇBİR belirti üretmiyordu — sağlık ucu 200
+// dönüyor, alarm çıkmıyor, yalnızca ürün sessizce eksik çalışıyor.
+//
+// Assertion'lar hata listesini REGEX'le süzüyor: aynı çağrıda tetiklenen
+// ilgisiz kapılar (Resend, DATABASE_URL…) testi kirletmesin diye.
+// ---------------------------------------------------------------------------
+describe("boot gate — sessiz yanlış yapılandırma", () => {
+  const BASE = {
+    NODE_ENV: "production",
+    AUTH_SECRET: REAL_AUTH,
+    ENCRYPTION_KEY: REAL_ENC,
+    RESEND_API_KEY: REAL_RESEND,
+    RESEND_FROM: "bildirim@example.com",
+    DATABASE_URL: "postgresql://user@db.example.com:5432/app",
+  };
+  const errorsMatching = (env: Record<string, string>, re: RegExp) =>
+    checkProductionEnv({ ...BASE, ...env }).errors.filter((e) => re.test(e));
+
+  const WHITESPACE = /ENCRYPTION_KEY has leading\/trailing whitespace/;
+  const RETENTION = /DATA_RETENTION_MONTHS is set but not a positive/;
+
+  it("ENCRYPTION_KEY'de baştaki/sondaki boşluk REDDEDİLİR", () => {
+    // `crypto-core.ts key()` env'i HAM okur; boşluklu değer BAŞKA bir anahtar
+    // türetir ve o boşluk sonradan "temizlenirse" her token kalıcı çözülemez olur.
+    expect(errorsMatching({ ENCRYPTION_KEY: REAL_ENC }, WHITESPACE)).toHaveLength(0);
+    expect(errorsMatching({ ENCRYPTION_KEY: `${REAL_ENC}\n` }, WHITESPACE)).toHaveLength(1);
+    expect(errorsMatching({ ENCRYPTION_KEY: ` ${REAL_ENC}` }, WHITESPACE)).toHaveLength(1);
+  });
+
+  it("kaçış kapısı ÖLÜ DEĞİL: ALLOW_ENCRYPTION_KEY_WHITESPACE=1 kapıyı açar", () => {
+    // Bu kapının talep ettiği düzeltme (boşluğu sil) ZATEN veri yazmış bir
+    // kurulumda YASAKTIR → kaçış kapısı olmasaydı tek çıkış kontrolü SİLMEK
+    // olurdu. Kapı çalışmıyorsa bu test kırmızı verir (ölü kaçış kapısı,
+    // repoda BILLING_ALLOW_CANCELED_PLAN_CHANGE emsaliyle aynı sınıf).
+    expect(
+      errorsMatching(
+        { ENCRYPTION_KEY: `${REAL_ENC}\n`, ALLOW_ENCRYPTION_KEY_WHITESPACE: "1" },
+        WHITESPACE,
+      ),
+    ).toHaveLength(0);
+    // Bayrak SADECE bu kapıyı açar — AUTH_SECRET'a eşitlik hâlâ reddedilir.
+    expect(
+      checkProductionEnv({
+        ...BASE,
+        ENCRYPTION_KEY: REAL_AUTH,
+        ALLOW_ENCRYPTION_KEY_WHITESPACE: "1",
+      }).errors.some((e) => /independent of AUTH_SECRET/.test(e)),
+    ).toBe(true);
+  });
+
+  it("kapı hiçbir hâlde anahtarın DEĞERİNİ yazmaz", () => {
+    const all = checkProductionEnv({ ...BASE, ENCRYPTION_KEY: `${REAL_ENC}\n` });
+    expect([...all.errors, ...all.warnings].join("\n")).not.toContain(REAL_ENC);
+  });
+
+  it("DATA_RETENTION_MONTHS: ayarlanmamış MEŞRU, ayarlanmış-ama-sayı-değil REDDEDİLİR", () => {
+    // `Number("24 ay")` = NaN → `retentionCutoff()` null → hem anonimleştirme
+    // hem sync'in yeniden-içe-aktarma koruması SESSİZCE kapanır (aynı ifadeye bağlılar).
+    expect(errorsMatching({}, RETENTION)).toHaveLength(0); // hiç set değil
+    expect(errorsMatching({ DATA_RETENTION_MONTHS: "24" }, RETENTION)).toHaveLength(0);
+    for (const bad of ["24 ay", "0", "-3", "2.5", "yirmidört"]) {
+      expect(errorsMatching({ DATA_RETENTION_MONTHS: bad }, RETENTION)).toHaveLength(1);
+    }
+  });
+});

@@ -69,16 +69,27 @@ export function OnboardingGuide({ steps }: { steps: OnboardingStep[] }) {
 
   useEffect(() => {
     let prev = 0;
+    // 🚨 `completedBefore` HER HÂLDE AYARLANMALI — `try` İÇİNE ALMA.
+    // Bu satır bir kez `try`'ın İÇİNDE ve `setItem`'dan SONRA duruyordu: gizli
+    // sekmede / kota dolduğunda `setItem` atıyor, bu satıra hiç gelinmiyor ve
+    // `completedBefore` sonsuza kadar `null` kalıyordu → aşağıdaki
+    // `completedBefore === null` kapısı kartı KALICI OLARAK gizliyordu.
+    // Yani aşağıdaki catch'in "kartı göstermeye düş" sözü TERSİNE dönmüştü:
+    // depolama çalışmayan tarayıcıda kurulum rehberi HİÇ görünmüyordu.
+    // Varsayılan `false` = "mühür yok" = kartı göster (güvenli yön).
+    let completedSeal = false;
     try {
       if (localStorage.getItem(DISMISS_KEY) === "1") setCollapsed(true);
+      // Mührü ÖNCE oku: `setItem` atsa bile okunan değer elimizde kalsın.
+      completedSeal = localStorage.getItem(COMPLETED_KEY) === "1";
       prev = Number(localStorage.getItem(SEEN_COUNT_KEY) ?? "0") || 0;
       localStorage.setItem(SEEN_COUNT_KEY, String(doneCount));
-      setCompletedBefore(localStorage.getItem(COMPLETED_KEY) === "1");
       // Mührü ŞİMDİ basma — bu render'da kutlamayı göstereceğiz. Damga aşağıdaki
       // ikinci effect'te, kutlama ekranda göründükten SONRA basılır.
     } catch {
       // localStorage can throw in private mode — fall back to showing the card.
     }
+    setCompletedBefore(completedSeal);
     setSeenCount(prev);
     // Önce eski orana kur, SONRAKİ karede yenisine geç → geçiş tetiklenir.
     setBarPct((prev / steps.length) * 100);

@@ -101,7 +101,22 @@ function normalizeLang(v: unknown): string {
 
 async function callOpenAI(system: string, user: string): Promise<string | null> {
   const key = process.env.OPENAI_API_KEY;
-  if (!key) return null;
+  if (!key) {
+    // 🚨 SESSİZ TAM ARIZA — SİNYALSİZ BIRAKMA (denetim 08-08).
+    // Anahtar düşerse her çağrı `null` döner → deterministik fallback devreye
+    // girer → `passesAutoReplySafetyGate` `source == "openai"` şartını arar ve
+    // BULAMAZ → oto-yanıt TAMAMEN durur. `/api/health` 200 kalır, Sentry sessiz,
+    // tek belirti "misafirlere cevap gitmiyor" ve fark edilmesi GÜNLER alır.
+    // Kardeş dallar (401/5xx ve truncated) zaten raporlanıyordu; eksik olan tek
+    // dal, arızanın EN SESSİZ hâliydi.
+    // ⚠️ `reportError` kendi 10 dk'lık context penceresiyle kısılır — bu, her
+    // mesajda değil pencerede bir kez alarm üretir.
+    void reportError(
+      "openai-key-missing",
+      new Error("OPENAI_API_KEY tanımlı değil — AI yanıtı üretilemiyor, oto-yanıt durdu."),
+    );
+    return null;
+  }
   const model = replyModel();
   const payload: Record<string, unknown> = {
     model,
