@@ -27,6 +27,15 @@ const DISMISS_KEY = "lixus_onboarding_dismissed";
 // Son görülen tamamlanma sayısı. Sunucu bileşeni "az önce bir adım bitti"
 // olayını göndermiyor; farkı istemcide burada saklayarak üretiyoruz.
 const SEEN_COUNT_KEY = "lixus_onboarding_seen_count";
+// 🚨 "BİR KEZ TAMAMLANDI" MÜHRÜ — kalıcı, geri dönüşü yok (kullanıcı kararı).
+// Sorun: kart yalnız `allDone` iken gizleniyordu, yani host kurulumu bitirip
+// SONRADAN otomatik yanıtı kapatınca 6/6 → 5/6'ya düşüyor ve kart GERİ GELİYORDU.
+// Ama o adım artık bir "kurulum eksiği" değil, host'un bilinçli tercihi — kurulum
+// rehberi onu azarlamamalı. Bir kez 6/6 görüldüyse rehber bir daha ASLA açılmaz.
+// ⚠️ Tarayıcı başına: sunucuda saklamak `Organization`'a kolon = migration demek
+// ve kullanıcı onayı ister. Yeni bir tarayıcıda kurulum ZATEN bitmiş olduğu için
+// en fazla bir kez kutlama görünür, sonra o tarayıcıda da susar — kabul edilebilir.
+const COMPLETED_KEY = "lixus_onboarding_completed";
 
 /**
  * "Başlarken" checklist shown on the dashboard until the account is set up.
@@ -53,12 +62,20 @@ export function OnboardingGuide({ steps }: { steps: OnboardingStep[] }) {
 
   const doneCount = steps.filter((s) => s.done).length;
 
+  // `null` = henüz bilinmiyor (SSR + ilk render). Üçüncü durum ŞART: sunucuda
+  // localStorage yok, `false` ile başlasaydı mührü olan hostta kart bir an
+  // görünüp kaybolurdu (flaş).
+  const [completedBefore, setCompletedBefore] = useState<boolean | null>(null);
+
   useEffect(() => {
     let prev = 0;
     try {
       if (localStorage.getItem(DISMISS_KEY) === "1") setCollapsed(true);
       prev = Number(localStorage.getItem(SEEN_COUNT_KEY) ?? "0") || 0;
       localStorage.setItem(SEEN_COUNT_KEY, String(doneCount));
+      setCompletedBefore(localStorage.getItem(COMPLETED_KEY) === "1");
+      // Mührü ŞİMDİ basma — bu render'da kutlamayı göstereceğiz. Damga aşağıdaki
+      // ikinci effect'te, kutlama ekranda göründükten SONRA basılır.
     } catch {
       // localStorage can throw in private mode — fall back to showing the card.
     }
@@ -71,6 +88,17 @@ export function OnboardingGuide({ steps }: { steps: OnboardingStep[] }) {
 
   // "Az önce ilerledi" — yalnız bu turda artmışsa efekt oynar, her yüklemede DEĞİL.
   const justAdvanced = seenCount !== null && doneCount > seenCount;
+
+  // Mührü kutlama EKRANA GELDİKTEN sonra bas: ilk effect'te basılsaydı aynı
+  // render'da `completedBefore` true olur ve host kutlamayı HİÇ göremezdi.
+  useEffect(() => {
+    if (completedBefore !== false || doneCount !== steps.length) return;
+    try {
+      localStorage.setItem(COMPLETED_KEY, "1");
+    } catch {
+      // Gizli sekmede atabilir — bir sonraki yüklemede kutlama tekrar görünür.
+    }
+  }, [completedBefore, doneCount, steps.length]);
   // The first not-yet-done step is the one we nudge them toward next.
   const nextIndex = steps.findIndex((s) => !s.done);
 
@@ -92,6 +120,11 @@ export function OnboardingGuide({ steps }: { steps: OnboardingStep[] }) {
   // `seenCount === null` hem SSR'da hem ilk istemci render'ında geçerli → 6/6
   // durumunda çıktı BOŞ, yani "bir an görünüp kaybolma" (flash) da olmuyor.
   const allDone = doneCount === steps.length;
+  // 🚨 MÜHÜR HER ŞEYDEN ÖNCE GELİR (kullanıcı kararı): bir kez 6/6 görüldüyse
+  // rehber bir daha AÇILMAZ — host sonradan otomatik yanıtı kapatıp 5/6'ya
+  // düşse bile. O adım artık eksik bir kurulum değil, bilinçli bir tercih.
+  // `null` = henüz okunmadı (SSR/ilk render) → hiçbir şey basma, flaş olmasın.
+  if (completedBefore === null || completedBefore) return null;
   if (allDone && !justAdvanced) return null;
 
   if (collapsed) {

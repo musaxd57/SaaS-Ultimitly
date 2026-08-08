@@ -249,7 +249,7 @@ export default async function DashboardPage() {
           value={stats.sameDayTurnovers}
           icon={Users}
           tone={stats.sameDayTurnovers > 0 ? "warning" : "default"}
-          hint="çıkış + aynı gün yeni giriş — temizlik bugün yetişmeli"
+          hint="aynı daireye bugün yeni misafir geliyor"
         />
         <StatCard
           // "bugün" DEĞİL "bu gece": tanım gece-katı (sektör standardı — STR/CoStar,

@@ -110,7 +110,12 @@ export default async function OutboxQueuePage({
     <>
       <PageHeader
         title="Gönderim Kuyruğu"
-        description="Kalıcı gönderim kuyruğunun (outbox) durum görünümü. Mesaj içerikleri ve misafir bilgileri bu ekranda gösterilmez; içerik için konuşma ekranını açın."
+        // ⚠️ METİN SADELEŞTİRİLDİ (kullanıcı: "tam tanımlardan anlamıyorum,
+        // ben bile ne olduğunu anlamadım"). Eski hâli "kalıcı gönderim kuyruğunun
+        // (outbox) durum görünümü" diyordu — ürünün İÇ terimini (outbox) müşteriye
+        // gösteriyor ve ekranın NE İŞE YARADIĞINI hiç söylemiyordu. Yeni metin
+        // önce SORUYU cevaplıyor ("mesajım gitti mi?"), sonra sınırı söylüyor.
+        description="Misafirlere giden mesajların teslim durumu. Bir mesaj gönderilemediyse sebebini burada görür, tekrar deneyebilirsiniz. Mesajın kendi metni ve misafir bilgileri burada gösterilmez — onlar için konuşma ekranını açın."
       >
         <Link
           href="/sent"
@@ -145,8 +150,8 @@ export default async function OutboxQueuePage({
       {totalAll === 0 ? (
         <EmptyState
           icon={ListOrdered}
-          title="Kuyrukta kayıt yok"
-          description="Kalıcı gönderim kuyruğu kullanılmaya başlandığında her gönderim denemesi burada durumuyla listelenir. Kuyruk kapalıyken geçmiş kayıtlar yine görüntülenebilir."
+          title="Henüz gönderim kaydı yok"
+          description="Bu ekran, bir mesajın misafire ulaşıp ulaşmadığını takip etmek için. Mesaj göndermeye başladığınızda her deneme burada durumuyla listelenir — ulaştı, bekliyor ya da ulaşamadı."
         />
       ) : list.rows.length === 0 ? (
         <EmptyState
