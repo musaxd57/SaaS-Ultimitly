@@ -2672,6 +2672,18 @@ export async function sendDueWelcomes(
       // Hospitable bookings). toChannel() never yields "ics"/"manual", so this can
       // never drop a real Hospitable reservation — it just skips iCal/manual ones.
       channel: { notIn: ["ics", "manual"] },
+      // 🚨 `channel` iCAL İÇİN GÜVENİLİR BİR İŞARETÇİ DEĞİL (denetim 08-08, kod-doğrulandı).
+      // Üstteki yorum "toChannel() asla ics/manual üretmez, yani bu satır yalnız
+      // iCal/manual olanları eler" diyordu ve YANLIŞTI: abonelik senkronu kanalı
+      // `channelFromLabel(source.label)` ile yazıyor (import/sync.ts) ve o fonksiyon
+      // ASLA "ics" döndürmez — "Airbnb" etiketli bir besleme `channel:"airbnb"` üretir.
+      // (`calendar-sync.test.ts` bunu zaten asserte ediyordu.) Sonuç: beslemeden gelen
+      // rezervasyon TAM bir karşılama/giriş adayıydı ve `sendOnChannel` iCal UID'sini
+      // Hospitable rezervasyon id'si sanıp POST ediyordu — 4xx'te sonsuz yeniden
+      // deneme + her koşuda toplu alarm, 5xx'te hayalet konaklamaya kalıcı damga.
+      // SADECE elle yükleme "ics" yazıyor (08-07 (6)); abonelik yolu atlanmıştı.
+      // GERÇEK işaretçi budur: bir kaynağa bağlı satır tanım gereği Hospitable'da yok.
+      calendarSourceId: null,
       createdAt: { gte: baseline }, // only bookings created since welcome was enabled
       // Org-local day boundary (not server UTC) so today's arrival isn't dropped.
       arrivalDate: { gte: zonedDayRange(now, orgTimezone(org.timezone)).start },
@@ -2837,6 +2849,7 @@ export async function sendDueCheckins(
       checkinSentAt: null,
       sourceReference: { not: null },
       channel: { notIn: ["ics", "manual"] }, // only Hospitable-messageable bookings (never iCal/manual)
+      calendarSourceId: null, // ↑ aynı gerekçe: `channel` iCal işaretçisi DEĞİL
       createdAt: { gte: baseline }, // only bookings created since this was enabled
       arrivalDate: {
         gte: zonedDayRange(now, orgTimezone(org.timezone)).start, // not for stays already begun/past (org-local day)
@@ -2983,6 +2996,7 @@ export async function previewWelcomes(
       status: "confirmed",
       sourceReference: { not: null },
       channel: { notIn: ["ics", "manual"] }, // match the sender filter (preview == reality)
+      calendarSourceId: null, // ↑ aynı gerekçe: `channel` iCal işaretçisi DEĞİL
       arrivalDate: { gte: zonedDayRange(now, orgTimezone(org?.timezone)).start, lte: horizon },
     },
     select: {
@@ -3041,6 +3055,7 @@ export async function previewCheckins(
       status: "confirmed",
       sourceReference: { not: null },
       channel: { notIn: ["ics", "manual"] }, // match the sender filter (preview == reality)
+      calendarSourceId: null, // ↑ aynı gerekçe: `channel` iCal işaretçisi DEĞİL
       arrivalDate: { gte: zonedDayRange(now, orgTimezone(org?.timezone)).start, lte: horizon },
     },
     select: {
@@ -3120,6 +3135,7 @@ export async function sendDueCheckouts(
       checkoutSentAt: null,
       sourceReference: { not: null },
       channel: { notIn: ["ics", "manual"] }, // only Hospitable-messageable bookings (never iCal/manual)
+      calendarSourceId: null, // ↑ aynı gerekçe: `channel` iCal işaretçisi DEĞİL
       createdAt: { gte: baseline }, // only bookings created since checkout was enabled
       // +3 CALENDAR days in org-tz (addZonedDays), not date-fns addDays (+72h):
       // DST geçiş günlerinde sabit saat-adımı pencere ucunu yerel geceyarısından
@@ -3511,6 +3527,7 @@ export async function previewCheckouts(
       // Mirror the live sender: iCal/manual bookings are never messaged, so the
       // preview must not list them as "would send" either.
       channel: { notIn: ["ics", "manual"] },
+      calendarSourceId: null, // ↑ aynı gerekçe: `channel` iCal işaretçisi DEĞİL
       departureDate: { gte: zonedDayRange(now, orgTimezone(org?.timezone)).start, lte: horizon },
     },
     select: {

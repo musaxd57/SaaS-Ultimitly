@@ -247,6 +247,38 @@ describe("POST /api/reservations/import — STATUS:CANCELLED", () => {
     expect((await prisma.reservation.findFirstOrThrow({ where: { id: owned.id } })).status).toBe("confirmed");
   });
 
+  // ── 5b. HOSPITABLE SATIRI ELLE YÜKLEMEYLE İPTAL EDİLEMEZ ──────────────────
+  // 🚨 Denetim 08-08: sahiplik kuralı KARDEŞ YOLUN TERSİYDİ. Abonelik senkronu
+  // CANCELLED bir olayın SAHİPSİZ satıra dokunmasına hiç izin vermiyor; bu rota
+  // ise SADECE sahipsiz satırları iptal ediyordu — ve o küme Hospitable'dan
+  // gelen ve elle girilen rezervasyonları DA kapsıyor. UID'si bir Hospitable
+  // `sourceReference`'ıyla çakışan bayat bir .ics (Hospitable'ın kendisi de iCal
+  // yayımlayabilir) CANLI rezervasyonu iptale çevirip görevlerini silebilirdi.
+  it("Hospitable kanalındaki CANLI rezervasyon elle .ics yüklemesiyle İPTAL EDİLEMEZ", async () => {
+    // Hospitable'dan gelmiş gibi: kaynağa bağlı DEĞİL (calendarSourceId null)
+    // ama kanalı "airbnb" — yani bu rotanın yazdığı satır değil.
+    const live = await prisma.reservation.create({
+      data: {
+        propertyId,
+        sourceReference: "cakisan-uid@airbnb.com",
+        channel: "airbnb",
+        calendarSourceId: null,
+        status: "confirmed",
+        guestName: "Gerçek Misafir",
+        arrivalDate: new Date("2026-09-01T00:00:00Z"),
+        departureDate: new Date("2026-09-04T00:00:00Z"),
+      },
+    });
+
+    const res = await POST(
+      icsReq(propertyId, calendar(vevent("cakisan-uid@airbnb.com", { cancelled: true }))),
+      { params: Promise.resolve({}) },
+    );
+
+    expect(await res.json()).toMatchObject({ cancelled: 0, skipped: 1 });
+    expect((await prisma.reservation.findFirstOrThrow({ where: { id: live.id } })).status).toBe("confirmed");
+  });
+
   // ── 6. PARİTE: AYNI METİN iki yoldan da AYNI sonucu vermeli ───────────────
   it("PARİTE: aynı .ics metni elle yükleme ve abonelik senkronunda AYNI sonucu verir", async () => {
     const text = calendar(vevent("parite@airbnb.com", { cancelled: true }));

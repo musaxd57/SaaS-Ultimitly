@@ -120,9 +120,15 @@ export const POST = withManage(async (session, req) => {
     // filtreliyor ("only Hospitable-messageable bookings — never iCal/manual"),
     // yani ELLE YÜKLENEN bir .ics satırı o kapıyı GEÇİYOR ve var olmayan bir
     // Hospitable konuşmasına karşılama/giriş mesajı denemesi başlatıyordu.
-    // Aynı içerik abonelik senkronundan gelince `"ics"` yazılıyordu → aynı
-    // dosya, iki farklı kanal. Rozet sorunu ETİKET HARİTASINA "ics" eklenerek
-    // çözüldü (`constants.ts`), kanal değerini bükerek değil.
+    // Rozet sorunu ETİKET HARİTASINA "ics" eklenerek çözüldü (`constants.ts`),
+    // kanal değerini bükerek değil.
+    // ⚠️ DÜZELTME (08-08): bu yorum bir dönem "aynı içerik abonelik
+    // senkronundan gelince `ics` yazılıyordu" diyordu — YANLIŞTI. Abonelik yolu
+    // kanalı `channelFromLabel(source.label)` ile yazar ve o fonksiyon ASLA
+    // "ics" döndürmez ("Airbnb" etiketli besleme → `channel:"airbnb"`). Yani
+    // abonelik satırları o kapıdan GEÇİYORDU; gerçek koruma `calendarSourceId`
+    // ile ayrıca eklendi (`automation.ts`). "ics" kanalı bu ROTAYA özgü kalır ve
+    // tam da bu yüzden elle yüklenen satırı benzersiz biçimde tanımlar (↓iptal).
     rows = parseIcs(text);
   } else {
     // FAIL-CLOSED: a structurally broken CSV (unbalanced quote, shifted columns)
@@ -265,8 +271,25 @@ export const POST = withManage(async (session, req) => {
             // Sahiplik ve "zaten iptalli mi" WHERE'in İÇİNDE tekrar sınanıyor →
             // okuma ile yazma arasında araya giren bir senkron bizi yanıltamaz
             // (kardeş yolun `updateMany` ile atomik sahiplik kontrolü aynısı).
+            // 🚨 `channel: "ics"` DE ŞART (denetim 08-08). `calendarSourceId: null`
+            // TEK BAŞINA "bunu daha önce ben yükledim" DEMEK DEĞİLDİR — o küme
+            // Hospitable'dan gelen satırları ve elle girilen rezervasyonları DA
+            // kapsıyor. Kardeş yol (abonelik senkronu) tam tersini yapıyor:
+            // CANCELLED bir olayın SAHİPSİZ satıra dokunmasına hiç izin vermiyor
+            // ("legacy" araması `row.status !== "CANCELLED"` koşullu). Buradaki
+            // kural onun aynası olmalıydı, olmamıştı: UID'si bir Hospitable
+            // `sourceReference`'ıyla çakışan bayat bir .ics, CANLI bir
+            // rezervasyonu iptale çevirip `origin:"system"` görevlerini
+            // SİLEBİLİRDİ (durum PATCH ile geri alınır, görevler alınmaz).
+            // "ics" bu rotanın YAZDIĞI tek kanaldır ve `channelFromLabel` onu
+            // asla üretmez → elle yüklenen satırı benzersiz tanımlar.
             const res = await tx.reservation.updateMany({
-              where: { id: existing.id, calendarSourceId: null, status: { not: "cancelled" } },
+              where: {
+                id: existing.id,
+                calendarSourceId: null,
+                channel: "ics",
+                status: { not: "cancelled" },
+              },
               data: { status: "cancelled" },
             });
             return res.count === 1 ? existing.id : null;
