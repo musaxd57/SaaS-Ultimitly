@@ -56,6 +56,39 @@ const SUSPICIOUS_DROP_MIN_BASE = 5; //          only guard a drop when the basel
 const SUSPICIOUS_DROP_RATIO = 0.5; //           a drop to < 50% of the baseline is treated as partial
 const FEED_LOCK_NS = 23; //                     advisory-lock namespace ("#23"), disjoint from the outbox lock
 
+/**
+ * 🚨 BOS GECIS BOS OLMALI (denetim 08-08, OLCULDU).
+ *
+ * Bu yol her eslesen rezervasyona KOSULSUZ `updateMany` yaziyordu: hicbir sey
+ * degismese bile. Olculdu — hicbir degisiklik icermeyen bir iCal gecisi
+ * **43.252 Prisma islemi, 7.104 satir UPDATE, 61,6 sn** ediyordu ve her
+ * `ICAL_SYNC_EVERY_MIN` (varsayilan 15 dk) bunu TEKRARLIYORDU.
+ *
+ * Takvim senkronu 08-08'de cron'a baglandigi icin bu artik surekli bir yuk:
+ * org butcesini (60 sn) HER GECISTE asar, gecis butcesini yer ve 15 dakikalik
+ * `SystemLock` TTL'ine dogru iter → `lockLost` → ORTAK KILIT KAYBI, yani ayni
+ * org'a paralel iki gecis (tum duplicate korumasinin dayandigi varsayim).
+ *
+ * ⚠️ `updated` SAYACININ ANLAMI DEGISTI ve bu KASITLI: artik "gercekten degisen
+ * satir" sayiyor. Eski sayi ("dokunulan satir") her gecis ayni buyuk sayiyi
+ * basiyordu ve bir sey oldugunu SANDIRIYORDU.
+ */
+const SYNC_COMPARE_SELECT = {
+  id: true,
+  guestName: true,
+  status: true,
+  notes: true,
+  arrivalDate: true,
+  departureDate: true,
+  calendarSourceId: true,
+} as const;
+
+/** Ayni an mi (null-guvenli, Date kimligine DEGIL degerine bakar). */
+function sameInstant(a: Date | null | undefined, b: Date | null | undefined): boolean {
+  if (!a || !b) return a === b;
+  return a.getTime() === b.getTime();
+}
+
 /** Map a free-text source label to a known reservation channel. */
 function channelFromLabel(label: string): string {
   const l = label.toLowerCase();
@@ -218,14 +251,14 @@ export async function syncCalendarSource(sourceId: string): Promise<SyncResult> 
           const bound = row.sourceReference
             ? await tx.reservation.findFirst({
                 where: { propertyId: source.propertyId, sourceReference: row.sourceReference, calendarSourceId: source.id },
-                select: { id: true, guestName: true, status: true },
+                select: SYNC_COMPARE_SELECT,
               })
             : null;
           const legacy =
             !bound && row.sourceReference && row.status !== "CANCELLED"
               ? await tx.reservation.findFirst({
                   where: { propertyId: source.propertyId, sourceReference: row.sourceReference, calendarSourceId: null },
-                  select: { id: true, guestName: true, status: true },
+                  select: SYNC_COMPARE_SELECT,
                 })
               : null;
           const existing = bound ?? legacy;
@@ -252,6 +285,21 @@ export async function syncCalendarSource(sourceId: string): Promise<SyncResult> 
             // name/notes back from the feed. Dates (non-PII) still refresh so
             // occupancy stays correct. Mirrors the hospitable-sync.ts guard.
             const scrubbed = existing.guestName === ANON_NAME;
+            // ↑SYNC_COMPARE_SELECT: yazacagimiz her alan ZATEN ayniysa ve satir
+            // ZATEN bu kaynaga bagliysa hicbir sey yazma. `scrubbed` satirda
+            // ad/not zaten yazilmadigi icin karsilastirmaya da girmezler
+            // (KVKK anonimlestirmesini "degisiklik" sayip geri yazmayi denemek
+            // dirilme olurdu). Iptalden donen satir DAIMA yazilir.
+            const unchanged =
+              existing.calendarSourceId === source.id &&
+              existing.status !== "cancelled" &&
+              sameInstant(existing.arrivalDate, row.arrivalDate) &&
+              sameInstant(existing.departureDate, row.departureDate) &&
+              (scrubbed ||
+                (existing.guestName === row.guestName.slice(0, 200) &&
+                  (existing.notes ?? null) === (row.notes ? row.notes.slice(0, 5000) : null)));
+            if (unchanged) return { kind: "skip" };
+
             // ATOMIC adoption: ownership re-checked inside the UPDATE (count 0 = a
             // concurrent source claimed the legacy NULL row first → not ours, skip).
             const resU = await tx.reservation.updateMany({

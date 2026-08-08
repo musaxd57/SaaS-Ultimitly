@@ -310,3 +310,47 @@ describe("runScheduledSync — iCal (Kanal Takvimleri) bacağı", () => {
     expect(goodRow.lastStatus).toBe("ok");
   });
 });
+
+// ---------------------------------------------------------------------------
+// 🚨 BOŞ GEÇİŞ BOŞ OLMALI (08-08, ölçülerek bulundu).
+//
+// Bu yol her eşleşen rezervasyona KOŞULSUZ `updateMany` yazıyordu. Hiçbir şey
+// değişmeyen bir geçiş ölçüldüğünde 43.252 Prisma işlemi / 7.104 UPDATE /
+// 61,6 sn ediyordu — ve takvim senkronu cron'a bağlandığı için bu her 15
+// dakikada tekrarlanan KALICI bir yük demekti (org bütçesi her geçişte aşılır,
+// 15 dk'lık SystemLock TTL'ine doğru itilir → kilit kaybı → paralel geçiş).
+// ---------------------------------------------------------------------------
+describe("iCal: değişmeyen besleme İKİNCİ geçişte hiçbir satır YAZMAZ", () => {
+  it("aynı feed iki kez senkronlanınca ikinci geçişte updated=0 olur", async () => {
+    const { syncCalendarSource } = await import("@/lib/import/sync");
+    const { propertyId } = await orgWithProperty("noop-pass");
+    const feed = (summary: string) =>
+      [
+        "BEGIN:VCALENDAR",
+        "BEGIN:VEVENT",
+        "UID:degismeyen-1@airbnb.com",
+        "DTSTART;VALUE=DATE:20260901",
+        "DTEND;VALUE=DATE:20260904",
+        `SUMMARY:${summary}`,
+        "END:VEVENT",
+        "END:VCALENDAR",
+      ].join("\r\n");
+
+    vi.mocked(fetchFeedText).mockResolvedValue(feed("Deniz") as never);
+    const source = await addSource(propertyId);
+
+    const first = await syncCalendarSource(source.id);
+    expect(first.imported).toBe(1);
+
+    // İKİNCİ geçiş: feed BİREBİR aynı → hiçbir satır yazılmamalı.
+    const second = await syncCalendarSource(source.id);
+    expect(second.imported).toBe(0);
+    expect(second.updated).toBe(0);
+
+    // KONTROL: feed GERÇEKTEN değişirse yazma YİNE olmalı — yoksa bu test
+    // "senkronu komple kapat" mutasyonunu da yeşil geçerdi.
+    vi.mocked(fetchFeedText).mockResolvedValue(feed("Deniz Yılmaz") as never);
+    const third = await syncCalendarSource(source.id);
+    expect(third.updated).toBe(1);
+  });
+});

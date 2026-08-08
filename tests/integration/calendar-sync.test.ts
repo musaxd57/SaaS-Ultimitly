@@ -134,7 +134,13 @@ describe("syncCalendarSource", () => {
     const second = await syncCalendarSource(source.id);
 
     expect(second.imported).toBe(0);
-    expect(second.updated).toBe(2);
+    // 🚨 SAYACIN ANLAMI DEĞİŞTİ (08-08): "dokunulan satır" değil "GERÇEKTEN
+    // değişen satır". Feed birebir aynı olduğu için ikinci geçiş HİÇBİR ŞEY
+    // yazmıyor. Eski 2 değeri, ölçülen kusurun ta kendisiydi: değişmeyen bir
+    // besleme her 15 dakikada tüm satırlarını yeniden yazıyordu (boş geçiş
+    // 7.104 UPDATE / 61,6 sn). Testin ASIL değişmezleri (kopya yok, görev
+    // çiftlenmiyor) AŞAĞIDA aynen duruyor.
+    expect(second.updated).toBe(0);
     const count = await prisma.reservation.count({ where: { propertyId } });
     expect(count).toBe(2);
     // Re-sync must not duplicate the cleaning tasks.
@@ -165,7 +171,11 @@ describe("syncCalendarSource", () => {
     mockFetch(shifted);
     const second = await syncCalendarSource(source.id);
 
-    expect(second.updated).toBe(2);
+    // Yalnız TARİHİ KAYAN satır yazılıyor; ikinci konaklama birebir aynı
+    // olduğu için atlanıyor (↑sayaç anlamı). Aşağıdaki üç assertion testin
+    // asıl konusudur ve değişmedi: anonim ad geri YAZILMAZ, tarih tazelenir,
+    // anonimleştirilmemiş satır adını normal alır.
+    expect(second.updated).toBe(1);
     const anon = await prisma.reservation.findFirst({
       where: { propertyId, sourceReference: "abc-123@airbnb.com" },
     });
