@@ -113,7 +113,7 @@ export default async function PropertiesPage() {
                     </span>
                   </div>
                   {missing.length > 0 ? (
-                    <p className="mt-1.5 text-xs text-amber-700/80 dark:text-amber-300/80">Eksik: {missing.join(", ")}</p>
+                    <p className="mt-1.5 text-xs text-amber-700 dark:text-amber-300/80">Eksik: {missing.join(", ")}</p>
                   ) : null}
                 </Card>
               </Link>

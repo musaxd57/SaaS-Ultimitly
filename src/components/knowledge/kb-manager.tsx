@@ -551,7 +551,12 @@ export function KbManager({
                       <>
                         <p
                           className={cn(
-                            "mt-1.5 whitespace-pre-wrap text-sm text-muted-foreground",
+                            // ⚠️ `text-foreground/90` — bu metni HOST KENDİ YAZDI ve sayfanın asıl
+                            // içeriği o. `text-muted-foreground` ikincil/yardımcı metin
+                            // rengidir; kalemin gövdesini onunla çizmek, kullanıcının
+                            // girdiği veriyi çevresindeki açıklamalarla aynı ağırlığa
+                            // düşürüyordu (kullanıcı: "belirginliği artabilir").
+                            "mt-1.5 whitespace-pre-wrap text-sm text-foreground/90",
                             !expandedIds.has(item.id) && "line-clamp-3",
                           )}
                         >

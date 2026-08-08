@@ -15,12 +15,12 @@
 // ---------------------------------------------------------------------------
 
 function Bar({ className }: { className: string }) {
-  return <div className={`animate-pulse rounded bg-muted ${className}`} />;
+  return <div className={`lxs-pulse rounded bg-muted ${className}`} />;
 }
 
 export default function Loading() {
   return (
-    <div className="space-y-4" aria-busy="true" aria-live="polite">
+    <div className="space-y-6" aria-busy="true" aria-live="polite">
       <span className="sr-only">Raporlar yükleniyor…</span>
       <div className="flex flex-wrap items-center justify-between gap-3">
         <div className="space-y-2">
@@ -30,7 +30,7 @@ export default function Loading() {
       </div>
       <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
         {Array.from({ length: 4 }).map((_, i) => (
-          <div key={i} className="space-y-3 rounded-lg border border-border p-5">
+          <div key={i} className="space-y-3 rounded-xl border border-border bg-card p-5 shadow-sm">
             <Bar className="h-9 w-9" />
             <Bar className="h-4 w-24" />
             <Bar className="h-7 w-16" />
@@ -38,11 +38,11 @@ export default function Loading() {
         ))}
       </div>
       <div className="grid gap-4 lg:grid-cols-3">
-        <div className="space-y-3 rounded-lg border border-border p-5 lg:col-span-2">
+        <div className="space-y-3 rounded-xl border border-border bg-card p-5 shadow-sm lg:col-span-2">
           <Bar className="h-5 w-40" />
           <Bar className="h-48 w-full" />
         </div>
-        <div className="space-y-3 rounded-lg border border-border p-5">
+        <div className="space-y-3 rounded-xl border border-border bg-card p-5 shadow-sm">
           <Bar className="h-5 w-32" />
           {Array.from({ length: 5 }).map((_, i) => (
             <Bar key={i} className="h-4 w-full" />

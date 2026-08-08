@@ -223,6 +223,7 @@ export default async function DashboardPage() {
           show, and every tile carries a hint line so none is a bare number. */}
       <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
         <StatCard
+          className="lxp-in"
           label="Acil Görevler"
           value={stats.urgentTasks}
           icon={AlertTriangle}
@@ -241,6 +242,7 @@ export default async function DashboardPage() {
             Şimdiki hâli hiçbir yüzeyde olmayan tek bilgi: aynı gün DEVİR. Temizlik
             çıkış saati ile giriş saati arasına sıkışır — panelin tek deadline'ı. */}
         <StatCard
+          className="lxp-in"
           label="Aynı Gün Devir"
           value={stats.sameDayTurnovers}
           icon={Users}
@@ -248,6 +250,7 @@ export default async function DashboardPage() {
           hint="aynı daireye bugün yeni misafir geliyor"
         />
         <StatCard
+          className="lxp-in"
           // "bugün" DEĞİL "bu gece": tanım gece-katı (sektör standardı — STR/CoStar,
           // Airbnb, Hostaway, AirDNA hepsi oda-GECESİ üzerinden sayar; Booking'in
           // extranet'indeki "Stayovers" kovası da bu). Bugün çıkışı olan daire,
@@ -261,6 +264,7 @@ export default async function DashboardPage() {
           href="/reports"
         />
         <StatCard
+          className="lxp-in"
           label="Sorunlu Konuşmalar"
           value={stats.problemConversations}
           icon={AlertTriangle}

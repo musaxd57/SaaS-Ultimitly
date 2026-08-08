@@ -610,3 +610,56 @@ html {
    bu sebeple dışarıda bırakmıştım, sonra aynı kapsamdaki bir sınıf için override
    yazdım. Panelde bir gün `card-lift` kullanılırsa override GEREKECEK: gölge
    `--foreground`a bağlı ve karanlıkta beyaz bir PARILTIYA döner. */
+
+/* ✨ STAT SATIRI GİRİŞİ — panel açılışında dört kutucuk sırayla oturur.
+   ⚠️ `opacity: .55`'ten BAŞLAR, 0'dan DEĞİL: sayılar ilk kareden itibaren
+   OKUNABİLİR, yani bu efekt algılanan ilk boyamayı GECİKTİRMEZ. Süre kısa
+   (260 ms) ve gecikmeler 40 ms — "havalı ama abartısız" (kullanıcı isteği). */
+.lxp-in { animation: lxp-in 260ms cubic-bezier(0.16, 1, 0.3, 1) both; }
+.lxp-in:nth-child(2) { animation-delay: 40ms; }
+.lxp-in:nth-child(3) { animation-delay: 80ms; }
+.lxp-in:nth-child(4) { animation-delay: 120ms; }
+@keyframes lxp-in {
+  from { opacity: 0.55; transform: translateY(6px); }
+  to { opacity: 1; transform: none; }
+}
+@media (prefers-reduced-motion: reduce) {
+  .lxp-in { animation: none; }
+}
+
+/* ---------------------------------------------------------------------------
+   YÜKLENİYOR İSKELETİ (lxs-*).
+   ⚠️ Tailwind'in `animate-pulse`'ı BU DEPODA reduced-motion kaçışı OLMAYAN tek
+   animasyondu (`tailwind.config.ts` `animation`i genişletmiyor = stok davranış,
+   ve buradaki hiçbir `prefers-reduced-motion` bloğu onu adlandırmıyor). Yani
+   altı iskelet, hareket istemediğini söylemiş kullanıcıda da nabız atıyordu.
+--------------------------------------------------------------------------- */
+
+/* Nabız — YALNIZ opacity. İKİ TEMADA DA DOĞRU olmasının sebebi bu: parlayan bir
+   "shimmer" bandı açık modda beyaza doğru süpürür ve doğru görünür, ama
+   karanlıkta `--muted` (%18 L) zaten ZEMİNDEN (`--card` %13) AÇIK bir bloktur →
+   üzerine açık bir bant sürmek panelde el feneri gibi durur. Opaklık ise bloğu
+   ARKASINDAKİ yüzeye doğru soldurur; hangi tema olursa olsun doğru yönde. */
+.lxs-pulse { animation: lxs-pulse 1.8s cubic-bezier(0.4, 0, 0.6, 1) infinite; }
+@keyframes lxs-pulse {
+  0%, 100% { opacity: 1; }
+  50% { opacity: 0.55; }
+}
+
+/* GECİKMELİ GİRİŞ — "80 ms'lik iskelet parlaması" tuzağının JS'siz çözümü.
+   `both` dolgu kipi, 120 ms'lik GECİKME boyunca `from` durumunu (opacity 0)
+   uygular. Geçiş 120 ms'den önce biterse fallback görünür hâle gelmeden sökülür:
+   kullanıcı hiçbir şey görmez. Yavaş geçişlerde yumuşak açılır. */
+.lxs-in { animation: lxs-in 200ms ease-out 120ms both; }
+@keyframes lxs-in {
+  from { opacity: 0; }
+  to { opacity: 1; }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .lxs-pulse { animation: none; opacity: 0.85; }
+  /* Nabız susar AMA gecikme KALIR (1 ms'lik geçiş = algılanan animasyon yok).
+     `animation: none` yazmak iskeleti anında geri getirir ve parlama tuzağını
+     tam da onu en az isteyen kullanıcıya geri verirdi. */
+  .lxs-in { animation: lxs-in 1ms linear 120ms both; }
+}

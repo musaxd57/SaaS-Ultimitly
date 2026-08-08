@@ -15,12 +15,12 @@
 // ---------------------------------------------------------------------------
 
 function Bar({ className }: { className: string }) {
-  return <div className={`animate-pulse rounded bg-muted ${className}`} />;
+  return <div className={`lxs-pulse rounded bg-muted ${className}`} />;
 }
 
 export default function Loading() {
   return (
-    <div className="space-y-4" aria-busy="true" aria-live="polite">
+    <div className="space-y-6" aria-busy="true" aria-live="polite">
       <span className="sr-only">Takvim yükleniyor…</span>
       <div className="flex flex-wrap items-center justify-between gap-3">
         <div className="space-y-2">
@@ -38,7 +38,7 @@ export default function Loading() {
         <Bar className="h-7 w-24" />
         <Bar className="h-7 w-20" />
       </div>
-      <div className="rounded-lg border border-border p-5">
+      <div className="rounded-xl border border-border bg-card p-5 shadow-sm">
         <div className="grid grid-cols-7 gap-1">
           {Array.from({ length: 42 }).map((_, i) => (
             <Bar key={i} className="h-20 w-full" />

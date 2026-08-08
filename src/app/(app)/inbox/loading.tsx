@@ -20,12 +20,12 @@
 // ---------------------------------------------------------------------------
 
 function Bar({ className }: { className: string }) {
-  return <div className={`animate-pulse rounded bg-muted ${className}`} />;
+  return <div className={`lxs-pulse rounded bg-muted ${className}`} />;
 }
 
 export default function Loading() {
   return (
-    <div className="space-y-4" aria-busy="true" aria-live="polite">
+    <div className="space-y-6" aria-busy="true" aria-live="polite">
       <span className="sr-only">Konuşmalar yükleniyor…</span>
 
       {/* Başlık bandı — gerçek PageHeader ile aynı yükseklikte. */}

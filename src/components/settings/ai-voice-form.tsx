@@ -129,7 +129,7 @@ export function AiVoiceForm({
             </p>
             <p className="mt-2 text-[11px] text-muted-foreground">
               Bu özet, önceki cevaplarınızdan otomatik öğrenilir ve düzenli güncellenir; AI yanıtlarını
-              sizin tonunuza yaklaştırmak için kullanılır. Yeni cevaplar verdikçe gelişir.
+              sizin tonunuza yaklaştırmak için kullanılır.
             </p>
           </details>
         ) : (

@@ -15,12 +15,12 @@
 // ---------------------------------------------------------------------------
 
 function Bar({ className }: { className: string }) {
-  return <div className={`animate-pulse rounded bg-muted ${className}`} />;
+  return <div className={`lxs-pulse rounded bg-muted ${className}`} />;
 }
 
 export default function Loading() {
   return (
-    <div className="space-y-4" aria-busy="true" aria-live="polite">
+    <div className="space-y-6" aria-busy="true" aria-live="polite">
       <span className="sr-only">Görevler yükleniyor…</span>
       <div className="flex flex-wrap items-center justify-between gap-3">
         <div className="space-y-2">
