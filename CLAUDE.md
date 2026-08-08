@@ -251,6 +251,13 @@ retention/anonimleştirme, orphan-sweep, kayıt onay kutusu.
   Doğruysa/mantıklıysa yap; sen daha iyisini biliyorsan GEREKÇENİ AÇIKLA — kullanıcı bunu Codex'e iletir, Codex
   "senin dediğin gibi olsun" derse öyle kalır. Yani: körü körüne uygulama YOK, gerekçeli ret MEŞRU, son karar
   karşılıklı gerekçe üzerinden.
+- **🚨 AJANLARA KOD YAZDIRMA (kullanıcı kararı, 08-08 — KESİN):** ajanlar YALNIZ araştırır,
+  ölçer, doğrular. Düzeltmeyi HER ZAMAN Claude'un kendisi yazar. Gerekçe 08-08'de yaşandı:
+  kullanıcı bir kez "bol agent kullanarak hataları DÜZELT" dedi, ajanlara yazdırıldı ve
+  günün İKİ ciddi kusuru da ajan yazdığı koddan çıktı (iCal'i cron'a bağlayan değişiklik
+  hem yaşam-döngüsü mesajı hatasını hem boş-geçiş yükünü doğurdu); ikisini de BAŞKA ajanlar
+  buldu, yazan ajan değil. Kullanıcı ertesinde "sakın onlara yazdırma" dedi. Salt-okuma
+  denetim ajanı serbesttir ve teşvik edilir.
 - **BOL AGENT, DURMADAN:** her iş turunda 8-12+ paralel agent (FE/BE/güvenlik/hız/müşteri-gözü/strateji),
   bulguları KOD İLE DOĞRULA (agent ~yarı bulguda yanılır), sadece gerçek+güvenli olanları uygula, sonunda
   tek "karar listesi" sun, soru sorma. ⚠️ Agent raporları uzun → ajanlara "sadece gerçek bulgu, kısa
