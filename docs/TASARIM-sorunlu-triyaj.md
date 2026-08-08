@@ -187,6 +187,51 @@ model 1.4 yazarsa arayüz "%140 güven" göstermemelidir. Bu, `riskType`'ın
 kod-clamp emsalinin aynısı: model çıktısı DAİMA daraltılır, asla olduğu gibi
 kabul edilmez.
 
+### (c2) 🚨 MODEL SONUCU YARIŞI — YAZMA KOŞULLU VE ATOMİK OLMAK ZORUNDA
+
+**Senaryo (bu tasarımın en kolay kaçırılan kusuru):** model çağrısı 20–60 sn
+sürebiliyor. O sırada misafir YENİ bir mesaj yazarsa, dönen sonuç ARTIK BAŞKA
+bir konuşma durumuna aittir. Koşulsuz yazma, yeni mesajın triyajını ESKİ mesajın
+analiziyle ezer — üstelik sessizce, çünkü tüm alanlar dolu ve taze görünür.
+
+Bu, deponun daha önce iki kez yandığı desenin aynısı: `autoReplyAttemptedAt`
+damgasının sunucu saatiyle değil mesajın KENDİ damgasıyla yazılması kuralı ve
+`syncCursorAt` dersi. İkisi de "işlem sürerken dünya değişti" hâlini anlatıyor.
+
+**Kural: yazma tek bir koşullu `updateMany` olur, oku-sonra-yaz OLMAZ.**
+
+```
+updateMany({
+  where: {
+    id: conversation.id,
+    status: { not: "problem" },        // mevcut claim koşulu (aynen korunur)
+    lastMessageAt: observedLastMessageAt, // ⬅️ TAZELİK KOŞULU
+  },
+  data: { …triyaj alanları… },
+})
+```
+
+`observedLastMessageAt`, model çağrısına GİRERKEN okunan değerdir. `count === 0`
+ise araya yeni mesaj girmiştir → **triyaj YAZILMAZ ve bu bir hata değildir**.
+Yön fail-safe: yanlış bir tavsiye göstermektense hiç göstermemek.
+
+⚠️ **`aiTriagedAt` sunucu saatinden yazılabilir, `aiTriageTriggerMessageId`
+YAZILAMAZ** — ikincisi çağrıya girerken bilinen mesajın id'sidir; yazma anında
+"son mesaj" diye yeniden okumak tam da kapatmak istediğimiz yarışı geri açar.
+
+⚠️ **Neden `lastMessageAt`, neden mesaj id'si DEĞİL:** `Conversation.lastMessageAt`
+zaten var, indeksli ve aday sorgusunun kullandığı alan; ayrıca "son inbound
+mesajın id'si" diye bir kolon YOK ve eklemek migration'ı büyütür.
+
+#### Test senaryosu (yazılacak, bu gece DEĞİL)
+1. Konuşma `lastMessageAt = T1`. Model sonucu T1 için hesaplanmış gibi kurulur.
+2. Yazmadan ÖNCE araya yeni bir inbound mesaj girer → `lastMessageAt = T2`.
+3. Koşullu yazma denenir → `count === 0`, **altı kolon da NULL kalır**.
+4. **KONTROL (bu olmadan test vacuous):** araya mesaj GİRMEYEN aynı akış
+   çalıştırılır → alanlar DOLAR. Kontrol olmadan "hiçbir zaman yazma"
+   mutasyonu da yeşil geçerdi.
+5. Mutasyon: tazelik koşulunu WHERE'den çıkar → adım 3 kırmızı vermeli.
+
 ### (d) Bayatlık — SAKLA, SİLME
 
 Triyaj bir mesaja ait. Sonraki mesajlar geldiğinde öneri yanlış olabilir ama

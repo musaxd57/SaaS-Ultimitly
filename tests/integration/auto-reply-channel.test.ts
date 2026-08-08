@@ -535,6 +535,76 @@ describe("applyChannelAutoReply", () => {
     });
   }
 
+  // ---------------------------------------------------------------------------
+  // 🚨 REZERVASYON ÖNCESİ KB SIR KAPISI — DAVRANIŞSAL PİN (denetim 08-09).
+  //
+  // Kaynak taraması İKİ kusuru birden kaçırdı; ikisini de savunmacı ajan ölçtü:
+  //  (a) `knowledgeBase: kbVisible` → `knowledgeBase: kb` mutasyonu YEŞİL
+  //      geçiyordu — kapı ölü koda dönüyor, `kbVisible` hesaplanıp
+  //      kullanılmıyordu. Kaynak pini yalnız ATAMAYI görüyordu; CLAUDE.md'nin
+  //      08-07'de kaydettiği "tanım, kullanımı kanıtlamaz" tuzağının aynısı.
+  //  (b) süzülen kalemler `knowledgeBaseDropped` sayısına EKLENMİYORDU → modele
+  //      "0 kalem düştü" deniyor, prompt bilgi tabanını TAM sanıyor ve
+  //      "bilgi yok DEME, insana devret" notu HİÇ gitmiyordu. En kötü hâl:
+  //      yalnız Wi-Fi ve Giriş şablonlarını doldurmuş host'ta prompt aday
+  //      müşteriye "(bilgi tabanı boş — kayıtlı bilgi yok)" diyordu.
+  // İkisi de ancak MODELE GİDEN girdiye bakarak yakalanır.
+  // ---------------------------------------------------------------------------
+  async function addKb(conversationId: string, items: { title: string; content: string }[]) {
+    const conv = await prisma.conversation.findUniqueOrThrow({
+      where: { id: conversationId },
+      select: { propertyId: true },
+    });
+    for (const it of items) {
+      await prisma.knowledgeBaseItem.create({
+        data: { propertyId: conv.propertyId, category: "general", title: it.title, content: it.content },
+      });
+    }
+  }
+  function lastPromptInput() {
+    return mockSuggest.mock.calls.at(-1)?.[0] as unknown as {
+      knowledgeBase: { title: string }[];
+      knowledgeBaseDropped: number;
+    };
+  }
+
+  it("REZERVASYONSUZ konuşmada sır modele GİTMEZ ve düşen sayısı DOĞRU", async () => {
+    const { conversationId } = await seed();
+    await addKb(conversationId, [
+      { title: "Wi-Fi", content: "Ağ: NuveEv, şifre: gunes1907" },
+      { title: "Giriş Talimatı", content: "Anahtar kutusu kodu 4821" },
+      { title: "Otopark", content: "Bina altında ücretsiz otopark" },
+      { title: "Ev Kuralları", content: "Sigara içilmez" },
+    ]);
+    mockSuggest.mockResolvedValue(SAFE_REPLY);
+    await applyChannelAutoReply(conversationId);
+
+    const input = lastPromptInput();
+    expect(input.knowledgeBase.map((k) => k.title).sort()).toEqual(["Ev Kuralları", "Otopark"]);
+    // Elenen kalemler sayıya girmeli — yoksa prompt "bilgi tabanı tam" sanır.
+    expect(input.knowledgeBaseDropped).toBe(2);
+  });
+
+  it("KONTROL: ONAYLI konaklamada sır GİDER ve düşen 0 (ürünün çekirdek vaadi)", async () => {
+    const { conversationId } = await seed();
+    await linkReservation(conversationId, {
+      status: "confirmed",
+      arrivalDate: new Date(Date.now() - 86_400_000),
+      departureDate: new Date(Date.now() + 86_400_000),
+    });
+    await addKb(conversationId, [
+      { title: "Wi-Fi", content: "Ağ: NuveEv, şifre: gunes1907" },
+      { title: "Otopark", content: "Bina altında ücretsiz otopark" },
+    ]);
+    mockSuggest.mockResolvedValue(SAFE_REPLY);
+    await applyChannelAutoReply(conversationId);
+
+    const input = lastPromptInput();
+    // Bu kontrol olmadan "her zaman süz" mutasyonu yeşil geçerdi.
+    expect(input.knowledgeBase.map((k) => k.title).sort()).toEqual(["Otopark", "Wi-Fi"]);
+    expect(input.knowledgeBaseDropped).toBe(0);
+  });
+
   it("skips when the linked reservation is cancelled", async () => {
     const { conversationId } = await seed();
     await linkReservation(conversationId, {

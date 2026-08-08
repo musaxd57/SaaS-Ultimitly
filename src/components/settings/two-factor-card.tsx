@@ -31,6 +31,7 @@ export function TwoFactorCard({
   // Recovery codes: unused count + the one-time plaintext reveal after (re)gen.
   const [recoveryRemaining, setRecoveryRemaining] = useState(initialRecoveryRemaining);
   const [recoveryCodes, setRecoveryCodes] = useState<string[] | null>(null);
+  const [setupPassword, setSetupPassword] = useState("");
   const [recoveryCodeInput, setRecoveryCodeInput] = useState("");
   const [recoveryBusy, setRecoveryBusy] = useState(false);
   const [recoveryError, setRecoveryError] = useState<string | null>(null);
@@ -54,11 +55,22 @@ export function TwoFactorCard({
     setBusy(true);
     setError(null);
     setDone(null);
-    const { ok, data } = await call({ action: "setup" });
+    const { ok, data } = await call({ action: "setup", password: setupPassword });
     setBusy(false);
-    if (ok && data.secret) setSecret(data.secret);
-    // The "already active" guard returns its message in fields._, so read that first.
-    else setError(data.fields?._ ?? data.error ?? "İki adımlı giriş kurulumu başlatılamadı. Lütfen tekrar deneyin.");
+    if (ok && data.secret) {
+      setSecret(data.secret);
+      // Şifreyi bellekte tutma — kurulum başladı, bir daha gerekmiyor.
+      setSetupPassword("");
+    } else {
+      // "Zaten etkin" kapısı mesajını `fields._`de, şifre hatasını `fields.password`da
+      // döndürüyor; ikisini de göster.
+      setError(
+        data.fields?.password ??
+          data.fields?._ ??
+          data.error ??
+          "İki adımlı giriş kurulumu başlatılamadı. Lütfen tekrar deneyin.",
+      );
+    }
   }
 
   async function confirmEnable(e: React.FormEvent) {
@@ -257,7 +269,8 @@ export function TwoFactorCard({
             ücretsiz.
           </li>
           <li>
-            Aşağıdaki <strong>&quot;2FA kur&quot;</strong> butonuna bas; ekranda bir anahtar çıkar.
+            Aşağıda <strong>hesap şifreni gir</strong> ve <strong>&quot;2FA kur&quot;</strong>
+            butonuna bas; ekranda bir anahtar çıkar.
           </li>
           <li>
             Uygulamada <strong>&quot;Hesap ekle → Kurulum anahtarı gir&quot;</strong> de; anahtarı yaz
@@ -269,11 +282,38 @@ export function TwoFactorCard({
           Not: Telefonunu kaybetmemek için uygulamanın yedeklemesini (bulut senkron) açık tut.
         </p>
       </div>
-      <Button onClick={startSetup} disabled={busy}>
-        {busy ? <Loader2 className="size-4 animate-spin" /> : <ShieldCheck className="size-4" />}
-        İki adımlı girişi (2FA) kur
-      </Button>
-      {error ? <p className="text-sm text-destructive">{error}</p> : null}
+      {/* 🚨 ŞİFRE ONAYI — sunucu `setup`ta yeniden kimlik doğrulama istiyor
+          (bkz. `api/account/2fa/route.ts`). Gerekçe: bu adım DÜZ METİN TOTP
+          sırrını basıyor ve ele geçirilmiş bir oturumla iki istekte kalıcı
+          kilitlenme üretilebiliyordu. Alan, "2FA'yı kapat" formunun birebir
+          aynı deseni — yeni bir tasarım öğesi eklenmedi. */}
+      <form
+        onSubmit={(e) => {
+          e.preventDefault();
+          void startSetup();
+        }}
+        className="flex flex-wrap items-end gap-2"
+      >
+        {/* `error` ŞART: `Field` `role="alert"` + `aria-invalid` +
+            `aria-describedby` bağını kuruyor. Bağsız bırakıldığında hata
+            serbest bir <p> olarak basılıyordu ve ekran okuyucu onu alanla
+            ilişkilendiremiyordu (denetim 08-09). Kardeş alan (`tf-off`) zaten
+            böyle. */}
+        <Field label="Hesap şifreniz" htmlFor="tf-pw" error={error ?? undefined} className="min-w-[200px] flex-1">
+          <Input
+            id="tf-pw"
+            type="password"
+            autoComplete="current-password"
+            value={setupPassword}
+            onChange={(ev) => setSetupPassword(ev.target.value)}
+            placeholder="Şifrenizi girin"
+          />
+        </Field>
+        <Button type="submit" disabled={busy || setupPassword.length === 0}>
+          {busy ? <Loader2 className="size-4 animate-spin" /> : <ShieldCheck className="size-4" />}
+          İki adımlı girişi (2FA) kur
+        </Button>
+      </form>
       {done ? <p className="text-sm font-medium text-emerald-600 dark:text-emerald-400">{done}</p> : null}
     </div>
   );

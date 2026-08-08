@@ -3,7 +3,7 @@ import { prisma } from "@/lib/db";
 import { loginSchema, zodFieldErrors } from "@/lib/validators";
 import { verifyPassword, dummyVerifyPassword } from "@/lib/auth/password";
 import { setSessionCookie, hasTrustedDevice, setTrustedDeviceCookie } from "@/lib/auth";
-import { badRequest, jsonOk, serverError, parseJsonBody, payloadTooLarge } from "@/lib/api";
+import { badRequest, jsonOk, serverError, parseJsonBody, payloadTooLarge, tooManyRequests } from "@/lib/api";
 import { rateLimit, clientIp } from "@/lib/rate-limit";
 import { decryptSecret } from "@/lib/crypto";
 import { verifyTotpStep } from "@/lib/auth/totp";
@@ -123,6 +123,32 @@ export async function POST(req: NextRequest) {
         if (!code && !recoveryCode) {
           // Tell the client to prompt for the code (no session issued yet).
           return jsonOk({ twoFactorRequired: true });
+        }
+        // 🚨 HESAP BAŞINA İKİNCİ-FAKTÖR KOTASI (denetim 08-09).
+        //
+        // `login-acct:{email}` kovası YALNIZ yanlış-PAROLA dalında tüketiliyor;
+        // buraya parola DOĞRU olduğu için hiç girmiyordu → 6 haneli TOTP'ye
+        // karşı hesap-bazlı SIFIR sınır. Parolayı ele geçiren biri proxy
+        // havuzuyla per-IP kovasını dolaşıp kodu kaba kuvvetle deneyebiliyordu.
+        // Bahis maksimum: `mfa` iddiası artık operatör yetkisinin TEK kapısı.
+        //
+        // ⚠️ DOĞRULAMADAN ÖNCE tüketilir — sonra tüketmek "önce doğrula, sonra
+        // say" olurdu ve saldırgan her denemesinde yine karşılaştırma elde ederdi.
+        // ⚠️ KURBAN KİLİTLEME VEKTÖRÜ AÇMAZ: bu dala ulaşmak DOĞRU PAROLA
+        // gerektiriyor, yani kovayı yakabilen kişi zaten parolayı biliyor.
+        // (`forgot-req:{email}` kovasındaki tuzak — saldırganın YAZDIĞI adrese
+        // bağlı olması — burada YOK.)
+        // ⚠️ Kova KULLANICI ID'siyle anahtarlanır, e-postayla değil: aynı hesaba
+        // farklı yazımlarla (büyük/küçük harf) ayrı kova açılmasın.
+        const second = await rateLimit(`login-2fa:${user.id}`, 10, 10 * 60_000);
+        if (!second.ok) {
+          return tooManyRequests(
+            second.retryAfter,
+            // ⚠️ SÜREYİ SÖYLE — deponun kendi 08-07 kuralı: genel "kısa bir süre"
+            // metni kullanıcıyı boşuna tekrar denemeye itiyor. Pencere 10 dakika
+            // ve kilitlenen kişi KENDİ hesabına giremiyor; belirsizlik pahalı.
+            `Çok fazla doğrulama denemesi yapıldı. Yaklaşık ${Math.ceil(second.retryAfter / 60)} dakika sonra tekrar deneyin.`,
+          );
         }
         if (recoveryCode) {
           // Single-use recovery code as the second factor (lost/changed phone).

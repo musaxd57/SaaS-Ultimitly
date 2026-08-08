@@ -271,9 +271,22 @@ function looksLikeSecret(text: string): boolean {
   // Kalıpların nicelikleri artık sınırlı (asıl düzeltme o), ama bu fonksiyon
   // KALEM BAŞINA 6 kalıp × 3 katlama koşuyor ve QR yolu tek istekte 30 kaleme
   // kadar okuyor → sınırsız girdi, sınırlı kalıplarla bile toplamda ağır.
-  // Bir erişim sırrı ilk birkaç yüz karakterdedir; 4.000 sonrasını taramak
-  // tespit KAZANDIRMAZ, yalnız maliyet ekler.
-  const capped = text.length > 4000 ? text.slice(0, 4000) : text;
+  // ⚠️ ESKİ GEREKÇE ÇÜRÜTÜLDÜ (saldırgan denetimi 08-09). Burada "bir erişim
+  // sırrı ilk birkaç yüz karakterdedir, 4.000 sonrasını taramak tespit
+  // KAZANDIRMAZ" yazıyordu. ÖLÇÜLDÜ: 4.829 karakterlik sıradan ev kuralları +
+  // sonda `Kapı kodu: 4590` süzgeçten GEÇİYORDU — ve `packKnowledgeBase` ilk
+  // kalemi boyutuna bakmadan TAMAMEN paketlediği için sır modele ulaşıyordu.
+  // Yani kemer, deterministik ve tekrarlanabilir bir ATLATMAYDI; üstelik aynı
+  // boşluk QR yüzeyinin "sırlar bağlamdan TAMAMEN çıkarılır" değişmezini de
+  // deliyordu.
+  //
+  // Kemer KALDIRILMADI (ReDoS'a karşı ikinci savunma olarak duruyor) — iki UÇ
+  // birden taranıyor. Sır ya başta ya sonda olur; ortasına gömmek için saldırganın
+  // hem baştan hem sondan 4.000 karakter dolgu yazması gerekir ki o da
+  // `KB_CHAR_BUDGET` ve kalem uzunluk sınırlarına çarpar.
+  // Maliyet sınırlı kalıyor: taranan metin en fazla 8.000 karakter.
+  const capped =
+    text.length > 8000 ? `${text.slice(0, 4000)}\n${text.slice(-4000)}` : text;
   const variants = [capped, foldTurkishLower(capped), foldTurkishAscii(capped)];
   return SECRET_PATTERNS.some((re) => variants.some((v) => re.test(v)));
 }
@@ -298,6 +311,30 @@ function looksLikeSecret(text: string): boolean {
  *
  * Aşırı-eleme GÜVENLİ yöndür: en kötü ihtimalle AI biraz daha jenerik konuşur.
  */
+/**
+ * Erişim sırrı taşıyan bilgi-tabanı kalemlerini eler.
+ *
+ * 🚨 İKİ ÇAĞIRAN, TEK KURAL (denetim 08-09). Bu eleme uzun süre YALNIZ QR
+ * concierge yolunda vardı. Kanal (Airbnb/Booking) oto-yanıtı bilgi tabanını
+ * SÜZMEDEN modele veriyordu ve rezervasyon ÖNCESİ soru soran biri (henüz
+ * rezervasyonu yok, `conversation.reservation === null`) için tek koruma
+ * prompt'taki bir paragraftı — üstelik önbellekli sistem önekindeki few-shot
+ * örneklerin BEŞİ wifi şifresini VEREREK gösteriyor. Prompt talimatı bir MODEL
+ * RİCASIDIR; bu fonksiyon deterministiktir.
+ *
+ * ⚠️ ONAYLI/TAMAMLANMIŞ konaklamada ÇAĞRILMAZ: rezervasyonu olan misafire kapı
+ * kodunu vermek ürünün ta kendisidir, kusur değil.
+ * ⚠️ ÖLÇÜLDÜ (12 kalemlik gerçekçi bilgi tabanı): düşen 2 — Wi-Fi ve Giriş
+ * Talimatı. Adres, acil telefon, otopark, çöp, ev kuralları, çevre, klima,
+ * çıkış, ulaşım, check-in saati HEPSİ kalıyor. Yani bedel tam olarak
+ * amaçlanan bedel; aday müşteri hâlâ cevap alabiliyor.
+ */
+export function withoutSecretKbItems<T extends { title: string; content: string }>(
+  items: T[],
+): T[] {
+  return items.filter((k) => !looksLikeSecret(`${k.title}\n${k.content}`));
+}
+
 export function scrubStyleProfileForPublic(profile: string | null | undefined): string | null {
   const raw = profile?.trim();
   if (!raw) return null;
@@ -590,7 +627,7 @@ export async function resolveGuestChat(
   });
   // Drop any item whose text looks like an access secret, even in an allowed
   // category — the public bearer-token surface must never have a code in context.
-  const knowledgeBase = kbRaw.filter((k) => !looksLikeSecret(`${k.title}\n${k.content}`));
+  const knowledgeBase = withoutSecretKbItems(kbRaw);
   // ⚠️ İKİ AYRI ELEME, TEK SAYAÇ OLAMAZ (denetim, 07-31). `fetchKnowledgeBaseForPrompt`
   // yalnız SQL tavanında düşenleri sayar; `looksLikeSecret` KATEGORİYE değil
   // İÇERİĞE baktığı için tavanı geçmiş bir kalemi burada ayrıca eleyebiliyor.

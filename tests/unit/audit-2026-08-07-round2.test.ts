@@ -72,7 +72,16 @@ describe("ReDoS — QR sır süzgeci sınırlı nicelik kullanır", () => {
   });
 
   it("uzunluk kemeri duruyor (ikinci savunma)", () => {
-    expect(src).toMatch(/text\.length > 4000 \? text\.slice\(0, 4000\)/);
+    // ⚠️ İFADE 08-09'DA DEĞİŞTİ, KORUMA DEĞİŞMEDİ. Kemer tek uçluydu
+    // (`slice(0, 4000)`) ve deterministik bir ATLATMAYDI: 4.829 karakterlik
+    // sıradan metin + sonda `Kapı kodu: 4590` süzgeçten geçiyordu. Artık İKİ UÇ
+    // taranıyor ve tavan 8.000 karakter — yani sınır hâlâ var, ReDoS savunması
+    // duruyor, yalnız kapsam düzeldi.
+    // 🚨 DERS (savunmacı ajanın ironik notu): bu pin bir STRING pini olduğu için
+    // refaktörde kırıldı; üç satır aşağıdaki DAVRANIŞSAL kardeşi (20.000
+    // karakterlik patolojik girdi < 1000 ms) hiç kırılmadı. Sınırın VARLIĞINI
+    // ifadeden bağımsız arıyoruz.
+    expect(src).toMatch(/text\.length > \d+\s*\?[\s\S]{0,120}?text\.slice\(/);
   });
 
   it("patolojik girdi ANINDA döner (davranışsal)", () => {

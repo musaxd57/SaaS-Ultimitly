@@ -7,6 +7,7 @@ export { zonedDayRange, currentHourInTimeZone } from "@/lib/timezone";
 import { isUniqueViolation } from "@/lib/db-errors";
 import { recordRiskEvent } from "@/lib/risk-events";
 import { recordShadowVerdict } from "@/lib/shadow-ai";
+import { scrubStyleProfileForPublic, withoutSecretKbItems } from "@/lib/guest-chat";
 import { reservationAmountNumber } from "@/lib/money";
 import { classifyMessage, suggestReply, summarizeHostStyle } from "@/lib/ai";
 import { fetchKnowledgeBaseForPrompt } from "@/lib/ai/kb-fetch";
@@ -1488,6 +1489,31 @@ export async function applyChannelAutoReply(
     ...k,
     content: fillPlaceholders(k.content, guestFirst, conversation.property.name),
   }));
+  // 🚨 REZERVASYON ÖNCESİ SIR KAPISI — KOD, PROMPT DEĞİL (denetim 08-09).
+  //
+  // Rezervasyonu OLMAYAN bir kişi (Airbnb ön sorusu) yazdığında bilgi tabanı
+  // ham hâliyle prompt'a giriyordu: kapı kodu, wifi şifresi, kasa. Tek koruma
+  // `prompts.ts`teki rezervasyon-öncesi paragrafıydı — üstelik ÖNBELLEKLİ
+  // sistem önekindeki 24 few-shot örneğin BEŞİ wifi şifresini VEREREK
+  // gösteriyor. Deterministik injection vetosu da düz dilde çalışmıyor
+  // (ölçüldü: 20 sade parafrazın 15'i oto-gönderim izni aldı).
+  //
+  // Aynı eleme QR concierge yolunda ZATEN vardı; asimetri tersti — insan
+  // olmadan gönderen yüzey korumasızdı.
+  //
+  // ⚠️ KOŞULLU: onaylı/tamamlanmış konaklamada UYGULANMAZ. Rezervasyonlu
+  // misafire kapı kodunu vermek ürünün ta kendisidir. Yüklem `prompts.ts`
+  // `isConfirmedStay` ile BİREBİR aynı.
+  // ⚠️ ÖLÇÜLDÜ (12 kalemlik gerçekçi KB): düşen 2 — Wi-Fi ve Giriş Talimatı.
+  // Adres, acil telefon, otopark, çöp, ev kuralları, çevre, klima, çıkış,
+  // ulaşım, check-in saati KALIYOR → aday müşteri hâlâ cevap alabiliyor.
+  // ⚠️ `address` KB'den DEĞİL property kaydından ayrıca geçiyor; bu kapı onu
+  // durdurmaz ve durdurmayı da amaçlamaz (bilinen sınır).
+  const confirmedStay =
+    conversation.reservation != null &&
+    (conversation.reservation.status === "confirmed" ||
+      conversation.reservation.status === "completed");
+  const kbVisible = confirmedStay ? kb : withoutSecretKbItems(kb);
 
   // Turnover context so early-checkin / late-checkout answers are data-driven.
   const adjacency = conversation.reservation
@@ -1516,8 +1542,19 @@ export async function applyChannelAutoReply(
           guestCheckoutTime: conversation.reservation.guestCheckoutTime,
         }
       : null,
-    knowledgeBase: kb,
-    knowledgeBaseDropped: kbDropped,
+    knowledgeBase: kbVisible,
+    // 🚨 SÜZÜLEN KALEMLER DE SAYIYA GİRER (savunmacı denetim 08-09).
+    // İlk yazımım yalnız SQL tavanında düşenleri geçiriyordu. Sonuç ölçüldü ve
+    // KÖTÜYDÜ: kapı iki kalemi elerken modele "0 kalem düştü" deniyordu, yani
+    // prompt bilgi tabanını TAM sanıyor ve "bilgi yok DEME, insana devret"
+    // notu HİÇ gitmiyordu. En kötü hâl: yalnız Wi-Fi ve Giriş şablonlarını
+    // doldurmuş bir host'ta süzgeç boş liste döndürüyor ve prompt aday
+    // müşteriye "(bilgi tabanı boş — bu mülk için kayıtlı bilgi yok)" diyor —
+    // insan olmadan, oto-gönderilerek. Doğru sayıyla mesaj "alınamadı, konuyu
+    // insana devret"e dönüyor.
+    // ⚠️ Kardeş yolun formülüyle BİREBİR aynı (`guest-chat.ts` droppedTotal) —
+    // o yol bu hatayı 07-31'de zaten yaşamış ve düzeltmişti.
+    knowledgeBaseDropped: kbDropped + (kb.length - kbVisible.length),
     history: messages.map((m) => ({
       direction: m.direction as "inbound" | "outbound",
       body: m.body,
@@ -1526,7 +1563,14 @@ export async function applyChannelAutoReply(
       ? (org.aiReplyTone as ReplyTone)
       : "warm",
     language: org.language ?? "tr",
-    styleProfile: org.aiStyleProfile,
+    // 🚨 SÜZÜLEREK GEÇER (denetim 08-09). Profil, host'un BAŞKA misafirlere
+    // yazdığı ~40 yanıttan damıtılıyor ve o yanıtlar rutin olarak wifi şifresi /
+    // kapı kodu içeriyor; damıtmadaki "dışarıda bırak" talimatı bir MODEL
+    // RİCASI, deterministik garanti değil. QR yolu bunu zaten süzüyordu; oysa
+    // asıl risk BU yüzeyde — burası insan olmadan oto-gönderiyor.
+    // ⚠️ Süzgeç SATIR bazlı: yalnız sırra benzeyen satır düşer, üslup korunur
+    // (KB'deki "kalemin tamamı düşer" sorunu burada YOK).
+    styleProfile: scrubStyleProfileForPublic(org.aiStyleProfile),
     adjacency,
     lateCheckoutOfferText: org.lateCheckoutOfferText,
   });

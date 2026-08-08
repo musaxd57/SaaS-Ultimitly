@@ -114,9 +114,57 @@ describe("requireAuth — impersonation yetkisi her render'da doğrulanır", () 
   beforeEach(() => {
     // DB tarafı SAĞLIKLI: epoch uyuyor, rol/org okunabiliyor. Böylece bir
     // redirect görürsek sebebi KESİNLİKLE yetki kapısıdır, epoch/DB değil.
-    findUnique.mockResolvedValue({ sessionEpoch: 0, role: "owner", organizationId: "o1" });
+    // ⚠️ `twoFactorEnabledAt` EKLENDİ (08-09): `requireAuth` artık `mfa`
+    // iddiasını AKTÖRÜN satırından doğruluyor, yani "operatörün 2FA'sı duruyor"
+    // bu senaryonun ön koşulu. Bunu ölçülen sebebi şu: DÜRÜST OLMAK GEREKİRSE
+    // 2FA'sı olmayan bir hesabın `mfa:true` taşıması ÜRETİMDE MÜMKÜNDÜR —
+    // kişi 2FA açıkken giriş yapar (`login` `true` damgalar), sonra 2FA'yı
+    // kapatır ve `disable` epoch'u ARTIRMADIĞI için canlı oturum iddiayı
+    // taşımaya devam eder. Zaten bu değişikliğin VAR OLMA SEBEBİ o durum.
+    // Dolayısıyla buradaki ekleme "o durum olamaz" demek DEĞİL; bu testin
+    // ölçtüğü şeyin (SUPERADMIN_EMAILS'ten silmenin etkisi) tek değişken
+    // kalması için diğer değişkeni sabitlemek. Yeni eklenen boyut ayrıca
+    // kendi testleriyle pinli (↑"mfa iddiası sayfa yolunda da doğrulanır").
+    findUnique.mockResolvedValue({
+      sessionEpoch: 0,
+      role: "owner",
+      organizationId: "o1",
+      twoFactorEnabledAt: new Date(),
+    });
   });
   afterEach(() => vi.unstubAllEnvs());
+
+  // 🚨 SAYFA YOLUNDAKİ İKİ SATIR PİNSİZDİ (savunmacı denetim 08-09).
+  // Ölçüldü: (1) `if (session.actorUserId && !isSuperAdmin(session)) invalid = true;`
+  // satırını SİLMEK ve (2) fail-safe koşulu `(factorRow != null && …)`e
+  // çevirmek — İKİSİ DE 8 dosya / 67 testi YEŞİL bırakıyordu. Oysa (1), sayfa
+  // yolunun genişletilmesinin TEK sebebiydi ve (2) legacy token boşluğunun
+  // kapağı. Yeni describe yalnız impersonation OLMAYAN oturum imzalıyordu,
+  // yani aktör dalına hiç girmiyordu. Aşağıdaki iki test o boşluğu kapatıyor.
+  it("AKTÖRÜN 2FA'sı kaldırılmışsa sayfa yolu oturumu DÜŞÜRÜR", async () => {
+    vi.stubEnv("SUPERADMIN_EMAILS", OPERATOR);
+    // Müşteri satırı sağlıklı; AKTÖR satırında 2FA yok.
+    findUnique
+      .mockResolvedValueOnce({ sessionEpoch: 0, role: "owner", organizationId: "o1", twoFactorEnabledAt: new Date() })
+      .mockResolvedValueOnce({ sessionEpoch: 0, twoFactorEnabledAt: null });
+    TOKEN = await signSession(impersonation);
+    await expect(requireAuth()).rejects.toThrow("REDIRECT:/api/auth/logout");
+  });
+
+  it("epoch iddiası OLMAYAN legacy token da DÜŞER (fail-safe)", async () => {
+    vi.stubEnv("SUPERADMIN_EMAILS", OPERATOR);
+    // `actorSessionEpoch` yok → aktör satırı HİÇ okunmaz → iddia doğrulanamaz.
+    const legacy = { ...impersonation } as Record<string, unknown>;
+    delete legacy.actorSessionEpoch;
+    findUnique.mockResolvedValue({
+      sessionEpoch: 0,
+      role: "owner",
+      organizationId: "o1",
+      twoFactorEnabledAt: new Date(),
+    });
+    TOKEN = await signSession(legacy as unknown as SessionPayload);
+    await expect(requireAuth()).rejects.toThrow("REDIRECT:/api/auth/logout");
+  });
 
   it("yetki DURUYORSA sayfa render olur (regresyon pini)", async () => {
     vi.stubEnv("SUPERADMIN_EMAILS", OPERATOR);
@@ -153,5 +201,56 @@ describe("requireAuth — impersonation yetkisi her render'da doğrulanır", () 
     vi.stubEnv("SUPERADMIN_EMAILS", "");
     TOKEN = await signSession(base); // actorUserId YOK
     await expect(requireAuth()).resolves.toMatchObject({ userId: "u1" });
+  });
+});
+
+// ---------------------------------------------------------------------------
+// 🚨 `mfa` İDDİASI SAYFA YOLUNDA DA DÜŞER (denetim 08-09).
+//
+// Düzeltme ilk turda YALNIZ `requireSession`'a (API yolu) konmuştu ve iki
+// bağımsız inceleme de bunu BLOKLAYICI saydı: `/admin` sayfası `requireAuth`
+// üzerinden TAM RENDER oluyor (her org, abonelik, 50 lead, 50 denetim satırı —
+// sunucuda doğrudan `prisma` ile okunuyor) ama sayfadaki HER DÜĞME
+// `requireSession`'a gittiği için 401 dönüyordu. Kurucu için "çalışıyor
+// görünen ama hiçbir şey yapmayan panel". Yarım uygulanmış bir kapı,
+// uygulanmamış olandan daha kötüdür.
+// ---------------------------------------------------------------------------
+describe("requireAuth — mfa iddiası sayfa yolunda da doğrulanır", () => {
+  beforeEach(async () => {
+    findUnique.mockReset();
+    TOKEN = await signSession({ ...base, role: "owner", mfa: true });
+  });
+
+  it("2FA silinmiş hesapta iddia DÜŞER (oturum YAŞAR)", async () => {
+    findUnique.mockResolvedValue({
+      sessionEpoch: 0,
+      role: "owner",
+      organizationId: "o1",
+      twoFactorEnabledAt: null,
+    });
+    const s = await requireAuth();
+    expect(s.organizationId).toBe("o1"); // kimse çıkışa atılmadı
+    expect(s.mfa).toBe(false); // operatör yetkisi kapandı
+  });
+
+  it("KONTROL: 2FA AÇIKKEN iddia KORUNUR", async () => {
+    // Bu olmadan "iddiayı her zaman düşür" mutasyonu da yeşil geçerdi.
+    findUnique.mockResolvedValue({
+      sessionEpoch: 0,
+      role: "owner",
+      organizationId: "o1",
+      twoFactorEnabledAt: new Date(),
+    });
+    expect((await requireAuth()).mfa).toBe(true);
+  });
+
+  it("DB arızasında iddia OLDUĞU GİBİ kalır (fail-open, belgelenmiş taviz)", async () => {
+    // `requireAuth` oturumu bilerek fail-OPEN tutuyor; yetkiyi rol clamp'i
+    // kısıtlıyor. Bu satır o tavizin BİLİNÇLİ olduğunu pinliyor — sessizce
+    // değişirse görünür olsun.
+    findUnique.mockRejectedValue(new Error("db down"));
+    const s = await requireAuth();
+    expect(s.role).toBe("staff");
+    expect(s.mfa).toBe(true);
   });
 });

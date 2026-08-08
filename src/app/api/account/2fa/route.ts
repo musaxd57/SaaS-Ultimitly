@@ -9,6 +9,7 @@ import {
   remainingRecoveryCodes,
   RECOVERY_CODE_COUNT,
 } from "@/lib/auth/recovery-codes";
+import { verifyPassword } from "@/lib/auth/password";
 import { writeAudit } from "@/lib/audit";
 import { reportError } from "@/lib/report-error";
 
@@ -90,18 +91,61 @@ export async function POST(req: NextRequest) {
       // the user must first "disable" (which requires a valid current code).
       const current = await prisma.user.findUnique({
         where: { id: session.userId },
-        select: { twoFactorEnabledAt: true },
+        // Tek satır, tek gidiş-dönüş: parola kontrolü de aynı satırı istiyor.
+        select: { twoFactorEnabledAt: true, passwordHash: true },
       });
       if (current?.twoFactorEnabledAt) {
         return badRequest({
           _: "İki adımlı doğrulama bu hesapta daha önce açılmış ve şu an etkin. Yeniden kurmak için önce mevcut kodunuzla kapatın.",
         });
       }
+      // 🚨 YENİDEN KİMLİK DOĞRULAMA — SIRRI BASMADAN ÖNCE ŞİFRE (denetim 08-09).
+      //
+      // Bu dal DÜZ METİN TOTP sırrını döndürüyor ve `enable` onu etkinleştirip
+      // AYNI transaction'da tüm kurtarma kodlarını siliyor. Kapı yokken ele
+      // geçirilmiş bir oturumla İKİ istek yetiyordu ve oluşan kilitlenme
+      // kurbanın ŞİFRE SIFIRLAMASINDAN SAĞ ÇIKIYOR — sıfırlama
+      // `twoFactorEnabledAt`/`twoFactorSecret`'a DOKUNMUYOR. Kurban kurucuysa
+      // kurtarma dairesel olarak kapanıyor: `admin/reset-2fa` süper-admin
+      // istiyor, `isSuperAdmin` ise `session.mfa === true` istiyor, o da artık
+      // kontrol edemediği faktörden geçmeyi gerektiriyor.
+      //
+      // Asimetri düzeltiliyor: hesap SİLME şifre istiyor (`account/delete`),
+      // 2FA KAPATMA geçerli TOTP istiyor — yalnız en KALICI kimlik bilgisini
+      // KURMAK hiçbir şey istemiyordu. Emsal birebir `account/delete`ten alındı.
+      //
+      // ⚠️ Kapı `enable`e DEĞİL `setup`a kondu: sırrı üreten ve düz metin
+      // döndüren yol burası. `enable` zaten o sırra ait geçerli bir TOTP kodu
+      // istiyor, yani sırrı görmeyen biri onu geçemez — şifreyi iki kez sormak
+      // meşru kullanıcıya bedel, saldırgana engel değil.
+      const password = typeof data?.password === "string" ? data.password : "";
+      if (!password) {
+        return badRequest({ password: "Devam etmek için hesap şifrenizi girin." });
+      }
+      const reauthOk = current?.passwordHash
+        ? await verifyPassword(password, current.passwordHash)
+        : false;
+      if (!reauthOk) return badRequest({ password: "Şifre hatalı." });
+
       const secret = generateSecret();
-      await prisma.user.update({
-        where: { id: session.userId },
+      // 🚨 YAZMA KOŞULLU — YARIŞI DARALTMA, KAPAT (denetim 08-09).
+      // Yukarıdaki "zaten etkin mi" okuması ile bu yazma arasında artık bir
+      // bcrypt karşılaştırması var (~350 ms ölçüldü), yani pencere ~100 kat
+      // büyüdü. Koşulsuz yazmada kaybedilen yarışın bedeli ağır: sekme A
+      // kapıdan geçer → bcrypt → sekme B `enable` ile 2FA'yı AÇAR → sekme A
+      // `twoFactorEnabledAt: null` yazıp CANLI 2FA'yı sessizce KAPATIR.
+      // Saldırı değil kaza yolu (buraya gelen zaten parolayı biliyor), ama
+      // sonucu "2FA açık sanılan kapalı hesap" — sessiz ve tehlikeli.
+      // WHERE'e koşul koymak yarışı tamamen ortadan kaldırıyor.
+      const armed = await prisma.user.updateMany({
+        where: { id: session.userId, twoFactorEnabledAt: null },
         data: { twoFactorSecret: encryptSecret(secret), twoFactorEnabledAt: null },
       });
+      if (armed.count === 0) {
+        return badRequest({
+          _: "İki adımlı doğrulama bu hesapta daha önce açılmış ve şu an etkin. Yeniden kurmak için önce mevcut kodunuzla kapatın.",
+        });
+      }
       return jsonOk({ secret, otpauthUri: otpauthUri(secret, session.email) });
     }
 

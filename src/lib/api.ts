@@ -23,9 +23,31 @@ export async function requireSession(): Promise<SessionPayload | null> {
       // Also read the CURRENT role + org so authorization is DB-authoritative, not
       // JWT-frozen: a manager demoted to staff (which does NOT bump the epoch)
       // must lose manager powers immediately, not at token expiry.
-      select: { sessionEpoch: true, role: true, organizationId: true },
+      select: { sessionEpoch: true, role: true, organizationId: true, twoFactorEnabledAt: true },
     });
     if (!user || user.sessionEpoch !== session.sessionEpoch) return null;
+    // 🚨 `mfa` İDDİASI DB'YE KARŞI YENİDEN DOĞRULANIR (denetim, 08-09).
+    //
+    // `isSuperAdmin` (`admin-core.ts:74`) operatör yetkisinin TEK kapısıdır ve
+    // `session.mfa === true` ister. Ama 2FA `disable` `sessionEpoch`'u
+    // ARTIRMIYOR → canlı oturumlar, artık HİÇ ikinci faktörü olmayan bir hesap
+    // için `mfa:true` iddia etmeye devam ediyordu. Süre de "14 gün" DEĞİL:
+    // middleware çerezi her istekte yeniden imzaladığı için iddia, herhangi bir
+    // sayfaya dokunuldukça hiç sona ermiyor.
+    //
+    // ⚠️ ÇÖZÜM OTURUMU ÖLDÜRMEK DEĞİL. Epoch artırmak HERKESİ çıkışa atardı —
+    // 2FA'sını kapatan sıradan müşteri dahil — oysa bu iddia YALNIZ operatör
+    // yetkisini açıyor: fayda dar, bedel genişti. Doğru daralma iddiayı
+    // düşürmek; oturum aynen yaşar, yalnız süper-admin kapısı kapanır.
+    // ⚠️ EK SORGU YOK: ilgili satır zaten okunuyordu, tek kolon eklendi.
+    // ⚠️ Yalnız AŞAĞI yönde: `false` iddiayı asla `true` yapmaz.
+    // 🚨 HANGİ SATIRA BAKILACAĞI KRİTİK — impersonation'da `session.userId`
+    // MÜŞTERİNİNDİR, oysa `mfa` iddiası OPERATÖRÜN girişini anlatır
+    // (`admin.ts:78` iddiayı olduğu gibi taşır). Müşterinin satırına bakmak,
+    // 2FA'sı olmayan her müşteriye girişte operatör yetkisini düşürür ve
+    // impersonation'ı komple kırardı — ilk yazımım tam olarak bunu yapıyordu ve
+    // mevcut regresyon pini ("yetki duruyorsa oturum geçerli") onu yakaladı.
+    // Doğru kaynak aşağıdaki AKTÖR satırıdır; kontrol oraya taşındı.
     // Overwrite role/org with the live DB values (usually identical). withManage's
     // canManage() and every org-scoped query then see the current, not the stale, role.
     session.role = user.role as SessionPayload["role"];
@@ -34,12 +56,29 @@ export async function requireSession(): Promise<SessionPayload | null> {
     // impersonation token would survive the operator resetting their OWN password
     // (which bumps only the operator's epoch, not the assumed customer's). Skipped
     // for legacy impersonation tokens minted before this claim (backward compatible).
+    let actorChecked = false;
     if (session.actorUserId && session.actorSessionEpoch !== undefined) {
       const actor = await prisma.user.findUnique({
         where: { id: session.actorUserId },
-        select: { sessionEpoch: true },
+        select: { sessionEpoch: true, twoFactorEnabledAt: true },
       });
       if (!actor || actor.sessionEpoch !== session.actorSessionEpoch) return null;
+      if (session.mfa === true && !actor.twoFactorEnabledAt) session.mfa = false;
+      actorChecked = true;
+    }
+    // Impersonation OLMAYAN oturumda iddia kişinin kendi satırından doğrulanır.
+    if (!session.actorUserId) {
+      if (session.mfa === true && !user.twoFactorEnabledAt) session.mfa = false;
+    } else if (!actorChecked) {
+      // 🚨 DALLAR AÇIKÇA BÖLÜNÜR — ARADA BOŞLUK KALMAZ (denetim 08-09, iki
+      // ajan da işaret etti). Yukarıdaki aktör dalı `actorSessionEpoch`
+      // TANIMLI olmasını istiyor; `actorUserId` VAR ama epoch iddiası YOK olan
+      // bir token her iki dalın da DIŞINDA kalıyordu → iddia hiç doğrulanmıyordu.
+      // Bugün üretimde oluşamaz (`enterOrganization` epoch'u daima yazar ve
+      // `mfa` iddiası o alandan DAHA YENİ), yani LATENT — ama tam olarak bir
+      // sonraki düzenleyicinin düşeceği tuzak.
+      // Yön FAIL-SAFE: aktörün faktörünü DOĞRULAYAMADIYSAK iddiayı VERMEYİZ.
+      session.mfa = false;
     }
     // ⚠️ OPERATÖR YETKİSİ HER İSTEKTE YENİDEN DOĞRULANIR (denetim, 08-01 — beşinci
     // tur, ajan bulgusu; Codex sıralamasında migration'sız kapatılacaklar arasında).

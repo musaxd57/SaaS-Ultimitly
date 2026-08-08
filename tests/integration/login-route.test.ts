@@ -142,6 +142,62 @@ describe("POST /api/auth/login — 2FA + TOTP replay", () => {
     expect(res.status).toBe(401);
   });
 
+  // 🚨 HESAP BAŞINA İKİNCİ-FAKTÖR KOTASI (denetim 08-09).
+  //
+  // `login-acct:{email}` kovası YALNIZ yanlış-PAROLA dalında tüketiliyordu;
+  // ikinci faktör dalına parola DOĞRU olduğu için hiç girmiyordu. Yani 6 haneli
+  // TOTP'ye karşı hesap-bazlı hiçbir sınır yoktu: parolayı ele geçiren biri
+  // proxy havuzuyla per-IP limitini dolaşıp kodu kaba kuvvetle deneyebiliyordu.
+  // Bahis maksimum, çünkü `mfa` iddiası artık operatör yetkisinin TEK kapısı.
+  //
+  // ⚠️ KURBAN KİLİTLEME RİSKİ YOK: bu dala ulaşmak DOĞRU PAROLA gerektiriyor,
+  // yani kovayı yakabilen kişi zaten parolayı biliyor. (`forgot-req:{email}`
+  // kovasındaki tuzak burada YOK — orası saldırganın YAZDIĞI adrese bağlı.)
+  it("hesap başına ikinci-faktör denemeleri SINIRLI (farklı IP'ler dolaşamaz)", async () => {
+    // Her istek FARKLI IP → per-IP kovası devre dışı; yalnız hesap kovası kalır.
+    let lastStatus = 0;
+    for (let i = 0; i < 12; i++) {
+      const res = await POST(
+        loginReq({ email, password: "correct-horse", code: "000000" }, `9.9.9.${i}`),
+      );
+      lastStatus = res.status;
+    }
+    expect(lastStatus).toBe(429);
+  });
+
+  // 🚨 KOTA KURTARMA KODU DALINI DA KAPSAR (savunmacı denetim 08-09).
+  // Ölçüldü: kotayı TOTP dalının içine taşımak testleri YEŞİL bırakıyordu —
+  // yeni test yalnız `code` gönderiyordu. Kurtarma kodu da ikinci faktördür ve
+  // aynı bütçeden harcanmalı; ayrıksa kaba kuvvet oradan devam eder.
+  it("kurtarma kodu denemeleri AYNI kotadan harcanır", async () => {
+    let lastStatus = 0;
+    for (let i = 0; i < 12; i++) {
+      const res = await POST(
+        loginReq({ email, password: "correct-horse", recoveryCode: "AAAA-BBBB-CCCC" }, `9.6.6.${i}`),
+      );
+      lastStatus = res.status;
+    }
+    expect(lastStatus).toBe(429);
+  });
+
+  it("429 metni SÜREYİ söyler ve kurtarma kodu YAKILMAZ", async () => {
+    // Depo kuralı (08-07): genel "kısa bir süre" metni kullanıcıyı boşuna
+    // tekrar denemeye itiyor. Pencere 10 dk ve kişi KENDİ hesabına giremiyor.
+    let body: { error?: string } = {};
+    for (let i = 0; i < 12; i++) {
+      const res = await POST(loginReq({ email, password: "correct-horse", code: "000000" }, `9.7.7.${i}`));
+      if (res.status === 429) body = await res.json();
+    }
+    expect(body.error).toMatch(/dakika/);
+  });
+
+  it("KONTROL: kota dolmadan DOĞRU kod hâlâ kabul edilir", async () => {
+    // Bu olmadan "her ikinci faktörü 429'la" mutasyonu da yeşil geçerdi.
+    const res = await POST(loginReq({ email, password: "correct-horse", code: totp(secret) }, "9.8.0.1"));
+    expect(res.status).toBe(200);
+    expect((await res.json()).twoFactorRequired).toBeUndefined();
+  });
+
   it("accepts a valid code, records the step, and REJECTS replay of the same code", async () => {
     const code = totp(secret);
     const ok = await POST(loginReq({ email, password: "correct-horse", code }, "5.0.0.3"));

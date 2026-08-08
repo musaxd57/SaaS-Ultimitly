@@ -73,21 +73,46 @@ export async function requireAuth(): Promise<SessionPayload> {
       where: { id: session.userId },
       // DB-authoritative role/org (see requireSession): a demoted user loses
       // powers on the page path too, not only on API routes.
-      select: { sessionEpoch: true, role: true, organizationId: true },
+      select: { sessionEpoch: true, role: true, organizationId: true, twoFactorEnabledAt: true },
     });
     if (!user || user.sessionEpoch !== session.sessionEpoch) invalid = true;
     else {
       session.role = user.role as SessionPayload["role"];
       session.organizationId = user.organizationId;
     }
+    let actorRow: { sessionEpoch: number; twoFactorEnabledAt: Date | null } | null = null;
     if (!invalid && session.actorUserId && session.actorSessionEpoch !== undefined) {
       // Impersonation: also enforce the real operator's epoch (see requireSession).
       const actor = await prisma.user.findUnique({
         where: { id: session.actorUserId },
-        select: { sessionEpoch: true },
+        select: { sessionEpoch: true, twoFactorEnabledAt: true },
       });
       if (!actor || actor.sessionEpoch !== session.actorSessionEpoch) invalid = true;
+      actorRow = actor;
     }
+    // 🚨 `mfa` İDDİASI SAYFA YOLUNDA DA DÜŞER (denetim 08-09, İKİ AJAN DA
+    // BLOKLAYICI SAYDI). İlk yazımda düzeltme YALNIZ `requireSession`'daydı,
+    // yani API tarafındaydı. Sonuç yarım kalıyordu ve KÖTÜYDÜ: `/admin` sayfası
+    // TAM RENDER oluyor (her org, abonelik, 50 lead, 50 denetim satırı — hepsi
+    // sunucuda `prisma` ile okunuyor) ama sayfadaki HER DÜĞME 401 dönüyordu.
+    // Kurucu için bu, "çalışıyor görünen ama hiçbir şey yapmayan panel" demek.
+    // `admin-core.ts` kapının TEK boğaz noktası olmasını açıkça amaçlıyor;
+    // yarım uygulamak onu çağıran tarafa göre farklı anlama gelen bir kapıya
+    // çevirirdi — üstelik açık kalan taraf en çok çapraz-kiracı veri okuyan taraf.
+    // ⚠️ İddia, impersonation'da AKTÖRÜN satırından doğrulanır (yukarıdaki
+    // `actor`), değilse kişinin KENDİ satırından. Yalnız AŞAĞI yönde.
+    // ⚠️ `factorRow` NULL olabilir: `actorUserId` var ama `actorSessionEpoch`
+    // yoksa yukarıdaki aktör okuması hiç koşmaz. O hâlde iddiayı DOĞRULAYAMIYORUZ
+    // → fail-safe yön VERMEMEKTİR (aynı boşluk `requireSession`'da da kapatıldı).
+    const factorRow = session.actorUserId ? actorRow : user;
+    if (!invalid && session.mfa === true && (!factorRow || !factorRow.twoFactorEnabledAt)) {
+      session.mfa = false;
+    }
+    // İddia düştüyse impersonation oturumu ürün içinden çıkamaz hâle gelirdi
+    // (`/api/admin/exit` de `requireSession`'a bağlı ve 401 döner) → sayfa
+    // yolunda temiz çıkış: logout'a yönlendir. Bu, `SUPERADMIN_EMAILS`
+    // kaldırıldığında yukarıda ZATEN yapılan şeyin aynısı.
+    if (session.actorUserId && !isSuperAdmin(session)) invalid = true;
   } catch {
     // DB blip: keep the (signature-valid) session alive — no mass-logout — but we
     // could NOT confirm the DB-authoritative role, so fail CLOSED on capability by
