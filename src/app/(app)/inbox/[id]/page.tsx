@@ -25,11 +25,22 @@ export const dynamic = "force-dynamic";
 
 export default async function ConversationPage({
   params,
+  searchParams,
 }: {
   params: Promise<{ id: string }>;
+  searchParams: Promise<{ from?: string | string[] }>;
 }) {
   const session = await requireAuth();
   const { id } = await params;
+  const sp = await searchParams;
+
+  // 🔙 GERİ HEDEFİ — geldiğin listeye döner (filtre + sayfa korunur).
+  // ⚠️ AÇIK YÖNLENDİRME KAPISI: değer istemciden gelir, o yüzden YALNIZ kendi
+  // gelen kutusu yollarımız kabul edilir. `startsWith("/inbox")` TEK BAŞINA
+  // YETMEZ — `//evil.tld` protokol-göreli bir DIŞ adrestir ve `/inbox@evil.tld`
+  // gibi biçimler de vardır; bu yüzden tam eşleşme ya da `/inbox?` öneki aranır.
+  const rawFrom = Array.isArray(sp.from) ? sp.from[0] : sp.from;
+  const backHref = rawFrom === "/inbox" || (rawFrom?.startsWith("/inbox?") ?? false) ? rawFrom! : "/inbox";
 
   const conversation = await prisma.conversation.findFirst({
     where: { id, property: { organizationId: session.organizationId } },
@@ -183,8 +194,8 @@ const SKIP_REASON_LABELS: Record<string, string> = {
         title={conversation.guestIdentifier}
         description={`${conversation.property.name} · ${channelLabel(conversation.channel)}`}
       >
-        <LinkButton href="/inbox" variant="outline" size="sm">
-          <ArrowLeft className="size-4" /> Mesajlar
+        <LinkButton href={backHref} variant="outline" size="sm">
+          <ArrowLeft className="size-4" /> {backHref.includes("status=problem") ? "Sorunlu konuşmalar" : "Mesajlar"}
         </LinkButton>
         <DeleteConversationButton conversationId={conversation.id} />
       </PageHeader>

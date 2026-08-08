@@ -208,3 +208,54 @@ describe("🚨 iCal TZID artık ATILMIYOR — gün kayması kapandı", () => {
     expect(src).toContain("getUTCFullYear()"); // guard da UTC frame'de
   });
 });
+
+describe("panel gezinme + kurulum rehberi kalıcılığı", () => {
+  it("🚨 geri bağlantısı AÇIK YÖNLENDİRMEYE kapalı", () => {
+    // `from` istemciden gelir. `startsWith("/inbox")` TEK BAŞINA yetmez:
+    // `//evil.tld` protokol-göreli bir DIŞ adrestir ve `/inbox@evil.tld` de
+    // vardır. Kabul edilen tek biçim: tam `/inbox` ya da `/inbox?` öneki.
+    const accept = (raw: string | undefined) =>
+      raw === "/inbox" || (raw?.startsWith("/inbox?") ?? false) ? raw! : "/inbox";
+    for (const bad of ["//evil.tld", "https://evil.tld", "/inbox@evil.tld", "/inboxevil", "javascript:alert(1)", undefined]) {
+      expect(accept(bad), String(bad)).toBe("/inbox");
+    }
+    for (const ok of ["/inbox", "/inbox?status=problem", "/inbox?status=problem&sayfa=2"]) {
+      expect(accept(ok)).toBe(ok);
+    }
+    // Üretim kodu AYNI kuralı uyguluyor mu?
+    const src = codeOnly(read("src/app/(app)/inbox/[id]/page.tsx"));
+    expect(src).toContain('rawFrom === "/inbox" || (rawFrom?.startsWith("/inbox?") ?? false)');
+    // Liste, bulunduğu filtreyi bağlantıya koyuyor mu?
+    const list = codeOnly(read("src/app/(app)/inbox/page.tsx"));
+    expect(list).toContain("?from=${encodeURIComponent(hrefFor({}))}");
+  });
+
+  it("🚨 kurulum rehberi bir kez bitince KALICI gizlenir", () => {
+    // Kart yalnız `allDone` iken gizleniyordu → host otomatik yanıtı sonradan
+    // kapatınca 5/6'ya düşüp GERİ GELİYORDU (kullanıcı bildirdi).
+    const src = codeOnly(read("src/components/onboarding-guide.tsx"));
+    expect(src).toContain('const COMPLETED_KEY = "lixus_onboarding_completed"');
+    // Mühür kapısı `allDone` kontrolünden ÖNCE gelmeli — sonra gelseydi
+    // 5/6 durumunda kart yine çizilirdi.
+    const gateIdx = src.indexOf("if (completedBefore === null || completedBefore) return null;");
+    const allDoneIdx = src.indexOf("if (allDone && !justAdvanced) return null;");
+    expect(gateIdx).toBeGreaterThan(-1);
+    expect(allDoneIdx).toBeGreaterThan(gateIdx);
+    // Mühür AYRI effect'te basılır: ilk effect'te basılsaydı aynı render'da
+    // gizlenir ve host kutlamayı HİÇ göremezdi.
+    expect(src).toMatch(/if \(completedBefore !== false \|\| doneCount !== steps\.length\) return;/);
+  });
+
+  it("kutlama: roket UÇAR, kutu yerinde kalır, hareket kapalıysa susar", () => {
+    const css = read("src/app/globals.css");
+    expect(css).toContain("translateY(-64px)"); // roket kutunun dışına çıkar
+    expect(css).toContain(".lxo-launch-box { position: relative; overflow: visible; }");
+    // prefers-reduced-motion bloğu HER ÜÇ parçayı da kapsamalı: eleman
+    // animasyonu, `::after` halkası ve tik. Biri unutulursa kutlama hareket
+    // kapalıyken de oynar.
+    const rm = css.slice(css.indexOf("@media (prefers-reduced-motion: reduce)"));
+    expect(rm).toContain(".lxo-check");
+    expect(rm).toContain(".lxo-launch-box::after");
+    expect(rm).toMatch(/\.lxo-launch \{ animation: none;/);
+  });
+});

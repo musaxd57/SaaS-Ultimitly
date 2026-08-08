@@ -166,10 +166,22 @@ export function OnboardingGuide({ steps }: { steps: OnboardingStep[] }) {
               doneCount === steps.length
                 ? "bg-success text-success-foreground"
                 : "bg-primary text-primary-foreground",
-              justAdvanced && (doneCount === steps.length ? "lxo-launch" : "lxo-boost"),
+              justAdvanced && (doneCount === steps.length ? "lxo-launch-box" : "lxo-boost"),
             )}
           >
-            <Rocket className="size-5" aria-hidden="true" />
+            {/* 🚀 KUTLAMA: roket kutudan ÇIKIP uçar, yerine tik oturur.
+                Kullanıcının tarifi: "yerinden çıkıp gidiyor gibi". Kutu yerinde
+                kalır — uçsaydı başlıkta boşluk açılırdı.
+                ⚠️ `justAdvanced` şart: kutlama YALNIZ 6/6'ya AZ ÖNCE ulaşıldığında
+                oynar; kalıcı mühür sayesinde zaten bir daha görünmez. */}
+            {justAdvanced && doneCount === steps.length ? (
+              <>
+                <Rocket className="lxo-launch absolute size-5" aria-hidden="true" />
+                <CheckCircle2 className="lxo-check size-5" aria-hidden="true" />
+              </>
+            ) : (
+              <Rocket className="size-5" aria-hidden="true" />
+            )}
           </div>
           <div className="flex-1">
             <p className="text-sm font-semibold">

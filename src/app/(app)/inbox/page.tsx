@@ -321,7 +321,13 @@ export default async function InboxPage({
             return (
             <Link
               key={c.id}
-              href={`/inbox/${c.id}`}
+              // 🔙 GERİ BAĞLAMI TAŞINIR (kullanıcı bildirdi): detay sayfasının
+              // "Mesajlar" düğmesi SABİT `/inbox`e gidiyordu, yani panelin
+              // "Sorunlu Konuşmalar" kutucuğundan gelip bir konuşmayı
+              // kapatan host FİLTRESİZ gelen kutusuna düşüyor ve kalan
+              // sorunluları elle bulmak zorunda kalıyordu. Artık bulunduğun
+              // liste (filtre + sayfa) bağlantıda taşınıyor.
+              href={`/inbox/${c.id}?from=${encodeURIComponent(hrefFor({}))}`}
               className={cn(
                 "flex items-center gap-3 px-4 py-3 transition-colors hover:bg-accent/40",
                 unread && "border-l-2 border-l-primary bg-accent/20",

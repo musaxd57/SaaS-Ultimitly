@@ -537,15 +537,21 @@ html {
    havalı bir efekt" istedi — süre bilinçli olarak 1.1 sn'de tutuldu, panelin
    ilk açılışını bekletmesin. */
 @keyframes lxo-launch {
-  0%   { transform: none; }
-  12%  { transform: translateY(3px) scale(0.94); }
-  45%  { transform: translateY(-12px) scale(1.1) rotate(-6deg); }
-  70%  { transform: translateY(2px) scale(0.98) rotate(2deg); }
-  100% { transform: none; }
+  /* Kullanıcının tarifi: "yerinden çıkıp gidiyor gibi". Önce çömelip yaylanıyor,
+     sonra yukarı fırlayıp kutunun DIŞINA çıkıyor ve gözden kayboluyor.
+     ⚠️ Roket geri GELMİYOR — `both` ile son kare korunuyor. Kurulum bitti,
+     rehber bir daha açılmayacak (kalıcı mühür); ikonun yerine dönmesi
+     "hâlâ buradayım" der ve kutlamanın anlamını bozardı. */
+  0%   { transform: none; opacity: 1; }
+  18%  { transform: translateY(5px) scale(0.9); opacity: 1; }
+  38%  { transform: translateY(-10px) scale(1.12) rotate(-8deg); opacity: 1; }
+  100% { transform: translateY(-64px) scale(0.55) rotate(-14deg); opacity: 0; }
 }
-/* Işık halkası: roket kutusunun kendi ::after'ı — ek DOM düğümü yok. */
-.lxo-launch { position: relative; }
-.lxo-launch::after {
+/* KUTU yerinde kalır (başlıkta boşluk olmasın), UÇAN roketin KENDİSİDİR.
+   `overflow: visible` ŞART: roket kutunun dışına çıkıyor, kırpılırsa uçuş
+   yarıda kesilmiş görünür. Işık halkası kutunun ::after'ı — ek DOM düğümü yok. */
+.lxo-launch-box { position: relative; overflow: visible; }
+.lxo-launch-box::after {
   content: "";
   position: absolute;
   inset: 0;
@@ -554,15 +560,25 @@ html {
   animation: lxo-ring 900ms ease-out both;
   pointer-events: none;
 }
+/* Roket çıktıktan SONRA yerine oturan tik — gecikme uçuşun sonuna denk gelir. */
+.lxo-check { animation: lxo-check 400ms cubic-bezier(0.16, 1, 0.3, 1) 700ms both; }
+@keyframes lxo-check {
+  0%   { transform: scale(0.4); opacity: 0; }
+  70%  { transform: scale(1.12); opacity: 1; }
+  100% { transform: none; opacity: 1; }
+}
 @keyframes lxo-ring {
   0%   { opacity: 0.9; transform: scale(1); }
   100% { opacity: 0; transform: scale(1.9); }
 }
 
 @media (prefers-reduced-motion: reduce) {
-  .lxo-boost, .lxo-pop, .lxo-launch { animation: none; }
-  /* Halka da susar — `::after` ayrı bir animasyon, üstteki kural onu KAPSAMAZ. */
-  .lxo-launch::after { animation: none; opacity: 0; }
+  .lxo-boost, .lxo-pop, .lxo-launch, .lxo-check { animation: none; }
+  /* Halka ve uçan roket ayrı animasyonlar — üstteki kural onları KAPSAMAZ.
+     Hareket kapalıyken roket YERİNDE kalır (uçup kaybolmaz) ve tik görünür. */
+  .lxo-launch-box::after { animation: none; opacity: 0; }
+  .lxo-launch { animation: none; opacity: 1; transform: none; }
+  .lxo-check { opacity: 1; transform: none; }
   .lxo-bar { transition: none; }
 }
 
