@@ -43,7 +43,7 @@ export function SlowLoadNotice() {
       className="flex flex-wrap items-center justify-center gap-3 rounded-lg border border-border bg-muted/40 px-4 py-3 text-sm"
     >
       <span className="text-muted-foreground">
-        Sayfa uzun sürdü. Sayfayı yenilemeyi deneyin.
+        Sayfa'nın açılması uzun sürdü. Sayfayı yenilemeyi deneyin.
       </span>
       <button
         type="button"
