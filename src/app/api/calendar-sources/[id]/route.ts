@@ -30,17 +30,26 @@ export const DELETE = withManage<{ id: string }>(async (session, _req, { params 
   // `sendDueWelcomes` o satırı ADAY sayıyor ve iCal UID'sini Hospitable
   // rezervasyon id'si olarak POST ediyor → 404 → claim geri alınır → aynı satır
   // 2 dakikada bir yeniden denenir + her koşuda alarm. Kalıcı döngü.
-  // ⚠️ Kanalı "ics" yapmak bir DEĞER BÜKME DEĞİL, doğrulama: satır gerçekten bir
-  // iCal beslemesinden geldi. Rozet "Airbnb" yerine "iCal" gösterir; öksüz bir
-  // satır için bu dürüst olan. `channelFromLabel` "ics" üretmediği için bu değer
-  // beslemeden gelen satırı benzersiz işaretlemeye devam eder.
+  // 🚨 DEĞER "manual", "ics" DEĞİL — ve bu fark LOAD-BEARING (denetim 08-08).
+  // İlk yazımım "ics" koyuyordu ve bir önceki commit'te kapatılan kapıyı GERİ
+  // AÇIYORDU: elle `.ics` yüklemesinin iptal kapısı sahipliği
+  // `calendarSourceId: null && channel === "ics"` ile tanımlıyor ("bunu ben
+  // yükledim"). Öksüz besleme satırı da "ics" olunca o kapı için elle yüklenmiş
+  // satırdan AYIRT EDİLEMEZ hâle geliyordu → UID'si çakışan bayat bir .ics
+  // dosyası CANLI bir rezervasyonu iptale çevirip `origin:"system"` görevlerini
+  // SİLEBİLİYORDU (ölçüldü: kaynak silinmeden ÖNCE engelleniyor, sonra geçiyor).
+  // "manual" her iki ihtiyacı da karşılar: yaşam-döngüsü kapısı
+  // (`notIn ["ics","manual"]`) onu DA eler, iptal kapısı ise onu ARAMAZ.
+  // ⚠️ Bu bir DEĞER BÜKME DEĞİL: satır artık hiçbir kaynağa bağlı değil ve
+  // yalnız elle yönetilebilir. Rozet "Manuel" gösterir; öksüz bir satır için
+  // dürüst olan bu.
   // ⚠️ Feed TEKRAR eklenirse iyileşme BOZULMAZ: benimseme `calendarSourceId: null`
   // arıyor (kanala bakmıyor) ve benimsedikten sonra ilk güncelleme kanalı yeniden
   // `channelFromLabel`den yazar.
   await prisma.$transaction([
     prisma.reservation.updateMany({
       where: { calendarSourceId: id },
-      data: { calendarSourceId: null, channel: "ics" },
+      data: { calendarSourceId: null, channel: "manual" },
     }),
     prisma.calendarSource.delete({ where: { id } }),
   ]);

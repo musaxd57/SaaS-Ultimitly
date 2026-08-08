@@ -342,10 +342,27 @@ export const POST = withManage(async (session, req) => {
       guestName: row.guestName.slice(0, 200),
       arrivalDate: row.arrivalDate,
       departureDate: row.departureDate,
-      // ⚠️ Elle giriş yolu `z.enum(RESERVATION_CHANNEL.values)` ile 5 değere
-      // kapalı (validators.ts); içe aktarma o kapalı seti atlıyordu ve bu alan
-      // kardeşlerinin aksine KELEPÇESİZDİ (20.000 karakterlik hücre ham yazılıyordu).
-      channel: (row.channel ?? "other").slice(0, 40),
+      // 🚨 CSV'DEKİ KANAL SÜTUNU KULLANILMAZ (denetim 08-08, ÖLÇÜLDÜ).
+      // Bu alan yalnız bir ROZET değil, yaşam-döngüsü gönderiminin YÖNLENDİRME
+      // KAPISIDIR: altı sorgu da `channel notIn ["ics","manual"]` ile filtreliyor.
+      // Eskiden buraya CSV hücresi ham geçiyordu (`row.channel ?? "other"`), yani
+      // dosyaya `channel: airbnb` yazan bir satır ALTI KAPIYI DA geçiyordu —
+      // `status:"confirmed"` burada yazılıyor, `sourceReference` CSV'den geliyor,
+      // `calendarSourceId` hiç set edilmiyor. Sonuç: `sendOnChannel` CSV'deki
+      // referansı Hospitable rezervasyon id'si sanıp POST ediyor → 4xx'te sonsuz
+      // yeniden deneme + her koşuda alarm, 5xx'te hayalet konaklamaya kalıcı damga.
+      // Bugün aynı delik `.ics` yüklemesinde (parser `channel:"ics"` sabitliyor) ve
+      // abonelik senkronunda (`calendarSourceId`) kapatıldı; CSV bacağında
+      // İKİ İŞARETÇİ DE yoktu.
+      // ⚠️ BEDELİ BİLİNÇLİ: rozet artık OTA adını değil "Manuel" gösteriyor.
+      // Kanal alanı bir MEKANİZMA işaretçisi olarak kullanılıyor (`.ics` emsalinin
+      // aynısı) ve elle yüklenen satır tanım gereği Hospitable'da YOKTUR. OTA adını
+      // ayrıca saklamak ayrı bir kolon = migration; `docs/ACIK-ISLER-2026-08-08.md`.
+      // ⚠️ Yan kazanç: `row.channel` artık hiç kullanılmıyor, yani 40 karaktere
+      // kırpılan ama kapalı sete HİÇ sınanmayan serbest metin de ortadan kalktı.
+      // `.ics` → parser'ın sabitlediği "ics"; `.csv` → "manual". İkisi de
+      // MEKANİZMA işaretçisi ve ikisi de yaşam-döngüsü kapısının dışında.
+      channel: isIcs ? "ics" : "manual",
       status: "confirmed",
       sourceReference: sourceReference ? sourceReference.slice(0, 200) : null,
       notes: row.notes ? row.notes.slice(0, 5000) : null,

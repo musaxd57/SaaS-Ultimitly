@@ -78,7 +78,7 @@ describe("iCal beslemesinden gelen rezervasyon yaşam-döngüsü adayı DEĞİLD
   // Silme rotası, satırları öksüz bırakmamak için `calendarSourceId`yi BİLEREK
   // null'lıyor (feed tekrar eklenince iyileşsin diye) — ama o sütun aynı zamanda
   // yaşam-döngüsü kapısının işaretçisiydi. Yani tek bir "Sil" tıklaması kapıyı
-  // deliyordu. Artık silme kanalı da "ics" yapıyor; bu test o zinciri pinliyor.
+  // deliyordu. Artık silme kanalı da "manual" yapıyor; bu test o zinciri pinliyor.
   it("kaynak SİLİNSE bile besleme satırı aday DEĞİL (silme kapıyı delmez)", async () => {
     const { DELETE } = await import("@/app/api/calendar-sources/[id]/route");
     const { orgId: organizationId, propertyId } = await makeOrgWithProperty();
@@ -119,6 +119,22 @@ describe("iCal beslemesinden gelen rezervasyon yaşam-döngüsü adayı DEĞİLD
     });
     // Öksüz besleme satırı ELENİR; gerçek Hospitable satırı KONTROL olarak kalır.
     expect(candidates.map((c) => c.sourceReference)).toEqual(["hosp-live"]);
+
+    // 🚨 KANAL "manual" OLMALI, "ics" DEĞİL — fark LOAD-BEARING.
+    // Elle .ics yüklemesinin iptal kapısı sahipliği `calendarSourceId: null &&
+    // channel === "ics"` ile tanımlıyor. Öksüz satır da "ics" olsaydı o kapı
+    // için elle yüklenmiş satırdan ayırt edilemezdi ve UID'si çakışan bayat bir
+    // .ics dosyası CANLI rezervasyonu iptal edebilirdi (ölçülmüş sömürü).
+    const orphan = await prisma.reservation.findFirstOrThrow({
+      where: { propertyId, sourceReference: "orphan-uid" },
+      select: { channel: true },
+    });
+    expect(orphan.channel).toBe("manual");
+    // Elle yükleme iptal kapısının aradığı kümede OLMAMALI.
+    const cancellableByUpload = await prisma.reservation.count({
+      where: { propertyId, calendarSourceId: null, channel: "ics" },
+    });
+    expect(cancellableByUpload).toBe(0);
   });
 
   it("kaynak tarama: ALTI yaşam-döngüsü sorgusunun HEPSİ iki kapıyı birden taşır", async () => {

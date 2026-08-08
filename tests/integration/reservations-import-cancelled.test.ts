@@ -376,4 +376,45 @@ describe("POST /api/reservations/import — STATUS:CANCELLED", () => {
     expect(res.status).toBe(200);
     expect(await res.json()).toMatchObject({ imported: 1 });
   });
+
+  // ── CSV BACAGI DA YASAM-DONGUSU KAPISININ DISINDA ──────────────────────────
+  // 🚨 Ayni delik bugun iki kez kapatildi — `.ics` yuklemesinde (parser
+  // `channel:"ics"` sabitliyor) ve abonelik senkronunda (`calendarSourceId`) —
+  // ama CSV bacaginda IKI ISARETCI DE yoktu: rota CSV'deki `channel` hucresini
+  // HAM yaziyordu, yani dosyaya `channel: airbnb` yazan bir satir alti kapiyi da
+  // geciyor ve `sendOnChannel` CSV referansini Hospitable rezervasyon id'si
+  // sanip POST ediyordu.
+  it("CSV 'airbnb' dese bile satır Hospitable-mesajlanabilir SAYILMAZ", async () => {
+    const csv = ["name,arrival,departure,channel,id", "Deniz Yilmaz,2026-09-01,2026-09-04,airbnb,CSV-REF-1"].join("\n");
+    const res = await POST(csvReq(propertyId, csv), { params: Promise.resolve({}) });
+    expect(res.status).toBe(200);
+
+    const row = await prisma.reservation.findFirstOrThrow({
+      where: { propertyId, sourceReference: "CSV-REF-1" },
+      select: { channel: true, calendarSourceId: true },
+    });
+    // Kanal MEKANIZMAYI anlatir, dosyadaki OTA adini degil.
+    expect(row.channel).toBe("manual");
+    expect(row.calendarSourceId).toBeNull();
+
+    // ASIL DEGISMEZ: alti yasam-dongusu sorgusunun kullandigi iki kapi birlikte.
+    const messageable = await prisma.reservation.count({
+      where: {
+        propertyId,
+        sourceReference: { not: null },
+        channel: { notIn: ["ics", "manual"] },
+        calendarSourceId: null,
+      },
+    });
+    expect(messageable).toBe(0);
+  });
 });
+
+// ---------------------------------------------------------------------------
+// 🚨 CSV BACAĞI DA YAŞAM-DÖNGÜSÜ KAPISININ DIŞINDA KALMALI (denetim 08-08).
+//
+// Aynı delik bugün iki kez kapatıldı — `.ics` yüklemesinde (parser `channel:"ics"`
+// sabitliyor) ve abonelik senkronunda (`calendarSourceId`) — ama CSV bacağında
+// İKİ İŞARETÇİ DE yoktu: rota CSV'deki `channel` hücresini ham yazıyordu, yani
+// dosyaya `channel: airbnb` yazan bir satır altı kapıyı da geçiyordu.
+// ---------------------------------------------------------------------------
