@@ -1148,6 +1148,13 @@ export function holdingAckEligible(message: string): boolean {
   return !holdingAckBlockedSignals(message);
 }
 
+/**
+ * Intents whose reply must NOT carry a courtesy closing: an apology or an
+ * escalation followed by a cheerful sign-off contradicts itself. Kept next to
+ * the reply builder so a new high-stakes intent is added in one place.
+ */
+const CLOSING_FREE_INTENTS = new Set(["complaint", "refund", "early_departure", "human_request"]);
+
 export function suggestReplyFallback(input: SuggestReplyInput): SuggestReplyResult {
   const { intent, priority, confidence } = classifyFallback(input.guestMessage);
   const name = input.reservation?.guestName?.split(" ")[0];
@@ -1173,7 +1180,18 @@ export function suggestReplyFallback(input: SuggestReplyInput): SuggestReplyResu
   const greeting = isTr
     ? name ? `Merhaba ${name},` : "Merhaba,"
     : name ? `Hi ${name},` : "Hi,";
-  const closing = input.tone === "short" ? "" : isTr ? "\n\nİyi günler dileriz." : "\n\nKind regards,";
+  // CLOSING LINE — two deliberate suppressions.
+  //
+  // 1) The English side is a COMPLETE sentence, never a sign-off. "Kind regards,"
+  //    was a dangling comma: the org signature (Organization.aiSignature) is
+  //    optional and defaults to NULL, so the guest routinely received a message
+  //    that ended on a comma with no name after it.
+  // 2) HIGH-STAKES intents get NO courtesy closing at all. Pasting "İyi günler
+  //    dileriz." straight after "Bunun için özür dileriz..." reads as dismissive,
+  //    and Section 10.6 wants exactly these replies to end on the single
+  //    assurance sentence. Informational intents keep the closing.
+  const closingSuppressed = input.tone === "short" || CLOSING_FREE_INTENTS.has(intent);
+  const closing = closingSuppressed ? "" : isTr ? "\n\nİyi günler dileriz." : "\n\nThank you.";
 
   let body: string;
   let risk: string | null = null;
@@ -1189,8 +1207,8 @@ export function suggestReplyFallback(input: SuggestReplyInput): SuggestReplyResu
       break;
     case "refund":
       body = isTr
-        ? "Talebinizi aldım. İade ve ücret konularını yöneticimiz değerlendirecek ve en kısa sürede size dönüş yapacak."
-        : "I've received your request. Refunds and charges are reviewed by our manager, who will get back to you as soon as possible.";
+        ? "Talebinizi aldım. İade ve ücret konularını ev sahibimiz değerlendirecek ve en kısa sürede size dönüş yapacak."
+        : "I've received your request. Refunds and charges are reviewed by our host, who will get back to you as soon as possible.";
       risk = "İade/ücret talebi. Finansal karar gerektirir, yönetici onayı şart.";
       break;
     case "early_departure":
@@ -1207,13 +1225,13 @@ export function suggestReplyFallback(input: SuggestReplyInput): SuggestReplyResu
     case "early_checkin":
       usedSources.push("property:checkInTime");
       body = isTr
-        ? `Check-in saatimiz ${p.checkInTime}. Erken giriş, o günkü müsaitliğe bağlı olarak mümkün olabilir. Müsaitliği kontrol edip size en kısa sürede bilgi vereceğim.`
+        ? `Giriş saatimiz ${p.checkInTime}. Erken giriş, o günkü müsaitliğe bağlı olarak mümkün olabilir. Müsaitliği kontrol edip size en kısa sürede bilgi vereceğim.`
         : `Our check-in time is ${p.checkInTime}. An early check-in may be possible depending on availability that day. I'll check and let you know as soon as I can.`;
       break;
     case "late_checkout":
       usedSources.push("property:checkOutTime");
       body = isTr
-        ? `Check-out saatimiz ${p.checkOutTime}. Geç çıkış, sonraki rezervasyon ve temizlik programına bağlı olarak mümkün olabilir. Kontrol edip size döneceğim.`
+        ? `Çıkış saatimiz ${p.checkOutTime}. Geç çıkış, sonraki rezervasyon ve temizlik programına bağlı olarak mümkün olabilir. Kontrol edip size döneceğim.`
         : `Our check-out time is ${p.checkOutTime}. A late check-out may be possible depending on the cleaning schedule and the next booking. I'll check and get back to you.`;
       break;
     case "checkin": {
@@ -1222,8 +1240,8 @@ export function suggestReplyFallback(input: SuggestReplyInput): SuggestReplyResu
       if (kb) usedSources.push("kb:checkin");
       body = isTr
         ? kb
-          ? `Giriş bilgileri: ${kb}\n\nCheck-in saatimiz ${p.checkInTime}.`
-          : `Check-in saatimiz ${p.checkInTime}. Giriş talimatlarını girişten önce sizinle paylaşacağım.`
+          ? `Giriş bilgileri: ${kb}\n\nGiriş saatimiz ${p.checkInTime}.`
+          : `Giriş saatimiz ${p.checkInTime}. Giriş talimatlarını girişten önce sizinle paylaşacağım.`
         : kb
           ? `Check-in details: ${kb}\n\nOur check-in time is ${p.checkInTime}.`
           : `Our check-in time is ${p.checkInTime}. I'll share the entry instructions with you before arrival.`;
@@ -1232,8 +1250,8 @@ export function suggestReplyFallback(input: SuggestReplyInput): SuggestReplyResu
     case "checkout":
       usedSources.push("property:checkOutTime");
       body = isTr
-        ? `Check-out saatimiz ${p.checkOutTime}. Çıkışta anahtarları/kartı belirtilen yere bırakmanız yeterli olacaktır.`
-        : `Our check-out time is ${p.checkOutTime}. On your way out, simply leave the keys/card in the agreed place.`;
+        ? `Çıkış saatimiz ${p.checkOutTime}. Anahtarları/kartı nereye bırakacağınızı çıkıştan önce sizinle netleştireceğim.`
+        : `Our check-out time is ${p.checkOutTime}. I'll confirm where to leave the keys/card before you go.`;
       break;
     case "wifi": {
       const kb = stayVerified ? findKb(input, "wifi") : null;

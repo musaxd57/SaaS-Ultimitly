@@ -160,8 +160,15 @@ export default async function PropertyDetailPage({
         ) : null}
       </PageHeader>
 
+      {/* min-w-0 ZORUNLU, kozmetik DEĞİL: grid çocukları varsayılan olarak
+          `min-width:auto` alır, yani sütun İÇERİĞİN min-content'i kadar geniş
+          olmak zorundadır. Sağdaki kartta 99 karakterlik iCal feed adresi
+          (`white-space:nowrap`) duruyor → sütun 742 px'e şişiyor, `truncate`
+          hiç devreye giremiyor ve 390 px'lik telefonda SAYFA YATAY KAYIYORDU
+          (ölçüldü: documentElement.scrollWidth 757 → 390). min-w-0 sütunun
+          küçülmesine izin verir; kısaltma o zaman gerçekten çalışır. */}
       <div className="grid gap-4 lg:grid-cols-3">
-        <div className="space-y-4 lg:col-span-2">
+        <div className="min-w-0 space-y-4 lg:col-span-2">
           <Card>
             <CardHeader>
               <CardTitle className="text-base">Mülk Ayarları</CardTitle>
@@ -202,7 +209,7 @@ export default async function PropertyDetailPage({
           </Card>
         </div>
 
-        <div className="space-y-4">
+        <div className="min-w-0 space-y-4">
           <Card>
             <CardHeader>
               <CardTitle className="flex items-center gap-2 text-base">

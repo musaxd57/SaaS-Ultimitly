@@ -27,7 +27,7 @@ export const DEFAULT_TEMPLATES: MessageTemplate[] = [
     isDefault: true,
     body: `Merhaba {{guestName}},
 
-Hoş geldiniz! Check-in saatimiz {{checkInTime}}. Kapı kodunu ve giriş talimatlarını aşağıda bulabilirsiniz:
+Hoş geldiniz! Giriş saatimiz {{checkInTime}}. Kapı kodunu ve giriş talimatlarını aşağıda bulabilirsiniz:
 
 {{wifiInfo}}
 
@@ -55,7 +55,7 @@ Enjoy your stay!`,
     isDefault: true,
     body: `Merhaba {{guestName}},
 
-{{propertyName}}'e girişinize az kaldı! Sizi {{checkInTime}}'de bekliyoruz.`,
+Girişinize az kaldı. Konaklayacağınız daire: {{propertyName}}. Giriş saatimiz {{checkInTime}}, sizi bekliyoruz.`,
   },
 
   // --- Check-out ---
@@ -67,9 +67,9 @@ Enjoy your stay!`,
     isDefault: true,
     body: `Merhaba {{guestName}},
 
-Check-out saatimiz {{checkOutTime}}. Çıkışta anahtarı/kartı kapı yanındaki kutuya bırakmanız yeterli.
+Çıkış saatimiz {{checkOutTime}}. Anahtarı/kartı nereye bırakacağınızı çıkıştan önce ayrıca yazacağım.
 
-Konaklamanızın keyifli geçmesini umuyoruz. Görüşmek üzere!`,
+Bizi tercih ettiğiniz için teşekkür ederiz. Görüşmek üzere!`,
   },
   {
     id: "default-checkout-en-1",
@@ -79,9 +79,9 @@ Konaklamanızın keyifli geçmesini umuyoruz. Görüşmek üzere!`,
     isDefault: true,
     body: `Hello {{guestName}},
 
-Just a reminder that check-out time is {{checkOutTime}}. Please leave the key/card in the box by the door.
+Just a reminder that check-out time is {{checkOutTime}}. I'll confirm where to leave the key/card before you go.
 
-We hope you had a wonderful stay. See you next time!`,
+Thank you for staying with us. See you next time!`,
   },
   {
     id: "default-checkout-tr-2",
@@ -91,7 +91,7 @@ We hope you had a wonderful stay. See you next time!`,
     isDefault: true,
     body: `Merhaba {{guestName}},
 
-Bugün çıkış günü — umarız {{propertyName}}'de konaklamanız harikaydı! Check-out {{checkOutTime}}'de. Değerlendirmenizi merakla bekliyoruz.`,
+Bugün çıkış günü. Çıkış saatimiz {{checkOutTime}}. Bizi tercih ettiğiniz için teşekkür ederiz.`,
   },
 
   // --- Welcome ---
@@ -101,9 +101,9 @@ Bugün çıkış günü — umarız {{propertyName}}'de konaklamanız harikaydı
     title: "Hoş Geldiniz Mesajı (TR)",
     language: "tr",
     isDefault: true,
-    body: `Merhaba {{guestName}}, {{propertyName}}'e hoş geldiniz!
+    body: `Merhaba {{guestName}}, hoş geldiniz!
 
-Konaklamanız boyunca her türlü sorunuz için buradayız. Wi-Fi bilgileri:
+Konaklayacağınız daire: {{propertyName}}. Konaklamanız boyunca her türlü sorunuz için buradayız. Wi-Fi bilgileri:
 {{wifiInfo}}
 
 Keyifli günler dileriz!`,
@@ -124,14 +124,14 @@ Enjoy your stay!`,
   {
     id: "default-welcome-tr-2",
     category: "welcome",
-    title: "Rezervasyon Onayı",
+    title: "Rezervasyon Bilgileri",
     language: "tr",
     isDefault: true,
     body: `Merhaba {{guestName}},
 
-Rezervasyonunuz onaylanmıştır. {{propertyName}}'de sizi ağırlamaktan büyük mutluluk duyacağız. Check-in: {{checkInTime}}, Check-out: {{checkOutTime}}.
+Rezervasyonunuz için teşekkür ederim. Konaklayacağınız daire: {{propertyName}}. Giriş saati {{checkInTime}}, çıkış saati {{checkOutTime}}.
 
-Giriş öncesinde detaylı bilgi paylaşacağız.`,
+Giriş öncesinde detaylı bilgi paylaşacağım.`,
   },
 
   // --- Complaint Response ---
@@ -143,9 +143,9 @@ Giriş öncesinde detaylı bilgi paylaşacağız.`,
     isDefault: true,
     body: `Merhaba {{guestName}},
 
-Yaşadığınız sorun için içtenlikle özür dileriz. Bu durumu kabul edilemez buluyoruz ve derhal çözüm üretiyoruz.
+Yaşadığınız sorun için özür dileriz. Konuyu hemen inceliyorum.
 
-Ekibimiz en kısa sürede sizinle iletişime geçecek.`,
+En kısa sürede size dönüş yapacağım.`,
   },
   {
     id: "default-complaint-en-1",
@@ -155,7 +155,7 @@ Ekibimiz en kısa sürede sizinle iletişime geçecek.`,
     isDefault: true,
     body: `Hello {{guestName}},
 
-We sincerely apologize for the inconvenience you experienced. Our team is on it and will be in touch shortly to resolve the issue.`,
+We're sorry about the problem you've run into. I'm looking into it now and will get back to you shortly.`,
   },
 
   // --- Rules ---
@@ -168,7 +168,7 @@ We sincerely apologize for the inconvenience you experienced. Our team is on it 
     body: `Merhaba {{guestName}},
 
 {{propertyName}} için ev kurallarını hatırlatmak istedik:
-• Gece 23:00'dan sonra sessizlik saatleri geçerlidir.
+• Saat 22:00'den sonra lütfen gürültü yapmayınız (bina sakinleri için).
 • Evcil hayvan ve sigara yasaktır.
 • Parti ve etkinlik organizasyonu yasaktır.
 

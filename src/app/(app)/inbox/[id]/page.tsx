@@ -218,8 +218,19 @@ const SKIP_REASON_LABELS: Record<string, string> = {
         </p>
       ) : null}
 
+      {/* min-w-0 ZORUNLU — mesaj balonundaki `break-words` BU İŞİ GÖRMEZ:
+          `overflow-wrap:break-word` satır kırma fırsatı ekler ama spec gereği
+          MIN-CONTENT hesabına KATILMAZ (katılan değer `anywhere`). Bu yüzden
+          misafirin yapıştırdığı 114 karakterlik bölünemez Airbnb linki
+          (`source_impression_id=…`) sütunun min-content'ini 486 px'e çıkarıyor,
+          `min-width:auto` yüzünden sütun küçülmeyi reddediyor ve TELEFONDA
+          SAYFA YATAY KAYIYOR (ölçüldü: scrollWidth 560 → 390/360/414 = temiz).
+          `max-w-[90%]` de kurtarmaz: yüzdeler intrinsic boyutlamada çözülmez.
+          Çözüm sütunu küçülebilir yapmak; link o zaman `break-words` ile
+          SARAR (kırpılmaz) — balonun kendisine `anywhere`/`break-all` VERİLMEDİ,
+          o normal Türkçe metni de kelime ortasından bölerdi. */}
       <div className="grid gap-4 lg:grid-cols-3">
-        <div className="lg:col-span-2">
+        <div className="min-w-0 lg:col-span-2">
           <ConversationThread
             conversationId={conversation.id}
             messages={messages}
@@ -231,7 +242,7 @@ const SKIP_REASON_LABELS: Record<string, string> = {
           />
         </div>
 
-        <div className="space-y-4">
+        <div className="min-w-0 space-y-4">
           <Card>
             <CardHeader>
               <CardTitle className="flex items-center gap-2 text-base">

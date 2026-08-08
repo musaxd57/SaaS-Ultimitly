@@ -304,8 +304,10 @@ export function KbManager({
   return (
     <div className="grid gap-4 lg:grid-cols-3">
       {/* Create — self-start: grid satırı sağdaki uzun mülk listesi kadar uzar;
-          form kartı içeriği kadar kalmalı, en aşağıya kadar sündürülmemeli. */}
-      <Card className="lg:col-span-1 lg:self-start">
+          form kartı içeriği kadar kalmalı, en aşağıya kadar sündürülmemeli.
+          min-w-0: grid çocuğunun varsayılan `min-width:auto`u sütunu içeriğin
+          min-content'ine kilitler (↓aşağıdaki liste sütununun yorumu). */}
+      <Card className="min-w-0 lg:col-span-1 lg:self-start">
         <CardHeader>
           <CardTitle className="flex items-center gap-2 text-base">
             <Plus className="size-4 text-muted-foreground" /> Yeni Bilgi
@@ -389,7 +391,12 @@ export function KbManager({
       </Card>
 
       {/* List */}
-      <div className="space-y-4 lg:col-span-2">
+      {/* min-w-0 ZORUNLU: bu sütunun min-content'i 361 px (rozet + başlık +
+          4 aksiyon düğmesi `min-w-[40px]`), 360 px'lik telefonda kaba
+          sığmıyor ve `min-width:auto` yüzünden sütun küçülmeyi REDDEDİP
+          SAYFAYI YATAY KAYDIRIYORDU (ölçüldü: scrollWidth 376 → 360).
+          Metin kırpılmıyor, satır başlıkları sarıyor. */}
+      <div className="min-w-0 space-y-4 lg:col-span-2">
         {listError ? (
           <FormError>{listError}</FormError>
         ) : null}
@@ -420,7 +427,12 @@ export function KbManager({
                 {list.map((item) => (
                   <div key={item.id} className="rounded-lg border border-border p-3">
                     <div className="flex items-start justify-between gap-2">
-                      <div className="flex items-center gap-2">
+                      {/* min-w-0: sağdaki 4 aksiyon düğmesi `min-w-[40px]` ile
+                          SABİT (~171 px). Bu grup küçülemezse 360 px'de ikisi
+                          birden satıra sığmıyor ve düğmeler kartın kenarından
+                          31 px TAŞIYORDU (ölçüldü; min-w-0 ile taşma 0).
+                          Başlık kırpılmaz, sarar. */}
+                      <div className="flex min-w-0 items-center gap-2">
                         <Badge tone={KB_CATEGORY.tone(item.category)}>
                           {KB_CATEGORY.label(item.category)}
                         </Badge>

@@ -281,12 +281,20 @@ async function persistRiskVisibility(
 // ("complaints are never auto-answered") to the letter.
 // ---------------------------------------------------------------------------
 const HOLDING_ACK_TEXTS: Record<string, string> = {
-  tr: "Bunun için özür dileriz. Mesajınızı ev sahibimize ilettim; en kısa sürede sizinle ilgilenecek. Sorunun kısa bir detayını ya da fotoğrafını paylaşırsanız çözümü hızlandırır.",
+  // ⚠️ "paylaşırsanız … hızlandırır" ÖZNESİZDİ (denetim 08-08): koşul cümlesinden
+  // sonra gelen yüklemin öznesi yok. Metin misafire OTOMATİK gidiyor, yani bozuk
+  // Türkçe doğrudan müşteriye ulaşıyordu. Doğru kuruluş isim-fiil öznesidir.
+  tr: "Bunun için özür dileriz. Mesajınızı ev sahibimize ilettim; en kısa sürede sizinle ilgilenecek. Sorunun kısa bir açıklamasını ya da fotoğrafını paylaşmanız çözümü hızlandırır.",
   en: "Apologies for the trouble. I've passed your message to our host, who will follow up with you shortly. Sharing a short detail or a photo of the issue will help speed things up.",
-  de: "Entschuldigen Sie die Unannehmlichkeit. Ich habe Ihre Nachricht an unseren Gastgeber weitergeleitet; er meldet sich in Kürze bei Ihnen. Ein kurzes Detail oder ein Foto des Problems hilft uns, schneller zu helfen.",
+  // ⚠️ "er meldet sich" ev sahibinin ERKEK olduğunu varsayıyordu; ev sahibi
+  // müşterimizdir ve cinsiyetini bilmiyoruz. Cümle yeniden kuruldu (zamir yok).
+  de: "Entschuldigen Sie die Unannehmlichkeit. Ich habe Ihre Nachricht an unseren Gastgeber weitergeleitet; Sie erhalten in Kürze eine Rückmeldung. Ein kurzes Detail oder ein Foto des Problems hilft uns, schneller zu helfen.",
   fr: "Veuillez nous excuser pour ce désagrément. J'ai transmis votre message à notre hôte, qui reviendra vers vous rapidement. Un court détail ou une photo du problème nous aidera à aller plus vite.",
   ar: "نعتذر عن هذا الإزعاج. لقد أرسلت رسالتكم إلى المضيف وسيتواصل معكم في أقرب وقت. مشاركة تفصيل قصير أو صورة للمشكلة تساعدنا على الحل بشكل أسرع.",
-  ru: "Приносим извинения за неудобство. Я передал ваше сообщение хозяину — он свяжется с вами в ближайшее время. Короткое описание или фото проблемы поможет решить вопрос быстрее.",
+  // ⚠️ "Я передал" YAZANIN erkek olduğunu, "он свяжется" ev sahibinin erkek
+  // olduğunu varsayıyordu — ikisini de bilmiyoruz. Edilgen kuruluş her ikisini
+  // de çözer ve Rusçada tamamen doğaldır.
+  ru: "Приносим извинения за неудобство. Ваше сообщение передано хозяину — с вами свяжутся в ближайшее время. Короткое описание или фото проблемы поможет решить вопрос быстрее.",
 };
 
 /**
@@ -712,13 +720,21 @@ export function automatedReplyNote(lang: string | undefined, orgEnabled: boolean
   // env=0 is a GLOBAL operator kill-switch; otherwise the per-org toggle decides.
   if (process.env.AUTO_REPLY_DISCLOSURE === "0" || !orgEnabled) return null;
   const l = (lang ?? "en").slice(0, 2).toLowerCase();
+  // 🚨 TUTULAMAYACAK SÖZ VERME (denetim 08-08). Eski metin altı dilde birden
+  // "bir hata olursa ekibimiz HEMEN DÜZELTİR" diyordu. Böyle bir mekanizma YOK:
+  // kapıdan geçen bir oto-yanıtı sonradan kimse OKUMUYOR, yanlış olduğunu
+  // anlayan bir dedektör de yok. Host, ancak misafir TEKRAR YAZARSA haberdar
+  // oluyor. Yeni metin tam olarak bunu söylüyor — yani yapı gereği DOĞRU:
+  // misafir buraya yazarsa mesaj gerçekten host'a ulaşır (şikayet yolu onu
+  // "Sorunlu" işaretleyip e-posta gönderir). Açıklama yükümlülüğü (mesajın
+  // makine tarafından hazırlandığını söylemek) aynen korunuyor.
   const notes: Record<string, string> = {
-    tr: "(Bu yanıt otomatik asistanımızca hazırlandı; bir hata olursa ekibimiz hemen düzeltir.)",
-    en: "(This reply was prepared by our automated assistant; if anything looks off, our team will fix it right away.)",
-    de: "(Diese Antwort wurde von unserem automatischen Assistenten erstellt; bei Fehlern hilft unser Team sofort.)",
-    fr: "(Cette réponse a été préparée par notre assistant automatique ; en cas d'erreur, notre équipe corrige aussitôt.)",
-    ar: "(تم إعداد هذا الرد بواسطة مساعدنا الآلي؛ وإذا حدث أي خطأ فسيصححه فريقنا فورًا.)",
-    ru: "(Этот ответ подготовлен нашим автоматическим ассистентом; если что-то не так, команда сразу поправит.)",
+    tr: "(Bu yanıt otomatik asistanımızca hazırlandı. Bir yanlışlık varsa buraya yazmanız yeterli, ev sahibimiz devralacak.)",
+    en: "(This reply was prepared by our automated assistant. If something isn't right, just reply here and our host will take it from there.)",
+    de: "(Diese Antwort wurde von unserem automatischen Assistenten erstellt. Stimmt etwas nicht, antworten Sie einfach hier — unser Gastgeber übernimmt.)",
+    fr: "(Cette réponse a été préparée par notre assistant automatique. Si quelque chose ne va pas, répondez ici et notre hôte prendra le relais.)",
+    ar: "(تم إعداد هذا الرد بواسطة مساعدنا الآلي. إذا كان هناك أي خطأ، يكفي أن تردّوا هنا وسيتولى المضيف الأمر.)",
+    ru: "(Этот ответ подготовлен нашим автоматическим ассистентом. Если что-то не так, просто ответьте здесь — хозяин подключится.)",
   };
   return notes[l] ?? notes.en;
 }

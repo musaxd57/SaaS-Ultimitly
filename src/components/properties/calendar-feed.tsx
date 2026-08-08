@@ -73,7 +73,13 @@ export function CalendarFeed({ feedUrl, propertyId }: CalendarFeedProps) {
       </p>
 
       <div className="flex items-center gap-2 rounded-lg border border-border bg-muted/40 px-3 py-2">
-        <code className="flex-1 truncate text-xs" title={feedUrl}>
+        {/* min-w-0: flex çocuğu varsayılan `min-width:auto` ile kendi
+            min-content'inin altına inemez; adres tek parça (nowrap) olduğu için
+            `truncate` o hâlde ASLA devreye girmez ve satır kabını taşırır.
+            Sayfanın yatay kaymasını asıl kapatan şey mülk sayfasındaki grid
+            çocuklarının min-w-0'ı, ama kısıt burada DOĞUYOR — bu bileşen başka
+            (daraltılabilir) bir kaba taşınırsa koruma onunla birlikte gelsin. */}
+        <code className="min-w-0 flex-1 truncate text-xs" title={feedUrl}>
           {feedUrl}
         </code>
       </div>
