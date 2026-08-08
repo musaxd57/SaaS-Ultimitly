@@ -195,6 +195,162 @@ dal olduğu için kaybedilecek meşru cevap yok.
 
 ---
 
+## 7c. 🔴 OTURUM İPTALİ FİİLEN YOK — çalınan çerez halka açık sayfayla süresiz yenilenir
+
+**Nerede:** `src/middleware.ts:93-100` (edge'de her istekte yeniden imzalama) +
+`src/app/api/auth/logout/route.ts:7,15`
+
+**Ne (ÖLÇÜLDÜ):** Middleware, geçerli bir çerezi **her** eşleşen istekte 14 günlük
+taze bir JWT olarak yeniden imzalıyor — edge'de, **DB okumadan**. Buna `/`,
+`/gizlilik`, `/kosullar`, `/guvenlik`, `/c/*` gibi hiçbir yetki gerektirmeyen
+sayfalar dahil. Ölçüm: 2 sn arayla üç dokunuş → `exp` +2, +4, +7 sn ilerledi, tüm
+iddialar korundu (`mfa=true epoch=7 role=owner`).
+
+`sessionEpoch`'u artıran **tek** yerler: `forgot-password:354`,
+`password-reset-challenge:250`, `account/password:204`, `admin/reset-2fa:87`.
+**Logout DEĞİL.** `clearSessionCookie` yalnız tıklayan tarayıcının çerezini siler.
+
+**Sonuç:** çalınan bir token (paylaşılan bilgisayar, tarayıcı profili yedeği,
+zararlı yazılım) haftalık bir cron'la bir hukuk sayfasına dokunularak süresiz
+yaşatılabilir. Kurban "Çıkış"a bastığında saldırganın kopyasına HİÇBİR ŞEY olmaz.
+Tek gerçek iptal yolu şifre değişikliği/sıfırlaması.
+
+**Neden kapatılmadı:** kimlik hot-path'i. Temiz çözüm oturum başına `jti` + iptal
+listesi; ucuz ara çözüm yenilemeyi yalnız korumalı yollara sınırlamak. İkisi de
+kullanıcı onayı ister.
+
+⚠️ En yüksek bahis operatör oturumunda: `mfa:true` taşır, yani her kiracıya
+impersonation. Ve §7d ile birleşince "hiç iptal yok" oluyor.
+
+---
+
+## 7d. 🔴 2FA KURMAK YALNIZ OTURUM İSTİYOR — ve kilitlenme şifre sıfırlamadan SAĞ ÇIKIYOR
+
+**Nerede:** `src/app/api/account/2fa/route.ts:86-135`
+
+**Ne (uçtan uca ÖLÇÜLDÜ):** `{action:"setup"}` düz metin TOTP sırrını **şifre
+sormadan, e-posta kodu istemeden, mevcut faktör aramadan** döndürüyor.
+`{action:"enable", code}` onu etkinleştiriyor ve **aynı transaction'da tüm
+kurtarma kodlarını siliyor** (`:126`). Yeni kod üretmek geçerli TOTP istiyor.
+
+Şifre sıfırlama `passwordHash`'i döndürüyor, `sessionEpoch`'u artırıyor, doğrulama
+token'ını öldürüyor — ama `twoFactorEnabledAt`/`twoFactorSecret`'a **DOKUNMUYOR**.
+
+Ölçülen zincir (iki istek): saldırgan ele geçirdiği oturumla setup+enable →
+kurbanın kurtarma kodu **0** → kurban şifresini sıfırlıyor → 2FA HÂLÂ açık →
+kurban doğru YENİ şifresiyle giriyor → `{"twoFactorRequired":true}` → **kalıcı
+kilitlenme**. Kurtarma `POST /api/admin/reset-2fa`, yani super-admin.
+🚨 **Kurban kurucuysa o kapı da kapalı:** `isSuperAdmin` `session.mfa === true`
+istiyor, o da artık kontrol edemediği faktörden geçmeyi gerektiriyor. Kurtarma
+doğrudan DB düzenlemesine iniyor.
+
+**Asimetri tam olarak burada:** hesap silme şifre istiyor (`:38-42`), 2FA kapatma
+geçerli TOTP istiyor (`:160`), şifre değiştirme e-posta kodu istiyor. Yalnız
+**en kalıcı kimlik bilgisini KURMAK** hiçbir şey istemiyor. Kod bu zararı
+impersonation için zaten tanıyor (`:55-77`: "müşteri kendi hesabına bir daha
+GİREMEZ") ama ele geçirilmiş müşteri oturumu için aynı kapı yok.
+
+**Doğru yön:** `setup`/`enable` mevcut şifreyi istesin (`account/delete` emsali).
+`account.2fa_enable` audit satırı zaten yazılıyor, yani iz var.
+
+---
+
+## 7e. 🟡 30 GÜNLÜK "GÜVENİLEN CİHAZ" ÇEREZİ ŞİFRE SIFIRLAMAYLA İPTAL OLMUYOR
+
+**Nerede:** `src/lib/auth/trusted-device.ts:40-60` + `src/app/api/auth/login/route.ts:212-218`
+
+**Ne (ÖLÇÜLDÜ):** `verifyTrustedDeviceToken` yalnız `(purpose, userId,
+twoFactorEnabledAt-epoch)` üçlüsüne bakıyor; `sessionEpoch` girdi DEĞİL. Ölçüm:
+şifre sıfırlamadan sonra 1., 2. ve 99. denemede de `true`. Yalnız 2FA
+kapat+yeniden-aç yeni epoch üretiyor. Üstelik her güvenilen girişte yeniden
+veriliyor → süresiz kayıyor.
+
+**Senaryo:** saldırgan `guestops_trusted_device` çerezini kopyalıyor. Kurban
+şüpheleniyor ve ürünün söylediği tek şeyi yapıyor: şifre sıfırlama. Tüm oturumlar
+ölüyor, 2FA-atlama kimlik bilgisi ÖLMÜYOR. Saldırgan sonra yeni şifreyi ele
+geçirirse (kimlik avı, tekrar kullanım) 2FA normalde durdururdu; çerez atlatıyor
+**ve** `login:198` `mfa: true` damgalıyor.
+
+⚠️ Belgelenmiş gerilim ("hatırlanan cihaz da `mfa:true` damgalar") kendi başına
+savunulabilir — cihaz bir kez faktörden geçti ve şifre hâlâ gerekiyor.
+**Savunulamayan**, kullanıcının erişebildiği bir iptal yolunun OLMAMASI: tek yol
+2FA kapat-aç ve bunu ne arayüz ne sıfırlama akışı söylüyor.
+
+---
+
+## 7f. 🟡 `mfa:true` FAKTÖR SİLİNDİKTEN SONRA DA YAŞIYOR — ve süre 14 gün DEĞİL
+
+**Nerede:** `src/lib/admin-core.ts:132-137` + `src/app/api/account/2fa/route.ts:168-174`
+
+**Ne (ÖLÇÜLDÜ):** `isSuperAdmin` saf fonksiyon — DB okuması yok, 2FA durumu
+okuması yok. `disable` sırrı ve damgayı null'luyor ama `sessionEpoch`'u
+**artırmıyor**, yani canlı oturumlar artık faktörü OLMAYAN bir hesap için
+`mfa:true` iddia etmeye devam ediyor. Impersonation oturumları iddiayı
+olduğu gibi taşıyor (`admin.ts:78,127`).
+
+⚠️ Bu dosyanın §15'i "14 gün" diyordu; **§7c yüzünden SÜRE SINIRSIZ** — kayan
+yenileme sayesinde herhangi bir sayfaya dokunuldukça iddia hiç sona ermiyor.
+Bu satır düzeltilmiş sayılsın.
+
+**Çalışan kırılma camı (korunmalı):** adresi `SUPERADMIN_EMAILS`'ten çıkarmak her
+istekte yeniden kontrol ediliyor (`api.ts:54`, `auth/index.ts:66`) ve bugün
+operatör yetkisini iptal etmenin TEK etkili yolu.
+
+---
+
+## 7g. 🟡 `aiStyleProfile` KANAL YOLUNDA SÜZÜLMEDEN PROMPT'A GİDİYOR
+
+**Nerede:** `src/lib/automation.ts:1529` (`styleProfile: org.aiStyleProfile`) vs
+`src/app/api/chat/[token]/route.ts:623` (`scrubStyleProfileForPublic(...)`)
+
+**Ne:** QR yolu profili süzüyor, kanal yolu HAM geçiriyor. `guest-chat.ts:288-293`
+süzmenin sebebini açıkça yazıyor: profil, host'un **başka misafirlere** yazdığı
+40 yanıttan model tarafından damıtılıyor ve o yanıtlar rutin olarak wifi şifresi
+ve kapı kodu içeriyor; damıtma prompt'undaki "KESİNLİKLE DIŞARIDA BIRAK"
+(`ai/index.ts:338`) deponun kendi ifadesiyle *"bir MODEL RİCASI, deterministik
+garanti değil"*.
+
+**Yani insan olmadan OTO-GÖNDEREN yüzey süzülmemiş sürümü alıyor**, her zaman
+hazır bir devir mesajı gösteren yüzey ise süzülmüş olanı. Üstelik bu içerik
+KB'den farklı olarak **çapraz-misafir** kaynaklı.
+
+**Doğru yön:** kanal yolu da `scrubStyleProfileForPublic` kullansın. ⚠️ Süzgecin
+kendi kalitesi ayrı bir sorun (↓§7h) — ama süzülmüş olması süzülmemişten her
+hâlde iyidir.
+
+---
+
+## 7h. 🟡 `looksLikeSecret` QR YÜZEYİNDE 11/24 GERÇEKÇİ YAZIMDA SIZDIRIYOR
+
+**Nerede:** `src/lib/guest-chat.ts:204-252`
+
+**Ne (ÖLÇÜLDÜ):** modül başlığı değişmezi şöyle kuruyor: *"sırlar bağlamdan
+TAMAMEN çıkarılır — 'modele reddetmesini söylüyoruz' değil — böylece mükemmel bir
+prompt injection'ın bile sızdıracak bir şeyi olmaz."* Ölçüm o iddiayı tutmuyor:
+
+```
+SIZAN | Anahtar kutusunun açılışı 4-5-9-0     SIZAN | Kasa kombinasyonu 4590
+SIZAN | Kapı için 45 90 giriniz               SIZAN | Zil paneline 4590 yazın
+SIZAN | Giriş: 4 5 9 0                        SIZAN | İnterkomdan 4590 tuşlayın
+SIZAN | Asansör kartının numarası 4590        SIZAN | Turnikeden geçmek için 4590
+SIZAN | Elektronik kilidin açılış sayısı: 4590   SIZAN | Numaramız 4590
+SIZAN | The entry sequence is four five nine zero
+KAÇAN: 11/24 · YANLIŞ POZİTİF: 0/6
+```
+
+İki yapısal sebep: erişim-ismi kümesi (`kapı|giriş|anahtar kutu|keybox|door|lock|
+entry|gate`) sıradan Türkçe bina sözcüklerini atlıyor — **kasa, zil, interkom,
+asansör, turnike, kilit** ("lock" yalnız İngilizce var) — ve bitişiklik kalıbı
+**≥4 BİTİŞİK rakam** istiyor, yani öbekli her yazım (`4-5-9-0`, `45 90`) kaçıyor.
+
+🚨 **Bu, §7'nin TAM TERSİ yönü ve ikisi AYNI ANDA doğru.** §7 aşırı-eleme (posta
+kodu meşru kalemi düşürüyor), bu ise eksik-eleme. Daraltan bir düzeltme bu
+boşluğu genişletmemeli, genişleten bir düzeltme §7'yi kötüleştirmemeli. Ölçülmüş
+külliyat + iki yönlü mutasyon olmadan bu dosyaya dokunulmamalı (08-07'de
+genişletme 12 meşru kalemin 6'sını elemişti).
+
+---
+
 ## 8. 💰 `reconciled:true` yerel planı YAZMIYOR
 
 **Nerede:** `src/app/api/billing/plan-change/route.ts:101-105` + ambiguous ikizi `:153-165`
@@ -303,7 +459,9 @@ kaçışı yok (elle yazılmış bloklar yalnız `lx*` sınıflarını kapsıyor
 - `leads` POST global/günlük tavansız (Resend kotasını yakıp KAYIT ve ŞİFRE SIFIRLAMA
   maillerini düşürebilir; landing demosunda hem IP hem günlük kova var).
 - `GET /api/reservations` `select`siz → `chatPinHash`/`chatBoundHash` yanıtta.
-- `logout` ve 2FA `disable` `sessionEpoch` bump'lamıyor.
+- `logout` ve 2FA `disable` `sessionEpoch` bump'lamıyor. ⚠️ Bu satır bir dönem
+  "çalınan token 14 gün yaşar" diyordu — **YANLIŞ, süre SINIRSIZ** (↑§7c: kayan
+  yenileme her istekte 14 günü baştan başlatıyor). Ölçüm ve zincir §7c–§7f'de.
 - `Organization.plan` kolonunun ürün kodunda hiç yazarı yok → her org sonsuza dek
   `"free"` ve **bu değer KVKK veri ihracında müşterinin planı olarak gidiyor**.
 - `WebhookEvent` süresiz büyüyor, ham Paddle payload'ı (müşteri adı/e-posta/adres)
