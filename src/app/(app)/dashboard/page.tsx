@@ -234,25 +234,34 @@ export default async function DashboardPage() {
           hint="acil öncelikli açık görev"
           href="/tasks"
         />
-        {/* ⚠️ Eskiden burada "Bu Gece Kalan" vardı ve hint'i "bu gece evde kalan
-            MİSAFİR" diyordu — oysa DAİRE sayıyordu (`Reservation`'da kişi sayısı
-            kolonu yok, o sayı hiçbir zaman misafir sayısı olamaz). Doluluk
-            gece-katı olunca ikisi AYNI sayıyı gösterecekti; bu kutucuk artık
-            gerçekten ayrı olan bilgiyi veriyor: bugün çıkışı olan ve bu gece
-            BOŞ kalacak daireler (temizlik yapılacak, gelir yok). */}
+        {/* ⚠️ BU KUTUCUK İKİ KEZ DEĞİŞTİ, GEREKÇESİ ÖNEMLİ.
+            (1) Eskiden "Bu Gece Kalan" idi ve hint'i "bu gece evde kalan MİSAFİR"
+                diyordu — oysa DAİRE sayıyordu (`Reservation`'da kişi sayısı kolonu
+                yok, o sayı hiçbir zaman misafir sayısı olamazdı).
+            (2) Doluluk gece-katına geçince o sayı doluluk kutucuğuyla AYNI oldu;
+                yerine kısa süre "Bugün Boşalan" kondu — ama O DA devir olmayan
+                her günde hemen aşağıdaki "Bugünkü Çıkışlar" rozetiyle aynı sayıyı
+                gösteriyordu (10 dairelik portföyde günlerin çoğu).
+            Şimdiki hâli hiçbir yüzeyde olmayan tek bilgi: aynı gün DEVİR. Temizlik
+            çıkış saati ile giriş saati arasına sıkışır — panelin tek deadline'ı. */}
         <StatCard
-          label="Bugün Boşalan"
-          value={stats.vacatedTonight}
+          label="Aynı Gün Devir"
+          value={stats.sameDayTurnovers}
           icon={Users}
-          hint="çıkış yaptı, bu gece boş"
+          tone={stats.sameDayTurnovers > 0 ? "warning" : "default"}
+          hint="çıkış + aynı gün yeni giriş — temizlik bugün yetişmeli"
         />
         <StatCard
-          // "bugün" DEĞİL "bu gece": tanım gece-katı. Bugün çıkışı olan daire,
-          // yerine yeni misafir gelmediyse dolu SAYILMAZ (kullanıcı kararı).
+          // "bugün" DEĞİL "bu gece": tanım gece-katı (sektör standardı — STR/CoStar,
+          // Airbnb, Hostaway, AirDNA hepsi oda-GECESİ üzerinden sayar; Booking'in
+          // extranet'indeki "Stayovers" kovası da bu). Bugün çıkışı olan daire,
+          // yerine yeni misafir gelmediyse dolu SAYILMAZ — çıkış listede DURUR.
           label="Doluluk (bu gece)"
           value={`%${stats.occupancyRate}`}
           icon={BedDouble}
-          hint={`${stats.occupiedToday}/${stats.totalProperties} daire dolu`}
+          // Boş sayısı burada: ayrı kutucuk yapmak doluluğun aritmetik tümleyenini
+          // ikinci kez göstermek olurdu.
+          hint={`${stats.occupiedToday}/${stats.totalProperties} daire dolu · ${Math.max(0, stats.totalProperties - stats.occupiedToday)} boş`}
           href="/reports"
         />
         <StatCard

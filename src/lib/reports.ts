@@ -31,9 +31,17 @@ export interface OpsStats {
   totalProperties: number;
   occupiedToday: number;
   occupancyRate: number; // 0..100
-  stayingTonight: number; // DISTINCT flats occupied at END-of-today (night-strict)
-  /** Bugün çıkışı olan ama bu gece BOŞ kalan DISTINCT daire sayısı. */
-  vacatedTonight: number;
+  /**
+   * Bugün ÇIKIŞI olan VE aynı gün YENİ GİRİŞİ olan DISTINCT daire sayısı.
+   *
+   * Panelin tek "deadline" sayısı: temizlik, çıkış saati ile giriş saati
+   * arasına sıkışır. Başka hiçbir yüzeyde hesaplanmıyor.
+   * ⚠️ `stayingTonight` KALDIRILDI — `occupiedToday` ile birebir aynı değeri
+   * döndürüyordu (doluluk gece-katı olunca ikisi tanım gereği aynı küme oldu)
+   * ve iki isimle duran tek sayı, okuyanı "farklı şeyler ölçüyorlar" sanmaya
+   * itiyordu. Tüketicisi yoktu (yalnız testler).
+   */
+  sameDayTurnovers: number;
 }
 
 const propertyScope = (orgId: string) => ({ property: { organizationId: orgId } });
@@ -66,7 +74,8 @@ export async function getOpsStats(orgId: string): Promise<OpsStats> {
         status: activeStatus,
         arrivalDate: { gte: dayStart, lte: dayEnd },
       },
-      select: { sourceReference: true, id: true },
+      // `propertyId` — aynı gün devir hesabı için. Ek sorgu değil, bir kolon.
+      select: { sourceReference: true, id: true, propertyId: true },
     }),
     prisma.reservation.findMany({
       where: {
@@ -74,8 +83,7 @@ export async function getOpsStats(orgId: string): Promise<OpsStats> {
         status: activeStatus,
         departureDate: { gte: dayStart, lte: dayEnd },
       },
-      // `propertyId` — "bugün boşalan" için gerekli (çıkışı olup gece dolu
-      // OLMAYAN daireler). Ek sorgu değil, sadece bir kolon daha.
+      // `propertyId` — aynı gün devir hesabı için (giriş kümesiyle kesişim).
       select: { sourceReference: true, id: true, propertyId: true },
     }),
     prisma.conversation.count({
@@ -100,10 +108,11 @@ export async function getOpsStats(orgId: string): Promise<OpsStats> {
     // Devir günü (aynı gün çıkış + giriş) YİNE dolu sayılır: gelen rezervasyonun
     // `departureDate`i yarına sarktığı için aşağıdaki koşulu sağlar.
     // ⚠️ Bu, `/reports` ve `/calendar` ile aynı tanım — üç yüzey artık ÇELİŞMİYOR.
-    // Sorgu TEK: `occupiedToday` ile `stayingTonight` tanım gereği aynı kümedir,
-    // ikisini ayrı sormak bir DB gidiş-dönüşünü boşa harcıyordu.
+    // Sorgu TEK: burada eskiden AYRICA bir "staying tonight" sorgusu vardı ve
+    // gece-katına geçince ikisi tanım gereği AYNI küme oldu — bir DB gidiş-dönüşü
+    // boşa gidiyordu.
     //
-    // "Staying tonight": occupied at END-of-today (night-strict), so a flat that
+    // Night-strict: occupied at END-of-today, so a flat that
     // checks out today with no re-let is NOT counted (empty tonight). Both bounds
     // keyed to dayEnd → representation-agnostic (Hospitable midnight-UTC AND iCal
     // noon-UTC); a dayStart bound would miscount iCal reservations on both sides.
@@ -124,12 +133,15 @@ export async function getOpsStats(orgId: string): Promise<OpsStats> {
   // (Devir günü zaten tek satır sayılır: `distinct: ["propertyId"]`.)
   const occupiedPropertyIds = new Set(stayingRows.map((r) => r.propertyId));
   const occupiedToday = occupiedPropertyIds.size;
-  // "Bugün boşalan": bugün ÇIKIŞI olan ama bu gece DOLU OLMAYAN daireler.
-  // Doluluk artık gece-katı olduğu için "Doluluk" ile "Bu Gece Kalan" aynı sayıyı
-  // gösterirdi; ikinci kutucuk bunun yerine gerçekten AYRI olan bilgiyi veriyor:
-  // temizliği bugün yapılacak ve bu gece boş kalacak daire sayısı.
-  const vacatedTonight = new Set(
-    departureRows.filter((r) => !occupiedPropertyIds.has(r.propertyId)).map((r) => r.propertyId),
+  // "Aynı gün devir": bugün ÇIKIŞI OLAN ve aynı gün YENİ GİRİŞİ de olan daire.
+  // ⚠️ Bir dönem burada "bugün boşalan" (çıkışı olup bu gece boş kalan) vardı;
+  // KALDIRILDI çünkü devir olmayan HER günde hemen altındaki "Bugünkü Çıkışlar"
+  // rozetiyle AYNI sayıyı gösteriyordu — 10 dairelik bir portföyde günlerin
+  // çoğu böyle. Devir ise hiçbir yüzeyde yok ve tek gerçek deadline'ı işaret
+  // ediyor: temizlik çıkış ile giriş saati arasına sıkışır.
+  const arrivalPropertyIds = new Set(arrivalRows.map((r) => r.propertyId));
+  const sameDayTurnovers = new Set(
+    departureRows.filter((r) => arrivalPropertyIds.has(r.propertyId)).map((r) => r.propertyId),
   ).size;
   const occupancyRate =
     totalProperties > 0 ? Math.min(100, Math.round((occupiedToday / totalProperties) * 100)) : 0;
@@ -161,8 +173,7 @@ export async function getOpsStats(orgId: string): Promise<OpsStats> {
     totalProperties,
     occupiedToday,
     occupancyRate,
-    stayingTonight: occupiedToday, // tanım gereği aynı küme (↑tek sorgu)
-    vacatedTonight,
+    sameDayTurnovers,
   };
 }
 

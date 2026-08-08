@@ -401,7 +401,7 @@ describe("getOpsStats", () => {
     expect(stats.totalProperties).toBe(1);
     expect(stats.occupiedToday).toBe(1); // distinct flat, not 2 reservations
     expect(stats.occupancyRate).toBe(100); // never 200
-    expect(stats.stayingTonight).toBe(1); // the arriving guest is in the house tonight
+    expect(stats.sameDayTurnovers).toBe(1); // aynı daire: bugün çıkış + bugün giriş = DEVİR
   });
 
   it("staying-tonight is night-strict: a checkout-today flat with no re-let is NOT counted", async () => {
@@ -420,8 +420,53 @@ describe("getOpsStats", () => {
     expect(stats.departuresToday).toBe(1); // çıkış listede DURUYOR
     expect(stats.occupiedToday).toBe(0); // ...ama doluluğa GİRMİYOR
     expect(stats.occupancyRate).toBe(0);
-    expect(stats.stayingTonight).toBe(0);
-    expect(stats.vacatedTonight).toBe(1); // "bugün boşalan" kutucuğu bunu sayar
+    expect(stats.sameDayTurnovers).toBe(0); // yerine kimse gelmedi → devir DEĞİL
+  });
+
+  it("devir SAYIMI: yalnız AYNI dairede çıkış+giriş olanı sayar, kesişimi distinct tutar", async () => {
+    // 🚨 Bu metrik `arrivalPropertyIds ∩ departurePropertyIds` kesişimi. İki tuzak:
+    // (1) bugün girişi olan AMA çıkışı olmayan daire devir DEĞİLDİR (yeni misafir,
+    //     boş daireye giriyor — temizlik dünden yapılmış olabilir);
+    // (2) aynı dairede iki çıkış kaydı varsa (dedupe edilmemiş sağlayıcı satırı)
+    //     devir 2 değil 1 sayılmalı → `Set` şart.
+    const { orgId, propertyId: daireA } = await makeOrgWithProperty();
+    const daireB = (await prisma.property.create({
+      data: { organizationId: orgId, name: "Daire B" },
+    })).id;
+    const daireC = (await prisma.property.create({
+      data: { organizationId: orgId, name: "Daire C" },
+    })).id;
+    // A: DEVİR (bugün çıkış + bugün giriş)
+    await prisma.reservation.create({
+      data: { propertyId: daireA, guestName: "A-cikan", arrivalDate: daysFromNow(-2), departureDate: new Date(), status: "confirmed" },
+    });
+    await prisma.reservation.create({
+      data: { propertyId: daireA, guestName: "A-gelen", arrivalDate: new Date(), departureDate: daysFromNow(3), status: "confirmed" },
+    });
+    // B: yalnız GİRİŞ (çıkışı yok) → devir DEĞİL
+    await prisma.reservation.create({
+      data: { propertyId: daireB, guestName: "B-gelen", arrivalDate: new Date(), departureDate: daysFromNow(2), status: "confirmed" },
+    });
+    // C: yalnız ÇIKIŞ (yerine kimse gelmiyor) → devir DEĞİL
+    await prisma.reservation.create({
+      data: { propertyId: daireC, guestName: "C-cikan", arrivalDate: daysFromNow(-4), departureDate: new Date(), status: "confirmed" },
+    });
+    // A'ya İKİNCİ bir bugün-çıkışlı satır: `Set`'i GERÇEKTEN sınar. Bu satır
+    // olmadan `Set`'i kaldıran mutasyon YEŞİL kalıyordu (ilk yazımda tam olarak
+    // öyle oldu — yorum "Set şart" diyordu ama vaka kurulmamıştı). `sourceReference`
+    // NULL olduğu için `@@unique([propertyId, sourceReference])` engellemiyor;
+    // sağlayıcı çift-kaydı ve elle/iCal satırları bu şekli gerçekten üretiyor.
+    await prisma.reservation.create({
+      data: { propertyId: daireA, guestName: "A-cikan-2", arrivalDate: daysFromNow(-1), departureDate: new Date(), status: "confirmed" },
+    });
+
+    const stats = await getOpsStats(orgId);
+    expect(stats.sameDayTurnovers).toBe(1); // YALNIZ A — iki çıkış satırı olsa da DAİRE bir tane
+    expect(stats.arrivalsToday).toBe(2); // A-gelen + B-gelen
+    expect(stats.departuresToday).toBe(3); // A-cikan + A-cikan-2 + C-cikan (rezervasyon sayısı)
+    // Doluluk: A (yeni misafir) + B (yeni misafir) dolu; C boş → 2/3
+    expect(stats.occupiedToday).toBe(2);
+    expect(stats.occupancyRate).toBe(67);
   });
 
   it("devir günü DOLU sayılır: aynı gün çıkış + yeni giriş", async () => {
@@ -435,7 +480,7 @@ describe("getOpsStats", () => {
     const stats = await getOpsStats(orgId);
     expect(stats.occupiedToday).toBe(1); // gelen misafir bu gece burada
     expect(stats.occupancyRate).toBe(100);
-    expect(stats.vacatedTonight).toBe(0); // daire boş DEĞİL — yeniden doldu
+    expect(stats.sameDayTurnovers).toBe(1); // aynı gün çıkış + giriş = devir
   });
 
   it("staying-tonight counts a mid-stay guest", async () => {
@@ -445,7 +490,7 @@ describe("getOpsStats", () => {
     });
     const stats = await getOpsStats(orgId);
     expect(stats.occupiedToday).toBe(1);
-    expect(stats.stayingTonight).toBe(1);
+    expect(stats.sameDayTurnovers).toBe(0); // orta konaklama: bugün ne giriş ne çıkış
   });
 
   it("scopes stats to the requesting organization only", async () => {
