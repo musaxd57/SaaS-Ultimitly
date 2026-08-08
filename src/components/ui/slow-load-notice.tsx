@@ -43,7 +43,12 @@ export function SlowLoadNotice() {
       className="flex flex-wrap items-center justify-center gap-3 rounded-lg border border-border bg-muted/40 px-4 py-3 text-sm"
     >
       <span className="text-muted-foreground">
-        Sayfa'nın açılması uzun sürdü. Sayfayı yenilemeyi deneyin.
+        {/* ⚠️ KESME İŞARETİ `&apos;` OLMAK ZORUNDA — JSX metninde ÇIPLAK `'`
+            ESLint'in `react/no-unescaped-entities` kuralını kırar ve CI kırmızı
+            olunca Railway deploy'u ATLAR (canlıda yaşandı: metin değişikliği
+            "SKIPPED · CI check suite failed" olarak takıldı). Türkçede özel
+            addan sonra kesme ZORUNLU olduğu için bu tuzağa sık düşülür. */}
+        Sayfa&apos;nın açılması uzun sürdü. Sayfayı yenilemeyi deneyin.
       </span>
       <button
         type="button"
