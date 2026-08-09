@@ -12,10 +12,19 @@
  *   1. Baseline'da OLMAYAN yeni bir danisma  -> birinin bakmasi gerekiyor
  *   2. Baseline'da SURESI DOLMUS bir kabul   -> aylardir kimse bakmamis
  *
- * FAIL-OPEN YALNIZ ALTYAPI ICIN: `npm audit` hic kosamadi / ciktisi
- * ayristirilamadi ise cikis 0 + uyari. Kayit defteri hickirigi deploy'u
- * bloklamamali; bu, "sinyal bulundu" durumundan (fail-closed) bilincli olarak
- * ayrilmis bir daldir.
+ *   3. Denetim HIC KOSAMADI (registry erisilemez / cikti ayristirilamadi /
+ *      lockfile yok)                        -> kapi HICBIR SEY dogrulamadi
+ *
+ * 🚨 FAIL-CLOSED (P1 #4, 08-09 (2)): 3. durum eskiden `exit 0 + uyari` idi.
+ * Gerekce "kayit defteri hickirigi deploy'u bloklamasin"di ve YANLISTI: bir
+ * tedarik zinciri kapisi, KOSMADIGINI "yesil" diye raporlarsa kapi degil
+ * TIYATRODUR — CI yesil, kimse bakmiyor, yeni bir critical danisma sessizce
+ * iceri giriyor. Ayni dosya 08-07 (5)'te tam bu sinifta bir arizayla
+ * duzeltilmisti (sekil dogrulamasi); o zaman fail-open dali BIRAKILMISTI.
+ *
+ * FLAKINESS DENGESI: registry gercekten titreyebilir. Cozum fail-open degil
+ * YENIDEN DENEME (AUDIT_RETRIES, artan bekleme). Uc denemede de kosamiyorsa
+ * bu bir hickirik degil, bir arizadir ve gorunmesi gerekir.
  *
  * KAPSAM: blokllayici tarama URETIM bagimliliklari (--omit=dev). Dev zinciri
  * (vitest/vite/eslint) yalnizca sayi olarak raporlanir — orada danismalar cok
@@ -24,7 +33,7 @@
  * Kosum: `node scripts/audit-check.mjs`  (CI'da ve elle ayni)
  */
 import { execFileSync } from "node:child_process";
-import { readFileSync } from "node:fs";
+import { readFileSync, existsSync } from "node:fs";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
 
@@ -56,8 +65,18 @@ function extractAdvisories(auditJson) {
   return found;
 }
 
-/** `npm audit` calistirir. Bulgu varken sifir-disi cikar → ciktiyi HER halde al. */
-function runAudit(omitDev) {
+/** Kac kez denenecek (registry titremesi fail-closed'i flaky yapmasin). */
+const AUDIT_RETRIES = Number(process.env.AUDIT_RETRIES ?? 3);
+/** Denemeler arasi bekleme. Testte 0 verilir; uretimde artan bekleme. */
+const AUDIT_RETRY_DELAY_MS = Number(process.env.AUDIT_RETRY_DELAY_MS ?? 2000);
+
+function sleepSync(ms) {
+  // Senkron bekleme: bu script tek atimlik bir CI adimi, olay dongusu yok.
+  Atomics.wait(new Int32Array(new SharedArrayBuffer(4)), 0, 0, ms);
+}
+
+/** Tek deneme. Sekil dogrulamasindan gecen rapor ya da null. */
+function runAuditOnce(omitDev) {
   const args = ["audit", "--json", ...(omitDev ? ["--omit=dev"] : [])];
   try {
     return asAuditReport(
@@ -70,11 +89,44 @@ function runAudit(omitDev) {
       try {
         return asAuditReport(JSON.parse(out));
       } catch {
-        /* asagidaki altyapi daline dus */
+        /* altyapi daline dus */
       }
     }
     return null;
   }
+}
+
+/**
+ * `npm audit` calistirir; gecici bir arizada YENIDEN DENER.
+ *
+ * Yeniden deneme, fail-closed'in bedelini oderken guvenceyi korumanin yoludur:
+ * gercek bir registry hickirigi ikinci denemede gecer, gercek bir ariza ucunde
+ * de gecmez ve KIRMIZI olur.
+ */
+function runAudit(omitDev) {
+  for (let i = 0; i < Math.max(1, AUDIT_RETRIES); i++) {
+    const r = runAuditOnce(omitDev);
+    if (r) return r;
+    if (i < AUDIT_RETRIES - 1) {
+      annotate("warning", `npm audit denemesi ${i + 1}/${AUDIT_RETRIES} basarisiz — yeniden deneniyor.`);
+      if (AUDIT_RETRY_DELAY_MS > 0) sleepSync(AUDIT_RETRY_DELAY_MS * (i + 1));
+    }
+  }
+  return null;
+}
+
+/**
+ * LOCKFILE DENETIMI (P1 #4). `npm audit` lockfile'dan calisir; lockfile yoksa
+ * npm `ENOLOCK` basar ve o cikti sekil dogrulamasindan GECMEZ — ama hata mesaji
+ * "registry erisilemiyor" ile ayni kovaya duserdi. Ayri ve NET soylemek, arizayi
+ * dogru yere yonlendirir.
+ *
+ * ⚠️ Bu, deponun KENDI yasadigi bir riskin karsiligi: varsayilan dal `main`de
+ * `package-lock.json` YOK (olculdu, 08-09 (2)). Lockfile'siz bir agacta bu kapi
+ * hicbir sey denetleyemez ve bunu SOYLEMELIDIR.
+ */
+function lockfilePresent() {
+  return existsSync(path.join(ROOT, "package-lock.json"));
 }
 
 /**
@@ -110,10 +162,29 @@ function main() {
   const baseline = JSON.parse(readFileSync(BASELINE, "utf8"));
   const accepted = new Map(baseline.accepted.map((a) => [a.id, a]));
 
+  // LOCKFILE once: yoksa denetimin kosmasi zaten anlamsiz ve sebebi NET soylenir.
+  if (!lockfilePresent()) {
+    annotate(
+      "error",
+      "package-lock.json YOK — `npm audit` lockfile'dan calisir, yani bu agacta zafiyet " +
+        "kapisi HICBIR SEY dogrulayamaz. (Varsayilan dal `main`de lockfile bulunmuyor; " +
+        "bu kapi yalnizca lockfile TASIYAN bir agacta anlamlidir.)",
+    );
+    return 1;
+  }
+
   const audit = runAudit(true);
   if (!audit) {
-    annotate("warning", "npm audit calistirilamadi veya ciktisi ayristirilamadi — kapi ATLANDI (altyapi dali, fail-open).");
-    return 0;
+    // 🚨 FAIL-CLOSED. Eskiden burasi `exit 0 + uyari` idi: kapi KOSMADIGINI
+    // "yesil" diye raporluyordu. Bir tedarik zinciri kapisinin en kotu arıza
+    // modu budur — CI yesil, kimse bakmiyor, yeni critical sessizce iceri girer.
+    annotate(
+      "error",
+      `npm audit ${AUDIT_RETRIES} denemede de calistirilamadi veya ciktisi sekil ` +
+        "dogrulamasindan gecmedi — kapi HICBIR SEY denetleyemedi. Bu bir ALTYAPI " +
+        "arizasidir ve sessizce yesil GECILMEZ. (Gercekten gecici ise: adimi yeniden calistirin.)",
+    );
+    return 1;
   }
 
   const found = extractAdvisories(audit);
