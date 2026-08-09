@@ -367,6 +367,50 @@ describe("redactSensitive", () => {
       expect(redactSensitive("at handler (/app/src/x.ts:123:45) {unclosed")).toContain("x.ts:123:45");
     });
 
+    // ── OVERSIZED REJİMİ (Codex uyarısı, 08-09 (2)) ─────────────────────────
+    //
+    // 🚨 ÖLÇÜLMÜŞ AÇIK: 1 MB tavanını aşan bir aday için METİNSEL iz taramasına
+    // güvenmek YANLIŞ GÜVENCE üretiyordu. Ham metinde `"chat\u0054oken"` yazan
+    // bir anahtar taramayı atlatıyor (`\` karakter sınıfının dışında olduğu için
+    // eşleşme `u0054oken` diye başlıyor ve o dizgi "token" içermiyor) → 1,2 MB'lık
+    // gövde TOKEN'IYLA BİRLİKTE dışarı çıkıyordu (ölçüldü: `!! SIZDI`).
+    //
+    // KURAL: içeriğini GÖREMEDİĞİMİZ bir gövde hakkında hüküm vermeyiz. Aday
+    // tavanı aşıldıysa (ya da tarama bütçesi bittiyse) ANAHTAR ARAMADAN, KOŞULSUZ
+    // sabit metne inilir. Oversized + işlenemeyen adayda GİZLİLİK TEŞHİSTEN
+    // ÖNEMLİ — devasa bir gövdenin teşhis değeri zaten düşük.
+    const HUGE = "z".repeat(1_200_000); // 1 MB tavanını AŞAR
+
+    it("🚨 >1MB + hassas alan SONDA — ne token ne dev gövde çıkar", () => {
+      const out = redactSensitive(`{"pad":"${HUGE}","chatToken":"${TOK}"}`);
+      expect(leaked(out)).toBe(false);
+      expect(out).not.toContain("z".repeat(1000)); // ÖZGÜN DEV GÖVDE de gitmez
+      expect(out).toContain("[REDACTED_UNPARSEABLE_JSON]");
+    });
+
+    it("🚨 >1MB + KAÇIŞLI anahtar (\\u0054) — iz taramasına GÜVENİLMEZ", () => {
+      // Bu vaka tam olarak "anahtar aramadan indir" kuralının var olma sebebi.
+      const out = redactSensitive(`{"pad":"${HUGE}","chat\\u0054oken":"${TOK}"}`);
+      expect(leaked(out)).toBe(false);
+      expect(out).not.toContain("z".repeat(1000));
+    });
+
+    it("🚨 >1MB + YALNIZ güvenli alanlar — yine iner (veri kaybı KABUL)", () => {
+      // Burada teşhis kaybı bilinçli: gövdeyi göremediğimiz için "yalnız güvenli
+      // alan var" hükmünü VEREMEYİZ. Bu testin varlığı, birinin ileride
+      // "güvenliyse geçir" optimizasyonu eklemesini engelliyor.
+      const out = redactSensitive(`{"pad":"${HUGE}","hostname":"db1"}`);
+      expect(out).not.toContain("z".repeat(1000));
+      expect(out).toContain("[REDACTED_UNPARSEABLE_JSON]");
+    });
+
+    it("KAÇIŞLI anahtar SINIRLI adayda da yakalanır (\\uXXXX çözülür)", () => {
+      // Tavanın altındaki kesik gövdede iz taraması meşru — ama kaçış çözülmeden
+      // kördü. `<1MB + "chat\u0054oken"` ölçümde SIZIYORDU.
+      const out = redactSensitive(`{"a":1,"chat\\u0054oken":"${TOK}"`);
+      expect(leaked(out)).toBe(false);
+    });
+
     it("🚨 KONTROL: fail-closed dalında da İZİN LİSTESİ geçerli — teşhis JSON'u NUKE EDİLMEZ", () => {
       // Ayrıştırılamayan bir gövdenin İÇİNDE yalnız teşhis anahtarları varsa
       // sabit metne indirmek, gece 3'te arıza bakarken elde kalan TEK bilgiyi

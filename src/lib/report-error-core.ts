@@ -198,8 +198,19 @@ const UNPARSEABLE_MARK = "[REDACTED_UNPARSEABLE_JSON]";
  * tekrarlanmıyor. Nicelikler sınırlı → ReDoS yok.
  */
 const KEYISH_RE = /["']?([A-Za-z0-9_$-]{1,64})["']?\s*:/g;
+
+/**
+ * 🚨 KAÇIŞ ÇÖZÜMÜ ŞART (ölçüldü, 08-09 (2)): ham metinde `"chat\u0054oken"`
+ * yazan bir anahtar iz taramasını ATLATIYORDU — `\` karakter sınıfının dışında
+ * olduğu için eşleşme `u0054oken` diye başlıyor ve o dizgi "token" içermiyor.
+ * JSON'un tek kaçış biçimi `\uXXXX`; önce onu çözüp sonra bakıyoruz.
+ */
+function decodeJsonEscapes(s: string): string {
+  return s.replace(/\\u([0-9a-fA-F]{4})/g, (_m, hex) => String.fromCharCode(parseInt(hex, 16)));
+}
+
 function remainderHasSensitiveKey(input: string, from: number): boolean {
-  const tail = input.slice(from);
+  const tail = decodeJsonEscapes(input.slice(from));
   KEYISH_RE.lastIndex = 0;
   for (const m of tail.matchAll(KEYISH_RE)) {
     if (keyIsSensitive(m[1])) return true;
@@ -267,17 +278,27 @@ function redactParsed(value: unknown, depth: number): unknown {
 }
 
 /**
- * `start`taki `{`/`[` ile dengelenen kapanışın indeksini bul; yoksa -1.
- * String içi ve kaçış farkındadır (aksi hâlde `"}"` içeren bir değer dengeyi
- * bozardı). `budget` toplam iş miktarını sınırlar.
+ * Bir JSON adayının taranma SONUCU. Sebep önemli: "1 MB tavanına dayandı" ile
+ * "girdi bitti" AYNI şey değildir ve farklı fail-closed davranışı gerektirir.
  */
-function scanBalanced(s: string, start: number, budget: { left: number }): number {
+type ScanResult =
+  | { kind: "balanced"; end: number }
+  | { kind: "oversized" } // aday tavanına dayandı, hâlâ açık → İÇERİĞİ GÖREMEDİK
+  | { kind: "budget" } // tarama bütçesi tükendi → yine göremedik
+  | { kind: "unbalanced" }; // girdi bitti / yapı bozuk → aday SINIRLI ve görülebilir
+
+/**
+ * `start`taki `{`/`[` ile dengelenen kapanışı bul. String içi ve kaçış
+ * farkındadır (aksi hâlde `"}"` içeren bir değer dengeyi bozardı).
+ */
+function scanBalanced(s: string, start: number, budget: { left: number }): ScanResult {
   let depth = 0;
   let inStr = false;
   let esc = false;
-  const limit = Math.min(s.length, start + MAX_JSON_CANDIDATE);
+  const hardEnd = start + MAX_JSON_CANDIDATE;
+  const limit = Math.min(s.length, hardEnd);
   for (let i = start; i < limit; i++) {
-    if (--budget.left <= 0) return -1;
+    if (--budget.left <= 0) return { kind: "budget" };
     const c = s[i];
     if (inStr) {
       if (esc) esc = false;
@@ -289,11 +310,12 @@ function scanBalanced(s: string, start: number, budget: { left: number }): numbe
     if (c === "{" || c === "[") depth++;
     else if (c === "}" || c === "]") {
       depth--;
-      if (depth === 0) return i;
-      if (depth < 0) return -1;
+      if (depth === 0) return { kind: "balanced", end: i };
+      if (depth < 0) return { kind: "unbalanced" };
     }
   }
-  return -1;
+  // Tavana mı dayandık, girdi mi bitti? Ayrım fail-closed kararını belirler.
+  return limit === hardEnd && hardEnd < s.length ? { kind: "oversized" } : { kind: "unbalanced" };
 }
 
 /**
@@ -320,36 +342,42 @@ export function redactJsonStructurally(input: string): string {
       i++;
       continue;
     }
-    const end = scanBalanced(input, i, budget);
-    if (end !== -1) {
+    const scan = scanBalanced(input, i, budget);
+    if (scan.kind === "balanced") {
       try {
-        const parsed: unknown = JSON.parse(input.slice(i, end + 1));
+        const parsed: unknown = JSON.parse(input.slice(i, scan.end + 1));
         out += input.slice(plainStart, i) + JSON.stringify(redactParsed(parsed, 0));
-        i = end + 1;
+        i = scan.end + 1;
         plainStart = i;
         continue;
       } catch {
         // Dengeli ama JSON DEĞİL (prose süslü parantezi ya da bozuk gövde).
+        // Aday SINIRLI ve görülebilir → aşağıdaki iz taraması meşru.
       }
     }
 
-    // ── FAIL-CLOSED ─────────────────────────────────────────────────────────
-    // Buraya düşmek "yapısal olarak işleyemedim" demektir: dengelenemedi
-    // (aday tavanını aştı / yarıda kesildi) ya da ayrıştırılamadı (bozuk JSON).
-    // ÖZGÜN METİN GERİ BIRAKILMAZ — kalanda hassas bir anahtar izi varsa
-    // BURADAN SONRASI komple sabit metne indirilir.
+    // ── FAIL-CLOSED, İKİ AYRI REJİM ─────────────────────────────────────────
     //
-    // ⚠️ BEDELİ AÇIK: mesajın kuyruğu (yığın izi vb.) kaybolur. Kabul edildi —
-    // ayrıştırılamayan bir gövdede hassas anahtarın DEĞERİNİN nerede bittiğini
-    // güvenilir biçimde bilmenin yolu yok, ve yarım bir damga bu dosyanın
-    // kapattığı kusurun ta kendisi. Prose güvenli: tetikleyici koşul "hassas
-    // anahtar İZİ", yalnız `{` görmek değil.
+    // 🚨 (A) ADAY TAVANI AŞILDI ya da BÜTÇE BİTTİ → ANAHTAR ARAMADAN, KOŞULSUZ
+    // sabit metne in. Gerekçe ölçüldü (08-09 (2), Codex uyarısı): içeriği
+    // GÖREMEDİĞİMİZ bir gövdede metinsel iz taramasına güvenmek yanlış güvence
+    // üretir — ham metinde `"chat\u0054oken"` yazan bir anahtar taramayı
+    // atlatıyordu ve 1,2 MB'lık gövde TOKEN'IYLA BİRLİKTE dışarı çıkıyordu.
+    // Kaçış çözümü ayrıca eklendi ama tek başına yeterli sayılmaz: göremediğimiz
+    // içerik hakkında hüküm vermeyiz. Oversized + işlenemeyen adayda GİZLİLİK
+    // TEŞHİSTEN ÖNEMLİ — devasa gövdenin kendisi zaten teşhis değeri düşük.
+    if (scan.kind === "oversized" || scan.kind === "budget") {
+      return out + input.slice(plainStart, i) + UNPARSEABLE_MARK;
+    }
+
+    // (B) Aday SINIRLI (girdi bitti / yapı bozuk / JSON değil): içeriği
+    // görebiliyoruz, o yüzden iz taraması meşru ve prose korunabiliyor.
+    // Tarama `\uXXXX` kaçışlarını ÇÖZDÜKTEN sonra bakar.
     if (!remainderChecked) {
       remainderClean = !remainderHasSensitiveKey(input, i);
       remainderChecked = true;
     }
     if (!remainderClean) return out + input.slice(plainStart, i) + UNPARSEABLE_MARK;
-    if (budget.left <= 0) break; // bütçe bitti ve kalan TEMİZ → düz metin say
     i++;
   }
   return out + input.slice(plainStart);
