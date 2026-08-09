@@ -24,6 +24,35 @@ describe("reportError", () => {
   });
   afterEach(() => vi.unstubAllEnvs());
 
+  // 🚨 UÇTAN UCA FAIL-CLOSED KANITI (kullanıcı direktifi, 08-09 (2)).
+  //
+  // `redactSensitive` birim olarak doğru olabilir ama asıl soru şu: özgün değer
+  // ÜÇ ÇIKIŞ KANALININ hiçbirinde görünmüyor mu? `reportError` `detail`i
+  // console.error'a, Sentry zarfına ve e-posta gövdesine AYNI değişkenden
+  // veriyor — bu test o bağı davranışsal olarak tutuyor, "aynı değişken" diye
+  // varsaymıyor.
+  it("🚨 ayrıştırılamayan JSON'daki sır ÜÇ KANALDA DA yok (console + e-posta + Sentry gövdesi)", async () => {
+    vi.stubEnv("ERROR_ALERT_EMAIL", "ops@example.com");
+    const SECRET = "AyseYilmazGIZLI";
+    const logs: string[] = [];
+    const spy = vi.spyOn(console, "error").mockImplementation((...a: unknown[]) => {
+      logs.push(a.map(String).join(" "));
+    });
+    try {
+      // Yarıda kesilmiş gövde: yapısal geçiş İŞLEYEMEZ → fail-closed dal.
+      await reportError("ctx", new Error(`Hospitable 422 {"a":1,"senderName":"${SECRET}"`));
+    } finally {
+      spy.mockRestore();
+    }
+
+    expect(logs.join("\n")).not.toContain(SECRET); // console
+    const emailBody = String(mockSend.mock.calls[0]?.[2] ?? "");
+    expect(emailBody).not.toContain(SECRET); // uyarı e-postası
+    expect(emailBody).toContain("REDACTED_UNPARSEABLE_JSON"); // sabit metne indi
+    // Sentry gövdesi de AYNI `detail`den türüyor; bağı burada pinliyoruz.
+    expect(logs.join("\n")).toContain("REDACTED_UNPARSEABLE_JSON");
+  });
+
   it("never throws and logs without email when ERROR/ALERT email is unset", async () => {
     vi.stubEnv("ERROR_ALERT_EMAIL", "");
     vi.stubEnv("ALERT_EMAIL", "");
@@ -285,6 +314,78 @@ describe("redactSensitive", () => {
       expect(() => redactSensitive(evil)).not.toThrow();
     }
     expect(Date.now() - t0, "tarama bütçesi kalkmış olabilir").toBeLessThan(5000);
+  });
+
+  // ── FAIL-CLOSED KANITI (kullanıcı direktifi, 08-09 (2)) ────────────────────
+  //
+  // 🚨 DÖRT SIZINTI ÖLÇÜLDÜ VE KAPATILDI. Önceki tasarımın "başarısızlıkta
+  // dünkü davranışa düş" yaklaşımı YETERSİZDİ: kv regex'i tırnaklı bileşik
+  // anahtarı zaten yakalayamıyor, dolayısıyla "düşülen" davranış SIZINTIYDI.
+  // Ölçüm (düzeltmeden ÖNCE): 4/4 vaka `!! SIZDI`.
+  describe("yapısal geçiş BAŞARISIZ olduğunda fail-CLOSED", () => {
+    const NAME = "AyseYilmazGIZLI";
+    const TOK = "qr_S3CRET_TOKEN_GIZLI";
+    const leaked = (out: string) => out.includes(NAME) || out.includes(TOK);
+
+    it("🚨 aday tavanını AŞAN geçerli JSON — hassas alan sızmaz", () => {
+      // Tavan 64KB iken bu dengelenemiyor, atlanıyor ve düz metin geçiyordu.
+      // Tavan 1MB'a çıkarıldı → yapısal olarak İŞLENİYOR, yani veri kaybı da yok.
+      const out = redactSensitive(`{"pad":"${"x".repeat(70_000)}","senderName":"${NAME}"}`);
+      expect(leaked(out)).toBe(false);
+      expect(out).toContain("pad"); // teşhis alanı korundu — kör nokta değil
+    });
+
+    it("🚨 hassas alan metnin EN SONUNDA, büyük gövde", () => {
+      const out = redactSensitive(`{"pad":"${"y".repeat(70_000)}","chatToken":"${TOK}"}`);
+      expect(leaked(out)).toBe(false);
+    });
+
+    it("🚨 YARIDA KESİLMİŞ JSON — özgün aday GERİ BIRAKILMAZ", () => {
+      // Dengelenemez → ayrıştırılamaz. Değerin nerede bittiği bilinemediği için
+      // kalan komple sabit metne iner.
+      const out = redactSensitive(`{"a":1,"senderName":"${NAME}","chatToken":"${TOK}"`);
+      expect(leaked(out)).toBe(false);
+      expect(out).toContain("[REDACTED_UNPARSEABLE_JSON]");
+    });
+
+    it("🚨 BOZUK JSON (tek tırnak) — aynı fail-closed dal", () => {
+      const out = redactSensitive(`{'senderName': '${NAME}'}`);
+      expect(leaked(out)).toBe(false);
+    });
+
+    it("🚨 İÇ İÇE dizi/obje içindeki senderName ve chatToken", () => {
+      const out = redactSensitive(`{"a":[{"b":[{"senderName":"${NAME}","chatToken":"${TOK}"}]}]}`);
+      expect(leaked(out)).toBe(false);
+    });
+
+    it("KONTROL: hassas anahtar İZİ olmayan prose NUKE EDİLMEZ", () => {
+      // Fail-closed'ın tetikleyicisi "hassas anahtar izi", yalnız `{` görmek
+      // DEĞİL. Bu olmadan "her `{` gördüğünde kalanı sil" mutasyonu da geçerdi
+      // ve ürün her hata mesajını kör ederdi.
+      const prose = "Invalid input {foo} at line 3";
+      expect(redactSensitive(prose)).toBe(prose);
+      expect(redactSensitive("at handler (/app/src/x.ts:123:45) {unclosed")).toContain("x.ts:123:45");
+    });
+
+    it("🚨 KONTROL: fail-closed dalında da İZİN LİSTESİ geçerli — teşhis JSON'u NUKE EDİLMEZ", () => {
+      // Ayrıştırılamayan bir gövdenin İÇİNDE yalnız teşhis anahtarları varsa
+      // sabit metne indirmek, gece 3'te arıza bakarken elde kalan TEK bilgiyi
+      // yok ederdi. `hostname`/`filename` ikisi de "name" içeriyor → hükmü
+      // regex'e devreden bir sürüm burayı kör eder (08-05'te geri alınan
+      // tasarımın ölçülmüş kusuru). Hüküm DAİMA `keyIsSensitive`ten geçer.
+      const out = redactSensitive('{"hostname":"db1","filename":"sync.ts"');
+      expect(out).toContain("db1");
+      expect(out).toContain("sync.ts");
+      expect(out).not.toContain("[REDACTED_UNPARSEABLE_JSON]");
+    });
+
+    it("KONTROL: fail-closed dalı, GEÇERLİ JSON'un teşhis alanlarını yutmaz", () => {
+      const out = redactSensitive('{"code":"P2002","hostname":"db1","guestName":"Ayşe"}');
+      expect(out).toContain("P2002");
+      expect(out).toContain("db1");
+      expect(out).not.toContain("Ayşe");
+      expect(out).not.toContain("[REDACTED_UNPARSEABLE_JSON]"); // sabit metne İNMEDİ
+    });
   });
 
   it("bütçe kancası KODDA duruyor (süre iddiasının yapısal kardeşi)", async () => {

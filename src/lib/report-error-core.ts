@@ -167,8 +167,45 @@ const FIELD_RE = new RegExp(
 // ═══════════════════════════════════════════════════════════════════════════
 
 const REDACTED_MARK = "[REDACTED]";
-/** Tek bir JSON adayının üst sınırı — devasa gövdede tarama patlamasın. */
-const MAX_JSON_CANDIDATE = 64 * 1024;
+/**
+ * Tek bir JSON adayının üst sınırı.
+ *
+ * ⚠️ 64KB → 1MB YÜKSELTİLDİ (P1 #1 fail-closed turu, 08-09 (2)). 64KB'de
+ * ÖLÇÜLMÜŞ bir sızıntı vardı: 70KB'lik GEÇERLİ bir JSON dengelenemiyor,
+ * yapısal geçiş onu atlıyor ve `{"…70KB…","senderName":"Ayşe Yılmaz"}` düz
+ * metin olarak geçiyordu. `JSON.parse` doğrusaldır (1MB birkaç ms); asıl
+ * maliyet `scanBalanced`ın HER `{`ten çağrılmasıydı ve onu SCAN_BUDGET
+ * sınırlıyor — yani tavanı büyütmek kabaca bedava, atlamak ise sızıntı.
+ */
+const MAX_JSON_CANDIDATE = 1024 * 1024;
+
+/**
+ * Yapısal olarak İŞLENEMEYEN bir JSON adayının yerine geçen SABİT metin.
+ *
+ * 🚨 FAIL-CLOSED KURALI (kullanıcı direktifi, 08-09 (2)): ayrıştırma ya da
+ * bütçe başarısız olursa ÖZGÜN ADAY GERİ BIRAKILMAZ. Eski davranış "dünkü hâle
+ * düş"tü ve bu YETERSİZDİ — ölçüldü: yarıda kesilmiş `{"senderName":"…"` ve
+ * bozuk `{'senderName': '…'}` girdilerinde ad AYNEN dışarı çıkıyordu, çünkü
+ * kv regex'i tırnaklı bileşik anahtarı zaten yakalayamıyor.
+ */
+const UNPARSEABLE_MARK = "[REDACTED_UNPARSEABLE_JSON]";
+
+/**
+ * Metnin `from`dan sonrasında HASSAS bir anahtar İZİ var mı?
+ *
+ * Regex burada yalnız ADAY BULUR; hükmü `keyIsSensitive` verir (izin listesi
+ * dahil). Böylece 08-05'te geri alınan "regex politikayı da taşısın" hatası
+ * tekrarlanmıyor. Nicelikler sınırlı → ReDoS yok.
+ */
+const KEYISH_RE = /["']?([A-Za-z0-9_$-]{1,64})["']?\s*:/g;
+function remainderHasSensitiveKey(input: string, from: number): boolean {
+  const tail = input.slice(from);
+  KEYISH_RE.lastIndex = 0;
+  for (const m of tail.matchAll(KEYISH_RE)) {
+    if (keyIsSensitive(m[1])) return true;
+  }
+  return false;
+}
 /** Toplam tarama bütçesi. Tükenirse yapısal geçiş BIRAKILIR (regex'ler kalır). */
 const SCAN_BUDGET = 2_000_000;
 const MAX_DEPTH = 12;
@@ -271,24 +308,48 @@ export function redactJsonStructurally(input: string): string {
   let out = "";
   let plainStart = 0;
   let i = 0;
+  // Kalan metnin hassas anahtar taşıyıp taşımadığı EN FAZLA BİR KEZ hesaplanır.
+  // Sonraki başarısızlıklar daha SAĞDA olduğu için kalanları bu kalanın alt
+  // kümesidir — temizse hepsi temizdir.
+  let remainderClean = false;
+  let remainderChecked = false;
+
   while (i < input.length) {
     const c = input[i];
-    if (c === "{" || c === "[") {
-      const end = scanBalanced(input, i, budget);
-      if (end !== -1) {
-        const candidate = input.slice(i, end + 1);
-        try {
-          const parsed: unknown = JSON.parse(candidate);
-          out += input.slice(plainStart, i) + JSON.stringify(redactParsed(parsed, 0));
-          i = end + 1;
-          plainStart = i;
-          continue;
-        } catch {
-          // JSON değil (ör. prose içindeki süslü parantez) — dokunma.
-        }
-      }
-      if (budget.left <= 0) break; // bütçe bitti: kalanı düz metin say
+    if (c !== "{" && c !== "[") {
+      i++;
+      continue;
     }
+    const end = scanBalanced(input, i, budget);
+    if (end !== -1) {
+      try {
+        const parsed: unknown = JSON.parse(input.slice(i, end + 1));
+        out += input.slice(plainStart, i) + JSON.stringify(redactParsed(parsed, 0));
+        i = end + 1;
+        plainStart = i;
+        continue;
+      } catch {
+        // Dengeli ama JSON DEĞİL (prose süslü parantezi ya da bozuk gövde).
+      }
+    }
+
+    // ── FAIL-CLOSED ─────────────────────────────────────────────────────────
+    // Buraya düşmek "yapısal olarak işleyemedim" demektir: dengelenemedi
+    // (aday tavanını aştı / yarıda kesildi) ya da ayrıştırılamadı (bozuk JSON).
+    // ÖZGÜN METİN GERİ BIRAKILMAZ — kalanda hassas bir anahtar izi varsa
+    // BURADAN SONRASI komple sabit metne indirilir.
+    //
+    // ⚠️ BEDELİ AÇIK: mesajın kuyruğu (yığın izi vb.) kaybolur. Kabul edildi —
+    // ayrıştırılamayan bir gövdede hassas anahtarın DEĞERİNİN nerede bittiğini
+    // güvenilir biçimde bilmenin yolu yok, ve yarım bir damga bu dosyanın
+    // kapattığı kusurun ta kendisi. Prose güvenli: tetikleyici koşul "hassas
+    // anahtar İZİ", yalnız `{` görmek değil.
+    if (!remainderChecked) {
+      remainderClean = !remainderHasSensitiveKey(input, i);
+      remainderChecked = true;
+    }
+    if (!remainderClean) return out + input.slice(plainStart, i) + UNPARSEABLE_MARK;
+    if (budget.left <= 0) break; // bütçe bitti ve kalan TEMİZ → düz metin say
     i++;
   }
   return out + input.slice(plainStart);
