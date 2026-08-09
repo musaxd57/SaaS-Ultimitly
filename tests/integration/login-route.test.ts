@@ -163,7 +163,9 @@ describe("POST /api/auth/login — 2FA + TOTP replay", () => {
       lastStatus = res.status;
     }
     expect(lastStatus).toBe(429);
-  });
+    // ⚠️ AÇIK TIMEOUT: bu test 12 gerçek bcrypt (~350 ms) koşuyor. Tek başına
+    // 5 sn'lik varsayılana sığıyor, TAM SUITE yükünde sığmıyordu (ölçüldü).
+  }, 60_000);
 
   // 🚨 KOTA KURTARMA KODU DALINI DA KAPSAR (savunmacı denetim 08-09).
   // Ölçüldü: kotayı TOTP dalının içine taşımak testleri YEŞİL bırakıyordu —
@@ -178,7 +180,7 @@ describe("POST /api/auth/login — 2FA + TOTP replay", () => {
       lastStatus = res.status;
     }
     expect(lastStatus).toBe(429);
-  });
+  }, 60_000);
 
   it("429 metni SÜREYİ söyler ve kurtarma kodu YAKILMAZ", async () => {
     // Depo kuralı (08-07): genel "kısa bir süre" metni kullanıcıyı boşuna
@@ -189,7 +191,7 @@ describe("POST /api/auth/login — 2FA + TOTP replay", () => {
       if (res.status === 429) body = await res.json();
     }
     expect(body.error).toMatch(/dakika/);
-  });
+  }, 60_000);
 
   it("KONTROL: kota dolmadan DOĞRU kod hâlâ kabul edilir", async () => {
     // Bu olmadan "her ikinci faktörü 429'la" mutasyonu da yeşil geçerdi.

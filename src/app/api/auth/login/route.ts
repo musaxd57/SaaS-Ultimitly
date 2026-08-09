@@ -116,7 +116,11 @@ export async function POST(req: NextRequest) {
     let trustedDevice = false;
     if (user.twoFactorEnabledAt) {
       // Fail-closed: any error reading the trusted-device cookie → ask for 2FA.
-      trustedDevice = await hasTrustedDevice(user.id, twoFaEpoch);
+      // ⚠️ `user.sessionEpoch` EK SORGU DEĞİL: yukarıdaki `findUnique` `select`SİZ
+      // çağrılıyor, yani tam satır zaten bellekte (aynı değer `:215`te oturum
+      // imzalanırken de kullanılıyor). Şifre sıfırlama/değiştirme bu epoch'u
+      // artırdığı için "beni hatırla" güveni o anda kendiliğinden düşer.
+      trustedDevice = await hasTrustedDevice(user.id, twoFaEpoch, user.sessionEpoch);
       if (!trustedDevice) {
         const code = parsed.data.code?.trim() ?? "";
         const recoveryCode = parsed.data.recoveryCode?.trim() ?? "";
@@ -237,7 +241,7 @@ export async function POST(req: NextRequest) {
     // Never fatal: a failure here must not undo the successful login.
     if (user.twoFactorEnabledAt && (parsed.data.rememberDevice || trustedDevice)) {
       try {
-        await setTrustedDeviceCookie(user.id, twoFaEpoch);
+        await setTrustedDeviceCookie(user.id, twoFaEpoch, user.sessionEpoch);
       } catch {
         // ignore — the login already succeeded.
       }

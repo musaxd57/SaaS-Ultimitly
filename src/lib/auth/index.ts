@@ -152,8 +152,12 @@ export async function clearSessionCookie(): Promise<void> {
 }
 
 /** Mark the current browser as a remembered device for this user (30 days). */
-export async function setTrustedDeviceCookie(userId: string, epoch: number): Promise<void> {
-  const token = await signTrustedDeviceToken(userId, epoch);
+export async function setTrustedDeviceCookie(
+  userId: string,
+  epoch: number,
+  sEpoch: number,
+): Promise<void> {
+  const token = await signTrustedDeviceToken(userId, epoch, sEpoch);
   const store = await cookies();
   store.set(TRUSTED_DEVICE_COOKIE, token, {
     httpOnly: true,
@@ -165,11 +169,15 @@ export async function setTrustedDeviceCookie(userId: string, epoch: number): Pro
 }
 
 /** Whether the current browser is a remembered device for this user. Fail-closed. */
-export async function hasTrustedDevice(userId: string, epoch: number): Promise<boolean> {
+export async function hasTrustedDevice(
+  userId: string,
+  epoch: number,
+  sEpoch: number,
+): Promise<boolean> {
   try {
     const store = await cookies();
     const token = store.get(TRUSTED_DEVICE_COOKIE)?.value;
-    return await verifyTrustedDeviceToken(token, userId, epoch);
+    return await verifyTrustedDeviceToken(token, userId, epoch, sEpoch);
   } catch {
     return false;
   }

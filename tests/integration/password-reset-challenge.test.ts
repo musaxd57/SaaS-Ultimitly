@@ -180,6 +180,36 @@ describe("PasswordResetChallenge — zorunlu saldırı testleri", () => {
     expect(after.sessionEpoch).toBe(before.sessionEpoch + 1); // çalınmış oturumlar öldü
   }, 90_000);
 
+  // ── 5b: ŞİFRE SIFIRLAMA "BENİ HATIRLA" GÜVENİNİ DE ÖLDÜRÜR ──────────────
+  // 🚨 S2 (08-09). Önceden trusted-device token'ı yalnız `(userId, purpose,
+  // 2FA-epoch)` üçlüsüne bağlıydı; `sessionEpoch` GİRDİ DEĞİLDİ. Sonuç: kurban
+  // şüphelenip ürünün söylediği tek şeyi yapıyor — şifre sıfırlama — TÜM
+  // oturumlar ölüyor ama 2FA-ATLAMA kimlik bilgisi 30 gün daha yaşıyordu.
+  // Bu test zinciri UÇTAN UCA kuruyor: gerçek sıfırlama rotası koşuyor,
+  // sonra token kullanıcının GÜNCEL epoch'una karşı doğrulanıyor.
+  it("5b) sıfırlama sonrası ESKİ trusted-device çerezi REDDEDİLİR", async () => {
+    const { signTrustedDeviceToken, verifyTrustedDeviceToken } = await import(
+      "@/lib/auth/trusted-device"
+    );
+    const before = await prisma.user.findUniqueOrThrow({ where: { email: EMAIL } });
+    const twoFaEpoch = before.twoFactorEnabledAt ? before.twoFactorEnabledAt.getTime() : 0;
+    const cookie = await signTrustedDeviceToken(before.id, twoFaEpoch, before.sessionEpoch);
+    // KONTROL: sıfırlamadan ÖNCE çerez GEÇERLİ. Bu olmadan "her zaman reddet"
+    // mutasyonu da yeşil geçerdi.
+    expect(await verifyTrustedDeviceToken(cookie, before.id, twoFaEpoch, before.sessionEpoch)).toBe(true);
+
+    const c = await requestChallenge("5.5.5.9");
+    const res = await POST(
+      req({ action: "confirm", email: EMAIL, token: c.token, code: c.code, newPassword: "yenisifre9" }),
+    );
+    expect(res.status).toBe(200);
+
+    const after = await prisma.user.findUniqueOrThrow({ where: { email: EMAIL } });
+    expect(after.sessionEpoch).toBe(before.sessionEpoch + 1);
+    // ASIL İDDİA: eski çerez artık GÜNCEL epoch'a karşı geçmiyor.
+    expect(await verifyTrustedDeviceToken(cookie, after.id, twoFaEpoch, after.sessionEpoch)).toBe(false);
+  }, 90_000);
+
   // ── 6 ────────────────────────────────────────────────────────────────────
   it("6) bilinmeyen ve kayıtlı e-posta DIŞARIDAN ayırt edilemez", async () => {
     const known = await POST(req({ action: "request", email: EMAIL }, "6.6.6.1"));

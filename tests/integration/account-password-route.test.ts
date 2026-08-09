@@ -151,6 +151,42 @@ describe("POST /api/account/password (e-mail code flow)", () => {
     expect(u?.pwChangeCodeHash).toBeNull();
   });
 
+  // ── S2 (08-09): ŞİFRE DEĞİŞTİRME "BENİ HATIRLA" GÜVENİNİ DE ÖLDÜRÜR ────────
+  // Sıfırlama tarafının ikizi (`password-reset-challenge.test.ts` 5b). Codex'in
+  // doğrulama listesi ikisini AYRI istiyor çünkü bunlar AYRI rotalar: sıfırlama
+  // `PasswordResetChallenge`ten, bu ise e-posta koduyla giriyor. İkisinin ortak
+  // mekanizması `sessionEpoch: { increment: 1 }` ve S2 trusted-device token'ını
+  // ona bağladı → bump, 30 günlük 2FA-atlama kimlik bilgisini de düşürür.
+  it("şifre değiştirme sonrası ESKİ trusted-device çerezi REDDEDİLİR", async () => {
+    const { signTrustedDeviceToken, verifyTrustedDeviceToken } = await import(
+      "@/lib/auth/trusted-device"
+    );
+    // 2FA açık + epoch VARSAYILAN DEĞİL: token'a sabit 0 yazan bir mutasyon
+    // varsayılan epoch'lu bir kurulumda sessizce yeşil kalırdı.
+    const twoFaAt = new Date("2026-01-02T03:04:05.000Z");
+    await prisma.user.update({
+      where: { id: session.userId },
+      data: { twoFactorEnabledAt: twoFaAt, sessionEpoch: 6 },
+    });
+    const before = await prisma.user.findUniqueOrThrow({ where: { id: session.userId } });
+    const twoFaEpoch = twoFaAt.getTime();
+    const cookie = await signTrustedDeviceToken(before.id, twoFaEpoch, before.sessionEpoch);
+    // KONTROL: değişiklikten ÖNCE çerez GEÇERLİ — bu olmadan "her zaman reddet"
+    // mutasyonu da yeşil geçerdi.
+    expect(await verifyTrustedDeviceToken(cookie, before.id, twoFaEpoch, before.sessionEpoch)).toBe(true);
+
+    await POST(req({ action: "request" }));
+    const code = codeFromEmail();
+    const res = await POST(req({ action: "confirm", code, newPassword: "yeniGuclu123" }));
+    expect(res.status).toBe(200);
+
+    const after = await prisma.user.findUniqueOrThrow({ where: { id: session.userId } });
+    expect(after.sessionEpoch).toBe(before.sessionEpoch + 1);
+    // 2FA epoch'u DEĞİŞMEDİ — yani reddi sağlayan tek şey sessionEpoch bağı.
+    expect(after.twoFactorEnabledAt?.getTime()).toBe(twoFaEpoch);
+    expect(await verifyTrustedDeviceToken(cookie, after.id, twoFaEpoch, after.sessionEpoch)).toBe(false);
+  }, 60_000);
+
   it("YARIŞ (Codex P1): aynı geçerli kodla iki PARALEL confirm — yalnız biri geçer, epoch TEK artar", async () => {
     await POST(req({ action: "request" }));
     const code = codeFromEmail();
