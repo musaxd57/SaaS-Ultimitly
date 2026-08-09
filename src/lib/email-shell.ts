@@ -44,6 +44,16 @@ type IdentityEmailOptions = {
   code?: string;
   /** Kod bloğunun üstündeki tek satırlık yönerge. */
   codeCaption?: string;
+  /**
+   * Kodu BUTONDAN ÖNCE çiz (varsayılan: buton önce).
+   *
+   * 🚨 Sıfırlama e-postası için ŞART (kullanıcı gözlemi, 08-09). Buton önce
+   * gelince kullanıcı önce sayfaya gidiyor, kodu görmediğini fark ediyor ve
+   * kopyalamak için e-postaya GERİ DÖNÜYOR. Kod önce gelirse tek yön: kopyala,
+   * sonra tıkla. Akışın kendisi değişmiyor — token yine bağlantıda, kod yine
+   * açılan sayfada giriliyor; değişen yalnız okuma sırası.
+   */
+  codeFirst?: boolean;
   /** Kartın altındaki gri açıklama. HTML KABUL EDER. */
   footnote: string;
 };
@@ -91,7 +101,7 @@ export function identityEmailShell(o: IdentityEmailOptions): string {
       <tr><td style="background:#ffffff;border:1px solid #e2e8f0;border-radius:16px;padding:36px 32px">
         <table role="presentation" width="100%" cellpadding="0" cellspacing="0" border="0" style="font-family:system-ui,-apple-system,Segoe UI,Arial,sans-serif;text-align:center">
           <tr><td style="font-size:21px;font-weight:700;color:#0f172a;line-height:1.35">${escapeHtml(o.heading)}</td></tr>
-          <tr><td style="padding-top:12px;color:#475569;font-size:15px;line-height:1.65">${o.intro}</td></tr>${button}${codeCaption}${code}
+          <tr><td style="padding-top:12px;color:#475569;font-size:15px;line-height:1.65">${o.intro}</td></tr>${o.codeFirst ? `${codeCaption}${code}${button}` : `${button}${codeCaption}${code}`}
         </table>
       </td></tr>
       <tr><td style="padding-top:20px;font-family:system-ui,-apple-system,Segoe UI,Arial,sans-serif;color:#64748b;font-size:13px;line-height:1.6;text-align:center">${o.footnote}</td></tr>

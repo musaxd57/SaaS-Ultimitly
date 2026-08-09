@@ -234,10 +234,16 @@ export function resetChallengeUrl(rawToken: string): string {
 export function resetChallengeEmailHtml(url: string, code: string): string {
   return identityEmailShell({
     heading: "Şifre sıfırlama",
-    intro: "Şifrenizi sıfırlamak için önce aşağıdaki bağlantıyı açın.",
-    action: { label: "Şifremi sıfırla", url },
-    codeCaption: "Açılan sayfada bu kodu girin:",
+    // ⚠️ SIRA: KOD ÖNCE, BUTON SONRA (kullanıcı gözlemi, 08-09). Eskiden buton
+    // öndeydi ve metin "önce bağlantıyı açın" diyordu → kullanıcı sayfaya
+    // gidiyor, kodu görmediğini fark ediyor, kopyalamak için e-postaya GERİ
+    // dönüyordu. Akış değişmedi (token bağlantıda, kod açılan sayfada girilir);
+    // değişen yalnız okuma sırası: kopyala → tıkla → yapıştır.
+    intro: "Şifrenizi sıfırlamak için önce bu kodu kopyalayın, sonra aşağıdaki bağlantıyı açın.",
+    codeFirst: true,
+    codeCaption: "Doğrulama kodunuz:",
     code,
+    action: { label: "Şifremi sıfırla", url },
     footnote:
       "Bağlantı ve kod <strong>30 dakika</strong> geçerlidir ve yalnızca bir kez kullanılabilir. Bu isteği siz yapmadıysanız bu e-postayı yok sayın — şifreniz değişmez.",
   });

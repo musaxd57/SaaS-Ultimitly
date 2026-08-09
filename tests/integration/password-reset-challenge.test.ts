@@ -321,6 +321,24 @@ describe("PasswordResetChallenge — zorunlu saldırı testleri", () => {
   // ön-ısıtma istekleri onu görür. Bu katmanların token'ı SAKLAMADIĞINI
   // kanıtlayamayız (üçüncü taraf platform), o yüzden token'ı erişemeyecekleri
   // yere koyuyoruz. Fragment sunucuya HİÇ gönderilmez.
+  // ── SIRA: KOD ÖNCE, BUTON SONRA (kullanıcı gözlemi, 08-09) ────────────────
+  // Buton öndeyken kullanıcı önce sayfaya gidiyor, kodu görmediğini fark ediyor
+  // ve kopyalamak için e-postaya GERİ dönüyordu. Akış değişmedi (token yine
+  // bağlantıda, kod yine açılan sayfada girilir); değişen yalnız okuma sırası.
+  it("kod bloğu e-postada butondan ÖNCE gelir", async () => {
+    await POST(req({ action: "request", email: EMAIL }, "3.1.4.1"));
+    await drainEmailOutboxOnce();
+    const codeAt = lastEmailHtml.indexOf('id="lixus-code"');
+    const buttonAt = lastEmailHtml.indexOf("Şifremi sıfırla");
+    // KONTROL: ikisi de GERÇEKTEN var — biri eksikse indexOf -1 döner ve
+    // karşılaştırma tesadüfen "geçebilirdi".
+    expect(codeAt).toBeGreaterThan(-1);
+    expect(buttonAt).toBeGreaterThan(-1);
+    expect(codeAt).toBeLessThan(buttonAt);
+    // Metin de sırayla tutarlı olmalı: "önce bağlantıyı açın" demek artık yanlış.
+    expect(lastEmailHtml).toContain("önce bu kodu kopyalayın");
+  }, 60_000);
+
   it("10) e-postadaki bağlantı token'ı FRAGMENT'te taşır; query string YOK", async () => {
     const c = await requestChallenge("10.0.0.1");
 
