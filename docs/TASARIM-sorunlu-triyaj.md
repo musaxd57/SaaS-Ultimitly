@@ -1,12 +1,109 @@
 # Tasarım — "Sorunlu konuşmalar" triyajı (m48)
 
-> Durum: **REVİZE EDİLDİ — KOD YAZILMADI, MIGRATION YAZILMADI.**
+> Durum: **İKİNCİ KEZ REVİZE EDİLDİ (08-09) — KOD YAZILMADI, MIGRATION YAZILMADI.**
+>
+> ⚠️ **08-09 KOD DENETİMİ ÜÇ SOMUT HATA BULDU** (Codex talimatı: "önce güncel m48
+> tasarımını yeniden denetle; kolon semantiğini, yazma/okuma noktalarını,
+> eşzamanlı model sonucu yarışını, KVKK kapsamını, NULL anlamlarını ve rollback
+> planını KODDAN doğrula"). Hatalar §0'da; aşağıdaki bölümler o düzeltmelerle
+> okunmalıdır.
 > Yazan: Claude · 2026-08-08. İlk taslak Codex incelemesine gitti; Codex "mevcut
 > haliyle yazma, önce tasarımı revize et" dedi ve altı eksik saydı:
 > `aiTriageSource` · `aiTriageTriggerMessageId` · `aiTriagedAt` · bayat kayıt
 > temizleme kuralları · KVKK/export/erasure kapsamı · sonlu-sayı (finite)
 > doğrulaması · güvenli JSON ayrıştırma. Bu sürüm o altısını karşılıyor.
 > ⚠️ Bu turda **hiçbir kod ve hiçbir migration yazılmadı** — belge, uygulama değil.
+
+---
+
+## 0. 🔴 08-09 KOD DENETİMİ — TASARIMDA BULUNAN ÜÇ HATA
+
+Aşağıdakilerin hepsi `file:line` ile kod-doğrulandı. Tasarım bunlar düzeltilmeden
+UYGULANAMAZ; ikisi sessiz veri hatası, biri yanlış arayüz iddiası üretirdi.
+
+### (0a) 🚨 ESCALATE YOLU İKİ DEĞİL, **ÜÇ** — üçüncüsü tasarımda hiç yok
+
+Belge boyunca "model yolu" + "kelime yolu" ikilisi varsayılıyor. Kodda `status`'ü
+`"problem"` yapan ÜÇ yer var:
+
+| # | Yer | Şekil | Kaynak |
+|---|---|---|---|
+| 1 | `automation.ts:1698` `applyChannelAutoReply` | koşullu `updateMany` (`status: { not: "problem" }`) | model |
+| 2 | `automation.ts:3487` `sendDueAlerts` | koşullu `updateMany` (`status: "new"`) | kelime |
+| 3 | **`automation.ts:1047` `applyInboundMessageRules`** | **koşulsuz `update`**, `$transaction` içinde | **kelime** |
+
+🚨 **Üçüncüsü MODEL DEĞİL:** `classifyMessage` (`ai/index.ts:372-374`) gövdesi
+tek satır — `return classifyFallback(message)`. Yani hiç model çağrısı yok;
+escalate kararı `result.isComplaint` ile deterministik sınıflandırıcıdan geliyor.
+Çağıran: `POST /api/conversations` (`route.ts:77`) — host'un elle açtığı konuşma.
+
+**Sonuç:** bu yol bağlanmazsa o konuşmalar `status:"problem"` olur ama altı kolon
+da NULL kalır. §2a'nın tüm amacı "NULL'dan anlam çıkarma"ydı; bağlanmayan bir
+yol tam da o belirsizliği geri getirir. **Ve `aiTriageSource:"keyword"` yazan yol
+BİR DEĞİL İKİ.**
+
+⚠️ Ayrıca bu yol **koşulsuz `update`** — §3c2'nin tazelik koşulu oraya olduğu gibi
+uygulanamaz; ya şekli `updateMany`ye çevrilir ya da o yol için tazelik iddiası
+AÇIKÇA yapılmaz. Sessizce atlanamaz.
+
+### (0b) 🚨 §3f'nin "tek `update` yeterli" iddiası YANLIŞ — **ALTI** çıkış noktası var
+
+§3f "temizleme status geçişine bağlanır, geçişte tek `update` yeterli" diyor.
+Konuşmayı `"problem"`den çıkarabilen yerler:
+
+1. `conversations/[id]/reply/route.ts:227` → `"answered"` (host cevap yazdı)
+2. `conversations/[id]/reply/route.ts:238` → `"answered"` (ikinci dal)
+3. `outbox/worker.ts:334` → `"answered"` (durable outbox teslim etti; `status: { not: "closed" }` yani problem'i DE geçer)
+4. `automation.ts:651` → `"new"` (geri alma)
+5. `automation.ts:677` → `"new"` (geri alma)
+6. **`conversations/[id]/route.ts:20-23` → `data: parsed.data`** — host'un arayüzden seçtiği durum. 🚨 §4'ün önerdiği *"Bu bir şikayet değil — sorunlu işaretini kaldır"* düğmesi TAM BURADAN geçer, yani tasarımın kendi arayüzü bu noktayı zorunlu kılıyor.
+
+**Tek bir "geçiş hook'u" YOK.** Seçenekler (karar verilmedi):
+- (i) Altı noktaya da temizleme ekle → dağınık, biri unutulur (bu deponun `SCRUB KAPSAMI` dersi).
+- (ii) Temizlemeyi TAMAMEN BIRAK, yalnız §3d bayatlık göstergesine güven → tek maliyet: haftalar sonra yeniden escalate olan konuşmada eski öneri "bayat" rozetiyle görünür. Bugünkü fail-safe'e (id çözülemezse bayat say) uyumlu.
+- (iii) Okuma yüzeyinde `status === "problem"` şartı ara → temizleme hiç gerekmez, çünkü kolonlar yalnız problem listesinde okunuyor.
+
+**Önerim (iii)+(ii):** yazma tarafında hiçbir temizleme yok, okuma tarafı zaten
+`status:"problem"` filtresiyle çalışıyor. Altı noktaya dokunmamak, altısını da
+doğru bağlamaktan güvenli.
+
+### (0c) `anonymizeOldGuestData` **BİR** değil **İKİ** dalda yazıyor
+
+§2b "aynı `update`'e iki metin kolonu eklenir" diyor, tekil. Kodda iki ayrı
+`updateMany` var:
+- `data-retention.ts:224` — rezervasyona BAĞLI konuşmalar
+- `data-retention.ts:367` — **ÖKSÜZ** konuşmalar (`reservationId: null`)
+
+İkincisi tam olarak bu deponun daha önce yandığı yer: `TaskUpdate.note` öksüz
+dalda unutulmuştu ve `scrub-scope-parity` testi onu GÖREMİYOR (test dosya
+düzeyinde (model,kolon) KÜMELERİNİ karşılaştırıyor, DAL düzeyinde değil).
+**Her iki dal da elle bağlanacak; parite testi bu hatayı yakalamaz.**
+Açık silme tarafı tek noktadır: `erasure.ts:462`.
+
+---
+
+### ✅ Denetimde DOĞRULANAN iddialar (değişiklik gerekmiyor)
+
+- **Temel önerme geçerli:** `actionSuggestion` `ai/index.ts:285-287`'de üretilip
+  300 karaktere kırpılıyor, `missingInfo` `:299`'da `sanitizeStringList(…, 5, 80)`
+  ile; `fallback.ts:1320-1352` de üretiyor. İkisi de yalnız CANLI olarak
+  `conversation-thread.tsx:842,855` ve `ai-test-card.tsx:209` ile çiziliyor —
+  hiçbir kolona yazılmıyor. ⚠️ Kırpma sınırı §3a'da "5 × 120" yazılı ama kodda
+  **5 × 80**; tasarım koda uydurulmalı (yoksa iki farklı sınır doğar).
+- **`lastMessageAt` tazelik anahtarı doğru seçilmiş:** `schema.prisma:506` mevcut,
+  `:565` ve `:568`'de İKİ index'te — §3c2'nin WHERE koşulu bedava.
+- **Kanarya `Float?`ü gerçekten görmüyor:** `scrub-scope-parity.test.ts:38` regex'i
+  `(String\??|Json\??|Int\??|Boolean\??|DateTime\??)`. `aiConfidence` sayacı
+  değiştirmez → kapsam kararı ELLE verilecek. (Diğer beş kolon kırmızı verecek.)
+- **Veri ihracı açık `select` kullanıyor** (`data-export.ts:155-167`) → yeni
+  kolonlar kendiliğinden sızmaz, bilinçli eklenir. §2b'nin önerisi geçerli.
+- **`/inbox` sayfası server component** ve `prisma`yı doğrudan çağırıyor →
+  §3e'nin "çıplak `JSON.parse` tüm sayfayı 500'ler" gerekçesi geçerli.
+- **KVKK kapsam kararı doğru:** `aiConfidence` · `aiTriageSource` · `aiTriagedAt` ·
+  `aiTriageTriggerMessageId` kişisel veri taşımıyor; `Message.aiSourcesJson`
+  emsaliyle tutarlı.
+- **Rollback planı geçerli:** kolonlar nullable + varsayılansız, hiçbir mevcut
+  sorgu okumuyor → geri alma "okumayı bırak", DROP gerekmiyor.
 
 ---
 
