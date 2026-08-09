@@ -90,3 +90,26 @@ describe("resolvesToPrivate (fetch-time DNS gate)", () => {
     expect(await resolvesToPrivate("nxdomain.example.com")).toBe(false);
   });
 });
+
+// ---------------------------------------------------------------------------
+// P1 #8 (08-09 (2)) — IPv6 MULTICAST ÖLÇÜLMÜŞ BOŞLUKTU
+//
+// IPv4 multicast (224.0.0.0/4) engelleniyordu, IPv6 karşılığı GEÇİYORDU.
+// `ff02::1` = tüm-düğümler, `ff02::2` = tüm-yönlendiriciler; bir ağ keşif /
+// amplifikasyon yüzeyi. Bir takvim beslemesi hiçbir zaman meşru olarak bir
+// multicast adresinde yaşamaz.
+// ---------------------------------------------------------------------------
+describe("IPv6 multicast (ff00::/8)", () => {
+  it("🚨 tüm-düğümler / tüm-yönlendiriciler / site-yerel gruplar BLOKLANIR", () => {
+    for (const a of ["ff02::1", "ff02::2", "ff05::1:3", "ff00::", "FF02::1", "[ff02::1]"]) {
+      expect(isPrivateHost(a), a).toBe(true);
+    }
+  });
+
+  it("KONTROL: gerçek public IPv6 adresleri GEÇER (aşırı-uygulama değil)", () => {
+    // `ff` ile başlayan her şeyi bloklayan naif bir kural bunları da keserdi.
+    for (const a of ["2606:4700:4700::1111", "2001:4860:4860::8888", "fe00::1"]) {
+      expect(isPrivateHost(a), a).toBe(false);
+    }
+  });
+});

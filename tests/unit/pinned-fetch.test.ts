@@ -243,3 +243,59 @@ describe("fetchFeedText — end-to-end over a real loopback server", () => {
     expect(elapsed).toBeLessThan(2000); // …and was cut, not left hanging
   });
 });
+
+// ---------------------------------------------------------------------------
+// P1 #8 (08-09 (2)) — PORT + USERINFO KAPILARI
+//
+// ⚠️ REDIRECT ŞARTI ZATEN DAHA GÜÇLÜ BİÇİMDE KARŞILANIYOR: bu istemci redirect'i
+// HİÇ TAKİP ETMEZ (3xx = sert hata, `HTTP <status>`). "Her hop'u yeniden
+// doğrula" isteğinin karşılığı "hop YOK" — dolayısıyla hop başına DNS/IP/host
+// yeniden doğrulaması, redirect sayacı ve "redirect'te sır taşınmasın" şartları
+// yapısal olarak sağlanıyor. Bu bloktaki testler kalan İKİ boşluğu kapatır.
+// ---------------------------------------------------------------------------
+describe("P1 #8 — port ve userinfo", () => {
+  it("🚨 443 DIŞI port REDDEDİLİR (public adres olsa bile)", async () => {
+    // Eskiden `url.port` olduğu gibi kullanılıyordu: `:9200` (Elasticsearch),
+    // `:6379` (Redis), `:8080` — adres public olsa bile bu bir port tarama /
+    // iç servis yoklama yüzeyidir. Gerçek bir takvim beslemesi ASLA 443 dışında
+    // yayınlanmaz (Airbnb/Booking/Google/Vrbo hepsi 443).
+    for (const port of ["9200", "6379", "8080", "80"]) {
+      await expect(
+        fetchFeedText(`https://example.com:${port}/f.ics`, { maxBytes: 1000, timeoutMs: 500, userAgent: "t" }),
+      ).rejects.toThrow(/refusing feed port/);
+    }
+  });
+
+  it("KONTROL: AÇIKÇA 443 yazılmış URL ve portsuz URL reddedilmez", async () => {
+    // Bu olmadan "her portu reddet" mutasyonu da yeşil geçerdi ve ürün kırılırdı
+    // (443'ü açıkça yazan bir feed URL'i tamamen meşrudur).
+    //
+    // ⚠️ `rejects.not.toThrow(/…/)` KULLANMA — ölçüldü (08-09 (2)): 443'ü de
+    // reddeden mutasyonda o biçim YEŞİL geçti, yani hiçbir şey tutmuyordu.
+    // Hatayı AÇIKÇA yakalayıp mesajını sınamak tek güvenilir yol.
+    for (const u of ["https://example.invalid:443/f.ics", "https://example.invalid/f.ics"]) {
+      let msg = "";
+      try {
+        await fetchFeedText(u, { maxBytes: 1000, timeoutMs: 500, userAgent: "t" });
+      } catch (e) {
+        msg = e instanceof Error ? e.message : String(e);
+      }
+      // Ağ hatası bekleniyor (host çözülmez); kapıya TAKILMADIĞININ kanıtı budur.
+      expect(msg, `${u} port kapısına takıldı`).not.toMatch(/refusing feed port/);
+    }
+  });
+
+  it("🚨 KULLANICI BİLGİSİ taşıyan URL REDDEDİLİR (ayrıştırıcı karışıklığı)", async () => {
+    // `https://evil.com@10.0.0.1/` insan gözüne evil.com gösterir, `new URL()`
+    // host'u 10.0.0.1 çözer. Kimin haklı olduğuna bağlı bir kapı KAPI DEĞİLDİR.
+    for (const u of [
+      "https://user:pass@example.com/f.ics",
+      "https://example.com@93.184.216.34/f.ics",
+      "https://token@example.com/f.ics",
+    ]) {
+      await expect(
+        fetchFeedText(u, { maxBytes: 1000, timeoutMs: 500, userAgent: "t" }),
+      ).rejects.toThrow(/userinfo/);
+    }
+  });
+});

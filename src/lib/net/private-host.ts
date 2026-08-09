@@ -54,6 +54,12 @@ export function isPrivateAddress(address: string): boolean {
   ) {
     return true;
   }
+  // 🚨 IPv6 MULTICAST (ff00::/8) — ÖLÇÜLMÜŞ BOŞLUK (P1 #8, 08-09 (2)).
+  // IPv4 multicast (224.0.0.0/4) engelleniyordu, IPv6 karşılığı GEÇİYORDU:
+  // `ff02::1` (tüm-düğümler), `ff02::2` (tüm-yönlendiriciler) ve `ff05::/16`
+  // site-yerel grupları bir ağ keşif/amplifikasyon yüzeyi. Bir takvim
+  // beslemesi hiçbir zaman meşru olarak bir multicast adresinde yaşamaz.
+  if (/^ff[0-9a-f]{2}(:|$)/.test(h)) return true;
   // NAT64 (64:ff9b::/96) embeds an IPv4 in the low 32 bits — on a DNS64/NAT64
   // network "64:ff9b::a9fe:a9fe" reaches 169.254.169.254 (cloud metadata). Treat
   // the whole prefix as private (we never legitimately fetch a feed through it).

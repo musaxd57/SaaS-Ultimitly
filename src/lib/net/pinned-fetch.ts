@@ -122,6 +122,35 @@ export function fetchFeedText(rawUrl: string, opts: FeedFetchOptions): Promise<s
   if (!testTransport && isPrivateHost(url.hostname)) {
     return Promise.reject(new Error(`refusing private feed host (${url.hostname})`));
   }
+  // 🚨 KULLANICI BİLGİSİ (user:pass@host) REDDEDİLİR — P1 #8 (08-09 (2)).
+  //
+  // İki ayrı sebep: (1) AYRIŞTIRICI KARIŞIKLIĞI — `https://evil.com@10.0.0.1/`
+  // biçimindeki bir URL insan gözüne `evil.com`u gösterir, `new URL()` ise
+  // host'u `10.0.0.1` çözer; kimin haklı olduğuna bağlı bir kapı KAPI DEĞİLDİR.
+  // (2) SIR TAŞIMA — userinfo bir kimlik bilgisidir ve host'un girdiği feed
+  // URL'i zaten şifreli tutuluyor; onu ayrıca bir Authorization başlığına
+  // çevirecek bir yolun var olmaması gerekiyor.
+  // ⚠️ Bugün de gönderilmiyordu (yalnız hostname/port/path kullanılıyor) — bu
+  // satır o davranışı SÖZLEŞMEYE çeviriyor ve sessizce değişmesini engelliyor.
+  if (url.username || url.password) {
+    return Promise.reject(new Error("refusing feed URL with userinfo"));
+  }
+  // 🚨 ÜRETİMDE YALNIZ 443 — P1 #8. Eskiden `url.port` OLDUĞU GİBİ kullanılıyordu,
+  // yani `https://public-host:9200/` (Elasticsearch), `:6379` (Redis), `:8080`
+  // gibi standart-dışı portlara istek yapılabiliyordu. Adres PUBLIC olsa bile bu
+  // bir port tarama / iç servis yoklama yüzeyidir ve gerçek bir takvim beslemesi
+  // ASLA 443 dışında yayınlanmaz (Airbnb/Booking/Google/Vrbo hepsi 443).
+  // ⚠️ Test taşıması (`lookupOverride`) muaf — loopback test sunucusu rastgele
+  // porttan dinler; http izniyle AYNI gerekçe.
+  //
+  // ⚠️ `url.port !== "443"` YAZMA — ÖLÇÜLDÜ, ÖLÜ KOD OLUR: `new URL()` şemanın
+  // VARSAYILAN portunu siler, yani `https://a.com:443/x` → `port === ""`.
+  // Dolayısıyla https bir URL'de `url.port` ASLA "443" olamaz; dolu olması
+  // zaten "standart-dışı port" demektir. (İlk yazımımda o şart vardı ve onu
+  // kaldıran mutasyon YEŞİL geçiyordu — çünkü gözlenecek bir fark yoktu.)
+  if (!testTransport && url.port) {
+    return Promise.reject(new Error(`refusing feed port (${url.port})`));
+  }
   const mod = isHttps ? https : http;
   const lookup = opts.lookupOverride ?? validatingLookup;
 
