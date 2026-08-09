@@ -1,6 +1,6 @@
 import { describe, it, expect } from "vitest";
 import { readFileSync } from "node:fs";
-import { withoutSecretKbItems } from "@/lib/guest-chat";
+import { withoutSecretKbItems, QR_SECRET_CATEGORIES } from "@/lib/guest-chat";
 
 // ---------------------------------------------------------------------------
 // 🚨 REZERVASYON ÖNCESİ SORUDA KB SIRLARI PROMPT'A GİRMEZ (denetim 08-09).
@@ -44,10 +44,40 @@ describe("rezervasyon öncesi KB sır kapısı", () => {
       .split("\n")
       .filter((l) => !l.trimStart().startsWith("//") && !l.trimStart().startsWith("*"))
       .join("\n");
+    // 🚨 KAPININ KENDİ İFADESİNİ KES — DOSYANIN TAMAMINI DEĞİL. İlk yazımım
+    // `expect(code).toMatch(/QR_SECRET_CATEGORIES/)` idi ve **IMPORT SATIRIYLA**
+    // tatmin oluyordu: kategori bacağını ifadeden silen mutasyon YEŞİL geçti
+    // (ölçüldü). Kaynak taraması ancak baktığı yer doğru olduğunda bir şey pinler.
+    const from = code.indexOf("const kbVisible");
+    expect(from).toBeGreaterThan(-1); // çapa kayarsa test SESSİZCE no-op olmasın
+    const gate = code.slice(from, code.indexOf(";", from) + 1);
+
     // Kapı var.
-    expect(code).toMatch(/withoutSecretKbItems\(/);
+    expect(gate).toMatch(/withoutSecretKbItems\(/);
     // Ve koşullu — koşulsuz uygulamak rezervasyonlu misafirden de kodu saklardı.
-    expect(code).toMatch(/confirmedStay\s*\?\s*kb\s*:\s*withoutSecretKbItems\(kb\)/);
+    expect(gate).toMatch(/confirmedStay\s*\n?\s*\?\s*kb\s*\n?\s*:/);
+    // İKİNCİ BACAK (denetim 08-09): kategori elemesi. İlk yazımımda YOKTU ve
+    // oto-gönderen yüzey, insanın gözden geçirdiği QR yüzeyinden ZAYIF kalıyordu.
+    expect(gate).toMatch(/QR_SECRET_CATEGORIES/);
+  });
+
+  it("KATEGORİ BACAĞI, içerik sezgiselinin GÖRMEDİĞİ kalemi düşürür", () => {
+    // Ölçülen sızıntı: rakam taşımayan bir giriş kalemi. `looksLikeSecret`
+    // 4-8 HANE istiyor, bu kalemde hane yok → içerik bacağı onu GEÇİRİYOR.
+    // Kategori bacağı ("checkin" hiç çekilmez) bu sınıfı toptan kapatır.
+    const items = [
+      { category: "checkin", title: "Anahtar kutusu", content: "Açılış dizisi: ABCD" },
+      { category: "general", title: "Otopark", content: "Bina altında ücretsiz otopark" },
+    ];
+    // KONTROL: içerik bacağı TEK BAŞINA yetmiyor — bu iddia olmadan aşağıdaki
+    // test, kategori bacağı silinse bile yeşil kalabilirdi.
+    expect(withoutSecretKbItems(items).map((i) => i.title)).toContain("Anahtar kutusu");
+
+    // Üretimdeki bileşim: önce kategori, sonra içerik.
+    const gated = withoutSecretKbItems(
+      items.filter((i) => !(QR_SECRET_CATEGORIES as readonly string[]).includes(i.category)),
+    );
+    expect(gated.map((i) => i.title)).toEqual(["Otopark"]);
   });
 
   it("QR yolu AYNI yardımcıyı kullanır (tek kural, iki çağıran)", () => {

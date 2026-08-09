@@ -7,7 +7,8 @@ export { zonedDayRange, currentHourInTimeZone } from "@/lib/timezone";
 import { isUniqueViolation } from "@/lib/db-errors";
 import { recordRiskEvent } from "@/lib/risk-events";
 import { recordShadowVerdict } from "@/lib/shadow-ai";
-import { scrubStyleProfileForPublic, withoutSecretKbItems } from "@/lib/guest-chat";
+import { scrubStyleProfileForPublic, withoutSecretKbItems, QR_SECRET_CATEGORIES } from "@/lib/guest-chat";
+import { LEGACY_AI_SENDER_NAMES, LEGACY_AI_RESUME_SENDER } from "@/lib/message-author";
 import { reservationAmountNumber } from "@/lib/money";
 import { classifyMessage, suggestReply, summarizeHostStyle } from "@/lib/ai";
 import { fetchKnowledgeBaseForPrompt } from "@/lib/ai/kb-fetch";
@@ -1513,7 +1514,20 @@ export async function applyChannelAutoReply(
     conversation.reservation != null &&
     (conversation.reservation.status === "confirmed" ||
       conversation.reservation.status === "completed");
-  const kbVisible = confirmedStay ? kb : withoutSecretKbItems(kb);
+  // ⚠️ İKİ BACAK, TEK BACAK DEĞİL (denetim 08-09 — DÜN YAZDIĞIM KAPININ EKSİĞİ).
+  // QR yolu (`guest-chat.ts:626`) iki eleme uygular: KATEGORİ (`wifi`/`checkin`
+  // hiç ÇEKİLMEZ) **ve** içerik sezgiseli. Ben buraya yalnız içerik bacağını
+  // koymuştum → insan olmadan gönderen yüzey, insanın gözden geçirdiği yüzeyden
+  // ZAYIF kaldı; tam da düzeltmeye çalıştığım asimetrinin tersi. Ölçüldü (7
+  // gerçekçi kalem): kategori bacağı olmadan prompt'a ulaşan 7/7, bacakla 2/7.
+  // Sızan tipik kalem: "Anahtar kutusunun açılış dizisi: ABCD" — `general`
+  // kategorisinde OLMADIĞI için değil, `looksLikeSecret`in RAKAM istemesi
+  // yüzünden geçiyordu. Kategori bacağı bu sınıfı toptan kapatır.
+  const kbVisible = confirmedStay
+    ? kb
+    : withoutSecretKbItems(
+        kb.filter((i) => !(QR_SECRET_CATEGORIES as readonly string[]).includes(i.category)),
+      );
 
   // Turnover context so early-checkin / late-checkout answers are data-driven.
   const adjacency = conversation.reservation
@@ -2585,10 +2599,31 @@ export async function refreshStyleProfile(
   }
 
   // Learn ONLY from the host's real, human replies — never the AI's own.
+  // 🚨 FİLTRE TEK ADI TANIYORDU (denetim, 08-09). `senderName: { not: "GuestOps
+  // AI" }` yalnız ESKİ sihirli string'i eliyordu; QR concierge kendi AI
+  // yanıtlarını `senderName: "Lixus AI", authorType: "ai"` diye yazıyor →
+  // BOT'un çıktısı "host'un sesi" diye örnekleniyordu. Sonuç iki katmanlı:
+  // (a) model kendi çıktısıyla besleniyor (geri besleme döngüsü), (b) profil
+  // prompt'a bir CEVAP KAYNAĞI olarak giriyor ("bu rehberdeki sık sorulan
+  // sorular kısmı açıkça karşılıyorsa o cevabı temel al") — yani bir misafirin
+  // bota söylettiği politika cümlesi, org genelinde BAŞKA misafirlere otomatik
+  // gönderilen yanıtlara sızabiliyordu.
+  // Doğru filtre bir dosya ötede ZATEN vardı: `quality-audit.ts:114-119`.
+  // `authorType` birincil, `senderName` yalnız damgasız ESKİ satırlar için.
   const hostReplies = await prisma.message.findMany({
     where: {
       direction: "outbound",
-      senderName: { not: "GuestOps AI" },
+      // POZİTİF seçim (kara liste değil): "host" damgalı satırlar, artı damga
+      // taşımayan ESKİ satırlardan AI/sistem adı olmayanlar. Kara liste yazsaydım
+      // `authorType:"system"` (QR "AI devam ediyor" işaretçisi) elenmezdi — o da
+      // host'un yazdığı nesir DEĞİL.
+      OR: [
+        { authorType: "host" },
+        {
+          authorType: null,
+          senderName: { notIn: [...LEGACY_AI_SENDER_NAMES, LEGACY_AI_RESUME_SENDER] },
+        },
+      ],
       conversation: { property: { organizationId } },
     },
     select: { body: true },
