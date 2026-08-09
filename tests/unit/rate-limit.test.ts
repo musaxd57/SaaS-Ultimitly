@@ -265,3 +265,104 @@ describe("clientIp — TRUSTED_PROXY_HOPS", () => {
     expect(clientIp(padded)).toBe("152.233.12.245");
   });
 });
+
+// ---------------------------------------------------------------------------
+// P1 #7 (08-09 (2)) — SPOOFING / EKSİK-FAZLA HOP / DOĞRUDAN BAĞLANTI
+//
+// `TRUSTED_PROXY_HOPS` bir SAYI TAHMİNİ değil, bir GÜVEN SINIRI beyanıdır.
+// Yanlış yönde hata etmenin bedeli asimetrik (CLAUDE.md): AZ tahmin güvenli
+// (herkes tek kovaya düşer, kimlik seçilemez), FAZLA tahmin TEHLİKELİ
+// (saldırgan zinciri tam beklenen uzunluğa getirip seçilen adımı kendi yazar).
+// Bu blok o asimetriyi davranışsal olarak tutar.
+// ---------------------------------------------------------------------------
+describe("P1 #7 — XFF spoofing ve hop sınırları", () => {
+  it("🚨 SOLDAN uzatma kimliği DEĞİŞTİREMEZ (istemci yalnız soldan ekleyebilir)", () => {
+    // Saldırgan kendi isteğine 5 sahte adım ekler; Railway kendi adresini SAĞA
+    // ekler. Sağdan sayım bu yüzden taklit edilemez.
+    const honest = pickClientHop(["88.254.11.170", "152.233.12.245"], 2);
+    const spoofed = pickClientHop(
+      ["1.1.1.1", "2.2.2.2", "3.3.3.3", "4.4.4.4", "5.5.5.5", "88.254.11.170", "152.233.12.245"],
+      2,
+    );
+    expect(spoofed).toBe(honest); // sahte adımlar seçimi kaydırmadı
+    expect(spoofed).toBe("88.254.11.170");
+  });
+
+  it("🚨 ZİNCİR BEKLENENDEN KISAYSA en sağda kalınır — taklit edilebilir değere DÜŞÜLMEZ", () => {
+    // Fail-safe yön: limit gevşer (herkes tek kovada) ama kimlik saldırgana
+    // yazdırılmaz. `hops=3` beklerken 2 adım gelirse en sağdaki alınır.
+    expect(pickClientHop(["1.2.3.4", "5.6.7.8"], 3)).toBe("5.6.7.8");
+    expect(pickClientHop(["9.9.9.9"], 5)).toBe("9.9.9.9");
+  });
+
+  it("🚨 FAZLA tahmin edilen hop, saldırganın yazdığı adımı SEÇMEZ (zincir yeterince uzunsa)", () => {
+    // Zincir gerçekten uzunsa hops=4 dördüncü adımı seçer. Bu TEHLİKELİ yön ve
+    // testin amacı davranışı gizlemek değil GÖRÜNÜR kılmak: değeri büyütmenin
+    // sonucu, saldırgan kontrolündeki bir adıma kayabilmektir.
+    const chain = ["ATTACKER", "b", "c", "GERCEK", "EDGE"];
+    expect(pickClientHop(chain, 2)).toBe("GERCEK");
+    expect(pickClientHop(chain, 5)).toBe("ATTACKER"); // ⚠️ fazla tahminin bedeli
+  });
+
+  it("DOĞRUDAN bağlantı (XFF yok) kimlik uydurmaz", () => {
+    const direct = clientIp(new Request("http://x"));
+    expect(direct).toBe("unknown"); // herkes tek kovada — ama sahte kimlik YOK
+  });
+
+  it("boş / bozuk XFF de kimlik uydurmaz", () => {
+    for (const v of ["", "   ", ",,,"]) {
+      expect(clientIp(new Request("http://x", { headers: { "x-forwarded-for": v } }))).toBe("unknown");
+    }
+  });
+
+  it("trustedProxyHops: geçersiz/aşırı değerler GÜVENLİ yöne clamp'lenir", () => {
+    const cases: [string | undefined, number][] = [
+      // 🚨 `"11"` → 1 (10 DEĞİL). Eski kod `Math.min(n, 10)` ile bir yazım
+      // hatasını TEHLİKELİ yöne yuvarlıyordu; aralık dışı değer artık güvenli
+      // varsayılana düşer. Ölçüldü: bu testi yazarken kod 10 döndürüyordu.
+      [undefined, 1], ["", 1], ["abc", 1], ["0", 1], ["-3", 1], ["999", 1],
+      ["2", 2], ["10", 10], ["11", 1], ["99", 1], ["2.9", 1], ["0x2", 1],
+    ];
+    for (const [raw, expected] of cases) {
+      if (raw === undefined) vi.stubEnv("TRUSTED_PROXY_HOPS", "");
+      else vi.stubEnv("TRUSTED_PROXY_HOPS", raw);
+      expect(trustedProxyHops(), `TRUSTED_PROXY_HOPS=${JSON.stringify(raw)}`).toBe(expected);
+    }
+    vi.unstubAllEnvs();
+  });
+});
+
+// ---------------------------------------------------------------------------
+// P1 #7 — BOOT ENV DOĞRULAMASI: UYARIR, DURDURMAZ
+//
+// ⚠️ Bu ayrım BİLİNÇLİ ve test-pinli: `TRUSTED_PROXY_HOPS` eksik/geçersizse
+// boot UYARIR ama DURMAZ. Bir env kazasında üretimin ayakta kalması, hız
+// limitinin bir süre global çalışmasından daha önemli — ve "mevcut prod'u
+// doğrulamadan boot'ta durduracak değişiklik pushlanmaz" (kullanıcı direktifi).
+// Biri bunu `errors`a taşırsa test kırmızı olur ve kararı bilerek vermiş olur.
+// ---------------------------------------------------------------------------
+describe("P1 #7 — boot env kapısı uyarır, DURDURMAZ", () => {
+  it("eksik ve geçersiz değerde UYARI üretir", async () => {
+    const { checkProductionEnv } = await import("../../scripts/env-check.mjs");
+    for (const env of [{}, { TRUSTED_PROXY_HOPS: "11" }, { TRUSTED_PROXY_HOPS: "abc" }]) {
+      const r = checkProductionEnv({ ...env } as Record<string, string>);
+      expect(r.warnings.some((w: string) => w.includes("TRUSTED_PROXY_HOPS")), JSON.stringify(env)).toBe(true);
+    }
+  });
+
+  it("🚨 ASLA `errors`a girmez — boot durmaz", () => {
+    // Kaynak taraması değil, davranış: hata listesinde bu anahtar GEÇMEMELİ.
+    return import("../../scripts/env-check.mjs").then(({ checkProductionEnv }) => {
+      for (const env of [{}, { TRUSTED_PROXY_HOPS: "11" }]) {
+        const r = checkProductionEnv({ ...env } as Record<string, string>);
+        expect(r.errors.some((e: string) => e.includes("TRUSTED_PROXY_HOPS"))).toBe(false);
+      }
+    });
+  });
+
+  it("KONTROL: geçerli değerde uyarı YOK (gürültü üretmez)", async () => {
+    const { checkProductionEnv } = await import("../../scripts/env-check.mjs");
+    const r = checkProductionEnv({ TRUSTED_PROXY_HOPS: "2" } as Record<string, string>);
+    expect(r.warnings.some((w: string) => w.includes("TRUSTED_PROXY_HOPS"))).toBe(false);
+  });
+});

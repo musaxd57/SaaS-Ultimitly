@@ -17,6 +17,34 @@ export function checkProductionEnv(env) {
   const errors = [];
   const warnings = [];
 
+  // ── TRUSTED_PROXY_HOPS (P1 #7, 08-09 (2)) — UYARI, HATA DEGIL ─────────────
+  //
+  // Bu deger bir GUVEN SINIRI beyanidir ve yanlis yonde hata etmenin bedeli
+  // ASIMETRIKTIR: AZ tahmin guvenli (herkes tek kovaya duser, kimlik secilemez),
+  // FAZLA tahmin TEHLIKELI (saldirgan zinciri beklenen uzunluga getirip secilen
+  // adimi KENDI yazar).
+  //
+  // 🚨 BILEREK `errors` DEGIL `warnings`: bu kapi boot'u DURDURMAZ. Deger
+  // Railway'de bugun SET (=2) ama bir env kazasinda uretimin ayakta kalmasi,
+  // hiz limitinin bir sure global calismasindan daha onemli. "Mevcut prod'u
+  // dogrulamadan boot'ta durduracak degisiklik pushlanmaz" (kullanici direktifi).
+  //
+  // Olcum araci ayri ve mevcut: /admin "Operasyon Teshisi" karti gercek
+  // x-forwarded-for zincirini ve her hop degerinin SECECEGI adresi onizler.
+  const hopsRaw = (env.TRUSTED_PROXY_HOPS ?? "").trim();
+  if (!hopsRaw) {
+    warnings.push(
+      "TRUSTED_PROXY_HOPS set edilmemis — hiz limitleri KISI BASINA degil GLOBAL " +
+        "calisabilir (bir saldirgan tek kovayi doldurup tum musterileri 429'a dusurebilir). " +
+        "Dogru degeri /admin > Operasyon Teshisi kartindan OKUYUN, tahmin etmeyin.",
+    );
+  } else if (!/^\d{1,2}$/.test(hopsRaw) || Number(hopsRaw) < 1 || Number(hopsRaw) > 10) {
+    warnings.push(
+      `TRUSTED_PROXY_HOPS gecersiz ("${hopsRaw}") — guvenli varsayilana (1) dusuluyor. ` +
+        "Yalniz 1-10 arasi duz tam sayi kabul edilir.",
+    );
+  }
+
   const authSecret = (env.AUTH_SECRET ?? "").trim();
   if (!authSecret) {
     errors.push("AUTH_SECRET is missing.");

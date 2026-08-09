@@ -208,7 +208,19 @@ export function trustedProxyHops(): number {
   const raw = process.env.TRUSTED_PROXY_HOPS?.trim();
   if (!raw || !/^\d{1,2}$/.test(raw)) return 1;
   const n = Number(raw);
-  return n >= 1 ? Math.min(n, 10) : 1; // tavan: saçma değer zinciri baştan okutmasın
+  // 🚨 ARALIK DIŞI DEĞER 10'A CLAMP'LENMEZ, 1'E DÜŞER (P1 #7, 08-09 (2)).
+  //
+  // Eski hâl `Math.min(n, 10)` idi ve bir YAZIM HATASINI TEHLİKELİ YÖNE
+  // yuvarlıyordu: `"11"` → 10, yani "on adım geri say". Bu dosyanın kendi
+  // asimetri kuralı bunun tersini söylüyor — AZ tahmin güvenli (herkes tek
+  // kovaya düşer, kimlik seçilemez), FAZLA tahmin TEHLİKELİ (saldırgan zinciri
+  // beklenen uzunluğa getirip seçilen adımı KENDİ yazar). Bir tavan aşımı
+  // "kullanıcı ne istediğini biliyor" değil "değer bozuk" demektir ve bozuk
+  // değerin gideceği yer güvenli varsayılandır.
+  //
+  // ⚠️ CANLIDA ETKİSİ YOK: Railway'de `TRUSTED_PROXY_HOPS=2`. Bu satır yalnız
+  // 11+ yazan bir yazım hatasının sonucunu değiştirir.
+  return n >= 1 && n <= 10 ? n : 1;
 }
 
 /**
