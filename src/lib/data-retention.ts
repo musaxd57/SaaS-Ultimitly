@@ -68,6 +68,33 @@ export function retentionCutoff(now: Date = new Date()): Date | null {
 }
 
 /**
+ * Süre-bazlı süpürgenin ÇAPASINI mesaj yaşına bağlayan bayrak — DEFAULT KAPALI.
+ *
+ * KAPALIYKEN davranış BİREBİR eskisidir (test-pinli), yani bu commit canlıda
+ * hiçbir satırı farklı işlemez. Geri alma = env'i silmek, deploy gerekmez.
+ * Depo deseni: `GUEST_ERASURE_ENABLED` · `UNVERIFIED_SWEEP_ENABLED` ·
+ * `ICAL_DISAPPEARANCE_RECONCILE_ENABLED` — GERİ ALINAMAZ veri işlemleri hep
+ * kapalı doğar ve kullanıcı açar.
+ *
+ * AÇIKKEN İKİ ŞEY BİRDEN değişir ve ikisi de AYNI fikrin yüzüdür — "hüküm
+ * MESAJIN kendi yaşına göre verilir, konaklamanın yaşına göre değil":
+ *
+ *   (a) SEÇİCİ tekrarlanabilir olur → bir kez temizlenmiş konaklamaya SONRADAN
+ *       yazılan eski-yeterli misafir metni artık kaçmaz (ÖLÇÜLMÜŞ sızıntı).
+ *   (b) TEMİZLİK cutoff'tan eski mesajlarla SINIRLANIR → bugün gelen bir mesaj
+ *       artık ilk geçişte silinmez (ÖLÇÜLMÜŞ aşırı-silme: öksüz dalda yaş
+ *       çapası eski kaldığında BUGÜN gelen mesaj ilk koşuda yok edildi).
+ *
+ * 🚨 (b) OLMADAN (a) YAPILAMAZ: yalnız seçiciyi genişletmek, taze mesajı olan
+ * her eski konaklamayı sonsuza dek yeniden seçip o taze mesajı her geçişte
+ * silmeye çalışırdı — host'un cevaplamak için okuması gereken CANLI mesajı yok
+ * ederdi. İkisi tek bayrakta çünkü tek bir kararın iki yarısı.
+ */
+export function messageAgeAnchorEnabled(): boolean {
+  return process.env.RETENTION_MESSAGE_AGE_ANCHOR === "1";
+}
+
+/**
  * Anonymize guest personal data for stays that ended before the retention window.
  * No-op unless DATA_RETENTION_MONTHS is a positive number. Returns how many
  * reservations were scrubbed (0 when disabled or nothing is due).
@@ -82,7 +109,39 @@ export async function anonymizeOldGuestData(now: Date = new Date()): Promise<{ a
   // (1) Reservation-linked guest data. Reservations whose stay ended before the
   // cutoff and still carry real PII (guestName not yet anonymized). Bounded batch.
   const oldRes = await prisma.reservation.findMany({
-    where: { departureDate: { lt: cutoff }, guestName: { not: ANON_NAME } },
+    where: {
+      departureDate: { lt: cutoff },
+      ...(messageAgeAnchorEnabled()
+        ? {
+            // 🚨 SÜPÜRGE ARTIK TEK ATIMLIK DEĞİL (bayrak AÇIKKEN).
+            //
+            // Eski koşul YALNIZ `guestName != ANON_NAME` idi ve o sentinel'i
+            // süpürgenin KENDİSİ yazıyor → bir kez temizlenen konaklama SONSUZA
+            // DEK dışarıda kalıyordu. ÖLÇÜLDÜ (08-09 (2), geçici probe): 40 ay
+            // önce çıkışlı bir rezervasyon süpürüldükten SONRA aynı konuşmaya
+            // yazılan yeni bir misafir mesajı, ikinci süpürge koşusunda BİREBİR
+            // sağ kaldı ve bir daha ASLA seçilmez (çapa `departureDate` ve o hiç
+            // ilerlemez). Ulaşılabilir senaryo sıradan: misafir yıllar sonra
+            // "şarj aletimi unuttum" / yorum-iadesi için yazar.
+            //
+            // İkinci koşul TERMİNE EDER: aşağıdaki `updateMany` cutoff'tan eski
+            // TÜM inbound gövdeleri temizliyor, yani bir sonraki geçişte `some`
+            // yanlışa döner ve satır seçilmez. Sonsuz döngü YOK.
+            OR: [
+              { guestName: { not: ANON_NAME } },
+              {
+                conversations: {
+                  some: {
+                    messages: {
+                      some: { direction: "inbound", body: { not: ANON_BODY }, createdAt: { lt: cutoff } },
+                    },
+                  },
+                },
+              },
+            ],
+          }
+        : { guestName: { not: ANON_NAME } }),
+    },
     select: { id: true, guestName: true },
     take: RETENTION_BATCH,
   });
@@ -218,7 +277,17 @@ export async function anonymizeOldGuestData(now: Date = new Date()): Promise<{ a
       ...(convIds.length
         ? [
             prisma.message.updateMany({
-              where: { conversationId: { in: convIds }, direction: "inbound", body: { not: ANON_BODY } },
+              where: {
+                conversationId: { in: convIds },
+                direction: "inbound",
+                body: { not: ANON_BODY },
+                // 🚨 BAYRAK AÇIKKEN YAŞ SINIRI (08-09 (2)): hüküm MESAJIN kendi
+                // yaşına göre verilir. Eski kodda bu filtre YOKTU → eski bir
+                // konaklamaya BUGÜN yazılmış bir mesaj ilk geçişte siliniyordu
+                // (öksüz dalda ölçüldü). Host'un cevaplamak için okuması gereken
+                // canlı metni yok etmek, korumanın amacı DEĞİL.
+                ...(messageAgeAnchorEnabled() ? { createdAt: { lt: cutoff } } : {}),
+              },
               data: { body: ANON_BODY, senderName: ANON_ID, aiSuggestedReply: null },
             }),
             prisma.conversation.updateMany({
@@ -313,7 +382,15 @@ export async function anonymizeOldGuestData(now: Date = new Date()): Promise<{ a
       lastMessageAt: { lt: cutoff },
       OR: [
         { guestIdentifier: { not: ANON_ID } },
-        { messages: { some: { direction: "inbound", body: { not: ANON_BODY } } } },
+        {
+          messages: {
+            some: {
+              direction: "inbound",
+              body: { not: ANON_BODY },
+              ...(messageAgeAnchorEnabled() ? { createdAt: { lt: cutoff } } : {}),
+            },
+          },
+        },
       ],
     },
     select: { id: true, guestIdentifier: true },
@@ -402,7 +479,13 @@ export async function anonymizeOldGuestData(now: Date = new Date()): Promise<{ a
 
     await prisma.$transaction([
       prisma.message.updateMany({
-        where: { conversationId: { in: orphanIds }, direction: "inbound", body: { not: ANON_BODY } },
+        where: {
+          conversationId: { in: orphanIds },
+          direction: "inbound",
+          body: { not: ANON_BODY },
+          // Kardeş dalla BİREBİR aynı sınır — parite kuralı.
+          ...(messageAgeAnchorEnabled() ? { createdAt: { lt: cutoff } } : {}),
+        },
         data: { body: ANON_BODY, senderName: ANON_ID, aiSuggestedReply: null },
       }),
       prisma.conversation.updateMany({
