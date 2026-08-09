@@ -807,6 +807,23 @@ export function ConversationThread({ conversationId, messages, status, priority,
               >
                 {suggestion.confidence >= 0.75 ? "AI bu cevaptan emin" : "AI emin değil — gözden geçirin"}
               </span>
+              {/* ÇIKMAZ (kullanıcı gözlemi, 08-09): panelin KAPATMA yolu YOKTU.
+                  `setSuggestion(null)` yalnız İKİ yerde çağrılıyordu — yeni öneri
+                  istenince ve mesaj BAŞARIYLA gönderilince. Yani öneriyi beğenmeyen
+                  host'un tek çıkışı ya mesaj göndermek ya da sayfadan ayrılmaktı;
+                  öneri, konuşmanın geri kalanını okurken ekranda asılı kalıyordu.
+                  Aynı dosyadaki şablon paneli (↑`Mesaj Şablonları`) bu düğmeye
+                  ZATEN sahip — eksik olan tutarlılıktı. Yalnız istemci durumu
+                  temizlenir: sunucuya İSTEK GİTMEZ, hiçbir şey kaydedilmez,
+                  "AI öner" düğmesi anında geri gelir (koşulu `!suggestion`). */}
+              <button
+                type="button"
+                onClick={() => setSuggestion(null)}
+                className="text-muted-foreground hover:text-foreground"
+                aria-label="AI önerisini kapat"
+              >
+                <X className="size-3.5" />
+              </button>
             </div>
 
             {riskTypeLabel(suggestion.riskType) ? (

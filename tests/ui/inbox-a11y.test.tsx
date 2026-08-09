@@ -311,3 +311,65 @@ describe("HospitableSyncButton — odak iadesi", () => {
     expect(document.activeElement).toBe(btn);
   });
 });
+
+// ─────────────────────────────────────────────────────────────────────────────
+// AI ÖNERİ PANELİ — KAPATMA YOLU (kullanıcı gözlemi, 08-09)
+// Panel açıldıktan sonra kapanmanın İKİ yolu vardı ve ikisi de host'u bir eylem
+// yapmaya zorluyordu: yeni öneri istemek ya da mesaj GÖNDERMEK. Öneriyi
+// beğenmeyen host için çıkış yoktu — aynı dosyadaki şablon panelinin ZATEN
+// sahip olduğu düğme burada eksikti. Bu blok üç şeyi birden pinler: düğme VAR ·
+// panel gerçekten kapanır · kapanınca "AI ile cevapla" davetiyesi GERİ GELİR
+// (yani host çıkmaza girmez, fikrini değiştirirse tekrar isteyebilir).
+// ─────────────────────────────────────────────────────────────────────────────
+describe("ConversationThread — AI öneri paneli kapatılabilir", () => {
+  beforeEach(() => {
+    cleanup();
+    vi.clearAllMocks();
+    vi.unstubAllGlobals();
+  });
+
+  async function openSuggestion() {
+    const fetchMock = vi.fn(async () =>
+      new Response(
+        JSON.stringify({
+          reply: "Wifi şifresi: kapıdaki kartta yazıyor.",
+          intent: "wifi",
+          confidence: 0.9,
+          riskLevel: "none",
+        }),
+        { status: 200 },
+      ),
+    );
+    vi.stubGlobal("fetch", fetchMock);
+    render(<ConversationThread {...baseProps} />);
+    await act(async () => {
+      fireEvent.click(screen.getByRole("button", { name: /AI ile cevapla/ }));
+    });
+    await screen.findByText("AI Önerisi");
+    return fetchMock;
+  }
+
+  it("kapatma düğmesi paneli kaldırır ve SUNUCUYA İSTEK ATMAZ", async () => {
+    const fetchMock = await openSuggestion();
+    expect(fetchMock).toHaveBeenCalledTimes(1); // yalnız öneri isteği
+
+    await act(async () => {
+      fireEvent.click(screen.getByRole("button", { name: "AI önerisini kapat" }));
+    });
+
+    expect(screen.queryByText("AI Önerisi")).toBeNull();
+    // Kapatmak bir KAYDETME değil: ikinci bir fetch olmamalı.
+    expect(fetchMock).toHaveBeenCalledTimes(1);
+  });
+
+  it("kapatınca 'AI ile cevapla' davetiyesi GERİ GELİR (çıkmaz yok)", async () => {
+    await openSuggestion();
+    // Panel açıkken davetiye gizli (koşul: !suggestion).
+    expect(screen.queryByRole("button", { name: /AI ile cevapla/ })).toBeNull();
+
+    await act(async () => {
+      fireEvent.click(screen.getByRole("button", { name: "AI önerisini kapat" }));
+    });
+    expect(screen.getByRole("button", { name: /AI ile cevapla/ })).toBeTruthy();
+  });
+});
