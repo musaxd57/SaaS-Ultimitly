@@ -269,7 +269,12 @@ describe("kaynak pinleri — geri alınması KOLAY ama tehlikeli düzeltmeler", 
     // pin `tests/integration/demo-ai-route.test.ts` içinde ve İZİN LİSTESİDİR
     // (`Object.keys(...)` tam eşleşme), yani BİLİNMEYEN alanı da yakalar.
     const src = read("src/app/api/demo/ai/route.ts");
-    const body = src.slice(src.indexOf("return jsonOk({"));
+    // 🚨 ÇAPA GUARD'I: `indexOf` -1 dönerse `slice(-1)` son karakteri verir ve
+    // ÜÇ `not.toMatch` de trivially geçer — rota `jsonOk` yerine başka bir
+    // yardımcıya geçerse tarama SESSİZCE hiçbir şey iddia etmez.
+    const at = src.indexOf("return jsonOk({");
+    expect(at, "çapa bulunamadı — tarama sessizce boşa düşerdi").toBeGreaterThan(-1);
+    const body = src.slice(at);
     expect(body).not.toMatch(/\bsource:/);
     expect(body).not.toMatch(/\bintent:/);
     expect(body).not.toMatch(/detectedLanguage:/);

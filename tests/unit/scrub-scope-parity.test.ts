@@ -35,8 +35,16 @@ function schemaColumns(): Record<string, Set<string>> {
   for (const [, name, body] of src.matchAll(/model\s+(\w+)\s*\{([\s\S]*?)\n\}/g)) {
     const cols = new Set<string>();
     for (const line of body.split("\n")) {
-      const m = /^\s+(\w+)\s+(String\??|Json\??|Int\??|Boolean\??|DateTime\??)\s*(.*)$/.exec(line);
-      if (m && !m[3].includes("@relation") && !m[3].includes("@id")) cols.add(m[1]);
+      // 🚨 TÜM Prisma SKALER tipleri + liste/opsiyonel son ekleri (08-09 (2)).
+      // Eski alternasyon `Float`/`Decimal`/`Bytes`/`BigInt` ve `String[]` gibi
+      // liste tiplerini GÖRMÜYORDU → o tipteki bir kolon eklendiğinde kanarya
+      // SESSİZ kalıyor ve "bu kolon misafir verisi mi" sorusu hiç sorulmuyordu.
+      // Ölçüldü: dört kolon kanaryanın kör noktasındaydı (↓EXPECTED yorumu).
+      // ⚠️ İlişkiler ve ENUM'lar hâlâ dışarıda — ilişki alanı model adı taşır,
+      // enum ise kendi adını; ikisi de bu listede yok. Şemaya bir gün enum
+      // kolonu eklenirse kanarya onu da göremez (bilinen sınır).
+      const m = /^\s+(\w+)\s+(String|Boolean|Int|BigInt|Float|Decimal|DateTime|Json|Bytes)(\[\])?\??\s*(.*)$/.exec(line);
+      if (m && !m[4].includes("@relation") && !m[4].includes("@id")) cols.add(m[1]);
     }
     out[name] = cols;
   }
@@ -152,14 +160,20 @@ describe("KVKK süpürgeleri — süre-bazlı ↔ açık-silme paritesi", () => 
 describe("şema kanaryası — misafir modellerine yeni kolon", () => {
   it.each(GUEST_MODELS)("%s kolon sayısı değişmedi", (model) => {
     const EXPECTED: Record<GuestModel, number> = {
-      Message: 13,
-      // 17 → 22: m48 altı kolon ekledi. ⚠️ KANARYA `Float?`ü GÖRMÜYOR
-      // (regex `String?|Json?|Int?|Boolean?|DateTime?`), yani `aiConfidence`
-      // bu sayacı DEĞİŞTİRMEZ — beşi görünür, altıncısı görünmez. Sayı beşle
-      // arttı ve bu DOĞRU; sayısal kolonun kapsam kararı ELLE verildi
-      // (kapsam dışı: bir sayı kişisel veri taşımaz).
-      Conversation: 22,
-      Reservation: 30,
+      // ⚠️ SAYILAR 08-09 (2)'DE ARTTI ÇÜNKÜ KANARYANIN KÖR NOKTASI KAPANDI —
+      // yeni kolon eklendiği için DEĞİL. Regex `Float`/`Decimal`/liste tiplerini
+      // görmüyordu; genişletilince DÖRT kolon ilk kez göründü ve her biri için
+      // kapsam kararı ELLE verildi (kanaryanın istediği tam olarak budur):
+      //   · Message.aiConfidence      (Float?)   → KAPSAM DIŞI: 0..1 arası bir
+      //   · Conversation.aiConfidence (Float?)      sayı; misafirin metnini de
+      //                                             kimliğini de taşımaz.
+      //   · Reservation.totalAmount    (Float?)  → KAPSAM DIŞI ve BİLİNÇLİ:
+      //   · Reservation.totalAmountDec (Decimal?)   süpürgenin TANIMI "anonymize
+      //     rather than hard-delete so occupancy/report history stays intact" —
+      //     tutarı silmek, korunması İSTENEN finansal geçmişi yok ederdi.
+      Message: 14,
+      Conversation: 23,
+      Reservation: 32,
       Task: 15,
       TaskUpdate: 6,
       MessageOutbox: 22,

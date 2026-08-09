@@ -74,7 +74,10 @@ describe("bilgi tabanı istem bütçesi", () => {
       const src = readFileSync(path.resolve(__dirname, "../../", rel), "utf8");
       expect(src, rel).toContain("fetchKnowledgeBaseForPrompt");
       // Kendi tavansız sorgusunu açan biri buradan görünür olur.
-      expect(src, rel).not.toMatch(/prisma\.knowledgeBaseItem\.findMany/);
+      // ⚠️ ÖNEK BAĞIMSIZ (08-09 (2)): eskiden yalnız `prisma.` tanınıyordu, yani
+      // `db.knowledgeBaseItem.findMany` ya da bir `tx.` alias'ı tavanı sessizce
+      // deliyordu. Artık HANGİ istemci üzerinden çağrıldığı önemsiz.
+      expect(src, rel).not.toMatch(/\w+\.knowledgeBaseItem\.findMany/);
     }
   });
 

@@ -186,7 +186,13 @@ describe("🚨 DOLU ZEMİNİN ÇOCUĞU — ölçülmüş görünmezlik hatası",
   });
 
   it("çıkış düğmesi DOLU bandın içinde — `dark:` kardeşi ALMAZ", () => {
-    const btn = shell.slice(shell.indexOf("border-amber-700"), shell.indexOf("border-amber-700") + 120);
+    // 🚨 ÇAPA GUARD'I ŞART (08-09 (2)): `indexOf` -1 dönerse `slice(-1, 119)`
+    // metnin SON KARAKTERİNİ verir ve `not.toContain("dark:")` trivially geçer —
+    // yani sınıf adı bir refaktörde değişirse test SESSİZCE hiçbir şey
+    // pinlemez ama YEŞİL kalır. Kardeş taramalarda bu guard zaten var.
+    const at = shell.indexOf("border-amber-700");
+    expect(at, "çapa bulunamadı — test sessizce boşa düşerdi").toBeGreaterThan(-1);
+    const btn = shell.slice(at, at + 120);
     expect(btn, "dolu zeminin çocuğuna dark: eklenmiş — görünmez olur").not.toContain("dark:");
   });
 });
