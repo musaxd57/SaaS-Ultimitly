@@ -411,10 +411,14 @@ describe("registration → verification → login", () => {
     // bağlantısı, sahibi parolasını sıfırlasa bile çalışmaya devam ederdi —
     // üstelik hesap doğrulanmadığı için MEŞRU sahip yeni parolasıyla bile
     // giremezken (login 403), link sahibi girebilirdi.
-    const paths = [
-      "src/app/api/account/forgot-password/route.ts",
-      "src/lib/auth/password-reset-challenge.ts",
-    ];
+    // ⚠️ FAZ 3 (08-09): liste İKİ dosyadan BİRE indi ve bu bir GEVŞETME DEĞİL.
+    // Eski kod yolu kalkınca `forgot-password/route.ts` `passwordHash` yazan
+    // dalını kaybetti; sıfırlamayı artık TEK bir yer yazıyor
+    // (`consumeChallengeAndResetPassword`). Listeyi kırmızı diye kısaltmak
+    // tehlikeli olurdu, o yüzden ALTINA bir kapı eklendi: rota `passwordHash`
+    // yazmaya BAŞLARSA test kırmızıya döner ve "token temizliğini de ekle"
+    // sorusu yeniden sorulur.
+    const paths = ["src/lib/auth/password-reset-challenge.ts"];
     for (const rel of paths) {
       const src = readFileSync(join(process.cwd(), rel), "utf8");
       // `passwordHash` yazan update bloğu ile aynı yerde token temizliği olmalı.
@@ -426,6 +430,18 @@ describe("registration → verification → login", () => {
         "emailVerifyExpiresAt: null",
       );
     }
+
+    // KAPI: rota parolayı KENDİ yazmıyor, tek yazıcıya DEVREDİYOR. Bu iddia
+    // olmadan "listeyi kısalt" hamlesi, rotaya token temizliği OLMADAN yeni bir
+    // `passwordHash` yazması eklenmesini sessizce mümkün kılardı.
+    const routeSrc = readFileSync(
+      join(process.cwd(), "src/app/api/account/forgot-password/route.ts"),
+      "utf8",
+    );
+    expect(routeSrc, "rota passwordHash yazıyor — token temizliğini de eklemeli").not.toMatch(
+      /passwordHash[,:]/,
+    );
+    expect(routeSrc).toContain("consumeChallengeAndResetPassword");
   });
 
   it("verify-email ASLA `mfa: true` yazmaz — operatör kapısı bu yoldan açılamaz", () => {

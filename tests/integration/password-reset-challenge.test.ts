@@ -366,29 +366,39 @@ describe("PasswordResetChallenge — zorunlu saldırı testleri", () => {
   }, 60_000);
 
   // ── 13 ───────────────────────────────────────────────────────────────────
-  // ↑12'nin TERS yönü: e-posta zorunluluğu YALNIZ token'lı yolda kalkar.
-  // Token YOKSA hem `request` hem `confirm` geçerli bir adres İSTEMEYE devam
-  // eder — yoksa "e-posta gerekli" kapısı tamamen düşmüş olurdu.
-  it("13) token YOKKEN geçerli e-posta hâlâ ZORUNLU (request ve confirm)", async () => {
-    for (const body of [
-      { action: "request" },
-      { action: "request", email: "gecersiz" },
-      { action: "confirm", code: "12345678", newPassword: NEW_PASSWORD },
-      { action: "confirm", email: "gecersiz", code: "12345678", newPassword: NEW_PASSWORD },
-    ]) {
+  // ↑12'nin TERS yönü. ⚠️ SÖZLEŞME FAZ 3'te DEĞİŞTİ (08-09) ve test onunla
+  // birlikte güncellendi — eski hâli DÖRT girdinin de `fields.email` almasını
+  // bekliyordu. Artık ayrım action'a göre:
+  //   · `request`  → e-posta ZORUNLU, alan adı `email` (kullanıcıya yardımcı
+  //     olmak için ayrıntılı; burada gizlenecek bir şey yok, adres zaten girdi).
+  //   · `confirm`  → TOKEN zorunlu; adres geçerli olsa da olmasa da AYNI generic
+  //     `code` cevabı döner. Eskiden token'sız confirm eski kod yoluna düşüyordu;
+  //     o yol kalktığı için tek doğru cevap fail-closed reddir. Şekil ayrımı
+  //     bırakılsaydı yanıtın alan adı isteğin hangi dala düştüğünü sızdırırdı.
+  it("13) token YOKKEN: request e-posta ister, confirm GENERIC ile fail-closed reddedilir", async () => {
+    for (const body of [{ action: "request" }, { action: "request", email: "gecersiz" }]) {
       const res = await POST(req(body, "13.0.0.1"));
       expect(res.status).toBe(400);
       expect((await res.json()).fields?.email).toBe("Geçerli bir e-posta girin.");
     }
+    for (const body of [
+      { action: "confirm", code: "12345678", newPassword: NEW_PASSWORD },
+      { action: "confirm", email: "gecersiz", code: "12345678", newPassword: NEW_PASSWORD },
+      { action: "confirm", email: EMAIL, code: "12345678", newPassword: NEW_PASSWORD },
+    ]) {
+      const res = await POST(req(body, "13.0.0.1"));
+      expect(res.status).toBe(400);
+      const json = await res.json();
+      expect(json.fields?.code).toContain("Bu kod artık kullanılamıyor");
+      // Alan adı AYRIŞMAMALI: `email` sızarsa dal oracle'ı geri gelir.
+      expect(Object.keys(json.fields ?? {})).toEqual(["code"]);
+    }
   }, 60_000);
 
-  // ── Ek: bayrak KAPALIYKEN üretim davranışı BİREBİR eskisi ────────────────
-  it("BAYRAK KAPALI: hiç challenge yazılmaz, eski akış aynen çalışır", async () => {
-    vi.stubEnv("PASSWORD_RESET_CHALLENGE_ENABLED", "0");
-    const res = await POST(req({ action: "request", email: EMAIL }, "8.8.8.8"));
-    expect(res.status).toBe(200);
-    expect(await prisma.passwordResetChallenge.count()).toBe(0);
-    const u = await prisma.user.findUniqueOrThrow({ where: { email: EMAIL } });
-    expect(u.pwResetCodeHash).not.toBeNull(); // eski kolon yazıldı
-  }, 60_000);
+  // ── FAZ 3 (08-09): "BAYRAK KAPALI" TESTİ KALDIRILDI ──────────────────────
+  // O test bayrak kapalıyken ESKİ kod yolunun çalıştığını asserte ediyordu
+  // (`pwResetCodeHash` dolar). Faz 3 o yolu kaldırdı, yani test artık var
+  // olmayan bir davranışı pinliyordu. Yerine geçen sözleşme — bayrağın hiçbir
+  // etkisi kalmadığı ve eski yolun geri gelemediği — üç env değeriyle birlikte
+  // `forgot-password-phase3-contract.test.ts` içinde pinleniyor.
 });

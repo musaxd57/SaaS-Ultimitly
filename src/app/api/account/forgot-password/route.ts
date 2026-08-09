@@ -1,6 +1,6 @@
 import { type NextRequest } from "next/server";
 import { prisma } from "@/lib/db";
-import { hashPassword, verifyPassword, dummyVerifyPassword } from "@/lib/auth/password";
+import { hashPassword } from "@/lib/auth/password";
 import { badRequest, jsonOk, serverError, tooManyRequests, parseJsonBody, payloadTooLarge } from "@/lib/api";
 import { rateLimit, clientIp } from "@/lib/rate-limit";
 import { writeAudit } from "@/lib/audit";
@@ -9,88 +9,57 @@ import {
   verifyChallenge,
   consumeChallengeAndResetPassword,
 } from "@/lib/auth/password-reset-challenge";
-import { emailService } from "@/lib/email";
-import { reportError } from "@/lib/report-error";
 import { isValidEmailShape, normalizeEmail } from "@/lib/email-identity";
-import {
-  emailOutboxEnabled,
-  enqueueIdentityEmail,
-  kickEmailOutboxDrain,
-  resetCodeEmailHtml,
-} from "@/lib/email-outbox";
+import { enqueueIdentityEmail, kickEmailOutboxDrain } from "@/lib/email-outbox";
 
 // ---------------------------------------------------------------------------
-// PUBLIC "forgot my password" RESET (logged OUT). Mirrors the logged-in
-// account/password code flow but keyed on EMAIL and hardened against
-// account-enumeration. Uses separate pwResetCode* columns so a public reset
-// request can never burn/overwrite a code the user is mid-using in Settings.
+// PUBLIC "forgot my password" RESET (logged OUT). Enumeration-hardened.
 //
 //   POST { action: "request", email }                    → ALWAYS 200 (mails a
-//                                                            code only if the
-//                                                            account exists)
-//   POST { action: "confirm", email, code, newPassword } → verify → set password
+//                                                            challenge only if
+//                                                            the account exists)
+//   POST { action: "confirm", token, code, newPassword } → verify → set password
+//
+// 🚩 FAZ 3 (08-09): ESKİ `pwResetCode*` KOD YOLU KALDIRILDI. Tek yol artık
+// `PasswordResetChallenge`: deneme bütçesi HESABA değil SATIRA ait ve satırın
+// tek adresleme yolu `tokenHash` → token'ı bilmeyen satırı bulamaz, denemesini
+// harcayamaz. (Kaldırılan yolda bütçe e-postaya bağlıydı ve saldırgan kurbanın
+// adresiyle 5 yanlış deneme yapıp canlı kodu yakabiliyordu.)
+//
+// Kaldırma ÖNCESİ iki kapı geçildi (Codex, fail-closed):
+//   1) TAZE prod smoke: 2026-08-09 09:48 TR, `AuditLog.account.password_reset`
+//      → `via = "challenge"` (son üç kayıt da challenge).
+//   2) `EmailOutbox` where kind='pw_reset_code' → yalnız terminal `sent = 2`;
+//      pending/claimed/sending = 0, yani uçuşta eski kod YOK.
+// Eski kodların TTL'i 10 dakikaydı ve bayrak 08-05'ten beri açık olduğu için
+// yeni eski-kod ÜRETİLEMİYORDU (istek yolu challenge bloğunda `return` ediyordu).
+//
+// ⚠️ GERİ ALMA ARTIK ENV DEĞİL: bu turdan önce geri dönüş `PASSWORD_RESET_
+// CHALLENGE_ENABLED`i silmekti (sıfır kod). Şimdi geri dönüş bu commit'i
+// revert etmektir. Bayrak artık HİÇBİR YERDE OKUNMUYOR — Railway'den silinmesi
+// davranışı değiştirmez, ama deploy ACTIVE olup smoke test geçmeden silinmemeli.
 // ---------------------------------------------------------------------------
 
-const CODE_TTL_MS = 10 * 60_000; // 10 minutes (ESKİ akış — Faz 3'te kalkacak)
-
 /**
- * CHALLENGE BAYRAĞI — kod varsayılanı KAPALI, **RAILWAY'DE AÇIK** (Faz 2,
- * 08-05'te canlıda uçtan uca doğrulandı). Kod varsayılanının kapalı kalması
- * bilinçlidir: geri alma yolu "env'i sil + redeploy"dır, kod değişikliği değil.
+ * 🚨 BU FONKSİYON "ESKİ AKIŞIN PARÇASI" DEĞİL — ZAMANLAMA PARİTESİ TAŞIYOR.
  *
- * Kapalıyken: davranış BİREBİR eski akış. `issueChallenge` HİÇ çağrılmaz (tek
- * çağrı yeri aşağıdaki bayrak bloğunun içindedir) → challenge satırı OLUŞMAZ,
- * dolayısıyla token da oluşamaz ve confirm'ün token'lı dalı ERİŞİLEMEZ kalır.
- * ⚠️ Bu yorum bir dönem "kapalıyken de çift yazma yapılır" diyordu; Faz 1'in
- * çift-yazma aşaması geride kaldığı için o cümle YANLIŞLAŞMIŞTI (08-09'da
- * düzeltildi). Pratik sonucu: `AuditLog`'da `via:"challenge"` taşıyan bir satır,
- * yazıldığı anda bayrağın AÇIK olduğunun KANITIDIR — kapalıyken üretilemez.
- * Açıkken: e-posta bağlantı taşır, confirm token'lı yolu kabul eder; ESKİ kod
- * yolu uçuştaki kodlar için ÇALIŞMAYA DEVAM EDER (geçiş penceresi ≥ eski TTL).
+ * Tek çağrı yeri, `request` yolunun BİLİNMEYEN E-POSTA dalıdır: orada bilinen
+ * dalın bcrypt maliyetini taklit etmek için `hashPassword(verificationCode())`
+ * koşulur. Faz 3'te "8 haneli kod üreteci, eski yolla gider" diye silinirse
+ * bilinmeyen dal ölçülebilir biçimde HIZLANIR ve dosyanın geri kalanının kurduğu
+ * enumeration korumaları (sabit 200, genel hata metni, hız limiti) tek bir yan
+ * kanalla delinir — 08-06'da `confirm` tarafında ölçülen 362 ms'lik oracle'ın
+ * aynısı. Üretilen değer HİÇBİR YERE YAZILMAZ; yalnız hash'lenip atılır.
+ * Pin: `tests/integration/forgot-password-timing-parity.test.ts`.
  */
-function challengeFlowEnabled(): boolean {
-  return process.env.PASSWORD_RESET_CHALLENGE_ENABLED === "1";
-}
-const MAX_CODE_ATTEMPTS = 5;
-
-/** Crypto-strong 8-digit code (10^8 space) — the primary barrier, like the
- *  logged-in flow. */
 function verificationCode(): string {
   const n = crypto.getRandomValues(new Uint32Array(1))[0] % 100_000_000;
   return String(n).padStart(8, "0");
 }
 
-// The e-mail template lives in email-outbox.ts (resetCodeEmailHtml) — ONE
-// source for both the outbox worker and this route's legacy synchronous path,
-// so the two can never drift apart.
-
-// Same generic message whether the email is unknown, the code is wrong, expired,
-// superseded by a newer code, or exhausted — the response never reveals which
-// (nor whether an account exists). Wording matches the on-screen CTA
-// ("Kodu tekrar gönder") and stays deliberately soft/cause-free.
-/**
- * BAŞARISIZ bir "confirm" denemesini sonuçlandır: hesap kovasını TÜKET, tavan
- * aşıldıysa 429, aksi hâlde her zamanki GENEL hata.
- *
- * ⚠️ Kova yalnız BURADAN tüketilir — yani doğru kod ondan hiç etkilenmez ve
- * saldırgan başarısız isteklerle kurbanın sıfırlamasını engelleyemez (Codex,
- * 08-01 — §4g(a); giriş rotasındaki desenin aynısı).
- *
- * ⚠️ BİLİNMEYEN e-posta da tüketir: aksi hâlde sayacın varlığı hesabın VARLIĞINI
- * sızdırırdı. Dönen gövde her hâlde aynı (`GENERIC_CONFIRM`), 429 da her iki
- * durumda ulaşılabilir → enumeration koruması korunur.
- *
- * ⚠️ Kod-BAŞINA deneme tavanı (`MAX_CODE_ATTEMPTS`) AYRI ve DEĞİŞMEDİ: 8 haneli
- * kodun kaba kuvvetini durduran şey odur. Kurban tükenmiş bir kodun yerine
- * YENİSİNİ isteyebilir (istek yolunun kendi kovası ayrıdır) — kova ise fresh bir
- * kodun İLK denemesini bile engelliyordu, kurtuluşu olmayan tek yol buydu.
- */
-async function failConfirm(email: string) {
-  const limit = await rateLimit(`forgot-confirm:${email}`, 8, 10 * 60_000);
-  if (!limit.ok) return tooManyRequests(limit.retryAfter);
-  return badRequest({ code: GENERIC_CONFIRM });
-}
-
+// Same generic message whether the token is missing, unknown, expired, out of
+// budget, or the code is wrong — the response never reveals which (nor whether
+// an account exists). Wording matches the on-screen CTA ("Kodu tekrar gönder").
 const GENERIC_CONFIRM =
   "Bu kod artık kullanılamıyor. Süresi dolmuş veya daha yeni bir kod oluşturulmuş olabilir. “Kodu tekrar gönder” ile yeni bir kod isteyin.";
 
@@ -106,9 +75,7 @@ export async function POST(req: NextRequest) {
     const action = typeof data?.action === "string" ? data.action : "";
     const email = typeof data?.email === "string" ? normalizeEmail(data.email) : "";
 
-    // ── Challenge token'ı (e-postadaki bağlantıdan; istemci onu URL FRAGMENT'inden
-    // okur, ↓`forgot-password-form.tsx`) ────────────────────────────────────────
-    //
+    // ── E-POSTA YALNIZ `request` İÇİN ZORUNLUDUR (Faz 3) ───────────────────
     // Token'lı confirm E-POSTA İSTEMEZ: challenge'ı token adresler ve o yolda
     // e-posta hiçbir yerde KULLANILMAZ — challenge ile eşleştirilmez, hız-limiti
     // kovasının anahtarı değildir, denetim kaydına verdict'ten gelen kimlik yazılır.
@@ -119,9 +86,12 @@ export async function POST(req: NextRequest) {
     // ⚠️ Uyuşmayan bir e-posta gönderilirse REDDEDİLMEZ, yok sayılır: reddetmek,
     // token'ı ele geçirmiş birine "bu token hangi adrese ait?" sorusunu deneme
     // yanılmayla yanıtlatan bir oracle açardı.
-    const rawToken =
-      action === "confirm" && typeof data?.token === "string" ? data.token.trim() : "";
-    if (!rawToken && (!email || !isValidEmailShape(email))) {
+    //
+    // ⚠️ Bu kontrol eskiden `if (!rawToken && …)` ile TÜM action'lara uygulanıyordu;
+    // artık YALNIZ `request`e ait. Sebep: token'sız bir confirm'ün adresi geçerli
+    // olsa da olmasa da AYNI cevabı alması gerekiyor (↓confirm dalı), yoksa yanıt
+    // şekli isteğin hangi dala düştüğünü sızdırırdı.
+    if (action === "request" && (!email || !isValidEmailShape(email))) {
       return badRequest({ email: "Geçerli bir e-posta girin." });
     }
 
@@ -137,101 +107,59 @@ export async function POST(req: NextRequest) {
         // Spend a comparable bcrypt cost so the not-found path isn't measurably
         // faster than the real path (removes a cheap timing oracle).
         await hashPassword(verificationCode());
-        // Outbox parity (Tur-4): the known-user path writes one short local
-        // transaction; mirror a comparable no-op write here so the work
-        // profiles stay close. bcrypt remains the dominant cost either way —
-        // absolute constant time is NOT claimed (rate limits stay the first
-        // line of defence).
-        if (emailOutboxEnabled()) {
-          await prisma.user.updateMany({
-            where: { id: "__timing_parity__" },
-            data: { pwResetCodeAttempts: 0 },
-          });
-        }
+        // Outbox parity: the known-user path writes one short local transaction;
+        // mirror a comparable no-op write here so the work profiles stay close.
+        // bcrypt remains the dominant cost either way — absolute constant time
+        // is NOT claimed (rate limits stay the first line of defence).
+        // ⚠️ KOŞULSUZ (Faz 3). Eskiden `if (emailOutboxEnabled())` ile kapılıydı,
+        // çünkü o zaman satır yazan taraf da bayrağa bağlıydı. Challenge yolu
+        // enqueue'yu ARTIK KOŞULSUZ yapıyor → paritenin de koşulsuz olması
+        // gerekiyor; bayrak kapalıyken bilinen dal yazıp bilinmeyen dal
+        // yazmasaydı fark tam da kapatmaya çalıştığımız yan kanal olurdu.
+        await prisma.user.updateMany({
+          where: { id: "__timing_parity__" },
+          data: { pwResetCodeAttempts: 0 },
+        });
         return jsonOk({ ok: true });
       }
 
-      // ── FAZ 1: CHALLENGE YOLU (bayrak AÇIKKEN) ──────────────────────────
-      // Bayrak KAPALIYKEN bu blok hiç çalışmaz → üretim davranışı BİREBİR eskisi.
+      // ── CHALLENGE YOLU — Faz 3'ten beri TEK YOL, bayraksız ────────────────
       //
       // ⚠️ ÖNCEKİ CANLI CHALLENGE'LAR İPTAL EDİLMEZ: saldırganın yeni istekler
       // göndererek kurbanın ELİNDEKİ geçerli challenge'ı düşürmesini engelleyen
       // şey budur (kullanıcı kararı, 08-02). Canlı satır sayısı "sınırsız"
       // değildir — `forgot-req` kovası (4/15 dk) ve TTL (30 dk) doğal tavandır.
-      if (challengeFlowEnabled()) {
-        const issued = await issueChallenge(prisma, user.id);
-        // ⚠️ Token VE kod yalnız e-postaya gider. Yanıta, log'a, AuditLog'a ya da
-        // Sentry'ye ASLA girmez — bileşik sır şifreli outbox payload'ında taşınır.
-        await prisma.$transaction(async (tx) => {
-          await enqueueIdentityEmail(tx, {
-            userId: user.id,
-            kind: "pw_reset_challenge",
-            secret: `${issued.token}.${issued.code}`,
-            recipient: email,
-            expiresAt: issued.expiresAt,
-          });
+      const issued = await issueChallenge(prisma, user.id);
+      // ⚠️ Token VE kod yalnız e-postaya gider. Yanıta, log'a, AuditLog'a ya da
+      // Sentry'ye ASLA girmez — bileşik sır şifreli outbox payload'ında taşınır.
+      await prisma.$transaction(async (tx) => {
+        await enqueueIdentityEmail(tx, {
+          userId: user.id,
+          kind: "pw_reset_challenge",
+          secret: `${issued.token}.${issued.code}`,
+          recipient: email,
+          expiresAt: issued.expiresAt,
         });
-        kickEmailOutboxDrain();
-        return jsonOk({ ok: true });
-      }
-
-      const code = verificationCode();
-      const codeHash = await hashPassword(code);
-      const expiresAt = new Date(Date.now() + CODE_TTL_MS);
-
-      // ── Durable outbox (Tur-4, flag ON): hash + send-intent in ONE
-      // transaction, NO provider call on the request path (the synchronous
-      // network leg was the forgot-password timing oracle — and a provider
-      // outage used to silently burn the code). Delivery is owned by the 15s
-      // poller / 2-min cron; the kick below only shortens the wait and can
-      // never produce an unhandled rejection. ──
-      if (emailOutboxEnabled()) {
-        await prisma.$transaction(async (tx) => {
-          await tx.user.update({
-            where: { id: user.id },
-            data: { pwResetCodeHash: codeHash, pwResetCodeExpiresAt: expiresAt, pwResetCodeAttempts: 0 },
-          });
-          await enqueueIdentityEmail(tx, {
-            userId: user.id,
-            kind: "pw_reset_code",
-            secret: code,
-            recipient: email,
-            expiresAt,
-          });
-        });
-        kickEmailOutboxDrain();
-        return jsonOk({ ok: true });
-      }
-
-      // Legacy synchronous path (flag OFF) — unchanged behaviour.
-      await prisma.user.update({
-        where: { id: user.id },
-        data: {
-          pwResetCodeHash: codeHash,
-          pwResetCodeExpiresAt: expiresAt,
-          pwResetCodeAttempts: 0,
-        },
       });
-      const sent = await emailService.sendReporting(
-        email,
-        "Lixus AI — Şifre sıfırlama kodu",
-        resetCodeEmailHtml(code),
-      );
-      if (!sent.ok) {
-        // Couldn't deliver → don't leave a dangling code. Stay generic (no
-        // different error shape that would leak existence), but page ops (redacted —
-        // never the recipient/reset code) so a mail outage isn't silently swallowed.
-        await prisma.user.update({
-          where: { id: user.id },
-          data: { pwResetCodeHash: null, pwResetCodeExpiresAt: null },
-        });
-        void reportError("account.forgot_password", new Error(sent.error ?? "email send failed"));
-      }
+      kickEmailOutboxDrain();
       return jsonOk({ ok: true });
     }
 
     // STEP 2 — confirm the code, then set the new password. Generic errors only.
     if (action === "confirm") {
+      // 🚨 TOKEN ŞART — ve kontrol HER ŞEYDEN ÖNCE (Faz 3, Codex kısıtı).
+      // Eski kod yolu kalktığı için token'sız bir confirm'ün gidebileceği yer
+      // YOK. Cevap DEĞİŞMEDEN kalır: aynı `GENERIC_CONFIRM`, aynı 400, aynı
+      // alan adı (`code`) — yani "token yok", "token bilinmiyor", "süresi
+      // dolmuş", "bütçe bitti" ve "kod yanlış" dışarıdan AYIRT EDİLEMEZ.
+      // ⚠️ Kontrolün şifre/kod ŞEKİL doğrulamalarından ÖNCE olması bilinçli:
+      // sonra gelseydi token'sız bir istek `{newPassword: "…en az 8…"}` gibi
+      // FARKLI bir gövde alabilir ve yanıt şekli, isteğin hangi dala düştüğünü
+      // sızdırırdı. Önce olunca token'sız yol TEK bir cevaba çöker ve HİÇBİR
+      // DB işi yapılmaz.
+      const rawToken = typeof data?.token === "string" ? data.token.trim() : "";
+      if (!rawToken) return badRequest({ code: GENERIC_CONFIRM });
+
       const code = typeof data?.code === "string" ? data.code.trim() : "";
       const newPassword = typeof data?.newPassword === "string" ? data.newPassword.trim() : "";
       if (newPassword.length < 8) {
@@ -249,15 +177,12 @@ export async function POST(req: NextRequest) {
         return badRequest({ code: "8 haneli doğrulama kodunu girin." });
       }
 
-      // ── FAZ 1: TOKEN'LI YOL ─────────────────────────────────────────────
-      // Gövdede `token` VARSA challenge yolu; YOKSA eski kod yolu (aşağıda).
-      // Bu ayrım geçiş penceresinin tamamıdır: bayrak açıldıktan sonra bile
-      // UÇUŞTAKİ eski kodlar (TTL 10 dk) çalışmaya DEVAM eder.
-      //
-      // ⚠️ Bu yolda `forgot-confirm:{email}` kovası HİÇ kullanılmaz — bütçe
-      // challenge satırındadır ve token'ı bilmeyen onu adresleyemez. Kovayı
-      // burada da çalıştırmak, tasarımın kapattığı deliği yeniden açardı.
-      if (rawToken) {
+      // ── TOKEN'LI YOL — Faz 3'ten beri TEK YOL ───────────────────────────
+      // ⚠️ Burada `forgot-confirm:{email}` gibi bir HESAP kovası YOK ve
+      // OLMAYACAK — bütçe challenge SATIRINDA yaşıyor ve satırı yalnız token
+      // adresleyebiliyor. Hesaba bağlı bir kova, m47'nin kapattığı deliği
+      // (saldırgan kurbanın adresiyle bütçeyi yakar) yeniden açardı.
+      {
         const verdict = await verifyChallenge(rawToken, code);
         if (!verdict.ok) {
           // Tüm başarısızlıklar AYNI genel hatayı alır: "token yok", "süresi
@@ -286,100 +211,6 @@ export async function POST(req: NextRequest) {
         });
         return jsonOk({ ok: true });
       }
-
-      // ⚠️ HESAP KOVASI BURADA DEĞİL, KOD DOĞRULANDIKTAN SONRA (Codex, 08-01 —
-      // §4g(a); giriş rotasındaki düzeltmenin BİREBİR aynısı).
-      //
-      // Kovayı burada KAPI olarak kullanmak, kaba kuvvet korumasını bir HİZMET
-      // ENGELLEME silahına çeviriyordu: saldırgan kurbanın e-postasına 8 uydurma
-      // confirm atıp kovayı doldurur (kurbanın kod istemesini bile beklemez),
-      // kurban sonra DOĞRU kodunu girse bile 429 alır ve şifresini sıfırlayamaz.
-      // 10 dakikada bir tekrarlanarak SÜRESİZ sürdürülebilirdi.
-      //
-      // Yeni sözleşme: DOĞRU kod kovadan HİÇ etkilenmez; kova YALNIZCA başarısız
-      // denemeleri sınırlar (↓`failConfirm`). IP kovası (yukarıda) değişmedi.
-      // Atomically CLAIM one guess slot — only succeeds if a live, unexpired code
-      // exists AND attempts are under the cap. Single conditional updateMany
-      // closes the read-then-act race and caps guesses per code.
-      const claim = await prisma.user.updateMany({
-        where: {
-          email,
-          pwResetCodeHash: { not: null },
-          pwResetCodeExpiresAt: { gt: new Date() },
-          pwResetCodeAttempts: { lt: MAX_CODE_ATTEMPTS },
-        },
-        data: { pwResetCodeAttempts: { increment: 1 } },
-      });
-      if (claim.count === 0) {
-        // No live code (or unknown email) → burn any stale code, parity-cost, and
-        // return the SAME generic error as a wrong code.
-        await prisma.user.updateMany({
-          where: { email },
-          data: { pwResetCodeHash: null, pwResetCodeExpiresAt: null },
-        });
-        // 🚨 ZAMAN PARİTESİ — `dummyVerifyPassword` ŞART (e-posta boru hattı
-        // denetimi, 08-06; ÖLÇÜLDÜ). Burada eskiden `verifyPassword(code, await
-        // hashPassword(code))` vardı: bcrypt HASH + bcrypt COMPARE = İKİ işlem,
-        // oysa "yanlış kod" dalı (↓) yalnız BİR compare koşuyor.
-        //   bilinmeyen e-posta : 713 ms      (hash+compare)
-        //   yanlış kod         : 351 ms      (yalnız compare)
-        //   dummyVerifyPassword: 350 ms      ← eşleşiyor
-        // 362 ms'lik fark ağ üzerinden önemsizce ölçülür: saldırgan önce
-        // `action:"request"` ile (her zaman 200 döner) gerçek bir hesapta canlı
-        // kod oluşturur, sonra `confirm`'ün süresine bakarak hesabın VAR OLUP
-        // OLMADIĞINI öğrenir — dosyanın geri kalanının kurduğu tüm enumeration
-        // korumalarını (genel hata metni, sabit 200, hız limiti) delen bir kanal.
-        // Yorum "parity-cost" diyordu ama maliyet TERSİNE dengesizdi.
-        await dummyVerifyPassword(code);
-        return failConfirm(email);
-      }
-
-      const user = await prisma.user.findUnique({
-        where: { email },
-        select: { id: true, organizationId: true, pwResetCodeHash: true },
-      });
-      const codeHash = user?.pwResetCodeHash ?? null;
-      if (!user || !codeHash || !(await verifyPassword(code, codeHash))) {
-        return failConfirm(email);
-      }
-
-      // Code valid → CONSUME + set password in ONE conditional write (Codex P1,
-      // logged-in flow ile aynı desen): WHERE doğruladığımız hash'i pinler; aynı
-      // kodla yarışan iki confirm'den yalnız İLKİ eşleşir, ikincisi count=0 alır.
-      const passwordHash = await hashPassword(newPassword);
-      const consumed = await prisma.user.updateMany({
-        where: { id: user.id, pwResetCodeHash: codeHash },
-        data: {
-          passwordHash,
-          pwResetCodeHash: null,
-          pwResetCodeExpiresAt: null,
-          pwResetCodeAttempts: 0,
-          // Kill every live session: a stolen token carries the old epoch, so it
-          // stops matching the moment the reset completes (the core reason a user
-          // resets a password they fear is compromised).
-          sessionEpoch: { increment: 1 },
-          // 🚨 CANLI E-POSTA DOĞRULAMA TOKEN'I DA ÖLÜR (08-06).
-          // `sessionEpoch` artışı bu token'ı ÖLDÜRMEZ: doğrulama rotası oturumu
-          // TAZE epoch'la basar, yani sıfırlama link sahibini ATMAZDI. Senaryo:
-          // doğrulama bağlantısı sızar (iletilen mail / paylaşılan kutu / eski
-          // cihaz), sahibi doğru tepkiyi verip parolasını sıfırlar — ve link
-          // hâlâ çalışır. Üstelik hesap doğrulanmadığı için MEŞRU sahip yeni
-          // parolasıyla bile giremez (login'de 403), yani sıfırlamadan sonra
-          // içeri giren ilk taraf link sahibi olurdu.
-          emailVerifyTokenHash: null,
-          emailVerifyExpiresAt: null,
-        },
-      });
-      if (consumed.count === 0) {
-        return badRequest({ code: GENERIC_CONFIRM });
-      }
-      await writeAudit({
-        organizationId: user.organizationId,
-        actorUserId: user.id,
-        action: "account.password_reset",
-        metadata: { via: "email_code", ip: clientIp(req) },
-      });
-      return jsonOk({ ok: true });
     }
 
     return badRequest({ _: "Geçersiz işlem." });

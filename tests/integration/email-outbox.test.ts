@@ -31,15 +31,21 @@ async function makeUser(email = "u@x.com") {
 }
 
 /** Enqueue inside a TX that ALSO writes the matching User hash — the exact
- *  contract the routes use (hash + row share one commit). */
+ *  contract the routes use (hash + row share one commit).
+ *
+ *  ⚠️ FAZ 3 (08-09): fixture `pw_reset_code` kullanıyordu; o tür kaldırılınca
+ *  `pw_change_code`'a taşındı ve YAZILAN HASH KOLONU DA taşınmak ZORUNDAYDI.
+ *  İlk denememde yalnız `kind`i değiştirmiştim: `hashLive` `pwChangeCodeHash`e
+ *  bakıyor, o NULL kalıyor, satır "bayat" sayılıp İPTAL ediliyor ve dosyadaki
+ *  13 test birden kırmızıya dönüyordu. Tür ile canlılık kolonu ÇİFTTİR. */
 async function enqueueReset(userId: string, secret: string, recipient: string, ttlMs = 10 * 60_000) {
   const expiresAt = new Date(Date.now() + ttlMs);
   return prisma.$transaction(async (tx) => {
     await tx.user.update({
       where: { id: userId },
-      data: { pwResetCodeHash: `hash-of-${secret}`, pwResetCodeExpiresAt: expiresAt, pwResetCodeAttempts: 0 },
+      data: { pwChangeCodeHash: `hash-of-${secret}`, pwChangeCodeExpiresAt: expiresAt, pwChangeCodeAttempts: 0 },
     });
-    return enqueueIdentityEmail(tx, { userId, kind: "pw_reset_code", secret, recipient, expiresAt });
+    return enqueueIdentityEmail(tx, { userId, kind: "pw_change_code", secret, recipient, expiresAt });
   });
 }
 
@@ -75,7 +81,7 @@ describe("email-outbox", () => {
     expect(out.sent).toBe(1);
     expect(send).toHaveBeenCalledTimes(1);
     expect(send.mock.calls[0][0]).toBe(u.email);
-    expect(send.mock.calls[0][1]).toContain("Şifre sıfırlama");
+    expect(send.mock.calls[0][1]).toContain("Şifre değiştirme");
     expect(send.mock.calls[0][2]).toContain("12345678"); // rendered at send time
 
     const done = await prisma.emailOutbox.findFirstOrThrow();
@@ -131,7 +137,7 @@ describe("email-outbox", () => {
   it("LIVENESS: a consumed/cleared User hash cancels the row at the pre-send gate (no send)", async () => {
     const u = await makeUser();
     await enqueueReset(u.id, "12345678", u.email);
-    await prisma.user.update({ where: { id: u.id }, data: { pwResetCodeHash: null, pwResetCodeExpiresAt: null } });
+    await prisma.user.update({ where: { id: u.id }, data: { pwChangeCodeHash: null, pwChangeCodeExpiresAt: null } });
     const send = okSend();
     const out = await drainEmailOutboxOnce({ send });
     expect(send).not.toHaveBeenCalled();
@@ -162,7 +168,7 @@ describe("email-outbox", () => {
       data: {
         id: "00000000-0000-4000-8000-000000000001",
         userId: u.id,
-        kind: "pw_reset_code",
+        kind: "pw_change_code",
         version: 2,
         payloadEnc: donor.payloadEnc,
         expiresAt: new Date(Date.now() + 600_000),
@@ -262,7 +268,10 @@ describe("email-outbox", () => {
     const old = new Date(Date.now() - 8 * 24 * 60 * 60 * 1000);
     const veryOld = new Date(Date.now() - 31 * 24 * 60 * 60 * 1000);
     await prisma.emailOutbox.create({
-      data: { id: "s1", userId: u.id, kind: "pw_reset_code", version: 1, status: "sent", sentAt: old, expiresAt: old },
+      // ⚠️ İKİ SATIR FARKLI TÜR OLMAK ZORUNDA: `@@unique([userId, kind, version])`.
+      // Faz 3'te `pw_reset_code` kaldırılırken bu satırı da körlemesine
+      // `pw_change_code` yapmıştım → iki satır çakıştı ve test P2002 ile patladı.
+      data: { id: "s1", userId: u.id, kind: "verify_email", version: 1, status: "sent", sentAt: old, expiresAt: old },
     });
     await prisma.emailOutbox.create({
       data: { id: "c1", userId: u.id, kind: "pw_change_code", version: 1, status: "canceled", expiresAt: veryOld },
@@ -303,7 +312,13 @@ describe("email-outbox", () => {
     };
     walk("src");
     expect([...hits].sort()).toEqual([
-      "src/app/api/account/forgot-password/route.ts", //  request+confirm (outbox'a bağlı)
+      // ⚠️ `forgot-password/route.ts` FAZ 3'te (08-09) BU LİSTEDEN ÇIKTI ve bu
+      // DOĞRU sinyaldir: eski kod yolu kalktığı için rota artık hiçbir kimlik
+      // hash kolonuna YAZMIYOR. Tek dokunuşu `pwResetCodeAttempts: 0` ve o,
+      // hiçbir satırla eşleşmeyen `__timing_parity__` id'sine yapılan no-op —
+      // bir hash ÜRETMEZ, dolayısıyla outbox'a bağlanacak gönderim yolu da yok.
+      // Rota geri eklenirse bu liste kırmızı verir ve "outbox'a bağladın mı?"
+      // sorusu yeniden sorulur; testin var olma sebebi tam olarak budur.
       "src/app/api/account/password/route.ts", //         request+confirm (outbox'a bağlı)
       "src/app/api/auth/register/route.ts", //            kayıt (outbox'a bağlı)
       "src/app/api/auth/resend-verification/route.ts", // yeniden gönder (outbox'a bağlı)

@@ -55,13 +55,18 @@ import { verifyUrl, verifyEmailHtml, appBaseUrl } from "@/lib/auth/email-verify"
 
 export type EmailOutboxKind =
   | "verify_email"
-  | "pw_reset_code"
   | "pw_change_code"
   | "pw_reset_challenge"
   | "account_exists";
 const KINDS: ReadonlySet<string> = new Set([
   "verify_email",
-  "pw_reset_code",
+  // ⚠️ `pw_reset_code` FAZ 3'te (08-09) KALDIRILDI — eski sıfırlama kod yolu
+  // tamamen çıktı. Kaldırma öncesi prod'da ölçüldü: kind='pw_reset_code' satırları
+  // yalnız terminal `sent=2`, pending/claimed/sending=0 (uçuşta iş yoktu).
+  // 🚨 GERİ EKLEME: `hashLive`ın son ternary dalı bir CATCH-ALL'dur
+  // (`pwChangeCodeHash`), yani tanımadığı bir tür oraya SESSİZCE düşer ve satır
+  // iptal edilir. Yeni tür eklenecekse dört listeye BİRDEN eklenir
+  // (`tests/unit/email-outbox-kind-parity.test.ts` bunu zorlar).
   "pw_change_code",
   // ⚠️ YENİ (Faz 1): challenge tabanlı sıfırlama. İKİ sır taşır (token + kod) ve
   // canlılığı `User` satırında DEĞİL, `PasswordResetChallenge` satırında yaşar.
@@ -238,14 +243,11 @@ export function resetChallengeEmailHtml(url: string, code: string): string {
   });
 }
 
-export function resetCodeEmailHtml(code: string): string {
-  return identityEmailShell({
-    heading: "Şifre sıfırlama kodu",
-    intro: "Şifrenizi sıfırlamak için doğrulama kodunuz:",
-    code,
-    footnote: CODE_FOOTNOTE,
-  });
-}
+// ⚠️ `resetCodeEmailHtml` FAZ 3'te (08-09) KALDIRILDI: linksiz "yalnız kod"
+// sıfırlama e-postası artık üretilmiyor. Sıfırlamanın TEK şablonu yukarıdaki
+// `resetChallengeEmailHtml` (bağlantı + kod + 30 dk). Kardeşi
+// `changeCodeEmailHtml` DURUYOR — o oturum-içi şifre değiştirme akışına ait ve
+// hâlâ linksiz kod gönderiyor; ikisini karıştırma.
 
 export function changeCodeEmailHtml(code: string): string {
   return identityEmailShell({
@@ -315,8 +317,6 @@ function renderIdentityEmail(
         subject: "Lixus AI — E-postanızı doğrulayın",
         html: verifyEmailHtml(userName, verifyUrl(secret)),
       };
-    case "pw_reset_code":
-      return { subject: "Lixus AI — Şifre sıfırlama kodu", html: resetCodeEmailHtml(secret) };
     case "pw_reset_challenge": {
       // ⚠️ BİLEŞİK SIR: "{token}.{code}". Outbox'ın tek-`secret` sözleşmesi
       // korunur (şifreli payload, tek alan); ayırma YALNIZ burada, render anında
@@ -350,8 +350,6 @@ interface LivenessRow {
   email: string;
   emailVerifyTokenHash: string | null;
   emailVerifyExpiresAt: Date | null;
-  pwResetCodeHash: string | null;
-  pwResetCodeExpiresAt: Date | null;
   pwChangeCodeHash: string | null;
   pwChangeCodeExpiresAt: Date | null;
 }
@@ -371,9 +369,7 @@ function hashLive(user: LivenessRow, kind: EmailOutboxKind, now: Date): boolean 
   const [hash, exp] =
     kind === "verify_email"
       ? [user.emailVerifyTokenHash, user.emailVerifyExpiresAt]
-      : kind === "pw_reset_code"
-        ? [user.pwResetCodeHash, user.pwResetCodeExpiresAt]
-        : [user.pwChangeCodeHash, user.pwChangeCodeExpiresAt];
+      : [user.pwChangeCodeHash, user.pwChangeCodeExpiresAt];
   if (hash == null) return false;
   if (exp != null && exp <= now) return false;
   return true;
@@ -384,8 +380,6 @@ const LIVENESS_SELECT = {
   email: true,
   emailVerifyTokenHash: true,
   emailVerifyExpiresAt: true,
-  pwResetCodeHash: true,
-  pwResetCodeExpiresAt: true,
   pwChangeCodeHash: true,
   pwChangeCodeExpiresAt: true,
 } as const;

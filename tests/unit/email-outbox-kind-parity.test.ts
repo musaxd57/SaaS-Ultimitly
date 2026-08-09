@@ -82,7 +82,6 @@ describe("EmailOutboxKind — dört listenin paritesi", () => {
       "account_exists",
       "pw_change_code",
       "pw_reset_challenge",
-      "pw_reset_code",
       "verify_email",
     ]);
   });
