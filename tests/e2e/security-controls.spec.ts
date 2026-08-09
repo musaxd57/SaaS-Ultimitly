@@ -55,10 +55,28 @@ test("token taşıyan sayfalarda Referrer-Policy: no-referrer (son eşleşen kaz
 });
 
 test("e-posta doğrulama GET DEĞİL POST (ön-ısıtma tek-kullanımlık token'ı yakmasın)", async ({ request }) => {
-  // GET geri gelirse e-posta güvenlik tarayıcılarının ön-ısıtma isteği token'ı
-  // tüketir ve kullanıcının kendi tıklaması "süresi dolmuş" alır. Ayrıca token
-  // istek satırına geri döner (log'lar/vekiller görür).
-  expect((await request.get("/api/auth/verify-email?token=x")).status()).toBe(405);
+  // GET'e YAN ETKİ bağlanırsa e-posta güvenlik tarayıcılarının ön-ısıtma isteği
+  // token'ı tüketir ve kullanıcının kendi tıklaması "süresi dolmuş" alır.
+  //
+  // ⚠️ BU PİN 08-09'da DEĞİŞTİ ve GEVŞEMEDİ. Eskiden `405` bekliyordu, yani
+  // "GET handler'ı HİÇ YOK" diye ölçüyordu — bu, korunan değişmezin (yan etki
+  // yok) bir VEKİLİYDİ, kendisi değil. 08-05 öncesi gönderilmiş her doğrulama
+  // e-postası hâlâ `GET /api/auth/verify-email?token=…` adresine işaret ettiği
+  // için 405 tarayıcıda ÇIPLAK "Bu sayfa çalışmıyor" veriyordu (kullanıcı
+  // canlıda gördü). Artık YAN ETKİSİZ bir GET o bağlantıları kurtarıyor.
+  // Pin, vekil yerine değişmezin KENDİSİNİ ölçüyor:
+  const get = await request.get("/api/auth/verify-email?token=x", { maxRedirects: 0 });
+  // (1) İŞLEM YAPMIYOR, yönlendiriyor. 200 dönerse token bir yerde işlenmiş
+  //     demektir — o an bu satır kırmızı olur.
+  expect(get.status()).toBe(302);
+  const location = get.headers()["location"] ?? "";
+  // (2) Token FRAGMENT'e taşınıyor, query'de BIRAKILMIYOR: sonraki hop'ta istek
+  //     satırında token yok (Railway edge log'u / vekiller / ön-ısıtma).
+  expect(location).toContain("/e-posta-dogrula#t=x");
+  expect(new URL(location, "http://localhost").search).toBe("");
+  // (3) OTURUM BASMIYOR. Bu token TEK BAŞINA oturum açabildiği için en kritik
+  //     iddia bu: ön-ısıtma isteği asla giriş yapmış olmamalı.
+  expect(get.headers()["set-cookie"]).toBeUndefined();
 
   const res = await request.post("/api/auth/verify-email", {
     headers: { "content-type": "application/json" },
