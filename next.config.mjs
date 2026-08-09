@@ -85,6 +85,14 @@ const nextConfig = {
       "font-src 'self' data:",
       "connect-src 'self' https://*.paddle.com",
       "frame-src 'self' https:",
+      // 🚨 YALNIZ REPORT-ONLY POLITIKAYA (P1 #6, 08-09 (2)). Enforce basligina
+      // EKLENMEZ: enforce politikasi bugun zaten sikca ihlal edilmiyor ve rapor
+      // ucunu enforce'a baglamak olcumu degil, gurultuyu artirir. Rapor ucu
+      // kimliksizdir; korumalari (govde tavani, Content-Type, hiz limiti,
+      // yapisal alan secimi, log enjeksiyonu) rotanin kendi basliginda yazili.
+      // ⚠️ Bu satir CSP'yi ENFORCE ETMEZ ve etmemeli: nonce altyapisi olmadan
+      // script-src enforce paneli komple kirar (CLAUDE.md). Once OLCUM.
+      "report-uri /api/csp-report",
     ].join("; ");
     return [
       {

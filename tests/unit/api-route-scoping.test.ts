@@ -42,6 +42,11 @@ const NOT_ORG_SCOPED: Record<string, string> = {
   "cron/email-outbox/route.ts": "public: CRON_SECRET + timingSafeEqual",
   "cron/sync/route.ts": "public: CRON_SECRET + timingSafeEqual",
   "demo/ai/route.ts": "public: kayıtsız landing demosu; env kapılı + IP/gün limitli",
+  "csp-report/route.ts":
+    "public: tarayıcı CSP raporu — kimlik EKLENEMEZ (rapor çerezsiz gelir). " +
+    "Korumalar gövde/hız tarafında: 8KB tavan + Content-Type kapalı kümesi + " +
+    "30/saat IP kovası + İZİN listesiyle alan seçimi + query/fragment atılır + " +
+    "log enjeksiyonu temizliği. Ham rapor SAKLANMAZ, `reportError` KULLANILMAZ.",
   "health/route.ts": "public: readiness; sır döndürmez",
   "leads/route.ts": "public: landing formu; YALNIZ POST (listeleme yok) + 5/saat IP limiti",
   "admin/exit/route.ts": "global: impersonation'dan çıkış — operatörün KENDİ oturumunu geri alır",
