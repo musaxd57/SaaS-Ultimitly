@@ -78,14 +78,14 @@ describe("login → trusted-device wiring", () => {
   });
 
   it("çerez basılırken de AYNI üçlü kullanılır", async () => {
+    // 🚨 KOŞULSUZ İDDİA — burada bir zamanlar `if (setTrusted.mock.calls.length > 0)`
+    // vardı ve o kalıp testi SESSİZCE bozuyordu: yazma yeri hiç çalışmasa (ör.
+    // `login/route.ts`teki koşuldan `rememberDevice` düşse) `else` dalı bir üstteki
+    // testin iddiasını TEKRARLAYIP yeşil kalıyordu. Yani S2'nin YAZMA tarafı
+    // fiilen pinsizdi. "Emin değilim, ihtiyaten sarayım" refleksi tam olarak
+    // boş test üretir; doğrusu koşulu ölçüp iddiayı çıplak bırakmaktır.
     await POST(req({ email: EMAIL, password: PW, code: totp(secret), rememberDevice: true }));
-    // Bazı akışlarda çerez basılmayabilir; basıldıysa argümanlar DOĞRU olmalı.
-    if (setTrusted.mock.calls.length > 0) {
-      expect(setTrusted).toHaveBeenCalledWith(userId, TWO_FA_AT.getTime(), 7);
-    } else {
-      // Basılmadıysa en azından okuma kapısı doğru bağlanmış olmalı (yukarıdaki test).
-      expect(hasTrusted).toHaveBeenCalledWith(userId, TWO_FA_AT.getTime(), 7);
-    }
+    expect(setTrusted).toHaveBeenCalledWith(userId, TWO_FA_AT.getTime(), 7);
   });
 
   it("KONTROL: epoch DEĞİŞİNCE geçirilen değer de değişir (sabit değil)", async () => {

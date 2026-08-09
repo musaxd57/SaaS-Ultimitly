@@ -3,7 +3,10 @@ import { prisma } from "@/lib/db";
 import { requireSession, unauthorized, forbidden, badRequest, jsonOk, serverError, tooManyRequests, readJsonCappedOrNull } from "@/lib/api";
 import { rateLimit } from "@/lib/rate-limit";
 import { encryptSecret, decryptSecret } from "@/lib/crypto";
-import { generateSecret, otpauthUri, verifyTotp, verifyTotpStep } from "@/lib/auth/totp";
+// ⚠️ `verifyTotp` (boole) BİLİNÇLİ OLARAK İMPORT EDİLMİYOR: bu rotadaki üç
+// doğrulama yolu da kodu TÜKETMEK zorunda, o yüzden hepsi `verifyTotpStep` +
+// koşullu `updateMany` kullanır. Geri eklemek yakma adımını atlamayı kolaylaştırır.
+import { generateSecret, otpauthUri, verifyTotpStep } from "@/lib/auth/totp";
 import {
   regenerateRecoveryCodes,
   remainingRecoveryCodes,
@@ -155,20 +158,43 @@ export async function POST(req: NextRequest) {
         select: { twoFactorSecret: true },
       });
       if (!user?.twoFactorSecret) return badRequest({ _: "Önce kurulum başlatın." });
-      const secret = decryptSecret(user.twoFactorSecret);
+      const armedSecret = user.twoFactorSecret;
+      const secret = decryptSecret(armedSecret);
       const step = verifyTotpStep(secret, code);
       if (step === null) return badRequest({ code: "Kod hatalı veya süresi geçmiş." });
-      await prisma.$transaction([
-        prisma.user.update({
-          where: { id: session.userId },
+      // 🚨 KOŞULLU YAZMA — kardeşi `setup` ile aynı desen (denetim, 08-09).
+      // Eskiden bu bir KOŞULSUZ `update` idi ve İKİ arıza üretiyordu:
+      // (1) ZATEN AÇIK bir hesapta çağrılınca `twoFactorEnabledAt`i sessizce
+      //     tazeliyordu — o damga trusted-device epoch'u olduğu için hatırlanan
+      //     TÜM cihazlar düşüyor ve kurtarma kodları siliniyordu;
+      // (2) eşzamanlı `disable` ile yarışınca kurtarılamaz duruma sokuyordu:
+      //     `disable` secret'i null'lar, ardından bu yazma `twoFactorEnabledAt`i
+      //     doldurur → 2FA "açık" ama secret YOK ve kurtarma kodu YOK; giriş her
+      //     kodu reddeder, çıkış yalnız operatörün `admin/reset-2fa`sı.
+      // WHERE hem "henüz açık değil" hem "DOĞRULADIĞIM secret hâlâ yerinde"
+      // koşulunu pinler → yarışın kaybeden bacağı hiçbir şey yazmaz.
+      // ⚠️ ETKİLEŞİMLİ TX ŞART, dizi biçimi DEĞİL: dizi biçiminde `deleteMany`
+      // koşuldan BAĞIMSIZ koşar, yani yarışın KAYBEDEN bacağı KAZANANIN taze
+      // kurtarma kodlarını silerdi. Etkileşimli biçim hem koşulu okuyabiliyor
+      // hem de "kur + bayat kodları sil" ikilisini atomik tutuyor (orijinal
+      // transaction'ın koruduğu değişmez: 2FA asla canlı bayat kodlarla açık
+      // kalmaz).
+      const armedCount = await prisma.$transaction(async (tx) => {
+        const r = await tx.user.updateMany({
+          where: { id: session.userId, twoFactorEnabledAt: null, twoFactorSecret: armedSecret },
           // Record the step so the enabling code can't be replayed at login.
           data: { twoFactorEnabledAt: new Date(), twoFactorLastStep: step },
-        }),
+        });
+        if (r.count === 0) return 0;
         // Defense-in-depth: a FRESH activation starts with ZERO recovery codes.
         // If a past disable's clear step ever failed midway, stale codes must
         // not resurrect as valid second factors under the new secret.
-        prisma.twoFactorRecoveryCode.deleteMany({ where: { userId: session.userId } }),
-      ]);
+        await tx.twoFactorRecoveryCode.deleteMany({ where: { userId: session.userId } });
+        return r.count;
+      });
+      if (armedCount === 0) {
+        return badRequest({ _: "Kurulum durumu değişti. Sayfayı yenileyip kurulumu yeniden başlatın." });
+      }
       await writeAudit({
         organizationId: session.organizationId,
         actorUserId: session.actorUserId ?? session.userId,
@@ -201,7 +227,30 @@ export async function POST(req: NextRequest) {
           reportUnreadableSecret(session.userId);
           return badRequest({ code: SECRET_UNREADABLE_MSG });
         }
-        if (!verifyTotp(secret, code)) {
+        // 🚨 KODU YAK — SADECE DOĞRULAMA YETMEZ (denetim, 08-09). Buradaki eski
+        // `verifyTotp` bir boole döndürüyordu: hiçbir şey okumuyor, hiçbir şey
+        // yazmıyordu. Oysa `login` aynı kodu ATOMİK olarak tüketiyor. Sonuç,
+        // deponun "TOTP replay-korumalı" iddiasının YALNIZ giriş için doğru
+        // olmasıydı: ±1 pencere yüzünden tek bir kod ~89 saniye geçerli kalır ve
+        // o pencerede ele geçirilen bir kod, giriş için kullanıldıktan SONRA
+        // ikinci bir kez BURADA kullanılıp faktörü tamamen kaldırabiliyordu.
+        // Bahis en yüksek olan iki rota (faktörü silme · kalıcı bypass üretme)
+        // korumasızdı. Desen `login/route.ts`den BİREBİR: koşullu `updateMany`,
+        // `count === 0` → kod zaten tüketilmiş → red.
+        const step = verifyTotpStep(secret, code);
+        if (step === null) {
+          return badRequest({ code: "Kapatmak için geçerli bir kod girin." });
+        }
+        const burned = await prisma.user.updateMany({
+          where: {
+            id: session.userId,
+            OR: [{ twoFactorLastStep: null }, { twoFactorLastStep: { lt: step } }],
+          },
+          data: { twoFactorLastStep: step },
+        });
+        // Aynı hata metni: dışarıdan "kod yanlış" ile "kod zaten kullanıldı"
+        // ayırt EDİLEMEZ (giriş rotasının aynı kararı).
+        if (burned.count === 0) {
           return badRequest({ code: "Kapatmak için geçerli bir kod girin." });
         }
       }
@@ -248,7 +297,22 @@ export async function POST(req: NextRequest) {
         reportUnreadableSecret(session.userId);
         return badRequest({ code: SECRET_UNREADABLE_MSG });
       }
-      if (!verifyTotp(secret, code)) {
+      // 🚨 KODU YAK (↑`disable` ile aynı gerekçe, 08-09). Bu rota KALICI bypass
+      // üretiyor: 10 tek-kullanımlık kurtarma kodu, yani ele geçirilen TEK bir
+      // TOTP kodunun karşılığı 10 gelecekteki ikinci-faktör atlaması. Yakma
+      // olmadan aynı kod hem giriş için hem burada kullanılabiliyordu.
+      const step = verifyTotpStep(secret, code);
+      if (step === null) {
+        return badRequest({ code: "Geçerli bir doğrulama kodu girin." });
+      }
+      const burned = await prisma.user.updateMany({
+        where: {
+          id: session.userId,
+          OR: [{ twoFactorLastStep: null }, { twoFactorLastStep: { lt: step } }],
+        },
+        data: { twoFactorLastStep: step },
+      });
+      if (burned.count === 0) {
         return badRequest({ code: "Geçerli bir doğrulama kodu girin." });
       }
       // Regeneration atomically invalidates every previous code.

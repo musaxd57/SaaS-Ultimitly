@@ -236,3 +236,130 @@ describe("POST /api/account/2fa — kurulum yeniden kimlik doğrulama ister", ()
     expect(after.twoFactorEnabledAt).toBeNull();
   });
 });
+
+// ─────────────────────────────────────────────────────────────────────────────
+// TOTP TEK-KULLANIM: yakma ARTIK `login`e ÖZEL DEĞİL (denetim, 08-09)
+//
+// `disable` ve `recovery_codes` eskiden `verifyTotp` kullanıyordu — bir boole;
+// hiçbir şey okumuyor, hiçbir şey yazmıyordu. `login` ise aynı kodu ATOMİK
+// tüketiyor. Yani deponun "TOTP replay-korumalı" iddiası YALNIZ giriş için
+// doğruydu. ±1 pencerede tek bir kod ~89 sn geçerli kalır; o pencerede ele
+// geçirilen bir kod, girişte kullanıldıktan SONRA ikinci kez faktörü SİLMEK ya
+// da 10 kalıcı bypass ÜRETMEK için kullanılabiliyordu — yani bahsin en yüksek
+// olduğu iki rota korumasızdı.
+// ─────────────────────────────────────────────────────────────────────────────
+describe("POST /api/account/2fa — TOTP kodu TEK KULLANIMLIK", () => {
+  const SECRET = "ABCDEFGHIJKLMNOP";
+
+  async function arm() {
+    await prisma.user.update({
+      where: { id: session.userId },
+      data: {
+        twoFactorSecret: encryptSecret(SECRET),
+        twoFactorEnabledAt: new Date(),
+        twoFactorLastStep: null,
+      },
+    });
+  }
+
+  it("recovery_codes: AYNI kod ikinci kez kabul EDİLMEZ", async () => {
+    const { totp } = await import("@/lib/auth/totp");
+    await arm();
+    const code = totp(SECRET);
+
+    const first = await POST(req({ action: "recovery_codes", code }));
+    expect(first.status).toBe(200); // KONTROL: kod gerçekten geçerliydi
+    expect((await first.json()).codes).toHaveLength(10);
+
+    const second = await POST(req({ action: "recovery_codes", code }));
+    expect(second.status).toBe(400);
+    // Metin BİREBİR aynı: "kod yanlış" ile "kod zaten kullanıldı" dışarıdan
+    // ayırt edilemez (giriş rotasının aynı kararı).
+    expect((await second.json()).fields?.code).toContain("Geçerli bir doğrulama kodu");
+    // Kod seti YENİLENMEDİ — ikinci çağrı hiçbir şey üretmedi.
+    expect(await prisma.twoFactorRecoveryCode.count({ where: { userId: session.userId } })).toBe(10);
+  });
+
+  it("disable: kurtarma kodu üretmek için HARCANMIŞ kod faktörü SİLEMEZ", async () => {
+    const { totp } = await import("@/lib/auth/totp");
+    await arm();
+    const code = totp(SECRET);
+
+    // Saldırı senaryosunun ilk yarısı: kod bir kez meşru şekilde kullanılıyor.
+    expect((await POST(req({ action: "recovery_codes", code }))).status).toBe(200);
+
+    // İkinci yarısı: AYNI kodla faktörü kaldırma denemesi.
+    const res = await POST(req({ action: "disable", code }));
+    expect(res.status).toBe(400);
+    const u = await prisma.user.findUniqueOrThrow({ where: { id: session.userId } });
+    expect(u.twoFactorEnabledAt).not.toBeNull(); // 2FA AÇIK KALDI
+    expect(u.twoFactorSecret).not.toBeNull();
+  });
+
+  it("disable: TAZE kod hâlâ çalışıyor (yakma meşru kullanımı bozmuyor)", async () => {
+    const { totp } = await import("@/lib/auth/totp");
+    await arm();
+    const res = await POST(req({ action: "disable", code: totp(SECRET) }));
+    expect(res.status).toBe(200);
+    const u = await prisma.user.findUniqueOrThrow({ where: { id: session.userId } });
+    expect(u.twoFactorEnabledAt).toBeNull();
+    expect(u.twoFactorSecret).toBeNull();
+  });
+
+  it("ESKİ adım kabul edilmez: lastStep ileride ise geçerli kod bile reddedilir", async () => {
+    const { totp, verifyTotpStep } = await import("@/lib/auth/totp");
+    await arm();
+    const code = totp(SECRET);
+    const step = verifyTotpStep(SECRET, code);
+    expect(step).not.toBeNull();
+    // Sunucu bu adımı (ya da daha yenisini) zaten görmüş gibi damgala.
+    await prisma.user.update({
+      where: { id: session.userId },
+      data: { twoFactorLastStep: step! },
+    });
+    const res = await POST(req({ action: "disable", code }));
+    expect(res.status).toBe(400);
+    expect((await prisma.user.findUniqueOrThrow({ where: { id: session.userId } })).twoFactorEnabledAt).not.toBeNull();
+  });
+});
+
+// ─────────────────────────────────────────────────────────────────────────────
+// `enable` KOŞULLU YAZMA (denetim, 08-09) — kardeşi `setup` ile aynı desen.
+// Eskiden koşulsuz `update` idi: ZATEN AÇIK bir hesapta çağrılınca
+// `twoFactorEnabledAt`i sessizce tazeliyordu (o damga trusted-device epoch'u →
+// hatırlanan TÜM cihazlar düşer) ve tüm kurtarma kodlarını siliyordu.
+// ─────────────────────────────────────────────────────────────────────────────
+describe("POST /api/account/2fa — enable koşullu yazma", () => {
+  const SECRET = "ABCDEFGHIJKLMNOP";
+
+  it("ZATEN AÇIK hesapta enable epoch'u TAZELEMEZ ve kurtarma kodlarını SİLMEZ", async () => {
+    const { totp } = await import("@/lib/auth/totp");
+    const enabledAt = new Date("2026-01-02T03:04:05.000Z");
+    await prisma.user.update({
+      where: { id: session.userId },
+      data: { twoFactorSecret: encryptSecret(SECRET), twoFactorEnabledAt: enabledAt, twoFactorLastStep: null },
+    });
+    await prisma.twoFactorRecoveryCode.create({
+      data: { userId: session.userId, codeHash: "x".repeat(64) },
+    });
+
+    const res = await POST(req({ action: "enable", code: totp(SECRET) }));
+    expect(res.status).toBe(400);
+
+    const u = await prisma.user.findUniqueOrThrow({ where: { id: session.userId } });
+    // ASIL İDDİA: trusted-device epoch'u OLDUĞU GİBİ kaldı.
+    expect(u.twoFactorEnabledAt?.getTime()).toBe(enabledAt.getTime());
+    expect(await prisma.twoFactorRecoveryCode.count({ where: { userId: session.userId } })).toBe(1);
+  });
+
+  it("KONTROL: kurulum halindeki hesapta enable ÇALIŞIR (kapı meşru yolu bozmuyor)", async () => {
+    const { totp } = await import("@/lib/auth/totp");
+    await prisma.user.update({
+      where: { id: session.userId },
+      data: { twoFactorSecret: encryptSecret(SECRET), twoFactorEnabledAt: null, twoFactorLastStep: null },
+    });
+    const res = await POST(req({ action: "enable", code: totp(SECRET) }));
+    expect(res.status).toBe(200);
+    expect((await prisma.user.findUniqueOrThrow({ where: { id: session.userId } })).twoFactorEnabledAt).not.toBeNull();
+  });
+});

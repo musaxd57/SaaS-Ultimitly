@@ -183,6 +183,14 @@ export type AddPropertyCheck = {
  */
 export async function canAddProperty(organizationId: string): Promise<AddPropertyCheck> {
   if (!billingEnforced()) return { allowed: true };
+  // 🚨 KURUCU MUAFİYETİ BURADA DA AÇIKÇA KURULUR (denetim, 08-09) — `limitsForOrg`
+  // 07-31'de tam bu sebeple düzeltilmişti ama MÜLK kapıları atlanmıştı.
+  // `getEntitlement`in kurucu ağı yalnız `active`'i zorluyor, `propertyLimit`i
+  // DEĞİŞTİRMİYOR (kendi yorumu "planı/durumu bozmadan" diyor) ve kurucunun
+  // GERÇEK bir Pro aboneliği var → limit 7. Nuve ~10 daire işletiyor ve
+  // `BILLING_ENFORCED=true` canlı: yani ürünün sahibi kendi ürününde yeni daire
+  // ekleyemiyordu. Yalnız `PRIMARY_ORG_ID`ye eşit org'u etkiler.
+  if (isFounderOrg(organizationId)) return { allowed: true, limit: null };
 
   const ent = await getEntitlement(organizationId);
   if (!ent.active) return { allowed: false, reason: "subscription_inactive" };

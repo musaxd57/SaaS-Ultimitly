@@ -99,6 +99,39 @@ describe("billing entitlements (safe-by-default)", () => {
     expect(res.limit).toBe(2);
   });
 
+  // 🚨 KURUCU MUAFİYETİ MÜLK KAPISINDA DA VAR (denetim, 08-09). `limitsForOrg`
+  // 07-31'de tam bu sebeple düzeltilmişti ama MÜLK kapıları atlanmıştı:
+  // `getEntitlement`in kurucu ağı yalnız `active`'i zorluyor, `propertyLimit`i
+  // DEĞİŞTİRMİYOR. Kurucunun GERÇEK bir Pro aboneliği var (limit 7) ve ~10 daire
+  // işletiyor → ürünün sahibi kendi ürününde yeni daire ekleyemiyordu.
+  it("KURUCU mülk sınırına takılmaz — aynı abonelikle müşteri TAKILIR", async () => {
+    vi.stubEnv("BILLING_ENFORCED", "true");
+    vi.stubEnv("PRIMARY_ORG_ID", "founder-org");
+    // Kurucunun canlıdaki durumu: gerçek, AKTİF Pro aboneliği + limitin üstünde daire.
+    findUnique.mockResolvedValue({ organizationId: "x", planCode: "pro", status: "active" } as never);
+    count.mockResolvedValue(10); // Pro limiti 7
+
+    const founder = await canAddProperty("founder-org");
+    expect(founder.allowed).toBe(true);
+    expect(founder.limit).toBeNull(); // sınırsız olarak raporlanır
+
+    // AYNI abonelikle SIRADAN bir org HÂLÂ engellenir — muafiyet org-kapsamlı,
+    // blanket bir bypass değil (bu kontrol olmadan "her zaman izin ver"
+    // mutasyonu da yeşil geçerdi).
+    const customer = await canAddProperty("some-customer");
+    expect(customer.allowed).toBe(false);
+    expect(customer.reason).toBe("property_limit");
+  });
+
+  it("PRIMARY_ORG_ID SET DEĞİLKEN muafiyet YOK (fail-closed — env'siz kimse kurucu değil)", async () => {
+    vi.stubEnv("BILLING_ENFORCED", "true");
+    vi.stubEnv("PRIMARY_ORG_ID", "");
+    findUnique.mockResolvedValue({ organizationId: "x", planCode: "pro", status: "active" } as never);
+    count.mockResolvedValue(10);
+    const res = await canAddProperty("founder-org");
+    expect(res.allowed).toBe(false);
+  });
+
   it("keeps grandfathered orgs unlimited even when enforcement is ON", async () => {
     vi.stubEnv("BILLING_ENFORCED", "true");
     findUnique.mockResolvedValue(null); // no row → grandfathered

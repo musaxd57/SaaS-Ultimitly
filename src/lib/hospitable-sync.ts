@@ -17,7 +17,7 @@ import { getOrgHospitableToken } from "@/lib/hospitable-credentials";
 import { reportError, redactSensitive } from "@/lib/report-error";
 import { createReservationTasks, removeAutoTasksForCancelledReservation } from "@/lib/automation";
 import { recordSupplyRequestFromMessage, sweepMissedSupplyDerivations } from "@/lib/supply";
-import { billingEnforced, getEntitlement } from "@/lib/billing/subscription";
+import { billingEnforced, getEntitlement, isFounderOrg } from "@/lib/billing/subscription";
 import { ANON_NAME, ANON_ID, retentionCutoff } from "@/lib/data-retention";
 import { loadErasureGuard, acquireErasureLock } from "@/lib/erasure";
 import type { ErasureDb, ErasureGuard } from "@/lib/erasure";
@@ -88,6 +88,11 @@ type PropertyLimitState = { limit: number; current: number } | null;
 
 async function resolvePropertyLimitState(organizationId: string): Promise<PropertyLimitState> {
   if (!billingEnforced()) return null; // dormant — matches canAddProperty's own gate
+  // Kurucu muafiyeti — `canAddProperty`nin AYNASI (denetim, 08-09). Burada
+  // eksik olması daha sinsiydi: senkron `linkProperty`yi sessizce `null`
+  // döndürüyor, yani kurucunun 8. ilanının rezervasyonları ve misafir mesajları
+  // hiç içeri girmiyor, ekranda da bir hata çıkmıyordu (yalnız `propertiesCapped`).
+  if (isFounderOrg(organizationId)) return null; // unlimited
   const ent = await getEntitlement(organizationId);
   if (ent.propertyLimit == null) return null; // unlimited (grandfathered or no-cap plan)
   const current = await prisma.property.count({ where: { organizationId } });
