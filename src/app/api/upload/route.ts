@@ -89,6 +89,34 @@ export const POST = withAuth(async (session, req) => {
     return jsonOk({ url: photoUrlForKey(key) });
   }
 
+  // ── ÜRETİMDE FAIL-CLOSED (P1 #5, 08-09 (2)) ──────────────────────────────
+  //
+  // 🚨 Aşağıdaki eski yol dosyayı `public/uploads/{org}` altına yazar ve o dizin
+  // STATİK olarak servis edilir: URL bir CAPABILITY'dir (48 bit rastgelelik,
+  // tahmin edilemez) ama SÜRESİZDİR, oturum İSTEMEZ ve kiracı kontrolü YOKTUR.
+  // Depolama yolu ise imzalı, kısa ömürlü ve org-kapsamlı (`orgIdFromKey`).
+  //
+  // Bugün üretimde `STORAGE_ENABLED` AÇIK, yani bu dal ULAŞILMAZ. Tehlike
+  // SESSİZ DÜŞÜŞTE: env bir gün Railway'den düşerse yüklemeler hata vermez,
+  // sessizce ZAYIF yola geçer ve kimse fark etmez. Üretimde bunu bir ARIZA
+  // olarak göstermek, sessizce güvenlik seviyesi düşürmekten iyidir.
+  //
+  // ⚠️ KAÇIŞ KAPISI VAR ve ÖLÜ DEĞİL: `ALLOW_LEGACY_LOCAL_UPLOADS=1` eski
+  // davranışı BİREBİR geri getirir — deploy gerekmez. Prod'un depolama durumu
+  // beklenmedik çıkarsa tek env ile geri alınır (BILLING_ALLOW_CANCELED_PLAN_CHANGE
+  // emsali). Test-pinli: kaçış kapısının çalıştığı ayrıca sınanıyor.
+  //
+  // ⚠️ BOOT'A DOKUNULMADI. Bu bir ÇALIŞMA ZAMANI kapısıdır ve yalnız yükleme
+  // isteğini etkiler; uygulama açılışı, sağlık kontrolü ve diğer tüm yüzeyler
+  // aynen çalışır ("mevcut prod'u doğrulamadan boot'ta durduracak değişiklik
+  // pushlanmaz" — kullanıcı direktifi).
+  if (process.env.NODE_ENV === "production" && process.env.ALLOW_LEGACY_LOCAL_UPLOADS !== "1") {
+    return serverError(
+      undefined,
+      new Error("upload: private object storage unavailable in production (STORAGE_* eksik/kapalı)"),
+    );
+  }
+
   // LEGACY LOCAL-DISK PATH (flag OFF) — byte-identical to the pre-storage
   // behavior. Existing /uploads files are never migrated or deleted; see
   // DEPLOYMENT.md for the fallback strategy.
