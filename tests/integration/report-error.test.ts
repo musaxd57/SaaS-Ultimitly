@@ -219,8 +219,85 @@ describe("redactSensitive", () => {
   // 🚨 AÇIK KALDI — bir düzeltme DENENDİ ve GERİ ALINDI (↓kaynaktaki uzun not).
   // Bu iki satır bilerek `todo`: kırmızı bırakmak paketi bozar, silmek açığı
   // görünmez yapardı. Çözülmesi gereken kısıtlar aşağıdaki KORUMA testlerinde.
-  it.todo("AÇIK: JSON tırnaklı bileşik anahtar maskelenmiyor ({\"senderName\":…})");
-  it.todo("AÇIK: serbest metin alanları (content/body) maskelenmiyor");
+  it("🚨 KAPANDI: JSON tırnaklı BİLEŞİK anahtar artık maskeleniyor", () => {
+    // Ölçülmüş sızıntı: misafirin ADI ve QR sohbet TOKEN'ı ABD'de barındırılan
+    // Sentry'ye AÇIK gidiyordu. Çözüm regex yaması DEĞİL — JSON gerçekten
+    // ayrıştırılıp anahtar politikasıyla geziliyor.
+    const out = redactSensitive('{"senderName":"Ayşe Yılmaz","chatToken":"qr_S3CRET_TOKEN"}');
+    expect(out).not.toContain("Ayşe Yılmaz");
+    expect(out).not.toContain("qr_S3CRET_TOKEN");
+    // Tırnaksız biçim de çalışmaya DEVAM ediyor (eski yol kaybolmadı).
+    expect(redactSensitive("senderName=Ayşe Yılmaz")).not.toContain("Ayşe Yılmaz");
+  });
+
+  it("🚨 KAPANDI: İÇ İÇE ve DİZİ içindeki hassas anahtarlar da maskeleniyor", () => {
+    const nested = redactSensitive('{"meta":{"guest":{"guestName":"Ayşe Yılmaz"}}}');
+    expect(nested).not.toContain("Ayşe Yılmaz");
+    // 🚨 DİZİ VAKASINDA DEĞER-BİÇİMLİ REGEX'E YAKALANMAYAN BİR ŞEY KULLAN.
+    // İlk yazımımda `email`/`phone` koymuştum ve dizi gezinmesini SİLEN mutasyon
+    // YEŞİL geçti — çünkü e-posta/telefon zaten (C) grubu regex'lerine takılıyor,
+    // yani test yapısal gezinmeyi hiç izole etmiyordu. Bir AD hiçbir değer-biçimli
+    // kurala takılmaz: dizi dalını gerçekten sınayan tek girdi budur.
+    const inArray = redactSensitive('[{"guestName":"Ayşe Yılmaz"},{"senderName":"Mehmet Demir"}]');
+    expect(inArray).not.toContain("Ayşe Yılmaz");
+    expect(inArray).not.toContain("Mehmet Demir");
+    // Dizi İÇİNDE dizi — özyineleme tek seviyede durmamalı.
+    expect(redactSensitive('{"rows":[[{"guestName":"Zeynep Kara"}]]}')).not.toContain("Zeynep Kara");
+  });
+
+  it("aşırı derin yapı ne fırlatır ne sızdırır", () => {
+    // ⚠️ DÜRÜST KAYIT: `MAX_DEPTH` bu testi GEÇİREN şey DEĞİL — ölçüldü (08-09 (2)).
+    // Tavanı tamamen kaldıran mutasyon bu testi YEŞİL bırakıyor, çünkü aday
+    // parçası zaten 64KB ile sınırlı (`MAX_JSON_CANDIDATE`) ve o sınır derinliği
+    // ~32.000'e çiviliyor; V8 o kadar çerçeveyi taşırmadan kaldırıyor (8k/16k/32k
+    // üçünde de ölçüldü). Yani `MAX_DEPTH` BUGÜN ULAŞILAMAZ bir savunma katmanı:
+    // ucuz sigorta olarak duruyor ve ancak `MAX_JSON_CANDIDATE` büyütülürse yük
+    // taşımaya başlar. Test yine de değerli — "derin gövde raporlamayı öldürmez"
+    // ve "derinden PII sızmaz" iddialarını tutuyor.
+    const deep = '{"a":'.repeat(300) + '{"guestName":"Ayşe Yılmaz"}' + "}".repeat(300);
+    let out = "";
+    expect(() => { out = redactSensitive(deep); }).not.toThrow();
+    expect(out).not.toContain("Ayşe Yılmaz");
+  });
+
+  // 🚨 SENKRON CPU YANMASI TEST ZAMAN AŞIMIYLA KESİLEMEZ — ÖLÇÜLDÜ (08-09 (2)).
+  //
+  // Önce `it(ad, { timeout: 3000 }, fn)` yazdım: bu vitest sürümü nesne biçimini
+  // SESSİZCE yok sayıyor. Sonra konumsal `it(ad, fn, 3000)`e geçtim: O DA
+  // TUTMADI. Sebep yapısal — zaman aşımı bir zamanlayıcıdır ve zamanlayıcının
+  // ateşlenmesi için olay döngüsünün BOŞ olması gerekir; senkron bir döngü tam
+  // da onu bloke ediyor. Mutasyonlu koşum **46.887 ms** sürdü ve YİNE DE YEŞİL
+  // geçti. Yani iki farklı "pin" yazdım ve ikisi de hiçbir şey tutmuyordu.
+  //
+  // ⚠️ BU YÜZDEN BURADA SÜRE ÖLÇÜLÜYOR — ve bu, deponun "pinler SÜRE ÖLÇMEZ"
+  // kuralına aykırı DEĞİL, o kuralın gerekçesine sadık. Kural bcrypt paritesi
+  // için kondu: orada ayırt edilecek fark 362 ms'ti ve CI gürültüsü onu yutardı.
+  // Buradaki fark 20 ms ↔ 47.000 ms, yani ~2000 KAT. 5 sn'lik tavan ancak makine
+  // benimkinden 250 kat yavaşsa flake verir — o hâlde süitin tamamı zaten çöker.
+  it("🚨 patolojik girdi CPU'yu YAKMAZ — tarama bütçesi yük taşıyor", () => {
+    // ÖLÇÜLDÜ: bütçe kaldırılınca `"{".repeat(50_000)` 8850 ms, 100_000 ise
+    // 30_510 ms; bütçeliyken 22 ms ve 18 ms. Node TEK İŞ PARÇACIKLI → o süre
+    // boyunca TÜM instance bloke: ulaşılabilir bir DoS. Kaynak da ulaşılabilir —
+    // `Message.body`nin uzunluk tavanı YOK ve shadow-ai / quality-audit onu
+    // redaksiyondan geçiriyor.
+    const t0 = Date.now();
+    for (const evil of ["{".repeat(50_000), "[".repeat(50_000), "{".repeat(100_000)]) {
+      expect(() => redactSensitive(evil)).not.toThrow();
+    }
+    expect(Date.now() - t0, "tarama bütçesi kalkmış olabilir").toBeLessThan(5000);
+  });
+
+  it("bütçe kancası KODDA duruyor (süre iddiasının yapısal kardeşi)", async () => {
+    // Süre iddiası makineye bağlı; bu satır değil. İkisi birlikte, korumanın
+    // hem VARLIĞINI hem ETKİSİNİ tutuyor.
+    const { readFileSync } = await import("node:fs");
+    const src = readFileSync("src/lib/report-error-core.ts", "utf8")
+      .split("\n")
+      .filter((l) => !l.trimStart().startsWith("//") && !l.trimStart().startsWith("*"))
+      .join("\n");
+    expect(src).toContain("SCAN_BUDGET");
+    expect(src).toMatch(/--budget\.left\s*<=\s*0/);
+  });
 
   // ── DENENEN DÜZELTMENİN KIRDIĞI ŞEYLER — KISIT LİSTESİ ───────────────────
   // Aşağıdakiler BUGÜN YEŞİL. Affix-pencereli deneme HEPSİNİ kırmıştı; bir
@@ -248,7 +325,22 @@ describe("redactSensitive", () => {
   // DEĞİL — mevcut kodda ZATEN var. Geri alma onu kötüleştirmekten kaçındı,
   // düzeltmedi. Çözümü değer dalının `[...]`/`{...}` bloklarını TAM tüketmesi;
   // bu da tırnaklı-bileşik-anahtar açığıyla aynı tasarım turuna ait.
-  it.todo("AÇIK: dizi/obje değerde yarım damga basılıyor (guestName ölçüldü)");
+  it("🚨 KAPANDI: dizi/obje değerde YARIM DAMGA yok — alt ağaç TAMAMEN gider", () => {
+    // Eski kusur: `"guestName": [REDACTED]"Ayse Yilmaz wifi Ev12345"]` — damga
+    // basılı, PII duruyor. Hiç maskelememekten KÖTÜ, çünkü log'a bakan
+    // "temizlenmiş" sanıyor. Hospitable 422 ve OpenAI çok-parçalı içerik tam
+    // bu şekilde geliyor.
+    const out = redactSensitive('{"errors":{"guestName":["Ayse Yilmaz wifi Ev12345"]}}');
+    expect(out).not.toContain("Ayse Yilmaz");
+    expect(out).not.toContain("Ev12345");
+    // Damga TEK ve alt ağaç yok — "yarım" bir sonuç imkânsız.
+    expect(out).toContain("[REDACTED]");
+    expect(out).not.toContain("["+"REDACTED]\"");
+
+    const objValue = redactSensitive('{"password":{"old":"hunter2","new":"hunter3"}}');
+    expect(objValue).not.toContain("hunter2");
+    expect(objValue).not.toContain("hunter3");
+  });
 
   it("KISIT: teşhis anahtarları KORUNUR (host/file/path/user/model/error+Name)", () => {
     // Gece 3'te arıza bakarken lazım olan tam olarak bunlar.

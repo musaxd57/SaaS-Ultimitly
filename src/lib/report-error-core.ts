@@ -125,44 +125,174 @@ const SENSITIVE_KEY =
 // leaked its value un-redacted; the quoted branch below fixes that.
 //
 // ─────────────────────────────────────────────────────────────────────────────
-// 🚨 BİLİNEN AÇIK — JSON TIRNAKLI BİLEŞİK ANAHTARLAR MASKELENMİYOR (08-05).
+// ✅ KAPANDI 08-09 (2) — bu blok TARİHSEL KAYIT olarak duruyor.
 //
-// `("?)(KEY)\1` yapısı tırnaklama ile kelime-içi eşleşmeyi BİRBİRİNİ DIŞLAYAN
-// hâle getiriyor: `senderName=Ayse` redakte OLUR, `{"senderName":"Ayse"}` OLMAZ.
-// Ölçülen sızıntılar: `senderName` · `chatToken` · iç içe objeler. Yani misafir
-// adı ve QR sohbet token'ı Sentry'ye (ABD) açık gidebiliyor.
-//
-// ⚠️ BU AÇIK BİLEREK AÇIK BIRAKILDI. Denenen düzeltme (affix pencereli anahtar
-// + token-başı lookbehind) DAHA KÖTÜ çıktı ve geri alındı — düşmanca doğrulama
-// ölçtü:
-//   1. `/`-önekli anahtarlar SIZDI: `POST /api/calendar/token=SECRET` eski kodda
-//      maskeleniyordu, yeni kodda maskelenmiyordu. Sızıntı kapatırken sızıntı.
-//   2. DİZİ/OBJE değerlerde YANLIŞ GÜVENCE: `{"body":["Ayse Yilmaz …"]}` →
-//      `"body": [REDACTED]"Ayse Yilmaz …"]` — damga basılıyor, PII duruyor.
-//      Hiç maskelememekten kötü. (Hospitable 422 ve OpenAI çok-parçalı içerik
-//      tam da bu şekilde geliyor.)
-//   3. TEŞHİS KÖRLÜĞÜ: `hostname` · `filename` · `pathname` · `username` ·
-//      `modelName` (Prisma P2002 meta) · `errorName` hepsi maskelendi.
-//
-// ⚠️ SIZAN ANAHTAR KÜMESİNİ ABARTMAMAK GEREK (ölçüldü): alan mekanizmasından
-// gerçekten sızan YALNIZ `senderName` ve `chatToken`. `guestName`/`accessToken`
-// listede TAM alternatif oldukları için zaten maskeleniyor, `guestPhone`'un
-// DEĞERİ de `[PHONE]` kuralına takılıyor. İlk raporumda beşini birden "sızıyor"
-// diye saymıştım; üçü yanlıştı.
-//
-// Doğru çözümün karşılaması gereken kısıtlar (⚠️ 6'dan 4'ü test-pinli; "tırnaklı
-// bileşik anahtarı yakala" bir `it.todo`, `\`-önekli anahtar ise HİÇ test
-// edilmiyor — "hepsi pinli" diye yazmıştım, yanlıştı):
-//   · tırnaklı bileşik anahtarı yakala           · `/`+`\` önekli anahtarı KAYBETME
-//   · dizi/obje değerini ya tam tüket ya HİÇ dokunma (yarım damga YASAK)
-//   · teşhis anahtarlarını (host/file/path/user/model/error+Name) KORU
-//   · yığın izi satır numaralarını KORU          · ReDoS'a girme
-// Regex bu kısıt kümesini taşıyamıyor olabilir; ayrı bir tur, ayrı tasarım.
+// Buradaki açık ("JSON tırnaklı bileşik anahtarlar maskelenmiyor": `senderName`,
+// `chatToken`, iç içe objeler) ve kardeşi ("dizi/obje değerde yarım damga")
+// REGEX'LE çözülemedi — iki deneme de net negatif çıktı. Çözüm ↓YAPISAL
+// SANITIZER: JSON gerçekten ayrıştırılıp anahtar politikasıyla geziliyor.
+// Aşağıdaki kv regex'i KALDIRILMADI ve kaldırılmamalı: `/`+`\` önekli
+// anahtarları (`POST /api/calendar/token=SECRET`) yalnız O yakalıyor — yapısal
+// geçiş oraya bakmaz, çünkü orası JSON değil.
 // ─────────────────────────────────────────────────────────────────────────────
 const FIELD_RE = new RegExp(
   `("?)(${SENSITIVE_KEY})\\1\\s*[:=]\\s*("[^"\\n]*"|[^",}{\\n]+)`,
   "gi",
 );
+
+// ═══════════════════════════════════════════════════════════════════════════
+// YAPISAL SANITIZER (08-09 (2)) — regex yamalamanın yerine geçen tasarım
+//
+// 🚨 NEDEN REGEX YETMEDİ (ölçülmüş, iki kez): bir düzenli ifade "bu değer
+// nerede bitiyor" sorusunu güvenilir yanıtlayamaz. `("?)(KEY)\1` yapısı
+// tırnaklama ile kelime-içi eşleşmeyi BİRBİRİNİ DIŞLAYAN hâle getiriyordu
+// (`senderName=X` maskeleniyor, `{"senderName":"X"}` maskelenmiyordu) ve
+// dizi/obje değerlerde YARIM DAMGA basıyordu — `"guestName": [REDACTED]"Ayse
+// Yilmaz"]` gibi, yani damga var PII duruyor: hiç maskelememekten KÖTÜ, çünkü
+// log'a bakan "temizlenmiş" sanıyor.
+//
+// Çözüm: JSON'u JSON olarak ele al. Dengeli parantezle aday parçayı bul,
+// `JSON.parse` et, ağacı gez, hassas ANAHTARIN değerini — skaler, dizi ya da
+// obje, fark etmez — TAMAMEN değiştir, sonra yeniden serileştir. Bu, "yarım
+// damga" arızasını YAPISAL olarak imkânsız kılar: bir alt ağaç ya bütünüyle
+// gider ya hiç dokunulmaz.
+//
+// KORUNAN KISITLAR (hepsi test-pinli, dördü eski tasarımın KIRDIĞI şeylerdi):
+//   · `/`+`\` önekli anahtarlar (`POST /api/x/token=SECRET`) → düz metin
+//     bölgesinde kalır, eski kv regex'i onları AYNEN yakalamaya devam eder.
+//   · teşhis anahtarları (hostname/filename/pathname/username/modelName/
+//     errorName…) → AÇIK İZİN listesi, deny'den ÖNCE bakılır.
+//   · yığın izi satır numaraları → JSON olmayan metne dokunulmaz.
+//   · ReDoS → burada regex YOK; tarama doğrusal ve BÜTÇELİ.
+// ═══════════════════════════════════════════════════════════════════════════
+
+const REDACTED_MARK = "[REDACTED]";
+/** Tek bir JSON adayının üst sınırı — devasa gövdede tarama patlamasın. */
+const MAX_JSON_CANDIDATE = 64 * 1024;
+/** Toplam tarama bütçesi. Tükenirse yapısal geçiş BIRAKILIR (regex'ler kalır). */
+const SCAN_BUDGET = 2_000_000;
+const MAX_DEPTH = 12;
+
+/** Anahtarı karşılaştırma biçimine indir: `guest_name`, `guest-name`, `guestName` → `guestname`. */
+function normalizeKey(k: string): string {
+  return k.toLowerCase().replace(/[^a-z0-9]/g, "");
+}
+
+/**
+ * 🚨 İZİN LİSTESİ DENY'DEN ÖNCE GELİR ve bu SIRA yük taşıyor.
+ *
+ * Aşağıdakilerin hepsi `name` parçasını içeriyor; salt "içeriyorsa maskele"
+ * kuralı gece 3'te arıza bakarken lazım olan TAM ALANLARI kör ederdi — geri
+ * alınan tasarımın ölçülmüş kusurlarından biri buydu.
+ */
+const DIAGNOSTIC_KEYS = new Set([
+  "hostname", "filename", "pathname", "username", "modelname", "errorname",
+  "dirname", "basename", "tablename", "columnname", "fieldname", "constraintname",
+  "eventname", "typename", "classname", "packagename", "branchname", "jobname",
+]);
+
+/**
+ * Hassas anahtar PARÇALARI (normalize edilmiş). PARÇA eşleşmesi bilinçli:
+ * `senderName` · `chatToken` · `icalToken` · `refresh_token` gibi BİLEŞİK
+ * adlar tam-liste yaklaşımından kaçıyordu, ve kaçan tam olarak bu ikisiydi.
+ *
+ * ⚠️ `code`/`id`/`status`/`type` BİLEREK YOK — hata kodları (P2002,
+ * invalid_grant), id'ler ve HTTP durumları görünür kalmalı.
+ */
+const SENSITIVE_FRAGMENTS = [
+  "password", "passwd", "pwd", "token", "secret", "apikey", "authorization",
+  "cookie", "email", "mail", "phone", "telephone", "gsm", "mobile",
+  "name", "address", "street", "doorcode", "accesscode", "postalcode",
+];
+
+function keyIsSensitive(key: string): boolean {
+  const k = normalizeKey(key);
+  if (DIAGNOSTIC_KEYS.has(k)) return false; // izin DAİMA kazanır
+  return SENSITIVE_FRAGMENTS.some((f) => k.includes(f));
+}
+
+/**
+ * Ağacı gez. Hassas anahtarın değeri — skaler/dizi/obje fark etmez — TAMAMEN
+ * `[REDACTED]` olur. Derinlik tavanı, kendine referans veren devasa yapılarda
+ * yığını korur (JSON.parse döngü üretemez ama derinlik üretebilir).
+ */
+function redactParsed(value: unknown, depth: number): unknown {
+  if (depth > MAX_DEPTH) return REDACTED_MARK;
+  if (Array.isArray(value)) return value.map((v) => redactParsed(v, depth + 1));
+  if (value && typeof value === "object") {
+    const out: Record<string, unknown> = {};
+    for (const [k, v] of Object.entries(value as Record<string, unknown>)) {
+      out[k] = keyIsSensitive(k) ? REDACTED_MARK : redactParsed(v, depth + 1);
+    }
+    return out;
+  }
+  return value;
+}
+
+/**
+ * `start`taki `{`/`[` ile dengelenen kapanışın indeksini bul; yoksa -1.
+ * String içi ve kaçış farkındadır (aksi hâlde `"}"` içeren bir değer dengeyi
+ * bozardı). `budget` toplam iş miktarını sınırlar.
+ */
+function scanBalanced(s: string, start: number, budget: { left: number }): number {
+  let depth = 0;
+  let inStr = false;
+  let esc = false;
+  const limit = Math.min(s.length, start + MAX_JSON_CANDIDATE);
+  for (let i = start; i < limit; i++) {
+    if (--budget.left <= 0) return -1;
+    const c = s[i];
+    if (inStr) {
+      if (esc) esc = false;
+      else if (c === "\\") esc = true;
+      else if (c === '"') inStr = false;
+      continue;
+    }
+    if (c === '"') { inStr = true; continue; }
+    if (c === "{" || c === "[") depth++;
+    else if (c === "}" || c === "]") {
+      depth--;
+      if (depth === 0) return i;
+      if (depth < 0) return -1;
+    }
+  }
+  return -1;
+}
+
+/**
+ * Metindeki her GERÇEK JSON parçasını yapısal olarak temizle, gerisine dokunma.
+ *
+ * ⚠️ FAIL-SAFE: bütçe tükenirse ya da parça ayrıştırılamazsa metin OLDUĞU GİBİ
+ * geçer ve aşağıdaki değer-biçimli regex'ler yine koşar — yani en kötü hâlde
+ * DÜNKÜ davranış. Yapısal geçiş koruma EKLER, hiçbir korumayı KALDIRMAZ.
+ */
+export function redactJsonStructurally(input: string): string {
+  const budget = { left: SCAN_BUDGET };
+  let out = "";
+  let plainStart = 0;
+  let i = 0;
+  while (i < input.length) {
+    const c = input[i];
+    if (c === "{" || c === "[") {
+      const end = scanBalanced(input, i, budget);
+      if (end !== -1) {
+        const candidate = input.slice(i, end + 1);
+        try {
+          const parsed: unknown = JSON.parse(candidate);
+          out += input.slice(plainStart, i) + JSON.stringify(redactParsed(parsed, 0));
+          i = end + 1;
+          plainStart = i;
+          continue;
+        } catch {
+          // JSON değil (ör. prose içindeki süslü parantez) — dokunma.
+        }
+      }
+      if (budget.left <= 0) break; // bütçe bitti: kalanı düz metin say
+    }
+    i++;
+  }
+  return out + input.slice(plainStart);
+}
 
 /**
  * Mask PII/secret VALUES from an error string before it leaves the process —
@@ -172,7 +302,11 @@ const FIELD_RE = new RegExp(
  */
 export function redactSensitive(input: string): string {
   if (!input) return input;
-  let s = input;
+  // (0) YAPISAL GEÇİŞ — regex'ten ÖNCE. JSON parçaları gerçekten ayrıştırılıp
+  // anahtar politikasıyla gezilir; kalan düz metne aşağıdaki değer-biçimli
+  // kurallar uygulanır. Sıra ÖNEMLİ: yapısal geçiş hassas alt ağacı komple
+  // `"[REDACTED]"` yaptığı için regex'lerin oraya bakacak bir şeyi kalmaz.
+  let s = redactJsonStructurally(input);
   // (A) value-shaped secrets
   s = s.replace(/\b[Bb]earer\s+[A-Za-z0-9._~+/=-]+/g, "Bearer [REDACTED]");
   s = s.replace(/\bsk-[A-Za-z0-9_-]{12,}/g, "sk-[REDACTED]"); // OpenAI key
