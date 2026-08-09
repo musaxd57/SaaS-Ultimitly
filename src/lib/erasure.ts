@@ -36,6 +36,14 @@ import { ERASABLE_STATUSES } from "@/lib/outbox/state";
 //    olarak tombstone anahtarı DEĞİL (adlar benzersiz değil → ad-bazlı bir kapı
 //    başka misafirlerin meşru kaydını da bloklardı).
 //
+//    ⚠️ DÖRDÜNCÜ INGRESS: QR CONCIERGE (P1 #2, 08-09 (2)). Bu başlık uzun süre
+//    ÜÇ yol sayıyordu ve QR eksikti — `loadErasureGuard` `guest-chat.ts`te hiç
+//    geçmiyordu. Kapı `resolveGuestChat`te (yazma noktalarında değil): rota
+//    aktif rezervasyon olmadan ilerleyemediği için tek nokta HEM Conversation
+//    HEM Message üretimini kapatır. İki bacak — `blocksSourceReference` (asıl
+//    mekanizma) + `guestName === ANON_NAME` (referanssız/elle girilmiş satırlar
+//    için maskeleme sentinel'i). `blocksGuestStay` burada da ÖLÜ KOD olurdu.
+//
 // NEW-DATA BOUNDARY (deliberate, documented in §8c-3): a stay that BEGINS after
 // the erasure request is a NEW processing activity (art. 5/2-c contract, 5/2-f
 // legitimate interest) and is NOT blocked — only the erased era is. The

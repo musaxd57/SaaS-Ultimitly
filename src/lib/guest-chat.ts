@@ -4,6 +4,8 @@ import { prisma } from "@/lib/db";
 import { daysUntilDate } from "@/lib/utils";
 import { orgTimezone } from "@/lib/timezone";
 import { premiumAllowed } from "@/lib/billing/subscription";
+import { loadErasureGuard } from "@/lib/erasure";
+import { ANON_NAME } from "@/lib/data-retention";
 import { isUniqueViolation } from "@/lib/db-errors";
 import { qrPinEnabled } from "@/lib/guest-chat-pin";
 import { fetchKnowledgeBaseForPrompt } from "@/lib/ai/kb-fetch";
@@ -567,7 +569,8 @@ export async function resolveGuestChat(
     orderBy: { arrivalDate: "asc" },
     // chatPinHash is selected ONLY to derive the pinRequired boolean below — it is
     // stripped from the returned activeReservation (the hash never leaves this fn).
-    select: { id: true, guestName: true, arrivalDate: true, departureDate: true, status: true, chatPinHash: true },
+    // `sourceReference` KVKK tombstone eşleşmesi için (↓DÖRDÜNCÜ INGRESS).
+    select: { id: true, guestName: true, arrivalDate: true, departureDate: true, status: true, chatPinHash: true, sourceReference: true },
   });
 
   // Evaluate EVERY candidate, not just one row: the 12h look-ahead pulls the NEXT
@@ -593,7 +596,34 @@ export async function resolveGuestChat(
       (depDiff === 0 && nowMinutesInTz(now, tz) < hhmmToMinutes(property.checkOutTime));
     return afterCheckin && beforeCheckout;
   };
-  const activeRow = candidates.find(isOpenNow) ?? null;
+  // ── KVKK AÇIK SİLME KAPISI — DÖRDÜNCÜ INGRESS YOLU (P1 #2, 08-09 (2)) ─────
+  //
+  // 🚨 `erasure.ts`'in başlık yorumu "every tombstone-scoped ingress writer"
+  // deyip ÜÇ yol sayıyordu (hospitable-sync · iCal feed · elle .ics/.csv
+  // yüklemesi). QR concierge DÖRDÜNCÜSÜYDÜ ve kapısızdı: `loadErasureGuard`
+  // bu dosyada HİÇ geçmiyordu.
+  //
+  // Senaryo: misafir m.11 silme talebi yapar → `eraseReservationData` satırı
+  // maskeler + tombstone yazar → misafir (ya da dairedeki QR'ı tarayan biri)
+  // konaklama penceresi hâlâ açıkken QR'ı okutur → `ensureGuestChatConversation`
+  // YENİ bir Conversation açar ve `recordGuestChatExchange` YENİ Message satırları
+  // yazar. Silinmiş bir konaklama kendi kanalından geri doğar (Yön. m.8
+  // "tekrar kullanılamaz" şartının ihlali).
+  //
+  // İKİ BACAK, çünkü tek başına hiçbiri yetmiyor:
+  //   (a) `blocksSourceReference` — ASIL mekanizma, kardeş üç yolla aynı. Ama
+  //       `sourceReference` OLMAYAN (elle girilmiş) bir rezervasyonda ölü kalır.
+  //   (b) `guestName === ANON_NAME` — maskeleme sentinel'i. `sourceReference`
+  //       yoksa da çalışır ve `erasure.ts` ile `data-retention.ts` AYNI sabiti
+  //       yazdığı için iki rejimi birden kapsar.
+  // ⚠️ `blocksGuestStay` BİLİNÇLİ ÇAĞRILMIYOR: kişi anahtarları e-posta/telefon/
+  // sağlayıcı-id ve maskeleme onları ZATEN null'lamış olur → burada ölü kod
+  // olurdu (elle yükleme yolunun aynı gerekçesi).
+  const erasureGuard = await loadErasureGuard(property.organizationId);
+  const notErased = (r: { guestName: string; sourceReference: string | null }) =>
+    r.guestName !== ANON_NAME && !erasureGuard.blocksSourceReference(r.sourceReference);
+
+  const activeRow = candidates.filter(notErased).find(isOpenNow) ?? null;
   const open = activeRow !== null;
   // PIN gate (Faz 5): env master switch AND (this stay has a PIN OR org strict mode).
   // Computed from the hash PRESENCE only; the hash itself is never returned.
