@@ -231,6 +231,49 @@ describe("YETİM konuşmanın görevi — süre bazlı süpürge onu da bulur", 
     expect(second.title).toBe(first.title);
     expect(second.description).toBe(first.description);
   });
+
+  // 🚨 DAL DÜZEYİNDE PARİTE AÇIĞI (08-09 (2), kod-doğrulandı).
+  //
+  // Rezervasyonlu dal `TaskUpdate.note`u redakte ediyordu (`noteRows` →
+  // `noteRedactions`); ÖKSÜZ dal `taskUpdate`a HİÇ dokunmuyordu — o daldaki tek
+  // `prisma.taskUpdate` sorgusu YOKTU. Sonuç: rezervasyona bağlanamamış bir
+  // konuşmadan doğan göreve temizlikçinin yazdığı not, misafirin adını SÜRESİZ
+  // taşıyordu.
+  //
+  // ⚠️ `scrub-scope-parity.test.ts` BUNU GÖREMEZ ve bu bir tesadüf değil: o test
+  // (model, kolon) KÜMELERİNİ dosya düzeyinde karşılaştırıyor ve `TaskUpdate.note`
+  // kümeye DİĞER daldan zaten giriyor. Dal düzeyinde kördür — CLAUDE.md'nin kendi
+  // `TaskUpdate.note` dersinin ikinci kez yaşanmış hâli.
+  it("🚨 yetim görevinin PERSONEL NOTUNDAN da misafir adı silinir", async () => {
+    const { conversationId } = await seedOrphan();
+    await applyInboundMessageRules(conversationId, GUEST_TEXT);
+    const task = await prisma.task.findFirstOrThrow({ where: { origin: "ai" } });
+    await prisma.taskUpdate.create({
+      data: { taskId: task.id, note: "Ahmet Yılmaz odayı erken boşalttı, anahtar kutuda." },
+    });
+
+    await anonymizeOldGuestData();
+
+    const note = await prisma.taskUpdate.findFirstOrThrow({ where: { taskId: task.id } });
+    expect(note.note).not.toContain("Ahmet Yılmaz");
+    // Not HOST'UN İŞ KAYDIDIR — silinmez, yalnız kimlik belirten token gider
+    // (kardeş dalın davranışıyla birebir aynı sözleşme).
+    expect(note.note).toContain("anahtar kutuda");
+  });
+
+  it("not temizliği de İDEMPOTENT (ikinci koşu notu bozmaz)", async () => {
+    const { conversationId } = await seedOrphan();
+    await applyInboundMessageRules(conversationId, GUEST_TEXT);
+    const task = await prisma.task.findFirstOrThrow({ where: { origin: "ai" } });
+    await prisma.taskUpdate.create({
+      data: { taskId: task.id, note: "Ahmet Yılmaz odayı erken boşalttı, anahtar kutuda." },
+    });
+    await anonymizeOldGuestData();
+    const first = await prisma.taskUpdate.findFirstOrThrow({ where: { taskId: task.id } });
+    await anonymizeOldGuestData();
+    const second = await prisma.taskUpdate.findFirstOrThrow({ where: { taskId: task.id } });
+    expect(second.note).toBe(first.note);
+  });
 });
 
 // ---------------------------------------------------------------------------

@@ -371,6 +371,35 @@ export async function anonymizeOldGuestData(now: Date = new Date()): Promise<{ a
       }
     }
 
+    // 🚨 PERSONEL NOTU DA BU DALDA TEMİZLENİR (08-09 (2), kırmızı-önce testli).
+    //
+    // Rezervasyonlu dal `TaskUpdate.note`u ZATEN redakte ediyordu; bu dalda
+    // `taskUpdate` sorgusu HİÇ YOKTU → rezervasyona bağlanamamış bir konuşmadan
+    // doğan göreve temizlikçinin yazdığı not ("Ahmet Yılmaz odayı erken
+    // boşalttı…") misafirin adını SÜRESİZ taşıyordu.
+    //
+    // ⚠️ `scrub-scope-parity.test.ts` BU BOŞLUĞU GÖREMEZ ve bu tesadüf değil:
+    // o test (model, kolon) KÜMELERİNİ DOSYA düzeyinde karşılaştırır ve
+    // `TaskUpdate.note` kümeye KARDEŞ daldan zaten giriyor. Dal düzeyinde
+    // kördür — CLAUDE.md'nin kendi `TaskUpdate.note` dersinin ikinci kez
+    // yaşanmış hâli. Gerçek pin dal düzeyindedir
+    // (`tests/integration/task-description-scrub.test.ts`).
+    //
+    // Muamele kardeş dalla BİREBİR aynı: not host'un İŞ KAYDIDIR → silinmez,
+    // yalnız kimlik belirten token gider (`redactNameFromBody` kelime-sınırı
+    // güvenli ve idempotent).
+    const orphanNoteRows = orphanTasks.length
+      ? await prisma.taskUpdate.findMany({
+          where: { taskId: { in: orphanTasks.map((t) => t.id) }, note: { not: null } },
+          select: { id: true, note: true },
+        })
+      : [];
+    const orphanNoteRedactions: { id: string; note: string }[] = [];
+    for (const n of orphanNoteRows) {
+      const red = redactNameFromBody(n.note ?? "", orphanNames);
+      if (red !== n.note) orphanNoteRedactions.push({ id: n.id, note: red });
+    }
+
     await prisma.$transaction([
       prisma.message.updateMany({
         where: { conversationId: { in: orphanIds }, direction: "inbound", body: { not: ANON_BODY } },
@@ -413,6 +442,9 @@ export async function anonymizeOldGuestData(now: Date = new Date()): Promise<{ a
           where: { id: t.id },
           data: { title: t.title, ...(t.description ? { description: t.description } : {}) },
         }),
+      ),
+      ...orphanNoteRedactions.map((n) =>
+        prisma.taskUpdate.update({ where: { id: n.id }, data: { note: n.note } }),
       ),
     ]);
     anonymized += orphanIds.length;
