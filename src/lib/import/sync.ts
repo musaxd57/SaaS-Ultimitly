@@ -104,6 +104,54 @@ function channelFromLabel(label: string): string {
  * are updated in place; new ones are created. Never throws — failures are
  * captured in the returned result and persisted on the source row.
  */
+/**
+ * Besleme arızasını KAPALI bir kod kümesine indirger.
+ *
+ * 🚨 HAM HATA MESAJI ALARMA ASLA GİRMEZ. Feed URL'i bir KİMLİK BİLGİSİDİR —
+ * tam da bu yüzden at-rest şifreli (m46 + Faz 4 sentinel). Alt katmanların
+ * mesajları ise ana bilgisayar adını TAŞIYOR: `pinned-fetch.ts` "refusing
+ * private feed host (<hostname>)" yazıyor, Node'un kendi sistem hataları da
+ * "getaddrinfo ENOTFOUND <host>" biçiminde. Alarm e-postaya VE Sentry'ye
+ * gidiyor; şifreleyerek koruduğumuz adresin parçasını oraya koymak, korumayı
+ * dekoratif hâle getirirdi.
+ *
+ * İKİNCİ FAYDA — SENTRY GRUPLAMASI: sabit kod, tek arızayı tek Issue'da tutar.
+ * Değişken metin (host adı, deneme sayısı) aynı arızayı N ayrı Issue'ya böler;
+ * bu deponun `groupingValue()` dersi tam olarak budur.
+ */
+function classifyFeedFailure(reason: string): string {
+  if (reason.includes("too large")) return "feed_too_large";
+  const http = reason.match(/HTTP (\d{3})/);
+  if (http) return `feed_http_${http[1]}`;
+  if (reason.includes("non-https")) return "feed_not_https";
+  if (reason.includes("private")) return "feed_private_host";
+  if (/timed out|timeout|ETIMEDOUT/i.test(reason)) return "feed_timeout";
+  return "feed_unreachable";
+}
+
+/**
+ * Hataya GEÇİŞTE tek alarm — kardeş "url unreadable" dalının deseninin aynısı.
+ *
+ * Durum DB'de (`CalendarSource.lastStatus`) yaşar, bellekte değil: yeniden
+ * başlatmayı ve replikaları aşar. 2 dakikalık cron aynı bozuk beslemeyi her
+ * geçişte görüyor; kapı olmasaydı kalıcı bir 404 operatöre günde 720 alarm
+ * yazardı ve alarm kanalı sinyal değerini kaybederdi (bu deponun tekrar tekrar
+ * ödediği ders: kalıcı kırmızı bir kapı = kapısızlık).
+ *
+ * ⚠️ Context KAYNAK BAŞINA — org değil, global değil. CLAUDE.md kuralı: "alarm
+ * context'i pencere anahtarıyla AYNI granülerlikte olmalı", yoksa bir kaynağın
+ * arızası `reportError`ın 10 dakikalık kovasını yakar ve İKİNCİ bir kaynağın
+ * arızası hiç duyurulmadan yutulur.
+ */
+async function alarmOnErrorTransition(
+  source: { lastStatus: string | null },
+  sourceId: string,
+  code: string,
+): Promise<void> {
+  if (source.lastStatus === "error") return; // zaten bozuk — ikinci kez uyarma
+  await reportError(`ical-sync: feed failed (${sourceId})`, new Error(code));
+}
+
 export async function syncCalendarSource(sourceId: string): Promise<SyncResult> {
   const result: SyncResult = { imported: 0, updated: 0, skipped: 0, errors: [] };
 
@@ -191,9 +239,32 @@ export async function syncCalendarSource(sourceId: string): Promise<SyncResult> 
           ? `Takvim sunucusu hata döndürdü (${reason}) — bağlantının hâlâ geçerli olduğunu kontrol edin.`
           : "Bağlantıya ulaşılamadı — takvim (.ics) bağlantısını kontrol edin.",
     );
+    await alarmOnErrorTransition(source, sourceId, classifyFeedFailure(reason));
     await prisma.calendarSource.update({
       where: { id: sourceId },
       data: { lastSyncedAt: new Date(), lastStatus: "error", lastResult: result.errors[0] },
+    });
+    return result;
+  }
+
+  // 🚨 SESSİZ ARIZA SINIFI: iCalendar OLMAYAN bir gövde (sağlayıcının HTML hata
+  // sayfası, süresi dolmuş token için giriş ekranı, kesilmiş dosya) `parseIcs`ten
+  // SIFIR olayla döner — ve `parseIcs` hiçbir zaman fırlatmaz. Eski kod bunu
+  // "Yeni rezervasyon bulunamadı" diye özetleyip `lastStatus:"ok"` yazıyordu:
+  // KALICI olarak bozuk bir besleme ekranda SAĞLIKLI görünüyordu ve host
+  // rezervasyonlarının neden gelmediğini asla anlayamazdı.
+  //
+  // Ayrım GÜVENLİ: RFC 5545 `BEGIN:VCALENDAR`ı ZORUNLU kılar, yani GERÇEKTEN boş
+  // ama geçerli bir takvim de bu satırı taşır → "boş feed" ile "feed değil"
+  // birbirine karışmaz (mass-cancel dersinin korunması bu ayrıma bağlı).
+  if (!/BEGIN:VCALENDAR/i.test(text)) {
+    const msg =
+      "Bağlantı takvim (.ics) dosyası döndürmedi — adres bir giriş/hata sayfasına gidiyor olabilir.";
+    result.errors.push(msg);
+    await alarmOnErrorTransition(source, sourceId, "feed_not_icalendar");
+    await prisma.calendarSource.update({
+      where: { id: sourceId },
+      data: { lastSyncedAt: new Date(), lastStatus: "error", lastResult: msg },
     });
     return result;
   }

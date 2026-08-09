@@ -298,7 +298,20 @@ operatör yetkisini iptal etmenin TEK etkili yolu.
 
 ---
 
-## 7g. 🟡 `aiStyleProfile` KANAL YOLUNDA SÜZÜLMEDEN PROMPT'A GİDİYOR
+## 7g. ✅ KAPANDI — `aiStyleProfile` DÖRT YÜZEYDE DE SÜZÜLÜYOR
+
+> **DURUM (08-09 (2)):** Kanal yolu `19d713b` ile ZATEN düzeltilmişti (bu belge güncellenmemiş,
+> yani madde bir süre yanlışlıkla açık göründü — bir denetim ajanı da onu taze bulgu sanıp
+> yeniden raporladı; CLAUDE.md'nin "kapanan bulguya KAPANDI damgası" kuralının tam gerekçesi).
+> Kalan gerçek asimetri BAŞKA yerdeydi ve şimdi o da kapandı: `ai-suggest` ("AI ile cevapla") ve
+> `ai/test` (Ayarlar → "AI'yı Deneyin") profili HAM geçiriyordu. İkisi de oturum korumalı ve
+> çıktı TASLAK — ama taslak host'un yazma alanına basılıyor ve tek tıkla misafire gidiyor; kapı
+> kodunun misafire NE ZAMAN gideceği kararı KB kapısının işidir (`verifiedActiveStay`), taslağı
+> okuyan host'un anlık dikkatinin değil. Dördü de artık `scrubStyleProfileForPublic`ten geçiyor;
+> pin `tests/unit/style-profile-channel-scrub.test.ts`, mutasyon-doğrulandı.
+
+<details><summary>Özgün bulgu metni (tarihsel)</summary>
+
 
 **Nerede:** `src/lib/automation.ts:1529` (`styleProfile: org.aiStyleProfile`) vs
 `src/app/api/chat/[token]/route.ts:623` (`scrubStyleProfileForPublic(...)`)
@@ -319,6 +332,8 @@ kendi kalitesi ayrı bir sorun (↓§7h) — ama süzülmüş olması süzülmem
 hâlde iyidir.
 
 ---
+
+</details>
 
 ## 7h. 🟡 `looksLikeSecret` QR YÜZEYİNDE 11/24 GERÇEKÇİ YAZIMDA SIZDIRIYOR
 

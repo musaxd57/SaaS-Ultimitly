@@ -306,6 +306,102 @@ END:VCALENDAR`;
     const updated = await prisma.calendarSource.findUnique({ where: { id: source.id } });
     expect(updated?.lastStatus).toBe("error");
   });
+
+  // ── BOZUK BESLEME ARTIK GÖRÜNÜR (08-09 (2)) ────────────────────────────────
+  //
+  // 🚨 ÖNCESİ ÖLÇÜLDÜ: çekme hatası dalında `reportError` HİÇ YOKTU — ne log, ne
+  // Sentry, ne e-posta. Tek iz `CalendarSource.lastStatus` sütunuydu, yani host
+  // /calendar sayfasını AÇIP bakana kadar hiçbir şey öğrenilmiyordu. Kalıcı
+  // 404'lenen bir besleme 15 dakikada bir sessizce yeniden denenip duruyordu.
+  describe("bozuk besleme alarmı", () => {
+    beforeEach(() => reportErrorMock.mockClear());
+
+    it("hataya GEÇİŞTE tek alarm; ikinci koşuda SUSAR", async () => {
+      const { propertyId } = await makeOrgWithProperty();
+      const source = await prisma.calendarSource.create({
+        data: { propertyId, label: "Booking", url: "https://example.com/bad.ics" },
+      });
+      vi.mocked(fetchFeedText).mockRejectedValue(new Error("HTTP 404"));
+
+      await syncCalendarSource(source.id);
+      expect(reportErrorMock).toHaveBeenCalledTimes(1);
+      expect(reportErrorMock.mock.calls[0][0]).toBe(`ical-sync: feed failed (${source.id})`);
+
+      // İkinci geçiş: satır ZATEN "error" → 2 dakikalık cron alarm seli açmaz.
+      // Bu kapı olmasaydı kalıcı bir 404 günde ~720 alarm yazardı.
+      await syncCalendarSource(source.id);
+      expect(reportErrorMock).toHaveBeenCalledTimes(1);
+    });
+
+    it("🚨 ALARMDA FEED URL'İ / HOST ADI GEÇMEZ — kapalı kod kümesi", async () => {
+      // Feed URL'i bir KİMLİK BİLGİSİDİR (at-rest şifreli). Alt katman hata
+      // mesajlarına ana bilgisayar adını koyuyor ("refusing private feed host
+      // (<hostname>)", "getaddrinfo ENOTFOUND <host>") ve alarm e-postaya + Sentry'ye
+      // gidiyor → ham mesaj ASLA alarma girmez.
+      const { propertyId } = await makeOrgWithProperty();
+      const source = await prisma.calendarSource.create({
+        data: { propertyId, label: "Diğer", url: "https://gizli-takvim.example.com/feed/S3CRET-TOKEN.ics" },
+      });
+      vi.mocked(fetchFeedText).mockRejectedValue(
+        new Error("getaddrinfo ENOTFOUND gizli-takvim.example.com"),
+      );
+
+      await syncCalendarSource(source.id);
+
+      const [ctx, err] = reportErrorMock.mock.calls[0];
+      const wire = `${ctx} ${(err as Error).message}`;
+      expect(wire).not.toContain("gizli-takvim");
+      expect(wire).not.toContain("S3CRET-TOKEN");
+      expect(wire).not.toContain("example.com");
+      // Sabit kod = kararlı Sentry gruplaması (değişken metin tek arızayı N
+      // Issue'ya bölerdi).
+      expect((err as Error).message).toBe("feed_unreachable");
+    });
+
+    it("HTTP durumu KODA girer (teşhis kaybolmasın), gövde girmez", async () => {
+      const { propertyId } = await makeOrgWithProperty();
+      const source = await prisma.calendarSource.create({
+        data: { propertyId, label: "Booking", url: "https://example.com/x.ics" },
+      });
+      vi.mocked(fetchFeedText).mockRejectedValue(new Error("HTTP 403"));
+      await syncCalendarSource(source.id);
+      expect((reportErrorMock.mock.calls[0][1] as Error).message).toBe("feed_http_403");
+    });
+
+    it("🚨 iCalendar OLMAYAN gövde 'ok' DEĞİL 'error' — sessiz arıza sınıfı", async () => {
+      // Sağlayıcı token süresi dolunca HTML giriş sayfası döndürür; `parseIcs`
+      // fırlatmaz, 0 olay döner ve eski kod bunu "Yeni rezervasyon bulunamadı" +
+      // lastStatus:"ok" diye yazıyordu → KALICI bozuk besleme SAĞLIKLI görünüyordu.
+      const { propertyId } = await makeOrgWithProperty();
+      const source = await prisma.calendarSource.create({
+        data: { propertyId, label: "Diğer", url: "https://example.com/login.ics" },
+      });
+      mockFetch("<!doctype html><html><body>Please sign in</body></html>");
+
+      const result = await syncCalendarSource(source.id);
+
+      expect(result.errors.length).toBeGreaterThan(0);
+      const updated = await prisma.calendarSource.findUnique({ where: { id: source.id } });
+      expect(updated?.lastStatus).toBe("error");
+      expect((reportErrorMock.mock.calls[0][1] as Error).message).toBe("feed_not_icalendar");
+    });
+
+    it("KONTROL: GERÇEKTEN BOŞ ama GEÇERLİ takvim hâlâ 'ok' — 'boş' ile 'feed değil' karışmaz", async () => {
+      // Bu ayrım load-bearing: mass-cancel dersi boş feed'in normal sayılmasına
+      // bağlı. RFC 5545 BEGIN:VCALENDAR'ı zorunlu kıldığı için ayrım güvenli.
+      const { propertyId } = await makeOrgWithProperty();
+      const source = await prisma.calendarSource.create({
+        data: { propertyId, label: "Airbnb", url: "https://example.com/empty.ics" },
+      });
+      mockFetch("BEGIN:VCALENDAR\nVERSION:2.0\nEND:VCALENDAR");
+
+      await syncCalendarSource(source.id);
+
+      const updated = await prisma.calendarSource.findUnique({ where: { id: source.id } });
+      expect(updated?.lastStatus).toBe("ok");
+      expect(reportErrorMock).not.toHaveBeenCalled();
+    });
+  });
 });
 
 describe("reconciliation source-binding (mass-cancel guard)", () => {

@@ -352,29 +352,86 @@ describe("POST /api/reservations/import — STATUS:CANCELLED", () => {
     expect((await prisma.reservation.findFirstOrThrow({ where: { id: row.id } })).status).toBe(statusAfterErase);
   });
 
-  // ── 8. KAPSAM SINIRI: CSV'de durum sütunu YOK (tripwire) ──────────────────
-  it("KAPSAM SINIRI: parseCsv durum sütunu ÇIKARMIYOR → CSV satırı canlı içe aktarılır", () => {
-    // 🚨 BU TEST KIRMIZIYA DÖNERSE: `csv.ts`'e bir durum/status sütunu eklenmiş
-    // demektir. YAPILACAK ŞEY: bu testi SİL — rota `row.status`'ü ayrıştırıcıdan
-    // BAĞIMSIZ okuyor (tek `isCancelledRow` kapısı), yani CSV'den gelen bir
-    // "cancelled" değeri o an KENDİLİĞİNDEN doğru şekilde onurlandırılır.
-    // Bugünkü durum dürüstçe: Airbnb CSV dışa aktarımındaki "Status" sütunu
-    // ayrıştırıcıda karşılığı olmadığı için SESSİZCE düşüyor.
+  // ── 8. CSV DURUM SÜTUNU (eski KAPSAM SINIRI, 08-09 (2)'de kapatıldı) ──────
+  //
+  // Bu iki test eskiden TERSİNİ pinliyordu ("CSV'de cancelled yazan satır canlı
+  // içe aktarılır — bilinen kapsam sınırı") ve o testin kendi yorumu şunu
+  // söylüyordu: *"BU TEST KIRMIZIYA DÖNERSE csv.ts'e durum sütunu eklenmiş
+  // demektir; rota row.status'ü ayrıştırıcıdan BAĞIMSIZ okur, yani değer o an
+  // KENDİLİĞİNDEN doğru onurlandırılır."* Aynen öyle oldu: rotaya TEK SATIR
+  // dokunulmadı, yalnız ayrıştırıcı alanı üretmeye başladı.
+  //
+  // Kapatılan gerçek zarar: Airbnb CSV dışa aktarımı iptalleri de içerir ve
+  // onlar `status:"confirmed"` yazılıyordu → doluluk/takvim/panel giriş-çıkış
+  // listelerinde CANLI görünüyor, üstelik `createReservationTasks` gelmeyecek
+  // misafir için temizlik görevi açıyordu.
+  it("parseCsv durum sütununu ÇIKARIR ve RFC token'ına indirger", () => {
     const row = parseCsv("guest_name,arrival,departure,reference,status\nAda,2026-07-10,2026-07-14,R1,cancelled")[0];
-    expect(Object.keys(row)).not.toContain("status");
+    expect(row.status).toBe("CANCELLED");
 
-    // Kardeş ayrıştırıcı ise ÇIKARIYOR — rota bu alana dayanıyor.
+    // Gerçek dışa aktarım değerleri — TAM eşleşme bunların hiçbirini yakalamazdı.
+    const variants = ["Cancelled by guest", "Canceled", "İptal edildi", "iptal"];
+    for (const v of variants) {
+      const r = parseCsv(`name,arrival,departure,durum\nAda,2026-07-10,2026-07-14,${v}`)[0];
+      expect(r.status, v).toBe("CANCELLED");
+    }
+
+    // 🚨 TERS YÖN — İPTAL DIŞI HİÇBİR DEĞER EŞLENMEZ. "status" başlıklı sütun her
+    // zaman rezervasyon durumu değildir (ödeme durumu da aynı başlığı taşıyor);
+    // `pending` eşlenseydi tamamen ödenmiş bir konaklama doluluk tahmininde bir,
+    // diğer sekiz yüzeyde başka türlü sayılırdı.
+    for (const v of ["confirmed", "pending", "paid", "completed", "past guest", ""]) {
+      const r = parseCsv(`name,arrival,departure,status\nAda,2026-07-10,2026-07-14,${v}`)[0];
+      expect(r.status, v).toBeUndefined();
+    }
+
+    // Kardeş ayrıştırıcıyla AYNI sözlük — rotanın tek kapısı ikisini de okur.
     const ics = parseIcs(calendar(vevent("u1", { cancelled: true })))[0];
     expect(ics.status).toBe("CANCELLED");
   });
 
-  it("CSV'de 'cancelled' yazan satır (bugün) canlı içe aktarılır — bilinen kapsam sınırı", async () => {
+  it("🚨 CSV'de 'cancelled' yazan satır CANLI İÇE AKTARILMAZ", async () => {
     const res = await POST(
       csvReq(propertyId, "guest_name,arrival,departure,reference,status\nAda,2026-07-10,2026-07-14,R1,cancelled"),
       { params: Promise.resolve({}) },
     );
     expect(res.status).toBe(200);
+    expect(await res.json()).toMatchObject({ imported: 0, skipped: 1 });
+    // Kardeş `.ics` yolunun sözleşmesiyle birebir: iptal kaydı UYDURULMAZ,
+    // yani ortada eşleşecek yerel satır yoksa hiçbir şey yazılmaz.
+    expect(await prisma.reservation.count({ where: { propertyId } })).toBe(0);
+  });
+
+  it("KONTROL: durum sütunu olmayan CSV eskisi gibi canlı içe aktarılır", async () => {
+    // Bu olmadan "CSV hiç import etmiyor" mutasyonu da yeşil geçerdi.
+    const res = await POST(
+      csvReq(propertyId, "guest_name,arrival,departure,reference\nAda,2026-07-10,2026-07-14,R2"),
+      { params: Promise.resolve({}) },
+    );
     expect(await res.json()).toMatchObject({ imported: 1 });
+    expect((await prisma.reservation.findFirstOrThrow({ where: { propertyId } })).status).toBe("confirmed");
+  });
+
+  // ⚠️ KAPSAM SINIRI, DÜRÜSTÇE PİNLENİYOR: iptalli bir CSV satırı YALNIZ
+  // `.ics` yüklemesinin doğurduğu satırı (`channel:"ics"`) iptal edebilir —
+  // KENDİ doğurduğu (`channel:"manual"`) satırı EDEMEZ. Sebep sahiplik
+  // belirsizliği: `channel:"manual"` elle GİRİLEN rezervasyonların da değeri,
+  // ve WHERE'i genişletmek eski bir dosyanın host'un elle girdiği kaydı
+  // sessizce öldürmesine kapı açardı (08-08'de tam bu sınıf iki kez yandı).
+  // Zarar yok: satır zaten canlı doğmuyor; eksik olan yalnız GERİYE DÖNÜK iptal.
+  it("kapsam sınırı: CSV iptali, CSV'nin kendi (manual) satırını iptal ETMEZ", async () => {
+    await POST(csvReq(propertyId, "name,arrival,departure,id\nAda,2026-07-10,2026-07-14,R9"), {
+      params: Promise.resolve({}),
+    });
+    const before = await prisma.reservation.findFirstOrThrow({ where: { propertyId } });
+    expect(before.channel).toBe("manual");
+
+    const res = await POST(
+      csvReq(propertyId, "name,arrival,departure,id,status\nAda,2026-07-10,2026-07-14,R9,cancelled"),
+      { params: Promise.resolve({}) },
+    );
+    expect(await res.json()).toMatchObject({ cancelled: 0, skipped: 1 });
+    expect((await prisma.reservation.findFirstOrThrow({ where: { id: before.id } })).status).toBe("confirmed");
   });
 
   // ── CSV BACAGI DA YASAM-DONGUSU KAPISININ DISINDA ──────────────────────────

@@ -1,4 +1,5 @@
 import { prisma } from "@/lib/db";
+import { scrubStyleProfileForPublic } from "@/lib/guest-chat";
 import { aiSuggestSchema } from "@/lib/validators";
 import { suggestReply } from "@/lib/ai";
 import { getAdjacency } from "@/lib/turnover";
@@ -114,7 +115,13 @@ export const POST = withManage<{ id: string }>(async (session, req, { params }) 
     })),
     tone,
     language: lastInbound.language || "tr",
-    styleProfile: org?.aiStyleProfile,
+    // 🚨 STİL REHBERİ SÜZÜLEREK GEÇER — QR ve kanal yollarıyla PARİTE (08-09 (2)).
+    // Rehber host'un KENDİ giden mesajlarından damıtılıyor; host bir gün misafire
+    // "Kapı kodu 4590" yazdıysa o satır rehbere sızabilir ve prompt rehberi bir
+    // CEVAP KAYNAĞI olarak sunuyor. Süzgeç SATIR bazlı: yalnız sırra benzeyen
+    // satır düşer, üslup korunur — yani kayıp yok, çünkü rehber ÜSLUP içindir,
+    // içerik değil. Üç yüzeyin üçü de artık aynı süzgeçten geçiyor.
+    styleProfile: scrubStyleProfileForPublic(org?.aiStyleProfile),
     adjacency,
     lateCheckoutOfferText: org?.lateCheckoutOfferText,
   });

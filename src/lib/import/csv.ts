@@ -27,6 +27,12 @@ export interface CsvReservation {
   channel?: string;
   sourceReference?: string;
   notes?: string;
+  /**
+   * RFC 5545 durum TOKEN'ı (`"CANCELLED"`), kardeş `IcsReservation.status` ile
+   * AYNI sözlük — rotanın `isCancelledRow`u ayrıştırıcıdan bağımsız kalsın diye.
+   * Tanınmayan/boş değerde `undefined` (= bugünkü davranış: `confirmed` yazılır).
+   */
+  status?: string;
 }
 
 // Hard limits (DoS guards; the route also caps the upload at 5 MB).
@@ -44,6 +50,29 @@ const CURRENCY_COLS = ["currency", "para_birimi", "currency_code"];
 const CHANNEL_COLS = ["channel", "source", "platform", "kanal"];
 const REF_COLS = ["reference", "source_reference", "ref", "booking_id", "reservation_id", "id", "uid"];
 const NOTES_COLS = ["notes", "note", "description", "comment", "notlar", "not"];
+const STATUS_COLS = ["status", "durum", "reservation_status", "booking_status", "rezervasyon_durumu"];
+
+/**
+ * Serbest metin durum hücresini RFC 5545 token'ına indirger.
+ *
+ * 🚨 YALNIZ İPTAL TANINIR — `confirmed`/`pending`/`completed` BİLEREK
+ * eşlenmez. Gerekçe: "status" başlıklı bir sütun her zaman REZERVASYON durumu
+ * değildir; Airbnb/Booking dışa aktarımlarında ödeme durumu ("pending",
+ * "paid") de aynı başlığı taşıyabiliyor. `pending` eşlenseydi tamamen ödenmiş
+ * bir konaklama doluluk tahmininde bir, diğer sekiz yüzeyde başka türlü
+ * sayılırdı. İptal ise tek yönlü ve yıkıcı-olmayan: tanımadığımız her değer
+ * bugünkü davranışa (`confirmed`) düşer, yani yanlış-negatif güvenli.
+ *
+ * ÖN EK eşleşmesi: gerçek dışa aktarımlar "Cancelled by guest", "Canceled",
+ * "İptal edildi" yazıyor — tam eşleşme bunların hiçbirini yakalamazdı.
+ */
+function normalizeStatus(raw: string): string | undefined {
+  const v = raw.trim().toLowerCase();
+  if (!v) return undefined;
+  // "iptal"/"i̇ptal" — Türkçe İ'nin toLowerCase'i birleşik nokta üretebilir.
+  const folded = v.replace(/̇/g, "");
+  return folded.startsWith("cancel") || folded.startsWith("iptal") ? "CANCELLED" : undefined;
+}
 
 function normalizeHeader(h: string): string {
   return h.toLowerCase().replace(/[^a-z0-9ğüşıöçа-яёî]/g, "_").trim();
@@ -228,6 +257,7 @@ export function parseCsv(text: string): CsvReservation[] {
   const channelIdx = findCol(headers, CHANNEL_COLS);
   const refIdx = findCol(headers, REF_COLS);
   const notesIdx = findCol(headers, NOTES_COLS);
+  const statusIdx = findCol(headers, STATUS_COLS);
 
   const results: CsvReservation[] = [];
 
@@ -255,6 +285,7 @@ export function parseCsv(text: string): CsvReservation[] {
     const channel = get(channelIdx) || undefined;
     const sourceReference = get(refIdx) || undefined;
     const notes = get(notesIdx) || undefined;
+    const status = normalizeStatus(get(statusIdx));
 
     results.push({
       guestName,
@@ -265,6 +296,7 @@ export function parseCsv(text: string): CsvReservation[] {
       ...(channel ? { channel } : {}),
       ...(sourceReference ? { sourceReference } : {}),
       ...(notes ? { notes } : {}),
+      ...(status ? { status } : {}),
     });
   }
 

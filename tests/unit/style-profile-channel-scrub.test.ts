@@ -42,4 +42,40 @@ describe("aiStyleProfile — kanal yolu da süzer", () => {
     expect(code).not.toMatch(/styleProfile:\s*org\.aiStyleProfile\s*,/);
     expect(code).toMatch(/styleProfile:\s*scrubStyleProfileForPublic\(org\.aiStyleProfile\)/);
   });
+
+  // ── DÖRT YÜZEYİN DÖRDÜ DE (08-09 (2)) ──────────────────────────────────────
+  //
+  // 🚨 KANAL YOLU 08-08'DE DÜZELTİLMİŞTİ AMA İKİ YÜZEY ATLANMIŞTI: `ai-suggest`
+  // ("AI ile cevapla") ve `ai/test` (Ayarlar → "AI'yı Deneyin") profili HAM
+  // geçiriyordu. İkisi de oturum korumalı ve çıktı TASLAK — ama taslak host'un
+  // yazma alanına basılıyor ve tek tıkla misafire gidiyor. Yani sonuç aynı
+  // yerde bitiyor, yalnız arada bir tık var; ve kapı kodunun misafire NE ZAMAN
+  // gideceği kararı KB kapısının işi (`verifiedActiveStay`), taslağı okuyan
+  // host'un anlık dikkatinin değil.
+  //
+  // Bu pin YENİ POLİTİKA İCAT ETMİYOR — mevcut süzgeci dört yüzeye eşitliyor.
+  // Kayıp yok: rehber ÜSLUP içindir, sır satırı orada zaten bilgi taşımıyor.
+  it("🚨 `ai-suggest` ve `ai/test` de SÜZEREK geçirir — dört yüzey eşit", () => {
+    for (const path of [
+      "src/app/api/conversations/[id]/ai-suggest/route.ts",
+      "src/app/api/ai/test/route.ts",
+    ]) {
+      const code = readFileSync(path, "utf8")
+        .split("\n")
+        .filter((l) => !l.trimStart().startsWith("//") && !l.trimStart().startsWith("*"))
+        .join("\n");
+      expect(code, path).not.toMatch(/styleProfile:\s*org\?\.aiStyleProfile\s*,/);
+      expect(code, path).toMatch(/styleProfile:\s*scrubStyleProfileForPublic\(org\?\.aiStyleProfile\)/);
+    }
+  });
+
+  // ⚠️ Yorum eleme SATIR BAŞINA çapalı (`trimStart().startsWith("//")`) — bu
+  // deponun kendi ölçülmüş tuzağı: `/\/\/[^\n]*/g` ile eleme yapan bir sürüm
+  // `https://…` içindeki `//`den itibaren her şeyi siliyor ve testi kendi
+  // aradığı ipucunu yok ederek vacuous hâle getiriyordu.
+  it("tarama gerçekten kod görüyor (test kendini boşa düşürmesin)", () => {
+    const code = readFileSync("src/app/api/ai/test/route.ts", "utf8");
+    expect(code).toContain("suggestReply");
+    expect(code.length).toBeGreaterThan(2000);
+  });
 });
