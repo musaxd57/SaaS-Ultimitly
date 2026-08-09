@@ -46,7 +46,36 @@ const NOT_ORG_SCOPED: Record<string, string> = {
   "leads/route.ts": "public: landing formu; YALNIZ POST (listeleme yok) + 5/saat IP limiti",
   "admin/exit/route.ts": "global: impersonation'dan çıkış — operatörün KENDİ oturumunu geri alır",
   "admin/leads/[id]/route.ts": "global: Lead org'a bağlı değil; superadmin kapılı",
+  // ↓ ÜÇÜ DE `organizationId` DİZGİSİNİ TAŞIR AMA KAPSAMLI DEĞİLDİR (↓REQUEST_DERIVED_ORG_ID).
+  "admin/export/route.ts": "operatör: org id `?orgId=` ile İSTEKTEN gelir; tek yetki isSuperAdmin",
+  "admin/impersonate/route.ts": "operatör: org id GÖVDEDEN gelir; tek yetki isSuperAdmin",
+  "admin/quality-audit/route.ts": "operatör: org id GÖVDEDEN gelir; tek yetki isSuperAdmin",
 };
+
+/**
+ * 🚨 KAPSAM ÖLÇÜTÜNÜN ÖLÇÜLMÜŞ YANLIŞ-NEGATİFİ (08-09).
+ *
+ * Ölçüt düz `/organizationId/` metin taramasıdır ve bu üç rota o dizgiyi TAŞIR —
+ * ama değer OTURUMDAN değil İSTEKTEN gelir (`?orgId=` / gövde). Yani ölçütü
+ * sağlayan şeyin kendisi kapsamın YOKLUĞUYDU: rotalar "kapsanmış" sayılıyor,
+ * gerekçeli listeye girmeleri İSTENMİYOR ve tek yetkilendirme satırları
+ * (`isSuperAdmin`) hiçbir yerde pinli değildi.
+ *
+ * ÖLÇÜLDÜ: `admin/export` + `admin/impersonate` rotalarından o satır (ve artık
+ * kullanılmayan import'u) silinip TÜM süit koşuldu → **3254 test YEŞİL**. Yani
+ * kimliği doğrulanmış sıradan bir müşteri, başka bir org'un id'sini yazarak o
+ * org'un TÜM verisini indirebilir ve oturumunu o org'a devredebilirdi.
+ *
+ * Buradaki liste ölçütü DARALTIR (rotalar artık "kapsamsız" sayılır → gerekçeli
+ * listede olmak ZORUNDALAR) ve ↓"admin rotaları superadmin kapılı" testi gerçek
+ * korumayı pinler. Davranışsal pin ayrı dosyada:
+ * `tests/integration/admin-superadmin-gate.test.ts`.
+ */
+const REQUEST_DERIVED_ORG_ID = new Set([
+  "admin/export/route.ts",
+  "admin/impersonate/route.ts",
+  "admin/quality-audit/route.ts",
+]);
 
 function walk(dir: string): string[] {
   const out: string[] = [];
@@ -70,13 +99,21 @@ const routes = allFiles
  */
 const isOrgScoped = (src: string) => /organizationId/.test(src);
 
+/**
+ * ROTA DÜZEYİNDE NİHAİ HÜKÜM. Dizgi VAR ama değeri istemci yazıyorsa kapsam
+ * DEĞİLDİR — saf ölçüt bunu bilemez (metin taraması "değer nereden geliyor"
+ * sorusunu yanıtlamaz), o yüzden ayrı bir katman.
+ */
+const routeIsOrgScoped = (r: { rel: string; src: string }) =>
+  isOrgScoped(r.src) && !REQUEST_DERIVED_ORG_ID.has(r.rel);
+
 describe("API rotaları kiracı kapsamı taşır", () => {
   it("tarama gerçekten rota buluyor (test kendini boşa düşürmesin)", () => {
     expect(routes.length).toBeGreaterThan(50);
   });
 
   it("KODDA org kapsamı olmayan HER rota, gerekçeli listede", () => {
-    const unscoped = routes.filter((r) => !isOrgScoped(r.src)).map((r) => r.rel);
+    const unscoped = routes.filter((r) => !routeIsOrgScoped(r)).map((r) => r.rel);
     expect(unscoped.sort()).toEqual(Object.keys(NOT_ORG_SCOPED).sort());
   });
 
@@ -110,7 +147,7 @@ describe("API rotaları kiracı kapsamı taşır", () => {
     // Bugün guard taşıyıp org filtresi olmayan GERÇEK bir rota varsa (şu an yok)
     // mutlaka gerekçeli listede olmalı — küme büyürse bu dal da devreye girer.
     const guardOnly = routes.filter(
-      (r) => !isOrgScoped(r.src) && /withAuth|withManage|withOwner/.test(r.src),
+      (r) => !routeIsOrgScoped(r) && /withAuth|withManage|withOwner/.test(r.src),
     );
     for (const r of guardOnly) expect(NOT_ORG_SCOPED[r.rel], r.rel).toBeTruthy();
   });
@@ -127,14 +164,43 @@ describe("API rotaları kiracı kapsamı taşır", () => {
       (r) => /\[[^\]]+\]/.test(r.rel) && !tokenScoped.includes(r.rel) && !globalByDesign.includes(r.rel),
     );
     expect(dynamic.length).toBeGreaterThan(15);
-    expect(dynamic.filter((r) => !/organizationId/.test(r.src)).map((r) => r.rel)).toEqual([]);
+    expect(dynamic.filter((r) => !routeIsOrgScoped(r)).map((r) => r.rel)).toEqual([]);
   });
 
-  it("org'a bağlı olmayan admin rotası superadmin kapılı", () => {
-    for (const rel of ["admin/leads/[id]/route.ts", "admin/exit/route.ts"]) {
-      const r = routes.find((x) => x.rel === rel)!;
-      expect(/isSuperAdmin|requireSession|requireAuth/.test(r.src), rel).toBe(true);
-    }
+  it("istekten org id alan her rota gerekçeli listede de yer alır (iki liste birlikte hareket eder)", () => {
+    // Biri güncellenip diğeri unutulursa rota SESSİZCE hiçbir kapıya tabi olmaz:
+    // ölçütten muaf ama gerekçesiz. Bu satır o çifti bağlar.
+    for (const rel of REQUEST_DERIVED_ORG_ID) expect(NOT_ORG_SCOPED[rel], rel).toBeTruthy();
+  });
+
+  it("🚨 HER admin rotası `isSuperAdmin` taşır — `requireSession` kapsam SAYILMAZ", () => {
+    // ⚠️ ESKİ HÂLİ İKİ YÖNDEN DE ZAYIFTI (ölçüldü, 08-09):
+    //   (1) Yalnız İKİ rotaya bakıyordu (`admin/leads/[id]`, `admin/exit`) — yani
+    //       `admin/export` (bir org'un TÜM verisinin dökümü) ve `admin/impersonate`
+    //       (müşteri org'una oturum devri) hiçbir yapısal pin taşımıyordu.
+    //   (2) Ölçüt `isSuperAdmin|requireSession|requireAuth` ALTERNASYONUYDU →
+    //       `requireSession` TEK BAŞINA tatmin ediyordu, yani "operatör kapılı" ile
+    //       "sadece oturumlu" ayırt EDİLEMİYORDU. Her admin rotası zaten
+    //       `requireSession` çağırıyor; alternasyon fiilen hiçbir şey istemiyordu.
+    // Yeni hâli: KAPALI liste + tek kabul edilen dizgi.
+    const adminRoutes = routes.filter((r) => r.rel.startsWith("admin/"));
+    // Popülasyon guard'ı: glob bozulursa test trivially geçmesin.
+    expect(adminRoutes.length).toBeGreaterThanOrEqual(7);
+
+    // TEK istisna. `admin/exit` yetkiyi ARTIRMAZ, DÜŞÜRÜR: operatörü müşteri
+    // org'undan kendi kimliğine geri döndürür ve kimliğini imzalı `actorUserId`
+    // taşır. Buraya ikinci bir isim eklemek bir GÜVENLİK KARARIDIR.
+    const NO_SUPERADMIN_NEEDED: Record<string, string> = {
+      "admin/exit/route.ts": "yalnız impersonation'dan ÇIKAR — yetki düşürür, artırmaz",
+    };
+
+    const ungated = adminRoutes.filter((r) => !/isSuperAdmin\(/.test(r.src)).map((r) => r.rel);
+    expect(ungated.sort()).toEqual(Object.keys(NO_SUPERADMIN_NEEDED).sort());
+
+    // İstisnanın kendisi de bayatlamasın: `exit` gerçekten yalnız çıkış yapıyor mu.
+    const exit = routes.find((r) => r.rel === "admin/exit/route.ts")!;
+    expect(/exitImpersonation\(/.test(exit.src)).toBe(true);
+    expect(/enterOrganization\(|buildOrganizationDataExport\(/.test(exit.src)).toBe(false);
   });
 
   it("mantık route.ts DIŞINA taşınarak taramadan kaçırılamaz", () => {
