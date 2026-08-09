@@ -126,31 +126,53 @@ Bu gece migration yazılmadı, üretilmedi, çalıştırılmadı.
 
 ---
 
-## AÇIK SORULAR (sabah kararı) — hepsi ÖLÇÜLDÜ, hiçbiri kodlanmadı
+## SABAH KARARLARI (Codex, 08-09) — KAYDEDİLDİ, KOD YAZILMADI
 
-### S1. Logout sunucuda iptal etmeli mi? (P0)
-Bugün etmiyor: `logout` yalnız çerezi siliyor, `sessionEpoch` artıran 4 yerin
-hiçbiri değil. Migration'sız TEK kaldıraç epoch artırmak, o da **"her yerden
-çıkış"** demek (telefonda çıkış → dizüstünde de düşer).
-⚠️ Şu ayrımı not et: middleware'in kayan yenilemesi iptal edilmiş bir oturumu
-**AKLAMIYOR** (payload aynen imzalanıyor, bayat epoch taşınıyor), yani sorun
-"çerez süresiz yaşıyor" değil, **iptal mekanizmasının logout'ta hiç
-çalışmaması**. Gerçek çözüm per-session `jti` + iptal listesi = MIGRATION.
-**Karar gerekiyor:** (a) epoch artır (her yerden çıkış, tek satır), (b) `jti`
-migration'ı, (c) olduğu gibi bırak.
+**S1 KAPANDI:** sıradan logout bütün cihazları DÜŞÜRMEYECEK. Gerçek çözüm
+per-session `jti` + iptal listesi ve o AYRI BİR MIGRATION TURU. Bu gece/bugün
+`sessionEpoch` artırma yoluna GİDİLMEYECEK.
 
-### S2. Trusted-device şifre sıfırlamayla düşmeli mi? (P2 — ÖLÇÜLDÜ)
-`signTrustedDeviceToken` payload'ı `{ userId, purpose, epoch }` ve `epoch`
-**2FA epoch'u** (`twoFactorEnabledAt`), `sessionEpoch` DEĞİL. Doğrulama üçünü de
-eşitlik ile arıyor (`trusted-device.ts:52-56`), yani şifre sıfırlama token'ı
-etkilemiyor: kurban ürünün söylediği tek şeyi yapıyor ama 2FA-atlama kimlik
-bilgisi yaşamaya devam ediyor (30 gün, üstelik her güvenilen girişte yenileniyor).
-**Düzeltme yolu:** payload'a `sessionEpoch` eklemek.
-**BEDELİ (dürüstçe):** doğrulama alan eşitliği aradığı için, deploy anında
-MEVCUT tüm güvenilen cihazlar geçersizleşir → her kullanıcı bir kez 6 hane girer.
-Bir defalık ve küçük, ama görünür.
-**BU GECE YAPILMADI ve gerekçesi disiplin:** halihazırda 7 değişiklik iki
-bağımsız incelemede; incelenmemiş 8.'yi eklemek o incelemeyi anlamsız kılardı.
+**S2 KARARI:** şifre sıfırlama trusted-device güvenini MUTLAKA geçersiz kılacak.
+Kanıt aşağıda; **migration GEREKMİYOR.**
+
+### S2 KANITI — migration'sız yapılabilir (kod-doğrulandı, 4 adım)
+
+1. **Kolon ZATEN VAR.** `User.sessionEpoch` mevcut; hiçbir şema değişikliği
+   gerekmiyor. Token bir JWT'dir — payload'ına alan eklemek migration değildir.
+2. **Değer ZATEN BELLEKTE.** `login/route.ts:48` `findUnique({ where: { email } })`
+   çağrısını **`select` OLMADAN** yapıyor → tam satır geliyor ve `sessionEpoch`
+   `:215`'te oturum imzalanırken zaten kullanılıyor. Yani ek DB okuması YOK.
+3. **TEK ÜRÜN ÇAĞIRANI VAR.** `hasTrustedDevice` (`login:119`) ve
+   `setTrustedDeviceCookie` (`login:240`) — ikisi de AYNI handler'da, `user`
+   kapsamdayken. Başka çağıran yok (grep). Yani "bir yerde sessionEpoch elimizde
+   olmayabilir" riski YOK.
+4. **Sıfırlama epoch'u ZATEN ARTIRIYOR.** `password-reset-challenge:250` ·
+   `forgot-password:354` · `account/password:204`. Yani bağlama eklendiği anda
+   sıfırlama otomatik olarak iptal eder — yeni bir tetikleyici yazmaya gerek yok.
+
+**Tasarım:** `signTrustedDeviceToken` payload'ına `sEpoch` eklenir;
+`verifyTrustedDeviceToken` onu da karşılaştırır. MEVCUT 2FA-epoch bağlaması
+KALDIRILMAZ — ikisi birden tutulur (yalnız SIKILAŞTIRIR).
+
+**⚠️ KABUL EDİLMESİ GEREKEN BEDELLER (ikisi de bilinçli):**
+· **Deploy anında tüm mevcut "beni hatırla" çerezleri ölür** (payload'da yeni
+  alan yok → karşılaştırma başarısız → fail-closed). Etki: hatırlanan cihazı
+  olan her kullanıcı BİR KEZ 6 haneli kodu girer. Tek seferlik, geri dönüşsüz
+  değil, ve zaten istenen yönde.
+· **Şifre DEĞİŞTİRME de** (yalnız sıfırlama değil) tüm hatırlanan cihazları
+  düşürür, çünkü o da epoch artırıyor. Tutarlı ve savunulabilir; ama sürpriz
+  olmasın diye burada yazılı.
+· `admin/reset-2fa` da epoch artırıyor → o da düşürür (2FA epoch'u zaten
+  değiştiği için bugün de düşüyordu; davranış aynı).
+
+**Test planı (yazılmadı):** kırmızı-önce — sıfırlamadan SONRA eski çerezle
+giriş 2FA sorar · KONTROL: sıfırlama YOKKEN aynı çerez hâlâ atlatır (yoksa
+"her zaman reddet" mutasyonu yeşil geçer) · mutasyon: `sEpoch` karşılaştırmasını
+kaldır → kırmızı; koşulsuz reddet → KONTROL kırmızı.
+
+---
+
+## KALAN AÇIK SORULAR (S1/S2 KARARA BAĞLANDI ↑)
 
 ### S3. Sır dedektörü yapısal dengesi
 İki aday da ölçülüp reddedildi (↑FAZ 4). Gerçek çözüm ayrı tur. Ad-hoc regex YOK.
