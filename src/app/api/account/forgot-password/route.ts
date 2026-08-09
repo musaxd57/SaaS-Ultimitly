@@ -34,11 +34,17 @@ import {
 const CODE_TTL_MS = 10 * 60_000; // 10 minutes (ESKİ akış — Faz 3'te kalkacak)
 
 /**
- * FAZ 1 BAYRAĞI — DEFAULT KAPALI (kullanıcı kararı: prod'da AÇILMAYACAK).
+ * CHALLENGE BAYRAĞI — kod varsayılanı KAPALI, **RAILWAY'DE AÇIK** (Faz 2,
+ * 08-05'te canlıda uçtan uca doğrulandı). Kod varsayılanının kapalı kalması
+ * bilinçlidir: geri alma yolu "env'i sil + redeploy"dır, kod değişikliği değil.
  *
- * Kapalıyken: davranış BİREBİR eskisi gibi. Challenge satırı yazılır (çift yazma)
- * ama confirm yolunda KULLANILMAZ ve e-postaya bağlantı EKLENMEZ — yani üretimde
- * hiçbir kullanıcı-görünür değişiklik yok.
+ * Kapalıyken: davranış BİREBİR eski akış. `issueChallenge` HİÇ çağrılmaz (tek
+ * çağrı yeri aşağıdaki bayrak bloğunun içindedir) → challenge satırı OLUŞMAZ,
+ * dolayısıyla token da oluşamaz ve confirm'ün token'lı dalı ERİŞİLEMEZ kalır.
+ * ⚠️ Bu yorum bir dönem "kapalıyken de çift yazma yapılır" diyordu; Faz 1'in
+ * çift-yazma aşaması geride kaldığı için o cümle YANLIŞLAŞMIŞTI (08-09'da
+ * düzeltildi). Pratik sonucu: `AuditLog`'da `via:"challenge"` taşıyan bir satır,
+ * yazıldığı anda bayrağın AÇIK olduğunun KANITIDIR — kapalıyken üretilemez.
  * Açıkken: e-posta bağlantı taşır, confirm token'lı yolu kabul eder; ESKİ kod
  * yolu uçuştaki kodlar için ÇALIŞMAYA DEVAM EDER (geçiş penceresi ≥ eski TTL).
  */
