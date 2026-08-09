@@ -409,6 +409,29 @@ async function applyTransactionEvent(
   }
 }
 
+/**
+ * Başlık GERÇEK bir Paddle teslimatının ŞEKLİNİ taşıyor mu?
+ *
+ * Amaç bir güvenlik kararı DEĞİL (kabul/ret kararını `verifyPaddleSignature`
+ * verir, o hiç değişmedi) — yalnız ALARM GÜRÜLTÜSÜNÜ elemek. Sıradan bir
+ * internet tarayıcısı `ts=<unix>;h1=<64 hex>` üretmez; bir anahtar uyuşmazlığı
+ * ise DAİMA bu şekli üretir.
+ */
+function looksLikePaddleDelivery(header: string | null): boolean {
+  if (!header) return false;
+  let ts = "";
+  let h1 = "";
+  for (const part of header.split(";")) {
+    const eq = part.indexOf("=");
+    if (eq === -1) continue;
+    const k = part.slice(0, eq).trim();
+    const v = part.slice(eq + 1).trim();
+    if (k === "ts") ts = v;
+    else if (k === "h1" && !h1) h1 = v;
+  }
+  return /^\d{10,}$/.test(ts) && /^[0-9a-f]{64}$/i.test(h1);
+}
+
 export async function POST(req: NextRequest) {
   const secret = getPaddleWebhookSecret();
   if (!secret) {
@@ -439,12 +462,35 @@ export async function POST(req: NextRequest) {
     if (err instanceof BodyTooLargeError) return payloadTooLarge();
     throw err;
   }
-  const ok = verifyPaddleSignature({
-    signatureHeader: req.headers.get("paddle-signature"),
-    rawBody,
-    secret,
-  });
-  if (!ok) return unauthorized();
+  const signatureHeader = req.headers.get("paddle-signature");
+  const ok = verifyPaddleSignature({ signatureHeader, rawBody, secret });
+  if (!ok) {
+    // 🚨 EKSİK ANAHTAR ALARM VERİYORDU, YANLIŞ ANAHTAR VERMİYORDU (08-09 (2)).
+    // Asimetri tersti: `PADDLE_WEBHOOK_SECRET` bir rotasyon/yazım hatasıyla
+    // YANLIŞ olursa her olay 401 alır, Paddle sonlu sayıda yeniden dener ve pes
+    // eder → olay KALICI kaybolur. Sonuç iki yönde de sessiz: iptal olmuş bir org
+    // sonsuza kadar premium kalır, ödeyen müşterinin yükseltmesi `planCode`'a
+    // hiç ulaşmaz. Üstteki dormant dalının yorumu "401 → Paddle yeniden dener"
+    // diyerek bu hâli daha iyi sayıyordu; doğru, ama yalnız retry penceresi
+    // DOLANA KADAR.
+    //
+    // ⚠️ ALARM YALNIZ "ŞEKLİ DOĞRU AMA DOĞRULANMIYOR" HÂLİNDE. Burası kimliksiz
+    // ve halka açık bir uç nokta; her 404 tarayıcısına alarm yazmak kanalı
+    // çöpe çevirirdi. Şekil kapısı (ts=<10+ hane>;h1=<64 hex>) sıradan tarayıcıyı
+    // eler ve tam da teşhis etmek istediğimiz vakayı geçirir: GERÇEK bir Paddle
+    // teslimatı, YANLIŞ anahtarla. Kasıtlı bir saldırgan yine tetikleyebilir —
+    // `reportError`ın 10 dakikalık context throttle'ı e-posta tarafını sınırlar
+    // (dormant dalı da aynı taviz üzerine kurulu).
+    //
+    // ⚠️ GÖVDE ALARMA GİRMEZ: ham payload müşteri adı/e-postası/adresi taşır.
+    if (looksLikePaddleDelivery(signatureHeader)) {
+      void reportError(
+        "paddle-webhook-signature-mismatch",
+        new Error("Paddle imzası doğrulanmadı — webhook anahtarı yanlış/rotasyona uğramış olabilir"),
+      );
+    }
+    return unauthorized();
+  }
 
   let event: PaddleEvent | null = null;
   try {

@@ -101,6 +101,26 @@ export const POST = withOwner(async (session, req) => {
   const alreadyOn = await getSubscriptionCurrentPriceId(r.providerRef);
   if (alreadyOn === r.priceId) {
     await prisma.systemLock.deleteMany({ where: { name: `plan-change-pending:${session.organizationId}` } }).catch(() => {});
+    // 🚨 BU DAL DENETİM İZİ BIRAKMIYORDU (08-09 (2)). `writeAudit` aşağıda ve bu
+    // erken dönüş onu ATLIYORDU → para rotasında, müşteriye "başarılı" denen bir
+    // sonuç HİÇBİR iz bırakmadan geçiyordu. Kardeş "ambiguous → reconciled" dalı
+    // aşağı düşüp audit yazıyor; asimetri kazara oluşmuştu.
+    // ⚠️ Paddle'a HİÇBİR ŞEY gönderilmiyor (zaten hedefteyiz — "already applied
+    // olanı yeniden PATCH etme" kuralı) ve YEREL PLAN DA YAZILMIYOR; ikincisi
+    // bilinçli bir AÇIK madde, kararı `docs/PADDLE-TEKNIK-TABLO-2026-08-09.md`de.
+    await writeAudit({
+      organizationId: session.organizationId,
+      actorUserId: auditActor(session),
+      action: "billing.plan_change",
+      metadata: {
+        from: r.currentCode,
+        to: planCode,
+        mode: r.mode,
+        reconciled: true,
+        noop: true, // Paddle zaten hedef fiyatta — istek gönderilmedi
+        ...auditImpersonation(session),
+      },
+    }).catch(() => {});
     return jsonOk({ ok: true, mode: r.mode, reconciled: true });
   }
   // FAIL-CLOSED + ATOMIC pending claim BEFORE the PATCH (Codex round-4): the

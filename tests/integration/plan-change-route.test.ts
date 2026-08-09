@@ -248,6 +248,34 @@ describe("plan change routes (gated, PATCH /subscriptions)", () => {
     expect(updateMock).toHaveBeenCalledTimes(1);
   });
 
+  // ── HIZLI DAL ARTIK DENETİM İZİ BIRAKIYOR (08-09 (2)) ──────────────────────
+  //
+  // 🚨 `alreadyOn === r.priceId` dalı `writeAudit`ten ÖNCE dönüyordu → PARA
+  // ROTASINDA müşteriye "başarılı" denen bir sonuç HİÇBİR iz bırakmadan
+  // geçiyordu. Kardeş "ambiguous → reconciled" dalı aşağı düşüp audit yazıyor;
+  // asimetri kazaraydı. Bu dal Paddle'a hiçbir istek GÖNDERMEZ ("already
+  // applied olanı yeniden PATCH etme" kuralı) — kayıt bu yüzden `noop: true`.
+  it("🚨 change: Paddle ZATEN hedefteyken audit YAZILIR ve PATCH gönderilmez", async () => {
+    const t = tok("pri_isletme", "upgrade");
+    getPriceMock.mockResolvedValue("pri_isletme"); // hızlı yol: zaten hedefte
+
+    const res = await CHANGE(req({ planCode: "business", previewToken: t }), ctx);
+
+    expect(res.status).toBe(200);
+    expect((await res.json()).reconciled).toBe(true);
+    expect(updateMock).not.toHaveBeenCalled(); // Paddle'a DOKUNULMADI
+
+    const rows = await prisma.auditLog.findMany({ where: { action: "billing.plan_change" } });
+    expect(rows).toHaveLength(1);
+    // `metadataJson` kolonu STRING'dir — nesne gibi eşleştirmek sessizce geçerdi.
+    expect(JSON.parse(rows[0].metadataJson ?? "{}")).toMatchObject({
+      from: "pro",
+      to: "business",
+      reconciled: true,
+      noop: true,
+    });
+  });
+
   it("change: an AMBIGUOUS failure NOT reconciled to target → 202 pending, nonce stays consumed, NO second PATCH", async () => {
     const t = tok("pri_isletme", "upgrade");
     updateMock.mockResolvedValueOnce({ ok: false, kind: "ambiguous", reason: "fetch failed" });
