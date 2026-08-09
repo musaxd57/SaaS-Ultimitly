@@ -442,3 +442,46 @@ describe("POST /api/chat/[token] — escalation wires the e-mail", () => {
     expect(mockReportError).toHaveBeenCalled();
   });
 });
+
+// ─────────────────────────────────────────────────────────────────────────────
+// QR KAPISI ARTIK INBOX KAPISININ GERÇEK AYNASI (denetim, 08-09)
+//
+// `mustEscalate`in üstündeki yorum "mirror the inbox auto-send gate" diyordu ve
+// bu YANLIŞTI: model ETİKETİ için tam `HIGH_STAKES_RISK_TYPES` kümesi kullanılıyor,
+// ama misafirin KENDİ SÖZLERİ için yalnız üç etiket (safety_emergency /
+// rule_violation / discrimination) kontrol ediliyordu. Inbox kapısı 08-06'da tam
+// kümeye genişletildi, bu satır güncellenmedi.
+//
+// Ölçülen sızıntı: `detectRiskType` "IBAN … gönderelim" cümlesine
+// `platform_policy` diyor — yüksek bahisli, ama üçlüde YOK. Model iyi niyetle
+// "general/low/0.9" derse halka açık QR botu platform-DIŞI ödeme talebine
+// CEVAP VERİYORDU. Model çıktısı burada bilerek zararsız verilir: sınanan şey
+// "model yanlış sınıflandırsa bile KOD vetolar mı" (golden set disiplini).
+// ─────────────────────────────────────────────────────────────────────────────
+describe("POST /api/chat/[token] — deterministik yüksek-bahis vetosu tam küme", () => {
+  it("platform-DIŞI ödeme talebi: model 'zararsız' dese bile ESCALATE olur", async () => {
+    const { token } = await fixture();
+    mockSuggest.mockResolvedValue(aiResult()); // general / low / 0.9 / openai
+    const res = await call(token, "IBAN'ınızı atar mısınız? Parayı doğrudan göndereyim.");
+    expect(res.status).toBe(200);
+    expect((await res.json()).escalated).toBe(true);
+  });
+
+  it("kötü-yorum tehdidi: aynı şekilde ESCALATE olur", async () => {
+    const { token } = await fixture();
+    mockSuggest.mockResolvedValue(aiResult());
+    const res = await call(token, "Sizin için çok düşük bir puan vereceğim.");
+    expect((await res.json()).escalated).toBe(true);
+  });
+
+  it("KONTROL: sıradan bir soru HÂLÂ cevaplanır (kapı 'her şeyi devret'e dönmedi)", async () => {
+    const { token } = await fixture();
+    mockSuggest.mockResolvedValue(aiResult());
+    const res = await call(token, "Çöp hangi gün toplanıyor?");
+    const body = await res.json();
+    // Bu iddia olmadan "koşulsuz escalate" mutasyonu da yeşil geçerdi — ve o
+    // mutasyon QR concierge'ü tamamen işlevsiz bırakırdı.
+    expect(body.escalated).toBe(false);
+    expect(body.reply).toContain("Çöp");
+  });
+});

@@ -152,8 +152,21 @@ function mustEscalate(
   // injection or a safety/rule/discrimination message is escalated even if the
   // model under-rated it as benign — the guest chat has no human-review draft.
   if (detectPromptInjection(message)) return true;
+  // 🚨 AYNI KÜMEYİ KULLAN, ELLE YAZILMIŞ ÜÇLÜYÜ DEĞİL (denetim, 08-09). Üstteki
+  // yorum "inbox oto-gönderim kapısının aynası" diyordu ve bu satır o iddiayı
+  // YALANLIYORDU: model ETİKETİ için (:144) tam küme kullanılırken, misafirin
+  // KENDİ SÖZLERİ için yalnız üç etiket kontrol ediliyordu. Inbox kapısı
+  // 08-06'da tam kümeye genişletildi, bu satır güncellenmedi.
+  // Ölçülen sonuç: "IBAN'ınızı atar mısınız? Parayı doğrudan göndereyim."
+  // → `detectRiskType` = `platform_policy` (yüksek bahis) ama üçlüde yok →
+  // halka açık QR botu platform-dışı ödeme talebine CEVAP VERİYORDU.
+  // ⚠️ DAVRANIŞ DEĞİŞİKLİĞİ: küme `complaint`i de içerir, yani modelin "low"
+  // dediği hafif bir şikâyet de artık insana devredilir. Yön KISITLAYICI
+  // (yalnız DAHA ÇOK devir) ve ürünün 3-seviye modeliyle uyumlu: şikâyet
+  // zaten Seviye-2'dir. `human_request` için muafiyet YOK — kapıda gerçek
+  // zamanlı devredilecek insan yok (↑:142-143'teki gerekçe aynen geçerli).
   const dr = detectRiskType(message);
-  if (dr === "safety_emergency" || dr === "rule_violation" || dr === "discrimination") return true;
+  if (dr && HIGH_STAKES_RISK_TYPES.has(dr)) return true;
   if (result.riskLevel !== "none" && result.riskLevel !== "low") return true;
   return result.confidence < 0.75;
 }
