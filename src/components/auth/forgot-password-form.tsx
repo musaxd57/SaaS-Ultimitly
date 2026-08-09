@@ -216,51 +216,78 @@ export function ForgotPasswordForm() {
             Kod gönder
           </Button>
         </form>
+      ) : !challengeToken ? (
+        /* ── KOD ALANI YOK: ÖNCE BAĞLANTI ─────────────────────────────────────
+           🚨 BURASI BİR ZAMANLAR KAPALI DÖNGÜYDÜ (kullanıcı canlıda fark etti,
+           08-09). Bu ekran kod + yeni şifre alanlarını gösteriyordu; kullanıcı
+           e-postadaki 8 haneli kodu buraya yazıyor ve "Bu kod artık
+           kullanılamıyor" alıyordu. Sebep: bütçe/kimlik challenge SATIRINDA ve
+           satırı YALNIZCA bağlantıdaki token adresleyebiliyor — adres+kod ile
+           challenge aramak m47'nin kapattığı DoS'u geri açardı, o yüzden sunucu
+           tarafı DOĞRU davranıyordu. Yanlış olan EKRANDI: olmayan bir yolu
+           davet ediyordu.
+           ⚠️ Bu yüzden düzeltme ROTADA DEĞİL BURADA. Kod alanı ancak token
+           geldikten SONRA çizilir; o zamana kadar tek çağrı "bağlantıyı aç".
+           ⚠️ Sekme KAPATILAMAZ (tarayıcı `window.close()`u script açmadığı
+           sekmede engeller) — o yüzden bu sekme kapatılmıyor, YÖNLENDİRİLİYOR:
+           bağlantıya tıklandığında zaten TAZE bir sayfa yüklenir ve doğru
+           adımda açılır. */
+        <div className="space-y-4">
+          <p className="text-sm text-muted-foreground">
+            <span className="font-medium text-foreground">{email}</span> adresine ait bir hesap
+            varsa e-posta gönderdik.
+          </p>
+          <p className="rounded-lg border border-primary/30 bg-accent/40 p-3 text-sm">
+            <span className="font-medium">E-postadaki bağlantıyı açın.</span>{" "}
+            <span className="text-muted-foreground">
+              Doğrulama kodunu o bağlantının açtığı sayfada gireceksiniz — kodu bu ekrana
+              yazamazsınız.
+            </span>
+          </p>
+          <button
+            type="button"
+            onClick={backToEmailStep}
+            className="w-full text-center text-sm font-medium text-primary hover:underline"
+          >
+            E-posta adresini değiştir
+          </button>
+          <button
+            type="button"
+            onClick={() => requestCode()}
+            disabled={loading || cooldown > 0}
+            className={
+              cooldown > 0
+                ? "w-full text-center text-sm text-muted-foreground disabled:opacity-100"
+                : "w-full text-center text-sm font-medium text-primary underline underline-offset-2 hover:text-primary/80"
+            }
+          >
+            {cooldown > 0 ? `E-postayı tekrar gönder (${cooldown})` : "E-postayı tekrar gönder"}
+          </button>
+          <p className="text-center text-xs text-muted-foreground">
+            E-posta gelmediyse spam klasörünü kontrol edin. Yine yoksa bu adresle kayıtlı bir
+            hesabınız olmayabilir —{" "}
+            <Link href="/register" className="font-medium text-primary hover:underline">
+              yeni hesap oluşturun
+            </Link>
+            .
+          </p>
+        </div>
       ) : (
         <form onSubmit={confirm} className="space-y-4">
-          {challengeToken ? (
-            /* Bağlantıdan gelindi: adres bilinmiyor (taze sayfa yükü) ve
-               gerekmiyor. "E-posta adresini değiştir" burada anlamsız olurdu —
-               değiştirilecek bir alan yok; onun yerine baştan başlama yolu. */
-            <p className="text-sm text-muted-foreground">
-              E-postanızdaki 8 haneli kodu girin ve yeni şifrenizi belirleyin.
-            </p>
-          ) : (
-            /* Hangi adrese gidildiği burada YAZILI olmalı: yazım hatası ancak
-               görülürse fark edilir, ve fark edildiğinde çıkış yolu hemen yanında
-               durmalı. Adres kullanıcının kendi yazdığı değer — hesap var/yok
-               bilgisi vermez, enumeration güvenliği bozulmaz.
-
-               🚨 CÜMLE KOŞULLU KURULUR ("varsa"), "gönderildi" DİYE KESİN
-               KURULMAZ — GERİ ALMA. Uç nokta enumeration'a karşı bilinmeyen
-               adrese de generic 200 döner, yani hesabı OLMAYAN (ya da hesabını
-               silmiş) biri "gönderildi" yazısını görüp hiç gelmeyecek bir kodu
-               süresiz bekliyordu: ekran bir şey yazıyor ama YANLIŞ şey yazıyor
-               ve çıkış yolu göstermiyordu — kayıt ekranındaki "zaten hesabın
-               var" ile aynı KAPALI DÖNGÜ.
-               ⚠️ Doğru çözüm burada METİNDİR, e-posta DEĞİL: `EmailOutbox.userId`
-               ZORUNLU (şema) → hesapsız satır yazılamaz; bilinen dalda kuyruğa
-               yazıp bilinmeyen dalda doğrudan sağlayıcıya gitmek ise o dala
-               Resend gecikmesi ekler = zamanlama oracle'ı (kayıt tarafında aynı
-               öneri tam bu gerekçeyle REDDEDİLDİ). Koşullu cümle HERKESE aynı
-               gösterildiği için hiçbir şey sızdırmaz. */
-            <p className="text-sm text-muted-foreground">
-              <span className="font-medium text-foreground">{email}</span> adresine ait bir hesap
-              varsa kod gönderildi.{" "}
-              <button
-                type="button"
-                onClick={backToEmailStep}
-                className="font-medium text-primary hover:underline"
-              >
-                E-posta adresini değiştir
-              </button>
-            </p>
-          )}
+          {/* Bağlantıdan gelindi: adres bilinmiyor (taze sayfa yükü) ve gerekmiyor.
+              "E-posta adresini değiştir" burada anlamsız olurdu — değiştirilecek
+              bir alan yok; onun yerine baştan başlama yolu (↓"Baştan başla"). */}
+          <p className="text-sm text-muted-foreground">
+            E-postanızdaki 8 haneli kodu girin ve yeni şifrenizi belirleyin.
+          </p>
           <Field label="Doğrulama kodu" htmlFor="code" error={fieldError.code}>
             <Input
               id="code"
               inputMode="numeric"
               autoComplete="one-time-code"
+              // ⚠️ `pattern` BİLİNÇLİ YOK: tarayıcının kendi doğrulama balonu
+              // bizim hata metnimizin önüne geçer ve gönderimi sessizce bloklar.
+              maxLength={8}
               placeholder="8 haneli kod"
               value={code}
               // Hata bir DURUM mesajı ("bu kod artık geçerli değil"), zaman aşımıyla
@@ -294,65 +321,21 @@ export function ForgotPasswordForm() {
             {loading ? <Loader2 className="size-4 animate-spin" /> : null}
             Şifreyi sıfırla
           </Button>
-          {challengeToken ? (
-            /* Token'lı yolda "tekrar gönder" ÇALIŞAMAZ: istek e-posta adresi
-               ister, bağlantıdan gelen sayfada o adres yok. Süresi dolmuş /
-               denemesi tükenmiş bir bağlantının tek çıkışı baştan başlamaktır. */
-            <button
-              type="button"
-              onClick={() => {
-                setChallengeToken(null);
-                backToEmailStep();
-              }}
-              disabled={loading}
-              className="w-full text-center text-sm text-muted-foreground hover:text-foreground disabled:opacity-50"
-            >
-              Baştan başla
-            </button>
-          ) : (
-            <button
-              type="button"
-              onClick={() => requestCode()}
-              disabled={loading || cooldown > 0}
-              /* Kod gelmediğinde kullanıcının ilk yapmak isteyeceği şey budur;
-                 sönük gri bir metin olarak "Girişe dön"den ayırt edilemiyordu.
-                 Beklerken gri (yapılacak bir şey yok), hazır olunca vurgulu ve
-                 altı çizili — yani DURUMU da anlatıyor. Birincil butonla
-                 (`Şifreyi sıfırla`) yarışmasın diye dolu buton YAPILMADI. */
-              className={
-                cooldown > 0
-                  ? "w-full text-center text-sm text-muted-foreground disabled:opacity-100"
-                  : "w-full text-center text-sm font-medium text-primary underline underline-offset-2 hover:text-primary/80"
-              }
-            >
-              {cooldown > 0 ? `Kodu tekrar gönder (${cooldown})` : "Kodu tekrar gönder"}
-            </button>
-          )}
-          {/* KOŞULLU yardım (yaygın desen: "Don't see it? Check your spam folder"):
-              kullanıcı zaten gelen kutusuna bakıyor — ona "gelen kutuna bak" demek
-              boş emir; yalnız kod GELMEDİYSE spam anlamlı. Hesap var/yok ayrımı
-              yapmaz (enumeration-safe), formun geri kalanıyla aynı resmî dil.
-
-              🚨 ÇIKIŞ YOLU BU SATIRDA, AYRI BİR KUTUDA DEĞİL. Önce kod alanının
-              ÜSTÜNE ikinci bir kutu koymuştum; "spam klasörünü kontrol edin"
-              cümlesi ekranda İKİ KEZ görünüyordu ve kutu, kullanıcıların
-              %95'inin geldiği asıl işi (kodu yazmak) bölüyordu.
-              ⚠️ Buna KARŞILIK zamanlayıcıya da BAĞLANMADI (`cooldown === 0`
-              önerildi, REDDEDİLDİ): bu satırın koruduğu kişi hesabı SİLİNMİŞ ya
-              da hiç kaydolmamış kullanıcıdır ve ona kod ASLA gelmeyecektir —
-              çıkışı 30 saniye sonra göstermek "beklemenin boşuna olduğunu
-              öğrenmek için bekle" demektir. Cümle zaten DİL olarak koşullu
-              ("gelmediyse"), görünürlük olarak koşullu olması gerekmiyor. */}
-          {challengeToken ? null : (
-            <p className="text-center text-xs text-muted-foreground">
-              Kod gelmediyse spam klasörünü kontrol edin. Yine yoksa bu adresle kayıtlı bir
-              hesabınız olmayabilir —{" "}
-              <Link href="/register" className="font-medium text-primary hover:underline">
-                yeni hesap oluşturun
-              </Link>
-              .
-            </p>
-          )}
+          {/* Token'lı yolda "tekrar gönder" ÇALIŞAMAZ: istek e-posta adresi ister,
+              bağlantıdan gelen sayfada o adres yok (taze sayfa yükü). Süresi
+              dolmuş / denemesi tükenmiş bir bağlantının tek çıkışı baştan
+              başlamaktır — ve orası adresi soran ekrandır. */}
+          <button
+            type="button"
+            onClick={() => {
+              setChallengeToken(null);
+              backToEmailStep();
+            }}
+            disabled={loading}
+            className="w-full text-center text-sm text-muted-foreground hover:text-foreground disabled:opacity-50"
+          >
+            Baştan başla
+          </button>
         </form>
       )}
 

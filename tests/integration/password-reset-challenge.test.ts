@@ -210,6 +210,49 @@ describe("PasswordResetChallenge — zorunlu saldırı testleri", () => {
     expect(await verifyTrustedDeviceToken(cookie, after.id, twoFaEpoch, after.sessionEpoch)).toBe(false);
   }, 90_000);
 
+  // ── AYRIM: "ÇALIŞMALI" ile "REDDEDİLMELİ" (Codex, 08-09) ────────────────
+  // İki durum karıştırılmamalı, o yüzden ikisi de AYRI AYRI pinleniyor:
+  //   (a) AYNI challenge'ın bağlantısı + kodu, TTL içinde ve tüketilmemişse
+  //       MUTLAKA çalışır. Bu ürünün vaadi; kırılırsa kimse şifresini
+  //       sıfırlayamaz.
+  //   (b) YENİ e-postanın kodu, ESKİ sekmedeki token'la BİRLİKTE reddedilir.
+  //       Bu bir arıza değil, beklenen güvenlik davranışıdır: kod tek bir
+  //       challenge SATIRINA aittir ve satırı token adresler. Çapraz eşleşmeye
+  //       izin vermek, kodu satırdan koparıp hesaba bağlamak demektir — m47'nin
+  //       kapattığı deliğin ta kendisi.
+  // ⚠️ Eski sekme OTOMATİK KAPATILMAZ (browser `window.close()`u engeller ve
+  // kapatmak veri kaybettirebilir); kullanıcı yeni bağlantıya tıkladığında zaten
+  // TAZE bir sayfa açılır.
+  it("a) AYNI challenge: bağlantı + kod, TTL içinde ve tüketilmemişken ÇALIŞIR", async () => {
+    const c = await requestChallenge("6.1.0.1");
+    const res = await POST(
+      req({ action: "confirm", token: c.token, code: c.code, newPassword: NEW_PASSWORD }),
+    );
+    expect(res.status).toBe(200);
+    const u = await prisma.user.findUniqueOrThrow({ where: { email: EMAIL } });
+    expect(await verifyPassword(NEW_PASSWORD, u.passwordHash)).toBe(true);
+  }, 90_000);
+
+  it("b) ÇAPRAZ eşleşme REDDEDİLİR: yeni e-postanın kodu + ESKİ sekmenin token'ı", async () => {
+    const eski = await requestChallenge("6.2.0.1"); // kullanıcının açık duran sekmesi
+    const yeni = await requestChallenge("6.2.0.2"); // "tekrar gönder"den gelen yeni mail
+    // Kodlar farklı olmalı, yoksa test tesadüfen geçebilir.
+    expect(yeni.code).not.toBe(eski.code);
+
+    const capraz = await POST(
+      req({ action: "confirm", token: eski.token, code: yeni.code, newPassword: NEW_PASSWORD }),
+    );
+    expect(capraz.status).toBe(400);
+    expect((await capraz.json()).fields?.code).toContain("Bu kod artık kullanılamıyor");
+
+    // 🚨 VE ESKİ CHALLENGE YANMADI: kendi kodu HÂLÂ çalışıyor. Çapraz denemenin
+    // eski satırın bütçesini tüketip kullanıcıyı dışarıda bırakmadığını gösterir.
+    const kendi = await POST(
+      req({ action: "confirm", token: eski.token, code: eski.code, newPassword: NEW_PASSWORD }),
+    );
+    expect(kendi.status).toBe(200);
+  }, 90_000);
+
   // ── 6 ────────────────────────────────────────────────────────────────────
   it("6) bilinmeyen ve kayıtlı e-posta DIŞARIDAN ayırt edilemez", async () => {
     const known = await POST(req({ action: "request", email: EMAIL }, "6.6.6.1"));

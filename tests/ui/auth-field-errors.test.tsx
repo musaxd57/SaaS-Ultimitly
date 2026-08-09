@@ -181,17 +181,22 @@ describe("Şifremi unuttum formu", () => {
     expect(describedTexts(email)).toContain("Geçerli bir e-posta girin.");
   });
 
-  /** İlk adımı geçip kod ekranına iner. */
+  /**
+   * Kod ekranına iner.
+   *
+   * ⚠️ 08-09'da DEĞİŞTİ: e-posta yazıp "Kod gönder" demek artık kod ekranını
+   * AÇMIYOR — token'sız ekranda kod alanı bilerek çizilmiyor (kullanıcının
+   * canlıda gördüğü kapalı döngü: e-postadaki kodu oraya yazınca sunucu
+   * haklı olarak reddediyordu). Kod alanına ulaşmanın TEK yolu bağlantıdan
+   * gelmektir, o yüzden test token'ı FRAGMENT'e koyar.
+   * ⚠️ Token 64 HEX olmak zorunda — form `[0-9a-f]{64}` ile eşleştiriyor.
+   */
   async function reachConfirmStep(confirmResponse: unknown, status: number) {
-    const fetchMock = vi
-      .fn()
-      .mockResolvedValueOnce(jsonResponse({ ok: true }, 200))
-      .mockResolvedValueOnce(jsonResponse(confirmResponse, status));
+    const fetchMock = vi.fn().mockResolvedValueOnce(jsonResponse(confirmResponse, status));
     vi.stubGlobal("fetch", fetchMock);
 
+    window.history.replaceState({}, "", `/sifremi-unuttum#t=${"c".repeat(64)}`);
     render(<ForgotPasswordForm />);
-    fireEvent.change(screen.getByLabelText("E-posta"), { target: { value: "a@b.com" } });
-    await submitForm(screen.getByLabelText("E-posta"));
 
     const code = await screen.findByLabelText("Doğrulama kodu");
     fireEvent.change(code, { target: { value: "12345678" } });

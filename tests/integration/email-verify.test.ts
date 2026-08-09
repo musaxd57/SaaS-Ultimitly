@@ -42,7 +42,7 @@ import { LEGAL_VERSION } from "@/lib/legal-entity";
 import { LEGAL_TEXT_HASH } from "@/lib/legal-text-hash";
 import { POST as register } from "@/app/api/auth/register/route";
 import { POST as login } from "@/app/api/auth/login/route";
-import { POST as verifyEmail } from "@/app/api/auth/verify-email/route";
+import { POST as verifyEmail, GET as verifyEmailGet } from "@/app/api/auth/verify-email/route";
 
 // ⚠️ 08-05: rota GET+query'den POST+gövdeye taşındı. Token artık e-postadaki
 // bağlantının FRAGMENT'inde (`#t=`) geliyor ve istemci onu buraya POST ediyor;
@@ -689,5 +689,69 @@ describe("register + resend — durable outbox (flag ON)", () => {
     expect(
       (await prisma.user.findUniqueOrThrow({ where: { email: "ada@x.com" } })).emailVerifiedAt,
     ).toBeTruthy();
+  });
+});
+
+// ─────────────────────────────────────────────────────────────────────────────
+// ESKİ DOĞRULAMA BAĞLANTILARI — ÇIPLAK 405 YERİNE AÇIKLAMALI SAYFA (08-09)
+//
+// 08-05'ten ÖNCE gönderilmiş her mail `GET /api/auth/verify-email?token=…`
+// adresine işaret ediyor; rota o gün POST-only yapılınca bu bağlantılar
+// tarayıcıda "HTTP ERROR 405 — Bu sayfa çalışmıyor" veriyordu (kullanıcı canlıda
+// gördü). Gelen kutusundaki maili geri çağıramayız, o yüzden uç nokta kurtarır.
+//
+// 🚨 KURAL İHLALİ DEĞİL: "GET'i geri getirme" YAN ETKİYİ yasaklar. Bu GET
+// token'ı okumaz/doğrulamaz/tüketmez ve oturum basmaz — yalnız yönlendirir.
+// ─────────────────────────────────────────────────────────────────────────────
+describe("GET /api/auth/verify-email — eski bağlantı kurtarma", () => {
+  beforeEach(async () => {
+    await resetDb();
+    __resetRateLimit();
+    vi.clearAllMocks();
+  });
+
+  function get(url: string) {
+    return new NextRequest(url, { headers: { host: "www.lixusai.com" } });
+  }
+
+  it("token'ı FRAGMENT'e taşıyarak sayfaya yönlendirir (query'de bırakmaz)", async () => {
+    const res = await verifyEmailGet(get("http://localhost/api/auth/verify-email?token=abc123"));
+    expect(res.status).toBe(302);
+    const loc = res.headers.get("location")!;
+    expect(loc).toBe("https://www.lixusai.com/e-posta-dogrula#t=abc123");
+    // Token istek satırından ÇIKTI: hedefte query yok.
+    expect(new URL(loc).search).toBe("");
+  });
+
+  it("token YOKKEN fragmentsiz yönlendirir (sayfa kendi hata durumunu gösterir)", async () => {
+    const res = await verifyEmailGet(get("http://localhost/api/auth/verify-email"));
+    expect(res.status).toBe(302);
+    expect(res.headers.get("location")).toBe("https://www.lixusai.com/e-posta-dogrula");
+  });
+
+  it("🚨 YAN ETKİSİZ: token TÜKETİLMEZ, hesap doğrulanmaz, oturum BASILMAZ", async () => {
+    const org = await prisma.organization.create({ data: { name: "Org" } });
+    const raw = "canli-token-abc";
+    const user = await prisma.user.create({
+      data: {
+        organizationId: org.id,
+        name: "U",
+        email: "eski@example.com",
+        passwordHash: await hashPassword("sifre12345"),
+        role: "owner",
+        emailVerifyTokenHash: hashVerifyToken(raw),
+        emailVerifyExpiresAt: new Date(Date.now() + 3_600_000),
+      },
+    });
+
+    const res = await verifyEmailGet(get(`http://localhost/api/auth/verify-email?token=${raw}`));
+    expect(res.status).toBe(302);
+    // Oturum çerezi BASILMADI (e-posta tarayıcılarının ön-ısıtma isteği için kritik).
+    expect(res.headers.get("set-cookie")).toBeNull();
+
+    const after = await prisma.user.findUniqueOrThrow({ where: { id: user.id } });
+    expect(after.emailVerifiedAt).toBeNull(); // doğrulanmadı
+    expect(after.emailVerifyTokenHash).not.toBeNull(); // token HÂLÂ canlı
+    expect(after.sessionEpoch).toBe(user.sessionEpoch);
   });
 });

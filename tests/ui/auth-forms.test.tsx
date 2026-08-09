@@ -160,8 +160,10 @@ describe("ForgotPasswordForm — yanlış yazılan e-posta düzeltilebilir", () 
       fireEvent.click(screen.getByRole("button", { name: "Kod gönder" }));
     });
 
-    // Kod ekranındayız ve hangi adrese gittiği GÖRÜNÜYOR (hatayı fark etmenin tek yolu).
-    await screen.findByLabelText(/Doğrulama kodu/);
+    // "Bağlantıyı aç" ekranındayız ve hangi adrese gittiği GÖRÜNÜYOR (hatayı
+    // fark etmenin tek yolu). ⚠️ ÇAPA 08-09'da kod alanından bu ekrana TAŞINDI:
+    // token yokken kod alanı artık hiç çizilmiyor (↓kapalı döngü testi).
+    await screen.findByText(/E-postadaki bağlantıyı açın/i);
     expect(screen.getByText("musa@gmial.com")).toBeTruthy();
 
     // Geri dön: alan eski değerle DOLU gelmeli (yeniden yazdırmak kabalık olurdu).
@@ -194,14 +196,14 @@ describe("ForgotPasswordForm — yanlış yazılan e-posta düzeltilebilir", () 
     await act(async () => {
       fireEvent.click(screen.getByRole("button", { name: "Kod gönder" }));
     });
-    await screen.findByLabelText(/Doğrulama kodu/);
+    await screen.findByText(/E-postadaki bağlantıyı açın/i);
 
     // Adres HÂLÂ görünür (yazım hatası ancak görülerek fark edilir)...
     expect(screen.getByText("silinmis@example.com")).toBeTruthy();
     // ...ama cümle KOŞULLU: "varsa".
-    expect(screen.getByText(/adresine ait bir hesap varsa kod gönderildi/i)).toBeTruthy();
+    expect(screen.getByText(/adresine ait bir hesap varsa e-posta gönderdik/i)).toBeTruthy();
 
-    // Ve kod gelmezse ne yapılacağı YAZILI + kayıt yolu tıklanabilir.
+    // Ve e-posta gelmezse ne yapılacağı YAZILI + kayıt yolu tıklanabilir.
     // ⚠️ TEK bir satırda. Önce kod alanının ÜSTÜNE ayrı bir kutu koymuştum ve
     // "spam klasörünü kontrol edin" ekranda İKİ KEZ görünüyordu; kutu ayrıca
     // kullanıcıların çoğunun geldiği asıl işi (kodu yazmak) bölüyordu.
@@ -213,18 +215,24 @@ describe("ForgotPasswordForm — yanlış yazılan e-posta düzeltilebilir", () 
     // gelmeyecek (hesabı yok/silinmiş). Bekleme sayacı hâlâ sayarken bile
     // çıkış yolu görünür olmalı — "beklemenin boşuna olduğunu öğrenmek için
     // bekle" bir tasarım değildir.
-    expect(screen.getByRole("button", { name: /Kodu tekrar gönder/ })).toBeTruthy();
+    expect(screen.getByRole("button", { name: /E-postayı tekrar gönder/ })).toBeTruthy();
   });
 
+  // ⚠️ ÇAPA TAŞINDI, DEĞİŞMEZ AYNI (08-09). Bu test "bayat durum taşınmaz"ı
+  // pinliyordu ve eskiden token'SIZ ekranda koşuyordu — ama o ekranda artık kod
+  // ve şifre alanı YOK (↓kapalı döngü). Değişmezin hâlâ geçerli olduğu yer
+  // TOKEN'LI yol; test oraya taşındı, silinmedi.
   it("geri dönüş eski kodu ve hatayı temizler (bayat durum taşınmaz)", async () => {
     let reply = new Response("{}", { status: 200 });
     vi.stubGlobal("fetch", vi.fn(async () => reply));
+    // Bağlantıdan gelmiş gibi: token FRAGMENT'te.
+    // ⚠️ 64 HEX ŞART — form `[0-9a-f]{64}` ile eşleştiriyor; kısa bir sahte
+    // token sessizce eşleşmez ve test "kod alanı yok" diye YANLIŞ sebeple düşer.
+    window.history.replaceState({}, "", `/sifremi-unuttum#t=${"a".repeat(64)}`);
     render(<ForgotPasswordForm />);
-    typeInto(/E-posta/, "a@b.com");
-    await act(async () => {
-      fireEvent.click(screen.getByRole("button", { name: "Kod gönder" }));
-    });
-    typeInto(/Doğrulama kodu/, "12345678");
+
+    const codeField = (await screen.findByLabelText(/Doğrulama kodu/)) as HTMLInputElement;
+    fireEvent.change(codeField, { target: { value: "12345678" } });
     typeInto(/Yeni şifre/, "yenisifre123"); // jsdom zorunlu alanı boşken formu göndermez
     // Yanlış kod → hata görünür.
     reply = new Response(JSON.stringify({ error: "Kod geçersiz" }), { status: 400 });
@@ -235,20 +243,56 @@ describe("ForgotPasswordForm — yanlış yazılan e-posta düzeltilebilir", () 
 
     reply = new Response("{}", { status: 200 });
     await act(async () => {
-      fireEvent.click(screen.getByRole("button", { name: /E-posta adresini değiştir/ }));
+      fireEvent.click(screen.getByRole("button", { name: /Baştan başla/ }));
     });
     expect(screen.queryByText("Kod geçersiz")).toBeNull();
     // Odak doğrudan e-posta alanında: geri dönmenin TEK sebebi adresi düzeltmek.
     const emailField = (await screen.findByLabelText(/E-posta/)) as HTMLInputElement;
     expect(document.activeElement).toBe(emailField);
-    // Yeni kod istenince eski kod VE eski şifre alanı boş başlamalı — başka adres
-    // için hazırlanmış şifre bellekte asılı kalmamalı (Codex).
+    // Ve bayat durum taşınmadı: token düştüğü için kod/şifre alanları da gitti.
+    expect(screen.queryByLabelText(/Doğrulama kodu/)).toBeNull();
+    expect(screen.queryByLabelText(/Yeni şifre/)).toBeNull();
+  });
+
+  // ───────────────────────────────────────────────────────────────────────────
+  // 🚨 KAPALI DÖNGÜ (kullanıcı canlıda fark etti, 08-09)
+  //
+  // Adresini yazan kullanıcı kod ekranına düşüyor, e-postadaki 8 haneli kodu
+  // oraya yazıyor ve "Bu kod artık kullanılamıyor" alıyordu. Sunucu DOĞRU
+  // davranıyordu: bütçe/kimlik challenge SATIRINDA ve satırı yalnız
+  // bağlantıdaki token adresleyebiliyor (adres+kod ile aramak m47'nin kapattığı
+  // DoS'u geri açardı). Yanlış olan EKRANDI — olmayan bir yolu davet ediyordu.
+  // ───────────────────────────────────────────────────────────────────────────
+  it("token YOKKEN kod alanı HİÇ çizilmez; ekran bağlantıyı açmayı söyler", async () => {
+    vi.stubGlobal("fetch", vi.fn(async () => new Response("{}", { status: 200 })));
+    window.history.replaceState({}, "", "/sifremi-unuttum"); // fragment YOK
+    render(<ForgotPasswordForm />);
+    typeInto(/E-posta/, "musa@example.com");
     await act(async () => {
       fireEvent.click(screen.getByRole("button", { name: "Kod gönder" }));
     });
-    const codeField = (await screen.findByLabelText(/Doğrulama kodu/)) as HTMLInputElement;
-    expect(codeField.value).toBe("");
-    expect((screen.getByLabelText(/Yeni şifre/) as HTMLInputElement).value).toBe("");
+
+    await screen.findByText(/E-postadaki bağlantıyı açın/i);
+    // ASIL İDDİA: yazılacak bir kod alanı YOK → kullanıcı çıkmaza giremez.
+    expect(screen.queryByLabelText(/Doğrulama kodu/)).toBeNull();
+    expect(screen.queryByLabelText(/Yeni şifre/)).toBeNull();
+    expect(screen.queryByRole("button", { name: "Şifreyi sıfırla" })).toBeNull();
+    // Ve neden yazamayacağı AÇIKÇA yazılı (sessiz bir eksiklik değil).
+    expect(screen.getByText(/kodu bu ekrana\s+yazamazsınız/i)).toBeTruthy();
+  });
+
+  it("KONTROL: token VARKEN kod alanı çizilir, odaklanır ve mobil klavye sayısal olur", async () => {
+    // Bu kontrol olmadan "kod alanını hiç çizme" mutasyonu da yeşil geçerdi.
+    vi.stubGlobal("fetch", vi.fn(async () => new Response("{}", { status: 200 })));
+    window.history.replaceState({}, "", `/sifremi-unuttum#t=${"b".repeat(64)}`);
+    render(<ForgotPasswordForm />);
+
+    const code = (await screen.findByLabelText(/Doğrulama kodu/)) as HTMLInputElement;
+    // Codex istekleri — üçü de zaten yerindeydi, burada PİNLENİYOR:
+    expect(document.activeElement).toBe(code); // bağlantıdan gelince odak kodda
+    expect(code.getAttribute("inputmode")).toBe("numeric"); // mobilde sayısal klavye
+    expect(code.getAttribute("autocomplete")).toBe("one-time-code"); // SMS/mail otomatik doldurma
+    expect(code.maxLength).toBe(8);
   });
 });
 

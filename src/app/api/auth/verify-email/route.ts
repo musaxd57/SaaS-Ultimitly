@@ -2,7 +2,7 @@ import { NextResponse, type NextRequest } from "next/server";
 import { prisma } from "@/lib/db";
 import { setSessionCookie } from "@/lib/auth";
 import { verifySession, SESSION_COOKIE } from "@/lib/auth/session";
-import { hashVerifyToken } from "@/lib/auth/email-verify";
+import { hashVerifyToken, baseUrlFromHost } from "@/lib/auth/email-verify";
 import { verifyPassword } from "@/lib/auth/password";
 import { rateLimit, clientIp } from "@/lib/rate-limit";
 import { readJsonCappedOrNull } from "@/lib/api";
@@ -32,6 +32,34 @@ export const dynamic = "force-dynamic";
 // tüketmesine ve kullanıcının kendi tıklamasının "süresi dolmuş" almasına yol
 // açar.
 // ---------------------------------------------------------------------------
+/**
+ * ESKİ BAĞLANTILARI KURTARAN, YAN ETKİSİZ YÖNLENDİRME (08-09).
+ *
+ * Sorun: 08-05'ten önce gönderilmiş her doğrulama e-postası
+ * `GET /api/auth/verify-email?token=…` adresine işaret ediyor ve o gün rota
+ * POST-only yapıldığı için bugün tarayıcıda ÇIPLAK "HTTP ERROR 405 — Bu sayfa
+ * çalışmıyor" görünüyordu. Kullanıcının gelen kutusundaki eski maili biz geri
+ * çağıramayız; kırık olan uç noktadır.
+ *
+ * 🚨 "GET'İ GERİ GETİRME" KURALIYLA ÇELİŞMEZ — o kural YAN ETKİYİ yasaklıyor.
+ * Buradaki GET token'ı OKUMAZ, DOĞRULAMAZ, TÜKETMEZ ve oturum BASMAZ; tek
+ * yaptığı `/e-posta-dogrula` sayfasına yönlendirmek. Dolayısıyla e-posta
+ * güvenlik tarayıcılarının ön-ısıtma isteği hâlâ hiçbir şeyi tüketemez —
+ * kuralın koruduğu değişmez aynen ayakta.
+ *
+ * ⚠️ Token FRAGMENT'e taşınır (`#t=`), query'de BIRAKILMAZ: fragment sunucuya
+ * hiç gitmez, yani kullanıcı yönlendirmeyi izlediği anda token istek satırından
+ * ÇIKAR. Zaten sızmış olan (tıklanan eski URL) için yapabileceğimiz bir şey yok,
+ * ama bundan sonrasını temiz tutar. Token yoksa fragmentsiz yönlendirilir ve
+ * sayfa kendi "bağlantı geçersiz" durumunu gösterir.
+ */
+export async function GET(req: NextRequest) {
+  const token = req.nextUrl.searchParams.get("token")?.trim() ?? "";
+  const base = baseUrlFromHost(req.headers.get("host"));
+  const target = `${base}/e-posta-dogrula${token ? `#t=${encodeURIComponent(token)}` : ""}`;
+  return NextResponse.redirect(target, 302);
+}
+
 export async function POST(req: NextRequest) {
   // Throttle by IP: this endpoint issues a login session on a token match and
   // scans an unindexed column, so an unauthenticated flood could brute-force
