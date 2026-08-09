@@ -461,7 +461,18 @@ async function maskReservationRows(
     });
     await db.conversation.updateMany({
       where: { id: { in: convIds } },
-      data: { guestIdentifier: ANON_ID },
+      data: {
+        guestIdentifier: ANON_ID,
+        // m48 (KVKK — AÇIK SİLME talebi). Triyaj metinleri misafirin
+        // mesajından türemiş model çıktısıdır; süre-bazlı süpürgeyle PARİTE
+        // şart, biri eksikse ürünün vaadi yalan olur.
+        // ⚠️ `aiConfidence` · `aiTriageSource` · `aiTriagedAt` ·
+        // `aiTriageTriggerMessageId` KAPSAM DIŞI ve bu bilinçli: bir sayı,
+        // kapalı-set bir etiket, bir zaman damgası ve opak bir id kişisel veri
+        // taşımaz (`Message.aiSourcesJson` emsali — yalnız ETİKET tutuyor).
+        aiActionSuggestion: null,
+        aiMissingInfoJson: null,
+      },
     });
   }
   // Lifecycle tasks carry the guest's REAL NAME in their title (createReservationTasks:

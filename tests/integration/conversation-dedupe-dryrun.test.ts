@@ -55,6 +55,15 @@ type ConvOverrides = Partial<{
   autoReplyHoldUntil: Date | null;
   autoReplyAttemptedAt: Date | null;
   syncCursorAt: Date | null;
+  // m48 triyaj alanları — ⚠️ BURAYA EKLENMEZSE `conv()` onları SESSİZCE
+  // yutar (bilinmeyen anahtarı map'lemiyor) ve "fark varsa fail-closed"
+  // testleri fikstür kurulmadığı için `0 !== 1` diye düşer.
+  aiActionSuggestion: string | null;
+  aiMissingInfoJson: string | null;
+  aiConfidence: number | null;
+  aiTriageSource: string | null;
+  aiTriageTriggerMessageId: string | null;
+  aiTriagedAt: Date | null;
 }>;
 
 async function conv(propertyId: string, o: ConvOverrides = {}) {
@@ -78,6 +87,12 @@ async function conv(propertyId: string, o: ConvOverrides = {}) {
       autoReplyHoldUntil: o.autoReplyHoldUntil ?? null,
       autoReplyAttemptedAt: o.autoReplyAttemptedAt ?? null,
       syncCursorAt: o.syncCursorAt ?? null,
+      aiActionSuggestion: o.aiActionSuggestion ?? null,
+      aiMissingInfoJson: o.aiMissingInfoJson ?? null,
+      aiConfidence: o.aiConfidence ?? null,
+      aiTriageSource: o.aiTriageSource ?? null,
+      aiTriageTriggerMessageId: o.aiTriageTriggerMessageId ?? null,
+      aiTriagedAt: o.aiTriagedAt ?? null,
     },
   });
 }
@@ -143,6 +158,18 @@ describe("dedupe dry-run — alan envanteri (Codex şart #3)", () => {
         "syncCursorAt",
         "autoReplyHoldUntil",
         "autoReplyAttemptedAt",
+        // m48 (08-09): altı triyaj alanı da CANLI DURUM. Gerekçe: TEK bir
+        // escalation yazmasında BİRLİKTE üretiliyorlar ve birlikte anlam
+        // taşıyorlar. İkisi bir satırdan dördü diğerinden alınırsa ortaya HİÇ
+        // VAR OLMAMIŞ bir analiz çıkar — üstelik `aiTriageTriggerMessageId`
+        // başka bir mesajı işaret ederken metin başka bir mesajı anlatır ve
+        // bayatlık ölçüsü sessizce yalan söyler.
+        "aiActionSuggestion",
+        "aiMissingInfoJson",
+        "aiConfidence",
+        "aiTriageSource",
+        "aiTriageTriggerMessageId",
+        "aiTriagedAt",
       ].sort(),
     );
   });
@@ -424,14 +451,34 @@ describe("dedupe dry-run — CANLI DURUM farkları (Codex denetimi B1/B2/B4)", (
       field === "lastMessageAt" ||
       field === "autoReplyHoldUntil" ||
       field === "autoReplyAttemptedAt" ||
-      field === "syncCursorAt";
+      field === "syncCursorAt" ||
+      field === "aiTriagedAt";
+    // ⚠️ m48: `aiConfidence` bir Float. Aşağıdaki varsayılan "farkli-deger"
+    // string'i Prisma'da tip hatası verirdi — sayısal alan AYRI ele alınır.
+    const isFloat = field === "aiConfidence";
     // conv()'in kendi varsayılanları alan-alan FARKLI (lastMessageAt→T1,
     // diğer tarihler→null, status→"answered", priority→"standard") — sadece
     // ONE tarafı override etmek bazı alanlarda (örn. lastMessageAt) YANLIŞLIKLA
     // iki tarafı da AYNI değere getirebilirdi. Bu yüzden HER iki satırın da
     // hedef alanı AÇIKÇA ve FARKLI değerlerle yazılıyor.
-    const baseline: unknown = isDate ? T0 : field === "status" ? "answered" : field === "priority" ? "standard" : null;
-    const changed: unknown = isDate ? T1 : field === "status" ? "problem" : field === "priority" ? "urgent" : "farkli-deger";
+    const baseline: unknown = isDate
+      ? T0
+      : isFloat
+        ? 0.1
+        : field === "status"
+          ? "answered"
+          : field === "priority"
+            ? "standard"
+            : null;
+    const changed: unknown = isDate
+      ? T1
+      : isFloat
+        ? 0.9
+        : field === "status"
+          ? "problem"
+          : field === "priority"
+            ? "urgent"
+            : "farkli-deger";
     const a = await conv(propertyId, { createdAt: T0, [field]: baseline } as unknown as ConvOverrides);
     await conv(propertyId, { createdAt: T1, [field]: changed } as unknown as ConvOverrides);
 

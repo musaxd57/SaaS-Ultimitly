@@ -68,6 +68,14 @@ async function seedErasedStay() {
       status: "answered",
       priority: "standard",
       lastMessageAt: new Date(Date.now() - 27 * DAY),
+      // m48: triyaj METİNLERİ misafirin mesajından türemiş model çıktısıdır →
+      // açık silme talebinin kapsamında (süre-bazlı süpürgeyle PARİTE şart).
+      aiActionSuggestion: `${GUEST.full_name} adlı misafiri arayın, fotoğraf isteyin.`,
+      aiMissingInfoJson: JSON.stringify(["fotoğraf", "oda no"]),
+      aiConfidence: 0.77,
+      aiTriageSource: "model",
+      aiTriageTriggerMessageId: "trig-1",
+      aiTriagedAt: new Date(Date.now() - 27 * DAY),
     },
   });
   await prisma.message.createMany({
@@ -122,6 +130,15 @@ describe("KVKK explicit erasure (m40) — executor", () => {
 
     const conv = await prisma.conversation.findUniqueOrThrow({ where: { id: conversationId } });
     expect(conv.guestIdentifier).toBe(ANON_ID);
+    // m48 — AÇIK SİLME DALI (üçüncü KVKK yolu; iki süre-bazlı dal ayrı dosyada).
+    // Metinler gider…
+    expect(conv.aiActionSuggestion).toBeNull();
+    expect(conv.aiMissingInfoJson).toBeNull();
+    // …ama sayı/etiket/damga/opak-id KALIR: kişisel veri taşımıyorlar
+    // (`Message.aiSourcesJson` emsali). Kapsamı genişleten mutasyon da kırmızı.
+    expect(conv.aiConfidence).toBe(0.77);
+    expect(conv.aiTriageSource).toBe("model");
+    expect(conv.aiTriageTriggerMessageId).toBe("trig-1");
 
     const msgs = await prisma.message.findMany({ where: { conversationId } });
     const inbound = msgs.find((m) => m.direction === "inbound")!;

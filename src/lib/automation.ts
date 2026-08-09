@@ -9,6 +9,7 @@ import { recordRiskEvent } from "@/lib/risk-events";
 import { recordShadowVerdict } from "@/lib/shadow-ai";
 import { scrubStyleProfileForPublic, withoutSecretKbItems, QR_SECRET_CATEGORIES } from "@/lib/guest-chat";
 import { LEGACY_AI_SENDER_NAMES, LEGACY_AI_RESUME_SENDER } from "@/lib/message-author";
+import { buildTriageData } from "@/lib/ai/triage";
 import { reservationAmountNumber } from "@/lib/money";
 import { classifyMessage, suggestReply, summarizeHostStyle } from "@/lib/ai";
 import { fetchKnowledgeBaseForPrompt } from "@/lib/ai/kb-fetch";
@@ -1015,6 +1016,10 @@ export async function applyInboundMessageRules(
       status: true,
       channel: true,
       priority: true,
+      // m48 TAZELİK ÇAPASI: triyaj yazması bu değere KOŞULLU (↓). Aynı
+      // `findUnique` içinde okunuyor ki çapa ile tetikleyici mesaj id'si TEK
+      // tutarlı anlık görüntüden gelsin.
+      lastMessageAt: true,
       // KVKK: şikayet görevi misafirin ADINI (başlık) ve MESAJINI (açıklama)
       // taşıyor. İki temizlik süpürgesi de kapsamı `reservationId` ile kuruyor,
       // yani rezervasyona BAĞLI OLMAYAN bir görev onlar için görünmez. Bu alan
@@ -1046,6 +1051,36 @@ export async function applyInboundMessageRules(
       prisma.conversation.update({
         where: { id: conversationId },
         data: { status: "problem", priority: "urgent" },
+      }),
+      // m48 — YOL 3/3: KELİME yolu (üçüncü escalation yolu; kod-denetimi 08-09'a
+      // kadar tasarımda hiç yoktu).
+      //
+      // 🚨 KAYNAK "keyword", "model" DEĞİL: bu yolun sınıflandırıcısı
+      // `classifyMessage` ve gövdesi TEK SATIR — `return classifyFallback(msg)`.
+      // Yani model HİÇ koşmuyor; "model" yazmak arayüze yalan söyletirdi.
+      //
+      // 🚨 ÜSTTEKİ `update` KOŞULSUZ ve ÖYLE KALIYOR — mevcut davranışı
+      // değiştirmiyoruz. Triyaj AYRI ve KOŞULLU bir yazma: üstteki claim
+      // koşulunu (`status`) körlemesine kopyalamak yerine KENDİ tazelik çapasını
+      // kullanıyor. Araya yeni bir mesaj girmişse `count === 0` olur ve triyaj
+      // YAZILMAZ.
+      //
+      // 🚨 `count === 0` PENCERESİNİN TAM SONUCU (Codex, 08-09 — eski yorum
+      // eksikti): status KOŞULSUZ yazıldığı için konuşma "problem" listesine
+      // GİRER, ama üzerindeki altı alan ÖNCEKİ escalation'a ait kalır. Bu
+      // "yazmamak" değil, "eski snapshot'ın ayakta kalması"dır ve korumayı
+      // OKUMA YÜZEYİ üstlenir: `aiTriageTriggerMessageId` mevcut son inbound
+      // mesajla uyuşmadığı için satır BAYAT işaretlenir (`isTriageStale`) ve
+      // panel "Bu analizden sonra yeni mesaj geldi" rozetini çizer.
+      // Kısmi yazma İMKÂNSIZ: tek `updateMany`, altı alan — ya hepsi ya hiçbiri.
+      // Uçtan uca kanıt: `tests/integration/ai-triage-stale-window.test.ts`.
+      prisma.conversation.updateMany({
+        where: { id: conversationId, lastMessageAt: conversation.lastMessageAt },
+        data: buildTriageData({
+          source: "keyword",
+          triggerMessageId: conversation.messages[0]?.id ?? null,
+          now: new Date(),
+        }),
       }),
       prisma.task.create({
         data: {
@@ -1703,6 +1738,21 @@ export async function applyChannelAutoReply(
             skippedReason: "escalated_to_human",
             lastRiskLevel: result.riskLevel,
             lastRiskType: result.riskType ?? detectRiskType(last.body),
+            // m48 — YOL 1/3: MODEL yolu. Modelin ZATEN ürettiği analiz burada
+            // saklanıyor; yeni bir çağrı YOK. Altı alan da AÇIKÇA yazılır
+            // (`buildTriageData` sözleşmesi): eksik bırakılan alan `undefined`
+            // olur ve Prisma onu "dokunma" sayar → önceki escalation'ın analizi
+            // hayatta kalır ve arayüz onu YENİ sanardı.
+            // ⚠️ Tetikleyici mesaj `last.id` — yazma anında "son mesaj" diye
+            // YENİDEN OKUNMAZ; okumak, bu claim'in kapattığı yarışı geri açardı.
+            ...buildTriageData({
+              source: "model",
+              actionSuggestion: result.actionSuggestion,
+              missingInfo: result.missingInfo,
+              confidence: result.confidence,
+              triggerMessageId: last.id,
+              now: new Date(),
+            }),
           },
         });
         if (claimed.count === 1) {
@@ -3490,6 +3540,15 @@ export async function sendDueAlerts(
           status: "problem",
           skippedReason: "complaint",
           lastRiskType: riskType,
+          // m48 — YOL 2/3: KELİME yolu. Model HİÇ koşmadı, o yüzden analiz
+          // alanları NULL yazılır — uydurma değer ÜRETİLMEZ. `aiTriageSource`
+          // yine de yazılır: "modele sorulmadı" ile "model sorulup sonuç
+          // alınamadı" ayrımı artık NULL'a değil BU kolona bağlı.
+          ...buildTriageData({
+            source: "keyword",
+            triggerMessageId: hit.id,
+            now: new Date(),
+          }),
         },
       });
       claimed = res.count;

@@ -162,6 +162,18 @@ export async function buildOrganizationDataExport(organizationId: string) {
                 skippedReason: true,
                 lastRiskLevel: true,
                 lastRiskType: true,
+                // m48 — müşterinin KENDİ verisi, ihraçta yer ALMALI.
+                // ⚠️ `aiMissingInfoJson` HAM STRING olarak veriliyor,
+                // ayrıştırılmadan: ihraç yolunda bir ayrıştırma patlarsa TÜM
+                // ihracı düşürür ve müşteri verisine hiç ulaşamaz. Ham değer
+                // her zaman okunabilir; biçimi yorumlamak tüketicinin işi.
+                aiActionSuggestion: true,
+                aiMissingInfoJson: true,
+                aiConfidence: true,
+                aiTriageSource: true,
+                aiTriagedAt: true,
+                // `aiTriageTriggerMessageId` BİLİNÇLİ YOK: opak bir iç id,
+                // müşteriye hiçbir şey anlatmaz ve ihracı gürültülendirir.
                 createdAt: true,
                 lastMessageAt: true,
                 messages: {

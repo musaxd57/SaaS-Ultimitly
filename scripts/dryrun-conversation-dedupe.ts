@@ -132,6 +132,18 @@ export const CONVERSATION_FIELD_POLICY: Record<
   skippedReason: "live_state",
   lastRiskLevel: "live_state",
   lastRiskType: "live_state",
+  // m48 triyaj alanları — HEPSİ "live_state". Gerekçe: altısı TEK bir escalation
+  // yazmasında BİRLİKTE üretiliyor ve birlikte anlam taşıyor. İkisi bir satırdan,
+  // dördü diğerinden alınırsa ortaya HİÇ VAR OLMAMIŞ bir analiz çıkar — üstelik
+  // `aiTriageTriggerMessageId` başka bir mesajı işaret ederken metin başka bir
+  // mesajı anlatır ve bayatlık ölçüsü sessizce yalan söyler. Fark varsa
+  // fail-closed doğru davranış (7 grup için tahminle birleştirmek gereksiz risk).
+  aiActionSuggestion: "live_state",
+  aiMissingInfoJson: "live_state",
+  aiConfidence: "live_state",
+  aiTriageSource: "live_state",
+  aiTriageTriggerMessageId: "live_state",
+  aiTriagedAt: "live_state",
   // Thread'in doğuşu: yalnız CREATE anında yazılır, hiçbir yazıcı sonradan
   // güncellemez — "canlı" değildir, yarış riski taşımaz. Bilgi amaçlı, YAZILMAZ.
   createdAt: "keeper_wins",

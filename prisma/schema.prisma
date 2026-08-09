@@ -531,6 +531,45 @@ model Conversation {
   lastRiskLevel          String?
   // Faz-B: WHY risky (closed label set, code-clamped) — reports/inbox only.
   lastRiskType           String?
+
+  // ── m48: SORUNLU KONUŞMA TRİYAJI ────────────────────────────────────────
+  // Model escalate ederken "ne yapılmalı" (actionSuggestion) ve "misafirden ne
+  // lazım" (missingInfo) ZATEN üretiyordu; ikisi de hiçbir yere yazılmıyor,
+  // istek bitince yok oluyordu. Bu altı kolon o ödenmiş analizi saklar —
+  // İKİNCİ BİR MODEL ÇAĞRISI YOK (ikinci çağrı KB'siz/rezervasyonsuz olurdu,
+  // yani birincisinden KÖTÜ bir analiz üretip kota harcardı).
+  //
+  // 🚨 TEMİZLEME YOK (kullanıcı+Codex kararı, 08-09): konuşma "problem"den
+  // çıkarken bu alanlar SİLİNMEZ. Altı ayrı çıkış noktası var (host cevabı ×2,
+  // outbox teslimi, iki geri alma, arayüzden durum değişimi) ve altısına birden
+  // dokunmak, birini unutmaktan daha riskli. Alanlar TARİHSEL KAYIT olarak
+  // kalır; okuma yüzeyi zaten `status:"problem"` filtreliyor.
+  // ⚠️ Sonraki escalation hepsini BİRLİKTE yeniler — AMA yenileme garanti
+  // değildir: `applyInboundMessageRules` yolunda tazelik çapası kaymışsa yazma
+  // hiç yapılmaz (`count === 0`) ve altı alan eski hâlinde kalırken `status`
+  // yine "problem" olur. O satırı `isTriageStale` BAYAT işaretler.
+  /// Modelin "ne yapılmalı" önerisi (host'a gösterilir). En fazla 300 karakter.
+  aiActionSuggestion       String?
+  /// "Misafirden şunlar eksik" listesi — JSON string dizisi. 5 öğe × 80 karakter.
+  /// ⚠️ Okuma DAİMA güvenli ayrıştırıcıdan geçer (`/inbox` bir server component;
+  /// çıplak `JSON.parse` orada tüm sayfayı 500'ler, yalnız o kartı değil).
+  aiMissingInfoJson        String?
+  /// Modelin kendi güveni. YALNIZ sonlu değer yazılır ve 0..1'e clamp edilir —
+  /// `typeof === "number"` YETMEZ, `NaN`/`Infinity` o kapıdan geçer.
+  aiConfidence             Float?
+  /// Triyajı HANGİ yol üretti: "model" | "keyword". Kapalı set, kod-clamp.
+  /// 🚨 NULL'DAN SEMANTİK ÇIKARMA: "aiConfidence NULL = modele sorulmadı"
+  /// çıkarımı YANLIŞ olabilir (model koşup sonlu güven döndürmeyebilir).
+  aiTriageSource           String?
+  /// Triyajı tetikleyen mesajın id'si. Bayatlık BUNUN üzerinden ölçülür.
+  /// ⚠️ FK KURULMAZ: `Message` satırları KVKK süpürgeleriyle anonimleşiyor;
+  /// Cascade triyajı da götürür, Restrict süpürgeyi kilitler. Ölü referans
+  /// yalnız "bayatlık ölçülemiyor" demektir ve fail-safe yön "bayat say"dır.
+  aiTriageTriggerMessageId String?
+  /// Triyajın yazıldığı an. `updatedAt` DEĞİL — o her yazmada değişiyor
+  /// (mesaj sayacı, durum, okundu işareti) ve bayat analizi taze gösterirdi.
+  aiTriagedAt              DateTime?
+
   createdAt              DateTime  @default(now())
   updatedAt              DateTime  @updatedAt
 

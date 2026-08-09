@@ -110,6 +110,13 @@ describe("KVKK süpürgeleri — süre-bazlı ↔ açık-silme paritesi", () => 
     // liste o yolu kapatır.
     expect([...RETENTION].sort()).toEqual(
       [
+        // m48 (08-09): triyaj METİNLERİ misafirin mesajından türemiş model
+        // çıktısıdır → misafir kişisel verisi. Diğer dört triyaj kolonu
+        // (`aiConfidence` sayı · `aiTriageSource` kapalı-set etiket ·
+        // `aiTriagedAt` damga · `aiTriageTriggerMessageId` opak id) BİLİNÇLİ
+        // olarak kapsam DIŞI — `Message.aiSourcesJson` emsali.
+        "Conversation.aiActionSuggestion",
+        "Conversation.aiMissingInfoJson",
         "Conversation.guestIdentifier",
         "Message.aiSuggestedReply",
         "Message.body",
@@ -146,7 +153,12 @@ describe("şema kanaryası — misafir modellerine yeni kolon", () => {
   it.each(GUEST_MODELS)("%s kolon sayısı değişmedi", (model) => {
     const EXPECTED: Record<GuestModel, number> = {
       Message: 13,
-      Conversation: 17,
+      // 17 → 22: m48 altı kolon ekledi. ⚠️ KANARYA `Float?`ü GÖRMÜYOR
+      // (regex `String?|Json?|Int?|Boolean?|DateTime?`), yani `aiConfidence`
+      // bu sayacı DEĞİŞTİRMEZ — beşi görünür, altıncısı görünmez. Sayı beşle
+      // arttı ve bu DOĞRU; sayısal kolonun kapsam kararı ELLE verildi
+      // (kapsam dışı: bir sayı kişisel veri taşımaz).
+      Conversation: 22,
       Reservation: 30,
       Task: 15,
       TaskUpdate: 6,

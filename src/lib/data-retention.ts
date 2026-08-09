@@ -223,7 +223,19 @@ export async function anonymizeOldGuestData(now: Date = new Date()): Promise<{ a
             }),
             prisma.conversation.updateMany({
               where: { id: { in: convIds } },
-              data: { guestIdentifier: ANON_ID },
+              data: {
+                guestIdentifier: ANON_ID,
+                // m48 (KVKK): triyaj METİNLERİ misafirin mesajından TÜREMİŞ
+                // model çıktısıdır — içinde misafirin adı, telefonu,
+                // rezervasyon ayrıntısı ve şikayetinin içeriği geçebilir,
+                // çünkü model tam da onları okuyarak yazıyor. Yani misafir
+                // kişisel verisi ve SCRUB KAPSAMI KURALI'na tabi.
+                // ⚠️ Kardeş dal (ÖKSÜZ konuşmalar) AYRICA bağlanır — parite
+                // testi DOSYA düzeyinde küme karşılaştırdığı için dal düzeyinde
+                // KÖRDÜR ve bu boşluğu göremez (`TaskUpdate.note` dersi).
+                aiActionSuggestion: null,
+                aiMissingInfoJson: null,
+              },
             }),
           ]
         : []),
@@ -366,7 +378,15 @@ export async function anonymizeOldGuestData(now: Date = new Date()): Promise<{ a
       }),
       prisma.conversation.updateMany({
         where: { id: { in: orphanIds } },
-        data: { guestIdentifier: ANON_ID },
+        data: {
+          guestIdentifier: ANON_ID,
+          // m48 (KVKK) — ÖKSÜZ DAL. Rezervasyonlu daldaki gerekçenin aynısı.
+          // 🚨 Bu dal, bu deponun daha önce YANDIĞI yer: `TaskUpdate.note`
+          // burada unutulmuştu ve parite testi dal düzeyinde kör olduğu için
+          // görmemişti. Dal-düzeyi testi ayrıca yazıldı.
+          aiActionSuggestion: null,
+          aiMissingInfoJson: null,
+        },
       }),
       // 🚨 OUTBOX YETİM DALINDA DA TEMİZLENİR (denetim, 08-01 — beşinci tur,
       // ajan bulgusu). Rezervasyon dalı bunu yapıyordu, yetim dalı YAPMIYORDU.

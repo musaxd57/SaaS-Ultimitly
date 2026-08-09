@@ -5,6 +5,8 @@ import { requireAuth } from "@/lib/auth";
 import { orgTimezone } from "@/lib/timezone";
 import { prisma } from "@/lib/db";
 import { PageHeader } from "@/components/page-header";
+import { ProblemTriagePanel } from "@/components/inbox/problem-triage-panel";
+import { parseMissingInfo, isTriageStale } from "@/lib/ai/triage";
 import { Pager } from "@/components/pager";
 import { LinkButton } from "@/components/ui/link-button";
 import { buttonVariants } from "@/components/ui/button";
@@ -80,6 +82,38 @@ export default async function InboxPage({
   // "x gün önce" etiketi 30 günü aşınca mutlak güne düşer — o gün host'un
   // takvim günü olmalı, sunucunun UTC'si değil.
   const TZ = orgTimezone(org?.timezone);
+
+  // ── m48: "Açık sorunlar — triyaj" (yalnız Sorunlu sekmesinde) ─────────────
+  // 🚨 MODEL ÇAĞRISI YOK: escalation ANINDA yazılmış analiz okunuyor.
+  // ⚠️ Sorgu YALNIZ `status === "problem"` iken koşar — diğer sekmelerde tek
+  // bir DB turu bile harcanmaz. Kolonlar konuşma "problem"den çıkarken
+  // SİLİNMİYOR (tarihsel kayıt); görünürlüğü sağlayan şey tam da bu filtre.
+  const triageRows =
+    status === "problem"
+      ? await prisma.conversation.findMany({
+          where: { ...where, aiTriagedAt: { not: null } },
+          select: {
+            id: true,
+            lastMessageAt: true,
+            lastRiskType: true,
+            aiActionSuggestion: true,
+            aiMissingInfoJson: true,
+            aiTriageSource: true,
+            aiTriageTriggerMessageId: true,
+            aiTriagedAt: true,
+            property: { select: { name: true } },
+            // Bayatlık ölçüsü: tetikleyici mesaj ile SON inbound mesaj aynı mı.
+            messages: {
+              where: { direction: "inbound" },
+              orderBy: [{ createdAt: "desc" }, { id: "desc" }],
+              take: 1,
+              select: { id: true },
+            },
+          },
+          orderBy: [{ lastMessageAt: "asc" }], // en uzun bekleyen ÜSTTE
+          take: 20,
+        })
+      : [];
 
   const filters = [{ value: "", label: "Tümü" }, ...CONVERSATION_STATUS.options];
   // Boş-durum başlığı seçili sekmenin ADIYLA konuşsun, soyut "filtre" diliyle
@@ -184,6 +218,29 @@ export default async function InboxPage({
           <Plus className="size-4" /> Yeni konuşma
         </LinkButton>
       </PageHeader>
+
+      {triageRows.length > 0 ? (
+        <ProblemTriagePanel
+          timeZone={TZ}
+          rows={triageRows.map((r) => ({
+            id: r.id,
+            propertyName: r.property.name,
+            lastMessageAt: r.lastMessageAt,
+            riskType: r.lastRiskType,
+            actionSuggestion: r.aiActionSuggestion,
+            // 🚨 GÜVENLİ AYRIŞTIRMA ŞART: burası bir SERVER COMPONENT, çıplak
+            // `JSON.parse` bozuk tek bir satırda TÜM SAYFAYI 500'ler.
+            missingInfo: parseMissingInfo(r.aiMissingInfoJson),
+            source: r.aiTriageSource,
+            stale: isTriageStale({
+              triggerMessageId: r.aiTriageTriggerMessageId,
+              latestInboundMessageId: r.messages[0]?.id ?? null,
+              triagedAt: r.aiTriagedAt,
+              lastMessageAt: r.lastMessageAt,
+            }),
+          }))}
+        />
+      ) : null}
 
       {/* Filtreler + arama TEK satır. Tüm kontroller aynı yükseklikte (h-8) ve
           aynı radius'ta (rounded-md = 6px); arama kutusu ile "Ara" düğmesi

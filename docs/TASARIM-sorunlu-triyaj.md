@@ -1,6 +1,18 @@
 # Tasarım — "Sorunlu konuşmalar" triyajı (m48)
 
-> Durum: **İKİNCİ KEZ REVİZE EDİLDİ (08-09) — KOD YAZILMADI, MIGRATION YAZILMADI.**
+> Durum: **UYGULANDI (08-09) — MIGRATION ÜRETİLDİ ve YEREL DOĞRULANDI, PUSH EDİLMEDİ.**
+>
+> ✅ `prisma/migrations/48_conversation_ai_triage/migration.sql` — `migrate diff`
+> ile ÜRETİLDİ (elle yazılmadı), taze bir throwaway Postgres'te `00→48`
+> `migrate deploy` koştu ve `migrate diff --exit-code` **"No difference detected"**
+> dedi. SQL saf additive: altı `ADD COLUMN`, hepsi nullable, varsayılansız.
+>
+> 🚨 **PUSH EDİLMEDİ.** Codex kısıtı: *"Migration'ı pushlama. Taze doğrulanmış
+> pg_dump ve açık onay olmadan migration içeren commit'i oto-deploy branch'ine
+> gönderme."* Branch Railway'e oto-deploy ettiği için commit YEREL duruyor.
+>
+> Uygulanan kapsam: şema + üç yazma yolu + KVKK üç dal + veri ihracı + okuma
+> yüzeyi + testler. §0'daki üç hata ve §0''deki dört karar uygulandı.
 >
 > ⚠️ **08-09 KOD DENETİMİ ÜÇ SOMUT HATA BULDU** (Codex talimatı: "önce güncel m48
 > tasarımını yeniden denetle; kolon semantiğini, yazma/okuma noktalarını,
@@ -13,6 +25,51 @@
 > temizleme kuralları · KVKK/export/erasure kapsamı · sonlu-sayı (finite)
 > doğrulaması · güvenli JSON ayrıştırma. Bu sürüm o altısını karşılıyor.
 > ⚠️ Bu turda **hiçbir kod ve hiçbir migration yazılmadı** — belge, uygulama değil.
+
+---
+
+## 0'. ✅ ONAYLANAN KARARLAR (kullanıcı + Codex, 08-09) — §0'daki hataların çözümü
+
+Bunlar TARTIŞILMAZ girdi; aşağıdaki tüm bölümler bu dördüne göre okunur.
+
+1. **ÜÇ escalation yolunun TAMAMI kapsanır.** `automation.ts:1047` yolunda kaynak
+   AÇIKÇA `"keyword"` yazılır — NULL'dan semantik çıkarılmaz. ⚠️ Bu koşulsuz yol,
+   mevcut `updateMany` koşulu KÖRLEMESİNE KOPYALANARAK değil, **kendi mesaj
+   kimliği/zamanı üzerinden** yarışa dayanıklı tasarlanır. Üç yol için AYRI
+   kırmızı-önce + iki yönlü mutasyon testi.
+2. **Problemden çıkarken triyaj alanları TEMİZLENMEZ.** Altı çıkış noktasına
+   DOKUNULMAZ. Alanlar **tarihsel kayıt** olarak kalır, yalnız `status="problem"`
+   iken GÖSTERİLİR ve sonraki escalation'da **atomik olarak yenilenir**.
+   → §3f (temizleme) İPTAL; yerine §3f' (aşağıda).
+3. **KVKK üç yerde ayrı ayrı kapsanır:** `data-retention.ts` rezervasyonlu dal ·
+   `data-retention.ts` öksüz dal · `erasure.ts`. **DAL DÜZEYİNDE test yazılır;
+   mevcut dosya-parite testi yeterli sayılmaz.**
+4. **`missingInfo` sözleşmesi kodla AYNI: en fazla 5 öğe × 80 karakter.**
+   (Belgede 5 × 120 yazıyordu — §3a düzeltildi.)
+
+### §3f' — TEMİZLEME YOK, "GÖRÜNÜRLÜK + ATOMİK YENİLEME" VAR
+
+Eski §3f "status geçişinde temizle" diyordu ve §0b bunun altı ayrı noktaya
+dokunmayı gerektirdiğini ölçtü. Onaylanan model daha basit ve daha güvenli:
+
+- **Yazma:** her escalation, altı alanı TEK `updateMany` ile yeniler. Kısmi
+  güncelleme YOK — üç kolon yeni, üçü eski kalamaz.
+  🚨 **AMA YENİLEME GARANTİ DEĞİL (Codex düzeltmesi, 08-09).** İlk yazım "her
+  escalation atomik yenilenir" diyordu ve `count === 0` istisnasını atlıyordu:
+  `applyInboundMessageRules` yolunda triyaj yazması tazelik çapasına koşullu,
+  `status` yazması ise KOŞULSUZ. Çapa kaymışsa triyaj HİÇ yazılmaz ama konuşma
+  yine "problem" listesine girer → DB'de **"sorunlu ama analizi bir önceki
+  mesaja ait"** bir satır oluşur. Doğru ifade: *yazma gerçekleşirse altı alan
+  birlikte yenilenir; gerçekleşmezse altısı da eski hâlinde kalır ve korumayı
+  okuma yüzeyi üstlenir.* Bu senaryo uçtan uca test edilmiştir
+  (`tests/integration/ai-triage-stale-window.test.ts`): gerçek fonksiyon,
+  gerçek `count = 0`, sonra `isTriageStale` → **BAYAT**. Model yolunda analiz alanları
+  dolu, kelime yollarında NULL yazılır (**`undefined` DEĞİL**: Prisma `undefined`i
+  "dokunma" diye yorumlar ve önceki escalation'ın analizi hayatta kalırdı — bu,
+  kararın en kolay kaçırılan ayrıntısıdır).
+- **Okuma:** yüzey zaten `status: "problem"` filtreliyor. Kapanmış bir konuşmanın
+  eski triyajı ekranda GÖRÜNMEZ; DB'de tarihsel kayıt olarak durur.
+- **Bayatlık:** §3d aynen geçerli — tetikleyici mesaj değiştiyse rozet çizilir.
 
 ---
 
@@ -258,7 +315,7 @@ claim `updateMany`'sine eklenir. Yeni model çağrısı YOK — bu tasarımın t
 `aiTriageTriggerMessageId: <tetikleyen mesajın id'si>`, `aiTriagedAt: <şimdi>`.
 
 Kırpma sınırları (mevcut `ai/index.ts` emsali): öneri 300 karakter, eksik-bilgi
-listesi en fazla 5 madde × 120 karakter. Sebep kozmetik değil — model çıktısı
+listesi en fazla 5 madde × 80 karakter (§0' k.4 — kodla aynı). Sebep kozmetik değil — model çıktısı
 sınırsız uzayabilir ve bu alanlar host'un ekranına basılıyor.
 
 ### (b) Kelime-eşleşme yolu — `sendDueAlerts`
