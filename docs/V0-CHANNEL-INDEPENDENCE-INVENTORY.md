@@ -341,11 +341,15 @@ canlıda gözlenmedi (Nuve 402'de).
 
 ---
 
-## 11. V0.4 DURUMU — YEREL, PUSH EDİLMEDİ (2026-09-07; doğruluk turu ile düzeltildi)
+## 11. V0.4 DURUMU — CANLI (2026-09-07; iki doğruluk turu ile düzeltildi, migration 50 prod'da 19:29Z)
 
-> 🚨 **Bu dilim MIGRATION içerir (50_provenance).** Commit yalnız bu konteynerin yerel dalında; oto-deploy
-> dalına push edilmedi. Kapı = V0.3 ile aynı: taze doğrulanmış `pg_dump` + kurucunun AÇIK "push et" onayı
-> (§10 "Operatör kapısı"). CI bu commit'te KOŞMADI; kapılar yerelde koşuldu (↓). V0.5 (`messagingCapable`)
+> ✅ **CANLI.** Kapı §10 ile aynen: taze `pg_dump` 22:02 (SHA `A36BCA89…42E459`) → kurucu "push et" → fast-forward
+> `ed481b6..c378a97` (3 commit) → CI run #954 5/5 (migration-chain 50 taze DB'de) → Railway deploy → prod
+> `_prisma_migrations` `50_provenance` finished **2026-09-07 19:29:18Z**, rolled_back boş, yarım migration 0, 9 kolon
+> üç tabloda mevcut. **Prod sayımı (deploy anı):** Reservation 1538 · Conversation 1328 · Message 17.436 — hepsi
+> `legacy` (damgasız; çıkarım backfill'i BİLEREK yok), `ingested` 0 (deploy'dan beri yeni ingest yok; Nuve 402'de
+> donuk), `bound` 0 ve ChannelConnection 0 (bağlantı satırı yok, env fallback). `CHANNEL_CONNECTION_READ` KAPALI.
+> V0.5 (`messagingCapable`)
 > bu tura ALINMADI: talimat "migration gerektirmiyorsa V0.4+V0.5 aynı turda" idi, V0.4 migration istedi →
 > V0.5 kapıdan sonra ayrı tur (migration'sız).
 

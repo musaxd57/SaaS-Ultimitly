@@ -55,8 +55,8 @@ yetenek çıkarımı yasak.
 **Yürütme sırası (bu sıra prompttaki diğer sıraları ezer):** ① Codex denetimi kritik bulguları kodda
 doğrula+düzelt ✅ (8 P1, `docs/audit-2026-09-05/DURUM.md`) → ② test sözleşmesi ✅ → ③ **V0 Channel
 Independence** (V0.1 ✅ outbound dispatch · V0.2 ✅ provider fake + conformance kiti · V0.3 ✅ `ChannelConnection`
-canlı (migration 49 prod'da 09-07) · V0.4 provenance KOD HAZIR, yerel — migration 50 push kapısında (pg_dump + onay);
-sonra V0.5 `messagingCapable` (migration'sız), V0.6 ingest write service + domain event, V0.7 `hospitable*` kolon
+canlı (migration 49 prod'da 09-07) · V0.4 ✅ provenance canlı
+(migration 50 prod'da 09-07); sırada V0.5 `messagingCapable` (migration'sız), V0.6 ingest write service + domain event, V0.7 `hospitable*` kolon
 contract'ı) → ④ deterministik **Availability Engine** → ⑤ geniş
 otonom AI yalnız yetki+guardrail+grounding+eval doğrulandıktan sonra. **V0 sırasında YAPILMAZ:**
 Availability Engine, RAG/GraphRAG, Property Memory, Exception Feed, Revenue Brain, Proof AI, Ask Lixus,
@@ -332,8 +332,7 @@ Sekiz P1 KAPANDI (09-07), her biri ayrı commit, kırmızı-önce + iki yönlü 
   yetenek yok / kimlik↔sağlayıcı uyuşmazlığı → definitive). Ortak fake `tests/helpers/fake-channel.ts`
   (dedupe YOK, sahipsiz rezervasyon 404, timeout=teslim-olabilir) + kit `tests/helpers/outbound-conformance.ts`
   — **yeni adaptör aynı kiti geçmek zorunda**; fake'in varsayımları gerçek adaptörle (fetch stub) pinli.
-- **Provenance (V0.4, migration 50 — 🚨 YEREL COMMIT, PUSH EDİLMEDİ; kapı: taze `pg_dump` + kurucu onayı,
-  envanter §11):** `Reservation/Conversation/Message.connectionId` = KANITLANMIŞ bağlantı — yalnız ingest anında
+- **Provenance (V0.4, migration 50 — CANLI 09-07 19:29Z, kanıt envanter §11):** `Reservation/Conversation/Message.connectionId` = KANITLANMIŞ bağlantı — yalnız ingest anında
   ya da NULL iken bir senkron satırı o bağlantıdan gerçekten gözlemleyince (NULL→X) yazılır; ASLA X→Y / X→NULL;
   **çıkarım backfill'i YOK**, "mevcut bağlantıyı aktar" tarihsel kanıt DEĞİL (pencere dışı legacy NULL kalır).
   `ingestedAt` = İLK ALINMA (yalnız create; update yolları dokunmaz; freshness DEĞİL — iCal `feedLastSeenAt`,
@@ -415,9 +414,9 @@ Sekiz P1 KAPANDI (09-07), her biri ayrı commit, kırmızı-önce + iki yönlü 
   + conformance kiti `tests/helpers/outbound-conformance.ts` — fake ↔ gerçek adaptör aynı 14 senaryo; envanter §9).
   **V0.3 ✅ CANLI** (`922f784`, migration 49 prod'da 09-07 15:49Z; pg_dump SHA + kanıt envanter §10). Backfill 0
   satır BEKLENEN: prod'da DB token'lı org yok, Nuve `PRIMARY_ORG_ID` env fallback'inde → `CHANNEL_CONNECTION_READ`
-  DB'ye kaydedilmiş ilk gerçek bağlantı olmadan AÇILMAZ. **V0.4 provenance KOD HAZIR — yerel commit, PUSH
-  EDİLMEDİ** (migration 50 = 9 nullable ADD COLUMN; kapı §10 ile aynı: taze `pg_dump` + açık "push et"; envanter
-  §11; doğruluk turu ile çıkarım backfill'i kaldırıldı). ⚠️ Konteyner sıfırlanırsa yerel commit kaybolur. V0.5 `messagingCapable` migration'sız, kapıdan sonra.
+  DB'ye kaydedilmiş ilk gerçek bağlantı olmadan AÇILMAZ. **V0.4 ✅ CANLI** (`c378a97`, migration 50 prod'da 09-07
+  19:29Z; prod'daki 17.436 mesaj/1538 rezervasyon `legacy` sınıfında, çıkarım backfill'i bilerek yok; envanter §11).
+  Sıradaki V0.5 `messagingCapable` (migration'sız) — kurucu başlatınca.
   Availability Engine / RAG / geniş otonom AI V0 bitmeden YOK.
 - **Codex P2 (F09–F18)** ilgili modül turlarında. `docs/DENETIM-2026-08-09.md` (27 açık),
   `docs/ACIK-ISLER-2026-08-08.md` (16), `docs/MIGRATION-BEKLEYEN-ISLER.md`.
@@ -432,9 +431,8 @@ Sekiz P1 KAPANDI (09-07), her biri ayrı commit, kırmızı-önce + iki yönlü 
   yol · halka açık sayfada çerez yenileme · `PADDLE_WEBHOOK_SECRET` boot kapısı.
 
 ## Durum
-**Yerel HEAD = V0.4 + iki doğruluk turu (PUSH EDİLMEDİ, migration 50): 3539 test yeşil (313 dosya) · typecheck/
-lint/build/audit temiz · migration 00–50 (51 klasör) taze PG'de sıfır-drift · CI bu commit'te KOŞMADI · taze
-pg_dump 22:02 SHA `A36BCA89…42E459` alındı, "push et" bekleniyor. Origin HEAD `ed481b6` (V0.3 canlı):
-CI 5/5 (run #952) · migration 49 prod'da uygulandı · Railway healthcheck-gated oto-deploy.** Son kod işi: Codex P1 turu (8 commit) + V0.1 (`2034aba`)
+**HEAD `c378a97` (V0.4 canlı): 3539 test yeşil (313 dosya) · typecheck/lint/build/audit temiz · migration 00–50
+(51 klasör) sıfır-drift · CI 5/5 (run #954) · migration 50 prod'da 19:29Z · Railway healthcheck-gated oto-deploy.**
+ Son kod işi: Codex P1 turu (8 commit) + V0.1 (`2034aba`)
 + V0.2 (`bc185db`) + V0.3 (yerel). Prod smoke bu ortamdan yapılamaz; operatör adımları
 `docs/audit-2026-09-05/DURUM.md` + `docs/V0-CHANNEL-INDEPENDENCE-INVENTORY.md` §10 (push kapısı).
