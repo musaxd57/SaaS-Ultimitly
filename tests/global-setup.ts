@@ -1,5 +1,6 @@
 import { execSync } from "node:child_process";
 import { rmSync, mkdirSync } from "node:fs";
+import { guardTestDatabase } from "../scripts/test-db-guard.mjs";
 
 // Provisions a throwaway PostgreSQL instance for the integration suite, pushes
 // the Prisma schema into it, and tears it down afterwards. Postgres refuses to
@@ -17,7 +18,7 @@ function pgBin(): string {
   return execSync("ls -d /usr/lib/postgresql/*/bin | sort -V | tail -1").toString().trim();
 }
 
-export default function setup() {
+export default async function setup() {
   // Cross-platform escape hatch (Codex audit): the provisioning below is
   // Linux-only (`su postgres`, /tmp, GNU ls). On Windows/macOS point
   // TEST_DATABASE_URL at any empty local PostgreSQL database and the harness
@@ -25,6 +26,13 @@ export default function setup() {
   // vitest.config.ts uses the same variable for the suite's DATABASE_URL.
   const external = process.env.TEST_DATABASE_URL?.trim();
   if (external) {
+    // 🚨 KAPI PUSH'TAN ÖNCE (Codex F08). Eskiden herhangi bir URL doğrudan
+    // `db push --accept-data-loss`a gidiyordu ve ardından her test tüm tabloları
+    // boşaltıyor (`helpers/db.ts resetDb`). Hedefin ATILABİLİR olduğu artık
+    // kanıtlanır: loopback (ya da açık TEST_DB_ALLOW_REMOTE=1) + DB'nin kendi
+    // harness işareti; işaretsiz DB yalnız BOŞSA (ya da TEST_DB_ADOPT=1 ile bir
+    // kez) sahiplenilir. Reddedince fırlatır → vitest hiç başlamaz. URL basılmaz.
+    await guardTestDatabase(external);
     execSync("npx prisma db push --accept-data-loss --skip-generate", {
       stdio: "inherit",
       env: { ...process.env, DATABASE_URL: external },
