@@ -9,7 +9,7 @@
 
 | Katman | Durum |
 |---|---|
-| **KOD** | 8/8 P1 düzeltmesi yazıldı, her biri ayrı commit (↓tablo). Yerel kapılar: typecheck ✅ · lint ✅ (0 uyarı) · `scripts/audit-check.mjs` ✅ (yeşil) · tam `npm test` ↓ · `next build` ↓. |
+| **KOD** | 8/8 P1 düzeltmesi yazıldı, her biri ayrı commit (↓tablo). Yerel kapılar: typecheck ✅ · `eslint .` ✅ (0 uyarı) · `scripts/audit-check.mjs` ✅ (üretim: 6 triajlı danışma, 0 triajsız) · tam `npm test` ✅ **3430 test / 301 dosya** (ilk koşuda 1 kırmızı: `audit-2026-08-07-round2` içindeki eski head/tail pini F02'nin kapattığı kusuru "koruma" diye pinliyordu → yeni sözleşmeye çevrildi: kesme YOK + fail-closed üst sınır + sınır ≥ KB tavanı) · `next build` ✅ (67 sn). e2e yerelde koşulmadı (CI job'ı). Migration-chain: bu turda migration YOK. |
 | **CI** | Push sonrası doldurulacak (↓"CI sonucu"). |
 | **DEPLOY** | Railway "Wait for CI" AÇIK → CI yeşilse oto-deploy. Bu turda **migration YOK**, **env değişikliği YOK**, **bayrak açılışı YOK**. |
 | **PROD SMOKE** | Yapılmadı ve bu belgeden yapılmış gibi okunmamalı. Operatör smoke'u ↓"Prod'da doğrulanacaklar". |

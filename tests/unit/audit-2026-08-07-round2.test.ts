@@ -71,17 +71,34 @@ describe("ReDoS — QR sır süzgeci sınırlı nicelik kullanır", () => {
     }
   });
 
-  it("uzunluk kemeri duruyor (ikinci savunma)", () => {
-    // ⚠️ İFADE 08-09'DA DEĞİŞTİ, KORUMA DEĞİŞMEDİ. Kemer tek uçluydu
-    // (`slice(0, 4000)`) ve deterministik bir ATLATMAYDI: 4.829 karakterlik
-    // sıradan metin + sonda `Kapı kodu: 4590` süzgeçten geçiyordu. Artık İKİ UÇ
-    // taranıyor ve tavan 8.000 karakter — yani sınır hâlâ var, ReDoS savunması
-    // duruyor, yalnız kapsam düzeldi.
-    // 🚨 DERS (savunmacı ajanın ironik notu): bu pin bir STRING pini olduğu için
-    // refaktörde kırıldı; üç satır aşağıdaki DAVRANIŞSAL kardeşi (20.000
-    // karakterlik patolojik girdi < 1000 ms) hiç kırılmadı. Sınırın VARLIĞINI
-    // ifadeden bağımsız arıyoruz.
-    expect(src).toMatch(/text\.length > \d+\s*\?[\s\S]{0,120}?text\.slice\(/);
+  it("uzunluk kemeri duruyor — ama artık FAIL-CLOSED üst sınır, head/tail kesme DEĞİL (Codex F02)", () => {
+    // ⚠️ İFADE ÜÇÜNCÜ KEZ DEĞİŞTİ; bu kez KORUMA DA DEĞİŞTİ ve bilerek.
+    // Tarihçe: tek uç (`slice(0,4000)`, 08-07) → iki uç (`slice(0,4000)` +
+    // `slice(-4000)`, 08-09) → TAM TARAMA (09-07, Codex F02). İki-uç kemerin
+    // gerekçesi ("ortaya gömmek için iki uçtan 4.000 dolgu gerekir, o da bütçeye
+    // çarpar") YANLIŞTI: KB tavanı 20.000 olduğu için 18k'lik tek kalemin ortası
+    // sıradan girdiyle ulaşılıyor ve HİÇ taranmıyordu. Bu testin eski hâli o
+    // kusuru "koruma" diye pinliyordu.
+    //
+    // Yeni sözleşme: (1) head/tail kesme YOK — `looksLikeSecret` içinde
+    // `text.slice(` geçmez; (2) ReDoS kemeri bir ÜST SINIRDIR ve fail-closed
+    // (`> SECRET_SCAN_MAX_CHARS` → `return true`, "taramadım ama geçsin" değil);
+    // (3) üst sınır KB validator tavanından (20.000) küçük olamaz — yoksa meşru
+    // en uzun kalem sırsız da olsa elenir (bedel yalnız özellik kaybı, ama
+    // sessiz). Davranışsal kardeşleri: `qr-secret-scan-coverage.test.ts`.
+    const fnStart = src.indexOf("function looksLikeSecret(");
+    expect(fnStart).toBeGreaterThan(-1);
+    const fnEnd = src.indexOf("\n}\n", fnStart);
+    expect(fnEnd).toBeGreaterThan(fnStart);
+    const fn = src.slice(fnStart, fnEnd);
+    expect(fn).not.toMatch(/text\.slice\(/); // kesme geri gelirse KIRMIZI
+    expect(fn).toMatch(/text\.length > SECRET_SCAN_MAX_CHARS\)\s*return true;/); // fail-closed üst sınır
+    const cap = src.match(/const SECRET_SCAN_MAX_CHARS = ([\d_]+);/);
+    expect(cap).not.toBeNull();
+    const capNum = Number(cap![1].replace(/_/g, ""));
+    const kbCap = readFileSync("src/lib/validators.ts", "utf8").match(/content: z\.string\(\)\.min\(2[^)]*\)\.max\((\d+)\)/);
+    expect(kbCap, "validators.ts KB içerik tavanı bulunamadı").not.toBeNull();
+    expect(capNum).toBeGreaterThanOrEqual(Number(kbCap![1]) + 300); // içerik + başlık
   });
 
   it("patolojik girdi ANINDA döner (davranışsal)", () => {
