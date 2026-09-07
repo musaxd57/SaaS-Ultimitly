@@ -336,31 +336,58 @@ async function markConversationDelivered(conversationId: string, now: Date): Pro
 }
 
 /**
- * SEND-TIME VETO for an AI auto-reply (Codex P2). Between enqueue and this POST the
- * world may have moved on — the host answered manually, the AI was paused / handed to a
- * human, the thread was escalated, or a newer message arrived. In any of those cases the
- * queued AI reply is STALE and must NOT be delivered: the enqueue-time safety gate is not
- * enough on its own. Only AI rows are vetoed (a manual host reply the host explicitly
- * wrote always goes). Returns a short reason code when the send must be canceled, else null.
+ * SEND-TIME VETO for a reply-shaped row (manual / ai / holding_ack / legacy NULL).
+ * Two layers, in this order:
+ *   1. TARGET EXISTS + SAME TENANT (Codex F03) — for EVERY reply type. A deleted
+ *      conversation/message, or a snapshot whose org differs from the thread's org, is
+ *      never POSTed. Missing ≠ "manual, let it go".
+ *   2. AI STATE (Codex P2) — only for AI rows: host took over / AI paused / escalated /
+ *      superseded by a newer message → the stale draft must not go. A manual host reply
+ *      the host explicitly wrote is never vetoed on state.
+ * Returns a short reason code when the send must be canceled, else null.
  */
-async function aiSendVeto(row: OutboxRow, now: Date): Promise<string | null> {
-  if (!row.messageId || !row.conversationId) return null; // no message/thread → not a tracked AI reply
-  const msg = await prisma.message.findUnique({
-    where: { id: row.messageId },
-    select: { authorType: true, createdAt: true },
-  });
-  if (!msg || msg.authorType !== "ai") return null; // manual/host send → never vetoed
-  const convo = await prisma.conversation.findUnique({
-    where: { id: row.conversationId },
-    select: { status: true, autoReplyHoldUntil: true },
-  });
-  if (!convo) return "conversation_gone";
+async function replyVeto(row: OutboxRow, now: Date): Promise<string | null> {
+  // ── HEDEF VARLIĞI + KİRACI (Codex F03, P1) — HER yanıt türü için ─────────
+  // 🚨 ESKİ KOD: `if (!msg || msg.authorType !== "ai") return null` — Message
+  // BULUNAMAYINCA "manuel host mesajı, veto yok" deniyor ve POST yapılıyordu.
+  // Konuşma silindiğinde (rota Message+Conversation'ı siler, kuyruğa dokunmazdı)
+  // kuyruktaki metin snapshot'ı yine de sağlayıcıya gidiyordu; holding_ack ise
+  // varlık kontrolünden hiç geçmiyordu. Kayıp kayıt ASLA "geçsin" demek değildir:
+  // hüküm "hedef hâlâ var mı, aynı kiracıya mı ait" sorusuyla başlar.
+  let convo: { status: string; autoReplyHoldUntil: Date | null; property: { organizationId: string } } | null = null;
+  if (row.conversationId) {
+    convo = await prisma.conversation.findUnique({
+      where: { id: row.conversationId },
+      select: { status: true, autoReplyHoldUntil: true, property: { select: { organizationId: true } } },
+    });
+    if (!convo) return "conversation_gone";
+    // Snapshot'ın org'u ile hedef konuşmanın org'u ayrışıyorsa bu satır yanlış
+    // kiracı adına POST yapardı (yanlış çağıran / bozuk satır) — asla.
+    if (convo.property.organizationId !== row.organizationId) return "tenant_mismatch";
+  }
+  let msg: { authorType: string | null; createdAt: Date; conversationId: string } | null = null;
+  if (row.messageId) {
+    msg = await prisma.message.findUnique({
+      where: { id: row.messageId },
+      select: { authorType: true, createdAt: true, conversationId: true },
+    });
+    if (!msg) return "message_gone";
+    if (row.conversationId && msg.conversationId !== row.conversationId) return "message_conversation_mismatch";
+  }
+  // holding_ack: soft ack — deliver, keep the thread in "problem". (Varlık kontrolü
+  // yukarıda ARTIK ona da uygulanıyor; durum kontrolü uygulanmıyor — tasarım.)
+  if (row.messageType === "holding_ack") return null;
+  // ── AI DURUM VETOSU (Codex P2) — yalnız AI satırları ──────────────────────
+  // Between enqueue and this POST the world may have moved on — the host answered
+  // manually, the AI was paused / handed to a human, the thread was escalated, or a
+  // newer message arrived. A manual host reply the host explicitly wrote always goes.
+  if (!msg || !convo || msg.authorType !== "ai") return null;
   if (convo.status === "problem" || convo.status === "closed") return "escalated_or_closed";
   if (convo.autoReplyHoldUntil && convo.autoReplyHoldUntil > now) return "ai_paused";
   // A newer message (a host's manual reply, or a newer guest message) means this AI reply
   // is no longer the current turn — the thread moved on, so the stale draft must not go.
   const newer = await prisma.message.count({
-    where: { conversationId: row.conversationId, id: { not: row.messageId }, createdAt: { gt: msg.createdAt } },
+    where: { conversationId: row.conversationId as string, id: { not: row.messageId as string }, createdAt: { gt: msg.createdAt } },
   });
   if (newer > 0) return "superseded_by_newer_message";
   return null;
@@ -411,14 +438,15 @@ async function lifecycleVeto(row: OutboxRow, now: Date): Promise<string | null> 
 
 /**
  * Dispatch the correct send-time veto by messageType: lifecycle rows use the reservation-state
- * veto; holding acknowledgements are best-effort and never vetoed; everything else (manual / ai /
- * legacy NULL) goes through the AI veto, which self-filters (a manual host reply is never vetoed).
+ * veto; every reply-shaped row (manual / ai / holding_ack / legacy NULL) goes through
+ * `replyVeto`, which FIRST verifies the target still exists and belongs to the same tenant
+ * (F03), THEN applies the AI-only state vetoes (a manual host reply is never vetoed on state;
+ * a holding_ack is delivered and keeps the thread in "problem").
  */
 async function sendTimeVeto(row: OutboxRow, now: Date): Promise<string | null> {
   const type = row.messageType;
   if (type === "welcome" || type === "checkin" || type === "checkout") return lifecycleVeto(row, now);
-  if (type === "holding_ack") return null; // soft ack — deliver, keep the thread in "problem"
-  return aiSendVeto(row, now);
+  return replyVeto(row, now);
 }
 
 /**

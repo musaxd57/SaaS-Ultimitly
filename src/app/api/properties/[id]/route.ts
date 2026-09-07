@@ -3,6 +3,7 @@ import { propertySchema, zodFieldErrors } from "@/lib/validators";
 import { badRequest, jsonOk, notFound, readJsonCappedOrNull } from "@/lib/api";
 import { withManage } from "@/lib/route-guard";
 import { serializeSupplyProfile } from "@/lib/supply";
+import { ERASABLE_STATUSES } from "@/lib/outbox/state";
 
 // ⚠️ GİZLİ TOKEN'LAR YANITTAN ÇIKARILIR — GERİ EKLEME.
 // `icalToken` takvim beslemesinin, `chatToken` QR concierge'in TEK kimlik
@@ -82,9 +83,42 @@ export const PATCH = withManage<{ id: string }>(async (session, req, { params })
 
 export const DELETE = withManage<{ id: string }>(async (session, _req, { params }) => {
   const { id } = await params;
-  const result = await prisma.property.deleteMany({
+  // Org-scoped existence check FIRST so a foreign id is a clean 404 with zero writes.
+  const owned = await prisma.property.findFirst({
     where: { id, organizationId: session.organizationId },
+    select: { id: true },
   });
+  if (!owned) return notFound();
+  // 🚨 KUYRUK AYNI TX'TE İPTAL (Codex F03, P1). Mülk silme konuşma/mesaj/rezervasyonu
+  // DB cascade ile götürür ama MessageOutbox'a FK YOK → bekleyen yanıt satırları
+  // (conversationId) ve lifecycle satırları (reservationId / externalReservationId)
+  // sahipsiz kalıp sağlayıcıya gidebilirdi. Kapsam ve `claimedBy: null` kuralı
+  // konuşma silme rotasıyla AYNI (↑`conversations/[id]`); worker'ın varlık vetosu
+  // (conversation_gone / reservation_gone) ikinci katman.
+  const [convs, ress] = await Promise.all([
+    prisma.conversation.findMany({ where: { propertyId: id }, select: { id: true } }),
+    prisma.reservation.findMany({ where: { propertyId: id }, select: { id: true, sourceReference: true } }),
+  ]);
+  const convIds = convs.map((c) => c.id);
+  const resIds = ress.map((r) => r.id);
+  const srcRefs = ress.map((r) => r.sourceReference).filter((s): s is string => Boolean(s));
+  const targets = [
+    ...(convIds.length ? [{ conversationId: { in: convIds } }] : []),
+    ...(resIds.length ? [{ reservationId: { in: resIds } }] : []),
+    ...(srcRefs.length ? [{ externalReservationId: { in: srcRefs } }] : []),
+  ];
+  const [, result] = await prisma.$transaction([
+    prisma.messageOutbox.updateMany({
+      where: {
+        organizationId: session.organizationId,
+        ...(targets.length ? { OR: targets } : { id: "__none__" }),
+        status: { in: [...ERASABLE_STATUSES] },
+        claimedBy: null,
+      },
+      data: { status: "canceled", lastErrorKind: "canceled", lastErrorCode: "property_deleted" },
+    }),
+    prisma.property.deleteMany({ where: { id, organizationId: session.organizationId } }),
+  ]);
   if (result.count === 0) return notFound();
   return jsonOk({ ok: true });
 });
