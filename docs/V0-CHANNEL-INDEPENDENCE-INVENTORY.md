@@ -318,6 +318,11 @@ CREATE TABLE; kısa DDL kilidi; tablo boş doğar); (4) deploy sonrası ilk sync
 KAPALI kalır; açmadan önce parite: bağlı her org için org kolonu ile bağlantı satırı ciphertext'i eşit
 olmalı (dual-write'ın kanıtı); (6) anahtar açılır; sorun olursa env silinir (anında geri).
 
+**Push kapısı adım (1) KANITI (2026-09-07 18:33, operatör klonu `LixusPreflight-43ccd3c` @ `751233c`,
+`ops-backup-prod.ps1`, PostgreSQL 18):** `lixus-prod-post-contract-2026-09-07-183354.dump` · 1.449.478 bayt ·
+TOC 197 girdi · `pg_restore -l` ✅ · SHA256
+`0F02038D5D7AA9EF14E93986751FF2805EACA570F7095B174EA7A106ECD21D1B`. Restore provası bu yedekle henüz koşulmadı.
+
 **Bilerek kapsam dışı / kalan sınırlar:** sync yolu 401'de bağlantıyı revoke ETMEZ (yalnız raporlar) —
 geçici sağlayıcı arızasında herkesi düşürme riski yüzünden ayrı karar; `(org, provider)` başına tek
 bağlantı (çoklu hesap = dolu tabloda unique değişikliği, ayrı migration); env fallback (`HOSPITABLE_API_TOKEN`,
