@@ -138,6 +138,34 @@ export async function anonymizeOldGuestData(now: Date = new Date()): Promise<{ a
                   },
                 },
               },
+              // ── TAM YENİDEN-TEMİZLENEBİLİRLİK (Codex F07, P1) ────────────────
+              // Yukarıdaki iki bacak YETMİYORDU: adı zaten anonim, eski inbound'u
+              // kalmamış bir kayda SONRADAN telefon / e-posta / not / görev
+              // açıklaması / triyaj metni bağlanırsa hiçbiri seçilme sebebi
+              // değildi → süresiz yaşıyordu (Codex predicate'i yakalayıp gösterdi).
+              //
+              // 🚨 BACAK KURALI = SONLANMA KURALI: yalnız bu süpürgenin KENDİSİNİN
+              // aşağıdaki TX'te null/sentinel YAPTIĞI alanlar bacak olabilir; aksi
+              // hâlde satır her geçişte yeniden seçilir (sonsuz döngü, m48'in
+              // "tek atımlık" dersinin tersi). Ad-redaksiyonuyla temizlenen
+              // metinler (TaskUpdate.note, outbound gövde) bu yüzden bacak DEĞİL —
+              // redaksiyon metni bırakır. O sınıf bir işaret kolonu (migration)
+              // ister; bilinçli açık bırakıldı ve test-pinli.
+              { guestPhone: { not: null } },
+              { guestEmail: { not: null } },
+              { guestExternalId: { not: null } },
+              { guestCheckoutTime: { not: null } },
+              { notes: { not: null } },
+              { conversations: { some: { guestIdentifier: { not: ANON_ID } } } },
+              {
+                conversations: {
+                  some: { OR: [{ aiActionSuggestion: { not: null } }, { aiMissingInfoJson: { not: null } }] },
+                },
+              },
+              // Görev açıklaması misafirin HAM metni (şikayet / akıllı görev) —
+              // aşağıda ANON_BODY yapılır → sonlanır. NULL hariç (Prisma `not`
+              // NULL'u dışlar; açıkça yazıldı ki niyet okunabilsin).
+              { tasks: { some: { AND: [{ description: { not: null } }, { description: { not: ANON_BODY } }] } } },
             ],
           }
         : { guestName: { not: ANON_NAME } }),
@@ -391,6 +419,12 @@ export async function anonymizeOldGuestData(now: Date = new Date()): Promise<{ a
             },
           },
         },
+        // (F07) Öksüz dal paritesi: sonradan yazılan triyaj metinleri de yeniden
+        // seçilir; aşağıdaki TX ikisini null yapar → sonlanır. Bayrak kapalıyken
+        // davranış birebir eski.
+        ...(messageAgeAnchorEnabled()
+          ? [{ aiActionSuggestion: { not: null } }, { aiMissingInfoJson: { not: null } }]
+          : []),
       ],
     },
     select: { id: true, guestIdentifier: true },
