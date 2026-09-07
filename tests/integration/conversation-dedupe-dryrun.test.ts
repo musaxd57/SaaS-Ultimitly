@@ -64,6 +64,9 @@ type ConvOverrides = Partial<{
   aiTriageSource: string | null;
   aiTriageTriggerMessageId: string | null;
   aiTriagedAt: Date | null;
+  // V0.4 provenance — aynı sessiz-yutma uyarısı geçerli.
+  connectionId: string | null;
+  ingestedAt: Date | null;
 }>;
 
 async function conv(propertyId: string, o: ConvOverrides = {}) {
@@ -93,11 +96,20 @@ async function conv(propertyId: string, o: ConvOverrides = {}) {
       aiTriageSource: o.aiTriageSource ?? null,
       aiTriageTriggerMessageId: o.aiTriageTriggerMessageId ?? null,
       aiTriagedAt: o.aiTriagedAt ?? null,
+      connectionId: o.connectionId ?? null,
+      ingestedAt: o.ingestedAt ?? null,
     },
   });
 }
 
-type MsgOverrides = Partial<{ body: string; senderName: string; aiAssisted: boolean; createdAt: Date }>;
+type MsgOverrides = Partial<{
+  body: string;
+  senderName: string;
+  aiAssisted: boolean;
+  createdAt: Date;
+  connectionId: string | null;
+  ingestedAt: Date | null;
+}>;
 
 async function msg(conversationId: string, externalId: string | null, o: MsgOverrides = {}) {
   return prisma.message.create({
@@ -111,6 +123,8 @@ async function msg(conversationId: string, externalId: string | null, o: MsgOver
       aiAssisted: o.aiAssisted ?? false,
       authorType: "guest",
       createdAt: o.createdAt ?? T0,
+      connectionId: o.connectionId ?? null,
+      ingestedAt: o.ingestedAt ?? null,
     },
   });
 }
@@ -578,5 +592,77 @@ describe("dedupe dry-run — çıktı hijyeni (Codex şart #4)", () => {
     const text = formatDedupeReport(r).join("\n");
     expect(text).toContain("APPLY YOK");
     expect(text).toContain("Hiçbir satır değiştirilmedi");
+  });
+});
+
+// ---------------------------------------------------------------------------
+// V0.4 PROVENANCE × DEDUPE — iki kural, birbirinden AYRI:
+//   · Farklı DOLU `connectionId` iki kopya = kaynak çelişkisi → FAIL-CLOSED, kendi
+//     kovasında (sessiz birleştirme yok). NULL ↔ dolu çelişki değildir.
+//   · `ingestedAt` farkı doğaldır (kopyalar farklı anda alınır) → çelişki DEĞİL;
+//     konuşmada keeper_wins farkı olarak SAYILIR, mesajda kıyaslanmaz.
+// ---------------------------------------------------------------------------
+describe("dedupe dry-run — provenance (V0.4)", () => {
+  beforeEach(async () => {
+    await resetDb();
+  });
+
+  it("konuşma: farklı DOLU connectionId → FAIL-CLOSED, ayrı kova (connection_conflict)", async () => {
+    const { propertyId } = await makeOrgWithProperty();
+    await conv(propertyId, { connectionId: "conn-A", createdAt: T0 });
+    await conv(propertyId, { connectionId: "conn-B", createdAt: T1 });
+
+    const r = await planConversationDedupe(prisma, ALLOW);
+    expect(r.groups.planned).toBe(0);
+    expect(r.groups.fail_closed).toBe(1);
+    expect(r.groups.fail_reasons.connection_conflict).toBe(1);
+    expect(r.groups.fail_reasons.external_conversation_id_conflict).toBe(0);
+  });
+
+  it("konuşma: biri NULL diğeri dolu connectionId → çelişki DEĞİL, planlanır", async () => {
+    const { propertyId } = await makeOrgWithProperty();
+    await conv(propertyId, { connectionId: null, createdAt: T0 });
+    await conv(propertyId, { connectionId: "conn-A", createdAt: T1 });
+
+    const r = await planConversationDedupe(prisma, ALLOW);
+    expect(r.groups.fail_reasons.connection_conflict).toBe(0);
+    expect(r.groups.planned).toBe(1);
+  });
+
+  it("konuşma: aynı bağlantı, farklı ingestedAt → çelişki DEĞİL (zaman farkı ≠ bağlantı çelişkisi), keeper_wins farkı olarak sayılır", async () => {
+    const { propertyId } = await makeOrgWithProperty();
+    await conv(propertyId, { connectionId: "conn-A", ingestedAt: T0, createdAt: T0 });
+    await conv(propertyId, { connectionId: "conn-A", ingestedAt: T1, createdAt: T1 });
+
+    const r = await planConversationDedupe(prisma, ALLOW);
+    expect(r.groups.fail_closed).toBe(0);
+    expect(r.groups.planned).toBe(1);
+    expect(r.groups.keeper_wins_differences).toBe(1);
+  });
+
+  it("mesaj: aynı externalId + farklı DOLU connectionId → FAIL-CLOSED, ayrı kova (message_connection_conflict), içerik çelişkisi DEĞİL", async () => {
+    const { propertyId } = await makeOrgWithProperty();
+    const a = await conv(propertyId, { createdAt: T0 });
+    const b = await conv(propertyId, { createdAt: T1 });
+    await msg(a.id, "m1", { connectionId: "conn-A" });
+    await msg(b.id, "m1", { connectionId: "conn-B" });
+
+    const r = await planConversationDedupe(prisma, ALLOW);
+    expect(r.groups.fail_closed).toBe(1);
+    expect(r.groups.fail_reasons.message_connection_conflict).toBe(1);
+    expect(r.groups.fail_reasons.message_content_conflict).toBe(0);
+    expect(r.totals.messages_after_expected).toBe(r.totals.messages_before);
+  });
+
+  it("mesaj: aynı externalId, NULL↔dolu connectionId ve farklı ingestedAt → tam kopya sayılır, düşer", async () => {
+    const { propertyId } = await makeOrgWithProperty();
+    const a = await conv(propertyId, { createdAt: T0 });
+    const b = await conv(propertyId, { createdAt: T1 });
+    await msg(a.id, "m1", { connectionId: "conn-A", ingestedAt: T0 });
+    await msg(b.id, "m1", { connectionId: null, ingestedAt: T1 });
+
+    const r = await planConversationDedupe(prisma, ALLOW);
+    expect(r.groups.fail_closed).toBe(0);
+    expect(r.messages.planned_drop_exact_duplicate).toBe(1);
   });
 });

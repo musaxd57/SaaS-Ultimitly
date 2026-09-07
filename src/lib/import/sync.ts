@@ -411,9 +411,6 @@ export async function syncCalendarSource(sourceId: string): Promise<SyncResult> 
                 calendarSourceId: source.id,
                 // Re-confirm a stay that had been cancelled but now reappears live.
                 ...(existing.status === "cancelled" ? { status: "confirmed" } : {}),
-                // V0.4 provenance: iCal'in kimliği calendarSourceId'dir (connectionId YOK);
-                // ingestedAt bu ingress'in son dokunuşu.
-                ingestedAt: new Date(),
               },
             });
             if (resU.count === 0) return { kind: "skip" };
@@ -432,7 +429,7 @@ export async function syncCalendarSource(sourceId: string): Promise<SyncResult> 
               calendarSourceId: source.id,
               notes: row.notes ? row.notes.slice(0, 5000) : null,
               currency: "EUR",
-              ingestedAt: new Date(), // V0.4 provenance (connectionId yok: kimlik calendarSourceId)
+              ingestedAt: new Date(), // V0.4 provenance: İLK ALINMA (update yolu dokunmaz); kimlik calendarSourceId
             },
           });
           return { kind: "created", id: created.id };

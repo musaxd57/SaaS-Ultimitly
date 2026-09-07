@@ -341,91 +341,91 @@ canlıda gözlenmedi (Nuve 402'de).
 
 ---
 
-## 11. V0.4 DURUMU — YEREL, PUSH EDİLMEDİ (2026-09-07)
+## 11. V0.4 DURUMU — YEREL, PUSH EDİLMEDİ (2026-09-07; doğruluk turu ile düzeltildi)
 
-> 🚨 **Bu dilim MIGRATION içerir (50_provenance).** Commit yalnız bu konteynerin yerel dalında;
-> oto-deploy dalına push edilmedi. Kapı = V0.3 ile aynı: taze doğrulanmış `pg_dump` + kurucunun
-> AÇIK "push et" onayı (§10 "Operatör kapısı" adımları). CI bu commit'te KOŞMADI; kapılar yerelde
-> koşuldu (↓). V0.5 (`messagingCapable`) bu tura ALINMADI: kurucu talimatı "migration gerektirmiyorsa
-> V0.4+V0.5 aynı turda" idi, V0.4 migration istedi → V0.5 kapıdan sonra ayrı tur (migration'sız).
+> 🚨 **Bu dilim MIGRATION içerir (50_provenance).** Commit yalnız bu konteynerin yerel dalında; oto-deploy
+> dalına push edilmedi. Kapı = V0.3 ile aynı: taze doğrulanmış `pg_dump` + kurucunun AÇIK "push et" onayı
+> (§10 "Operatör kapısı"). CI bu commit'te KOŞMADI; kapılar yerelde koşuldu (↓). V0.5 (`messagingCapable`)
+> bu tura ALINMADI: talimat "migration gerektirmiyorsa V0.4+V0.5 aynı turda" idi, V0.4 migration istedi →
+> V0.5 kapıdan sonra ayrı tur (migration'sız).
 
-**Başlangıç → bitiş:** `ed481b6` (origin ile aynı) → yerel `V0.4` commit'i (↓hash raporda).
+**Başlangıç → bitiş:** `ed481b6` (origin) → yerel V0.4 (`47b61b5`) → **doğruluk turu** (kurucu talimatı: ayırt
+edilemeyen legacy satır damgalanmaz; "mevcut bağlantıyı aktar" tarihsel kanıt değil; `ingestedAt` açık tanım
++ tekrar senkron eskiyi yeni göstermez; dedupe farklı dolu bağlantıyı sessizce birleştirmez, zaman farkı ayrı).
+İlk taslaktaki **çıkarım backfill'i (`backfillProvenance` + `provenanceBackfilledAt` işareti + scheduled-sync
+kancası) KALDIRILDI**: legacy satırın bağlantı kimliği org/provider tekilliğinden ÇIKARILABİLİR ama
+KANITLANAMAZ (env fallback geçmişi, elle UI belirsizliği) — kanıtlanamayan damga basılmaz.
 
-**Sözleşme (şema yorumlarıyla aynı; kod-doğrulandı):**
-- `Reservation/Conversation/Message.connectionId` (String?, FK YOK, index YOK — `MessageOutbox.connectionId`
-  emsali) = satırın **ingest edildiği** ChannelConnection; giden Message için **outbox'ta kuyruklandığı**
-  bağlantı. iCal'in provenance'ı `calendarSourceId`, QR iç thread'in `qr-chat:` işaretçisi, elle giriş/dosya →
-  hepsinde NULL (damga UYDURULMAZ).
-- `…ingestedAt` (DateTime?) = bir INGRESS'in satıra **son dokunuşu** (create + senkron update = freshness;
-  değişmez #2'nin "freshness + ingest zamanı" bacağı). Host'un elle girdiği satır, AI/bot cevabı, doğrudan
-  gönderim → NULL. `createdAt` değişmez kalır; fark tam olarak "son ingest ne zaman" sorusudur.
-- `ChannelConnection.provenanceBackfilledAt` = legacy backfill'in bağlantı başına tek-seferlik işareti.
-- **Bağlantısız ingest (env fallback / legacy):** `ingestedAt` yine yazılır, `connectionId` NULL; daha önce
-  basılmış damga NULL ile **ezilmez** (`...(connectionId ? { connectionId } : {})`).
-- **Kimlik kararı (§4'te "V0.4'te verilecek"):** `sourceReference` unique'i BOZULMADI. Sahiplik provenance ile
-  taşınır: iCal satırı `calendarSourceId`, sağlayıcı satırı `connectionId`; ikisi aynı ilanı beslerse tahminî
-  birleştirme YOK — yetkili kaynak kullanıcı kararı (değişmez #6). Bu dilim yalnız sahiplik damgasını kurar,
-  öncelik/çözümleme kuralı V0.6 ingest write service'inde (aynı yazma servisi, aynı idempotency kapsamı).
+**Sözleşme (şema yorumu + `src/lib/channels/provenance.ts`; kod-doğrulandı):**
+- `connectionId` (String?, FK/index YOK) = satırın **KANITLANMIŞ** sağlayıcı bağlantısı. Yalnız iki yolla
+  yazılır: (a) **ingest** — satırı yaratan ingress o an aktif bağlantı altındaydı; (b) **gözlem** — satır
+  NULL damgalıyken sonraki bir Hospitable senkronu onu O bağlantıdan gerçekten çekti (NULL→X doldurma:
+  `...(connectionId && !existing.connectionId ? { connectionId } : {})`). ASLA X→Y, ASLA X→NULL (bağlantısız
+  koşu dolu damgayı ezmez). Mesaj satırı yeniden yazılmadığı için gözlemle dolmaz (yalnız create).
+  iCal (`calendarSourceId`), QR (`qr-chat:`), elle dosya, env fallback → NULL. Giden Message: outbox'ta
+  kuyruklandığı bağlantı (`enqueue`); doğrudan gönderim yolu NULL (V0.5/V0.6).
+- `ingestedAt` (DateTime?) = **İLK ALINMA**: bir ingress satırı YARATTIĞI an. Değişmez — hiçbir update yolu
+  dokunmaz (Hospitable rezervasyon/konuşma update, iCal update, dosyadan iptal). Freshness / "son görülme" /
+  "son içerik değişimi" BU DEĞİLDİR (iCal: `feedLastSeenAt`; thread: `syncCursorAt`; gerekirse V0.6'da ayrı
+  `lastObservedAt`). Host'un elle girdiği satır, AI/bot cevabı, doğrudan gönderim → NULL. `Message.createdAt`
+  sağlayıcı zamanıdır; `ingestedAt` bizim aldığımız an → gecikme analizi için ayrı anlam taşır.
+- **Dört sınıf** (`describeProvenance`): `ingest` (ikisi de dolu — tam kanıt) · `observed` (bağlantı kanıtlı,
+  ilk alınma bilinmiyor — legacy satır sonradan gözlemlendi) · `unbound` (ilk alınma kanıtlı, bağlantı yok:
+  env fallback/iCal/QR/dosya) · `legacy` (hiçbiri). Tüketen kod tahmin etmez, buradan okur. "observed"
+  "ingest" ile karıştırılmaz (birim test pini).
+- **Adoption ≠ tarihsel kanıt:** bağlantı satırının doğması (bağlanma / "mevcut bağlantıyı aktar") HİÇBİR
+  geçmiş satırı damgalamaz; yalnız sonraki senkronun gerçekten gözlemlediği satır `observed` olur; senkron
+  penceresi (90/540 gün) dışındaki legacy satır NULL kalır = bilinmiyor (dürüst).
+- **Kimlik kararı (§4):** `sourceReference` unique'i bozulmadı; sahiplik provenance ile (iCal `calendarSourceId`,
+  sağlayıcı `connectionId`); tahminî birleştirme YOK; öncelik kuralı V0.6 ingest write service'inde.
 
-**Yazma noktaları (damga):** `hospitable-sync` (rezervasyon create+update · konuşma create+update · sağlayıcı
-mesajı create, HER iki yön) · `import/sync` iCal (create+update, yalnız `ingestedAt`) · elle `.ics/.csv` rotası
-(create + dosyadan iptal, yalnız `ingestedAt`) · QR (`ensureGuestChatConversation` + misafirin inbound satırı,
-yalnız `ingestedAt`; bot cevabı damgasız) · `outbox/enqueue` (giden Message `connectionId`, `ingestedAt` yok).
-Elle UI rezervasyon/konuşma (`api/reservations`, `api/conversations` POST) ve doğrudan gönderim yolu
-(`automation.ts`, reply rotaları) BİLEREK damgasız: birincisi ingest değil, ikincisi V0.5/V0.6'da hedef
-bağlantıdan çözülünce damgalanacak (bugün sendOnChannel bağlantı kimliğini dışarı vermiyor).
+**Dedupe (dry-run/apply politika tabloları, kapsayıcı `Record` yeni kolonu zorladı):**
+- Conversation `connectionId: single_non_null` → iki FARKLI dolu değer = kaynak çelişkisi → FAIL-CLOSED, kendi
+  kovası **`connection_conflict`** (sessiz birleştirme yok); NULL↔dolu çelişki değil (kanıt keeper'a taşınır,
+  `mergedConversationFields`). `ingestedAt: keeper_wins` → kopyalar doğal olarak farklı anda alınır: çelişki
+  DEĞİL ama sayılır (`keeper_wins_differences`) — zaman farkı bağlantı çelişkisinden AYRI değerlendirilir.
+- Message: yeni `provenance_id` politikası — döngüde içerik kıyasından ÖNCE ve AYRI: farklı dolu bağlantı →
+  **`message_connection_conflict`** (içerik çelişkisi sayılmaz); `ingestedAt: provenance` (kıyaslanmaz; NULL↔dolu
+  bağlantı + farklı zaman = tam kopya, düşer).
 
-**Backfill (`backfillProvenance`, `scheduled-sync` her geçişte, bağlantı backfill'inden SONRA):** `provider =
-hospitable` ve işareti NULL her bağlantı için (durum önemsiz — disconnected satır da tarihsel sahiptir), kiracı-
-kapsamlı üç `updateMany` (yalnız `connectionId IS NULL`): Reservation `calendarSourceId` NULL + `channel notIn
-[ics, manual]` + `sourceReference` dolu · Conversation `externalReservationId` dolu ve `qr-chat:` öneksiz ·
-Message yalnız o konuşmalarda ve yalnız `externalId` dolu. `ingestedAt` uydurulmaz. TX YOK (bilerek: büyük
-tabloda Prisma TX zaman aşımı → her geçişte baştan; NULL-only filtre yazımı idempotent kılar, yarım iş sonraki
-geçişte biter, işaret üç yazma bitince basılır). **Prod'da bugün 0 bağlantı satırı** (§10) → backfill Nuve
-"Mevcut bağlantıyı bu hesaba aktar"a basıp satır doğana kadar 0 satır; o an tek geçişte tüm Hospitable
-geçmişi damgalanır. ⚠️ Bilinen sınır: elle UI'dan girilmiş, kanalı "airbnb" ve referansı yazılmış LEGACY satır
-Hospitable satırından ayırt edilemez (yaşam-döngüsü kapısındaki aynı belirsizlik; V0.5 capability ile kapanır);
-migration sonrası satırlar için sorun yok (elle giriş NULL/NULL doğar).
+**Migration 50 (yerel doğrulama):** yalnız 6 nullable `ADD COLUMN` (3 tablo × connectionId/ingestedAt); default
+YOK (`@default(now())` mevcut satırlara migration anını yazar = sahte provenance), FK/index YOK, rewrite YOK.
+Taze PG 00→50 `migrate deploy` ✅, sıfır drift ✅, işaret kolonu YOK ✅, shadow diff boş ✅.
 
-**Migration 50 (yerel doğrulama):** `prisma migrate diff --script` (shadow PG 5434) → yalnız 7 nullable
-`ADD COLUMN`, default YOK (bilerek: `@default(now())` PG'de mevcut satırlara migration anını yazar = sahte
-provenance), FK/index YOK, tablo yeniden yazımı YOK. Taze PG'de 00→50 `migrate deploy` ✅, sıfır drift ✅
-(`--exit-code`), `_prisma_migrations` 51 finished.
+**Kanıt (sözleşme §2):**
+- İlk tur kırmızı-önce 13/13 (`Unknown argument`, `is not a function`) → yeşil. Doğruluk turu: dedupe çelişki
+  testleri koddan önce yazıldı → 3/5 kırmızı ("planned 1" = keeper_wins gerçekten sessiz birleştiriyordu; kova
+  yok; mesaj kontrolü yok) → 5/5 yeşil. Ingest sözleşmesi (ilk alınma değişmezliği, gözlemle doldurma,
+  adoption ≠ kanıt) ilk turun kodu kaldırıldıktan sonra yazıldığı için kırmızısı MUTASYONLA gösterildi (↓N1–N6).
+- Dosyalar: `integration/provenance-ingest` (7: aktif bağlantıyla ingest her iki yön · **ilk alınma
+  değişmez: içerik değişmeyen VE değişen tekrar senkron** · env fallback → bağlan (gözlemle NULL→X, ilk alınma
+  sabit, mesaj yeniden yazılmaz) → kaldır (X korunur, yeni satır unbound) · **adoption ≠ kanıt: bağlantı doğunca
+  hepsi legacy; gözlemlenen `observed`, pencere dışı legacy** · iCal unbound + değişen feed ilk alınmayı
+  değiştirmez · .csv unbound · QR misafir unbound/bot damgasız · enqueue Message damgası),
+  `unit/provenance-classes` (dört sınıf), `integration/conversation-dedupe-dryrun` (+5: connection_conflict ·
+  NULL↔dolu planlanır · zaman farkı ≠ çelişki (keeper_wins sayılır) · message_connection_conflict ≠ içerik ·
+  NULL↔dolu + farklı zaman tam kopya), `unit/scrub-scope-parity` (kanarya: Message 16, Conversation 25,
+  Reservation 34, karar yorumlu).
+- **Mutasyonlar, iki yön, hepsi KIRMIZI:** ilk tur M1–M13'ten hâlâ geçerli olanlar (mesaj damgası yok · iCal/QR
+  ingestedAt yok · enqueue damgası yok) + doğruluk turu N1 rezervasyon gözlemle doldurma yok · N2 update damgayı
+  koşulsuz yazar (X→NULL) · N3 rezervasyon update ingestedAt yeniden yazar (eski satır "yeni") · N4 konuşma
+  update ingestedAt yeniden yazar · N5 konuşma gözlemle doldurma yok · N6 iCal update ingestedAt yeniden yazar ·
+  N7 dedupe connectionId keeper_wins (sessiz birleştirme) · N8 mesaj bağlantı kontrolü yok · N9 ingestedAt farkı
+  çelişki sayılır · N10 NULL↔dolu çelişki sayılır · N11 `observed` "ingest" sayılır.
 
-**Kanıt (sözleşme §2):** kırmızı-önce 13 test 3 dosyada — `integration/provenance-ingest` (7: aktif bağlantıyla
-ingest her iki yön · yeniden senkron freshness + eski mesaj dokunulmaz · env fallback → bağlan → kaldır: NULL/
-damga/ezmeme · iCal bağlı org'da bile NULL + update freshness · .csv ingestedAt · QR misafir vs bot · enqueue
-Message damgası), `integration/provenance-backfill` (4: kapsam kuralları + ingestedAt uydurulmaz + işaret ·
-kiracı sınırı + idempotent ikinci geçiş + geç satır · disconnected bağlantı + org başına kendi id'si · önceden
-damgalı satır ezilmez), `integration/scheduled-sync-provenance-hook` (2: sıra + hata bloklamaz; V0.3'ün
-kancası da böylece ilk kez davranışsal pinlendi). Kırmızı: 13/13 (`Unknown argument ingestedAt/connectionId`,
-`backfillProvenance is not a function`, kanca çağrılmıyor) → yeşil 13/13. Etkilenen 14 dosya 218 test yeşil
-(sync · takvim · içe aktarma · QR uç nokta · dedupe dry-run/apply · outbox/connection · health · mimari pin).
-Şema kanaryası: Message 14→16, Conversation 23→25, Reservation 32→34 — karar yorumlu (opak id + damga,
-misafir verisi değil). Dedupe dry-run politika tabloları (kapsayıcı `Record`) yeni kolonu zorladı:
-Conversation `connectionId: keeper_wins`, `ingestedAt: system_managed`; Message için yeni `provenance`
-politikası (kopyalar farklı anda ingest edilir, kıyaslanmaz; `strict` dedupe'u gereksiz kapatırdı).
-**Mutasyonlar (13, iki yön, hepsi KIRMIZI):** M1 mesaj damgası yok · M2 rezervasyon update damgası yok · M3
-update damgayı KOŞULSUZ yazar (aşırı: NULL ile ezer) · M4 backfill kiracı kapsamı yok · M5 backfill ics/manual'ı
-da damgalar (aşırı) · M6 `qr-chat:` dışlaması yok · M7 işaret basılmıyor · M8 backfill `ingestedAt` uydurur
-(aşırı) · M9 scheduled-sync kancası yok · M10 iCal `ingestedAt` yok · M11 QR inbound `ingestedAt` yok · M12
-enqueue Message damgası yok · M13 backfill `externalId` şartı yok (kimliksiz yerel gönderim damgalanır).
+**Kapılar (son yerel ağaç):** tam suit 3537/313 yeşil · `tsc --noEmit` temiz · `eslint .` temiz · `next build`
+temiz · `audit:check` yeşil (0 triajsız) · zincir 00→50 taze PG + sıfır drift + shadow diff boş. CI: koşmadı (push yok).
 
-**Kapılar (son yerel ağaç):** tam suit 3535/314 yeşil · `tsc --noEmit` temiz · `eslint .` temiz · `next build`
-temiz · `audit:check` yeşil (0 triajsız) · migration zinciri 00→50 taze PG + sıfır drift. CI: koşmadı (push yok).
+**Geri alma:** additive — kod revert edilirse kolonlar zararsız durur (NULL); yazılmış damgalar kanıttır,
+geri alınacak çıkarım YOK. Bayrak yok (bugün hiçbir karar bu kolonları okumaz; V0.5/V0.6 tüketir).
 
-**Geri alma:** additive — eski kod kolonları görmez; kod revert edilirse kolonlar zararsız durur (NULL). Backfill
-yalnız NULL'ları doldurur, geri alınacak veri yok. Bayrak YOK (okuma yolu değişmedi; kolonları bugün hiçbir
-karar okumaz — V0.5/V0.6 tüketir).
+**Operatör kapısı:** §10 adımları aynen (taze `pg_dump` + SHA + açık onay → push → CI 5/5, migration-chain 50 →
+Railway `migrate deploy` (6 nullable ADD COLUMN) → deploy sonrası salt-okuma kontrol: `_prisma_migrations`
+`50_provenance` finished; ilk senkrondan sonra `SELECT count(*) FROM "Reservation" WHERE "ingestedAt" IS NOT NULL`
+artmalı; `connectionId` bugün prod'da HİÇ dolmaz (bağlantı satırı yok, env fallback) — beklenen).
 
-**Operatör kapısı:** §10 adımları aynen (taze `pg_dump` + SHA + açık onay → push → CI 5/5, migration-chain 50'yi
-taze DB'de koşar → Railway `migrate deploy` (7 nullable ADD COLUMN, kısa katalog kilidi) → deploy sonrası
-kontrol: `SELECT migration_name, finished_at FROM _prisma_migrations WHERE migration_name='50_provenance'`;
-`SELECT count(*) FROM "Reservation" WHERE "ingestedAt" IS NOT NULL` ilk senkrondan sonra artmalı;
-`ChannelConnection` boşken backfill 0 = beklenen).
-
-**Kalan sınırlar:** doğrudan gönderim yolunun Message satırı damgasız (V0.5/V0.6) · iCal "unchanged" atlama
-dalı `ingestedAt`'i ilerletmez (`feedLastSeenAt` o işi yapıyor; ikisini birleştirmek V0.6) · Nuve env
-fallback'te olduğu sürece yeni satırları da `connectionId` NULL (tasarım gereği; adoption düğmesi çözer) ·
-`importThread`/`upsertReservationCalendar` ek parametresi opsiyonel (eski çağıranlar damgasız yazar — yalnız
-testler doğrudan çağırıyor) · conformance/fake = canlı sağlayıcı doğrulaması DEĞİL (§10 ile aynı).
+**Kalan sınırlar:** legacy satırların büyük kısmı `legacy` sınıfında kalır (kanıt yok; yalnız pencere içi
+gözlem doldurur) · doğrudan gönderim yolunun Message satırı damgasız (V0.5/V0.6) · Nuve env fallback'te
+olduğu sürece yeni satırlar `unbound` (adoption sonrası yalnız YENİ ve GÖZLEMLENEN satırlar dolar) ·
+`importThread`/`upsertReservationCalendar` ek parametresi opsiyonel (testler doğrudan çağırıyor) ·
+conformance/fake = canlı sağlayıcı doğrulaması DEĞİL.

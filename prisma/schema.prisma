@@ -471,11 +471,15 @@ model Reservation {
   // bound to the SAME source: without this, a feed cancelled every same-channel
   // booking it had never seen (other feeds, Hospitable) — mass-cancel (Codex).
   calendarSourceId           String?
-  // V0.4 PROVENANCE (migration 50, additive/nullable, FK YOK — MessageOutbox.connectionId emsali):
-  //   connectionId = bu satırı ingest eden ChannelConnection (Hospitable). iCal'in provenance'ı
-  //   `calendarSourceId`, elle giriş/dosya için NULL. Legacy satırlar backfill ile damgalanır.
-  //   ingestedAt   = bir INGRESS'in bu satıra SON dokunuşu (create + senkron update = freshness).
-  //   Host'un elle girdiği satır NULL (ingest değil). Backfill ingestedAt UYDURMAZ.
+  // V0.4 PROVENANCE (migration 50, additive/nullable, FK YOK — MessageOutbox.connectionId emsali).
+  //   connectionId = satırın KANITLANMIŞ sağlayıcı bağlantısı: ya ingest anında yazılır ya da NULL iken
+  //     bir senkron satırı O bağlantıdan gerçekten GÖZLEMLEYİNCE doldurulur (NULL→X). Asla X→Y, asla
+  //     X→NULL. ÇIKARIM YOK: legacy satıra org/provider tekilliğinden damga basılmaz, "mevcut bağlantıyı
+  //     aktar" tarihsel kanıt sayılmaz — pencere dışı legacy satır NULL kalır (= bilinmiyor).
+  //     iCal'in kimliği `calendarSourceId`, elle giriş/dosya için NULL.
+  //   ingestedAt = İLK ALINMA: bir ingress'in satırı YARATTIĞI an; değişmez (update yolları dokunmaz).
+  //     Freshness/"son görülme" BU DEĞİLDİR (iCal: feedLastSeenAt; thread: syncCursorAt). Host'un elle
+  //     girdiği satır NULL (ingest değil). Sınıflar: channels/provenance.ts `describeProvenance`.
   connectionId               String?
   ingestedAt                 DateTime?
   createdAt                  DateTime  @default(now())
@@ -578,8 +582,8 @@ model Conversation {
   /// (mesaj sayacı, durum, okundu işareti) ve bayat analizi taze gösterirdi.
   aiTriagedAt              DateTime?
 
-  // V0.4 PROVENANCE (migration 50) — Reservation'daki yorumla aynı sözleşme. QR iç thread'in
-  // (`qr-chat:` işaretçisi) provenance'ı işaretçinin kendisidir → connectionId NULL.
+  // V0.4 PROVENANCE (migration 50) — Reservation'daki yorumla aynı sözleşme (kanıt: ingest ya da gözlem;
+  // çıkarım yok; ingestedAt = ilk alınma). QR iç thread'in (`qr-chat:`) kimliği işaretçidir → NULL.
   connectionId           String?
   ingestedAt             DateTime?
 
@@ -647,8 +651,8 @@ model Message {
   authorType       String?
   systemEventType  String?
   // V0.4 PROVENANCE (migration 50): connectionId = ingest edildiği (sağlayıcıdan gelen HER iki yön)
-  // ya da outbox'ta kuyruklandığı bağlantı; doğrudan gönderim yolu ve QR botu NULL.
-  // ingestedAt yalnız ingest edilen satırda (misafir/sağlayıcı kaynaklı); bizim çıktımızda NULL.
+  // ya da outbox'ta kuyruklandığı bağlantı; doğrudan gönderim yolu ve QR botu NULL. Mesaj satırı
+  // yeniden yazılmaz → gözlemle doldurma yok; ingestedAt = ilk alınma (createdAt sağlayıcı zamanıdır).
   connectionId     String?
   ingestedAt       DateTime?
   createdAt        DateTime @default(now())
@@ -1106,9 +1110,6 @@ model ChannelConnection {
   revokedAt       DateTime?
   revokedReason   String? // closed: refresh_invalid_grant | send_401 | send_403
   lastRefreshAt   DateTime?
-  // V0.4: legacy Reservation/Conversation/Message satırlarına provenance backfill'i bu bağlantı
-  // için TAM BİR KEZ koşar (idempotent işaret; NULL = henüz koşmadı). Migration 50.
-  provenanceBackfilledAt DateTime?
   createdAt       DateTime  @default(now())
   updatedAt       DateTime  @updatedAt
 

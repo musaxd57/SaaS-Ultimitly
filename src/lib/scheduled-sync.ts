@@ -4,7 +4,7 @@ import { randomUUID } from "node:crypto";
 import { prisma } from "@/lib/db";
 import { syncHospitable } from "@/lib/hospitable-sync";
 import { isPrimaryOrg } from "@/lib/hospitable-credentials";
-import { backfillChannelConnections, backfillProvenance } from "@/lib/channels/connections";
+import { backfillChannelConnections } from "@/lib/channels/connections";
 import { HospitableError } from "@/lib/hospitable";
 import { reportError } from "@/lib/report-error";
 import { premiumAllowed } from "@/lib/billing/subscription";
@@ -262,19 +262,6 @@ export async function runScheduledSync(): Promise<ScheduledSyncTotals> {
     if (created > 0) console.log(`[scheduled-sync] channel-connection backfill: ${created} row(s) created`);
   } catch (err) {
     void reportError("channel-connection-backfill", err);
-  }
-  // V0.4 EXPAND — legacy Reservation/Conversation/Message satırlarına provenance damgası,
-  // bağlantı başına TAM BİR KEZ (işaret kolonu; normalde 0 bağlantı). Bağlantı backfill'inden
-  // SONRA: önce satır doğar, sonra o satıra damgalanır. Hata raporlanır, geçişi bloklamaz.
-  try {
-    const p = await backfillProvenance();
-    if (p.connections > 0) {
-      console.log(
-        `[scheduled-sync] provenance backfill: ${p.connections} connection(s) — ${p.reservations} reservation(s), ${p.conversations} conversation(s), ${p.messages} message(s)`,
-      );
-    }
-  } catch (err) {
-    void reportError("provenance-backfill", err);
   }
   // Multi-tenant: no global token gate here. Each org self-gates on ITS OWN
   // Hospitable connection (syncHospitable + the automation senders return early

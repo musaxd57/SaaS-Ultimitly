@@ -2,7 +2,7 @@ import "server-only";
 
 import { prisma } from "@/lib/db";
 import { Prisma } from "@prisma/client";
-import { INTERNAL_THREAD_PREFIX, type OutboundProvider } from "./outbound";
+import type { OutboundProvider } from "./outbound";
 
 // ---------------------------------------------------------------------------
 // CHANNEL CONNECTION — bağlantı yaşam döngüsü kaydı (V0.3, migration 49)
@@ -249,75 +249,4 @@ export async function backfillChannelConnections(): Promise<{ created: number }>
     }
   }
   return { created };
-}
-
-export interface ProvenanceBackfillResult {
-  /** İşareti bu koşuda basılan bağlantı sayısı. */
-  connections: number;
-  reservations: number;
-  conversations: number;
-  messages: number;
-}
-
-/**
- * PROVENANCE BACKFILL (V0.4, migration 50) — migration ÖNCESİ Hospitable satırlarını
- * org'un (org, provider) başına TEK bağlantısına damgalar; bağlantı başına TAM BİR KEZ
- * (`provenanceBackfilledAt` işareti). Kurallar (test-pinli, `provenance-backfill.test.ts`):
- *   · Reservation: `calendarSourceId` NULL + `channel` notIn [ics, manual] + `sourceReference`
- *     dolu — mevcut yaşam-döngüsü işaretçisi + sağlayıcı kimliği. iCal (calendarSourceId),
- *     elle dosya (ics/manual) ve referanssız elle giriş DOKUNULMAZ.
- *     ⚠️ BİLİNEN SINIR: elle UI'dan girilmiş, kanalı "airbnb" ve referansı da yazılmış bir
- *     legacy satır Hospitable satırından AYIRT EDİLEMEZ (aynı belirsizlik yaşam-döngüsü
- *     kapısında da var; V0.5 capability ile kapatır). Migration sonrası satırlar için sorun
- *     yok: elle giriş NULL/NULL doğar, Hospitable satırı damgalı doğar.
- *   · Conversation: `externalReservationId` dolu ve `qr-chat:` öneksiz.
- *   · Message: yalnız o konuşmalarda ve yalnız `externalId` dolu satırlar (sağlayıcı kimliği =
- *     bağlantıdan geçti); kimliksiz yerel gönderim NULL kalır (dürüst).
- *   · `ingestedAt` UYDURULMAZ; yalnız `connectionId` NULL olan satırlar seçilir (ingest yolunun
- *     bastığı damga ezilmez); kiracı-kapsamlı (property.organizationId); bağlantı DURUMU önemsiz
- *     (disconnected satır da tarihsel sahiptir).
- *   · TX YOK, bilerek: büyük tabloda tek TX Prisma zaman aşımına takılır ve her geçişte baştan
- *     başlardı; NULL-only filtre yazımları idempotent kılar, yarım kalan iş sonraki geçişte
- *     tamamlanır, işaret yalnız üç yazma da bitince basılır.
- */
-export async function backfillProvenance(): Promise<ProvenanceBackfillResult> {
-  const pending = await prisma.channelConnection.findMany({
-    where: { provider: "hospitable", provenanceBackfilledAt: null },
-    select: { id: true, organizationId: true },
-  });
-  const out: ProvenanceBackfillResult = { connections: 0, reservations: 0, conversations: 0, messages: 0 };
-  for (const c of pending) {
-    const tenant = { organizationId: c.organizationId };
-    const providerThread = {
-      externalReservationId: { not: null },
-      NOT: { externalReservationId: { startsWith: INTERNAL_THREAD_PREFIX } },
-    };
-    const r = await prisma.reservation.updateMany({
-      where: {
-        connectionId: null,
-        calendarSourceId: null,
-        channel: { notIn: ["ics", "manual"] },
-        sourceReference: { not: null },
-        property: tenant,
-      },
-      data: { connectionId: c.id },
-    });
-    const v = await prisma.conversation.updateMany({
-      where: { connectionId: null, ...providerThread, property: tenant },
-      data: { connectionId: c.id },
-    });
-    const m = await prisma.message.updateMany({
-      where: { connectionId: null, externalId: { not: null }, conversation: { ...providerThread, property: tenant } },
-      data: { connectionId: c.id },
-    });
-    const marked = await prisma.channelConnection.updateMany({
-      where: { id: c.id, provenanceBackfilledAt: null },
-      data: { provenanceBackfilledAt: new Date() },
-    });
-    out.reservations += r.count;
-    out.conversations += v.count;
-    out.messages += m.count;
-    out.connections += marked.count;
-  }
-  return out;
 }

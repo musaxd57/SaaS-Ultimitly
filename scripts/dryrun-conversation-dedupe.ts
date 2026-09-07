@@ -150,13 +150,13 @@ export const CONVERSATION_FIELD_POLICY: Record<
   guestIdentifier: "anon_guard",
   // Yalnız create'te yazılır, sonradan hiçbir yol güncellemez. Bilgi amaçlı.
   channel: "keeper_wins",
-  // V0.4 provenance (migration 50). connectionId: ingest bağlantısı — aynı org'un (org,
-  // provider) başına TEK bağlantısı var, iki kopya farklıysa yalnız legacy NULL ↔ damgalı
-  // olabilir; keeper'ınki yaşar, backfill NULL'u sonradan doldurur. ingestedAt: ingress
-  // freshness damgası — kopyalar doğal olarak farklı anda ingest edilir, birleşmede anlamı
-  // yok (Prisma yönetmiyor ama sync her dokunuşta yeniden yazar; system_managed muamelesi).
-  connectionId: "keeper_wins",
-  ingestedAt: "system_managed",
+  // V0.4 provenance (migration 50). connectionId = KANITLANMIŞ bağlantı: iki kopya FARKLI dolu
+  // değer taşıyorsa bu bir KAYNAK ÇELİŞKİSİDİR (tahminle birleştirilmez, kendi kovası:
+  // connection_conflict); NULL ↔ dolu çelişki değildir (kanıt keeper'a taşınır). ingestedAt =
+  // ilk alınma: kopyalar doğal olarak farklı anda alınır → çelişki DEĞİL ama sessiz de değil,
+  // keeper_wins farkı olarak SAYILIR (zaman farkı bağlantı çelişkisinden AYRI değerlendirilir).
+  connectionId: "single_non_null",
+  ingestedAt: "keeper_wins",
   updatedAt: "system_managed",
 };
 
@@ -171,11 +171,15 @@ export type MessageComparePolicy =
   /** ANLAMLI: eşit değilse tam-kopya DEĞİLDİR → FAIL-CLOSED. */
   | "strict"
   /**
-   * V0.4 PROVENANCE damgası (connectionId/ingestedAt): iki kopya aynı sağlayıcı mesajının
-   * FARKLI anlarda (ve legacy'de damgasız) ingest edilmiş hâlidir; içerik kimliği değildir.
-   * Kıyaslanmaz — keeper'daki kopya (canonical) kendi damgasıyla yaşar.
+   * V0.4 ilk-alınma damgası (ingestedAt): iki kopya aynı sağlayıcı mesajının FARKLI anlarda
+   * alınmış hâlidir; içerik kimliği değildir. Kıyaslanmaz — keeper'daki kopya kendi damgasıyla yaşar.
    */
-  | "provenance";
+  | "provenance"
+  /**
+   * V0.4 bağlantı kanıtı (connectionId): iki kopya FARKLI dolu bağlantı taşıyorsa kaynak
+   * çelişkisi → FAIL-CLOSED, kendi kovası (message_connection_conflict). NULL ↔ dolu çelişki değil.
+   */
+  | "provenance_id";
 
 export const MESSAGE_FIELD_POLICY: Record<
   keyof typeof Prisma.MessageScalarFieldEnum,
@@ -199,7 +203,7 @@ export const MESSAGE_FIELD_POLICY: Record<
   aiConfidence: "strict",
   aiSourcesJson: "strict",
   aiSuggestedReply: "strict",
-  connectionId: "provenance",
+  connectionId: "provenance_id",
   ingestedAt: "provenance",
 };
 
@@ -285,7 +289,12 @@ export function classifyGroup(rows: ConversationRow[], msgs: MessageRow[]) {
       case "single_non_null": {
         const nonNull = values.filter((v) => v !== null && v !== undefined);
         if (new Set(nonNull.map((v) => String(v))).size > 1) {
-          failed ??= field === "reservationId" ? "reservation_id_conflict" : "external_conversation_id_conflict";
+          failed ??=
+            field === "reservationId"
+              ? "reservation_id_conflict"
+              : field === "connectionId"
+                ? "connection_conflict"
+                : "external_conversation_id_conflict";
         }
         break;
       }
@@ -314,6 +323,7 @@ export function classifyGroup(rows: ConversationRow[], msgs: MessageRow[]) {
   const moveNullIds: string[] = [];
   const dropExactIds: string[] = [];
   let conflicting = 0;
+  let connectionConflicts = 0;
   for (const m of msgs) {
     if (m.conversationId === keeper.id) continue;
     if (m.externalId == null) {
@@ -325,6 +335,12 @@ export function classifyGroup(rows: ConversationRow[], msgs: MessageRow[]) {
       moveUniqueIds.push(m.id);
       continue;
     }
+    // V0.4 provenance_id: farklı DOLU bağlantı = kaynak çelişkisi; içerik kıyasından ÖNCE ve AYRI.
+    if (m.connectionId != null && twin.connectionId != null && String(m.connectionId) !== String(twin.connectionId)) {
+      connectionConflicts++;
+      conflicting++;
+      continue;
+    }
     const strictEqual = Object.entries(MESSAGE_FIELD_POLICY)
       .filter(([, p]) => p === "strict")
       .every(([f]) => sameScalar(m[f], twin[f]));
@@ -333,7 +349,8 @@ export function classifyGroup(rows: ConversationRow[], msgs: MessageRow[]) {
     if (strictEqual) dropExactIds.push(m.id);
     else conflicting++;
   }
-  if (conflicting > 0) failed ??= "message_content_conflict";
+  if (connectionConflicts > 0) failed ??= "message_connection_conflict";
+  else if (conflicting > 0) failed ??= "message_content_conflict";
 
   return {
     keeper,
@@ -353,7 +370,9 @@ export type FailReason =
   | "reservation_id_conflict"
   | "external_conversation_id_conflict"
   | "live_state_conflict"
-  | "message_content_conflict";
+  | "message_content_conflict"
+  | "connection_conflict"
+  | "message_connection_conflict";
 
 export interface DedupeReport {
   ctx: {
@@ -461,6 +480,8 @@ export async function planConversationDedupe(
             external_conversation_id_conflict: 0,
             live_state_conflict: 0,
             message_content_conflict: 0,
+            connection_conflict: 0,
+            message_connection_conflict: 0,
           },
           keeper_wins_differences: 0,
           live_state_diff_by_field: Object.fromEntries(LIVE_STATE_FIELDS.map((f) => [f, 0])),
@@ -563,6 +584,8 @@ export function formatDedupeReport(r: DedupeReport): string[] {
   L.push(pad("    · farklı externalConversationId", r.groups.fail_reasons.external_conversation_id_conflict));
   L.push(pad("    · CANLI DURUM farkı (identity-only — Codex B1/B2/B4)", r.groups.fail_reasons.live_state_conflict));
   L.push(pad("    · mesaj içerik çelişkisi", r.groups.fail_reasons.message_content_conflict));
+  L.push(pad("    · farklı bağlantı kanıtı (konuşma, V0.4)", r.groups.fail_reasons.connection_conflict));
+  L.push(pad("    · farklı bağlantı kanıtı (mesaj, V0.4)", r.groups.fail_reasons.message_connection_conflict));
   L.push(pad("  keeper_wins alanı farklı çıkan grup", r.groups.keeper_wins_differences));
   if (r.groups.capped) L.push(`  ⚠ GRUP TAVANI (${MAX_GROUPS}) AŞILDI — bu koşu tamamı kapsamıyor.`);
   L.push("");

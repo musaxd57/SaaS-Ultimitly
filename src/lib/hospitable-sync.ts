@@ -190,8 +190,9 @@ export async function syncHospitable(
   // return immediately so one customer can never sync another's Airbnb data.
   const token = await getOrgHospitableToken(organizationId);
   if (!token) return result;
-  // V0.4 PROVENANCE: bu koşuda yazılan her satır org'un AKTİF bağlantısını taşır. Null =
-  // bağlantı satırı yok (env fallback / legacy) → damga UYDURULMAZ, ingestedAt yine yazılır.
+  // V0.4 PROVENANCE: bu koşuda YARATILAN her satır org'un AKTİF bağlantısını + ilk alınma anını taşır;
+  // gözlemlenen mevcut satırda yalnız NULL damga dolar. Null bağlantı (env fallback / legacy) →
+  // damga UYDURULMAZ (ingestedAt create'te yine yazılır).
   const connectionId = (await getActiveConnection(organizationId, "hospitable"))?.id ?? null;
 
   // KVKK explicit-erasure gate (m40): one read per run; with zero tombstones the
@@ -795,7 +796,7 @@ async function upsertReservationCalendar(
   db: ErasureDb,
   propertyId: string,
   reservation: HospitableReservation,
-  /** V0.4 provenance: org'un aktif bağlantısı; null = damga yok (ezilmez), ingestedAt yine yazılır. */
+  /** V0.4 provenance: org'un aktif bağlantısı. Create'te damga+ilk alınma; update'te yalnız NULL damga gözlemle dolar. */
   connectionId: string | null = null,
 ): Promise<string | null> {
   const srcRef = String(reservation.id);
@@ -835,7 +836,7 @@ async function upsertReservationCalendar(
 
   const existing = await db.reservation.findFirst({
     where: { propertyId, sourceReference: srcRef },
-    select: { id: true, guestName: true },
+    select: { id: true, guestName: true, connectionId: true },
   });
 
   if (existing) {
@@ -857,10 +858,10 @@ async function upsertReservationCalendar(
         channel,
         status,
         ...(totalAmount !== null ? { totalAmount, totalAmountDec: toAmountDec(totalAmount), currency } : {}),
-        // V0.4 provenance: freshness her senkron dokunuşunda ilerler; damga yalnız VARSA yazılır
-        // (bağlantısız koşu önceki damgayı NULL ile ezmez).
-        ingestedAt: new Date(),
-        ...(connectionId ? { connectionId } : {}),
+        // V0.4 provenance — GÖZLEMLE DOLDURMA: bu satır az önce O bağlantıdan gerçekten çekildi;
+        // damga NULL ise kanıtla doldurulur (NULL→X). Dolu damga ASLA ezilmez (X→Y yok, X→NULL yok).
+        // ingestedAt = ilk alınma; update yolu DOKUNMAZ (tekrar senkron eski satırı "yeni" göstermez).
+        ...(connectionId && !existing.connectionId ? { connectionId } : {}),
       },
     });
     return existing.id;
@@ -1056,7 +1057,7 @@ export async function importThread(
   /** KVKK explicit-erasure cutoff for a tombstoned guest's ALLOWED new stay:
    *  messages at/before this instant never (re-)import. Null = no tombstone. */
   erasureCutoff: Date | null = null,
-  /** V0.4 provenance: org'un aktif bağlantısı; null = damga yok (ezilmez), ingestedAt yine yazılır. */
+  /** V0.4 provenance: org'un aktif bağlantısı. Create'te damga+ilk alınma; update'te yalnız NULL damga gözlemle dolar. */
   connectionId: string | null = null,
 ): Promise<{ imported: number; unimportable: number; supplyJobs: SupplyJob[] }> {
   const reservationId = String(reservation.id);
@@ -1103,6 +1104,7 @@ export async function importThread(
       guestIdentifier: true,
       // Çitin geri alınması için gerekli (aşağıdaki bağ-backfill dalı).
       skippedReason: true,
+      connectionId: true, // V0.4: yalnız NULL iken gözlemle doldurulur
     },
   });
   // Widen the read→write window on demand (tests only; null in production).
@@ -1199,9 +1201,8 @@ export async function importThread(
         ...(localReservationId && !existing.reservationId
           ? { reservationId: localReservationId }
           : {}),
-        // V0.4 provenance (freshness + damga; bağlantısız koşu damgayı ezmez).
-        ingestedAt: new Date(),
-        ...(connectionId ? { connectionId } : {}),
+        // V0.4 provenance — gözlemle doldurma (NULL→X yalnız); ingestedAt = ilk alınma, dokunulmaz.
+        ...(connectionId && !existing.connectionId ? { connectionId } : {}),
       },
     });
     // ⚠️ ÇİTİN GERİ ALINMASI (denetim, 08-01 — üçüncü tur). Yukarıdaki

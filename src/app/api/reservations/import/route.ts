@@ -290,7 +290,7 @@ export const POST = withManage(async (session, req) => {
                 channel: "ics",
                 status: { not: "cancelled" },
               },
-              data: { status: "cancelled", ingestedAt: new Date() }, // V0.4: dosyadan gelen dokunuş
+              data: { status: "cancelled" },
             });
             return res.count === 1 ? existing.id : null;
           },
@@ -364,7 +364,7 @@ export const POST = withManage(async (session, req) => {
       // MEKANİZMA işaretçisi ve ikisi de yaşam-döngüsü kapısının dışında.
       channel: isIcs ? "ics" : "manual",
       status: "confirmed",
-      ingestedAt: new Date(), // V0.4 provenance: dosya bir ingress'tir (connectionId yok)
+      ingestedAt: new Date(), // V0.4 provenance: İLK ALINMA, dosya bir ingress'tir (connectionId yok)
       sourceReference: sourceReference ? sourceReference.slice(0, 200) : null,
       notes: row.notes ? row.notes.slice(0, 5000) : null,
       ...(typeof row.totalAmount === "number" && !isNaN(row.totalAmount)
