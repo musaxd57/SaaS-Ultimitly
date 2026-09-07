@@ -53,7 +53,14 @@ completeness · F17 cron adaleti · F18 login savunma tasarımı.
 
 ## CI sonucu
 
-*(push sonrası doldurulur)*
+**Run #934 (`34103840587`), HEAD `99294e7` — 5/5 job yeşil** (2026-09-07 09:03–09:12 UTC):
+`verify` (typecheck · lint · tam test, 7 dk 44 sn) ✅ · `build` ✅ · `e2e` (Playwright smoke) ✅ ·
+`migration-chain` (00→N taze DB + sıfır drift) ✅ · `security-audit` ✅. PR koşusu #935 beklendiği
+gibi `skipped` (`head_ref` guard'ı). Bu satır CI sonucunu HEAD'e bağlar: HEAD ilerlerse
+kanıt yenilenmeli.
+
+**Deploy:** Railway "Wait for CI" AÇIK → yeşil CI oto-deploy'u başlatır. ACTIVE teyidi ve
+↓prod smoke bu ortamdan görülemez (Railway erişimi yok) — operatör okur.
 
 ## Prod'da doğrulanacaklar (operatör; bu turda YAPILMADI)
 
