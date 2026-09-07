@@ -54,7 +54,7 @@ migrasyonu → bridge removal · (20) mimari pin: provider import / `hospitable*
 yetenek çıkarımı yasak.
 **Yürütme sırası (bu sıra prompttaki diğer sıraları ezer):** ① Codex denetimi kritik bulguları kodda
 doğrula+düzelt ✅ (8 P1, `docs/audit-2026-09-05/DURUM.md`) → ② test sözleşmesi ✅ → ③ **V0 Channel
-Independence** (V0.1 ✅ outbound dispatch; sırada V0.2 provider fake + conformance kiti, V0.3
+Independence** (V0.1 ✅ outbound dispatch · V0.2 ✅ provider fake + conformance kiti; sırada V0.3
 `ChannelConnection` migration→onay, V0.4 provenance, V0.5 `messagingCapable`, V0.6 ingest write service +
 domain event, V0.7 `hospitable*` kolon contract'ı) → ④ deterministik **Availability Engine** → ⑤ geniş
 otonom AI yalnız yetki+guardrail+grounding+eval doğrulandıktan sonra. **V0 sırasında YAPILMAZ:**
@@ -320,6 +320,17 @@ Sekiz P1 KAPANDI (09-07), her biri ayrı commit, kırmızı-önce + iki yönlü 
 - Takvim feed URL'i at-rest şifreli (`urlEnc`+AAD), prod'da düz URL yok; doğrulama yalnız `--post-contract`.
 
 **Mesajlaşma / outbox / sync**
+- **Channel Layer (V0.1–V0.2, `src/lib/channels`):** giden-mesaj çekirdeği (`messaging.ts`, `outbox/worker.ts`)
+  `@/lib/hospitable` istemcisini import ETMEZ, yalnız `@/lib/channels`; `sendMessage(` src/ içinde TEK yerde =
+  `channels/hospitable-outbound.ts` (pin `core-channel-independence.test.ts`). `qr-chat:` iç-thread kuralı
+  tek kaynak `resolveOutboundRoute` (`INTERNAL_THREAD_PREFIX`). Sağlayıcı seçimi bugün orada açıkça
+  `"hospitable"` (V0.3'te connection karar verir). Adaptör `kind`i HTTP durumundan tipler;
+  `classifySendResult` `kind`i metin regex'inden ÖNCE alır (parite pinli). Kimlik bilgisi `undefined`
+  olduğu gibi iletilir (istemci env fallback'i, kurucu legacy yolu); **token YOK ve env YOK ise adaptör
+  ağa çıkmadan `definitive_failure`** (V0.2 uyum kiti bulgusu). `dispatchOutbound` fırlatmaz (adaptör yok /
+  yetenek yok / kimlik↔sağlayıcı uyuşmazlığı → definitive). Ortak fake `tests/helpers/fake-channel.ts`
+  (dedupe YOK, sahipsiz rezervasyon 404, timeout=teslim-olabilir) + kit `tests/helpers/outbound-conformance.ts`
+  — **yeni adaptör aynı kiti geçmek zorunda**; fake'in varsayımları gerçek adaptörle (fetch stub) pinli.
 - Claim-then-send her yolda; claim TTL 120 sn; definitive (4xx≠408) → release+retry, ambiguous → claim
   tutulur (`delivery_unverified`, "iletilemedi" DEME); claim-store hatası 503; adopt-and-heal; çeviri
   fail-closed. Tek atış (`retries:0`); POST idempotent değil.
@@ -374,9 +385,10 @@ Sekiz P1 KAPANDI (09-07), her biri ayrı commit, kırmızı-önce + iki yönlü 
   kararı ŞART; SEO yüzeyleri `.com`'a sabit (ayrı tur).
 
 ## Açık işler (özet — ayrıntı belgelerde)
-- **V0 Channel Independence:** V0.1 ✅ (`2034aba`). Sıradaki V0.2 ortak provider fake + conformance kiti
-  (migration yok); V0.3 `ChannelConnection` additive migration → onay. Availability Engine / RAG / geniş
-  otonom AI V0 bitmeden YOK.
+- **V0 Channel Independence:** V0.1 ✅ (`2034aba`) · V0.2 ✅ (`bc185db`: ortak fake `tests/helpers/fake-channel.ts`
+  + conformance kiti `tests/helpers/outbound-conformance.ts` — fake ↔ gerçek adaptör aynı 14 senaryo; envanter §9).
+  Sıradaki V0.3 `ChannelConnection` additive migration → taze `pg_dump` + açık onay kapısı. Availability Engine /
+  RAG / geniş otonom AI V0 bitmeden YOK.
 - **Codex P2 (F09–F18)** ilgili modül turlarında. `docs/DENETIM-2026-08-09.md` (27 açık),
   `docs/ACIK-ISLER-2026-08-08.md` (16), `docs/MIGRATION-BEKLEYEN-ISLER.md`.
 - Operatör: bucket sağlayıcı görünürlüğü (imzasız URL 403 olmalı) · `weekly-audit.yml` `main`'e ·

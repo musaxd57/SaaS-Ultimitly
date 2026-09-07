@@ -195,3 +195,47 @@ Gönderilenler'de `externalId` dolu olmalı (adaptör → istemci yolu), Sentry'
 **Sıradaki dilim — V0.2 (migration yok):** ortak provider fake'i (`tests/helpers/fake-channel.ts`
 — bugün `outbound-dispatch.test.ts` içindeki yerel `fakeAdapter`ın genelleştirilmesi) +
 connector conformance kiti. V0.3 (`ChannelConnection`, additive) migration ister → onay kapısı.
+
+---
+
+## 9. V0.2 DURUMU — UYGULANDI (2026-09-07)
+
+**Ne yapıldı (migration YOK, env YOK):**
+- `tests/helpers/fake-channel.ts` — ortak sağlayıcı fake'i (`FakeOutboundProvider`): kiracı sahipliği
+  (sahipsiz/bilinmeyen rezervasyon → 404 definitive), **dedupe YOK** (aynı gövde iki kez → iki teslim —
+  tekilleştirme çekirdeğin işi), 429+Retry-After / 402 / 5xx / 408 / ağ zaman aşımı, "POST ulaştı ama
+  yanıt kayboldu" (teslim + ambiguous), kimlik-bilgisisiz çağrı ağa çıkmaz, hata metni token taşımaz.
+  `deliveries` (misafire gerçekten ulaşan) ve `attempts` (ağ çağrısı) sayaçları — iddialar bunlar üzerinden.
+- `tests/helpers/outbound-conformance.ts` — **connector conformance kiti**: 14 senaryo, sağlayıcı-özel
+  hiçbir şey bilmez; `ConformanceHarness` arayüzü (arrange/attempts/deliveries/lastToken). Gelecek adaptör
+  (Airbnb Direct) aynı kiti geçmek zorunda.
+- `tests/unit/outbound-adapter-conformance.test.ts` — kit HEM fake'e HEM gerçek Hospitable adaptörüne
+  (yalnız global `fetch` stub'lı; `sendMessage`/`hospitableFetch` gerçek) koşar → fake'in varsayımları
+  gerçek adaptörle doğrulanır; biri saparsa kit kırmızı (mutasyonla ölçüldü, iki yönde).
+- `tests/integration/outbound-fake-flows.test.ts` — çekirdek akışları × fake (gerçek worker, gerçek rotalar,
+  gerçek DB): başarı · yinelenen istek · belirsiz gönderim (ASLA ikinci POST) · 429 · 402+reactivate ·
+  bağlantı kesildi · 401 iptali · kiracı sınırı · elle yanıt rotasında belirsizde claim tutulur.
+- **Kit bulgusu → tek src düzeltmesi:** gerçek adaptör "kimlik bilgisi yok" hâlini `ambiguous` sayıyordu
+  (istemci ağa çıkmadan fırlatır, HTTP durumu yok). Artık token yok VE env fallback yok → `definitive_failure`,
+  deneme 0 (`hospitable-outbound.ts`). Prod yolları etkilenmez; V0.1 §8'deki "undefined olduğu gibi
+  iletilir" notu artık "env fallback VARKEN" diye okunmalı.
+
+**Kalan sınırlar (dürüstçe):**
+- Kit yalnız **outbound** sözleşmesini kapsar. Ingest tarafı (duplicate/out-of-order/replay/cancel/modify
+  event'leri) V0.6 (ingest write service) ile birlikte; bugün ingest adaptörü yok, `syncHospitable`
+  fonksiyonun kendisi.
+- `auth_revoked` ayrı sınıf DEĞİL: 401/403 bugün `definitive_failure` → 6 deneme → `failed`. Doğrusu
+  bağlantı-yaşam-döngüsü olayı (V0.3 `ChannelConnection` ile: satır beklesin, host yeniden bağlansın).
+  Kit bugünkü davranışı açıkça bu etiketle pinliyor.
+- Belirsiz gönderimde `defaultReconcile` sağlayıcı geçmişinden doğrulayamaz (Hospitable idempotency
+  anahtarı vermiyor) → `review` (insan). Fake bu sınırı değiştirmez, görünür kılar.
+- Fake tek sağlayıcı slot'unu (`hospitable`) kullanır; `OutboundProvider` union'ı ikinci sağlayıcıyla
+  genişlediğinde fake parametrik hâle gelir (tek satır).
+
+**KOD / CI / DEPLOY / PROD SMOKE:** KOD ✅ (yerel: typecheck · eslint · audit-check · tam `npm test` · `next build`
+— sayılar tur raporunda) · CI: push sonrası bu bölüme işlenir · DEPLOY: oto (yalnız "hiç kimlik yok"
+dalı değişti; canlıda ulaşılmaz) · PROD SMOKE: gerekmiyor (davranış değişimi ulaşılmaz dalda).
+
+**Sıradaki dilim — V0.3 (`ChannelConnection`, additive migration → taze `pg_dump` + açık onay kapısı):**
+credential'lar org kolonlarından bağlantı satırına dual-write; `auth_revoked` sınıfı ve "bağlantı koptu →
+satır bekler" semantiği; `resolveOutboundRoute` sağlayıcıyı bağlantıdan alır.
