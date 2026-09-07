@@ -74,6 +74,27 @@ describe("V0.1 — giden-mesaj çekirdeği sağlayıcıdan bağımsız", () => {
     expect(outbound).toMatch(/startsWith\(INTERNAL_THREAD_PREFIX\)/);
   });
 
+  it("🚨 V0.6: sağlayıcı OKUMA fonksiyonları (listProperties/listReservations/listMessages) src/ altında YALNIZ ingest adaptöründe (+ sağlayıcı-adlı operatör teşhis rotası)", () => {
+    // Çekirdek (hospitable-sync, ingest write service, cleanup, automation) sağlayıcı
+    // payload'ını görmez: okuma `channels/hospitable-ingest.ts` üzerinden canonical'a çevrilir.
+    // Tek istisna: `api/hospitable/diagnostics` — adı üstünde sağlayıcı-özel operatör yüzeyi.
+    const ALLOWED = new Set(["src/lib/channels/hospitable-ingest.ts", "src/app/api/hospitable/diagnostics/route.ts"]);
+    const offenders: string[] = [];
+    for (const abs of walk(path.join(ROOT, "src"))) {
+      const rel = path.relative(ROOT, abs);
+      if (rel === "src/lib/hospitable.ts" || ALLOWED.has(rel)) continue;
+      const c = code(read(rel));
+      if (/import\s*\{[^}]*\b(listProperties|listReservations|listMessages)\b[^}]*\}\s*from\s*["']@\/lib\/hospitable["']/.test(c)) offenders.push(rel);
+    }
+    expect(offenders).toEqual([]);
+    // Kontrol: adaptör gerçekten istemciyi çağırıyor.
+    const adapter = code(read("src/lib/channels/hospitable-ingest.ts"));
+    expect(adapter).toMatch(/hospitableListReservations\(/);
+    expect(adapter).toMatch(/hospitableListMessages\(/);
+    // Ve write service çekirdeği sağlayıcı istemcisini import etmez.
+    expect(code(read("src/lib/ingest/write-service.ts"))).not.toMatch(/from\s+["']@\/lib\/hospitable["']/);
+  });
+
   it("KONTROL: adaptör gerçekten istemciyi çağırıyor (pin kendini boşa düşürmesin)", () => {
     const c = code(read(ADAPTER));
     expect(c).toMatch(/from\s+["']@\/lib\/hospitable["']/);

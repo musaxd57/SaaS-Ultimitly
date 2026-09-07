@@ -25,7 +25,16 @@ import {
   mergedConversationFields,
   resolveExpectations,
 } from "../../scripts/apply-conversation-dedupe";
-import { importThread, __importThreadHooks } from "@/lib/hospitable-sync";
+import { __importThreadHooks } from "@/lib/hospitable-sync";
+import { importCanonicalThread } from "@/lib/ingest/write-service";
+import { normalizeMessage, normalizeReservation } from "@/lib/channels/hospitable-ingest";
+
+/** V0.6: write service kiracı bağlamı ister (event org-kapsamlı); mülkten çözülür. */
+async function ctxFor(propertyId: string) {
+  const p = await prisma.property.findUniqueOrThrow({ where: { id: propertyId }, select: { organizationId: true } });
+  return { organizationId: p.organizationId, provider: "hospitable" as const, connectionId: null };
+}
+
 
 // MIGRATION 45 ESCAPE HATCH. This file's whole purpose is to seed the duplicate
 // rows that `@@unique([propertyId, externalReservationId])` forbids, so the
@@ -619,7 +628,7 @@ describe("apply — idempotency ve eşzamanlılık", () => {
     let applyError: unknown = null;
     try {
       const syncPromise = prisma
-        .$transaction((tx) => importThread(tx, propertyId, reservation, messages, null), {
+        .$transaction(async (tx) => importCanonicalThread(tx, propertyId, normalizeReservation(reservation), messages.map(normalizeMessage), null, await ctxFor(propertyId)), {
           timeout: 30_000,
           maxWait: 20_000,
         })

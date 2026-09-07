@@ -55,9 +55,9 @@ yetenek çıkarımı yasak.
 **Yürütme sırası (bu sıra prompttaki diğer sıraları ezer):** ① Codex denetimi kritik bulguları kodda
 doğrula+düzelt ✅ (8 P1, `docs/audit-2026-09-05/DURUM.md`) → ② test sözleşmesi ✅ → ③ **V0 Channel
 Independence** (V0.1 ✅ outbound dispatch · V0.2 ✅ provider fake + conformance kiti · V0.3 ✅ `ChannelConnection`
-canlı (migration 49 prod'da 09-07) · V0.4 ✅ provenance canlı
-(migration 50 prod'da 09-07); sırada V0.5 `messagingCapable` (migration'sız), V0.6 ingest write service + domain event, V0.7 `hospitable*` kolon
-contract'ı) → ④ deterministik **Availability Engine** → ⑤ geniş
+canlı (migration 49 prod'da 09-07) · V0.4 ✅ provenance canlı (migration 50 prod'da 09-07) · V0.5 ✅ `messagingCapable`
+canlı (`19d5527`, migration'sız) · V0.6 ingest write service + `IngestEvent` KOD HAZIR, yerel — migration 51 push
+kapısında (pg_dump + onay); sonra V0.7 `hospitable*` kolon contract'ı) → ④ deterministik **Availability Engine** → ⑤ geniş
 otonom AI yalnız yetki+guardrail+grounding+eval doğrulandıktan sonra. **V0 sırasında YAPILMAZ:**
 Availability Engine, RAG/GraphRAG, Property Memory, Exception Feed, Revenue Brain, Proof AI, Ask Lixus,
 Review/Issue tabloları. Yalnız dar, davranış-koruyan temel eklenebilir.
@@ -213,6 +213,11 @@ Landing: 3-seviye kartlar + canlı demo. KVKK: export, retention, erasure (bayra
 - **`docs/TEST-EVIDENCE-CONTRACT.md` bağlayıcı**: K2 için kırmızı-önce · kaldırma mutasyonu · aşırı-uygulama
   kontrolü · integration · tam kapılar; rapor KOD/CI/DEPLOY/PROD ayrı; "test gerekmiyor" gerekçeli.
 - **Codex protokolü:** doğruysa uygula, daha iyisini biliyorsan gerekçeyle reddet; son karar karşılıklı.
+- **🚨 Tam suit koşarken BAŞKA vitest KOŞMA:** `tests/global-setup.ts` her `vitest run`'da PG 5433'ü `stop -m
+  immediate` + `initdb` ile sıfırlar → paralel koşu süren suit'in DB'sini öldürür (ölçüldü: 42–59 sahte kırmızı
+  dosya). Mutasyon script'leri de vitest'tir. Süreç öldürürken `pkill -f "vitest run"` YETMEZ (kendi kabuğunla
+  eşleşir, `node (vitest)` ana süreciyle eşleşmez; yetim ana süreç bitince teardown'ı yeni koşunun PG'sini kapatır)
+  → `pkill -f "node \(vitest"` + `ps | grep "[v]itest"` ile doğrula.
 - **Ajanlar yalnız araştırır/ölçer/doğrular; kodu Claude yazar.** Bol paralel ajan, bulguları kodla doğrula
   (yarısı yanlış), kısa format. Kararı uygula, soru sorma; klişe yok.
 - Kalıcı kararlar buraya, gerekçeler git log/arşive.
@@ -344,6 +349,18 @@ Sekiz P1 KAPANDI (09-07), her biri ayrı commit, kırmızı-önce + iki yönlü 
   Kolonlarda FK/index/default YOK. Dedupe: Conversation `connectionId single_non_null` (farklı dolu →
   `connection_conflict`, sessiz birleştirme yok), `ingestedAt keeper_wins` (zaman farkı ≠ çelişki, sayılır);
   Message `provenance_id` (→ `message_connection_conflict`, içerikten ayrı), `ingestedAt provenance` (kıyaslanmaz).
+- **Messaging capability (V0.5 — CANLI, envanter §12):** "mesajlanabilir mi" TEK KAYNAK `channels/capability.ts`:
+  `PROVIDER_MESSAGEABLE_RESERVATION_WHERE` (sourceReference dolu + calendarSourceId null + channel notIn [ics,
+  manual]) ve `PROVIDER_THREAD_CONVERSATION_WHERE`/`isInternalThread`; automation.ts literal yazmaz (pin), gönderici
+  ve önizleme aynı fragment'i yayar. Org düzeyi yetenek = kimlik çözümü (`getOrgHospitableToken`, env fallback dahil).
+- **Ingest (V0.6, migration 51 — 🚨 YEREL COMMIT, PUSH EDİLMEDİ; kapı: taze `pg_dump` + kurucu onayı, envanter §12):**
+  okuma yönü `channels/ingest.ts` sözleşmesi (canonical tipler, tipli `IngestError`, adaptör DEDUPE/SIRALAMA yapmaz);
+  `@/lib/hospitable` okuma fonksiyonlarının src/ içindeki TEK çağıranı `channels/hospitable-ingest.ts` (+ sağlayıcı-adlı
+  `api/hospitable/diagnostics`; pin). Yazma `ingest/write-service.ts` (`upsertCanonicalReservation`,
+  `importCanonicalThread`; sağlayıcı tipi imzada YOK; polling ve gelecekteki webhook aynı servis). `IngestEvent` aynı
+  TX'te, PII'SİZ (misafir metni/adı ve sağlayıcı kimliği taşımaz; kanarya dışı bilinçli). Değişmeyen senkron UPDATE
+  yazmaz ve event üretmez. Fake `tests/helpers/fake-ingest.ts` + kit `tests/helpers/ingest-conformance.ts` — **yeni
+  ingest adaptörü aynı kiti geçmek zorunda**; kit ≠ canlı doğrulama.
 - **ChannelConnection (V0.3, migration 49 — CANLI 09-07, kanıt envanter §10):** `(org, provider)` başına TEK satır, disconnect/reconnect AYNI satırı kullanır
   (kuyruk `connectionId` damgaları kopmaz); `generation` her kimlik-bilgisi yazımında artar = refresh CAS
   ikinci çapası (org blob + generation, ikisi de tek TX'te; biri 0 satır → gecikmiş refresh atılır).
@@ -416,7 +433,10 @@ Sekiz P1 KAPANDI (09-07), her biri ayrı commit, kırmızı-önce + iki yönlü 
   satır BEKLENEN: prod'da DB token'lı org yok, Nuve `PRIMARY_ORG_ID` env fallback'inde → `CHANNEL_CONNECTION_READ`
   DB'ye kaydedilmiş ilk gerçek bağlantı olmadan AÇILMAZ. **V0.4 ✅ CANLI** (`c378a97`, migration 50 prod'da 09-07
   19:29Z; prod'daki 17.436 mesaj/1538 rezervasyon `legacy` sınıfında, çıkarım backfill'i bilerek yok; envanter §11).
-  Sıradaki V0.5 `messagingCapable` (migration'sız) — kurucu başlatınca.
+  **V0.5 ✅ CANLI** (`19d5527`, CI #958). **V0.6 KOD HAZIR — yerel commit, PUSH EDİLMEDİ** (migration 51 =
+  `IngestEvent` CREATE TABLE; kapı §10 ile aynı: taze `pg_dump` + açık "push et"; envanter §12). ⚠️ Konteyner
+  sıfırlanırsa yerel commit kaybolur. V0.7 (`hospitable*` kolon contract'ı) V0.3 okuma anahtarı ≥2 hafta canlıda
+  sorunsuz olmadan YOK.
   Availability Engine / RAG / geniş otonom AI V0 bitmeden YOK.
 - **Codex P2 (F09–F18)** ilgili modül turlarında. `docs/DENETIM-2026-08-09.md` (27 açık),
   `docs/ACIK-ISLER-2026-08-08.md` (16), `docs/MIGRATION-BEKLEYEN-ISLER.md`.
@@ -431,8 +451,8 @@ Sekiz P1 KAPANDI (09-07), her biri ayrı commit, kırmızı-önce + iki yönlü 
   yol · halka açık sayfada çerez yenileme · `PADDLE_WEBHOOK_SECRET` boot kapısı.
 
 ## Durum
-**HEAD `c378a97` (V0.4 canlı): 3539 test yeşil (313 dosya) · typecheck/lint/build/audit temiz · migration 00–50
-(51 klasör) sıfır-drift · CI 5/5 (run #954) · migration 50 prod'da 19:29Z · Railway healthcheck-gated oto-deploy.**
- Son kod işi: Codex P1 turu (8 commit) + V0.1 (`2034aba`)
-+ V0.2 (`bc185db`) + V0.3 (yerel). Prod smoke bu ortamdan yapılamaz; operatör adımları
+**Yerel HEAD = V0.6 (PUSH EDİLMEDİ, migration 51): 3588 test yeşil (317 dosya) · typecheck/lint/build/audit temiz ·
+migration 00–51 (52 klasör) taze PG'de sıfır-drift · CI bu commit'te KOŞMADI. Origin HEAD `19d5527` (V0.5 canlı): CI 5/5
+(run #958) · migration 50 prod'da 19:29Z · Railway healthcheck-gated oto-deploy.** Son kod işi: V0.1–V0.6 (V0.6 yerel).
+Prod smoke bu ortamdan yapılamaz; operatör adımları
 `docs/audit-2026-09-05/DURUM.md` + `docs/V0-CHANNEL-INDEPENDENCE-INVENTORY.md` §10 (push kapısı).

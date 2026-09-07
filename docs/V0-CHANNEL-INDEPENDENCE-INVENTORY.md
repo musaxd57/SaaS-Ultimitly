@@ -451,3 +451,100 @@ gözlem doldurur) · doğrudan gönderim yolunun Message satırı damgasız (V0.
 olduğu sürece yeni satırlar `unbound` (adoption sonrası yalnız YENİ ve GÖZLEMLENEN satırlar dolar) ·
 `importThread`/`upsertReservationCalendar` ek parametresi opsiyonel (testler doğrudan çağırıyor) ·
 conformance/fake = canlı sağlayıcı doğrulaması DEĞİL.
+
+---
+
+## 12. V0.5 CANLI + V0.6 DURUMU — YEREL, PUSH EDİLMEDİ (2026-09-07)
+
+### V0.5 — `messagingCapable` tek kaynak ✅ CANLI (`19d5527`, CI run #958 5/5, migration YOK)
+`src/lib/channels/capability.ts`: `PROVIDER_MESSAGEABLE_RESERVATION_WHERE` (= `sourceReference` dolu +
+`calendarSourceId` null + `channel notIn [ics, manual]`; eski 6 literal'e BİREBİR eşit — shadow-compare pini) ve
+`PROVIDER_THREAD_CONVERSATION_WHERE` (+ `isInternalThread`, `INTERNAL_THREAD_PREFIX` tek yer). `automation.ts`'teki
+6 rezervasyon + 2 konuşma kopyası fragment spread'ine indi → önizleme == gerçek YAPISAL. Org düzeyi yetenek
+(kimlik çözümü, env fallback) DEĞİŞMEDİ (`getOrgHospitableToken` kapısı; V0.7'de bağlantıdan). QR/local
+(iç thread), Hospitable ve env fallback davranışı korundu (davranışsal test: `integration/messaging-capability` —
+previewWelcomes == sendDueWelcomes aynı küme; ics/csv/feed/referanssız dışarı; env fallback gönderir;
+bağlantısız org önizler ama göndermez; QR thread kanal oto-yanıtına girmez). Mutasyon K1–K7 hepsi kırmızı.
+
+### V0.6 — Ingest write service + canonical tipler + domain event (migration 51 — 🚨 YEREL COMMIT, PUSH EDİLMEDİ)
+> Kapı §10 ile aynı: taze doğrulanmış `pg_dump` + kurucunun AÇIK "push et" onayı. CI bu commit'te KOŞMADI;
+> kapılar yerelde (↓). V0.7'ye geçilmedi.
+
+**Sözleşme (kod-doğrulandı):**
+- **`channels/ingest.ts`** — okuma yönü sözleşmesi: `IngestAdapter { listProperties · listReservations · listMessages }`
+  canonical döner (`CanonicalProperty/Reservation/Message`, kapalı durum kümesi, `terminal` bayrağı, misafir
+  alt nesnesi); tipli `IngestError.kind` (auth_revoked · rate_limited · outage · not_found · no_credential);
+  adaptör DEDUPE YAPMAZ, SIRALAMAZ, çıkarım yapmaz; kimliksiz çağrı ağa çıkmaz; hata metni token taşımaz.
+  Kayıt defteri `channels/index.ts` (`registerIngestAdapter`, `__setIngestAdapterForTest`).
+- **`channels/hospitable-ingest.ts`** — `@/lib/hospitable` OKUMA fonksiyonlarının src/ içindeki tek çağıranı
+  (+ sağlayıcı-adlı `api/hospitable/diagnostics`; pin `unit/core-channel-independence`). Normalizasyon
+  (`toChannel`, `mapReservationStatus`, `isGuestMessage`, `senderFullName`, `reservationGuestName`, terminal)
+  hospitable-sync'ten BİREBİR taşındı. Bilinen sınır (envanter 1b, değişmedi): `toChannel` bilinmeyen
+  platform string'ini ham geçirir (`other`'a katlamak görünür etiketi değiştirir; ayrı karar).
+- **`ingest/write-service.ts`** — canonical yazma servisi (çekirdek; sağlayıcı importu YOK):
+  `upsertCanonicalReservation` + `importCanonicalThread` (+ NS-43 kimlik kilidi, test kancası). Gövdeler
+  hospitable-sync'ten taşındı: KVKK resurrection/era guard'ları, imleç idempotency'si, adopt-and-heal, P2002
+  dedupe-hit, gövdesiz mesaj sayacı, çit geri alma AYNEN. **Sağlayıcı tipi imzadan çıktı** (`importThread(
+  HospitableReservation…)` → `importCanonicalThread(CanonicalReservation…)`; envanter §4 V0.6 hedefi).
+  **Tek bilinçli davranış farkı:** rezervasyon/konuşma UPDATE yalnız gerçekten değişen alan varsa yazılır
+  (eskiden her senkron koşulsuz UPDATE) — domain event "değişti" demek için ölçmek zorunda; değişmeyen senkron
+  ne yazar ne event üretir (replay testi `updatedAt`'in sabit kaldığını pinler). Provenance V0.4 aynen.
+- **`IngestEvent`** (migration 51, yeni tablo): transactional outbox — satırla AYNI TX'te yazılır. **PII'SİZ:**
+  `organizationId · provider · connectionId · entityType · entityId (bizim id) · kind · schemaVersion=1 ·
+  occurredAt · dispatchedAt`; misafir metni/adı ve sağlayıcı kimliği YOK (KVKK süpürgeleri bilmez; kanarya
+  dışı — bilinçli). Kinds: `reservation.created|updated|cancelled · conversation.created|updated ·
+  message.imported`. Org cascade; `entityId`'ye FK yok (satır silinse de "olay oldu" kaydı kalır). Tüketici
+  bugün YOK (V1 Property Memory / Exception Feed); `dispatchedAt` gelecek için.
+- **`hospitable-sync.ts`** artık orkestrasyon: token → adaptör → canonical → erasure kilidi/guard → write
+  service → yan etkiler (görev, supply, çit). Polling bugün, webhook yarın AYNI write service'i çağırır.
+  `reservations-cleanup.ts` de adaptöre geçti (§1e sızıntısı kapandı). `noteHospitableError` tipli
+  `IngestError.status` okur.
+
+**Migration 51 (yerel doğrulama):** yalnız `CREATE TABLE "IngestEvent"` + 2 index + FK cascade (additive, dolu
+tabloya dokunmaz). Taze PG 00→51 `migrate deploy` ✅ (52 finished), sıfır drift ✅, shadow diff boş ✅.
+
+**Kanıt (sözleşme §2):**
+- Kırmızı-önce: `unit/ingest-adapter-conformance` (adaptör yokken import hatası → 30/30 yeşil: fake 15 + gerçek
+  adaptör/fetch stub 15 — normalizasyon, dedupe YAPMAZ, sıralamaz, durum kümesi, gövdesiz mesaj, sayfalama,
+  kiracı sınırı (stub varsayımı), 401/403/404/429/503/ağ tipli hata, kimliksiz ağa çıkmaz);
+  `integration/ingest-write-service` (refactor öncesi 7/10 kırmızı: senkron fake'i görmüyordu → 10/10 yeşil):
+  ilk ingest + event'ler · REPLAY idempotent (satır/event/updatedAt sabit) · BATCH İÇİ TEKRAR · SIRASI DEĞİŞMİŞ
+  (kronolojik saklama, durum son mesajdan, geç gelen eski mesaj sonraki batch'te alınır) · DEĞİŞİKLİK
+  (`reservation.updated`; maskelenen ad geriletilmez, event yok) · İPTAL (`reservation.cancelled`, replay ikinci
+  event üretmez) · KİRACI SINIRI (token→mülk görünürlüğü; org'lar birbirine dokunmaz; event'ler org-kapsamlı) ·
+  TOMBSTONE (erasure sonrası yeni mesajlı replay hiçbir şey yazmaz, `skipped` tam 1) · PROVENANCE (unbound →
+  observed/ingest; event bağlantı damgası) · GÖVDESİZ mesaj.
+- Mevcut senkron testleri değişmeden yeşil (hospitable-sync 38, kimlik kilidi, p2002 retry, erasure, dedupe
+  apply/dry-run, scheduled-sync, cleanup) → davranış korundu. `importThread` çağıran 2 test canonical imzaya geçti.
+- **Mutasyonlar (iki yön):** adaptör I1–I7 hepsi kırmızı (dedupe eder · sıralar · 403 yanlış sınıf · kimliksiz
+  ağa çıkar · durum eşlemesi eksik · fake kiracı sınırını gevşetir · fake kimliksiz ağa çıkar). Yazma yolu W1–W7,
+  W9, W10 kırmızı (değişiklik ölçümü yok · iptal 'updated' · mesaj event'i yok · gözlemle doldurma yok · batch
+  dedupe yok · kronoloji yok · event bağlantı damgası yanlış · create'te kanıt türü yok · KVKK resurrection guard
+  yok). **Tombstone derinlikli savunma ÖLÇÜLDÜ:** yalnız TX içi guard kaldırıldı → yeşil (ön kapı tutar); yalnız ön
+  kapı kaldırıldı → yeşil (TX içi guard tutar); ikisi birden → KIRMIZI.
+- ⚠️ **Conformance/fake ≠ canlı sağlayıcı doğrulaması.** Gerçek adaptör yalnız HTTP stub'ıyla sınandı; "token'ın
+  görmediği mülk → boş liste" varsayımı canlıda gözlenmedi; gerçek 401/403/429 gövdeleri gözlenmedi.
+
+**Kapılar (son yerel ağaç, tek başına koşuldu):** tam suit 3588/317 yeşil · `tsc --noEmit` temiz · `eslint .` temiz ·
+`next build` temiz · `audit:check` yeşil (0 triajsız) · zincir 00→51 taze PG + sıfır drift + shadow diff boş.
+CI: koşmadı (push yok).
+
+**Geri alma:** V0.6 kodu revert edilirse `IngestEvent` tablosu zararsız durur (tüketici yok); write service ile
+eski importThread davranışı aynı (yalnız "değişmeyen UPDATE atlanır" farkı geri döner). Bayrak yok.
+
+**Operatör kapısı (push ÖNCESİ):** §10 adımları aynen — taze `pg_dump` + SHA + açık "push et" → CI 5/5
+(migration-chain 51 taze DB'de) → Railway `migrate deploy` (CREATE TABLE; kısa) → salt-okuma kontrol:
+`_prisma_migrations` `51_ingest_event` finished; ilk senkrondan sonra `SELECT kind, count(*) FROM "IngestEvent"
+GROUP BY kind` (Nuve 402'de donuk → 0 beklenebilir); `CHANNEL_CONNECTION_READ` KAPALI kalır.
+
+**Kalan sınırlar / V0.7 öncesi:** webhook yok (yalnız polling; write service hazır) · event tüketicisi yok ·
+`toChannel` ham platform geçişi · env fallback + `getConnectionInfo` org kolonlarından (V0.7) · `reservations-cleanup`
+hâlâ `hospitableId`'ye bakar (Property kimliği V0.7 kapsamı) · `api/hospitable/diagnostics` istemciyi doğrudan
+kullanır (sağlayıcı-adlı operatör yüzeyi, bilinçli).
+
+**Çalışma tarzı dersi (bu turda ölçüldü, CLAUDE.md'ye yazıldı):** tam suit koşarken BAŞKA vitest KOŞMA —
+`tests/global-setup.ts` her `vitest run`'da PG 5433'ü `stop -m immediate` + `initdb` ile sıfırlar; paralel koşu
+süren suit'in DB'sini öldürür (42–59 sahte kırmızı dosya, `Can't reach database server`). Süreç öldürürken
+`pkill -f "vitest run"` KALIBI kendi kabuğunla ve `node (vitest)` ana süreciyle eşleşmez: yetim ana süreç bitince
+teardown'ı yeni koşunun PG'sini kapatır — `pkill -f "node \(vitest"` + doğrulama (`ps | grep "[v]itest"`) şart.
+

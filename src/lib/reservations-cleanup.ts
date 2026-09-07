@@ -1,7 +1,7 @@
 import "server-only";
 
 import { prisma } from "@/lib/db";
-import { listReservations } from "@/lib/hospitable";
+import { getIngestAdapter } from "@/lib/channels";
 import { getOrgHospitableToken } from "@/lib/hospitable-credentials";
 
 // ---------------------------------------------------------------------------
@@ -74,9 +74,18 @@ export async function cleanupStaleReservations(
   for (const p of properties) {
     if (!p.hospitableId) continue;
 
+    // V0.6: sağlayıcı okuması ingest adaptöründen (canonical); adaptör yoksa doğrulanamaz → atla.
+    const adapter = getIngestAdapter("hospitable");
+    if (!adapter) {
+      result.skippedProperties++;
+      continue;
+    }
     let current;
     try {
-      current = await listReservations({ propertyIds: [p.hospitableId], startDate, endDate }, token);
+      current = await adapter.listReservations(
+        { provider: "hospitable", token },
+        { propertyExternalId: p.hospitableId, startDate, endDate },
+      );
     } catch {
       result.skippedProperties++; // couldn't verify → never prune
       continue;
@@ -89,7 +98,7 @@ export async function cleanupStaleReservations(
     }
     result.checkedProperties++;
 
-    const seen = new Set(current.map((r) => String(r.id)));
+    const seen = new Set(current.map((r) => r.externalId));
 
     // Hospitable-sourced rows arriving inside the window: Hospitable definitely
     // would have returned them if they still existed. Any not in `seen` are gone.

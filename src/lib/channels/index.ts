@@ -5,8 +5,11 @@ import "server-only";
 // `registerOutboundAdapter` satırı; çekirdekte hiçbir değişiklik gerekmez.
 import { registerOutboundAdapter } from "./outbound";
 import { hospitableOutboundAdapter } from "./hospitable-outbound";
+import { registerIngestAdapter } from "./ingest";
+import { hospitableIngestAdapter } from "./hospitable-ingest";
 
 registerOutboundAdapter(hospitableOutboundAdapter);
+registerIngestAdapter(hospitableIngestAdapter); // V0.6 — okuma yönü de aynı kayıt defterinden
 
 export {
   INTERNAL_THREAD_PREFIX,
@@ -32,3 +35,20 @@ export {
   reservationMessagingCapable,
   isInternalThread,
 } from "./capability";
+export {
+  registerIngestAdapter,
+  getIngestAdapter,
+  __setIngestAdapterForTest,
+  IngestError,
+} from "./ingest";
+export type {
+  IngestAdapter,
+  IngestCapability,
+  IngestCredential,
+  IngestErrorKind,
+  CanonicalProperty,
+  CanonicalReservation,
+  CanonicalMessage,
+  CanonicalGuest,
+  ReservationWindow,
+} from "./ingest";

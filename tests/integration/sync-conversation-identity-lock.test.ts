@@ -1,7 +1,9 @@
 import { afterEach, beforeEach, describe, expect, it } from "vitest";
 
 import { prisma, resetDb, makeOrgWithProperty } from "../helpers/db";
-import { importThread, __importThreadHooks } from "@/lib/hospitable-sync";
+import { __importThreadHooks } from "@/lib/hospitable-sync";
+import { importCanonicalThread } from "@/lib/ingest/write-service";
+import { normalizeMessage, normalizeReservation } from "@/lib/channels/hospitable-ingest";
 import { isUniqueViolation } from "@/lib/db-errors";
 import type { HospitableMessage, HospitableReservation } from "@/lib/hospitable";
 
@@ -67,10 +69,17 @@ function delayOnce(ms: number): () => Promise<void> {
   };
 }
 
-/** Run one importThread in its own transaction — a standalone sync runner. */
+
+/** V0.6: write service kiracı bağlamı ister (event org-kapsamlı); mülkten çözülür. */
+async function ctxFor(propertyId: string) {
+  const p = await prisma.property.findUniqueOrThrow({ where: { id: propertyId }, select: { organizationId: true } });
+  return { organizationId: p.organizationId, provider: "hospitable" as const, connectionId: null };
+}
+
+/** Run one thread import in its own transaction — a standalone sync runner. */
 function runImport(propertyId: string) {
   return prisma.$transaction(
-    (tx) => importThread(tx, propertyId, reservation(), messages(), null),
+    async (tx) => importCanonicalThread(tx, propertyId, normalizeReservation(reservation()), messages().map(normalizeMessage), null, await ctxFor(propertyId)),
     { timeout: 30_000, maxWait: 15_000 },
   );
 }
@@ -120,7 +129,7 @@ describe("sync — conversation identity lock (Faz A)", () => {
       sender_type: "guest",
       sender: { full_name: "Test Misafir" },
     }];
-    await prisma.$transaction((tx) => importThread(tx, propertyId, reservation(), extra, null), {
+    await prisma.$transaction(async (tx) => importCanonicalThread(tx, propertyId, normalizeReservation(reservation()), extra.map(normalizeMessage), null, await ctxFor(propertyId)), {
       timeout: 30_000,
       maxWait: 15_000,
     });

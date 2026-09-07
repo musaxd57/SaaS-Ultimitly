@@ -167,6 +167,7 @@ model Organization {
   erasureTombstones ErasureTombstone[]
   messageOutbox     MessageOutbox[]
   channelConnections ChannelConnection[]
+  ingestEvents      IngestEvent[]
   properties        Property[]
   automationRules   AutomationRule[]
   auditLogs         AuditLog[]
@@ -1128,6 +1129,34 @@ model ChannelConnection {
   // change this key on a POPULATED table — a decision for a later migration, not a default.
   @@unique([organizationId, provider])
   @@index([status])
+}
+
+// ---------------------------------------------------------------------------
+// INGEST EVENT — versioned domain event / transactional outbox (V0.6, migration 51).
+// Write service canonical satırı yazdığı TX'te bir event de yazar: satır varsa event
+// vardır, tersi de. PII'SİZ tasarım: misafir metni/adı ve sağlayıcı kimliği YOK — yalnız
+// kiracı, sağlayıcı, bağlantı, varlık türü + BİZİM id'miz, tür, şema sürümü, zaman.
+// Tüketen kod (V1 Property Memory, Exception Feed) satırı id ile okur. KVKK süpürgeleri
+// bu tabloyu bilmez (kapsam dışı; kanarya yorumu scrub-scope-parity'de). Org silinince
+// cascade. entityId'ye FK YOK: satır silinse de "olay gerçekleşti" kaydı kalır (opak id).
+// dispatchedAt: ileride event tüketicisi işaretler (bugün tüketici yok).
+// ---------------------------------------------------------------------------
+model IngestEvent {
+  id             String    @id @default(cuid())
+  organizationId String
+  provider       String // closed set in code (channels/outbound.ts OutboundProvider)
+  connectionId   String? // aktif bağlantı (null = env fallback / legacy)
+  entityType     String // reservation | conversation | message (closed set, app-enforced)
+  entityId       String // bizim satır id'miz (FK yok)
+  kind           String // reservation.created|updated|cancelled · conversation.created|updated · message.imported
+  schemaVersion  Int       @default(1)
+  occurredAt     DateTime  @default(now())
+  dispatchedAt   DateTime?
+
+  organization Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+
+  @@index([organizationId, occurredAt])
+  @@index([entityType, entityId])
 }
 
 // Durable deletion intents for PRIVATE object storage (S3/R2) — migration 32.
