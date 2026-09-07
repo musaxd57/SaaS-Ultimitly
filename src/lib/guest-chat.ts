@@ -173,6 +173,7 @@ export async function ensureGuestChatConversation(
         lastMessageAt: new Date(),
         reservationId: reservation.id,
         externalReservationId: marker,
+        ingestedAt: new Date(), // V0.4 provenance: misafir ingress'i açtı; iç thread → connectionId yok
       },
       select: { id: true },
     });

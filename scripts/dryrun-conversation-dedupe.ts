@@ -150,6 +150,13 @@ export const CONVERSATION_FIELD_POLICY: Record<
   guestIdentifier: "anon_guard",
   // Yalnız create'te yazılır, sonradan hiçbir yol güncellemez. Bilgi amaçlı.
   channel: "keeper_wins",
+  // V0.4 provenance (migration 50). connectionId: ingest bağlantısı — aynı org'un (org,
+  // provider) başına TEK bağlantısı var, iki kopya farklıysa yalnız legacy NULL ↔ damgalı
+  // olabilir; keeper'ınki yaşar, backfill NULL'u sonradan doldurur. ingestedAt: ingress
+  // freshness damgası — kopyalar doğal olarak farklı anda ingest edilir, birleşmede anlamı
+  // yok (Prisma yönetmiyor ama sync her dokunuşta yeniden yazar; system_managed muamelesi).
+  connectionId: "keeper_wins",
+  ingestedAt: "system_managed",
   updatedAt: "system_managed",
 };
 
@@ -162,7 +169,13 @@ export type MessageComparePolicy =
   /** Değiştirdiğimiz alanın ta kendisi. */
   | "reparented"
   /** ANLAMLI: eşit değilse tam-kopya DEĞİLDİR → FAIL-CLOSED. */
-  | "strict";
+  | "strict"
+  /**
+   * V0.4 PROVENANCE damgası (connectionId/ingestedAt): iki kopya aynı sağlayıcı mesajının
+   * FARKLI anlarda (ve legacy'de damgasız) ingest edilmiş hâlidir; içerik kimliği değildir.
+   * Kıyaslanmaz — keeper'daki kopya (canonical) kendi damgasıyla yaşar.
+   */
+  | "provenance";
 
 export const MESSAGE_FIELD_POLICY: Record<
   keyof typeof Prisma.MessageScalarFieldEnum,
@@ -186,6 +199,8 @@ export const MESSAGE_FIELD_POLICY: Record<
   aiConfidence: "strict",
   aiSourcesJson: "strict",
   aiSuggestedReply: "strict",
+  connectionId: "provenance",
+  ingestedAt: "provenance",
 };
 
 /** Şema ↔ politika sürüklenmesine karşı RUNTIME kapısı (fail-closed). */

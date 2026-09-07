@@ -177,9 +177,15 @@ describe("şema kanaryası — misafir modellerine yeni kolon", () => {
       //     ChannelConnection satırında ŞİFRELİ durur ve org cascade ile silinir —
       //     misafir verisi değil, host'un sağlayıcı sırrıdır (retention/erasure kapsamı
       //     dışı, KVKK ihracına da girmez).
-      Message: 14,
-      Conversation: 23,
-      Reservation: 32,
+      //   · Reservation/Conversation/Message.connectionId (String?) ve .ingestedAt (DateTime?)
+      //     (V0.4 / migration 50) → KAPSAM DIŞI: opak bağlantı cuid'i + ingest zaman damgası.
+      //     Ne misafirin metnini ne kimliğini taşır; satır anonimleştirildiğinde damga
+      //     kalır (hangi bağlantıdan, ne zaman geldiği anonim bir kayıt için de doğru ve
+      //     KVKK m.7'de imha edilmesi gereken kişisel veri değil). Silme talebinde satır
+      //     zaten silinir/maskelenir; damga tek başına kimseyi tanımlamaz.
+      Message: 16,
+      Conversation: 25,
+      Reservation: 34,
       Task: 15,
       TaskUpdate: 6,
       MessageOutbox: 23,

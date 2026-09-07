@@ -206,7 +206,9 @@ async function recordGuestChatExchange(
   // identity (dedupe anchor) — same insert semantics, ids back in one round.
   const created = await db.message.createManyAndReturn({
     data: [
-      { conversationId, direction: "inbound", authorType: "guest", senderName: guestName, body: guestMessage.slice(0, MAX_MESSAGE), language: "tr" },
+      // V0.4 provenance: misafirin satırı bir ingress'ten geçti (ingestedAt); iç thread → connectionId
+      // YOK. Botun cevabı bizim çıktımızdır, ingest değildir (aşağıda damgasız).
+      { conversationId, direction: "inbound", authorType: "guest", senderName: guestName, body: guestMessage.slice(0, MAX_MESSAGE), language: "tr", ingestedAt: new Date() },
       ...(botReply !== null
         ? [{ conversationId, direction: "outbound", authorType: "ai", senderName: "Lixus AI", body: botReply.slice(0, MAX_MESSAGE), language: "tr" }]
         : []),

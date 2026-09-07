@@ -338,3 +338,94 @@ kurucu) hâlâ var — V0.7'de kalkar; `getConnectionInfo` kolonlardan okur; OAu
 (`lastRefreshAt`) — eşik ölçümle değişebilir. **Conformance/fake testleri canlı sağlayıcı doğrulaması
 DEĞİLDİR**: gerçek adaptör yalnız HTTP stub'ıyla sınandı; Hospitable'ın gerçek 401/403/429 gövdeleri
 canlıda gözlenmedi (Nuve 402'de).
+
+---
+
+## 11. V0.4 DURUMU — YEREL, PUSH EDİLMEDİ (2026-09-07)
+
+> 🚨 **Bu dilim MIGRATION içerir (50_provenance).** Commit yalnız bu konteynerin yerel dalında;
+> oto-deploy dalına push edilmedi. Kapı = V0.3 ile aynı: taze doğrulanmış `pg_dump` + kurucunun
+> AÇIK "push et" onayı (§10 "Operatör kapısı" adımları). CI bu commit'te KOŞMADI; kapılar yerelde
+> koşuldu (↓). V0.5 (`messagingCapable`) bu tura ALINMADI: kurucu talimatı "migration gerektirmiyorsa
+> V0.4+V0.5 aynı turda" idi, V0.4 migration istedi → V0.5 kapıdan sonra ayrı tur (migration'sız).
+
+**Başlangıç → bitiş:** `ed481b6` (origin ile aynı) → yerel `V0.4` commit'i (↓hash raporda).
+
+**Sözleşme (şema yorumlarıyla aynı; kod-doğrulandı):**
+- `Reservation/Conversation/Message.connectionId` (String?, FK YOK, index YOK — `MessageOutbox.connectionId`
+  emsali) = satırın **ingest edildiği** ChannelConnection; giden Message için **outbox'ta kuyruklandığı**
+  bağlantı. iCal'in provenance'ı `calendarSourceId`, QR iç thread'in `qr-chat:` işaretçisi, elle giriş/dosya →
+  hepsinde NULL (damga UYDURULMAZ).
+- `…ingestedAt` (DateTime?) = bir INGRESS'in satıra **son dokunuşu** (create + senkron update = freshness;
+  değişmez #2'nin "freshness + ingest zamanı" bacağı). Host'un elle girdiği satır, AI/bot cevabı, doğrudan
+  gönderim → NULL. `createdAt` değişmez kalır; fark tam olarak "son ingest ne zaman" sorusudur.
+- `ChannelConnection.provenanceBackfilledAt` = legacy backfill'in bağlantı başına tek-seferlik işareti.
+- **Bağlantısız ingest (env fallback / legacy):** `ingestedAt` yine yazılır, `connectionId` NULL; daha önce
+  basılmış damga NULL ile **ezilmez** (`...(connectionId ? { connectionId } : {})`).
+- **Kimlik kararı (§4'te "V0.4'te verilecek"):** `sourceReference` unique'i BOZULMADI. Sahiplik provenance ile
+  taşınır: iCal satırı `calendarSourceId`, sağlayıcı satırı `connectionId`; ikisi aynı ilanı beslerse tahminî
+  birleştirme YOK — yetkili kaynak kullanıcı kararı (değişmez #6). Bu dilim yalnız sahiplik damgasını kurar,
+  öncelik/çözümleme kuralı V0.6 ingest write service'inde (aynı yazma servisi, aynı idempotency kapsamı).
+
+**Yazma noktaları (damga):** `hospitable-sync` (rezervasyon create+update · konuşma create+update · sağlayıcı
+mesajı create, HER iki yön) · `import/sync` iCal (create+update, yalnız `ingestedAt`) · elle `.ics/.csv` rotası
+(create + dosyadan iptal, yalnız `ingestedAt`) · QR (`ensureGuestChatConversation` + misafirin inbound satırı,
+yalnız `ingestedAt`; bot cevabı damgasız) · `outbox/enqueue` (giden Message `connectionId`, `ingestedAt` yok).
+Elle UI rezervasyon/konuşma (`api/reservations`, `api/conversations` POST) ve doğrudan gönderim yolu
+(`automation.ts`, reply rotaları) BİLEREK damgasız: birincisi ingest değil, ikincisi V0.5/V0.6'da hedef
+bağlantıdan çözülünce damgalanacak (bugün sendOnChannel bağlantı kimliğini dışarı vermiyor).
+
+**Backfill (`backfillProvenance`, `scheduled-sync` her geçişte, bağlantı backfill'inden SONRA):** `provider =
+hospitable` ve işareti NULL her bağlantı için (durum önemsiz — disconnected satır da tarihsel sahiptir), kiracı-
+kapsamlı üç `updateMany` (yalnız `connectionId IS NULL`): Reservation `calendarSourceId` NULL + `channel notIn
+[ics, manual]` + `sourceReference` dolu · Conversation `externalReservationId` dolu ve `qr-chat:` öneksiz ·
+Message yalnız o konuşmalarda ve yalnız `externalId` dolu. `ingestedAt` uydurulmaz. TX YOK (bilerek: büyük
+tabloda Prisma TX zaman aşımı → her geçişte baştan; NULL-only filtre yazımı idempotent kılar, yarım iş sonraki
+geçişte biter, işaret üç yazma bitince basılır). **Prod'da bugün 0 bağlantı satırı** (§10) → backfill Nuve
+"Mevcut bağlantıyı bu hesaba aktar"a basıp satır doğana kadar 0 satır; o an tek geçişte tüm Hospitable
+geçmişi damgalanır. ⚠️ Bilinen sınır: elle UI'dan girilmiş, kanalı "airbnb" ve referansı yazılmış LEGACY satır
+Hospitable satırından ayırt edilemez (yaşam-döngüsü kapısındaki aynı belirsizlik; V0.5 capability ile kapanır);
+migration sonrası satırlar için sorun yok (elle giriş NULL/NULL doğar).
+
+**Migration 50 (yerel doğrulama):** `prisma migrate diff --script` (shadow PG 5434) → yalnız 7 nullable
+`ADD COLUMN`, default YOK (bilerek: `@default(now())` PG'de mevcut satırlara migration anını yazar = sahte
+provenance), FK/index YOK, tablo yeniden yazımı YOK. Taze PG'de 00→50 `migrate deploy` ✅, sıfır drift ✅
+(`--exit-code`), `_prisma_migrations` 51 finished.
+
+**Kanıt (sözleşme §2):** kırmızı-önce 13 test 3 dosyada — `integration/provenance-ingest` (7: aktif bağlantıyla
+ingest her iki yön · yeniden senkron freshness + eski mesaj dokunulmaz · env fallback → bağlan → kaldır: NULL/
+damga/ezmeme · iCal bağlı org'da bile NULL + update freshness · .csv ingestedAt · QR misafir vs bot · enqueue
+Message damgası), `integration/provenance-backfill` (4: kapsam kuralları + ingestedAt uydurulmaz + işaret ·
+kiracı sınırı + idempotent ikinci geçiş + geç satır · disconnected bağlantı + org başına kendi id'si · önceden
+damgalı satır ezilmez), `integration/scheduled-sync-provenance-hook` (2: sıra + hata bloklamaz; V0.3'ün
+kancası da böylece ilk kez davranışsal pinlendi). Kırmızı: 13/13 (`Unknown argument ingestedAt/connectionId`,
+`backfillProvenance is not a function`, kanca çağrılmıyor) → yeşil 13/13. Etkilenen 14 dosya 218 test yeşil
+(sync · takvim · içe aktarma · QR uç nokta · dedupe dry-run/apply · outbox/connection · health · mimari pin).
+Şema kanaryası: Message 14→16, Conversation 23→25, Reservation 32→34 — karar yorumlu (opak id + damga,
+misafir verisi değil). Dedupe dry-run politika tabloları (kapsayıcı `Record`) yeni kolonu zorladı:
+Conversation `connectionId: keeper_wins`, `ingestedAt: system_managed`; Message için yeni `provenance`
+politikası (kopyalar farklı anda ingest edilir, kıyaslanmaz; `strict` dedupe'u gereksiz kapatırdı).
+**Mutasyonlar (13, iki yön, hepsi KIRMIZI):** M1 mesaj damgası yok · M2 rezervasyon update damgası yok · M3
+update damgayı KOŞULSUZ yazar (aşırı: NULL ile ezer) · M4 backfill kiracı kapsamı yok · M5 backfill ics/manual'ı
+da damgalar (aşırı) · M6 `qr-chat:` dışlaması yok · M7 işaret basılmıyor · M8 backfill `ingestedAt` uydurur
+(aşırı) · M9 scheduled-sync kancası yok · M10 iCal `ingestedAt` yok · M11 QR inbound `ingestedAt` yok · M12
+enqueue Message damgası yok · M13 backfill `externalId` şartı yok (kimliksiz yerel gönderim damgalanır).
+
+**Kapılar (son yerel ağaç):** tam suit 3535/314 yeşil · `tsc --noEmit` temiz · `eslint .` temiz · `next build`
+temiz · `audit:check` yeşil (0 triajsız) · migration zinciri 00→50 taze PG + sıfır drift. CI: koşmadı (push yok).
+
+**Geri alma:** additive — eski kod kolonları görmez; kod revert edilirse kolonlar zararsız durur (NULL). Backfill
+yalnız NULL'ları doldurur, geri alınacak veri yok. Bayrak YOK (okuma yolu değişmedi; kolonları bugün hiçbir
+karar okumaz — V0.5/V0.6 tüketir).
+
+**Operatör kapısı:** §10 adımları aynen (taze `pg_dump` + SHA + açık onay → push → CI 5/5, migration-chain 50'yi
+taze DB'de koşar → Railway `migrate deploy` (7 nullable ADD COLUMN, kısa katalog kilidi) → deploy sonrası
+kontrol: `SELECT migration_name, finished_at FROM _prisma_migrations WHERE migration_name='50_provenance'`;
+`SELECT count(*) FROM "Reservation" WHERE "ingestedAt" IS NOT NULL` ilk senkrondan sonra artmalı;
+`ChannelConnection` boşken backfill 0 = beklenen).
+
+**Kalan sınırlar:** doğrudan gönderim yolunun Message satırı damgasız (V0.5/V0.6) · iCal "unchanged" atlama
+dalı `ingestedAt`'i ilerletmez (`feedLastSeenAt` o işi yapıyor; ikisini birleştirmek V0.6) · Nuve env
+fallback'te olduğu sürece yeni satırları da `connectionId` NULL (tasarım gereği; adoption düğmesi çözer) ·
+`importThread`/`upsertReservationCalendar` ek parametresi opsiyonel (eski çağıranlar damgasız yazar — yalnız
+testler doğrudan çağırıyor) · conformance/fake = canlı sağlayıcı doğrulaması DEĞİL (§10 ile aynı).

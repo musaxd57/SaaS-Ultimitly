@@ -55,8 +55,9 @@ yetenek çıkarımı yasak.
 **Yürütme sırası (bu sıra prompttaki diğer sıraları ezer):** ① Codex denetimi kritik bulguları kodda
 doğrula+düzelt ✅ (8 P1, `docs/audit-2026-09-05/DURUM.md`) → ② test sözleşmesi ✅ → ③ **V0 Channel
 Independence** (V0.1 ✅ outbound dispatch · V0.2 ✅ provider fake + conformance kiti · V0.3 ✅ `ChannelConnection`
-canlı (migration 49 prod'da 09-07); sırada V0.4 provenance, V0.5 `messagingCapable`, V0.6 ingest write service +
-domain event, V0.7 `hospitable*` kolon contract'ı) → ④ deterministik **Availability Engine** → ⑤ geniş
+canlı (migration 49 prod'da 09-07) · V0.4 provenance KOD HAZIR, yerel — migration 50 push kapısında (pg_dump + onay);
+sonra V0.5 `messagingCapable` (migration'sız), V0.6 ingest write service + domain event, V0.7 `hospitable*` kolon
+contract'ı) → ④ deterministik **Availability Engine** → ⑤ geniş
 otonom AI yalnız yetki+guardrail+grounding+eval doğrulandıktan sonra. **V0 sırasında YAPILMAZ:**
 Availability Engine, RAG/GraphRAG, Property Memory, Exception Feed, Revenue Brain, Proof AI, Ask Lixus,
 Review/Issue tabloları. Yalnız dar, davranış-koruyan temel eklenebilir.
@@ -331,6 +332,15 @@ Sekiz P1 KAPANDI (09-07), her biri ayrı commit, kırmızı-önce + iki yönlü 
   yetenek yok / kimlik↔sağlayıcı uyuşmazlığı → definitive). Ortak fake `tests/helpers/fake-channel.ts`
   (dedupe YOK, sahipsiz rezervasyon 404, timeout=teslim-olabilir) + kit `tests/helpers/outbound-conformance.ts`
   — **yeni adaptör aynı kiti geçmek zorunda**; fake'in varsayımları gerçek adaptörle (fetch stub) pinli.
+- **Provenance (V0.4, migration 50 — 🚨 YEREL COMMIT, PUSH EDİLMEDİ; kapı: taze `pg_dump` + kurucu onayı,
+  envanter §11):** `Reservation/Conversation/Message.connectionId` = ingest edildiği (giden Message için
+  kuyruklandığı) bağlantı; `ingestedAt` = bir ingress'in satıra SON dokunuşu (create + senkron update). iCal
+  (`calendarSourceId`), QR (`qr-chat:`), elle giriş/dosya, AI/bot cevabı, doğrudan gönderim → `connectionId`
+  NULL, damga UYDURULMAZ; bağlantısız ingest önceki damgayı NULL ile EZMEZ. Legacy backfill
+  (`backfillProvenance`, scheduled-sync, bağlantı başına tek sefer `provenanceBackfilledAt`, kiracı-kapsamlı,
+  NULL-only, TX'siz) `ingestedAt` uydurmaz. Kolonlarda FK/index/default YOK (`@default(now())` sahte
+  provenance yazardı). Dedupe dry-run politikası: Conversation `keeper_wins`/`system_managed`, Message
+  `provenance` (kıyaslanmaz).
 - **ChannelConnection (V0.3, migration 49 — CANLI 09-07, kanıt envanter §10):** `(org, provider)` başına TEK satır, disconnect/reconnect AYNI satırı kullanır
   (kuyruk `connectionId` damgaları kopmaz); `generation` her kimlik-bilgisi yazımında artar = refresh CAS
   ikinci çapası (org blob + generation, ikisi de tek TX'te; biri 0 satır → gecikmiş refresh atılır).
@@ -401,8 +411,10 @@ Sekiz P1 KAPANDI (09-07), her biri ayrı commit, kırmızı-önce + iki yönlü 
   + conformance kiti `tests/helpers/outbound-conformance.ts` — fake ↔ gerçek adaptör aynı 14 senaryo; envanter §9).
   **V0.3 ✅ CANLI** (`922f784`, migration 49 prod'da 09-07 15:49Z; pg_dump SHA + kanıt envanter §10). Backfill 0
   satır BEKLENEN: prod'da DB token'lı org yok, Nuve `PRIMARY_ORG_ID` env fallback'inde → `CHANNEL_CONNECTION_READ`
-  DB'ye kaydedilmiş ilk gerçek bağlantı olmadan AÇILMAZ. Sıradaki V0.4 provenance. Availability Engine / RAG /
-  geniş otonom AI V0 bitmeden YOK.
+  DB'ye kaydedilmiş ilk gerçek bağlantı olmadan AÇILMAZ. **V0.4 provenance KOD HAZIR — yerel commit, PUSH
+  EDİLMEDİ** (migration 50 = 7 nullable ADD COLUMN; kapı §10 ile aynı: taze `pg_dump` + açık "push et"; envanter
+  §11). ⚠️ Konteyner sıfırlanırsa yerel commit kaybolur. V0.5 `messagingCapable` migration'sız, kapıdan sonra.
+  Availability Engine / RAG / geniş otonom AI V0 bitmeden YOK.
 - **Codex P2 (F09–F18)** ilgili modül turlarında. `docs/DENETIM-2026-08-09.md` (27 açık),
   `docs/ACIK-ISLER-2026-08-08.md` (16), `docs/MIGRATION-BEKLEYEN-ISLER.md`.
 - Operatör: bucket sağlayıcı görünürlüğü (imzasız URL 403 olmalı) · `weekly-audit.yml` `main`'e ·
@@ -416,7 +428,8 @@ Sekiz P1 KAPANDI (09-07), her biri ayrı commit, kırmızı-önce + iki yönlü 
   yol · halka açık sayfada çerez yenileme · `PADDLE_WEBHOOK_SECRET` boot kapısı.
 
 ## Durum
-**HEAD `0270eb3` (V0.3 canlı): 3522 test yeşil (311 dosya) · typecheck/lint/build temiz · migration 00–49 (50 klasör)
-sıfır-drift · CI 5/5 (run #950) · migration 49 prod'da uygulandı · Railway healthcheck-gated oto-deploy.** Son kod işi: Codex P1 turu (8 commit) + V0.1 (`2034aba`)
+**Yerel HEAD = V0.4 (PUSH EDİLMEDİ, migration 50): 3535 test yeşil (314 dosya) · typecheck/lint/build/audit temiz ·
+migration 00–50 (51 klasör) taze PG'de sıfır-drift · CI bu commit'te KOŞMADI. Origin HEAD `ed481b6` (V0.3 canlı):
+CI 5/5 (run #952) · migration 49 prod'da uygulandı · Railway healthcheck-gated oto-deploy.** Son kod işi: Codex P1 turu (8 commit) + V0.1 (`2034aba`)
 + V0.2 (`bc185db`) + V0.3 (yerel). Prod smoke bu ortamdan yapılamaz; operatör adımları
 `docs/audit-2026-09-05/DURUM.md` + `docs/V0-CHANNEL-INDEPENDENCE-INVENTORY.md` §10 (push kapısı).

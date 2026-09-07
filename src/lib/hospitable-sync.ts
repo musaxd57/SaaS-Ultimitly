@@ -14,6 +14,7 @@ import {
   type HospitableMessage,
 } from "@/lib/hospitable";
 import { getOrgHospitableToken } from "@/lib/hospitable-credentials";
+import { getActiveConnection } from "@/lib/channels/connections";
 import { reportError, redactSensitive } from "@/lib/report-error";
 import { createReservationTasks, removeAutoTasksForCancelledReservation } from "@/lib/automation";
 import { recordSupplyRequestFromMessage, sweepMissedSupplyDerivations } from "@/lib/supply";
@@ -189,6 +190,9 @@ export async function syncHospitable(
   // return immediately so one customer can never sync another's Airbnb data.
   const token = await getOrgHospitableToken(organizationId);
   if (!token) return result;
+  // V0.4 PROVENANCE: bu koşuda yazılan her satır org'un AKTİF bağlantısını taşır. Null =
+  // bağlantı satırı yok (env fallback / legacy) → damga UYDURULMAZ, ingestedAt yine yazılır.
+  const connectionId = (await getActiveConnection(organizationId, "hospitable"))?.id ?? null;
 
   // KVKK explicit-erasure gate (m40): one read per run; with zero tombstones the
   // guard is inert (nothing hashed, nothing checked). Non-empty → each incoming
@@ -327,7 +331,10 @@ export async function syncHospitable(
             await acquireErasureLock(tx, organizationId);
             const fresh = await loadErasureGuard(organizationId, tx);
             if (erasureBlocks(fresh)) return { blocked: true as const, id: null };
-            return { blocked: false as const, id: await upsertReservationCalendar(tx, propertyId, reservation) };
+            return {
+              blocked: false as const,
+              id: await upsertReservationCalendar(tx, propertyId, reservation, connectionId),
+            };
           },
           { timeout: 60_000, maxWait: 15_000 },
         );
@@ -484,6 +491,7 @@ export async function syncHospitable(
               messages,
               localReservationId,
               fresh.isEmpty ? null : fresh.messageCutoffFor(guardInput),
+              connectionId,
             );
           },
           { timeout: 180_000, maxWait: 15_000 },
@@ -787,6 +795,8 @@ async function upsertReservationCalendar(
   db: ErasureDb,
   propertyId: string,
   reservation: HospitableReservation,
+  /** V0.4 provenance: org'un aktif bağlantısı; null = damga yok (ezilmez), ingestedAt yine yazılır. */
+  connectionId: string | null = null,
 ): Promise<string | null> {
   const srcRef = String(reservation.id);
   const arrivalDate = parseDate(reservation.arrival_date) ?? parseDate(reservation.check_in);
@@ -847,6 +857,10 @@ async function upsertReservationCalendar(
         channel,
         status,
         ...(totalAmount !== null ? { totalAmount, totalAmountDec: toAmountDec(totalAmount), currency } : {}),
+        // V0.4 provenance: freshness her senkron dokunuşunda ilerler; damga yalnız VARSA yazılır
+        // (bağlantısız koşu önceki damgayı NULL ile ezmez).
+        ingestedAt: new Date(),
+        ...(connectionId ? { connectionId } : {}),
       },
     });
     return existing.id;
@@ -868,6 +882,8 @@ async function upsertReservationCalendar(
         totalAmountDec: toAmountDec(totalAmount) ?? undefined,
         currency,
         sourceReference: srcRef,
+        connectionId: connectionId ?? undefined,
+        ingestedAt: new Date(),
       },
       select: { id: true },
     });
@@ -1040,6 +1056,8 @@ export async function importThread(
   /** KVKK explicit-erasure cutoff for a tombstoned guest's ALLOWED new stay:
    *  messages at/before this instant never (re-)import. Null = no tombstone. */
   erasureCutoff: Date | null = null,
+  /** V0.4 provenance: org'un aktif bağlantısı; null = damga yok (ezilmez), ingestedAt yine yazılır. */
+  connectionId: string | null = null,
 ): Promise<{ imported: number; unimportable: number; supplyJobs: SupplyJob[] }> {
   const reservationId = String(reservation.id);
 
@@ -1139,6 +1157,8 @@ export async function importThread(
         reservationId: localReservationId,
         externalReservationId: reservationId,
         externalConversationId: str(reservation.conversation_id),
+        connectionId: connectionId ?? undefined,
+        ingestedAt: new Date(),
       },
       select: { id: true },
     });
@@ -1179,6 +1199,9 @@ export async function importThread(
         ...(localReservationId && !existing.reservationId
           ? { reservationId: localReservationId }
           : {}),
+        // V0.4 provenance (freshness + damga; bağlantısız koşu damgayı ezmez).
+        ingestedAt: new Date(),
+        ...(connectionId ? { connectionId } : {}),
       },
     });
     // ⚠️ ÇİTİN GERİ ALINMASI (denetim, 08-01 — üçüncü tur). Yukarıdaki
@@ -1328,6 +1351,9 @@ export async function importThread(
           language,
           externalId,
           createdAt: parseDate(m.created_at) ?? undefined,
+          // V0.4 provenance: sağlayıcıdan gelen HER iki yön ingest edilmiştir.
+          connectionId: connectionId ?? undefined,
+          ingestedAt: new Date(),
         },
         select: { id: true },
       });
