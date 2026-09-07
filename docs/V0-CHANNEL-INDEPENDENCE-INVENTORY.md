@@ -232,9 +232,10 @@ connector conformance kiti. V0.3 (`ChannelConnection`, additive) migration ister
 - Fake tek sağlayıcı slot'unu (`hospitable`) kullanır; `OutboundProvider` union'ı ikinci sağlayıcıyla
   genişlediğinde fake parametrik hâle gelir (tek satır).
 
-**KOD / CI / DEPLOY / PROD SMOKE:** KOD ✅ (yerel: typecheck · eslint · audit-check · tam `npm test` · `next build`
-— sayılar tur raporunda) · CI: push sonrası bu bölüme işlenir · DEPLOY: oto (yalnız "hiç kimlik yok"
-dalı değişti; canlıda ulaşılmaz) · PROD SMOKE: gerekmiyor (davranış değişimi ulaşılmaz dalda).
+**KOD / CI / DEPLOY / PROD SMOKE:** KOD ✅ (yerel: typecheck · eslint · audit-check · tam `npm test`
+**3502 test / 308 dosya** · `next build`) · CI ✅ run #946 (`34131768132`, HEAD `93fa5f2`, 2026-09-07
+14:13–14:23 UTC, 5/5: verify · build · e2e · migration-chain · security-audit) · DEPLOY: oto (yalnız "hiç
+kimlik yok" dalı değişti; canlıda ulaşılmaz) · PROD SMOKE: gerekmiyor (davranış değişimi ulaşılmaz dalda).
 
 **Sıradaki dilim — V0.3 (`ChannelConnection`, additive migration → taze `pg_dump` + açık onay kapısı):**
 credential'lar org kolonlarından bağlantı satırına dual-write; `auth_revoked` sınıfı ve "bağlantı koptu →
