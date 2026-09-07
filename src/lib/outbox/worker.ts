@@ -5,7 +5,7 @@ import { Prisma } from "@prisma/client";
 import { prisma } from "@/lib/db";
 import { orgTimezone, dateKeyInTimeZone } from "@/lib/timezone";
 import { reportError } from "@/lib/report-error";
-import { getOrgHospitableToken } from "@/lib/hospitable-credentials";
+import { getOrgHospitableToken, handleProviderAuthFailure } from "@/lib/hospitable-credentials";
 import { dispatchOutbound, resolveOutboundRoute } from "@/lib/channels";
 import { ANON_BODY } from "@/lib/data-retention";
 import {
@@ -66,6 +66,8 @@ export interface OutboxRow {
   body: string;
   status: string;
   attemptCount: number;
+  /** V0.3: ChannelConnection this send was enqueued under (null for pre-49 / unconnected rows). */
+  connectionId: string | null;
 }
 
 export interface OutboxSendOutcome {
@@ -290,7 +292,7 @@ async function claimBatchLocked(
     )
     RETURNING o."id", o."organizationId", o."conversationId", o."messageId",
               o."reservationId", o."channel", o."externalReservationId", o."messageType",
-              o."body", o."status", o."attemptCount"
+              o."body", o."status", o."attemptCount", o."connectionId"
   `);
   return rows;
 }
@@ -752,6 +754,30 @@ function errorCode(error: string | null | undefined): string {
 
 async function processOne(row: OutboxRow, token: string, deps: Required<Pick<DrainDeps, "now" | "send" | "reconcile" | "tokenFor">>, acc: DrainResult): Promise<void> {
   const now = deps.now();
+
+  // TENANT ↔ CONNECTION (V0.3): a row stamped with a connection that belongs to ANOTHER
+  // org must never be sent (nor reconciled) — it would use this org's credential for a
+  // destination queued under someone else's connection. Defensive: enqueue stamps the
+  // org's own connection; only a bug or a hand-edited row can produce this. Sending rows
+  // cancel; reconciling rows go to review (the only legal exit besides ambiguous/sent).
+  if (row.connectionId) {
+    const conn = await prisma.channelConnection.findUnique({ where: { id: row.connectionId }, select: { organizationId: true } });
+    if (conn && conn.organizationId !== row.organizationId) {
+      if (row.status === "reconciling") {
+        await settle(row, token, "reconciling", { status: "review", lastErrorKind: "canceled", lastErrorCode: "connection_tenant_mismatch", claimedBy: null, claimExpiresAt: null });
+        acc.review++;
+      } else {
+        await cancelRow(row, token, "connection_tenant_mismatch");
+        acc.canceled++;
+      }
+      await reportError(
+        "outbox-connection-tenant-mismatch",
+        new Error(`outbox row ${row.id} (org ${row.organizationId}) references connection ${row.connectionId} of another org`),
+      ).catch(() => {});
+      return;
+    }
+  }
+
   const providerToken = await deps.tokenFor(row.organizationId);
 
   // TENANT ISOLATION (Codex): a row whose org has NO usable token — i.e. the org
@@ -847,6 +873,35 @@ async function processOne(row: OutboxRow, token: string, deps: Required<Pick<Dra
       claimExpiresAt: null,
     });
     acc.rateLimited++;
+    return;
+  }
+  if (kind === "auth_revoked") {
+    // HTTP 401/403 — the provider REJECTED THE CREDENTIAL (V0.3). Not a per-message
+    // failure: nothing was delivered and re-sending with the same credential cannot
+    // succeed. Park the row back to `pending` WITHOUT consuming an attempt (429/402
+    // parity) and hand the decision to the credential store: OAuth → force a refresh
+    // (the token may simply be stale), PAT / freshly-refreshed OAuth → revoke the
+    // connection (org columns cleared, connection `revoked`, audit + alarm) so the host
+    // is told to reconnect; from then on the row parks as `disconnected` with NO
+    // provider call until the connection is active again.
+    const httpStatus = /HTTP (401|403)/.exec(outcome.error ?? "")?.[1] === "403" ? 403 : 401;
+    await settle(row, token, "sending", {
+      status: "pending",
+      availableAt: new Date(now.getTime() + backoffMs(row.attemptCount, row.id)),
+      attemptCount: { decrement: 1 },
+      lastErrorKind: "auth_revoked",
+      lastErrorCode: errorCode(outcome.error),
+      claimedBy: null,
+      claimExpiresAt: null,
+    });
+    try {
+      await handleProviderAuthFailure(row.organizationId, httpStatus);
+    } catch (err) {
+      // The row is already parked safely; the lifecycle decision failing must be visible,
+      // not fatal to the batch.
+      await reportError("outbox-auth-failure-handling", err).catch(() => {});
+    }
+    acc.retried++;
     return;
   }
   if (kind === "blocked") {

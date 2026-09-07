@@ -1,6 +1,7 @@
 import "server-only";
 
 import { prisma } from "@/lib/db";
+import { Prisma } from "@prisma/client";
 import { encryptSecret, decryptSecret } from "@/lib/crypto";
 import {
   getHospitableOAuthConfig,
@@ -9,6 +10,17 @@ import {
   type HospitableTokenSet,
 } from "@/lib/hospitable-oauth";
 import { reportError } from "@/lib/report-error";
+import { writeAudit } from "@/lib/audit";
+import {
+  getConnection,
+  upsertActiveConnection,
+  markConnectionDisconnected,
+  markConnectionRevoked,
+  casRotateConnectionTokens,
+  forceConnectionRefresh,
+  type ActiveConnection,
+  type RevokedReason,
+} from "@/lib/channels/connections";
 
 // ---------------------------------------------------------------------------
 // Per-organization Hospitable credentials (multi-tenant).
@@ -23,9 +35,25 @@ import { reportError } from "@/lib/report-error";
 // named by PRIMARY_ORG_ID, or — if unset — simply the OLDEST org (which, before
 // any customers are onboarded, is the founder's). New customer orgs are created
 // later, are never "oldest", and so NEVER fall back to the shared token.
+//
+// V0.3 (migration 49) — DUAL-WRITE to `ChannelConnection`. Every credential write
+// (connect / reconnect / refresh / disconnect / revoke) writes the org columns AND
+// the connection row in ONE transaction, with the SAME ciphertext (encrypted once).
+// Reads come from the org columns unless CHANNEL_CONNECTION_READ=1 (read-switch;
+// default off), in which case an existing connection row is authoritative and the
+// org columns are only a fallback for orgs the backfill has not reached yet.
+// The refresh race is fenced TWICE: the org refresh-token blob (F04) and the
+// connection `generation` — a stale refresh matches 0 rows on either and is dropped.
 // ---------------------------------------------------------------------------
 
 let primaryOrgIdCache: string | null | undefined;
+
+const PROVIDER = "hospitable" as const;
+
+/** Read-switch: an existing ChannelConnection row is the credential authority. */
+function readFromConnection(): boolean {
+  return process.env.CHANNEL_CONNECTION_READ === "1";
+}
 
 /** Id of the org allowed to fall back to the global env token (see file header). */
 async function primaryOrgId(): Promise<string | null> {
@@ -65,10 +93,9 @@ const TOKEN_REFRESH_BUFFER_MS = 2 * 60 * 1000;
  * MUST treat null as "not connected" and skip syncing/sending for that org
  * (never fall back to another org's token).
  *
- * PAT connections (hospitableTokenExpiresAt is null) are returned as-is, same
- * as always. OAuth connections carry an expiry; when it's due this
- * transparently refreshes (using the stored refresh token) before returning,
- * so every existing caller keeps working with zero changes on their end.
+ * PAT connections (no expiry) are returned as-is. OAuth connections carry an
+ * expiry; when it's due this transparently refreshes (using the stored refresh
+ * token) before returning, so every existing caller keeps working unchanged.
  */
 export async function getOrgHospitableToken(orgId: string): Promise<string | null> {
   const org = await prisma.organization.findUnique({
@@ -77,19 +104,33 @@ export async function getOrgHospitableToken(orgId: string): Promise<string | nul
   });
   if (!org) return null;
 
-  if (org.hospitableTokenEnc) {
+  // Credential SOURCE: org columns (default) or the connection row (read-switch).
+  let conn: ActiveConnection | null = null;
+  let source: { accessTokenEnc: string | null; refreshTokenEnc: string | null; tokenExpiresAt: Date | null } = {
+    accessTokenEnc: org.hospitableTokenEnc,
+    refreshTokenEnc: org.hospitableRefreshTokenEnc,
+    tokenExpiresAt: org.hospitableTokenExpiresAt,
+  };
+  if (readFromConnection()) {
+    conn = await getConnection(orgId, PROVIDER);
+    if (conn) {
+      // Row exists → it is the authority. A non-active row means "not connected",
+      // whatever the (not-yet-contracted) org columns still say.
+      source =
+        conn.status === "active"
+          ? { accessTokenEnc: conn.accessTokenEnc, refreshTokenEnc: conn.refreshTokenEnc, tokenExpiresAt: conn.tokenExpiresAt }
+          : { accessTokenEnc: null, refreshTokenEnc: null, tokenExpiresAt: null };
+    }
+  }
+
+  if (source.accessTokenEnc) {
     let accessToken: string;
     try {
-      accessToken = decryptSecret(org.hospitableTokenEnc);
+      accessToken = decryptSecret(source.accessTokenEnc);
     } catch (err) {
-      // ⚠️ SESSİZ DEĞİL (denetim, 07-31). Bu dala düşmek "şifreleme anahtarı
-      // yanlış/eksik ya da satır bozuk" demektir ve etkisi tek org'la sınırlı
-      // olmayabilir: hatalı bir `ENCRYPTION_KEY` ile HER kiracı aynı anda
-      // "Hospitable bağlı değil" olur, senkron ve oto-yanıt durur — ama
-      // `/api/health` 200 kalır (zamanlayıcı koşmaya devam eder) ve hiçbir yere
-      // TEK bir olay düşmezdi. Kardeş yollar (2FA gizli anahtarı, takvim feed
-      // URL'i) bunu baştan doğru yapıyordu; ürünün en kritik kimlik bilgisi
-      // istisnaydı. Context org'a göre SABİT → 10 dk'lık throttle çalışır.
+      // ⚠️ SESSİZ DEĞİL (denetim, 07-31): hatalı bir ENCRYPTION_KEY ile HER kiracı
+      // aynı anda "bağlı değil" olur; sync ve oto-yanıt durur ama /api/health 200
+      // kalır. Context org'a göre SABİT → 10 dk'lık throttle çalışır.
       void reportError(
         `hospitable-token-undecryptable org:${orgId}`,
         err instanceof Error ? err : new Error(String(err)),
@@ -98,14 +139,18 @@ export async function getOrgHospitableToken(orgId: string): Promise<string | nul
     }
 
     // PAT (no expiry tracked) — unchanged legacy path.
-    if (!org.hospitableTokenExpiresAt) return accessToken;
+    if (!source.tokenExpiresAt) return accessToken;
 
-    const dueForRefresh = org.hospitableTokenExpiresAt.getTime() - TOKEN_REFRESH_BUFFER_MS <= Date.now();
+    const dueForRefresh = source.tokenExpiresAt.getTime() - TOKEN_REFRESH_BUFFER_MS <= Date.now();
     if (!dueForRefresh) return accessToken;
 
-    return refreshOrgOAuthToken(orgId, org.hospitableRefreshTokenEnc, {
+    // Refresh CAS anchors are read NOW (before the provider round-trip): the org
+    // refresh blob and the connection generation. Either changing underneath us
+    // (disconnect / reconnect / winning refresh) discards the late result.
+    const connAtStart = conn ?? (await getConnection(orgId, PROVIDER));
+    return refreshOrgOAuthToken(orgId, source.refreshTokenEnc, org.hospitableRefreshTokenEnc, connAtStart, {
       currentAccessToken: accessToken,
-      expiresAt: org.hospitableTokenExpiresAt,
+      expiresAt: source.tokenExpiresAt,
     });
   }
 
@@ -114,6 +159,9 @@ export async function getOrgHospitableToken(orgId: string): Promise<string | nul
   if (env && (await primaryOrgId()) === orgId) return env;
   return null;
 }
+
+/** Thrown inside the persist transaction when a CAS anchor no longer matches. */
+class StaleRefresh extends Error {}
 
 /**
  * Refresh an expired OAuth access token and persist the new token set. Returns
@@ -124,6 +172,8 @@ export async function getOrgHospitableToken(orgId: string): Promise<string | nul
 async function refreshOrgOAuthToken(
   orgId: string,
   refreshTokenEnc: string | null,
+  orgRefreshBlobAtStart: string | null,
+  connAtStart: ActiveConnection | null,
   fallback?: { currentAccessToken: string; expiresAt: Date },
 ): Promise<string | null> {
   const config = getHospitableOAuthConfig();
@@ -138,32 +188,17 @@ async function refreshOrgOAuthToken(
 
   try {
     const tokens = await refreshAccessToken(config, refreshToken);
-    // ⚠️ PERSIST KENDİ TRY'INDA (denetim, 08-01 — dördüncü tur, ajan bulgusu).
-    // Refresh token'ları ROTASYONLUDUR: bu çağrı başarılı döndüyse eski token
-    // sağlayıcıda ARTIK HARCANMIŞTIR. Persist düşerse yeni token yalnız BELLEKTE
-    // kalır, DB'de harcanmış eski token durur → bir sonraki tur `invalid_grant`
-    // → `authFailure` dalı → kiracının bağlantısı SİLİNİR (2 dk gecikmeli ama
-    // kesin). Persist'i `refreshAccessToken` ile aynı `catch`e bırakmak bu
-    // KALICI kaybı geçici bir ağ hatasıyla aynı kovaya koyuyordu.
-    // Bir kez ANINDA yeniden dene; yine düşerse AYRI ve yüksek-sinyalli bir
-    // alarm bas ve TAZE access token'ı döndür — bu tur hiç değilse tam çalışsın
-    // (eski `fallback` token'ı en fazla birkaç dakikalıktı).
-    // 🚨 BAŞARI YOLU DA SAHİPLİĞE BAĞLI (Codex F04, P1). Persist artık CAS:
-    // yalnız satırdaki refresh blob'u HÂLÂ bu refresh'in BAŞLARKEN okuduğu blob
-    // ise yazar. Refresh sağlayıcıda beklerken host bağlantıyı KALDIRDIYSA
-    // (`clearOrgHospitableToken`) ya da BAŞKA hesapla yeniden bağlandıysa
-    // (`setOrgHospitableOAuthTokens`) blob değişmiştir → 0 satır → gecikmiş
-    // sonuç ne DB'ye yazılır ne çağırana "aktif token" diye verilir. Eskiden
-    // `update({where:{id}})` koşulsuzdu: kaldırılmış bağlantı DİRİLİYOR, seçilen
-    // yeni hesap eskisiyle EZİLİYORDU (hata dalı #6'da koşulluydu, başarı dalı
-    // değildi). Generation kolonu YOK: blob'u değiştiren her yazma generation'ı
-    // ilerletmiş sayılır; DB-düzeyinde olduğu için çoklu instance'ta da geçerli.
+    // ⚠️ PERSIST KENDİ TRY'INDA (denetim, 08-01). Refresh token'ları ROTASYONLUDUR:
+    // bu çağrı başarılı döndüyse eski token sağlayıcıda HARCANMIŞTIR. Persist
+    // düşerse bir kez ANINDA yeniden dene; yine düşerse ayrı alarm + taze token
+    // döndür (bu tur hiç değilse çalışsın). CAS kaybı (0 satır) ise ayrı: bağlantı
+    // bu refresh sürerken değişti → gecikmiş token ne yazılır ne verilir (F04).
     let persisted: boolean;
     try {
-      persisted = await persistOAuthTokenSet(orgId, tokens, refreshTokenEnc);
+      persisted = await persistOAuthTokenSet(orgId, tokens, orgRefreshBlobAtStart, connAtStart);
     } catch {
       try {
-        persisted = await persistOAuthTokenSet(orgId, tokens, refreshTokenEnc);
+        persisted = await persistOAuthTokenSet(orgId, tokens, orgRefreshBlobAtStart, connAtStart);
       } catch (persistErr) {
         void reportError(
           `hospitable-oauth-persist org:${orgId}`,
@@ -173,15 +208,10 @@ async function refreshOrgOAuthToken(
             { cause: persistErr },
           ),
         );
-        // DB yazılamadı (geçici arıza) — sahiplik BİLİNMİYOR ama sözleşme değişmedi:
-        // bu tur hiç değilse çalışsın (eski davranış, ↑gerekçe). CAS kaybıyla KARIŞTIRMA.
         return tokens.accessToken;
       }
     }
     if (!persisted) {
-      // Bağlantı bu refresh sürerken değişti (disconnect / reconnect / kazanan
-      // refresh). Gecikmiş token AKTİF DEĞİLDİR; bir sonraki tur güncel satırı okur.
-      // Beklenen, zararsız bir yarış → alarm değil, izli log (sır yok).
       console.warn(`[hospitable-credentials] stale refresh result discarded (connection changed mid-refresh) org:${orgId}`);
       return null;
     }
@@ -190,40 +220,28 @@ async function refreshOrgOAuthToken(
     void reportError(`hospitable-oauth-refresh org:${orgId}`, err);
 
     if (err instanceof HospitableOAuthError && err.authFailure) {
-      // The refresh token itself is dead (expired/reused/revoked) — the
-      // connection cannot self-heal. Clear it so Settings correctly shows
-      // "not connected" and the host is prompted to reconnect.
-      //
-      // BUT only if the STORED refresh token is still the exact one we just
-      // failed with. Two overlapping refreshes both send the SAME old token;
-      // Hospitable rotates refresh tokens (single-use), so the winner persists
-      // a fresh token and the loser gets invalid_grant on the now-spent old one.
-      // An unconditional clear here would wipe the winner's just-saved valid token.
-      //
-      // ATOMIC: a findUnique-then-clear (check-then-act) still races the winner's
-      // persist — the winner can rotate in a fresh token BETWEEN our read and our
-      // clear, and we'd then wipe it (lost update). Putting the blob in the
-      // updateMany WHERE makes the clear a no-op the instant the winner has rotated
-      // (0 rows matched) — no read-then-act window. Mirrors clearOrgHospitableToken's
-      // field set, gated on the token still being ours.
-      const cleared = await prisma.organization.updateMany({
-        where: { id: orgId, hospitableRefreshTokenEnc: refreshTokenEnc },
-        data: {
-          hospitableTokenEnc: null,
-          hospitableRefreshTokenEnc: null,
-          hospitableTokenExpiresAt: null,
-          hospitableLabel: null,
-          hospitableConnectedAt: null,
-        },
+      // The refresh token itself is dead (expired/reused/revoked) — the connection
+      // cannot self-heal. Clear it so Settings correctly shows "not connected" and
+      // the host is prompted to reconnect. ATOMIC + CONDITIONAL (F04): only if the
+      // stored blob is still the one we failed with (a concurrent winner may have
+      // rotated a fresh token in); the connection row is revoked in the SAME
+      // transaction so the two records can never disagree.
+      const cleared = await prisma.$transaction(async (tx) => {
+        const c = await tx.organization.updateMany({
+          where: { id: orgId, hospitableRefreshTokenEnc: refreshTokenEnc },
+          data: {
+            hospitableTokenEnc: null,
+            hospitableRefreshTokenEnc: null,
+            hospitableTokenExpiresAt: null,
+            hospitableLabel: null,
+            hospitableConnectedAt: null,
+          },
+        });
+        if (c.count === 1) await markConnectionRevoked(orgId, PROVIDER, "refresh_invalid_grant", tx);
+        return c.count;
       });
-      // ⚠️ SİLME AYRI VE YÜKSEK-SİNYALLİ RAPORLANIR (denetim, 08-01 — dördüncü tur).
-      // Yukarıdaki genel `reportError` GEÇİCİ hatalarla AYNI context'i kullanıyor;
-      // operatör "ağ hıçkırığı" ile "kiracının bağlantısı KOPTU"yu ayırt edemiyordu.
-      // Bağlantı silinince o org'un senkronu sessizce atlanır (`getOrgHospitableToken`
-      // null döner) — hiçbir 401/403 uyarısı bile tetiklenmez, çünkü çağrı yapılmaz.
-      // ⚠️ HOST'A BİLDİRİM GİTMİYOR: yeni bir müşteri e-postası ürün/e-posta akışı
-      //    kararıdır, tek başıma eklemiyorum → `docs/MIGRATION-BEKLEYEN-ISLER.md`.
-      if (cleared.count === 1) {
+      if (cleared === 1) {
+        await auditConnectionRevoked(orgId, "refresh_invalid_grant");
         void reportError(
           `hospitable-oauth-disconnected org:${orgId}`,
           new Error("Refresh token ölü — kiracının Hospitable bağlantısı kaldırıldı, yeniden bağlanmalı."),
@@ -233,9 +251,8 @@ async function refreshOrgOAuthToken(
     }
 
     // Transient failure (network/5xx) — leave the stored refresh token alone and
-    // let the next cycle retry. We only refresh inside a small pre-expiry buffer,
-    // so if the current access token hasn't ACTUALLY expired yet, hand it back so
-    // this sync/send cycle still works instead of going dark for a transient blip.
+    // let the next cycle retry. If the current access token hasn't ACTUALLY
+    // expired yet, hand it back so this cycle still works.
     if (fallback && fallback.expiresAt.getTime() > Date.now()) {
       return fallback.currentAccessToken;
     }
@@ -244,47 +261,89 @@ async function refreshOrgOAuthToken(
 }
 
 /**
- * Persist a rotated token set — ONLY if the stored refresh blob is still the one this
- * refresh started from (compare-and-set on the ciphertext, F04). Returns whether the
- * write landed; `false` = the connection changed underneath (cleared / reconnected /
- * rotated by a concurrent winner) and NOTHING was written. Throws on a DB error.
+ * Persist a rotated token set — ONLY if BOTH CAS anchors still hold: the org
+ * refresh blob read at refresh start (F04) and the connection generation read at
+ * refresh start (V0.3). Returns whether the write landed; `false` = the connection
+ * changed underneath (cleared / reconnected / rotated by a concurrent winner) and
+ * NOTHING was written. Throws on a DB error (the caller retries once).
  */
 async function persistOAuthTokenSet(
   orgId: string,
   tokens: HospitableTokenSet,
-  expectedRefreshTokenEnc: string,
+  expectedOrgRefreshBlob: string | null,
+  connAtStart: ActiveConnection | null,
 ): Promise<boolean> {
-  const res = await prisma.organization.updateMany({
-    where: { id: orgId, hospitableRefreshTokenEnc: expectedRefreshTokenEnc },
-    data: {
-      hospitableTokenEnc: encryptSecret(tokens.accessToken),
-      hospitableRefreshTokenEnc: encryptSecret(tokens.refreshToken),
-      hospitableTokenExpiresAt: tokens.expiresAt,
-    },
+  const accessTokenEnc = encryptSecret(tokens.accessToken);
+  const refreshTokenEnc = encryptSecret(tokens.refreshToken);
+  try {
+    await prisma.$transaction(async (tx) => {
+      const org = await tx.organization.updateMany({
+        where: { id: orgId, hospitableRefreshTokenEnc: expectedOrgRefreshBlob },
+        data: { hospitableTokenEnc: accessTokenEnc, hospitableRefreshTokenEnc: refreshTokenEnc, hospitableTokenExpiresAt: tokens.expiresAt },
+      });
+      if (org.count !== 1) throw new StaleRefresh();
+      if (connAtStart) {
+        const ok = await casRotateConnectionTokens(
+          connAtStart.id,
+          connAtStart.generation,
+          { accessTokenEnc, refreshTokenEnc, tokenExpiresAt: tokens.expiresAt },
+          tx,
+        );
+        if (!ok) throw new StaleRefresh();
+      } else {
+        // Backfill has not reached this org yet → converge now. `create` (not upsert):
+        // a row appearing meanwhile (reconnect race) is a P2002 → stale.
+        try {
+          await tx.channelConnection.create({
+            data: { organizationId: orgId, provider: PROVIDER, status: "active", accessTokenEnc, refreshTokenEnc, tokenExpiresAt: tokens.expiresAt, generation: 1, connectedAt: new Date() },
+          });
+        } catch (err) {
+          if (err instanceof Prisma.PrismaClientKnownRequestError && err.code === "P2002") throw new StaleRefresh();
+          throw err;
+        }
+      }
+    });
+    return true;
+  } catch (err) {
+    if (err instanceof StaleRefresh) return false;
+    throw err;
+  }
+}
+
+async function auditConnectionRevoked(orgId: string, reason: RevokedReason): Promise<void> {
+  await writeAudit({
+    organizationId: orgId,
+    actorUserId: null,
+    action: "channel.connection_revoked",
+    metadata: { provider: PROVIDER, reason },
   });
-  return res.count === 1;
 }
 
 /**
  * Store the initial token set from a completed OAuth connect flow. Unlike the
  * PAT path (setOrgHospitableToken), this also tracks the refresh token +
  * expiry, so getOrgHospitableToken knows to refresh instead of treating it as
- * a permanent token.
+ * a permanent token. Dual-writes the ChannelConnection row (same ciphertext).
  */
 export async function setOrgHospitableOAuthTokens(
   orgId: string,
   tokens: HospitableTokenSet,
   label: string | null,
 ): Promise<void> {
-  await prisma.organization.update({
-    where: { id: orgId },
-    data: {
-      hospitableTokenEnc: encryptSecret(tokens.accessToken),
-      hospitableRefreshTokenEnc: encryptSecret(tokens.refreshToken),
-      hospitableTokenExpiresAt: tokens.expiresAt,
-      hospitableLabel: label,
-      hospitableConnectedAt: new Date(),
-    },
+  const accessTokenEnc = encryptSecret(tokens.accessToken);
+  const refreshTokenEnc = encryptSecret(tokens.refreshToken);
+  await prisma.$transaction(async (tx) => {
+    await tx.organization.update({
+      where: { id: orgId },
+      data: {
+        hospitableTokenEnc: accessTokenEnc,
+        hospitableRefreshTokenEnc: refreshTokenEnc,
+        hospitableTokenExpiresAt: tokens.expiresAt,
+        hospitableLabel: label,
+        hospitableConnectedAt: new Date(),
+      },
+    });
+    await upsertActiveConnection(orgId, PROVIDER, { accessTokenEnc, refreshTokenEnc, tokenExpiresAt: tokens.expiresAt, label }, tx);
   });
 }
 
@@ -338,35 +397,104 @@ export async function getConnectionInfo(orgId: string): Promise<HospitableConnec
  * clears any OAuth refresh/expiry fields — a PAT never expires, so if an org
  * previously connected via OAuth and now pastes a PAT instead (or an operator
  * resets it), getOrgHospitableToken must treat it as the non-expiring legacy
- * path, not try to "refresh" a manually-entered token.
+ * path, not try to "refresh" a manually-entered token. Dual-writes the connection.
  */
 export async function setOrgHospitableToken(
   orgId: string,
   token: string,
   label: string | null,
 ): Promise<void> {
-  await prisma.organization.update({
-    where: { id: orgId },
-    data: {
-      hospitableTokenEnc: encryptSecret(token),
-      hospitableRefreshTokenEnc: null,
-      hospitableTokenExpiresAt: null,
-      hospitableLabel: label,
-      hospitableConnectedAt: new Date(),
-    },
+  const accessTokenEnc = encryptSecret(token);
+  await prisma.$transaction(async (tx) => {
+    await tx.organization.update({
+      where: { id: orgId },
+      data: {
+        hospitableTokenEnc: accessTokenEnc,
+        hospitableRefreshTokenEnc: null,
+        hospitableTokenExpiresAt: null,
+        hospitableLabel: label,
+        hospitableConnectedAt: new Date(),
+      },
+    });
+    await upsertActiveConnection(orgId, PROVIDER, { accessTokenEnc, refreshTokenEnc: null, tokenExpiresAt: null, label }, tx);
   });
 }
 
 /** Remove an org's stored Hospitable token (disconnect) — PAT or OAuth alike. */
 export async function clearOrgHospitableToken(orgId: string): Promise<void> {
-  await prisma.organization.update({
-    where: { id: orgId },
-    data: {
-      hospitableTokenEnc: null,
-      hospitableRefreshTokenEnc: null,
-      hospitableTokenExpiresAt: null,
-      hospitableLabel: null,
-      hospitableConnectedAt: null,
-    },
+  await prisma.$transaction(async (tx) => {
+    await tx.organization.update({
+      where: { id: orgId },
+      data: {
+        hospitableTokenEnc: null,
+        hospitableRefreshTokenEnc: null,
+        hospitableTokenExpiresAt: null,
+        hospitableLabel: null,
+        hospitableConnectedAt: null,
+      },
+    });
+    await markConnectionDisconnected(orgId, PROVIDER, tx);
   });
+}
+
+export type ProviderAuthFailureOutcome = "refresh_forced" | "revoked" | "noop";
+
+/**
+ * The provider rejected this org's credential on an authenticated call (HTTP
+ * 401/403 on a send — V0.3 `auth_revoked`). Lifecycle decision, mirroring what the
+ * refresh path already does for a dead refresh token:
+ *   · OAuth (refresh token present) and NOT freshly refreshed → force a refresh on
+ *     the next read (the access token may simply be stale); the row waits.
+ *   · OAuth freshly refreshed (< 10 min) and STILL rejected, or PAT → the credential
+ *     is dead: clear the org columns (conditionally — a just-reconnected token is
+ *     never wiped), mark the connection `revoked`, audit + alarm. Settings shows
+ *     "not connected"; queued rows park (no provider call) until the host reconnects.
+ * Never throws — callers are on the worker hot path.
+ */
+export async function handleProviderAuthFailure(orgId: string, status: 401 | 403): Promise<ProviderAuthFailureOutcome> {
+  const org = await prisma.organization.findUnique({
+    where: { id: orgId },
+    select: { hospitableTokenEnc: true, hospitableRefreshTokenEnc: true },
+  });
+  if (!org || !org.hospitableTokenEnc) return "noop"; // already disconnected
+
+  const conn = await getConnection(orgId, PROVIDER);
+  const lastRefreshAt = conn
+    ? (await prisma.channelConnection.findUnique({ where: { id: conn.id }, select: { lastRefreshAt: true } }))?.lastRefreshAt ?? null
+    : null;
+  const freshlyRefreshed = lastRefreshAt != null && Date.now() - lastRefreshAt.getTime() < 10 * 60_000;
+
+  if (org.hospitableRefreshTokenEnc && !freshlyRefreshed) {
+    await prisma.$transaction(async (tx) => {
+      await tx.organization.updateMany({
+        where: { id: orgId, hospitableTokenEnc: org.hospitableTokenEnc },
+        data: { hospitableTokenExpiresAt: new Date(0) },
+      });
+      await forceConnectionRefresh(orgId, PROVIDER, tx);
+    });
+    return "refresh_forced";
+  }
+
+  const reason: RevokedReason = status === 403 ? "send_403" : "send_401";
+  const cleared = await prisma.$transaction(async (tx) => {
+    const c = await tx.organization.updateMany({
+      where: { id: orgId, hospitableTokenEnc: org.hospitableTokenEnc }, // CAS: yeni bağlanmış token silinmez
+      data: {
+        hospitableTokenEnc: null,
+        hospitableRefreshTokenEnc: null,
+        hospitableTokenExpiresAt: null,
+        hospitableLabel: null,
+        hospitableConnectedAt: null,
+      },
+    });
+    if (c.count === 1) await markConnectionRevoked(orgId, PROVIDER, reason, tx);
+    return c.count;
+  });
+  if (cleared !== 1) return "noop";
+  await auditConnectionRevoked(orgId, reason);
+  void reportError(
+    `hospitable-auth-revoked org:${orgId}`,
+    new Error(`Sağlayıcı kimlik bilgisini reddetti (HTTP ${status}) — kiracının Hospitable bağlantısı kaldırıldı, yeniden bağlanmalı.`),
+  );
+  return "revoked";
 }

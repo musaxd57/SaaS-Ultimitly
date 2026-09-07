@@ -27,6 +27,7 @@ export async function resetDb(): Promise<void> {
   await prisma.property.deleteMany();
   await prisma.emailOutbox.deleteMany(); // FK → User; clear before users
   await prisma.user.deleteMany();
+  await prisma.channelConnection.deleteMany(); // FK → Organization (cascade would cover it; explicit for clarity)
   await prisma.organization.deleteMany();
 }
 

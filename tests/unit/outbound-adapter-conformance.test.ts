@@ -23,6 +23,7 @@ describeOutboundConformance("ortak fake (tests/helpers/fake-channel.ts)", () => 
         case "succeed": fake.behave({ mode: "succeed" }); break;
         case "reject_404": fake.registerReservation(DEST, "tok-of-ANOTHER-tenant"); break; // sahiplik başkasında → 404
         case "reject_401": fake.behave({ mode: "reject", status: 401 }); break;
+        case "reject_403": fake.behave({ mode: "reject", status: 403 }); break;
         case "reject_422": fake.behave({ mode: "reject", status: 422 }); break;
         case "rate_limit_30": fake.behave({ mode: "rate_limit", retryAfterSec: 30 }); break;
         case "blocked_402": fake.behave({ mode: "blocked" }); break;
@@ -61,6 +62,7 @@ describeOutboundConformance("gerçek Hospitable adaptörü (fetch stub)", () => 
         return json(200, { data: { id: `prov-${++seq}` } });
       case "reject_404": return json(404, { message: "Reservation not found" });
       case "reject_401": return json(401, { message: "Unauthenticated" });
+      case "reject_403": return json(403, { message: "Forbidden" });
       case "reject_422": return json(422, { message: "Invalid body" });
       case "rate_limit_30": return json(429, { message: "Too Many Attempts" }, { "Retry-After": "30" });
       case "blocked_402": return json(402, { message: "Subscription not active" });

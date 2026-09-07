@@ -136,7 +136,11 @@ export type SendResultKind =
   | "definitive_failure"
   | "ambiguous"
   | "rate_limited"
-  | "blocked";
+  | "blocked"
+  // V0.3: the provider REJECTED THE CREDENTIAL (HTTP 401/403). Nothing delivered, but
+  // not a per-message failure either — a CONNECTION lifecycle event: the row parks
+  // (attempt not consumed) and the credential store decides (refresh / revoke).
+  | "auth_revoked";
 
 /**
  * Classify a provider send outcome. Mirrors the manual-reply route's existing
@@ -165,6 +169,7 @@ export function classifySendResult(outcome: {
     const status = Number(m[1]);
     if (status === 429) return "rate_limited"; // too many requests → defer, do not consume an attempt
     if (status === 402) return "blocked"; //      subscription not active → park (persistent), reactivate on sync
+    if (status === 401 || status === 403) return "auth_revoked"; // credential rejected → connection lifecycle (V0.3)
     if (status >= 400 && status < 500 && status !== 408) return "definitive_failure";
     return "ambiguous"; // 5xx / 408 → may have applied
   }

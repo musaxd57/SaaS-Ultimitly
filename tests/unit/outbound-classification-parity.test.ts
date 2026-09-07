@@ -42,6 +42,8 @@ describe("classifyHospitableOutcome — durum kodu ↔ metin regex'i", () => {
     expect(classifyHospitableOutcome({ ok: false, status: 429, error: "" })).toBe("rate_limited");
     expect(classifyHospitableOutcome({ ok: false, status: 402, error: "" })).toBe("blocked");
     expect(classifyHospitableOutcome({ ok: false, status: 404, error: "" })).toBe("definitive_failure");
+    expect(classifyHospitableOutcome({ ok: false, status: 401, error: "" })).toBe("auth_revoked");
+    expect(classifyHospitableOutcome({ ok: false, status: 403, error: "" })).toBe("auth_revoked");
     expect(classifyHospitableOutcome({ ok: false, status: 408, error: "" })).toBe("ambiguous");
     expect(classifyHospitableOutcome({ ok: false, status: 503, error: "" })).toBe("ambiguous");
     // Aynı girdide regex hiçbir şey göremez → bu ayrımın tipli yolla geldiği kanıt.

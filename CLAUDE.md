@@ -54,8 +54,8 @@ migrasyonu → bridge removal · (20) mimari pin: provider import / `hospitable*
 yetenek çıkarımı yasak.
 **Yürütme sırası (bu sıra prompttaki diğer sıraları ezer):** ① Codex denetimi kritik bulguları kodda
 doğrula+düzelt ✅ (8 P1, `docs/audit-2026-09-05/DURUM.md`) → ② test sözleşmesi ✅ → ③ **V0 Channel
-Independence** (V0.1 ✅ outbound dispatch · V0.2 ✅ provider fake + conformance kiti; sırada V0.3
-`ChannelConnection` migration→onay, V0.4 provenance, V0.5 `messagingCapable`, V0.6 ingest write service +
+Independence** (V0.1 ✅ outbound dispatch · V0.2 ✅ provider fake + conformance kiti · V0.3 kod hazır, yerel
+— `ChannelConnection` migration push'u ONAY bekliyor; sonra V0.4 provenance, V0.5 `messagingCapable`, V0.6 ingest write service +
 domain event, V0.7 `hospitable*` kolon contract'ı) → ④ deterministik **Availability Engine** → ⑤ geniş
 otonom AI yalnız yetki+guardrail+grounding+eval doğrulandıktan sonra. **V0 sırasında YAPILMAZ:**
 Availability Engine, RAG/GraphRAG, Property Memory, Exception Feed, Revenue Brain, Proof AI, Ask Lixus,
@@ -331,6 +331,19 @@ Sekiz P1 KAPANDI (09-07), her biri ayrı commit, kırmızı-önce + iki yönlü 
   yetenek yok / kimlik↔sağlayıcı uyuşmazlığı → definitive). Ortak fake `tests/helpers/fake-channel.ts`
   (dedupe YOK, sahipsiz rezervasyon 404, timeout=teslim-olabilir) + kit `tests/helpers/outbound-conformance.ts`
   — **yeni adaptör aynı kiti geçmek zorunda**; fake'in varsayımları gerçek adaptörle (fetch stub) pinli.
+- **ChannelConnection (V0.3, migration 49 — 🚨 YEREL COMMIT, PUSH EDİLMEDİ; kapı: taze `pg_dump` + kurucu
+  onayı, envanter §10):** `(org, provider)` başına TEK satır, disconnect/reconnect AYNI satırı kullanır
+  (kuyruk `connectionId` damgaları kopmaz); `generation` her kimlik-bilgisi yazımında artar = refresh CAS
+  ikinci çapası (org blob + generation, ikisi de tek TX'te; biri 0 satır → gecikmiş refresh atılır).
+  **Dual-write:** bağlan/kaldır/refresh/revoke org kolonları VE satır, aynı ciphertext (bir kez şifrelenir).
+  **Okuma anahtarı `CHANNEL_CONNECTION_READ=1` DEFAULT KAPALI** (açıkken satır otorite; satırı olmayan org
+  kolona düşer). **Backfill** idempotent, `scheduled-sync` her geçişte (ciphertext AYNEN kopya).
+  **`auth_revoked`** (401/403): satır `pending`e park, deneme TÜKETİLMEZ; PAT ya da taze refresh'e rağmen
+  401 → org CAS ile temizlenir + bağlantı `revoked` (`send_401/403`) + audit `channel.connection_revoked` +
+  alarm; OAuth (10 dk içinde refresh yoksa) → süre şimdiye çekilir, sonraki okuma refresh eder, bağlantı
+  aktif kalır. Worker: satırın `connectionId`si başka org'a aitse `connection_tenant_mismatch` (cancel/review).
+  Sync yolu 401'de revoke ETMEZ (bilinçli; geçici arıza riski). Env fallback + `getConnectionInfo` kolon
+  okuması V0.7'ye kadar kalır.
 - Claim-then-send her yolda; claim TTL 120 sn; definitive (4xx≠408) → release+retry, ambiguous → claim
   tutulur (`delivery_unverified`, "iletilemedi" DEME); claim-store hatası 503; adopt-and-heal; çeviri
   fail-closed. Tek atış (`retries:0`); POST idempotent değil.
@@ -387,8 +400,10 @@ Sekiz P1 KAPANDI (09-07), her biri ayrı commit, kırmızı-önce + iki yönlü 
 ## Açık işler (özet — ayrıntı belgelerde)
 - **V0 Channel Independence:** V0.1 ✅ (`2034aba`) · V0.2 ✅ (`bc185db`: ortak fake `tests/helpers/fake-channel.ts`
   + conformance kiti `tests/helpers/outbound-conformance.ts` — fake ↔ gerçek adaptör aynı 14 senaryo; envanter §9).
-  Sıradaki V0.3 `ChannelConnection` additive migration → taze `pg_dump` + açık onay kapısı. Availability Engine /
-  RAG / geniş otonom AI V0 bitmeden YOK.
+  **V0.3 KODU HAZIR — yerel commit, PUSH EDİLMEDİ** (migration 49 içerir; kapı: taze doğrulanmış `pg_dump` +
+  kurucunun açık "push et" onayı; sonra CI → deploy → backfill teyidi → ≥1 hafta sonra `CHANNEL_CONNECTION_READ=1`;
+  envanter §10). ⚠️ Konteyner sıfırlanırsa yerel commit kaybolur; yedek dal push'u izne bağlı. Availability
+  Engine / RAG / geniş otonom AI V0 bitmeden YOK.
 - **Codex P2 (F09–F18)** ilgili modül turlarında. `docs/DENETIM-2026-08-09.md` (27 açık),
   `docs/ACIK-ISLER-2026-08-08.md` (16), `docs/MIGRATION-BEKLEYEN-ISLER.md`.
 - Operatör: bucket sağlayıcı görünürlüğü (imzasız URL 403 olmalı) · `weekly-audit.yml` `main`'e ·

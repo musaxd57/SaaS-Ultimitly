@@ -166,6 +166,7 @@ model Organization {
   shadowVerdicts    ShadowVerdict[]
   erasureTombstones ErasureTombstone[]
   messageOutbox     MessageOutbox[]
+  channelConnections ChannelConnection[]
   properties        Property[]
   automationRules   AutomationRule[]
   auditLogs         AuditLog[]
@@ -1016,6 +1017,11 @@ model MessageOutbox {
   // Send target snapshot — the worker delivers WITHOUT re-reading the conversation.
   channel               String // manual | airbnb | booking | ...
   externalReservationId String? // Hospitable reservation UUID (the delivery destination)
+  // V0.3 (migration 49): the ChannelConnection this send was enqueued under (provenance +
+  // future per-connection routing). NULLABLE, NO FK on purpose: legacy rows (pre-49) carry
+  // null and keep delivering via the org's active connection; a connection row is never
+  // deleted, so no cascade/SetNull semantics are wanted here.
+  connectionId          String?
   body                  String // the exact text to deliver (minimum needed to send)
   // Tenant-scoped idempotency: the SAME logical message never enqueues or sends twice.
   idempotencyKey        String
@@ -1041,6 +1047,57 @@ model MessageOutbox {
   // Worker due-query: claimable rows ordered by (status, availableAt).
   @@index([status, availableAt])
   @@index([organizationId, status])
+}
+
+// ---------------------------------------------------------------------------
+// ChannelConnection (V0.3, migration 49) — the provider CONNECTION as its own record.
+//
+// Until now the only provider credential lived as five `hospitable*` columns on
+// Organization: no lifecycle (revoked ≠ disconnected), no generation (the refresh
+// race was fenced on the ciphertext blob), no room for a second provider or account.
+// V0.3 is EXPAND: this table is DUAL-WRITTEN next to the org columns (connect /
+// disconnect / refresh / revoke all write both in one transaction), an idempotent
+// backfill copies existing connections, and READS switch over behind
+// CHANNEL_CONNECTION_READ=1 (default off). The org columns are contracted only
+// in V0.7 after the read-switch has run clean in production.
+//
+// Invariants:
+//   • one row per (organizationId, provider) — the row is REUSED across
+//     disconnect/reconnect; `generation` increments on EVERY credential write
+//     (connect, reconnect, refresh, disconnect, revoke) and is the CAS anchor for
+//     the OAuth refresh race (a stale refresh matches 0 rows and is discarded);
+//   • `status`: active (usable) | disconnected (host removed it) | revoked
+//     (provider rejected the credential: refresh invalid_grant, 401/403 on send);
+//     tokens are cleared on both non-active states; `label` is kept for the UI;
+//   • credentials are stored ENCRYPTED with the same crypto-core key as the org
+//     columns (the backfill copies ciphertext verbatim — no re-encryption);
+//   • tenant boundary: every read is by organizationId; a MessageOutbox row whose
+//     connectionId belongs to another org is canceled by the worker, never sent.
+// ---------------------------------------------------------------------------
+model ChannelConnection {
+  id              String    @id @default(cuid())
+  organizationId  String
+  provider        String // closed set in code (channels/outbound.ts OutboundProvider): "hospitable"
+  status          String    @default("active") // active | disconnected | revoked (closed set, app-enforced)
+  label           String? // human label for the connected account (e.g. "8 mülk")
+  accessTokenEnc  String? // encrypted access token / PAT (null when not active)
+  refreshTokenEnc String? // encrypted OAuth refresh token (null for PAT)
+  tokenExpiresAt  DateTime? // OAuth access-token expiry; null = does not expire (PAT)
+  generation      Int       @default(1) // bumps on every credential write — refresh CAS anchor
+  connectedAt     DateTime?
+  disconnectedAt  DateTime?
+  revokedAt       DateTime?
+  revokedReason   String? // closed: refresh_invalid_grant | send_401 | send_403
+  lastRefreshAt   DateTime?
+  createdAt       DateTime  @default(now())
+  updatedAt       DateTime  @updatedAt
+
+  organization Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+
+  // One connection per provider per org (V0.3). A multi-account-per-provider model would
+  // change this key on a POPULATED table — a decision for a later migration, not a default.
+  @@unique([organizationId, provider])
+  @@index([status])
 }
 
 // Durable deletion intents for PRIVATE object storage (S3/R2) — migration 32.

@@ -4,6 +4,7 @@ import { randomUUID } from "node:crypto";
 import { prisma } from "@/lib/db";
 import { syncHospitable } from "@/lib/hospitable-sync";
 import { isPrimaryOrg } from "@/lib/hospitable-credentials";
+import { backfillChannelConnections } from "@/lib/channels/connections";
 import { HospitableError } from "@/lib/hospitable";
 import { reportError } from "@/lib/report-error";
 import { premiumAllowed } from "@/lib/billing/subscription";
@@ -252,6 +253,16 @@ export async function withSyncLock<T>(fn: () => Promise<T>): Promise<T | { locke
 }
 
 export async function runScheduledSync(): Promise<ScheduledSyncTotals> {
+  // V0.3 EXPAND — idempotent backfill of ChannelConnection rows for orgs that were
+  // connected before migration 49 (dual-write keeps everyone else current). Cheap
+  // (indexed "no connection row yet" query, normally 0 rows); a failure is reported,
+  // never blocks the pass.
+  try {
+    const { created } = await backfillChannelConnections();
+    if (created > 0) console.log(`[scheduled-sync] channel-connection backfill: ${created} row(s) created`);
+  } catch (err) {
+    void reportError("channel-connection-backfill", err);
+  }
   // Multi-tenant: no global token gate here. Each org self-gates on ITS OWN
   // Hospitable connection (syncHospitable + the automation senders return early
   // when the org has no token), so orgs that aren't connected are simply skipped.

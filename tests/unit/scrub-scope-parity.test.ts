@@ -171,12 +171,18 @@ describe("şema kanaryası — misafir modellerine yeni kolon", () => {
       //   · Reservation.totalAmountDec (Decimal?)   süpürgenin TANIMI "anonymize
       //     rather than hard-delete so occupancy/report history stays intact" —
       //     tutarı silmek, korunması İSTENEN finansal geçmişi yok ederdi.
+      //   · MessageOutbox.connectionId (String?, V0.3 / migration 49) → KAPSAM DIŞI:
+      //     opak ChannelConnection cuid'i (org'un sağlayıcı bağlantısı); misafirin
+      //     ne metnini ne kimliğini taşır. Kimlik bilgisinin kendisi
+      //     ChannelConnection satırında ŞİFRELİ durur ve org cascade ile silinir —
+      //     misafir verisi değil, host'un sağlayıcı sırrıdır (retention/erasure kapsamı
+      //     dışı, KVKK ihracına da girmez).
       Message: 14,
       Conversation: 23,
       Reservation: 32,
       Task: 15,
       TaskUpdate: 6,
-      MessageOutbox: 22,
+      MessageOutbox: 23,
     };
     expect(
       COLS[model]?.size,

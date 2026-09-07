@@ -271,13 +271,14 @@ describe("hospitable-credentials (OAuth token refresh)", () => {
     });
 
     // İlk persist yazması düşer, ikincisi (anında yeniden deneme) tutar.
-    // ⚠️ Persist artık KOŞULLU `updateMany` (F04 CAS) — casus o delegede.
-    const realUpdate = prisma.organization.updateMany.bind(prisma.organization);
+    // ⚠️ Persist artık bir TRANSACTION (V0.3 dual-write: org CAS + bağlantı CAS) —
+    // casus `$transaction`da; delege casusu TX istemcisini görmez.
+    const realTx = prisma.$transaction.bind(prisma) as (...a: unknown[]) => Promise<unknown>;
     let calls = 0;
-    vi.spyOn(prisma.organization, "updateMany").mockImplementation((async (args: unknown) => {
+    vi.spyOn(prisma, "$transaction").mockImplementation((async (...args: unknown[]) => {
       calls++;
       if (calls === 1) throw new Error("transient DB write failure");
-      return realUpdate(args as never);
+      return realTx(...args);
     }) as never);
 
     const token = await getOrgHospitableToken(org.id);

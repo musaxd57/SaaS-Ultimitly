@@ -31,6 +31,7 @@ export function classifyHospitableOutcome(r: SendResult): SendResultKind {
   if (typeof status === "number") {
     if (status === 429) return "rate_limited";
     if (status === 402) return "blocked";
+    if (status === 401 || status === 403) return "auth_revoked"; // V0.3: kimlik bilgisi reddedildi → bağlantı yaşam döngüsü
     if (status >= 400 && status < 500 && status !== 408) return "definitive_failure";
     return "ambiguous";
   }

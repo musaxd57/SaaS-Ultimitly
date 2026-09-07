@@ -16,7 +16,10 @@ import type { SessionPayload } from "@/lib/auth";
 const { tokenFor } = vi.hoisted(() => ({
   tokenFor: vi.fn<(orgId: string) => Promise<string | null>>(async () => "tok-A"),
 }));
-vi.mock("@/lib/hospitable-credentials", () => ({ getOrgHospitableToken: tokenFor }));
+vi.mock("@/lib/hospitable-credentials", () => ({
+  getOrgHospitableToken: tokenFor,
+  handleProviderAuthFailure: vi.fn(async () => {}), // bağlantı etkileri gerçek depoyla outbox-connection.test.ts'te
+}));
 vi.mock("@/lib/email", () => ({
   emailService: { send: vi.fn(), sendReporting: vi.fn(async () => ({ ok: true })) },
 }));
@@ -169,17 +172,12 @@ describe("worker × fake sağlayıcı", () => {
     expect(fake.deliveries).toHaveLength(1);
   });
 
-  it("sağlayıcıda yetki iptali (401): definitive → backoff → failed; teslim 0 (V0.3: auth_revoked sınıfı)", async () => {
+  it("🚨 sağlayıcıda yetki iptali (401): auth_revoked → deneme TÜKETİLMEZ, satır bekler; teslim 0 (bağlantı etkileri: outbox-connection.test.ts)", async () => {
     const { orgId, conversationId } = await seed();
     const { outboxId } = await enqueue(orgId, conversationId, "k-401");
     fake.behave({ mode: "reject", status: 401 });
-    let clock = Date.now();
-    const now = () => new Date(clock);
-    for (let i = 0; i < OUTBOX_MAX_ATTEMPTS + 2; i++) {
-      await drainOutboxOnce({ now });
-      clock += 60 * 60_000;
-    }
-    expect(await row(outboxId)).toMatchObject({ status: "failed", lastErrorKind: "definitive_failure" });
+    await drainOutboxOnce({});
+    expect(await row(outboxId)).toMatchObject({ status: "pending", lastErrorKind: "auth_revoked", attemptCount: 0 }); // ⬅️ ARIZADA: definitive_failure / attemptCount 1
     expect(fake.deliveries).toHaveLength(0);
   });
 

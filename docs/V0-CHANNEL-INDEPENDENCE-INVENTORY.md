@@ -240,3 +240,88 @@ kimlik yok" dalı değişti; canlıda ulaşılmaz) · PROD SMOKE: gerekmiyor (da
 **Sıradaki dilim — V0.3 (`ChannelConnection`, additive migration → taze `pg_dump` + açık onay kapısı):**
 credential'lar org kolonlarından bağlantı satırına dual-write; `auth_revoked` sınıfı ve "bağlantı koptu →
 satır bekler" semantiği; `resolveOutboundRoute` sağlayıcıyı bağlantıdan alır.
+
+---
+
+## 10. V0.3 DURUMU — YEREL, PUSH EDİLMEDİ (2026-09-07)
+
+> 🚨 **Bu dilim MIGRATION içerir (49_channel_connection).** Commit yalnız bu konteynerin yerel
+> dalında; oto-deploy dalına (`origin/claude/great-edison-3zqpZ`) **push edilmedi**. Push kapısı:
+> taze doğrulanmış `pg_dump` + kurucunun AÇIK prod onayı (↓"Operatör kapısı"). CI bu commit'te
+> KOŞMADI (push yok); kapılar yerelde koşuldu (↓). Konteyner sıfırlanırsa yerel commit kaybolur —
+> yedek için ayrı bir dala push izni gerekir (sistem kuralı: başka dala izinsiz push yok).
+
+**Başlangıç → bitiş:** `751233c` (origin ile aynı) → yerel `V0.3` commit'i (↓hash raporda).
+
+**Tasarım — mevcut davranışlardan türetildi (kod-doğrulandı):**
+- Kimlik bilgisi bugün `Organization.hospitable{TokenEnc,RefreshTokenEnc,TokenExpiresAt,Label,ConnectedAt}`;
+  yaşam döngüsü durumu yok (revoked ≠ disconnected ayrımı yok), refresh yarışı ciphertext blob'u üzerinden
+  fenced (F04), ikinci sağlayıcı/hesap için yer yok. Kuyruk satırı hangi bağlantı altında kuyruklandığını
+  bilmiyor.
+- **`ChannelConnection`** (yeni tablo): `(organizationId, provider)` başına TEK satır; `status`
+  active|disconnected|revoked; şifreli token blob'ları (aynı crypto-core anahtarı — backfill ciphertext'i
+  AYNEN kopyalar, yeniden şifreleme yok); `generation` her kimlik-bilgisi yazımında artar (bağlan /
+  yeniden bağlan / refresh / kaldır / revoke) = refresh yarışının ikinci CAS çapası; `revokedReason`
+  kapalı küme (`refresh_invalid_grant` | `send_401` | `send_403`); `lastRefreshAt`.
+  Disconnect/reconnect satırı YENİDEN KULLANIR (id sabit) → kuyruk damgaları kopmaz.
+- **`MessageOutbox.connectionId`** (nullable, FK YOK, index yok): enqueue anındaki aktif bağlantı
+  (provenance). Legacy satırlar (49 öncesi) null ve aynen teslim olur.
+- **Dual-write (expand):** `setOrgHospitableToken` / `setOrgHospitableOAuthTokens` / `clearOrgHospitableToken`
+  / refresh persist / refresh invalid_grant → org kolonları VE bağlantı satırı **tek TX'te**, aynı
+  ciphertext (bir kez şifrelenir). Refresh persist iki CAS'a bağlı: org refresh blob'u (F04) + bağlantı
+  `generation`; biri 0 satır eşlerse TX geri alınır, gecikmiş token ne yazılır ne verilir. Satır yoksa
+  (backfill gecikmesi) `create` ile yakınsar; arada satır belirmişse (reconnect yarışı) P2002 = stale.
+- **Okuma anahtarı `CHANNEL_CONNECTION_READ=1`** (varsayılan KAPALI): açıkken mevcut bağlantı satırı
+  otoritedir (aktif değilse "bağlı değil"), satırı olmayan org için org kolonları fallback. Kapalıyken
+  davranış birebir eski. `getConnectionInfo` (UI) hâlâ org kolonlarından okur — dual-write tutarlı tutar.
+- **Backfill (idempotent):** `backfillChannelConnections()` — kolonda token'ı olup satırı olmayan org'lara
+  aktif satır; `scheduled-sync` her geçişin başında çağırır (normalde 0 satır; hata raporlanır, geçişi
+  bloklamaz). Satırı olan org'a dokunmaz; eşzamanlı çakışma (P2002) yutulur.
+- **`auth_revoked`** (yeni `SendResultKind`; 401/403 hem tipli yol hem metin regex'i): satır `pending`e
+  park edilir, **deneme tüketilmez** (429/402 paritesi), `handleProviderAuthFailure(org, status)`:
+  OAuth ve son 10 dk içinde refresh edilmemişse → süre şimdiye çekilir (bir sonraki okuma refresh
+  eder; bağlantı aktif kalır); PAT ya da taze refresh'e rağmen 401 → org kolonları CAS ile temizlenir
+  (yeni bağlanmış token silinmez) + bağlantı `revoked` + audit `channel.connection_revoked` + alarm.
+  Sonraki geçişlerde satır `disconnected` olarak bekler (sağlayıcıya çağrı YOK); host yeniden
+  bağlanınca AYNI satır aktifleşir ve satır tam bir kez teslim olur.
+- **Kiracı ↔ bağlantı:** worker, satırın `connectionId`si başka org'a aitse göndermez (sending →
+  canceled `connection_tenant_mismatch`; reconciling → review) + alarm.
+
+**Migration 49 (yerel doğrulama):** `prisma migrate diff --script` ile üretildi; yalnız additive
+(`ALTER TABLE "MessageOutbox" ADD COLUMN "connectionId" TEXT` — nullable, rewrite yok; `CREATE TABLE
+"ChannelConnection"` + index + unique + FK cascade). Taze PG'de 00→49 `migrate deploy` ✅, sıfır drift ✅
+(`--exit-code`). Dolu tabloya unique/required-no-default/drop YOK.
+
+**Kanıt (sözleşme §2):** kırmızı-önce 17 test 5 dosyada (bağlantı satırı yok / 401 definitive / damga
+yok / okuma anahtarı yok) → yeşil. Dosyalar: `integration/channel-connection-lifecycle` (8: bağlan→kaldır→
+yeniden bağlan aynı satır · refresh generation · refresh↔disconnect · refresh↔reconnect · invalid_grant →
+revoked+audit · geçici hata dokunmaz · kiracı · okuma anahtarı paritesi/otoritesi),
+`integration/channel-connection-migration` (4: backfill ciphertext aynen + idempotent · kapalı/açık
+parite PAT+OAuth · legacy kuyruk satırı teslim · yarışan bağlanma), `integration/outbox-connection` (8:
+damga · kaldır→bekle→yeniden bağlan tek teslim · PAT 401 → park+revoked+temizle+audit → yeniden bağlan tek
+teslim · 403 · OAuth 401 → refresh zorla → teslim · kiracı uyuşmazlığı cancel · kontrol), kit/fake/parite
+401/403 → `auth_revoked`, `hospitable-credentials` persist-retry casusu `$transaction`a taşındı.
+**Mutasyonlar (iki yön):** org CAS tek başına kaldırıldı → YEŞİL (bağlantı CAS tutuyor) · bağlantı CAS tek
+başına kaldırıldı → YEŞİL (org CAS tutuyor) · ikisi birden → 2 KIRMIZI (derinlikli savunma ölçüldü) ·
+disconnect satıra dokunmuyor → 2 · worker auth_revoked dalı silindi → 4 · OAuth 401 hemen revoke/aşırı → 1
+(kontrol) · backfill hiç çalışmıyor → 1 · damga yok → 2 · kiracı kontrolü yok → 1 · okuma anahtarı yok → 1.
+
+**Geri alma:** additive — eski kod yeni kolon/tabloyu görmez ve org kolonları source-of-truth kalır;
+kod geri alınırsa tablo zararsız durur (istenirse ileride drop migration'ı). Okuma anahtarı hiç
+açılmadıysa geri alma = commit revert. Anahtar açıldıysa önce env'i sil (davranış kolonlara döner).
+
+**Operatör kapısı (push ÖNCESİ, sırayla):** (1) taze `pg_dump` (Railway PG; `pg_dump -Fc` + `pg_restore -l`
+kataloğu + SHA256) ve yedeğin ayrı yerde olduğunun teyidi; (2) kurucunun AÇIK "push et" onayı; (3) push →
+CI 5/5 (migration-chain job 49'u taze DB'de koşar) → Railway `migrate deploy` (ADD COLUMN nullable +
+CREATE TABLE; kısa DDL kilidi; tablo boş doğar); (4) deploy sonrası ilk sync geçişi backfill'i koşar:
+`SELECT count(*) FROM "ChannelConnection"` = bağlı org sayısı; (5) `CHANNEL_CONNECTION_READ` ≥1 hafta
+KAPALI kalır; açmadan önce parite: bağlı her org için org kolonu ile bağlantı satırı ciphertext'i eşit
+olmalı (dual-write'ın kanıtı); (6) anahtar açılır; sorun olursa env silinir (anında geri).
+
+**Bilerek kapsam dışı / kalan sınırlar:** sync yolu 401'de bağlantıyı revoke ETMEZ (yalnız raporlar) —
+geçici sağlayıcı arızasında herkesi düşürme riski yüzünden ayrı karar; `(org, provider)` başına tek
+bağlantı (çoklu hesap = dolu tabloda unique değişikliği, ayrı migration); env fallback (`HOSPITABLE_API_TOKEN`,
+kurucu) hâlâ var — V0.7'de kalkar; `getConnectionInfo` kolonlardan okur; OAuth 401 döngü kilidi 10 dk
+(`lastRefreshAt`) — eşik ölçümle değişebilir. **Conformance/fake testleri canlı sağlayıcı doğrulaması
+DEĞİLDİR**: gerçek adaptör yalnız HTTP stub'ıyla sınandı; Hospitable'ın gerçek 401/403/429 gövdeleri
+canlıda gözlenmedi (Nuve 402'de).

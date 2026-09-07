@@ -16,8 +16,8 @@ import type { OutboundAdapter, OutboundCredential, OutboundDestination, Outbound
 //      (outbox idempotencyKey, claim-then-send).
 //   2. Sahipsiz/bilinmeyen rezervasyon → 404 → definitive_failure (token'ın
 //      hesabı o rezervasyonu göremez). Kiracı sınırı sağlayıcıda da vardır.
-//   3. 401/403 → definitive_failure (bugünkü sınıflandırma; V0.3'te ayrı
-//      `auth_revoked` sınıfı ve bağlantı yaşam döngüsü).
+//   3. 401/403 → auth_revoked (V0.3): kimlik bilgisi reddedildi; deneme tüketilmez,
+//      satır bekler, bağlantı yaşam döngüsü (PAT: revoked+disconnect, OAuth: refresh).
 //   4. 429 → rate_limited + Retry-After · 402 → blocked · 5xx/408/ağ → ambiguous.
 //   5. Zaman aşımı TESLİM ANLAMINA GELEBİLİR (POST vardı, yanıt kayboldu):
 //      `timeout(delivered:true)` mesajı teslim listesine yazar VE ambiguous döner.
@@ -104,7 +104,14 @@ export class FakeOutboundProvider {
       case "succeed":
         return { ok: true, kind: "definitive_success", error: null, providerMessageId: this.deliver(destination, body, token), retryAfterSec: null };
       case "reject":
-        return { ok: false, kind: "definitive_failure", error: `Hospitable API hatası (HTTP ${b.status}): {"message":"rejected"}`, providerMessageId: null, retryAfterSec: null };
+        return {
+          ok: false,
+          // Varsayım 3 (V0.3): 401/403 = kimlik bilgisi reddedildi → bağlantı yaşam döngüsü olayı.
+          kind: b.status === 401 || b.status === 403 ? "auth_revoked" : "definitive_failure",
+          error: `Hospitable API hatası (HTTP ${b.status}): {"message":"rejected"}`,
+          providerMessageId: null,
+          retryAfterSec: null,
+        };
       case "rate_limit":
         return { ok: false, kind: "rate_limited", error: `Hospitable API hatası (HTTP 429): {"message":"Too Many Attempts"}`, providerMessageId: null, retryAfterSec: b.retryAfterSec };
       case "blocked":

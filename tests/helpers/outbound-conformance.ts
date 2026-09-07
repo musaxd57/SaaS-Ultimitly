@@ -18,6 +18,7 @@ export type ConformanceScenario =
   | "succeed"
   | "reject_404"
   | "reject_401"
+  | "reject_403"
   | "reject_422"
   | "rate_limit_30"
   | "blocked_402"
@@ -81,11 +82,14 @@ export function describeOutboundConformance(label: string, makeHarness: () => Co
       expect(h.deliveries()).toBe(0);
     });
 
-    it("yetki iptali (401) → definitive_failure (bugünkü sınıf; V0.3: auth_revoked), teslim YOK", async () => {
-      h.arrange("reject_401");
-      const r = await send();
-      expect(r).toMatchObject({ ok: false, kind: "definitive_failure" });
-      expect(h.deliveries()).toBe(0);
+    it("🚨 yetki iptali (401/403) → auth_revoked (V0.3: bağlantı yaşam döngüsü olayı, definitive DEĞİL), teslim YOK", async () => {
+      for (const s of ["reject_401", "reject_403"] as const) {
+        h.reset();
+        h.arrange(s);
+        const r = await send();
+        expect(r, s).toMatchObject({ ok: false, kind: "auth_revoked", providerMessageId: null });
+        expect(h.deliveries(), s).toBe(0);
+      }
     });
 
     it("istek reddi (422) → definitive_failure", async () => {
@@ -145,7 +149,7 @@ export function describeOutboundConformance(label: string, makeHarness: () => Co
     });
 
     it("hata metni kimlik bilgisini TAŞIMAZ (hiçbir senaryoda)", async () => {
-      for (const s of ["reject_404", "reject_401", "rate_limit_30", "blocked_402", "outage_503", "timeout_lost"] as const) {
+      for (const s of ["reject_404", "reject_401", "reject_403", "rate_limit_30", "blocked_402", "outage_503", "timeout_lost"] as const) {
         h.reset();
         h.arrange(s);
         const r = await send();
@@ -155,12 +159,12 @@ export function describeOutboundConformance(label: string, makeHarness: () => Co
     });
 
     it("asla fırlatmaz; her sonuçta `kind` dolu", async () => {
-      for (const s of ["succeed", "reject_404", "reject_401", "reject_422", "rate_limit_30", "blocked_402", "outage_503", "status_408", "timeout_lost", "timeout_delivered"] as const) {
+      for (const s of ["succeed", "reject_404", "reject_401", "reject_403", "reject_422", "rate_limit_30", "blocked_402", "outage_503", "status_408", "timeout_lost", "timeout_delivered"] as const) {
         h.reset();
         h.arrange(s);
         const r = await send();
         expect(typeof r.kind, s).toBe("string");
-        expect(["definitive_success", "definitive_failure", "ambiguous", "rate_limited", "blocked"], s).toContain(r.kind);
+        expect(["definitive_success", "definitive_failure", "ambiguous", "rate_limited", "blocked", "auth_revoked"], s).toContain(r.kind);
       }
     });
   });
