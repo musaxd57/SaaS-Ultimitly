@@ -105,8 +105,9 @@ export async function enqueueOutbound(args: EnqueueOutboundArgs): Promise<Enqueu
           ...(args.aiSourcesJson != null ? { aiSourcesJson: args.aiSourcesJson } : {}),
           // No externalId yet — set only after a CONFIRMED send (worker).
           // V0.4 provenance: kuyruklandığı bağlantı (outbox satırıyla aynı damga); ingestedAt
-          // YOK — bu bizim çıktımız, ingest değil.
+          // YOK — bu bizim çıktımız, ingest değil. Kanıt türü "outbound" (gözlem değil, kuyruklama).
           connectionId,
+          connectionEvidence: connectionId ? "outbound" : null,
         },
         select: { id: true },
       });

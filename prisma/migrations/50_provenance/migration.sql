@@ -2,18 +2,24 @@
 --   Reservation/Conversation/Message.connectionId = the PROVEN ChannelConnection: written at ingest,
 --     or filled (NULL -> X only) when a later sync actually observes the row through X. Never
 --     X -> Y, never X -> NULL, no inference backfill: legacy rows stay NULL (= unknown).
+--   Reservation/Conversation/Message.connectionEvidence = how connectionId was written, closed set
+--     (app-enforced): ingest | observed | outbound. "observed" never claims the first ingest came
+--     through that connection.
 --   Reservation/Conversation/Message.ingestedAt   = FIRST ingest (row created by an ingress);
 --     immutable. NULL = legacy or host-entered. Not a freshness stamp.
 -- Pure catalog change on a populated table (no rewrite, no default evaluation).
 
 -- AlterTable
-ALTER TABLE "Conversation" ADD COLUMN     "connectionId" TEXT,
+ALTER TABLE "Conversation" ADD COLUMN     "connectionEvidence" TEXT,
+ADD COLUMN     "connectionId" TEXT,
 ADD COLUMN     "ingestedAt" TIMESTAMP(3);
 
 -- AlterTable
-ALTER TABLE "Message" ADD COLUMN     "connectionId" TEXT,
+ALTER TABLE "Message" ADD COLUMN     "connectionEvidence" TEXT,
+ADD COLUMN     "connectionId" TEXT,
 ADD COLUMN     "ingestedAt" TIMESTAMP(3);
 
 -- AlterTable
-ALTER TABLE "Reservation" ADD COLUMN     "connectionId" TEXT,
+ALTER TABLE "Reservation" ADD COLUMN     "connectionEvidence" TEXT,
+ADD COLUMN     "connectionId" TEXT,
 ADD COLUMN     "ingestedAt" TIMESTAMP(3);

@@ -14,7 +14,10 @@ import type { SuggestReplyResult } from "@/lib/ai/types";
 //     X→NULL, asla X→Y. ÇIKARIM YOK: bağlantı satırının doğması ("mevcut bağlantıyı
 //     aktar") hiçbir geçmiş satırı damgalamaz; gözlemlenmeyen legacy satır NULL kalır.
 //     iCal (`calendarSourceId`), QR (`qr-chat:`), dosya, env fallback → NULL.
-//   · Sınıflar: ingest / observed / unbound / legacy (`describeProvenance`).
+//   · `connectionEvidence` = damganın NASIL yazıldığı (ingest | observed | outbound). İki kolon
+//     (connectionId + ingestedAt) "ilk alınma bu bağlantıdan" iddiasını TAŞIYAMAZ — env fallback ile
+//     alınıp sonradan gözlemlenen satır da ikisini dolu taşır; kanıt türü satırda açıkça durur.
+//   · Sınıflar: ingest / observed / outbound / unbound / legacy (`describeProvenance`).
 // ---------------------------------------------------------------------------
 
 vi.mock("@/lib/hospitable", () => ({
@@ -152,6 +155,7 @@ describe("provenance — Hospitable senkronu", () => {
     const { reservation, conversation, messages } = await rows(propertyId);
     for (const r of [reservation, conversation, ...messages]) {
       expect(r.connectionId).toBe(conn!.id);
+      expect(r.connectionEvidence).toBe("ingest");
       expect(r.ingestedAt?.getTime()).toBeGreaterThanOrEqual(t0.getTime());
       expect(describeProvenance(r)).toBe("ingest");
     }
@@ -219,8 +223,25 @@ describe("provenance — Hospitable senkronu", () => {
     const b = await rows(propertyId);
     expect(b.reservation.connectionId).toBe(conn!.id);
     expect(b.reservation.ingestedAt!.getTime()).toBe(firstIngest);
-    expect(describeProvenance(b.reservation)).toBe("ingest"); // ilk alınma zaten kayıtlıydı (unbound → ingest)
+    // KURUCU SENARYOSU: ilk alınma env fallback ile yapıldı; bağlantı SONRADAN gözlemlendi. Satır
+    // "ilk alınma bu bağlantıdan" iddiası TAŞIMAZ: kanıt türü 'observed', sınıf 'observed' (ingest DEĞİL).
+    expect(b.reservation.connectionEvidence).toBe("observed");
+    expect(describeProvenance(b.reservation)).toBe("observed");
     expect(b.conversation.connectionId).toBe(conn!.id);
+    expect(b.conversation.connectionEvidence).toBe("observed");
+    expect(describeProvenance(b.conversation)).toBe("observed");
+
+    // 2b) hâlâ bağlıyken İKİNCİ senkron: gözlem kanıtı 'ingest'e TERFİ ETMEZ (tekrar senkron
+    // "ilk alınma bu bağlantıdan" iddiası üretemez); damga ve ilk alınma sabit.
+    mockReservations.mockResolvedValue([hospReservation({ last_message_at: "2026-05-30T11:30:00Z" })]);
+    mockMessages.mockResolvedValue([...THREE, guestMsg(1005, "2026-05-30T11:30:00Z")]);
+    await syncHospitable(orgId);
+    const b2 = await rows(propertyId);
+    expect(b2.reservation.connectionEvidence).toBe("observed");
+    expect(b2.reservation.connectionId).toBe(conn!.id);
+    expect(b2.reservation.ingestedAt!.getTime()).toBe(firstIngest);
+    expect(b2.conversation.connectionEvidence).toBe("observed");
+    expect(describeProvenance(b2.messages.find((m) => m.externalId === "1005")!)).toBe("ingest"); // yeni satır kendi kanıtıyla
     expect(b.messages.find((m) => m.externalId === "1001")?.connectionId).toBeNull(); // mesaj satırı yeniden yazılmaz
     expect(describeProvenance(b.messages.find((m) => m.externalId === "1003")!)).toBe("ingest");
 
@@ -232,6 +253,7 @@ describe("provenance — Hospitable senkronu", () => {
     await syncHospitable(orgId);
     const c = await rows(propertyId);
     expect(c.reservation.connectionId).toBe(conn!.id);
+    expect(c.reservation.connectionEvidence).toBe("observed"); // kanıt türü de ezilmez
     expect(c.reservation.ingestedAt!.getTime()).toBe(firstIngest);
     expect(c.conversation.connectionId).toBe(conn!.id);
     expect(describeProvenance(c.messages.find((m) => m.externalId === "1004")!)).toBe("unbound");
@@ -275,6 +297,7 @@ describe("provenance — Hospitable senkronu", () => {
     const seen = await rows(propertyId, "res-1");
     expect(seen.reservation.connectionId).toBe(conn!.id);
     expect(seen.reservation.ingestedAt).toBeNull(); // ilk alınma bilinmiyor → uydurulmaz
+    expect(seen.reservation.connectionEvidence).toBe("observed");
     expect(describeProvenance(seen.reservation)).toBe("observed");
     expect(describeProvenance(seen.conversation)).toBe("observed");
     expect(describeProvenance(seen.messages.find((m) => m.externalId === "old-res-1")!)).toBe("legacy"); // eski mesaj satırı yeniden yazılmaz
@@ -408,6 +431,8 @@ describe("provenance — diğer ingress'ler ve çıkış yolu", () => {
     });
     const m = await prisma.message.findUniqueOrThrow({ where: { id: messageId } });
     expect(m.connectionId).toBe(conn!.id);
+    expect(m.connectionEvidence).toBe("outbound"); // gözlem DEĞİL, kuyruklama
+    expect(describeProvenance(m)).toBe("outbound");
     expect(m.ingestedAt).toBeNull();
   });
 });

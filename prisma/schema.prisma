@@ -479,8 +479,13 @@ model Reservation {
   //     iCal'in kimliği `calendarSourceId`, elle giriş/dosya için NULL.
   //   ingestedAt = İLK ALINMA: bir ingress'in satırı YARATTIĞI an; değişmez (update yolları dokunmaz).
   //     Freshness/"son görülme" BU DEĞİLDİR (iCal: feedLastSeenAt; thread: syncCursorAt). Host'un elle
-  //     girdiği satır NULL (ingest değil). Sınıflar: channels/provenance.ts `describeProvenance`.
+  //     girdiği satır NULL (ingest değil).
+  //   connectionEvidence = damganın NASIL yazıldığı, kapalı küme (app-enforced): "ingest" (satırı yaratan
+  //     ingress bu bağlantı altındaydı) | "observed" (NULL iken sonraki senkron gözlemledi — ilk alınmanın
+  //     bu bağlantıdan yapıldığı İDDİA EDİLMEZ) | "outbound" (giden Message: kuyruklandığı bağlantı).
+  //     connectionId ile birlikte yazılır/ezilmez. Sınıflar: channels/provenance.ts `describeProvenance`.
   connectionId               String?
+  connectionEvidence         String?
   ingestedAt                 DateTime?
   createdAt                  DateTime  @default(now())
   updatedAt                  DateTime  @updatedAt
@@ -583,8 +588,10 @@ model Conversation {
   aiTriagedAt              DateTime?
 
   // V0.4 PROVENANCE (migration 50) — Reservation'daki yorumla aynı sözleşme (kanıt: ingest ya da gözlem;
-  // çıkarım yok; ingestedAt = ilk alınma). QR iç thread'in (`qr-chat:`) kimliği işaretçidir → NULL.
+  // çıkarım yok; ingestedAt = ilk alınma; connectionEvidence ingest|observed). QR iç thread'in
+  // (`qr-chat:`) kimliği işaretçidir → NULL.
   connectionId           String?
+  connectionEvidence     String?
   ingestedAt             DateTime?
 
   createdAt              DateTime  @default(now())
@@ -653,7 +660,9 @@ model Message {
   // V0.4 PROVENANCE (migration 50): connectionId = ingest edildiği (sağlayıcıdan gelen HER iki yön)
   // ya da outbox'ta kuyruklandığı bağlantı; doğrudan gönderim yolu ve QR botu NULL. Mesaj satırı
   // yeniden yazılmaz → gözlemle doldurma yok; ingestedAt = ilk alınma (createdAt sağlayıcı zamanıdır).
+  // connectionEvidence: ingest (sağlayıcıdan) | outbound (outbox'ta kuyruklandı) — gözlem yok.
   connectionId     String?
+  connectionEvidence String?
   ingestedAt       DateTime?
   createdAt        DateTime @default(now())
 

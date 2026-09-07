@@ -369,10 +369,17 @@ KANITLANAMAZ (env fallback geçmişi, elle UI belirsizliği) — kanıtlanamayan
   "son içerik değişimi" BU DEĞİLDİR (iCal: `feedLastSeenAt`; thread: `syncCursorAt`; gerekirse V0.6'da ayrı
   `lastObservedAt`). Host'un elle girdiği satır, AI/bot cevabı, doğrudan gönderim → NULL. `Message.createdAt`
   sağlayıcı zamanıdır; `ingestedAt` bizim aldığımız an → gecikme analizi için ayrı anlam taşır.
-- **Dört sınıf** (`describeProvenance`): `ingest` (ikisi de dolu — tam kanıt) · `observed` (bağlantı kanıtlı,
-  ilk alınma bilinmiyor — legacy satır sonradan gözlemlendi) · `unbound` (ilk alınma kanıtlı, bağlantı yok:
-  env fallback/iCal/QR/dosya) · `legacy` (hiçbiri). Tüketen kod tahmin etmez, buradan okur. "observed"
-  "ingest" ile karıştırılmaz (birim test pini).
+- **`connectionEvidence` (String?, kapalı küme app-enforced: `ingest` | `observed` | `outbound`)** = damganın
+  NASIL yazıldığı; `connectionId` ile birlikte yazılır, birlikte ezilmez. **Kurucu senaryosu (doğruluk turu 2):**
+  env fallback ile alınmış (`ingestedAt` dolu, `connectionId` NULL) satır sonradan gerçek bağlantıdan senkronize
+  edilince NULL→X dolar; iki kolon (connectionId + ingestedAt) tek başına "ilk alınma bu bağlantıdan" iddiasını
+  TAŞIYAMAZ — ilk taslağın sınıflandırıcısı tam olarak bu yanlış iddiayı üretiyordu (`unbound → ingest`, test
+  pinliydi). Kanıt türü satırda açıkça durduğu için sınıf `observed` kalır, `ingest` iddiası çıkmaz.
+- **Beş sınıf** (`describeProvenance`, tahmin yok): `ingest` (satırı yaratan ingress bu bağlantı altındaydı)
+  · `observed` (NULL iken gözlemlendi — ilk alınma kaynağı iddia edilmez, `ingestedAt` dolu olsa bile) ·
+  `outbound` (giden Message, kuyruklandığı bağlantı — gözlem değil) · `unbound` (ilk alınma kanıtlı, bağlantı
+  yok: env fallback/iCal/QR/dosya) · `legacy` (hiçbiri). Türü olmayan dolu damga (olmaması gereken durum) en az
+  iddialı sınıfa (`observed`) düşer, asla `ingest` etiketi almaz.
 - **Adoption ≠ tarihsel kanıt:** bağlantı satırının doğması (bağlanma / "mevcut bağlantıyı aktar") HİÇBİR
   geçmiş satırı damgalamaz; yalnız sonraki senkronun gerçekten gözlemlediği satır `observed` olur; senkron
   penceresi (90/540 gün) dışındaki legacy satır NULL kalır = bilinmiyor (dürüst).
@@ -382,13 +389,15 @@ KANITLANAMAZ (env fallback geçmişi, elle UI belirsizliği) — kanıtlanamayan
 **Dedupe (dry-run/apply politika tabloları, kapsayıcı `Record` yeni kolonu zorladı):**
 - Conversation `connectionId: single_non_null` → iki FARKLI dolu değer = kaynak çelişkisi → FAIL-CLOSED, kendi
   kovası **`connection_conflict`** (sessiz birleştirme yok); NULL↔dolu çelişki değil (kanıt keeper'a taşınır,
-  `mergedConversationFields`). `ingestedAt: keeper_wins` → kopyalar doğal olarak farklı anda alınır: çelişki
+  `mergedConversationFields`). `connectionEvidence: single_non_null` aynı kovada (damgayla birlikte taşınır;
+  aynı bağlantı için iki kopya farklı tür söylüyorsa hangi hikâye doğru bilinmez → fail-closed). `ingestedAt: keeper_wins` → kopyalar doğal olarak farklı anda alınır: çelişki
   DEĞİL ama sayılır (`keeper_wins_differences`) — zaman farkı bağlantı çelişkisinden AYRI değerlendirilir.
 - Message: yeni `provenance_id` politikası — döngüde içerik kıyasından ÖNCE ve AYRI: farklı dolu bağlantı →
   **`message_connection_conflict`** (içerik çelişkisi sayılmaz); `ingestedAt: provenance` (kıyaslanmaz; NULL↔dolu
   bağlantı + farklı zaman = tam kopya, düşer).
 
-**Migration 50 (yerel doğrulama):** yalnız 6 nullable `ADD COLUMN` (3 tablo × connectionId/ingestedAt); default
+**Migration 50 (yerel doğrulama):** yalnız 9 nullable `ADD COLUMN` (3 tablo × connectionId/connectionEvidence/
+ingestedAt); default
 YOK (`@default(now())` mevcut satırlara migration anını yazar = sahte provenance), FK/index YOK, rewrite YOK.
 Taze PG 00→50 `migrate deploy` ✅, sıfır drift ✅, işaret kolonu YOK ✅, shadow diff boş ✅.
 
@@ -397,12 +406,15 @@ Taze PG 00→50 `migrate deploy` ✅, sıfır drift ✅, işaret kolonu YOK ✅,
   testleri koddan önce yazıldı → 3/5 kırmızı ("planned 1" = keeper_wins gerçekten sessiz birleştiriyordu; kova
   yok; mesaj kontrolü yok) → 5/5 yeşil. Ingest sözleşmesi (ilk alınma değişmezliği, gözlemle doldurma,
   adoption ≠ kanıt) ilk turun kodu kaldırıldıktan sonra yazıldığı için kırmızısı MUTASYONLA gösterildi (↓N1–N6).
+- Doğruluk turu 2 (kurucu senaryosu) koddan önce: 7 kırmızı (`expected 'ingest' to be 'observed'` dahil) →
+  yeşil; mutasyon E1–E6 (doldurma `ingest` yazar · konuşma doldurma `ingest` yazar · create tür yazmaz · enqueue
+  `ingest` yazar · sınıflandırıcı türü yok sayar · ikinci gözlem türü ezer) hepsi KIRMIZI.
 - Dosyalar: `integration/provenance-ingest` (7: aktif bağlantıyla ingest her iki yön · **ilk alınma
   değişmez: içerik değişmeyen VE değişen tekrar senkron** · env fallback → bağlan (gözlemle NULL→X, ilk alınma
   sabit, mesaj yeniden yazılmaz) → kaldır (X korunur, yeni satır unbound) · **adoption ≠ kanıt: bağlantı doğunca
   hepsi legacy; gözlemlenen `observed`, pencere dışı legacy** · iCal unbound + değişen feed ilk alınmayı
   değiştirmez · .csv unbound · QR misafir unbound/bot damgasız · enqueue Message damgası),
-  `unit/provenance-classes` (dört sınıf), `integration/conversation-dedupe-dryrun` (+5: connection_conflict ·
+  `unit/provenance-classes` (beş sınıf + kurucu senaryosu + türsüz damga), `integration/conversation-dedupe-dryrun` (+5: connection_conflict ·
   NULL↔dolu planlanır · zaman farkı ≠ çelişki (keeper_wins sayılır) · message_connection_conflict ≠ içerik ·
   NULL↔dolu + farklı zaman tam kopya), `unit/scrub-scope-parity` (kanarya: Message 16, Conversation 25,
   Reservation 34, karar yorumlu).
@@ -413,14 +425,20 @@ Taze PG 00→50 `migrate deploy` ✅, sıfır drift ✅, işaret kolonu YOK ✅,
   N7 dedupe connectionId keeper_wins (sessiz birleştirme) · N8 mesaj bağlantı kontrolü yok · N9 ingestedAt farkı
   çelişki sayılır · N10 NULL↔dolu çelişki sayılır · N11 `observed` "ingest" sayılır.
 
-**Kapılar (son yerel ağaç):** tam suit 3537/313 yeşil · `tsc --noEmit` temiz · `eslint .` temiz · `next build`
-temiz · `audit:check` yeşil (0 triajsız) · zincir 00→50 taze PG + sıfır drift + shadow diff boş. CI: koşmadı (push yok).
+**Kapılar (son yerel ağaç, doğruluk turu 2 sonrası):** tam suit 3539/313 yeşil · `tsc --noEmit` temiz · `eslint .`
+temiz · `next build` temiz · `audit:check` yeşil (0 triajsız) · zincir 00→50 taze PG + sıfır drift + shadow diff boş.
+CI: koşmadı (push yok).
 
 **Geri alma:** additive — kod revert edilirse kolonlar zararsız durur (NULL); yazılmış damgalar kanıttır,
 geri alınacak çıkarım YOK. Bayrak yok (bugün hiçbir karar bu kolonları okumaz; V0.5/V0.6 tüketir).
 
+**Push kapısı adım (1) KANITI (2026-09-07 22:02, operatör klonu `LixusPreflight-43ccd3c`, `ops-backup-prod.ps1`,
+PostgreSQL 18):** `lixus-prod-post-contract-2026-09-07-220244.dump` · 1.452.573 bayt · TOC 203 girdi (V0.3 tablosu
+dahil; 197→203 tutarlı) · `pg_restore -l` ✅ · SHA256
+`A36BCA89063464B63CC20DE15B2BACD517777C59074212DEB833373FEA42E459`. Adım (2) açık "push et" BEKLENİYOR.
+
 **Operatör kapısı:** §10 adımları aynen (taze `pg_dump` + SHA + açık onay → push → CI 5/5, migration-chain 50 →
-Railway `migrate deploy` (6 nullable ADD COLUMN) → deploy sonrası salt-okuma kontrol: `_prisma_migrations`
+Railway `migrate deploy` (9 nullable ADD COLUMN) → deploy sonrası salt-okuma kontrol: `_prisma_migrations`
 `50_provenance` finished; ilk senkrondan sonra `SELECT count(*) FROM "Reservation" WHERE "ingestedAt" IS NOT NULL`
 artmalı; `connectionId` bugün prod'da HİÇ dolmaz (bağlantı satırı yok, env fallback) — beklenen).
 

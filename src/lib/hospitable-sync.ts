@@ -861,7 +861,7 @@ async function upsertReservationCalendar(
         // V0.4 provenance — GÖZLEMLE DOLDURMA: bu satır az önce O bağlantıdan gerçekten çekildi;
         // damga NULL ise kanıtla doldurulur (NULL→X). Dolu damga ASLA ezilmez (X→Y yok, X→NULL yok).
         // ingestedAt = ilk alınma; update yolu DOKUNMAZ (tekrar senkron eski satırı "yeni" göstermez).
-        ...(connectionId && !existing.connectionId ? { connectionId } : {}),
+        ...(connectionId && !existing.connectionId ? { connectionId, connectionEvidence: "observed" } : {}),
       },
     });
     return existing.id;
@@ -884,6 +884,7 @@ async function upsertReservationCalendar(
         currency,
         sourceReference: srcRef,
         connectionId: connectionId ?? undefined,
+        connectionEvidence: connectionId ? "ingest" : undefined,
         ingestedAt: new Date(),
       },
       select: { id: true },
@@ -1160,6 +1161,7 @@ export async function importThread(
         externalReservationId: reservationId,
         externalConversationId: str(reservation.conversation_id),
         connectionId: connectionId ?? undefined,
+        connectionEvidence: connectionId ? "ingest" : undefined,
         ingestedAt: new Date(),
       },
       select: { id: true },
@@ -1202,7 +1204,7 @@ export async function importThread(
           ? { reservationId: localReservationId }
           : {}),
         // V0.4 provenance — gözlemle doldurma (NULL→X yalnız); ingestedAt = ilk alınma, dokunulmaz.
-        ...(connectionId && !existing.connectionId ? { connectionId } : {}),
+        ...(connectionId && !existing.connectionId ? { connectionId, connectionEvidence: "observed" } : {}),
       },
     });
     // ⚠️ ÇİTİN GERİ ALINMASI (denetim, 08-01 — üçüncü tur). Yukarıdaki
@@ -1354,6 +1356,7 @@ export async function importThread(
           createdAt: parseDate(m.created_at) ?? undefined,
           // V0.4 provenance: sağlayıcıdan gelen HER iki yön ingest edilmiştir.
           connectionId: connectionId ?? undefined,
+          connectionEvidence: connectionId ? "ingest" : undefined,
           ingestedAt: new Date(),
         },
         select: { id: true },

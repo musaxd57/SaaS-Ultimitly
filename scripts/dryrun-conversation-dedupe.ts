@@ -156,6 +156,9 @@ export const CONVERSATION_FIELD_POLICY: Record<
   // ilk alınma: kopyalar doğal olarak farklı anda alınır → çelişki DEĞİL ama sessiz de değil,
   // keeper_wins farkı olarak SAYILIR (zaman farkı bağlantı çelişkisinden AYRI değerlendirilir).
   connectionId: "single_non_null",
+  // Kanıt türü damgayla birlikte yaşar: keeper NULL ise ikisi birlikte loser'dan taşınır; aynı
+  // bağlantı için iki kopya FARKLI tür söylüyorsa hangi hikâye doğru bilinmez → aynı kova (fail-closed).
+  connectionEvidence: "single_non_null",
   ingestedAt: "keeper_wins",
   updatedAt: "system_managed",
 };
@@ -204,6 +207,7 @@ export const MESSAGE_FIELD_POLICY: Record<
   aiSourcesJson: "strict",
   aiSuggestedReply: "strict",
   connectionId: "provenance_id",
+  connectionEvidence: "provenance", // bağlantı eşitse tür de eşittir (create yolu tek); kıyaslanmaz
   ingestedAt: "provenance",
 };
 
@@ -292,7 +296,7 @@ export function classifyGroup(rows: ConversationRow[], msgs: MessageRow[]) {
           failed ??=
             field === "reservationId"
               ? "reservation_id_conflict"
-              : field === "connectionId"
+              : field === "connectionId" || field === "connectionEvidence"
                 ? "connection_conflict"
                 : "external_conversation_id_conflict";
         }
