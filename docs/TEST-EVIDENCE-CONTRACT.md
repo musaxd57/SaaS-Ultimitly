@@ -100,6 +100,7 @@ Durum: ✅ davranışsal kapsam var · ⚠️ kısmî (boşluk yazılı).
 | **QR / KB sır sınırı** | `unit/qr-secret-scan-coverage` (F02: içeriğin tamamı, fail-closed üst sınır), `secret-detection-golden`, `integration/prebooking-kb-secret-gate`, `unit/style-profile-channel-scrub` | ✅ |
 | **Private upload · yetkisiz obje erişimi** | `unit/upload-hardening`, `integration/storage-wiring`, `storage-foundation` | ⚠️ Servis rotasının **çapraz-kiracı 404**'ü davranışsal olarak yalnız `orgIdFromKey` seviyesinde pinli; rota+oturum+DB ile uçtan uca test yok. Prod smoke 2a/2b manuel geçti (08-09). |
 | **CSP rapor ucu** | `integration/csp-report-route` | ✅ |
+| **Giden-mesaj dispatch sınırı (Channel Layer, V0.1)** | `integration/outbound-dispatch` (worker varsayılan deps + `sendOnChannel` + gerçek `sendDueWelcomes` + elle yanıt rotası, sızıntı dedektörü), `messaging` (shadow-compare), `unit/core-channel-independence` (yapısal pin), `outbound-classification-parity`, `outbound-dispatch-guards` | ✅ |
 | **QR guest chat (binding, PIN, erasure, handoff)** | `integration/guest-chat-*` (8 dosya) | ✅ |
 
 **Bilinen üç boşluk** (⚠️ satırları) K2 değişikliği o akışa dokunduğunda **önce

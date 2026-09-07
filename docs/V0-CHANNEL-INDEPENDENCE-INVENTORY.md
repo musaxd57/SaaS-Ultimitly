@@ -151,3 +151,46 @@ Property Memory · Exception Feed · Availability Engine · RAG · Ask Lixus · 
 - `Property.hospitableId` global unique deseni ölçeklenmez.
 - `api.ts:161` paylaşılan HTTP katmanı sağlayıcı sınıf adına dallanıyor.
 - Kritik akış boşluğu: inbound→AI→outbox→audit **tek uçtan uca test yok** (TEST-EVIDENCE-CONTRACT §3).
+
+---
+
+## 8. V0.1 DURUMU — UYGULANDI (2026-09-07, commit `2034aba`)
+
+**Ne yapıldı (migration YOK, env YOK, bayrak YOK):**
+- `src/lib/channels/outbound.ts` — `resolveOutboundRoute` (boş hedef / `qr-chat:` → local; aksi
+  external, sağlayıcı TEK yerde `"hospitable"`), `OutboundAdapter` (provider + capabilities +
+  tek-atış `send`), kayıt + test override, `dispatchOutbound` (adaptör yok / yetenek yok /
+  kimlik-bilgisi↔sağlayıcı uyuşmazlığı → fırlatmaz, tipli `definitive_failure`).
+- `src/lib/channels/hospitable-outbound.ts` — `hospitable.sendMessage`'ın src/ içindeki **tek**
+  çağıranı; aynı argümanlar `(id, body, token, { retries: 0 })`; `kind` HTTP durumundan tipli.
+- `src/lib/channels/index.ts` — bootstrap; çekirdek yalnız bunu import eder.
+- Bağlanan üç üretim yolu: `messaging.ts sendOnChannel` (oto-yanıt · holding-ack · lifecycle ·
+  elle yanıt bunu çağırır) ve `outbox/worker.ts defaultSend`; `classifySendResult` tipli `kind`i
+  regex'ten önce tercih eder. `SendResult.status` (istemci), `SendOutcome.kind`,
+  `OutboxSendOutcome.kind` additive.
+
+**Ne yapılmadı (bilinçli):** V0 örnek adları mekanik uygulanmadı — `ChannelConnection`,
+capability registry, delivery-receipt durumları YOK. Kimlik bilgisi çağıran tarafından çözülür
+ve `undefined` dahil olduğu gibi iletilir (istemcinin env fallback'i, kurucu org'un legacy
+yolu; `tests/integration/messaging.test.ts` bunu pinliyor) → fail-closed V0.3'ün işi. Tek
+semantik sıkılaştırma: worker `qr-chat:` satırını artık LOCAL sayar (ulaşılmaz; belgeli, pinli).
+
+**Kanıt (sözleşme §2):** kırmızı-önce 9 test (mimari pin 3 + dispatch entegrasyonu 6 —
+worker VARSAYILAN bağımlılıklarla, `sendOnChannel`, gerçek `sendDueWelcomes`, elle yanıt rotası;
+sızıntı dedektörü = mock'lu istemci) → yeşil; shadow-compare (gerçek adaptör eski argümanlarla);
+sınıflandırma paritesi (her HTTP durumu); kapı testleri. Mutasyonlar iki yönde: worker sınırın
+dışına çıkar (3 kırmızı) · `qr-chat:` kuralı silinir (4) · her şey local/aşırı (10 kontrol) ·
+kind yok sayılır (1) · adaptör kind sabit (8) · kimlik/yetenek kapısı silinir (1+1) · status
+düşürülür (1). Dosyalar: `tests/unit/core-channel-independence`,
+`tests/integration/outbound-dispatch`, `tests/unit/outbound-classification-parity`,
+`tests/unit/outbound-dispatch-guards`.
+
+**KOD / CI / DEPLOY / PROD SMOKE:** KOD ✅ (yerel kapılar: typecheck · eslint · audit-check ·
+tam `npm test` · `next build` — sayılar bu turun raporunda) · CI: push sonrası run bu belgeye
+işlenir · DEPLOY: Railway "Wait for CI" → oto · PROD SMOKE: yapılmadı; ilk gerçek gönderimde
+Gönderilenler'de `externalId` dolu olmalı (adaptör → istemci yolu), Sentry'de
+`no outbound adapter` metni GÖRÜLMEMELİ.
+
+**Sıradaki dilim — V0.2 (migration yok):** ortak provider fake'i (`tests/helpers/fake-channel.ts`
+— bugün `outbound-dispatch.test.ts` içindeki yerel `fakeAdapter`ın genelleştirilmesi) +
+connector conformance kiti. V0.3 (`ChannelConnection`, additive) migration ister → onay kapısı.
