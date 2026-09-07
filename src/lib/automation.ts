@@ -32,6 +32,7 @@ import { durableOutboxEnabled } from "@/lib/outbox/flag";
 import { enqueueOutbound, enqueueProactive } from "@/lib/outbox/enqueue";
 import { classifySendResult, sendFailureHoldMs } from "@/lib/outbox/state";
 import { getOrgHospitableToken } from "@/lib/hospitable-credentials";
+import { PROVIDER_MESSAGEABLE_RESERVATION_WHERE, PROVIDER_THREAD_CONVERSATION_WHERE } from "@/lib/channels/capability";
 import { getAdjacency } from "@/lib/turnover";
 import { createOperationalTaskFromMessage } from "@/lib/tasks/create";
 import { parseSupplyProfile, buildSupplyChecklist } from "@/lib/supply";
@@ -2394,11 +2395,9 @@ async function reportLifecycleSendFailures(
 function dueAutoReplyWhere(organizationId: string, freshSince: Date) {
   return {
     property: { organizationId },
-    externalReservationId: { not: null },
-    // Skip internal QR-concierge threads: they were already triaged by the
-    // chat's own gate and have no return channel (a real Hospitable id is a
-    // UUID and never starts with "qr-chat:").
-    NOT: { externalReservationId: { startsWith: "qr-chat:" } },
+    // V0.5: sağlayıcı thread'i (iç QR thread'i hariç — dönüş kanalı yok, sohbetin kendi
+    // kapısı triyajladı). Kural tek yerde: channels/capability.ts (INTERNAL_THREAD_PREFIX).
+    ...PROVIDER_THREAD_CONVERSATION_WHERE,
     status: "new",
     lastMessageAt: { gte: freshSince },
     // ⚠️ UYGUNLUK FİLTRESİ SQL'DE OLMAK ZORUNDA — TAVANLA BİRLİKTE (denetim
@@ -2821,23 +2820,11 @@ export async function sendDueWelcomes(
       property: { organizationId },
       status: "confirmed",
       welcomeSentAt: null,
-      sourceReference: { not: null },
-      // Lifecycle messages post to Hospitable via sourceReference (only valid for
-      // Hospitable bookings). toChannel() never yields "ics"/"manual", so this can
-      // never drop a real Hospitable reservation — it just skips iCal/manual ones.
-      channel: { notIn: ["ics", "manual"] },
-      // 🚨 `channel` iCAL İÇİN GÜVENİLİR BİR İŞARETÇİ DEĞİL (denetim 08-08, kod-doğrulandı).
-      // Üstteki yorum "toChannel() asla ics/manual üretmez, yani bu satır yalnız
-      // iCal/manual olanları eler" diyordu ve YANLIŞTI: abonelik senkronu kanalı
-      // `channelFromLabel(source.label)` ile yazıyor (import/sync.ts) ve o fonksiyon
-      // ASLA "ics" döndürmez — "Airbnb" etiketli bir besleme `channel:"airbnb"` üretir.
-      // (`calendar-sync.test.ts` bunu zaten asserte ediyordu.) Sonuç: beslemeden gelen
-      // rezervasyon TAM bir karşılama/giriş adayıydı ve `sendOnChannel` iCal UID'sini
-      // Hospitable rezervasyon id'si sanıp POST ediyordu — 4xx'te sonsuz yeniden
-      // deneme + her koşuda toplu alarm, 5xx'te hayalet konaklamaya kalıcı damga.
-      // SADECE elle yükleme "ics" yazıyor (08-07 (6)); abonelik yolu atlanmıştı.
-      // GERÇEK işaretçi budur: bir kaynağa bağlı satır tanım gereği Hospitable'da yok.
-      calendarSourceId: null,
+      // V0.5: mesajlanabilirlik TEK KAYNAK (channels/capability.ts) — sourceReference
+      // dolu + calendarSourceId null + channel notIn [ics, manual]. Gerekçe (08-08
+      // denetimi: `channel` iCal işaretçisi DEĞİL, gerçek işaretçi calendarSourceId)
+      // fragment'in başlığında; önizleme aynı fragment'i yayar → parite yapısal.
+      ...PROVIDER_MESSAGEABLE_RESERVATION_WHERE,
       createdAt: { gte: baseline }, // only bookings created since welcome was enabled
       // Org-local day boundary (not server UTC) so today's arrival isn't dropped.
       arrivalDate: { gte: zonedDayRange(now, orgTimezone(org.timezone)).start },
@@ -3001,9 +2988,7 @@ export async function sendDueCheckins(
       property: { organizationId },
       status: "confirmed",
       checkinSentAt: null,
-      sourceReference: { not: null },
-      channel: { notIn: ["ics", "manual"] }, // only Hospitable-messageable bookings (never iCal/manual)
-      calendarSourceId: null, // ↑ aynı gerekçe: `channel` iCal işaretçisi DEĞİL
+      ...PROVIDER_MESSAGEABLE_RESERVATION_WHERE, // V0.5 tek kaynak (önizleme aynı fragment)
       createdAt: { gte: baseline }, // only bookings created since this was enabled
       arrivalDate: {
         gte: zonedDayRange(now, orgTimezone(org.timezone)).start, // not for stays already begun/past (org-local day)
@@ -3148,9 +3133,7 @@ export async function previewWelcomes(
     where: {
       property: { organizationId },
       status: "confirmed",
-      sourceReference: { not: null },
-      channel: { notIn: ["ics", "manual"] }, // match the sender filter (preview == reality)
-      calendarSourceId: null, // ↑ aynı gerekçe: `channel` iCal işaretçisi DEĞİL
+      ...PROVIDER_MESSAGEABLE_RESERVATION_WHERE, // V0.5: gönderici ile AYNI fragment (önizleme == gerçek, yapısal)
       arrivalDate: { gte: zonedDayRange(now, orgTimezone(org?.timezone)).start, lte: horizon },
     },
     select: {
@@ -3207,9 +3190,7 @@ export async function previewCheckins(
     where: {
       property: { organizationId },
       status: "confirmed",
-      sourceReference: { not: null },
-      channel: { notIn: ["ics", "manual"] }, // match the sender filter (preview == reality)
-      calendarSourceId: null, // ↑ aynı gerekçe: `channel` iCal işaretçisi DEĞİL
+      ...PROVIDER_MESSAGEABLE_RESERVATION_WHERE, // V0.5: gönderici ile AYNI fragment (önizleme == gerçek, yapısal)
       arrivalDate: { gte: zonedDayRange(now, orgTimezone(org?.timezone)).start, lte: horizon },
     },
     select: {
@@ -3287,9 +3268,7 @@ export async function sendDueCheckouts(
       property: { organizationId },
       status: { in: ["confirmed", "completed"] },
       checkoutSentAt: null,
-      sourceReference: { not: null },
-      channel: { notIn: ["ics", "manual"] }, // only Hospitable-messageable bookings (never iCal/manual)
-      calendarSourceId: null, // ↑ aynı gerekçe: `channel` iCal işaretçisi DEĞİL
+      ...PROVIDER_MESSAGEABLE_RESERVATION_WHERE, // V0.5 tek kaynak (önizleme aynı fragment)
       createdAt: { gte: baseline }, // only bookings created since checkout was enabled
       // +3 CALENDAR days in org-tz (addZonedDays), not date-fns addDays (+72h):
       // DST geçiş günlerinde sabit saat-adımı pencere ucunu yerel geceyarısından
@@ -3686,11 +3665,7 @@ export async function previewCheckouts(
     where: {
       property: { organizationId },
       status: { in: ["confirmed", "completed"] },
-      sourceReference: { not: null },
-      // Mirror the live sender: iCal/manual bookings are never messaged, so the
-      // preview must not list them as "would send" either.
-      channel: { notIn: ["ics", "manual"] },
-      calendarSourceId: null, // ↑ aynı gerekçe: `channel` iCal işaretçisi DEĞİL
+      ...PROVIDER_MESSAGEABLE_RESERVATION_WHERE, // V0.5: gönderici ile AYNI fragment (önizleme == gerçek, yapısal)
       departureDate: { gte: zonedDayRange(now, orgTimezone(org?.timezone)).start, lte: horizon },
     },
     select: {
@@ -3735,10 +3710,7 @@ export async function previewChannelAutoReplies(
   const candidates = await prisma.conversation.findMany({
     where: {
       property: { organizationId },
-      externalReservationId: { not: null },
-      // Internal QR-concierge threads are never channel-auto-replied (already
-      // triaged by the chat gate; no return channel). UUIDs never start "qr-chat:".
-      NOT: { externalReservationId: { startsWith: "qr-chat:" } },
+      ...PROVIDER_THREAD_CONVERSATION_WHERE, // V0.5: gönderici (dueAutoReplyWhere) ile aynı fragment
       status: "new",
     },
     // ⚠️ EN YENİ ÖNCE. Bu satır da 08-01'de aynı hatalı geri-alma script'iyle

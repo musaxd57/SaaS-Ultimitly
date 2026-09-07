@@ -137,23 +137,25 @@ describe("iCal beslemesinden gelen rezervasyon yaşam-döngüsü adayı DEĞİLD
     expect(cancellableByUpload).toBe(0);
   });
 
-  it("kaynak tarama: ALTI yaşam-döngüsü sorgusunun HEPSİ iki kapıyı birden taşır", async () => {
+  it("kaynak tarama: ALTI yaşam-döngüsü sorgusunun HEPSİ iki kapıyı birden taşır — V0.5'ten beri TEK fragment ile", async () => {
+    // V0.5 (channels/capability.ts): altı kopya `channel notIn` + `calendarSourceId`
+    // çifti tek fragment'e indi. Kapı artık YAPISAL: her sorgu fragment'i spread eder,
+    // fragment'in kendisi iki kapıyı (ve sourceReference'ı) taşır. Eski regex literal
+    // sayıyordu; literal kalması artık bir REGRESYON (kopya = sürüklenme riski).
     const { readFileSync } = await import("node:fs");
+    const { PROVIDER_MESSAGEABLE_RESERVATION_WHERE } = await import("@/lib/channels/capability");
     const src = readFileSync("src/lib/automation.ts", "utf8");
     const code = src
       .split("\n")
       .filter((l) => !l.trimStart().startsWith("//") && !l.trimStart().startsWith("*"))
       .join("\n");
-    const channelGates = code.match(/channel: \{ notIn: \["ics", "manual"\] \}/g) ?? [];
-    expect(channelGates.length).toBe(6);
-    // Her `channel` kapısının HEMEN ARDINDAN calendarSourceId gelmeli. Biri
-    // eklenip diğeri unutulursa (yeni bir sorgu yazan kişi) bu kırmızı verir.
-    // ⚠️ `[^\n]*` ŞART: altı satırın dördü SATIR SONU YORUMU taşıyor
-    // ("// only Hospitable-messageable bookings"). İlk yazımım `\s*\n` diyordu
-    // ve o dördünü göremiyordu — kapı DOĞRU konmuşken test 2/6 raporluyordu.
-    // Yanlış NEGATİF zararsız görünür ama aynı hatanın tersi (fazla gevşek
-    // regex) sessiz bir yanlış POZİTİF olurdu; bitişiklik şartı korunuyor.
-    const paired = code.match(/channel: \{ notIn: \["ics", "manual"\] \},[^\n]*\n\s*calendarSourceId: null,/g) ?? [];
-    expect(paired.length).toBe(6);
+    expect(code.match(/channel: \{ notIn: \["ics", "manual"\] \}/g) ?? []).toHaveLength(0);
+    const spreads = code.match(/\.\.\.PROVIDER_MESSAGEABLE_RESERVATION_WHERE/g) ?? [];
+    expect(spreads.length).toBe(6);
+    expect(PROVIDER_MESSAGEABLE_RESERVATION_WHERE).toMatchObject({
+      calendarSourceId: null,
+      channel: { notIn: ["ics", "manual"] },
+      sourceReference: { not: null },
+    });
   });
 });

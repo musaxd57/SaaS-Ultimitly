@@ -25,3 +25,10 @@ export type {
   OutboundSendResult,
   OutboundAdapter,
 } from "./outbound";
+export {
+  NON_MESSAGING_CHANNELS,
+  PROVIDER_MESSAGEABLE_RESERVATION_WHERE,
+  PROVIDER_THREAD_CONVERSATION_WHERE,
+  reservationMessagingCapable,
+  isInternalThread,
+} from "./capability";
