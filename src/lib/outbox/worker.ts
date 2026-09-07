@@ -328,10 +328,45 @@ async function settle(
  * Provider CONFIRMED delivery → the conversation is "answered" NOW (Codex #6), never at
  * enqueue. A queued-but-undelivered reply therefore never looks delivered. Never
  * overrides a closed thread. Best-effort — the delivery truth lives on the outbox row.
+ *
+ * 🚨 KOŞULLU (Codex F05, P1). Eski hâli `status != closed → answered` KOŞULSUZDU:
+ * gönderim-öncesi veto ile sağlayıcı cevabı arasında yeni bir misafir mesajı gelip
+ * thread'i `problem`a çevirdiyse (ya da yalnız yeni bir soru bıraktıysa) ESKİ
+ * gönderimin tamamlanması YENİ sorunu "cevaplandı" diye kapatıyordu. Teslim gerçeği
+ * satırda yaşar; konuşmanın İŞ durumu ise "son söz bizim mi" sorusuna bağlıdır:
+ *   · yanıtın kendi Message'ından SONRA gelen inbound varsa → dokunma (thread haklı
+ *     olarak new/problem'da; healer'ın r2 #1 kuralıyla aynı çapa),
+ *   · AI satırı `problem` kilidini ASLA ezmez ("thread insana ait" kilidi — CLAUDE.md),
+ *     host'un kendi yanıtı ise eski bir inbound'un açtığı problem'i meşru kapatır,
+ *   · `lastMessageAt` YALNIZ İLERİ yönde yazılır (onarım/uzun claim'de geriye kaymaz).
+ * Tek UPDATE statement'ında ilişki filtresi → yarış penceresi DB'de kapanır.
  */
-async function markConversationDelivered(conversationId: string, now: Date): Promise<void> {
+async function markConversationDelivered(row: OutboxRow, now: Date): Promise<void> {
+  const conversationId = row.conversationId;
+  if (!conversationId) return;
+  let anchor = now;
+  let isAi = row.messageType === "ai";
+  if (row.messageId) {
+    const msg = await prisma.message
+      .findUnique({ where: { id: row.messageId }, select: { createdAt: true, authorType: true } })
+      .catch(() => null);
+    if (msg) {
+      anchor = msg.createdAt;
+      isAi = isAi || msg.authorType === "ai";
+    }
+  }
   await prisma.conversation
-    .updateMany({ where: { id: conversationId, status: { not: "closed" } }, data: { status: "answered", lastMessageAt: now } })
+    .updateMany({
+      where: {
+        id: conversationId,
+        status: { notIn: isAi ? ["closed", "problem"] : ["closed"] },
+        messages: { none: { direction: "inbound", createdAt: { gt: anchor } } },
+      },
+      data: { status: "answered" },
+    })
+    .catch(() => {});
+  await prisma.conversation
+    .updateMany({ where: { id: conversationId, lastMessageAt: { lt: now } }, data: { lastMessageAt: now } })
     .catch(() => {});
 }
 
@@ -526,7 +561,7 @@ async function applyDeliveryEffect(row: OutboxRow, now: Date): Promise<void> {
   }
   if (type === "holding_ack") return; // keep the thread in "problem" — never mark answered
   if (row.conversationId) {
-    await markConversationDelivered(row.conversationId, now);
+    await markConversationDelivered(row, now);
     await applyHandoffHold(row, now);
   }
 }
