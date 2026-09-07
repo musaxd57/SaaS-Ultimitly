@@ -417,6 +417,8 @@ Sekiz P1 KAPANDI (09-07), her biri ayrı commit, kırmızı-önce + iki yönlü 
   yol · halka açık sayfada çerez yenileme · `PADDLE_WEBHOOK_SECRET` boot kapısı.
 
 ## Durum
-**3502 test yeşil (308 dosya) · typecheck/lint/build temiz · CI 5/5 (run #938, `fc399c0`; yeni push CI sonucu ↓) · 48 migration
-sıfır-drift · Railway healthcheck-gated oto-deploy.** Son kod işi: Codex P1 turu (8 commit) + V0.1
-(`2034aba`). Prod smoke bu ortamdan yapılamaz; operatör adımları `docs/audit-2026-09-05/DURUM.md`.
+**Yerel HEAD `922f784` (V0.3 — PUSH EDİLMEDİ): 3522 test yeşil (311 dosya) · typecheck/lint/build temiz · migration
+00–49 (50 klasör) taze PG'de sıfır-drift · CI bu commit'te KOŞMADI (push yok). Origin HEAD `751233c` (V0.2 + belgeler):
+CI 5/5 (run #948) · Railway healthcheck-gated oto-deploy.** Son kod işi: Codex P1 turu (8 commit) + V0.1 (`2034aba`)
++ V0.2 (`bc185db`) + V0.3 (yerel). Prod smoke bu ortamdan yapılamaz; operatör adımları
+`docs/audit-2026-09-05/DURUM.md` + `docs/V0-CHANNEL-INDEPENDENCE-INVENTORY.md` §10 (push kapısı).
