@@ -247,6 +247,13 @@ dürüst senaryo kartları + env-gated canlı AI demo + injection çipi. QR conc
 retention/anonimleştirme, orphan-sweep, kayıt onay kutusu.
 
 ## ÇALIŞMA TARZI (kalıcı tercih — kullanıcı "ezberle" dedi)
+- **📜 TEST-KANIT SÖZLEŞMESİ BAĞLAYICIDIR (2026-09-07): `docs/TEST-EVIDENCE-CONTRACT.md`.**
+  Davranış değiştiren her değişiklik (K2: auth · tenant · billing · veri yaşam döngüsü · provider/
+  sync · AI gönderimi · storage · operatör rotası · her bug fix) şunların TAMAMINI ister: kırmızı-önce
+  test · hedef unit · sınır aşıyorsa karar mekanizması MOCK'LANMADAN integration · etkilenen kritik
+  akış · KALDIRMA mutasyonu kırmızı · AŞIRI-UYGULAMA mutasyonu kırmızı · mutasyonun gerçekten
+  uygulandığı doğrulanmış · geri yükleme + yedi kapı yeşil. CI yeşil = kanıt DEĞİL. Kritik akış
+  matrisi ve bilinen üç boşluk o belgede; "test gerekmiyor" kararı raporda AÇIKÇA gerekçelendirilir.
 - **CODEX PROTOKOLÜ (kullanıcı, 2026-07-11 — ÇOK ÖNEMLİ):** Codex'in dediklerini ZORLA yapmak zorunda değilsin.
   Doğruysa/mantıklıysa yap; sen daha iyisini biliyorsan GEREKÇENİ AÇIKLA — kullanıcı bunu Codex'e iletir, Codex
   "senin dediğin gibi olsun" derse öyle kalır. Yani: körü körüne uygulama YOK, gerekçeli ret MEŞRU, son karar
