@@ -161,23 +161,17 @@ export async function clearSessionCookie(): Promise<void> {
     path: "/",
     maxAge: 0,
   });
-  // 🚨 "BENİ HATIRLA" ÇEREZİ DE DÜŞER (denetim, 08-09). Bu çerezi hiçbir yer
-  // temizlemiyordu: 2FA'yı ATLAYAN 30 günlük bir kimlik bilgisi, kullanıcı
-  // çıkış yaptıktan sonra da tarayıcıda kalıyordu — httpOnly olduğu için
-  // görünmez, silmenin bir arayüzü de yok. Ortak/ofis bilgisayarında senaryo
-  // net: kurban 2FA ile girer, "bu cihazı hatırla" der, ÇIKIŞ YAPAR; sonradan
-  // yalnız ŞİFREYİ ele geçiren biri ikinci faktörü hiç görmeden girer ve o
-  // oturum `mfa: true` damgalanır (operatör yetkisinin TEK kapısı).
-  // ⚠️ S1 KARARIYLA ÇELİŞMEZ: burada `sessionEpoch` ARTMIYOR. Bu yalnız BU
-  // TARAYICIDAKİ çerezin süresini doldurur — başka cihazlar etkilenmez.
-  // "Her çıkışta tüm cihazlar düşsün" hâlâ per-session `jti` işidir.
-  store.set(TRUSTED_DEVICE_COOKIE, "", {
-    httpOnly: true,
-    secure: process.env.NODE_ENV === "production",
-    sameSite: "lax",
-    path: "/",
-    maxAge: 0,
-  });
+  // 🚨 "BENİ HATIRLA" ÇEREZİNE DOKUNULMAZ (kullanıcı kararı, 09-07 — 08-09
+  // sertleştirmesi GERİ ALINDI). 08-09'da çıkış `guestops_trusted_device`ı da
+  // düşürüyordu; canlıda sonucu "bozuk" olarak yaşandı: "Bu cihazı 30 gün
+  // hatırla" işaretli kullanıcı çıkıp yeniden girince YİNE 6 hane istendi —
+  // kutunun vaadi çıkışı aşmıyordu. Cihaz güveni bir CİHAZ özelliğidir,
+  // oturumun değil (Google/GitHub davranışı). Güven yalnız şunlarla düşer:
+  // 30 gün · şifre değişimi/sıfırlama (`sessionEpoch`, S2) · 2FA sıfırlama
+  // (2FA epoch'u) · kutunun işaretlenmemesi. Ortak bilgisayarda kutuyu
+  // İŞARETLEMEMEK kullanıcının bilinçli seçimidir; çıkışta sessizce geri almak
+  // o seçimi anlamsızlaştırıyordu. Pin: `logout-keeps-trusted-device.test.ts`
+  // + `trusted-device-survives-logout.test.ts` (S2 kontrolü dahil).
 }
 
 /** Mark the current browser as a remembered device for this user (30 days). */
