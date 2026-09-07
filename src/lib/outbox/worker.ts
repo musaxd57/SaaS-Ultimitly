@@ -761,7 +761,7 @@ async function processOne(row: OutboxRow, token: string, deps: Required<Pick<Dra
   // org's own connection; only a bug or a hand-edited row can produce this. Sending rows
   // cancel; reconciling rows go to review (the only legal exit besides ambiguous/sent).
   if (row.connectionId) {
-    const conn = await prisma.channelConnection.findUnique({ where: { id: row.connectionId }, select: { organizationId: true } });
+    const conn = await prisma.channelConnection.findUnique({ where: { id: row.connectionId }, select: { organizationId: true, status: true } });
     if (conn && conn.organizationId !== row.organizationId) {
       if (row.status === "reconciling") {
         await settle(row, token, "reconciling", { status: "review", lastErrorKind: "canceled", lastErrorCode: "connection_tenant_mismatch", claimedBy: null, claimExpiresAt: null });
@@ -774,6 +774,25 @@ async function processOne(row: OutboxRow, token: string, deps: Required<Pick<Dra
         "outbox-connection-tenant-mismatch",
         new Error(`outbox row ${row.id} (org ${row.organizationId}) references connection ${row.connectionId} of another org`),
       ).catch(() => {});
+      return;
+    }
+    // V0.7 — DAMGALI SATIR YALNIZ KENDİ BAĞLANTISINDAN GİDER: bağlantı revoked/disconnected
+    // (ya da satırı silinmiş) ise mesaj BEKLER; org'un o an başka bir kimliği (kurucu env
+    // fallback'i) olsa bile ONUNLA gönderilmez — revoked bir hesabın mesajı sessizce başka
+    // kimlikle çıkmasın. Deneme tüketilmez; host yeniden bağlanınca AYNI satır aktifleşir ve
+    // mesaj tam bir kez gider. Damgasız satır (env altında kuyruklanan) aşağıdaki normal yolu izler.
+    if (!conn || conn.status !== "active") {
+      const parked: OutboxStatus = row.status === "reconciling" ? "ambiguous" : "pending";
+      await settle(row, token, row.status as OutboxStatus, {
+        status: parked,
+        availableAt: new Date(now.getTime() + backoffMs(row.attemptCount, row.id)),
+        attemptCount: { decrement: 1 },
+        lastErrorKind: "disconnected",
+        lastErrorCode: "connection_inactive",
+        claimedBy: null,
+        claimExpiresAt: null,
+      });
+      acc.retried++;
       return;
     }
   }

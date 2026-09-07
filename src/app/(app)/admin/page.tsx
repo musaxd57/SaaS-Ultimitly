@@ -31,6 +31,8 @@ export default async function AdminPage() {
         name: true,
         createdAt: true,
         hospitableTokenEnc: true,
+        // V0.7: bağlantı durumu satırdan (revoked/disconnected görünür); kolon backfill öncesi fallback.
+        channelConnections: { where: { provider: "hospitable" }, select: { status: true, revokedReason: true }, take: 1 },
         subscription: { select: { status: true, planCode: true, provider: true, trialEndsAt: true } },
         _count: { select: { properties: true, users: true } },
       },
@@ -140,7 +142,12 @@ export default async function AdminPage() {
   const envSet = Boolean(process.env.HOSPITABLE_API_TOKEN);
 
   function connection(org: (typeof orgs)[number]): { label: string; ok: boolean } {
-    if (org.hospitableTokenEnc) return { label: "Kendi bağlantısı", ok: true };
+    // Durum SAKLI veriden — sağlayıcı sağlığı değil (V0.7). Satır varsa otorite.
+    const row = org.channelConnections[0];
+    const envLabel = org.id === primaryId && envSet ? " · ortak (env) devrede" : "";
+    if (row?.status === "revoked") return { label: `İptal edildi (${row.revokedReason ?? "revoked"})${envLabel}`, ok: false };
+    if (row?.status === "active" || (!row && org.hospitableTokenEnc)) return { label: "Kendi bağlantısı", ok: true };
+    if (row?.status === "disconnected") return { label: `Bağlantı kesildi${envLabel}`, ok: Boolean(envLabel) };
     if (org.id === primaryId && envSet) return { label: "Ortak (env)", ok: true };
     return { label: "Bağlı değil", ok: false };
   }

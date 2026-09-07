@@ -97,31 +97,73 @@ const TOKEN_REFRESH_BUFFER_MS = 2 * 60 * 1000;
  * expiry; when it's due this transparently refreshes (using the stored refresh
  * token) before returning, so every existing caller keeps working unchanged.
  */
-export async function getOrgHospitableToken(orgId: string): Promise<string | null> {
+export type CredentialSource = "connection" | "org_columns" | "env";
+export type CredentialDenial = "no_credential" | "connection_inactive" | "connection_tenant_mismatch";
+export interface ResolvedHospitableCredential {
+  token: string | null;
+  /** Token'ın geldiği yer: bağlantı satırı (okuma anahtarı açık) · org kolonları · env fallback. */
+  source: CredentialSource | null;
+  /** Kimlik bilgisinin ait olduğu AKTİF bağlantı satırı (env → null; satır yoksa null). */
+  connectionId: string | null;
+  reason: CredentialDenial | null;
+}
+
+/**
+ * V0.7 — TEK kimlik çözümleyici. `getOrgHospitableToken` bunun sarmalayıcısıdır.
+ *
+ * Kaynak sırası: (okuma anahtarı açıksa) bağlantı satırı → org kolonları → env fallback
+ * (yalnız kurucu org). Satır varsa `connectionId` her zaman onun id'sidir (dual-write kolon
+ * ve satırı aynı TX'te yazar; okuma anahtarı kapalıyken kolon okunur ama kimlik satırındır).
+ *
+ * `forConnectionId` (kuyruk yönlendirmesi): damgalı satır YALNIZ damgalandığı bağlantıdan
+ * gider — başka org'un satırı → `connection_tenant_mismatch`; satır silinmiş/aktif değil →
+ * `connection_inactive` ve ENV FALLBACK'E DÜŞÜLMEZ (revoked bir bağlantının mesajı kurucu
+ * env token'ıyla sessizce gitmesin). Damgasız satır (env altında kuyruklanan) env ile gider.
+ */
+export async function resolveHospitableCredential(
+  orgId: string,
+  opts: { forConnectionId?: string | null } = {},
+): Promise<ResolvedHospitableCredential> {
+  const deny = (reason: CredentialDenial, connectionId: string | null = null): ResolvedHospitableCredential => ({
+    token: null,
+    source: null,
+    connectionId,
+    reason,
+  });
   const org = await prisma.organization.findUnique({
     where: { id: orgId },
     select: { hospitableTokenEnc: true, hospitableRefreshTokenEnc: true, hospitableTokenExpiresAt: true },
   });
-  if (!org) return null;
+  if (!org) return deny("no_credential");
+
+  const conn = await getConnection(orgId, PROVIDER);
+  const pinned = opts.forConnectionId ?? null;
+  if (pinned !== null) {
+    if (!conn || conn.id !== pinned) {
+      const other = await prisma.channelConnection.findUnique({ where: { id: pinned }, select: { organizationId: true } });
+      if (other && other.organizationId !== orgId) return deny("connection_tenant_mismatch");
+      return deny("connection_inactive");
+    }
+    if (conn.status !== "active") return deny("connection_inactive", conn.id);
+  }
 
   // Credential SOURCE: org columns (default) or the connection row (read-switch).
-  let conn: ActiveConnection | null = null;
+  let sourceKind: CredentialSource = "org_columns";
   let source: { accessTokenEnc: string | null; refreshTokenEnc: string | null; tokenExpiresAt: Date | null } = {
     accessTokenEnc: org.hospitableTokenEnc,
     refreshTokenEnc: org.hospitableRefreshTokenEnc,
     tokenExpiresAt: org.hospitableTokenExpiresAt,
   };
-  if (readFromConnection()) {
-    conn = await getConnection(orgId, PROVIDER);
-    if (conn) {
-      // Row exists → it is the authority. A non-active row means "not connected",
-      // whatever the (not-yet-contracted) org columns still say.
-      source =
-        conn.status === "active"
-          ? { accessTokenEnc: conn.accessTokenEnc, refreshTokenEnc: conn.refreshTokenEnc, tokenExpiresAt: conn.tokenExpiresAt }
-          : { accessTokenEnc: null, refreshTokenEnc: null, tokenExpiresAt: null };
-    }
+  if (readFromConnection() && conn) {
+    // Row exists → it is the authority. A non-active row means "not connected",
+    // whatever the (not-yet-contracted) org columns still say.
+    sourceKind = "connection";
+    source =
+      conn.status === "active"
+        ? { accessTokenEnc: conn.accessTokenEnc, refreshTokenEnc: conn.refreshTokenEnc, tokenExpiresAt: conn.tokenExpiresAt }
+        : { accessTokenEnc: null, refreshTokenEnc: null, tokenExpiresAt: null };
   }
+  const activeConnectionId = conn && conn.status === "active" ? conn.id : null;
 
   if (source.accessTokenEnc) {
     let accessToken: string;
@@ -135,29 +177,44 @@ export async function getOrgHospitableToken(orgId: string): Promise<string | nul
         `hospitable-token-undecryptable org:${orgId}`,
         err instanceof Error ? err : new Error(String(err)),
       );
-      return null; // corrupt/under a rotated key → treat as disconnected
+      return deny("no_credential", activeConnectionId); // corrupt/under a rotated key → treat as disconnected
     }
 
     // PAT (no expiry tracked) — unchanged legacy path.
-    if (!source.tokenExpiresAt) return accessToken;
+    if (!source.tokenExpiresAt) return { token: accessToken, source: sourceKind, connectionId: activeConnectionId, reason: null };
 
     const dueForRefresh = source.tokenExpiresAt.getTime() - TOKEN_REFRESH_BUFFER_MS <= Date.now();
-    if (!dueForRefresh) return accessToken;
+    if (!dueForRefresh) return { token: accessToken, source: sourceKind, connectionId: activeConnectionId, reason: null };
 
     // Refresh CAS anchors are read NOW (before the provider round-trip): the org
     // refresh blob and the connection generation. Either changing underneath us
     // (disconnect / reconnect / winning refresh) discards the late result.
-    const connAtStart = conn ?? (await getConnection(orgId, PROVIDER));
-    return refreshOrgOAuthToken(orgId, source.refreshTokenEnc, org.hospitableRefreshTokenEnc, connAtStart, {
+    const refreshed = await refreshOrgOAuthToken(orgId, source.refreshTokenEnc, org.hospitableRefreshTokenEnc, conn, {
       currentAccessToken: accessToken,
       expiresAt: source.tokenExpiresAt,
     });
+    return refreshed
+      ? { token: refreshed, source: sourceKind, connectionId: activeConnectionId, reason: null }
+      : deny("no_credential", activeConnectionId);
   }
+
+  // Damgalı satır: aktif bağlantının token'ı yoksa (olmaması gereken durum) env'e DÜŞME.
+  if (pinned !== null) return deny("connection_inactive", activeConnectionId);
 
   // Primary org only: fall back to the global env token (legacy single-tenant).
   const env = process.env.HOSPITABLE_API_TOKEN;
-  if (env && (await primaryOrgId()) === orgId) return env;
-  return null;
+  if (env && (await primaryOrgId()) === orgId) return { token: env, source: "env", connectionId: null, reason: null };
+  return deny("no_credential");
+}
+
+/**
+ * The Hospitable Personal Access Token (or current OAuth access token) to use
+ * for an organization, or null when the org has no usable connection. Callers
+ * MUST treat null as "not connected" and skip syncing/sending for that org
+ * (never fall back to another org's token). V0.7: `resolveHospitableCredential` sarmalayıcısı.
+ */
+export async function getOrgHospitableToken(orgId: string): Promise<string | null> {
+  return (await resolveHospitableCredential(orgId)).token;
 }
 
 /** Thrown inside the persist transaction when a CAS anchor no longer matches. */
@@ -352,43 +409,86 @@ export async function hasOrgHospitable(orgId: string): Promise<boolean> {
   return (await getOrgHospitableToken(orgId)) !== null;
 }
 
+/** Bağlantı yaşam döngüsü durumu — SAKLI veriden; sağlayıcı sağlığı DEĞİL. */
+export type ConnectionState = "connected" | "env_fallback" | "disconnected" | "revoked" | "never_connected";
+
 export interface HospitableConnectionInfo {
+  /** Kimlik bilgisi çözülebiliyor (kendi ya da env). Sağlayıcının sağlıklı çalıştığı anlamına GELMEZ. */
   connected: boolean;
-  /** True when this org is connected via its OWN stored token (not env fallback). */
   ownToken: boolean;
-  /** True when the global env token exists and this org may claim/use it. */
   envAvailable: boolean;
   label: string | null;
   connectedAt: Date | null;
+  /** V0.7: kendi bağlantısının durumu (env fallback'ten bağımsız gösterilir). */
+  state: ConnectionState;
+  credentialSource: "db" | "env" | null;
+  /** Bağlantı satırı (durumu ne olursa olsun — tarihçe); satır yoksa null. */
+  connectionId: string | null;
+  revokedReason: RevokedReason | null;
+  disconnectedAt: Date | null;
+  revokedAt: Date | null;
 }
 
-/** Describe an org's Hospitable connection for the settings UI. */
+/**
+ * V0.7 — bağlantı bilgisi ChannelConnection satırından (otorite); satır yoksa org kolonları
+ * (backfill öncesi). Sağlayıcıya ÇAĞRI YOK: "bağlantı var" ile "sağlayıcı sağlıklı" karışmaz.
+ * Kurucu org'un env fallback'i ayrı bir gerçek olarak taşınır: kendi bağlantısı revoked/
+ * disconnected olsa da `connected` env ile true, `state` kendi bağlantısının durumudur.
+ */
 export async function getConnectionInfo(orgId: string): Promise<HospitableConnectionInfo> {
-  const org = await prisma.organization.findUnique({
-    where: { id: orgId },
-    select: { hospitableTokenEnc: true, hospitableLabel: true, hospitableConnectedAt: true },
-  });
-  // A stored token only counts as "connected" if it still DECRYPTS. After a key
-  // rotation it won't — and getOrgHospitableToken treats it as disconnected — so
-  // the UI must agree (otherwise it shows "connected" while sync/send silently
-  // no-op, with no prompt to reconnect).
-  let ownToken = false;
-  if (org?.hospitableTokenEnc) {
+  const [org, row] = await Promise.all([
+    prisma.organization.findUnique({
+      where: { id: orgId },
+      select: { hospitableTokenEnc: true, hospitableLabel: true, hospitableConnectedAt: true },
+    }),
+    prisma.channelConnection.findUnique({
+      where: { organizationId_provider: { organizationId: orgId, provider: PROVIDER } },
+      select: {
+        id: true,
+        status: true,
+        label: true,
+        accessTokenEnc: true,
+        connectedAt: true,
+        disconnectedAt: true,
+        revokedAt: true,
+        revokedReason: true,
+      },
+    }),
+  ]);
+  const decryptable = (blob: string | null | undefined): boolean => {
+    if (!blob) return false;
     try {
-      decryptSecret(org.hospitableTokenEnc);
-      ownToken = true;
+      decryptSecret(blob);
+      return true;
     } catch {
-      ownToken = false;
+      return false;
     }
-  }
+  };
+  const ownToken = row ? row.status === "active" && decryptable(row.accessTokenEnc) : decryptable(org?.hospitableTokenEnc);
   const isPrimary = (await primaryOrgId()) === orgId;
   const envAvailable = Boolean(process.env.HOSPITABLE_API_TOKEN) && isPrimary;
+  const state: ConnectionState =
+    row?.status === "revoked"
+      ? "revoked"
+      : ownToken
+        ? "connected"
+        : row?.status === "disconnected"
+          ? "disconnected"
+          : envAvailable
+            ? "env_fallback"
+            : "never_connected";
   return {
     connected: ownToken || envAvailable,
     ownToken,
     envAvailable,
-    label: org?.hospitableLabel ?? null,
-    connectedAt: org?.hospitableConnectedAt ?? null,
+    label: row ? row.label : (org?.hospitableLabel ?? null),
+    connectedAt: row ? row.connectedAt : (org?.hospitableConnectedAt ?? null),
+    state,
+    credentialSource: ownToken ? "db" : envAvailable ? "env" : null,
+    connectionId: row?.id ?? null,
+    revokedReason: (row?.revokedReason as RevokedReason | null | undefined) ?? null,
+    disconnectedAt: row?.disconnectedAt ?? null,
+    revokedAt: row?.revokedAt ?? null,
   };
 }
 

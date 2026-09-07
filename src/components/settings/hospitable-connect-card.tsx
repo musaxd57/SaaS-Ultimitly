@@ -119,16 +119,32 @@ export function HospitableConnectCard({
 
   return (
     <div className="space-y-4">
-      {/* Status line */}
-      {info.connected ? (
+      {/* Status line — SAKLI durumdan (V0.7): "bağlı" = kimlik bilgisi var, sağlayıcı sağlığı değil. */}
+      {info.state === "revoked" ? (
+        <div className="rounded-md border border-red-300 dark:border-red-500/30 bg-red-50 dark:bg-red-500/10 px-3 py-2 text-sm text-red-800 dark:text-red-300">
+          <strong>Bağlantı sağlayıcı tarafından reddedildi.</strong>{" "}
+          {info.revokedReason === "refresh_invalid_grant"
+            ? "Yetki yenilenemedi (oturum düşmüş olabilir)."
+            : "Token artık geçerli değil (401/403)."}{" "}
+          Aşağıdan yeniden bağlanın; bekleyen mesajlar yeniden bağlanınca gönderilir.
+          {info.envAvailable ? " Bu sırada sistemin ortak (env) bağlantısı kullanılıyor." : ""}
+        </div>
+      ) : info.connected ? (
         <div className="flex items-center gap-2 rounded-md border border-emerald-300 dark:border-emerald-500/30 bg-emerald-50 dark:bg-emerald-500/10 px-3 py-2 text-sm text-emerald-800 dark:text-emerald-300">
           <Check className="size-4 shrink-0" />
           <span>
             <strong>Bağlı.</strong>{" "}
             {info.ownToken
               ? `Bu hesabın kendi Hospitable bağlantısı kullanılıyor${info.label ? ` (${info.label})` : ""}.`
-              : "Sistemin ortak (env) Hospitable bağlantısı kullanılıyor."}
+              : info.state === "disconnected"
+                ? "Kendi bağlantınız kesildi; sistemin ortak (env) Hospitable bağlantısı kullanılıyor."
+                : "Sistemin ortak (env) Hospitable bağlantısı kullanılıyor."}
           </span>
+        </div>
+      ) : info.state === "disconnected" ? (
+        <div className="rounded-md border border-amber-300 dark:border-amber-500/30 bg-amber-50 dark:bg-amber-500/10 px-3 py-2 text-sm text-amber-800 dark:text-amber-300">
+          <strong>Bağlantı kesildi.</strong> Misafir mesajları çekilmez/gönderilmez; bekleyen mesajlar yeniden
+          bağlanınca gönderilir. Aşağıdan yeniden bağlanın.
         </div>
       ) : (
         <div className="rounded-md border border-amber-300 dark:border-amber-500/30 bg-amber-50 dark:bg-amber-500/10 px-3 py-2 text-sm text-amber-800 dark:text-amber-300">

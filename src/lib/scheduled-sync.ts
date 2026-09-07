@@ -310,7 +310,13 @@ export async function runScheduledSync(): Promise<ScheduledSyncTotals> {
       // env-token fallback'i de geçerli değil". Yani ilk senkronunda listelerini
       // içeri çekecek yeni bir bağlantı ASLA atlanmaz.
       const orgRows = await prisma.organization.findMany({
-        select: { id: true, hospitableTokenEnc: true, _count: { select: { properties: true } } },
+        select: {
+          id: true,
+          hospitableTokenEnc: true,
+          // V0.7: bağlantı satırı da "meşgul" sayılır (çift kaynak; V0.7 contract'ında kolon düşer).
+          channelConnections: { where: { provider: "hospitable", status: "active" }, select: { id: true }, take: 1 },
+          _count: { select: { properties: true } },
+        },
       });
       const envToken = Boolean(process.env.HOSPITABLE_API_TOKEN);
       const orgs: { id: string }[] = [];
@@ -318,6 +324,7 @@ export async function runScheduledSync(): Promise<ScheduledSyncTotals> {
         const busy =
           o._count.properties > 0 ||
           o.hospitableTokenEnc !== null ||
+          o.channelConnections.length > 0 ||
           (envToken && (await isPrimaryOrg(o.id)));
         if (busy) orgs.push({ id: o.id });
       }

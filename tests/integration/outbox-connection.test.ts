@@ -9,6 +9,7 @@ import {
   setOrgHospitableToken,
   setOrgHospitableOAuthTokens,
   clearOrgHospitableToken,
+  handleProviderAuthFailure,
   resetPrimaryOrgCache,
 } from "@/lib/hospitable-credentials";
 
@@ -193,6 +194,48 @@ describe("outbox × ChannelConnection", () => {
     await drainOutboxOnce({});
     expect(fake.attempts).toHaveLength(0);
     expect(await row(outboxId)).toMatchObject({ status: "canceled", lastErrorCode: "connection_tenant_mismatch" });
+  });
+
+  it("🚨 V0.7: damgalı satır + kendi bağlantısı REVOKED + env fallback mevcut (kurucu) → satır BEKLER (connection_inactive), env ile GÖNDERİLMEZ; yeniden bağlanınca TEK teslim, yeni PAT ile", async () => {
+    const { orgId, conversationId } = await seed();
+    await setOrgHospitableToken(orgId, "PAT-A", null);
+    fake.registerReservation(RES, "PAT-A");
+    const conn = await getConnection(orgId);
+    const { outboxId } = await enqueue(orgId, conversationId, "k-rev-env");
+    expect((await row(outboxId)).connectionId).toBe(conn!.id);
+    expect(await handleProviderAuthFailure(orgId, 401)).toBe("revoked");
+    // Kurucu org: env fallback devrede — ama bu satır bağlantı X altında kuyruklandı.
+    vi.stubEnv("PRIMARY_ORG_ID", orgId);
+    vi.stubEnv("HOSPITABLE_API_TOKEN", "ENV-TOK");
+    resetPrimaryOrgCache();
+    fake.registerReservation(RES, "ENV-TOK");
+    let clock = Date.now();
+    const now = () => new Date(clock);
+    await drainOutboxOnce({ now });
+    expect(fake.attempts).toHaveLength(0); // env ile sessizce gitmedi
+    expect(await row(outboxId)).toMatchObject({ status: "pending", lastErrorCode: "connection_inactive", attemptCount: 0 });
+
+    await setOrgHospitableToken(orgId, "PAT-A2", null); // yeniden bağlandı (aynı satır)
+    fake.registerReservation(RES, "PAT-A2");
+    clock += 60 * 60_000;
+    await drainOutboxOnce({ now });
+    expect(fake.deliveries).toHaveLength(1);
+    expect(fake.lastToken()).toBe("PAT-A2");
+    expect(await row(outboxId)).toMatchObject({ status: "sent", connectionId: conn!.id });
+  });
+
+  it("V0.7: env fallback altında kuyruklanan satır (connectionId NULL) env token'ı ile teslim edilir (Nuve yolu korunur)", async () => {
+    const { orgId, conversationId } = await seed();
+    vi.stubEnv("PRIMARY_ORG_ID", orgId);
+    vi.stubEnv("HOSPITABLE_API_TOKEN", "ENV-TOK");
+    resetPrimaryOrgCache();
+    fake.registerReservation(RES, "ENV-TOK");
+    const { outboxId } = await enqueue(orgId, conversationId, "k-env");
+    expect((await row(outboxId)).connectionId).toBeNull();
+    await drainOutboxOnce({ now: () => new Date() });
+    expect(fake.deliveries).toHaveLength(1);
+    expect(fake.lastToken()).toBe("ENV-TOK");
+    expect(await row(outboxId)).toMatchObject({ status: "sent", connectionId: null });
   });
 
   it("KONTROL: sağlıklı bağlantıda normal teslim (aşırı-uygulama değil)", async () => {

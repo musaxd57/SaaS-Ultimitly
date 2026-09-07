@@ -170,6 +170,8 @@ export async function sweepUnverifiedRegistrations(
         hospitableRefreshTokenEnc: true,
         hospitableConnectedAt: true,
         hospitableLabel: true,
+        // V0.7: bağlantı satırı (her durumda — revoked/disconnected da "bağlanmıştı" demektir).
+        channelConnections: { where: { provider: "hospitable" }, select: { id: true }, take: 1 },
         // Model bu org için çalışmış demektir — ucuz ek "el değmiş" sinyali.
         aiStyleProfile: true,
         _count: {
@@ -211,7 +213,8 @@ export async function sweepUnverifiedRegistrations(
       org.hospitableTokenEnc ||
       org.hospitableRefreshTokenEnc ||
       org.hospitableConnectedAt ||
-      org.hospitableLabel
+      org.hospitableLabel ||
+      org.channelConnections.length > 0
     ) {
       skip("hospitable_connected");
       continue;

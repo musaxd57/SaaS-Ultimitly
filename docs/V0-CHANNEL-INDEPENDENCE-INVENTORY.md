@@ -548,3 +548,59 @@ süren suit'in DB'sini öldürür (42–59 sahte kırmızı dosya, `Can't reach 
 `pkill -f "vitest run"` KALIBI kendi kabuğunla ve `node (vitest)` ana süreciyle eşleşmez: yetim ana süreç bitince
 teardown'ı yeni koşunun PG'sini kapatır — `pkill -f "node \(vitest"` + doğrulama (`ps | grep "[v]itest"`) şart.
 
+---
+
+## 13. V0.7 KOD HAZIRLIĞI — YEREL, PUSH EDİLMEDİ (2026-09-07 23:01Z sonrası; kolon DROP'u YOK)
+
+> Kapsam doğrulaması: envanter §4 V0.7 = `hospitable*` org kolonlarının contract'ı (drop), ön koşul
+> "okuma anahtarı ≥2 hafta canlıda sorunsuz" — SAĞLANMADI (anahtar hiç açılmadı; prod'da bağlantı satırı
+> yok). CLAUDE.md drop'u bu koşul olmadan yasaklar. Bu tur = geçişin **kod hazırlığı**: env fallback ve
+> UI bağlantı bilgisi ChannelConnection'a; durumlar doğru ve sağlayıcı sağlığından ayrı; kuyruk
+> yönlendirmesi damgalı bağlantıya bağlı; diğer kolon okuyucuları çift kaynaklı. **Migration YOK.**
+> Canlı geçiş adımları AYRI belgede: `docs/V0.7-CANLI-GECIS-OPERATOR-PLANI.md`. Commit yerel: V0.6'nın
+> (migration 51) üstünde durduğu için kapı aynı (taze `pg_dump` + açık onay).
+
+**Sözleşme (kod-doğrulandı):**
+- **`resolveHospitableCredential(org, { forConnectionId })`** — TEK kimlik çözümleyici (`getOrgHospitableToken`
+  sarmalayıcı). Kaynak sırası: (anahtar açıksa) satır → org kolonları → env (yalnız kurucu org). Dönüş
+  `{ token, source: connection|org_columns|env, connectionId, reason }`; `connectionId` satır varsa ve aktifse
+  onun id'si (env → null). **Damgalı kuyruk satırı yalnız damgalandığı bağlantıdan gider:** satır
+  revoked/disconnected/silinmiş → `connection_inactive` (env'e SESSİZCE DÜŞMEZ); başka org'un satırı →
+  `connection_tenant_mismatch`. Damgasız satır (env altında kuyruklanan) env ile gider.
+- **`getConnectionInfo`** — ChannelConnection satırı otorite (yoksa org kolonları, backfill öncesi); SAKLI
+  veriden, sağlayıcıya çağrı YOK (test: istemci fonksiyonları mock'ta fırlatır). Beş durum: `connected` ·
+  `env_fallback` · `disconnected` · `revoked` (+`revokedReason`) · `never_connected`; ek alanlar
+  `credentialSource (db|env)`, `connectionId` (tarihçe), `disconnectedAt`, `revokedAt`. Kurucu org'un kendi
+  bağlantısı revoked/disconnected olsa da env erişimi KORUNUR: `state` kendi bağlantısının durumu,
+  `connected`/`credentialSource=env` env gerçeği — iki gerçek birlikte (Nuve).
+- **Worker** — V0.3 kiracı kontrolünün yanında: damgalı satırın bağlantısı aktif değilse (ya da satır yoksa)
+  satır bekler (`pending`/`ambiguous`, `lastErrorCode=connection_inactive`, deneme tüketilmez); host yeniden
+  bağlanınca AYNI satır aktifleşir, mesaj tam bir kez gider (yeni PAT ile).
+- **UI** (`hospitable-connect-card`): revoked kırmızı (sebep + "yeniden bağlanın" + env devredeyse notu),
+  disconnected amber, env fallback ve connected eski metin. Admin paneli: satırdan durum etiketi
+  ("İptal edildi (send_401) · ortak (env) devrede" gibi). **Çift kaynak:** `scheduled-sync` boş-org
+  atlaması ve `unverified-sweep` canlılık kontrolü bağlantı satırını da sayar (contract'ta kolon düşünce
+  davranış değişmez).
+- **Geçmişe damga YOK:** revoke/disconnect hiçbir Reservation/Message damgasını yeniden yazmaz (test-pinli).
+
+**Kanıt (sözleşme §2):** kırmızı-önce `integration/connection-state` (25: beş durum × anahtar kapalı/açık
+paritesi · revoked+env kurucu erişimi · kiracı · resolver forConnectionId: aynı satır / revoked+env →
+inactive / disconnected / başka org → tenant_mismatch / silinmiş satır · sarmalayıcı paritesi; 24/25
+kırmızı → yeşil) + `integration/outbox-connection` (+2: damgalı satır + revoked + env → bekler, env ile
+GİTMEZ, yeniden bağlanınca tek teslim yeni PAT ile — refactor öncesi env ile GİTTİ (kırmızı); env altında
+kuyruklanan NULL damgalı satır env ile teslim). Mevcut V0.3 yarış testleri (refresh↔disconnect,
+refresh↔reconnect, invalid_grant, PAT/OAuth 401) değişmeden yeşil. Hedefli 24 dosya 278 test yeşil.
+**Mutasyonlar (iki yön, 8/8 KIRMIZI):** S1 revoked "revoked" sayılmaz · S2 env fallback yok (kurucu erişimi
+düşer) · S3 damgalı-inaktif satır env'e düşer · S4 aktif damgalı satır da inactive (aşırı) · S5 tenant_mismatch
+→ inactive · S6 worker parkı yok · S7 worker aktif satırı da bekletir (aşırı) · S8 durum türetirken sağlayıcıya
+çağrı (14 kırmızı: "bağlantı var ≠ sağlıklı" pini).
+
+**Kapılar (son yerel ağaç, tek başına koşuldu):** tam suit 3615/318 yeşil · `tsc --noEmit` temiz · `eslint .` temiz ·
+`next build` temiz · `audit:check` yeşil (0 triajsız) · migration zinciri değişmedi (00→51). CI: koşmadı (push yok).
+
+**Kalan sınırlar / contract öncesi:** `backfillChannelConnections`, `hospitable-token-diagnostics-core`,
+`hospitable/connect` rotası ve credentials'ın org-kolon dalı hâlâ kolon okur (contract turunda satır-tek-
+kaynak) · env fallback bir satır DEĞİL (bilinçli: satır = kimlik bilgisi taşıyan kayıt; env durumu
+`credentialSource=env` ile açık) · bağlantı "sağlığı" (son başarılı senkron, 401 sayısı) ayrı sinyal,
+bu turda UI'a alınmadı · HTTP stub ≠ canlı doğrulama.
+
