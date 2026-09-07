@@ -219,6 +219,10 @@ export function passesAutoReplySafetyGate(
     return false;
   }
   if (result.riskLevel !== "none" && result.riskLevel !== "low") return false;
+  // İKİNCİ KEMER (Codex F01): güven değeri SONLU bir sayı olmak zorunda. Parser
+  // zaten yalnız sonlu number geçiriyor, ama kapı başka çağıranlardan da ham
+  // nesne alır (QR yolu, testler) — `Infinity >= 0.75` true olurdu.
+  if (!Number.isFinite(result.confidence)) return false;
   return result.confidence >= AUTO_REPLY_MIN_CONFIDENCE;
 }
 

@@ -18,6 +18,13 @@ function clamp01(n: number): number {
   return Math.max(0, Math.min(1, n));
 }
 
+/** Kapalı riskLevel kümesi — parser YALNIZ bunlardan birini geçirir (F01). */
+const RISK_LEVELS = ["none", "low", "medium", "high"] as const;
+type RiskLevel = (typeof RISK_LEVELS)[number];
+/** Host'a gösterilen sebep: modelin güvenlik alanları geçerli değildi (F01). */
+const SCHEMA_VIOLATION_RISK_NOTE =
+  "Model yanıtı güvenlik alanlarını (riskLevel/confidence) geçerli biçimde taşımadı — şema ihlali; otomatik gönderilmedi, insan incelemesi gerekir.";
+
 // The 14 intents the prompt defines. The auto-send gate works with an intent
 // BLOCKLIST, so a novel/unknown intent string from the model would sail past
 // it — clamp unknowns to "general" AND cap their confidence below the 0.75
@@ -253,16 +260,43 @@ export async function suggestReply(input: SuggestReplyInput): Promise<SuggestRep
         )
           ? (priorityRaw as Priority)
           : "standard";
-        const riskLevelRaw = String(parsed.riskLevel ?? "none");
-        const riskLevel = (["none", "low", "medium", "high"] as const).includes(
-          riskLevelRaw as "none" | "low" | "medium" | "high",
-        )
-          ? (riskLevelRaw as "none" | "low" | "medium" | "high")
-          // A PRESENT-but-unrecognized value ("High", "critical", "severe") must
-          // fail CLOSED — coercing it to "none" silently passed the auto-send
-          // riskLevel gate. "high" makes the gate hold it for a human (the intent
-          // path fails closed the same way). Absent → "none" via the ?? above.
-          : "high";
+        // ── GÜVENLİK METADATASI STRICT (Codex F01, P1) ──────────────────────
+        // JSON üretmek ≠ güvenlik sözleşmesini doğrulamak. Eski kod yalnız
+        // `reply`nin varlığına bakıyordu: `String(parsed.riskLevel ?? "none")`
+        // EKSİK alanı "none"a (= oto-gönderim izni) çeviriyor, `Number(true)`
+        // boolean güveni 1'e, `Number("0.99")` string güveni 0.99'a yükseltiyordu.
+        // Codex sentetik `{intent:"parking", reply:"…", confidence:true}` ile
+        // gerçek parserdan `confidence=1, riskLevel=none` çıkardı ve gerçek kapı
+        // TRUE döndü. Artık iki alan da STRICT; ikisi de karar MODELE değil
+        // KODA aittir ve eksik/bozuk metadata insan incelemesine düşer.
+        //
+        // riskLevel: yalnız kapalı kümeden bir STRING geçer. EKSİK alan,
+        // tanınmayan değerle ("High", "critical") AYNI muameleyi görür → "high"
+        // (kapı insana tutar; escalation yolu host'u haberdar eder). "Eksik →
+        // none" ile "tanınmayan → high" asimetrisi tam olarak açığın kendisiydi.
+        const riskLevelRaw = parsed.riskLevel;
+        const riskLevelValid =
+          typeof riskLevelRaw === "string" && (RISK_LEVELS as readonly string[]).includes(riskLevelRaw);
+        const riskLevel: RiskLevel = riskLevelValid ? (riskLevelRaw as RiskLevel) : "high";
+        // confidence: yalnız SONLU bir number. Boolean/string/null/eksik → 0
+        // (coercion YOK). Kapı ≥ 0.75 istediği için 0 = "asla otomatik gitmez";
+        // taslak host'a yine görünür. `clamp01` NaN'i 0.5'e çeviriyordu — o
+        // yol da artık ulaşılmaz (NaN JSON'dan gelemez, sayı olmayan tip 0 olur).
+        const confidenceRaw = parsed.confidence;
+        const confidenceValid = typeof confidenceRaw === "number" && Number.isFinite(confidenceRaw);
+        const baseConfidence = confidenceValid ? clamp01(confidenceRaw) : 0;
+        const schemaViolation = !riskLevelValid || !confidenceValid;
+        if (schemaViolation) {
+          // Görünür olsun: sürekli tekrar ederse model/format değişmiş demektir
+          // (prompt canlı modelle kalibre). Sabit context → 10 dk throttle çalışır.
+          // Misafir metni ALARMA GİRMEZ.
+          void reportError(
+            "openai-reply schema violation",
+            new Error(
+              `model output missing/invalid safety fields: riskLevel=${riskLevelValid ? "ok" : "invalid"} confidence=${confidenceValid ? "ok" : "invalid"}`,
+            ),
+          );
+        }
         const intentRaw = String(parsed.intent ?? "general");
         const intentKnown = KNOWN_INTENTS.has(intentRaw);
         return {
@@ -271,15 +305,20 @@ export async function suggestReply(input: SuggestReplyInput): Promise<SuggestRep
             ? // KESİLMİŞ YANIT ASLA OTOMATİK GİTMEZ. Kapı confidence ≥ 0.75
               // ister; 0.5'e kıstığımızda yanıt taslak olarak host'a görünür
               // ama misafire gönderilmez. (↑capReply gerekçesi.)
-              Math.min(clamp01(Number(parsed.confidence)), 0.5)
+              Math.min(baseConfidence, 0.5)
             : intentKnown
-              ? clamp01(Number(parsed.confidence))
-              : Math.min(clamp01(Number(parsed.confidence)), 0.5),
+              ? baseConfidence
+              : Math.min(baseConfidence, 0.5),
           // Cap every free-text field the model returns — an over-long value would
           // bloat the DB row / inbox UI / logs it lands on (no token guarantee
           // per-field). ↑capReply: iki eşik, biri gönderim biri saklama.
           reply: cappedReply.text,
-          risk: typeof parsed.risk === "string" && parsed.risk.trim() ? parsed.risk.slice(0, 300) : null,
+          risk:
+            typeof parsed.risk === "string" && parsed.risk.trim()
+              ? parsed.risk.slice(0, 300)
+              : schemaViolation
+                ? SCHEMA_VIOLATION_RISK_NOTE // host ekranda SEBEBİ görsün
+                : null,
           priority,
           source: "openai",
           actionSuggestion:
