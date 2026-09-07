@@ -174,3 +174,21 @@ kapatmak yalnız **bundan sonrasını** durdurur.
 - Terminasyon test-pinli.
 - **Ölçüm sorguları bu ortamdan KOŞULMADI** — üretim DB'sine erişimim yok ve
   olmamalı. Sayılar operatör tarafından okunacak.
+
+## 7. 2026-09-07 EKİ — bayrak artık YENİDEN-TEMİZLENEBİLİRLİĞİ de kapsıyor (Codex F07)
+
+Aynı bayrağın AÇIK dalına sekiz seçim bacağı daha eklendi (`data-retention.ts`, commit
+`399d3c3`): `guestPhone` · `guestEmail` · `guestExternalId` · `guestCheckoutTime` · `notes` ·
+`conversations.guestIdentifier ≠ ANON_ID` · `conversations.{aiActionSuggestion,aiMissingInfoJson} ≠ null` ·
+`tasks.description ∉ {null, ANON_BODY}`; öksüz dalda triyaj bacakları. **Bayrak KAPALI dal
+birebir eski** (parite mutasyonu kırmızı).
+
+Bu ekin ölçüm sorgularına etkisi: **1a ("yeni temizlenecek") sayısı BÜYÜR** — adı zaten anonim
+ama sonradan telefon/e-posta/not/görev açıklaması/triyaj metni almış eski rezervasyonlar da
+ilk koşuda seçilir. 1b/1c/1d yorumu değişmez. Sonlanma korunur: her bacak yalnız süpürgenin
+kendisinin null/sentinel yaptığı alanlara bağlıdır (dört ardışık geçiş test-pinli).
+
+**Bilinen sınır (bilinçli, test-pinli):** `TaskUpdate.note` ve outbound gövde yalnız
+ad-redaksiyonuyla temizlendiği için yeniden seçim TETİKLEMEZ; kapatılması işaret kolonu
+(migration) ister. Bu ek bayrak açma onayı DEĞİLDİR — §3 ön koşulları ve §4 smoke sırası aynen
+geçerli; §4'teki "artık korunacak sayısı DÜŞERSE DUR" kuralı da aynen geçerli.
