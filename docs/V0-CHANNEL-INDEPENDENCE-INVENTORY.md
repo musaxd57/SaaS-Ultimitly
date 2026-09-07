@@ -186,8 +186,9 @@ düşürülür (1). Dosyalar: `tests/unit/core-channel-independence`,
 `tests/unit/outbound-dispatch-guards`.
 
 **KOD / CI / DEPLOY / PROD SMOKE:** KOD ✅ (yerel kapılar: typecheck · eslint · audit-check ·
-tam `npm test` 3458 test / 305 dosya · `next build` ✅) · CI: push sonrası run bu belgeye
-işlenir · DEPLOY: Railway "Wait for CI" → oto · PROD SMOKE: yapılmadı; ilk gerçek gönderimde
+tam `npm test` 3458 test / 305 dosya · `next build` ✅) · CI ✅ run #938 (`34125242427`, HEAD `fc399c0`, 2026-09-07 13:03–13:09 UTC) 5/5:
+`verify` (typecheck · lint · tam test) · `build` · `e2e` · `migration-chain` · `security-audit`
+· DEPLOY: Railway "Wait for CI" → oto (ACTIVE teyidi bu ortamdan görülemez) · PROD SMOKE: yapılmadı; ilk gerçek gönderimde
 Gönderilenler'de `externalId` dolu olmalı (adaptör → istemci yolu), Sentry'de
 `no outbound adapter` metni GÖRÜLMEMELİ.
 
