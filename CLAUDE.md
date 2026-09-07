@@ -54,8 +54,8 @@ migrasyonu → bridge removal · (20) mimari pin: provider import / `hospitable*
 yetenek çıkarımı yasak.
 **Yürütme sırası (bu sıra prompttaki diğer sıraları ezer):** ① Codex denetimi kritik bulguları kodda
 doğrula+düzelt ✅ (8 P1, `docs/audit-2026-09-05/DURUM.md`) → ② test sözleşmesi ✅ → ③ **V0 Channel
-Independence** (V0.1 ✅ outbound dispatch · V0.2 ✅ provider fake + conformance kiti · V0.3 kod hazır, yerel
-— `ChannelConnection` migration push'u ONAY bekliyor; sonra V0.4 provenance, V0.5 `messagingCapable`, V0.6 ingest write service +
+Independence** (V0.1 ✅ outbound dispatch · V0.2 ✅ provider fake + conformance kiti · V0.3 ✅ `ChannelConnection`
+canlı (migration 49 prod'da 09-07); sırada V0.4 provenance, V0.5 `messagingCapable`, V0.6 ingest write service +
 domain event, V0.7 `hospitable*` kolon contract'ı) → ④ deterministik **Availability Engine** → ⑤ geniş
 otonom AI yalnız yetki+guardrail+grounding+eval doğrulandıktan sonra. **V0 sırasında YAPILMAZ:**
 Availability Engine, RAG/GraphRAG, Property Memory, Exception Feed, Revenue Brain, Proof AI, Ask Lixus,
@@ -331,8 +331,7 @@ Sekiz P1 KAPANDI (09-07), her biri ayrı commit, kırmızı-önce + iki yönlü 
   yetenek yok / kimlik↔sağlayıcı uyuşmazlığı → definitive). Ortak fake `tests/helpers/fake-channel.ts`
   (dedupe YOK, sahipsiz rezervasyon 404, timeout=teslim-olabilir) + kit `tests/helpers/outbound-conformance.ts`
   — **yeni adaptör aynı kiti geçmek zorunda**; fake'in varsayımları gerçek adaptörle (fetch stub) pinli.
-- **ChannelConnection (V0.3, migration 49 — 🚨 YEREL COMMIT, PUSH EDİLMEDİ; kapı: taze `pg_dump` + kurucu
-  onayı, envanter §10):** `(org, provider)` başına TEK satır, disconnect/reconnect AYNI satırı kullanır
+- **ChannelConnection (V0.3, migration 49 — CANLI 09-07, kanıt envanter §10):** `(org, provider)` başına TEK satır, disconnect/reconnect AYNI satırı kullanır
   (kuyruk `connectionId` damgaları kopmaz); `generation` her kimlik-bilgisi yazımında artar = refresh CAS
   ikinci çapası (org blob + generation, ikisi de tek TX'te; biri 0 satır → gecikmiş refresh atılır).
   **Dual-write:** bağlan/kaldır/refresh/revoke org kolonları VE satır, aynı ciphertext (bir kez şifrelenir).
@@ -400,10 +399,10 @@ Sekiz P1 KAPANDI (09-07), her biri ayrı commit, kırmızı-önce + iki yönlü 
 ## Açık işler (özet — ayrıntı belgelerde)
 - **V0 Channel Independence:** V0.1 ✅ (`2034aba`) · V0.2 ✅ (`bc185db`: ortak fake `tests/helpers/fake-channel.ts`
   + conformance kiti `tests/helpers/outbound-conformance.ts` — fake ↔ gerçek adaptör aynı 14 senaryo; envanter §9).
-  **V0.3 KODU HAZIR — yerel commit, PUSH EDİLMEDİ** (migration 49 içerir; kapı: taze doğrulanmış `pg_dump` +
-  kurucunun açık "push et" onayı; sonra CI → deploy → backfill teyidi → ≥1 hafta sonra `CHANNEL_CONNECTION_READ=1`;
-  envanter §10). ⚠️ Konteyner sıfırlanırsa yerel commit kaybolur; yedek dal push'u izne bağlı. Availability
-  Engine / RAG / geniş otonom AI V0 bitmeden YOK.
+  **V0.3 ✅ CANLI** (`922f784`, migration 49 prod'da 09-07 15:49Z; pg_dump SHA + kanıt envanter §10). Backfill 0
+  satır BEKLENEN: prod'da DB token'lı org yok, Nuve `PRIMARY_ORG_ID` env fallback'inde → `CHANNEL_CONNECTION_READ`
+  DB'ye kaydedilmiş ilk gerçek bağlantı olmadan AÇILMAZ. Sıradaki V0.4 provenance. Availability Engine / RAG /
+  geniş otonom AI V0 bitmeden YOK.
 - **Codex P2 (F09–F18)** ilgili modül turlarında. `docs/DENETIM-2026-08-09.md` (27 açık),
   `docs/ACIK-ISLER-2026-08-08.md` (16), `docs/MIGRATION-BEKLEYEN-ISLER.md`.
 - Operatör: bucket sağlayıcı görünürlüğü (imzasız URL 403 olmalı) · `weekly-audit.yml` `main`'e ·
@@ -417,8 +416,7 @@ Sekiz P1 KAPANDI (09-07), her biri ayrı commit, kırmızı-önce + iki yönlü 
   yol · halka açık sayfada çerez yenileme · `PADDLE_WEBHOOK_SECRET` boot kapısı.
 
 ## Durum
-**Yerel HEAD `922f784` (V0.3 — PUSH EDİLMEDİ): 3522 test yeşil (311 dosya) · typecheck/lint/build temiz · migration
-00–49 (50 klasör) taze PG'de sıfır-drift · CI bu commit'te KOŞMADI (push yok). Origin HEAD `751233c` (V0.2 + belgeler):
-CI 5/5 (run #948) · Railway healthcheck-gated oto-deploy.** Son kod işi: Codex P1 turu (8 commit) + V0.1 (`2034aba`)
+**HEAD `0270eb3` (V0.3 canlı): 3522 test yeşil (311 dosya) · typecheck/lint/build temiz · migration 00–49 (50 klasör)
+sıfır-drift · CI 5/5 (run #950) · migration 49 prod'da uygulandı · Railway healthcheck-gated oto-deploy.** Son kod işi: Codex P1 turu (8 commit) + V0.1 (`2034aba`)
 + V0.2 (`bc185db`) + V0.3 (yerel). Prod smoke bu ortamdan yapılamaz; operatör adımları
 `docs/audit-2026-09-05/DURUM.md` + `docs/V0-CHANNEL-INDEPENDENCE-INVENTORY.md` §10 (push kapısı).

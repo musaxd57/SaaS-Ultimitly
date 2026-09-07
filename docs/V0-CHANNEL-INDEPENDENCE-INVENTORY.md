@@ -323,6 +323,14 @@ olmalı (dual-write'ın kanıtı); (6) anahtar açılır; sorun olursa env silin
 TOC 197 girdi · `pg_restore -l` ✅ · SHA256
 `0F02038D5D7AA9EF14E93986751FF2805EACA570F7095B174EA7A106ECD21D1B`. Restore provası bu yedekle henüz koşulmadı.
 
+**Adım (2)–(4) KANITI (2026-09-07):** kurucu onayı → fast-forward push `751233c..0270eb3` → CI run #950 5/5
+(migration-chain 49 taze DB'de) → prod `_prisma_migrations`: `49_channel_connection` finished 15:49:33Z,
+rolled_back boş, yarım migration 0, `MessageOutbox.connectionId` var. **Backfill 0 satır ve bu BEKLENEN:**
+prod'da 9 org, hiçbirinde `hospitableTokenEnc` yok, `hospitable.connect/disconnect` audit'i hiç yok; Nuve
+Ayarlar'da "Sistemin ortak (env) Hospitable bağlantısı" — yani `PRIMARY_ORG_ID` env fallback'i. Env fallback
+V0.7'ye kadar kalır; o org'un kuyruk satırları `connectionId` NULL (legacy yol). Ciphertext paritesi boş kümede
+anlamsız → `CHANNEL_CONNECTION_READ` DB'ye kaydedilmiş ilk gerçek bağlantı olmadan AÇILMAZ.
+
 **Bilerek kapsam dışı / kalan sınırlar:** sync yolu 401'de bağlantıyı revoke ETMEZ (yalnız raporlar) —
 geçici sağlayıcı arızasında herkesi düşürme riski yüzünden ayrı karar; `(org, provider)` başına tek
 bağlantı (çoklu hesap = dolu tabloda unique değişikliği, ayrı migration); env fallback (`HOSPITABLE_API_TOKEN`,
