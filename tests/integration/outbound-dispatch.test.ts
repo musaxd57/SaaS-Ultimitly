@@ -224,10 +224,18 @@ describe("V0.1 shadow-compare — gerçek adaptör istemciyi ESKİ argüman söz
     expect(await prisma.messageOutbox.findUniqueOrThrow({ where: { id: outboxId } })).toMatchObject({ status: "sent", providerMessageId: "PROV-7" });
   });
 
-  it("sendOnChannel: aynı sözleşme; token undefined OLDUĞU GİBİ iletilir (istemci env fallback'i — V0.3'e kadar)", async () => {
+  it("sendOnChannel: aynı sözleşme; token undefined OLDUĞU GİBİ iletilir (env fallback VARKEN — kurucu legacy yolu)", async () => {
+    vi.stubEnv("HOSPITABLE_API_TOKEN", "env-tok");
     const out = await sendOnChannel({ channel: "airbnb", guestIdentifier: "Alex", externalReservationId: "res-1" }, "Merhaba");
     expect(out).toMatchObject({ ok: true, providerMessageId: "PROV-7" });
     expect(mockClient).toHaveBeenCalledWith("res-1", "Merhaba", undefined, { retries: 0 });
+  });
+
+  it("sendOnChannel: token da env de YOKSA istemci çağrılmaz — definitive_failure (V0.2 uyum kiti bulgusu)", async () => {
+    vi.stubEnv("HOSPITABLE_API_TOKEN", "");
+    const out = await sendOnChannel({ channel: "airbnb", guestIdentifier: "Alex", externalReservationId: "res-1" }, "Merhaba");
+    expect(out).toMatchObject({ ok: false, kind: "definitive_failure" });
+    expect(mockClient).not.toHaveBeenCalled();
   });
 
   it("gerçek adaptör 429'u tipler: HTTP durumu → rate_limited, Retry-After worker'a taşınır", async () => {

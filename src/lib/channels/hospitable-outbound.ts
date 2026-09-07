@@ -45,6 +45,17 @@ export const hospitableOutboundAdapter: OutboundAdapter = {
     body: string,
     credential: OutboundCredential,
   ): Promise<OutboundSendResult> {
+    // 🚨 KİMLİK BİLGİSİ YOKSA AĞA ÇIKILMAZ ve sonuç DEFINITIVE'dir (V0.2 uyum kiti
+    // bulgusu). İstemci token'sız çağrıda ağa çıkmadan fırlatır ama HTTP durumu
+    // olmadığı için adaptör bunu "ambiguous" (teslim edilmiş olabilir) sayıyordu —
+    // hiçbir şey gönderilmemişken. Belirsizlik reconcile/review yolunu boşa
+    // çalıştırır; gerçek şu: kesin olarak GÖNDERİLMEDİ. Ulaşılabilirlik: worker
+    // token'sız satırı zaten park eder, satır içi yollar token'ı önce kontrol eder;
+    // burada yalnız env fallback'i de (kurucu legacy yolu) yoksa devreye girer.
+    // Env fallback V0.3'te kaldırılacak (credential → connection).
+    if (!credential.token && !process.env.HOSPITABLE_API_TOKEN) {
+      return { ok: false, kind: "definitive_failure", error: "no credential for provider hospitable (nothing sent)", providerMessageId: null, retryAfterSec: null };
+    }
     const r = await sendMessage(destination.externalReservationId, body, credential.token, { retries: 0 });
     return {
       ok: r.ok,
