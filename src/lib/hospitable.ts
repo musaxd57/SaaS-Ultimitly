@@ -369,6 +369,12 @@ export interface SendResult {
   error?: string;
   /** On a 429, the provider's `Retry-After` (seconds) when present — the caller defers to it. */
   retryAfterSec?: number;
+  /**
+   * HTTP status of a provider rejection (V0.1, additive). The outbound adapter
+   * classifies from THIS number rather than by regex over `error` text; absent on
+   * network/abort failures (no response) — those classify as ambiguous.
+   */
+  status?: number;
 }
 
 /**
@@ -403,6 +409,7 @@ export async function sendMessage(
     return { ok: true, id: id != null ? String(id) : undefined };
   } catch (err) {
     const retryAfterSec = err instanceof HospitableError ? err.retryAfterSec : undefined;
-    return { ok: false, error: err instanceof Error ? err.message : String(err), retryAfterSec };
+    const status = err instanceof HospitableError ? err.status : undefined;
+    return { ok: false, error: err instanceof Error ? err.message : String(err), retryAfterSec, status };
   }
 }

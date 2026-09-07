@@ -1,12 +1,18 @@
 import "server-only";
 
-import { sendMessage } from "@/lib/hospitable";
+import { dispatchOutbound, resolveOutboundRoute } from "@/lib/channels";
+import type { SendResultKind } from "@/lib/outbox/state";
 
 // ---------------------------------------------------------------------------
 // Unified outbound messaging
 //
 // Delivers a reply on the guest's original channel, hiding the per-channel
 // transport from callers (the reply route and the AI auto-reply both use this).
+//
+// V0.1 (Channel Independence): bu modül artık sağlayıcı istemcisini BİLMEZ.
+// Rota (`resolveOutboundRoute`) ve gönderim (`dispatchOutbound`) Channel Layer'da;
+// burası yalnız çağıranların alıştığı `SendOutcome` şekline çevirir. Davranış
+// birebir: aynı istemci çağrısı, aynı argümanlar, aynı sonuç alanları.
 // ---------------------------------------------------------------------------
 
 export interface ChannelTarget {
@@ -25,41 +31,35 @@ export interface SendOutcome {
    *  message from the channel thread it dedups (matches on externalId) instead
    *  of creating a duplicate outbound row attributed to "Ev sahibi". */
   providerMessageId?: string | null;
+  /**
+   * Typed outcome class from the adapter (V0.1, additive). Callers that still branch
+   * on `error` text via isDefinitiveSendFailure keep working; new code can use this.
+   */
+  kind?: SendResultKind;
 }
 
 /**
  * Route an outbound reply to the right transport:
- *   - Hospitable (Airbnb / Booking / ...) when the conversation carries an
- *     externalReservationId,
- *   - otherwise a no-op (internal/manual threads have nothing to deliver).
+ *   - the registered provider adapter (today: Hospitable — Airbnb / Booking / ...)
+ *     when the conversation carries an external destination,
+ *   - otherwise a no-op (internal QR-concierge and manual threads have nothing to
+ *     deliver — never POST a synthetic id to a provider).
+ * The internal-thread rule (`qr-chat:` prefix) lives in ONE place:
+ * `resolveOutboundRoute` (Channel Layer). Single-shot delivery is the adapter's
+ * contract (POST /messages is non-idempotent; the caller owns the ambiguous outcome).
  */
 export async function sendOnChannel(
   target: ChannelTarget,
   body: string,
   token?: string,
 ): Promise<SendOutcome> {
-  // Internal QR-concierge threads ("qr-chat:<propertyId>") have no return channel
-  // — the guest is an anonymous web visitor — so record the host's reply locally
-  // and deliver nothing externally (never POST a synthetic id to Hospitable).
-  const isInternal =
-    !target.externalReservationId || target.externalReservationId.startsWith("qr-chat:");
-
-  if (!isInternal) {
-    // Multi-tenant: deliver via the connecting org's own Hospitable token.
-    // SINGLE-SHOT ({ retries: 0 }), like the durable outbox worker: POST /messages
-    // is NON-IDEMPOTENT, so a client-level retry on a 5xx/timeout/network error can
-    // re-deliver a message that actually landed on attempt 0 (the response was just
-    // lost) → the guest gets it twice. The caller's claim-then-send already owns the
-    // ambiguous outcome (hold the claim, never blindly re-POST — see
-    // isDefinitiveSendFailure), so retrying inside the client would only re-open the
-    // duplicate window the project's "a duplicate is worse than a rare silent miss"
-    // invariant forbids. Exactly one POST; the caller decides what to do with a
-    // failure. (GET/list calls keep their retries — those are idempotent.)
-    const r = await sendMessage(target.externalReservationId!, body, token, { retries: 0 });
-    return { ok: r.ok, error: r.error, providerMessageId: r.id ?? null };
-  }
-
-  return { ok: true, skipped: true };
+  const route = resolveOutboundRoute(target);
+  if (route.kind === "local") return { ok: true, skipped: true };
+  // Multi-tenant: the caller resolved THIS org's credential; it is forwarded as-is
+  // (undefined included — the client's legacy env fallback; V0.3 moves credential
+  // resolution behind a connection and can then fail closed here).
+  const r = await dispatchOutbound(route.destination, body, { provider: route.destination.provider, token });
+  return { ok: r.ok, error: r.error ?? undefined, providerMessageId: r.providerMessageId ?? null, kind: r.kind };
 }
 
 /**

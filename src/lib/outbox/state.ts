@@ -151,7 +151,13 @@ export type SendResultKind =
 export function classifySendResult(outcome: {
   ok: boolean;
   error?: string | null;
+  /** V0.1: typed class from the outbound adapter — preferred over the text regex when present. */
+  kind?: SendResultKind;
 }): SendResultKind {
+  // Adaptörün tipli sınıfı (sağlayıcının KENDİ şeklinden — Hospitable: HTTP durumu)
+  // metin regex'inden ÖNCE gelir. Gelecek adaptörlerin hata metni bu biçimde
+  // olmayacak; parite `outbound-classification-parity.test.ts` ile pinli.
+  if (outcome.kind) return outcome.kind;
   if (outcome.ok) return "definitive_success";
   const err = outcome.error ?? "";
   const m = err.match(/HTTP (\d{3})/);

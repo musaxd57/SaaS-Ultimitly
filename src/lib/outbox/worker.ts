@@ -6,7 +6,7 @@ import { prisma } from "@/lib/db";
 import { orgTimezone, dateKeyInTimeZone } from "@/lib/timezone";
 import { reportError } from "@/lib/report-error";
 import { getOrgHospitableToken } from "@/lib/hospitable-credentials";
-import { sendMessage } from "@/lib/hospitable";
+import { dispatchOutbound, resolveOutboundRoute } from "@/lib/channels";
 import { ANON_BODY } from "@/lib/data-retention";
 import {
   attemptsExhausted,
@@ -74,6 +74,12 @@ export interface OutboxSendOutcome {
   providerMessageId?: string | null;
   /** On a 429, the provider's Retry-After converted to ms — the worker defers to it. */
   retryAfterMs?: number | null;
+  /**
+   * V0.1: the adapter's typed outcome class. When present, classifySendResult uses it
+   * instead of the "HTTP (\d{3})" text regex — a future provider's error text will not
+   * be in Hospitable's format. Optional so injected test senders keep working.
+   */
+  kind?: SendResultKind;
 }
 
 export type OutboxSendFn = (row: OutboxRow, token: string | undefined) => Promise<OutboxSendOutcome>;
@@ -106,17 +112,23 @@ export interface DrainResult {
   blocked: number;
 }
 
-// Default single-attempt send (retries: 0 → exactly one POST). An internal thread
-// (no externalReservationId) has nothing to deliver → treated as a delivered no-op.
+// Default single-attempt send — V0.1: goes through the Channel Layer dispatch boundary
+// (the registered provider adapter owns the single-shot POST; the worker never sees
+// the provider client). A local route (no destination, or an internal `qr-chat:` thread
+// — the same rule sendOnChannel always applied; the old defaultSend did not check the
+// prefix, unreachable because enqueue never queues internal threads) has nothing to
+// deliver → treated as a delivered no-op, exactly as before.
 const defaultSend: OutboxSendFn = async (row, token) => {
-  if (!row.externalReservationId) return { ok: true, providerMessageId: null };
-  const r = await sendMessage(row.externalReservationId, row.body, token, { retries: 0 });
+  const route = resolveOutboundRoute(row);
+  if (route.kind === "local") return { ok: true, providerMessageId: null };
+  const r = await dispatchOutbound(route.destination, row.body, { provider: route.destination.provider, token });
   return {
     ok: r.ok,
     error: r.error,
-    providerMessageId: r.id ?? null,
+    providerMessageId: r.providerMessageId ?? null,
     // A 429 carries the provider's Retry-After (seconds) → defer to its window (Codex P1).
     retryAfterMs: r.retryAfterSec != null ? r.retryAfterSec * 1000 : null,
+    kind: r.kind,
   };
 };
 
