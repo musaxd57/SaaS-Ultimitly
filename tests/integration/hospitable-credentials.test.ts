@@ -271,9 +271,10 @@ describe("hospitable-credentials (OAuth token refresh)", () => {
     });
 
     // İlk persist yazması düşer, ikincisi (anında yeniden deneme) tutar.
-    const realUpdate = prisma.organization.update.bind(prisma.organization);
+    // ⚠️ Persist artık KOŞULLU `updateMany` (F04 CAS) — casus o delegede.
+    const realUpdate = prisma.organization.updateMany.bind(prisma.organization);
     let calls = 0;
-    vi.spyOn(prisma.organization, "update").mockImplementation((async (args: unknown) => {
+    vi.spyOn(prisma.organization, "updateMany").mockImplementation((async (args: unknown) => {
       calls++;
       if (calls === 1) throw new Error("transient DB write failure");
       return realUpdate(args as never);
@@ -290,6 +291,94 @@ describe("hospitable-credentials (OAuth token refresh)", () => {
     // ⚠️ `mockRestore` YOK: bir Prisma delegesini restore etmek onu BOZAR (repoda
     // belgeli tuzak, `hospitable-sync.test.ts` emsali). Spy zaten ilk çağrıdan
     // sonra gerçek metoda geçiyor → sonraki testler etkilenmez.
+  });
+
+  // -------------------------------------------------------------------------
+  // BAŞARI YOLUNDA SAHİPLİK KORUMASI (Codex F04 — P1)
+  //
+  // 🚨 KAPATILAN AÇIK: hata dalı eski refresh token'a bağlı KOŞULLU temizleme
+  // yapıyordu (#6), ama BAŞARI dalı `update({ where: { id } })` ile KOŞULSUZ
+  // yazıyordu. Refresh başladıktan sonra host bağlantıyı KALDIRDIYSA (ya da
+  // BAŞKA bir hesapla yeniden bağlandıysa), geç dönen refresh cevabı eski
+  // hesabın token'larını geri yazıyordu: kaldırılmış bağlantı DİRİLİYOR,
+  // seçilen yeni hesap ESKİSİYLE EZİLİYORDU. Codex gerçek fonksiyonlarla
+  // (refresh cevabı kontrollü promise'te bekletildi, arada clear) yeniden üretti.
+  //
+  // Çözüm bir "generation" kolonu DEĞİL (migration yok): CAS, refresh
+  // BAŞLARKEN okunan `hospitableRefreshTokenEnc` blob'una bağlanır — o blob'u
+  // değiştiren HER yazma (disconnect, reconnect, kazanan refresh) generation'ı
+  // ilerletmiş sayılır. CAS 0 satır eşlerse gecikmiş sonuç ne DB'ye yazılır ne
+  // çağırana "aktif token" diye verilir (bu tur null; bir sonraki tur güncel
+  // satırı okur).
+  // -------------------------------------------------------------------------
+  it("🚨 F04: DISCONNECT sırasında gecikmiş refresh bağlantıyı DİRİLTMEZ ve token döndürmez", async () => {
+    const org = await makeOrg("Org");
+    await setOrgHospitableOAuthTokens(
+      org.id,
+      { accessToken: "access-old", refreshToken: "refresh-old", expiresAt: new Date(Date.now() - 1000) },
+      "5 mülk",
+    );
+    mockGetConfig.mockReturnValue(FAKE_CONFIG);
+    // Refresh sağlayıcıda beklerken host "Bağlantıyı kaldır" der.
+    mockRefresh.mockImplementation(async () => {
+      await clearOrgHospitableToken(org.id);
+      return { accessToken: "access-LATE", refreshToken: "refresh-LATE", expiresAt: new Date(Date.now() + 12 * 3600 * 1000) };
+    });
+
+    const token = await getOrgHospitableToken(org.id);
+
+    expect(token).toBeNull(); // ⬅️ ARIZADA: "access-LATE" — kaldırılmış bağlantı bu turda hâlâ kullanılıyordu
+    const row = await prisma.organization.findUniqueOrThrow({ where: { id: org.id } });
+    expect(row.hospitableTokenEnc).toBeNull(); // ⬅️ ARIZADA: geri yazılmıştı (dirilme)
+    expect(row.hospitableRefreshTokenEnc).toBeNull();
+    expect(row.hospitableTokenExpiresAt).toBeNull();
+    expect((await getConnectionInfo(org.id)).connected).toBe(false);
+  });
+
+  it("🚨 F04: RECONNECT (yeni hesap) sırasında gecikmiş refresh yeni hesabı ESKİSİYLE EZMEZ", async () => {
+    const org = await makeOrg("Org");
+    await setOrgHospitableOAuthTokens(
+      org.id,
+      { accessToken: "access-oldacct", refreshToken: "refresh-oldacct", expiresAt: new Date(Date.now() - 1000) },
+      "Eski hesap",
+    );
+    mockGetConfig.mockReturnValue(FAKE_CONFIG);
+    // Refresh beklerken host OAuth ile BAŞKA bir Hospitable hesabı bağlar.
+    mockRefresh.mockImplementation(async () => {
+      await setOrgHospitableOAuthTokens(
+        org.id,
+        { accessToken: "access-NEWACCT", refreshToken: "refresh-NEWACCT", expiresAt: new Date(Date.now() + 12 * 3600 * 1000) },
+        "Yeni hesap",
+      );
+      return { accessToken: "access-oldacct-rotated", refreshToken: "refresh-oldacct-rotated", expiresAt: new Date(Date.now() + 12 * 3600 * 1000) };
+    });
+
+    expect(await getOrgHospitableToken(org.id)).toBeNull(); // eski hesabın gecikmiş token'ı aktif sayılmaz
+    // Yeni hesap DB'de aynen duruyor ve bir sonraki tur onu kullanır (refresh'e gerek yok).
+    mockRefresh.mockClear();
+    expect(await getOrgHospitableToken(org.id)).toBe("access-NEWACCT");
+    expect(mockRefresh).not.toHaveBeenCalled();
+    expect((await getConnectionInfo(org.id)).label).toBe("Yeni hesap");
+  });
+
+  it("KONTROL (F04): araya kimse girmezse CAS TUTAR — refresh persist eder ve taze token'ı döndürür", async () => {
+    // Bu olmadan "CAS hep 0 eşleşir" mutasyonu (asla persist etme) de yeşil geçerdi.
+    const org = await makeOrg("Org");
+    await setOrgHospitableOAuthTokens(
+      org.id,
+      { accessToken: "access-old", refreshToken: "refresh-old", expiresAt: new Date(Date.now() - 1000) },
+      "5 mülk",
+    );
+    mockGetConfig.mockReturnValue(FAKE_CONFIG);
+    mockRefresh.mockResolvedValue({
+      accessToken: "access-new",
+      refreshToken: "refresh-new",
+      expiresAt: new Date(Date.now() + 12 * 3600 * 1000),
+    });
+    expect(await getOrgHospitableToken(org.id)).toBe("access-new");
+    mockRefresh.mockClear();
+    expect(await getOrgHospitableToken(org.id)).toBe("access-new"); // persist edildi → tekrar refresh yok
+    expect(mockRefresh).not.toHaveBeenCalled();
   });
 
   it("switching to a manually-pasted PAT clears any prior OAuth refresh/expiry state", async () => {

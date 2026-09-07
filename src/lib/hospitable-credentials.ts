@@ -148,11 +148,22 @@ async function refreshOrgOAuthToken(
     // Bir kez ANINDA yeniden dene; yine düşerse AYRI ve yüksek-sinyalli bir
     // alarm bas ve TAZE access token'ı döndür — bu tur hiç değilse tam çalışsın
     // (eski `fallback` token'ı en fazla birkaç dakikalıktı).
+    // 🚨 BAŞARI YOLU DA SAHİPLİĞE BAĞLI (Codex F04, P1). Persist artık CAS:
+    // yalnız satırdaki refresh blob'u HÂLÂ bu refresh'in BAŞLARKEN okuduğu blob
+    // ise yazar. Refresh sağlayıcıda beklerken host bağlantıyı KALDIRDIYSA
+    // (`clearOrgHospitableToken`) ya da BAŞKA hesapla yeniden bağlandıysa
+    // (`setOrgHospitableOAuthTokens`) blob değişmiştir → 0 satır → gecikmiş
+    // sonuç ne DB'ye yazılır ne çağırana "aktif token" diye verilir. Eskiden
+    // `update({where:{id}})` koşulsuzdu: kaldırılmış bağlantı DİRİLİYOR, seçilen
+    // yeni hesap eskisiyle EZİLİYORDU (hata dalı #6'da koşulluydu, başarı dalı
+    // değildi). Generation kolonu YOK: blob'u değiştiren her yazma generation'ı
+    // ilerletmiş sayılır; DB-düzeyinde olduğu için çoklu instance'ta da geçerli.
+    let persisted: boolean;
     try {
-      await persistOAuthTokenSet(orgId, tokens);
+      persisted = await persistOAuthTokenSet(orgId, tokens, refreshTokenEnc);
     } catch {
       try {
-        await persistOAuthTokenSet(orgId, tokens);
+        persisted = await persistOAuthTokenSet(orgId, tokens, refreshTokenEnc);
       } catch (persistErr) {
         void reportError(
           `hospitable-oauth-persist org:${orgId}`,
@@ -162,7 +173,17 @@ async function refreshOrgOAuthToken(
             { cause: persistErr },
           ),
         );
+        // DB yazılamadı (geçici arıza) — sahiplik BİLİNMİYOR ama sözleşme değişmedi:
+        // bu tur hiç değilse çalışsın (eski davranış, ↑gerekçe). CAS kaybıyla KARIŞTIRMA.
+        return tokens.accessToken;
       }
+    }
+    if (!persisted) {
+      // Bağlantı bu refresh sürerken değişti (disconnect / reconnect / kazanan
+      // refresh). Gecikmiş token AKTİF DEĞİLDİR; bir sonraki tur güncel satırı okur.
+      // Beklenen, zararsız bir yarış → alarm değil, izli log (sır yok).
+      console.warn(`[hospitable-credentials] stale refresh result discarded (connection changed mid-refresh) org:${orgId}`);
+      return null;
     }
     return tokens.accessToken;
   } catch (err) {
@@ -222,15 +243,26 @@ async function refreshOrgOAuthToken(
   }
 }
 
-async function persistOAuthTokenSet(orgId: string, tokens: HospitableTokenSet): Promise<void> {
-  await prisma.organization.update({
-    where: { id: orgId },
+/**
+ * Persist a rotated token set — ONLY if the stored refresh blob is still the one this
+ * refresh started from (compare-and-set on the ciphertext, F04). Returns whether the
+ * write landed; `false` = the connection changed underneath (cleared / reconnected /
+ * rotated by a concurrent winner) and NOTHING was written. Throws on a DB error.
+ */
+async function persistOAuthTokenSet(
+  orgId: string,
+  tokens: HospitableTokenSet,
+  expectedRefreshTokenEnc: string,
+): Promise<boolean> {
+  const res = await prisma.organization.updateMany({
+    where: { id: orgId, hospitableRefreshTokenEnc: expectedRefreshTokenEnc },
     data: {
       hospitableTokenEnc: encryptSecret(tokens.accessToken),
       hospitableRefreshTokenEnc: encryptSecret(tokens.refreshToken),
       hospitableTokenExpiresAt: tokens.expiresAt,
     },
   });
+  return res.count === 1;
 }
 
 /**
