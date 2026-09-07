@@ -26,6 +26,7 @@ vi.mock("next/navigation", () => ({
 
 import { requireAuth } from "@/lib/auth";
 import { signSession } from "@/lib/auth/session";
+import { isSuperAdmin } from "@/lib/admin-core";
 
 const base: SessionPayload = {
   userId: "u1",
@@ -244,13 +245,75 @@ describe("requireAuth — mfa iddiası sayfa yolunda da doğrulanır", () => {
     expect((await requireAuth()).mfa).toBe(true);
   });
 
-  it("DB arızasında iddia OLDUĞU GİBİ kalır (fail-open, belgelenmiş taviz)", async () => {
-    // `requireAuth` oturumu bilerek fail-OPEN tutuyor; yetkiyi rol clamp'i
-    // kısıtlıyor. Bu satır o tavizin BİLİNÇLİ olduğunu pinliyor — sessizce
-    // değişirse görünür olsun.
+  // -------------------------------------------------------------------------
+  // 🚨 DB ARIZASINDA `mfa` İDDİASI DA DÜŞER (Codex F06 — P1, koşullu)
+  //
+  // Eski pin tam tersini söylüyordu ("iddia OLDUĞU GİBİ kalır, belgelenmiş
+  // taviz"). Ama `isSuperAdmin` tenant ROLÜNE değil e-posta allowlist'i + `mfa`
+  // iddiasına bakar; catch dalı yalnız rolü staff'a kısıyordu, iddia korunuyordu
+  // → `/admin` sayfası DB'nin doğrulayamadığı bir oturumla TAM RENDER oluyordu
+  // (her org, abonelik, lead, denetim satırı). API yolu (`requireSession`)
+  // aynı hâlde fail-closed; sayfa yolu asimetrikti. Codex: "izinli kurucu
+  // oturumu, DB lookup hatası sonrası role=staff, mfa=true, isSuperAdmin=true".
+  // Doğrulanamayan ayrıcalık ayrıcalık DEĞİLDİR: oturum yaşar (kitlesel çıkış
+  // yok), yetki İKİ eksende kısılır — rol staff, operatör iddiası düşer.
+  // -------------------------------------------------------------------------
+  it("🚨 DB arızasında iddia DÜŞER — oturum yaşar, operatör yetkisi kapanır", async () => {
     findUnique.mockRejectedValue(new Error("db down"));
     const s = await requireAuth();
     expect(s.role).toBe("staff");
-    expect(s.mfa).toBe(true);
+    expect(s.organizationId).toBe("o1"); // kimse çıkışa atılmadı
+    expect(s.mfa).toBe(false); // ⬅️ ARIZADA: true (doğrulanmamış ayrıcalık korunuyordu)
+  });
+});
+
+describe("requireAuth — operatör sayfası DB arızasında fail-closed (F06)", () => {
+  const FOUNDER = "founder@lixusai.com";
+  beforeEach(async () => {
+    findUnique.mockReset();
+    vi.stubEnv("SUPERADMIN_EMAILS", FOUNDER);
+    TOKEN = await signSession({ ...base, email: FOUNDER, role: "owner", mfa: true });
+  });
+  afterEach(() => vi.unstubAllEnvs());
+
+  it("🚨 Codex kanıtı: izinli kurucu oturumu + DB lookup hatası → isSuperAdmin FALSE (sayfa yetki vermez)", async () => {
+    // `/admin/page.tsx` tam olarak bunu yapar: requireAuth → isSuperAdmin → değilse redirect.
+    findUnique.mockRejectedValue(new Error("db down"));
+    const s = await requireAuth();
+    expect(isSuperAdmin(s)).toBe(false); // ⬅️ ARIZADA: true — çapraz-kiracı veri okunurdu
+  });
+
+  it("KONTROL: DB sağlıklı + 2FA açıkken kurucu yetkisi KORUNUR (aşırı-uygulama değil)", async () => {
+    // Bu olmadan "iddiayı her zaman düşür" mutasyonu da yeşil geçerdi.
+    findUnique.mockResolvedValue({ sessionEpoch: 0, role: "owner", organizationId: "o1", twoFactorEnabledAt: new Date() });
+    const s = await requireAuth();
+    expect(isSuperAdmin(s)).toBe(true);
+    expect(s.role).toBe("owner");
+  });
+
+  it("IMPERSONATION oturumu DB arızasında müşteri org'unda KALMAZ — çıkış (ayrıcalıklı bağlam fail-closed)", async () => {
+    // Müşteri satırı okunur, AKTÖR satırı okunurken arıza → kısmi doğrulama yeterli
+    // değil; normal müşteri oturumunun fail-open tavizi impersonation'a UYGULANMAZ.
+    findUnique
+      .mockResolvedValueOnce({ sessionEpoch: 0, role: "owner", organizationId: "o1", twoFactorEnabledAt: new Date() })
+      .mockRejectedValueOnce(new Error("db down"));
+    TOKEN = await signSession({
+      ...base,
+      role: "owner",
+      actorUserId: "op1",
+      actorEmail: FOUNDER,
+      actorName: "Founder",
+      actorSessionEpoch: 0,
+      mfa: true,
+    } as SessionPayload);
+    await expect(requireAuth()).rejects.toThrow("REDIRECT:/api/auth/logout");
+  });
+
+  it("KONTROL: normal müşteri oturumu DB arızasında YAŞAR (fail-open korunur, kitlesel çıkış yok)", async () => {
+    findUnique.mockRejectedValue(new Error("db down"));
+    TOKEN = await signSession(base); // actorUserId YOK, superadmin değil
+    const s = await requireAuth();
+    expect(s.userId).toBe("u1");
+    expect(s.role).toBe("staff");
   });
 });

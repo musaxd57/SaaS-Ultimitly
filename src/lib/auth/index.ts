@@ -118,8 +118,20 @@ export async function requireAuth(): Promise<SessionPayload> {
     // could NOT confirm the DB-authoritative role, so fail CLOSED on capability by
     // clamping to the least-privileged role. Manager/owner-gated UI + role-scoped
     // reads stay hidden until the DB recovers and the real role is read back.
-    // Super-admin is email+env based (not this role) → intentionally unaffected.
     session.role = "staff";
+    // 🚨 OPERATÖR İDDİASI DA DÜŞER (Codex F06, P1). Eski yorum "super-admin
+    // e-posta+env tabanlı, bu rolden etkilenmez" diyordu — 08-05'ten beri YANLIŞ:
+    // `isSuperAdmin` `mfa === true` ister ve o iddia yukarıda DB'den (aktörün /
+    // kişinin `twoFactorEnabledAt`ı) doğrulanır. Doğrulama KOŞAMADIYSA iddia
+    // korunursa `/admin` sayfası DB'nin teyit etmediği bir oturumla TAM RENDER
+    // olur (her org, abonelik, lead, denetim satırı) — API yolu (`requireSession`)
+    // aynı hâlde fail-closed, sayfa yolu asimetrikti. Doğrulanamayan ayrıcalık
+    // ayrıcalık değildir: oturum yaşar, yetki iki eksende kısılır.
+    session.mfa = false;
+    // IMPERSONATION oturumu tanım gereği ayrıcalıklı bağlamdır: aktör epoch'u /
+    // allowlist'i / faktörü teyit edilemediyse müşteri org'unda "staff" olarak bile
+    // kalmaz → çıkış. (Normal müşteri oturumu fail-open kalır — kitlesel çıkış yok.)
+    if (session.actorUserId) invalid = true;
   }
   if (invalid) redirect("/api/auth/logout");
   return session;
