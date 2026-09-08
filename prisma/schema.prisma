@@ -161,22 +161,22 @@ model Organization {
   createdAt                  DateTime  @default(now())
   updatedAt                  DateTime  @updatedAt
 
-  users             User[]
-  riskEvents        RiskEvent[]
-  shadowVerdicts    ShadowVerdict[]
-  erasureTombstones ErasureTombstone[]
-  messageOutbox     MessageOutbox[]
+  users              User[]
+  riskEvents         RiskEvent[]
+  shadowVerdicts     ShadowVerdict[]
+  erasureTombstones  ErasureTombstone[]
+  messageOutbox      MessageOutbox[]
   channelConnections ChannelConnection[]
-  ingestEvents      IngestEvent[]
-  signals           Signal[]
-  propertyMemories  PropertyMemory[]
-  properties        Property[]
-  automationRules   AutomationRule[]
-  auditLogs         AuditLog[]
-  messageTemplates  MessageTemplate[]
-  subscription      Subscription?
-  invoices          Invoice[]
-  checkoutConsents  CheckoutConsent[]
+  ingestEvents       IngestEvent[]
+  signals            Signal[]
+  propertyMemories   PropertyMemory[]
+  properties         Property[]
+  automationRules    AutomationRule[]
+  auditLogs          AuditLog[]
+  messageTemplates   MessageTemplate[]
+  subscription       Subscription?
+  invoices           Invoice[]
+  checkoutConsents   CheckoutConsent[]
 }
 
 model User {
@@ -596,12 +596,12 @@ model Conversation {
   // V0.4 PROVENANCE (migration 50) — Reservation'daki yorumla aynı sözleşme (kanıt: ingest ya da gözlem;
   // çıkarım yok; ingestedAt = ilk alınma; connectionEvidence ingest|observed). QR iç thread'in
   // (`qr-chat:`) kimliği işaretçidir → NULL.
-  connectionId           String?
-  connectionEvidence     String?
-  ingestedAt             DateTime?
+  connectionId       String?
+  connectionEvidence String?
+  ingestedAt         DateTime?
 
-  createdAt              DateTime  @default(now())
-  updatedAt              DateTime  @updatedAt
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
 
   property    Property     @relation(fields: [propertyId], references: [id], onDelete: Cascade)
   reservation Reservation? @relation(fields: [reservationId], references: [id], onDelete: SetNull)
@@ -639,39 +639,39 @@ model Conversation {
 }
 
 model Message {
-  id               String   @id @default(cuid())
-  conversationId   String
-  direction        String // inbound | outbound
-  senderName       String
-  body             String
-  language         String   @default("tr")
-  aiSuggestedReply String?
-  aiConfidence     Float?
-  aiIntent         String?
+  id                 String    @id @default(cuid())
+  conversationId     String
+  direction          String // inbound | outbound
+  senderName         String
+  body               String
+  language           String    @default("tr")
+  aiSuggestedReply   String?
+  aiConfidence       Float?
+  aiIntent           String?
   // Faz-B evidence: JSON array of the sources the AI grounded this reply on
   // (e.g. ["kb:wifi","property:checkInTime"]). Auto-sends only; audit trail.
-  aiSourcesJson    String?
-  externalId       String? // provider message id (e.g. Hospitable) — sync dedup
+  aiSourcesJson      String?
+  externalId         String? // provider message id (e.g. Hospitable) — sync dedup
   // True when this outbound reply was drafted by the AI and approved by a human
   // (one-click "Onayla ve gönder"). Lets reports credit host-approved AI replies,
   // not only fully-automatic "GuestOps AI" sends. Defaulted → db-push safe.
-  aiAssisted       Boolean  @default(false)
+  aiAssisted         Boolean   @default(false)
   // Canonical, typed authorship (migration 28): guest | ai | host | system. This is
   // the RELIABLE classifier — senderName above is DISPLAY/AUDIT only and must never
   // drive a security/state decision. systemEventType names a closed system event when
   // authorType = system (e.g. guest_chat_ai_resumed). NULLABLE: additive on a
   // populated table + old-deployment INSERT compat; new code dual-writes it and reads
   // prefer it (deriveMessageAuthor is the transitional fallback for any NULL row).
-  authorType       String?
-  systemEventType  String?
+  authorType         String?
+  systemEventType    String?
   // V0.4 PROVENANCE (migration 50): connectionId = ingest edildiği (sağlayıcıdan gelen HER iki yön)
   // ya da outbox'ta kuyruklandığı bağlantı; doğrudan gönderim yolu ve QR botu NULL. Mesaj satırı
   // yeniden yazılmaz → gözlemle doldurma yok; ingestedAt = ilk alınma (createdAt sağlayıcı zamanıdır).
   // connectionEvidence: ingest (sağlayıcıdan) | outbound (outbox'ta kuyruklandı) — gözlem yok.
-  connectionId     String?
+  connectionId       String?
   connectionEvidence String?
-  ingestedAt       DateTime?
-  createdAt        DateTime @default(now())
+  ingestedAt         DateTime?
+  createdAt          DateTime  @default(now())
 
   conversation Conversation @relation(fields: [conversationId], references: [id], onDelete: Cascade)
 
@@ -763,16 +763,38 @@ model TaskUpdate {
   @@index([taskId])
 }
 
+// Onay sözleşmesi alanları (A1, migration 53). Kapalı kümeler + karar noktası
+// `src/lib/kb-review.ts`; AI erişimi ALLOWLIST (`legacy` + `approved`) ve tek
+// boğaz noktası `lib/ai/kb-fetch.ts`.
+//
+// 🚨 `legacy` bir dolgu değil, DÜRÜSTLÜK kaydıdır: bu sözleşmeden önce yazılmış
+// satırların kaynağı/onayı hiçbir yerde tutulmuyordu. Migration onları
+// `host_manual`+`approved` DAMGALAMAZ (kurucu, 09-08) — kolon `DEFAULT 'legacy'`
+// ile eklenir ve varsayılan ÖYLE KALIR. Yani "kaynağını beyan etmeyen her satır
+// legacy'dir": geçmiş satırlar da, yarın kaynağını yazmayı unutan bir kod yolu
+// da "bilmiyoruz" der; hiçbiri sahte onay üretmez. Onay AÇIKÇA yazılır
+// (`api/kb` POST) — bu yüzden `approved` bir varsayılan DEĞİL, bir eylemdir.
 model KnowledgeBaseItem {
-  id         String   @id @default(cuid())
-  propertyId String
-  category   String   @default("general") // location | checkin | wifi | rules | parking | trash | cleaning | faq | local_tips | general
-  title      String
-  content    String
-  language   String   @default("tr")
-  isActive   Boolean  @default(true)
-  createdAt  DateTime @default(now())
-  updatedAt  DateTime @updatedAt
+  id             String    @id @default(cuid())
+  propertyId     String
+  category       String    @default("general") // location | checkin | wifi | rules | parking | trash | cleaning | faq | local_tips | general
+  title          String
+  content        String
+  language       String    @default("tr")
+  isActive       Boolean   @default(true)
+  /// legacy | host_manual | extracted_draft | suggestion_accepted (app-enforced)
+  source         String    @default("legacy")
+  /// legacy | approved | draft — YALNIZ legacy+approved modele gider (app-enforced)
+  reviewState    String    @default("legacy")
+  /// Onayın GERÇEK zamanı. `legacy` satırlarda NULL = "onay kaydı yok".
+  approvedAt     DateTime?
+  /// A5: çıkarımın geldiği metnin PII'SİZ işaretçisi (alıntı DEĞİL). Bugün yazan yok.
+  sourceRef      String?
+  /// A5: bir öneri kabul edilince eski kalem yenisiyle işaretlenir (iz kaybı yok).
+  /// FK YOK — KB silme HARD DELETE'tir, FK silmeyi kilitlerdi (V0.4 provenance ile aynı gerekçe).
+  supersededById String?
+  createdAt      DateTime  @default(now())
+  updatedAt      DateTime  @updatedAt
 
   property Property @relation(fields: [propertyId], references: [id], onDelete: Cascade)
 
@@ -1148,18 +1170,18 @@ model ChannelConnection {
 // dispatchedAt: ileride event tüketicisi işaretler (bugün tüketici yok).
 // ---------------------------------------------------------------------------
 model IngestEvent {
-  id             String    @id @default(cuid())
-  organizationId String
-  provider       String // closed set in code (channels/outbound.ts OutboundProvider)
-  connectionId   String? // aktif bağlantı (null = env fallback / legacy)
-  entityType     String // reservation | conversation | message (closed set, app-enforced)
-  entityId       String // bizim satır id'miz (FK yok)
-  kind           String // reservation.created|updated|cancelled · conversation.created|updated · message.imported
-  schemaVersion  Int       @default(1)
+  id                String    @id @default(cuid())
+  organizationId    String
+  provider          String // closed set in code (channels/outbound.ts OutboundProvider)
+  connectionId      String? // aktif bağlantı (null = env fallback / legacy)
+  entityType        String // reservation | conversation | message (closed set, app-enforced)
+  entityId          String // bizim satır id'miz (FK yok)
+  kind              String // reservation.created|updated|cancelled · conversation.created|updated · message.imported
+  schemaVersion     Int       @default(1)
   // V1: `reservation.updated` için DEĞİŞEN ALAN ADLARI (JSON string[]; PII'siz — değer yok).
   changedFieldsJson String?
-  occurredAt     DateTime  @default(now())
-  dispatchedAt   DateTime?
+  occurredAt        DateTime  @default(now())
+  dispatchedAt      DateTime?
 
   organization Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
 

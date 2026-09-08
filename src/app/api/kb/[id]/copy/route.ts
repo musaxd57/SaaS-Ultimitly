@@ -20,6 +20,10 @@ export const POST = withManage<{ id: string }>(async (session, req, { params }) 
       content: true,
       language: true,
       isActive: true,
+      // Onay soyu (A1) kopyaya AYNEN geçer — aşağıdaki `create`'e bakın.
+      source: true,
+      reviewState: true,
+      approvedAt: true,
     },
   });
   if (!source) return notFound();
@@ -85,6 +89,17 @@ export const POST = withManage<{ id: string }>(async (session, req, { params }) 
         content: source.content,
         language: source.language,
         isActive: source.isActive,
+        // ONAY SOYU DEVRALINIR (A1, 09-08) — iki yönlü gerekçe:
+        //  · Kaynak `legacy` ise kopya da `legacy` olur. Kopyalama düğmesine
+        //    basmak, o metnin İÇERİĞİNİ gözden geçirmek değildir; kopyaya
+        //    "host onayladı" yazmak tam olarak kurucunun yasakladığı varsayım.
+        //  · Kaynak `draft` ise kopya da `draft` kalır. Aksi hâlde kopyalama,
+        //    onaydan geçmemiş bir taslağı tek tıkla MODELE SOKAN kaçış olurdu.
+        // `approvedAt` de soydan gelir: kopya kendi başına onaylanmadı, hangi
+        // onaya yaslandığı ise kaynağın onay zamanıdır.
+        source: source.source,
+        reviewState: source.reviewState,
+        approvedAt: source.approvedAt,
       },
     });
     created++;

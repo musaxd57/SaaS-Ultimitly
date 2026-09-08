@@ -525,11 +525,24 @@ Sekiz P1 KAPANDI (09-07), her biri ayrı commit, kırmızı-önce + iki yönlü 
   ısıtma gelmiyor / elektrikler gitti / kapı açılmıyor" `classifyFallback`'te `general` (şikayet DEĞİL); "sıcak su
   yok" ve İngilizce `no hot water`/`no heating` complaint. Dil paritesi kuralıyla çelişir; `general` sinyal üretmez.
   Düzeltme GOLDEN SET + iki yönlü senaryo ister → `docs/ACIK-2026-09-08-turkce-sikayet-siniflandirma-eksigi.md`.
-- **DEĞERLENDİRME (Codex/kurucu 09-08, uygulanmadı):** host metninden alan önerisi (taslak, çelişkide host seçer) ·
-  eksikleri GERÇEK sorulardan bulma (V1 `Signal` verisi zaten akıyor; kategori ↔ KB eşlemesi + tekilleştirme +
-  bildirim yağmuru yok) · yapılandırılmış alan ↔ retrieval ayrımı (çift kopya yasak; vektör GEREKLİLİK ölçülmeden
-  eklenmez) · KB'ye kaynak/onay/sürüm/geçerlilik alanları (migration ister; `PropertyMemory` bu sözleşmeyi zaten
-  taşıyor) · yetki filtresi retrieval'dan ÖNCE ve sır elemesi GEVŞETİLMEZ (bugün çalışıyor).
+- **KB onay sözleşmesi (A1) KOD HAZIR — YEREL, PUSH EDİLMEDİ (migration 53 push kapısında).**
+  `KnowledgeBaseItem`: `source` (`legacy·host_manual·extracted_draft·suggestion_accepted`) · `reviewState`
+  (`legacy·approved·draft`) · `approvedAt` · `sourceRef`/`supersededById` (A5 için, bugün yazan YOK, pinli).
+  🚨 **Eski satırların kaynağı/onayı VARSAYILMAZ** (kurucu 09-08): kolon varsayılanı `legacy` ve ÖYLE KALIR —
+  "kaynağını beyan etmeyen satır legacy'dir"; `approved` varsayılan değil, POST'ta AÇIKÇA yazılan eylemdir.
+  Erişim ALLOWLIST (`legacy`+`approved`) ve TEK kapı `src/lib/kb-review.ts`: AI yolu `ai/kb-fetch.ts` içinde
+  `AND`'lenir (çağıran EZEMEZ; `count` de aynı filtreyi kullanır → taslak "yer sınırından düştü" diye
+  SAYILMAZ, yoksa yok olmayan bilgi için insana devredilirdi). Şablonlar modelden GEÇMEZ (misafire aynen
+  gider) → gönderici + önizleme + Gönderilenler ekranı ortak `GUEST_DELIVERABLE_KB_WHERE` (parite).
+  PATCH onay İDDİASI üretmez (zod'da alan yok; `isActive` düğmesi içerik incelemesi değildir), COPY onay
+  soyunu DEVRALIR (taslak kopyalanarak onaylıya çevrilemez), taslak mülk hafızasına da girmez.
+- **DEĞERLENDİRME (Codex/kurucu 09-08; A2–A5 uygulanmadı):** host metninden alan önerisi (taslak, çelişkide
+  host seçer; yer tutucu `{isim}` gerçeğe DÖNÜŞMEZ) · eksikleri GERÇEK sorulardan bulma (V1 `Signal` verisi
+  zaten akıyor; kategori ↔ KB eşlemesi + tekilleştirme + bildirim yağmuru yok) · yapılandırılmış alan ↔
+  retrieval ayrımı (çift kopya yasak; vektör GEREKLİLİK ölçülmeden eklenmez) · yetki filtresi retrieval'dan
+  ÖNCE ve sır elemesi GEVŞETİLMEZ. 🚨 **A2 düzeltmesi:** `usedSources` TEK BAŞINA "bilgi yok" ile "retrieval
+  başarısız"ı AYIRMAZ (modelin beyanıdır; hiç kalem verilmemiş de olabilir) → kodun bildiği `retrievedCount`
+  ile beyan edilen `usedCount` YAN YANA kaydedilecek.
   Sıra ve gerekçeler: `docs/DEGERLENDIRME-2026-09-08-bilgi-tabani-doldurma-ve-retrieval.md`.
 - **Codex P2 (F09–F18)** ilgili modül turlarında. `docs/DENETIM-2026-08-09.md` (27 açık),
   `docs/ACIK-ISLER-2026-08-08.md` (16), `docs/MIGRATION-BEKLEYEN-ISLER.md`.
@@ -547,8 +560,10 @@ Sekiz P1 KAPANDI (09-07), her biri ayrı commit, kırmızı-önce + iki yönlü 
 **Origin HEAD `4c1efea` (V0.6 + V0.7 canlı; CI 5/5 run #960; migration 51 prod'da 03:13Z; Railway healthcheck-gated
 oto-deploy). V1 Property Memory + Signals CANLI: push `4c1efea..7aa228f` (altyapı `16f70f5` + ürün akışı `4e9b1b1`),
 CI run #964 5/5, **migration 52 prod'da 09-08 06:11:42Z**, ilk geçiş KB hafızasını doldurdu (32/32), IngestEvent/Signal 0
-(gerçek olay yok). 3713 test yeşil (332 dosya) · typecheck/lint/build/audit temiz.**
-Son kod işi: "Dosyadan içe aktar" (canlı, `8d49004`, CI #972 5/5). **Canlı ürün akışı KISMEN doğrulandı** (plan
+(gerçek olay yok). **3734 test yeşil (335 dosya) · typecheck/lint/build/audit temiz.**
+Son PUSH EDİLEN iş: arayüz düzeltmeleri + uygulama planı (`7155117`, CI run #992 success; ondan öncekiler
+#990 `74f77f9`, #988 `79a271a` — hepsi success). **Yerelde, PUSH EDİLMEMİŞ: A1 KB onay sözleşmesi +
+migration 53** (push kapısı: taze `pg_dump` + açık onay). **Canlı ürün akışı KISMEN doğrulandı** (plan
 `docs/V1-CANLI-DOGRULAMA-OPERATOR-PLANI.md` §3): KB → kart ✅ · **tek rezervasyonlu dosya → iptal → sinyal → kart ✅
 (09-08)**; QR mesajı, URL üzerinden iCal, toplu dosya, `date_change`, örüntü DOĞRULANMADI. Kart OLAY tarihini gösterir
 (`Signal.occurredAt`), konaklama tarihini değil. **Açık bulgu:** Gist beslemesinde "1 atlandı"

@@ -67,7 +67,10 @@ const ACTION_TEXT: Record<PreviewRow["action"], string> = {
   skip: "Atlanacak",
 };
 
-export function CalendarFileImport({ propertyId, propertyName }: { propertyId: string; propertyName: string }) {
+// `propertyName` prop OLARAK ALINMAZ: önizlemede gösterilen ad SUNUCUNUN
+// döndürdüğü addır (`preview.property.name`) — dosyanın hangi mülke
+// yazılacağını istemcinin kendi metni değil, yazacak olan taraf söyler.
+export function CalendarFileImport({ propertyId }: { propertyId: string }) {
   const router = useRouter();
   const inputRef = useRef<HTMLInputElement>(null);
   const [file, setFile] = useState<File | null>(null);

@@ -53,7 +53,7 @@ describe("CalendarFileImport — tek seferlik .ics aktarımı", () => {
   });
 
   it("tek seferlik olduğunu ve URL senkronizasyonundan AYRI olduğunu açıkça söyler", () => {
-    render(<CalendarFileImport propertyId="p1" propertyName="Test Dairesi" />);
+    render(<CalendarFileImport propertyId="p1" />);
     const text = document.body.textContent ?? "";
     expect(text).toMatch(/tek seferlik/i);
     expect(text).toMatch(/senkroniz/i);
@@ -65,7 +65,7 @@ describe("CalendarFileImport — tek seferlik .ics aktarımı", () => {
       { ok: true, body: PREVIEW },
       { ok: true, body: { imported: 1, updated: 0, cancelled: 1, skipped: 1, errors: [] } },
     ]);
-    render(<CalendarFileImport propertyId="p1" propertyName="Test Dairesi" />);
+    render(<CalendarFileImport propertyId="p1" />);
     await pickFile();
 
     expect(fetchMock).toHaveBeenCalledTimes(1);
@@ -95,7 +95,7 @@ describe("CalendarFileImport — tek seferlik .ics aktarımı", () => {
 
   it("önizleme hatası görünür, 'İçe aktar' düğmesi çıkmaz", async () => {
     stubFetch([{ ok: false, status: 400, body: { fields: { file: "Yalnızca .ics veya .csv dosyaları kabul edilir" } } }]);
-    render(<CalendarFileImport propertyId="p1" propertyName="Test Dairesi" />);
+    render(<CalendarFileImport propertyId="p1" />);
     await pickFile("notlar.txt");
     expect(document.body.textContent).toContain("Yalnızca .ics veya .csv dosyaları kabul edilir");
     expect(screen.queryByRole("button", { name: /İçe aktar/ })).toBeNull();
@@ -109,7 +109,7 @@ describe("CalendarFileImport — tek seferlik .ics aktarımı", () => {
         body: { ...PREVIEW, counts: { create: 0, update: 0, cancel: 0, skipped: 1 }, rows: [PREVIEW.rows[2]], total: 1 },
       },
     ]);
-    render(<CalendarFileImport propertyId="p1" propertyName="Test Dairesi" />);
+    render(<CalendarFileImport propertyId="p1" />);
     await pickFile();
     const btn = screen.getByRole("button", { name: /İçe aktar/ }) as HTMLButtonElement;
     expect(btn.disabled).toBe(true);

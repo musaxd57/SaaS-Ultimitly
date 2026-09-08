@@ -251,7 +251,7 @@ export default async function PropertyDetailPage({
                       senkronizasyon, burası TEK SEFERLİK dosya aktarımı. Ayrım
                       başlıkta da yazılı — host hangisini yaptığını bilmeli. */}
                   <p className="mb-2 text-xs font-medium">Dosyadan içe aktar (tek seferlik)</p>
-                  <CalendarFileImport propertyId={property.id} propertyName={property.name} />
+                  <CalendarFileImport propertyId={property.id} />
                 </div>
               ) : null}
             </CardContent>

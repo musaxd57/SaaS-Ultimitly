@@ -1,6 +1,7 @@
 import "server-only";
 
 import { prisma } from "@/lib/db";
+import { isAiReadableReviewState } from "@/lib/kb-review";
 
 // ---------------------------------------------------------------------------
 // BAŞLANGIÇ HAFIZASI — KnowledgeBaseItem'dan (kurucu: "the existing KnowledgeBaseItem flow is
@@ -29,7 +30,16 @@ export async function bootstrapMemoryFromKnowledgeBase(organizationId: string, p
   const [items, existingRows] = await Promise.all([
     prisma.knowledgeBaseItem.findMany({
       where: { property: { organizationId }, ...scope },
-      select: { id: true, propertyId: true, category: true, title: true, content: true, isActive: true, updatedAt: true },
+      select: {
+        id: true,
+        propertyId: true,
+        category: true,
+        title: true,
+        content: true,
+        isActive: true,
+        reviewState: true,
+        updatedAt: true,
+      },
     }),
     // Kiracı + (varsa) mülk kapsamı: başka org'un / mülkün hafızasına dokunulmaz.
     prisma.propertyMemory.findMany({
@@ -45,7 +55,12 @@ export async function bootstrapMemoryFromKnowledgeBase(organizationId: string, p
     const k = key(kb.propertyId, kb.id);
     seen.add(k);
     const ex = existing.get(k);
-    if (!kb.isActive) {
+    // TASLAK MÜLK GERÇEĞİ DEĞİLDİR (A1, 09-08). Hafıza "bu mülk hakkında bilinen
+    // şey" demektir ve `confidence: 1` ile "host'un kendi beyanı" diye yazılır;
+    // henüz onaylanmamış bir ÇIKARIMI oraya koymak, ürünün en güvendiği katmana
+    // doğrulanmamış metin sokmak olurdu. Pasif kalemle aynı dala düşürülüyor:
+    // onaya düşen bir kalem hafızada da `retired` olur, silinmez (tarihçe).
+    if (!kb.isActive || !isAiReadableReviewState(kb.reviewState)) {
       if (ex && ex.status !== "retired") {
         await prisma.propertyMemory.update({ where: { id: ex.id }, data: { status: "retired" } });
         out.retired++;

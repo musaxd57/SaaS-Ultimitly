@@ -63,7 +63,6 @@ function ask(token: string, message: string, cookie?: string) {
     { params: Promise.resolve({ token }) },
   );
 }
-const cookieOf = (res: Response) => res.headers.get("set-cookie")?.split(";")[0] ?? undefined;
 
 const okReply = (over: Record<string, unknown> = {}) => ({
   reply: "Otopark bina altındadır.",

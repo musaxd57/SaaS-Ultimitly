@@ -10,6 +10,7 @@ import { Pager } from "@/components/pager";
 import { Badge } from "@/components/ui/badge";
 import { EmptyState } from "@/components/empty-state";
 import { getConnectionInfo } from "@/lib/hospitable-credentials";
+import { GUEST_DELIVERABLE_KB_WHERE } from "@/lib/kb-review";
 import { fromNow, truncate, cn } from "@/lib/utils";
 import {
   SENT_PAGE_SIZE,
@@ -292,7 +293,10 @@ export default async function SentPage({
         where: {
           propertyId: { in: pagePropertyIds },
           category: { in: ["welcome", "checkin", "checkout"] },
-          isActive: true,
+          // Göndericiyle AYNI fragment (A1): bu satır "bugün gönderilecek olan
+          // şablon" diye gösteriliyor — gönderici onaysızı elerken burası
+          // gösterseydi ekran, ürünün yapmayacağı bir şeyi vaat ederdi.
+          ...GUEST_DELIVERABLE_KB_WHERE,
           property: { organizationId: orgId }, // tenant isolation
         },
         select: { propertyId: true, category: true, content: true },

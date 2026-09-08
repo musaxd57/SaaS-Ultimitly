@@ -13,6 +13,7 @@ import { buildTriageData } from "@/lib/ai/triage";
 import { reservationAmountNumber } from "@/lib/money";
 import { classifyMessage, suggestReply, summarizeHostStyle } from "@/lib/ai";
 import { fetchKnowledgeBaseForPrompt } from "@/lib/ai/kb-fetch";
+import { GUEST_DELIVERABLE_KB_WHERE } from "@/lib/kb-review";
 import { consumeDailyAiBudget, peekDailyAiBudget } from "@/lib/ai/daily-budget";
 import {
   classifyFallback,
@@ -2850,7 +2851,7 @@ export async function sendDueWelcomes(
 
   for (const r of reservations) {
     const welcome = await prisma.knowledgeBaseItem.findFirst({
-      where: { propertyId: r.propertyId, category: "welcome", isActive: true },
+      where: { propertyId: r.propertyId, category: "welcome", ...GUEST_DELIVERABLE_KB_WHERE },
       select: { content: true },
       orderBy: { updatedAt: "desc" },
     });
@@ -3015,7 +3016,7 @@ export async function sendDueCheckins(
 
   for (const r of reservations) {
     const tpl = await prisma.knowledgeBaseItem.findFirst({
-      where: { propertyId: r.propertyId, category: "checkin", isActive: true },
+      where: { propertyId: r.propertyId, category: "checkin", ...GUEST_DELIVERABLE_KB_WHERE },
       select: { content: true },
       orderBy: { updatedAt: "desc" },
     });
@@ -3150,7 +3151,7 @@ export async function previewWelcomes(
   const previews: WelcomePreview[] = [];
   for (const r of reservations) {
     const welcome = await prisma.knowledgeBaseItem.findFirst({
-      where: { propertyId: r.propertyId, category: "welcome", isActive: true },
+      where: { propertyId: r.propertyId, category: "welcome", ...GUEST_DELIVERABLE_KB_WHERE },
       select: { content: true },
       orderBy: { updatedAt: "desc" },
     });
@@ -3207,7 +3208,7 @@ export async function previewCheckins(
   const previews: WelcomePreview[] = [];
   for (const r of reservations) {
     const tpl = await prisma.knowledgeBaseItem.findFirst({
-      where: { propertyId: r.propertyId, category: "checkin", isActive: true },
+      where: { propertyId: r.propertyId, category: "checkin", ...GUEST_DELIVERABLE_KB_WHERE },
       select: { content: true },
       orderBy: { updatedAt: "desc" },
     });
@@ -3307,7 +3308,7 @@ export async function sendDueCheckouts(
     if (dateKeyInTimeZone(r.departureDate, tz) !== todayKey) continue;
 
     const tpl = await prisma.knowledgeBaseItem.findFirst({
-      where: { propertyId: r.propertyId, category: "checkout", isActive: true },
+      where: { propertyId: r.propertyId, category: "checkout", ...GUEST_DELIVERABLE_KB_WHERE },
       select: { content: true },
       orderBy: { updatedAt: "desc" },
     });
@@ -3682,7 +3683,7 @@ export async function previewCheckouts(
   const previews: WelcomePreview[] = [];
   for (const r of reservations) {
     const tpl = await prisma.knowledgeBaseItem.findFirst({
-      where: { propertyId: r.propertyId, category: "checkout", isActive: true },
+      where: { propertyId: r.propertyId, category: "checkout", ...GUEST_DELIVERABLE_KB_WHERE },
       select: { content: true },
       orderBy: { updatedAt: "desc" },
     });

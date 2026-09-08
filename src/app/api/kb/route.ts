@@ -58,6 +58,13 @@ export const POST = withManage(async (session, req) => {
       content: d.content,
       language: d.language,
       isActive: d.isActive,
+      // ONAY SÖZLEŞMESİ (A1): host bu metni KENDİ yazdı ve KENDİ kaydetti —
+      // bundan daha açık bir onay yok, `approvedAt` de o anın GERÇEK zamanı.
+      // Kolon varsayılanı da aynı; burada AÇIKÇA yazılıyor ki `approvedAt`
+      // ile `reviewState` asla ayrışmasın ("approved ama zamanı yok" olmasın).
+      source: "host_manual",
+      reviewState: "approved",
+      approvedAt: new Date(),
     },
   });
   // V1: KB = mülk hafızasının kaynağı → hafıza anında eşitlenir (fırlatmaz; KB kaydı başarılı kalır).

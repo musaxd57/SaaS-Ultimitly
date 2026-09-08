@@ -134,20 +134,47 @@ metinden "alan" çıkarmak yanlış veri üretir). Mevcut kategoriler bu ayrım�
 gerekmez — `TRIGGER_CATEGORIES` tek kaynak olarak kullanılır.
 
 ### Sıra (veri bağımlılığı)
-**A1 — Kaynak/onay/sürüm alanları (`KnowledgeBaseItem`) · migration ister · ÖNCE**
+**A1 — Kaynak/onay/sürüm alanları (`KnowledgeBaseItem`) · migration 53 ister · ÖNCE**
 Her şeyin ön koşulu: taslak ile onaylı ayrımı olmadan ne öneri üretilebilir ne de "onaylı cevap var mı?" sorusu
-sorulabilir. Nullable/varsayılanlı eklenir (dolu tabloya required/unique EKLENMEZ — depo kuralı):
-`source` (`host_manual` varsayılan · `extracted_draft` · `suggestion_accepted`) · `status`
-(`approved` varsayılan · `draft`) · `approvedAt` · `sourceRef` (çıkarımın geldiği metin parçası, PII'siz kısa
-alıntı DEĞİL, yalnız satır no/uzunluk) · `supersededById`. **Mevcut satırların hepsi `host_manual`+`approved`
-doğar → davranış birebir aynı.** AI erişimi bugünkü `isActive` filtresine `status: "approved"` şartını EKLER;
-yani taslak bir kalem MODELE ASLA GİTMEZ (kurucunun "host onayından önce aktifleşmesin" şartının kod karşılığı).
+sorulabilir. Varsayılanlı/nullable eklenir (dolu tabloya required-no-default/unique EKLENMEZ — depo kuralı):
+`source` (`legacy` · `host_manual` · `extracted_draft` · `suggestion_accepted`) · `reviewState`
+(`legacy` · `approved` · `draft`) · `approvedAt` · `sourceRef` (çıkarımın geldiği metin parçasının PII'siz
+işaretçisi — ALINTI DEĞİL) · `supersededById`.
 
-**A2 — `usedSources` kaydı · migration ister (küçük) · A1'den bağımsız, eksik-bilgi analizinin ön koşulu**
-Bugün modelin hangi kaleme dayandığı ölçülüyor ama SAKLANMIYOR. Üç sınıfı (bilgi yokluğu / retrieval
-başarısızlığı / operasyonel talep) ayırmanın tek yolu bu: aynı soru için kayıt VAR ama `usedSources` BOŞ ise bu
-bir **retrieval başarısızlığıdır**, yeni kalem eklemek yanlış cevaptır. `RiskEvent`'e `usedSourceCount` (Int?)
-veya ayrı bir küçük tablo; PII yok.
+🚨 **ESKİ SATIRLARIN KAYNAĞI VE ONAYI VARSAYILMAZ (kurucu düzeltmesi 09-08).** Planın ilk hâli "mevcut
+satırların hepsi `host_manual`+`approved` doğar" diyordu; bu YANLIŞTI. O satırların gerçekte host'un mu
+yazdığı, kopyalamayla mı geldiği, hiç gözden geçirilip geçirilmediği KAYIT ALTINDA DEĞİL — bugünkü şemada
+böyle bir alan hiç yoktu. Onları "host onayladı" diye damgalamak, veriye sonradan sahte bir gerçek yazmak
+olurdu (V0.4'te "çıkarım backfill'i YOK" kararının aynısı). Bu yüzden:
+- **Mevcut satırlar `source="legacy"` + `reviewState="legacy"` + `approvedAt=NULL` doğar** = "bu satır onay
+  sözleşmesinden ÖNCE vardı; kaynağı ve onayı hakkında hüküm vermiyoruz".
+- **Davranış birebir korunur:** AI erişim filtresi allowlist'tir → `reviewState ∈ {legacy, approved}`.
+  `legacy` bugün de modele gidiyordu, gitmeye devam eder. Sadece `draft` MODELE ASLA GİTMEZ (kurucunun
+  "host onayından önce aktifleşmesin" şartının kod karşılığı).
+- Kolon varsayılanı `legacy` olarak KALIR (iki adımlı "sonra host_manual yap" numarası YOK): kuralın adı
+  **"kaynağını beyan etmeyen satır legacy'dir"**. Geçmiş satırlar da, yarın kaynağını yazmayı unutan bir
+  kod yolu da "bilmiyoruz" der ve hiçbiri sahte onay üretmez. `approved` bir varsayılan DEĞİL, `api/kb`
+  POST'unda AÇIKÇA yazılan bir eylemdir — bu sayede o yazımı silen bir mutasyon testlerde YAKALANIR.
+- **Genel PATCH `source`/`reviewState`'e DOKUNMAZ** (zod şemasında bu alanlar yok, istemci kendini
+  onaylayamaz). Bir `isActive` düğmesi içerik incelemesi değildir; bir içerik düzenlemesinden "host onayladı"
+  sonucunu çıkarmak da tam olarak kurucunun yasakladığı varsayımdır. Onay YALNIZ A5'in açık onay yolundan
+  gelir. Kopyalama satırın onay soyunu (`source`/`reviewState`/`approvedAt`) AYNEN devralır — böylece ne
+  sahte onay üretilir ne de bir taslak kopyalanarak onaylıya dönüştürülebilir.
+
+**A2 — GETİRİLEN ↔ KULLANILAN kaynak izlenebilirliği · migration ister (küçük) · A1'den bağımsız**
+🚨 **`usedSources` TEK BAŞINA ayrımı KANITLAMAZ (kurucu düzeltmesi 09-08).** Planın ilk hâli "`usedSources`
+boşsa retrieval başarısızlığıdır" diyordu; bu YANLIŞTI. `usedSources` MODELİN BEYANIDIR — modele hiç kalem
+verilmemiş olabilir (bilgi yokluğu), kalem verilmiş ama model onu kullanmamış/beyan etmemiş olabilir
+(retrieval ya da temellendirme başarısızlığı). İkisi de aynı boş listeyi üretir. Ayrımı yapan tek şey
+**KODUN bildiği "ne getirildi"** ile **modelin beyan ettiği "ne kullanıldı"**nın YAN YANA kaydedilmesidir:
+- `retrievedCount` — `fetchKnowledgeBaseForPrompt`'un GERÇEKTEN istemde gönderdiği kalem sayısı (koddan,
+  beyandan değil) + `retrievedDropped` (tavan yüzünden düşen).
+- `usedCount` — modelin `usedSources` beyanından doğrulanmış kalem sayısı.
+- Sınıflandırma: `retrieved=0` → **bilgi yokluğu** (öneri üretilebilir) · `retrieved>0 && used=0` →
+  **temellendirme/retrieval başarısızlığı** (yeni kalem eklemek YANLIŞ cevaptır; teşhis kaydı) ·
+  `dropped>0` → tavan sorunu, ayrı kova.
+Taşıyıcı: `RiskEvent`'e iki küçük Int kolonu (PII yok, kalem KİMLİĞİ değil SAYISI). Kalem kimliği saklamak
+QR'da misafire hangi sırrın gösterildiğini ima edebileceği için bilinçli olarak DIŞARIDA.
 
 **A3 — Eksik bilgi analizi (üç sınıf) · migration GEREKMEZ · A1+A2 sonrası**
 `Signal` verisi zaten akıyor. Kural: mülk × kategori için son 90 günde ≥3 misafir sorusu →
@@ -168,16 +195,39 @@ Metin yapıştırılır → deterministik kalıp çıkarımı (saat, "çıkış/
 mevcut değerle çelişiyorsa yan yana gösterilir ve **host seçer**. Hiçbir mevcut kalem silinmez/değiştirilmez;
 öneri kabul edilirse YENİ kalem `suggestion_accepted`+`approved` olarak doğar, eskisi `supersededById` ile
 işaretlenir (iz kaybı yok).
+**Mesaj şablonları mülk gerçeği SAYILMAZ** (kurucu, 09-08) — ama içlerindeki AÇIK bilgi taslak öneri
+üretebilir: "Çıkış saati 11:00'dir, anahtarı kutuya bırakın" cümlesinden `checkOutTime=11:00` ÖNERİSİ çıkar,
+şablonun kendisi kalem olmaz. 🚨 **Yer tutucu gerçeğe DÖNÜŞMEZ:** `{isim}` · `{daire}` · `{tarih}` gibi
+işaretler içeren cümleden alan çıkarımı yapılmaz (çıkarılan değer yer tutucu içeriyorsa öneri düşürülür) —
+aksi hâlde "Sayın {isim}" metninden misafir adı diye `{isim}` yazan bir "gerçek" üretilirdi.
 
 ### Ayrı görünümler (kurucu şartı)
 - **"Kurulum ve eksikler"** — host'un tamamlaması gereken işler (A3 önerileri + A4 şablonları).
 - **"İncelenecek öneriler"** — metinden çıkarılan taslaklar (A5), her biri onay/ret bekler.
 İkisi karışmaz: ilki "bilgi eksik", ikincisi "bilgi önerildi, onayın lazım".
 
-### Bu turda YAPILMAYANLAR (açıkça)
-A1–A5'in hiçbiri bu turda kodlanmadı; bu bölüm plandır. Düşük güven bandı (`QR_INFORMATIONAL_BAND_ENABLED`)
-**gerçek model eval'i bitmeden AÇILMAYACAK** — varsayılan kapalı kalır. Migration'lar yerelde hazırlanır ve
-taze `pg_dump` + açık push onayı olmadan gönderilmez.
+### Durum (09-08)
+**A1 KODLANDI — YEREL, PUSH EDİLMEDİ (migration 53 push kapısında).** Yapılanlar:
+`prisma/schema.prisma` beş kolon (`source · reviewState · approvedAt · sourceRef · supersededById`) +
+`prisma/migrations/53_kb_review_state` (tek `ADD COLUMN` bloğu, hepsi `DEFAULT 'legacy'`/nullable) ·
+kapalı kümeler ve TEK onay kapısı `src/lib/kb-review.ts` · AI yolu `lib/ai/kb-fetch.ts` içinde `AND`'lenir
+(çağıran ezemez) · şablon gönderici + önizleme + "Gönderilenler" ekranı ortak `GUEST_DELIVERABLE_KB_WHERE` ·
+`api/kb` POST açıkça `host_manual`+`approved`+`approvedAt` yazar, PATCH onay iddiası ÜRETMEZ, COPY onay
+soyunu devralır · taslak mülk hafızasına da girmez. Kanıt: 21 yeni test (10 + 4 + 7), 11 iki yönlü mutasyonun
+tamamı yakalandı, tam kapılar yeşil, boş+dolu tabloda migration zinciri doğrulandı (eski satır `legacy`,
+sonraki satır beyan ettiği değer).
+
+**Bilinçli olarak KAPI KONMAYAN host yüzeyleri (A5'te karara bağlanacak):** Bilgi Tabanı ekranı, inbox'ın
+mülk bilgisi paneli ve dashboard'daki "aktif bilgi kaydı" sayacı `reviewState`e BAKMAZ. Gerekçe: bunlar
+host'un KENDİ verisini gördüğü yüzeyler — taslağı host'tan saklamak zaten amacın tersi. Bugün taslak üreten
+yol olmadığı için hiçbiri değişmiş davranış göstermiyor; A5 geldiğinde "Kurulum ve eksikler" / "İncelenecek
+öneriler" ayrımı bu üç yüzeyin metnini de netleştirecek (özellikle sayaç: taslak "aktif kayıt" sayılmamalı).
+
+### Hâlâ YAPILMAYANLAR (açıkça)
+A2–A5 kodlanmadı. Düşük güven bandı (`QR_INFORMATIONAL_BAND_ENABLED`) **gerçek model eval'i bitmeden
+AÇILMAYACAK** — varsayılan kapalı kalır. Migration 53 yerelde hazır ve test edildi; taze `pg_dump` + açık
+push onayı olmadan GÖNDERİLMEZ. "Kurulum ve eksikler" / "İncelenecek öneriler" ayrı görünümleri A3–A5 ile
+gelir; bugün KB ekranı taslak ÜRETMEDİĞİ için değişmedi (üreten yol yokken ayrı sekme boş kutu olurdu).
 
 ## Önerilen sıra (bağımlılıkla)
 1. **Eksik bilgi tespiti (madde 2)** — veri zaten akıyor, migration gerekmez, değeri en yüksek. Okuma yüzeyi +
