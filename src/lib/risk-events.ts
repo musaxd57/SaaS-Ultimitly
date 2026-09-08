@@ -20,13 +20,23 @@ import { reportError } from "@/lib/report-error";
 //    guest text, name, phone, e-mail or prompt fragment can ever land here.
 // ---------------------------------------------------------------------------
 
-const SURFACES = new Set(["auto_reply", "alerts"]);
+// "guest_chat" (QR concierge) — şema yorumundaki "QR may join later" bu turda
+// gerçekleşti: canlıda her soruya devir gözlendi ama SEBEP hiçbir yere
+// yazılmadığı için teşhis yalnız yeniden üretimle yapılabiliyordu.
+const SURFACES = new Set(["auto_reply", "alerts", "guest_chat"]);
 const DECISIONS = new Set(["auto_sent", "human_review"]);
 const LEVELS = new Set(["none", "low", "medium", "high"]);
 // CLOSED SETS, not sanitization: stripping separators from free text still
 // leaks concatenated names/digits ("adalovelace555…"). A value either IS one
 // of the known codes or it becomes NULL — guest text can never survive.
-const REASONS = new Set(["escalated_to_human", "low_confidence_or_risky", "keyword_escalated", "gate_passed"]);
+// QR kapısının dokuz dalı AYRI kodlarla izlenir (hangi kapının kapattığı
+// canlıda görünsün): tek "low_confidence_or_risky" kovası teşhis için yetersizdi.
+const REASONS = new Set([
+  "escalated_to_human", "low_confidence_or_risky", "keyword_escalated", "gate_passed",
+  // guest_chat (QR) — mustEscalate dallarıyla BİREBİR:
+  "guest_name_injection", "model_unavailable", "escalate_intent", "model_risk_type",
+  "keyword_risk_type", "injection", "model_risk_level", "low_confidence",
+]);
 // Exported: the shadow layer (shadow-ai.ts) clamps the second model's riskType
 // to the SAME closed set so the two columns stay directly comparable.
 export const RISK_TYPES = new Set([
@@ -43,7 +53,7 @@ export interface RiskEventInput {
   organizationId: string;
   propertyId?: string | null;
   conversationId?: string | null;
-  surface: "auto_reply" | "alerts";
+  surface: "auto_reply" | "alerts" | "guest_chat";
   /** The inbound Message id that forced this decision. */
   triggerId: string;
   finalDecision: "auto_sent" | "human_review";

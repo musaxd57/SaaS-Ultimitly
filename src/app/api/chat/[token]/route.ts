@@ -26,6 +26,7 @@ import { claimKeyedOutboundSend, releaseKeyedOutboundSend } from "@/lib/outbound
 import { limitsForOrg } from "@/lib/billing/plan-limits";
 import { consumeDailyAiBudgetForQr } from "@/lib/ai/daily-budget";
 import { recordIngestEvent } from "@/lib/ingest/events";
+import { recordRiskEvent } from "@/lib/risk-events";
 
 export const dynamic = "force-dynamic";
 
@@ -53,6 +54,8 @@ const ESCALATE_INTENTS = new Set(["complaint", "refund", "early_departure", "hum
 // Tavan artık PLANA göre (billing/plan-limits.ts): Başlangıç 50 / Pro 100 /
 // İşletme 200. Aşağıdaki sabit yalnız plan çözülemezse kullanılan son çaredir.
 const DAILY_AI_CAP_FALLBACK = 200;
+/** Modele verilecek EN FAZLA önceki mesaj (istem bütçesi; hedef ~10-12 tur). */
+const QR_HISTORY_CAP = 12;
 
 // Deterministic acknowledgment for a message that arrives AFTER the human team has
 // taken over the thread (host handoff). The AI stays silent for the rest of the
@@ -112,32 +115,50 @@ function setStayCookie(res: NextResponse, name: string, secret: string, departur
  * mode is "leave a draft for the host"), here the failure mode is "escalate" —
  * there is no human at the doorway. Returns true when the bot must NOT answer.
  */
-function mustEscalate(
+/**
+ * KAPALI KÜME devir gerekçeleri — `RiskEvent.reason` ile BİREBİR (PII taşımaz).
+ * Canlıda "her soruya ilettim" gözlendiğinde hangi dalın kapattığı görünsün diye
+ * eklendi: karar tek boolean iken teşhis yalnız yeniden üretimle yapılabiliyordu.
+ */
+export type EscalationReason =
+  | "guest_name_injection"
+  | "model_unavailable"
+  | "escalate_intent"
+  | "model_risk_type"
+  | "keyword_escalated"
+  | "injection"
+  | "keyword_risk_type"
+  | "model_risk_level"
+  | "low_confidence";
+
+/** Devir kararı + GEREKÇESİ. `reason: null` → kapı geçildi (otomatik cevap). */
+function evaluateEscalation(
   result: { intent: string; riskLevel: string; confidence: number; source: string; riskType?: string | null },
   message: string,
   /** Reservation guest name (Airbnb-controlled) — the model sees it in the prompt,
    *  so an injection planted in the NAME must escalate even on a benign message. */
   guestName?: string | null,
-): boolean {
-  if (guestName && detectPromptInjection(guestName)) return true;
-  if (result.source !== "openai") return true; // canned fallback → host handles it
-  if (ESCALATE_INTENTS.has(result.intent)) return true; // money/complaint/human
+): { escalate: boolean; reason: EscalationReason | null } {
+  const yes = (reason: EscalationReason) => ({ escalate: true, reason });
+  if (guestName && detectPromptInjection(guestName)) return yes("guest_name_injection");
+  if (result.source !== "openai") return yes("model_unavailable"); // canned fallback → host handles it
+  if (ESCALATE_INTENTS.has(result.intent)) return yes("escalate_intent"); // money/complaint/human
   // Parity with the inbox auto-send gate: a high-stakes riskType LABEL from the
   // model (review_threat / platform_policy / access_security / money_refund / …)
   // is itself a red flag — escalate even when the model scored riskLevel low. No
   // handoff-ack exemption here: at the doorway there's no human to hand off to in
   // real time, so human_request escalates too (already covered by ESCALATE_INTENTS).
-  if (result.riskType && HIGH_STAKES_RISK_TYPES.has(result.riskType)) return true;
+  if (result.riskType && HIGH_STAKES_RISK_TYPES.has(result.riskType)) return yes("model_risk_type");
   // Cross-check the guest's own words against the deterministic detector — catches
   // an angry/refund message the model under-rated as benign.
   const fb = classifyFallback(message);
   if (fb.isComplaint || fb.intent === "refund" || fb.intent === "early_departure" || fb.intent === "human_request") {
-    return true;
+    return yes("keyword_escalated");
   }
   // Deterministic high-risk backstops (mirror the inbox auto-send gate): a classic
   // injection or a safety/rule/discrimination message is escalated even if the
   // model under-rated it as benign — the guest chat has no human-review draft.
-  if (detectPromptInjection(message)) return true;
+  if (detectPromptInjection(message)) return yes("injection");
   // 🚨 AYNI KÜMEYİ KULLAN, ELLE YAZILMIŞ ÜÇLÜYÜ DEĞİL (denetim, 08-09). Üstteki
   // yorum "inbox oto-gönderim kapısının aynası" diyordu ve bu satır o iddiayı
   // YALANLIYORDU: model ETİKETİ için (:144) tam küme kullanılırken, misafirin
@@ -152,9 +173,10 @@ function mustEscalate(
   // zaten Seviye-2'dir. `human_request` için muafiyet YOK — kapıda gerçek
   // zamanlı devredilecek insan yok (↑:142-143'teki gerekçe aynen geçerli).
   const dr = detectRiskType(message);
-  if (dr && HIGH_STAKES_RISK_TYPES.has(dr)) return true;
-  if (result.riskLevel !== "none" && result.riskLevel !== "low") return true;
-  return result.confidence < 0.75;
+  if (dr && HIGH_STAKES_RISK_TYPES.has(dr)) return yes("keyword_risk_type");
+  if (result.riskLevel !== "none" && result.riskLevel !== "low") return yes("model_risk_level");
+  if (result.confidence < 0.75) return yes("low_confidence");
+  return { escalate: false, reason: null };
 }
 
 /**
@@ -516,7 +538,9 @@ async function handleGuestChatPost(req: NextRequest, { params }: { params: Promi
       return { ...r, handedOff: false };
     });
     recorded = true;
-    return out;
+    // `conversationId` dışarıya taşınır: karar gerekçesi kaydı (RiskEvent) konuşmaya
+    // bağlanabilsin — kurucu konsolunda "hangi sohbette hangi kapı kapattı" izlenir.
+    return { ...out, conversationId };
   };
   try {
 
@@ -605,6 +629,35 @@ async function handleGuestChatPost(req: NextRequest, { params }: { params: Promi
     select: { aiStyleProfile: true },
   });
 
+  // ── KONUŞMA BAĞLAMI (kurucu AI kalite turu, 09-08) ────────────────────────
+  //
+  // 🚨 Burada `history: []` vardı: QR asistanı aynı sohbette bir önceki cümleyi
+  // GÖRMÜYORDU. Canlıda ölçülen sonuçlar: konu değişimi anlaşılmıyor, selamlaşma
+  // tekrarlanıyor, "buldum teşekkürler" gibi kapanışlar yeni bir soru gibi
+  // işleniyor, peş peşe yazılan mesajlar kopuk değerlendiriliyor. Inbox yolu
+  // geçmişi zaten veriyordu — bu bir ASİMETRİYDİ, ürün kararı değil.
+  //
+  // Bounded-context kuralları (CLAUDE.md): kronoloji · yön mesajın KENDİ
+  // alanından (görünen ad DEĞİL) · sistem olayı ve gövdesiz satır DIŞARIDA ·
+  // ölçülü tavan · güncel mesaj burada TEKRARLANMAZ (ayrı `guestMessage` alanı).
+  // Sohbet bu turda yazılmadan önce okunur, yani misafirin ŞU ANKİ mesajı henüz
+  // tabloda değildir — çift geçmemesi yapısal olarak garanti.
+  const priorConversationId = await ensureGuestChatConversation(ctx.property.id, res);
+  const priorRows = await prisma.message.findMany({
+    where: {
+      conversationId: priorConversationId,
+      systemEventType: null,
+      NOT: { body: "" },
+    },
+    orderBy: [{ createdAt: "desc" }, { id: "desc" }],
+    select: { direction: true, body: true },
+    take: QR_HISTORY_CAP,
+  });
+  const history = priorRows
+    .slice()
+    .reverse()
+    .map((m) => ({ direction: m.direction === "inbound" ? ("inbound" as const) : ("outbound" as const), body: m.body }));
+
   const result = await suggestReply({
     guestMessage: message,
     property: {
@@ -625,7 +678,7 @@ async function handleGuestChatPost(req: NextRequest, { params }: { params: Promi
     verifiedActiveStay: true,
     knowledgeBase: ctx.knowledgeBase,
     knowledgeBaseDropped: ctx.knowledgeBaseDropped,
-    history: [],
+    history,
     tone: "warm",
     language: "tr",
     // ⚠️ STİL REHBERİ HALKA AÇIK YÜZEYE HAM GİRMEZ (denetim, 08-01). Rehber, ev
@@ -640,7 +693,8 @@ async function handleGuestChatPost(req: NextRequest, { params }: { params: Promi
   // (The QR model call passes reservation:null — the name never reaches the model
   // today — so this is defense-in-depth: if the name is ever wired into the
   // prompt, the deterministic backstop is already in place.)
-  const escalate = mustEscalate(result, message, res.guestName);
+  const verdict = evaluateEscalation(result, message, res.guestName);
+  const escalate = verdict.escalate;
 
   // SEND-TIME VETO: a host may have replied WHILE the model ran (seconds). The
   // authoritative check now lives INSIDE record() — recheck + insert run under
@@ -650,8 +704,25 @@ async function handleGuestChatPost(req: NextRequest, { params }: { params: Promi
   const reply = escalate
     ? escalationReply()
     : result.reply;
-  const { inboundMessageId, handedOff } = await record(reply, escalate);
+  const { inboundMessageId, handedOff, conversationId } = await record(reply, escalate);
   if (handedOff) return finalize({ handoff: true, reply: HANDOFF_REPLY });
+  // İZLENEBİLİRLİK (kurucu AI kalite turu, 09-08): KARARIN GEREKÇESİ kaydedilir —
+  // devir DE, otomatik cevap DA. Kapalı küme; misafir metni ASLA girmez. Yan
+  // etkidir: `recordRiskEvent` ASLA fırlatmaz (kendi try/catch'i var), o yüzden
+  // await edilmesi teslimi riske atmaz ve kaydı deterministik kılar (fire-and-forget
+  // olsaydı yanıt döndükten sonra yazılır, kurucu konsolunda yarış görünürdü).
+  await recordRiskEvent({
+    organizationId: ctx.property.organizationId,
+    propertyId: ctx.property.id,
+    conversationId,
+    surface: "guest_chat",
+    triggerId: inboundMessageId,
+    finalDecision: escalate ? "human_review" : "auto_sent",
+    riskLevel: result.riskLevel,
+    riskType: result.riskType ?? null,
+    reason: verdict.reason ?? "gate_passed",
+    confidence: result.confidence,
+  });
   if (escalate) {
     await sendQrEscalationAlertBounded({
       organizationId: ctx.property.organizationId,
