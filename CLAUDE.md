@@ -56,9 +56,9 @@ yetenek çıkarımı yasak.
 doğrula+düzelt ✅ (8 P1, `docs/audit-2026-09-05/DURUM.md`) → ② test sözleşmesi ✅ → ③ **V0 Channel
 Independence** (V0.1 ✅ outbound dispatch · V0.2 ✅ provider fake + conformance kiti · V0.3 ✅ `ChannelConnection`
 canlı (migration 49 prod'da 09-07) · V0.4 ✅ provenance canlı (migration 50 prod'da 09-07) · V0.5 ✅ `messagingCapable`
-canlı (`19d5527`, migration'sız) · V0.6 ingest write service + `IngestEvent` KOD HAZIR, yerel — migration 51 push
-kapısında (pg_dump + onay) · V0.7 KOD HAZIRLIĞI yerel (migration'sız; kolon DROP'u operatör planına bağlı:
-`docs/V0.7-CANLI-GECIS-OPERATOR-PLANI.md`)) → ④ deterministik **Availability Engine** → ⑤ geniş
+canlı (`19d5527`, migration'sız) · V0.6 ✅ ingest write service + `IngestEvent` canlı (migration 51 prod'da 09-08
+03:13Z) · V0.7 ✅ kod hazırlığı canlı (migration'sız; kolon DROP'u operatör planına bağlı:
+`docs/V0.7-CANLI-GECIS-OPERATOR-PLANI.md`, ön koşul: okuma anahtarı ≥2 hafta)) → ④ deterministik **Availability Engine** → ⑤ geniş
 otonom AI yalnız yetki+guardrail+grounding+eval doğrulandıktan sonra. **V0 sırasında YAPILMAZ:**
 Availability Engine, RAG/GraphRAG, Property Memory, Exception Feed, Revenue Brain, Proof AI, Ask Lixus,
 Review/Issue tabloları. Yalnız dar, davranış-koruyan temel eklenebilir.
@@ -354,7 +354,7 @@ Sekiz P1 KAPANDI (09-07), her biri ayrı commit, kırmızı-önce + iki yönlü 
   `PROVIDER_MESSAGEABLE_RESERVATION_WHERE` (sourceReference dolu + calendarSourceId null + channel notIn [ics,
   manual]) ve `PROVIDER_THREAD_CONVERSATION_WHERE`/`isInternalThread`; automation.ts literal yazmaz (pin), gönderici
   ve önizleme aynı fragment'i yayar. Org düzeyi yetenek = kimlik çözümü (`getOrgHospitableToken`, env fallback dahil).
-- **Ingest (V0.6, migration 51 — 🚨 YEREL COMMIT, PUSH EDİLMEDİ; kapı: taze `pg_dump` + kurucu onayı, envanter §12):**
+- **Ingest (V0.6, migration 51 — CANLI 09-08 03:13Z, envanter §12):**
   okuma yönü `channels/ingest.ts` sözleşmesi (canonical tipler, tipli `IngestError`, adaptör DEDUPE/SIRALAMA yapmaz);
   `@/lib/hospitable` okuma fonksiyonlarının src/ içindeki TEK çağıranı `channels/hospitable-ingest.ts` (+ sağlayıcı-adlı
   `api/hospitable/diagnostics`; pin). Yazma `ingest/write-service.ts` (`upsertCanonicalReservation`,
@@ -362,7 +362,7 @@ Sekiz P1 KAPANDI (09-07), her biri ayrı commit, kırmızı-önce + iki yönlü 
   TX'te, PII'SİZ (misafir metni/adı ve sağlayıcı kimliği taşımaz; kanarya dışı bilinçli). Değişmeyen senkron UPDATE
   yazmaz ve event üretmez. Fake `tests/helpers/fake-ingest.ts` + kit `tests/helpers/ingest-conformance.ts` — **yeni
   ingest adaptörü aynı kiti geçmek zorunda**; kit ≠ canlı doğrulama.
-- **Bağlantı durumu + kimlik çözümü (V0.7 kod hazırlığı — YEREL, envanter §13):** `resolveHospitableCredential`
+- **Bağlantı durumu + kimlik çözümü (V0.7 kod hazırlığı — CANLI 09-08, envanter §13):** `resolveHospitableCredential`
   TEK çözümleyici (`getOrgHospitableToken` sarmalayıcı): satır (anahtar açıksa) → org kolonları → env (kurucu).
   **Damgalı kuyruk satırı yalnız damgalandığı bağlantıdan gider** — bağlantı aktif değilse `connection_inactive`
   ile bekler, env'e SESSİZCE DÜŞMEZ; başka org'un satırı `connection_tenant_mismatch`. `getConnectionInfo`
@@ -441,11 +441,11 @@ Sekiz P1 KAPANDI (09-07), her biri ayrı commit, kırmızı-önce + iki yönlü 
   satır BEKLENEN: prod'da DB token'lı org yok, Nuve `PRIMARY_ORG_ID` env fallback'inde → `CHANNEL_CONNECTION_READ`
   DB'ye kaydedilmiş ilk gerçek bağlantı olmadan AÇILMAZ. **V0.4 ✅ CANLI** (`c378a97`, migration 50 prod'da 09-07
   19:29Z; prod'daki 17.436 mesaj/1538 rezervasyon `legacy` sınıfında, çıkarım backfill'i bilerek yok; envanter §11).
-  **V0.5 ✅ CANLI** (`19d5527`, CI #958). **V0.6 KOD HAZIR — yerel commit, PUSH EDİLMEDİ** (migration 51 =
-  `IngestEvent` CREATE TABLE; kapı §10 ile aynı: taze `pg_dump` + açık "push et"; envanter §12). ⚠️ Konteyner
-  sıfırlanırsa yerel commit kaybolur. **V0.7 kod hazırlığı yerel** (migration'sız, V0.6'nın üstünde; envanter §13).
-  Kolon DROP'u (`hospitable*`) V0.3 okuma anahtarı ≥2 hafta canlıda sorunsuz olmadan YOK — canlı geçiş adımları
+  **V0.5 ✅ CANLI** (`19d5527`, CI #958). **V0.6 ✅ CANLI** (`a2e60fe`, migration 51 prod'da 09-08 03:13Z; IngestEvent boş —
+  Nuve 402'de donuk; envanter §12). **V0.7 ✅ kod hazırlığı CANLI** (`c1f8a2e`, migration'sız; envanter §13). Kolon
+  DROP'u (`hospitable*`) V0.3 okuma anahtarı ≥2 hafta canlıda sorunsuz olmadan YOK — canlı geçiş adımları
   `docs/V0.7-CANLI-GECIS-OPERATOR-PLANI.md` (aşama 1: Nuve "mevcut bağlantıyı aktar"; 2: anahtar; 3: env; 4: drop).
+  V0 kod dilimleri bitti; V0.8/V1 kurucu kararı.
   Availability Engine / RAG / geniş otonom AI V0 bitmeden YOK.
 - **Codex P2 (F09–F18)** ilgili modül turlarında. `docs/DENETIM-2026-08-09.md` (27 açık),
   `docs/ACIK-ISLER-2026-08-08.md` (16), `docs/MIGRATION-BEKLEYEN-ISLER.md`.
@@ -460,9 +460,8 @@ Sekiz P1 KAPANDI (09-07), her biri ayrı commit, kırmızı-önce + iki yönlü 
   yol · halka açık sayfada çerez yenileme · `PADDLE_WEBHOOK_SECRET` boot kapısı.
 
 ## Durum
-**Yerel HEAD = V0.7 kod hazırlığı (PUSH EDİLMEDİ; dizide migration 51): 3615 test yeşil (318 dosya) · typecheck/lint/
-build/audit temiz · migration 00–51 (52 klasör) taze PG'de sıfır-drift · CI bu commit'lerde KOŞMADI. Origin HEAD
-`19d5527` (V0.5 canlı): CI 5/5 (run #958) · migration 50 prod'da 19:29Z · Railway healthcheck-gated oto-deploy.**
-Son kod işi: V0.1–V0.7 (V0.6 + V0.7 yerel).
+**HEAD `0a7a2a4` (V0.6 + V0.7 canlı): 3615 test yeşil (318 dosya) · typecheck/lint/build/audit temiz · migration 00–51
+(52 klasör) sıfır-drift · CI 5/5 (run #960) · migration 51 prod'da 03:13Z · Railway healthcheck-gated oto-deploy.**
+Son kod işi: V0.1–V0.7. Dal origin ile eşit.
 Prod smoke bu ortamdan yapılamaz; operatör adımları
 `docs/audit-2026-09-05/DURUM.md` + `docs/V0-CHANNEL-INDEPENDENCE-INVENTORY.md` §10 (push kapısı).

@@ -466,7 +466,7 @@ conformance/fake = canlı sağlayıcı doğrulaması DEĞİL.
 previewWelcomes == sendDueWelcomes aynı küme; ics/csv/feed/referanssız dışarı; env fallback gönderir;
 bağlantısız org önizler ama göndermez; QR thread kanal oto-yanıtına girmez). Mutasyon K1–K7 hepsi kırmızı.
 
-### V0.6 — Ingest write service + canonical tipler + domain event (migration 51 — 🚨 YEREL COMMIT, PUSH EDİLMEDİ)
+### V0.6 — Ingest write service + canonical tipler + domain event (migration 51 — ✅ CANLI 2026-09-08 03:13Z)
 > Kapı §10 ile aynı: taze doğrulanmış `pg_dump` + kurucunun AÇIK "push et" onayı. CI bu commit'te KOŞMADI;
 > kapılar yerelde (↓). V0.7'ye geçilmedi.
 
@@ -536,7 +536,13 @@ eski importThread davranışı aynı (yalnız "değişmeyen UPDATE atlanır" far
 `lixus-prod-post-contract-2026-09-08-060002.dump` · 1.457.780 bayt · TOC 203 · `pg_restore -l` ✅ · SHA256
 `EF6366944195EC28CF6A4BB98BD16716F24EA187BC6078D3D371F1D2CC194002` · kurucu "push et yedek tamam" (06:0x).
 
-**Operatör kapısı (push ÖNCESİ):** §10 adımları aynen — taze `pg_dump` + SHA + açık "push et" → CI 5/5
+**Adım (3)–(4) KANITI (2026-09-08):** fast-forward push `19d5527..0a7a2a4` (V0.6 `a2e60fe` + V0.7 `c1f8a2e` + belge)
+→ CI run #960 5/5 (03:11Z; migration-chain 51 taze DB'de) → prod `_prisma_migrations` `51_ingest_event` finished
+03:13:28Z, rolled_back boş, yarım migration 0, `IngestEvent` tablosu var ve BOŞ (Nuve 402'de donuk, yeni ingest yok
+— beklenen), `ChannelConnection` 0, `MessageOutbox.lastErrorCode='connection_inactive'` 0. `CHANNEL_CONNECTION_READ`
+KAPALI. V0.7 kod hazırlığı aynı deploy'da canlı (migration'sız; kolon DROP'u operatör planına bağlı).
+
+**Operatör kapısı (referans):** §10 adımları aynen — taze `pg_dump` + SHA + açık "push et" → CI 5/5
 (migration-chain 51 taze DB'de) → Railway `migrate deploy` (CREATE TABLE; kısa) → salt-okuma kontrol:
 `_prisma_migrations` `51_ingest_event` finished; ilk senkrondan sonra `SELECT kind, count(*) FROM "IngestEvent"
 GROUP BY kind` (Nuve 402'de donuk → 0 beklenebilir); `CHANNEL_CONNECTION_READ` KAPALI kalır.
@@ -554,7 +560,7 @@ teardown'ı yeni koşunun PG'sini kapatır — `pkill -f "node \(vitest"` + doğ
 
 ---
 
-## 13. V0.7 KOD HAZIRLIĞI — YEREL, PUSH EDİLMEDİ (2026-09-07 23:01Z sonrası; kolon DROP'u YOK)
+## 13. V0.7 KOD HAZIRLIĞI — ✅ CANLI 2026-09-08 (deploy `0a7a2a4`; kolon DROP'u YOK, operatör planına bağlı)
 
 > Kapsam doğrulaması: envanter §4 V0.7 = `hospitable*` org kolonlarının contract'ı (drop), ön koşul
 > "okuma anahtarı ≥2 hafta canlıda sorunsuz" — SAĞLANMADI (anahtar hiç açılmadı; prod'da bağlantı satırı
