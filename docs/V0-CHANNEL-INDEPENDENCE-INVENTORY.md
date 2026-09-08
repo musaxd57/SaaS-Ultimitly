@@ -752,3 +752,8 @@ yayına çıkabilir. Sıra: taze yedek → migration 52 için AÇIK push onayı 
 (KB kalemi hafızada; gerçek iCal/QR olayı beklenen sinyale dönüşüyor). Operatör planı:
 `docs/V1-CANLI-DOGRULAMA-OPERATOR-PLANI.md`. Bu belge tamamlanmadan "canlı ürün akışı çalışıyor" DENMEZ.
 
+**Push kapısı adım (1)+(2) KANITI (2026-09-08 08:56, operatör klonu `LixusPreflight-43ccd3c`, `ops-backup-prod.ps1`,
+PostgreSQL 18):** `lixus-prod-post-contract-2026-09-08-085615.dump` · 1.460.362 bayt · TOC 209 · `pg_restore -l` ✅
+("YEDEK TAMAM") · SHA256 `4B89A42F5B14CF4D7C16B2891486C380BC13027B47E71F689CDC4269421FC954` · kurucu: "yedek aldım …
+fast-forward push et" (Codex metniyle; force yok, bayraklar değişmez, canlı ürün testleri ayrı takip, V2 yok).
+
