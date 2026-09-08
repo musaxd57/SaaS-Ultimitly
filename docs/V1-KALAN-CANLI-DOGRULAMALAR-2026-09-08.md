@@ -35,6 +35,10 @@ Test mülkündeki tek rezervasyon (14–17 Eki 2026) **iptal edildi** ve zaten g
 3. **Misafir gibi yaz** (kendi tarayıcında, tercihen gizli pencere): **"Klima bozuk, çalışmıyor."**
    ⚠️ Cümle ölçülerek seçildi: `classifyFallback` → `complaint` (güven 0.7). Planın eski örneği
    "Sıcak su gelmiyor, duş soğuk." → **`general`** çıkıyor ve `general` sinyal ÜRETMEZ.
+   🚨 **Cümleyi değiştirmek bu eksikliği KAPATMAZ:** Türkçe olumsuz fiil boşluğu ayrı bir AÇIK bulgudur
+   (`docs/ACIK-2026-09-08-turkce-sikayet-siniflandirma-eksigi.md`; "su akmıyor", "ısıtma gelmiyor",
+   "elektrikler gitti", "kapı açılmıyor" da `general`). Değişiklik yalnız QR testinin sessizce
+   yanlış-yeşil vermesini önler.
 4. **Beklenen:** AI kısa bir cevap verir veya insana devreder (test mülkü olduğu için e-posta gelmesi normal).
    ≤2 dakika içinde (zamanlanmış geçiş) mülk sayfasındaki **Mülk Hafızası** kartında yeni satır:
    **"Şikayet · &lt;bugünün tarihi&gt; · Misafir mesajı"** (kırmızı ton). Mesaj sinyalinde tarih = mesajın
@@ -49,13 +53,18 @@ Test mülkündeki tek rezervasyon (14–17 Eki 2026) **iptal edildi** ve zaten g
 
 ## B. Gist kaynağındaki "1 atlandı" — iki ihtimali ayırma
 
-### B.1 İhtimaller (kod: `src/lib/import/sync.ts`)
+### B.1 İhtimaller (kod: `src/lib/import/sync.ts`) — "atlandı" tek bir nedene ait DEĞİL
 - **(A) Besleme eski sürümü veriyor** (Raw bağlantı revizyon SHA'sına sabit) → satır kaynağa BAĞLI, içerik aynı →
   `unchanged` dalı → "1 atlandı", rezervasyon Onaylı.
 - **(B) Sahiplik uyuşmuyor** → besleme iptali veriyor ama satırın `calendarSourceId`'si o kaynak DEĞİL (NULL veya
   başka kaynak) → iptal dalı `skip` → "1 atlandı", rezervasyon Onaylı.
+- **(C) Diğer atlama dalları** — aynı çıktıyı verebilir ve elenmeleri gerekir: satır zaten `cancelled`
+  (idempotent dal), KVKK tombstone'u (`erased`), geçersiz satır (ad/tarih), `@@unique` dedupe (P2002),
+  satır hatası. Ayrıca beslemenin O KOŞUDA hiç okunamamış olması (`lastStatus = error`).
 
-İkisi de aynı ekran çıktısını verir; ayıran tek şey satırın sahipliğidir.
+⚠️ **KESİNLİK KURALI (Codex, 09-08): `calendarSourceId` eşleşmesi yalnız (B)'yi ELER — (A)'yı KANITLAMAZ.**
+Sahiplik doğruysa geriye (A) ve (C) kalır; hangisi olduğu ancak **o kaynaktan gerçekten çekilen İÇERİK**
+görülünce belli olur. Kök neden, içerik doğrulanmadan KAPATILMAZ.
 
 ### B.2 Salt-okuma sorgu (yalnız test mülkü; sır ve gerçek misafir verisi yok)
 `psql` sarmalayıcısıyla (DATABASE_URL gizli istenir), tek sorgu:
@@ -82,22 +91,27 @@ SELECT id, label, "lastSyncedAt", "lastStatus", "lastResult", length("urlEnc") A
   FROM "CalendarSource" WHERE "propertyId" = 'cmtsbfyh60001pk2qw9z048fj';
 ```
 
-**Okuma kılavuzu:**
-- Gist'ten gelen rezervasyonun `calendarSourceId`'si o kaynağın `id`'sine **eşitse → (B) ELENİR, (A) kalır**:
-  besleme hâlâ iptalsiz sürümü veriyor.
-- `calendarSourceId` **NULL veya başka kaynak** ise **(B) doğrulanır**: iptal dalı bilinçli olarak yalnız kendi
-  satırına dokunur.
-- `url_sifreli_uzunluk` destekleyici ipucudur (içerik değil): Gist raw bağlantısı revizyon SHA'lıysa düz URL
-  ~41 karakter daha uzundur, bu şifreli uzunluğa da yansır. Tek başına kanıt sayılmaz.
+**Okuma kılavuzu (sorgu tek başına kök nedeni KAPATMAZ):**
+- `calendarSourceId` = kaynağın `id`'si → **(B) elenir.** Geriye (A) ve (C) kalır; hangisi olduğu B.3'süz bilinmez.
+- `calendarSourceId` **NULL veya başka kaynak** → **(B) doğrulanır**: iptal dalı bilinçli olarak yalnız kendi
+  satırına dokunur (davranış doğru, düzeltme gerekmez).
+- `r.status` zaten `cancelled` ise → **(C)** idempotent dalı; `cs."lastStatus" = 'error'` ise besleme o koşuda
+  okunamamıştır → yine (C).
+- `url_sifreli_uzunluk` yalnızca zayıf bir ipucudur (içerik değil): revizyon SHA'lı bağlantı düz hâlde ~41
+  karakter daha uzundur ve bu şifreli uzunluğa yansır. **Kanıt değildir.**
 
-### B.3 Sorgusuz da yapılabilen kesin ayrım (operatör, 1 dakika)
-Kaynağa eklerken kopyaladığın Gist bağlantısını tarayıcıda aç:
-- Adres çubuğunda **40 karakterlik onaltılık dizi** varsa bağlantı o revizyona sabittir → **(A)**.
-- Açılan metinde `STATUS:CANCELLED` **yoksa** besleme eski sürümdedir → **(A)** kesinleşir.
-- Metinde `STATUS:CANCELLED` **varsa** besleme günceldir → **(B)**, yani sahiplik; o zaman B.2 sorgusu
-  `calendarSourceId`'yi göstererek nedeni tamamlar.
+### B.3 ZORUNLU ADIM — çekilen içeriğin doğrulanması (kök neden ancak burada kapanır)
+Kaynağa eklerken kopyaladığın Gist bağlantısını **aynen** tarayıcıda aç (kaynağı silme/değiştirme):
+- Metinde `STATUS:CANCELLED` **YOKSA** → besleme eski sürümü veriyor → **(A) KANITLANDI.** (Adreste 40
+  karakterlik onaltılık dizi varsa nedeni de görünür: bağlantı o revizyona sabit.)
+- Metinde `STATUS:CANCELLED` **VARSA** → besleme güncel → (A) elenir; neden B.2'deki sahiplik/durum
+  alanlarındadır ((B) veya (C)).
+- Bağlantı açılmıyor / hata veriyorsa → (C): besleme hiç okunamamış olabilir; `cs."lastStatus"` ile teyit et.
 
-### B.4 Çözüm ve sınır
+Bu adım yapılmadan **hiçbir kök neden "kesinleşti" diye yazılmayacak.** Bugünkü durum: (A) yalnızca EN OLASI
+hipotezdir, kanıtlanmamıştır.
+
+### B.4 Çözüm ve sınır (yalnız ilgili ihtimal kanıtlandıktan SONRA uygulanır)
 Kaynağın bağlantısını **güncelleyen bir uç yok** (`/api/calendar-sources/[id]` yalnız DELETE) ve kaynak
 silinmeyecek → (A) doğrulanırsa bu kaynak üzerinden iptal akışı tamamlanamaz; bu bir **ürün eksiği**dir, kod
 hatası değil (davranış tasarımla uyumlu). Kayıt: "takvim kaynağının bağlantısını güncelleyen PATCH ucu" ve
@@ -111,8 +125,9 @@ hatası değil (davranış tasarımla uyumlu). Kayıt: "takvim kaynağının ba�
 |---|---|
 | KB → mülk hafızası (A adımı) | ✅ arayüzden doğrulandı (gerçek mülk) |
 | Tek rezervasyonlu dosya → iptal → sinyal → kart | ✅ arayüzden doğrulandı (test mülkü) |
-| QR misafir mesajı → şikayet sinyali | ⏳ bu belgenin A bölümü (test verisi hazır, adımlar bekliyor) |
-| URL üzerinden iCal → iptal sinyali | ⏳ B bölümü kesinleşene kadar AÇIK |
+| QR misafir mesajı → şikayet sinyali | ⏳ **HENÜZ YAPILMADI** — bu belgenin A bölümü (test verisi hazır, adımlar bekliyor) |
+| URL üzerinden iCal → iptal sinyali | ⏳ AÇIK — kök neden **kanıtlanmadı** (B.3 içerik doğrulaması yapılmadı) |
+| Türkçe şikayet sınıflandırma boşluğu | ⏳ AÇIK — `docs/ACIK-2026-09-08-turkce-sikayet-siniflandirma-eksigi.md` (düzeltme ayrı AI kalite turu) |
 | Toplu / çok satırlı dosya | ⏳ doğrulanmadı |
 | Tarih değişikliği (`date_change`) sinyali | ⏳ doğrulanmadı (kod + test var) |
 | Örüntü hafızası (≥3 negatif / 180 gün) | ⏳ doğrulanmadı (tek sinyalle oluşmaz) |

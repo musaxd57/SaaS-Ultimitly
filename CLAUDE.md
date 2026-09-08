@@ -478,6 +478,10 @@ Sekiz P1 KAPANDI (09-07), her biri ayrı commit, kırmızı-önce + iki yönlü 
   kanalın iCal'i pasif/yedek (kayıtlı kalır, rezervasyon YAZMAZ), diğer kanalların iCal'i çalışır; iCal doğrudan veriyi
   ezmez/mükerrer yaratmaz; takvim birleşik. `docs/GEREKSINIM-dogrudan-kanal-ve-ical-birlikte-yasama.md` (Airbnb Direct +
   Availability Engine ile birlikte).
+- **AÇIK (AI kalite turu, 09-08 ölçüldü):** Türkçe olumsuz fiil boşluğu — "sıcak su gelmiyor / su akmıyor /
+  ısıtma gelmiyor / elektrikler gitti / kapı açılmıyor" `classifyFallback`'te `general` (şikayet DEĞİL); "sıcak su
+  yok" ve İngilizce `no hot water`/`no heating` complaint. Dil paritesi kuralıyla çelişir; `general` sinyal üretmez.
+  Düzeltme GOLDEN SET + iki yönlü senaryo ister → `docs/ACIK-2026-09-08-turkce-sikayet-siniflandirma-eksigi.md`.
 - **Codex P2 (F09–F18)** ilgili modül turlarında. `docs/DENETIM-2026-08-09.md` (27 açık),
   `docs/ACIK-ISLER-2026-08-08.md` (16), `docs/MIGRATION-BEKLEYEN-ISLER.md`.
 - Operatör: bucket sağlayıcı görünürlüğü (imzasız URL 403 olmalı) · `weekly-audit.yml` `main`'e ·
@@ -500,6 +504,8 @@ Son kod işi: "Dosyadan içe aktar" (canlı, `8d49004`, CI #972 5/5). **Canlı �
 (09-08)**; QR mesajı, URL üzerinden iCal, toplu dosya, `date_change`, örüntü DOĞRULANMADI. Kart OLAY tarihini gösterir
 (`Signal.occurredAt`), konaklama tarihini değil. **Açık bulgu:** Gist beslemesinde "1 atlandı"
 (`docs/TESHIS-2026-09-08-ical-iptal-atlandi.md`). Açık vizyon parçaları (bakım sinyali V3 · güçlü yön V6 · proaktif
-check-in V2/V5) belgede; V2'ye geçilmedi.
+check-in V2/V5) belgede; V2'ye geçilmedi. **QR canlı testi HENÜZ YAPILMADI** (test verisi + adımlar
+`docs/V1-KALAN-CANLI-DOGRULAMALAR-2026-09-08.md`); Gist bulgusunun kök nedeni KANITLANMADI (içerik doğrulaması
+yapılmadan kapatılmaz).
 Prod smoke bu ortamdan yapılamaz; operatör adımları
 `docs/audit-2026-09-05/DURUM.md` + `docs/V0-CHANNEL-INDEPENDENCE-INVENTORY.md` §10 (push kapısı).

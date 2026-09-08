@@ -27,7 +27,13 @@ belirleyicidir:
   satıra ASLA dokunmaz (`row.status !== "CANCELLED"` koşullu legacy araması). Bu kural, bayat bir dosyanın
   canlı bir aboneliğin kaydını devirmesini engeller.
 
-## 2. En olası kök neden: Gist "Raw" bağlantısı REVİZYONA SABİT
+## 2. En olası HİPOTEZ (kanıtlanmadı): Gist "Raw" bağlantısı REVİZYONA SABİT
+
+> ⚠️ Codex düzeltmesi (09-08): aşağıdaki açıklama **hipotezdir**. Rezervasyonun `calendarSourceId`'sinin kaynağa
+> eşit çıkması yalnız "sahiplik" ihtimalini ELER; beslemeden eski içerik geldiğini KANITLAMAZ. Kök neden ancak
+> o bağlantıdan **gerçekten çekilen içerik** görülünce (metinde `STATUS:CANCELLED` var mı) kapanır — adımlar
+> `docs/V1-KALAN-CANLI-DOGRULAMALAR-2026-09-08.md` §B.3. Ayrıca aynı çıktıyı veren başka atlama dalları da var
+> (satır zaten iptalli · tombstone · geçersiz satır · dedupe · beslemenin o koşuda hiç okunamaması).
 GitHub Gist iki farklı ham bağlantı üretir:
 
 ```
