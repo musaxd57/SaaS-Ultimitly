@@ -36,7 +36,7 @@ const REASONS = new Set([
   // guest_chat (QR) — mustEscalate dallarıyla BİREBİR:
   "guest_name_injection", "model_unavailable", "escalate_intent", "model_risk_type",
   "keyword_risk_type", "injection", "model_risk_level", "low_confidence",
-  "informational_low_confidence",
+  "informational_low_confidence", "unsourced_claim",
 ]);
 // Exported: the shadow layer (shadow-ai.ts) clamps the second model's riskType
 // to the SAME closed set so the two columns stay directly comparable.

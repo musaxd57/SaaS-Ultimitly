@@ -575,17 +575,36 @@ export interface GuestChatContextWindow {
  * yardımcı yalnız "eski şikâyeti gündemde tutayım mı" sorusunu etkiler; hiçbir
  * devir/oto-gönderim kararına girmez, yani yanılması güvenlik açığı üretmez.
  */
-const CLOSURE_WORDS = [
-  "teşekkür", "tesekkur", "sağol", "sagol", "thanks", "thank you",
-  "buldum", "düzeldi", "duzeldi", "halloldu", "hallettim", "çözüldü", "cozuldu", "tamamdır", "tamamdir",
+// SOHBET KAPANIŞI ≠ SORUN ÇÖZÜMÜ (Codex, 09-08). Nezaket kapanışı ("teşekkürler")
+// bir BİLGİ konusunu kapatır; ama klimanın onarıldığını SÖYLEMEZ. Operasyonel bir
+// şikâyeti yalnız ÇÖZÜM BİLDİREN bir cümle kapatabilir ("düzeldi", "halloldu").
+// Aksi hâlde asistan, host hiçbir şey yapmamışken sorunu çözülmüş sayardı.
+const CHAT_CLOSURE_WORDS = ["teşekkür", "tesekkur", "sağol", "sagol", "thanks", "thank you", "buldum", "tamamdır", "tamamdir"];
+const RESOLUTION_WORDS = [
+  "düzeldi", "duzeldi", "halloldu", "hallettim", "çözüldü", "cozuldu", "onarıldı", "onarildi",
+  "tamir edildi", "geldi", "getirildi", "çalışıyor", "calisiyor", "sorun kalmadı", "sorun kalmadi",
 ];
-function looksLikeTopicClosure(body: string): boolean {
+/** Yalnız BİLGİ konularını kapatan nezaket kapanışı. */
+function looksLikeChatClosure(body: string): boolean {
   if (isClosingAck(body)) return true;
   const text = body.trim();
   if (text.length > 80 || text.includes("?")) return false; // soru = kapanış değil
   const folded = foldTurkishLower(text);
-  return CLOSURE_WORDS.some((w) => folded.includes(foldTurkishLower(w)));
+  return CHAT_CLOSURE_WORDS.some((w) => folded.includes(foldTurkishLower(w)));
 }
+/** Operasyonel konuyu da kapatabilen ÇÖZÜM bildirimi. */
+function looksLikeResolution(body: string): boolean {
+  const text = body.trim();
+  if (text.length > 120 || text.includes("?")) return false;
+  const folded = foldTurkishLower(text);
+  return RESOLUTION_WORDS.some((w) => folded.includes(foldTurkishLower(w)));
+}
+/** Kapanış cümlesi mi (hangi türde olursa olsun)? */
+function looksLikeTopicClosure(body: string): boolean {
+  return looksLikeChatClosure(body) || looksLikeResolution(body);
+}
+/** Bu konular yalnız ÇÖZÜM bildirimiyle kapanır (nezaket kapanışı yetmez). */
+const OPERATIONAL_INTENTS = new Set(["complaint", "refund", "early_departure", "human_request"]);
 
 /** Açık konu olarak taşınabilecek kapalı küme (kategori kodu, serbest metin değil). */
 const OPEN_TOPIC_INTENTS = new Set(["complaint", "refund", "early_departure", "human_request"]);
@@ -637,6 +656,10 @@ export async function buildGuestChatContextWindow(conversationId: string): Promi
     const r = chronological[i];
     if (r.direction !== "inbound") continue;
     if (looksLikeTopicClosure(r.body)) {
+      const top = openStack[openStack.length - 1];
+      // Operasyonel konu (şikâyet, para, insan talebi) NEZAKET kapanışıyla
+      // kapanmaz — çözüm bildirimi ister. Yığın da bozulmaz: konu gündemde kalır.
+      if (top && OPERATIONAL_INTENTS.has(top.intent) && !looksLikeResolution(r.body)) continue;
       openStack.pop();
       continue;
     }

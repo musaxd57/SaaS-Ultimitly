@@ -201,10 +201,18 @@ Bu dosyaya token/anahtar/parola yazma.
   ("kaydedildi; ev sahibiniz sohbet ekranından görüntüleyebilir"). "İlettim" İDDİA EDİLMEZ — e-posta bayrak açıkken
   bile dedupe/5 dk cooldown/alıcı-yok/sağlayıcı hatasıyla bastırılabilir ve metin e-postadan ÖNCE yazıldığı için
   sonuç okunamaz. QR devri yapışkan DEĞİL (her mesaj yeniden değerlendirilir, model `history: []`).
-- **QR eksik bilgide DÜRÜST CEVAP (dar bant):** her açıdan risksiz mesajda (model risksiz + kelime ağı temiz +
-  injection yok + intent devir kümesinde değil) güven `0.45 ≤ c < 0.75` ise modelin cevabı GİDER, karar
-  `informational_low_confidence` olarak kaydedilir. Bandın ALTI hâlâ devir. Bant, güvenlik dallarının ARDINDA —
-  şikayet/para/insan-talebi/injection bastırılmaz (iki yönlü test-pinli).
+- **QR eksik bilgide DÜRÜST CEVAP (dar bant, `QR_INFORMATIONAL_BAND_ENABLED` VARSAYILAN KAPALI):** her açıdan
+  risksiz mesajda güven `0.45 ≤ c < 0.75` ise modelin cevabı gider (`informational_low_confidence`). Bandın ALTI
+  hâlâ devir; bant güvenlik dallarının ARDINDA (şikayet/para/insan-talebi/injection bastırılmaz, iki yönlü pinli).
+  🚨 **Düşük güven "dürüst bilmiyorum"un KANITI DEĞİL** — model aynı güvenle uydurabilir: `usedSources` BOŞ iken
+  cevap somut şey iddia ediyorsa (rakam/saat/kod veya yer tarifi) gönderilmez → `unsourced_claim`. Bayrak açma
+  sırası: eval → tek test mülkü + RiskEvent sayımı → genişletme (karar kurucunun).
+- **Sohbet kapanışı ≠ sorun çözümü:** nezaket kapanışı ("teşekkürler") yalnız BİLGİ konusunu kapatır; operasyonel
+  konu (`complaint · refund · early_departure · human_request`) yalnız ÇÖZÜM bildirimiyle ("düzeldi", "halloldu",
+  "geldi") kapanır. Nezaket kapanışı konuyu dondurmaz — sonraki çözüm bildirimi hâlâ kapatır.
+- **`+1 ms` NEDENSELLİK KANITI DEĞİLDİR:** yalnız okuma sırasını düzenler; "bu cevap ŞU soruya verildi" bağını
+  kaydetmez ve eşzamanlı/peş peşe mesajlarda eşleşme hâlâ ÇIKARIMDIR. Doğru çözüm `Message.replyToMessageId`
+  (migration, kalan iş).
 - **QR nedensel sıra VERİDE:** bot cevabı misafir mesajından +1 ms damgalanır (aynı TX'te `CURRENT_TIMESTAMP`
   eşitliği kalktı). `id` kopma noktası KORUNUR — bu düzeltmeden önceki eşit damgalı satırların tek deterministik
   sırası odur. `id` bir VEKİLDİR, nedensellik kanıtı değil.
@@ -539,7 +547,7 @@ Sekiz P1 KAPANDI (09-07), her biri ayrı commit, kırmızı-önce + iki yönlü 
 **Origin HEAD `4c1efea` (V0.6 + V0.7 canlı; CI 5/5 run #960; migration 51 prod'da 03:13Z; Railway healthcheck-gated
 oto-deploy). V1 Property Memory + Signals CANLI: push `4c1efea..7aa228f` (altyapı `16f70f5` + ürün akışı `4e9b1b1`),
 CI run #964 5/5, **migration 52 prod'da 09-08 06:11:42Z**, ilk geçiş KB hafızasını doldurdu (32/32), IngestEvent/Signal 0
-(gerçek olay yok). 3707 test yeşil (332 dosya) · typecheck/lint/build/audit temiz.**
+(gerçek olay yok). 3713 test yeşil (332 dosya) · typecheck/lint/build/audit temiz.**
 Son kod işi: "Dosyadan içe aktar" (canlı, `8d49004`, CI #972 5/5). **Canlı ürün akışı KISMEN doğrulandı** (plan
 `docs/V1-CANLI-DOGRULAMA-OPERATOR-PLANI.md` §3): KB → kart ✅ · **tek rezervasyonlu dosya → iptal → sinyal → kart ✅
 (09-08)**; QR mesajı, URL üzerinden iCal, toplu dosya, `date_change`, örüntü DOĞRULANMADI. Kart OLAY tarihini gösterir

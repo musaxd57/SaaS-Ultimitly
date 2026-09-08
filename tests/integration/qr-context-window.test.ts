@@ -238,6 +238,51 @@ describe("QR bağlam penceresi — birim, determinizm, taşan açık konular", (
     expect(lastInput().openTopics ?? []).toContain("complaint");
   });
 
+  it("🚨 GENEL TEŞEKKÜR operasyonel şikâyeti ÇÖZÜLMÜŞ yapmaz (sohbet kapanışı ≠ sorun çözümü)", async () => {
+    const { token, conversationId } = await seed();
+    // Araya BAŞKA konu girmiyor: yakınlık kuralı burada şikâyeti kapatırdı.
+    // Ama "teşekkürler" nezaket kapanışıdır; klimanın onarıldığını SÖYLEMEZ.
+    await prisma.message.create({ data: msg(conversationId, "inbound", "Klima bozuk, çalışmıyor.") });
+    await prisma.message.create({ data: msg(conversationId, "outbound", "İlettim.") });
+    await prisma.message.create({ data: msg(conversationId, "inbound", "teşekkürler") });
+    for (let i = 1; i <= 30; i++) {
+      await prisma.message.create({ data: msg(conversationId, i % 2 === 1 ? "inbound" : "outbound", `dolgu ${i}`) });
+    }
+
+    await ask(token, "çöp nereye?");
+    expect(lastInput().openTopics ?? []).toContain("complaint");
+  });
+
+  it("ÇÖZÜM BİLDİRİMİ operasyonel şikâyeti kapatır ('klima düzeldi')", async () => {
+    const { token, conversationId } = await seed();
+    await prisma.message.create({ data: msg(conversationId, "inbound", "Klima bozuk, çalışmıyor.") });
+    await prisma.message.create({ data: msg(conversationId, "inbound", "klima düzeldi") });
+    for (let i = 1; i <= 30; i++) {
+      await prisma.message.create({ data: msg(conversationId, i % 2 === 1 ? "inbound" : "outbound", `dolgu ${i}`) });
+    }
+
+    await ask(token, "çöp nereye?");
+    expect(lastInput().openTopics ?? []).not.toContain("complaint");
+  });
+
+  it("AŞIRI KISIT YOK: genel teşekkür konuyu kilitlemez — sonraki ÇÖZÜM bildirimi hâlâ kapatır", async () => {
+    const { token, conversationId } = await seed();
+    // Nezaket kapanışı şikâyeti kapatmaz (üstteki test), ama konuyu da
+    // dondurmaz: misafir gerçekten "düzeldi" dediğinde konu kapanmalı.
+    // ⚠️ Fixture notu: "insan ile görüşmek istiyorum" kelime ağında `general`
+    // çıkıyor (bilinen Türkçe boşluk, ayrı belgede kayıtlı) — bu yüzden
+    // operasyonel örnek olarak şikâyet kullanılıyor.
+    await prisma.message.create({ data: msg(conversationId, "inbound", "Klima bozuk, çalışmıyor.") });
+    await prisma.message.create({ data: msg(conversationId, "inbound", "teşekkürler") });
+    await prisma.message.create({ data: msg(conversationId, "inbound", "klima düzeldi") });
+    for (let i = 1; i <= 30; i++) {
+      await prisma.message.create({ data: msg(conversationId, i % 2 === 1 ? "inbound" : "outbound", `dolgu ${i}`) });
+    }
+
+    await ask(token, "çöp nereye?");
+    expect(lastInput().openTopics ?? []).not.toContain("complaint");
+  });
+
   it("İLGİLİ kapanış konuyu kapatır: şikâyetin hemen ardından gelen kapanış şikâyeti kapatır", async () => {
     const { token, conversationId } = await seed();
     await prisma.message.create({ data: msg(conversationId, "inbound", "Klima bozuk, çalışmıyor.") });

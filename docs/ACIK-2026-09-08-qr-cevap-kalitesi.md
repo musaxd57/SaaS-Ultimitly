@@ -112,6 +112,52 @@ YAPILMADI. Bugün kanıtlanan tek şey: pencere artık daha geniş, deterministi
   "cevaplar iyileşti" sayısı üretilmedi. Kalan iş: sürümlü senaryo dosyası + operatörün anahtarla koşacağı
   script + öncesi/sonrası karşılaştırma tablosu.
 
+## 3.f Codex düzeltmeleri (09-08, 4. dilim) — kabul edilen üç itiraz
+
+### (a) "+1 ms nedensellik KANITI DEĞİLDİR" — kabul, iddia geri çekildi
+Doğru itiraz. `+1 ms` yalnız **gösterim/okuma sırasını** düzenler; "bu cevap ŞU soruya verildi" ilişkisini
+KAYDETMEZ. Peş peşe gelen mesajlarda ve eşzamanlı isteklerde tek başına hiçbir şey kanıtlamaz — iki istek
+paralel işlenirse damgalar iç içe geçebilir ve hangi cevabın hangi soruya ait olduğu yine çıkarım olur.
+**Bugünkü dürüst durum:** sıra artık deterministik ve okunabilir; **eşleşme ise hâlâ çıkarımdır.**
+**Doğru çözüm (kalan iş, migration ister):** `Message.replyToMessageId` — cevabın hangi mesaja verildiği
+AÇIKÇA yazılır. QR yolunda bu bedavaya elde edilir (misafir satırının id'si zaten aynı TX'te üretiliyor).
+Kalite denetçisi de o zaman "önceki inbound"u tahmin etmek yerine bağı doğrudan okur.
+
+### (b) "Düşük güven, dürüst eksik-bilgi cevabının kanıtı değildir" — kabul, bant sertleştirildi
+Doğru itiraz ve bu turdaki en önemli düzeltme. Model **aynı düşük güvenle uydurabilir**; güven bir dürüstlük
+ölçüsü değildir. Bant artık iki ek kapıyla korunuyor:
+1. **Kaynaksız somut iddia engeli:** `usedSources` boşsa (cevap hiçbir KB kalemine/mülk alanına dayanmıyor) ve
+   cevap SOMUT bir şey söylüyorsa (rakam/saat/kod veya yer tarifi) → gönderilmez, insana gider
+   (`unsourced_claim`). Dayanaksız ama somut olmayan cevap ("kayıtlı bilgim yok") güvenlidir; bandın amacı odur.
+2. **Bayrak:** `QR_INFORMATIONAL_BAND_ENABLED`, **VARSAYILAN KAPALI**. Gerçek model eval'i yapılana kadar
+   canlı davranış eskisiyle birebir aynıdır. Açmak tek env değişikliğidir ve **kurucunun kararıdır**.
+
+**Genişleyen otomatik gönderimi sınırlama önerim (kurucuya):** bandı şu sırayla açmak —
+(i) eval koşulur (aşağıdaki §3.e harness'ı), (ii) tek test mülkünde açılır ve `RiskEvent` sayımıyla izlenir
+(`reason='informational_low_confidence'` kaç kez, `unsourced_claim` kaç kez), (iii) bir hafta boyunca yanlış
+cevap şikâyeti yoksa genişletilir. Ölçüm noktası hazır: her karar zaten kaydediliyor.
+
+### (c) "Genel teşekkür operasyonel şikâyeti çözülmüş yapmasın" — kabul, ayrım kodlandı
+Doğru itiraz: **sohbet kapanışı ≠ sorun çözümü.** Artık iki ayrı sınıf var:
+- `looksLikeChatClosure` ("teşekkürler", "sağolun", "buldum") → yalnız BİLGİ konularını kapatır.
+- `looksLikeResolution` ("düzeldi", "halloldu", "geldi", "çalışıyor", "sorun kalmadı") → operasyonel konuları da
+  kapatır.
+`complaint · refund · early_departure · human_request` yalnız çözüm bildirimiyle kapanır. Aşırı kısıt da yok:
+nezaket kapanışı konuyu dondurmaz, sonraki gerçek çözüm bildirimi kapatır (test-pinli).
+
+## 3.g Eksik bilgi analizi — ÜÇ AYRI SINIF (Codex, kabul)
+Önceki değerlendirmede "kategori eşlemesi" olarak yazmıştım; bu eksikti. Doğru ayrım:
+| Sınıf | Belirti | Doğru eylem |
+|---|---|---|
+| **Bilgi yokluğu** | Soru soruldu, o kategoride onaylı kayıt YOK | Host'a "bu bilgiyi ekle" önerisi |
+| **Retrieval başarısızlığı** | Kayıt VAR ama cevaba girmedi/bulunamadı | YENİ kalem EKLEME — erişim/eşleme/filtre hatasını düzelt |
+| **Operasyonel talep** | "Havlu getirilmedi", "klima bozuk" | KB kalemi DEĞİL; görev/eskalasyon konusu (V3) |
+Aynı kelime ("havlu") üç sınıfa da düşebilir: *"Havlu nerede?"* bilgi, *"Havlu getirilmedi"* operasyonel,
+*"Havlu bilgisi kayıtlı ama cevapta çıkmadı"* retrieval. Ayrım yapılmadan öneri üretmek, hostu var olan bilgiyi
+tekrar yazmaya veya operasyonel bir sorunu belge yazarak "çözmeye" iter. **Sinyal verisi bu ayrımı taşıyabilir:**
+`Signal.category` + o an KB'de eşleşen kalem var mıydı + cevabın `usedSources` içeriği birlikte bakılırsa üç sınıf
+ayrışır. (Bugün `usedSources` kaydedilmiyor — bu ayrımı yapmak için kaydedilmesi gerekir; kalan iş.)
+
 ## 4. Eval seti adayları (bu transkriptten)
 1. Boş KB + konum sorusu → uydurma öneri YOK; ya dürüst bilgi-yok cevabı ya da tek netleştirme sorusu.
 2. Boş KB + tesis sorusu ("çöp") → dürüst cevap; "ilettim" gibi gerçekleşmemiş aktarım iddiası YOK.

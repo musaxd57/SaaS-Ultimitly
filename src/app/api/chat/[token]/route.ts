@@ -62,6 +62,34 @@ const DAILY_AI_CAP_FALLBACK = 200;
  */
 const INFORMATIONAL_MIN_CONFIDENCE = 0.45;
 
+/**
+ * Bant, gerçek model eval'i yapılana kadar VARSAYILAN KAPALI (Codex şartı:
+ * "genişleyen otomatik gönderim davranışını güvenli biçimde sınırla"). Kapalıyken
+ * davranış eskisiyle birebir aynıdır: 0.75 altı her güven insana devredilir.
+ */
+function informationalBandEnabled(): boolean {
+  return process.env.QR_INFORMATIONAL_BAND_ENABLED === "1";
+}
+
+/**
+ * KAYNAKSIZ SOMUT İDDİA — bandın asıl güvenlik kapısı.
+ *
+ * `usedSources` kodda doğrulanır (`verifyUsedSources`): boş liste "bu cevap hiçbir
+ * bilgi kalemine/mülk alanına dayanmıyor" demektir. Böyle bir cevap SOMUT bir şey
+ * söylüyorsa (bir yer tarifi, bir sayı/saat/kod) bu uydurma olabilir ve misafir
+ * onu mülkün gerçeği sanar. Dayanaksız ama SOMUT OLMAYAN cevap ("bu konuda kayıtlı
+ * bilgim yok", "hangi konuda yardımcı olayım?") güvenlidir ve bandın amacı zaten odur.
+ *
+ * Dar ve deterministik: kaynak varsa hiç bakılmaz; kaynak yoksa rakam veya yer
+ * ifadesi aranır. Yanılma yönü GÜVENLİ tarafa (fazladan devir).
+ */
+const SPECIFIC_PLACE_WORDS =
+  /(arkasında|arkasinda|önünde|onunde|yanında|yaninda|altında|altinda|üstünde|ustunde|karşısında|karsisinda|katta|kat[ıi]nda|numaralı|numarali|sokak|cadde|kapıda|kapida|asansör|asansor|bodrum|teras)/i;
+function hasUnsourcedSpecificClaim(reply: string, usedSources: string[]): boolean {
+  if (usedSources.length > 0) return false;
+  return /\d/.test(reply) || SPECIFIC_PLACE_WORDS.test(reply);
+}
+
 // Deterministic acknowledgment for a message that arrives AFTER the human team has
 // taken over the thread (host handoff). The AI stays silent for the rest of the
 // stay — it re-opens only on a NEW reservation (a fresh "qr-chat:" thread). The
@@ -135,12 +163,24 @@ export type EscalationReason =
   | "keyword_risk_type"
   | "model_risk_level"
   | "low_confidence"
-  /** Devir DEĞİL: risksiz soru, orta güven → modelin dürüst cevabı gitti. */
+  /** Bant içindeydi AMA cevap kaynaksız somut iddia taşıyordu → devir. */
+  | "unsourced_claim"
+  /** Devir DEĞİL: risksiz soru, orta güven, kaynaksız iddia YOK → dürüst cevap gitti. */
   | "informational_low_confidence";
 
 /** Devir kararı + GEREKÇESİ. `reason: null` → kapı geçildi (otomatik cevap). */
 function evaluateEscalation(
-  result: { intent: string; riskLevel: string; confidence: number; source: string; riskType?: string | null },
+  result: {
+    intent: string;
+    riskLevel: string;
+    confidence: number;
+    source: string;
+    riskType?: string | null;
+    /** Modelin gönderdiği metin — kaynaksız somut iddia taraması için. */
+    reply?: string;
+    /** Kodda doğrulanmış kaynak etiketleri (`verifyUsedSources`). Boş = dayanaksız. */
+    usedSources?: string[];
+  },
   message: string,
   /** Reservation guest name (Airbnb-controlled) — the model sees it in the prompt,
    *  so an injection planted in the NAME must escalate even on a benign message. */
@@ -196,7 +236,18 @@ function evaluateEscalation(
   // cevabı göndermek dürüst olmaz. Bandın İÇİ, modelin "bilgim yok" demeyi de
   // kapsayan dürüst yanıtıdır ve karar ayrı bir gerekçeyle KAYDEDİLİR, yani
   // canlıda ölçülebilir (gereksiz devir azaldı mı, yanlış cevap arttı mı).
-  if (result.confidence >= INFORMATIONAL_MIN_CONFIDENCE && result.confidence < 0.75) {
+  if (
+    informationalBandEnabled() &&
+    result.confidence >= INFORMATIONAL_MIN_CONFIDENCE &&
+    result.confidence < 0.75
+  ) {
+    // 🚨 DÜŞÜK GÜVEN "DÜRÜST BİLMİYORUM"UN KANITI DEĞİLDİR (Codex, 09-08).
+    // Model aynı güvenle UYDURABİLİR. Bandı açan şey güven değil, cevabın
+    // DAYANAĞIDIR: kaynak göstermeyen bir cevap mülke özgü somut bir şey
+    // iddia ediyorsa (yer, sayı, saat, kod) o cevap gönderilmez — insana gider.
+    if (hasUnsourcedSpecificClaim(result.reply ?? "", result.usedSources ?? [])) {
+      return yes("unsourced_claim");
+    }
     return { escalate: false, reason: "informational_low_confidence" };
   }
   if (result.confidence < 0.75) return yes("low_confidence");
@@ -720,7 +771,11 @@ async function handleGuestChatPost(req: NextRequest, { params }: { params: Promi
   // (The QR model call passes reservation:null — the name never reaches the model
   // today — so this is defense-in-depth: if the name is ever wired into the
   // prompt, the deterministic backstop is already in place.)
-  const verdict = evaluateEscalation(result, message, res.guestName);
+  const verdict = evaluateEscalation(
+    { ...result, reply: result.reply, usedSources: result.usedSources },
+    message,
+    res.guestName,
+  );
   const escalate = verdict.escalate;
 
   // SEND-TIME VETO: a host may have replied WHILE the model ran (seconds). The

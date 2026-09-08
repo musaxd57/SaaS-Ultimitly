@@ -75,6 +75,8 @@ const model = (over: Record<string, unknown> = {}) => ({
   confidence: 0.6,
   source: "openai",
   priority: "standard",
+  usedSources: [],
+  missingInfo: ["trash_location"],
   ...over,
 });
 const lastReason = (orgId: string) =>
@@ -90,6 +92,9 @@ describe("QR — eksik bilgide dürüst cevap (dar bant)", () => {
     vi.clearAllMocks();
     vi.stubEnv("GUEST_CHAT_ENABLED", "1");
     vi.stubEnv("OPENAI_API_KEY", "test-key");
+    // Bant, gerçek model eval'i yapılana kadar VARSAYILAN KAPALI (Codex şartı):
+    // "genişleyen otomatik gönderim davranışını güvenli biçimde sınırla".
+    vi.stubEnv("QR_INFORMATIONAL_BAND_ENABLED", "1");
   });
   afterAll(async () => {
     vi.unstubAllEnvs();
@@ -179,6 +184,42 @@ describe("QR — eksik bilgide dürüst cevap (dar bant)", () => {
     const body = await (await ask(token, "otopark var mı")).json();
     expect(body.escalated).toBe(true);
     expect((await lastReason(orgId))?.reason).toBe("model_unavailable");
+  });
+
+  it("🚨 KAYNAKSIZ SOMUT İDDİA bant içinde olsa bile GÖNDERİLMEZ (uydurma riski)", async () => {
+    const { orgId, token } = await seed();
+    // Model kaynak göstermiyor (`usedSources: []`) ama mülke özgü SOMUT bir şey
+    // iddia ediyor. Düşük güven "dürüst bilmiyorum" demenin KANITI DEĞİLDİR —
+    // model aynı güvenle uydurabilir. Bu dal onu yakalar.
+    mockSuggest.mockResolvedValue(
+      model({ confidence: 0.6, usedSources: [], reply: "Çöp konteyneri binanın arkasında, 2. kapıda." }),
+    );
+
+    const body = await (await ask(token, "çöpü nereye atabiliriz")).json();
+    expect(body.escalated).toBe(true);
+    expect(body.reply).not.toContain("arkasında");
+    expect((await lastReason(orgId))?.reason).toBe("unsourced_claim");
+  });
+
+  it("KAYNAKLI cevap bant içinde gönderilir (kaynak varsa iddia serbest)", async () => {
+    const { token } = await seed();
+    mockSuggest.mockResolvedValue(
+      model({ confidence: 0.6, usedSources: ["kb:trash"], reply: "Çöp konteyneri binanın arkasında." }),
+    );
+
+    const body = await (await ask(token, "çöpü nereye atabiliriz")).json();
+    expect(body.escalated).toBeFalsy();
+    expect(body.reply).toContain("arkasında");
+  });
+
+  it("BAYRAK KAPALI (varsayılan): bant devre dışı, eski davranış — devir", async () => {
+    const { orgId, token } = await seed();
+    vi.stubEnv("QR_INFORMATIONAL_BAND_ENABLED", "");
+    mockSuggest.mockResolvedValue(model({ confidence: 0.6 }));
+
+    const body = await (await ask(token, "nasılsın")).json();
+    expect(body.escalated).toBe(true);
+    expect((await lastReason(orgId))?.reason).toBe("low_confidence");
   });
 
   it("YÜKSEK güven yolu değişmedi: normal cevap, reason gate_passed", async () => {

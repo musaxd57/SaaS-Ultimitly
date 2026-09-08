@@ -224,7 +224,11 @@ describe("POST /api/chat/[token] (public QR concierge)", () => {
     expect(json.escalated).toBe(true);
   });
 
-  it("bant İÇİNDEKİ güven risksiz soruda cevaplanır (gereksiz devir yok)", async () => {
+  it("bant İÇİNDEKİ güven risksiz soruda cevaplanır (bayrak AÇIKKEN; gereksiz devir yok)", async () => {
+    // ⚠️ Bant VARSAYILAN KAPALI (Codex şartı: gerçek model eval'i yapılana kadar
+    // genişleyen otomatik gönderim sınırlı kalsın). Kapalıyken davranış eskisiyle
+    // birebir aynıdır — üstteki test onu pinler. Burada bandın kendisi sınanıyor.
+    vi.stubEnv("QR_INFORMATIONAL_BAND_ENABLED", "1");
     mockSuggest.mockResolvedValue(result({ confidence: 0.5 }));
     const { propertyId } = await makeOrgWithProperty();
     const token = await enableChat(propertyId);
