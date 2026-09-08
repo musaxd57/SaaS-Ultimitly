@@ -502,14 +502,6 @@ export async function runScheduledSync(): Promise<ScheduledSyncTotals> {
           await handleOrgError(err);
         }
 
-        // V1 INTELLIGENCE — event tüketimi + örüntü hafızası, senkron ve otomasyondan SONRA ve
-        // AYRI: hatası raporlanır, PMS akışını (senkron/oto-yanıt/karşılama) asla bloklamaz.
-        try {
-          await runIntelligencePass(org.id);
-        } catch (err) {
-          await reportError(`intelligence-pass org:${org.id}`, err);
-        }
-
         // Senkron patladıysa otomasyon koşmaz (eski davranış birebir): mesajlar
         // içeri alınamamışken oto-yanıt/karşılama göndermenin anlamı yok.
         // ⚠️ `continue` YERİNE İÇ BLOK (08-08): koşullar ve sıra BİREBİR aynı
@@ -598,6 +590,16 @@ export async function runScheduledSync(): Promise<ScheduledSyncTotals> {
           // istenirse org başına bir `count` gerekir — yani sistemin zaten
           // bütçeyi aştığı anda N sorgu daha; bilinçli olarak YAPILMADI.
           icalOrgsDeferred += 1;
+        }
+
+        // V1 INTELLIGENCE — KB hafızası + event tüketimi + örüntü; org'un TÜM giriş yollarından
+        // (Hospitable senkronu VE iCal bacağı) SONRA: bu geçişte yazılan besleme event'leri aynı
+        // geçişte tüketilir. AYRI ve KORUMALI: hatası raporlanır, PMS akışını (senkron/oto-yanıt/
+        // karşılama/takvim) asla bloklamaz. Hospitable'ı olmayan org da buraya gelir (busy = mülkü var).
+        try {
+          await runIntelligencePass(org.id);
+        } catch (err) {
+          await reportError(`intelligence-pass org:${org.id}`, err);
         }
       }
       if (icalSources > 0 || icalDeferred > 0 || icalOrgsDeferred > 0) {

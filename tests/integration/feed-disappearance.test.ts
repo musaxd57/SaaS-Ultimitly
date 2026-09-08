@@ -75,6 +75,28 @@ describe("feed-disappearance reconciliation (#23, FAZ 2)", () => {
     expect((await prisma.reservation.findUniqueOrThrow({ where: { id: missing.id } })).status).toBe("cancelled");
   });
 
+  it("V1: uzlaştırma iptali GERÇEK bir iptaldir → aynı TX'te reservation.cancelled event'i (provider ical, org kapsamlı, bağlantısız); iptal olmayan koşu event üretmez", async () => {
+    const { orgId, propertyId, sourceId } = await seedSource();
+    await mkRes(propertyId, sourceId, "uid-present");
+    const missing = await mkRes(propertyId, sourceId, "uid-gone");
+    const t0 = new Date(Date.now() - 25 * 3_600_000);
+    await reconcile(sourceId, propertyId, ["uid-present"], t0);
+    // İlk kayıp = henüz iptal yok → event YOK (yapay olay yok; streak sayacı event değildir).
+    expect(await prisma.ingestEvent.count({ where: { organizationId: orgId } })).toBe(0);
+    const rec = await reconcile(sourceId, propertyId, ["uid-present"], new Date());
+    expect(rec.cancelled).toBe(1);
+    const evs = await prisma.ingestEvent.findMany({ where: { organizationId: orgId } });
+    expect(evs).toHaveLength(1);
+    expect(evs[0]).toMatchObject({
+      kind: "reservation.cancelled",
+      provider: "ical",
+      connectionId: null,
+      entityType: "reservation",
+      entityId: missing.id,
+      dispatchedAt: null,
+    });
+  });
+
   it("threshold reached but MIN DURATION not yet → still no cancel", async () => {
     const { propertyId, sourceId } = await seedSource();
     await mkRes(propertyId, sourceId, "uid-present");

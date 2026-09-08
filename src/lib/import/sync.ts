@@ -10,6 +10,7 @@ import { isPrivateHost, resolvesToPrivate } from "@/lib/net/private-host";
 import { loadErasureGuard, acquireErasureLock } from "@/lib/erasure";
 import { fetchFeedText } from "@/lib/net/pinned-fetch";
 import { ANON_NAME } from "@/lib/data-retention";
+import { recordIngestEvent, type IngestContext } from "@/lib/ingest/events";
 
 export interface SyncResult {
   imported: number;
@@ -270,6 +271,10 @@ export async function syncCalendarSource(sourceId: string): Promise<SyncResult> 
   }
 
   const rows = parseIcs(text);
+  // V1 ürün akışı: iCal bir Lixus-native giriştir → her GERÇEK yazma (create/update/cancel)
+  // satırla AYNI TX'te sağlayıcıdan bağımsız IngestEvent üretir (provider "ical", bağlantı yok).
+  // Değişmeyen satır yazılmaz → event de üretilmez (yapay olay yok).
+  const ingestCtx: IngestContext = { organizationId: source.property.organizationId, provider: "ical", connectionId: null };
   // Every UID seen in THIS feed (incl. cancelled ones) → used below to reconcile
   // reservations that silently disappeared from the feed.
   const seenRefs = new Set<string>();
@@ -350,7 +355,10 @@ export async function syncCalendarSource(sourceId: string): Promise<SyncResult> 
                 where: { id: existing.id, calendarSourceId: source.id },
                 data: { status: "cancelled" },
               });
-              if (resC.count === 1) return { kind: "cancelled", id: existing.id };
+              if (resC.count === 1) {
+                await recordIngestEvent(tx, ingestCtx, "reservation", existing.id, "reservation.cancelled");
+                return { kind: "cancelled", id: existing.id };
+              }
             }
             return { kind: "skip" };
           }
@@ -393,6 +401,18 @@ export async function syncCalendarSource(sourceId: string): Promise<SyncResult> 
               };
             }
 
+            // Event için DEĞİŞEN ALAN ADLARI (değer yok — PII'siz). `unchanged` yukarıda
+            // elendiği için en az bir alan vardır; tarih alanları V1 date_change sinyalinin girdisi.
+            const changedFields: string[] = [];
+            if (!sameInstant(existing.arrivalDate, row.arrivalDate)) changedFields.push("arrivalDate");
+            if (!sameInstant(existing.departureDate, row.departureDate)) changedFields.push("departureDate");
+            if (existing.status === "cancelled") changedFields.push("status");
+            if (existing.calendarSourceId !== source.id) changedFields.push("calendarSourceId");
+            if (!scrubbed) {
+              if (existing.guestName !== row.guestName.slice(0, 200)) changedFields.push("guestName");
+              if ((existing.notes ?? null) !== (row.notes ? row.notes.slice(0, 5000) : null)) changedFields.push("notes");
+            }
+
             // ATOMIC adoption: ownership re-checked inside the UPDATE (count 0 = a
             // concurrent source claimed the legacy NULL row first → not ours, skip).
             const resU = await tx.reservation.updateMany({
@@ -414,6 +434,7 @@ export async function syncCalendarSource(sourceId: string): Promise<SyncResult> 
               },
             });
             if (resU.count === 0) return { kind: "skip" };
+            await recordIngestEvent(tx, ingestCtx, "reservation", existing.id, "reservation.updated", changedFields);
             return { kind: "updated", id: existing.id };
           }
 
@@ -432,6 +453,7 @@ export async function syncCalendarSource(sourceId: string): Promise<SyncResult> 
               ingestedAt: new Date(), // V0.4 provenance: İLK ALINMA (update yolu dokunmaz); kimlik calendarSourceId
             },
           });
+          await recordIngestEvent(tx, ingestCtx, "reservation", created.id, "reservation.created");
           return { kind: "created", id: created.id };
         },
         { timeout: 60_000, maxWait: 15_000 },
@@ -626,6 +648,9 @@ export async function reconcileFeedDisappearance(opts: {
       select: { id: true, sourceReference: true, feedMissingCount: true, feedFirstMissingAt: true },
     });
 
+    // V1 event bağlamı (kayıp uzlaştırmasının iptali de GERÇEK bir iptaldir): org yalnız bir iptal
+    // gerçekleşirse ve bir kez okunur; mülk silinmişse (candidates zaten boş) event yazılmaz.
+    let ownerOrg: { organizationId: string } | null = null;
     for (const r of candidates) {
       const present = r.sourceReference != null && seenRefs.has(r.sourceReference);
       if (present) {
@@ -650,7 +675,19 @@ export async function reconcileFeedDisappearance(opts: {
           where: { id: r.id, calendarSourceId: source.id, status: { in: ["confirmed", "pending"] } },
           data: { status: "cancelled" },
         });
-        if (res.count === 1) cancelledIds.push(r.id);
+        if (res.count === 1) {
+          cancelledIds.push(r.id);
+          ownerOrg ??= await tx.property.findUnique({ where: { id: source.propertyId }, select: { organizationId: true } });
+          if (ownerOrg) {
+            await recordIngestEvent(
+              tx,
+              { organizationId: ownerOrg.organizationId, provider: "ical", connectionId: null },
+              "reservation",
+              r.id,
+              "reservation.cancelled",
+            );
+          }
+        }
       }
     }
 

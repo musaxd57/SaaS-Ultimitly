@@ -106,6 +106,18 @@ describe("V0.1 — giden-mesaj çekirdeği sağlayıcıdan bağımsız", () => {
     }
   });
 
+  it("🚨 V1 ürün akışı: IngestEvent'in TEK yazıcısı ingest/events.ts (+ write-service toplu mesaj); iCal · elle dosya · QR aynı sözleşmeyi çağırır (yapay olay üreten başka yazıcı yok)", () => {
+    const files = walk(path.join(ROOT, "src")).map((p) => path.relative(ROOT, p));
+    const writers = files.filter((rel) => /ingestEvent\.create(Many)?\(/.test(code(read(rel)))).sort();
+    expect(writers).toEqual(["src/lib/ingest/events.ts", "src/lib/ingest/write-service.ts"]);
+    for (const rel of ["src/lib/import/sync.ts", "src/app/api/reservations/import/route.ts", "src/app/api/chat/[token]/route.ts"]) {
+      expect(code(read(rel)), rel).toMatch(/recordIngestEvent\(/);
+    }
+    // Sözleşme sağlayıcı modülü bilmez.
+    const c = code(read("src/lib/ingest/events.ts"));
+    expect(c).not.toMatch(/from\s+["']@\/lib\/hospitable/);
+  });
+
   it("KONTROL: adaptör gerçekten istemciyi çağırıyor (pin kendini boşa düşürmesin)", () => {
     const c = code(read(ADAPTER));
     expect(c).toMatch(/from\s+["']@\/lib\/hospitable["']/);

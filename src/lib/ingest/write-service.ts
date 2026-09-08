@@ -7,7 +7,12 @@ import { ANON_NAME, ANON_ID, retentionCutoff } from "@/lib/data-retention";
 import type { ErasureDb } from "@/lib/erasure";
 import type { recordSupplyRequestFromMessage } from "@/lib/supply";
 import type { CanonicalMessage, CanonicalReservation } from "@/lib/channels/ingest";
-import type { OutboundProvider } from "@/lib/channels/outbound";
+import { recordIngestEvent as emit, INGEST_EVENT_SCHEMA_VERSION } from "./events";
+import type { IngestContext } from "./events";
+
+// Event sözleşmesi `./events`'te (V1 ürün akışı: iCal/elle dosya/QR da aynı sözleşmeye bağlı).
+export { INGEST_EVENT_SCHEMA_VERSION } from "./events";
+export type { IngestContext, IngestEventKind, IngestSource } from "./events";
 
 // ---------------------------------------------------------------------------
 // INGEST WRITE SERVICE (V0.6) — sağlayıcıdan gelen CANONICAL kaydı canonical
@@ -33,46 +38,6 @@ import type { OutboundProvider } from "@/lib/channels/outbound";
 // ---------------------------------------------------------------------------
 
 export type SupplyJob = Parameters<typeof recordSupplyRequestFromMessage>[0];
-
-export interface IngestContext {
-  organizationId: string;
-  provider: OutboundProvider;
-  /** Org'un aktif bağlantısı; null = damga yok (env fallback / legacy), ingestedAt yine yazılır. */
-  connectionId: string | null;
-}
-
-export type IngestEventKind =
-  | "reservation.created"
-  | "reservation.updated"
-  | "reservation.cancelled"
-  | "conversation.created"
-  | "conversation.updated"
-  | "message.imported";
-
-export const INGEST_EVENT_SCHEMA_VERSION = 1;
-
-async function emit(
-  db: ErasureDb,
-  ctx: IngestContext,
-  entityType: "reservation" | "conversation" | "message",
-  entityId: string,
-  kind: IngestEventKind,
-  /** V1: değişen alan ADLARI (değer yok — PII'siz). Yalnız `*.updated` için. */
-  changedFields: string[] | null = null,
-): Promise<void> {
-  await db.ingestEvent.create({
-    data: {
-      organizationId: ctx.organizationId,
-      provider: ctx.provider,
-      connectionId: ctx.connectionId,
-      entityType,
-      entityId,
-      kind,
-      schemaVersion: INGEST_EVENT_SCHEMA_VERSION,
-      changedFieldsJson: changedFields && changedFields.length ? JSON.stringify(changedFields) : null,
-    },
-  });
-}
 
 const CONVERSATION_IDENTITY_LOCK_NS = 43;
 

@@ -114,6 +114,13 @@ ReAct (kademeli) · GraphRAG (ihtiyaç kanıtlanırsa). Ek: kaynaklı-sürümlü
   KVKK: misafir-kaynaklı sinyal DATA_RETENTION_MONTHS sonrası purge; erasure SetNull; iki tablo kanarya dışı (karar yorumlu).
 - Konuşma dedupe apply: `Signal` `HANDLED_REFERENCES.repoint`'te (FK SetNull ama silmeden ÖNCE keeper'a taşınır —
   iz kaybı yok); DMMF envanteri yeni `conversationId` taşıyan her modelde fail-closed durur, liste bilinçli güncellenir.
+- **Kaynak sözleşmesi (ürün akışı turu, tasarım §7):** `IngestEvent`'in TEK yazıcısı `src/lib/ingest/events.ts`
+  `recordIngestEvent` (+ write service toplu mesaj); `INGEST_SOURCES = hospitable · ical · manual_file · qr_chat` kapalı
+  küme. iCal (`import/sync.ts`), elle `.ics/.csv` (`api/reservations/import`) ve QR (`api/chat/[token]`, yalnız misafir
+  satırı → `message.received`) kendi TX'lerinde event yazar; yazma yolları write service'e TAŞINMADI. Yapay olay YOK:
+  değişmeyen satır → event yok; elle tek rezervasyon rotası ve Task olayları bilinçli dışarıda. Tüketici `provider`
+  okumaz. Geçiş sırası: iCal bacağından SONRA intelligence (hafıza → event → örüntü). KB rotaları hafızayı anında
+  eşitler (`refreshPropertyMemoryBestEffort`; silinen kalem → retired). Okuma yüzeyi: mülk sayfası "Mülk Hafızası" kartı.
 
 ## 🚨 Değişmez kural
 Çalışan ürün BOZULMAZ. Her değişiklik additive, testli (K2 = kırmızı-önce + iki yönlü mutasyon +
@@ -216,7 +223,7 @@ Partner Portal partners.hospitable.com. Dürtme yok.
 
 ## Mevcut özellikler (tekrar ekleme)
 Panel: dashboard (AI özet + onboarding), inbox (AI öner + risk rozeti), Mesajlar, QR Misafir Sohbetleri,
-Gönderilenler (+`/sent/queue` outbox ops), Görevler (Kanban), Takvim, İptaller, Mülkler, Bilgi Tabanı,
+Gönderilenler (+`/sent/queue` outbox ops), Görevler (Kanban), Takvim, İptaller, Mülkler (+"Mülk Hafızası" kartı, V1), Bilgi Tabanı,
 Şablonlar, Raporlar, sekmeli Ayarlar (Takvim akışı gizliliği, geç çıkış teklifi, 2FA, faturalandırma).
 Operatör paneli: müşteri yönetimi + impersonation + Lead CRM + Operasyon Teşhisi + 2FA sıfırlama.
 Landing: 3-seviye kartlar + canlı demo. KVKK: export, retention, erasure (bayraklı), kayıt onayı. VDP:
@@ -477,9 +484,11 @@ Sekiz P1 KAPANDI (09-07), her biri ayrı commit, kırmızı-önce + iki yönlü 
 
 ## Durum
 **Origin HEAD `4c1efea` (V0.6 + V0.7 canlı; CI 5/5 run #960; migration 51 prod'da 03:13Z; Railway healthcheck-gated
-oto-deploy). YEREL +1 commit: V1 Property Memory + Signals — migration 52, PUSH EDİLMEDİ (kapı: taze `pg_dump` + açık
-"push et"): 3627 test yeşil (320 dosya, tek başına) · typecheck/lint/build/audit temiz · migration 00–52 (53 klasör)
-taze PG sıfır-drift · CI koşmadı.**
-Son kod işi: V1 (yerel). Dal origin'den 1 commit ileride; prod'da IngestEvent boş (Nuve 402) → V1 canlı doğrulaması bekler.
+oto-deploy). YEREL +2 commit: V1 Property Memory + Signals — altyapı (migration 52) + ürün akışı (Codex turu: iCal/elle
+dosya/QR → IngestEvent sözleşmesi, KB rota eşitlemesi, mülk sayfası kartı; migration'sız), PUSH EDİLMEDİ (kapı: taze
+`pg_dump` + açık "push et"): 3640 test yeşil (322 dosya, tek başına) · typecheck/lint/build/audit temiz · migration 00–52
+(53 klasör) taze PG sıfır-drift · CI koşmadı.**
+Son kod işi: V1 ürün akışı (yerel). Dal origin'den 2 commit ileride; canlı doğrulama listesi `docs/V1-PROPERTY-MEMORY-DESIGN.md`
+§6 (Hospitable'sız yollar Nuve 402'den bağımsız doğrulanabilir).
 Prod smoke bu ortamdan yapılamaz; operatör adımları
 `docs/audit-2026-09-05/DURUM.md` + `docs/V0-CHANNEL-INDEPENDENCE-INVENTORY.md` §10 (push kapısı).

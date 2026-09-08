@@ -2,7 +2,7 @@ import Link from "next/link";
 import { baseUrlFromHost } from "@/lib/auth/email-verify";
 import { headers } from "next/headers";
 import { notFound } from "next/navigation";
-import { ArrowLeft, BookOpen, CalendarDays, CalendarSync, ArrowDownToLine, QrCode } from "lucide-react";
+import { ArrowLeft, BookOpen, Brain, CalendarDays, CalendarSync, ArrowDownToLine, QrCode } from "lucide-react";
 import { requireAuth } from "@/lib/auth";
 import { orgTimezone } from "@/lib/timezone";
 import { prisma } from "@/lib/db";
@@ -26,6 +26,8 @@ import { generateCalendarToken } from "@/lib/export/ics";
 import { getCalendarSourceUrl, maskFeedUrl } from "@/lib/calendar-source-url";
 import { KB_CATEGORY, RESERVATION_STATUS } from "@/lib/constants";
 import { formatDate } from "@/lib/utils";
+import { getPropertyMemory } from "@/modules/intelligence";
+import { sentimentTone, signalCategoryLabel, signalKindLabel } from "@/modules/intelligence/labels";
 
 export const dynamic = "force-dynamic";
 
@@ -51,6 +53,10 @@ export default async function PropertyDetailPage({
     },
   });
   if (!property) notFound();
+
+  // V1 MÜLK HAFIZASI — salt okuma, kiracı+mülk kapsamlı. Okunamazsa sayfa yine çalışır
+  // ("AI bozulsa PMS çalışır"): kart "okunamadı" der, hiçbir başka bölüm etkilenmez.
+  const memory = await getPropertyMemory(session.organizationId, property.id, 8).catch(() => null);
 
   // QR PIN feature (Faz 5) is master-gated by the env switch; the per-reservation
   // PIN control + strict-mode toggle only appear when it's on AND the host can manage.
@@ -296,6 +302,53 @@ export default async function PropertyDetailPage({
                     <Badge tone={KB_CATEGORY.tone(k.category)}>{KB_CATEGORY.label(k.category)}</Badge>
                   </div>
                 ))
+              )}
+            </CardContent>
+          </Card>
+
+          <Card>
+            <CardHeader>
+              <CardTitle className="flex items-center gap-2 text-base">
+                <Brain className="size-4 text-muted-foreground" /> Mülk Hafızası
+              </CardTitle>
+            </CardHeader>
+            <CardContent className="space-y-3">
+              {memory === null ? (
+                <p className="text-sm text-muted-foreground">Hafıza şu an okunamadı.</p>
+              ) : (
+                <>
+                  <p className="text-xs text-muted-foreground">
+                    Bilgi Tabanı&apos;ndan {memory.facts.length} kalem hafızada
+                    {memory.patterns.length > 0 ? ` · ${memory.patterns.length} tekrarlayan örüntü` : ""}.
+                  </p>
+                  {memory.patterns.length > 0 ? (
+                    <div className="space-y-1">
+                      {memory.patterns.map((p) => (
+                        <div key={p.id} className="flex items-center justify-between gap-2">
+                          <span className="truncate text-sm">{p.title}</span>
+                          <Badge tone="warning">{p.evidenceCount} sinyal</Badge>
+                        </div>
+                      ))}
+                    </div>
+                  ) : null}
+                  {memory.recentSignals.length === 0 ? (
+                    <p className="text-sm text-muted-foreground">
+                      Henüz sinyal yok. Sinyaller misafir mesajlarından ve rezervasyon değişikliklerinden türer.
+                    </p>
+                  ) : (
+                    <div className="space-y-1">
+                      {memory.recentSignals.map((s) => (
+                        <div key={s.id} className="flex items-center justify-between gap-2">
+                          <span className="truncate text-sm">
+                            {signalCategoryLabel(s.category)}
+                            <span className="ml-2 text-xs text-muted-foreground">{formatDate(s.occurredAt)}</span>
+                          </span>
+                          <Badge tone={sentimentTone(s.sentiment)}>{signalKindLabel(s.kind)}</Badge>
+                        </div>
+                      ))}
+                    </div>
+                  )}
+                </>
               )}
             </CardContent>
           </Card>

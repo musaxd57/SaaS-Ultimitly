@@ -39,7 +39,9 @@ async function draftsFor(ev: {
   occurredAt: Date;
   changedFieldsJson: string | null;
 }): Promise<{ drafts: SignalDraft[]; orphaned: boolean }> {
-  if (ev.entityType === "message" && ev.kind === "message.imported") {
+  // `message.imported` (sağlayıcı senkronu) ve `message.received` (doğrudan kanal: QR) AYNI işlenir —
+  // tüketici kaynağı okumaz, canonical satırı okur (yön/yazar satırdan).
+  if (ev.entityType === "message" && (ev.kind === "message.imported" || ev.kind === "message.received")) {
     const message = await prisma.message.findFirst({
       where: { id: ev.entityId, conversation: { property: { organizationId: ev.organizationId } } },
       select: {

@@ -7,8 +7,14 @@ import { prisma } from "@/lib/db";
 // the starting point for Property Memory"). Kaynağı AÇIK: source=kb_item, sourceRef=kb.id,
 // evidence=[{kb_item,id}], observedAt = KB'nin GERÇEK updatedAt'i (şimdi değil — sahte zaman yok),
 // confidence=1 (host'un kendi beyanı). İdempotent (unique propertyId+source+sourceRef).
-// Pasif kalem → hafıza retired (silinmez; tarihçe). Geçmiş mesaj/rezervasyondan GERİYE DÖNÜK
-// sinyal/hafıza üretilmez (sahte event yok).
+// Pasif kalem → hafıza retired; SİLİNMİŞ kalem (KB DELETE hard delete'tir) → hafıza retired
+// (silinmez; tarihçe). Geçmiş mesaj/rezervasyondan GERİYE DÖNÜK sinyal/hafıza üretilmez.
+//
+// ÇAĞRILMA YOLU (V1 ürün akışı): (1) her zamanlanmış geçişte org başına (`runIntelligencePass`)
+// — yeniden çalıştırma güvenli, değişmeyen kalem yazılmaz; (2) KB yazma rotaları (POST/PATCH/
+// DELETE/copy) yazdıktan hemen sonra mülk kapsamında (`refreshPropertyMemoryBestEffort`) —
+// host'un gördüğü hafıza KB ile anında tutarlı. Toplu okuma: kalem sayısı kadar sorgu DEĞİL,
+// kapsam başına iki findMany + yalnız değişen satıra yazma.
 // ---------------------------------------------------------------------------
 
 export interface BootstrapResult {
@@ -19,18 +25,29 @@ export interface BootstrapResult {
 
 export async function bootstrapMemoryFromKnowledgeBase(organizationId: string, propertyId?: string): Promise<BootstrapResult> {
   const out: BootstrapResult = { created: 0, updated: 0, retired: 0 };
-  const items = await prisma.knowledgeBaseItem.findMany({
-    where: { property: { organizationId }, ...(propertyId ? { propertyId } : {}) },
-    select: { id: true, propertyId: true, category: true, title: true, content: true, isActive: true, updatedAt: true },
-  });
+  const scope = propertyId ? { propertyId } : {};
+  const [items, existingRows] = await Promise.all([
+    prisma.knowledgeBaseItem.findMany({
+      where: { property: { organizationId }, ...scope },
+      select: { id: true, propertyId: true, category: true, title: true, content: true, isActive: true, updatedAt: true },
+    }),
+    // Kiracı + (varsa) mülk kapsamı: başka org'un / mülkün hafızasına dokunulmaz.
+    prisma.propertyMemory.findMany({
+      where: { organizationId, source: "kb_item", ...scope },
+      select: { id: true, propertyId: true, sourceRef: true, title: true, body: true, category: true, observedAt: true, status: true },
+    }),
+  ]);
+  const key = (pid: string, ref: string) => `${pid}:${ref}`;
+  const existing = new Map(existingRows.map((r) => [key(r.propertyId, r.sourceRef), r]));
+  const seen = new Set<string>();
+
   for (const kb of items) {
-    const existing = await prisma.propertyMemory.findUnique({
-      where: { propertyId_source_sourceRef: { propertyId: kb.propertyId, source: "kb_item", sourceRef: kb.id } },
-      select: { id: true, title: true, body: true, category: true, observedAt: true, status: true },
-    });
+    const k = key(kb.propertyId, kb.id);
+    seen.add(k);
+    const ex = existing.get(k);
     if (!kb.isActive) {
-      if (existing && existing.status !== "retired") {
-        await prisma.propertyMemory.update({ where: { id: existing.id }, data: { status: "retired" } });
+      if (ex && ex.status !== "retired") {
+        await prisma.propertyMemory.update({ where: { id: ex.id }, data: { status: "retired" } });
         out.retired++;
       }
       continue;
@@ -46,7 +63,7 @@ export async function bootstrapMemoryFromKnowledgeBase(organizationId: string, p
       lastConfirmedAt: kb.updatedAt,
       status: "active",
     };
-    if (!existing) {
+    if (!ex) {
       await prisma.propertyMemory.create({
         data: { organizationId, propertyId: kb.propertyId, source: "kb_item", sourceRef: kb.id, ...data },
       });
@@ -54,15 +71,22 @@ export async function bootstrapMemoryFromKnowledgeBase(organizationId: string, p
       continue;
     }
     const changed =
-      existing.title !== data.title ||
-      existing.body !== data.body ||
-      existing.category !== data.category ||
-      existing.observedAt.getTime() !== data.observedAt.getTime() ||
-      existing.status !== "active";
+      ex.title !== data.title ||
+      ex.body !== data.body ||
+      ex.category !== data.category ||
+      ex.observedAt.getTime() !== data.observedAt.getTime() ||
+      ex.status !== "active";
     if (changed) {
-      await prisma.propertyMemory.update({ where: { id: existing.id }, data });
+      await prisma.propertyMemory.update({ where: { id: ex.id }, data });
       out.updated++;
     }
+  }
+
+  // KB kalemi artık YOK (hard delete) → hafıza retired. Yalnız kapsamdaki (org/mülk) satırlar.
+  for (const [k, ex] of existing) {
+    if (seen.has(k) || ex.status === "retired") continue;
+    await prisma.propertyMemory.update({ where: { id: ex.id }, data: { status: "retired" } });
+    out.retired++;
   }
   return out;
 }

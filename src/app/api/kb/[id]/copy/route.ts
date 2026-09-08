@@ -2,6 +2,7 @@ import { prisma } from "@/lib/db";
 import { badRequest, jsonOk, notFound, readJsonCappedOrNull } from "@/lib/api";
 import { withManage } from "@/lib/route-guard";
 import { limitsForOrg } from "@/lib/billing/plan-limits";
+import { refreshPropertyMemoryBestEffort } from "@/modules/intelligence";
 
 // Copy a knowledge-base entry to one or more OTHER apartments. Lets the host
 // fill one apartment fully, then clone its info across the rest and only tweak
@@ -88,6 +89,8 @@ export const POST = withManage<{ id: string }>(async (session, req, { params }) 
     });
     created++;
   }
+  // V1: hedef mülklerin hafızası anında eşitlenir (org kapsamı; fırlatmaz).
+  if (created > 0) await refreshPropertyMemoryBestEffort(session.organizationId);
 
   return jsonOk({
     ok: true,

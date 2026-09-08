@@ -616,7 +616,11 @@ bu turda UI'a alınmadı · HTTP stub ≠ canlı doğrulama.
 
 ---
 
-## 14. V1 PROPERTY MEMORY + SIGNALS — KOD HAZIRLIĞI, YEREL, PUSH EDİLMEDİ (2026-09-08)
+## 14. V1 PROPERTY MEMORY + SIGNALS — ALTYAPI (09-08 sabah) + ÜRÜN AKIŞI (09-08 Codex turu, §14b); YEREL, PUSH EDİLMEDİ
+
+> **Durum sınıflandırması (Codex 09-08):** sabahki tur = "altyapı hazır, ürün akışı eksik" — tüketici yalnız Hospitable
+> write service event'lerini görüyordu; Hospitable'sız kiracı için hiçbir şey üretmiyordu, KB bootstrap'ı çağıran
+> yüzey ve okuma yüzeyi yoktu. §14b bu boşlukları kapatır.
 
 > Kurucu kararıyla başladı (09-08). Tasarım ve kapsam eşlemesi: `docs/V1-PROPERTY-MEMORY-DESIGN.md`.
 > **Migration 52 içerir** (`Signal`, `PropertyMemory`, `IngestEvent.changedFieldsJson`) → kapı §10 ile aynı
@@ -677,7 +681,69 @@ tüketici canlıda henüz hiçbir şey üretmez; ilk gerçek akışta: sinyal sa
 "Signal" GROUP BY category`, örüntü eşiği gözlemi, retention purge'ün ilk deep geçişi, KB bootstrap'ın çağrılması
 (operatör/UI adımı — henüz çağıran yüzey yok: sonraki adım). Fixture/demo sonuçları canlı doğrulama DEĞİLDİR.
 
-**Kalan sınırlar:** QR/iCal kaynaklı olaylar IngestEvent üretmiyor (write service yalnız sağlayıcı yolu) → V1 onları
-görmez · güçlü yön (strength) hafızası yok (review ingestion yok) · LLM çıkarımı yok (guardrail/eval sonrası) ·
-UI/API yüzeyi yok (okuma fonksiyonu var) · bootstrap'ı çağıran yüzey yok · bağlantı sağlığı sinyali yok.
+**Kalan sınırlar (altyapı turu sonunda — §14b ile ÇÖZÜLENLER işaretli):** ~~QR/iCal kaynaklı olaylar IngestEvent
+üretmiyor~~ (§14b) · güçlü yön (strength) hafızası yok (review ingestion yok) · LLM çıkarımı yok (guardrail/eval sonrası) ·
+~~UI yüzeyi yok~~ (§14b: mülk sayfası kartı) · ~~bootstrap'ı çağıran yüzey yok~~ (§14b) · bağlantı sağlığı sinyali yok.
+
+### 14b. Ürün akışı turu (Codex 2026-09-08) — kaynak sözleşmesi · Hospitable'sız kiracı · KB çağrı yolu · okuma yüzeyi
+
+**Uzlaşma (önceki rapor ↔ gerçek kod):** "polling ve webhook aynı write service" ifadesi yalnız SAĞLAYICI yolu içindi.
+Kod-doğrulama: `src/` içinde `ingestEvent.create*` yalnız `ingest/write-service.ts`'teydi; iCal (`import/sync.ts`), elle
+dosya (`api/reservations/import`) ve QR (`api/chat/[token]`) kendi TX'lerinde satır yazıyor, provenance damgalıyor
+(V0.4) ama event ÜRETMİYORDU. `runScheduledSync` intelligence bacağı Hospitable'sız org'a da uğruyordu (busy = mülkü
+var) ama tüketecek olay yoktu. Tasarım belgesi §2 "Uzlaşma" paragrafı + §7 sözleşme tablosu + §8 kurucu kabul
+koşulları karşılaştırması.
+
+**Kod (davranış koruyan; yazma yolları taşınmadı, yalnız event'e bağlandı):**
+- `src/lib/ingest/events.ts` — TEK yazıcı `recordIngestEvent`; `INGEST_SOURCES = hospitable · ical · manual_file · qr_chat`
+  (kapalı küme, derlemede exhaustiveness); `IngestContext.provider: IngestSource`; yeni kind `message.received` (doğrudan
+  kanal) — `message.imported` (sağlayıcı senkronu) ile tüketici tarafında aynı. Write service artık buradan import eder
+  (sözleşme tipleri re-export; dış imza değişmedi).
+- `import/sync.ts` — satır TX'inde create → `reservation.created`; update → `reservation.updated` + `changedFieldsJson`
+  (arrivalDate/departureDate/status/calendarSourceId/guestName/notes yalnız ADLAR; scrubbed satırda ad/not yok);
+  STATUS:CANCELLED → `reservation.cancelled`. Kayıp uzlaştırması (bayrak) iptal ettiğinde de `reservation.cancelled`
+  (org bir kez okunur, yalnız iptal olursa). Değişmeyen satır → yazma yok → event yok (ölçülen "boş geçiş boş" korunur).
+- `api/reservations/import` — create/cancel TX'lerinde `manual_file` event'i; dedupe-hit TX iptali event'i de düşürür.
+- `api/chat/[token]` — `recordGuestChatExchange` YALNIZ misafir satırı için `message.received` (bot cevabı event değil);
+  org kapsamı `ctx.property.organizationId`.
+- `modules/intelligence`: consumer `message.received` işler · `runIntelligencePass` = KB bootstrap → event → örüntü ·
+  `bootstrapMemoryFromKnowledgeBase` toplu (kapsam başına iki findMany) + **silinen KB kalemi → retired** ·
+  `refreshPropertyMemoryBestEffort` (fırlatmaz) · `labels.ts` (Türkçe etiket, sağlayıcı adı yok).
+- KB rotaları (`POST /api/kb` · `PATCH/DELETE /api/kb/[id]` · `copy`) yazdıktan sonra hafızayı mülk kapsamında eşitler;
+  DELETE önce mülkü okur (hard delete sonrası kapsam bilinmeliydi).
+- `scheduled-sync.ts` — intelligence bacağı iCal bacağından SONRA (aynı geçişte tüketim); try/catch aynen.
+- Mülk sayfası (`(app)/properties/[id]`) — "Mülk Hafızası" kartı: KB'den kalem sayısı · örüntüler (evidenceCount) · son
+  8 sinyal (kategori, tarih, kaynak türü rozeti); `getPropertyMemory(...).catch(() => null)` → "okunamadı", sayfa çalışır.
+
+**Kanıt (sözleşme §2):** kırmızı-önce `integration/intelligence-native-sources` (sözleşme modülü yokken import hatası →
+8/8 yeşil) — gerçek `runScheduledSync` + gerçek rotalar (feed HTTP ve model mock), org'un Hospitable token'ı/bağlantısı/
+env'i YOK: (1) iCal → `reservation.created` (provider ical, connectionId null) AYNI geçişte tüketilir, KB → hafıza
+(observedAt = KB updatedAt), sinyal yok · (2) besleme değişince `reservation.updated` (changedFieldsJson ⊇ arrival/
+departure, guestName YOK) + `reservation.cancelled` → `date_change` + `cancellation`; değişmeyen geçiş: event/sinyal/
+hafıza updatedAt SABİT · (3) QR şikayet → `message.received` (qr_chat) tek event (bot cevabı yok) → `complaint` sinyali
+konuşma+rezervasyon+mesaj id bağlı, occurredAt = mesaj createdAt; replay 0 yeni · (4) elle .ics → created; aynı dosya
+dedupe (event yok); STATUS:CANCELLED → cancelled (manual_file) → iptal sinyali · (5) KİRACI: A'nın akışı B'de event/
+sinyal/hafıza üretmez; B'nin okuma yüzeyi A mülkünü görmez · (6) KB rotaları: POST → aktif, PATCH içerik → güncel, pasif
+→ retired, aktif → active, DELETE → retired; geçiş tekrarı değiştirmez; okuma yüzeyi retired'ı göstermez · (7) RETENTION:
+QR sinyali cutoff'tan eskiyse purge, iptal sinyali + KB hafızası kalır. `integration/feed-disappearance` (+1: uzlaştırma
+iptali → event; ilk kayıp event değil). `unit/core-channel-independence` (+1: `ingestEvent.create*` yalnız events.ts +
+write service; üç native yol `recordIngestEvent` çağırır). `unit/intelligence-labels` (3). Mevcut iCal/import/QR/KB/
+consumer/write-service testleri değişmeden yeşil (13 dosya 143 test hedefli koşu).
+**Mutasyonlar (13, iki yön, hepsi KIRMIZI):** P1 iCal create event yok · P2 update değişen alan adları boş · P3 STATUS:
+CANCELLED event yok · P4 QR event yok · P5 tüketici `message.received`'i görmez · P6 geçiş bootstrap'ı çağırmaz · P7
+silinen KB kalemi retire edilmez · P8 KB DELETE rotası eşitlemez · P9 AŞIRI: değişmeyen satır da event üretir (replay
+testi 5 event) · P10 okuma yüzeyi org filtresi yok · P11 intelligence bacağı iCal'den ÖNCE (eski sıra: aynı geçişte
+tüketilmez) · P12 elle dosya iptal event yok · P13 uzlaştırma iptali event yok.
+
+**Kapılar (son yerel ağaç, tek başına koşuldu):** tam suit 3640/322 yeşil (481 sn) · `tsc --noEmit` temiz · `eslint .`
+temiz · `next build` temiz · `audit:check` yeşil (0 triajsız) · şema DEĞİŞMEDİ (migration 52 zinciri sabahki doğrulamayla
+aynı: taze PG 00→52, sıfır drift, shadow diff boş). CI: koşmadı (push yok). Migration 52 push kapısı aynı (§10).
+
+**Canlıda bekleyen (kod hazırlığından AYRI):** tasarım belgesi §6 — Hospitable'sız yollar Nuve'nin 402'sinden BAĞIMSIZ
+canlıda doğrulanabilir (QR sohbetleri, iCal beslemeleri); migration 52 sonrası ilk salt-okuma kontrolleri orada. Bu
+dosyadaki fixture sonuçları canlı doğrulama DEĞİLDİR.
+
+**Bilinçli dışarıda:** elle tek rezervasyon rotası (`POST/PATCH /api/reservations`: değişiklik ölçümü/TX/guard yok →
+"updated" iddiası yapay olurdu; ayrı karar) · Task/bakım olayları (V3) · review/güçlü yön (V6) · ince kategori (LLM'siz) ·
+webhook girişi (write service hazır, kalan V0 işi).
 

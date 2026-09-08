@@ -25,6 +25,7 @@ import { rateLimit, clientIp } from "@/lib/rate-limit";
 import { claimKeyedOutboundSend, releaseKeyedOutboundSend } from "@/lib/outbound-claim";
 import { limitsForOrg } from "@/lib/billing/plan-limits";
 import { consumeDailyAiBudgetForQr } from "@/lib/ai/daily-budget";
+import { recordIngestEvent } from "@/lib/ingest/events";
 
 export const dynamic = "force-dynamic";
 
@@ -197,6 +198,8 @@ async function recordGuestChatExchange(
   // the host replies). A string is the bot's reply, stored as a "Lixus AI" outbound.
   botReply: string | null,
   escalated: boolean,
+  // V1: event kiracı kapsamı (QR bir Lixus-native giriştir; sağlayıcı/bağlantı yok).
+  organizationId: string,
 ): Promise<{ inboundMessageId: string }> {
   await db.conversation.update({
     where: { id: conversationId },
@@ -216,6 +219,17 @@ async function recordGuestChatExchange(
     select: { id: true, direction: true },
   });
   const inboundMessageId = created.find((m) => m.direction === "inbound")?.id ?? created[0]?.id ?? "";
+  // V1 ürün akışı: YALNIZ misafirin satırı bir domain event'tir (`message.received`, aynı TX'te,
+  // PII'siz). Botun cevabı bizim çıktımızdır — event yok. Tüketici (intelligence) satırı id ile okur.
+  if (inboundMessageId) {
+    await recordIngestEvent(
+      db,
+      { organizationId, provider: "qr_chat", connectionId: null },
+      "message",
+      inboundMessageId,
+      "message.received",
+    );
+  }
   return { inboundMessageId };
 }
 
@@ -510,10 +524,10 @@ async function handleGuestChatPost(req: NextRequest, { params }: { params: Promi
     const out = await prisma.$transaction(async (tx) => {
       await acquireGuestChatThreadLock(tx, conversationId);
       if (botReply !== null && (await guestChatAiPaused(ctx.property.id, res.id, tx))) {
-        const r = await recordGuestChatExchange(tx, conversationId, res.guestName, message, null, true);
+        const r = await recordGuestChatExchange(tx, conversationId, res.guestName, message, null, true, ctx.property.organizationId);
         return { ...r, handedOff: true };
       }
-      const r = await recordGuestChatExchange(tx, conversationId, res.guestName, message, botReply, escalated);
+      const r = await recordGuestChatExchange(tx, conversationId, res.guestName, message, botReply, escalated, ctx.property.organizationId);
       return { ...r, handedOff: false };
     });
     recorded = true;

@@ -4,6 +4,7 @@ import { badRequest, jsonOk, propertyInOrg, readJsonCappedOrNull } from "@/lib/a
 import { withManage } from "@/lib/route-guard";
 import { limitsForOrg } from "@/lib/billing/plan-limits";
 import { KB_ITEM_CAP } from "@/lib/ai/limits";
+import { refreshPropertyMemoryBestEffort } from "@/modules/intelligence";
 
 export const GET = withManage(async (session, req) => {
   const { searchParams } = new URL(req.url);
@@ -59,5 +60,7 @@ export const POST = withManage(async (session, req) => {
       isActive: d.isActive,
     },
   });
+  // V1: KB = mülk hafızasının kaynağı → hafıza anında eşitlenir (fırlatmaz; KB kaydı başarılı kalır).
+  await refreshPropertyMemoryBestEffort(session.organizationId, d.propertyId);
   return jsonOk(item, 201);
 });

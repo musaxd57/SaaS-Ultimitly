@@ -4,6 +4,7 @@ import { badRequest, jsonOk, notFound, readJsonCappedOrNull } from "@/lib/api";
 import { withManage } from "@/lib/route-guard";
 import { limitsForOrg } from "@/lib/billing/plan-limits";
 import { KB_ITEM_CAP } from "@/lib/ai/limits";
+import { refreshPropertyMemoryBestEffort } from "@/modules/intelligence";
 
 // ---------------------------------------------------------------------------
 // PLAN SINIRLARI DÜZENLEME YOLUNDA DA GEÇERLİ (denetim, 07-31).
@@ -74,14 +75,24 @@ export const PATCH = withManage<{ id: string }>(async (session, req, { params })
     where: { id },
     data: d,
   });
+  // V1: içerik/pasif-aktif değişimi hafızaya anında yansır (pasif → retired).
+  await refreshPropertyMemoryBestEffort(session.organizationId, existing.propertyId);
   return jsonOk(item);
 });
 
 export const DELETE = withManage<{ id: string }>(async (session, _req, { params }) => {
   const { id } = await params;
+  // Mülk kapsamı silmeden ÖNCE okunur (silince kalem gider; hafıza eşitlemesi mülkü bilmeli).
+  const existing = await prisma.knowledgeBaseItem.findFirst({
+    where: { id, property: { organizationId: session.organizationId } },
+    select: { propertyId: true },
+  });
+  if (!existing) return notFound();
   const result = await prisma.knowledgeBaseItem.deleteMany({
     where: { id, property: { organizationId: session.organizationId } },
   });
   if (result.count === 0) return notFound();
+  // V1: hard delete → hafıza kalemi retired (silinmez; tarihçe).
+  await refreshPropertyMemoryBestEffort(session.organizationId, existing.propertyId);
   return jsonOk({ ok: true });
 });

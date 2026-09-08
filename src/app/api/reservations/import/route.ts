@@ -8,6 +8,7 @@ import { parseIcs } from "@/lib/import/ics";
 import { parseCsv, CsvParseError } from "@/lib/import/csv";
 import { createReservationTasks, removeAutoTasksForCancelledReservation } from "@/lib/automation";
 import { loadErasureGuard, acquireErasureLock } from "@/lib/erasure";
+import { recordIngestEvent } from "@/lib/ingest/events";
 
 const IMPORT_MAX_BYTES = 5 * 1024 * 1024;
 
@@ -292,7 +293,16 @@ export const POST = withManage(async (session, req) => {
               },
               data: { status: "cancelled" },
             });
-            return res.count === 1 ? existing.id : null;
+            if (res.count !== 1) return null;
+            // V1: elle dosya bir Lixus-native giriştir → iptal event'i satırla aynı TX'te.
+            await recordIngestEvent(
+              tx,
+              { organizationId: session.organizationId, provider: "manual_file", connectionId: null },
+              "reservation",
+              existing.id,
+              "reservation.cancelled",
+            );
+            return existing.id;
           },
           // Kardeş KVKK yollarıyla birebir değerler.
           { timeout: 60_000, maxWait: 15_000 },
@@ -392,7 +402,16 @@ export const POST = withManage(async (session, req) => {
           await acquireErasureLock(tx, session.organizationId);
           const fresh = await loadErasureGuard(session.organizationId, tx);
           if (!fresh.isEmpty && fresh.blocksSourceReference(sourceReference)) return null;
-          return await tx.reservation.create({ data });
+          const row = await tx.reservation.create({ data });
+          // V1: yeni satır → `reservation.created` aynı TX'te (dedupe-hit'te TX iptal → event de yok).
+          await recordIngestEvent(
+            tx,
+            { organizationId: session.organizationId, provider: "manual_file", connectionId: null },
+            "reservation",
+            row.id,
+            "reservation.created",
+          );
+          return row;
         },
         // Kardeş KVKK yollarıyla birebir değerler (hospitable-sync.ts:306).
         { timeout: 60_000, maxWait: 15_000 },
