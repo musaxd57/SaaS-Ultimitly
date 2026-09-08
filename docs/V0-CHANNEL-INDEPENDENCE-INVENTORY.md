@@ -774,7 +774,9 @@ beslemesi) KISMEN doğrulandı; TAMAMI bitmeden "canlı ürün akışı çalış
 - **C (dosya → iptal → sinyal): ✅ CANLI KANIT (kurucu, 09-08, test mülkü `cmtsbfyh60001pk2qw9z048fj`)** — tek
   rezervasyonlu `.ics` → önizleme "1 eklenecek" → "1 eklendi" → Onaylı; aynı UID'li iptal dosyası → önizleme
   "1 iptal edilecek" → **"1 iptal edildi, 0 atlandı"** → İptal; Mülk Hafızası kartında **"İptal · 08 Eyl 2026 ·
-  Rezervasyon"**. Gerçek olay → `IngestEvent` → `Signal` → yetkili yüzey zinciri canlıda kapandı.
+  Rezervasyon"**. **Kanıt ARAYÜZDENDİR:** `IngestEvent`/`Signal` satırları DOĞRUDAN SORGULANMADI. Kart
+  `getPropertyMemory` ile `Signal`i okuduğu için sinyalin varlığı arayüzden çıkarılabilir; ara `IngestEvent`
+  kaydı ise gözlenmedi (kod yolu testlerle pinli, canlı satır görülmedi).
   **Kart OLAY tarihini gösterir** (`Signal.occurredAt` = `IngestEvent.occurredAt`; iptalin sağlayıcıdaki gerçek anı
   iddia edilmez) — planın "14 Eki" beklentisi konaklama tarihiydi, YANLIŞTI, plan düzeltildi. Kanıt yalnız TEK
   REZERVASYONLU DOSYA yolunu kapsar.

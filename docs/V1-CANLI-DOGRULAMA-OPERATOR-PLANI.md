@@ -70,8 +70,11 @@ oldu" kaydı olarak kalır — beklenen). Gerçek mülkte yalnız A adımı (KB)
 
 **B. QR misafir mesajı → şikayet sinyali (test mülkü).**
 1. Test mülkü oluştur, QR sohbeti aç, aktif bir TEST rezervasyonu gir (bugünü kapsayan tarihler; kanal "manual").
-2. QR bağlantısından misafir gibi gönder: "Sıcak su gelmiyor, duş soğuk." (şikayet kelime ağı; AI'nın cevabı önemsiz —
-   kaçış/escalation e-postası gelebilir, test mülkü olduğu için beklenen).
+2. QR bağlantısından misafir gibi gönder: **"Klima bozuk, çalışmıyor."** (AI'nın cevabı önemsiz — kaçış/escalation
+   e-postası gelebilir, test mülkü olduğu için beklenen).
+   ⚠️ Cümle KEYFÎ DEĞİL: kelime ağı ölçüldü (`classifyFallback`) — "Klima bozuk, çalışmıyor." → `complaint`
+   (güven 0.7) ✅; bu belgenin önceki örneği **"Sıcak su gelmiyor, duş soğuk." → `general`** çıkıyor ve `general`
+   sinyal ÜRETMEZ (gürültü). Ayrıntı: `docs/V1-KALAN-CANLI-DOGRULAMALAR-2026-09-08.md`.
 3. ≤2 dk (zamanlanmış geçiş) sonra mülk sayfası kartı: "Şikayet · &lt;mesajın gönderildiği gün&gt; · Misafir mesajı"
    rozeti (kırmızı ton). (Mesaj sinyalinde `occurredAt` = mesajın GERÇEK zamanı; rezervasyon olayında gözlem anı.)
    SQL: `SELECT kind, provider, "connectionId" FROM "IngestEvent" ORDER BY "occurredAt" DESC LIMIT 3` → `message.received /
@@ -99,7 +102,8 @@ besleme hâlâ iptalsiz sürümü veriyor → `unchanged`). Kontrollü akış ar
    ⚠️ Gist beslemesinden gelen ESKİ test satırı bu yolla iptal EDİLMEZ (önizleme "takvim bağlantısına ait" der) —
    tasarım gereği: dosya, beslemenin sahibi olduğu satıra dokunmaz.
 
-**✅ C ADIMI CANLIDA DOĞRULANDI (kurucu, 2026-09-08, test mülkü `cmtsbfyh60001pk2qw9z048fj`):** normal dosya →
+**✅ C ADIMI CANLIDA DOĞRULANDI — ARAYÜZDEN (kurucu, 2026-09-08, test mülkü `cmtsbfyh60001pk2qw9z048fj`;
+`IngestEvent`/`Signal` satırları doğrudan sorgulanmadı):** normal dosya →
 önizleme "1 eklenecek" → aktarım "1 eklendi" → rezervasyon **Onaylı**; aynı UID'li iptal dosyası → önizleme
 "1 iptal edilecek" → aktarım **"1 iptal edildi, 0 atlandı"** → aynı rezervasyon **İptal**; ardından Mülk Hafızası
 kartında **"İptal · 08 Eyl 2026 · Rezervasyon"**. Yani gerçek bir ürün olayı → `IngestEvent` → sinyal → yetkili
