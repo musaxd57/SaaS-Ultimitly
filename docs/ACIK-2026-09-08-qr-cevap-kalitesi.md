@@ -38,7 +38,12 @@ dördü de "ilettim" dedi; cooldown yüzünden en fazla biri mail üretmiş olab
 ve olay kimliğinin mesaj id'sinden bağımsız üretilmesini gerektirir (ayrı tur).
 
 **"Konum eksikse kısa konum sorusu, tesis bilgisi eksikse dürüst ve konuya uygun yanıt."**
-🟡 **Bugün öyle değil; ölçüldü ama BU TURDA DEĞİŞTİRİLMEDİ.** Boş KB'de model yine çağrılıyor
+🟢 **KISMEN ÇÖZÜLDÜ (3. dilim):** risksiz sorularda dar bant (güven 0.45–0.75) artık modelin dürüst cevabının
+gitmesine izin veriyor — "nasılsın"/"çöp nereye" gibi mesajlar devir üretmiyor ve karar
+`informational_low_confidence` olarak kaydediliyor. **KALAN:** mülkün şehri boşken turistik öneriden ÖNCE
+deterministik bir konum sorusu sormak; bu hâlâ modelin insafında. Aşağıdaki ilk tespit, düzeltme öncesi durumu
+anlatır:
+🟡 **(Düzeltme öncesi durum) Bugün öyle değil; ölçüldü ama BU TURDA DEĞİŞTİRİLMEDİ.** Boş KB'de model yine çağrılıyor
 (`packKnowledgeBase` istemde "bilgi tabanı boş" der), ama kod düzeyinde "bilgi yok → dürüst kısa cevap" dalı YOK;
 düşük güven `mustEscalate`'in son eşiğine (`confidence < 0.75`) takılıp devir üretiyor. Yani davranış
 **emergent**, açık bir tasarım değil.
@@ -56,14 +61,14 @@ sorularında mülkün şehri boşsa tek bir netleştirme sorusu sormaktır.
 - **Devir bir Task ÜRETMİYOR** ve QR konuşması `status:"answered"` doğduğu için dashboard "dikkat" listesine
   düşmüyor; yalnız Misafir Sohbetleri sekmesinde acil rozetiyle görünüyor. (Tasarım kararı, ürün eksiği olarak kayıt.)
 
-### 2.b Bu turda güncellenen eski pinler (dürüstlük yönünde)
+## 3.b Bu turda güncellenen eski pinler (dürüstlük yönünde)
 İki mevcut test eski (yanlış) sözü pinliyordu; niyetleri korunarak yeni sözleşmeye çevrildi:
 - `integration/guest-chat-escalation-email` — "e-posta hatası misafirin yanıtını bozmaz" testi, sağlayıcı
   HATA verdiği hâlde `reply` içinde "ilettim" bekliyordu. Artık: yanıt gelir, ama aktarım iddia edilmez.
 - `integration/qr-budget-and-honest-promise` — "bayrak AÇIKKEN söz doğrudur ve aynen korunur" testi. Artık
   bayrak açıkken de "ilettim" denmediği pinli (bayrak ≠ gönderim garantisi).
 
-## 3.b DÜZELTİLDİ — AI kalite turu 1. dilim (09-08)
+## 3.c DÜZELTİLDİ — AI kalite turu 1. dilim (09-08)
 | Bulgu | Durum |
 |---|---|
 | Devir gerekçesi hiçbir yere yazılmıyordu | ✅ Her QR yanıt kararı `RiskEvent` (`surface:"guest_chat"`) yazar; dokuz kapalı-küme gerekçe + `gate_passed`, model risk seviyesi ve güveni. PII yok; await edilir; yazamazsa yanıt bozulmaz. |
@@ -73,6 +78,39 @@ sorularında mülkün şehri boşsa tek bir netleştirme sorusu sormaktır.
 | Pencere dışına taşan şikâyet kaybolabilir | ✅ `openTopics`: kapanmamış konuların PII'siz kategori kodları istemde taşınır; **devir sebebi değildir**. |
 | Çözülmüş konu sonsuza dek gündemde kalır | ✅ Şikâyetten sonra misafirin kapanış cümlesi ("buldum teşekkürler", "tamam düzeldi") konuyu kapatır. ⚠️ `isClosingAck` BİLEREK genişletilmedi (güvenlik beyaz listesi, CLAUDE.md kuralı); bunun için ayrı, dar `looksLikeTopicClosure` yazıldı ve yalnız açık-konu hesabını etkiler. |
 | Gerçek şikâyetin eskalasyonu | ✅ Bastırılmadı — E6 evalinde dolu KB + 0.98 güvenle bile `keyword_escalated` ile devrediliyor. |
+
+## 3.d Bu turda YAPILAN düzeltmeler (09-08, ikinci ve üçüncü dilim)
+| Konu | Durum |
+|---|---|
+| Devir gerekçesi izlenebilirliği | ✅ her karar `RiskEvent(surface="guest_chat")` yazar; 10 kapalı-küme gerekçe |
+| Konuşma geçmişi (`history: []`) | ✅ kronolojik pencere: 24 mesaj + 8.000 karakter, hangisi önce dolarsa |
+| Eşit damga determinizmi | ✅ `(createdAt, id)`; **ayrıca** yeni satırlarda bot cevabı `+1ms` damgalanır → nedensellik artık VERİDE |
+| Pencere dışı açık konular | ✅ PII'siz kategori kodları; **kapanış YALNIZ ilgili konuyu kapatır** (yakınlık kuralı) |
+| Eksik bilgide dürüst cevap | ✅ dar bant: risksiz soru + güven 0.45–0.75 → cevap gider, `informational_low_confidence` kaydedilir |
+| Gerçek şikâyet eskalasyonu | ✅ bastırılmadı — bant, kelime ağı/model riski/injection dallarının ARDINDA |
+
+**Kapanış kuralının sınırı, dürüstçe:** "teşekkürler" hangi konuya ait olduğunu METİNDE söylemez. Yakınlık kuralı
+(kapanış, gündemdeki SON konuyu kapatır) elde olan tek dürüst sinyaldir; yanılabilir. Bedeli sınırlıdır: yalnız bir
+bağlam notu etkilenir, devir/güvenlik kararına girmez.
+
+**`id` sırası nedensel sırayı temsil eder mi? (kurucu sorusu)** Tam olarak DEĞİL. cuid'ler pratikte artan üretilir
+(zaman öneki + sayaç), bu yüzden aynı süreçte ardışık yazılan iki satırda id sırası doğru çıkar — ama bu bir
+GARANTİ değil, bir VEKİL. Doğru çözüm nedenselliği veriye yazmaktır: bu turda bot cevabı misafir mesajından 1 ms
+sonra damgalanıyor, yani sıra artık damgadan okunuyor. `id` kopma noktası KORUNUYOR çünkü bu düzeltmeden ÖNCE
+yazılmış eşit damgalı satırlar için tek deterministik sıra odur.
+
+**⚠️ 24 mesaj / 8.000 karakter bir KALİTE GARANTİSİ DEĞİLDİR.** Bu sınırlar bir bütçe kararıdır (bağlam
+maliyeti + uzun bağlamda dikkat dağılması); "cevaplar iyileşti" iddiası için ölçüm gerekir ve o ölçüm
+YAPILMADI. Bugün kanıtlanan tek şey: pencere artık daha geniş, deterministik ve taşan konular kaybolmuyor.
+
+## 3.e Test türleri AYRI (kurucu şartı)
+- **Davranışsal integration (mock model):** `qr-quality-eval`, `qr-informational-answer`, `qr-context-window`,
+  `qr-conversation-context`, `qr-escalation-traceability`. Model çıktısı SABİTLENİR; ölçülen şey ürünün kendi
+  davranışıdır (hangi bağlam gitti, hangi kapı kapandı, misafire ne döndü). **Bunlar cevap kalitesini ÖLÇMEZ.**
+- **Gerçek model eval'i:** HENÜZ YOK. Yapay ama sabit senaryolarla önce/sonra GERÇEK cevapları karşılaştırmak
+  gerçek bir `OPENAI_API_KEY` ister; bu ortamda anahtar yok, dolayısıyla bu turda KOŞULMADI ve hiçbir
+  "cevaplar iyileşti" sayısı üretilmedi. Kalan iş: sürümlü senaryo dosyası + operatörün anahtarla koşacağı
+  script + öncesi/sonrası karşılaştırma tablosu.
 
 ## 4. Eval seti adayları (bu transkriptten)
 1. Boş KB + konum sorusu → uydurma öneri YOK; ya dürüst bilgi-yok cevabı ya da tek netleştirme sorusu.

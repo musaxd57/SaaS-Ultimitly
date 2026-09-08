@@ -55,6 +55,12 @@ const ESCALATE_INTENTS = new Set(["complaint", "refund", "early_departure", "hum
 // Tavan artık PLANA göre (billing/plan-limits.ts): Başlangıç 50 / Pro 100 /
 // İşletme 200. Aşağıdaki sabit yalnız plan çözülemezse kullanılan son çaredir.
 const DAILY_AI_CAP_FALLBACK = 200;
+/**
+ * Risksiz bir bilgi sorusunda modelin cevabının gönderilebileceği EN DÜŞÜK güven.
+ * Altı = "model gerçekten emin değil" → insana devir. Üstü ama 0.75'in altı =
+ * "bilgi eksik olabilir ama cevap dürüst" → gönder ve gerekçeyi kaydet.
+ */
+const INFORMATIONAL_MIN_CONFIDENCE = 0.45;
 
 // Deterministic acknowledgment for a message that arrives AFTER the human team has
 // taken over the thread (host handoff). The AI stays silent for the rest of the
@@ -128,7 +134,9 @@ export type EscalationReason =
   | "injection"
   | "keyword_risk_type"
   | "model_risk_level"
-  | "low_confidence";
+  | "low_confidence"
+  /** Devir DEĞİL: risksiz soru, orta güven → modelin dürüst cevabı gitti. */
+  | "informational_low_confidence";
 
 /** Devir kararı + GEREKÇESİ. `reason: null` → kapı geçildi (otomatik cevap). */
 function evaluateEscalation(
@@ -174,6 +182,23 @@ function evaluateEscalation(
   const dr = detectRiskType(message);
   if (dr && HIGH_STAKES_RISK_TYPES.has(dr)) return yes("keyword_risk_type");
   if (result.riskLevel !== "none" && result.riskLevel !== "low") return yes("model_risk_level");
+  // ── EKSİK BİLGİDE DÜRÜST CEVAP — DAR BANT (kurucu, 09-08) ─────────────────
+  //
+  // Buraya gelen mesaj, YUKARIDAKİ SEKİZ KAPININ HEPSİNDEN geçmiştir: model
+  // yanıt verdi, model riski yok, modelin intent'i devir kümesinde değil,
+  // misafirin kendi sözleri kelime ağı/injection/riskType dedektörlerinden
+  // temiz çıktı. Yani elimizde RİSKSİZ bir bilgi sorusu var ve tek eksik,
+  // modelin kendi güveninin tam olmaması (çoğu zaman: bilgi tabanında karşılığı
+  // yok). Eski davranış bunu da insana devrediyordu — canlıda "nasılsın" bile
+  // "ev sahibine ilettim" cevabı alıyordu ve asistan kullanılamaz hâldeydi.
+  //
+  // Bandın ALTI hâlâ devirdir: model gerçekten emin değilse (0.45'in altı)
+  // cevabı göndermek dürüst olmaz. Bandın İÇİ, modelin "bilgim yok" demeyi de
+  // kapsayan dürüst yanıtıdır ve karar ayrı bir gerekçeyle KAYDEDİLİR, yani
+  // canlıda ölçülebilir (gereksiz devir azaldı mı, yanlış cevap arttı mı).
+  if (result.confidence >= INFORMATIONAL_MIN_CONFIDENCE && result.confidence < 0.75) {
+    return { escalate: false, reason: "informational_low_confidence" };
+  }
   if (result.confidence < 0.75) return yes("low_confidence");
   return { escalate: false, reason: null };
 }
@@ -213,13 +238,27 @@ async function recordGuestChatExchange(
   });
   // createManyAndReturn: the inbound row's id is the escalation-alert EVENT
   // identity (dedupe anchor) — same insert semantics, ids back in one round.
+  // ── NEDENSEL SIRA DAMGADA (kurucu sorusu, 09-08) ──────────────────────────
+  //
+  // İki satır TEK transaction'da yazılıyor ve `createdAt` DB varsayılanı
+  // (`CURRENT_TIMESTAMP`) PostgreSQL'de TRANSACTION BAŞLANGICIDIR → ikisi de AYNI
+  // milisaniyeyi alıyordu. Sıra o zaman yalnız `id` kopma noktasından çıkıyordu;
+  // cuid'ler pratikte artan üretildiği için bu ÇOĞU ZAMAN doğru, ama nedensel
+  // sıranın GARANTİSİ değil (id bir VEKİL, kanıt değil).
+  // Doğrusu: nedenselliği verinin kendisine yazmak. Misafirin satırı `now`,
+  // botun cevabı `now + 1ms` alır — cevap, sorudan sonra olmuştur ve bu her
+  // okuyucu için (geçmiş, kalite denetçisi, dışa aktarım) doğrudan görünür.
+  // `id` kopma noktası yine de KORUNUR: bu düzeltmeden ÖNCE yazılmış eşit
+  // damgalı satırlar için tek deterministik sıra odur.
+  const guestAt = new Date();
+  const botAt = new Date(guestAt.getTime() + 1);
   const created = await db.message.createManyAndReturn({
     data: [
       // V0.4 provenance: misafirin satırı bir ingress'ten geçti (ingestedAt); iç thread → connectionId
       // YOK. Botun cevabı bizim çıktımızdır, ingest değildir (aşağıda damgasız).
-      { conversationId, direction: "inbound", authorType: "guest", senderName: guestName, body: guestMessage.slice(0, MAX_MESSAGE), language: "tr", ingestedAt: new Date() },
+      { conversationId, direction: "inbound", authorType: "guest", senderName: guestName, body: guestMessage.slice(0, MAX_MESSAGE), language: "tr", ingestedAt: guestAt, createdAt: guestAt },
       ...(botReply !== null
-        ? [{ conversationId, direction: "outbound", authorType: "ai", senderName: "Lixus AI", body: botReply.slice(0, MAX_MESSAGE), language: "tr" }]
+        ? [{ conversationId, direction: "outbound", authorType: "ai", senderName: "Lixus AI", body: botReply.slice(0, MAX_MESSAGE), language: "tr", createdAt: botAt }]
         : []),
     ],
     select: { id: true, direction: true },

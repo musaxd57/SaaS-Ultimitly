@@ -141,6 +141,22 @@ describe("QR bağlam penceresi — birim, determinizm, taşan açık konular", (
     expect(total).toBeLessThanOrEqual(QR_HISTORY_CHAR_CAP);
   });
 
+  it("🚨 YENİ SATIRLARDA DAMGA AYRIK: bot cevabı misafir mesajından SONRA damgalanır (nedensellik veride)", async () => {
+    const { token, conversationId } = await seed();
+    await ask(token, "Otopark var mı?");
+
+    const rows = await prisma.message.findMany({
+      where: { conversationId },
+      orderBy: { createdAt: "asc" },
+      select: { direction: true, createdAt: true },
+    });
+    expect(rows).toHaveLength(2);
+    expect(rows[0].direction).toBe("inbound");
+    expect(rows[1].direction).toBe("outbound");
+    // Damgalar EŞİT DEĞİL: sıra artık `id` vekiline muhtaç değil.
+    expect(rows[1].createdAt.getTime()).toBeGreaterThan(rows[0].createdAt.getTime());
+  });
+
   it("🚨 EŞİT ZAMAN DAMGASI: sıra `id` kopma noktasıyla DETERMİNİSTİK (ekleme sırasından bağımsız)", async () => {
     const { token, conversationId } = await seed();
     const t = new Date("2026-09-08T10:00:00.000Z");
@@ -204,6 +220,50 @@ describe("QR bağlam penceresi — birim, determinizm, taşan açık konular", (
 
     await ask(token, "çöp nereye?");
     expect(lastInput().openTopics ?? []).not.toContain("complaint");
+  });
+
+  it("🚨 KAPANIŞ YALNIZ İLGİLİ KONUYU kapatır: klima şikâyeti → havlu sorusu → 'teşekkürler' → KLİMA AÇIK KALIR", async () => {
+    const { token, conversationId } = await seed();
+    // Kapanış cümlesi ARADAKİ konuya aittir; ondan önceki şikâyeti kapatmaz.
+    await prisma.message.create({ data: msg(conversationId, "inbound", "Klima bozuk, çalışmıyor.") });
+    await prisma.message.create({ data: msg(conversationId, "outbound", "İlettim.") });
+    await prisma.message.create({ data: msg(conversationId, "inbound", "Havlu nerede?") });
+    await prisma.message.create({ data: msg(conversationId, "outbound", "Banyo dolabında.") });
+    await prisma.message.create({ data: msg(conversationId, "inbound", "teşekkürler") });
+    for (let i = 1; i <= 30; i++) {
+      await prisma.message.create({ data: msg(conversationId, i % 2 === 1 ? "inbound" : "outbound", `dolgu ${i}`) });
+    }
+
+    await ask(token, "çöp nereye?");
+    expect(lastInput().openTopics ?? []).toContain("complaint");
+  });
+
+  it("İLGİLİ kapanış konuyu kapatır: şikâyetin hemen ardından gelen kapanış şikâyeti kapatır", async () => {
+    const { token, conversationId } = await seed();
+    await prisma.message.create({ data: msg(conversationId, "inbound", "Klima bozuk, çalışmıyor.") });
+    await prisma.message.create({ data: msg(conversationId, "outbound", "Ustaya ilettim.") });
+    await prisma.message.create({ data: msg(conversationId, "inbound", "klima düzeldi, teşekkürler") });
+    for (let i = 1; i <= 30; i++) {
+      await prisma.message.create({ data: msg(conversationId, i % 2 === 1 ? "inbound" : "outbound", `dolgu ${i}`) });
+    }
+
+    await ask(token, "çöp nereye?");
+    expect(lastInput().openTopics ?? []).not.toContain("complaint");
+  });
+
+  it("İKİ açık şikâyet, tek kapanış: yalnız SONUNCUSU kapanır, diğeri açık kalır", async () => {
+    const { token, conversationId } = await seed();
+    await prisma.message.create({ data: msg(conversationId, "inbound", "Klima bozuk, çalışmıyor.") });
+    await prisma.message.create({ data: msg(conversationId, "inbound", "Ayrıca insan ile görüşmek istiyorum.") });
+    await prisma.message.create({ data: msg(conversationId, "inbound", "teşekkürler") });
+    for (let i = 1; i <= 30; i++) {
+      await prisma.message.create({ data: msg(conversationId, i % 2 === 1 ? "inbound" : "outbound", `dolgu ${i}`) });
+    }
+
+    await ask(token, "çöp nereye?");
+    const topics = lastInput().openTopics ?? [];
+    expect(topics).toContain("complaint"); // ilk şikâyet hâlâ açık
+    expect(topics).not.toContain("human_request"); // en son konu kapandı
   });
 
   it("açık konu notu PII taşımaz: yalnız kapalı-küme kategori kodları", async () => {

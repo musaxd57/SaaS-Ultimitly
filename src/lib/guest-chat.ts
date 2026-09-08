@@ -618,23 +618,46 @@ export async function buildGuestChatContextWindow(conversationId: string): Promi
     chars += r.body.length;
   }
 
-  // Pencere dışında kalan misafir mesajlarında KAPANMAMIŞ konu var mı?
-  const outside = chronological.slice(0, Math.max(0, chronological.length - window.length));
-  const open = new Set<string>();
-  for (let i = 0; i < outside.length; i++) {
-    const r = outside[i];
+  // ── AÇIK KONULAR: kapanış YALNIZ İLGİLİ konuyu kapatır ────────────────────
+  //
+  // 🚨 İlk sürüm hatalıydı (kurucu yakaladı): herhangi bir kapanış cümlesi TÜM
+  // açık konuları siliyordu. "Klima bozuk → havlu nerede? → teşekkürler"
+  // dizisinde teşekkür ARADAKİ soruya aittir; klima şikâyetini kapatmamalı.
+  //
+  // YAKINLIK KURALI (deterministik, sınıflandırıcısız): sohbet kronolojik
+  // taranır; misafirin açtığı her konu bir yığına eklenir, misafirin yazdığı
+  // her kapanış cümlesi yığının EN ÜSTÜNDEKİ (en son açılan) konuyu kapatır.
+  // Böylece "klima düzeldi, teşekkürler" klimayı kapatır; araya başka bir konu
+  // girmişse kapanış onu kapatır ve şikâyet açık kalır.
+  // ⚠️ Kapanışın hangi konuya ait olduğunu METİNDEN çıkarmıyoruz: "teşekkürler"
+  // konu taşımaz. Yakınlık, elde olan tek dürüst sinyaldir; yanılması hâlinde
+  // bedeli yalnız bir bağlam notudur (devir/güvenlik kararına girmez).
+  const openStack: { intent: string; index: number }[] = [];
+  for (let i = 0; i < chronological.length; i++) {
+    const r = chronological[i];
     if (r.direction !== "inbound") continue;
+    if (looksLikeTopicClosure(r.body)) {
+      openStack.pop();
+      continue;
+    }
+    // ⚠️ YIĞINA MİSAFİRİN HER KONUSU GİRER, yalnız "önemli" olanlar değil.
+    // İlk denemede yığın yalnız şikâyet/insan-talebi tutuyordu ve araya giren
+    // sıradan bir soru ("havlu nerede?") yer kaplamadığı için sonraki
+    // "teşekkürler" yine şikâyeti kapatıyordu (ölçüldü, test kırmızıydı).
+    // Kapanışın neye ait olduğunu belirleyen şey, o sırada gündemde olan SON
+    // konudur — sıradan sorular da gündemi işgal eder.
     const c = classifyFallback(r.body);
     const intent = c.isComplaint ? "complaint" : c.intent;
-    if (!OPEN_TOPIC_INTENTS.has(intent)) continue;
-    // ÇÖZÜLMÜŞ SAYILMA KURALI: bu konudan SONRA misafir bir kapanış yazdıysa
-    // (teşekkür/"düzeldi") konu kapanmıştır — aksi hâlde asistan çözülmüş bir
-    // meseleyi sonsuza dek gündemde tutar.
-    const closedLater = chronological
-      .slice(i + 1)
-      .some((later) => later.direction === "inbound" && looksLikeTopicClosure(later.body));
-    if (!closedLater) open.add(intent);
+    openStack.push({ intent, index: i });
   }
+  // Yalnız pencere DIŞINDA açılmış olanlar taşınır: pencere içindekiler zaten
+  // geçmişin kendisinde görünüyor, ikinci kez anlatmaya gerek yok.
+  const firstWindowIndex = chronological.length - window.length;
+  const open = new Set(
+    openStack
+      .filter((t) => t.index < firstWindowIndex && OPEN_TOPIC_INTENTS.has(t.intent))
+      .map((t) => t.intent),
+  );
   return { history: window, openTopics: [...open].sort() };
 }
 

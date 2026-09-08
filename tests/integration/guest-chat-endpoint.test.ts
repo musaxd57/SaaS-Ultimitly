@@ -208,12 +208,28 @@ describe("POST /api/chat/[token] (public QR concierge)", () => {
     expect(json.escalated).toBe(true);
   });
 
-  it("escalates a low-confidence answer rather than guessing at the doorway", async () => {
-    mockSuggest.mockResolvedValue(result({ confidence: 0.5 }));
+  // ⚠️ SÖZLEŞME GÜNCELLENDİ (kurucu AI kalite turu, 09-08). Eskiden `confidence`
+  // 0.75'in ALTINDAKİ her yanıt — mesaj tamamen risksiz olsa bile — devrediliyordu.
+  // Canlıda ölçülen bedeli: "nasılsın", "çöp nereye" gibi sorular da "ev sahibine
+  // ilettim" cevabı alıyor, asistan kullanılamaz hâle geliyordu. Artık HER AÇIDAN
+  // RİSKSİZ mesajlarda dar bir bant (0.45 ≤ c < 0.75) modelin DÜRÜST cevabının
+  // gitmesine izin verir; karar `informational_low_confidence` olarak kaydedilir.
+  // "Tahmin etme" kuralı korunur: bandın ALTI hâlâ devirdir ve risk taşıyan her
+  // dal (kelime ağı, model riski, injection, insan talebi) bandın ÖNÜNDE çalışır.
+  it("bandın ALTINDAKİ güven hâlâ devredilir (kapıda tahmin yok)", async () => {
+    mockSuggest.mockResolvedValue(result({ confidence: 0.2 }));
     const { propertyId } = await makeOrgWithProperty();
     const token = await enableChat(propertyId);
     const json = await (await call(token, "Klima nasıl çalışır?")).json();
     expect(json.escalated).toBe(true);
+  });
+
+  it("bant İÇİNDEKİ güven risksiz soruda cevaplanır (gereksiz devir yok)", async () => {
+    mockSuggest.mockResolvedValue(result({ confidence: 0.5 }));
+    const { propertyId } = await makeOrgWithProperty();
+    const token = await enableChat(propertyId);
+    const json = await (await call(token, "Klima nasıl çalışır?")).json();
+    expect(json.escalated).toBeFalsy();
   });
 
   it("escalates WITHOUT a paid model call once the durable daily AI cap is hit (H2)", async () => {

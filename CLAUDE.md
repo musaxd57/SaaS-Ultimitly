@@ -201,6 +201,16 @@ Bu dosyaya token/anahtar/parola yazma.
   ("kaydedildi; ev sahibiniz sohbet ekranından görüntüleyebilir"). "İlettim" İDDİA EDİLMEZ — e-posta bayrak açıkken
   bile dedupe/5 dk cooldown/alıcı-yok/sağlayıcı hatasıyla bastırılabilir ve metin e-postadan ÖNCE yazıldığı için
   sonuç okunamaz. QR devri yapışkan DEĞİL (her mesaj yeniden değerlendirilir, model `history: []`).
+- **QR eksik bilgide DÜRÜST CEVAP (dar bant):** her açıdan risksiz mesajda (model risksiz + kelime ağı temiz +
+  injection yok + intent devir kümesinde değil) güven `0.45 ≤ c < 0.75` ise modelin cevabı GİDER, karar
+  `informational_low_confidence` olarak kaydedilir. Bandın ALTI hâlâ devir. Bant, güvenlik dallarının ARDINDA —
+  şikayet/para/insan-talebi/injection bastırılmaz (iki yönlü test-pinli).
+- **QR nedensel sıra VERİDE:** bot cevabı misafir mesajından +1 ms damgalanır (aynı TX'te `CURRENT_TIMESTAMP`
+  eşitliği kalktı). `id` kopma noktası KORUNUR — bu düzeltmeden önceki eşit damgalı satırların tek deterministik
+  sırası odur. `id` bir VEKİLDİR, nedensellik kanıtı değil.
+- **Açık konu kapanışı YAKINLIK kuralı:** kapanış cümlesi gündemdeki SON konuyu kapatır (yığın; misafirin HER
+  konusu yer tutar). "klima → havlu → teşekkürler" klimayı KAPATMAZ. Kapanışın hangi konuya ait olduğu metinden
+  çıkarılamaz; yakınlık tek dürüst sinyal, yanılırsa bedeli yalnız bir bağlam notudur.
 - **Kalite denetçisi eşleştirmesi:** `lte` + `id` kopma noktası (QR misafir+bot satırı AYNI TX → aynı damga; eski
   `lt` misafir mesajını eliyordu → denetçi ürünü haksız yere "uydurma atıf" diye suçluyordu). `guest: null` TEK
   BAŞINA proaktif kanıtı DEĞİL: `guestContext` = matched | proactive | unmatched.
@@ -523,7 +533,7 @@ Sekiz P1 KAPANDI (09-07), her biri ayrı commit, kırmızı-önce + iki yönlü 
 **Origin HEAD `4c1efea` (V0.6 + V0.7 canlı; CI 5/5 run #960; migration 51 prod'da 03:13Z; Railway healthcheck-gated
 oto-deploy). V1 Property Memory + Signals CANLI: push `4c1efea..7aa228f` (altyapı `16f70f5` + ürün akışı `4e9b1b1`),
 CI run #964 5/5, **migration 52 prod'da 09-08 06:11:42Z**, ilk geçiş KB hafızasını doldurdu (32/32), IngestEvent/Signal 0
-(gerçek olay yok). 3692 test yeşil (331 dosya) · typecheck/lint/build/audit temiz.**
+(gerçek olay yok). 3707 test yeşil (332 dosya) · typecheck/lint/build/audit temiz.**
 Son kod işi: "Dosyadan içe aktar" (canlı, `8d49004`, CI #972 5/5). **Canlı ürün akışı KISMEN doğrulandı** (plan
 `docs/V1-CANLI-DOGRULAMA-OPERATOR-PLANI.md` §3): KB → kart ✅ · **tek rezervasyonlu dosya → iptal → sinyal → kart ✅
 (09-08)**; QR mesajı, URL üzerinden iCal, toplu dosya, `date_change`, örüntü DOĞRULANMADI. Kart OLAY tarihini gösterir
