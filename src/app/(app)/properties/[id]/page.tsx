@@ -17,6 +17,7 @@ import { parseSupplyProfile } from "@/lib/supply";
 import { PackageOpen } from "lucide-react";
 import { CalendarFeed } from "@/components/properties/calendar-feed";
 import { CalendarSources } from "@/components/properties/calendar-sources";
+import { CalendarFileImport } from "@/components/properties/calendar-file-import";
 import { GuestChatSettings } from "@/components/properties/guest-chat-settings";
 import { ReservationPinControl } from "@/components/properties/reservation-pin-control";
 import { listReservationsForPinManagement } from "@/lib/guest-chat-pin";
@@ -244,6 +245,15 @@ export default async function PropertyDetailPage({
                   };
                 })}
               />
+              {canManage ? (
+                <div className="mt-4 border-t border-border pt-3">
+                  {/* İKİ AYRI SEÇENEK (kurucu 09-08): yukarısı URL'den DÜZENLİ
+                      senkronizasyon, burası TEK SEFERLİK dosya aktarımı. Ayrım
+                      başlıkta da yazılı — host hangisini yaptığını bilmeli. */}
+                  <p className="mb-2 text-xs font-medium">Dosyadan içe aktar (tek seferlik)</p>
+                  <CalendarFileImport propertyId={property.id} propertyName={property.name} />
+                </div>
+              ) : null}
             </CardContent>
           </Card>
 

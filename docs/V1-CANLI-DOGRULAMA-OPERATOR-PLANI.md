@@ -78,18 +78,21 @@ oldu" kaydı olarak kalır — beklenen). Gerçek mülkte yalnız A adımı (KB)
    → `guest_message / complaint / true`. Aynı mesaj ikinci kez GÖNDERİLMEZ; ikinci bir farklı mesaj ikinci sinyal üretir.
    ✅ Ölçüt: gerçek QR olayı ≤2 dk içinde beklenen sinyale ve kartta görünen satıra dönüştü.
 
-**C. Rezervasyon olayı → iptal sinyali (test mülkü; kontrollü yol = test beslemesi).**
-Gerçek Airbnb iCal iptali zorlanamaz → aynı sözleşmeyi kullanan KONTROLLÜ besleme ile doğrulama, gerçek beslemede pasif
-gözlem. ⚠️ Düzeltme (09-08, kod-doğrulandı): elle `.ics/.csv` yüklemesinin arayüzde MENÜSÜ YOK — yalnız API rotası
-(`POST /api/reservations/import`, `file`+`propertyId`); bu belgenin önceki "Rezervasyonlar → İçe aktar" ifadesi yanlıştı.
-Kontrollü yol, mülk sayfasındaki **Takvim kaynakları** üzerinden gerçek iCal sözleşmesidir (provider `ical`):
-1. `test-reservation.ics` (tek VEVENT, `UID:lixus-v1-test-2026-09-08-001@lixusai.com`, 14–17 Eki 2026, sahte ad) herkese
-   açık bir Gist'e konur; Raw URL (HTTPS 443, yönlendirme yok) test mülküne Takvim kaynağı olarak eklenir. Yeni kaynak
-   ≤2 dk'da (ya da kaynak satırındaki senkron düğmesiyle anında) çekilir. SQL: `IngestEvent` son satır
-   `reservation.created / ical`. Sinyal yok (created sinyal değildir).
-2. Gist içeriği `test-reservation-cancelled.ics` (aynı UID + `STATUS:CANCELLED`) ile değiştirilir, senkron düğmesi →
-   rezervasyon iptal; SQL: `reservation.cancelled / ical`; ≤2 dk sonra `Signal` `reservation / cancellation` ve kart:
-   "İptal · 14 Eki 2026 · Rezervasyon". Test verisi/mülk SİLİNMEZ (Codex).
+**C. Rezervasyon olayı → iptal sinyali (test mülkü; kontrollü yol = "Dosyadan içe aktar").**
+Gerçek Airbnb iCal iptali zorlanamaz → kontrollü doğrulama, gerçek beslemede pasif gözlem.
+⚠️ İki düzeltme (09-08, kod-doğrulandı): (a) elle `.ics` yüklemesinin arayüzde menüsü YOKTU — bu turda
+mülk sayfasına **Kanal Takvimleri → Dosyadan içe aktar** eklendi (tek seferlik, URL senkronizasyonundan ayrı);
+(b) Gist beslemesiyle yapılan ilk canlı deneme "1 atlandı" verdi ve rezervasyon Onaylı kaldı — teşhis
+`docs/TESHIS-2026-09-08-ical-iptal-atlandi.md` (en olası neden: Gist "Raw" bağlantısı revizyon SHA'sına sabit →
+besleme hâlâ iptalsiz sürümü veriyor → `unchanged`). Kontrollü akış artık dosya yoluyla yapılır:
+1. Mülk sayfası → Kanal Takvimleri → **Dosyadan içe aktar** → `test-reservation.ics` seç. Önizleme: mülk adı +
+   "1 eklenecek". "İçe aktar" → "1 eklendi". SQL: `IngestEvent` son satır `reservation.created / manual_file`.
+   Sinyal yok (created sinyal değildir).
+2. Aynı yerden `test-reservation-cancelled.ics` (aynı UID + `STATUS:CANCELLED`) seç. Önizleme: **"1 iptal edilecek"**.
+   "İçe aktar" → "1 iptal edildi". SQL: `reservation.cancelled / manual_file`; ≤2 dk sonra `Signal`
+   `reservation / cancellation` ve kart: "İptal · 14 Eki 2026 · Rezervasyon". Test verisi/mülk SİLİNMEZ (Codex).
+   ⚠️ Gist beslemesinden gelen ESKİ test satırı bu yolla iptal EDİLMEZ (önizleme "takvim bağlantısına ait" der) —
+   tasarım gereği: dosya, beslemenin sahibi olduğu satıra dokunmaz.
 3. Pasif gözlem (gerçek besleme): sonraki gerçek tarih değişikliği/iptalde `IngestEvent` `ical` + `Signal` `date_change`/
    `cancellation` beklenir; ilk 1–2 haftada `SELECT provider, kind, count(*) …` ile izle. Değişmeyen besleme event ÜRETMEZ
    (0 = arıza değil).

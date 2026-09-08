@@ -225,6 +225,10 @@ Partner Portal partners.hospitable.com. Dürtme yok.
 Panel: dashboard (AI özet + onboarding), inbox (AI öner + risk rozeti), Mesajlar, QR Misafir Sohbetleri,
 Gönderilenler (+`/sent/queue` outbox ops), Görevler (Kanban), Takvim, İptaller, Mülkler (+"Mülk Hafızası" kartı, V1), Bilgi Tabanı,
 Şablonlar, Raporlar, sekmeli Ayarlar (Takvim akışı gizliliği, geç çıkış teklifi, 2FA, faturalandırma).
+Mülk sayfası Kanal Takvimleri İKİ seçenek: **takvim bağlantısı** (URL, düzenli senkron) + **Dosyadan içe aktar**
+(tek seferlik `.ics`; önizleme kaydetmeden mülk + eklenecek/güncellenecek/iptal/atlanacak sayısını gösterir;
+`mode=preview` YAZMAZ ve ayrı kotadadır; dosya yalnız KENDİ satırına dokunur — `calendarSourceId` NULL + `channel`
+"ics"; feed satırı `owned_by_feed` ile atlanır; eksik satır iptal EDİLMEZ; iptalli satır canlı dosyayla geri AÇILMAZ).
 Operatör paneli: müşteri yönetimi + impersonation + Lead CRM + Operasyon Teşhisi + 2FA sıfırlama.
 Landing: 3-seviye kartlar + canlı demo. KVKK: export, retention, erasure (bayraklı), kayıt onayı. VDP:
 `/guvenlik` + `security.txt` (posta kutusu `security@lixusai.com` açılmalı).
@@ -490,7 +494,7 @@ Sekiz P1 KAPANDI (09-07), her biri ayrı commit, kırmızı-önce + iki yönlü 
 **Origin HEAD `4c1efea` (V0.6 + V0.7 canlı; CI 5/5 run #960; migration 51 prod'da 03:13Z; Railway healthcheck-gated
 oto-deploy). V1 Property Memory + Signals CANLI: push `4c1efea..7aa228f` (altyapı `16f70f5` + ürün akışı `4e9b1b1`),
 CI run #964 5/5, **migration 52 prod'da 09-08 06:11:42Z**, ilk geçiş KB hafızasını doldurdu (32/32), IngestEvent/Signal 0
-(gerçek olay yok). 3643 test yeşil (323 dosya) · typecheck/lint/build/audit temiz.**
+(gerçek olay yok). 3656 test yeşil (325 dosya) · typecheck/lint/build/audit temiz.**
 Son kod işi: V1 ürün akışı (canlı). **Canlı ÜRÜN AKIŞI doğrulaması HENÜZ YAPILMADI** (`docs/V1-CANLI-DOGRULAMA-OPERATOR-
 PLANI.md` bölüm 3: KB → kart, QR → şikayet sinyali, elle .ics → iptal sinyali, iCal pasif gözlem) — yapılmadan "çalışıyor"
 denmez. Açık vizyon parçaları (bakım sinyali V3 · güçlü yön V6 · proaktif check-in V2/V5) belgede; V2'ye geçilmedi.

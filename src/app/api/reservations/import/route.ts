@@ -9,8 +9,11 @@ import { parseCsv, CsvParseError } from "@/lib/import/csv";
 import { createReservationTasks, removeAutoTasksForCancelledReservation } from "@/lib/automation";
 import { loadErasureGuard, acquireErasureLock } from "@/lib/erasure";
 import { recordIngestEvent } from "@/lib/ingest/events";
+import { ANON_NAME } from "@/lib/data-retention";
 
 const IMPORT_MAX_BYTES = 5 * 1024 * 1024;
+/** Önizleme yanıtında satır listesi tavanı (sayımlar TÜM satırlar üzerinden). */
+const PREVIEW_ROW_CAP = 200;
 
 /**
  * RFC 5545 `STATUS:CANCELLED` — the booking was killed upstream.
@@ -33,6 +36,88 @@ function isCancelledRow(status: string | null | undefined): boolean {
   return (status ?? "").trim().toUpperCase() === "CANCELLED";
 }
 
+function sameInstant(a: Date | null | undefined, b: Date | null | undefined): boolean {
+  if (!a || !b) return a === b;
+  return a.getTime() === b.getTime();
+}
+
+type ParsedRow = {
+  guestName: string;
+  arrivalDate: Date;
+  departureDate: Date;
+  sourceReference?: string | null;
+  notes?: string | null;
+  channel?: string;
+  totalAmount?: number;
+  currency?: string;
+  /** VEVENT STATUS (RFC 5545), uppercased by the parser. `parseCsv` has no
+   *  status column today, so CSV rows leave this undefined = live. */
+  status?: string | null;
+};
+
+// ---------------------------------------------------------------------------
+// SATIR SINIFLANDIRMASI — "Dosyadan içe aktar" (Codex, 2026-09-08).
+//
+// Önizleme ve gerçek aktarım AYNI sınıflandırmayı kullanır: host kaydetmeden
+// önce hangi mülke, kaç satırın ekleneceğini / güncelleneceğini / iptal
+// edileceğini / atlanacağını (ve NEDEN) görür. Sınıflandırma SALT OKUMADIR;
+// yazma yetkisi aşağıdaki TX'lerin İÇİNDEKİ atomik WHERE koşullarındadır
+// (sahiplik + durum okuma ile yazma arasında yeniden sınanır).
+//
+// Sahiplik kuralı (kardeş yolun aynası, `import/sync.ts`): bu rota YALNIZ
+// kendi yazdığı satırlara dokunur — `calendarSourceId IS NULL` VE `channel =
+// "ics"` (bu kanalı yalnız bu rota üretir; `channelFromLabel` asla "ics"
+// döndürmez). Takvim bağlantısına ait satır (`calendarSourceId` dolu) ve
+// Hospitable / elle girilmiş satır (başka kanal) "başka kaynak"tır → atlanır.
+// Böylece "sonraki dosya önceki aktarımın güncellemesi mi, ayrı kaynak mı"
+// sorusu satır başına AÇIKÇA cevaplanır.
+//
+// Yapılmayanlar (bilinçli, kardeş yolla aynı): dosyada BULUNMAYAN eski satır
+// sırf eksik diye iptal EDİLMEZ (tek seferlik dosya eski olabilir); iptalli
+// satır canlı görünen satırla GERİ AÇILMAZ (pozitif kanıt kuralı ↓).
+// ---------------------------------------------------------------------------
+type RowAction = "create" | "update" | "cancel" | "skip";
+type SkipReason =
+  | "invalid_guest"
+  | "invalid_arrival"
+  | "invalid_departure"
+  | "invalid_range"
+  | "erased"
+  | "cancel_no_ref"
+  | "cancel_no_match"
+  | "cancel_already"
+  | "owned_by_feed"
+  | "owned_by_other"
+  | "cancelled_stays"
+  | "unchanged"
+  | "duplicate";
+
+interface Classified {
+  line: number;
+  rowLabel: string;
+  row: ParsedRow;
+  sourceReference: string | null;
+  action: RowAction;
+  reason: SkipReason | null;
+  /** Hata metni (yalnız geçersiz satırlarda; host'a gösterilir). */
+  error: string | null;
+  existingId: string | null;
+  /** update: KVKK-anonimleştirilmiş satırda ad/not YAZILMAZ (dirilme guard'ı). */
+  scrubbed: boolean;
+  changedFields: string[];
+}
+
+const EXISTING_SELECT = {
+  id: true,
+  status: true,
+  calendarSourceId: true,
+  channel: true,
+  guestName: true,
+  notes: true,
+  arrivalDate: true,
+  departureDate: true,
+} as const;
+
 export const POST = withManage(async (session, req) => {
   // OOM guard: read the multipart body with a HARD byte cap (Content-Length pre-check
   // + streaming cancel-on-overflow) so a several-hundred-MB .csv/.ics — even with a
@@ -47,6 +132,8 @@ export const POST = withManage(async (session, req) => {
   }
   const file = formData.get("file") as File | null;
   const propertyId = formData.get("propertyId") as string | null;
+  // `mode=preview` → HİÇBİR ŞEY YAZILMAZ; yalnız sınıflandırma + sayımlar döner.
+  const preview = formData.get("mode") === "preview";
 
   if (!file) return badRequest({ file: "Dosya gerekli" });
   // Second line (for a missing/lying Content-Length): the per-file size cap, still
@@ -57,7 +144,7 @@ export const POST = withManage(async (session, req) => {
   // Verify the property belongs to this organization.
   const property = await prisma.property.findFirst({
     where: { id: propertyId, organizationId: session.organizationId },
-    select: { id: true },
+    select: { id: true, name: true },
   });
   if (!property) return badRequest({ propertyId: "Geçersiz mülk" });
 
@@ -87,31 +174,25 @@ export const POST = withManage(async (session, req) => {
   // Geriye kalan sınırsız yüzey yalnızca gövde okumasıdır ve o zaten sert bir
   // bayt tavanıyla sınırlı (istek başına ~6 MB), yani asıl DoS (90.000 sorgu)
   // tam olarak kapının arkasında kalıyor.
-  const limited = await rateLimit(`reservation-import:${session.organizationId}`, 5, 60 * 60_000);
+  //
+  // ÖNİZLEME AYRI KOVADA: yalnız okur (satır başına 1 findFirst), yazmaz; host
+  // dosyayı düzeltip birkaç kez bakabilsin diye daha cömert ama yine sınırlı.
+  // Önizleme AKTARIM bütçesini tüketmez (6 önizleme sonra aktarım hâlâ geçer).
+  const limited = preview
+    ? await rateLimit(`reservation-import-preview:${session.organizationId}`, 30, 60 * 60_000)
+    : await rateLimit(`reservation-import:${session.organizationId}`, 5, 60 * 60_000);
   if (!limited.ok) {
     return tooManyRequests(
       limited.retryAfter,
       // Süreyi SÖYLE: genel metin "kısa bir süre" diyor ama buradaki pencere
       // bir SAAT — host boşuna tekrar tekrar denemesin.
-      `Saatte en fazla 5 içe aktarım yapılabilir. Yaklaşık ${Math.ceil(limited.retryAfter / 60)} dakika sonra tekrar deneyin.`,
+      preview
+        ? `Saatte en fazla 30 önizleme yapılabilir. Yaklaşık ${Math.ceil(limited.retryAfter / 60)} dakika sonra tekrar deneyin.`
+        : `Saatte en fazla 5 içe aktarım yapılabilir. Yaklaşık ${Math.ceil(limited.retryAfter / 60)} dakika sonra tekrar deneyin.`,
     );
   }
 
   const text = await file.text();
-
-  type ParsedRow = {
-    guestName: string;
-    arrivalDate: Date;
-    departureDate: Date;
-    sourceReference?: string | null;
-    notes?: string | null;
-    channel?: string;
-    totalAmount?: number;
-    currency?: string;
-    /** VEVENT STATUS (RFC 5545), uppercased by the parser. `parseCsv` has no
-     *  status column today, so CSV rows leave this undefined = live. */
-    status?: string | null;
-  };
 
   let rows: ParsedRow[] = [];
   if (isIcs) {
@@ -142,11 +223,6 @@ export const POST = withManage(async (session, req) => {
       return badRequest({ file: "CSV dosyası okunamadı." });
     }
   }
-
-  let imported = 0;
-  let cancelled = 0;
-  let skipped = 0;
-  const errors: string[] = [];
 
   // ── KVKK ERASURE INGRESS GUARD (denetim, 08-06) ───────────────────────────
   //
@@ -180,29 +256,41 @@ export const POST = withManage(async (session, req) => {
   // getirmez; ileriye dönük bir kapıdır.
   const erasureGuard = await loadErasureGuard(session.organizationId);
 
+  // ── SINIFLANDIRMA (salt okuma; önizleme ve aktarım için ortak) ─────────────
+  const classified: Classified[] = [];
   for (let i = 0; i < rows.length; i++) {
     const row = rows[i];
     const rowLabel = `Satır ${i + 2}`;
+    const sourceReference = row.sourceReference ?? null;
+    const base: Classified = {
+      line: i + 1,
+      rowLabel,
+      row,
+      sourceReference,
+      action: "skip",
+      reason: null,
+      error: null,
+      existingId: null,
+      scrubbed: false,
+      changedFields: [],
+    };
+    const skip = (reason: SkipReason, error: string | null = null) => classified.push({ ...base, reason, error });
 
     // Validate required fields
     if (!row.guestName || row.guestName.length < 1) {
-      errors.push(`${rowLabel}: Misafir adı eksik`);
-      skipped++;
+      skip("invalid_guest", `${rowLabel}: Misafir adı eksik`);
       continue;
     }
     if (!row.arrivalDate || isNaN(row.arrivalDate.getTime())) {
-      errors.push(`${rowLabel}: Geçersiz giriş tarihi`);
-      skipped++;
+      skip("invalid_arrival", `${rowLabel}: Geçersiz giriş tarihi`);
       continue;
     }
     if (!row.departureDate || isNaN(row.departureDate.getTime())) {
-      errors.push(`${rowLabel}: Geçersiz çıkış tarihi`);
-      skipped++;
+      skip("invalid_departure", `${rowLabel}: Geçersiz çıkış tarihi`);
       continue;
     }
     if (row.departureDate <= row.arrivalDate) {
-      errors.push(`${rowLabel}: Çıkış tarihi girişten önce olamaz`);
-      skipped++;
+      skip("invalid_range", `${rowLabel}: Çıkış tarihi girişten önce olamaz`);
       continue;
     }
 
@@ -214,11 +302,14 @@ export const POST = withManage(async (session, req) => {
     // dönüyor (`import/sync.ts`). Böylece iptal yazımı da silme kapısının AYNI
     // TARAFINDA kalır; kapıyı iptal dalından sonra koymak, tombstone'lu bir
     // referansın satırına yine de yazmak demek olurdu.
-    const sourceReference = row.sourceReference ?? null;
     if (!erasureGuard.isEmpty && erasureGuard.blocksSourceReference(sourceReference)) {
-      skipped++;
+      skip("erased");
       continue;
     }
+
+    const existing = sourceReference
+      ? await prisma.reservation.findFirst({ where: { propertyId, sourceReference }, select: EXISTING_SELECT })
+      : null;
 
     // ── STATUS:CANCELLED — iptal edilmiş satır ASLA canlı yazılmaz ──────────
     //
@@ -241,26 +332,144 @@ export const POST = withManage(async (session, req) => {
       // (misafir+tarih) yedeği burada BİLEREK kullanılmıyor: yalnızca adı ve
       // tarihleri çakışan, elle girilmiş bir kaydı sessizce öldürebilirdi.
       if (!sourceReference) {
-        skipped++;
+        skip("cancel_no_ref");
         continue;
       }
-
-      const existing = await prisma.reservation.findFirst({
-        where: { propertyId, sourceReference },
-        select: { id: true, status: true, calendarSourceId: true },
-      });
-
+      if (!existing) {
+        skip("cancel_no_match");
+        continue;
+      }
+      if (existing.status === "cancelled") {
+        skip("cancel_already");
+        continue;
+      }
       // KAYNAK SAHİPLİĞİ: `calendarSourceId != null` = satır bir takvim
       // ABONELİĞİNE ait. Deponun kuralı "STATUS:CANCELLED yalnız KENDİ source
       // satırını iptal eder" (`import/sync.ts`) ve elle yükleme o kaynak
       // DEĞİLDİR → dokunmuyoruz. Kayıp yok: aynı içerik feed'den geldiğinde
       // aboneliğin kendi geçişi satırı zaten iptal eder; kazanç, eski bir elle
       // dosyanın canlı bir aboneliğin satırını deviremiyor olması.
-      if (!existing || existing.status === "cancelled" || existing.calendarSourceId !== null) {
-        skipped++;
+      if (existing.calendarSourceId !== null) {
+        skip("owned_by_feed");
         continue;
       }
+      // 🚨 `channel: "ics"` DE ŞART (denetim 08-08). `calendarSourceId: null`
+      // TEK BAŞINA "bunu daha önce ben yükledim" DEMEK DEĞİLDİR — o küme
+      // Hospitable'dan gelen satırları ve elle girilen rezervasyonları DA
+      // kapsıyor. UID'si bir Hospitable `sourceReference`'ıyla çakışan bayat bir
+      // .ics, CANLI bir rezervasyonu iptale çevirip `origin:"system"` görevlerini
+      // SİLEBİLİRDİ. "ics" bu rotanın YAZDIĞI tek kanaldır.
+      if (existing.channel !== "ics") {
+        skip("owned_by_other");
+        continue;
+      }
+      classified.push({ ...base, action: "cancel", existingId: existing.id });
+      continue;
+    }
 
+    // ── CANLI satır: mevcut kayıt varsa GÜNCELLEME mi, atlama mı? ────────────
+    if (existing) {
+      if (existing.calendarSourceId !== null) {
+        skip("owned_by_feed");
+        continue;
+      }
+      // Güncelleme yalnız .ics → .ics (bu rotanın kendi satırı). CSV bacağında
+      // güncelleme semantiği YOK (kapsam: Codex 09-08, .ics); eski davranış = atla.
+      if (!isIcs || existing.channel !== "ics") {
+        skip(existing.channel === "manual" && !isIcs ? "duplicate" : "owned_by_other");
+        continue;
+      }
+      if (existing.status === "cancelled") {
+        skip("cancelled_stays");
+        continue;
+      }
+      // KVKK resurrection guard: retention süpürgesi bu satırı anonimleştirdiyse
+      // (guestName === ANON_NAME) dosyadan ad/not GERİ YAZILMAZ; tarihler (PII
+      // değil) tazelenir. Kardeş yolla (`import/sync.ts`) birebir.
+      const scrubbed = existing.guestName === ANON_NAME;
+      const changedFields: string[] = [];
+      if (!sameInstant(existing.arrivalDate, row.arrivalDate)) changedFields.push("arrivalDate");
+      if (!sameInstant(existing.departureDate, row.departureDate)) changedFields.push("departureDate");
+      if (!scrubbed) {
+        if (existing.guestName !== row.guestName.slice(0, 200)) changedFields.push("guestName");
+        if ((existing.notes ?? null) !== (row.notes ? row.notes.slice(0, 5000) : null)) changedFields.push("notes");
+      }
+      if (changedFields.length === 0) {
+        skip("unchanged");
+        continue;
+      }
+      classified.push({ ...base, action: "update", existingId: existing.id, scrubbed, changedFields });
+      continue;
+    }
+
+    // Skip duplicates by the natural key (guest + dates on this property) when
+    // there is no reference — so a double-clicked / re-uploaded plain CSV with
+    // no id column doesn't create full duplicate reservations + tasks.
+    if (!sourceReference) {
+      const dupe = await prisma.reservation.findFirst({
+        where: {
+          propertyId,
+          guestName: row.guestName.slice(0, 200),
+          arrivalDate: row.arrivalDate,
+          departureDate: row.departureDate,
+        },
+        select: { id: true },
+      });
+      if (dupe) {
+        skip("duplicate");
+        continue;
+      }
+    }
+    classified.push({ ...base, action: "create" });
+  }
+
+  const counts = { create: 0, update: 0, cancel: 0, skipped: 0 };
+  for (const c of classified) {
+    if (c.action === "create") counts.create++;
+    else if (c.action === "update") counts.update++;
+    else if (c.action === "cancel") counts.cancel++;
+    else counts.skipped++;
+  }
+
+  if (preview) {
+    // Yazma YOK: rezervasyon, event, görev, kilit — hiçbiri. Yalnız plan.
+    return jsonOk({
+      preview: true,
+      property: { id: property.id, name: property.name },
+      counts,
+      total: classified.length,
+      rows: classified.slice(0, PREVIEW_ROW_CAP).map((c) => ({
+        line: c.line,
+        uid: c.sourceReference,
+        guestName: c.row.guestName ? c.row.guestName.slice(0, 200) : null,
+        arrival: c.row.arrivalDate && !isNaN(c.row.arrivalDate.getTime()) ? c.row.arrivalDate.toISOString().slice(0, 10) : null,
+        departure:
+          c.row.departureDate && !isNaN(c.row.departureDate.getTime()) ? c.row.departureDate.toISOString().slice(0, 10) : null,
+        action: c.action,
+        reason: c.reason,
+        error: c.error,
+      })),
+    });
+  }
+
+  // ── AKTARIM ────────────────────────────────────────────────────────────────
+  let imported = 0;
+  let updated = 0;
+  let cancelled = 0;
+  let skipped = 0;
+  const errors: string[] = [];
+  const ingestCtx = { organizationId: session.organizationId, provider: "manual_file" as const, connectionId: null };
+
+  for (const c of classified) {
+    const { row, rowLabel, sourceReference } = c;
+
+    if (c.action === "skip") {
+      if (c.error) errors.push(c.error);
+      skipped++;
+      continue;
+    }
+
+    if (c.action === "cancel") {
       try {
         // Kardeş yollarla AYNI yazma-TX deseni: org-kapsamlı silme advisory
         // kilidi + TAZE guard okuması. Ön kapı yalnız optimizasyondu.
@@ -272,21 +481,10 @@ export const POST = withManage(async (session, req) => {
             // Sahiplik ve "zaten iptalli mi" WHERE'in İÇİNDE tekrar sınanıyor →
             // okuma ile yazma arasında araya giren bir senkron bizi yanıltamaz
             // (kardeş yolun `updateMany` ile atomik sahiplik kontrolü aynısı).
-            // 🚨 `channel: "ics"` DE ŞART (denetim 08-08). `calendarSourceId: null`
-            // TEK BAŞINA "bunu daha önce ben yükledim" DEMEK DEĞİLDİR — o küme
-            // Hospitable'dan gelen satırları ve elle girilen rezervasyonları DA
-            // kapsıyor. Kardeş yol (abonelik senkronu) tam tersini yapıyor:
-            // CANCELLED bir olayın SAHİPSİZ satıra dokunmasına hiç izin vermiyor
-            // ("legacy" araması `row.status !== "CANCELLED"` koşullu). Buradaki
-            // kural onun aynası olmalıydı, olmamıştı: UID'si bir Hospitable
-            // `sourceReference`'ıyla çakışan bayat bir .ics, CANLI bir
-            // rezervasyonu iptale çevirip `origin:"system"` görevlerini
-            // SİLEBİLİRDİ (durum PATCH ile geri alınır, görevler alınmaz).
-            // "ics" bu rotanın YAZDIĞI tek kanaldır ve `channelFromLabel` onu
-            // asla üretmez → elle yüklenen satırı benzersiz tanımlar.
+            // 🚨 `channel: "ics"` DE ŞART (denetim 08-08) — ↑sınıflandırma gerekçesi.
             const res = await tx.reservation.updateMany({
               where: {
-                id: existing.id,
+                id: c.existingId!,
                 calendarSourceId: null,
                 channel: "ics",
                 status: { not: "cancelled" },
@@ -295,14 +493,8 @@ export const POST = withManage(async (session, req) => {
             });
             if (res.count !== 1) return null;
             // V1: elle dosya bir Lixus-native giriştir → iptal event'i satırla aynı TX'te.
-            await recordIngestEvent(
-              tx,
-              { organizationId: session.organizationId, provider: "manual_file", connectionId: null },
-              "reservation",
-              existing.id,
-              "reservation.cancelled",
-            );
-            return existing.id;
+            await recordIngestEvent(tx, ingestCtx, "reservation", c.existingId!, "reservation.cancelled");
+            return c.existingId!;
           },
           // Kardeş KVKK yollarıyla birebir değerler.
           { timeout: 60_000, maxWait: 15_000 },
@@ -323,28 +515,51 @@ export const POST = withManage(async (session, req) => {
       continue;
     }
 
-    // Skip duplicates: by sourceReference when present, else by the natural key
-    // (guest + dates on this property) so a double-clicked / re-uploaded plain
-    // CSV with no id column doesn't create full duplicate reservations + tasks.
-    const dupe = sourceReference
-      ? await prisma.reservation.findFirst({
-          where: { propertyId, sourceReference },
-          select: { id: true },
-        })
-      : await prisma.reservation.findFirst({
-          where: {
-            propertyId,
-            guestName: row.guestName.slice(0, 200),
-            arrivalDate: row.arrivalDate,
-            departureDate: row.departureDate,
+    if (c.action === "update") {
+      try {
+        const updatedId = await prisma.$transaction(
+          async (tx) => {
+            await acquireErasureLock(tx, session.organizationId);
+            const fresh = await loadErasureGuard(session.organizationId, tx);
+            if (!fresh.isEmpty && fresh.blocksSourceReference(sourceReference)) return null;
+            // ATOMİK sahiplik: yalnız bu rotanın kendi CANLI satırı (`calendarSourceId`
+            // NULL + `channel` "ics" + iptalli değil). Araya giren bir senkron/iptal
+            // satırı değiştirdiyse count 0 → dokunmadan atla.
+            const res = await tx.reservation.updateMany({
+              where: { id: c.existingId!, calendarSourceId: null, channel: "ics", status: { not: "cancelled" } },
+              data: {
+                arrivalDate: row.arrivalDate,
+                departureDate: row.departureDate,
+                ...(c.scrubbed
+                  ? {}
+                  : {
+                      guestName: row.guestName.slice(0, 200),
+                      notes: row.notes ? row.notes.slice(0, 5000) : null,
+                    }),
+              },
+            });
+            if (res.count !== 1) return null;
+            // V1: değişen alan ADLARI (değer yok) — tarih alanları date_change sinyalinin girdisi.
+            await recordIngestEvent(tx, ingestCtx, "reservation", c.existingId!, "reservation.updated", c.changedFields);
+            return c.existingId!;
           },
-          select: { id: true },
-        });
-    if (dupe) {
-      skipped++;
+          { timeout: 60_000, maxWait: 15_000 },
+        );
+        if (!updatedId) {
+          skipped++;
+          continue;
+        }
+        // Kardeş yolla aynı: görev backfill'i (idempotent).
+        await createReservationTasks(updatedId);
+        updated++;
+      } catch {
+        errors.push(`${rowLabel}: Kaydedilemedi (veritabanı hatası).`);
+        skipped++;
+      }
       continue;
     }
 
+    // action === "create"
     const data = {
       propertyId,
       // Clamp to the same caps the manual path enforces (validators.ts) —
@@ -391,7 +606,7 @@ export const POST = withManage(async (session, req) => {
       // advisory kilidi altında, guard TAZE okunarak yapılır → ya bu commit
       // önce olur (silme yürütücüsü sonra koşar ve yazdığımızı maskeler) ya da
       // taze tombstone'ları görüp yazmayı reddederiz. Kardeş yollarla birebir
-      // aynı desen (`import/sync.ts:190`, `hospitable-sync.ts:299`).
+      // aynı desen (`import/sync.ts`, `hospitable-sync.ts`).
       //
       // ⚠️ Görev yan etkisi (`createReservationTasks`) commit'ten SONRA koşar —
       // kilit yalnız yazma boyunca tutulur.
@@ -402,16 +617,10 @@ export const POST = withManage(async (session, req) => {
           await acquireErasureLock(tx, session.organizationId);
           const fresh = await loadErasureGuard(session.organizationId, tx);
           if (!fresh.isEmpty && fresh.blocksSourceReference(sourceReference)) return null;
-          const row = await tx.reservation.create({ data });
+          const created = await tx.reservation.create({ data });
           // V1: yeni satır → `reservation.created` aynı TX'te (dedupe-hit'te TX iptal → event de yok).
-          await recordIngestEvent(
-            tx,
-            { organizationId: session.organizationId, provider: "manual_file", connectionId: null },
-            "reservation",
-            row.id,
-            "reservation.created",
-          );
-          return row;
+          await recordIngestEvent(tx, ingestCtx, "reservation", created.id, "reservation.created");
+          return created;
         },
         // Kardeş KVKK yollarıyla birebir değerler (hospitable-sync.ts:306).
         { timeout: 60_000, maxWait: 15_000 },
@@ -438,7 +647,7 @@ export const POST = withManage(async (session, req) => {
   // `cancelled` EKLENDİ (additive): iptal edilen satırları `skipped` içine
   // saymak, host'a "hiçbir şey olmadı" demek olurdu — oysa kayıt durum
   // değiştirdi ve görevleri silindi. Kardeş `SyncResult` bunu `updated` diye
-  // sayıyor; bu rota BAŞKA hiçbir güncelleme yapmadığı için ayrı ve daha dürüst
-  // bir ad tercih edildi.
-  return jsonOk({ imported, cancelled, skipped, errors });
+  // sayıyor; `updated` burada da AYRI ve additive: aynı UID'li önceki dosya
+  // aktarımının tarih/ad güncellemesi (Codex 09-08), iptalden farklı.
+  return jsonOk({ imported, updated, cancelled, skipped, errors });
 });

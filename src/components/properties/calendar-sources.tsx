@@ -142,10 +142,12 @@ export function CalendarSources({ propertyId, sources, canManage = true, tz }: P
   return (
     <div className="space-y-3">
       <p className="text-xs text-muted-foreground">
+        <strong className="font-medium text-foreground">Takvim bağlantısı: düzenli senkronizasyon.</strong>{" "}
         Airbnb / Booking.com&apos;daki &quot;takvimi dışa aktar&quot; iCal bağlantısını buraya
-        ekleyin. &quot;Senkronla&quot; deyince rezervasyonlar otomatik düşer. Hospitable
-        bağlıysa aynı ilanın iCal&apos;ini ayrıca eklemeyin — rezervasyonlar iki kez
-        görünebilir.
+        ekleyin; bağlantı düzenli aralıklarla yeniden okunur (&quot;Senkronla&quot; anında çeker).
+        Elinizdeki bir dosyayı bir kez aktarmak için aşağıdaki &quot;Dosyadan içe aktar&quot;ı
+        kullanın. Hospitable bağlıysa aynı ilanın iCal&apos;ini ayrıca eklemeyin — rezervasyonlar
+        iki kez görünebilir.
       </p>
 
       {sources.length > 0 && (
