@@ -78,13 +78,18 @@ oldu" kaydı olarak kalır — beklenen). Gerçek mülkte yalnız A adımı (KB)
    → `guest_message / complaint / true`. Aynı mesaj ikinci kez GÖNDERİLMEZ; ikinci bir farklı mesaj ikinci sinyal üretir.
    ✅ Ölçüt: gerçek QR olayı ≤2 dk içinde beklenen sinyale ve kartta görünen satıra dönüştü.
 
-**C. Rezervasyon olayı → iptal sinyali (test mülkü; kontrollü yol = elle .ics).**
-Gerçek Airbnb iCal iptali zorlanamaz → aynı sözleşmeyi kullanan elle yükleme ile kontrollü doğrulama, gerçek beslemede
-pasif gözlem.
-1. Test mülküne küçük bir `.ics` yükle (Rezervasyonlar → İçe aktar): tek VEVENT, `UID:lixus-test-1`, gelecekteki tarihler.
-   SQL: `IngestEvent` son satır `reservation.created / manual_file`. Sinyal yok (created sinyal değildir).
-2. Aynı UID ile `STATUS:CANCELLED` içeren `.ics` yükle → kart: "İptal · <tarih> · Rezervasyon"; SQL: `reservation.cancelled /
-   manual_file` + `Signal` `reservation / cancellation`.
+**C. Rezervasyon olayı → iptal sinyali (test mülkü; kontrollü yol = test beslemesi).**
+Gerçek Airbnb iCal iptali zorlanamaz → aynı sözleşmeyi kullanan KONTROLLÜ besleme ile doğrulama, gerçek beslemede pasif
+gözlem. ⚠️ Düzeltme (09-08, kod-doğrulandı): elle `.ics/.csv` yüklemesinin arayüzde MENÜSÜ YOK — yalnız API rotası
+(`POST /api/reservations/import`, `file`+`propertyId`); bu belgenin önceki "Rezervasyonlar → İçe aktar" ifadesi yanlıştı.
+Kontrollü yol, mülk sayfasındaki **Takvim kaynakları** üzerinden gerçek iCal sözleşmesidir (provider `ical`):
+1. `test-reservation.ics` (tek VEVENT, `UID:lixus-v1-test-2026-09-08-001@lixusai.com`, 14–17 Eki 2026, sahte ad) herkese
+   açık bir Gist'e konur; Raw URL (HTTPS 443, yönlendirme yok) test mülküne Takvim kaynağı olarak eklenir. Yeni kaynak
+   ≤2 dk'da (ya da kaynak satırındaki senkron düğmesiyle anında) çekilir. SQL: `IngestEvent` son satır
+   `reservation.created / ical`. Sinyal yok (created sinyal değildir).
+2. Gist içeriği `test-reservation-cancelled.ics` (aynı UID + `STATUS:CANCELLED`) ile değiştirilir, senkron düğmesi →
+   rezervasyon iptal; SQL: `reservation.cancelled / ical`; ≤2 dk sonra `Signal` `reservation / cancellation` ve kart:
+   "İptal · 14 Eki 2026 · Rezervasyon". Test verisi/mülk SİLİNMEZ (Codex).
 3. Pasif gözlem (gerçek besleme): sonraki gerçek tarih değişikliği/iptalde `IngestEvent` `ical` + `Signal` `date_change`/
    `cancellation` beklenir; ilk 1–2 haftada `SELECT provider, kind, count(*) …` ile izle. Değişmeyen besleme event ÜRETMEZ
    (0 = arıza değil).
