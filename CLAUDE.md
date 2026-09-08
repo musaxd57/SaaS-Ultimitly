@@ -517,6 +517,12 @@ Sekiz P1 KAPANDI (09-07), her biri ayrı commit, kırmızı-önce + iki yönlü 
   ısıtma gelmiyor / elektrikler gitti / kapı açılmıyor" `classifyFallback`'te `general` (şikayet DEĞİL); "sıcak su
   yok" ve İngilizce `no hot water`/`no heating` complaint. Dil paritesi kuralıyla çelişir; `general` sinyal üretmez.
   Düzeltme GOLDEN SET + iki yönlü senaryo ister → `docs/ACIK-2026-09-08-turkce-sikayet-siniflandirma-eksigi.md`.
+- **DEĞERLENDİRME (Codex/kurucu 09-08, uygulanmadı):** host metninden alan önerisi (taslak, çelişkide host seçer) ·
+  eksikleri GERÇEK sorulardan bulma (V1 `Signal` verisi zaten akıyor; kategori ↔ KB eşlemesi + tekilleştirme +
+  bildirim yağmuru yok) · yapılandırılmış alan ↔ retrieval ayrımı (çift kopya yasak; vektör GEREKLİLİK ölçülmeden
+  eklenmez) · KB'ye kaynak/onay/sürüm/geçerlilik alanları (migration ister; `PropertyMemory` bu sözleşmeyi zaten
+  taşıyor) · yetki filtresi retrieval'dan ÖNCE ve sır elemesi GEVŞETİLMEZ (bugün çalışıyor).
+  Sıra ve gerekçeler: `docs/DEGERLENDIRME-2026-09-08-bilgi-tabani-doldurma-ve-retrieval.md`.
 - **Codex P2 (F09–F18)** ilgili modül turlarında. `docs/DENETIM-2026-08-09.md` (27 açık),
   `docs/ACIK-ISLER-2026-08-08.md` (16), `docs/MIGRATION-BEKLEYEN-ISLER.md`.
 - Operatör: bucket sağlayıcı görünürlüğü (imzasız URL 403 olmalı) · `weekly-audit.yml` `main`'e ·
