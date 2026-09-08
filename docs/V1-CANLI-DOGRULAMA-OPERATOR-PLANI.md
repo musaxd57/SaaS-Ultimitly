@@ -72,7 +72,8 @@ oldu" kaydı olarak kalır — beklenen). Gerçek mülkte yalnız A adımı (KB)
 1. Test mülkü oluştur, QR sohbeti aç, aktif bir TEST rezervasyonu gir (bugünü kapsayan tarihler; kanal "manual").
 2. QR bağlantısından misafir gibi gönder: "Sıcak su gelmiyor, duş soğuk." (şikayet kelime ağı; AI'nın cevabı önemsiz —
    kaçış/escalation e-postası gelebilir, test mülkü olduğu için beklenen).
-3. ≤2 dk (zamanlanmış geçiş) sonra mülk sayfası kartı: "Şikayet · <tarih> · Misafir mesajı" rozeti (kırmızı ton).
+3. ≤2 dk (zamanlanmış geçiş) sonra mülk sayfası kartı: "Şikayet · &lt;mesajın gönderildiği gün&gt; · Misafir mesajı"
+   rozeti (kırmızı ton). (Mesaj sinyalinde `occurredAt` = mesajın GERÇEK zamanı; rezervasyon olayında gözlem anı.)
    SQL: `SELECT kind, provider, "connectionId" FROM "IngestEvent" ORDER BY "occurredAt" DESC LIMIT 3` → `message.received /
    qr_chat / NULL`; `SELECT source, category, "conversationId" IS NOT NULL AS bagli FROM "Signal" WHERE "propertyId"='…'`
    → `guest_message / complaint / true`. Aynı mesaj ikinci kez GÖNDERİLMEZ; ikinci bir farklı mesaj ikinci sinyal üretir.
@@ -90,9 +91,26 @@ besleme hâlâ iptalsiz sürümü veriyor → `unchanged`). Kontrollü akış ar
    Sinyal yok (created sinyal değildir).
 2. Aynı yerden `test-reservation-cancelled.ics` (aynı UID + `STATUS:CANCELLED`) seç. Önizleme: **"1 iptal edilecek"**.
    "İçe aktar" → "1 iptal edildi". SQL: `reservation.cancelled / manual_file`; ≤2 dk sonra `Signal`
-   `reservation / cancellation` ve kart: "İptal · 14 Eki 2026 · Rezervasyon". Test verisi/mülk SİLİNMEZ (Codex).
+   `reservation / cancellation` ve kart: "İptal · **&lt;olayın gözlendiği gün&gt;** · Rezervasyon".
+   ⚠️ Kart KONAKLAMA tarihini değil OLAY tarihini gösterir (`Signal.occurredAt` = `IngestEvent.occurredAt`;
+   `properties/[id]` kartı `formatDate(s.occurredAt)`). İptalin sağlayıcıdaki gerçek anı bilinmediği için
+   iddia edilmez, gözlem anı yazılır (`signals/derive.ts` başlık yorumu). Bu belgenin önceki "14 Eki 2026"
+   beklentisi YANLIŞTI — o, konaklamanın giriş tarihidir. Test verisi/mülk SİLİNMEZ (Codex).
    ⚠️ Gist beslemesinden gelen ESKİ test satırı bu yolla iptal EDİLMEZ (önizleme "takvim bağlantısına ait" der) —
    tasarım gereği: dosya, beslemenin sahibi olduğu satıra dokunmaz.
+
+**✅ C ADIMI CANLIDA DOĞRULANDI (kurucu, 2026-09-08, test mülkü `cmtsbfyh60001pk2qw9z048fj`):** normal dosya →
+önizleme "1 eklenecek" → aktarım "1 eklendi" → rezervasyon **Onaylı**; aynı UID'li iptal dosyası → önizleme
+"1 iptal edilecek" → aktarım **"1 iptal edildi, 0 atlandı"** → aynı rezervasyon **İptal**; ardından Mülk Hafızası
+kartında **"İptal · 08 Eyl 2026 · Rezervasyon"**. Yani gerçek bir ürün olayı → `IngestEvent` → sinyal → yetkili
+yüzeyde okunur hâle geldi. Kartta ayrıca "Bilgi Tabanı'ndan 0 kalem hafızada" yazması beklenen: test mülkünün KB
+kalemi yok (A adımı gerçek mülkte doğrulandı).
+**KAPSAM SINIRI — bu kanıt yalnız şunu kapsar:** tek rezervasyonlu **dosya** aktarımı → iptal → sinyal → kart.
+Doğrulanmış SAYILMAZ: QR misafir mesajı → şikayet sinyali (B adımı) · **URL üzerinden iCal** beslemesi → iptal
+(aşağıdaki açık bulgu) · çok satırlı/toplu dosya senaryoları · tarih değişikliği (`date_change`) · örüntü hafızası.
+**AÇIK KALAN BULGU:** Gist beslemesiyle yapılan denemede "1 atlandı" ve rezervasyon Onaylı kalmıştı; teşhis
+`docs/TESHIS-2026-09-08-ical-iptal-atlandi.md` (en olası neden: Raw bağlantı revizyon SHA'sına sabit). Kaynak
+silinmedi, bulgu KAPANMADI — URL yolu ayrıca doğrulanmalı.
 3. Pasif gözlem (gerçek besleme): sonraki gerçek tarih değişikliği/iptalde `IngestEvent` `ical` + `Signal` `date_change`/
    `cancellation` beklenir; ilk 1–2 haftada `SELECT provider, kind, count(*) …` ile izle. Değişmeyen besleme event ÜRETMEZ
    (0 = arıza değil).

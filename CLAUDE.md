@@ -495,8 +495,11 @@ Sekiz P1 KAPANDI (09-07), her biri ayrı commit, kırmızı-önce + iki yönlü 
 oto-deploy). V1 Property Memory + Signals CANLI: push `4c1efea..7aa228f` (altyapı `16f70f5` + ürün akışı `4e9b1b1`),
 CI run #964 5/5, **migration 52 prod'da 09-08 06:11:42Z**, ilk geçiş KB hafızasını doldurdu (32/32), IngestEvent/Signal 0
 (gerçek olay yok). 3656 test yeşil (325 dosya) · typecheck/lint/build/audit temiz.**
-Son kod işi: V1 ürün akışı (canlı). **Canlı ÜRÜN AKIŞI doğrulaması HENÜZ YAPILMADI** (`docs/V1-CANLI-DOGRULAMA-OPERATOR-
-PLANI.md` bölüm 3: KB → kart, QR → şikayet sinyali, elle .ics → iptal sinyali, iCal pasif gözlem) — yapılmadan "çalışıyor"
-denmez. Açık vizyon parçaları (bakım sinyali V3 · güçlü yön V6 · proaktif check-in V2/V5) belgede; V2'ye geçilmedi.
+Son kod işi: "Dosyadan içe aktar" (canlı, `8d49004`, CI #972 5/5). **Canlı ürün akışı KISMEN doğrulandı** (plan
+`docs/V1-CANLI-DOGRULAMA-OPERATOR-PLANI.md` §3): KB → kart ✅ · **tek rezervasyonlu dosya → iptal → sinyal → kart ✅
+(09-08)**; QR mesajı, URL üzerinden iCal, toplu dosya, `date_change`, örüntü DOĞRULANMADI. Kart OLAY tarihini gösterir
+(`Signal.occurredAt`), konaklama tarihini değil. **Açık bulgu:** Gist beslemesinde "1 atlandı"
+(`docs/TESHIS-2026-09-08-ical-iptal-atlandi.md`). Açık vizyon parçaları (bakım sinyali V3 · güçlü yön V6 · proaktif
+check-in V2/V5) belgede; V2'ye geçilmedi.
 Prod smoke bu ortamdan yapılamaz; operatör adımları
 `docs/audit-2026-09-05/DURUM.md` + `docs/V0-CHANNEL-INDEPENDENCE-INVENTORY.md` §10 (push kapısı).

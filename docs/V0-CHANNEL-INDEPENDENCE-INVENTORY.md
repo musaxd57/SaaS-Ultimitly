@@ -767,8 +767,20 @@ finished **06:11:42Z**, rolled_back boş, yarım migration 0 · `Signal` + `Prop
 `KnowledgeBaseItem isActive = 32` (retired 0; bu satırları yalnız yeni kodun KB bootstrap'ı yazar → yeni sürüm canlı) ·
 `IngestEvent` 0, `Signal` 0 (gerçek yeni olay yok — beklenen), undispatched 0. Railway ACTIVE panelden ayrıca teyit
 edilmedi; kanıt DB davranışından. Bayraklar değişmedi; `CHANNEL_CONNECTION_READ` kapalı.
-**Canlı ÜRÜN AKIŞI (plan bölüm 3: KB → hafıza kartı · QR → şikayet sinyali · elle .ics → iptal sinyali · iCal pasif
-gözlem) HENÜZ TAMAMLANMADI — tamamlanmadan "canlı ürün akışı çalışıyor" DENMEZ.** İlk deneme (kurucu, 09-08): A (KB →
-kart) "çalışıyor gibi"; bulgu: pasif/aktif geçişi sessizdi → toast eklendi (`tests/ui/kb-toggle-feedback`, kırmızı-önce
-2/3 → 3/3; hata yolunda başarı toast'ı yok pinli). B/C kurucu tarafından sırada (elle `.ics`).
+**Canlı ÜRÜN AKIŞI (plan bölüm 3: KB → hafıza kartı · QR → şikayet sinyali · dosya/.ics → iptal sinyali · iCal
+beslemesi) KISMEN doğrulandı; TAMAMI bitmeden "canlı ürün akışı çalışıyor" DENMEZ.**
+- **A (KB → kart): ✅** gerçek mülkte çalıştı; bulgu: pasif/aktif geçişi sessizdi → toast eklendi
+  (`tests/ui/kb-toggle-feedback`, kırmızı-önce 2/3 → 3/3; hata yolunda başarı toast'ı yok pinli).
+- **C (dosya → iptal → sinyal): ✅ CANLI KANIT (kurucu, 09-08, test mülkü `cmtsbfyh60001pk2qw9z048fj`)** — tek
+  rezervasyonlu `.ics` → önizleme "1 eklenecek" → "1 eklendi" → Onaylı; aynı UID'li iptal dosyası → önizleme
+  "1 iptal edilecek" → **"1 iptal edildi, 0 atlandı"** → İptal; Mülk Hafızası kartında **"İptal · 08 Eyl 2026 ·
+  Rezervasyon"**. Gerçek olay → `IngestEvent` → `Signal` → yetkili yüzey zinciri canlıda kapandı.
+  **Kart OLAY tarihini gösterir** (`Signal.occurredAt` = `IngestEvent.occurredAt`; iptalin sağlayıcıdaki gerçek anı
+  iddia edilmez) — planın "14 Eki" beklentisi konaklama tarihiydi, YANLIŞTI, plan düzeltildi. Kanıt yalnız TEK
+  REZERVASYONLU DOSYA yolunu kapsar.
+- **Doğrulanmadı:** B (QR → şikayet sinyali) · **URL üzerinden iCal beslemesi** · toplu/çok satırlı dosya ·
+  `date_change` · örüntü hafızası.
+- **AÇIK BULGU (kapanmadı):** Gist beslemesinde "1 atlandı", rezervasyon Onaylı kaldı →
+  `docs/TESHIS-2026-09-08-ical-iptal-atlandi.md` (en olası: Raw bağlantı revizyon SHA'sına sabit → besleme iptalsiz
+  sürümü veriyor → `unchanged`). Kaynak silinmedi; URL yolu ayrıca doğrulanmalı.
 
