@@ -488,7 +488,8 @@ oto-deploy). YEREL +2 commit: V1 Property Memory + Signals — altyapı (migrati
 dosya/QR → IngestEvent sözleşmesi, KB rota eşitlemesi, mülk sayfası kartı; migration'sız), PUSH EDİLMEDİ (kapı: taze
 `pg_dump` + açık "push et"): 3640 test yeşil (322 dosya, tek başına) · typecheck/lint/build/audit temiz · migration 00–52
 (53 klasör) taze PG sıfır-drift · CI koşmadı.**
-Son kod işi: V1 ürün akışı (yerel). Dal origin'den 2 commit ileride; canlı doğrulama listesi `docs/V1-PROPERTY-MEMORY-DESIGN.md`
-§6 (Hospitable'sız yollar Nuve 402'den bağımsız doğrulanabilir).
+Son kod işi: V1 ürün akışı (yerel). Dal origin'den ileride (push kapısında). Codex (09-08): revizyon yok; sıra taze yedek →
+açık push onayı → yayın → ÜRÜN AKIŞI doğrulaması (`docs/V1-CANLI-DOGRULAMA-OPERATOR-PLANI.md`; KB → hafıza, gerçek iCal/QR
+olayı → sinyal). Açık vizyon parçaları (bakım sinyali V3 · güçlü yön V6 · proaktif check-in V2/V5) yayını beklemez.
 Prod smoke bu ortamdan yapılamaz; operatör adımları
 `docs/audit-2026-09-05/DURUM.md` + `docs/V0-CHANNEL-INDEPENDENCE-INVENTORY.md` §10 (push kapısı).

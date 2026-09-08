@@ -747,3 +747,8 @@ dosyadaki fixture sonuçları canlı doğrulama DEĞİLDİR.
 "updated" iddiası yapay olurdu; ayrı karar) · Task/bakım olayları (V3) · review/güçlü yön (V6) · ince kategori (LLM'siz) ·
 webhook girişi (write service hazır, kalan V0 işi).
 
+**Codex kararı (09-08, tur sonu):** yeni revizyon YOK; açık vizyon parçaları belgelerde görünür kaldıkça mevcut kapsam
+yayına çıkabilir. Sıra: taze yedek → migration 52 için AÇIK push onayı → yayın → tablo sayımı değil ÜRÜN AKIŞI doğrulaması
+(KB kalemi hafızada; gerçek iCal/QR olayı beklenen sinyale dönüşüyor). Operatör planı:
+`docs/V1-CANLI-DOGRULAMA-OPERATOR-PLANI.md`. Bu belge tamamlanmadan "canlı ürün akışı çalışıyor" DENMEZ.
+
