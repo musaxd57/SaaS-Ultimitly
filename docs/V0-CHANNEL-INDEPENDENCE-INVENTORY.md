@@ -761,6 +761,12 @@ fast-forward push et" (Codex metniyle; force yok, bayraklar değişmez, canlı �
 operatör planı `49bec50` + kanıt `7aa228f`; origin == yerel) → CI run #964 (push) **5/5 success** 05:59:36Z→06:09:47Z:
 build · e2e (Playwright smoke) · migration-chain (**00→52 taze DB'de `migrate deploy` + sıfır drift**) · security-audit ·
 verify (type-check · lint · tests). PR-event run #965 her zamanki gibi skipped. Railway "Wait for CI" → deploy.
-Adım (4) prod salt-okuma doğrulaması: operatör psql (`docs/V1-CANLI-DOGRULAMA-OPERATOR-PLANI.md` bölüm 2) — ↓kanıt
-gelince buraya yazılır; **canlı ürün akışı (bölüm 3) ayrı takip, yapılmadan başarılı SAYILMAZ.**
+**Adım (4) KANITI (2026-09-08, operatör psql, plan bölüm 2):** `_prisma_migrations` `52_property_memory_signals`
+finished **06:11:42Z**, rolled_back boş, yarım migration 0 · `Signal` + `PropertyMemory` tabloları ve
+`IngestEvent.changedFieldsJson` var · ilk zamanlanmış geçiş koştu: `PropertyMemory kb_item/active = 32` =
+`KnowledgeBaseItem isActive = 32` (retired 0; bu satırları yalnız yeni kodun KB bootstrap'ı yazar → yeni sürüm canlı) ·
+`IngestEvent` 0, `Signal` 0 (gerçek yeni olay yok — beklenen), undispatched 0. Railway ACTIVE panelden ayrıca teyit
+edilmedi; kanıt DB davranışından. Bayraklar değişmedi; `CHANNEL_CONNECTION_READ` kapalı.
+**Canlı ÜRÜN AKIŞI (plan bölüm 3: KB → hafıza kartı · QR → şikayet sinyali · elle .ics → iptal sinyali · iCal pasif
+gözlem) HENÜZ YAPILMADI — yapılmadan "canlı ürün akışı çalışıyor" DENMEZ.**
 

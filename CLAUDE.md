@@ -484,12 +484,11 @@ Sekiz P1 KAPANDI (09-07), her biri ayrı commit, kırmızı-önce + iki yönlü 
 
 ## Durum
 **Origin HEAD `4c1efea` (V0.6 + V0.7 canlı; CI 5/5 run #960; migration 51 prod'da 03:13Z; Railway healthcheck-gated
-oto-deploy). YEREL +2 commit: V1 Property Memory + Signals — altyapı (migration 52) + ürün akışı (Codex turu: iCal/elle
-dosya/QR → IngestEvent sözleşmesi, KB rota eşitlemesi, mülk sayfası kartı; migration'sız), PUSH EDİLMEDİ (kapı: taze
-`pg_dump` + açık "push et"): 3640 test yeşil (322 dosya, tek başına) · typecheck/lint/build/audit temiz · migration 00–52
-(53 klasör) taze PG sıfır-drift · CI koşmadı.**
-Son kod işi: V1 ürün akışı (yerel). Dal origin'den ileride (push kapısında). Codex (09-08): revizyon yok; sıra taze yedek →
-açık push onayı → yayın → ÜRÜN AKIŞI doğrulaması (`docs/V1-CANLI-DOGRULAMA-OPERATOR-PLANI.md`; KB → hafıza, gerçek iCal/QR
-olayı → sinyal). Açık vizyon parçaları (bakım sinyali V3 · güçlü yön V6 · proaktif check-in V2/V5) yayını beklemez.
+oto-deploy). V1 Property Memory + Signals CANLI: push `4c1efea..7aa228f` (altyapı `16f70f5` + ürün akışı `4e9b1b1`),
+CI run #964 5/5, **migration 52 prod'da 09-08 06:11:42Z**, ilk geçiş KB hafızasını doldurdu (32/32), IngestEvent/Signal 0
+(gerçek olay yok). 3640 test yeşil (322 dosya) · typecheck/lint/build/audit temiz.**
+Son kod işi: V1 ürün akışı (canlı). **Canlı ÜRÜN AKIŞI doğrulaması HENÜZ YAPILMADI** (`docs/V1-CANLI-DOGRULAMA-OPERATOR-
+PLANI.md` bölüm 3: KB → kart, QR → şikayet sinyali, elle .ics → iptal sinyali, iCal pasif gözlem) — yapılmadan "çalışıyor"
+denmez. Açık vizyon parçaları (bakım sinyali V3 · güçlü yön V6 · proaktif check-in V2/V5) belgede; V2'ye geçilmedi.
 Prod smoke bu ortamdan yapılamaz; operatör adımları
 `docs/audit-2026-09-05/DURUM.md` + `docs/V0-CHANNEL-INDEPENDENCE-INVENTORY.md` §10 (push kapısı).
