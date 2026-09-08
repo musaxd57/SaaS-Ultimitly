@@ -56,6 +56,21 @@ export interface SuggestReplyInput {
    * mesaja bakar) ve çözülmüş konular buraya girmez.
    */
   openTopics?: string[];
+  /**
+   * KONUŞMA DURUMU — KODDA hesaplanır, modelden ÇIKARIM İSTENMEZ.
+   *
+   * 🚨 Canlı kusur (kurucu/Codex 09-08): asistan hemen sonraki cevapta yeniden
+   * "Merhaba" diyordu. Sebep modelin hatası DEĞİLDİ: üslup kuralı koşulsuz
+   * "misafiri adıyla selamla" diyordu ve "daha önce cevap verdin mi" bilgisi
+   * hiçbir yerde SÖYLENMİYORDU. Geçmiş isteme giriyordu ama ondan bu sonucu
+   * çıkarmasını beklemek tam da başarısız olan şeydi.
+   *
+   * Alan OPSİYONEL: verilmezse istem hiçbir ek kısıt yazmaz (uydurma kural yok).
+   */
+  conversationState?: {
+    /** Bu sohbette misafire DAHA ÖNCE hiç cevap gitmedi mi? */
+    isFirstOperatorReply: boolean;
+  };
   tone: ReplyTone;
   language: string;
   /** Distilled guide of the host's own reply style (optional, learned). */

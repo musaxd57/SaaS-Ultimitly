@@ -734,7 +734,7 @@ async function handleGuestChatPost(req: NextRequest, { params }: { params: Promi
   // Sohbet bu turda yazılmadan önce okunur → misafirin ŞU ANKİ mesajı geçmişte
   // TEKRARLANMAZ (yapısal garanti, ayrıca test-pinli).
   const priorConversationId = await ensureGuestChatConversation(ctx.property.id, res);
-  const { history, openTopics } = await buildGuestChatContextWindow(priorConversationId);
+  const { history, openTopics, hasPriorOperatorReply } = await buildGuestChatContextWindow(priorConversationId);
 
   const result = await suggestReply({
     guestMessage: message,
@@ -758,6 +758,10 @@ async function handleGuestChatPost(req: NextRequest, { params }: { params: Promi
     knowledgeBaseDropped: ctx.knowledgeBaseDropped,
     history,
     openTopics,
+    // SELAM TEKRARI (canlı kusur 09-08): "daha önce cevap verdik mi" KODDA
+    // hesaplanır ve modele AÇIKÇA söylenir. Modelin geçmişe bakıp çıkarmasını
+    // beklemek tam da başarısız olan şeydi.
+    conversationState: { isFirstOperatorReply: !hasPriorOperatorReply },
     tone: "warm",
     language: "tr",
     // ⚠️ STİL REHBERİ HALKA AÇIK YÜZEYE HAM GİRMEZ (denetim, 08-01). Rehber, ev

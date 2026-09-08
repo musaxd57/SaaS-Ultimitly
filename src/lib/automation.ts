@@ -1524,6 +1524,19 @@ export async function applyChannelAutoReply(
     propertyId: conversation.propertyId,
     isActive: true,
   });
+  // SELAM TEKRARI (canlı kusur 09-08, QR'da gözlendi — bu yol AYNI istemi
+  // kullandığı için aynı kusuru taşıyordu). "Daha önce cevap verdik mi" KODDA
+  // hesaplanır; yüklü `messages` penceresine DEĞİL konuşmanın TAMAMINA bakar
+  // (pencere bir gösterim tavanıdır, gerçeğin kaynağı değil). Sistem olayı ve
+  // gövdesiz satır cevap sayılmaz: misafir onları görmez.
+  const priorOperatorReplies = await prisma.message.count({
+    where: {
+      conversationId: conversation.id,
+      direction: "outbound",
+      systemEventType: null,
+      NOT: { body: "" },
+    },
+  });
   const { items: kbRaw, dropped: kbDropped } = kbFetch;
   // Resolve any {isim} placeholder in KB entries (e.g. the welcome template) to
   // the guest's name before it reaches the model, so a literal "{isim}" can
@@ -1635,6 +1648,7 @@ export async function applyChannelAutoReply(
       direction: m.direction as "inbound" | "outbound",
       body: m.body,
     })),
+    conversationState: { isFirstOperatorReply: priorOperatorReplies === 0 },
     tone: VALID_TONES.includes(org.aiReplyTone as ReplyTone)
       ? (org.aiReplyTone as ReplyTone)
       : "warm",

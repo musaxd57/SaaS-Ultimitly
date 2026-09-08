@@ -581,6 +581,18 @@ export interface GuestChatContextWindow {
    * GÜNCEL mesaja bakar, yani geçmiş şikâyet sonraki bağımsız soruyu engellemez.
    */
   openTopics: string[];
+  /**
+   * Bu sohbette misafire DAHA ÖNCE cevap gitti mi?
+   *
+   * 🚨 SAYIM PENCEREYE DEĞİL KONUŞMANIN TAMAMINA bakar. Pencere bir GÖSTERİM
+   * tavanıdır (`QR_HISTORY_MESSAGE_CAP`/`QR_TOPIC_SCAN_CAP`), gerçeğin kaynağı
+   * değil: uzun bir sohbette ilk cevap pencerenin dışına düşerse "hiç cevap
+   * vermedik" sanır ve asistan yeniden selamlardı — düzeltmeye çalıştığımız
+   * kusurun ta kendisi.
+   *
+   * Sistem olayı ve boş gövdeli satır CEVAP SAYILMAZ: misafir onları görmez.
+   */
+  hasPriorOperatorReply: boolean;
 }
 
 /**
@@ -636,12 +648,20 @@ const OPEN_TOPIC_INTENTS = new Set(["complaint", "refund", "early_departure", "h
  * · Güncel mesaj burada YOKTUR: sohbet, misafirin mesajı yazılmadan ÖNCE okunur.
  */
 export async function buildGuestChatContextWindow(conversationId: string): Promise<GuestChatContextWindow> {
-  const rows = await prisma.message.findMany({
-    where: { conversationId, systemEventType: null, NOT: { body: "" } },
-    orderBy: [{ createdAt: "desc" }, { id: "desc" }],
-    select: { direction: true, body: true },
-    take: QR_TOPIC_SCAN_CAP,
-  });
+  // İkinci sorgu bilinçli: "daha önce cevap verdik mi" sorusu TARAMA TAVANINDAN
+  // bağımsız olmalı (bkz. `hasPriorOperatorReply`). Küçük, indeksli bir sayım ve
+  // hemen ardından saniyeler süren bir model çağrısı geliyor.
+  const [rows, priorOperatorReplies] = await Promise.all([
+    prisma.message.findMany({
+      where: { conversationId, systemEventType: null, NOT: { body: "" } },
+      orderBy: [{ createdAt: "desc" }, { id: "desc" }],
+      select: { direction: true, body: true },
+      take: QR_TOPIC_SCAN_CAP,
+    }),
+    prisma.message.count({
+      where: { conversationId, direction: "outbound", systemEventType: null, NOT: { body: "" } },
+    }),
+  ]);
   const chronological = rows.slice().reverse();
 
   // Pencere: sondan başlayarak hem SAYI hem KARAKTER bütçesine uyan en uzun kuyruk.
@@ -699,7 +719,7 @@ export async function buildGuestChatContextWindow(conversationId: string): Promi
       .filter((t) => t.index < firstWindowIndex && OPEN_TOPIC_INTENTS.has(t.intent))
       .map((t) => t.intent),
   );
-  return { history: window, openTopics: [...open].sort() };
+  return { history: window, openTopics: [...open].sort(), hasPriorOperatorReply: priorOperatorReplies > 0 };
 }
 
 export function escalationReply(): string {

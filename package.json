@@ -13,6 +13,7 @@
     "prestart": "node scripts/verify-env.mjs",
     "start": "next start",
     "test": "prisma generate && vitest run",
+    "eval": "vitest run --config vitest.eval.config.ts",
     "test:watch": "vitest",
     "typecheck": "tsc --noEmit",
     "lint": "eslint .",

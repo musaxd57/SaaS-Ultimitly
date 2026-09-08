@@ -30,7 +30,7 @@ $ptr = [Runtime.InteropServices.Marshal]::SecureStringToBSTR($secure)
 try {
   $env:OPENAI_API_KEY = [Runtime.InteropServices.Marshal]::PtrToStringBSTR($ptr)
   $env:RUN_REAL_EVAL  = '1'
-  npx vitest run tests/eval
+  npm run eval
 } finally {
   [Runtime.InteropServices.Marshal]::ZeroFreeBSTR($ptr)
   Remove-Item Env:OPENAI_API_KEY, Env:RUN_REAL_EVAL -ErrorAction SilentlyContinue
@@ -40,12 +40,26 @@ try {
 ### macOS / Linux
 ```bash
 read -rs -p "OPENAI_API_KEY: " OPENAI_API_KEY; echo
-RUN_REAL_EVAL=1 OPENAI_API_KEY="$OPENAI_API_KEY" npx vitest run tests/eval
+RUN_REAL_EVAL=1 OPENAI_API_KEY="$OPENAI_API_KEY" npm run eval
 unset OPENAI_API_KEY
 ```
 
-**Ön koşul:** `npm ci` (bir kez) — eval veritabanı İSTEMEZ ama vitest kendi test PG'sini ayağa
-kaldırır, o yüzden repo kurulu olmalı. Süre: 8 senaryo × ~2-5 sn.
+**Ön koşul:** yalnız `npm ci` (bir kez). **Veritabanı GEREKMEZ** ve Windows'ta PostgreSQL kurulu
+olmasına gerek YOKTUR — `npm run eval` ayrı bir yapılandırma kullanır (`vitest.eval.config.ts`).
+Süre: 8 senaryo × ~2-5 sn.
+
+## 🚨 `npx vitest run tests/eval` KULLANMA — sessizce atlar
+
+Bu belgenin ilk hâli o komutu veriyordu ve YANLIŞTI (Codex yakaladı, 09-08). Varsayılan
+`vitest.config.ts` iki şey yapar:
+1. `env.OPENAI_API_KEY: ""` — anahtarı **zorla boşaltır**. Bu normal suite için DOĞRU ve korunması
+   gereken bir kapıdır (`npm test` asla OpenAI çağırmaz), ama eval o config'le koşulunca senin
+   anahtarın hiç görünmez: 8 senaryo **sessizce atlanır** ve koşu "skipped" ile başarılı gibi durur.
+2. `globalSetup` — her koşuda tek kullanımlık bir **Linux** PostgreSQL ayağa kaldırır; eval'in
+   veritabanına ihtiyacı yok ve Windows'ta bu adım çalışmaz.
+
+`npm run eval` bu ikisini de aşar. İki config'in doğru davrandığı **test-pinlidir**
+(`tests/eval/...` içindeki "eval kapıları" bloğu config nesnelerini okur — metin taraması değil).
 
 ## Kapılar
 
@@ -81,8 +95,21 @@ Ek kapı: model çağrılamazsa (ağ/kota) `suggestReply` fallback'e düşer —
 sayılır (`source === "openai"` assert'i), sessizce "geçti" denmez.
 
 ## Sonuç nereye yazılır
-`docs/olcum/eval-<YYYY-MM-DD>.md` — her senaryo için modelin cevabı, güveni, beyan/doğrulanan kaynak
-sayısı ve düşen kontroller. Dosya koşu tarafından ÜRETİLİR, elle yazılmaz.
+`docs/olcum/eval-<YYYY-MM-DD>.md` — koşu tarafından ÜRETİLİR, elle yazılmaz.
+
+### 🚨 Eksik koşu "geçti" diye okunamaz
+Rapor **beş sayıyı ayrı** verir:
+
+| Beklenen | Tamamlanan | Geçti | Doğrulama düştü | GEÇERSİZ (model yok) | KAYIT YOK (timeout/çökme) |
+|---|---|---|---|---|---|
+
+- **GEÇERSİZ** = model çağrılamadı ve `suggestReply` fallback'e düştü. Bu bir eval sonucu DEĞİLDİR.
+- **KAYIT YOK** = senaryo hiç tamamlanmadı (zaman aşımı, çökme, iptal). Ölçülmedi.
+- İkisinden biri sıfırdan büyükse raporun başında **"BU KOŞU EKSİK — SONUÇ 'GEÇTİ' DİYE OKUNAMAZ"**
+  yazar ve hangi senaryoların kayıt bırakmadığı tek tek listelenir.
+
+Bu ayrım Codex'in bulgusudur (09-08): eski rapor yalnız "düşen" sayısını yazıyordu, dolayısıyla hiç
+tamamlanmamış bir koşu "düşen: 0" ile temiz görünebiliyordu.
 
 ## Ne zaman gerekir
 - `QR_INFORMATIONAL_BAND_ENABLED` bayrağı **bu eval bitmeden AÇILMAZ** (kurucu kararı).

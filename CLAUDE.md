@@ -567,9 +567,25 @@ Sekiz P1 KAPANDI (09-07), her biri ayrı commit, kırmızı-önce + iki yönlü 
   gerçeğe DÖNÜŞMEZ ama sessizce yutulmaz; giriş/çıkış saati KB kalemi ÖNERİLMEZ (çift kopya yasağı).
   Ölçüm: `docs/olcum/kb-once-sonra.md` + `docs/olcum/host-akisi-once-sonra.md` (gerçek ekran görüntüleri).
 - **GERÇEK MODEL EVAL'İ HAZIR AMA KOŞULMADI** (bu ortamda `OPENAI_API_KEY` YOK): `evals/qr-kb-coverage.json`
-  (sürümlü, 8 senaryo, anonim) + `tests/eval/`. İKİ KAPI: `RUN_REAL_EVAL=1` VE gerçek anahtar — yoksa
-  ATLANIR (sahte "geçti" yok); model çağrılamazsa `source === "openai"` assert'i koşuyu GEÇERSİZ sayar.
-  LLM grader YOK. Çalıştırma ve senaryo tablosu: `docs/EVAL-CALISTIRMA.md`.
+  (sürümlü, 8 senaryo, anonim) + `tests/eval/`. 🚨 **AYRI YAPILANDIRMA ŞART — `npm run eval`**
+  (`vitest.eval.config.ts`). Codex bulgusu (09-08): `npx vitest run tests/eval` YANLIŞTI, çünkü
+  `vitest.config.ts` `env.OPENAI_API_KEY: ""` ile anahtarı ZORLA BOŞALTIR (normal suite için DOĞRU ve
+  KORUNAN kapı) → eval o config'le sessizce ATLANIR ve "skipped" ile başarılı görünür; ayrıca
+  `globalSetup` Linux PG ister, Windows'ta hiç başlamaz. Eval config: globalSetup YOK, `OPENAI_API_KEY`
+  SET EDİLMEZ. İki config'in doğru davranışı config NESNELERİ okunarak pinli (metin taraması DEĞİL —
+  ilk hâli kendi yorumuna takıldı). İKİ KAPI: `RUN_REAL_EVAL=1` VE gerçek anahtar; yoksa ATLANIR.
+  🚨 **EKSİK KOŞU "GEÇTİ" DİYE OKUNAMAZ:** rapor BEKLENEN/TAMAMLANAN/GEÇTİ/DÜŞEN/GEÇERSİZ/KAYIT YOK
+  sayılarını AYRI verir; geçersiz (fallback) ya da kayıt bırakmayan (timeout) senaryo varsa başlıkta
+  koşu EKSİK damgalanır. Sınıflandırma saf fonksiyonda (`rowFor`/`errorRow`) → gerçek çağrı olmadan
+  test edilebilir. LLM grader YOK. Çalıştırma: `docs/EVAL-CALISTIRMA.md`.
+- **SELAM TEKRARI DÜZELTİLDİ (canlı kusur, kurucu/Codex 09-08):** asistan hemen sonraki cevapta yeniden
+  "Merhaba" diyordu. Kök neden modelin hatası DEĞİLDİ: (a) `TONE_GUIDANCE.warm` KOŞULSUZ "misafiri
+  adıyla selamla" diyordu, (b) "daha önce cevap verdin mi" bilgisi istemde HİÇ YOKTU — geçmiş
+  giriyordu ama modelden bunu çıkarmasını beklemek tam da başarısız olan şeydi. Çözüm CLAUDE.md'nin
+  kendi gereksinimi: `conversationState.isFirstOperatorReply` **KODDA** hesaplanır, modele AÇIK CÜMLE
+  olarak söylenir. 🚨 Sayım bağlam PENCERESİNE değil KONUŞMANIN TAMAMINA bakar (pencere bir gösterim
+  tavanıdır); sistem olayı ve gövdesiz satır cevap sayılmaz. Alan verilmezse istem hiçbir kısıt yazmaz
+  (uydurma kural yok). QR + oto-yanıt yollarının İKİSİ de bağlandı (aynı istemi paylaşıyorlar).
 - **DEĞERLENDİRME (Codex/kurucu 09-08):** host metninden alan önerisi (taslak, çelişkide
   host seçer; yer tutucu `{isim}` gerçeğe DÖNÜŞMEZ) · eksikleri GERÇEK sorulardan bulma (V1 `Signal` verisi
   zaten akıyor; kategori ↔ KB eşlemesi + tekilleştirme + bildirim yağmuru yok) · yapılandırılmış alan ↔
