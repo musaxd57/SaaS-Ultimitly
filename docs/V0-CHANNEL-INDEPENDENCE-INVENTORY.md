@@ -757,3 +757,10 @@ PostgreSQL 18):** `lixus-prod-post-contract-2026-09-08-085615.dump` · 1.460.362
 ("YEDEK TAMAM") · SHA256 `4B89A42F5B14CF4D7C16B2891486C380BC13027B47E71F689CDC4269421FC954` · kurucu: "yedek aldım …
 fast-forward push et" (Codex metniyle; force yok, bayraklar değişmez, canlı ürün testleri ayrı takip, V2 yok).
 
+**Adım (3) KANITI (2026-09-08):** fast-forward push `4c1efea..7aa228f` (V1 altyapı `16f70f5` + ürün akışı `4e9b1b1` +
+operatör planı `49bec50` + kanıt `7aa228f`; origin == yerel) → CI run #964 (push) **5/5 success** 05:59:36Z→06:09:47Z:
+build · e2e (Playwright smoke) · migration-chain (**00→52 taze DB'de `migrate deploy` + sıfır drift**) · security-audit ·
+verify (type-check · lint · tests). PR-event run #965 her zamanki gibi skipped. Railway "Wait for CI" → deploy.
+Adım (4) prod salt-okuma doğrulaması: operatör psql (`docs/V1-CANLI-DOGRULAMA-OPERATOR-PLANI.md` bölüm 2) — ↓kanıt
+gelince buraya yazılır; **canlı ürün akışı (bölüm 3) ayrı takip, yapılmadan başarılı SAYILMAZ.**
+
