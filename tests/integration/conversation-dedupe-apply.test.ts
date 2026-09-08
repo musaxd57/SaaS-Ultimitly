@@ -270,6 +270,7 @@ describe("apply — referans envanteri", () => {
       "MessageOutbox",
       "RiskEvent",
       "ShadowVerdict",
+      "Signal", // V1 (migration 52): FK SetNull — repoint listesinde
     ]);
     expect(() => assertReferenceCoverage()).not.toThrow();
   });
@@ -376,6 +377,25 @@ describe("apply — başarı yolu", () => {
         model: "test",
       },
     });
+    // V1 Signal: FK'li ama onDelete SetNull — repoint edilmezse silme bağı SESSİZCE
+    // NULL'a çeker (dangling değil, iz kaybı). Keeper'ı izlemesi pinlenir.
+    await prisma.signal.create({
+      data: {
+        organizationId: org.organizationId,
+        propertyId,
+        conversationId: b.id,
+        source: "guest_message",
+        kind: "message.intent",
+        category: "complaint",
+        sentiment: "negative",
+        severity: 0.7,
+        confidence: 0.6,
+        occurredAt: T1,
+        sourceEntityType: "message",
+        sourceEntityId: "apply-test-msg",
+        dedupeKey: `${org.organizationId}:message.intent:apply-test-msg`,
+      },
+    });
 
     const plan = await planConversationDedupe(prisma, { allowPrimary: true });
     const out = await applyConversationDedupe(prisma, {
@@ -387,10 +407,12 @@ describe("apply — başarı yolu", () => {
       },
     });
 
-    expect(out.refsRepointed).toEqual({ messageOutbox: 1, riskEvent: 1, shadowVerdict: 1 });
+    expect(out.refsRepointed).toEqual({ messageOutbox: 1, riskEvent: 1, shadowVerdict: 1, signal: 1 });
     expect(await prisma.messageOutbox.count({ where: { conversationId: a.id } })).toBe(1);
     expect(await prisma.riskEvent.count({ where: { conversationId: a.id } })).toBe(1);
     expect(await prisma.shadowVerdict.count({ where: { conversationId: a.id } })).toBe(1);
+    expect(await prisma.signal.count({ where: { conversationId: a.id } })).toBe(1);
+    expect(await prisma.signal.count({ where: { conversationId: null } })).toBe(0); // SetNull'a düşmedi
     expect(await prisma.messageOutbox.count({ where: { conversationId: b.id } })).toBe(0);
   });
 

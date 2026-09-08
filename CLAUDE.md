@@ -58,7 +58,8 @@ Independence** (V0.1 ✅ outbound dispatch · V0.2 ✅ provider fake + conforman
 canlı (migration 49 prod'da 09-07) · V0.4 ✅ provenance canlı (migration 50 prod'da 09-07) · V0.5 ✅ `messagingCapable`
 canlı (`19d5527`, migration'sız) · V0.6 ✅ ingest write service + `IngestEvent` canlı (migration 51 prod'da 09-08
 03:13Z) · V0.7 ✅ kod hazırlığı canlı (migration'sız; kolon DROP'u operatör planına bağlı:
-`docs/V0.7-CANLI-GECIS-OPERATOR-PLANI.md`, ön koşul: okuma anahtarı ≥2 hafta)) → ④ deterministik **Availability Engine** → ⑤ geniş
+`docs/V0.7-CANLI-GECIS-OPERATOR-PLANI.md`, ön koşul: okuma anahtarı ≥2 hafta)) → **V1 Property Memory + Signals KOD HAZIR,
+yerel — migration 52 push kapısında (`docs/V1-PROPERTY-MEMORY-DESIGN.md`, envanter §14)** → ④ deterministik **Availability Engine** → ⑤ geniş
 otonom AI yalnız yetki+guardrail+grounding+eval doğrulandıktan sonra. **V0 sırasında YAPILMAZ:**
 Availability Engine, RAG/GraphRAG, Property Memory, Exception Feed, Revenue Brain, Proof AI, Ask Lixus,
 Review/Issue tabloları. Yalnız dar, davranış-koruyan temel eklenebilir.
@@ -102,6 +103,17 @@ değişimi öncesi baseline + shadow kıyas. **Sistem öncelikleri:** Function C
 Guardrails (şimdi güçlendirilmeli) · Query Router / Query Transformation / Halüsinasyon kontrolü (MVP) ·
 ReAct (kademeli) · GraphRAG (ihtiyaç kanıtlanırsa). Ek: kaynaklı-sürümlü bilgi, hybrid retrieval+reranking
 (eval ile), açık konu/taahhüt hafızası, generation trace, güvenli aksiyon yürütücüsü.
+
+## Intelligence (V1 — YEREL, PUSH EDİLMEDİ; envanter §14, tasarım `docs/V1-PROPERTY-MEMORY-DESIGN.md`)
+- Bounded context `src/modules/intelligence` (sağlayıcı importu YOK, pin); tek girdi `IngestEvent`; PMS ona bağımlı
+  değil (scheduled-sync'te alerts'ten sonra try/catch). `Signal` = mülk merkezli gözlem (RiskEvent AI kapısının
+  karar günlüğüdür, farklı yaşam döngüsü); `PropertyMemory` = KB'den (source=kb_item, observedAt=kb.updatedAt) ve
+  sinyal örüntüsünden (≥3 negatif/180 gün). LLM'siz: kelime ağı `classifyFallback`, güven mütevazı; metin/PII
+  taşınmaz; occurredAt gerçek olay zamanı. Tüketici idempotent (unique dedupeKey + createMany skipDuplicates,
+  event başına TX + dispatchedAt), sırasız/yarıda kalma güvenli. Geçmişe sahte event/ilk alınma ÜRETİLMEZ.
+  KVKK: misafir-kaynaklı sinyal DATA_RETENTION_MONTHS sonrası purge; erasure SetNull; iki tablo kanarya dışı (karar yorumlu).
+- Konuşma dedupe apply: `Signal` `HANDLED_REFERENCES.repoint`'te (FK SetNull ama silmeden ÖNCE keeper'a taşınır —
+  iz kaybı yok); DMMF envanteri yeni `conversationId` taşıyan her modelde fail-closed durur, liste bilinçli güncellenir.
 
 ## 🚨 Değişmez kural
 Çalışan ürün BOZULMAZ. Her değişiklik additive, testli (K2 = kırmızı-önce + iki yönlü mutasyon +
@@ -445,7 +457,11 @@ Sekiz P1 KAPANDI (09-07), her biri ayrı commit, kırmızı-önce + iki yönlü 
   Nuve 402'de donuk; envanter §12). **V0.7 ✅ kod hazırlığı CANLI** (`c1f8a2e`, migration'sız; envanter §13). Kolon
   DROP'u (`hospitable*`) V0.3 okuma anahtarı ≥2 hafta canlıda sorunsuz olmadan YOK — canlı geçiş adımları
   `docs/V0.7-CANLI-GECIS-OPERATOR-PLANI.md` (aşama 1: Nuve "mevcut bağlantıyı aktar"; 2: anahtar; 3: env; 4: drop).
-  V0 kod dilimleri bitti; V0.8/V1 kurucu kararı.
+  **V1 Property Memory + Signals KOD HAZIR — yerel commit, PUSH EDİLMEDİ** (migration 52; kapı §10 ile aynı; envanter
+  §14; bootstrap'ı çağıran yüzey ve UI sonraki adım). V0 kod dilimleri bitti. Kalan V0 işleri kendi adlarıyla: kolon contract'ı için kalan
+  okuyucular (backfill · token teşhisi · connect rotası · credentials kolon dalı) · webhook girişi (write service hazır) ·
+  bağlantı sağlığı sinyali · `toChannel` ham platform · `Property.hospitableId` global unique (kapsamlı kimlik) ·
+  `api/hospitable/diagnostics`. V1 Property Memory + Signals kurucu kararıyla başladı (09-08).
   Availability Engine / RAG / geniş otonom AI V0 bitmeden YOK.
 - **Codex P2 (F09–F18)** ilgili modül turlarında. `docs/DENETIM-2026-08-09.md` (27 açık),
   `docs/ACIK-ISLER-2026-08-08.md` (16), `docs/MIGRATION-BEKLEYEN-ISLER.md`.
@@ -460,8 +476,10 @@ Sekiz P1 KAPANDI (09-07), her biri ayrı commit, kırmızı-önce + iki yönlü 
   yol · halka açık sayfada çerez yenileme · `PADDLE_WEBHOOK_SECRET` boot kapısı.
 
 ## Durum
-**HEAD `0a7a2a4` (V0.6 + V0.7 canlı): 3615 test yeşil (318 dosya) · typecheck/lint/build/audit temiz · migration 00–51
-(52 klasör) sıfır-drift · CI 5/5 (run #960) · migration 51 prod'da 03:13Z · Railway healthcheck-gated oto-deploy.**
-Son kod işi: V0.1–V0.7. Dal origin ile eşit.
+**Origin HEAD `4c1efea` (V0.6 + V0.7 canlı; CI 5/5 run #960; migration 51 prod'da 03:13Z; Railway healthcheck-gated
+oto-deploy). YEREL +1 commit: V1 Property Memory + Signals — migration 52, PUSH EDİLMEDİ (kapı: taze `pg_dump` + açık
+"push et"): 3627 test yeşil (320 dosya, tek başına) · typecheck/lint/build/audit temiz · migration 00–52 (53 klasör)
+taze PG sıfır-drift · CI koşmadı.**
+Son kod işi: V1 (yerel). Dal origin'den 1 commit ileride; prod'da IngestEvent boş (Nuve 402) → V1 canlı doğrulaması bekler.
 Prod smoke bu ortamdan yapılamaz; operatör adımları
 `docs/audit-2026-09-05/DURUM.md` + `docs/V0-CHANNEL-INDEPENDENCE-INVENTORY.md` §10 (push kapısı).

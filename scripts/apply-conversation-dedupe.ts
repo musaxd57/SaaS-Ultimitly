@@ -75,7 +75,7 @@ export interface ApplyOutcome {
   messagesDropped: number;
   messagesMovedUnique: number;
   messagesMovedNull: number;
-  refsRepointed: { messageOutbox: number; riskEvent: number; shadowVerdict: number };
+  refsRepointed: { messageOutbox: number; riskEvent: number; shadowVerdict: number; signal: number };
   conversationsBefore: number;
   conversationsAfter: number;
   messagesBefore: number;
@@ -95,8 +95,13 @@ export interface ApplyOutcome {
 const HANDLED_REFERENCES = {
   /** FK + onDelete: Cascade — mesajlar taşınır/ayıklanır, sonra loser silinir. */
   cascade: ["Message"],
-  /** FK YOK — loser silinince dangling kalır, bu yüzden keeper'a repoint edilir. */
-  repoint: ["MessageOutbox", "RiskEvent", "ShadowVerdict"],
+  /**
+   * FK YOK — loser silinince dangling kalır, bu yüzden keeper'a repoint edilir.
+   * `Signal` (V1) istisna: FK'si VAR ama `onDelete: SetNull` — dangling KALMAZ, fakat
+   * sinyalin türediği mesaj keeper'a taşındığı için bağ da keeper'ı izlemeli; SetNull'a
+   * bırakmak izlenebilirliği (kaynak konuşma) sessizce koparırdı. Bu yüzden repoint.
+   */
+  repoint: ["MessageOutbox", "RiskEvent", "ShadowVerdict", "Signal"],
 } as const;
 
 export function inventoryConversationReferences(): string[] {
@@ -269,7 +274,7 @@ export async function applyConversationDedupe(
           messagesDropped: 0,
           messagesMovedUnique: 0,
           messagesMovedNull: 0,
-          refsRepointed: { messageOutbox: 0, riskEvent: 0, shadowVerdict: 0 },
+          refsRepointed: { messageOutbox: 0, riskEvent: 0, shadowVerdict: 0, signal: 0 },
           conversationsBefore,
           conversationsAfter: conversationsBefore,
           messagesBefore,
@@ -306,7 +311,7 @@ export async function applyConversationDedupe(
       let dropped = 0;
       let movedUnique = 0;
       let movedNull = 0;
-      const refs = { messageOutbox: 0, riskEvent: 0, shadowVerdict: 0 };
+      const refs = { messageOutbox: 0, riskEvent: 0, shadowVerdict: 0, signal: 0 };
 
       for (const key of keys) {
         // ── 0) DETERMİNİSTİK FOR UPDATE — id ASC sırayla, TEK TEK ─────────────
@@ -409,6 +414,8 @@ export async function applyConversationDedupe(
         //    olduğundan güvenle (yeniden) çalıştırılabilir, ve pencereyi bu
         //    tek round-trip'e indirger (sıfıra indiren bir FK yok, dürüstçe
         //    kalan tek artık budur).
+        //    Signal (V1) FK'li ama SetNull: silme onu dangling BIRAKMAZ, bağı
+        //    KOPARIR — repoint silmeden ÖNCE olmak zorunda (sonra iz yok).
         refs.messageOutbox += (
           await tx.messageOutbox.updateMany({
             where: { conversationId: { in: loserIds } },
@@ -423,6 +430,12 @@ export async function applyConversationDedupe(
         ).count;
         refs.shadowVerdict += (
           await tx.shadowVerdict.updateMany({
+            where: { conversationId: { in: loserIds } },
+            data: { conversationId: plan.keeper.id },
+          })
+        ).count;
+        refs.signal += (
+          await tx.signal.updateMany({
             where: { conversationId: { in: loserIds } },
             data: { conversationId: plan.keeper.id },
           })
@@ -501,6 +514,7 @@ export function formatApplyOutcome(o: ApplyOutcome): string[] {
   L.push(pad("Repoint MessageOutbox", o.refsRepointed.messageOutbox));
   L.push(pad("Repoint RiskEvent", o.refsRepointed.riskEvent));
   L.push(pad("Repoint ShadowVerdict", o.refsRepointed.shadowVerdict));
+  L.push(pad("Repoint Signal (V1)", o.refsRepointed.signal));
   L.push("");
   L.push(pad("Conversation", `${o.conversationsBefore} → ${o.conversationsAfter}`));
   L.push(pad("Message", `${o.messagesBefore} → ${o.messagesAfter}`));

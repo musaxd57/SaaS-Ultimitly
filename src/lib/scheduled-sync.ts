@@ -9,7 +9,8 @@ import { HospitableError } from "@/lib/hospitable";
 import { reportError } from "@/lib/report-error";
 import { premiumAllowed } from "@/lib/billing/subscription";
 import { sendDueTrialReminders } from "@/lib/billing/trial-reminders";
-import { anonymizeOldGuestData, purgeOldLeads } from "@/lib/data-retention";
+import { anonymizeOldGuestData, purgeOldLeads, retentionCutoff } from "@/lib/data-retention";
+import { runIntelligencePass, purgeExpiredSignals } from "@/modules/intelligence";
 import { sweepUnverifiedRegistrations } from "@/lib/unverified-sweep";
 import { sweepExpiredRateLimits } from "@/lib/rate-limit";
 import { sweepPasswordResetChallenges } from "@/lib/auth/password-reset-challenge";
@@ -501,6 +502,14 @@ export async function runScheduledSync(): Promise<ScheduledSyncTotals> {
           await handleOrgError(err);
         }
 
+        // V1 INTELLIGENCE — event tüketimi + örüntü hafızası, senkron ve otomasyondan SONRA ve
+        // AYRI: hatası raporlanır, PMS akışını (senkron/oto-yanıt/karşılama) asla bloklamaz.
+        try {
+          await runIntelligencePass(org.id);
+        } catch (err) {
+          await reportError(`intelligence-pass org:${org.id}`, err);
+        }
+
         // Senkron patladıysa otomasyon koşmaz (eski davranış birebir): mesajlar
         // içeri alınamamışken oto-yanıt/karşılama göndermenin anlamı yok.
         // ⚠️ `continue` YERİNE İÇ BLOK (08-08): koşullar ve sıra BİREBİR aynı
@@ -664,6 +673,13 @@ export async function runScheduledSync(): Promise<ScheduledSyncTotals> {
           await anonymizeOldGuestData();
         } catch (err) {
           await reportError("scheduled-sync retention", err);
+        }
+        // V1: misafir mesajından türeyen sinyaller aynı saklama süresine tabi (değişmez 14).
+        try {
+          const cutoff = retentionCutoff();
+          if (cutoff) await purgeExpiredSignals(cutoff);
+        } catch (err) {
+          await reportError("scheduled-sync signal retention", err);
         }
         // Marketing-lead retention. No-op unless LEAD_RETENTION_MONTHS is set.
         try {

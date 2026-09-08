@@ -57,6 +57,8 @@ async function emit(
   entityType: "reservation" | "conversation" | "message",
   entityId: string,
   kind: IngestEventKind,
+  /** V1: değişen alan ADLARI (değer yok — PII'siz). Yalnız `*.updated` için. */
+  changedFields: string[] | null = null,
 ): Promise<void> {
   await db.ingestEvent.create({
     data: {
@@ -67,6 +69,7 @@ async function emit(
       entityId,
       kind,
       schemaVersion: INGEST_EVENT_SCHEMA_VERSION,
+      changedFieldsJson: changedFields && changedFields.length ? JSON.stringify(changedFields) : null,
     },
   });
 }
@@ -173,7 +176,14 @@ export async function upsertCanonicalReservation(
     }
     if (contentChanged) {
       const cancelledNow = r.status === "cancelled" && existing.status !== "cancelled";
-      await emit(db, ctx, "reservation", existing.id, cancelledNow ? "reservation.cancelled" : "reservation.updated");
+      await emit(
+        db,
+        ctx,
+        "reservation",
+        existing.id,
+        cancelledNow ? "reservation.cancelled" : "reservation.updated",
+        Object.keys(data).filter((k) => k !== "connectionId" && k !== "connectionEvidence"),
+      );
     }
     return existing.id;
   }

@@ -95,6 +95,17 @@ describe("V0.1 — giden-mesaj çekirdeği sağlayıcıdan bağımsız", () => {
     expect(code(read("src/lib/ingest/write-service.ts"))).not.toMatch(/from\s+["']@\/lib\/hospitable["']/);
   });
 
+  it("🚨 V1: intelligence bounded context'i sağlayıcı modülü import etmez ve `hospitable*` alanı okumaz (değişmez 1/20)", () => {
+    const files = walk(path.join(ROOT, "src/modules/intelligence")).map((p) => path.relative(ROOT, p));
+    expect(files.length).toBeGreaterThan(3);
+    for (const rel of files) {
+      const c = code(read(rel));
+      expect(c, rel).not.toMatch(/from\s+["']@\/lib\/hospitable(-[a-z-]+)?["']/);
+      expect(c, rel).not.toMatch(/from\s+["']@\/lib\/channels\/hospitable-/);
+      expect(c, rel).not.toMatch(/hospitable(TokenEnc|RefreshTokenEnc|Label|ConnectedAt|Id)\b/);
+    }
+  });
+
   it("KONTROL: adaptör gerçekten istemciyi çağırıyor (pin kendini boşa düşürmesin)", () => {
     const c = code(read(ADAPTER));
     expect(c).toMatch(/from\s+["']@\/lib\/hospitable["']/);

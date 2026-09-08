@@ -168,6 +168,8 @@ model Organization {
   messageOutbox     MessageOutbox[]
   channelConnections ChannelConnection[]
   ingestEvents      IngestEvent[]
+  signals           Signal[]
+  propertyMemories  PropertyMemory[]
   properties        Property[]
   automationRules   AutomationRule[]
   auditLogs         AuditLog[]
@@ -350,6 +352,8 @@ model Property {
   messageTemplates MessageTemplate[]
   supplyRequests   SupplyRequest[]
   calendarSources  CalendarSource[]
+  signals          Signal[]
+  memories         PropertyMemory[]
 
   @@index([organizationId])
   // Public QR concierge chat resolves a property by its secret chatToken on every
@@ -495,6 +499,7 @@ model Reservation {
   conversations  Conversation[]
   tasks          Task[]
   supplyRequests SupplyRequest[]
+  signals        Signal[]
 
   // Sync de-dup looks up (propertyId, sourceReference) once per reservation on
   // every 2-min cron — index it so that's a seek, not a per-row scan.
@@ -601,6 +606,7 @@ model Conversation {
   property    Property     @relation(fields: [propertyId], references: [id], onDelete: Cascade)
   reservation Reservation? @relation(fields: [reservationId], references: [id], onDelete: SetNull)
   messages    Message[]
+  signals     Signal[]
 
   // THREAD IDENTITY (migration 45). One provider thread = at most one row.
   //
@@ -1150,6 +1156,8 @@ model IngestEvent {
   entityId       String // bizim satır id'miz (FK yok)
   kind           String // reservation.created|updated|cancelled · conversation.created|updated · message.imported
   schemaVersion  Int       @default(1)
+  // V1: `reservation.updated` için DEĞİŞEN ALAN ADLARI (JSON string[]; PII'siz — değer yok).
+  changedFieldsJson String?
   occurredAt     DateTime  @default(now())
   dispatchedAt   DateTime?
 
@@ -1157,6 +1165,80 @@ model IngestEvent {
 
   @@index([organizationId, occurredAt])
   @@index([entityType, entityId])
+}
+
+// ---------------------------------------------------------------------------
+// V1 — PROPERTY MEMORY + SIGNALS (intelligence bounded context; migration 52).
+// Signal = mülk merkezli OPERASYONEL GÖZLEM (kurucu: source/category/sentiment/severity/
+// confidence/reservation/occurredAt). RiskEvent ile karıştırma: o AI kapısının KARAR
+// günlüğüdür. PII'SİZ: misafir metni/adı yok; yalnız kategori, ölçüler, opak id'ler.
+// occurredAt = GERÇEK olay zamanı (mesajın createdAt'i / event zamanı) — uydurma yok.
+// dedupeKey: aynı olay ikinci kez işlenince mükerrer sinyal ÜRETİLMEZ (unique).
+// KVKK: misafir mesajından türeyen sinyal DATA_RETENTION_MONTHS sonrası purge edilir;
+// rezervasyon/konuşma silinirse SetNull (mülk hafızası kalır). Kanarya dışı (bilinçli).
+// ---------------------------------------------------------------------------
+model Signal {
+  id               String    @id @default(cuid())
+  organizationId   String
+  propertyId       String
+  reservationId    String?
+  conversationId   String?
+  source           String // guest_message | reservation (closed set, app-enforced)
+  kind             String // message.intent | reservation.cancelled | reservation.dates_changed
+  category         String // intent kümesi | cancellation | date_change
+  sentiment        String? // negative | neutral | positive
+  severity         Float // 0..1
+  confidence       Float // 0..1 (kelime ağı: sabit, mütevazı)
+  occurredAt       DateTime
+  sourceEventId    String? // IngestEvent id (opak)
+  sourceEntityType String // message | reservation
+  sourceEntityId   String // opak id (FK yok)
+  dedupeKey        String    @unique
+  resolvedAt       DateTime?
+  createdAt        DateTime  @default(now())
+
+  organization Organization  @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  property     Property      @relation(fields: [propertyId], references: [id], onDelete: Cascade)
+  reservation  Reservation?  @relation(fields: [reservationId], references: [id], onDelete: SetNull)
+  conversation Conversation? @relation(fields: [conversationId], references: [id], onDelete: SetNull)
+
+  @@index([organizationId, occurredAt])
+  @@index([propertyId, category, occurredAt])
+}
+
+// PropertyMemory = "yaşayan hafıza" kalemi. Değişmez 13: evidence/source · confidence ·
+// observedAt · effectiveAt · lastConfirmedAt · expiresAt · contradiction · human override.
+// source=kb_item: host'un KB metni (başlangıç hafızası, kaynağı açık; observedAt = kb.updatedAt).
+// source=signal_pattern: sinyallerden türeyen örüntü ("hot_water: 4 sinyal / 118 gün", recurring).
+// LLM çıkarımı V1'de YOK. Misafir PII'si yok (KB metni host'undur).
+model PropertyMemory {
+  id                  String    @id @default(cuid())
+  organizationId      String
+  propertyId          String
+  kind                String // fact | risk | pattern (closed set, app-enforced)
+  category            String
+  title               String
+  body                String?
+  source              String // kb_item | signal_pattern | human
+  sourceRef           String // kb item id | pattern anahtarı — idempotent upsert
+  evidenceJson        String // [{type, id}] — yalnız id'ler
+  confidence          Float
+  observedAt          DateTime
+  effectiveAt         DateTime?
+  lastConfirmedAt     DateTime?
+  expiresAt           DateTime?
+  contradictedById    String?
+  humanOverrideAt     DateTime?
+  humanOverrideUserId String?
+  status              String    @default("active") // active | superseded | retired
+  createdAt           DateTime  @default(now())
+  updatedAt           DateTime  @updatedAt
+
+  organization Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  property     Property     @relation(fields: [propertyId], references: [id], onDelete: Cascade)
+
+  @@unique([propertyId, source, sourceRef])
+  @@index([organizationId, propertyId, status])
 }
 
 // Durable deletion intents for PRIVATE object storage (S3/R2) — migration 32.

@@ -184,6 +184,10 @@ describe("şema kanaryası — misafir modellerine yeni kolon", () => {
       //     kalır (hangi bağlantıdan, ne zaman geldiği anonim bir kayıt için de doğru ve
       //     KVKK m.7'de imha edilmesi gereken kişisel veri değil). Silme talebinde satır
       //     zaten silinir/maskelenir; damga tek başına kimseyi tanımlamaz.
+      //   · Signal / PropertyMemory (V1, migration 52) GUEST_MODELS'te DEĞİL, bilinçli: Signal
+      //     misafir metni/adı taşımaz (kategori + ölçü + opak id); saklama sınıfı ayrı ele alınır
+      //     (misafir-kaynaklı sinyal purge: modules/intelligence/retention.ts, scheduled-sync'te
+      //     retention ile birlikte). PropertyMemory host'un KB metnidir, misafir verisi değil.
       Message: 17,
       Conversation: 26,
       Reservation: 35,

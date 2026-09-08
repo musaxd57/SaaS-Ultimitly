@@ -614,3 +614,70 @@ kaynak) · env fallback bir satır DEĞİL (bilinçli: satır = kimlik bilgisi t
 `credentialSource=env` ile açık) · bağlantı "sağlığı" (son başarılı senkron, 401 sayısı) ayrı sinyal,
 bu turda UI'a alınmadı · HTTP stub ≠ canlı doğrulama.
 
+---
+
+## 14. V1 PROPERTY MEMORY + SIGNALS — KOD HAZIRLIĞI, YEREL, PUSH EDİLMEDİ (2026-09-08)
+
+> Kurucu kararıyla başladı (09-08). Tasarım ve kapsam eşlemesi: `docs/V1-PROPERTY-MEMORY-DESIGN.md`.
+> **Migration 52 içerir** (`Signal`, `PropertyMemory`, `IngestEvent.changedFieldsJson`) → kapı §10 ile aynı
+> (taze `pg_dump` + açık "push et"). CI bu commit'te KOŞMADI; kapılar yerelde (↓). V0 geçiş bayrakları
+> değişmedi; müsaitlik cevabı / dış aksiyon / V2+ yok.
+
+**Kod hazırlığı (bounded context `src/modules/intelligence`, sağlayıcı importu YOK — mimari pin):**
+- `signals/derive.ts` — saf, LLM'siz: gelen misafir mesajı → kelime ağı intent'i (`classifyFallback`;
+  `general` sinyal değil; host/AI satırı asla) → `message.intent` sinyali (kategori, negatif/nötr, şiddet
+  0.2–0.7, güven kelime ağının verdiği 0.55–0.7); `reservation.cancelled` → `cancellation`;
+  `reservation.updated` + değişen alan ∋ arrivalDate|departureDate → `date_change`. occurredAt: mesajın GERÇEK
+  zamanı / olayın gözlem zamanı (iptalin gerçek anı iddia edilmez). PII taşınmaz.
+- `consumer.ts` — `IngestEvent` tüketicisi: damgasızlar (occurredAt,id) sırasıyla; canonical satır şimdiki
+  hâliyle okunur; her event kendi TX'inde `createMany({skipDuplicates})` (unique `dedupeKey` → ON CONFLICT DO
+  NOTHING, TX abort yok) + `dispatchedAt` damgası. Yarıda kalma/yeniden başlatma/tekrar işleme mükerrer
+  üretmez. Org filtresi; satırı silinmiş event damgalanır (orphaned sayacı).
+- `memory/bootstrap.ts` — KB'den başlangıç hafızası: `source=kb_item`, `sourceRef=kb.id`, `observedAt=kb.updatedAt`
+  (gerçek), `confidence=1`; idempotent; pasif kalem → retired. Geçmişe sahte event/ilk alınma ÜRETİLMEZ.
+- `memory/patterns.ts` — örüntü: mülk × kategori, 180 günde ≥3 negatif sinyal → `kind=pattern`,
+  `source=signal_pattern`, evidence = sinyal id'leri, `observedAt` = son sinyal, `lastConfirmedAt` = hesap anı,
+  güven 0.6→0.9; eşiğin altına düşen retired.
+- `retention.ts` — misafir-kaynaklı sinyal `DATA_RETENTION_MONTHS` sonrası purge (değişmez 14; sınıf: guest-derived);
+  rezervasyon-kaynaklı sinyal ve KB/insan hafızası saklanır. Erasure: FK SetNull, satır PII'siz kalır.
+- `memory/read.ts` — `getPropertyMemory(org, property)` (V2/UI için okuma yüzeyi). `index.ts` —
+  `runIntelligencePass(org)`; `scheduled-sync` org geçişinde alerts'ten SONRA, try/catch (PMS bloklanmaz);
+  retention bloğunda `purgeExpiredSignals(retentionCutoff())`.
+- `IngestEvent.changedFieldsJson` — yalnız alan ADLARI (PII'siz), write service `reservation.updated`'da yazar.
+- `Property.hospitableId` V1 akışına girmez (hafıza/sinyal `Property.id` ile) — bu turda bağımlılık yok.
+- `scripts/apply-conversation-dedupe.ts` — DMMF referans envanteri `Signal.conversationId`'yi buldu ve tasarımı gereği
+  fail-closed durdu (tam suit 14 kırmızı); `Signal` `repoint` listesine alındı: FK `SetNull` olsa da sinyal silmeden
+  ÖNCE keeper'a taşınır (türediği mesaj keeper'dadır; SetNull bağı sessizce koparırdı). Envanter pini 5 model.
+
+**Migration 52 (yerel doğrulama):** 1 nullable ADD COLUMN (`IngestEvent`, prod'da boş) + 2 CREATE TABLE + index +
+FK (org cascade; reservation/conversation SetNull). Taze PG 00→52 ✅ (53 finished), sıfır drift ✅, shadow diff boş ✅.
+
+**Kanıt (sözleşme §2):** kırmızı-önce `integration/intelligence-consumer` (modül yokken import hatası → 9/9 yeşil):
+şikayet → sinyal (occurredAt = mesaj zamanı; host cevabı ŞİKAYET KELİMELİ olsa da sinyal yok; general yok) ·
+TEKRAR İŞLEME (damga sıfırlansa bile 0 yeni) · SIRASIZ (event zamanları ters → aynı küme) · YARIDA KALMA
+(ilk olaydan sonra çökme → kalan damgasız; yeniden başlatınca tamamlanır, mükerrer yok) · İPTAL/DEĞİŞİKLİK
+(cancellation · date_change · ad değişikliği sinyal değil · replay ikinci sinyal üretmez) · KİRACI/MÜLK (A/B) ·
+SİLME/RETENTION (erasure sonrası PII'siz; purge sinyali siler, ESKİ KB hafızasına dokunmaz) · KB bootstrap
+(observedAt = KB updatedAt, idempotent, retired, kiracı) · örüntü (eşik altı yok; ≥3 → pattern, kanıt id'leri,
+observedAt = son sinyal; idempotent) + `getPropertyMemory`. `integration/scheduled-sync-intelligence-hook` (org
+başına bir kez; hata bloklamaz). Mimari pin `unit/core-channel-independence` (+1). Kanarya kararı yorumu.
+**Mutasyonlar (12, iki yön, hepsi KIRMIZI):** dedupe yok · occurredAt = işleme zamanı · host satırı sinyal ·
+general sinyal · created sinyal · tarih alanına bakmama · org filtresi yok · retention hafızayı siler · bootstrap
+observedAt = şimdi · örüntü eşiği 2 · bootstrap idempotent değil · (V1-12) dedupe apply'da Signal repoint bloğu
+kaldırılınca `integration/conversation-dedupe-apply` "FK'sız referanslar" kırmızı (signal 1→0). (İlk ölçümde 2'si
+fikstür zayıflığından yeşildi; fikstür keskinleştirildi, yeniden ölçüldü.)
+
+**Kapılar (son yerel ağaç, tek başına koşuldu):** tam suit 3627/320 yeşil (580 sn) · `tsc --noEmit` temiz · `eslint .`
+temiz · `next build` temiz · `audit:check` yeşil (0 triajsız) · migration zinciri taze PG 00→52 (53 finished,
+son `52_property_memory_signals`) sıfır drift, shadow diff boş. CI: koşmadı (push yok). Suit'in ilk koşusunda
+dedupe apply envanter pini 14 kırmızı verdi (tasarım gereği fail-closed) → Signal repoint eklendi, yeniden koşuldu.
+
+**Canlıda bekleyen doğrulamalar (kod hazırlığından AYRI):** prod'da `IngestEvent` BOŞ (Nuve 402'de donuk) →
+tüketici canlıda henüz hiçbir şey üretmez; ilk gerçek akışta: sinyal sayımı `SELECT category, count(*) FROM
+"Signal" GROUP BY category`, örüntü eşiği gözlemi, retention purge'ün ilk deep geçişi, KB bootstrap'ın çağrılması
+(operatör/UI adımı — henüz çağıran yüzey yok: sonraki adım). Fixture/demo sonuçları canlı doğrulama DEĞİLDİR.
+
+**Kalan sınırlar:** QR/iCal kaynaklı olaylar IngestEvent üretmiyor (write service yalnız sağlayıcı yolu) → V1 onları
+görmez · güçlü yön (strength) hafızası yok (review ingestion yok) · LLM çıkarımı yok (guardrail/eval sonrası) ·
+UI/API yüzeyi yok (okuma fonksiyonu var) · bootstrap'ı çağıran yüzey yok · bağlantı sağlığı sinyali yok.
+

@@ -4,6 +4,8 @@ export { prisma };
 
 /** Wipe every table in FK-safe order. Call in beforeEach for test isolation. */
 export async function resetDb(): Promise<void> {
+  await prisma.signal.deleteMany(); // V1 (FK → Property/Reservation/Conversation)
+  await prisma.propertyMemory.deleteMany(); // V1
   await prisma.taskUpdate.deleteMany();
   await prisma.task.deleteMany();
   await prisma.supplyRequest.deleteMany();
