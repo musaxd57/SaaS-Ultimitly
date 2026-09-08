@@ -470,6 +470,10 @@ Sekiz P1 KAPANDI (09-07), her biri ayrı commit, kırmızı-önce + iki yönlü 
   bağlantı sağlığı sinyali · `toChannel` ham platform · `Property.hospitableId` global unique (kapsamlı kimlik) ·
   `api/hospitable/diagnostics`. V1 Property Memory + Signals kurucu kararıyla başladı (09-08).
   Availability Engine / RAG / geniş otonom AI V0 bitmeden YOK.
+- **GEREKSİNİM (kurucu 09-08, kayıt — uygulanmadı):** doğrudan kanal bağlantısı + iCal aynı mülkte birlikte; aynı
+  kanalın iCal'i pasif/yedek (kayıtlı kalır, rezervasyon YAZMAZ), diğer kanalların iCal'i çalışır; iCal doğrudan veriyi
+  ezmez/mükerrer yaratmaz; takvim birleşik. `docs/GEREKSINIM-dogrudan-kanal-ve-ical-birlikte-yasama.md` (Airbnb Direct +
+  Availability Engine ile birlikte).
 - **Codex P2 (F09–F18)** ilgili modül turlarında. `docs/DENETIM-2026-08-09.md` (27 açık),
   `docs/ACIK-ISLER-2026-08-08.md` (16), `docs/MIGRATION-BEKLEYEN-ISLER.md`.
 - Operatör: bucket sağlayıcı görünürlüğü (imzasız URL 403 olmalı) · `weekly-audit.yml` `main`'e ·
@@ -486,7 +490,7 @@ Sekiz P1 KAPANDI (09-07), her biri ayrı commit, kırmızı-önce + iki yönlü 
 **Origin HEAD `4c1efea` (V0.6 + V0.7 canlı; CI 5/5 run #960; migration 51 prod'da 03:13Z; Railway healthcheck-gated
 oto-deploy). V1 Property Memory + Signals CANLI: push `4c1efea..7aa228f` (altyapı `16f70f5` + ürün akışı `4e9b1b1`),
 CI run #964 5/5, **migration 52 prod'da 09-08 06:11:42Z**, ilk geçiş KB hafızasını doldurdu (32/32), IngestEvent/Signal 0
-(gerçek olay yok). 3640 test yeşil (322 dosya) · typecheck/lint/build/audit temiz.**
+(gerçek olay yok). 3643 test yeşil (323 dosya) · typecheck/lint/build/audit temiz.**
 Son kod işi: V1 ürün akışı (canlı). **Canlı ÜRÜN AKIŞI doğrulaması HENÜZ YAPILMADI** (`docs/V1-CANLI-DOGRULAMA-OPERATOR-
 PLANI.md` bölüm 3: KB → kart, QR → şikayet sinyali, elle .ics → iptal sinyali, iCal pasif gözlem) — yapılmadan "çalışıyor"
 denmez. Açık vizyon parçaları (bakım sinyali V3 · güçlü yön V6 · proaktif check-in V2/V5) belgede; V2'ye geçilmedi.

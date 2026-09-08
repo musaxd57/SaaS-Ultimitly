@@ -3,6 +3,7 @@
 import { useState, useTransition } from "react";
 import { FormError } from "@/components/form-error";
 import { confirmDialog } from "@/lib/confirm";
+import { toast } from "@/lib/toast";
 import { useRouter } from "next/navigation";
 import { Loader2, Plus, Trash2, ToggleLeft, ToggleRight, Copy, Pencil, Check, X } from "lucide-react";
 import { Button } from "@/components/ui/button";
@@ -170,7 +171,13 @@ export function KbManager({
             data.error ??
             "Bilgi güncellenemedi. Lütfen tekrar deneyin.",
         );
-      } else refresh();
+      } else {
+        // Görünür geri bildirim (kurucu, 09-08): geçiş sessizdi, yalnız küçük ikon
+        // değişiyordu. Ortak toast yüzeyi (bottom-right, otomatik kapanır). Yalnız
+        // BAŞARIDA — rota reddettiyse "oldu" iddiası yapılmaz (hata listede).
+        toast.success(item.isActive ? "Bilgi pasifleştirildi." : "Bilgi aktifleştirildi.");
+        refresh();
+      }
     } catch {
       setListError("Bağlantı hatası. Lütfen tekrar deneyin.");
     } finally {

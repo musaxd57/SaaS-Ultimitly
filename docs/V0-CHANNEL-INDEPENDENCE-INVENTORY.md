@@ -768,5 +768,7 @@ finished **06:11:42Z**, rolled_back boş, yarım migration 0 · `Signal` + `Prop
 `IngestEvent` 0, `Signal` 0 (gerçek yeni olay yok — beklenen), undispatched 0. Railway ACTIVE panelden ayrıca teyit
 edilmedi; kanıt DB davranışından. Bayraklar değişmedi; `CHANNEL_CONNECTION_READ` kapalı.
 **Canlı ÜRÜN AKIŞI (plan bölüm 3: KB → hafıza kartı · QR → şikayet sinyali · elle .ics → iptal sinyali · iCal pasif
-gözlem) HENÜZ YAPILMADI — yapılmadan "canlı ürün akışı çalışıyor" DENMEZ.**
+gözlem) HENÜZ TAMAMLANMADI — tamamlanmadan "canlı ürün akışı çalışıyor" DENMEZ.** İlk deneme (kurucu, 09-08): A (KB →
+kart) "çalışıyor gibi"; bulgu: pasif/aktif geçişi sessizdi → toast eklendi (`tests/ui/kb-toggle-feedback`, kırmızı-önce
+2/3 → 3/3; hata yolunda başarı toast'ı yok pinli). B/C kurucu tarafından sırada (elle `.ics`).
 

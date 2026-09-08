@@ -63,6 +63,10 @@ oldu" kaydı olarak kalır — beklenen). Gerçek mülkte yalnız A adımı (KB)
    `observedAt` = KB'nin yeni `updatedAt`'i (anında; geçiş beklemeden).
 3. Kalemi pasife al → kart sayısı N−1, SQL status `retired`; tekrar aktif → N, `active`. (Silme de aynı: `retired`.)
    ✅ Ölçüt: kart ve SQL, KB ile geçiş beklemeden tutuyor.
+   **Bulgu (kurucu, 09-08, ilk canlı deneme):** akış çalıştı ("çalışıyor gibi") ama geçiş SESSİZDİ — yalnız küçük ikon
+   değişiyordu. Düzeltme: başarıda ortak toast ("Bilgi pasifleştirildi." / "Bilgi aktifleştirildi.", sağ-alt, otomatik
+   kapanır); hatada başarı toast'ı yok. Test `tests/ui/kb-toggle-feedback` (kırmızı-önce). Misafir mesajı bacağı (B)
+   bağlı hesap olmadığından QR ile, rezervasyon bacağı (C) elle `.ics` ile doğrulanır — kurucu C'ye geçti.
 
 **B. QR misafir mesajı → şikayet sinyali (test mülkü).**
 1. Test mülkü oluştur, QR sohbeti aç, aktif bir TEST rezervasyonu gir (bugünü kapsayan tarihler; kanal "manual").
