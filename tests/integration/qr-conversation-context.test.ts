@@ -164,7 +164,10 @@ describe("QR asistanı — konuşma bağlamı modele verilir", () => {
 
     await ask(token, "son soru");
     const hist = lastHistory();
-    expect(hist.length).toBeLessThanOrEqual(12);
+    // Tavan MESAJ cinsinden (24 ≈ 12 tur) — ayrıntılı sınır testleri
+    // `qr-context-window` dosyasında; burada yalnız "tavan var ve pencere
+    // kronolojik" iddiası pinlenir.
+    expect(hist.length).toBeLessThanOrEqual(24);
     expect(hist.at(-1)?.body).toBe("soru 20"); // en yeni sonda
     expect(hist[0]?.body).toBe(`soru ${20 - hist.length + 1}`); // kronolojik pencere
   });

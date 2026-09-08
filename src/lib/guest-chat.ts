@@ -9,7 +9,7 @@ import { ANON_NAME } from "@/lib/data-retention";
 import { isUniqueViolation } from "@/lib/db-errors";
 import { qrPinEnabled } from "@/lib/guest-chat-pin";
 import { fetchKnowledgeBaseForPrompt } from "@/lib/ai/kb-fetch";
-import { foldTurkishLower, foldTurkishAscii } from "@/lib/ai/fallback";
+import { foldTurkishLower, foldTurkishAscii, classifyFallback, isClosingAck } from "@/lib/ai/fallback";
 import {
   LEGACY_AI_RESUME_SENDER,
   LEGACY_AI_SENDER_NAMES,
@@ -535,6 +535,109 @@ export interface GuestChatContext {
  * alert çağrısının kayıttan ÖNCE koşmasını ve olay kimliğinin mesaj id'sinden
  * bağımsız üretilmesini gerektirir.
  */
+// ---------------------------------------------------------------------------
+// QR BAĞLAM PENCERESİ (kurucu AI kalite turu, 2026-09-08).
+//
+// Sınır TUR değil MESAJ cinsindendir — eski `QR_HISTORY_CAP = 12` yaklaşık 6 tur
+// taşıyordu ve adı da bunu söylemiyordu. Modelin bağlam penceresi buna kıyasla
+// çok geniş; yine de sınırsız geçmiş doğru değil: uzun bağlamda ortadaki bilgi
+// silikleşir ve her istek pahalılaşır. Bu yüzden İKİ sınır birlikte uygulanır ve
+// hangisi önce dolarsa o keser (en YENİ mesajlar korunur).
+export const QR_HISTORY_MESSAGE_CAP = 24; // ≈ 12 tur
+export const QR_HISTORY_CHAR_CAP = 8_000;
+/** Pencere DIŞINDA açık konu aranırken taranacak en fazla mesaj (maliyet tavanı). */
+const QR_TOPIC_SCAN_CAP = 120;
+
+/** Modelin göreceği tek bir geçmiş satırı (yön mesajın KENDİ alanından gelir). */
+export interface GuestChatHistoryItem {
+  direction: "inbound" | "outbound";
+  body: string;
+}
+
+export interface GuestChatContextWindow {
+  history: GuestChatHistoryItem[];
+  /**
+   * Pencere DIŞINA taşan, misafirin CEVAPSIZ/KAPANMAMIŞ konularının kapalı-küme
+   * kategori kodları (PII YOK — metin taşınmaz). Amaç: uzun sohbette eski bir
+   * şikâyet sessizce kaybolmasın. Bu bir DEVİR sebebi DEĞİLDİR; kapı yalnız
+   * GÜNCEL mesaja bakar, yani geçmiş şikâyet sonraki bağımsız soruyu engellemez.
+   */
+  openTopics: string[];
+}
+
+/**
+ * "Bu konu kapandı" işareti — YALNIZ açık-konu hesabı için, dar ve deterministik.
+ *
+ * ⚠️ `isClosingAck` BİLEREK genişletilmedi: o, güvenlik tarafında kullanılan bir
+ * BEYAZ LİSTEDİR ve deponun kuralı gereği katlama/gevşetme uygulanmaz
+ * (CLAUDE.md). Ölçüldü: "buldum teşekkürler" ve "tamam düzeldi" orada `false`
+ * dönüyor — kurucunun canlıda gördüğü kapanış cümleleri tam da bunlar. Bu
+ * yardımcı yalnız "eski şikâyeti gündemde tutayım mı" sorusunu etkiler; hiçbir
+ * devir/oto-gönderim kararına girmez, yani yanılması güvenlik açığı üretmez.
+ */
+const CLOSURE_WORDS = [
+  "teşekkür", "tesekkur", "sağol", "sagol", "thanks", "thank you",
+  "buldum", "düzeldi", "duzeldi", "halloldu", "hallettim", "çözüldü", "cozuldu", "tamamdır", "tamamdir",
+];
+function looksLikeTopicClosure(body: string): boolean {
+  if (isClosingAck(body)) return true;
+  const text = body.trim();
+  if (text.length > 80 || text.includes("?")) return false; // soru = kapanış değil
+  const folded = foldTurkishLower(text);
+  return CLOSURE_WORDS.some((w) => folded.includes(foldTurkishLower(w)));
+}
+
+/** Açık konu olarak taşınabilecek kapalı küme (kategori kodu, serbest metin değil). */
+const OPEN_TOPIC_INTENTS = new Set(["complaint", "refund", "early_departure", "human_request"]);
+
+/**
+ * Sohbetin modele verilecek penceresini kurar.
+ *
+ * · KRONOLOJİK; eşit `createdAt` damgalarında `id` kopma noktasıyla DETERMİNİSTİK
+ *   (QR yolu misafir+bot satırını tek transaction'da yazar → damgalar eşit olabilir).
+ * · Sistem olayları ve gövdesiz satırlar dışarıda.
+ * · Güncel mesaj burada YOKTUR: sohbet, misafirin mesajı yazılmadan ÖNCE okunur.
+ */
+export async function buildGuestChatContextWindow(conversationId: string): Promise<GuestChatContextWindow> {
+  const rows = await prisma.message.findMany({
+    where: { conversationId, systemEventType: null, NOT: { body: "" } },
+    orderBy: [{ createdAt: "desc" }, { id: "desc" }],
+    select: { direction: true, body: true },
+    take: QR_TOPIC_SCAN_CAP,
+  });
+  const chronological = rows.slice().reverse();
+
+  // Pencere: sondan başlayarak hem SAYI hem KARAKTER bütçesine uyan en uzun kuyruk.
+  const window: GuestChatHistoryItem[] = [];
+  let chars = 0;
+  for (let i = chronological.length - 1; i >= 0; i--) {
+    const r = chronological[i];
+    if (window.length >= QR_HISTORY_MESSAGE_CAP) break;
+    if (chars + r.body.length > QR_HISTORY_CHAR_CAP && window.length > 0) break;
+    window.unshift({ direction: r.direction === "inbound" ? "inbound" : "outbound", body: r.body });
+    chars += r.body.length;
+  }
+
+  // Pencere dışında kalan misafir mesajlarında KAPANMAMIŞ konu var mı?
+  const outside = chronological.slice(0, Math.max(0, chronological.length - window.length));
+  const open = new Set<string>();
+  for (let i = 0; i < outside.length; i++) {
+    const r = outside[i];
+    if (r.direction !== "inbound") continue;
+    const c = classifyFallback(r.body);
+    const intent = c.isComplaint ? "complaint" : c.intent;
+    if (!OPEN_TOPIC_INTENTS.has(intent)) continue;
+    // ÇÖZÜLMÜŞ SAYILMA KURALI: bu konudan SONRA misafir bir kapanış yazdıysa
+    // (teşekkür/"düzeldi") konu kapanmıştır — aksi hâlde asistan çözülmüş bir
+    // meseleyi sonsuza dek gündemde tutar.
+    const closedLater = chronological
+      .slice(i + 1)
+      .some((later) => later.direction === "inbound" && looksLikeTopicClosure(later.body));
+    if (!closedLater) open.add(intent);
+  }
+  return { history: window, openTopics: [...open].sort() };
+}
+
 export function escalationReply(): string {
   return "Mesajınız kaydedildi; ev sahibiniz sohbet ekranından görüntüleyebilir.";
 }

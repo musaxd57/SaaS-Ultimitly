@@ -11,6 +11,7 @@ import {
   ensureGuestChatConversation,
   scrubStyleProfileForPublic,
   escalationReply,
+  buildGuestChatContextWindow,
   type GuestChatContext,
   type GuestChatDb,
 } from "@/lib/guest-chat";
@@ -54,8 +55,6 @@ const ESCALATE_INTENTS = new Set(["complaint", "refund", "early_departure", "hum
 // Tavan artık PLANA göre (billing/plan-limits.ts): Başlangıç 50 / Pro 100 /
 // İşletme 200. Aşağıdaki sabit yalnız plan çözülemezse kullanılan son çaredir.
 const DAILY_AI_CAP_FALLBACK = 200;
-/** Modele verilecek EN FAZLA önceki mesaj (istem bütçesi; hedef ~10-12 tur). */
-const QR_HISTORY_CAP = 12;
 
 // Deterministic acknowledgment for a message that arrives AFTER the human team has
 // taken over the thread (host handoff). The AI stays silent for the rest of the
@@ -637,26 +636,14 @@ async function handleGuestChatPost(req: NextRequest, { params }: { params: Promi
   // işleniyor, peş peşe yazılan mesajlar kopuk değerlendiriliyor. Inbox yolu
   // geçmişi zaten veriyordu — bu bir ASİMETRİYDİ, ürün kararı değil.
   //
-  // Bounded-context kuralları (CLAUDE.md): kronoloji · yön mesajın KENDİ
-  // alanından (görünen ad DEĞİL) · sistem olayı ve gövdesiz satır DIŞARIDA ·
-  // ölçülü tavan · güncel mesaj burada TEKRARLANMAZ (ayrı `guestMessage` alanı).
-  // Sohbet bu turda yazılmadan önce okunur, yani misafirin ŞU ANKİ mesajı henüz
-  // tabloda değildir — çift geçmemesi yapısal olarak garanti.
+  // Pencere kuralları ve gerekçeleri `guest-chat.ts` `buildGuestChatContextWindow`
+  // içinde tek yerde: kronoloji + eşit damgada deterministik sıra, sistem olayı ve
+  // gövdesiz satır dışarıda, MESAJ + KARAKTER çift tavanı, ve pencere dışına taşan
+  // kapanmamış konuların PII'siz kategori notu (`openTopics`).
+  // Sohbet bu turda yazılmadan önce okunur → misafirin ŞU ANKİ mesajı geçmişte
+  // TEKRARLANMAZ (yapısal garanti, ayrıca test-pinli).
   const priorConversationId = await ensureGuestChatConversation(ctx.property.id, res);
-  const priorRows = await prisma.message.findMany({
-    where: {
-      conversationId: priorConversationId,
-      systemEventType: null,
-      NOT: { body: "" },
-    },
-    orderBy: [{ createdAt: "desc" }, { id: "desc" }],
-    select: { direction: true, body: true },
-    take: QR_HISTORY_CAP,
-  });
-  const history = priorRows
-    .slice()
-    .reverse()
-    .map((m) => ({ direction: m.direction === "inbound" ? ("inbound" as const) : ("outbound" as const), body: m.body }));
+  const { history, openTopics } = await buildGuestChatContextWindow(priorConversationId);
 
   const result = await suggestReply({
     guestMessage: message,
@@ -679,6 +666,7 @@ async function handleGuestChatPost(req: NextRequest, { params }: { params: Promi
     knowledgeBase: ctx.knowledgeBase,
     knowledgeBaseDropped: ctx.knowledgeBaseDropped,
     history,
+    openTopics,
     tone: "warm",
     language: "tr",
     // ⚠️ STİL REHBERİ HALKA AÇIK YÜZEYE HAM GİRMEZ (denetim, 08-01). Rehber, ev

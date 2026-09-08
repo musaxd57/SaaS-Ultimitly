@@ -49,6 +49,13 @@ export interface SuggestReplyInput {
    */
   knowledgeBaseDropped?: number;
   history?: HistoryMessage[];
+  /**
+   * Bağlam PENCERESİ DIŞINA taşan, misafirin kapanmamış konularının kapalı-küme
+   * kategori kodları (PII YOK). Uzun sohbette eski bir şikâyet sessizce
+   * kaybolmasın diye taşınır; bir DEVİR sebebi değildir (kapı yalnız güncel
+   * mesaja bakar) ve çözülmüş konular buraya girmez.
+   */
+  openTopics?: string[];
   tone: ReplyTone;
   language: string;
   /** Distilled guide of the host's own reply style (optional, learned). */

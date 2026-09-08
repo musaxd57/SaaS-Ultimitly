@@ -63,6 +63,17 @@ sorularında mülkün şehri boşsa tek bir netleştirme sorusu sormaktır.
 - `integration/qr-budget-and-honest-promise` — "bayrak AÇIKKEN söz doğrudur ve aynen korunur" testi. Artık
   bayrak açıkken de "ilettim" denmediği pinli (bayrak ≠ gönderim garantisi).
 
+## 3.b DÜZELTİLDİ — AI kalite turu 1. dilim (09-08)
+| Bulgu | Durum |
+|---|---|
+| Devir gerekçesi hiçbir yere yazılmıyordu | ✅ Her QR yanıt kararı `RiskEvent` (`surface:"guest_chat"`) yazar; dokuz kapalı-küme gerekçe + `gate_passed`, model risk seviyesi ve güveni. PII yok; await edilir; yazamazsa yanıt bozulmaz. |
+| Model `history: []` ile çağrılıyordu | ✅ Kronolojik pencere verilir (`buildGuestChatContextWindow`). |
+| "12 tur" belirsizdi | ✅ Sınır MESAJ cinsinden ve adı bunu söylüyor: `QR_HISTORY_MESSAGE_CAP = 24` (≈12 tur) + `QR_HISTORY_CHAR_CAP = 8.000` karakter; hangisi önce dolarsa keser, en YENİ mesajlar korunur. |
+| Eşit zaman damgası | ✅ `(createdAt, id)` ile deterministik. Test, satırları TERS sırayla ekleyip id'lerle doğru sırayı taşıyarak gerçek determinizmi ölçer (ilk hâli mutasyonu yakalamıyordu — düzeltildi). |
+| Pencere dışına taşan şikâyet kaybolabilir | ✅ `openTopics`: kapanmamış konuların PII'siz kategori kodları istemde taşınır; **devir sebebi değildir**. |
+| Çözülmüş konu sonsuza dek gündemde kalır | ✅ Şikâyetten sonra misafirin kapanış cümlesi ("buldum teşekkürler", "tamam düzeldi") konuyu kapatır. ⚠️ `isClosingAck` BİLEREK genişletilmedi (güvenlik beyaz listesi, CLAUDE.md kuralı); bunun için ayrı, dar `looksLikeTopicClosure` yazıldı ve yalnız açık-konu hesabını etkiler. |
+| Gerçek şikâyetin eskalasyonu | ✅ Bastırılmadı — E6 evalinde dolu KB + 0.98 güvenle bile `keyword_escalated` ile devrediliyor. |
+
 ## 4. Eval seti adayları (bu transkriptten)
 1. Boş KB + konum sorusu → uydurma öneri YOK; ya dürüst bilgi-yok cevabı ya da tek netleştirme sorusu.
 2. Boş KB + tesis sorusu ("çöp") → dürüst cevap; "ilettim" gibi gerçekleşmemiş aktarım iddiası YOK.

@@ -188,7 +188,11 @@ Bu dosyaya token/anahtar/parola yazma.
 - **Katlama kuralı:** `includesAnyFold` (3 katlama) YALNIZ kısıtlayıcı dedektörlerde; `isPositiveFeedback`/
   `isClosingAck` beyaz listelerine ASLA. Tedarik: yalnız `REQUEST_NEGATIONS/QUESTIONS` guard'larında.
 - **QR asistanı bağlamı (AI kalite turu 09-08):** model artık KRONOLOJİK konuşma geçmişiyle çağrılır
-  (`QR_HISTORY_CAP` 12; yön `direction` alanından, sistem olayı/gövdesiz satır hariç, güncel mesaj geçmişte
+  (pencere `guest-chat.ts` `buildGuestChatContextWindow`: MESAJ tavanı `QR_HISTORY_MESSAGE_CAP` 24 ≈12 tur +
+  `QR_HISTORY_CHAR_CAP` 8.000 karakter, hangisi önce dolarsa keser; eşit damgada `(createdAt, id)` deterministik;
+  pencere dışına taşan kapanmamış konular PII'siz `openTopics` kodlarıyla taşınır ve DEVİR SEBEBİ DEĞİLDİR;
+  kapanış tespiti `looksLikeTopicClosure` — `isClosingAck` güvenlik beyaz listesi olduğu için genişletilmedi;
+  yön `direction` alanından, sistem olayı/gövdesiz satır hariç, güncel mesaj geçmişte
   TEKRARLANMAZ) — `history: []` asimetrisi kapandı (inbox zaten veriyordu). Her yanıt kararı `RiskEvent`
   (`surface:"guest_chat"`) yazar: dokuz kapalı-küme gerekçe (`low_confidence`, `model_risk_level`,
   `model_unavailable`, `keyword_escalated`, …) + `gate_passed`; PII yok, await edilir (yarışsız), yazamazsa
@@ -519,7 +523,7 @@ Sekiz P1 KAPANDI (09-07), her biri ayrı commit, kırmızı-önce + iki yönlü 
 **Origin HEAD `4c1efea` (V0.6 + V0.7 canlı; CI 5/5 run #960; migration 51 prod'da 03:13Z; Railway healthcheck-gated
 oto-deploy). V1 Property Memory + Signals CANLI: push `4c1efea..7aa228f` (altyapı `16f70f5` + ürün akışı `4e9b1b1`),
 CI run #964 5/5, **migration 52 prod'da 09-08 06:11:42Z**, ilk geçiş KB hafızasını doldurdu (32/32), IngestEvent/Signal 0
-(gerçek olay yok). 3677 test yeşil (329 dosya) · typecheck/lint/build/audit temiz.**
+(gerçek olay yok). 3692 test yeşil (331 dosya) · typecheck/lint/build/audit temiz.**
 Son kod işi: "Dosyadan içe aktar" (canlı, `8d49004`, CI #972 5/5). **Canlı ürün akışı KISMEN doğrulandı** (plan
 `docs/V1-CANLI-DOGRULAMA-OPERATOR-PLANI.md` §3): KB → kart ✅ · **tek rezervasyonlu dosya → iptal → sinyal → kart ✅
 (09-08)**; QR mesajı, URL üzerinden iCal, toplu dosya, `date_change`, örüntü DOĞRULANMADI. Kart OLAY tarihini gösterir
