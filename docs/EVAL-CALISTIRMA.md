@@ -9,11 +9,48 @@ Mevcut suite'teki QR testleri modeli **mock'lar**: ölçtükleri şey ürünün 
 sayaçlar, sızıntı yok). Modelin **kendi cümlesinin** kalitesi orada ölçülmez ve ölçülüyormuş gibi
 sunulmamalı (kurucu kuralı: mock testlerini gerçek eval'den ayır).
 
-## Çalıştırma
+## 🔐 Anahtar Claude'a GÖSTERİLMEZ
 
-```bash
-RUN_REAL_EVAL=1 OPENAI_API_KEY=sk-... npx vitest run tests/eval
+Bu koşuyu **sen kendi makinende** yaparsın; anahtar bu sohbete, bu repoya ya da herhangi bir log'a
+girmez. Kurallar:
+- Anahtarı **sohbete yapıştırma** — ne tam, ne kısaltılmış.
+- **Repoya yazma**: `.env` dosyası commit'lenmez (`.gitignore`'da), ama en güvenlisi hiç dosyaya
+  yazmamak; komutun ortam değişkeni olarak ver.
+- Terminal geçmişine düşmesin: PowerShell'de aşağıdaki blok anahtarı **gizli** okur ve iş bitince
+  ortam değişkenini SİLER.
+- Bana yalnız **üretilen rapor dosyasını** (`docs/olcum/eval-<tarih>.md`) ya da içeriğini yolla.
+  O dosyada anahtar YOKTUR — yalnız soru, modelin cevabı, güven ve sonuç var.
+
+### PowerShell (Windows — anahtar ekranda görünmez, sonra silinir)
+
+```powershell
+cd C:\yol\SaaS-Ultimitly          # repo klasörün
+$secure = Read-Host 'OPENAI_API_KEY' -AsSecureString
+$ptr = [Runtime.InteropServices.Marshal]::SecureStringToBSTR($secure)
+try {
+  $env:OPENAI_API_KEY = [Runtime.InteropServices.Marshal]::PtrToStringBSTR($ptr)
+  $env:RUN_REAL_EVAL  = '1'
+  npx vitest run tests/eval
+} finally {
+  [Runtime.InteropServices.Marshal]::ZeroFreeBSTR($ptr)
+  Remove-Item Env:OPENAI_API_KEY, Env:RUN_REAL_EVAL -ErrorAction SilentlyContinue
+}
 ```
+
+### macOS / Linux
+```bash
+read -rs -p "OPENAI_API_KEY: " OPENAI_API_KEY; echo
+RUN_REAL_EVAL=1 OPENAI_API_KEY="$OPENAI_API_KEY" npx vitest run tests/eval
+unset OPENAI_API_KEY
+```
+
+**Ön koşul:** `npm ci` (bir kez) — eval veritabanı İSTEMEZ ama vitest kendi test PG'sini ayağa
+kaldırır, o yüzden repo kurulu olmalı. Süre: 8 senaryo × ~2-5 sn.
+
+## Kapılar
+
+⚠️ Yukarıdaki bloklar anahtarı komut satırına YAZDIRMAZ; `OPENAI_API_KEY=sk-... npx ...` gibi bir
+yazım anahtarı kabuk geçmişine ve süreç listesine düşürür — kullanma.
 
 İki kapı birden gerekir: `RUN_REAL_EVAL=1` **ve** gerçek bir anahtar (20+ karakter, `test-` ile
 başlamayan). Biri eksikse senaryolar **atlanır** — sahte bir "geçti" üretilmez. CI'da anahtar yoktur,
