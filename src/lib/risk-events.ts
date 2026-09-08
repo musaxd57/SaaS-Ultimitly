@@ -63,6 +63,53 @@ export interface RiskEventInput {
   riskType?: string | null;
   reason?: string | null;
   confidence?: number | null;
+  // --- A2: temellendirme sayaçları (hepsi opsiyonel; verilmezse NULL) -------
+  /** Koda göre isteme GERÇEKTEN giren kalem sayısı. */
+  kbRetrieved?: number | null;
+  /** Adet tavanı yüzünden düşen kalem sayısı. */
+  kbDropped?: number | null;
+  /** Aktif ama onay kapısından geçmeyen (A1 `draft`) kalem sayısı. */
+  kbPendingApproval?: number | null;
+  /** İsteme giren kalemlerin en yeni `updatedAt`'i (bilgi sürümü). */
+  kbVersionAt?: Date | null;
+  /** Modelin BEYAN ettiği kaynak sayısı. */
+  srcDeclared?: number | null;
+  /** Gerçek girdiyle DOĞRULANAN kaynak sayısı (beyanın alt kümesi). */
+  srcVerified?: number | null;
+}
+
+/**
+ * Sayaç sözleşmesi: NEGATİF/KESİRLİ/NaN → NULL, KIRPMA YOK.
+ *
+ * `confidence` ile aynı gerekçe: -1'i 0'a çekmek sahte ama geçerli görünen bir
+ * ÖLÇÜM üretir ve çağırandaki hatayı görünmez kılar. NULL "ölçülmedi" demektir
+ * ve okuma tarafı (`classifyGrounding`) onu hüküm vermeden geçer.
+ */
+function countOrNull(v: number | null | undefined): number | null {
+  return typeof v === "number" && Number.isInteger(v) && v >= 0 ? v : null;
+}
+
+/**
+ * A2 sayaçlarını kolonlara çevirir.
+ *
+ * 🚨 TUTARSIZ ÇİFT İKİSİNİ DE DÜŞÜRÜR: `srcVerified` her zaman `srcDeclared`ın
+ * ALT KÜMESİDİR (doğrulama yalnız eler, ekleyemez). Tersi bir çift çağıranda
+ * hata demektir; yazılırsa "uydurma atıf" farkı NEGATİF çıkar ve teşhis
+ * sessizce yanlış okunur. Yarısını yazmak da olmaz — yarım çift, olmayan bir
+ * ölçümü varmış gibi gösterirdi.
+ */
+function groundingColumns(e: RiskEventInput) {
+  const declared = countOrNull(e.srcDeclared);
+  const verified = countOrNull(e.srcVerified);
+  const consistent = declared === null || verified === null || verified <= declared;
+  return {
+    kbRetrieved: countOrNull(e.kbRetrieved),
+    kbDropped: countOrNull(e.kbDropped),
+    kbPendingApproval: countOrNull(e.kbPendingApproval),
+    kbVersionAt: e.kbVersionAt instanceof Date && !Number.isNaN(e.kbVersionAt.getTime()) ? e.kbVersionAt : null,
+    srcDeclared: consistent ? declared : null,
+    srcVerified: consistent ? verified : null,
+  };
 }
 
 export async function recordRiskEvent(e: RiskEventInput): Promise<void> {
@@ -88,6 +135,7 @@ export async function recordRiskEvent(e: RiskEventInput): Promise<void> {
           typeof e.confidence === "number" && Number.isFinite(e.confidence) && e.confidence >= 0 && e.confidence <= 1
             ? e.confidence
             : null,
+        ...groundingColumns(e),
       },
     });
   } catch (err) {

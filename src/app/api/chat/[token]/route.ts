@@ -804,6 +804,16 @@ async function handleGuestChatPost(req: NextRequest, { params }: { params: Promi
     riskType: result.riskType ?? null,
     reason: verdict.reason ?? "gate_passed",
     confidence: result.confidence,
+    // A2 — TEMELLENDİRME: gerekçe tek başına "neden dayanamadı"yı söylemiyor.
+    // Kodun bildiği (kaç kalem gitti, kaçı onay bekliyor, kaçı tavandan düştü,
+    // hangi bilgi sürümü) ile modelin BEYANI yan yana yazılır; ikisi ayrı
+    // olmadan "bilgi yok" ile "bilgi vardı, kullanılmadı" ayrılamaz.
+    kbRetrieved: ctx.knowledgeBase.length,
+    kbDropped: ctx.knowledgeBaseDropped,
+    kbPendingApproval: ctx.knowledgeBasePendingApproval,
+    kbVersionAt: ctx.knowledgeBaseVersionAt,
+    srcDeclared: result.sourceAudit?.declared ?? null,
+    srcVerified: result.sourceAudit?.verified ?? null,
   });
   if (escalate) {
     await sendQrEscalationAlertBounded({

@@ -1348,6 +1348,11 @@ export function suggestReplyFallback(input: SuggestReplyInput): SuggestReplyResu
     source: "fallback",
     riskType: detectRiskType(input.guestMessage),
     usedSources,
+    // A2: bu yol kaynakları GERÇEK veriden deterministik olarak üretir — beyan
+    // ile doğrulanan burada tanım gereği AYNIDIR. Yine de yazılıyor: alan boş
+    // kalsaydı "ölçülmedi" olarak okunur ve fallback yolu istatistikten
+    // sessizce düşerdi.
+    sourceAudit: { declared: usedSources.length, verified: usedSources.length },
     missingInfo,
     actionSuggestion,
     riskLevel,

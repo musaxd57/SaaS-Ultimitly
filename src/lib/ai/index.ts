@@ -299,6 +299,11 @@ export async function suggestReply(input: SuggestReplyInput): Promise<SuggestRep
         }
         const intentRaw = String(parsed.intent ?? "general");
         const intentKnown = KNOWN_INTENTS.has(intentRaw);
+        // A2: iki adım AYRI tutuluyor — temizlenmiş BEYAN, sonra gerçek girdiye
+        // karşı DOĞRULAMA. Tek satırda zincirlendiğinde aradaki fark (uydurma
+        // atıf sayısı) hesaplanamadan kayboluyordu.
+        const declaredSources = sanitizeStringList(parsed.usedSources, 8, 60);
+        const verified = verifyUsedSources(declaredSources, input);
         return {
           intent: intentKnown ? intentRaw : "general",
           confidence: cappedReply.truncated
@@ -334,7 +339,11 @@ export async function suggestReply(input: SuggestReplyInput): Promise<SuggestRep
             typeof parsed.riskType === "string" && RISK_TYPES.has(parsed.riskType)
               ? parsed.riskType
               : null,
-          usedSources: verifyUsedSources(sanitizeStringList(parsed.usedSources, 8, 60), input),
+          usedSources: verified,
+          // A2: BEYAN ↔ DOĞRULANAN yan yana. `verifyUsedSources` uydurma atıfı
+          // zaten eliyordu ama KAÇ TANE elediği hiçbir yere yazılmıyordu; fark
+          // canlıda "model olmayan bir kaynağa dayandığını söyledi" sinyalidir.
+          sourceAudit: { declared: declaredSources.length, verified: verified.length },
           missingInfo: sanitizeStringList(parsed.missingInfo, 5, 80),
           statedCheckoutTime:
             // Format-valid AND deterministically evidenced in the guest's own

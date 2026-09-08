@@ -223,8 +223,19 @@ host'un KENDİ verisini gördüğü yüzeyler — taslağı host'tan saklamak za
 yol olmadığı için hiçbiri değişmiş davranış göstermiyor; A5 geldiğinde "Kurulum ve eksikler" / "İncelenecek
 öneriler" ayrımı bu üç yüzeyin metnini de netleştirecek (özellikle sayaç: taslak "aktif kayıt" sayılmamalı).
 
+**A2 KODLANDI — YEREL, PUSH EDİLMEDİ (migration 54 push kapısında).** Yapılanlar:
+`RiskEvent`'e altı nullable kolon (`kbRetrieved · kbDropped · kbPendingApproval · kbVersionAt ·
+srcDeclared · srcVerified`) + `prisma/migrations/54_risk_event_grounding` · `kb-fetch` artık onay
+kapısında kalan sayıyı ve bilgi SÜRÜMÜNÜ de döndürüyor (sorgu sayısı artmadan: `count` → `groupBy`) ·
+`ai/index.ts` modelin BEYANI ile DOĞRULANANI ayrı taşıyor (`sourceAudit`) — `verifyUsedSources`'ın
+sessizce elediği uydurma atıf artık sayılıyor · QR rotası ve dört `auto_reply` karar kaydı sayaçları
+yazıyor · okuma tarafı `lib/ai/grounding.ts` (`classifyGrounding`) etiketi HÜKÜM DEĞİL hipotez olarak
+döndürüyor (`decisive` bugün hiçbir sınıfta `true` değil) ve yeni kalem önerisini yalnız `absent`
+sınıfında meşru sayıyor. Kanıt: 26 yeni test (15 + 5 + 6), 12 iki yönlü mutasyonun tamamı yakalandı,
+tam kapılar yeşil (3760 test / 338 dosya), sıfır drift.
+
 ### Hâlâ YAPILMAYANLAR (açıkça)
-A2–A5 kodlanmadı. Düşük güven bandı (`QR_INFORMATIONAL_BAND_ENABLED`) **gerçek model eval'i bitmeden
+A3–A5 kodlanmadı. Düşük güven bandı (`QR_INFORMATIONAL_BAND_ENABLED`) **gerçek model eval'i bitmeden
 AÇILMAYACAK** — varsayılan kapalı kalır. Migration 53 yerelde hazır ve test edildi; taze `pg_dump` + açık
 push onayı olmadan GÖNDERİLMEZ. "Kurulum ve eksikler" / "İncelenecek öneriler" ayrı görünümleri A3–A5 ile
 gelir; bugün KB ekranı taslak ÜRETMEDİĞİ için değişmedi (üreten yol yokken ayrı sekme boş kutu olurdu).

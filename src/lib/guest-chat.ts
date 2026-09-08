@@ -498,6 +498,14 @@ export interface GuestChatContext {
   knowledgeBase: { category: string; title: string; content: string }[];
   /** Adet tavanı yüzünden istemin dışında kalan kalem sayısı (istem bunu modele söyler). */
   knowledgeBaseDropped: number;
+  /**
+   * A2 — aktif ama ONAY KAPISINDAN geçmeyen kalem sayısı. "Bilgi yok" ile
+   * "bilgi var, onay bekliyor" ayrımı için; istemde KULLANILMAZ, yalnız karar
+   * kaydına (`RiskEvent`) gider.
+   */
+  knowledgeBasePendingApproval: number;
+  /** A2 — isteme giren kalemlerin en yeni `updatedAt`'i (bilgi sürümü) veya null. */
+  knowledgeBaseVersionAt: Date | null;
   /** True when this stay must present a PIN before it can be claimed on a device
    *  (Faz 5). Derived: QR_PIN_ENABLED env on AND (this reservation has a PIN OR the
    *  org runs strict mode). NEVER exposes the hash — only the boolean gate. */
@@ -826,18 +834,19 @@ export async function resolveGuestChat(
   // Closed → return the property (so the page can show a branded "no active stay"
   // screen) but no reservation and an empty knowledge base (nothing to answer).
   if (!open) {
-    return { property: propertyPublic, open: false, activeReservation: null, knowledgeBase: [], knowledgeBaseDropped: 0, pinRequired: false };
+    return { property: propertyPublic, open: false, activeReservation: null, knowledgeBase: [], knowledgeBaseDropped: 0, knowledgeBasePendingApproval: 0, knowledgeBaseVersionAt: null, pinRequired: false };
   }
 
   // QR yolunda hiç tavan YOKTU — 60 aktif kayıtlı bir dairede istem sınırsız
   // büyüyordu. Tek yol `ai/kb-fetch.ts` (tavan + kaç kalemin düştüğü).
   // Gizli kategoriler WHERE'de eleniyor, yani tavan yalnız GÖSTERİLEBİLİR
   // kalemler arasından seçiyor — slot israfı yok ve düşen sayısı da doğru.
-  const { items: kbRaw, dropped: kbDropped } = await fetchKnowledgeBaseForPrompt({
+  const kb = await fetchKnowledgeBaseForPrompt({
     propertyId: property.id,
     isActive: true,
     category: { notIn: [...QR_SECRET_CATEGORIES] },
   });
+  const { items: kbRaw, dropped: kbDropped } = kb;
   // Drop any item whose text looks like an access secret, even in an allowed
   // category — the public bearer-token surface must never have a code in context.
   const knowledgeBase = withoutSecretKbItems(kbRaw);
@@ -851,7 +860,7 @@ export async function resolveGuestChat(
   // demesi) tam da en halka açık yüzeyde açıktı.
   const droppedTotal = kbDropped + (kbRaw.length - knowledgeBase.length);
 
-  return { property: propertyPublic, open: true, activeReservation, knowledgeBase, knowledgeBaseDropped: droppedTotal, pinRequired };
+  return { property: propertyPublic, open: true, activeReservation, knowledgeBase, knowledgeBaseDropped: droppedTotal, knowledgeBasePendingApproval: kb.pendingApproval, knowledgeBaseVersionAt: kb.versionAt, pinRequired };
 }
 
 /**

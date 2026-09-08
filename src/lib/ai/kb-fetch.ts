@@ -1,7 +1,7 @@
 import type { Prisma } from "@prisma/client";
 import { prisma } from "@/lib/db";
 import { KB_ITEM_CAP } from "@/lib/ai/limits";
-import { KB_APPROVAL_GATE_WHERE } from "@/lib/kb-review";
+import { KB_APPROVAL_GATE_WHERE, isAiReadableReviewState } from "@/lib/kb-review";
 
 // ---------------------------------------------------------------------------
 // BİLGİ TABANINI İSTEM İÇİN ÇEK — TEK YOL (denetim, 07-31).
@@ -27,6 +27,22 @@ export interface KbForPrompt {
   items: { category: string; title: string; content: string }[];
   /** Adet tavanı yüzünden istemin DIŞINDA kalan kalem sayısı (0 = kesme yok). */
   dropped: number;
+  /**
+   * A2 — AKTİF ama ONAY KAPISINDAN geçmeyen kalem sayısı (A1 `draft`).
+   *
+   * Neden ayrı sayılıyor: "bu mülkte hiç bilgi yok" ile "bilgi var ama henüz
+   * onaylanmadı" bambaşka iki durumdur. İkincisinde host'a "şu bilgiyi ekle"
+   * demek, zaten yazdığı şeyi yeniden yazdırmak olurdu. `dropped` ile de
+   * karıştırılamaz: o kapasite (tavan), bu yetki (onay).
+   */
+  pendingApproval: number;
+  /**
+   * A2 — İSTEME GİREN kalemlerin en yeni `updatedAt`'i = cevabın dayandığı
+   * BİLGİ SÜRÜMÜ. Kalem KİMLİĞİ taşınmaz (RiskEvent'in PII'siz sözleşmesi);
+   * "hangi nesil bilgiyle karar verildi" sorusuna kimlik sızdırmadan yanıt.
+   * Kalem yoksa null — 0/şimdi gibi sahte bir değer üretilmez.
+   */
+  versionAt: Date | null;
 }
 
 export async function fetchKnowledgeBaseForPrompt(
@@ -44,16 +60,36 @@ export async function fetchKnowledgeBaseForPrompt(
   // bir bilgi için konuşma insana devredilirdi. Taslak eksik bilgi değildir,
   // henüz bilgi DEĞİLDİR.
   const gated: Prisma.KnowledgeBaseItemWhereInput = { AND: [where, KB_APPROVAL_GATE_WHERE] };
-  const [items, total] = await Promise.all([
+  // A2: tek `count` yerine `groupBy` — SORGU SAYISI ARTMADAN hem onay kapısını
+  // geçen toplam hem de kapıda kalan (`draft`) sayısı aynı taramadan çıkıyor.
+  // Çağıranın filtresi burada KAPISIZ kullanılır; kapı zaten `gated`ta.
+  const [rows, byState] = await Promise.all([
     prisma.knowledgeBaseItem.findMany({
       where: gated,
-      select: { category: true, title: true, content: true },
+      // `updatedAt` yalnız SÜRÜM hesabı için okunur; istemde gönderilen nesneye
+      // konmaz (aşağıda ayıklanıyor) — istem yüzeyi değişmesin.
+      select: { category: true, title: true, content: true, updatedAt: true },
       // "En son güncellenen kazanır": host bir bilgiyi düzelttiyse istemde
       // kalan o olsun. Düşenler en eski dokunulmuş kayıtlardır.
       orderBy: { updatedAt: "desc" },
       take: KB_ITEM_CAP,
     }),
-    prisma.knowledgeBaseItem.count({ where: gated }),
+    prisma.knowledgeBaseItem.groupBy({
+      by: ["reviewState"],
+      where,
+      _count: { _all: true },
+    }),
   ]);
-  return { items, dropped: Math.max(0, total - items.length) };
+
+  let total = 0;
+  let pendingApproval = 0;
+  for (const g of byState) {
+    if (isAiReadableReviewState(g.reviewState)) total += g._count._all;
+    else pendingApproval += g._count._all;
+  }
+  const items = rows.map(({ category, title, content }) => ({ category, title, content }));
+  // Sıralama `updatedAt desc` olduğu için ilk satır en yenisi; yine de boş
+  // listede `undefined` yerine açıkça null döndürülüyor.
+  const versionAt = rows[0]?.updatedAt ?? null;
+  return { items, dropped: Math.max(0, total - items.length), pendingApproval, versionAt };
 }

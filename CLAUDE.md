@@ -536,13 +536,23 @@ Sekiz P1 KAPANDI (09-07), her biri ayrı commit, kırmızı-önce + iki yönlü 
   gider) → gönderici + önizleme + Gönderilenler ekranı ortak `GUEST_DELIVERABLE_KB_WHERE` (parite).
   PATCH onay İDDİASI üretmez (zod'da alan yok; `isActive` düğmesi içerik incelemesi değildir), COPY onay
   soyunu DEVRALIR (taslak kopyalanarak onaylıya çevrilemez), taslak mülk hafızasına da girmez.
-- **DEĞERLENDİRME (Codex/kurucu 09-08; A2–A5 uygulanmadı):** host metninden alan önerisi (taslak, çelişkide
+- **A2 temellendirme izlenebilirliği KOD HAZIR — YEREL, PUSH EDİLMEDİ (migration 54 push kapısında).**
+  `RiskEvent`: `kbRetrieved · kbDropped · kbPendingApproval · kbVersionAt · srcDeclared · srcVerified`
+  (hepsi nullable; 🚨 **NULL = ÖLÇÜLMEDİ, 0 DEĞİL** — ölçmeyen yol sahte "bilgi yokluğu" üretmez).
+  `kb-fetch` onay kapısında kalanı ve bilgi SÜRÜMÜNÜ de döndürür (sorgu sayısı artmadan `groupBy`).
+  `ai/index.ts` modelin BEYANI (`declared`) ile gerçek girdiye karşı DOĞRULANANI (`verified`) ayrı
+  taşır → `verifyUsedSources`'ın sessizce elediği **uydurma atıf** artık görünür. Okuma tarafı
+  `lib/ai/grounding.ts`: `classifyGrounding` bir ETİKET + `decisive` bayrağı döndürür, HÜKÜM DEĞİL
+  (bugün hiçbir sınıf `decisive`); yeni kalem önerisi YALNIZ `absent` sınıfında meşru —
+  `awaiting_approval` (bilgi var, onaysız) · `ungrounded` (gitti, kullanılmadı) · `capacity` (tavan) ·
+  `fabricated_citation` sınıflarında host'a "bilgi ekle" DENMEZ. Sayaçlar hiçbir gönderim kararına girmez.
+- **DEĞERLENDİRME (Codex/kurucu 09-08; A3–A5 uygulanmadı):** host metninden alan önerisi (taslak, çelişkide
   host seçer; yer tutucu `{isim}` gerçeğe DÖNÜŞMEZ) · eksikleri GERÇEK sorulardan bulma (V1 `Signal` verisi
   zaten akıyor; kategori ↔ KB eşlemesi + tekilleştirme + bildirim yağmuru yok) · yapılandırılmış alan ↔
   retrieval ayrımı (çift kopya yasak; vektör GEREKLİLİK ölçülmeden eklenmez) · yetki filtresi retrieval'dan
   ÖNCE ve sır elemesi GEVŞETİLMEZ. 🚨 **A2 düzeltmesi:** `usedSources` TEK BAŞINA "bilgi yok" ile "retrieval
-  başarısız"ı AYIRMAZ (modelin beyanıdır; hiç kalem verilmemiş de olabilir) → kodun bildiği `retrievedCount`
-  ile beyan edilen `usedCount` YAN YANA kaydedilecek.
+  başarısız"ı AYIRMAZ (modelin beyanıdır; hiç kalem verilmemiş de olabilir) → kodun bildiği ile beyan
+  edilen YAN YANA kaydedilir (A2 ile UYGULANDI).
   Sıra ve gerekçeler: `docs/DEGERLENDIRME-2026-09-08-bilgi-tabani-doldurma-ve-retrieval.md`.
 - **Codex P2 (F09–F18)** ilgili modül turlarında. `docs/DENETIM-2026-08-09.md` (27 açık),
   `docs/ACIK-ISLER-2026-08-08.md` (16), `docs/MIGRATION-BEKLEYEN-ISLER.md`.

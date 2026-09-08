@@ -990,25 +990,34 @@ model WebhookEvent {
 // Conversation snapshot (which lost every prior decision). No backfill: history
 // starts at feature activation, and the report says so.
 model RiskEvent {
-  id             String   @id @default(cuid())
-  organizationId String
+  id                String    @id @default(cuid())
+  organizationId    String
   // Plain metadata ids (NO FK — ChatUsage precedent): history survives
   // property/conversation cleanup; KVKK deletion is guaranteed by the
   // organization CASCADE below. Opaque cuids, never PII.
-  propertyId     String?
-  conversationId String?
-  surface        String // auto_reply | alerts (QR may join later)
+  propertyId        String?
+  conversationId    String?
+  surface           String // auto_reply | alerts (QR may join later)
   // The inbound Message id that forced this decision — with organizationId +
   // finalDecision it forms the TENANT-SCOPED retry-idempotency key: a retried
   // pass can't double-log, a LEGITIMATE later transition (held -> sent) still
   // records, and two tenants sharing a trigger string can never mask each other.
-  triggerId      String
-  finalDecision  String // auto_sent | human_review
-  riskLevel      String? // none|low|medium|high (code-clamped); NULL on the keyword path (no model verdict — never fabricate one)
-  riskType       String? // closed set (clamped in code) or null
-  reason         String? // closed-set code (escalated_to_human, low_confidence_or_risky, keyword_escalated[_ack], gate_passed) — NEVER guest text
-  confidence     Float? // model confidence at decision time (0-1) — feeds threshold tuning
-  occurredAt     DateTime @default(now())
+  triggerId         String
+  finalDecision     String // auto_sent | human_review
+  riskLevel         String? // none|low|medium|high (code-clamped); NULL on the keyword path (no model verdict — never fabricate one)
+  riskType          String? // closed set (clamped in code) or null
+  reason            String? // closed-set code (escalated_to_human, low_confidence_or_risky, keyword_escalated[_ack], gate_passed) — NEVER guest text
+  confidence        Float? // model confidence at decision time (0-1) — feeds threshold tuning
+  // A2 — TEMELLENDİRME İZLENEBİLİRLİĞİ (migration 54). Hepsi nullable ve
+  // 🚨 NULL = "ÖLÇÜLMEDİ", 0 DEĞİL: eski satırlar ve ölçmeyen yollar sıfır
+  // gibi görünüp "hiç kalem yoktu" diye okunamaz.
+  kbRetrieved       Int? // koda göre isteme GERÇEKTEN giren kalem sayısı
+  kbDropped         Int? // adet tavanı yüzünden düşen (ayrı kova — bilgi yokluğu DEĞİL)
+  kbPendingApproval Int? // aktif ama onay kapısından geçmeyen (bilgi VAR, onaylanmamış)
+  kbVersionAt       DateTime? // isteme giren kalemlerin en yeni updatedAt'i = bilgi SÜRÜMÜ
+  srcDeclared       Int? // modelin BEYAN ettiği kaynak sayısı (temizlenmiş)
+  srcVerified       Int? // gerçek girdiyle DOĞRULANANLAR; fark = uydurma atıf
+  occurredAt        DateTime  @default(now())
 
   organization Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
 

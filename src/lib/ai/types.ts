@@ -101,6 +101,16 @@ export interface SuggestReplyResult {
   riskType: string | null;
   /** Evidence: which context grounded the reply (e.g. "kb:wifi", "reservation:checkOutTime", "property:checkInTime", "history"). */
   usedSources: string[];
+  /**
+   * A2 — modelin BEYAN ettiği kaynak sayısı ile gerçek girdiye karşı
+   * DOĞRULANAN sayı. `usedSources` yalnız doğrulananları taşır; doğrulama
+   * eleyince kaç atıfın düştüğü bugüne kadar iz bırakmadan kayboluyordu ve
+   * "uydurma atıf" canlıda görünmüyordu.
+   *
+   * Opsiyonel: yokluğu "ölçülmedi" demektir (0 DEĞİL). Karar kaydına NULL
+   * gider; sahte bir sıfır, olmayan bir ölçümü varmış gibi gösterirdi.
+   */
+  sourceAudit?: { declared: number; verified: number };
   /** What was missing to answer fully (short phrases; empty when nothing). */
   missingInfo: string[];
   /** The guest's own stated departure/check-out time as "HH:MM" (24h), or null. */

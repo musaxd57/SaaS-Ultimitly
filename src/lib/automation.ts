@@ -1519,14 +1519,23 @@ export async function applyChannelAutoReply(
   // Tek yol `ai/kb-fetch.ts`: tavan + "kaç tanesi düştü" oradan gelir. Burası
   // uzun süre sabit 40'tı (test kartı ve "AI öner" 30 okurken), yani ne yüzeyler
   // arasında parite ne de ekrandaki "en fazla 30 okur" uyarısı doğruydu.
-  const { items: kbRaw, dropped: kbDropped } = await fetchKnowledgeBaseForPrompt({
+  const kbFetch = await fetchKnowledgeBaseForPrompt({
     propertyId: conversation.propertyId,
     isActive: true,
   });
+  const { items: kbRaw, dropped: kbDropped } = kbFetch;
   // Resolve any {isim} placeholder in KB entries (e.g. the welcome template) to
   // the guest's name before it reaches the model, so a literal "{isim}" can
   // never leak into a reply.
   const guestFirst = guestFirstName(conversation.guestIdentifier) ?? "misafirimiz";
+  // A2 — TEMELLENDİRME SAYAÇLARI (tek yerde kurulur, her karar kaydına aynen
+  // gider). `kbRetrieved` istemin GÖRÜNEN kalem sayısıdır; aşağıda `kbVisible`
+  // hesaplandıktan sonra tamamlanır — burada yalnız kapasite/yetki/sürüm
+  // tarafı sabitleniyor.
+  const groundingBase = {
+    kbPendingApproval: kbFetch.pendingApproval,
+    kbVersionAt: kbFetch.versionAt,
+  };
   const kb = kbRaw.map((k) => ({
     ...k,
     content: fillPlaceholders(k.content, guestFirst, conversation.property.name),
@@ -1569,6 +1578,14 @@ export async function applyChannelAutoReply(
     : withoutSecretKbItems(
         kb.filter((i) => !(QR_SECRET_CATEGORIES as readonly string[]).includes(i.category)),
       );
+
+  // A2: istemin GERÇEKTEN taşıdığı kalem sayısı — `kbDropped` ile aynı formül
+  // (`knowledgeBaseDropped`), yani sayaçlar modelin gördüğü bağlamla tutarlı.
+  const grounding = {
+    ...groundingBase,
+    kbRetrieved: kbVisible.length,
+    kbDropped: kbDropped + (kb.length - kbVisible.length),
+  };
 
   // Turnover context so early-checkin / late-checkout answers are data-driven.
   const adjacency = conversation.reservation
@@ -1913,6 +1930,9 @@ export async function applyChannelAutoReply(
         riskType: result.riskType ?? detectRiskType(last.body),
         reason: "escalated_to_human",
         confidence: result.confidence,
+        ...grounding,
+        srcDeclared: result.sourceAudit?.declared ?? null,
+        srcVerified: result.sourceAudit?.verified ?? null,
       });
       // GLM gölge (Aşama-1): bağımsız ikinci hüküm, karar yetkisi SIFIR.
       // await YOK — gönderim/escalation yolunu bir milisaniye bile bekletmez.
@@ -1947,6 +1967,9 @@ export async function applyChannelAutoReply(
         riskType: result.riskType ?? detectRiskType(last.body),
         reason: "low_confidence_or_risky",
         confidence: result.confidence,
+        ...grounding,
+        srcDeclared: result.sourceAudit?.declared ?? null,
+        srcVerified: result.sourceAudit?.verified ?? null,
       });
       void recordShadowVerdict({
         organizationId: conversation.property.organizationId,
@@ -2086,6 +2109,9 @@ export async function applyChannelAutoReply(
       riskType: result.riskType,
       reason: "gate_passed",
       confidence: result.confidence,
+      ...grounding,
+      srcDeclared: result.sourceAudit?.declared ?? null,
+      srcVerified: result.sourceAudit?.verified ?? null,
     });
     void recordShadowVerdict({
       organizationId: conversation.property.organizationId,
@@ -2257,6 +2283,9 @@ export async function applyChannelAutoReply(
     riskType: result.riskType,
     reason: "gate_passed",
     confidence: result.confidence,
+    ...grounding,
+    srcDeclared: result.sourceAudit?.declared ?? null,
+    srcVerified: result.sourceAudit?.verified ?? null,
   });
   void recordShadowVerdict({
     organizationId: conversation.property.organizationId,

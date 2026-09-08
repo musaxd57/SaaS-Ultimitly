@@ -1,5 +1,17 @@
 # Migration 53 (KB onay sözleşmesi) — canlı doğrulama sorguları
 
+## ✅ SONUÇ (2026-09-08, operatör koştu, salt-okuma)
+Beş kontrolün beşi de geçti; migration 53 prod'da **doğrulandı**.
+1. `53_kb_review_state` · `finished_at = 2026-09-08 16:42:44.246096+00` · `rolled_back_at` boş.
+2. `source`/`reviewState` → `NOT NULL` + varsayılan **`'legacy'::text`**; `approvedAt`/`sourceRef`/
+   `supersededById` nullable ve varsayılansız.
+3. Tek satır: **`legacy | legacy | 32 | 0`** — 32 kalemin tamamı legacy doğdu, `approvedAt` yazılan
+   satır YOK (onay zamanı uydurulmadı).
+4. **`aktif_kalem = 32`, `ai_okuyabilir = 32`, `ai_disinda = 0`** — migration öncesi modele giden her
+   kalem gitmeye devam ediyor. Davranış korunumunun asıl kanıtı budur.
+5. `PropertyMemory` (`source='kb_item'`): `active = 32`, `retired` satırı yok.
+
+
 > Commit `33b6ae8` · push 2026-09-08 16:29Z · yedek
 > `lixus-prod-post-contract-2026-09-08-192649.dump` (1.476.254 bayt · TOC 226 girdi ·
 > SHA256 `0F925FCCDF784A366BFE04A7E96F04019ABC3ACF8B2172D5AF8F958A795FB45B`).
