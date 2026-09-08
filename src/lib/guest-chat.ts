@@ -513,6 +513,32 @@ export interface GuestChatContext {
  * The token is globally unique, so it resolves to exactly one apartment in one
  * organization; there is no cross-tenant path.
  */
+/**
+ * ESKALASYON CEVABI — SÖZ, GERÇEĞE UYGUN OLMAK ZORUNDA (denetim 08-01 + Codex 09-08).
+ *
+ * Metin bir dönem KOŞULSUZ "ev sahibine ilettim" diyordu; 08-01'de bayrağa
+ * bağlandı (`QR_ESCALATION_EMAIL_ENABLED` kapalıyken doğru metin). 09-08 canlı
+ * turunda BAYRAK AÇIKKEN de yanlış beyan olduğu ölçüldü: e-posta o an
+ * gönderilmemiş olabilir ve KOD BUNU BİLMEZ — olay-kimliği dedupe, 5 dk
+ * anti-flood cooldown, alıcı yokluğu (org alertEmail + owner boş) ve sağlayıcı
+ * hatası dallarının hepsi sessizce `{sent:false}` döner. Üstelik yanıt metni
+ * kayıt transaction'ında, e-posta çağrısından ÖNCE yazılır ve
+ * `sendQrEscalationAlertBounded` `Promise<void>` döndürür — sonuç hiç okunmaz.
+ * Canlı transkriptte dört ardışık devirde dördü de "ilettim" dedi; cooldown
+ * yüzünden en fazla biri mail üretmiş olabilir.
+ *
+ * Bu yüzden metin artık YALNIZ garanti edileni söyler: mesaj kaydedildi ve ev
+ * sahibi sohbet ekranından görür (kayıt, yanıtla AYNI transaction'da yazılır).
+ * E-posta bir BONUS kanaldır; sözü verilmez.
+ *
+ * KALAN İŞ (ayrı tur): e-posta gerçekten gönderildiğinde metni zenginleştirmek —
+ * alert çağrısının kayıttan ÖNCE koşmasını ve olay kimliğinin mesaj id'sinden
+ * bağımsız üretilmesini gerektirir.
+ */
+export function escalationReply(): string {
+  return "Mesajınız kaydedildi; ev sahibiniz sohbet ekranından görüntüleyebilir.";
+}
+
 export async function resolveGuestChat(
   token: string,
   now: Date = new Date(),

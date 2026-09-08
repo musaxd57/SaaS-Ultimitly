@@ -49,6 +49,9 @@ export class QualityAuditError extends Error {
 
 // Tek mesaj gövdesi üst sınırı — 30 çift × ~1.4KB ≈ 40KB'lik tek istem tavanı.
 const BODY_CAP = 700;
+/** Yanıt başına denetçiye verilecek EN FAZLA önceki misafir mesajı (peş peşe
+ *  yazılmış olabilir). Tavan var çünkü istem bütçesi paylaşımlıdır. */
+const PRIOR_INBOUND_CAP = 3;
 
 const clampDays = (v: unknown) =>
   Math.min(90, Math.max(1, Math.trunc(typeof v === "number" && Number.isFinite(v) ? v : 7)));
@@ -66,12 +69,25 @@ export function redactForAudit(text: string, guestNames: Array<string | null | u
   return clean.length > BODY_CAP ? `${clean.slice(0, BODY_CAP)} …[kısaltıldı]` : clean;
 }
 
+/**
+ * Yanıtın misafir bağlamı NASIL bulundu — `guest: null` tek başına "proaktif"
+ * KANITI DEĞİLDİR (Codex, 09-08):
+ *   · matched   — yanıttan önce en az bir misafir mesajı bulundu ve verildi.
+ *   · proactive — konuşmada yanıttan önce HİÇ misafir mesajı yok (yaşam-döngüsü/
+ *                 karşılama gibi gerçekten proaktif gönderim).
+ *   · unmatched — konuşmada misafir mesajı VAR ama bu yanıtla eşleştirilemedi
+ *                 (sıra/damga sorunu). Denetçi bunu "eksik bağlam" sayar; yanıtı
+ *                 "var olmayan soruya atıf" diye suçlaMAZ.
+ */
+export type GuestContext = "matched" | "proactive" | "unmatched";
+
 /** Denetçiye giden tek örnek: misafirin son mesajı + AI'ın gönderdiği yanıt. */
 export interface AuditPair {
   messageId: string;
   property: string;
   at: string; // ISO — sıralama/bağlam için
-  guest: string | null; // yanıttan hemen önceki inbound mesaj (redakte)
+  guest: string | null; // yanıttan önceki cevapsız misafir mesaj(lar)ı (redakte)
+  guestContext: GuestContext;
   ai: string; // gönderilen AI yanıtı (redakte)
   aiIntent: string | null;
   language: string;
@@ -160,17 +176,52 @@ export async function collectAuditSample(
   for (const m of aiMessages) {
     // Yanıtın hemen öncesindeki misafir mesajı — denetçinin "neye cevap verdi"
     // bağlamı. Örneklem ≤60 olduğundan mesaj başına tek indexed sorgu kabul.
-    const prev = await prisma.message.findFirst({
-      where: { conversationId: m.conversationId, direction: "inbound", createdAt: { lt: m.createdAt } },
-      orderBy: { createdAt: "desc" },
-      select: { body: true },
+    // 🚨 EŞİT DAMGA EŞLEŞMEYİ BOZMAZ (Codex denetimi, 09-08). Eski sorgu
+    // `createdAt: { lt: yanıt }` idi ve kopma noktası (id) YOKTU. QR yolu misafirin
+    // satırıyla botun satırını TEK transaction'da yazar (`createManyAndReturn`,
+    // `chat/[token]/route.ts`) ve `createdAt` DB varsayılanıdır — PostgreSQL'de
+    // `CURRENT_TIMESTAMP` transaction BAŞLANGICIDIR, yani iki satır AYNI
+    // milisaniyeyi alır. `lt` misafir mesajını eliyor, `guest` null kalıyor ve
+    // denetçi ürünü "var olmayan bir misafir sorusuna atıf yaptı" diye
+    // suçluyordu (ölçüldü, canlı bulgu). Çözüm: `lte` + kendi id'sini dışla;
+    // sıralama (createdAt, id) çiftiyle deterministik.
+    //
+    // AYRICA: yanıttan önceki SON BİRKAÇ misafir mesajı alınır. Tek "son inbound"
+    // almak, peş peşe iki mesaj yazan misafirde denetçiye eksik bağlam verip yine
+    // haksız bulgu üretiyordu (canlı transkriptte gözlendi).
+    const priorInbound = await prisma.message.findMany({
+      where: {
+        conversationId: m.conversationId,
+        direction: "inbound",
+        OR: [{ createdAt: { lt: m.createdAt } }, { createdAt: m.createdAt, id: { not: m.id } }],
+      },
+      orderBy: [{ createdAt: "desc" }, { id: "desc" }],
+      select: { body: true, createdAt: true, id: true },
+      take: PRIOR_INBOUND_CAP,
     });
+    // `guest: null` iken AYRIM: konuşmada hiç misafir mesajı yoksa gerçekten
+    // proaktif; varsa (ama bu yanıttan sonra) eşleştirilemedi → denetçi "eksik
+    // bağlam" görsün, "uydurma atıf" değil.
+    const anyInboundInThread =
+      priorInbound.length > 0 ||
+      (await prisma.message.count({
+        where: { conversationId: m.conversationId, direction: "inbound" },
+        take: 1,
+      })) > 0;
     const names = [m.conversation.reservation?.guestName, m.conversation.guestIdentifier];
+    const guestText = priorInbound.length
+      ? priorInbound
+          .slice()
+          .reverse()
+          .map((r) => redactForAudit(r.body, names))
+          .join("\n---\n")
+      : null;
     pairs.push({
       messageId: m.id,
       property: aliasFor(m.conversation.property.name),
       at: m.createdAt.toISOString(),
-      guest: prev ? redactForAudit(prev.body, names) : null,
+      guest: guestText,
+      guestContext: guestText ? "matched" : anyInboundInThread ? "unmatched" : "proactive",
       ai: redactForAudit(m.body, names),
       aiIntent: m.aiIntent,
       language: m.language,
@@ -207,7 +258,9 @@ Raporlama ilkeleri:
 /** Kullanıcı istemi: şema tarifi + redakte örneklem (güvenilmez-veri uyarılı). */
 export function buildAuditPrompt(pairs: AuditPair[]): string {
   return [
-    `Aşağıda misafirlere GÖNDERİLMİŞ ${pairs.length} AI yanıtı ve her birinin öncesindeki misafir mesajı var (kişisel veriler redakte edildi; "guest" null ise yanıt proaktif bir mesajdı).`,
+    `Aşağıda misafirlere GÖNDERİLMİŞ ${pairs.length} AI yanıtı ve her birinin öncesindeki misafir mesaj(lar)ı var (kişisel veriler redakte edildi).`,
+    `Her çiftte "guestContext" alanı bağlamın NASIL bulunduğunu söyler: "matched" = misafir mesajı verildi; "proactive" = konuşmada hiç misafir mesajı yok, yanıt gerçekten proaktifti; "unmatched" = misafir mesajı VAR ama bu yanıtla eşleştirilemedi (bizim tarafımızda eksik bağlam).`,
+    `⚠️ "guest" null olması TEK BAŞINA proaktif kanıtı DEĞİLDİR: yalnız "proactive" iken yanıtı "var olmayan bir soruya atıf" diye değerlendir. "unmatched" iken eksik bağlamı NOT ET ve o yanıt hakkında doğruluk bulgusu ÜRETME.`,
     "Her çifti ürün kurallarına göre değerlendir ve YALNIZ şu şemaya uyan tek bir JSON nesnesi döndür:",
     "{",
     '  "overall": "1-3 cümlelik genel değerlendirme",',

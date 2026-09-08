@@ -157,7 +157,16 @@ describe("QR concierge — org bütçesi ve dürüst söz", () => {
     expect(body.reply).toContain("kaydedildi");
   });
 
-  it("uyarı bayrağı AÇIKKEN söz doğrudur ve aynen korunur", async () => {
+  it("🚨 uyarı bayrağı AÇIKKEN DE 'ilettim' DENMEZ (Codex 09-08: bayrak ≠ gönderim garantisi)", async () => {
+    // ESKİ BEKLENTİ `toContain("ilettim")` İDİ ve yanlış beyanı pinliyordu.
+    // Bayrağın açık olması e-postanın GİTTİĞİ anlamına gelmez: olay-kimliği
+    // dedupe, 5 dk anti-flood cooldown, alıcı yokluğu (org alertEmail + owner
+    // boş) ve sağlayıcı hatası dallarının hepsi sessizce `{sent:false}` döner.
+    // Üstelik yanıt metni kayıt transaction'ında, e-posta çağrısından ÖNCE
+    // yazılır ve `sendQrEscalationAlertBounded` `Promise<void>` — sonuç hiç
+    // okunmaz. Canlı transkriptte (09-08) dört ardışık devirde dördü de
+    // "ilettim" dedi; cooldown yüzünden en fazla biri mail üretmiş olabilir.
+    // Sözleşme: metin YALNIZ garanti edileni söyler.
     vi.stubEnv("AI_DAILY_CALL_CAP", "1");
     vi.stubEnv("QR_ESCALATION_EMAIL_ENABLED", "1");
     const { token } = await seed();
@@ -165,7 +174,9 @@ describe("QR concierge — org bütçesi ve dürüst söz", () => {
     const res = await ask(token, "Otopark var mı?", deviceCookie(first));
     const body = await res.json();
 
-    expect(body.reply).toContain("ilettim");
+    expect(body.reply).not.toMatch(/ilettim/i);
+    expect(body.reply).toContain("kaydedildi");
+    expect(body.reply).toMatch(/sohbet ekranından/i);
   });
 
   it("güvenlik eskalasyonunda da söz bayrağa göre dürüst (bayrak KAPALI)", async () => {

@@ -9,6 +9,13 @@
 
 ## A. QR misafir mesajı → şikayet sinyali
 
+> **✅ DOĞRULANDI — ARAYÜZDEN (kurucu + Codex, 2026-09-08; test mülkü `cmtsiavia0001qs2qxar7n8d9`).**
+> Yapay aktif konaklama üzerinden QR sohbetinde **"Klima bozuk, çalışmıyor."** gönderildi; yanıt alındı ve
+> **şikayet sinyali mülk sayfasındaki Mülk Hafızası kartında göründü**. Ara DB kayıtları (`IngestEvent`,
+> `Signal`) DOĞRUDAN SORGULANMADI — kanıt arayüzdendir.
+> **KAPSAM:** bu adım yalnız *şikayet → sinyal → kart* zincirini doğrular; **genel cevap kalitesini DEĞİL**
+> (aynı oturumda çıkan cevap kalitesi bulguları ayrı belgede: `docs/ACIK-2026-09-08-qr-cevap-kalitesi.md`).
+
 ### A.1 Kapılar (kod-doğrulandı, `src/lib/guest-chat.ts` `resolveGuestChat`)
 QR sohbetinin açılması için **hepsi** gerekir — hiçbiri gevşetilmez:
 
@@ -125,7 +132,7 @@ hatası değil (davranış tasarımla uyumlu). Kayıt: "takvim kaynağının ba�
 |---|---|
 | KB → mülk hafızası (A adımı) | ✅ arayüzden doğrulandı (gerçek mülk) |
 | Tek rezervasyonlu dosya → iptal → sinyal → kart | ✅ arayüzden doğrulandı (test mülkü) |
-| QR misafir mesajı → şikayet sinyali | ⏳ **HENÜZ YAPILMADI** — bu belgenin A bölümü (test verisi hazır, adımlar bekliyor) |
+| QR misafir mesajı → şikayet sinyali | ✅ arayüzden doğrulandı (09-08, test mülkü `cmtsiavia0001qs2qxar7n8d9`) — yalnız sinyal zinciri; cevap kalitesi ayrı |
 | URL üzerinden iCal → iptal sinyali | ⏳ AÇIK — kök neden **kanıtlanmadı** (B.3 içerik doğrulaması yapılmadı) |
 | Türkçe şikayet sınıflandırma boşluğu | ⏳ AÇIK — `docs/ACIK-2026-09-08-turkce-sikayet-siniflandirma-eksigi.md` (düzeltme ayrı AI kalite turu) |
 | Toplu / çok satırlı dosya | ⏳ doğrulanmadı |

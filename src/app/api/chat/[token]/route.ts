@@ -10,6 +10,7 @@ import {
   acquireGuestChatThreadLock,
   ensureGuestChatConversation,
   scrubStyleProfileForPublic,
+  escalationReply,
   type GuestChatContext,
   type GuestChatDb,
 } from "@/lib/guest-chat";
@@ -18,7 +19,6 @@ import { verifyReservationPin } from "@/lib/guest-chat-pin";
 import {
   sendQrEscalationAlertBounded,
   qrEscalationEventId,
-  qrEscalationEmailEnabled,
 } from "@/lib/guest-chat-alerts";
 import { jsonOk, badRequest, tooManyRequests, parseJsonBody, payloadTooLarge, serverError } from "@/lib/api";
 import { rateLimit, clientIp } from "@/lib/rate-limit";
@@ -66,27 +66,12 @@ const DAILY_AI_CAP_FALLBACK = 200;
 // duyuyordu. Söz içeriği DEĞİŞMEDİ: mesaj kaydedildi, host sohbet ekranından görür.
 const HANDOFF_REPLY = "Mesajınız ev sahibinize iletildi; sohbet ekranından size dönecek.";
 
-/**
- * ESKALASYON CEVABI — SÖZ, GERÇEĞE UYGUN OLMAK ZORUNDA (denetim, 08-01).
- *
- * Eski metin KOŞULSUZ "ev sahibine ilettim" diyordu. Oysa host'a giden TEK push
- * kanalı `QR_ESCALATION_EMAIL_ENABLED` ve VARSAYILAN KAPALI; kapalıyken
- * `maybeSendQrEscalationEmail` talebi claim bile etmeden dönüyor. İkinci bir
- * kanal da yok: QR konuşması bilerek `status:"answered"` doğuyor, panelin
- * dikkat listesi ise new/waiting/problem süzüyor → hiçbir yüzeye düşmüyor.
- * Yani varsayılan kurulumda misafir "yardım yolda" sanıyor, ev sahibi hiçbir şey
- * duymuyor — güvenlik acili dahil. Ölçülebilir bir yanlış beyandı.
- *
- * Bayrak AÇIKSA söz doğrudur ve aynen korunur. KAPALIYKEN metin, gerçekte olan
- * şeyi söyler: mesaj kaydedildi ve ev sahibi sohbet ekranından görecek.
- * ⚠️ Bayrağın kendisi ÜRÜN KARARIYLA kapalı (CLAUDE.md) — burada AÇILMIYOR,
- * yalnız metin gerçeğe uyduruluyor.
- */
-function escalationReply(): string {
-  return qrEscalationEmailEnabled()
-    ? "Sorunuzu ev sahibine ilettim; en kısa sürede size dönecek."
-    : "Mesajınız kaydedildi; ev sahibiniz sohbet ekranından görüntüleyebilir.";
-}
+// ESKALASYON CEVABI — gövde `src/lib/guest-chat.ts` `escalationReply()`.
+// Söz gerçeğe uygun olmak zorunda (denetim 08-01 + Codex 09-08): metin YALNIZ
+// garanti edileni söyler (mesaj kaydedildi, ev sahibi sohbet ekranından görür);
+// gerçekleşmesi garanti olmayan e-posta aktarımı ("ilettim") iddia EDİLMEZ.
+// Route dosyasından yardımcı export edilemez (Next.js "not a valid Route export
+// field") — bu yüzden kütüphanede durur ve testler oradan okur.
 
 const notFound = () => new Response("Not found", { status: 404 });
 

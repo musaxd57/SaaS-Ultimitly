@@ -46,6 +46,7 @@ describe("buildAuditPrompt", () => {
     property: "Nuve 3",
     at: "2026-07-15T10:00:00.000Z",
     guest: "Wifi şifresi nedir?",
+    guestContext: "matched",
     ai: "Wifi şifremiz: guestops2026.",
     aiIntent: "wifi",
     language: "tr",

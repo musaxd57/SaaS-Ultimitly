@@ -438,7 +438,13 @@ describe("POST /api/chat/[token] — escalation wires the e-mail", () => {
     expect(res.status).toBe(200);
     const json = await res.json();
     expect(json.escalated).toBe(true);
-    expect(json.reply).toContain("ilettim"); // guest still gets the canned handoff
+    // Misafir yine bir devir yanıtı alır — AMA (Codex 09-08) e-posta GİTMEDİĞİ
+    // hâlde "ilettim" DENMEZ. Eski beklenti (`toContain("ilettim")`) tam da bu
+    // yanlış beyanı pinliyordu: sağlayıcı hatası dalında bile aktarım iddia
+    // ediliyordu. Metin artık yalnız garanti edileni söyler.
+    expect(json.reply).toBeTruthy();
+    expect(json.reply).not.toMatch(/ilettim/i);
+    expect(json.reply).toMatch(/kaydedildi/i);
     expect(mockReportError).toHaveBeenCalled();
   });
 });
