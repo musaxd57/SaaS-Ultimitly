@@ -532,6 +532,10 @@ CI: koşmadı (push yok).
 **Geri alma:** V0.6 kodu revert edilirse `IngestEvent` tablosu zararsız durur (tüketici yok); write service ile
 eski importThread davranışı aynı (yalnız "değişmeyen UPDATE atlanır" farkı geri döner). Bayrak yok.
 
+**Push kapısı adım (1)+(2) KANITI (2026-09-08 06:00, operatör klonu `LixusPreflight-43ccd3c`, `ops-backup-prod.ps1`):**
+`lixus-prod-post-contract-2026-09-08-060002.dump` · 1.457.780 bayt · TOC 203 · `pg_restore -l` ✅ · SHA256
+`EF6366944195EC28CF6A4BB98BD16716F24EA187BC6078D3D371F1D2CC194002` · kurucu "push et yedek tamam" (06:0x).
+
 **Operatör kapısı (push ÖNCESİ):** §10 adımları aynen — taze `pg_dump` + SHA + açık "push et" → CI 5/5
 (migration-chain 51 taze DB'de) → Railway `migrate deploy` (CREATE TABLE; kısa) → salt-okuma kontrol:
 `_prisma_migrations` `51_ingest_event` finished; ilk senkrondan sonra `SELECT kind, count(*) FROM "IngestEvent"
