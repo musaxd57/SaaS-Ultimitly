@@ -555,7 +555,22 @@ Sekiz P1 KAPANDI (09-07), her biri ayrı commit, kırmızı-önce + iki yönlü 
   `decisive` değil → host'a giden şey KESİN TESPİT değil **İNCELEME ADAYI** (`reviewCandidate`);
   otomatik bilgi oluşturma YOK ve modül DB'ye hiç erişmediği için yapısal olarak imkânsız.
   Sayaçlar hiçbir gönderim kararına girmez.
-- **DEĞERLENDİRME (Codex/kurucu 09-08; A3–A5 uygulanmadı):** host metninden alan önerisi (taslak, çelişkide
+- **A3/A4/A5 KOD HAZIR — YEREL, MIGRATION İSTEMEZ** (ihtiyaç raporu: `docs/MIGRATION-IHTIYAC-RAPORU-A1-A5.md`).
+  **A3** `modules/intelligence/recommendations/kb-gaps.ts` (salt-okuma): `Signal` + KB onay durumu + `RiskEvent`
+  A2 sayaçları; sinyal ↔ karar kaydı AYNI mesaj kimliğinden bağlanır (`sourceEntityId` = `triggerId`).
+  Üç sınıf: `absent` (öneri) · `ungrounded` (TEŞHİS, yeni kalem YANLIŞ cevap) · `awaiting_approval`.
+  Operasyonel niyet ve `amenity` eşlenmez (gerekçeler kodda). Tekilleştirilmiş, önem sıralı, BİLDİRİM YOK,
+  hiçbiri `decisive`; "kapat/ertele" İLK DİLİMDE YOK (o migration ister). **A4** `KB_PRESETS` eksik
+  satırına bağlı ("Şablonla doldur" → form dolar, HİÇBİR ŞEY KAYDEDİLMEZ; şablonsuz kategoride içerik
+  UYDURULMAZ). **A5** `lib/kb-extract.ts` saf/LLM'siz + `kb-import-text.tsx`: çıkarım TARAYICIDA, önizleme
+  kaydetmeden, kabul edilen kalem mevcut `POST /api/kb` yolundan (kaçış rotası açılmadı). 🚨 Yer tutucu
+  gerçeğe DÖNÜŞMEZ ama sessizce yutulmaz; giriş/çıkış saati KB kalemi ÖNERİLMEZ (çift kopya yasağı).
+  Ölçüm: `docs/olcum/kb-once-sonra.md` + `docs/olcum/host-akisi-once-sonra.md` (gerçek ekran görüntüleri).
+- **GERÇEK MODEL EVAL'İ HAZIR AMA KOŞULMADI** (bu ortamda `OPENAI_API_KEY` YOK): `evals/qr-kb-coverage.json`
+  (sürümlü, 8 senaryo, anonim) + `tests/eval/`. İKİ KAPI: `RUN_REAL_EVAL=1` VE gerçek anahtar — yoksa
+  ATLANIR (sahte "geçti" yok); model çağrılamazsa `source === "openai"` assert'i koşuyu GEÇERSİZ sayar.
+  LLM grader YOK. Çalıştırma ve senaryo tablosu: `docs/EVAL-CALISTIRMA.md`.
+- **DEĞERLENDİRME (Codex/kurucu 09-08):** host metninden alan önerisi (taslak, çelişkide
   host seçer; yer tutucu `{isim}` gerçeğe DÖNÜŞMEZ) · eksikleri GERÇEK sorulardan bulma (V1 `Signal` verisi
   zaten akıyor; kategori ↔ KB eşlemesi + tekilleştirme + bildirim yağmuru yok) · yapılandırılmış alan ↔
   retrieval ayrımı (çift kopya yasak; vektör GEREKLİLİK ölçülmeden eklenmez) · yetki filtresi retrieval'dan

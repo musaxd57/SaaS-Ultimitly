@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useTransition } from "react";
+import { useRef, useState, useTransition } from "react";
 import { FormError } from "@/components/form-error";
 import { confirmDialog } from "@/lib/confirm";
 import { toast } from "@/lib/toast";
@@ -14,6 +14,8 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Field } from "@/components/form-field";
 import { KB_CATEGORY } from "@/lib/constants";
+import { KbGapsPanel, type KbGapView } from "@/components/knowledge/kb-gaps-panel";
+import { KbImportText } from "@/components/knowledge/kb-import-text";
 import { cn } from "@/lib/utils";
 // YAPRAK modülden: `prompts.ts` (75 KB sistem promptu) tarayıcı paketinin
 // bağımlılık grafiğine ASLA girmemeli — depo tam da o dosya yüzünden private.
@@ -88,9 +90,12 @@ export interface KbItem {
 export function KbManager({
   properties,
   items,
+  gaps = [],
 }: {
   properties: { id: string; name: string }[];
   items: KbItem[];
+  /** A3 — "Kurulum ve eksikler" satırları (salt-okuma; boşsa panel çizilmez). */
+  gaps?: KbGapView[];
 }) {
   const router = useRouter();
   const [, startTransition] = useTransition();
@@ -115,6 +120,39 @@ export function KbManager({
     content: "",
     language: "tr",
   });
+
+  const titleRef = useRef<HTMLInputElement>(null);
+
+  /**
+   * A4 — eksik satırından forma. Şablon VARSA metni de gelir, YOKSA yalnız mülk
+   * ve kategori seçilir (uydurma içerik yazmaktansa boş bırakmak doğru: host'un
+   * kendi gerçeğini yazması gerekiyor).
+   *
+   * 🚨 HİÇBİR ŞEY KAYDEDİLMEZ. Bu düğme yalnız formu doldurur — "host onayından
+   * önce aktifleşmesin" şartının UI karşılığı, `KB_PRESETS` ile aynı sözleşme.
+   */
+  function fillFromGap(propertyId: string, category: string) {
+    const preset = KB_PRESETS.find((p) => p.category === category);
+    setForm((f) => ({
+      ...f,
+      propertyId,
+      category,
+      title: preset?.title ?? f.title,
+      content: preset?.content ?? f.content,
+    }));
+    setError(null);
+    // Form sayfanın solunda; küçük ekranda listenin ALTINDA kalıyor. Odak
+    // taşınmazsa host düğmeye basar ve hiçbir şey olmamış gibi görünür.
+    const el = titleRef.current;
+    el?.focus();
+    // ⚠️ KORUMALI: `scrollIntoView` her ortamda YOK (jsdom'da tanımsız; kısıtlı
+    // tarayıcılarda da eksik olabilir). Korumasız çağrı FIRLATIYORDU — tam suit
+    // bunu 3 "unhandled error" olarak yakaladı. Kaydırma bir KONFOR; yokluğu
+    // doldurma işini BOZMAMALI.
+    if (typeof el?.scrollIntoView === "function") {
+      el.scrollIntoView({ block: "center", behavior: "smooth" });
+    }
+  }
 
   const refresh = () => startTransition(() => router.refresh());
 
@@ -313,7 +351,10 @@ export function KbManager({
     .filter((g) => g.list.length > 0);
 
   return (
-    <div className="grid gap-4 lg:grid-cols-3">
+    <div className="space-y-4">
+      <KbGapsPanel gaps={gaps} onFill={fillFromGap} />
+      <KbImportText properties={properties} />
+      <div className="grid gap-4 lg:grid-cols-3">
       {/* Create — self-start: grid satırı sağdaki uzun mülk listesi kadar uzar;
           form kartı içeriği kadar kalmalı, en aşağıya kadar sündürülmemeli.
           min-w-0: grid çocuğunun varsayılan `min-width:auto`u sütunu içeriğin
@@ -375,7 +416,7 @@ export function KbManager({
               ) : null}
             </Field>
             <Field label="Başlık" htmlFor="kb-title">
-              <Input id="kb-title" value={form.title} onChange={(e) => set("title", e.target.value)} required />
+              <Input ref={titleRef} id="kb-title" value={form.title} onChange={(e) => set("title", e.target.value)} required />
             </Field>
             <Field label="İçerik" htmlFor="kb-content">
               <Textarea id="kb-content" value={form.content} onChange={(e) => set("content", e.target.value)} required />
@@ -670,6 +711,7 @@ export function KbManager({
             </Card>
           ))
         )}
+      </div>
       </div>
     </div>
   );

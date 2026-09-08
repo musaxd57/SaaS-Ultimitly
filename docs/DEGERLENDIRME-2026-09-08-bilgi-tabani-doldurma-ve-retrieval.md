@@ -244,8 +244,29 @@ DB'ye hiç erişmiyor, yani otomatik bilgi oluşturma yapısal olarak imkânsız
 20 mutasyonun tamamı yakalandı (biri önce HAYATTA KALDI: `packKnowledgeBase` yapısal pini
 `(k as {id}).id` yazımını atlıyordu → DAVRANIŞSAL teste çevrildi).
 
+**A3 · A4 · A5 KODLANDI — YEREL, MIGRATION GEREKTİRMEDİ.**
+- **A3** `src/modules/intelligence/recommendations/kb-gaps.ts` — salt-okuma. `Signal` (misafir ne sordu) +
+  `KnowledgeBaseItem` (o kategoride ONAYLI kalem var mı) + `RiskEvent` (A2 sayaçları). Sinyal ile karar
+  kaydı AYNI mesaj kimliğinden bağlanıyor (`Signal.sourceEntityId` = `RiskEvent.triggerId`), yani
+  "sorduğuna verilen cevap dayanaklı mıydı" ÇIKARIMLA değil VERİYLE. Üç sınıf ayrı: `absent` (öneri
+  üretilebilir) · `ungrounded` (TEŞHİS — yeni kalem eklemek YANLIŞ cevaptır) · `awaiting_approval`
+  (bilgi var, onay bekliyor). Operasyonel niyet (şikayet/para/insan/erken-giriş) hiç listeye girmez;
+  `amenity` bilinçli eşlenmemiş. Tekilleştirilmiş, önem sıralı, **bildirim YOK**, hiçbiri `decisive`.
+- **A4** `KB_PRESETS` eksik satırına bağlandı: "Şablonla doldur" mülk + kategori + şablon metnini forma
+  yazar, **hiçbir şey kaydetmez** (ağ çağrısı bile yok, test-pinli). Şablonu olmayan kategoride içerik
+  UYDURULMAZ.
+- **A5** `src/lib/kb-extract.ts` (saf, LLM'siz) + `kb-import-text.tsx`. Host metni yapıştırır → çıkarım
+  TARAYICIDA çalışır → önizleme kaydetmeden gösterir → seçilenler mevcut `POST /api/kb` yolundan geçer
+  (plan sınırı/doğrulama/hafıza eşitlemesi aynen). 🚨 Yer tutucu (`{isim}`/`[ŞİFRE]`) gerçeğe dönüşmez
+  ama SESSİZCE de yutulmaz (kaç satır neden atlandı yazılır); giriş/çıkış saati KB kalemi olarak
+  ÖNERİLMEZ (çift kopya yasağı), mülk ayarına yönlendirilir.
+- Kanıt: 50 yeni test, **34 iki yönlü mutasyonun tamamı yakalandı**, ölçüm belgeleri
+  `docs/olcum/kb-once-sonra.md` (ürettirilmiş) ve `docs/olcum/host-akisi-once-sonra.md` (gerçek
+  uygulamadan ekran görüntüleriyle).
+
 ### Hâlâ YAPILMAYANLAR (açıkça)
-A3–A5 kodlanmadı. Düşük güven bandı (`QR_INFORMATIONAL_BAND_ENABLED`) **gerçek model eval'i bitmeden
+Gerçek model eval'i KOŞULMADI (bu ortamda `OPENAI_API_KEY` yok) — harness hazır: `evals/qr-kb-coverage.json`
++ `tests/eval/`, çalıştırma `docs/EVAL-CALISTIRMA.md`. Düşük güven bandı (`QR_INFORMATIONAL_BAND_ENABLED`) **gerçek model eval'i bitmeden
 AÇILMAYACAK** — varsayılan kapalı kalır. Migration 53 yerelde hazır ve test edildi; taze `pg_dump` + açık
 push onayı olmadan GÖNDERİLMEZ. "Kurulum ve eksikler" / "İncelenecek öneriler" ayrı görünümleri A3–A5 ile
 gelir; bugün KB ekranı taslak ÜRETMEDİĞİ için değişmedi (üreten yol yokken ayrı sekme boş kutu olurdu).

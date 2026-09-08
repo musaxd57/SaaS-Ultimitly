@@ -5,12 +5,13 @@ import { PageHeader } from "@/components/page-header";
 import { LinkButton } from "@/components/ui/link-button";
 import { EmptyState } from "@/components/empty-state";
 import { KbManager, type KbItem } from "@/components/knowledge/kb-manager";
+import { findKbGaps } from "@/modules/intelligence/recommendations/kb-gaps";
 
 export const dynamic = "force-dynamic";
 
 export default async function KnowledgePage() {
   const session = await requireAuth();
-  const [properties, items] = await Promise.all([
+  const [properties, items, gaps] = await Promise.all([
     prisma.property.findMany({
       where: { organizationId: session.organizationId },
       select: { id: true, name: true },
@@ -21,6 +22,10 @@ export default async function KnowledgePage() {
       include: { property: { select: { name: true } } },
       orderBy: [{ propertyId: "asc" }, { category: "asc" }],
     }),
+    // A3 — salt-okuma eksik bilgi analizi. Intelligence katmanı BOZULURSA sayfa
+    // yine açılır: bilgi tabanı yönetimi bu panele bağımlı değil (V1'in "AI
+    // bozulsa PMS çalışır" ilkesi).
+    findKbGaps(session.organizationId).catch(() => []),
   ]);
 
   const kbItems: KbItem[] = items.map((i) => ({
@@ -52,7 +57,7 @@ export default async function KnowledgePage() {
           </LinkButton>
         </EmptyState>
       ) : (
-        <KbManager properties={properties} items={kbItems} />
+        <KbManager properties={properties} items={kbItems} gaps={gaps} />
       )}
     </>
   );
