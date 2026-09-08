@@ -537,15 +537,24 @@ Sekiz P1 KAPANDI (09-07), her biri ayrı commit, kırmızı-önce + iki yönlü 
   PATCH onay İDDİASI üretmez (zod'da alan yok; `isActive` düğmesi içerik incelemesi değildir), COPY onay
   soyunu DEVRALIR (taslak kopyalanarak onaylıya çevrilemez), taslak mülk hafızasına da girmez.
 - **A2 temellendirme izlenebilirliği KOD HAZIR — YEREL, PUSH EDİLMEDİ (migration 54 push kapısında).**
-  `RiskEvent`: `kbRetrieved · kbDropped · kbPendingApproval · kbVersionAt · srcDeclared · srcVerified`
-  (hepsi nullable; 🚨 **NULL = ÖLÇÜLMEDİ, 0 DEĞİL** — ölçmeyen yol sahte "bilgi yokluğu" üretmez).
+  `RiskEvent`: `kbRetrieved · kbDropped · kbPendingApproval · kbNewestUpdatedAt · kbEvidenceJson ·
+  srcDeclared · srcVerified` (hepsi nullable; 🚨 **NULL = ÖLÇÜLMEDİ, 0 DEĞİL** — ölçmeyen yol sahte
+  "bilgi yokluğu" üretmez). 🚨 `kbNewestUpdatedAt` SÜRÜM KİMLİĞİ DEĞİL, tazelik işaretidir (iki farklı
+  küme aynı max'ı verebilir); "hangi bilgiye dayandı" sorusunu `kbEvidenceJson` yanıtlar: kalem KİMLİĞİ
+  + o andaki SÜRÜM + doğrulanmış etiketler, `PropertyMemory.evidenceJson` deyimiyle (yalnız kimlik,
+  İÇERİK YOK). YETKİLİ İÇ DENETİM içindir; misafire dönen QR gövdesine girmez (davranışsal pin) ve
+  kalem kimliği MODELE de gitmez (`packKnowledgeBase` davranışsal pin — yapısal pin bir mutasyonda
+  hayatta kalmıştı).
   `kb-fetch` onay kapısında kalanı ve bilgi SÜRÜMÜNÜ de döndürür (sorgu sayısı artmadan `groupBy`).
   `ai/index.ts` modelin BEYANI (`declared`) ile gerçek girdiye karşı DOĞRULANANI (`verified`) ayrı
   taşır → `verifyUsedSources`'ın sessizce elediği **uydurma atıf** artık görünür. Okuma tarafı
   `lib/ai/grounding.ts`: `classifyGrounding` bir ETİKET + `decisive` bayrağı döndürür, HÜKÜM DEĞİL
   (bugün hiçbir sınıf `decisive`); yeni kalem önerisi YALNIZ `absent` sınıfında meşru —
   `awaiting_approval` (bilgi var, onaysız) · `ungrounded` (gitti, kullanılmadı) · `capacity` (tavan) ·
-  `fabricated_citation` sınıflarında host'a "bilgi ekle" DENMEZ. Sayaçlar hiçbir gönderim kararına girmez.
+  `fabricated_citation` sınıflarında host'a "bilgi ekle" DENMEZ. 🚨 `absent` DAHİL hiçbir sınıf
+  `decisive` değil → host'a giden şey KESİN TESPİT değil **İNCELEME ADAYI** (`reviewCandidate`);
+  otomatik bilgi oluşturma YOK ve modül DB'ye hiç erişmediği için yapısal olarak imkânsız.
+  Sayaçlar hiçbir gönderim kararına girmez.
 - **DEĞERLENDİRME (Codex/kurucu 09-08; A3–A5 uygulanmadı):** host metninden alan önerisi (taslak, çelişkide
   host seçer; yer tutucu `{isim}` gerçeğe DÖNÜŞMEZ) · eksikleri GERÇEK sorulardan bulma (V1 `Signal` verisi
   zaten akıyor; kategori ↔ KB eşlemesi + tekilleştirme + bildirim yağmuru yok) · yapılandırılmış alan ↔

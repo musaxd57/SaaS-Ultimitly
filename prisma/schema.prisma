@@ -1014,7 +1014,14 @@ model RiskEvent {
   kbRetrieved       Int? // koda göre isteme GERÇEKTEN giren kalem sayısı
   kbDropped         Int? // adet tavanı yüzünden düşen (ayrı kova — bilgi yokluğu DEĞİL)
   kbPendingApproval Int? // aktif ama onay kapısından geçmeyen (bilgi VAR, onaylanmamış)
-  kbVersionAt       DateTime? // isteme giren kalemlerin en yeni updatedAt'i = bilgi SÜRÜMÜ
+  // 🚨 SÜRÜM KİMLİĞİ DEĞİL, TAZELİK İŞARETİ (kurucu 09-08): iki bambaşka kalem
+  // kümesi aynı max'ı verebilir. "Hangi bilgiye dayandı" sorusunu kbEvidenceJson
+  // yanıtlar.
+  kbNewestUpdatedAt DateTime? // isteme giren kalemlerin en yeni updatedAt'i
+  // Yetkili İÇ DENETİM kanıtı: [{type:"kb_item", id, v:<updatedAt>}] + doğrulanmış
+  // kaynak etiketleri. `PropertyMemory.evidenceJson` deyiminin aynısı (yalnız
+  // kimlik + sürüm, İÇERİK YOK). Misafire ASLA açılmaz.
+  kbEvidenceJson    String?
   srcDeclared       Int? // modelin BEYAN ettiği kaynak sayısı (temizlenmiş)
   srcVerified       Int? // gerçek girdiyle DOĞRULANANLAR; fark = uydurma atıf
   occurredAt        DateTime  @default(now())

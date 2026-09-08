@@ -48,12 +48,12 @@ describe("A2 — getirilen ↔ kullanılan kaynak izlenebilirliği", () => {
 
   // --- kb-fetch: kodun BİLDİĞİ taraf -------------------------------------
 
-  it("hiç kalem yoksa: retrieved 0, onay bekleyen 0, sürüm NULL", async () => {
+  it("hiç kalem yoksa: retrieved 0, onay bekleyen 0, tazelik işareti NULL", async () => {
     const r = await fetchKnowledgeBaseForPrompt({ propertyId, isActive: true });
     expect(r.items).toEqual([]);
     expect(r.dropped).toBe(0);
     expect(r.pendingApproval).toBe(0);
-    expect(r.versionAt).toBeNull();
+    expect(r.newestUpdatedAt).toBeNull();
   });
 
   it("ONAY BEKLEYEN kalem ayrı sayılır — 'bilgi yok' ile karıştırılmaz", async () => {
@@ -66,7 +66,7 @@ describe("A2 — getirilen ↔ kullanılan kaynak izlenebilirliği", () => {
     expect(r.dropped).toBe(0);
   });
 
-  it("bilgi SÜRÜMÜ = isteme giren kalemlerin en yeni updatedAt'i", async () => {
+  it("tazelik işareti = isteme giren kalemlerin en yeni updatedAt'i (SÜRÜM KİMLİĞİ DEĞİL)", async () => {
     const old = await seedKb({ title: "Eski" });
     const fresh = await seedKb({ title: "Yeni", category: "parking" });
     await prisma.knowledgeBaseItem.update({
@@ -75,10 +75,10 @@ describe("A2 — getirilen ↔ kullanılan kaynak izlenebilirliği", () => {
     });
     const r = await fetchKnowledgeBaseForPrompt({ propertyId, isActive: true });
     const row = await prisma.knowledgeBaseItem.findUniqueOrThrow({ where: { id: fresh.id } });
-    expect(r.versionAt?.getTime()).toBe(row.updatedAt.getTime());
+    expect(r.newestUpdatedAt?.getTime()).toBe(row.updatedAt.getTime());
   });
 
-  it("onay bekleyen kalem SÜRÜMÜ ileri taşımaz (istemde yoktu)", async () => {
+  it("onay bekleyen kalem tazelik işaretini ileri TAŞIMAZ (istemde yoktu)", async () => {
     const approved = await seedKb({ title: "Onaylı" });
     await prisma.knowledgeBaseItem.update({
       where: { id: approved.id },
@@ -86,7 +86,7 @@ describe("A2 — getirilen ↔ kullanılan kaynak izlenebilirliği", () => {
     });
     await seedKb({ title: "Taslak", category: "parking", source: "extracted_draft", reviewState: "draft" });
     const r = await fetchKnowledgeBaseForPrompt({ propertyId, isActive: true });
-    expect(r.versionAt?.toISOString()).toBe("2020-01-01T00:00:00.000Z");
+    expect(r.newestUpdatedAt?.toISOString()).toBe("2020-01-01T00:00:00.000Z");
   });
 
   // --- RiskEvent: iki tarafın YAN YANA kaydı ------------------------------
@@ -111,7 +111,7 @@ describe("A2 — getirilen ↔ kullanılan kaynak izlenebilirliği", () => {
     expect(row.srcDeclared).toBe(2);
     expect(row.srcVerified).toBe(1);
     // Hiç geçilmeyen alan NULL — "ölçmedik" ile "sıfırdı" AYNI ŞEY DEĞİL.
-    expect(row.kbVersionAt).toBeNull();
+    expect(row.kbNewestUpdatedAt).toBeNull();
   });
 
   it("hiçbir sayaç verilmezse HEPSİ NULL (eski çağıranlar sıfır uydurmaz)", async () => {
@@ -176,13 +176,13 @@ describe("A2 — getirilen ↔ kullanılan kaynak izlenebilirliği", () => {
     const c = classifyGrounding({ kbRetrieved: 0, kbPendingApproval: 2 });
     expect(c.label).toBe("awaiting_approval");
     // Host'a "bu bilgiyi ekle" denmemeli: bilgi zaten var, onay bekliyor.
-    expect(c.suggestsNewItem).toBe(false);
+    expect(c.reviewCandidate).toBe(false);
   });
 
   it("retrieved=0, onay bekleyen yok, tavan düşürmedi → 'absent' ve öneri üretilebilir", () => {
     const c = classifyGrounding({ kbRetrieved: 0, kbPendingApproval: 0, kbDropped: 0 });
     expect(c.label).toBe("absent");
-    expect(c.suggestsNewItem).toBe(true);
+    expect(c.reviewCandidate).toBe(true);
     // 🚨 Yine de KESİN değil: bu mülkte kalem yok demek, misafirin sorduğu ŞEYİN
     // eksik olduğunu kanıtlamaz (kategori eşlemesi ayrı iştir — A3).
     expect(c.decisive).toBe(false);
@@ -192,24 +192,24 @@ describe("A2 — getirilen ↔ kullanılan kaynak izlenebilirliği", () => {
     const c = classifyGrounding({ kbRetrieved: 4, srcDeclared: 0, srcVerified: 0 });
     expect(c.label).toBe("ungrounded");
     // Bilgi vardı ve modele gitti; eksik olan bilgi değil, temellendirme.
-    expect(c.suggestsNewItem).toBe(false);
+    expect(c.reviewCandidate).toBe(false);
   });
 
   it("beyan VAR ama doğrulanmadı → 'fabricated_citation' (en ağır sınıf)", () => {
     const c = classifyGrounding({ kbRetrieved: 4, srcDeclared: 3, srcVerified: 0 });
     expect(c.label).toBe("fabricated_citation");
-    expect(c.suggestsNewItem).toBe(false);
+    expect(c.reviewCandidate).toBe(false);
   });
 
   it("tavan düşürdüyse ayrı kova — 'capacity', bilgi yokluğu diye sayılmaz", () => {
     const c = classifyGrounding({ kbRetrieved: 30, kbDropped: 12, srcDeclared: 0, srcVerified: 0 });
     expect(c.label).toBe("capacity");
-    expect(c.suggestsNewItem).toBe(false);
+    expect(c.reviewCandidate).toBe(false);
   });
 
   it("temellendirilmiş cevap → 'grounded'", () => {
     const c = classifyGrounding({ kbRetrieved: 4, kbDropped: 0, srcDeclared: 2, srcVerified: 2 });
     expect(c.label).toBe("grounded");
-    expect(c.suggestsNewItem).toBe(false);
+    expect(c.reviewCandidate).toBe(false);
   });
 });

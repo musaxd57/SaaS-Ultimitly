@@ -118,7 +118,7 @@ describe("A2 — QR RiskEvent'i temellendirme sayaçlarını taşır", () => {
     expect(ev.kbRetrieved).toBe(0);
     expect(ev.kbPendingApproval).toBe(0);
     expect(ev.kbDropped).toBe(0);
-    expect(ev.kbVersionAt).toBeNull();
+    expect(ev.kbNewestUpdatedAt).toBeNull();
   });
 
   it("ONAY BEKLEYEN kalem varken retrieved 0 ama pendingApproval 1 — ayrı sınıf", async () => {
@@ -131,7 +131,7 @@ describe("A2 — QR RiskEvent'i temellendirme sayaçlarını taşır", () => {
     expect(ev.kbPendingApproval).toBe(1);
   });
 
-  it("kalem VARDI ve model kullandı: retrieved 1, declared 1, verified 1, sürüm yazılı", async () => {
+  it("kalem VARDI ve model kullandı: retrieved 1, declared 1, verified 1, tazelik işareti yazılı", async () => {
     const { propertyId, token } = await seed();
     const kb = await addKb(propertyId);
     mockSuggest.mockResolvedValue(okReply());
@@ -141,7 +141,7 @@ describe("A2 — QR RiskEvent'i temellendirme sayaçlarını taşır", () => {
     expect(ev.srcDeclared).toBe(1);
     expect(ev.srcVerified).toBe(1);
     const row = await prisma.knowledgeBaseItem.findUniqueOrThrow({ where: { id: kb.id } });
-    expect(ev.kbVersionAt?.getTime()).toBe(row.updatedAt.getTime());
+    expect(ev.kbNewestUpdatedAt?.getTime()).toBe(row.updatedAt.getTime());
   });
 
   it("UYDURMA ATIF: model olmayan kategoriye atıf yaparsa declared>verified olarak görünür", async () => {
@@ -157,6 +157,31 @@ describe("A2 — QR RiskEvent'i temellendirme sayaçlarını taşır", () => {
     expect(ev.srcDeclared).toBe(1);
     expect(ev.srcVerified).toBe(0);
     expect(ev.kbRetrieved).toBe(1);
+  });
+
+  it("KANIT İÇ DENETİMDE VAR, MİSAFİRE DÖNEN GÖVDEDE YOK (davranışsal)", async () => {
+    const { propertyId, token } = await seed();
+    const kb = await addKb(propertyId);
+    mockSuggest.mockResolvedValue(okReply());
+    const res = await ask(token, "Otopark var mi?");
+    const raw = await res.text();
+
+    // İç denetim: kalem KİMLİĞİ + SÜRÜMÜ + doğrulanmış etiket kayıtlı.
+    const ev = await prisma.riskEvent.findFirstOrThrow({ where: { surface: "guest_chat" } });
+    const evidence = JSON.parse(String(ev.kbEvidenceJson)) as {
+      retrieved: { id: string; v: string }[];
+      used: string[];
+    };
+    expect(evidence.retrieved.map((r) => r.id)).toEqual([kb.id]);
+    expect(evidence.used).toEqual(["kb:parking"]);
+    const row = await prisma.knowledgeBaseItem.findUniqueOrThrow({ where: { id: kb.id } });
+    expect(evidence.retrieved[0].v).toBe(row.updatedAt.toISOString());
+
+    // Misafirin gördüğü GÖVDE: ne kalem kimliği, ne sayaç, ne kanıt.
+    expect(raw).not.toContain(kb.id);
+    for (const field of ["kbEvidenceJson", "kbRetrieved", "kbPendingApproval", "srcDeclared", "srcVerified", "usedSources"]) {
+      expect(raw, field).not.toContain(field);
+    }
   });
 
   it("sayaçlar misafirin cevabını BOZMAZ (yan etki sözleşmesi korunur)", async () => {

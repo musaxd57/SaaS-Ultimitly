@@ -28,6 +28,7 @@ import { limitsForOrg } from "@/lib/billing/plan-limits";
 import { consumeDailyAiBudgetForQr } from "@/lib/ai/daily-budget";
 import { recordIngestEvent } from "@/lib/ingest/events";
 import { recordRiskEvent } from "@/lib/risk-events";
+import { buildKbEvidence } from "@/lib/ai/grounding";
 
 export const dynamic = "force-dynamic";
 
@@ -811,7 +812,14 @@ async function handleGuestChatPost(req: NextRequest, { params }: { params: Promi
     kbRetrieved: ctx.knowledgeBase.length,
     kbDropped: ctx.knowledgeBaseDropped,
     kbPendingApproval: ctx.knowledgeBasePendingApproval,
-    kbVersionAt: ctx.knowledgeBaseVersionAt,
+    kbNewestUpdatedAt: ctx.knowledgeBaseNewestUpdatedAt,
+    // YETKİLİ İÇ DENETİM: hangi kalemler, hangi sürümle. `max(updatedAt)` bunu
+    // yanıtlamıyor (iki farklı küme aynı max'ı verebilir). Misafire dönen yanıt
+    // gövdesi ayrı nesne literalleridir; bu alan oraya HİÇBİR yoldan girmez.
+    kbEvidenceJson: buildKbEvidence({
+      retrieved: ctx.knowledgeBase,
+      usedLabels: result.usedSources ?? [],
+    }),
     srcDeclared: result.sourceAudit?.declared ?? null,
     srcVerified: result.sourceAudit?.verified ?? null,
   });

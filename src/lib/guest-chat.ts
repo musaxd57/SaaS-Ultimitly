@@ -495,7 +495,13 @@ export interface GuestChatContext {
     status: string;
   } | null;
   /** Active KB items with secret-bearing categories removed. */
-  knowledgeBase: { category: string; title: string; content: string }[];
+  /**
+   * İsteme giden kalemler. `id`/`updatedAt` YALNIZ yetkili iç denetim kanıtı
+   * içindir (`buildKbEvidence` → `RiskEvent.kbEvidenceJson`); istem metnine
+   * girmez (`packKnowledgeBase` yalnız category/title/content okur) ve
+   * misafire dönen yanıt gövdesine KONMAZ.
+   */
+  knowledgeBase: { id: string; category: string; title: string; content: string; updatedAt: Date }[];
   /** Adet tavanı yüzünden istemin dışında kalan kalem sayısı (istem bunu modele söyler). */
   knowledgeBaseDropped: number;
   /**
@@ -504,8 +510,12 @@ export interface GuestChatContext {
    * kaydına (`RiskEvent`) gider.
    */
   knowledgeBasePendingApproval: number;
-  /** A2 — isteme giren kalemlerin en yeni `updatedAt`'i (bilgi sürümü) veya null. */
-  knowledgeBaseVersionAt: Date | null;
+  /**
+   * A2 — isteme giren kalemlerin en yeni `updatedAt`'i. SÜRÜM KİMLİĞİ DEĞİL,
+   * tazelik işareti; "hangi bilgiye dayandı" sorusunu `knowledgeBase`ten
+   * üretilen kanıt yanıtlar (`buildKbEvidence`). Misafire AÇILMAZ.
+   */
+  knowledgeBaseNewestUpdatedAt: Date | null;
   /** True when this stay must present a PIN before it can be claimed on a device
    *  (Faz 5). Derived: QR_PIN_ENABLED env on AND (this reservation has a PIN OR the
    *  org runs strict mode). NEVER exposes the hash — only the boolean gate. */
@@ -834,7 +844,7 @@ export async function resolveGuestChat(
   // Closed → return the property (so the page can show a branded "no active stay"
   // screen) but no reservation and an empty knowledge base (nothing to answer).
   if (!open) {
-    return { property: propertyPublic, open: false, activeReservation: null, knowledgeBase: [], knowledgeBaseDropped: 0, knowledgeBasePendingApproval: 0, knowledgeBaseVersionAt: null, pinRequired: false };
+    return { property: propertyPublic, open: false, activeReservation: null, knowledgeBase: [], knowledgeBaseDropped: 0, knowledgeBasePendingApproval: 0, knowledgeBaseNewestUpdatedAt: null, pinRequired: false };
   }
 
   // QR yolunda hiç tavan YOKTU — 60 aktif kayıtlı bir dairede istem sınırsız
@@ -860,7 +870,7 @@ export async function resolveGuestChat(
   // demesi) tam da en halka açık yüzeyde açıktı.
   const droppedTotal = kbDropped + (kbRaw.length - knowledgeBase.length);
 
-  return { property: propertyPublic, open: true, activeReservation, knowledgeBase, knowledgeBaseDropped: droppedTotal, knowledgeBasePendingApproval: kb.pendingApproval, knowledgeBaseVersionAt: kb.versionAt, pinRequired };
+  return { property: propertyPublic, open: true, activeReservation, knowledgeBase, knowledgeBaseDropped: droppedTotal, knowledgeBasePendingApproval: kb.pendingApproval, knowledgeBaseNewestUpdatedAt: kb.newestUpdatedAt, pinRequired };
 }
 
 /**

@@ -70,8 +70,18 @@ export interface RiskEventInput {
   kbDropped?: number | null;
   /** Aktif ama onay kapısından geçmeyen (A1 `draft`) kalem sayısı. */
   kbPendingApproval?: number | null;
-  /** İsteme giren kalemlerin en yeni `updatedAt`'i (bilgi sürümü). */
-  kbVersionAt?: Date | null;
+  /**
+   * İsteme giren kalemlerin en yeni `updatedAt`'i. 🚨 SÜRÜM KİMLİĞİ DEĞİL,
+   * yalnız tazelik işareti — "hangi bilgiye dayandı" sorusunu `kbEvidenceJson`
+   * yanıtlar.
+   */
+  kbNewestUpdatedAt?: Date | null;
+  /**
+   * Yetkili İÇ DENETİM kanıtı (`buildKbEvidence`): kalem kimliği + kalem sürümü
+   * + doğrulanmış kaynak etiketleri. İçerik/misafir metni TAŞIMAZ, misafire
+   * dönen yanıta hiçbir yoldan girmez.
+   */
+  kbEvidenceJson?: string | null;
   /** Modelin BEYAN ettiği kaynak sayısı. */
   srcDeclared?: number | null;
   /** Gerçek girdiyle DOĞRULANAN kaynak sayısı (beyanın alt kümesi). */
@@ -87,6 +97,25 @@ export interface RiskEventInput {
  */
 function countOrNull(v: number | null | undefined): number | null {
   return typeof v === "number" && Number.isInteger(v) && v >= 0 ? v : null;
+}
+
+/**
+ * Kanıt gövdesi sözleşmesi: AYRIŞTIRILABİLİR JSON nesnesi ve tavan altı olmalı.
+ *
+ * 🚨 Serbest metin bu kolona SIZMAMALI. `RiskEvent` "PII yok" sözleşmesiyle
+ * yaşıyor; ayrıştırılamayan bir gövdeyi saklamak, ilk hatalı çağıranda o sözü
+ * sessizce öldürürdü. Ayrıştırılamayan/aşırı büyük değer NULL yazılır
+ * (kırpılmaz — yarım JSON denetimi yanıltır).
+ */
+function evidenceOrNull(v: string | null | undefined): string | null {
+  if (typeof v !== "string" || v.length === 0 || v.length > 8_000) return null;
+  try {
+    const parsed: unknown = JSON.parse(v);
+    if (!parsed || typeof parsed !== "object" || Array.isArray(parsed)) return null;
+    return v;
+  } catch {
+    return null;
+  }
 }
 
 /**
@@ -106,7 +135,11 @@ function groundingColumns(e: RiskEventInput) {
     kbRetrieved: countOrNull(e.kbRetrieved),
     kbDropped: countOrNull(e.kbDropped),
     kbPendingApproval: countOrNull(e.kbPendingApproval),
-    kbVersionAt: e.kbVersionAt instanceof Date && !Number.isNaN(e.kbVersionAt.getTime()) ? e.kbVersionAt : null,
+    kbNewestUpdatedAt:
+      e.kbNewestUpdatedAt instanceof Date && !Number.isNaN(e.kbNewestUpdatedAt.getTime())
+        ? e.kbNewestUpdatedAt
+        : null,
+    kbEvidenceJson: evidenceOrNull(e.kbEvidenceJson),
     srcDeclared: consistent ? declared : null,
     srcVerified: consistent ? verified : null,
   };

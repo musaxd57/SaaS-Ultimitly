@@ -14,6 +14,7 @@ import { reservationAmountNumber } from "@/lib/money";
 import { classifyMessage, suggestReply, summarizeHostStyle } from "@/lib/ai";
 import { fetchKnowledgeBaseForPrompt } from "@/lib/ai/kb-fetch";
 import { GUEST_DELIVERABLE_KB_WHERE } from "@/lib/kb-review";
+import { buildKbEvidence } from "@/lib/ai/grounding";
 import { consumeDailyAiBudget, peekDailyAiBudget } from "@/lib/ai/daily-budget";
 import {
   classifyFallback,
@@ -1534,7 +1535,7 @@ export async function applyChannelAutoReply(
   // tarafı sabitleniyor.
   const groundingBase = {
     kbPendingApproval: kbFetch.pendingApproval,
-    kbVersionAt: kbFetch.versionAt,
+    kbNewestUpdatedAt: kbFetch.newestUpdatedAt,
   };
   const kb = kbRaw.map((k) => ({
     ...k,
@@ -1585,6 +1586,9 @@ export async function applyChannelAutoReply(
     ...groundingBase,
     kbRetrieved: kbVisible.length,
     kbDropped: kbDropped + (kb.length - kbVisible.length),
+    // Yetkili iç denetim kanıtı — `kbVisible` yer tutucu ikamesinden GEÇMİŞ
+    // nesnelerdir ama `id`/`updatedAt` alanları kaynaktan olduğu gibi taşınır.
+    kbEvidenceJson: buildKbEvidence({ retrieved: kbVisible, usedLabels: [] }),
   };
 
   // Turnover context so early-checkin / late-checkout answers are data-driven.

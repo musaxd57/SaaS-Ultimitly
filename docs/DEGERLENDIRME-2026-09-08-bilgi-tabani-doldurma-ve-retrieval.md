@@ -232,7 +232,17 @@ sessizce elediği uydurma atıf artık sayılıyor · QR rotası ve dört `auto_
 yazıyor · okuma tarafı `lib/ai/grounding.ts` (`classifyGrounding`) etiketi HÜKÜM DEĞİL hipotez olarak
 döndürüyor (`decisive` bugün hiçbir sınıfta `true` değil) ve yeni kalem önerisini yalnız `absent`
 sınıfında meşru sayıyor. Kanıt: 26 yeni test (15 + 5 + 6), 12 iki yönlü mutasyonun tamamı yakalandı,
-tam kapılar yeşil (3760 test / 338 dosya), sıfır drift.
+tam kapılar yeşil, sıfır drift.
+**Kapsam düzeltmesi (kurucu, aynı gün):** (a) `max(updatedAt)` KESİN SÜRÜM DEĞİL → alan adı
+`kbNewestUpdatedAt` (tazelik işareti) ve "hangi bilgiye dayandı" sorusunu artık `kbEvidenceJson`
+yanıtlıyor: kalem KİMLİĞİ + o andaki SÜRÜM + doğrulanmış kaynak etiketleri, deponun yerleşik
+`PropertyMemory.evidenceJson` deyimiyle (yalnız kimlik, İÇERİK YOK), YETKİLİ İÇ DENETİM için ve
+misafire kapalı (davranışsal pin: yanıt gövdesinde ne kimlik ne alan adı geçiyor; istem
+paketleyicisi de kimliği modele göndermiyor). (b) Hiçbir sınıf `decisive` olmadığına göre host'a
+giden şey KESİN TESPİT değil İNCELEME ADAYI → alan adı `reviewCandidate`; sınıflandırma modülü
+DB'ye hiç erişmiyor, yani otomatik bilgi oluşturma yapısal olarak imkânsız. Toplam 38 test,
+20 mutasyonun tamamı yakalandı (biri önce HAYATTA KALDI: `packKnowledgeBase` yapısal pini
+`(k as {id}).id` yazımını atlıyordu → DAVRANIŞSAL teste çevrildi).
 
 ### Hâlâ YAPILMAYANLAR (açıkça)
 A3–A5 kodlanmadı. Düşük güven bandı (`QR_INFORMATIONAL_BAND_ENABLED`) **gerçek model eval'i bitmeden

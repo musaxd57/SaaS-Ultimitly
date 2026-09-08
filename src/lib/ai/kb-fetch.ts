@@ -24,7 +24,14 @@ import { KB_APPROVAL_GATE_WHERE, isAiReadableReviewState } from "@/lib/kb-review
 // ---------------------------------------------------------------------------
 
 export interface KbForPrompt {
-  items: { category: string; title: string; content: string }[];
+  /**
+   * İsteme giden kalemler. `id`/`updatedAt` YETKİLİ İÇ DENETİM içindir
+   * (`RiskEvent.kbEvidenceJson`); istem metnine GİRMEZ — `packKnowledgeBase`
+   * yalnız `category/title/content` okur, `withoutSecretKbItems` nesneyi
+   * olduğu gibi taşır (bu yüzden süzgeçlerden sonra hizalama kendiliğinden
+   * doğru kalır). Misafire dönen yanıt gövdesine ASLA konmaz (pin: testler).
+   */
+  items: { id: string; category: string; title: string; content: string; updatedAt: Date }[];
   /** Adet tavanı yüzünden istemin DIŞINDA kalan kalem sayısı (0 = kesme yok). */
   dropped: number;
   /**
@@ -37,12 +44,16 @@ export interface KbForPrompt {
    */
   pendingApproval: number;
   /**
-   * A2 — İSTEME GİREN kalemlerin en yeni `updatedAt`'i = cevabın dayandığı
-   * BİLGİ SÜRÜMÜ. Kalem KİMLİĞİ taşınmaz (RiskEvent'in PII'siz sözleşmesi);
-   * "hangi nesil bilgiyle karar verildi" sorusuna kimlik sızdırmadan yanıt.
+   * A2 — isteme giren kalemlerin EN YENİ `updatedAt`'i.
+   *
+   * 🚨 BU BİR SÜRÜM KİMLİĞİ DEĞİLDİR (kurucu düzeltmesi 09-08). Yalnız bir
+   * TAZELİK İŞARETİDİR: iki bambaşka kalem kümesi aynı max'ı verebilir, kümeden
+   * bir kalem çıkması bu değeri değiştirmeyebilir ve tek başına "hangi bilgiyle
+   * cevap verildi" sorusunu YANITLAMAZ. O soruyu yanıtlayan şey `items`ten
+   * üretilen kalem-kimliği + kalem-sürümü kanıtıdır (`buildKbEvidence`).
    * Kalem yoksa null — 0/şimdi gibi sahte bir değer üretilmez.
    */
-  versionAt: Date | null;
+  newestUpdatedAt: Date | null;
 }
 
 export async function fetchKnowledgeBaseForPrompt(
@@ -66,9 +77,9 @@ export async function fetchKnowledgeBaseForPrompt(
   const [rows, byState] = await Promise.all([
     prisma.knowledgeBaseItem.findMany({
       where: gated,
-      // `updatedAt` yalnız SÜRÜM hesabı için okunur; istemde gönderilen nesneye
-      // konmaz (aşağıda ayıklanıyor) — istem yüzeyi değişmesin.
-      select: { category: true, title: true, content: true, updatedAt: true },
+      // `id`/`updatedAt` YETKİLİ İÇ DENETİM içindir. İstem metnine girmezler:
+      // `packKnowledgeBase` yalnız `category/title/content` okur (yapısal pin).
+      select: { id: true, category: true, title: true, content: true, updatedAt: true },
       // "En son güncellenen kazanır": host bir bilgiyi düzelttiyse istemde
       // kalan o olsun. Düşenler en eski dokunulmuş kayıtlardır.
       orderBy: { updatedAt: "desc" },
@@ -87,9 +98,8 @@ export async function fetchKnowledgeBaseForPrompt(
     if (isAiReadableReviewState(g.reviewState)) total += g._count._all;
     else pendingApproval += g._count._all;
   }
-  const items = rows.map(({ category, title, content }) => ({ category, title, content }));
   // Sıralama `updatedAt desc` olduğu için ilk satır en yenisi; yine de boş
   // listede `undefined` yerine açıkça null döndürülüyor.
-  const versionAt = rows[0]?.updatedAt ?? null;
-  return { items, dropped: Math.max(0, total - items.length), pendingApproval, versionAt };
+  const newestUpdatedAt = rows[0]?.updatedAt ?? null;
+  return { items: rows, dropped: Math.max(0, total - rows.length), pendingApproval, newestUpdatedAt };
 }
