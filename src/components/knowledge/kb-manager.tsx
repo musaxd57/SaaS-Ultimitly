@@ -175,7 +175,11 @@ export function KbManager({
         // Görünür geri bildirim (kurucu, 09-08): geçiş sessizdi, yalnız küçük ikon
         // değişiyordu. Ortak toast yüzeyi (bottom-right, otomatik kapanır). Yalnız
         // BAŞARIDA — rota reddettiyse "oldu" iddiası yapılmaz (hata listede).
-        toast.success(item.isActive ? "Bilgi pasifleştirildi." : "Bilgi aktifleştirildi.");
+        // İKİ EYLEM AYRI TİPTE (kurucu, 09-08): aktifleştirme bir kazanım
+        // (success), pasifleştirme nötr bir durum değişikliği (info). İkisi de
+        // yeşil olunca "ne oldu?" ayırt edilemiyordu.
+        if (item.isActive) toast.info("Bilgi pasifleştirildi.");
+        else toast.success("Bilgi aktifleştirildi.");
         refresh();
       }
     } catch {
@@ -449,7 +453,10 @@ export function KbManager({
                       <div className="flex items-center gap-1">
                         <button
                           type="button"
-                          onClick={() => startEdit(item)}
+                          // TOGGLE (kurucu, 09-08): kalem açıkken tekrar tıklamak
+                          // düzenlemeyi KAPATIR. Eskiden yalnız açıyordu; kapatmak
+                          // için "İptal"i bulmak gerekiyordu.
+                          onClick={() => (editId === item.id ? setEditId(null) : startEdit(item))}
                           className={cn(
                             "inline-flex min-h-[40px] min-w-[40px] items-center justify-center rounded p-2.5 text-muted-foreground hover:bg-accent",
                             editId === item.id && "bg-accent text-foreground",
@@ -557,13 +564,19 @@ export function KbManager({
                             )}
                             Kaydet
                           </Button>
-                          <button
+                          {/* İPTAL BİR BUTON (kurucu, 09-08): link gibi duruyordu ve
+                              "Kaydet"in yanında kaybolmuştu. Aynı yükseklik, ikincil
+                              görünüm — birincil eylemle karışmaz ama tıklanabilir olduğu
+                              görünür. */}
+                          <Button
                             type="button"
+                            size="sm"
+                            variant="outline"
                             onClick={() => setEditId(null)}
-                            className="inline-flex items-center gap-1 text-xs text-muted-foreground hover:underline"
+                            disabled={editBusy}
                           >
                             <X className="size-3.5" /> İptal
-                          </button>
+                          </Button>
                         </div>
                       </div>
                     ) : (

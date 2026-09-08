@@ -114,6 +114,71 @@ KB tarafına aynı disiplini getirmek tutarlılık sağlar.
 
 ---
 
+## KOD HAZIRLIĞI PLANI (kurucu onayı 09-08: 1/4/5/6 maddeleri uygulanacak)
+
+> Kurucu kararı: değerlendirmede kalmasın, **kod hazırlığına geçilsin**. Şartlar: mülk gerçekleri ile mesaj
+> şablonları KAVRAMSAL OLARAK AYRI · mevcut eşdeğer yapılar kullanılsın · metinden çıkarılan bilgi HOST ONAYINDAN
+> ÖNCE AKTİFLEŞMESİN · mevcut içerik silinmesin/sessizce değişmesin · kurulum-eksikler ile incelenecek öneriler
+> AYRI GÖRÜNÜMLER · sıra VERİ BAĞIMLILIĞINA göre · gerçek model eval'i bitmeden düşük güven bandı AÇILMAZ ·
+> migration ve prod onay kapıları aynen geçerli.
+
+### Kavramsal ayrım (önce bu netleşmeli)
+Bugün `KnowledgeBaseItem` İKİ farklı şeyi taşıyor ve bu karışıklık ekranda görünüyor (kurucunun ekran
+görüntüsündeki "Giriş Talimatı / Çıkış Mesajı / Karşılama Mesajı" kalemleri `{isim}` yer tutucusu içeriyor):
+- **MÜLK GERÇEĞİ** (çöp yeri, otopark, ev kuralları) → AI'nın cevap üretirken DAYANDIĞI bilgi. Yer tutucu içermez.
+- **MESAJ ŞABLONU** (karşılama, giriş talimatı, çıkış mesajı) → misafire AYNEN gönderilen metin, `{isim}`/`{daire}`
+  yer tutucularıyla. Bunlar zaten `TRIGGER_CATEGORIES` (`welcome · checkin · checkout`) olarak kodda ayrılmış ve
+  `MessageTemplate` diye AYRI bir model de var.
+**Karar:** yeni alan çıkarımı YALNIZ mülk gerçeklerine uygulanır; şablon kalemleri kapsam dışıdır (yer tutuculu
+metinden "alan" çıkarmak yanlış veri üretir). Mevcut kategoriler bu ayrımı zaten taşıdığı için yeni bir tablo
+gerekmez — `TRIGGER_CATEGORIES` tek kaynak olarak kullanılır.
+
+### Sıra (veri bağımlılığı)
+**A1 — Kaynak/onay/sürüm alanları (`KnowledgeBaseItem`) · migration ister · ÖNCE**
+Her şeyin ön koşulu: taslak ile onaylı ayrımı olmadan ne öneri üretilebilir ne de "onaylı cevap var mı?" sorusu
+sorulabilir. Nullable/varsayılanlı eklenir (dolu tabloya required/unique EKLENMEZ — depo kuralı):
+`source` (`host_manual` varsayılan · `extracted_draft` · `suggestion_accepted`) · `status`
+(`approved` varsayılan · `draft`) · `approvedAt` · `sourceRef` (çıkarımın geldiği metin parçası, PII'siz kısa
+alıntı DEĞİL, yalnız satır no/uzunluk) · `supersededById`. **Mevcut satırların hepsi `host_manual`+`approved`
+doğar → davranış birebir aynı.** AI erişimi bugünkü `isActive` filtresine `status: "approved"` şartını EKLER;
+yani taslak bir kalem MODELE ASLA GİTMEZ (kurucunun "host onayından önce aktifleşmesin" şartının kod karşılığı).
+
+**A2 — `usedSources` kaydı · migration ister (küçük) · A1'den bağımsız, eksik-bilgi analizinin ön koşulu**
+Bugün modelin hangi kaleme dayandığı ölçülüyor ama SAKLANMIYOR. Üç sınıfı (bilgi yokluğu / retrieval
+başarısızlığı / operasyonel talep) ayırmanın tek yolu bu: aynı soru için kayıt VAR ama `usedSources` BOŞ ise bu
+bir **retrieval başarısızlığıdır**, yeni kalem eklemek yanlış cevaptır. `RiskEvent`'e `usedSourceCount` (Int?)
+veya ayrı bir küçük tablo; PII yok.
+
+**A3 — Eksik bilgi analizi (üç sınıf) · migration GEREKMEZ · A1+A2 sonrası**
+`Signal` verisi zaten akıyor. Kural: mülk × kategori için son 90 günde ≥3 misafir sorusu →
+· o kategoride ONAYLI kalem YOK → **bilgi yokluğu** → host'a "ekle" önerisi
+· kalem VAR ama sorularda `usedSources` boş → **retrieval başarısızlığı** → öneri DEĞİL, teşhis kaydı
+· sinyal `complaint`/operasyonel → **operasyonel talep** → öneri üretilmez (V3 görev konusu)
+Öneriler mülk × kategori bazında TEKİLLEŞTİRİLİR, önem sırasına konur; **mesaj başına bildirim YOK**.
+
+**A4 — Kurulum şablonları (madde 1'in hafif hâli) · migration GEREKMEZ · bağımsız, hemen yapılabilir**
+Kısa kurulum şablonları `KB_PRESETS` olarak ZATEN VAR (Wi-Fi, giriş, otopark, çöp, kurallar, çıkış) ve tek tıkla
+formu DOLDURUYOR, kaydetmiyor — yani "host onayından önce aktifleşmez" şartını bugün de sağlıyor. Yapılacak:
+eksik-bilgi analizinden gelen kategoriyi bu şablonlarla eşleştirip "şunu ekle" önerisini tek tıkla doldurulabilir
+hâle getirmek. Yeni yapı gerekmez.
+
+**A5 — Host metninden alan önerisi · migration GEREKMEZ (A1'in `draft` durumunu kullanır) · EN SON**
+Metin yapıştırılır → deterministik kalıp çıkarımı (saat, "çıkış/giriş", "çöp", "otopark", "wifi") → **taslak**
+öneriler. Hedefi yapılandırılmış kolon olan öneri (`checkOutTime`) KB kalemi olarak YAZILMAZ (çift kopya yasağı);
+mevcut değerle çelişiyorsa yan yana gösterilir ve **host seçer**. Hiçbir mevcut kalem silinmez/değiştirilmez;
+öneri kabul edilirse YENİ kalem `suggestion_accepted`+`approved` olarak doğar, eskisi `supersededById` ile
+işaretlenir (iz kaybı yok).
+
+### Ayrı görünümler (kurucu şartı)
+- **"Kurulum ve eksikler"** — host'un tamamlaması gereken işler (A3 önerileri + A4 şablonları).
+- **"İncelenecek öneriler"** — metinden çıkarılan taslaklar (A5), her biri onay/ret bekler.
+İkisi karışmaz: ilki "bilgi eksik", ikincisi "bilgi önerildi, onayın lazım".
+
+### Bu turda YAPILMAYANLAR (açıkça)
+A1–A5'in hiçbiri bu turda kodlanmadı; bu bölüm plandır. Düşük güven bandı (`QR_INFORMATIONAL_BAND_ENABLED`)
+**gerçek model eval'i bitmeden AÇILMAYACAK** — varsayılan kapalı kalır. Migration'lar yerelde hazırlanır ve
+taze `pg_dump` + açık push onayı olmadan gönderilmez.
+
 ## Önerilen sıra (bağımlılıkla)
 1. **Eksik bilgi tespiti (madde 2)** — veri zaten akıyor, migration gerekmez, değeri en yüksek. Okuma yüzeyi +
    deterministik eşleme kuralı + tekilleştirme/önem sırası.

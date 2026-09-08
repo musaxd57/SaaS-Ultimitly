@@ -66,6 +66,8 @@ describe("KbManager — aktif/pasif geçişi geri bildirimi", () => {
     expect(url).toBe("/api/kb/k1");
     expect(init.method).toBe("PATCH");
     expect(JSON.parse(String(init.body))).toEqual({ isActive: false });
+    // Pasifleştirme artık `info` tonunda (nötr durum değişikliği); `role` yine
+    // "status" — yalnız hata `alert` olur.
     expect(screen.getByRole("status").textContent).toMatch(/pasifleştirildi/i);
     expect(router.refresh).toHaveBeenCalledTimes(1);
   });

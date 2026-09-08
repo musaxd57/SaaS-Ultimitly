@@ -94,7 +94,10 @@ describe("toast — ortak bildirim", () => {
     expect(screen.getByRole("region", { name: "Bildirimler" })).toBeTruthy();
     // Sayaç görsel bir ipucu; canlı bölge OLMAMALI (her değişimde tekrar
     // okunup gerçek hataların üstünü örterdi).
-    const counter = screen.getByText(/\+2 önceki bildirim/);
+    // ⚠️ METİN KISALDI (kurucu, 09-08): eskiden "+2 önceki bildirim — görünenleri
+    // kapatınca sırayla açılır" yazıyordu; geçici bir yüzeye kullanım talimatı
+    // koymak gürültüydü. SAYI kalıyor (sessiz hata yok), cümle gitti.
+    const counter = screen.getByText("+2");
     expect(counter.getAttribute("aria-hidden")).toBe("true");
   });
 
