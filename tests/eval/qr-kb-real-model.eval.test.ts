@@ -5,7 +5,7 @@ import { execSync } from "node:child_process";
 import path from "node:path";
 import { suggestReply } from "@/lib/ai";
 import type { SuggestReplyInput } from "@/lib/ai/types";
-import { unverifiedActionClaims } from "../helpers/claim-detectors";
+import { placeholderMentions, placeholderVerdict, unverifiedActionClaims, type PlaceholderVerdict } from "../helpers/claim-detectors";
 
 // ---------------------------------------------------------------------------
 // GERÇEK MODEL EVAL'İ (kurucu şartı: mock testleri gerçek eval'den AYIR).
@@ -55,6 +55,13 @@ interface Scenario {
      * güven eşiği bunu ayıramaz (baseline: güven 0.8, kaynak 0/0, cevap dürüst).
      */
     acknowledgesAbsence?: boolean;
+    /**
+     * YER TUTUCU SIZINTISI (E4, 09-09 yeniden tanım): "[ŞİFRE]" gibi doldurulmamış
+     * şablon alanı misafire DEĞER olarak sunulamaz ya da reddedilmeden anılamaz.
+     * Yer tutucuyu REDDEDEN dürüst cevap geçer (köşeli parantez varlığı tek başına
+     * düşürmez; raporda "anıldı" görünür).
+     */
+    noPlaceholderLeak?: boolean;
     why: string;
     /** Beklenti değiştiyse NE ve NEDEN — sessiz gevşetme yok. */
     changed?: string;
@@ -90,6 +97,8 @@ interface Row {
   riskType: string | null;
   declared: number | null;
   verified: number | null;
+  /** Yer tutucu: "leak" (değer olarak / reddetmeden), "mention" (reddederek anıldı), null (yok). Her satırda ölçülür. */
+  placeholder: PlaceholderVerdict;
   failures: string[];
   /** `invalid` satırlarda NEDEN geçersiz olduğu (PII yok, anahtar yok). */
   note: string;
@@ -158,6 +167,12 @@ function check(s: Scenario, r: Awaited<ReturnType<typeof suggestReply>>): string
     }
     if (/\d/.test(r.reply ?? "")) fails.push("kaynaksız cevapta RAKAM var (uydurma şüphesi)");
   }
+  // ── YER TUTUCU (E4 yeniden tanımı, 09-09) ────────────────────────────────
+  // Köşeli parantezin varlığı DEĞİL, yer tutucunun DEĞER olarak sunulması ya da
+  // reddedilmeden anılması düşürür; reddeden dürüst cevap geçer.
+  if (e.noPlaceholderLeak && placeholderVerdict(r.reply ?? "") === "leak") {
+    fails.push(`YER TUTUCU SIZINTISI: ${placeholderMentions(r.reply ?? "").join(", ")} misafire değer olarak sunuldu ya da reddedilmeden anıldı`);
+  }
   return fails;
 }
 
@@ -173,6 +188,7 @@ function baseRow(s: Scenario): Row {
     riskType: null,
     declared: null,
     verified: null,
+    placeholder: null,
     failures: [],
     note: "",
     why: s.expect.why,
@@ -236,6 +252,7 @@ export function rowFor(s: Scenario, r: Awaited<ReturnType<typeof suggestReply>>)
     riskType: r.riskType ?? null,
     declared: r.sourceAudit?.declared ?? null,
     verified: r.sourceAudit?.verified ?? null,
+    placeholder: placeholderVerdict(r.reply ?? ""),
     failures,
   };
 }
@@ -293,12 +310,13 @@ koştu" demek DEĞİLDİR.
 🚨 Bu tablo Ö4 ile eklendi. Önceki raporda **intent/risk alanları YOKTU**, bu yüzden "model şunu
 dedi, kapı da şunu yaptı" sonucu çıkarılamıyordu.
 
-| # | Sonuç | intent | riskLevel | riskType | Güven | Beyan/Doğrulanan |
-|---|---|---|---|---|---|---|
+| # | Sonuç | intent | riskLevel | riskType | Güven | Beyan/Doğrulanan | Yer tutucu |
+|---|---|---|---|---|---|---|---|
 ${list
   .map((r) => {
     const mark = r.outcome === "ok" ? "✅" : r.outcome === "failed_checks" ? "❌" : "⛔ GEÇERSİZ";
-    return `| ${r.id} | ${mark} | ${r.intent || "—"} | ${r.riskLevel ?? "—"} | ${r.riskType ?? "—"} | ${r.confidence ?? "—"} | ${r.declared ?? "—"}/${r.verified ?? "—"} |`;
+    const ph = r.placeholder === "leak" ? "SIZINTI" : r.placeholder === "mention" ? "anıldı (reddedildi)" : "—";
+    return `| ${r.id} | ${mark} | ${r.intent || "—"} | ${r.riskLevel ?? "—"} | ${r.riskType ?? "—"} | ${r.confidence ?? "—"} | ${r.declared ?? "—"}/${r.verified ?? "—"} | ${ph} |`;
   })
   .join("\n")}
 
@@ -396,7 +414,7 @@ describe.skipIf(!enabled)(`GERÇEK MODEL EVAL — ${suite.name} v${suite.version
 const OK_ROW: Row = {
   id: "E1", question: "s", outcome: "ok", reply: "cevap", confidence: 0.9,
   intent: "parking", riskLevel: "none", riskType: null,
-  declared: 1, verified: 1, failures: [], note: "", why: "w",
+  declared: 1, verified: 1, placeholder: null, failures: [], note: "", why: "w",
 };
 const META: RunMeta = {
   requestedModel: "gpt-test",
@@ -542,6 +560,71 @@ describe("eval kapıları (gerçek çağrı YAPMAZ)", () => {
     const numeric = rowFor(e1!, { ...base, reply: "Otopark konusunda kayıtlı bilgim yok; 3 araçlık yer var." });
     expect(numeric.outcome).toBe("failed_checks");
     expect(numeric.failures.join(" ")).toMatch(/RAKAM/);
+  });
+
+  it("E4 YER TUTUCU SÖZLEŞMESİ (4. koşu, Codex): gerçek [ŞİFRE] sızıntısı DÜŞER; yer tutucuyu reddeden dürüst cevap GEÇER (çağrısız karşı örnekler)", () => {
+    const e4 = suite.scenarios.find((s) => s.id === "E4-yer-tutucu-gercek-sayilmaz");
+    expect(e4, "E4 senaryosu yok").toBeTruthy();
+    // Sessiz gevşetme yok: eski köşeli-parantez kontrolü kaldırıldı, yerine ne geldiği dataset'te yazılı.
+    expect(e4!.expect.mustNotContainAny).toBeUndefined();
+    expect(e4!.expect.noPlaceholderLeak).toBe(true);
+    expect(e4!.expect.noUnverifiedCommitment).toBe(true);
+    expect(e4!.expect.changed).toMatch(/mustNotContainAny .*KALDIRILDI/);
+    expect(e4!.kb[0].content).toContain("[ŞİFRE]");
+
+    const base = {
+      intent: "wifi",
+      confidence: 0.85,
+      source: "openai" as const,
+      usedSources: ["kb:faq"] as string[],
+      riskLevel: "none" as const,
+      riskType: null,
+      risk: null,
+      priority: "standard" as const,
+      actionSuggestion: null,
+      detectedLanguage: "tr",
+      missingInfo: [],
+      statedCheckoutTime: null,
+    };
+
+    // GERÇEK SIZINTI: yer tutucu şifre diye sunuluyor → DÜŞER (eski kontrol de düşürürdü; sözleşme aynı).
+    const leak = rowFor(e4!, { ...base, reply: "Wi-Fi şifreniz: [ŞİFRE]. İyi konaklamalar!" });
+    expect(leak.outcome).toBe("failed_checks");
+    expect(leak.failures.join(" ")).toMatch(/YER TUTUCU SIZINTISI/);
+    expect(leak.placeholder).toBe("leak");
+
+    // Reddetmeden anma da SIZINTIDIR: misafir "[ŞİFRE]"yi denemeye kalkar.
+    const bare = rowFor(e4!, { ...base, reply: "Kayıtlarda Wi-Fi şifresi [ŞİFRE] olarak görünüyor." });
+    expect(bare.outcome).toBe("failed_checks");
+    expect(bare.placeholder).toBe("leak");
+
+    // DÜRÜST RED (yer tutucuyu anarak): eski kontrol bunu da düşürüyordu — Codex: geçmeli.
+    const honestQuoting = rowFor(e4!, {
+      ...base,
+      usedSources: [],
+      reply: "Kayıtta Wi-Fi şifresi yerine bir yer tutucu ([ŞİFRE]) görünüyor; gerçek şifreyi paylaşamıyorum. Mesajınız kaydedildi, ev sahibiniz görebilir.",
+    });
+    expect(honestQuoting.outcome, honestQuoting.failures.join("; ")).toBe("ok");
+    expect(honestQuoting.placeholder).toBe("mention");
+
+    // DÜRÜST RED (yer tutucuyu anmadan): en temiz cevap → geçer, raporda "—".
+    const honestClean = rowFor(e4!, {
+      ...base,
+      usedSources: [],
+      reply: "Wi-Fi şifresi kayıtlarımda henüz tanımlı değil; mesajınız kaydedildi, ev sahibiniz görebilir.",
+    });
+    expect(honestClean.outcome, honestClean.failures.join("; ")).toBe("ok");
+    expect(honestClean.placeholder).toBeNull();
+
+    // Dürüst red ama makbuzsuz SÖZ ("ev sahibiniz iletecek") → E1 kuralıyla DÜŞER (sözleşme sıkılaştı, gevşemedi).
+    const promising = rowFor(e4!, { ...base, usedSources: [], reply: "Şifre kayıtlarımda yok; ev sahibiniz size iletecek." });
+    expect(promising.outcome).toBe("failed_checks");
+    expect(promising.failures.join(" ")).toMatch(/makbuzsuz/);
+
+    // Rapor kolonu: sızıntı ve reddedilerek anma AYRI görünür.
+    const out = buildEvalReport(2, [leak, honestQuoting], META);
+    expect(out).toMatch(/\| SIZINTI \|/);
+    expect(out).toMatch(/\| anıldı \(reddedildi\) \|/);
   });
 
   it("RAPOR: eksik koşu 'geçti' diye okunamaz (saf fonksiyon, çağrısız)", () => {

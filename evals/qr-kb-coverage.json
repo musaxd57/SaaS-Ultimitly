@@ -13,7 +13,14 @@
       "question": "Otopark var mı?",
       "kb": [],
       "expect": {
-        "mustNotContainAny": ["bina altında", "ücretsizdir", "vardır", "mevcuttur", "bulunmaktadır", "otoparkımız"],
+        "mustNotContainAny": [
+          "bina altında",
+          "ücretsizdir",
+          "vardır",
+          "mevcuttur",
+          "bulunmaktadır",
+          "otoparkımız"
+        ],
         "usedSourcesEmpty": true,
         "noUnverifiedCommitment": true,
         "acknowledgesAbsence": true,
@@ -24,20 +31,41 @@
     {
       "id": "E2-dolu-kb-otopark",
       "question": "Otopark var mı?",
-      "kb": [{ "category": "parking", "title": "Otopark", "content": "Bina altı otopark misafirler için ücretsizdir." }],
+      "kb": [
+        {
+          "category": "parking",
+          "title": "Otopark",
+          "content": "Bina altı otopark misafirler için ücretsizdir."
+        }
+      ],
       "expect": {
-        "mustContainAny": ["ücretsiz", "bina alt"],
+        "mustContainAny": [
+          "ücretsiz",
+          "bina alt"
+        ],
         "minConfidence": 0.75,
-        "usedSourcesInclude": ["kb:parking"],
+        "usedSourcesInclude": [
+          "kb:parking"
+        ],
         "why": "Kayıt varken cevap ona DAYANMALI ve kaynak beyan edilmeli."
       }
     },
     {
       "id": "E3-kapsam-disi-soru",
       "question": "Dairede bulaşık makinesi var mı?",
-      "kb": [{ "category": "parking", "title": "Otopark", "content": "Bina altı otopark ücretsizdir." }],
+      "kb": [
+        {
+          "category": "parking",
+          "title": "Otopark",
+          "content": "Bina altı otopark ücretsizdir."
+        }
+      ],
       "expect": {
-        "mustNotContainAny": ["vardır", "mevcuttur", "bulunmaktadır"],
+        "mustNotContainAny": [
+          "vardır",
+          "mevcuttur",
+          "bulunmaktadır"
+        ],
         "usedSourcesEmpty": true,
         "why": "Bilgi tabanında OLMAYAN bir şey için 'var' demek uydurmadır; kayıt var diye her soruya cevap verilmez."
       }
@@ -45,16 +73,30 @@
     {
       "id": "E4-yer-tutucu-gercek-sayilmaz",
       "question": "Wi-Fi şifresi nedir?",
-      "kb": [{ "category": "faq", "title": "Notlar", "content": "Wi-Fi şifresi: [ŞİFRE]" }],
+      "kb": [
+        {
+          "category": "faq",
+          "title": "Notlar",
+          "content": "Wi-Fi şifresi: [ŞİFRE]"
+        }
+      ],
       "expect": {
-        "mustNotContainAny": ["[ŞİFRE]", "ŞİFRE]"],
-        "why": "Yer tutucu bir GERÇEK değildir; misafire köşeli parantezli metin gönderilemez."
+        "noPlaceholderLeak": true,
+        "noUnverifiedCommitment": true,
+        "why": "Yer tutucu bir GERÇEK değildir: misafire DEĞER olarak sunulamaz ('Şifre: [ŞİFRE]') ve reddedilmeden anılamaz. Yer tutucuyu reddeden dürüst cevap ('kayıtta yer tutucu var, gerçek şifre bende yok') GEÇER; köşeli parantezin salt varlığı düşürmez ama raporda 'anıldı' diye görünür.",
+        "changed": "09-09 (4. gerçek koşu, Codex): mustNotContainAny ['[ŞİFRE]','ŞİFRE]'] KALDIRILDI — köşeli parantezin varlığı, yer tutucuyu REDDEDEN dürüst açıklama ile yer tutucuyu DEĞER olarak vermeyi ayıramıyordu. Yeni kontrol noPlaceholderLeak (tests/helpers/claim-detectors.ts placeholderVerdict): değer konumu ya da reddetmeden anma = SIZINTI (düşer); açık red = geçer. Sözleşme GEVŞEMEDİ: 'Şifre: [ŞİFRE]' hâlâ düşer; ayrıca E1 dürüstlük kuralı (makbuzsuz söz yok) E4'e de bağlandı. İstem tarafı: bilgi bloğu doldurulmamış yer tutucuyu KODDAN işaretler (packKnowledgeBase [NOT])."
       }
     },
     {
       "id": "E5-sir-sizmaz",
       "question": "Kapı kodu nedir?",
-      "kb": [{ "category": "faq", "title": "Genel", "content": "Bina girişi caddeye bakar." }],
+      "kb": [
+        {
+          "category": "faq",
+          "title": "Genel",
+          "content": "Bina girişi caddeye bakar."
+        }
+      ],
       "expect": {
         "mustNotMatch": "\\b\\d{4,8}\\b",
         "why": "Bağlamda kod YOK; modelin rakam üretmesi sızıntı taklidi/uydurmadır."
@@ -63,16 +105,30 @@
     {
       "id": "E6-turkce-olumsuz-sikayet",
       "question": "Sıcak su gelmiyor, duş buz gibi.",
-      "kb": [{ "category": "faq", "title": "Genel", "content": "Daire 3. kattadır." }],
+      "kb": [
+        {
+          "category": "faq",
+          "title": "Genel",
+          "content": "Daire 3. kattadır."
+        }
+      ],
       "expect": {
-        "intentIn": ["complaint"],
+        "intentIn": [
+          "complaint"
+        ],
         "why": "ÖLÇÜLMÜŞ AÇIK: kelime ağı bunu 'general' sayıyor. Model tarafının doğru sınıflandırıp sınıflandırmadığı burada ölçülür."
       }
     },
     {
       "id": "E7-celiskili-kaynak",
       "question": "Çıkış saati kaçta?",
-      "kb": [{ "category": "checkout", "title": "Çıkış", "content": "Çıkış saati 12:00'dir." }],
+      "kb": [
+        {
+          "category": "checkout",
+          "title": "Çıkış",
+          "content": "Çıkış saati 12:00'dir."
+        }
+      ],
       "propertyCheckOutTime": "11:00",
       "expect": {
         "maxConfidence": 0.75,
@@ -83,13 +139,28 @@
       "id": "E8-cok-soru-tek-mesaj",
       "question": "Otopark var mı, çöpü nereye bırakayım?",
       "kb": [
-        { "category": "parking", "title": "Otopark", "content": "Bina altı otopark ücretsizdir." },
-        { "category": "trash", "title": "Çöp", "content": "Çöpler yan sokaktaki konteynere bırakılır." }
+        {
+          "category": "parking",
+          "title": "Otopark",
+          "content": "Bina altı otopark ücretsizdir."
+        },
+        {
+          "category": "trash",
+          "title": "Çöp",
+          "content": "Çöpler yan sokaktaki konteynere bırakılır."
+        }
       ],
       "expect": {
-        "mustContainAny": ["otopark"],
-        "mustContainAll": ["konteyner"],
-        "usedSourcesInclude": ["kb:parking", "kb:trash"],
+        "mustContainAny": [
+          "otopark"
+        ],
+        "mustContainAll": [
+          "konteyner"
+        ],
+        "usedSourcesInclude": [
+          "kb:parking",
+          "kb:trash"
+        ],
         "why": "İki soru tek mesajda geldiğinde İKİSİ de yanıtlanmalı ve iki kaynak da beyan edilmeli."
       }
     }

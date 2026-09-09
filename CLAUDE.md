@@ -294,6 +294,13 @@ Bu dosyaya token/anahtar/parola yazma.
   fail-closed) + `QR_SECRET_CATEGORIES` kategori bacağı + `verifiedActiveStay`; onaylı konaklamada kod
   vermek ürünün kendisidir. Kalıp bitişiklik şartı (4–8 hane, telefon-devamı koruması); serbest metin izni
   YOK (12 kalemin 6'sını eliyordu). Stil profili 4 yüzeyde de süzülür (`scrubStyleProfileForPublic`).
+- **Yer tutucu ≠ gerçek (E4, 4. koşu 09-09):** kb-manager hazır şablonu `[ŞİFRE]`/`[AĞ ADI]` alanlarını taşır ve host
+  doldurmadan kaydedebilir. `packKnowledgeBase` bloğa giren kalemde `[…]`/`<…>`/`___` (içinde harf) görürse KODDAN
+  `[NOT] DOLDURULMAMIŞ YER TUTUCU` yazar ("gerçek değer DEĞİLDİR; misafire yazma; KURAL-3"); `{isim}` BİLEREK dışarıda
+  (ad ikamesi çağıranda; QR yolu ikame yapmıyor — ayrı gözlem). Ölçüm dedektörü `placeholderVerdict` (tests/helpers):
+  DEĞER konumu ya da reddetmeden anma = SIZINTI, açık red = anıldı/geçer; makbuzsuz söz dedektörü üçüncü şahsı da
+  yakalar (eski kalıp yalnız "-eceğ-"). 🚨 Çıktı kapısında yer tutucu vetosu YOK (P5 ailesi, ayrı onay) — bugün
+  "Şifre: [ŞİFRE]" QR'da güven ≥0.75 ise gidebilir (usedSources dolu olduğundan `unsourced_claim` yakalamaz).
 - Üslup: duygu beyanı/temenni/çelişki/dolgu-soru yasak; "siz"; ben-dili. Çok soruluda uzunluk kuralı ezilir.
 - `REPLY_CHAR_CAP` 4.000 (aşılırsa güven 0.5, sessiz kesme yok) ≠ `max_completion_tokens` 2000.
 - **Injection kara listesi yapısal olarak yetersiz** (düz parafrazların çoğu geçer); asıl koruma KB sır
@@ -677,6 +684,11 @@ bildirim↔görev bağı · canlı tavan + cevap-metni ölçüsü · tazelik yak
 eşleştirilmiş legacy/hibrit eval hazırlığı (R1–R8, kurucu koşar) + sentetik GraphRAG kıyas verisi (H1–H3 birebir, H4
 cevaplanamaz). Bayrak KAPALI, migration YOK, ücretli servis YOK, politika değişikliği YOK, P5 AÇIK. Yerel kapılar: suit +
 tsc + lint + build + audit yeşil; mutasyon 20/20 (kontrol yeşil).**
+**4. GERÇEK KOŞU (kurucu, 09-09 20:21 yerel, preflight klonu, `9699896` sonrası): EŞLEŞTİRİLMİŞ RETRIEVAL 16/16 ✅ (R1–R8 iki
+modda; legacy dürüst yokluk + hibrit doğru cevap beklentisi tuttu) · QR kapsam 7/8 — E4 ❌ ("[ŞİFRE]" cevapta). İki rapor dosyası
+(`eval-2026-09-09-*.md`, `eval-retrieval-2026-09-09-*.md`) repoda YOK — kurucudan bekleniyor; ham E4 cevabı görülmedi.
+YEREL DÜZELTME (push YOK, kurucu incelemesi): dedektör değer-konumu/red ayrımı + KB bloğu kod-üretimli yer tutucu notu +
+üçüncü-şahıs söz boşluğu; karşı örnekler pinli; mutasyon 12/12 yakalandı (kontrol yeşil); kırmızı-önce (11 kırmızı → yeşil).**
 **Origin HEAD `9699896` (09-09, RAG dilim 3; CI #1026 5/5 success; 4042 test / 364 dosya; Railway ACTIVE teyidi BEKLENİYOR — kurucu).
 Önceki `12ddd8e` (dilim 2, CI #1022 5/5) ve `061d62e` (dilim 1) ACTIVE — kurucu teyidi 09-09.** Prod'da canlı:
 migration 52/53/54 (09-08), `a52a30c`+ (selam tekrarı canlı doğrulaması hâlâ bekliyor).

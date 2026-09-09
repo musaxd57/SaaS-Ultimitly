@@ -761,6 +761,19 @@ const COURTESY_LINES = [
  *   sessizce düşüyor ve AI, host'un GERÇEKTEN yazdığı bir konuda kendinden emin
  *   "bilgim yok" diyebiliyordu (denetim, 07-31). Not gidince model devrediyor.
  */
+/**
+ * Bilgi tabanı kaleminde DOLDURULMAMIŞ yer tutucu belirteçleri: `[ŞİFRE]`,
+ * `<adres>`, `____` (kb-manager hazır şablonu köşeli parantezli alan taşır; A5
+ * `kb-extract` de aynı sınıfı "yer tutucu" sayar). `{isim}`/`{daire}` BİLEREK
+ * DIŞARIDA: onlar ad/daire ikamesiyle çağıranda doldurulur (automation /
+ * ai-suggest / test rotası). İçinde en az bir harf şart: "[1]" madde imi
+ * yer tutucu değildir.
+ */
+const KB_PLACEHOLDER_G = /\[[^\]\n]*\p{L}[^\]\n]*\]|<[^>\n]*\p{L}[^>\n]*>|_{3,}/gu;
+export function kbPlaceholderTokens(content: string): string[] {
+  return Array.from(content.matchAll(KB_PLACEHOLDER_G), (m) => m[0]);
+}
+
 export function packKnowledgeBase(
   items: { category: string; title: string; content: string }[],
   alreadyDropped = 0,
@@ -785,6 +798,7 @@ export function packKnowledgeBase(
   const lines: string[] = [];
   let used = 0;
   let omitted = alreadyDropped;
+  const placeholders: { title: string; tokens: string[] }[] = [];
   for (const k of items) {
     const line = `- [${k.category.toUpperCase()}] ${k.title}: ${k.content}`;
     if (used + line.length > KB_CHAR_BUDGET && lines.length > 0) {
@@ -793,6 +807,19 @@ export function packKnowledgeBase(
     }
     lines.push(line);
     used += line.length;
+    const tokens = kbPlaceholderTokens(k.content);
+    if (tokens.length > 0) placeholders.push({ title: k.title, tokens });
+  }
+  // DOLDURULMAMIŞ YER TUTUCU — KODDAN tespit, modele AÇIK CÜMLE (E4, 09-09):
+  // "Şifre: [ŞİFRE]" gerçek değil, doldurulmamış şablondur; model bunu misafire
+  // değer diye yazamaz. Yalnız BLOĞA GİREN kalemler için (düşen kalem yok sayılır).
+  if (placeholders.length > 0) {
+    lines.push(
+      `- [NOT] DOLDURULMAMIŞ YER TUTUCU: ${placeholders.map((p) => `"${p.title}" (${p.tokens.join(", ")})`).join("; ")}. ` +
+        "Bu köşeli/açılı parantezli alanlar ev sahibinin henüz doldurmadığı ŞABLONDUR; gerçek değer DEĞİLDİR: " +
+        "misafire yazma, alıntılama, kayıtlı bilgi sayma. O bilgi için KURAL-3 geçerli: " +
+        '"Bu bilgi kayıtlarımda yok; ev sahibinizden isteyebilirsiniz."',
+    );
   }
   for (const n of notes) lines.push(`- [NOT] ${n}`);
   if (omitted > 0) {
