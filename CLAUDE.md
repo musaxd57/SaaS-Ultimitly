@@ -676,8 +676,9 @@ bildirim↔görev bağı · canlı tavan + cevap-metni ölçüsü · tazelik yak
 (üretimde embedding YOK, pin) + n-gram ayrı ölçüm (`auto` varsayılanı ölçümle) + güvenlik filtresi davranışsal doğrulaması +
 eşleştirilmiş legacy/hibrit eval hazırlığı (R1–R8, kurucu koşar) + sentetik GraphRAG kıyas verisi (H1–H3 birebir, H4
 cevaplanamaz). Bayrak KAPALI, migration YOK, ücretli servis YOK, politika değişikliği YOK, P5 AÇIK. Yerel kapılar: suit +
-tsc + lint + build + audit yeşil; mutasyon 20/20 (kontrol yeşil). Push + CI sonucu bu satıra işlenecek.**
-**Origin HEAD `12ddd8e` (09-09, RAG dilim 2; CI #1022 5/5 success; Railway ACTIVE — kurucu teyidi 09-09). Önceki `061d62e` (dilim 1) ACTIVE — kurucu teyidi 09-09.** Prod'da canlı:
+tsc + lint + build + audit yeşil; mutasyon 20/20 (kontrol yeşil).**
+**Origin HEAD `9699896` (09-09, RAG dilim 3; CI #1026 5/5 success; 4042 test / 364 dosya; Railway ACTIVE teyidi BEKLENİYOR — kurucu).
+Önceki `12ddd8e` (dilim 2, CI #1022 5/5) ve `061d62e` (dilim 1) ACTIVE — kurucu teyidi 09-09.** Prod'da canlı:
 migration 52/53/54 (09-08), `a52a30c`+ (selam tekrarı canlı doğrulaması hâlâ bekliyor).
 **3. GERÇEK KOŞU (kurucu, 09-09 13:46 yerel, preflight klonu `2cfa8d4`): 8/8 ✅ (E1 dürüstlük sözleşmesiyle).** Rapor dosyası
 repoya henüz gelmedi (önceki iki koşununki de). Kurucunun preflight klonunda `npm install` 11 zafiyet gösterdi (node 24, engine
