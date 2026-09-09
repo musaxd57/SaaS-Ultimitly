@@ -1,6 +1,7 @@
 import { createHash } from "node:crypto";
 import { Bm25Index } from "./bm25";
 import { chunkItems, chunkKey, type KbChunk, type KbChunkSource } from "./chunker";
+import { NgramIndex } from "./sources";
 
 // ---------------------------------------------------------------------------
 // İNDEKS ÖNBELLEĞİ — İÇERİK PARMAK İZİYLE (RAG dilim 1, 09-09).
@@ -27,6 +28,8 @@ export interface KbIndex {
   fingerprint: string;
   chunks: KbChunk[];
   bm25: Bm25Index;
+  /** Karakter 3-gram kaynağı (ikinci aday üreticisi; `sources.ts`). */
+  ngram: NgramIndex;
 }
 
 const _cache = new Map<string, { value: KbIndex; expires: number }>();
@@ -47,7 +50,8 @@ export function fingerprintItems(items: readonly KbChunkSource[]): string {
 export function buildKbIndex(items: readonly KbChunkSource[]): KbIndex {
   const chunks = chunkItems(items);
   const bm25 = new Bm25Index(chunks.map((c) => ({ key: chunkKey(c), title: c.title, text: c.text })));
-  return { fingerprint: fingerprintItems(items), chunks, bm25 };
+  const ngram = new NgramIndex(chunks.map((c) => `${c.title} ${c.text}`));
+  return { fingerprint: fingerprintItems(items), chunks, bm25, ngram };
 }
 
 export function getOrBuildKbIndex(items: readonly KbChunkSource[], now = Date.now()): KbIndex {

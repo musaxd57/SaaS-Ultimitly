@@ -65,6 +65,19 @@ describe("stem (Türkçe + İngilizce ek sökme, simetrik)", () => {
     same("akmiyor", "akiyor");
   });
 
+  it("ünsüz yumuşaması geri alınır (yalnız ek söküldüyse): uçağa≡uçak, köpeğimi≡köpek, kitabı≡kitap; 'blog' dokunulmaz", () => {
+    same("ucaga", "ucak");
+    same("kopegimi", "kopek");
+    same("kitabi", "kitap");
+    expect(stem("blog")).toBe("blog");
+  });
+
+  it("dilim 2 ekleri: ütüleyebilir≡ütüle, ayrılmam≡ayrıl, ısıtabileceğim≡ısıt", () => {
+    same("utuleyebilir", "utule");
+    same("ayrilmam", "ayril");
+    same("isitabilecegim", "isit");
+  });
+
   it("İngilizce ekler: parking→park, towels→towel, keys→key", () => {
     same("parking", "park");
     same("towels", "towel");

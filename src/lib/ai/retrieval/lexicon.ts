@@ -2,18 +2,19 @@ import type { KbCategory } from "@/lib/constants";
 import { contentStems, stem } from "./text";
 
 // ---------------------------------------------------------------------------
-// ALAN SÖZLÜĞÜ — kısa dönem kiralama kavramları (RAG dilim 1, 09-09).
+// ALAN SÖZLÜĞÜ — kısa dönem kiralama kavramları (RAG dilim 1+2, 09-09).
 //
 // İki iş görür: (1) SORGU GENİŞLETME — "araba nereye koyayım" ↔ "otopark" ↔
 // "parking" aynı kavram; (2) KATEGORİ İPUCU — kavram bir KB kategorisine
 // bağlıysa o kategorideki parçalar sözcük eşleşmesi olmasa da puan alır (host
 // "Otopark" başlığı altında "araç" yazmış olabilir).
 //
-// KURALLAR:
-// - Tek kelimelik terimler hem TESPİT hem GENİŞLETME kaynağıdır; çok kelimelik
-//   terimler ("park yeri", "sıcak su") YALNIZ tespit içindir — genel sözcükleri
-//   ("yeri", "su") tek başına genişletmeye sokmak gürültü üretirdi.
-// - Genel/çok anlamlı sözcükler ("kutu", "misafir", "erken") kavramlara KONMAZ.
+// KURALLAR (ölçek harness'ıyla ÖLÇÜLDÜ, 09-09):
+// - Kavramlar DAR ve TEK AMAÇLI: "olanaklar" gibi torba kavram ("ütü" sorusuna
+//   balkon/havuz/bebek genişletmesi) gürültü üretiyordu → bölündü.
+// - `terms` hem TESPİT hem GENİŞLETME; `detectOnly` yalnız tespit (genel
+//   sözcükler: "kural", "saat", "yeri" ve çok kelimelik kalıplar). Genel sözcüğü
+//   genişletmeye sokmak ilgisiz kalemleri aday yapıyordu ("pets" → "kural").
 // - Sözlük SIRALAMA ipucudur, politika değildir: sır elemesi, onay kapısı ve
 //   yetki filtresi burada değil, retrieval'ın önündedir.
 // - Terimler katlanmış (ASCII) yazılır; yüklenirken kök alınır ki sorguyla aynı
@@ -24,110 +25,90 @@ export interface Concept {
   id: string;
   /** Bağlı KB kategorisi (yoksa yalnız genişletme). */
   category?: KbCategory;
+  /** Tespit + genişletme (tek kelime). */
   terms: readonly string[];
+  /** Yalnız tespit (genel sözcük ya da çok kelimelik kalıp). */
+  detectOnly?: readonly string[];
 }
 
 export const CONCEPTS: readonly Concept[] = [
-  {
-    id: "parking",
-    category: "parking",
-    terms: ["otopark", "park", "arac", "araba", "garaj", "parking", "car", "vehicle", "garage", "park yeri", "araba parki", "arac parki"],
-  },
-  {
-    id: "wifi",
-    category: "wifi",
-    terms: ["wifi", "internet", "kablosuz", "modem", "wireless", "router", "baglanti", "wlan"],
-  },
-  {
-    id: "credentials",
-    terms: ["sifre", "parola", "password", "kod", "code", "pin", "sifresi"],
-  },
-  {
-    id: "trash",
-    category: "trash",
-    terms: ["cop", "atik", "konteyner", "trash", "garbage", "rubbish", "waste", "recycling", "geri donusum", "cop kutusu", "cop poseti"],
-  },
-  {
-    id: "checkin",
-    category: "checkin",
-    // "varis" YOK: kökü "var"a iner ve her "X var mı" sorusunu giriş kavramına bağlardı (ölçüldü).
-    terms: ["giris", "checkin", "anahtar", "kilit", "key", "lock", "lockbox", "arrival", "kapi kodu", "anahtar kutusu", "erken giris", "early checkin"],
-  },
-  {
-    id: "checkout",
-    category: "checkout",
-    terms: ["cikis", "checkout", "ayrilis", "departure", "leaving", "gec cikis", "late checkout", "cikis saati"],
-  },
-  {
-    id: "location",
-    category: "location",
-    terms: ["adres", "konum", "ulasim", "harita", "address", "location", "directions", "map", "metro", "otobus", "taksi", "havalimani", "airport", "bus", "taxi", "transfer", "yol tarifi", "nasil gelinir"],
-  },
-  {
-    id: "rules",
-    category: "rules",
-    terms: ["kural", "sigara", "evcil", "kopek", "kedi", "gurultu", "parti", "ziyaretci", "rules", "smoking", "smoke", "pet", "dog", "cat", "noise", "party", "visitor", "ev kurallari", "house rules"],
-  },
-  {
-    id: "cleaning",
-    category: "cleaning",
-    terms: ["temizlik", "temizlikci", "havlu", "carsaf", "nevresim", "camasir", "deterjan", "cleaning", "towel", "towels", "sheet", "sheets", "linen", "laundry", "washing", "camasir makinesi", "washing machine"],
-  },
-  {
-    id: "local_tips",
-    category: "local_tips",
-    terms: ["restoran", "kafe", "market", "bakkal", "eczane", "alisveris", "plaj", "deniz", "gezilecek", "tavsiye", "oneri", "restaurant", "cafe", "supermarket", "pharmacy", "shopping", "beach", "sea", "recommend", "recommendation", "nearby", "yakin", "yakinlarda"],
-  },
-  {
-    id: "climate",
-    terms: ["klima", "sogutma", "isitma", "kombi", "kalorifer", "radyator", "heating", "heater", "aircon", "ac", "air conditioning", "air conditioner", "soguk", "sicak", "cold", "hot"],
-  },
-  {
-    id: "hot_water",
-    terms: ["kombi", "boiler", "termosifon", "sicak su", "hot water", "su isitici", "water heater", "dus"],
-  },
-  {
-    id: "power",
-    terms: ["elektrik", "sigorta", "priz", "electricity", "power", "fuse", "socket", "outlet", "elektrikler gitti", "power outage"],
-  },
-  {
-    id: "appliances",
-    terms: ["bulasik", "firin", "ocak", "buzdolabi", "mikrodalga", "kettle", "dishwasher", "oven", "stove", "fridge", "refrigerator", "microwave", "kahve makinesi", "coffee machine", "bulasik makinesi"],
-  },
-  {
-    id: "tv",
-    terms: ["tv", "televizyon", "television", "netflix", "kumanda", "remote", "uydu", "satellite"],
-  },
-  {
-    id: "amenities",
-    terms: ["asansor", "elevator", "lift", "havuz", "pool", "balkon", "balcony", "bebek", "baby", "crib", "bebek yatagi", "utu", "iron", "sac kurutma", "hair dryer"],
-  },
+  { id: "parking", category: "parking", terms: ["otopark", "arac", "araba", "garaj", "parking", "car", "vehicle", "garage"], detectOnly: ["park yeri", "araba parki", "arac parki", "park etmek", "nereye park"] },
+  { id: "wifi", category: "wifi", terms: ["wifi", "internet", "kablosuz", "modem", "wireless", "router", "wlan"], detectOnly: ["kablosuz ag", "internet baglantisi"] },
+  { id: "credentials", terms: ["sifre", "parola", "password", "kod", "code", "pin"] },
+  { id: "trash", category: "trash", terms: ["cop", "atik", "konteyner", "trash", "garbage", "rubbish", "waste", "recycling"], detectOnly: ["geri donusum", "cop kutusu", "cop poseti"] },
+  // "varis" YOK: kökü "var"a iner ve her "X var mı" sorusunu giriş kavramına bağlar (iki kez ölçüldü — geri gelmesin).
+  { id: "checkin", category: "checkin", terms: ["giris", "checkin", "arrival"], detectOnly: ["erken giris", "early checkin", "kacta girebilirim", "when can i check in", "giris saati"] },
+  { id: "keys", terms: ["anahtar", "kilit", "key", "lock", "lockbox"], detectOnly: ["kapi kodu", "anahtar kutusu", "anahtari kaybettim", "lose the key", "yedek anahtar"] },
+  { id: "checkout", category: "checkout", terms: ["cikis", "checkout", "ayrilis", "ayril", "departure", "leaving", "leave"], detectOnly: ["gec cikis", "late checkout", "cikis saati", "kacta ayril", "what time is checkout"] },
+  { id: "address", category: "location", terms: ["adres", "konum", "harita", "address", "location", "directions", "map"], detectOnly: ["yol tarifi", "nasil gelinir", "how to get there"] },
+  { id: "transit", category: "location", terms: ["metro", "otobus", "tramvay", "bus", "tram", "subway", "durak"], detectOnly: ["toplu tasima", "public transport", "ulasim karti"] },
+  { id: "airport", category: "location", terms: ["havalimani", "havaalani", "ucak", "airport", "flight", "shuttle", "transfer", "havas"], detectOnly: ["ucaga nasil", "to the airport"] },
+  { id: "taxi", category: "location", terms: ["taksi", "taxi", "cab", "uber"], detectOnly: ["arac cagir", "call a taxi"] },
+  { id: "rules", category: "rules", terms: [], detectOnly: ["ev kurallari", "house rules", "kurallar neler", "site kurallari"] },
+  { id: "smoking", category: "rules", terms: ["sigara", "smoking", "smoke", "tutun", "cigarette"], detectOnly: ["sigara icebilir"] },
+  { id: "pets", category: "rules", terms: ["evcil", "kopek", "kedi", "pet", "pets", "dog", "cat", "hayvan"], detectOnly: ["evcil hayvan", "kopegimi getir"] },
+  { id: "noise", category: "rules", terms: ["gurultu", "sessiz", "sessizlik", "parti", "noise", "quiet", "party", "muzik", "music"], detectOnly: ["sessiz saat", "quiet hours", "gece saat"] },
+  { id: "pool", category: "rules", terms: ["havuz", "pool", "yuzme", "swimming", "sezlong"], detectOnly: ["yuzme havuzu"] },
+  { id: "gym", terms: ["spor", "fitness", "gym", "salonu"], detectOnly: ["spor salonu", "fitness salonu", "spor yapabilecegim"] },
+  { id: "elevator", terms: ["asansor", "elevator", "lift"] },
+  { id: "balcony", terms: ["balkon", "balcony", "teras", "terrace"] },
+  { id: "baby", terms: ["bebek", "baby", "crib", "cot", "karyola", "mama"], detectOnly: ["bebek yatagi", "mama sandalyesi", "high chair"] },
+  { id: "iron", terms: ["utu", "iron", "ironing", "utule"], detectOnly: ["utu masasi", "ironing board"] },
+  { id: "hairdryer", terms: ["fon", "hairdryer", "dryer", "kurutma"], detectOnly: ["sac kurutma", "hair dryer", "blow dryer"] },
+  { id: "towels", category: "cleaning", terms: ["havlu", "carsaf", "nevresim", "towel", "towels", "sheet", "sheets", "linen", "bedding", "yastik", "battaniye"], detectOnly: ["yedek havlu", "temiz carsaf", "extra towels"] },
+  { id: "laundry", category: "cleaning", terms: ["camasir", "kiyafet", "yika", "laundry", "washing", "clothes", "deterjan", "detergent"], detectOnly: ["camasir makinesi", "washing machine", "kiyafet yika"] },
+  { id: "cleaning", category: "cleaning", terms: ["temizlik", "temizlikci", "cleaning", "cleaner", "housekeeping"], detectOnly: ["temizlik ne zaman", "oda temizligi"] },
+  { id: "dishwasher", terms: ["bulasik", "dishwasher", "dishes", "tablet"], detectOnly: ["bulasik makinesi", "bulasik yika"] },
+  { id: "stove", terms: ["ocak", "firin", "stove", "oven", "hob", "induksiyon", "induction", "cooker"], detectOnly: ["yemek pisir", "how to cook"] },
+  { id: "fridge", terms: ["buzdolabi", "dondurucu", "fridge", "freezer", "refrigerator"], detectOnly: [] },
+  { id: "microwave", terms: ["mikrodalga", "microwave", "isit", "heat"], detectOnly: ["yemek isit", "heat up food"] },
+  { id: "coffee", terms: ["kahve", "coffee", "kapsul", "capsule", "espresso", "kettle", "cay", "tea"], detectOnly: ["kahve makinesi", "coffee machine", "kahve yap"] },
+  { id: "tv", terms: ["tv", "televizyon", "television", "netflix", "kumanda", "remote", "uydu", "satellite", "kanal", "channel"] },
+  { id: "ac", terms: ["klima", "sogutma", "aircon", "cooling", "ac"], detectOnly: ["air conditioning", "air conditioner", "cok sicak", "serinle"] },
+  { id: "heating", terms: ["isitma", "kalorifer", "radyator", "heating", "heater", "radiator", "kombi"], detectOnly: ["cok soguk", "usuyor"] },
+  { id: "hot_water", terms: ["kombi", "boiler", "termosifon", "sicak", "isinmiyor"], detectOnly: ["sicak su", "hot water", "su isitici", "water heater", "dus suyu", "shower water"] },
+  { id: "water_cut", terms: ["kesinti", "outage", "depo"], detectOnly: ["su kesintisi", "water cut", "su gelmiyor", "no water"] },
+  { id: "power", terms: ["elektrik", "sigorta", "priz", "electricity", "power", "fuse", "socket", "outlet", "adaptor", "adapter", "fis", "plug", "salter"], detectOnly: ["elektrikler gitti", "power outage", "fisim uymuyor"] },
+  { id: "pharmacy", category: "local_tips", terms: ["eczane", "ilac", "pharmacy", "medicine", "drugstore", "nobetci"] },
+  { id: "grocery", category: "local_tips", terms: ["market", "bakkal", "alisveris", "supermarket", "grocery", "groceries", "shopping", "store"] },
+  { id: "restaurant", category: "local_tips", terms: ["restoran", "lokanta", "kafe", "yemek", "kahvalti", "restaurant", "cafe", "food", "eat", "dinner", "breakfast", "lunch", "meyhane"], detectOnly: ["nerede yiyebiliriz", "where to eat", "restoran oner"] },
+  { id: "beach", category: "local_tips", terms: ["plaj", "deniz", "sahil", "beach", "sea", "seaside", "kumsal"], detectOnly: ["denize nasil", "how far is the beach"] },
+  { id: "sights", category: "local_tips", terms: ["gezilecek", "tavsiye", "oneri", "muze", "recommend", "recommendation", "sights", "attractions", "museum", "yakin", "nearby"] },
+  { id: "doorman", terms: ["kapici", "gorevli", "attendant", "concierge", "yonetici", "guvenlik", "security"], detectOnly: ["bina gorevlisi", "building attendant"] },
+  { id: "packages", terms: ["kargo", "paket", "kurye", "siparis", "package", "delivery", "courier", "parcel", "teslimat"], detectOnly: ["yemek siparisi", "food delivery", "receive a package"] },
+  { id: "lost", terms: ["unuttum", "unutulan", "kayip", "kaybettim", "lost", "forgot", "forgotten", "esya"], detectOnly: ["esyami unuttum", "left something", "unutulan esya"] },
+  { id: "fire", terms: ["yangin", "fire", "sondurucu", "extinguisher", "alarm", "merdiven"], detectOnly: ["acil cikis", "fire escape", "yangin merdiveni", "emergency exit"] },
+  { id: "emergency", terms: ["acil", "emergency", "ambulans", "ambulance", "polis", "police", "doktor", "doctor", "hastane", "hospital"] },
 ];
 
 interface CompiledConcept {
   concept: Concept;
   /** Tek kelimelik terimlerin kökleri (tespit + genişletme). */
   single: Set<string>;
-  /** Çok kelimelik terimlerin kök dizileri (yalnız tespit). */
-  phrases: string[][];
+  /** Yalnız tespit: kök dizileri (tek ya da çok kelime). */
+  detect: string[][];
+}
+
+function stemsOf(term: string): string[] {
+  const s = contentStems(term);
+  if (s.length > 0) return s;
+  const raw = stem(term);
+  return raw.length >= 2 ? [raw] : [];
 }
 
 const COMPILED: readonly CompiledConcept[] = CONCEPTS.map((concept) => {
   const single = new Set<string>();
-  const phrases: string[][] = [];
+  const detect: string[][] = [];
   for (const term of concept.terms) {
-    const stems = contentStems(term);
-    if (stems.length === 0) {
-      // Durak kelimeye düşen tek kelimelik terim ("ac" gibi çok kısa olanlar)
-      // ham kökle yine de tanınsın.
-      const raw = stem(term);
-      if (raw.length >= 2) single.add(raw);
-      continue;
-    }
+    const stems = stemsOf(term);
     if (stems.length === 1) single.add(stems[0]);
-    else phrases.push(stems);
+    else if (stems.length > 1) detect.push(stems);
   }
-  return { concept, single, phrases };
+  for (const term of concept.detectOnly ?? []) {
+    const stems = stemsOf(term);
+    if (stems.length > 0) detect.push(stems);
+  }
+  return { concept, single, detect };
 });
 
 export interface ConceptMatch {
@@ -160,7 +141,7 @@ export function matchConcepts(stems: string[]): ConceptMatch[] {
       }
     }
     if (!via) {
-      for (const p of c.phrases) {
+      for (const p of c.detect) {
         if (hasPhrase(stems, p)) {
           via = p.join(" ");
           break;

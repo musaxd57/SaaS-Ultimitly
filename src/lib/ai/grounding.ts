@@ -155,7 +155,20 @@ export interface KbEvidenceInput {
    * sebebi, seçilen/aday parça, süre). Legacy'de yok (null/undefined) —
    * "ölçülmedi" ile "hibrit kapalıydı" ayrımı kanıtta okunur.
    */
-  retrieval?: { mode: "hybrid"; q: number; fb: string; sel: number; cand: number; ms: number } | null;
+  retrieval?: {
+    mode: "hybrid";
+    q: number;
+    fb: string;
+    sel: number;
+    cand: number;
+    ms: number;
+    /** Etkin aday kaynakları ("bm25", "ngram", "semantic"). */
+    srcs?: string[];
+    /** Sürüm kuralıyla düşen kalem sayısı. */
+    sup?: number;
+    /** Çelişki koruma ile eklenen kategori sayısı. */
+    conf?: number;
+  } | null;
 }
 
 /**
@@ -187,6 +200,12 @@ export function buildKbEvidence(input: KbEvidenceInput): string | null {
           sel: input.retrieval.sel,
           cand: input.retrieval.cand,
           ms: input.retrieval.ms,
+          // Yalnız kapalı-küme etiketler / sayılar (serbest metin YOK).
+          ...(Array.isArray(input.retrieval.srcs)
+            ? { srcs: input.retrieval.srcs.filter((s) => typeof s === "string").map((s) => s.slice(0, 16)).slice(0, 4) }
+            : {}),
+          ...(Number.isInteger(input.retrieval.sup) ? { sup: input.retrieval.sup } : {}),
+          ...(Number.isInteger(input.retrieval.conf) ? { conf: input.retrieval.conf } : {}),
         }
       : undefined;
   if (retrieved.length === 0 && used.length === 0 && !retrieval) return null;

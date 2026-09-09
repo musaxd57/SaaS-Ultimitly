@@ -122,11 +122,26 @@ ReAct (kademeli) · GraphRAG (ihtiyaç kanıtlanırsa). Ek: kaynaklı-sürümlü
   okumaz. Geçiş sırası: iCal bacağından SONRA intelligence (hafıza → event → örüntü). KB rotaları hafızayı anında
   eşitler (`refreshPropertyMemoryBestEffort`; silinen kalem → retired). Okuma yüzeyi: mülk sayfası "Mülk Hafızası" kartı.
 
-## Retrieval (RAG dilim 1 — KODLANDI 09-09, bayrak `KB_RETRIEVAL_MODE=hybrid` VARSAYILAN KAPALI; tasarım `docs/RAG-GRAPHRAG-TASARIM-2026-09-09.md`)
+## Retrieval (RAG dilim 1+2 — KODLANDI 09-09, bayrak `KB_RETRIEVAL_MODE=hybrid` VARSAYILAN KAPALI; tasarım `docs/RAG-GRAPHRAG-TASARIM-2026-09-09.md`)
 - `src/lib/ai/retrieval/` LLM'siz + deterministik + DB'siz (pin): parçalayıcı (cümle sınırı, 600/900; parça =
-  `content.slice`, metin DEĞİŞMEZ) · Türkçe-öncelikli BM25 (kök sökücü + 16 kavramlık sözlük + OSA yazım toleransı) ·
-  round-robin çok soru · ince soruda son 2 MİSAFİR mesajı · çelişki koruma (giriş/çıkış saat parçaları birlikte) ·
-  bütçe 6k/12 parça · `SemanticScorer` yalnız sözleşme+no-op (embedding = ÜCRETLİ SERVİS → onay).
+  `content.slice`, metin DEĞİŞMEZ) · Türkçe-öncelikli BM25 (kök sökücü + ünsüz yumuşaması geri alma + ~45 DAR kavramlık
+  sözlük [`terms` genişletir, `detectOnly` yalnız tespit] + OSA yazım toleransı) · **ikinci aday kaynağı karakter 3-gram
+  kosinüsü (`sources.ts`, anlamsal DEĞİL; yalnız GÜÇLÜ belirteçlerden, eşik altı birleşime girmez)** · **birleşim CombSUM
+  (varsayılan, ölçümle) / RRF (`fusion.ts`)** · rerank (ipucu 0.35 / yalnız-ipucu 0.2 · başlık 0.15 + tam örtüşme 0.15 ·
+  bigram 0.10 · tazelik ≤0.05 eşitlik bozucu) · **sürüm kuralı `supersededById`** (halefi kümede olan düşer, halefi
+  olmayan korunur) · round-robin çok soru · ince soruda son 2 MİSAFİR mesajı · **çelişki koruma kategori-BAĞIMSIZ**
+  (çapayla farklı saat taşıyan parça çapanın hemen arkasına TAŞINIR — seçilmiş ama geride kalmışsa da) · bütçe 6k/12 parça
+  · `SemanticScorer` yalnız sözleşme+no-op (embedding = ÜCRETLİ SERVİS → onay; RRF/CombSUM'a üçüncü kaynak).
+- **Ölçek harness'ı** `tests/unit/kb-retrieval-scale.test.ts` (sentetik 36 konu, 30/100/300 kalem, tr/en/eşanlam/yazım,
+  çeldirici, gömülü rehber; `docs/olcum/kb-retrieval-scale-2026-09-09.md`): legacy inPrompt 100 kalemde **%51**, hibrit
+  %99; hit@1 %92–94; güncelleme/silme 10/10; eşikler ölçülen değerin altına pinli. 🚨 n-gram kaynağının sentetik sette
+  marjinal katkısı ≈0 (kök sökücü iyileşince); test-pinli özel durumlar için varsayılan AÇIK, karar kurucunun.
+  "Cevap kaynakla destekleniyor mu" burada ÖLÇÜLMEZ (gerçek eval işi).
+- **Host graf katmanı** `src/modules/intelligence/graph/property-graph.ts` (saf, DB'siz, hiçbir yüzeye bağlı değil):
+  DB-gerçek ilişkilerden tipli graf; **her kenar `source` + `observedAt` + `certainty`**; `recurringIssues` kanıt sınıfı
+  `reported_only | task_open | task_done` — **'confirmed' YOK** (şikâyet ≠ doğrulanmış arıza, pin); sinyal konuşma
+  üzerinden konaklamaya çözülür (düz taramanın sayamadığı). **Misafir yoluna taşınmaz** (retrieval + QR + guest-chat
+  import etmez, pin). LightRAG/HippoRAG = LLM+gömme → ücretli, misafir metni dış modele gider → onay; protokol tasarım §6.2.
 - **TEK BOĞAZ `selectKbForPrompt`** — yetki/mülk/onay (`kb-fetch`) ve yüzeyin sır elemesi ÇALIŞTIKTAN SONRA,
   `suggestReply`'dan ÖNCE; dört AI yüzeyi geçer (pin). Bayrak kapalı = **KİMLİK** (aynı dizi referansı, 0 düşen,
   kanıt null). Açıkken `kb-fetch` `take` 30→200 (onay kapısı aynı), istem notu "SORUYA GÖRE SEÇİLDİ … 'bilgi yok'
@@ -139,8 +154,11 @@ ReAct (kademeli) · GraphRAG (ihtiyaç kanıtlanırsa). Ek: kaynaklı-sürümlü
   eşleşince gider; eleme kararı AYRI ONAY. P5 (kanıtsız iddia kod kapısı) AÇIK — RAG kapatmaz. Baseline (model YOK):
   `docs/olcum/kb-retrieval-baseline-2026-09-09.md` (13 senaryo; legacy `long_middle_oldest` ❌ → hibrit ✅; blok ~%85 küçük).
   Gerçek model etkisi için eval setine uzun rehber + 30+ kalem sınıfı gerekli (mevcut 8 senaryo small_kb → legacy ile aynı istem).
-- Sözlük/kök çarpışmaları ölçülüp düzeltildi: "varış→var" (sözlükten çıktı), "şu→su" (durak değil), "ki" eki YOK.
-  GraphRAG UYGULANMADI: DB-gerçek kenar envanteri + marjinal fayda ölçüm planı tasarım §6; fayda gösterilmeden kod yok.
+- Sözlük/kök çarpışmaları ölçülüp düzeltildi: "varış→var" (sözlükten çıktı — İKİ KEZ, geri gelmesin), "şu→su" (durak
+  değil), "ki" eki YOK, torba kavramlar bölündü ("olanaklar" → asansör/havuz/balkon/bebek/ütü/fön), genel sözcük
+  ("kural") genişletmeye girmez. 🚨 `base > 0` "yalnız-ipucu" ayrımı için YETMEZ (n-gram hemen her parçaya 0.0x verir)
+  → `hasEvidence` yüklemi (güçlü kök / n-gram ≥0.3 / anlamsal). Mutasyon kontrol koşusu (M0) her turda ZORUNLU: bir
+  fixture hatası 6 mutasyonu sahte "yakalandı" göstermişti (09-09).
 
 ## 🚨 Değişmez kural
 Çalışan ürün BOZULMAZ. Her değişiklik additive, testli (K2 = kırmızı-önce + iki yönlü mutasyon +
@@ -659,8 +677,15 @@ Rapor dosyası (`eval-2026-09-09-085534-7ohi.md`) repoda YOK — kurucudan bekle
 (8 dosya) + 4 yüzey bağlama + kanıt/istem notu; 9 yeni test dosyası (unit 5 · integration 2 · helper 1 · harness 1),
 **20 iki yönlü mutasyonun tamamı yakalandı** (ilk turda 2 hayatta kaldı → test güçlendirildi: çelişki koruma `maxChunks:2`,
 bağlam taşıma tek adım, kategori-ipucu-yalnız senaryosu). Tasarım + onay tablosu `docs/RAG-GRAPHRAG-TASARIM-2026-09-09.md`.
+**RAG DİLİM 2 KODLANDI (Codex turu 2, 09-09; bayrak KAPALI, migration/ücretli servis/politika YOK):** aday kaynakları
+(BM25 + karakter n-gram + anlamsal sözleşme) → CombSUM/RRF birleşim → rerank (başlık tam örtüşme, yalnız-ipucu 0.2, tazelik)
+→ `supersededById` sürüm kuralı → kategori-bağımsız çelişki koruma; kanıt `retrieval.{srcs,sup,conf}`; `kb-fetch`
+`supersededById` seçer. Ölçek harness'ı 30/100/300 + host graf katmanı + LightRAG/HippoRAG protokolü. Sözlük ~45 dar
+kavram (ölçülerek yeniden yapılandırıldı). Mutasyon turu sonuçları `docs/RAG-GRAPHRAG-TASARIM-2026-09-09.md` §3b.
 **Bekleyen kurucu kararları:** P1–P5 (önerilen sıra P1→P4→P5→P3→P2) · orijinal eval raporu · yeni eval koşusu (intent/risk artık
 kaydediliyor) · `a52a30c` ACTIVE + selam kontrolü · migration 53/54 §B salt-okuma sorguları · prod'da `EMAIL_HOST` set mi ·
-**RAG:** eval setine uzun-rehber/30+ kalem sınıfı → `KB_RETRIEVAL_MODE=hybrid` ile eval → tek mülk pilotu (`retrieval.fb`
-dağılımı) · embedding (ücretli servis + KVKK alt-işleyen) · kötü niyetli KB kalemini retrieval'da eleme (politika) · GraphRAG (§6 ölçümü).
+**RAG (onay tablosu tasarım §5, somut kapsamla):** eval setine uzun-rehber/30+ kalem sınıfı → `KB_RETRIEVAL_MODE=hybrid` ile eval
+→ tek mülk pilotu (`retrieval.fb/srcs/sup/conf` dağılımı) · n-gram kaynağı varsayılanı (katkı ≈0 ölçüldü) · embedding (ücretli +
+KVKK: onaylı KB parçaları + misafir SORUSU dış API'ye) · kötü niyetli KB kalemini retrieval'da eleme (politika) · LightRAG/HippoRAG
+deneyi (misafir MESAJ metni dış modele → KVKK) · HyDE/agentic yalnız kalan başarısızlarda.
 Prod smoke bu ortamdan yapılamaz; operatör adımları `docs/audit-2026-09-05/DURUM.md` + `docs/V0-CHANNEL-INDEPENDENCE-INVENTORY.md` §10.

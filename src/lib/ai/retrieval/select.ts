@@ -1,34 +1,40 @@
 import { KB_RETRIEVAL_CHAR_BUDGET, KB_RETRIEVAL_MAX_CHUNKS } from "@/lib/ai/limits";
 import { reportError } from "@/lib/report-error";
-import { chunkKey, type KbChunk, type KbChunkSource } from "./chunker";
+import type { KbChunk, KbChunkSource } from "./chunker";
 import { kbRetrievalMode, type KbRetrievalMode } from "./flag";
+import { fuseNormalizedScores, fuseRankings, type SourceRanking } from "./fusion";
 import { expandQuery } from "./lexicon";
 import { getOrBuildKbIndex, type KbIndex } from "./index-cache";
-import { blendScores } from "./semantic";
+import {
+  dropSuperseded,
+  preserveTimeConflicts,
+  rerank,
+  sortCandidates,
+  type Candidate,
+  type Supersedable,
+} from "./rerank";
+import { SOURCE_WEIGHTS } from "./semantic";
+import { NGRAM_QUALIFY_MIN } from "./sources";
 import { contentStems, normalizeForRetrieval } from "./text";
 
 // ---------------------------------------------------------------------------
-// HİBRİT BİLGİ SEÇİCİ — TEK BOĞAZ NOKTASI (RAG dilim 1, 09-09).
+// HİBRİT BİLGİ SEÇİCİ — TEK BOĞAZ NOKTASI (RAG dilim 1+2, 09-09).
 //
-// Konum: `fetchKnowledgeBaseForPrompt` (yetki + mülk + onay kapısı) ve yüzeyin
-// sır elemesi (`withoutSecretKbItems` / `QR_SECRET_CATEGORIES`) ÇALIŞTIKTAN
-// SONRA, `suggestReply`'dan ÖNCE. Bu modül DB'ye erişmez, kalem EKLEYEMEZ,
-// metni DEĞİŞTİREMEZ; yalnız kendisine verilen kümeden parça SEÇER.
+// Boru hattı (bayrak AÇIKKEN):
+//   girdi (yetki+mülk+onay+sır süzgeçlerinden GEÇMİŞ kalemler)
+//   → sürüm kuralı (halefi kümede olan kalem düşer)
+//   → küçük-KB passthrough (≤12 kalem ve ≤6k: tamamı gider)
+//   → alt sorgular (?, satır, ; , ve/ayrıca/and/also; ≤4)
+//   → her alt sorgu için ADAY KAYNAKLARI: BM25 (kök+sözlük+fuzzy) · karakter
+//     3-gram kosinüsü · (varsa) anlamsal puanlar → RRF birleşimi → yeniden
+//     sıralama (ipucu/başlık/kalıp/tazelik) → eşik
+//   → alt sorgular arası round-robin (kalem başına ≤3 parça)
+//   → çelişki koruma (aynı kategoride FARKLI saat) → bütçe (6k / 12 parça)
+//   → seçilen parçalar + düşen kalem sayısı + PII'siz kanıt
+// Aday hiç yoksa / selamlaşmada / hatada TAM küme gider: hibrit legacy'den az
+// bilgi taşımaz. Bayrak KAPALIYKEN çıktı girdinin KENDİSİDİR (aynı referans).
 //
-// Bayrak `KB_RETRIEVAL_MODE=hybrid` (VARSAYILAN KAPALI). Kapalıyken çıktı
-// girdinin KENDİSİDİR (aynı dizi referansı) → canlı davranış karakteri
-// karakterine aynı kalır.
-//
-// Hibrit modda DÜRÜSTLÜK korunur: seçilmeyen kalem sayısı `droppedItems` olarak
-// döner ve istemdeki "[NOT] … 'bilgi yok' DEME — insana devret" notunu besler.
-// Retrieval'ın kaçırdığı bir konu, modelin "bilgim yok" demesine DEĞİL insana
-// devrine gider (ürün kuralı). Sözcüksel hiç isabet yoksa hibrit KENDİNİ
-// GERİ ÇEKER ve legacy küme (tamamı) gider — hibrit hiçbir durumda legacy'den
-// az bilgi taşımaz, yalnız daha az GÜRÜLTÜ taşır.
-//
-// Kaynak çelişkisi GİZLENMEZ: `checkin`/`checkout` kategorisinden bir parça
-// seçildiyse aynı kategoride SAAT taşıyan diğer parçalar da alınır —
-// `findTimeConflicts` iki kaynağı da görmeye devam eder (P4).
+// Bu modül DB'ye erişmez, kalem EKLEYEMEZ, metni DEĞİŞTİREMEZ (pinler).
 // ---------------------------------------------------------------------------
 
 export { kbRetrievalMode, type KbRetrievalMode } from "./flag";
@@ -45,6 +51,19 @@ export interface KbRetrievalEvidence {
   sel: number;
   cand: number;
   ms: number;
+  /** Etkin aday kaynakları. */
+  srcs?: string[];
+  /** Sürüm kuralıyla düşen kalem sayısı. */
+  sup?: number;
+  /** Çelişki koruma ile eklenen kategori sayısı. */
+  conf?: number;
+}
+
+export interface KbSelectSources {
+  /** Karakter 3-gram kaynağı (varsayılan AÇIK — harness ile ölçüldü). */
+  ngram?: boolean;
+  /** Birleşim: "sum" (büyüklük koruyan, VARSAYILAN — ölçüldü) ya da "rrf". */
+  fusion?: "sum" | "rrf";
 }
 
 export interface KbSelectInput<T extends KbChunkSource> {
@@ -55,8 +74,9 @@ export interface KbSelectInput<T extends KbChunkSource> {
   mode?: KbRetrievalMode;
   budgetChars?: number;
   maxChunks?: number;
-  /** Anlamsal puanlar (parça anahtarı → 0..1), önceden hesaplanmış; yoksa yalnız sözcüksel. */
+  /** Anlamsal puanlar (parça anahtarı → 0..1), önceden hesaplanmış; yoksa kaynak yok. */
   semantic?: ReadonlyMap<string, number>;
+  sources?: KbSelectSources;
   now?: number;
 }
 
@@ -73,20 +93,16 @@ export interface KbSelectResult<T extends KbChunkSource> {
   evidence: KbRetrievalEvidence | null;
 }
 
-// Puan bileşenleri — ölçülerek ayarlanır (harness), politika değildir.
-export const HINT_BONUS = 0.35;
-export const TITLE_BONUS = 0.15;
-export const PHRASE_BONUS = 0.1;
+export { HINT_BONUS, TITLE_BONUS, PHRASE_BONUS } from "./rerank";
 export const CARRY_WEIGHT = 0.5;
 export const RELEVANCE_FLOOR_ABS = 0.1;
 export const RELEVANCE_FLOOR_REL = 0.25;
 export const MAX_CHUNKS_PER_ITEM = 3;
 export const MAX_SUBQUERIES = 4;
+export const DEFAULT_SOURCES: Required<KbSelectSources> = { ngram: true, fusion: "sum" };
 /** Sorgu bu kadar az içerik kökü taşıyorsa önceki misafir mesajları bağlam olarak eklenir. */
 const THIN_QUERY_STEMS = 2;
 const CARRY_HISTORY_MESSAGES = 2;
-const HHMM = /\b([01]?\d|2[0-3])[:.][0-5]\d\b/;
-const CONFLICT_CATEGORIES = new Set(["checkin", "checkout"]);
 
 const SUBQUERY_SPLIT = /[?\n;,]+|\s+(?:ve|ayrica|ayrıca|bir de|and|also|plus)\s+/i;
 
@@ -119,85 +135,87 @@ function renderedCharsAll(items: readonly KbChunkSource[]): number {
   return n;
 }
 
-function hasBigram(docStems: readonly string[], a: string, b: string): boolean {
-  for (let i = 0; i + 1 < docStems.length; i++) {
-    if (docStems[i] === a && docStems[i + 1] === b) return true;
-  }
-  return false;
+interface RankOptions {
+  carryStems: readonly string[];
+  semantic: ReadonlyMap<string, number> | undefined;
+  sources: Required<KbSelectSources>;
 }
 
-interface Candidate {
-  idx: number;
-  score: number;
-}
-
-function rankForSubquery(
-  index: KbIndex,
-  subquery: string,
-  carryStems: readonly string[],
-  semantic: ReadonlyMap<string, number> | undefined,
-): Candidate[] {
+/** Bir alt sorgu için aday listesi (sıralı, eşiklenmiş). */
+function rankForSubquery(index: KbIndex, subquery: string, opt: RankOptions): { cands: Candidate[]; sources: string[] } {
   const own = contentStems(subquery);
   // İNCE SORGU ("Ücretli mi?"): önceki MİSAFİR mesajlarının kökleri hem ağırlığa
   // (0.5) hem kavram genişletmesine girer — tek adım, tek karar noktası.
-  const carried = own.length < THIN_QUERY_STEMS ? carryStems : [];
+  const carried = own.length < THIN_QUERY_STEMS ? opt.carryStems : [];
   const weights = new Map<string, number>();
   for (const s of own) weights.set(s, 1);
   for (const s of carried) if (!weights.has(s)) weights.set(s, CARRY_WEIGHT);
   const { expansion, categoryHints } = expandQuery([...own, ...carried]);
   for (const [s, w] of expansion) if (!weights.has(s)) weights.set(s, w);
 
-  const { scores, resolved } = index.bm25.scores(weights);
-  let max = 0;
-  for (const v of scores) if (v > max) max = v;
-  const ownSet = new Set(own);
-  const bigrams: [string, string][] = [];
-  for (let i = 0; i + 1 < own.length; i++) bigrams.push([own[i], own[i + 1]]);
-  // Aday olma şartı: en az bir GÜÇLÜ sorgu kökü (fuzzy çözümü dahil) parçada
-  // geçmeli YA DA kategori ipucu olmalı. Zayıf kökler yalnız sıralar.
+  // --- Kaynak 1: BM25 (kök + sözlük genişletmesi + fuzzy) -------------------
+  const { scores: bm25, resolved } = index.bm25.scores(weights);
   const strong = new Set<string>();
   for (const t of weights.keys()) if (!WEAK_QUERY_TERMS.has(t)) strong.add(resolved.get(t) ?? t);
+  const strongHit = (i: number): boolean => {
+    const tf = index.bm25.docs[i].tf;
+    for (const t of strong) if (tf.has(t)) return true;
+    return false;
+  };
 
-  const out: Candidate[] = [];
-  index.chunks.forEach((chunk, i) => {
-    const doc = index.bm25.docs[i];
-    const hint = categoryHints.get(chunk.category as never) ?? 0;
-    let strongHit = false;
-    for (const t of strong) {
-      if (doc.tf.has(t)) {
-        strongHit = true;
-        break;
-      }
-    }
-    if (!strongHit && hint === 0) return;
-    let s = max > 0 ? scores[i] / max : 0;
-    if (hint > 0) s += HINT_BONUS * hint;
-    if (ownSet.size > 0) {
-      for (const t of doc.titleStems) {
-        if (ownSet.has(t)) {
-          s += TITLE_BONUS;
-          break;
-        }
-      }
-    }
-    if (bigrams.some(([a, b]) => hasBigram(doc.stems, a, b))) s += PHRASE_BONUS;
-    s = blendScores(s, semantic?.get(chunkKey(chunk)));
-    if (s > 0) out.push({ idx: i, score: s });
-  });
-  const best = out.reduce((m, c) => Math.max(m, c.score), 0);
-  const floor = Math.max(RELEVANCE_FLOOR_ABS, best * RELEVANCE_FLOOR_REL);
-  return out
-    .filter((c) => c.score >= floor)
-    .sort((a, b) => {
-      if (b.score !== a.score) return b.score - a.score;
-      const ca = index.chunks[a.idx];
-      const cb = index.chunks[b.idx];
-      const ta = ca.updatedAt.getTime();
-      const tb = cb.updatedAt.getTime();
-      if (tb !== ta) return tb - ta;
-      if (ca.id !== cb.id) return ca.id < cb.id ? -1 : 1;
-      return ca.chunkIndex - cb.chunkIndex;
+  // --- Kaynak 2: karakter 3-gram kosinüsü (kökten bağımsız) ----------------
+  const n = index.chunks.length;
+  const rankings: SourceRanking[] = [{ source: "bm25", weight: SOURCE_WEIGHTS.bm25, scores: bm25 }];
+  const sources = ["bm25"];
+  let ngram: Float64Array | null = null;
+  if (opt.sources.ngram) {
+    // Durak kelimeler gram üretmez (`gramsOf`); zayıf kökler ("var") için ayrı
+    // süzgeç YOK — aday şartı n-gram için `NGRAM_QUALIFY_MIN` eşiğidir ve
+    // "Jakuzi var mı?"nın "vardır"lı parçayı aday yapmadığı test-pinli. Eşik altı
+    // kosinüs birleşime girer ama TEK BAŞINA kanıt sayılmaz (`hasEvidence`).
+    ngram = index.ngram.query(carried.length > 0 ? `${subquery} ${carried.join(" ")}` : subquery);
+    rankings.push({ source: "ngram", weight: SOURCE_WEIGHTS.ngram, scores: ngram });
+    sources.push("ngram");
+  }
+  // --- Kaynak 3: anlamsal (varsa; sözleşme semantic.ts) --------------------
+  if (opt.semantic && opt.semantic.size > 0) {
+    const sem = new Float64Array(n);
+    index.chunks.forEach((c, i) => {
+      const v = opt.semantic!.get(`${c.id}#${c.chunkIndex}`);
+      if (typeof v === "number" && Number.isFinite(v) && v > 0) sem[i] = Math.min(1, v);
     });
+    rankings.push({ source: "semantic", weight: SOURCE_WEIGHTS.semantic, scores: sem });
+    sources.push("semantic");
+  }
+
+  // ADAY ŞARTI: güçlü kök isabeti YA DA kategori ipucu YA DA n-gram eşiği YA DA
+  // anlamsal puan. Zayıf kökler ("var") tek başına aday yapmaz.
+  const semanticScores = rankings.find((r) => r.source === "semantic")?.scores;
+  const hasEvidence = (i: number): boolean =>
+    strongHit(i) || (ngram !== null && ngram[i] >= NGRAM_QUALIFY_MIN) || (semanticScores !== undefined && semanticScores[i] > 0);
+  const qualified = (i: number): boolean => hasEvidence(i) || (categoryHints.get(index.chunks[i].category as never) ?? 0) > 0;
+
+  // Niteliksiz parçalar birleşime girmez (kaynak sıralarını şişirmesin).
+  for (const r of rankings) {
+    for (let i = 0; i < n; i++) if (!qualified(i)) r.scores[i] = 0;
+  }
+  const fused = opt.sources.fusion === "rrf" ? fuseRankings(rankings, n).fused : fuseNormalizedScores(rankings, n);
+  let max = 0;
+  for (const v of fused) if (v > max) max = v;
+  const base = new Float64Array(n);
+  if (max > 0) for (let i = 0; i < n; i++) base[i] = fused[i] / max;
+
+  // Başlık/bigram bonusu FUZZY çözümlü köklerle çalışır ("otopakr" → "otopark"):
+  // aksi hâlde yazım hatalı sorguda gerçek başlık bonusu alamaz, kısa çeldirici öne geçer (ölçüldü).
+  const ownResolved = own.map((s) => resolved.get(s) ?? s);
+  const ownSet = new Set(ownResolved);
+  const bigrams: [string, string][] = [];
+  for (let i = 0; i + 1 < ownResolved.length; i++) bigrams.push([ownResolved[i], ownResolved[i + 1]]);
+  const expansionStems = new Set(expansion.keys());
+  const cands = rerank(index.chunks, index.bm25.docs, base, qualified, { ownStems: ownSet, expansionStems, bigrams, categoryHints }, hasEvidence);
+  const best = cands.reduce((m, c) => Math.max(m, c.score), 0);
+  const floor = Math.max(RELEVANCE_FLOOR_ABS, best * RELEVANCE_FLOOR_REL);
+  return { cands: sortCandidates(cands.filter((c) => c.score >= floor), index.chunks), sources };
 }
 
 function legacyResult<T extends KbChunkSource>(
@@ -212,37 +230,52 @@ export function selectKbForPrompt<T extends KbChunkSource>(input: KbSelectInput<
   const mode = input.mode ?? kbRetrievalMode();
   if (mode !== "hybrid") return legacyResult(input.items, "legacy", null);
   const started = performance.now();
-  const evidence = (fb: KbSelectFallback, q: number, sel: number, cand: number): KbRetrievalEvidence => ({
+  const evidence = (
+    fb: KbSelectFallback,
+    q: number,
+    sel: number,
+    cand: number,
+    extra: Pick<KbRetrievalEvidence, "srcs" | "sup" | "conf"> = {},
+  ): KbRetrievalEvidence => ({
     mode: "hybrid",
     q,
     fb,
     sel,
     cand,
     ms: Math.round((performance.now() - started) * 10) / 10,
+    ...extra,
   });
   try {
     const budget = input.budgetChars ?? KB_RETRIEVAL_CHAR_BUDGET;
     const maxChunks = input.maxChunks ?? KB_RETRIEVAL_MAX_CHUNKS;
-    const items = input.items;
-    if (items.length === 0) return legacyResult(items, "hybrid", evidence("small_kb", 0, 0, 0));
+    const sources: Required<KbSelectSources> = { ...DEFAULT_SOURCES, ...(input.sources ?? {}) };
+    if (input.items.length === 0) return legacyResult(input.items, "hybrid", evidence("small_kb", 0, 0, 0));
+    // SÜRÜM KURALI: halefi kümede olan kalem (A5 `supersededById`) düşer.
+    const { kept: items, dropped: sup } = dropSuperseded(input.items as readonly (T & Supersedable)[]);
     // KÜÇÜK KB → SEÇİM YOK: tamamı bütçeye sığıyorsa retrieval'ın katkısı yok,
     // riski var (kaçırılan parça = gereksiz devir). Retrieval yalnız gerektiğinde.
     if (items.length <= maxChunks && renderedCharsAll(items) <= budget) {
-      return legacyResult(items, "hybrid", evidence("small_kb", 0, items.length, items.length));
+      return legacyResult(sup > 0 ? items : input.items, "hybrid", evidence("small_kb", 0, items.length, items.length, { sup }));
     }
     const subqueries = splitQuestions(input.guestMessage);
     const index = getOrBuildKbIndex(items, input.now);
     if (subqueries.length === 0) {
-      return legacyResult(items, "hybrid", evidence("empty_query", 0, 0, index.chunks.length));
+      return legacyResult(sup > 0 ? items : input.items, "hybrid", evidence("empty_query", 0, 0, index.chunks.length, { sup }));
     }
     const carryStems = (input.history ?? [])
       .filter((m) => m.direction === "inbound")
       .slice(-CARRY_HISTORY_MESSAGES)
       .flatMap((m) => contentStems(m.body));
 
-    const ranked = subqueries.map((q) => rankForSubquery(index, q, carryStems, input.semantic));
+    const rankedAll = subqueries.map((q) => rankForSubquery(index, q, { carryStems, semantic: input.semantic, sources }));
+    const ranked = rankedAll.map((r) => r.cands);
+    const srcs = rankedAll[0]?.sources ?? [];
     if (ranked.every((r) => r.length === 0)) {
-      return legacyResult(items, "hybrid", evidence("no_lexical_hits", subqueries.length, 0, index.chunks.length));
+      return legacyResult(
+        sup > 0 ? items : input.items,
+        "hybrid",
+        evidence("no_lexical_hits", subqueries.length, 0, index.chunks.length, { srcs, sup }),
+      );
     }
 
     // Alt sorgular arasında sırayla (round-robin) → çok sorulu mesajda her
@@ -260,41 +293,25 @@ export function selectKbForPrompt<T extends KbChunkSource>(input: KbSelectInput<
           const cand = list[cursors[qi]++];
           if (pickedSet.has(cand.idx)) continue;
           const chunk = index.chunks[cand.idx];
-          const n = perItem.get(chunk.id) ?? 0;
-          if (n >= MAX_CHUNKS_PER_ITEM) continue;
+          const cnt = perItem.get(chunk.id) ?? 0;
+          if (cnt >= MAX_CHUNKS_PER_ITEM) continue;
           picked.push(cand.idx);
           pickedSet.add(cand.idx);
-          perItem.set(chunk.id, n + 1);
+          perItem.set(chunk.id, cnt + 1);
           progressed = true;
           break;
         }
       }
     }
 
-    // ÇELİŞKİ KORUMA: seçilen bir giriş/çıkış parçası varsa aynı kategoride saat
-    // taşıyan diğer parçalar da hemen ardından eklenir (P4 iki kaynağı görsün).
-    const conflictCats = new Set<string>();
-    for (const idx of picked) {
-      const c = index.chunks[idx];
-      if (CONFLICT_CATEGORIES.has(c.category) && HHMM.test(c.text)) conflictCats.add(c.category);
-    }
-    if (conflictCats.size > 0) {
-      const extras: number[] = [];
-      index.chunks.forEach((c, i) => {
-        if (!pickedSet.has(i) && conflictCats.has(c.category) && HHMM.test(c.text)) extras.push(i);
-      });
-      if (extras.length > 0) {
-        // İlk seçilen çelişki-kategorili parçanın hemen arkasına.
-        const anchor = picked.findIndex((i) => conflictCats.has(index.chunks[i].category));
-        picked.splice(anchor + 1, 0, ...extras);
-        for (const i of extras) pickedSet.add(i);
-      }
-    }
+    // ÇELİŞKİ KORUMA: çapanın kategorisinde FARKLI saat taşıyan parçalar (seçilmiş
+    // ya da değil) çapanın hemen arkasına taşınır (P4 iki kaynağı görsün) — kategori sınırı yok.
+    const { order, categories: conflictCats } = preserveTimeConflicts(index.chunks, picked);
 
     // Bütçe: en az bir parça her zaman gider (isabet varken boş blok gitmez).
     const chosen: KbChunk[] = [];
     let used = 0;
-    for (const idx of picked) {
+    for (const idx of order) {
       const c = index.chunks[idx];
       const cost = renderedChars({ category: c.category, title: c.title, text: c.text });
       if (chosen.length > 0 && (used + cost > budget || chosen.length >= maxChunks)) break;
@@ -316,7 +333,11 @@ export function selectKbForPrompt<T extends KbChunkSource>(input: KbSelectInput<
       items: selected,
       droppedItems,
       selection: "retrieved",
-      evidence: evidence("none", subqueries.length, selected.length, index.chunks.length),
+      evidence: evidence("none", subqueries.length, selected.length, index.chunks.length, {
+        srcs,
+        sup,
+        conf: conflictCats.size,
+      }),
     };
   } catch (err) {
     // Retrieval hatası ürünü BOZMAZ: legacy küme gider, hata raporlanır.

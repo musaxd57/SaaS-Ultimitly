@@ -98,7 +98,9 @@ const SUFFIXES: readonly string[] = [
   "lardan", "lerden", "larimiz", "lerimiz", "lariniz", "leriniz",
   "larda", "lerde", "larin", "lerin", "lari", "leri", "lara", "lere",
   "imiz", "umuz", "iniz", "unuz", "iyor", "uyor", "miyor", "muyor",
-  "ecek", "acak", "ebilir", "abilir", "meli", "mali", "ayim", "eyim", "alim", "elim",
+  "ebilecegim", "abilecegim", "ecegim", "acagim", "ecegiz", "acagiz", "yebilir", "yabilir",
+  "ecek", "acak", "yecek", "yacak", "ebilir", "abilir", "meli", "mali", "ayim", "eyim", "alim", "elim",
+  "yerek", "yarak", "mam", "mem",
   "erek", "arak", "ince", "unca", "inca", "dir", "dur", "tir", "tur",
   "lar", "ler", "dan", "den", "tan", "ten", "nin", "nun", "yla", "yle",
   "mis", "mus", "mek", "mak", "ken", "yor", "siz", "suz", "ing",
@@ -114,9 +116,17 @@ const STEM_PASSES = 3;
 /** Rakam/saat belirteçleri kök alınmaz. */
 const HAS_DIGIT = /\d/;
 
+/**
+ * Ünsüz yumuşaması geri alınır — YALNIZ bir ek söküldüyse: "uçağa"→"ucag"→"ucak",
+ * "köpeğimi"→"kopeg"→"kopek", "kitabı"→"kitab"→"kitap". Ek sökülmemiş kelimeye
+ * dokunulmaz ("blog" → "blog"). d→t BİLİNÇLİ YOK: "adı"→"ad"→"at" simetriyi bozar.
+ */
+const UNSOFTEN: Record<string, string> = { g: "k", b: "p" };
+
 export function stem(token: string): string {
   if (HAS_DIGIT.test(token)) return token;
   let cur = token;
+  let strippedAny = false;
   for (let pass = 0; pass < STEM_PASSES; pass++) {
     let stripped = false;
     for (const suf of SUFFIXES_LONGEST_FIRST) {
@@ -124,10 +134,15 @@ export function stem(token: string): string {
       if (cur.length - suf.length >= floor && cur.endsWith(suf)) {
         cur = cur.slice(0, -suf.length);
         stripped = true;
+        strippedAny = true;
         break;
       }
     }
     if (!stripped) break;
+  }
+  if (strippedAny && cur.length >= 3) {
+    const last = cur[cur.length - 1];
+    if (UNSOFTEN[last]) cur = cur.slice(0, -1) + UNSOFTEN[last];
   }
   return cur;
 }

@@ -134,6 +134,20 @@ describe("kb-fetch okuma tavanı — bayrağa göre", () => {
     expect(r.items.map((i) => i.id)).not.toContain(parkingId);
   });
 
+  it("`supersededById` seçilir (sürüm kuralı girdisi): halef kimliği aynen, yoksa null", async () => {
+    const { propertyId } = await seedConversation("Otopark var mı?");
+    const fresh = await prisma.knowledgeBaseItem.create({
+      data: { propertyId, category: "parking", title: "Otopark", content: "Artık ücretsiz.", isActive: true, source: "host_manual", reviewState: "approved" },
+    });
+    await prisma.knowledgeBaseItem.create({
+      data: { propertyId, category: "parking", title: "Otopark (eski)", content: "Ücretli.", isActive: true, source: "legacy", reviewState: "legacy", supersededById: fresh.id },
+    });
+    const r = await fetchKnowledgeBaseForPrompt({ propertyId, isActive: true });
+    const byTitle = Object.fromEntries(r.items.map((i) => [i.title, i.supersededById]));
+    expect(byTitle["Otopark"]).toBeNull();
+    expect(byTitle["Otopark (eski)"]).toBe(fresh.id);
+  });
+
   it("AÇIK: tüm onaylı küme gelir (düşen 0) — taslak yine GELMEZ (onay kapısı bayraktan bağımsız)", async () => {
     vi.stubEnv("KB_RETRIEVAL_MODE", "hybrid");
     const { propertyId } = await seedConversation("Otopark var mı?");

@@ -31,7 +31,10 @@ import { FILLERS, longGuide } from "../helpers/kb-retrieval-scenarios";
 // ---------------------------------------------------------------------------
 
 const T0 = Date.UTC(2026, 8, 1, 10, 0, 0);
-const mk = (i: number, over: Partial<{ id: string; category: string; title: string; content: string; updatedAt: Date }> = {}) => ({
+const mk = (
+  i: number,
+  over: Partial<{ id: string; category: string; title: string; content: string; updatedAt: Date; supersededById: string | null }> = {},
+) => ({
   id: `kb_${i}`,
   category: FILLERS[i % FILLERS.length].category,
   title: FILLERS[i % FILLERS.length].title,
@@ -250,6 +253,122 @@ describe("hibrit seçim", () => {
     expect(r.selection).toBe("all");
     expect(r.evidence?.fb).toBe("error");
     expect(vi.mocked(reportError)).toHaveBeenCalledWith("kb-retrieval-select", expect.anything());
+  });
+});
+
+describe("dilim 2 — kaynak birleşimi, sürüm kuralı, kategori-bağımsız çelişki, kanıt alanları", () => {
+  beforeEach(() => __resetKbIndexCache());
+
+  it("N-GRAM kaynağı kök sökücünün kaçırdığı biçimi yakalar (bm25-yalnız kaçırır, birleşik bulur)", () => {
+    // "otoparkının" → kök sökücü "otoparkin"e iner ("otopark" değil); n-gram yakalar.
+    const p = mk(60, { id: "p", category: "faq", title: "Araç yeri", content: "Bina otoparkının girişi yan sokaktadır; ücret alınmaz." });
+    const items = [...bigKb(20), p];
+    const bm25Only = selectKbForPrompt({ items, guestMessage: "otoparkının girişi nerede", mode: "hybrid", sources: { ngram: false } });
+    const fused = selectKbForPrompt({ items, guestMessage: "otoparkının girişi nerede", mode: "hybrid" });
+    expect(fused.items.map((i) => i.id)).toContain("p");
+    expect(fused.evidence?.srcs).toEqual(["bm25", "ngram"]);
+    expect(bm25Only.evidence?.srcs).toEqual(["bm25"]);
+  });
+
+  it("anlamsal puanlar (sözleşme) üçüncü kaynak olarak birleşime girer", () => {
+    const p = mk(60, { id: "p", category: "general", title: "Not", content: "Misafirler binanın arkasındaki alanı kullanabilir." });
+    const items = [...bigKb(20), p];
+    const without = selectKbForPrompt({ items, guestMessage: "Otopark var mı?", mode: "hybrid" });
+    expect(without.items.map((i) => i.id)).not.toContain("p");
+    const withSem = selectKbForPrompt({ items, guestMessage: "Otopark var mı?", mode: "hybrid", semantic: new Map([["p#0", 0.9]]) });
+    expect(withSem.items.map((i) => i.id)).toContain("p");
+    expect(withSem.evidence?.srcs).toContain("semantic");
+  });
+
+  it("SÜRÜM KURALI: halefi kümede olan kalem düşer, halefi olmayan korunur; kanıtta `sup`", () => {
+    const old = mk(60, { id: "old", category: "parking", title: "Otopark", content: "Bina altı otopark ücretlidir.", supersededById: "new" });
+    const fresh = mk(61, { id: "new", category: "parking", title: "Otopark", content: "Bina altı otopark artık ücretsizdir." });
+    const orphan = mk(62, { id: "orphan", category: "trash", title: "Çöp", content: "Çöp konteyneri yan sokakta.", supersededById: "gone" });
+    const items = [...bigKb(20), old, fresh, orphan];
+    const r = selectKbForPrompt({ items, guestMessage: "Otopark var mı, çöp nerede?", mode: "hybrid" });
+    const ids = r.items.map((i) => i.id);
+    expect(ids).toContain("new");
+    expect(ids).not.toContain("old");
+    expect(ids).toContain("orphan");
+    expect(r.evidence?.sup).toBe(1);
+    // Düşen sürüm "düşen kalem" sayısına da girmez (zaten yok sayılır).
+    expect(r.droppedItems + new Set(ids).size).toBe(items.length - 1);
+  });
+
+  it("ÇELİŞKİ KORUMA kategori-bağımsız: havuz saatleri çelişen iki parça birlikte gider; kanıtta `conf`", () => {
+    const a = mk(60, { id: "a", category: "rules", title: "Havuz", content: "Havuz 09:00–20:00 arasında açıktır." });
+    const b = mk(61, { id: "b", category: "rules", title: "Site duyurusu", content: "Yaz döneminde havuz 21:00'e kadar açık kalır." });
+    const items = [...bigKb(20), a, b];
+    const r = selectKbForPrompt({ items, guestMessage: "Havuz kaça kadar açık?", mode: "hybrid", maxChunks: 2 });
+    expect(r.items.map((i) => i.id).slice(0, 2).sort()).toEqual(["a", "b"]);
+    expect(r.evidence?.conf).toBe(1);
+    // Aynı saati taşıyan parça çelişki DEĞİLDİR.
+    const same = mk(62, { id: "same", category: "rules", title: "Havuz kuralı", content: "Havuz 09:00–20:00 açık; cam eşya yasak." });
+    const r2 = selectKbForPrompt({ items: [...bigKb(20), a, same], guestMessage: "Havuz kaça kadar açık?", mode: "hybrid", maxChunks: 2 });
+    expect(r2.evidence?.conf).toBe(0);
+  });
+
+  it("YALNIZ-İPUCU parçalar gerçek isabet varken ELENİR (geniş 'rules' kategorisi bloğu doldurmaz)", () => {
+    const smoking = mk(60, { id: "smoking", category: "rules", title: "Sigara kuralı", content: "Daire içinde sigara içilmez; balkonda içilebilir.", updatedAt: new Date(T0 - 5 * 86_400_000) });
+    const pets = mk(61, { id: "pets", category: "rules", title: "Evcil hayvan", content: "Evcil hayvan kabul edilmemektedir.", updatedAt: new Date(T0 + 5 * 86_400_000) });
+    const noise = mk(62, { id: "noise", category: "rules", title: "Gürültü", content: "Gece geç saatte gürültü yapılmaz.", updatedAt: new Date(T0 + 4 * 86_400_000) });
+    // Dolgudaki "Sigara" kalemi (kb_6) aynı konu → fixture'dan çıkarılır; "Balkon" (kb_4) ve
+    // "Gürültü saatleri" (kb_8) rules kategorisinde yalnız-ipucu adaylardır, onlar da ELENMELİ.
+    const fillers = bigKb(20).filter((i) => i.id !== "kb_6");
+    const r = selectKbForPrompt({ items: [...fillers, smoking, pets, noise], guestMessage: "Sigara içebilir miyim?", mode: "hybrid" });
+    const ids = r.items.map((i) => i.id);
+    expect(ids[0]).toBe("smoking");
+    for (const id of ["pets", "noise", "kb_4", "kb_8"]) expect(ids, id).not.toContain(id);
+  });
+
+  it("BAŞLIK TAM ÖRTÜŞME: aynı kategoride, aynı uzunlukta iki kalem — başlığı tamamen örtülen ('Havuz') 'Havuz kuralı'nı geçer", () => {
+    // İki kalem de rules, ikisinde de "havuz" bir kez, ikisi de kısa → BM25 ve ipucu eşit;
+    // çeldirici DAHA YENİ (tazelik +0.05). Yalnız tam-örtüşme bonusu (+0.15) gerçek kalemi öne alır.
+    const pool = mk(60, { id: "pool", category: "rules", title: "Havuz", content: "Havuz 09:00–20:00 arasında açıktır.", updatedAt: new Date(T0 - 5 * 86_400_000) });
+    const d = mk(61, { id: "d", category: "rules", title: "Havuz kuralı", content: "Havuz kenarında cam yasaktır.", updatedAt: new Date(T0 + 5 * 86_400_000) });
+    const r = selectKbForPrompt({ items: [...bigKb(20), pool, d], guestMessage: "Havuz kaçta açılıyor?", mode: "hybrid" });
+    expect(r.items[0]?.id).toBe("pool");
+  });
+
+  it("FUZZY ÇÖZÜMLÜ BAŞLIK: yazım hatalı 'otopakr' sorgusunda tam örtülen 'Otopark' başlığı kısmen örtülen 'Otopark çıkışı'nı geçer", () => {
+    // İki kalem de parking, ikisinin de başlığında ve gövdesinde "otopark" (BM25 ≈ eşit);
+    // çeldirici daha yeni ve daha kısa. Başlık bonusu ancak "otopakr" → "otopark" ÇÖZÜMÜ
+    // başlığa uygulanırsa devreye girer: tam örtüşen "Otopark" +0.30, kısmi "Otopark çıkışı" +0.15.
+    const p = mk(60, { id: "p", category: "parking", title: "Otopark", content: "Otopark misafirler için ücretsizdir.", updatedAt: new Date(T0 - 5 * 86_400_000) });
+    const d = mk(61, { id: "d", category: "parking", title: "Otopark çıkışı", content: "Otopark kapısı gece kilitlenir.", updatedAt: new Date(T0 + 5 * 86_400_000) });
+    const r = selectKbForPrompt({ items: [...bigKb(20), p, d], guestMessage: "otopakr", mode: "hybrid" });
+    expect(r.items[0]?.id).toBe("p");
+  });
+
+  it("N-GRAM sorgusunda ZAYIF terimler süzülür: 'var' trigramları 'vardır'lı kısa parçayı aday YAPMAZ (geri çekilme korunur)", () => {
+    // Tek satırlık, "vardır" ile biten çok kısa kalemler: n-gram kosinüsü sadece "var"
+    // gramlarıyla eşiği aşabilir. Filtre olmadan "Jakuzi var mı?" bunları seçer, geri çekilme bozulur.
+    const tiny = [
+      mk(70, { id: "t1", category: "faq", title: "Not", content: "Vardır." }),
+      mk(71, { id: "t2", category: "faq", title: "Not", content: "Evet vardır." }),
+    ];
+    const items = [...bigKb(20), ...tiny];
+    const r = selectKbForPrompt({ items, guestMessage: "Jakuzi var mı?", mode: "hybrid" });
+    expect(r.evidence?.fb).toBe("no_lexical_hits");
+    expect(r.items).toBe(items);
+  });
+
+  it("BİRLEŞİM ölçümle seçildi: CombSUM iki terimli kesin isabeti öne alır; aynı girdide RRF seçeneği de çalışır (kanıtta srcs aynı)", () => {
+    const smoking = mk(60, { id: "smoking", category: "rules", title: "Sigara", content: "Daire içinde sigara içilmez; balkonda içilebilir.", updatedAt: new Date(T0 - 5 * 86_400_000) });
+    const d = mk(61, { id: "d", category: "rules", title: "Balkon", content: "Balkon kapısı otopark tarafına bakar.", updatedAt: new Date(T0 + 5 * 86_400_000) });
+    const items = [...bigKb(20), smoking, d];
+    const sum = selectKbForPrompt({ items, guestMessage: "Balkonda sigara serbest mi?", mode: "hybrid" });
+    expect(sum.items[0]?.id).toBe("smoking");
+    const rrf = selectKbForPrompt({ items, guestMessage: "Balkonda sigara serbest mi?", mode: "hybrid", sources: { fusion: "rrf" } });
+    expect(rrf.evidence?.srcs).toEqual(sum.evidence?.srcs);
+    expect(rrf.items.map((i) => i.id)).toContain("smoking");
+  });
+
+  it("TAZELİK yalnız eşitlik bozucu: aynı içerikli iki kalemden YENİSİ önde", () => {
+    const olderT = mk(60, { id: "older", category: "parking", title: "Otopark", content: "Bina altı otopark ücretsizdir.", updatedAt: new Date(T0 - 86_400_000) });
+    const newer = mk(61, { id: "newer", category: "parking", title: "Otopark", content: "Bina altı otopark ücretsizdir.", updatedAt: new Date(T0 + 86_400_000) });
+    const r = selectKbForPrompt({ items: [...bigKb(20), olderT, newer], guestMessage: "Otopark var mı?", mode: "hybrid" });
+    expect(r.items[0]?.id).toBe("newer");
   });
 });
 

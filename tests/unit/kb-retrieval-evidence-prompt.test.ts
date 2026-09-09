@@ -39,6 +39,30 @@ describe("kanıt (buildKbEvidence) — parça + retrieval özeti", () => {
     expect(json).not.toMatch(/title|content|Otopark|guest/i);
   });
 
+  it("dilim 2 alanları taşınır: srcs (kapalı küme, ≤4), sup ve conf sayıları; geçersiz değerler yazılmaz", () => {
+    const json = String(
+      buildKbEvidence({
+        retrieved: [],
+        usedLabels: [],
+        retrieval: { mode: "hybrid", q: 1, fb: "none", sel: 2, cand: 30, ms: 1, srcs: ["bm25", "ngram", "x".repeat(40), "a", "b"], sup: 1, conf: 2 },
+      }),
+    );
+    const parsed = JSON.parse(json).retrieval as { srcs: string[]; sup: number; conf: number };
+    expect(parsed.srcs).toEqual(["bm25", "ngram", "x".repeat(16), "a"]);
+    expect(parsed.sup).toBe(1);
+    expect(parsed.conf).toBe(2);
+    const bad = String(
+      buildKbEvidence({
+        retrieved: [],
+        usedLabels: [],
+        retrieval: { mode: "hybrid", q: 1, fb: "none", sel: 2, cand: 30, ms: 1, sup: 1.5, conf: -1 as number },
+      }),
+    );
+    const badParsed = JSON.parse(bad).retrieval as { sup?: number; conf?: number };
+    expect(badParsed.sup).toBeUndefined();
+    expect(badParsed.conf).toBe(-1);
+  });
+
   it("geçersiz chunk (negatif/kesirli) yazılmaz; geri çekilme kodu 24 karakterde kesilir", () => {
     const json = String(
       buildKbEvidence({
@@ -120,7 +144,7 @@ describe("istem notu — seçilmiş kalemlerde DÜRÜST wording, davranış kura
 
 describe("mimari pinler", () => {
   it("retrieval modülü DB'ye ERİŞMEZ (yetki/onay/sır filtreleri retrieval'ın ÖNÜNDEDİR)", () => {
-    for (const rel of ["select.ts", "bm25.ts", "chunker.ts", "index-cache.ts", "lexicon.ts", "text.ts", "semantic.ts", "flag.ts"]) {
+    for (const rel of ["select.ts", "bm25.ts", "chunker.ts", "index-cache.ts", "lexicon.ts", "text.ts", "semantic.ts", "flag.ts", "sources.ts", "fusion.ts", "rerank.ts"]) {
       const src = read(`src/lib/ai/retrieval/${rel}`);
       expect(src, rel).not.toMatch(/from "@\/lib\/db"/);
       expect(src, rel).not.toMatch(/prisma/);
@@ -154,6 +178,17 @@ describe("mimari pinler", () => {
       expect(src, rel).toContain("knowledgeBaseSelection: kbSel.selection");
       expect(src, rel).toMatch(/knowledgeBase: kb(Sel\.items|ForModel)/);
     }
+  });
+
+  it("HOST'A ÖZEL graf katmanı misafir yoluna TAŞINMAZ: retrieval modülü ve QR rotası onu import etmez", () => {
+    const guestPath = [
+      "src/app/api/chat/[token]/route.ts",
+      "src/lib/guest-chat.ts",
+      ...["select.ts", "bm25.ts", "chunker.ts", "index-cache.ts", "lexicon.ts", "text.ts", "semantic.ts", "flag.ts", "sources.ts", "fusion.ts", "rerank.ts"].map(
+        (f) => `src/lib/ai/retrieval/${f}`,
+      ),
+    ];
+    for (const rel of guestPath) expect(read(rel), rel).not.toMatch(/modules\/intelligence\/graph/);
   });
 
   it("karar kaydı yazan iki yüzey retrieval kanıtını RiskEvent'e taşır", () => {

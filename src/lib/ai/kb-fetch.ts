@@ -32,7 +32,15 @@ export interface KbForPrompt {
    * olduğu gibi taşır (bu yüzden süzgeçlerden sonra hizalama kendiliğinden
    * doğru kalır). Misafire dönen yanıt gövdesine ASLA konmaz (pin: testler).
    */
-  items: { id: string; category: string; title: string; content: string; updatedAt: Date }[];
+  items: {
+    id: string;
+    category: string;
+    title: string;
+    content: string;
+    updatedAt: Date;
+    /** A5 sürüm zinciri (bugün yazan yok); hibrit seçici halefi kümede olan kalemi düşürür. */
+    supersededById: string | null;
+  }[];
   /** Adet tavanı yüzünden istemin DIŞINDA kalan kalem sayısı (0 = kesme yok). */
   dropped: number;
   /**
@@ -86,7 +94,7 @@ export async function fetchKnowledgeBaseForPrompt(
       where: gated,
       // `id`/`updatedAt` YETKİLİ İÇ DENETİM içindir. İstem metnine girmezler:
       // `packKnowledgeBase` yalnız `category/title/content` okur (yapısal pin).
-      select: { id: true, category: true, title: true, content: true, updatedAt: true },
+      select: { id: true, category: true, title: true, content: true, updatedAt: true, supersededById: true },
       // "En son güncellenen kazanır": host bir bilgiyi düzelttiyse istemde
       // kalan o olsun. Düşenler en eski dokunulmuş kayıtlardır.
       orderBy: { updatedAt: "desc" },

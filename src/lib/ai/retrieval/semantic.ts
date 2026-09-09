@@ -1,11 +1,12 @@
 // ---------------------------------------------------------------------------
-// ANLAMSAL PUANLAYICI SÖZLEŞMESİ (RAG dilim 1 — YALNIZ ARAYÜZ + NO-OP).
+// ANLAMSAL PUANLAYICI SÖZLEŞMESİ (RAG — YALNIZ ARAYÜZ + NO-OP).
 //
 // Gömme (embedding) tabanlı puanlama YENİ ÜCRETLİ SERVİS + (kalıcı vektör için)
 // MİGRATION ister → kurucu onayına bağlı (tasarım belgesi §5). Bu dilimde hiçbir
-// dış çağrı yoktur; varsayılan puanlayıcı `null` döndürür ve hibrit seçici o
-// zaman yalnız sözcüksel puanla çalışır. Sözleşme bugünden sabitlenir ki gerçek
-// puanlayıcı geldiğinde seçici/harness/kanıt DEĞİŞMESİN.
+// dış çağrı yoktur; varsayılan puanlayıcı `null` döndürür ve seçici o zaman
+// sözcüksel (BM25) + karakter n-gram kaynaklarıyla çalışır. Sözleşme bugünden
+// sabitlenir ki gerçek puanlayıcı geldiğinde seçici/harness/kanıt DEĞİŞMESİN:
+// puanlar `fusion.ts`e "semantic" kaynağı olarak girer (RRF, ağırlık ↓).
 //
 // Sözleşme kuralları:
 // - `score` her parça için [0,1] aralığında sayı ya da bütün olarak `null`
@@ -28,12 +29,5 @@ export const noopSemanticScorer: SemanticScorer = {
   },
 };
 
-/** Sözcüksel (0..~1.6) ve anlamsal (0..1) puanı karıştırma ağırlığı. */
-export const SEMANTIC_BLEND = 0.4;
-
-/** Anlamsal puan varsa harmanla; yoksa sözcüksel puan olduğu gibi kalır. */
-export function blendScores(lexical: number, semantic: number | undefined): number {
-  if (semantic === undefined || !Number.isFinite(semantic)) return lexical;
-  const s = Math.min(1, Math.max(0, semantic));
-  return (1 - SEMANTIC_BLEND) * lexical + SEMANTIC_BLEND * s;
-}
+/** RRF kaynak ağırlıkları — harness ile ölçülerek ayarlanır. */
+export const SOURCE_WEIGHTS = { bm25: 1, ngram: 0.7, semantic: 1 } as const;
