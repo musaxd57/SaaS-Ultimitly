@@ -199,8 +199,34 @@ describe("P4 — kaynak çelişkisi KODDA tespit edilir, öncelik İCAT EDİLMEZ
     // Öncelik İCAT EDİLMEZ: blok "bilgi tabanı esastır" demez; var olan kurala gönderir.
     expect(block).not.toMatch(/bilgi tabanı esastır/i);
     expect(block).toMatch(/öncelik/i);
-    // Mevcut öncelik cümlesi de yerinde duruyor (değiştirilmedi).
+    // Uyuşan kaynaklar için mevcut öncelik cümlesi yerinde duruyor.
     expect(p).toContain("mülk bilgisi esastır");
+  });
+
+  it("P4-b (kurucu kararı): çelişkide misafire KESİN SAAT YOK, insan incelemesi; host'a gösterim AYRI", () => {
+    const p = buildReplyUserPrompt(input({ knowledgeBase: kbCheckout("Çıkış saati 12:00'dir.") }));
+    const block = p.slice(p.indexOf("KAYNAK ÇELİŞKİSİ"));
+    expect(block).toMatch(/KESİN SAAT SÖYLENMEZ/);
+    expect(block).toMatch(/İNSAN İNCELEMESİ/);
+    // Ürünün insana devir çizgisi: güven 0.75'in altı (kapı/eşik DEĞİŞMEDİ; istem o çizgiyi hedefler).
+    expect(block).toMatch(/0\.75'in ALTINDA/);
+    // "netleştirecek/dönecek" vaadi de yasak — P1 ile tutarlı.
+    expect(block).toMatch(/SÖZ VERME/);
+    // Host'a gösterim misafire cevaptan AYRI bir iş olarak korunuyor.
+    expect(block).toMatch(/AYRI bir iştir/);
+    expect(block).toMatch(/missingInfo/);
+    // Eski "çelişse bile bu saatleri kullan" emri artık YOK; ÖNCELİK satırı çelişkiyi insana bırakıyor.
+    expect(p).not.toMatch(/farklı bir\s+saat geçse bile bu saatleri kullan/);
+    expect(p).toMatch(/ÇELİŞİYORSA .*misafire kesin saat SÖYLEME/s);
+  });
+
+  it("KURAL-4: para yönlendirmesi 'değerlendirecek' VAADİ değil, kararın sahibini söyler", () => {
+    expect(REPLY_SYSTEM_PROMPT).not.toMatch(/"ev sahibimiz değerlendirecek"/);
+    expect(REPLY_SYSTEM_PROMPT).toMatch(/"bu konu ev sahibinizin kararıdır" ifadesiyle/);
+    // Son kontrol listesi de aynı ölçütü sorar.
+    expect(REPLY_SYSTEM_PROMPT).toMatch(/4\. Para\/iade konusu varsa rakam yerine "bu konu ev sahibinizin kararıdır"/);
+    // Formal ton da gelecek-zaman söz önermez.
+    expect(REPLY_SYSTEM_PROMPT).not.toMatch(/"değerlendireceğiz", "inceleyeceğiz" gibi ifadeler kullan/);
   });
 
   it("çelişki YOKKEN blok basılmaz (sakin durumda gürültü yok)", () => {

@@ -26,7 +26,9 @@
 const PAST_ACTION =
   /\b(ilett[iı]m|iletti[kğ]|oluşturdum|oluşturduk|kontrol ettim|kontrol ettik|ayarladım|ayarladık|bildirdim|bildirdik|not ettim|talep oluşturdum)\b/i;
 const FUTURE_COMMITMENT =
-  /\b(dönüş yapaca[ğg]|döneceğ[iı]m|dönece[ğg]iz|ilete?ce[ğg]|paylaşaca[ğg]|bilgilendirece[ğg]|haber verece[ğg]|gönderece[ğg]|hallede?ce[ğg])\w*/i;
+  // "değerlendirece/inceleyece": kurucu kararı 09-09 — "ev sahibimiz değerlendirecek" de
+  // makbuzsuz bir taahhüttür (kim, ne zaman? bilinmiyor); nötr biçimi "kararıdır".
+  /\b(dönüş yapaca[ğg]|döneceğ[iı]m|dönece[ğg]iz|ilete?ce[ğg]|paylaşaca[ğg]|bilgilendirece[ğg]|haber verece[ğg]|gönderece[ğg]|hallede?ce[ğg]|değerlendirece[ğg]|inceleyece[ğg])\w*/i;
 
 export type ClaimKind = "past_action" | "future_commitment";
 

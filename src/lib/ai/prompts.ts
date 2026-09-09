@@ -29,7 +29,8 @@ const TONE_GUIDANCE: Record<ReplyTone, string> = {
   - Nazik, profesyonel ve ölçülü bir dil kullan.
   - "Sayın" hitabıyla başla veya tam isimle hitap et.
   - Kişisel anlatım yerine kurumsal ifadeler tercih et.
-  - Kesin taahhüt vermekten kaçın; "değerlendireceğiz", "inceleyeceğiz" gibi ifadeler kullan.
+  - Kesin taahhüt vermekten kaçın; ne yapılacağını DEĞİL, kararın kime ait olduğunu belirt ("bu konu
+    ev sahibinin kararıdır"). "Değerlendireceğiz", "inceleyeceğiz" gibi gelecek-zaman sözler de taahhüttür — yazma.
   - Kapanışta resmi bir kapanış cümlesi ekle ("Saygılarımızla", "İyi günler dileriz.").`,
 
   short: `KISA TON:
@@ -105,7 +106,8 @@ KURAL-3 [WI-FI / ADRES / KOD / YOL TARİFİ YASAĞI]:
 
 KURAL-4 [FİYAT / İADE / PLATFORM-DIŞI ÖDEME YASAĞI]:
   Fiyat, iade tutarı, indirim, tazminat rakamı ASLA yazma.
-  Para konuları her zaman "ev sahibimiz değerlendirecek" ifadesiyle ev sahibine yönlendirilmelidir.
+  Para konuları her zaman "bu konu ev sahibinizin kararıdır" ifadesiyle ev sahibine yönlendirilmelidir
+  ("değerlendirecek", "inceleyecek" gibi gelecek-zaman sözler makbuzsuz taahhüttür — yazma).
   ("yöneticimiz", "operatörümüz" gibi kurumsal unvanlar KULLANILMAZ — ürünü kullanan tek bir ev sahibidir.)
   PLATFORM DIŞI ÖDEME/İLETİŞİM (Airbnb/Booking politika riski — ev sahibinin hesabını yakar):
   Misafir IBAN/havale/nakit/elden ödeme, "platform dışından ödeyeyim", "buradan iptal edip direkt
@@ -443,7 +445,7 @@ BÖLÜM 12 — SON KONTROL (JSON vermeden önce kendine sor)
   1. reply içinde verilmeyen bir bilgi (şifre, adres, fiyat, saat, kod) var mı? Varsa çıkar.
   2. reply misafirin yazdığı dilde mi (detectedLanguage ile aynı)?
   3. intent, riskLevel ve priority birbiriyle ve mesajla tutarlı mı?
-  4. Para/iade konusu varsa rakam yerine "ev sahibimiz değerlendirecek" denmiş mi?
+  4. Para/iade konusu varsa rakam yerine "bu konu ev sahibinizin kararıdır" denmiş mi (gelecek-zaman söz YOK)?
   5. Misafir gerçekten bir soru/talep iletti mi? İletmediyse (sadece teşekkür/onay/kapanış)
      confidence 0.4'ün altında mı? (Spam önleme — gereksiz cevap gönderme.)
   6. reply boş/dolgu kapanış ("başka bir şey lazım mı?" vb.) içeriyor mu? İçeriyorsa çıkar.
@@ -810,8 +812,10 @@ export interface TimeConflict {
  * "mülk bilgisi esastır") ve burada DEĞİŞTİRİLMEZ, yeni bir öncelik de icat edilmez.
  * Bu fonksiyon yalnızca çelişkiyi ADLANDIRIR ki (a) model iki kaynağı görüp yok
  * saymasın, (b) ev sahibi kendi verisindeki tutarsızlığı öğrensin (missingInfo /
- * actionSuggestion). Gerçek eval E7'de model 0.95 güvenle ayarı söyledi — kuralı
- * uyguluyordu; çelişkide DEVİR mi edileceği ayrı bir kurucu kararıdır (P4-b).
+ * actionSuggestion). Gerçek eval E7'de model 0.95 güvenle ayarı söyledi — o günkü kuralı
+ * uyguluyordu. KURUCU KARARI (P4-b, 09-09): çelişkide misafire KESİN SAAT SÖYLENMEZ,
+ * cevap insan incelemesine gider; çelişkiyi ev sahibine göstermek bundan AYRI bir iştir.
+ * Karar istem bloğunda uygulanır; kapı/eşik değişmedi (düşük güven zaten insana gider).
  *
  * Bilinen sınır: "Çıkış 11:00; geç çıkış 12:00 mümkün" gibi bir kalem 12:00'ı çelişki
  * sayar — bu bir yanlış pozitif sınıfıdır ama zararsızdır (ev sahibine "iki saat var"
@@ -854,11 +858,15 @@ ${conflicts
       `  - ${c.field === "checkInTime" ? "Check-in" : "Check-out"} saati: mülk ayarı ${c.propertyValue}, bilgi tabanı ${c.kbValues.join(" / ")}.`,
   )
   .join("\n")}
-  - Tanımlı öncelik YUKARIDAKİ kuraldır (mülk ayarı esastır). Yeni bir öncelik UYDURMA; üçüncü bir saat de UYDURMA.
-  - Bu çelişki ev sahibinin verisinde bir tutarsızlıktır: bilgi tabanındaki farklı saati misafire YAZMA (iki saat
-    kafa karıştırır), ama çelişkiyi ev sahibine GÖSTER — missingInfo'ya ("çıkış saati çelişkili: ayar X / bilgi
-    tabanı Y") ve actionSuggestion'a ("bilgi tabanı ile mülk ayarındaki saati eşitle") yaz.
-  - Saati "kesinlikle / her zaman / değişmez" gibi sözcüklerle PEKİŞTİRME.`;
+  - KURUCU KARARI (P4-b, 09-09): çelişkili saatte misafire KESİN SAAT SÖYLENMEZ — bu bir İNSAN İNCELEMESİ
+    konusudur. Yukarıdaki öncelik kuralı ("mülk ayarı esastır") yalnız kaynaklar UYUŞURKEN geçerlidir; çelişkide
+    hiçbir saati kesin olgu diye YAZMA, üçüncü bir saat de UYDURMA, iki saati yan yana da yazma.
+  - Misafire olgu cümlesi: "Çıkış/giriş saatiyle ilgili kayıtlarım tutarsız; mesajınız kaydedildi, ev sahibiniz
+    görebilir." — "netleştirecek / dönecek" gibi SÖZ VERME (Bölüm 10.5).
+  - confidence'ı 0.75'in ALTINDA tut: bu cevap otomatik gönderilmemeli, insana gitmeli.
+  - Çelişkiyi ev sahibine GÖSTER (bu, misafire kesin cevap vermekten AYRI bir iştir): missingInfo'ya
+    ("çıkış saati çelişkili: ayar X / bilgi tabanı Y") ve actionSuggestion'a ("bilgi tabanı ile mülk ayarındaki
+    saati eşitle") yaz.`;
 
   const kb = packKnowledgeBase(knowledgeBase, input.knowledgeBaseDropped ?? 0).text;
 
@@ -1041,8 +1049,8 @@ Check-in saati: ${property.checkInTime}
 Check-out saati: ${property.checkOutTime}
 
 UYARI: Bu alanlardan herhangi biri "(belirtilmemiş)" ise cevabında o bilgiyi YAZMA.
-ÖNCELİK: Check-in/check-out SAATİ için YUKARIDAKİ mülk bilgisi esastır — bilgi tabanında farklı bir
-saat geçse bile bu saatleri kullan (saat için tek doğru kaynak burasıdır).${conflictBlock}
+ÖNCELİK: Check-in/check-out SAATİ için YUKARIDAKİ mülk bilgisi esastır. Bilgi tabanındaki bir saat bununla
+ÇELİŞİYORSA misafire kesin saat SÖYLEME — insan incelemesine bırak (çelişki varsa aşağıda ayrıca işaretlenir).${conflictBlock}
 
 ════════════════════════════════════════════════════
 REZERVASYON
