@@ -18,6 +18,8 @@ import { prisma } from "@/lib/db";
 import { getOpsStats } from "@/lib/reports";
 import { getConnectionInfo } from "@/lib/hospitable-credentials";
 import { premiumAllowed } from "@/lib/billing/subscription";
+import { findAttentionItems } from "@/modules/intelligence/incidents/attention";
+import { AttentionPanel } from "@/components/attention-panel";
 import { OnboardingGuide, type OnboardingStep } from "@/components/onboarding-guide";
 import { PageHeader } from "@/components/page-header";
 import { StatCard } from "@/components/stat-card";
@@ -96,11 +98,14 @@ export default async function DashboardPage() {
 
   // "Başlarken" onboarding: compute setup progress. The card only renders until
   // every step is done, then disappears for established accounts.
-  const [connection, conversationCount, kbCount, premiumOk] = await Promise.all([
+  const [connection, conversationCount, kbCount, premiumOk, attention] = await Promise.all([
     getConnectionInfo(orgId),
     prisma.conversation.count({ where: scope }),
     prisma.knowledgeBaseItem.count({ where: { isActive: true, ...scope } }),
     premiumAllowed(orgId),
+    // 🚨 INTELLIGENCE BOZULSA PMS ÇALIŞIR (bounded context kuralı): bu okuma
+    // panelin GİRİŞ SAYFASINI 500'e düşüremez. Hata → satır yok, kart basılmaz.
+    findAttentionItems(orgId).catch(() => []),
   ]);
   const onboardingSteps: OnboardingStep[] = [
     {
@@ -197,6 +202,12 @@ export default async function DashboardPage() {
           "az önce bitti" bilgisini gerektiriyor ve o yalnız istemcide var.
           Bileşen 6/6'da SSR'da da boş basar, yani flash yok. */}
       <OnboardingGuide steps={onboardingSteps} />
+
+      {/* V2.1 — bu kart, hemen aşağıdaki notun tarif ettiği şeyin ta kendisi:
+          kutucukların GÖSTEREMEDİĞİ durumları söyler ve SAKİN GÜNDE HİÇ BASMAZ
+          (`items.length === 0` → `null`). Önbellek tablosu İSTEMEDİ: hepsi
+          mevcut kolonlardan hesaplanıyor, migration yok, hiçbir şey yazılmıyor. */}
+      <AttentionPanel items={attention} />
 
       {/* 🚨 "AI GÜNLÜK ÖZET" KARTI KALDIRILDI (kullanıcı kararı 08-08) — GERİ EKLEME.
           İKİ ayrı kusuru vardı ve ikisi de ölçüldü:
