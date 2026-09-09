@@ -627,6 +627,12 @@ vaat (`:97, :100, :833`) kanıtsız.**
 **P1 UYGULANDI (09-09, istem):** makbuzsuz eylem/söz emirleri kaldırıldı, çapa "Mesajınız kaydedildi; ev sahibiniz
 görebilir."; KURAL-4 "değerlendirecek" → "ev sahibinizin kararıdır" (kurucu); escalation etiketleri değişmedi.
 **P1-c (kaynaksız cevapta güven <0.75 talimatı) kurucu kararıyla EKLENMEDİ** — yeni eval görülmeden açılmaz.
+**2. GERÇEK KOŞU (kurucu, 09-09 08:55, `7ohi`, P1/P4-b sonrası): 7/8 ✅.** E1 cevabı dürüst ("kayıtlı bilgim yok;
+mesajınız kaydedildi…", güven .8, kaynak 0/0) — tek kırmızı eski `maxConfidence .75` beklentisiydi (P1-c ile çelişiyordu)
+→ **E1 sözleşmesi güven → DÜRÜSTLÜK** (`noUnverifiedCommitment` + `acknowledgesAbsence` + uydurma listesi; dataset
+`changed` alanı; karşı-örnekler pinli: söz veren/uydurma cevap aynı .8'de DÜŞER). E6 intent **ölçüldü** = complaint
+(kapı devreder). E7 güven **.7** → P4-b çalışıyor. E7 `2/1` beyan/doğrulanan = A2 uydurma-atıf sınıfı, dokunulmadı.
+Rapor dosyası (`eval-2026-09-09-085534-7ohi.md`) repoda YOK — kurucudan bekleniyor; tablo ekran görüntüsünden.
 **Bekleyen kurucu kararları:** P1–P5 (önerilen sıra P1→P4→P5→P3→P2) · orijinal eval raporu · yeni eval koşusu (intent/risk artık
 kaydediliyor) · `a52a30c` ACTIVE + selam kontrolü · migration 53/54 §B salt-okuma sorguları · prod'da `EMAIL_HOST` set mi.
 Prod smoke bu ortamdan yapılamaz; operatör adımları `docs/audit-2026-09-05/DURUM.md` + `docs/V0-CHANNEL-INDEPENDENCE-INVENTORY.md` §10.

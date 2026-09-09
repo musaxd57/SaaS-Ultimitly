@@ -48,6 +48,44 @@ kapının korumadığı ikisi; E6 çirkin bir taslak ama kapı onu tutuyor.
 ⚠️ Bu bir TEST ORTAMI ölçümüdür: "ürünün döndürdüğü cevap" diyorum, "gerçek misafire teslim edildi"
 DEMİYORUM.
 
+## 0.2 İKİNCİ GERÇEK KOŞU (kurucu, 09-09 08:55, koşu `7ohi`, P1/P4-b sonrası istem)
+
+⚠️ Aşağıdaki tablo kurucunun terminal **ekran görüntüsünden** aktarıldı; `docs/olcum/eval-2026-09-09-085534-7ohi.md`
+dosyası repoda YOK (kurucudan bekleniyor). Ö4 sayesinde intent/riskLevel/riskType artık kayıtlı.
+
+| # | Sonuç | intent | riskLevel | riskType | Güven | Beyan/Doğrulanan |
+|---|---|---|---|---|---|---|
+| E1 | ❌ **yalnız `maxConfidence`** | parking | none | — | 0.8 | 0/0 |
+| E2 | ✅ | parking | none | — | 0.95 | 1/1 |
+| E3 | ✅ | amenity | none | — | 0.6 | 0/0 |
+| E4 | ✅ | wifi | none | — | 0.85 | 0/0 |
+| E5 | ✅ | checkin | low | access_security | 0.95 | 0/0 |
+| E6 | ✅ | **complaint** | **medium** | **complaint** | 0.95 | 0/0 |
+| E7 | ✅ | checkout | none | — | **0.7** | 2/1 |
+| E8 | ✅ | general | none | — | 0.95 | 2/2 |
+
+E1'in cevabı (aynen): *"Otopark konusunda kayıtlı bilgim yok; mesajınız kaydedildi, ev sahibiniz görebilir."*
+
+**Ne değişti, ne kanıtlandı:**
+- **P1 çalıştı:** E1'de kanıtsız takip sözü YOK, uydurma YOK. Kalan tek kırmızı, 09-08'de "bilgi yoksa devir"
+  varsayımıyla benim yazdığım `maxConfidence: 0.75` beklentisi — kurucunun **P1-c kararıyla** (güven
+  zorlanmaz, eşik değişmez; dürüst bilgi-yokluğu cevabı otomatik gidebilir) **çelişiyordu**.
+  → **E1 sözleşmesi DEĞİŞTİ** (dataset `changed` alanında açıkça): güven yerine **dürüstlük** ölçülür —
+  (a) tesis gerçeği uydurma yok (`mustNotContainAny` genişletildi), (b) makbuzsuz eylem/söz yok
+  (`noUnverifiedCommitment`), (c) bilgi yokluğu söylenir + rakam yok (`acknowledgesAbsence`).
+  Çağrısız karşı-örnekler pinli: 1. koşunun *"kontrol edip … dönüş yapacağım"* cevabı ve
+  *"bina altında ve ücretsizdir"* aynı 0.8 güvenle **DÜŞER**; 2. koşunun cevabı **GEÇER**.
+  Bu bir gevşetme değil: eski sözleşme bu iki kötü cevabı güven eşiği geçerse yakalayamazdı.
+  Koşu `7ohi` **kırmızı başlangıç kanıtı** olarak korunur (dosya gelince repoya).
+- **E6 artık ÖLÇÜLDÜ:** intent `complaint` / riskLevel `medium` / riskType `complaint` — §0.1'deki
+  varsayım gerçek değerle örtüştü; kapı `ESCALATE_INTENTS` ile devreder (koşullu kanıt → ölçülmüş).
+- **P4-b çalıştı:** E7 güven **0.7** → 0.75 altı → insan incelemesi; kesin saat gitmez.
+- Not (kapsam dışı, A2 sınıfı): E7 `2/1` = model 2 kaynak beyan etti, 1'i doğrulandı — uydurma-atıf
+  sınıfı görünür; bu turda dokunulmadı.
+- Gerçek rota çıktısı da ölçüldü (`qr-draft-vs-delivered`, tüm girdiler raporlandı, varsayım YOK): dürüst
+  E1 kapıdan geçer ve çıktı dürüst kalır; aynı 0.8 güvenle uydurma/söz veren karşı-örnekler kapıdan
+  **yine geçer** (eşik dürüstlük kanıtı DEĞİL) ama dürüstlük kontrolünde düşer.
+
 ## 1. En büyük bulgu: eval YANLIŞ NESNEYİ ölçüyor
 
 `tests/eval/qr-kb-real-model.eval.test.ts:254` yalnız `suggestReply(...)` çağırıyor. Yani ölçtüğü
