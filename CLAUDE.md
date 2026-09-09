@@ -644,12 +644,12 @@ Sekiz P1 KAPANDI (09-07), her biri ayrı commit, kırmızı-önce + iki yönlü 
   yol · halka açık sayfada çerez yenileme · `PADDLE_WEBHOOK_SECRET` boot kapısı.
 
 ## Durum
-**Origin HEAD `061d62e` (09-09, RAG dilim 1; CI #1018 5/5 success; Railway ACTIVE — kurucu teyidi 09-09).** Prod'da canlı:
+**Origin HEAD `12ddd8e` (09-09, RAG dilim 2; CI #1022 5/5 success; Railway ACTIVE teyidi BEKLENİYOR). Önceki `061d62e` (dilim 1) ACTIVE — kurucu teyidi 09-09.** Prod'da canlı:
 migration 52/53/54 (09-08), `a52a30c`+ (selam tekrarı canlı doğrulaması hâlâ bekliyor).
 **3. GERÇEK KOŞU (kurucu, 09-09 13:46 yerel, preflight klonu `2cfa8d4`): 8/8 ✅ (E1 dürüstlük sözleşmesiyle).** Rapor dosyası
 repoya henüz gelmedi (önceki iki koşununki de). Kurucunun preflight klonunda `npm install` 11 zafiyet gösterdi (node 24, engine
 uyarısı) — CI'daki triaj kapısı `061d62e`'de yeşil; yerelde `npm ci` + `npm run audit:check` ile kıyaslanmalı, `audit fix --force` YOK.
-**3973 test yeşil (359 dosya) · typecheck/lint/build/audit temiz.**
+**4005 test yeşil (361 dosya) · typecheck/lint/build/audit temiz.**
 **09-09 turu (hepsi push edildi, migration YOK):** ① CI #1002 kırmızı — 7 yeni danışma, lock DEĞİŞMEMİŞTİ → `next 15.5.24 ·
 sharp 0.35.4 · nodemailer 9.1.1`; baseline **gevşetilmedi, iki istisna SİLİNDİ** (6→4); SMTP yolu için ilk gerçek-soket testi;
 `/_next/image` 200 dalı BİLEREK açılmadı (`images.unoptimized` güvenlik kontrolü) → kodek sentetik görüntüyle ölçüldü.
