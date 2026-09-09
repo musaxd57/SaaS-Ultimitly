@@ -620,7 +620,9 @@ eval yalnız `suggestReply` = TASLAK ölçüyordu; taslak ≠ kapı kararı ≠ 
 kapı TAŞINMADI, model mock'lu — **koşullu karakterizasyon**: baseline'da intent/risk YOKTU, varsayıldı). Rapor Ö4: kırpma yok ·
 karar girdileri · istenen ≠ bildirilen model · commit · istem parmak izi · aynı gün ezme yok. Dedektörler bilerek `tests/helpers/`
 (ürün koduna taşımak = P5). **Kök neden: istem "ilettim/size döneceğim"i EMREDİYOR (`prompts.ts:20-21, 88, 115`), `actionReceipt`
-uygulanmamış; E7 kaynak öncelik sözleşmesi YOK; E4/E5 yasak kaynaklı ama yanındaki vaat (`:97, :100, :833`) kanıtsız.**
+uygulanmamış; E7'de saat için öncelik sözleşmesi VAR (`buildReplyUserPrompt`: mülk ayarı esastır — ilk "YOK" bulgum
+yanlıştı, model kuralı uyguluyordu; "çelişkide devir mi" = P4-b kurucu kararı); E4/E5 yasak kaynaklı ama yanındaki
+vaat (`:97, :100, :833`) kanıtsız.**
 **Bekleyen kurucu kararları:** P1–P5 (önerilen sıra P1→P4→P5→P3→P2) · orijinal eval raporu · yeni eval koşusu (intent/risk artık
 kaydediliyor) · `a52a30c` ACTIVE + selam kontrolü · migration 53/54 §B salt-okuma sorguları · prod'da `EMAIL_HOST` set mi.
 Prod smoke bu ortamdan yapılamaz; operatör adımları `docs/audit-2026-09-05/DURUM.md` + `docs/V0-CHANNEL-INDEPENDENCE-INVENTORY.md` §10.

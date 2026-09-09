@@ -107,12 +107,26 @@ Yani E6'daki risk gerçek ama **koşullu**, ve o koşulu belirleyen alan (`inten
 Buradaki dersi ayrıca not ediyorum: *"eşiğin altındadır herhalde"* bir ölçüm değildi ve yanlış
 çıktı; karar veren sayı raporda zaten vardı, ben ona bakmadan yorum yapmıştım.
 
-### 2.4 E7 — KAYNAK ÖNCELİK SÖZLEŞMESİ YOK
+### 2.4 E7 — ~~KAYNAK ÖNCELİK SÖZLEŞMESİ YOK~~ → **VAR, ben görememişim (düzeltme 09-09, P4 turu)**
 
-İstemde "bilgi tabanı ile mülk ayarı ÇELİŞİRSE hangisi kazanır" diye bir kural **hiç yok** (arama:
-`prompts.ts` içinde çelişki/öncelik geçen satırlar yalnız *intent* önceliği ve cümle-içi tutarlılık
-hakkında). Bugün çelişkide kesin saat üretilmesini engelleyen tek şey modelin kendi güveninin düşük
-kalması — yani **şans**. Codex'in şartı doğru: **sözleşme yoksa kesin saat üretilmemeli.**
+İlk yazdığım yanlıştı: sistem istemini (`REPLY_SYSTEM_PROMPT`) taramış, **kullanıcı istemini**
+(`buildReplyUserPrompt`) taramamıştım. Orada açık bir kural var:
+
+> *"ÖNCELİK: Check-in/check-out SAATİ için YUKARIDAKİ mülk bilgisi esastır — bilgi tabanında farklı
+> bir saat geçse bile bu saatleri kullan (saat için tek doğru kaynak burasıdır)."*
+
+Yani E7'de model 0.95 güvenle "11:00" derken **uydurmuyordu, tanımlı kuralı uyguluyordu** (mülk
+ayarı 11:00). Sonuçları:
+- Eval E7'nin beklentisi (`maxConfidence: 0.75`, "kesin cevap verilmemeli, insana devir") ile
+  **yayındaki sözleşme çelişiyor**. O beklentiyi 09-08'de "sözleşme yok" varsayımıyla ben yazdım;
+  kurucu "çelişkide devir" diye bir karar **vermedi**. Bu bir **ürün kararıdır (P4-b)**, testi
+  düzeltmek ya da davranışı sessizce çevirmek değil.
+- P4'ün onaylı hâli ("öncelik yoksa icat etme") burada "var olanı KORU" demek. Uygulanan dilim:
+  çelişkiyi **kodda tespit** edip (`findTimeConflicts`, yalnız giriş/çıkış saati) modele ve ev
+  sahibine (missingInfo/actionSuggestion) görünür kılmak; misafire giden saat mevcut kuralla aynı
+  kalır; üçüncü saat uydurulmaz; "kesinlikle/her zaman" pekiştirmesi yasaklanır.
+- Kalan tek gerçek boşluk: giriş/çıkış saati DIŞINDAKİ olgular (Wi-Fi adı, otopark ücreti vb.)
+  için hâlâ hiçbir öncelik kuralı yok — o da P4-b'nin kapsamına girer.
 
 ### 2.5 E4/E5 — YASAK kaynaklı, ama YANINDAKİ VAAT değil (Codex düzeltmesi)
 
