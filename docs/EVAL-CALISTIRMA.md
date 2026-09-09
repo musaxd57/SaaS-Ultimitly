@@ -96,6 +96,26 @@ sayılır (`source === "openai"` assert'i), sessizce "geçti" denmez.
 
 ## Sonuç nereye yazılır
 `docs/olcum/eval-<YYYY-MM-DD>.md` — koşu tarafından ÜRETİLİR, elle yazılmaz.
+**Aynı gün ikinci koşu öncekini EZMEZ:** dosya varsa `eval-<tarih>-<koşu-kimliği>.md` açılır
+(Ö4, 09-09). Baseline üzerine yazılmaz.
+
+### Rapor ne taşır (Ö4, 09-09)
+
+| Bölüm | İçerik | Neden |
+|---|---|---|
+| **Kanıt zinciri** | istenen model (`OPENAI_MODEL`) · **sağlayıcının bildirdiği model** · commit · `prompts.ts` parmak izi (sha256/12) · koşu kimliği | "Hangi istem, hangi commit, hangi model" sonradan geri izlenebilsin |
+| **Karar girdileri** | senaryo başına `intent` · `riskLevel` · `riskType` · güven · beyan/doğrulanan | Gönderim kapısı tam bu alanlara bakıyor; ilk raporda bunlar YOKTU ve "model şunu dedi, kapı şunu yaptı" sonucu çıkarılamıyordu |
+| **Tam cevaplar** | her cevap KIRPILMADAN | Eski rapor 120 karakterde kesiyordu; asıl iddia çoğu zaman sondaydı |
+
+🚨 **İstenen model ≠ koşan model.** `suggestReply` yanıtın model kimliğini çağırana döndürmüyor, bu
+yüzden "Sağlayıcının bildirdiği model" satırı bugün **"KAYDEDİLMEDİ"** yazar. Bu, "varsayılan koştu"
+demek DEĞİLDİR — ölçülmedi demektir. Env verilmediyse de rapor "env verilmedi" der, "varsayılan"
+demez.
+
+🚨 **Rapor, ürünün misafire ne gönderdiğini ÖLÇMEZ.** Ölçtüğü şey modelin TASLAĞIDIR. Taslağın
+gönderilip gönderilmediği kapının kararıdır ve ayrı bir DB'li testle karakterize edilir
+(`tests/integration/qr-draft-vs-delivered.test.ts`); o test de canlı teslim kanıtı değildir.
+Ayrıntı: `docs/EVAL-BULGULARI-2026-09-09-kok-neden-ve-duzeltme-plani.md`.
 
 ### 🚨 Eksik koşu "geçti" diye okunamaz
 Rapor **beş sayıyı ayrı** verir:

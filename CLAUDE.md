@@ -58,8 +58,8 @@ Independence** (V0.1 ✅ outbound dispatch · V0.2 ✅ provider fake + conforman
 canlı (migration 49 prod'da 09-07) · V0.4 ✅ provenance canlı (migration 50 prod'da 09-07) · V0.5 ✅ `messagingCapable`
 canlı (`19d5527`, migration'sız) · V0.6 ✅ ingest write service + `IngestEvent` canlı (migration 51 prod'da 09-08
 03:13Z) · V0.7 ✅ kod hazırlığı canlı (migration'sız; kolon DROP'u operatör planına bağlı:
-`docs/V0.7-CANLI-GECIS-OPERATOR-PLANI.md`, ön koşul: okuma anahtarı ≥2 hafta)) → **V1 Property Memory + Signals KOD HAZIR,
-yerel — migration 52 push kapısında (`docs/V1-PROPERTY-MEMORY-DESIGN.md`, envanter §14)** → ④ deterministik **Availability Engine** → ⑤ geniş
+`docs/V0.7-CANLI-GECIS-OPERATOR-PLANI.md`, ön koşul: okuma anahtarı ≥2 hafta)) → **V1 Property Memory + Signals CANLI
+(migration 52 prod'da 09-08 06:11Z; `docs/V1-PROPERTY-MEMORY-DESIGN.md`, envanter §14)** → **V2.1 "Dikkat Gerektirenler" CANLI (09-09, salt-okuma, migration'sız)** → ④ deterministik **Availability Engine** → ⑤ geniş
 otonom AI yalnız yetki+guardrail+grounding+eval doğrulandıktan sonra. **V0 sırasında YAPILMAZ:**
 Availability Engine, RAG/GraphRAG, Property Memory, Exception Feed, Revenue Brain, Proof AI, Ask Lixus,
 Review/Issue tabloları. Yalnız dar, davranış-koruyan temel eklenebilir.
@@ -104,7 +104,7 @@ Guardrails (şimdi güçlendirilmeli) · Query Router / Query Transformation / H
 ReAct (kademeli) · GraphRAG (ihtiyaç kanıtlanırsa). Ek: kaynaklı-sürümlü bilgi, hybrid retrieval+reranking
 (eval ile), açık konu/taahhüt hafızası, generation trace, güvenli aksiyon yürütücüsü.
 
-## Intelligence (V1 — YEREL, PUSH EDİLMEDİ; envanter §14, tasarım `docs/V1-PROPERTY-MEMORY-DESIGN.md`)
+## Intelligence (V1 CANLI · V2.1 CANLI; envanter §14, tasarım `docs/V1-PROPERTY-MEMORY-DESIGN.md`)
 - Bounded context `src/modules/intelligence` (sağlayıcı importu YOK, pin); tek girdi `IngestEvent`; PMS ona bağımlı
   değil (scheduled-sync'te alerts'ten sonra try/catch). `Signal` = mülk merkezli gözlem (RiskEvent AI kapısının
   karar günlüğüdür, farklı yaşam döngüsü); `PropertyMemory` = KB'den (source=kb_item, observedAt=kb.updatedAt) ve
@@ -506,8 +506,7 @@ Sekiz P1 KAPANDI (09-07), her biri ayrı commit, kırmızı-önce + iki yönlü 
   Nuve 402'de donuk; envanter §12). **V0.7 ✅ kod hazırlığı CANLI** (`c1f8a2e`, migration'sız; envanter §13). Kolon
   DROP'u (`hospitable*`) V0.3 okuma anahtarı ≥2 hafta canlıda sorunsuz olmadan YOK — canlı geçiş adımları
   `docs/V0.7-CANLI-GECIS-OPERATOR-PLANI.md` (aşama 1: Nuve "mevcut bağlantıyı aktar"; 2: anahtar; 3: env; 4: drop).
-  **V1 Property Memory + Signals KOD HAZIR — yerel commit, PUSH EDİLMEDİ** (migration 52; kapı §10 ile aynı; envanter
-  §14; bootstrap'ı çağıran yüzey ve UI sonraki adım). V0 kod dilimleri bitti. Kalan V0 işleri kendi adlarıyla: kolon contract'ı için kalan
+  **V1 Property Memory + Signals CANLI** (migration 52 prod'da 09-08; envanter §14). V0 kod dilimleri bitti. Kalan V0 işleri kendi adlarıyla: kolon contract'ı için kalan
   okuyucular (backfill · token teşhisi · connect rotası · credentials kolon dalı) · webhook girişi (write service hazır) ·
   bağlantı sağlığı sinyali · `toChannel` ham platform · `Property.hospitableId` global unique (kapsamlı kimlik) ·
   `api/hospitable/diagnostics`. V1 Property Memory + Signals kurucu kararıyla başladı (09-08).
@@ -525,7 +524,7 @@ Sekiz P1 KAPANDI (09-07), her biri ayrı commit, kırmızı-önce + iki yönlü 
   ısıtma gelmiyor / elektrikler gitti / kapı açılmıyor" `classifyFallback`'te `general` (şikayet DEĞİL); "sıcak su
   yok" ve İngilizce `no hot water`/`no heating` complaint. Dil paritesi kuralıyla çelişir; `general` sinyal üretmez.
   Düzeltme GOLDEN SET + iki yönlü senaryo ister → `docs/ACIK-2026-09-08-turkce-sikayet-siniflandirma-eksigi.md`.
-- **KB onay sözleşmesi (A1) KOD HAZIR — YEREL, PUSH EDİLMEDİ (migration 53 push kapısında).**
+- **KB onay sözleşmesi (A1) CANLI — migration 53 prod'da 09-08 16:42Z; §A doğrulandı (32 satır `legacy|legacy`, aktif = AI-okunabilir = 32).**
   `KnowledgeBaseItem`: `source` (`legacy·host_manual·extracted_draft·suggestion_accepted`) · `reviewState`
   (`legacy·approved·draft`) · `approvedAt` · `sourceRef`/`supersededById` (A5 için, bugün yazan YOK, pinli).
   🚨 **Eski satırların kaynağı/onayı VARSAYILMAZ** (kurucu 09-08): kolon varsayılanı `legacy` ve ÖYLE KALIR —
@@ -536,7 +535,7 @@ Sekiz P1 KAPANDI (09-07), her biri ayrı commit, kırmızı-önce + iki yönlü 
   gider) → gönderici + önizleme + Gönderilenler ekranı ortak `GUEST_DELIVERABLE_KB_WHERE` (parite).
   PATCH onay İDDİASI üretmez (zod'da alan yok; `isActive` düğmesi içerik incelemesi değildir), COPY onay
   soyunu DEVRALIR (taslak kopyalanarak onaylıya çevrilemez), taslak mülk hafızasına da girmez.
-- **A2 temellendirme izlenebilirliği KOD HAZIR — YEREL, PUSH EDİLMEDİ (migration 54 push kapısında).**
+- **A2 temellendirme izlenebilirliği CANLI — migration 54 prod'da 09-08 19:30Z (7 nullable kolon; DB düzeyi `host_manual|approved` / `srcVerified` / `kbEvidenceJson` değerleri HENÜZ salt-okuma sorguyla doğrulanmadı — kurucu adımı).**
   `RiskEvent`: `kbRetrieved · kbDropped · kbPendingApproval · kbNewestUpdatedAt · kbEvidenceJson ·
   srcDeclared · srcVerified` (hepsi nullable; 🚨 **NULL = ÖLÇÜLMEDİ, 0 DEĞİL** — ölçmeyen yol sahte
   "bilgi yokluğu" üretmez). 🚨 `kbNewestUpdatedAt` SÜRÜM KİMLİĞİ DEĞİL, tazelik işaretidir (iki farklı
@@ -555,7 +554,7 @@ Sekiz P1 KAPANDI (09-07), her biri ayrı commit, kırmızı-önce + iki yönlü 
   `decisive` değil → host'a giden şey KESİN TESPİT değil **İNCELEME ADAYI** (`reviewCandidate`);
   otomatik bilgi oluşturma YOK ve modül DB'ye hiç erişmediği için yapısal olarak imkânsız.
   Sayaçlar hiçbir gönderim kararına girmez.
-- **A3/A4/A5 KOD HAZIR — YEREL, MIGRATION İSTEMEZ** (ihtiyaç raporu: `docs/MIGRATION-IHTIYAC-RAPORU-A1-A5.md`).
+- **A3/A4/A5 CANLI (`d972b87`), MIGRATION İSTEMEDİ** (ihtiyaç raporu: `docs/MIGRATION-IHTIYAC-RAPORU-A1-A5.md`).
   **A3** `modules/intelligence/recommendations/kb-gaps.ts` (salt-okuma): `Signal` + KB onay durumu + `RiskEvent`
   A2 sayaçları; sinyal ↔ karar kaydı AYNI mesaj kimliğinden bağlanır (`sourceEntityId` = `triggerId`).
   Üç sınıf: `absent` (öneri) · `ungrounded` (TEŞHİS, yeni kalem YANLIŞ cevap) · `awaiting_approval`.
@@ -566,7 +565,7 @@ Sekiz P1 KAPANDI (09-07), her biri ayrı commit, kırmızı-önce + iki yönlü 
   kaydetmeden, kabul edilen kalem mevcut `POST /api/kb` yolundan (kaçış rotası açılmadı). 🚨 Yer tutucu
   gerçeğe DÖNÜŞMEZ ama sessizce yutulmaz; giriş/çıkış saati KB kalemi ÖNERİLMEZ (çift kopya yasağı).
   Ölçüm: `docs/olcum/kb-once-sonra.md` + `docs/olcum/host-akisi-once-sonra.md` (gerçek ekran görüntüleri).
-- **GERÇEK MODEL EVAL'İ HAZIR AMA KOŞULMADI** (bu ortamda `OPENAI_API_KEY` YOK): `evals/qr-kb-coverage.json`
+- **GERÇEK MODEL EVAL'İ KURUCU TARAFINDAN KOŞULDU (09-09, `a52a30c`): 8/8 tamamlandı, 6 geçti, 2 düştü (E1 güven .8 kaynak 0/0 · E7 güven .95). Kök neden + plan `docs/EVAL-BULGULARI-2026-09-09-kok-neden-ve-duzeltme-plani.md`; P1–P5 politika değişiklikleri AYRI ONAYDA, uygulanmadı. Orijinal rapor dosyası repoda YOK (kurucudan bekleniyor).** Harness (bu ortamda `OPENAI_API_KEY` YOK): `evals/qr-kb-coverage.json`
   (sürümlü, 8 senaryo, anonim) + `tests/eval/`. 🚨 **AYRI YAPILANDIRMA ŞART — `npm run eval`**
   (`vitest.eval.config.ts`). Codex bulgusu (09-08): `npx vitest run tests/eval` YANLIŞTI, çünkü
   `vitest.config.ts` `env.OPENAI_API_KEY: ""` ile anahtarı ZORLA BOŞALTIR (normal suite için DOĞRU ve
@@ -607,20 +606,21 @@ Sekiz P1 KAPANDI (09-07), her biri ayrı commit, kırmızı-önce + iki yönlü 
   yol · halka açık sayfada çerez yenileme · `PADDLE_WEBHOOK_SECRET` boot kapısı.
 
 ## Durum
-**Origin HEAD `4c1efea` (V0.6 + V0.7 canlı; CI 5/5 run #960; migration 51 prod'da 03:13Z; Railway healthcheck-gated
-oto-deploy). V1 Property Memory + Signals CANLI: push `4c1efea..7aa228f` (altyapı `16f70f5` + ürün akışı `4e9b1b1`),
-CI run #964 5/5, **migration 52 prod'da 09-08 06:11:42Z**, ilk geçiş KB hafızasını doldurdu (32/32), IngestEvent/Signal 0
-(gerçek olay yok). **3734 test yeşil (335 dosya) · typecheck/lint/build/audit temiz.**
-Son PUSH EDİLEN iş: arayüz düzeltmeleri + uygulama planı (`7155117`, CI run #992 success; ondan öncekiler
-#990 `74f77f9`, #988 `79a271a` — hepsi success). **Yerelde, PUSH EDİLMEMİŞ: A1 KB onay sözleşmesi +
-migration 53** (push kapısı: taze `pg_dump` + açık onay). **Canlı ürün akışı KISMEN doğrulandı** (plan
-`docs/V1-CANLI-DOGRULAMA-OPERATOR-PLANI.md` §3): KB → kart ✅ · **tek rezervasyonlu dosya → iptal → sinyal → kart ✅
-(09-08)**; QR mesajı, URL üzerinden iCal, toplu dosya, `date_change`, örüntü DOĞRULANMADI. Kart OLAY tarihini gösterir
-(`Signal.occurredAt`), konaklama tarihini değil. **Açık bulgu:** Gist beslemesinde "1 atlandı"
-(`docs/TESHIS-2026-09-08-ical-iptal-atlandi.md`). Açık vizyon parçaları (bakım sinyali V3 · güçlü yön V6 · proaktif
-check-in V2/V5) belgede; V2'ye geçilmedi. **QR şikayet→sinyal ✅ arayüzden doğrulandı** (09-08, test mülkü
-`cmtsiavia0001qs2qxar7n8d9`; ara DB kayıtları sorgulanmadı) — yalnız sinyal zinciri, **cevap kalitesi DEĞİL**
-(`docs/ACIK-2026-09-08-qr-cevap-kalitesi.md`). Gist bulgusunun kök nedeni KANITLANMADI (içerik doğrulaması
-yapılmadan kapatılmaz).
-Prod smoke bu ortamdan yapılamaz; operatör adımları
-`docs/audit-2026-09-05/DURUM.md` + `docs/V0-CHANNEL-INDEPENDENCE-INVENTORY.md` §10 (push kapısı).
+**Origin HEAD `0fe68e1` (09-09; CI #1010 koşuyor — önceki #1008 `3610a38` 5/5 success).** Prod'da canlı olması gereken:
+migration 52/53/54 (09-08), güvenlik düzeltmesi `a52a30c` (CI #1004 5/5 → Railway "Wait for CI" açıldı; **ACTIVE olduğu
+kurucu tarafından henüz teyit edilmedi**, selam tekrarı canlı doğrulaması bekliyor).
+**3879 test yeşil (351 dosya) · typecheck/lint/build/audit temiz.**
+**09-09 turu (hepsi push edildi, migration YOK):** ① CI #1002 kırmızı — 7 yeni danışma, lock DEĞİŞMEMİŞTİ → `next 15.5.24 ·
+sharp 0.35.4 · nodemailer 9.1.1`; baseline **gevşetilmedi, iki istisna SİLİNDİ** (6→4); SMTP yolu için ilk gerçek-soket testi;
+`/_next/image` 200 dalı BİLEREK açılmadı (`images.unoptimized` güvenlik kontrolü) → kodek sentetik görüntüyle ölçüldü.
+② **V2.1 "Dikkat Gerektirenler"** panel kartı (`modules/intelligence/incidents/attention.ts`): bozuk besleme · çıkışı yaklaşan
+cevapsız · cevapsız yaşı · tekrar eden arıza; sakin günde HİÇ basmaz; `certainty observed|inferred`; misafir adı TAŞINMAZ;
+🚨 cevapsızlık `lastMessageAt`ten DEĞİL görünür son mesajdan hesaplanır (`resume-ai` onu ilerletiyor). ③ **Eval ölçüm katmanı:**
+eval yalnız `suggestReply` = TASLAK ölçüyordu; taslak ≠ kapı kararı ≠ ürünün cevabı (`tests/integration/qr-draft-vs-delivered.test.ts`,
+kapı TAŞINMADI, model mock'lu — **koşullu karakterizasyon**: baseline'da intent/risk YOKTU, varsayıldı). Rapor Ö4: kırpma yok ·
+karar girdileri · istenen ≠ bildirilen model · commit · istem parmak izi · aynı gün ezme yok. Dedektörler bilerek `tests/helpers/`
+(ürün koduna taşımak = P5). **Kök neden: istem "ilettim/size döneceğim"i EMREDİYOR (`prompts.ts:20-21, 88, 115`), `actionReceipt`
+uygulanmamış; E7 kaynak öncelik sözleşmesi YOK; E4/E5 yasak kaynaklı ama yanındaki vaat (`:97, :100, :833`) kanıtsız.**
+**Bekleyen kurucu kararları:** P1–P5 (önerilen sıra P1→P4→P5→P3→P2) · orijinal eval raporu · yeni eval koşusu (intent/risk artık
+kaydediliyor) · `a52a30c` ACTIVE + selam kontrolü · migration 53/54 §B salt-okuma sorguları · prod'da `EMAIL_HOST` set mi.
+Prod smoke bu ortamdan yapılamaz; operatör adımları `docs/audit-2026-09-05/DURUM.md` + `docs/V0-CHANNEL-INDEPENDENCE-INVENTORY.md` §10.
