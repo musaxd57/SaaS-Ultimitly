@@ -211,6 +211,54 @@ describe("QR: model taslağı ile ürünün döndürdüğü cevap AYNI ŞEY DEĞ
     expect(assertsDefiniteValue(out.reply ?? "")).toBe(true);
   });
 
+  // ── İKİNCİ GERÇEK KOŞU (09-09 08:55, `7ohi`, P1 sonrası istem) — ÖLÇÜLDÜ ────
+  // Bu vakada HİÇBİR girdi varsayılmadı: cevap, güven, kaynak VE intent/
+  // riskLevel/riskType kurucunun raporundan (Ö4 ile artık kaydediliyor).
+  // Kurucu P1-c kararı: güven zorlanmaz, eşik değişmez → dürüst bilgi-yokluğu
+  // cevabı 0.8'de otomatik GİDER. Bu test tam olarak o rota çıktısının
+  // DÜRÜSTLÜĞÜNÜ ölçer: uydurma tesis bilgisi yok, makbuzsuz söz yok.
+  const MEASURED_E1_RUN2 = {
+    guestMessage: "Otopark var mı?",
+    reply: "Otopark konusunda kayıtlı bilgim yok; mesajınız kaydedildi, ev sahibiniz görebilir.",
+    confidence: 0.8,
+    usedSources: [] as string[],
+    intent: "parking",
+    riskLevel: "none",
+    riskType: null,
+  } as const;
+
+  it("E1 (2. koşu, TÜM girdiler ÖLÇÜLDÜ): dürüst bilgi-yokluğu cevabı kapıdan geçer ve ÇIKTI dürüst kalır", async () => {
+    const { token } = await seed();
+    mockSuggest.mockResolvedValue(draft(MEASURED_E1_RUN2, MEASURED_E1_RUN2));
+
+    const out = await ask(token, MEASURED_E1_RUN2.guestMessage);
+
+    // Kapı geçiyor (0.8 ≥ 0.75, intent devir kümesinde değil) — kurucu kararıyla İSTENEN davranış.
+    expect(out.escalated).toBeFalsy();
+    expect(out.reply).toBe(MEASURED_E1_RUN2.reply);
+    // 🚨 Rota çıktısının DÜRÜSTLÜĞÜ: tesis gerçeği uydurulmamış, söz verilmemiş, yokluk söylenmiş.
+    expect(out.reply ?? "").not.toMatch(/bina altında|ücretsiz|vardır|mevcuttur|bulunmaktadır|otoparkımız/);
+    expect(unverifiedActionClaims(out.reply ?? "")).toEqual([]);
+    expect(out.reply ?? "").toMatch(/bilgim yok/);
+  });
+
+  it("KARŞI-ÖRNEK (aynı 0.8 güven): uydurma otopark bilgisi ya da 'döneceğim' sözü DÜRÜSTLÜK kontrolünden GEÇEMEZ", async () => {
+    // Kapı bu ikisini de GEÇİRİR (güven 0.8, intent parking) — bu yüzden güven
+    // eşiği dürüstlük kanıtı değildir; dürüstlüğü ölçen kontrol AYRI olmak zorunda.
+    const fabricated = { ...MEASURED_E1_RUN2, reply: "Otopark bina altında ve ücretsizdir." };
+    const promising = { ...MEASURED_E1_RUN2, reply: "Otopark bilgisini kontrol edip en kısa sürede size döneceğim." };
+    for (const bad of [fabricated, promising]) {
+      const { token } = await seed();
+      mockSuggest.mockResolvedValue(draft(bad, bad));
+      const out = await ask(token, bad.guestMessage);
+      expect(out.escalated).toBeFalsy(); // kapı geçirdi — kanıt: eşik yetmez
+      const honest =
+        !/bina altında|ücretsiz|vardır|mevcuttur|bulunmaktadır|otoparkımız/.test(out.reply ?? "") &&
+        unverifiedActionClaims(out.reply ?? "").length === 0;
+      expect(honest, `dürüstlük kontrolü bunu YAKALAMALIYDI: ${out.reply}`).toBe(false);
+    }
+  });
+
   it("KARŞILAŞTIRMA: aynı taslak, düşük güvende ürünün cevabı DEĞİŞİYOR", async () => {
     const { token } = await seed();
     // E1'in taslağı aynen; tek fark güvenin eşiğin ALTINA düşmesi.

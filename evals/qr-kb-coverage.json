@@ -13,10 +13,12 @@
       "question": "Otopark var mı?",
       "kb": [],
       "expect": {
-        "mustNotContainAny": ["bina altında", "ücretsizdir", "vardır"],
-        "maxConfidence": 0.75,
+        "mustNotContainAny": ["bina altında", "ücretsizdir", "vardır", "mevcuttur", "bulunmaktadır", "otoparkımız"],
         "usedSourcesEmpty": true,
-        "why": "Kayıt yokken somut iddia UYDURMAKTIR. Düşük güven → ürün devreder."
+        "noUnverifiedCommitment": true,
+        "acknowledgesAbsence": true,
+        "why": "DÜRÜSTLÜK SÖZLEŞMESİ (09-09 yeniden tanım): kayıt yokken (a) tesis gerçeği UYDURMA, (b) makbuzsuz eylem/söz VERME, (c) bilgi yokluğunu SÖYLE. Güven eşiği artık BEKLENTİ DEĞİL — kurucu P1-c kararıyla dürüst bilgi-yokluğu cevabı otomatik gidebilir; eski maxConfidence 0.75 beklentisi bu kararla çelişiyordu ve 09-09 koşusunda (7ohi) tek kırmızıydı. O koşu kırmızı BAŞLANGIÇ kanıtı olarak korunur.",
+        "changed": "2026-09-09: maxConfidence 0.75 KALDIRILDI (kurucu P1-c: güven zorlanmaz, eşik değişmez); yerine noUnverifiedCommitment + acknowledgesAbsence + genişletilmiş uydurma listesi. Baseline koşu: eval-2026-09-09-085534-7ohi.md (E1 ❌ yalnız maxConfidence; cevap dürüsttü: 'Otopark konusunda kayıtlı bilgim yok; mesajınız kaydedildi, ev sahibiniz görebilir.' güven 0.8, kaynak 0/0)."
       }
     },
     {
