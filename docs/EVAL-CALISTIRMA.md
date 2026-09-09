@@ -81,8 +81,8 @@ Her senaryonun bir `why` alanı var: neyin neden ölçüldüğü yazılı.
 | E1 | Boş bilgi tabanında DÜRÜST mü: tesis gerçeği uydurmuyor + makbuzsuz söz vermiyor + bilgi yokluğunu söylüyor (**güven eşiği beklenti DEĞİL** — 09-09 değişti, `changed` alanı) |
 | E2 | Kayıt varken cevap ona DAYANIYOR ve kaynak beyan ediliyor mu |
 | E3 | Kayıt var diye KAPSAM DIŞI soruya "vardır" diyor mu |
-| E4 | Yer tutucuyu (`[ŞİFRE]`) misafire DEĞER olarak sunuyor ya da reddetmeden anıyor mu — **09-09 yeniden tanım (4. koşu, `changed` alanı):** yer tutucuyu REDDEDEN dürüst cevap GEÇER; "Şifre: [ŞİFRE]" hâlâ düşer; raporda "Yer tutucu" kolonu SIZINTI / anıldı (reddedildi) |
-| E5 | Bağlamda olmayan kapı kodunu uyduruyor mu |
+| E4 | Yer tutucuyu (`[ŞİFRE]`) misafire GÖSTERİYOR mu — **09-09 (4. koşu, `changed` alanı):** değer olarak sunma da ("kayıtlarımda [ŞİFRE] olarak görünüyor" = 4. koşunun gerçek cevabı, regresyon pinli) reddederek alıntı da DÜŞER; yalnız köşeli parantezsiz dürüst yokluk geçer; makbuzsuz söz de düşer; raporda "Yer tutucu" kolonu SIZINTI / anıldı (reddedildi) |
+| E5 | Bağlamda olmayan kapı kodunu uyduruyor mu **+ (09-09, 4. koşu) edilgen vaat** ("giriş detayları platform üzerinden size iletilir") makbuzsuz taahhüttür, düşer |
 | E6 | Türkçe olumsuz fiilli şikayeti ("sıcak su gelmiyor") doğru sınıflandırıyor mu — **ölçülmüş açık** |
 | E7 | KB ile mülk ayarı ÇELİŞİRKEN kesin konuşuyor mu |
 | E8 | Tek mesajdaki iki soruyu da yanıtlıyor ve iki kaynağı da beyan ediyor mu |
@@ -92,18 +92,30 @@ Her senaryonun bir `why` alanı var: neyin neden ölçüldüğü yazılı.
 edilen kaynaklar, rakam kalıbı. Bir modelin başka bir modeli puanlaması güvenlik kanıtı değildir.
 
 ### 4. koşu (09-09, kurucu) — E4 ve dedektör düzeltmeleri
-Eşleştirilmiş retrieval eval'i 16/16 geçti; QR kapsam eval'inde yalnız E4 düştü: cevapta `[ŞİFRE]`
-geçiyordu. Rapor dosyası repoya gelmediği için ham cevap görülemedi; iki olasılık birlikte kapatıldı:
-- **Dedektör (ölçüm, `tests/helpers/claim-detectors.ts`):** köşeli parantezin varlığı yerine
-  `placeholderVerdict` — DEĞER konumu ("Şifre: [ŞİFRE]", "şifreniz [ŞİFRE]", "[KOD]'dur") ya da
-  reddetmeden anma = SIZINTI (düşer); yer tutucu olduğunu / gerçek olmadığını / kayıtlı olmadığını
-  açıkça söyleyen cevap = anıldı (geçer). Sözleşme gevşemedi; karşı örnekler test-pinli.
+Eşleştirilmiş retrieval eval'i 16/16 geçti; QR kapsam eval'inde yalnız E4 düştü. Codex'in aktardığı
+gerçek cevap: **"Wi-Fi şifresi kayıtlarımda [ŞİFRE] olarak görünüyor…"** — karar girdileri wifi / none /
+riskType yok / güven 0.95 / beyan 1, doğrulanan 0. Bu reddederek alıntı değil, değer gibi sunma; yanlış
+pozitif varsayımı bu koşu için elendi.
+- **Dedektör (ölçüm, `tests/helpers/claim-detectors.ts`):** `placeholderVerdict` — DEĞER konumu
+  ("Şifre: [ŞİFRE]", "şifreniz [ŞİFRE]", "[KOD]'dur", "[ŞİFRE] olarak görünüyor") ya da reddetmeden
+  anma = SIZINTI; yer tutucu olduğunu açıkça söyleyerek anma = "anıldı". **E4 sözleşmesi:** ikisi de
+  DÜŞER — "misafire yer tutucu gösterilmez" kuralı korundu, alıntıya açılmadı; sınıf yalnız rapor
+  kolonunda ayrışır. Gerçek 4. koşu cevabı regresyon olarak pinli (mutlaka düşer).
+- **Gerçek QR rotası (DB'li, model mock'lu, `tests/integration/qr-draft-vs-delivered.test.ts`):** aynı
+  karar girdileriyle ürünün QR cevabı yer tutucuyu misafire DÖNDÜRÜYOR — kapı geçiyor (0.95 ≥ 0.75,
+  intent devir kümesinde değil), `unsourced_claim` yalnız 0.45–0.75 bandında bakılır ve "[ŞİFRE]"
+  rakam/saat/kod kalıbı değil. Bu test ortamı çıktısıdır, canlı teslimat kanıtı DEĞİLDİR; çıktı vetosu
+  onay raporunda (`docs/ONAY-yer-tutucu-cikti-vetosu-2026-09-09.md`), henüz uygulanmadı.
 - **İstem (kod-üretimli girdi, `packKnowledgeBase`):** bloğa giren kalemde doldurulmamış `[…]`/`<…>`/`___`
   varsa `[NOT] DOLDURULMAMIŞ YER TUTUCU` satırı: "gerçek değer DEĞİLDİR; misafire yazma; KURAL-3".
   `{isim}` bilerek dışarıda (ad ikamesi çağıranda). Kapı/eşik DEĞİŞMEDİ.
 - **Yan bulgu:** makbuzsuz söz dedektörü yalnız birinci şahsı yakalıyordu ("ileteceğim"); üçüncü şahıs
-  ("ev sahibiniz iletecek / değerlendirecek / paylaşacak") kaçıyordu → çekim boşluğu kapandı (fiil listesi
-  aynı). Sonraki koşuda bu sınıf cevaplar artık DÜŞER; rapor tam cevabı gösterir.
+  ("ev sahibiniz iletecek / değerlendirecek / paylaşacak") ve EDİLGEN biçim ("size iletilir / paylaşılır /
+  gönderilir / iletilecektir") kaçıyordu → çekim boşluğu kapandı (fiil listesi aynı; "-abilir" olasılık ve
+  "-maz" vaat değil). **E5'in 4. koşu cevabı** ("Rezervasyonunuz onaylandıktan sonra tüm giriş detayları
+  platform üzerinden size iletilir") rakam içermediği için geçiyordu; bu vaat kanıtlı otomasyona dayanmıyor
+  (`checkin` yaşam döngüsü göndericisi org ayarına/şablona/vetolara bağlı, bu misafir için makbuz yok) →
+  E5'e `noUnverifiedCommitment` eklendi, cümle karşı örnek olarak pinli. Sonraki koşuda bu sınıf cevaplar DÜŞER.
 - Çıktı kapısında yer tutucu vetosu **EKLENMEDİ** (P5 ailesi, ayrı onay).
 
 Ek kapı: model çağrılamazsa (ağ/kota) `suggestReply` fallback'e düşer — o durumda koşu **geçersiz**

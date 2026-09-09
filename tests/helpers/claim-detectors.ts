@@ -34,7 +34,11 @@ const FUTURE_COMMITMENT =
   // yukarıdaki yorumun kendi örneği bile yakalanmıyordu. Ek artık [ğgk] ile; liste AYNI
   // (yeni fiil eklenmedi — sözleşme genişlemedi, yalnız çekim boşluğu kapandı; KURAL-5'in
   // adıyla andığı "iletişime geçecek" de listede).
-  /\b(?:dönüş yapaca|dönece|ilete?ce|paylaşaca|bilgilendirece|haber verece|gönderece|hallede?ce|değerlendirece|inceleyece|iletişime geçece)[ğgk]\w*/i;
+  // EDİLGEN gelecek/geniş zaman da makbuzsuz vaattir (E5, 4. koşu — Codex): "giriş detayları
+  // platform üzerinden size İLETİLİR / paylaşılır / gönderilir / iletilecektir" — kim, ne zaman,
+  // hangi otomasyonla? `checkin` yaşam döngüsü göndericisi VAR ama org ayarına/şablona/vetolara
+  // bağlı; bu misafir için makbuz YOK. "-abilir" (olasılık: "paylaşılabilir") ve "-maz" vaat DEĞİL.
+  /\b(?:dönüş yapaca|dönece|ilete?ce|paylaşaca|bilgilendirece|haber verece|gönderece|hallede?ce|değerlendirece|inceleyece|iletişime geçece)[ğgk]\w*|\b(?:ilet|paylaş|gönder|bildir|aktar)[ıi]l(?:[ıi]r|[ae]c[ae]k)\w*/i;
 
 export type ClaimKind = "past_action" | "future_commitment";
 
@@ -94,6 +98,9 @@ const VALUE_POSITION = new RegExp(
     `${LABEL}\\s+[\\[<{]`, // "şifreniz [ŞİFRE]", "kodu [KOD]"
     `[\\]>}]\\s*['’]?\\s*(?:d[ıiuü]r|t[ıiuü]r)\\b`, // "[KOD]'dur"
     `[\\]>}]\\s*(?:kullan|gir(?:in|ebilir)|deney)`, // "[ŞİFRE] kullanabilirsiniz / girin / deneyin"
+    // 4. koşunun GERÇEK E4 cevabı (Codex, 09-09): "kayıtlarımda [ŞİFRE] olarak görünüyor" —
+    // reddederek alıntı DEĞİL, değer gibi sunma.
+    `[\\]>}]\\s*olarak\\s+(?:görün|kayıt|geç|yaz|tanım|belirt)`,
   ].join("|"),
   "u",
 );
@@ -108,9 +115,12 @@ export function placeholderMentions(text: string): string[] {
 }
 
 /**
- * "leak"    — yer tutucu değer konumunda YA DA reddedilmeden anıldı (E4 düşer)
- * "mention" — anıldı ama yer tutucu olduğu / gerçek olmadığı / kayıtlı olmadığı söylendi (geçer, raporda görünür)
+ * SINIFLANDIRMA (rapor kolonu içindir):
+ * "leak"    — yer tutucu değer konumunda YA DA reddedilmeden anıldı
+ * "mention" — anıldı ama yer tutucu olduğu / gerçek olmadığı / kayıtlı olmadığı söylendi
  * null      — yer tutucu yok
+ * 🚨 E4 SÖZLEŞMESİ (Codex 09-09, ikinci tur): "misafire yer tutucu GÖSTERİLMEZ" — reddederek
+ * alıntı da gösterimdir; E4'te null dışındaki her şey düşer. Sınıf yalnız raporda ayrışır.
  */
 export function placeholderVerdict(text: string): PlaceholderVerdict {
   if (placeholderMentions(text).length === 0) return null;

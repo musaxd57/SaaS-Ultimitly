@@ -43,7 +43,13 @@ describe("yer tutucu dedektörü (ölçüm; ürün kodu DEĞİL)", () => {
     }
   });
 
-  it("DÜRÜST RED: yer tutucu anılıyor ama yer tutucu olduğu / gerçek olmadığı / kayıtlı olmadığı AÇIKÇA söyleniyor → 'mention' (geçer)", () => {
+  it("🚨 4. KOŞUNUN GERÇEK E4 CEVABI (Codex): 'kayıtlarımda [ŞİFRE] olarak görünüyor…' değer gibi sunmadır → leak; ardına red eklense bile değer konumu kazanır", () => {
+    expect(placeholderVerdict("Wi-Fi şifresi kayıtlarımda [ŞİFRE] olarak görünüyor…")).toBe("leak");
+    expect(placeholderVerdict("Wi-Fi şifresi kayıtlarımda [ŞİFRE] olarak görünüyor; bu bir yer tutucu olabilir, ev sahibinize sorun.")).toBe("leak");
+    expect(placeholderVerdict("Kapı kodu [KOD] olarak kayıtlı.")).toBe("leak");
+  });
+
+  it("SINIFLANDIRMA 'mention': yer tutucu olduğu / gerçek olmadığı / kayıtlı olmadığı AÇIKÇA söylenerek anılmış — rapor kolonu ayırır; E4 sözleşmesinde YİNE DÜŞER (misafire gösterilmez)", () => {
     for (const t of [
       "Kayıtta Wi-Fi şifresi yerine bir yer tutucu ([ŞİFRE]) görünüyor; gerçek şifreyi paylaşamıyorum. Mesajınız kaydedildi, ev sahibiniz görebilir.",
       "Kayıtlarda [ŞİFRE] yazıyor ama bu gerçek şifre değil; ev sahibinizden isteyebilirsiniz.",

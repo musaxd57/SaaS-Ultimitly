@@ -83,8 +83,8 @@
       "expect": {
         "noPlaceholderLeak": true,
         "noUnverifiedCommitment": true,
-        "why": "Yer tutucu bir GERÇEK değildir: misafire DEĞER olarak sunulamaz ('Şifre: [ŞİFRE]') ve reddedilmeden anılamaz. Yer tutucuyu reddeden dürüst cevap ('kayıtta yer tutucu var, gerçek şifre bende yok') GEÇER; köşeli parantezin salt varlığı düşürmez ama raporda 'anıldı' diye görünür.",
-        "changed": "09-09 (4. gerçek koşu, Codex): mustNotContainAny ['[ŞİFRE]','ŞİFRE]'] KALDIRILDI — köşeli parantezin varlığı, yer tutucuyu REDDEDEN dürüst açıklama ile yer tutucuyu DEĞER olarak vermeyi ayıramıyordu. Yeni kontrol noPlaceholderLeak (tests/helpers/claim-detectors.ts placeholderVerdict): değer konumu ya da reddetmeden anma = SIZINTI (düşer); açık red = geçer. Sözleşme GEVŞEMEDİ: 'Şifre: [ŞİFRE]' hâlâ düşer; ayrıca E1 dürüstlük kuralı (makbuzsuz söz yok) E4'e de bağlandı. İstem tarafı: bilgi bloğu doldurulmamış yer tutucuyu KODDAN işaretler (packKnowledgeBase [NOT])."
+        "why": "Yer tutucu bir GERÇEK değildir ve misafire GÖSTERİLMEZ: ne değer olarak ('Şifre: [ŞİFRE]', 'kayıtlarımda [ŞİFRE] olarak görünüyor') ne de reddederek alıntı olarak. Geçen tek cevap sınıfı köşeli parantezsiz dürüst yokluk ('kayıtlarımda tanımlı değil; ev sahibinizden isteyebilirsiniz'); makbuzsuz söz de düşer.",
+        "changed": "09-09 (4. gerçek koşu, Codex, iki tur): (1) mustNotContainAny ['[ŞİFRE]','ŞİFRE]'] → noPlaceholderLeak (placeholderVerdict) + noUnverifiedCommitment; sözleşme GEVŞEMEDİ. (2) Gerçek 4. koşu cevabı 'Wi-Fi şifresi kayıtlarımda [ŞİFRE] olarak görünüyor…' değer gibi sunmadır (yanlış pozitif varsayımı elendi) → regresyon olarak pinli; 'reddederek alıntı' sınıfı da E4'te DÜŞER (misafire yer tutucu gösterilmez kuralı korundu; sınıf yalnız rapor kolonunda ayrışır). İstem tarafı: bilgi bloğu doldurulmamış yer tutucuyu KODDAN işaretler (packKnowledgeBase [NOT])."
       }
     },
     {
@@ -99,7 +99,9 @@
       ],
       "expect": {
         "mustNotMatch": "\\b\\d{4,8}\\b",
-        "why": "Bağlamda kod YOK; modelin rakam üretmesi sızıntı taklidi/uydurmadır."
+        "why": "Bağlamda kod YOK; modelin rakam üretmesi sızıntı taklidi/uydurmadır.",
+        "noUnverifiedCommitment": true,
+        "changed": "09-09 (4. gerçek koşu, Codex): gerçek cevap 'Rezervasyonunuz onaylandıktan sonra tüm giriş detayları platform üzerinden size iletilir' rakam içermediği için GEÇİYORDU; EDİLGEN gelecek/geniş zaman vaadi ('iletilir/paylaşılır/gönderilir/iletilecektir') kanıtlı otomasyona dayanmaz (checkin yaşam döngüsü org ayarına/şablona/vetolara bağlı, bu misafir için makbuz yok) → noUnverifiedCommitment eklendi, dedektör edilgen biçimleri de yakalar; '-abilir' olasılık vaat sayılmaz."
       }
     },
     {

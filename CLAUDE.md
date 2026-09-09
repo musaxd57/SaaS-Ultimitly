@@ -298,9 +298,13 @@ Bu dosyaya token/anahtar/parola yazma.
   doldurmadan kaydedebilir. `packKnowledgeBase` bloğa giren kalemde `[…]`/`<…>`/`___` (içinde harf) görürse KODDAN
   `[NOT] DOLDURULMAMIŞ YER TUTUCU` yazar ("gerçek değer DEĞİLDİR; misafire yazma; KURAL-3"); `{isim}` BİLEREK dışarıda
   (ad ikamesi çağıranda; QR yolu ikame yapmıyor — ayrı gözlem). Ölçüm dedektörü `placeholderVerdict` (tests/helpers):
-  DEĞER konumu ya da reddetmeden anma = SIZINTI, açık red = anıldı/geçer; makbuzsuz söz dedektörü üçüncü şahsı da
-  yakalar (eski kalıp yalnız "-eceğ-"). 🚨 Çıktı kapısında yer tutucu vetosu YOK (P5 ailesi, ayrı onay) — bugün
-  "Şifre: [ŞİFRE]" QR'da güven ≥0.75 ise gidebilir (usedSources dolu olduğundan `unsourced_claim` yakalamaz).
+  DEĞER konumu ("…[ŞİFRE] olarak görünüyor" = 4. koşunun gerçek cevabı, regresyon pinli) ya da reddetmeden anma =
+  SIZINTI, açık red = "anıldı"; 🚨 **E4'te İKİSİ DE DÜŞER** (Codex ikinci tur: "misafire yer tutucu gösterilmez",
+  alıntıya açılmadı; sınıf yalnız rapor kolonunda). Makbuzsuz söz dedektörü üçüncü şahsı ("iletecek") ve EDİLGEN
+  biçimi ("size iletilir/paylaşılır", E5'in gerçek cevabı) de yakalar; "-abilir" vaat değil. 🚨 Çıktı kapısında yer
+  tutucu vetosu YOK — GERÇEK QR ROTASINDA ÖLÇÜLDÜ (model mock'lu, DB'li): wifi/none/0.95/beyan 1-doğrulanan 0 ile
+  ürün "[ŞİFRE]"yi misafire DÖNDÜRÜYOR (`unsourced_claim` yalnız 0.45–0.75 bandında). Onay raporu
+  `docs/ONAY-yer-tutucu-cikti-vetosu-2026-09-09.md`; uygulanmadı.
 - Üslup: duygu beyanı/temenni/çelişki/dolgu-soru yasak; "siz"; ben-dili. Çok soruluda uzunluk kuralı ezilir.
 - `REPLY_CHAR_CAP` 4.000 (aşılırsa güven 0.5, sessiz kesme yok) ≠ `max_completion_tokens` 2000.
 - **Injection kara listesi yapısal olarak yetersiz** (düz parafrazların çoğu geçer); asıl koruma KB sır
@@ -687,8 +691,10 @@ tsc + lint + build + audit yeşil; mutasyon 20/20 (kontrol yeşil).**
 **4. GERÇEK KOŞU (kurucu, 09-09 20:21 yerel, preflight klonu, `9699896` sonrası): EŞLEŞTİRİLMİŞ RETRIEVAL 16/16 ✅ (R1–R8 iki
 modda; legacy dürüst yokluk + hibrit doğru cevap beklentisi tuttu) · QR kapsam 7/8 — E4 ❌ ("[ŞİFRE]" cevapta). İki rapor dosyası
 (`eval-2026-09-09-*.md`, `eval-retrieval-2026-09-09-*.md`) repoda YOK — kurucudan bekleniyor; ham E4 cevabı görülmedi.
-YEREL DÜZELTME (push YOK, kurucu incelemesi): dedektör değer-konumu/red ayrımı + KB bloğu kod-üretimli yer tutucu notu +
-üçüncü-şahıs söz boşluğu; karşı örnekler pinli; mutasyon 12/12 yakalandı (kontrol yeşil); kırmızı-önce (11 kırmızı → yeşil).**
+DÜZELTME: `81a5f22` PUSH EDİLDİ (kurucu onayı, fast-forward; CI #1030 5/5 success) + İKİNCİ TUR YERELDE (push beklesin — Codex): dedektör değer-konumu/red ayrımı + KB bloğu kod-üretimli
+yer tutucu notu + üçüncü-şahıs ve edilgen söz boşluğu; Codex ikinci tur: gerçek E4 cevabı ("…[ŞİFRE] olarak görünüyor…")
+regresyon pinli, reddederek alıntı da düşer, E5'e `noUnverifiedCommitment`; gerçek QR rotası karakterizasyonu (yer tutucu misafire
+dönüyor); veto raporu ayrı, uygulanmadı. Karşı örnekler pinli; mutasyon 12/12 + ikinci tur; kırmızı-önce.**
 **Origin HEAD `9699896` (09-09, RAG dilim 3; CI #1026 5/5 success; 4042 test / 364 dosya; Railway ACTIVE teyidi BEKLENİYOR — kurucu).
 Önceki `12ddd8e` (dilim 2, CI #1022 5/5) ve `061d62e` (dilim 1) ACTIVE — kurucu teyidi 09-09.** Prod'da canlı:
 migration 52/53/54 (09-08), `a52a30c`+ (selam tekrarı canlı doğrulaması hâlâ bekliyor).

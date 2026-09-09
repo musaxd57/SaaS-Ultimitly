@@ -1,6 +1,6 @@
 import { describe, it, expect, beforeEach, afterAll, vi } from "vitest";
 import { prisma, resetDb, makeOrgWithProperty } from "../helpers/db";
-import { unverifiedActionClaims, assertsDefiniteValue } from "../helpers/claim-detectors";
+import { unverifiedActionClaims, assertsDefiniteValue, placeholderVerdict } from "../helpers/claim-detectors";
 
 // ---------------------------------------------------------------------------
 // TASLAK ≠ KARAR ≠ ÜRÜNÜN DÖNDÜRDÜĞÜ CEVAP (Codex, 09-09).
@@ -257,6 +257,43 @@ describe("QR: model taslağı ile ürünün döndürdüğü cevap AYNI ŞEY DEĞ
         unverifiedActionClaims(out.reply ?? "").length === 0;
       expect(honest, `dürüstlük kontrolü bunu YAKALAMALIYDI: ${out.reply}`).toBe(false);
     }
+  });
+
+  // ── DÖRDÜNCÜ GERÇEK KOŞU (09-09, kurucu; Codex aktardı) — E4 TÜM girdiler ÖLÇÜLDÜ ──
+  // Cevabın baş kısmı aynen ("…" raporda devam ediyor); karar girdileri raporun
+  // "Karar girdileri" tablosundan: intent wifi · riskLevel none · riskType yok ·
+  // güven 0.95 · beyan 1 / doğrulanan 0 (→ usedSources BOŞ, sourceAudit 1/0).
+  const MEASURED_E4_RUN4 = {
+    guestMessage: "Wi-Fi şifresi nedir?",
+    reply: "Wi-Fi şifresi kayıtlarımda [ŞİFRE] olarak görünüyor…",
+    confidence: 0.95,
+    usedSources: [] as string[],
+    intent: "wifi",
+    riskLevel: "none",
+    riskType: null,
+  } as const;
+
+  it("🚨 E4 (4. koşu, TÜM girdiler ÖLÇÜLDÜ): kapı GEÇİYOR — yer tutucu '[ŞİFRE]' ürünün QR cevabında (test ortamı çıktısı; canlı teslimat kanıtı DEĞİL)", async () => {
+    const { token, propertyId } = await seed();
+    // Bilgi tabanı senaryodaki gibi: hazır şablon doldurulmadan kaydedilmiş.
+    await prisma.knowledgeBaseItem.create({
+      data: { propertyId, category: "faq", title: "Notlar", content: "Wi-Fi şifresi: [ŞİFRE]", isActive: true, source: "host_manual", reviewState: "approved" },
+    });
+    mockSuggest.mockResolvedValue({
+      ...draft(MEASURED_E4_RUN4, MEASURED_E4_RUN4),
+      sourceAudit: { declared: 1, verified: 0 },
+    });
+
+    const out = await ask(token, MEASURED_E4_RUN4.guestMessage);
+
+    // Kapı: güven 0.95 ≥ 0.75, intent devir kümesinde değil, risk yok → DEVİR YOK.
+    // `unsourced_claim` yalnız 0.45–0.75 bandında bakılır ve "[ŞİFRE]" rakam/saat/kod kalıbı değildir.
+    expect(out.escalated).toBeFalsy();
+    expect(out.reply).toBe(MEASURED_E4_RUN4.reply);
+    expect(placeholderVerdict(out.reply ?? "")).toBe("leak");
+    // 🚨 Bu satır bugünkü davranışın KARAKTERİZASYONUDUR: yer tutucu için çıktı vetosu YOK
+    // (ayrı onay raporu). Veto uygulanınca değişecek satır tam olarak budur.
+    expect(out.reply).toContain("[ŞİFRE]");
   });
 
   it("KARŞILAŞTIRMA: aynı taslak, düşük güvende ürünün cevabı DEĞİŞİYOR", async () => {

@@ -36,6 +36,23 @@ describe("makbuzsuz taahhüt — üçüncü şahıs gelecek zaman", () => {
     expect(unverifiedActionClaims("İlettim, merak etmeyin.")).toContain("past_action");
   });
 
+  it("EDİLGEN vaatler YAKALANIR (E5, 4. koşu): 'size iletilir / paylaşılır / gönderilir / iletilecektir / bildirilir / aktarılır'", () => {
+    for (const t of [
+      "Rezervasyonunuz onaylandıktan sonra tüm giriş detayları platform üzerinden size iletilir.",
+      "Kapı kodu girişten önce paylaşılır.",
+      "Şifre onay sonrası gönderilir.",
+      "Giriş bilgileri size iletilecektir.",
+      "Detaylar tarafınıza bildirilir.",
+      "Kod sisteme aktarılır.",
+    ]) {
+      expect(unverifiedActionClaims(t), t).toContain("future_commitment");
+    }
+    // Olasılık ("-abilir") ve olumsuzluk ("-maz") vaat DEĞİL: istem de "paylaşılabilir" der.
+    for (const t of ["Onaylı rezervasyon sonrasında paylaşılabilir.", "Bu bilgi platform dışından gönderilmez."]) {
+      expect(unverifiedActionClaims(t), t).toEqual([]);
+    }
+  });
+
   it("OLGU bildiren cümleler TEMİZ: kayıt + görünürlük, yetenek ('iletebilir'), yönlendirme ('isteyebilirsiniz'), 'gelecek hafta'", () => {
     for (const t of [
       "Mesajınız kaydedildi; ev sahibiniz sohbet ekranından görüntüleyebilir.",
