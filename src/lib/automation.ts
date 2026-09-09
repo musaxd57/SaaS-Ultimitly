@@ -13,6 +13,7 @@ import { buildTriageData } from "@/lib/ai/triage";
 import { reservationAmountNumber } from "@/lib/money";
 import { classifyMessage, suggestReply, summarizeHostStyle } from "@/lib/ai";
 import { fetchKnowledgeBaseForPrompt } from "@/lib/ai/kb-fetch";
+import { selectKbForPrompt } from "@/lib/ai/retrieval/select";
 import { GUEST_DELIVERABLE_KB_WHERE } from "@/lib/kb-review";
 import { buildKbEvidence } from "@/lib/ai/grounding";
 import { consumeDailyAiBudget, peekDailyAiBudget } from "@/lib/ai/daily-budget";
@@ -1593,15 +1594,29 @@ export async function applyChannelAutoReply(
         kb.filter((i) => !(QR_SECRET_CATEGORIES as readonly string[]).includes(i.category)),
       );
 
-  // A2: istemin GERÇEKTEN taşıdığı kalem sayısı — `kbDropped` ile aynı formül
-  // (`knowledgeBaseDropped`), yani sayaçlar modelin gördüğü bağlamla tutarlı.
+  // RAG dilim 1 (09-09): SORUYA GÖRE SEÇİM — yetki/onay/sır süzgeçlerinden
+  // SONRA, modelden ÖNCE. Bayrak (`KB_RETRIEVAL_MODE`) kapalıyken `kbSel.items`
+  // `kbVisible`'ın KENDİSİDİR (aynı dizi) ve `droppedItems` 0 → canlı davranış
+  // karakteri karakterine aynı. Hibritte seçilmeyen kalemler devir notunu
+  // besler: retrieval kaçırırsa model "bilgim yok" DEMEZ, insana devreder.
+  const kbSel = selectKbForPrompt({
+    items: kbVisible,
+    guestMessage: last.body,
+    history: messages.map((m) => ({ direction: m.direction as "inbound" | "outbound", body: m.body })),
+  });
+  const kbForModel = kbSel.items;
+  const kbDroppedTotal = kbDropped + (kb.length - kbVisible.length) + kbSel.droppedItems;
+
+  // A2: istemin GERÇEKTEN taşıdığı kalem sayısı — `kbDroppedTotal` ile aynı
+  // formül (`knowledgeBaseDropped`), yani sayaçlar modelin gördüğü bağlamla tutarlı.
   const grounding = {
     ...groundingBase,
-    kbRetrieved: kbVisible.length,
-    kbDropped: kbDropped + (kb.length - kbVisible.length),
+    kbRetrieved: kbForModel.length,
+    kbDropped: kbDroppedTotal,
     // Yetkili iç denetim kanıtı — `kbVisible` yer tutucu ikamesinden GEÇMİŞ
     // nesnelerdir ama `id`/`updatedAt` alanları kaynaktan olduğu gibi taşınır.
-    kbEvidenceJson: buildKbEvidence({ retrieved: kbVisible, usedLabels: [] }),
+    // Hibritte parça indeksi (`chunk`) ve retrieval özeti de kanıta girer.
+    kbEvidenceJson: buildKbEvidence({ retrieved: kbForModel, usedLabels: [], retrieval: kbSel.evidence }),
   };
 
   // Turnover context so early-checkin / late-checkout answers are data-driven.
@@ -1631,7 +1646,8 @@ export async function applyChannelAutoReply(
           guestCheckoutTime: conversation.reservation.guestCheckoutTime,
         }
       : null,
-    knowledgeBase: kbVisible,
+    knowledgeBase: kbForModel,
+    knowledgeBaseSelection: kbSel.selection,
     // 🚨 SÜZÜLEN KALEMLER DE SAYIYA GİRER (savunmacı denetim 08-09).
     // İlk yazımım yalnız SQL tavanında düşenleri geçiriyordu. Sonuç ölçüldü ve
     // KÖTÜYDÜ: kapı iki kalemi elerken modele "0 kalem düştü" deniyordu, yani
@@ -1642,8 +1658,9 @@ export async function applyChannelAutoReply(
     // insan olmadan, oto-gönderilerek. Doğru sayıyla mesaj "alınamadı, konuyu
     // insana devret"e dönüyor.
     // ⚠️ Kardeş yolun formülüyle BİREBİR aynı (`guest-chat.ts` droppedTotal) —
-    // o yol bu hatayı 07-31'de zaten yaşamış ve düzeltmişti.
-    knowledgeBaseDropped: kbDropped + (kb.length - kbVisible.length),
+    // o yol bu hatayı 07-31'de zaten yaşamış ve düzeltmişti. Hibrit seçimde
+    // seçilmeyen kalemler de toplama girer (`kbSel.droppedItems`).
+    knowledgeBaseDropped: kbDroppedTotal,
     history: messages.map((m) => ({
       direction: m.direction as "inbound" | "outbound",
       body: m.body,

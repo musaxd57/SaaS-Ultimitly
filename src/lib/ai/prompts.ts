@@ -764,6 +764,12 @@ const COURTESY_LINES = [
 export function packKnowledgeBase(
   items: { category: string; title: string; content: string }[],
   alreadyDropped = 0,
+  /**
+   * RAG dilim 1 (09-09): "retrieved" = kalemler SORUYA GÖRE SEÇİLDİ (hibrit
+   * bayrak). Not wording'i dürüst kalır ("yer sınırı" değil "seçilmedi") ama
+   * davranış kuralı AYNIDIR: konu yukarıda yoksa 'bilgi yok' DEME, insana devret.
+   */
+  selection: "all" | "retrieved" = "all",
 ): { text: string; omitted: number } {
   if (items.length === 0) {
     return {
@@ -788,8 +794,11 @@ export function packKnowledgeBase(
   }
   if (omitted > 0) {
     lines.push(
-      `- [NOT] Bu mülkün bilgi tabanının ${omitted} kalemi yer sınırı nedeniyle buraya alınamadı. ` +
-        "Sorulan konu yukarıda yoksa 'bilgi yok' DEME — konuyu insana devret.",
+      selection === "retrieved"
+        ? `- [NOT] Yukarıdaki kalemler bu mülkün bilgi tabanından SORUYA GÖRE SEÇİLDİ; ${omitted} kalem bu yanıta alınmadı. ` +
+            "Sorulan konu yukarıda yoksa 'bilgi yok' DEME — konuyu insana devret."
+        : `- [NOT] Bu mülkün bilgi tabanının ${omitted} kalemi yer sınırı nedeniyle buraya alınamadı. ` +
+            "Sorulan konu yukarıda yoksa 'bilgi yok' DEME — konuyu insana devret.",
     );
   }
   return { text: lines.join("\n"), omitted };
@@ -868,7 +877,11 @@ ${conflicts
     ("çıkış saati çelişkili: ayar X / bilgi tabanı Y") ve actionSuggestion'a ("bilgi tabanı ile mülk ayarındaki
     saati eşitle") yaz.`;
 
-  const kb = packKnowledgeBase(knowledgeBase, input.knowledgeBaseDropped ?? 0).text;
+  const kb = packKnowledgeBase(
+    knowledgeBase,
+    input.knowledgeBaseDropped ?? 0,
+    input.knowledgeBaseSelection ?? "all",
+  ).text;
 
   const res = reservation
     ? `Misafir: ${sanitizePromptValue(reservation.guestName)}

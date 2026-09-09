@@ -29,6 +29,7 @@ import { consumeDailyAiBudgetForQr } from "@/lib/ai/daily-budget";
 import { recordIngestEvent } from "@/lib/ingest/events";
 import { recordRiskEvent } from "@/lib/risk-events";
 import { buildKbEvidence } from "@/lib/ai/grounding";
+import { selectKbForPrompt } from "@/lib/ai/retrieval/select";
 
 export const dynamic = "force-dynamic";
 
@@ -736,6 +737,13 @@ async function handleGuestChatPost(req: NextRequest, { params }: { params: Promi
   const priorConversationId = await ensureGuestChatConversation(ctx.property.id, res);
   const { history, openTopics, hasPriorOperatorReply } = await buildGuestChatContextWindow(priorConversationId);
 
+  // RAG dilim 1 (09-09): SORUYA GÖRE SEÇİM — `ctx.knowledgeBase` zaten mülk +
+  // onay + sır kategorisi + içerik sezgiseli süzgeçlerinden geçmiştir; seçici
+  // bu kümeye kalem EKLEYEMEZ. Bayrak kapalıyken `kbSel.items` aynı dizidir
+  // ve `droppedItems` 0'dır (canlı davranış aynen).
+  const kbSel = selectKbForPrompt({ items: ctx.knowledgeBase, guestMessage: message, history });
+  const kbDroppedTotal = ctx.knowledgeBaseDropped + kbSel.droppedItems;
+
   const result = await suggestReply({
     guestMessage: message,
     property: {
@@ -754,8 +762,9 @@ async function handleGuestChatPost(req: NextRequest, { params }: { params: Promi
     // a prospect and invite them to "complete your booking" mid-stay. Secrets
     // remain banned either way (public surface; KB is pre-scrubbed upstream).
     verifiedActiveStay: true,
-    knowledgeBase: ctx.knowledgeBase,
-    knowledgeBaseDropped: ctx.knowledgeBaseDropped,
+    knowledgeBase: kbSel.items,
+    knowledgeBaseDropped: kbDroppedTotal,
+    knowledgeBaseSelection: kbSel.selection,
     history,
     openTopics,
     // SELAM TEKRARI (canlı kusur 09-08): "daha önce cevap verdik mi" KODDA
@@ -813,16 +822,18 @@ async function handleGuestChatPost(req: NextRequest, { params }: { params: Promi
     // Kodun bildiği (kaç kalem gitti, kaçı onay bekliyor, kaçı tavandan düştü,
     // hangi bilgi sürümü) ile modelin BEYANI yan yana yazılır; ikisi ayrı
     // olmadan "bilgi yok" ile "bilgi vardı, kullanılmadı" ayrılamaz.
-    kbRetrieved: ctx.knowledgeBase.length,
-    kbDropped: ctx.knowledgeBaseDropped,
+    kbRetrieved: kbSel.items.length,
+    kbDropped: kbDroppedTotal,
     kbPendingApproval: ctx.knowledgeBasePendingApproval,
     kbNewestUpdatedAt: ctx.knowledgeBaseNewestUpdatedAt,
     // YETKİLİ İÇ DENETİM: hangi kalemler, hangi sürümle. `max(updatedAt)` bunu
     // yanıtlamıyor (iki farklı küme aynı max'ı verebilir). Misafire dönen yanıt
     // gövdesi ayrı nesne literalleridir; bu alan oraya HİÇBİR yoldan girmez.
+    // Hibritte parça indeksi + retrieval özeti (PII'siz) de kanıta girer.
     kbEvidenceJson: buildKbEvidence({
-      retrieved: ctx.knowledgeBase,
+      retrieved: kbSel.items,
       usedLabels: result.usedSources ?? [],
+      retrieval: kbSel.evidence,
     }),
     srcDeclared: result.sourceAudit?.declared ?? null,
     srcVerified: result.sourceAudit?.verified ?? null,

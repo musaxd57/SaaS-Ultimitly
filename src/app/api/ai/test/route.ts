@@ -14,6 +14,7 @@ import { withManage } from "@/lib/route-guard";
 import { rateLimit } from "@/lib/rate-limit";
 import { premiumAllowed } from "@/lib/billing/subscription";
 import { fetchKnowledgeBaseForPrompt } from "@/lib/ai/kb-fetch";
+import { selectKbForPrompt } from "@/lib/ai/retrieval/select";
 import { consumeDailyAiBudget, dailyBudgetMessage } from "@/lib/ai/daily-budget";
 
 // ---------------------------------------------------------------------------
@@ -101,6 +102,10 @@ export const POST = withManage(async (session, req) => {
   // apartment am I in?", "when is my check-out?") test realistically — exactly
   // as a real inbox conversation, which is always tied to a booking. The
   // result is only returned, never sent and never persisted.
+  // RAG dilim 1 (09-09): üretimle PARİTE — test kartı da aynı seçiciden geçer
+  // (bayrak kapalıyken kimlik: `kbSel.items === kb`).
+  const kbSel = selectKbForPrompt({ items: kb, guestMessage: message, history: [] });
+
   const now = new Date();
   const result = await suggestReply({
     guestMessage: message,
@@ -117,8 +122,9 @@ export const POST = withManage(async (session, req) => {
       departureDate: new Date(now.getTime() + 3 * 24 * 60 * 60 * 1000),
       status: "confirmed",
     },
-    knowledgeBase: kb,
-    knowledgeBaseDropped: kbDropped,
+    knowledgeBase: kbSel.items,
+    knowledgeBaseDropped: kbDropped + kbSel.droppedItems,
+    knowledgeBaseSelection: kbSel.selection,
     history: [],
     tone,
     language: "tr",

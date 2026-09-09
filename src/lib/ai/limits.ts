@@ -29,3 +29,19 @@ export const KB_ITEM_CAP = 30;
  * budur; sistem istemi ~75KB ve önbelleklidir, şişen kısım hep bu bloktur.
  */
 export const KB_CHAR_BUDGET = 24_000;
+
+/**
+ * HİBRİT RETRIEVAL (RAG dilim 1, 09-09; bayrak `KB_RETRIEVAL_MODE=hybrid`,
+ * VARSAYILAN KAPALI). Soruya göre seçilen parçaların karakter bütçesi ve parça
+ * tavanı. Legacy bütçenin (24k) çok altında olması BİLİNÇLİ: retrieval'ın
+ * varlık sebebi daha az ve daha ilgili bağlam. Bilgi tabanı bu bütçeye ZATEN
+ * sığıyorsa seçim yapılmaz, tamamı gider (`select.ts` "small_kb").
+ */
+export const KB_RETRIEVAL_CHAR_BUDGET = 6_000;
+export const KB_RETRIEVAL_MAX_CHUNKS = 12;
+/**
+ * Hibritte `kb-fetch`in OKUMA tavanı (seçici bütün onaylı kümeyi görsün; plan
+ * tavanı mülk başına 60 kalem). Modele giden miktarı belirleyen bu DEĞİL,
+ * yukarıdaki bütçedir. Bayrak kapalıyken kullanılmaz.
+ */
+export const KB_RETRIEVAL_FETCH_CAP = 200;

@@ -8,6 +8,7 @@ import { withManage } from "@/lib/route-guard";
 import { rateLimit } from "@/lib/rate-limit";
 import { premiumAllowed } from "@/lib/billing/subscription";
 import { fetchKnowledgeBaseForPrompt } from "@/lib/ai/kb-fetch";
+import { selectKbForPrompt } from "@/lib/ai/retrieval/select";
 import { consumeDailyAiBudget, dailyBudgetMessage } from "@/lib/ai/daily-budget";
 
 export const POST = withManage<{ id: string }>(async (session, req, { params }) => {
@@ -89,6 +90,17 @@ export const POST = withManage<{ id: string }>(async (session, req, { params }) 
       )
     : null;
 
+  // RAG dilim 1 (09-09): SORUYA GÖRE SEÇİM — oto-yanıt ve QR ile aynı seçici,
+  // bayrak kapalıyken kimlik (`kbSel.items === kb`, `droppedItems === 0`).
+  const kbSel = selectKbForPrompt({
+    items: kb,
+    guestMessage: lastInbound.body,
+    history: conversation.messages.map((m) => ({
+      direction: m.direction as "inbound" | "outbound",
+      body: m.body,
+    })),
+  });
+
   const result = await suggestReply({
     guestMessage: lastInbound.body,
     property: {
@@ -107,8 +119,9 @@ export const POST = withManage<{ id: string }>(async (session, req, { params }) 
           guestCheckoutTime: conversation.reservation.guestCheckoutTime,
         }
       : null,
-    knowledgeBase: kb,
-    knowledgeBaseDropped: kbDropped,
+    knowledgeBase: kbSel.items,
+    knowledgeBaseDropped: kbDropped + kbSel.droppedItems,
+    knowledgeBaseSelection: kbSel.selection,
     history: conversation.messages.map((m) => ({
       direction: m.direction as "inbound" | "outbound",
       body: m.body,

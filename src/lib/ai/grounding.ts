@@ -142,10 +142,20 @@ export function classifyGrounding(c: GroundingCounts): GroundingVerdict {
 const EVIDENCE_CHAR_CAP = 4_000;
 
 export interface KbEvidenceInput {
-  /** İstem oluşturucuya verilen kalemler (tüm süzgeçlerden SONRA). */
-  retrieved: { id: string; updatedAt: Date }[];
+  /**
+   * İstem oluşturucuya verilen kalemler (tüm süzgeçlerden SONRA). `chunk`
+   * (RAG dilim 1): hibrit seçimde kalemin HANGİ parçası gitti — kalem
+   * kimliği + sürüm tek başına "uzun rehberin hangi dilimi" sorusunu yanıtlamaz.
+   */
+  retrieved: { id: string; updatedAt: Date; chunk?: number }[];
   /** Modelin beyan ettiği ve KODDA doğrulanan kaynak etiketleri ("kb:parking"). */
   usedLabels: string[];
+  /**
+   * Hibrit retrieval'ın PII'siz özeti (mod, alt sorgu sayısı, geri çekilme
+   * sebebi, seçilen/aday parça, süre). Legacy'de yok (null/undefined) —
+   * "ölçülmedi" ile "hibrit kapalıydı" ayrımı kanıtta okunur.
+   */
+  retrieval?: { mode: "hybrid"; q: number; fb: string; sel: number; cand: number; ms: number } | null;
 }
 
 /**
@@ -158,10 +168,29 @@ export interface KbEvidenceInput {
 export function buildKbEvidence(input: KbEvidenceInput): string | null {
   const retrieved = input.retrieved
     .filter((r) => typeof r?.id === "string" && r.id.length > 0 && r.updatedAt instanceof Date)
-    .map((r) => ({ type: "kb_item" as const, id: r.id, v: r.updatedAt.toISOString() }));
+    .map((r) => ({
+      type: "kb_item" as const,
+      id: r.id,
+      v: r.updatedAt.toISOString(),
+      // Parça indeksi yalnız hibritte ve yalnız geçerli bir sayıysa yazılır —
+      // legacy kanıt biçimi (`{type,id,v}`) karakteri karakterine korunur.
+      ...(Number.isInteger(r.chunk) && (r.chunk as number) >= 0 ? { c: r.chunk } : {}),
+    }));
   const used = input.usedLabels.filter((l) => typeof l === "string" && l.length > 0 && l.length <= 60);
-  if (retrieved.length === 0 && used.length === 0) return null;
-  const body = JSON.stringify({ retrieved, used });
+  // Retrieval özeti: yalnız sayı/kod alanları taşınır (serbest metin YOK).
+  const retrieval =
+    input.retrieval && input.retrieval.mode === "hybrid"
+      ? {
+          mode: "hybrid" as const,
+          q: input.retrieval.q,
+          fb: String(input.retrieval.fb).slice(0, 24),
+          sel: input.retrieval.sel,
+          cand: input.retrieval.cand,
+          ms: input.retrieval.ms,
+        }
+      : undefined;
+  if (retrieved.length === 0 && used.length === 0 && !retrieval) return null;
+  const body = JSON.stringify({ retrieved, used, ...(retrieval ? { retrieval } : {}) });
   if (body.length <= EVIDENCE_CHAR_CAP) return body;
   // SESSİZ KIRPMA YOK: kaç kalemin kanıttan düştüğü açıkça yazılır, yoksa
   // denetim eksik bir listeyi TAM sanar.
@@ -170,8 +199,9 @@ export function buildKbEvidence(input: KbEvidenceInput): string | null {
       retrieved: retrieved.slice(0, keep),
       used,
       omitted: retrieved.length - keep,
+      ...(retrieval ? { retrieval } : {}),
     });
     if (truncated.length <= EVIDENCE_CHAR_CAP) return truncated;
   }
-  return JSON.stringify({ retrieved: [], used: [], omitted: retrieved.length });
+  return JSON.stringify({ retrieved: [], used: [], omitted: retrieved.length, ...(retrieval ? { retrieval } : {}) });
 }

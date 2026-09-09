@@ -1,6 +1,7 @@
 import type { Prisma } from "@prisma/client";
 import { prisma } from "@/lib/db";
-import { KB_ITEM_CAP } from "@/lib/ai/limits";
+import { KB_ITEM_CAP, KB_RETRIEVAL_FETCH_CAP } from "@/lib/ai/limits";
+import { kbRetrievalMode } from "@/lib/ai/retrieval/flag";
 import { KB_APPROVAL_GATE_WHERE, isAiReadableReviewState } from "@/lib/kb-review";
 
 // ---------------------------------------------------------------------------
@@ -71,6 +72,12 @@ export async function fetchKnowledgeBaseForPrompt(
   // bir bilgi için konuşma insana devredilirdi. Taslak eksik bilgi değildir,
   // henüz bilgi DEĞİLDİR.
   const gated: Prisma.KnowledgeBaseItemWhereInput = { AND: [where, KB_APPROVAL_GATE_WHERE] };
+  // RAG dilim 1 (09-09): hibrit bayrak AÇIKKEN seçici bütün onaylı kümeyi
+  // görmeli (uzun rehber en eski kalemse adet tavanı onu retrieval'dan ÖNCE
+  // düşürürdü — ölçüldü). Modele giden miktarı artık `select.ts` bütçesi
+  // sınırlar (6k karakter / 12 parça), bu okuma tavanı değil. Bayrak kapalıyken
+  // `KB_ITEM_CAP` birebir eski davranış. Onay kapısı her iki dalda AYNI.
+  const take = kbRetrievalMode() === "hybrid" ? KB_RETRIEVAL_FETCH_CAP : KB_ITEM_CAP;
   // A2: tek `count` yerine `groupBy` — SORGU SAYISI ARTMADAN hem onay kapısını
   // geçen toplam hem de kapıda kalan (`draft`) sayısı aynı taramadan çıkıyor.
   // Çağıranın filtresi burada KAPISIZ kullanılır; kapı zaten `gated`ta.
@@ -83,7 +90,7 @@ export async function fetchKnowledgeBaseForPrompt(
       // "En son güncellenen kazanır": host bir bilgiyi düzelttiyse istemde
       // kalan o olsun. Düşenler en eski dokunulmuş kayıtlardır.
       orderBy: { updatedAt: "desc" },
-      take: KB_ITEM_CAP,
+      take,
     }),
     prisma.knowledgeBaseItem.groupBy({
       by: ["reviewState"],

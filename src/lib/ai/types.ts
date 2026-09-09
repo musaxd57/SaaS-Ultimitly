@@ -48,6 +48,14 @@ export interface SuggestReplyInput {
    * doğru davranış insana devretmektir. Verilmezse 0 (kesme olmadı) sayılır.
    */
   knowledgeBaseDropped?: number;
+  /**
+   * RAG dilim 1 (09-09): `knowledgeBase` bilgi tabanının TAMAMI mı ("all",
+   * varsayılan — legacy) yoksa SORUYA GÖRE SEÇİLMİŞ parçalar mı ("retrieved",
+   * `KB_RETRIEVAL_MODE=hybrid`). İstemdeki kesme notunun DÜRÜST wording'i
+   * buna bağlıdır: seçilmeyen kalem "yer sınırı nedeniyle" düşmedi, "soruya
+   * göre seçilmedi" — ama sonuç aynı: konu yukarıda yoksa 'bilgi yok' DEME.
+   */
+  knowledgeBaseSelection?: "all" | "retrieved";
   history?: HistoryMessage[];
   /**
    * Bağlam PENCERESİ DIŞINA taşan, misafirin kapanmamış konularının kapalı-küme

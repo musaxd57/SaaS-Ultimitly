@@ -122,6 +122,26 @@ ReAct (kademeli) · GraphRAG (ihtiyaç kanıtlanırsa). Ek: kaynaklı-sürümlü
   okumaz. Geçiş sırası: iCal bacağından SONRA intelligence (hafıza → event → örüntü). KB rotaları hafızayı anında
   eşitler (`refreshPropertyMemoryBestEffort`; silinen kalem → retired). Okuma yüzeyi: mülk sayfası "Mülk Hafızası" kartı.
 
+## Retrieval (RAG dilim 1 — KODLANDI 09-09, bayrak `KB_RETRIEVAL_MODE=hybrid` VARSAYILAN KAPALI; tasarım `docs/RAG-GRAPHRAG-TASARIM-2026-09-09.md`)
+- `src/lib/ai/retrieval/` LLM'siz + deterministik + DB'siz (pin): parçalayıcı (cümle sınırı, 600/900; parça =
+  `content.slice`, metin DEĞİŞMEZ) · Türkçe-öncelikli BM25 (kök sökücü + 16 kavramlık sözlük + OSA yazım toleransı) ·
+  round-robin çok soru · ince soruda son 2 MİSAFİR mesajı · çelişki koruma (giriş/çıkış saat parçaları birlikte) ·
+  bütçe 6k/12 parça · `SemanticScorer` yalnız sözleşme+no-op (embedding = ÜCRETLİ SERVİS → onay).
+- **TEK BOĞAZ `selectKbForPrompt`** — yetki/mülk/onay (`kb-fetch`) ve yüzeyin sır elemesi ÇALIŞTIKTAN SONRA,
+  `suggestReply`'dan ÖNCE; dört AI yüzeyi geçer (pin). Bayrak kapalı = **KİMLİK** (aynı dizi referansı, 0 düşen,
+  kanıt null). Açıkken `kb-fetch` `take` 30→200 (onay kapısı aynı), istem notu "SORUYA GÖRE SEÇİLDİ … 'bilgi yok'
+  DEME — insana devret" (kural aynı, wording dürüst). 🚨 **Hibrit legacy'den AZ bilgi taşımaz:** küçük KB (≤12 kalem
+  ve ≤6k) · selamlaşma · sözcüksel isabet yok · hata → TAM küme gider (E1 dürüst "bilgi yok" korunur).
+- Önbellek anahtarı **küme parmak izi** (id+updatedAt+içerik özeti), `max(updatedAt)` DEĞİL: silinen/pasif kalem
+  indekste yaşayamaz; yer tutucu ikamesiyle içeriğe giren misafir ADI başka sohbete dönmez. Kanıt
+  `kbEvidenceJson.retrieved[].c` (parça) + `.retrieval {q, fb, sel, cand, ms}` — PII yok; misafire dönmez.
+- **Retrieval politika DEĞİLDİR:** kötü niyetli kalem ilgisiz soruda gitmez (ölçülen maruziyet farkı) ama sözcüksel
+  eşleşince gider; eleme kararı AYRI ONAY. P5 (kanıtsız iddia kod kapısı) AÇIK — RAG kapatmaz. Baseline (model YOK):
+  `docs/olcum/kb-retrieval-baseline-2026-09-09.md` (13 senaryo; legacy `long_middle_oldest` ❌ → hibrit ✅; blok ~%85 küçük).
+  Gerçek model etkisi için eval setine uzun rehber + 30+ kalem sınıfı gerekli (mevcut 8 senaryo small_kb → legacy ile aynı istem).
+- Sözlük/kök çarpışmaları ölçülüp düzeltildi: "varış→var" (sözlükten çıktı), "şu→su" (durak değil), "ki" eki YOK.
+  GraphRAG UYGULANMADI: DB-gerçek kenar envanteri + marjinal fayda ölçüm planı tasarım §6; fayda gösterilmeden kod yok.
+
 ## 🚨 Değişmez kural
 Çalışan ürün BOZULMAZ. Her değişiklik additive, testli (K2 = kırmızı-önce + iki yönlü mutasyon +
 integration + tam kapılar), geri alınabilir. Para/e-posta/kimlik akışı: kullanıcı onayı + ilk
@@ -633,6 +653,12 @@ mesajınız kaydedildi…", güven .8, kaynak 0/0) — tek kırmızı eski `maxC
 `changed` alanı; karşı-örnekler pinli: söz veren/uydurma cevap aynı .8'de DÜŞER). E6 intent **ölçüldü** = complaint
 (kapı devreder). E7 güven **.7** → P4-b çalışıyor. E7 `2/1` beyan/doğrulanan = A2 uydurma-atıf sınıfı, dokunulmadı.
 Rapor dosyası (`eval-2026-09-09-085534-7ohi.md`) repoda YOK — kurucudan bekleniyor; tablo ekran görüntüsünden.
+**RAG DİLİM 1 KODLANDI (09-09, bayrak KAPALI, migration YOK, ücretli servis YOK, politika değişikliği YOK):** `src/lib/ai/retrieval/`
+(8 dosya) + 4 yüzey bağlama + kanıt/istem notu; 9 yeni test dosyası (unit 5 · integration 2 · helper 1 · harness 1),
+**20 iki yönlü mutasyonun tamamı yakalandı** (ilk turda 2 hayatta kaldı → test güçlendirildi: çelişki koruma `maxChunks:2`,
+bağlam taşıma tek adım, kategori-ipucu-yalnız senaryosu). Tasarım + onay tablosu `docs/RAG-GRAPHRAG-TASARIM-2026-09-09.md`.
 **Bekleyen kurucu kararları:** P1–P5 (önerilen sıra P1→P4→P5→P3→P2) · orijinal eval raporu · yeni eval koşusu (intent/risk artık
-kaydediliyor) · `a52a30c` ACTIVE + selam kontrolü · migration 53/54 §B salt-okuma sorguları · prod'da `EMAIL_HOST` set mi.
+kaydediliyor) · `a52a30c` ACTIVE + selam kontrolü · migration 53/54 §B salt-okuma sorguları · prod'da `EMAIL_HOST` set mi ·
+**RAG:** eval setine uzun-rehber/30+ kalem sınıfı → `KB_RETRIEVAL_MODE=hybrid` ile eval → tek mülk pilotu (`retrieval.fb`
+dağılımı) · embedding (ücretli servis + KVKK alt-işleyen) · kötü niyetli KB kalemini retrieval'da eleme (politika) · GraphRAG (§6 ölçümü).
 Prod smoke bu ortamdan yapılamaz; operatör adımları `docs/audit-2026-09-05/DURUM.md` + `docs/V0-CHANNEL-INDEPENDENCE-INVENTORY.md` §10.

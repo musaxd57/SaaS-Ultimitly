@@ -83,7 +83,9 @@ describe("bilgi tabanı istem bütçesi", () => {
 
   it("tavanın KENDİSİ tek yerde ve düşen sayısı hesaplanıyor", () => {
     const src = readFileSync(path.resolve(__dirname, "../../src/lib/ai/kb-fetch.ts"), "utf8");
-    expect(src).toContain("take: KB_ITEM_CAP");
+    // RAG dilim 1 (09-09): `take` artık bayrağa göre hesaplanır ama legacy dalı
+    // hâlâ `KB_ITEM_CAP`tan gelir — sabit, satırın içinde geçmek ZORUNDA.
+    expect(src).toMatch(/\btake\s*[:=][^\n]*\bKB_ITEM_CAP\b/);
     expect(src).toMatch(/from "@\/lib\/ai\/limits"/);
     // "Kaç tanesi düştü" gerçekten SAYILIYOR — yoksa `omitted` hep 0 kalır ve
     // model, host'un yazdığı bir konuda "bilgim yok" der.
