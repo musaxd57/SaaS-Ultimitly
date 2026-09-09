@@ -25,6 +25,12 @@ export interface Concept {
   id: string;
   /** Bağlı KB kategorisi (yoksa yalnız genişletme). */
   category?: KbCategory;
+  /**
+   * Bu kavramın SAAT ALANI (çelişki kontrolü için): aynı alanda farklı saat =
+   * çelişki; farklı alanlarda farklı saat (havuz 09:00 / kahvaltı 08:00) DEĞİL.
+   * Codex 09-09: kategori bazlı kontrol fazla genişti, alan bazlıya çevrildi.
+   */
+  timeField?: string;
   /** Tespit + genişletme (tek kelime). */
   terms: readonly string[];
   /** Yalnız tespit (genel sözcük ya da çok kelimelik kalıp). */
@@ -37,9 +43,9 @@ export const CONCEPTS: readonly Concept[] = [
   { id: "credentials", terms: ["sifre", "parola", "password", "kod", "code", "pin"] },
   { id: "trash", category: "trash", terms: ["cop", "atik", "konteyner", "trash", "garbage", "rubbish", "waste", "recycling"], detectOnly: ["geri donusum", "cop kutusu", "cop poseti"] },
   // "varis" YOK: kökü "var"a iner ve her "X var mı" sorusunu giriş kavramına bağlar (iki kez ölçüldü — geri gelmesin).
-  { id: "checkin", category: "checkin", terms: ["giris", "checkin", "arrival"], detectOnly: ["erken giris", "early checkin", "kacta girebilirim", "when can i check in", "giris saati"] },
+  { id: "checkin", category: "checkin", timeField: "checkin", terms: ["giris", "checkin", "arrival"], detectOnly: ["erken giris", "early checkin", "kacta girebilirim", "when can i check in", "giris saati"] },
   { id: "keys", terms: ["anahtar", "kilit", "key", "lock", "lockbox"], detectOnly: ["kapi kodu", "anahtar kutusu", "anahtari kaybettim", "lose the key", "yedek anahtar"] },
-  { id: "checkout", category: "checkout", terms: ["cikis", "checkout", "ayrilis", "ayril", "departure", "leaving", "leave"], detectOnly: ["gec cikis", "late checkout", "cikis saati", "kacta ayril", "what time is checkout"] },
+  { id: "checkout", category: "checkout", timeField: "checkout", terms: ["cikis", "checkout", "ayrilis", "ayril", "departure", "leaving", "leave"], detectOnly: ["gec cikis", "late checkout", "cikis saati", "kacta ayril", "what time is checkout"] },
   { id: "address", category: "location", terms: ["adres", "konum", "harita", "address", "location", "directions", "map"], detectOnly: ["yol tarifi", "nasil gelinir", "how to get there"] },
   { id: "transit", category: "location", terms: ["metro", "otobus", "tramvay", "bus", "tram", "subway", "durak"], detectOnly: ["toplu tasima", "public transport", "ulasim karti"] },
   { id: "airport", category: "location", terms: ["havalimani", "havaalani", "ucak", "airport", "flight", "shuttle", "transfer", "havas"], detectOnly: ["ucaga nasil", "to the airport"] },
@@ -47,9 +53,9 @@ export const CONCEPTS: readonly Concept[] = [
   { id: "rules", category: "rules", terms: [], detectOnly: ["ev kurallari", "house rules", "kurallar neler", "site kurallari"] },
   { id: "smoking", category: "rules", terms: ["sigara", "smoking", "smoke", "tutun", "cigarette"], detectOnly: ["sigara icebilir"] },
   { id: "pets", category: "rules", terms: ["evcil", "kopek", "kedi", "pet", "pets", "dog", "cat", "hayvan"], detectOnly: ["evcil hayvan", "kopegimi getir"] },
-  { id: "noise", category: "rules", terms: ["gurultu", "sessiz", "sessizlik", "parti", "noise", "quiet", "party", "muzik", "music"], detectOnly: ["sessiz saat", "quiet hours", "gece saat"] },
-  { id: "pool", category: "rules", terms: ["havuz", "pool", "yuzme", "swimming", "sezlong"], detectOnly: ["yuzme havuzu"] },
-  { id: "gym", terms: ["spor", "fitness", "gym", "salonu"], detectOnly: ["spor salonu", "fitness salonu", "spor yapabilecegim"] },
+  { id: "noise", category: "rules", timeField: "quiet_hours", terms: ["gurultu", "sessiz", "sessizlik", "parti", "noise", "quiet", "party", "muzik", "music"], detectOnly: ["sessiz saat", "quiet hours", "gece saat"] },
+  { id: "pool", category: "rules", timeField: "pool", terms: ["havuz", "pool", "yuzme", "swimming", "sezlong"], detectOnly: ["yuzme havuzu"] },
+  { id: "gym", timeField: "gym", terms: ["spor", "fitness", "gym", "salonu"], detectOnly: ["spor salonu", "fitness salonu", "spor yapabilecegim"] },
   { id: "elevator", terms: ["asansor", "elevator", "lift"] },
   { id: "balcony", terms: ["balkon", "balcony", "teras", "terrace"] },
   { id: "baby", terms: ["bebek", "baby", "crib", "cot", "karyola", "mama"], detectOnly: ["bebek yatagi", "mama sandalyesi", "high chair"] },
@@ -57,7 +63,7 @@ export const CONCEPTS: readonly Concept[] = [
   { id: "hairdryer", terms: ["fon", "hairdryer", "dryer", "kurutma"], detectOnly: ["sac kurutma", "hair dryer", "blow dryer"] },
   { id: "towels", category: "cleaning", terms: ["havlu", "carsaf", "nevresim", "towel", "towels", "sheet", "sheets", "linen", "bedding", "yastik", "battaniye"], detectOnly: ["yedek havlu", "temiz carsaf", "extra towels"] },
   { id: "laundry", category: "cleaning", terms: ["camasir", "kiyafet", "yika", "laundry", "washing", "clothes", "deterjan", "detergent"], detectOnly: ["camasir makinesi", "washing machine", "kiyafet yika"] },
-  { id: "cleaning", category: "cleaning", terms: ["temizlik", "temizlikci", "cleaning", "cleaner", "housekeeping"], detectOnly: ["temizlik ne zaman", "oda temizligi"] },
+  { id: "cleaning", category: "cleaning", timeField: "cleaning", terms: ["temizlik", "temizlikci", "cleaning", "cleaner", "housekeeping"], detectOnly: ["temizlik ne zaman", "oda temizligi"] },
   { id: "dishwasher", terms: ["bulasik", "dishwasher", "dishes", "tablet"], detectOnly: ["bulasik makinesi", "bulasik yika"] },
   { id: "stove", terms: ["ocak", "firin", "stove", "oven", "hob", "induksiyon", "induction", "cooker"], detectOnly: ["yemek pisir", "how to cook"] },
   { id: "fridge", terms: ["buzdolabi", "dondurucu", "fridge", "freezer", "refrigerator"], detectOnly: [] },
@@ -179,4 +185,24 @@ export function expandQuery(stems: string[]): QueryExpansion {
     }
   }
   return { expansion, categoryHints, matched };
+}
+
+/** Saat alanının insan-okur etiketi (istem notu için; kapalı küme). */
+export const TIME_FIELD_LABELS: Record<string, string> = {
+  checkin: "giriş",
+  checkout: "çıkış",
+  quiet_hours: "sessiz saat",
+  pool: "havuz",
+  gym: "spor salonu",
+  cleaning: "temizlik",
+};
+
+/** Bir parça metninin köklerinde geçen SAAT ALANLARI (tekil, sözlük sırasıyla). */
+export function timeFieldsIn(stems: string[]): string[] {
+  const out: string[] = [];
+  for (const m of matchConcepts(stems)) {
+    const f = m.concept.timeField;
+    if (f && !out.includes(f)) out.push(f);
+  }
+  return out;
 }

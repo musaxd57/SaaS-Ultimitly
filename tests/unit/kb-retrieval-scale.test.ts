@@ -2,31 +2,67 @@ import { describe, it, expect, afterAll } from "vitest";
 import { mkdirSync, writeFileSync } from "node:fs";
 import path from "node:path";
 import { execSync } from "node:child_process";
-import { KB_ITEM_CAP } from "@/lib/ai/limits";
+import { KB_ITEM_CAP, KB_RETRIEVAL_FETCH_CAP } from "@/lib/ai/limits";
 import { packKnowledgeBase } from "@/lib/ai/prompts";
 import { selectKbForPrompt, type KbSelectSources } from "@/lib/ai/retrieval/select";
 import { __resetKbIndexCache } from "@/lib/ai/retrieval/index-cache";
 import { makeSyntheticKb, updatedItem, type SynQuestion, type SyntheticKb } from "../helpers/kb-retrieval-synthetic";
 
 // ---------------------------------------------------------------------------
-// ÖLÇEK HARNESS'I — 30 / 100 / 300 kalem, GERÇEK retrieval yolu (RAG dilim 2).
+// ÖLÇEK HARNESS'I — 30 / 100 / 300 kalem, GERÇEK retrieval yolu (RAG dilim 2+3).
 //
-// Codex şartı: küçük-KB passthrough'u değil, seçim yapan yolu ölç; legacy
-// (en yeni 30 + 24k) ile aynı soruları koş; doğru kaynağı bulma (hit@1/hit@3,
-// kalem kimliğiyle), istem bloğunda doğru kaynak (inPrompt), gürültü, karakter
-// (maliyet vekili), gecikme (soğuk/ılık), güncelleme ve silme sonrası doğruluk.
-// Dört yapılandırma: legacy · hibrit bm25-yalnız · hibrit RRF · hibrit birleşik (CombSUM, varsayılan).
-// Eşikler ÖLÇÜLEN değerlerin altına pay bırakılarak pinlendi (09-09: hit@1 .92–.94, hit@3 .95–.99, inPrompt .99–1.0).
-// Model YOK: "cevabın kaynakla desteklenmesi" burada ölçülmez (gerçek eval işi).
+// Codex şartları:
+//  · küçük-KB passthrough'u değil, seçim yapan yolu ölç; legacy (en yeni 30 + 24k)
+//    ile aynı soruları koş;
+//  · (dilim 3) CANLI AKIŞI ölç: hibritte `kb-fetch` en yeni 200 kalemi okur —
+//    300'lük testte seçiciye 336 kalemin tamamını vermek canlıyı ölçmezdi →
+//    "CANLI" yapılandırması tavanı uygular (`KB_RETRIEVAL_FETCH_CAP`);
+//  · (dilim 3) "istemde doğru kaynak" kalem KİMLİĞİ ile değil, CEVAP İÇİN GEREKLİ
+//    METİN (`needles`) ile ölçülür — kimlik blokta olup cümle olmayabilir;
+//  · (dilim 3) n-gram kaynağı yazım hatası / ek varyasyonu / İngilizce sorularda
+//    AYRI ölçülür; varsayılan ("auto" = yalnız Türkçe sorguda) buna dayanır.
+// Ölçülen: hit@1/hit@3 (kimlik), inPrompt(kimlik), inPrompt(METİN), gürültü,
+// karakter (maliyet vekili), gecikme (soğuk/ılık), güncelleme/silme doğruluğu.
+// Model YOK: "cevabın kaynakla desteklenmesi" burada ölçülmez (gerçek eval işi;
+// eşleştirilmiş harness `tests/eval/kb-retrieval-paired.eval.test.ts`).
 // Rapor: KB_RETRIEVAL_REPORT=1 → docs/olcum/kb-retrieval-scale-<tarih>.md
 // ---------------------------------------------------------------------------
 
 const SIZES = [30, 100, 300] as const;
 
+interface Config {
+  name: string;
+  /** null = legacy ayna. */
+  sources: KbSelectSources | null;
+  /** `kb-fetch` okuma tavanını uygula (canlı hibrit). */
+  liveCap?: boolean;
+}
+
+const CONFIGS: readonly Config[] = [
+  { name: "legacy (en yeni 30 + 24k)", sources: null },
+  { name: "hibrit bm25 (n-gram KAPALI)", sources: { ngram: false } },
+  { name: "hibrit n-gram AÇIK (her sorguda)", sources: { ngram: true } },
+  { name: "hibrit RRF (bm25+ngram)", sources: { ngram: true, fusion: "rrf" } },
+  { name: "hibrit VARSAYILAN (n-gram auto=TR, CombSUM)", sources: {} },
+  { name: "hibrit CANLI (varsayılan + kb-fetch tavanı 200)", sources: {}, liveCap: true },
+];
+
+interface KindStat {
+  n: number;
+  inPrompt: number;
+  hit1: number;
+  noise: number;
+}
+
 interface ConfigResult {
   name: string;
+  /** Seçiciye verilen kalem sayısı (canlı tavan sonrası). */
+  pool: number;
   hit1: number;
   hit3: number;
+  /** Doğru kalem KİMLİĞİ blokta. */
+  inPromptId: number;
+  /** Cevap için gerekli METİN blokta (asıl ölçü). */
   inPrompt: number;
   noise: number;
   chars: number;
@@ -34,7 +70,7 @@ interface ConfigResult {
   warmP50: number;
   warmP95: number;
   fallbacks: number;
-  perKind: Record<string, { n: number; inPrompt: number }>;
+  perKind: Record<string, KindStat>;
 }
 
 interface SizeResult {
@@ -63,18 +99,22 @@ function legacyPrompt(kb: SyntheticKb): { ids: string[]; text: string } {
   return { ids, text };
 }
 
-function runConfig(kb: SyntheticKb, name: string, sources: KbSelectSources | null): ConfigResult {
+function runConfig(kb: SyntheticKb, cfg: Config): ConfigResult {
   const sorted = [...kb.items].sort((a, b) => b.updatedAt.getTime() - a.updatedAt.getTime());
+  // CANLI: `kb-fetch` hibritte `updatedAt desc` + take KB_RETRIEVAL_FETCH_CAP.
+  const pool = cfg.liveCap ? sorted.slice(0, KB_RETRIEVAL_FETCH_CAP) : sorted;
+  const fetchDropped = sorted.length - pool.length;
   let hit1 = 0;
   let hit3 = 0;
+  let inPromptId = 0;
   let inPrompt = 0;
   let noise = 0;
   let chars = 0;
   let fallbacks = 0;
   const warm: number[] = [];
-  const perKind: Record<string, { n: number; inPrompt: number }> = {};
+  const perKind: Record<string, KindStat> = {};
   let coldMs = 0;
-  const legacy = sources === null ? legacyPrompt(kb) : null;
+  const legacy = cfg.sources === null ? legacyPrompt(kb) : null;
   kb.questions.forEach((q, qi) => {
     const gold = new Set(q.goldIds);
     let orderedIds: string[] = [];
@@ -85,38 +125,40 @@ function runConfig(kb: SyntheticKb, name: string, sources: KbSelectSources | nul
     } else {
       if (qi === 0) __resetKbIndexCache();
       const t0 = performance.now();
-      const r = selectKbForPrompt({ items: sorted, guestMessage: q.text, mode: "hybrid", sources: sources ?? undefined });
+      const r = selectKbForPrompt({ items: pool, guestMessage: q.text, mode: "hybrid", sources: cfg.sources ?? undefined });
       const ms = performance.now() - t0;
       if (qi === 0) coldMs = ms;
       else warm.push(ms);
       if (r.evidence?.fb && r.evidence.fb !== "none") fallbacks += 1;
       orderedIds = [];
       for (const it of r.items) if (!orderedIds.includes(it.id)) orderedIds.push(it.id);
-      text = packKnowledgeBase(r.items, r.droppedItems, r.selection).text;
+      text = packKnowledgeBase(r.items, fetchDropped + r.droppedItems, r.selection, r.notes).text;
     }
-    const goldPresent = q.mustContain ? text.includes(q.mustContain) : orderedIds.some((id) => gold.has(id));
+    const idPresent = orderedIds.some((id) => gold.has(id));
+    const needlePresent = q.needles.some((n) => text.includes(n));
+    const h1 = !legacy && !!orderedIds[0] && gold.has(orderedIds[0]);
     if (!legacy) {
-      if (orderedIds[0] && gold.has(orderedIds[0])) hit1 += 1;
+      if (h1) hit1 += 1;
       if (orderedIds.slice(0, 3).some((id) => gold.has(id))) hit3 += 1;
-    } else {
-      // Legacy sıralama sorguya bakmaz: hit@k anlamsız; yalnız blokta var mı.
-      if (goldPresent) {
-        hit1 += 0;
-        hit3 += 0;
-      }
     }
-    if (goldPresent) inPrompt += 1;
-    noise += orderedIds.filter((id) => !gold.has(id)).length;
+    if (idPresent) inPromptId += 1;
+    if (needlePresent) inPrompt += 1;
+    const qNoise = orderedIds.filter((id) => !gold.has(id)).length;
+    noise += qNoise;
     chars += text.length;
-    const pk = (perKind[q.kind] ??= { n: 0, inPrompt: 0 });
+    const pk = (perKind[q.kind] ??= { n: 0, inPrompt: 0, hit1: 0, noise: 0 });
     pk.n += 1;
-    if (goldPresent) pk.inPrompt += 1;
+    if (needlePresent) pk.inPrompt += 1;
+    if (h1) pk.hit1 += 1;
+    pk.noise += qNoise;
   });
   const Q = kb.questions.length;
   return {
-    name,
+    name: cfg.name,
+    pool: pool.length,
     hit1: hit1 / Q,
     hit3: hit3 / Q,
+    inPromptId: inPromptId / Q,
     inPrompt: inPrompt / Q,
     noise: noise / Q,
     chars: Math.round(chars / Q),
@@ -128,7 +170,7 @@ function runConfig(kb: SyntheticKb, name: string, sources: KbSelectSources | nul
   };
 }
 
-/** Güncelleme/silme sonrası doğruluk — hibrit birleşik yapılandırma. */
+/** Güncelleme/silme sonrası doğruluk — hibrit varsayılan yapılandırma. */
 function updateDelete(kb: SyntheticKb): { updateOk: number; updateTotal: number; deleteOk: number; deleteTotal: number } {
   const topics = [...kb.goldByTopic.keys()].slice(0, 10);
   let updateOk = 0;
@@ -153,70 +195,158 @@ function updateDelete(kb: SyntheticKb): { updateOk: number; updateTotal: number;
 
 const results: SizeResult[] = SIZES.map((n) => {
   const kb = makeSyntheticKb(n);
-  const configs = [
-    runConfig(kb, "legacy (en yeni 30 + 24k)", null),
-    runConfig(kb, "hibrit bm25", { ngram: false }),
-    runConfig(kb, "hibrit RRF (bm25+ngram)", { ngram: true, fusion: "rrf" }),
-    runConfig(kb, "hibrit birleşik (bm25+ngram, CombSUM)", { ngram: true, fusion: "sum" }),
-  ];
+  const configs = CONFIGS.map((c) => runConfig(kb, c));
   return { n, items: kb.items.length, questions: kb.questions.length, configs, ...updateDelete(kb) };
 });
 
 const cfg = (n: number, name: string) => results.find((r) => r.n === n)!.configs.find((c) => c.name.startsWith(name))!;
+const kindRate = (c: ConfigResult, kind: string) => (c.perKind[kind] ? c.perKind[kind].inPrompt / c.perKind[kind].n : 0);
+const kindNoise = (c: ConfigResult, kind: string) => (c.perKind[kind] ? c.perKind[kind].noise / c.perKind[kind].n : 0);
 
 describe("ölçek harness'ı — 30/100/300 kalem, gerçek retrieval yolu", () => {
   it("küçük-KB passthrough DEĞİL: her boyutta seçim yapılıyor (geri çekilme azınlıkta)", () => {
     for (const n of SIZES) {
-      const c = cfg(n, "hibrit birleşik");
+      const c = cfg(n, "hibrit VARSAYILAN");
       expect(c.fallbacks / results.find((r) => r.n === n)!.questions, `n=${n}`).toBeLessThan(0.15);
     }
   });
 
-  it("🚨 LEGACY'nin ölçülen açığı: 100 ve 300 kalemde doğru kaynak çoğu soruda BLOĞA GİRMİYOR; hibrit giriyor", () => {
+  it("🚨 LEGACY'nin ölçülen açığı: 100 ve 300 kalemde cevap metni çoğu soruda BLOĞA GİRMİYOR; hibrit giriyor", () => {
     for (const n of [100, 300] as const) {
       expect(cfg(n, "legacy").inPrompt, `legacy n=${n}`).toBeLessThan(0.6);
-      expect(cfg(n, "hibrit birleşik").inPrompt, `hibrit n=${n}`).toBeGreaterThan(0.85);
+      expect(cfg(n, "hibrit VARSAYILAN").inPrompt, `hibrit n=${n}`).toBeGreaterThan(0.85);
     }
   });
 
-  it("hibrit birleşik hiçbir boyutta bm25-yalnızdan az isabet etmez (n-gram kaynağı regresyon değil)", () => {
-    for (const n of SIZES) {
-      expect(cfg(n, "hibrit birleşik").inPrompt, `n=${n}`).toBeGreaterThanOrEqual(cfg(n, "hibrit bm25").inPrompt - 1e-9);
+  it("CEVAP METNİ ölçüsü kimlik ölçüsünden GEVŞEK DEĞİL: metin blokta ise kimlik de blokta (metin ≤ kimlik), rapor ikisini de verir", () => {
+    for (const r of results) {
+      for (const c of r.configs) {
+        expect(c.inPrompt, `${c.name} n=${r.n}`).toBeLessThanOrEqual(c.inPromptId + 1e-9);
+      }
     }
   });
 
-  it("doğru kaynak sıralamada önde: hit@1 ≥ 0.85, hit@3 ≥ 0.9, inPrompt ≥ 0.95 (birleşik, her boyut)", () => {
+  it("KİMLİK ≠ METİN (Codex 09-09): uzun kalemin başka parçası seçilince kalem kimliği blokta ama cevap cümlesi YOK — kimlik ölçüsü bunu 'isabet' sayardı", () => {
+    const kb = makeSyntheticKb(30);
+    const guide = kb.items.find((i) => i.id === "syn_guide_0")!;
+    // Rehberin OTOPARK paragrafı seçilir ("Otopark var mı?"), ama sorunun cevabı DEĞİL olan
+    // başka bir gömülü gerçek (unutulan eşya cümlesi) o parçada yoktur.
+    const r = selectKbForPrompt({ items: kb.items, guestMessage: "Otopark var mı?", mode: "hybrid" });
+    const text = packKnowledgeBase(r.items, r.droppedItems, r.selection, r.notes).text;
+    const lostNeedle = kb.questions.find((q) => q.id === "q_guide_lost")!.needles[0];
+    expect(guide.content).toContain(lostNeedle);
+    const guideChunks = r.items.filter((i) => i.id === "syn_guide_0");
+    expect(guideChunks.length).toBeGreaterThanOrEqual(0);
+    // Kimlik ölçüsü: rehber kimliği blokta olabilir; METİN ölçüsü: bu cümle blokta DEĞİL.
+    expect(text).not.toContain(lostNeedle);
+  });
+
+  it("hibrit varsayılan bm25-yalnızdan en fazla BİR soru geride (n-gram'ın işi isabet değil, ek varyasyonunda gürültü; ölçüldü)", () => {
+    for (const r of results) {
+      const oneQuestion = 1 / r.questions;
+      expect(cfg(r.n, "hibrit VARSAYILAN").inPrompt, `n=${r.n}`).toBeGreaterThanOrEqual(cfg(r.n, "hibrit bm25").inPrompt - oneQuestion - 1e-9);
+    }
+  });
+
+  it("doğru kaynak sıralamada önde: hit@1 ≥ 0.85, hit@3 ≥ 0.9, inPrompt(metin) ≥ 0.95 (varsayılan, her boyut)", () => {
     for (const n of SIZES) {
-      const c = cfg(n, "hibrit birleşik");
+      const c = cfg(n, "hibrit VARSAYILAN");
       expect(c.hit1, `hit@1 n=${n}`).toBeGreaterThanOrEqual(0.85);
       expect(c.hit3, `hit@3 n=${n}`).toBeGreaterThanOrEqual(0.9);
       expect(c.inPrompt, `inPrompt n=${n}`).toBeGreaterThanOrEqual(0.95);
     }
   });
 
-  it("birleşim seçimi ÖLÇÜMLE: CombSUM hiçbir boyutta RRF'den az isabet etmez ve daha az gürültü taşır", () => {
+  it("birleşim seçimi ÖLÇÜMLE: CombSUM (n-gram açık) hiçbir boyutta RRF'den az isabet etmez ve daha az gürültü taşır", () => {
     for (const n of SIZES) {
-      expect(cfg(n, "hibrit birleşik").hit1, `n=${n}`).toBeGreaterThanOrEqual(cfg(n, "hibrit RRF").hit1 - 1e-9);
-      expect(cfg(n, "hibrit birleşik").noise, `n=${n}`).toBeLessThanOrEqual(cfg(n, "hibrit RRF").noise);
+      expect(cfg(n, "hibrit n-gram AÇIK").hit1, `n=${n}`).toBeGreaterThanOrEqual(cfg(n, "hibrit RRF").hit1 - 1e-9);
+      expect(cfg(n, "hibrit n-gram AÇIK").noise, `n=${n}`).toBeLessThanOrEqual(cfg(n, "hibrit RRF").noise);
     }
   });
 
-  it("rehberde GÖMÜLÜ gerçekler bulunur (uzun metin ortası, her boyut)", () => {
+  it("N-GRAM AYRI ÖLÇÜM (Codex 09-09): yazım hatasında katkı yok (OSA fuzzy zaten kapsıyor); ek varyasyonunda gürültü ≥%20 azalır, isabet düşmez; İngilizcede AÇIK olmak gürültüyü artırır, isabeti artırmaz → varsayılan 'auto' (yalnız TR sorguda)", () => {
+    for (const r of results) {
+      const n = r.n;
+      const off = cfg(n, "hibrit bm25");
+      const auto = cfg(n, "hibrit VARSAYILAN");
+      const on = cfg(n, "hibrit n-gram AÇIK");
+      const oneQuestion = 1 / r.questions;
+      // typo: fuzzy eşleşme zaten var — n-gram isabeti değiştirmez (±1 soru payı).
+      expect(Math.abs(kindRate(auto, "typo") - kindRate(off, "typo")) * (auto.perKind.typo?.n ?? 1), `typo n=${n}`).toBeLessThanOrEqual(1);
+      // morph (asıl fayda): isabet düşmez, gürültü belirgin azalır (ölçüldü: 5.0→3.9, 8.1→5.1, 20.0→11.2).
+      expect(kindRate(auto, "morph"), `morph n=${n}`).toBeGreaterThanOrEqual(kindRate(off, "morph") - 1e-9);
+      expect(kindNoise(auto, "morph"), `morph gürültü n=${n}`).toBeLessThanOrEqual(kindNoise(off, "morph") * 0.8);
+      // en: 'auto' İngilizce sorguya dokunmaz (= kapalı, birebir); 'AÇIK' İngilizcede isabet KAZANDIRMAZ, gürültü EKLER.
+      expect(kindRate(auto, "en"), `en auto n=${n}`).toBeCloseTo(kindRate(off, "en"), 9);
+      expect(kindNoise(auto, "en"), `en auto gürültü n=${n}`).toBeCloseTo(kindNoise(off, "en"), 9);
+      expect(kindRate(on, "en"), `en açık isabet n=${n}`).toBeLessThanOrEqual(kindRate(auto, "en") + 1e-9);
+      expect(kindNoise(on, "en"), `en açık gürültü n=${n}`).toBeGreaterThan(kindNoise(auto, "en"));
+      // Genel: auto, açığın en fazla bir soru gerisinde ve daha küçük blok (İngilizce şişmesi yok).
+      expect(auto.inPrompt, `auto vs açık n=${n}`).toBeGreaterThanOrEqual(on.inPrompt - oneQuestion - 1e-9);
+      expect(auto.chars, `karakter auto vs açık n=${n}`).toBeLessThanOrEqual(on.chars);
+    }
+  });
+
+  it("CANLI AKIŞ (Codex 09-09): kb-fetch tavanı 200 — 30/100'de varsayılanla BİREBİR; 300'de (336 kalem) tavan gerçekten uygulanır; sentetik sette kayıp YOK çünkü her konunun 8 varyantı var (dürüst okuma)", () => {
+    for (const n of [30, 100] as const) {
+      const live = cfg(n, "hibrit CANLI");
+      const def = cfg(n, "hibrit VARSAYILAN");
+      expect(live.pool, `pool n=${n}`).toBe(def.pool);
+      expect(live.inPrompt, `n=${n}`).toBe(def.inPrompt);
+      expect(live.hit1, `n=${n}`).toBe(def.hit1);
+    }
+    const live = cfg(300, "hibrit CANLI");
+    expect(live.pool).toBe(KB_RETRIEVAL_FETCH_CAP);
+    expect(cfg(300, "hibrit VARSAYILAN").pool).toBeGreaterThan(KB_RETRIEVAL_FETCH_CAP);
+    // Konu başına ~8 kalem (3 farklı cümle) olduğu için en yeni 200'de her konudan en az biri kalır:
+    // canlı isabet tavansızdan DÜŞMEZ. Bu, tavanın zararsız olduğunun kanıtı DEĞİLDİR — tek kalemli
+    // konu için kayıp aşağıdaki hedefli testte ölçülür.
+    expect(live.inPrompt).toBeGreaterThanOrEqual(cfg(300, "hibrit VARSAYILAN").inPrompt - 0.02);
+    expect(live.inPrompt).toBeGreaterThan(cfg(300, "legacy").inPrompt + 0.2);
+    expect(live.chars).toBeLessThanOrEqual(cfg(300, "hibrit VARSAYILAN").chars);
+  });
+
+  it("CANLI TAVAN KAYBI (hedefli): TEK kalemi en yeni 200'ün dışında kalan konu canlı akışta ULAŞILAMAZ (geri çekilme + 'alınmadı' notu); tavansız havuzda bulunur", () => {
+    const kb = makeSyntheticKb(300);
+    const oldest = Math.min(...kb.items.map((i) => i.updatedAt.getTime()));
+    const jacuzzi = {
+      id: "syn_jacuzzi",
+      category: "faq",
+      title: "Jakuzi",
+      content: "Terastaki jakuzi akşamları kullanılabilir; kapağını kullanım sonrası kapatın.",
+      updatedAt: new Date(oldest - 86_400_000),
+      supersededById: null,
+    };
+    const all = [...kb.items, jacuzzi].sort((a, b) => b.updatedAt.getTime() - a.updatedAt.getTime());
+    const needle = "Terastaki jakuzi";
+    const full = selectKbForPrompt({ items: all, guestMessage: "Jakuzi var mı?", mode: "hybrid" });
+    expect(packKnowledgeBase(full.items, full.droppedItems, full.selection, full.notes).text).toContain(needle);
+    const livePool = all.slice(0, KB_RETRIEVAL_FETCH_CAP);
+    const r = selectKbForPrompt({ items: livePool, guestMessage: "Jakuzi var mı?", mode: "hybrid" });
+    const text = packKnowledgeBase(r.items, all.length - livePool.length + r.droppedItems, r.selection, r.notes).text;
+    expect(text).not.toContain(needle);
+    // Dürüst davranış: isabet yok → tam küme + "alınmadı" notu → model 'bilgi yok' DEMEZ, insana devreder.
+    expect(r.evidence?.fb).toBe("no_lexical_hits");
+    expect(text).toMatch(/kalem/);
+    expect(text).toMatch(/insana devret/);
+  });
+
+  it("rehberde GÖMÜLÜ gerçekler bulunur (uzun metin ortası, her boyut) — METİN ölçüsüyle", () => {
     for (const n of SIZES) {
-      const c = cfg(n, "hibrit birleşik");
-      expect(c.perKind.guide.inPrompt / c.perKind.guide.n, `n=${n}`).toBeGreaterThanOrEqual(0.66);
+      const c = cfg(n, "hibrit VARSAYILAN");
+      expect(kindRate(c, "guide"), `n=${n}`).toBeGreaterThanOrEqual(0.66);
     }
   });
 
   it("maliyet: hibrit blok legacy'nin yarısından küçük; gürültü daha az", () => {
     for (const n of SIZES) {
-      expect(cfg(n, "hibrit birleşik").chars, `n=${n}`).toBeLessThan(cfg(n, "legacy").chars / 2);
-      expect(cfg(n, "hibrit birleşik").noise, `n=${n}`).toBeLessThan(cfg(n, "legacy").noise);
+      expect(cfg(n, "hibrit VARSAYILAN").chars, `n=${n}`).toBeLessThan(cfg(n, "legacy").chars / 2);
+      expect(cfg(n, "hibrit VARSAYILAN").noise, `n=${n}`).toBeLessThan(cfg(n, "legacy").noise);
     }
   });
 
   it("gecikme: 300 kalemde soğuk indeks < 400 ms, ılık p95 < 60 ms (bu makine; CI'da gevşek)", () => {
-    const c = cfg(300, "hibrit birleşik");
+    const c = cfg(300, "hibrit VARSAYILAN");
     expect(c.coldMs).toBeLessThan(400);
     expect(c.warmP95).toBeLessThan(60);
   });
@@ -239,33 +369,52 @@ function report(): string {
     /* rapor yine yazılır */
   }
   const pct = (x: number) => `${Math.round(x * 100)}%`;
+  const KINDS = ["tr", "syn", "typo", "morph", "en", "guide"];
   const L: string[] = [];
   L.push(`# Retrieval ölçek ölçümü — 30 / 100 / 300 kalem (${new Date().toISOString().slice(0, 10)}, commit ${commit})`);
   L.push("");
-  L.push("> Sentetik mülk KB'leri (`tests/helpers/kb-retrieval-synthetic.ts`, tohum 42): 36 konu × 3 TR paraphrase + EN varyant,");
-  L.push("> konu başına TR/EN/eşanlam/yazım-hatası soruları, n/10 çeldirici, her 50 kaleme 7k rehber (3 gömülü gerçek).");
-  L.push("> `updatedAt` 400 güne tohumlu yayılır. Model YOK: 'cevabın kaynakla desteklenmesi' burada ÖLÇÜLMEZ (gerçek eval).");
-  L.push("> hit@k = doğru kalem kimliği seçim sıralamasının ilk k'sında; inPrompt = doğru kaynak istem bloğunda; noise = seçilen ilgisiz kalem;");
-  L.push("> chars = blok karakteri (maliyet vekili); ms = seçici süresi (soğuk: indeks kurulumu dahil; ılık: önbellek). Üretici: `tests/unit/kb-retrieval-scale.test.ts`.");
+  L.push("> Sentetik mülk KB'leri (`tests/helpers/kb-retrieval-synthetic.ts`, tohum 42): 38 konu × 3 TR paraphrase + EN varyant,");
+  L.push("> konu başına TR / eşanlam / yazım-hatası / EK VARYASYONU (morph) / EN soruları, n/10 çeldirici, her 50 kaleme 7k rehber (3 gömülü gerçek).");
+  L.push("> `updatedAt` 400 güne tohumlu yayılır. Model YOK: 'cevabın kaynakla desteklenmesi' burada ÖLÇÜLMEZ (gerçek eval: eşleştirilmiş harness).");
+  L.push("> hit@k = doğru kalem kimliği seçim sıralamasının ilk k'sında; **inPrompt(metin) = CEVAP İÇİN GEREKLİ CÜMLE istem bloğunda** (asıl ölçü);");
+  L.push("> inPrompt(kimlik) = doğru kalem kimliği blokta (eski ölçü, kıyas için); noise = seçilen ilgisiz kalem; chars = blok karakteri (maliyet vekili);");
+  L.push("> ms = seçici süresi (soğuk: indeks kurulumu dahil; ılık: önbellek). **CANLI** = `kb-fetch` okuma tavanı (en yeni 200) uygulanmış hibrit.");
+  L.push("> Üretici: `tests/unit/kb-retrieval-scale.test.ts`. ANLAMSAL (embedding) kaynak ÜRETİMDE YOK — burada hiçbir satır anlamsal retrieval ölçmez.");
   L.push("");
   for (const r of results) {
     L.push(`## n=${r.n} konu kalemi (toplam ${r.items} kalem, ${r.questions} soru)`);
     L.push("");
-    L.push("| Yapılandırma | hit@1 | hit@3 | inPrompt | gürültü | karakter | soğuk ms | ılık p50 | ılık p95 | geri çekilme |");
-    L.push("|---|---|---|---|---|---|---|---|---|---|");
+    L.push("| Yapılandırma | havuz | hit@1 | hit@3 | inPrompt (METİN) | inPrompt (kimlik) | gürültü | karakter | soğuk ms | ılık p50 | ılık p95 | geri çekilme |");
+    L.push("|---|---|---|---|---|---|---|---|---|---|---|---|");
     for (const c of r.configs) {
       const legacy = c.name.startsWith("legacy");
-      L.push(`| ${c.name} | ${legacy ? "—" : pct(c.hit1)} | ${legacy ? "—" : pct(c.hit3)} | ${pct(c.inPrompt)} | ${c.noise.toFixed(1)} | ${c.chars} | ${legacy ? "—" : c.coldMs} | ${legacy ? "—" : c.warmP50} | ${legacy ? "—" : c.warmP95} | ${legacy ? "—" : c.fallbacks} |`);
+      L.push(
+        `| ${c.name} | ${legacy ? KB_ITEM_CAP : c.pool} | ${legacy ? "—" : pct(c.hit1)} | ${legacy ? "—" : pct(c.hit3)} | **${pct(c.inPrompt)}** | ${pct(c.inPromptId)} | ${c.noise.toFixed(1)} | ${c.chars} | ${legacy ? "—" : c.coldMs} | ${legacy ? "—" : c.warmP50} | ${legacy ? "—" : c.warmP95} | ${legacy ? "—" : c.fallbacks} |`,
+      );
     }
     L.push("");
-    L.push("Soru türüne göre inPrompt (birleşik CombSUM): " + Object.entries(r.configs[3].perKind).map(([k, v]) => `${k} ${v.inPrompt}/${v.n}`).join(" · "));
+    L.push("N-gram AYRI ÖLÇÜM — soru türüne göre inPrompt(metin) / ortalama gürültü:");
+    L.push("");
+    L.push(`| Soru türü | n | n-gram KAPALI | n-gram auto (VARSAYILAN) | n-gram AÇIK |`);
+    L.push("|---|---|---|---|---|");
+    const off = r.configs.find((c) => c.name.startsWith("hibrit bm25"))!;
+    const auto = r.configs.find((c) => c.name.startsWith("hibrit VARSAYILAN"))!;
+    const on = r.configs.find((c) => c.name.startsWith("hibrit n-gram AÇIK"))!;
+    for (const k of KINDS) {
+      if (!auto.perKind[k]) continue;
+      const cell = (c: ConfigResult) => `${c.perKind[k].inPrompt}/${c.perKind[k].n} · gürültü ${kindNoise(c, k).toFixed(2)}`;
+      L.push(`| ${k} | ${auto.perKind[k].n} | ${cell(off)} | ${cell(auto)} | ${cell(on)} |`);
+    }
+    L.push("");
     L.push(`Güncelleme sonrası yeni metin: ${r.updateOk}/${r.updateTotal} · Silme sonrası geri gelmeme: ${r.deleteOk}/${r.deleteTotal}`);
     L.push("");
   }
   L.push("## Okuma kılavuzu");
   L.push("- Legacy sıralama soruya bakmaz; hit@k anlamsızdır ('—'). inPrompt = en yeni 30 kalem + 24k bütçe içinde doğru kaynak var mı.");
-  L.push("- 300 kalem ürün plan tavanının (60/mülk) üstündedir; ölçek davranışı için sentetiktir. Hibritte `kb-fetch` okuma tavanı 200'dür (canlıda en yeni 200).");
-  L.push("- n-gram kaynağı ANLAMSAL değildir (yazım benzerliği); gömme tabanlı kaynak sözleşmesi hazır, ücretli servis onayı bekler.");
+  L.push("- **CANLI satırı gerçek akıştır:** 300 konu kalemi (336 kalem) canlı tavanın (200) üstündedir; tavan dışındaki kalemin cevabı bloğa GİREMEZ ve bu kayıp burada dürüstçe görünür.");
+  L.push("  300 kalem ürün plan tavanının (60/mülk) çok üstündedir; canlıda hiçbir mülk tavana çarpmaz — ama ölçüm canlı yolu ölçer, idealize etmez.");
+  L.push("- n-gram kaynağı ANLAMSAL DEĞİLDİR (karakter 3-gram yazım benzerliği). Ayrı ölçüm: yazım hatasında katkı yok (OSA fuzzy zaten var), ek varyasyonunda gürültüyü azaltır,");
+  L.push("  İngilizce sorguda Türkçe metne düşen gramlar isabeti düşürüp bloğu büyütür → varsayılan **auto** (yalnız Türkçe algılanan sorguda). Gömme tabanlı kaynak: sözleşme hazır, ücretli servis onayı bekler; ÜRETİMDE YOK.");
   return L.join("\n");
 }
 

@@ -3,7 +3,7 @@ import { reportError } from "@/lib/report-error";
 import type { KbChunk, KbChunkSource } from "./chunker";
 import { kbRetrievalMode, type KbRetrievalMode } from "./flag";
 import { fuseNormalizedScores, fuseRankings, type SourceRanking } from "./fusion";
-import { expandQuery } from "./lexicon";
+import { expandQuery, TIME_FIELD_LABELS } from "./lexicon";
 import { getOrBuildKbIndex, type KbIndex } from "./index-cache";
 import {
   dropSuperseded,
@@ -16,6 +16,7 @@ import {
 import { SOURCE_WEIGHTS } from "./semantic";
 import { NGRAM_QUALIFY_MIN } from "./sources";
 import { contentStems, normalizeForRetrieval } from "./text";
+import { detectGuestLanguage } from "@/lib/ai/fallback";
 
 // ---------------------------------------------------------------------------
 // HİBRİT BİLGİ SEÇİCİ — TEK BOĞAZ NOKTASI (RAG dilim 1+2, 09-09).
@@ -26,10 +27,13 @@ import { contentStems, normalizeForRetrieval } from "./text";
 //   → küçük-KB passthrough (≤12 kalem ve ≤6k: tamamı gider)
 //   → alt sorgular (?, satır, ; , ve/ayrıca/and/also; ≤4)
 //   → her alt sorgu için ADAY KAYNAKLARI: BM25 (kök+sözlük+fuzzy) · karakter
-//     3-gram kosinüsü · (varsa) anlamsal puanlar → RRF birleşimi → yeniden
-//     sıralama (ipucu/başlık/kalıp/tazelik) → eşik
+//     3-gram kosinüsü (yalnız Türkçe sorguda, ölçümle) · (varsa) anlamsal
+//     puanlar — ÜRETİMDE ANLAMSAL KAYNAK YOK, yalnız sözleşme → CombSUM
+//     birleşimi → yeniden sıralama (ipucu/başlık/kalıp; tazelik yalnız
+//     yakın-eşitlik bozucu) → eşik
 //   → alt sorgular arası round-robin (kalem başına ≤3 parça)
-//   → çelişki koruma (aynı kategoride FARKLI saat) → bütçe (6k / 12 parça)
+//   → çelişki koruma (aynı SAAT ALANINDA farklı saat; kategori-bağımsız)
+//   → bütçe (6k / 12 parça); sığmayan çelişki AÇIKÇA bildirilir (notes)
 //   → seçilen parçalar + düşen kalem sayısı + PII'siz kanıt
 // Aday hiç yoksa / selamlaşmada / hatada TAM küme gider: hibrit legacy'den az
 // bilgi taşımaz. Bayrak KAPALIYKEN çıktı girdinin KENDİSİDİR (aynı referans).
@@ -55,13 +59,21 @@ export interface KbRetrievalEvidence {
   srcs?: string[];
   /** Sürüm kuralıyla düşen kalem sayısı. */
   sup?: number;
-  /** Çelişki koruma ile eklenen kategori sayısı. */
+  /** Tespit edilen saat-alanı çelişkisi sayısı. */
   conf?: number;
+  /** Bütçe yüzünden tüm tarafları bloğa SIĞMAYAN çelişki sayısı (istem notuyla bildirilir). */
+  confDropped?: number;
 }
 
 export interface KbSelectSources {
-  /** Karakter 3-gram kaynağı (varsayılan AÇIK — harness ile ölçüldü). */
-  ngram?: boolean;
+  /**
+   * Karakter 3-gram kaynağı. "auto" (VARSAYILAN, ölçümle): yalnız sorgu TÜRKÇE
+   * algılanırsa — n-gram benzerliği bilgi tabanının diliyle (Türkçe) aynı dilde
+   * anlamlıdır; İngilizce sorguda Türkçe metne düşen trigramlar isabeti düşürüp
+   * bloğu büyütüyordu (ölçüldü: en h1 −1–3, karakter +30%; morph gürültüsü ise
+   * n-gram ile yarıya iniyor). `true`/`false` ölçüm/harness içindir.
+   */
+  ngram?: boolean | "auto";
   /** Birleşim: "sum" (büyüklük koruyan, VARSAYILAN — ölçüldü) ya da "rrf". */
   fusion?: "sum" | "rrf";
 }
@@ -90,6 +102,12 @@ export interface KbSelectResult<T extends KbChunkSource> {
   droppedItems: number;
   /** İstemin bilgi bloğunu nasıl adlandıracağı. */
   selection: "all" | "retrieved";
+  /**
+   * İsteme eklenecek DÜRÜST notlar (PII yok): örn. bütçeye sığmayan saat çelişkisi
+   * ("çıkış için farklı saat değerleri var; kesin saat söyleme, insana devret").
+   * Legacy'de boş.
+   */
+  notes: string[];
   evidence: KbRetrievalEvidence | null;
 }
 
@@ -99,7 +117,7 @@ export const RELEVANCE_FLOOR_ABS = 0.1;
 export const RELEVANCE_FLOOR_REL = 0.25;
 export const MAX_CHUNKS_PER_ITEM = 3;
 export const MAX_SUBQUERIES = 4;
-export const DEFAULT_SOURCES: Required<KbSelectSources> = { ngram: true, fusion: "sum" };
+export const DEFAULT_SOURCES: Required<KbSelectSources> = { ngram: "auto", fusion: "sum" };
 /** Sorgu bu kadar az içerik kökü taşıyorsa önceki misafir mesajları bağlam olarak eklenir. */
 const THIN_QUERY_STEMS = 2;
 const CARRY_HISTORY_MESSAGES = 2;
@@ -139,6 +157,8 @@ interface RankOptions {
   carryStems: readonly string[];
   semantic: ReadonlyMap<string, number> | undefined;
   sources: Required<KbSelectSources>;
+  /** Dil, HAM misafir mesajından algılanır (alt sorgular ASCII-katlanmıştır; oradan algılanamaz). */
+  queryIsTurkish: boolean;
 }
 
 /** Bir alt sorgu için aday listesi (sıralı, eşiklenmiş). */
@@ -168,7 +188,8 @@ function rankForSubquery(index: KbIndex, subquery: string, opt: RankOptions): { 
   const rankings: SourceRanking[] = [{ source: "bm25", weight: SOURCE_WEIGHTS.bm25, scores: bm25 }];
   const sources = ["bm25"];
   let ngram: Float64Array | null = null;
-  if (opt.sources.ngram) {
+  const useNgram = opt.sources.ngram === "auto" ? opt.queryIsTurkish : opt.sources.ngram;
+  if (useNgram) {
     // Durak kelimeler gram üretmez (`gramsOf`); zayıf kökler ("var") için ayrı
     // süzgeç YOK — aday şartı n-gram için `NGRAM_QUALIFY_MIN` eşiğidir ve
     // "Jakuzi var mı?"nın "vardır"lı parçayı aday yapmadığı test-pinli. Eşik altı
@@ -223,7 +244,7 @@ function legacyResult<T extends KbChunkSource>(
   mode: KbRetrievalMode,
   evidence: KbRetrievalEvidence | null,
 ): KbSelectResult<T> {
-  return { mode, items: items as SelectedKbItem<T>[], droppedItems: 0, selection: "all", evidence };
+  return { mode, items: items as SelectedKbItem<T>[], droppedItems: 0, selection: "all", notes: [], evidence };
 }
 
 export function selectKbForPrompt<T extends KbChunkSource>(input: KbSelectInput<T>): KbSelectResult<T> {
@@ -235,7 +256,7 @@ export function selectKbForPrompt<T extends KbChunkSource>(input: KbSelectInput<
     q: number,
     sel: number,
     cand: number,
-    extra: Pick<KbRetrievalEvidence, "srcs" | "sup" | "conf"> = {},
+    extra: Pick<KbRetrievalEvidence, "srcs" | "sup" | "conf" | "confDropped"> = {},
   ): KbRetrievalEvidence => ({
     mode: "hybrid",
     q,
@@ -267,7 +288,8 @@ export function selectKbForPrompt<T extends KbChunkSource>(input: KbSelectInput<
       .slice(-CARRY_HISTORY_MESSAGES)
       .flatMap((m) => contentStems(m.body));
 
-    const rankedAll = subqueries.map((q) => rankForSubquery(index, q, { carryStems, semantic: input.semantic, sources }));
+    const queryIsTurkish = detectGuestLanguage(input.guestMessage) === "tr";
+    const rankedAll = subqueries.map((q) => rankForSubquery(index, q, { carryStems, semantic: input.semantic, sources, queryIsTurkish }));
     const ranked = rankedAll.map((r) => r.cands);
     const srcs = rankedAll[0]?.sources ?? [];
     if (ranked.every((r) => r.length === 0)) {
@@ -304,9 +326,9 @@ export function selectKbForPrompt<T extends KbChunkSource>(input: KbSelectInput<
       }
     }
 
-    // ÇELİŞKİ KORUMA: çapanın kategorisinde FARKLI saat taşıyan parçalar (seçilmiş
-    // ya da değil) çapanın hemen arkasına taşınır (P4 iki kaynağı görsün) — kategori sınırı yok.
-    const { order, categories: conflictCats } = preserveTimeConflicts(index.chunks, picked);
+    // ÇELİŞKİ KORUMA (alan bazlı): aynı SAAT ALANINDA çapadan farklı saat taşıyan
+    // parçalar çapanın hemen arkasına taşınır (P4 iki kaynağı görsün).
+    const { order, conflicts } = preserveTimeConflicts(index.chunks, picked, index.fieldTimes);
 
     // Bütçe: en az bir parça her zaman gider (isabet varken boş blok gitmez).
     const chosen: KbChunk[] = [];
@@ -328,15 +350,31 @@ export function selectKbForPrompt<T extends KbChunkSource>(input: KbSelectInput<
     });
     const representedIds = new Set(chosen.map((c) => c.id));
     const droppedItems = byId.size - representedIds.size;
+    // BÜTÇE ÇELİŞKİYİ YUTAMAZ: bir çelişkinin tüm tarafları bloğa sığmadıysa
+    // model bunu bilmeli — kesin saat söylememeli, insana devretmeli.
+    const chosenIdx = new Set(order.filter((idx) => chosen.includes(index.chunks[idx])));
+    const notes: string[] = [];
+    let confDropped = 0;
+    for (const c of conflicts) {
+      const complete = chosenIdx.has(c.anchorIdx) && c.partnerIdx.every((i) => chosenIdx.has(i));
+      if (complete) continue;
+      confDropped += 1;
+      notes.push(
+        `Kaynaklarda ${TIME_FIELD_LABELS[c.field] ?? c.field} saati için farklı değerler var (${c.values.join(" / ")}); ` +
+          "tamamı bu yanıta sığmadı. Kesin saat SÖYLEME — konuyu insana devret.",
+      );
+    }
     return {
       mode: "hybrid",
       items: selected,
       droppedItems,
       selection: "retrieved",
+      notes,
       evidence: evidence("none", subqueries.length, selected.length, index.chunks.length, {
         srcs,
         sup,
-        conf: conflictCats.size,
+        conf: conflicts.length,
+        confDropped,
       }),
     };
   } catch (err) {

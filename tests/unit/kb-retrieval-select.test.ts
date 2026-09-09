@@ -19,6 +19,7 @@ import {
   getOrBuildKbIndex,
 } from "@/lib/ai/retrieval/index-cache";
 import { KB_RETRIEVAL_CHAR_BUDGET, KB_RETRIEVAL_MAX_CHUNKS } from "@/lib/ai/limits";
+import { extractFieldTimes, preserveTimeConflicts, rerank, sortCandidates, SCORE_TIE_STEP } from "@/lib/ai/retrieval/rerank";
 import { findTimeConflicts } from "@/lib/ai/prompts";
 import { FILLERS, longGuide } from "../helpers/kb-retrieval-scenarios";
 
@@ -130,10 +131,11 @@ describe("hibrit seçim", () => {
 
   it("KAYNAK ÇELİŞKİSİ GİZLENMEZ: iki çıkış saati parçası da gider ve findTimeConflicts ikisini görür", () => {
     const a = mk(60, { id: "a", category: "checkout", title: "Çıkış", content: "Çıkış saati 11:00'dir; anahtarı masaya bırakın." });
-    // İkinci kaynak SÖZCÜKSEL olarak zayıf ("çıkış" geçmiyor): sıralamada geride
-    // kalır ve dar bütçede DÜŞERDİ — çelişki koruma kuralı onu ilk parçanın
-    // hemen arkasına koyar. (`maxChunks: 2` tam bu kesme noktasını ölçer.)
-    const b = mk(61, { id: "b", category: "checkout", title: "Temizlik planı", content: "Temizlik ekibi 12:00'de gelir; lütfen o saatten önce daireyi boşaltın." });
+    // İkinci kaynak SÖZCÜKSEL olarak zayıf ("çıkış" geçmiyor; alan "ayrılış"
+    // kavramından): sıralamada geride kalır ve dar bütçede DÜŞERDİ — çelişki
+    // koruma kuralı onu ilk parçanın hemen arkasına koyar. (`maxChunks: 2` tam
+    // bu kesme noktasını ölçer.)
+    const b = mk(61, { id: "b", category: "checkout", title: "Temizlik planı", content: "Ayrılış en geç 12:00'de tamamlanmalı; temizlik ekibi hemen ardından gelir." });
     const items = [...bigKb(20), a, b];
     const r = selectKbForPrompt({ items, guestMessage: "Çıkış saati kaçta?", mode: "hybrid", maxChunks: 2 });
     const ids = r.items.map((i) => i.id);
@@ -141,6 +143,11 @@ describe("hibrit seçim", () => {
     expect(ids).toContain("b");
     const conflicts = findTimeConflicts({ name: "X", checkInTime: "15:00", checkOutTime: "11:00" }, r.items);
     expect(conflicts).toEqual([{ field: "checkOutTime", propertyValue: "11:00", kbValues: ["12:00"] }]);
+    // Temizlik SAATİ çıkış çelişkisi DEĞİLDİR (alan bazlı): aynı kalem temizlik
+    // saatini taşısaydı çapayla karşılaştırılmazdı.
+    const cleaning = mk(62, { id: "c", category: "checkout", title: "Temizlik planı", content: "Temizlik ekibi 12:00'de gelir; lütfen o saatten önce daireyi boşaltın." });
+    const r2 = selectKbForPrompt({ items: [...bigKb(20), a, cleaning], guestMessage: "Çıkış saati kaçta?", mode: "hybrid", maxChunks: 2 });
+    expect(r2.evidence?.conf).toBe(0);
   });
 
   it("KATEGORİ İPUCU: host 'parking' kategorisine bambaşka kelimelerle yazdıysa yine seçilir (sözcüksel isabet YOK)", () => {
@@ -295,7 +302,7 @@ describe("dilim 2 — kaynak birleşimi, sürüm kuralı, kategori-bağımsız �
     expect(r.droppedItems + new Set(ids).size).toBe(items.length - 1);
   });
 
-  it("ÇELİŞKİ KORUMA kategori-bağımsız: havuz saatleri çelişen iki parça birlikte gider; kanıtta `conf`", () => {
+  it("ÇELİŞKİ KORUMA alan bazlı: havuz saatleri çelişen iki parça birlikte gider; kanıtta `conf`", () => {
     const a = mk(60, { id: "a", category: "rules", title: "Havuz", content: "Havuz 09:00–20:00 arasında açıktır." });
     const b = mk(61, { id: "b", category: "rules", title: "Site duyurusu", content: "Yaz döneminde havuz 21:00'e kadar açık kalır." });
     const items = [...bigKb(20), a, b];
@@ -306,6 +313,69 @@ describe("dilim 2 — kaynak birleşimi, sürüm kuralı, kategori-bağımsız �
     const same = mk(62, { id: "same", category: "rules", title: "Havuz kuralı", content: "Havuz 09:00–20:00 açık; cam eşya yasak." });
     const r2 = selectKbForPrompt({ items: [...bigKb(20), a, same], guestMessage: "Havuz kaça kadar açık?", mode: "hybrid", maxChunks: 2 });
     expect(r2.evidence?.conf).toBe(0);
+  });
+
+  it("ÇELİŞKİ ALAN BAZLI (Codex 09-09): aynı kategoride FARKLI alanların saatleri çelişki DEĞİL (havuz 09:00 / kahvaltı 08:00 / sessiz saat 22:00)", () => {
+    const pool = mk(60, { id: "pool", category: "general", title: "Havuz", content: "Havuz 09:00–20:00 arasında açıktır." });
+    const breakfast = mk(61, { id: "bf", category: "general", title: "Kahvaltı", content: "Kahvaltı 08:00'de servis edilir." });
+    const quiet = mk(62, { id: "quiet", category: "general", title: "Sessiz saatler", content: "Sessiz saatler 22:00'den sonra başlar." });
+    const r = selectKbForPrompt({ items: [...bigKb(20), pool, breakfast, quiet], guestMessage: "Havuz kaçta açılıyor?", mode: "hybrid", maxChunks: 2 });
+    expect(r.items[0]?.id).toBe("pool");
+    expect(r.evidence?.conf).toBe(0);
+    expect(r.evidence?.confDropped).toBe(0);
+    expect(r.notes).toEqual([]);
+    // Alan atfı: saat, içinde geçtiği cümleciğin alanına bağlanır; alansız cümlecik hiçbirine.
+    expect([...extractFieldTimes("Kahvaltı", "Kahvaltı 08:00'de servis edilir.").keys()]).toEqual([]);
+    expect([...extractFieldTimes("Geç çıkış", "Çıkış saati 12:00'dir, temizlik öğleden sonra gelir.")]).toEqual([["checkout", new Set(["12:00"])]]);
+    expect([...extractFieldTimes("Temizlik planı", "Temizlik ekibi 12:00'de gelir; lütfen o saatten önce daireyi boşaltın.")]).toEqual([["cleaning", new Set(["12:00"])]]);
+    // Cümlecikte alan yoksa BAŞLIĞIN alanı; başlık da belirsizse hiçbiri.
+    expect([...extractFieldTimes("Çıkış", "Saat 11:00'e kadar daireyi boşaltın.")]).toEqual([["checkout", new Set(["11:00"])]]);
+    expect([...extractFieldTimes("Notlar", "Saat 11:00'e kadar daireyi boşaltın.")]).toEqual([]);
+  });
+
+  it("ÇELİŞKİ ALAN BAZLI: aynı çıkış saati bilgisi FARKLI kategorilerde de karşılaştırılır (checkout ↔ general)", () => {
+    const a = mk(60, { id: "a", category: "checkout", title: "Çıkış", content: "Çıkış saati 11:00'dir." });
+    const c = mk(61, { id: "c", category: "general", title: "Ev kuralları", content: "Sigara içilmez. Çıkış saati 12:00'dir; anahtarı kutuya bırakın." });
+    const r = selectKbForPrompt({ items: [...bigKb(20), a, c], guestMessage: "Çıkış saati kaçta?", mode: "hybrid", maxChunks: 2 });
+    expect(r.items.map((i) => i.id).slice(0, 2).sort()).toEqual(["a", "c"]);
+    expect(r.evidence?.conf).toBe(1);
+  });
+
+  it("🚨 BÜTÇE ÇELİŞKİYİ YUTAMAZ: tamamı sığmayınca seçici AÇIKÇA bildirir (not + confDropped); sığınca not YOK", () => {
+    const a = mk(60, { id: "a", category: "checkout", title: "Çıkış", content: "Çıkış saati 11:00'dir; anahtarı masaya bırakın." });
+    const b = mk(61, { id: "b", category: "checkout", title: "Geç çıkış", content: "Çıkış saati 12:00'dir, temizlik öğleden sonra gelir." });
+    const items = [...bigKb(20), a, b];
+    const fits = selectKbForPrompt({ items, guestMessage: "Çıkış saati kaçta?", mode: "hybrid", maxChunks: 2 });
+    expect(fits.items.map((i) => i.id).sort()).toEqual(["a", "b"]);
+    expect(fits.evidence?.conf).toBe(1);
+    expect(fits.evidence?.confDropped).toBe(0);
+    expect(fits.notes).toEqual([]);
+    const cut = selectKbForPrompt({ items, guestMessage: "Çıkış saati kaçta?", mode: "hybrid", maxChunks: 1 });
+    expect(cut.items).toHaveLength(1);
+    expect(cut.evidence?.conf).toBe(1);
+    expect(cut.evidence?.confDropped).toBe(1);
+    expect(cut.notes).toHaveLength(1);
+    expect(cut.notes[0]).toContain("çıkış saati");
+    expect(cut.notes[0]).toContain("11:00 / 12:00");
+    expect(cut.notes[0]).toMatch(/Kesin saat SÖYLEME/);
+    expect(cut.notes[0]).toMatch(/insana devret/);
+    // Not PII/kalem metni taşımaz — yalnız alan etiketi ve saat değerleri.
+    expect(cut.notes[0]).not.toMatch(/anahtar|temizlik|Geç çıkış/);
+  });
+
+  it("preserveTimeConflicts: partner seçilmemiş olsa da çapanın hemen arkasına taşınır; farklı alan dokunulmaz", () => {
+    const items = [
+      mk(60, { id: "a", category: "checkout", title: "Çıkış", content: "Çıkış saati 11:00'dir." }),
+      mk(61, { id: "p", category: "rules", title: "Havuz", content: "Havuz 09:00–20:00 açıktır." }),
+      mk(62, { id: "b", category: "general", title: "Kurallar", content: "Çıkış saati 12:00'dir." }),
+    ];
+    const index = getOrBuildKbIndex(items);
+    const idx = (id: string) => index.chunks.findIndex((c) => c.id === id);
+    const { order, conflicts } = preserveTimeConflicts(index.chunks, [idx("a"), idx("p")], index.fieldTimes);
+    expect(order).toEqual([idx("a"), idx("b"), idx("p")]);
+    expect(conflicts).toEqual([{ field: "checkout", values: ["11:00", "12:00"], anchorIdx: idx("a"), partnerIdx: [idx("b")] }]);
+    // Çapa yoksa (seçilenler saat taşımıyor) sıra AYNEN.
+    expect(preserveTimeConflicts(index.chunks, [idx("p")], index.fieldTimes)).toEqual({ order: [idx("p")], conflicts: [] });
   });
 
   it("YALNIZ-İPUCU parçalar gerçek isabet varken ELENİR (geniş 'rules' kategorisi bloğu doldurmaz)", () => {
@@ -364,11 +434,33 @@ describe("dilim 2 — kaynak birleşimi, sürüm kuralı, kategori-bağımsız �
     expect(rrf.items.map((i) => i.id)).toContain("smoking");
   });
 
-  it("TAZELİK yalnız eşitlik bozucu: aynı içerikli iki kalemden YENİSİ önde", () => {
+  it("TAZELİK yalnız YAKIN-EŞİTLİK bozucu: aynı içerikte YENİSİ önde; puan farkı belirginken ESKİ ama ilgili kalem yeniyi geçer", () => {
     const olderT = mk(60, { id: "older", category: "parking", title: "Otopark", content: "Bina altı otopark ücretsizdir.", updatedAt: new Date(T0 - 86_400_000) });
     const newer = mk(61, { id: "newer", category: "parking", title: "Otopark", content: "Bina altı otopark ücretsizdir.", updatedAt: new Date(T0 + 86_400_000) });
     const r = selectKbForPrompt({ items: [...bigKb(20), olderT, newer], guestMessage: "Otopark var mı?", mode: "hybrid" });
     expect(r.items[0]?.id).toBe("newer");
+    // Eski ama başlığı tam örtüşen kalem, yeni ama zayıf kalemi geçer (tazelik puana girmez).
+    const relevantOld = mk(62, { id: "old_rel", category: "parking", title: "Otopark", content: "Bina altı otopark ücretsizdir; giriş yan sokaktan.", updatedAt: new Date(T0 - 30 * 86_400_000) });
+    const freshWeak = mk(63, { id: "new_weak", category: "general", title: "Notlar", content: "Otopark kapısı gece kilitlenir.", updatedAt: new Date(T0 + 30 * 86_400_000) });
+    const r2 = selectKbForPrompt({ items: [...bigKb(20), relevantOld, freshWeak], guestMessage: "Otopark var mı?", mode: "hybrid" });
+    expect(r2.items[0]?.id).toBe("old_rel");
+  });
+
+  it("TAZELİK PUANA GİRMEZ (Codex 09-09): rerank aynı parçaya farklı updatedAt ile AYNI puanı verir; sıralama yalnız 0.01 içinde yeniyi öne alır", () => {
+    const older = mk(60, { id: "older", category: "parking", title: "Otopark", content: "Bina altı otopark ücretsizdir.", updatedAt: new Date(T0 - 86_400_000) });
+    const newer = { ...older, id: "newer", updatedAt: new Date(T0 + 86_400_000) };
+    const index = getOrBuildKbIndex([older, newer]); // parça 0 = older, parça 1 = newer
+    const ctx = { ownStems: new Set<string>(), expansionStems: new Set<string>(), bigrams: [], categoryHints: new Map() };
+    const equal = rerank(index.chunks, index.bm25.docs, new Float64Array([0.6, 0.6]), () => true, ctx);
+    expect(equal.map((c) => c.score)).toEqual([0.6, 0.6]);
+    expect(sortCandidates(equal, index.chunks).map((c) => index.chunks[c.idx].id)).toEqual(["newer", "older"]);
+    // 0.04 fark: yakın eşitlik DEĞİL → eski ama yüksek puanlı önde (eski davranış +0.05 tazelik bonusuyla yeniyi öne alırdı).
+    const apart = rerank(index.chunks, index.bm25.docs, new Float64Array([0.62, 0.58]), () => true, ctx);
+    expect(sortCandidates(apart, index.chunks).map((c) => index.chunks[c.idx].id)).toEqual(["older", "newer"]);
+    // 0.003 fark (aynı 0.01 adımı): YAKIN eşitlik → yeni önde (tam eşitlik değil, yuvarlanmış eşitlik).
+    const near = rerank(index.chunks, index.bm25.docs, new Float64Array([0.604, 0.601]), () => true, ctx);
+    expect(sortCandidates(near, index.chunks).map((c) => index.chunks[c.idx].id)).toEqual(["newer", "older"]);
+    expect(SCORE_TIE_STEP).toBe(0.01);
   });
 });
 
@@ -399,6 +491,23 @@ describe("indeks önbelleği — içerik parmak izi", () => {
     const ib = getOrBuildKbIndex([...base, welcomeB]);
     expect(ia).not.toBe(ib);
     expect(ib.chunks.find((c) => c.id === "w")?.text).toContain("Mehmet");
+  });
+
+  it("🚨 KAPSAM: başka kümenin (başka mülk / onaydan düşen kalem) indeksi bu kümeye SIZMAZ — aynı soru, iki küme, yalnız kendi kalemleri", () => {
+    const base = bigKb(20);
+    const pA = mk(60, { id: "p_A", category: "parking", title: "Otopark", content: "A mülkü: bina altı otopark ücretsizdir." });
+    const pB = mk(61, { id: "p_B", category: "parking", title: "Otopark", content: "B mülkü: otopark sokakta, ücretlidir." });
+    const rA = selectKbForPrompt({ items: [...base, pA], guestMessage: "Otopark var mı?", mode: "hybrid" });
+    const rB = selectKbForPrompt({ items: [...base, pB], guestMessage: "Otopark var mı?", mode: "hybrid" });
+    expect(rA.items.map((i) => i.id)).toContain("p_A");
+    expect(rA.items.map((i) => i.id)).not.toContain("p_B");
+    expect(rB.items.map((i) => i.id)).toContain("p_B");
+    expect(rB.items.map((i) => i.id)).not.toContain("p_A");
+    expect(__kbIndexCacheSize()).toBe(2);
+    // Onay/aktiflik süzgeci çağıranda: kalem kümeden düşünce (küme değişti) parçası dönmez.
+    const rNone = selectKbForPrompt({ items: base, guestMessage: "Otopark var mı?", mode: "hybrid" });
+    expect(rNone.items.map((i) => i.id)).not.toContain("p_A");
+    expect(rNone.items.map((i) => i.id)).not.toContain("p_B");
   });
 
   it("süresi dolan giriş yeniden kurulur; sıra parmak izini etkilemez", () => {

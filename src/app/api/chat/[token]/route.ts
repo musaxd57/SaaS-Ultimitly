@@ -765,6 +765,7 @@ async function handleGuestChatPost(req: NextRequest, { params }: { params: Promi
     knowledgeBase: kbSel.items,
     knowledgeBaseDropped: kbDroppedTotal,
     knowledgeBaseSelection: kbSel.selection,
+    knowledgeBaseNotes: kbSel.notes,
     history,
     openTopics,
     // SELAM TEKRARI (canlı kusur 09-08): "daha önce cevap verdik mi" KODDA

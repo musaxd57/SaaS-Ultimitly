@@ -770,6 +770,8 @@ export function packKnowledgeBase(
    * davranış kuralı AYNIDIR: konu yukarıda yoksa 'bilgi yok' DEME, insana devret.
    */
   selection: "all" | "retrieved" = "all",
+  /** Seçicinin dürüst notları (hibrit): bloğun sonuna `[NOT]` satırı olarak eklenir. */
+  notes: readonly string[] = [],
 ): { text: string; omitted: number } {
   if (items.length === 0) {
     return {
@@ -792,6 +794,7 @@ export function packKnowledgeBase(
     lines.push(line);
     used += line.length;
   }
+  for (const n of notes) lines.push(`- [NOT] ${n}`);
   if (omitted > 0) {
     lines.push(
       selection === "retrieved"
@@ -881,6 +884,7 @@ ${conflicts
     knowledgeBase,
     input.knowledgeBaseDropped ?? 0,
     input.knowledgeBaseSelection ?? "all",
+    input.knowledgeBaseNotes ?? [],
   ).text;
 
   const res = reservation

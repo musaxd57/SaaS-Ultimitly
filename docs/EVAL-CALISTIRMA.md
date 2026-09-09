@@ -131,6 +131,27 @@ Rapor **beş sayıyı ayrı** verir:
 Bu ayrım Codex'in bulgusudur (09-08): eski rapor yalnız "düşen" sayısını yazıyordu, dolayısıyla hiç
 tamamlanmamış bir koşu "düşen: 0" ile temiz görünebiliyordu.
 
+## Eşleştirilmiş retrieval eval'i (legacy vs hibrit) — aynı komut, ikinci rapor (09-09, RAG dilim 3)
+
+`npm run eval` artık İKİ dosyayı koşar: QR kapsam eval'i (yukarıdaki 8 senaryo) **ve**
+`tests/eval/kb-retrieval-paired.eval.test.ts` — `evals/kb-retrieval-paired.json` (v1, 8 senaryo: uzun rehber ortası,
+yazım hatası, İngilizce soru, çok soru, çelişkili çıkış saati, bilgi yok, Türkçe eşanlam, konuşma bağlamı). Her
+senaryo **aynı bilgi tabanıyla iki kez** koşar: `legacy` (bugünkü canlı: en yeni 30 kalem + 24k) ve `hybrid`
+(`KB_RETRIEVAL_MODE=hybrid` davranışı; env ayarı GEREKMEZ, harness modu kendisi verir). 16 satır × ~2–5 sn.
+
+Rapor: `docs/olcum/eval-retrieval-<YYYY-MM-DD>.md` (aynı gün ikinci koşu `-<koşu-kimliği>` ile ayrı dosya).
+
+Nasıl okunur:
+- **"gold istemde?"** KODDAN ölçülür (modelden bağımsız): cevabı taşıyan cümle modele giden blokta var mıydı. Eski
+  kalemli senaryolarda (R1/R2/R3/R7/R8) legacy'de **İSTEMDE DEĞİL**, hibritte **istemde** — bu, koşmadan önce
+  çevrimdışı testle pinlidir; eval bunu yeniden keşfetmez, modelin her iki durumda ne yaptığını ölçer.
+- Gold istemdeyse cevap ona DAYANMALI (dayanmayan cevap düşer). Gold istemde DEĞİLSE "doğru görünen" cevap
+  **DESTEKSİZ** sayılır (şans ya da uydurma) ve model bilgi yokluğunu SÖYLEMELİDİR; dürüst "bilgim yok" GEÇER.
+- **Beklenen tablo:** R1/R2/R3/R7/R8 → "yalnız hibrit geçti" (legacy dürüst ama cevapsız); R4/R5/R6 → iki modda
+  davranış paritesi (R5'te kesin saat YOK, R6'da uydurma YOK).
+- 🚨 Bu rapor, `docs/olcum/kb-retrieval-scale-*.md` (sentetik, modelsiz: "kaynak bloğa girdi mi") ile
+  KARIŞTIRILMAZ: burada ölçülen "model doğru cevapladı mı"dır. İkisi birbirinin yerine geçmez.
+
 ## Ne zaman gerekir
 - `QR_INFORMATIONAL_BAND_ENABLED` bayrağı **bu eval bitmeden AÇILMAZ** (kurucu kararı).
 - Model değişiminden önce baseline, sonra kıyas.

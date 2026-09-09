@@ -2,6 +2,7 @@ import { createHash } from "node:crypto";
 import { Bm25Index } from "./bm25";
 import { chunkItems, chunkKey, type KbChunk, type KbChunkSource } from "./chunker";
 import { NgramIndex } from "./sources";
+import { extractFieldTimes, type FieldTimes } from "./rerank";
 
 // ---------------------------------------------------------------------------
 // İNDEKS ÖNBELLEĞİ — İÇERİK PARMAK İZİYLE (RAG dilim 1, 09-09).
@@ -30,6 +31,12 @@ export interface KbIndex {
   bm25: Bm25Index;
   /** Karakter 3-gram kaynağı (ikinci aday üreticisi; `sources.ts`). */
   ngram: NgramIndex;
+  /**
+   * Parça başına SAAT ALANI → SAATLER (`extractFieldTimes`: her saat içinde
+   * geçtiği cümleciğin alan kavramına, o yoksa başlığın alanına atfedilir;
+   * belirsizde hiçbirine). Çelişki kontrolü kategoriye değil buna bakar.
+   */
+  fieldTimes: FieldTimes[];
 }
 
 const _cache = new Map<string, { value: KbIndex; expires: number }>();
@@ -51,7 +58,8 @@ export function buildKbIndex(items: readonly KbChunkSource[]): KbIndex {
   const chunks = chunkItems(items);
   const bm25 = new Bm25Index(chunks.map((c) => ({ key: chunkKey(c), title: c.title, text: c.text })));
   const ngram = new NgramIndex(chunks.map((c) => `${c.title} ${c.text}`));
-  return { fingerprint: fingerprintItems(items), chunks, bm25, ngram };
+  const fieldTimes = chunks.map((c) => extractFieldTimes(c.title, c.text));
+  return { fingerprint: fingerprintItems(items), chunks, bm25, ngram, fieldTimes };
 }
 
 export function getOrBuildKbIndex(items: readonly KbChunkSource[], now = Date.now()): KbIndex {

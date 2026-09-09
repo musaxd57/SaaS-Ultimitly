@@ -1648,6 +1648,7 @@ export async function applyChannelAutoReply(
       : null,
     knowledgeBase: kbForModel,
     knowledgeBaseSelection: kbSel.selection,
+    knowledgeBaseNotes: kbSel.notes,
     // 🚨 SÜZÜLEN KALEMLER DE SAYIYA GİRER (savunmacı denetim 08-09).
     // İlk yazımım yalnız SQL tavanında düşenleri geçiriyordu. Sonuç ölçüldü ve
     // KÖTÜYDÜ: kapı iki kalemi elerken modele "0 kalem düştü" deniyordu, yani

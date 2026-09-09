@@ -40,6 +40,7 @@ export type EdgeKind =
   | "about_stay" // signal → reservation
   | "task_for" // task → property
   | "task_about_stay" // task → reservation
+  | "task_for_signal" // task → signal (aynı kaynak mesaj: GÖZLEMLENMİŞ bağ)
   | "memory_of" // memory → property
   | "memory_evidence" // memory → signal / kb_item (evidenceJson)
   | "documents"; // kb_item → property
@@ -66,8 +67,18 @@ export interface PropertyGraphInput {
     occurredAt: Date;
     reservationId: string | null;
     conversationId: string | null;
+    /** Kaynak mesaj kimliği (`Signal.sourceEntityId`, opak) — görev ↔ bildirim bağı için. */
+    sourceEntityId?: string | null;
   }[];
-  tasks: readonly { id: string; category: string; status: string; createdAt: Date; reservationId: string | null }[];
+  tasks: readonly {
+    id: string;
+    category: string;
+    status: string;
+    createdAt: Date;
+    reservationId: string | null;
+    /** Görevi doğuran mesaj (`Task.sourceMessageId`, opak) — bildirimle GÖZLEMLENMİŞ bağ. */
+    sourceMessageId?: string | null;
+  }[];
   memories: readonly {
     id: string;
     category: string;
@@ -119,11 +130,17 @@ export function buildPropertyGraph(input: PropertyGraphInput): PropertyGraph {
       add({ from: s.id, to: s.reservationId, kind: "about_stay", source: "signal", observedAt: s.occurredAt, certainty: "observed" });
     }
   }
+  const signalByMessage = new Map<string, string>();
+  for (const s of input.signals) if (s.sourceEntityId) signalByMessage.set(s.sourceEntityId, s.id);
   for (const t of input.tasks) {
     nodes.set(t.id, { id: t.id, kind: "task", category: t.category, status: t.status, at: t.createdAt });
     add({ from: t.id, to: input.propertyId, kind: "task_for", source: "task", observedAt: t.createdAt, certainty: "observed" });
     if (t.reservationId && nodes.has(t.reservationId)) {
       add({ from: t.id, to: t.reservationId, kind: "task_about_stay", source: "task", observedAt: t.createdAt, certainty: "observed" });
+    }
+    const sig = t.sourceMessageId ? signalByMessage.get(t.sourceMessageId) : undefined;
+    if (sig && nodes.has(sig)) {
+      add({ from: t.id, to: sig, kind: "task_for_signal", source: "task", observedAt: t.createdAt, certainty: "observed" });
     }
   }
   for (const k of input.kbItems) {
@@ -190,7 +207,21 @@ export interface RecurringIssue {
   unlinkedReports: number;
   firstAt: Date;
   lastAt: Date;
+  /**
+   * BİLDİRİME BAĞLI görevler: aynı kaynak mesaj (`task_for_signal`, GÖZLEMLENMİŞ)
+   * ya da aynı konaklama + aynı kategori (ÇIKARIM). Başka konaklamanın eski görevi
+   * buraya GİRMEZ (Codex 09-09: "tamamlanmış görev bilgisi yanlış ilişkilendirilebilir").
+   */
+  linkedOpenTasks: number;
+  linkedDoneTasks: number;
+  /** Aynı kategoride ama hiçbir pencere-içi bildirime bağlanamayan görevler — kanıt DEĞİL, ayrı gösterilir. */
+  unlinkedTasks: number;
+  /** Hiçbir görev bağı olmayan bildirim sayısı. */
+  reportsWithoutTask: number;
+  /** YALNIZ bağlı görevlerden: bağlı yoksa reported_only; bağlı açık varsa task_open; bağlıların tümü done ise task_done. */
   evidence: IssueEvidence;
+  /** Bağların en güçlü kesinliği: mesaj bağı observed, konaklama+kategori bağı inferred, bağ yoksa null. */
+  linkCertainty: "observed" | "inferred" | null;
   /** Kenar kaynakları (kapalı küme) — raporun neye dayandığı. */
   sources: EdgeSource[];
 }
@@ -203,21 +234,42 @@ export interface RecurringIssueOptions {
   minReports?: number;
 }
 
+/** Görevin bağlı olduğu konaklama (varsa). */
+function stayOfTask(graph: PropertyGraph, taskId: string): string | null {
+  return graph.out(taskId).find((e) => e.kind === "task_about_stay")?.to ?? null;
+}
+
 /**
- * Pencere içinde tekrar eden sorun bildirimleri, kategori başına. Bir görev
- * kaydı varsa `evidence` bunu söyler; hiçbir dal "arıza doğrulandı" demez.
+ * Pencere içinde tekrar eden sorun bildirimleri, kategori başına. Görev kanıtı
+ * YALNIZ bildirime bağlı görevlerden okunur; hiçbir dal "arıza doğrulandı" demez.
  */
 export function recurringIssues(graph: PropertyGraph, opt: RecurringIssueOptions): RecurringIssue[] {
   const since = opt.now.getTime() - opt.windowDays * 86_400_000;
-  const byCat = new Map<string, { ids: string[]; stays: Set<string>; unlinked: number; first: number; last: number }>();
+  interface Acc {
+    ids: string[];
+    stays: Set<string>;
+    stayOf: Map<string, string | null>;
+    unlinked: number;
+    first: number;
+    last: number;
+  }
+  const byCat = new Map<string, Acc>();
   for (const node of graph.nodes.values()) {
     if (node.kind !== "signal" || !node.category || !node.at) continue;
     if (!opt.issueCategories.has(node.category)) continue;
     const t = node.at.getTime();
     if (t < since || t > opt.now.getTime()) continue;
-    const acc = byCat.get(node.category) ?? { ids: [], stays: new Set<string>(), unlinked: 0, first: t, last: t };
+    const acc: Acc = byCat.get(node.category) ?? {
+      ids: [],
+      stays: new Set<string>(),
+      stayOf: new Map<string, string | null>(),
+      unlinked: 0,
+      first: t,
+      last: t,
+    };
     acc.ids.push(node.id);
     const stay = stayOfSignal(graph, node.id);
+    acc.stayOf.set(node.id, stay?.reservationId ?? null);
     if (stay) acc.stays.add(stay.reservationId);
     else acc.unlinked += 1;
     acc.first = Math.min(acc.first, t);
@@ -227,14 +279,32 @@ export function recurringIssues(graph: PropertyGraph, opt: RecurringIssueOptions
   const out: RecurringIssue[] = [];
   for (const [category, acc] of byCat) {
     if (acc.ids.length < (opt.minReports ?? 2)) continue;
-    const tasks = [...graph.nodes.values()].filter(
-      (n) => n.kind === "task" && n.category === category && n.at && n.at.getTime() >= since,
-    );
-    // Görev kaydı = host'un bir İŞ AÇTIĞININ kanıtı; "arıza doğrulandı" DEĞİL.
-    let evidence: IssueEvidence = "reported_only";
-    if (tasks.length > 0) evidence = tasks.some((t) => t.status === "done") ? "task_done" : "task_open";
+    const tasks = [...graph.nodes.values()].filter((n) => n.kind === "task" && n.category === category);
+    const reportSet = new Set(acc.ids);
+    const linked = new Map<string, { status: string; certainty: "observed" | "inferred" }>();
+    const reportsWithTask = new Set<string>();
+    for (const task of tasks) {
+      // (a) GÖZLEMLENMİŞ bağ: aynı kaynak mesaj.
+      const viaMsg = graph.out(task.id).filter((e) => e.kind === "task_for_signal" && reportSet.has(e.to));
+      if (viaMsg.length > 0) {
+        linked.set(task.id, { status: task.status ?? "", certainty: "observed" });
+        for (const e of viaMsg) reportsWithTask.add(e.to);
+        continue;
+      }
+      // (b) ÇIKARIM: aynı konaklama + aynı kategori (pencere içi bildirim).
+      const stay = stayOfTask(graph, task.id);
+      if (!stay) continue;
+      const matching = acc.ids.filter((id) => acc.stayOf.get(id) === stay);
+      if (matching.length === 0) continue;
+      linked.set(task.id, { status: task.status ?? "", certainty: "inferred" });
+      for (const id of matching) reportsWithTask.add(id);
+    }
+    const linkedOpen = [...linked.values()].filter((l) => l.status !== "done").length;
+    const linkedDone = [...linked.values()].filter((l) => l.status === "done").length;
+    const evidence: IssueEvidence = linked.size === 0 ? "reported_only" : linkedOpen > 0 ? "task_open" : "task_done";
+    const linkCertainty = linked.size === 0 ? null : [...linked.values()].some((l) => l.certainty === "observed") ? "observed" : "inferred";
     const sources = new Set<EdgeSource>(["signal"]);
-    if (tasks.length > 0) sources.add("task");
+    if (linked.size > 0) sources.add("task");
     out.push({
       category,
       reports: acc.ids.length,
@@ -242,7 +312,12 @@ export function recurringIssues(graph: PropertyGraph, opt: RecurringIssueOptions
       unlinkedReports: acc.unlinked,
       firstAt: new Date(acc.first),
       lastAt: new Date(acc.last),
+      linkedOpenTasks: linkedOpen,
+      linkedDoneTasks: linkedDone,
+      unlinkedTasks: tasks.length - linked.size,
+      reportsWithoutTask: acc.ids.length - reportsWithTask.size,
       evidence,
+      linkCertainty,
       sources: [...sources],
     });
   }

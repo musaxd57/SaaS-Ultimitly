@@ -56,6 +56,11 @@ export interface SuggestReplyInput {
    * göre seçilmedi" — ama sonuç aynı: konu yukarıda yoksa 'bilgi yok' DEME.
    */
   knowledgeBaseSelection?: "all" | "retrieved";
+  /**
+   * Seçicinin DÜRÜST notları (hibrit): örn. bütçeye sığmayan saat çelişkisi.
+   * Bilgi bloğunun sonuna `[NOT]` satırı olarak girer; PII taşımaz.
+   */
+  knowledgeBaseNotes?: string[];
   history?: HistoryMessage[];
   /**
    * Bağlam PENCERESİ DIŞINA taşan, misafirin kapanmamış konularının kapalı-küme

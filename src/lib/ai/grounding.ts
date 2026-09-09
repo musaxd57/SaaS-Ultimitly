@@ -166,8 +166,10 @@ export interface KbEvidenceInput {
     srcs?: string[];
     /** Sürüm kuralıyla düşen kalem sayısı. */
     sup?: number;
-    /** Çelişki koruma ile eklenen kategori sayısı. */
+    /** Tespit edilen saat-alanı çelişkisi sayısı. */
     conf?: number;
+    /** Bütçeye sığmayan çelişki sayısı. */
+    confDropped?: number;
   } | null;
 }
 
@@ -206,6 +208,7 @@ export function buildKbEvidence(input: KbEvidenceInput): string | null {
             : {}),
           ...(Number.isInteger(input.retrieval.sup) ? { sup: input.retrieval.sup } : {}),
           ...(Number.isInteger(input.retrieval.conf) ? { conf: input.retrieval.conf } : {}),
+          ...(Number.isInteger(input.retrieval.confDropped) ? { confDropped: input.retrieval.confDropped } : {}),
         }
       : undefined;
   if (retrieved.length === 0 && used.length === 0 && !retrieval) return null;

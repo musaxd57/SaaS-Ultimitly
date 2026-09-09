@@ -63,6 +63,22 @@ describe("kanıt (buildKbEvidence) — parça + retrieval özeti", () => {
     expect(badParsed.conf).toBe(-1);
   });
 
+  it("dilim 3: `confDropped` (bütçeye sığmayan çelişki) 0 dahil taşınır; kesirli yazılmaz", () => {
+    const zero = JSON.parse(
+      String(buildKbEvidence({ retrieved: [], usedLabels: [], retrieval: { mode: "hybrid", q: 1, fb: "none", sel: 2, cand: 30, ms: 1, conf: 1, confDropped: 0 } })),
+    ).retrieval as { conf: number; confDropped?: number };
+    expect(zero.conf).toBe(1);
+    expect(zero.confDropped).toBe(0);
+    const one = JSON.parse(
+      String(buildKbEvidence({ retrieved: [], usedLabels: [], retrieval: { mode: "hybrid", q: 1, fb: "none", sel: 1, cand: 30, ms: 1, conf: 1, confDropped: 1 } })),
+    ).retrieval as { confDropped?: number };
+    expect(one.confDropped).toBe(1);
+    const bad = JSON.parse(
+      String(buildKbEvidence({ retrieved: [], usedLabels: [], retrieval: { mode: "hybrid", q: 1, fb: "none", sel: 1, cand: 30, ms: 1, confDropped: 0.5 } })),
+    ).retrieval as { confDropped?: number };
+    expect(bad.confDropped).toBeUndefined();
+  });
+
   it("geçersiz chunk (negatif/kesirli) yazılmaz; geri çekilme kodu 24 karakterde kesilir", () => {
     const json = String(
       buildKbEvidence({
@@ -125,20 +141,37 @@ describe("istem notu — seçilmiş kalemlerde DÜRÜST wording, davranış kura
     expect(text).not.toContain("[NOT]");
   });
 
+  const base: SuggestReplyInput = {
+    guestMessage: "Otopark var mı?",
+    property: { name: "Test", checkInTime: "15:00", checkOutTime: "11:00" },
+    reservation: null,
+    knowledgeBase: [item],
+    knowledgeBaseDropped: 3,
+    history: [],
+    tone: "warm",
+    language: "tr",
+  };
+
   it("buildReplyUserPrompt `knowledgeBaseSelection`'ı paketleyiciye taşır", () => {
-    const base: SuggestReplyInput = {
-      guestMessage: "Otopark var mı?",
-      property: { name: "Test", checkInTime: "15:00", checkOutTime: "11:00" },
-      reservation: null,
-      knowledgeBase: [item],
-      knowledgeBaseDropped: 3,
-      history: [],
-      tone: "warm",
-      language: "tr",
-    };
     expect(buildReplyUserPrompt({ ...base, knowledgeBaseSelection: "retrieved" })).toContain("SORUYA GÖRE SEÇİLDİ");
     expect(buildReplyUserPrompt(base)).toContain("yer sınırı nedeniyle");
     expect(buildReplyUserPrompt({ ...base, knowledgeBaseSelection: "retrieved" })).not.toContain("kb_item");
+  });
+
+  it("dilim 3: seçici NOTLARI `[NOT]` satırı olarak bloğa girer (devir notundan ÖNCE); not yoksa satır yok", () => {
+    const note = "Kaynaklarda çıkış saati için farklı değerler var (11:00 / 12:00); tamamı bu yanıta sığmadı. Kesin saat SÖYLEME — konuyu insana devret.";
+    const { text } = packKnowledgeBase([item], 3, "retrieved", [note]);
+    expect(text).toContain(`- [NOT] ${note}`);
+    expect(text.indexOf("Kaynaklarda çıkış")).toBeLessThan(text.indexOf("SORUYA GÖRE SEÇİLDİ"));
+    // 0 düşen + not: not yine yazılır (devir notu yazılmaz).
+    const only = packKnowledgeBase([item], 0, "retrieved", [note]).text;
+    expect(only).toContain("- [NOT] Kaynaklarda");
+    expect(only).not.toContain("SORUYA GÖRE");
+    // Varsayılan (not yok) → hiçbir [NOT] satırı eklenmez (0 düşen).
+    expect(packKnowledgeBase([item], 0, "retrieved").text).not.toContain("[NOT]");
+    // buildReplyUserPrompt notları taşır; legacy girdide (alan yok) taşımaz.
+    expect(buildReplyUserPrompt({ ...base, knowledgeBaseSelection: "retrieved", knowledgeBaseNotes: ["X-NOT-X"] })).toContain("- [NOT] X-NOT-X");
+    expect(buildReplyUserPrompt(base)).not.toContain("X-NOT-X");
   });
 });
 
@@ -178,6 +211,36 @@ describe("mimari pinler", () => {
       expect(src, rel).toContain("knowledgeBaseSelection: kbSel.selection");
       expect(src, rel).toMatch(/knowledgeBase: kb(Sel\.items|ForModel)/);
     }
+  });
+
+  it("DÖRT yüzey seçici notlarını modele taşır (`knowledgeBaseNotes`) — bütçeye sığmayan çelişki sessiz kalmaz", () => {
+    for (const rel of [
+      "src/lib/automation.ts",
+      "src/app/api/chat/[token]/route.ts",
+      "src/app/api/conversations/[id]/ai-suggest/route.ts",
+      "src/app/api/ai/test/route.ts",
+    ]) {
+      expect(read(rel), rel).toContain("knowledgeBaseNotes: kbSel.notes");
+    }
+  });
+
+  it("🚨 ÜRETİMDE ANLAMSAL (embedding) KAYNAK YOK: hiçbir yüzey seçiciye `semantic` vermez; semantic.ts yalnız sözleşme + no-op (ağ çağrısı yok)", () => {
+    // Kanıtta `srcs` üretimde yalnız "bm25"/"ngram" olabilir; "semantic" yalnız harness/test haritasıyla çıkar.
+    // Raporlarda "anlamsal retrieval" DENMEZ (Codex 09-09: embedding yoksa öyle raporlama).
+    for (const rel of [
+      "src/lib/automation.ts",
+      "src/app/api/chat/[token]/route.ts",
+      "src/app/api/conversations/[id]/ai-suggest/route.ts",
+      "src/app/api/ai/test/route.ts",
+    ]) {
+      expect(read(rel), rel).not.toMatch(/semantic\s*:/);
+    }
+    const sem = read("src/lib/ai/retrieval/semantic.ts");
+    expect(sem).not.toMatch(/fetch\(|openai|https?:\/\//i);
+    expect(sem).toContain("noopSemanticScorer");
+    // Seçici bir puanlayıcı ÇAĞIRMAZ; yalnız hazır harita alır (parametre) — üretimde verilmediği için kaynak yoktur.
+    const sel = read("src/lib/ai/retrieval/select.ts");
+    expect(sel).not.toMatch(/SemanticScorer|noopSemanticScorer|\.score\(/);
   });
 
   it("HOST'A ÖZEL graf katmanı misafir yoluna TAŞINMAZ: retrieval modülü ve QR rotası onu import etmez", () => {

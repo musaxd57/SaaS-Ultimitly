@@ -122,6 +122,7 @@ export const POST = withManage<{ id: string }>(async (session, req, { params }) 
     knowledgeBase: kbSel.items,
     knowledgeBaseDropped: kbDropped + kbSel.droppedItems,
     knowledgeBaseSelection: kbSel.selection,
+    knowledgeBaseNotes: kbSel.notes,
     history: conversation.messages.map((m) => ({
       direction: m.direction as "inbound" | "outbound",
       body: m.body,

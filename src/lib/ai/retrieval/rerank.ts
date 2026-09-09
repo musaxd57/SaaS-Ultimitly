@@ -1,20 +1,25 @@
 import type { KbChunk, KbChunkSource } from "./chunker";
+import { timeFieldsIn } from "./lexicon";
+import { contentStems } from "./text";
 
 // ---------------------------------------------------------------------------
-// YENİDEN SIRALAMA + SÜRÜM/ÇELİŞKİ KURALLARI (RAG dilim 2, 09-09).
+// YENİDEN SIRALAMA + SÜRÜM/ÇELİŞKİ KURALLARI (RAG dilim 2+3, 09-09).
 //
 // Deterministik özellik toplamı — model yok. Bileşenler harness ile ÖLÇÜLEREK
 // ayarlanır (politika değildir):
-//   base      : RRF birleşik puan / max (0..1)
+//   base      : birleşik puan / max (0..1)
 //   hint      : kavram → kategori ipucu (0.35·güç)
 //   title     : sorgu kökü başlıkta (0.15)
 //   phrase    : sorgu bigramı parçada (0.10)
-//   freshness : adaylar arasında göreli tazelik (0..0.05) — YALNIZ eşitlik bozucu
+//   tazelik   : PUANA EKLENMEZ. Sıralamada puan 0.01 hassasiyetinde eşitse (yakın
+//               eşitlik) YENİ kalem önde (`sortCandidates`). Codex 09-09: "puana
+//               eklenen tazelik eşitlik bozucu değildir" — düzeltildi, test-pinli.
 // Sürüm: `supersededById` halefi kümede olan kalem DÜŞER (eski sürüm modele
 // gitmez). Halef kümede yoksa (pasif/silinmiş) eski kalem KORUNUR — bilgiyi
 // sessizce kaybetmektense host'un görebildiği kalemi taşımak yeğdir.
-// Çelişki: aynı kategoride FARKLI saat taşıyan parçalar birlikte gider (P4
-// iki kaynağı görsün) — kategoriye bakılmaz, çelişkinin kendisine bakılır.
+// Çelişki: aynı SAAT ALANINDA (çıkış/giriş/havuz/…) FARKLI saat taşıyan parçalar
+// birlikte gider (P4 iki kaynağı görsün) — kategoriye BAKILMAZ (Codex 09-09:
+// kategori bazlı kontrol hem fazla geniş hem fazla dardı; alan bazlı yapıldı).
 // ---------------------------------------------------------------------------
 
 export const HINT_BONUS = 0.35;
@@ -34,7 +39,8 @@ export const TITLE_FULL_BONUS = 0.15;
 /** Başlık eşleşmesi yalnız GENİŞLETME terimiyle ("lift" → "asansor") ise yarım bonus. */
 export const TITLE_EXPANSION_FACTOR = 0.5;
 export const PHRASE_BONUS = 0.1;
-export const FRESHNESS_BONUS = 0.05;
+/** Yakın eşitlik hassasiyeti: bu adımda eşit puanlar tazelikle sıralanır. */
+export const SCORE_TIE_STEP = 0.01;
 
 export interface RerankContext {
   /** Sorgunun kendi kökleri (fuzzy çözümlü). */
@@ -80,15 +86,6 @@ export function rerank(
    */
   hasEvidence: (i: number) => boolean = (i) => base[i] > 0,
 ): Candidate[] {
-  let minT = Number.POSITIVE_INFINITY;
-  let maxT = Number.NEGATIVE_INFINITY;
-  chunks.forEach((c, i) => {
-    if (!qualified(i)) return;
-    const t = c.updatedAt.getTime();
-    if (t < minT) minT = t;
-    if (t > maxT) maxT = t;
-  });
-  const span = maxT > minT ? maxT - minT : 0;
   const out: Candidate[] = [];
   chunks.forEach((chunk, i) => {
     if (!qualified(i)) return;
@@ -107,16 +104,16 @@ export function rerank(
     else if (titleExp) s += TITLE_BONUS * TITLE_EXPANSION_FACTOR;
     if (titleCovered && (titleOwn || titleExp)) s += TITLE_FULL_BONUS;
     if (ctx.bigrams.some(([a, b]) => hasBigram(docs[i].stems, a, b))) s += PHRASE_BONUS;
-    if (span > 0) s += FRESHNESS_BONUS * ((chunk.updatedAt.getTime() - minT) / span);
     if (s > 0) out.push({ idx: i, score: s });
   });
   return out;
 }
 
-/** Deterministik sıra: puan ↓, updatedAt ↓, id ↑, parça ↑. */
+/** Deterministik sıra: puan (0.01 adımına yuvarlanmış) ↓, updatedAt ↓ (tazelik = yakın-eşitlik bozucu), id ↑, parça ↑. */
 export function sortCandidates(cands: Candidate[], chunks: readonly KbChunk[]): Candidate[] {
+  const q = (x: number) => Math.round(x / SCORE_TIE_STEP);
   return cands.sort((a, b) => {
-    if (b.score !== a.score) return b.score - a.score;
+    if (q(b.score) !== q(a.score)) return q(b.score) - q(a.score);
     const ca = chunks[a.idx];
     const cb = chunks[b.idx];
     const ta = ca.updatedAt.getTime();
@@ -146,51 +143,116 @@ export function timesIn(text: string): Set<string> {
   return out;
 }
 
+/** Parça başına: saat alanı (`lexicon.timeField`) → o alana atfedilen saatler ("SS:DD"). */
+export type FieldTimes = ReadonlyMap<string, ReadonlySet<string>>;
+
 /**
- * ÇELİŞKİ KORUMA. Seçilen sıradaki her kategori için ÇAPA = o kategoride saat
- * taşıyan ilk seçilen parça. Aynı kategoride çapadan FARKLI saat taşıyan her
- * parça (seçilmiş ama geride kalmış YA DA hiç seçilmemiş) çapanın hemen
- * arkasına TAŞINIR — böylece bütçe/tavan kesmesi çelişkinin ikinci tarafını
- * düşüremez. Aynı saati taşıyan parça çelişki değildir, yerinde kalır.
- * Ölçüldü (09-09): ikinci kaynak kategori ipucuyla aday olup listenin sonuna
- * düşünce "yalnız seçilmemişleri ekle" kuralı onu tavanda kaybediyordu.
+ * Cümlecik sınırı: nokta / ünlem / soru / noktalı virgül / virgül / satır —
+ * ama "12.00" biçimindeki saatin noktası sınır DEĞİLDİR.
+ */
+const CLAUSE_SPLIT = /(?<!\d)\.(?!\d)|[!?;,\n]+/;
+
+/**
+ * SAAT → ALAN ATFI (Codex 09-09: "aynı konunun aynı alanını karşılaştır").
+ *
+ * Her saat, içinde geçtiği CÜMLECİĞİN saat-alanı kavramına bağlanır:
+ *   "Çıkış saati 12:00'dir, temizlik öğleden sonra gelir" → 12:00 = çıkış
+ *   (virgülden sonraki cümlecik saat taşımaz; temizlik alanı saatsizdir).
+ *   "Temizlik ekibi 12:00'de gelir; lütfen o saatten önce daireyi boşaltın"
+ *   → 12:00 = temizlik (çıkış DEĞİL — çıkış çelişkisi sayılmaz).
+ * Cümlecikte alan kavramı yoksa BAŞLIĞIN alanı kullanılır ("Çıkış" başlıklı
+ * kalemde "saat 11:00'e kadar boşaltın" → çıkış). O da yoksa ya da cümlecik
+ * birden çok alan taşıyorsa saat HİÇBİR alana atfedilmez: belirsizde hüküm
+ * yok — "Kahvaltı 08:00'de" hiçbir alan değildir ve "Havuz 09:00" ile
+ * çelişmez (eski kategori bazlı kontrolün fazla-geniş yanlışı).
+ */
+export function extractFieldTimes(title: string, text: string): FieldTimes {
+  const out = new Map<string, Set<string>>();
+  const titleFields = timeFieldsIn(contentStems(title));
+  const titleField = titleFields.length === 1 ? titleFields[0] : null;
+  for (const clause of text.split(CLAUSE_SPLIT)) {
+    const ts = timesIn(clause);
+    if (ts.size === 0) continue;
+    const fields = timeFieldsIn(contentStems(clause));
+    const field = fields.length === 1 ? fields[0] : fields.length === 0 ? titleField : null;
+    if (!field) continue;
+    const set = out.get(field) ?? new Set<string>();
+    for (const t of ts) set.add(t);
+    out.set(field, set);
+  }
+  return out;
+}
+
+export interface TimeConflict {
+  /** Saat alanı (`lexicon.timeField`). */
+  field: string;
+  /** Alandaki farklı değerler (çapa + partnerler), sıralı. */
+  values: string[];
+  /** Çapa parçası ve çelişen partner parçaları (indeks). */
+  anchorIdx: number;
+  partnerIdx: number[];
+}
+
+/**
+ * ÇELİŞKİ KORUMA — ALAN BAZLI (Codex 09-09: kategori bazlı kontrol fazla genişti:
+ * aynı kategoride farklı alanların saatleri çelişki sayılıyor, farklı kategorideki
+ * aynı çıkış bilgisi karşılaştırılmıyordu).
+ *
+ * Aynı SAAT ALANINDAKİ saatler karşılaştırılır (`fieldTimes[i]`, alan atfı
+ * `extractFieldTimes`); kategori önemsizdir. ÇAPA = alanda saat taşıyan İLK
+ * seçilen parça; çapadan FARKLI saat taşıyan aynı alan parçaları (seçilmiş ya da
+ * değil) çapanın hemen arkasına TAŞINIR. Bütçe yine de kesebilir — o durumda
+ * seçici çelişkiyi AÇIKÇA bildirir (`notes` + `confDropped`), sessizce yutmaz.
  */
 export function preserveTimeConflicts(
   chunks: readonly KbChunk[],
   picked: readonly number[],
-): { order: number[]; categories: Set<string> } {
-  const anchorTimes = new Map<string, Set<string>>();
-  const anchorIdx = new Map<string, number>();
+  fieldTimes: readonly FieldTimes[],
+): { order: number[]; conflicts: TimeConflict[] } {
+  const anchors = new Map<string, { idx: number; times: ReadonlySet<string> }>();
   for (const idx of picked) {
-    const c = chunks[idx];
-    if (anchorTimes.has(c.category)) continue;
-    const ts = timesIn(c.text);
-    if (ts.size === 0) continue;
-    anchorTimes.set(c.category, ts);
-    anchorIdx.set(c.category, idx);
+    for (const [field, times] of fieldTimes[idx]) {
+      if (times.size === 0 || anchors.has(field)) continue;
+      anchors.set(field, { idx, times });
+    }
   }
-  if (anchorTimes.size === 0) return { order: [...picked], categories: new Set() };
-  const conflicting = (i: number): boolean => {
-    const c = chunks[i];
-    const known = anchorTimes.get(c.category);
-    if (!known || anchorIdx.get(c.category) === i) return false;
-    for (const t of timesIn(c.text)) if (!known.has(t)) return true;
-    return false;
-  };
-  const categories = new Set<string>();
-  const movedByCat = new Map<string, number[]>();
-  chunks.forEach((c, i) => {
-    if (!conflicting(i)) return;
-    categories.add(c.category);
-    movedByCat.set(c.category, [...(movedByCat.get(c.category) ?? []), i]);
-  });
-  const moved = new Set([...movedByCat.values()].flat());
+  if (anchors.size === 0) return { order: [...picked], conflicts: [] };
+  const partnersByField = new Map<string, number[]>();
+  const valuesByField = new Map<string, Set<string>>();
+  for (let i = 0; i < chunks.length; i++) {
+    for (const [field, times] of fieldTimes[i]) {
+      const a = anchors.get(field);
+      if (!a || a.idx === i) continue;
+      let differs = false;
+      for (const t of times) if (!a.times.has(t)) differs = true;
+      if (!differs) continue;
+      partnersByField.set(field, [...(partnersByField.get(field) ?? []), i]);
+      const vals = valuesByField.get(field) ?? new Set(a.times);
+      for (const t of times) vals.add(t);
+      valuesByField.set(field, vals);
+    }
+  }
+  if (partnersByField.size === 0) return { order: [...picked], conflicts: [] };
+  const moved = new Set([...partnersByField.values()].flat());
   const order: number[] = [];
-  for (const idx of picked) {
-    if (moved.has(idx)) continue;
+  const emitted = new Set<number>();
+  const emit = (idx: number): void => {
+    if (emitted.has(idx)) return;
+    emitted.add(idx);
     order.push(idx);
-    const cat = chunks[idx].category;
-    if (anchorIdx.get(cat) === idx) order.push(...(movedByCat.get(cat) ?? []));
-  }
-  return { order, categories };
+    // Bu parça bir alanın çapasıysa o alanın partnerleri hemen arkasına gelir
+    // (partner başka bir alanın çapasıysa onun partnerleri de zincirlenir).
+    for (const [field, a] of anchors) {
+      if (a.idx !== idx) continue;
+      for (const p of partnersByField.get(field) ?? []) emit(p);
+    }
+  };
+  for (const idx of picked) if (!moved.has(idx)) emit(idx);
+  const conflicts: TimeConflict[] = [...partnersByField.entries()].map(([field, partnerIdx]) => ({
+    field,
+    values: [...(valuesByField.get(field) ?? [])].sort(),
+    anchorIdx: anchors.get(field)!.idx,
+    partnerIdx,
+  }));
+  return { order, conflicts };
 }

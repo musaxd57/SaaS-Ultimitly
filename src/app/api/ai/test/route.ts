@@ -125,6 +125,7 @@ export const POST = withManage(async (session, req) => {
     knowledgeBase: kbSel.items,
     knowledgeBaseDropped: kbDropped + kbSel.droppedItems,
     knowledgeBaseSelection: kbSel.selection,
+    knowledgeBaseNotes: kbSel.notes,
     history: [],
     tone,
     language: "tr",

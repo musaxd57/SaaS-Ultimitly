@@ -122,26 +122,42 @@ ReAct (kademeli) · GraphRAG (ihtiyaç kanıtlanırsa). Ek: kaynaklı-sürümlü
   okumaz. Geçiş sırası: iCal bacağından SONRA intelligence (hafıza → event → örüntü). KB rotaları hafızayı anında
   eşitler (`refreshPropertyMemoryBestEffort`; silinen kalem → retired). Okuma yüzeyi: mülk sayfası "Mülk Hafızası" kartı.
 
-## Retrieval (RAG dilim 1+2 — KODLANDI 09-09, bayrak `KB_RETRIEVAL_MODE=hybrid` VARSAYILAN KAPALI; tasarım `docs/RAG-GRAPHRAG-TASARIM-2026-09-09.md`)
+## Retrieval (RAG dilim 1+2+3 — KODLANDI 09-09, bayrak `KB_RETRIEVAL_MODE=hybrid` VARSAYILAN KAPALI; tasarım `docs/RAG-GRAPHRAG-TASARIM-2026-09-09.md`)
 - `src/lib/ai/retrieval/` LLM'siz + deterministik + DB'siz (pin): parçalayıcı (cümle sınırı, 600/900; parça =
   `content.slice`, metin DEĞİŞMEZ) · Türkçe-öncelikli BM25 (kök sökücü + ünsüz yumuşaması geri alma + ~45 DAR kavramlık
   sözlük [`terms` genişletir, `detectOnly` yalnız tespit] + OSA yazım toleransı) · **ikinci aday kaynağı karakter 3-gram
-  kosinüsü (`sources.ts`, anlamsal DEĞİL; yalnız GÜÇLÜ belirteçlerden, eşik altı birleşime girmez)** · **birleşim CombSUM
+  kosinüsü (`sources.ts`, anlamsal DEĞİL; `ngram:"auto"` = YALNIZ Türkçe algılanan sorguda — ölçümle: yazım hatasında
+  katkı yok, ek varyasyonunda gürültü %23–44 düşer, İngilizcede açık olmak gürültü ekler)** · **birleşim CombSUM
   (varsayılan, ölçümle) / RRF (`fusion.ts`)** · rerank (ipucu 0.35 / yalnız-ipucu 0.2 · başlık 0.15 + tam örtüşme 0.15 ·
-  bigram 0.10 · tazelik ≤0.05 eşitlik bozucu) · **sürüm kuralı `supersededById`** (halefi kümede olan düşer, halefi
-  olmayan korunur) · round-robin çok soru · ince soruda son 2 MİSAFİR mesajı · **çelişki koruma kategori-BAĞIMSIZ**
-  (çapayla farklı saat taşıyan parça çapanın hemen arkasına TAŞINIR — seçilmiş ama geride kalmışsa da) · bütçe 6k/12 parça
-  · `SemanticScorer` yalnız sözleşme+no-op (embedding = ÜCRETLİ SERVİS → onay; RRF/CombSUM'a üçüncü kaynak).
-- **Ölçek harness'ı** `tests/unit/kb-retrieval-scale.test.ts` (sentetik 36 konu, 30/100/300 kalem, tr/en/eşanlam/yazım,
-  çeldirici, gömülü rehber; `docs/olcum/kb-retrieval-scale-2026-09-09.md`): legacy inPrompt 100 kalemde **%51**, hibrit
-  %99; hit@1 %92–94; güncelleme/silme 10/10; eşikler ölçülen değerin altına pinli. 🚨 n-gram kaynağının sentetik sette
-  marjinal katkısı ≈0 (kök sökücü iyileşince); test-pinli özel durumlar için varsayılan AÇIK, karar kurucunun.
-  "Cevap kaynakla destekleniyor mu" burada ÖLÇÜLMEZ (gerçek eval işi).
+  bigram 0.10; 🚨 **tazelik PUANA GİRMEZ** — `sortCandidates` puanı 0.01 adımına yuvarlar, eşitse yeni önde; Codex 09-09)
+  · **sürüm kuralı `supersededById`** (halefi kümede olan düşer, halefi olmayan korunur) · round-robin çok soru · ince
+  soruda son 2 MİSAFİR mesajı · **çelişki koruma ALAN BAZLI** (`extractFieldTimes`: her saat içinde geçtiği CÜMLECİĞİN
+  saat-alanı kavramına [giriş/çıkış/sessiz saat/havuz/spor salonu/temizlik], yoksa başlığın alanına, belirsizde hiçbirine
+  atfedilir; yalnız aynı alanın saatleri karşılaştırılır, kategori önemsiz — "Genel: havuz 09:00 / kahvaltı 08:00" çelişki
+  DEĞİL, farklı kategorideki iki çıkış saati çelişki; partner çapanın hemen arkasına TAŞINIR) · bütçe 6k/12 parça; 🚨
+  **bütçe çelişkiyi YUTAMAZ**: tüm tarafları sığmayan çelişki `notes` ile isteme `[NOT] … Kesin saat SÖYLEME — insana
+  devret` olarak girer (`knowledgeBaseNotes`, 4 yüzey) + kanıt `confDropped` · **ANLAMSAL (embedding) RETRIEVAL YOK**:
+  `SemanticScorer` yalnız sözleşme+no-op, hiçbir yüzey seçiciye `semantic` vermez (pin), kanıt `srcs` üretimde yalnız
+  bm25/ngram; raporlarda "anlamsal retrieval" DENMEZ (embedding = ÜCRETLİ SERVİS → onay).
+- **Ölçek harness'ı** `tests/unit/kb-retrieval-scale.test.ts` (sentetik 38 konu, 30/100/300 kalem, tr/eşanlam/yazım/**ek
+  varyasyonu**/en, çeldirici, gömülü rehber; `docs/olcum/kb-retrieval-scale-2026-09-09.md`): 🚨 ölçü **inPrompt(METİN)** =
+  cevap için gerekli CÜMLE blokta mı (kalem kimliği DEĞİL — kimlik blokta olup cümle olmayabilir, test-pinli); **CANLI
+  yapılandırması** `kb-fetch` tavanını (en yeni 200) uygular: 30/100'de varsayılanla birebir, 300'de havuz 336→200 ama
+  isabet düşmüyor (konu başına ~8 varyant — tavanın zararsızlığının kanıtı DEĞİL; tek kalemli konu tavan dışındaysa
+  canlıda ULAŞILAMAZ, hedefli test). Legacy inPrompt 100 kalemde **%51**, hibrit %98; hit@1 %92–93; güncelleme/silme 10/10;
+  eşikler ölçülen değere pinli (n-gram auto kapalıya göre en fazla 1 soru geride, blok daha küçük). "Cevap kaynakla
+  destekleniyor mu" burada ÖLÇÜLMEZ (→ eşleştirilmiş eval). Mutasyon: dilim 2 17/17 · dilim 3 20/20 (kontrol yeşil, iki yönlü).
 - **Host graf katmanı** `src/modules/intelligence/graph/property-graph.ts` (saf, DB'siz, hiçbir yüzeye bağlı değil):
   DB-gerçek ilişkilerden tipli graf; **her kenar `source` + `observedAt` + `certainty`**; `recurringIssues` kanıt sınıfı
   `reported_only | task_open | task_done` — **'confirmed' YOK** (şikâyet ≠ doğrulanmış arıza, pin); sinyal konuşma
-  üzerinden konaklamaya çözülür (düz taramanın sayamadığı). **Misafir yoluna taşınmaz** (retrieval + QR + guest-chat
-  import etmez, pin). LightRAG/HippoRAG = LLM+gömme → ücretli, misafir metni dış modele gider → onay; protokol tasarım §6.2.
+  üzerinden konaklamaya çözülür (düz taramanın sayamadığı). 🚨 **Görev kanıtı YALNIZ bildirime BAĞLI görevlerden** (Codex
+  09-09): mesaj bağı `Task.sourceMessageId = Signal.sourceEntityId` → `observed`; aynı konaklama + aynı kategori →
+  `inferred`; başka konaklamanın tamamlanmış işi / pencere dışı bildirimin görevi `unlinkedTasks` (kanıt DEĞİL); açık ve
+  tamamlanan AYRI (`linkedOpenTasks/linkedDoneTasks/reportsWithoutTask/linkCertainty`). **Misafir yoluna taşınmaz**
+  (retrieval + QR + guest-chat import etmez, pin). Sentetik mülk–mesaj–görev verisi `tests/helpers/graph-synthetic.ts`
+  (altın üreticiden; çeldirici görevler; H1–H4; `docs/olcum/graph-baseline-2026-09-09.md`: H1–H3 birebir, H4 cihaz/varlık
+  basit grafla CEVAPLANAMAZ = LightRAG/HippoRAG'ın tek aday katkısı). LightRAG/HippoRAG = LLM+gömme → ücretli → onay;
+  deney aynı sentetik `messages[]` ile, gerçek misafir metni GEREKMEZ; protokol tasarım §6.2–6.3.
 - **TEK BOĞAZ `selectKbForPrompt`** — yetki/mülk/onay (`kb-fetch`) ve yüzeyin sır elemesi ÇALIŞTIKTAN SONRA,
   `suggestReply`'dan ÖNCE; dört AI yüzeyi geçer (pin). Bayrak kapalı = **KİMLİK** (aynı dizi referansı, 0 düşen,
   kanıt null). Açıkken `kb-fetch` `take` 30→200 (onay kapısı aynı), istem notu "SORUYA GÖRE SEÇİLDİ … 'bilgi yok'
@@ -153,7 +169,18 @@ ReAct (kademeli) · GraphRAG (ihtiyaç kanıtlanırsa). Ek: kaynaklı-sürümlü
 - **Retrieval politika DEĞİLDİR:** kötü niyetli kalem ilgisiz soruda gitmez (ölçülen maruziyet farkı) ama sözcüksel
   eşleşince gider; eleme kararı AYRI ONAY. P5 (kanıtsız iddia kod kapısı) AÇIK — RAG kapatmaz. Baseline (model YOK):
   `docs/olcum/kb-retrieval-baseline-2026-09-09.md` (13 senaryo; legacy `long_middle_oldest` ❌ → hibrit ✅; blok ~%85 küçük).
-  Gerçek model etkisi için eval setine uzun rehber + 30+ kalem sınıfı gerekli (mevcut 8 senaryo small_kb → legacy ile aynı istem).
+- **Eşleştirilmiş legacy/hibrit GERÇEK-MODEL eval'i HAZIR (dilim 3), koşuyu KURUCU yapar:** `evals/kb-retrieval-paired.json`
+  (v1, R1–R8: uzun rehber ortası · yazım hatası · EN soru · çok soru · çelişkili çıkış saati · bilgi yok · TR eşanlam ·
+  konuşma bağlamı) + `tests/eval/kb-retrieval-paired.eval.test.ts` (aynı `npm run eval`, aynı iki kapı; rapor
+  `docs/olcum/eval-retrieval-<tarih>.md`). Aynı KB iki modda `kb-fetch` AYNASINDAN geçer (legacy en yeni 30 / hibrit en
+  yeni 200 + seçici); "gold istemde mi" KODDAN ölçülür ve ÇEVRİMDIŞI PİNLİ (eski kalemli R1/R2/R3/R7/R8: legacy ✗ / hibrit
+  ✓; R4/R5 ✓/✓; R6 iki blok birebir). Kontrol dallanması: gold istemdeyse cevap ona DAYANMALI; istemde değilse "doğru
+  görünen" cevap DESTEKSİZ (şans/uydurma) + yokluk söylenmeli. 🚨 Sentetik retrieval ölçümü (kaynak bloğa girdi mi) ile
+  gerçek cevap kalitesi (cevap doğru mu) AYRI raporlanır, biri ötekinin yerine geçmez.
+- **Güvenlik filtreleri yeni yolda AYNEN — davranışsal doğrulama** `tests/integration/kb-retrieval-secret-scope.test.ts`
+  (bayrak AÇIK): QR'da wifi/checkin kategorisi + kod içeren kalem + taslak ne isteme ne kanıta girer; oto-yanıtta onaysız
+  konaklama aynı, onaylı konaklamada giriş notu ürünün kendisi (legacy paritesi), taslak asla. Önbellek/rerank/graf
+  kapsamı: küme parmak izi (iki mülk aynı soru → yalnız kendi kalemi), rerank saf, graf yabancı kimlik bağlamaz (testler).
 - Sözlük/kök çarpışmaları ölçülüp düzeltildi: "varış→var" (sözlükten çıktı — İKİ KEZ, geri gelmesin), "şu→su" (durak
   değil), "ki" eki YOK, torba kavramlar bölündü ("olanaklar" → asansör/havuz/balkon/bebek/ütü/fön), genel sözcük
   ("kural") genişletmeye girmez. 🚨 `base > 0` "yalnız-ipucu" ayrımı için YETMEZ (n-gram hemen her parçaya 0.0x verir)
@@ -644,7 +671,13 @@ Sekiz P1 KAPANDI (09-07), her biri ayrı commit, kırmızı-önce + iki yönlü 
   yol · halka açık sayfada çerez yenileme · `PADDLE_WEBHOOK_SECRET` boot kapısı.
 
 ## Durum
-**Origin HEAD `12ddd8e` (09-09, RAG dilim 2; CI #1022 5/5 success; Railway ACTIVE teyidi BEKLENİYOR). Önceki `061d62e` (dilim 1) ACTIVE — kurucu teyidi 09-09.** Prod'da canlı:
+**RAG dilim 3 (Codex turu 3, 09-09) — bu commit: dört bulgu düzeltildi (alan bazlı çelişki + sığmayan çelişki notu ·
+bildirim↔görev bağı · canlı tavan + cevap-metni ölçüsü · tazelik yakın-eşitlik bozucu) + anlamsal sözleşme dürüstlüğü
+(üretimde embedding YOK, pin) + n-gram ayrı ölçüm (`auto` varsayılanı ölçümle) + güvenlik filtresi davranışsal doğrulaması +
+eşleştirilmiş legacy/hibrit eval hazırlığı (R1–R8, kurucu koşar) + sentetik GraphRAG kıyas verisi (H1–H3 birebir, H4
+cevaplanamaz). Bayrak KAPALI, migration YOK, ücretli servis YOK, politika değişikliği YOK, P5 AÇIK. Yerel kapılar: suit +
+tsc + lint + build + audit yeşil; mutasyon 20/20 (kontrol yeşil). Push + CI sonucu bu satıra işlenecek.**
+**Origin HEAD `12ddd8e` (09-09, RAG dilim 2; CI #1022 5/5 success; Railway ACTIVE — kurucu teyidi 09-09). Önceki `061d62e` (dilim 1) ACTIVE — kurucu teyidi 09-09.** Prod'da canlı:
 migration 52/53/54 (09-08), `a52a30c`+ (selam tekrarı canlı doğrulaması hâlâ bekliyor).
 **3. GERÇEK KOŞU (kurucu, 09-09 13:46 yerel, preflight klonu `2cfa8d4`): 8/8 ✅ (E1 dürüstlük sözleşmesiyle).** Rapor dosyası
 repoya henüz gelmedi (önceki iki koşununki de). Kurucunun preflight klonunda `npm install` 11 zafiyet gösterdi (node 24, engine
