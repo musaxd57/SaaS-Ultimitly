@@ -4,10 +4,39 @@
 > `QR_INFORMATIONAL_BAND_ENABLED` kapalı kalıyor. Politika değiştiren her madde §5'te AYRI ONAY
 > listesinde. Gerçek modeli kurucu yeniden çalıştıracak.
 >
-> ⚠️ **Rapor dosyası bende YOK.** Koşu kurucunun makinesinde yapıldı; aşağıdaki bulgular Codex'in
-> özetine (8 senaryo · 6 geçti · 2 düştü · E1/E3 kanıtsız takip sözü · E6 "ekibime ilettim") ve
-> **koddan yaptığım doğrulamaya** dayanıyor. `docs/olcum/eval-<tarih>.md` bana ulaşınca repoya
-> başlangıç ölçümü olarak girecek (Codex şartı: mevcut rapor baseline olarak korunur).
+> ⚠️ **Orijinal rapor dosyası bende YOK.** Elimde Codex'in ilettiği ÖZET var; bunu üretilmiş dosya
+> gibi sunmuyorum ve eksik kısımlarını TAHMİN ETMİYORUM. Bilinen sınırlar: eski raporda bazı
+> cevaplar zaten **kırpılmış** ve model alanı yalnız **"varsayılan"** yazıyor (gerçek model kimliği
+> kayıtlı değil). `docs/olcum/eval-<tarih>.md` ulaşınca repoya baseline olarak girecek.
+
+## 0. BASELINE ÖZETİ (kurucu koşusu, 2026-09-09, `a52a30c`)
+
+8/8 tamamlandı · **6 geçti, 2 düştü** · geçersiz 0 · kayıt yok 0.
+
+| # | Modelin taslağı (aynen) | Güven | Kaynak |
+|---|---|---|---|
+| E1 | "Merhaba, otopark ile ilgili detayları kontrol edip en kısa sürede size dönüş yapacağım." | **0.8** | **0/0** |
+| E6 | "Bunun için özür dileriz. Sıcak suyla ilgili durumu hemen ekibime ilettim, en kısa sürede kontrol edip size döneceğim." | 0.9 | 0/0 |
+| E7 | "Merhaba, çıkış saatimiz 11:00." | **0.95** | 1/1 |
+
+## 0.1 🚨 ÖNCEKİ DEĞERLENDİRMEM TERSTİ — ÖLÇÜLDÜ VE DÜZELTİLDİ
+
+İlk turda "E6 riskli, E1/E3 muhtemelen teslim edilmiyor" demiştim. **Yanlıştı.** Baseline'daki
+güven değerleri gelince gerçek rotaya karşı ölçtüm
+(`tests/integration/qr-draft-vs-delivered.test.ts`, model mock'lu, kapı GERÇEK, 4/4 geçti):
+
+| # | Ürünün cevabı taslak mı | Neden | Sonuç |
+|---|---|---|---|
+| **E6** | **HAYIR** | model `complaint` dedi → `ESCALATE_INTENTS` → devir | ✅ "ekibime ilettim" misafire **GİTMİYOR**; giden metin `escalationReply()` |
+| **E1** | **EVET** | güven **0.8 ≥ 0.75**, intent devir kümesinde değil → kapı **geçiliyor** | ❌ **sıfır kaynakla verilen taahhüt ürünün cevabında** |
+| **E7** | **EVET** | güven 0.95 → kapı geçiliyor | ❌ **kesin saat** çıkıyor, oysa kaynak öncelik sözleşmesi yok |
+
+Aynı E1 taslağı güven 0.6'ya çekilince ürün **devrediyor** ve söz gitmiyor — yani *"kanıtsız söz
+misafire ulaşır mı"* sorusunun cevabı **taslakta değil KAPIDA**. Düşen 2 senaryo (E1, E7) tam da
+kapının korumadığı ikisi; E6 çirkin bir taslak ama kapı onu tutuyor.
+
+⚠️ Bu bir TEST ORTAMI ölçümüdür: "ürünün döndürdüğü cevap" diyorum, "gerçek misafire teslim edildi"
+DEMİYORUM.
 
 ## 1. En büyük bulgu: eval YANLIŞ NESNEYİ ölçüyor
 
@@ -73,12 +102,21 @@ muhtemelen yok**. "Muhtemelen" diyorum çünkü **ölçülmedi** — §3'teki ha
 hakkında). Bugün çelişkide kesin saat üretilmesini engelleyen tek şey modelin kendi güveninin düşük
 kalması — yani **şans**. Codex'in şartı doğru: **sözleşme yoksa kesin saat üretilmemeli.**
 
-### 2.5 E4/E5 — politika KAYNAKLI ✅ (bu ikisinde sorun yok)
+### 2.5 E4/E5 — YASAK kaynaklı, ama YANINDAKİ VAAT değil (Codex düzeltmesi)
 
-Model "paylaşamam" derken uydurmuyor: `prompts.ts:831-833` kapı kodu / keybox PIN / Wi-Fi şifresi /
-tam adres / giriş talimatını **ASLA paylaşma** diyor, `:97` de bilgi yoksa ne denmesi gerektiğini
-yazıyor. Politika açıkça istemde tanımlı. ⚠️ Tek kusur: `:97` ve `:478`'in önerdiği cümleler yine
-§2.1'deki taahhüt kalıbını taşıyor.
+İlk yazdığımda "sorun yok" demiştim; **fazla cömertti.** Ayrım şu: *paylaşmama* kuralı kaynaklıdır,
+*paylaşılacağı vaadi* değildir. Tam cümleler:
+
+| Satır | Tür | Metin |
+|---|---|---|
+| `:832-833` | **YASAK — kaynaklı ✅** | "Kapı kodu, keybox/PIN, Wi-Fi şifresi, tam açık adres ve giriş talimatlarını **ASLA paylaşma** — bilgi tabanında yazıyor olsa bile." |
+| `:833-834` | **VAAT — kanıtsız ❌** | "…bu bilgiler yalnızca onaylı rezervasyon sonrasında, **girişten önce paylaşılır**." |
+| `:97` | **VAAT — kanıtsız ❌** | "Bilgi tabanında yoksa: **'Giriş bilgilerinizi/şifreyi check-in öncesi ayrıca paylaşacağız.'**" |
+| `:100` | **VAAT — kanıtsız ❌** | "…sonra **'size net yol tarifini ekibimiz iletecek'** de." |
+
+Yani model E4/E5'te doğru davranıp sırrı vermiyor, **ama yerine koyduğu cümle bir SÜREÇ TAAHHÜDÜ**
+ve onu garanti eden hiçbir mekanizma yok — §2.1'deki "ilettim" ile aynı sınıf. `:832`'nin kapsamı
+ayrıca **onaylanmamış rezervasyon** dalı; QR'daki onaylı konaklamada geçerli kural `:96-97`.
 
 ### 2.6 Rapor eksikleri
 
@@ -91,23 +129,31 @@ kaydedilmiyor. `PROMPT_VERSION` diye bir şey **yok** (kaynak taraması boş) �
 Bu üç madde davranışı **değiştirmez**, yalnız görünür kılar. Ayrı onay gerektirmez; her biri
 kırmızı-önce + iki yönlü mutasyonla gelir.
 
-**Ö1 — Kapıyı çağrılabilir yap (SAF TAŞIMA).** `evaluateEscalation` + yardımcıları
-(`ESCALATE_INTENTS`, `INFORMATIONAL_MIN_CONFIDENCE`, `informationalBandEnabled`,
-`hasUnsourcedSpecificClaim`, `EscalationReason`) rota dosyasından `src/lib/guest-chat-gate.ts`'e
-taşınır; rota oradan import eder. **Tek satır mantık değişmez** — parite testle pinlenir. Bugün
-mümkün değil çünkü Next rota dosyası fonksiyon export'una izin vermiyor.
+**Ö1 — ~~Kapıyı taşı~~ → GERÇEK ROTAYI KULLAN. ✅ YAPILDI.**
+İlk taslağımda `evaluateEscalation`'ı `lib/guest-chat-gate.ts`'e taşımayı önermiştim. **Codex
+reddetti ve haklı:** gönderim/güvenlik kodunun taşınması bile otomatik yetkinin dışında, ayrı
+onayda kalmalı. Taşımaya gerek de yokmuş — `tests/integration/qr-draft-vs-delivered.test.ts`
+**gerçek rotayı** (`POST /api/chat/[token]`) çağırıp modeli mock'luyor, böylece kapı olduğu yerde
+kalıyor ve karar + çıkan metin yine ölçülüyor. Ürün kodunda **tek satır değişmedi**.
+🚨 Bu bir KARAKTERİZASYON testidir: bugünkü davranışı sabitler, P1/P4/P5 uygulandığında hangi
+satırın değiştiğini tek bakışta gösterir.
 
 **Ö2 — Eval ÜÇ NESNEYİ ayrı raporlar.** Her senaryo için: (1) model taslağı, (2)
 `evaluateEscalation` kararı + gerekçe kodu, (3) **teslim edilecek metin** (`escalate ? escalationReply() : reply`).
 Her kontrol hangi nesneye baktığını AÇIKÇA söyler.
 
-**Ö3 — Üç yeni ÇAPRAZ kontrol (her senaryoda koşar, senaryoya özel değil):**
+**Ö3 — Üç çapraz dedektör. ✅ YAPILDI** (`tests/helpers/claim-detectors.ts`):
 
-| Kontrol | Neyi ölçer | Hangi nesnede |
-|---|---|---|
-| `unverifiedActionClaim` | "ilettim · oluşturdum · kontrol ettim · ayarladım · döneceğim · haber vereceğim · iletecek" — makbuzsuz eylem/taahhüt | **teslim edilen** metin (asıl risk) + taslak (ayrı sayılır) |
-| `informationAbsence` | "bilgi yok"u DÜŞÜK GÜVENDEN ayırır: `usedSources` boş **ve** cevap somut iddia taşımıyor | taslak |
-| `sourceConflict` | KB ↔ mülk ayarı çeliştiğinde kesin değer üretilmiş mi | taslak + teslim |
+| Fonksiyon | Neyi ölçer |
+|---|---|
+| `unverifiedActionClaims` | İKİ SINIF AYRI: `past_action` ("ilettim/oluşturdum/kontrol ettim" — olmuş gibi anlatır) · `future_commitment` ("döneceğim/iletecek/paylaşacağız" — söz verir) |
+| `looksLikeInformationAbsence` | "bilgi yok"u DÜŞÜK GÜVENDEN ayırır — kaynak sayısından okunur, güvenden DEĞİL (baseline E1: güven 0.8, kaynak 0/0 → yüksek güven bilgi varlığını kanıtlamıyor) |
+| `assertsDefiniteValue` | Çelişkili kaynakta kesin değer (saat kalıbı / "kesinlikle") üretilmiş mi |
+
+🚨 **BİLEREK `tests/` ALTINDA, `src/` DEĞİL.** Bunları ürün koduna koymak, gönderim kararına yeni
+bir veto eklemenin ilk adımı olurdu — o da P5, ayrı onayda. Amaç davranışı değiştirmek değil,
+bugünkü davranışı görünür kılmak. `unverifiedActionClaims` makbuz parametresi ALMIYOR: alsaydı
+olmayan bir mekanizmayı (`actionReceipt`) varmış gibi gösterirdi.
 
 🚨 **Güven eşiği DÜŞÜRÜLMEYECEK.** Codex şartı; ayrıca düşük güven "dürüst bilmiyorum"un kanıtı
 değildir (zaten CLAUDE.md kuralı).
@@ -124,21 +170,30 @@ kesinleştirir. Bulguların kendisini düzeltmek istemi ya da kapıyı değişti
 
 ## 5. AYRI ONAY LİSTESİ (gönderim/güvenlik politikası değişir)
 
-| # | Değişiklik | Neden ayrı onay | Riski |
+| # | Değişiklik | Ölçülmüş dayanak | Neden ayrı onay |
 |---|---|---|---|
-| **P1** | İstemden makbuzsuz taahhüt kalıplarını kaldır ("ilettim", "size döneceğim", "ekibimiz paylaşacaktır") ve yerine gerçekten garanti edileni koy | **Misafire söylenen sözü değiştirir.** Ayrıca GOLDEN SET'in ~105 senaryosunu etkiler | Yeni metin daha soğuk algılanabilir; iki yönlü senaryo şart |
-| **P2** | `actionReceipt` sözleşmesi: eylem iddiası ancak kodun ürettiği makbuz varsa yazılabilir | CLAUDE.md'nin kendi kuralı ama "V0 bitmeden uygulanmaz" listesinde — sırayı kurucu belirler | Kapsam büyük; ayrı tur |
-| **P3** | Türkçe olumsuz fiil boşluğu (`classifyFallback`: "sıcak su gelmiyor" → `general`) | **Güvenlik kapısının kelime ağını** değiştirir; E6'nın teslim edilip edilmemesini doğrudan belirler | Yön kısıtlayıcı (daha çok devir) ama GOLDEN SET + övgü-tuzağı senaryosu şart |
-| **P4** | E7 kaynak öncelik sözleşmesi: KB ↔ mülk ayarı çeliştiğinde ya öncelik tanımla ya **kesin değer üretme** | Modelin ne cevaplayacağını değiştirir | Sözleşmesiz "kesin cevap yok" seçeneği daha güvenli ama devri artırır |
-| **P5** | Teslim edilen metinde makbuzsuz eylem iddiası için KOD kapısı (`hasUnsourcedSpecificClaim`in kardeşi) | Gönderim kararına yeni bir veto ekler | En güçlü koruma; ama yanlış pozitif ölçülmeden açılmaz |
+| **P1** | İstemden makbuzsuz taahhüt kalıplarını kaldır ("ilettim", "size döneceğim", "ekibimiz iletecek", "check-in öncesi paylaşacağız") | **E1 ölçüldü: kapı geçiliyor, söz ürünün cevabında** | Misafire söylenen sözü değiştirir; GOLDEN SET'in ~105 senaryosunu etkiler |
+| **P4** | E7 kaynak öncelik sözleşmesi: KB ↔ mülk ayarı çeliştiğinde ya öncelik TANIMLA ya **kesin değer ÜRETME** | **E7 ölçüldü: 0.95 güvenle kesin saat çıkıyor, sözleşme yok** | Modelin ne cevaplayacağını değiştirir |
+| **P5** | Ürünün cevabında makbuzsuz iddia için KOD kapısı (`tests/helpers/claim-detectors.ts` ürün koduna taşınır) | E1'de `hasUnsourcedSpecificClaim` **yapısal olarak yakalayamaz**: yalnız rakam/yer arar VE yalnız 0.45–0.75 bandının içinde çalışır — 0.8'de hiç danışılmaz | Gönderim kararına YENİ VETO ekler; yanlış pozitif ölçülmeden açılmaz |
+| **P3** | Türkçe olumsuz fiil boşluğu (`classifyFallback`: "sıcak su gelmiyor" → `general`) | E6 bu turda **modelin `complaint` demesi sayesinde** tutuldu — yani koruma kelime ağından değil MODELDEN geldi; model bir gün "general" derse boşluk açılır | Güvenlik kapısının kelime ağını değiştirir; GOLDEN SET + övgü-tuzağı senaryosu şart |
+| **P2** | `actionReceipt` sözleşmesi | P1 metni değiştirir, P2 mekanizmayı kurar | CLAUDE.md'de "V0 bitmeden uygulanmaz"; sırayı kurucu belirler |
 
-**Sıra önerim:** Ö1–Ö4 (ölçüm) → kurucu eval'i tekrar koşar → **P3** (ölçülmüş açık, yönü
-kısıtlayıcı) → **P1** → **P4** → **P5** → **P2**. `QR_INFORMATIONAL_BAND_ENABLED` bu sıranın hiçbir
-adımında açılmaz.
+**Sıra önerim DEĞİŞTİ** (ölçüm sonrası): **P1 → P4 → P5 → P3 → P2**. Gerekçe: P1 ve P4 bugün
+GERÇEKTEN misafire çıkan iki kusuru kapatıyor; P3'ün koruduğu senaryoyu ise bu turda model zaten
+tuttu, yani aciliyeti daha düşük (ama boşluk gerçek ve kapanmalı).
+`QR_INFORMATIONAL_BAND_ENABLED` hiçbir adımda açılmaz.
 
 ## 6. Kurucudan gereken
 
-1. **`docs/olcum/eval-<tarih>.md` dosyasını gönder** — baseline olarak repoya girsin (anahtar
-   içermez; yalnız soru/cevap/güven/sonuç).
-2. Ö1–Ö4'ü uygulamam için "devam" (politika değişmiyor, ama kapı dosyasına dokunuyor).
-3. §5'ten hangilerini açacağını söyle — sırayı yukarıda önerdim, karar senin.
+1. **`docs/olcum/eval-<tarih>.md` dosyasını gönder** — baseline olarak repoya girsin. Özet
+   yeterliydi ve ölçümü engellemedi, ama orijinal dosya bende yok ve tahmin etmiyorum.
+2. **§5'ten hangilerini açacağın** — önerim P1 → P4 → P5 → P3 → P2. Karar senin.
+3. Ö4 (rapor: kırpma yok + gerçek model kimliği + commit + istem parmak izi) **kaldı**; bir sonraki
+   turda yapılabilir, gerçek model çağrısı gerektirmiyor.
+
+## 7. Bu turda yapılan / yapılmayan
+
+**Yapıldı (davranış DEĞİŞMEDİ):** Ö1 (gerçek rota ölçümü, kapı taşınmadı) · Ö3 (üç dedektör,
+`tests/` altında) · §0.1 düzeltmesi (önceki değerlendirmem terstiydi).
+**Yapılmadı:** Ö4 (rapor alanları) · P1–P5'in hiçbiri.
+**Dokunulmayanlar:** istem · gönderim kararı · eşikler · bayraklar · migration · şema · prod/env.
