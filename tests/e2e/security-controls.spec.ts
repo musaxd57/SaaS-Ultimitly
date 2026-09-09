@@ -1,4 +1,5 @@
 import { test, expect } from "@playwright/test";
+import sharp from "sharp";
 
 // ---------------------------------------------------------------------------
 // GÜVENLİK KONTROLLERİNİN ÇALIŞMA-ZAMANI PİNİ.
@@ -16,11 +17,47 @@ import { test, expect } from "@playwright/test";
 // mantığı birim/entegrasyon testlerinde kalır.
 // ---------------------------------------------------------------------------
 
-test("/_next/image KAPALI — kullanılmayan optimizer sharp'a besleme yapmasın", async ({ request }) => {
+// Optimizer pininin kullandığı kaynak görsel. İkisi de AYNI yolu istiyor:
+// biri BAŞARI yolunu, diğeri kapalı ucu ölçüyor.
+const IMAGE_PATH = "/lixus-logo.png";
+
+test("görsel BAŞARI yolu — 200 + doğru içerik türü + ÇÖZÜMLENEBİLİR çıktı", async ({ request }) => {
+  // 🚨 BU TEST 2026-09-09'da EKLENDİ (Codex itirazı): aşağıdaki 404 pini TEK
+  // BAŞINA "görsel sunumu çalışıyor" demiyordu. Kaynak dosya silinseydi ya da
+  // statik sunum bozulsaydı 404 YİNE gelir ve pin YANLIŞ SEBEPLE geçerdi.
+  // Burası o boşluğu kapatıyor: aynı yol gerçekten servis ediliyor mu?
+  const res = await request.get(IMAGE_PATH);
+
+  expect(res.status()).toBe(200);
+  expect(res.headers()["content-type"]).toMatch(/^image\/png/);
+
+  // "Çözümlenebilir çıktı": baytlar gerçekten piksele dönüyor mu? Geçerli bir
+  // başlık + çözülemeyen gövde de 200 döner; ham piksele bakmak bunu ayırır.
+  const body = await res.body();
+  const meta = await sharp(body).metadata();
+  expect(meta.format).toBe("png");
+  expect(meta.width ?? 0).toBeGreaterThan(0);
+  expect(meta.height ?? 0).toBeGreaterThan(0);
+  const raw = await sharp(body).raw().toBuffer();
+  expect(raw.length).toBe((meta.width ?? 0) * (meta.height ?? 0) * (meta.channels ?? 0));
+});
+
+test("/_next/image KAPALI — 404'ün SEBEBİ optimizer, eksik kaynak değil", async ({ request }) => {
   // Açıkken ölçülmüştü: 200 + 597 bayt (ham dosya 80.283). `next.config.mjs`
   // `images.unoptimized` ile kapatıldı. Kaynak taraması bayrağı görür; bunun
   // gerçekten 404 döndüğünü YALNIZ çalışan sunucu söyleyebilir.
-  const res = await request.get("/_next/image?url=%2Flixus-logo.png&w=64&q=75");
+  //
+  // 🚨 ATFIN KANITI: bir üstteki test aynı yolun 200 + çözümlenebilir PNG
+  // döndürdüğünü gösteriyor. Dolayısıyla buradaki 404 "kaynak yok"tan DEĞİL,
+  // yalnızca optimizer'ın kapalı olmasından geliyor.
+  //
+  // 🚨 BURADA 200 BEKLENMEZ ve beklenemez: bu ucun başarı yolunu açmak
+  // `images.unoptimized`i kapatmak demektir — hem bir GÜVENLİK KONTROLÜ
+  // değişikliğidir, hem de audit baseline'ının sharp gerekçesini (optimizer
+  // kapalı olduğu için ULAŞILAMAZ) geçersiz kılar. Kodek'in gerçekten
+  // çalıştığı, sentetik görüntüyle `tests/unit/sharp-image-pipeline.test.ts`
+  // içinde ölçülüyor.
+  const res = await request.get(`/_next/image?url=${encodeURIComponent(IMAGE_PATH)}&w=64&q=75`);
   expect(res.status()).toBe(404);
 });
 

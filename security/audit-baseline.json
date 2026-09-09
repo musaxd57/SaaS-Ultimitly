@@ -2,11 +2,17 @@
   "$comment": [
     "BAGIMLILIK ZAFIYETI TRIAJ KAYDI — scripts/audit-check.mjs bunu okur.",
     "",
-    "NEDEN BASELINE, NEDEN DUZ 'npm audit' DEGIL: bugun URETIM bagimliliklarinda",
-    "6 acik danisma var ve UCUNUN de duzeltmesi kirici bir major surum istiyor",
-    "(next@16, nodemailer@9). Duz bir 'npm audit --audit-level=high' kapisi CI'yi",
-    "kalici kirmiziya cevirir; kalici kirmizi bir kapi ise SINYAL DEGERINI",
-    "KAYBEDER — kimse bakmaz ve YENI bir zafiyet geldiginde de kimse fark etmez.",
+    "NEDEN BASELINE, NEDEN DUZ 'npm audit' DEGIL: URETIM bagimliliklarinda kalan",
+    "danismalarin duzeltmesi bize ait DEGIL — postcss'i next TAM SURUM olarak",
+    "pinliyor (15.5.24 hala postcss 8.4.31 diyor), yani biz yukseltemeyiz. Duz bir",
+    "'npm audit --audit-level=high' kapisi CI'yi kalici kirmiziya cevirir; kalici",
+    "kirmizi bir kapi ise SINYAL DEGERINI KAYBEDER — kimse bakmaz ve YENI bir",
+    "zafiyet geldiginde de kimse fark etmez.",
+    "",
+    "🚨 BU LISTE BUYUMEK ICIN DEGIL KUCULMEK ICIN VAR. 2026-09-09: sharp",
+    "(GHSA-f88m) ve nodemailer (GHSA-p6gq) kayitlari SILINDI, cunku sharp 0.35.4 ve",
+    "nodemailer 9.1.1 ile GERCEKTEN duzeldiler. Bir istisnayi kaldirmak duzeltmenin",
+    "kanitidir; eklemek ise ertelemenin. Once yukseltmeyi dene, olmuyorsa yaz.",
     "",
     "Bu dosya o yuzden 'sifir zafiyet' yerine 'sifir TRIAJ EDILMEMIS zafiyet'",
     "kapisi kurar: burada YAZILI OLMAYAN her yeni danisma CI'yi kirar.",
@@ -23,24 +29,6 @@
   ],
   "generatedAt": "2026-08-05",
   "accepted": [
-    {
-      "id": "GHSA-f88m-g3jw-g9cj",
-      "package": "sharp",
-      "severity": "high",
-      "title": "sharp inherited vulnerabilities in libvips",
-      "expires": "2027-02-01",
-      "reason": "ULASILAMAZ (08-05'te kapatildi). sharp yalnizca next'in gecisli bagimliligi; src/ icinde tek bir dogrudan kullanim yok (kaynak taramasi). Tek ulasilabilir yol Next'in /_next/image optimizer'iydi ve olculdu: acikken 200 + 597 bayt donuyordu. next.config.mjs'te images.unoptimized ile kapatildi (yeniden olculdu: 404) ve iki test pini birakildi (response-cache-policy.test.ts). Duzeltme next@16 major'i istiyor.",
-      "closedBy": "next@16 (major) — veya sharp kullanan bir ozellik eklenirse O GUN yeniden degerlendir"
-    },
-    {
-      "id": "GHSA-p6gq-j5cr-w38f",
-      "package": "nodemailer",
-      "severity": "high",
-      "title": "Message-level raw option bypasses disableFileAccess/disableUrlAccess",
-      "expires": "2027-02-01",
-      "reason": "ULASILAMAZ. Danisma OZELLIKLE mesaj seviyesindeki 'raw' secenegine dayaniyor. Tek cagri yerimiz email-core.ts viaSmtp(): sendMail'e SABIT alan kumesi geciyor (from/to/subject/html/text) — 'raw' YOK, 'attachments' YOK, dosya/URL referansi YOK. Ikinci savunma: uretim Resend HTTP API'sini kullaniyor, SMTP yolu EMAIL_HOST istiyor ve o env uretimde set degil.",
-      "closedBy": "nodemailer@9 (major)"
-    },
     {
       "id": "GHSA-6g55-p6wh-862q",
       "package": "postcss",

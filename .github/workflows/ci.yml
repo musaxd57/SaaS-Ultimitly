@@ -228,13 +228,20 @@ jobs:
   # obligation in the API-partner terms we are working toward, and the honest
   # answer to "how do you know?" has to be a mechanism, not a habit.
   #
-  # The gate does NOT demand zero vulnerabilities — today four production
-  # advisories exist whose fix requires a BREAKING major (next@16, nodemailer@9),
-  # so a plain `npm audit --audit-level=high` would pin CI red forever, and a
-  # permanently red gate is a gate nobody reads. It demands zero UNTRIAGED
-  # vulnerabilities instead: security/audit-baseline.json records each accepted
-  # advisory with a reachability argument AND an expiry, and the script fails on
-  # (a) anything new and (b) anything whose acceptance has gone stale.
+  # The gate does NOT demand zero vulnerabilities — today the remaining production
+  # advisories are all postcss, which `next` pins to an EXACT version (15.5.24
+  # still says postcss 8.4.31), so we cannot raise it ourselves. A plain
+  # `npm audit --audit-level=high` would pin CI red forever, and a permanently red
+  # gate is a gate nobody reads. It demands zero UNTRIAGED vulnerabilities
+  # instead: security/audit-baseline.json records each accepted advisory with a
+  # reachability argument AND an expiry, and the script fails on (a) anything new
+  # and (b) anything whose acceptance has gone stale.
+  #
+  # 2026-09-09: this gate DID its job. Seven advisories landed on an UNCHANGED
+  # lockfile (same tree was green 9 hours earlier) and CI went red. The answer was
+  # to UPGRADE (next 15.5.24 · sharp 0.35.4 · nodemailer 9.1.1), not to widen the
+  # baseline — two accepted entries were DELETED because the upgrade really fixed
+  # them. An exception removed is proof of a fix; one added is proof of a delay.
   #
   # Own job on purpose: when this is the red one, the job name says so and the
   # four correctness gates above stay visibly green. Folding it into `build`
