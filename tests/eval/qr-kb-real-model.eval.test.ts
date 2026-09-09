@@ -1,5 +1,7 @@
 import { describe, it, expect, beforeAll, afterAll } from "vitest";
-import { readFileSync, writeFileSync, mkdirSync } from "node:fs";
+import { readFileSync, writeFileSync, mkdirSync, existsSync } from "node:fs";
+import { createHash } from "node:crypto";
+import { execSync } from "node:child_process";
 import path from "node:path";
 import { suggestReply } from "@/lib/ai";
 import type { SuggestReplyInput } from "@/lib/ai/types";
@@ -61,6 +63,14 @@ interface Row {
   reply: string;
   confidence: number | null;
   intent: string;
+  /**
+   * KAPININ KARAR GİRDİLERİ (Codex, 09-09). Baseline raporunda intent/risk
+   * alanları YOKTU; o yüzden "model şunu dedi, kapı da şunu yaptı" sonucu
+   * çıkarılamıyordu — karakterizasyon testinde bu değerleri VARSAYMAK zorunda
+   * kaldım ve bu, kanıtı KOŞULLU hâle getirdi. Artık ölçülüp yazılıyorlar.
+   */
+  riskLevel: string | null;
+  riskType: string | null;
   declared: number | null;
   verified: number | null;
   failures: string[];
@@ -129,12 +139,45 @@ function baseRow(s: Scenario): Row {
     reply: "",
     confidence: null,
     intent: "",
+    riskLevel: null,
+    riskType: null,
     declared: null,
     verified: null,
     failures: [],
     note: "",
     why: s.expect.why,
   };
+}
+
+/**
+ * KOŞU KİMLİĞİ / KANIT ZİNCİRİ (Ö4).
+ *
+ * 🚨 `requestedModel` ile `servedModel` AYRI ALAN, çünkü AYNI ŞEY DEĞİLLER:
+ * `OPENAI_MODEL` bizim İSTEDİĞİMİZ modeldir; sağlayıcının GERÇEKTEN koştuğu
+ * model yanıtta gelirse odur. `suggestReply` bugün yanıtın model kimliğini
+ * ÇAĞIRANA DÖNDÜRMÜYOR → `servedModel` null kalır ve rapor bunu "kaydedilmedi"
+ * diye yazar. Eski rapor tek bir alana "(varsayılan)" yazıyordu ve bu, hangi
+ * modelin koştuğu sorusunu cevaplanamaz hâle getiriyordu.
+ */
+export interface RunMeta {
+  /** `OPENAI_MODEL` env'i; verilmediyse null (kod içi varsayılan kullanılır). */
+  requestedModel: string | null;
+  /** Sağlayıcının bildirdiği model — bugün TAŞINMIYOR, null. */
+  servedModel: string | null;
+  /** `git rev-parse --short HEAD`; alınamazsa null. */
+  commit: string | null;
+  /** `src/lib/ai/prompts.ts` içerik özeti (sha256/12) — elle bumplanmaz, unutulamaz. */
+  promptFingerprint: string | null;
+  /** Bu koşuya özgü kimlik; dosya adı çakışmasını da bu çözer. */
+  runId: string;
+  stamp: string;
+}
+
+/** Aynı GÜN ikinci koşu ÖNCEKİNİ EZMEZ (Codex şartı). */
+export function pickReportFileName(stamp: string, runId: string, exists: (name: string) => boolean): string {
+  const plain = `eval-${stamp}.md`;
+  if (!exists(plain)) return plain;
+  return `eval-${stamp}-${runId}.md`;
 }
 
 /**
@@ -159,6 +202,8 @@ export function rowFor(s: Scenario, r: Awaited<ReturnType<typeof suggestReply>>)
     reply: r.reply ?? "",
     confidence: r.confidence,
     intent: r.intent,
+    riskLevel: r.riskLevel ?? null,
+    riskType: r.riskType ?? null,
     declared: r.sourceAudit?.declared ?? null,
     verified: r.sourceAudit?.verified ?? null,
     failures,
@@ -177,7 +222,8 @@ export function errorRow(s: Scenario, err: unknown): Row {
  * "eksik" tarafındaysa başlıkta koşu GEÇERSİZ damgalanır. Eskiden yalnız
  * `düşen` yazıyordu; hiç tamamlanmamış bir koşu "düşen: 0" ile temiz görünürdü.
  */
-export function buildEvalReport(expected: number, list: Row[], model: string, stamp: string): string {
+export function buildEvalReport(expected: number, list: Row[], meta: RunMeta): string {
+  const stamp = meta.stamp;
   const completed = list.length;
   const failed = list.filter((r) => r.outcome === "failed_checks").length;
   const invalid = list.filter((r) => r.outcome === "invalid").length;
@@ -192,20 +238,45 @@ export function buildEvalReport(expected: number, list: Row[], model: string, st
   return `# GERÇEK MODEL EVAL — ${suite.name} v${suite.version} (${stamp})
 
 > Bu dosya \`tests/eval/qr-kb-real-model.eval.test.ts\` tarafından ÜRETİLİR; elle yazılmaz.
-> Model: \`${model}\` · LLM grader YOK; her satır deterministik kontrolle ölçüldü.
+> LLM grader YOK; her satır deterministik kontrolle ölçüldü.
 ${header}
+
+## Kanıt zinciri
+
+| Alan | Değer |
+|---|---|
+| İstenen model (\`OPENAI_MODEL\`) | ${meta.requestedModel ?? "**env verilmedi** → kod içi varsayılan"} |
+| Sağlayıcının bildirdiği model | ${meta.servedModel ?? "**KAYDEDİLMEDİ** — \`suggestReply\` yanıtın model kimliğini çağırana döndürmüyor"} |
+| Commit | ${meta.commit ?? "(alınamadı)"} |
+| İstem parmak izi (\`prompts.ts\` sha256/12) | ${meta.promptFingerprint ?? "(alınamadı)"} |
+| Koşu kimliği | ${meta.runId} |
+
+🚨 İstenen model ile koşan model AYNI ŞEY DEĞİLDİR; ikisi ayrı satırda. "Kaydedilmedi", "varsayılan
+koştu" demek DEĞİLDİR.
 
 | Beklenen | Tamamlanan | Geçti | Doğrulama düştü | GEÇERSİZ (model yok) | KAYIT YOK (timeout/çökme) |
 |---|---|---|---|---|---|
 | ${expected} | ${completed} | ${ok} | ${failed} | ${invalid} | ${noRecord} |
 
-| # | Sonuç | Soru | Modelin cevabı | Güven | Beyan/Doğrulanan | Not |
+## Karar girdileri (kapının gördüğü alanlar)
+
+🚨 Bu tablo Ö4 ile eklendi. Önceki raporda **intent/risk alanları YOKTU**, bu yüzden "model şunu
+dedi, kapı da şunu yaptı" sonucu çıkarılamıyordu.
+
+| # | Sonuç | intent | riskLevel | riskType | Güven | Beyan/Doğrulanan |
 |---|---|---|---|---|---|---|
 ${list
   .map((r) => {
     const mark = r.outcome === "ok" ? "✅" : r.outcome === "failed_checks" ? "❌" : "⛔ GEÇERSİZ";
+    return `| ${r.id} | ${mark} | ${r.intent || "—"} | ${r.riskLevel ?? "—"} | ${r.riskType ?? "—"} | ${r.confidence ?? "—"} | ${r.declared ?? "—"}/${r.verified ?? "—"} |`;
+  })
+  .join("\n")}
+
+## Tam cevaplar (KIRPILMAZ)
+${list
+  .map((r) => {
     const detail = r.outcome === "failed_checks" ? r.failures.join("; ") : r.note;
-    return `| ${r.id} | ${mark} | ${r.question} | ${JSON.stringify(r.reply.slice(0, 120))} | ${r.confidence ?? "—"} | ${r.declared ?? "—"}/${r.verified ?? "—"} | ${detail} |`;
+    return `### ${r.id}\n**Soru:** ${r.question}\n\n\`\`\`\n${r.reply === "" ? "(cevap yok)" : r.reply}\n\`\`\`\n${detail ? `**Not:** ${detail}\n` : ""}`;
   })
   .join("\n")}
 
@@ -237,14 +308,40 @@ describe.skipIf(!enabled)(`GERÇEK MODEL EVAL — ${suite.name} v${suite.version
   });
 
   afterAll(() => {
-    const stamp = new Date().toISOString().slice(0, 10);
+    const now = new Date();
+    const stamp = now.toISOString().slice(0, 10);
+    const runId = `${now.toISOString().slice(11, 19).replace(/:/g, "")}-${Math.random().toString(36).slice(2, 6)}`;
     const dir = path.resolve(__dirname, "../../docs/olcum");
     mkdirSync(dir, { recursive: true });
-    writeFileSync(
-      path.join(dir, `eval-${stamp}.md`),
-      buildEvalReport(suite.scenarios.length, rows, process.env.OPENAI_MODEL ?? "(varsayılan)", stamp),
-      "utf8",
-    );
+
+    let promptFingerprint: string | null = null;
+    try {
+      const src = readFileSync(path.resolve(__dirname, "../../src/lib/ai/prompts.ts"));
+      promptFingerprint = createHash("sha256").update(src).digest("hex").slice(0, 12);
+    } catch {
+      /* parmak izi alınamadıysa null kalır — uydurma değer YAZILMAZ */
+    }
+    let commit: string | null = null;
+    try {
+      commit = execSync("git rev-parse --short HEAD", { encoding: "utf8" }).trim() || null;
+    } catch {
+      /* aynı kural */
+    }
+
+    const meta: RunMeta = {
+      requestedModel: process.env.OPENAI_MODEL?.trim() || null,
+      // 🚨 BUGÜN TAŞINMIYOR. "(varsayılan)" yazmak, ölçülmemiş bir şeyi
+      // ölçülmüş gibi göstermekti — rapor artık açıkça "KAYDEDİLMEDİ" diyor.
+      servedModel: null,
+      commit,
+      promptFingerprint,
+      runId,
+      stamp,
+    };
+
+    // Aynı gün ikinci koşu öncekini EZMEZ.
+    const name = pickReportFileName(stamp, runId, (f) => existsSync(path.join(dir, f)));
+    writeFileSync(path.join(dir, name), buildEvalReport(suite.scenarios.length, rows, meta), "utf8");
   });
 
   for (const s of suite.scenarios) {
@@ -264,6 +361,21 @@ describe.skipIf(!enabled)(`GERÇEK MODEL EVAL — ${suite.name} v${suite.version
     });
   }
 });
+
+/** Ö4 testlerinin ortak sabitleri — hiçbir gerçek çağrı yok. */
+const OK_ROW: Row = {
+  id: "E1", question: "s", outcome: "ok", reply: "cevap", confidence: 0.9,
+  intent: "parking", riskLevel: "none", riskType: null,
+  declared: 1, verified: 1, failures: [], note: "", why: "w",
+};
+const META: RunMeta = {
+  requestedModel: "gpt-test",
+  servedModel: null,
+  commit: "abc1234",
+  promptFingerprint: "deadbeef1234",
+  runId: "120000-ab12",
+  stamp: "2026-01-01",
+};
 
 describe("eval kapıları (gerçek çağrı YAPMAZ)", () => {
   it("ANAHTARSIZ ya da bayraksız koşmaz — sahte 'geçti' üretilmez", () => {
@@ -351,25 +463,66 @@ describe("eval kapıları (gerçek çağrı YAPMAZ)", () => {
   });
 
   it("RAPOR: eksik koşu 'geçti' diye okunamaz (saf fonksiyon, çağrısız)", () => {
-    const okRow: Row = {
-      id: "E1", question: "s", outcome: "ok", reply: "cevap", confidence: 0.9,
-      intent: "parking", declared: 1, verified: 1, failures: [], note: "", why: "w",
-    };
     // 8 bekleniyor, yalnız 1 tamamlandı → 7'si KAYIT BIRAKMADI.
-    const partial = buildEvalReport(8, [okRow], "m", "2026-01-01");
+    const partial = buildEvalReport(8, [OK_ROW], META);
     expect(partial).toMatch(/BU KOŞU EKSİK/);
     expect(partial).toMatch(/\| 8 \| 1 \| 1 \| 0 \| 0 \| 7 \|/);
     expect(partial).toMatch(/tamamlanmadı/);
 
     // Model çağrılamadı → GEÇERSİZ, "düşen 0" diye temiz görünmez.
-    const invalidRow: Row = { ...okRow, id: "E2", outcome: "invalid", note: "model çağrılamadı (fallback döndü)" };
-    const bad = buildEvalReport(2, [okRow, invalidRow], "m", "2026-01-01");
+    const invalidRow: Row = { ...OK_ROW, id: "E2", outcome: "invalid", note: "model çağrılamadı (fallback döndü)" };
+    const bad = buildEvalReport(2, [OK_ROW, invalidRow], META);
     expect(bad).toMatch(/BU KOŞU EKSİK/);
     expect(bad).toMatch(/⛔ GEÇERSİZ/);
 
     // Tam koşu → uyarı YOK.
-    const full = buildEvalReport(1, [okRow], "m", "2026-01-01");
+    const full = buildEvalReport(1, [OK_ROW], META);
     expect(full).not.toMatch(/BU KOŞU EKSİK/);
     expect(full).toMatch(/Koşu tam/);
+  });
+
+  // ── Ö4: KANIT ZİNCİRİ (hepsi çağrısız) ──────────────────────────────────
+
+  it("Ö4: cevap KIRPILMAZ", () => {
+    // Eski rapor 120 karakterde kesiyordu; uzun bir cevabın SONU (asıl iddia
+    // çoğu zaman orada) görünmüyordu.
+    const long = "A".repeat(400) + "SONDAKI-IDDIA";
+    const out = buildEvalReport(1, [{ ...OK_ROW, reply: long }], META);
+    expect(out).toContain(long);
+    expect(out).toMatch(/Tam cevaplar \(KIRPILMAZ\)/);
+  });
+
+  it("Ö4: KARAR GİRDİLERİ (intent/riskLevel/riskType) raporda", () => {
+    const out = buildEvalReport(1, [{ ...OK_ROW, intent: "complaint", riskLevel: "low", riskType: "maintenance" }], META);
+    expect(out).toMatch(/Karar girdileri/);
+    expect(out).toMatch(/\| complaint \| low \| maintenance \|/);
+    // 🚨 Ölçülmemiş alan "—" yazar; sıfır ya da "none" DİYE UYDURULMAZ.
+    const missing = buildEvalReport(1, [{ ...OK_ROW, riskLevel: null, riskType: null }], META);
+    expect(missing).toMatch(/\| — \| — \|/);
+  });
+
+  it("Ö4: İSTENEN model ile KOŞAN model AYRI; kaydedilmeyen 'varsayılan' DİYE YAZILMAZ", () => {
+    const out = buildEvalReport(1, [OK_ROW], META);
+    expect(out).toMatch(/İstenen model/);
+    expect(out).toMatch(/gpt-test/);
+    // Sağlayıcı kimliği taşınmıyorsa bu AÇIKÇA söylenir.
+    expect(out).toMatch(/KAYDEDİLMEDİ/);
+    // Env verilmediyse "varsayılan koştu" DENMEZ, "env verilmedi" denir.
+    const noEnv = buildEvalReport(1, [OK_ROW], { ...META, requestedModel: null });
+    expect(noEnv).toMatch(/env verilmedi/);
+  });
+
+  it("Ö4: commit, istem parmak izi ve koşu kimliği raporda", () => {
+    const out = buildEvalReport(1, [OK_ROW], META);
+    expect(out).toContain("abc1234");
+    expect(out).toContain("deadbeef1234");
+    expect(out).toContain("120000-ab12");
+  });
+
+  it("Ö4: AYNI GÜN ikinci koşu öncekini EZMEZ", () => {
+    // Dosya yoksa düz ad.
+    expect(pickReportFileName("2026-01-01", "120000-ab12", () => false)).toBe("eval-2026-01-01.md");
+    // 🚨 Varsa koşu kimliğiyle AYRI dosya — baseline üzerine yazılmaz.
+    expect(pickReportFileName("2026-01-01", "120000-ab12", () => true)).toBe("eval-2026-01-01-120000-ab12.md");
   });
 });

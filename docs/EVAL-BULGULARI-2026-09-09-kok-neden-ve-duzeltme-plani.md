@@ -25,11 +25,21 @@
 güven değerleri gelince gerçek rotaya karşı ölçtüm
 (`tests/integration/qr-draft-vs-delivered.test.ts`, model mock'lu, kapı GERÇEK, 4/4 geçti):
 
-| # | Ürünün cevabı taslak mı | Neden | Sonuç |
-|---|---|---|---|
-| **E6** | **HAYIR** | model `complaint` dedi → `ESCALATE_INTENTS` → devir | ✅ "ekibime ilettim" misafire **GİTMİYOR**; giden metin `escalationReply()` |
-| **E1** | **EVET** | güven **0.8 ≥ 0.75**, intent devir kümesinde değil → kapı **geçiliyor** | ❌ **sıfır kaynakla verilen taahhüt ürünün cevabında** |
-| **E7** | **EVET** | güven 0.95 → kapı geçiliyor | ❌ **kesin saat** çıkıyor, oysa kaynak öncelik sözleşmesi yok |
+🚨 **KANITIN SINIRI (Codex düzeltmesi):** baseline raporunda **`intent` ve `risk` alanları YOKTU** —
+rapor yalnız cevabı, güveni ve kaynak sayısını taşıyordu. Kapının kararı ise tam da o eksik alanlara
+bakıyor. Testte bu değerleri **ben seçtim** (`ASSUMED` bloğu, dosyada açıkça ilan ediliyor). Yani
+aşağıdaki tablo **koşulludur**: "model bu alanları şu değerlerle döndürürse ürün şunu yapar."
+Ö4 ile eval raporuna intent/riskLevel/riskType eklendi → **bir sonraki gerçek koşu bu varsayımları
+gerçek değerlerle değiştirecek.**
+
+| # | Raporlanan | Varsayılan | Ürünün cevabı taslak mı | Sonuç |
+|---|---|---|---|---|
+| **E6** | cevap · güven 0.9 · kaynak 0/0 | `intent: complaint` | **HAYIR** | ✅ *Eğer* intent `complaint` ise `ESCALATE_INTENTS` → devir → "ekibime ilettim" **gitmiyor**. Model `general` deseydi bu dal çalışmazdı **ve** `classifyFallback` "sıcak su gelmiyor"u ölçülmüş olarak `general` sayıyor → kelime ağı da tutmazdı |
+| **E1** | cevap · **güven 0.8** · **kaynak 0/0** | `intent: parking`, risk yok | **EVET** | ❌ Karar veren alan **raporlanan güven**: 0.8 ≥ 0.75 → kapı geçiyor, **sıfır kaynakla verilen taahhüt ürünün cevabında** |
+| **E7** | cevap · **güven 0.95** · kaynak 1/1 | `intent: checkout`, risk yok | **EVET** | ❌ **kesin saat** çıkıyor, oysa kaynak öncelik sözleşmesi yok |
+
+E1 ve E7'de sonucu belirleyen alan (güven) **raporlanmıştı**, yani bu ikisinin kanıtı daha güçlü;
+E6'nınki tamamen varsayılan `intent`e bağlı.
 
 Aynı E1 taslağı güven 0.6'ya çekilince ürün **devrediyor** ve söz gitmiyor — yani *"kanıtsız söz
 misafire ulaşır mı"* sorusunun cevabı **taslakta değil KAPIDA**. Düşen 2 senaryo (E1, E7) tam da
@@ -87,13 +97,15 @@ E6 = Türkçe olumsuz fiilli şikâyet ("sıcak su gelmiyor"). Karar yolu (`eval
   → `keyword_escalated` ATEŞLEMEZ. Model riski de "none/low" ve güven ≥ 0.75 ise
   → **kapı geçilir ve "ekibime ilettim" MİSAFİRE GİDER.**
 
-Yani E6'daki risk gerçek ama **koşullu**, ve o koşulun hangisi olduğunu bugünkü eval söyleyemiyor.
+Yani E6'daki risk gerçek ama **koşullu**, ve o koşulu belirleyen alan (`intent`) baseline raporunda
+**YOKTU** — bu yüzden §0.1'deki E6 satırı bir ÖLÇÜM değil, VARSAYIMA bağlı bir dal analizidir.
 
-### 2.3 E1/E3 "kanıtsız takip sözü" — aynı kök, muhtemelen teslim EDİLMİYOR
+### 2.3 E1 "kanıtsız takip sözü" — ~~muhtemelen teslim edilmiyor~~ → **ÜRÜNÜN CEVABINDA** (ölçüldü)
 
-E1/E3'te beklenti `maxConfidence: 0.75`. Güven 0.75'in altındaysa ve bant KAPALI (varsayılan) ise
-→ `low_confidence` → devir → misafire `escalationReply()` gider. Yani söz **taslakta var, teslimde
-muhtemelen yok**. "Muhtemelen" diyorum çünkü **ölçülmedi** — §3'teki harness bunu kesinleştirecek.
+İlk yazdığım buydu: *"güven 0.75 altındaysa devir olur, söz muhtemelen gitmez."* **Raporlanan güven
+0.8 çıktı** — yani eşiğin ÜSTÜNDE. Kapı geçiyor ve söz ürünün cevabına giriyor (§0.1, ölçüldü).
+Buradaki dersi ayrıca not ediyorum: *"eşiğin altındadır herhalde"* bir ölçüm değildi ve yanlış
+çıktı; karar veren sayı raporda zaten vardı, ben ona bakmadan yorum yapmıştım.
 
 ### 2.4 E7 — KAYNAK ÖNCELİK SÖZLEŞMESİ YOK
 
@@ -158,9 +170,16 @@ olmayan bir mekanizmayı (`actionReceipt`) varmış gibi gösterirdi.
 🚨 **Güven eşiği DÜŞÜRÜLMEYECEK.** Codex şartı; ayrıca düşük güven "dürüst bilmiyorum"un kanıtı
 değildir (zaten CLAUDE.md kuralı).
 
-**Ö4 — Rapor:** cevaplar KIRPILMAZ; `OPENAI_MODEL` gerçek değeri, `git rev-parse HEAD` ve
-**`prompts.ts` içerik özeti (sha256 ilk 12)** kaydedilir. Özet, elle bakımlı bir sürüm numarasından
-daha dürüst: istem değişince kendiliğinden değişir, kimse bumplamayı unutamaz.
+**Ö4 — Rapor kanıt zinciri. ✅ YAPILDI** (gerçek model çağrısı YAPILMADAN test edildi):
+· cevaplar **KIRPILMAZ** (ayrı "Tam cevaplar" bölümü) · **karar girdileri** (intent/riskLevel/
+riskType) tabloda — ölçülmemiş alan `—` yazar, `none` diye UYDURULMAZ · **istenen model** ile
+**sağlayıcının bildirdiği model AYRI SATIR**: `suggestReply` yanıtın model kimliğini çağırana
+döndürmüyor → rapor açıkça **"KAYDEDİLMEDİ"** yazar (eski rapor tek alana "(varsayılan)" yazıyordu
+ve bu, ölçülmemiş bir şeyi ölçülmüş gibi gösteriyordu) · **commit** · **`prompts.ts` parmak izi**
+(sha256/12 — elle bumplanmaz, unutulamaz) · **koşu kimliği** · **aynı gün ikinci koşu öncekini
+EZMEZ** (`pickReportFileName`).
+Üç mutasyon, üçü de yakalandı: kırpmayı geri getir → "KIRPILMAZ" düştü · aynı adı hep döndür →
+"EZMEZ" düştü · kaydedilmeyeni "(varsayılan)" yaz → model-ayrımı testi düştü.
 
 ## 4. Bu turda ne YAPILMADI ve neden
 
@@ -194,6 +213,7 @@ tuttu, yani aciliyeti daha düşük (ama boşluk gerçek ve kapanmalı).
 ## 7. Bu turda yapılan / yapılmayan
 
 **Yapıldı (davranış DEĞİŞMEDİ):** Ö1 (gerçek rota ölçümü, kapı taşınmadı) · Ö3 (üç dedektör,
-`tests/` altında) · §0.1 düzeltmesi (önceki değerlendirmem terstiydi).
-**Yapılmadı:** Ö4 (rapor alanları) · P1–P5'in hiçbiri.
+`tests/` altında) · Ö4 (rapor kanıt zinciri) · §0.1'in İKİ düzeltmesi: (a) önceki değerlendirmem
+terstiydi, (b) kanıt KOŞULLU — intent/risk raporda yoktu, varsayıldı.
+**Yapılmadı:** P1–P5'in hiçbiri. Gerçek model çağrısı YAPILMADI.
 **Dokunulmayanlar:** istem · gönderim kararı · eşikler · bayraklar · migration · şema · prod/env.
