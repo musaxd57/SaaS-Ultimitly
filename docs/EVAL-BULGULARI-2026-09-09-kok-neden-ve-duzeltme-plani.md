@@ -118,9 +118,10 @@ Buradaki dersi ayrıca not ediyorum: *"eşiğin altındadır herhalde"* bir öl�
 Yani E7'de model 0.95 güvenle "11:00" derken **uydurmuyordu, tanımlı kuralı uyguluyordu** (mülk
 ayarı 11:00). Sonuçları:
 - Eval E7'nin beklentisi (`maxConfidence: 0.75`, "kesin cevap verilmemeli, insana devir") ile
-  **yayındaki sözleşme çelişiyor**. O beklentiyi 09-08'de "sözleşme yok" varsayımıyla ben yazdım;
-  kurucu "çelişkide devir" diye bir karar **vermedi**. Bu bir **ürün kararıdır (P4-b)**, testi
-  düzeltmek ya da davranışı sessizce çevirmek değil.
+  o günkü sözleşme çelişiyordu. **KURUCU KARARI (P4-b, 09-09): çelişkili saatte misafire kesin saat
+  söylenmez, cevap insan incelemesine gider; çelişkiyi ev sahibine göstermek bundan AYRI bir iştir.**
+  Uygulama istem düzeyinde (çelişki bloğu + ÖNCELİK satırı: "çelişiyorsa kesin saat söyleme");
+  kapı/eşik değişmedi — 0.75 altı zaten insana gider. Eval E7 beklentisi artık sözleşmeyle uyumlu.
 - P4'ün onaylı hâli ("öncelik yoksa icat etme") burada "var olanı KORU" demek. Uygulanan dilim:
   çelişkiyi **kodda tespit** edip (`findTimeConflicts`, yalnız giriş/çıkış saati) modele ve ev
   sahibine (missingInfo/actionSuggestion) görünür kılmak; misafire giden saat mevcut kuralla aynı

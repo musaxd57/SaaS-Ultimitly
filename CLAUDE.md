@@ -621,8 +621,12 @@ kapı TAŞINMADI, model mock'lu — **koşullu karakterizasyon**: baseline'da in
 karar girdileri · istenen ≠ bildirilen model · commit · istem parmak izi · aynı gün ezme yok. Dedektörler bilerek `tests/helpers/`
 (ürün koduna taşımak = P5). **Kök neden: istem "ilettim/size döneceğim"i EMREDİYOR (`prompts.ts:20-21, 88, 115`), `actionReceipt`
 uygulanmamış; E7'de saat için öncelik sözleşmesi VAR (`buildReplyUserPrompt`: mülk ayarı esastır — ilk "YOK" bulgum
-yanlıştı, model kuralı uyguluyordu; "çelişkide devir mi" = P4-b kurucu kararı); E4/E5 yasak kaynaklı ama yanındaki
+yanlıştı, model kuralı uyguluyordu); **P4-b KARARI (09-09): çelişkide misafire kesin saat YOK → insan incelemesi;
+host'a çelişki gösterimi ayrı** (istem düzeyinde, kapı/eşik değişmedi); E4/E5 yasak kaynaklı ama yanındaki
 vaat (`:97, :100, :833`) kanıtsız.**
+**P1 UYGULANDI (09-09, istem):** makbuzsuz eylem/söz emirleri kaldırıldı, çapa "Mesajınız kaydedildi; ev sahibiniz
+görebilir."; KURAL-4 "değerlendirecek" → "ev sahibinizin kararıdır" (kurucu); escalation etiketleri değişmedi.
+**P1-c (kaynaksız cevapta güven <0.75 talimatı) kurucu kararıyla EKLENMEDİ** — yeni eval görülmeden açılmaz.
 **Bekleyen kurucu kararları:** P1–P5 (önerilen sıra P1→P4→P5→P3→P2) · orijinal eval raporu · yeni eval koşusu (intent/risk artık
 kaydediliyor) · `a52a30c` ACTIVE + selam kontrolü · migration 53/54 §B salt-okuma sorguları · prod'da `EMAIL_HOST` set mi.
 Prod smoke bu ortamdan yapılamaz; operatör adımları `docs/audit-2026-09-05/DURUM.md` + `docs/V0-CHANNEL-INDEPENDENCE-INVENTORY.md` §10.
