@@ -50,8 +50,12 @@ function firstNameOf(guestName: string): string {
 }
 
 // Resolve the host's template tokens to live values for a preview of the message
-// content — SAME module the sender uses (@/lib/kb-placeholders), so the preview
+// content — SAME module the sender uses (@/lib/kb-placeholders), so the TOKEN half
 // can never drift from what actually went out.
+// ⚠️ BU TAM BİR ÖNİZLEME DEĞİL (inceleme 09-10): gönderici `buildGuestMessageBody`,
+// şablonda ad belirteci YOKSA başa "Merhaba <ad>," + boş satır, sona org imzasını
+// EKLER. Burada yalnız belirteçler çözülür; selamlama ve imza görünmez. Tam parite
+// için o gövde kurucusunun paylaşılması gerekir (ayrı iş).
 function fillTokens(text: string, firstName: string, propertyName: string): string {
   return fillGuestPlaceholders(text, { guestFirstName: firstName, propertyName });
 }

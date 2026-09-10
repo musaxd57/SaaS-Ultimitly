@@ -51,18 +51,35 @@ function keyKind(raw: string): "name" | "apartment" | null {
  */
 export function guestFirstNameOf(guestIdentifier: string | null | undefined): string | null {
   const first = (guestIdentifier ?? "").trim().split(/\s+/)[0];
-  if (!first || first === "Rezervasyon" || first === "Misafir") return null;
+  if (!first) return null;
+  // ⚠️ BÜYÜK/KÜÇÜK HARFE DUYARLI DEĞİL (inceleme 09-10): sağlayıcı "rezervasyon 12345" (küçük)
+  // yazdığında eski kontrol kaçırıyor ve misafire "Merhaba rezervasyon," gidiyordu. Türkçe
+  // katlama şart: "MİSAFİR" → `toLowerCase()` ile "mi̇safir" olur, `toLocaleLowerCase("tr")` ile
+  // "misafir". ⚠️ Yalnız TAM eşleşme: "Misafir Ahmet" gerçek bir addır ve KORUNUR.
+  const folded = first.toLocaleLowerCase("tr");
+  if (folded === "rezervasyon" || folded === "misafir") return null;
   return first;
 }
 
 /**
- * Misafire görünen daire numarası: mülk adındaki SON sayı ("nuve 3" → "3",
- * "nuve teras 4" → "4"). Sayı yoksa mülk adının kendisi döner — uydurma numara
- * üretmek yerine host'un yazdığı adı göstermek dürüsttür.
+ * Misafire görünen daire numarası.
+ *
+ * SIRA: (1) "daire/no/apt/#" etiketinden SONRAKİ sayı — host niyetini AÇIKÇA yazmıştır;
+ * (2) mülk adında TEK sayı varsa o; (3) birden çok sayı varsa İKAME YAPILMAZ (belirteç
+ * görünür kalır). Sayı yoksa mülk adının kendisi döner.
+ *
+ * 🚨 "SON SAYI" KURALI YANLIŞ CEVAP ÜRETİYORDU (inceleme 09-10, ölçüldü): Türkiye ilan
+ * adlarında "2+1", "3+1", "2. kat" normdur → "Nuve 3 | 2+1 Deniz Manzaralı" → **"1"**,
+ * "Daire 5 - 2 Yatak Odalı" → **"2"**, "Nuve 12 (2. kat)" → **"2"**. Misafire YANLIŞ
+ * daire numarası söyleniyor ve hiçbir sinyal üretilmiyordu. Belirsizde susmak, uydurmaktan
+ * iyidir (`null` → çağıran belirteci dokunulmadan bırakır).
  */
-export function apartmentNumberOf(propertyName: string): string {
+export function apartmentNumberOf(propertyName: string): string | null {
+  const labelled = /(?:daire|apart?ment|apt|no|#)\s*[:.]?\s*(\d+)/i.exec(propertyName);
+  if (labelled) return labelled[1];
   const nums = propertyName.match(/\d+/g);
-  return nums ? nums[nums.length - 1] : propertyName;
+  if (!nums) return propertyName;
+  return nums.length === 1 ? nums[0] : null;
 }
 
 /** Metinde ad yer tutucusu var mı (host kendi selamlamasını yazmış mı)? */
@@ -92,11 +109,14 @@ export interface GuestPlaceholderValues {
 export function fillGuestPlaceholders(text: string, values: GuestPlaceholderValues): string {
   const { guestFirstName, propertyName } = values;
   if (guestFirstName === undefined && propertyName === undefined) return text;
+  const apt = propertyName === undefined ? null : apartmentNumberOf(propertyName);
   return text.replace(new RegExp(TOKEN.source, "gu"), (whole, key: string) => {
     const kind = keyKind(key);
     if (kind === "name" && guestFirstName !== undefined) return guestFirstName;
-    if (kind === "apartment" && propertyName !== undefined) return apartmentNumberOf(propertyName);
-    return whole; // tanınmayan belirteç ("{kod}") ve değeri verilmeyen sınıf DOKUNULMAZ
+    if (kind === "apartment" && apt !== null) return apt;
+    // Tanınmayan belirteç ("{kod}"), değeri verilmeyen sınıf VE belirsiz daire numarası
+    // (mülk adında birden çok sayı) DOKUNULMAZ — yanlış numara söylemektense belirteç kalsın.
+    return whole;
   });
 }
 

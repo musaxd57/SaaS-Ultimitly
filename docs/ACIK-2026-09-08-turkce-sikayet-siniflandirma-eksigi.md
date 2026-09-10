@@ -120,3 +120,66 @@ cihaz listesine "ev" ve "internet") — 20/21 ilk koşuda, "there's a power cut"
 **Kapsam dürüstlüğü:** bu düzeltme kelime ağının İKİNCİ SAVUNMASINI onarır; modelin `general` dediği bir
 şikâyeti artık QR ve oto-yanıt kapıları yakalar, V1 sinyali üretilir. Model yolundaki sınıflandırma kalitesi
 (modelin kendisi) bu turda ÖLÇÜLMEDİ (gerçek koşu kurucunundur).
+
+## İkinci inceleme turu (2026-09-10, ölçümlü ajan) — 25 kırmızı düzeltildi
+
+İlk kapanış YETERSİZDİ. Ajan (salt-okuma, `npx tsx` probe'larıyla) iki yapısal kusur ve üç kapsam kaybı ölçtü.
+
+### K1 — Cihaz kuralı iki yerden sızıyordu (P1)
+
+**(a) Cihaz adı ALTDİZİ aranıyordu.** `foldTurkishAscii` iki tarafa da uygulandığı için cihaz adı BAŞKA kelimenin
+içinde yakalanıyordu:
+
+| Kelime | Katlanmış | Tetiklenen cihaz |
+|---|---|---|
+| değişiklik | degisiklik | ışık (isik) |
+| düşün / düşük / düştü | dus… | duş |
+| telefon, fonksiyon | telefon | fön (fon) |
+| sürpriz | surpriz | priz |
+| kutu, unutuldu | …utu… | ütü |
+| kombine | kombi… | kombi |
+| Ocak (ay adı) | ocak | ocak (pişirici) |
+
+**(b) Fiil ∧ cihaz mesajın HERHANGİ bir yerinde olabiliyordu.** Ölçülen: "Klima harika. Ama planımız bozuldu,
+erken çıkıyoruz." · "Ev çok güzel, tv büyük… Bu arada midem bozuldu, yakında eczane var mı?" → ikisi de `complaint`.
+
+**Düzeltme:** cihaz adı **KELİME BAŞI** eşleşir (`startsWithAnyFold`, aynı üç katlama) **ve** fiil ile cihaz
+**AYNI CÜMLECİKTE** olmalıdır (`CLAUSE_SPLIT`, virgül de böler). Çekimli biçimler ("klimamız", "makinesi",
+"kombimiz") kelime başında olduğu için korunur. **BİLİNEN SINIR:** cihaz ile fiil ayrı cümleciğe düşen gerçek
+şikâyet ("Buzdolabı çok gürültülü, sanırım bozuldu") bu ağdan kaçar — model yolu ve "çalışmıyor" gibi bağımsız
+kalıplar ikinci savunmadır.
+
+### K2 — KOŞUL kipi bildirim sayılıyordu (P1)
+
+"Su gelmiyorsa ne yapmamız gerekiyor?" · "Kombi yanmıyorsa ne yapalım?" · "Buzdolabı arızalanırsa kimi arayalım?" ·
+"Tuvalet tıkanırsa ne yapmalıyız?" — hiçbiri OLMUŞ bir arızayı bildirmiyor; bunlar oto-yanıtın **asıl işi** olan SSS
+sorularıdır. `complaint` = `NEVER_AUTO_REPLY_INTENTS` olduğu için her biri oto-yanıtı kapatıp host'a acil e-posta
+üretiyordu.
+
+**Düzeltme:** `isConditionalClause` (3. şahıs koşul ekleri ‑ıyorsa/‑ırsa/‑erse/‑mazsa/‑masa/‑saydı + "eğer"), cümlecik
+başına. Gerçek bildirim başka cümlecikteyse şikâyet KALIR ("Su gelmiyor, kesilirse haber verir misiniz?").
+🚨 **Guard YALNIZ 09-10 kalıplarına uygulanır** (`NEGATIVE_VERB_COMPLAINTS`, `KEYWORDS.complaint`ten AYRI liste).
+Eski ağa uygulamak DENENDİ ve golden set YAKALADI: **"Böyle giderse bir yıldız veririm"** (gerçek yorum tehdidi)
+`general`e düşüyordu — "giderse" biçimsel olarak koşul ama cümle bir TEHDİT. Eski ağ DOKUNULMADAN bırakıldı.
+1. şahıs koşul ("alamazsam") guard'a girmez.
+
+### K3 — GÖVDE kalıpları kendi olumsuzlarını yakalıyordu (P1)
+
+`"arızalan"` · `"tuvalet tıkan"` · `"kapı sıkış"` · `"musluk damlat"` gövdeleri OLUMSUZ ve türetilmiş biçimleri de
+yakalıyordu: "Klima **arızalanmadı**, gayet iyi çalışıyor" · "Tuvalet **tıkanıklığı yok**" · "Kapı **sıkışmıyor**,
+rahatça açılıyor" · "Musluk **damlatmıyor**, gayet iyi" — dördü de ÖVGÜ, dördü de `complaint`.
+**Düzeltme:** olumlu TAM biçimler (`arızalandı/arızalanmış`, `tıkandı/tıkalı/tıkanıyor`, `sıkıştı/sıkışıyor`,
+`damlıyor/damlatıyor`).
+
+### K4 — Çapalama üç kapsam kaybı bırakmıştı (P2)
+
+- `"no heat"` çıplaktı ("no heated pool" yakalıyordu) → SİLİNMİŞTİ; silinince "There is no heat in the flat." ve
+  "No heat since yesterday" YANLIŞ NEGATİF kaldı → `no heat in/since/at all`, `there is/there's no heat`.
+- Oda çapası dardı (yalnız dairede/evde/odada) → "Salonda elektrik yok", "Salonda ısıtma yok", "Yatak odası
+  ısınmıyor" `general` idi → salon/mutfak/banyo/koridor/…odasında biçimleri eklendi.
+- `PROBLEM_NEGATIONS` BELİRTME HÂLİNİ kaçırıyordu (pre-existing): "Hiçbir sorun yaşamadık" olumsuzlanıyor ama
+  "Hiçbir **sorunu** yaşamadık" ŞİKAYET sayılıyordu — aradaki tek harf.
+
+**Kanıt:** kırmızı-önce 25 düşen test (ölçülen cümlelerin tamamı `TRAPS`/`CONTRACT` tablolarına yazıldı); mutasyon
+19 mutant (cihaz kuralının iki yarısı · virgül bölmesi · koşul guard'ı ve eki · guard'ın eski ağa taşınması ·
+gövde/tam biçim · üç kapsam kaybı · yer tutucu daire/ad kuralları · QR ikinci taraması).

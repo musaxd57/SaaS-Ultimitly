@@ -148,26 +148,55 @@ describe("QR — KB yer tutucuları modele GİRMEDEN çözülür", () => {
     expect(input.knowledgeBase.map((k) => k.content).join("\n")).toContain("Deniz Manzara numaralı daireye");
   });
 
-  it("İKAME SIR KAPISINI GEVŞETMEZ: kod içeren wifi kalemi hâlâ elenir (yer tutucu çözülse bile)", async () => {
+  it("İKAME SIR KAPISINI GEVŞETMEZ: İÇERİK sezgiseli (kategori bacağı DEĞİL) kod taşıyan kalemi eler", async () => {
+    // 🚨 İlk yazımda kalem `category:"wifi"` idi ve `QR_SECRET_CATEGORIES` onu SQL düzeyinde
+    // eliyordu — `looksLikeSecret` hiç çalışmıyordu, yani test SAHTE YEŞİLDİ (inceleme 09-10).
+    // Kategori `general`: eleme YALNIZ içerik sezgiseliyle olabilir.
     const { token } = await seed();
     const property = await prisma.property.findFirstOrThrow({ where: { chatToken: { not: null } } });
     await prisma.knowledgeBaseItem.create({
       data: {
         propertyId: property.id,
-        category: "wifi",
-        title: "Wi-Fi",
-        content: "Merhaba {isim}, ağ Nuve, şifre 84726193.",
+        category: "general",
+        title: "Notlar",
+        content: "Merhaba {isim}, kapı kodu 84726193.",
         isActive: true,
         source: "host_manual",
         reviewState: "approved",
       },
     });
     mockSuggest.mockResolvedValue(model());
-    await ask(token, "Wi-Fi şifresi nedir?");
+    await ask(token, "Kapı kodu nedir?");
     const input = mockSuggest.mock.calls[0][0] as Input;
     const kbText = input.knowledgeBase.map((k) => k.content).join("\n");
     expect(kbText).not.toContain("84726193");
     expect(kbText).not.toContain("{isim}");
+  });
+
+  it("🚨 İKAME SONRASI DA TARANIR: mülk adı 'Daire 4590' iken 'Kapı: {daire}' kalemi modele GİTMEZ (oto-yanıt yoluyla parite)", async () => {
+    const { token } = await seed("Daire 4590");
+    const property = await prisma.property.findFirstOrThrow({ where: { chatToken: { not: null } } });
+    await prisma.knowledgeBaseItem.create({
+      data: {
+        propertyId: property.id,
+        category: "general",
+        title: "Giriş",
+        content: "Kapı: {daire}",
+        isActive: true,
+        source: "host_manual",
+        reviewState: "approved",
+      },
+    });
+    mockSuggest.mockResolvedValue(model());
+    await ask(token, "Kapı nerede?");
+    const input = mockSuggest.mock.calls[0][0] as Input;
+    const kbText = input.knowledgeBase.map((k) => k.content).join("\n");
+    // Ham hâli ("Kapı: {daire}") sır kalıbına UYMAZ; ikame sonrası ("Kapı: 4590") UYAR → kalem düşer.
+    expect(kbText).not.toContain("Kapı: 4590");
+    expect(kbText).not.toContain("{daire}");
+    // 🚨 ELEME HEDEFLİ: karşılama kalemi (aynı daire numarasını taşır ama sır kalıbına uymaz) KALIR.
+    // Yani düşen şey "4590 rakamı" değil, "giriş adı + kod" BİÇİMİ.
+    expect(kbText).toContain(`Merhaba ${GUEST_NAME_FALLBACK}, 4590 numaralı daireye`);
   });
 });
 

@@ -24,16 +24,36 @@ import {
 // göstermek hem yanlış hitap hem PII sızıntısıdır → `GUEST_NAME_FALLBACK`.
 // ---------------------------------------------------------------------------
 
-describe("apartmentNumberOf — daire numarası (mülk adının SON sayısı)", () => {
+describe("apartmentNumberOf — etiket > tek sayı > BELİRSİZ (null)", () => {
   it.each([
-    ["nuve 3", "3"],
-    ["nuve teras 4", "4"],
+    // Etiketli: host niyetini açıkça yazmış
     ["Daire 1", "1"],
     ["Blok 2 Daire 15", "15"],
+    ["Nuve no: 7", "7"],
+    ["Apt 12 - Sahil", "12"],
+    // Tek sayı: belirsizlik yok
+    ["nuve 3", "3"],
+    ["nuve teras 4", "4"],
+    // Sayısız: mülk adının kendisi (uydurma numara yok)
     ["Deniz Manzara", "Deniz Manzara"],
     ["", ""],
   ])("%s → %s", (name, expected) => {
     expect(apartmentNumberOf(name)).toBe(expected);
+  });
+
+  it("🚨 BELİRSİZ → null: 'son sayı' kuralı Türkiye ilan adlarında YANLIŞ numara üretiyordu", () => {
+    // Ölçüldü (inceleme 09-10): eski "son sayı" kuralı sırasıyla "1", "2", "2024" veriyordu.
+    expect(apartmentNumberOf("Nuve 3 | 2+1 Deniz Manzaralı")).toBe(null);
+    expect(apartmentNumberOf("Nuve 12 (2. kat)")).toBe(null);
+    // Tek sayı → belirsizlik yok (eski kural burada da doğruydu).
+    expect(apartmentNumberOf("2024 Yılı Dairesi")).toBe("2024");
+    // ETİKET belirsizliği ÇÖZER: iki sayı var ama host "Daire 5" demiş.
+    expect(apartmentNumberOf("Daire 5 - 2 Yatak Odalı")).toBe("5");
+  });
+
+  it("belirsiz mülk adında {daire} DOKUNULMAZ (yanlış numara söylenmez)", () => {
+    expect(fillGuestPlaceholders("Daire {daire}", { propertyName: "Nuve 3 | 2+1" })).toBe("Daire {daire}");
+    expect(fillGuestPlaceholders("Daire {daire}", { propertyName: "Nuve 3" })).toBe("Daire 3");
   });
 });
 
@@ -44,6 +64,15 @@ describe("guestFirstNameOf — yer tutucu adlar GERÇEK ad değildir", () => {
     expect(guestFirstNameOf("Rezervasyon 12345")).toBeNull();
     expect(guestFirstNameOf("Misafir")).toBeNull();
     expect(guestFirstNameOf("   ")).toBeNull();
+  });
+
+  it("BÜYÜK/KÜÇÜK HARFE DUYARSIZ (Türkçe katlama): 'rezervasyon 12345' / 'MİSAFİR' de yer tutucudur; 'Misafir Ahmet' GERÇEK addır", () => {
+    for (const n of ["rezervasyon 12345", "REZERVASYON 12345", "misafir", "MİSAFİR", "Misafir"]) {
+      expect(guestFirstNameOf(n), n).toBeNull();
+    }
+    // TAM eşleşme şartı: türetilmiş/gerçek adlar korunur.
+    expect(guestFirstNameOf("Misafirhan Yılmaz")).toBe("Misafirhan");
+    expect(guestFirstNameOf("Rezervasyonu Ali")).toBe("Rezervasyonu");
   });
 });
 
@@ -110,10 +139,19 @@ describe("TEK KAYNAK PİNİ — dört yüzey de bu modülü kullanır, kendi reg
     expect(read(rel)).toMatch(/from "@\/lib\/kb-placeholders"/);
   });
 
-  it.each(SURFACES)("%s içinde ELLE yazılmış {isim}/{daire} regex'i KALMADI", (rel) => {
+  it.each(SURFACES)("%s içinde ELLE yazılmış yer tutucu belirteci KALMADI (bayt-birebir DEĞİL, sınıf taraması)", (rel) => {
     const src = read(rel);
-    // Yapısal pin: kopya regex geri gelirse burada yakalanır (davranışsal pinler ayrı dosyalarda).
-    expect(src).not.toMatch(/\\\{\\s\*\(isim\|ad\|name\)/);
-    expect(src).not.toMatch(/\\\{\\s\*\(daire\|apartment\|apt\)/);
+    // 🚨 İlk yazım BAYT-BİREBİRDİ (`\\\{\\s\*\(isim\|ad\|name\)`) ve ölçüldü: on varyantın SEKİZİ
+    // kaçıyordu (`\s*` yok · `{` kaçışsız · alternatif sırası değişik · `(?:…)` · `replaceAll` ·
+    // `split/join`…). Artık SINIF taranır: kaynakta bir yer tutucu ADI geçen herhangi bir
+    // regex/replace/split literali. Davranışsal pinler ↑ (dört yüzey de modülü import eder) ve
+    // `qr-kb-placeholder-parity.test.ts`.
+    const lines = src.split("\n").filter((l) => !l.trimStart().startsWith("//") && !l.trimStart().startsWith("*"));
+    for (const line of lines) {
+      const usesToken = /(isim|daire|apartment|apt)\b/.test(line) && /[\\{]\s*\\?\{|replace|split\(|RegExp/.test(line);
+      // Modülün kendi import satırı ve fonksiyon çağrıları serbest; yasak olan ikame MEKANİZMASI.
+      const isSubstitution = /\.replace\s*\(|\.replaceAll\s*\(|new RegExp|\.split\s*\(\s*["'/]/.test(line);
+      expect(usesToken && isSubstitution, `${rel}: ${line.trim()}`).toBe(false);
+    }
   });
 });

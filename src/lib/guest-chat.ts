@@ -889,22 +889,29 @@ export async function resolveGuestChat(
   // gidiyor, hiç düşmemiş göründüğünde ise HİÇ gitmiyordu. Yani bu modülün var
   // olma sebebi olan arıza (AI'ın host'un yazdığı konuda emin dille "bilgim yok"
   // demesi) tam da en halka açık yüzeyde açıktı.
-  const droppedTotal = kbDropped + (kbRaw.length - knowledgeBase.length);
-
-  // YER TUTUCU İKAMESİ — SIR ELEMESİNDEN SONRA, modele girmeden önce (09-10).
+  // YER TUTUCU İKAMESİ — modele girmeden önce (09-10).
   //
   // Ölçülen boşluk: oto-yanıt ve inbox önerisi `{isim}`/`{daire}` çözüyordu, bu
   // halka açık yüzey ÇÖZMÜYORDU → host'un karşılama şablonu KB'deyse misafire ham
   // "{isim}" gidebiliyordu.
   // 🚨 GERÇEK AD KULLANILMAZ: QR bağlantısı dairede asılıdır, sohbeti açan kişi
   // rezervasyon sahibi olmayabilir (gerekçe `kb-placeholders.ts`) → nötr hitap.
-  // 🚨 SIRA BİLİNÇLİ: `withoutSecretKbItems` HAM içeriği tarar; ikame sonradan
-  // yapılır ki sır kapısının girdisi değişmesin (daire numarası tesadüfen bir
-  // "kod" kalıbına benzerse kalem sessizce elenmesin).
-  const knowledgeBaseFilled = fillGuestPlaceholdersInItems(knowledgeBase, {
-    guestFirstName: GUEST_NAME_FALLBACK,
-    propertyName: property.name,
-  });
+  //
+  // 🚨 SIR KAPISI İKİ KEZ ÇALIŞIR — HAM ve İKAME SONRASI (inceleme 09-10 düzeltmesi).
+  // İlk yazımda yalnız HAM içerik taranıyordu ("sır kapısının girdisi değişmesin" gerekçesiyle)
+  // ve ÖLÇÜLDÜ: mülk adı "Daire 4590" iken "Kapı: {daire}" kalemi modele **"Kapı: 4590"** olarak
+  // gidiyordu — `SECRET_PATTERNS`in tam da yakalamak için yazıldığı biçim (giriş adı + 4-8 hane).
+  // Oto-yanıt yolu ikameyi ÖNCE yapıp sonra elediği için aynı kalemi eliyordu: iki yüzey ARASINDA
+  // parite yoktu. Modülün değişmezi "modele giden metin taranmıştır" olduğundan ikame sonrası da
+  // taranır. Sızıntı üretmiyordu (enjekte edilen tek değerler nötr hitap ve zaten misafire dönen
+  // daire numarası) ama değişmez kırıktı. Yön fail-closed: şüpheli kalem düşer, sayıya girer.
+  const knowledgeBaseFilled = withoutSecretKbItems(
+    fillGuestPlaceholdersInItems(knowledgeBase, {
+      guestFirstName: GUEST_NAME_FALLBACK,
+      propertyName: property.name,
+    }),
+  );
+  const droppedTotal = kbDropped + (kbRaw.length - knowledgeBaseFilled.length);
 
   return { property: propertyPublic, open: true, activeReservation, knowledgeBase: knowledgeBaseFilled, knowledgeBaseDropped: droppedTotal, knowledgeBasePendingApproval: kb.pendingApproval, knowledgeBaseNewestUpdatedAt: kb.newestUpdatedAt, pinRequired };
 }

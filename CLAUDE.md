@@ -343,8 +343,16 @@ Bu dosyaya token/anahtar/parola yazma.
   KB'deyse misafire ham `{isim}` gidiyordu (ölçüldü). 🚨 **QR'da GERÇEK AD KULLANILMAZ** → `GUEST_NAME_FALLBACK`
   ("misafirimiz"): QR bağlantısı dairede asılıdır, sohbeti açan kişi rezervasyon sahibi olmayabilir (eş, arkadaş,
   temizlikçi) — yanlış hitap + PII sızıntısı; inbox/oto-yanıtta muhatap KANITLI, orada gerçek ad (ayrım bilinçli,
-  test-pinli). 🚨 **SIRA:** QR'da ikame `withoutSecretKbItems`ten SONRA — sır kapısının girdisi HAM içerik kalsın
-  (daire numarası tesadüfen "kod" kalıbına benzerse kalem sessizce elenmesin). Tek geçiş `replace`+callback
+  test-pinli). 🚨 **SIR KAPISI İKİ KEZ:** QR'da `withoutSecretKbItems` HEM ham HEM ikame sonrası çalışır — ilk yazımda
+  yalnız ham içerik taranıyordu ve ÖLÇÜLDÜ: mülk adı "Daire 4590" iken "Kapı: {daire}" kalemi modele **"Kapı: 4590"**
+  gidiyordu (giriş adı + 4-8 hane = `SECRET_PATTERNS`in yakalamak için yazıldığı biçim), oto-yanıt yolu ise aynı kalemi
+  eliyordu → iki yüzey arasında parite yoktu. Sızıntı üretmiyordu (enjekte edilen değerler nötr hitap + zaten misafire
+  dönen daire numarası) ama "modele giden metin taranmıştır" değişmezi kırıktı. Eleme HEDEFLİ (aynı numarayı taşıyan
+  karşılama kalemi KALIR), yön fail-closed. 🚨 **`{daire}` BELİRSİZDE İKAME EDİLMEZ:** `apartmentNumberOf` önce
+  "daire/no/apt/#" ETİKETİNDEN sonraki sayıyı alır, yoksa TEK sayıyı; birden çok sayı varsa `null` → belirteç
+  dokunulmadan kalır. Eski "son sayı" kuralı Türkiye ilan adlarında YANLIŞ numara söylüyordu (ölçüldü:
+  "Nuve 3 | 2+1 Deniz Manzaralı" → "1", "Nuve 12 (2. kat)" → "2"). `guestFirstNameOf` Türkçe katlamayla büyük/küçük
+  harfe duyarsız ("rezervasyon 12345" da yer tutucudur), TAM eşleşme ("Misafirhan" gerçek ad). Tek geçiş `replace`+callback
   (`$&`/`$1` harfi harfine); değeri verilmeyen sınıf ve tanınmayan belirteç (`{kod}`) DOKUNULMAZ. 🚨 `/i` bayrağı
   noktalı **İ**'yi katlamaz → `{İSİM}` eski regex'te KAÇIYORDU; anahtar adı İKİ katlamadan geçer (tr + standart).
   `[ŞİFRE]`/`<adres>`/`___` sınıfı buraya GİRMEZ (doldurulmamış alan; uydurma değer yasak → `packKnowledgeBase` notu). Ölçüm dedektörü `placeholderVerdict` (tests/helpers):
@@ -663,6 +671,23 @@ Sekiz P1 KAPANDI (09-07), her biri ayrı commit, kırmızı-önce + iki yönlü 
   (model `general/0.9` dese bile devir, `keyword_escalated`) + `language-parity` yeni satırlar (`it.todo` borç). Mutasyon:
   ilk sürüm 13/13 · inceleme paketi 21/21 (bir eşdeğer mutant → cümle eklendi); kırmızı-önce 35 (stash). **Borç:**
   elektrik/su kesintisi/kapı sınıfı DE/FR/ES/RU/AR paritesi. Belge: `docs/ACIK-2026-09-08-turkce-sikayet-siniflandirma-eksigi.md`.
+- **İKİNCİ İNCELEME TURU (09-10, ölçümlü ajan) — 25 kırmızı düzeltildi:** 🚨 **Cihaz kuralı iki yerden sızıyordu.**
+  (a) Cihaz adı ALTDİZİ aranıyordu → `foldTurkishAscii` ile BAŞKA kelimenin içinde yakalanıyordu: değişiklik→ışık ·
+  düşün/düşük/düştü→duş · telefon→fön · sürpriz→priz · kutu/unutuldu→ütü · kombine→kombi · Ocak(ay)→ocak.
+  → **KELİME BAŞI** eşleşmesi (`startsWithAnyFold`, aynı üç katlama); çekimli biçimler ("klimamız", "makinesi") korunur.
+  (b) Fiil ∧ cihaz mesajın HERHANGİ bir yerinde olabiliyordu → "Klima harika. Ama planımız bozuldu, erken çıkıyoruz."
+  şikâyetti. → **AYNI CÜMLECİK** şartı (`CLAUSE_SPLIT`, VİRGÜL de böler). BİLİNEN SINIR: cihaz ile fiil ayrı cümleciğe
+  düşen gerçek şikâyet ("Buzdolabı çok gürültülü, sanırım bozuldu") bu ağdan kaçar (model + "çalışmıyor" ikinci savunma).
+  🚨 **KOŞUL BİLDİRİM DEĞİLDİR:** "Su gelmiyorsa ne yapmamız gerekiyor?" / "Buzdolabı arızalanırsa kimi arayalım?" —
+  oto-yanıtın ASIL İŞİ olan SSS soruları şikâyet sayılıyordu. Guard (`isConditionalClause`) 3. şahıs koşul eklerini
+  (‑ıyorsa/‑ırsa/‑erse/‑mazsa/‑masa/‑saydı, "eğer") cümlecik başına eler. ⚠️ Guard YALNIZ 09-10 kalıplarına
+  (`NEGATIVE_VERB_COMPLAINTS`, `KEYWORDS.complaint`ten AYRI liste) uygulanır — ESKİ ağa uygulamak DENENDİ ve ÖLÇÜLDÜ:
+  "Böyle giderse bir yıldız veririm" (gerçek yorum tehdidi) `general`e düşüyordu → eski ağ DOKUNULMADI. 1. şahıs koşul
+  ("alamazsam") guard'a girmez. 🚨 **TAM BİÇİM, GÖVDE DEĞİL:** "arızalan"/"tuvalet tıkan"/"kapı sıkış"/"musluk damlat"
+  gövdeleri OLUMSUZ ve türetilmiş biçimleri de yakalıyordu ("arızalanmadı", "tıkanıklığı yok", "sıkışmıyor",
+  "damlatmıyor" = ÖVGÜ) → olumlu tam biçimler. **Kaybı kapatılanlar:** "no heat" silinmişti → "no heat in/since/at all"
+  (yanlış negatifti); oda çapası dardı → salon/mutfak/banyo/…odasında elektrik-ısıtma; `PROBLEM_NEGATIONS` belirtme hâli
+  ("Hiçbir sorunU yaşamadık" complaint oluyordu).
 - **KB onay sözleşmesi (A1) CANLI — migration 53 prod'da 09-08 16:42Z; §A doğrulandı (32 satır `legacy|legacy`, aktif = AI-okunabilir = 32).**
   `KnowledgeBaseItem`: `source` (`legacy·host_manual·extracted_draft·suggestion_accepted`) · `reviewState`
   (`legacy·approved·draft`) · `approvedAt` · `sourceRef`/`supersededById` (A5 için, bugün yazan YOK, pinli).
