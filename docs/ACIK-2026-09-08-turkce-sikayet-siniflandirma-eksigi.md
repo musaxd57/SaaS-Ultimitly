@@ -1,4 +1,8 @@
-# AÇIK BULGU — Türkçe şikayet sınıflandırmasında olumsuz fiil boşluğu (2026-09-08)
+# KAPANDI (2026-09-10) — Türkçe şikayet sınıflandırmasında olumsuz fiil boşluğu (bulgu 2026-09-08)
+
+> **Durum 2026-09-10: KOD düzeyinde kapandı (yerel commit; push kurucu kararı).** Aşağıdaki ölçüm tablosu
+> bulgunun o günkü hâlidir; yeni sözleşme ve kanıt "Kapanış" bölümünde. Bulgu metni tarihsel doğruluk için
+> DEĞİŞTİRİLMEDİ.
 
 > Nasıl bulundu: V1 QR canlı testi için örnek cümle seçilirken `classifyFallback` ölçüldü ve plandaki
 > "Sıcak su gelmiyor, duş soğuk." cümlesinin `general` döndüğü görüldü. **Test cümlesini değiştirmek bu
@@ -45,7 +49,47 @@ etkileşir → "sorun yok / şikayetim yok" gibi olumlu kapanışları yanlışl
 Bu, V1 canlı doğrulama turunun kapsamı dışındadır.
 
 ## Kalan iş (sahibi: AI kalite turu)
-- [ ] Olumsuz fiil ailesini (`gelmiyor`, `akmıyor`, `açılmıyor`, `çekmiyor`, `gitti`, `kesildi`…) tesis
-      adlarıyla birlikte değerlendiren kural + iki yönlü golden senaryolar.
-- [ ] Dil paritesi denetimi: İngilizce listedeki her kritik ifadenin Türkçe karşılığı var mı (`no heating`).
-- [ ] Ölçüm: yanlış-pozitif riski ("sorun yok", "şikayetim yok", "eksik bir şey yok") golden sette pinli.
+- [x] Olumsuz fiil ailesini (`gelmiyor`, `akmıyor`, `açılmıyor`, `gitti`, `kesildi`…) tesis
+      adlarıyla birlikte değerlendiren kural + iki yönlü golden senaryolar. (`çekmiyor` BİLEREK dışarıda ↓)
+- [x] Dil paritesi denetimi: İngilizce listedeki her kritik ifadenin Türkçe karşılığı var mı (`no heating`).
+- [x] Ölçüm: yanlış-pozitif riski ("sorun yok", "şikayetim yok", "eksik bir şey yok") golden sette pinli.
+
+## Kapanış (2026-09-10)
+
+**Sözleşme** (`src/lib/ai/fallback.ts` `KEYWORDS.complaint`, "TÜRKÇE OLUMSUZ FİİL BOŞLUĞU" bloğu): kalıplar
+**ÇAPALI** — tesis adı + olumsuz fiil ("su gelmiyor", "ısıtma gelmiyor", "elektrikler gitti", "kapı açılmıyor",
+"sigorta attı", "bozuldu"…). Çıplak `gelmiyor / gitti / kesildi / su yok / arıza / yanmıyor` listeye GİRMEDİ;
+her biri için tuzak cümle pinli ("Yarın gelmiyoruz", "Plaja gittik", "Eksik bir şey yok", "Hiçbir arıza
+yaşamadık"). Elektrik kesintisi hiçbir dilde yoktu → TR + EN eklendi; DE/FR/ES/RU/AR elektrik paritesi **borç**
+(ayrı tur, CLAUDE.md açık işler).
+
+| Girdi | 09-08 | 09-10 |
+|---|---|---|
+| "Sıcak su gelmiyor, duş soğuk." | `general` | `complaint` (sinyal complaint/negative/0.7) |
+| "Su akmıyor." | `general` | `complaint` |
+| "Isıtma gelmiyor." | `general` | `complaint` |
+| "Elektrikler gitti." | `general` | `complaint` |
+| "Kapı açılmıyor." | `general` | `complaint` (riskType `safety_emergency` — kilitli-kalma ağı önce gelir, ikisi de veto) |
+| "Klimadan soğuk hava gelmiyor." | `amenity` | `complaint` |
+| "İnternet gelmiyor." | `wifi` | `wifi` (**bilinçli**: bilgi tabanından yanıtlanır) |
+| "Yarın gelmiyoruz, ertesi gün geleceğiz." | `general` | `general` (tuzak, pinli) |
+
+**Bilinçli kararlar:** (1) `İnternet gelmiyor` / `wifi çekmiyor` complaint DEĞİL — 08-07 gerekçesi geçerli
+(complaint = oto-yanıt kapanır; wifi sorusu KB'den cevaplanır). (2) Övgü tuzağı olarak seçilen cümleler
+mevcut ağlarla çakışmayacak biçimde ölçüldü: "Kapı kolayca açıldı" `SAFETY_CRITICAL_WORDS` kilitli-kalma ağına
+("kapı … açıl…"), "kapı kodu" `checkin`/`access_security`ye takılır — bu ağlar bu turda GEVŞETİLMEDİ; tuzak
+"Giriş çok kolaydı, teşekkürler." oldu. (3) ASCII ikizi yazılmadı: `includesAnyFold` kelimeyi de
+`foldTurkishAscii`den geçirir ("kapi acilmiyor" girdisi "kapı açılmıyor" kalıbıyla eşleşir, test-pinli);
+eski satırlardaki ikizler dosya geleneği, işlevsel değil.
+
+**Kanıt:** `tests/unit/complaint-negative-verbs.test.ts` (bu tablo + tuzaklar + EN paritesi + V1 sinyal) ·
+`tests/unit/golden-scenarios.test.ts` "TÜRKÇE OLUMSUZ FİİL ŞİKÂYETLERİ (09-10)" (tehdit + övgü-tuzağı çiftleri)
+· `tests/integration/qr-draft-vs-delivered.test.ts` "E6 KELİME AĞI İKİNCİ SAVUNMA" (model `general/none/0.9`
+dese bile gerçek QR rotası devreder, `RiskEvent.reason = keyword_escalated`). Mutasyon: 13/13 yakalandı
+(8 kaldırma + 5 aşırı-uygulama: çıplak `gelmiyor/gitti/arıza/yok` ve `internet gelmiyor`), kontrol koşusu
+önce/sonra yeşil. İlk turda "tek imlâyı sil" mutantı hayatta kaldı → ASCII ikizi kaldırılınca EŞDEĞER mutant
+olduğu anlaşıldı (kaçak değil), `bozuldu` için gerçek kapsama boşluğu bulundu → "Buzdolabı bozuldu." eklendi.
+
+**Kapsam dürüstlüğü:** bu düzeltme kelime ağının İKİNCİ SAVUNMASINI onarır; modelin `general` dediği bir
+şikâyeti artık QR ve oto-yanıt kapıları yakalar, V1 sinyali üretilir. Model yolundaki sınıflandırma kalitesi
+(modelin kendisi) bu turda ÖLÇÜLMEDİ (gerçek koşu kurucunundur).

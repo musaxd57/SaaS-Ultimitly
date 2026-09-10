@@ -159,11 +159,10 @@ describe("QR: model taslağı ile ürünün döndürdüğü cevap AYNI ŞEY DEĞ
     await prisma.$disconnect();
   });
 
-  it("E6 [KOŞULLU: intent=complaint VARSAYILDI] → ürün DEVREDİYOR, 'ekibime ilettim' GİTMİYOR", async () => {
+  it("E6 [2. koşuda intent=complaint ÖLÇÜLDÜ] → ürün DEVREDİYOR, 'ekibime ilettim' GİTMİYOR", async () => {
     const { token } = await seed();
-    // 🚨 `intent` RAPORDA YOKTU; burada `complaint` VARSAYILDI. Model gerçekte
-    // "general" döndürseydi bu dal ÇALIŞMAZDI — ve `classifyFallback` "sıcak su
-    // gelmiyor"u ÖLÇÜLMÜŞ olarak `general` sayıyor, yani kelime ağı da tutmazdı.
+    // `intent` 2. gerçek koşuda complaint ölçüldü. (09-10'a kadar kelime ağı "sıcak su
+    // gelmiyor"u `general` sayıyordu — o ikinci savunma boşluğu aşağıdaki testle kapandı.)
     expect(ASSUMED.E6.intent).toBe("complaint");
     mockSuggest.mockResolvedValue(draft(REPORTED.E6, ASSUMED.E6));
 
@@ -178,6 +177,23 @@ describe("QR: model taslağı ile ürünün döndürdüğü cevap AYNI ŞEY DEĞ
     expect(out.reply).not.toContain("ilettim");
     // Devir metni hiçbir eylem/taahhüt iddiası taşımıyor.
     expect(unverifiedActionClaims(out.reply ?? "")).toEqual([]);
+  });
+
+  it("E6 KELİME AĞI İKİNCİ SAVUNMA (09-10): model 'general/none/0.9' dese bile 'Sıcak su gelmiyor' QR'da DEVREDİLİR (keyword_escalated)", async () => {
+    const { token } = await seed();
+    // Modelin YANLIŞ etiketlediği en kötü durum: complaint yerine general, yüksek güven.
+    mockSuggest.mockResolvedValue(draft(REPORTED.E6, { intent: "general", riskLevel: "none", riskType: null }));
+
+    const out = await ask(token, REPORTED.E6.guestMessage);
+
+    // 09-10 öncesi: kelime ağı "sıcak su gelmiyor"u general sayıyordu → bu taslak misafire GİDERDİ.
+    expect(out.escalated).toBe(true);
+    expect(out.reply).toBe(escalationReply());
+    expect(out.reply).not.toContain("ilettim");
+    // Karar günlüğü: gerekçe MODEL değil KELİME AĞI (resetDb → bu testte tek guest_chat satırı).
+    const ev = await prisma.riskEvent.findFirst({ where: { surface: "guest_chat" }, orderBy: { occurredAt: "desc" } });
+    expect(ev?.reason).toBe("keyword_escalated");
+    expect(ev?.finalDecision).toBe("human_review");
   });
 
   it("🚨 E1 [güven 0.8 ve kaynak 0/0 RAPORLANDI; intent/risk varsayıldı]: kapı GEÇİYOR", async () => {

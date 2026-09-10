@@ -596,10 +596,16 @@ Sekiz P1 KAPANDI (09-07), her biri ayrı commit, kırmızı-önce + iki yönlü 
   dürüst kısa cevap / tek netleştirme sorusu" dalı YOK (davranış emergent). Eşik AI güvenlik kapısının kendisi →
   GOLDEN SET + iki yönlü senaryo ister. Devir gerekçesi hiçbir yere yazılmıyor (canlı teşhis zorlaşıyor).
   Hakaret/kışkırtma `general` kalıyor. Eval adayları + yol ataması: `docs/ACIK-2026-09-08-qr-cevap-kalitesi.md`.
-- **AÇIK (AI kalite turu, 09-08 ölçüldü):** Türkçe olumsuz fiil boşluğu — "sıcak su gelmiyor / su akmıyor /
-  ısıtma gelmiyor / elektrikler gitti / kapı açılmıyor" `classifyFallback`'te `general` (şikayet DEĞİL); "sıcak su
-  yok" ve İngilizce `no hot water`/`no heating` complaint. Dil paritesi kuralıyla çelişir; `general` sinyal üretmez.
-  Düzeltme GOLDEN SET + iki yönlü senaryo ister → `docs/ACIK-2026-09-08-turkce-sikayet-siniflandirma-eksigi.md`.
+- **KAPANDI (09-10, yerel):** Türkçe olumsuz fiil boşluğu — "sıcak su gelmiyor / su akmıyor / ısıtma gelmiyor /
+  elektrikler gitti / kapı açılmıyor / sigorta attı / bozuldu" artık `complaint` (`KEYWORDS.complaint` "TÜRKÇE OLUMSUZ
+  FİİL BOŞLUĞU" bloğu). 🚨 Kalıplar ÇAPALI (tesis adı + fiil); çıplak `gelmiyor/gitti/kesildi/su yok/arıza/yanmıyor`
+  listeye GİRMEZ (tuzaklar pinli: "yarın gelmiyoruz", "plaja gittik", "eksik bir şey yok", "hiçbir arıza yaşamadık").
+  "İnternet gelmiyor"/"wifi çekmiyor" BİLİNÇLİ wifi (KB'den yanıtlanır). ASCII ikizi yazılmaz (`includesAnyFold`
+  kelimeyi de katlar; "tek imlâyı sil" mutantı EŞDEĞER). Övgü tuzağı seçerken mevcut ağlara dikkat: "kapı … açıl…"
+  kilitli-kalma (`safety_emergency`), "kapı kodu" `checkin` — gevşetilmedi. Kanıt: `complaint-negative-verbs.test.ts` +
+  golden çiftleri + QR "E6 KELİME AĞI İKİNCİ SAVUNMA" (model `general/0.9` dese bile devir, `keyword_escalated`);
+  mutasyon 13/13. **Borç:** elektrik kesintisi DE/FR/ES/RU/AR paritesi (yalnız TR+EN). Belge:
+  `docs/ACIK-2026-09-08-turkce-sikayet-siniflandirma-eksigi.md` (kapanış bölümü).
 - **KB onay sözleşmesi (A1) CANLI — migration 53 prod'da 09-08 16:42Z; §A doğrulandı (32 satır `legacy|legacy`, aktif = AI-okunabilir = 32).**
   `KnowledgeBaseItem`: `source` (`legacy·host_manual·extracted_draft·suggestion_accepted`) · `reviewState`
   (`legacy·approved·draft`) · `approvedAt` · `sourceRef`/`supersededById` (A5 için, bugün yazan YOK, pinli).

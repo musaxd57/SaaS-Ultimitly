@@ -117,6 +117,41 @@ const KEYWORDS: Record<Exclude<Intent, "general">, string[]> = {
     // BİLİNÇLİ olarak dışarıda bırakıldı (onları complaint yapmak ürünün
     // yaptığı işi kısar, güvenliği artırmaz).
     "sıcak su yok", "sicak su yok", "sıcak su akmıyor", "sicak su akmiyor",
+    // ── TÜRKÇE OLUMSUZ FİİL BOŞLUĞU (09-10; docs/ACIK-2026-09-08-turkce-sikayet-siniflandirma-eksigi.md) ──
+    // Ölçüldü (09-08): "Sıcak su YOK" complaint ama "Sıcak su GELMİYOR / Su AKMIYOR / Isıtma
+    // gelmiyor / Elektrikler gitti / Kapı açılmıyor" general — aynı şikâyet, fiil değişince
+    // sınıf değişiyordu; EN'de genel "not working / no heating" her cihazı kapsarken TR'de
+    // olumsuzlama fiile özgü (gel-/ak-/aç-/yan-/ısın-) ve listede yalnız "çalışmıyo" vardı.
+    // ⚠️ HEPSİ ÇAPALI (tesis adı + olumsuz fiil). Çıplak "gelmiyor" ("yarın gelmiyoruz"),
+    // "gitti" ("plaja gittik"), "kesildi", "su yok" ("konusu yok") BİLEREK YOK — golden
+    // tuzakları pinler. "İnternet gelmiyor"/"wifi çekmiyor" BİLEREK complaint DEĞİL (↑ aynı
+    // gerekçe: bilgi tabanından yanıtlanır). Elektrik kesintisi hiçbir dilde yoktu → TR+EN
+    // şimdi; DE/FR/ES/RU/AR parite borcu (ayrı tur).
+    // ASCII ikizi YAZILMADI: `includesAnyFold` kelimeyi de `foldTurkishAscii`den geçirir
+    // ("kapi acilmiyor" girdisi "kapı açılmıyor" kalıbıyla eşleşir — test-pinli). Aşağıdaki
+    // eski satırlardaki ikizler dosya geleneği; işlevsel değil (mutasyon turunda "tek
+    // imlâyı sil" eşdeğer mutanttır, ikisini birden sil).
+    // Su
+    "su gelmiyor", "su akmıyor", "duş akmıyor", "musluk akmıyor",
+    "su kesildi", "sular kesildi", "su kesik", "sular kesik", "sular gitti", "suyumuz yok", "hiç su yok",
+    "no running water", "there is no water", "water is off", "water is cut",
+    // Isıtma (EN "no heating" ile parite)
+    "ısıtma gelmiyor", "ısıtma yok", "ısınmıyor", "kalorifer yanmıyor", "petek ısınmıyor", "kombi yanmıyor",
+    "sıcak hava gelmiyor", "no heat",
+    // Klima (soğutma yokluğu)
+    "soğuk hava gelmiyor", "klima üflemiyor",
+    // Elektrik
+    "elektrik yok", "elektrikler yok", "elektrik gitti", "elektrikler gitti", "elektrik kesildi", "elektrikler kesildi",
+    "elektrik kesik", "elektrik kesintisi", "sigorta attı", "cereyan yok",
+    "no electricity", "power is out", "power went out", "power outage", "power cut", "blackout",
+    // Kapı / kilit (kilitli kalma zaten SAFETY_CRITICAL_WORDS'te)
+    "kapı açılmıyor", "kapı açılmadı", "kilit açılmıyor", "kilit açılmadı", "anahtar dönmüyor", "kapı kapanmıyor",
+    "door won't open", "door wont open", "door doesn't open", "door does not open", "can't open the door",
+    "cannot open the door", "door is stuck", "lock is stuck", "key won't turn", "lock won't open",
+    // Arıza ailesi (çıplak "arıza" YOK: "hiçbir arıza yaşamadık")
+    "bozuldu", "bozulmuş", "arızalı", "arızalandı", "arıza var", "arıza yaptı", "arıza çıktı",
+    // Işık / ocak (çıplak "yanmıyor" YOK)
+    "ışık yanmıyor", "ışıklar yanmıyor", "lamba yanmıyor", "ocak yanmıyor",
     "kein warmes wasser", "kein heißes wasser", "kein heisses wasser", "keine heizung",
     "pas d'eau chaude", "pas de chauffage",
     "no hay agua caliente", "sin agua caliente", "no hay calefacción", "no hay calefaccion",

@@ -223,6 +223,36 @@ const SCENARIOS: Scenario[] = [
 
   // Rakam-tireli yıldız tehdidi (07-20 denetim): "1-star review" listede yoktu.
   { name: "1-star review tehdidi (EN)", message: "Refund me or I'll leave a 1-star review.", autoSendVeto: true, riskType: "review_threat" },
+
+  // --- TÜRKÇE OLUMSUZ FİİL ŞİKÂYETLERİ (09-10; docs/ACIK-2026-09-08-turkce-sikayet-siniflandirma-eksigi.md) ---
+  // Ölçülen boşluk: "Sıcak su YOK" complaint, "Sıcak su GELMİYOR" general idi — aynı şikâyet,
+  // fiil değişince sınıf değişiyordu. Kalıplar ÇAPALI (tesis adı + olumsuz fiil); çıplak
+  // "gelmiyor/gitti/kesildi/su yok" BİLEREK listede YOK — tuzaklar onları pinler.
+  { name: "sıcak su gelmiyor (TR)", message: "Sıcak su gelmiyor, duş soğuk.", autoSendVeto: true, intent: "complaint", riskType: "complaint" },
+  { name: "sıcak su geliyor — övgü tuzağı (TR)", message: "Sıcak su hemen geliyor, duş süperdi, teşekkürler!", autoSendVeto: false, riskType: null },
+  { name: "su akmıyor (TR)", message: "Su akmıyor, musluktan hiç su gelmiyor.", autoSendVeto: true, intent: "complaint" },
+  { name: "su basıncı övgüsü — tuzak (TR)", message: "Su basıncı harika, her şey mükemmel akıyor.", autoSendVeto: false, riskType: null },
+  { name: "ısıtma gelmiyor (TR)", message: "Isıtma gelmiyor, ev buz gibi.", autoSendVeto: true, intent: "complaint", riskType: "complaint" },
+  { name: "ısıtma övgüsü — tuzak (TR)", message: "Isıtma çok iyi çalışıyor, ev sıcacık, sağ olun.", autoSendVeto: false, riskType: null },
+  { name: "elektrikler gitti (TR)", message: "Elektrikler gitti, hiçbir şey çalışmıyor.", autoSendVeto: true, intent: "complaint" },
+  { name: "çıplak 'gitti' tuzağı (TR)", message: "Plaja gittik, her şey harikaydı!", autoSendVeto: false, riskType: null },
+  { name: "elektrik kesildi, sigorta attı (TR)", message: "Elektrik kesildi, sigorta attı.", autoSendVeto: true, intent: "complaint" },
+  { name: "çıplak 'gelmiyor' tuzağı — varış ertelemesi (TR)", message: "Yarın gelmiyoruz, ertesi gün geleceğiz.", autoSendVeto: false, riskType: null },
+  // Bilinçli karar korunur: "İnternet gelmiyor" bilgi tabanından yanıtlanabilir → wifi, complaint DEĞİL.
+  { name: "internet gelmiyor → wifi (bilinçli, complaint DEĞİL)", message: "İnternet gelmiyor.", autoSendVeto: false, intent: "wifi" },
+  { name: "kapı açılmıyor (TR)", message: "Kapı açılmıyor, kod çalışmıyor.", autoSendVeto: true, intent: "complaint" },
+  // (Tuzak "kapı … açıl" İÇERMEZ: SAFETY_CRITICAL_WORDS'ün kilitli-kalma ağı "Kapı kolayca açıldı"
+  // övgüsünü de safety_emergency sayar — ölçüldü 09-10, ayrı ve bilinçli aşırı-eşleşme; bu tur dokunmadı.)
+  { name: "giriş kolaydı — övgü tuzağı (TR)", message: "Giriş çok kolaydı, teşekkürler.", autoSendVeto: false, riskType: null },
+  { name: "kombi bozuldu, arızalı (TR)", message: "Kombi bozuldu, arızalı.", autoSendVeto: true, intent: "complaint" },
+  { name: "arıza yaşamadık — tuzak (TR)", message: "Hiçbir arıza yaşamadık, teşekkürler.", autoSendVeto: false, riskType: null },
+  { name: "çıplak 'su yok' tuzağı (TR)", message: "Eksik bir şey yok, konaklama mükemmeldi.", autoSendVeto: false, riskType: null },
+  { name: "ışıklar yanmıyor (TR)", message: "Işıklar yanmıyor, salon karanlık.", autoSendVeto: true, intent: "complaint" },
+  { name: "ışık övgüsü — tuzak (TR)", message: "Işıklar çok hoş, ambiyans harika.", autoSendVeto: false, riskType: null },
+  { name: "no electricity (EN)", message: "There is no electricity in the flat.", autoSendVeto: true, intent: "complaint" },
+  { name: "power adapter övgüsü — tuzak (EN)", message: "No worries, the power adapter you left was perfect!", autoSendVeto: false, riskType: null },
+  { name: "door won't open (EN)", message: "The door won't open with the code.", autoSendVeto: true, intent: "complaint" },
+  { name: "door opened — tuzak (EN)", message: "The door opened right away with the code, all good.", autoSendVeto: false, riskType: null },
 ];
 
 describe("GOLDEN SET — deterministic safety layer verdicts", () => {
