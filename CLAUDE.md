@@ -154,15 +154,33 @@ ReAct (kademeli) · GraphRAG (ihtiyaç kanıtlanırsa). Ek: kaynaklı-sürümlü
   sökümde doğru) · ünlü-sonu iyelik `-mız/-miz/-muz/-nız/-niz/-nuz` (taban 3: deniz/omuz/domuz sökülmez) · kaynaştırma "y"
   tabanı 3 ("çayı"→cay, "suyu"→su, "koyabilirim"→koy) + tek düzensiz kök `suy→su` · `WEAK_QUERY_TERMS` += `ko/ca` (kök
   artefaktı: çalarsa; "ko" kök düzeltmesiyle kaynaksız kaldı, listeye alınmadı) ve zayıf kök BM25 ağırlığı 0.25 (iki uç
-  unit-pinli) · ünsüz-sonu `-sı/-su/-dı/-du` kök 2 harfe inecekse sökülmez ("kodu"→kod, "duşu"→duş, "uydu"→uyd — tv "uydu" ↔
-  "uymuyor" çarpışması KÖKTE çözüldü, terim kaldı) · sözlük: power↔socket AYRILDI, restaurant'tan "yemek" (ye; `detectOnly`
-  "akşam yemeği"). 🚨 `detectOnly`'ye taşımak genişletmeyi KAPATMAZ
+  unit-pinli; taşınan zayıf kök de `min(carry, weak)` — inceleme 09-10) · ünsüz-sonu `-sı/-su/-dı/-du/-tı/-tu` kök 2 harfe
+  inecekse sökülmez ("kodu"→kod, "duşu"→duş, "uydu"→uyd — tv "uydu" ↔ "uymuyor" çarpışması KÖKTE çözüldü, terim kaldı) ·
+  sözlük: power↔socket AYRILDI, restaurant'tan "yemek" (ye; `detectOnly` "akşam yemeği"). 🚨 `detectOnly`'ye taşımak
+  genişletmeyi KAPATMAZ
   (kalıpla tespit edilen kavram TÜM `terms`ini genişletir); "nerede yemek" kalıbı KOYMA ("nerede" durak → kalıp ["ye"]).
   Ölçüm (varsayılan, 30/100/300): hit@1 93/92/92 → **97/96/96** · inPrompt(metin) 99/98/97 → **100/99/100** · gürültü
   1.5/2.9/4.7 → 0.9/2.2/2.6 · geri çekilme 3/1/1 → **0** · morph 29/30·35/38·35/38 → tam · CANLI(300) inPrompt 98→100, blok
   1076→939. Rapor `docs/olcum/kb-retrieval-scale-2026-09-10.md`; kaçak pinleri `tests/unit/kb-retrieval-morphology.test.ts`
   (kırmızı-önce 18/19 düşüyordu); mutasyon 15/15 (dört turda: ölü sabit birleştirildi, "ko" çıkarıldı, ağırlık iki uç pini,
-  n-gram kaynağı BM25 pinini bulandırıyordu → `ngram:false` ile ölçüldü, "uydu" eşdeğer mutant çıktı → terim geri kondu). **Kalan hit@1 kaçakları (cevap cümlesi BLOKTA, sıra 2–11):** rehber parçası BM25 uzunluk
+  n-gram kaynağı BM25 pinini bulandırıyordu → `ngram:false` ile ölçüldü, "uydu" eşdeğer mutant çıktı → terim geri kondu).
+- **Kaçak turu İNCELEMESİ (09-10, ölçümlü ajan) — düzeltildi:** 🚨 **P1 sabit noktanın kendi kaçağı:** kısa ekler ARDIŞIK
+  sökülüp gövdeyi yiyordu — "havalimanından/‑nda/‑nı" ve "havaalanından" `hav` = **HAVLU** kovasına düşüyordu (eski tur tavanı
+  bunu KAZARA engelliyordu); transfer sorusunda seçilen ilk parça havlu kalemiydi. Düzeltme TEK DİLBİLGİSEL FREN:
+  **TAMLAYAN eki (‑nin/‑nun) YALNIZ İLK TURDA** — tamlayan yüzey kelimesinde sondadır, yani sağdan soyarken ilk sökülen
+  olmalıdır; bir HÂL eki söküldükten sonra görünen "…nin" gerçek tamlayan değil KAYNAŞTIRMA n'sidir ("havalimanı+n+dan").
+  Sonuç TAM SİMETRİ (havalimanından/‑nda/‑nı ≡ havalimanı, havaalanından ≡ havaalanı) ve beş havalimanı sorgusunun beşi de
+  doğru kalemi seçiyor. 🚨 **Ölçülüp REDDEDİLEN dört aday** (tekrar denenmesin): `ndan/nda/ni` eklemek 11 kelimeyi bozar
+  (balkonu→balko) · `alim/elim` için taban 4 on yaygın fiili bozar (gidelim→gidel) · optatif ekleri ilk-tura kısıtlamak ve
+  aynı ekin üst üste sökülmesini engellemek ULAŞILAMAZ (tamlayan freni zinciri daha erken keser; iki mutant da HAYATTA
+  KALDI → pinlenemeyen kod tutulmadı). 🚨 **Harness KÖRDÜ:** airport morph sorusu `-nıza` biçimindeydi → `-ndan` yapıldı
+  (fikstür-niyet pini var; ⚠️ ASCII `\b` Türkçe "ı"yı sınır sayar, ilk pin kendi mutantından geçiyordu). **P2:** `WEAK_QUERY_TERMS` KÖK uzayında yaşar ve kök sökücü değişince
+  BAYATLAR — 09-10 turu "aldı/oldu/etti"yi zayıftan güçlüye geçirmişti; ayrıca ALTI ÖLÜ girdi ölçüldü ("lazim"→laz,
+  "isti"→ist, "sorun"→sor, "yardim"→yard, "leave"→leav, "use"=durak) → düzeltildi + **mekanik pin** (her girdi kendi kökü
+  olmalı, durak olamaz). Taşınan (`carried`) zayıf kök 0.5 iken own 0.25 idi = ilişki tersine dönmüştü → `min`. Ölçek eşikleri
+  YÜZDE değil **kaçırılan SORU sayısı** (inPrompt n=100'de pay 0 soruydu); "eski %20 iddiası" pini iki boyutta ÖLÜ ASSERT'ti →
+  tek çift yönlü farka indirildi. "uydu eşdeğer mutant" sonucu FİKSTÜR ARTEFAKTIYDI ("kanalları" zaten tv terimi) → ayırt edici
+  cümle ("Uydu yayını var mı?"). **Kalan hit@1 kaçakları (cevap cümlesi BLOKTA, sıra 2–11):** rehber parçası BM25 uzunluk
   normunda kısa kaleme yeniliyor (guide_lost/water_cut; b=0.4 denendi, net ±0) · `fire→fir = fırın` diller arası kök
   çarpışması · TV/kumanda sözcüksel beraberlik (klima kalemi "kumanda + TV sehpası") · taksi↔araç · doorman_syn etiketi
   tartışmalı (kargo kalemi soruyu zaten cevaplıyor) → embedding "kalan başarısızlar" listesi (ücretli, ayrı onay).

@@ -130,15 +130,26 @@ const SUBQUERY_SPLIT = /[?\n;,]+|\s+(?:ve|ayrica|ayrıca|bir de|and|also|plus)\s
  * eşleştirir ve geri çekilmeyi (no_lexical_hits) engellerdi (ölçüldü) — oysa
  * doğru davranış tam kümeyi verip modelin dürüstçe "bilgi yok" diyebilmesidir.
  */
-const WEAK_QUERY_TERMS = new Set([
-  "var", "yok", "lazim", "gerek", "isti", "kullan", "yap", "ol", "et", "al", "ver", "bul", "gel", "git", "bak", "koy", "birak",
-  "acil", "sorun", "problem", "yardim", "help", "need", "want", "use", "get", "put", "leave", "find", "know", "bil",
+export const WEAK_QUERY_TERMS = new Set([
+  // 🚨 GİRDİLER KÖK OLMALI — yüzey biçimi yazılırsa girdi ÖLÜDÜR (sorgu hiçbir zaman o biçimde
+  // gelmez). İnceleme 09-10'da ALTI ölü girdi ölçüldü ve düzeltildi: "lazim"→`laz`, "isti"→`ist`,
+  // "sorun"→`sor`, "yardim"→`yard`, "leave"→`leav`, "use"→(durak kelime, girdi KALDIRILDI).
+  // Ölü girdi sessiz bir gevşemedir: kelime GÜÇLÜ sayılır ve tek başına aday yapar.
+  // `kb-retrieval-morphology.test.ts` bunu mekanik olarak pinler (her girdi kendi kökü olmalı).
+  "var", "yok", "laz", "gerek", "ist", "kullan", "yap", "ol", "et", "al", "ver", "bul", "gel", "git", "bak", "koy", "birak",
+  "acil", "sor", "problem", "yard", "help", "need", "want", "get", "put", "leav", "find", "know", "bil",
   // KÖK UZAYI ARTEFAKTI (09-10, ölçek harness'ı): "çalışıyor" → calis → EN "s" → cali →
   // "ca" (= "çalarsa"); iki harfli nadir kök yüksek IDF ile ilgisiz kalemi öne çekiyordu
   // ("Asansörünüz çalışıyor mu?" → yangın alarmı kalemi). "ko" da adaydı ("koyabilirim",
   // "koduna", "koşu") ama kök sökücü düzeltmesiyle kaynağı kalmadı ("koy"/"kod"/"kos") —
   // "ko" artık "kodu"nun DEĞİL yalnız nadir kelimelerin kökü, listeye ALINMADI.
   "ca",
+  // 🚨 LİSTE KÖK UZAYINDA TANIMLI → kök sökücü değişince BAYATLAR (inceleme 09-10). 09-10 kök
+  // turunda `-dı/-du/-tı/-tu` taban-3 kuralı "aldı/oldu/etti" köklerini `al/ol/et` (ZAYIF) yerine
+  // `ald/old/ett` (GÜÇLÜ) yaptı → "Kargomu kim ALDI?" sorgusunda "yönetim kararı aldı" diyen
+  // ilgisiz bir duyuru kalemi TEK BAŞINA aday olabiliyordu (ölçüldü). Yüzey biçimlerinden türeyen
+  // yapısal pin `kb-retrieval-morphology.test.ts`te: kök sökücü her değiştiğinde kırmızı verir.
+  "ald", "old", "ett",
 ]);
 /**
  * Zayıf kökün BM25 ağırlığı (09-10): 1.0 iken "altı→al" gibi bir zayıf terim üç
@@ -184,7 +195,16 @@ function rankForSubquery(index: KbIndex, subquery: string, opt: RankOptions): { 
   const carried = own.length < THIN_QUERY_STEMS ? opt.carryStems : [];
   const weights = new Map<string, number>();
   for (const s of own) weights.set(s, WEAK_QUERY_TERMS.has(s) ? WEAK_QUERY_WEIGHT : 1);
-  for (const s of carried) if (!weights.has(s)) weights.set(s, CARRY_WEIGHT);
+  // ⚠️ ZAYIF KÖK TAŞINDIĞINDA DA ZAYIF (inceleme 09-10): `own` zayıf 0.25'e çekilince, aynı kök
+  // GEÇMİŞTEN taşındığında 0.5 kalıyordu — yani misafirin ŞU AN yazdığı kelime, eski mesajından
+  // taşınandan HAFİF oluyordu (ilişki tersine dönmüştü; ölçüldü: 772 ince-sorgu senaryosunun
+  // 106'sında seçim değişiyor, yön kuyruk gürültüsü). Taşınan zayıf kök ikisinin küçüğünü alır.
+  // ⚠️ BİLİNEN SINIR: 0.25 ↔ 0.5 farkı FİKSTÜR ÖLÇEĞİNDE AYIRT EDİLEMİYOR (üç fikstür, birebir aynı
+  // sıralama); test yalnız "sıfır değil"i pinler. Değişikliğin gerekçesi ölçülen kazanç değil,
+  // TERSİNE DÖNMÜŞ İLİŞKİNİN düzeltilmesidir — bu satır o dürüstlükle duruyor.
+  for (const s of carried) {
+    if (!weights.has(s)) weights.set(s, WEAK_QUERY_TERMS.has(s) ? Math.min(CARRY_WEIGHT, WEAK_QUERY_WEIGHT) : CARRY_WEIGHT);
+  }
   const { expansion, categoryHints } = expandQuery([...own, ...carried]);
   for (const [s, w] of expansion) if (!weights.has(s)) weights.set(s, w);
 

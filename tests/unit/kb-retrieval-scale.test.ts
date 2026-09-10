@@ -248,12 +248,26 @@ describe("ölçek harness'ı — 30/100/300 kalem, gerçek retrieval yolu", () =
     }
   });
 
-  it("doğru kaynak sıralamada önde: hit@1 ≥ 0.95, hit@3 ≥ 0.96, inPrompt(metin) ≥ 0.99, geri çekilme 0 (varsayılan, her boyut; 09-10 ölçümüne pinli — önce .85/.90/.95 idi)", () => {
+  /** 09-10 ölçümü + bir/iki soruluk pay (`docs/olcum/kb-retrieval-scale-2026-09-10.md`). */
+  const ALLOWED_MISSES: Record<number, { hit1: number; hit3: number; inPrompt: number }> = {
+    30: { hit1: 7, hit3: 2, inPrompt: 2 },
+    100: { hit1: 9, hit3: 7, inPrompt: 3 },
+    300: { hit1: 9, hit3: 8, inPrompt: 2 },
+  };
+
+  it("doğru kaynak sıralamada önde — eşikler SORU SAYISI cinsinden, paylı (varsayılan, her boyut)", () => {
     for (const n of SIZES) {
       const c = cfg(n, "hibrit VARSAYILAN");
-      expect(c.hit1, `hit@1 n=${n}`).toBeGreaterThanOrEqual(0.95);
-      expect(c.hit3, `hit@3 n=${n}`).toBeGreaterThanOrEqual(0.96);
-      expect(c.inPrompt, `inPrompt n=${n}`).toBeGreaterThanOrEqual(0.99);
+      // 🚨 ÖLÇÜ SORU SAYISI, YÜZDE DEĞİL (inceleme 09-10): `inPrompt ≥ .99` n=100'de 192/193 ile
+      // geçiyordu, yani TEK bir sorunun gerilemesi suit'i kırmızıya çeviriyordu (pay 0 soru); ayrıca
+      // yüzde eşiği Q değişince sessizce kayar. Kaçırılan soru sayısı ölçülen değerin bir-iki soru
+      // üstüne pinli: gerçek gerileme yakalanır, gürültü yakalanmaz.
+      const q = results.find((r) => r.n === n)!.questions;
+      const missed = (rate: number) => q - Math.round(rate * q);
+      const allowed = ALLOWED_MISSES[n];
+      expect(missed(c.hit1), `hit@1 kaçırılan n=${n} (soru ${q})`).toBeLessThanOrEqual(allowed.hit1);
+      expect(missed(c.hit3), `hit@3 kaçırılan n=${n}`).toBeLessThanOrEqual(allowed.hit3);
+      expect(missed(c.inPrompt), `inPrompt kaçırılan n=${n}`).toBeLessThanOrEqual(allowed.inPrompt);
       // Sentetik sette "bilgi yok" sorusu YOK → hiçbir soru geri çekilmemeli (09-09'da 3/1/1 çekiliyordu:
       // hepsi kök sökücü asimetrisiydi — "Çıkışımızı kaça kadar…" no_lexical_hits).
       expect(c.fallbacks, `geri çekilme n=${n}`).toBe(0);
@@ -281,11 +295,14 @@ describe("ölçek harness'ı — 30/100/300 kalem, gerçek retrieval yolu", () =
       // 0.87/2.55/2.45 vs auto 0.87/2.66/2.34 → n-gram'ın morph katkısı KALMADI. Dürüst pin: isabet düşmez,
       // gürültü soru başına ±0.2 içinde EŞİT sayılır (bir yönde ≥0.2 açılırsa yeniden ölç).
       expect(kindRate(auto, "morph"), `morph n=${n}`).toBeGreaterThanOrEqual(kindRate(off, "morph") - 1e-9);
-      expect(Math.abs(kindNoise(auto, "morph") - kindNoise(off, "morph")), `morph gürültü n=${n}`).toBeLessThanOrEqual(0.2);
-      // 🚨 Eski pinin geri gelmemesi için: auto'nun morph gürültüsü kapalının %80'inin ALTINDA DEĞİL
-      // (yani "n-gram morph gürültüsünü düşürüyor" iddiası artık ÖLÇÜMLE DESTEKLENMİYOR). Bu satır
-      // düşerse belge cümlesi de değişmeli.
-      expect(kindNoise(auto, "morph"), `morph gürültü eski iddia n=${n}`).toBeGreaterThan(kindNoise(off, "morph") * 0.8);
+      // 🚨 TEK VE YÖNLÜ İFADE (inceleme 09-10): eskiden burada İKİ pin vardı — `|auto−off| ≤ 0.2`
+      // ve "auto > off×0.8". İkincisi n=100/300'de ÖLÜ ASSERT'ti: `off` 2.4–2.6 iken `off×0.2`
+      // zaten 0.2'yi aştığı için ilk pin her zaman ÖNCE düşüyordu, yani ikinci satırı silmek
+      // EŞDEĞER MUTANT olurdu. Aynı iki niyet (eşitlik + "eski %20 iddiası artık geçersiz") tek
+      // çift yönlü farkla ifade ediliyor; hangi yönde açılırsa açılsın belge cümlesi de değişmeli.
+      const morphGap = kindNoise(auto, "morph") - kindNoise(off, "morph");
+      expect(morphGap, `morph gürültü farkı n=${n} (auto − kapalı)`).toBeLessThanOrEqual(0.2);
+      expect(morphGap, `morph gürültü farkı n=${n} — 'n-gram gürültüyü düşürür' iddiası artık ÖLÇÜMLE DESTEKLENMİYOR`).toBeGreaterThanOrEqual(-0.2);
       // en: 'auto' İngilizce sorguya dokunmaz (= kapalı, birebir); 'AÇIK' İngilizcede isabet KAZANDIRMAZ, gürültü EKLER.
       expect(kindRate(auto, "en"), `en auto n=${n}`).toBeCloseTo(kindRate(off, "en"), 9);
       expect(kindNoise(auto, "en"), `en auto gürültü n=${n}`).toBeCloseTo(kindNoise(off, "en"), 9);

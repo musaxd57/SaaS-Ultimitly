@@ -146,6 +146,29 @@ const SUFFIXES_LONGEST_FIRST = [...SUFFIXES].sort((x, y) => y.length - x.length)
  */
 const STEM_PASSES_MAX = 8;
 
+/**
+ * 🚨 SABİT NOKTANIN FRENİ — TAMLAYAN EKİ YALNIZ İLK TURDA (inceleme turu 09-10, ölçümle).
+ *
+ * Tur tavanı kalkınca kısa ekler ARDIŞIK sökülüp gerçek gövdeyi yiyordu. Ölçülen zarar:
+ * "havalimanından / havalimanında / havalimanını" → `-dan -nin -a -alim` → **hav** = "havlu"/"hava"
+ * kovası; transfer sorusunda misafire giden bloğun İLK parçası HAVLU kalemi oluyordu (eski tur
+ * tavanı bunu KAZARA engelliyordu).
+ *
+ * Kural DİLBİLGİSEL, keyfi değil: tamlayan (-nin/-nun) yüzey kelimesinde SONDADIR, yani sağdan
+ * soyarken İLK sökülen olmalıdır ("makinesinin" → -nin ilk turda, doğru). Bir HÂL eki söküldükten
+ * SONRA görünen "…nin" gerçek tamlayan değil, gövdenin parçasıdır: "havalimanı+n+dan" → `-dan`
+ * sonrasında kalan "havalimanin" içindeki "nin" KAYNAŞTIRMA n'sidir. Tek kural sınıfı tam
+ * simetriye oturtuyor: havalimanından/‑nda/‑nı → `havaliman` = havalimanı; havaalanından →
+ * `havaalan` = havaalanı. Yalnız AŞIRI kök almayı keser; çekimli↔yalın eşleşmeleri bozmaz.
+ *
+ * ⚠️ İKİ FREN DAHA DENENDİ ve ÖLÇÜMLE GEREKSİZ ÇIKTI (tekrar eklenmesin): optatif ekleri
+ * (-alım/-elim) ilk-tura kısıtlamak ve aynı ekin üst üste sökülmesini engellemek. Tamlayan freni
+ * zinciri zaten daha erken kestiği için ikisi de ULAŞILAMAZ hâle geliyor — mutasyon turunda
+ * ikisini de kaldıran mutantlar HAYATTA KALDI (yani hiçbir davranışı korumuyorlardı) ve
+ * pinlenemeyen kod tutulmaz.
+ */
+const FIRST_PASS_ONLY_SUFFIXES = new Set(["nin", "nun"]);
+
 /** Rakam/saat belirteçleri kök alınmaz. */
 const HAS_DIGIT = /\d/;
 
@@ -163,6 +186,7 @@ export function stem(token: string): string {
   for (let pass = 0; pass < STEM_PASSES_MAX; pass++) {
     let stripped = false;
     for (const suf of SUFFIXES_LONGEST_FIRST) {
+      if (pass > 0 && FIRST_PASS_ONLY_SUFFIXES.has(suf)) continue; // ↑tamlayan freni
       const floor = EN_SUFFIXES.has(suf) ? MIN_STEM_EN : MIN_STEM_3_SUFFIXES.has(suf) ? MIN_STEM_AFTER_VOWEL : MIN_STEM;
       if (cur.length - suf.length >= floor && cur.endsWith(suf)) {
         cur = cur.slice(0, -suf.length);
