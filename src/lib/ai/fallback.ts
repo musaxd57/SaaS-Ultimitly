@@ -122,36 +122,64 @@ const KEYWORDS: Record<Exclude<Intent, "general">, string[]> = {
     // gelmiyor / Elektrikler gitti / Kapı açılmıyor" general — aynı şikâyet, fiil değişince
     // sınıf değişiyordu; EN'de genel "not working / no heating" her cihazı kapsarken TR'de
     // olumsuzlama fiile özgü (gel-/ak-/aç-/yan-/ısın-) ve listede yalnız "çalışmıyo" vardı.
-    // ⚠️ HEPSİ ÇAPALI (tesis adı + olumsuz fiil). Çıplak "gelmiyor" ("yarın gelmiyoruz"),
-    // "gitti" ("plaja gittik"), "kesildi", "su yok" ("konusu yok") BİLEREK YOK — golden
-    // tuzakları pinler. "İnternet gelmiyor"/"wifi çekmiyor" BİLEREK complaint DEĞİL (↑ aynı
-    // gerekçe: bilgi tabanından yanıtlanır). Elektrik kesintisi hiçbir dilde yoktu → TR+EN
-    // şimdi; DE/FR/ES/RU/AR parite borcu (ayrı tur).
+    // ⚠️ KALIPLAR ÇAPALI (tesis adı + olumsuz fiil). Gövdeler "-yo" ile yazılır (dosya geleneği,
+    // "çalışmıyo" gibi): "gelmiyor" da konuşma dili "gelmiyo" da tutar. Çıplak "gelmiyor"
+    // ("yarın gelmiyoruz"), "gitti" ("plaja gittik"), "kesildi", "su yok" ("konusu yok") BİLEREK
+    // YOK — golden tuzakları pinler. "İnternet gelmiyor"/"wifi çekmiyor" BİLEREK complaint DEĞİL
+    // (↑ aynı gerekçe: bilgi tabanından yanıtlanır). Elektrik kesintisi hiçbir dilde yoktu →
+    // TR+EN şimdi; DE/FR/ES/RU/AR parite borcu (language-parity `it.todo`).
+    // 🚨 İNCELEME TURU (09-10, kod-doğrulandı): ilk sürümdeki çıplak "bozuldu/bozulmuş/arızalı/
+    // ısınmıyor/blackout/no heat" ve fiilsiz "elektrik yok/cereyan yok/elektrik kesintisi/power
+    // cut" GERÇEK yanlış pozitif üretiyordu — "Hava bozuldu", "Midem bozuldu", "blackout
+    // curtains", "Otoparkta elektrik yok mu, şarj için priz var mı?", "Yerden ısıtma yok mu?",
+    // "Are power cuts common?" → oto-yanıt kapanır + host'a acil e-posta + V1 negatif sinyal.
+    // Arıza fiilleri CİHAZ KURALINA taşındı (`hasDeviceBreakdown`: fiil + cihaz adı aynı
+    // mesajda), kalanlar çapalandı; bitişik eşleşme KORUNDU (gevşetme ölçüldü: olumsuzlama
+    // parçacığını isminden koparıyor) → araya zarf giren doğal biçimler ayrıca yazıldı.
     // ASCII ikizi YAZILMADI: `includesAnyFold` kelimeyi de `foldTurkishAscii`den geçirir
-    // ("kapi acilmiyor" girdisi "kapı açılmıyor" kalıbıyla eşleşir — test-pinli). Aşağıdaki
+    // ("kapi acilmiyor" girdisi "kapı açılmıyo" kalıbıyla eşleşir — test-pinli). Aşağıdaki
     // eski satırlardaki ikizler dosya geleneği; işlevsel değil (mutasyon turunda "tek
-    // imlâyı sil" eşdeğer mutanttır, ikisini birden sil).
+    // imlâyı sil" eşdeğer mutanttır, ikisini birden sil). ⚠️ `PROBLEM_NEGATIONS` için geçerli
+    // DEĞİL (`hasUnnegatedProblemWord` düz `split`, ASCII katlamasız).
     // Su
-    "su gelmiyor", "su akmıyor", "duş akmıyor", "musluk akmıyor",
+    "su gelmiyo", "su akmıyo", "duş akmıyo", "musluk akmıyo",
+    "su hiç gelmiyo", "su hala gelmiyo", "su hâlâ gelmiyo", "hiç su gelmiyo", "su hiç akmıyo", "su hala akmıyo", "su hâlâ akmıyo",
     "su kesildi", "sular kesildi", "su kesik", "sular kesik", "sular gitti", "suyumuz yok", "hiç su yok",
-    "no running water", "there is no water", "water is off", "water is cut",
-    // Isıtma (EN "no heating" ile parite)
-    "ısıtma gelmiyor", "ısıtma yok", "ısınmıyor", "kalorifer yanmıyor", "petek ısınmıyor", "kombi yanmıyor",
-    "sıcak hava gelmiyor", "no heat",
+    "no running water", "there is no water in", "there's no water in", "no water in the", "no water at all",
+    "water is off", "water is cut", "water is not running",
+    // Isıtma (EN "no heating" ile parite; "ısınmıyor"/"ısıtma yok" ev/oda/su çapalı — "Havuz ısınmıyor mu?",
+    // "Yerden ısıtma yok mu?" bilgi sorusu; "no heat" YOK: "no heated pool", "no heater" içinde geçiyordu)
+    "ısıtma gelmiyo", "ısıtma hiç gelmiyo", "dairede ısıtma yok", "evde ısıtma yok", "hiç ısıtma yok",
+    "ev ısınmıyo", "daire ısınmıyo", "oda ısınmıyo", "su ısınmıyo", "petek ısınmıyo", "radyatör ısınmıyo", "kalorifer ısınmıyo",
+    "kalorifer yanmıyo", "kalorifer hiç yanmıyo", "kombi yanmıyo", "kombi hiç yanmıyo", "sıcak hava gelmiyo",
     // Klima (soğutma yokluğu)
-    "soğuk hava gelmiyor", "klima üflemiyor",
-    // Elektrik
-    "elektrik yok", "elektrikler yok", "elektrik gitti", "elektrikler gitti", "elektrik kesildi", "elektrikler kesildi",
-    "elektrik kesik", "elektrik kesintisi", "sigorta attı", "cereyan yok",
-    "no electricity", "power is out", "power went out", "power outage", "power cut", "blackout",
-    // Kapı / kilit (kilitli kalma zaten SAFETY_CRITICAL_WORDS'te)
-    "kapı açılmıyor", "kapı açılmadı", "kilit açılmıyor", "kilit açılmadı", "anahtar dönmüyor", "kapı kapanmıyor",
+    "soğuk hava gelmiyo", "klima üflemiyo",
+    // Elektrik ("elektrik yok" ev/daire/oda çapalı — "Otoparkta elektrik yok mu?" soru; "elektrik kesintisi"
+    // fiilli — "kesintisi olursa / var mı?" soru; "blackout"/"power cut"/"power outage" cümle içi —
+    // "blackout curtains", "Are power cuts common?"; "cereyan yok" YOK: hava akımı anlamı baskın)
+    "dairede elektrik yok", "evde elektrik yok", "odada elektrik yok", "hiç elektrik yok", "elektrikler yok",
+    "elektrik gitti", "elektrikler gitti", "elektrik kesildi", "elektrikler kesildi", "elektrik kesik",
+    "elektrik kesintisi oldu", "elektrik kesintisi yaşıyoruz", "elektrik kesintisi başladı",
+    "elektrik hala yok", "elektrik hâlâ yok", "elektrikler hala yok", "elektrikler hâlâ yok", "sigorta attı",
+    "no electricity", "power is out", "power went out", "there's a power outage", "there is a power outage",
+    "power outage since", "power outage in the", "we have a power outage", "there's a power cut", "there is a power cut",
+    "power cut since", "power cut in the", "we have a power cut", "there's a blackout", "there is a blackout",
+    "total blackout", "blackout since", "blackout in the",
+    // Kapı / kilit ("açıl" ASCII katlamada "acil"e katlanır → SAFETY çıplak "acil" de eşleşir; ayrı iş #51)
+    "kapı açılmıyo", "kapı açılmadı", "kilit açılmıyo", "kilit açılmadı", "anahtar dönmüyo", "kapı kapanmıyo",
+    "kapı sıkış", "kilit sıkış", "kapı kilitlenmiyo",
     "door won't open", "door wont open", "door doesn't open", "door does not open", "can't open the door",
     "cannot open the door", "door is stuck", "lock is stuck", "key won't turn", "lock won't open",
-    // Arıza ailesi (çıplak "arıza" YOK: "hiçbir arıza yaşamadık")
-    "bozuldu", "bozulmuş", "arızalı", "arızalandı", "arıza var", "arıza yaptı", "arıza çıktı",
+    // Arıza — çıplak "bozuldu/bozulmuş/arızalı/arızalandı" LİSTEDE DEĞİL (cihaz kuralı ↓ `hasDeviceBreakdown`);
+    // iki kelimelik biçimler kalır (çıplak "arıza" YOK: "hiçbir arıza yaşamadık")
+    "arıza var", "arıza yaptı", "arıza çıktı",
+    // Tıkanma / sızıntı (EN "stuck / clogged / leaking" ikizleri TR'de yoktu — parite)
+    "tuvalet tıkan", "tuvalet tıkalı", "klozet tıkan", "klozet tıkalı", "lavabo tıkan", "lavabo tıkalı",
+    "gider tıkan", "gider tıkalı", "duş tıkan", "duş tıkalı", "sifon çekmiyo", "musluk damlat", "su sızdırıyo", "su sızıntısı var",
+    "toilet is clogged", "toilet is blocked", "sink is clogged", "sink is blocked", "drain is clogged", "drain is blocked",
+    "shower is clogged", "water leak", "is leaking",
     // Işık / ocak (çıplak "yanmıyor" YOK)
-    "ışık yanmıyor", "ışıklar yanmıyor", "lamba yanmıyor", "ocak yanmıyor",
+    "ışık yanmıyo", "ışıklar yanmıyo", "lamba yanmıyo", "ocak yanmıyo",
     "kein warmes wasser", "kein heißes wasser", "kein heisses wasser", "keine heizung",
     "pas d'eau chaude", "pas de chauffage",
     "no hay agua caliente", "sin agua caliente", "no hay calefacción", "no hay calefaccion",
@@ -666,6 +694,26 @@ function hasUnnegatedProblemWord(m: string): boolean {
   return PROBLEM_STEMS.some((w) => stripped.includes(w));
 }
 
+/**
+ * ARIZA CİHAZ KURALI (inceleme 09-10, ölçüldü): "bozuldu / bozulmuş / arızalı / arızalandı"
+ * tek başına şikâyet DEĞİL — "Hava bozuldu, bugün evde kalıyoruz", "Midem bozuldu, en yakın
+ * eczane nerede?", "Planımız bozuldu, bir gün erken çıkacağız" (early_departure yerine
+ * complaint oluyordu), "Uçuş programımız bozuldu". Aynı mesajda bir CİHAZ ADI da geçiyorsa
+ * şikâyettir. Cihaz adı altdizi eşleşir → çekimli biçimler ("klimamız", "makinesi",
+ * "kombimiz") kendiliğinden kapsanır; iki yarı tek başına yetmez ("Bozuldu." / "Klima var mı?").
+ * "internet"/"wifi" cihaz listesinde YOK (bilinçli: KB'den yanıtlanır → wifi intent'i).
+ */
+const BREAKDOWN_VERBS = ["bozuldu", "bozulmuş", "arızalı", "arızalan"];
+const BREAKDOWN_DEVICES = [
+  "klima", "kombi", "buzdolabı", "makine", "kilit", "ocak", "fırın", "duş", "musluk", "sifon", "priz", "cihaz",
+  "televizyon", "tv", "kapı", "asansör", "mikrodalga", "ısıtıcı", "lamba", "kettle", "kumanda", "modem", "şofben",
+  "termosifon", "jakuzi", "tuvalet", "klozet", "lavabo", "ütü", "fön", "bulaşık", "çamaşır", "radyatör", "petek",
+  "kalorifer", "ışık", "anahtar",
+];
+function hasDeviceBreakdown(message: string): boolean {
+  return includesAnyFold(message, BREAKDOWN_VERBS) && includesAnyFold(message, BREAKDOWN_DEVICES);
+}
+
 function detectIntent(message: string): Intent {
   const std = foldTurkishLower(message);
   const tr = foldTurkishLowerTr(message);
@@ -677,8 +725,9 @@ function detectIntent(message: string): Intent {
   ];
   for (const intent of order) {
     if (includesAnyFold(message, KEYWORDS[intent])) return intent;
-    // "problem"/"sorun" live outside the keyword list — negation-guarded here.
-    if (intent === "complaint" && (hasUnnegatedProblemWord(std) || hasUnnegatedProblemWord(tr))) {
+    // "problem"/"sorun" live outside the keyword list — negation-guarded here;
+    // arıza fiilleri de listede değil — cihaz kuralı (`hasDeviceBreakdown`).
+    if (intent === "complaint" && (hasUnnegatedProblemWord(std) || hasUnnegatedProblemWord(tr) || hasDeviceBreakdown(message))) {
       return "complaint";
     }
   }

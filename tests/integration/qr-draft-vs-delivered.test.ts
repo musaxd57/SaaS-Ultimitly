@@ -84,6 +84,8 @@ const REPORTED = {
  */
 const ASSUMED = {
   E1: { intent: "parking", riskLevel: "none", riskType: null },
+  // E6 `intent` 2. gerçek koşuda (09-09, 7ohi) ÖLÇÜLDÜ = complaint; riskLevel/riskType hâlâ VARSAYIM
+  // (rapor Ö4 ile artık kaydediliyor — sonraki koşu bunları da gerçek değerle değiştirir).
   E6: { intent: "complaint", riskLevel: "none", riskType: null },
   E7: { intent: "checkout", riskLevel: "none", riskType: null },
 } as const;

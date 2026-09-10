@@ -56,12 +56,27 @@ Bu, V1 canlı doğrulama turunun kapsamı dışındadır.
 
 ## Kapanış (2026-09-10)
 
-**Sözleşme** (`src/lib/ai/fallback.ts` `KEYWORDS.complaint`, "TÜRKÇE OLUMSUZ FİİL BOŞLUĞU" bloğu): kalıplar
-**ÇAPALI** — tesis adı + olumsuz fiil ("su gelmiyor", "ısıtma gelmiyor", "elektrikler gitti", "kapı açılmıyor",
-"sigorta attı", "bozuldu"…). Çıplak `gelmiyor / gitti / kesildi / su yok / arıza / yanmıyor` listeye GİRMEDİ;
-her biri için tuzak cümle pinli ("Yarın gelmiyoruz", "Plaja gittik", "Eksik bir şey yok", "Hiçbir arıza
-yaşamadık"). Elektrik kesintisi hiçbir dilde yoktu → TR + EN eklendi; DE/FR/ES/RU/AR elektrik paritesi **borç**
-(ayrı tur, CLAUDE.md açık işler).
+**Sözleşme** (`src/lib/ai/fallback.ts` `KEYWORDS.complaint`, "TÜRKÇE OLUMSUZ FİİL BOŞLUĞU" bloğu + `hasDeviceBreakdown`):
+kalıplar **ÇAPALI** — tesis adı + olumsuz fiil ("su gelmiyo", "ısıtma gelmiyo", "elektrikler gitti", "kapı açılmıyo",
+"sigorta attı"…; gövdeler "-yo" ile yazılır ki "gelmiyor" da "gelmiyo" da tutsun) + araya zarf giren doğal biçimler
+("su hiç gelmiyo", "su hâlâ akmıyo", "kombi hiç yanmıyo", "elektrik hâlâ yok"). **Arıza ailesi CİHAZ KURALI:**
+`bozuldu / bozulmuş / arızalı / arızalandı` yalnız aynı mesajda bir cihaz adı (klima, kombi, buzdolabı, makine, kilit,
+ocak, fırın, duş, musluk, sifon, priz, televizyon, asansör…) varsa şikâyettir — çekimli cihaz ("klimamız") da sayılır,
+"Hava bozuldu" / "Midem bozuldu" / "Planımız bozuldu" sayılmaz. Çıplak `gelmiyor / gitti / kesildi / su yok / arıza /
+yanmıyor / bozuldu / blackout / no heat / elektrik yok / cereyan yok / ısınmıyor / elektrik kesintisi / power cut`
+listeye GİRMEZ; her biri için tuzak cümle pinli. Elektrik kesintisi hiçbir dilde yoktu → TR + EN eklendi; DE/FR/ES/RU/AR
+elektrik paritesi **borç** (`language-parity.test.ts` içinde `it.todo`, CLAUDE.md açık işler).
+
+**İnceleme turu (09-10, ajan — kod-doğrulandı, ilk sürüm düzeltildi):** ilk sürümde altı kalıp çıplaktı ve ölçülen yanlış
+pozitifler üretiyordu — "Hava bozuldu, bugün evde kalıyoruz" · "Midem bozuldu, en yakın eczane nerede?" · "Planımız bozuldu,
+bir gün erken çıkacağız" (early_departure yerine complaint) · "Do you have blackout curtains?" · "Is there no heated pool?"
+("no heat" ⊂ heated) · "Otoparkta elektrik yok mu, şarj için priz var mı?" · "Odada cereyan yok, rahat uyuduk" · "Yerden ısıtma
+yok mu?" · "Havuz ısınmıyor mu?" · "Elektrik kesintisi olursa ne yapmalıyız?" · "Are power cuts common here?" · "There is no
+water dispenser". Bedeli kodla gösterildi: oto-yanıt kapanır (`automation.ts` bekleyen mesaj taraması), konuşma "Sorunlu" + host'a
+acil e-posta, `autoHoldingReplyEnabled` açıksa misafire özür mesajı, QR'da devir, V1 negatif sinyal → ≥3'te sahte PropertyMemory
+örüntüsü. Hepsi tuzak olarak pinlendi (`TRAPS`), riskType satır başına TEK değerle pinlendi (gevşek `toContain` kalktı).
+Kapsam boşlukları da kapandı: "Sıcak su hiç gelmiyor", "-yo" gövdesi, "Kapı sıkıştı", "Tuvalet tıkandı", "Lavabo tıkalı",
+"Musluk damlatıyor" (EN "door is stuck / clogged / leaking" ikizleri TR'de yoktu).
 
 | Girdi | 09-08 | 09-10 |
 |---|---|---|
@@ -69,26 +84,38 @@ yaşamadık"). Elektrik kesintisi hiçbir dilde yoktu → TR + EN eklendi; DE/FR
 | "Su akmıyor." | `general` | `complaint` |
 | "Isıtma gelmiyor." | `general` | `complaint` |
 | "Elektrikler gitti." | `general` | `complaint` |
-| "Kapı açılmıyor." | `general` | `complaint` (riskType `safety_emergency` — kilitli-kalma ağı önce gelir, ikisi de veto) |
+| "Kapı açılmıyor." | `general` | `complaint` (riskType `safety_emergency` — 🚨 kilit ağı DEĞİL: "açıl" ASCII katlamada "acil"e katlanır, `SAFETY_CRITICAL_WORDS` çıplak "acil" altdizi eşleşir; "Havuz ne zaman açılıyor?" da aynı — pre-existing çarpışma, ayrı iş #51) |
 | "Klimadan soğuk hava gelmiyor." | `amenity` | `complaint` |
 | "İnternet gelmiyor." | `wifi` | `wifi` (**bilinçli**: bilgi tabanından yanıtlanır) |
 | "Yarın gelmiyoruz, ertesi gün geleceğiz." | `general` | `general` (tuzak, pinli) |
 
 **Bilinçli kararlar:** (1) `İnternet gelmiyor` / `wifi çekmiyor` complaint DEĞİL — 08-07 gerekçesi geçerli
 (complaint = oto-yanıt kapanır; wifi sorusu KB'den cevaplanır). (2) Övgü tuzağı olarak seçilen cümleler
-mevcut ağlarla çakışmayacak biçimde ölçüldü: "Kapı kolayca açıldı" `SAFETY_CRITICAL_WORDS` kilitli-kalma ağına
-("kapı … açıl…"), "kapı kodu" `checkin`/`access_security`ye takılır — bu ağlar bu turda GEVŞETİLMEDİ; tuzak
-"Giriş çok kolaydı, teşekkürler." oldu. (3) ASCII ikizi yazılmadı: `includesAnyFold` kelimeyi de
-`foldTurkishAscii`den geçirir ("kapi acilmiyor" girdisi "kapı açılmıyor" kalıbıyla eşleşir, test-pinli);
-eski satırlardaki ikizler dosya geleneği, işlevsel değil.
+mevcut ağlarla çakışmayacak biçimde ölçüldü: "Kapı kolayca açıldı" `safety_emergency` olur — sebep kilit ağı DEĞİL,
+"açıl"→"acil" ASCII katlama çarpışması (inceleme 09-10 düzeltti; ayrı iş #51) — ve "kapı kodu" `checkin`e takılır;
+bu ağlar bu turda GEVŞETİLMEDİ; tuzak "Giriş çok kolaydı, teşekkürler." oldu. (3) ASCII ikizi yazılmadı:
+`includesAnyFold` kelimeyi de `foldTurkishAscii`den geçirir ("kapi acilmiyor" girdisi "kapı açılmıyor" kalıbıyla
+eşleşir, test-pinli); eski `KEYWORDS` satırlarındaki ikizler dosya geleneği, işlevsel değil — ⚠️ `PROBLEM_NEGATIONS`
+için GEÇERLİ DEĞİL (`hasUnnegatedProblemWord` düz `split`, ASCII katlamasız; oradaki ikizler işlevsel).
+(4) Bitişik eşleşme (`allowWordGap=false`) KORUNDU: gevşetme ölçüldü — olumsuzlama parçacığını isminden koparıp
+"No problem, the heating was great!" / "Yerden ısıtma da yok mu"yu da yakalıyor ve ESKİ listeyi de vuruyor; bunun yerine
+çapalı zarf biçimleri eklendi; "Elektrikler dün gece gitti" / "Kapı bir türlü açılmıyor" bilinen sınır (pinli).
+(5) Çözülmüş bildirim ("Sigorta attı ama kaldırdık, sorun yok") complaint kalır — ağ çözümü ayırt etmez, yön güvenli.
+(6) Pre-existing çıplak "bozuk" ("Bozuk para var mı?") DOKUNULMADI (bu turun ekleri değil; ayrı karar).
 
-**Kanıt:** `tests/unit/complaint-negative-verbs.test.ts` (bu tablo + tuzaklar + EN paritesi + V1 sinyal) ·
-`tests/unit/golden-scenarios.test.ts` "TÜRKÇE OLUMSUZ FİİL ŞİKÂYETLERİ (09-10)" (tehdit + övgü-tuzağı çiftleri)
-· `tests/integration/qr-draft-vs-delivered.test.ts` "E6 KELİME AĞI İKİNCİ SAVUNMA" (model `general/none/0.9`
-dese bile gerçek QR rotası devreder, `RiskEvent.reason = keyword_escalated`). Mutasyon: 13/13 yakalandı
-(8 kaldırma + 5 aşırı-uygulama: çıplak `gelmiyor/gitti/arıza/yok` ve `internet gelmiyor`), kontrol koşusu
-önce/sonra yeşil. İlk turda "tek imlâyı sil" mutantı hayatta kaldı → ASCII ikizi kaldırılınca EŞDEĞER mutant
-olduğu anlaşıldı (kaçak değil), `bozuldu` için gerçek kapsama boşluğu bulundu → "Buzdolabı bozuldu." eklendi.
+**Kanıt:** `tests/unit/complaint-negative-verbs.test.ts` (sözleşme tablosu `CONTRACT` 31 satır — riskType satır başına
+TEK değer — + tuzak tablosu `TRAPS` 29 satır + EN paritesi + bilinen sınır pinleri + V1 sinyal) ·
+`tests/unit/golden-scenarios.test.ts` "TÜRKÇE OLUMSUZ FİİL ŞİKÂYETLERİ (09-10)" (tehdit + övgü-tuzağı çiftleri; inceleme
+tuzakları dahil) · `tests/integration/qr-draft-vs-delivered.test.ts` "E6 KELİME AĞI İKİNCİ SAVUNMA" (model `general/none/0.9`
+dese bile gerçek QR rotası devreder, `RiskEvent.reason = keyword_escalated`) · `language-parity.test.ts` elektrik/su
+kesintisi/kapı satırları (TR+EN) + `it.todo` borç. **Kırmızı-önce:** inceleme paketi testleri HEAD'in `fallback.ts`ine
+karşı 35 kırmızı (stash ile ölçüldü). **Mutasyon, iki tur:** ilk sürüm 13/13 (8 kaldırma + 5 aşırı-uygulama; "tek imlâyı
+sil" eşdeğer çıktı → ASCII ikizi kaldırıldı; "bozuldu" kapsama boşluğu → test eklendi); inceleme sonrası 21 mutant
+(9 kaldırma: cihaz kuralı kapalı · `arızalan` yok · "-yo" gövdesi yerine "-yor" · zarf çapası yok · kapı sıkış / tuvalet
+tıkan / musluk damlat / elektrik hâlâ yok / there's a power cut yok · 12 aşırı-uygulama: çıplak bozuldu / blackout /
+no heat / elektrik yok / ısıtma yok / ısınmıyor / elektrik kesintisi / power cut / cereyan yok / there is no water geri,
+cihaz listesine "ev" ve "internet") — 20/21 ilk koşuda, "there's a power cut" mutantı EŞDEĞER çıktı (iki test cümlesi de
+"power cut since" ile tutuyordu) → yalnız o kalıbı isteyen cümle eklendi → yakalandı; kontrol önce/sonra yeşil.
 
 **Kapsam dürüstlüğü:** bu düzeltme kelime ağının İKİNCİ SAVUNMASINI onarır; modelin `general` dediği bir
 şikâyeti artık QR ve oto-yanıt kapıları yakalar, V1 sinyali üretilir. Model yolundaki sınıflandırma kalitesi

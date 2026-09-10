@@ -241,11 +241,21 @@ const SCENARIOS: Scenario[] = [
   // Bilinçli karar korunur: "İnternet gelmiyor" bilgi tabanından yanıtlanabilir → wifi, complaint DEĞİL.
   { name: "internet gelmiyor → wifi (bilinçli, complaint DEĞİL)", message: "İnternet gelmiyor.", autoSendVeto: false, intent: "wifi" },
   { name: "kapı açılmıyor (TR)", message: "Kapı açılmıyor, kod çalışmıyor.", autoSendVeto: true, intent: "complaint" },
-  // (Tuzak "kapı … açıl" İÇERMEZ: SAFETY_CRITICAL_WORDS'ün kilitli-kalma ağı "Kapı kolayca açıldı"
-  // övgüsünü de safety_emergency sayar — ölçüldü 09-10, ayrı ve bilinçli aşırı-eşleşme; bu tur dokunmadı.)
+  // (Tuzak "kapı … açıl" İÇERMEZ: "açıl" ASCII katlamada "acil"e katlanır ve SAFETY_CRITICAL_WORDS'ün
+  // çıplak "acil" girdisi altdizi eşleşir → "Kapı kolayca açıldı" da safety_emergency. Kilit ağı DEĞİL,
+  // katlama ÇARPIŞMASI — inceleme 09-10 ölçtü ("Havuz ne zaman açılıyor?" da acil); düzeltme ayrı iş #51.)
   { name: "giriş kolaydı — övgü tuzağı (TR)", message: "Giriş çok kolaydı, teşekkürler.", autoSendVeto: false, riskType: null },
-  { name: "kombi bozuldu, arızalı (TR)", message: "Kombi bozuldu, arızalı.", autoSendVeto: true, intent: "complaint" },
+  // Arıza ailesi CİHAZ KURALI: fiil + cihaz adı aynı mesajda; çekimli cihaz ("klimamız") da sayılır.
+  { name: "kombi bozuldu, arızalı (TR)", message: "Kombi bozuldu, arızalı.", autoSendVeto: true, intent: "complaint", riskType: "complaint" },
+  { name: "klimamız bozuldu — çekimli cihaz (TR)", message: "Klimamız bozuldu, oda çok sıcak.", autoSendVeto: true, intent: "complaint" },
+  { name: "hava bozuldu — çıplak 'bozuldu' tuzağı (TR, inceleme 09-10)", message: "Hava bozuldu, bugün evde kalıyoruz.", autoSendVeto: false, riskType: null },
+  { name: "planımız bozuldu → erken ayrılış, complaint DEĞİL (TR)", message: "Planımız bozuldu, bir gün erken çıkacağız.", autoSendVeto: true, intent: "early_departure", riskType: "cancellation" },
   { name: "arıza yaşamadık — tuzak (TR)", message: "Hiçbir arıza yaşamadık, teşekkürler.", autoSendVeto: false, riskType: null },
+  { name: "otoparkta elektrik yok mu — soru tuzağı (TR, inceleme 09-10)", message: "Otoparkta elektrik yok mu, şarj için priz var mı?", autoSendVeto: false, intent: "parking", riskType: null },
+  { name: "tuvalet tıkandı (TR)", message: "Tuvalet tıkandı, su taşıyor.", autoSendVeto: true, intent: "complaint" },
+  { name: "tuvalet temizdi — tuzak (TR)", message: "Tuvalet ve banyo tertemizdi, teşekkürler.", autoSendVeto: false, riskType: null },
+  { name: "blackout curtains — tuzak (EN, inceleme 09-10)", message: "Do you have blackout curtains in the bedroom?", autoSendVeto: false, riskType: null },
+  { name: "power cut since noon (EN)", message: "There's a power cut since noon, nothing works.", autoSendVeto: true, intent: "complaint" },
   { name: "çıplak 'su yok' tuzağı (TR)", message: "Eksik bir şey yok, konaklama mükemmeldi.", autoSendVeto: false, riskType: null },
   { name: "ışıklar yanmıyor (TR)", message: "Işıklar yanmıyor, salon karanlık.", autoSendVeto: true, intent: "complaint" },
   { name: "ışık övgüsü — tuzak (TR)", message: "Işıklar çok hoş, ambiyans harika.", autoSendVeto: false, riskType: null },

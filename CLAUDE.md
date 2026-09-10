@@ -126,8 +126,9 @@ ReAct (kademeli) · GraphRAG (ihtiyaç kanıtlanırsa). Ek: kaynaklı-sürümlü
 - `src/lib/ai/retrieval/` LLM'siz + deterministik + DB'siz (pin): parçalayıcı (cümle sınırı, 600/900; parça =
   `content.slice`, metin DEĞİŞMEZ) · Türkçe-öncelikli BM25 (kök sökücü + ünsüz yumuşaması geri alma + ~45 DAR kavramlık
   sözlük [`terms` genişletir, `detectOnly` yalnız tespit] + OSA yazım toleransı) · **ikinci aday kaynağı karakter 3-gram
-  kosinüsü (`sources.ts`, anlamsal DEĞİL; `ngram:"auto"` = YALNIZ Türkçe algılanan sorguda — ölçümle: yazım hatasında
-  katkı yok, ek varyasyonunda gürültü %23–44 düşer, İngilizcede açık olmak gürültü ekler)** · **birleşim CombSUM
+  kosinüsü (`sources.ts`, anlamsal DEĞİL; `ngram:"auto"` = YALNIZ Türkçe algılanan sorguda — 09-10 yeniden ölçüm: yazım
+  hatasında katkı yok; ek varyasyonundaki eski gürültü düşüşü kök sökücü kaçağının TELAFİSİYDİ, kök düzelince auto ≈ kapalı
+  (katkı ≈0, test-pinli); İngilizcede açık olmak gürültü ekler; varsayılan KORUNDU, "kapalı"ya çekme kararı kurucunun)** · **birleşim CombSUM
   (varsayılan, ölçümle) / RRF (`fusion.ts`)** · rerank (ipucu 0.35 / yalnız-ipucu 0.2 · başlık 0.15 + tam örtüşme 0.15 ·
   bigram 0.10; 🚨 **tazelik PUANA GİRMEZ** — `sortCandidates` puanı 0.01 adımına yuvarlar, eşitse yeni önde; Codex 09-09)
   · **sürüm kuralı `supersededById`** (halefi kümede olan düşer, halefi olmayan korunur) · round-robin çok soru · ince
@@ -144,9 +145,29 @@ ReAct (kademeli) · GraphRAG (ihtiyaç kanıtlanırsa). Ek: kaynaklı-sürümlü
   cevap için gerekli CÜMLE blokta mı (kalem kimliği DEĞİL — kimlik blokta olup cümle olmayabilir, test-pinli); **CANLI
   yapılandırması** `kb-fetch` tavanını (en yeni 200) uygular: 30/100'de varsayılanla birebir, 300'de havuz 336→200 ama
   isabet düşmüyor (konu başına ~8 varyant — tavanın zararsızlığının kanıtı DEĞİL; tek kalemli konu tavan dışındaysa
-  canlıda ULAŞILAMAZ, hedefli test). Legacy inPrompt 100 kalemde **%51**, hibrit %98; hit@1 %92–93; güncelleme/silme 10/10;
-  eşikler ölçülen değere pinli (n-gram auto kapalıya göre en fazla 1 soru geride, blok daha küçük). "Cevap kaynakla
-  destekleniyor mu" burada ÖLÇÜLMEZ (→ eşleştirilmiş eval). Mutasyon: dilim 2 17/17 · dilim 3 20/20 (kontrol yeşil, iki yönlü).
+  canlıda ULAŞILAMAZ, hedefli test). Legacy inPrompt 100 kalemde **%51**, hibrit %99–100 (09-10); hit@1 %96–97; geri çekilme
+  0; güncelleme/silme 10/10; eşikler ölçülen değere pinli (hit@1 ≥.95 · hit@3 ≥.96 · inPrompt ≥.99 · geri çekilme 0; n-gram
+  auto kapalıya göre en fazla 1 soru geride, blok açığa göre küçük). "Cevap kaynakla destekleniyor mu" burada ÖLÇÜLMEZ
+  (→ eşleştirilmiş eval). Mutasyon: dilim 2 17/17 · dilim 3 20/20 · kaçak turu 09-10 (↓) (kontrol yeşil, iki yönlü).
+- **Kaçak turu (09-10; teşhis ajan puan dökümüyle, kod Claude):** kök sökücü SABİT NOKTA (tur tavanı 3 simetriyi bozuyordu:
+  "çıkışımızı"→ciki ≠ "çıkış"→cik → `no_lexical_hits` geri çekilmesi; "aşırı kök alma kaçırma üretmez" yalnız SİMETRİK
+  sökümde doğru) · ünlü-sonu iyelik `-mız/-miz/-muz/-nız/-niz/-nuz` (taban 3: deniz/omuz/domuz sökülmez) · kaynaştırma "y"
+  tabanı 3 ("çayı"→cay, "suyu"→su, "koyabilirim"→koy) + tek düzensiz kök `suy→su` · `WEAK_QUERY_TERMS` += `ko/ca` (kök
+  artefaktı: çalarsa; "ko" kök düzeltmesiyle kaynaksız kaldı, listeye alınmadı) ve zayıf kök BM25 ağırlığı 0.25 (iki uç
+  unit-pinli) · ünsüz-sonu `-sı/-su/-dı/-du` kök 2 harfe inecekse sökülmez ("kodu"→kod, "duşu"→duş, "uydu"→uyd — tv "uydu" ↔
+  "uymuyor" çarpışması KÖKTE çözüldü, terim kaldı) · sözlük: power↔socket AYRILDI, restaurant'tan "yemek" (ye; `detectOnly`
+  "akşam yemeği"). 🚨 `detectOnly`'ye taşımak genişletmeyi KAPATMAZ
+  (kalıpla tespit edilen kavram TÜM `terms`ini genişletir); "nerede yemek" kalıbı KOYMA ("nerede" durak → kalıp ["ye"]).
+  Ölçüm (varsayılan, 30/100/300): hit@1 93/92/92 → **97/96/96** · inPrompt(metin) 99/98/97 → **100/99/100** · gürültü
+  1.5/2.9/4.7 → 0.9/2.2/2.6 · geri çekilme 3/1/1 → **0** · morph 29/30·35/38·35/38 → tam · CANLI(300) inPrompt 98→100, blok
+  1076→939. Rapor `docs/olcum/kb-retrieval-scale-2026-09-10.md`; kaçak pinleri `tests/unit/kb-retrieval-morphology.test.ts`
+  (kırmızı-önce 18/19 düşüyordu); mutasyon 15/15 (dört turda: ölü sabit birleştirildi, "ko" çıkarıldı, ağırlık iki uç pini,
+  n-gram kaynağı BM25 pinini bulandırıyordu → `ngram:false` ile ölçüldü, "uydu" eşdeğer mutant çıktı → terim geri kondu). **Kalan hit@1 kaçakları (cevap cümlesi BLOKTA, sıra 2–11):** rehber parçası BM25 uzunluk
+  normunda kısa kaleme yeniliyor (guide_lost/water_cut; b=0.4 denendi, net ±0) · `fire→fir = fırın` diller arası kök
+  çarpışması · TV/kumanda sözcüksel beraberlik (klima kalemi "kumanda + TV sehpası") · taksi↔araç · doorman_syn etiketi
+  tartışmalı (kargo kalemi soruyu zaten cevaplıyor) → embedding "kalan başarısızlar" listesi (ücretli, ayrı onay).
+  Bilinen kök sınırları (pre-existing, ölçüldü, DOKUNULMADI): "markete"→mark ≠ market (fuzzy tavanı 5 harf), "kilidi"→ki
+  (d→t geri alma bilinçli yok), "duşu"→du ("su" eki), "görevliniz"→gorevl ≠ gorev.
 - **Host graf katmanı** `src/modules/intelligence/graph/property-graph.ts` (saf, DB'siz, hiçbir yüzeye bağlı değil):
   DB-gerçek ilişkilerden tipli graf; **her kenar `source` + `observedAt` + `certainty`**; `recurringIssues` kanıt sınıfı
   `reported_only | task_open | task_done` — **'confirmed' YOK** (şikâyet ≠ doğrulanmış arıza, pin); sinyal konuşma
@@ -596,16 +617,23 @@ Sekiz P1 KAPANDI (09-07), her biri ayrı commit, kırmızı-önce + iki yönlü 
   dürüst kısa cevap / tek netleştirme sorusu" dalı YOK (davranış emergent). Eşik AI güvenlik kapısının kendisi →
   GOLDEN SET + iki yönlü senaryo ister. Devir gerekçesi hiçbir yere yazılmıyor (canlı teşhis zorlaşıyor).
   Hakaret/kışkırtma `general` kalıyor. Eval adayları + yol ataması: `docs/ACIK-2026-09-08-qr-cevap-kalitesi.md`.
-- **KAPANDI (09-10, yerel):** Türkçe olumsuz fiil boşluğu — "sıcak su gelmiyor / su akmıyor / ısıtma gelmiyor /
-  elektrikler gitti / kapı açılmıyor / sigorta attı / bozuldu" artık `complaint` (`KEYWORDS.complaint` "TÜRKÇE OLUMSUZ
-  FİİL BOŞLUĞU" bloğu). 🚨 Kalıplar ÇAPALI (tesis adı + fiil); çıplak `gelmiyor/gitti/kesildi/su yok/arıza/yanmıyor`
-  listeye GİRMEZ (tuzaklar pinli: "yarın gelmiyoruz", "plaja gittik", "eksik bir şey yok", "hiçbir arıza yaşamadık").
-  "İnternet gelmiyor"/"wifi çekmiyor" BİLİNÇLİ wifi (KB'den yanıtlanır). ASCII ikizi yazılmaz (`includesAnyFold`
-  kelimeyi de katlar; "tek imlâyı sil" mutantı EŞDEĞER). Övgü tuzağı seçerken mevcut ağlara dikkat: "kapı … açıl…"
-  kilitli-kalma (`safety_emergency`), "kapı kodu" `checkin` — gevşetilmedi. Kanıt: `complaint-negative-verbs.test.ts` +
-  golden çiftleri + QR "E6 KELİME AĞI İKİNCİ SAVUNMA" (model `general/0.9` dese bile devir, `keyword_escalated`);
-  mutasyon 13/13. **Borç:** elektrik kesintisi DE/FR/ES/RU/AR paritesi (yalnız TR+EN). Belge:
-  `docs/ACIK-2026-09-08-turkce-sikayet-siniflandirma-eksigi.md` (kapanış bölümü).
+- **KAPANDI (09-10, yerel; inceleme turuyla daraltıldı):** Türkçe olumsuz fiil boşluğu — "sıcak su gelmiyor / su akmıyor /
+  ısıtma gelmiyor / elektrikler gitti / kapı açılmıyor / sigorta attı / kombi bozuldu" artık `complaint` (`KEYWORDS.complaint`
+  "TÜRKÇE OLUMSUZ FİİL BOŞLUĞU" bloğu + `hasDeviceBreakdown`). 🚨 Kalıplar ÇAPALI (tesis adı + fiil; gövde "-yo" ile yazılır ki
+  "gelmiyor" da "gelmiyo" da tutsun; zarf biçimleri "su hiç/hâlâ gelmiyo" ayrıca). **Arıza ailesi CİHAZ KURALI:**
+  `bozuldu/bozulmuş/arızalı/arızalandı` yalnız aynı mesajda cihaz adı varsa (çekimli "klimamız" dahil) — "Hava/Midem/Planımız
+  bozuldu" sayılmaz. Çıplak `gelmiyor/gitti/kesildi/su yok/arıza/yanmıyor/bozuldu/blackout/no heat/elektrik yok/cereyan yok/
+  ısınmıyor/elektrik kesintisi/power cut` listeye GİRMEZ (inceleme 09-10 ölçtü: "blackout curtains", "Otoparkta elektrik yok mu,
+  şarj için priz var mı?", "Yerden ısıtma yok mu", "Are power cuts common" complaint oluyordu → tuzaklar pinli, riskType satır
+  başına TEK değer). "İnternet gelmiyor"/"wifi çekmiyor" BİLİNÇLİ wifi. ASCII ikizi yazılmaz (`includesAnyFold` kelimeyi de
+  katlar; ⚠️ `PROBLEM_NEGATIONS` için geçerli DEĞİL). Bitişik eşleşme KORUNDU (gevşetme ölçüldü: olumsuzlama parçacığını
+  isminden koparıyor); bilinen sınır pinli: "Elektrikler dün gece gitti", "Kapı bir türlü açılmıyor", çözülmüş bildirim.
+  🚨 "Kapı açılmıyor" riskType `safety_emergency`nin sebebi kilit ağı DEĞİL, "açıl"→"acil" ASCII katlama çarpışması
+  (`SAFETY_CRITICAL_WORDS` çıplak "acil"; "Havuz ne zaman açılıyor?" da acil) — ayrı iş #51. Kanıt:
+  `complaint-negative-verbs.test.ts` (sözleşme + tuzak tabloları) + golden çiftleri + QR "E6 KELİME AĞI İKİNCİ SAVUNMA"
+  (model `general/0.9` dese bile devir, `keyword_escalated`) + `language-parity` yeni satırlar (`it.todo` borç). Mutasyon:
+  ilk sürüm 13/13 · inceleme paketi 21/21 (bir eşdeğer mutant → cümle eklendi); kırmızı-önce 35 (stash). **Borç:**
+  elektrik/su kesintisi/kapı sınıfı DE/FR/ES/RU/AR paritesi. Belge: `docs/ACIK-2026-09-08-turkce-sikayet-siniflandirma-eksigi.md`.
 - **KB onay sözleşmesi (A1) CANLI — migration 53 prod'da 09-08 16:42Z; §A doğrulandı (32 satır `legacy|legacy`, aktif = AI-okunabilir = 32).**
   `KnowledgeBaseItem`: `source` (`legacy·host_manual·extracted_draft·suggestion_accepted`) · `reviewState`
   (`legacy·approved·draft`) · `approvedAt` · `sourceRef`/`supersededById` (A5 için, bugün yazan YOK, pinli).
@@ -701,9 +729,10 @@ DÜZELTME: `81a5f22` PUSH EDİLDİ (kurucu onayı, fast-forward; CI #1030 5/5 su
 yer tutucu notu + üçüncü-şahıs ve edilgen söz boşluğu; Codex ikinci tur: gerçek E4 cevabı ("…[ŞİFRE] olarak görünüyor…")
 regresyon pinli, reddederek alıntı da düşer, E5'e `noUnverifiedCommitment`; gerçek QR rotası karakterizasyonu (yer tutucu misafire
 dönüyor); veto raporu ayrı, uygulanmadı. Karşı örnekler pinli; mutasyon 12/12 + ikinci tur; kırmızı-önce.**
-**Origin HEAD `9699896` (09-09, RAG dilim 3; CI #1026 5/5 success; 4042 test / 364 dosya; Railway ACTIVE teyidi BEKLENİYOR — kurucu).
-Önceki `12ddd8e` (dilim 2, CI #1022 5/5) ve `061d62e` (dilim 1) ACTIVE — kurucu teyidi 09-09.** Prod'da canlı:
-migration 52/53/54 (09-08), `a52a30c`+ (selam tekrarı canlı doğrulaması hâlâ bekliyor).
+**Origin HEAD `81a5f22` (09-09, E4 birinci tur; CI #1030 5/5 success; Railway ACTIVE teyidi BEKLENİYOR — kurucu). YEREL,
+PUSH YOK (kurucu kararı): `cc45ce6` (E4/E5 ikinci tur) · `1395dc8` (Türkçe olumsuz-fiil şikâyet boşluğu) · retrieval kaçak
+turu 09-10 (↓). Önceki `9699896` (dilim 3, CI #1026 5/5), `12ddd8e` (dilim 2, CI #1022 5/5) ve `061d62e` (dilim 1) ACTIVE —
+kurucu teyidi 09-09.** Prod'da canlı: migration 52/53/54 (09-08), `a52a30c`+ (selam tekrarı canlı doğrulaması hâlâ bekliyor).
 **3. GERÇEK KOŞU (kurucu, 09-09 13:46 yerel, preflight klonu `2cfa8d4`): 8/8 ✅ (E1 dürüstlük sözleşmesiyle).** Rapor dosyası
 repoya henüz gelmedi (önceki iki koşununki de). Kurucunun preflight klonunda `npm install` 11 zafiyet gösterdi (node 24, engine
 uyarısı) — CI'daki triaj kapısı `061d62e`'de yeşil; yerelde `npm ci` + `npm run audit:check` ile kıyaslanmalı, `audit fix --force` YOK.

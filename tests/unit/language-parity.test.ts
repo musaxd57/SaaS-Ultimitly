@@ -133,10 +133,18 @@ describe("şikayet paritesi — temel hizmet yokluğu ve gürültü", () => {
     ["TR", "Çok gürültülü"], ["EN", "It's too noisy"], ["DE", "Es ist zu laut"],
     ["FR", "C'est trop bruyant"], ["ES", "Hay demasiado ruido"],
     ["RU", "Очень шумно"], ["AR", "صاخب جدا"],
+    // 09-10 (Türkçe olumsuz-fiil boşluğu): elektrik · su kesintisi · kapı — yalnız TR+EN (↓ borç).
+    ["TR", "Elektrikler gitti"], ["EN", "There is no electricity"],
+    ["TR", "Su kesildi"], ["EN", "There is no running water"],
+    ["TR", "Kapı açılmıyor"], ["EN", "The door won't open"],
   ];
   it.each(SIKAYET)("%s → complaint: %s", (_dil, mesaj) => {
     expect(classifyFallback(mesaj).intent).toBe("complaint");
   });
+
+  // 🚨 BORÇ (09-10, inceleme): elektrik / su kesintisi / kapı sınıfı DE·FR·ES·RU·AR'de YOK. `it.todo` = bu satır
+  // testte GÖRÜNÜR kalır; kapatan tur bunları gerçek `it.each` satırına çevirir (yeni kelime = GOLDEN SET turu).
+  it.todo("DE/FR/ES/RU/AR — elektrik kesintisi / su kesintisi / kapı açılmıyor complaint paritesi (borç)");
 });
 
 describe("🚨 olumsuzlama koruması FR/AR'yi de kapsar", () => {
