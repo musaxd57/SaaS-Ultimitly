@@ -318,7 +318,18 @@ Bu dosyaya token/anahtar/parola yazma.
 - **Yer tutucu ≠ gerçek (E4, 4. koşu 09-09):** kb-manager hazır şablonu `[ŞİFRE]`/`[AĞ ADI]` alanlarını taşır ve host
   doldurmadan kaydedebilir. `packKnowledgeBase` bloğa giren kalemde `[…]`/`<…>`/`___` (içinde harf) görürse KODDAN
   `[NOT] DOLDURULMAMIŞ YER TUTUCU` yazar ("gerçek değer DEĞİLDİR; misafire yazma; KURAL-3"); `{isim}` BİLEREK dışarıda
-  (ad ikamesi çağıranda; QR yolu ikame yapmıyor — ayrı gözlem). Ölçüm dedektörü `placeholderVerdict` (tests/helpers):
+  (ad ikamesi çağıranda — ↓ artık DÖRT yüzeyde de var).
+- **Yer tutucu İKAMESİ tek kaynak `src/lib/kb-placeholders.ts` (09-10, saf/DB'siz):** `{isim}·{ad}·{name}` ve
+  `{daire}·{apartment}·{apt}`. Aynı ikame ÜÇ yerde kopyalanmıştı (oto-yanıt göndericisi · inbox `ai-suggest` ·
+  Gönderilenler önizlemesi) ve DÖRDÜNCÜ yüzeyde — halka açık QR asistanında — HİÇ YOKTU: host'un karşılama şablonu
+  KB'deyse misafire ham `{isim}` gidiyordu (ölçüldü). 🚨 **QR'da GERÇEK AD KULLANILMAZ** → `GUEST_NAME_FALLBACK`
+  ("misafirimiz"): QR bağlantısı dairede asılıdır, sohbeti açan kişi rezervasyon sahibi olmayabilir (eş, arkadaş,
+  temizlikçi) — yanlış hitap + PII sızıntısı; inbox/oto-yanıtta muhatap KANITLI, orada gerçek ad (ayrım bilinçli,
+  test-pinli). 🚨 **SIRA:** QR'da ikame `withoutSecretKbItems`ten SONRA — sır kapısının girdisi HAM içerik kalsın
+  (daire numarası tesadüfen "kod" kalıbına benzerse kalem sessizce elenmesin). Tek geçiş `replace`+callback
+  (`$&`/`$1` harfi harfine); değeri verilmeyen sınıf ve tanınmayan belirteç (`{kod}`) DOKUNULMAZ. 🚨 `/i` bayrağı
+  noktalı **İ**'yi katlamaz → `{İSİM}` eski regex'te KAÇIYORDU; anahtar adı İKİ katlamadan geçer (tr + standart).
+  `[ŞİFRE]`/`<adres>`/`___` sınıfı buraya GİRMEZ (doldurulmamış alan; uydurma değer yasak → `packKnowledgeBase` notu). Ölçüm dedektörü `placeholderVerdict` (tests/helpers):
   DEĞER konumu ("…[ŞİFRE] olarak görünüyor" = 4. koşunun gerçek cevabı, regresyon pinli) ya da reddetmeden anma =
   SIZINTI, açık red = "anıldı"; 🚨 **E4'te İKİSİ DE DÜŞER** (Codex ikinci tur: "misafire yer tutucu gösterilmez",
   alıntıya açılmadı; sınıf yalnız rapor kolonunda). Makbuzsuz söz dedektörü üçüncü şahsı ("iletecek") ve EDİLGEN

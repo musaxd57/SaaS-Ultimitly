@@ -9,6 +9,7 @@ import { ANON_NAME } from "@/lib/data-retention";
 import { isUniqueViolation } from "@/lib/db-errors";
 import { qrPinEnabled } from "@/lib/guest-chat-pin";
 import { fetchKnowledgeBaseForPrompt } from "@/lib/ai/kb-fetch";
+import { GUEST_NAME_FALLBACK, fillGuestPlaceholdersInItems } from "@/lib/kb-placeholders";
 import { foldTurkishLower, foldTurkishAscii, classifyFallback, isClosingAck } from "@/lib/ai/fallback";
 import {
   LEGACY_AI_RESUME_SENDER,
@@ -890,7 +891,22 @@ export async function resolveGuestChat(
   // demesi) tam da en halka açık yüzeyde açıktı.
   const droppedTotal = kbDropped + (kbRaw.length - knowledgeBase.length);
 
-  return { property: propertyPublic, open: true, activeReservation, knowledgeBase, knowledgeBaseDropped: droppedTotal, knowledgeBasePendingApproval: kb.pendingApproval, knowledgeBaseNewestUpdatedAt: kb.newestUpdatedAt, pinRequired };
+  // YER TUTUCU İKAMESİ — SIR ELEMESİNDEN SONRA, modele girmeden önce (09-10).
+  //
+  // Ölçülen boşluk: oto-yanıt ve inbox önerisi `{isim}`/`{daire}` çözüyordu, bu
+  // halka açık yüzey ÇÖZMÜYORDU → host'un karşılama şablonu KB'deyse misafire ham
+  // "{isim}" gidebiliyordu.
+  // 🚨 GERÇEK AD KULLANILMAZ: QR bağlantısı dairede asılıdır, sohbeti açan kişi
+  // rezervasyon sahibi olmayabilir (gerekçe `kb-placeholders.ts`) → nötr hitap.
+  // 🚨 SIRA BİLİNÇLİ: `withoutSecretKbItems` HAM içeriği tarar; ikame sonradan
+  // yapılır ki sır kapısının girdisi değişmesin (daire numarası tesadüfen bir
+  // "kod" kalıbına benzerse kalem sessizce elenmesin).
+  const knowledgeBaseFilled = fillGuestPlaceholdersInItems(knowledgeBase, {
+    guestFirstName: GUEST_NAME_FALLBACK,
+    propertyName: property.name,
+  });
+
+  return { property: propertyPublic, open: true, activeReservation, knowledgeBase: knowledgeBaseFilled, knowledgeBaseDropped: droppedTotal, knowledgeBasePendingApproval: kb.pendingApproval, knowledgeBaseNewestUpdatedAt: kb.newestUpdatedAt, pinRequired };
 }
 
 /**

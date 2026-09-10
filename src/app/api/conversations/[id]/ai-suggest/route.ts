@@ -9,6 +9,7 @@ import { rateLimit } from "@/lib/rate-limit";
 import { premiumAllowed } from "@/lib/billing/subscription";
 import { fetchKnowledgeBaseForPrompt } from "@/lib/ai/kb-fetch";
 import { selectKbForPrompt } from "@/lib/ai/retrieval/select";
+import { GUEST_NAME_FALLBACK, fillGuestPlaceholdersInItems, guestFirstNameOf } from "@/lib/kb-placeholders";
 import { consumeDailyAiBudget, dailyBudgetMessage } from "@/lib/ai/daily-budget";
 
 export const POST = withManage<{ id: string }>(async (session, req, { params }) => {
@@ -59,21 +60,14 @@ export const POST = withManage<{ id: string }>(async (session, req, { params }) 
     propertyId: conversation.propertyId,
     isActive: true,
   });
-  // Resolve any {isim} placeholder (e.g. in the welcome template) to the
-  // guest's name so a literal "{isim}" can never appear in the suggestion.
-  const firstWord = conversation.guestIdentifier?.trim().split(/\s+/)[0] ?? "";
-  const guestFirst =
-    !firstWord || firstWord === "Rezervasyon" || firstWord === "Misafir"
-      ? "misafirimiz"
-      : firstWord;
-  // Resolve {daire}/{apartment} to the apartment number (e.g. "nuve 3" → "3").
-  const aptNumber = conversation.property.name.match(/\d+/g)?.pop() ?? conversation.property.name;
-  const kb = kbRaw.map((k) => ({
-    ...k,
-    content: k.content
-      .replace(/\{\s*(isim|ad|name)\s*\}/gi, guestFirst)
-      .replace(/\{\s*(daire|apartment|apt)\s*\}/gi, aptNumber),
-  }));
+  // Resolve any {isim}/{daire} placeholder (e.g. in the welcome template) before
+  // the KB reaches the model, so a literal "{isim}" can never appear in the
+  // suggestion. Single source: @/lib/kb-placeholders (four surfaces share it).
+  // Inbox path: the counterpart IS the reservation holder → real first name.
+  const kb = fillGuestPlaceholdersInItems(kbRaw, {
+    guestFirstName: guestFirstNameOf(conversation.guestIdentifier) ?? GUEST_NAME_FALLBACK,
+    propertyName: conversation.property.name,
+  });
 
   // Same learned style profile the auto-reply pass uses, for consistent voice.
   const org = await prisma.organization.findUnique({

@@ -15,6 +15,13 @@ import { classifyMessage, suggestReply, summarizeHostStyle } from "@/lib/ai";
 import { fetchKnowledgeBaseForPrompt } from "@/lib/ai/kb-fetch";
 import { selectKbForPrompt } from "@/lib/ai/retrieval/select";
 import { GUEST_DELIVERABLE_KB_WHERE } from "@/lib/kb-review";
+import {
+  GUEST_NAME_FALLBACK,
+  fillGuestPlaceholders,
+  fillGuestPlaceholdersInItems,
+  guestFirstNameOf,
+  hasNamePlaceholder,
+} from "@/lib/kb-placeholders";
 import { buildKbEvidence } from "@/lib/ai/grounding";
 import { consumeDailyAiBudget, peekDailyAiBudget } from "@/lib/ai/daily-budget";
 import {
@@ -1542,7 +1549,7 @@ export async function applyChannelAutoReply(
   // Resolve any {isim} placeholder in KB entries (e.g. the welcome template) to
   // the guest's name before it reaches the model, so a literal "{isim}" can
   // never leak into a reply.
-  const guestFirst = guestFirstName(conversation.guestIdentifier) ?? "misafirimiz";
+  const guestFirst = guestFirstNameOf(conversation.guestIdentifier) ?? GUEST_NAME_FALLBACK;
   // A2 — TEMELLENDİRME SAYAÇLARI (tek yerde kurulur, her karar kaydına aynen
   // gider). `kbRetrieved` istemin GÖRÜNEN kalem sayısıdır; aşağıda `kbVisible`
   // hesaplandıktan sonra tamamlanır — burada yalnız kapasite/yetki/sürüm
@@ -1551,10 +1558,10 @@ export async function applyChannelAutoReply(
     kbPendingApproval: kbFetch.pendingApproval,
     kbNewestUpdatedAt: kbFetch.newestUpdatedAt,
   };
-  const kb = kbRaw.map((k) => ({
-    ...k,
-    content: fillPlaceholders(k.content, guestFirst, conversation.property.name),
-  }));
+  const kb = fillGuestPlaceholdersInItems(kbRaw, {
+    guestFirstName: guestFirst,
+    propertyName: conversation.property.name,
+  });
   // 🚨 REZERVASYON ÖNCESİ SIR KAPISI — KOD, PROMPT DEĞİL (denetim 08-09).
   //
   // Rezervasyonu OLMAYAN bir kişi (Airbnb ön sorusu) yazdığında bilgi tabanı
@@ -2768,42 +2775,14 @@ export async function refreshStyleProfile(
   return { refreshed: true };
 }
 
-/** First name for the greeting, or null for placeholder names (no real name). */
-function guestFirstName(name: string): string | null {
-  const first = name.trim().split(/\s+/)[0];
-  if (!first || first === "Rezervasyon" || first === "Misafir") return null;
-  return first;
-}
-
 // (dateKeyInTimeZone / tzOffsetMs / zonedDayRange → @/lib/timezone'a taşındı)
+// (guestFirstName / hasNamePlaceholder / apartmentNumber / fillPlaceholders →
+//  @/lib/kb-placeholders'a taşındı: aynı ikame üç yerde kopyalanmış, DÖRDÜNCÜ
+//  yüzeyde — QR asistanında — hiç yoktu. Tek kaynak, dört yüzey.)
 
-// Placeholder the host can drop into a welcome template — {isim} / {ad} / {name}
-// — replaced with the guest's first name when the message is sent.
-function hasNamePlaceholder(s: string): boolean {
-  return /\{\s*(isim|ad|name)\s*\}/i.test(s); // fresh, non-global → no lastIndex footgun
-}
-
-// The guest-facing apartment number: the last number in the property name
-// ("nuve 3" → "3", "nuve teras 4" → "4", "Daire 1" → "1"). Falls back to the
-// full name when it contains no number.
-function apartmentNumber(propertyName: string): string {
-  const nums = propertyName.match(/\d+/g);
-  return nums ? nums[nums.length - 1] : propertyName;
-}
-
-// Resolve the host's template tokens to live values:
-//   {isim} / {ad} / {name}         → guest's first name
-//   {daire} / {apartment} / {apt}  → the apartment number (from the property name)
+/** Şablon belirteçlerini canlı değerlere çözer (tek kaynak sarmalayıcısı). */
 function fillPlaceholders(text: string, firstName: string, propertyName?: string): string {
-  // Function replacers so a guest name / apartment value containing $ patterns
-  // ($&, $1, $`, $$, …) is inserted LITERALLY — a plain string replacement would
-  // let those special patterns corrupt the guest's own personalized message.
-  let out = text.replace(/\{\s*(isim|ad|name)\s*\}/gi, () => firstName);
-  if (propertyName) {
-    const apt = apartmentNumber(propertyName);
-    out = out.replace(/\{\s*(daire|apartment|apt)\s*\}/gi, () => apt);
-  }
-  return out;
+  return fillGuestPlaceholders(text, { guestFirstName: firstName, propertyName });
 }
 
 /**
@@ -2922,7 +2901,7 @@ export async function sendDueWelcomes(
     });
     if (!welcome) continue; // this apartment has no welcome text → skip
 
-    const firstName = guestFirstName(r.guestName) ?? r.guestName;
+    const firstName = guestFirstNameOf(r.guestName) ?? r.guestName;
     const body = buildGuestMessageBody(welcome.content, firstName, signature, r.property.name);
 
     // ── Durable Outbox (flag ON) ──────────────────────────────────────────────
@@ -3087,7 +3066,7 @@ export async function sendDueCheckins(
     });
     if (!tpl) continue; // no check-in info entry for this apartment → skip
 
-    const firstName = guestFirstName(r.guestName) ?? r.guestName;
+    const firstName = guestFirstNameOf(r.guestName) ?? r.guestName;
     const body = buildGuestMessageBody(tpl.content, firstName, signature, r.property.name);
 
     // Durable Outbox (flag ON): enqueue; the worker delivers and stamps checkinSentAt ONLY on
@@ -3220,7 +3199,7 @@ export async function previewWelcomes(
       select: { content: true },
       orderBy: { updatedAt: "desc" },
     });
-    const firstName = guestFirstName(r.guestName) ?? r.guestName;
+    const firstName = guestFirstNameOf(r.guestName) ?? r.guestName;
     previews.push({
       guest: r.guestName,
       property: r.property.name,
@@ -3277,7 +3256,7 @@ export async function previewCheckins(
       select: { content: true },
       orderBy: { updatedAt: "desc" },
     });
-    const firstName = guestFirstName(r.guestName) ?? r.guestName;
+    const firstName = guestFirstNameOf(r.guestName) ?? r.guestName;
     previews.push({
       guest: r.guestName,
       property: r.property.name,
@@ -3379,7 +3358,7 @@ export async function sendDueCheckouts(
     });
     if (!tpl) continue;
 
-    const firstName = guestFirstName(r.guestName) ?? r.guestName;
+    const firstName = guestFirstNameOf(r.guestName) ?? r.guestName;
     const body = buildGuestMessageBody(tpl.content, firstName, signature, r.property.name);
 
     // Durable Outbox (flag ON): enqueue; the worker delivers and stamps checkoutSentAt ONLY on
@@ -3752,7 +3731,7 @@ export async function previewCheckouts(
       select: { content: true },
       orderBy: { updatedAt: "desc" },
     });
-    const firstName = guestFirstName(r.guestName) ?? r.guestName;
+    const firstName = guestFirstNameOf(r.guestName) ?? r.guestName;
     previews.push({
       guest: r.guestName,
       property: r.property.name,

@@ -11,6 +11,7 @@ import { Badge } from "@/components/ui/badge";
 import { EmptyState } from "@/components/empty-state";
 import { getConnectionInfo } from "@/lib/hospitable-credentials";
 import { GUEST_DELIVERABLE_KB_WHERE } from "@/lib/kb-review";
+import { fillGuestPlaceholders, guestFirstNameOf } from "@/lib/kb-placeholders";
 import { fromNow, truncate, cn } from "@/lib/utils";
 import {
   SENT_PAGE_SIZE,
@@ -42,23 +43,17 @@ interface SentItem {
 
 // The guest's first name, used to resolve {isim}/{ad}/{name} tokens in the
 // preview exactly as the automation does when it actually sends the message.
+// ⚠️ Önizleme GÖNDERİCİYLE aynı değeri göstermek zorunda: gönderici yer tutucu
+// adlarda ("Rezervasyon 123") ilk kelimeyi DEĞİL tam adı kullanır (`?? r.guestName`).
 function firstNameOf(guestName: string): string {
-  return guestName.trim().split(/\s+/)[0] || guestName.trim();
-}
-
-// The guest-facing apartment number: the last number in the property name
-// ("nuve 3" → "3"). Mirrors automation.ts so the {daire} token preview matches.
-function apartmentNumberOf(propertyName: string): string {
-  const nums = propertyName.match(/\d+/g);
-  return nums ? nums[nums.length - 1] : propertyName;
+  return guestFirstNameOf(guestName) ?? guestName.trim();
 }
 
 // Resolve the host's template tokens to live values for a preview of the message
-// content (same token rules as the automatic sender).
+// content — SAME module the sender uses (@/lib/kb-placeholders), so the preview
+// can never drift from what actually went out.
 function fillTokens(text: string, firstName: string, propertyName: string): string {
-  return text
-    .replace(/\{\s*(isim|ad|name)\s*\}/gi, firstName)
-    .replace(/\{\s*(daire|apartment|apt)\s*\}/gi, apartmentNumberOf(propertyName));
+  return fillGuestPlaceholders(text, { guestFirstName: firstName, propertyName });
 }
 
 // Fallback line when an apartment has no saved template for this lifecycle kind
