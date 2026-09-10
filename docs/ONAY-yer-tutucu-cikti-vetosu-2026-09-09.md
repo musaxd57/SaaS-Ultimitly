@@ -26,11 +26,16 @@ değildir; veto olmadan "[ŞİFRE]" hâlâ gidebilir.
 buraya taşınır + `replyPlaceholderTokens(text)` = `[…]`/`<…>`/`{…}`/`___` içinde harf (tests/helpers'taki
 `placeholderMentions` ile aynı sınıf; testte parite pini).
 
-1. **QR yolu** (`src/lib/guest-chat.ts`, devir kararı): model taslağında yer tutucu belirteci varsa → devir.
-   `RiskEvent` gerekçesi kapalı kümeye yeni değer: `placeholder_in_draft` (`src/lib/risk-events.ts`
-   `ESCALATION_REASONS`; migration YOK — kolon string). Misafire `escalationReply()` gider ("kaydedildi; ev
-   sahibiniz görebilir"); host e-postası/rozet mevcut devir akışıyla aynı. Güvenlik dallarının ARDINDA, bant
-   kontrolünden ÖNCE (yer tutucu her güvende gitmez).
+1. **QR yolu** (`src/app/api/chat/[token]/route.ts` `evaluateEscalation` — devir kararı ORADA, `guest-chat.ts`
+   yalnız devir METNİNİ verir): model taslağında yer tutucu belirteci varsa → `{ escalate: true, reason }`
+   (fonksiyon boolean DEĞİL, gerekçeli nesne döndürür). Kapalı kümeye yeni değer `placeholder_in_draft` İKİ
+   yerde: `EscalationReason` birliği (route.ts) + `src/lib/risk-events.ts` içindeki `REASONS` kümesi (modül-içi
+   `const`, dışa aktarılmaz; `clampTo` tanımadığı gerekçeyi düşürür — eklenmezse RiskEvent gerekçesiz yazılır);
+   migration YOK (kolon string). Misafire `escalationReply()` gider ("kaydedildi; ev sahibiniz görebilir"); host
+   e-postası/rozet mevcut devir akışıyla aynı. Sıra: güvenlik dallarının (intent/riskType/kelime ağı/injection/
+   model risk) ARDINDA, bant kontrolünden ÖNCE — böylece yer tutucu HER güvende ve bant kapalıyken de gitmez
+   (bugün `unsourced_claim` yalnız `QR_INFORMATIONAL_BAND_ENABLED` açıkken ve 0.45–0.75 bandında bakılır; E4'ün
+   0.95 güveni o dala hiç girmez).
 2. **Kanal oto-yanıtı** (`src/lib/automation.ts` `passesAutoReplySafetyGate`): aynı yüklem → `false`; skip
    gerekçesi mevcut `low_confidence_or_risky` kovasında kalır (yeni kova = raporlar/inbox etiketleri değişir; ilk
    dilimde YOK) ama `RiskEvent` `placeholder_in_draft` yazar (teşhis).
