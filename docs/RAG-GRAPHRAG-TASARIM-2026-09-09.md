@@ -268,6 +268,45 @@ WEAK ca yok · ağırlık 1.0 / 0 · uydu geri · socket birleşik · yemek geri
 (ölü sabit `MIN_STEM_VOWEL_POSS`, y-düzeltmesi "ko"yu ortadan kaldırınca WEAK ko pinsiz kaldı, ağırlık iki uçta pinsiz) → sabit
 birleştirildi, "ko" çıkarıldı, ağırlık için iki uç pini yazıldı; ikinci tur sonucu commit mesajında.
 
+## 3b″. Kaçak turunun İNCELEMESİ (09-10, ölçümlü ajan) — bir P1 gerileme + beş P2, hepsi düzeltildi
+
+🚨 **P1 — sabit noktanın KENDİ kaçağı (bu turun ürettiği gerileme).** Tur tavanı kalkınca kısa ekler ARDIŞIK sökülüp gövdeyi
+yiyordu: `havalimanindan` → `-dan -nin -a -alim` → **hav** = "havlu"/"hava" kovası (eski tavan bunu KAZARA engelliyordu).
+Uçtan uca ölçüldü: "Havaalanından transfer var mı?" sorgusunda bloğun BİRİNCİ parçası HAVLU kalemiydi. Harness bunu GÖREMEDİ
+çünkü airport morph sorusu `-nıza` biçimindeydi (kaçak sınıfının dışında) → `-ndan` yapıldı + fikstür-niyet pini.
+
+**Düzeltme TEK dilbilgisel kural:** tamlayan (`-nin/-nun`) YALNIZ İLK TURDA sökülür. Tamlayan yüzey kelimesinde SONDADIR
+(sağdan soyarken ilk sökülen olmalı: "makinesinin" doğru); bir HÂL eki söküldükten sonra görünen "…nin" gerçek tamlayan değil
+KAYNAŞTIRMA n'sidir (`havalimanı+n+dan`). Sonuç TAM SİMETRİ ve beş havalimanı sorgusunun beşi de doğru kalemi seçiyor.
+
+🚨 **Ölçülüp REDDEDİLEN dört aday — tekrar denenmesin:**
+1. `ndan/nden/nda/nde/ni/nu` eklemek: sonda `-n` taşıyan isimleri keser (balkonu→balko, salonu→salo, televizyonu→televizyo);
+   403 çiftte 11 bozulma / 1 düzelme.
+2. `alim/elim` için kök tabanı 4: üç havalimanı biçimini düzeltir ama `havaalanindan`ı düzeltmez ve on yaygın fiili bozar
+   (gidelim→gidel, bakalım→bakal).
+3. Optatif ekleri ilk-tura kısıtlamak ve 4. aynı ekin üst üste sökülmesini engellemek: İKİSİ DE ÖNCE EKLENDİ, sonra
+   mutasyonda HAYATTA KALDILAR — tamlayan freni zinciri daha erken kestiği için ULAŞILAMAZ hâle geliyorlar. Pinlenemeyen
+   kod tutulmaz → kaldırıldı.
+
+**P2'ler (hepsi düzeltildi):**
+- `WEAK_QUERY_TERMS` KÖK uzayında yaşar ve kök sökücü değişince **bayatlar**. 09-10 turu "aldı/oldu/etti"yi zayıftan güçlüye
+  geçirmişti (ölçüldü: "Kargomu kim ALDI?" sorgusunda ilgisiz bir duyuru TEK BAŞINA aday oluyordu). Yeni **mekanik pin** ALTI
+  ölü girdi daha buldu: `lazim`→laz, `isti`→ist, `sorun`→sor, `yardim`→yard, `leave`→leav, `use`=durak. Ölü girdi SESSİZ BİR
+  GEVŞEMEDİR (kelime güçlü sayılır, tek başına aday yapar). Pin: her girdi kendi kökü olmalı ve durak olamaz.
+- Taşınan (`carried`) zayıf kök 0.5 iken own zayıf 0.25 idi = **ilişki tersine dönmüştü** → `min()`. ⚠️ BİLİNEN SINIR:
+  0.25 ↔ 0.5 farkı fikstür ölçeğinde AYIRT EDİLEMİYOR (üç fikstür × üç ağırlık: birebir aynı sıralama); test yalnız
+  "sıfır değil"i pinler ve o mutant ÖLÇÜLMÜŞ EŞDEĞER olarak kalır.
+- Ölçek eşikleri YÜZDE değil **kaçırılan SORU sayısı**: `inPrompt ≥ .99` n=100'de 192/193 ile geçiyordu (pay 0 soru) ve yüzde
+  eşiği Q değişince sessizce kayar.
+- "Eski %20 iddiası" pini n=100/300'de **ÖLÜ ASSERT**'ti (öndeki `|auto−off| ≤ 0.2` her zaman önce düşerdi; silmek eşdeğer
+  mutant olurdu) → tek çift yönlü farka indirildi.
+- "uydu eşdeğer mutant" sonucu **FİKSTÜR ARTEFAKTI**ydı ("Uydu kanalları…" cümlesindeki "kanal" zaten tv terimi) → ayırt
+  edici cümleler. ⚠️ Fikstür-niyet pininde ikinci tuzak: JS `\b` ASCII tabanlıdır, Türkçe "ı" harf sayılmaz → ilk regex kendi
+  mutantından geçiyordu; hâl eki açıkça aranır.
+
+**İkinci mutasyon turu:** 12 mutant, 11 yakalandı, 1 ölçülmüş eşdeğer (taşınan ağırlık 0.25↔0.5). Tam suit 370 dosya /
+4227 test yeşil.
+
 ## 3c. Güvenlik filtreleri yeni retrieval yolunda AYNEN (Codex turu 3: "eksikse pilotu hazır sayma")
 
 Doğrulama davranışsaldır (DB'li integration, `tests/integration/kb-retrieval-secret-scope.test.ts`, bayrak AÇIK):
