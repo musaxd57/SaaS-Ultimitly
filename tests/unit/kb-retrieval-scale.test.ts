@@ -248,12 +248,15 @@ describe("ölçek harness'ı — 30/100/300 kalem, gerçek retrieval yolu", () =
     }
   });
 
-  it("doğru kaynak sıralamada önde: hit@1 ≥ 0.85, hit@3 ≥ 0.9, inPrompt(metin) ≥ 0.95 (varsayılan, her boyut)", () => {
+  it("doğru kaynak sıralamada önde: hit@1 ≥ 0.95, hit@3 ≥ 0.96, inPrompt(metin) ≥ 0.99, geri çekilme 0 (varsayılan, her boyut; 09-10 ölçümüne pinli — önce .85/.90/.95 idi)", () => {
     for (const n of SIZES) {
       const c = cfg(n, "hibrit VARSAYILAN");
-      expect(c.hit1, `hit@1 n=${n}`).toBeGreaterThanOrEqual(0.85);
-      expect(c.hit3, `hit@3 n=${n}`).toBeGreaterThanOrEqual(0.9);
-      expect(c.inPrompt, `inPrompt n=${n}`).toBeGreaterThanOrEqual(0.95);
+      expect(c.hit1, `hit@1 n=${n}`).toBeGreaterThanOrEqual(0.95);
+      expect(c.hit3, `hit@3 n=${n}`).toBeGreaterThanOrEqual(0.96);
+      expect(c.inPrompt, `inPrompt n=${n}`).toBeGreaterThanOrEqual(0.99);
+      // Sentetik sette "bilgi yok" sorusu YOK → hiçbir soru geri çekilmemeli (09-09'da 3/1/1 çekiliyordu:
+      // hepsi kök sökücü asimetrisiydi — "Çıkışımızı kaça kadar…" no_lexical_hits).
+      expect(c.fallbacks, `geri çekilme n=${n}`).toBe(0);
     }
   });
 
@@ -264,7 +267,7 @@ describe("ölçek harness'ı — 30/100/300 kalem, gerçek retrieval yolu", () =
     }
   });
 
-  it("N-GRAM AYRI ÖLÇÜM (Codex 09-09): yazım hatasında katkı yok (OSA fuzzy zaten kapsıyor); ek varyasyonunda gürültü ≥%20 azalır, isabet düşmez; İngilizcede AÇIK olmak gürültüyü artırır, isabeti artırmaz → varsayılan 'auto' (yalnız TR sorguda)", () => {
+  it("N-GRAM AYRI ÖLÇÜM (Codex 09-09, yeniden ölçüm 09-10): yazım hatasında katkı yok; ek varyasyonunda ESKİ fayda (gürültü %23–44↓) kök sökücü kaçağının TELAFİSİYDİ — kök düzelince auto ≈ kapalı (isabet eşit, gürültü eşit ya da az); İngilizcede AÇIK olmak gürültüyü artırır, isabeti artırmaz → varsayılan 'auto' KORUNDU (katkı ≈0; 'kapalı'ya çekme kararı kurucunun)", () => {
     for (const r of results) {
       const n = r.n;
       const off = cfg(n, "hibrit bm25");
@@ -273,9 +276,16 @@ describe("ölçek harness'ı — 30/100/300 kalem, gerçek retrieval yolu", () =
       const oneQuestion = 1 / r.questions;
       // typo: fuzzy eşleşme zaten var — n-gram isabeti değiştirmez (±1 soru payı).
       expect(Math.abs(kindRate(auto, "typo") - kindRate(off, "typo")) * (auto.perKind.typo?.n ?? 1), `typo n=${n}`).toBeLessThanOrEqual(1);
-      // morph (asıl fayda): isabet düşmez, gürültü belirgin azalır (ölçüldü: 5.0→3.9, 8.1→5.1, 20.0→11.2).
+      // morph: 09-09'da "gürültü ≥%20 azalır" pinliydi (5.0→3.9, 8.1→5.1, 20.0→11.2). 09-10 kök sökücü
+      // düzeltmesinden (sabit nokta + ünlü-sonu iyelik + kaynaştırma y) sonra kapalı da 38/38 ve gürültü
+      // 0.87/2.55/2.45 vs auto 0.87/2.66/2.34 → n-gram'ın morph katkısı KALMADI. Dürüst pin: isabet düşmez,
+      // gürültü soru başına ±0.2 içinde EŞİT sayılır (bir yönde ≥0.2 açılırsa yeniden ölç).
       expect(kindRate(auto, "morph"), `morph n=${n}`).toBeGreaterThanOrEqual(kindRate(off, "morph") - 1e-9);
-      expect(kindNoise(auto, "morph"), `morph gürültü n=${n}`).toBeLessThanOrEqual(kindNoise(off, "morph") * 0.8);
+      expect(Math.abs(kindNoise(auto, "morph") - kindNoise(off, "morph")), `morph gürültü n=${n}`).toBeLessThanOrEqual(0.2);
+      // 🚨 Eski pinin geri gelmemesi için: auto'nun morph gürültüsü kapalının %80'inin ALTINDA DEĞİL
+      // (yani "n-gram morph gürültüsünü düşürüyor" iddiası artık ÖLÇÜMLE DESTEKLENMİYOR). Bu satır
+      // düşerse belge cümlesi de değişmeli.
+      expect(kindNoise(auto, "morph"), `morph gürültü eski iddia n=${n}`).toBeGreaterThan(kindNoise(off, "morph") * 0.8);
       // en: 'auto' İngilizce sorguya dokunmaz (= kapalı, birebir); 'AÇIK' İngilizcede isabet KAZANDIRMAZ, gürültü EKLER.
       expect(kindRate(auto, "en"), `en auto n=${n}`).toBeCloseTo(kindRate(off, "en"), 9);
       expect(kindNoise(auto, "en"), `en auto gürültü n=${n}`).toBeCloseTo(kindNoise(off, "en"), 9);
@@ -413,8 +423,9 @@ function report(): string {
   L.push("- Legacy sıralama soruya bakmaz; hit@k anlamsızdır ('—'). inPrompt = en yeni 30 kalem + 24k bütçe içinde doğru kaynak var mı.");
   L.push("- **CANLI satırı gerçek akıştır:** 300 konu kalemi (336 kalem) canlı tavanın (200) üstündedir; tavan dışındaki kalemin cevabı bloğa GİREMEZ ve bu kayıp burada dürüstçe görünür.");
   L.push("  300 kalem ürün plan tavanının (60/mülk) çok üstündedir; canlıda hiçbir mülk tavana çarpmaz — ama ölçüm canlı yolu ölçer, idealize etmez.");
-  L.push("- n-gram kaynağı ANLAMSAL DEĞİLDİR (karakter 3-gram yazım benzerliği). Ayrı ölçüm: yazım hatasında katkı yok (OSA fuzzy zaten var), ek varyasyonunda gürültüyü azaltır,");
-  L.push("  İngilizce sorguda Türkçe metne düşen gramlar isabeti düşürüp bloğu büyütür → varsayılan **auto** (yalnız Türkçe algılanan sorguda). Gömme tabanlı kaynak: sözleşme hazır, ücretli servis onayı bekler; ÜRETİMDE YOK.");
+  L.push("- n-gram kaynağı ANLAMSAL DEĞİLDİR (karakter 3-gram yazım benzerliği). Ayrı ölçüm (09-10): yazım hatasında katkı yok (OSA fuzzy zaten var); ek varyasyonunda 09-09'daki gürültü düşüşü");
+  L.push("  kök sökücü kaçağının telafisiydi, kök düzelince auto ≈ kapalı (isabet eşit; gürültü eşit ya da az); İngilizce sorguda AÇIK olmak Türkçe metne düşen gramlarla bloğu büyütür →");
+  L.push("  varsayılan **auto** (yalnız Türkçe algılanan sorguda) KORUNDU, ölçülen katkı ≈0 — 'kapalı'ya çekme kararı kurucunun. Gömme tabanlı kaynak: sözleşme hazır, ücretli servis onayı bekler; ÜRETİMDE YOK.");
   return L.join("\n");
 }
 

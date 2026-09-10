@@ -69,15 +69,24 @@ export const CONCEPTS: readonly Concept[] = [
   { id: "fridge", terms: ["buzdolabi", "dondurucu", "fridge", "freezer", "refrigerator"], detectOnly: [] },
   { id: "microwave", terms: ["mikrodalga", "microwave", "isit", "heat"], detectOnly: ["yemek isit", "heat up food"] },
   { id: "coffee", terms: ["kahve", "coffee", "kapsul", "capsule", "espresso", "kettle", "cay", "tea"], detectOnly: ["kahve makinesi", "coffee machine", "kahve yap"] },
+  // "uydu" (09-10): eski kök sökücüde "uydu→uy" = "uymuyor→uy" idi ("Fişim uymuyor" TV genişletmesi alıyordu);
+  // çarpışma KÖKTE çözüldü (-du kök 2 harfe inecekse sökülmez → "uyd"), terim KALDI (test-pinli).
   { id: "tv", terms: ["tv", "televizyon", "television", "netflix", "kumanda", "remote", "uydu", "satellite", "kanal", "channel"] },
   { id: "ac", terms: ["klima", "sogutma", "aircon", "cooling", "ac"], detectOnly: ["air conditioning", "air conditioner", "cok sicak", "serinle"] },
   { id: "heating", terms: ["isitma", "kalorifer", "radyator", "heating", "heater", "radiator", "kombi"], detectOnly: ["cok soguk", "usuyor"] },
   { id: "hot_water", terms: ["kombi", "boiler", "termosifon", "sicak", "isinmiyor"], detectOnly: ["sicak su", "hot water", "su isitici", "water heater", "dus suyu", "shower water"] },
   { id: "water_cut", terms: ["kesinti", "outage", "depo"], detectOnly: ["su kesintisi", "water cut", "su gelmiyor", "no water"] },
-  { id: "power", terms: ["elektrik", "sigorta", "priz", "electricity", "power", "fuse", "socket", "outlet", "adaptor", "adapter", "fis", "plug", "salter"], detectOnly: ["elektrikler gitti", "power outage", "fisim uymuyor"] },
+  // power ↔ socket AYRILDI (09-10): torba kavram "plug adapter" sorusunu sigorta/şalter
+  // kalemine, "elektrikler gitti"yi adaptör kalemine genişletiyordu (ölçüldü).
+  { id: "power", terms: ["elektrik", "sigorta", "electricity", "power", "fuse", "salter"], detectOnly: ["elektrikler gitti", "power outage"] },
+  { id: "socket", terms: ["priz", "socket", "outlet", "adaptor", "adapter", "fis", "plug"], detectOnly: ["fisim uymuyor"] },
   { id: "pharmacy", category: "local_tips", terms: ["eczane", "ilac", "pharmacy", "medicine", "drugstore", "nobetci"] },
   { id: "grocery", category: "local_tips", terms: ["market", "bakkal", "alisveris", "supermarket", "grocery", "groceries", "shopping", "store"] },
-  { id: "restaurant", category: "local_tips", terms: ["restoran", "lokanta", "kafe", "yemek", "kahvalti", "restaurant", "cafe", "food", "eat", "dinner", "breakfast", "lunch", "meyhane"], detectOnly: ["nerede yiyebiliriz", "where to eat", "restoran oner"] },
+  // "yemek" terimlerden ÇIKTI (09-10): kökü "ye" ("Yemek ısıtabileceğim…" → 4 restoran
+  // genişletmesi + local_tips ipucu, mikrodalga kalemi 12 parçanın dışında kalıyordu).
+  // 🚨 `detectOnly`'ye taşımak ÇÖZÜM DEĞİL: kalıpla tespit edilen kavram yine TÜM `terms`ini
+  // genişletir. "nerede yemek" kalıbı da KOYMA — "nerede" durak, kalıp ["ye"]e derlenir.
+  { id: "restaurant", category: "local_tips", terms: ["restoran", "lokanta", "kafe", "kahvalti", "restaurant", "cafe", "food", "eat", "dinner", "breakfast", "lunch", "meyhane"], detectOnly: ["nerede yiyebiliriz", "where to eat", "restoran oner", "aksam yemegi"] },
   { id: "beach", category: "local_tips", terms: ["plaj", "deniz", "sahil", "beach", "sea", "seaside", "kumsal"], detectOnly: ["denize nasil", "how far is the beach"] },
   { id: "sights", category: "local_tips", terms: ["gezilecek", "tavsiye", "oneri", "muze", "recommend", "recommendation", "sights", "attractions", "museum", "yakin", "nearby"] },
   { id: "doorman", terms: ["kapici", "gorevli", "attendant", "concierge", "yonetici", "guvenlik", "security"], detectOnly: ["bina gorevlisi", "building attendant"] },

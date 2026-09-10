@@ -87,17 +87,24 @@ export function isStopword(token: string): boolean {
 }
 
 /**
- * Türkçe ek listesi (ASCII-katlanmış). EN UZUN eşleşen ek sökülür, en fazla
- * `STEM_PASSES` tur. Liste bilinçli olarak DAR: iyelik/hâl/çoğul + en yaygın
- * fiil ekleri. "sin/sun" (2. tekil) YOK — "otobusun" → "otobu" olurdu; "ki"
- * YOK — "otoparki" → "otopar" olurdu (ölçüldü).
+ * Türkçe ek listesi (ASCII-katlanmış). EN UZUN eşleşen ek sökülür; ek kalmayana
+ * dek (SABİT NOKTA, en fazla `STEM_PASSES_MAX` tur). Liste bilinçli olarak DAR:
+ * iyelik/hâl/çoğul + en yaygın fiil ekleri. "sin/sun" (2. tekil) YOK —
+ * "otobusun" → "otobu" olurdu; "ki" YOK — "otoparki" → "otopar" olurdu (ölçüldü).
  * İngilizce ekler ("ing/ed/es/s") aynı turda yarışır; iki dil de aynı
  * anahtarlara iner ("parking" → "park", "otoparki" → "otopark").
+ *
+ * ÜNLÜ-SONU İYELİK (-mız/-miz/-muz/-müz, -nız/-niz/-nuz/-nüz; 09-10): "ısıtmanız",
+ * "metronuz", "kargomuz", "mikrodalganız" listede yoktu (yalnız ünsüz-sonu
+ * "imiz/iniz/umuz/unuz" vardı) → kelime kendi konusunun köküne inmiyordu ve fuzzy
+ * eşleşme (uzunluk farkı 3 > 2) de kördü; ölçek harness'ında morph kaçaklarının
+ * yarısı buydu. Bu dördü için kök tabanı 3 (`MIN_STEM_AFTER_VOWEL`, ↓).
  */
 const SUFFIXES: readonly string[] = [
   "lardan", "lerden", "larimiz", "lerimiz", "lariniz", "leriniz",
   "larda", "lerde", "larin", "lerin", "lari", "leri", "lara", "lere",
   "imiz", "umuz", "iniz", "unuz", "iyor", "uyor", "miyor", "muyor",
+  "miz", "muz", "niz", "nuz",
   "ebilecegim", "abilecegim", "ecegim", "acagim", "ecegiz", "acagiz", "yebilir", "yabilir",
   "ecek", "acak", "yecek", "yacak", "ebilir", "abilir", "meli", "mali", "ayim", "eyim", "alim", "elim",
   "yerek", "yarak", "mam", "mem",
@@ -110,8 +117,34 @@ const SUFFIXES: readonly string[] = [
 ];
 /** İngilizce ekler daha yüksek kök tabanı ister (↑MIN_STEM_EN). */
 const EN_SUFFIXES = new Set(["ing", "ed", "es", "s"]);
+/**
+ * KÖK TABANI 3 İSTEYEN EKLER (09-10) — üç sınıf, tek kural (`MIN_STEM_AFTER_VOWEL`):
+ *  · Ünlü-sonu iyelik (-mız/-miz/-muz/-nız/-niz/-nuz): "deniz", "omuz", "domuz" sökülmez.
+ *  · Kaynaştırma "y"li ekler: "y" yalnız ÜNLÜ-sonu köke gelir; kök 2 harfe inecekse
+ *    "y" kökün kendisidir ("çayı" → ca ✗ / cay ✓, "suyu" → su, "koyabilirim" → koy).
+ *  · Ünsüz-sonu 3. tekil iyelik / geçmiş zaman (-sı/-su, -dı/-du/-tı/-tu): kök 2 harfe
+ *    inecekse ek değil kökün sonudur ("kodu" → ko ✗ / kod ✓, "duşu" → du ✗ / duş ✓);
+ *    "geldi/buldu/gitti/kapısı/odası" (kök ≥3) etkilenmez.
+ * Sökülmeyince bir sonraki tur tek harfli eki ("ı/u/a/e") söker.
+ */
+const MIN_STEM_3_SUFFIXES = new Set([
+  "miz", "muz", "niz", "nuz",
+  "yi", "yu", "ya", "ye", "yla", "yle", "yecek", "yacak", "yebilir", "yabilir", "yerek", "yarak",
+  "si", "su", "di", "du", "ti", "tu",
+]);
+export const MIN_STEM_AFTER_VOWEL = 3;
+/** Tek düzensiz kök: "su" → suyu/suyun/suyumuz/suyunuz/suya → "suy" (başka kelime "suy"a inmez). */
+const IRREGULAR_STEMS: Readonly<Record<string, string>> = { suy: "su" };
 const SUFFIXES_LONGEST_FIRST = [...SUFFIXES].sort((x, y) => y.length - x.length);
-const STEM_PASSES = 3;
+/**
+ * SABİT NOKTA (09-10): eski tur tavanı (3) çekimli biçim ile yalın biçimi FARKLI
+ * derinlikte bırakıyordu — "çıkışımızı" → ciki (i · imiz · s = 3 tur, durdu) ama
+ * "çıkış" → cik (s · i = 2 tur). Dosya başındaki "aşırı kök alma kaçırma üretmez"
+ * varsayımı yalnız SİMETRİK sökümde doğrudur; tavan simetriyi bozuyordu (ölçüldü:
+ * çıkış/giriş/kesinti sınıfı kaçakları + `no_lexical_hits` geri çekilmesi). Artık ek
+ * kalmayana dek sökülür; tavan yalnız patolojik belirteç ("aaaa…") için sigortadır.
+ */
+const STEM_PASSES_MAX = 8;
 
 /** Rakam/saat belirteçleri kök alınmaz. */
 const HAS_DIGIT = /\d/;
@@ -127,10 +160,10 @@ export function stem(token: string): string {
   if (HAS_DIGIT.test(token)) return token;
   let cur = token;
   let strippedAny = false;
-  for (let pass = 0; pass < STEM_PASSES; pass++) {
+  for (let pass = 0; pass < STEM_PASSES_MAX; pass++) {
     let stripped = false;
     for (const suf of SUFFIXES_LONGEST_FIRST) {
-      const floor = EN_SUFFIXES.has(suf) ? MIN_STEM_EN : MIN_STEM;
+      const floor = EN_SUFFIXES.has(suf) ? MIN_STEM_EN : MIN_STEM_3_SUFFIXES.has(suf) ? MIN_STEM_AFTER_VOWEL : MIN_STEM;
       if (cur.length - suf.length >= floor && cur.endsWith(suf)) {
         cur = cur.slice(0, -suf.length);
         stripped = true;
@@ -144,7 +177,7 @@ export function stem(token: string): string {
     const last = cur[cur.length - 1];
     if (UNSOFTEN[last]) cur = cur.slice(0, -1) + UNSOFTEN[last];
   }
-  return cur;
+  return IRREGULAR_STEMS[cur] ?? cur;
 }
 
 /**

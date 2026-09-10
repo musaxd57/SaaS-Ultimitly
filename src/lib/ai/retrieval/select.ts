@@ -130,7 +130,22 @@ const SUBQUERY_SPLIT = /[?\n;,]+|\s+(?:ve|ayrica|ayrıca|bir de|and|also|plus)\s
  * eşleştirir ve geri çekilmeyi (no_lexical_hits) engellerdi (ölçüldü) — oysa
  * doğru davranış tam kümeyi verip modelin dürüstçe "bilgi yok" diyebilmesidir.
  */
-const WEAK_QUERY_TERMS = new Set(["var", "yok", "lazim", "gerek", "isti", "kullan", "yap", "ol", "et", "al", "ver", "bul", "gel", "git", "bak", "koy", "birak", "acil", "sorun", "problem", "yardim", "help", "need", "want", "use", "get", "put", "leave", "find", "know", "bil"]);
+const WEAK_QUERY_TERMS = new Set([
+  "var", "yok", "lazim", "gerek", "isti", "kullan", "yap", "ol", "et", "al", "ver", "bul", "gel", "git", "bak", "koy", "birak",
+  "acil", "sorun", "problem", "yardim", "help", "need", "want", "use", "get", "put", "leave", "find", "know", "bil",
+  // KÖK UZAYI ARTEFAKTI (09-10, ölçek harness'ı): "çalışıyor" → calis → EN "s" → cali →
+  // "ca" (= "çalarsa"); iki harfli nadir kök yüksek IDF ile ilgisiz kalemi öne çekiyordu
+  // ("Asansörünüz çalışıyor mu?" → yangın alarmı kalemi). "ko" da adaydı ("koyabilirim",
+  // "koduna", "koşu") ama kök sökücü düzeltmesiyle kaynağı kalmadı ("koy"/"kod"/"kos") —
+  // "ko" artık "kodu"nun DEĞİL yalnız nadir kelimelerin kökü, listeye ALINMADI.
+  "ca",
+]);
+/**
+ * Zayıf kökün BM25 ağırlığı (09-10): 1.0 iken "altı→al" gibi bir zayıf terim üç
+ * güçlü kökü geçebiliyordu; aday şartı zaten güçlü kök ister, puanda da aynı
+ * ölçüde geri planda kalsın (ölçüldü: kapalı hit@1 +0.5–1.1 puan, isabet düşmedi).
+ */
+const WEAK_QUERY_WEIGHT = 0.25;
 
 /** Misafir mesajını alt sorgulara böl (çok soru → her biri ayrı retrieval). */
 export function splitQuestions(message: string): string[] {
@@ -168,7 +183,7 @@ function rankForSubquery(index: KbIndex, subquery: string, opt: RankOptions): { 
   // (0.5) hem kavram genişletmesine girer — tek adım, tek karar noktası.
   const carried = own.length < THIN_QUERY_STEMS ? opt.carryStems : [];
   const weights = new Map<string, number>();
-  for (const s of own) weights.set(s, 1);
+  for (const s of own) weights.set(s, WEAK_QUERY_TERMS.has(s) ? WEAK_QUERY_WEIGHT : 1);
   for (const s of carried) if (!weights.has(s)) weights.set(s, CARRY_WEIGHT);
   const { expansion, categoryHints } = expandQuery([...own, ...carried]);
   for (const [s, w] of expansion) if (!weights.has(s)) weights.set(s, w);

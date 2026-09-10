@@ -187,10 +187,11 @@ Güncelleme sonrası yeni metin 10/10, silme sonrası geri gelmeme 10/10 (her bo
 
 **Okumalar (dürüst):**
 - Legacy'nin açığı ölçekle büyür: 100+ kalemde cevap cümlesi soruların yarısında modele gitmiyor.
-- **n-gram'ın işi isabet değil gürültü:** yazım hatasında katkı yok (OSA fuzzy zaten kapsıyor); ek varyasyonunda gürültüyü
-  %23–44 azaltıyor (isabet aynı); İngilizce sorguda AÇIK olmak isabet kazandırmıyor, gürültü ekliyor (+0.2/+0.7/+0.9);
-  eşanlamda 300'de bir soru kaybettiriyor. **Varsayılan bu yüzden `auto` = yalnız Türkçe algılanan sorguda** (İngilizcede
-  kapalıyla birebir). Toplam isabet kapalıya göre en fazla bir soru geride, blok daha küçük. Eşikler bu sayılara pinli.
+- **n-gram'ın işi isabet değil gürültü (09-09 okuması — 09-10'da ESKİDİ, bkz. §3b′):** yazım hatasında katkı yok (OSA fuzzy
+  zaten kapsıyor); ek varyasyonunda gürültüyü %23–44 azaltıyordu (isabet aynı); İngilizce sorguda AÇIK olmak isabet
+  kazandırmıyor, gürültü ekliyor (+0.2/+0.7/+0.9). 🚨 09-10 yeniden ölçüm: o gürültü düşüşü kök sökücü kaçağının TELAFİSİYDİ;
+  kök düzelince auto ≈ kapalı. **Varsayılan `auto` KORUNDU** (İngilizcede kapalıyla birebir; TR'de isabet düşmüyor, blok açığa
+  göre küçük) ama ölçülen katkı ≈0 — "kapalı"ya çekme kararı kurucunun (§5).
 - **CombSUM ≥ RRF** her boyutta (aynı kaynaklarla hit@1 +1–3 puan, gürültü daha az, blok daha küçük). Varsayılan ölçümle seçildi.
 - **CANLI tavan (200):** 30/100'de varsayılanla birebir; 300'de havuz 336→200 ama isabet DÜŞMÜYOR — çünkü sentetik sette her
   konunun ~8 varyantı var ve en yeni 200'de her konudan en az biri kalıyor. Bu tavanın zararsız olduğunun kanıtı DEĞİLDİR:
@@ -206,6 +207,66 @@ Güncelleme sonrası yeni metin 10/10, silme sonrası geri gelmeme 10/10 (her bo
   geri alma sonrası kontrol yeşil.
 - **"Cevabın kaynakla desteklenmesi" burada ÖLÇÜLMEZ** — modelsiz harness yalnız "doğru kaynak modele gitti mi"yi ölçer.
   Cevap doğruluğu için eşleştirilmiş gerçek-model eval'i (§3d).
+
+## 3b′. Kaçak turu (09-10) — kalan kaçaklar puan dökümüyle teşhis edildi, kök/sözlük düzeltildi — `docs/olcum/kb-retrieval-scale-2026-09-10.md`
+
+Kurucu talimatı ("önce sözlük/kök, embedding yalnız kalan başarısızlarda"). Teşhis ajanla (yamalı kopya üzerinde varyant
+ölçümü, repo dokunulmadı), kod Claude; her düzeltme kırmızı-önce (`tests/unit/kb-retrieval-morphology.test.ts`: 18/19 düşüyordu).
+
+**Dört kök neden sınıfı (her biri ölçüldü):**
+1. **Tur tavanı (`STEM_PASSES=3`) simetriyi bozuyordu:** "çıkışımızı" → i · imiz · s = 3 tur → `ciki`; "çıkış" → s · i → `cik`.
+   Aynı kelime iki farklı köke iniyordu → `no_lexical_hits` geri çekilmesi (100/300'de "Çıkışımızı kaça kadar…" tam kümeye düşüyordu),
+   "girişimizi", "kesintisinde". text.ts'in "aşırı kök alma kaçırma üretmez" varsayımı yalnız SİMETRİK sökümde doğrudur.
+   → **Sabit nokta** (ek kalmayana dek; tavan 8 yalnız patolojik belirteç sigortası).
+2. **Ünlü-sonu iyelik ekleri yoktu** (`-mız/-miz/-muz/-nız/-niz/-nuz`; yalnız ünsüz-sonu `imiz/iniz/umuz/unuz` vardı): "ısıtmanızı",
+   "metronuz", "kargomuzu", "mikrodalganız", "klimanızı" kendi konusuna inmiyordu; fuzzy (uzunluk farkı 3) kördü. → Eklendi, kök tabanı 3
+   (deniz/omuz/domuz sökülmez). Aynı kural **kaynaştırma "y"li eklere** ("çayı" → ca ✗ → cay ✓; "koyabilirim" → koy) ve ünsüz-sonu
+   `-sı/-su/-dı/-du` eklerine ("kodu" → ko ✗ → kod ✓; "duşu" → duş) uygulandı; tek düzensiz kök `suy → su` (suyu/suyunuz/suya).
+3. **Zayıf kök artefaktı:** "çalışıyor" → calis → EN "s" → cali → `ca` (= "çalarsa"); iki harfli nadir kök yüksek IDF ile yangın
+   kalemini asansör sorusunun önüne çekiyordu. → `WEAK_QUERY_TERMS += ca`; zayıf kök BM25 ağırlığı 1.0 → **0.25** (ölçüldü: tam ağırlıkta
+   "var"lı rehber parçası "Yemek ısıtabileceğim bir şey VAR mı?" sorusunda mikrodalganın önüne geçiyordu; 0 ise zayıf kök hiç puanlamaz —
+   iki uç da unit-pinli). "ko" adaydı (koyabilirim/koduna/koşu) ama kök düzeltmesiyle kaynağı kalmadı, listeye alınmadı.
+4. **Sözlük çarpışmaları:** `tv.terms` "uydu" → `uy` = "uymuyor" ("Fişim uymuyor" TV genişletmesi alıyordu) → çarpışma KÖKTE
+   çözüldü (-du kök 2 harfe inecekse sökülmez: "uydu" → `uyd`), terim kaldı — "uydu"yu silmek mutasyonda EŞDEĞER çıktı; `power`
+   torbası (elektrik + priz) → **power ↔ socket AYRILDI** ("plug adapter" sigorta kalemine, "elektrikler gitti" adaptöre gidiyordu);
+   `restaurant.terms` "yemek" → `ye` ("Yemek ısıtabileceğim…" 4 restoran genişletmesi + local_tips ipucu, mikrodalga 12 parçanın
+   dışında kalıyordu) → çıkarıldı, `detectOnly` "akşam yemeği" eklendi. 🚨 İki tuzak ölçüldü: `detectOnly`'ye taşımak ÇÖZÜM DEĞİL
+   (kalıpla tespit edilen kavram yine TÜM `terms`ini genişletir) ve "nerede yemek" kalıbı KONMAZ ("nerede" durak → kalıp `["ye"]`).
+
+**Ölçüm (varsayılan yapılandırma; 09-09 → 09-10):**
+
+| n | hit@1 | hit@3 | inPrompt(metin) | gürültü | karakter | geri çekilme | morph inPrompt |
+|---|---|---|---|---|---|---|---|
+| 30 | 93% → **97%** | 97% → 100% | 99% → **100%** | 1.5 → 0.9 | 482 → 397 | 3 → **0** | 29/30 → 30/30 |
+| 100 | 92% → **96%** | 95% → 97% | 98% → **99%** | 2.9 → 2.2 | 778 → 684 | 1 → **0** | 35/38 → 38/38 |
+| 300 | 92% → **96%** | 94% → 97% | 97% → **100%** | 4.7 → 2.6 | 1312 → 1192 | 1 → **0** | 35/38 → 38/38 |
+| 300 CANLI (tavan 200) | 92% → **96%** | 94% → 97% | 98% → **100%** | 4.3 → 2.9 | 1076 → 939 | 1 → 0 | — |
+
+Eşikler yeni değere pinli: hit@1 ≥ .95 · hit@3 ≥ .96 · inPrompt ≥ .99 · geri çekilme 0 (sentetik sette "bilgi yok" sorusu yok).
+Güncelleme/silme 10/10 korunur. Legacy satırları değişmedi (sıralama soruya bakmaz).
+
+**n-gram dürüst yeniden okuma:** kapalı vs auto morph: 30/30 · 38/38 · 38/38 ikisinde de; gürültü 0.87/0.87 · 2.55/2.66 · 2.45/2.34
+→ eski "%23–44 düşüş" kök sökücü kaçağının telafisiydi. Pin artık "isabet düşmez, gürültü ±0.2 içinde eşit" + "eski %20 iddiası
+ÖLÇÜMLE DESTEKLENMİYOR" (auto gürültüsü kapalının %80'inin altında DEĞİL — bu satır düşerse belge cümlesi de değişir). EN'de auto =
+kapalı (birebir), açık gürültü ekler (0.70/2.61/3.32 vs 0.53/1.89/2.42). Varsayılan `auto` KORUNDU; katkı ≈0 → "kapalı"ya çekme
+kararı §5 onay tablosunda.
+
+**Kalan hit@1 kaçakları (auto; cevap cümlesi BLOKTA, gold sırası 2–11) — embedding "kalan başarısızlar" adayları:**
+- `guide_lost` / `guide_water_cut`: 600 karakterlik rehber parçası BM25 uzunluk normunda (b=0.75) tek terimli 60 karakterlik kaleme
+  yeniliyor (havuz "cam eşya" / sıcak su kalemi). `b=0.4` denendi: guide +1, smoking/packages_morph −2, net ±0 → dokunulmadı.
+- `fire_en` "fire escape" → `fire` → fir = "fırın" → fir (diller arası kök çarpışması, stove genişletmesi); `fire_syn` "Acil çıkış" →
+  `cik` → checkout kavramı + kategori ipucu + tam başlık.
+- `tv_en/tv_syn` (n=30): klima kalemi "Klima kumandası TV sehpasının çekmecesinde" — sözcüksel BERABERLİK (kumanda + TV), sıra 2.
+- `taxi_syn` "Araç çağırabilir miyim?": "araç" otopark teriminde (kendi kök ağırlığı 1) + taksi yalnız `detectOnly` (0.5), sıra 2.
+- `microwave_syn` (100/300): kargo kaleminin "Yemek siparişinde…" cümlesi `ye` ile eşleşiyor, mikrodalga sıra 2–3 (cevap blokta).
+- `doorman_syn` "Kargomu kim teslim alır?": kargo kalemleri soruyu ZATEN cevaplıyor ("görevli yönlendirir") — gold etiketi tartışmalı,
+  retrieval kusuru değil. `iron_syn` yalnız kapalıda (auto'da n-gram kurtarıyor).
+**Bilinen kök sınırları (pre-existing, ölçüldü, DOKUNULMADI):** "markete" → mark ≠ market (fuzzy tavanı 5 harf), "kilidi" → ki
+(d→t geri alma bilinçli yok: adı→ad→at), "görevliniz" → gorevl ≠ gorev, "restorana" → restor (fuzzy kurtarıyor).
+**Mutasyon:** 15 mutant (tur tavanı geri · iyelik ekleri yok · taban 2/4 · y-ekleri yok · -sı/-dı yok · düzensiz su yok · tek tur ·
+WEAK ca yok · ağırlık 1.0 / 0 · uydu geri · socket birleşik · yemek geri · restoran kavramı yok) — ilk turda 4 hayatta kaldı
+(ölü sabit `MIN_STEM_VOWEL_POSS`, y-düzeltmesi "ko"yu ortadan kaldırınca WEAK ko pinsiz kaldı, ağırlık iki uçta pinsiz) → sabit
+birleştirildi, "ko" çıkarıldı, ağırlık için iki uç pini yazıldı; ikinci tur sonucu commit mesajında.
 
 ## 3c. Güvenlik filtreleri yeni retrieval yolunda AYNEN (Codex turu 3: "eksikse pilotu hazır sayma")
 
