@@ -926,6 +926,16 @@ Sekiz P1 KAPANDI (09-07), her biri ayrı commit, kırmızı-önce + iki yönlü 
   başarısız"ı AYIRMAZ (modelin beyanıdır; hiç kalem verilmemiş de olabilir) → kodun bildiği ile beyan
   edilen YAN YANA kaydedilir (A2 ile UYGULANDI).
   Sıra ve gerekçeler: `docs/DEGERLENDIRME-2026-09-08-bilgi-tabani-doldurma-ve-retrieval.md`.
+- **DEĞERLENDİRME (kurucu fikri 09-11, UYGULANMADI): geçmiş host cevaplarının yeniden kullanımı** —
+  bugün host'un daha önce verdiği cevaplar HİÇBİR yerde bilgi kaynağı değil (host aynı soruyu 40 kez
+  elle cevaplasa ürün bundan bir şey öğrenmiyor). 🚨 Bu "embedding" ile AYNI ŞEY DEĞİL ve embedding
+  ŞART DEĞİL: `src/lib/ai/retrieval/` girdisi `{id,title,content,updatedAt}` listesidir, geçmiş cevap
+  tam o biçime sokulabilir (ücretsiz, KVKK'sız, mevcut kod). Üç ZORUNLU kural: ① geçmiş cevap GERÇEK
+  değil GÖZLEMDİR (canlı alanla çelişiyorsa DÜŞER; belki canlı gerçek iddia edemez) · ② yanlış cevabın
+  ÇOĞALMASI (yalnız host'un yazdığı/onayladığı, devir/şikâyetle sonuçlanmamış cevaplar — A1'in
+  `reviewState` sözleşmesinin aynısı) · ③ KVKK (sır kapısı + ad redaksiyonu + retention purge + erasure
+  bu yüzeye de uygulanır). Ölçüm planı ve karar tablosu:
+  `docs/DEGERLENDIRME-2026-09-11-gecmis-cevap-yeniden-kullanimi.md`. Sıra: hibrit bayrağından SONRA.
 - **Codex P2 (F09–F18)** ilgili modül turlarında. `docs/DENETIM-2026-08-09.md` (27 açık),
   `docs/ACIK-ISLER-2026-08-08.md` (16), `docs/MIGRATION-BEKLEYEN-ISLER.md`.
 - Operatör: bucket sağlayıcı görünürlüğü (imzasız URL 403 olmalı) · `weekly-audit.yml` `main`'e ·
