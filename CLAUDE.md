@@ -1270,6 +1270,21 @@ GÖRSEL** — dört render noktası dışında hiçbir sorgu/sıralama/bildirim/
 e-postasına bile yazılmıyor (`email-templates.ts` alanı tanımlıyor, gövdede kullanmıyor); `urgent` ikonu
 pratikte `problem` rozetinin ikinci kopyası (ikisini AYNI kod yazıyor). ⚠️ `PRIORITY` sabiti **Task**'ta
 gerçekten iş yapıyor → silinemez, yalnız konuşma yüzeyinden sökülür.
+🚨 **"BEKLEMEDE" KALDIRILDI** (kurucu "2.yap") — ve bedava bir kazanç: o durum **belgelenmemiş bir AI
+KİLİDİYDİ** (`dueAutoReplyWhere` yalnız `status:"new"` seçiyordu, host işaretleyince oto-yanıt konuşmayı bir
+daha HİÇ seçmiyordu ve hiçbir ekran bunu söylemiyordu — `problem` gibi rozet/veto YOK). Migration GEREKMEDİ
+(kolon düz `TEXT`, Postgres enum yok). Tip birliğinde KALDI (`LEGACY_CONVERSATION_STATUSES`) çünkü DB'de eski
+satırlar olabilir; **aday sorgusuna `waiting` EKLENDİ** ki o satırlar tuzakta kalmasın (iki claim sorgusu
+zaten `{in:["new","waiting"]}` idi → kilit değil PARİTE). `closed` DOKUNULMADI.
+🚨 **MİSAFİR 404'Ü KALKTI** (kurucu: "görsel olarak çok iyi UI şeyi yap"): beş koşul (global anahtar · bilinmeyen
+token · silinmiş mülk · kapatılmış QR · bitmiş abonelik) ürünün B2B 404'üne düşüyordu ve o sayfanın İKİ çıkışı
+da `/` idi — dairedeki QR'ı okutan misafir **satış sayfasına** iniyordu. Artık markalı `GuestNotice`; **tek metin,
+beş koşul** (numaralandırma koruması: "bu token yok" ile "bu QR kapalı" ayrılmaz) ve **dış bağlantı YOK**
+(misafire verilebilecek tek doğru yönlendirme ev sahibidir). Sayfa 200 döner (`noindex` zaten var).
+Ayrıca misafir istemcisinde üç ölçülmüş kusur: **sessiz mesaj kaybı** (konaklama sayfa açıkken biterse rota
+200+`{closed:true}` döner ve KAYDETMEZ, iyimser balon ekranda kalıyordu) · **kalıcı arıza geçici görünüyordu**
+(QR kapatılınca GET 404 sessizce yutuluyor, misafir sonsuza kadar deniyordu) · sunucunun 409/413/429/503
+metinleri tek jenerik cümleye çöküyordu · `min-h-screen` → `min-h-dvh`.
 🚨 **EMBEDDING PLANI ÖLÇÜLDÜ** (kurucu izni var): maliyet önemsiz (kurucu org'un TÜM KB'si **0,18 sent**,
 en ağır müşteri 3 sent; sorgu tarafı mesaj başına 67 token = sohbet isteminin **%0,37**'si); depo **pgvector
 DEĞİL** (aday kümesi ≤300 parça → brute-force 1,37 ms; pgvector Railway'de prod DB TAŞIMA projesi ister) →

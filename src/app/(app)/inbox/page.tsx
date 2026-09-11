@@ -124,6 +124,9 @@ export default async function InboxPage({
   // Bilinmeyen bir status query'si nötr cümleye düşer; ham kod ASLA görünmez.
   const EMPTY_TITLES: Record<string, string> = {
     new: "Yeni mesajınız yok",
+    // ⚠️ `waiting` anahtarı KORUNDU: seçenek listesinden kalktı ama `?status=waiting`
+    // URL'i hâlâ ham query olarak geçiyor (yalnız PATCH zod'lu) ve DB'de eski
+    // satırlar olabilir. Anahtar silinseydi o yolda ham kod görünürdü.
     waiting: "Bekleyen mesajınız yok",
     answered: "Cevaplanmış mesajınız yok",
     problem: "Sorunlu mesajınız yok",

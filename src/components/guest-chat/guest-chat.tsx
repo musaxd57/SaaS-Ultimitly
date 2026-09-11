@@ -58,7 +58,16 @@ export function GuestChat({ token }: { token: string }) {
     const seq = ++loadSeq.current;
     try {
       const res = await fetch(`/api/chat/${token}`, { method: "GET" });
-      if (!res.ok) return;
+      // 🚨 KALICI ARIZA GEÇİCİ HATA GİBİ GÖRÜNÜYORDU (inceleme, 09-11). Host QR'ı
+      // panelden kapatırsa GET 404 döner; `if (!res.ok) return;` bunu SESSİZCE
+      // yutuyordu → eski sohbet ve yazma kutusu ekranda kalıyor, her gönderim
+      // "biraz sonra tekrar deneyin" diyordu ve misafir SONSUZA KADAR deniyordu.
+      // 404/410 = geri dönüşü olmayan durum: kapanış ekranına geç.
+      if (res.status === 404 || res.status === 410) {
+        setClosed(true);
+        return;
+      }
+      if (!res.ok) return; // 5xx/ağ: geçici, bir sonraki poll tekrar dener
       const data = (await res.json()) as {
         open?: boolean;
         boundElsewhere?: boolean;
@@ -135,14 +144,34 @@ export function GuestChat({ token }: { token: string }) {
       });
       if (!res.ok) {
         rollback();
+        // 🚨 SUNUCUNUN SEBEBİNİ GÖSTER (inceleme, 09-11). Rota 409/413/429/503
+        // için AYRI ve anlamlı metinler yazıyor ("Demo bugünlük dolu…",
+        // "Çok fazla istek…") ama hepsi tek jenerik cümleye çöküyordu. Host
+        // panelindeki kardeş yazma kutusu bunu ZATEN doğru yapıyor.
         // error kept in dedicated state so a background poll can't wipe it
-        setError("Şu an yanıt veremiyorum. Lütfen biraz sonra tekrar deneyin.");
+        const body = (await res.json().catch(() => null)) as { error?: string } | null;
+        setError(
+          typeof body?.error === "string" && body.error.trim()
+            ? body.error
+            : "Şu an yanıt veremiyorum. Lütfen biraz sonra tekrar deneyin.",
+        );
         return;
       }
       const data = (await res.json().catch(() => ({}))) as {
         boundElsewhere?: boolean;
         pinRequired?: boolean;
+        closed?: boolean;
       };
+      // 🚨 SESSİZ MESAJ KAYBI (inceleme, 09-11). Konaklama sayfa AÇIKKEN biterse
+      // rota 200 + `{closed:true}` döner ve mesajı KAYDETMEZ. `res.ok` doğru
+      // olduğu için iyimser balon ekranda KALIYORDU: misafir gönderilmiş gibi
+      // duran ama hiç var olmayan bir mesaj görüyordu. Sonraki `loadHistory`
+      // de `open:false` görüp erken dönüyor, yani balon hiç silinmiyordu.
+      if (data.closed) {
+        rollback();
+        setClosed(true);
+        return;
+      }
       if (data.pinRequired) {
         // The stay needs the host's code (e.g. the device cookie lapsed) — send
         // nothing, drop back to the PIN entry screen. The id is KEPT: after the
@@ -259,8 +288,9 @@ export function GuestChat({ token }: { token: string }) {
     );
   }
 
+  // `min-h-dvh`: mobil tarayıcı çubuğu altında `100vh` yazma kutusunu kırpıyor.
   return (
-    <div className="mx-auto flex min-h-screen max-w-lg flex-col bg-background">
+    <div className="mx-auto flex min-h-dvh max-w-lg flex-col bg-background">
       <header className="border-b border-border bg-card px-4 py-3">
         <p className="text-sm font-semibold">{GUEST_ASSISTANT_TITLE}</p>
         {/* One-time disclosure — shown ONCE here, never repeated under each message. */}

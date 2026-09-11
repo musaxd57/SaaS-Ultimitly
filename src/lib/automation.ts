@@ -54,7 +54,7 @@ import {
   complaintEscalationEmail,
   reservationCreatedEmail,
 } from "@/lib/email-templates";
-import type { ReplyTone } from "@/lib/constants";
+import { LEGACY_CONVERSATION_STATUSES, type ReplyTone } from "@/lib/constants";
 
 const VALID_TONES: ReplyTone[] = ["formal", "warm", "short", "luxury"];
 
@@ -2505,7 +2505,15 @@ function dueAutoReplyWhere(organizationId: string, freshSince: Date) {
     // V0.5: sağlayıcı thread'i (iç QR thread'i hariç — dönüş kanalı yok, sohbetin kendi
     // kapısı triyajladı). Kural tek yerde: channels/capability.ts (INTERNAL_THREAD_PREFIX).
     ...PROVIDER_THREAD_CONVERSATION_WHERE,
-    status: "new",
+    // 🚨 `waiting` DE ADAY (kurucu 09-11, "Beklemede" kaldırıldı). Eskiden
+    // yalnız `"new"` seçiliyordu ve bu "Beklemede"yi BELGELENMEMİŞ BİR AI
+    // KİLİDİ yapıyordu: host o durumu seçince oto-yanıt konuşmayı bir daha HİÇ
+    // seçmiyor, hiçbir ekran da bunu söylemiyordu (`problem` gibi bir rozet ya
+    // da veto YOK). Seçenek artık UI'dan kalktı, yani YENİ satır oluşamaz;
+    // burada durması DB'de kalmış eski satırların tuzakta kalmaması içindir.
+    // İki claim sorgusu (`:666`, `:2214`) zaten `{in:["new","waiting"]}` idi —
+    // aday sorgusu onlarla hizalandı, yani kilit değil PARİTE eklendi.
+    status: { in: ["new", ...LEGACY_CONVERSATION_STATUSES] },
     lastMessageAt: { gte: freshSince },
     // ⚠️ UYGUNLUK FİLTRESİ SQL'DE OLMAK ZORUNDA — TAVANLA BİRLİKTE (denetim
     // 08-01). Bu koşul bir süre YALNIZCA JS'te uygulandı ve araya `take: 25`

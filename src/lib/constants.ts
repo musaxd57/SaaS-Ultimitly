@@ -61,14 +61,34 @@ export const RESERVATION_CHANNEL = optionMap<ReservationChannel>([
 ]);
 
 // --- Conversations ----------------------------------------------------------
+/**
+ * 🚨 "Beklemede" (`waiting`) SEÇENEKTEN KALDIRILDI (kurucu, 2026-09-11: "2.yap").
+ *
+ * Neden: o durum belgelenmemiş bir **AI KİLİDİYDİ**. `dueAutoReplyWhere` aday
+ * kümesini yalnız `status:"new"` üzerinden seçtiği için host "Beklemede"
+ * dediğinde oto-yanıt o konuşmayı bir daha HİÇ seçmiyordu — ve bunu hiçbir
+ * ekran söylemiyor, `problem` gibi bir rozet/veto da yok. Host "sonra bakarım"
+ * diye işaretliyor, AI sessizce susuyordu.
+ *
+ * ⚠️ TİP BİRLİĞİNDE KALIYOR: kolon düz `TEXT` (Postgres enum YOK), yani DB'de
+ * hâlâ `waiting` taşıyan eski satırlar olabilir ve onları okuyan sorgular
+ * çalışmaya devam etmeli. Kaldırılan şey yalnız **yazma yüzeyi**: seçenek
+ * listesinden çıkınca `validators.ts` zod enum'u da (türetilmiş) onu reddeder,
+ * seçim kutusu ve gelen kutusu sekmesi kaybolur. Migration GEREKMEZ.
+ *
+ * 🚨 ESKİ SATIRLAR TUZAKTA KALMASIN: `waiting` artık oto-yanıt ADAY sorgusuna
+ * da dâhil (`automation.ts`), yani `new` ile AYNI davranıyor. Claim sorguları
+ * zaten `{in:["new","waiting"]}` idi — aday sorgusu onlarla hizalandı.
+ */
 export type ConversationStatus = "new" | "waiting" | "answered" | "problem" | "closed";
 export const CONVERSATION_STATUS = optionMap<ConversationStatus>([
   { value: "new", label: "Yeni", tone: "default" },
-  { value: "waiting", label: "Beklemede", tone: "warning" },
   { value: "answered", label: "Cevaplandı", tone: "success" },
   { value: "problem", label: "Sorunlu", tone: "destructive" },
   { value: "closed", label: "Tamamlandı", tone: "muted" },
 ]);
+/** DB'de yaşayabilen ama artık SEÇİLEMEYEN durumlar — okuma sorgularında kalır. */
+export const LEGACY_CONVERSATION_STATUSES = ["waiting"] as const;
 
 export type Priority = "urgent" | "standard" | "low";
 export const PRIORITY = optionMap<Priority>([
