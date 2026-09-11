@@ -646,6 +646,194 @@ describe("cihaz listesi boşlukları (7. tur, ölçülmüş): 19 ek cihaz adı",
 // ---------------------------------------------------------------------------
 // YEDİNCİ TUR İNCELEMESİ (09-11, ölçümlü ajan) — İKİSİ 6. TURUN GERİLEMESİ
 // ---------------------------------------------------------------------------
+// ---------------------------------------------------------------------------
+// 8. TUR (09-11) — ENVANTERİN KALAN BÜYÜK BOŞLUĞU
+//
+// 51 aday ölçüldü, **49'u kaçıyordu** (izole bildirim cümlesiyle; başka bacağı
+// tetiklemeyecek biçimde yazıldı). `BREAKDOWN_DEVICES` bir ENVANTERDİR: yazılmamış
+// her cihaz adı, arıza fiiliyle gelse bile `general` kalır ve kapı OTO-GÖNDERİM
+// İZNİ verir.
+// ---------------------------------------------------------------------------
+describe("8. tur: 49 ek cihaz adı (envanter boşluğu, ölçülmüş)", () => {
+  const BENIGN = { source: "openai", intent: "amenity", riskLevel: "low", confidence: 0.9, riskType: null };
+
+  const REPORTS = [
+    "Salondaki ampul bozuldu.",
+    "Yatağı denedik, bozulmuş.",
+    "Koltuğu açmaya çalıştık, bozuldu.",
+    "Havuz bozuldu, çocuklar giremiyor.",
+    "Kanepeyi açtık, bozuldu.",
+    "Mama sandalyesi bozuldu.",
+    "Mutfak evyesi bozuldu.",
+    "Şaltere bastık, bozuldu.",
+    "Hidrofor arızalı.",
+    "Yerden ısıtma arızalı.",
+    "Balkon aydınlatması bozuldu.",
+    "Mutfaktaki boru bozuldu.",
+    "Havuzun pompası bozuldu.",
+    "Su deposu bozuldu.",
+    "Sauna arızalı.",
+    "Sobayı yaktık, bozuldu.",
+    "Şömine bozuldu.",
+    "Anteni kontrol ettik, bozulmuş.",
+    "Aynayı astık, bozuldu.",
+    "Gardırobu açtık, bozulmuş.",
+    "Menteşe bozuldu.",
+    "Hortumu taktık, bozulmuş.",
+    "Süzgeç bozuldu.",
+    "Vanayı kapattık, bozuldu.",
+    "Banyo armatürü bozuldu.",
+    "Sayacı kontrol ettik, bozulmuş.",
+    "Doğalgaz sayacı arızalı.",
+    "Elektrik panosu bozuldu.",
+    "Duman dedektörü bozulmuş.",
+    "Jeneratörü çalıştırdık, bozuldu.",
+    "Tezgahı kullanamadık, bozuldu.",
+    "Yürüyen merdiven bozuldu.",
+    "Abajur bozuldu.",
+    "Blender bozuldu.",
+    "Mikser bozuldu.",
+    "Kurutucu bozuldu.",
+    "Fritöz bozuldu.",
+    "Izgara bozuldu.",
+    "Hareket sensörü bozuldu.",
+    "Korniş bozuldu.",
+    "Mangal bozuldu.",
+    "Barbekü bozuldu.",
+    "Projeksiyon bozuldu.",
+  ];
+
+  it("gerçek arıza bildirimleri complaint", () => {
+    for (const m of REPORTS) expect(classifyFallback(m).intent, m).toBe("complaint");
+  });
+
+  it("🚨 GERÇEK BEDEL: hiçbiri OTO-GÖNDERİLMEZ", () => {
+    for (const m of REPORTS) expect(passesAutoReplySafetyGate(BENIGN, m), m).toBe(false);
+  });
+
+  it("ÜNSÜZ YUMUŞAMASI gövdeleri: yatak→yatağ · koltuk→koltuğ · gardırop→gardırob", () => {
+    // Yumuşamış biçim cihaz adıyla BAŞLAMAZ; gövde ayrı yazılmazsa bildirim kaçar.
+    expect(classifyFallback("Yatağı denedik, bozulmuş.").intent).toBe("complaint");
+    expect(classifyFallback("Koltuğu açmaya çalıştık, bozuldu.").intent).toBe("complaint");
+    expect(classifyFallback("Gardırobu açtık, bozulmuş.").intent).toBe("complaint");
+  });
+
+  it("🚨 ÇEKİM KAPISI türetmeleri eliyor — 14 çarpışma adayı (yaşayan kelimeler)", () => {
+    // Bu sözcükler yeni cihaz adlarıyla BAŞLIYOR ama cihaz DEĞİL; `INFLECTION_ONLY`
+    // türetme ekini reddettiği için hiçbiri complaint üretmiyor (ölçüldü).
+    for (const m of [
+      "Aynı gün rezervasyonumuz bozuldu.",
+      "Aynen öyle, tatilimiz bozuldu.",
+      "Depozito konusu bozuldu mu acaba?",
+      "Panoramik manzara için geldik ama havamız bozuldu.",
+      "Borcumuz mu var, hesap bozuldu mu?",
+      "Sayımız 4 kişi, rezervasyonumuz bozuldu mu?",
+      "Tezgahtar çok ilgiliydi ama günümüz bozuldu.",
+      "Havuzlu bir yer arıyorduk, planımız bozuldu.",
+      "Yatakhanede kalmıştık, oradaki düzen bozuldu.",
+      "Vanilyalı dondurma aldık, bozuldu.",
+      "Pompalı tüfek değil tabii, şakaydı; moralimiz bozuldu.",
+      "Saunalı otelde kalmıştık, orada da tatilimiz bozuldu.",
+      "Mangalcıya gittik, etler bozuldu.",
+      "Sensörlü çöp kovası arıyorduk, alışverişimiz bozuldu.",
+    ]) {
+      expect(classifyFallback(m).intent, m).not.toBe("complaint");
+    }
+  });
+
+  it("SSS / koşul / övgü / olanak soruları complaint DEĞİL", () => {
+    for (const m of [
+      "Ampul bozulursa kimi arayalım?",
+      "Yatak bozulursa yedek var mı?",
+      "Havuz arızalanırsa haber verir misiniz?",
+      "Yataklar çok rahat, hiç bozulmamış.",
+      "Yedek ampul var mı evde?",
+      "Izgara var mı balkonda?",
+      "Sauna kaçta açılıyor?",
+      "Kasa var mı odada, pasaportu koyacağız?",
+      "Su deposu kaç litre?",
+    ]) {
+      expect(classifyFallback(m).intent, m).not.toBe("complaint");
+    }
+  });
+
+  it("🚨 TÜRKİYE YER ADI + KESME İŞARETİ: koşulsuz birleştirme cihaz adı UYDURUYORDU", () => {
+    // 6. tur kesmeyi kelime İÇİNDE KOŞULSUZ siliyordu ("Klima'mız" → "klimamız"). Ama Türkçe
+    // imlada kesme ÖZEL ADDAN SONRA eki AYIRIR — ve koşulsuz silme onu cihaz adına çeviriyordu:
+    //   "Van'a giderken bozuldu."  → "vana" = VANA  (Van bir İL)
+    //   "Kaş'a giderken bozuldu."  → ASCII "kasa"   (Kaş yoğun bir kiralama beldesi)
+    //   "Bor'u gezdik, bozuldu."   → "boru"
+    // "Yolda bozulduk" Türkiye misafir trafiğinin OLAĞAN cümlesidir. Birleştirme artık YALNIZ
+    // sol parça zaten bir CİHAZ ADIYSA yapılır.
+    for (const m of [
+      "Van'a giderken bozuldu.",
+      "Van'a gittik, bozuldu.",
+      "Kaş'a giderken bozuldu.",
+      "Dün Kaş'a çıktık, sonra bozuldu.",
+      "Bor'u gezdik, bozuldu.",
+    ]) {
+      expect(classifyFallback(m).intent, m).not.toBe("complaint");
+    }
+  });
+
+  it("KARŞI YÖN: 6. turun kesme kazanımı KORUNDU (sol parça CİHAZ ise birleşir)", () => {
+    for (const m of [
+      "Klima'mız bozuldu.",
+      "Klimaʼmız bozuldu.",
+      "Klima′mız bozuldu.",
+      "Kombi'miz arızalandı.",
+    ]) {
+      expect(classifyFallback(m).intent, m).toBe("complaint");
+    }
+  });
+
+  it("🚨 BEŞ KELİME ÖLÇÜLÜP ÇIKARILDI (geri ekleme): yer adı / eşyazım çarpışması", () => {
+    // `fön`→`fon` emsali. Kesme düzeltmesi bunları KURTARMIYOR — çarpışma doğrudan.
+    for (const m of [
+      "Markette kasa bozuldu, yarım saat bekledik.", // kasa = market kasası
+      "Maşayı kullandık, bozuldu.",                  // masa ← ASCII ş→s
+      "Konuyu masaya yatırdık, sonra bozuldu her şey.", // masa = deyim
+      "Zile vardık, bozuldu.",                       // zil = Zile ilçesi
+      "Telefonumun zili bozuldu.",                   // zil = telefon zili
+      "Kuvetimiz kalmadı, iyice bozuldu.",           // küvet ← "kuvvet" yazım hatası
+      "Çekmece'ye taşındık, sonra bozuldu.",         // çekmece = Çekmece ilçesi
+    ]) {
+      expect(classifyFallback(m).intent, m).not.toBe("complaint");
+    }
+    // 🚨 BEDELİ dürüstçe pinle: bu beş kelimenin GERÇEK bildirimleri artık KAÇIYOR.
+    for (const m of [
+      "Küvet bozuldu.",
+      "Mutfak çekmecesi bozuldu.",
+      "Masayı açtık, bozuldu.",
+    ]) {
+      expect(classifyFallback(m).intent, m).not.toBe("complaint");
+    }
+    // KARŞI YÖN: `vana` ve `boru` LİSTEDE KALDI (tek çarpışmaları kesmeydi, kaynağında kapandı).
+    expect(classifyFallback("Vanayı kapattık, bozuldu.").intent).toBe("complaint");
+    expect(classifyFallback("Mutfaktaki boru bozuldu.").intent).toBe("complaint");
+  });
+
+  it("🚨 'kablo' ve 'hoparlör' ÖLÇÜLÜP REDDEDİLDİ (geri ekleme): `batarya` sınıfı", () => {
+    // Misafir mesajında baskın okuma MİSAFİRİN KENDİ eşyasıdır. Eklendiğinde ölçüldü:
+    // aşağıdaki ikisi de `complaint` oluyordu.
+    expect(classifyFallback("Telefon şarj kablomuz bozuldu.").intent).not.toBe("complaint");
+    expect(classifyFallback("Bluetooth hoparlörümüz bozuldu.").intent).not.toBe("complaint");
+    // Bedeli dürüstçe pinle: host'un uzatma kablosu / gömülü ses sistemi bildirimi KAÇIYOR.
+    expect(classifyFallback("Uzatma kablosu bozuldu.").intent).not.toBe("complaint");
+    expect(classifyFallback("Hoparlör bozuldu.").intent).not.toBe("complaint");
+  });
+
+  it("BİLİNEN SINIR (bedeli pinli): AÇIK sahiplik işareti taşıyan misafir eşyası", () => {
+    // Bu sınıf her cihaz adı için vardır ve YENİ bir mekanizma DEĞİLDİR (aynısı 1. turdan
+    // beri "Kahve makinemizin …" biçiminde ölçülü). Yön GÜVENLİ (fazla eskalasyon).
+    expect(classifyFallback("Getirdiğimiz ızgara bozuldu.").intent).toBe("complaint");
+    expect(classifyFallback("Kendi blenderımız bozuldu, mutfakta var mı?").intent).toBe("complaint");
+    // KONTROL — bu sınıf YENİ DEĞİL: aynı kalıp 1. turdan beri listede olan `makine` ile de
+    // complaint üretiyor. Yani kuralın SAHİPLİK KÖRLÜĞÜ mimaridir, bu partiye özgü değildir.
+    expect(classifyFallback("Getirdiğimiz kahve makinesi bozuldu.").intent).toBe("complaint");
+  });
+});
+
 describe("7. tur incelemesi: homoglif · 'su' · izafet soru guard'ı", () => {
   const BENIGN = { source: "openai", intent: "amenity", riskLevel: "low", confidence: 0.9, riskType: null };
 

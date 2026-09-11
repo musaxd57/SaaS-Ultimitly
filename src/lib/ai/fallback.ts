@@ -899,6 +899,37 @@ const BREAKDOWN_DEVICES = [
   // ("suyumuz" yalın `su` ile eşleşmez). Çekim kapısı türetmeleri eliyor (ölçüldü:
   // sunum · susuz · surat · suçlu · sucuk hiçbiri cihaz değil).
   "su", "suy",
+  // ── 8. TUR: ENVANTERİN KALAN BÜYÜK BOŞLUĞU (09-11, ÖLÇÜLDÜ) ──
+  // 51 aday izole bildirim cümlesiyle ölçüldü: **49'u kaçıyordu** ("Salondaki ampul bozuldu."
+  // · "Küvet bozuldu." · "Duman dedektörü bozulmuş." · "Yürüyen merdiven bozuldu."). Çarpışma
+  // taraması (40 tuzak + reponun kendi Türkçe metninden harvest): çekim kapısı türetmeleri
+  // doğru eliyor — kasap · kasaba · kasım · masaj · masal · aynı · aynen · depozito ·
+  // panorama · kuvvet · borç · zilyet · yatakhane · vanilya · havuzlu · saunalı · tezgahtar ·
+  // mangalcı · sensörlü hiçbiri cihaz sayılmıyor.
+  // 🚨 BEŞ KELİME ÖLÇÜLÜP ÇIKARILDI — TÜRKİYE YER ADI / EŞYAZIM (geri ekleme; `fön`→`fon` emsali):
+  //   `kasa`     "Markette kasa bozuldu, yarım saat bekledik."  (market kasası)
+  //   `masa`     "Maşayı kullandık, bozuldu."  (ASCII ş→s) · "Konuyu masaya yatırdık…" (deyim)
+  //   `zil`      "Zile vardık, bozuldu."  (Zile bir ilçe) · "Telefonumun zili bozuldu."
+  //   `küvet`    "Kuvetimiz kalmadı, iyice bozuldu."  (ASCII; "kuvvet"in yaygın yazım hatası)
+  //   `çekmece`  "Çekmece'ye taşındık, sonra bozuldu."  (Çekmece bir ilçe)
+  // Bedeli açık ve KABUL EDİLDİ: kasa/masa/zil/küvet/çekmece bildirimleri KAÇAR ("Küvet
+  // bozuldu." · "Mutfak çekmecesi bozuldu."). `vana` (Van'a) ve `boru` (Bor'u) LİSTEDE KALDI —
+  // onların tek çarpışması kesme birleştirmesiydi ve o ↑`deviceTokens`te kaynağında kapatıldı.
+  // 🚨 `kablo` ve `hoparlör` ÖLÇÜLÜP REDDEDİLDİ (geri ekleme) — `batarya` ile AYNI SINIF:
+  // misafir mesajında baskın okuma MİSAFİRİN KENDİ eşyasıdır ("Telefon şarj kablomuz bozuldu."
+  // · "Bluetooth hoparlörümüz bozuldu." — ikisi de ölçüldü, eklenince complaint oluyordu).
+  // Bedeli açık ve KABUL EDİLDİ: host'un uzatma kablosu / gömülü ses sistemi bildirimi KAÇAR.
+  // ⚠️ Ayrıca ölçülüp reddedilenler (başka ajan, geri ekleme): `fan` (Fanta) · `cam` (cami) ·
+  // `gider` (giderler) · `uydu` (uydum) · `raf` (rafine) · `stor` (store) · `halı` (ASCII
+  // "hali" → halinde/haliyle) · `sigorta` (seyahat sigortası) · `kart` · `kamera` · `alarm` ·
+  // `adaptör` — hepsi cihaz-DIŞI baskın okuma taşıyor.
+  "ampul", "yatak", "yatağ", "koltuk", "koltuğ", "havuz", "kanepe",
+  "sandalye", "evye", "şalter", "hidrofor", "ısıtma", "aydınlatma", "boru",
+  "pompa", "depo", "sauna", "soba", "şömine", "anten", "ayna",
+  "gardırop", "gardırob", "menteşe", "hortum", "süzgeç", "vana", "armatür", "sayaç",
+  "doğalgaz", "pano", "dedektör", "jeneratör", "tezgah", "merdiven", "abajur", "ankastre",
+  "blender", "mikser", "kurutucu", "fritöz", "ızgara", "sensör", "korniş", "mangal",
+  "barbekü", "projeksiyon",
 ];
 
 /**
@@ -1068,8 +1099,29 @@ const WORD_SPLIT = /[^\p{L}\p{N}]+/u;
 // `\u02BC` ve `\u2032` EKLEND\u0130: ikisi de NFKC'den DE\u011E\u0130\u015EMEDEN ge\u00E7iyor (\u00F6l\u00E7\u00FCld\u00FC) ve ger\u00E7ek
 // kesme varyantlar\u0131d\u0131r.
 const APOSTROPHES = /['\u2019\u2018\u02BC\u2032`]/gu;
+
+/**
+ * 🚨 KESME BİRLEŞTİRMESİ YALNIZ SOL PARÇA CİHAZ ADIYSA (8. tur, ÖLÇÜLDÜ) — KOŞULSUZ SİLME
+ * TÜRKİYE YER ADLARINI CİHAZ ADINA ÇEVİRİYORDU.
+ *
+ * 6. tur kesmeyi kelime İÇİNDE koşulsuz siliyordu ("Klima'mız" → "klimamız", 5/5 kaçak
+ * kapandı). Ama Türkçe imlada kesme ÖZEL ADDAN SONRA eki AYIRIR — ortak adda yanlış yazım,
+ * özel adda DOĞRU yazımdır. Koşulsuz silme ikisini aynı kefeye koyuyordu:
+ *   "Van'a giderken bozuldu."   → "vana"      = VANA   → complaint  (Van bir İL)
+ *   "Kaş'a giderken bozuldu."   → ASCII "kasa" = KASA   → complaint  (Kaş yoğun bir belde)
+ *   "Bor'u gezdik, bozuldu."    → "boru"      = BORU   → complaint
+ * "Yolda bozulduk" Türkiye misafir trafiğinin olağan cümlesidir; bu `fön`→`fon` sınıfının
+ * ta kendisi. Düzeltme TEK ŞARTLI: kesmenin SOLUNDAKİ parça zaten bir CİHAZ ADIYSA birleştir
+ * ("Klima'mız" → klima ✓), değilse kesme YERİNDE kalır ve `WORD_SPLIT` onu sınır sayar.
+ * Yön yalnız ELEMEDİR: cihaz olmayan hiçbir önek artık cihaza dönüşemez.
+ */
+const APOSTROPHE_IN_WORD = /([\p{L}\p{N}]+)['\u2019\u2018\u02BC\u2032`](?=[\p{L}\p{N}])/gu;
+
 function deviceTokens(cand: string): string[] {
-  return cand.replace(APOSTROPHES, "").split(WORD_SPLIT).filter(Boolean);
+  const joined = cand.replace(APOSTROPHE_IN_WORD, (whole, left: string) =>
+    matchesInflectedWord(left, BREAKDOWN_DEVICES) ? left : whole,
+  );
+  return joined.replace(APOSTROPHES, " ").split(WORD_SPLIT).filter(Boolean);
 }
 
 /**

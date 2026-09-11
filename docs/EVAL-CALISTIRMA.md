@@ -1,8 +1,12 @@
 # Gerçek model eval'i — nasıl koşulur
 
-> 🚨 **Bu ortamda (Claude konteyneri) KOŞULAMADI: `OPENAI_API_KEY` yok.** Harness hazır ve tek komutla
-> çalışır; sonuçları koşan kişi paylaşınca `docs/olcum/eval-<tarih>.md` olarak repoya girer.
-> Bu belgede yazan hiçbir sayı "ölçüldü" diye sunulmuyor — henüz ölçülmedi.
+> **09-11: BULUT KONTEYNERİNDE GERÇEK KOŞU BAŞARILI.** Ön koşul ↓`NODE_USE_ENV_PROXY=1`
+> (Node 22'nin fetch'i proxy'yi varsayılan olarak kullanmıyor). Sonuçlar: QR kapsam **8/8** ·
+> eşleştirilmiş retrieval **legacy 7/8 · hibrit 8/8** (ortalama blok 3578 → 740 karakter) ·
+> model kıyası `gpt-5.1` 7/8+16/16 vs `gpt-5.6-luna` 8/8+13/16 (luna'nın üç düşüşü de LEGACY
+> modda; hibrit modda 8/8). 🚨 O koşuda `acknowledgesAbsence` dedektörünün BİTİŞİKLİK kusuru
+> iki modelde de R3'ü haksız yere düşürdü — düzeltildi (`tests/helpers/absence-detector.ts`),
+> **kıyas yeniden koşulmalı.**
 
 ## Neden ayrı
 Mevcut suite'teki QR testleri modeli **mock'lar**: ölçtükleri şey ürünün davranışı (devir mi cevap mı,
@@ -47,6 +51,36 @@ unset OPENAI_API_KEY
 **Ön koşul:** yalnız `npm ci` (bir kez). **Veritabanı GEREKMEZ** ve Windows'ta PostgreSQL kurulu
 olmasına gerek YOKTUR — `npm run eval` ayrı bir yapılandırma kullanır (`vitest.eval.config.ts`).
 Süre: 8 senaryo × ~2-5 sn.
+
+## 🚨 BULUT KONTEYNERİNDE `NODE_USE_ENV_PROXY=1` ŞART (09-11, ölçüldü)
+
+Claude Code'un bulut ortamında koşuyorsan komutların başına bunu ekle:
+
+```
+NODE_USE_ENV_PROXY=1 RUN_REAL_EVAL=1 npm run eval
+```
+
+**Neden:** Node 22'nin `fetch`i (undici) `HTTPS_PROXY` env değişkenini **varsayılan olarak
+ONURLANDIRMAZ** → istek ajan proxy'sini atlayıp doğrudan çıkar → ortamın egress politikası
+403 ile keser. Ölçüldü (aynı anda, aynı konteynerde):
+
+```
+curl  https://api.openai.com/v1/models   → 200
+node -e "fetch('https://api.openai.com/v1/models')" → 403 Host not in allowlist
+node -e "…" NODE_USE_ENV_PROXY=1        → 200
+```
+
+🚨 **Belirtisi yanıltıcıdır:** anahtar doğru yüklenmiş ve `npm run eval` doğru config'i
+kullanmış olsa bile HER senaryo `invalid` döner ("model çağrılamadı (fallback döndü)").
+Harness bunu dürüstçe **"BU KOŞU EKSİK"** diye damgalar — o damgayı gördüğünde ÖNCE bu env
+değişkenini kontrol et, kodda hata arama.
+
+⚠️ **Kimlik iki yoldan gelebilir ve İKİSİ AYNI ŞEY DEĞİL:** (a) ortam değişkeni
+`OPENAI_API_KEY`, (b) environment ayarlarındaki **API credential** (proxy `Authorization`
+başlığını KENDİSİ enjekte eder). Credential varsa env'deki anahtar KULLANILMAZ. Credential'ın
+"Value" alanına gerçek anahtar yerine bir yer tutucu yazılırsa OpenAI onu aynen geri söyler
+(`Incorrect API key provided: …`) — 09-11'de tam bu yaşandı. Prefix zaten `Bearer` olduğu için
+Value'ya yalnız anahtar yazılır.
 
 ## 🚨 `npx vitest run tests/eval` KULLANMA — sessizce atlar
 

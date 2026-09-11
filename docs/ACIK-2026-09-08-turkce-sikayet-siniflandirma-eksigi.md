@@ -610,3 +610,151 @@ Karşı yön korundu: "Dairede bir sorun var." · "Sorunumuz devam ediyor." · "
   sakınca var mı?" · "Hiçbir şey bozuk değil, her şey harika!").
 - 51 cihaz adı daha ölçüldü ve GÜVENLİ çıktı (ampul · yatak+yatağ · koltuk+koltuğ · havuz · zil ·
   kablo · küvet · evye · şalter · hidrofor · boru · pompa · depo …), ayrı tur.
+
+---
+
+## 8. TUR (09-11) — ENVANTERİN KALAN BÜYÜK BOŞLUĞU
+
+7. tur 19 cihaz adı eklemişti; bağımsız bir tamlık taraması **51 aday daha** buldu. İzole
+bildirim cümleleriyle ölçüldü (başka bacağı tetiklemeyecek biçimde yazıldı):
+
+**49/51 kaçıyordu.** Örnekler:
+
+```
+KACAK  general  "Salondaki ampul bozuldu."
+KACAK  general  "Küvet bozuldu."
+KACAK  general  "Mutfak evyesi bozuldu."
+KACAK  general  "Balkon aydınlatması bozuldu."
+KACAK  general  "Duman dedektörü bozulmuş."
+KACAK  general  "Yürüyen merdiven bozuldu."
+KACAK  general  "Hidrofor arızalı."
+KACAK  general  "Elektrik panosu bozuldu."
+```
+
+Zaten kapsanan ikisi: `ankastre fırın` (→ `fırın`) ve bir tanesi başka bir bacaktan.
+
+### Eklenen 47 girdi (44 ad + 3 yumuşama gövdesi)
+
+`ampul · yatak(+**yatağ**) · koltuk(+**koltuğ**) · havuz · kanepe · sandalye · evye · şalter ·
+hidrofor · ısıtma · aydınlatma · boru · pompa · depo · sauna · soba · şömine · anten · ayna ·
+gardırop(+**gardırob**) · menteşe · hortum · süzgeç · vana · armatür · sayaç · doğalgaz · pano ·
+dedektör · jeneratör · tezgah · merdiven · abajur · ankastre · blender · mikser · kurutucu ·
+fritöz · ızgara · sensör · korniş · mangal · barbekü · projeksiyon`
+
+### 🚨 KESME BİRLEŞTİRMESİ TÜRKİYE YER ADLARINI CİHAZ ADINA ÇEVİRİYORDU (6. turun kusuru)
+
+Bağımsız bir ajan ölçtü. 6. tur kesmeyi kelime İÇİNDE **koşulsuz** siliyordu ("Klima'mız" →
+"klimamız"). Ama Türkçe imlada kesme **özel addan sonra eki AYIRIR**:
+
+```
+complaint  "Van'a giderken bozuldu."     -> "vana"        = VANA   (Van bir İL)
+complaint  "Kaş'a giderken bozuldu."     -> ASCII "kasa"  = KASA   (Kaş yoğun bir belde)
+complaint  "Bor'u gezdik, bozuldu."      -> "boru"        = BORU
+```
+
+"Yolda bozulduk" Türkiye misafir trafiğinin **olağan** cümlesidir. Düzeltme TEK ŞARTLI:
+birleştirme yalnız kesmenin **solundaki parça zaten bir CİHAZ ADIYSA** yapılır. 6. turun
+"Klima'mız" kazanımı korundu (iki yönlü test-pinli); yön yalnız **elemedir**.
+
+### 🚨 BEŞ KELİME ÖLÇÜLÜP ÇIKARILDI (`fön`→`fon` emsali)
+
+Bunların çarpışması kesmeden **bağımsız**, düzeltme kurtarmıyor:
+
+| Kelime | Ölçülmüş çarpışma |
+|---|---|
+| `kasa` | "Markette kasa bozuldu, yarım saat bekledik." |
+| `masa` | "Maşayı kullandık, bozuldu." (ASCII ş→s) · "Konuyu masaya yatırdık…" |
+| `zil` | "Zile vardık, bozuldu." (ilçe) · "Telefonumun zili bozuldu." |
+| `küvet` | "Kuvetimiz kalmadı, iyice bozuldu." ("kuvvet" yazım hatası) |
+| `çekmece` | "Çekmece'ye taşındık, sonra bozuldu." (ilçe) |
+
+Bedeli kabul edildi ve pinlendi: "Küvet bozuldu." · "Mutfak çekmecesi bozuldu." · "Masayı açtık,
+bozuldu." artık KAÇIYOR. `vana` ve `boru` listede KALDI.
+
+### ⚠️ SAHİPLİK KÖRLÜĞÜ MİMARİDİR — bu partiye özgü değil
+
+Ajan HEAD'in **mevcut** 16 cihazıyla aynı düşmanca kalıpları ölçtü: **80/80 yanlış pozitif.**
+
+```
+complaint  "Getirdiğimiz kettle bozuldu, sizde var mı acaba?"
+complaint  "Kendi ütümüzü kullandık, bozuldu."
+complaint  "Arabamızın kilidi bozuldu, otoparka çekebilir miyiz?"
+```
+
+Yani "misafirin kendi eşyası" gerekçesi bu partiyi reddetmek için KULLANILAMAZ; kural
+sahiplik/mahal körüdür ve yeni kelimeler bunu **miras alır**. Ayrı tur: *1. çoğul iyelik +
+cihaz-dışı ad* biçimsel kuralı.
+
+### Çarpışma bataryası — 40 tuzak, çekim kapısı hepsini eledi
+
+```
+ok  general  "Kasaptan et aldık ama bozuldu."          (kasa)
+ok  general  "Kasabaya gittik, planımız bozuldu."      (kasa)
+ok  general  "Kasım ayında geliyoruz, programımız bozuldu."
+ok  general  "Masaj randevumuz bozuldu."               (masa)
+ok  general  "Aynı gün rezervasyonumuz bozuldu."       (ayna)
+ok  general  "Aynen öyle, tatilimiz bozuldu."          (ayna)
+ok  general  "Depozito konusu bozuldu mu acaba?"       (depo)
+ok  general  "Panoramik manzara … havamız bozuldu."    (pano)
+ok  general  "Kuvvetimiz kalmadı, planımız bozuldu."   (küvet)
+ok  general  "Borcumuz mu var, hesap bozuldu mu?"      (boru)
+ok  general  "Zilyet meselesi bozuldu."                (zil)
+ok  general  "Tezgahtar çok ilgiliydi ama günümüz bozuldu."
+ok  general  "Havuzlu bir yer arıyorduk, planımız bozuldu."
+ok  general  "Yatakhanede kalmıştık, oradaki düzen bozuldu."
+ok  general  "Vanilyalı dondurma aldık, bozuldu."      (vana)
+ok  general  "Saunalı otelde kalmıştık…"
+ok  general  "Mangalcıya gittik, etler bozuldu."
+ok  general  "Sensörlü çöp kovası arıyorduk…"
+```
+
+🚨 Eleyen şey **ASCII kapısı değil, ÇEKİM DOĞRULAMASIDIR** (`INFLECTION_ONLY`): türetme eki
+(`-cı · -lı · -lu · -hane · -tar · -zito · -rama`) reddediliyor.
+
+### 🚨 `kablo` ve `hoparlör` ÖLÇÜLÜP REDDEDİLDİ — `batarya` sınıfı
+
+| Mesaj | Eklenince |
+|---|---|
+| "Telefon şarj kablomuz bozuldu." | ❌ complaint |
+| "Bluetooth hoparlörümüz bozuldu." | ❌ complaint |
+
+`batarya` kuralı: **nesnenin baskın okuması misafirin kendi eşyasıysa listeye girmez.** "kablo"da
+şarj kablosu, "hoparlör"de bluetooth hoparlör baskın. Bedeli açık ve KABUL EDİLDİ + pinlendi:
+
+```
+KACAK  general  "Uzatma kablosu bozuldu."   (host'un uzatma kablosu)
+KACAK  general  "Hoparlör bozuldu."          (gömülü ses sistemi)
+```
+
+### Bilinen sınır (yeni DEĞİL, her cihaz adı için geçerli)
+
+AÇIK sahiplik işareti taşıyan misafir eşyası hâlâ complaint sayılıyor ("Getirdiğimiz kamp masası
+bozuldu." · "Kendi blenderımız bozuldu"). Bu sınıf 1. turdan beri ölçülü ("Kahve makinemizin suyu
+akmıyor") ve YENİ bir mekanizma değil; yön GÜVENLİ (fazla eskalasyon).
+
+### Ölçülüp reddedilen diğer adaylar (geri ekleme)
+
+`fan` (Fanta) · `cam` (cami) · `gider` (giderler) · `uydu` (uydum) · `raf` (rafine) · `stor`
+(store) · `halı` (ASCII "hali" → halinde/haliyle) · `sigorta` (seyahat sigortası) · `kart` ·
+`kamera` · `alarm` · `adaptör` — hepsi cihaz-DIŞI baskın okuma taşıyor.
+
+### Kanıt
+
+Kırmızı-önce **4 blok** (kaynak stash'lendi) · **mutasyon 25/25** (kaldırma 8 · aşırı uygulama 9 ·
+kesme iki yönlü 2 · önceki tur kapsamı 6) · tam kapılar yeşil.
+
+### 🚨 İZAFET ÇAPASI ÖLÇÜLDÜ ve REDDEDİLDİ (ayrı ajan — tekrar tasarlanmasın)
+
+7. turda "doğru çözüm" diye bırakılan çapa kuralı 106 mesajlık korpusta ölçüldü:
+
+| | HEAD | (A) daire-DIŞI dışlama | (B) daire-İÇİ içerme |
+|---|---|---|---|
+| bilgi sorusu yanlış pozitifi (27) | 27 | 13 | **2** |
+| 🚨 gerçek bildirime OTO-GÖNDERİM İZNİ (85) | **0** | 7 | 18 |
+| ilan-adı kaybı (15) | **0** | 1 | 7 |
+
+Dört ret gerekçesi: ① ayrım sözcüksel değil (aynı cümle havuzlu mülkte bildirim, havuzsuzda soru);
+② çapa çoğu zaman tamlama zincirinin ara halkası, zinciri yürümek ilan adlarını yiyor (8/15);
+③ Türkiye ilan adları tam bu sözcüklerden kurulur (Deniz Apart · Park Evleri · Marina Sokak);
+④ dosyanın kendi kuralıyla çelişir — 8. tur `havuz`u cihaz yaptı, çapa onu tesis sayıyor.
+Dar varyant A′'nın güvenliği bilinen bir BUG'a (`açıl`→`acil`, iş #51) dayanıyor.

@@ -7,6 +7,7 @@ import { suggestReply } from "@/lib/ai";
 import type { SuggestReplyInput } from "@/lib/ai/types";
 import { placeholderMentions, placeholderVerdict, unverifiedActionClaims, type PlaceholderVerdict } from "../helpers/claim-detectors";
 import { writeSidecar } from "./sidecar";
+import { ABSENCE_CONTRACT_NOTE, acknowledgesAbsence } from "../helpers/absence-detector";
 
 // ---------------------------------------------------------------------------
 // GERÇEK MODEL EVAL'İ (kurucu şartı: mock testleri gerçek eval'den AYIR).
@@ -68,8 +69,6 @@ interface Scenario {
   };
 }
 
-/** Bilgi yokluğunu söyleyen kalıplar (Türkçe; küçük harfe indirilmiş metinde aranır). */
-const ACK_ABSENCE = ["bilgim yok", "bilgi yok", "kayıtlı bilgi", "bilgim bulunmuyor", "kayıt yok", "bilgiye sahip değilim"];
 
 const DATASET = path.resolve(__dirname, "../../evals/qr-kb-coverage.json");
 const suite = JSON.parse(readFileSync(DATASET, "utf8")) as { name: string; version: number; scenarios: Scenario[] };
@@ -162,8 +161,10 @@ function check(s: Scenario, r: Awaited<ReturnType<typeof suggestReply>>): string
     if (claims.length > 0) fails.push(`makbuzsuz eylem/söz: ${claims.join(", ")}`);
   }
   if (e.acknowledgesAbsence) {
-    if (!ACK_ABSENCE.some((w) => reply.includes(w))) {
-      fails.push(`bilgi yokluğunu SÖYLEMİYOR (beklenen kalıplardan biri: ${ACK_ABSENCE.join(" | ")})`);
+    // 🚨 TEK KAYNAK (09-11): bu liste burada TÜRKÇE-ONLY idi, kardeş harness'ta ise
+    // İngilizce de vardı — iki kopya, biri bayat. `tests/helpers/absence-detector.ts`.
+    if (!acknowledgesAbsence(r.reply ?? "")) {
+      fails.push(`bilgi yokluğunu SÖYLEMİYOR (${ABSENCE_CONTRACT_NOTE})`);
     }
     if (/\d/.test(r.reply ?? "")) fails.push("kaynaksız cevapta RAKAM var (uydurma şüphesi)");
   }

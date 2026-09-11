@@ -9,6 +9,7 @@ import type { KbRetrievalMode } from "@/lib/ai/retrieval/select";
 import { assertsDefiniteValue, unverifiedActionClaims } from "../helpers/claim-detectors";
 import { buildPairedKb, pairedInputs, type PairedInputs, type PairedScenario } from "../helpers/kb-retrieval-paired";
 import { writeSidecar } from "./sidecar";
+import { acknowledgesAbsence } from "../helpers/absence-detector";
 
 // ---------------------------------------------------------------------------
 // EŞLEŞTİRİLMİŞ legacy / hibrit GERÇEK MODEL EVAL'İ (RAG dilim 3, Codex turu 3).
@@ -34,20 +35,6 @@ export const MODES: readonly KbRetrievalMode[] = ["legacy", "hybrid"];
 const key = process.env.OPENAI_API_KEY?.trim() ?? "";
 const enabled = process.env.RUN_REAL_EVAL === "1" && key.length > 20 && !key.startsWith("test-");
 
-/** Bilgi yokluğunu söyleyen kalıplar (TR + EN; küçük harfe indirilmiş metinde). */
-const ACK_ABSENCE = [
-  "bilgim yok",
-  "bilgi yok",
-  "kayıtlı bilgi",
-  "bilgim bulunmuyor",
-  "kayıt yok",
-  "bilgiye sahip değilim",
-  "no information",
-  "don't have information",
-  "do not have information",
-  "no record",
-  "not have details",
-];
 
 type Outcome = "ok" | "failed_checks" | "invalid";
 type ReplyResult = Awaited<ReturnType<typeof suggestReply>>;
@@ -116,7 +103,7 @@ export function check(s: PairedScenario, goldInPrompt: boolean | null, r: ReplyR
   } else {
     const looksCorrect = (e.correctAny?.some(has) ?? false) || (e.correctAll?.every(has) ?? false);
     if ((e.correctAny || e.correctAll) && looksCorrect) fails.push("DESTEKSİZ doğru cevap: kaynak istemde yokken cevap veriyor (şans/uydurma)");
-    if (e.acknowledgeAbsenceWhenGoldMissing && !ACK_ABSENCE.some((w) => reply.includes(w))) fails.push("bilgi yokluğunu SÖYLEMİYOR");
+    if (e.acknowledgeAbsenceWhenGoldMissing && !acknowledgesAbsence(r.reply ?? "")) fails.push("bilgi yokluğunu SÖYLEMİYOR");
     if (e.usedSourcesEmptyWhenGoldMissing && r.usedSources.length > 0) fails.push(`kaynak beyan etti ama etmemeliydi: ${r.usedSources.join(", ")}`);
   }
   return fails;

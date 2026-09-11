@@ -848,6 +848,55 @@ Sekiz P1 KAPANDI (09-07), her biri ayrı commit, kırmızı-önce + iki yönlü 
   yorumu ("'Misafir Ahmet' KORUNUR") KODLA ÇELİŞİYORDU, dosyanın kendi testi tersini pinliyor → düzeltildi.
   Kanıt: kırmızı-önce 9 blok + **mutasyon 21/23**; kalan ikisi ÖLÇÜLMÜŞ EŞDEĞER MUTANT ve ikisi de bir iddiayı KANITLIYOR
   (U+00B4'ün geri konması davranışı değiştirmiyor = "ölü girdi"; sol-sayaç kontrolünü etiketli yola eklemek ULAŞILAMAZ).
+- **SEKİZİNCİ TUR (09-11, İKİ ölçümlü ajan) — ENVANTERİN KALAN BÜYÜK BOŞLUĞU + BİR KESME KUSURU.**
+  51 aday İZOLE bildirim cümlesiyle ölçüldü: **49'u kaçıyordu** ve kapı oto-gönderim izni veriyordu
+  ("Salondaki ampul bozuldu." · "Mutfak evyesi bozuldu." · "Duman dedektörü bozulmuş." · "Yürüyen
+  merdiven bozuldu." · "Hidrofor arızalı." · "Elektrik panosu bozuldu."). **47 girdi eklendi**
+  (44 ad + 3 yumuşama gövdesi `yatağ`/`koltuğ`/`gardırob`); liste 145 girdiye çıktı.
+  🚨 **KESME BİRLEŞTİRMESİ TÜRKİYE YER ADLARINI CİHAZ ADINA ÇEVİRİYORDU** (6. turun kendi kusuru,
+  bağımsız ajan ölçtü): kesme kelime İÇİNDE KOŞULSUZ siliniyordu, oysa Türkçe imlada kesme ÖZEL
+  ADDAN SONRA eki AYIRIR — **"Van'a giderken bozuldu." → `vana` = VANA → complaint** (Van bir İL);
+  **"Kaş'a giderken bozuldu." → ASCII `kasa`** (Kaş yoğun bir kiralama beldesi); "Bor'u gezdik,
+  bozuldu." → `boru`. "Yolda bozulduk" Türkiye misafir trafiğinin OLAĞAN cümlesidir. Düzeltme TEK
+  ŞARTLI: birleştirme yalnız kesmenin SOLUNDAKİ parça zaten bir CİHAZ ADIYSA yapılır — 6. turun
+  "Klima'mız" kazanımı KORUNDU (test-pinli, iki yönlü), yön yalnız ELEMEDİR.
+  🚨 **BEŞ KELİME ÖLÇÜLÜP ÇIKARILDI** (geri ekleme; `fön`→`fon` emsali, çarpışma kesmeden BAĞIMSIZ):
+  `kasa` ("Markette kasa bozuldu") · `masa` ("Maşayı kullandık" ASCII ş→s; "masaya yatırmak" deyimi) ·
+  `zil` ("Zile vardık" ilçe; "Telefonumun zili") · `küvet` ("Kuvetimiz kalmadı" — "kuvvet" yazım
+  hatası) · `çekmece` ("Çekmece'ye taşındık" ilçe). Bedeli kabul edildi ve pinlendi: bu beşin gerçek
+  bildirimleri KAÇAR. `vana` ve `boru` LİSTEDE KALDI — tek çarpışmaları kesmeydi, kaynağında kapandı.
+  🚨 **`kablo` ve `hoparlör` de REDDEDİLDİ** — `batarya` ile aynı sınıf (baskın okuma misafirin kendi
+  eşyası: "Telefon şarj kablomuz" · "Bluetooth hoparlörümüz"); bedeli: host'un uzatma kablosu / gömülü
+  ses sistemi bildirimi kaçar. Başka ajanın ölçüp reddettikleri: `fan` (Fanta) · `cam` (cami) · `gider` ·
+  `uydu` (uydum) · `raf` (rafine) · `stor` (store) · `halı` (ASCII "hali") · `sigorta` · `kart` ·
+  `kamera` · `alarm` · `adaptör`.
+  ⚠️ **SAHİPLİK KÖRLÜĞÜ MİMARİDİR, bu partiye ÖZGÜ DEĞİL** (ajan ölçtü): HEAD'in MEVCUT 16 cihazı da
+  aynı kalıplarda **80/80** yanlış pozitif veriyor ("Getirdiğimiz kettle bozuldu." · "Arabamızın kilidi
+  bozuldu."). Yeni kelimeler bu körlüğü MİRAS ALIR, açmaz. Ayrı tur: *1. çoğul iyelik + cihaz-dışı ad*
+  biçimsel kuralı.
+  Kanıt: kırmızı-önce 4 blok + **mutasyon 25/25** (kaldırma 8 · aşırı uygulama 9 · kesme iki yönlü 2 ·
+  önceki tur kapsamı 6).
+- 🚨 **İZAFET ÇAPASI ÖLÇÜLDÜ ve REDDEDİLDİ (8. tur, ayrı ajan — tekrar tasarlanmasın).**
+  `POSSESSIVE_FACILITY_COMPLAINTS`in çapasızlığı için iki tasarım 106 mesajlık korpusta ölçüldü
+  (48 gerçek bildirim · 27 bilgi sorusu · 22 sınırda · 15 ilan-adı tuzağı):
+
+  | | HEAD | (A) daire-DIŞI dışlama | (B) daire-İÇİ içerme |
+  |---|---|---|---|
+  | bilgi sorusu yanlış pozitifi (27) | 27 | 13 | **2** |
+  | 🚨 gerçek bildirime OTO-GÖNDERİM İZNİ (85) | **0** | 7 | 18 |
+  | ilan-adı kaybı (15) | **0** | 1 | 7 |
+
+  Dört ölçülmüş ret gerekçesi: ① ayrım SÖZCÜKSEL DEĞİL — "Havuzun suyu akmıyor" havuzlu mülkte host'un
+  işi, havuzsuz mülkte bilgi sorusu; karar ancak mülkün olanak listesiyle verilir, `fallback.ts` ise
+  saf/DB'siz (pin). ② çapa çoğu zaman tamlama zincirinin ARA HALKASI ("Sitenin havuzunun suyu");
+  zinciri yürümeden yanlış pozitiflerin yarısı kapanmıyor, yürüyünce **ilan adları düşüyor (8/15)**
+  ("Park Evleri'ndeki dairenin musluğu akmıyor" → oto-gönderilir). ③ Türkiye'de kısa dönem kiralama
+  ilan adları TAM BU SÖZCÜKLERDEN kurulur (Deniz Apart · Park Evleri · Sahil Residence · Marina Sokak ·
+  Göl Villa) — dışlama listesi = en yaygın ilan-adı belirteçleri listesi. ④ **dosyanın kendi kuralıyla
+  çelişir:** 8. tur `havuz`u `BREAKDOWN_DEVICES`e ekledi; A ile "Havuz bozuldu." complaint ama "Havuzun
+  suyu akmıyor." general — aynı nesne hakkında iki karşıt hüküm. 🚨 Dar varyant (A′) tek "0 oto-gönderim"
+  seçeneğiydi ama güvenliği BİLİNEN BİR BUG'a dayanıyor (`açıl`→`acil` ASCII çarpışması, iş #51) — o bug
+  düzeltilince üç bildirim sessizce oto-gönderime açılır. **YÖN KURALI HEAD'i kazandırdı.**
 - **Eval MODEL KIYASI altyapısı (09-11, ücretli servis ÇAĞRILMADI):** `tests/eval/sidecar.ts` her koşunun yanına aynı
   kökle makine-okunur JSON yazar (`.md` → `.json`) ve iki yolu stdout'a basar; `scripts/eval-compare-models.mjs` her
   modeli AYRI SÜREÇTE koşup yan yana rapor üretir. 🚨 Markdown PARSE EDİLMEZ (rapor metni her turda değişiyor, bir tablo
