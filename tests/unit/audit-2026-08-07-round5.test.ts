@@ -42,10 +42,10 @@ describe("🚨 ŞABLON YER TUTUCUSU — misafir adı KB sırrını enjekte edeme
     return body.replace(/\{\{[^}]+\}\}/g, "").replace(/\n{3,}/g, "\n\n").trim();
   }
 
-  const SECRET = "SSID: Nuve3_5G / Sifre: Yaz2026! - Kapi kodu: 4590";
+  const SECRET = "SSID: Lale3_5G / Sifre: Yaz2026! - Kapi kodu: 4590";
   const vars = (guestName: string) => ({
     guestName,
-    propertyName: "Nuve 3",
+    propertyName: "Lale 3",
     checkInTime: "15:00",
     checkOutTime: "11:00",
     wifiInfo: SECRET,
@@ -64,7 +64,7 @@ describe("🚨 ŞABLON YER TUTUCUSU — misafir adı KB sırrını enjekte edeme
 
   it("ters yön: MEŞRU ikame hâlâ çalışıyor (aşırı kısıtlamadım)", () => {
     const out = applyTemplate("Merhaba {{guestName}}, {{propertyName}} girişiniz {{checkInTime}}.", vars("Ahmet"));
-    expect(out).toBe("Merhaba Ahmet, Nuve 3 girişiniz 15:00.");
+    expect(out).toBe("Merhaba Ahmet, Lale 3 girişiniz 15:00.");
     // Wifi yer tutucusu AÇIKÇA yazılmışsa host onu görmek İSTİYOR demektir.
     expect(applyTemplate("Wifi: {{wifiInfo}}", vars("Ahmet"))).toContain("4590");
     // `{isim}` meşru kullanımı korunuyor.
@@ -76,21 +76,34 @@ describe("🚨 ŞABLON YER TUTUCUSU — misafir adı KB sırrını enjekte edeme
   });
 
   it("kaynak TEK GEÇİŞ kullanıyor — sıralı split/join'e dönerse KIRMIZI", () => {
-    const src = codeOnly(read("src/components/inbox/conversation-thread.tsx"));
+    // 🚨 KURAL TAŞINDI, PİN DE TAŞINDI (09-11): ikame mantığı artık saf modülde
+    // (`src/lib/template-apply.ts`); bileşen yalnız `applyTemplateBody`yi çağırıyor.
+    // Bu KAYNAK taraması artık kuralın YEDEĞİDİR — ASIL kanıt davranışsaldır
+    // (`tests/unit/template-apply.test.ts`: "misafir adı {{wifiInfo}} ise wifi
+    // kalemi SIZMAZ" + "misafir adı {daire} ise daire numarası ÜRETİLMEZ").
+    const src = codeOnly(read("src/lib/template-apply.ts"));
     // ⚠️ ÇAPA KORUYUCUSU — `slice(indexOf(a), indexOf(b))` bulunamayan çapada
     // (-1) ya da TERS aralıkta SESSİZCE "" döndürür ve pin bir no-op'a dönüşür.
     // Bu testi yazarken tam olarak o oldu (bitiş çapası dosyada DAHA ÖNCE
     // geçiyordu). Aralığın gerçekten bulunduğunu ASSERTE et.
-    const from = src.indexOf("function applyTemplate");
-    const to = src.indexOf("\n  }", from);
-    expect(from, "applyTemplate çapası bulunamadı — pin no-op olurdu").toBeGreaterThan(-1);
+    const from = src.indexOf("export function applyTemplateBody");
+    const to = src.indexOf("\n}", from);
+    expect(from, "applyTemplateBody çapası bulunamadı — pin no-op olurdu").toBeGreaterThan(-1);
     expect(to, "fonksiyon sonu bulunamadı").toBeGreaterThan(from);
     const fn = src.slice(from, to);
     expect(fn.length, "aralık boş — pin no-op olurdu").toBeGreaterThan(200);
-    expect(fn).toContain("body.replace(/\\{\\{(\\w+)\\}\\}|\\{(isim|ad)\\}/g");
+    // TEK `replace` çağrısı TEK bir birleşik kalıpla (çift parantez + tek parantez).
+    expect(fn).toContain("out.replace(TOKENS,");
+    expect(codeOnly(read("src/lib/template-apply.ts"))).toContain(
+      "const TOKENS = /\\{\\{(\\w+)\\}\\}|\\{\\s*(\\p{L}+)\\s*\\}/gu;",
+    );
     // Yeniden-tarama yapan eski biçim: her anahtar için ayrı split/join.
     expect(fn).not.toMatch(/for \(const \[key, value\] of Object\.entries/);
-    expect(fn).not.toMatch(/body\.split\(`\{\{\$\{key\}\}\}`\)/);
+    expect(fn).not.toMatch(/\.split\(`\{\{\$\{key\}\}\}`\)/);
+    // Bileşen kendi ikamesini YAPMAZ — kural tek yerde yaşar.
+    const component = codeOnly(read("src/components/inbox/conversation-thread.tsx"));
+    expect(component).toContain("applyTemplateBody(t.body, templateVars)");
+    expect(component, "bileşen yeniden kendi ikamesini kurmuş").not.toMatch(/body\.replace\(\/\\\{\\\{/);
   });
 });
 

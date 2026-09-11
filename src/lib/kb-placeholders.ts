@@ -126,8 +126,8 @@ function foldedForms(s: string): string[] {
  * kalması, anlamsız bir ikameden iyidir (modülün kendi kuralı).
  *
  * 🚨 "SON SAYI" KURALI YANLIŞ CEVAP ÜRETİYORDU (inceleme 09-10, ölçüldü): Türkiye ilan
- * adlarında "2+1", "3+1", "2. kat" normdur → "Nuve 3 | 2+1 Deniz Manzaralı" → **"1"**,
- * "Daire 5 - 2 Yatak Odalı" → **"2"**, "Nuve 12 (2. kat)" → **"2"**. Misafire YANLIŞ
+ * adlarında "2+1", "3+1", "2. kat" normdur → "Lale 3 | 2+1 Deniz Manzaralı" → **"1"**,
+ * "Daire 5 - 2 Yatak Odalı" → **"2"**, "Lale 12 (2. kat)" → **"2"**. Misafire YANLIŞ
  * daire numarası söyleniyor ve hiçbir sinyal üretilmiyordu. Belirsizde susmak, uydurmaktan
  * iyidir (`null` → çağıran belirteci dokunulmadan bırakır).
  *
@@ -184,7 +184,7 @@ function precededByCounter(form: string, upto: number): boolean {
 export function apartmentNumberOf(propertyName: string): string | null {
   // 🚨 SAYAÇ ve HANE kuralları ETİKETLİ yolda da çalışır (inceleme turu 6, ÖLÇÜLDÜ): eskiden
   // etiket eşleşince ANINDA dönülüyordu, yani "Sahilde Daire 6 Kişilik" → "6" (kapasite) ve
-  // "Nuve Rezidans No 2024" → "2024" (yıl) misafire UYDURMA numara olarak gidiyordu. Aynı adın
+  // "Lale Rezidans No 2024" → "2024" (yıl) misafire UYDURMA numara olarak gidiyordu. Aynı adın
   // etiketsiz hâli doğru davranıyordu — ölçülen asimetri. Hane sınırı yalnız ZAYIF etikette
   // ("no/#" bina numarası da olabilir); GÜÇLÜ etikette ("Daire 1203") host niyeti açıktır.
   for (const [label, weak] of [[APARTMENT_STRONG_LABEL, false], [APARTMENT_WEAK_LABEL, true]] as const) {
@@ -238,15 +238,30 @@ export interface GuestPlaceholderValues {
 export function fillGuestPlaceholders(text: string, values: GuestPlaceholderValues): string {
   const { guestFirstName, propertyName } = values;
   if (guestFirstName === undefined && propertyName === undefined) return text;
-  const apt = propertyName === undefined ? null : apartmentNumberOf(propertyName);
-  return text.replace(new RegExp(TOKEN.source, "gu"), (whole, key: string) => {
-    const kind = keyKind(key);
-    if (kind === "name" && guestFirstName !== undefined) return guestFirstName;
-    if (kind === "apartment" && apt !== null) return apt;
-    // Tanınmayan belirteç ("{kod}"), değeri verilmeyen sınıf VE belirsiz daire numarası
-    // (mülk adında birden çok sayı) DOKUNULMAZ — yanlış numara söylemektense belirteç kalsın.
-    return whole;
-  });
+  return text.replace(
+    new RegExp(TOKEN.source, "gu"),
+    (whole, key: string) => resolveGuestPlaceholder(key, values) ?? whole,
+  );
+}
+
+/**
+ * TEK bir `{…}` anahtarının karşılığı — çözülemiyorsa `null` (belirteç DOKUNULMAZ):
+ * tanınmayan belirteç ("{kod}"), değeri verilmeyen sınıf VE belirsiz daire numarası
+ * (mülk adında birden çok sayı). Yanlış numara söylemektense belirteç kalsın.
+ *
+ * 🚨 Neden AYRI export: inbox'ın şablon uygulama yolu `{{çiftParantez}}` sınıfını
+ * KENDİ tek geçişinde çözmek ZORUNDA — ikame edilen metin bir daha TARANMAZ, çünkü
+ * `{{guestName}}` değeri misafirin kontrolündedir (sağlayıcıdaki görünen ad) ve
+ * ikinci bir tarama o değerin içinden YENİ belirteç uydurabilirdi. O yol bu modülün
+ * `fillGuestPlaceholders`'ını ikinci bir geçiş olarak çağıramaz; anahtar çözümünü
+ * buradan alır, geçişi kendi yapar. Kural yine TEK YERDE yaşar.
+ */
+export function resolveGuestPlaceholder(key: string, values: GuestPlaceholderValues): string | null {
+  const { guestFirstName, propertyName } = values;
+  const kind = keyKind(key);
+  if (kind === "name" && guestFirstName !== undefined) return guestFirstName;
+  if (kind === "apartment" && propertyName !== undefined) return apartmentNumberOf(propertyName);
+  return null;
 }
 
 /** Bir KB kalemi listesinin içeriğini toplu çözer (kalemin diğer alanları AYNEN kalır). */

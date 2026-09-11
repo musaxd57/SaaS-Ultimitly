@@ -10,6 +10,7 @@ vi.mock("@/lib/api", async (orig) => {
 });
 
 import { GET } from "@/app/api/kb/suggestions/route";
+import { DEFAULT_TEMPLATES } from "@/lib/templates";
 
 // ---------------------------------------------------------------------------
 // KNOWLEDGE HUB BACAK B — OKUMA ROTASI (uçtan uca, GERÇEK DB).
@@ -77,6 +78,13 @@ async function writeTurn(
 
 const body = async (r: Response) => (await r.json()) as {
   suggestions: { propertyId: string; propertyName: string | null; category: string; answer: string; occurrences: number }[];
+  fromTemplates: {
+    propertyId: string;
+    propertyName: string | null;
+    category: string;
+    content: string;
+    fromOrgWide: boolean;
+  }[];
   scanned: number;
   capped: boolean;
 };
@@ -88,16 +96,16 @@ describe("GET /api/kb/suggestions — Bacak B okuma rotası", () => {
   });
 
   it("host iki kez cevaplamışsa ÖNERİ döner, mülk adıyla", async () => {
-    const a = await seedOrg("Nuve 1");
+    const a = await seedOrg("Lale 1");
     session = { userId: a.userId, organizationId: a.orgId, role: "owner", email: "a@x.com", name: "O", sessionEpoch: 0 };
-    await writeTurn(a.propertyId, "Wifi şifresi nedir?", "Ağ NuveApt, şifre 12345678.");
+    await writeTurn(a.propertyId, "Wifi şifresi nedir?", "Ağ LaleApt, şifre 12345678.");
     await writeTurn(a.propertyId, "wifi parolası ne acaba", "Şifre 12345678.");
 
     const out = await body(await GET(req(), ctx));
     expect(out.suggestions).toHaveLength(1);
     expect(out.suggestions[0].category).toBe("wifi");
     expect(out.suggestions[0].occurrences).toBe(2);
-    expect(out.suggestions[0].propertyName).toBe("Nuve 1");
+    expect(out.suggestions[0].propertyName).toBe("Lale 1");
     expect(out.suggestions[0].answer).toContain("12345678");
   });
 
@@ -119,7 +127,7 @@ describe("GET /api/kb/suggestions — Bacak B okuma rotası", () => {
   });
 
   it("🚨 KENDİ AI ÇIKTIMIZ öneri üretmez (gerçek DB satırlarıyla)", async () => {
-    const a = await seedOrg("Nuve 2");
+    const a = await seedOrg("Lale 2");
     session = { userId: a.userId, organizationId: a.orgId, role: "owner", email: "a@x.com", name: "O", sessionEpoch: 0 };
     await writeTurn(a.propertyId, "Wifi şifresi nedir?", "Şifre AAA.", { senderName: "Lixus AI" });
     await writeTurn(a.propertyId, "wifi parolası ne acaba", "Şifre AAA.", { senderName: "GuestOps AI" });
@@ -131,7 +139,7 @@ describe("GET /api/kb/suggestions — Bacak B okuma rotası", () => {
   });
 
   it("'sorunlu' konuşma öneriye girmez (gerçek DB durumu)", async () => {
-    const a = await seedOrg("Nuve 3");
+    const a = await seedOrg("Lale 3");
     session = { userId: a.userId, organizationId: a.orgId, role: "owner", email: "a@x.com", name: "O", sessionEpoch: 0 };
     await writeTurn(a.propertyId, "Wifi şifresi nedir?", "Şifre İYİ-CEVAP.");
     await writeTurn(a.propertyId, "wifi parolası ne acaba", "Modem arızalı, kusura bakmayın.", { status: "problem" });
@@ -142,9 +150,9 @@ describe("GET /api/kb/suggestions — Bacak B okuma rotası", () => {
   });
 
   it("propertyId filtresi çalışır ve KAPSAM DIŞINA çıkmaz", async () => {
-    const a = await seedOrg("Nuve 4");
+    const a = await seedOrg("Lale 4");
     const other = await prisma.property.create({
-      data: { organizationId: a.orgId, name: "Nuve 5", checkInTime: "15:00", checkOutTime: "11:00" },
+      data: { organizationId: a.orgId, name: "Lale 5", checkInTime: "15:00", checkOutTime: "11:00" },
     });
     session = { userId: a.userId, organizationId: a.orgId, role: "owner", email: "a@x.com", name: "O", sessionEpoch: 0 };
     await writeTurn(a.propertyId, "Wifi şifresi nedir?", "P4 şifresi AAA.");
@@ -161,7 +169,7 @@ describe("GET /api/kb/suggestions — Bacak B okuma rotası", () => {
   });
 
   it("🚨 SALT OKUMA: rota hiçbir KB kalemi ya da mesaj YAZMAZ", async () => {
-    const a = await seedOrg("Nuve 6");
+    const a = await seedOrg("Lale 6");
     session = { userId: a.userId, organizationId: a.orgId, role: "owner", email: "a@x.com", name: "O", sessionEpoch: 0 };
     await writeTurn(a.propertyId, "Wifi şifresi nedir?", "Şifre AAA.");
     await writeTurn(a.propertyId, "wifi parolası ne acaba", "Şifre AAA.");
@@ -179,8 +187,126 @@ describe("GET /api/kb/suggestions — Bacak B okuma rotası", () => {
     }).toEqual(before);
   });
 
+  it("🚨 ŞABLON KAYNAĞI: host'un yazdığı Wi-Fi şablonu öneri olur", async () => {
+    // Kurucu kararı 09-11: "AI'yı boş bilgiyle açtırma" KAPISI REDDEDİLDİ;
+    // doğrusu bilgiyi host'un ZATEN yazdığı yerden bulmak. Şablon misafire aynen
+    // gider ama MODELDEN HİÇ GEÇMEZ — bu yol o boşluğu kapatır.
+    const a = await seedOrg("Lale 8");
+    session = { userId: a.userId, organizationId: a.orgId, role: "owner", email: "a@x.com", name: "O", sessionEpoch: 0 };
+    await prisma.messageTemplate.create({
+      data: {
+        organizationId: a.orgId,
+        propertyId: a.propertyId,
+        category: "wifi",
+        title: "Wi-Fi bilgisi",
+        body: "Ağ adı LaleApt, şifre 12345678. Modem salonda.",
+      },
+    });
+
+    const out = await body(await GET(req(), ctx));
+    expect(out.fromTemplates).toHaveLength(1);
+    expect(out.fromTemplates[0]).toMatchObject({ propertyId: a.propertyId, category: "wifi", fromOrgWide: false });
+    expect(out.fromTemplates[0].content).toContain("12345678");
+  });
+
+  it("🚨 VARSAYILAN ŞABLONLAR ÖNERİLMEZ — DB'ye SEED EDİLSE BİLE", async () => {
+    // İki ayrı savunma var ve ikincisi de ÖLÇÜLÜR:
+    //  ① `DEFAULT_TEMPLATES` KODDA sabittir, okuma anında birleştirilir; rota
+    //    `prisma.messageTemplate` okur, yani normalde hiç görmez.
+    //  ② Biri onları DB'ye seed etse bile HEPSİ `{{…}}` iskelesidir ve bacak
+    //    reddeder. (Eski hâlinde bu testin ilk iddiası `resetDb` sonrası satır
+    //    sayısıydı — FİKSTÜRÜ ölçüyordu, kuralı değil.)
+    const a = await seedOrg("Lale 10");
+    session = { userId: a.userId, organizationId: a.orgId, role: "owner", email: "a@x.com", name: "O", sessionEpoch: 0 };
+
+    const allowlisted = DEFAULT_TEMPLATES.filter((t) => t.category === "wifi" || t.category === "rules");
+    expect(allowlisted.length, "allowlist kategorisinde varsayılan yoksa ölçüm boş").toBeGreaterThan(0);
+    await prisma.messageTemplate.createMany({
+      data: allowlisted.map((t) => ({
+        organizationId: a.orgId,
+        propertyId: a.propertyId,
+        category: t.category,
+        title: t.title,
+        body: t.body,
+        language: t.language,
+      })),
+    });
+
+    const out = await body(await GET(req(), ctx));
+    expect(out.fromTemplates, "varsayılan iskele öneriye sızdı").toEqual([]);
+    expect(JSON.stringify(out), "{{wifiInfo}} gibi işaretçiler öneriye giremez").not.toContain("{{");
+  });
+
+  it("🚨 ONAYSIZ TASLAK kategoriyi DOLU göstermez (asistan onu okuyamaz)", async () => {
+    const a = await seedOrg("Lale 11");
+    session = { userId: a.userId, organizationId: a.orgId, role: "owner", email: "a@x.com", name: "O", sessionEpoch: 0 };
+    await prisma.knowledgeBaseItem.create({
+      data: { propertyId: a.propertyId, category: "wifi", title: "Taslak", content: "Henüz onaysız.", reviewState: "draft" },
+    });
+    await prisma.messageTemplate.create({
+      data: { organizationId: a.orgId, propertyId: a.propertyId, category: "wifi", title: "Wi-Fi", body: "Ağ LaleApt, şifre 12345678." },
+    });
+
+    const out = await body(await GET(req(), ctx));
+    expect(out.fromTemplates, "taslak boşluğu kapatmış sayıldı").toHaveLength(1);
+  });
+
+  it("🚨 propertyId filtresi ŞABLON bacağında da geçerli (org geneli hariç)", async () => {
+    const a = await seedOrg("Lale 12");
+    const other = await prisma.property.create({
+      data: { organizationId: a.orgId, name: "Lale 13", checkInTime: "15:00", checkOutTime: "11:00" },
+    });
+    session = { userId: a.userId, organizationId: a.orgId, role: "owner", email: "a@x.com", name: "O", sessionEpoch: 0 };
+    await prisma.messageTemplate.create({
+      data: { organizationId: a.orgId, propertyId: a.propertyId, category: "wifi", title: "Wi-Fi", body: "BIRINCI-MULK-SIFRESI-1111" },
+    });
+    await prisma.messageTemplate.create({
+      data: { organizationId: a.orgId, propertyId: null, category: "rules", title: "Kurallar", body: "Sigara içilmez, evcil hayvan kabul edilmez." },
+    });
+
+    const only = await body(await GET(req(`?propertyId=${other.id}`), ctx));
+    expect(JSON.stringify(only), "başka mülkün şablonu sızdı").not.toContain("BIRINCI-MULK");
+    expect(
+      only.fromTemplates.map((s: { propertyId: string; category: string }) => `${s.propertyId}|${s.category}`),
+      "org geneli şablon seçili mülke önerilmeli",
+    ).toEqual([`${other.id}|rules`]);
+  });
+
+  it("🚨 KİRACI İZOLASYONU şablon bacağında da geçerli", async () => {
+    const a = await seedOrg("A sablon");
+    const b = await seedOrg("B sablon");
+    await prisma.messageTemplate.create({
+      data: {
+        organizationId: b.orgId,
+        propertyId: b.propertyId,
+        category: "wifi",
+        title: "Wi-Fi",
+        body: "B-ORG-SABLON-SIFRESI-7777",
+      },
+    });
+    session = { userId: a.userId, organizationId: a.orgId, role: "owner", email: "a@x.com", name: "O", sessionEpoch: 0 };
+
+    const out = await body(await GET(req(), ctx));
+    expect(out.fromTemplates).toEqual([]);
+    expect(JSON.stringify(out), "başka kiracının şablonu sızdı").not.toContain("B-ORG-SABLON");
+  });
+
+  it("mülkte O KATEGORİDE kalem varsa şablon ÖNERİLMEZ (çift kopya yok)", async () => {
+    const a = await seedOrg("Lale 9");
+    session = { userId: a.userId, organizationId: a.orgId, role: "owner", email: "a@x.com", name: "O", sessionEpoch: 0 };
+    await prisma.knowledgeBaseItem.create({
+      data: { propertyId: a.propertyId, category: "wifi", title: "Wi-Fi", content: "Zaten var." },
+    });
+    await prisma.messageTemplate.create({
+      data: { organizationId: a.orgId, propertyId: a.propertyId, category: "wifi", title: "Wi-Fi", body: "Sablon metni." },
+    });
+
+    const out = await body(await GET(req(), ctx));
+    expect(out.fromTemplates).toEqual([]);
+  });
+
   it("veri yoksa boş döner (çökmez)", async () => {
-    const a = await seedOrg("Nuve 7");
+    const a = await seedOrg("Lale 7");
     session = { userId: a.userId, organizationId: a.orgId, role: "owner", email: "a@x.com", name: "O", sessionEpoch: 0 };
     const out = await body(await GET(req(), ctx));
     expect(out.suggestions).toEqual([]);

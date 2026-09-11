@@ -25,6 +25,17 @@ import { toast } from "@/lib/toast";
 // gider ve orada `host_manual`/`approved` damgalanır (A1 onay sözleşmesi).
 // ---------------------------------------------------------------------------
 
+export interface TemplateSuggestion {
+  propertyId: string;
+  propertyName: string;
+  category: string;
+  title: string;
+  content: string;
+  language: string;
+  sourceTemplateId: string;
+  fromOrgWide: boolean;
+}
+
 export interface PastAnswerSuggestion {
   propertyId: string;
   propertyName: string | null;
@@ -44,20 +55,30 @@ const TITLE_BY_CATEGORY: Record<string, string> = {
 export function KbPastAnswers() {
   const router = useRouter();
   const [items, setItems] = useState<PastAnswerSuggestion[] | null>(null);
+  const [tpls, setTpls] = useState<TemplateSuggestion[] | null>(null);
   const [loading, setLoading] = useState(false);
   const [busy, setBusy] = useState<string | null>(null);
   const [added, setAdded] = useState<Set<string>>(new Set());
 
-  const keyOf = (s: PastAnswerSuggestion) => `${s.propertyId}|${s.category}`;
+  // 🚨 İKİ LİSTE, İKİ ANAHTAR UZAYI. Eskiden ikisi de `propertyId|category`
+  // kullanıyordu: bir şablon önerisini eklemek AYNI mülk+kategorideki geçmiş
+  // cevap kartını da "Eklendi" yapıp kilitliyordu (ve tersi). Aynı şablon iki
+  // mülke önerilebildiği için şablon anahtarı MÜLKÜ de taşır.
+  const keyOf = (s: PastAnswerSuggestion) => `p:${s.propertyId}|${s.category}`;
+  const templateKeyOf = (s: TemplateSuggestion) => `t:${s.sourceTemplateId}|${s.propertyId}`;
 
   async function scan() {
     setLoading(true);
     try {
       const res = await fetch("/api/kb/suggestions");
       if (!res.ok) throw new Error(String(res.status));
-      const data = (await res.json()) as { suggestions: PastAnswerSuggestion[] };
+      const data = (await res.json()) as {
+        suggestions: PastAnswerSuggestion[];
+        fromTemplates: TemplateSuggestion[];
+      };
       setItems(data.suggestions);
-      if (data.suggestions.length === 0) {
+      setTpls(data.fromTemplates ?? []);
+      if (data.suggestions.length === 0 && (data.fromTemplates ?? []).length === 0) {
         toast.info("Tekrar eden bir cevap bulunamadı — aynı konuyu en az iki kez yanıtladığınızda burada görünür.");
       }
     } catch {
@@ -67,8 +88,12 @@ export function KbPastAnswers() {
     }
   }
 
-  async function add(s: PastAnswerSuggestion) {
-    setBusy(keyOf(s));
+  /** Hem geçmiş cevap hem şablon önerisi aynı yoldan eklenir (tek yazma kapısı). */
+  async function add(
+    s: { propertyId: string; category: string; title?: string; content: string; language?: string },
+    uiKey: string,
+  ) {
+    setBusy(uiKey);
     try {
       const res = await fetch("/api/kb", {
         method: "POST",
@@ -76,14 +101,14 @@ export function KbPastAnswers() {
         body: JSON.stringify({
           propertyId: s.propertyId,
           category: s.category,
-          title: TITLE_BY_CATEGORY[s.category] ?? "Bilgi",
-          content: s.answer,
-          language: "tr",
+          title: s.title || TITLE_BY_CATEGORY[s.category] || "Bilgi",
+          content: s.content,
+          language: s.language || "tr",
           isActive: true,
         }),
       });
       if (!res.ok) throw new Error(String(res.status));
-      setAdded((prev) => new Set(prev).add(keyOf(s)));
+      setAdded((prev) => new Set(prev).add(uiKey));
       toast.success("Bilgi tabanına eklendi.");
       router.refresh();
     } catch {
@@ -117,6 +142,51 @@ export function KbPastAnswers() {
           </p>
         ) : null}
 
+        {tpls && tpls.length > 0 ? (
+          <div className="space-y-3">
+            <p className="text-sm font-medium">
+              Şablonlarınızdan{" "}
+              <span className="font-normal text-muted-foreground">
+                — bu metinleri zaten yazmışsınız, ama asistan şablonları göremiyor. Eklerseniz görür.
+              </span>
+            </p>
+            {tpls.map((s) => {
+              const k = templateKeyOf(s);
+              const isAdded = added.has(k);
+              return (
+                <div key={`t-${s.sourceTemplateId}-${s.propertyId}`} className="rounded-lg border p-3">
+                  <div className="mb-2 flex flex-wrap items-center gap-2">
+                    <Badge tone={KB_CATEGORY.tone(s.category)}>{KB_CATEGORY.label(s.category)}</Badge>
+                    {s.propertyName ? <Badge tone="secondary">{s.propertyName}</Badge> : null}
+                    {s.fromOrgWide ? (
+                      <span className="text-xs text-muted-foreground">tüm daireler için yazdığınız şablon</span>
+                    ) : null}
+                  </div>
+                  <p className="mb-1 text-xs text-muted-foreground">{s.title}</p>
+                  <p className="whitespace-pre-wrap text-sm">{s.content}</p>
+                  <div className="mt-3">
+                    <Button size="sm" onClick={() => add(s, k)} disabled={isAdded || busy === k}>
+                      {busy === k ? (
+                        <Loader2 className="mr-2 h-4 w-4 animate-spin" aria-hidden />
+                      ) : (
+                        <Plus className="mr-2 h-4 w-4" aria-hidden />
+                      )}
+                      {isAdded ? "Eklendi" : "Bilgi tabanına ekle"}
+                    </Button>
+                  </div>
+                </div>
+              );
+            })}
+          </div>
+        ) : null}
+
+        {items && items.length > 0 ? (
+          <p className="text-sm font-medium">
+            Kendi cevaplarınızdan{" "}
+            <span className="font-normal text-muted-foreground">— misafirlere tekrar tekrar yazdıklarınız.</span>
+          </p>
+        ) : null}
+
         {items?.map((s) => {
           const k = keyOf(s);
           const isAdded = added.has(k);
@@ -132,7 +202,7 @@ export function KbPastAnswers() {
               </p>
               <p className="whitespace-pre-wrap text-sm">{s.answer}</p>
               <div className="mt-3">
-                <Button size="sm" onClick={() => add(s)} disabled={isAdded || busy === k}>
+                <Button size="sm" onClick={() => add({ ...s, content: s.answer }, k)} disabled={isAdded || busy === k}>
                   {busy === k ? (
                     <Loader2 className="mr-2 h-4 w-4 animate-spin" aria-hidden />
                   ) : (

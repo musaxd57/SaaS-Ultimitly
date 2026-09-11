@@ -27,6 +27,7 @@ import { Separator } from "@/components/ui/separator";
 import { CONVERSATION_STATUS, PRIORITY, REPLY_TONE, type ReplyTone } from "@/lib/constants";
 import { cn } from "@/lib/utils";
 import { intentLabel, langLabel, displaySenderName, riskTypeLabel, sourceLabel, displayableSources } from "@/lib/ui-labels";
+import { applyTemplateBody } from "@/lib/template-apply";
 
 export interface ThreadMessage {
   id: string;
@@ -91,13 +92,30 @@ interface Props {
   status: string;
   priority: string;
   propertyId?: string;
+  /** Misafirin görünen adı — kartın başlık satırında, durum seçiminin SOLUNDA. */
+  guestName?: string;
+  /** "Daire 5 · Airbnb · 13:00 → 11:00" — önceliğin SAĞINDA. */
+  propertyLabel?: string;
+  /** Satıra sığmayan tam metin (adres dahil) — `title` ipucu olarak. */
+  propertyTitle?: string;
   /** Values used to substitute {{placeholders}} in message templates. */
   templateVars?: Record<string, string>;
   /** Owner/manager may send guest replies; staff get a read-only thread. */
   canReply?: boolean;
 }
 
-export function ConversationThread({ conversationId, messages, status, priority, propertyId, templateVars, canReply = true }: Props) {
+export function ConversationThread({
+  conversationId,
+  messages,
+  status,
+  priority,
+  propertyId,
+  guestName,
+  propertyLabel,
+  propertyTitle,
+  templateVars,
+  canReply = true,
+}: Props) {
   const router = useRouter();
   const [, startTransition] = useTransition();
   const [composer, setComposer] = useState("");
@@ -384,30 +402,9 @@ export function ConversationThread({ conversationId, messages, status, priority,
   }
 
   function applyTemplate(t: TemplateItem) {
-    let body = t.body;
-    // 🚨 TEK GEÇİŞ — SIRAYLA `split/join` YAPMA (denetim 08-07 (5), ÖLÇÜLDÜ).
-    // Eski kod `Object.entries` üzerinde döngüyordu ve her anahtar, ÖNCEKİ
-    // anahtarların YERİNE KOYDUĞU metni de yeniden tarıyordu. `guestName`
-    // sağlayıcıdan gelir ve MİSAFİR KONTROLÜNDEDİR (Airbnb görünen adı) →
-    // misafir adını `{{wifiInfo}}` yapınca, wifi yer tutucusu HİÇ GEÇMEYEN bir
-    // şablon bile KB'deki wifi kalemini yazma alanına basıyordu.
-    // ÖLÇÜLDÜ: "Merhaba {{guestName}}, {{propertyName}} …" →
-    //   "Merhaba SSID: Nuve3_5G / Sifre: Yaz2026! - Kapi kodu: 4590, Nuve 3 …"
-    // (varsayılan giriş şablonu host'a kapı kodunu tam da o KB kalemine yazmasını
-    // söylüyor, yani sızan şey rutin olarak kapı kodudur).
-    // Tek geçişte yerine konan metin BİR DAHA taranmaz → enjeksiyon imkânsız.
-    if (templateVars) {
-      const vars = templateVars;
-      body = body.replace(/\{\{(\w+)\}\}|\{(isim|ad)\}/g, (match, dblKey?: string, single?: string) => {
-        // `{isim}`/`{ad}`: otomatik mesajların tek-parantez biçimi; host iki ayrı
-        // yer tutucu stili öğrenmek zorunda kalmasın diye kabul ediliyor.
-        const value = dblKey ? vars[dblKey] : single ? vars.guestName : undefined;
-        return value ? value : match; // eşleşmeyen aşağıdaki temizlikte düşer
-      });
-    }
-    // Strip any remaining unfilled placeholders so guests never see raw {{...}}.
-    body = body.replace(/\{\{[^}]+\}\}/g, "").replace(/\n{3,}/g, "\n\n").trim();
-    setComposer(body);
+    // Kural + gerekçeler `@/lib/template-apply` içinde (saf ve test edilebilir;
+    // bu bileşenin içindeyken tek geçiş/belirteç sözleşmesi pinlenemiyordu).
+    setComposer(applyTemplateBody(t.body, templateVars));
     setShowTemplates(false);
   }
 
@@ -459,8 +456,17 @@ export function ConversationThread({ conversationId, messages, status, priority,
         {liveStatus.text ? <span key={liveStatus.seq}>{liveStatus.text}</span> : null}
       </p>
 
-      {/* Header: status & priority controls */}
-      <div className="flex flex-wrap items-center gap-3 border-b border-border p-4">
+      {/* Başlık satırı: MİSAFİR ADI · durum · öncelik · MÜLK.
+          Kurucu 09-11: "isim yerlerini kutunun içine al, durum yerinin soluna;
+          'daire · Airbnb' de önceliğin sağında yazsın". Eskiden ad ve mülk
+          kartın DIŞINDAKİ sayfa başlığındaydı ve kartın kendi başlık satırı
+          yarı boştu; ikisi birleşince mesaj kutusuna bir satır yer açıldı. */}
+      <div className="flex flex-wrap items-center gap-x-3 gap-y-2 border-b border-border p-4">
+        {guestName ? (
+          <h2 className="mr-1 min-w-0 max-w-[16rem] truncate text-base font-semibold tracking-tight" title={guestName}>
+            {guestName}
+          </h2>
+        ) : null}
         <div className="flex items-center gap-2">
           {/* Görsel etiket ARTIK gerçek bir <label>: eskiden <span> olduğu için
               kontrolün programatik adı yoktu, ekran okuyucu yalnız "seçim kutusu"
@@ -503,6 +509,11 @@ export function ConversationThread({ conversationId, messages, status, priority,
             ))}
           </Select>
         </div>
+        {propertyLabel ? (
+          <span className="min-w-0 truncate text-xs text-muted-foreground" title={propertyTitle ?? propertyLabel}>
+            {propertyLabel}
+          </span>
+        ) : null}
         <Badge tone={CONVERSATION_STATUS.tone(status)} className="ml-auto">
           {CONVERSATION_STATUS.label(status)}
         </Badge>
@@ -519,7 +530,9 @@ export function ConversationThread({ conversationId, messages, status, priority,
         tabIndex={0}
         role="group"
         aria-label="Mesaj geçmişi"
-        className="scrollbar-thin max-h-[44vh] space-y-3 overflow-y-auto p-4 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-ring"
+        // 44vh → 52vh: sayfa başlığı kartın içine taşındı ve "Mülk" kartı
+        // kalktı; boşalan dikey alan mesajlara verildi (kurucu 09-11).
+        className="scrollbar-thin max-h-[52vh] space-y-3 overflow-y-auto p-4 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-ring"
       >
         {messages.map((m) => (
           <div
@@ -894,7 +907,11 @@ export function ConversationThread({ conversationId, messages, status, priority,
             value={composer}
             onChange={(e) => setComposer(e.target.value)}
             placeholder="Cevabınızı yazın veya AI önerisini kullanın…"
-            className="min-h-[80px]"
+            // 80px iki satır gösteriyordu; host'un misafire yazdığı yer ürünün
+            // en çok kullanılan alanı (kurucu 09-11: "mesaj yeri yukarı doğru
+            // uzasın"). `resize-y` KALIR: sabit yükseklik dayatmak uzun cevapta
+            // aynı şikâyeti geri getirir.
+            className="min-h-[160px] resize-y"
             aria-describedby={
               [sendError ? `conv-send-error-${conversationId}` : null,
                queuedNote ? `conv-send-note-${conversationId}` : null]

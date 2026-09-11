@@ -1,6 +1,6 @@
 import { prisma } from "@/lib/db";
 import { z } from "zod";
-import { badRequest, jsonOk, notFound, readJsonCappedOrNull } from "@/lib/api";
+import { badRequest, jsonOk, notFound, propertyInOrg, readJsonCappedOrNull } from "@/lib/api";
 import { withManage } from "@/lib/route-guard";
 import { zodFieldErrors } from "@/lib/validators";
 
@@ -12,6 +12,17 @@ const templateUpdateSchema = z.object({
   category: z.string().max(80).optional(),
   language: z.string().max(10).optional(),
   isActive: z.boolean().optional(),
+  // 🚨 "Tüm mülkler" ↔ tek mülk taşıması. Alan YOKKEN düzenleme ekranı mülk
+  // seçimini gönderiyor ama rota onu SESSİZCE YUTUYORDU: host "bu şablonu
+  // yalnız Lale 3'e bağla" dedikten sonra şablon org genelinde kalıyordu.
+  //
+  // 🚨 Create şemasındaki `.nullish().transform(v => v || null)` BURAYA
+  // YAZILAMAZ: zod, dönüşüm `undefined`'ı `null`'a çevirdiğinde anahtarı
+  // çıktıya KOYAR (ParseStatus yalnız `undefined` kalan anahtarları eler) —
+  // yani `propertyId` HİÇ GÖNDERİLMEYEN bir istek (ör. yalnız `isActive`
+  // güncelleyen bir düğme) şablonu sessizce "Tüm mülkler"e taşırdı. Alan ham
+  // bırakılır, normalizasyon aşağıda AÇIKÇA yapılır.
+  propertyId: z.string().max(50).nullable().optional(),
 });
 
 export const PATCH = withManage<{ id: string }>(async (session, req, { params }) => {
@@ -26,9 +37,20 @@ export const PATCH = withManage<{ id: string }>(async (session, req, { params })
   const parsed = templateUpdateSchema.safeParse(data);
   if (!parsed.success) return badRequest(zodFieldErrors(parsed.error));
 
+  const { propertyId, ...rest } = parsed.data;
+  const patch: Record<string, unknown> = { ...rest };
+  if (propertyId !== undefined) {
+    // 🚨 KİRACI KAPISI: kimlik doğru biçimli ama BAŞKA org'un mülkü olabilir.
+    const target = propertyId || null;
+    if (target && !(await propertyInOrg(target, session.organizationId))) {
+      return badRequest({ propertyId: "Geçersiz mülk" });
+    }
+    patch.propertyId = target;
+  }
+
   const template = await prisma.messageTemplate.update({
     where: { id },
-    data: parsed.data,
+    data: patch,
   });
   return jsonOk(template);
 });

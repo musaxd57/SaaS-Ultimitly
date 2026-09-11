@@ -2,6 +2,8 @@ import { prisma } from "@/lib/db";
 import { jsonOk } from "@/lib/api";
 import { withManage } from "@/lib/route-guard";
 import { buildKbSuggestionsFromHistory } from "@/lib/kb-from-history";
+import { buildKbSuggestionsFromTemplates } from "@/lib/kb-from-templates";
+import { KB_APPROVAL_GATE_WHERE } from "@/lib/kb-review";
 
 // ---------------------------------------------------------------------------
 // KNOWLEDGE HUB BACAK B — OKUMA ROTASI (SALT OKUMA).
@@ -92,10 +94,46 @@ export const GET = withManage(async (session, req) => {
 
   // Mülk adları — host'a hangi daire olduğunu göstermek için.
   const names = await prisma.property.findMany({
-    where: { organizationId: session.organizationId },
+    where: { organizationId: session.organizationId, ...(propertyId ? { id: propertyId } : {}) },
     select: { id: true, name: true },
   });
   const nameById = new Map(names.map((p) => [p.id, p.name]));
+
+  // ── ŞABLON KAYNAĞI (kurucu kararı 09-11) ─────────────────────────────────
+  // 🚨 `MessageTemplate` misafire AYNEN gider ve MODELDEN HİÇ GEÇMEZ. Host
+  // "Wi-Fi bilgisi" şablonu yazdıysa bilgi sistemde VARDIR ama asistan onu
+  // kullanamaz. Kurucu "AI'yı boş bilgiyle açtırma" kapısını REDDETTİ ve doğru
+  // çözümü söyledi: bilgiyi host'un zaten yazdığı yerden BUL.
+  const [templates, existingKb, org] = await Promise.all([
+    prisma.messageTemplate.findMany({
+      where: {
+        organizationId: session.organizationId,
+        isActive: true,
+        // 🚨 Mülk filtresi AÇIK olmalı: org geneli şablonlar (propertyId null)
+        // her zaman girer, mülke bağlı olanlar yalnız seçili mülk için. Eskiden
+        // filtre yoktu ve doğruluk 60 satır ötedeki saf modülün kapsam
+        // savunmasına bırakılmıştı — iki katman da ötekini birincil sanıyordu.
+        ...(propertyId ? { OR: [{ propertyId }, { propertyId: null }] } : {}),
+      },
+      select: { id: true, propertyId: true, category: true, title: true, body: true, language: true, isActive: true },
+      orderBy: { createdAt: "asc" },
+    }),
+    prisma.knowledgeBaseItem.findMany({
+      // 🚨 ONAY KAPISI BURADA DA GEÇERLİ: "bu kategori zaten dolu" hükmünü
+      // yalnız ASİSTANIN OKUYABİLDİĞİ kalem verebilir. Onaysız bir taslak
+      // kategoriyi dolu göstermemeli — asistan onu okuyamaz, yani kapatmak
+      // istediğimiz boşluk sessizce açık kalırdı.
+      where: { property: { organizationId: session.organizationId }, isActive: true, ...KB_APPROVAL_GATE_WHERE },
+      select: { propertyId: true, category: true },
+    }),
+    prisma.organization.findUnique({
+      where: { id: session.organizationId },
+      select: { language: true },
+    }),
+  ]);
+  const fromTemplates = buildKbSuggestionsFromTemplates(templates, existingKb, names, {
+    preferredLanguage: org?.language ?? "tr",
+  });
 
   return jsonOk({
     suggestions: suggestions.map((s) => ({
@@ -104,6 +142,7 @@ export const GET = withManage(async (session, req) => {
       // 🚨 `sourceMessageIds` İZDİR, misafire ya da modele DÖNMEZ — yalnız
       // host'un "bu nereden geldi" sorusunu yanıtlar. PII taşımaz.
     })),
+    fromTemplates,
     scanned: messages.length,
     windowDays: WINDOW_DAYS,
     capped: rows.length >= MESSAGE_CAP,
