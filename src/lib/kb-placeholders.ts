@@ -145,15 +145,27 @@ function foldedForms(s: string): string[] {
  * arama ("5"ten sonraki ilk harf öbeği) "yatak"ı bulup satırı düşürürdü. `[^\p{L}\p{N}]*`
  * yalnız harf-olmayan VE rakam-olmayan karakterleri yutar → araya "2" girince eşleşme yok.
  */
+/**
+ * Kendi sayısını ALABİLEN sayaçlar — KONUM etiketleri. "Daire 5 **Kat 2**"de "Kat" bir
+ * modifikatör değil, KENDİ numarası olan ikinci bir etikettir; "5" doğru cevaptır.
+ *
+ * 🚨 LİSTE DAR TUTULUR — push öncesi inceleme ÖLÇTÜ: kaçış TÜM sayaçlara verilince
+ * ardışık iki ölçü taşıyan adlarda KAPASİTE sayısı daire numarası olarak dönüyordu
+ * ("Daire 4 **Kişilik 2** Odalı" → "4"): "Kişilik"in ardındaki 2, "Odalı"ya aittir,
+ * yeni bir etiket DEĞİLDİR. 10 gerçekçi adın 10'unda misafire UYDURMA daire numarası
+ * (ve "Kapı kodu: 4") söyleniyordu. KAPASİTE sayaçları bu kaçışı ALMAZ.
+ */
+const COUNTER_TAKING_OWN_NUMBER = new Set(["kat", "floor"]);
+
 function followedByCounter(form: string, from: number): boolean {
   const m = /^[^\p{L}\p{N}]*(\p{L}+)([^\p{L}\p{N}]*)(\d)?/u.exec(form.slice(from));
   if (!m || !COUNTER_AFTER_NUMBER.has(m[1])) return false;
-  // 🚨 SAYAÇ SÖZCÜĞÜ KENDİ SAYISINI ALIYORSA MODİFİKATÖR DEĞİL, YENİ ETİKETTİR
-  // (7. tur incelemesi, ÖLÇÜLDÜ): 6. tur sayaç kontrolünü etiketli yola taşırken bunu
-  // atladı ve KANONİK TÜRK ADRESİNİ yok etti — "No:12 D:5 Kat:3" → `null` (doğrusu 5),
-  // "Daire 5 Kat 2" → `null`, "Apartment 12 Floor 3" → `null`. Oysa "Daire 6 Kişilik"te
-  // "Kişilik"in kendi sayısı YOKTUR, önündeki sayıyı niteler → orada eleme DOĞRU.
-  return m[3] === undefined;
+  // Sayaç KENDİ SAYISINI alıyorsa modifikatör değil YENİ ETİKETTİR — ama yalnız KONUM
+  // etiketleri için (↑). 6. tur bu ayrımı yapmadan kaçışı taşıdı ve kanonik Türk adresini
+  // yok etti ("No:12 D:5 Kat:3" → null, doğrusu 5); kaçışı tüm sayaçlara vermek ise
+  // kapasite adlarında uydurma numara üretiyordu.
+  if (m[3] === undefined) return true; // sayacın kendi sayısı yok → önündeki sayıyı niteler
+  return !COUNTER_TAKING_OWN_NUMBER.has(m[1]); // kendi sayısı var: yalnız KONUM etiketi yeni etikettir
 }
 
 /**

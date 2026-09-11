@@ -689,20 +689,41 @@ describe("7. tur incelemesi: homoglif · 'su' · izafet soru guard'ı", () => {
     }
   });
 
-  it("🚨 İZAFET kalıpları ÇAPASIZDI — soru eki guard'ı 9 bilgi sorusunu kurtarır", () => {
-    // 6. turun izafet bloğu tesis adına çapalı DEĞİL; herhangi bir iyelik öbeğinde eşleşiyordu.
+  it("🚨 SORU EKİ GUARD'I YAZILDI, ÖLÇÜLDÜ ve GERİ ALINDI — gerçek bildirim soru eki TAŞIR", () => {
+    // Guard "eşleşmenin ardında mu/mı varsa bu BİLGİ SORUSUDUR" varsayıyordu. Push öncesi
+    // inceleme bunu ÇÜRÜTTÜ: Türkçede soru parçacığı arızayı TEREDDÜTLE BİLDİRMENİN de olağan
+    // biçimidir. 32 izafet kalıbının 29'unda gerçek bildirim `general`e düşüyordu ve 20
+    // gerçekçi bildirimin 18'i deterministik oto-gönderim blokunu kaybediyordu.
+    // YÖN KURALI kararı verdi: 13 bilgi sorusunun fazla eskalasyonu, 29 arıza bildiriminin
+    // oto-gönderilmesinden UCUZDUR → guard kaldırıldı. GERİ GETİRME.
+    for (const m of [
+      "Banyo lavabosu tıkandı mı acaba, su gitmiyor.",
+      "Oda peteği ısınmıyor mu sizce, buz gibi.",
+      "Salon ışığı yanmıyor mu, karanlıkta oturuyoruz.",
+      "Klozeti tıkandı mı acaba, taşmak üzere.",
+      "Daire kilidi açılmıyor mu, dışarıda kaldık.",
+      "Duş gideri tıkandı mı, ayak bileğine kadar su birikiyor.",
+      "Duş suyu akmıyor mu, hiç basınç yok.",
+      "Mutfak ocağı yanmıyor mu, yemek yapamadık.",
+      "Radyatörü ısınmıyor mu, üşüyoruz.",
+    ]) {
+      expect(classifyFallback(m).intent, m).toBe("complaint");
+    }
+  });
+
+  it("🚨 BİLİNEN SINIR (bedeli pinli): izafet kalıbı ÇAPASIZ — daire-DIŞI tesis sorusu da complaint", () => {
+    // Guard kalkınca 6. turun izafet bloğunun kendi yanlış pozitifleri GERİ GELDİ. Yön GÜVENLİ
+    // (fazla eskalasyon) ama bedel gerçektir ve burada görünür kalır.
+    // 🚨 DOĞRU ÇÖZÜM ÖLÇÜLDÜ, AYRI TURA KALDI: bu dokuz soruda iyelik başı daire-DIŞI bir tesis
+    // (havuz · deniz · sokak · çeşme · otopark · termal · bahçe · kamp); yukarıdaki 9 gerçek
+    // bildirimde daire-İÇİ (banyo · oda · salon · mutfak · duş · daire) ya da tamlayansız.
+    // ÇAPA bu ayrımı bedelsiz yapar; soru eki YAPAMAZ.
     for (const m of [
       "Havuzun suyu akmıyor mu, şelale gibi mi?",
-      "Denizin suyu gelmiyor mu kıyıya, dalga var mı?",
-      "Sitedeki havuzun ışığı yanmıyor mu geceleri yüzmek için?",
       "Sokak lambası yanmıyor mu gece, karanlık mı oluyor?",
       "Çeşmenin suyu akmıyor mu kışın?",
-      "Otoparkın kapısı açılmıyor mu uzaktan kumandayla?",
-      "Termalin suyu gelmiyor mu bu mevsimde?",
-      "Bahçenin musluğu akmıyor mu yazın?",
-      "Kamp ocağı yanmıyor mu rüzgarda?",
     ]) {
-      expect(classifyFallback(m).intent, m).not.toBe("complaint");
+      expect(classifyFallback(m).intent, m).toBe("complaint");
     }
   });
 
@@ -725,10 +746,9 @@ describe("7. tur incelemesi: homoglif · 'su' · izafet soru guard'ı", () => {
     expect(classifyFallback("Suyumuzu açtık, bozulmuş.").intent).toBe("complaint");
   });
 
-  it("🚨 SORU EKİ guard'ı YALNIZ izafet alt kümesinde — eski ağa uygulanırsa gerçek şikâyet düşer", () => {
-    // Mutasyonla ölçüldü: guard'ı TÜM `NEGATIVE_VERB_COMPLAINTS`e açmak hiçbir testi
-    // düşürmüyordu = daraltma kararı PİNSİZDİ. Bu beş mesaj soru EKİ taşır ama AÇIKÇA
-    // şikâyettir; guard genişletilirse beşi de `general` olur ve oto-gönderim izni çıkar.
+  it("soru EKİ taşıyan mesaj da ŞİKÂYET olabilir (guard'ın geri alınma gerekçesi)", () => {
+    // Bu beş mesaj soru EKİ taşır ama AÇIKÇA şikâyettir. Herhangi bir "soru eki → bilgi sorusu"
+    // kuralı beşini de `general` yapar ve oto-gönderim izni çıkarır.
     for (const m of [
       "Sıcak su gelmiyor mu acaba, duş alamadık.",
       "Elektrikler gitti mi ne oldu, hiçbir şey çalışmıyor.",
@@ -740,8 +760,9 @@ describe("7. tur incelemesi: homoglif · 'su' · izafet soru guard'ı", () => {
     }
   });
 
-  it("🚨 SORU EKİ'nde HARF SINIRI şart — 'mutfakta/mumla' soru eki DEĞİLDİR", () => {
-    // Lookahead olmadan `^r?\s*m[ıiuü]` bu üç bildirimi de susturuyordu (ölçüldü).
+  it("soru eki SANILAN sözcükler ('mutfakta/mumla') bildirimi susturmaz", () => {
+    // Kaldırılan guard'ın harf sınırı olmasa bu üç bildirim de susuyordu (ölçüldü). Guard
+    // kalktı ama sınıf burada pinli kalır — benzeri bir kural yazılırsa bu satırlar uyarır.
     for (const m of [
       "Banyo lavabosu tıkandı mutfakta da su birikiyor.",
       "Oda peteği ısınmıyor mutfak da soğuk.",
@@ -819,6 +840,43 @@ describe("7. tur: 'sorun/problem' KOŞUL ailesi (ölçülen en büyük yanlış 
     // "diyet" gerçek bir sözcüktür; freni tetiklerse koşul elemesi sessizce ölür.
     expect(classifyFallback("Sorun olursa diyet menüsü var mı?").intent).not.toBe("complaint");
     expect(classifyFallback("Bir sorun olursa diyetimizi bozmadan yemek bulabilir miyiz?").intent).not.toBe("complaint");
+  });
+
+  it("🚨 SORU İŞARETİ KAPISI — alıntı freni TEK BAŞINA yetmiyordu (10 kaçak)", () => {
+    // Fren yalnız `diye` yapısını tanıyordu; aynı işlevi gören ON kalıp kaçıyor ve ardından
+    // gelen GERÇEK bildirim `general`e düşüyordu (push öncesi inceleme, ölçüldü).
+    // İşaret listesini büyütmek sınıfı KAPATMAZ — ayırt edici BİÇİMSEL: koşul ailesinin
+    // kurtardığı SSS sorularının HEPSİ soru işaretiyle biter, kaçan bildirimlerin HİÇBİRİ bitmez.
+    for (const m of [
+      "Sorun olursa söyleyeyim dedim, kombi ses yapıyor.",
+      "Sorun olursa haberiniz olsun, kapı kilidi zor kapanıyor.",
+      "Olur da sorun çıkarsa, perde rayından çıkmış durumda.",
+      "Şimdiden söyleyeyim, sorun olursa: perde rayından çıktı.",
+      "Sorun çıkarsa not düşüyorum: ocak düğmesi gevşek.",
+      "Sorun olursa bilmenizi istedim: duştan su sızıyor.",
+      "İleride sorun olursa: banyoda su birikiyor.",
+      "In case of a problem, the air conditioner is making noise.",
+    ]) {
+      expect(classifyFallback(m).intent, m).toBe("complaint");
+    }
+  });
+
+  it("🚨 İKİ KAPI DA GEREKLİ: '?' ile BİTEN ama ' diye ' taşıyan mesaj ELENMEZ", () => {
+    // Mutasyonla ölçüldü: alıntı frenini silip yalnız "?" kapısını bırakmak hiçbir testi
+    // düşürmüyordu = frenin hâlâ yük taşıdığı PİNSİZDİ. Bu üç mesaj İKİSİNİ de taşır —
+    // koşul bir SORU değil yazma GEREKÇESİDİR, ama cümle soruyla biter.
+    for (const m of [
+      "Sorun olursa diye yazıyorum, perde rayından çıkmış, ne yapalım?",
+      "Sorun olursa diye söylüyorum, klima çalışmıyor, kimi arayalım?",
+      "Sorun yaşarsak diye sormuştum ama şu an yaşıyoruz, ne önerirsiniz?",
+    ]) {
+      expect(classifyFallback(m).intent, m).toBe("complaint");
+    }
+  });
+
+  it("BİLİNEN SINIR (bedeli pinli): soru işaretiyle BİTMEYEN SSS sorusu fazla eskalasyon üretir", () => {
+    // Kapının karşılığı budur ve GÜVENLİ YÖNDEDİR: şüphede şikâyet kalır.
+    expect(classifyFallback("Bir sorun olursa ne yapalım? Teşekkürler.").intent).toBe("complaint");
   });
 
   it("İZİN sorusu ailesi (08-01) DOKUNULMADAN çalışıyor", () => {

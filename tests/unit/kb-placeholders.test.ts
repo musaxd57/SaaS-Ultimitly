@@ -128,6 +128,24 @@ describe("apartmentNumberOf — etiket > tek sayı > BELİRSİZ (null)", () => {
     expect(apartmentNumberOf("Luxury 2 Bedroom Flat")).toBe(null);
   });
 
+  it("🚨 KAÇIŞ YALNIZ KONUM ETİKETİNE — kapasite sayacı ardışık ölçüde UYDURMA numara üretiyordu", () => {
+    // "Sayaç kendi sayısını alıyorsa yeni etikettir" kuralı TÜM sayaçlara verilince, ardışık
+    // iki ölçü taşıyan adlarda KAPASİTE sayısı daire numarası olarak dönüyordu: "Daire 4
+    // Kişilik 2 Odalı"da "Kişilik"in ardındaki 2, "Odalı"ya aittir — yeni etiket DEĞİLDİR.
+    // Push öncesi inceleme ölçtü: 10 gerçekçi adın 10'unda misafire uydurma daire numarası
+    // (ve "Kapı kodu: 4") söyleniyordu. Kaçış artık yalnız KONUM etiketlerinde (kat/floor).
+    expect(apartmentNumberOf("Deniz Manzaralı Daire 4 Kişilik 2 Odalı")).toBe(null);
+    expect(apartmentNumberOf("Daire 6 Kişilik 3 Yataklı")).toBe(null);
+    expect(apartmentNumberOf("Nuve Daire 5 Kişilik 2 Banyo")).toBe(null);
+    expect(apartmentNumberOf("Apartment 4 Guests 2 Bedrooms")).toBe(null);
+    expect(apartmentNumberOf("Apartment 2 Bedrooms 1 Bath")).toBe(null);
+    expect(apartmentNumberOf("Apt 4 Guests 2 Baths")).toBe(null);
+    // KARŞI YÖN: konum etiketi kaçışı KORUNDU (kanonik TR adresi).
+    expect(apartmentNumberOf("No:12 D:5 Kat:3")).toBe("5");
+    expect(apartmentNumberOf("Daire 5 Kat 2")).toBe("5");
+    expect(apartmentNumberOf("Apartment 12 Floor 3")).toBe("12");
+  });
+
   it("🚨 İngilizcede SAYAÇ sayının SOLUNDA olabilir ('Sleeps 4', 'for 6')", () => {
     // 6. tur yalnız sağa bakıyordu → kapasite sayısı misafire "Daireniz 4" olarak gidiyordu.
     expect(apartmentNumberOf("Cozy Studio Sleeps 4")).toBe(null);

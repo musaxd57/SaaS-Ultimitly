@@ -330,6 +330,27 @@ const PROBLEM_CONDITIONAL_NEGATIONS = [
 const CONDITION_QUOTE_MARKERS = [" diye "];
 
 /**
+ * 🚨 SORU İŞARETİ KAPISI — alıntı freni TEK BAŞINA YETMİYORDU (7. tur, push öncesi inceleme).
+ *
+ * Fren yalnız `diye` yapısını tanıyordu; aynı işlevi gören ("koşul bir soru değil, yazma
+ * gerekçesidir") ON kalıp kaçıyordu ve ardından gelen GERÇEK bildirim `general`e düşüyordu:
+ *   "Sorun olursa SÖYLEYEYİM DEDİM, kombi ses yapıyor."
+ *   "Sorun olursa HABERİNİZ OLSUN, kapı kilidi zor kapanıyor."
+ *   "OLUR DA sorun çıkarsa, perde rayından çıkmış durumda."
+ *   "ŞİMDİDEN SÖYLEYEYİM, sorun olursa: perde rayından çıktı."
+ *   "In case of a problem, the air conditioner is making noise."
+ *
+ * İşaret listesini büyütmek bu sınıfı KAPATMAZ (Türkçede gerekçe bildirmenin biçimi sınırsız).
+ * ÖLÇÜLEN ayırt edici BİÇİMSEL: koşul ailesinin kurtarmak istediği 11 SSS sorusunun **hepsi**
+ * soru işaretiyle biter; kaçan 10 bildirimin **hiçbiri** bitmez. Eleme artık YALNIZ soruya
+ * benzeyen mesajlarda uygulanır — fail-closed (şüphede şikâyet kalır).
+ *
+ * ⚠️ Bedeli açık ve GÜVENLİ YÖNDE: "Bir sorun olursa ne yapalım? Teşekkürler." gibi soru
+ * işaretiyle BİTMEYEN bir SSS sorusu fazla eskalasyon üretir (test-pinli).
+ */
+const ENDS_WITH_QUESTION = /\?\s*$/u;
+
+/**
  * Lowercase for KEYWORD MATCHING with the Turkish İ fixed. In JS,
  * "İ".toLowerCase() yields "i" + U+0307 (combining dot above) — so every keyword
  * spelled with a plain "i" ("iade", "iptal", "intihar", "iğrenç"…) silently fails
@@ -689,8 +710,9 @@ function hasUnnegatedProblemWord(m: string): boolean {
   if (!PROBLEM_STEMS.some((w) => m.includes(w))) return false;
   let stripped = m;
   for (const neg of PROBLEM_NEGATIONS) stripped = stripped.split(neg).join(" ");
-  // Koşul elemesi ALINTI işareti yoksa uygulanır (fail-closed: şüphede şikâyet kalır).
-  if (!CONDITION_QUOTE_MARKERS.some((q) => m.includes(q))) {
+  // Koşul elemesi YALNIZ soruya benzeyen ve ALINTI işareti taşımayan mesajda uygulanır
+  // (fail-closed: şüphede şikâyet kalır; iki kapı da geçilmeli).
+  if (ENDS_WITH_QUESTION.test(m) && !CONDITION_QUOTE_MARKERS.some((q) => m.includes(q))) {
     for (const neg of PROBLEM_CONDITIONAL_NEGATIONS) stripped = stripped.split(neg).join(" ");
   }
   return PROBLEM_STEMS.some((w) => stripped.includes(w));
@@ -721,10 +743,6 @@ const POSSESSIVE_FACILITY_COMPLAINTS: readonly string[] = [
   "kapısı açılmıyo", "kapısı kapanmıyo", "kilidi açılmıyo", "kilidi açılmadı",
   "suyu akmıyo", "suyu gelmiyo",
 ];
-const QUESTION_GUARDED = new Set<string>([
-  ...POSSESSIVE_FACILITY_COMPLAINTS,
-  ...POSSESSIVE_FACILITY_COMPLAINTS.map(foldTurkishAscii),
-]);
 
 /**
  * TÜRKÇE OLUMSUZ-FİİL ŞİKÂYETLERİ — `KEYWORDS.complaint`ten AYRI LİSTE (inceleme 09-10).
@@ -1169,20 +1187,30 @@ function hasDeviceBreakdown(message: string): boolean {
 }
 
 /**
- * SORU EKİ: eşleşmenin hemen ardındaki "mu/mı/mü/mi" (araya yalnız "-r" ve boşluk girebilir —
- * "akmıyo" + "r mu"). Ardından HARF gelmemeli, yoksa "mutfak"/"midem" de eşleşirdi.
- * ⚠️ YALNIZ `QUESTION_GUARDED` alt kümesinde okunur: eski ağa uygulamak ölçülmedi ve
- * "Sıcak su gelmiyor mu?" gibi gerçek şikâyetleri düşürme riski taşır.
+ * 🚨 SORU EKİ GUARD'I YAZILDI, ÖLÇÜLDÜ ve GERİ ALINDI (7. tur, push öncesi inceleme).
+ * GERİ GETİRME.
+ *
+ * Fikir: "eşleşmenin ardında `mu/mı` varsa bu bir BİLGİ SORUSUDUR" (ör. "Havuzun suyu akıyor mu?").
+ * Ölçüm bunu ÇÜRÜTTÜ: Türkçede soru parçacığı, arızayı TEREDDÜTLE BİLDİRMENİN de olağan
+ * biçimidir. 32 izafet kalıbının **29'unda** gerçek bildirim `general`e düşüyordu ve 20 gerçekçi
+ * bildirimin **18'i** deterministik oto-gönderim blokunu kaybediyordu:
+ *   "Banyo lavabosu tıkandı MI acaba, su gitmiyor."  · "Oda peteği ısınmıyor MU sizce, buz gibi."
+ *   "Salon ışığı yanmıyor MU, karanlıkta oturuyoruz." · "Daire kilidi açılmıyor MU, dışarıda kaldık."
+ * YÖN KURALI: 13 bilgi sorusunun fazla eskalasyonu, 29 arıza bildiriminin oto-gönderilmesinden
+ * UCUZDUR → guard KALDIRILDI, izafet bloğunun bilinen sınırı test-pinli.
+ *
+ * DOĞRU ÇÖZÜM ÖLÇÜLDÜ ve AYRI TURA KALDI: kurtarılan 9 bilgi sorusunun HEPİSİNDE iyelik başı
+ * daire-DIŞI bir tesis (havuz · sokak · otopark · deniz · çeşme · termal · bahçe · kamp); düşen 29'da
+ * daire-İÇİ (mutfak · banyo · oda · salon · duş · daire) ya da tamlayansız ("Klozeti tıkandı").
+ * ÇAPA bu ayrımı bedelsiz yapar; soru eki YAPAMAZ. ⚠️ Çapanın kendi bedeli de ölçülmeli
+ * ("Havuzun suyu akmıyor." gerçek bir tesis bildirimi olabilir) — o yüzden ayrı tur.
  */
-const QUESTION_TAIL = /^r?\s*m[ıiuü](?!\p{L})/u;
-
-/** Kalıp metinde geçiyor ve GEÇTİĞİ yerde koşul (ve istenirse soru) eki almamış mı? */
-function reportedNotConditional(hay: string, needle: string, guardQuestion = false): boolean {
+/** Kalıp metinde geçiyor ve GEÇTİĞİ yerde koşul eki almamış mı? */
+function reportedNotConditional(hay: string, needle: string): boolean {
   for (let from = 0; ; from += 1) {
     const at = hay.indexOf(needle, from);
     if (at < 0) return false;
-    const tail = hay.slice(at + needle.length);
-    if (!CONDITIONAL_TAIL.test(tail) && !(guardQuestion && QUESTION_TAIL.test(tail))) return true;
+    if (!CONDITIONAL_TAIL.test(hay.slice(at + needle.length))) return true;
     from = at;
   }
 }
@@ -1199,11 +1227,10 @@ function hasNegativeVerbComplaint(message: string): boolean {
     const tr = foldTurkishLowerTr(cand);
     const ascii = foldTurkishAscii(cand);
     for (const w of NEGATIVE_VERB_COMPLAINTS) {
-      const q = QUESTION_GUARDED.has(w);
       if (
-        reportedNotConditional(std, w, q) ||
-        reportedNotConditional(tr, w, q) ||
-        reportedNotConditional(ascii, foldTurkishAscii(w), q)
+        reportedNotConditional(std, w) ||
+        reportedNotConditional(tr, w) ||
+        reportedNotConditional(ascii, foldTurkishAscii(w))
       ) {
         return true;
       }

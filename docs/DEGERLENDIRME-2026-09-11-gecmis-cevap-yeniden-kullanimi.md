@@ -71,11 +71,76 @@ değildir.**
 3. **Sözcüksel yeterlilik:** aynı ölçek harness'ıyla (`kb-retrieval-scale`) geçmiş-cevap havuzunda
    hit@1 / inPrompt ölç. Sözcüksel yeterliyse embedding hiç gündeme gelmez.
 
+## 🚨 KURUCU FİKRİ NETLEŞTİ (09-11, ikinci mesaj) — ÇOK DAHA İYİ BİR ÇERÇEVE
+
+Kurucunun tam tarifi: *"AI'mız Airbnb/Vrbo/Booking'e bağlandığında hostların mesajlarını okusun,
+konuşma tarzını, soruları, cevapları kendine kaydetsin; gerekirse buradan kendine KB çıkarsın,
+**fazla emin olmadan**. Böylece adamların KB yazmasıyla çok uğraştırmayız. Bayatlık olmasın diye
+çok emin olmasın — ama mesela otomatik şablon önerirken onları kullanabilir."*
+
+Bu, "cevabı doğrudan tekrar kullan"dan **ÇOK DAHA İYİ** bir çerçevedir, çünkü çıktı doğrudan
+misafire gitmez; **KB'ye ÖNERİ olarak** girer ve host onayından geçer. Üç riskin üçü de
+kendiliğinden çözülür.
+
+### Mimari ZATEN HAZIR — eksik olan tek şey KAYNAK
+
+| Parça | Durum | Yer |
+|---|---|---|
+| `KnowledgeBaseItem.source` = `extracted_draft` | **ŞEMADA VAR** (migration 53 canlı) | A1 |
+| `reviewState` = `draft` / `approved` | **VAR** | A1 |
+| Erişim ALLOWLIST'i: yalnız `legacy` + `approved` | **VAR, TEK KAPI** | `src/lib/kb-review.ts` |
+| Saf / LLM'siz çıkarım + kaydetmeden önizleme | **VAR** | `src/lib/kb-extract.ts` (A5) |
+| "Şablonla doldur" önerisi | **VAR** | A4, `kb-manager.tsx` |
+| Eksik bilgi analizi (üç sınıf) | **VAR** | `modules/intelligence/recommendations/kb-gaps.ts` (A3) |
+
+🚨 **"Fazla emin olmasın" şartı KODDA UYGULANIYOR:** `draft` bir kalem modele ULAŞAMAZ —
+`kb-fetch` filtresi `AND`'lenir ve çağıran EZEMEZ; `count` bile aynı filtreyi kullanır, yani
+taslak "yer sınırından düştü" diye bile SAYILMAZ. Host onaylayana kadar yalnız öneridir.
+
+**Eksik olan TEK ŞEY:** `kb-extract` çıkarıcısını *yapıştırılan belge* yerine *mesaj geçmişinden*
+beslemek. Dar, additive ve mevcut onay sözleşmesinin İÇİNDE kalan bir dilim.
+
+### Bu çerçevede üç risk ne oluyor
+
+| Risk (↑ yukarıda) | Doğrudan cevap kullanımında | KB ÖNERİSİ çerçevesinde |
+|---|---|---|
+| Bayatlık | Ciddi (eski saat misafire gider) | **Host onay anında görür ve düzeltir** |
+| Yanlış cevabın çoğalması | Ciddi (sistematik hata) | **Onaysız kalem modele ulaşmaz** |
+| KVKK | Misafir metni dış API'ye | Çıkarım LLM'siz ve TARAYICIDA yapılabilir (A5 emsali) → **dış API YOK** |
+
+### Kalan gerçek işler (dar)
+
+1. **Kaynak bacağı:** kanal mesajlarından host'un KENDİ cevaplarını toplama (misafir metni değil).
+   Provenance zaten var (`Message.connectionId`), `senderName`/`direction` ayrımı zaten var.
+2. **Tekrar eden soru tespiti:** aynı hostta benzer sorular. Sözcüksel seçici bunu YAPAR
+   (embedding şart değil); ölçüm planı ↑.
+3. **Stil profili:** zaten var (`scrubStyleProfileForPublic`, 4 yüzeyde süzülüyor) — mesaj
+   geçmişinden beslemek ayrı, küçük bir iş.
+4. **PII:** çıkarılan taslak başka misafirin adını/kodunu taşıyabilir → mevcut sır kapısı +
+   ad redaksiyonu bu yola da uygulanır (aynı kapı, yeni yüzey).
+
+## EMBEDDING — itirazlardan biri DÜŞTÜ (09-11)
+
+| Gerekçe | Durum |
+|---|---|
+| Ücretli servis → kurucu onayı | ✅ anahtar verildi |
+| 🚨 KVKK: YENİ alt-işleyen | ❌ **GEÇERSİZ** — varsayılan endpoint zaten OpenAI (yanıt üretimi ve gölge katmanı da orada), yani embedding YENİ bir işleyen AÇMAZ; gizlilik metnine satır gerekmez |
+| Ölçüm: gerçekten gerekli mi | ⏳ AÇIK — sözcüksel zaten %99–100; kalan **beş somut vaka** var |
+
+Yani embedding tek bir soruya indi: **o beş vakayı çözüyor mu?** (rehber parçasının uzunluk
+normunda kısa kaleme yenilmesi · `fire→fır` diller arası kök çarpışması · TV/kumanda sözcüksel
+beraberliği · taksi↔araç · doorman etiketi). Cevap evetse eklenir — "genel olarak daha iyi olur"
+gerekçesiyle DEĞİL.
+
 ## Sıra (öneri)
 
-Bu özellik **hibrit retrieval bayrağından SONRA** gelir. Gerekçe: aynı seçiciyi kullanıyor ve o
-seçici henüz canlıda ölçülmedi. Önce `KB_RETRIEVAL_MODE=hybrid` gerçek eval + tek mülk pilotu,
-sonra bu.
+1. **Hibrit eval** (ücretsiz kazanç, ölçülen %51 → %99) — koşuyu kurucu yapar
+2. **Model kıyası** `gpt-5.1` vs `gpt-5.6-luna` (6 kat maliyet farkı)
+3. **Embedding'i KALAN BEŞ VAKADA ölç** (yeni alt-işleyen yok, yalnız ölçüm kapısı)
+4. **Mesaj geçmişinden `extracted_draft` KB çıkarımı** (bu belge)
+
+Bu özellik hibrit bayrağından SONRA gelir: aynı seçiciyi kullanıyor ve o seçici henüz canlıda
+ölçülmedi.
 
 ## Karar
 
