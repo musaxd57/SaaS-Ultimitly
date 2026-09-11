@@ -103,10 +103,22 @@ describe("🚨 ŞABLON YER TUTUCUSU — misafir adı KB sırrını enjekte edeme
     expect(applySrc, "çift parantez kalıbı yine ikinci kez elle yazılmış").toContain(
       "export const TEMPLATE_VAR_SOURCE",
     );
+    // ⚠️ Pin DÜZ METİN EŞİTLİĞİ DEĞİL, NİYET ölçer (09-11 düzeltmesi): import
+    // listesi büyüdüğünde (`ANY_DOUBLE_BRACE` de aynı modüle taşındı) eşitlik
+    // kırılıyordu, oysa kural — "kalıbı yeniden yazma, paylaşılan kaynaktan al"
+    // — DAHA İYİ karşılanıyordu. Ölçülen şey: sabit paylaşılan modülden geliyor
+    // VE yerel bir kopyası yok.
+    const kbFromTemplates = codeOnly(read("src/lib/kb-from-templates.ts"));
+    expect(kbFromTemplates, "TEMPLATE_VAR_SOURCE paylaşılan modülden alınmıyor").toMatch(
+      /import \{[^}]*TEMPLATE_VAR_SOURCE[^}]*\} from "\.\/template-apply";/,
+    );
     expect(
-      codeOnly(read("src/lib/kb-from-templates.ts")),
+      kbFromTemplates,
       "kb-from-templates kendi kalıbını yeniden yazmış (ayrışma riski geri geldi)",
-    ).toContain('import { TEMPLATE_VAR_SOURCE } from "./template-apply";');
+    ).not.toMatch(/const (?:TEMPLATE_VAR_SOURCE|ANY_DOUBLE_BRACE)\s*=/);
+    // 🚨 `{{…}}` SÜPÜRGESİ DE TEK KAYNAKTA (bu tur): iki yerde yazılmıştı ve
+    // gönderici kapısı da aynı sınıfı kullanıyor — üç tüketici, tek kalıp.
+    expect(applySrc).toContain("export const ANY_DOUBLE_BRACE");
     // Yeniden-tarama yapan eski biçim: her anahtar için ayrı split/join.
     expect(fn).not.toMatch(/for \(const \[key, value\] of Object\.entries/);
     expect(fn).not.toMatch(/\.split\(`\{\{\$\{key\}\}\}`\)/);

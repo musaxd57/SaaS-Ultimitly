@@ -281,3 +281,24 @@ export function fillGuestPlaceholdersInItems<T extends { title?: string; content
     content: fillGuestPlaceholders(k.content, values),
   }));
 }
+
+/* ---------------------------------------------------------------------------
+ * DOLDURULMAMIŞ ALAN TESPİTİ.
+ *
+ * 🚨 `@/lib/ai/prompts` DEĞİL BURADA (09-11): o dosya `import "server-only"`
+ * taşıyor, yani bir İSTEMCİ bileşeni onu import EDEMEZ. Bilgi Tabanı ekranı
+ * (client) kaleme "Doldurulmamış alan" rozeti basabilmek için aynı yükleme
+ * ihtiyaç duyuyor ve rozet ile GERÇEK gönderim davranışı ayrışmamalı → yüklem
+ * saf modüle taşındı, üç tüketici de (istem notu · gönderici kapısı · rozet)
+ * AYNI kaynaktan okur.
+ * ------------------------------------------------------------------------- */
+
+/**
+ * `[ŞİFRE]`, `<adres>`, `____` sınıfı — host'un DOLDURMADIĞI alanlar.
+ * `{isim}`/`{daire}` BİLEREK DIŞARIDA: onlar gönderim anında çözülür.
+ * İçinde en az bir HARF şart: "[1]" madde imi yer tutucu değildir.
+ */
+const KB_PLACEHOLDER_G = /\[[^\]\n]*\p{L}[^\]\n]*\]|<[^>\n]*\p{L}[^>\n]*>|_{3,}/gu;
+export function kbPlaceholderTokens(content: string): string[] {
+  return Array.from(content.matchAll(KB_PLACEHOLDER_G), (m) => m[0]);
+}

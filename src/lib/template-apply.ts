@@ -9,6 +9,19 @@ import { guestFirstNameOf, resolveGuestPlaceholder } from "./kb-placeholders";
  */
 export const TEMPLATE_VAR_SOURCE = "\\{\\{(\\w+)\\}\\}";
 
+/**
+ * ÇÖZÜLMEMİŞ `{{…}}` SÜPÜRGESİ — TEK KAYNAK.
+ *
+ * 🚨 `\w` ASCII'dir: `{{misafirAdı}}` · `{{property.name}}` · `{{guest-name}}`
+ * hiçbiri `TEMPLATE_VAR_SOURCE`e takılmaz. "Başka her `{{…}}` reddedilir"
+ * kuralı tam da tanımadığı biçimlerde FAIL-OPEN'dı; bu kalıp onu kapatır.
+ * Açılış parantezi kapanmasa da yakalanır (`{{` tek başına).
+ *
+ * ⚠️ Global bayrak YOK ve OLMAMALI: `lastIndex` durumu paylaşılan bir sabitte
+ * çağrılar arası sızar ve ikinci `test()` sessizce `false` döner.
+ */
+export const ANY_DOUBLE_BRACE = /\{\{[^}]*\}\}|\{\{/;
+
 // ---------------------------------------------------------------------------
 // ŞABLON UYGULAMA — inbox yazma alanına doldurulan metin. Saf, DB'siz, ağsız.
 //

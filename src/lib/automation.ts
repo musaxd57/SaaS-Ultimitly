@@ -17,6 +17,7 @@ import { classifyMessage, suggestReply, summarizeHostStyle } from "@/lib/ai";
 import { fetchKnowledgeBaseForPrompt } from "@/lib/ai/kb-fetch";
 import { selectKbForPrompt } from "@/lib/ai/retrieval/select";
 import { selectHistoryForPrompt } from "@/lib/ai/prompts";
+import { ANY_DOUBLE_BRACE } from "@/lib/template-apply";
 import { GUEST_DELIVERABLE_KB_WHERE } from "@/lib/kb-review";
 import {
   GUEST_NAME_FALLBACK,
@@ -24,6 +25,7 @@ import {
   fillGuestPlaceholdersInItems,
   guestFirstNameOf,
   hasNamePlaceholder,
+  kbPlaceholderTokens,
 } from "@/lib/kb-placeholders";
 import { buildKbEvidence } from "@/lib/ai/grounding";
 import { consumeDailyAiBudget, peekDailyAiBudget } from "@/lib/ai/daily-budget";
@@ -2832,6 +2834,36 @@ function fillPlaceholders(text: string, firstName: string, propertyName?: string
  * placeholder, substitute the tokens and send it verbatim (their own greeting +
  * sign-off). Otherwise prepend a greeting and append the org signature.
  */
+/**
+ * 🚨 DOLDURULMAMIŞ YER TUTUCU TAŞIYAN YAŞAM-DÖNGÜSÜ METNİ MİSAFİRE GİTMEZ
+ * (kurucu iş emri, 2026-09-11 — ölçülmüş misafir-görünür kusur).
+ *
+ * `KB_PRESETS`in "Giriş talimatı" ve "Çıkış" hazır şablonlarının İKİSİ de
+ * doldurulmamış köşeli parantez taşıyor (`[AÇIK ADRES]` · `[ZİL / KAPI KODU
+ * TARİFİ]` · `[ANAHTAR TESLİM ŞEKLİ]` · `[ANAHTAR BIRAKMA YERİ]`). Host rozete
+ * basıp kaydedebiliyor ve kalem `approved` doğuyor.
+ *
+ * 🚨 ÜRÜNÜN `[…]` KORUMASI BU YOLDA DEVREDE DEĞİL: `packKnowledgeBase`in
+ * `[NOT] DOLDURULMAMIŞ YER TUTUCU` uyarısı bir MODEL İSTEMİ notudur, oysa
+ * yaşam-döngüsü mesajları modelden HİÇ GEÇMEZ (`kb-review.ts`: "içerikleri
+ * misafire AYNEN gönderilir"). Yani misafir `Adres: [AÇIK ADRES]` okuyordu.
+ *
+ * `{{…}}` sınıfı da elenir: bu yolda hiçbir yerde çözülmüyor (`fillPlaceholders`
+ * yalnız tek-parantez `{isim}`/`{daire}` sınıfını bilir), yani host elle
+ * `{{wifiInfo}}` yazarsa misafire HAM gider.
+ *
+ * ⚠️ YÖN FAIL-CLOSED ve BEDELİ VAR: kalem düzeltilene kadar o daireye otomatik
+ * mesaj GİTMEZ. Bu, ham belirteç göndermekten iyidir ama SESSİZ OLMAMALI —
+ * host'a Bilgi Tabanı ekranında kalemin yanında söylenir (`kb-manager`), yani
+ * uyarı tam düzeltmenin yapılacağı yerde çıkar.
+ *
+ * Yer tutucu ikamesinden SONRAKİ metin denetlenir: `{isim}` çözülmüş olur ve
+ * yanlışlıkla "doldurulmamış" sayılmaz.
+ */
+function hasUnfilledPlaceholders(filledBody: string): boolean {
+  return kbPlaceholderTokens(filledBody).length > 0 || ANY_DOUBLE_BRACE.test(filledBody);
+}
+
 function buildGuestMessageBody(
   content: string,
   firstName: string,
@@ -2880,7 +2912,17 @@ async function lifecycleOutboxOwns(
  */
 export async function sendDueWelcomes(
   organizationId: string,
-): Promise<{ sent: number; considered: number }> {
+): Promise<{
+  sent: number;
+  considered: number;
+  /**
+   * Doldurulmamış yer tutucu yüzünden GÖNDERİLMEYEN sayısı.
+   * ⚠️ `undefined` = ÖLÇÜLMEDİ (gönderici erken döndü: env kapalı, org bayrağı
+   * kapalı, baseline yok), `0` DEĞİL — A2'nin "NULL ölçülmedi demektir"
+   * deyimiyle aynı. Ölçmeyen yol sahte bir "sorun yok" üretmez.
+   */
+  unfilled?: number;
+}> {
   if (process.env.AUTO_REPLY_ENABLED !== "1") return { sent: 0, considered: 0 };
 
   const org = await prisma.organization.findUnique({
@@ -2932,6 +2974,14 @@ export async function sendDueWelcomes(
 
   const signature = org.aiSignature?.trim();
   let sent = 0;
+  /**
+   * Doldurulmamış yer tutucu yüzünden GÖNDERİLMEYEN mesaj sayısı. `failures`'a
+   * İTİLMEZ ve itilmemeli: o dizi 6 saatlik `SystemLock` penceresini tüketen
+   * "teslim başarısız" alarmını tetikler ve metni burada YANLIŞ olurdu (teslim
+   * denenmedi bile). Host'a doğru yerde söylenir: Bilgi Tabanı'nda kalemin
+   * yanında (`kb-manager`), yani düzeltmenin yapılacağı ekranda.
+   */
+  let unfilled = 0;
   // Hata SINIFI etiketleri (PII yok) — koşu sonunda tek toplu alarma gider.
   const failures: string[] = [];
 
@@ -2945,6 +2995,13 @@ export async function sendDueWelcomes(
 
     const firstName = guestFirstNameOf(r.guestName) ?? r.guestName;
     const body = buildGuestMessageBody(welcome.content, firstName, signature, r.property.name);
+    // 🚨 FAIL-CLOSED: doldurulmamış yer tutucu taşıyan metin misafire GİTMEZ
+    // (gerekçe `hasUnfilledPlaceholders`). `*SentAt` damgalanmaz → host kalemi
+    // düzeltince bir sonraki geçişte NORMAL gönderilir; kaybolmaz, bekler.
+    if (hasUnfilledPlaceholders(body)) {
+      unfilled++;
+      continue;
+    }
 
     // ── Durable Outbox (flag ON) ──────────────────────────────────────────────
     // Enqueue the welcome and let the worker deliver it. welcomeSentAt is stamped ONLY on
@@ -3036,7 +3093,7 @@ export async function sendDueWelcomes(
   }
 
   await reportLifecycleSendFailures("welcome", organizationId, failures, reservations.length);
-  return { sent, considered: reservations.length };
+  return { sent, considered: reservations.length, unfilled };
 }
 
 /**
@@ -3051,7 +3108,17 @@ export async function sendDueWelcomes(
  */
 export async function sendDueCheckins(
   organizationId: string,
-): Promise<{ sent: number; considered: number }> {
+): Promise<{
+  sent: number;
+  considered: number;
+  /**
+   * Doldurulmamış yer tutucu yüzünden GÖNDERİLMEYEN sayısı.
+   * ⚠️ `undefined` = ÖLÇÜLMEDİ (gönderici erken döndü: env kapalı, org bayrağı
+   * kapalı, baseline yok), `0` DEĞİL — A2'nin "NULL ölçülmedi demektir"
+   * deyimiyle aynı. Ölçmeyen yol sahte bir "sorun yok" üretmez.
+   */
+  unfilled?: number;
+}> {
   if (process.env.AUTO_REPLY_ENABLED !== "1") return { sent: 0, considered: 0 };
 
   const org = await prisma.organization.findUnique({
@@ -3097,6 +3164,14 @@ export async function sendDueCheckins(
 
   const signature = org.aiSignature?.trim();
   let sent = 0;
+  /**
+   * Doldurulmamış yer tutucu yüzünden GÖNDERİLMEYEN mesaj sayısı. `failures`'a
+   * İTİLMEZ ve itilmemeli: o dizi 6 saatlik `SystemLock` penceresini tüketen
+   * "teslim başarısız" alarmını tetikler ve metni burada YANLIŞ olurdu (teslim
+   * denenmedi bile). Host'a doğru yerde söylenir: Bilgi Tabanı'nda kalemin
+   * yanında (`kb-manager`), yani düzeltmenin yapılacağı ekranda.
+   */
+  let unfilled = 0;
   // Hata SINIFI etiketleri (PII yok) — koşu sonunda tek toplu alarma gider.
   const failures: string[] = [];
 
@@ -3110,6 +3185,13 @@ export async function sendDueCheckins(
 
     const firstName = guestFirstNameOf(r.guestName) ?? r.guestName;
     const body = buildGuestMessageBody(tpl.content, firstName, signature, r.property.name);
+    // 🚨 FAIL-CLOSED: doldurulmamış yer tutucu taşıyan metin misafire GİTMEZ
+    // (gerekçe `hasUnfilledPlaceholders`). `*SentAt` damgalanmaz → host kalemi
+    // düzeltince bir sonraki geçişte NORMAL gönderilir; kaybolmaz, bekler.
+    if (hasUnfilledPlaceholders(body)) {
+      unfilled++;
+      continue;
+    }
 
     // Durable Outbox (flag ON): enqueue; the worker delivers and stamps checkinSentAt ONLY on
     // confirmed delivery. Deterministic key (org + booking) → replay/restart dedupes. See welcome.
@@ -3186,7 +3268,7 @@ export async function sendDueCheckins(
   }
 
   await reportLifecycleSendFailures("checkin", organizationId, failures, reservations.length);
-  return { sent, considered: reservations.length };
+  return { sent, considered: reservations.length, unfilled };
 }
 
 export interface WelcomePreview {
@@ -3324,7 +3406,17 @@ export async function previewCheckins(
  */
 export async function sendDueCheckouts(
   organizationId: string,
-): Promise<{ sent: number; considered: number }> {
+): Promise<{
+  sent: number;
+  considered: number;
+  /**
+   * Doldurulmamış yer tutucu yüzünden GÖNDERİLMEYEN sayısı.
+   * ⚠️ `undefined` = ÖLÇÜLMEDİ (gönderici erken döndü: env kapalı, org bayrağı
+   * kapalı, baseline yok), `0` DEĞİL — A2'nin "NULL ölçülmedi demektir"
+   * deyimiyle aynı. Ölçmeyen yol sahte bir "sorun yok" üretmez.
+   */
+  unfilled?: number;
+}> {
   if (process.env.AUTO_REPLY_ENABLED !== "1") return { sent: 0, considered: 0 };
 
   const org = await prisma.organization.findUnique({
@@ -3380,6 +3472,14 @@ export async function sendDueCheckouts(
 
   const signature = org.aiSignature?.trim();
   let sent = 0;
+  /**
+   * Doldurulmamış yer tutucu yüzünden GÖNDERİLMEYEN mesaj sayısı. `failures`'a
+   * İTİLMEZ ve itilmemeli: o dizi 6 saatlik `SystemLock` penceresini tüketen
+   * "teslim başarısız" alarmını tetikler ve metni burada YANLIŞ olurdu (teslim
+   * denenmedi bile). Host'a doğru yerde söylenir: Bilgi Tabanı'nda kalemin
+   * yanında (`kb-manager`), yani düzeltmenin yapılacağı ekranda.
+   */
+  let unfilled = 0;
   // Hata SINIFI etiketleri (PII yok) — koşu sonunda tek toplu alarma gider.
   const failures: string[] = [];
 
@@ -3402,6 +3502,13 @@ export async function sendDueCheckouts(
 
     const firstName = guestFirstNameOf(r.guestName) ?? r.guestName;
     const body = buildGuestMessageBody(tpl.content, firstName, signature, r.property.name);
+    // 🚨 FAIL-CLOSED: doldurulmamış yer tutucu taşıyan metin misafire GİTMEZ
+    // (gerekçe `hasUnfilledPlaceholders`). `*SentAt` damgalanmaz → host kalemi
+    // düzeltince bir sonraki geçişte NORMAL gönderilir; kaybolmaz, bekler.
+    if (hasUnfilledPlaceholders(body)) {
+      unfilled++;
+      continue;
+    }
 
     // Durable Outbox (flag ON): enqueue; the worker delivers and stamps checkoutSentAt ONLY on
     // confirmed delivery. Deterministic key (org + booking) → replay/restart dedupes. See welcome.
@@ -3478,7 +3585,7 @@ export async function sendDueCheckouts(
   }
 
   await reportLifecycleSendFailures("checkout", organizationId, failures, reservations.length);
-  return { sent, considered: reservations.length };
+  return { sent, considered: reservations.length, unfilled };
 }
 
 /**

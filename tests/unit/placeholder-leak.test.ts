@@ -1,6 +1,7 @@
 import { describe, it, expect } from "vitest";
 import { placeholderMentions, placeholderVerdict } from "../helpers/claim-detectors";
-import { buildReplyUserPrompt, kbPlaceholderTokens, packKnowledgeBase } from "@/lib/ai/prompts";
+import { buildReplyUserPrompt, packKnowledgeBase } from "@/lib/ai/prompts";
+import { kbPlaceholderTokens } from "@/lib/kb-placeholders";
 import type { SuggestReplyInput } from "@/lib/ai/types";
 
 // ---------------------------------------------------------------------------

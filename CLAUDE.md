@@ -1285,6 +1285,21 @@ Ayrıca misafir istemcisinde üç ölçülmüş kusur: **sessiz mesaj kaybı** (
 200+`{closed:true}` döner ve KAYDETMEZ, iyimser balon ekranda kalıyordu) · **kalıcı arıza geçici görünüyordu**
 (QR kapatılınca GET 404 sessizce yutuluyor, misafir sonsuza kadar deniyordu) · sunucunun 409/413/429/503
 metinleri tek jenerik cümleye çöküyordu · `min-h-screen` → `min-h-dvh`.
+🚨 **OTO-MESAJ DÜRÜSTLÜĞÜ — ÜÇ PARÇA (09-11):** ① **misafir-görünür kusur kapandı:** `KB_PRESETS`in
+"Giriş talimatı" ve "Çıkış" hazır şablonlarının İKİSİ de doldurulmamış `[AÇIK ADRES]` / `[ANAHTAR TESLİM
+ŞEKLİ]` taşıyor, host doldurmadan kaydedebiliyor ve bu yol **MODELDEN HİÇ GEÇMİYOR** — yani ürünün `[…]`
+koruması (`packKnowledgeBase`in `[NOT]` notu bir MODEL İSTEMİ notudur) devrede DEĞİLDİ, misafir
+`Adres: [AÇIK ADRES]` okuyordu. Üç göndericinin ÜÇÜ de artık **fail-closed** (`hasUnfilledPlaceholders`,
+gövde KURULDUKTAN sonra → `{isim}` çözülmüş olur); `*SentAt` damgalanmaz, host düzeltince normal gider.
+`{{…}}` sınıfı da elenir (bu yolda hiç çözülmüyor). ② **KOŞULSUZ VAAT KALKTI:** "Bu metin misafire
+otomatik gönderilir" org ayarına HİÇ bakmadan yazılıyordu (bileşen ayarı props olarak ALMIYOR bile) →
+yerine kontrol edilebilir yönlendirme. ③ **Eleme SESSİZ DEĞİL:** doldurulmamış alan taşıyan tetikleyici
+kaleme Bilgi Tabanı'nda "Doldurulmamış alan" rozeti — uyarı **düzeltmenin yapılacağı yerde**. Sayaç
+`failures`'a İTİLMEZ (o dizi 6 saatlik kilit penceresini tüketen "teslim başarısız" alarmıdır ve burada
+teslim DENENMEDİ bile); `unfilled` alanı **opsiyonel** — `undefined` = ÖLÇÜLMEDİ, `0` DEĞİL (A2 deyimi).
+⚠️ **`kbPlaceholderTokens` `prompts.ts`ten `kb-placeholders.ts`e TAŞINDI:** `prompts.ts` `import
+"server-only"` taşıyor, yani Bilgi Tabanı ekranı (client) onu import EDEMEZDİ; rozet ile gerçek davranış
+ayrışmasın diye yüklem saf modüle indi. `ANY_DOUBLE_BRACE` de `template-apply.ts`e (tek kaynak, üç tüketici).
 🚨 **EMBEDDING PLANI ÖLÇÜLDÜ** (kurucu izni var): maliyet önemsiz (kurucu org'un TÜM KB'si **0,18 sent**,
 en ağır müşteri 3 sent; sorgu tarafı mesaj başına 67 token = sohbet isteminin **%0,37**'si); depo **pgvector
 DEĞİL** (aday kümesi ≤300 parça → brute-force 1,37 ms; pgvector Railway'de prod DB TAŞIMA projesi ister) →

@@ -19,10 +19,22 @@ import { cn } from "@/lib/utils";
 // YAPRAK modülden: `prompts.ts` (75 KB sistem promptu) tarayıcı paketinin
 // bağımlılık grafiğine ASLA girmemeli — depo tam da o dosya yüzünden private.
 import { KB_ITEM_CAP } from "@/lib/ai/limits";
+import { kbPlaceholderTokens } from "@/lib/kb-placeholders";
+import { ANY_DOUBLE_BRACE } from "@/lib/template-apply";
 
 // Categories whose content is auto-sent verbatim to the guest (vs. read-only
 // facts the AI uses to answer questions). Only used to group the dropdown.
 const TRIGGER_CATEGORIES = new Set(["welcome", "checkin", "checkout"]);
+/**
+ * Gönderici tarafındaki `hasUnfilledPlaceholders` ile AYNI SINIF (tek kaynak
+ * sabitleri: `kbPlaceholderTokens` ve `ANY_DOUBLE_BRACE`). Rozet ile gerçek
+ * davranış ayrışmasın diye ikisi de aynı iki yüklemden türer; burada `{isim}`
+ * gibi ÇÖZÜLEN belirteçler bilinçli olarak kapsam dışıdır (onlar gönderim
+ * anında doldurulur).
+ */
+function hasUnfilledField(content: string): boolean {
+  return kbPlaceholderTokens(content).length > 0 || ANY_DOUBLE_BRACE.test(content);
+}
 const triggerOptions = KB_CATEGORY.options.filter((o) => TRIGGER_CATEGORIES.has(o.value));
 const infoOptions = KB_CATEGORY.options.filter((o) => !TRIGGER_CATEGORIES.has(o.value));
 
@@ -393,8 +405,20 @@ export function KbManager({
                 </optgroup>
               </Select>
               {TRIGGER_CATEGORIES.has(form.category) ? (
+                /* 🚨 VAAT KOŞULSUZDU ve ÖLÇÜLDÜ (kurucu iş emri, 09-11): bu cümle
+                   org ayarına HİÇ BAKMADAN "gönderilir" diyordu. Host metni
+                   yazıyor, ekran "gider" diyor, gitmiyordu — çünkü
+                   autoWelcome/autoCheckin/autoCheckout şemada `false` ve ayrıca
+                   `*EnabledAt` damgası gerekiyor. Bileşen org ayarını props
+                   olarak ALMIYOR bile, o yüzden burada BİLMEDİĞİMİZ bir şey
+                   iddia etmek yerine KOŞULU söylüyoruz — uydurma bir kesinlik
+                   yerine host'un kontrol edebileceği bir yönlendirme. */
                 <p className="mt-1 text-xs text-muted-foreground">
-                  Bu metin misafire otomatik gönderilir.
+                  Bu kategori otomatik gönderim içindir. Gönderimin açık olup olmadığını{" "}
+                  <a href="/settings?view=ai-otomasyon" className="text-primary hover:underline">
+                    Ayarlar → AI ve Otomasyon
+                  </a>{" "}
+                  bölümünden kontrol edin.
                 </p>
               ) : null}
             </Field>
@@ -473,6 +497,19 @@ export function KbManager({
                         </Badge>
                         <span className="text-sm font-medium">{item.title}</span>
                         {!item.isActive ? <Badge tone="muted">Pasif</Badge> : null}
+                        {/* 🚨 DOLDURULMAMIŞ ALAN = GÖNDERİM DURUR (09-11). Hazır
+                            şablonların ikisi de `[AÇIK ADRES]` gibi alanlar
+                            taşıyor ve host doldurmadan kaydedebiliyor. Bu yol
+                            MODELDEN GEÇMEDİĞİ için ürünün `[…]` koruması burada
+                            devrede değildi — misafir ham belirteç okuyordu.
+                            Gönderici artık fail-closed eliyor; uyarı TAM
+                            DÜZELTMENİN YAPILACAĞI YERDE duruyor ki eleme sessiz
+                            bir arızaya dönüşmesin. */}
+                        {TRIGGER_CATEGORIES.has(item.category) && hasUnfilledField(item.content) ? (
+                          <Badge tone="warning" title="Doldurulmamış alan içerdiği için bu otomatik mesaj gönderilmiyor.">
+                            Doldurulmamış alan
+                          </Badge>
+                        ) : null}
                       </div>
                       <div className="flex items-center gap-1">
                         <button

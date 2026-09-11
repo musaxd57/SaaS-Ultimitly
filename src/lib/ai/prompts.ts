@@ -3,6 +3,7 @@ import type { ReplyTone } from "@/lib/constants";
 // Tavanlar YAPRAK modülde: tarayıcıya giden ekranlar bu dosyayı (75 KB sistem
 // promptu + eğitim örnekleri) import etmek ZORUNDA kalmasın diye. ↓ai/limits.ts
 import { KB_ITEM_CAP, KB_CHAR_BUDGET, HISTORY_MESSAGE_CAP, HISTORY_CHAR_BUDGET } from "@/lib/ai/limits";
+import { kbPlaceholderTokens } from "@/lib/kb-placeholders";
 import { foldTurkishLower, foldTurkishAscii } from "@/lib/ai/fallback";
 export { KB_ITEM_CAP, KB_CHAR_BUDGET };
 import type { AdjacencyContext, KbContext, PropertyContext, SuggestReplyInput } from "./types";
@@ -770,18 +771,6 @@ const COURTESY_LINES = [
  *   sessizce düşüyor ve AI, host'un GERÇEKTEN yazdığı bir konuda kendinden emin
  *   "bilgim yok" diyebiliyordu (denetim, 07-31). Not gidince model devrediyor.
  */
-/**
- * Bilgi tabanı kaleminde DOLDURULMAMIŞ yer tutucu belirteçleri: `[ŞİFRE]`,
- * `<adres>`, `____` (kb-manager hazır şablonu köşeli parantezli alan taşır; A5
- * `kb-extract` de aynı sınıfı "yer tutucu" sayar). `{isim}`/`{daire}` BİLEREK
- * DIŞARIDA: onlar ad/daire ikamesiyle çağıranda doldurulur (automation /
- * ai-suggest / test rotası). İçinde en az bir harf şart: "[1]" madde imi
- * yer tutucu değildir.
- */
-const KB_PLACEHOLDER_G = /\[[^\]\n]*\p{L}[^\]\n]*\]|<[^>\n]*\p{L}[^>\n]*>|_{3,}/gu;
-export function kbPlaceholderTokens(content: string): string[] {
-  return Array.from(content.matchAll(KB_PLACEHOLDER_G), (m) => m[0]);
-}
 
 export function packKnowledgeBase(
   items: { category: string; title: string; content: string }[],

@@ -15,8 +15,8 @@
 // Hiçbir şey kaydetmez. Kabul `POST /api/kb` yolundan gider (host_manual/approved).
 // ---------------------------------------------------------------------------
 
-import { kbPlaceholderTokens } from "./ai/prompts";
-import { TEMPLATE_VAR_SOURCE } from "./template-apply";
+import { kbPlaceholderTokens } from "./kb-placeholders";
+import { TEMPLATE_VAR_SOURCE, ANY_DOUBLE_BRACE } from "./template-apply";
 
 export const TEMPLATE_SUGGESTION_MAX_CHARS = 2_000;
 
@@ -83,7 +83,6 @@ const TEMPLATE_VAR_G = new RegExp(TEMPLATE_VAR_SOURCE, "g");
  * kuralı tam da tanımadığı biçimlerde FAIL-OPEN'dı ve o metin ONAYLI BİLGİ olup
  * misafire ham gidebiliyordu. Çevrimden SONRA hâlâ `{{` varsa şablon düşer.
  */
-const ANY_DOUBLE_BRACE = /\{\{[^}]*\}\}|\{\{/;
 /** KB tarafında karşılığı olan tek şablon değişkeni. */
 const CONVERTIBLE_VARS: Readonly<Record<string, string>> = { guestName: "{isim}" };
 
