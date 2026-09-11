@@ -31,7 +31,8 @@ export const KB_ITEM_CAP = 30;
 export const KB_CHAR_BUDGET = 24_000;
 
 /**
- * HİBRİT RETRIEVAL (RAG dilim 1, 09-09; bayrak `KB_RETRIEVAL_MODE=hybrid`,
+ * HİBRİT RETRIEVAL (RAG dilim 1, 09-09; 🚨 09-11'den beri VARSAYILAN AÇIK —
+ * `KB_RETRIEVAL_MODE` artık bir ACİL DURDURMA düğmesidir, açma düğmesi değil,
  * VARSAYILAN KAPALI). Soruya göre seçilen parçaların karakter bütçesi ve parça
  * tavanı. Legacy bütçenin (24k) çok altında olması BİLİNÇLİ: retrieval'ın
  * varlık sebebi daha az ve daha ilgili bağlam. Bilgi tabanı bu bütçeye ZATEN

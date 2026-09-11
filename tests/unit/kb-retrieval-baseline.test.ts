@@ -88,7 +88,7 @@ function report(): string {
   lines.push("");
   lines.push("> Model YOK, DB YOK. Ölçülen: modele giden bilgi bloğunda ilgili cümle var mı (isabet), blok karakteri (maliyet vekili),");
   lines.push("> ilgisiz kalem sayısı (gürültü), seçim süresi (ms). Legacy = `kb-fetch` (en yeni 30) + `packKnowledgeBase` (24k) aynası;");
-  lines.push("> hibrit = `selectKbForPrompt` (bayrak `KB_RETRIEVAL_MODE=hybrid`, varsayılan KAPALI). Bu rapor modelin CEVABINI ölçmez;");
+  lines.push("> hibrit = `selectKbForPrompt` (bayrak `KB_RETRIEVAL_MODE`, 09-11'den beri varsayılan AÇIK). Bu rapor modelin CEVABINI ölçmez;");
   lines.push("> gerçek model eval'ini kurucu koşar (`docs/EVAL-CALISTIRMA.md`). Üretici: `tests/unit/kb-retrieval-baseline.test.ts`.");
   lines.push("");
   lines.push("| Senaryo | Sınıf | Legacy isabet | Hibrit isabet | Legacy kar. | Hibrit kar. | Legacy gürültü | Hibrit gürültü | Hibrit ms | Geri çekilme |");

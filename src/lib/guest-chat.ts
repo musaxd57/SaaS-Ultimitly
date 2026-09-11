@@ -744,11 +744,73 @@ export async function buildGuestChatContextWindow(conversationId: string): Promi
  * verilen bir yönergedir, o yüzden yukarıdaki beş kuralın hiçbirini ihlal etmez.
  *
  * ⚠️ Argümansız çağrı BUGÜNKÜ METNİ BİREBİR döndürür (mevcut pinler korunur).
- * ⚠️ Ölçüt `verdict.reason` DEĞİL, deterministik `detectRiskType` olmalı:
- * `model_risk_type` gerekçesi `review_threat` (acil değil) için de çıkabilir,
- * `keyword_escalated` ise acil bir mesajda da çıkabilir. Alarm yolu (
- * `criticalEvent`) zaten aynı deterministik ölçütü kullanıyor — tek kaynak.
+ * 🚨 TETİKLEYİCİ `isPhysicalEmergency` — `detectRiskType === "safety_emergency"`
+ * DEĞİL. Gerekçe ↓ orada yazılı; ilk yazımım o geniş ölçütü kullanıyordu ve
+ * inceleme turu İKİ ölçülmüş kusur çıkardı (öz-zarar + aşırı eşleşme).
  */
+/**
+ * 🚨 FİZİKSEL ACİL DURUM — DAR, KENDİNE AİT liste (inceleme turu, 09-11).
+ *
+ * İlk yazımım tetikleyici olarak `detectRiskType(message) === "safety_emergency"`
+ * kullanıyordu. İnceleme turu bunun İKİ ÖLÇÜLMÜŞ KUSUR ürettiğini gösterdi ve
+ * ikisi de ürünün KENDİ yazılı kurallarına aykırıydı:
+ *
+ * 🚨 (1) ÖZ-ZARAR. `SAFETY_CRITICAL_WORDS` intihar/öz-zarar ifadelerini de
+ * `safety_emergency` yapar (`fallback.ts` "intihar · kendime zarar · ölmek
+ * istiyorum · kill myself · suicide …"). Oysa `prompts.ts` KURAL METNİ bu sınıf
+ * için AÇIKÇA şunu emrediyor: *"bir kriz-danışmanlığı metni de KURGULAMAZ …
+ * Taslak yalnızca NÖTR olsun … söz/teşhis/ACİL-TALİMAT İÇERMEZ. Asıl
+ * yönlendirmeyi (yerel acil servise başvuru …) EV SAHİBİNE söyle."* Yani
+ * "acil servisleri arayın" cümlesi kriz içindeki misafire GİTMEMELİ.
+ *
+ * 🚨 (2) `SAFETY_CRITICAL_WORDS` BİLEREK GENİŞ yazılmıştır ve gerekçesi kendi
+ * yorumunda iki kez yazılı: *"Over-matching is the safe side — it only ever
+ * withholds a holding-ack and forces the silent-escalate path."* O maliyet
+ * modeli bu yeni tüketiciyle ÇÖKERDİ: aşırı eşleşme artık misafire FARKLI BİR
+ * CÜMLE gönderir. Ölçülmüş çarpışmalar: "İnternet **düştü**" · "Havuz ne zaman
+ * **açıl**ıyor?" (bilinen `açıl`→`acil` ASCII katlama bug'ı, iş #51) ·
+ * "**Polis** merkezi nerede?" · "**Kaza** ile bardağı kırdım".
+ *
+ * Bu yüzden tetikleyici AYRI ve DAR bir listedir. Listede öz-zarar ifadesi
+ * YOKTUR — bu bir veto değil, YAPISAL bir garantidir: eşleşmesi mümkün değil.
+ *
+ * ⚠️ Girdi bilinçli olarak DAR: yalnız yangın/duman/gaz/su baskını/elektrik
+ * çarpması. Ölçülüp DIŞARIDA bırakılanlar (geri ekleme, gerekçesi var):
+ *   · `yanıyor` → "ışık yanıyor" / "soba yanıyor" (olağan bildirim)
+ *   · `bayıldı` → "manzaraya **bayıldım**" (Türkçede ÖVGÜ)
+ *   · çıplak `gaz` → "gazoz" · çıplak `sel` → "**sel**am" · çıplak `fire` →
+ *     "**fire**place" (gerçek bir olanak adı)
+ *   · `polis`/`ambulans`/`kaza`/`acil` → hepsi bilgi sorusunda geçiyor
+ * Bu listenin maliyet modeli `SAFETY_CRITICAL_WORDS`inkinin TERSİDİR: burada
+ * aşırı eşleşme BEDAVA DEĞİL, o yüzden dar taraf güvenli taraftır. Kaçırılan
+ * acil durum yine DEVREDİLİR ve host'a alarm gider — yalnız misafir ek yönergeyi
+ * görmez.
+ */
+const PHYSICAL_EMERGENCY_PATTERNS: readonly RegExp[] = [
+  /yang[ıi]n/u,
+  /duman\s+(var|geliyor|dolu)/u,
+  /gaz\s*(kokusu|ka[çc]a[ğg][ıi]|ka[çc][ıi]yor|kok[uy]or)/u,
+  /do[ğg]algaz\s*(kokusu|ka[çc]a[ğg][ıi])/u,
+  /su\s*bas(t[ıi]|[ıi]yor)/u,
+  /elektrik\s*[çc]arp(t[ıi]|[ıi]yor)/u,
+  /gas\s+leak/u,
+  /smell\s+(of\s+)?gas/u,
+  /there(?:'s| is)\s+a\s+fire/u,
+  /the\s+(flat|apartment|kitchen|room)\s+is\s+on\s+fire/u,
+  /flood(ed|ing)/u,
+];
+
+/**
+ * Mesaj FİZİKSEL bir acil durum bildiriyor mu? Saf, LLM'siz, deterministik.
+ * ⚠️ `detectRiskType`in yerini ALMAZ — o güvenlik kapısının kendisidir ve geniş
+ * kalmalıdır. Bu yüklem YALNIZ misafire giden devir METNİNİ seçer.
+ */
+export function isPhysicalEmergency(message: string): boolean {
+  const folded = foldTurkishLower(message);
+  const ascii = foldTurkishAscii(message);
+  return PHYSICAL_EMERGENCY_PATTERNS.some((re) => re.test(folded) || re.test(ascii));
+}
+
 export function escalationReply(opts?: { critical?: boolean }): string {
   const anchor = "Mesajınız kaydedildi; ev sahibiniz sohbet ekranından görüntüleyebilir.";
   if (!opts?.critical) return anchor;

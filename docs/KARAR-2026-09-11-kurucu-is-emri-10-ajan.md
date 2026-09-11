@@ -199,6 +199,67 @@ Fransızca yalnız KAZAEN çalışıyor. Bunu sözlük büyüterek kapatmak her 
 
 ---
 
+## 🚨 İNCELEME TURU — ÜÇ P1, ÜÇÜ DE BENİM BU TURDA AÇTIĞIM
+
+Aynı turda bir inceleme ajanı değişiklikleri satır satır okudu. Bulduğu her şey kodda
+doğrulandı ve düzeltildi. Bunlar "iyileştirme önerisi" değil, **bu commit'lerin AÇTIĞI
+kusurlardır** — kayıtları burada duruyor ki desen tekrarlanmasın.
+
+### P1-1 — Bağlam penceresini büyütmek KAPIDA bir OTO-GÖNDERİM AÇIĞI açtı
+
+`passesAutoReplySafetyGate` `context.history`yi **injection için tarar** ve o context
+"modelin gördüğünü yansıtsın" diye kurulmuştu: `messages.slice(-6)`. İstem 6 iken iki
+pencere **BİREBİR eşitti**. `.slice(-6)`ı 25'e çıkarınca yalnız MODEL tarafı büyüdü,
+ayna 6'da kaldı.
+
+**Saldırı:** misafir N-10'uncu mesaja injection yükünü koyar → 9 zararsız mesaj → son
+mesajı masum bir soru. **Model yükü GÖRÜR, kapı GÖRMEZ** → veto düşer, cevap
+oto-gönderilir. `pendingGuestMessages` bacağı kurtarmaz: o yalnız son GİDEN mesajdan
+sonrasını kapsar, yük ondan ÖNCEDEDİR.
+
+Düzeltme: ayna AYNI seçiciden beslenir. Pin üç yönlü — yeni ayna vetoluyor · injection
+yokken oto-gönderim sürüyor · **eski 6'lık ayna yükü KAÇIRIYOR** (açığın gerçekliği
+ölçülüyor, "olabilirdi" değil).
+
+### P1-2 — Acil metin ÖZ-ZARAR mesajlarına gidiyordu (ürünün KENDİ kuralına aykırı)
+
+Tetikleyici olarak `detectRiskType === "safety_emergency"` seçmiştim. O küme
+intihar/öz-zarar ifadelerini de içeriyor. Oysa `prompts.ts` bu sınıf için AÇIKÇA şunu
+yazıyor: *"bir kriz-danışmanlığı metni de KURGULAMAZ … Taslak yalnızca NÖTR olsun …
+söz/teşhis/**acil-talimat İÇERMEZ**. Asıl yönlendirmeyi (yerel acil servise başvuru)
+**EV SAHİBİNE** söyle."* Yani "acil servisleri arayın" cümlesi kriz içindeki misafire
+gidiyordu — ürünün few-shot külliyatının bilerek çizdiği çizgiyi siliyordum.
+
+### P1-3 — `SAFETY_CRITICAL_WORDS`ün maliyet modeli kırılıyordu
+
+O listenin yorumu güvenceyi İKİ KEZ yazılı olarak veriyor: *"Over-matching is the safe
+side — it only ever withholds a holding-ack and forces the silent-escalate path."*
+Liste tam bu güvenceye dayanarak **bilerek geniş** yazılmış. Yeni tüketiciyle aşırı
+eşleşme artık misafire **farklı bir cümle** gönderiyordu. Ölçülmüş çarpışmalar:
+"İnternet **düştü**" · "Havuz ne zaman **açıl**ıyor?" (bilinen `açıl`→`acil` ASCII
+katlama bug'ı, iş #51) · "**Polis** merkezi nerede?" · "**Kaza** ile bardağı kırdım".
+
+**P1-2 + P1-3 ortak düzeltmesi:** tetikleyici AYRI ve DAR bir yükleme çevrildi
+(`isPhysicalEmergency` — yalnız yangın/duman/gaz/su baskını/elektrik çarpması). Listede
+öz-zarar ifadesi YOKTUR; bu bir veto değil **yapısal** garantidir. Bu listenin maliyet
+modeli `SAFETY_CRITICAL_WORDS`ünkinin TERSİDİR (aşırı eşleşme bedava değil), o yüzden
+dar taraf güvenli taraftır — kaçırılan acil durum yine DEVREDİLİR ve host alarm alır,
+yalnız misafir ek yönergeyi görmez.
+
+### Ayrıca düzeltilen P2/P3
+
+| Bulgu | Neydi |
+|---|---|
+| `selectHistoryForPrompt` **TÜM geçmişi düşürebiliyordu** | Bütçe kontrolünde `picked.length > 0` çapası yoktu; güvenlik penceresi boşken (son mesaj OPERATİF) tek uzun giden mesaj her şeyi siliyordu → inbox "AI cevap öner" SIFIR bağlamla üretirdi |
+| Üç QR devir noktasından **yalnız biri** `critical` taşıyordu | Günlük kota / org bütçesi dolmuşken gerçek yangın jenerik cümle alıyordu; kod mesajın kritik olduğunu ALARMA söyleyip misafire söylemiyordu |
+| `ScrollToLatest` **sohbet değişince dibe atmıyordu** | App Router aynı segmentte remount etmiyor → `mounted` ref'i `true` kalıyor; bileşenin yazılma sebebi olan kusurun ta kendisi. `key={convo.id}` |
+| Kaydırma çubuğu **hâlâ silikti** | `/ 0.5` alfa → oluk üzerinde **1,90:1** (WCAG metin-dışı eşiği 3:1'in altında). Tam opaklığa çekildi. Ayrıca `:hover` **ölü koddu**: Chromium'da `scrollbar-color` non-`auto` iken webkit pseudo'ları yok sayılır, Firefox da onları tanımaz |
+| Panelin **ASIL kaydırıcısı** sınıfı almamıştı | Kurucunun şikâyeti `app-shell` `<main>` içindi; sınıf oraya da kondu |
+| Demo bütçe sırası **yanlış gerekçeyle** değiştirilmişti | Depo kuralı KİMLİKLİ rotalar içindir ve `leads`i açıkça istisna tutar: anonim rotada rate limit KOTA değil KÖTÜYE KULLANIM KONTROLÜDÜR. Sıra geri alındı, pin ters çevrildi |
+| Uyarı metni **ekranda olmayan** düğmeyi işaret ediyordu | Uyarı `!aiPaused`, düğme `aiPaused` — karşılıklı dışlayıcı |
+| "emsal birebir kopyalandı" **yanlıştı** | Misafir yüzeyindeki Enter işleyicisinde `isComposing` YOK; asimetri kapanmadı, yön değişti (ayrı iş) |
+| Odak halkası, `direction` tipi, ölü tavan kontrolü, dört yerde bayat "VARSAYILAN KAPALI" | hepsi düzeltildi |
+
 ## AYRI ONAY BEKLEYENLER
 
 | Konu | Neden bekliyor |

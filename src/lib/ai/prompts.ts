@@ -916,7 +916,20 @@ export function findTimeConflicts(property: PropertyContext, kb: KbContext[]): T
  *    zararsız bir metin yollayıp asıl riskli cümlesini pencereden DIŞARI itebilir;
  *    kelime-ağı çapraz kontrolü o cümleyi göremezse kapı yanlış karar verir.
  *    Bu yüzden güvenlik penceresi bütçeye tabi DEĞİLDİR, yalnız mutlak mesaj
- *    tavanına tabidir (istem sonsuz büyüyemez).
+ *    tavanına tabidir.
+ *
+ *    🚨 **GÖVDE KIRPILMAZ — bilinçli ve ölçülmüş karar (inceleme turu, 09-11).**
+ *    "Pencere karakter bakımından sınırsız, istem 4 katına çıkabilir" uyarısı
+ *    DOĞRU, ama çözümü gövdeyi kırpmak DEĞİLDİR: bu seçimin çıktısı aynı zamanda
+ *    `passesAutoReplySafetyGate`in injection tarama yüzeyidir (`automation.ts`
+ *    `gateContext.history`). Kırpılan her karakter, kapının GÖRMEDİĞİ ama modele
+ *    GİDEBİLECEK bir yüzey demektir — yani kırpma, kapatmaya çalıştığımız açığı
+ *    kaynağında yeniden açardı. Sınır bu yüzden MESAJ SAYISINDA tutuldu ve bedeli
+ *    burada yazılıdır: en kötü hâl `HISTORY_MESSAGE_CAP` × gövde boyu. QR'da gövde
+ *    zaten 2.000 karaktere kırpılmış olarak GELİR (rota girişinde), yani orada üst
+ *    sınır 50.000 karakterdir; kanal yolunda sağlayıcının kendi sınırı geçerlidir.
+ *    Bu senaryo ayrıca günlük AI kotasıyla da sınırlıdır (25 ardışık dev mesaj,
+ *    araya HİÇ host cevabı girmeden).
  *
  * ② **BÜTÇE SAYIDAN ÖNCE GELİR.** Tek bir 4.000 karakterlik mesaj, 25 kısa
  *    mesajdan pahalıdır — mekanik `-6 → -25` bunu görmez. Kalan yer eskiye doğru
@@ -928,7 +941,7 @@ export function findTimeConflicts(property: PropertyContext, kb: KbContext[]): T
  * Girdi kronolojik (eski → yeni) varsayılır; çağıranların üçü de `orderBy asc`
  * ile okuyor. Çıktı da kronolojiktir.
  */
-export function selectHistoryForPrompt<T extends { direction: string; body: string }>(
+export function selectHistoryForPrompt<T extends { direction: "inbound" | "outbound"; body: string }>(
   history: readonly T[],
 ): T[] {
   if (history.length === 0) return [];
@@ -952,12 +965,24 @@ export function selectHistoryForPrompt<T extends { direction: string; body: stri
     used += history[i].body.length;
   }
   // Kalan yer eskiye doğru, bütçe dolana kadar.
+  //
+  // 🚨 "EN AZ BİR MESAJ DAİMA" (inceleme turu, 09-11 — ÖLÇÜLMÜŞ KUSUR). Bu
+  // koşul `picked.length > 0` çapası olmadan yazılmıştı ve güvenlik penceresi
+  // BOŞKEN (yani son mesaj OPERATİFKEN) tek bir uzun giden mesaj TÜM geçmişi
+  // siliyordu: `[misafir, misafir, host(7.000 karakter)]` → `[]`. Eski
+  // `.slice(-6)` üçünü de taşıyordu. En görünür bedeli inbox "AI cevap öner"
+  // idi: host zaten cevap yazmışsa son öğe outbound olur, uzun bir şablon
+  // cevabı öneriyi SIFIR bağlamla ürettirirdi. Kardeş pencere
+  // (`guest-chat.ts buildGuestChatContextWindow`) aynı çapayı taşıyor.
   for (let i = mustStart - 1; i >= start; i--) {
     const cost = history[i].body.length;
-    if (picked.length >= HISTORY_MESSAGE_CAP) break;
-    if (used + cost > HISTORY_CHAR_BUDGET) break;
+    if (picked.length > 0 && used + cost > HISTORY_CHAR_BUDGET) break;
     picked.unshift(history[i]);
     used += cost;
+    // ⚠️ Burada tavan kontrolü YOK ve bu ULAŞILAMAZ olduğu için değil ÖLÇÜLDÜĞÜ
+    // için: ileri döngü `len - mustStart`, geri döngü en fazla `mustStart - start`
+    // adım atar; toplam daima `min(len, CAP)`. İlk yazımdaki kontrol ölü koddu
+    // (kaldırma mutasyonu hayatta kalıyordu) → silindi.
   }
   return picked;
 }

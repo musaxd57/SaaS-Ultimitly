@@ -189,4 +189,41 @@ describe("QR concierge — org bütçesi ve dürüst söz", () => {
     expect(body.reply).not.toContain("ilettim");
     expect(body.reply).toContain("kaydedildi");
   });
+
+  // -------------------------------------------------------------------------
+  // 🚨 ACİL DURUM ≠ SIRADAN İSTEK (kurucu, 09-11: "acil durum ile istekleri
+  // ayır o zaman"). Eskiden yangın/gaz kaçağı ile "bir yastık daha alabilir
+  // miyiz?" misafire KARAKTERİ KARAKTERİNE aynı cümleyi aldırıyordu.
+  //
+  // Bu iki test ROTANIN BAĞLANTISINI ölçer: `escalationReply`in kendi birim
+  // pini (`tests/unit/qr-escalation-claim.test.ts`) fonksiyonun doğru metni
+  // ÜRETTİĞİNİ gösterir ama rotanın ona `critical` bayrağını GEÇTİĞİNİ
+  // göstermez — o bağ koparsa birim testi yeşil kalır.
+  // -------------------------------------------------------------------------
+  it("🚨 ACİL mesajda misafir GÜVENLİK YÖNERGESİ alır (rota criticalEvent'i geçiyor)", async () => {
+    vi.stubEnv("AI_DAILY_CALL_CAP", "100");
+    const { token } = await seed();
+    const res = await ask(token, "Daireden gaz kokusu geliyor!");
+    const body = await res.json();
+
+    expect(body.escalated).toBe(true);
+    expect(body.reply).toMatch(/güvenli bir alana/i);
+    expect(body.reply).toMatch(/acil servis/i);
+    // Çapa cümlesi KAYBOLMAZ — garanti edilen şey hâlâ söyleniyor.
+    expect(body.reply).toContain("kaydedildi");
+  });
+
+  it("🚨 TERS YÖN: acil OLMAYAN devirde güvenlik yönergesi GİTMEZ", async () => {
+    vi.stubEnv("AI_DAILY_CALL_CAP", "100");
+    const { token } = await seed();
+    // Şikâyet → devredilir ama acil DEĞİL (detectRiskType safety_emergency vermez).
+    const res = await ask(token, "Daire hiç temiz değildi, tam iade istiyorum.");
+    const body = await res.json();
+
+    expect(body.escalated).toBe(true);
+    expect(body.reply).toContain("kaydedildi");
+    // Bu satır olmadan "her devirde yönergeyi bas" mutantı hayatta kalırdı.
+    expect(body.reply).not.toMatch(/acil servis/i);
+    expect(body.reply).not.toMatch(/güvenli bir alana/i);
+  });
 });

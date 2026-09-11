@@ -11,6 +11,7 @@ import {
   ensureGuestChatConversation,
   scrubStyleProfileForPublic,
   escalationReply,
+  isPhysicalEmergency,
   buildGuestChatContextWindow,
   type GuestChatContext,
   type GuestChatDb,
@@ -522,13 +523,20 @@ async function handleGuestChatPost(req: NextRequest, { params }: { params: Promi
   // a safety/emergency bypasses the alert's anti-flood cooldown — a fire two
   // minutes after a complaint must still e-mail the host.
   const criticalEvent = detectRiskType(message) === "safety_emergency";
+  // 🚨 ALARM ÖLÇÜTÜ ≠ MİSAFİR METNİ ÖLÇÜTÜ (inceleme turu, 09-11).
+  // `criticalEvent` ALARM dedupe'ı içindir ve bilinçli GENİŞTİR (aşırı eşleşme
+  // orada bedavadır: yalnız cooldown atlanır). Misafire GİDEN metin için aynı
+  // ölçütü kullanmak İKİ kusur üretiyordu — öz-zarar mesajına "acil servisleri
+  // arayın" göndermek (ürünün kendi istem kuralına aykırı) ve "İnternet düştü"
+  // gibi cümlelerde acil talimatı basmak. Metin DAR yükleme bağlanır.
+  const physicalEmergency = isPhysicalEmergency(message);
 
   const dailyAiCap =
     (await limitsForOrg(ctx.property.organizationId).catch(() => null))?.qrQuestionsPerPropertyPerDay ??
     DAILY_AI_CAP_FALLBACK;
 
   if (usage.count > dailyAiCap) {
-    const reply = escalationReply();
+    const reply = escalationReply({ critical: physicalEmergency });
     const { inboundMessageId, handedOff } = await record(reply, true);
     // A host reply raced in → the human owns the thread; the canned line was
     // vetoed under the lock and only the guest's message was stored.
@@ -563,7 +571,7 @@ async function handleGuestChatPost(req: NextRequest, { params }: { params: Promi
   // İki kova (kendi payı + org ortak tavanı) — gerekçe `daily-budget.ts`'te.
   const budget = await consumeDailyAiBudgetForQr(ctx.property.organizationId);
   if (!budget.ok) {
-    const escalationText = escalationReply();
+    const escalationText = escalationReply({ critical: physicalEmergency });
     const { inboundMessageId, handedOff } = await record(escalationText, true);
     if (handedOff) return finalize({ handoff: true, reply: HANDOFF_REPLY });
     await sendQrEscalationAlertBounded({
@@ -663,7 +671,7 @@ async function handleGuestChatPost(req: NextRequest, { params }: { params: Promi
   // 🚨 ACİL ≠ SIRADAN İSTEK (kurucu, 09-11). `criticalEvent` yukarıda (alarm
   // dedupe'ı için) ZATEN hesaplandı — yeni dedektör, yeni çağrı, yeni maliyet yok.
   const reply = escalate
-    ? escalationReply({ critical: criticalEvent })
+    ? escalationReply({ critical: physicalEmergency })
     : result.reply;
   const { inboundMessageId, handedOff, conversationId } = await record(reply, escalate);
   if (handedOff) return finalize({ handoff: true, reply: HANDOFF_REPLY });

@@ -203,7 +203,7 @@ diğerleri bayatlıyor. Kurucunun istediği şey tam olarak bunun çözülmesi.
 
 - Hiçbir migration yazılmadı.
 - Hiçbir ücretli servis çağrılmadı; embedding **hâlâ yok** (`SemanticScorer` no-op, pin).
-- `KB_RETRIEVAL_MODE` bayrağı **hâlâ varsayılan kapalı**.
+- ~~`KB_RETRIEVAL_MODE` bayrağı **hâlâ varsayılan kapalı**.~~ 🚨 **09-11'DE GEÇERSİZLEŞTİ** — kurucu talimatıyla varsayılan AÇIK; bayrak artık acil durdurma düğmesi.
 - `Property.notes` isteme **bağlanmadı**.
 - Bacak B'nin seçicisi yazılmadı — ⚠️ yazılırken `authorType:"host"` kümesinin
   **kendi AI çıktımızı içerebildiği** ölçülmüş gerçeği (↑§1) kapıya girmeli.

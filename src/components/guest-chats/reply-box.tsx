@@ -81,10 +81,11 @@ export function GuestChatReply({
           // 🚨 ENTER = GÖNDER (kurucu, 09-11: "entera basınca atmıyor illa tıklamam
           // lazım"). Bu davranış ürünün MİSAFİR tarafında zaten vardı
           // (`guest-chat/guest-chat.tsx`) ama ödeyen müşterinin kullandığı host
-          // yüzeyinde yoktu — asimetri kapatıldı, emsal birebir kopyalandı.
-          // Shift+Enter yeni satır bırakır; IME (Türkçe/Çince aday penceresi)
-          // açıkken `isComposing` ile ARA VERİLİR, yoksa aday seçen Enter mesajı
-          // yarıda gönderir.
+          // yüzeyinde yoktu. Shift+Enter yeni satır bırakır.
+          // ⚠️ EMSAL BİREBİR KOPYALANMADI (inceleme turu düzeltmesi): misafir
+          // yüzeyindeki sürüm `isComposing` KONTROLÜ TAŞIMIYOR. IME (Türkçe/Çince
+          // aday penceresi) açıkken aday seçen Enter mesajı YARIDA gönderir; o
+          // kusur misafir yüzeyinde ve landing demosunda HÂLÂ DURUYOR (ayrı iş).
           onKeyDown={(e) => {
             if (e.key !== "Enter" || e.shiftKey || e.nativeEvent.isComposing) return;
             e.preventDefault();
@@ -112,9 +113,9 @@ export function GuestChatReply({
           BEDELİ karar ANINDA söyleniyor. */}
       {!aiPaused ? (
         <p className="text-[11px] leading-snug text-amber-700 dark:text-amber-400">
-          ℹ️ Siz yanıtladığınız anda AI bu sohbette susar ve konaklama boyunca sessiz kalır. Hazır
-          olduğunuzda yukarıdaki <strong>“AI yanıtlarını yeniden başlat”</strong> düğmesiyle geri
-          açabilirsiniz.
+          Siz yanıtladığınız anda AI bu sohbette susar ve konaklama boyunca sessiz kalır. Hazır
+          olduğunuzda bu sayfada beliren <strong>“AI yanıtlarını yeniden başlat”</strong> düğmesiyle
+          geri açabilirsiniz.
         </p>
       ) : null}
       <p className="text-[11px] leading-snug text-muted-foreground">

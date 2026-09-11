@@ -425,7 +425,7 @@ export function AppShell({ user, superAdmin, guestChatEnabled, impersonating, pl
         {/* Kayan TEK öge (lg). `min-h-0` ŞART: flex çocuğunun varsayılan
             `min-height:auto`u içeriğin tamamı kadar büyür ve `overflow-y`
             hiç devreye girmez. */}
-        <main className="flex-1 px-4 py-6 sm:px-6 lg:min-h-0 lg:overflow-y-auto lg:px-8">
+        <main className="scrollbar-thin flex-1 px-4 py-6 sm:px-6 lg:min-h-0 lg:overflow-y-auto lg:px-8">
           {/* Settings uses the two-column (side-nav + content) layout, so it gets a
               wider container; every other page stays at the reading-width cap. */}
           {/* 🚨 `fillsViewport` — SİHİRLİ SAYI YERİNE ESNEK DOLDURMA (ölçüldü 09-11).

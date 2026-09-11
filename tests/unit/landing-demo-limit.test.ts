@@ -46,13 +46,19 @@ describe("landing demo — çip sayısı ve saatlik hak", () => {
     expect(src).toMatch(/Saatte \{DEMO_HOURLY_LIMIT\} soru/);
   });
 
-  it("🚨 BÜTÇE DOĞRULAMADAN SONRA TÜKETİLİR (boş istek hak yakmaz)", () => {
+  // 🚨 BU PİN BU TURDA TERS ÇEVRİLDİ ve gerekçesi burada kalıyor.
+  // Önce "bütçe doğrulamadan SONRA tüketilir" diye yazmıştım; YANLIŞTI. O depo
+  // kuralı KİMLİKLİ rotalar içindir ve `leads`i AÇIKÇA istisna tutar: anonim
+  // rotada rate limit bir KOTA değil KÖTÜYE KULLANIM KONTROLÜDÜR. `demo/ai`
+  // `leads` ile aynı sınıftadır (kimliksiz, halka açık); sonraya alınca saldırgan
+  // sınırsız geçersiz gövde yollayıp hiçbir bütçe tüketmeden rotayı dövebiliyordu.
+  it("🚨 ANONİM ROTA: bütçe doğrulamadan ÖNCE tüketilir (kötüye kullanım kontrolü)", () => {
     const src = read(ROUTE);
     const validateAt = src.indexOf('badRequest({ message: "Bir mesaj yazın." })');
     const limitAt = src.indexOf("rateLimit(`demo-ai:");
     expect(validateAt, "doğrulama satırı bulunamadı").toBeGreaterThan(-1);
     expect(limitAt, "rateLimit çağrısı bulunamadı").toBeGreaterThan(-1);
-    expect(limitAt).toBeGreaterThan(validateAt);
+    expect(limitAt).toBeLessThan(validateAt);
   });
 
   it("429 metni PENCEREYİ söyler ('kısa bir süre' değil)", () => {

@@ -133,22 +133,43 @@
  * dolayısıyla "burada kaydırılacak içerik var" afordansı yoktu. `:hover`
  * durumu da yoktu.
  *
- * YENİ HÂL: başparmak `--muted-foreground` (iki temada da OKUNUR olması için
- * özellikle hesaplanmış tek ikincil renk; açık 215 16% 47%, karanlık
- * 215 22% 72%) alfa ile; oluk `--muted` ile GERÇEK bir kanal çizer. Genişlik
- * 8 → 10px (⚠️ kabuktaki `zoom: 0.95` yüzünden ekranda ~9,5px).
+ * YENİ HÂL: başparmak `--muted-foreground` TAM OPAKLIKTA (iki temada da OKUNUR
+ * olması için özellikle hesaplanmış tek ikincil renk; açık 215 16% 47%,
+ * karanlık 215 22% 72% → 9,10:1), oluk `--muted` ile GERÇEK bir kanal.
  *
- * Sınıf adı `scrollbar-thin` KORUNDU: tek kullanıcısı vardı ama artık panelin
- * ana kaydırıcısı dâhil çok yerde kullanılıyor; yeniden adlandırmak sapma
- * davetiyesi olurdu.
+ * ⚠️ Bu bölüm bir kez YANLIŞ yazıldı ve inceleme turunda ölçülerek düzeltildi;
+ * iki hata da burada kayıtlı ki tekrarlanmasın:
+ *   (a) başparmağa `/ 0.5` alfa verilmişti → `--muted` oluk üzerinde kontrast
+ *       açık temada **1,90:1**, karanlıkta 2,85:1, yani WCAG 1.4.11'in
+ *       metin-dışı eşiği 3:1'in ALTINDA. Kurucunun "çok silik" şikâyeti o
+ *       değerle SÜRERDİ.
+ *   (b) `:hover` kuralı yazılmıştı ve ÖLÜ KODDU: Chromium'da `scrollbar-color`
+ *       non-`auto` iken `::-webkit-scrollbar-*` YOK SAYILIR, Firefox ise webkit
+ *       pseudo'larını hiç tanımaz. `scrollbar-color` da `:hover` kabul etmez.
+ * Aynı sebeple `width: 10px` ve `border`+`background-clip` da Chromium'da
+ * uygulanmaz; webkit bloğu YALNIZ Safari içindir.
+ *
+ * Sınıf adı `scrollbar-thin` KORUNDU. Uygulandığı yerler: panelin ASIL
+ * kaydırıcısı (`app-shell.tsx` `<main>` — kurucunun şikâyetinin geldiği ekran),
+ * gelen kutusu mesaj listesi ve QR sohbet kabı.
  * ------------------------------------------------------------------------- */
 @layer utilities {
+  /* Firefox + Chrome 121+. İKİ renk alır (başparmak, oluk).
+     🚨 ALFA KULLANILMIYOR (inceleme turu düzeltmesi): ilk yazımda `/ 0.5` vardı
+     ve ÖLÇÜLDÜ — `--muted` oluk üzerinde kontrast açık temada **1,90:1**,
+     karanlıkta 2,85:1, yani WCAG 1.4.11'in metin-dışı eşiği 3:1'in ALTINDA.
+     Kurucunun şikâyeti ("çok silik") o değerle SÜRERDİ. Tam opaklıkta
+     `--muted-foreground` bu iş için özellikle hesaplanmış renktir (9,10:1). */
   .scrollbar-thin {
-    /* Firefox + Chrome 121+. İki renk alır (thumb, track) ve :hover TANIMAZ →
-       webkit kuralları hover'ı ayrıca taşır. */
     scrollbar-width: thin;
-    scrollbar-color: hsl(var(--muted-foreground) / 0.5) hsl(var(--muted));
+    scrollbar-color: hsl(var(--muted-foreground)) hsl(var(--muted));
   }
+  /* ⚠️ Bu blok YALNIZ `scrollbar-color`ı DESTEKLEMEYEN tarayıcılar içindir
+     (Safari). Chromium'da `scrollbar-color`/`scrollbar-width` non-`auto` iken
+     `::-webkit-scrollbar-*` kuralları YOK SAYILIR — ilk yazımdaki "webkit
+     kuralları hover'ı ayrıca taşır" cümlesi bu yüzden YANLIŞTI ve `:hover`
+     fiilen ölü koddu (Firefox da webkit pseudo'larını tanımaz). Hover kuralı
+     kaldırıldı; yerine tam opak başparmak kondu. */
   .scrollbar-thin::-webkit-scrollbar {
     width: 10px;
     height: 10px;
@@ -158,129 +179,11 @@
     border-radius: 9999px;
   }
   .scrollbar-thin::-webkit-scrollbar-thumb {
-    background-color: hsl(var(--muted-foreground) / 0.5);
+    background-color: hsl(var(--muted-foreground));
     border-radius: 9999px;
-    /* Oluğun kenarında ince bir boşluk bırakır → başparmak "kanalın içinde"
-       okunur, kenara yapışmış bir çizgi gibi değil. */
-    border: 2px solid transparent;
-    background-clip: padding-box;
-  }
-  .scrollbar-thin::-webkit-scrollbar-thumb:hover {
-    background-color: hsl(var(--muted-foreground) / 0.8);
   }
 }
 
-/* ============================================================
-   Landing motion system — dependency-free (CSS keyframes only).
-   transform/opacity only · no layout shift · GPU-friendly.
-   All motion is OFF under prefers-reduced-motion (bottom block).
-   ============================================================ */
-@layer utilities {
-  /* Scroll reveal (driven by <Reveal> adding .is-visible) */
-  .reveal {
-    opacity: 0;
-    transform: translateY(16px);
-    transition:
-      opacity 600ms cubic-bezier(0.16, 1, 0.3, 1),
-      transform 600ms cubic-bezier(0.16, 1, 0.3, 1);
-    transition-delay: var(--reveal-delay, 0ms);
-    will-change: opacity, transform;
-  }
-  .reveal.is-visible {
-    opacity: 1;
-    transform: none;
-    will-change: auto;
-  }
-
-  /* Hero background: soft navy radial glow + faint dotted grid (no images) */
-  .hero-aura {
-    position: absolute;
-    inset: 0;
-    z-index: 0;
-    pointer-events: none;
-    overflow: hidden;
-    background:
-      radial-gradient(42rem 26rem at 50% -8%, hsl(var(--primary) / 0.10), transparent 70%),
-      radial-gradient(30rem 22rem at 85% 6%, hsl(213 94% 68% / 0.08), transparent 70%);
-  }
-  .hero-aura::before {
-    content: "";
-    position: absolute;
-    inset: 0;
-    background-image: radial-gradient(hsl(var(--foreground) / 0.05) 1px, transparent 1px);
-    background-size: 22px 22px;
-    -webkit-mask-image: radial-gradient(60% 60% at 50% 30%, #000 40%, transparent 100%);
-    mask-image: radial-gradient(60% 60% at 50% 30%, #000 40%, transparent 100%);
-  }
-  .hero-aura::after {
-    content: "";
-    position: absolute;
-    top: -10rem;
-    left: 50%;
-    width: 36rem;
-    height: 36rem;
-    margin-left: -18rem;
-    border-radius: 9999px;
-    background: radial-gradient(circle, hsl(var(--primary) / 0.07), transparent 60%);
-    animation: aura-float 14s ease-in-out infinite;
-  }
-
-  /* Card lift on hover/focus */
-  .card-lift {
-    transition:
-      transform 220ms cubic-bezier(0.16, 1, 0.3, 1),
-      box-shadow 220ms ease,
-      border-color 220ms ease;
-  }
-  .card-lift:hover,
-  .card-lift:focus-within {
-    transform: translateY(-4px);
-    border-color: hsl(var(--primary) / 0.55);
-    box-shadow:
-      0 1px 2px hsl(var(--foreground) / 0.04),
-      0 12px 28px -12px hsl(var(--foreground) / 0.18);
-  }
-
-  /* ⚠️ KARANLIK MODDA AYRI GÖLGE — `card-lift`in gölgesi `--foreground` tabanlı
-     ve karanlıkta `--foreground` AÇIK renk olduğu için kartın etrafında BEYAZ
-     bir hâle oluşuyordu (yükselme değil parlama). Karanlıkta gölge, zeminden
-     DAHA KOYU olmalı. */
-  html.dark .card-lift:hover,
-  html.dark .card-lift:focus-within {
-    box-shadow: 0 1px 2px hsl(222 47% 4% / 0.5), 0 12px 28px -12px hsl(222 47% 4% / 0.7);
-  }
-
-  /* Nav: elevated shadow after scroll (toggled by <NavScroll>) */
-  .nav-scrolled {
-    box-shadow: 0 1px 0 hsl(var(--border)), 0 6px 20px -16px hsl(var(--foreground) / 0.35);
-  }
-
-  /* CTA arrow nudge */
-  .cta-arrow svg:last-child {
-    transition: transform 200ms cubic-bezier(0.16, 1, 0.3, 1);
-  }
-  .cta-arrow:hover svg:last-child {
-    transform: translateX(3px);
-  }
-
-  /* Primary CTA: gentle breathing ring */
-  .cta-glow {
-    position: relative;
-  }
-  .cta-glow::after {
-    content: "";
-    position: absolute;
-    inset: 0;
-    border-radius: inherit;
-    animation: cta-breathe 2.8s ease-in-out infinite;
-    pointer-events: none;
-  }
-
-  /* Badge: one-time entrance */
-  .badge-in {
-    animation: fade-up 600ms cubic-bezier(0.16, 1, 0.3, 1) both;
-  }
-}
 
 @keyframes fade-up {
   from { opacity: 0; transform: translateY(10px); }

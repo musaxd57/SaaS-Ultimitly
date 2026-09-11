@@ -16,6 +16,7 @@ import { reservationAmountNumber } from "@/lib/money";
 import { classifyMessage, suggestReply, summarizeHostStyle } from "@/lib/ai";
 import { fetchKnowledgeBaseForPrompt } from "@/lib/ai/kb-fetch";
 import { selectKbForPrompt } from "@/lib/ai/retrieval/select";
+import { selectHistoryForPrompt } from "@/lib/ai/prompts";
 import { GUEST_DELIVERABLE_KB_WHERE } from "@/lib/kb-review";
 import {
   GUEST_NAME_FALLBACK,
@@ -1777,7 +1778,7 @@ export async function applyChannelAutoReply(
   // Safety gate: only auto-send safe, confident replies (cross-checked against
   // the guest's own words, so a mislabelled complaint/refund never slips through).
   // Context mirrors what the MODEL sees beyond last.body: the prompt's history
-  // window (prompts.ts keeps the last 6) and both guest-name surfaces (the
+  // window and both guest-name surfaces (the
   // reservation name goes into the prompt; guestIdentifier feeds the KB {isim}
   // fill) — an injection planted in any of them must veto the auto-send.
   // CEVAPLANMAMIŞ misafir mesajları = son GİDEN mesajdan sonrakiler. Misafir arka
@@ -1791,7 +1792,20 @@ export async function applyChannelAutoReply(
     .map((m) => m.body);
 
   const gateContext = {
-    history: [...messages.slice(-6).map((m) => m.body), conversation.guestIdentifier ?? ""],
+    // 🚨 AYNA AYNI SEÇİCİDEN BESLENİR (inceleme turu, 09-11 — ÖLÇÜLMÜŞ AÇIK).
+    // Burası `messages.slice(-6)` idi ve istem de 6 tutuyordu: iki pencere
+    // BİREBİR eşitti. İstem `selectHistoryForPrompt` ile 25 mesaja çıkınca
+    // ayna 6'da kaldı ve OTO-GÖNDERİM AÇIĞI doğdu: misafir N-10'uncu mesaja
+    // injection yükünü koyar, araya 9 zararsız mesaj sıkıştırır, son mesajı
+    // masum bir soru olur → MODEL yükü görür, KAPI görmez, veto düşer.
+    // `pendingGuestMessages` bacağı kurtarmaz: o yalnız son GİDEN mesajdan
+    // sonrasını kapsar, yük ondan ÖNCEDEDİR.
+    history: [
+      ...selectHistoryForPrompt(
+        messages.map((m) => ({ direction: m.direction as "inbound" | "outbound", body: m.body })),
+      ).map((m) => m.body),
+      conversation.guestIdentifier ?? "",
+    ],
     guestName: conversation.reservation?.guestName ?? null,
     pendingGuestMessages,
   };

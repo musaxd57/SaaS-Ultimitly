@@ -127,6 +127,12 @@ Gerçek eval koşusuna kadar açık kalanlar:
 
 ## KARAR ve SIRA
 
+> 🚨 **AYNI GÜN GÜNCELLENDİ:** kurucu talimatı (`"RAG EKLE ALLAH İÇİN SIKILDIM SANA
+> AÇIKLAMAKTAN"`) 2. ve 3. maddeleri ÖN KOŞUL olmaktan çıkardı; 1. madde yapıldı ve
+> bayrak varsayılan AÇIK'a çevrildi. 2 (tek mülk pilotu) ve 3 (gerçek eval) HÂLÂ BORÇ —
+> ama artık açılışın ön koşulu değil, açılış SONRASI doğrulaması. Bu ayrım bilinçlidir
+> ve commit mesajında da yazılıdır ("cevap KALİTESİ ölçülemedi").
+
 1. ✅ **Geri çekilme dalını legacy tavanına indir** — hibritin legacy'den ÇOK gönderdiği tek yeri
    kapatır, "selamlaşmada 170 kalem birden" maruziyetini bitirir, bilgi sorusu kazanımlarına
    dokunmaz. (Ayrı dilim, bu belgeden sonra.)

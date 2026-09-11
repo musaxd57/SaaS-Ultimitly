@@ -2,7 +2,11 @@
 
 > Kurucu/Codex talebi: mevcut kaynak/onay/kanıt altyapısını kullanarak retrieval tasarımı + **bağımsız ve mevcut
 > yetki içindeki dilimlerin yerelde uygulanması**. Migration, yeni ücretli servis ve güvenlik/gönderim politikası
-> değişiklikleri **ayrı onaya** (§5, somut kapsamla). Canlıya alma YOK: bayrak `KB_RETRIEVAL_MODE` varsayılan KAPALI.
+> değişiklikleri **ayrı onaya** (§5, somut kapsamla).
+> 🚨 **09-11 GÜNCELLEMESİ:** bu satırdaki "Canlıya alma YOK: bayrak varsayılan KAPALI" ifadesi
+> GEÇERSİZLEŞTİ — kurucu talimatıyla (`"RAG EKLE"`) hibrit VARSAYILAN AÇIK yapıldı ve
+> `KB_RETRIEVAL_MODE` bir acil durdurma düğmesine çevrildi. Dayanak:
+> `docs/olcum/hibrit-yan-etki-2026-09-11.md`. §5 onay tablosunun 2. satırı da bu kararla kapandı.
 > Gerçek model eval'ini kurucu koşar. **P5 (kanıtsız iddia için kod kapısı) AÇIK kalır — RAG bu açığı kapatmaz (§7).**
 > Dilim 2 (Codex turu 2): arama yöntemlerinin açıklaması (§2.1) · gerçek retrieval yolunda 30/100/300 ölçek ölçümü (§3b)
 > · kelime+n-gram(+gömme sözleşmesi) aday birleşimi · yeniden sıralama · sürüm/tazelik/çelişki · host graf katmanı (§6).

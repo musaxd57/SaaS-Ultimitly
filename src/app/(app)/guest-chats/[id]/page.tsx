@@ -187,7 +187,7 @@ export default async function GuestChatDetailPage({
             tabIndex={0}
             role="group"
             aria-label="Misafir sohbeti"
-            className="scrollbar-thin max-h-[52vh] space-y-2 overflow-y-auto overscroll-contain scroll-smooth rounded-lg bg-muted/20 p-2"
+            className="scrollbar-thin max-h-[52vh] space-y-2 overflow-y-auto overscroll-contain scroll-smooth rounded-lg bg-muted/20 p-2 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-ring"
           >
             {messages.map((m) => {
               // Reliable, typed role (authorType) — never the message text/senderName.
@@ -255,7 +255,13 @@ export default async function GuestChatDetailPage({
               );
             })}
           </div>
-          <ScrollToLatest targetId={MESSAGE_BOX_ID} signature={latestSignature} />
+          {/* 🚨 key={convo.id} ŞART (inceleme turu, 09-11): App Router aynı dinamik
+              segmentte (`/guest-chats/[id]`) param değişiminde bileşeni yeniden
+              MOUNT ETMEZ. Key olmadan `mounted` ref'i `true` kalıyordu; başka bir
+              sohbete geçince "ilk çizimde koşulsuz dibe" dalı çalışmıyor ve host
+              yine EN ESKİ mesajda duruyordu — yani bileşenin yazılma sebebi olan
+              kusurun ta kendisi. */}
+          <ScrollToLatest key={convo.id} targetId={MESSAGE_BOX_ID} signature={latestSignature} />
 
           {aiPaused ? (
             <div className="border-t border-border pt-3">

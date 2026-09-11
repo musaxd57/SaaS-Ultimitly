@@ -1217,11 +1217,31 @@ oto-yanıt ve inbox öneri konuşmanın TAMAMINI taşıyıp aynı yerde kaybediy
 tek 4.000 karakterlik mesaj 25 kısa mesajdan pahalı) ve 🚨 **GÜVENLİK PENCERESİ BÜTÇEYE TABİ DEĞİL**: son
 OPERATİF mesajdan sonraki cevapsız MİSAFİR mesajlarının TAMAMI daima girer (displacement saldırısı — uzun
 zararsız metinle riskli cümleyi pencere dışına itme). Sınıflandırma yalnız `direction`, `senderName` DEĞİL.
+🚨 **BU DEĞİŞİKLİK KAPIDA BİR AÇIK AÇTI ve inceleme turunda kapandı — DESEN KAYDA GEÇSİN:**
+`passesAutoReplySafetyGate` `context.history`yi INJECTION için tarar ve o ayna `messages.slice(-6)` idi; istem
+6 iken iki pencere BİREBİR eşitti. İstem 25'e çıkınca yalnız MODEL tarafı büyüdü → misafir N-10'uncu mesaja
+injection yükünü koyup araya 9 zararsız mesaj sıkıştırırsa **model görür, kapı görmez** ve oto-gönderim
+izni çıkardı (`pendingGuestMessages` kurtarmaz: o yalnız son GİDEN mesajdan sonrasını kapsar). Ayna artık
+AYNI seçiciden beslenir; pin üç yönlü (yeni ayna vetoluyor · injection yokken gönderim sürüyor · **eski
+6'lık ayna KAÇIRIYOR** = açığın gerçekliği ölçülü). 🚨 **GÖVDE KIRPILMAZ** — "pencere karakter bakımından
+sınırsız" uyarısı doğru ama çözümü kırpmak DEĞİL: bu seçimin çıktısı aynı zamanda kapının tarama yüzeyidir,
+kırpılan her karakter kapının GÖRMEDİĞİ bir yüzey demektir. Sınır MESAJ SAYISINDA; bedeli kodda yazılı.
+🚨 `selectHistoryForPrompt` ilk yazımda **TÜM geçmişi düşürebiliyordu** (bütçe kontrolünde `picked.length > 0`
+çapası yoktu; son mesaj OPERATİF + uzunsa `[]` dönüyordu → inbox "AI cevap öner" SIFIR bağlamla üretirdi);
+kardeş pencere `buildGuestChatContextWindow` o çapayı zaten taşıyordu.
 🚨 **ACİL ≠ SIRADAN İSTEK:** `escalationReply({critical})` — yangın ile "bir yastık daha" artık aynı cümleyi
-almıyor. Ölçüt `verdict.reason` DEĞİL deterministik `detectRiskType === "safety_emergency"` (rotanın alarm
-dedupe'ı zaten onu hesaplıyor, tek kaynak). Argümansız çağrı BİREBİR eski metin (eski pinler ayakta); acil
-metin de aynı sözleşmeye tabi (makbuzsuz iddia yok, ünlem yok, kurumsal dil yok) — yönerge misafire VERİLEN
-bir talimattır, bizim eylem iddiamız değil.
+almıyor; üç devir noktasının ÜÇÜ de aynı bayrağı taşır. Argümansız çağrı BİREBİR eski metin (eski pinler
+ayakta); acil metin de aynı sözleşmeye tabi (makbuzsuz iddia yok, ünlem yok, kurumsal dil yok) — yönerge
+misafire VERİLEN bir talimattır, bizim eylem iddiamız değil.
+🚨 **TETİKLEYİCİ `isPhysicalEmergency` — `detectRiskType === "safety_emergency"` DEĞİL** (inceleme turu iki
+kusur ölçtü): ① o küme öz-zarar ifadelerini de içeriyor, oysa `prompts.ts` o sınıf için AÇIKÇA "acil-talimat
+İÇERMEZ, yönlendirmeyi EV SAHİBİNE söyle" diyor → kriz içindeki misafire "acil servisleri arayın" gidiyordu;
+② `SAFETY_CRITICAL_WORDS` BİLEREK geniştir ve gerekçesi kendi yorumunda yazılı ("over-matching is the safe
+side — it only ever withholds a holding-ack") — o maliyet modeli misafire GİDEN metin için GEÇERSİZ
+("İnternet **düştü**", "Havuz ne zaman **açıl**ıyor?" [iş #51 ASCII çarpışması], "**Polis** merkezi nerede?",
+"**Kaza** ile bardağı kırdım" hepsi eşleşiyordu). Yeni liste DAR (yangın/duman/gaz/su baskını/elektrik
+çarpması), öz-zarar ifadesi İÇERMEZ (veto değil YAPISAL garanti) ve maliyet modeli TERSTİR: aşırı eşleşme
+bedava değil → dar taraf güvenli taraf. Kaçırılan acil durum yine DEVREDİLİR + host alarm alır.
 **QR host paneli:** Enter=gönder (misafir tarafında vardı, ödeyen müşterinin yüzeyinde yoktu; IME `isComposing`
 güvenli) · 30 sn otomatik yenileme (liste + detay; Mesajlar'da 08'den beri vardı, QR atlanmıştı) · mesajlar
 kendi kaydırma kabında + açılışta sona konumlanma (eskiden 200 balonun EN ESKİSİNDE duruyordu, composer

@@ -26,7 +26,7 @@ vi.mock("@/lib/guest-chat-alerts", async (orig) => {
   return { ...actual, qrEscalationEmailEnabled: () => enabled.value };
 });
 
-import { escalationReply } from "@/lib/guest-chat";
+import { escalationReply, isPhysicalEmergency } from "@/lib/guest-chat";
 import { unverifiedActionClaims } from "../helpers/claim-detectors";
 import { detectRiskType } from "@/lib/ai/fallback";
 
@@ -96,11 +96,56 @@ describe("QR devir metni — acil durumda güvenlik yönergesi eklenir", () => {
     expect(escalationReply({})).toBe(escalationReply());
   });
 
-  it("🚨 ÖLÇÜT deterministik `detectRiskType` — sıradan istek acil dalına DÜŞMEZ", () => {
-    // Rota `criticalEvent = detectRiskType(message) === "safety_emergency"` kullanır;
-    // burada o yüklemin sınıfı ayırdığını ölçüyoruz (rotanın kendi pini ayrı).
-    expect(detectRiskType("Yangın var, duman geliyor!")).toBe("safety_emergency");
-    expect(detectRiskType("Bir yastık daha alabilir miyiz?")).not.toBe("safety_emergency");
-    expect(detectRiskType("Geç çıkış mümkün mü?")).not.toBe("safety_emergency");
+  it("🚨 ÖLÇÜT DAR yüklem — fiziksel acil durum yakalanır", () => {
+    for (const m of [
+      "Yangın var, duman geliyor!",
+      "Mutfakta gaz kokusu var, ne yapmalıyız?",
+      "Kombiden gaz kaçağı var galiba",
+      "Banyoyu su bastı",
+      "Prize dokununca elektrik çarptı",
+      "There is a fire in the kitchen",
+      "I think there's a gas leak",
+      "The bathroom is flooded",
+    ]) {
+      expect(isPhysicalEmergency(m), m).toBe(true);
+    }
+  });
+
+  // 🚨 BU BLOK BİR GERİLEMENİN PİNİDİR. İlk yazımda ölçüt
+  // `detectRiskType(message) === "safety_emergency"` idi; inceleme turu İKİ
+  // ölçülmüş kusur çıkardı ve ikisi de ürünün KENDİ yazılı kurallarına aykırıydı.
+  it("🚨 ÖZ-ZARAR acil dalına DÜŞMEZ — ürünün kendi istem kuralı bunu yasaklıyor", () => {
+    // `prompts.ts`: "bir kriz-danışmanlığı metni de KURGULAMAZ … Taslak yalnızca
+    // NÖTR olsun … söz/teşhis/ACİL-TALİMAT İÇERMEZ. Asıl yönlendirmeyi (yerel
+    // acil servise başvuru) EV SAHİBİNE söyle."
+    for (const m of ["Ölmek istiyorum", "I want to kill myself", "Kendime zarar vereceğim"]) {
+      // Kapı bunları hâlâ acil sayar (devir olur, host alarm alır) …
+      expect(detectRiskType(m), m).toBe("safety_emergency");
+      // … ama misafire GİDEN metin acil yönergesi TAŞIMAZ.
+      expect(isPhysicalEmergency(m), m).toBe(false);
+    }
+  });
+
+  it("🚨 `SAFETY_CRITICAL_WORDS`in AŞIRI EŞLEŞMELERİ acil metni tetiklemez", () => {
+    // O liste BİLEREK geniştir ve gerekçesi kendi yorumunda yazılı: "over-matching
+    // is the safe side — it only ever withholds a holding-ack". O maliyet modeli
+    // misafire GİDEN metin için GEÇERSİZDİR. Ölçülmüş çarpışmalar:
+    for (const m of [
+      "İnternet düştü, bağlanamıyoruz",
+      "Havuz ne zaman açılıyor?",
+      "Polis merkezi nerede acaba?",
+      "Kaza ile bardağı kırdım, özür dilerim",
+      "Şöminede ateş yakabilir miyiz?",
+      "Selam, iyi akşamlar",
+      "Gazoz var mı buzdolabında?",
+      "Is there a fireplace in the living room?",
+    ]) {
+      expect(isPhysicalEmergency(m), m).toBe(false);
+    }
+  });
+
+  it("sıradan istek acil dalına DÜŞMEZ", () => {
+    expect(isPhysicalEmergency("Bir yastık daha alabilir miyiz?")).toBe(false);
+    expect(isPhysicalEmergency("Geç çıkış mümkün mü?")).toBe(false);
   });
 });
