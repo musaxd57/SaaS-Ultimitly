@@ -9,7 +9,7 @@ import "server-only";
 // Yani host'un Gelen Kutusu'nda şunu görebiliyordu:
 //     Hospitable API hatası (HTTP 402): {"message":"Subscription not active"}
 // Ham İNGİLİZCE sağlayıcı JSON'u + HTTP kodu. Hem korkutucu hem anlaşılmaz hem
-// de gereksiz iç bilgi. (Nuve'nin aboneliği bugün 402 → CANLIDA görülebilir.)
+// de gereksiz iç bilgi. (Kurucu org'un aboneliği bugün 402 → CANLIDA görülebilir.)
 //
 // ⚠️ HAM METİN KAYBOLMUYOR: bu fonksiyon YALNIZ müşteriye giden metni üretir.
 // Çağıran, hatayı her zamanki gibi `reportError`/log'a HAM hâliyle vermeye

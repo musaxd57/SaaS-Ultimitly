@@ -73,7 +73,7 @@ Ekranda çıkan önizleme (kaydetmeden önce):
 | Saat bilgisi | Host isterse KB'ye de yazar (çift kopya) | KB'ye YAZILMAZ, mülk ayarına yönlendirilir |
 
 ## Sınırlar (dürüstçe)
-- Bu ekranlar **tohum verisiyle** alındı, canlı Nuve verisiyle değil.
+- Bu ekranlar **tohum verisiyle** alındı, canlı Lale verisiyle değil.
 - Panel **inceleme adayı** üretir; hiçbir satır otomatik kayıt oluşturmaz ve hiçbiri kesin tespit değildir.
 - Çıkarım **deterministiktir** (kelime + kalıp), model DEĞİL: tanımadığı cümleyi sessizce geçer — "her
   metinden her bilgiyi çıkarır" diye okunmamalı.

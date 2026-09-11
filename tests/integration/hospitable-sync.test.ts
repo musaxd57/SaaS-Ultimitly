@@ -1294,7 +1294,7 @@ describe("çit geri alınması — bağ kurulunca ölü-konaklama damgası kalka
 // ⚠️ DAVRANIŞ BİLEREK AYNI BIRAKILDI. Yer-tutucu satır yazmak, sağlayıcının
 // hangi olay tiplerinde boş gövde döndüğü BİLİNMEDEN gelen kutusunu sistem
 // satırlarıyla doldurabilir ve o satırlar AI kapısını da besler. Hospitable'ın
-// gerçek payload'ı görülmeden (Nuve aboneliği 402) bu doğrulanamaz → önce ÖLÇÜM.
+// gerçek payload'ı görülmeden (Lale aboneliği 402) bu doğrulanamaz → önce ÖLÇÜM.
 // ---------------------------------------------------------------------------
 describe("gövdesiz sağlayıcı mesajı — sessiz kayıp sayılıyor", () => {
   beforeEach(async () => {

@@ -81,7 +81,7 @@ misafir mesajı
 | [`src/lib/risk-events.ts`](../src/lib/risk-events.ts) | `RiskEvent` kapalı gerekçe kümesi = AI kapısının KARAR GÜNLÜĞÜ |
 | [`src/lib/kb-review.ts`](../src/lib/kb-review.ts) | KB onay sözleşmesi (A1) — `AI_READABLE_REVIEW_STATES` allowlist |
 | [`src/lib/kb-placeholders.ts`](../src/lib/kb-placeholders.ts) | `{isim}`/`{daire}` ikamesi TEK KAYNAK; QR'da gerçek ad KULLANILMAZ |
-| [`src/lib/shadow-ai.ts`](../src/lib/shadow-ai.ts) | Gölge pilot (`gpt-5.6-luna` Nuve'de) — **yalnız GÜVENLİK sınıflandırmasını** kıyaslar |
+| [`src/lib/shadow-ai.ts`](../src/lib/shadow-ai.ts) | Gölge pilot (`gpt-5.6-luna` Lale'de) — **yalnız GÜVENLİK sınıflandırmasını** kıyaslar |
 | [`src/lib/quality-audit.ts`](../src/lib/quality-audit.ts) | Kalite denetçisi + soru↔cevap eşleştirmesi (`lte` + `id` kopma noktası) |
 | [`src/lib/message-author.ts`](../src/lib/message-author.ts) | `authorType` / `GuestOps AI` sihirli string sınıflandırması |
 

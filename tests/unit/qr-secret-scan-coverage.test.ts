@@ -82,7 +82,7 @@ describe("withoutSecretKbItems — uzun içeriğin ORTASI", () => {
 
   it("kısa kalem davranışı DEĞİŞMEDİ (kalıp/eşik pini kardeş dosyada)", () => {
     const items = [
-      { title: "Wi-Fi", content: "Ağ: NuveEv_5G, şifre: gunes1907" },
+      { title: "Wi-Fi", content: "Ağ: LaleEv_5G, şifre: gunes1907" },
       { title: "Otopark", content: "Bina altında ücretsiz otopark var, 2. bodrum" },
       { title: "Adres", content: "Caferağa Mah. Moda Cad. No:12 Kat:3, 34710 Kadıköy" },
     ];

@@ -31,8 +31,8 @@ describe("POST /api/properties/bulk-supply-profile", () => {
     vi.clearAllMocks();
     const org = await prisma.organization.create({ data: { name: "Org" } });
     orgId = org.id;
-    await prisma.property.create({ data: { organizationId: orgId, name: "nuve 1" } });
-    await prisma.property.create({ data: { organizationId: orgId, name: "nuve 2" } });
+    await prisma.property.create({ data: { organizationId: orgId, name: "lale 1" } });
+    await prisma.property.create({ data: { organizationId: orgId, name: "lale 2" } });
   });
 
   it("applies one profile to ALL of the org's properties when no ids given", async () => {

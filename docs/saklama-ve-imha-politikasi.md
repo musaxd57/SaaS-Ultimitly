@@ -108,7 +108,7 @@ yeniden import etmez — public metindeki "teknik kontroller uygulanır" cümles
 | Resend (ABD) / SMTP | Transactional e-posta (email.ts) | Alıcı e-posta + içerik | Domain/SPF/DKIM/DMARC açık iş; `[KARAR-EMAIL-LOG]` |
 | Railway (AB/ABD) | Barındırma + PostgreSQL + log | Tüm veri at-rest | `[KARAR-YEDEK]`, `[KARAR-LOG-SÜRE]` |
 | Sentry (ops.) | Hata izleme — yalnız `SENTRY_DSN` set ise; gönderim öncesi `redactSensitive` | Redakte hata metni | `[KARAR-SENTRY]` canlı env doğrula |
-| Akash/GLM | Gölge sınıflandırıcı Aşama-1 (`shadow-ai.ts`; karar yetkisi SIFIR, yalnız kıyas kaydı) — `SHADOW_AI_ENABLED=1` CANLI (2026-07-20) | REDAKTE misafir mesajı (ad→[Misafir], telefon/e-posta/uzun kod maskeli); at-rest gövde tutulmaz | `[KARAR-DPA-AKASH]` DPA + m.9 — geniş açılış ÖNCESİ şart (bugün redakte veri + tek gerçek müşteri=founder; `SHADOW_AI_ORG_IDS` ile Nuve'ye pinlenebilir) |
+| Akash/GLM | Gölge sınıflandırıcı Aşama-1 (`shadow-ai.ts`; karar yetkisi SIFIR, yalnız kıyas kaydı) — `SHADOW_AI_ENABLED=1` CANLI (2026-07-20) | REDAKTE misafir mesajı (ad→[Misafir], telefon/e-posta/uzun kod maskeli); at-rest gövde tutulmaz | `[KARAR-DPA-AKASH]` DPA + m.9 — geniş açılış ÖNCESİ şart (bugün redakte veri + tek gerçek müşteri=founder; `SHADOW_AI_ORG_IDS` ile Lale'ye pinlenebilir) |
 | Anthropic (Claude) | Kalite üst-denetçisi (`quality-audit.ts`; salt-okuma gölge, operatör tetikler) — `ANTHROPIC_API_KEY` yokken pasif | REDAKTE örneklem (ad/telefon/e-posta maskeli, ≤60 yanıt, 700 kar. tavan) | `[KARAR-DPA-ANTHROPIC]` DPA + m.9 — düzenli kullanım öncesi şart |
 
 Not: `docs/KVKK-taslaklar.md` alt-işleyen listesi 2026-07-22'de bu belgeyle hizalandı

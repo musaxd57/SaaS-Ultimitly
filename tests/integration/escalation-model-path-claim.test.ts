@@ -81,7 +81,7 @@ async function seed() {
     },
   });
   const property = await prisma.property.create({
-    data: { organizationId: org.id, name: "Nuve 7" },
+    data: { organizationId: org.id, name: "Lale 7" },
   });
   const when = new Date(Date.now() - 5 * 60_000);
   const conversation = await prisma.conversation.create({

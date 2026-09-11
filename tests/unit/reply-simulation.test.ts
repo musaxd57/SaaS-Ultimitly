@@ -16,7 +16,7 @@ import type { SuggestReplyInput } from "@/lib/ai/types";
 const baseInput = (guestMessage: string, kb: SuggestReplyInput["knowledgeBase"] = []): SuggestReplyInput => ({
   guestMessage,
   property: {
-    name: "nuve 3",
+    name: "lale 3",
     checkInTime: "14:00",
     checkOutTime: "11:00",
     address: "Galata, İstanbul",
@@ -123,7 +123,7 @@ describe("guest-message simulation (fallback safety invariants)", () => {
 
   it("uses the Wi-Fi password from the knowledge base when present", () => {
     const out = suggestReplyFallback(
-      baseInput("wifi şifresi nedir?", [{ category: "wifi", title: "Wi-Fi", content: "Ağ NuveApt, şifre 12345678" }]),
+      baseInput("wifi şifresi nedir?", [{ category: "wifi", title: "Wi-Fi", content: "Ağ LaleApt, şifre 12345678" }]),
     );
     expect(out.intent).toBe("wifi");
     expect(out.reply).toContain("12345678");

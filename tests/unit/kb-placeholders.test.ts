@@ -30,11 +30,11 @@ describe("apartmentNumberOf — etiket > tek sayı > BELİRSİZ (null)", () => {
     // Etiketli: host niyetini açıkça yazmış
     ["Daire 1", "1"],
     ["Blok 2 Daire 15", "15"],
-    ["Nuve no: 7", "7"],
+    ["Lale no: 7", "7"],
     ["Apt 12 - Sahil", "12"],
     // Tek sayı: belirsizlik yok
-    ["nuve 3", "3"],
-    ["nuve teras 4", "4"],
+    ["lale 3", "3"],
+    ["lale teras 4", "4"],
     // ── İNCELEME TURU 3 (09-11, ölçüldü) ──
     // (a) `/i` Türkçe noktalı İ'yi KATLAMAZ → etiket dalına hiç girmiyordu, iki sayılı
     //     ada düşüp `null` dönüyordu (host açıkça "DAİRE 5" yazmışken).
@@ -48,11 +48,11 @@ describe("apartmentNumberOf — etiket > tek sayı > BELİRSİZ (null)", () => {
     ["Milano 12 | 2+1 Deniz", null],   // zayıf sınır: sınırsız regex "12" derdi
     ["Yenidaire 12 | 2+1", null],      // güçlü sınır: sınırsız regex "12" derdi
     // ZAYIF etiket dalını izole eden satır (adda İKİ sayı var → "tek sayı" dalı cevap veremez)
-    ["Nuve Blok 2 no: 7", "7"],
+    ["Lale Blok 2 no: 7", "7"],
     // `foldedForms`un STANDART katlama bacağı (noktasız ASCII I; tr katlama "daıre" verir)
     ["DAIRE 5 - 2 Yatak Odalı", "5"],
     // Hane SINIRI ≤3: iki ve üç haneli çıplak numara hâlâ daire numarasıdır (kural yutmuyor).
-    ["Nuve Teras 12", "12"],
+    ["Lale Teras 12", "12"],
     ["Kule 104", "104"],
     // 🚨 SAYISIZ → null (inceleme turu 5): eskiden MÜLK ADININ TAMAMI dönüyordu ve ikame
     // doğrudan yapılıyordu — KB'deki "Kapı kodu: {daire}" satırı misafire
@@ -68,11 +68,11 @@ describe("apartmentNumberOf — etiket > tek sayı > BELİRSİZ (null)", () => {
     // Aynı adın etiketsiz hâli doğru davranıyordu; ölçülen asimetri.
     ["Sahilde Daire 6 Kişilik", null],
     ["Merkezi Daire 2 Odalı", null],
-    ["Nuve Apt 6 Kişilik", null],
+    ["Lale Apt 6 Kişilik", null],
     ["Daire 3 Yatak Odalı", null],
     ["Daire 90 Metrekare", null],
     // ZAYIF etikette hane sınırı ("no/#" bina numarası da olabilir; yıl kabul edilmemeli)
-    ["Nuve Rezidans No 2024", null],
+    ["Lale Rezidans No 2024", null],
     ["Kule No 1907", null],
     // 🚨 GÜÇLÜ etikette hane sınırı YOK (host niyeti açık): rezidans kapı numarası korunur
     ["Skyland Daire 4590", "4590"],
@@ -91,8 +91,8 @@ describe("apartmentNumberOf — etiket > tek sayı > BELİRSİZ (null)", () => {
 
   it("🚨 BELİRSİZ → null: 'son sayı' kuralı Türkiye ilan adlarında YANLIŞ numara üretiyordu", () => {
     // Ölçüldü (inceleme 09-10): eski "son sayı" kuralı sırasıyla "1", "2", "2024" veriyordu.
-    expect(apartmentNumberOf("Nuve 3 | 2+1 Deniz Manzaralı")).toBe(null);
-    expect(apartmentNumberOf("Nuve 12 (2. kat)")).toBe(null);
+    expect(apartmentNumberOf("Lale 3 | 2+1 Deniz Manzaralı")).toBe(null);
+    expect(apartmentNumberOf("Lale 12 (2. kat)")).toBe(null);
     // 🚨 ÖNCEKİ TURUN PİNİ YANLIŞ BEKLENTİYİ KODLUYORDU (inceleme 09-11): "2024 Yılı
     // Dairesi" için "2024" DOĞRU sayılmıştı — oysa bu bir YIL, misafire uydurma daire
     // numarası söylüyordu. Türkiye'de daire numarası pratikte ≤3 hanedir.
@@ -109,8 +109,8 @@ describe("apartmentNumberOf — etiket > tek sayı > BELİRSİZ (null)", () => {
   });
 
   it("belirsiz mülk adında {daire} DOKUNULMAZ (yanlış numara söylenmez)", () => {
-    expect(fillGuestPlaceholders("Daire {daire}", { propertyName: "Nuve 3 | 2+1" })).toBe("Daire {daire}");
-    expect(fillGuestPlaceholders("Daire {daire}", { propertyName: "Nuve 3" })).toBe("Daire 3");
+    expect(fillGuestPlaceholders("Daire {daire}", { propertyName: "Lale 3 | 2+1" })).toBe("Daire {daire}");
+    expect(fillGuestPlaceholders("Daire {daire}", { propertyName: "Lale 3" })).toBe("Daire 3");
   });
 
   // ── 7. TUR İNCELEMESİ (09-11, ölçüldü): 6. turun sayaç kuralı iki sınıfı kaçırdı ──
@@ -136,7 +136,7 @@ describe("apartmentNumberOf — etiket > tek sayı > BELİRSİZ (null)", () => {
     // (ve "Kapı kodu: 4") söyleniyordu. Kaçış artık yalnız KONUM etiketlerinde (kat/floor).
     expect(apartmentNumberOf("Deniz Manzaralı Daire 4 Kişilik 2 Odalı")).toBe(null);
     expect(apartmentNumberOf("Daire 6 Kişilik 3 Yataklı")).toBe(null);
-    expect(apartmentNumberOf("Nuve Daire 5 Kişilik 2 Banyo")).toBe(null);
+    expect(apartmentNumberOf("Lale Daire 5 Kişilik 2 Banyo")).toBe(null);
     expect(apartmentNumberOf("Apartment 4 Guests 2 Bedrooms")).toBe(null);
     expect(apartmentNumberOf("Apartment 2 Bedrooms 1 Bath")).toBe(null);
     expect(apartmentNumberOf("Apt 4 Guests 2 Baths")).toBe(null);
@@ -181,7 +181,7 @@ describe("guestFirstNameOf — yer tutucu adlar GERÇEK ad değildir", () => {
 describe("fillGuestPlaceholders — tek geçiş, harfi harfine ikame", () => {
   it("{isim}/{ad}/{name} ve {daire}/{apartment}/{apt} biçimleri (boşluklu + büyük harfli) çözülür", () => {
     const t = "Merhaba { isim }, {ad} {NAME} — {daire} / {APARTMENT} / { apt }";
-    expect(fillGuestPlaceholders(t, { guestFirstName: "Ayşe", propertyName: "nuve 3" })).toBe(
+    expect(fillGuestPlaceholders(t, { guestFirstName: "Ayşe", propertyName: "lale 3" })).toBe(
       "Merhaba Ayşe, Ayşe Ayşe — 3 / 3 / 3",
     );
   });
@@ -191,7 +191,7 @@ describe("fillGuestPlaceholders — tek geçiş, harfi harfine ikame", () => {
       expect(fillGuestPlaceholders(`Merhaba ${token}!`, { guestFirstName: "Ayşe" }), token).toBe("Merhaba Ayşe!");
       expect(hasNamePlaceholder(`Merhaba ${token}!`), token).toBe(true);
     }
-    expect(fillGuestPlaceholders("Daire {DAİRE}", { propertyName: "nuve 3" })).toBe("Daire 3");
+    expect(fillGuestPlaceholders("Daire {DAİRE}", { propertyName: "lale 3" })).toBe("Daire 3");
   });
 
   it("🚨 ad/daire değerindeki `$` kalıpları HARFİ HARFİNE girer (replace callback; string ikame misafirin mesajını bozardı)", () => {
@@ -227,14 +227,14 @@ describe("fillGuestPlaceholders — tek geçiş, harfi harfine ikame", () => {
 
   it("mülk adı verilmezse {daire} DOKUNULMAZ (uydurma değer yok); ad verilmezse {isim} dokunulmaz", () => {
     expect(fillGuestPlaceholders("Daire {daire}", { guestFirstName: "Ayşe" })).toBe("Daire {daire}");
-    expect(fillGuestPlaceholders("Merhaba {isim}", { propertyName: "nuve 3" })).toBe("Merhaba {isim}");
+    expect(fillGuestPlaceholders("Merhaba {isim}", { propertyName: "lale 3" })).toBe("Merhaba {isim}");
   });
 
   it("yer tutucusuz metin AYNEN döner; başka süslü parantez ({kod}) dokunulmaz", () => {
-    expect(fillGuestPlaceholders("Wi-Fi şifresi: nuve2024", { guestFirstName: "Ayşe", propertyName: "nuve 3" })).toBe(
-      "Wi-Fi şifresi: nuve2024",
+    expect(fillGuestPlaceholders("Wi-Fi şifresi: lale2024", { guestFirstName: "Ayşe", propertyName: "lale 3" })).toBe(
+      "Wi-Fi şifresi: lale2024",
     );
-    expect(fillGuestPlaceholders("Kod {kod}", { guestFirstName: "Ayşe", propertyName: "nuve 3" })).toBe("Kod {kod}");
+    expect(fillGuestPlaceholders("Kod {kod}", { guestFirstName: "Ayşe", propertyName: "lale 3" })).toBe("Kod {kod}");
   });
 
   it("hasNamePlaceholder ardışık çağrıda kararlı (global bayrak yok → lastIndex tuzağı yok) ve YALNIZ ad belirtecine bakar", () => {

@@ -41,7 +41,7 @@ import { sendOnChannel } from "@/lib/messaging";
 
 const DAY = 86_400_000;
 const SECRET_FAQ = { category: "faq", title: "Giriş notu", content: "Kapı kodu 4590, anahtar kutusu 2288." };
-const WIFI = { category: "wifi", title: "Wi-Fi", content: "Ağ NuveApt, şifre kapı arkasındaki karttadır." };
+const WIFI = { category: "wifi", title: "Wi-Fi", content: "Ağ LaleApt, şifre kapı arkasındaki karttadır." };
 const CHECKIN = { category: "checkin", title: "Giriş talimatı", content: "Anahtar kutusu bina girişinde, sol duvarda." };
 const PARKING = { category: "parking", title: "Otopark", content: "Bina altı otopark misafirler için ücretsizdir." };
 
@@ -125,7 +125,7 @@ describe("QR yolu — hibrit AÇIK: sır kategorisi + içerik sezgiseli + onay k
     for (const forbidden of ["Giriş notu", "Wi-Fi", "Giriş talimatı", "Otopark taslak"]) {
       expect(sentIds, forbidden).not.toContain(ids[forbidden]);
     }
-    expect(sentText).not.toMatch(/4590|2288|NuveApt|Anahtar kutusu bina/);
+    expect(sentText).not.toMatch(/4590|2288|LaleApt|Anahtar kutusu bina/);
     expect(sentIds).toContain(ids["Otopark"]);
 
     const ev = await prisma.riskEvent.findFirstOrThrow({ where: { organizationId: orgId, surface: "guest_chat" } });
@@ -135,7 +135,7 @@ describe("QR yolu — hibrit AÇIK: sır kategorisi + içerik sezgiseli + onay k
     for (const forbidden of ["Giriş notu", "Wi-Fi", "Giriş talimatı", "Otopark taslak"]) expect(evIds, forbidden).not.toContain(ids[forbidden]);
     // Misafire dönen gövde sır taşımaz (model mock cevabı otopark).
     const body = JSON.stringify(await res.json());
-    expect(body).not.toMatch(/4590|2288|NuveApt/);
+    expect(body).not.toMatch(/4590|2288|LaleApt/);
   });
 });
 

@@ -19,7 +19,7 @@ import { prisma, resetDb } from "../helpers/db";
 // KOTASININ TAMAMINI (150) ~5 saatte tüketir ve gerçek misafirlerin oto-yanıtını
 // `daily_budget` ile kapatır. Host hiçbir ekranda sebebi göremez.
 //
-// ⚠️ Bu senaryo teorik DEĞİL: Nuve'nin canlı Hospitable aboneliği bugün 402
+// ⚠️ Bu senaryo teorik DEĞİL: Lale'nin canlı Hospitable aboneliği bugün 402
 // durumunda. Dayanıklı outbox bu durumu ZATEN kalıcı `blocked` diye biliyor
 // (`classifySendResult` → "blocked"); satır içi yol o bilgiyi hiç kullanmıyordu.
 //
@@ -58,7 +58,7 @@ const mockSend = vi.mocked(sendOnChannel);
 const cleanVerdict = {
   intent: "wifi",
   confidence: 0.95,
-  reply: "Wi-Fi ağı NuveApt, şifre 12345678.",
+  reply: "Wi-Fi ağı LaleApt, şifre 12345678.",
   risk: null,
   priority: "standard" as const,
   source: "openai" as const,
@@ -82,7 +82,7 @@ async function seed() {
     },
   });
   const property = await prisma.property.create({
-    data: { organizationId: org.id, name: "Nuve 7" },
+    data: { organizationId: org.id, name: "Lale 7" },
   });
   const when = new Date(Date.now() - 10 * 60_000);
   const conversation = await prisma.conversation.create({

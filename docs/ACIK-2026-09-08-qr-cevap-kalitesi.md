@@ -172,6 +172,6 @@ ayrışır. (Bugün `usedSources` kaydedilmiyor — bu ayrımı yapmak için kay
 çağırmaz**. Ayrıca QR konuşmaları `qr-chat:` iç-thread önekiyle doğar ve kanal oto-yanıt sorgusu
 (`PROVIDER_THREAD_CONVERSATION_WHERE`) bu önekli konuşmaları dışlar, üstelik QR konuşması `status:"answered"`
 doğduğu için `status:"new"` koşulunu da sağlamaz. Yani **QR üzerinden test edildiği sürece gölge kaydı OLUŞMAZ —
-beklenen davranış.** Gölge, Hospitable kanal oto-yanıtı aktığında yazar; Nuve'nin verisi 402'de donuk olduğu için
+beklenen davranış.** Gölge, Hospitable kanal oto-yanıtı aktığında yazar; Lale'nin verisi 402'de donuk olduğu için
 o yol da bugün akmıyor. Panel kartındaki "Henüz gölge kaydı yok" bu durumun doğru yansımasıdır.
 Kalan iş (kayıt): gölgeyi QR yoluna da bağlamak ayrı bir ürün kararıdır (kapsam: karar yetkisi yok, yalnız kayıt).

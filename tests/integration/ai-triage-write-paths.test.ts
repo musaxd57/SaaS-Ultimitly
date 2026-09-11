@@ -74,7 +74,7 @@ async function seedOrg() {
     },
   });
   const property = await prisma.property.create({
-    data: { organizationId: org.id, name: "Nuve 7" },
+    data: { organizationId: org.id, name: "Lale 7" },
   });
   return { orgId: org.id, propertyId: property.id };
 }

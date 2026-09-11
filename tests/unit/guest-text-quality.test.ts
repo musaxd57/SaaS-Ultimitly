@@ -571,7 +571,7 @@ describe("ev sahibi sesi — tekil eylem, çoğul yalnız nezaket kalıbında", 
     // …nezaket geniş zamanı ve İYELİK eki yakalanmıyor.
     for (const ok of [
       "Bizi tercih ettiğiniz için teşekkür ederiz. İyi günler dileriz.",
-      "Çıkış saatimiz 11:00, Wi-Fi ağımız NuveApt.",
+      "Çıkış saatimiz 11:00, Wi-Fi ağımız LaleApt.",
       "Durumu ilettim; kontrol edip size döneceğim.",
     ]) {
       expect(find(PL, ok), ok).toEqual([]);

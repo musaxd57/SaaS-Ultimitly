@@ -31,7 +31,7 @@ bütçe kararı %40 sapmalı.
 
 ## 🚨 BEŞ ÖRNEK MODELE SAHTE WI-FI ŞİFRESİ ÖĞRETİYOR
 
-`"12345678"` ve `"NuveApt"` **24 örneğin 5'inde** geçiyor (ÖRNEK 1, 8, 11, 13, 24). Bu yeni bir
+`"12345678"` ve `"LaleApt"` **24 örneğin 5'inde** geçiyor (ÖRNEK 1, 8, 11, 13, 24). Bu yeni bir
 keşif DEĞİL — kod bunu zaten biliyor ve KODDA savunma yazılmış:
 
 > `src/lib/automation.ts:1589-1590` ve `src/lib/guest-chat.ts:331-333`:
@@ -85,7 +85,7 @@ ve landing demoda **sabit `"tr"`** yazılı.
 `src/lib/ai/index.ts:148-155` system'i ÖNCE koyuyor → önbelleklenebilir önek ~47.533 karakter.
 Kusur yok. **Ama** `cached_tokens` / `prompt_tokens` hiçbir yerde OKUNMUYOR (grep: 0 eşleşme;
 `index.ts:184-194` yalnız `choices[0]`'ı okuyor). Yani *"önbelleklidir"* bir GÖZLEM değil
-VARSAYIM — ve Nuve hacminde (10 daire, 2 dk cron) çağrıların çoğu OpenAI'nin 5–10 dakikalık
+VARSAYIM — ve Lale hacminde (10 daire, 2 dk cron) çağrıların çoğu OpenAI'nin 5–10 dakikalık
 otomatik pencere dışında kalabilir.
 
 ## Retrieval'a devredilebilecek STATİK bloklar (tetikleyicileri KODDA zaten var)
@@ -105,7 +105,7 @@ yalnız en büyük bloğa uygulanmamış.
 
 ## Önerilen sıra (her adım ayrı ölçümle)
 
-1. **Pinsiz 19 örneği daralt**, 5 pinliyi koru; `12345678`/`NuveApt`'i öğreten 5 örnekten sahte
+1. **Pinsiz 19 örneği daralt**, 5 pinliyi koru; `12345678`/`LaleApt`'i öğreten 5 örnekten sahte
    değeri çıkar. 🚨 Bu bir **gönderim hot-path'i istem değişikliğidir** → GOLDEN SET + eval ŞART.
    ⚠️ Few-shot bir DAVRANIŞ ÇAPASIDIR; komple silmek o sınıfta modeli serbest bırakır — daraltma
    ölçümle yapılır, tek hamlede değil.

@@ -319,7 +319,7 @@ describe("RegisterForm — başarı ekranı çıkmaz değildir", () => {
       ),
     );
     render(<RegisterForm />);
-    typeInto(/İşletme adı/, "Nuve");
+    typeInto(/İşletme adı/, "Lale");
     typeInto(/Adınız/, "Musa");
     typeInto(/E-posta/, "kayitli@ornek.com");
     typeInto("Şifre", "sifre12345");
@@ -352,7 +352,7 @@ describe("RegisterForm — başarı ekranı çıkmaz değildir", () => {
     );
     try {
       render(<RegisterForm />);
-      typeInto(/İşletme adı/, "Nuve");
+      typeInto(/İşletme adı/, "Lale");
       typeInto(/Adınız/, "Musa");
       typeInto(/E-posta/, "yeni@ornek.com");
       typeInto("Şifre", "sifre12345");
@@ -398,7 +398,7 @@ describe("RegisterForm — başarı ekranı çıkmaz değildir", () => {
       vi.fn(async () => new Response(JSON.stringify({ ok: true, verifyEmail: true }), { status: 201 })),
     );
     render(<RegisterForm />);
-    typeInto(/İşletme adı/, "Nuve");
+    typeInto(/İşletme adı/, "Lale");
     typeInto(/Adınız/, "Musa");
     typeInto(/E-posta/, "yeni@ornek.com");
     typeInto("Şifre", "sifre12345");

@@ -17,11 +17,11 @@ Mühendislik bir MVP'nin ~%90'ı — paneller cilalı, güvenlik kapısı sağla
 reverse-trial canlı, Paddle production'da **gerçek ödemeyle uçtan uca doğrulandı**
 (2026-07-18: Başlangıç gerçek kartla alındı → in-app Pro upgrade), 1.500+ test yeşil.
 **Ama henüz dışarıdan ödeyen müşteri yok ve çekirdek özellik (oto-yanıt) gerçek
-misafirde canlı denenmedi** (Nuve'nin Hospitable aboneliği 402/pasif). Asıl belirsizlik
+misafirde canlı denenmedi** (Lale'nin Hospitable aboneliği 402/pasif). Asıl belirsizlik
 kodda değil, burada. Sıradaki gerçek iş (önem sırasıyla):
 
 1. **Çekirdeği canlı doğrula** — `AUTO_REPLY_ENABLED=1` açık; Hospitable
-   yenilenince Nuve'nin kendi dairelerinde **ilk gerçek gönderimleri birlikte izle**.
+   yenilenince Lale'nin kendi dairelerinde **ilk gerçek gönderimleri birlikte izle**.
 2. **Kendi ürününü kullan** bir hafta — sonra **1 tanıdık host'a** ücretsiz kur,
    gerçek geri bildirim al (para vermeden "kullanır mıydın?").
 3. ~~Paddle'da küçük bir gerçek ödeme test et~~ ✅ 2026-07-18 (satın alma + upgrade canlı).
@@ -97,4 +97,4 @@ Ekip rolleri & atama · PWA/mobil · misafir CRM · akıllı kilit (Nuki) · whi
 | İlk gerçek ödeme | ✅ Yapıldı (07-18): gerçek kartla satın alma + in-app upgrade doğrulandı |
 | İlk müşteri | 1 tanıdık host'a kur, geri bildirim al (asıl risk: birisi öder mi?) |
 | Avukat / mali müşavir | OpenAI DPA ✅ · kalan: KVKK Standart Sözleşme + VERBİS + e-fatura + guest-erasure imzası |
-| Hospitable | Nuve aboneliği bitik (402) → yenilenince veri canlanır |
+| Hospitable | Lale aboneliği bitik (402) → yenilenince veri canlanır |

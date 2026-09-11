@@ -83,11 +83,11 @@ describe("QR rezerve payı — inbox'ın hakkı korunur", () => {
     // Bu, projenin kendi kültüründeki "misafire/host'a yanlış söyleme"
     // kuralının (08-01, escalationReply metni) aynı sınıfı.
     const { qrEscalationEmail } = await import("@/lib/email-templates");
-    const html = qrEscalationEmail("Nuve 5", "daily_budget_qr", "https://x/y");
+    const html = qrEscalationEmail("Lale 5", "daily_budget_qr", "https://x/y");
     expect(html).toContain("genel AI hakkı etkilenmedi");
     expect(html).not.toContain("Planınızın günlük AI işlem hakkı doldu");
     // Eski sebep AYNEN korunur (org'un gerçek tavanı dolduğunda hâlâ doğru).
-    const old = qrEscalationEmail("Nuve 5", "daily_budget", "https://x/y");
+    const old = qrEscalationEmail("Lale 5", "daily_budget", "https://x/y");
     expect(old).toContain("Planınızın günlük AI işlem hakkı");
   });
 

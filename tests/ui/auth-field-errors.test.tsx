@@ -59,7 +59,7 @@ describe("Kayıt formu", () => {
   async function submitWith(response: unknown, status: number) {
     vi.stubGlobal("fetch", vi.fn(async () => jsonResponse(response, status)));
     render(<RegisterForm />);
-    fireEvent.change(screen.getByLabelText("İşletme adı"), { target: { value: "Nuve" } });
+    fireEvent.change(screen.getByLabelText("İşletme adı"), { target: { value: "Lale" } });
     fireEvent.change(screen.getByLabelText("Adınız"), { target: { value: "Musa" } });
     fireEvent.change(screen.getByLabelText("E-posta"), { target: { value: "a@b.com" } });
     fireEvent.change(screen.getByLabelText("Şifre"), { target: { value: "12345678" } });

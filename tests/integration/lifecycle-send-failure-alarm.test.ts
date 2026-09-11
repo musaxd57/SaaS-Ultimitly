@@ -59,7 +59,7 @@ async function seed() {
     },
   });
   const property = await prisma.property.create({
-    data: { organizationId: org.id, name: "Nuve 7" },
+    data: { organizationId: org.id, name: "Lale 7" },
   });
   await prisma.knowledgeBaseItem.create({
     data: {
@@ -126,7 +126,7 @@ describe("yaşam-döngüsü gönderim arızası — koşu başına tek toplu ala
     // Aynı org, AYRI daire, AYNI sourceReference — ve bu satır geçen ay
     // GERÇEKTEN gönderilmiş.
     const sent = new Date(Date.now() - 30 * DAY);
-    const other = await prisma.property.create({ data: { organizationId: orgId, name: "Nuve 8" } });
+    const other = await prisma.property.create({ data: { organizationId: orgId, name: "Lale 8" } });
     const sibling = await prisma.reservation.create({
       data: {
         propertyId: other.id,

@@ -75,7 +75,7 @@ interface StayIdentity {
  * DATE EQUALITY IS NOT IDENTITY (Codex). An earlier version treated "two linked
  * reservations covering the same window" as the same stay, on the theory that a
  * reconnect makes the provider re-issue the reservation id. That theory is
- * UNPROVEN — the live Hospitable payload could not be inspected (Nuve's
+ * UNPROVEN — the live Hospitable payload could not be inspected (the founder org's
  * subscription is 402) and the official API reference returned 403 — so it must
  * not license an irreversible delete. Two rows with DIFFERENT
  * externalReservationId values therefore go to review even when their dates

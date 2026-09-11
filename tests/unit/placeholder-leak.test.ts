@@ -24,13 +24,13 @@ describe("DOLDURULMAMIŞ YER TUTUCU notu — kapsam YALNIZ `content` (7. tur, ö
   it("içerikteki yer tutucu NOT üretir; yer tutucu yoksa üretmez", () => {
     const inContent = packKnowledgeBase([{ category: "wifi", title: "Wi-Fi", content: "Şifre: [ŞİFRE]" }]);
     expect(inContent.text).toContain("DOLDURULMAMIŞ YER TUTUCU");
-    const clean = packKnowledgeBase([{ category: "wifi", title: "Wi-Fi", content: "Ağ adı Nuve." }]);
+    const clean = packKnowledgeBase([{ category: "wifi", title: "Wi-Fi", content: "Ağ adı Lale." }]);
     expect(clean.text).not.toContain("DOLDURULMAMIŞ YER TUTUCU");
   });
 
   it("🚨 BAŞLIKTAKİ köşeli/açılı ETİKET sahte not ÜRETMEZ (4/4 ölçülen yanlış pozitif)", () => {
     for (const title of ["[ÖNEMLİ] Wi-Fi", "[EN] Check-in", "Kurallar [Güncellendi]", "Otopark <yeni>"]) {
-      const packed = packKnowledgeBase([{ category: "general", title, content: "Ağ adı Nuve, şifre kapıda yazılı." }]);
+      const packed = packKnowledgeBase([{ category: "general", title, content: "Ağ adı Lale, şifre kapıda yazılı." }]);
       expect(packed.text, title).not.toContain("DOLDURULMAMIŞ YER TUTUCU");
     }
   });
@@ -39,7 +39,7 @@ describe("DOLDURULMAMIŞ YER TUTUCU notu — kapsam YALNIZ `content` (7. tur, ö
     // Bedeli dürüstçe kaydet — kapsam daraltmasının karşılığı budur. Ölçülen kazanç
     // sıfır olduğu için kabul edildi; sır kapısı ve İKAME başlığı taramaya DEVAM eder.
     const packed = packKnowledgeBase([
-      { category: "wifi", title: "Wi-Fi şifresi: [ŞİFRE]", content: "Ağ adı Nuve." },
+      { category: "wifi", title: "Wi-Fi şifresi: [ŞİFRE]", content: "Ağ adı Lale." },
     ]);
     expect(packed.text).not.toContain("DOLDURULMAMIŞ YER TUTUCU");
     expect(packed.text).toContain("[ŞİFRE]"); // başlık yine isteme yazılıyor
@@ -52,7 +52,7 @@ describe("yer tutucu dedektörü (ölçüm; ürün kodu DEĞİL)", () => {
       "Wi-Fi şifreniz: [ŞİFRE]",
       "Wi-Fi şifresi: [ŞİFRE]. Bağlantı sorunu olursa ev sahibinize yazabilirsiniz.",
       "Ağ adı: [AĞ ADI], şifre: [ŞİFRE]",
-      "Ağ adı Nuve, şifreniz [ŞİFRE].",
+      "Ağ adı Lale, şifreniz [ŞİFRE].",
       "Kapı kodu [KOD]'dur.",
       "Şifre [ŞİFRE] — girişte kullanabilirsiniz.",
       "Wi-Fi password: [PASSWORD]",
@@ -101,7 +101,7 @@ describe("yer tutucu dedektörü (ölçüm; ürün kodu DEĞİL)", () => {
     expect(placeholderVerdict("Bu bilgi kayıtlarımda yok; ev sahibinizden isteyebilirsiniz.")).toBeNull();
     expect(placeholderVerdict("Adım [1] ve [2] tamam.")).toBeNull();
     expect(placeholderMentions("Ağ adı: [AĞ ADI], şifre: <şifre>, ad {isim}")).toEqual(["[AĞ ADI]", "<şifre>", "{isim}"]);
-    expect(placeholderMentions("Şifre: nuve2024")).toEqual([]);
+    expect(placeholderMentions("Şifre: lale2024")).toEqual([]);
   });
 });
 
@@ -119,11 +119,11 @@ describe("bilgi bloğu — DOLDURULMAMIŞ YER TUTUCU notu (kod-üretimli girdi; 
   });
 
   it("yer tutucu yoksa not YOK; rakam köşeli parantezi ve {isim} ad yer tutucusu (ikamesi çağıranda) bu notu tetiklemez", () => {
-    expect(packKnowledgeBase([{ ...ph, content: "Wi-Fi şifresi: nuve2024" }]).text).not.toContain("[NOT]");
+    expect(packKnowledgeBase([{ ...ph, content: "Wi-Fi şifresi: lale2024" }]).text).not.toContain("[NOT]");
     expect(packKnowledgeBase([{ category: "faq", title: "Adım", content: "Önce [1] sonra [2]." }]).text).not.toContain("[NOT]");
     expect(packKnowledgeBase([{ category: "welcome", title: "Karşılama", content: "Hoş geldiniz {isim}!" }]).text).not.toContain("[NOT]");
     expect(kbPlaceholderTokens("Ağ adı: [AĞ ADI]\nŞifre: [ŞİFRE]\n<adres>\nKod: ____")).toEqual(["[AĞ ADI]", "[ŞİFRE]", "<adres>", "____"]);
-    expect(kbPlaceholderTokens("Şifre: nuve2024 [1]")).toEqual([]);
+    expect(kbPlaceholderTokens("Şifre: lale2024 [1]")).toEqual([]);
   });
 
   it("not yalnız BLOĞA GİREN kalemler için: bütçeden düşen yer tutuculu kalem not üretmez; birden çok kalem tek satırda", () => {

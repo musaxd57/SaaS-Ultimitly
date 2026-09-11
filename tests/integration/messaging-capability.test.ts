@@ -81,7 +81,7 @@ describe("V0.5 messaging capability — davranışsal", () => {
 
   it("önizleme == gerçek: aynı fikstürde previewWelcomes ve sendDueWelcomes yalnız sağlayıcı satırını seçer", async () => {
     const { orgId, propertyId } = await makeOrgWithProperty();
-    await setOrgHospitableToken(orgId, "pat-1", "Nuve");
+    await setOrgHospitableToken(orgId, "pat-1", "Lale");
     await enableWelcome(orgId);
     await seedFixtures(propertyId);
 
@@ -126,7 +126,7 @@ describe("V0.5 messaging capability — davranışsal", () => {
 
   it("QR iç thread'i kanal oto-yanıt önizlemesine girmez; sağlayıcı thread'i girer", async () => {
     const { orgId, propertyId } = await makeOrgWithProperty();
-    await setOrgHospitableToken(orgId, "pat-1", "Nuve");
+    await setOrgHospitableToken(orgId, "pat-1", "Lale");
     const mk = (externalReservationId: string, channel: string) =>
       prisma.conversation.create({
         data: {

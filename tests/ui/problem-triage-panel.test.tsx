@@ -10,7 +10,7 @@ import { ProblemTriagePanel, type TriageRow } from "@/components/inbox/problem-t
 
 const base: TriageRow = {
   id: "c1",
-  propertyName: "Nuve 3",
+  propertyName: "Lale 3",
   lastMessageAt: new Date(Date.now() - 4 * 60 * 60 * 1000),
   riskType: "complaint",
   actionSuggestion: "Ekibi bugün yönlendirin, fotoğraf isteyin.",
@@ -31,7 +31,7 @@ describe("ProblemTriagePanel", () => {
     render(<ProblemTriagePanel rows={[base]} timeZone="Europe/Istanbul" />);
     expect(screen.getByText(/Ekibi bugün yönlendirin/)).toBeTruthy();
     expect(screen.getByText(/fotoğraf · hangi oda/)).toBeTruthy();
-    const link = screen.getByRole("link", { name: "Nuve 3" });
+    const link = screen.getByRole("link", { name: "Lale 3" });
     expect(link.getAttribute("href")).toBe("/inbox/c1");
   });
 
@@ -65,7 +65,7 @@ describe("ProblemTriagePanel", () => {
         timeZone="Europe/Istanbul"
       />,
     );
-    expect(screen.getByRole("link", { name: "Nuve 3" })).toBeTruthy();
+    expect(screen.getByRole("link", { name: "Lale 3" })).toBeTruthy();
     expect(screen.queryByText(/Önerilen adım/)).toBeNull();
   });
 
@@ -77,11 +77,11 @@ describe("ProblemTriagePanel", () => {
   it("aynı riskType'lı satırlar TEK grupta toplanır ve sayaç doğru", () => {
     render(
       <ProblemTriagePanel
-        rows={[base, { ...base, id: "c2", propertyName: "Nuve 7" }]}
+        rows={[base, { ...base, id: "c2", propertyName: "Lale 7" }]}
         timeZone="Europe/Istanbul"
       />,
     );
     expect(screen.getByText("2 konuşma")).toBeTruthy();
-    expect(screen.getByRole("link", { name: "Nuve 7" })).toBeTruthy();
+    expect(screen.getByRole("link", { name: "Lale 7" })).toBeTruthy();
   });
 });

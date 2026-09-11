@@ -224,7 +224,7 @@ describe("outbox × ChannelConnection", () => {
     expect(await row(outboxId)).toMatchObject({ status: "sent", connectionId: conn!.id });
   });
 
-  it("V0.7: env fallback altında kuyruklanan satır (connectionId NULL) env token'ı ile teslim edilir (Nuve yolu korunur)", async () => {
+  it("V0.7: env fallback altında kuyruklanan satır (connectionId NULL) env token'ı ile teslim edilir (Lale yolu korunur)", async () => {
     const { orgId, conversationId } = await seed();
     vi.stubEnv("PRIMARY_ORG_ID", orgId);
     vi.stubEnv("HOSPITABLE_API_TOKEN", "ENV-TOK");

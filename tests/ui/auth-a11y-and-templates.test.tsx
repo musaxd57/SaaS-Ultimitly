@@ -49,7 +49,7 @@ describe("Kayıt formu — alan hataları kontrole PROGRAMATİK olarak bağlı",
     );
     render(<RegisterForm />);
 
-    fireEvent.change(screen.getByLabelText("İşletme adı"), { target: { value: "Nuve" } });
+    fireEvent.change(screen.getByLabelText("İşletme adı"), { target: { value: "Lale" } });
     fireEvent.change(screen.getByLabelText("Adınız"), { target: { value: "Musa" } });
     fireEvent.change(screen.getByLabelText("E-posta"), { target: { value: "a@b.com" } });
     fireEvent.change(screen.getByLabelText("Şifre"), { target: { value: "12345678" } });
@@ -79,7 +79,7 @@ describe("Kayıt formu — alan hataları kontrole PROGRAMATİK olarak bağlı",
     // Hata yokken ipucu zaten görünür.
     expect(screen.getByText("En az 8 karakter.")).toBeTruthy();
 
-    fireEvent.change(screen.getByLabelText("İşletme adı"), { target: { value: "Nuve" } });
+    fireEvent.change(screen.getByLabelText("İşletme adı"), { target: { value: "Lale" } });
     fireEvent.change(screen.getByLabelText("Adınız"), { target: { value: "Musa" } });
     fireEvent.change(screen.getByLabelText("E-posta"), { target: { value: "a@b.com" } });
     fireEvent.change(screen.getByLabelText("Şifre"), { target: { value: "123" } });
@@ -99,7 +99,7 @@ describe("Kayıt formu — alan hataları kontrole PROGRAMATİK olarak bağlı",
       vi.fn(async () => new Response(JSON.stringify({ error: "Kayıt kapalı." }), { status: 403 })),
     );
     render(<RegisterForm />);
-    fireEvent.change(screen.getByLabelText("İşletme adı"), { target: { value: "Nuve" } });
+    fireEvent.change(screen.getByLabelText("İşletme adı"), { target: { value: "Lale" } });
     fireEvent.change(screen.getByLabelText("Adınız"), { target: { value: "Musa" } });
     fireEvent.change(screen.getByLabelText("E-posta"), { target: { value: "a@b.com" } });
     fireEvent.change(screen.getByLabelText("Şifre"), { target: { value: "12345678" } });

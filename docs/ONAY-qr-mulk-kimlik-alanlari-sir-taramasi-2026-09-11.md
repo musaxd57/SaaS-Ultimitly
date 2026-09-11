@@ -17,7 +17,7 @@ checkInTime, checkOutTime, address, city } })` → `src/lib/ai/prompts.ts:1090-1
 | Girdi | Sır kapısı | İstemde |
 |---|---|---|
 | KB kalemi: "Giriş kodu 8821." | **ELENİR** (kalem düşer) | yok ✓ |
-| Mülk ADI: "Nuve 5 - kapı kodu **8821**" | taranmaz | **VAR** ✗ |
+| Mülk ADI: "Lale 5 - kapı kodu **8821**" | taranmaz | **VAR** ✗ |
 | ADRES: "Moda Cd. 12, zil kodu **4590**" | taranmaz | **VAR** ✗ |
 
 Yani host aynı kodu KB'ye yazarsa korunuyor, mülk adına yazarsa korunmuyor. Ölçülen bir SIZINTI
@@ -37,7 +37,7 @@ geçer; eşleşirse alan istemden DÜŞER (ya da maskelenir).
   rakamlardan ÖNCE bir **giriş sözcüğü** şart koşuyor (`kapı|giriş|anahtar kutu|keybox|door|lock|entry|
   gate`) — kalıbın "can damarı" olarak kodda yazılı bitişiklik şartı. Ölçüm: 24 gerçekçi mülk adının
   yalnız **4'ü** düşüyor ve dördü de gerçekten giriş sözcüğü + kod taşıyor ("Kapı 4590", "Anahtar
-  kutusu 7788", "Gate 1203", "Nuve 5 - kapı kodu 8821"); "Nuve 4590" · "Daire 1203" · "Moda Cd. 12/3"
+  kutusu 7788", "Gate 1203", "Lale 5 - kapı kodu 8821"); "Lale 4590" · "Daire 1203" · "Moda Cd. 12/3"
   KALIYOR. 9 gerçekçi adresin yalnız biri düşüyor ("Moda Cd. 12, **zil kodu** 4590").
 - 🚨 **"A seçeneği `{daire}` ikamesini bozar" İDDİASI DA YANLIŞTI:** ikame `property.name`i Prisma
   satırından AYRI okuyor, istem ise `sanitizePromptValue(property.name)` ile ayrı basıyor — iki yol
@@ -48,7 +48,7 @@ geçer; eşleşirse alan istemden DÜŞER (ya da maskelenir).
 
 **B — Yalnız ADI tara, adresi bırak.** Adres meşru bilgi; kod saklamak için doğal yer mülk ADIdır.
 - Kazanç: A'nın ana riskini (adresin düşmesi) almadan boşluğun büyük kısmını kapatır.
-- Bedel (ÖLÇÜLDÜ): "Nuve 4590" DÜŞMEZ (giriş sözcüğü yok); yalnız ad gerçekten giriş sözcüğü + 4-8
+- Bedel (ÖLÇÜLDÜ): "Lale 4590" DÜŞMEZ (giriş sözcüğü yok); yalnız ad gerçekten giriş sözcüğü + 4-8
   hane taşıyorsa düşer. `{daire}` ikamesi ETKİLENMEZ (iki yol bağımsız, ↑A).
 
 **C — Host'a UYARI, modele dokunma.** Mülk adı/adresi kaydedilirken sezgisel çalışır ve host'a

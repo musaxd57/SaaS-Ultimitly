@@ -124,8 +124,8 @@ describe("ReDoS — QR sır süzgeci sınırlı nicelik kullanır", () => {
     const saldiri = [
       "Kapı: 4590",
       "PIN: 5678",
-      "Wifi şifresi Nuve2024",
-      "İnternet ağımız 'NuveEv', bağlanmak için 12345678 girin",
+      "Wifi şifresi Lale2024",
+      "İnternet ağımız 'LaleEv', bağlanmak için 12345678 girin",
       "Şifre: gizli123",
     ];
     for (const m of mesru) expect(scrubStyleProfileForPublic(m), m).toBe(m);

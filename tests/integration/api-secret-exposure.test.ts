@@ -52,7 +52,7 @@ describe("mülk API'leri bearer sırlarını sızdırmaz", () => {
   beforeEach(async () => {
     await resetDb();
     vi.clearAllMocks();
-    const org = await prisma.organization.create({ data: { name: "Nuve" } });
+    const org = await prisma.organization.create({ data: { name: "Lale" } });
     orgId = org.id;
     // ⚠️ Sırlar ŞEMA VARSAYILANI DEĞİL, rota tarafından üretiliyor — düz bir
     // `prisma.create` ikisini de NULL bırakır ve aşağıdaki testlerin hepsi

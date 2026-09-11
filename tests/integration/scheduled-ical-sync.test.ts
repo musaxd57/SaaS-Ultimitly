@@ -189,7 +189,7 @@ describe("runScheduledSync — iCal (Kanal Takvimleri) bacağı", () => {
 
   // ───────────────────────────────────────────────────────────────────────────
   // 4) HOSPITABLE ARIZASI iCal'İ DURDURMAZ.
-  //    Bu, Nuve'nin BUGÜNKÜ hâli (Hospitable aboneliği 402). iCal `syncOk`
+  //    Bu, Lale'nin BUGÜNKÜ hâli (Hospitable aboneliği 402). iCal `syncOk`
   //    kapısının ARKASINDA bırakılsaydı düzeltme tam da en gerekli vakada
   //    işlemezdi.
   //    MUTASYON (koşullu yap → kırmızı): iCal çağrısını `if (syncOk)` bloğunun

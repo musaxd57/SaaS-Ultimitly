@@ -34,7 +34,7 @@ describe("e-posta kimliği — ASCII-dışı adres kabul EDİLMEZ", () => {
   for (const [label, email] of CONFUSABLES) {
     it(`kayıt şeması reddeder: ${label}`, () => {
       const r = registerSchema.safeParse({
-        organizationName: "Nuve",
+        organizationName: "Lale",
         name: "Musa Cinar",
         email,
         password: "yeterince-uzun-sifre",
@@ -49,7 +49,7 @@ describe("e-posta kimliği — ASCII-dışı adres kabul EDİLMEZ", () => {
 
   it("düz ASCII adres (büyük harfli olsa da) kabul edilir — meşru kullanıcı engellenmez", () => {
     const r = registerSchema.safeParse({
-      organizationName: "Nuve",
+      organizationName: "Lale",
       name: "Musa Cinar",
       email: "MUSA@GMAIL.COM",
       password: "yeterince-uzun-sifre",

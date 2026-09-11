@@ -63,7 +63,7 @@ değildir.**
 
 ## Ölçüm planı (uygulanmadan ÖNCE)
 
-1. **Değer ölçümü:** prod'da (ya da Nuve verisinde) host'un elle cevapladığı mesajların kaçı
+1. **Değer ölçümü:** prod'da (ya da Lale verisinde) host'un elle cevapladığı mesajların kaçı
    TEKRAR EDEN sorudur? Tekrar oranı düşükse özelliğin değeri de düşüktür — "olsa iyi olur" ile
    "ölçülen kazanç" ayrı şeyler.
 2. **Bayatlık ölçümü:** geçmiş cevapların kaçı bugünkü mülk ayarlarıyla ÇELİŞİYOR? Bu sayı, 1.

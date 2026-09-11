@@ -84,7 +84,7 @@ const OLD_TRIAGE = {
 async function seed() {
   const org = await realPrisma.organization.create({ data: { name: "Org" } });
   const property = await realPrisma.property.create({
-    data: { organizationId: org.id, name: "Nuve 7" },
+    data: { organizationId: org.id, name: "Lale 7" },
   });
   // ESKİ mesaj (m1) — önceki triyajın tetikleyicisi.
   const conv = await realPrisma.conversation.create({

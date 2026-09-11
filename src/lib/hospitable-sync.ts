@@ -70,7 +70,7 @@ export interface SyncResult {
    * satırı yer-tutucu metinle içe aktarmak, sağlayıcının hangi olay tiplerinde
    * boş gövde döndüğünü BİLMEDEN yapılırsa gelen kutusunu sistem satırlarıyla
    * doldurabilir ve o satırlar AI kapısını da besler. Hospitable'ın gerçek
-   * payload'ı görülmeden (Nuve aboneliği 402) bu doğrulanamaz — bu yüzden önce
+   * payload'ı görülmeden (kurucu org aboneliği 402) bu doğrulanamaz — bu yüzden önce
    * ÖLÇÜM: sayaç sıfır kalırsa ortada sorun yoktur, sıfırdan büyürse gerçek
    * payload elimizde demektir ve karar veriye dayanır. Kardeşi:
    * `reservationsUnwritable` (aynı desen, 08-01).

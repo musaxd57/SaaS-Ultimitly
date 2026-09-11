@@ -145,7 +145,7 @@ describe("provenance — Hospitable senkronu", () => {
 
   it("aktif bağlantıyla ingest: rezervasyon + konuşma + HER İKİ yöndeki sağlayıcı mesajı 'ingest' sınıfı (bağlantı + ilk alınma)", async () => {
     const { orgId, propertyId } = await makeOrgWithProperty();
-    await setOrgHospitableToken(orgId, "pat-1", "Nuve");
+    await setOrgHospitableToken(orgId, "pat-1", "Lale");
     const conn = await getConnection(orgId, "hospitable");
     expect(conn?.status).toBe("active");
     const t0 = new Date(Date.now() - 1000);
@@ -164,7 +164,7 @@ describe("provenance — Hospitable senkronu", () => {
 
   it("ingestedAt = İLK ALINMA, değişmez: içerik değişmeyen VE değişen tekrar senkron eski satırların damgasını korur (eski veri 'yeni' görünmez)", async () => {
     const { orgId, propertyId } = await makeOrgWithProperty();
-    await setOrgHospitableToken(orgId, "pat-1", "Nuve");
+    await setOrgHospitableToken(orgId, "pat-1", "Lale");
     await syncHospitable(orgId);
     const first = await rows(propertyId);
     const firstStamps = {
@@ -215,7 +215,7 @@ describe("provenance — Hospitable senkronu", () => {
     const firstIngest = a.reservation.ingestedAt!.getTime();
 
     // 2) host bağlanır → sonraki senkron mevcut satırları O bağlantıdan GÖZLEMLER: NULL→X, ilk alınma sabit
-    await setOrgHospitableToken(orgId, "pat-1", "Nuve");
+    await setOrgHospitableToken(orgId, "pat-1", "Lale");
     const conn = await getConnection(orgId, "hospitable");
     mockReservations.mockResolvedValue([hospReservation({ last_message_at: "2026-05-30T11:00:00Z" })]);
     mockMessages.mockResolvedValue(THREE);
@@ -282,7 +282,7 @@ describe("provenance — Hospitable senkronu", () => {
     await mkLegacy("res-old");
 
     // Bağlantı satırı DOĞAR (aktarım / bağlanma) — hiçbir satır damgalanmamalı.
-    await setOrgHospitableToken(orgId, "pat-1", "Nuve");
+    await setOrgHospitableToken(orgId, "pat-1", "Lale");
     const conn = await getConnection(orgId, "hospitable");
     for (const ref of ["res-1", "res-old"]) {
       const r = await rows(propertyId, ref);
@@ -319,7 +319,7 @@ describe("provenance — diğer ingress'ler ve çıkış yolu", () => {
 
   it("iCal: 'unbound' (provenance = calendarSourceId) — org bağlı olsa bile; değişen feed ilk alınmayı DEĞİŞTİRMEZ", async () => {
     const { orgId, propertyId } = await makeOrgWithProperty();
-    await setOrgHospitableToken(orgId, "pat-1", "Nuve"); // aşırı-uygulama tuzağı
+    await setOrgHospitableToken(orgId, "pat-1", "Lale"); // aşırı-uygulama tuzağı
     const source = await prisma.calendarSource.create({
       data: { propertyId, label: "Airbnb", url: "https://example.com/feed.ics" },
     });
@@ -344,7 +344,7 @@ describe("provenance — diğer ingress'ler ve çıkış yolu", () => {
 
   it("elle .csv yükleme: ilk alınma yazılır (dosya bir ingress'tir), connectionId NULL → 'unbound'", async () => {
     const { orgId, propertyId } = await makeOrgWithProperty();
-    await setOrgHospitableToken(orgId, "pat-1", "Nuve");
+    await setOrgHospitableToken(orgId, "pat-1", "Lale");
     session = { userId: "u", organizationId: orgId, role: "owner", email: "o@x.com", name: "O", sessionEpoch: 0 };
     const form = new FormData();
     form.set(
@@ -414,7 +414,7 @@ describe("provenance — diğer ingress'ler ve çıkış yolu", () => {
 
   it("outbox enqueue: giden Message satırı kuyruklandığı bağlantıyı taşır, ingestedAt NULL (çıkış, ingest değil)", async () => {
     const { orgId, propertyId } = await makeOrgWithProperty();
-    await setOrgHospitableToken(orgId, "pat-1", "Nuve");
+    await setOrgHospitableToken(orgId, "pat-1", "Lale");
     const conn = await getConnection(orgId, "hospitable");
     const conv = await prisma.conversation.create({
       data: { propertyId, channel: "airbnb", guestIdentifier: "Alex", externalReservationId: "res-out-1" },

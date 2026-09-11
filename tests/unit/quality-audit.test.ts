@@ -43,7 +43,7 @@ describe("redactForAudit — PII asla Claude'a gitmez", () => {
 describe("buildAuditPrompt", () => {
   const pair: AuditPair = {
     messageId: "m1",
-    property: "Nuve 3",
+    property: "Lale 3",
     at: "2026-07-15T10:00:00.000Z",
     guest: "Wifi şifresi nedir?",
     guestContext: "matched",

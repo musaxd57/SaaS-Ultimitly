@@ -34,7 +34,7 @@ async function seedWelcome(opts: { source?: string; welcomeSentAt?: Date | null 
   const org = await prisma.organization.create({
     data: { name: "Org", autoWelcome: true, autoWelcomeEnabledAt: new Date(0), aiSignature: "İsa" },
   });
-  const property = await prisma.property.create({ data: { organizationId: org.id, name: "nuve 3" } });
+  const property = await prisma.property.create({ data: { organizationId: org.id, name: "lale 3" } });
   await prisma.knowledgeBaseItem.create({
     data: { propertyId: property.id, category: "welcome", title: "K", content: "Merhaba {isim}" },
   });

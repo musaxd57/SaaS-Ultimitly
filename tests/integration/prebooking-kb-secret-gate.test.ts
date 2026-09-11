@@ -22,7 +22,7 @@ import { withoutSecretKbItems, QR_SECRET_CATEGORIES } from "@/lib/guest-chat";
 // kendisi. Kapı YALNIZ onaylı/tamamlanmış konaklama YOKKEN devreye girer.
 // ---------------------------------------------------------------------------
 const KB = [
-  { title: "Wi-Fi", content: "Ağ: NuveEv_5G, şifre: gunes1907" },
+  { title: "Wi-Fi", content: "Ağ: LaleEv_5G, şifre: gunes1907" },
   { title: "Giriş Talimatı", content: "Bina girişindeki anahtar kutusu kodu 4821" },
   { title: "Otopark", content: "Bina altında ücretsiz otopark var, 2. bodrum" },
   { title: "Ev Kuralları", content: "Sigara içilmez, evcil hayvan kabul edilmez" },

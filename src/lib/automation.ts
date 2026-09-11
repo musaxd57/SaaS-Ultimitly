@@ -2228,7 +2228,7 @@ export async function applyChannelAutoReply(
       // günlük kotadan bir birim daha yanıyor → gönderim yine AYNI kalıcı hatayla
       // düşüyor. Tek bozuk konuşma org'un 150'lik günlük kotasını ~5 saatte
       // tüketip GERÇEK misafirlerin oto-yanıtını `daily_budget` ile kapatıyordu.
-      // Nuve'nin canlı hesabı bugün tam bu durumda (Hospitable 402).
+      // Kurucunun canlı hesabı bugün tam bu durumda (Hospitable 402).
       //
       // Çözüm DAMGA DEĞİL GERİ ÇEKİLME: damga kalıcı olurdu (host bağlantısını
       // düzeltse bile misafir o mesaja hiç cevap alamazdı). `autoReplyHoldUntil`
@@ -2390,7 +2390,7 @@ async function reportLifecycleSendFailures(
   //
   // Yaşam-döngüsü göndericileri KESİN hatada (4xx≠408) damgayı geri alıp HER
   // geçişte yeniden deniyor — ve Hospitable 402 "abonelik pasif" de kesin hata
-  // sayılıyor (Nuve'nin BUGÜNKÜ hâli). Yani geri çekilmesi OLMAYAN bir sonsuz
+  // sayılıyor (kurucu org'un BUGÜNKÜ hâli). Yani geri çekilmesi OLMAYAN bir sonsuz
   // döngü var. Alarmı ona çıplak bağlamak, `reportError`'un 10 dakikalık
   // context throttle'ıyla bile GÜNDE ~432 uyarı e-postası demekti (2 dk'lık cron
   // × 3 tür ÷ 10 dk) — ve karşılama için `arrivalDate` geçene kadar, yani AYLARCA.
@@ -2560,7 +2560,7 @@ export async function runDueChannelAutoReplies(
     // 07-31'de eklenen görünürlük düzeltmesi üretimde ölü koddu ve ürünün 1
     // numaralı destek sorusu ("AI neden sustu?") ekranda cevapsız kalıyordu.
     // Şema varsayılanı hâlâ 00:00–09:00 olduğu için bu, mevcut TÜM org'ları
-    // (Nuve dahil) gündüz boyunca ilgilendiriyor.
+    // (kurucu org dahil) gündüz boyunca ilgilendiriyor.
     //
     // Model çağrısı YOK — tek `updateMany`. `skippedReason: null` koşulu iki işi
     // birden yapıyor: (1) gerçek bir sebebi (escalated_to_human / şikayet /

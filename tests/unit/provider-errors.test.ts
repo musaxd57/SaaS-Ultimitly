@@ -11,7 +11,7 @@ import { HospitableError } from "@/lib/hospitable";
 //     `Hospitable API hatası (HTTP ${status}): ${body.slice(0, 200)}`
 // Host'un Gelen Kutusu'nda görülebilen gerçek metin:
 //     «Mesaj gönderilemedi: Hospitable API hatası (HTTP 402): {"message":"Subscription not active"}»
-// Ham İngilizce sağlayıcı JSON'u + HTTP kodu. Nuve bugün 402 → CANLIDA görülebilir.
+// Ham İngilizce sağlayıcı JSON'u + HTTP kodu. Lale bugün 402 → CANLIDA görülebilir.
 // ---------------------------------------------------------------------------
 
 const YASAK = /HTTP \d{3}|Subscription not active|\{|\}|env=|resource=/;

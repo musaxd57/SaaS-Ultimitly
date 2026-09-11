@@ -387,7 +387,7 @@ belgelenmiş, dilbilgisiyle çözülemez sınıf); kaçırılan bildirim 0/38.
   adlı mülkte KB'deki `Kapı kodu: {daire}` satırı misafire **"Kapı kodu: Cozy Seaside Flat"** olarak
   gidiyordu → artık `null` (belirteç görünür kalır).
 - **Sayaç sözcüğü listesi KORUNDU** (bare "oda/kat/banyo" dahil): ölçülen dört vakada yön GÜVENLİ
-  (`null` → belirteç görünür), uydurma numara söylemekten iyidir. Bilinen bedel: "Nuve 3 Oda
+  (`null` → belirteç görünür), uydurma numara söylemekten iyidir. Bilinen bedel: "Lale 3 Oda
   Servisi" gibi adlarda ikame yapılmaz.
 
 **Kanıt:** kırmızı-önce 25 düşen test; **mutasyon 26/26** — iki mutant hayatta kaldı ve ikisi de
@@ -458,7 +458,7 @@ belirteç/çekim mekanizmasıyla birleştirme ayrı tur ister.
 ### A6 — Yer tutucu (`apartmentNumberOf`, `guestFirstNameOf`, başlık)
 
 - **Sayaç ve hane kuralları ETİKETLİ yolda HİÇ çalışmıyordu:** etiket eşleşince anında dönülüyordu →
-  "Sahilde Daire **6 Kişilik**" → "6" (kapasite), "Nuve Rezidans **No 2024**" → yıl. Aynı adın
+  "Sahilde Daire **6 Kişilik**" → "6" (kapasite), "Lale Rezidans **No 2024**" → yıl. Aynı adın
   etiketsiz hâli doğru davranıyordu (ölçülen asimetri). Sayaç kontrolü artık ÇAPALI: yalnız sayıyı
   HEMEN izleyen sözcüğe bakar (araya rakam girerse bakmaz → "Daire 5 - 2 Yatak Odalı" hâlâ "5").
 - **Sayaç listesi TR-only iken etiket dalı İngilizceyi kabul ediyordu:** 15 gerçekçi İngilizce ilan

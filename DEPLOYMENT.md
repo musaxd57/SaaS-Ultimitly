@@ -160,7 +160,7 @@ balon ne "already answered" baskısı). Manuel host yanıtı ASLA vetolanmaz (ho
 **Lifecycle (welcome/checkin/checkout) kesinti + rollback davranışı (final-review düzeltmeleri):**
 `*SentAt` YALNIZ DOĞRULANMIŞ teslimde damgalanır (provider success / güvenilir reconciliation) —
 `review`/ambiguous'ta ASLA (doğrulanmamış veriyle sahte "sent" yok). **Hospitable 402 = "abonelik
-aktif değil"** GEÇİCİ kesinti DEĞİL, KALICI entegrasyon-duraklaması (Nuve'nin canlı hesabı şu an
+aktif değil"** GEÇİCİ kesinti DEĞİL, KALICI entegrasyon-duraklaması (Lale'nin canlı hesabı şu an
 tam da bu durumda) → satır ayrı, terminal-olmayan **`blocked`** durumuna gider: bir daha CLAIM
 edilmez (her scheduler pass'te provider çağrısı/pager YOK), attempt limitini TÜKETMEZ (claim'in
 +1'i geri alınır) ve YALNIZ ilk geçişte tek `outbox-blocked` secretsız ops sinyali üretir. Org'un
@@ -188,7 +188,7 @@ gönderilecek".
 4. Bir yanıt gönder; DB'de `MessageOutbox` satırının `pending → sent` olduğunu
    ve `Message.externalId`'nin worker sonrası dolduğunu doğrula. `review`/`failed`
    satırları takılı gönderimleri gösterir (elle incele); `blocked` = Hospitable aboneliği
-   pasif (Nuve'nin şu anki durumu) — sync yeniden başarılı olunca otomatik `pending`'e
+   pasif (Lale'nin şu anki durumu) — sync yeniden başarılı olunca otomatik `pending`'e
    alınıp bir kez denenir. Inbox thread'inde mesajın "Sırada → İletildi" rozetini takip et.
 5. Kapatmak (acil rollback) için env'i sil → YENİ gönderimler eski yola döner AMA
    worker bekleyen `pending/sending/ambiguous` satırları **flag KAPALIYKEN DE** boşaltmaya
@@ -312,7 +312,7 @@ sıfır). /admin "Gölge Pilotu" kartında uyum oranı + son kayıtlar. Varsayı
 | `SHADOW_AI_BASE_URL` | hayır | Varsayılan `https://api.openai.com/v1`. HTTPS ZORUNLU (http → modül pasif). Başka sağlayıcı verilirse `SHADOW_AI_API_KEY` de zorunlu olur. |
 | `SHADOW_AI_MODEL` | hayır | Varsayılan `gpt-5.6-luna`. Model id'sini OpenAI panelinden doğrula. |
 | `SHADOW_AI_SAMPLE_CAP` | hayır | Pilot tavanı, **model başına** (varsayılan 200 kayıt; dolunca sessizce durur). |
-| `SHADOW_AI_ORG_IDS` | hayır | Virgüllü org allowlist'i — pilotu tek işletmeye (örn. Nuve) pinlemek için. Boş = tüm org'lar. |
+| `SHADOW_AI_ORG_IDS` | hayır | Virgüllü org allowlist'i — pilotu tek işletmeye (örn. Lale) pinlemek için. Boş = tüm org'lar. |
 
 Açılış: `SHADOW_AI_ENABLED=1` + `SHADOW_AI_ORG_IDS=<org-id>` ekle → redeploy.
 `OPENAI_API_KEY` zaten tanımlı olduğundan başka env gerekmez. İstek gövdesi model

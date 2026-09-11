@@ -51,7 +51,7 @@ Alarm kutusu: `intelligence-pass org:` / `kb-memory org:` konulu `reportError` e
 PMS'i bloklamaz ama hafıza eşitlenmez → raporla, yayını geri alma).
 
 ## 3. Canlı ÜRÜN AKIŞI doğrulaması (Codex: "kod ve test hazır" ≠ "canlı akış çalışıyor")
-Hospitable'a bağımlı DEĞİL (Nuve 402'de olsa da yapılabilir). **Kontrollü testler ayrı bir TEST MÜLKÜNDE** yapılır ve
+Hospitable'a bağımlı DEĞİL (Lale 402'de olsa da yapılabilir). **Kontrollü testler ayrı bir TEST MÜLKÜNDE** yapılır ve
 sonunda mülk silinir (cascade: Signal/PropertyMemory/rezervasyon/konuşma gider; `IngestEvent` satırları PII'siz "olay
 oldu" kaydı olarak kalır — beklenen). Gerçek mülkte yalnız A adımı (KB) yapılır; o da gerçek bir düzenlemedir.
 

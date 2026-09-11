@@ -53,7 +53,7 @@ describe("GET /api/account/export — complete + secret-free", () => {
     });
     await prisma.organization.update({
       where: { id: orgId },
-      data: { hospitableTokenEnc: "SECRET_ENCRYPTED_TOKEN_VALUE", aiSignature: "Sevgiler, Nuve" },
+      data: { hospitableTokenEnc: "SECRET_ENCRYPTED_TOKEN_VALUE", aiSignature: "Sevgiler, Lale" },
     });
     // 2FA recovery-code hash (Codex #20) — a new secret family; must never export.
     await prisma.twoFactorRecoveryCode.create({
@@ -164,7 +164,7 @@ describe("GET /api/account/export — complete + secret-free", () => {
     expect(data.auditLogs.some((a: { action: string }) => a.action === "data.export_self")).toBe(false); // written AFTER the read — next export shows it
     expect(data.checkoutConsents[0]).toMatchObject({ planCode: "pro", legalVersion: "2026-06", legalTextHash: "hash-abc" });
     expect(data.riskEvents[0]).toMatchObject({ finalDecision: "human_review", riskType: "complaint" });
-    expect(data.organization.aiSignature).toBe("Sevgiler, Nuve"); // settings included
+    expect(data.organization.aiSignature).toBe("Sevgiler, Lale"); // settings included
     expect(data.organization.users[0].acceptedLegalVersion).toBe("2026-06"); // consent evidence
     expect(data.organization.users[0].acceptedLegalTextHash).toBe("hash-abc"); // tamper-evident companion
 

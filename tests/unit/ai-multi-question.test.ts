@@ -198,7 +198,7 @@ describe("uzun model yanıtı sessizce kesilip gönderilemez", () => {
   });
 
   it("tavanın ALTINDAKİ normal yanıt hiç etkilenmez (güven korunur, kesme yok)", async () => {
-    const body = "Wi-Fi ağı NuveApt, şifresi 12345678.";
+    const body = "Wi-Fi ağı LaleApt, şifresi 12345678.";
     respond(body);
     const result = await suggestReply(baseInput("Wifi şifresi nedir?"));
 
@@ -212,7 +212,7 @@ describe("uzun model yanıtı sessizce kesilip gönderilemez", () => {
     // Kullanıcının senaryosu: 6 sorunun tam cevabı ~400-900 karakter.
     const realistic =
       "Merhaba, iyiyiz, teşekkür ederiz. Çıkış saatimiz 11:00. Çöpü zemin kattaki yeşil " +
-      "konteynere bırakabilirsiniz. Wi-Fi ağı NuveApt, şifresi 12345678. Otopark için bina " +
+      "konteynere bırakabilirsiniz. Wi-Fi ağı LaleApt, şifresi 12345678. Otopark için bina " +
       "altındaki ücretsiz misafir otoparkını kullanabilirsiniz. Havlular banyodaki dolapta.";
     expect(realistic.length).toBeLessThan(2000);
     respond(realistic);

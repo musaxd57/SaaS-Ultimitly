@@ -571,7 +571,7 @@ describe("applyChannelAutoReply", () => {
   it("REZERVASYONSUZ konuşmada sır modele GİTMEZ ve düşen sayısı DOĞRU", async () => {
     const { conversationId } = await seed();
     await addKb(conversationId, [
-      { title: "Wi-Fi", content: "Ağ: NuveEv, şifre: gunes1907" },
+      { title: "Wi-Fi", content: "Ağ: LaleEv, şifre: gunes1907" },
       { title: "Giriş Talimatı", content: "Anahtar kutusu kodu 4821" },
       { title: "Otopark", content: "Bina altında ücretsiz otopark" },
       { title: "Ev Kuralları", content: "Sigara içilmez" },
@@ -593,7 +593,7 @@ describe("applyChannelAutoReply", () => {
       departureDate: new Date(Date.now() + 86_400_000),
     });
     await addKb(conversationId, [
-      { title: "Wi-Fi", content: "Ağ: NuveEv, şifre: gunes1907" },
+      { title: "Wi-Fi", content: "Ağ: LaleEv, şifre: gunes1907" },
       { title: "Otopark", content: "Bina altında ücretsiz otopark" },
     ]);
     mockSuggest.mockResolvedValue(SAFE_REPLY);
@@ -808,7 +808,7 @@ describe("closing courtesy — opt-in 'Rica ederiz' reply to a bare thanks", () 
     await prisma.organization.update({ where: { id: orgId }, data: { autoClosingReplyEnabled: true } });
     await prisma.message.create({
       data: {
-        conversationId, direction: "outbound", senderName: "Host", body: "Wi-Fi şifresi Nuve2025.",
+        conversationId, direction: "outbound", senderName: "Host", body: "Wi-Fi şifresi Lale2025.",
         createdAt: new Date(Date.now() - 30_000),
       },
     });
@@ -1517,7 +1517,7 @@ describe("sendDueWelcomes", () => {
       },
     });
     const property = await prisma.property.create({
-      data: { organizationId: org.id, name: "nuve 3" },
+      data: { organizationId: org.id, name: "lale 3" },
     });
     if (opts.withEntry !== false) {
       await prisma.knowledgeBaseItem.create({
@@ -1525,7 +1525,7 @@ describe("sendDueWelcomes", () => {
           propertyId: property.id,
           category: "welcome",
           title: "Karşılama",
-          content: opts.content ?? "Daire 3 — Wifi: NUVE/1234",
+          content: opts.content ?? "Daire 3 — Wifi: LALE/1234",
         },
       });
     }
@@ -1561,7 +1561,7 @@ describe("sendDueWelcomes", () => {
     const [target, body] = mockSend.mock.calls[0];
     expect(target).toMatchObject({ externalReservationId: "res-w-1", channel: "airbnb" });
     expect(body).toContain("Merhaba Bircan,");
-    expect(body).toContain("Daire 3 — Wifi: NUVE/1234");
+    expect(body).toContain("Daire 3 — Wifi: LALE/1234");
     expect(body).toContain("Sevgiler,\nİsa");
 
     const res = await prisma.reservation.findUnique({ where: { id: reservationId } });
@@ -1576,13 +1576,13 @@ describe("sendDueWelcomes", () => {
 
   it("substitutes the {isim} placeholder and sends the template as written", async () => {
     const { orgId } = await seedWelcome({
-      content: "Merhaba {isim}👋\n\nDaire 4 — Wifi: NUVEBUTİK\n\nSevgiler,\nİsa Çınar",
+      content: "Merhaba {isim}👋\n\nDaire 4 — Wifi: LALEBUTİK\n\nSevgiler,\nİsa Çınar",
     });
     const out = await sendDueWelcomes(orgId);
 
     expect(out.sent).toBe(1);
     const [, body] = mockSend.mock.calls[0];
-    expect(body).toBe("Merhaba Bircan👋\n\nDaire 4 — Wifi: NUVEBUTİK\n\nSevgiler,\nİsa Çınar");
+    expect(body).toBe("Merhaba Bircan👋\n\nDaire 4 — Wifi: LALEBUTİK\n\nSevgiler,\nİsa Çınar");
     // No auto greeting/signature was added on top of the host's own template.
     expect(body).not.toContain("Merhaba Bircan,");
   });
@@ -1595,7 +1595,7 @@ describe("sendDueWelcomes", () => {
 
     expect(out.sent).toBe(1);
     const [, body] = mockSend.mock.calls[0];
-    // Property is named "nuve 3" → {daire} resolves to just "3".
+    // Property is named "lale 3" → {daire} resolves to just "3".
     expect(body).toBe("Merhaba Bircan, Apartment 3 sizi bekliyor.");
   });
 
@@ -1736,7 +1736,7 @@ describe("sendDueCheckins", () => {
       },
     });
     const property = await prisma.property.create({
-      data: { organizationId: org.id, name: "nuve 3" },
+      data: { organizationId: org.id, name: "lale 3" },
     });
     if (opts.withEntry !== false) {
       await prisma.knowledgeBaseItem.create({
@@ -1744,7 +1744,7 @@ describe("sendDueCheckins", () => {
           propertyId: property.id,
           category: "checkin",
           title: "Giriş Talimatı",
-          content: "Merhaba {isim}, kapı kodu **2022, Wi-Fi: NUVE/1234 — Daire {daire}",
+          content: "Merhaba {isim}, kapı kodu **2022, Wi-Fi: LALE/1234 — Daire {daire}",
         },
       });
     }
@@ -1768,7 +1768,7 @@ describe("sendDueCheckins", () => {
     const out = await sendDueCheckins(orgId);
     expect(out.sent).toBe(1);
     const [, body] = mockSend.mock.calls[0];
-    expect(body).toBe("Merhaba Bircan, kapı kodu **2022, Wi-Fi: NUVE/1234 — Daire 3");
+    expect(body).toBe("Merhaba Bircan, kapı kodu **2022, Wi-Fi: LALE/1234 — Daire 3");
     // Idempotent — a second pass sends nothing.
     expect((await sendDueCheckins(orgId)).sent).toBe(0);
   });
@@ -1813,7 +1813,7 @@ describe("sendDueCheckins", () => {
     const previews = await previewCheckins(orgId);
     expect(previews).toHaveLength(1);
     expect(previews[0]).toMatchObject({ guest: "Bircan Yılmaz", hasEntry: true, alreadySent: false });
-    expect(previews[0].body).toBe("Merhaba Bircan, kapı kodu **2022, Wi-Fi: NUVE/1234 — Daire 3");
+    expect(previews[0].body).toBe("Merhaba Bircan, kapı kodu **2022, Wi-Fi: LALE/1234 — Daire 3");
     expect(mockSend).not.toHaveBeenCalled();
   });
 });
@@ -1844,7 +1844,7 @@ describe("sendDueCheckouts", () => {
       },
     });
     const property = await prisma.property.create({
-      data: { organizationId: org.id, name: "nuve 3" },
+      data: { organizationId: org.id, name: "lale 3" },
     });
     if (opts.withEntry !== false) {
       await prisma.knowledgeBaseItem.create({

@@ -10,7 +10,7 @@ import { prisma, resetDb, makeOrgWithProperty, daysFromNow } from "../helpers/db
 //   · Beş durum: connected (kendi kimlik bilgisi) · env_fallback (yalnız kurucu org, env
 //     token) · disconnected (host kaldırdı; satır tarihçe olarak kalır) · revoked (sağlayıcı
 //     reddetti; sebep kapalı küme) · never_connected.
-//   · Kendi bağlantısı revoked olan KURUCU org'un env fallback erişimi KORUNUR (Nuve): durum
+//   · Kendi bağlantısı revoked olan KURUCU org'un env fallback erişimi KORUNUR (Lale): durum
 //     "revoked" + envAvailable + credentialSource "env" — iki gerçek birlikte gösterilir.
 //   · `resolveHospitableCredential(org, { forConnectionId })`: damgalı bir kuyruk satırı
 //     YALNIZ damgalandığı bağlantıdan gider — bağlantı aktif değilse token YOK (env'e sessizce
@@ -136,7 +136,7 @@ describe("V0.7 — bağlantı durumu (getConnectionInfo) saklı veriden", () => 
     expect(info).toMatchObject({ state: "env_fallback", connected: true, ownToken: false, envAvailable: true, credentialSource: "env", connectionId: null });
   });
 
-  bothReadModes("🚨 revoked + env (kurucu): iki gerçek birlikte — state revoked, ama erişim env ile KORUNUR (Nuve)", async () => {
+  bothReadModes("🚨 revoked + env (kurucu): iki gerçek birlikte — state revoked, ama erişim env ile KORUNUR (Lale)", async () => {
     const { orgId } = await makeOrgWithProperty();
     await setOrgHospitableToken(orgId, "PAT-1", null);
     const row = await getConnection(orgId);

@@ -49,7 +49,7 @@ const GUEST = "Ayşe Yılmaz";
 // `looksLikeSecret` kalıbına takılıyor ve kalem daha ikameye gelmeden eleniyor (ölçüldü).
 const WELCOME = "Merhaba {isim}, {daire} numaralı daireye hoş geldiniz. Havlular dolapta.";
 
-async function seed(propertyName = "nuve 7") {
+async function seed(propertyName = "lale 7") {
   const { orgId, propertyId } = await makeOrgWithProperty();
   const token = `qrtok_${Math.random().toString(36).slice(2)}${"x".repeat(12)}`;
   await prisma.property.update({
@@ -121,7 +121,7 @@ describe("QR — KB yer tutucuları modele GİRMEDEN çözülür", () => {
   });
 
   it("{daire} daire numarasına, {isim} 'misafirimiz'e çözülür; ham belirteç modele GİTMEZ", async () => {
-    const { token } = await seed("nuve 7");
+    const { token } = await seed("lale 7");
     mockSuggest.mockResolvedValue(model());
     const res = await ask(token, "Havlu nerede?");
     expect(res.status).toBe(200);
@@ -220,7 +220,7 @@ describe("Oto-yanıt — KB yer tutucuları GERÇEK ada çözülür (QR'dan fark
     vi.stubEnv("KB_RETRIEVAL_MODE", "");
   });
 
-  async function seedChannel(guestIdentifier: string, propertyName = "nuve 7") {
+  async function seedChannel(guestIdentifier: string, propertyName = "lale 7") {
     const org = await prisma.organization.create({
       data: { name: "Test Org", autoReplyHospitable: true, autoReplyStartHour: 0, autoReplyEndHour: 0, timezone: "Europe/Istanbul" },
     });

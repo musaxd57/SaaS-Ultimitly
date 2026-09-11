@@ -165,7 +165,7 @@ describe("AppShell — çıkış başarısız olduğunda SEBEBİ söylenir", () 
   });
 
   const shellProps = {
-    user: { name: "Musa", email: "a@b.com", role: "owner", orgName: "Nuve" },
+    user: { name: "Musa", email: "a@b.com", role: "owner", orgName: "Lale" },
     superAdmin: false,
     guestChatEnabled: false,
     impersonating: false,

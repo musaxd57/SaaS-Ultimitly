@@ -925,7 +925,7 @@ async function processOne(row: OutboxRow, token: string, deps: Required<Pick<Dra
   }
   if (kind === "blocked") {
     // HTTP 402 "subscription not active" — a PERSISTENT integration-paused state, NOT a transient
-    // outage (Nuve's live account is in exactly this state). Park in terminal-until-reactivated
+    // outage (the founder org's live account is in exactly this state). Park in terminal-until-reactivated
     // `blocked`: it is never re-claimed (so NO provider call and NO signal on later passes) and it
     // does NOT consume a terminal attempt (undo the claim's increment), so reconnecting the
     // subscription can retry it cleanly ONCE via reactivateBlockedOutbox. Nothing was delivered.

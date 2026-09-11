@@ -8,8 +8,8 @@ describe("email templates escape guest/user-controlled HTML", () => {
     const html = complaintEscalationEmail(
       { id: "c1", guestIdentifier: xss, channel: "airbnb", priority: "urgent" },
       `Çok kötü! ${xss}`,
-      { name: "Nuve 2", address: null, city: "İstanbul" },
-      "Nuve",
+      { name: "Lale 2", address: null, city: "İstanbul" },
+      "Lale",
     );
     // The raw, dangerous markup must NOT appear; the escaped form must.
     expect(html).not.toContain("<img src=x");
@@ -28,7 +28,7 @@ describe("email templates escape guest/user-controlled HTML", () => {
         status: "confirmed",
         notes: xss,
       },
-      { name: "Nuve 2" },
+      { name: "Lale 2" },
     );
     expect(html).not.toContain("<img src=x");
     expect(html).toContain("&lt;img src=x");
@@ -38,7 +38,7 @@ describe("email templates escape guest/user-controlled HTML", () => {
     const html = taskAssignedEmail(
       { id: "t1", title: xss, type: "cleaning", priority: "urgent", status: "todo", description: xss },
       { name: xss, email: "x@y.z" },
-      { name: "Nuve 2" },
+      { name: "Lale 2" },
     );
     expect(html).not.toContain("<img src=x");
     expect(html).toContain("&lt;img src=x");

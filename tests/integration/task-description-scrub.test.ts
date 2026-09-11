@@ -54,7 +54,7 @@ async function seedComplaintTask() {
     },
   });
   const property = await prisma.property.create({
-    data: { organizationId: org.id, name: "Nuve 7" },
+    data: { organizationId: org.id, name: "Lale 7" },
   });
   // Süre bazlı süpürge ESKİ konaklamaları hedefler.
   const old = new Date(Date.now() - 40 * 30 * 24 * 60 * 60 * 1000); // ~40 ay
@@ -178,7 +178,7 @@ describe("YETİM konuşmanın görevi — süre bazlı süpürge onu da bulur", 
   async function seedOrphan() {
     const org = await prisma.organization.create({ data: { name: "Org" } });
     const property = await prisma.property.create({
-      data: { organizationId: org.id, name: "Nuve 7" },
+      data: { organizationId: org.id, name: "Lale 7" },
     });
     const old = new Date(Date.now() - 40 * 30 * 24 * 60 * 60 * 1000); // ~40 ay
     const conversation = await prisma.conversation.create({
@@ -312,7 +312,7 @@ describe("SONRADAN bağlanan konuşmanın görevi — iki süpürge de bulur", (
   async function seedLateLinked() {
     const org = await prisma.organization.create({ data: { name: "Org" } });
     const property = await prisma.property.create({
-      data: { organizationId: org.id, name: "Nuve 7" },
+      data: { organizationId: org.id, name: "Lale 7" },
     });
     const old = new Date(Date.now() - 40 * 30 * 24 * 60 * 60 * 1000); // ~40 ay
     // 1) Konuşma HENÜZ BAĞSIZ → görev `reservationId: null` ile doğacak.

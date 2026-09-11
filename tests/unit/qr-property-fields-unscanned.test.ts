@@ -53,25 +53,25 @@ function promptFor(property: { name: string; address?: string | null }) {
 
 describe("QR: sır kapısı KB kalemlerini süzer, mülk KİMLİK alanlarını SÜZMEZ", () => {
   it("KB kalemindeki giriş kodu ELENİR (kapı gerçekten çalışıyor — anti-vacuity)", () => {
-    const { scannedCount, prompt } = promptFor({ name: "Nuve 5" });
+    const { scannedCount, prompt } = promptFor({ name: "Lale 5" });
     expect(scannedCount).toBe(0);
     expect(prompt).not.toContain(CODE_IN_KB);
   });
 
   it("🚨 mülk ADINDAKİ aynı kod modele GİDER (bugünkü davranış, ayrı onayda)", () => {
-    const { prompt } = promptFor({ name: `Nuve 5 - kapı kodu ${CODE_IN_NAME}` });
+    const { prompt } = promptFor({ name: `Lale 5 - kapı kodu ${CODE_IN_NAME}` });
     expect(prompt).toContain(CODE_IN_NAME);
   });
 
   it("🚨 ADRESTEKİ kod da modele GİDER", () => {
-    const { prompt } = promptFor({ name: "Nuve 5", address: `Moda Cd. 12, zil kodu ${CODE_IN_ADDRESS}` });
+    const { prompt } = promptFor({ name: "Lale 5", address: `Moda Cd. 12, zil kodu ${CODE_IN_ADDRESS}` });
     expect(prompt).toContain(CODE_IN_ADDRESS);
   });
 
   it("kapsam dürüstlüğü: adres misafirin ZATEN bildiği bilgidir — sorun 'adres gidiyor' değil, 'taranmamış alan var'", () => {
     // Adresin kendisi gitmeli (ürünün işi); ölçülen açık, o alanın sır TARAMASINDAN
     // geçmemesidir. İki iddiayı ayırmak, ileride yanlış "sızıntı" teşhisini önler.
-    const { prompt } = promptFor({ name: "Nuve 5", address: "Moda Cd. 12" });
+    const { prompt } = promptFor({ name: "Lale 5", address: "Moda Cd. 12" });
     expect(prompt).toContain("Moda Cd. 12");
   });
 });

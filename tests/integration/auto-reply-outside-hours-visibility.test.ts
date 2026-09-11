@@ -13,7 +13,7 @@ import { prisma, resetDb } from "../helpers/db";
 // DOĞRUDAN çağırıyorlardı (üretim yolunu hiç geçmiyorlardı).
 //
 // Etki küçük değil: şema varsayılanı hâlâ 00:00–09:00 olduğu için MEVCUT tüm
-// org'lar (Nuve dahil) gündüz boyunca bu daldan geçiyor. Host saat 14:00'te
+// org'lar (Lale dahil) gündüz boyunca bu daldan geçiyor. Host saat 14:00'te
 // gelen mesabın neden cevaplanmadığını inbox'ta arıyor, hiçbir şey yazmıyor.
 //
 // Bu test ÜRETİM YOLUNU (`runDueChannelAutoReplies`) çağırır — düzeltmenin
@@ -63,7 +63,7 @@ async function seed(window: { start: number; end: number }) {
     },
   });
   const property = await prisma.property.create({
-    data: { organizationId: org.id, name: "Nuve 7" },
+    data: { organizationId: org.id, name: "Lale 7" },
   });
   const when = new Date(Date.now() - 10 * 60_000);
   const conversation = await prisma.conversation.create({
@@ -122,7 +122,7 @@ describe("aktif saat dışında — sebep ÜRETİM yolunda yazılır", () => {
     mockSuggest.mockResolvedValue({
       intent: "wifi",
       confidence: 0.95,
-      reply: "Wi-Fi ağı NuveApt, şifre 12345678.",
+      reply: "Wi-Fi ağı LaleApt, şifre 12345678.",
       risk: null,
       priority: "standard" as const,
       source: "openai" as const,

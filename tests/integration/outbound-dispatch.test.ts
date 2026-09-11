@@ -125,9 +125,9 @@ describe("V0.1 outbound dispatch — üç üretim yolu", () => {
     const org = await prisma.organization.create({
       data: { name: "Org", autoWelcome: true, autoWelcomeEnabledAt: new Date(0), aiSignature: "Sevgiler,\nİsa" },
     });
-    const property = await prisma.property.create({ data: { organizationId: org.id, name: "nuve 3" } });
+    const property = await prisma.property.create({ data: { organizationId: org.id, name: "lale 3" } });
     await prisma.knowledgeBaseItem.create({
-      data: { propertyId: property.id, category: "welcome", title: "Karşılama", content: "Daire 3 — Wifi: NUVE/1234" },
+      data: { propertyId: property.id, category: "welcome", title: "Karşılama", content: "Daire 3 — Wifi: LALE/1234" },
     });
     const istToday = new Intl.DateTimeFormat("en-CA", { timeZone: "Europe/Istanbul", year: "numeric", month: "2-digit", day: "2-digit" }).format(new Date());
     const arrival = new Date(`${istToday}T12:00:00Z`);

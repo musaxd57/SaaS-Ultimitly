@@ -45,7 +45,7 @@ describe("stil rehberi — sır-benzeri satırlar elenir", () => {
 
   it("anahtar kelimesiz ama değer taşıyan Wi-Fi cümlesi de DÜŞER", () => {
     // Sır detektörünün en zor dalı: "şifre" kelimesi geçmiyor.
-    const profile = 'İnternet ağımız "NuveEv", bağlanmak için 87654321 girin.';
+    const profile = 'İnternet ağımız "LaleEv", bağlanmak için 87654321 girin.';
     expect(scrubStyleProfileForPublic(profile)).toBeNull();
   });
 

@@ -39,8 +39,8 @@ function turn(q: string, a: string, over: Partial<HistoryMessage> = {}): History
 describe("buildKbSuggestionsFromHistory — temel sözleşme", () => {
   it("aynı konu 2 kez cevaplanmışsa ÖNERİ çıkar, 1 kez cevaplanmışsa ÇIKMAZ", () => {
     const twice = [
-      ...turn("Wifi şifresi nedir?", "Ağ NuveApt, şifre 12345678.", { conversationId: "cA" }),
-      ...turn("wifi parolası ne acaba", "Şifre 12345678, ağ NuveApt.", { conversationId: "cB" }),
+      ...turn("Wifi şifresi nedir?", "Ağ LaleApt, şifre 12345678.", { conversationId: "cA" }),
+      ...turn("wifi parolası ne acaba", "Şifre 12345678, ağ LaleApt.", { conversationId: "cB" }),
     ];
     const once = turn("Otopark var mı?", "Evet, bina altında ücretsiz otopark var.", { conversationId: "cC" });
 

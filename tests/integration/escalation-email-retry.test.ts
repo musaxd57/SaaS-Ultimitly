@@ -37,7 +37,7 @@ async function seedComplaint() {
     data: { name: "Org", alertEmail: "host@example.com" },
   });
   const property = await prisma.property.create({
-    data: { organizationId: org.id, name: "Nuve 7" },
+    data: { organizationId: org.id, name: "Lale 7" },
   });
   const conversation = await prisma.conversation.create({
     data: {

@@ -48,7 +48,7 @@ async function seedConversation(opts: {
     });
   }
   const property = await prisma.property.create({
-    data: { organizationId: org.id, name: "nuve 7" },
+    data: { organizationId: org.id, name: "lale 7" },
   });
   const conversation = await prisma.conversation.create({
     data: {

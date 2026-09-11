@@ -8,7 +8,7 @@ import { FakeIngestProvider, canonicalMessage, canonicalReservation } from "../h
 // IngestEvent), sonra `processIngestEvents` tüketir. Kapsam (kurucu talimatı): tekrar işleme
 // (aynı olay ikinci kez → mükerrer YOK), sırasız olay, yarıda kalıp yeniden başlama,
 // iptal/değişiklik, silme-retention, kiracı/mülk kapsamı, zaman bilgisi (occurredAt gerçek).
-// ⚠️ Fake ≠ canlı; Nuve'nin akışı donukken bu sonuçlar canlı doğrulama DEĞİLDİR.
+// ⚠️ Fake ≠ canlı; Lale'nin akışı donukken bu sonuçlar canlı doğrulama DEĞİLDİR.
 // ---------------------------------------------------------------------------
 
 vi.mock("@/lib/report-error", () => ({

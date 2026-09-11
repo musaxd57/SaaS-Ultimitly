@@ -451,15 +451,15 @@ Render (model çağrısı YOK):
 Açık sorunlar — triyaj                                    [3 konuşma]
 
   Temizlik/hijyen · 2 konuşma
-    Nuve 3 · 4 saattir bekliyor
+    Lale 3 · 4 saattir bekliyor
       Ne oldu       Misafir banyoda temizlik sorunu bildirdi.
       Önerilen adım Ekibi bugün yönlendirin, fotoğraf isteyin.
       Eksik bilgi   Fotoğraf · hangi oda
-    Nuve 7 · 2 saattir bekliyor
+    Lale 7 · 2 saattir bekliyor
       …
 
   Platform dışı ödeme · 1 konuşma
-    Nuve 5 · 1 gündür bekliyor   ⚠ Yalnız kelime eşleşmesi — AI doğrulaması yok
+    Lale 5 · 1 gündür bekliyor   ⚠ Yalnız kelime eşleşmesi — AI doğrulaması yok
 ```
 
 Gruplama `lastRiskType` (11'lik kapalı set, etiketler `ui-labels.ts`), sıralama
@@ -495,7 +495,7 @@ zorunlu. **Bu tasarım o tura bağımlı değildir.**
 
 ## 6. Opsiyonel ikinci aşama — model çağrısı (ŞİMDİ YAPILMIYOR)
 
-Tek meşru gerekçe **konuşmalar arası sentez**: "Nuve 3'te üç ayrı şikayetin ortak
+Tek meşru gerekçe **konuşmalar arası sentez**: "Lale 3'te üç ayrı şikayetin ortak
 sebebi kombi olabilir." Gruplama bunu yapamaz.
 
 Kurulursa: `withManage` → `premiumAllowed` → `rateLimit("problem-triage:{org}", 10/saat)

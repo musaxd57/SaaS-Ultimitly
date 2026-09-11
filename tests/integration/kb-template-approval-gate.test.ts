@@ -59,7 +59,7 @@ describe("A1 — onaysız şablon gönderilmez (gönderici ↔ önizleme parites
     const made = await makeOrgWithProperty();
     orgId = made.orgId;
     propertyId = made.propertyId;
-    await setOrgHospitableToken(orgId, "pat-1", "Nuve");
+    await setOrgHospitableToken(orgId, "pat-1", "Lale");
     await prisma.organization.update({
       where: { id: orgId },
       data: { autoWelcome: true, autoWelcomeEnabledAt: new Date(Date.now() - 60_000) },

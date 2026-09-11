@@ -326,7 +326,7 @@ TOC 197 girdi · `pg_restore -l` ✅ · SHA256
 **Adım (2)–(4) KANITI (2026-09-07):** kurucu onayı → fast-forward push `751233c..0270eb3` → CI run #950 5/5
 (migration-chain 49 taze DB'de) → prod `_prisma_migrations`: `49_channel_connection` finished 15:49:33Z,
 rolled_back boş, yarım migration 0, `MessageOutbox.connectionId` var. **Backfill 0 satır ve bu BEKLENEN:**
-prod'da 9 org, hiçbirinde `hospitableTokenEnc` yok, `hospitable.connect/disconnect` audit'i hiç yok; Nuve
+prod'da 9 org, hiçbirinde `hospitableTokenEnc` yok, `hospitable.connect/disconnect` audit'i hiç yok; Lale
 Ayarlar'da "Sistemin ortak (env) Hospitable bağlantısı" — yani `PRIMARY_ORG_ID` env fallback'i. Env fallback
 V0.7'ye kadar kalır; o org'un kuyruk satırları `connectionId` NULL (legacy yol). Ciphertext paritesi boş kümede
 anlamsız → `CHANNEL_CONNECTION_READ` DB'ye kaydedilmiş ilk gerçek bağlantı olmadan AÇILMAZ.
@@ -337,7 +337,7 @@ bağlantı (çoklu hesap = dolu tabloda unique değişikliği, ayrı migration);
 kurucu) hâlâ var — V0.7'de kalkar; `getConnectionInfo` kolonlardan okur; OAuth 401 döngü kilidi 10 dk
 (`lastRefreshAt`) — eşik ölçümle değişebilir. **Conformance/fake testleri canlı sağlayıcı doğrulaması
 DEĞİLDİR**: gerçek adaptör yalnız HTTP stub'ıyla sınandı; Hospitable'ın gerçek 401/403/429 gövdeleri
-canlıda gözlenmedi (Nuve 402'de).
+canlıda gözlenmedi (Lale 402'de).
 
 ---
 
@@ -347,7 +347,7 @@ canlıda gözlenmedi (Nuve 402'de).
 > `ed481b6..c378a97` (3 commit) → CI run #954 5/5 (migration-chain 50 taze DB'de) → Railway deploy → prod
 > `_prisma_migrations` `50_provenance` finished **2026-09-07 19:29:18Z**, rolled_back boş, yarım migration 0, 9 kolon
 > üç tabloda mevcut. **Prod sayımı (deploy anı):** Reservation 1538 · Conversation 1328 · Message 17.436 — hepsi
-> `legacy` (damgasız; çıkarım backfill'i BİLEREK yok), `ingested` 0 (deploy'dan beri yeni ingest yok; Nuve 402'de
+> `legacy` (damgasız; çıkarım backfill'i BİLEREK yok), `ingested` 0 (deploy'dan beri yeni ingest yok; Lale 402'de
 > donuk), `bound` 0 ve ChannelConnection 0 (bağlantı satırı yok, env fallback). `CHANNEL_CONNECTION_READ` KAPALI.
 > V0.5 (`messagingCapable`)
 > bu tura ALINMADI: talimat "migration gerektirmiyorsa V0.4+V0.5 aynı turda" idi, V0.4 migration istedi →
@@ -447,7 +447,7 @@ Railway `migrate deploy` (9 nullable ADD COLUMN) → deploy sonrası salt-okuma 
 artmalı; `connectionId` bugün prod'da HİÇ dolmaz (bağlantı satırı yok, env fallback) — beklenen).
 
 **Kalan sınırlar:** legacy satırların büyük kısmı `legacy` sınıfında kalır (kanıt yok; yalnız pencere içi
-gözlem doldurur) · doğrudan gönderim yolunun Message satırı damgasız (V0.5/V0.6) · Nuve env fallback'te
+gözlem doldurur) · doğrudan gönderim yolunun Message satırı damgasız (V0.5/V0.6) · Lale env fallback'te
 olduğu sürece yeni satırlar `unbound` (adoption sonrası yalnız YENİ ve GÖZLEMLENEN satırlar dolar) ·
 `importThread`/`upsertReservationCalendar` ek parametresi opsiyonel (testler doğrudan çağırıyor) ·
 conformance/fake = canlı sağlayıcı doğrulaması DEĞİL.
@@ -538,14 +538,14 @@ eski importThread davranışı aynı (yalnız "değişmeyen UPDATE atlanır" far
 
 **Adım (3)–(4) KANITI (2026-09-08):** fast-forward push `19d5527..0a7a2a4` (V0.6 `a2e60fe` + V0.7 `c1f8a2e` + belge)
 → CI run #960 5/5 (03:11Z; migration-chain 51 taze DB'de) → prod `_prisma_migrations` `51_ingest_event` finished
-03:13:28Z, rolled_back boş, yarım migration 0, `IngestEvent` tablosu var ve BOŞ (Nuve 402'de donuk, yeni ingest yok
+03:13:28Z, rolled_back boş, yarım migration 0, `IngestEvent` tablosu var ve BOŞ (Lale 402'de donuk, yeni ingest yok
 — beklenen), `ChannelConnection` 0, `MessageOutbox.lastErrorCode='connection_inactive'` 0. `CHANNEL_CONNECTION_READ`
 KAPALI. V0.7 kod hazırlığı aynı deploy'da canlı (migration'sız; kolon DROP'u operatör planına bağlı).
 
 **Operatör kapısı (referans):** §10 adımları aynen — taze `pg_dump` + SHA + açık "push et" → CI 5/5
 (migration-chain 51 taze DB'de) → Railway `migrate deploy` (CREATE TABLE; kısa) → salt-okuma kontrol:
 `_prisma_migrations` `51_ingest_event` finished; ilk senkrondan sonra `SELECT kind, count(*) FROM "IngestEvent"
-GROUP BY kind` (Nuve 402'de donuk → 0 beklenebilir); `CHANNEL_CONNECTION_READ` KAPALI kalır.
+GROUP BY kind` (Lale 402'de donuk → 0 beklenebilir); `CHANNEL_CONNECTION_READ` KAPALI kalır.
 
 **Kalan sınırlar / V0.7 öncesi:** webhook yok (yalnız polling; write service hazır) · event tüketicisi yok ·
 `toChannel` ham platform geçişi · env fallback + `getConnectionInfo` org kolonlarından (V0.7) · `reservations-cleanup`
@@ -582,7 +582,7 @@ teardown'ı yeni koşunun PG'sini kapatır — `pkill -f "node \(vitest"` + doğ
   `env_fallback` · `disconnected` · `revoked` (+`revokedReason`) · `never_connected`; ek alanlar
   `credentialSource (db|env)`, `connectionId` (tarihçe), `disconnectedAt`, `revokedAt`. Kurucu org'un kendi
   bağlantısı revoked/disconnected olsa da env erişimi KORUNUR: `state` kendi bağlantısının durumu,
-  `connected`/`credentialSource=env` env gerçeği — iki gerçek birlikte (Nuve).
+  `connected`/`credentialSource=env` env gerçeği — iki gerçek birlikte (Lale).
 - **Worker** — V0.3 kiracı kontrolünün yanında: damgalı satırın bağlantısı aktif değilse (ya da satır yoksa)
   satır bekler (`pending`/`ambiguous`, `lastErrorCode=connection_inactive`, deneme tüketilmez); host yeniden
   bağlanınca AYNI satır aktifleşir, mesaj tam bir kez gider (yeni PAT ile).
@@ -676,7 +676,7 @@ temiz · `next build` temiz · `audit:check` yeşil (0 triajsız) · migration z
 son `52_property_memory_signals`) sıfır drift, shadow diff boş. CI: koşmadı (push yok). Suit'in ilk koşusunda
 dedupe apply envanter pini 14 kırmızı verdi (tasarım gereği fail-closed) → Signal repoint eklendi, yeniden koşuldu.
 
-**Canlıda bekleyen doğrulamalar (kod hazırlığından AYRI):** prod'da `IngestEvent` BOŞ (Nuve 402'de donuk) →
+**Canlıda bekleyen doğrulamalar (kod hazırlığından AYRI):** prod'da `IngestEvent` BOŞ (Lale 402'de donuk) →
 tüketici canlıda henüz hiçbir şey üretmez; ilk gerçek akışta: sinyal sayımı `SELECT category, count(*) FROM
 "Signal" GROUP BY category`, örüntü eşiği gözlemi, retention purge'ün ilk deep geçişi, KB bootstrap'ın çağrılması
 (operatör/UI adımı — henüz çağıran yüzey yok: sonraki adım). Fixture/demo sonuçları canlı doğrulama DEĞİLDİR.
@@ -739,7 +739,7 @@ tüketilmez) · P12 elle dosya iptal event yok · P13 uzlaştırma iptali event 
 temiz · `next build` temiz · `audit:check` yeşil (0 triajsız) · şema DEĞİŞMEDİ (migration 52 zinciri sabahki doğrulamayla
 aynı: taze PG 00→52, sıfır drift, shadow diff boş). CI: koşmadı (push yok). Migration 52 push kapısı aynı (§10).
 
-**Canlıda bekleyen (kod hazırlığından AYRI):** tasarım belgesi §6 — Hospitable'sız yollar Nuve'nin 402'sinden BAĞIMSIZ
+**Canlıda bekleyen (kod hazırlığından AYRI):** tasarım belgesi §6 — Hospitable'sız yollar Lale'nin 402'sinden BAĞIMSIZ
 canlıda doğrulanabilir (QR sohbetleri, iCal beslemeleri); migration 52 sonrası ilk salt-okuma kontrolleri orada. Bu
 dosyadaki fixture sonuçları canlı doğrulama DEĞİLDİR.
 

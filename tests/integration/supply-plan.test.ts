@@ -37,8 +37,8 @@ describe("getPrepPlan", () => {
   });
 
   it("multiplies arrivals in range by the per-property profile and aggregates", async () => {
-    const a = await makeProperty(orgId, "nuve 1", { carsaf_takimi: 2, cop_poseti: 1 });
-    const b = await makeProperty(orgId, "nuve 2", { carsaf_takimi: 1, cop_poseti: 3 });
+    const a = await makeProperty(orgId, "lale 1", { carsaf_takimi: 2, cop_poseti: 1 });
+    const b = await makeProperty(orgId, "lale 2", { carsaf_takimi: 1, cop_poseti: 3 });
     await arrival(a.id, "2026-07-11T00:00:00.000Z"); // in range
     await arrival(a.id, "2026-07-14T00:00:00.000Z"); // in range → a has 2 arrivals
     await arrival(b.id, "2026-07-12T00:00:00.000Z"); // in range → b has 1 arrival
@@ -55,7 +55,7 @@ describe("getPrepPlan", () => {
   });
 
   it("excludes cancelled bookings and arrivals outside the window", async () => {
-    const a = await makeProperty(orgId, "nuve 1", { carsaf_takimi: 2 });
+    const a = await makeProperty(orgId, "lale 1", { carsaf_takimi: 2 });
     await arrival(a.id, "2026-07-11T00:00:00.000Z", "confirmed"); // counts
     await arrival(a.id, "2026-07-12T00:00:00.000Z", "cancelled"); // excluded (status)
     await arrival(a.id, "2026-07-01T00:00:00.000Z"); // excluded (before window)
@@ -67,7 +67,7 @@ describe("getPrepPlan", () => {
   });
 
   it("nudges properties that have arrivals but no profile (not counted)", async () => {
-    const a = await makeProperty(orgId, "nuve 1", { carsaf_takimi: 2 });
+    const a = await makeProperty(orgId, "lale 1", { carsaf_takimi: 2 });
     const b = await makeProperty(orgId, "profilsiz daire", null);
     await arrival(a.id, "2026-07-11T00:00:00.000Z");
     await arrival(b.id, "2026-07-11T00:00:00.000Z");
@@ -75,11 +75,11 @@ describe("getPrepPlan", () => {
     const plan = await getPrepPlan(orgId, { days: 7, now: NOW });
     expect(plan.totalArrivals).toBe(2); // both arrivals counted in the headline
     expect(plan.missingProfile).toContain("profilsiz daire");
-    expect(plan.perProperty.map((p) => p.propertyName)).toEqual(["nuve 1"]); // only the profiled one
+    expect(plan.perProperty.map((p) => p.propertyName)).toEqual(["lale 1"]); // only the profiled one
   });
 
   it("respects the day-window size (1 vs 7 days)", async () => {
-    const a = await makeProperty(orgId, "nuve 1", { carsaf_takimi: 1 });
+    const a = await makeProperty(orgId, "lale 1", { carsaf_takimi: 1 });
     await arrival(a.id, "2026-07-10T06:00:00.000Z"); // today (Istanbul)
     await arrival(a.id, "2026-07-13T00:00:00.000Z"); // +3 days
 
@@ -88,7 +88,7 @@ describe("getPrepPlan", () => {
   });
 
   it("returns an empty plan when there are no arrivals", async () => {
-    await makeProperty(orgId, "nuve 1", { carsaf_takimi: 2 });
+    await makeProperty(orgId, "lale 1", { carsaf_takimi: 2 });
     const plan = await getPrepPlan(orgId, { days: 7, now: NOW });
     expect(plan.totalArrivals).toBe(0);
     expect(plan.linen).toHaveLength(0);
@@ -96,7 +96,7 @@ describe("getPrepPlan", () => {
   });
 
   it("subtracts on-hand org stock → toBuy = max(0, need - stock)", async () => {
-    const a = await makeProperty(orgId, "nuve 1", { cop_poseti: 2 });
+    const a = await makeProperty(orgId, "lale 1", { cop_poseti: 2 });
     await arrival(a.id, "2026-07-11T00:00:00.000Z");
     await arrival(a.id, "2026-07-13T00:00:00.000Z"); // need = 2×2 = 4
     await prisma.organization.update({ where: { id: orgId }, data: { supplyStockJson: JSON.stringify({ cop_poseti: 3 }) } });
@@ -110,7 +110,7 @@ describe("getPrepPlan", () => {
   });
 
   it("never goes negative when stock exceeds need", async () => {
-    const a = await makeProperty(orgId, "nuve 1", { cop_poseti: 1 });
+    const a = await makeProperty(orgId, "lale 1", { cop_poseti: 1 });
     await arrival(a.id, "2026-07-11T00:00:00.000Z"); // need 1
     await prisma.organization.update({ where: { id: orgId }, data: { supplyStockJson: JSON.stringify({ cop_poseti: 10 }) } });
     const plan = await getPrepPlan(orgId, { days: 7, now: NOW });
@@ -118,7 +118,7 @@ describe("getPrepPlan", () => {
   });
 
   it("adds a recent guest supply request (+1) to the need and lists it", async () => {
-    const a = await makeProperty(orgId, "nuve 1", { banyo_havlusu: 2 });
+    const a = await makeProperty(orgId, "lale 1", { banyo_havlusu: 2 });
     await arrival(a.id, "2026-07-11T00:00:00.000Z"); // need 2 towels
     await prisma.supplyRequest.create({
       data: { propertyId: a.id, itemKey: "banyo_havlusu", qty: 1, createdAt: new Date("2026-07-09T10:00:00Z") },
@@ -131,7 +131,7 @@ describe("getPrepPlan", () => {
   });
 
   it("ignores a stale request (older than the lookback window)", async () => {
-    const a = await makeProperty(orgId, "nuve 1", { banyo_havlusu: 2 });
+    const a = await makeProperty(orgId, "lale 1", { banyo_havlusu: 2 });
     await arrival(a.id, "2026-07-11T00:00:00.000Z");
     await prisma.supplyRequest.create({
       data: { propertyId: a.id, itemKey: "banyo_havlusu", qty: 1, createdAt: new Date("2026-06-01T10:00:00Z") },
@@ -141,7 +141,7 @@ describe("getPrepPlan", () => {
   });
 
   it("records an extra-supply request from a message when the org opted in, deduped", async () => {
-    const a = await makeProperty(orgId, "nuve 1", { banyo_havlusu: 1 });
+    const a = await makeProperty(orgId, "lale 1", { banyo_havlusu: 1 });
     await prisma.organization.update({ where: { id: orgId }, data: { autoSupplyRequestEnabled: true } });
     const n1 = await recordSupplyRequestFromMessage({ propertyId: a.id, message: "bir havlu daha alabilir miyiz?", sourceMessageId: "m1" });
     expect(n1).toBe(1);
@@ -155,7 +155,7 @@ describe("getPrepPlan", () => {
   });
 
   it("does NOT record when the org has NOT opted in (default OFF)", async () => {
-    const a = await makeProperty(orgId, "nuve 1", { banyo_havlusu: 1 });
+    const a = await makeProperty(orgId, "lale 1", { banyo_havlusu: 1 });
     // toggle left default false
     const n = await recordSupplyRequestFromMessage({ propertyId: a.id, message: "bir havlu daha alabilir miyiz?", sourceMessageId: "m1" });
     expect(n).toBe(0);

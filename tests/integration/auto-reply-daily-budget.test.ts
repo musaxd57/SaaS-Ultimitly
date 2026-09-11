@@ -41,7 +41,7 @@ const mockSuggest = vi.mocked(suggestReply);
 const cleanVerdict = {
   intent: "wifi",
   confidence: 0.95,
-  reply: "Wi-Fi ağı NuveApt, şifre 12345678.",
+  reply: "Wi-Fi ağı LaleApt, şifre 12345678.",
   risk: null,
   priority: "standard" as const,
   source: "openai" as const,
@@ -59,7 +59,7 @@ async function seed() {
     data: { name: "Org", autoReplyHospitable: true, ...NEW_ORG_AUTO_REPLY_WINDOW },
   });
   const property = await prisma.property.create({
-    data: { organizationId: org.id, name: "Nuve 7" },
+    data: { organizationId: org.id, name: "Lale 7" },
   });
   const conversation = await prisma.conversation.create({
     data: {
@@ -284,7 +284,7 @@ describe("günlük kota — org geçişini sonlandıran kol", () => {
       data: { name: "Org", autoReplyHospitable: true, ...NEW_ORG_AUTO_REPLY_WINDOW },
     });
     const property = await prisma.property.create({
-      data: { organizationId: org.id, name: "Nuve 7" },
+      data: { organizationId: org.id, name: "Lale 7" },
     });
     return { orgId: org.id, propertyId: property.id };
   }

@@ -39,7 +39,7 @@ if (!AUTO_NOTE_TR || AUTO_NOTE_TR.length < 10) {
 const SAFE_WIFI = {
   intent: "wifi",
   confidence: 0.9,
-  reply: "Wi-Fi ağımız NUVEBUTİK, şifresi Nuve2025.",
+  reply: "Wi-Fi ağımız LALEBUTİK, şifresi Lale2025.",
   risk: null,
   priority: "standard" as const,
   source: "openai" as const,
@@ -86,7 +86,7 @@ describe("POST /api/ai/test — auto-send verdict + note parity", () => {
     const json = await (await POST(req("Merhaba, wifi şifresi nedir?"), ctx)).json();
     expect(json.wouldAutoSend).toBe(true);
     expect(json.reply).toContain(AUTO_NOTE_TR);
-    expect(json.reply.indexOf(AUTO_NOTE_TR)).toBeGreaterThan(json.reply.indexOf("Nuve2025")); // note after reply
+    expect(json.reply.indexOf(AUTO_NOTE_TR)).toBeGreaterThan(json.reply.indexOf("Lale2025")); // note after reply
     expect(json.reply.endsWith("Sevgiler,\nMusa")).toBe(true); //                                signature last
   });
 

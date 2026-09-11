@@ -6,7 +6,7 @@ import { prisma, resetDb } from "../helpers/db";
 //
 // `sendDueAlerts` "süre bütçesinden MUAF" diye belgelenmişti ve öyleydi — ama
 // çağrı yeri `syncHospitable`'ın try'ının İÇİNDE ve ONDAN SONRAydı. Yani
-// Hospitable fırlattığı anda (402 "abonelik pasif" — CLAUDE.md'ye göre Nuve'nin
+// Hospitable fırlattığı anda (402 "abonelik pasif" — CLAUDE.md'ye göre Lale'nin
 // BUGÜNKÜ hâli; ya da 401/403/5xx/429) uyarı geçişi o org için HİÇ koşmuyordu.
 //
 // Muafiyet BÜTÇEYE karşı sağlanmış, İSTİSNAYA karşı sağlanmamıştı.
@@ -56,7 +56,7 @@ async function seedComplaint() {
     data: { name: "Org", alertEmail: "host@example.com", hospitableTokenEnc: "enc" },
   });
   const property = await prisma.property.create({
-    data: { organizationId: org.id, name: "Nuve 7" },
+    data: { organizationId: org.id, name: "Lale 7" },
   });
   const when = new Date(Date.now() - 20 * 60_000);
   await prisma.conversation.create({
@@ -84,7 +84,7 @@ describe("şikayet uyarısı — senkron hatasından bağımsız", () => {
 
   it("Hospitable 402 fırlatsa bile uyarı e-postası GİDER", async () => {
     await seedComplaint();
-    // Nuve'nin bugünkü canlı durumu: abonelik pasif.
+    // Lale'nin bugünkü canlı durumu: abonelik pasif.
     mockListProperties.mockRejectedValue(new HospitableError("Subscription not active", 402));
 
     const res = await runScheduledSync();

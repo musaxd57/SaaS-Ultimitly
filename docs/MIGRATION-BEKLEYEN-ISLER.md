@@ -162,7 +162,7 @@ gün` kuralını zaten destekliyor (`isWithinActiveHours`).
 
 ### Kalan iki şey
 
-**a) Sadece YENİ org'lar tüm gün açık doğuyor.** Mevcut her org — **Nuve dahil**
+**a) Sadece YENİ org'lar tüm gün açık doğuyor.** Mevcut her org — **Lale dahil**
 — kayıtlı 00:00–09:00 değeriyle devam ediyor. Yani "7/24" iddiası bugünkü canlı
 müşteri için **hâlâ yanlış**, ta ki Ayarlar → Otomasyon'dan elle 0/0 yapılana
 kadar.
@@ -489,7 +489,7 @@ kendiliğinden çözülür. `Reservation.lifecycleRetryAfter` benzeri kolonlar *
 
 **⚠️ EKLEMEM (Codex'in planındaki boşluk):** bayrak AÇILANA KADAR bayrak-KAPALI
 yaşam-döngüsü yolu üretimde hâlâ kalıcı 4xx'te her geçiş yeniden POST'luyor
-(Nuve'nin 402'si tam bu durum). Bunun için kolona GEREK YOK: `SystemLock` zaten
+(Lale'nin 402'si tam bu durum). Bunun için kolona GEREK YOK: `SystemLock` zaten
 alarm pencerelerinde aynı amaçla kullanılıyor →
 `lifecycle-backoff:{kind}:{reservationId}` anahtarıyla **migration'sız** geri
 çekilme yazılabilir. Bayrak açılışı gecikirse bu yapılmalı; açılış yakınsa gereksiz.

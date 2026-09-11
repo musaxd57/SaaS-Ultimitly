@@ -115,7 +115,7 @@ if (kind === "blocked") {
 
 yani `applyDeliveryEffect` hic kosmaz, konusma asla "answered" olmaz.
 
-**Tetikleyici:** `DURABLE_OUTBOX_ENABLED=1` acilir (AÇIK İŞLER listesinde bekleyen adim) ve org'un Hospitable aboneligi 402'dedir — CLAUDE.md'ye gore Nuve'nin CANLI durumu tam olarak budur. Her oto-yanit karari enqueue edilir, worker 402 gorup satiri `blocked` yapar, konusma `status:"new"` + outbound kuyruk halinde donar. Ayni sey `failed` (attempts exhausted) icin de gecerli. 25 boyle konusma birikince `take: 25` (siralama `lastMessageAt asc`) tamamen dolar.
+**Tetikleyici:** `DURABLE_OUTBOX_ENABLED=1` acilir (AÇIK İŞLER listesinde bekleyen adim) ve org'un Hospitable aboneligi 402'dedir — CLAUDE.md'ye gore Lale'nin CANLI durumu tam olarak budur. Her oto-yanit karari enqueue edilir, worker 402 gorup satiri `blocked` yapar, konusma `status:"new"` + outbound kuyruk halinde donar. Ayni sey `failed` (attempts exhausted) icin de gecerli. 25 boyle konusma birikince `take: 25` (siralama `lastMessageAt asc`) tamamen dolar.
 
 **Etki:** Org'un oto-yaniti sessizce ve tamamen olur: yeni misafir mesajlari aday listesine hic giremez. Hicbir sayacta gorunmez — `already_answered` ne `sent` sayilir, ne `failures`'a girer, ne `skippedReason` yazar, ne Sentry'ye duser. Bu, automation.ts:1811-1819'da belgelenip kapatildigi soylenen ACLIK sinifinin outbox yolundan geri gelmesidir.
 

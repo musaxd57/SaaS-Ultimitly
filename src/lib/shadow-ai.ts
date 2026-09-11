@@ -42,7 +42,7 @@ import { isSecureExternalUrl } from "@/lib/secure-url";
 //   SHADOW_AI_SAMPLE_CAP  — pilot tavanı, default 200 satır (MODEL BAŞINA; dolunca
 //                           sessizce durur)
 //   SHADOW_AI_ORG_IDS     — opsiyonel virgüllü org allowlist'i (boş = tüm org'lar);
-//                           pilotu tek işletmeye (örn. Nuve) pinlemek için
+//                           pilotu tek işletmeye (kurucu org) pinlemek için
 //
 // KVKK — VERİ MİNİMİZASYONU (Codex): misafir mesajı modele gitmeden ÖNCE redakte
 // edilir — telefon/e-posta/uzun kod-token placeholder olur ([PHONE]/[EMAIL]/

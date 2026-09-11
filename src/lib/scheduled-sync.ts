@@ -481,7 +481,7 @@ export async function runScheduledSync(): Promise<ScheduledSyncTotals> {
         // ⚠️ MUAFİYET SENKRONUN TRY'INDAN DA ÇIKARILDI (denetim, 08-01). Muafiyet
         // BÜTÇEYE karşı sağlanmıştı ama İSTİSNAYA karşı sağlanmamıştı: çağrı
         // `syncHospitable`'ın try'ı içinde ve ONDAN SONRA duruyordu, yani
-        // Hospitable fırlattığı anda (402 abonelik pasif — Nuve'nin BUGÜNKÜ hâli;
+        // Hospitable fırlattığı anda (402 abonelik pasif — kurucu org'un BUGÜNKÜ hâli;
         // ya da 401/403/5xx) `sendDueAlerts` o org için HİÇ koşmuyordu. Bu geçiş
         // hiçbir Hospitable API'sine dokunmuyor (yalnız DB + e-posta), yani
         // senkronun başarısına bağlı olmasının teknik bir gerekçesi yoktu.
@@ -507,7 +507,7 @@ export async function runScheduledSync(): Promise<ScheduledSyncTotals> {
         // ⚠️ `continue` YERİNE İÇ BLOK (08-08): koşullar ve sıra BİREBİR aynı
         // kaldı — tek sebep, aşağıdaki iCal bacağının bu iki erken çıkışın
         // ARKASINDA kalmaması. `continue` bırakılsaydı Hospitable'ı 402 olan bir
-        // host (Nuve'nin BUGÜNKÜ hâli) takvim beslemelerini de HİÇ senkronlayamaz,
+        // host (kurucu org'un BUGÜNKÜ hâli) takvim beslemelerini de HİÇ senkronlayamaz,
         // yani düzeltmenin en çok ihtiyaç duyulan vakada etkisi olmazdı.
         if (syncOk) {
           if (Date.now() - orgStartedAt > ORG_BUDGET_MS) {

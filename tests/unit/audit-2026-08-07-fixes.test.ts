@@ -40,7 +40,7 @@ describe("iCal dışa aktarımı — satır enjeksiyonu", () => {
   });
 
   it("meşru içerik bozulmaz (ters yön)", () => {
-    const out = buildIcsCalendar("Nuve Daire 3", [
+    const out = buildIcsCalendar("Lale Daire 3", [
       {
         uid: "u1",
         start: new Date("2026-09-01"),
@@ -50,7 +50,7 @@ describe("iCal dışa aktarımı — satır enjeksiyonu", () => {
         description: "Kanal: airbnb",
       },
     ]);
-    expect(out).toContain("X-WR-CALNAME:Nuve Daire 3");
+    expect(out).toContain("X-WR-CALNAME:Lale Daire 3");
     expect(out).toContain("SUMMARY:Ayşe Yılmaz");
   });
 });

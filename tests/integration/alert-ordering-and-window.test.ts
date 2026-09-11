@@ -43,7 +43,7 @@ async function org() {
   const o = await prisma.organization.create({
     data: { name: "Org", alertEmail: "host@example.com" },
   });
-  const p = await prisma.property.create({ data: { organizationId: o.id, name: "Nuve 7" } });
+  const p = await prisma.property.create({ data: { organizationId: o.id, name: "Lale 7" } });
   return { orgId: o.id, propertyId: p.id };
 }
 

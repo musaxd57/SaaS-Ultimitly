@@ -590,7 +590,7 @@ describe("registration → verification → login", () => {
   });
 
   it("an EXISTING (pre-cutoff) user logs in fine even if unverified — founder NOT locked out", async () => {
-    const org = await prisma.organization.create({ data: { name: "Nuve" } });
+    const org = await prisma.organization.create({ data: { name: "Lale" } });
     await prisma.user.create({
       data: {
         organizationId: org.id,

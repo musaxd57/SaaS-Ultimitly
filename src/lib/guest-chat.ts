@@ -217,7 +217,7 @@ const SECRET_PATTERNS: RegExp[] = [
   // a password/parola label with a colon/equals, e.g. "Şifre: ...", "parola = ...".
   /(şifre|sifre|parola|password|passcode)\w{0,24}\s*[:=]/i,
   // Wi-Fi / network NAME or PASSWORD stated conversationally WITHOUT a secret
-  // keyword — e.g. "İnternet ağımız 'NuveEv', bağlanmak için 12345678 girin".
+  // keyword — e.g. "İnternet ağımız 'LaleEv', bağlanmak için 12345678 girin".
   // The value is quoted or digit-bearing (SSID / password), which the keyword
   // patterns above miss. Over-redaction stays the safe side (escalate, no leak).
   /(wi-?fi|wlan|kablosuz|ssid|internet\s*a[ğg])\w{0,24}[^.\n]{0,40}(["'«][^"'»\n]{2,64}["'»]|[A-Za-z0-9!@#._-]{0,64}\d[A-Za-z0-9!@#._-]{3,64})/i,
@@ -260,7 +260,7 @@ const SECRET_PATTERNS: RegExp[] = [
  *
  * Kalıplar `/i` bayrağıyla yazılmış, ama JS'in basit case-folding'i Türkçenin iki
  * harfini ÇEVİRMEZ: `İ`(U+0130) → `i` OLMAZ, `I`(U+0049) → `ı` OLMAZ. Sonuç somut
- * bir delikti: cümle "İnternet ağımız 'NuveEv', bağlanmak için 12345678 girin"
+ * bir delikti: cümle "İnternet ağımız 'LaleEv', bağlanmak için 12345678 girin"
  * diye başlıyorsa hiçbir kalıp eşleşmiyordu — yani Türkçede en doğal yazımıyla
  * bir Wi-Fi şifresi, sır sayılmadan QR bağlamına girebiliyordu.
  *

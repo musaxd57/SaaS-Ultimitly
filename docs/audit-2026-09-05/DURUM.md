@@ -69,5 +69,5 @@ kanıt yenilenmeli.
 2. Ayarlar → "AI'yı Deneyin" bir cevap üretiyor (F01: geçerli cevaplar hâlâ `openai` kaynaklı
    ve güven değeri 0 değil). Sentry'de `openai-reply schema violation` YOK olmalı.
 3. QR concierge'de uzun bir KB kalemi (ev kuralları) hâlâ modele gidiyor, sırlı kalem gitmiyor (F02).
-4. Hospitable bağlantısı (Nuve 402'de olduğu için refresh yolu canlıda gözlenemez) — F04 için
+4. Hospitable bağlantısı (Lale 402'de olduğu için refresh yolu canlıda gözlenemez) — F04 için
    canlı kanıt bir sonraki aktif abonelikle.

@@ -187,7 +187,7 @@ export async function canAddProperty(organizationId: string): Promise<AddPropert
   // 07-31'de tam bu sebeple düzeltilmişti ama MÜLK kapıları atlanmıştı.
   // `getEntitlement`in kurucu ağı yalnız `active`'i zorluyor, `propertyLimit`i
   // DEĞİŞTİRMİYOR (kendi yorumu "planı/durumu bozmadan" diyor) ve kurucunun
-  // GERÇEK bir Pro aboneliği var → limit 7. Nuve ~10 daire işletiyor ve
+  // GERÇEK bir Pro aboneliği var → limit 7. Kurucu org ~10 daire işletiyor ve
   // `BILLING_ENFORCED=true` canlı: yani ürünün sahibi kendi ürününde yeni daire
   // ekleyemiyordu. Yalnız `PRIMARY_ORG_ID`ye eşit org'u etkiler.
   if (isFounderOrg(organizationId)) return { allowed: true, limit: null };

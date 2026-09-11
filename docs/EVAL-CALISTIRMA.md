@@ -247,7 +247,7 @@ Ucuz model (`gpt-5.6-luna`, ~%80 daha düşük maliyet) **geçerse geçilir**. A
 **GÜVENLİK** satırı varsa (şikâyet / para / insan-talebi yanlış sınıflanıyorsa) **GEÇİLMEZ** —
 maliyet kazancı, host'un haberi olmadan giden yanlış bir cevabı telafi etmez.
 
-⚠️ **Gölge katmanı yarım kanıttır:** `src/lib/shadow-ai.ts` luna'yı Nuve'de canlıda koşuyor ama
+⚠️ **Gölge katmanı yarım kanıttır:** `src/lib/shadow-ai.ts` luna'yı Lale'de canlıda koşuyor ama
 YALNIZ güvenlik sınıflandırmasını kıyaslıyor; **cevap kalitesini ölçmüyor.** Model değişimi iki
 kanıt ister; ikincisi bu harness'tan gelir.
 
