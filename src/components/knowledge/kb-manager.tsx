@@ -16,6 +16,7 @@ import { Field } from "@/components/form-field";
 import { KB_CATEGORY } from "@/lib/constants";
 import { KbGapsPanel, type KbGapView } from "@/components/knowledge/kb-gaps-panel";
 import { KbImportText } from "@/components/knowledge/kb-import-text";
+import { KbPastAnswers } from "@/components/knowledge/kb-past-answers";
 import { cn } from "@/lib/utils";
 // YAPRAK modülden: `prompts.ts` (75 KB sistem promptu) tarayıcı paketinin
 // bağımlılık grafiğine ASLA girmemeli — depo tam da o dosya yüzünden private.
@@ -353,6 +354,7 @@ export function KbManager({
   return (
     <div className="space-y-4">
       <KbGapsPanel gaps={gaps} onFill={fillFromGap} />
+      <KbPastAnswers />
       <KbImportText properties={properties} />
       <div className="grid gap-4 lg:grid-cols-3">
       {/* Create — self-start: grid satırı sağdaki uzun mülk listesi kadar uzar;
