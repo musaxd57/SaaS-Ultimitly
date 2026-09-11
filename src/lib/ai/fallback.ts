@@ -642,8 +642,9 @@ function hasUnnegatedProblemWord(m: string): boolean {
  * tek başına şikâyet DEĞİL — "Hava bozuldu, bugün evde kalıyoruz", "Midem bozuldu, en yakın
  * eczane nerede?", "Planımız bozuldu, bir gün erken çıkacağız" (early_departure yerine
  * complaint oluyordu), "Uçuş programımız bozuldu". Aynı mesajda bir CİHAZ ADI da geçiyorsa
- * şikâyettir. Cihaz adı altdizi eşleşir → çekimli biçimler ("klimamız", "makinesi",
- * "kombimiz") kendiliğinden kapsanır; iki yarı tek başına yetmez ("Bozuldu." / "Klima var mı?").
+ * şikâyettir. Cihaz adı kelime BAŞINDA + yalnız ÇEKİM eki alarak eşleşir → çekimli biçimler
+ * ("klimamız", "makinesi", "kombimiz", "klimayı") kapsanır, türetilmiş sözcükler ("kapıcı",
+ * "makineli", "kombine") kapsanmaz; iki yarı tek başına yetmez ("Bozuldu." / "Klima var mı?").
  * "internet"/"wifi" cihaz listesinde YOK (bilinçli: KB'den yanıtlanır → wifi intent'i).
  */
 /**
@@ -739,87 +740,190 @@ const NEGATIVE_VERB_COMPLAINTS: readonly string[] = [
 // çekimlerini de yakalıyordu — "Klima arızalanmadı, gayet iyi çalışıyor" (ÖVGÜ) ve "Buzdolabı
 // arızalanırsa kimi arayalım?" (SSS sorusu) şikâyet sayılıyordu.
 const BREAKDOWN_VERBS = ["bozuldu", "bozulmuş", "arızalı", "arızalandı", "arızalanmış"];
+// ⚠️ "kilid" = ÜNSÜZ YUMUŞAMASI gövdesi (kilit → kilidi/kilide/kilidin). Türkçede son sessiz
+// ünsüz ünlü ekten önce yumuşar; ölçülen tek vaka buydu ("Kilidi çevirdim, bozuldu."). Sınıf
+// bilinçli DAR tutuldu — her cihaz için yumuşamış ikizi yazmak yerine ölçülene bakılır.
 const BREAKDOWN_DEVICES = [
-  "klima", "kombi", "buzdolabı", "makine", "kilit", "ocak", "fırın", "duş", "musluk", "sifon", "priz", "cihaz",
+  "klima", "kombi", "buzdolabı", "makine", "kilit", "kilid", "ocak", "fırın", "duş", "musluk", "sifon", "priz", "cihaz",
   "televizyon", "tv", "kapı", "asansör", "mikrodalga", "ısıtıcı", "lamba", "kettle", "kumanda", "modem", "şofben",
   "termosifon", "jakuzi", "tuvalet", "klozet", "lavabo", "ütü", "fön", "bulaşık", "çamaşır", "radyatör", "petek",
   "kalorifer", "ışık", "anahtar",
 ];
 
 /**
- * CÜMLECİK sınırı: nokta/ünlem/soru/noktalı virgül/satır sonu VE VİRGÜL.
+ * ÖZNESİ CİHAZ OLMAYAN "bozuldu" (inceleme turu 3, 09-10 — ÖLÇÜLDÜ).
  *
- * 🚨 Virgül DE böler (inceleme 09-10, ölçüldü): "Planımız bozuldu, kapıcıya anahtarı bırakabilir
- * miyiz?" ve "Klima harika. Ama planımız bozuldu, erken çıkıyoruz." cümlenin BAŞKA yerindeki cihaz
- * adıyla şikâyet sayılıyordu. BİLİNEN SINIR (kabul): cihaz ile fiil farklı cümleciklere düşen
- * gerçek şikâyet ("Buzdolabı çok gürültülü, sanırım bozuldu") bu ağdan kaçar — model yolu ve
- * "çalışmıyor" gibi bağımsız kalıplar ikinci savunmadır.
+ * Türkçede özne fiilden ÖNCE gelir; "bozuldu"nun hemen solundaki kelime çoğu zaman öznesidir.
+ * Bu liste, mesajda bir cihaz adı GEÇSE BİLE şikâyet olmayan özneleri eler:
+ *   "Klima harika. Ama PLANIMIZ bozuldu, erken çıkıyoruz."
+ *   "Ev çok güzel, TV büyük… Bu arada MİDEM bozuldu, eczane var mı?"
+ *   "Anahtar teslim SAATİ bozuldu mu, 15:00 hâlâ geçerli mi?"
+ * Çekimli biçimler (`planımız`, `havalar`, `saati`, `uçuşumuz`) cihaz adlarıyla AYNI çekim
+ * doğrulamasından geçer — her girdi kendi testiyle pinli (liste büyürse pin de büyür).
  */
-const CLAUSE_SPLIT = /[.!?;\n،,]+/;
+const NON_DEVICE_SUBJECTS = [
+  "plan", "hava", "mide", "uçuş", "program", "rezervasyon", "fiyat", "moral", "telefon", "saat",
+  "bilet",
+];
 
 /**
- * KOŞUL kipi: henüz OLMAMIŞ bir olay bildirilmiyor, SORULUYOR ("tıkanırsa", "gelmiyorsa",
- * "arızalanırsa", "eğer"). Bunlar oto-yanıtın ASIL İŞİ olan SSS sorularıdır; şikâyet sayılınca
- * ürün kendi işini kısar (ölçüldü). Ek en az iki harflik bir gövdeye eklenmiş olmalı — yoksa
- * "masa" gibi sıradan bir isim koşul sanılır.
+ * ÇEKİM EKİ DOĞRULAMASI — cihaz adı kelime BAŞINDA geçiyor diye o kelime cihaz DEĞİLDİR.
+ *
+ * 🚨 Kelime başı şartı tek başına YETMEDİ (inceleme turu 3, ölçüldü): `kapı`+cı = KAPICI,
+ * `kapı`+talizm = KAPİTALİZM, `kombi`+ne = KOMBİNE, `makine`+li = MAKİNELİ, `ocak`+başı =
+ * OCAKBAŞI, `fön`+ksiyon = FONKSİYON — altısı da "bozuldu" ile birlikte şikâyet sayılıyordu.
+ * Ayrım ÇEKİM ↔ TÜRETME: cihaz adının ardından yalnız ÇEKİM eki dizisi gelebilir
+ * ([çoğul][iyelik][hâl]); "‑cı/‑li/‑başı" türetme ekleridir ve yeni bir SÖZCÜK kurar.
+ *
+ * Kaynaştırma DİLBİLGİSEL, bu yüzden ayırt edici: ünlüyle biten gövdede hâl eki "y" ile
+ * kaynaşır (klima+y+ı), 3. tekil iyelikten sonra "n" ile kaynaşır (makine+si+n+i).
+ *
+ * ⚠️ Bu kapı HER ÇARPIŞMAYI çözemez, çünkü bazı çarpışmalar GERÇEKTEN geçerli çekimdir:
+ * "kombine" = kombi+n+e (2. tekil iyelik + yönelme, "kombine baktım") — yani KOMBİNE bilet
+ * ile dilbilgisel olarak ayırt edilemez. Orada karar özne kuralına kalır (`NON_DEVICE_SUBJECTS`
+ * "bilet"); iki kapı BİRLİKTE gerekir, biri ötekinin yerine geçmez (ikisi de mutasyon-pinli).
+ *
+ * 🚨 "buzdolabı+NI" için AYRI bir kapı YAZILDI ve ÖLÇÜLÜNCE ÖLÜ ÇIKTI (geri getirme): sözlüksel
+ * 3. tekil iyelikle biten cihaz adlarına özel `N_BUFFERED_CASE` listesi eklemiştim, ama n-ile
+ * başlayan hâl eklerinin TAMAMI (nı/ni/na/ne/nda/nde/ndan/nden/nın/nin) zaten 2. tekil iyelik
+ * dalından ("n" + hâl) geçiyor. Pinlenemeyen kod tutulmaz.
  */
-// ⚠️ `[ıiuüae]ys[ae]` = ÜNLÜ sonrası kaynaştırmalı koşul ("arızalıysa", "bozulduysa", "tıkalıysa").
-// Bunlar olmadan CİHAZ kuralının koşul guard'ı ULAŞILAMAZ kalıyordu (mutasyon turu: guard'ı kaldıran
-// mutant hayatta kaldı) — çünkü cihaz fiilleri TAM biçim ("bozuldu"/"arızalı") ve onların koşul
-// çekimi tam bu ekle kurulur.
-const CONDITIONAL_TOKEN = /^(?:eğer|eger)$|^\p{L}{2,}(?:[ıiuü]yorsa|[ıiuüae]rsa|[ae]rse|m[ae]zs[ae]|m[ae]s[ae]|[ıiuüae]ys[ae]|s[ae]yd[ıi])$/u;
-function isConditionalClause(clause: string): boolean {
-  return foldTurkishLower(clause).split(/[^\p{L}\p{N}]+/u).some((t) => t && CONDITIONAL_TOKEN.test(t));
+const INFLECTION_ONLY = new RegExp(
+  "^(?:l[ae]r)?(?:" +
+    // 1./2. kişi iyelik (+ düz hâl): klima+mız, plan+ımız, mide+m, bilet+imiz, kapı+n
+    "(?:[ıiuü]?m(?:[ıiuü]z)?|[ıiuü]?n(?:[ıiuü]z)?)(?:[ıiuü]|[ae]|[dt][ae]n?|[ıiuü]n)?" +
+    // 3. kişi iyelik (+ "n" kaynaştırmalı hâl): makine+si, makine+si+ni, klima+ları
+    "|(?:s?[ıiuü]|l[ae]r[ıi])(?:n[ıiuüae]|n[dt][ae]n?|n[ıiuü]n)?" +
+    // yalnız hâl: fırın+ı, asansör+e, duş+ta, klima+y+ı, ütü+y+ü
+    "|[ıiuü]|[ae]|[dt][ae]n?|[ıiuü]n|y[ıiuüae]" +
+    // ek yok: "klima", "tv"
+    "|" +
+  ")$",
+  "u",
+);
+
+/**
+ * KOŞUL kipi: henüz OLMAMIŞ bir olay bildirilmiyor, SORULUYOR. Bunlar oto-yanıtın ASIL İŞİ
+ * olan SSS sorularıdır; `complaint` = `NEVER_AUTO_REPLY_INTENTS` olduğu için şikâyet sayılınca
+ * ürün kendi işini kısar (ölçüldü).
+ *
+ * 🚨 Guard EŞLEŞMEYE BAĞLI, cümleciğe DEĞİL (inceleme turu 3): cümlecik kapsamı ölçüldü ve
+ * GERÇEK BİLDİRİMLERİ düşürüyordu — "Su gelmiyor EĞER akşama kadar düzelmezse otele geçeceğiz"
+ * (24 ölçülen bildirimin 17'si). Koşul kipini taşıyan şey CÜMLE değil FİİLİN KENDİSİDİR:
+ * "gelmiyor" bildirimdir, "gelmiyorSA" koşuldur. Bu yüzden yalnız eşleşmenin HEMEN ARDINDAKİ
+ * ek okunur ("‑sa/‑se", kaynaştırmalı "‑rsa/‑ysa"); cümlenin geri kalanı hüküm vermez.
+ * Serbest "eğer" DE bakılmaz — ölçülen bildirimlerin çoğunda "eğer" eşleşmeden SONRA gelir.
+ * BİLİNEN SINIR (kabul): "Eğer su gelmiyor ise…" (ayrı "ise") bildirim sayılır.
+ */
+const CONDITIONAL_TAIL = /^[ry]?s[ae]/u;
+
+const WORD_SPLIT = /[^\p{L}\p{N}]+/u;
+
+/**
+ * Bir belirtecin (token) kelime BAŞINDA verilen sözcüklerden birini taşıyıp taşımadığı —
+ * ardından yalnız ÇEKİM eki gelmek şartıyla. Katlama sözleşmesi `includesAnyFold` ile aynı
+ * (üç katlama, yalnız EŞLEŞME EKLER).
+ *
+ * 🚨 "ASCII bacağını yalnız Türkçe harf TAŞIMAYAN belirteçte dene" kapısı YAZILDI, ÖLÇÜLDÜ ve
+ * UYGULANAMAZ ÇIKTI (geri getirme): `matchCandidates` zaten `stripCombining` adayını üretir —
+ * NFD + `\p{Mn}` silme, yani "düşümüz" oraya "dusumuz" olarak gelir. Bu aday görünmez-işaret
+ * saldırı sınıfı için VAR ve kaldırılamaz; dolayısıyla birincil bacağı kapatmak yalnız KORUMA
+ * YANILSAMASI üretirdi. Çarpışmaları eleyen şey ASCII kapısı değil, ÇEKİM doğrulamasıdır
+ * (düşünürken→"unurken", fondöten→"doten", fonksiyon→"ksiyon" hepsi reddedilir).
+ */
+function matchesInflectedWord(tok: string, words: readonly string[]): boolean {
+  const std = foldTurkishLower(tok);
+  const tr = foldTurkishLowerTr(tok);
+  const ascii = foldTurkishAscii(tok);
+  for (const w of words) {
+    const ws = foldTurkishLower(w);
+    const wa = foldTurkishAscii(w);
+    const rests: string[] = [];
+    if (std.startsWith(ws)) rests.push(std.slice(ws.length));
+    if (tr !== std && tr.startsWith(ws)) rests.push(tr.slice(ws.length));
+    if (ascii.startsWith(wa)) rests.push(ascii.slice(wa.length));
+    if (rests.some((r) => INFLECTION_ONLY.test(r))) return true;
+  }
+  return false;
 }
 
 /**
- * Kelime BAŞI eşleşmesi (üç katlama, `includesAnyFold` ile aynı katlama sözleşmesi).
+ * Belirteç bir arıza fiiliyle BAŞLIYORSA fiilden sonraki kalan; yoksa null.
  *
- * 🚨 Cihaz adı ALTDİZİ olarak aranınca BAŞKA kelimenin içinde yakalanıyordu (inceleme 09-10,
- * ölçüldü): değişiklik→ışık · düşün/düşük/düştü→duş · telefon→fön · sürpriz→priz ·
- * kutu/unutuldu→ütü · kombine→kombi. Kelime başı şartı bunları eler; çekimli biçimler
- * ("klimamız", "makinesi", "kombimiz") kelime BAŞINDA olduğu için korunur.
- * ⚠️ Türetme ekleri hâlâ geçer ("kapıcı" → "kapı" ile başlar); onları cümlecik kuralı eler.
+ * ⚠️ "Birden çok okuma varsa koşul TAŞIMAYANI tercih et" mantığı YAZILDI ve mutasyonla ÖLÇÜLDÜ:
+ * ULAŞILAMAZ (mutant hayatta kaldı). Arıza fiilleri TAM biçim ve birbirinin öneki değil; üç
+ * katlama da aynı kuyruğu verir, yani bir belirteç tek okuma üretir. Pinlenemeyen kod tutulmaz.
  */
-function startsWithAnyFold(text: string, words: readonly string[]): boolean {
-  const tokensOf = (s: string) => s.split(/[^\p{L}\p{N}]+/u).filter(Boolean);
-  for (const cand of matchCandidates(normalizeForMatch(text))) {
-    const std = tokensOf(foldTurkishLower(cand));
-    const tr = tokensOf(foldTurkishLowerTr(cand));
-    const ascii = tokensOf(foldTurkishAscii(cand));
-    for (const w of words) {
-      const wa = foldTurkishAscii(w);
-      if (std.some((t) => t.startsWith(w)) || tr.some((t) => t.startsWith(w)) || ascii.some((t) => t.startsWith(wa))) {
-        return true;
-      }
+function breakdownVerbRest(tok: string): string | null {
+  const std = foldTurkishLower(tok);
+  const tr = foldTurkishLowerTr(tok);
+  const ascii = foldTurkishAscii(tok);
+  for (const v of BREAKDOWN_VERBS) {
+    const vs = foldTurkishLower(v);
+    const va = foldTurkishAscii(v);
+    if (std.startsWith(vs)) return std.slice(vs.length);
+    if (tr !== std && tr.startsWith(vs)) return tr.slice(vs.length);
+    if (ascii.startsWith(va)) return ascii.slice(va.length);
+  }
+  return null;
+}
+
+/**
+ * ARIZA CİHAZ KURALI — mesajda bir CİHAZ ADI ve bir ARIZA FİİLİ birlikte geçiyorsa şikâyet.
+ *
+ * 🚨 Fiil ile cihaz AYNI CÜMLECİKTE olmak ZORUNDA DEĞİL (inceleme turu 3, ölçüldü): cümlecik
+ * şartı 44 gerçekçi bildirimin 30'unu düşürüyordu — "Klimayı açtık, bozuldu.", "Buzdolabını
+ * kontrol ettim, tamamen bozulmuş.", "Kombiye baktım, arızalı görünüyor." Türkçede cihaz
+ * NESNE konumunda ilk cümlecikte, fiil ikincide durur; bu, şikâyetin OLAĞAN biçimidir.
+ * Cümlecik yerine iki DAR kapı: fiilin hemen solundaki özne cihaz-dışı olmamalı
+ * (`NON_DEVICE_SUBJECTS`) ve fiil koşul kipinde olmamalı (`CONDITIONAL_TAIL`).
+ */
+function hasDeviceBreakdown(message: string): boolean {
+  for (const cand of matchCandidates(normalizeForMatch(message))) {
+    const toks = cand.split(WORD_SPLIT).filter(Boolean);
+    if (!toks.some((t) => matchesInflectedWord(t, BREAKDOWN_DEVICES))) continue;
+    for (let i = 0; i < toks.length; i++) {
+      const rest = breakdownVerbRest(toks[i]);
+      if (rest === null || CONDITIONAL_TAIL.test(rest)) continue;
+      if (i > 0 && matchesInflectedWord(toks[i - 1], NON_DEVICE_SUBJECTS)) continue;
+      return true;
     }
   }
   return false;
 }
 
-function hasDeviceBreakdown(message: string): boolean {
-  return normalizeForMatch(message)
-    .split(CLAUSE_SPLIT)
-    .some((clause) => includesAnyFold(clause, BREAKDOWN_VERBS) && startsWithAnyFold(clause, BREAKDOWN_DEVICES) && !isConditionalClause(clause));
+/** Kalıp metinde geçiyor ve GEÇTİĞİ yerde koşul eki almamış mı? */
+function reportedNotConditional(hay: string, needle: string): boolean {
+  for (let from = 0; ; from += 1) {
+    const at = hay.indexOf(needle, from);
+    if (at < 0) return false;
+    if (!CONDITIONAL_TAIL.test(hay.slice(at + needle.length))) return true;
+    from = at;
+  }
 }
 
 /**
- * 09-10 olumsuz-fiil kalıpları — CÜMLECİK KAPSAMLI + KOŞUL guard'ı.
+ * 09-10 olumsuz-fiil kalıpları + EŞLEŞMEYE BAĞLI koşul guard'ı.
  *
- * 🚨 KOŞUL BİLDİRİM DEĞİLDİR: "Su gelmiyorsa ne yapmamız gerekiyor?", "Kombi yanmıyorsa ne
- * yapalım?" — hiçbiri OLMUŞ bir arızayı bildirmiyor; bunlar oto-yanıtın ASIL İŞİ olan SSS
- * sorularıdır. `complaint` ise `NEVER_AUTO_REPLY_INTENTS` içinde, yani her biri oto-yanıtı
- * kapatıp host'a acil e-posta üretiyordu (ölçüldü).
- *
- * Guard CÜMLECİK başına: gerçek bir bildirim başka cümlecikte duruyorsa şikâyet KALIR
- * ("Su gelmiyor, kesilirse haber verir misiniz?" → ilk cümlecik bildirim → complaint).
- * Hızlı ret: mesajın tamamında hiç eşleşme yoksa cümleciklere hiç bakılmaz.
+ * "Su gelmiyorSA ne yapmamız gerekiyor?" SSS sorusudur; "Su gelmiyor eğer akşama kadar
+ * düzelmezse otele geçeceğiz" BİLDİRİMDİR. Fark kalıbın hemen ardındaki ekte (↑ `CONDITIONAL_TAIL`).
  */
 function hasNegativeVerbComplaint(message: string): boolean {
-  if (!includesAnyFold(message, NEGATIVE_VERB_COMPLAINTS)) return false;
-  return normalizeForMatch(message)
-    .split(CLAUSE_SPLIT)
-    .some((clause) => includesAnyFold(clause, NEGATIVE_VERB_COMPLAINTS) && !isConditionalClause(clause));
+  for (const cand of matchCandidates(normalizeForMatch(message))) {
+    const std = foldTurkishLower(cand);
+    const tr = foldTurkishLowerTr(cand);
+    const ascii = foldTurkishAscii(cand);
+    for (const w of NEGATIVE_VERB_COMPLAINTS) {
+      if (
+        reportedNotConditional(std, w) ||
+        reportedNotConditional(tr, w) ||
+        reportedNotConditional(ascii, foldTurkishAscii(w))
+      ) {
+        return true;
+      }
+    }
+  }
+  return false;
 }
 
 function detectIntent(message: string): Intent {

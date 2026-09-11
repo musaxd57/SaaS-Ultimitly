@@ -674,13 +674,12 @@ Sekiz P1 KAPANDI (09-07), her biri ayrı commit, kırmızı-önce + iki yönlü 
 - **İKİNCİ İNCELEME TURU (09-10, ölçümlü ajan) — 25 kırmızı düzeltildi:** 🚨 **Cihaz kuralı iki yerden sızıyordu.**
   (a) Cihaz adı ALTDİZİ aranıyordu → `foldTurkishAscii` ile BAŞKA kelimenin içinde yakalanıyordu: değişiklik→ışık ·
   düşün/düşük/düştü→duş · telefon→fön · sürpriz→priz · kutu/unutuldu→ütü · kombine→kombi · Ocak(ay)→ocak.
-  → **KELİME BAŞI** eşleşmesi (`startsWithAnyFold`, aynı üç katlama); çekimli biçimler ("klimamız", "makinesi") korunur.
+  → **KELİME BAŞI** eşleşmesi (aynı üç katlama); çekimli biçimler ("klimamız", "makinesi") korunur.
   (b) Fiil ∧ cihaz mesajın HERHANGİ bir yerinde olabiliyordu → "Klima harika. Ama planımız bozuldu, erken çıkıyoruz."
-  şikâyetti. → **AYNI CÜMLECİK** şartı (`CLAUSE_SPLIT`, VİRGÜL de böler). BİLİNEN SINIR: cihaz ile fiil ayrı cümleciğe
-  düşen gerçek şikâyet ("Buzdolabı çok gürültülü, sanırım bozuldu") bu ağdan kaçar (model + "çalışmıyor" ikinci savunma).
+  şikâyetti. → o turda **AYNI CÜMLECİK** şartı kondu; ÜÇÜNCÜ TUR bunu ÖLÇTÜ ve GERİ ALDI (↓).
   🚨 **KOŞUL BİLDİRİM DEĞİLDİR:** "Su gelmiyorsa ne yapmamız gerekiyor?" / "Buzdolabı arızalanırsa kimi arayalım?" —
-  oto-yanıtın ASIL İŞİ olan SSS soruları şikâyet sayılıyordu. Guard (`isConditionalClause`) 3. şahıs koşul eklerini
-  (‑ıyorsa/‑ırsa/‑erse/‑mazsa/‑masa/‑saydı, "eğer") cümlecik başına eler. ⚠️ Guard YALNIZ 09-10 kalıplarına
+  oto-yanıtın ASIL İŞİ olan SSS soruları şikâyet sayılıyordu. Guard 3. şahıs koşul ekini eler (2. turda cümlecik
+  kapsamlıydı, 3. turda EŞLEŞMEYE BAĞLANDI ↓). ⚠️ Guard YALNIZ 09-10 kalıplarına
   (`NEGATIVE_VERB_COMPLAINTS`, `KEYWORDS.complaint`ten AYRI liste) uygulanır — ESKİ ağa uygulamak DENENDİ ve ÖLÇÜLDÜ:
   "Böyle giderse bir yıldız veririm" (gerçek yorum tehdidi) `general`e düşüyordu → eski ağ DOKUNULMADI. 1. şahıs koşul
   ("alamazsam") guard'a girmez. 🚨 **TAM BİÇİM, GÖVDE DEĞİL:** "arızalan"/"tuvalet tıkan"/"kapı sıkış"/"musluk damlat"
@@ -688,6 +687,28 @@ Sekiz P1 KAPANDI (09-07), her biri ayrı commit, kırmızı-önce + iki yönlü 
   "damlatmıyor" = ÖVGÜ) → olumlu tam biçimler. **Kaybı kapatılanlar:** "no heat" silinmişti → "no heat in/since/at all"
   (yanlış negatifti); oda çapası dardı → salon/mutfak/banyo/…odasında elektrik-ısıtma; `PROBLEM_NEGATIONS` belirtme hâli
   ("Hiçbir sorunU yaşamadık" complaint oluyordu).
+- **ÜÇÜNCÜ İNCELEME TURU (09-11, ölçümlü ajan) — 2. turun CÜMLECİK şartı GERİ ALINDI (gerileme):** 🚨 Cümlecik şartı
+  44 gerçekçi bildirimin **30'unu** düşürüyordu ve bedel GERÇEKTİ: `passesAutoReplySafetyGate` "Klimayı açtık,
+  bozuldu." · "Buzdolabını kontrol ettim, tamamen bozulmuş." · "Kombiye baktım, arızalı görünüyor."ya **OTO-GÖNDERİM
+  İZNİ** veriyordu (2. tur öncesi üçü de bloklanıyordu). Türkçede cihaz NESNE olarak ilk cümlecikte, fiil ikincide
+  durur — bu şikâyetin OLAĞAN biçimi. Cümlecik yerine **iki DAR kapı**: (1) **ÖZNE KURALI** — fiilin HEMEN SOLUNDAKİ
+  belirteç `NON_DEVICE_SUBJECTS` ise (plan/hava/mide/uçuş/program/rezervasyon/fiyat/moral/telefon/saat/bilet) şikâyet
+  DEĞİL; (2) **ÇEKİM DOĞRULAMASI** — cihaz adından sonra yalnız ÇEKİM eki dizisi gelebilir ([çoğul][iyelik][hâl]),
+  türetme eki gelemez: kapı+**cı**, kapı(ASCII "kapi")+**talizm**, makine+**li**, ocak+**başı**, fön+**ksiyon** elenir.
+  İki kapı BİRLİKTE gerekir: "kombine" DİLBİLGİSEL olarak kombi+n+e'dir (2. tekil iyelik + yönelme) → çekim kapısı
+  eleyemez, özne kuralı ("bilet") eler. 🚨 **KOŞUL kipini CÜMLE değil FİİL taşır:** cümlecik kapsamlı guard 24 gerçek
+  bildirimin 17'sini düşürüyordu ("Su gelmiyor EĞER akşama kadar düzelmezse…" — "eğer" eşleşmeden SONRA geliyor) →
+  yalnız eşleşmenin HEMEN ARDINDAKİ ek okunur (`^[ry]?s[ae]`: ‑sa/‑rsa/‑ysa); serbest "eğer" artık hüküm vermez.
+  `CLAUSE_SPLIT` tamamen kalktı (`\n` bacağı zaten ÖLÜYDÜ: `normalizeForMatch` satır sonunu boşluğa indiriyor).
+  **Ölçülüp SİLİNEN iki kod (geri getirme):** `N_BUFFERED_CASE`/`LEXICAL_POSSESSIVE_DEVICES` ("buzdolabı+nı" için)
+  ÖLÜYDÜ — n ile başlayan hâl eklerinin tamamı zaten 2. tekil iyelik dalından geçiyor; "fiil okumalarından koşulsuz
+  olanı tercih et" dalı ULAŞILAMAZDI (arıza fiilleri tam biçim, tek okuma üretir). 🚨 **"ASCII bacağını yalnız Türkçe
+  harfsiz belirteçte dene" kapısı DENENDİ ve UYGULANAMAZ:** `matchCandidates`in `stripCombining` adayı (görünmez-işaret
+  saldırı sınıfı için) metni zaten diakritiksiz sunuyor → koruma yanılsaması olurdu; çarpışmaları eleyen şey ÇEKİM
+  doğrulamasıdır. Bilinen sınır pinli: "Tatil düşümüz bozuldu." complaint ("dus"+"umuz" geçerli çekim). Ünsüz
+  yumuşaması yalnız ölçülen vakada ("kilid"). Fiil de KELİME BAŞINDA aranır → bitişik yazım ("klimabozuldu")
+  ayrıştırılmaz; bedeli iki yönlü pinli. Kanıt: kırmızı-önce 27 düşen + oto-yanıt kapısı bloğu (2 kırmızı);
+  **mutasyon 21/21** (ilk koşuda 3 hayatta kaldı: ikisi ÖLÜ KOD'u gösterdi → silindi, biri eksik pini → satır eklendi).
 - **KB onay sözleşmesi (A1) CANLI — migration 53 prod'da 09-08 16:42Z; §A doğrulandı (32 satır `legacy|legacy`, aktif = AI-okunabilir = 32).**
   `KnowledgeBaseItem`: `source` (`legacy·host_manual·extracted_draft·suggestion_accepted`) · `reviewState`
   (`legacy·approved·draft`) · `approvedAt` · `sourceRef`/`supersededById` (A5 için, bugün yazan YOK, pinli).

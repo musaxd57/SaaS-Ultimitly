@@ -143,11 +143,10 @@ içinde yakalanıyordu:
 **(b) Fiil ∧ cihaz mesajın HERHANGİ bir yerinde olabiliyordu.** Ölçülen: "Klima harika. Ama planımız bozuldu,
 erken çıkıyoruz." · "Ev çok güzel, tv büyük… Bu arada midem bozuldu, yakında eczane var mı?" → ikisi de `complaint`.
 
-**Düzeltme:** cihaz adı **KELİME BAŞI** eşleşir (`startsWithAnyFold`, aynı üç katlama) **ve** fiil ile cihaz
-**AYNI CÜMLECİKTE** olmalıdır (`CLAUSE_SPLIT`, virgül de böler). Çekimli biçimler ("klimamız", "makinesi",
-"kombimiz") kelime başında olduğu için korunur. **BİLİNEN SINIR:** cihaz ile fiil ayrı cümleciğe düşen gerçek
-şikâyet ("Buzdolabı çok gürültülü, sanırım bozuldu") bu ağdan kaçar — model yolu ve "çalışmıyor" gibi bağımsız
-kalıplar ikinci savunmadır.
+**Düzeltme (2. tur):** cihaz adı **KELİME BAŞI** eşleşir (aynı üç katlama) **ve** fiil ile cihaz **AYNI
+CÜMLECİKTE** olmalıdır. Çekimli biçimler ("klimamız", "makinesi", "kombimiz") kelime başında olduğu için korunur.
+⚠️ **CÜMLECİK ŞARTI 3. TURDA GERİ ALINDI** — o "bilinen sınır" sanılan şey aslında şikâyetin OLAĞAN biçimiydi
+(§ Üçüncü tur).
 
 ### K2 — KOŞUL kipi bildirim sayılıyordu (P1)
 
@@ -156,8 +155,8 @@ kalıplar ikinci savunmadır.
 sorularıdır. `complaint` = `NEVER_AUTO_REPLY_INTENTS` olduğu için her biri oto-yanıtı kapatıp host'a acil e-posta
 üretiyordu.
 
-**Düzeltme:** `isConditionalClause` (3. şahıs koşul ekleri ‑ıyorsa/‑ırsa/‑erse/‑mazsa/‑masa/‑saydı + "eğer"), cümlecik
-başına. Gerçek bildirim başka cümlecikteyse şikâyet KALIR ("Su gelmiyor, kesilirse haber verir misiniz?").
+**Düzeltme (2. tur):** 3. şahıs koşul ekleri (‑ıyorsa/‑ırsa/‑erse/‑mazsa/‑masa/‑saydı + "eğer"), **cümlecik**
+başına. ⚠️ **CÜMLECİK KAPSAMI 3. TURDA EŞLEŞMEYE BAĞLANDI** (§ Üçüncü tur).
 🚨 **Guard YALNIZ 09-10 kalıplarına uygulanır** (`NEGATIVE_VERB_COMPLAINTS`, `KEYWORDS.complaint`ten AYRI liste).
 Eski ağa uygulamak DENENDİ ve golden set YAKALADI: **"Böyle giderse bir yıldız veririm"** (gerçek yorum tehdidi)
 `general`e düşüyordu — "giderse" biçimsel olarak koşul ama cümle bir TEHDİT. Eski ağ DOKUNULMADAN bırakıldı.
@@ -183,3 +182,74 @@ rahatça açılıyor" · "Musluk **damlatmıyor**, gayet iyi" — dördü de ÖV
 **Kanıt:** kırmızı-önce 25 düşen test (ölçülen cümlelerin tamamı `TRAPS`/`CONTRACT` tablolarına yazıldı); mutasyon
 19 mutant (cihaz kuralının iki yarısı · virgül bölmesi · koşul guard'ı ve eki · guard'ın eski ağa taşınması ·
 gövde/tam biçim · üç kapsam kaybı · yer tutucu daire/ad kuralları · QR ikinci taraması).
+
+---
+
+## Üçüncü inceleme turu (09-11, ölçümlü ajan) — 2. turun cümlecik şartı GERİLEMEYDİ
+
+### Ü1 — CÜMLECİK şartı gerçek bildirimlerin çoğunu düşürüyordu (P1, gerileme)
+
+Ölçüm: 44 gerçekçi arıza bildiriminin **30'u** 2. turdan sonra `complaint` olmaktan çıktı. Sebep dilbilgisel —
+Türkçede cihaz **nesne** olarak ilk cümlecikte, fiil ikincide durur:
+
+| Mesaj | 2. tur öncesi | 2. tur sonrası |
+|---|---|---|
+| Klimayı açtık, bozuldu. | complaint | amenity |
+| Buzdolabını kontrol ettim, tamamen bozulmuş. | complaint | amenity |
+| Kombiye baktım, arızalı görünüyor. | complaint | general |
+| Şofbeni açtık, arızalandı. | complaint | general |
+
+🚨 **Bedel sınıflandırmada kalmıyordu:** `passesAutoReplySafetyGate` (model `amenity / low / 0.9` ile) bu üç
+bildirime **OTO-GÖNDERİM İZNİ** veriyordu; 2. tur öncesi üçü de bloklanıyordu. Yani daraltma, ürünün çekirdek
+güvenlik vaadini gerçek bir girdi sınıfında deliyordu.
+
+**Düzeltme:** cümlecik şartı KALDIRILDI, yerine iki DAR kapı:
+
+1. **ÖZNE KURALI** — fiilin HEMEN SOLUNDAKİ belirteç cihaz-dışı bir özneyse şikâyet değil
+   (`NON_DEVICE_SUBJECTS`: plan · hava · mide · uçuş · program · rezervasyon · fiyat · moral · telefon · saat · bilet;
+   her girdi kendi test satırıyla pinli ve her satırda mesajda gerçek bir cihaz adı var).
+2. **ÇEKİM DOĞRULAMASI** — cihaz adından sonra yalnız çekim eki dizisi gelebilir ([çoğul][iyelik][hâl]); türetme eki
+   yeni bir SÖZCÜK kurar ve elenir:
+
+| Kelime | Cihaz öneki | Kalan | Sonuç |
+|---|---|---|---|
+| kapıcı | kapı | cı | türetme → RET |
+| kapitalizm | kapi (ASCII) | talizm | RET |
+| makineli | makine | li | türetme → RET |
+| ocakbaşı | ocak | başı | RET |
+| fonksiyon | fon (ASCII) | ksiyon | RET |
+| klimayı / ütüyü | klima / ütü | yı / yü | çekim → KABUL |
+| makinesini | makine | sini | çekim → KABUL |
+
+🚨 İki kapı **birlikte** gerekir: "kombine" dilbilgisel olarak `kombi+n+e`dir (2. tekil iyelik + yönelme,
+"kombine baktım") → çekim kapısı eleyemez; onu özne kuralı ("bilet") eler.
+
+### Ü2 — KOŞUL kipini CÜMLE değil FİİL taşır (P1, gerileme)
+
+Cümlecik kapsamlı guard, 24 gerçek bildirimin **17'sini** düşürüyordu, çünkü "eğer" çoğu zaman eşleşmeden SONRA
+gelir: *"Su gelmiyor **eğer** akşama kadar düzelmezse otele geçeceğiz"* — bu bir BİLDİRİM + tehdit, SSS sorusu değil.
+
+**Düzeltme:** guard yalnız eşleşmenin HEMEN ARDINDAKİ eke bakar (`^[ry]?s[ae]` = ‑sa/‑se, kaynaştırmalı ‑rsa/‑ysa):
+"gelmiyor" bildirim, "gelmiyor**sa**" koşuldur. Serbest "eğer" artık hüküm vermez. Her GEÇİŞ ayrı okunur (ilk geçiş
+koşul, ikincisi bildirim ise şikâyet kalır). **Bilinen sınır (pinli):** ayrı yazılan "ise" (*"Eğer su gelmiyor ise"*)
+bildirim sayılır.
+
+`CLAUSE_SPLIT` tamamen kalktı — `\n` bacağı zaten ÖLÜYDÜ (`normalizeForMatch` satır sonunu boşluğa indiriyor, yani
+bölme hiç görmüyordu; ölçüldü).
+
+### Ü3 — Mutasyonun gösterdiği ÖLÜ KOD (silindi, geri getirilmeyecek)
+
+- `N_BUFFERED_CASE` + `LEXICAL_POSSESSIVE_DEVICES` ("buzdolabı+nı" için yazılmıştı): n ile başlayan hâl eklerinin
+  TAMAMI (nı/ni/na/ne/nda/nde/ndan/nden/nın/nin) zaten 2. tekil iyelik dalından ("n" + hâl) geçiyor.
+- "Fiil okumalarından koşul taşımayanı tercih et" dalı: arıza fiilleri tam biçim ve birbirinin öneki değil, üç
+  katlama da aynı kuyruğu verir → bir belirteç tek okuma üretir, dal ULAŞILAMAZ.
+- 🚨 "ASCII bacağını yalnız Türkçe harf taşımayan belirteçte dene" kapısı: `matchCandidates`in `stripCombining`
+  adayı (görünmez-işaret saldırı sınıfı için VAR ve kaldırılamaz) metni zaten diakritiksiz sunuyor → kapı yalnız
+  KORUMA YANILSAMASI olurdu. Çarpışmaları eleyen şey çekim doğrulamasıdır. Bilinen sınır pinli: "Tatil düşümüz
+  bozuldu." complaint kalır ("dus"+"umuz" geçerli bir çekimdir).
+
+**Kanıt:** kırmızı-önce 27 düşen test + ayrı oto-yanıt kapısı bloğu (2 kırmızı: bildirim oto-gönderiliyordu, masum
+cümle bloklanıyordu). Mutasyon **21/21** — ilk koşuda 3 mutant hayatta kaldı ve **üçü de gerçek boşluk gösterdi**:
+ikisi yukarıdaki ölü kodu (silindi), biri 3. kişi iyelik dalının test setinde hiç yüklenmediğini ("Kahve makinesi
+bozulmuş." satırı eklendi). Fiilin de kelime BAŞINDA aranması iki yönlü pinli: bitişik yazımda ("klimabozuldu")
+ayrıştırma YAPILMAZ, çünkü altdizi araması özneyi de yutardı ("Klima harika ama planımızbozuldu.").

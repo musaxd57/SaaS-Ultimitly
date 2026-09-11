@@ -1,5 +1,6 @@
 import { describe, it, expect } from "vitest";
 import { classifyFallback, detectRiskType } from "@/lib/ai/fallback";
+import { passesAutoReplySafetyGate } from "@/lib/automation";
 import { deriveMessageSignal } from "@/modules/intelligence/signals/derive";
 
 // ---------------------------------------------------------------------------
@@ -40,6 +41,32 @@ const CONTRACT: [string, string, string | null][] = [
   ["Klimamız bozuldu.", "complaint", "complaint"],
   ["Kombimiz arızalandı.", "complaint", "complaint"],
   ["Televizyon arızalı.", "complaint", "complaint"],
+  // ── İNCELEME TURU 3 (09-10): CİHAZ ve FİİL AYRI CÜMLECİKTE — ŞİKÂYETİN OLAĞAN BİÇİMİ ──
+  // Cümlecik şartı ölçüldü ve 44 gerçekçi bildirimin 30'unu düşürüyordu; kapı etkisi GERÇEKTİ
+  // (`passesAutoReplySafetyGate` "Klimayı açtık, bozuldu."ya OTO-GÖNDERİM izni veriyordu).
+  // Türkçede cihaz NESNE olarak ilk cümlecikte, fiil ikincide durur.
+  ["Klimayı açtık, bozuldu.", "complaint", "complaint"],
+  ["Buzdolabını kontrol ettim, tamamen bozulmuş.", "complaint", "complaint"],
+  ["Kombiye baktım, arızalı görünüyor.", "complaint", "complaint"],
+  ["Makineyi çalıştırdık, bozuldu.", "complaint", "complaint"],
+  ["Televizyonu açmaya çalıştık, bozuldu.", "complaint", "complaint"],
+  ["Ütüyü kullanmak istedik, bozulmuş.", "complaint", "complaint"],
+  ["Fırını denedik, arızalı.", "complaint", "complaint"],
+  ["Asansöre bindik, bozuldu.", "complaint", "complaint"],
+  ["Mikrodalgayı denedim, bozulmuş.", "complaint", "complaint"],
+  ["Bulaşık makinesini çalıştırdım, arızalı.", "complaint", "complaint"],
+  ["Klima dün akşam çalışıyordu, bugün bozuldu.", "complaint", "complaint"],
+  ["Şofbeni açtık, arızalandı.", "complaint", "complaint"],
+  // Ünsüz yumuşaması gövdesi: kilit → kilidi (ölçülen tek vaka; sınıf DAR tutuldu)
+  ["Kilidi çevirdim, bozuldu.", "complaint", "complaint"],
+  // 3. kişi iyelikli cihaz adı TEK KAYNAK olduğunda (mesajda başka cihaz adı YOK):
+  // "makinesi" = makine+si · "makinesini" = makine+si+ni. Bu iki satır olmadan çekim
+  // tablosunun 3. kişi dalı ÖLÜ kalıyordu (mutasyon turu: dalı silen mutant hayatta kaldı).
+  ["Kahve makinesi bozulmuş.", "complaint", "complaint"],
+  ["Kahve makinesini denedim, bozuldu.", "complaint", "complaint"],
+  // 🚨 Özne kuralı YALNIZ fiilin HEMEN SOLUNDAKİ belirtece bakar: cihaz-dışı bir sözcüğün
+  // mesajın başka yerinde geçmesi gerçek şikâyeti SUSTURMAZ (aşırı uygulama pini).
+  ["Uçuşumuz gecikti, bir de klima bozuldu.", "complaint", "complaint"],
   // Araya zarf giren doğal biçimler + konuşma dili "-yo"
   ["Sıcak su hiç gelmiyor.", "complaint", "complaint"],
   ["Su hiç akmıyor.", "complaint", "complaint"],
@@ -106,10 +133,35 @@ const TRAPS: [string, string | null][] = [
   ["Planımız bozuldu, kapıcıya anahtarı bırakabilir miyiz?", null],
   ["Rezervasyon bozuldu, telefonla ulaşabilir misiniz?", null],
   ["Moralim bozuldu ama evle ilgisi yok, tv izliyoruz.", null],
-  // FİİL ∧ CİHAZ AYNI CÜMLECİKTE olmalı — uzak cümledeki cihaz adı şikâyet yapmaz
-  ["Klima harika. Ama planımız bozuldu, erken çıkıyoruz.", null],
-  ["Ev çok güzel, tv büyük, mutfak eksiksiz. Bu arada midem bozuldu, yakında eczane var mı?", null],
-  ["Işıklandırma çok hoş. Planımız bozuldu, bir gece iptal edeceğiz.", null],
+  // ── İNCELEME TURU 3: ÖZNE CİHAZ DEĞİL — mesajda cihaz adı GEÇSE BİLE şikâyet değil ──
+  // Cihaz ile fiil ayrı cümleciğe düşebildiği için (↑ CONTRACT) ayrım artık cümlecikte değil,
+  // fiilin hemen SOLUNDAKİ öznede. Aşağıdaki her satır `NON_DEVICE_SUBJECTS`in BİR girdisini
+  // pinler ve her birinde mesajda gerçek bir cihaz adı vardır (yoksa satır hiçbir şey ölçmez).
+  ["Klima harika. Ama planımız bozuldu, erken çıkıyoruz.", null],                       // plan
+  ["Ev çok güzel, tv büyük, mutfak eksiksiz. Bu arada midem bozuldu, yakında eczane var mı?", null], // mide
+  ["Işıklandırma çok hoş. Planımız bozuldu, bir gece iptal edeceğiz.", null],           // plan
+  ["Klima harika ama havalar bozuldu, denize giremedik.", null],                        // hava
+  ["Klima mükemmel, sadece programımız bozuldu.", null],                                // program
+  ["Klima çalışıyor ama rezervasyonumuz bozuldu.", null],                               // rezervasyon
+  ["Klima dahil fiyat bozuldu mu, indirim var mı?", null],                              // fiyat
+  // 🚨 "kombine" DİLBİLGİSEL olarak kombi+n+e (2. tekil iyelik + yönelme) — çekim kapısı bunu
+  // ELEYEMEZ, çünkü gerçekten geçerli bir çekim. Karar özne kuralına kalır ("bilet").
+  ["Kombine biletimiz bozuldu.", null],                                                 // bilet
+  ["Klima harika, ama telefonum bozuldu; wifi şifresi neydi?", "wifi"],                 // telefon
+  ["Anahtar teslim saati bozuldu mu, 15:00 hâlâ geçerli mi?", null],                    // saat
+  ["Ocak ayı planımız bozuldu", null],                                                  // plan (cihaz: "Ocak" ayı)
+  // "uçuş" girdisini yukarıdaki "Uçuşumuz bozuldu, Ocak ayında gelemeyeceğiz." satırı pinler
+  // (cihaz adı "Ocak" mesajda geçiyor).
+  // ── İNCELEME TURU 3: TÜRETME ≠ ÇEKİM — cihaz adıyla BAŞLAYAN başka SÖZCÜKLER ──
+  // Kelime başı şartı bunları geçiriyordu; ayrım cihaz adından SONRAKİ ekte
+  // (çekim eki dizisi mi, yeni sözcük kuran türetme eki mi).
+  ["Kapıcı bozuldu", null],                       // kapı + cı (türetme)
+  ["Kapitalizm bozuldu", null],                   // kapı(ASCII "kapi") + talizm
+  ["Makineli tüfek sesinden uykumuz bozuldu", null], // makine + li
+  ["Ocakbaşı restoranda midem bozuldu", null],    // ocak + başı
+  ["Fonksiyon tuşları derken planımız bozuldu", null], // fön(ASCII "fon") + ksiyon
+  ["Fondöten şişem bozuldu", null],               // "ö" taşıyan belirteçte ASCII bacağı HİÇ denenmez
+  ["Uçuşu düşünürken planımız bozuldu", null],    // düşün… → "dus" çarpışması (ASCII bacağı kapalı)
   // ── OLUMSUZ / KOŞUL BİÇİMLERİ: gövde kalıpları bunları da yakalıyordu ──
   // Övgü (arıza YOK diyor) ve SSS sorusu (henüz olmamış) şikâyet DEĞİLDİR.
   ["Klima arızalanmadı, gayet iyi çalışıyor.", null],
@@ -189,21 +241,60 @@ describe("classifyFallback — sözleşme tablosu (09-08 ölçümü → 09-10 s�
     expect(classifyFallback("Klimada sorun var.").intent).toBe("complaint");
   });
 
-  it("KOŞUL GUARD'I CÜMLECİK BAŞINA: gerçek bildirim başka cümlecikteyse şikâyet KALIR", () => {
-    // Guard yalnız KOŞUL cümleciğini eler; aynı mesajda OLMUŞ bir arıza bildirimi varsa complaint.
+  it("KOŞUL GUARD'I EŞLEŞMEYE BAĞLI, CÜMLEYE DEĞİL: koşul kipini FİİL taşır", () => {
+    // 🚨 İNCELEME TURU 3 (ölçüldü): guard CÜMLECİK kapsamlıyken 24 gerçek bildirimin 17'sini
+    // düşürüyordu — "eğer" bildirimin ARDINDAN gelince tüm cümleciği koşul sayıyordu. Koşul
+    // kipini cümle değil FİİL taşır: "gelmiyor" bildirim, "gelmiyorSA" koşuldur.
+    expect(classifyFallback("Su gelmiyor eğer akşama kadar düzelmezse otele geçeceğiz").intent).toBe("complaint");
+    expect(classifyFallback("Elektrikler gitti eğer tamirci gelmezse bu gece kalamayız").intent).toBe("complaint");
+    expect(classifyFallback("Kombi yanmıyor ısınmazsa donacağız").intent).toBe("complaint");
+    expect(classifyFallback("Tuvalet tıkandı eğer pompa varsa deneyeceğiz").intent).toBe("complaint");
+    expect(classifyFallback("Klima bozuldu eğer tamir edilmezse uyuyamayız").intent).toBe("complaint");
+    // Karşı yön: ek FİİLE bitişikse SSS sorusudur, şikâyet değil.
+    expect(classifyFallback("Su gelmiyorsa ne yapmamız gerekiyor?").intent).not.toBe("complaint");
+    expect(classifyFallback("Klima arızalıysa kimi arayalım?").intent).not.toBe("complaint");
+    // Aynı mesajda OLMUŞ bir bildirim varsa şikâyet KALIR.
     expect(classifyFallback("Klima çalışmıyor, bozulursa ne olur?").intent).toBe("complaint");
     expect(classifyFallback("Su gelmiyor, kesilirse haber verir misiniz?").intent).toBe("complaint");
+    expect(classifyFallback("Masa var ama su gelmiyor.").intent).toBe("complaint");
+    // Guard HER GEÇİŞİ ayrı okur: ilk geçiş koşul, ikincisi bildirim ise şikâyettir.
+    expect(classifyFallback("Su gelmiyorsa ne yapalım? Bu arada su gelmiyor.").intent).toBe("complaint");
+    // Satır sonu da ayırıcıdır (metin normalize edilirken boşluğa iner):
+    expect(classifyFallback("Tuvalet tıkandı\nTıkanırsa ne yapmalıyız").intent).toBe("complaint");
+    expect(classifyFallback("Klima harika\nPlanımız bozuldu").intent).not.toBe("complaint");
     // 1. şahıs koşul ("-sam/-sem") guard'a GİRMEZ — gerçek şikâyet niyeti korunur.
     expect(classifyFallback("İade alamazsam şikayet edeceğim.").intent).toBe("complaint");
-    // 🚨 KOŞUL EKİ EN AZ İKİ HARFLİK BİR GÖVDEYE eklenmiş olmalı: "masa" (mobilya) koşul DEĞİLDİR.
-    // Uzunluk şartı olmasaydı bu cümle sessizce şikâyet olmaktan çıkardı.
-    expect(classifyFallback("Masa var ama su gelmiyor.").intent).toBe("complaint");
     // 🚨 BİLİNEN SINIR: guard YALNIZ 09-10 kalıplarına uygulanır. ESKİ ağdaki "çalışmıyo" gibi
     // kalıplar koşul kipinde de complaint kalır. Guard'ı eski ağa da uygulamak DENENDİ ve
     // ÖLÇÜLDÜ: "Böyle giderse bir yıldız veririm" (gerçek yorum tehdidi) `general`e düşüyordu →
     // eski ağ DOKUNULMADAN bırakıldı (çalışan ürün bozulmaz).
     expect(classifyFallback("Klima çalışmıyorsa kimi arayalım?").intent).toBe("complaint");
     expect(classifyFallback("Böyle giderse bir yıldız veririm").intent).toBe("complaint");
+    // 🚨 BİLİNEN SINIR (kabul, pinli): ayrı yazılan "ise" koşulu eke bakan guard'a görünmez.
+    expect(classifyFallback("Eğer su gelmiyor ise ne yapalım?").intent).toBe("complaint");
+  });
+
+  it("FİİL de kelime BAŞINDA aranır: bitişik yazımda ayrıştırma YAPILMAZ (iki yönlü)", () => {
+    // Türkçede ek SAĞA eklenir; arıza fiili bir belirtecin ORTASINDA ancak boşluk unutulunca
+    // görünür. Altdizi araması bunu "çözüyormuş" gibi görünürdü ama ÖZNEYİ de yutardı:
+    expect(classifyFallback("Klima harika ama planımızbozuldu.").intent).not.toBe("complaint");
+    // 🚨 BEDELİ AÇIK (bilinen sınır, pinli): aynı kural gerçek bitişik şikâyeti de kaçırır.
+    // Model yolu ikinci savunmadır; ağın sessizce ÖZNESİZ karar vermesi daha kötüdür.
+    expect(classifyFallback("klimabozuldu").intent).not.toBe("complaint");
+  });
+
+  it("ASCII katlaması: gerçek ASCII girdi korunur; çarpışmaları eleyen ÇEKİM doğrulamasıdır", () => {
+    // Koruma yönü: ASCII klavyeyle yazılmış gerçek şikâyet hâlâ yakalanır.
+    expect(classifyFallback("klimamiz bozuldu").intent).toBe("complaint");
+    expect(classifyFallback("kombimiz arizalandi").intent).toBe("complaint");
+    // Eleme yönü ÇEKİMDEN gelir (ASCII bacağı açık): düşünürken→"unurken", fondöten→"doten".
+    expect(classifyFallback("Sürpriz bir hediye bırakmışsınız, fondöten şişem bozuldu.").intent).not.toBe("complaint");
+    expect(classifyFallback("Düşünürken kahvemiz soğudu, fonksiyon tuşu bozuldu mu bilmiyorum.").intent).not.toBe("complaint");
+    // 🚨 BİLİNEN SINIR (kabul, pinli): ASCII'ye inince GEÇERLİ bir çekim üreten çarpışma elenemez.
+    // "düşümüz" → "dus"+"umuz" = DUŞ + iyelik. "ASCII bacağını yalnız Türkçe harfsiz belirteçte
+    // dene" kapısı DENENDİ ve uygulanamaz çıktı: `matchCandidates`in `stripCombining` adayı
+    // (görünmez işaret saldırı sınıfı için) metni zaten diakritiksiz hâlde de sunuyor.
+    expect(classifyFallback("Tatil düşümüz bozuldu.").intent).toBe("complaint");
   });
 
   it("BİLİNEN SINIR (bilerek pinli): araya iki+ kelime giren biçim ve çözülmüş bildirim — kelime ağı sözdizimi bilmez", () => {
@@ -213,6 +304,43 @@ describe("classifyFallback — sözleşme tablosu (09-08 ölçümü → 09-10 s�
     expect(classifyFallback("Kapı bir türlü açılmıyor.").intent).not.toBe("complaint");
     // Çözülmüş bildirim: ağ "çözüldü"yü ayırt etmez → complaint kalır (yön güvenli: host görür, oto-yanıt gitmez).
     expect(classifyFallback("Sigorta attı ama kaldırdık, sorun yok.").intent).toBe("complaint");
+  });
+});
+
+describe("OTO-YANIT KAPISI — sınıflandırmanın GERÇEK bedeli", () => {
+  // 🚨 Bu blok niye var: cümlecik şartı `classifyFallback`ta masum bir daraltma gibi
+  // görünüyordu, ama `complaint` ∈ NEVER_AUTO_REPLY_INTENTS olduğu için doğrudan
+  // OTO-GÖNDERİM İZNİNE dönüşüyordu. Model "amenity / low / 0.9" dese bile kapı
+  // bildirimi bloklamalı; SSS sorusunda ise oto-yanıt kapının ASIL İŞİDİR.
+  const BENIGN = { source: "openai", intent: "amenity", riskLevel: "low", confidence: 0.9, riskType: null };
+
+  it("cihaz ve fiil ayrı cümlecikteki BİLDİRİM oto-gönderilmez", () => {
+    for (const m of [
+      "Klimayı açtık, bozuldu.",
+      "Buzdolabını kontrol ettim, tamamen bozulmuş.",
+      "Kombiye baktım, arızalı görünüyor.",
+      "Su gelmiyor eğer akşama kadar düzelmezse otele geçeceğiz",
+    ]) {
+      expect(passesAutoReplySafetyGate(BENIGN, m), m).toBe(false);
+    }
+  });
+
+  it("KOŞUL kipindeki SSS sorusu oto-yanıt ALABİLİR (ürünün asıl işi)", () => {
+    for (const m of [
+      "Su gelmiyorsa ne yapmamız gerekiyor?",
+      "Klima arızalıysa kimi arayalım?",
+      "Tuvalet tıkanırsa ne yapmalıyız?",
+    ]) {
+      expect(passesAutoReplySafetyGate(BENIGN, m), m).toBe(true);
+    }
+  });
+
+  it("öznesi cihaz olmayan 'bozuldu' oto-yanıtı kapatmaz", () => {
+    expect(passesAutoReplySafetyGate(BENIGN, "Klima harika ama havalar bozuldu, denize giremedik.")).toBe(true);
+    // ⚠️ Kontrol: "…erken çıkıyoruz" hâlâ BLOKLANIR ama sebebi cihaz kuralı DEĞİL,
+    // `early_departure` niyetidir (o da NEVER_AUTO_REPLY). İki sebep karışmasın.
+    expect(passesAutoReplySafetyGate(BENIGN, "Klima harika. Ama planımız bozuldu, erken çıkıyoruz.")).toBe(false);
+    expect(classifyFallback("Klima harika. Ama planımız bozuldu, erken çıkıyoruz.").intent).toBe("early_departure");
   });
 });
 
