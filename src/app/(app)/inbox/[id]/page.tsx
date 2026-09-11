@@ -250,7 +250,12 @@ const SKIP_REASON_LABELS: Record<string, string> = {
           />
         </div>
 
-        <div className="min-w-0 space-y-4">
+        {/* Sağ ray KENDİ İÇİNDE kayar (lg): konuşma kartı görünür alana
+            sabitlendiği için, uzun bir rezervasyon/görev listesi SAYFAYI
+            kaydırsaydı kart yerinde durup altında yine boşluk açılırdı —
+            kurucunun şikâyet ettiği davranışın ta kendisi. Yükseklik kartla
+            AYNI ifadeden gelir; ikisi ayrışırsa satır yüksekliği zıplar. */}
+        <div className="min-w-0 space-y-4 lg:h-[calc(100vh/0.95-11rem)] lg:min-h-[26rem] lg:overflow-y-auto lg:pr-1">
           {/* 🚨 "Mülk" KARTI KALDIRILDI (kurucu 09-11): adres çoğu hostta boş
               olduğu için kart pratikte TEK BİR SATIR gösteriyordu — giriş/çıkış
               saati. O satır artık konuşma kartının başlık satırında; adres,

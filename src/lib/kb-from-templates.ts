@@ -16,6 +16,7 @@
 // ---------------------------------------------------------------------------
 
 import { kbPlaceholderTokens } from "./ai/prompts";
+import { TEMPLATE_VAR_SOURCE } from "./template-apply";
 
 export const TEMPLATE_SUGGESTION_MAX_CHARS = 2_000;
 
@@ -74,7 +75,15 @@ export const TEMPLATE_CATEGORY_TO_KB: Readonly<Record<string, string>> = {
  *    yani o şablondan üretilen kalem KENDİNE atıf yapardı. İşaretçi taşıyan
  *    şablonun kendi başına anlattığı bir gerçek yoktur.
  */
-const TEMPLATE_VAR_G = /\{\{\s*(\w+)\s*\}\}/g;
+const TEMPLATE_VAR_G = new RegExp(TEMPLATE_VAR_SOURCE, "g");
+/**
+ * 🚨 FAIL-CLOSED SÜPÜRGE (inceleme ajanı 09-11): yukarıdaki kalıp `\w`
+ * kullanıyor ve `\w` ASCII'dir — `{{misafirAdı}}` (ı), `{{property.name}}` (.),
+ * `{{guest-name}}` (-) HİÇBİRİ eşleşmiyordu, yani "başka her `{{…}}` REDDEDİLİR"
+ * kuralı tam da tanımadığı biçimlerde FAIL-OPEN'dı ve o metin ONAYLI BİLGİ olup
+ * misafire ham gidebiliyordu. Çevrimden SONRA hâlâ `{{` varsa şablon düşer.
+ */
+const ANY_DOUBLE_BRACE = /\{\{[^}]*\}\}|\{\{/;
 /** KB tarafında karşılığı olan tek şablon değişkeni. */
 const CONVERTIBLE_VARS: Readonly<Record<string, string>> = { guestName: "{isim}" };
 
@@ -146,6 +155,8 @@ export function templateBodyToKbContent(body: string): string | null {
     return mapped;
   });
   if (rejected) return null;
+  // Tanınmayan/bozuk biçimli çift parantez → fail-closed.
+  if (ANY_DOUBLE_BRACE.test(converted)) return null;
   // Doldurulmamış alan sınıfı (`[ŞİFRE]`/`<adres>`/`___`) → uydurma değer riski.
   if (kbPlaceholderTokens(converted).length > 0) return null;
   return converted;
@@ -179,8 +190,15 @@ export function buildKbSuggestionsFromTemplates(
 
   // Org dilindeki şablon önce denenir; ilk gelen (property, category) yuvasını
   // kapatır. Sıra bunun DIŞINDA korunur (çağıranın `createdAt` sırası).
+  // 🚨 ÖZGÜLLÜK ÖNCE, SONRA DİL (inceleme ajanı 09-11): org geneli şablon önce
+  // işlenirse tüm mülklerin yuvasını kapatır ve MÜLKE ÖZEL şablon bir daha
+  // önerilemez. ÖLÇÜLDÜ: org geneli "Wi-Fi bilgisini ev sahibinizden isteyiniz"
+  // + Daire 3'e özel "Ağ: Daire3_5G, şifre 8821" → host'a GENEL metin gösteriliyor,
+  // doğru olan hiç görünmüyordu. Sonuç yaratma sırasına bağlıydı, yani rastgele.
   const ordered = [...templates].sort(
-    (a, z) => langRank(a.language, preferred) - langRank(z.language, preferred),
+    (a, z) =>
+      (a.propertyId ? 0 : 1) - (z.propertyId ? 0 : 1) ||
+      langRank(a.language, preferred) - langRank(z.language, preferred),
   );
 
   for (const t of ordered) {

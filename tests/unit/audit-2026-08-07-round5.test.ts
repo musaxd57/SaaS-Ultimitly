@@ -94,9 +94,19 @@ describe("🚨 ŞABLON YER TUTUCUSU — misafir adı KB sırrını enjekte edeme
     expect(fn.length, "aralık boş — pin no-op olurdu").toBeGreaterThan(200);
     // TEK `replace` çağrısı TEK bir birleşik kalıpla (çift parantez + tek parantez).
     expect(fn).toContain("out.replace(TOKENS,");
-    expect(codeOnly(read("src/lib/template-apply.ts"))).toContain(
-      "const TOKENS = /\\{\\{(\\w+)\\}\\}|\\{\\s*(\\p{L}+)\\s*\\}/gu;",
+    // ⚠️ Kalıp artık TEK KAYNAKTAN kuruluyor (`TEMPLATE_VAR_SOURCE`), çünkü aynı
+    // kalıp `kb-from-templates.ts`te AYRI yazılmış ve ikisi AYRIŞMIŞTI (inceleme
+    // ajanı 09-11). Pin o yüzden düz metin eşitliği DEĞİL, kompozisyonu arar:
+    // tek `TOKENS` sabiti + çift parantez sınıfının paylaşılan kaynağı.
+    const applySrc = codeOnly(read("src/lib/template-apply.ts"));
+    expect(applySrc).toContain("const TOKENS = new RegExp(`${TEMPLATE_VAR_SOURCE}");
+    expect(applySrc, "çift parantez kalıbı yine ikinci kez elle yazılmış").toContain(
+      "export const TEMPLATE_VAR_SOURCE",
     );
+    expect(
+      codeOnly(read("src/lib/kb-from-templates.ts")),
+      "kb-from-templates kendi kalıbını yeniden yazmış (ayrışma riski geri geldi)",
+    ).toContain('import { TEMPLATE_VAR_SOURCE } from "./template-apply";');
     // Yeniden-tarama yapan eski biçim: her anahtar için ayrı split/join.
     expect(fn).not.toMatch(/for \(const \[key, value\] of Object\.entries/);
     expect(fn).not.toMatch(/\.split\(`\{\{\$\{key\}\}\}`\)/);

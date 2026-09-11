@@ -1,5 +1,14 @@
 import { guestFirstNameOf, resolveGuestPlaceholder } from "./kb-placeholders";
 
+/**
+ * ŞABLON DEĞİŞKENİ kalıbının TEK KAYNAĞI (`{{guestName}}` sınıfı).
+ *
+ * 🚨 İKİ AYRI KALIP VARDI ve AYRIŞMIŞLARDI (inceleme ajanı 09-11):
+ * `kb-from-templates.ts` iç boşluğu kabul ediyordu (`{{ guestName }}`), bu dosya
+ * etmiyordu → aynı metin bir yüzeyde çözülüp ötekinde SİLİNİYORDU. Tek sabit.
+ */
+export const TEMPLATE_VAR_SOURCE = "\\{\\{(\\w+)\\}\\}";
+
 // ---------------------------------------------------------------------------
 // ŞABLON UYGULAMA — inbox yazma alanına doldurulan metin. Saf, DB'siz, ağsız.
 //
@@ -30,10 +39,19 @@ import { guestFirstNameOf, resolveGuestPlaceholder } from "./kb-placeholders";
  * Alternasyonda çift parantez ÖNCE denenir; `{{guestName}}` tek-parantez
  * dalına düşmez.
  */
-const TOKENS = /\{\{(\w+)\}\}|\{\s*(\p{L}+)\s*\}/gu;
+const TOKENS = new RegExp(`${TEMPLATE_VAR_SOURCE}|\\{\\s*(\\p{L}+)\\s*\\}`, "gu");
 
-/** Doldurulmamış kalan `{{…}}` — misafir ham belirteç GÖRMEMELİ. */
-const LEFTOVER_DOUBLE = /\{\{[^}]+\}\}/g;
+/**
+ * Doldurulmamış kalan `{{…}}` — misafir ham belirteç GÖRMEMELİ.
+ *
+ * 🚨 KALIP `TEMPLATE_VAR_SOURCE` İLE AYNI, `[^}]+` DEĞİL (inceleme ajanı 09-11):
+ * geniş biçim, misafir kontrolündeki bir değerin içinden başlayıp şablonun
+ * İLERİDEKİ `}}`sine kadar her şeyi yutuyordu. ÖLÇÜLDÜ: görünen ad `Ali{{` +
+ * şablon "Merhaba {{guestName}}, kapı kodu 1234. {{wifiInfo}}" + wifi kalemi yok
+ * → yazma alanında yalnız "Merhaba Ali" kalıyor, host'un kendi metni SESSİZCE
+ * siliniyordu. Dar kalıp yalnız DÜZGÜN YAZILMIŞ belirteci siler.
+ */
+const LEFTOVER_DOUBLE = new RegExp(TEMPLATE_VAR_SOURCE, "g");
 
 export function applyTemplateBody(body: string, vars?: Record<string, string>): string {
   let out = body;

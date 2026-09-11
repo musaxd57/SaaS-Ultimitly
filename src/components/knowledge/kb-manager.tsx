@@ -13,6 +13,7 @@ import { Textarea } from "@/components/ui/textarea";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Field } from "@/components/form-field";
+import { KbTemplateSuggestions } from "@/components/knowledge/kb-template-suggestions";
 import { KB_CATEGORY } from "@/lib/constants";
 import { cn } from "@/lib/utils";
 // YAPRAK modülden: `prompts.ts` (75 KB sistem promptu) tarayıcı paketinin
@@ -317,6 +318,7 @@ export function KbManager({
 
   return (
     <div className="space-y-4">
+      <KbTemplateSuggestions />
       {/* 🚨 UC KART KALDIRILDI (kurucu 09-11, ekran goruntuleriyle):
           · "Kurulum ve eksikler" (A3) — 40 satirlik "henuz kayit yok" listesi.
             Kurucu iki kez soyledi ("ya kaldirilsin ya sablon gibi baglamla

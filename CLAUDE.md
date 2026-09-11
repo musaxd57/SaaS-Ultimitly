@@ -1069,6 +1069,30 @@ Sekiz P1 KAPANDI (09-07), her biri ayrı commit, kırmızı-önce + iki yönlü 
   `reviewState` sözleşmesinin aynısı) · ③ KVKK (sır kapısı + ad redaksiyonu + retention purge + erasure
   bu yüzeye de uygulanır). Ölçüm planı ve karar tablosu:
   `docs/DEGERLENDIRME-2026-09-11-gecmis-cevap-yeniden-kullanimi.md`. Sıra: hibrit bayrağından SONRA.
+- 🚨 **İKİ BACAK AYNI KARTTA TAŞINMAZ (09-11, inceleme ajanı yakaladı — BENİM HATAM).** Bacak B'nin kartını
+  kaldırırken, İÇİNDE yaşayan **şablon bacağı da ölü koda döndü**: `fromTemplates`ın tek tüketicisi o karttı,
+  yani kurucunun açıkça istediği özellik ("şablondan bilgilerden veri alsın") AYNI PUSH içinde erişilemez
+  oldu ve commit mesajı bunu söylemedi. Ayrı bileşen: `kb-template-suggestions.tsx` (çalışan bacak, CANLI) ↔
+  `kb-past-answers.tsx` (tehlikeli bacak, KAPALI). Kartın çizildiği test-pinli — bir daha sessizce ölemez.
+  **Ders: bir kartı kaldırırken içindeki HER bacağın tüketicisini say.**
+- 🚨 **ÖZGÜLLÜK SIRASI (aynı inceleme):** org geneli şablon ÖNCE işlenirse tüm mülklerin yuvasını kapatır ve
+  MÜLKE ÖZEL şablon bir daha önerilemez. ÖLÇÜLDÜ: org geneli "Wi-Fi bilgisini ev sahibinizden isteyiniz" +
+  Daire'ye özel "Ağ: …, şifre 8821" → host'a GENEL metin gösteriliyordu. Sıralama artık `propertyId` önce,
+  dil sonra. `Array.sort` kararlılığı ES2019'dan beri spec — çağıranın `createdAt` sırası korunur.
+- 🚨 **`{{…}}` TEK KAYNAK + FAIL-CLOSED (aynı inceleme):** kalıp İKİ yerde AYRI yazılmıştı (`kb-from-templates`
+  iç boşluğu kabul, `template-apply` etmiyor) → aynı metin bir yüzeyde çözülüp ötekinde SİLİNİYORDU. Tek sabit
+  `TEMPLATE_VAR_SOURCE` (`template-apply.ts`). Ayrıca `\w` **ASCII**'dir: `{{misafirAdı}}` · `{{property.name}}`
+  · `{{guest-name}}` hiçbir kapıya takılmıyordu, yani "başka her `{{…}}` reddedilir" kuralı tam da tanımadığı
+  biçimlerde **FAIL-OPEN**'dı → `ANY_DOUBLE_BRACE` süpürgesi eklendi.
+- 🚨 **TEMİZLİK HOST'UN METNİNİ YUTUYORDU (aynı inceleme, pre-existing):** `template-apply`in
+  `LEFTOVER_DOUBLE` kalıbı `\{\{[^}]+\}\}` idi ve misafir kontrolündeki değerin içinden başlayıp şablonun
+  İLERİDEKİ `}}`sine kadar yutuyordu. ÖLÇÜLDÜ: görünen ad `Ali{{` + "Merhaba {{guestName}}, kapı kodu 1234.
+  {{wifiInfo}}" + wifi kalemi yok → yazma alanında yalnız **"Merhaba Ali"**. Kalıp `TEMPLATE_VAR_SOURCE`e
+  daraltıldı (yalnız DÜZGÜN yazılmış belirteci siler), iki yönlü pinli.
+- ⚠️ **Zayıflayan pin ve YANLIŞ commit iddiası (aynı inceleme):** `mobile-grid-min-width`teki mesaj sütunu
+  iddiası `hasClassSet(["min-w-0"], forbidden ["space-y-4"])` biçimine çevrilmişti; aynı dosyadaki ÜÇÜNCÜ bir
+  öznitelik (`min-w-0 flex-1`) iddiayı tatmin ediyordu → hedef sınıf silinse test YEŞİL kalırdı. Commit
+  mesajındaki "kapsam düşmedi" o satır için YANLIŞTI. TAM öznitelik eşitliğine çevrildi.
 - 🚨 **GEÇMİŞ HOST CEVAPLARI BACAĞI (Bacak B) — YÜZEYİ KAPATILDI (09-11, kurucunun CANLI ekranında ölçüldü).**
   `src/lib/kb-from-history.ts` + `api/kb/suggestions` duruyor, kart `kb-manager.tsx`ten SÖKÜLDÜ.
   Ürettiği çiftler YANLIŞTI ve yön TEHLİKELİYDİ: *"Otopark · örnek soru: do you have parking"* satırında

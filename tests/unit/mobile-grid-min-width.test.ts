@@ -160,10 +160,16 @@ describe("min-w-0 pini — ölçülmüş yatay kayma arızaları", () => {
       stripComments(src),
       "grid parçası daraldı/değişti — `1fr` tek başına `minmax(auto,1fr)` demektir ve arıza geri gelir",
     ).toContain("lg:grid-cols-[minmax(0,1fr)_20rem]");
+    // 🚨 TAM ÖZNİTELİK EŞİTLİĞİ (inceleme ajanı 09-11): `hasClassSet(["min-w-0"],
+    // forbidden ["space-y-4"])` biçimi ÖLÇÜLEBİLİR ŞEKİLDE ZAYIFTI — aynı dosyada
+    // `min-w-0 flex-1` taşıyan ÜÇÜNCÜ bir öznitelik var ve iddiayı O tatmin
+    // ediyordu, yani mesaj sütununun `min-w-0`ı silinse test YEŞİL kalırdı.
+    // (Commit mesajımdaki "kapsam düşmedi" bu satır için YANLIŞTI.) Mesaj sütunu
+    // TEK sınıf taşır; eşitlik onu tekil olarak belirler.
     expect(
-      hasClassSet(src, ["min-w-0"], ["space-y-4"]),
+      classAttributes(src),
       "mesaj sütunu min-w-0 kaybetti → uzun misafir linki sayfayı kaydırır (ölçüldü: 560)",
-    ).toBe(true);
+    ).toContain("min-w-0");
     expect(
       hasClassSet(src, ["min-w-0", "space-y-4"]),
       "gelen kutusu yan sütunu min-w-0 kaybetti",
@@ -256,5 +262,48 @@ describe("aynı hata sınıfının yayılmasına karşı", () => {
     ).toBeLessThanOrEqual(40);
     // ...ve gerçekten yalnız iskelet: içeride serbest metin/veri yok.
     expect(gridBody).not.toContain("truncate");
+  });
+});
+
+// ---------------------------------------------------------------------------
+// 3. KONUŞMA SAYFASI YÜKSEKLİK ZİNCİRİ (kurucu 09-11: "panel burada aşağı
+//    gidemesin, mesajların göründüğü yerin uzunluğunu arttır").
+//
+// Kart görünür alana sabitlenir, mesaj listesi ARTAN alanı alır. Üç şey birden
+// doğru olmazsa davranış sessizce eski hâline döner, o yüzden üçü de pinli.
+// ⚠️ Bu da bir KAYNAK TARAMASIDIR — jsdom düzen hesaplamaz. Ölçülen şey,
+//    davranışı üreten sınıfların sessizce silinmemesi.
+// ---------------------------------------------------------------------------
+const THREAD = "src/components/inbox/conversation-thread.tsx";
+/** Kart ve sağ rayın PAYLAŞTIĞI yükseklik ifadesi — ayrışırsa satır zıplar. */
+const VIEWPORT_H = "lg:h-[calc(100vh/0.95-11rem)]";
+
+describe("konuşma sayfası — yükseklik zinciri", () => {
+  it("kart ve sağ ray AYNI yükseklik ifadesini kullanır", () => {
+    expect(stripComments(read(THREAD)), "kart görünür alana sabitlenmiyor").toContain(VIEWPORT_H);
+    expect(stripComments(read(INBOX_PAGE)), "sağ ray kartla aynı yüksekliği kullanmıyor").toContain(VIEWPORT_H);
+  });
+
+  it("🚨 mesaj listesi `lg:flex-1` VE `lg:min-h-0` taşır", () => {
+    // `min-h-0` olmadan flex çocuğunun varsayılan `min-height:auto`su içeriğin
+    // tamamı kadar büyür → `overflow-y` HİÇ devreye girmez, kart uzar ve yazma
+    // kutusu ekrandan çıkar. İkisi birlikte olmadan kural yoktur.
+    expect(
+      hasClassSet(read(THREAD), ["lg:flex-1", "lg:min-h-0", "overflow-y-auto"]),
+      "mesaj listesi artan alanı almıyor (ya flex-1 ya min-h-0 kayıp)",
+    ).toBe(true);
+  });
+
+  it("MOBİLDE sabit tavan KORUNUR (orada sayfa kayar, kart yüksekliği dayatılmaz)", () => {
+    // Telefonda `100vh` tarayıcı çubuklarıyla yalan söyler; yükseklik dayatmak
+    // yazma kutusunu görünmez yapardı. Tavan o yüzden `lg:` ÖNEKSİZ kalır.
+    expect(hasClassSet(read(THREAD), ["max-h-[52vh]", "lg:max-h-none"])).toBe(true);
+  });
+
+  it("başlık ve yazma alanı EZİLMEZ (`shrink-0`)", () => {
+    // Aksi hâlde flex, artan alanı bulmak için önce onları sıkıştırır.
+    const src = read(THREAD);
+    expect(hasClassSet(src, ["shrink-0", "border-b", "border-border", "p-4"]), "başlık satırı shrink-0 değil").toBe(true);
+    expect(hasClassSet(src, ["shrink-0", "space-y-2", "p-4"]), "yazma alanı shrink-0 değil").toBe(true);
   });
 });

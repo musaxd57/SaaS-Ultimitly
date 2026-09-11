@@ -448,7 +448,17 @@ export function ConversationThread({
   }
 
   return (
-    <div className="flex flex-col rounded-xl border border-border bg-card">
+    // 🚨 KART EKRANI DOLDURUR, MESAJ LİSTESİ ARTANI ALIR (kurucu 09-11: "panel
+    // burada aşağı gidemesin, mesajların göründüğü yerin uzunluğunu arttır").
+    // Eski `max-h-[52vh]` SABİT bir tavandı: uzun konuşmada liste erken kesilip
+    // altında ölü boşluk kalıyordu, kısa konuşmada da aynı boşluk. Artık yükseklik
+    // GÖRÜNÜR ALANA bağlı ve liste `flex-1 min-h-0` ile artanı yutuyor.
+    // ⚠️ `11rem` = kabuk başlığı (3.5) + main dikey dolgusu (3) + eylem satırı ve
+    // aralığı (~4.5). Kabuk `zoom:.95` kullandığı için `100vh` de `/0.95` ile
+    // düzeltilir — `rem` de aynı zoom'dan geçtiği için ikisi TUTARLI ölçekte.
+    // `min-h` tabanı: kısa ekranda liste okunamayacak kadar ezilmesin.
+    // Mobilde (tek sütun, sayfa kayar) yükseklik DAYATILMAZ.
+    <div className="flex flex-col rounded-xl border border-border bg-card lg:h-[calc(100vh/0.95-11rem)] lg:min-h-[26rem]">
       {/* Görünmez canlı bölge: gönderim/durum sonuçları buraya yazılır.
           Ekranda yer kaplamaz ama ekran okuyucu okur. */}
       <p role="status" aria-live="polite" className="sr-only">
@@ -460,7 +470,7 @@ export function ConversationThread({
           'daire · Airbnb' de önceliğin sağında yazsın". Eskiden ad ve mülk
           kartın DIŞINDAKİ sayfa başlığındaydı ve kartın kendi başlık satırı
           yarı boştu; ikisi birleşince mesaj kutusuna bir satır yer açıldı. */}
-      <div className="flex flex-wrap items-center gap-x-3 gap-y-2 border-b border-border p-4">
+      <div className="flex shrink-0 flex-wrap items-center gap-x-3 gap-y-2 border-b border-border p-4">
         {guestName ? (
           <h2 className="mr-1 min-w-0 max-w-[16rem] truncate text-base font-semibold tracking-tight" title={guestName}>
             {guestName}
@@ -532,9 +542,13 @@ export function ConversationThread({
         tabIndex={0}
         role="group"
         aria-label="Mesaj geçmişi"
-        // 44vh → 52vh: sayfa başlığı kartın içine taşındı ve "Mülk" kartı
-        // kalktı; boşalan dikey alan mesajlara verildi (kurucu 09-11).
-        className="scrollbar-thin max-h-[52vh] space-y-3 overflow-y-auto p-4 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-ring"
+        // 🚨 SABİT TAVAN YOK (kurucu 09-11): `lg`de liste kartın ARTAN alanını
+        // alır (`flex-1 min-h-0`), yani başlık + AI paneli + yazma kutusu ne
+        // kadar yer bırakırsa o kadar. `min-h-0` ŞART: flex çocuğunun varsayılan
+        // `min-height:auto`su içeriğin tamamı kadar büyür ve `overflow-y` hiç
+        // devreye girmez — liste taşar, kart uzar, yazma kutusu ekrandan çıkar.
+        // Mobilde eski davranış: sayfa kaydığı için bir tavan gerekir.
+        className="scrollbar-thin max-h-[52vh] space-y-3 overflow-y-auto p-4 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-ring lg:max-h-none lg:min-h-0 lg:flex-1"
       >
         {messages.map((m) => (
           <div
@@ -626,7 +640,7 @@ export function ConversationThread({
       <Separator />
 
       {/* AI suggestion */}
-      <div className="space-y-3 p-4">
+      <div className="shrink-0 space-y-3 p-4">
         {/* 🚨 "Misafir cevap bekliyor / AI ile cevapla" DAVET KARTI KALDIRILDI
             (kurucu 09-11). Düğmesi hemen altındaki kalıcı "AI cevap öner" ile
             AYNI `handleSuggest()`i çağırıyordu — iki farklı isim, tek eylem.
@@ -875,7 +889,7 @@ export function ConversationThread({
 
       {/* Composer — owner/manager only; staff see a read-only thread. */}
       {canReply ? (
-        <div className="space-y-2 p-4">
+        <div className="shrink-0 space-y-2 p-4">
           {/* Placeholder bir AD DEĞİLDİR (yazmaya başlayınca kaybolur ve bazı
               ekran okuyucular hiç okumaz) → görünmez ama gerçek bir etiket.
               Gönderim hatası hem alana BAĞLI (aria-describedby + aria-invalid)

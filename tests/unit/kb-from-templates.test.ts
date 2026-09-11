@@ -275,3 +275,39 @@ describe("kiracı/kapsam", () => {
     expect(out[0].sourceTemplateId).toBe("tpl-42");
   });
 });
+
+describe("🚨 İNCELEME AJANI BULGULARI (09-11) — ölçülmüş iki kusur", () => {
+  it("ORG GENELİ şablon, MÜLKE ÖZEL olanı SUSTURMAZ", () => {
+    // ÖLÇÜLDÜ: org geneli önce işlenince tüm mülklerin yuvasını kapatıyor ve
+    // mülke özel şablon bir daha ÖNERİLEMİYORDU — host'a Daire 1 için GENEL
+    // metin gösteriliyor, doğru olan hiç görünmüyordu. Sonuç yaratma sırasına
+    // bağlıydı, yani host açısından rastgele.
+    const out = buildKbSuggestionsFromTemplates(
+      [
+        tpl({ id: "org", propertyId: null, body: "Wi-Fi bilgisini ev sahibinizden isteyiniz." }),
+        tpl({ id: "ozel", propertyId: "p1", body: "Ağ: Lale1_5G, şifre 8821." }),
+      ],
+      [],
+      PROPS,
+    );
+    const p1 = out.find((s) => s.propertyId === "p1");
+    expect(p1?.sourceTemplateId, "mülke özel şablon org genelinin altında kaldı").toBe("ozel");
+    expect(p1?.content).toContain("8821");
+    // Org geneli yine de BOŞ mülke (p2) önerilir — bastırılmadı, sıraya girdi.
+    expect(out.find((s) => s.propertyId === "p2")?.sourceTemplateId).toBe("org");
+  });
+
+  it("🚨 TANINMAYAN `{{…}}` biçimleri FAIL-CLOSED reddedilir", () => {
+    // ÖLÇÜLDÜ: kalıp `\w` kullanıyor ve `\w` ASCII'dir → Türkçe harf, nokta ve
+    // tire taşıyan değişken adları HİÇBİR kapıya takılmıyordu; `kbPlaceholderTokens`
+    // de bu sınıfı tanımaz → metin ONAYLI BİLGİ olup misafire HAM gidebiliyordu.
+    for (const body of [
+      "Merhaba {{misafirAdı}}, ağ NuveApt yok, şifre 12345678.",
+      "Hoş geldiniz {{property.name}} sakini.",
+      "Merhaba {{guest-name}}.",
+      "Merhaba {{ guestName }}, şifre 12345678.", // iç boşluk: inbox bunu SİLER
+    ]) {
+      expect(buildKbSuggestionsFromTemplates([tpl({ body })], [], PROPS), body).toEqual([]);
+    }
+  });
+});

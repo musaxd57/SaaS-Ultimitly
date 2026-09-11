@@ -123,10 +123,15 @@ describe("🚨 A3/A4 YÜZEYİ KALDIRILDI — panel KbManager'a bağlı DEĞİL",
     expect(screen.queryByRole("button", { name: /Şablonla doldur/ })).toBeNull();
   });
 
-  it("kaldırılan diğer iki kart da çizilmez (kendi cevaplarınız / metinden çıkar)", () => {
+  it("kaldırılan diğer iki kart çizilmez AMA şablon kartı ÇİZİLİR", () => {
+    // 🚨 BU SATIR BİR HATAYI PİNLER (inceleme ajanı 09-11): "Kendi cevaplarınızdan
+    // öneriler" kartı kaldırılınca, İÇİNDE yaşayan ŞABLON bacağı da ölü koda
+    // döndü — yani kurucunun açıkça istediği özellik aynı push içinde erişilemez
+    // oldu. İki bacak artık AYRI bileşende; tehlikeli olan kapalı, çalışan açık.
     render(<KbManager properties={PROPS} items={[]} />);
     expect(screen.queryByText(/Kendi cevaplarınızdan öneriler/)).toBeNull();
     expect(screen.queryByText(/Metinden bilgi çıkar/)).toBeNull();
+    expect(screen.getByText(/Şablonlarınızdan/), "şablon bacağı yine ölü kod").toBeTruthy();
   });
 
   // Bileşenin KENDİ sözleşmesi korunuyor (yukarıdaki KbGapsPanel blokları) —

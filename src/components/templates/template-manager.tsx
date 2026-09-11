@@ -72,7 +72,11 @@ export function TemplateManager({ properties, customTemplates, defaultTemplates,
   function openForm() {
     setError(null);
     setShowForm(true);
-    requestAnimationFrame(() => formRef.current?.scrollIntoView({ behavior: "smooth", block: "nearest" }));
+    // ⚠️ KORUMALI ÇAĞRI: `scrollIntoView` her ortamda YOK (jsdom'da tanımsız).
+    // Korumasız hâli bu depoda bir kez tam suit'i üç "unhandled error" ile
+    // kırmıştı; `requestAnimationFrame` içinde olduğu için React error boundary
+    // de yakalamaz (inceleme ajanı 09-11 — aynı ders silinen koddaydı).
+    requestAnimationFrame(() => formRef.current?.scrollIntoView?.({ behavior: "smooth", block: "nearest" }));
   }
 
   function openNew() {

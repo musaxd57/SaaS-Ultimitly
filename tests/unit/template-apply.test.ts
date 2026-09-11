@@ -119,3 +119,20 @@ describe("temizlik", () => {
     expect(applyTemplateBody("  A\n\n\n\nB  ", VARS)).toBe("A\n\nB");
   });
 });
+
+describe("🚨 TEMİZLİK HOST'UN METNİNİ YUTMAZ (inceleme ajanı 09-11)", () => {
+  it("misafir adı `Ali{{` ise şablonun geri kalanı SİLİNMEZ", () => {
+    // ÖLÇÜLDÜ: geniş temizlik kalıbı (`\{\{[^}]+\}\}`) misafir kontrolündeki
+    // değerin içinden başlayıp şablonun İLERİDEKİ `}}`sine kadar her şeyi
+    // yutuyordu → yazma alanında yalnız "Merhaba Ali" kalıyor, host'un kendi
+    // metni (kapı kodu dahil) sessizce kayboluyordu.
+    const out = applyTemplateBody("Merhaba {{guestName}}, kapı kodu 1234. {{wifiInfo}}", {
+      ...VARS,
+      guestName: "Ali{{",
+      wifiInfo: "", // mülkte wifi kalemi yok — çok yaygın
+    });
+    expect(out, "host'un metni yutuldu").toContain("kapı kodu 1234");
+    expect(out).toContain("Ali{{");
+    expect(out, "doldurulmamış {{wifiInfo}} yine de temizlenmeli").not.toContain("wifiInfo");
+  });
+});

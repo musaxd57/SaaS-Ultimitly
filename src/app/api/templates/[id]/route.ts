@@ -9,7 +9,10 @@ import { zodFieldErrors } from "@/lib/validators";
 const templateUpdateSchema = z.object({
   title: z.string().min(2).max(300).optional(),
   body: z.string().min(2).max(20000).optional(),
-  category: z.string().max(80).optional(),
+  // `min(1)` create şemasıyla PARİTE (inceleme ajanı 09-11): eksikti ve
+  // `PATCH {"category": ""}` boş kategori yazıyordu — liste rozeti boşalıyor ve
+  // o şablon bir daha KB önerisi olamıyordu (allowlist "" anahtarını tanımaz).
+  category: z.string().min(1, "Kategori gerekli").max(80).optional(),
   language: z.string().max(10).optional(),
   isActive: z.boolean().optional(),
   // 🚨 "Tüm mülkler" ↔ tek mülk taşıması. Alan YOKKEN düzenleme ekranı mülk
