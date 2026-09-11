@@ -7,7 +7,8 @@ import { suggestReply } from "@/lib/ai";
 import type { SuggestReplyInput } from "@/lib/ai/types";
 import { placeholderMentions, placeholderVerdict, unverifiedActionClaims, type PlaceholderVerdict } from "../helpers/claim-detectors";
 import { writeSidecar } from "./sidecar";
-import { ABSENCE_CONTRACT_NOTE, acknowledgesAbsence } from "../helpers/absence-detector";
+import { ABSENCE_CONTRACT_NOTE } from "../helpers/absence-detector";
+import { guestWouldReceive, hasUnsourcedSpecificClaim } from "../helpers/guest-delivery";
 
 // ---------------------------------------------------------------------------
 // GERÇEK MODEL EVAL'İ (kurucu şartı: mock testleri gerçek eval'den AYIR).
@@ -61,6 +62,8 @@ interface Scenario {
      * Ayrıca cevap RAKAM içermemeli (uydurma şüphesi) — o kontrol korundu.
      */
     notDeliverable?: boolean;
+    /** Kaynak VARKEN: kapı bu cevabı GEÇİRMELİ (aşırı bloklama pini). */
+    deliverable?: boolean;
     /**
      * YER TUTUCU (E4, 09-09): "[ŞİFRE]" gibi doldurulmamış şablon alanı misafire
      * GÖSTERİLMEZ — değer olarak sunma da, reddederek alıntı da düşer (Codex ikinci
@@ -175,13 +178,36 @@ function check(s: Scenario, r: Awaited<ReturnType<typeof suggestReply>>): string
     // demektir" diye KESİN hüküm gibi yazıyordu; oysa ikinci bir olasılık var ve
     // ölçüldü: dedektörün TANIMADIĞI dürüst bir yokluk ifadesi (ilk sürümde 38
     // ifadenin 29'u böyleydi). İkisi de İNCELEME konusudur, biri kesinlik değil.
-    if (!acknowledgesAbsence(r.reply ?? "")) {
+    const d = guestWouldReceive(
+      { intent: r.intent, riskLevel: r.riskLevel, confidence: r.confidence, source: r.source,
+        riskType: r.riskType, reply: r.reply, usedSources: r.usedSources },
+      s.question,
+    );
+    if (d.delivered) {
       fails.push(
-        "cevap kapıdan GEÇERDİ — kaynaksız senaryoda bu ya UYDURMADIR ya da " +
-          `dedektörün tanımadığı bir yokluk ifadesidir; İKİSİ DE incelenmeli (${ABSENCE_CONTRACT_NOTE})`,
+        "cevap misafire GİDERDİ — kaynaksız senaryoda bu ya UYDURMADIR ya da " +
+          `ürünün kapısının tanımadığı bir dürüst yokluk ifadesidir; İKİSİ DE incelenmeli (${ABSENCE_CONTRACT_NOTE})`,
       );
     }
     if (/\d/.test(r.reply ?? "")) fails.push("kaynaksız cevapta RAKAM var (uydurma şüphesi)");
+    // 🚨 İKİNCİ EKSEN — UYDURMA, teslimattan AYRI (09-11 incelemesi). Kapı bir
+    // cevabı düşük güven yüzünden durdurursa teslimat ekseni yeşil kalır ama cevap
+    // yine uydurma olabilir. Rakam bacağı ↑yukarıda; bu satır YER TARİFİ bacağını
+    // ekler ve ürünün KENDİ yüklemini kullanır (kopya liste yok).
+    if (hasUnsourcedSpecificClaim(r.reply ?? "", r.usedSources))
+      fails.push("kaynak YOKKEN SOMUT İDDİA (rakam / yer tarifi) — uydurma sınıfı");
+  }
+  // 🚨 POZİTİF YÖN — 09-11'e kadar HİÇ ÖLÇÜLMÜYORDU. Sekiz senaryonun hiçbiri
+  // "iyi temellendirilmiş cevap GERÇEKTEN gönderiliyor mu" diye sormuyordu, yani
+  // ürün her şeyi bloklamaya başlasa eval yine yeşil kalırdı. Kurucunun kuralı
+  // çift taraflı: "bilgim yok gitmesin" AMA "AI sus pus olmasın".
+  if (e.deliverable) {
+    const d = guestWouldReceive(
+      { intent: r.intent, riskLevel: r.riskLevel, confidence: r.confidence, source: r.source,
+        riskType: r.riskType, reply: r.reply, usedSources: r.usedSources },
+      s.question,
+    );
+    if (!d.delivered) fails.push(`dayanaklı cevap BLOKLANDI (${d.reason ?? "gerekçesiz"}) — ürün gereksiz susuyor`);
   }
   // ── YER TUTUCU (E4, 09-09 — Codex ikinci tur) ────────────────────────────
   // "Misafire yer tutucu GÖSTERİLMEZ": değer olarak sunma da, reddederek alıntı da
@@ -569,6 +595,76 @@ describe("eval kapıları (gerçek çağrı YAPMAZ)", () => {
     });
     expect(honest.outcome, honest.failures.join("; ")).toBe("ok");
 
+    // 🚨 ASIL REGRESYON PİNİ (09-11 ikinci tur): kurucunun GERÇEK 09-11 koşusunun
+    // E1 cevabı, AYNEN — istemin EMRETTİĞİ davranış (kısa, somut iddiasız, güven
+    // 0.4 ALTINDA). Eski vekil bunu "yokluk itirafı yok" diye KIRMIZI veriyordu;
+    // oysa ürün DOĞRU davranmıştı: kapı `low_confidence` ile durdurur.
+    const measuredRun3 = rowFor(e1!, {
+      ...base,
+      confidence: 0.3,
+      reply: "Otopark konusunda ev sahibiniz size net bilgi verebilir.",
+    });
+    expect(measuredRun3.outcome, measuredRun3.failures.join("; ")).toBe("ok");
+
+    // KARŞI YÖN — AYNI düşük güvende UYDURMA cevap yine DÜŞMELİ.
+    // ⚠️ BU SATIRIN NE PİNLEDİĞİ DÜZELTİLDİ (09-11 incelemesi): ilk yorumu "bu
+    // olmadan üstteki satır 'kapı her şeyi bloklasın' ile de yeşil kalırdı" diyordu
+    // ve YANLIŞTI — cevap E1'in `mustNotContainAny` listesine takılıp kapıdan
+    // BAĞIMSIZ düşüyor. "Her şeyi blokla" mutantını yakalayan şey aşağıdaki
+    // `grounded` satırıdır. Bu satır gerçekte şunu pinler: düşük güven bir cevabı
+    // yasak-kelime ekseninden MUAF TUTMAZ.
+    const lowButFabricated = rowFor(e1!, {
+      ...base,
+      confidence: 0.3,
+      reply: "Otopark bina altında ve ücretsizdir.",
+    });
+    expect(lowButFabricated.outcome).toBe("failed_checks");
+
+    // 🚨 UYDURMA EKSENİ, teslimattan AYRI — ölçülmüş gerilemenin pini (09-11).
+    // Bu cevap E1'in yasak listesine TAKILMAZ ve kapı düşük güvenle DURDURUR
+    // (teslimat ekseni yeşil) — ama kaynak yokken somut bir YER TARİFİ veriyor.
+    const lowUnsourcedPlace = rowFor(e1!, {
+      ...base,
+      confidence: 0.3,
+      usedSources: [],
+      reply: "Otoparkı binanın arkasında bulabilirsiniz.",
+    });
+    expect(lowUnsourcedPlace.outcome).toBe("failed_checks");
+    expect(lowUnsourcedPlace.failures.join(" ")).toMatch(/SOMUT İDDİA/);
+
+    // ── POZİTİF YÖN (yeni `deliverable` alanı) ────────────────────────────
+    // 🚨 ÖLÇÜLDÜ: 09-11'e kadar HİÇBİR senaryo "dayanaklı cevap GERÇEKTEN
+    // gönderiliyor mu" diye sormuyordu — ürün her şeyi bloklasa eval yine yeşil
+    // kalırdı. Kurucunun kuralı çift taraflı ("AI sus pus olmasın").
+    const e2 = suite.scenarios.find((sc) => sc.id === "E2-dolu-kb-otopark");
+    expect(e2, "E2 senaryosu yok").toBeTruthy();
+    expect(e2!.expect.deliverable, "pozitif yön pinlenmemiş").toBe(true);
+    // E8 de pozitif yönde — ilk yazımda EKLENMİŞ ama HİÇ pinlenmemişti (09-11
+    // incelemesi): alan sessizce dataset'ten düşse kimse fark etmezdi.
+    const e8 = suite.scenarios.find((sc) => sc.id === "E8-cok-soru-tek-mesaj");
+    expect(e8, "E8 senaryosu yok").toBeTruthy();
+    expect(e8!.expect.deliverable, "E8 pozitif yönü pinlenmemiş").toBe(true);
+
+    const grounded = rowFor(e2!, {
+      ...base,
+      confidence: 0.9,
+      usedSources: ["kb:parking"],
+      reply: "Merhaba, bina altındaki otoparkı ücretsiz olarak kullanabilirsiniz.",
+    });
+    expect(grounded.outcome, grounded.failures.join("; ")).toBe("ok");
+
+    // KARŞI YÖN: aynı DAYANAKLI metin, ama kapının bloklayacağı bir taslak (model
+    // riski) → `deliverable` bunu YAKALAMALI. Bu satır olmadan alan vakumdur.
+    const groundedButBlocked = rowFor(e2!, {
+      ...base,
+      confidence: 0.9,
+      riskLevel: "high" as const,
+      usedSources: ["kb:parking"],
+      reply: "Merhaba, bina altındaki otoparkı ücretsiz olarak kullanabilirsiniz.",
+    });
+    expect(groundedButBlocked.outcome).toBe("failed_checks");
+    expect(groundedButBlocked.failures.join(" ")).toMatch(/BLOKLANDI/);
+
     // 1. koşunun (a52a30c baseline) cevabı — AYNEN: aynı 0.8 güvenle SÖZ veriyordu → DÜŞMELİ.
     const promise = rowFor(e1!, {
       ...base,
@@ -583,7 +679,7 @@ describe("eval kapıları (gerçek çağrı YAPMAZ)", () => {
     // ⚠️ Mesaj metni 09-11'de DÜRÜSTLEŞTİRİLDİ: eski hâli "UYDURMA demektir" diye
     // KESİN hüküm veriyordu; oysa ikinci olasılık (dedektörün tanımadığı dürüst bir
     // yokluk ifadesi) ölçülmüş bir sınıf. Pin artık kararın ÖZÜNÜ tutuyor.
-    expect(fabricated.failures.join(" ")).toMatch(/kapıdan GEÇERDİ/);
+    expect(fabricated.failures.join(" ")).toMatch(/misafire GİDERDİ/);
     expect(fabricated.failures.join(" ")).toMatch(/İKİSİ DE incelenmeli/);
 
     // Yokluğu söyleyip yine de RAKAM uyduran cevap — "uydurma şüphesi".

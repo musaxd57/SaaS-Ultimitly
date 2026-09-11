@@ -36,7 +36,8 @@ export interface PairedScenario {
     forbidden?: string[];
     noUnverifiedCommitment?: boolean;
     noDefiniteValue?: boolean;
-    acknowledgeAbsenceWhenGoldMissing?: boolean;
+    /** Kaynak istemde YOKKEN: ürünün kapısı bu cevabı DURDURMALI (09-11: itiraf değil TESLİMAT ölçülür). */
+  notDeliverableWhenGoldMissing?: boolean;
     usedSourcesEmptyWhenGoldMissing?: boolean;
     why: string;
   };

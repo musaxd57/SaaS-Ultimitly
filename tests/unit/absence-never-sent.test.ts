@@ -3,6 +3,8 @@ import { readFileSync } from "node:fs";
 import path from "node:path";
 import { admitsMissingKnowledge } from "@/lib/ai/absence";
 import { passesAutoReplySafetyGate } from "@/lib/automation";
+import { evaluateEscalation } from "@/lib/guest-chat-gate";
+import { guestWouldReceive } from "../helpers/guest-delivery";
 
 // ---------------------------------------------------------------------------
 // KURUCU KURALI (09-11): **"bilgim yok" MİSAFİRE ASLA GİTMEZ.**
@@ -73,20 +75,59 @@ describe("'bilgim yok' misafire GİTMEZ — oto-yanıt kapısı", () => {
 });
 
 describe("QR rotası PARİTE — aynı yüklem, tek kaynak", () => {
-  it("QR kapısı `admitsMissingKnowledge` kullanır ve gerekçe kapalı kümede", () => {
-    // ⚠️ Kaynak taraması tek yönlüdür; davranışsal yarı yukarıdaki kapı testlerinde
-    // (iki yüzey AYNI saf yüklemi çağırıyor). Buradaki amaç: QR dalının sessizce
-    // kaldırılması ya da ayrı bir kopyaya bağlanması hâlinde suit'in kırmızıya düşmesi.
-    const route = readFileSync(
-      path.resolve(__dirname, "../../src/app/api/chat/[token]/route.ts"),
-      "utf8",
+  // 🚨 ARTIK DAVRANIŞSAL (09-11): kapı rota dosyasından saf bir modüle taşındı
+  // (`src/lib/guest-chat-gate.ts`), yani ÇAĞRILABİLİR. Eski hâli rota kaynağını
+  // tarayan bir metin eşleşmesiydi — CLAUDE.md'nin kendi kuralı: "kaynak taraması
+  // tek yönlüdür → davranışsal test". Kalan tek kaynak taraması, gerekçenin
+  // kapalı kümede durduğunu doğrulayan satırdır (orası gerçekten metin sözleşmesi).
+  it("QR kapısı yokluk itirafını BLOKLAR (gerçek kapı çağrılıyor)", () => {
+    const v = evaluateEscalation(
+      { intent: "parking", riskLevel: "none", confidence: 0.95, source: "openai", reply: "Bu konuda kayıtlı bilgim yok." },
+      "Otopark var mı?",
     );
-    expect(route).toContain('from "@/lib/ai/absence"');
-    expect(route).toContain('admitsMissingKnowledge(result.reply)');
-    expect(route).toContain('yes("absence_admission")');
+    expect(v.escalate, "yokluk itirafı misafire giderdi").toBe(true);
+    expect(v.reason).toBe("absence_admission");
+  });
 
+  it("🚨 KARŞI YÖN: dayanaklı cevap AYNI güvende GEÇER (aşırı bloklama yok)", () => {
+    // Bu satır olmadan üstteki iddia "kapı her şeyi bloklasın" ile de yeşil kalırdı.
+    const v = evaluateEscalation(
+      { intent: "parking", riskLevel: "none", confidence: 0.95, source: "openai", reply: "Otopark binanın altında, ücretsiz." },
+      "Otopark var mı?",
+    );
+    expect(v.escalate, "dayanaklı cevap haksız yere bloklandı").toBe(false);
+    expect(v.reason).toBeNull();
+  });
+
+  it("🚨 riskLevel ÖLÇÜLMEMİŞSE kapı GEVŞEMEZ (eval helper'ı 'high' varsayar)", () => {
+    // Eşleştirilmiş retrieval raporu `riskType`i hiç kaydetmiyor, `riskLevel`i
+    // kaydetmeyen bir koşu da olabilir. Eksik alanı "risksiz" saymak, evalin
+    // ürünü OLDUĞUNDAN DAHA GEVŞEK göstermesi demektir — F01'in "eksik =
+    // tanınmayan = high" kuralının eval karşılığı.
+    const missing = guestWouldReceive(
+      { intent: "parking", confidence: 0.95, source: "openai", reply: "Otopark bina altında." },
+      "Otopark var mı?",
+    );
+    expect(missing.delivered, "ölçülmemiş riskLevel gevşetme üretti").toBe(false);
+    expect(missing.reason).toBe("model_risk_level");
+  });
+
+  it("🚨 para/şikâyet/insan-talebi niyeti QR'da HER ZAMAN devredilir", () => {
+    // Kanal kapısıyla ölçmenin gizleyeceği fark: `human_request` kanalda
+    // devir-ack'i olarak GEÇER, QR'da geçmez (kapıda devredilecek insan yok).
+    for (const intent of ["complaint", "refund", "early_departure", "human_request"]) {
+      const v = guestWouldReceive(
+        { intent, riskLevel: "none", confidence: 0.99, source: "openai", reply: "Tamamdır, hallediyorum." },
+        "Bir şey soracaktım.",
+      );
+      expect(v.delivered, `${intent} misafire giderdi`).toBe(false);
+      expect(v.reason).toBe("escalate_intent");
+    }
+  });
+
+  it("gerekçe kapalı kümede (yoksa NULL'a kırpılır)", () => {
     const risk = readFileSync(path.resolve(__dirname, "../../src/lib/risk-events.ts"), "utf8");
-    expect(risk, "gerekçe kapalı kümede olmalı, yoksa NULL'a kırpılır").toContain('"absence_admission"');
+    expect(risk).toContain('"absence_admission"');
   });
 
   it("eval harness'ı ÜRÜNLE aynı yüklemi kullanır (kopya yazılamaz)", () => {

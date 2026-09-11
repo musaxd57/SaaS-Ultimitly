@@ -94,7 +94,7 @@ E1'in cevabı (aynen): *"Otopark konusunda kayıtlı bilgim yok; mesajınız kay
 | # | Nesne | Nerede üretiliyor | Eval bunu ölçüyor mu |
 |---|---|---|---|
 | 1 | **Model taslağı** | `suggestReply()` → `{reply, confidence, riskLevel, intent, usedSources…}` | ✅ tek ölçtüğü |
-| 2 | **Gönderim kararı** | `api/chat/[token]/route.ts` `evaluateEscalation()` → `{escalate, reason}` | ❌ |
+| 2 | **Gönderim kararı** | `lib/guest-chat-gate.ts` `evaluateEscalation()` → `{escalate, reason}` (09-11'e kadar rotanın içindeydi) | ❌ |
 | 3 | **TESLİM EDİLEN mesaj** | ya modelin `reply`i ya `escalationReply()` | ❌ |
 
 `escalationReply()` (`guest-chat.ts:725`) şunu döner: *"Mesajınız kaydedildi; ev sahibiniz sohbet
@@ -202,6 +202,17 @@ onayda kalmalı. Taşımaya gerek de yokmuş — `tests/integration/qr-draft-vs-
 kalıyor ve karar + çıkan metin yine ölçülüyor. Ürün kodunda **tek satır değişmedi**.
 🚨 Bu bir KARAKTERİZASYON testidir: bugünkü davranışı sabitler, P1/P4/P5 uygulandığında hangi
 satırın değiştiğini tek bakışta gösterir.
+
+> ⚠️ **BU MADDE 09-11'DE GEÇERSİZLEŞTİ — kayıt dürüstlüğü için silinmedi.**
+> Kapı O TARİHTE taşındı (`src/lib/guest-chat-gate.ts`), yani "ürün kodunda tek satır
+> değişmedi" cümlesi ARTIK DOĞRU DEĞİL. Sebep: yukarıdaki alternatif GERÇEK MODEL
+> eval'inde kullanılamıyor — `qr-draft-vs-delivered` rotayı çağırırken modeli MOCK'lar
+> ve DB ister; eval ise gerçek modeli çağırır, DB'siz koşar. Kapı taşınmadan eval,
+> kapının on iki dalından BİRİNİ vekil olarak ölçmeye devam ediyordu ve kurucunun
+> 09-11 koşusundaki dokuz kırmızının sekizi tam bu vekilden geldi.
+> Taşıma BİREBİR (tek fark `export`), davranış değişmedi. Codex'in itirazının geçerli
+> kalan kısmı — "bu kurucunun görmesi gereken bir şey" — kabul edildi ve açıkça
+> raporlandı: `docs/TASARIM-2026-09-11-eval-gercek-kapiya-baglanma.md` §0.
 
 **Ö2 — Eval ÜÇ NESNEYİ ayrı raporlar.** Her senaryo için: (1) model taslağı, (2)
 `evaluateEscalation` kararı + gerekçe kodu, (3) **teslim edilecek metin** (`escalate ? escalationReply() : reply`).

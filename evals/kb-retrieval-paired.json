@@ -6,45 +6,117 @@
     "Bu dosya SÜRÜMLÜDÜR ve anonimdir: gerçek misafir/host metni YOKTUR. Bilgi tabanı `tests/helpers/kb-retrieval-scenarios.ts` dolgularından + burada yazılı kalemlerden kurulur (kb.fillers = ilk N dolgu, kb.extra = senaryo kalemleri; age: oldest = dolgulardan eski → legacy'nin en-yeni-30'undan DÜŞER, newest = dolgulardan yeni → iki mod da görür).",
     "Beklentiler MODDAN BAĞIMSIZ yazılır; hangi modda gold'un istemde olduğu KODDAN ölçülür ve kontrol ona göre dallanır: gold istemdeyse cevap ona DAYANMALI; istemde değilse cevap 'doğru' çıksa bile DESTEKSİZDİR (şans/uydurma) ve yokluk söylenmelidir.",
     "Sentetik retrieval ölçümü (`kb-retrieval-scale`) ile bu gerçek-model ölçümü AYRI TUTULUR: oradaki inPrompt 'kaynak bloğa girdi mi'dir, buradaki 'cevap doğru mu'dur; ikisi birbirinin yerine geçmez.",
-    "Gerçek çağrıyı KURUCU yapar (`npm run eval`, RUN_REAL_EVAL=1 + anahtar). Bu ortamda anahtar yoktur; senaryolar atlanır, çevrimdışı testler eşleştirmenin kendisini pinler."
+    "Gerçek çağrıyı KURUCU yapar (`npm run eval`, RUN_REAL_EVAL=1 + anahtar). Bu ortamda anahtar yoktur; senaryolar atlanır, çevrimdışı testler eşleştirmenin kendisini pinler.",
+    "2026-09-11: `acknowledgeAbsenceWhenGoldMissing` → `notDeliverableWhenGoldMissing`. Eskiden modelin 'bilgim yok' DEMESİ şart koşuluyordu; o şart KURAL-5'in kalıp cümlesi istemden kaldırıldıktan sonra ürünün EMRETTİĞİ davranışla ÇELİŞTİ ve kurucunun gerçek koşusunda yedi SATIRI (altı senaryo; R6 hem legacy hem hibritte) kırmızı yaptı. Ölçüldü: o satırların hepsini ürünün kapısı zaten durduruyordu — ama `low_confidence` dalıyla, yokluk itirafıyla DEĞİL. Yeni ölçüt itiraf değil TESLİMAT: kaynak isteme girmediyse ürün misafire kesin bir şey söylememeli. 🚨 EK (09-11 ikinci tur): teslimat TEK BAŞINA yetmiyor — düşük güvenli bir UYDURMA kapıda durur ve teslimat ekseni yeşil kalır. Bu yüzden ikinci eksen eklendi: kaynak yokken cevap SOMUT İDDİA (rakam/yer tarifi) taşımamalı; ölçen, ürünün kendi yüklemi `hasUnsourcedSpecificClaim`."
   ],
   "scenarios": [
     {
       "id": "R1-uzun-rehber-ortasi",
       "question": "Otopark var mı?",
-      "kb": { "fillers": 34, "excludeTopics": ["metro", "airport"], "extra": [{ "ref": "guide", "age": "oldest" }] },
-      "gold": { "needles": ["açık otoparka ücretsiz"] },
+      "kb": {
+        "fillers": 34,
+        "excludeTopics": [
+          "metro",
+          "airport"
+        ],
+        "extra": [
+          {
+            "ref": "guide",
+            "age": "oldest"
+          }
+        ]
+      },
+      "gold": {
+        "needles": [
+          "açık otoparka ücretsiz"
+        ]
+      },
       "expect": {
-        "correctAny": ["ücretsiz", "arkasındaki", "açık otopark"],
-        "forbidden": ["bina altı", "garaj", "ücretli"],
+        "correctAny": [
+          "ücretsiz",
+          "arkasındaki",
+          "açık otopark"
+        ],
+        "forbidden": [
+          "bina altı",
+          "garaj",
+          "ücretli"
+        ],
         "noUnverifiedCommitment": true,
-        "acknowledgeAbsenceWhenGoldMissing": true,
-        "why": "7k rehberin ORTASINDAKİ otopark cümlesi; kalem en eski → legacy'de rehber en-yeni-30 dışında kalır, hibrit parçayı seçer. Kıyas: legacy dürüst 'bilgim yok' demeli, hibrit doğru cevaplamalı."
+        "notDeliverableWhenGoldMissing": true,
+        "why": "7k rehberin ORTASINDAKİ otopark cümlesi; kalem en eski → legacy'de rehber en-yeni-30 dışında kalır, hibrit parçayı seçer. Legacy'de kaynak istemde YOKTUR: ölçüt artık modelin 'bilgim yok' DEMESİ değil (o kural 83630c4 ile istemden kalktı), ürünün o cevabı MİSAFİRE GÖNDERMEMESİ + kaynaksız SOMUT İDDİA taşımaması."
       }
     },
     {
       "id": "R2-yazim-hatasi",
       "question": "otopakr var mı",
-      "kb": { "fillers": 34, "extra": [{ "id": "kb_parking", "category": "parking", "title": "Otopark", "content": "Bina altı otopark misafirler için ücretsizdir; giriş yan sokaktan.", "age": "oldest" }] },
-      "gold": { "needles": ["Bina altı otopark"] },
+      "kb": {
+        "fillers": 34,
+        "extra": [
+          {
+            "id": "kb_parking",
+            "category": "parking",
+            "title": "Otopark",
+            "content": "Bina altı otopark misafirler için ücretsizdir; giriş yan sokaktan.",
+            "age": "oldest"
+          }
+        ]
+      },
+      "gold": {
+        "needles": [
+          "Bina altı otopark"
+        ]
+      },
       "expect": {
-        "correctAny": ["ücretsiz", "bina altı", "yan sokak"],
-        "forbidden": ["garaj katı", "ücretli"],
+        "correctAny": [
+          "ücretsiz",
+          "bina altı",
+          "yan sokak"
+        ],
+        "forbidden": [
+          "garaj katı",
+          "ücretli"
+        ],
         "noUnverifiedCommitment": true,
-        "acknowledgeAbsenceWhenGoldMissing": true,
+        "notDeliverableWhenGoldMissing": true,
         "why": "Yazım hatalı soru; kalem eski. Legacy kalemi göremez; hibrit fuzzy ile bulur."
       }
     },
     {
       "id": "R3-ingilizce-soru",
       "question": "Is there parking for my car?",
-      "kb": { "fillers": 34, "extra": [{ "id": "kb_parking", "category": "parking", "title": "Otopark", "content": "Bina altı otopark misafirler için ücretsizdir; giriş yan sokaktan.", "age": "oldest" }] },
-      "gold": { "needles": ["Bina altı otopark"] },
+      "kb": {
+        "fillers": 34,
+        "extra": [
+          {
+            "id": "kb_parking",
+            "category": "parking",
+            "title": "Otopark",
+            "content": "Bina altı otopark misafirler için ücretsizdir; giriş yan sokaktan.",
+            "age": "oldest"
+          }
+        ]
+      },
+      "gold": {
+        "needles": [
+          "Bina altı otopark"
+        ]
+      },
       "expect": {
-        "correctAny": ["free", "under the building", "side street", "ücretsiz", "bina altı"],
-        "forbidden": ["paid parking", "no parking", "ücretli"],
+        "correctAny": [
+          "free",
+          "under the building",
+          "side street",
+          "ücretsiz",
+          "bina altı"
+        ],
+        "forbidden": [
+          "paid parking",
+          "no parking",
+          "ücretli"
+        ],
         "noUnverifiedCommitment": true,
-        "acknowledgeAbsenceWhenGoldMissing": true,
+        "notDeliverableWhenGoldMissing": true,
         "why": "İngilizce soru / Türkçe kalem (sözlük köprüsü); kalem eski. n-gram 'auto' İngilizce sorguya dokunmaz — sözcüksel köprü tek başına yeterli mi ölçülür."
       }
     },
@@ -54,14 +126,35 @@
       "kb": {
         "fillers": 20,
         "extra": [
-          { "id": "kb_parking", "category": "parking", "title": "Otopark", "content": "Bina altı otopark ücretsizdir.", "age": "newest" },
-          { "id": "kb_trash", "category": "trash", "title": "Çöp", "content": "Çöpler yan sokaktaki yeşil konteynere bırakılır.", "age": "newest" }
+          {
+            "id": "kb_parking",
+            "category": "parking",
+            "title": "Otopark",
+            "content": "Bina altı otopark ücretsizdir.",
+            "age": "newest"
+          },
+          {
+            "id": "kb_trash",
+            "category": "trash",
+            "title": "Çöp",
+            "content": "Çöpler yan sokaktaki yeşil konteynere bırakılır.",
+            "age": "newest"
+          }
         ]
       },
-      "gold": { "needles": ["Bina altı otopark", "yeşil konteynere"] },
+      "gold": {
+        "needles": [
+          "Bina altı otopark",
+          "yeşil konteynere"
+        ]
+      },
       "expect": {
-        "correctAny": ["otopark"],
-        "correctAll": ["konteyner"],
+        "correctAny": [
+          "otopark"
+        ],
+        "correctAll": [
+          "konteyner"
+        ],
         "noUnverifiedCommitment": true,
         "why": "İki soru tek mesajda; iki kalem de en yeni → iki mod da görür. Kıyas: aynı bilgiyle daha küçük blokta (hibrit) iki cevap da korunuyor mu."
       }
@@ -72,13 +165,32 @@
       "propertyCheckOutTime": "11:00",
       "kb": {
         "fillers": 20,
-        "excludeTopics": ["checkout_msg"],
+        "excludeTopics": [
+          "checkout_msg"
+        ],
         "extra": [
-          { "id": "kb_checkout_a", "category": "checkout", "title": "Çıkış", "content": "Çıkış saati 11:00'dir; anahtarı masaya bırakın.", "age": "newest" },
-          { "id": "kb_checkout_b", "category": "checkout", "title": "Geç çıkış notu", "content": "Çıkış saati 12:00'dir, temizlik öğleden sonra gelir.", "age": "newest" }
+          {
+            "id": "kb_checkout_a",
+            "category": "checkout",
+            "title": "Çıkış",
+            "content": "Çıkış saati 11:00'dir; anahtarı masaya bırakın.",
+            "age": "newest"
+          },
+          {
+            "id": "kb_checkout_b",
+            "category": "checkout",
+            "title": "Geç çıkış notu",
+            "content": "Çıkış saati 12:00'dir, temizlik öğleden sonra gelir.",
+            "age": "newest"
+          }
         ]
       },
-      "gold": { "needles": ["Çıkış saati 11:00", "Çıkış saati 12:00"] },
+      "gold": {
+        "needles": [
+          "Çıkış saati 11:00",
+          "Çıkış saati 12:00"
+        ]
+      },
       "expect": {
         "noDefiniteValue": true,
         "noUnverifiedCommitment": true,
@@ -88,26 +200,58 @@
     {
       "id": "R6-bilgi-yok",
       "question": "Jakuzi var mı?",
-      "kb": { "fillers": 20 },
-      "gold": { "needles": [] },
+      "kb": {
+        "fillers": 20
+      },
+      "gold": {
+        "needles": []
+      },
       "expect": {
-        "forbidden": ["jakuzi var", "jakuzimiz", "mevcuttur", "bulunmaktadır"],
+        "forbidden": [
+          "jakuzi var",
+          "jakuzimiz",
+          "mevcuttur",
+          "bulunmaktadır"
+        ],
         "noUnverifiedCommitment": true,
-        "acknowledgeAbsenceWhenGoldMissing": true,
+        "notDeliverableWhenGoldMissing": true,
         "usedSourcesEmptyWhenGoldMissing": true,
-        "why": "Konu bilgi tabanında YOK. Hibrit geri çekilir (no_lexical_hits → tam küme = legacy ile aynı blok); iki modda da dürüst 'bilgim yok' + makbuzsuz söz yok (E1 sözleşmesi)."
+        "why": "Konu bilgi tabanında YOK. Hibrit geri çekilir (no_lexical_hits → tam küme = legacy ile aynı blok). İki modda da ölçüt AYNI ve İKİ EKSENLİ: ürün bu taslağı misafire GÖNDERMEMELİ ve kaynaksız SOMUT İDDİA (rakam/yer tarifi) taşımamalı; makbuzsuz söz de yok. 🚨 'Bilgim yok' CÜMLESİ ARTIK BEKLENMİYOR — model onu üretmiyor."
       }
     },
     {
       "id": "R7-turkce-esanlam",
       "question": "Arabayı nereye koyabilirim?",
-      "kb": { "fillers": 34, "extra": [{ "id": "kb_parking_syn", "category": "parking", "title": "Araç", "content": "Araç park yeri binanın arkasındadır ve misafirler için ücretsizdir.", "age": "oldest" }] },
-      "gold": { "needles": ["Araç park yeri"] },
+      "kb": {
+        "fillers": 34,
+        "extra": [
+          {
+            "id": "kb_parking_syn",
+            "category": "parking",
+            "title": "Araç",
+            "content": "Araç park yeri binanın arkasındadır ve misafirler için ücretsizdir.",
+            "age": "oldest"
+          }
+        ]
+      },
+      "gold": {
+        "needles": [
+          "Araç park yeri"
+        ]
+      },
       "expect": {
-        "correctAny": ["arkasında", "ücretsiz", "park yeri"],
-        "forbidden": ["bina altı", "garaj", "ücretli"],
+        "correctAny": [
+          "arkasında",
+          "ücretsiz",
+          "park yeri"
+        ],
+        "forbidden": [
+          "bina altı",
+          "garaj",
+          "ücretli"
+        ],
         "noUnverifiedCommitment": true,
-        "acknowledgeAbsenceWhenGoldMissing": true,
+        "notDeliverableWhenGoldMissing": true,
         "why": "Soru 'araba', kalem 'araç park yeri' (sözlük genişletmesi); kalem eski → legacy göremez."
       }
     },
@@ -115,16 +259,42 @@
       "id": "R8-konusma-baglami",
       "question": "Ücretli mi?",
       "history": [
-        { "direction": "inbound", "body": "Otopark var mı?" },
-        { "direction": "outbound", "body": "Evet, bina altında." }
+        {
+          "direction": "inbound",
+          "body": "Otopark var mı?"
+        },
+        {
+          "direction": "outbound",
+          "body": "Evet, bina altında."
+        }
       ],
-      "kb": { "fillers": 34, "extra": [{ "id": "kb_parking_ctx", "category": "parking", "title": "Otopark", "content": "Bina altı otopark misafirler için ücretsizdir; kapı uzaktan kumandayla açılır.", "age": "oldest" }] },
-      "gold": { "needles": ["ücretsizdir; kapı uzaktan kumandayla"] },
+      "kb": {
+        "fillers": 34,
+        "extra": [
+          {
+            "id": "kb_parking_ctx",
+            "category": "parking",
+            "title": "Otopark",
+            "content": "Bina altı otopark misafirler için ücretsizdir; kapı uzaktan kumandayla açılır.",
+            "age": "oldest"
+          }
+        ]
+      },
+      "gold": {
+        "needles": [
+          "ücretsizdir; kapı uzaktan kumandayla"
+        ]
+      },
       "expect": {
-        "correctAny": ["ücretsiz"],
-        "forbidden": ["ücretlidir", "ücret alınır"],
+        "correctAny": [
+          "ücretsiz"
+        ],
+        "forbidden": [
+          "ücretlidir",
+          "ücret alınır"
+        ],
         "noUnverifiedCommitment": true,
-        "acknowledgeAbsenceWhenGoldMissing": true,
+        "notDeliverableWhenGoldMissing": true,
         "why": "İnce soru; konu önceki misafir mesajından taşınır. Kalem eski → legacy göremez; hibrit bağlamla bulur."
       }
     }

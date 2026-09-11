@@ -26,10 +26,10 @@ değildir; veto olmadan "[ŞİFRE]" hâlâ gidebilir.
 buraya taşınır + `replyPlaceholderTokens(text)` = `[…]`/`<…>`/`{…}`/`___` içinde harf (tests/helpers'taki
 `placeholderMentions` ile aynı sınıf; testte parite pini).
 
-1. **QR yolu** (`src/app/api/chat/[token]/route.ts` `evaluateEscalation` — devir kararı ORADA, `guest-chat.ts`
+1. **QR yolu** (`src/lib/guest-chat-gate.ts` `evaluateEscalation` — 09-11'de rotadan taşındı; devir kararı ORADA, `guest-chat.ts`
    yalnız devir METNİNİ verir): model taslağında yer tutucu belirteci varsa → `{ escalate: true, reason }`
    (fonksiyon boolean DEĞİL, gerekçeli nesne döndürür). Kapalı kümeye yeni değer `placeholder_in_draft` İKİ
-   yerde: `EscalationReason` birliği (route.ts) + `src/lib/risk-events.ts` içindeki `REASONS` kümesi (modül-içi
+   yerde: `EscalationReason` birliği (`guest-chat-gate.ts`) + `src/lib/risk-events.ts` içindeki `REASONS` kümesi (modül-içi
    `const`, dışa aktarılmaz; `clampTo` tanımadığı gerekçeyi düşürür — eklenmezse RiskEvent gerekçesiz yazılır);
    migration YOK (kolon string). Misafire `escalationReply()` gider ("kaydedildi; ev sahibiniz görebilir"); host
    e-postası/rozet mevcut devir akışıyla aynı. Sıra: güvenlik dallarının (intent/riskType/kelime ağı/injection/

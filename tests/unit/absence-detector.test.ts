@@ -60,16 +60,35 @@ describe("acknowledgesAbsence — DÜRÜST CAHİLLİK", () => {
     expect(acknowledgesAbsence("Hayır, kayıt yapmadık ama gerekli bilgi kapıda asılı.")).toBe(false);
   });
 
-  it("TEK KAYNAK PİNİ — iki eval harness'ı da kendi listesini YAZMAZ", () => {
-    // ⚠️ Kaynak taraması tek yönlüdür; amacı ikinci bir kopyanın sessizce geri gelmesini
-    // engellemek. Davranışsal yarı ↑yukarıdaki dört testtedir.
+  it("TEK KAYNAK PİNİ — iki eval harness'ı da kendi kopyasını YAZMAZ", () => {
+    // ⚠️ Kaynak taraması tek yönlüdür; amacı ikinci bir kopyanın sessizce geri
+    // gelmesini engellemek. Davranışsal yarı ↑yukarıdaki dört testtedir.
+    //
+    // 🚨 HEDEF DEĞİŞTİ (09-11), KURAL DEĞİŞMEDİ: eşleştirilmiş harness artık
+    // absence yüklemini HİÇ çağırmıyor — onun yerine ürünün GERÇEK kapısını
+    // çağırıyor (`../helpers/guest-delivery` → `@/lib/guest-chat-gate`), ki o
+    // kapı yüklemi zaten içeriden kullanıyor. Yani "tek kaynak" garantisi daha
+    // da güçlendi: harness artık kapının BİR dalını değil TAMAMINI ödünç alıyor.
+    // ⚠️ PİN DÜZELTİLDİ (09-11 incelemesi). Eskisi QR eval'i için
+    // `../helpers/absence-detector`i arıyordu; o dosya oradan artık YALNIZ
+    // `ABSENCE_CONTRACT_NOTE` STRING SABİTİNİ alıyor — yani yüklem bağı kopsa da
+    // assert yeşil kalırdı (yarı vakum). Doğru bağ İKİ dosyada da ürünün kapısına
+    // giden `guest-delivery`dir; bunu ikisi için de ARIYORUZ.
     const dir = path.resolve(__dirname, "../eval");
-    for (const f of ["qr-kb-real-model.eval.test.ts", "kb-retrieval-paired.eval.test.ts"]) {
+    const evalFiles = ["qr-kb-real-model.eval.test.ts", "kb-retrieval-paired.eval.test.ts"];
+    for (const f of evalFiles) {
       const src = readFileSync(path.join(dir, f), "utf8");
-      expect(src, f).toContain('from "../helpers/absence-detector"');
+      expect(src, `${f} ürünün kapısına bağlı değil`).toContain('from "../helpers/guest-delivery"');
       expect(src, `${f} kendi ACK_ABSENCE listesini yeniden tanımlamamalı`).not.toMatch(
         /const\s+ACK_ABSENCE\s*=/u,
       );
+      // Kapıyı ELLE yeniden kurma denemesi de yakalanır (eşik kopyalamak dahil).
+      expect(src, `${f} güven eşiğini elle yazmış (kapı kopyası)`).not.toMatch(
+        /confidence\s*[<>]=?\s*0\.75/u,
+      );
     }
+    // Yardımcının kendisi de kopya taşımamalı: ürünün kapısını import eder.
+    const helper = readFileSync(path.resolve(__dirname, "../helpers/guest-delivery.ts"), "utf8");
+    expect(helper).toContain('from "@/lib/guest-chat-gate"');
   });
 });

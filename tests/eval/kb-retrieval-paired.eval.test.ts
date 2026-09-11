@@ -9,7 +9,7 @@ import type { KbRetrievalMode } from "@/lib/ai/retrieval/select";
 import { assertsDefiniteValue, unverifiedActionClaims } from "../helpers/claim-detectors";
 import { buildPairedKb, pairedInputs, type PairedInputs, type PairedScenario } from "../helpers/kb-retrieval-paired";
 import { writeSidecar } from "./sidecar";
-import { acknowledgesAbsence } from "../helpers/absence-detector";
+import { guestWouldReceive, hasUnsourcedSpecificClaim } from "../helpers/guest-delivery";
 
 // ---------------------------------------------------------------------------
 // EŞLEŞTİRİLMİŞ legacy / hibrit GERÇEK MODEL EVAL'İ (RAG dilim 3, Codex turu 3).
@@ -103,14 +103,40 @@ export function check(s: PairedScenario, goldInPrompt: boolean | null, r: ReplyR
   } else {
     const looksCorrect = (e.correctAny?.some(has) ?? false) || (e.correctAll?.every(has) ?? false);
     if ((e.correctAny || e.correctAll) && looksCorrect) fails.push("DESTEKSİZ doğru cevap: kaynak istemde yokken cevap veriyor (şans/uydurma)");
-    // 🚨 BU KONTROL RETRIEVAL ÖLÇER, TESLİMAT DEĞİL (09-11 uyarlaması). Kurucu
-    // kuralından sonra bu cümlenin KENDİSİ artık misafire GİTMEZ
-    // (`src/lib/ai/absence.ts`, QR gerekçesi `absence_admission`). Yine de DOĞRU
-    // beklenti budur: kaynak isteme girmediyse modelin yapabileceği en dürüst şey
-    // yokluğu söylemektir — uydurmanın alternatifi. ⚠️ Yani "legacy modu yeşil"
-    // demek "legacy modu ÜRÜN OLARAK yeterli" DEMEK DEĞİL: canlıda o cevap kapıda
-    // durur ve misafir devir metnini alır. Bu, hibrit bayrağının LEHİNE bir kanıttır.
-    if (e.acknowledgeAbsenceWhenGoldMissing && !acknowledgesAbsence(r.reply ?? "")) fails.push("bilgi yokluğunu SÖYLEMİYOR (kaynak istemde yokken tek dürüst seçenek; NOT: bu metin misafire gitmez, devir olur)");
+    // 🚨 SÖZLEŞME DEĞİŞTİ (09-11): eskiden modelin "bilgim yok" DEMESİ şart
+    // koşuluyordu. O şart, KURAL-5'in kalıp cümlesi istemden kaldırıldıktan sonra
+    // ürünün EMRETTİĞİ davranışla ÇELİŞTİ: model artık yokluk itirafı üretmiyor,
+    // kısa ve somut iddia içermeyen bir cümle kurup güveni 0.4'ün altına yazıyor.
+    // Kurucunun gerçek koşusunda bu senaryoların YEDİ SATIRI (altı senaryo; R6 hem
+    // legacy hem hibritte) TAM BU YÜZDEN kırmızı verdi.
+    //
+    // Doğru ölçüt İKİ EKSENLİ ve ikisi de gerekir:
+    //  (1) TESLİMAT — kaynak isteme girmediyse ürün misafire KESİN BİR ŞEY
+    //      SÖYLEMEMELİ; ürünün kendi kapısı çağrılır (12 gerekçeli kapalı küme).
+    //  (2) UYDURMA — kapı bir cevabı DÜŞÜK GÜVEN yüzünden durdurursa teslimat
+    //      ekseni yeşil kalır ama cevap hâlâ uydurma olabilir. ÖLÇÜLDÜ: R6'da
+    //      "Evet, teras katında bir jakuzi bulunuyor." + güven 0.35 → kapı durdurur,
+    //      `forbidden` listesi de kaçırır ("bulunmaktadır" var, "bulunuyor" yok)
+    //      → eski kontrolün yakaladığı saf uydurma sessizce YEŞİL olurdu.
+    if (e.notDeliverableWhenGoldMissing) {
+      const d = guestWouldReceive(
+        { intent: r.intent, riskLevel: r.riskLevel, confidence: r.confidence, source: r.source,
+          // 🚨 `r.riskType` GEÇİLİR: ilk yazımda `null` sabitlenmişti, yani kapının
+          // `model_risk_type` dalı bu harness'ta HİÇ çalışamıyordu — düzeltmekte
+          // olduğum hatanın ta kendisi (09-11 incelemesi).
+          riskType: r.riskType, reply: r.reply, usedSources: r.usedSources },
+        s.question,
+      );
+      if (d.delivered) {
+        fails.push(
+          "kaynak istemde YOKKEN cevap misafire GİDERDİ — kapı hiçbir dalda durdurmadı; " +
+            "bu ya uydurmadır ya da dayanağı ölçülemeyen bir iddiadır",
+        );
+      }
+      if (hasUnsourcedSpecificClaim(raw, r.usedSources)) {
+        fails.push("kaynak YOKKEN SOMUT İDDİA (rakam / yer tarifi) — uydurma sınıfı");
+      }
+    }
     if (e.usedSourcesEmptyWhenGoldMissing && r.usedSources.length > 0) fails.push(`kaynak beyan etti ama etmemeliydi: ${r.usedSources.join(", ")}`);
   }
   return fails;
@@ -403,6 +429,21 @@ describe("eşleştirilmiş eval — çevrimdışı pinler (gerçek çağrı YAPM
     }
   });
 
+  it("🚨 SÖZLEŞME ALANI DATASET'TE — eski 'yokluk itirafı' adı GERİ GELMEZ", () => {
+    // 09-11 incelemesi: alanın 6 senaryoda VAR olduğunu ve eski adın GİTTİĞİNİ
+    // hiçbir assert doğrulamıyordu. Dataset sessizce eski sözleşmeye dönerse
+    // (ya da alan düşerse) teslimat ekseni ölçülmeden yeşil kalırdı.
+    const withField = suite.scenarios.filter((s) => s.expect.notDeliverableWhenGoldMissing === true);
+    expect(withField.map((s) => s.id).sort()).toEqual([
+      "R1-uzun-rehber-ortasi", "R2-yazim-hatasi", "R3-ingilizce-soru",
+      "R6-bilgi-yok", "R7-turkce-esanlam", "R8-konusma-baglami",
+    ]);
+    // ⚠️ ALAN ANAHTARI aranır, serbest metin DEĞİL: eski ad `notes` içindeki
+    // değişiklik kaydında GEÇMEYE DEVAM EDER ve etmelidir (sessiz revizyon yok).
+    const raw = readFileSync(path.resolve(__dirname, "../../evals/kb-retrieval-paired.json"), "utf8");
+    expect(raw).not.toContain('"acknowledgeAbsenceWhenGoldMissing":');
+  });
+
   it("🚨 EŞLEŞTİRME KODLA KANITLI: eski kalemli senaryolarda gold LEGACY isteminde YOK, HİBRİT isteminde VAR; en-yeni kalemlerde ikisinde de var; bilgi-yok senaryosunda iki blok BİREBİR", () => {
     const expectPattern: Record<string, [boolean | null, boolean | null]> = {
       "R1-uzun-rehber-ortasi": [false, true],
@@ -459,6 +500,44 @@ describe("eşleştirilmiş eval — çevrimdışı pinler (gerçek çağrı YAPM
     // Legacy (gold istemde DEĞİL) + dürüst yokluk → ok
     const honest = pairedRow(s, leg, { ...OPENAI_BASE, usedSources: [], reply: "Otopark konusunda kayıtlı bilgim yok; mesajınız kaydedildi, ev sahibiniz görebilir." });
     expect(honest.outcome, honest.failures.join("; ")).toBe("ok");
+
+    // 🚨 TESLİMAT KONTROLÜNÜN KENDİSİ PİNLİ: yalnız "dürüst cevap geçer" demek
+    // YETMEZ — kontrol tamamen silinse o satır yine yeşil kalırdı. Buradaki cevap
+    // kapıdan GEÇER (yüksek güven, risksiz) ve gold istemde OLMADIĞI için düşmeli.
+    const deliverableNoGold = pairedRow(s, leg, {
+      ...OPENAI_BASE, usedSources: [], confidence: 0.95,
+      reply: "Otoparkla ilgili durumu ev sahibiniz netleştirebilir, kendisine yazabilirsiniz.",
+    });
+    expect(deliverableNoGold.outcome).toBe("failed_checks");
+    expect(deliverableNoGold.failures.join(" ")).toMatch(/misafire GİDERDİ/);
+
+    // 🚨 UYDURMA EKSENİ — ÖLÇÜLMÜŞ GERİLEMENİN PİNİ. Bu cevap düşük güvenle kapıda
+    // DURUR (teslimat ekseni yeşil) ve yasak listesine TAKILMAZ; tek başına teslimat
+    // ekseni saf bir uydurmayı "ok" sayardı.
+    const fabricatedNoGold = pairedRow(s, leg, {
+      ...OPENAI_BASE, usedSources: [], confidence: 0.35,
+      reply: "Evet, binanın arkasında ücretsiz bir otopark bulunuyor.",
+    });
+    expect(fabricatedNoGold.outcome).toBe("failed_checks");
+    expect(fabricatedNoGold.failures.join(" ")).toMatch(/SOMUT İDDİA/);
+
+    // KARŞI YÖN — aynı düşük güvende SOMUT OLMAYAN dürüst cevap DÜŞMEZ; yoksa yeni
+    // eksen "her kaynaksız cevabı blokla" mutantıyla da yeşil kalırdı.
+    const vagueNoGold = pairedRow(s, leg, {
+      ...OPENAI_BASE, usedSources: [], confidence: 0.35,
+      reply: "Otopark konusunda kayıtlı bilgim yok; mesajınız kaydedildi.",
+    });
+    expect(vagueNoGold.outcome, vagueNoGold.failures.join("; ")).toBe("ok");
+
+    // 🚨 `riskType` GERÇEKTEN GEÇİLİYOR MU (mutasyon pini). Güven YÜKSEK ve metin
+    // somut değil: cevabı durduran TEK şey riskType'tır. `null` sabiti geri konursa
+    // bu satır "misafire GİDERDİ" ile kırmızıya döner.
+    const riskyNoGold = pairedRow(s, leg, {
+      ...OPENAI_BASE, usedSources: [], confidence: 0.95,
+      riskType: "safety_emergency",
+      reply: "Durumu ev sahibinize ilettim, kendisi sizinle ilgilenecek.",
+    });
+    expect(riskyNoGold.failures.join(" "), "riskType kapıya geçmiyor").not.toMatch(/misafire GİDERDİ/);
     // Legacy (gold istemde DEĞİL) + "doğru" cevap → DESTEKSİZ
     const lucky = pairedRow(s, leg, { ...OPENAI_BASE, reply: "Evet, binanın arkasındaki açık otopark ücretsiz." });
     expect(lucky.outcome).toBe("failed_checks");

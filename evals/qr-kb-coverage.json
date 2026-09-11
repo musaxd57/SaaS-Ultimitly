@@ -23,8 +23,8 @@
         ],
         "usedSourcesEmpty": true,
         "noUnverifiedCommitment": true,
-        "why": "GÖNDERİLEBİLİRLİK SÖZLEŞMESİ (09-11 yeniden tanım, KURUCU KURALI): kayıt yokken (a) tesis gerçeği UYDURMA, (b) makbuzsuz eylem/söz VERME, (c) 🚨 üretilen cevap MİSAFİRE GÖNDERİLEBİLİR OLMAMALI. Model dürüstçe 'kayıtlı bilgim yok' demeye DEVAM eder (istem kuralı UYDURMAYI engellemek için yerinde) ama o metin gönderim kapısından GEÇMEZ — misafir onun yerine deterministik devir metnini alır.",
-        "changed": "2026-09-11: `acknowledgesAbsence` KALDIRILDI, yerine `notDeliverable` geldi. Kurucu kuralı: \"müşteriye hiçbir zaman bilgim yok mesajı gitmemeli — host neden 'bilgim yok' mesajı göndersin ki?\" Sözleşme TERS ÇEVRİLDİ: 09-09'da yokluk beyanı ÖDÜLLENDİRİLİYORDU, artık o metnin GÖNDERİLMEMESİ ölçülüyor. İstem kuralı KALDIRILMADI (bilinçli: silinseydi model uydururdu). Kapı `src/lib/ai/absence.ts` `admitsMissingKnowledge`; QR'da gerekçe `absence_admission`. 2026-09-09 kaydı (tarihsel): maxConfidence 0.75 kaldırılmış, yerine noUnverifiedCommitment + acknowledgesAbsence konmuştu.",
+        "why": "GÖNDERİLEBİLİRLİK SÖZLEŞMESİ (09-11 yeniden tanım, KURUCU KURALI): kayıt yokken (a) tesis gerçeği UYDURMA, (b) makbuzsuz eylem/söz VERME, (c) 🚨 üretilen cevap MİSAFİRE GÖNDERİLEBİLİR OLMAMALI. 🚨 DÜZELTME (09-11 ikinci tur): burada 'model dürüstçe kayıtlı bilgim yok demeye DEVAM eder' YAZIYORDU — ARTIK ETMİYOR. KURAL-5'in kalıp cümlesi 83630c4 ile istemden kaldırıldı; model kısa, somut iddiasız bir cümle kurup güveni 0.4 altına yazıyor. Ölçüt o yüzden İKİ EKSENLİ: ürünün KAPISI bu taslağı durdurmalı VE cevap kaynaksız somut iddia (rakam/yer tarifi) taşımamalı. Misafir her hâlükârda deterministik devir metnini alır.",
+        "changed": "2026-09-11: `acknowledgesAbsence` KALDIRILDI, yerine `notDeliverable` geldi. Kurucu kuralı: \"müşteriye hiçbir zaman bilgim yok mesajı gitmemeli — host neden 'bilgim yok' mesajı göndersin ki?\" Sözleşme TERS ÇEVRİLDİ: 09-09'da yokluk beyanı ÖDÜLLENDİRİLİYORDU, artık o metnin GÖNDERİLMEMESİ ölçülüyor. İstem kuralı KALDIRILMADI (bilinçli: silinseydi model uydururdu). Kapı `src/lib/ai/absence.ts` `admitsMissingKnowledge`; QR'da gerekçe `absence_admission`. 2026-09-09 kaydı (tarihsel): maxConfidence 0.75 kaldırılmış, yerine noUnverifiedCommitment + acknowledgesAbsence konmuştu. | 2026-09-11 (ikinci tur): `notDeliverable` ADI AYNI KALDI ama MEKANİZMASI DÜZELTİLDİ. Önceki hâli yalnız `admitsMissingKnowledge`e bakıyordu — kapının ON İKİ dalından BİRİ — ve KURAL-5'in kalıp cümlesi istemden kaldırılınca ürünün EMRETTİĞİ davranışla çelişti: model artık yokluk itirafı üretmiyor, kısa/somut iddiasız bir cümle kurup güveni 0.4 altına yazıyor. Kurucunun gerçek koşusunda bu satır TAM BU YÜZDEN kırmızı verdi; ÖLÇÜLDÜ ki ürün DOĞRU davranmıştı (güven 0.30 → low_confidence → devir). Artık ürünün KENDİ kapısı çağrılır (`evaluateEscalation`, 12 gerekçeli kapalı küme) ve hata mesajı hangi dalın durdurduğunu yazar.",
         "notDeliverable": true
       }
     },
@@ -47,7 +47,9 @@
         "usedSourcesInclude": [
           "kb:parking"
         ],
-        "why": "Kayıt varken cevap ona DAYANMALI ve kaynak beyan edilmeli."
+        "why": "Kayıt varken cevap ona DAYANMALI ve kaynak beyan edilmeli.",
+        "deliverable": true,
+        "changed": "2026-09-11: `deliverable` EKLENDİ. ÖLÇÜLDÜ ki sekiz senaryonun HİÇBİRİ 'iyi temellendirilmiş cevap GERÇEKTEN gönderiliyor mu' diye sormuyordu — yani ürün her şeyi bloklamaya başlasa eval yine yeşil kalırdı. Kurucunun kuralı çift taraflı: 'bilgim yok gitmesin' AMA 'AI sus pus olmasın'. Bu alan ikinci yarıyı pinler."
       }
     },
     {
@@ -163,7 +165,9 @@
           "kb:parking",
           "kb:trash"
         ],
-        "why": "İki soru tek mesajda geldiğinde İKİSİ de yanıtlanmalı ve iki kaynak da beyan edilmeli."
+        "why": "İki soru tek mesajda geldiğinde İKİSİ de yanıtlanmalı ve iki kaynak da beyan edilmeli.",
+        "deliverable": true,
+        "changed": "2026-09-11: `deliverable` EKLENDİ. ÖLÇÜLDÜ ki sekiz senaryonun HİÇBİRİ 'iyi temellendirilmiş cevap GERÇEKTEN gönderiliyor mu' diye sormuyordu — yani ürün her şeyi bloklamaya başlasa eval yine yeşil kalırdı. Kurucunun kuralı çift taraflı: 'bilgim yok gitmesin' AMA 'AI sus pus olmasın'. Bu alan ikinci yarıyı pinler."
       }
     }
   ]

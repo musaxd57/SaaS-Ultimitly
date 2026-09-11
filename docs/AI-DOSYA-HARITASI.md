@@ -24,7 +24,7 @@ misafir mesajı
    │
    ├─► GÖNDERİM KAPISI (karar modele VERİLMEZ)
    │        ├ kanal   src/lib/automation.ts  passesAutoReplySafetyGate
-   │        └ QR      src/app/api/chat/[token]/route.ts  evaluateEscalation
+   │        └ QR      src/lib/guest-chat-gate.ts         evaluateEscalation  (rota onu import eder)
    │             └ src/lib/ai/absence.ts  ("bilgim yok" misafire gitmez)
    │
    └─► KARAR GÜNLÜĞÜ                   src/lib/risk-events.ts  (RiskEvent)
@@ -76,7 +76,7 @@ misafir mesajı
 | Dosya | İşi |
 |---|---|
 | [`src/lib/automation.ts`](../src/lib/automation.ts) | **`passesAutoReplySafetyGate`** + oto-yanıt göndericisi + eskalasyon + `refreshStyleProfile` (host üslubu öğrenme) |
-| [`src/app/api/chat/[token]/route.ts`](../src/app/api/chat/[token]/route.ts) | **QR `evaluateEscalation`** — dokuz kapalı-küme gerekçe + `absence_admission` + dar bant |
+| [`src/lib/guest-chat-gate.ts`](../src/lib/guest-chat-gate.ts) | **QR `evaluateEscalation`** — on iki kapalı-küme gerekçe + `absence_admission` + dar bant. 09-11'de rotadan BİREBİR taşındı (rota import eder); gerekçe: eval kapıyı ancak çağırabilirse ölçebilir + rotadan değer export'u `next build`i kırar. |
 | [`src/lib/guest-chat.ts`](../src/lib/guest-chat.ts) | QR bağlamı, `buildGuestChatContextWindow`, `withoutSecretKbItems` (sır kapısı), `escalationReply()` |
 | [`src/lib/risk-events.ts`](../src/lib/risk-events.ts) | `RiskEvent` kapalı gerekçe kümesi = AI kapısının KARAR GÜNLÜĞÜ |
 | [`src/lib/kb-review.ts`](../src/lib/kb-review.ts) | KB onay sözleşmesi (A1) — `AI_READABLE_REVIEW_STATES` allowlist |
