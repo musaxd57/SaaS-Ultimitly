@@ -1,4 +1,6 @@
 import "server-only";
+
+import { admitsMissingKnowledge } from "@/lib/ai/absence";
 import { addDays } from "date-fns";
 import { prisma } from "@/lib/db";
 import { orgTimezone, zonedDayRange, currentHourInTimeZone, dateKeyInTimeZone, addZonedDays } from "@/lib/timezone";
@@ -88,6 +90,12 @@ export function passesAutoReplySafetyGate(
     source: string;
     /** Model's WHY-risky label (closed set, clamped). Used to TIGHTEN only. */
     riskType?: string | null;
+    /**
+     * Modelin ÜRETTİĞİ metin. 🚨 Kapı normalde YALNIZ karar girdilerine bakar, metne
+     * DEĞİL — bu alan tek bir kural için var: "bilgim yok" misafire GİTMEZ (kurucu,
+     * 09-11). Verilmezse (golden senaryolar, eski çağıranlar) kural hiç çalışmaz.
+     */
+    reply?: string | null;
   },
   guestMessage: string,
   /** What the MODEL sees beyond the last message: recent history bodies + the
@@ -230,6 +238,18 @@ export function passesAutoReplySafetyGate(
     return false;
   }
   if (result.riskLevel !== "none" && result.riskLevel !== "low") return false;
+  // ── "BİLGİM YOK" MİSAFİRE GİTMEZ (kurucu kuralı, 09-11) ───────────────────
+  //
+  // 🚨 GÜVEN EŞİĞİNDEN BAĞIMSIZ: ölçüldü ki güveni 0.75 ÜSTÜNDE olan bir "kayıtlı
+  // bilgim yok" cevabı bu kapıdan geçiyordu (2. gerçek koşu: güven .8, kaynak 0/0).
+  // Kurucu kuralı: host neden "bilgim yok" mesajı göndersin? O cevabın işe yarar
+  // tek parçası zaten devir metninin kendisi. Bu kanalda devir = HİÇ MESAJ GİTMEZ,
+  // konuşma host'un gelen kutusuna düşer (aşağıdaki escalate dalı).
+  //
+  // ⚠️ ÖLÇÜT CEVABIN KENDİ İTİRAFIDIR, "kaynak yok" DEĞİL — "Giriş saati kaçta?"
+  // cevabı MÜLK ALANINDAN gelir, kaynaksız görünür ama DAYANAKLIDIR (test-pinli).
+  // QR rotasındaki `absence_admission` dalıyla PARİTE (aynı yüklem, tek kaynak).
+  if (admitsMissingKnowledge(result.reply)) return false;
   // İKİNCİ KEMER (Codex F01): güven değeri SONLU bir sayı olmak zorunda. Parser
   // zaten yalnız sonlu number geçiriyor, ama kapı başka çağıranlardan da ham
   // nesne alır (QR yolu, testler) — `Infinity >= 0.75` true olurdu.

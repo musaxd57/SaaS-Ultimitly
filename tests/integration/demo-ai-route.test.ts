@@ -139,6 +139,18 @@ describe("POST /api/demo/ai — public landing demo", () => {
       expect(data.wouldAutoSend).toBe(false);
     });
 
+    it("🚨 ABSENCE ADMISSION → false (the badge must not claim an auto-send the product blocks)", async () => {
+      // Measured defect: this route called the gate WITHOUT `reply`, so the new
+      // founder rule ("bilgim yok" never reaches a guest) could not fire here and
+      // the landing badge contradicted production. The route's own comment says it
+      // "must state what the product would truly do" — this line holds it to that.
+      vi.mocked(suggestReply).mockResolvedValueOnce(
+        modelResult({ intent: "general", reply: "Bu konuda kayıtlı bilgim yok." }) as never,
+      );
+      const data = await (await POST(req("Otopark var mı?", "10.0.0.5"))).json();
+      expect(data.wouldAutoSend).toBe(false);
+    });
+
     it("fallback-source reply → false (the product never auto-sends the deterministic path)", async () => {
       vi.mocked(suggestReply).mockResolvedValueOnce(modelResult({ source: "fallback" }) as never);
       const data = await (await POST(req("wifi şifresi nedir?", "10.0.0.4"))).json();

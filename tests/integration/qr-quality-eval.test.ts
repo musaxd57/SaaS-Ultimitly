@@ -155,9 +155,15 @@ describe("QR eval — davranışsal senaryolar", () => {
 
     const res = await ask(token, "Gidilebilecek tarihi yerler nereler?");
     expect(lastInput().knowledgeBase ?? []).toHaveLength(0);
-    expect((await res.json()).escalated).toBe(true);
+    const body = await res.json();
+    expect(body.escalated).toBe(true);
     const ev = await reasonOf(orgId);
-    expect(ev?.reason).toBe("low_confidence"); // gerekçe artık görünür
+    // 🚨 GEREKÇE DEĞİŞTİ (kurucu kuralı, 09-11): eskiden `low_confidence` yazılıyordu
+    // (0.4 < 0.75). Cevap ("Bu konuda bilgim yok.") artık GÜVENDEN ÖNCE yakalanıyor —
+    // boş KB'de modelin ürettiği en tipik metin bu ve canlıda ölçmek istediğimiz sayı
+    // tam olarak odur. Devir kararı DEĞİŞMEDİ, yalnız etiket daha bilgilendirici.
+    expect(ev?.reason).toBe("absence_admission");
+    expect(body.reply ?? "", "yokluk cümlesi misafire dönmez").not.toMatch(/bilgim yok/);
   });
 
   it("E5 DOLU KB + aynı soru: bilgi modele gider ve yüksek güvende CEVAP verilir", async () => {

@@ -305,6 +305,59 @@ Bu dosyaya token/anahtar/parola yazma.
   ("kaydedildi; ev sahibiniz sohbet ekranından görüntüleyebilir"). "İlettim" İDDİA EDİLMEZ — e-posta bayrak açıkken
   bile dedupe/5 dk cooldown/alıcı-yok/sağlayıcı hatasıyla bastırılabilir ve metin e-postadan ÖNCE yazıldığı için
   sonuç okunamaz. QR devri yapışkan DEĞİL (her mesaj yeniden değerlendirilir, model `history: []`).
+- 🚨 **"BİLGİM YOK" MİSAFİRE ASLA GİTMEZ (KURUCU KURALI, 09-11) — `src/lib/ai/absence.ts`.**
+  Kurucu: *"müşteriye hiçbir zaman bilgim yok mesajı gitmemeli; bilgi yoksa da cevap gitmemeli —
+  host neden 'bilgim yok' mesajı göndersin ki?"* ÖLÇÜLEN DAVRANIŞ (2. gerçek koşu 09-09): güven
+  **.8**, kaynak **0/0**, cevap "kayıtlı bilgim yok; mesajınız kaydedildi…" → kapı ≥0.75 olduğu
+  için GEÇİYOR ve misafire gidiyordu. O cevabın işe yarar TEK parçası zaten devir metninin
+  kendisi; devredince misafir onu ZATEN alır. `admitsMissingKnowledge` İKİ yüzeyde de kapı:
+  `passesAutoReplySafetyGate` (kanal → hiç mesaj gitmez, host'un kutusuna düşer) ve QR
+  `evaluateEscalation` (→ `absence_admission`, misafir deterministik devir metnini alır).
+  🚨 **İSTEM KURALI KALDIRILMADI — bilinçli:** `prompts.ts` KURAL-3/KURAL-5 modele
+  temellendiremediğinde yokluk söylemesini emreder ve o kural **UYDURMAYI ENGELLER**; silinseydi
+  model uydururdu (işe yaramaz bir cevaptan çok daha kötü). Kural istemde kalır, GÖNDERİM kapıda
+  kapanır — fail-safe doğru yönde: kapı delinirse misafir bozuk bir belirteç değil dürüst bir
+  cümle görür. 🚨 **ÖLÇÜT CEVABIN KENDİ İTİRAFIDIR, "kaynak yok" DEĞİL:** `usedSources` yalnız KB
+  kalemlerini sayar; "Giriş saati kaçta?" cevabı MÜLK ALANINDAN gelir, kaynaksız görünür ama
+  DAYANAKLIDIR — "kaynak yoksa devret" deseydik ürünün EN SIK sorusu kırılırdı (test-pinli).
+  ⚠️ **SAVUŞTURMA yokluk itirafı DEĞİLDİR** ("ev sahibinizle iletişime geçebilirsiniz") — kapı
+  yalnız AÇIK beyanı yakalar; savuşturma ayrı bir sorundur (gerçek koşuda `gpt-5.6-luna` legacy
+  modda tam bunu yapıyordu). **TEK KAYNAK:** eval harness'ı (`tests/helpers/absence-detector.ts`)
+  yalnız yeniden-dışa-aktarımdır — eval, ürünün göndermeyeceği bir cevabı "geçti" sayamaz (pin).
+  🚨 **E1 EVAL SÖZLEŞMESİ TERS ÇEVRİLDİ:** 09-09'da `acknowledgesAbsence` yokluk beyanını
+  ÖDÜLLENDİRİYORDU; artık `notDeliverable` o metnin GÖNDERİLMEMESİNİ ölçüyor (`changed` alanında
+  yazılı, sessiz gevşetme yok). ⚠️ Harness YALNIZ `suggestReply` = TASLAK çağırır; "gönderilmedi"
+  DEĞİL "kapı bloklar mı" ölçülür (VEKİL) — hata metni buna göre dürüstleştirildi (eski metin
+  "UYDURMA demektir" diye kesin hüküm veriyordu; ikinci olasılık dedektörün tanımadığı dürüst bir
+  yokluk ifadesidir). Kardeş eval (`kb-retrieval-paired`) hâlâ legacy modda yokluk beyanı BEKLER ve
+  bu DOĞRUDUR (retrieval ölçer, teslimat değil) — ama "legacy yeşil" ≠ "legacy yeterli": canlıda o
+  cevap kapıda durur, bu hibrit bayrağının LEHİNE kanıttır (yorum satırı eklendi).
+  🚨 **YÜKLEM AYNI GÜN YENİDEN YAZILDI** (inceleme ajanı, iddialar bağımsız doğrulandı: 9/9 FP ve
+  15/15 kaçak birebir üretildi). Düz kalıp listesi İKİ YÖNDE de kırıktı: **işe yarar cevabı bloklama
+  18/67 (%27) → 0**, **gerçekçi yokluk ifadesini kaçırma 29/38 → 0**. Dört ölçülmüş kusur: `\bno`
+  SAĞ SINIRSIZDI ("**No**thing extra is needed; the information…" · "**No**te: all the check-in
+  information…" · "no extra charge; the information pack…") · çıplak `not listed` ("The pool is not
+  listed as **closed**") · `kayıtlı…bilgi` OLUMLU Türkçe kalıptır ("Kayıtlı rezervasyon bilgileriniz
+  DOĞRU") · 🚨 `toLocaleLowerCase("tr")` İNGİLİZCEYİ BOZUYORDU (tr yerelinde `I`→`ı`: "I have no
+  **I**nformation" → "ı have no ınformation" KAÇIYORDU). Yeni yapı kalıp listesi DEĞİL **NESNE +
+  OLUMSUZLAMA dilbilgisi**: bilgi nesnesi (bilgi/kayıt/veri/not/detay/belge · information/record/
+  detail/data/note) + yokluk yüklemi, SINIRLI mesafeyle. 🚨 `yok` nesneye **BİTİŞİK** (≤1 kelime) —
+  yoksa "sorun yok"/"görevli yok" nezaket kapanışları yokluk sayılıyordu ("Bu bilgi rehberde yazıyor
+  ama görevli yok." mesafe pini). 🚨 **Cümle sınırı boşluğu KESER** ama `15.00` BÖLÜNMEZ (eski
+  `[^.!?]` sınıfı tam tersini yapıyor, Türkçe saat yazımı yüzünden gerçek yokluk cümlesini
+  kaçırıyordu). **İKİ KATLAMA** (`foldTurkishLower` + `foldTurkishLowerTr`); ikisi de yük taşır ve
+  AYRI pinlidir: `BILGIM YOK` yalnız standart, `KAYITLI DEĞİL`/`BULAMADIM` yalnız tr okumasında.
+  ⚠️ **Belirsizlik ve savuşturma BİLİNÇLİ DIŞARIDA**: "emin değilim" netleştirme sorusuyla aynı
+  kalıbı paylaşır ("Sorunuzu tam anladığımdan emin değilim, hangi tarihten…") → bloklamak ürünün
+  MEŞRU davranışını keserdi; `confirm` de KAYIT nesnesine çapalı ("I'm unable to confirm whether
+  parking is available" SAVUŞTURMADIR, ölçülmüş luna çıktısı).
+  🚨 **ÖNİZLEME PARİTESİ (ikinci ölçülmüş kusur):** `api/ai/test` ve `api/demo/ai` kapıyı çağırıyor
+  ama `reply` VERMİYORDU (alan opsiyonel → ne derleme ne test uyarıyordu) → Ayarlar kartı ve landing
+  rozeti, gerçek göndericinin BLOKLADIĞI cevap için "kendiliğinden gönderilirdi" diyordu; iki rotanın
+  da kendi yorumundaki "the exact production gate" iddiasının ihlali. Bağlandı, davranışsal pinli.
+  Kanıt: kırmızı-önce 2+4 blok + **mutasyon 22/22**. ⚠️ İlk koşuda KONTROL KIRMIZIYDI (bir eval pini
+  eski hata metnini arıyordu) → sonuçlar geçersiz sayıldı, düzeltilip tekrarlandı (M0 kuralı);
+  sonrakinde iki mutant hayatta kaldı ve ikisi de gerçek pin eksiğini gösterdi.
 - **QR eksik bilgide DÜRÜST CEVAP (dar bant, `QR_INFORMATIONAL_BAND_ENABLED` VARSAYILAN KAPALI):** her açıdan
   risksiz mesajda güven `0.45 ≤ c < 0.75` ise modelin cevabı gider (`informational_low_confidence`). Bandın ALTI
   hâlâ devir; bant güvenlik dallarının ARDINDA (şikayet/para/insan-talebi/injection bastırılmaz, iki yönlü pinli).
@@ -376,6 +429,31 @@ Bu dosyaya token/anahtar/parola yazma.
   tutucu vetosu YOK — GERÇEK QR ROTASINDA ÖLÇÜLDÜ (model mock'lu, DB'li): wifi/none/0.95/beyan 1-doğrulanan 0 ile
   ürün "[ŞİFRE]"yi misafire DÖNDÜRÜYOR (`unsourced_claim` yalnız 0.45–0.75 bandında). Onay raporu
   `docs/ONAY-yer-tutucu-cikti-vetosu-2026-09-09.md`; uygulanmadı.
+- 🚨 **FEW-SHOT VAR ve FAZLALIK ÖLÇÜLDÜ (09-11, `docs/OLCUM-2026-09-11-few-shot-ve-istem-butcesi.md`):**
+  `prompts.ts:482-584` BÖLÜM 13 = **24 tam örnek, 16.191 karakter = sistem isteminin %35,1'i**.
+  `REPLY_SYSTEM_PROMPT` **46.135 karakter (53 KB)** — 🚨 `limits.ts:29` ve `prompts.ts:3-4`'teki
+  **"~75KB" YANLIŞ** (o, dosyanın tamamı; %40 sapma, bütçe kararı ona dayanmasın). Bir çağrının
+  **%96,4'ü STATİK**; misafire özgü içerik 1.786 karakter → few-shot **onun 9,1 KATI** ve hibrit RAG
+  bütçesinin (`KB_RETRIEVAL_CHAR_BUDGET` 6.000) **2,70 katı**. 🚨 **BEŞ örnek modele sahte Wi-Fi
+  şifresi öğretiyor** (`12345678`/`NuveApt`: ÖRNEK 1·8·11·13·24) — bu YENİ DEĞİL, `automation.ts:1589`
+  ve `guest-chat.ts:331` rezervasyon-öncesi sır filtresini TAM BU YÜZDEN kodda yazmış. **19 örnek
+  PİNSİZ** (yalnız 11/12/14/20/24 adıyla bağlı). ⚠️ Few-shot bir DAVRANIŞ ÇAPASIDIR — komple silmek
+  o sınıfta modeli serbest bırakır; daraltma ölçümle, tek hamlede değil (GOLDEN SET + eval ŞART).
+  Koşullu enjeksiyon deseni ZATEN VAR ve çalışıyor (`offerBlock` +1.383 · `conflictBlock` +804 ·
+  `styleBlock` +752 · `adjacencyBlock` +659 …) — yalnız en büyük bloğa uygulanmamış.
+  **Prompt cache sıralaması DOĞRU** (system önce, önek ~47.533 karakter) ama `cached_tokens`/`usage`
+  HİÇBİR YERDE OKUNMUYOR → "önbelleklidir" GÖZLEM değil VARSAYIM.
+- 🚨 **DİL BAZINDA RETRIEVAL: RUSÇA ve ARAPÇA'da HİÇ ÇALIŞMIYOR (09-11 ölçüldü).** Hibrit açıkken
+  `ru`/`ar` sorgusu `no_lexical_hits` → seçici TÜM KB'ye düşüyor (fail-open, bilgi kaybı yok ama
+  hibritin vaadi o dillerde GEÇERSİZ). Sebep: `retrieval/lexicon.ts` 47 kavram/302 terim **TR+EN**,
+  kök sökücü Türkçe ekler + `EN_SUFFIXES {ing,ed,es,s}`. Almanca/Fransızca yalnız KAZAEN çalışıyor
+  ("wlan" sözlükte, "checkout" normalleşiyor); `"Wo sind die Handtücher?"` de düşüyor. İkinci kusur:
+  `detectGuestLanguage` (`fallback.ts:1598-1611`) **Almancayı İngilizce sanıyor** (`de` dalı
+  `ich|sie|bitte|danke|hallo|…` listesine bağlı) → `select.ts:326` `queryIsTurkish`'i besliyor.
+  İstemin KURALLARI %100 Türkçe (yabancı misafirde de model Türkçe talimat alır; yalnız cevabın dili
+  iki satırla isteniyor). 🚨 `input.language` NEREDEYSE DEKORATİF: `en` vs `tr` istem farkı **−5
+  karakter** ve o alan ALGILANAN dil değil org ayarı — QR/Ayarlar/demo'da sabit `"tr"`.
+  **Embedding'in en güçlü gerekçesi tam burası** (sözcüksel eşleşme o dillerde yapısal olarak yok).
 - Üslup: duygu beyanı/temenni/çelişki/dolgu-soru yasak; "siz"; ben-dili. Çok soruluda uzunluk kuralı ezilir.
 - `REPLY_CHAR_CAP` 4.000 (aşılırsa güven 0.5, sessiz kesme yok) ≠ `max_completion_tokens` 2000.
 - **Injection kara listesi yapısal olarak yetersiz** (düz parafrazların çoğu geçer); asıl koruma KB sır

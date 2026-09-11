@@ -111,6 +111,11 @@ export async function POST(req: NextRequest) {
         confidence: result.confidence,
         source: result.source,
         riskType: result.riskType ?? null,
+        // 🚨 PARİTE (09-11): `reply` olmadan "bilgim yok" kuralı bu rozette
+        // çalışmaz ve landing "kendiliğinden gönderilirdi" derken ürün o cevabı
+        // BLOKLAR — yukarıdaki "must state what the product would truly do"
+        // sözü tam olarak bunu yasaklıyor.
+        reply: result.reply,
       },
       message,
     );

@@ -23,9 +23,9 @@
         ],
         "usedSourcesEmpty": true,
         "noUnverifiedCommitment": true,
-        "acknowledgesAbsence": true,
-        "why": "DÜRÜSTLÜK SÖZLEŞMESİ (09-09 yeniden tanım): kayıt yokken (a) tesis gerçeği UYDURMA, (b) makbuzsuz eylem/söz VERME, (c) bilgi yokluğunu SÖYLE. Güven eşiği artık BEKLENTİ DEĞİL — kurucu P1-c kararıyla dürüst bilgi-yokluğu cevabı otomatik gidebilir; eski maxConfidence 0.75 beklentisi bu kararla çelişiyordu ve 09-09 koşusunda (7ohi) tek kırmızıydı. O koşu kırmızı BAŞLANGIÇ kanıtı olarak korunur.",
-        "changed": "2026-09-09: maxConfidence 0.75 KALDIRILDI (kurucu P1-c: güven zorlanmaz, eşik değişmez); yerine noUnverifiedCommitment + acknowledgesAbsence + genişletilmiş uydurma listesi. Baseline koşu: eval-2026-09-09-085534-7ohi.md (E1 ❌ yalnız maxConfidence; cevap dürüsttü: 'Otopark konusunda kayıtlı bilgim yok; mesajınız kaydedildi, ev sahibiniz görebilir.' güven 0.8, kaynak 0/0)."
+        "why": "GÖNDERİLEBİLİRLİK SÖZLEŞMESİ (09-11 yeniden tanım, KURUCU KURALI): kayıt yokken (a) tesis gerçeği UYDURMA, (b) makbuzsuz eylem/söz VERME, (c) 🚨 üretilen cevap MİSAFİRE GÖNDERİLEBİLİR OLMAMALI. Model dürüstçe 'kayıtlı bilgim yok' demeye DEVAM eder (istem kuralı UYDURMAYI engellemek için yerinde) ama o metin gönderim kapısından GEÇMEZ — misafir onun yerine deterministik devir metnini alır.",
+        "changed": "2026-09-11: `acknowledgesAbsence` KALDIRILDI, yerine `notDeliverable` geldi. Kurucu kuralı: \"müşteriye hiçbir zaman bilgim yok mesajı gitmemeli — host neden 'bilgim yok' mesajı göndersin ki?\" Sözleşme TERS ÇEVRİLDİ: 09-09'da yokluk beyanı ÖDÜLLENDİRİLİYORDU, artık o metnin GÖNDERİLMEMESİ ölçülüyor. İstem kuralı KALDIRILMADI (bilinçli: silinseydi model uydururdu). Kapı `src/lib/ai/absence.ts` `admitsMissingKnowledge`; QR'da gerekçe `absence_admission`. 2026-09-09 kaydı (tarihsel): maxConfidence 0.75 kaldırılmış, yerine noUnverifiedCommitment + acknowledgesAbsence konmuştu.",
+        "notDeliverable": true
       }
     },
     {

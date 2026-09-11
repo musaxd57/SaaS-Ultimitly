@@ -150,6 +150,11 @@ export const POST = withManage(async (session, req) => {
       confidence: result.confidence,
       source: result.source,
       riskType: result.riskType ?? null,
+      // 🚨 PARİTE (09-11): `reply` VERİLMEZSE "bilgim yok" kuralı burada HİÇ
+      // çalışmaz ve bu kart, gerçek göndericinin BLOKLADIĞI bir cevap için
+      // "kendiliğinden gönderilirdi" der. Yukarıdaki "the exact production gate"
+      // iddiası ancak bu alanla doğru (alan opsiyonel → derleme uyarmaz).
+      reply: result.reply,
     },
     message,
   );

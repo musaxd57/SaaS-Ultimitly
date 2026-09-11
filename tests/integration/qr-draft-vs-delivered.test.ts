@@ -232,9 +232,19 @@ describe("QR: model taslağı ile ürünün döndürdüğü cevap AYNI ŞEY DEĞ
   // ── İKİNCİ GERÇEK KOŞU (09-09 08:55, `7ohi`, P1 sonrası istem) — ÖLÇÜLDÜ ────
   // Bu vakada HİÇBİR girdi varsayılmadı: cevap, güven, kaynak VE intent/
   // riskLevel/riskType kurucunun raporundan (Ö4 ile artık kaydediliyor).
-  // Kurucu P1-c kararı: güven zorlanmaz, eşik değişmez → dürüst bilgi-yokluğu
-  // cevabı 0.8'de otomatik GİDER. Bu test tam olarak o rota çıktısının
-  // DÜRÜSTLÜĞÜNÜ ölçer: uydurma tesis bilgisi yok, makbuzsuz söz yok.
+  //
+  // 🚨 SÖZLEŞME TERSİNE ÇEVRİLDİ (kurucu kuralı, 09-11). 09-09'da bu satırlar
+  // "dürüst bilgi-yokluğu cevabı 0.8'de otomatik GİDER, ölçtüğümüz şey o çıktının
+  // DÜRÜSTLÜĞÜ" diyordu. Kurucu o davranışı REDDETTİ:
+  //
+  //   > "müşteriye hiçbir zaman 'bilgim yok' mesajı gitmemeli; bilgi yoksa da
+  //   >  cevap gitmemeli — host neden 'bilgim yok' mesajı göndersin ki?"
+  //
+  // DEĞİŞEN: ölçülen taslak AYNEN duruyor (gerçek koşunun kanıtı), değişen şey
+  // ürünün o taslakla NE YAPTIĞI. Aşağıdaki test tam da bu dosyanın varlık
+  // sebebini gösteriyor: TASLAK ≠ TESLİM EDİLEN. Bedeli ÖLÇÜLÜ ve sıfıra yakın —
+  // taslağın misafir için işe yarayan TEK yarısı ("mesajınız kaydedildi, ev
+  // sahibiniz görebilir") devir metninin KENDİSİ, yani misafir onu ZATEN alıyor.
   const MEASURED_E1_RUN2 = {
     guestMessage: "Otopark var mı?",
     reply: "Otopark konusunda kayıtlı bilgim yok; mesajınız kaydedildi, ev sahibiniz görebilir.",
@@ -245,19 +255,22 @@ describe("QR: model taslağı ile ürünün döndürdüğü cevap AYNI ŞEY DEĞ
     riskType: null,
   } as const;
 
-  it("E1 (2. koşu, TÜM girdiler ÖLÇÜLDÜ): dürüst bilgi-yokluğu cevabı kapıdan geçer ve ÇIKTI dürüst kalır", async () => {
+  it("🚨 E1 (2. koşu, TÜM girdiler ÖLÇÜLDÜ): yokluk itirafı GÜVEN 0.8'de bile MİSAFİRE GİTMEZ", async () => {
     const { token } = await seed();
     mockSuggest.mockResolvedValue(draft(MEASURED_E1_RUN2, MEASURED_E1_RUN2));
 
     const out = await ask(token, MEASURED_E1_RUN2.guestMessage);
 
-    // Kapı geçiyor (0.8 ≥ 0.75, intent devir kümesinde değil) — kurucu kararıyla İSTENEN davranış.
-    expect(out.escalated).toBeFalsy();
-    expect(out.reply).toBe(MEASURED_E1_RUN2.reply);
-    // 🚨 Rota çıktısının DÜRÜSTLÜĞÜ: tesis gerçeği uydurulmamış, söz verilmemiş, yokluk söylenmiş.
+    // Eski davranış: 0.8 ≥ 0.75 ve intent devir kümesinde değil → taslak AYNEN giderdi.
+    // Yeni kural güven eşiğinden BAĞIMSIZ çalışır ve taslağı durdurur.
+    expect(out.escalated).toBe(true);
+    expect(out.reply).toBe(escalationReply());
+    expect(out.reply ?? "", "yokluk cümlesi misafire DÖNMEZ").not.toMatch(/bilgim yok/);
+    // 🚨 BEDEL ÖLÇÜSÜ: taslağın misafir için işe yarayan yarısı devir metninde ZATEN var.
+    expect(out.reply ?? "").toMatch(/kaydedildi/);
+    // Devir metni de dürüst kalır (uydurma tesis bilgisi yok, makbuzsuz söz yok).
     expect(out.reply ?? "").not.toMatch(/bina altında|ücretsiz|vardır|mevcuttur|bulunmaktadır|otoparkımız/);
     expect(unverifiedActionClaims(out.reply ?? "")).toEqual([]);
-    expect(out.reply ?? "").toMatch(/bilgim yok/);
   });
 
   it("KARŞI-ÖRNEK (aynı 0.8 güven): uydurma otopark bilgisi ya da 'döneceğim' sözü DÜRÜSTLÜK kontrolünden GEÇEMEZ", async () => {

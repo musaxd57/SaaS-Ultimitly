@@ -1,6 +1,7 @@
 import { type NextRequest, NextResponse } from "next/server";
 import { prisma } from "@/lib/db";
 import { suggestReply } from "@/lib/ai";
+import { admitsMissingKnowledge } from "@/lib/ai/absence";
 import { classifyFallback, detectPromptInjection, detectRiskType } from "@/lib/ai/fallback";
 import { HIGH_STAKES_RISK_TYPES } from "@/lib/automation";
 import {
@@ -176,6 +177,8 @@ export type EscalationReason =
   | "low_confidence"
   /** Bant içindeydi AMA cevap kaynaksız somut iddia taşıyordu → devir. */
   | "unsourced_claim"
+  /** 🚨 Cevabın KENDİSİ bilginin kayıtlarda olmadığını söylüyordu → misafire GİTMEZ (09-11). */
+  | "absence_admission"
   /** Devir DEĞİL: risksiz soru, orta güven, kaynaksız iddia YOK → dürüst cevap gitti. */
   | "informational_low_confidence";
 
@@ -233,6 +236,18 @@ function evaluateEscalation(
   const dr = detectRiskType(message);
   if (dr && HIGH_STAKES_RISK_TYPES.has(dr)) return yes("keyword_risk_type");
   if (result.riskLevel !== "none" && result.riskLevel !== "low") return yes("model_risk_level");
+  // ── "BİLGİM YOK" MİSAFİRE GİTMEZ (kurucu kuralı, 09-11) ───────────────────
+  //
+  // 🚨 GÜVEN EŞİĞİNDEN BAĞIMSIZ ve BANTTAN ÖNCE: ölçüldü ki modelin güveni 0.75
+  // ÜSTÜNDE olan bir "kayıtlı bilgim yok" cevabı bu kapıdan geçip misafire
+  // gidiyordu (2. gerçek koşu: güven .8, kaynak 0/0). Kurucu kuralı: host neden
+  // "bilgim yok" mesajı göndersin? O cevabın işe yarar tek parçası zaten devir
+  // metninin kendisi ("mesajınız kaydedildi") — devredince misafir onu ZATEN alır.
+  //
+  // ⚠️ ÖLÇÜT CEVABIN KENDİ İTİRAFIDIR, "kaynak yok" DEĞİL: `usedSources` yalnız KB
+  // kalemlerini sayar; "Giriş saati kaçta?" cevabı MÜLK ALANINDAN gelir, kaynaksız
+  // görünür ama DAYANAKLIDIR ve gitmeye devam eder (test-pinli).
+  if (admitsMissingKnowledge(result.reply)) return yes("absence_admission");
   // ── EKSİK BİLGİDE DÜRÜST CEVAP — DAR BANT (kurucu, 09-08) ─────────────────
   //
   // Buraya gelen mesaj, YUKARIDAKİ SEKİZ KAPININ HEPSİNDEN geçmiştir: model

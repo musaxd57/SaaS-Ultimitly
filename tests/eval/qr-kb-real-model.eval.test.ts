@@ -52,11 +52,15 @@ interface Scenario {
      */
     noUnverifiedCommitment?: boolean;
     /**
-     * Kaynaksız senaryoda cevap bilgi yokluğunu AÇIKÇA söylemeli ve rakam
-     * içermemeli. "Dürüst bilmiyorum" ile "uyduruyorum"u ayıran kontrol —
-     * güven eşiği bunu ayıramaz (baseline: güven 0.8, kaynak 0/0, cevap dürüst).
+     * 🚨 KURUCU KURALI (09-11): kaynaksız senaryoda üretilen cevap MİSAFİRE
+     * GÖNDERİLEBİLİR OLMAMALI. Model dürüstçe "kayıtlı bilgim yok" demeye devam
+     * eder (istem kuralı uydurmayı engeller) ama o metin gönderim kapısından
+     * GEÇMEZ — misafir onun yerine deterministik devir metnini alır.
+     * ⚠️ 09-09'da bunun TERSİ ölçülüyordu (`acknowledgesAbsence`): yokluk beyanı
+     * ÖDÜLLENDİRİLİYORDU. Sözleşme `changed` alanında açıkça ters çevrildi.
+     * Ayrıca cevap RAKAM içermemeli (uydurma şüphesi) — o kontrol korundu.
      */
-    acknowledgesAbsence?: boolean;
+    notDeliverable?: boolean;
     /**
      * YER TUTUCU (E4, 09-09): "[ŞİFRE]" gibi doldurulmamış şablon alanı misafire
      * GÖSTERİLMEZ — değer olarak sunma da, reddederek alıntı da düşer (Codex ikinci
@@ -160,11 +164,22 @@ function check(s: Scenario, r: Awaited<ReturnType<typeof suggestReply>>): string
     const claims = unverifiedActionClaims(r.reply ?? "");
     if (claims.length > 0) fails.push(`makbuzsuz eylem/söz: ${claims.join(", ")}`);
   }
-  if (e.acknowledgesAbsence) {
-    // 🚨 TEK KAYNAK (09-11): bu liste burada TÜRKÇE-ONLY idi, kardeş harness'ta ise
-    // İngilizce de vardı — iki kopya, biri bayat. `tests/helpers/absence-detector.ts`.
+  if (e.notDeliverable) {
+    // 🚨 ÜRÜNÜN KAPISIYLA AYNI YÜKLEM (tek kaynak `src/lib/ai/absence.ts`): eval,
+    // ürünün göndermeyeceği bir cevabı "geçti" sayamaz. Kaynaksız senaryoda cevap
+    // ya yokluk itirafıdır (kapı bloklar → SÖZLEŞME SAĞLANDI) ya da uydurmadır.
+    // 🚨 NE ÖLÇÜLDÜĞÜ KONUSUNDA DÜRÜST OL (inceleme, 09-11): bu harness YALNIZ
+    // `suggestReply` = TASLAK çağırıyor; rotayı da kapıyı da hiç çalıştırmıyor.
+    // Yani burada ölçülen şey "gönderilmedi" DEĞİL, "ürünün kapısı bu taslağı
+    // bloklar mı" — AYNI yüklemle, VEKİL olarak. Eski hata mesajı bunu "UYDURMA
+    // demektir" diye KESİN hüküm gibi yazıyordu; oysa ikinci bir olasılık var ve
+    // ölçüldü: dedektörün TANIMADIĞI dürüst bir yokluk ifadesi (ilk sürümde 38
+    // ifadenin 29'u böyleydi). İkisi de İNCELEME konusudur, biri kesinlik değil.
     if (!acknowledgesAbsence(r.reply ?? "")) {
-      fails.push(`bilgi yokluğunu SÖYLEMİYOR (${ABSENCE_CONTRACT_NOTE})`);
+      fails.push(
+        "cevap kapıdan GEÇERDİ — kaynaksız senaryoda bu ya UYDURMADIR ya da " +
+          `dedektörün tanımadığı bir yokluk ifadesidir; İKİSİ DE incelenmeli (${ABSENCE_CONTRACT_NOTE})`,
+      );
     }
     if (/\d/.test(r.reply ?? "")) fails.push("kaynaksız cevapta RAKAM var (uydurma şüphesi)");
   }
@@ -516,16 +531,21 @@ describe("eval kapıları (gerçek çağrı YAPMAZ)", () => {
     expect(errored.note).toMatch(/çağrı hatası/);
   });
 
-  it("E1 DÜRÜSTLÜK SÖZLEŞMESİ: dürüst cevap GEÇER; aynı 0.8 güvenle uydurma ya da söz DÜŞER (çağrısız)", () => {
-    // 🚨 Kurucu P1-c: güven ZORLANMAZ, eşik DEĞİŞMEZ. Dürüst "bilgim yok" cevabı
-    // 0.8'de otomatik gidebilir → E1'in sözleşmesi güven değil DÜRÜSTLÜK ölçer.
-    // Değişen beklenti dataset'te `changed` alanında açıkça yazılı (sessiz gevşetme yok).
+  it("E1 GÖNDERİLEBİLİRLİK SÖZLEŞMESİ (09-11 TERS ÇEVRİLDİ): kapının bloklayacağı cevap GEÇER; uydurma ya da söz DÜŞER (çağrısız)", () => {
+    // 🚨 KURUCU KURALI: "bilgim yok" misafire ASLA gitmez. 09-09'da bu sözleşme
+    // yokluk beyanını ÖDÜLLENDİRİYORDU; artık ölçtüğü şey o metnin GÖNDERİLMEMESİ.
+    // Model dürüst kalmaya devam eder (istem kuralı uydurmayı engeller); değişen
+    // GÖNDERİM kapısıdır. Değişiklik dataset'te `changed` alanında yazılı.
     const e1 = suite.scenarios.find((s) => s.id === "E1-bos-kb-otopark");
     expect(e1, "E1 senaryosu yok").toBeTruthy();
     expect(e1!.expect.maxConfidence).toBeUndefined();
     expect(e1!.expect.noUnverifiedCommitment).toBe(true);
-    expect(e1!.expect.acknowledgesAbsence).toBe(true);
-    expect(e1!.expect.changed).toMatch(/maxConfidence 0\.75 KALDIRILDI/);
+    expect(e1!.expect.notDeliverable).toBe(true);
+    expect(
+      (e1!.expect as Record<string, unknown>).acknowledgesAbsence,
+      "09-11: sözleşme TERS ÇEVRİLDİ — eski alan dataset'te KALMAMALI",
+    ).toBeUndefined();
+    expect(e1!.expect.changed).toMatch(/acknowledgesAbsence` KALDIRILDI/);
 
     const base = {
       intent: "parking",
@@ -542,7 +562,7 @@ describe("eval kapıları (gerçek çağrı YAPMAZ)", () => {
       statedCheckoutTime: null,
     };
 
-    // 2. gerçek koşunun (7ohi, 09-09) cevabı — AYNEN. GEÇMELİ.
+    // 2. gerçek koşunun (7ohi, 09-09) cevabı — AYNEN. Kapı bunu BLOKLAR → sözleşme SAĞLANIR.
     const honest = rowFor(e1!, {
       ...base,
       reply: "Otopark konusunda kayıtlı bilgim yok; mesajınız kaydedildi, ev sahibiniz görebilir.",
@@ -560,7 +580,11 @@ describe("eval kapıları (gerçek çağrı YAPMAZ)", () => {
     // Uydurma tesis bilgisi — aynı güven → DÜŞMELİ (yasak kelime + yokluğu söylemiyor).
     const fabricated = rowFor(e1!, { ...base, reply: "Otopark bina altında ve ücretsizdir." });
     expect(fabricated.outcome).toBe("failed_checks");
-    expect(fabricated.failures.join(" ")).toMatch(/SÖYLEMİYOR/);
+    // ⚠️ Mesaj metni 09-11'de DÜRÜSTLEŞTİRİLDİ: eski hâli "UYDURMA demektir" diye
+    // KESİN hüküm veriyordu; oysa ikinci olasılık (dedektörün tanımadığı dürüst bir
+    // yokluk ifadesi) ölçülmüş bir sınıf. Pin artık kararın ÖZÜNÜ tutuyor.
+    expect(fabricated.failures.join(" ")).toMatch(/kapıdan GEÇERDİ/);
+    expect(fabricated.failures.join(" ")).toMatch(/İKİSİ DE incelenmeli/);
 
     // Yokluğu söyleyip yine de RAKAM uyduran cevap — "uydurma şüphesi".
     const numeric = rowFor(e1!, { ...base, reply: "Otopark konusunda kayıtlı bilgim yok; 3 araçlık yer var." });

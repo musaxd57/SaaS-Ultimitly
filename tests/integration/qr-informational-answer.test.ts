@@ -20,6 +20,14 @@ import { prisma, resetDb, makeOrgWithProperty } from "../helpers/db";
 //
 // ⚠️ Bu gevşeme GÜVENLİK KAPISINI KIRMAZ: şikâyet/para/insan-talebi/injection
 // dalları bandın ÖNÜNDE çalışır ve aşağıdaki testler bunu iki yönlü pinler.
+//
+// 🚨 BANDIN KAPSAMI DARALDI (kurucu kuralı, 09-11). Bu dosya yazıldığında
+// `model()` fikstürünün cevabı "kayıtlı bir bilgim yok…" idi, yani bandın
+// SINANAN kullanımı tam da yokluk itirafı göndermekti. Kurucu onu yasakladı
+// ("host neden 'bilgim yok' mesajı göndersin ki?") → `absence_admission` dalı
+// bandın ÖNÜNE kondu. Bandın kalan meşru işi: selamlaşma/sohbet, savuşturma ve
+// kaynaklı cevap gibi YOKLUK İTİRAFI OLMAYAN dürüst yanıtlar. Fikstür bu yüzden
+// değişti; yokluk itirafının her koşulda durdurulduğu AYRI satırlarla pinlidir.
 // ---------------------------------------------------------------------------
 
 vi.mock("@/lib/report-error", async (orig) => {
@@ -67,8 +75,13 @@ const ask = (token: string, message: string) =>
     { params: Promise.resolve({ token }) },
   );
 
+/** Yokluk itirafı OLMAYAN, kaynaksız-somut-iddia da içermeyen dürüst bant cevabı. */
+const BAND_REPLY = "Bu konuda ev sahibiniz size yardımcı olabilir; mesajınızı görebiliyor.";
+/** Kurucunun yasakladığı sınıf — bandın İÇİNDE de olsa gitmez (↓ ayrı testler). */
+const ABSENCE_REPLY = "Bu konuda kayıtlı bir bilgim yok; ev sahibiniz yardımcı olabilir.";
+
 const model = (over: Record<string, unknown> = {}) => ({
-  reply: "Bu konuda kayıtlı bir bilgim yok; ev sahibiniz yardımcı olabilir.",
+  reply: BAND_REPLY,
   intent: "general",
   riskLevel: "none",
   riskType: null,
@@ -108,7 +121,7 @@ describe("QR — eksik bilgide dürüst cevap (dar bant)", () => {
     const res = await ask(token, "nasılsın");
     const body = await res.json();
     expect(body.escalated).toBeFalsy();
-    expect(body.reply).toContain("kayıtlı bir bilgim yok");
+    expect(body.reply).toBe(BAND_REPLY);
     const ev = await lastReason(orgId);
     expect(ev?.finalDecision).toBe("auto_sent");
     expect(ev?.reason).toBe("informational_low_confidence");
@@ -116,15 +129,45 @@ describe("QR — eksik bilgide dürüst cevap (dar bant)", () => {
 
   it("çöp/otopark gibi tesis sorusu da bant içindeyse cevaplanır (gereksiz devir yok)", async () => {
     const { token } = await seed();
-    mockSuggest.mockResolvedValue(model({ confidence: 0.55, reply: "Çöp için kayıtlı bilgim yok." }));
+    mockSuggest.mockResolvedValue(
+      model({ confidence: 0.55, reply: "Çöp konusunda ev sahibiniz size yardımcı olabilir." }),
+    );
 
     const body = await (await ask(token, "çöpü nereye atabiliriz")).json();
     expect(body.escalated).toBeFalsy();
-    expect(body.reply).toBe("Çöp için kayıtlı bilgim yok.");
+    expect(body.reply).toBe("Çöp konusunda ev sahibiniz size yardımcı olabilir.");
+  });
+
+  it("🚨 YOKLUK İTİRAFI bant İÇİNDE olsa bile GÖNDERİLMEZ (kurucu kuralı 09-11)", async () => {
+    const { orgId, token } = await seed();
+    // Bandın ESKİ ana kullanımı buydu: model temellendiremiyor, dürüstçe "bilgim
+    // yok" diyor, bant onu gönderiyordu. Kurucu bu cevabı YASAKLADI.
+    mockSuggest.mockResolvedValue(model({ confidence: 0.6, reply: ABSENCE_REPLY }));
+
+    const body = await (await ask(token, "çöpü nereye atabiliriz")).json();
+    expect(body.escalated).toBe(true);
+    expect(body.reply ?? "").not.toMatch(/bilgim yok/);
+    expect((await lastReason(orgId))?.reason).toBe("absence_admission");
+  });
+
+  it("🚨 ÖNCELİK: bandın ALTINDA da gerekçe `absence_admission` (güvenden BAĞIMSIZ kural)", async () => {
+    const { orgId, token } = await seed();
+    // Kural güven eşiğinden ÖNCE çalışır. Gerekçe bilinçli olarak `low_confidence`
+    // DEĞİL: canlıda ölçmek istediğimiz şey "model ne sıklıkla yokluk itirafı
+    // üretiyor" — bu sayı en çok BANDIN ALTINDA birikir. `low_confidence` yazsaydık
+    // kuralın en sık tetiklendiği vaka sayımdan düşerdi (A3 KB boşluk analizi
+    // aynı kaydı okuyor). Satır başına TEK gerekçe sözleşmesi gereği biri seçilir.
+    mockSuggest.mockResolvedValue(model({ confidence: 0.2, reply: ABSENCE_REPLY }));
+
+    const body = await (await ask(token, "çöpü nereye atabiliriz")).json();
+    expect(body.escalated).toBe(true);
+    expect((await lastReason(orgId))?.reason).toBe("absence_admission");
   });
 
   it("BANDIN ALTI hâlâ devir: model gerçekten emin değilse insana gider", async () => {
     const { orgId, token } = await seed();
+    // ⚠️ Fikstür cevabı YOKLUK İTİRAFI OLMAMALI, yoksa bu test `absence_admission`
+    // dalından geçer ve güven eşiğini artık sınamaz (↑ öncelik testi onu pinler).
     mockSuggest.mockResolvedValue(model({ confidence: 0.2 }));
 
     const body = await (await ask(token, "çöpü nereye atabiliriz")).json();
@@ -215,6 +258,8 @@ describe("QR — eksik bilgide dürüst cevap (dar bant)", () => {
   it("BAYRAK KAPALI (varsayılan): bant devre dışı, eski davranış — devir", async () => {
     const { orgId, token } = await seed();
     vi.stubEnv("QR_INFORMATIONAL_BAND_ENABLED", "");
+    // ⚠️ Aynı gerekçe: yokluk itirafı fikstürü bu testi VAKUMLAR (bayrak açıkken de
+    // geçerdi). Bant açık/kapalı farkını ölçen tek şey `low_confidence` gerekçesi.
     mockSuggest.mockResolvedValue(model({ confidence: 0.6 }));
 
     const body = await (await ask(token, "nasılsın")).json();

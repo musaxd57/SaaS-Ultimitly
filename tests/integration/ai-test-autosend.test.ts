@@ -99,6 +99,21 @@ describe("POST /api/ai/test — auto-send verdict + note parity", () => {
     expect(json.reply.endsWith("Sevgiler,\nMusa")).toBe(true);
   });
 
+  it("🚨 PARİTE: yokluk itirafı → wouldAutoSend FALSE (kart gerçek göndericiyi YANSITMALI)", async () => {
+    // Bu rota kapıyı ÇAĞIRIYORDU ama `reply` alanını VERMİYORDU (alan opsiyonel →
+    // ne derleme ne test uyarıyordu). Sonuç ÖLÇÜLDÜ: gerçek gönderici bu cevabı
+    // BLOKLARKEN kart "kendiliğinden gönderilirdi" diyordu. Rotanın kendi yorumu
+    // "the exact production gate" diyor — bu satır o iddiayı sınar.
+    await seed();
+    mockSuggest.mockResolvedValue({
+      ...SAFE_WIFI,
+      intent: "general",
+      reply: "Bu konuda kayıtlı bilgim yok; ev sahibiniz yardımcı olabilir.",
+    });
+    const json = await (await POST(req("Otopark var mı?"), ctx)).json();
+    expect(json.wouldAutoSend).toBe(false);
+  });
+
   it("gate-blocked reply (refund) → wouldAutoSend false and the DRAFT stays note-free", async () => {
     await seed();
     mockSuggest.mockResolvedValue({ ...SAFE_WIFI, intent: "refund", reply: "İade talebinizi yöneticimize ilettim." });

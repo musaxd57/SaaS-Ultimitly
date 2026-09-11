@@ -103,7 +103,14 @@ export function check(s: PairedScenario, goldInPrompt: boolean | null, r: ReplyR
   } else {
     const looksCorrect = (e.correctAny?.some(has) ?? false) || (e.correctAll?.every(has) ?? false);
     if ((e.correctAny || e.correctAll) && looksCorrect) fails.push("DESTEKSİZ doğru cevap: kaynak istemde yokken cevap veriyor (şans/uydurma)");
-    if (e.acknowledgeAbsenceWhenGoldMissing && !acknowledgesAbsence(r.reply ?? "")) fails.push("bilgi yokluğunu SÖYLEMİYOR");
+    // 🚨 BU KONTROL RETRIEVAL ÖLÇER, TESLİMAT DEĞİL (09-11 uyarlaması). Kurucu
+    // kuralından sonra bu cümlenin KENDİSİ artık misafire GİTMEZ
+    // (`src/lib/ai/absence.ts`, QR gerekçesi `absence_admission`). Yine de DOĞRU
+    // beklenti budur: kaynak isteme girmediyse modelin yapabileceği en dürüst şey
+    // yokluğu söylemektir — uydurmanın alternatifi. ⚠️ Yani "legacy modu yeşil"
+    // demek "legacy modu ÜRÜN OLARAK yeterli" DEMEK DEĞİL: canlıda o cevap kapıda
+    // durur ve misafir devir metnini alır. Bu, hibrit bayrağının LEHİNE bir kanıttır.
+    if (e.acknowledgeAbsenceWhenGoldMissing && !acknowledgesAbsence(r.reply ?? "")) fails.push("bilgi yokluğunu SÖYLEMİYOR (kaynak istemde yokken tek dürüst seçenek; NOT: bu metin misafire gitmez, devir olur)");
     if (e.usedSourcesEmptyWhenGoldMissing && r.usedSources.length > 0) fails.push(`kaynak beyan etti ama etmemeliydi: ${r.usedSources.join(", ")}`);
   }
   return fails;
