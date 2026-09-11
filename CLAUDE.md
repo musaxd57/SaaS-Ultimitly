@@ -257,7 +257,14 @@ Bu dosyaya token/anahtar/parola yazma.
 - 🚨 **KURUCUNUN GERÇEK İŞLETME ADI REPOYA YAZILMAZ (09-11):** 95 dosyada 296 geçiş vardı
   (fikstür mülk adları, örnek SSID'ler, yorumlarda "… canlı hesabı"). Hepsi temizlendi: fikstürlerde
   kurgusal **`Lale`**, canlı hesaba atıflarda **"kurucu org"**. Yeni fikstür yazarken gerçek müşteri /
-  işletme adı KULLANMA. ⚠️ `Lale` fikstür seçimi ÖLÇÜLDÜ: etiket (`daire/no/apt`) değil, sayaç
+  işletme adı KULLANMA. 🚨 **ARTIK MEKANİK PİN VAR** (`tests/unit/brand-name-absent.test.ts`):
+  `git ls-files` üzerinden TAKİP EDİLEN her dosya taranır (iki varyant). Gerekçe ölçüldü —
+  temizlikten SONRA ad `34fc701` ile fikstüre GERİ GELDİ ve push edildi; mutasyon turunda
+  "adı geri koy" mutantı HAYATTA KALMIŞTI. ⚠️ Aranan kelime O DOSYAYA DA YAZILMAZ (iğne karakter
+  kodlarından); anti-vakumluk ayrı satırda (repoda kesin bulunan bir kelime BULUNMALI, yoksa git
+  bozulunca iddia sessizce boş liste döner). Kapsam ÇALIŞMA AĞACI — geçmiş commit'ler kapsam
+  DIŞI (geçmiş yazımı ister; `origin/main` TEMİZ, iki eski dal ucu hâlâ taşıyor, karar kurucunun).
+  ⚠️ `Lale` fikstür seçimi ÖLÇÜLDÜ: etiket (`daire/no/apt`) değil, sayaç
   (`kişilik/yatak`) değil, cihaz listesinde yok → `apartmentNumberOf`un "tek sayı" dalını eski adla
   BİREBİR aynı şekilde sınar (test davranışı değişmedi).
 
@@ -1153,9 +1160,26 @@ Sekiz P1 KAPANDI (09-07), her biri ayrı commit, kırmızı-önce + iki yönlü 
   YERDE), geçiş TEK kalır — ikinci bir geçiş misafir kontrolündeki `{{guestName}}` değerinden YENİ belirteç
   doğurabilirdi. `Object.hasOwn` kapısı: `{{constructor}}` prototip üyesine çözülüp yazma alanına
   "function Object…" basıyordu. Kırmızı-önce 6/6 (eski kod ölçüldü) + mutasyon.
-- **PANEL YERLEŞİMİ (kurucu 09-11, davranış değişikliği YOK):** `lg`de SAYFA KAYMAZ — dış kap tam ekran +
-  `overflow-hidden`, kayan TEK öge `<main>` (kenar çubuğu her zaman tam yükseklik; mobilde eski davranış
-  AYNEN). Konuşma sayfası: misafir adı ve "mülk · kanal · giriş→çıkış" sayfa başlığından KARTIN BAŞLIK
+- **PANEL YERLEŞİMİ (kurucu 09-11; İKİ TUR — ikincisi ölçümle):** `lg`de SAYFA KAYMAZ.
+  🚨 **İLK ÇÖZÜMÜM KIRILGANDI ve kurucunun tarayıcısında ÇALIŞMADI:** dış kaba
+  `h-[calc(100vh/0.95)] + overflow-hidden` vermiştim; BENİM Chromium'umda doğru ölçülüyordu.
+  ⚠️ Sebep HÂLÂ HİPOTEZ (en olası: `zoom` × `vh` tarayıcı sürümüne bağlı) — elimdeki Chromium 141'de
+  ESKİ kod da doğru ölçülüyor, yani arızayı ÜRETEMEDİM. Kararı haklı çıkaran şey sebep değil YÖNTEM:
+  yeni yol `vh` aritmetiğine HİÇ dayanmaz. Dış kap `lg:fixed lg:inset-0` (zoomdan bağımsız tam
+  viewport; `fixed` akıştan çıkınca `body`de kaydıracak içerik kalmaz) + `lg:overflow-hidden`
+  emniyet kemeri. 🚨 **ASIL KUSUR BANDLARDI:** kart yüksekliği `calc(100vh/0.95 − 11rem)` sabitiydi
+  ve ARADAKİ BANDLARI saymıyordu — ölçüldü: "Otomatik yanıt beklemede" tek başına `<main>`i 46 px,
+  deneme bandıyla 109 px taşırıyor (yazma kutusunun altı katlanın altına iniyor) ve `11rem`in kendisi
+  1rem fazlaydı. Sayı yerine YAPI: kabuk o yolda (`fillsViewport`, `/^\/inbox\/[^/]+$/`) dikey flex
+  kurar → sayfadaki grid `lg:flex-1 lg:min-h-0` ile artanı alır → kart `lg:h-full` ile doldurur;
+  yeni bir band eklense hesap bozulmaz. ÖLÇÜLDÜ (3 çözünürlük × bandsız/tek/iki band = 9 durum):
+  `docScroll` 0, `mainOverflow` 0, composer daima katlanın üstünde; bandlar yalnız listeyi kısaltıyor.
+  Composer 160→104px, AI satırı `p-4`→`px-4 py-2.5`, ton kutusu `h-9`→`h-8` (üçü de `h-8` olunca
+  4px hizasızlık da kapandı). Şablon menüsü `lg`de YUKARI açılır (aşağı açılan ~92 px taşıyordu).
+  🚨 **REGRESYON PİNİ EKLENDİ — YOKTU** (kurucunun İKİ KEZ bildirdiği kusurun testi yoktu, K2 ihlali):
+  `fixed+inset-0`, doldurma kapsayıcısı, gridin artanı alması ve `100vh` aritmetiğinin GERİ GELMEMESİ
+  pinli (`mobile-grid-min-width.test.ts`). Kenar çubuğu her zaman tam yükseklik; mobilde eski davranış
+  AYNEN. Konuşma sayfası: misafir adı ve "mülk · kanal · giriş→çıkış" sayfa başlığından KARTIN BAŞLIK
   SATIRINA taşındı (ad durumun solunda, mülk önceliğin sağında), sağ ray sabit 20rem (yazma alanı geniş
   ekranda genişledi), mesaj listesi 44vh→52vh, yazma kutusu 80px→160px. **"Mülk" kartı KALDIRILDI**:
   adres çoğu hostta boş olduğu için kart pratikte tek satır (giriş/çıkış saati) gösteriyordu — o satır
@@ -1173,7 +1197,25 @@ Sekiz P1 KAPANDI (09-07), her biri ayrı commit, kırmızı-önce + iki yönlü 
   yol · halka açık sayfada çerez yenileme · `PADDLE_WEBHOOK_SECRET` boot kapısı.
 
 ## Durum
-**ÜRÜN TURU (09-11, iki ölçümlü ajan) — kurucu ekran görüntüleriyle bildirdi, dördü kapandı:**
+**ÜRÜN TURU 3 (09-11, DÖRT ölçümlü ajan) — `8e414f8` · `3965ecb` · `2a41a60` · `089240e`:**
+① 🚨 **MARKA ADI FİKSTÜRE GERİ GELMİŞTİ** (benim hatam, `34fc701` ile push edilmişti; ajan buldu) →
+temizlendi + **mekanik pin** eklendi (kelime pin dosyasına da yazılmadan). `origin/main` TEMİZ; iki eski
+uzak dal ucu hâlâ taşıyor (silinebilir, karar kurucunun). ② **PANEL YERLEŞİMİ İKİNCİ TUR** — kurucu
+"hâlâ aşağı iniyor" dedi ve HAKLIYDI: asıl kusur `zoom`×`vh` değil, kart yüksekliğindeki `11rem`
+sabitinin ARADAKİ BANDLARI saymamasıydı (ölçüldü: tek bandda `<main>` 46 px, iki bandda 109 px taşıyor).
+Sihirli sayı kalktı, yerini esnek doldurma aldı; 9 durumda `docScroll=0` + `mainOverflow=0` ölçüldü.
+Regresyon pini EKLENDİ (yoktu — K2 ihlali). ③ **Eval sözleşmesi vekilden GERÇEK KAPIYA** + 🚨 **İKİ
+EKSEN**: ilk yazımım teslimat eksenini eklerken UYDURMA eksenini kapatıyordu (R6'da düşük güvenli saf
+uydurma yeşil geçiyordu) → ürünün kendi `hasUnsourcedSpecificClaim` yüklemi ikinci eksen olarak bağlandı.
+🚨 **CODEX BU TAŞIMAYI REDDETMİŞTİ** — karar gerekçeyle BOZULDU ve açıkça raporlandı (tasarım §0; eski
+belgedeki madde silinmedi, "geçersizleşti" diye işaretlendi). **SON SÖZ KURUCUNUN.** Belgede ALTI yanlış
+olgu düzeltildi (§8). Kanıt: kırmızı-önce + **mutasyon 15/16** (biri ölçülmüş eşdeğer ve anti-vakum
+satırının işini kanıtlıyor) + tam kapılar yeşil (**npm test 4594/382** · tsc · lint · build · audit).
+Migration YOK, bayrak değişikliği YOK, ücretli servis YOK.
+⚠️ **DERS (kendi hatam):** mutasyon turu YALNIZ TEMİZ AĞAÇTA koşulur — `git checkout --` ile mutasyonu
+geri alan harness commit EDİLMEMİŞ düzenlemeleri de siler (ve yeni/untracked dosyada mutasyonu geri
+ALAMAZ). Bir tur iş yeniden yazıldı.
+**Önceki: ÜRÜN TURU 2 (09-11, iki ölçümlü ajan) — kurucu ekran görüntüleriyle bildirdi, dördü kapandı:**
 ① **marka adı repodan silindi** (95 dosya / 296 geçiş → fikstürde `Lale`, canlı hesapta "kurucu org").
 ② **şablonlar düzenlenebilir** (PATCH rotası vardı, düğme yoktu) + varsayılandan "Kendime uyarla" +
 PATCH'in yuttuğu `propertyId` alanı. ③ **şablon → KB önerisi** (`kb-from-templates.ts`) — inceleme ajanının
