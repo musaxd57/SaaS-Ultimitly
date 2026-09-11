@@ -45,9 +45,15 @@ describe("apartmentNumberOf — etiket > tek sayı > BELİRSİZ (null)", () => {
     // Hane SINIRI ≤3: iki ve üç haneli çıplak numara hâlâ daire numarasıdır (kural yutmuyor).
     ["Nuve Teras 12", "12"],
     ["Kule 104", "104"],
-    // Sayısız: mülk adının kendisi (uydurma numara yok)
-    ["Deniz Manzara", "Deniz Manzara"],
-    ["", ""],
+    // 🚨 SAYISIZ → null (inceleme turu 5): eskiden MÜLK ADININ TAMAMI dönüyordu ve ikame
+    // doğrudan yapılıyordu — KB'deki "Kapı kodu: {daire}" satırı misafire
+    // "Kapı kodu: Cozy Seaside Flat" olarak gidiyordu. Belirtecin görünür kalması yeğdir.
+    ["Deniz Manzara", null],
+    ["Cozy Seaside Flat", null],
+    ["", null],
+    // ETİKET ÖNCELİĞİ: "no/#" bina numarası da olabilir; güçlü etiket ("daire/D:") önce.
+    ["No:12 D:5", "5"],
+    ["No 7 Daire 3", "3"],
   ])("%s → %s", (name, expected) => {
     expect(apartmentNumberOf(name)).toBe(expected);
   });
@@ -114,7 +120,10 @@ describe("fillGuestPlaceholders — tek geçiş, harfi harfine ikame", () => {
 
   it("🚨 ad/daire değerindeki `$` kalıpları HARFİ HARFİNE girer (replace callback; string ikame misafirin mesajını bozardı)", () => {
     expect(fillGuestPlaceholders("Merhaba {isim}!", { guestFirstName: "$& $1 $` $$" })).toBe("Merhaba $& $1 $` $$!");
-    expect(fillGuestPlaceholders("Daire {daire}", { propertyName: "blok $&" })).toBe("Daire blok $&");
+    // 🚨 Mülk adı artık sayısızsa `null` döner (ikame yok) → `$` kalıbı SAYIYLA sınanır:
+    // etiketli ad "Daire $& 7" numarayı verir ve değer harfi harfine girer.
+    expect(fillGuestPlaceholders("Kapı {daire}", { propertyName: "Daire 7 $& blok" })).toBe("Kapı 7");
+    expect(fillGuestPlaceholders("Kapı {daire}", { propertyName: "blok $&" })).toBe("Kapı {daire}");
   });
 
   it("mülk adı verilmezse {daire} DOKUNULMAZ (uydurma değer yok); ad verilmezse {isim} dokunulmaz", () => {

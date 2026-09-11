@@ -282,6 +282,9 @@ kuralı deliyordu — ve hiçbir test bunu görmüyordu (tüm pinler özne↔fii
 sayılmaz. Özne YOKLUĞU iki biçimden anlaşılır: sol komşu çekimli bir FİİL/ULAÇtır ("Klimayı
 **açtık**, bozuldu") ya da fiil cümlenin başındadır. Araya giren ZARF/BAĞLAÇ atlanır ve ASIL özneye
 bakılır. Ölçüm (aynı bataryalar): **yanlış pozitif 24 → 2**, kaçırılan gerçek bildirim **0**.
+⚠️ **BU SAYILAR O BATARYAYA AİTTİR** (5. tur düzeltmesi): bağımsız bir batarya, aynı kuralın
+15 gerçek bildirimi düşürdüğünü ölçtü (§ Beşinci tur). "Sınıf kapandı" denemez; "o bataryada
+24 → 2" denir.
 
 Kalan iki yanlış pozitifin ikisi de dilbilgisiyle çözülemez ve ikisi de pinli:
 - "…biraz **gürültüden**" → complaint'i üreten şey cihaz kuralı değil, önceden var olan "gürültü"
@@ -289,7 +292,7 @@ Kalan iki yanlış pozitifin ikisi de dilbilgisiyle çözülemez ve ikisi de pin
 - "Saç kurutma **makinemiz** bozuldu" → misafirin KENDİ cihazı; "klimamız bozuldu" ile AYNI eki
   taşır, ayırt edici bir dilbilgisi sinyali yoktur. Yön güvenli (insana devir).
 
-**Liste ölçülerek küçüldü (13 → 8) ve ADI DEĞİŞTİ** (`VERBLIKE_NOUN_OVERRIDES`): varsayılan-RET
+**Liste ölçülerek küçüldü (11 → 8) ve ADI DEĞİŞTİ** (`VERBLIKE_NOUN_OVERRIDES`): varsayılan-RET
 gelince plan/hava/mide/uçuş/program/rezervasyon/telefon girdileri ÖLÜ kaldı. Geriye yalnız Türkçenin
 gerçek EŞSESLİLİĞİ kaldı — t/d ile biten ismin 3. tekil iyeliği geçmiş zamanla aynı yazılır:
 `saat+i` ≡ "‑ti", `tad+ı` ≡ "‑dı", `cild+im` ≡ "‑dim", `fiyat+ı`, `moral+im`, `bilet+i`.
@@ -333,3 +336,60 @@ BAŞINA sınayan satırlar eklendi (sol komşu çekimli bir fiil, yani özne yuv
 **Kanıt:** kırmızı-önce 26 düşen test; **mutasyon 26/26** (ilk koşuda 1 hayatta kaldı — fiilin kelime
 başı şartı; doğal ayırt edici bulundu: bitişik yazımda altdizi araması İÇERİDEKİ özneyi yutuyor,
 "Klimayı açtık, günümüzbozuldu."). Tam kapılar yeşil. Migration YOK, ücretli servis YOK.
+
+---
+
+## Beşinci inceleme turu (09-11, ölçümlü ajan) — özne yuvasının üç kör noktası
+
+### B1 — "özne var + cihaz değil → RET" varsayılanı 15 gerçek bildirimi düşürüyordu (P1, gerileme)
+
+Bağımsız batarya, `c4b32b7` (özne kuralı ÖNCESİ) ile birebir kıyas:
+
+| Sınıf | Mesaj | 4. tur | c4b32b7 |
+|---|---|---|---|
+| iyelik zinciri | Klimanın fanı bozuldu, çok ses yapıyor. | amenity | complaint |
+| iyelik zinciri | Mutfaktaki fırının kapağı bozulmuş. | amenity | complaint |
+| iyelik zinciri | Kapı kilidinin dili bozulmuş. | general | complaint |
+| zarf öbeği | Kombi bu sabah bozuldu. | general | complaint |
+| zarf öbeği | Kombi iki gündür bozuldu. | general | complaint |
+| zarf öbeği | Kombi saat üçte bozuldu. | general | complaint |
+| zarf öbeği | Kombi öğleden sonra bozuldu. | general | complaint |
+| niceleyici | Prizlerin ikisi bozuldu. | general | complaint |
+| ulaç | Klimayı açınca, bozuldu. | amenity | complaint |
+| ulaç | Klimayı kullandıktan sonra, bozuldu. | amenity | complaint |
+
+🚨 Hepsi `passesAutoReplySafetyGate`te **OTO-GÖNDERİLİR** yönüne geçmişti — yani 3. turun kapattığı
+sınıfın aynısı, başka dilbilgisel biçimlerde.
+
+**Düzeltme — üç DAR kapı (liste değil, BİÇİM):**
+
+1. **İYELİK ZİNCİRİ.** 3. tekil iyelikli bir ad, solundaki TAMLAYANIN parçasıdır; tamlayan cihazsa
+   bildirim cihaz hakkındadır. İki dal: tamlayan eki AÇIK ("klimaNIN fanı") ve BELİRTİSİZ tamlama
+   ("klima kumandası"). 🚨 Zincir FİİL testinden ÖNCE bakılır: "babamın SIHHATİ" biçimsel olarak
+   "‑ti" fiil ekine benzer ve yanlış complaint üretiyordu; zincir tamlayanı cihaz olmadığı için
+   REDDEDER. Karşı yön pinli: "sütün tadı" · "çocuğumuzun keyfi" · "valizimizin tekerleği" ·
+   "valiz tekerleği" (3. tekil iyelik TEK BAŞINA yetmez).
+2. **ZARF ÖBEĞİ BİÇİMDEN.** Zaman ve sayı KAPALI sözcük sınıflarıdır; 58 kelimelik liste
+   "bu sabah"ı kaçırıyordu. 🚨 **Zarf çekimi İYELİK ALMAZ** — "öğleDEN/üçTE/günLERCE" zarf,
+   "günÜMÜZ/geceMİZ" ÖZNEdir; tam çekim tablosu kullanmak "günümüz bozuldu"yu yanlış complaint
+   yapıyordu → ayrı ek kümesi (`ADVERBIAL_SUFFIX`).
+3. **ULAÇ EKLERİ.** `‑ınca · ‑dığında · ‑dıktan · ‑madan` eksikti. Ayrıca **MASTAR dalı
+   (`‑mak/‑mek`) ÇIKARILDI**: "yemek/ekmek" gerçek isimlerdir ve fiil sanılıyordu.
+
+Sonuç (aynı bataryalar): 15 gerileme → **0**; yanlış pozitif bataryası 2/36 (ikisi de önceden
+belgelenmiş, dilbilgisiyle çözülemez sınıf); kaçırılan bildirim 0/38.
+
+### B2 — `apartmentNumberOf` iki YANLIŞ ÇIKTI daha
+
+- **Etiket önceliği yoktu:** `No:12 D:5` → **"12"** (bina numarası). "no/#" ZAYIF etikettir; güçlü
+  etiket (`daire/apartment/apt/D:`) önce denenir → "5". `No 7 Daire 3` → "3".
+- 🚨 **Sayısız adda MÜLK ADININ TAMAMI dönüyordu** ve doğrudan ikame ediliyordu: "Cozy Seaside Flat"
+  adlı mülkte KB'deki `Kapı kodu: {daire}` satırı misafire **"Kapı kodu: Cozy Seaside Flat"** olarak
+  gidiyordu → artık `null` (belirteç görünür kalır).
+- **Sayaç sözcüğü listesi KORUNDU** (bare "oda/kat/banyo" dahil): ölçülen dört vakada yön GÜVENLİ
+  (`null` → belirteç görünür), uydurma numara söylemekten iyidir. Bilinen bedel: "Nuve 3 Oda
+  Servisi" gibi adlarda ikame yapılmaz.
+
+**Kanıt:** kırmızı-önce 25 düşen test; **mutasyon 26/26** — iki mutant hayatta kaldı ve ikisi de
+gerçek boşluk gösterdi: niceleyici sözcük listesi ÖLÜYDÜ (silindi, "hepsi/ikisi" zincirden geçiyor)
+ve belirtisiz tamlama dalı ("klima kumandası") PİNSİZDİ (satır eklendi).

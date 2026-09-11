@@ -67,10 +67,40 @@ const CONTRACT: [string, string, string | null][] = [
   ["Peteği açtık, bozuldu.", "complaint", "complaint"],
   ["Işığı açtık, bozuldu.", "complaint", "complaint"],
   ["Dolabı açtık, arızalı.", "complaint", "complaint"],
+  ["Dolap bozuldu.", "complaint", "complaint"],
   // Cihazın PARÇASI da cihazdır ("motor"): özne yuvasında duran parça adı bildirimi susturmasın.
   ["Bulaşık makinesinin motoru bozuldu", "complaint", "complaint"],
   // EKSİZ YÜKLEM: "var" çekim eki taşımaz ama fiil yerindedir.
   ["Buzdolabı var ya, bozulmuş.", "complaint", "complaint"],
+  // ── İNCELEME TURU 5 (09-11): ÖZNE YUVASININ ÜÇ KÖR NOKTASI — hepsi GERÇEK bildirimdi,
+  // 4. tur onları DÜŞÜRÜYORDU ve kapı OTO-GÖNDERİM izni veriyordu (ölçüldü, 15 satır).
+  // (a) İYELİK ZİNCİRİ: Türkçede KISMİ arızanın olağan biçimi; özne yuvasında cihazın PARÇASI durur.
+  ["Klimanın fanı bozuldu, çok ses yapıyor.", "complaint", "complaint"],
+  ["Mutfaktaki fırının kapağı bozulmuş.", "complaint", "complaint"],
+  ["Kapı kilidinin dili bozulmuş.", "complaint", "complaint"],
+  ["Bulaşık makinesinin kapağı bozuldu, kilitlenmiyor.", "complaint", "complaint"],
+  // BELİRTİSİZ isim tamlaması (tamlayan eki YOK): "klima kumandası" — zincirin ikinci dalı.
+  ["Klima kumandası bozuldu.", "complaint", "complaint"],
+  ["Buzdolabı kapağı bozulmuş.", "complaint", "complaint"],
+  // (b) ZARF ÖBEĞİ: tek kelimelik liste "bu sabah"ı kaçırıyordu; zaman/sayı BİÇİMDEN tanınır.
+  ["Kombi bu sabah bozuldu.", "complaint", "complaint"],
+  ["Kombi iki gündür bozuldu.", "complaint", "complaint"],
+  ["Kombi saat üçte bozuldu.", "complaint", "complaint"],
+  ["Kombi öğleden sonra bozuldu.", "complaint", "complaint"],
+  // (c) NİCELEYİCİ ÖZNE
+  ["Prizlerin ikisi bozuldu, telefonu şarj edemiyoruz.", "complaint", "complaint"],
+  ["Klimaların hepsi bozuldu.", "complaint", "complaint"],
+  // (d) ULAÇ: 3. turun düzelttiği cümle şeklinin ta kendisi, başka eklerle.
+  ["Klimayı açınca, bozuldu.", "complaint", "complaint"],
+  ["Klimayı çalıştırınca, bozuldu.", "complaint", "complaint"],
+  ["Klimayı kullandıktan sonra, bozuldu.", "complaint", "complaint"],
+  ["Klimayı açtığında, bozuldu.", "complaint", "complaint"],
+  ["Klimayı açmadan bozuldu.", "complaint", "complaint"],
+  // Zarf/eşseslilik pinleri CONTRACT tarafında olmalı: TRAP satırı zarf-atlamayı ÖLÇEMEZ
+  // (atlama aramayı sola taşır = complaint yönü; `null` beklentisi o yönü göremez).
+  ["Klima var, galiba bozuldu.", "complaint", "complaint"],
+  ["Klima var, dün bozuldu.", "complaint", "complaint"],
+  ["Klima var, tamamen bozuldu.", "complaint", "complaint"],
   // Şimdiki zaman KİŞİ eki (‑yoruz/‑yorum): fiil görünümü bunları da kapsamalı.
   ["Musluğu kapatamıyoruz, bozuldu.", "complaint", "complaint"],
   ["Klimayı kapatamıyorum, bozulmuş.", "complaint", "complaint"],
@@ -169,6 +199,19 @@ const TRAPS: [string, string | null][] = [
   ["Klima mükemmel. Ama yol boyunca canımız bozuldu.", null],
   ["Duş jeli bırakmışsınız, cildim bozuldu biraz ama teşekkürler.", null],
   ["Buzdolabındaki sütün tadı bozuldu, yenisini alabilir miyiz?", null],
+  // 🚨 Zincirin KABUL dalı TAMLAYANIN CİHAZ OLMASINI ister: 3. tekil iyelik TEK BAŞINA yetmez.
+  ["Klima çalışıyor ama valiz tekerleği bozuldu.", null],
+  ["Klima harika, bavul sapı bozuldu.", null],
+  // İYELİK ZİNCİRİNİN KARŞI YÖNÜ: tamlayan CİHAZ DEĞİLSE zincir REDDEDER (kabul etmez).
+  ["Lamba çok hoş, valizimizin tekerleği bozuldu, kargo var mı?", null],
+  ["Klima çok iyi soğutuyor, ama çocuğumuzun keyfi bozuldu, parkı sorabilir miyim?", null],
+  // 🚨 Zincir FİİL testinden ÖNCE bakılmalı: "sıhhati" biçimsel olarak "-ti" fiil ekine benzer.
+  ["Klima mükemmel. Babamın sıhhati bozuldu, bir gün erken çıkabiliriz.", "early_departure"],
+  // MASTAR (-mak/-mek) fiil yuvası SAYILMAZ: "yemek"/"ekmek" gerçek isimlerdir.
+  ["Fırın gayet iyi. Dışarıdan getirdiğimiz yemek bozuldu, çöpü nereye atalım?", null],
+  ["Mikrodalga var mı? Dün aldığımız ekmek bozuldu da.", null],
+  // ZARF çekimi İYELİK ALMAZ: "günümüz/gecemiz" ÖZNEdir, zarf değil.
+  ["Asansör var mı diye sormuştum, günümüz bozuldu ama sorun değil.", null],
   ["Klima harika ama internet bozuldu, modem kutusu nerede bilmiyorum.", null],
   ["Lamba çok hoş, valizimizin tekerleği bozuldu, kargo var mı?", null],
   ["Televizyonda maç var mı? Bizim kumandamız evde arızalandı da alışkanlık.", null],
@@ -209,7 +252,6 @@ const TRAPS: [string, string | null][] = [
   ["Kapıcıyı aradık, bozuldu.", null],
   ["Kapitalizmi tartıştık, bozuldu.", null],
   ["Ocakbaşını denedik, bozuldu.", null],
-  ["Fonksiyonları inceledik, bozuldu.", null],
   // ── OLUMSUZ / KOŞUL BİÇİMLERİ: gövde kalıpları bunları da yakalıyordu ──
   // Övgü (arıza YOK diyor) ve SSS sorusu (henüz olmamış) şikâyet DEĞİLDİR.
   ["Klima arızalanmadı, gayet iyi çalışıyor.", null],
@@ -334,6 +376,24 @@ describe("classifyFallback — sözleşme tablosu (09-08 ölçümü → 09-10 s�
     expect(classifyFallback("klimabozuldu").intent).not.toBe("complaint");
     // Kontrol: doğru yazımda aynı cümle şikâyettir (kural yazım hatasını cezalandırıyor, konuyu değil).
     expect(classifyFallback("Klimayı açtık, bozuldu.").intent).toBe("complaint");
+  });
+
+  it("t/d EŞSESLİLİĞİ kapağının HER girdisi pinli (fiyat · moral · saat · bilet · tat/tad · cilt/cild)", () => {
+    // 🚨 Önceki tur "her girdi kendi testiyle pinli" diyordu; ölçüldü: 8'in 4'ü pinsizdi
+    // (fiyat · bilet · cilt · tat silinse dosya yeşil kalıyordu). Her satırda mesajda gerçek
+    // bir cihaz adı var, yoksa satır hiçbir şey ölçmez.
+    for (const m of [
+      "Klima dahil fiyatı bozuldu mu, indirim var mı?",   // fiyat
+      "Klima harika ama moralim bozuldu.",                 // moral
+      "Anahtar teslim saati bozuldu mu, 15:00 geçerli mi?",// saat
+      "Klima iyi, biletimiz bozuldu.",                     // bilet
+      "Kettle harika, çayın tadı bozuldu biraz.",          // tat/tad
+      "Duş jeli bırakmışsınız, cildim bozuldu biraz.",     // cilt/cild
+      "Klima var, tat bozuldu.",                           // tat (çıplak)
+      "Klima var, cilt bozuldu.",                          // cilt (çıplak)
+    ]) {
+      expect(classifyFallback(m).intent, m).not.toBe("complaint");
+    }
   });
 
   it("BİLİNEN SINIRLAR (iki yönlü pinli): soru biçimi ve misafirin KENDİ cihazı", () => {

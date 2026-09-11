@@ -732,7 +732,9 @@ Sekiz P1 KAPANDI (09-07), her biri ayrı commit, kırmızı-önce + iki yönlü 
   olmasıyla (`VERB_LIKE`) ya da eksiz yüklem (`var/yok/değil`) olmasıyla ya da fiilin cümle başında olmasıyla anlaşılır;
   araya giren zarf/bağlaç ATLANIR (`SUBJECT_SLOT_FILLERS`). Ölçüm: **yanlış pozitif 24 → 2, kaçırılan bildirim 0.**
   Kalan iki FP dilbilgisiyle çözülemez ve pinli (biri önceden var olan "gürültü" kelimesinden, biri misafirin KENDİ
-  cihazı — "makinemiz" ile "klimamız" aynı eki taşır). **Liste 13→8'e indi + ADI DEĞİŞTİ (`VERBLIKE_NOUN_OVERRIDES`):**
+  cihazı — "makinemiz" ile "klimamız" aynı eki taşır). ⚠️ **SAYILAR O BATARYAYA AİT** (5. tur düzeltmesi): "24 → 2"
+  ve "kaçırılan bildirim 0" YALNIZ o 30/38 mesajlık batarya içindir; bağımsız bir batarya 15 gerçek bildirimin
+  düştüğünü ölçtü (↓ beşinci tur). **Liste 11→8'e indi + ADI DEĞİŞTİ (`VERBLIKE_NOUN_OVERRIDES`):**
   varsayılan-RET gelince plan/hava/mide/uçuş/program/rezervasyon/telefon ÖLÜ kaldı; geriye yalnız t/d EŞSESLİLİĞİ
   kaldı (saat+i ≡ ‑ti · tad+ı ≡ ‑dı · cild+im ≡ ‑dim · fiyat+ı · moral+im · bilet+i). 🚨 **Ünsüz yumuşamasında beş
   gövde daha eksikti ve KAPI ETKİSİ ÖLÇÜLDÜ** ("Musluğu açtık, bozuldu." · "Ocağı yakamadık, arızalı." OTO-GÖNDERİLİYORDU)
@@ -740,6 +742,28 @@ Sekiz P1 KAPANDI (09-07), her biri ayrı commit, kırmızı-önce + iki yönlü 
   beş gerçek sözcüğü cihaz sayıyordu; "fön makinesi" zaten `makine`). **Sahte yeşil:** üç TRAP satırında kararı özne
   kuralı veriyordu, çekim kapısı silinse de yeşil kalırlardı → kapıyı YALNIZ BAŞINA sınayan satırlar ("Kapıcıyı aradık,
   bozuldu."). Kanıt: kırmızı-önce 26 + **mutasyon 26/26** (bir hayatta kalan → doğal ayırt edici bulundu).
+- **BEŞİNCİ İNCELEME TURU (09-11, ölçümlü ajan) — 4. turun ÖZNE YUVASI kuralının üç KÖR NOKTASI (gerileme):**
+  Bağımsız bir batarya, 4. turun **15 gerçek arıza bildirimini düşürdüğünü** ve kapının onlara OTO-GÖNDERİM izni
+  verdiğini ölçtü (c4b32b7 ile birebir kıyas). Sebep: "özne var + cihaz değil → RET" varsayılanı Türkçede özne
+  yuvasının ÇOĞU ZAMAN cihaz olmadığı gerçeğiyle çatışıyor. Üç sınıf, üç DAR kapı:
+  ① **İYELİK ZİNCİRİ** — kısmi arızanın olağan biçiminde yuvada cihazın PARÇASI durur ("Klimanın FANI bozuldu",
+  "fırının KAPAĞI", "kilidinin DİLİ"). Parça adlarını cihaz listesine yazmak sınıfı kapatmaz (sonsuz); ayırt edici
+  DİLBİLGİSİ: 3. tekil iyelikli ad solundaki TAMLAYANIN parçasıdır → tamlayan cihazsa KABUL. İki dal: tamlayan eki
+  AÇIK ("klimaNIN fanı") ve belirtisiz tamlama ("klima kumandası"). 🚨 Zincir FİİL testinden ÖNCE bakılır — "babamın
+  SIHHATİ" biçimsel olarak "-ti" fiil ekine benzer, zincir onu tamlayan cihaz değil diye REDDEDER (yanlış complaint
+  üretiyordu). ② **ZARF ÖBEĞİ** — 58 kelimelik liste yalnız TEK kelimeyi atlıyordu: "Kombi BU SABAH bozuldu" ·
+  "İKİ GÜNDÜR" · "SAAT ÜÇTE" · "ÖĞLEDEN SONRA" hepsi düşüyordu. Liste yerine BİÇİM: zaman ve sayı KAPALI sözcük
+  sınıfları (`TIME_WORDS`/`NUMBER_WORDS`) + gösterme sıfatları. 🚨 **Zarf çekimi İYELİK ALMAZ**: "öğleDEN/üçTE"
+  zarf, "günÜMÜZ/geceMİZ" ÖZNEdir → ayrı ek kümesi (`ADVERBIAL_SUFFIX`); tam çekim tablosu kullanmak "günümüz
+  bozuldu"yu yanlış complaint yapıyordu. ③ **ULAÇ EKLERİ** — `‑ınca · ‑dığında · ‑dıktan · ‑madan` yoktu, yani
+  3. turun düzelttiği cümle şeklinin ta kendisi başka eklerle düşüyordu ("Klimayı AÇINCA, bozuldu"). Ayrıca
+  **MASTAR dalı (`‑mak/‑mek`) ÇIKARILDI**: "yemek/ekmek" gerçek isimlerdir ve fiil sanılıyordu (ölçüldü).
+  **Ölçülüp SİLİNEN kod:** niceleyici sözcükler (hep/tüm/çoğu) ÖLÜ çıktı — "hepsi/ikisi" zaten iyelik zincirinden
+  geçiyor. **`apartmentNumberOf` iki düzeltme daha:** etiket ÖNCELİĞİ ("No:12 D:5" → eski tek regex "12" = BİNA
+  diyordu, doğrusu "5"; güçlü etiket `daire/apartment/apt/D:` önce, zayıf `no/#` sonra) ve 🚨 **sayısız adda `null`**
+  (eskiden MÜLK ADININ TAMAMI dönüp ikame ediliyordu → "Kapı kodu: Cozy Seaside Flat" misafire gidiyordu).
+  Kanıt: kırmızı-önce 25 + **mutasyon 26/26** (iki hayatta kalan: biri ölü niceleyici listesini, biri belirtisiz
+  tamlama dalının pinsizliğini gösterdi).
 - **KB onay sözleşmesi (A1) CANLI — migration 53 prod'da 09-08 16:42Z; §A doğrulandı (32 satır `legacy|legacy`, aktif = AI-okunabilir = 32).**
   `KnowledgeBaseItem`: `source` (`legacy·host_manual·extracted_draft·suggestion_accepted`) · `reviewState`
   (`legacy·approved·draft`) · `approvedAt` · `sourceRef`/`supersededById` (A5 için, bugün yazan YOK, pinli).

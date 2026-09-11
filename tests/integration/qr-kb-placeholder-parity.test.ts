@@ -140,12 +140,17 @@ describe("QR — KB yer tutucuları modele GİRMEDEN çözülür", () => {
     expect(input.knowledgeBase.map((k) => k.content).join("\n")).not.toContain("Ayşe");
   });
 
-  it("mülk adında sayı yoksa {daire} mülk adına çözülür (uydurma numara YOK)", async () => {
+  it("🚨 mülk adında sayı yoksa {daire} DOKUNULMADAN kalır (mülk adı ikame EDİLMEZ)", async () => {
+    // İnceleme turu 5 (ölçüldü): `apartmentNumberOf` eskiden MÜLK ADININ TAMAMINI dönüyordu
+    // ve ikame doğrudan yapılıyordu → "Kapı kodu: {daire}" satırı misafire
+    // "Kapı kodu: Deniz Manzara" olarak gidiyordu. Anlamsız ikame yerine belirteç görünür kalır.
     const { token } = await seed("Deniz Manzara");
     mockSuggest.mockResolvedValue(model());
     await ask(token, "Havlu nerede?");
     const input = mockSuggest.mock.calls[0][0] as Input;
-    expect(input.knowledgeBase.map((k) => k.content).join("\n")).toContain("Deniz Manzara numaralı daireye");
+    const kb = input.knowledgeBase.map((k) => k.content).join("\n");
+    expect(kb).not.toContain("Deniz Manzara numaralı daireye");
+    expect(kb).toContain("{daire} numaralı daireye");
   });
 
   it("İKAME SIR KAPISINI GEVŞETMEZ: İÇERİK sezgiseli (kategori bacağı DEĞİL) kod taşıyan kalemi eler", async () => {

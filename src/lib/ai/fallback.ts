@@ -779,8 +779,46 @@ const SUBJECT_SLOT_FILLERS = new Set([
   "hemen", "artık", "artik", "şimdi", "simdi", "az", "biraz", "çok", "cok", "hâlâ", "hala",
   "de", "da", "bir", "gece", "akşam", "aksam", "sabah", "yeni", "hiç", "hic", "ama", "ancak",
   "fakat", "ya", "işte", "iste", "zaten", "sadece", "yalnızca", "yalnizca", "bile", "anda",
-  "cidden", "gerçekten", "gercekten", "kesinlikle", "neredeyse", "resmi",
+  "cidden", "gerçekten", "gercekten", "kesinlikle", "neredeyse",
+  // Gösterme sıfatları: zarf ÖBEĞİNİN başıdır ("BU sabah", "O gün") — tek kelimelik liste
+  // "bu sabah"ı kaçırıyordu (ölçüldü: "Kombi bu sabah bozuldu." → general).
+  "bu", "şu", "su", "o",
 ]);
+
+/**
+ * ZAMAN ve SAYI/NİCELEYİCİ yuvası — LİSTEDEN DEĞİL BİÇİMDEN tanınır (inceleme turu 5, ölçüldü).
+ *
+ * 🚨 `SUBJECT_SLOT_FILLERS` yalnız TEK KELİMELİK zarfı atlıyordu ve zarf ÖBEĞİ kuralı deliyordu:
+ * "Kombi **bu sabah** bozuldu" · "**iki gündür**" · "**saat üçte**" · "**öğleden sonra**" —
+ * dördü de `general`, oysa "Kombi dün bozuldu" complaint. Liste büyütmek sınıfı kapatmaz;
+ * zaman ve sayı KAPALI SÖZCÜK SINIFLARIDIR ve çekimleriyle tanınabilirler.
+ */
+const TIME_WORDS = [
+  "sabah", "akşam", "gece", "gündüz", "öğle", "öğlen", "gün", "hafta", "ay", "yıl", "saat",
+  "dakika", "dün", "bugün", "yarın", "geçen", "önceki", "sonraki",
+];
+/** "iki GÜNDÜR", "üç SAATTİR" — süre eki `-dır` çekim tablosunda yok, ayrı yazılır. */
+const DURATION_FORM = /^(?:gün|hafta|ay|yıl|saat|dakika)(?:l[ae]r)?[dt][ıiuü]r$/u;
+/** Zarf yuvasında geçerli ek kümesi — ÇOĞUL + HÂL, iyelik YOK. */
+const ADVERBIAL_SUFFIX = /^(?:l[ae]r)?(?:[ıiuü]|[ae]|y[ıiuüae]|[dt][ae]n?|[ıiuü]n|c[ae]|l[ae]rc[ae])?$/u;
+// ⚠️ NİCELEYİCİLER (hep/tüm/bazı/çoğu) YAZILDI ve mutasyonla ÖLÇÜLDÜ: ÖLÜ. "Prizlerin İKİSİ",
+// "Klimaların HEPSİ" zaten İYELİK ZİNCİRİNDEN geçiyor (3. tekil iyelik + tamlayan cihaz).
+// Pinlenemeyen kod tutulmaz — geri eklemeden önce zincirin YETMEDİĞİ bir vaka ölç.
+const NUMBER_WORDS = ["bir", "iki", "üç", "dört", "beş", "altı", "yedi", "sekiz", "dokuz", "on", "yarım"];
+
+/**
+ * İYELİK ZİNCİRİ — "klimanın FANI bozuldu" (inceleme turu 5, ölçüldü).
+ *
+ * 🚨 Türkçede KISMİ arızanın OLAĞAN biçimi budur ve özne yuvasında cihazın PARÇASI durur:
+ * fan · kapak · düğme · pompa · dil · kol · zil. Parça adlarını cihaz listesine yazmak sınıfı
+ * KAPATMAZ (sonsuz); ayırt edici şey DİLBİLGİSİDİR: 3. tekil iyelikli bir ad, solundaki
+ * TAMLAYANIN parçasıdır — tamlayan cihazsa bildirim cihaz hakkındadır.
+ * Karşı yön korunur: "sütün TADI", "çocuğumuzun KEYFİ", "valizimizin TEKERLEĞİ" → tamlayan
+ * cihaz değil → RET (ölçüldü).
+ */
+const THIRD_PERSON_POSSESSIVE = /\p{L}{2,}(?:s[ıiuü]|[ıiuü])$/u;
+/** Tamlayan (sahiplik) eki — zincirin SAHİP tarafını işaretler. */
+const GENITIVE = /\p{L}{2,}(?:n[ıiuü]n|[ıiuü]n)$/u;
 
 /**
  * Çekimli FİİL / ULAÇ görünümü — özne YOK demektir (fiil zincirinin parçası).
@@ -791,7 +829,7 @@ const SUBJECT_SLOT_FILLERS = new Set([
  * geçersiz-kılma listesi fiil testinden ÖNCE bakılır — o liste artık ana mekanizma değil,
  * yalnız bu eşseslilik sınıfının dar kapağıdır.
  */
-const VERB_LIKE = /\p{L}{2,}(?:[dt][ıiuü](?:k|m|n|nız|niz|nuz|nüz)?|[ıiuü]yor(?:d[ıu]|lar|uz|um|sun(?:uz)?)?|m[ıiuü][şs](?:t[ıiuü])?|[ae]r[ae]k|[ıiuü]p|k[ae]n|[ae]c[ae][kğ][ıi]?|m[ae][kyğ]|[ae]l[ıi]m)$/u;
+const VERB_LIKE = /\p{L}{2,}(?:[dt][ıiuü](?:k|m|n|nız|niz|nuz|nüz)?|[ıiuü]yor(?:d[ıu]|lar|uz|um|sun(?:uz)?)?|m[ıiuü][şs](?:t[ıiuü])?|[ae]r[ae]k|[ıiuü]p|k[ae]n|[ae]c[ae][kğ][ıi]?|[ae]l[ıi]m|[ıiuü]nc[ae]|[dt][ıiuü][ğg][ıiuü]nd[ae]|[dt][ıiuü]kt[ae]n|m[ae]d[ae]n)$/u;
 
 /**
  * EKSİZ YÜKLEMLER — çekim eki taşımadıkları için `VERB_LIKE`e girmezler ama fiil yerindedirler
@@ -876,7 +914,7 @@ const WORD_SPLIT = /[^\p{L}\p{N}]+/u;
  * YANILSAMASI üretirdi. Çarpışmaları eleyen şey ASCII kapısı değil, ÇEKİM doğrulamasıdır
  * (düşünürken→"unurken", fondöten→"doten", fonksiyon→"ksiyon" hepsi reddedilir).
  */
-function matchesInflectedWord(tok: string, words: readonly string[]): boolean {
+function matchesWordForm(tok: string, words: readonly string[], suffix: RegExp): boolean {
   const std = foldTurkishLower(tok);
   const tr = foldTurkishLowerTr(tok);
   const ascii = foldTurkishAscii(tok);
@@ -887,9 +925,13 @@ function matchesInflectedWord(tok: string, words: readonly string[]): boolean {
     if (std.startsWith(ws)) rests.push(std.slice(ws.length));
     if (tr !== std && tr.startsWith(ws)) rests.push(tr.slice(ws.length));
     if (ascii.startsWith(wa)) rests.push(ascii.slice(wa.length));
-    if (rests.some((r) => INFLECTION_ONLY.test(r))) return true;
+    if (rests.some((r) => suffix.test(r))) return true;
   }
   return false;
+}
+
+function matchesInflectedWord(tok: string, words: readonly string[]): boolean {
+  return matchesWordForm(tok, words, INFLECTION_ONLY);
 }
 
 /**
@@ -920,14 +962,32 @@ function breakdownVerbRest(tok: string): string | null {
  * listesindeyse RET, cihazsa KABUL, çekimli fiil/ulaçsa KABUL (özne yok), aksi hâlde orada
  * cihaz-dışı bir ÖZNE vardır → RET. Fiil cümlenin başındaysa özne yoktur → KABUL.
  */
+function isAdverbialSlot(tok: string): boolean {
+  const std = foldTurkishLower(tok);
+  if (SUBJECT_SLOT_FILLERS.has(std) || SUBJECT_SLOT_FILLERS.has(foldTurkishAscii(tok))) return true;
+  if (DURATION_FORM.test(std)) return true;
+  if (/^\d+$/u.test(std)) return true;
+  // 🚨 ZARF çekimi İYELİK ALMAZ: "öğleDEN/üçTE/günLERCE" zarf, "günÜMÜZ/geceMİZ" ÖZNEdir
+  // (ölçüldü: tam çekim tablosuyla "günümüz bozuldu" yanlış complaint oluyordu).
+  return matchesWordForm(tok, TIME_WORDS, ADVERBIAL_SUFFIX) || matchesWordForm(tok, NUMBER_WORDS, ADVERBIAL_SUFFIX);
+}
+
 function reportSubjectSlot(toks: string[], verbIndex: number): boolean {
   for (let j = verbIndex - 1; j >= 0; j -= 1) {
     const tok = toks[j];
     const std = foldTurkishLower(tok);
-    if (SUBJECT_SLOT_FILLERS.has(std) || SUBJECT_SLOT_FILLERS.has(foldTurkishAscii(tok))) continue;
+    if (isAdverbialSlot(tok)) continue;
     if (matchesInflectedWord(tok, VERBLIKE_NOUN_OVERRIDES)) return false;
     if (matchesInflectedWord(tok, BREAKDOWN_DEVICES)) return true;
-    return BARE_PREDICATES.has(std) || VERB_LIKE.test(std);
+    // İYELİK ZİNCİRİ: özne yuvasındaki 3. tekil iyelikli ad, solundaki TAMLAYANIN parçasıdır.
+    // 🚨 FİİL TESTİNDEN ÖNCE: zincir KESİN bilgidir, `VERB_LIKE` ise t/d eşsesliliğinde
+    // tahmindir — "babamın SIHHATİ bozuldu" tamlayan cihaz DEĞİL diye reddedilmeli, ama
+    // "sıhhati" biçimsel olarak "-ti" fiil ekine benziyor (ölçüldü, yanlış complaint üretiyordu).
+    if (THIRD_PERSON_POSSESSIVE.test(std) && j > 0 && GENITIVE.test(foldTurkishLower(toks[j - 1]))) {
+      return matchesInflectedWord(toks[j - 1], BREAKDOWN_DEVICES);
+    }
+    if (BARE_PREDICATES.has(std) || VERB_LIKE.test(std)) return true;
+    return j > 0 && THIRD_PERSON_POSSESSIVE.test(std) && matchesInflectedWord(toks[j - 1], BREAKDOWN_DEVICES);
   }
   return true;
 }

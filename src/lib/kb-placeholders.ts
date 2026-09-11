@@ -72,7 +72,14 @@ export function guestFirstNameOf(guestIdentifier: string | null | undefined): st
  *     "Milano 12 | Daire 3" → **"12"** (doğrusu 3). Öndeki sınır şartı bunu eler.
  * Not: sondaki sınır BİLİNÇLİ YOK — "Daire 5A" gibi adlarda "5" dönmeye devam eder.
  */
-const APARTMENT_LABEL = /(?<![\p{L}\p{N}])(?:daire|apart?ment|apartman|apt|no|#)\s*[:.]?\s*(\d+)/u;
+const APARTMENT_STRONG_LABEL = /(?<![\p{L}\p{N}])(?:daire|apart?ment|apartman|apt|d(?=\s*[:.]))\s*[:.]?\s*(\d+)/u;
+/**
+ * ZAYIF etiketler — "no"/"#" bir BİNA numarasını da gösterebilir. 🚨 ÖNCELİK ŞART
+ * (inceleme turu 5, ölçüldü): "No:12 D:5" → eski tek regex ilk eşleşmeyi alıp **"12"**
+ * (bina) diyordu; doğrusu "5". Güçlü etiket önce denenir. "d" YALNIZ iki nokta/nokta ile
+ * ("D:5") — çıplak "d 5" bir kısaltma değil, rastgele harftir.
+ */
+const APARTMENT_WEAK_LABEL = /(?<![\p{L}\p{N}])(?:no|#)\s*[:.]?\s*(\d+)/u;
 
 /**
  * Sayıdan SONRA gelen SAYAÇ sözcükleri — o sayı daire numarası DEĞİL, kapasite/ölçüdür.
@@ -94,9 +101,14 @@ function foldedForms(s: string): string[] {
 /**
  * Misafire görünen daire numarası.
  *
- * SIRA: (1) "daire/no/apt/#" etiketinden SONRAKİ sayı — host niyetini AÇIKÇA yazmıştır;
- * (2) mülk adında TEK sayı varsa o; (3) birden çok sayı varsa İKAME YAPILMAZ (belirteç
- * görünür kalır). Sayı yoksa mülk adının kendisi döner.
+ * SIRA: (1) GÜÇLÜ etiketten ("daire/apartment/apt/D:") sonraki sayı → (2) ZAYIF etiketten
+ * ("no/#") sonraki sayı — host niyetini AÇIKÇA yazmıştır; (3) mülk adında TEK sayı varsa o;
+ * (4) birden çok sayı varsa İKAME YAPILMAZ (belirteç görünür kalır).
+ *
+ * 🚨 SAYI YOKSA `null` (inceleme turu 5 — eskiden MÜLK ADININ TAMAMI dönüyordu ve ikame
+ * doğrudan yapılıyordu): "Cozy Seaside Flat" adlı bir mülkte KB'deki "Kapı kodu: {daire}"
+ * satırı misafire **"Kapı kodu: Cozy Seaside Flat"** olarak gidiyordu. Belirtecin görünür
+ * kalması, anlamsız bir ikameden iyidir (modülün kendi kuralı).
  *
  * 🚨 "SON SAYI" KURALI YANLIŞ CEVAP ÜRETİYORDU (inceleme 09-10, ölçüldü): Türkiye ilan
  * adlarında "2+1", "3+1", "2. kat" normdur → "Nuve 3 | 2+1 Deniz Manzaralı" → **"1"**,
@@ -112,12 +124,14 @@ function foldedForms(s: string): string[] {
  * görünür kalır — yanlış numara söylemekten iyidir.
  */
 export function apartmentNumberOf(propertyName: string): string | null {
-  for (const form of foldedForms(propertyName)) {
-    const labelled = APARTMENT_LABEL.exec(form);
-    if (labelled) return labelled[1];
+  for (const label of [APARTMENT_STRONG_LABEL, APARTMENT_WEAK_LABEL]) {
+    for (const form of foldedForms(propertyName)) {
+      const labelled = label.exec(form);
+      if (labelled) return labelled[1];
+    }
   }
   const nums = propertyName.match(/\d+/g);
-  if (!nums) return propertyName;
+  if (!nums) return null;
   if (nums.length !== 1) return null;
   const only = nums[0];
   if (only.length > 3) return null;
