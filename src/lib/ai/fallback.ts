@@ -1291,7 +1291,18 @@ export function detectGuestLanguage(message: string): string {
 
 /** Order-independent check: does the message hit ANY keyword of this intent net?
  * (detectIntent's precedence hides co-present signals — complaint wins over
- * refund — so eligibility checks need direct access.) */
+ * refund — so eligibility checks need direct access.)
+ *
+ * 🚨 `"complaint"` İÇİN BU FONKSİYON `classifyFallback(...).isComplaint` İLE AYNI DEĞİLDİR
+ * (09-11, pinli). Adı ne diyorsa onu yapar: yalnız `KEYWORDS.complaint` ağına bakar.
+ * `complaint` niyetinin ÜÇ kaynağı daha var ve hiçbiri kelime ağında DEĞİL:
+ *   • `hasUnnegatedProblemWord` ("Klimada sorun var")
+ *   • `hasNegativeVerbComplaint` ("Sıcak su gelmiyor")
+ *   • `hasDeviceBreakdown` ("Klimayı açtık, bozuldu")
+ * Yani "bu mesaj şikâyet mi?" sorusunun cevabı `classifyFallback`tır; bu fonksiyonu o soru
+ * için kullanmak SESSİZCE DAR bir cevap verir. Bugün `"complaint"` ile çağıran YOK
+ * (`detectRiskType`: refund/early_departure · `tasks/detect.ts`: amenity/cleaning) —
+ * bu not ve testteki pin, ilk çağıranın tuzağa düşmemesi içindir. */
 export function matchesIntentKeywords(message: string, intent: Exclude<Intent, "general">): boolean {
   return includesAnyFold(message, KEYWORDS[intent]);
 }

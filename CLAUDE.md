@@ -348,7 +348,14 @@ Bu dosyaya token/anahtar/parola yazma.
   gidiyordu (giriş adı + 4-8 hane = `SECRET_PATTERNS`in yakalamak için yazıldığı biçim), oto-yanıt yolu ise aynı kalemi
   eliyordu → iki yüzey arasında parite yoktu. Sızıntı üretmiyordu (enjekte edilen değerler nötr hitap + zaten misafire
   dönen daire numarası) ama "modele giden metin taranmıştır" değişmezi kırıktı. Eleme HEDEFLİ (aynı numarayı taşıyan
-  karşılama kalemi KALIR), yön fail-closed. 🚨 **`{daire}` BELİRSİZDE İKAME EDİLMEZ:** `apartmentNumberOf` önce
+  karşılama kalemi KALIR), yön fail-closed. 🚨 **DEĞİŞMEZİN GERÇEK KAPSAMI DAR (09-11, ölçüldü ve pinlendi):** sır
+  kapısı **KB KALEMLERİNİ** süzer; mülk KİMLİK ALANLARI (ad · adres · şehir · giriş/çıkış saati) istemin AYRI
+  bölümünde HİÇBİR taramadan geçmeden modele gider. Yani "Giriş kodu 8821" KB'deyse elenir, mülk ADINDAYSA modele
+  gider (`tests/unit/qr-property-fields-unscanned.test.ts` karakterizasyonu; adresin gitmesi açık DEĞİL — o misafirin
+  zaten bildiği bilgi, açık olan o alanın TARANMAMASI). Kapatmak gönderim politikası değişikliği + ölçülmemiş bedel
+  (meşru "Nuve 4590" adları düşer, `{daire}` ikamesi mülk adından türüyor) → AYRI ONAY:
+  `docs/ONAY-qr-mulk-kimlik-alanlari-sir-taramasi-2026-09-11.md` (öneri: host'a kayıt anında uyarı + belge; ad/adres
+  taraması prod ölçümü olmadan AÇILMAZ). 🚨 **`{daire}` BELİRSİZDE İKAME EDİLMEZ:** `apartmentNumberOf` önce
   "daire/no/apt/#" ETİKETİNDEN sonraki sayıyı alır, yoksa TEK sayıyı; birden çok sayı varsa `null` → belirteç
   dokunulmadan kalır. Eski "son sayı" kuralı Türkiye ilan adlarında YANLIŞ numara söylüyordu (ölçüldü:
   "Nuve 3 | 2+1 Deniz Manzaralı" → "1", "Nuve 12 (2. kat)" → "2"). **09-11 turu dört ölçülmüş kusur daha kapattı:**

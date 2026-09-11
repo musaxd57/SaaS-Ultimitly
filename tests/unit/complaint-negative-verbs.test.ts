@@ -1,5 +1,5 @@
 import { describe, it, expect } from "vitest";
-import { classifyFallback, detectRiskType } from "@/lib/ai/fallback";
+import { classifyFallback, detectRiskType, matchesIntentKeywords } from "@/lib/ai/fallback";
 import { passesAutoReplySafetyGate } from "@/lib/automation";
 import { deriveMessageSignal } from "@/modules/intelligence/signals/derive";
 
@@ -369,6 +369,30 @@ describe("classifyFallback — sözleşme tablosu (09-08 ölçümü → 09-10 s�
     expect(classifyFallback("Kapı bir türlü açılmıyor.").intent).not.toBe("complaint");
     // Çözülmüş bildirim: ağ "çözüldü"yü ayırt etmez → complaint kalır (yön güvenli: host görür, oto-yanıt gitmez).
     expect(classifyFallback("Sigorta attı ama kaldırdık, sorun yok.").intent).toBe("complaint");
+  });
+});
+
+describe("matchesIntentKeywords('complaint') ≠ isComplaint (latent tuzak, pinli)", () => {
+  // 🚨 `matchesIntentKeywords` adı ne diyorsa onu yapar: YALNIZ `KEYWORDS.complaint` ağına bakar.
+  // `complaint` niyetinin üç kaynağı daha var (problem-kelimesi · olumsuz fiil · cihaz kuralı) ve
+  // hiçbiri kelime ağında değil. Bugün "complaint" ile çağıran YOK; bu pin, ilk çağıranın sessizce
+  // DAR bir cevap almasını önlemek için ayrımı GÖRÜNÜR kılar (fonksiyon DEĞİŞTİRİLMEDİ).
+  const DIVERGENT = [
+    "Klimada sorun var.",            // hasUnnegatedProblemWord
+    "Sıcak su gelmiyor, duş soğuk.", // hasNegativeVerbComplaint
+    "Klimayı açtık, bozuldu.",       // hasDeviceBreakdown
+  ];
+
+  it("üç kaynak da complaint üretir ama kelime ağına GÖRÜNMEZ", () => {
+    for (const m of DIVERGENT) {
+      expect(classifyFallback(m).isComplaint, m).toBe(true);
+      expect(matchesIntentKeywords(m, "complaint"), m).toBe(false);
+    }
+  });
+
+  it("kelime ağındaki gerçek şikâyette İKİSİ de true (ayrım kaynaktan, ağın bozukluğundan değil)", () => {
+    expect(classifyFallback("Çok kötü bir deneyim, şikayet edeceğim.").isComplaint).toBe(true);
+    expect(matchesIntentKeywords("Çok kötü bir deneyim, şikayet edeceğim.", "complaint")).toBe(true);
   });
 });
 
