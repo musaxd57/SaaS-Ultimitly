@@ -6,6 +6,8 @@ import { DEFAULT_TEMPLATES } from "@/lib/templates";
 import { suggestReplyFallback, detectGuestLanguage } from "@/lib/ai/fallback";
 import { REPLY_TONE, type ReplyTone } from "@/lib/constants";
 import type { SuggestReplyInput } from "@/lib/ai/types";
+import { escalationReply } from "@/lib/guest-chat";
+import { unverifiedActionClaims } from "../helpers/claim-detectors";
 
 // ---------------------------------------------------------------------------
 // GUEST-FACING TEXT QUALITY — pins for the defects found in the 2026-08-08
@@ -662,9 +664,29 @@ describe("ev sahibi sesi — tekil eylem, çoğul yalnız nezaket kalıbında", 
       .join("\n");
     // Anti-vacuity: gerçekten misafire giden iki sabit metni okuduğumuzu kanıtla.
     expect(qrCode).toMatch(/const HANDOFF_REPLY\s*=/);
-    expect(qrCode).toMatch(/ev sahibinize iletildi/);
+    expect(qrCode).toMatch(/bu sohbeti ev sahibiniz devraldı/);
     for (const m of qrCode.matchAll(/"((?:[^"\\]|\\.)*)"/g)) expect(m[1]).not.toMatch(CORP);
     // QR'ın misafire dönen sabit metinlerinde ünlem de yok.
     expect(qrCode).not.toMatch(/ev sahib[^"\n]*!/);
+  });
+
+  it("🚨 QR'ın SABİT metinleri MAKBUZSUZ İDDİA taşımaz (devir metniyle aynı sözleşme)", () => {
+    // `escalationReply()` 09-08'de "yalnız GARANTİ EDİLENİ söyle" kuralına çekilmişti; kardeş
+    // metin `HANDOFF_REPLY` ATLANMIŞTI ve ölçüldü (inceleme 09-10): "Mesajınız ev sahibinize
+    // İLETİLDİ; sohbet ekranından size DÖNECEK." — iki iddia da doğrulanamaz. (a) "iletildi":
+    // mesaj KAYDEDİLİR; host'a e-posta bayrağa/dedupe'a/cooldown'a bağlıdır. (b) "dönecek":
+    // host adına verilmiş bir SÖZ; ürün bunu garanti edemez.
+    // ⚠️ KAPSAM DÜRÜSTLÜĞÜ (ölçüldü): bu metin bugün misafire GÖRÜNMÜYOR — `finalize` yalnız JSON
+    // döndürür (Message olarak YAZILMAZ) ve istemci POST'un `reply` alanını OKUMAZ (GET otoriter).
+    // Yani düzeltilen şey CANLI bir kusur değil, sözleşmeyi delen LATENT bir iddiadır.
+    const qrSource = readFileSync(join(process.cwd(), "src/app/api/chat/[token]/route.ts"), "utf8");
+    const handoff = /const HANDOFF_REPLY\s*=\s*"((?:[^"\\]|\\.)*)"/.exec(qrSource);
+    expect(handoff, "HANDOFF_REPLY sabiti bulunamadı").toBeTruthy();
+    expect(unverifiedActionClaims(handoff![1]), handoff![1]).toEqual([]);
+    // Kardeş metin de temiz kalmalı (regresyon çapası).
+    expect(unverifiedActionClaims(escalationReply())).toEqual([]);
+    // TERS YÖN: dedektör bu sınıfı gerçekten yakalıyor (ölü assert değil).
+    expect(unverifiedActionClaims("Mesajınız ev sahibinize iletildi; sohbet ekranından size dönecek."))
+      .toEqual(expect.arrayContaining(["past_action", "future_commitment"]));
   });
 });

@@ -102,7 +102,16 @@ function hasUnsourcedSpecificClaim(reply: string, usedSources: string[]): boolea
 // yasaklıyor) ve 20 satır aşağıdaki kardeş metin `escalationReply()` zaten
 // "ev sahibiniz" diyor — yani misafir, aynı sohbette iki farklı muhatap adı
 // duyuyordu. Söz içeriği DEĞİŞMEDİ: mesaj kaydedildi, host sohbet ekranından görür.
-const HANDOFF_REPLY = "Mesajınız ev sahibinize iletildi; sohbet ekranından size dönecek.";
+// 🚨 YALNIZ GARANTİ EDİLEN SÖYLENİR (inceleme 09-10) — `escalationReply()` ile AYNI sözleşme.
+// Eski metin: "Mesajınız ev sahibinize İLETİLDİ; sohbet ekranından size DÖNECEK." İki iddia da
+// doğrulanamıyordu: (a) "iletildi" — mesaj KAYDEDİLİR, host'a e-posta bayrağa/dedupe'a/cooldown'a
+// bağlıdır ve bu metin e-postadan ÖNCE yazılır; (b) "size dönecek" — host adına verilmiş bir SÖZ,
+// ürün garanti edemez. Yeni metin yalnız VERİDEN okunabilen iki gerçeği söyler: mesaj kaydedildi
+// ve bu sohbeti host devraldı (devir durumunun tanımı = thread'de host mesajı var).
+// ⚠️ KAPSAM DÜRÜSTLÜĞÜ: bu metin bugün misafire GÖRÜNMÜYOR — `finalize` yalnız JSON döndürür
+// (Message olarak yazılmaz) ve istemci POST'un `reply` alanını okumaz (GET otoriter). Yani
+// düzeltilen şey CANLI kusur değil, sözleşmeyi delen LATENT iddiadır (test-pinli).
+const HANDOFF_REPLY = "Mesajınız kaydedildi; bu sohbeti ev sahibiniz devraldı.";
 
 // ESKALASYON CEVABI — gövde `src/lib/guest-chat.ts` `escalationReply()`.
 // Söz gerçeğe uygun olmak zorunda (denetim 08-01 + Codex 09-08): metin YALNIZ
