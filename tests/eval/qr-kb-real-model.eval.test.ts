@@ -6,6 +6,7 @@ import path from "node:path";
 import { suggestReply } from "@/lib/ai";
 import type { SuggestReplyInput } from "@/lib/ai/types";
 import { placeholderMentions, placeholderVerdict, unverifiedActionClaims, type PlaceholderVerdict } from "../helpers/claim-detectors";
+import { writeSidecar } from "./sidecar";
 
 // ---------------------------------------------------------------------------
 // GERÇEK MODEL EVAL'İ (kurucu şartı: mock testleri gerçek eval'den AYIR).
@@ -392,6 +393,8 @@ describe.skipIf(!enabled)(`GERÇEK MODEL EVAL — ${suite.name} v${suite.version
     // Aynı gün ikinci koşu öncekini EZMEZ.
     const name = pickReportFileName(stamp, runId, (f) => existsSync(path.join(dir, f)));
     writeFileSync(path.join(dir, name), buildEvalReport(suite.scenarios.length, rows, meta), "utf8");
+    // Makine-okunur kopya + yol işaretleri (model kıyası markdown PARSE ETMEZ).
+    writeSidecar(dir, name, { suite: suite.name, version: suite.version, meta: { ...meta }, rows });
   });
 
   for (const s of suite.scenarios) {

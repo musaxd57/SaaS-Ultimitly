@@ -8,6 +8,7 @@ import type { SuggestReplyInput } from "@/lib/ai/types";
 import type { KbRetrievalMode } from "@/lib/ai/retrieval/select";
 import { assertsDefiniteValue, unverifiedActionClaims } from "../helpers/claim-detectors";
 import { buildPairedKb, pairedInputs, type PairedInputs, type PairedScenario } from "../helpers/kb-retrieval-paired";
+import { writeSidecar } from "./sidecar";
 
 // ---------------------------------------------------------------------------
 // EŞLEŞTİRİLMİŞ legacy / hibrit GERÇEK MODEL EVAL'İ (RAG dilim 3, Codex turu 3).
@@ -335,6 +336,8 @@ describe.skipIf(!enabled)(`EŞLEŞTİRİLMİŞ RETRIEVAL EVAL — ${suite.name} 
     };
     const name = pickPairedReportFileName(stamp, runId, (f) => existsSync(path.join(dir, f)));
     writeFileSync(path.join(dir, name), buildPairedReport(suite.scenarios.length * MODES.length, rows, meta), "utf8");
+    // Makine-okunur kopya + yol işaretleri (model kıyası markdown PARSE ETMEZ).
+    writeSidecar(dir, name, { suite: suite.name, version: suite.version, meta: { ...meta }, rows });
   });
 
   for (const s of suite.scenarios) {
