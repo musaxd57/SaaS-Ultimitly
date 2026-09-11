@@ -15,6 +15,23 @@ import type { SuggestReplyInput } from "@/lib/ai/types";
 // İstem tarafı: bilgi bloğu doldurulmamış yer tutucuyu KODDAN işaretler.
 // ---------------------------------------------------------------------------
 
+describe("🚨 BAŞLIKTAKİ yer tutucu da işaretlenir (inceleme turu 6)", () => {
+  it("packKnowledgeBase notu BAŞLIĞI da tarar — başlık isteme YAZILIYOR", () => {
+    // Döngü isteme `- [KATEGORİ] ${title}: ${content}` yazıyor, ama doldurulmamış yer tutucu
+    // taraması yalnız `content`e bakıyordu → başlıktaki "[ŞİFRE]" için model uyarı almıyordu.
+    const withTitleToken = packKnowledgeBase([
+      { category: "wifi", title: "Wi-Fi şifresi: [ŞİFRE]", content: "Ağ adı Nuve." },
+    ]);
+    expect(withTitleToken.text).toContain("DOLDURULMAMIŞ YER TUTUCU");
+    // KARŞI YÖN: yer tutucu YOKSA not da yok (ölü assert değil).
+    const clean = packKnowledgeBase([{ category: "wifi", title: "Wi-Fi", content: "Ağ adı Nuve." }]);
+    expect(clean.text).not.toContain("DOLDURULMAMIŞ YER TUTUCU");
+    // İçerikteki eski davranış korunur.
+    const inContent = packKnowledgeBase([{ category: "wifi", title: "Wi-Fi", content: "Şifre: [ŞİFRE]" }]);
+    expect(inContent.text).toContain("DOLDURULMAMIŞ YER TUTUCU");
+  });
+});
+
 describe("yer tutucu dedektörü (ölçüm; ürün kodu DEĞİL)", () => {
   it("SIZINTI: yer tutucu DEĞER konumunda — etiket + iki nokta · iyelik + boşluk · '-dir' eki · 'kullanın'", () => {
     for (const t of [

@@ -5,6 +5,7 @@ import {
   GUEST_NAME_FALLBACK,
   apartmentNumberOf,
   fillGuestPlaceholders,
+  fillGuestPlaceholdersInItems,
   guestFirstNameOf,
   hasNamePlaceholder,
 } from "@/lib/kb-placeholders";
@@ -42,6 +43,14 @@ describe("apartmentNumberOf — etiket > tek sayı > BELİRSİZ (null)", () => {
     // (b) Etiketlerin KELİME SINIRI yoktu → "no" başka kelimenin içinde yakalanıyordu.
     ["Milano 12 | Daire 3", "3"],
     ["Milano Residence Daire 7", "7"],
+    // 🚨 KELİME SINIRINI İZOLE EDEN satırlar (inceleme turu 6): yukarıdaki ikisinde "güçlü
+    // etiket önce" kuralı zaten doğru cevabı veriyor, yani lookbehind silinse de yeşil kalırlardı.
+    ["Milano 12 | 2+1 Deniz", null],   // zayıf sınır: sınırsız regex "12" derdi
+    ["Yenidaire 12 | 2+1", null],      // güçlü sınır: sınırsız regex "12" derdi
+    // ZAYIF etiket dalını izole eden satır (adda İKİ sayı var → "tek sayı" dalı cevap veremez)
+    ["Nuve Blok 2 no: 7", "7"],
+    // `foldedForms`un STANDART katlama bacağı (noktasız ASCII I; tr katlama "daıre" verir)
+    ["DAIRE 5 - 2 Yatak Odalı", "5"],
     // Hane SINIRI ≤3: iki ve üç haneli çıplak numara hâlâ daire numarasıdır (kural yutmuyor).
     ["Nuve Teras 12", "12"],
     ["Kule 104", "104"],
@@ -54,6 +63,28 @@ describe("apartmentNumberOf — etiket > tek sayı > BELİRSİZ (null)", () => {
     // ETİKET ÖNCELİĞİ: "no/#" bina numarası da olabilir; güçlü etiket ("daire/D:") önce.
     ["No:12 D:5", "5"],
     ["No 7 Daire 3", "3"],
+    // ── İNCELEME TURU 6 (09-11): SAYAÇ ve HANE kuralları ETİKETLİ yolda HİÇ çalışmıyordu ──
+    // Etiket eşleşince anında dönülüyordu → kapasite/yıl misafire DAİRE NUMARASI diye gidiyordu.
+    // Aynı adın etiketsiz hâli doğru davranıyordu; ölçülen asimetri.
+    ["Sahilde Daire 6 Kişilik", null],
+    ["Merkezi Daire 2 Odalı", null],
+    ["Nuve Apt 6 Kişilik", null],
+    ["Daire 3 Yatak Odalı", null],
+    ["Daire 90 Metrekare", null],
+    // ZAYIF etikette hane sınırı ("no/#" bina numarası da olabilir; yıl kabul edilmemeli)
+    ["Nuve Rezidans No 2024", null],
+    ["Kule No 1907", null],
+    // 🚨 GÜÇLÜ etikette hane sınırı YOK (host niyeti açık): rezidans kapı numarası korunur
+    ["Skyland Daire 4590", "4590"],
+    // İNGİLİZCE sayaç sözcükleri: etiket dalı İngilizceyi kabul ediyordu, sayaç listesi TR-only'ydi
+    ["Luxury 2 Bedroom Flat", null],
+    ["Cozy Studio for 4 Guests", null],
+    ["Beach House 6 Sleeps", null],
+    ["Studio 35 sqm", null],
+    ["Modern Apt 2 Bath", null],
+    // 🚨 ÇAPA ŞARTI: sayaç YALNIZ sayıyı HEMEN izleyen sözcükte aranır — araya RAKAM girerse
+    // bakılmaz. Çapasız arama bu satırı ("5" doğru) "yatak" yüzünden düşürürdü.
+    ["Daire 5 - 2 Yatak Odalı", "5"],
   ])("%s → %s", (name, expected) => {
     expect(apartmentNumberOf(name)).toBe(expected);
   });
@@ -124,6 +155,29 @@ describe("fillGuestPlaceholders — tek geçiş, harfi harfine ikame", () => {
     // etiketli ad "Daire $& 7" numarayı verir ve değer harfi harfine girer.
     expect(fillGuestPlaceholders("Kapı {daire}", { propertyName: "Daire 7 $& blok" })).toBe("Kapı 7");
     expect(fillGuestPlaceholders("Kapı {daire}", { propertyName: "blok $&" })).toBe("Kapı {daire}");
+  });
+
+  it("🚨 guestFirstNameOf İKİ katlamadan geçer: ASCII büyük harf yazım da yer tutucudur", () => {
+    // Tek `toLocaleLowerCase("tr")` kaçırıyordu: "MISAFIR" → tr katlamada "mısafır" (eşleşmez)
+    // → misafire "Merhaba MISAFIR," gidiyordu (ölçüldü, inceleme turu 6).
+    for (const g of ["MİSAFİR", "MISAFIR", "misafir", "REZERVASYON 12345", "rezervasyon 9"]) {
+      expect(guestFirstNameOf(g), g).toBeNull();
+    }
+    // KARŞI YÖN: gerçek ad KORUNUR (TAM eşleşme şartı).
+    expect(guestFirstNameOf("Misafirhan")).toBe("Misafirhan");
+    expect(guestFirstNameOf("Misafir Ahmet")).toBeNull(); // ilk sözcük tam eşleşiyor
+  });
+
+  it("🚨 BAŞLIK da çözülür: `packKnowledgeBase` başlığı isteme YAZIYOR (ham {isim} modele gidiyordu)", () => {
+    const [out] = fillGuestPlaceholdersInItems(
+      [{ title: "Hoş geldiniz {isim} — {daire}", content: "Kapı: {daire}" }],
+      { guestFirstName: GUEST_NAME_FALLBACK, propertyName: "Daire 7" },
+    );
+    expect(out.title).toBe(`Hoş geldiniz ${GUEST_NAME_FALLBACK} — 7`);
+    expect(out.content).toBe("Kapı: 7");
+    // Başlığı OLMAYAN kalem de bozulmaz (alan opsiyonel).
+    expect(fillGuestPlaceholdersInItems([{ content: "Kapı: {daire}" }], { propertyName: "Daire 7" })[0])
+      .toEqual({ content: "Kapı: 7" });
   });
 
   it("mülk adı verilmezse {daire} DOKUNULMAZ (uydurma değer yok); ad verilmezse {isim} dokunulmaz", () => {

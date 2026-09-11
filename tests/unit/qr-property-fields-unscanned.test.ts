@@ -23,11 +23,14 @@ import { withoutSecretKbItems } from "@/lib/guest-chat";
 // Test "böyle olmalı" DEMİYOR; "bugün böyle" diyor ve kararı görünür tutuyor.
 // ---------------------------------------------------------------------------
 
-const CODE_IN_NAME = "8821";
+const CODE_IN_KB = "8821";
+// 🚨 AD bacağı AYRI sabit ister (inceleme turu 6): aynı sayı hem KB kaleminde hem mülk adında
+// kullanılınca "ad taranmıyor" iddiası kanıtlanmış olmuyor — eleme bozulsa bile assert geçerdi.
+const CODE_IN_NAME = "7734";
 const CODE_IN_ADDRESS = "4590";
 
 function promptFor(property: { name: string; address?: string | null }) {
-  const kb = [{ id: "k1", category: "general", title: "Kapı", content: `Giriş kodu ${CODE_IN_NAME}.` }];
+  const kb = [{ id: "k1", category: "general", title: "Kapı", content: `Giriş kodu ${CODE_IN_KB}.` }];
   const scanned = withoutSecretKbItems(kb as never);
   return {
     scannedCount: scanned.length,
@@ -52,7 +55,7 @@ describe("QR: sır kapısı KB kalemlerini süzer, mülk KİMLİK alanlarını S
   it("KB kalemindeki giriş kodu ELENİR (kapı gerçekten çalışıyor — anti-vacuity)", () => {
     const { scannedCount, prompt } = promptFor({ name: "Nuve 5" });
     expect(scannedCount).toBe(0);
-    expect(prompt).not.toContain(CODE_IN_NAME);
+    expect(prompt).not.toContain(CODE_IN_KB);
   });
 
   it("🚨 mülk ADINDAKİ aynı kod modele GİDER (bugünkü davranış, ayrı onayda)", () => {

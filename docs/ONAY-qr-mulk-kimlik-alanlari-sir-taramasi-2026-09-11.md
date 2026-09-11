@@ -32,16 +32,24 @@ DEĞİLDİR (bunun için host'un kodu mülk adına yazması gerekir) ama kapın�
 **A — Kimlik alanlarını da tara (fail-closed).** `name`/`address` `SECRET_PATTERNS` sezgiselinden
 geçer; eşleşirse alan istemden DÜŞER (ya da maskelenir).
 - Kazanç: kapsam boşluğu kapanır, değişmez gerçekten doğru olur.
-- Bedel (ÖLÇÜLMELİ, bu turda ölçülmedi): sezgisel 4–8 haneli bitişik sayı arıyor → "Nuve 4590",
-  "Daire 1203", "Moda Cd. 12/3" gibi MEŞRU adlar/adresler düşebilir. Adres düşerse ürün konum
-  sorularını cevaplayamaz ve "bilgi yok" der — E1 sınıfı bir gerileme. Ayrıca `{daire}` ikamesi mülk
-  ADINDAN türetiliyor (`apartmentNumberOf`): ad maskelenirse ikame de bozulur.
-- Bu yüzden A seçeneği ÖNCE bir ölçüm ister: prod'daki mülk adlarının/adreslerinin kaçı sezgisele
-  takılıyor (salt-okuma sorgu, kurucu adımı).
+- 🚨 **BEDEL BELGEDE FAZLA BÜYÜK YAZILMIŞTI — ÖLÇÜLDÜ ve DÜZELTİLDİ (09-11 denetimi):** ilk yazımda
+  "sezgisel 4–8 haneli bitişik sayı arar, meşru adlar düşer" deniyordu. `SECRET_PATTERNS`in 6. kalıbı
+  rakamlardan ÖNCE bir **giriş sözcüğü** şart koşuyor (`kapı|giriş|anahtar kutu|keybox|door|lock|entry|
+  gate`) — kalıbın "can damarı" olarak kodda yazılı bitişiklik şartı. Ölçüm: 24 gerçekçi mülk adının
+  yalnız **4'ü** düşüyor ve dördü de gerçekten giriş sözcüğü + kod taşıyor ("Kapı 4590", "Anahtar
+  kutusu 7788", "Gate 1203", "Nuve 5 - kapı kodu 8821"); "Nuve 4590" · "Daire 1203" · "Moda Cd. 12/3"
+  KALIYOR. 9 gerçekçi adresin yalnız biri düşüyor ("Moda Cd. 12, **zil kodu** 4590").
+- 🚨 **"A seçeneği `{daire}` ikamesini bozar" İDDİASI DA YANLIŞTI:** ikame `property.name`i Prisma
+  satırından AYRI okuyor, istem ise `sanitizePromptValue(property.name)` ile ayrı basıyor — iki yol
+  BAĞIMSIZ. Alanı İSTEMDEN düşürmek `apartmentNumberOf`a dokunmaz. İddia yalnız "kaynakta maskele"
+  varyantı için doğru olurdu; A seçeneği onu tanımlamıyor.
+- Kalan gerçek bedel DAR: ad/adreste giriş sözcüğü + 4-8 hane taşıyan meşru satırlar. Prod ölçümü
+  (kaç mülk adı/adresi sezgisele takılıyor) yine de kurucu adımıdır.
 
 **B — Yalnız ADI tara, adresi bırak.** Adres meşru bilgi; kod saklamak için doğal yer mülk ADIdır.
 - Kazanç: A'nın ana riskini (adresin düşmesi) almadan boşluğun büyük kısmını kapatır.
-- Bedel: "Nuve 4590" gibi ad bazlı yanlış pozitifler + `{daire}` ikamesinin bozulması SÜRER.
+- Bedel (ÖLÇÜLDÜ): "Nuve 4590" DÜŞMEZ (giriş sözcüğü yok); yalnız ad gerçekten giriş sözcüğü + 4-8
+  hane taşıyorsa düşer. `{daire}` ikamesi ETKİLENMEZ (iki yol bağımsız, ↑A).
 
 **C — Host'a UYARI, modele dokunma.** Mülk adı/adresi kaydedilirken sezgisel çalışır ve host'a
 "burada bir kod var gibi görünüyor, bilgi tabanına taşıyın" der; istem yolu DEĞİŞMEZ.
@@ -55,10 +63,14 @@ taranmaz (bilinçli)" der; test-pinli kalır.
 
 ## Öneri
 
-**C + D birlikte**, A/B ertelenir. Gerekçe: ölçülen bir sızıntı yok, ama A/B'nin bedeli GERÇEK ve
-ölçülmemiş (adres/ad düşmesi + `{daire}` ikamesinin bozulması). C sorunu kaynağında çözer ve hiçbir
-canlı yolu değiştirmez; D belgeyi dürüst tutar. A/B ancak prod'daki mülk adları/adresleri üzerinde
-salt-okuma bir ölçüm (kaç ad sezgisele takılıyor) yapıldıktan sonra tartışılmalı.
+🚨 **BU ÖNERİ YANLIŞ BİR MALİYET MODELİNE DAYANIYORDU** (09-11 denetimi, ↑): ilk hâli "C + D birlikte,
+A/B ertelensin" diyordu; gerekçesi "A/B'nin bedeli gerçek ve ölçülmemiş" idi. Ölçüldü: bedel DAR
+(24 adın 4'ü, 9 adresin 1'i ve hepsi gerçekten kod taşıyor) ve `{daire}` gerekçesi geçersiz.
+
+Güncel öneri: **B + C + D** — yalnız mülk ADINI tara (kod saklamak için doğal yer odur), adresi
+BIRAK (misafirin zaten bildiği ve ürünün söylemesi gereken bilgi), host'a kayıt anında uyarı ver,
+belgeyi dürüst tut. A (ad + adres) hâlâ prod ölçümü ister. **KARAR KURUCUNUN** — bu turda yalnız
+D'nin belge yarısı + karakterizasyon testi uygulandı, kod yolu DEĞİŞMEDİ.
 
 Bu turda uygulanan tek şey **D'nin belge yarısı** + karakterizasyon testi. C dahil hiçbir kod
 değişikliği yapılmadı.
@@ -66,6 +78,6 @@ değişikliği yapılmadı.
 ## Karar
 
 - [ ] A (ad + adres taranır)
-- [ ] B (yalnız ad taranır)
+- [ ] B (yalnız ad taranır) ← ölçüm sonrası ÖNERİLEN
 - [ ] C (host'a kayıt anında uyarı)
 - [ ] D (yalnız belge; bugün uygulanan)

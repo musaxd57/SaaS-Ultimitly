@@ -20,7 +20,14 @@ import { deriveMessageSignal } from "@/modules/intelligence/signals/derive";
 // kalan kalıplar çapalandı, "-yo" gövdeleri ve zarf çapaları eklendi.
 // ---------------------------------------------------------------------------
 
-/** [mesaj, intent, riskType] — satır başına TEK beklenen değer (gevşek `toContain` yok). */
+/**
+ * [mesaj, intent, riskType] — satır başına TEK beklenen değer (gevşek `toContain` yok).
+ *
+ * ⚠️ ÜÇÜNCÜ KOLON ÇOĞU SATIRDA TÜRETİLMİŞTİR (ölçüldü, inceleme turu 6): `detectRiskType`ın son
+ * satırı `if (classifyFallback(m).isComplaint) return "complaint"` — yani `complaint` bekleyen
+ * satırlarda kolon bağımsız bilgi TAŞIMAZ. Gerçek bilgi yalnız `safety_emergency` bekleyen
+ * satırlarda: orada SAFETY ağının complaint fallback'inden ÖNCE çalıştığı pinlenir.
+ */
 const CONTRACT: [string, string, string | null][] = [
   ["Sıcak su gelmiyor, duş soğuk.", "complaint", "complaint"],
   ["Su akmıyor.", "complaint", "complaint"],
@@ -101,6 +108,24 @@ const CONTRACT: [string, string, string | null][] = [
   ["Klima var, galiba bozuldu.", "complaint", "complaint"],
   ["Klima var, dün bozuldu.", "complaint", "complaint"],
   ["Klima var, tamamen bozuldu.", "complaint", "complaint"],
+  // ── İNCELEME TURU 6 (09-11): ÜÇ AYRI KAÇAK, üçü de OTO-GÖNDERİM izni açıyordu ──
+  // (a) İZAFET/TAMLAMA: kalıplar 1. turdan beri ÇIPLAK YALIN HÂLDE donmuştu; Türkçede tesis adı
+  // neredeyse hep tamlamadır ve yumuşama + 3. tekil iyelik alır. Aynı cihaz "bozuldu" ile
+  // complaint, "akmıyor/yanmıyor/tıkandı" ile general oluyordu (ölçülen asimetri).
+  ["Mutfak musluğu akmıyor.", "complaint", "complaint"],
+  ["Mutfak ocağı yanmıyor.", "complaint", "complaint"],
+  ["Banyo lavabosu tıkandı.", "complaint", "complaint"],
+  ["Tuvalet sifonu çekmiyor.", "complaint", "complaint"],
+  ["Oda peteği ısınmıyor.", "complaint", "complaint"],
+  ["Musluklar akmıyor.", "complaint", "complaint"],
+  ["Daire kapısı açılmıyor.", "complaint", "safety_emergency"],
+  // (b) "ve" BAĞLACI: Türkçenin en sık bağlacı özne sanılıyordu — "ama/ancak/fakat" listede,
+  // "ve" değildi. Bağlaç bir ÖZNEYİ gizleyemez, yön güvenli.
+  ["Klimayı açtık ve bozuldu.", "complaint", "complaint"],
+  ["Klimayı açtık, nedense bozuldu.", "complaint", "complaint"],
+  // (c) KESME İŞARETİ cihaz adını ekinden koparıyordu; kesmesiz aynı cümle complaint'ti.
+  ["Klima'mız bozuldu.", "complaint", "complaint"],
+  ["TV'miz bozuldu.", "complaint", "complaint"],
   // Şimdiki zaman KİŞİ eki (‑yoruz/‑yorum): fiil görünümü bunları da kapsamalı.
   ["Musluğu kapatamıyoruz, bozuldu.", "complaint", "complaint"],
   ["Klimayı kapatamıyorum, bozulmuş.", "complaint", "complaint"],
@@ -187,7 +212,7 @@ const TRAPS: [string, string | null][] = [
   // gerçek bir cihaz adı vardır (yoksa satır hiçbir şey ölçmez).
   ["Klima harika. Ama planımız bozuldu, erken çıkıyoruz.", null],                       // plan
   ["Ev çok güzel, tv büyük, mutfak eksiksiz. Bu arada midem bozuldu, yakında eczane var mı?", null], // mide
-  ["Işıklandırma çok hoş. Planımız bozuldu, bir gece iptal edeceğiz.", null],           // plan
+  ["Işıklar çok hoş. Planımız bozuldu, bir gece iptal edeceğiz.", null],           // plan
   ["Klima harika ama havalar bozuldu, denize giremedik.", null],                        // hava
   // Özne listede YOKTU ve eski tasarım bunların HEPSİNİ complaint yapıyordu (ölçüldü):
   ["Klima süper. Taksimiz bozuldu, biraz geç geleceğiz.", null],
@@ -198,7 +223,7 @@ const TRAPS: [string, string | null][] = [
   ["Klimanın yanında priz var mı? Şarj aletimiz arızalı galiba.", null],
   ["Klima mükemmel. Ama yol boyunca canımız bozuldu.", null],
   ["Duş jeli bırakmışsınız, cildim bozuldu biraz ama teşekkürler.", null],
-  ["Buzdolabındaki sütün tadı bozuldu, yenisini alabilir miyiz?", null],
+  ["Buzdolabı süper ama sütün tadı bozuldu, yenisini alabilir miyiz?", null],
   // 🚨 Zincirin KABUL dalı TAMLAYANIN CİHAZ OLMASINI ister: 3. tekil iyelik TEK BAŞINA yetmez.
   ["Klima çalışıyor ama valiz tekerleği bozuldu.", null],
   ["Klima harika, bavul sapı bozuldu.", null],
@@ -213,7 +238,6 @@ const TRAPS: [string, string | null][] = [
   // ZARF çekimi İYELİK ALMAZ: "günümüz/gecemiz" ÖZNEdir, zarf değil.
   ["Asansör var mı diye sormuştum, günümüz bozuldu ama sorun değil.", null],
   ["Klima harika ama internet bozuldu, modem kutusu nerede bilmiyorum.", null],
-  ["Lamba çok hoş, valizimizin tekerleği bozuldu, kargo var mı?", null],
   ["Televizyonda maç var mı? Bizim kumandamız evde arızalandı da alışkanlık.", null],
   // 🚨 ZARF KURALI DEVRE DIŞI BIRAKMAZ: tek bir "tamamen/galiba/dün" sol komşuyu değiştirip
   // kuralı sessizce etkisizleştiriyordu (17 varyantın 16'sı ölçüldü) → zarflar ATLANIR.
@@ -243,8 +267,9 @@ const TRAPS: [string, string | null][] = [
   ["Kapitalizm bozuldu", null],                   // kapı(ASCII "kapi") + talizm
   ["Makineli tüfek sesinden uykumuz bozuldu", null], // makine + li
   ["Ocakbaşı restoranda midem bozuldu", null],    // ocak + başı
-  ["Fonksiyon tuşları derken planımız bozuldu", null], // fön(ASCII "fon") + ksiyon
-  ["Fondöten şişem bozuldu", null],               // fön + döten (türetme değil, çekim değil)
+  // ⚠️ "Fonksiyon tuşları…" / "Fondöten şişem…" satırları SİLİNDİ: `fön` 4. turda cihaz
+  // listesinden çıktığı için o çarpışma sınıfı artık VAR OLAMAZ (ölçüldü: çekim kapısı açılsa
+  // ve fön geri konsa bile general) — satır hiçbir kapıyı sınamıyordu.
   ["Uçuşu düşünürken planımız bozuldu", null],    // düşün… → "dus" çarpışması
   // 🚨 ÇEKİM KAPISINI YALNIZ BAŞINA SINAYAN SATIR (inceleme turu 4): yukarıdakilerin çoğunda
   // özne yuvası da tutuyor, yani çekim kapısı silinse bile satır yeşil kalırdı. Burada sol komşu
@@ -385,12 +410,16 @@ describe("classifyFallback — sözleşme tablosu (09-08 ölçümü → 09-10 s�
     for (const m of [
       "Klima dahil fiyatı bozuldu mu, indirim var mı?",   // fiyat
       "Klima harika ama moralim bozuldu.",                 // moral
-      "Anahtar teslim saati bozuldu mu, 15:00 geçerli mi?",// saat
-      "Klima iyi, biletimiz bozuldu.",                     // bilet
-      "Kettle harika, çayın tadı bozuldu biraz.",          // tat/tad
-      "Duş jeli bırakmışsınız, cildim bozuldu biraz.",     // cilt/cild
-      "Klima var, tat bozuldu.",                           // tat (çıplak)
-      "Klima var, cilt bozuldu.",                          // cilt (çıplak)
+      // 🚨 ÖLÇÜLMÜŞ AYIRT EDİCİ BİÇİMLER (inceleme turu 6): önceki satırlar girdileri
+      // PİNLEMİYORDU — "saati" TIME_WORDS zarfı olarak atlanıyor, "biletimiz"/"tat"/"cilt"
+      // zaten VERB_LIKE'a girmiyor, "çayın tadı" kararı zincir veriyor. Girdi silinince
+      // DÜŞEN biçimler bunlar (1./2. tekil iyelik ya da 3. tekil iyelik, tamlayansız):
+      "Klima var, saatim bozuldu.",                        // saat
+      "Klima iyi, bileti bozuldu.",                        // bilet
+      "Klima iyiydi, kahve tadı bozuldu.",                 // tat/tad
+      "Klima var, tatı bozuldu.",                          // tat
+      "Klima var, ciltim bozuldu.",                        // cilt
+      "Duş jeli bırakmışsınız, cildim bozuldu biraz.",     // cild
     ]) {
       expect(classifyFallback(m).intent, m).not.toBe("complaint");
     }
@@ -406,6 +435,44 @@ describe("classifyFallback — sözleşme tablosu (09-08 ölçümü → 09-10 s�
     // taşır. Dilbilgisel bir sinyal yok; çözüm modelde (tam bağlam) — ağ güvenli yönde hata yapar.
     expect(classifyFallback("Saç kurutma makinemiz bozuldu, sizde var mı?").intent).toBe("complaint");
     expect(classifyFallback("Klimamız bozuldu.").intent).toBe("complaint");
+  });
+
+  it("🚨 GÖRÜNMEZ KARAKTER 'sorun/problem' ağını DELİYORDU (tek U+00AD → oto-gönderim izni)", () => {
+    const SH = "\u00AD"; // SOFT HYPHEN — çoğu klavyede tek tuş, hiçbir yerde GÖRÜNMEZ
+    expect(classifyFallback("Dairede bir sorun var.").intent).toBe("complaint");
+    expect(classifyFallback(`Dairede bir so${SH}run var.`).intent).toBe("complaint");
+    expect(classifyFallback(`There is a pro${SH}blem in the flat.`).intent).toBe("complaint");
+    expect(classifyFallback("Dairede bir so\u200Brun var.").intent).toBe("complaint"); // ZWSP
+    // Kontrol: diğer üç bacak zaten dayanıklıydı (bu tur yalnız dördüncüyü kapattı).
+    expect(classifyFallback(`Su ge${SH}lmiyor.`).intent).toBe("complaint");
+    expect(classifyFallback(`Klima bo${SH}zuldu.`).intent).toBe("complaint");
+    // 🚨 HAM okuma YERİNDE ve GÖZLEMLENEBİLİR: normalizasyon olumsuzlama kontrolüne
+    // UYGULANMAZ (CLAUDE.md katlama kuralı) → boşlukla bozulmuş bir olumsuzlamaya GÜVENİLMEZ.
+    // Bu satır o bilinçli asimetriyi kilitler: normalize okuma TEK BAŞINA kalsaydı "Sorun  yok"
+    // olumsuzlanır ve şikâyet DÜŞERDİ; bugün aşırı eskalasyon (güvenli yön) oluyor.
+    expect(classifyFallback("Sorun  yok, teşekkürler.").intent).toBe("complaint");
+    // Normal yazımda olumsuzlama ÇALIŞIR (yeni okuma bir şeyi bozmadı):
+    expect(classifyFallback("Hiçbir sorun yaşamadık.").intent).not.toBe("complaint");
+    expect(classifyFallback("Sorun yok, her şey için teşekkürler!").intent).not.toBe("complaint");
+  });
+
+  it("🚨 BİLİNEN SINIR (ölçüldü, düzeltmesi REDDEDİLDİ): olumsuzlama ÖNEKİ gerçek şikâyeti yutuyor", () => {
+    // Üçü de gerçek şikâyet ama bir OLUMSUZ kalıbın ÖNEKİ oldukları için `general` kalıyor.
+    // Girdileri TAM olumsuz biçime daraltmak DENENDİ: "…ama SORUN DEĞİL." gibi ÇOK YAYGIN
+    // nezaket kapanışları complaint'e döndü (tuzak satırı düştü) → kazanç nadir, bedel yaygın.
+    expect(classifyFallback("Sorun olmaz demiştiniz ama oldu.").intent).not.toBe("complaint");
+    expect(classifyFallback("Sorunsuz bir tatil olmadı.").intent).not.toBe("complaint");
+    // KORUNAN yaygın kalıp (bu yüzden reddedildi):
+    expect(classifyFallback("Asansör var mı diye sormuştum, günümüz bozuldu ama sorun değil.").intent).not.toBe("complaint");
+  });
+
+  it("'şu' özne yuvasında hâlâ atlanıyor; 'su' artık ÖZNE sayılıyor (gereksiz ASCII ikizi çıktı)", () => {
+    // "şu" gösterme sıfatıdır → atlanır; "su" GERÇEK bir tesis adıdır ve özne yuvasında
+    // atlanması kabulü kolaylaştırıyordu (ASCII ikizi olarak yazılmıştı, gereksizdi).
+    expect(classifyFallback("Klimayı açtık, şu bozuldu.").intent).toBe("complaint");
+    expect(classifyFallback("Klimayı kapattık, su bozuldu.").intent).not.toBe("complaint");
+    // KARŞI YÖN: suyla ilgili gerçek bildirimi olumsuz-fiil bacağı zaten taşıyor.
+    expect(classifyFallback("Su gelmiyor.").intent).toBe("complaint");
   });
 
   it("ASCII katlaması: gerçek ASCII girdi korunur; çarpışmaları eleyen ÇEKİM doğrulamasıdır", () => {

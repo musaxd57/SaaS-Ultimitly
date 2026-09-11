@@ -56,8 +56,11 @@ export function guestFirstNameOf(guestIdentifier: string | null | undefined): st
   // yazdığında eski kontrol kaçırıyor ve misafire "Merhaba rezervasyon," gidiyordu. Türkçe
   // katlama şart: "MİSAFİR" → `toLowerCase()` ile "mi̇safir" olur, `toLocaleLowerCase("tr")` ile
   // "misafir". ⚠️ Yalnız TAM eşleşme: "Misafir Ahmet" gerçek bir addır ve KORUNUR.
-  const folded = first.toLocaleLowerCase("tr");
-  if (folded === "rezervasyon" || folded === "misafir") return null;
+  // 🚨 İKİ KATLAMA (inceleme turu 6, ÖLÇÜLDÜ): tek `toLocaleLowerCase("tr")` ASCII yazımı
+  // kaçırıyordu — "MISAFIR" → tr katlamada "mısafır", eşleşmiyor, misafire "Merhaba MISAFIR,"
+  // gidiyordu. Dosyanın kendi kuralı (keyKind/foldedForms/etiket dalı) zaten tr + standart çifti.
+  const folded = [first.toLocaleLowerCase("tr"), first.toLowerCase()];
+  if (folded.some((f) => f === "rezervasyon" || f === "misafir")) return null;
   return first;
 }
 
@@ -85,10 +88,19 @@ const APARTMENT_WEAK_LABEL = /(?<![\p{L}\p{N}])(?:no|#)\s*[:.]?\s*(\d+)/u;
  * Sayıdan SONRA gelen SAYAÇ sözcükleri — o sayı daire numarası DEĞİL, kapasite/ölçüdür.
  * Yalnız ölçülen sınıf (kişi/yatak/oda/kat/banyo/metre); liste dar tutulur, her girdi pinli.
  */
+// ⚠️ "m2" girdisi ÇIKARILDI: yakalama grubu `(\p{L}+)` yalnız HARF alır, yani `has("m2")`
+// hiçbir girdide true olamazdı (ölçüldü, ölü kod). "m" tek harfi bilinçli EKLENMEDİ (çok geniş).
+// 🚨 İNGİLİZCE EKSİKTİ (inceleme turu 6, ÖLÇÜLDÜ): etiket dalı `apart?ment|apt` ile İngilizceyi
+// kabul ediyordu ama sayaç listesi TR-only'ydi → "Luxury 2 Bedroom Flat" misafire "Daireniz 2"
+// diyordu (15 gerçekçi İngilizce adın 15'i yanlış numara üretti).
 const COUNTER_AFTER_NUMBER = new Set([
-  "kişilik", "kisilik", "kişi", "kisi", "yatak", "yataklı", "yatakli",
+  "kişilik", "kisilik", "kişi", "kisi", "misafir", "yatak", "yataklı", "yatakli",
   "odalı", "odali", "oda", "kat", "katlı", "katli", "banyolu", "banyo",
-  "metre", "m2", "dönüm", "donum", "adet", "gece",
+  "metre", "metrekare", "dönüm", "donum", "adet", "gece",
+  // İngilizce ilan sözcükleri
+  "bedroom", "bedrooms", "bed", "beds", "bath", "baths", "bathroom", "bathrooms",
+  "guest", "guests", "person", "people", "sleeps", "room", "rooms", "floor",
+  "sqm", "night", "nights",
 ]);
 
 /** Mülk adının iki katlanmış biçimi (`keyKind` ile aynı sözleşme; yalnız EŞLEŞME EKLER). */
@@ -123,11 +135,32 @@ function foldedForms(s: string): string[] {
  * Bedeli açık ve GÜVENLİ YÖNDE: gerçekten 4 haneli bir daire numarası varsa belirteç
  * görünür kalır — yanlış numara söylemekten iyidir.
  */
+/**
+ * Sayıyı HEMEN izleyen sözcük bir SAYAÇ mı? (araya başka RAKAM girerse BAKILMAZ)
+ *
+ * 🚨 ÇAPA ŞART (inceleme turu 6): "Daire 5 - 2 Yatak Odalı"da "5" doğru cevaptır; çapasız
+ * arama ("5"ten sonraki ilk harf öbeği) "yatak"ı bulup satırı düşürürdü. `[^\p{L}\p{N}]*`
+ * yalnız harf-olmayan VE rakam-olmayan karakterleri yutar → araya "2" girince eşleşme yok.
+ */
+function followedByCounter(form: string, from: number): boolean {
+  const m = /^[^\p{L}\p{N}]*(\p{L}+)/u.exec(form.slice(from));
+  return !!m && COUNTER_AFTER_NUMBER.has(m[1]);
+}
+
 export function apartmentNumberOf(propertyName: string): string | null {
-  for (const label of [APARTMENT_STRONG_LABEL, APARTMENT_WEAK_LABEL]) {
+  // 🚨 SAYAÇ ve HANE kuralları ETİKETLİ yolda da çalışır (inceleme turu 6, ÖLÇÜLDÜ): eskiden
+  // etiket eşleşince ANINDA dönülüyordu, yani "Sahilde Daire 6 Kişilik" → "6" (kapasite) ve
+  // "Nuve Rezidans No 2024" → "2024" (yıl) misafire UYDURMA numara olarak gidiyordu. Aynı adın
+  // etiketsiz hâli doğru davranıyordu — ölçülen asimetri. Hane sınırı yalnız ZAYIF etikette
+  // ("no/#" bina numarası da olabilir); GÜÇLÜ etikette ("Daire 1203") host niyeti açıktır.
+  for (const [label, weak] of [[APARTMENT_STRONG_LABEL, false], [APARTMENT_WEAK_LABEL, true]] as const) {
     for (const form of foldedForms(propertyName)) {
       const labelled = label.exec(form);
-      if (labelled) return labelled[1];
+      if (!labelled) continue;
+      const num = labelled[1];
+      if (weak && num.length > 3) return null;
+      if (followedByCounter(form, labelled.index + labelled[0].length)) return null;
+      return num;
     }
   }
   const nums = propertyName.match(/\d+/g);
@@ -135,13 +168,9 @@ export function apartmentNumberOf(propertyName: string): string | null {
   if (nums.length !== 1) return null;
   const only = nums[0];
   if (only.length > 3) return null;
-  // ⚠️ Sayının etrafına sınır şartı YAZILDI ve mutasyonla ÖLÇÜLDÜ: ULAŞILAMAZ. Bu dala yalnız
-  // adda TEK sayı dizisi varken giriliyor (`nums.length !== 1` yukarıda eleniyor), yani `only`
-  // başka bir sayının parçası OLAMAZ. Pinlenemeyen kod tutulmaz.
-  const after = new RegExp(`${only}[^\\p{L}]*(\\p{L}+)`, "u");
   for (const form of foldedForms(propertyName)) {
-    const next = after.exec(form);
-    if (next && COUNTER_AFTER_NUMBER.has(next[1])) return null;
+    const at = form.indexOf(only);
+    if (at >= 0 && followedByCounter(form, at + only.length)) return null;
   }
   return only;
 }
@@ -185,9 +214,19 @@ export function fillGuestPlaceholders(text: string, values: GuestPlaceholderValu
 }
 
 /** Bir KB kalemi listesinin içeriğini toplu çözer (kalemin diğer alanları AYNEN kalır). */
-export function fillGuestPlaceholdersInItems<T extends { content: string }>(
+/**
+ * 🚨 BAŞLIK da çözülür (inceleme turu 6, ÖLÇÜLDÜ): `packKnowledgeBase` isteme
+ * `- [KATEGORİ] ${title}: ${content}` yazıyor, yani başlık MODELE gidiyor. Yalnız `content`
+ * çözülünce host'un "Hoş geldiniz {isim}" başlığı ham belirteçle modele ulaşıyordu — 09-10'da
+ * `content` için kapatılan sınıfın ta kendisi, başlıkta açık kalmıştı.
+ */
+export function fillGuestPlaceholdersInItems<T extends { title?: string; content: string }>(
   items: T[],
   values: GuestPlaceholderValues,
 ): T[] {
-  return items.map((k) => ({ ...k, content: fillGuestPlaceholders(k.content, values) }));
+  return items.map((k) => ({
+    ...k,
+    ...(typeof k.title === "string" ? { title: fillGuestPlaceholders(k.title, values) } : {}),
+    content: fillGuestPlaceholders(k.content, values),
+  }));
 }

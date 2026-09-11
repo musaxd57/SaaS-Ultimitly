@@ -362,8 +362,8 @@ Bu dosyaya token/anahtar/parola yazma.
   etiket dalı `/i` ile yazıldığı için noktalı İ'yi kaçırıyordu ("DAİRE 5 - 2 Yatak Odalı" → null, host AÇIKÇA
   yazmışken) → İKİ KATLAMA; etiketlerin KELİME SINIRI yoktu ("Mila**no** 12 | Daire 3" → "12") → önde sınır (sonda
   BİLİNÇLİ yok, "Daire 5A" → "5" kalsın); ve TEK sayı tek başına daire numarası SAYILMAZ — sayıyı bir SAYAÇ sözcüğü
-  izliyorsa ("Trabzon **4 Kişilik** Daire" → "4") ya da sayı 3 haneden uzunsa ("**2024** Yılı Dairesi" → "2024") ikame
-  YAPILMAZ. 🚨 Önceki turun pini "2024"ü DOĞRU sayıyordu — yanlış beklenti kodlanmıştı, tersine çevrildi; karşı yön de
+  izliyorsa ("Trabzon **4 Kişilik** Daire", ESKİDEN "4") ya da sayı 3 haneden uzunsa ("**2024** Yılı Dairesi",
+  ESKİDEN "2024") artık `null` döner, ikame YAPILMAZ. 🚨 Önceki turun pini "2024"ü DOĞRU sayıyordu — yanlış beklenti kodlanmıştı, tersine çevrildi; karşı yön de
   pinli ("Bodrum Villa 8" → "8", "Kule 104" → "104"). `guestFirstNameOf` Türkçe katlamayla büyük/küçük
   harfe duyarsız ("rezervasyon 12345" da yer tutucudur), TAM eşleşme ("Misafirhan" gerçek ad). Tek geçiş `replace`+callback
   (`$&`/`$1` harfi harfine); değeri verilmeyen sınıf ve tanınmayan belirteç (`{kod}`) DOKUNULMAZ. 🚨 `/i` bayrağı
@@ -670,9 +670,10 @@ Sekiz P1 KAPANDI (09-07), her biri ayrı commit, kırmızı-önce + iki yönlü 
 - **KAPANDI (09-10, yerel; inceleme turuyla daraltıldı):** Türkçe olumsuz fiil boşluğu — "sıcak su gelmiyor / su akmıyor /
   ısıtma gelmiyor / elektrikler gitti / kapı açılmıyor / sigorta attı / kombi bozuldu" artık `complaint` (`KEYWORDS.complaint`
   "TÜRKÇE OLUMSUZ FİİL BOŞLUĞU" bloğu + `hasDeviceBreakdown`). 🚨 Kalıplar ÇAPALI (tesis adı + fiil; gövde "-yo" ile yazılır ki
-  "gelmiyor" da "gelmiyo" da tutsun; zarf biçimleri "su hiç/hâlâ gelmiyo" ayrıca). **Arıza ailesi CİHAZ KURALI:**
-  `bozuldu/bozulmuş/arızalı/arızalandı` yalnız aynı mesajda cihaz adı varsa (çekimli "klimamız" dahil) — "Hava/Midem/Planımız
-  bozuldu" sayılmaz. Çıplak `gelmiyor/gitti/kesildi/su yok/arıza/yanmıyor/bozuldu/blackout/no heat/elektrik yok/cereyan yok/
+  "gelmiyor" da "gelmiyo" da tutsun; zarf biçimleri "su hiç/hâlâ gelmiyo" ayrıca). **Arıza ailesi CİHAZ KURALI** (`hasDeviceBreakdown`; 09-11'de ÜÇ turla daraltıldı, ↓3./4./5.):
+  `bozuldu/bozulmuş/arızalı/arızalandı/arızalanmış` şikâyet sayılır ANCAK (i) mesajda `INFLECTION_ONLY`den geçen bir cihaz
+  adı varsa, (ii) fiil koşul eki almamışsa (`CONDITIONAL_TAIL`) ve (iii) fiilin solundaki ÖZNE YUVASI açıksa
+  (`reportSubjectSlot`). 🚨 "Cihaz adı geçiyor" TEK BAŞINA YETMEZ — "Klima iyi ama taksimiz bozuldu" complaint DEĞİL. Çıplak `gelmiyor/gitti/kesildi/su yok/arıza/yanmıyor/bozuldu/blackout/no heat/elektrik yok/cereyan yok/
   ısınmıyor/elektrik kesintisi/power cut` listeye GİRMEZ (inceleme 09-10 ölçtü: "blackout curtains", "Otoparkta elektrik yok mu,
   şarj için priz var mı?", "Yerden ısıtma yok mu", "Are power cuts common" complaint oluyordu → tuzaklar pinli, riskType satır
   başına TEK değer). "İnternet gelmiyor"/"wifi çekmiyor" BİLİNÇLİ wifi. ASCII ikizi yazılmaz (`includesAnyFold` kelimeyi de
@@ -712,7 +713,7 @@ Sekiz P1 KAPANDI (09-07), her biri ayrı commit, kırmızı-önce + iki yönlü 
   eleyemez, özne kuralı ("bilet") eler. 🚨 **KOŞUL kipini CÜMLE değil FİİL taşır:** cümlecik kapsamlı guard 24 gerçek
   bildirimin 17'sini düşürüyordu ("Su gelmiyor EĞER akşama kadar düzelmezse…" — "eğer" eşleşmeden SONRA geliyor) →
   yalnız eşleşmenin HEMEN ARDINDAKİ ek okunur (`^[ry]?s[ae]`: ‑sa/‑rsa/‑ysa); serbest "eğer" artık hüküm vermez.
-  `CLAUSE_SPLIT` tamamen kalktı (`\n` bacağı zaten ÖLÜYDÜ: `normalizeForMatch` satır sonunu boşluğa indiriyor).
+  `CLAUSE_SPLIT` **`fallback.ts`ten** tamamen kalktı (aynı adlı sabit `retrieval/rerank.ts`te YAŞIYOR, ilgisiz; `\n` bacağı zaten ÖLÜYDÜ: `normalizeForMatch` satır sonunu boşluğa indiriyor).
   **Ölçülüp SİLİNEN iki kod (geri getirme):** `N_BUFFERED_CASE`/`LEXICAL_POSSESSIVE_DEVICES` ("buzdolabı+nı" için)
   ÖLÜYDÜ — n ile başlayan hâl eklerinin tamamı zaten 2. tekil iyelik dalından geçiyor; "fiil okumalarından koşulsuz
   olanı tercih et" dalı ULAŞILAMAZDI (arıza fiilleri tam biçim, tek okuma üretir). 🚨 **"ASCII bacağını yalnız Türkçe
@@ -731,10 +732,15 @@ Sekiz P1 KAPANDI (09-07), her biri ayrı commit, kırmızı-önce + iki yönlü 
   fiilin solunda ÖZNE varsa ve CİHAZ DEĞİLSE bildirim sayılmaz; özne yokluğu ancak sol komşunun çekimli FİİL/ULAÇ
   olmasıyla (`VERB_LIKE`) ya da eksiz yüklem (`var/yok/değil`) olmasıyla ya da fiilin cümle başında olmasıyla anlaşılır;
   araya giren zarf/bağlaç ATLANIR (`SUBJECT_SLOT_FILLERS`). Ölçüm: **yanlış pozitif 24 → 2, kaçırılan bildirim 0.**
-  Kalan iki FP dilbilgisiyle çözülemez ve pinli (biri önceden var olan "gürültü" kelimesinden, biri misafirin KENDİ
-  cihazı — "makinemiz" ile "klimamız" aynı eki taşır). ⚠️ **SAYILAR O BATARYAYA AİT** (5. tur düzeltmesi): "24 → 2"
+  🚨 **"Kalan iki FP" İFADESİ FAZLA DARDI** (6. tur düzeltmesi): kalan yanlış pozitifler AÇIK bir sınıftır —
+  BELİRTİSİZ tamlamada iyelik zinciri devreye girmez ve `VERB_LIKE` t/d ile biten ismi fiil okur: "şarj **aleti**" ·
+  "market **sepeti**" · "kurs **kaydı**" bugün yanlış `complaint` (bağımsız 15'lik bataryada 4). Yön GÜVENLİ (aşırı
+  eskalasyon). 🚨 Kapatmak için "3. tekil iyelik kontrolünü `VERB_LIKE`ın önüne al" ÖNERİLDİ, ÖLÇÜLDÜ ve REDDEDİLDİ:
+  10 yaygın geçmiş-zaman fiilinin 7'si ("çalışıyordu · onardı · açtı · denedi · baktı · getirdi · kapattı") iyelik
+  sanılıyor ve 3/3 gerçek bildirim KAYBEDİLİYOR ("Kombiyi tamirci onardı, sonra bozuldu."). İki pinli FP (önceden var
+  olan "gürültü" kelimesi · misafirin KENDİ cihazı) yalnız o sınıfın ÖRNEKLERİDİR, sınırı değil. ⚠️ **SAYILAR O BATARYAYA AİT** (5. tur düzeltmesi): "24 → 2"
   ve "kaçırılan bildirim 0" YALNIZ o 30/38 mesajlık batarya içindir; bağımsız bir batarya 15 gerçek bildirimin
-  düştüğünü ölçtü (↓ beşinci tur). **Liste 11→8'e indi + ADI DEĞİŞTİ (`VERBLIKE_NOUN_OVERRIDES`):**
+  düştüğünü ölçtü (↓ beşinci tur). **Liste YENİDEN KURULDU (11 → 8: yedi girdi çıktı, `tat/tad/cilt/cild` EKLENDİ) + ADI DEĞİŞTİ (`VERBLIKE_NOUN_OVERRIDES`):**
   varsayılan-RET gelince plan/hava/mide/uçuş/program/rezervasyon/telefon ÖLÜ kaldı; geriye yalnız t/d EŞSESLİLİĞİ
   kaldı (saat+i ≡ ‑ti · tad+ı ≡ ‑dı · cild+im ≡ ‑dim · fiyat+ı · moral+im · bilet+i). 🚨 **Ünsüz yumuşamasında beş
   gövde daha eksikti ve KAPI ETKİSİ ÖLÇÜLDÜ** ("Musluğu açtık, bozuldu." · "Ocağı yakamadık, arızalı." OTO-GÖNDERİLİYORDU)
@@ -764,6 +770,34 @@ Sekiz P1 KAPANDI (09-07), her biri ayrı commit, kırmızı-önce + iki yönlü 
   (eskiden MÜLK ADININ TAMAMI dönüp ikame ediliyordu → "Kapı kodu: Cozy Seaside Flat" misafire gidiyordu).
   Kanıt: kırmızı-önce 25 + **mutasyon 26/26** (iki hayatta kalan: biri ölü niceleyici listesini, biri belirtisiz
   tamlama dalının pinsizliğini gösterdi).
+- **ALTINCI İNCELEME TURU (09-11, DÖRT paralel ölçümlü ajan — satır satır) — üç OTO-GÖNDERİM açığı + sekiz test kusuru:**
+  🚨 ① **Görünmez karakter `sorun/problem` ağını DELİYORDU:** tek bir U+00AD "Dairede bir so<U+00AD>run var."ı `general`
+  yapıyor ve oto-gönderim izni çıkıyordu — dosyanın `normalizeForMatch` başlığında KENDİ belgelediği bypass sınıfı.
+  Düzeltme `includesAnyFold`a ve 09-10/09-11 turlarında öteki bacaklara uygulanmış, `hasUnnegatedProblemWord` ATLANMIŞTI →
+  normalize edilmiş ÜÇÜNCÜ okuma OR'landı (yalnız EŞLEŞME EKLER). ⚠️ HAM okumalar YERİNDE KALDI ve artık PİNLİ:
+  "Sorun  yok" (çift boşluk) complaint kalır — boşlukla bozulmuş olumsuzlamaya güvenilmez (katlama kuralı).
+  🚨 ② **İZAFET/TAMLAMA komple kaçıyordu:** `NEGATIVE_VERB_COMPLAINTS` 1. turdan beri ÇIPLAK YALIN HÂLDE donmuştu
+  ("musluk akmıyo") ama Türkçede tesis adı neredeyse hep tamlamadır ve yumuşama + 3. tekil iyelik alır — "Mutfak
+  **musluğu** akmıyor" · "Banyo **lavabosu** tıkandı" · "Oda **peteği** ısınmıyor": 17 çiftin 17'si düşüyor, 14'ü
+  oto-gönderiliyordu. 4. tur `BREAKDOWN_DEVICES`e yumuşama gövdelerini eklerken KARDEŞ LİSTE güncellenmemişti (aynı cihaz
+  "bozuldu" ile complaint, "akmıyor" ile general). İzafet/çoğul kalıpları eklendi. ⚠️ BİLİNEN SINIR: bu bacak hâlâ KALIP
+  tabanlı; yazılmamış her tamlama kaçar (yapısal birleştirme ayrı tur).
+  🚨 ③ **"ve" bağlacı özne sanılıyordu** ("Klimayı açtık VE bozuldu" → oto-gönderilir; "AMA" ile complaint) ve
+  🚨 ④ **kesme işareti cihaz adını ekinden koparıyordu** ("Klima'mız bozuldu" → oto-gönderilir) → `deviceTokens` kesmeyi
+  kelime İÇİNDE siler. Ayrıca gereksiz `"su"` filler girdisi çıktı (gerçek tesis adı, özne yuvasında atlanmamalı).
+  **REDDEDİLEN düzeltme (ölçüldü):** `PROBLEM_NEGATIONS`taki "sorun değil/olmaz/sorunsuz" girdilerini TAM olumsuz biçime
+  daraltmak — "…ama SORUN DEĞİL" gibi ÇOK YAYGIN nezaket kapanışları complaint'e döndü; kazanç nadir, bedel yaygın →
+  eski hâl korundu, bilinen sınır test-pinli.
+  **Yer tutucu (ajan B):** `apartmentNumberOf`ta sayaç ve hane kuralları ETİKETLİ yolda HİÇ çalışmıyordu ("Sahilde Daire
+  6 Kişilik" → "6" kapasite; "No 2024" → yıl) → çapalı sayaç kontrolü + zayıf etikette hane sınırı; sayaç listesi TR-only
+  iken etiket dalı İngilizceyi kabul ediyordu (15/15 yanlış numara) → İngilizce sözcükler; `guestFirstNameOf` TEK
+  katlamaydı ("MISAFIR" → misafire "Merhaba MISAFIR,") → iki katlama; ölü `"m2"` girdisi çıktı. 🚨 **BAŞLIK da çözülür ve
+  taranır:** `packKnowledgeBase` başlığı isteme YAZIYOR ama ikame de yer-tutucu notu da yalnız `content`e bakıyordu.
+  **Test kusurları (ajan C, ölçülmüş):** iki TUZAK satırı "mesajda cihaz var" sözünü tutmuyordu · `fön` çıkarıldığı için
+  iki satır ÖLÜ kalmıştı (silindi) · `VERBLIKE_NOUN_OVERRIDES`in 8 girdisinin 5'i PİNSİZDİ (ayırt edici biçimler yazıldı) ·
+  kelime sınırı ve zayıf etiket dalı pinsizdi · QR ad bacağı aynı sabiti kullandığı için izole değildi · bir QR testinde
+  anti-vacuity çapası yoktu · üçüncü kolonun (`riskType`) çoğu satırda TÜRETİLMİŞ olduğu yazıldı.
+  Kanıt: kırmızı-önce 26 + **mutasyon 28/28** (bir hayatta kalan pinsiz bilinçli kararı gösterdi → pinlendi).
 - **KB onay sözleşmesi (A1) CANLI — migration 53 prod'da 09-08 16:42Z; §A doğrulandı (32 satır `legacy|legacy`, aktif = AI-okunabilir = 32).**
   `KnowledgeBaseItem`: `source` (`legacy·host_manual·extracted_draft·suggestion_accepted`) · `reviewState`
   (`legacy·approved·draft`) · `approvedAt` · `sourceRef`/`supersededById` (A5 için, bugün yazan YOK, pinli).

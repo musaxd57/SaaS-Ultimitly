@@ -176,6 +176,9 @@ describe("QR — KB yer tutucuları modele GİRMEDEN çözülür", () => {
     const kbText = input.knowledgeBase.map((k) => k.content).join("\n");
     expect(kbText).not.toContain("84726193");
     expect(kbText).not.toContain("{isim}");
+    // 🚨 ANTI-VACUITY (inceleme turu 6): iki assert de NEGATİF — `knowledgeBase` herhangi bir
+    // sebeple boş dönseydi test sessizce yeşil kalırdı. Zararsız kalemin GİRDİĞİNİ de ölç.
+    expect(kbText).toContain("Havlular dolapta");
   });
 
   it("🚨 İKAME SONRASI DA TARANIR: mülk adı 'Daire 4590' iken 'Kapı: {daire}' kalemi modele GİTMEZ (oto-yanıt yoluyla parite)", async () => {

@@ -629,6 +629,13 @@ function includesAnyFold(
  * Dosyanın kendi kuralı bunu zaten söylüyordu (↑liste başındaki not) — yalnız
  * İngilizce/Türkçe için uygulanmıştı.
  */
+// 🚨 BİLİNEN SINIR — ÖLÇÜLDÜ ve DÜZELTMESİ REDDEDİLDİ (inceleme turu 6): olumsuzlama düz
+// `split().join(" ")` olduğu için bir OLUMSUZ kalıbın ÖNEK olduğu gerçek şikâyetler de siliniyor:
+//   "Sorun olmaz demiştiniz ama oldu."  ·  "Sorunsuz bir tatil olmadı."  ·  "Bu sorun değil mi?"
+// → üçü de `general` (+ oto-gönderilebilir). Girdileri TAM olumsuz biçime daraltmak DENENDİ ve
+// ÖLÇÜLDÜ: "…ama SORUN DEĞİL." gibi ÇOK YAYGIN nezaket kapanışları complaint'e dönüyor
+// (test-pinli tuzak düştü). Kazanç nadir, bedel yaygın → eski hâl KORUNDU. Doğru çözüm
+// olumsuzlamayı cümlecik/karşıtlık farkındalığıyla okumak; ayrı tur.
 const PROBLEM_STEMS = ["problem", "sorun", "problème", "probleme", "مشكلة"];
 function hasUnnegatedProblemWord(m: string): boolean {
   if (!PROBLEM_STEMS.some((w) => m.includes(w))) return false;
@@ -734,6 +741,24 @@ const NEGATIVE_VERB_COMPLAINTS: readonly string[] = [
   "shower is clogged", "water leak", "is leaking",
   // Işık / ocak (çıplak "yanmıyor" YOK)
   "ışık yanmıyo", "ışıklar yanmıyo", "lamba yanmıyo", "ocak yanmıyo",
+  // ── İZAFET (TAMLAMA) BİÇİMLERİ (inceleme turu 6, ÖLÇÜLDÜ) ──
+  // 🚨 Kalıplar 1. turdan beri ÇIPLAK YALIN HÂLDE donmuştu ("musluk akmıyo"); oysa Türkçede
+  // tesis adı neredeyse hep tamlamadır ve o biçimde ÜNSÜZ YUMUŞAMASI + 3. tekil iyelik alır:
+  // "MUTFAK MUSLUĞU akmıyor" · "BANYO LAVABOSU tıkandı" · "ODA PETEĞİ ısınmıyor". 17 çiftin
+  // 17'si düşüyordu ve 14'ü OTO-GÖNDERİLİYORDU. 4. tur `BREAKDOWN_DEVICES`e yumuşama
+  // gövdelerini eklemişti ama KARDEŞ LİSTE güncellenmemişti — aynı cihaz "bozuldu" ile
+  // complaint, "akmıyor/yanmıyor/tıkandı" ile general oluyordu (ölçülen asimetri).
+  // ⚠️ BİLİNEN SINIR: bu bacak hâlâ KALIP tabanlı (cihaz kuralının belirteç/çekim mekanizması
+  // burada yok) → yazılmamış her tamlama kaçar. Yapısal birleştirme ayrı tur ister.
+  "musluğu akmıyo", "muslukları akmıyo", "musluklar akmıyo", "musluğu damlıyo", "musluğu damlatıyo",
+  "ocağı yanmıyo", "ocakları yanmıyo", "ocaklar yanmıyo",
+  "lavabosu tıkandı", "lavabosu tıkalı", "lavabosu tıkanıyo",
+  "klozeti tıkandı", "tuvaleti tıkandı", "gideri tıkandı", "gideri tıkalı",
+  "sifonu çekmiyo", "peteği ısınmıyo", "petekleri ısınmıyo", "petekler ısınmıyo",
+  "radyatörü ısınmıyo", "kaloriferi yanmıyo", "kombisi yanmıyo",
+  "ışığı yanmıyo", "ışıkları yanmıyo", "lambası yanmıyo", "lambaları yanmıyo",
+  "kapısı açılmıyo", "kapısı kapanmıyo", "kilidi açılmıyo", "kilidi açılmadı",
+  "duşu akmıyo", "suyu akmıyo", "suyu gelmiyo",
 ];
 
 // 🚨 TAM BİÇİM, GÖVDE DEĞİL (inceleme 09-10, ölçüldü): "arızalan" gövdesi OLUMSUZ ve KOŞUL
@@ -782,7 +807,13 @@ const SUBJECT_SLOT_FILLERS = new Set([
   "cidden", "gerçekten", "gercekten", "kesinlikle", "neredeyse",
   // Gösterme sıfatları: zarf ÖBEĞİNİN başıdır ("BU sabah", "O gün") — tek kelimelik liste
   // "bu sabah"ı kaçırıyordu (ölçüldü: "Kombi bu sabah bozuldu." → general).
-  "bu", "şu", "su", "o",
+  "bu", "şu", "o",
+  // 🚨 "ve" EKSİKTİ (inceleme turu 6, ölçüldü): Türkçenin en sık bağlacı özne sanılıyordu —
+  // "Klimayı açtık VE bozuldu." general/oto-gönderilir, "…AMA bozuldu." complaint. Bağlaç bir
+  // ÖZNEYİ gizleyemez (isim değil), yön güvenli. "malesef" yaygın yazım hatası ("maalesef" var).
+  "ve", "nedense", "malesef",
+  // ⚠️ "su" girdisi ÇIKARILDI: "şu" zaten std katlamayla eşleşiyor (ASCII ikizi gereksizdi) ve
+  // SU gerçek bir tesis adı — özne yuvasında atlanması kabulü kolaylaştırıyordu.
 ]);
 
 /**
@@ -903,6 +934,19 @@ const CONDITIONAL_TAIL = /^[ry]?s[ae]/u;
 const WORD_SPLIT = /[^\p{L}\p{N}]+/u;
 
 /**
+ * 🚨 KESME İŞARETİ CİHAZ ADINI EKİNDEN KOPARIYORDU (inceleme turu 6, ÖLÇÜLDÜ):
+ * "Klima'mız bozuldu." belirteçleri ["Klima","mız","bozuldu"] oluyor → özne yuvasında ÖKSÜZ EK
+ * ("mız") duruyor, cihaz adı kayboluyor ve mesaj OTO-GÖNDERİLİYORDU; kesmesiz aynı cümle
+ * ("Klimamız bozuldu.") complaint. Türkçede kesme özel addan sonra eki AYIRMAK için yazılır,
+ * kelimeyi BÖLMEZ — bu yolda SİLİNİR ("klima'mız" → "klimamız"). Ayıraç okuması kaybolmuyor:
+ * `matchCandidates` zaten `splitApostrophes` adayını (kesme → boşluk) ayrıca üretiyor.
+ */
+const APOSTROPHES = /['\u2019\u2018\u00B4`]/gu;
+function deviceTokens(cand: string): string[] {
+  return cand.replace(APOSTROPHES, "").split(WORD_SPLIT).filter(Boolean);
+}
+
+/**
  * Bir belirtecin (token) kelime BAŞINDA verilen sözcüklerden birini taşıyıp taşımadığı —
  * ardından yalnız ÇEKİM eki gelmek şartıyla. Katlama sözleşmesi `includesAnyFold` ile aynı
  * (üç katlama, yalnız EŞLEŞME EKLER).
@@ -1004,7 +1048,7 @@ function reportSubjectSlot(toks: string[], verbIndex: number): boolean {
  */
 function hasDeviceBreakdown(message: string): boolean {
   for (const cand of matchCandidates(normalizeForMatch(message))) {
-    const toks = cand.split(WORD_SPLIT).filter(Boolean);
+    const toks = deviceTokens(cand);
     if (!toks.some((t) => matchesInflectedWord(t, BREAKDOWN_DEVICES))) continue;
     for (let i = 0; i < toks.length; i++) {
       const rest = breakdownVerbRest(toks[i]);
@@ -1065,7 +1109,18 @@ function detectIntent(message: string): Intent {
     // guard'lı), 09-10 olumsuz-fiil kalıpları (cümlecik + koşul guard'lı) ve arıza CİHAZ KURALI.
     if (
       intent === "complaint" &&
-      (hasUnnegatedProblemWord(std) || hasUnnegatedProblemWord(tr) || hasNegativeVerbComplaint(message) || hasDeviceBreakdown(message))
+      (hasUnnegatedProblemWord(std) ||
+        hasUnnegatedProblemWord(tr) ||
+        // 🚨 NORMALİZE EDİLMİŞ ÜÇÜNCÜ OKUMA (inceleme turu 6, ÖLÇÜLDÜ): tek bir U+00AD
+        // "Dairede bir so<U+00AD>run var."ı `general` yapıyor ve OTO-GÖNDERİM İZNİ çıkıyordu —
+        // dosyanın `normalizeForMatch` başlığında kendi belgelediği bypass sınıfı. Diğer üç
+        // bacak (`includesAnyFold`, olumsuz-fiil, cihaz kuralı) dayanıklıydı, YALNIZ bu atlanmıştı.
+        // ⚠️ HAM çağrılar YERİNDE KALIR: `:351-354` kararı "normalizasyon negasyon kontrolünü
+        // gevşetir" diyor ve haklı ("Sorun  yok" çift boşlukla olumsuzlanamıyor) — bu satır
+        // yalnız EŞLEŞME EKLER, hiçbir olumsuzlamayı kaldırmaz.
+        hasUnnegatedProblemWord(foldTurkishLower(normalizeForMatch(message))) ||
+        hasNegativeVerbComplaint(message) ||
+        hasDeviceBreakdown(message))
     ) {
       return "complaint";
     }

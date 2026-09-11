@@ -393,3 +393,90 @@ belgelenmiş, dilbilgisiyle çözülemez sınıf); kaçırılan bildirim 0/38.
 **Kanıt:** kırmızı-önce 25 düşen test; **mutasyon 26/26** — iki mutant hayatta kaldı ve ikisi de
 gerçek boşluk gösterdi: niceleyici sözcük listesi ÖLÜYDÜ (silindi, "hepsi/ikisi" zincirden geçiyor)
 ve belirtisiz tamlama dalı ("klima kumandası") PİNSİZDİ (satır eklendi).
+
+---
+
+## Altıncı inceleme turu (09-11, DÖRT paralel ölçümlü ajan) — satır satır denetim
+
+Dört ajan ayrı kapsamda koştu (kod akışı · yer tutucu/QR yolu · test kalitesi · belge doğruluğu),
+hepsi salt-okuma. Bulguların tamamı ana oturumda YENİDEN ÖLÇÜLDÜ; ikisi reddedildi.
+
+### A1 — Görünmez karakter `sorun/problem` ağını deliyordu (P1, oto-gönderim)
+
+```
+complaint  "Dairede bir sorun var."
+general    "Dairede bir so<U+00AD>run var."     ← SOFT HYPHEN, oto-gönderilir
+general    "There is a pro<U+00AD>blem in the flat."
+complaint  "Su ge<U+00AD>lmiyor."   ← diğer bacaklar DAYANIKLI
+complaint  "Klima bo<U+00AD>zuldu."
+```
+Bu, dosyanın `normalizeForMatch` başlığında KENDİ belgelediği bypass sınıfıdır; düzeltme
+`includesAnyFold`a ve 09-10/09-11 turlarında öteki bacaklara uygulanmış, `hasUnnegatedProblemWord`
+ATLANMIŞTI. **Düzeltme:** normalize edilmiş ÜÇÜNCÜ okuma OR'landı — yalnız EŞLEŞME EKLER.
+⚠️ HAM okumalar YERİNDE: normalizasyon olumsuzlama kontrolüne uygulanmaz (katlama kuralı), yani
+"Sorun  yok" (çift boşluk) complaint kalır — aşırı eskalasyon, güvenli yön, artık **pinli**.
+
+### A2 — İzafet/tamlama biçimleri komple kaçıyordu (P1, oto-gönderim)
+
+| Çıplak yalın (listede) | Tamlama (Türkçenin OLAĞAN biçimi) |
+|---|---|
+| "Musluk akmıyor." complaint | "Mutfak **musluğu** akmıyor." general ✗ |
+| "Ocak yanmıyor." complaint | "Mutfak **ocağı** yanmıyor." general ✗ |
+| "Lavabo tıkandı." complaint | "Banyo **lavabosu** tıkandı." general ✗ |
+| "Sifon çekmiyor." complaint | "Tuvalet **sifonu** çekmiyor." general ✗ |
+| "Petek ısınmıyor." complaint | "Oda **peteği** ısınmıyor." general ✗ |
+
+17 çiftin 17'si düşüyordu, 14'ü oto-gönderiliyordu. 4. tur `BREAKDOWN_DEVICES`e yumuşama gövdelerini
+eklemişti ama KARDEŞ LİSTE (`NEGATIVE_VERB_COMPLAINTS`) 1. turun donmuş tasarımında kalmıştı — aynı
+cihaz "bozuldu" ile complaint, "akmıyor" ile general. İzafet + çoğul kalıpları eklendi.
+⚠️ **BİLİNEN SINIR:** bu bacak hâlâ KALIP tabanlı; yazılmamış her tamlama kaçar. Cihaz kuralının
+belirteç/çekim mekanizmasıyla birleştirme ayrı tur ister.
+
+### A3/A4 — "ve" bağlacı ve kesme işareti (P1, oto-gönderim)
+
+- `SUBJECT_SLOT_FILLERS`te `de·da·ama·ancak·fakat·ya` vardı, **"ve" YOKTU** → "Klimayı açtık **ve**
+  bozuldu." özne sanılıp reddediliyordu (6/6 kaçak, 6/6 oto-gönderilir).
+- `WORD_SPLIT` kesmede bölüyordu → "Klima'mız bozuldu." belirteçleri `["Klima","mız","bozuldu"]`,
+  özne yuvasında ÖKSÜZ EK duruyor, cihaz adı kayboluyor (5/5 oto-gönderilir). Kesme artık kelime
+  İÇİNDE **silinir** (`deviceTokens`); ayıraç okuması `matchCandidates`in `splitApostrophes`
+  adayında zaten var.
+- Gereksiz `"su"` filler girdisi çıkarıldı: `"şu"` std katlamayla zaten eşleşiyor, SU ise gerçek bir
+  tesis adı ve özne yuvasında atlanması kabulü kolaylaştırıyordu.
+
+### A5 — ÖLÇÜLÜP REDDEDİLEN iki düzeltme (tekrar denenmesin)
+
+1. **`PROBLEM_NEGATIONS` önek ihlali.** "Sorun olmaz demiştiniz ama oldu" · "Sorunsuz bir tatil
+   olmadı" gerçek şikâyet ama olumsuz kalıbın ÖNEKİ olduğu için siliniyor. Girdileri TAM olumsuz
+   biçime daraltmak DENENDİ: "…ama **sorun değil**" gibi ÇOK YAYGIN nezaket kapanışları complaint'e
+   döndü (test-pinli tuzak düştü). Kazanç nadir, bedel yaygın → eski hâl KORUNDU, sınır pinli.
+2. **"3. tekil iyelik kontrolünü `VERB_LIKE`ın ÖNÜNE al"** (t/d eşsesliliğini kapatmak için).
+   Ölçüldü: 10 yaygın geçmiş-zaman fiilinin 7'si ("çalışıyordu · onardı · açtı · denedi · baktı ·
+   getirdi · kapattı") iyelik sanılıyor ve **3/3 gerçek bildirim kayboluyor** ("Kombiyi tamirci
+   onardı, sonra bozuldu."). Bugünkü yön (aşırı eskalasyon) GÜVENLİ → kod DEĞİŞMEDİ, belge düzeltildi:
+   kalan yanlış pozitifler AÇIK bir sınıftır, "iki FP" ile sınırlı değildir.
+
+### A6 — Yer tutucu (`apartmentNumberOf`, `guestFirstNameOf`, başlık)
+
+- **Sayaç ve hane kuralları ETİKETLİ yolda HİÇ çalışmıyordu:** etiket eşleşince anında dönülüyordu →
+  "Sahilde Daire **6 Kişilik**" → "6" (kapasite), "Nuve Rezidans **No 2024**" → yıl. Aynı adın
+  etiketsiz hâli doğru davranıyordu (ölçülen asimetri). Sayaç kontrolü artık ÇAPALI: yalnız sayıyı
+  HEMEN izleyen sözcüğe bakar (araya rakam girerse bakmaz → "Daire 5 - 2 Yatak Odalı" hâlâ "5").
+- **Sayaç listesi TR-only iken etiket dalı İngilizceyi kabul ediyordu:** 15 gerçekçi İngilizce ilan
+  adının 15'i yanlış numara üretti ("Luxury 2 Bedroom Flat" → "Daireniz 2") → İngilizce sözcükler.
+- **`guestFirstNameOf` TEK katlamaydı:** "MISAFIR" → misafire "Merhaba MISAFIR," gidiyordu → iki katlama.
+- 🚨 **BAŞLIK da çözülür ve taranır:** `packKnowledgeBase` başlığı isteme YAZIYOR ama hem ikame hem
+  doldurulmamış-yer-tutucu notu yalnız `content`e bakıyordu.
+- Ölü `"m2"` sayaç girdisi çıkarıldı (yakalama grubu `(\p{L}+)` yalnız harf alır).
+
+### A7 — Test kusurları (ölçülmüş, düzeltildi)
+
+İki TUZAK satırı "mesajda cihaz var" sözünü tutmuyordu (`Işıklandırma`/`Buzdolabındaki` türetme eki
+taşıdığı için cihaz sayılmıyor) · `fön` listeden çıkarıldığı için iki satır ÖLÜ kalmıştı (silindi) ·
+`VERBLIKE_NOUN_OVERRIDES`in 8 girdisinin **5'i PİNSİZDİ** (ayırt edici biçimler ölçülüp yazıldı:
+"saatim" · "bileti" · "kahve tadı" · "tatı" · "ciltim") · kelime sınırı ve zayıf etiket dalı pinsizdi ·
+QR ad bacağı KB ile aynı sabiti kullandığı için izole değildi · bir QR testinde anti-vacuity çapası
+yoktu · üçüncü kolonun (`riskType`) çoğu satırda `isComplaint`ten TÜRETİLMİŞ olduğu yazıldı.
+
+**Kanıt:** kırmızı-önce 26 düşen test; **mutasyon 28/28** — ilk koşuda bir mutant hayatta kaldı ve
+PİNSİZ BİLİNÇLİ BİR KARARI gösterdi (ham okumanın koruduğu şey: boşlukla bozulmuş olumsuzlamaya
+güvenilmemesi) → pinlendi.

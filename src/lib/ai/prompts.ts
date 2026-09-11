@@ -807,7 +807,10 @@ export function packKnowledgeBase(
     }
     lines.push(line);
     used += line.length;
-    const tokens = kbPlaceholderTokens(k.content);
+    // 🚨 BAŞLIK DA TARANIR (inceleme turu 6, ölçüldü): bu döngü başlığı isteme YAZIYOR
+    // (`- [KATEGORİ] ${title}: ${content}`), ama doldurulmamış yer tutucu taraması yalnız
+    // `content`e bakıyordu → başlıktaki "[ŞİFRE]"/"<adres>" için model hiçbir uyarı almıyordu.
+    const tokens = kbPlaceholderTokens(`${k.title}\n${k.content}`);
     if (tokens.length > 0) placeholders.push({ title: k.title, tokens });
   }
   // DOLDURULMAMIŞ YER TUTUCU — KODDAN tespit, modele AÇIK CÜMLE (E4, 09-09):
