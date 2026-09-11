@@ -2,7 +2,7 @@
 
 import { useState } from "react";
 import { useRouter } from "next/navigation";
-import { FileText, Loader2, Plus } from "lucide-react";
+import { FileText, Loader2, Plus, X } from "lucide-react";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
@@ -33,6 +33,13 @@ export function KbTemplateSuggestions() {
   const [loading, setLoading] = useState(false);
   const [busy, setBusy] = useState<string | null>(null);
   const [added, setAdded] = useState<Set<string>>(new Set());
+  // 🚨 BOŞ SONUÇ EKRANI İŞGAL ETMEZ (kurucu 09-11, canlı ekran görüntüsü):
+  // "tara" dedikten sonra sonuç yoksa kart TAM BOY kalıp yer kaplıyordu.
+  // Artık tek satıra iner; host isterse tamamen kapatır.
+  // ⚠️ Kapatma OTURUMLUKTUR, kalıcı değil — AI öneri panelinin aynı kararı
+  // (CLAUDE.md): kalıcı tercih ayrı bir karardır, sessizce icat edilmez.
+  const [dismissed, setDismissed] = useState(false);
+  const empty = items !== null && items.length === 0;
 
   /** Aynı şablon iki mülke önerilebilir → anahtar MÜLKÜ de taşır. */
   const keyOf = (s: TemplateSuggestion) => `${s.sourceTemplateId}|${s.propertyId}`;
@@ -82,6 +89,34 @@ export function KbTemplateSuggestions() {
     }
   }
 
+  if (dismissed) return null;
+
+  // Sonuç YOK → tek satır. Açıklama paragrafı burada GEREKSİZ: host zaten
+  // "Tara"ya bastı, cevabı aldı; uzun metin yalnız yer kaplar.
+  if (empty) {
+    return (
+      <div className="flex flex-wrap items-center gap-x-3 gap-y-2 rounded-lg border border-border bg-muted/40 px-3 py-2 text-sm text-muted-foreground">
+        <FileText className="h-4 w-4 shrink-0" aria-hidden />
+        <span className="min-w-0">
+          Şablonlarınızda eklenebilecek yeni metin yok.{" "}
+          <span className="hidden sm:inline">
+            (Giriş/çıkış saati gibi mülk alanları ve içinde <code>{"{{...}}"}</code> gibi doldurulmamış alan
+            bulunan şablonlar bilerek dışarıda kalır.)
+          </span>
+        </span>
+        <div className="ml-auto flex shrink-0 items-center gap-1">
+          <Button variant="ghost" size="sm" onClick={scan} disabled={loading}>
+            {loading ? <Loader2 className="mr-2 h-4 w-4 animate-spin" aria-hidden /> : null}
+            Yeniden tara
+          </Button>
+          <Button variant="ghost" size="sm" onClick={() => setDismissed(true)} aria-label="Bu kartı kapat">
+            <X className="h-4 w-4" aria-hidden />
+          </Button>
+        </div>
+      </div>
+    );
+  }
+
   return (
     <Card>
       <CardHeader className="flex flex-row items-center justify-between gap-3 space-y-0">
@@ -89,23 +124,21 @@ export function KbTemplateSuggestions() {
           <FileText className="h-4 w-4" aria-hidden />
           Şablonlarınızdan
         </CardTitle>
-        <Button variant="outline" size="sm" onClick={scan} disabled={loading}>
-          {loading ? <Loader2 className="mr-2 h-4 w-4 animate-spin" aria-hidden /> : null}
-          {items === null ? "Tara" : "Yeniden tara"}
-        </Button>
+        <div className="flex items-center gap-1">
+          <Button variant="outline" size="sm" onClick={scan} disabled={loading}>
+            {loading ? <Loader2 className="mr-2 h-4 w-4 animate-spin" aria-hidden /> : null}
+            {items === null ? "Tara" : "Yeniden tara"}
+          </Button>
+          <Button variant="ghost" size="sm" onClick={() => setDismissed(true)} aria-label="Bu kartı kapat">
+            <X className="h-4 w-4" aria-hidden />
+          </Button>
+        </div>
       </CardHeader>
       <CardContent className="space-y-3">
         <p className="text-sm text-muted-foreground">
           Şablonlarınızdaki metinler misafire <strong>aynen</strong> gider ama asistan onları göremez. Buradan
           eklerseniz görür — metin sizin cümlenizdir, doldurmanız gereken bir şey yok.
         </p>
-
-        {items !== null && items.length === 0 ? (
-          <p className="text-sm text-muted-foreground">
-            Eklenebilecek bir şablon bulunamadı. (Giriş/çıkış saati gibi mülk alanları ve içinde{" "}
-            <code>{"{{...}}"}</code> gibi doldurulmamış alan bulunan şablonlar bilerek dışarıda kalır.)
-          </p>
-        ) : null}
 
         {items?.map((s) => {
           const k = keyOf(s);

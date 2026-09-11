@@ -18,6 +18,8 @@ import {
   ChevronDown,
   X,
   PauseCircle,
+  Maximize2,
+  Minimize2,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Select } from "@/components/ui/select";
@@ -102,6 +104,16 @@ interface Props {
   templateVars?: Record<string, string>;
   /** Owner/manager may send guest replies; staff get a read-only thread. */
   canReply?: boolean;
+  /**
+   * Sayfa eylemleri ("← Mesajlar", "Sil") — kartın BAŞLIK SATIRINDA, sağda.
+   *
+   * 🚨 Kartın DIŞINDA ayrı bir satırdaydılar ve o satır kartı aşağı itiyordu
+   * (buton 2rem + `gap-6` 1.5rem = 3.5rem). Kurucu 09-11: "mesaj yeri en üste
+   * kadar uzasın". Slot olarak geçilir çünkü `DeleteConversationButton` kendi
+   * istemci bileşeni — sunucu sayfasından çocuk olarak verilmesi Next'te doğru
+   * desendir (bu bileşen onu yalnız YERLEŞTİRİR, davranışına karışmaz).
+   */
+  headerActions?: React.ReactNode;
 }
 
 export function ConversationThread({
@@ -115,6 +127,7 @@ export function ConversationThread({
   propertyTitle,
   templateVars,
   canReply = true,
+  headerActions,
 }: Props) {
   const router = useRouter();
   const [, startTransition] = useTransition();
@@ -300,6 +313,23 @@ export function ConversationThread({
     }
   }
 
+  // ── TAM EKRAN (kurucu 09-11: "tam ekran tuşu bile olabilir") ───────────────
+  // Kart görünür alanı DOLDURUR; tam ekranda ise sağ rayı ve kabuğu da kaplar.
+  // ⚠️ Yalnız GÖRÜNÜM: hiçbir veri/gönderim yolu değişmez, kalıcı da değil
+  // (sayfa yenilenince kapanır — kalıcı tercih ayrı bir karar).
+  const [fullscreen, setFullscreen] = useState(false);
+  useEffect(() => {
+    if (!fullscreen) return;
+    const onKey = (e: KeyboardEvent) => {
+      // Esc ÇIKIŞ olmalı: tam ekranda "geri" düğmesi görünmüyorsa kullanıcı
+      // kilitlenmiş hisseder. Şablon menüsü açıkken o kendi Esc'ini yiyor
+      // (stopPropagation), yani sıralama doğru: önce menü kapanır, sonra kart.
+      if (e.key === "Escape") setFullscreen(false);
+    };
+    window.addEventListener("keydown", onKey);
+    return () => window.removeEventListener("keydown", onKey);
+  }, [fullscreen]);
+
   // Kontroller yeniden etkinleştikten SONRA odağı iade et.
   useEffect(() => {
     if (busy) return;
@@ -465,7 +495,17 @@ export function ConversationThread({
     // doldurur. Hesap yok → yeni bir band eklense de bozulmaz.
     // `min-h` tabanı: kısa ekranda liste okunamayacak kadar ezilmesin.
     // Mobilde (tek sütun, sayfa kayar) yükseklik DAYATILMAZ.
-    <div className="flex flex-col rounded-xl border border-border bg-card lg:h-full lg:min-h-[26rem]">
+    <div
+      className={cn(
+        "flex flex-col border border-border bg-card",
+        fullscreen
+          ? // Tam ekran: kabuğu da kaplar. `fixed inset-0` zoom'dan BAĞIMSIZ
+            // olarak tam viewport'tur (kabukta ölçüldü). Köşe yuvarlaması ve
+            // `min-h` burada anlamsız — kart zaten ekranın tamamı.
+            "fixed inset-0 z-50 rounded-none"
+          : "rounded-xl lg:h-full lg:min-h-[26rem]",
+      )}
+    >
       {/* Görünmez canlı bölge: gönderim/durum sonuçları buraya yazılır.
           Ekranda yer kaplamaz ama ekran okuyucu okur. */}
       <p role="status" aria-live="polite" className="sr-only">
@@ -536,6 +576,25 @@ export function ConversationThread({
             rozet yalnız gösteriyordu. Durum/öncelik kutuları KALIYOR: durum
             gelen kutusu filtresini ve oto-yanıt yaşam döngüsünü sürer
             ("Sorunlu" oto-yanıtı KİLİTLER), öncelik ise liste sıralamasını. */}
+
+        {/* Sağ uç: tam ekran + sayfa eylemleri ("← Mesajlar", "Sil").
+            Eylemler kartın DIŞINDA ayrı bir satırdaydı ve kartı 3.5rem aşağı
+            itiyordu (kurucu: "mesaj yeri en üste kadar uzasın"). */}
+        <div className="ml-auto flex shrink-0 items-center gap-2">
+          <Button
+            type="button"
+            variant="ghost"
+            size="sm"
+            className="hidden lg:inline-flex"
+            onClick={() => setFullscreen((v) => !v)}
+            aria-pressed={fullscreen}
+            title={fullscreen ? "Tam ekrandan çık (Esc)" : "Tam ekran"}
+          >
+            {fullscreen ? <Minimize2 className="size-4" /> : <Maximize2 className="size-4" />}
+            <span className="hidden xl:inline">{fullscreen ? "Küçült" : "Tam ekran"}</span>
+          </Button>
+          {headerActions}
+        </div>
       </div>
 
       {/* Messages */}
@@ -555,7 +614,16 @@ export function ConversationThread({
         // `min-height:auto`su içeriğin tamamı kadar büyür ve `overflow-y` hiç
         // devreye girmez — liste taşar, kart uzar, yazma kutusu ekrandan çıkar.
         // Mobilde eski davranış: sayfa kaydığı için bir tavan gerekir.
-        className="scrollbar-thin max-h-[52vh] space-y-3 overflow-y-auto p-4 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-ring lg:max-h-none lg:min-h-0 lg:flex-1"
+        // KAYDIRMA HİSSİ (kurucu 09-11: "öküz gibi sert olmasın"):
+        //  · `overscroll-contain` — listenin sonuna gelince kaydırma SAYFAYA
+        //    zincirlenmez. Kart artık görünür alana sabit olduğu için sayfa da
+        //    kaymıyor; o yüzden zincirleme "duvara toslama" hissi veriyordu.
+        //  · `scroll-smooth` — klavye (PageDown/ok tuşları, kutu `tabIndex={0}`)
+        //    ve programatik atlamalar yumuşak akar.
+        // ⚠️ DÜRÜST SINIR: CSS FARE TEKERLEĞİNE ATALET EKLEYEMEZ. Tekerlek adımı
+        //    tarayıcının/işletim sisteminin kararıdır; JS ile ele geçirmek
+        //    (wheel hijack) trackpad'i ve erişilebilirliği BOZAR — yapılmadı.
+        className="scrollbar-thin max-h-[52vh] space-y-3 overflow-y-auto overscroll-contain scroll-smooth p-4 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-ring lg:max-h-none lg:min-h-0 lg:flex-1"
       >
         {messages.map((m) => (
           <div

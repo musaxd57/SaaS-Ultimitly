@@ -326,6 +326,31 @@ describe("konuşma sayfası — yükseklik zinciri", () => {
     );
   });
 
+  it("🚨 KARTIN ÜSTÜNDE EYLEM SATIRI YOK — düğmeler kart başlığında", () => {
+    // Kurucu 09-11: "mesaj yeri en üste kadar uzasın". "← Mesajlar" ve "Sil"
+    // kartın DIŞINDA ayrı bir satırdaydı ve kartı 3.5rem aşağı itiyordu
+    // (buton 2rem + `gap-6` 1.5rem). Şimdi kartın başlık satırında, `headerActions`
+    // slotunda. Geri konursa liste yine o 3.5rem'i kaybeder.
+    const page = stripComments(read(INBOX_PAGE));
+    expect(page, "eylem satırı kartın üstüne geri gelmiş").not.toContain(
+      'className="flex flex-wrap items-center justify-end gap-2"',
+    );
+    expect(page, "düğmeler kart başlığına verilmiyor").toContain("headerActions={");
+    expect(stripComments(read(THREAD)), "kart başlığı slotu çizmiyor").toContain("{headerActions}");
+  });
+
+  it("KAYDIRMA HİSSİ — mesaj listesi zincirlemez ve yumuşak akar", () => {
+    // Kurucu 09-11: "aşağı doğru kaydırınca öküz gibi sert olmasın".
+    // `overscroll-contain` listenin sonunda kaydırmanın SAYFAYA zincirlenmesini
+    // keser (kart sabit olduğu için zincirleme "duvara toslama" hissi veriyordu).
+    // ⚠️ Bunlar fare tekerleğine ATALET EKLEMEZ — CSS'te böyle bir şey yok;
+    // iddia yalnız zincirleme + klavye/programatik akış.
+    expect(
+      hasClassSet(read(THREAD), ["overscroll-contain", "scroll-smooth", "overflow-y-auto"]),
+      "mesaj listesi overscroll/scroll davranışını kaybetti",
+    ).toBe(true);
+  });
+
   it("🚨 mesaj listesi `lg:flex-1` VE `lg:min-h-0` taşır", () => {
     // `min-h-0` olmadan flex çocuğunun varsayılan `min-height:auto`su içeriğin
     // tamamı kadar büyür → `overflow-y` HİÇ devreye girmez, kart uzar ve yazma

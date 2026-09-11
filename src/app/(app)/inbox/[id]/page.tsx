@@ -200,17 +200,11 @@ const SKIP_REASON_LABELS: Record<string, string> = {
   return (
     <>
       <AutoRefresh seconds={30} />
-      {/* Sayfa başlığı SADECE eylemler (kurucu 09-11): misafir adı ve mülk artık
-          konuşma kartının kendi başlık satırında. Eskiden ikisi de burada
-          duruyordu ve kartın başlık satırı yarı boştu — aynı bilgi iki kez yer
-          kaplayıp mesaj kutusundan dikey alan çalıyordu. */}
-      <div className="flex flex-wrap items-center justify-end gap-2">
-        <LinkButton href={backHref} variant="outline" size="sm">
-          <ArrowLeft className="size-4" /> {backHref.includes("status=problem") ? "Sorunlu konuşmalar" : "Mesajlar"}
-        </LinkButton>
-        <DeleteConversationButton conversationId={conversation.id} />
-      </div>
-
+      {/* 🚨 EYLEM SATIRI KALDIRILDI (kurucu 09-11: "mesaj yeri en üste kadar
+          uzasın"). "← Mesajlar" ve "Sil" artık kartın KENDİ başlık satırında,
+          sağda (`headerActions` slotu) — kartın üstünde artık hiçbir şey yok,
+          yani mesaj listesi 3.5rem (buton 2rem + `gap-6` 1.5rem) kazandı.
+          Bilgi kaybı YOK: iki düğme de aynı yerde, bir satır aşağıda. */}
       {conversation.skippedReason && conversation.status !== "answered" ? (
         <p className="rounded-md border border-amber-200 dark:border-amber-500/25 bg-amber-50 dark:bg-amber-500/10 px-3 py-2 text-sm text-amber-800 dark:text-amber-300">
           🤖 {SKIP_REASON_LABELS[conversation.skippedReason] ?? "Otomatik yanıt beklemede"}
@@ -253,6 +247,17 @@ const SKIP_REASON_LABELS: Record<string, string> = {
             }
             templateVars={templateVars}
             canReply={canManage(session)}
+            headerActions={
+              <>
+                <LinkButton href={backHref} variant="outline" size="sm">
+                  <ArrowLeft className="size-4" />
+                  <span className="hidden sm:inline">
+                    {backHref.includes("status=problem") ? "Sorunlu konuşmalar" : "Mesajlar"}
+                  </span>
+                </LinkButton>
+                <DeleteConversationButton conversationId={conversation.id} />
+              </>
+            }
           />
         </div>
 
