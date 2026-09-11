@@ -232,8 +232,14 @@ const SKIP_REASON_LABELS: Record<string, string> = {
       {/* Sağ ray SABİT 20rem; kalan genişliğin TAMAMI konuşmaya gider. Eski
           `lg:grid-cols-3` (2/3 ≈ %66) geniş ekranda yazma alanını gereksiz dar
           bırakıyordu (kurucu: "genişliğini de biraz daha arttır"). */}
-      <div className="grid gap-4 lg:grid-cols-[minmax(0,1fr)_20rem]">
-        <div className="min-w-0">
+      {/* `lg:flex-1 lg:min-h-0`: kabuk bu yolda dikey flex kapsayıcı kurar
+          (`app-shell.tsx` `fillsViewport`), böylece bu satır ÜSTÜNDEKİ her şeyden
+          (eylem satırı, "Otomatik yanıt beklemede" bandı, deneme/limit bandı)
+          ARTAN alanın tamamını alır. Eskiden yükseklik `calc(100vh/0.95-11rem)`
+          sabitiydi ve bandları saymıyordu → ölçüldü: tek bandda `<main>` 46 px,
+          iki bandda 109 px taşıyordu. */}
+      <div className="grid gap-4 lg:min-h-0 lg:flex-1 lg:grid-cols-[minmax(0,1fr)_20rem]">
+        <div className="min-w-0 lg:min-h-0">
           <ConversationThread
             conversationId={conversation.id}
             messages={messages}
@@ -254,8 +260,9 @@ const SKIP_REASON_LABELS: Record<string, string> = {
             sabitlendiği için, uzun bir rezervasyon/görev listesi SAYFAYI
             kaydırsaydı kart yerinde durup altında yine boşluk açılırdı —
             kurucunun şikâyet ettiği davranışın ta kendisi. Yükseklik kartla
-            AYNI ifadeden gelir; ikisi ayrışırsa satır yüksekliği zıplar. */}
-        <div className="min-w-0 space-y-4 lg:h-[calc(100vh/0.95-11rem)] lg:min-h-[26rem] lg:overflow-y-auto lg:pr-1">
+            AYNI ifadeden gelir; ikisi ayrışırsa satır yüksekliği zıplar —
+            ikisi de artık `lg:h-full` (grid satırının kendisi ölçüyü verir). */}
+        <div className="min-w-0 space-y-4 lg:h-full lg:min-h-[26rem] lg:overflow-y-auto lg:pr-1">
           {/* 🚨 "Mülk" KARTI KALDIRILDI (kurucu 09-11): adres çoğu hostta boş
               olduğu için kart pratikte TEK BİR SATIR gösteriyordu — giriş/çıkış
               saati. O satır artık konuşma kartının başlık satırında; adres,

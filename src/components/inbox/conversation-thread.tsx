@@ -453,12 +453,19 @@ export function ConversationThread({
     // Eski `max-h-[52vh]` SABİT bir tavandı: uzun konuşmada liste erken kesilip
     // altında ölü boşluk kalıyordu, kısa konuşmada da aynı boşluk. Artık yükseklik
     // GÖRÜNÜR ALANA bağlı ve liste `flex-1 min-h-0` ile artanı yutuyor.
-    // ⚠️ `11rem` = kabuk başlığı (3.5) + main dikey dolgusu (3) + eylem satırı ve
-    // aralığı (~4.5). Kabuk `zoom:.95` kullandığı için `100vh` de `/0.95` ile
-    // düzeltilir — `rem` de aynı zoom'dan geçtiği için ikisi TUTARLI ölçekte.
+    // 🚨 SİHİRLİ SAYI KALDIRILDI (09-11, ölçüldü). Yükseklik `calc(100vh/0.95 -
+    // 11rem)` idi; o `11rem` başlık + dolgu + eylem satırının SABİT toplamıydı ve
+    // aradaki BANDLARI ("Otomatik yanıt beklemede", deneme/limit) saymıyordu —
+    // ölçüm: tek bandda `<main>` 46 px, iki bandda 109 px taşıyor, yani yazma
+    // kutusunun altı katlanın altına iniyor. Ayrıca `11rem`in kendisi 1rem fazlaydı
+    // (gerçek toplam 10rem: 3.5 + 3 + 2 + 1.5) ve `100vh` × `zoom` etkileşimi
+    // tarayıcı sürümüne göre değişiyor.
+    // Artık ölçüyü GRID SATIRI verir: kabuk bu yolda dikey flex kurar, sayfadaki
+    // grid `lg:flex-1 lg:min-h-0` ile artanı alır, kart da `lg:h-full` ile onu
+    // doldurur. Hesap yok → yeni bir band eklense de bozulmaz.
     // `min-h` tabanı: kısa ekranda liste okunamayacak kadar ezilmesin.
     // Mobilde (tek sütun, sayfa kayar) yükseklik DAYATILMAZ.
-    <div className="flex flex-col rounded-xl border border-border bg-card lg:h-[calc(100vh/0.95-11rem)] lg:min-h-[26rem]">
+    <div className="flex flex-col rounded-xl border border-border bg-card lg:h-full lg:min-h-[26rem]">
       {/* Görünmez canlı bölge: gönderim/durum sonuçları buraya yazılır.
           Ekranda yer kaplamaz ama ekran okuyucu okur. */}
       <p role="status" aria-live="polite" className="sr-only">
@@ -640,7 +647,10 @@ export function ConversationThread({
       <Separator />
 
       {/* AI suggestion */}
-      <div className="shrink-0 space-y-3 p-4">
+      {/* Dikey dolgu 4 → 2.5 ve ton kutusu 9 → 8: bu satır yazma alanından ve
+          mesaj listesinden yer çalıyordu (kurucu 09-11: "AI cevap öner satırı da
+          biraz küçülebilir"). İşlev aynı, yalnız yükseklik düştü. */}
+      <div className="shrink-0 space-y-3 px-4 py-2.5">
         {/* 🚨 "Misafir cevap bekliyor / AI ile cevapla" DAVET KARTI KALDIRILDI
             (kurucu 09-11). Düğmesi hemen altındaki kalıcı "AI cevap öner" ile
             AYNI `handleSuggest()`i çağırıyordu — iki farklı isim, tek eylem.
@@ -669,7 +679,7 @@ export function ConversationThread({
           <Select
             value={tone}
             onChange={(e) => setTone(e.target.value as ReplyTone)}
-            className="h-9 w-full sm:w-32 text-xs"
+            className="h-8 w-full sm:w-32 text-xs"
             aria-label="Ton"
           >
             {REPLY_TONE.options.map((o) => (
@@ -710,7 +720,12 @@ export function ConversationThread({
                 tabIndex={-1}
                 aria-modal="false"
                 aria-labelledby={`conv-templates-title-${conversationId}`}
-                className="absolute left-0 top-full z-20 mt-1 max-h-80 w-80 max-w-[calc(100vw-2rem)] overflow-y-auto rounded-lg border border-border bg-card p-1 shadow-lg"
+                // 🚨 `lg`de YUKARI AÇILIR. Tetikleyici AI satırındadır ve kart artık
+                // görünür alana sabit olduğu için aşağı açılan menü ÖLÇÜLDÜ: alt
+                // kenarı ~92 px taşıyor, `main` kaydırılmadan alt üçte biri
+                // görünmüyordu. Yukarıda mesaj listesi kadar yer var.
+                // Mobilde AŞAĞI kalır: orada sayfa kayar ve kart sabit değil.
+                className="absolute left-0 top-full z-20 mt-1 max-h-80 w-80 max-w-[calc(100vw-2rem)] overflow-y-auto rounded-lg border border-border bg-card p-1 shadow-lg lg:bottom-full lg:top-auto lg:mb-1 lg:mt-0"
               >
                 <div className="flex items-center justify-between px-2 py-1.5">
                   <span
@@ -903,11 +918,12 @@ export function ConversationThread({
             value={composer}
             onChange={(e) => setComposer(e.target.value)}
             placeholder="Cevabınızı yazın veya AI önerisini kullanın…"
-            // 80px iki satır gösteriyordu; host'un misafire yazdığı yer ürünün
-            // en çok kullanılan alanı (kurucu 09-11: "mesaj yeri yukarı doğru
-            // uzasın"). `resize-y` KALIR: sabit yükseklik dayatmak uzun cevapta
-            // aynı şikâyeti geri getirir.
-            className="min-h-[160px] resize-y"
+            // 80 → 160 → 104px. 160 FAZLAYDI: kart artık görünür alana sabit
+            // olduğu için yazma kutusunun her fazladan pikseli MESAJ LİSTESİNDEN
+            // çalınıyordu (kurucu ölçtü: "mesajlar yeri büyümemiş"). 104px üç
+            // satır gösterir; `resize-y` KALIR, uzun cevapta host kendisi büyütür
+            // ve büyüttüğünde liste küçülür — tercih host'un.
+            className="min-h-[104px] resize-y"
             aria-describedby={
               [sendError ? `conv-send-error-${conversationId}` : null,
                queuedNote ? `conv-send-note-${conversationId}` : null]

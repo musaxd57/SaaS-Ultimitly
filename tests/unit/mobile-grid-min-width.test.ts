@@ -166,10 +166,13 @@ describe("min-w-0 pini — ölçülmüş yatay kayma arızaları", () => {
     // ediyordu, yani mesaj sütununun `min-w-0`ı silinse test YEŞİL kalırdı.
     // (Commit mesajımdaki "kapsam düşmedi" bu satır için YANLIŞTI.) Mesaj sütunu
     // TEK sınıf taşır; eşitlik onu tekil olarak belirler.
+    // ⚠️ 09-11: sütuna `lg:min-h-0` eklendi (esnek doldurma zinciri) → beklenen
+    // öznitelik de güncellendi. Eşitlik KORUNUYOR; gevşetilip `some(includes)`
+    // hâline getirilmedi, yoksa yukarıda anlatılan vakum geri gelirdi.
     expect(
       classAttributes(src),
       "mesaj sütunu min-w-0 kaybetti → uzun misafir linki sayfayı kaydırır (ölçüldü: 560)",
-    ).toContain("min-w-0");
+    ).toContain("min-w-0 lg:min-h-0");
     expect(
       hasClassSet(src, ["min-w-0", "space-y-4"]),
       "gelen kutusu yan sütunu min-w-0 kaybetti",
@@ -275,13 +278,52 @@ describe("aynı hata sınıfının yayılmasına karşı", () => {
 //    davranışı üreten sınıfların sessizce silinmemesi.
 // ---------------------------------------------------------------------------
 const THREAD = "src/components/inbox/conversation-thread.tsx";
+const SHELL = "src/components/shell/app-shell.tsx";
 /** Kart ve sağ rayın PAYLAŞTIĞI yükseklik ifadesi — ayrışırsa satır zıplar. */
-const VIEWPORT_H = "lg:h-[calc(100vh/0.95-11rem)]";
+const VIEWPORT_H = "lg:h-full";
 
 describe("konuşma sayfası — yükseklik zinciri", () => {
   it("kart ve sağ ray AYNI yükseklik ifadesini kullanır", () => {
     expect(stripComments(read(THREAD)), "kart görünür alana sabitlenmiyor").toContain(VIEWPORT_H);
     expect(stripComments(read(INBOX_PAGE)), "sağ ray kartla aynı yüksekliği kullanmıyor").toContain(VIEWPORT_H);
+  });
+
+  it("🚨 `100vh` ARİTMETİĞİ GERİ GELMEZ — yükseklik hesapla DEĞİL, esnek doldurmayla", () => {
+    // ÖLÇÜLDÜ (09-11): `calc(100vh/0.95 - 11rem)` iki ayrı sebeple kırılgandı —
+    // (a) `11rem` aradaki BANDLARI saymıyordu ("Otomatik yanıt beklemede" tek
+    // başına `<main>`i 46 px, deneme bandıyla 109 px taşırıyordu; kurucu bunu
+    // "panel aşağı kayıyor" diye iki kez bildirdi), (b) `zoom` × `vh` davranışı
+    // tarayıcı sürümüne bağlı. Sabit geri konursa ikisi de geri gelir.
+    for (const f of [THREAD, INBOX_PAGE]) {
+      expect(stripComments(read(f)), `${f} yükseklik hesabına geri dönmüş`).not.toMatch(
+        /calc\(100vh\s*\/\s*0\.95\s*-/u,
+      );
+    }
+    // Zincirin ORTA HALKASI: grid artan alanı almazsa `lg:h-full` çözümsüz kalır
+    // ve kart içeriği kadar uzar — yani bu satır olmadan üstteki pin vakumdur.
+    expect(
+      hasClassSet(read(INBOX_PAGE), ["lg:flex-1", "lg:min-h-0", "lg:grid-cols-[minmax(0,1fr)_20rem]"]),
+      "grid artan alanı almıyor (lg:flex-1 / lg:min-h-0 kayıp)",
+    ).toBe(true);
+  });
+
+  it("🚨 KABUK `lg`de TAM EKRANA SABİT — sayfa kaydırması kapalı (kurucu iki kez bildirdi)", () => {
+    // Bu davranışın PİNİ YOKTU (09-11 incelemesi): kurucunun iki kez bildirdiği
+    // kusur sessizce geri gelebilirdi. `fixed inset-0` zoom'dan BAĞIMSIZ olarak
+    // tam viewport'tur ve `fixed` akıştan çıktığı için `body`de kaydıracak içerik
+    // kalmaz. Mobil yol ETKİLENMEZ: kuralların hepsi `lg:` önekli.
+    expect(
+      hasClassSet(read(SHELL), ["lg:fixed", "lg:inset-0", "lg:grid", "lg:min-h-0"]),
+      "kabuk görünür alana sabitlenmiyor",
+    ).toBe(true);
+    // Görünür alanı DOLDURAN yol tanımlı olmalı; olmazsa bandlar kartı yine taşırır.
+    // ⚠️ Bu sınıflar bir `className="..."` özniteliğinde DEĞİL, `cn()` argümanında
+    // yaşıyor (koşullu) — o yüzden `hasClassSet` değil, düz metin araması.
+    const shell = stripComments(read(SHELL));
+    expect(shell, "fillsViewport dalı kayıp").toContain("fillsViewport");
+    expect(shell, "doldurma kapsayıcısı dikey flex kurmuyor").toContain(
+      'fillsViewport && "lg:flex lg:h-full lg:min-h-0 lg:flex-col lg:gap-6 lg:space-y-0"',
+    );
   });
 
   it("🚨 mesaj listesi `lg:flex-1` VE `lg:min-h-0` taşır", () => {

@@ -27,6 +27,11 @@ interface AppShellProps {
 export function AppShell({ user, superAdmin, guestChatEnabled, impersonating, plan, children }: AppShellProps) {
   const pathname = usePathname();
   const router = useRouter();
+  // Görünür alanı DOLDURAN sayfalar: kendi içinde kayan bir kart taşıyan tek yol
+  // bugün konuşma detayıdır (`/inbox/<id>`). Liste sayfası (`/inbox`) normal akar.
+  // ⚠️ Yeni bir yol eklenirse BURAYA eklenir; sayfanın kendisi karar veremez,
+  // çünkü deneme/limit bandları sayfanın DIŞINDA, aynı kapsayıcının içindedir.
+  const fillsViewport = /^\/inbox\/[^/]+$/.test(pathname);
   const [mobileOpen, setMobileOpen] = useState(false);
   const drawerRef = useRef<HTMLElement | null>(null);
   const menuButtonRef = useRef<HTMLButtonElement | null>(null);
@@ -280,23 +285,40 @@ export function AppShell({ user, superAdmin, guestChatEnabled, impersonating, pl
     // Ctrl-minus. CSS zoom scales layout correctly (unlike transform) and is
     // supported everywhere modern; older Firefox ignores it → falls back to 100%.
     //
-    // Height compensation: `zoom:.95` also scales `100vh` down to 95% of the real
-    // viewport, which left the sidebar/main ~5vh SHORT of the bottom ("havada
-    // duruyor"). Sizing full-height elements to `100vh / .95` makes them render at
-    // exactly 100vh after the zoom. (If the .95 ever changes, update these too.)
-    // 🚨 MASAÜSTÜNDE SAYFA KAYMAZ (kurucu 09-11): "sol taraftaki hamburger yeri
-    // her türlü kaplasın … panelin aşağı inmesine ne gerek var, sabitleyelim".
-    // Eskiden SAYFANIN TAMAMI kayıyordu; kenar çubuğu `sticky` olduğu için
-    // yerinde kalsa da altındaki alan boşalıyor ve uzun bir sayfada gövde
-    // yukarı kayınca kabuk "havada" duruyordu. Artık `lg`de dış kap tam ekran
-    // ve taşma KAPALI; kayan TEK öge `<main>`. Mobilde (tek sütun, tarayıcı
-    // çubukları 100vh'yi yalan söyler) eski davranış AYNEN korunur.
+    // 🚨 MASAÜSTÜNDE SAYFA KAYMAZ — ve bu, `100vh` ARİTMETİĞİNE DAYANMAZ.
+    //
+    // Kurucu 09-11: "panel burada aşağı gidemesin". İlk denemem `lg`de dış kaba
+    // `h-[calc(100vh/0.95)] + overflow-hidden` vermekti; YEREL ÖLÇÜMDE doğru
+    // çalışıyordu ama kurucunun tarayıcısında sayfa KAYMAYA DEVAM ETTİ.
+    //
+    // ⚠️ SEBEP HÂLÂ HİPOTEZ — ÖLÇEMEDİM, kesin gibi yazmıyorum.
+    // En olası açıklama `zoom` × `vh` etkileşiminin tarayıcı sürümüne göre
+    // değişmesi (`zoom` standartlaştırılırken viewport birimlerinin zoomlu alt
+    // ağaçta nasıl çözüleceği değişti). AMA: elimdeki Chromium 141'de ESKİ kod
+    // da DOĞRU ölçüldü (kabuk = tam viewport, doküman kaymıyor) — yani kurucunun
+    // gördüğü arızayı BURADA ÜRETEMEDİM. Tek tarayıcım var; "şu sürümde şöyle
+    // olur" diyemem.
+    // Kararı haklı çıkaran şey sebep değil, YÖNTEM: yeni yol `vh` aritmetiğine
+    // HİÇ dayanmadığı için her iki yorumda da doğrudur. Kırılgan bir hesabı
+    // "benim tarayıcımda doğru ölçtüm" diye savunmak zaten ilk hatamdı.
+    //
+    // ÇÖZÜM ARİTMETİĞİ TAMAMEN KALDIRMAK: `position:fixed; inset:0` her iki
+    // yorumda da TAM VİEWPORT'tur. ÖLÇÜLDÜ (Chromium, zoomlu ve zoomsuz kutu
+    // yan yana): ikisi de 1900×933 = viewport, `documentElement.scrollHeight`
+    // viewport'a eşit, doküman KAYMIYOR. Ayrıca `fixed` gövdeden çıktığı için
+    // `body`de akışta hiçbir şey kalmaz — kaydıracak içerik YOK.
+    //
+    // Mobilde (tek sütun, tarayıcı çubukları `100vh`'yi yalan söyler) eski
+    // davranış AYNEN: `lg:` önekli hiçbir kural etkin değil, sayfa normal akar.
     <div
-      className="min-h-[calc(100vh/0.95)] lg:grid lg:h-[calc(100vh/0.95)] lg:min-h-0 lg:grid-cols-[16rem_1fr] lg:overflow-hidden"
+      // `lg:overflow-hidden` EMNİYET KEMERİ: bugün taşıran bir çocuk yok (kabuğun
+      // tüm çocukları `flex:none`, kayan tek öge `<main>`), ama onsuz taşan bir
+      // öge NE KIRPILIR NE ULAŞILIR — `fixed` yüzünden sayfa da kaymaz. Ölçüldü.
+      className="min-h-[calc(100vh/0.95)] lg:fixed lg:inset-0 lg:grid lg:min-h-0 lg:grid-cols-[16rem_1fr] lg:overflow-hidden"
       style={{ zoom: 0.95 }}
     >
       {/* Desktop sidebar */}
-      <aside className="hidden h-[calc(100vh/0.95)] border-r border-border bg-card lg:block">
+      <aside className="hidden h-full border-r border-border bg-card lg:block">
         {sidebarBody}
       </aside>
 
@@ -406,10 +428,24 @@ export function AppShell({ user, superAdmin, guestChatEnabled, impersonating, pl
         <main className="flex-1 px-4 py-6 sm:px-6 lg:min-h-0 lg:overflow-y-auto lg:px-8">
           {/* Settings uses the two-column (side-nav + content) layout, so it gets a
               wider container; every other page stays at the reading-width cap. */}
+          {/* 🚨 `fillsViewport` — SİHİRLİ SAYI YERİNE ESNEK DOLDURMA (ölçüldü 09-11).
+              Konuşma kartı yüksekliğini `calc(100vh/0.95 - 11rem)` ile alıyordu;
+              o `11rem` başlık + dolgu + eylem satırının SABİT toplamıydı ve
+              ARADAKİ BANDLARI saymıyordu. Ölçüm: "Otomatik yanıt beklemede" bandı
+              tek başına `<main>`i 46 px, deneme bandıyla birlikte 109 px taşırıyor
+              — yani yazma kutusunun altı katlanın altına iniyor. Kurucu açısından
+              bu "panel aşağı kayıyor"dan ayırt edilemez ve tam da "Sorunlu"
+              konuşmalarda çıkıyor.
+              Çözüm: bu yolda kapsayıcı DİKEY FLEX olur; bandlar kendi yükseklikleri
+              kadar yer alır, kalan alanın TAMAMINI kart absorbe eder (`lg:flex-1`).
+              Sayı yok → yeni bir band eklense de hesap bozulmaz.
+              ⚠️ `space-y` flex'te de çalışır ama `gap` ile ÇİFT boşluk olurdu →
+              `lg:space-y-0 lg:gap-6` ile aynı 1.5rem aralığı korunur. */}
           <div
             className={cn(
               "mx-auto w-full space-y-6",
               pathname.startsWith("/settings") ? "max-w-7xl" : "max-w-6xl",
+              fillsViewport && "lg:flex lg:h-full lg:min-h-0 lg:flex-col lg:gap-6 lg:space-y-0",
             )}
           >
             {children}
