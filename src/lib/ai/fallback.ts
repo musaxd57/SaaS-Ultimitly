@@ -1603,7 +1603,28 @@ export function detectGuestLanguage(message: string): string {
   if (/[çğış]/.test(msgLower) || /\b(merhaba|teşekkür|nasıl|nerede|şifre|için|değil|var mı|selam|günaydın)\b/.test(msgLower)) {
     return "tr";
   }
-  if (/\b(ich |sie |bitte|danke|hallo|ist |und |für |schön|grüße)\b/.test(msgLower)) return "de";
+  // 🚨 SORU KELİMELERİ ŞART (ölçüm turu 09-11): liste yalnız SELAMLAMA/NEZAKET
+  // taşıyordu, yani düz bir Almanca SORU hiçbirine uymuyor ve `en` dönüyordu —
+  // "Wie lautet das WLAN-Passwort?" · "Wo sind die Handtücher?" · "Gibt es einen
+  // Parkplatz?" (3/3 ölçüldü). Sonuç kozmetik DEĞİLDİ: Alman misafir İngilizce
+  // bekletme mesajı alıyordu (`automation.ts:441`) ve kapanış nezaketi de yanlış
+  // dile düşüyordu (`:592`).
+  // ⚠️ EKLENENLER YALNIZ İNGİLİZCE VE TÜRKÇE İLE ÇARPIŞMAYAN işlevsel kelimeler;
+  // çarpışma olsaydı bu kez İngiliz/Türk misafire ALMANCA metin giderdi. Çarpışma
+  // bataryası `tests/unit/guest-language-detection.test.ts`te (12 EN + 6 TR).
+  // ⚠️ TR dalı BU SATIRIN ÖNÜNDE: Türkçe işareti varsa buraya hiç gelinmez.
+  if (
+    /\b(ich |sie |bitte|danke|hallo|ist |und |für |schön|grüße)\b/.test(msgLower) ||
+    /\b(wie |wo |wann|warum|welche|wieviel|gibt |haben |können|kann |nicht|das |mit |zum |zur |wir )\b/.test(msgLower) ||
+    // ⚠️ AYRI GRUP: Almanca iyelik ve belirteçler ÇEKİM ALIR (mein/meine/meinen/
+    // meinem/meiner). Sabit listeye `mein` yazmak "Meine Dusche tropft."yı
+    // KAÇIRIYORDU — `\b...\b` sondaki sınırı zorluyor (mutasyon turunda ölçüldü).
+    // Sondaki sınır bilerek YOK, baştaki VAR: "wireless"/"keine" gibi İngilizce
+    // altdizi eşleşmesini baştaki sınır zaten eler (çarpışma bataryası pinli).
+    /\b(?:mein|unser|kein|ein|dein)\p{L}*/u.test(msgLower)
+  ) {
+    return "de";
+  }
   if (/\b(je |vous |bonjour|merci|est |les |pour )\b/.test(msgLower)) return "fr";
   if (/[؀-ۿ]/.test(message)) return "ar"; // Arabic script
   if (/[Ѐ-ӿ]/.test(message)) return "ru"; // Cyrillic script
