@@ -715,6 +715,24 @@ Sekiz P1 KAPANDI (09-07), her biri ayrı commit, kırmızı-önce + iki yönlü 
   yumuşaması yalnız ölçülen vakada ("kilid"). Fiil de KELİME BAŞINDA aranır → bitişik yazım ("klimabozuldu")
   ayrıştırılmaz; bedeli iki yönlü pinli. Kanıt: kırmızı-önce 27 düşen + oto-yanıt kapısı bloğu (2 kırmızı);
   **mutasyon 21/21** (ilk koşuda 3 hayatta kaldı: ikisi ÖLÜ KOD'u gösterdi → silindi, biri eksik pini → satır eklendi).
+- **DÖRDÜNCÜ İNCELEME TURU (09-11, ölçümlü ajan) — özne kuralı ALLOWLIST'ten VARSAYILAN RET'e:** 🚨 3. turun
+  11 kelimelik `NON_DEVICE_SUBJECTS` listesi sınıfı KAPATMIYORDU — mesajında gerçek cihaz adı geçen 30 gerçekçi
+  mesajın **24'ü** hâlâ yanlış `complaint` oluyordu (taksimiz · bavulumuz · tatilimiz · uyku düzenimiz · çayın tadı ·
+  şarj aletimiz · cildim · canımız · valizimizin tekerleği…); Türkçede fiilin solundaki özne SINIRSIZ, liste uzatmak
+  çözüm değil. Ayrıca **tek bir ZARF kuralı devre dışı bırakıyordu** ("Planımız TAMAMEN bozuldu" — 17 varyantın 16'sı)
+  ve tüm pinler özne↔fiil bitişik biçimde olduğu için hiçbir test bunu görmüyordu. **Yeni kural (`reportSubjectSlot`):**
+  fiilin solunda ÖZNE varsa ve CİHAZ DEĞİLSE bildirim sayılmaz; özne yokluğu ancak sol komşunun çekimli FİİL/ULAÇ
+  olmasıyla (`VERB_LIKE`) ya da eksiz yüklem (`var/yok/değil`) olmasıyla ya da fiilin cümle başında olmasıyla anlaşılır;
+  araya giren zarf/bağlaç ATLANIR (`SUBJECT_SLOT_FILLERS`). Ölçüm: **yanlış pozitif 24 → 2, kaçırılan bildirim 0.**
+  Kalan iki FP dilbilgisiyle çözülemez ve pinli (biri önceden var olan "gürültü" kelimesinden, biri misafirin KENDİ
+  cihazı — "makinemiz" ile "klimamız" aynı eki taşır). **Liste 13→8'e indi + ADI DEĞİŞTİ (`VERBLIKE_NOUN_OVERRIDES`):**
+  varsayılan-RET gelince plan/hava/mide/uçuş/program/rezervasyon/telefon ÖLÜ kaldı; geriye yalnız t/d EŞSESLİLİĞİ
+  kaldı (saat+i ≡ ‑ti · tad+ı ≡ ‑dı · cild+im ≡ ‑dim · fiyat+ı · moral+im · bilet+i). 🚨 **Ünsüz yumuşamasında beş
+  gövde daha eksikti ve KAPI ETKİSİ ÖLÇÜLDÜ** ("Musluğu açtık, bozuldu." · "Ocağı yakamadık, arızalı." OTO-GÖNDERİLİYORDU)
+  → `ocağ · musluğ · bulaşığ · peteğ · ışığ` + `dolap/dolab` + cihaz PARÇASI `motor`. 🚨 **`fön` ÇIKARILDI** (ASCII "fon"
+  beş gerçek sözcüğü cihaz sayıyordu; "fön makinesi" zaten `makine`). **Sahte yeşil:** üç TRAP satırında kararı özne
+  kuralı veriyordu, çekim kapısı silinse de yeşil kalırlardı → kapıyı YALNIZ BAŞINA sınayan satırlar ("Kapıcıyı aradık,
+  bozuldu."). Kanıt: kırmızı-önce 26 + **mutasyon 26/26** (bir hayatta kalan → doğal ayırt edici bulundu).
 - **KB onay sözleşmesi (A1) CANLI — migration 53 prod'da 09-08 16:42Z; §A doğrulandı (32 satır `legacy|legacy`, aktif = AI-okunabilir = 32).**
   `KnowledgeBaseItem`: `source` (`legacy·host_manual·extracted_draft·suggestion_accepted`) · `reviewState`
   (`legacy·approved·draft`) · `approvedAt` · `sourceRef`/`supersededById` (A5 için, bugün yazan YOK, pinli).

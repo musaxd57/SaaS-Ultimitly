@@ -740,31 +740,76 @@ const NEGATIVE_VERB_COMPLAINTS: readonly string[] = [
 // çekimlerini de yakalıyordu — "Klima arızalanmadı, gayet iyi çalışıyor" (ÖVGÜ) ve "Buzdolabı
 // arızalanırsa kimi arayalım?" (SSS sorusu) şikâyet sayılıyordu.
 const BREAKDOWN_VERBS = ["bozuldu", "bozulmuş", "arızalı", "arızalandı", "arızalanmış"];
-// ⚠️ "kilid" = ÜNSÜZ YUMUŞAMASI gövdesi (kilit → kilidi/kilide/kilidin). Türkçede son sessiz
-// ünsüz ünlü ekten önce yumuşar; ölçülen tek vaka buydu ("Kilidi çevirdim, bozuldu."). Sınıf
-// bilinçli DAR tutuldu — her cihaz için yumuşamış ikizi yazmak yerine ölçülene bakılır.
+// 🚨 ÜNSÜZ YUMUŞAMASI GÖVDELERİ AYRI YAZILIR (inceleme turu 4, 09-11 — ÖLÇÜLDÜ). Türkçede
+// son sessiz ünsüz ünlü ekten önce yumuşar (k→ğ, t→d, p→b) ve yumuşamış biçim ARTIK cihaz
+// adıyla başlamaz. Önceki tur yalnız "kilid"i eklemişti; kalan beş gövde ölçülünce GERÇEK
+// bildirimler kaçıyordu ve kapı OTO-GÖNDERİM İZNİ veriyordu:
+//   "Musluğu açtık, bozuldu." · "Mutfaktaki ocağı denedim, bozulmuş." · "Ocağı yakamadık, arızalı."
+// Sınıf bu turda KAPATILDI (ocağ · musluğ · bulaşığ · peteğ · ışığ + dolap/dolab).
+// 🚨 "fön" ÖLÇÜLDÜ ve ÇIKARILDI: ASCII katlamada "fon" olur ve beş gerçek sözcüğü cihaz
+// sayıyordu (fonda · fonu · fonum · fonlar · fondan). Karşılığında kazandırdığı yok —
+// "fön makinesi" zaten "makine" ile yakalanıyor (geri ekleme).
 const BREAKDOWN_DEVICES = [
-  "klima", "kombi", "buzdolabı", "makine", "kilit", "kilid", "ocak", "fırın", "duş", "musluk", "sifon", "priz", "cihaz",
+  "klima", "kombi", "buzdolabı", "makine", "kilit", "kilid", "ocak", "ocağ", "fırın", "duş",
+  "musluk", "musluğ", "sifon", "priz", "cihaz", "dolap", "dolab", "motor",
   "televizyon", "tv", "kapı", "asansör", "mikrodalga", "ısıtıcı", "lamba", "kettle", "kumanda", "modem", "şofben",
-  "termosifon", "jakuzi", "tuvalet", "klozet", "lavabo", "ütü", "fön", "bulaşık", "çamaşır", "radyatör", "petek",
-  "kalorifer", "ışık", "anahtar",
+  "termosifon", "jakuzi", "tuvalet", "klozet", "lavabo", "ütü", "bulaşık", "bulaşığ", "çamaşır", "radyatör",
+  "petek", "peteğ", "kalorifer", "ışık", "ışığ", "anahtar",
 ];
 
 /**
- * ÖZNESİ CİHAZ OLMAYAN "bozuldu" (inceleme turu 3, 09-10 — ÖLÇÜLDÜ).
+ * ÖZNE YUVASI — "bozuldu"nun solunda bir ÖZNE var mı, varsa CİHAZ mı? (inceleme turu 4, 09-11)
  *
- * Türkçede özne fiilden ÖNCE gelir; "bozuldu"nun hemen solundaki kelime çoğu zaman öznesidir.
- * Bu liste, mesajda bir cihaz adı GEÇSE BİLE şikâyet olmayan özneleri eler:
- *   "Klima harika. Ama PLANIMIZ bozuldu, erken çıkıyoruz."
- *   "Ev çok güzel, TV büyük… Bu arada MİDEM bozuldu, eczane var mı?"
- *   "Anahtar teslim SAATİ bozuldu mu, 15:00 hâlâ geçerli mi?"
- * Çekimli biçimler (`planımız`, `havalar`, `saati`, `uçuşumuz`) cihaz adlarıyla AYNI çekim
- * doğrulamasından geçer — her girdi kendi testiyle pinli (liste büyürse pin de büyür).
+ * 🚨 İLK TASARIM (11 kelimelik "cihaz olmayan özneler" allowlist'i) SINIFI KAPATMIYORDU: 30
+ * gerçekçi misafir mesajı ölçüldü, 24'ü hâlâ yanlış `complaint` oluyordu — çünkü Türkçede
+ * fiilin solunda durabilecek özne SINIRSIZ ("taksimiz", "bavulumuz", "tatilimiz", "uyku
+ * düzenimiz", "çayın tadı", "şarj aletimiz", "cildim", "canımız"…). Liste uzatmak bu sınıfı
+ * kapatmaz; her yeni kelime yeni bir kaçağı bırakır.
+ *
+ * VARSAYILAN RET: fiilin solunda bir ÖZNE varsa ve o özne CİHAZ DEĞİLSE bildirim sayılmaz.
+ * Özne YOKLUĞU şu iki biçimden anlaşılır — (a) sol komşu çekimli bir FİİL/ULAÇtır
+ * ("Klimayı AÇTIK, bozuldu" · "Kombiye BAKTIM, arızalı") ya da (b) fiil cümlenin başındadır.
+ * Araya giren ZARF/BAĞLAÇ atlanır ve ASIL öznenin kendisine bakılır — tek bir "tamamen"in
+ * kuralı sessizce devre dışı bırakması ÖLÇÜLDÜ ("Planımız TAMAMEN bozuldu" 17 varyantın
+ * 16'sında kuralı deliyordu).
  */
-const NON_DEVICE_SUBJECTS = [
-  "plan", "hava", "mide", "uçuş", "program", "rezervasyon", "fiyat", "moral", "telefon", "saat",
-  "bilet",
-];
+const SUBJECT_SLOT_FILLERS = new Set([
+  "tamamen", "iyice", "resmen", "galiba", "sanırım", "sanirim", "herhalde", "maalesef",
+  "birden", "aniden", "yine", "tekrar", "sonra", "önce", "once", "bugün", "bugun", "dün", "dun",
+  "hemen", "artık", "artik", "şimdi", "simdi", "az", "biraz", "çok", "cok", "hâlâ", "hala",
+  "de", "da", "bir", "gece", "akşam", "aksam", "sabah", "yeni", "hiç", "hic", "ama", "ancak",
+  "fakat", "ya", "işte", "iste", "zaten", "sadece", "yalnızca", "yalnizca", "bile", "anda",
+  "cidden", "gerçekten", "gercekten", "kesinlikle", "neredeyse", "resmi",
+]);
+
+/**
+ * Çekimli FİİL / ULAÇ görünümü — özne YOK demektir (fiil zincirinin parçası).
+ * Geçmiş zaman (‑dı/‑di/‑duk/‑dım), şimdiki zaman (‑ıyor/‑ıyordu), duyulan geçmiş (‑mış),
+ * ulaçlar (‑arak, ‑ıp, ‑ken), gelecek (‑acak), mastar/istek (‑mak, ‑meye, ‑alım).
+ * ⚠️ TÜRKÇENİN GERÇEK BELİRSİZLİĞİ: t/d ile biten bir ismin 3. tekil iyeliği geçmiş zamanla
+ * EŞSESLİDİR ("saat+i" ≡ "‑ti", "tad+ı" ≡ "‑dı"). Bu yüzden `VERBLIKE_NOUN_OVERRIDES` açık
+ * geçersiz-kılma listesi fiil testinden ÖNCE bakılır — o liste artık ana mekanizma değil,
+ * yalnız bu eşseslilik sınıfının dar kapağıdır.
+ */
+const VERB_LIKE = /\p{L}{2,}(?:[dt][ıiuü](?:k|m|n|nız|niz|nuz|nüz)?|[ıiuü]yor(?:d[ıu]|lar|uz|um|sun(?:uz)?)?|m[ıiuü][şs](?:t[ıiuü])?|[ae]r[ae]k|[ıiuü]p|k[ae]n|[ae]c[ae][kğ][ıi]?|m[ae][kyğ]|[ae]l[ıi]m)$/u;
+
+/**
+ * EKSİZ YÜKLEMLER — çekim eki taşımadıkları için `VERB_LIKE`e girmezler ama fiil yerindedirler
+ * ("Buzdolabı VAR ya, bozulmuş."). Ölçüldü: bunlar olmadan gerçek bildirim düşüyordu.
+ */
+const BARE_PREDICATES = new Set(["var", "yok", "değil", "degil"]);
+
+/**
+ * `VERB_LIKE`in YANLIŞLIKLA fiil saydığı isimler — AÇIK GEÇERSİZ KILMA (dar kapak).
+ *
+ * 🚨 LİSTE ÖLÇÜLEREK KÜÇÜLDÜ (13 → 8): varsayılan-RET kuralı gelince plan/hava/mide/uçuş/
+ * program/rezervasyon/telefon girdileri ÖLÜ kaldı ("planımız", "havalar" zaten fiil görünmüyor,
+ * yani özne olarak reddediliyorlar). Geriye yalnız TÜRKÇENİN GERÇEK EŞSESLİLİĞİ kaldı: t/d ile
+ * biten ismin 3. tekil iyeliği geçmiş zamanla aynı yazılır — "saat+i" ≡ "‑ti", "tad+ı" ≡ "‑dı",
+ * "cild+im" ≡ "‑dim", "fiyat+ı", "moral+im", "bilet+i". Liste bu sınıfın DIŞINA çıkarsa yanlış
+ * yerde büyüyor demektir (her girdi kendi testiyle pinli).
+ */
+const VERBLIKE_NOUN_OVERRIDES = ["fiyat", "moral", "saat", "bilet", "tat", "tad", "cilt", "cild"];
 
 /**
  * ÇEKİM EKİ DOĞRULAMASI — cihaz adı kelime BAŞINDA geçiyor diye o kelime cihaz DEĞİLDİR.
@@ -780,8 +825,8 @@ const NON_DEVICE_SUBJECTS = [
  *
  * ⚠️ Bu kapı HER ÇARPIŞMAYI çözemez, çünkü bazı çarpışmalar GERÇEKTEN geçerli çekimdir:
  * "kombine" = kombi+n+e (2. tekil iyelik + yönelme, "kombine baktım") — yani KOMBİNE bilet
- * ile dilbilgisel olarak ayırt edilemez. Orada karar özne kuralına kalır (`NON_DEVICE_SUBJECTS`
- * "bilet"); iki kapı BİRLİKTE gerekir, biri ötekinin yerine geçmez (ikisi de mutasyon-pinli).
+ * ile dilbilgisel olarak ayırt edilemez. Orada karar ÖZNE YUVASI kuralına kalır ("biletimiz"
+ * ne cihaz ne fiil → özne); iki kapı BİRLİKTE gerekir, biri ötekinin yerine geçmez.
  *
  * 🚨 "buzdolabı+NI" için AYRI bir kapı YAZILDI ve ÖLÇÜLÜNCE ÖLÜ ÇIKTI (geri getirme): sözlüksel
  * 3. tekil iyelikle biten cihaz adlarına özel `N_BUFFERED_CASE` listesi eklemiştim, ama n-ile
@@ -869,6 +914,25 @@ function breakdownVerbRest(tok: string): string | null {
 }
 
 /**
+ * Fiilin solundaki ÖZNE YUVASI bildirime izin veriyor mu?
+ *
+ * Soldan geriye yürür: zarf/bağlaç atlanır; ilk ANLAMLI belirteç açık geçersiz-kılma
+ * listesindeyse RET, cihazsa KABUL, çekimli fiil/ulaçsa KABUL (özne yok), aksi hâlde orada
+ * cihaz-dışı bir ÖZNE vardır → RET. Fiil cümlenin başındaysa özne yoktur → KABUL.
+ */
+function reportSubjectSlot(toks: string[], verbIndex: number): boolean {
+  for (let j = verbIndex - 1; j >= 0; j -= 1) {
+    const tok = toks[j];
+    const std = foldTurkishLower(tok);
+    if (SUBJECT_SLOT_FILLERS.has(std) || SUBJECT_SLOT_FILLERS.has(foldTurkishAscii(tok))) continue;
+    if (matchesInflectedWord(tok, VERBLIKE_NOUN_OVERRIDES)) return false;
+    if (matchesInflectedWord(tok, BREAKDOWN_DEVICES)) return true;
+    return BARE_PREDICATES.has(std) || VERB_LIKE.test(std);
+  }
+  return true;
+}
+
+/**
  * ARIZA CİHAZ KURALI — mesajda bir CİHAZ ADI ve bir ARIZA FİİLİ birlikte geçiyorsa şikâyet.
  *
  * 🚨 Fiil ile cihaz AYNI CÜMLECİKTE olmak ZORUNDA DEĞİL (inceleme turu 3, ölçüldü): cümlecik
@@ -876,7 +940,7 @@ function breakdownVerbRest(tok: string): string | null {
  * kontrol ettim, tamamen bozulmuş.", "Kombiye baktım, arızalı görünüyor." Türkçede cihaz
  * NESNE konumunda ilk cümlecikte, fiil ikincide durur; bu, şikâyetin OLAĞAN biçimidir.
  * Cümlecik yerine iki DAR kapı: fiilin hemen solundaki özne cihaz-dışı olmamalı
- * (`NON_DEVICE_SUBJECTS`) ve fiil koşul kipinde olmamalı (`CONDITIONAL_TAIL`).
+ * (`reportSubjectSlot`) ve fiil koşul kipinde olmamalı (`CONDITIONAL_TAIL`).
  */
 function hasDeviceBreakdown(message: string): boolean {
   for (const cand of matchCandidates(normalizeForMatch(message))) {
@@ -885,7 +949,7 @@ function hasDeviceBreakdown(message: string): boolean {
     for (let i = 0; i < toks.length; i++) {
       const rest = breakdownVerbRest(toks[i]);
       if (rest === null || CONDITIONAL_TAIL.test(rest)) continue;
-      if (i > 0 && matchesInflectedWord(toks[i - 1], NON_DEVICE_SUBJECTS)) continue;
+      if (!reportSubjectSlot(toks, i)) continue;
       return true;
     }
   }

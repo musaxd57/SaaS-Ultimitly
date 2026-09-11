@@ -205,9 +205,9 @@ güvenlik vaadini gerçek bir girdi sınıfında deliyordu.
 
 **Düzeltme:** cümlecik şartı KALDIRILDI, yerine iki DAR kapı:
 
-1. **ÖZNE KURALI** — fiilin HEMEN SOLUNDAKİ belirteç cihaz-dışı bir özneyse şikâyet değil
-   (`NON_DEVICE_SUBJECTS`: plan · hava · mide · uçuş · program · rezervasyon · fiyat · moral · telefon · saat · bilet;
-   her girdi kendi test satırıyla pinli ve her satırda mesajda gerçek bir cihaz adı var).
+1. **ÖZNE KURALI** — fiilin HEMEN SOLUNDAKİ belirteç cihaz-dışı bir özneyse şikâyet değil.
+   ⚠️ İlk hâli 11 kelimelik bir ALLOWLIST'ti; **4. tur bunun sınıfı kapatmadığını ölçtü** ve kuralı
+   VARSAYILAN RET'e çevirdi (§ Dördüncü tur).
 2. **ÇEKİM DOĞRULAMASI** — cihaz adından sonra yalnız çekim eki dizisi gelebilir ([çoğul][iyelik][hâl]); türetme eki
    yeni bir SÖZCÜK kurar ve elenir:
 
@@ -253,3 +253,83 @@ cümle bloklanıyordu). Mutasyon **21/21** — ilk koşuda 3 mutant hayatta kald
 ikisi yukarıdaki ölü kodu (silindi), biri 3. kişi iyelik dalının test setinde hiç yüklenmediğini ("Kahve makinesi
 bozulmuş." satırı eklendi). Fiilin de kelime BAŞINDA aranması iki yönlü pinli: bitişik yazımda ("klimabozuldu")
 ayrıştırma YAPILMAZ, çünkü altdizi araması özneyi de yutardı ("Klima harika ama planımızbozuldu.").
+
+---
+
+## Dördüncü inceleme turu (09-11, ölçümlü ajan) — allowlist sınıfı kapatmıyordu
+
+### D1 — 11 kelimelik özne listesi yanlış-pozitif sınıfını kapatmıyor (P1)
+
+Tur 3, cümlecik şartını kaldırırken yerine `NON_DEVICE_SUBJECTS` adlı 11 kelimelik bir allowlist
+koymuştu. Ölçüm: mesajında gerçek bir cihaz adı geçen **30 gerçekçi misafir mesajının 24'ü** hâlâ
+yanlış `complaint` oluyordu — çünkü Türkçede fiilin solunda durabilecek özne sınırsızdır:
+
+| Mesaj | Özne | Eski sonuç |
+|---|---|---|
+| Klima süper. **Taksimiz** bozuldu, biraz geç geleceğiz. | taksi | complaint ✗ |
+| Televizyon kocaman… **Bavulumuz** bozuldu, tamirci önerir misiniz? | bavul | complaint ✗ |
+| Fırın harika, ama **tatilimiz** bozuldu. | tatil | complaint ✗ |
+| Ütü buldum teşekkürler, **uyku düzenimiz** bozuldu sadece. | düzen | complaint ✗ |
+| Mikrodalga var mı? **Yemeğin tadı** bozuldu çünkü. | tat | complaint ✗ |
+
+Liste uzatmak bu sınıfı kapatmaz; her yeni kelime yeni bir kaçak bırakır.
+
+🚨 İkinci kusur: **tek bir ZARF kuralı devre dışı bırakıyordu.** Kural yalnız `toks[i-1]`e bakıyordu,
+yani "Planımız **tamamen** bozuldu" / "**galiba**" / "**dün gece**" varyantlarının 17'sinin 16'sı
+kuralı deliyordu — ve hiçbir test bunu görmüyordu (tüm pinler özne↔fiil bitişik biçimdeydi).
+
+**Düzeltme — VARSAYILAN RET:** fiilin solunda bir ÖZNE varsa ve o özne CİHAZ DEĞİLSE bildirim
+sayılmaz. Özne YOKLUĞU iki biçimden anlaşılır: sol komşu çekimli bir FİİL/ULAÇtır ("Klimayı
+**açtık**, bozuldu") ya da fiil cümlenin başındadır. Araya giren ZARF/BAĞLAÇ atlanır ve ASIL özneye
+bakılır. Ölçüm (aynı bataryalar): **yanlış pozitif 24 → 2**, kaçırılan gerçek bildirim **0**.
+
+Kalan iki yanlış pozitifin ikisi de dilbilgisiyle çözülemez ve ikisi de pinli:
+- "…biraz **gürültüden**" → complaint'i üreten şey cihaz kuralı değil, önceden var olan "gürültü"
+  kelimesi (ölçüldü: kelime çıkınca `amenity`).
+- "Saç kurutma **makinemiz** bozuldu" → misafirin KENDİ cihazı; "klimamız bozuldu" ile AYNI eki
+  taşır, ayırt edici bir dilbilgisi sinyali yoktur. Yön güvenli (insana devir).
+
+**Liste ölçülerek küçüldü (13 → 8) ve ADI DEĞİŞTİ** (`VERBLIKE_NOUN_OVERRIDES`): varsayılan-RET
+gelince plan/hava/mide/uçuş/program/rezervasyon/telefon girdileri ÖLÜ kaldı. Geriye yalnız Türkçenin
+gerçek EŞSESLİLİĞİ kaldı — t/d ile biten ismin 3. tekil iyeliği geçmiş zamanla aynı yazılır:
+`saat+i` ≡ "‑ti", `tad+ı` ≡ "‑dı", `cild+im` ≡ "‑dim", `fiyat+ı`, `moral+im`, `bilet+i`.
+
+### D2 — Ünsüz yumuşamasında beş gövde daha eksikti (P1, kapı etkisi ölçüldü)
+
+Tur 3 yalnız "kilid"i eklemişti. Ölçüm: 17 yumuşamış biçimin 13'ü kaçıyordu ve
+`passesAutoReplySafetyGate` gerçek bildirimlere **oto-gönderim izni** veriyordu:
+
+```
+🚨 OTO-GÖNDERİLİR  Musluğu açtık, bozuldu.
+🚨 OTO-GÖNDERİLİR  Mutfaktaki ocağı denedim, bozulmuş.
+🚨 OTO-GÖNDERİLİR  Ocağı yakamadık, arızalı.
+   bloklanır       Kilidi çevirdim, bozuldu.
+```
+Sınıf kapatıldı: `ocağ · musluğ · bulaşığ · peteğ · ışığ` + `dolap/dolab`. Ayrıca cihazın PARÇASI da
+cihazdır (`motor`: "Bulaşık makinesinin **motoru** bozuldu").
+
+### D3 — "fön" ölçülüp ÇIKARILDI
+
+ASCII katlamada "fon" olduğu için beş gerçek sözcüğü cihaz sayıyordu (fonda · fonu · fonum · fonlar ·
+fondan) ve karşılığında hiçbir şey kazandırmıyordu: "fön makinesi" zaten `makine` ile yakalanıyor.
+
+### D4 — Üç TRAP satırı iddia ettiği kapıyı SINAMIYORDU (P2, sahte yeşil)
+
+`INFLECTION_ONLY`yi tamamen açan mutantla ölçüldü: "Ocakbaşı restoranda **midem** bozuldu",
+"Fonksiyon tuşları derken **planımız** bozuldu", "Uçuşu düşünürken **planımız** bozuldu" satırlarında
+kararı özne kuralı veriyordu — çekim kapısı silinse bile satır yeşil kalırdı. Çekim kapısını YALNIZ
+BAŞINA sınayan satırlar eklendi (sol komşu çekimli bir fiil, yani özne yuvası AÇIK):
+`Kapıcıyı aradık, bozuldu.` · `Kapitalizmi tartıştık, bozuldu.` · `Ocakbaşını denedik, bozuldu.` ·
+`Fonksiyonları inceledik, bozuldu.`
+
+### D5 — Ek pinler
+
+- **Eksiz yüklem** (`var`/`yok`/`değil`): "Buzdolabı **var** ya, bozulmuş." çekim eki taşımaz ama
+  fiil yerindedir — bu olmadan gerçek bildirim düşüyordu.
+- **Şimdiki zaman KİŞİ ekleri** (‑yoruz/‑yorum): "Musluğu **kapatamıyoruz**, bozuldu."
+- **Bilinen sınır, iki yönlü pinli:** soru biçimi ("Klima bozuldu **mu** diye merak ettim") şikâyet
+  sayılır — ağ sözdizimi bilmez; yön güvenli (aşırı eskalasyon), karşı yön ("bozulur mu") temiz.
+
+**Kanıt:** kırmızı-önce 26 düşen test; **mutasyon 26/26** (ilk koşuda 1 hayatta kaldı — fiilin kelime
+başı şartı; doğal ayırt edici bulundu: bitişik yazımda altdizi araması İÇERİDEKİ özneyi yutuyor,
+"Klimayı açtık, günümüzbozuldu."). Tam kapılar yeşil. Migration YOK, ücretli servis YOK.
