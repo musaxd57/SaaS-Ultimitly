@@ -257,17 +257,22 @@ describe("ConversationThread — çeviri ve AI-öner odak iadesi", () => {
     expect(document.activeElement).toBe(btn);
   });
 
-  it("NUDGE'dan tetiklenince (düğme unmount olur) odak kalıcı öner düğmesine düşer", async () => {
+  it("🚨 'AI ile cevapla' DAVET KARTI YOK — tek tetikleyici kalıcı düğme", async () => {
+    // Kurucu 09-11: davet kartının düğmesi hemen altındaki "AI cevap öner" ile
+    // AYNI `handleSuggest()`i çağırıyordu (iki isim, tek eylem) → kart silindi.
+    // Eski pin "nudge tıklanınca unmount olur, odak kalıcı düğmeye düşer"
+    // diyordu; o senaryo artık YOK. Kalan garanti: tek düğme, unmount olmaz,
+    // odak kendisine döner.
     vi.stubGlobal("fetch", vi.fn(async () => new Response(suggestion, { status: 200 })));
     render(<ConversationThread {...baseProps} />);
-    // Nudge kartı `!suggestLoading` koşullu: tıklanan düğme tıklandığı ANDA
-    // DOM'dan kalkar — istek bitince odak verilecek hedef artık yok. Yedek
-    // hedef: hâlâ ekranda duran "AI cevap öner".
-    const nudge = screen.getByRole("button", { name: "AI ile cevapla" });
+    expect(screen.queryByRole("button", { name: "AI ile cevapla" })).toBeNull();
+    expect(screen.queryByText(/Misafir cevap bekliyor/)).toBeNull();
+
+    const btn = screen.getByRole("button", { name: "AI cevap öner" });
     await act(async () => {
-      fireEvent.click(nudge);
+      fireEvent.click(btn);
     });
-    expect(screen.queryByRole("button", { name: "AI ile cevapla" })).toBeNull(); // gerçekten unmount
+    // Kalıcı düğme istek boyunca `disabled` olur ama DOM'dan KALKMAZ.
     expect(document.activeElement).toBe(screen.getByRole("button", { name: "AI cevap öner" }));
   });
 
@@ -318,8 +323,10 @@ describe("HospitableSyncButton — odak iadesi", () => {
 // yapmaya zorluyordu: yeni öneri istemek ya da mesaj GÖNDERMEK. Öneriyi
 // beğenmeyen host için çıkış yoktu — aynı dosyadaki şablon panelinin ZATEN
 // sahip olduğu düğme burada eksikti. Bu blok üç şeyi birden pinler: düğme VAR ·
-// panel gerçekten kapanır · kapanınca "AI ile cevapla" davetiyesi GERİ GELİR
-// (yani host çıkmaza girmez, fikrini değiştirirse tekrar isteyebilir).
+// panel gerçekten kapanır · kapandıktan sonra host ÇIKMAZA GİRMEZ (fikrini
+// değiştirirse tekrar isteyebilir). ⚠️ Üçüncü madde 09-11'de "davetiye geri
+// gelir"den "kalıcı düğme zaten orada"ya çevrildi: davet kartı kaldırıldı,
+// garanti aynı kaldı, taşıyıcı değişti.
 // ─────────────────────────────────────────────────────────────────────────────
 describe("ConversationThread — AI öneri paneli kapatılabilir", () => {
   beforeEach(() => {
@@ -343,7 +350,7 @@ describe("ConversationThread — AI öneri paneli kapatılabilir", () => {
     vi.stubGlobal("fetch", fetchMock);
     render(<ConversationThread {...baseProps} />);
     await act(async () => {
-      fireEvent.click(screen.getByRole("button", { name: /AI ile cevapla/ }));
+      fireEvent.click(screen.getByRole("button", { name: "AI cevap öner" }));
     });
     await screen.findByText("AI Önerisi");
     return fetchMock;
@@ -362,14 +369,17 @@ describe("ConversationThread — AI öneri paneli kapatılabilir", () => {
     expect(fetchMock).toHaveBeenCalledTimes(1);
   });
 
-  it("kapatınca 'AI ile cevapla' davetiyesi GERİ GELİR (çıkmaz yok)", async () => {
+  it("kapatınca host ÇIKMAZA GİRMEZ — kalıcı 'AI cevap öner' hep orada", async () => {
     await openSuggestion();
-    // Panel açıkken davetiye gizli (koşul: !suggestion).
-    expect(screen.queryByRole("button", { name: /AI ile cevapla/ })).toBeNull();
+    // 🚨 ASIL GARANTİ: paneli beğenmeyip kapatan host yeniden isteyebilmeli.
+    // Eskiden bunu davet kartının geri gelmesi sağlıyordu; artık tetikleyici
+    // kalıcı olduğu için panel AÇIKKEN DE, kapandıktan SONRA da orada.
+    expect(screen.getByRole("button", { name: "AI cevap öner" })).toBeTruthy();
 
     await act(async () => {
       fireEvent.click(screen.getByRole("button", { name: "AI önerisini kapat" }));
     });
-    expect(screen.getByRole("button", { name: /AI ile cevapla/ })).toBeTruthy();
+    expect(screen.queryByText("AI Önerisi")).toBeNull();
+    expect(screen.getByRole("button", { name: "AI cevap öner" })).toBeTruthy();
   });
 });

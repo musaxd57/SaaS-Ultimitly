@@ -103,68 +103,34 @@ describe("A3/A4 — Kurulum ve eksikler paneli", () => {
   });
 });
 
-describe("A4 — eksikten forma tek tıkla (KbManager entegrasyonu)", () => {
+describe("🚨 A3/A4 YÜZEYİ KALDIRILDI — panel KbManager'a bağlı DEĞİL", () => {
   beforeEach(() => {
     cleanup();
     vi.clearAllMocks();
     document.body.innerHTML = "";
   });
 
-  it("'Şablonla doldur' formu GERÇEKTEN doldurur: mülk + kategori + şablon metni", () => {
-    render(
-      <KbManager
-        properties={PROPS}
-        items={[]}
-        gaps={[{ propertyId: "p2", propertyName: "Daire 2", kind: "setup", category: "parking", questionCount: 0, label: "absent", reviewCandidate: true }]}
-      />,
-    );
-    fireEvent.click(screen.getByRole("button", { name: /Şablonla doldur/ }));
-
-    // Mülk: eksiğin mülkü seçilir (varsayılan ilk mülk DEĞİL).
-    expect((screen.getByLabelText("Mülk") as HTMLSelectElement).value).toBe("p2");
-    expect((screen.getByLabelText("Kategori") as HTMLSelectElement).value).toBe("parking");
-    expect((screen.getByLabelText("Başlık") as HTMLInputElement).value).toBe("Otopark");
-    // Şablon metni yer tutucularıyla gelir — host kendi gerçeğini yazacak.
-    expect((screen.getByLabelText("İçerik") as HTMLTextAreaElement).value).toMatch(/\[/);
-  });
-
-  it("ŞABLONU OLMAYAN kategoride yalnız mülk+kategori seçilir, içerik UYDURULMAZ", () => {
-    render(
-      <KbManager
-        properties={PROPS}
-        items={[]}
-        gaps={[{ propertyId: "p1", propertyName: "Daire 1", kind: "asked", category: "location", questionCount: 5, label: "absent", reviewCandidate: true }]}
-      />,
-    );
-    fireEvent.click(screen.getByRole("button", { name: /Şablonla doldur/ }));
-    expect((screen.getByLabelText("Kategori") as HTMLSelectElement).value).toBe("location");
-    // İçerik BOŞ kalır: "Konum" için şablon yok ve uydurma metin yazmak, host'un
-    // kendi gerçeği yerine bizim tahminimizi kaydettirme riski demektir.
-    expect((screen.getByLabelText("İçerik") as HTMLTextAreaElement).value).toBe("");
-  });
-
-  it("tıklama HİÇBİR ŞEY KAYDETMEZ (ağ çağrısı yok)", () => {
-    const fetchMock = vi.fn();
-    vi.stubGlobal("fetch", fetchMock);
-    render(
-      <KbManager
-        properties={PROPS}
-        items={[]}
-        gaps={[{ propertyId: "p1", propertyName: "Daire 1", kind: "setup", category: "wifi", questionCount: 0, label: "absent", reviewCandidate: true }]}
-      />,
-    );
-    fireEvent.click(screen.getByRole("button", { name: /Şablonla doldur/ }));
-    // "Host onayından önce aktifleşmesin" şartının UI karşılığı: doldurur, kaydetmez.
-    expect(fetchMock).not.toHaveBeenCalled();
-    vi.unstubAllGlobals();
-  });
-
-  it("panel eksik yokken KbManager'ı bozmaz (form yerinde)", () => {
+  // Kurucu kararı 09-11 (iki kez, ikincisi ekran görüntüsüyle): "Kurulum ve
+  // eksikler" kartı 40 satırlık "bu dairede bu konuda henüz kayıt yok" listesi
+  // basıyordu ve host'a eyleme dönüşmeyen bir gürültü veriyordu → KALDIR.
+  // Bileşen ve saf modül (`recommendations/kb-gaps.ts`) YERİNDE duruyor; geri
+  // açmak tek satır. Bu blok, yanlışlıkla geri MOUNT edilmesini yakalar.
+  it("KbManager eksik panelini çizmez ve 'Şablonla doldur' düğmesi YOKTUR", () => {
     render(<KbManager properties={PROPS} items={[]} />);
+    // Anti-vakumluk: yönetim formunun kendisi hâlâ duruyor.
     expect(screen.getByLabelText("Başlık")).toBeTruthy();
     expect(screen.queryByText(/Kurulum ve eksikler/)).toBeNull();
+    expect(screen.queryByRole("button", { name: /Şablonla doldur/ })).toBeNull();
   });
 
+  it("kaldırılan diğer iki kart da çizilmez (kendi cevaplarınız / metinden çıkar)", () => {
+    render(<KbManager properties={PROPS} items={[]} />);
+    expect(screen.queryByText(/Kendi cevaplarınızdan öneriler/)).toBeNull();
+    expect(screen.queryByText(/Metinden bilgi çıkar/)).toBeNull();
+  });
+
+  // Bileşenin KENDİ sözleşmesi korunuyor (yukarıdaki KbGapsPanel blokları) —
+  // yüzey kapalı, kural canlı.
   it("panelde her mülk kendi adıyla görünür (mülkler karışmaz)", () => {
     render(
       <KbGapsPanel

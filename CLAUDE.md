@@ -1069,6 +1069,26 @@ Sekiz P1 KAPANDI (09-07), her biri ayrı commit, kırmızı-önce + iki yönlü 
   `reviewState` sözleşmesinin aynısı) · ③ KVKK (sır kapısı + ad redaksiyonu + retention purge + erasure
   bu yüzeye de uygulanır). Ölçüm planı ve karar tablosu:
   `docs/DEGERLENDIRME-2026-09-11-gecmis-cevap-yeniden-kullanimi.md`. Sıra: hibrit bayrağından SONRA.
+- 🚨 **GEÇMİŞ HOST CEVAPLARI BACAĞI (Bacak B) — YÜZEYİ KAPATILDI (09-11, kurucunun CANLI ekranında ölçüldü).**
+  `src/lib/kb-from-history.ts` + `api/kb/suggestions` duruyor, kart `kb-manager.tsx`ten SÖKÜLDÜ.
+  Ürettiği çiftler YANLIŞTI ve yön TEHLİKELİYDİ: *"Otopark · örnek soru: do you have parking"* satırında
+  gösterilen cevap bir **YORUM İSTEĞİ**, *"Konum · konum atabilir misiniz"* satırında ise **"müşteri
+  hizmetlerine tam para iadesini kabul ettiğini söyleyin"**. Host "Bilgi tabanına ekle"ye bassa para iadesi
+  talimatı `Konum` kategorisinde ONAYLI BİLGİ olur ve asistan misafire söylerdi. İKİ AYRI KUSUR:
+  **(a) `precedingGuestMessage`in ZAMAN SINIRI YOK** — host'un çıkıştan GÜNLER sonra attığı proaktif mesaj
+  (yorum isteği, karşılama) arada misafir mesajı olmadığı için günler önceki soruyla eşleşiyor;
+  **(b) kart, kovayı İLK açan sorunun yanına EN YENİ cevabı basıyor**, yani gösterilen çift zaten gerçek
+  bir çift DEĞİL. ⚠️ CLAUDE.md bunu ZATEN söylüyordu (*"`+1 ms` nedensellik kanıtı değildir … doğru çözüm
+  `Message.replyToMessageId`"*) — uyarı okunup üstüne kurulmuş. **GERİ AÇMA ÖN KOŞULLARI:** ① soru↔cevap
+  YAKINLIK penceresi + araya giren outbound yoksa şartı · ② gösterilen çift GERÇEK çift (en yeni cevabın
+  KENDİ sorusu) · ③ PROAKTİF host mesajı tespiti (yorum isteği/karşılama cevap DEĞİLDİR) · ④ tercihen
+  `Message.replyToMessageId` (migration). Ölçmeden geri açma.
+- **A3 "Kurulum ve eksikler" ve A5 "Metinden bilgi çıkar" YÜZEYLERİ DE KALDIRILDI (kurucu, 09-11).**
+  A3: 40 satırlık *"bu dairede bu konuda henüz kayıt yok"* listesi + "+32 konu daha" — kurucu iki kez söyledi
+  (önce "ya kaldırılsın ya şablon gibi bağlamla kurulsun", sonra "kaldırıcaz mı, bok gibi"), karar KALDIR.
+  A5: *"olmasa da olur, fazla işlevi yok"*. Üç modülün de kodu ve testleri YERİNDE; yüzey kapalı, geri açmak
+  tek satır. `kb-gaps-panel.test.tsx` A4 entegrasyon bloğu, panelin yanlışlıkla geri MOUNT edilmesini
+  yakalayan pine dönüştürüldü (anti-vakumluk: yönetim formunun hâlâ çizildiği ayrıca iddia edilir).
 - **KNOWLEDGE HUB — ŞABLON BACAĞI (kurucu kararı 09-11, `src/lib/kb-from-templates.ts`, migration YOK).**
   Kurucu "AI'yı boş bilgiyle açtırma" KAPISINI REDDETTİ: *"zorunlu olmasın; adam platformunu bağladığında
   hemen otomatik mesajlarından, şablonundan veya kendi yazdığı cevaptan görsün"*. 🚨 Ölçülen boşluk:
@@ -1137,7 +1157,17 @@ P1'i düzeltilerek: `{{…}}` işaretçisi taşıyan şablon REDDEDİLİR, allow
 ④ **panel yerleşimi**: masaüstünde sayfa kaymaz (kenar çubuğu tam yükseklik, kayan tek öge `<main>`),
 konuşma kartı başlığında ad+mülk, yazma alanı 80→160px ve sağ ray 20rem'e sabitlendi, ölü "Mülk" kartı
 kalktı. Ayrıca inbox şablon uygulamada ham `{daire}`/`{name}` sızıntısı ve `{{constructor}}` prototip
-kusuru kapandı (`template-apply.ts`). Migration YOK, bayrak değişikliği YOK, ücretli servis YOK.
+kusuru kapandı (`template-apply.ts`). ⑤ **İKİNCİ TUR (aynı gün, beş ekran görüntüsü):** 🚨 Bacak B yüzeyi
+KAPATILDI (yanlış+tehlikeli çift — ↑ ayrıntı) · A3 "Kurulum ve eksikler" ve A5 "Metinden bilgi çıkar"
+yüzeyleri kaldırıldı · "Misafir cevap bekliyor / AI ile cevapla" davet kartı silindi (düğmesi hemen
+altındaki "AI cevap öner" ile AYNI `handleSuggest()`i çağırıyordu) · başlık satırındaki durum ROZETİ
+silindi (seçim kutusuyla birebir aynı değeri 30 piksel ötede ikinci kez yazıyordu; KUTULAR KALIYOR — durum
+gelen kutusu filtresini ve oto-yanıt yaşam döngüsünü sürer, "Sorunlu" oto-yanıtı KİLİTLER).
+Migration YOK, bayrak değişikliği YOK, ücretli servis YOK.
+🚨 **ROADMAP KONUMU (kurucu sordu, kodda doğrulandı):** V0.1–V0.7 ✅ · V1 ✅ · **V2 YARIM — yalnız V2.1**
+(`incidents/attention.ts`; `grep moneyImpact` = 0 sonuç, para etkisi kodun KENDİ yorumunda bilinçli dışarıda:
+"`Reservation.totalAmount` BRÜT tutardır, kayıp DEĞİL") · V3–V8 ve ④ Availability Engine BAŞLAMADI.
+09-10/09-11'deki turlar roadmap fazı DEĞİL, AI kalite + güvenlik kapısı işiydi (talimatın ⑤ ön koşulu).
 **Önceki: 7. TUR (09-11, otonom /loop, DÖRT+BİR ölçümlü ajan) — ÜÇ commit: `43098ab` envanter (19 cihaz adı; 30 gerçekçi
 bildirimin 26'sı kaçıyordu, çoğu OTO-GÖNDERİLİYORDU; `batarya` ölçülüp REDDEDİLDİ) · `59a6bae` inceleme düzeltmeleri
 (homoglif bypass'ı + 6. turun İKİ gerilemesi + `sorun` KOŞUL ailesi + yer tutucuda dört kusur) · `76490a2` eval MODEL

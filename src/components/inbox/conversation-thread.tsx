@@ -156,9 +156,11 @@ export function ConversationThread({
   const prioritySelectRef = useRef<HTMLSelectElement | null>(null);
   /** İstek bitince odağın döneceği öğe. */
   const restoreFocusRef = useRef<HTMLElement | null>(null);
-  /** AI-öner: tıklanan tetikleyici. Nudge kartındaki düğme tıklandığı ANDA
-   *  unmount olur (kart `!suggestLoading` koşullu) — o durumda yedek hedef
-   *  kalıcı "AI cevap öner" düğmesidir. */
+  /** AI-öner: tıklanan tetikleyici (istek bitince odak buraya döner).
+   *  ⚠️ Davet kartı 09-11'de kaldırıldı; tek tetikleyici kalıcı "AI cevap öner"
+   *  düğmesi ve o istek boyunca `disabled` olur ama DOM'dan KALKMAZ. Yedek
+   *  hedef (`suggestButtonRef`) yine de duruyor: `null` bir hedefe odak
+   *  vermek, klavye kullanıcısını sayfanın başına düşürür. */
   const suggestRestoreRef = useRef<HTMLButtonElement | null>(null);
   const suggestButtonRef = useRef<HTMLButtonElement | null>(null);
   /** Çeviri: tıklanan "Çevir" düğmesi (mesaj başına ayrı düğme var). */
@@ -178,9 +180,6 @@ export function ConversationThread({
   const [translatingId, setTranslatingId] = useState<string | null>(null);
 
   const refresh = () => startTransition(() => router.refresh());
-
-  // The guest spoke last and is waiting — the moment to nudge "let AI answer".
-  const awaitingReply = messages[messages.length - 1]?.direction === "inbound";
 
   async function handleSuggest() {
     setSuggestLoading(true);
@@ -514,9 +513,12 @@ export function ConversationThread({
             {propertyLabel}
           </span>
         ) : null}
-        <Badge tone={CONVERSATION_STATUS.tone(status)} className="ml-auto">
-          {CONVERSATION_STATUS.label(status)}
-        </Badge>
+        {/* 🚨 DURUM ROZETİ KALDIRILDI (kurucu 09-11): aynı satırda, seçim
+            kutusundan 30 piksel ötede, BİREBİR AYNI değeri ikinci kez yazıyordu
+            ("Durum: Yeni … [Yeni]"). Seçim kutusu hem gösterir hem değiştirir;
+            rozet yalnız gösteriyordu. Durum/öncelik kutuları KALIYOR: durum
+            gelen kutusu filtresini ve oto-yanıt yaşam döngüsünü sürer
+            ("Sorunlu" oto-yanıtı KİLİTLER), öncelik ise liste sıralamasını. */}
       </div>
 
       {/* Messages */}
@@ -625,32 +627,12 @@ export function ConversationThread({
 
       {/* AI suggestion */}
       <div className="space-y-3 p-4">
-        {/* Nudge: when the guest is waiting and no draft yet, invite one-click AI.
-            Only for users who can actually send (owner/manager); staff are read-only. */}
-        {canReply && awaitingReply && !suggestion && !suggestLoading ? (
-          <div className="flex items-center gap-3 rounded-lg border border-primary/30 bg-accent/40 p-3">
-            <span className="flex size-8 shrink-0 items-center justify-center rounded-lg bg-primary text-primary-foreground">
-              <Sparkles className="size-4" />
-            </span>
-            <p className="flex-1 text-sm">
-              <span className="font-medium">Misafir cevap bekliyor.</span>{" "}
-              <span className="text-muted-foreground">
-                AI saniyeler içinde sizin tonunuzla bir cevap hazırlasın — onaylayın ya da düzenleyin.
-              </span>
-            </p>
-            <Button
-              onClick={(e) => {
-                suggestRestoreRef.current = e.currentTarget;
-                handleSuggest();
-              }}
-              disabled={suggestLoading}
-              size="sm"
-              className="shrink-0"
-            >
-              <Sparkles className="size-4" /> AI ile cevapla
-            </Button>
-          </div>
-        ) : null}
+        {/* 🚨 "Misafir cevap bekliyor / AI ile cevapla" DAVET KARTI KALDIRILDI
+            (kurucu 09-11). Düğmesi hemen altındaki kalıcı "AI cevap öner" ile
+            AYNI `handleSuggest()`i çağırıyordu — iki farklı isim, tek eylem.
+            Yazma alanının üstünde üç satır yer kaplıyor ve host'a yeni bir şey
+            söylemiyordu (misafirin beklediği zaten konuşmanın kendisinden ve
+            durum rozetinden belli). */}
         <div className="flex flex-wrap items-center gap-2">
           {canReply ? (
             <Button

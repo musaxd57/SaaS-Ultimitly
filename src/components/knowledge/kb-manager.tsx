@@ -14,9 +14,6 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Field } from "@/components/form-field";
 import { KB_CATEGORY } from "@/lib/constants";
-import { KbGapsPanel, type KbGapView } from "@/components/knowledge/kb-gaps-panel";
-import { KbImportText } from "@/components/knowledge/kb-import-text";
-import { KbPastAnswers } from "@/components/knowledge/kb-past-answers";
 import { cn } from "@/lib/utils";
 // YAPRAK modülden: `prompts.ts` (75 KB sistem promptu) tarayıcı paketinin
 // bağımlılık grafiğine ASLA girmemeli — depo tam da o dosya yüzünden private.
@@ -91,12 +88,9 @@ export interface KbItem {
 export function KbManager({
   properties,
   items,
-  gaps = [],
 }: {
   properties: { id: string; name: string }[];
   items: KbItem[];
-  /** A3 — "Kurulum ve eksikler" satırları (salt-okuma; boşsa panel çizilmez). */
-  gaps?: KbGapView[];
 }) {
   const router = useRouter();
   const [, startTransition] = useTransition();
@@ -124,36 +118,6 @@ export function KbManager({
 
   const titleRef = useRef<HTMLInputElement>(null);
 
-  /**
-   * A4 — eksik satırından forma. Şablon VARSA metni de gelir, YOKSA yalnız mülk
-   * ve kategori seçilir (uydurma içerik yazmaktansa boş bırakmak doğru: host'un
-   * kendi gerçeğini yazması gerekiyor).
-   *
-   * 🚨 HİÇBİR ŞEY KAYDEDİLMEZ. Bu düğme yalnız formu doldurur — "host onayından
-   * önce aktifleşmesin" şartının UI karşılığı, `KB_PRESETS` ile aynı sözleşme.
-   */
-  function fillFromGap(propertyId: string, category: string) {
-    const preset = KB_PRESETS.find((p) => p.category === category);
-    setForm((f) => ({
-      ...f,
-      propertyId,
-      category,
-      title: preset?.title ?? f.title,
-      content: preset?.content ?? f.content,
-    }));
-    setError(null);
-    // Form sayfanın solunda; küçük ekranda listenin ALTINDA kalıyor. Odak
-    // taşınmazsa host düğmeye basar ve hiçbir şey olmamış gibi görünür.
-    const el = titleRef.current;
-    el?.focus();
-    // ⚠️ KORUMALI: `scrollIntoView` her ortamda YOK (jsdom'da tanımsız; kısıtlı
-    // tarayıcılarda da eksik olabilir). Korumasız çağrı FIRLATIYORDU — tam suit
-    // bunu 3 "unhandled error" olarak yakaladı. Kaydırma bir KONFOR; yokluğu
-    // doldurma işini BOZMAMALI.
-    if (typeof el?.scrollIntoView === "function") {
-      el.scrollIntoView({ block: "center", behavior: "smooth" });
-    }
-  }
 
   const refresh = () => startTransition(() => router.refresh());
 
@@ -353,9 +317,24 @@ export function KbManager({
 
   return (
     <div className="space-y-4">
-      <KbGapsPanel gaps={gaps} onFill={fillFromGap} />
-      <KbPastAnswers />
-      <KbImportText properties={properties} />
+      {/* 🚨 UC KART KALDIRILDI (kurucu 09-11, ekran goruntuleriyle):
+          · "Kurulum ve eksikler" (A3) — 40 satirlik "henuz kayit yok" listesi.
+            Kurucu iki kez soyledi ("ya kaldirilsin ya sablon gibi baglamla
+            kurulsun", sonra "kaldiricaz mi, bok gibi"): karar KALDIR.
+          · "Kendi cevaplarinizdan oneriler" (Bacak B) — URETTIGI CIFTLER YANLIS.
+            Olculdu (kurucunun canli ekrani): "Otopark / ornek soru: do you have
+            parking" satirinda gosterilen cevap bir YORUM ISTEGI, "Konum"
+            satirinda ise "tam para iadesini kabul ettigini soyleyin". Iki kusur:
+            (a) precedingGuestMessage'in ZAMAN SINIRI YOK — host'un cikistan
+            gunler sonra attigi proaktif mesaj, arada misafir mesaji olmadigi
+            icin gunler oncesinin sorusuyla eslesiyor; (b) kart, kovayi ILK acan
+            sorunun yanina EN YENI cevabi basiyor, yani gosterilen cift zaten
+            gercek bir cift degil. Host "ekle"ye basarsa para iadesi talimati
+            "Konum" kategorisinde ONAYLI BILGI olur ve AI misafire soyler.
+            Modul + testler duruyor; yuzey KAPALI (fail-closed).
+          · "Metinden bilgi cikar" (A5) — kurucu: "olmasa da olur, fazla islevi
+            yok". Modul duruyor.
+          Uc modulun de kodu ve testleri YERINDE: geri acmak tek satir. */}
       <div className="grid gap-4 lg:grid-cols-3">
       {/* Create — self-start: grid satırı sağdaki uzun mülk listesi kadar uzar;
           form kartı içeriği kadar kalmalı, en aşağıya kadar sündürülmemeli.
