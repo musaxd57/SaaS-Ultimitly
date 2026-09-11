@@ -499,6 +499,147 @@ describe("classifyFallback — sözleşme tablosu (09-08 ölçümü → 09-10 s�
   });
 });
 
+// ---------------------------------------------------------------------------
+// YEDİNCİ İNCELEME TURU (09-11) — CİHAZ LİSTESİ BOŞLUKLARI (ÖLÇÜLDÜ)
+//
+// `BREAKDOWN_DEVICES` bir LİSTEDİR, dilbilgisi değil: listede olmayan her cihaz adı
+// arıza fiiliyle birlikte gelse bile `general` kalır ve kapı OTO-GÖNDERİM İZNİ verir.
+// Ölçüm (09-11, iki parti): 14 gerçekçi bildirimin 14'ü kaçıyordu, 13'ü oto-gönderim
+// izni alıyordu; ikinci partide 16 bildirimin 12'si kaçıyordu.
+//
+// 🚨 Liste büyütmek BEDAVA DEĞİLDİR: her kelime, kelime-BAŞI + ÇEKİM eşleşmesiyle
+// (üç katlama: std · tr · ASCII) cihaz-olmayan sözcükleri de yakalayabilir. Bu turda
+// "batarya" ÖLÇÜLÜP REDDEDİLDİ — "Telefonumun bataryası bozuldu" ve "Powerbank
+// bataryamız bozuldu" (misafirin KENDİ eşyası) complaint oluyordu, 2/2 yanlış pozitif.
+// Geri EKLEME.
+// ---------------------------------------------------------------------------
+describe("cihaz listesi boşlukları (7. tur, ölçülmüş): 19 ek cihaz adı", () => {
+  const BENIGN = { source: "openai", intent: "amenity", riskLevel: "low", confidence: 0.9, riskType: null };
+
+  // 1. parti — ajan önerisiyle gelen sekiz cihaz; hepsi ÖLÇÜLDÜ (14/14 kaçak).
+  const REPORTS_A = [
+    "Davlumbaz bozuldu, mutfakta duman kaldı.",
+    "Davlumbazı çalıştırdık, bozulmuş.",
+    "Aspiratör bozuldu, banyoda nem birikiyor.",
+    "Aspiratörü açtım, arızalı.",
+    "Jaluzi bozuldu, kapanmıyor.",
+    "Panjur bozuldu, sabah güneş çok geliyor.",
+    "Panjuru indirmeye çalıştık, arızalandı.",
+    "Diyafon bozuldu, kapıyı açamıyoruz.",
+    "Diyafonu denedik, arızalı.",
+    "Termostat bozuldu, sıcaklık ayarlanmıyor.",
+    "Termostatı ayarlamaya çalıştım, bozulmuş.",
+    "Vantilatör bozuldu, hiç dönmüyor.",
+    "Duşakabin bozuldu, kapağı çıktı.",
+    "Duşakabini kapatamadık, arızalı.",
+  ];
+
+  // 2. parti — aynı protokolle taranan ek adlar (12/16 kaçıyordu; dördü BAŞKA bir
+  // bacaktan zaten complaint'ti ve bu ASİMETRİNİN kendisi kusurdu: "Çaydanlık bozuldu,
+  // ısıtmıyor" complaint ama "Çaydanlığı fişe taktık, bozulmuş" general).
+  const REPORTS_B = [
+    "Elektrik süpürgesi bozuldu, çekmiyor.",
+    "Süpürgeyi denedim, arızalı.",
+    "Pencere bozuldu, kapanmıyor.",
+    "Salondaki pencereyi kapatmaya çalıştık, arızalandı.",
+    "Çaydanlığı fişe taktık, bozulmuş.",
+    "Havalandırma bozuldu, banyoda koku var.",
+    "Boyler bozuldu, sıcak su yok.",
+    "Kepenk bozuldu, açılmıyor.",
+    "Kepengi indirmek istedik, arızalı.",
+    "Rezervuar bozuldu, sürekli su akıyor.",
+    "İnterkom bozuldu, kapıyı açamıyoruz.",
+    "Avize bozuldu, salonda ışık yok.",
+    "Perde bozuldu, rayından çıktı.",
+  ];
+
+  it("gerçek arıza bildirimleri complaint (1. parti)", () => {
+    for (const m of REPORTS_A) expect(classifyFallback(m).intent, m).toBe("complaint");
+  });
+
+  it("gerçek arıza bildirimleri complaint (2. parti)", () => {
+    for (const m of REPORTS_B) expect(classifyFallback(m).intent, m).toBe("complaint");
+  });
+
+  it("🚨 GERÇEK BEDEL: bu bildirimlerin hiçbiri OTO-GÖNDERİLMEZ", () => {
+    // Ölçüm (kod değişikliğinden ÖNCE): 14 bildirimin 13'ü `passesAutoReplySafetyGate`
+    // kapısından GEÇİYORDU. Sınıflandırma tablosu tek başına bedeli göstermez.
+    for (const m of [...REPORTS_A, ...REPORTS_B]) {
+      expect(passesAutoReplySafetyGate(BENIGN, m), m).toBe(false);
+    }
+  });
+
+  it("ÜNSÜZ YUMUŞAMASI gövdeleri: çaydanlık→çaydanlığ, kepenk→kepeng", () => {
+    // Yumuşamış biçim artık cihaz adıyla BAŞLAMAZ; gövde ayrı yazılmazsa bildirim kaçar.
+    // (Yalın biçimler kontrol olarak da burada: gövde satırı silinse bu ikisi yeşil kalır,
+    // yani asıl pin yumuşamış biçimlerdir.)
+    expect(classifyFallback("Çaydanlığı fişe taktık, bozulmuş.").intent).toBe("complaint");
+    expect(classifyFallback("Kepengi indirmek istedik, arızalı.").intent).toBe("complaint");
+    expect(classifyFallback("Çaydanlık bozuldu, ısıtmıyor.").intent).toBe("complaint");
+    expect(classifyFallback("Kepenk bozuldu, açılmıyor.").intent).toBe("complaint");
+  });
+
+  it("TUZAKLAR: aynı sözcükler SSS/övgü/koşul bağlamında complaint DEĞİL", () => {
+    for (const m of [
+      "Davlumbaz filtresi ne sıklıkla temizleniyor?",
+      "Aspiratör sesli mi, geceleri rahatsız eder mi?",
+      "Jaluzi var mı yoksa perde mi?",
+      "Diyafon hangi katta?",
+      "Termostat kaç dereceye ayarlı?",
+      "Duşakabin temiz miydi diye soruyorum, evet gayet temizdi.",
+      "Süpürge var mı dairede?",
+      "Pencereden deniz görünüyor mu?",
+      "Çaydanlıkta çay var mıydı, bakamadık.",
+      "Havalandırma nasıl çalışıyor, anlatabilir misiniz?",
+      "Boyler kaç litre?",
+      "Kepenkler otomatik mi?",
+      "Rezervuar gömme mi?",
+      "İnterkom hangi numarada?",
+      "Avizeler çok şık, tebrikler.",
+      "Perdeler karartma mı?",
+      "Perde rengini çok beğendik.",
+      // KOŞUL kipi — oto-yanıtın ASIL İŞİ (guard `CONDITIONAL_TAIL` bunu taşır)
+      "Davlumbaz bozulursa kimi arayalım?",
+      // OLUMSUZ tam biçim — övgü
+      "Termostat arızalanmadı, gayet iyi çalışıyor.",
+      "Panjurumuz yoktu ama sorun değil.",
+    ]) {
+      expect(classifyFallback(m).intent, m).not.toBe("complaint");
+    }
+  });
+
+  it("🚨 'batarya' ÖLÇÜLÜP REDDEDİLDİ (geri ekleme): misafirin KENDİ eşyası", () => {
+    // Türkçede "batarya" hem banyo armatürü hem telefon pilidir. Listeye eklendiğinde
+    // ÖLÇÜLDÜ: aşağıdaki ikisi de `complaint` oluyordu (2/2 yanlış pozitif). Özne
+    // yuvasının iyelik ZİNCİRİ bunu KURTARMAZ — "bataryası" belirtecin KENDİSİ cihaz
+    // sayıldığı için zincir dalına hiç ulaşılmaz.
+    expect(classifyFallback("Telefonumun bataryası bozuldu, şarj aleti var mı?").intent).not.toBe("complaint");
+    expect(classifyFallback("Powerbank bataryamız bozuldu, sizde var mı?").intent).not.toBe("complaint");
+    // Bedeli dürüstçe pinle: banyo armatürü bildirimi bu yüzden KAÇIYOR (bilinen sınır).
+    expect(classifyFallback("Banyo bataryası bozuldu, su fışkırıyor.").intent).not.toBe("complaint");
+  });
+
+  it("🚨 TÜKETİM maddesi cihaz DEĞİLDİR ('çay' listeye girmez)", () => {
+    // Mutasyon turunda `"çay"` eklemek HİÇBİR testi düşürmedi = sınıf PİNSİZDİ. Misafirin
+    // kendi tükettiği şeyin bozulması host bildirimi değildir; "çay" ayrıca "çaydanlık"ın
+    // ÖNEKİ olduğu için listeye sızması kolaydır. Karşı yön aşağıda: DEMLİK bir cihazdır
+    // ama bugün listede YOK ve bu satır o boşluğu dürüstçe kaydeder (bilinen sınır).
+    expect(classifyFallback("Çayımız bozuldu, buzdolabında unutmuşuz.").intent).not.toBe("complaint");
+    expect(classifyFallback("Getirdiğimiz çay bozulmuş.").intent).not.toBe("complaint");
+    expect(classifyFallback("Çay demliği bozuldu.").intent).not.toBe("complaint");
+  });
+
+  it("'router' `modem` ile PARİTE kurar — wifi kararını delmez", () => {
+    // `modem` 1. turdan beri listedeydi, `router` değildi: aynı cihazın iki adı farklı
+    // sınıf üretiyordu. 🚨 "İnternet gelmiyor" / "wifi çekmiyor" BİLİNÇLİ olarak `wifi`
+    // intent'idir (CLAUDE.md) — o karar DEĞİŞMEDİ, aşağıdaki iki satır onu pinler.
+    expect(classifyFallback("Modem bozuldu, internet yok.").intent).toBe("complaint");
+    expect(classifyFallback("Router bozuldu, internet yok.").intent).toBe("complaint");
+    expect(classifyFallback("İnternet gelmiyor.").intent).toBe("wifi");
+    expect(classifyFallback("Wifi çekmiyor.").intent).toBe("wifi");
+  });
+});
+
 describe("matchesIntentKeywords('complaint') ≠ isComplaint (latent tuzak, pinli)", () => {
   // 🚨 `matchesIntentKeywords` adı ne diyorsa onu yapar: YALNIZ `KEYWORDS.complaint` ağına bakar.
   // `complaint` niyetinin üç kaynağı daha var (problem-kelimesi · olumsuz fiil · cihaz kuralı) ve

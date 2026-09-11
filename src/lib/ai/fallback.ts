@@ -780,6 +780,24 @@ const BREAKDOWN_DEVICES = [
   "televizyon", "tv", "kapı", "asansör", "mikrodalga", "ısıtıcı", "lamba", "kettle", "kumanda", "modem", "şofben",
   "termosifon", "jakuzi", "tuvalet", "klozet", "lavabo", "ütü", "bulaşık", "bulaşığ", "çamaşır", "radyatör",
   "petek", "peteğ", "kalorifer", "ışık", "ışığ", "anahtar",
+  // ── 7. İNCELEME TURU (09-11, ÖLÇÜLDÜ): LİSTE BOŞLUKLARI ──
+  // Bu liste dilbilgisi değil ENVANTERDİR: yazılmamış her cihaz adı, arıza fiiliyle
+  // birlikte gelse bile `general` kalır ve kapı OTO-GÖNDERİM İZNİ verir. İki parti
+  // ölçüldü: 1. partide 14 gerçekçi bildirimin 14'ü kaçıyordu ve 13'ü oto-gönderim
+  // izni alıyordu; 2. partide 16'nın 12'si kaçıyordu. Dördü BAŞKA bir bacaktan
+  // complaint'ti ve ASİMETRİNİN kendisi kusurdu ("Çaydanlık bozuldu, ısıtmıyor"
+  // complaint ama "Çaydanlığı fişe taktık, bozulmuş" general).
+  // 🚨 `çaydanlığ`/`kepeng` ÜNSÜZ YUMUŞAMASI gövdeleridir (k→ğ, k→g), ayrı yazılır.
+  // 🚨 `router` bir POLİTİKA DEĞİŞİKLİĞİ DEĞİL, `modem` ile PARİTEDİR (modem 1. turdan
+  // beri listedeydi): "İnternet gelmiyor"/"wifi çekmiyor" BİLİNÇLİ olarak `wifi`
+  // intent'i olmaya devam eder, yalnız CİHAZ arızası bildirimi insana gider.
+  // 🚨 `batarya` ÖLÇÜLDÜ ve REDDEDİLDİ (geri ekleme): Türkçede hem banyo armatürü hem
+  // telefon pili — "Telefonumun bataryası bozuldu" / "Powerbank bataryamız bozuldu"
+  // (misafirin KENDİ eşyası) complaint oluyordu, 2/2 yanlış pozitif. İyelik zinciri
+  // kurtarmaz: belirtecin KENDİSİ cihaz sayılınca zincir dalına hiç ulaşılmaz.
+  "davlumbaz", "aspiratör", "jaluzi", "panjur", "diyafon", "termostat", "vantilatör", "duşakabin",
+  "süpürge", "pencere", "çaydanlık", "çaydanlığ", "havalandırma", "boyler", "kepenk", "kepeng",
+  "rezervuar", "interkom", "avize", "perde", "router",
 ];
 
 /**
