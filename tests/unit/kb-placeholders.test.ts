@@ -112,6 +112,33 @@ describe("apartmentNumberOf — etiket > tek sayı > BELİRSİZ (null)", () => {
     expect(fillGuestPlaceholders("Daire {daire}", { propertyName: "Nuve 3 | 2+1" })).toBe("Daire {daire}");
     expect(fillGuestPlaceholders("Daire {daire}", { propertyName: "Nuve 3" })).toBe("Daire 3");
   });
+
+  // ── 7. TUR İNCELEMESİ (09-11, ölçüldü): 6. turun sayaç kuralı iki sınıfı kaçırdı ──
+  it("🚨 SAYAÇ SÖZCÜĞÜ KENDİ SAYISINI ALIYORSA MODİFİKATÖR DEĞİL — kanonik TR adresi korunur", () => {
+    // 6. tur sayaç kontrolünü etiketli yola taşırken "kat/floor"un kendi numarasıyla
+    // gelebileceğini ölçmemişti → 5. turun KENDİ vitrin örneği dahil altı ad `null` oluyordu.
+    expect(apartmentNumberOf("No:12 D:5 Kat:3")).toBe("5");
+    expect(apartmentNumberOf("D:5 Kat:3")).toBe("5");
+    expect(apartmentNumberOf("Daire 5 Kat 2")).toBe("5");
+    expect(apartmentNumberOf("Daire 7 Kat 1")).toBe("7");
+    expect(apartmentNumberOf("Apartment 12 Floor 3")).toBe("12");
+    expect(apartmentNumberOf("Apt 9 Floor 2")).toBe("9");
+    // KARŞI YÖN KORUNDU: sayacın kendi sayısı YOKSA eleme sürer (kural yutmadı).
+    expect(apartmentNumberOf("Sahilde Daire 6 Kişilik")).toBe(null);
+    expect(apartmentNumberOf("Luxury 2 Bedroom Flat")).toBe(null);
+  });
+
+  it("🚨 İngilizcede SAYAÇ sayının SOLUNDA olabilir ('Sleeps 4', 'for 6')", () => {
+    // 6. tur yalnız sağa bakıyordu → kapasite sayısı misafire "Daireniz 4" olarak gidiyordu.
+    expect(apartmentNumberOf("Cozy Studio Sleeps 4")).toBe(null);
+    expect(apartmentNumberOf("Studio Sleeps 2")).toBe(null);
+    expect(apartmentNumberOf("Sleeps 5 Central Flat")).toBe(null);
+    expect(apartmentNumberOf("Villa for 6")).toBe(null);
+    expect(apartmentNumberOf("Apartment for 4")).toBe(null);
+    // KARŞI YÖN: soldaki sözcük sayaç DEĞİLSE tek sayı hâlâ daire numarasıdır.
+    expect(apartmentNumberOf("Kule 104")).toBe("104");
+    expect(apartmentNumberOf("Bodrum Villa 8")).toBe("8");
+  });
 });
 
 describe("guestFirstNameOf — yer tutucu adlar GERÇEK ad değildir", () => {

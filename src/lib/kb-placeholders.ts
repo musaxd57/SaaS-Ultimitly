@@ -55,7 +55,10 @@ export function guestFirstNameOf(guestIdentifier: string | null | undefined): st
   // ⚠️ BÜYÜK/KÜÇÜK HARFE DUYARLI DEĞİL (inceleme 09-10): sağlayıcı "rezervasyon 12345" (küçük)
   // yazdığında eski kontrol kaçırıyor ve misafire "Merhaba rezervasyon," gidiyordu. Türkçe
   // katlama şart: "MİSAFİR" → `toLowerCase()` ile "mi̇safir" olur, `toLocaleLowerCase("tr")` ile
-  // "misafir". ⚠️ Yalnız TAM eşleşme: "Misafir Ahmet" gerçek bir addır ve KORUNUR.
+  // "misafir". ⚠️ Yalnız TAM eşleşme — ve bu eşleşme İLK SÖZCÜĞE bakar: "Misafir Ahmet"
+  // de `null` döner (7. tur incelemesi: eski yorum "…gerçek bir addır ve KORUNUR" diyordu,
+  // KODLA ÇELİŞİYORDU ve dosyanın kendi testi tersini pinliyor). Yön güvenli: sağlayıcı
+  // "Misafir" ön ekini yer tutucu olarak kullandığında hitap nötr kalır.
   // 🚨 İKİ KATLAMA (inceleme turu 6, ÖLÇÜLDÜ): tek `toLocaleLowerCase("tr")` ASCII yazımı
   // kaçırıyordu — "MISAFIR" → tr katlamada "mısafır", eşleşmiyor, misafire "Merhaba MISAFIR,"
   // gidiyordu. Dosyanın kendi kuralı (keyKind/foldedForms/etiket dalı) zaten tr + standart çifti.
@@ -143,8 +146,27 @@ function foldedForms(s: string): string[] {
  * yalnız harf-olmayan VE rakam-olmayan karakterleri yutar → araya "2" girince eşleşme yok.
  */
 function followedByCounter(form: string, from: number): boolean {
-  const m = /^[^\p{L}\p{N}]*(\p{L}+)/u.exec(form.slice(from));
-  return !!m && COUNTER_AFTER_NUMBER.has(m[1]);
+  const m = /^[^\p{L}\p{N}]*(\p{L}+)([^\p{L}\p{N}]*)(\d)?/u.exec(form.slice(from));
+  if (!m || !COUNTER_AFTER_NUMBER.has(m[1])) return false;
+  // 🚨 SAYAÇ SÖZCÜĞÜ KENDİ SAYISINI ALIYORSA MODİFİKATÖR DEĞİL, YENİ ETİKETTİR
+  // (7. tur incelemesi, ÖLÇÜLDÜ): 6. tur sayaç kontrolünü etiketli yola taşırken bunu
+  // atladı ve KANONİK TÜRK ADRESİNİ yok etti — "No:12 D:5 Kat:3" → `null` (doğrusu 5),
+  // "Daire 5 Kat 2" → `null`, "Apartment 12 Floor 3" → `null`. Oysa "Daire 6 Kişilik"te
+  // "Kişilik"in kendi sayısı YOKTUR, önündeki sayıyı niteler → orada eleme DOĞRU.
+  return m[3] === undefined;
+}
+
+/**
+ * Sayıdan ÖNCE gelen SAYAÇ sözcükleri — İngilizce ilan başlıklarında sayaç genellikle
+ * sayının SOLUNDADIR ("Cozy Studio **Sleeps 4**", "Villa **for** 6") ve 6. turun
+ * yalnız-sağa bakan kontrolü bu biçimi HİÇ görmüyordu (ölçüldü: kapasite sayısı
+ * misafire "Daireniz 4" olarak gidiyordu). DAR liste: yalnız kapasite bildiren sözcükler.
+ */
+const COUNTER_BEFORE_NUMBER = new Set(["sleeps", "sleep", "for", "kapasite", "kapasitesi"]);
+
+function precededByCounter(form: string, upto: number): boolean {
+  const m = /(\p{L}+)[^\p{L}\p{N}]*$/u.exec(form.slice(0, upto));
+  return !!m && COUNTER_BEFORE_NUMBER.has(m[1]);
 }
 
 export function apartmentNumberOf(propertyName: string): string | null {
@@ -170,7 +192,9 @@ export function apartmentNumberOf(propertyName: string): string | null {
   if (only.length > 3) return null;
   for (const form of foldedForms(propertyName)) {
     const at = form.indexOf(only);
-    if (at >= 0 && followedByCounter(form, at + only.length)) return null;
+    if (at < 0) continue;
+    if (followedByCounter(form, at + only.length)) return null;
+    if (precededByCounter(form, at)) return null;
   }
   return only;
 }

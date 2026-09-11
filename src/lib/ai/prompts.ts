@@ -807,10 +807,16 @@ export function packKnowledgeBase(
     }
     lines.push(line);
     used += line.length;
-    // 🚨 BAŞLIK DA TARANIR (inceleme turu 6, ölçüldü): bu döngü başlığı isteme YAZIYOR
-    // (`- [KATEGORİ] ${title}: ${content}`), ama doldurulmamış yer tutucu taraması yalnız
-    // `content`e bakıyordu → başlıktaki "[ŞİFRE]"/"<adres>" için model hiçbir uyarı almıyordu.
-    const tokens = kbPlaceholderTokens(`${k.title}\n${k.content}`);
+    // 🚨 YALNIZ `content` TARANIR — 6. TURUN BAŞLIK TARAMASI GERİ ALINDI (7. tur incelemesi).
+    // Gerekçe "başlık da isteme yazılıyor" DOĞRUYDU ama BEDELİ ÖLÇÜLMEMİŞTİ: başlıklar ETİKET
+    // taşımaya elverişlidir ve `[...]` deseni etiketle yer tutucuyu ayırt edemez →
+    // "[ÖNEMLİ] Wi-Fi" · "[EN] Check-in" · "Kurallar [Güncellendi]" · "Otopark <yeni>" (4/4)
+    // DOLU kalemler için modele "bu bilgi kayıtlarımda yok" (KURAL-3) talimatı ürettiriyordu.
+    // Karşılığında ölçülen kazanç SIFIR: `KB_PRESETS` şablonlarının hiçbirinde parantezli
+    // BAŞLIK yok — doldurulmamış alanların tamamı `content` içinde yaşıyor.
+    // ⚠️ İKAME tarafı (`fillGuestPlaceholdersInItems`) başlığı çözmeye DEVAM EDER; iki
+    // mekanizma ayrıdır ve sır kapısı zaten `${title}\n${content}` tarar.
+    const tokens = kbPlaceholderTokens(k.content);
     if (tokens.length > 0) placeholders.push({ title: k.title, tokens });
   }
   // DOLDURULMAMIŞ YER TUTUCU — KODDAN tespit, modele AÇIK CÜMLE (E4, 09-09):

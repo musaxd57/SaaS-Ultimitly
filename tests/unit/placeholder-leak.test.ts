@@ -15,20 +15,34 @@ import type { SuggestReplyInput } from "@/lib/ai/types";
 // İstem tarafı: bilgi bloğu doldurulmamış yer tutucuyu KODDAN işaretler.
 // ---------------------------------------------------------------------------
 
-describe("🚨 BAŞLIKTAKİ yer tutucu da işaretlenir (inceleme turu 6)", () => {
-  it("packKnowledgeBase notu BAŞLIĞI da tarar — başlık isteme YAZILIYOR", () => {
-    // Döngü isteme `- [KATEGORİ] ${title}: ${content}` yazıyor, ama doldurulmamış yer tutucu
-    // taraması yalnız `content`e bakıyordu → başlıktaki "[ŞİFRE]" için model uyarı almıyordu.
-    const withTitleToken = packKnowledgeBase([
-      { category: "wifi", title: "Wi-Fi şifresi: [ŞİFRE]", content: "Ağ adı Nuve." },
-    ]);
-    expect(withTitleToken.text).toContain("DOLDURULMAMIŞ YER TUTUCU");
-    // KARŞI YÖN: yer tutucu YOKSA not da yok (ölü assert değil).
-    const clean = packKnowledgeBase([{ category: "wifi", title: "Wi-Fi", content: "Ağ adı Nuve." }]);
-    expect(clean.text).not.toContain("DOLDURULMAMIŞ YER TUTUCU");
-    // İçerikteki eski davranış korunur.
+describe("DOLDURULMAMIŞ YER TUTUCU notu — kapsam YALNIZ `content` (7. tur, ölçüldü)", () => {
+  // 🚨 6. TURUN BAŞLIK TARAMASI GERİ ALINDI. Gerekçesi ("başlık da isteme yazılıyor")
+  // doğruydu ama bedeli ölçülmemişti: başlıklar ETİKET taşır ve `[...]` deseni etiketle
+  // yer tutucuyu ayırt edemez → DOLU kalemler için modele "bu bilgi kayıtlarımda yok"
+  // (KURAL-3) talimatı üretiliyordu. Kazanç ölçüldü ve SIFIR: `KB_PRESETS` şablonlarının
+  // hiçbirinde parantezli BAŞLIK yok, doldurulmamış alanların hepsi `content` içinde.
+  it("içerikteki yer tutucu NOT üretir; yer tutucu yoksa üretmez", () => {
     const inContent = packKnowledgeBase([{ category: "wifi", title: "Wi-Fi", content: "Şifre: [ŞİFRE]" }]);
     expect(inContent.text).toContain("DOLDURULMAMIŞ YER TUTUCU");
+    const clean = packKnowledgeBase([{ category: "wifi", title: "Wi-Fi", content: "Ağ adı Nuve." }]);
+    expect(clean.text).not.toContain("DOLDURULMAMIŞ YER TUTUCU");
+  });
+
+  it("🚨 BAŞLIKTAKİ köşeli/açılı ETİKET sahte not ÜRETMEZ (4/4 ölçülen yanlış pozitif)", () => {
+    for (const title of ["[ÖNEMLİ] Wi-Fi", "[EN] Check-in", "Kurallar [Güncellendi]", "Otopark <yeni>"]) {
+      const packed = packKnowledgeBase([{ category: "general", title, content: "Ağ adı Nuve, şifre kapıda yazılı." }]);
+      expect(packed.text, title).not.toContain("DOLDURULMAMIŞ YER TUTUCU");
+    }
+  });
+
+  it("BİLİNEN SINIR (bilerek pinli): başlıkta GERÇEK doldurulmamış alan varsa not ÇIKMAZ", () => {
+    // Bedeli dürüstçe kaydet — kapsam daraltmasının karşılığı budur. Ölçülen kazanç
+    // sıfır olduğu için kabul edildi; sır kapısı ve İKAME başlığı taramaya DEVAM eder.
+    const packed = packKnowledgeBase([
+      { category: "wifi", title: "Wi-Fi şifresi: [ŞİFRE]", content: "Ağ adı Nuve." },
+    ]);
+    expect(packed.text).not.toContain("DOLDURULMAMIŞ YER TUTUCU");
+    expect(packed.text).toContain("[ŞİFRE]"); // başlık yine isteme yazılıyor
   });
 });
 

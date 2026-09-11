@@ -282,6 +282,54 @@ const PROBLEM_NEGATIONS = [
 ];
 
 /**
+ * KOŞUL AİLESİ — "sorun/problem" bir SORUNUN varsayımıdır, BİLDİRİMİ değil
+ * (7. inceleme turu, 09-11 — ÖLÇÜLDÜ).
+ *
+ * 🚨 İZİN sorusu ailesi ("sorun olur mu") 08-01'den beri `PROBLEM_NEGATIONS`te korunuyordu;
+ * KOŞUL ailesi UNUTULMUŞTU ve bağımsız bir 130 mesajlık bataryada ölçülen EN BÜYÜK yanlış
+ * pozitif sınıfıydı (11 mesaj): "Bir sorun olursa sizi arayabilir miyiz?" · "Bir sorun
+ * çıkarsa hangi numarayı arayalım?" · "Sorun yaşarsak size yazalım mı?" — üçü de oto-yanıtın
+ * VAR OLMA SEBEBİ olan SSS sorularıdır ve `complaint` ∈ `NEVER_AUTO_REPLY_INTENTS` olduğu
+ * için insana devrediliyor + host'a "Sorunlu" e-postası gidiyordu.
+ *
+ * ⚠️ HEPSİ TAM BİÇİM — dosyanın kendi kuralı gereği ÇAPASIZ ÖNEK YOK ("sorun ol" girişi
+ * "sorun oldu"yu da silerdi). Koşul kipi (-sa/-se) Türkçede bildirimle KARIŞMAZ: geçmişte
+ * olmuş bir arıza "olursa" ile anlatılamaz.
+ *
+ * 🚨 AYRI LİSTE, ÇÜNKÜ ALINTI FRENİ VAR: "Sorun olursa diye söylüyorum, klima çalışmıyor."
+ * biçiminde koşul bir SORU değil, yazma GEREKÇESİDİR ve ardından GERÇEK bildirim gelir.
+ * ÖLÇÜLDÜ: fren olmadan 7 karışık mesajın 2'si `general`e düşüyordu (gerçek bildirim
+ * kaybı = tehlikeli yön). `diye` görülürse koşul elemesi HİÇ uygulanmaz (fail-closed).
+ *
+ * 🚨 İngilizce girişlerin "ı"lı İKİZİ ŞART: `foldTurkishLowerTr` cümle başındaki "I"yı
+ * "ı" yapar ("If there is…" → "ıf there is…"), yani tek okuma yeterli DEĞİL — ÖLÇÜLDÜ,
+ * ikizsiz hâlde İngilizce koşul cümlesi complaint kalıyordu.
+ */
+const PROBLEM_CONDITIONAL_NEGATIONS = [
+  "sorun olursa", "sorun olur ise", "sorun çıkarsa", "sorun cikarsa",
+  "sorun yaşarsak", "sorun yasarsak", "sorun yaşarsam", "sorun yasarsam",
+  "sorun yaşarsanız", "sorun yasarsaniz",
+  "sorunla karşılaşırsak", "sorunla karsilasirsak",
+  "sorunla karşılaşırsanız", "sorunla karsilasirsaniz",
+  "sorun durumunda", "sorun halinde", "sorun hâlinde",
+  "herhangi bir sorunda", "problem olursa", "problem çıkarsa", "problem cikarsa",
+  "problem durumunda",
+  "if there is a problem", "if there's a problem", "if there is any problem",
+  "in case of a problem", "in case of any problem", "in case of problems",
+  "if we have a problem", "if you have a problem", "should there be a problem",
+  "ıf there is a problem", "ıf there's a problem", "ıf there is any problem",
+  "ın case of a problem", "ın case of any problem", "ın case of problems",
+  "ıf we have a problem", "ıf you have a problem",
+];
+
+/**
+ * ALINTI FRENİ: bu işaret varsa koşul kalıbı bir SORU değil, yazma GEREKÇESİDİR
+ * ("Sorun olursa DİYE yazıyorum, perde rayından çıkmış") → koşul elemesi uygulanmaz.
+ * ⚠️ Boşluklu yazılır: çıplak "diye" başka kelimelerin içinde geçer ("diyet").
+ */
+const CONDITION_QUOTE_MARKERS = [" diye "];
+
+/**
  * Lowercase for KEYWORD MATCHING with the Turkish İ fixed. In JS,
  * "İ".toLowerCase() yields "i" + U+0307 (combining dot above) — so every keyword
  * spelled with a plain "i" ("iade", "iptal", "intihar", "iğrenç"…) silently fails
@@ -641,6 +689,10 @@ function hasUnnegatedProblemWord(m: string): boolean {
   if (!PROBLEM_STEMS.some((w) => m.includes(w))) return false;
   let stripped = m;
   for (const neg of PROBLEM_NEGATIONS) stripped = stripped.split(neg).join(" ");
+  // Koşul elemesi ALINTI işareti yoksa uygulanır (fail-closed: şüphede şikâyet kalır).
+  if (!CONDITION_QUOTE_MARKERS.some((q) => m.includes(q))) {
+    for (const neg of PROBLEM_CONDITIONAL_NEGATIONS) stripped = stripped.split(neg).join(" ");
+  }
   return PROBLEM_STEMS.some((w) => stripped.includes(w));
 }
 
@@ -654,6 +706,26 @@ function hasUnnegatedProblemWord(m: string): boolean {
  * "makineli", "kombine") kapsanmaz; iki yarı tek başına yetmez ("Bozuldu." / "Klima var mı?").
  * "internet"/"wifi" cihaz listesinde YOK (bilinçli: KB'den yanıtlanır → wifi intent'i).
  */
+/**
+ * İZAFET (TAMLAMA) BİÇİMLERİ — soru eki guard'ına TABİ alt küme.
+ * Ayrı dizi, çünkü `hasNegativeVerbComplaint` bu girdilerde ek olarak `QUESTION_TAIL` okur.
+ */
+const POSSESSIVE_FACILITY_COMPLAINTS: readonly string[] = [
+  "musluğu akmıyo", "muslukları akmıyo", "musluklar akmıyo", "musluğu damlıyo", "musluğu damlatıyo",
+  "ocağı yanmıyo", "ocakları yanmıyo", "ocaklar yanmıyo",
+  "lavabosu tıkandı", "lavabosu tıkalı", "lavabosu tıkanıyo",
+  "klozeti tıkandı", "tuvaleti tıkandı", "gideri tıkandı", "gideri tıkalı",
+  "sifonu çekmiyo", "peteği ısınmıyo", "petekleri ısınmıyo", "petekler ısınmıyo",
+  "radyatörü ısınmıyo", "kaloriferi yanmıyo", "kombisi yanmıyo",
+  "ışığı yanmıyo", "ışıkları yanmıyo", "lambası yanmıyo", "lambaları yanmıyo",
+  "kapısı açılmıyo", "kapısı kapanmıyo", "kilidi açılmıyo", "kilidi açılmadı",
+  "suyu akmıyo", "suyu gelmiyo",
+];
+const QUESTION_GUARDED = new Set<string>([
+  ...POSSESSIVE_FACILITY_COMPLAINTS,
+  ...POSSESSIVE_FACILITY_COMPLAINTS.map(foldTurkishAscii),
+]);
+
 /**
  * TÜRKÇE OLUMSUZ-FİİL ŞİKÂYETLERİ — `KEYWORDS.complaint`ten AYRI LİSTE (inceleme 09-10).
  *
@@ -750,16 +822,17 @@ const NEGATIVE_VERB_COMPLAINTS: readonly string[] = [
   // complaint, "akmıyor/yanmıyor/tıkandı" ile general oluyordu (ölçülen asimetri).
   // ⚠️ BİLİNEN SINIR: bu bacak hâlâ KALIP tabanlı (cihaz kuralının belirteç/çekim mekanizması
   // burada yok) → yazılmamış her tamlama kaçar. Yapısal birleştirme ayrı tur ister.
-  "musluğu akmıyo", "muslukları akmıyo", "musluklar akmıyo", "musluğu damlıyo", "musluğu damlatıyo",
-  "ocağı yanmıyo", "ocakları yanmıyo", "ocaklar yanmıyo",
-  "lavabosu tıkandı", "lavabosu tıkalı", "lavabosu tıkanıyo",
-  "klozeti tıkandı", "tuvaleti tıkandı", "gideri tıkandı", "gideri tıkalı",
-  "sifonu çekmiyo", "peteği ısınmıyo", "petekleri ısınmıyo", "petekler ısınmıyo",
-  "radyatörü ısınmıyo", "kaloriferi yanmıyo", "kombisi yanmıyo",
-  "ışığı yanmıyo", "ışıkları yanmıyo", "lambası yanmıyo", "lambaları yanmıyo",
-  "kapısı açılmıyo", "kapısı kapanmıyo", "kilidi açılmıyo", "kilidi açılmadı",
-  "duşu akmıyo", "suyu akmıyo", "suyu gelmiyo",
+  // 🚨 SORU EKİ GUARD'I ŞART (7. tur incelemesi, ÖLÇÜLDÜ): bu blok TESİS ADINA ÇAPALI DEĞİL —
+  // herhangi bir iyelik öbeğinin içinde eşleşiyor ve 14 gerçekçi BİLGİ SORUSUNUN 13'ünü
+  // `complaint` yapıyordu: "Havuzun suyu akmıyor mu, şelale gibi mi?" · "Sokak lambası yanmıyor
+  // mu gece?" · "Otoparkın kapısı açılmıyor mu uzaktan kumandayla?" · "Kahve makinemizin suyu
+  // akmıyor, biz getirmiştik." Ayrım eşleşmenin HEMEN ARDINDAKİ soru ekindedir → ↓`QUESTION_TAIL`
+  // (yalnız BU alt kümeye, `CONDITIONAL_TAIL` emsaliyle; eski ağ DOKUNULMAZ).
+  // ⚠️ `"duşu akmıyo"` ÇIKARILDI — ÖLÇÜLDÜ, EŞDEĞER MUTANT: mevcut `"su akmıyo"` ASCII
+  // katlamada "su akmiyo" olur ve "duşu akmıyor" → "dusu akmiyor" içinde ZATEN altdizidir.
+  ...POSSESSIVE_FACILITY_COMPLAINTS,
 ];
+
 
 // 🚨 TAM BİÇİM, GÖVDE DEĞİL (inceleme 09-10, ölçüldü): "arızalan" gövdesi OLUMSUZ ve KOŞUL
 // çekimlerini de yakalıyordu — "Klima arızalanmadı, gayet iyi çalışıyor" (ÖVGÜ) ve "Buzdolabı
@@ -798,6 +871,16 @@ const BREAKDOWN_DEVICES = [
   "davlumbaz", "aspiratör", "jaluzi", "panjur", "diyafon", "termostat", "vantilatör", "duşakabin",
   "süpürge", "pencere", "çaydanlık", "çaydanlığ", "havalandırma", "boyler", "kepenk", "kepeng",
   "rezervuar", "interkom", "avize", "perde", "router",
+  // 🚨 `su`/`suy` — 6. TURUN GERİLEMESİNİN DÜZELTMESİ (7. tur incelemesi, ÖLÇÜLDÜ).
+  // 6. tur `"su"`yu `SUBJECT_SLOT_FILLERS`tan çıkarırken gerekçe olarak "SU GERÇEK BİR
+  // TESİS ADIDIR" yazmıştı — ama `su` cihaz listesinde OLMADIĞI için özne yuvasında
+  // "cihaz-DIŞI özne" sayılıp varsayılan-RET'e düşüyordu. Yani tespit, bildirimi kabul
+  // ettirmek yerine REDDETTİRİYORDU ve 6 gerçek bildirim OTO-GÖNDERİM İZNİ alıyordu:
+  //   "Şofbeni açtık, su bozuldu." · "Musluğu açtık, su bozuldu." · "Duşta su bozuldu."
+  // Tutarlı olan: gerekçeyi KODDA DOĞRU YAPMAK. `suy` ünlü kaynaştırmalı gövdedir
+  // ("suyumuz" yalın `su` ile eşleşmez). Çekim kapısı türetmeleri eliyor (ölçüldü:
+  // sunum · susuz · surat · suçlu · sucuk hiçbiri cihaz değil).
+  "su", "suy",
 ];
 
 /**
@@ -959,7 +1042,14 @@ const WORD_SPLIT = /[^\p{L}\p{N}]+/u;
  * kelimeyi BÖLMEZ — bu yolda SİLİNİR ("klima'mız" → "klimamız"). Ayıraç okuması kaybolmuyor:
  * `matchCandidates` zaten `splitApostrophes` adayını (kesme → boşluk) ayrıca üretiyor.
  */
-const APOSTROPHES = /['\u2019\u2018\u00B4`]/gu;
+// \uD83D\uDEA8 `\u00B4` (ACUTE ACCENT) \u00C7IKARILDI \u2014 \u00D6L\u00DC G\u0130RD\u0130YD\u0130 (7. tur incelemesi, \u00D6L\u00C7\u00DCLD\u00DC):
+// `deviceTokens` `normalizeForMatch` \u00C7IKTISI \u00FCzerinde \u00E7al\u0131\u015F\u0131r ve NFKC(U+00B4) = BO\u015ELUK +
+// U+0301 (birle\u015Ftirici i\u015Faret), yani o kod noktas\u0131 buraya H\u0130\u00C7 ULA\u015EMAZ. Listede durmas\u0131
+// "kapsan\u0131yor" yan\u0131lsamas\u0131 \u00FCretiyordu. S\u0131n\u0131f test-pinli B\u0130L\u0130NEN SINIR olarak kald\u0131:
+// "Klima\u00B4m\u0131z bozuldu." h\u00E2l\u00E2 ka\u00E7ar (d\u00FCzeltmesi NFKC \u00F6ncesi ayr\u0131 bir aday \u00FCretmeyi gerektirir).
+// `\u02BC` ve `\u2032` EKLEND\u0130: ikisi de NFKC'den DE\u011E\u0130\u015EMEDEN ge\u00E7iyor (\u00F6l\u00E7\u00FCld\u00FC) ve ger\u00E7ek
+// kesme varyantlar\u0131d\u0131r.
+const APOSTROPHES = /['\u2019\u2018\u02BC\u2032`]/gu;
 function deviceTokens(cand: string): string[] {
   return cand.replace(APOSTROPHES, "").split(WORD_SPLIT).filter(Boolean);
 }
@@ -1078,12 +1168,21 @@ function hasDeviceBreakdown(message: string): boolean {
   return false;
 }
 
-/** Kalıp metinde geçiyor ve GEÇTİĞİ yerde koşul eki almamış mı? */
-function reportedNotConditional(hay: string, needle: string): boolean {
+/**
+ * SORU EKİ: eşleşmenin hemen ardındaki "mu/mı/mü/mi" (araya yalnız "-r" ve boşluk girebilir —
+ * "akmıyo" + "r mu"). Ardından HARF gelmemeli, yoksa "mutfak"/"midem" de eşleşirdi.
+ * ⚠️ YALNIZ `QUESTION_GUARDED` alt kümesinde okunur: eski ağa uygulamak ölçülmedi ve
+ * "Sıcak su gelmiyor mu?" gibi gerçek şikâyetleri düşürme riski taşır.
+ */
+const QUESTION_TAIL = /^r?\s*m[ıiuü](?!\p{L})/u;
+
+/** Kalıp metinde geçiyor ve GEÇTİĞİ yerde koşul (ve istenirse soru) eki almamış mı? */
+function reportedNotConditional(hay: string, needle: string, guardQuestion = false): boolean {
   for (let from = 0; ; from += 1) {
     const at = hay.indexOf(needle, from);
     if (at < 0) return false;
-    if (!CONDITIONAL_TAIL.test(hay.slice(at + needle.length))) return true;
+    const tail = hay.slice(at + needle.length);
+    if (!CONDITIONAL_TAIL.test(tail) && !(guardQuestion && QUESTION_TAIL.test(tail))) return true;
     from = at;
   }
 }
@@ -1100,10 +1199,11 @@ function hasNegativeVerbComplaint(message: string): boolean {
     const tr = foldTurkishLowerTr(cand);
     const ascii = foldTurkishAscii(cand);
     for (const w of NEGATIVE_VERB_COMPLAINTS) {
+      const q = QUESTION_GUARDED.has(w);
       if (
-        reportedNotConditional(std, w) ||
-        reportedNotConditional(tr, w) ||
-        reportedNotConditional(ascii, foldTurkishAscii(w))
+        reportedNotConditional(std, w, q) ||
+        reportedNotConditional(tr, w, q) ||
+        reportedNotConditional(ascii, foldTurkishAscii(w), q)
       ) {
         return true;
       }
@@ -1136,7 +1236,16 @@ function detectIntent(message: string): Intent {
         // ⚠️ HAM çağrılar YERİNDE KALIR: `:351-354` kararı "normalizasyon negasyon kontrolünü
         // gevşetir" diyor ve haklı ("Sorun  yok" çift boşlukla olumsuzlanamıyor) — bu satır
         // yalnız EŞLEŞME EKLER, hiçbir olumsuzlamayı kaldırmaz.
-        hasUnnegatedProblemWord(foldTurkishLower(normalizeForMatch(message))) ||
+        // 🚨 DÜZELTME YARIMDI (7. tur, ölçüldü): 6. tur yalnız `normalizeForMatch` adayını
+        // aldı, HOMOGLİF adayını atladı → **tek bir Kiril "о" (U+043E)** aynı bypass'ı
+        // yeniden açıyordu ("Dairede bir sоrun var." → general → OTO-GÖNDERİM İZNİ).
+        // `deconfuse` ile sarıldı; ölçüldü: iki Kiril vakası complaint oldu, 11 olumsuzlama
+        // pininin hiçbiri bozulmadı.
+        // 🚨 `matchCandidates`i OLDUĞU GİBİ DOLAŞMAK YANLIŞ (ölçüldü, yapma): `stripCombining`
+        // "yaşamadık"ı MELEZ "yasamadık" yapar (ş→s ama ı korunur) — bu biçim ne TR ne ASCII
+        // olumsuzlama girdisiyle eşleşir ve "Hiçbir sorun yaşamadık." ÖVGÜSÜ complaint'e döner.
+        // `collapseSeparated` ("s o r u n") aynı sebeple DIŞARIDA: eleme tarafı katlanmıyor.
+        hasUnnegatedProblemWord(foldTurkishLower(deconfuse(normalizeForMatch(message)))) ||
         hasNegativeVerbComplaint(message) ||
         hasDeviceBreakdown(message))
     ) {

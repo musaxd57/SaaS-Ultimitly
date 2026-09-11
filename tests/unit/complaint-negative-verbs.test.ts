@@ -466,11 +466,14 @@ describe("classifyFallback — sözleşme tablosu (09-08 ölçümü → 09-10 s�
     expect(classifyFallback("Asansör var mı diye sormuştum, günümüz bozuldu ama sorun değil.").intent).not.toBe("complaint");
   });
 
-  it("'şu' özne yuvasında hâlâ atlanıyor; 'su' artık ÖZNE sayılıyor (gereksiz ASCII ikizi çıktı)", () => {
-    // "şu" gösterme sıfatıdır → atlanır; "su" GERÇEK bir tesis adıdır ve özne yuvasında
-    // atlanması kabulü kolaylaştırıyordu (ASCII ikizi olarak yazılmıştı, gereksizdi).
+  it("'şu' özne yuvasında atlanır; 'su' artık CİHAZ (7. turda düzeltildi — beklenti TERS ÇEVRİLDİ)", () => {
+    // 🚨 6. TURUN PİNİ YANLIŞ YÖNÜ KODLUYORDU. O tur `"su"`yu `SUBJECT_SLOT_FILLERS`tan
+    // çıkarıp "SU gerçek bir tesis adıdır" yazmıştı, ama `su` cihaz listesinde OLMADIĞI için
+    // özne yuvasında "cihaz-DIŞI özne" sayılıp bildirimi REDDETTİRİYORDU — yani gerekçe
+    // kodda TERSİNE çalışıyordu ve 6 gerçek bildirim oto-gönderim izni alıyordu (ölçüldü).
+    // 7. tur gerekçeyi kodda DOĞRU yaptı: `su`/`suy` artık `BREAKDOWN_DEVICES` üyesi.
     expect(classifyFallback("Klimayı açtık, şu bozuldu.").intent).toBe("complaint");
-    expect(classifyFallback("Klimayı kapattık, su bozuldu.").intent).not.toBe("complaint");
+    expect(classifyFallback("Klimayı kapattık, su bozuldu.").intent).toBe("complaint");
     // KARŞI YÖN: suyla ilgili gerçek bildirimi olumsuz-fiil bacağı zaten taşıyor.
     expect(classifyFallback("Su gelmiyor.").intent).toBe("complaint");
   });
@@ -637,6 +640,190 @@ describe("cihaz listesi boşlukları (7. tur, ölçülmüş): 19 ek cihaz adı",
     expect(classifyFallback("Router bozuldu, internet yok.").intent).toBe("complaint");
     expect(classifyFallback("İnternet gelmiyor.").intent).toBe("wifi");
     expect(classifyFallback("Wifi çekmiyor.").intent).toBe("wifi");
+  });
+});
+
+// ---------------------------------------------------------------------------
+// YEDİNCİ TUR İNCELEMESİ (09-11, ölçümlü ajan) — İKİSİ 6. TURUN GERİLEMESİ
+// ---------------------------------------------------------------------------
+describe("7. tur incelemesi: homoglif · 'su' · izafet soru guard'ı", () => {
+  const BENIGN = { source: "openai", intent: "amenity", riskLevel: "low", confidence: 0.9, riskType: null };
+
+  it("🚨 HOMOGLİF bypass'ı KAPANDI — 6. tur düzeltmesi YARIMDI", () => {
+    // 6. tur üçüncü okumayı YALNIZ `normalizeForMatch` üzerinden aldı; `deconfuse` adayını
+    // atladı → tek bir Kiril "о" (U+043E) aynı oto-gönderim iznini yeniden açıyordu.
+    expect(classifyFallback("Dairede bir sоrun var.").intent).toBe("complaint");
+    expect(classifyFallback("There is a prоblem in the flat.").intent).toBe("complaint");
+    expect(passesAutoReplySafetyGate(BENIGN, "Dairede bir sоrun var.")).toBe(false);
+    // 🚨 KARŞI YÖN — ELEME TARAFI BOZULMADI: `stripCombining` adayı ALINMADI, çünkü
+    // "yaşamadık"ı MELEZ "yasamadık" yapıp olumsuzlamayı kaçırıyor ve ÖVGÜ complaint'e dönüyordu.
+    for (const m of [
+      "Sorun yok, teşekkürler.", "Hiçbir sorun yaşamadık.", "Sorunsuz bir tatildi.",
+      "No problem at all!", "Pas de problème.", "Sorun değil.", "Hiçbir sorunu yaşamadık.",
+      "Hiçbir sorunla karşılaşmadık.",
+    ]) {
+      expect(classifyFallback(m).intent, m).not.toBe("complaint");
+    }
+    // "Sorun  yok" (çift boşluk) BİLEREK complaint kalır — normalizasyon ELEMEYE uygulanmaz.
+    expect(classifyFallback("Sorun  yok, teşekkürler.").intent).toBe("complaint");
+  });
+
+  it("🚨 'su' CİHAZ oldu — 6. turun 6 gerçek bildirimi düşüren gerilemesi kapandı", () => {
+    // 6. tur `"su"`yu filler'dan çıkarırken gerekçe "SU gerçek bir tesis adıdır" demişti ama
+    // `su` cihaz listesinde OLMADIĞI için özne yuvasında "cihaz-DIŞI özne" sayılıp bildirimi
+    // REDDETTİRİYORDU. Altısı da oto-gönderim izni alıyordu.
+    for (const m of [
+      "Şofbeni açtık, su bozuldu.", "Musluğu açtık, su bozuldu.", "Duşta su bozuldu.",
+      "Kombi çalışıyor ama su bozuldu.", "Termosifonu denedik, su bozuldu.",
+      "Klimayı kapattık, su bozuldu.", "Su bozuldu.",
+    ]) {
+      expect(classifyFallback(m).intent, m).toBe("complaint");
+      expect(passesAutoReplySafetyGate(BENIGN, m), m).toBe(false);
+    }
+    // ÇEKİM KAPISI türetmeleri eliyor (ölçüldü): bunların hiçbiri cihaz değil.
+    for (const m of [
+      "Sunum için projeksiyon var mı?", "Suratımız asıldı, tatilimiz bozuldu.",
+      "Suçlu değilsiniz, uçuşumuz bozuldu.", "Sucuk aldık ama bozuldu.",
+    ]) {
+      expect(classifyFallback(m).intent, m).not.toBe("complaint");
+    }
+  });
+
+  it("🚨 İZAFET kalıpları ÇAPASIZDI — soru eki guard'ı 9 bilgi sorusunu kurtarır", () => {
+    // 6. turun izafet bloğu tesis adına çapalı DEĞİL; herhangi bir iyelik öbeğinde eşleşiyordu.
+    for (const m of [
+      "Havuzun suyu akmıyor mu, şelale gibi mi?",
+      "Denizin suyu gelmiyor mu kıyıya, dalga var mı?",
+      "Sitedeki havuzun ışığı yanmıyor mu geceleri yüzmek için?",
+      "Sokak lambası yanmıyor mu gece, karanlık mı oluyor?",
+      "Çeşmenin suyu akmıyor mu kışın?",
+      "Otoparkın kapısı açılmıyor mu uzaktan kumandayla?",
+      "Termalin suyu gelmiyor mu bu mevsimde?",
+      "Bahçenin musluğu akmıyor mu yazın?",
+      "Kamp ocağı yanmıyor mu rüzgarda?",
+    ]) {
+      expect(classifyFallback(m).intent, m).not.toBe("complaint");
+    }
+  });
+
+  it("KARŞI YÖN: aynı kalıpların GERÇEK bildirim biçimi complaint KALIR", () => {
+    for (const m of [
+      "Mutfak musluğu akmıyor.", "Banyo lavabosu tıkandı.", "Mutfak ocağı yanmıyor.",
+      "Oda peteği ısınmıyor.", "Tuvalet sifonu çekmiyor.", "Salonun ışığı yanmıyor.",
+      "Balkon kapısı açılmıyor.", "Dairenin suyu gelmiyor.", "Banyonun suyu akmıyor.",
+      // Soru İŞARETİ var ama soru EKİ yok → guard tetiklenmez (ayrım ekte, cümlede değil).
+      "Mutfak musluğu akmıyor, ne yapmalıyız?",
+    ]) {
+      expect(classifyFallback(m).intent, m).toBe("complaint");
+    }
+  });
+
+  it("'suy' KAYNAŞTIRMA gövdesi CANLI ('suyumuz' yalın 'su' ile eşleşmez)", () => {
+    // Mutasyon turunda `"suy"`u silmek hiçbir testi düşürmemişti = girdi PİNSİZDİ.
+    // "su"+"yumuz" geçerli bir çekim dizisi DEĞİL → gövde ayrı yazılmazsa bildirim kaçar.
+    expect(classifyFallback("Suyumuz bozuldu.").intent).toBe("complaint");
+    expect(classifyFallback("Suyumuzu açtık, bozulmuş.").intent).toBe("complaint");
+  });
+
+  it("🚨 SORU EKİ guard'ı YALNIZ izafet alt kümesinde — eski ağa uygulanırsa gerçek şikâyet düşer", () => {
+    // Mutasyonla ölçüldü: guard'ı TÜM `NEGATIVE_VERB_COMPLAINTS`e açmak hiçbir testi
+    // düşürmüyordu = daraltma kararı PİNSİZDİ. Bu beş mesaj soru EKİ taşır ama AÇIKÇA
+    // şikâyettir; guard genişletilirse beşi de `general` olur ve oto-gönderim izni çıkar.
+    for (const m of [
+      "Sıcak su gelmiyor mu acaba, duş alamadık.",
+      "Elektrikler gitti mi ne oldu, hiçbir şey çalışmıyor.",
+      "Klima çalışmıyor mu, biz mi yanlış yapıyoruz?",
+      "Kapı açılmıyor mu böyle, anahtarı çeviremiyoruz.",
+      "Su akmıyor mu sizde de, komşuya soralım mı?",
+    ]) {
+      expect(classifyFallback(m).intent, m).toBe("complaint");
+    }
+  });
+
+  it("🚨 SORU EKİ'nde HARF SINIRI şart — 'mutfakta/mumla' soru eki DEĞİLDİR", () => {
+    // Lookahead olmadan `^r?\s*m[ıiuü]` bu üç bildirimi de susturuyordu (ölçüldü).
+    for (const m of [
+      "Banyo lavabosu tıkandı mutfakta da su birikiyor.",
+      "Oda peteği ısınmıyor mutfak da soğuk.",
+      "Salonun ışığı yanmıyor mumla oturuyoruz.",
+    ]) {
+      expect(classifyFallback(m).intent, m).toBe("complaint");
+    }
+  });
+
+  it("'duşu akmıyo' ÖLÜ girdiydi — silindi, davranış AYNI (eşdeğer mutant kanıtı)", () => {
+    // Mevcut "su akmıyo" ASCII katlamada "su akmiyo" olur ve "dusu akmiyor" içinde altdizidir.
+    expect(classifyFallback("Duşu akmıyor.").intent).toBe("complaint");
+    expect(classifyFallback("Banyodaki duşu akmıyor.").intent).toBe("complaint");
+  });
+
+  it("KESME varyantları: ʼ ve ′ kapsanır; ´ BİLİNEN SINIR (NFKC onu yok ediyor)", () => {
+    expect(classifyFallback("Klimaʼmız bozuldu.").intent).toBe("complaint");
+    expect(classifyFallback("Klima′mız bozuldu.").intent).toBe("complaint");
+    expect(classifyFallback("Klima'mız bozuldu.").intent).toBe("complaint");
+    expect(classifyFallback("Klima’mız bozuldu.").intent).toBe("complaint");
+    // 🚨 `´` = U+00B4; NFKC onu BOŞLUK + U+0301 yapar, yani `deviceTokens`e hiç ulaşmaz.
+    // Listede durması "kapsanıyor" yanılsamasıydı → çıkarıldı, sınır burada pinli.
+    expect(classifyFallback("Klima´mız bozuldu.").intent).not.toBe("complaint");
+  });
+
+  it("'malesef' özne yuvasında atlanır (6. turda PİNSİZ eklenmişti)", () => {
+    expect(classifyFallback("Klimayı açtık, malesef bozuldu.").intent).toBe("complaint");
+    expect(classifyFallback("Klimayı açtık, nedense bozuldu.").intent).toBe("complaint");
+  });
+});
+
+describe("7. tur: 'sorun/problem' KOŞUL ailesi (ölçülen en büyük yanlış pozitif sınıfı)", () => {
+  it("koşullu SSS soruları artık complaint DEĞİL (oto-yanıtın asıl işi)", () => {
+    for (const m of [
+      "Bir sorun olursa sizi arayabilir miyiz?",
+      "Bir sorun çıkarsa hangi numarayı arayalım?",
+      "Sorun yaşarsak size yazalım mı?",
+      "Bir sorunla karşılaşırsak ne yapmalıyız?",
+      "Herhangi bir sorunda size ulaşabilir miyiz?",
+      "Sorun durumunda acil numaranız var mı?",
+      // 🚨 İngilizce: `foldTurkishLowerTr` cümle başındaki "I"yı "ı" yapar → "ı"lı İKİZ ŞART.
+      "If there is a problem, who should we contact?",
+      "In case of any problem, is there an emergency number?",
+    ]) {
+      expect(classifyFallback(m).intent, m).not.toBe("complaint");
+    }
+  });
+
+  it("KARŞI YÖN: bu bacağa TEK BAŞINA bağlı gerçek şikâyetler KORUNDU", () => {
+    for (const m of [
+      "Dairede bir sorun var.", "Sorunumuz devam ediyor.", "Bir sorun yaşıyoruz.",
+      "Sorun çözülmedi.", "Aynı sorun tekrar etti.",
+      "There is a problem in the flat.", "We are having a problem with the heating.",
+    ]) {
+      expect(classifyFallback(m).intent, m).toBe("complaint");
+    }
+  });
+
+  it("🚨 ALINTI FRENİ: 'diye' varsa koşul elemesi HİÇ uygulanmaz (fail-closed)", () => {
+    // Fren olmadan ÖLÇÜLDÜ: 7 karışık mesajın 2'si `general`e düşüyordu — koşul bir SORU
+    // değil, yazma GEREKÇESİdir ve ardından GERÇEK bildirim gelir.
+    for (const m of [
+      "Sorun olursa diye söylüyorum, klima çalışmıyor.",
+      "Sorun çıkarsa diye yazıyorum, kombi bozuldu.",
+      "Sorun olursa diye yazıyorum, perde rayından çıkmış.",
+      "Sorun yaşarsak diye sormuştum ama şu an gerçekten yaşıyoruz.",
+      "Sorun çıkarsa diye not ediyorum: asansör çalışmıyor.",
+    ]) {
+      expect(classifyFallback(m).intent, m).toBe("complaint");
+    }
+  });
+
+  it("🚨 ALINTI işareti BOŞLUKLU — 'diyet' içindeki 'diye' freni TETİKLEMEZ", () => {
+    // Mutasyonla ölçüldü: çıplak `"diye"` hiçbir testi düşürmüyordu = boşluk kararı PİNSİZDİ.
+    // "diyet" gerçek bir sözcüktür; freni tetiklerse koşul elemesi sessizce ölür.
+    expect(classifyFallback("Sorun olursa diyet menüsü var mı?").intent).not.toBe("complaint");
+    expect(classifyFallback("Bir sorun olursa diyetimizi bozmadan yemek bulabilir miyiz?").intent).not.toBe("complaint");
+  });
+
+  it("İZİN sorusu ailesi (08-01) DOKUNULMADAN çalışıyor", () => {
+    expect(classifyFallback("Arkadaşım uğrayacak, sorun olur mu?").intent).not.toBe("complaint");
+    expect(classifyFallback("Geç check-in sorun olmaz değil mi?").intent).not.toBe("complaint");
   });
 });
 
