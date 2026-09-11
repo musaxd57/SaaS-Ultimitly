@@ -27,6 +27,8 @@ vi.mock("@/lib/guest-chat-alerts", async (orig) => {
 });
 
 import { escalationReply } from "@/lib/guest-chat";
+import { unverifiedActionClaims } from "../helpers/claim-detectors";
+import { detectRiskType } from "@/lib/ai/fallback";
 
 describe("QR devir metni — gerçekleşmemiş aktarım iddia etmez", () => {
   beforeEach(() => {
@@ -51,5 +53,54 @@ describe("QR devir metni — gerçekleşmemiş aktarım iddia etmez", () => {
     const off = escalationReply();
     enabled.value = true;
     expect(escalationReply()).toBe(off);
+  });
+});
+
+// ---------------------------------------------------------------------------
+// ACİL DURUM ≠ SIRADAN İSTEK (kurucu, 2026-09-11: "acil durum ile istekleri ayır").
+//
+// 🚨 ÖLÇÜLEN AÇIK: yangın/gaz kaçağı ile "bir yastık daha alabilir miyiz?" misafire
+// KARAKTERİ KARAKTERİNE aynı cümleyi aldırıyordu. Üstelik ürün acil durumda ne
+// diyeceğini ZATEN biliyor (`prompts.ts` ÖRNEK 12 modele tam bu yönergeyi
+// öğretiyor) — kapı `model_risk_type` ile devredince o metin ATILIYOR ve yerine
+// jenerik cümle konuyordu.
+// ---------------------------------------------------------------------------
+describe("QR devir metni — acil durumda güvenlik yönergesi eklenir", () => {
+  beforeEach(() => {
+    enabled.value = false;
+  });
+
+  it("🚨 critical: güvenlik yönergesi EKLENİR ve çapa cümlesi AYNEN korunur", () => {
+    const normal = escalationReply();
+    const critical = escalationReply({ critical: true });
+    expect(critical).not.toBe(normal);
+    // Çapa kaybolmaz — "kaydedildi + host görebilir" garantisi her iki dalda da var.
+    expect(critical).toContain(normal);
+    expect(critical).toMatch(/güvenli bir alana/i);
+    expect(critical).toMatch(/acil servis/i);
+  });
+
+  it("🚨 acil metin de AYNI sözleşmeye tabi: makbuzsuz iddia yok, ünlem yok, kurumsal dil yok", () => {
+    const critical = escalationReply({ critical: true });
+    // Yönerge misafire VERİLEN bir talimattır; bizim yaptığımız bir eylem iddiası DEĞİL.
+    expect(unverifiedActionClaims(critical), critical).toEqual([]);
+    expect(critical).not.toMatch(/!/);
+    expect(critical).not.toMatch(/yöneticimiz|operatörümüz|işletme ekib/i);
+    // TERS YÖN — dedektör ölü assert değil.
+    expect(unverifiedActionClaims("Durumu itfaiyeye ilettim; ev sahibiniz size dönecek."))
+      .toEqual(expect.arrayContaining(["past_action", "future_commitment"]));
+  });
+
+  it("critical:false ve argümansız çağrı BİREBİR aynı (eski pinler korunur)", () => {
+    expect(escalationReply({ critical: false })).toBe(escalationReply());
+    expect(escalationReply({})).toBe(escalationReply());
+  });
+
+  it("🚨 ÖLÇÜT deterministik `detectRiskType` — sıradan istek acil dalına DÜŞMEZ", () => {
+    // Rota `criticalEvent = detectRiskType(message) === "safety_emergency"` kullanır;
+    // burada o yüklemin sınıfı ayırdığını ölçüyoruz (rotanın kendi pini ayrı).
+    expect(detectRiskType("Yangın var, duman geliyor!")).toBe("safety_emergency");
+    expect(detectRiskType("Bir yastık daha alabilir miyiz?")).not.toBe("safety_emergency");
+    expect(detectRiskType("Geç çıkış mümkün mü?")).not.toBe("safety_emergency");
   });
 });

@@ -1,19 +1,26 @@
 import Link from "next/link";
 import { redirect, notFound } from "next/navigation";
-import { AlertTriangle, ArrowLeft } from "lucide-react";
+import { AlertTriangle, ArrowLeft, User, UserRound } from "lucide-react";
 import { requireAuth } from "@/lib/auth";
 import { orgTimezone } from "@/lib/timezone";
 import { prisma } from "@/lib/db";
 import { PageHeader } from "@/components/page-header";
+import { BrandMark } from "@/components/brand";
 import { Card, CardContent } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
+import { AutoRefresh } from "@/components/inbox/auto-refresh";
 import { GuestChatReply } from "@/components/guest-chats/reply-box";
 import { GuestChatResumeAi } from "@/components/guest-chats/resume-ai-button";
+import { ScrollToLatest } from "@/components/guest-chats/scroll-to-latest";
 import { guestChatPausedByConversation } from "@/lib/guest-chat";
 import { guestChatDisplayRole } from "@/lib/message-author";
 import { formatDate, formatDateTime } from "@/lib/utils";
 
 export const dynamic = "force-dynamic";
+
+/** Mesaj kaydırma kabının DOM kimliği — `ScrollToLatest` bunu arar (server
+ *  component'ten istemciye ref geçirilemez). */
+const MESSAGE_BOX_ID = "guest-chat-messages";
 
 /** Varsayılan pencere: bir QR konaklaması bunu neredeyse hiç aşmaz. */
 const RECENT_WINDOW = 200;
@@ -102,8 +109,17 @@ export default async function GuestChatDetailPage({
   const aiPaused = (await guestChatPausedByConversation([convo.id])).get(convo.id) ?? false;
   const guestLabel = convo.reservation?.guestName ?? convo.guestIdentifier;
 
+  // 🚨 "Yeni mesaj geldi mi" imzası: sayı + son mesajın kimliği. Yalnız sayıya
+  // bakmak, aynı anda bir mesaj silinip biri eklenirse kaydırmayı kaçırırdı.
+  const latestSignature = `${convo._count.messages}:${messages[messages.length - 1]?.id ?? ""}`;
+
   return (
     <>
+      {/* 🚨 QR sohbetleri ekranı KENDİNİ YENİLEMİYORDU (kurucu, 09-11: "gelsin işte
+          mesajlar hemen"). Misafir tarafı 5 sn'de bir poll ederken host F5'e
+          basmak zorundaydı; Mesajlar ekranında bu bileşen 08'den beri var, QR
+          ekranları atlanmıştı. Görünürlük kapısı ve temizlik bileşenin içinde. */}
+      <AutoRefresh seconds={30} />
       <PageHeader
         title={`${convo.property.name} · ${guestLabel}`}
         description="QR üzerinden gelen misafir sohbeti. Buradan misafire siz de yazabilirsiniz."
@@ -130,7 +146,11 @@ export default async function GuestChatDetailPage({
                 <AlertTriangle className="mr-1 size-3" /> Ev sahibine iletildi
               </Badge>
             ) : null}
-            {aiPaused ? <Badge tone="default">🙋 İnsan desteğinde</Badge> : null}
+            {aiPaused ? (
+              <Badge tone="default">
+                <UserRound className="mr-1 size-3" /> İnsan desteğinde
+              </Badge>
+            ) : null}
             <span className="ml-auto text-xs text-muted-foreground">
               {convo._count.messages} mesaj
             </span>
@@ -156,59 +176,93 @@ export default async function GuestChatDetailPage({
             </p>
           ) : null}
 
-          {messages.map((m) => {
-            // Reliable, typed role (authorType) — never the message text/senderName.
-            const role = guestChatDisplayRole(m);
-            // The AI re-enable event is a system separator line, not a chat bubble.
-            if (role === "resume") {
+          {/* 🚨 MESAJLAR KENDİ KAYDIRMA KABINDA (09-11). Eskiden tüm pencere (200,
+              "önceki"lerle 1000'e kadar) düz basılıyordu: yazma kutusu balonların
+              ALTINDA kalıyor, host sayfayı açtığında EN ESKİ mesajda duruyordu ve
+              30 sn'lik tazeleme yeni bir balon eklediğinde yazma kutusu aşağı
+              kayıyordu. Gelen kutusundaki desenin (`conversation-thread.tsx`)
+              aynısı: kap kaydırılır, composer kabın DIŞINDA sabit kalır. */}
+          <div
+            id={MESSAGE_BOX_ID}
+            tabIndex={0}
+            role="group"
+            aria-label="Misafir sohbeti"
+            className="scrollbar-thin max-h-[52vh] space-y-2 overflow-y-auto overscroll-contain scroll-smooth rounded-lg bg-muted/20 p-2"
+          >
+            {messages.map((m) => {
+              // Reliable, typed role (authorType) — never the message text/senderName.
+              const role = guestChatDisplayRole(m);
+              // The AI re-enable event is a system separator line, not a chat bubble.
+              if (role === "resume") {
+                return (
+                  <div
+                    key={m.id}
+                    className="my-1 flex items-center gap-2 text-[11px] text-muted-foreground"
+                  >
+                    <span className="h-px flex-1 bg-border" />
+                    <BrandMark className="size-3.5" />
+                    Lixus AI yeniden etkinleştirildi
+                    <span className="h-px flex-1 bg-border" />
+                  </div>
+                );
+              }
+              const guest = role === "guest";
+              const host = role === "host";
               return (
-                <div
-                  key={m.id}
-                  className="my-1 flex items-center gap-2 text-[11px] text-muted-foreground"
-                >
-                  <span className="h-px flex-1 bg-border" />
-                  🤖 Lixus AI yeniden etkinleştirildi
-                  <span className="h-px flex-1 bg-border" />
-                </div>
-              );
-            }
-            const guest = role === "guest";
-            const host = role === "host";
-            return (
-              <div key={m.id} className={guest ? "flex justify-start" : "flex justify-end"}>
-                <div
-                  className={
-                    guest
-                      ? "max-w-[85%] rounded-2xl rounded-bl-sm border border-border bg-card px-3 py-2 text-sm"
-                      : host
-                        ? "max-w-[85%] rounded-2xl rounded-br-sm border border-emerald-300 dark:border-emerald-500/30 bg-emerald-50 dark:bg-emerald-500/10 px-3 py-2 text-sm text-emerald-900 dark:text-emerald-200"
-                        : "max-w-[85%] rounded-2xl rounded-br-sm bg-primary px-3 py-2 text-sm text-primary-foreground"
-                  }
-                >
-                  <p className="whitespace-pre-wrap break-words">{m.body}</p>
-                  <p
+                <div key={m.id} className={guest ? "flex justify-start" : "flex justify-end"}>
+                  <div
                     className={
                       guest
-                        ? "mt-0.5 text-[10px] text-muted-foreground"
+                        ? "max-w-[85%] rounded-2xl rounded-bl-sm border border-border bg-card px-3 py-2 text-sm"
                         : host
-                          ? "mt-0.5 text-[10px] text-emerald-700 dark:text-emerald-400"
-                          : "mt-0.5 text-[10px] text-primary-foreground/70"
+                          ? "max-w-[85%] rounded-2xl rounded-br-sm border border-emerald-300 dark:border-emerald-500/30 bg-emerald-50 dark:bg-emerald-500/10 px-3 py-2 text-sm text-emerald-900 dark:text-emerald-200"
+                          : "max-w-[85%] rounded-2xl rounded-br-sm bg-primary px-3 py-2 text-sm text-primary-foreground"
                     }
                   >
-                    {guest ? "👤 Misafir" : host ? "🙋 Siz" : "🤖 Lixus AI"} ·{" "}
-                    {formatDateTime(m.createdAt, TZ)}
-                  </p>
+                    <p className="whitespace-pre-wrap break-words">{m.body}</p>
+                    {/* 🚨 EMOJİ YERİNE GERÇEK İKON (kurucu, 09-11: "ordaki insan figuru
+                        daha güzel olabilir … AI logosunda adam gibi bir logo olsun
+                        robot niye koydun"). 🤖/👤/🙋 sistem yazı tipine bağlıydı —
+                        Android/iOS/Windows'ta farklı çiziliyor, tema rengini almıyor.
+                        AI'ın yüzü artık ÜRÜNÜN KENDİ LOGOSU (`BrandMark`, currentColor
+                        SVG) — robot değil, marka. */}
+                    <p
+                      className={
+                        guest
+                          ? "mt-0.5 flex items-center gap-1 text-[10px] text-muted-foreground"
+                          : host
+                            ? "mt-0.5 flex items-center justify-end gap-1 text-[10px] text-emerald-700 dark:text-emerald-400"
+                            : "mt-0.5 flex items-center justify-end gap-1 text-[10px] text-primary-foreground/70"
+                      }
+                    >
+                      {guest ? (
+                        <>
+                          <User className="size-3" /> Misafir
+                        </>
+                      ) : host ? (
+                        <>
+                          <UserRound className="size-3" /> Siz
+                        </>
+                      ) : (
+                        <>
+                          <BrandMark className="size-3" /> Lixus AI
+                        </>
+                      )}
+                      <span aria-hidden="true">·</span> {formatDateTime(m.createdAt, TZ)}
+                    </p>
+                  </div>
                 </div>
-              </div>
-            );
-          })}
+              );
+            })}
+          </div>
+          <ScrollToLatest targetId={MESSAGE_BOX_ID} signature={latestSignature} />
 
           {aiPaused ? (
             <div className="border-t border-border pt-3">
               <GuestChatResumeAi conversationId={convo.id} />
             </div>
           ) : null}
-          <GuestChatReply conversationId={convo.id} />
+          <GuestChatReply conversationId={convo.id} aiPaused={aiPaused} />
         </CardContent>
       </Card>
     </>

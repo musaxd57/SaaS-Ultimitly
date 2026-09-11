@@ -4,6 +4,7 @@ import { suggestReply } from "@/lib/ai";
 import { passesAutoReplySafetyGate } from "@/lib/automation";
 import { badRequest, jsonOk, notFound, serverError, tooManyRequests, parseJsonBody, payloadTooLarge } from "@/lib/api";
 import { rateLimit, clientIp } from "@/lib/rate-limit";
+import { DEMO_HOURLY_LIMIT } from "@/lib/constants";
 
 // ---------------------------------------------------------------------------
 // PUBLIC landing-page AI demo — "type a guest message, see the real answer".
@@ -50,9 +51,10 @@ export async function POST(req: NextRequest) {
   if (process.env.LANDING_DEMO_ENABLED !== "1") return notFound();
 
   try {
-    const limited = await rateLimit(`demo-ai:${clientIp(req)}`, 6, 60 * 60_000); // 6 / hour / IP
-    if (!limited.ok) return tooManyRequests(limited.retryAfter);
-
+    // 🚨 BÜTÇE DOĞRULAMADAN SONRA TÜKETİLİR (09-11). Eskiden `rateLimit` ilk
+    // satırdaydı: boş ya da çok uzun bir istek de ziyaretçinin saatlik hakkını
+    // yakıyordu. Depo kuralı zaten bu ("bütçe doğrulamadan SONRA tüketilir");
+    // bu rota istisnaydı ve belgelenmemişti.
     const bodyResult = await parseJsonBody<{ message?: unknown }>(req);
     if (!bodyResult.ok && bodyResult.tooLarge) return payloadTooLarge();
     const body = bodyResult.ok ? bodyResult.data : null;
@@ -60,6 +62,19 @@ export async function POST(req: NextRequest) {
     if (!message) return badRequest({ message: "Bir mesaj yazın." });
     if (message.length > MAX_MESSAGE) {
       return badRequest({ message: `Mesaj çok uzun (en fazla ${MAX_MESSAGE} karakter).` });
+    }
+
+    // 🚨 SAATLİK HAK ÇİP SAYISINDAN BÜYÜK OLMALI (kurucu, 09-11: "çip sayısını
+    // 8e çıkar o zaman orda saatlik"). Eski hâl ölçüldü: 6 çip / saatte 6 istek
+    // — ziyaretçi altı çipin altısına tıklarsa KENDİ yazacağı tek soru için hak
+    // KALMIYORDU. Sayı `DEMO_HOURLY_LIMIT` tek kaynağından gelir ve landing
+    // metninde AYNI sayı yazılır (parite test-pinli).
+    const limited = await rateLimit(`demo-ai:${clientIp(req)}`, DEMO_HOURLY_LIMIT, 60 * 60_000);
+    if (!limited.ok) {
+      return tooManyRequests(
+        limited.retryAfter,
+        `Bu demo saatte ${DEMO_HOURLY_LIMIT} soru ile sınırlı. Bir süre sonra tekrar deneyebilir ya da hemen ücretsiz kaydolabilirsiniz.`,
+      );
     }
 
     // Durable global daily cap: atomic increment then check, so a burst of

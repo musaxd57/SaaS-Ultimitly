@@ -45,3 +45,25 @@ export const KB_RETRIEVAL_MAX_CHUNKS = 12;
  * yukarıdaki bütçedir. Bayrak kapalıyken kullanılmaz.
  */
 export const KB_RETRIEVAL_FETCH_CAP = 200;
+
+/* ---------------------------------------------------------------------------
+ * KONUŞMA GEÇMİŞİ PENCERESİ (kurucu, 2026-09-11: "context windowmuz iyi olsun
+ * normal airbnb sohbetlerindede qr sohbetlerindede kaç cümle eskiye kadar
+ * görebiliyor").
+ *
+ * 🚨 ÖLÇÜLEN DARBOĞAZ: `prompts.ts` geçmişi ÇIPLAK `.slice(-6)` ile kesiyordu
+ * ve GEREKÇESİ HİÇBİR YERDE YAZMIYORDU. Yukarı akışta üç yüzeyin üçü de çok
+ * daha fazlasını taşıyor — oto-yanıt ve inbox öneri konuşmanın TAMAMINI
+ * (tavan yok), QR ise özenle kurulmuş 24 mesaj / 8.000 karakterlik bir pencere
+ * (`guest-chat.ts buildGuestChatContextWindow`). Yani QR'ın penceresi mesaj
+ * sayısı bakımından ÖLÜYDÜ: 7.–24. mesajlar burada atılıyordu ve o kodun kendi
+ * gerekçesi ("eski 12'lik tavan ≈6 tur taşıyordu, yetersizdi") uygulanmıyordu.
+ *
+ * Tavan 25, bütçe 6.000 karakter — CLAUDE.md'nin kendi gereksinimi ("tavan 25,
+ * hedef ~10–12"). Mekanik `-6 → -25` YAPILMADI: sayı değil BÜTÇE karar verir,
+ * çünkü tek bir 4.000 karakterlik mesaj 25 kısa mesajdan pahalıdır.
+ * ------------------------------------------------------------------------- */
+/** İsteme giren geçmiş mesaj sayısının MUTLAK tavanı. */
+export const HISTORY_MESSAGE_CAP = 25;
+/** Geçmiş bloğunun karakter bütçesi (güvenlik penceresi bunu AŞABİLİR). */
+export const HISTORY_CHAR_BUDGET = 6_000;

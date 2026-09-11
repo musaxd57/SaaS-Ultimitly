@@ -1,11 +1,12 @@
 import Link from "next/link";
 import { redirect } from "next/navigation";
-import { AlertTriangle, QrCode, Building2, MessageSquare } from "lucide-react";
+import { AlertTriangle, QrCode, Building2, MessageSquare, UserRound } from "lucide-react";
 import { requireAuth } from "@/lib/auth";
 import { orgTimezone } from "@/lib/timezone";
 import { prisma } from "@/lib/db";
 import { PageHeader } from "@/components/page-header";
 import { Pager } from "@/components/pager";
+import { AutoRefresh } from "@/components/inbox/auto-refresh";
 import { Card, CardContent } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { LinkButton } from "@/components/ui/link-button";
@@ -97,6 +98,10 @@ export default async function GuestChatsPage({
 
   return (
     <>
+      {/* 🚨 Bu ekran kendini YENİLEMİYORDU (kurucu, 09-11): misafir 5 sn'de bir
+          poll ederken host F5'e basmak zorundaydı. Mesajlar ekranındaki desenin
+          aynısı; görünürlük kapısı bileşenin içinde (sekme arkadayken tick yok). */}
+      <AutoRefresh seconds={30} />
       <PageHeader
         title="Misafir Sohbetleri"
         description="Daireye asılan QR'dan gelen sohbetler — misafirin sorusu, AI'ın yanıtı ve sizin yanıtlarınız. Mesajlar (Airbnb) sekmesinden ayrı tutulur. Bir sohbeti açıp misafire siz de yazabilirsiniz."
@@ -178,7 +183,11 @@ export default async function GuestChatsPage({
                       <AlertTriangle className="mr-1 size-3" /> Ev sahibine iletildi
                     </Badge>
                   ) : null}
-                  {t.aiPaused ? <Badge tone="default">🙋 İnsan desteğinde</Badge> : null}
+                  {t.aiPaused ? (
+                    <Badge tone="default">
+                      <UserRound className="mr-1 size-3" /> İnsan desteğinde
+                    </Badge>
+                  ) : null}
                   <span className="ml-auto text-xs text-muted-foreground">
                     {t.lastMessageAt ? fromNow(t.lastMessageAt, TZ) : "—"}
                   </span>

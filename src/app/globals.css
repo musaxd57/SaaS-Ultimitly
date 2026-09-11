@@ -121,19 +121,52 @@
   }
 }
 
-/* Thin, unobtrusive scrollbars for operation-heavy screens */
+/* ---------------------------------------------------------------------------
+ * KAYDIRMA ÇUBUĞU — GÖRÜNÜR (kurucu, 09-11: "o scroll şeyi daha çok belli
+ * olsun çok silik, alt üste gidebileceği anlaşılsın").
+ *
+ * 🚨 ESKİ HÂL ÖLÇÜLDÜ: başparmak `--border` idi ve açık temada beyaz kartın
+ * üzerinde kontrastı **≈1,2:1** (karanlıkta ≈1,6:1) — pratikte görünmüyordu.
+ * Ayrıca `::-webkit-scrollbar-track` kuralı HİÇ YAZILMAMIŞTI: Chromium'da
+ * `::-webkit-scrollbar` tanımlanır tanımlanmaz oluk özel çizime geçer ve
+ * SAYDAM kalır, yani ince gri bir çizgi boşlukta yüzüyordu — "kanal" hissi,
+ * dolayısıyla "burada kaydırılacak içerik var" afordansı yoktu. `:hover`
+ * durumu da yoktu.
+ *
+ * YENİ HÂL: başparmak `--muted-foreground` (iki temada da OKUNUR olması için
+ * özellikle hesaplanmış tek ikincil renk; açık 215 16% 47%, karanlık
+ * 215 22% 72%) alfa ile; oluk `--muted` ile GERÇEK bir kanal çizer. Genişlik
+ * 8 → 10px (⚠️ kabuktaki `zoom: 0.95` yüzünden ekranda ~9,5px).
+ *
+ * Sınıf adı `scrollbar-thin` KORUNDU: tek kullanıcısı vardı ama artık panelin
+ * ana kaydırıcısı dâhil çok yerde kullanılıyor; yeniden adlandırmak sapma
+ * davetiyesi olurdu.
+ * ------------------------------------------------------------------------- */
 @layer utilities {
   .scrollbar-thin {
+    /* Firefox + Chrome 121+. İki renk alır (thumb, track) ve :hover TANIMAZ →
+       webkit kuralları hover'ı ayrıca taşır. */
     scrollbar-width: thin;
-    scrollbar-color: hsl(var(--border)) transparent;
+    scrollbar-color: hsl(var(--muted-foreground) / 0.5) hsl(var(--muted));
   }
   .scrollbar-thin::-webkit-scrollbar {
-    width: 8px;
-    height: 8px;
+    width: 10px;
+    height: 10px;
+  }
+  .scrollbar-thin::-webkit-scrollbar-track {
+    background-color: hsl(var(--muted));
+    border-radius: 9999px;
   }
   .scrollbar-thin::-webkit-scrollbar-thumb {
-    background-color: hsl(var(--border));
+    background-color: hsl(var(--muted-foreground) / 0.5);
     border-radius: 9999px;
+    /* Oluğun kenarında ince bir boşluk bırakır → başparmak "kanalın içinde"
+       okunur, kenara yapışmış bir çizgi gibi değil. */
+    border: 2px solid transparent;
+    background-clip: padding-box;
+  }
+  .scrollbar-thin::-webkit-scrollbar-thumb:hover {
+    background-color: hsl(var(--muted-foreground) / 0.8);
   }
 }
 

@@ -2,7 +2,7 @@ import "server-only";
 import type { ReplyTone } from "@/lib/constants";
 // Tavanlar YAPRAK modülde: tarayıcıya giden ekranlar bu dosyayı (75 KB sistem
 // promptu + eğitim örnekleri) import etmek ZORUNDA kalmasın diye. ↓ai/limits.ts
-import { KB_ITEM_CAP, KB_CHAR_BUDGET } from "@/lib/ai/limits";
+import { KB_ITEM_CAP, KB_CHAR_BUDGET, HISTORY_MESSAGE_CAP, HISTORY_CHAR_BUDGET } from "@/lib/ai/limits";
 import { foldTurkishLower, foldTurkishAscii } from "@/lib/ai/fallback";
 export { KB_ITEM_CAP, KB_CHAR_BUDGET };
 import type { AdjacencyContext, KbContext, PropertyContext, SuggestReplyInput } from "./types";
@@ -899,6 +899,69 @@ export function findTimeConflicts(property: PropertyContext, kb: KbContext[]): T
   return out;
 }
 
+/**
+ * İsteme girecek konuşma geçmişini seçer — SAF, deterministik, DB'siz.
+ *
+ * 🚨 ESKİ HÂL ÇIPLAK `.slice(-6)` İDİ ve gerekçesi hiçbir yerde yazmıyordu
+ * (ölçüldü 09-11). Üç yüzeyin üçü de yukarı akışta çok daha fazlasını taşıyor:
+ * oto-yanıt ve inbox öneri konuşmanın TAMAMINI, QR ise 24 mesaj / 8.000
+ * karakterlik özenle kurulmuş bir pencereyi. Yani QR'ın penceresi mesaj sayısı
+ * bakımından ÖLÜYDÜ — 7.–24. mesajlar tam burada atılıyordu.
+ *
+ * ÜÇ KURAL:
+ *
+ * ① **GÜVENLİK PENCERESİ ÜRETİM PENCERESİNDEN BAĞIMSIZ.** Son OPERATİF mesajdan
+ *    SONRA gelen cevapsız MİSAFİR mesajlarının TAMAMI daima girer — bütçe
+ *    yetmese bile. Gerekçe *displacement saldırısıdır*: saldırgan uzun ve
+ *    zararsız bir metin yollayıp asıl riskli cümlesini pencereden DIŞARI itebilir;
+ *    kelime-ağı çapraz kontrolü o cümleyi göremezse kapı yanlış karar verir.
+ *    Bu yüzden güvenlik penceresi bütçeye tabi DEĞİLDİR, yalnız mutlak mesaj
+ *    tavanına tabidir (istem sonsuz büyüyemez).
+ *
+ * ② **BÜTÇE SAYIDAN ÖNCE GELİR.** Tek bir 4.000 karakterlik mesaj, 25 kısa
+ *    mesajdan pahalıdır — mekanik `-6 → -25` bunu görmez. Kalan yer eskiye doğru
+ *    doldurulur; sığmayan en eski mesaj düşer.
+ *
+ * ③ **KRONOLOJİ KORUNUR** ve seçim yalnız `direction` alanına bakar (görünen ad
+ *    ya da metin İÇERİĞİ değil — `senderName` sınıflandırma için kullanılamaz).
+ *
+ * Girdi kronolojik (eski → yeni) varsayılır; çağıranların üçü de `orderBy asc`
+ * ile okuyor. Çıktı da kronolojiktir.
+ */
+export function selectHistoryForPrompt<T extends { direction: string; body: string }>(
+  history: readonly T[],
+): T[] {
+  if (history.length === 0) return [];
+  // Son OPERATİF mesajdan sonrası = cevapsız misafir mesajları (güvenlik penceresi).
+  let lastOutbound = -1;
+  for (let i = history.length - 1; i >= 0; i--) {
+    if (history[i].direction !== "inbound") {
+      lastOutbound = i;
+      break;
+    }
+  }
+  // Tavan HER ŞEYİN üstünde: güvenlik penceresi de istemi sınırsız büyütemez.
+  const start = Math.max(history.length - HISTORY_MESSAGE_CAP, 0);
+  const mustStart = Math.max(lastOutbound + 1, start);
+
+  const picked: T[] = [];
+  let used = 0;
+  // Güvenlik penceresi: bütçeye BAKILMAZ, yalnız sayılır.
+  for (let i = mustStart; i < history.length; i++) {
+    picked.push(history[i]);
+    used += history[i].body.length;
+  }
+  // Kalan yer eskiye doğru, bütçe dolana kadar.
+  for (let i = mustStart - 1; i >= start; i--) {
+    const cost = history[i].body.length;
+    if (picked.length >= HISTORY_MESSAGE_CAP) break;
+    if (used + cost > HISTORY_CHAR_BUDGET) break;
+    picked.unshift(history[i]);
+    used += cost;
+  }
+  return picked;
+}
+
 export function buildReplyUserPrompt(input: SuggestReplyInput): string {
   const { property, reservation, knowledgeBase, history, openTopics, guestMessage, tone, language } = input;
 
@@ -1010,8 +1073,7 @@ Zaman bağlamı: ${buildTimelineContext(reservation)}`
 
   const hist =
     history && history.length > 0
-      ? history
-          .slice(-6)
+      ? selectHistoryForPrompt(history)
           .map((m) => `[${m.direction === "inbound" ? "MİSAFİR" : "OPERATİF"}]: ${m.body}`)
           .join("\n")
       : "(önceki mesaj geçmişi yok)";

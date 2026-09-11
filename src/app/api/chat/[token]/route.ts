@@ -660,8 +660,10 @@ async function handleGuestChatPost(req: NextRequest, { params }: { params: Promi
   // the per-thread advisory lock shared with the host reply route, so a host
   // reply committing at any point before our insert structurally vetoes the AI
   // answer (handedOff below). The guest's message is still recorded for the host.
+  // 🚨 ACİL ≠ SIRADAN İSTEK (kurucu, 09-11). `criticalEvent` yukarıda (alarm
+  // dedupe'ı için) ZATEN hesaplandı — yeni dedektör, yeni çağrı, yeni maliyet yok.
   const reply = escalate
-    ? escalationReply()
+    ? escalationReply({ critical: criticalEvent })
     : result.reply;
   const { inboundMessageId, handedOff, conversationId } = await record(reply, escalate);
   if (handedOff) return finalize({ handoff: true, reply: HANDOFF_REPLY });

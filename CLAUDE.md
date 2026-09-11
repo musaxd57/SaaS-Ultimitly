@@ -1205,7 +1205,63 @@ Sekiz P1 KAPANDI (09-07), her biri ayrı commit, kırmızı-önce + iki yönlü 
   yol · halka açık sayfada çerez yenileme · `PADDLE_WEBHOOK_SECRET` boot kapısı.
 
 ## Durum
-**ÜRÜN TURU 3 (09-11, DÖRT ölçümlü ajan) — `8e414f8` · `3965ecb` · `2a41a60` · `089240e`:**
+**ÜRÜN TURU 4 (09-11, ON ölçümlü ajan, saatlik `/loop`) — karar belgesi `docs/KARAR-2026-09-11-kurucu-is-emri-10-ajan.md`:**
+🚨 **RAG VARSAYILAN AÇIK** (kurucu: "RAG EKLE"). `KB_RETRIEVAL_MODE` artık AÇMA değil **ACİL DURDURMA**
+düğmesi — `legacy/off/0/false/no/disabled` eski davranış, başka her değer (boş dâhil) hibrit. Dayanak
+`docs/olcum/hibrit-yan-etki-2026-09-11.md`; kill switch bilinçli GEVŞEK (olay anında kapatamamak, bilinmeyen
+değerin legacy'ye düşmesinden pahalı). Ölçülmeyen: cevap KALİTESİ (model yok) — gerçek eval hâlâ borç.
+🚨 **BAĞLAM PENCERESİ AÇILDI:** `prompts.ts` çıplak `.slice(-6)` ile kesiyordu ve GEREKÇESİ YOKTU — ölçüldü:
+QR'ın 24 mesaj/8.000 karakterlik penceresinin mesaj bacağı **ÖLÜYDÜ** (7.–24. mesajlar tam burada atılıyordu);
+oto-yanıt ve inbox öneri konuşmanın TAMAMINI taşıyıp aynı yerde kaybediyordu. Yeni `selectHistoryForPrompt`
+(saf): tavan `HISTORY_MESSAGE_CAP` 25 + bütçe `HISTORY_CHAR_BUDGET` 6.000 (**bütçe sayıdan önce gelir** —
+tek 4.000 karakterlik mesaj 25 kısa mesajdan pahalı) ve 🚨 **GÜVENLİK PENCERESİ BÜTÇEYE TABİ DEĞİL**: son
+OPERATİF mesajdan sonraki cevapsız MİSAFİR mesajlarının TAMAMI daima girer (displacement saldırısı — uzun
+zararsız metinle riskli cümleyi pencere dışına itme). Sınıflandırma yalnız `direction`, `senderName` DEĞİL.
+🚨 **ACİL ≠ SIRADAN İSTEK:** `escalationReply({critical})` — yangın ile "bir yastık daha" artık aynı cümleyi
+almıyor. Ölçüt `verdict.reason` DEĞİL deterministik `detectRiskType === "safety_emergency"` (rotanın alarm
+dedupe'ı zaten onu hesaplıyor, tek kaynak). Argümansız çağrı BİREBİR eski metin (eski pinler ayakta); acil
+metin de aynı sözleşmeye tabi (makbuzsuz iddia yok, ünlem yok, kurumsal dil yok) — yönerge misafire VERİLEN
+bir talimattır, bizim eylem iddiamız değil.
+**QR host paneli:** Enter=gönder (misafir tarafında vardı, ödeyen müşterinin yüzeyinde yoktu; IME `isComposing`
+güvenli) · 30 sn otomatik yenileme (liste + detay; Mesajlar'da 08'den beri vardı, QR atlanmıştı) · mesajlar
+kendi kaydırma kabında + açılışta sona konumlanma (eskiden 200 balonun EN ESKİSİNDE duruyordu, composer
+altta kalıyordu) · 🤖/👤/🙋 emoji → gerçek ikon, **AI'ın yüzü artık `BrandMark` = bizim logomuz** (kurucu:
+"robot niye koydun") · yazma kutusunda ÖNCEDEN uyarı ("siz yanıtlarsanız AI susar") — o cümle üründe vardı
+ama yalnız `resume-ai-button`da, yani iş işten geçtikten SONRA.
+**Kaydırma çubuğu görünür:** başparmak `--border` idi, açık temada beyaz kart üzerinde kontrast **≈1,2:1**;
+`::-webkit-scrollbar-track` HİÇ yazılmamıştı → oluk saydam, "kanal" hissi yok. Artık `--muted-foreground`
+(iki temada da okunur olması için hesaplanmış tek ikincil renk) + gerçek oluk + hover.
+**Landing demo:** 8 çip (eskiden 6 çip / saatte 6 istek = ziyaretçinin KENDİ sorusuna hak kalmıyordu),
+`DEMO_HOURLY_LIMIT` 12 tek kaynak (rota + ekran metni aynı sabit), limit ekranda yazılı, bütçe
+**doğrulamadan SONRA** tüketilir (boş istek hak yakmıyor).
+🚨 **KURUCUNUN ÜÇ SORUSUNA CEVAP (gerekçeler karar belgesinde):** ① oto-mesaj varsayılanı **ÇEVRİLMEZ** —
+`*EnabledAt` baseline'ı yalnız Ayarlar PATCH'i yazdığı için sessiz no-op olurdu ("Açık" der, sıfır mesaj
+gider) ve `KB_PRESETS`in iki TRIGGER şablonu doldurulmamış `[AÇIK ADRES]` taşıyor + bu yol modelden HİÇ
+geçmiyor → ham belirteç misafire gider; piyasa 8/8 "içerik VER, göndermeyi AÇMA" diyor. Asıl kusur
+`kb-manager.tsx`'in KOŞULSUZ "otomatik gönderilir" vaadi. ② aktif saat: uyarı bandı EKLENMEZ (kurucu haklı),
+ama şema varsayılanı 0/9 hâlâ tuzak ve **kurucu org dâhil** eski org'lar günün 15 saati susuyor → dar backfill
+**migration + onay** bekliyor. ③ 🚨 **oto-yanıt anahtarı KAPALIYKEN karşılama/giriş/çıkış mesajları GİDİYOR**
+(üç gönderici `autoReplyHospitable`'ı SELECT etmiyor bile, altı testle pinli) → anahtar Ayarlar'a KOPYALANIR
+(dashboard onboarding'i `/settings`'e gönderiyor, anahtar orada DEĞİL = çıkmaz sokak), alt anahtarlar
+KİLİTLENMEZ (salt-UI kilit YALAN söyler, sunucu kapısı canlı org'ları sessizce durdurur), çözüm DÜRÜST AD.
+🚨 **"Sorunlu" AI'yı KALICI durdurur** (üç katman; misafirin yeni mesajı geri AÇMAZ — `preserve` listesi;
+yalnız host elle durum değiştirince ya da elle cevap yazınca açılır). 🚨 **`Conversation.priority` TAMAMEN
+GÖRSEL** — dört render noktası dışında hiçbir sorgu/sıralama/bildirim/karar/rapor okumuyor, "acil" şikâyet
+e-postasına bile yazılmıyor (`email-templates.ts` alanı tanımlıyor, gövdede kullanmıyor); `urgent` ikonu
+pratikte `problem` rozetinin ikinci kopyası (ikisini AYNI kod yazıyor). ⚠️ `PRIORITY` sabiti **Task**'ta
+gerçekten iş yapıyor → silinemez, yalnız konuşma yüzeyinden sökülür.
+🚨 **EMBEDDING PLANI ÖLÇÜLDÜ** (kurucu izni var): maliyet önemsiz (kurucu org'un TÜM KB'si **0,18 sent**,
+en ağır müşteri 3 sent; sorgu tarafı mesaj başına 67 token = sohbet isteminin **%0,37**'si); depo **pgvector
+DEĞİL** (aday kümesi ≤300 parça → brute-force 1,37 ms; pgvector Railway'de prod DB TAŞIMA projesi ister) →
+yeni tablo + `Bytea`. 🚨 **ÖNCE İKİ ÜCRETSİZ DÜZELTME:** `SEMANTIC_QUALIFY_MIN` YOK (n-gram'da 0.3 var,
+semantic'te `>0` yeter → kosinüs hep >0 → her parça `hasEvidence` → `no_lexical_hits` bir daha ASLA
+tetiklenmez) ve CombSUM embedding ile ezilir (BM25 seyrek, kosinüs yoğun) → semantic varken **RRF**.
+`SemanticScorer` arayüzü ÖLÜ ve yanlış şekilli (metni parametre alıyor → doküman vektörü önbelleklenemez);
+seçicinin gerçek sözleşmesi `ReadonlyMap<chunkKey, 0..1>` değişmeden çalışır ve ağ çağrısını çağırana çıkarır
+→ `select.ts` saf+senkron+DB'siz kalır, fail-open YAPISAL olur. 🚨 En güçlü gerekçe maliyet değil:
+**Rusça/Arapça'da sözcüksel eşleşme YAPISAL OLARAK YOK**, DE/FR yalnız kazaen çalışıyor.
+
+**Önceki: ÜRÜN TURU 3 (09-11, DÖRT ölçümlü ajan) — `8e414f8` · `3965ecb` · `2a41a60` · `089240e`:**
 ① 🚨 **MARKA ADI FİKSTÜRE GERİ GELMİŞTİ** (benim hatam, `34fc701` ile push edilmişti; ajan buldu) →
 temizlendi + **mekanik pin** eklendi (kelime pin dosyasına da yazılmadan). `origin/main` TEMİZ; iki eski
 uzak dal ucu hâlâ taşıyor (silinebilir, karar kurucunun). ② **PANEL YERLEŞİMİ İKİNCİ TUR** — kurucu

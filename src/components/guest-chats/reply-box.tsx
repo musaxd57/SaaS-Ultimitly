@@ -9,7 +9,14 @@ import { useRouter } from "next/navigation";
  * live if they keep it open). There's no phone push — the QR is an anonymous web
  * page — so this reaches the guest on their next visit to the chat.
  */
-export function GuestChatReply({ conversationId }: { conversationId: string }) {
+export function GuestChatReply({
+  conversationId,
+  aiPaused = false,
+}: {
+  conversationId: string;
+  /** AI bu thread'de zaten susmuş mu? Yalnız UYARI metnini seçer, davranışı değiştirmez. */
+  aiPaused?: boolean;
+}) {
   const router = useRouter();
   const [text, setText] = useState("");
   const [busy, setBusy] = useState(false);
@@ -71,9 +78,21 @@ export function GuestChatReply({ conversationId }: { conversationId: string }) {
         <textarea
           value={text}
           onChange={(e) => setText(e.target.value)}
+          // 🚨 ENTER = GÖNDER (kurucu, 09-11: "entera basınca atmıyor illa tıklamam
+          // lazım"). Bu davranış ürünün MİSAFİR tarafında zaten vardı
+          // (`guest-chat/guest-chat.tsx`) ama ödeyen müşterinin kullandığı host
+          // yüzeyinde yoktu — asimetri kapatıldı, emsal birebir kopyalandı.
+          // Shift+Enter yeni satır bırakır; IME (Türkçe/Çince aday penceresi)
+          // açıkken `isComposing` ile ARA VERİLİR, yoksa aday seçen Enter mesajı
+          // yarıda gönderir.
+          onKeyDown={(e) => {
+            if (e.key !== "Enter" || e.shiftKey || e.nativeEvent.isComposing) return;
+            e.preventDefault();
+            void send();
+          }}
           rows={1}
           maxLength={2000}
-          placeholder="Misafire yanıt yaz (sohbeti tekrar açınca görür)…"
+          placeholder="Misafire yanıt yaz (Enter gönderir, Shift+Enter yeni satır)…"
           className="max-h-28 min-h-[38px] flex-1 resize-none rounded-md border border-border bg-background px-2.5 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-primary/40"
         />
         <button
@@ -85,6 +104,19 @@ export function GuestChatReply({ conversationId }: { conversationId: string }) {
         </button>
       </form>
       {error ? <p className="text-xs text-destructive">{error}</p> : null}
+      {/* 🚨 UYARI YAZMADAN ÖNCE GÖRÜNÜR (kurucu, 09-11: "host QR'da tek 'merhaba'
+          yazarsa AI o konaklama boyunca susuyor — yazma kutusu bunu önceden
+          söylemiyor"). Bu cümle ürünün içinde VARDI ama yalnız `resume-ai-button`
+          üzerinde, yani ancak AI ZATEN sustuktan SONRA görünüyordu. Davranış
+          değişmedi (devir hâlâ host'un açık kararına bağlı); yalnız kararın
+          BEDELİ karar ANINDA söyleniyor. */}
+      {!aiPaused ? (
+        <p className="text-[11px] leading-snug text-amber-700 dark:text-amber-400">
+          ℹ️ Siz yanıtladığınız anda AI bu sohbette susar ve konaklama boyunca sessiz kalır. Hazır
+          olduğunuzda yukarıdaki <strong>“AI yanıtlarını yeniden başlat”</strong> düğmesiyle geri
+          açabilirsiniz.
+        </p>
+      ) : null}
       <p className="text-[11px] leading-snug text-muted-foreground">
         ⚠️ Bu, misafirle <strong>paylaşılan</strong> bir sohbet kanalıdır. Kapı kodu, Wi-Fi şifresi ve
         kişisel/hassas bilgileri buraya yazmayın — bunları Airbnb/Booking mesajından iletin.

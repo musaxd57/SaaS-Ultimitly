@@ -245,3 +245,16 @@ export const AUTOMATION_TRIGGER = optionMap<AutomationTrigger>([
 // yazıyor. Sonuç aynı, migration yok. MEVCUT müşteriler etkilenmez: kayıtlı
 // değerleri neyse o kalır.
 export const NEW_ORG_AUTO_REPLY_WINDOW = { autoReplyStartHour: 0, autoReplyEndHour: 0 } as const;
+
+/* ---------------------------------------------------------------------------
+ * LANDING CANLI DEMOSU — saatlik hak (kurucu, 2026-09-11).
+ *
+ * 🚨 ÖLÇÜLEN KUSUR: hazır soru "çip"i sayısı (6) ile IP başına saatlik hak (6)
+ * BİREBİR eşitti — ziyaretçi altı çipin altısına tıklarsa KENDİ yazacağı tek
+ * soru için hak KALMIYORDU. Çip sayısı 8'e çıkınca hak da büyümeli.
+ *
+ * TEK KAYNAK: rota bu sayıyla sınırlar, landing kartı AYNI sayıyı yazar.
+ * (Limit IP başınadır; NAT arkasındaki ofis/mobil operatör kullanıcıları aynı
+ * hakkı paylaşır — bilinen sınır, bugünkü tasarım.)
+ * ------------------------------------------------------------------------- */
+export const DEMO_HOURLY_LIMIT = 12;

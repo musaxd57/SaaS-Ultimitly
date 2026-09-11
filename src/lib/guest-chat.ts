@@ -723,8 +723,39 @@ export async function buildGuestChatContextWindow(conversationId: string): Promi
   return { history: window, openTopics: [...open].sort(), hasPriorOperatorReply: priorOperatorReplies > 0 };
 }
 
-export function escalationReply(): string {
-  return "Mesajınız kaydedildi; ev sahibiniz sohbet ekranından görüntüleyebilir.";
+/**
+ * QR'da insana devredilen mesaja misafirin gördüğü cevap.
+ *
+ * 🚨 METİN BİR GÜVENLİK YÜZEYİDİR — sözleşme (test-pinli): geçmiş eylem iddiası
+ * YOK ("ilettim/iletildi"), gelecek taahhüdü YOK ("dönüş yapacağım"), ünlem YOK,
+ * kurumsal unvan YOK. Yalnız GARANTİ EDİLEN söylenir: mesaj kaydedildi ve host
+ * onu sohbet ekranından görebilir. (E-posta bayrağı açıkken bile dedupe/cooldown/
+ * alıcı-yok/sağlayıcı hatası onu bastırabilir; metin e-postadan ÖNCE yazılır.)
+ *
+ * 🚨 ACİL DURUM ile SIRADAN İSTEK AYRILDI (kurucu, 09-11: "acil durum ile
+ * istekleri ayır o zaman"). Eskiden yangın/gaz kaçağı ile "bir yastık daha
+ * alabilir miyiz?" misafire KARAKTERİ KARAKTERİNE aynı cümleyi aldırıyordu —
+ * üstelik ürün acil durumda ne diyeceğini ZATEN biliyordu: modelin ürettiği
+ * güvenlik yönergesi (`prompts.ts` ÖRNEK 12) kapıda atılıyor, yerine jenerik
+ * cümle konuyordu.
+ *
+ * `critical` dalı yalnız ÖNE bir TALİMAT ekler; çapa cümlesi aynen korunur.
+ * Talimat bizim yaptığımız/yapacağımız bir EYLEM İDDİASI değildir — misafire
+ * verilen bir yönergedir, o yüzden yukarıdaki beş kuralın hiçbirini ihlal etmez.
+ *
+ * ⚠️ Argümansız çağrı BUGÜNKÜ METNİ BİREBİR döndürür (mevcut pinler korunur).
+ * ⚠️ Ölçüt `verdict.reason` DEĞİL, deterministik `detectRiskType` olmalı:
+ * `model_risk_type` gerekçesi `review_threat` (acil değil) için de çıkabilir,
+ * `keyword_escalated` ise acil bir mesajda da çıkabilir. Alarm yolu (
+ * `criticalEvent`) zaten aynı deterministik ölçütü kullanıyor — tek kaynak.
+ */
+export function escalationReply(opts?: { critical?: boolean }): string {
+  const anchor = "Mesajınız kaydedildi; ev sahibiniz sohbet ekranından görüntüleyebilir.";
+  if (!opts?.critical) return anchor;
+  return (
+    "Güvenliğiniz her şeyden önemli. Lütfen güvenli bir alana geçin ve tehlike hissederseniz " +
+    `vakit kaybetmeden yerel acil servisleri arayın. ${anchor}`
+  );
 }
 
 export async function resolveGuestChat(

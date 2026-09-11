@@ -128,9 +128,16 @@ describe("buildReplyUserPrompt", () => {
     expect(prompt).toContain("misafir2024");
   });
 
-  it("limits conversation history to the most recent messages", () => {
+  // 🚨 SÖZLEŞME DEĞİŞTİ (kurucu, 09-11: "context windowmuz iyi olsun … kaç cümle
+  // eskiye kadar görebiliyor"). Eski pin `.slice(-6)`ı kodluyordu ve "mesaj 0
+  // GİRMEMELİ" diyordu. Ölçüldü: o kesme, QR'ın 24 mesajlık penceresini mesaj
+  // bacağından ÖLDÜRÜYORDU (7.–24. mesajlar tam burada atılıyordu).
+  // Yeni sözleşme `selectHistoryForPrompt`ta ve kendi dosyasında pinli
+  // (`tests/unit/history-window.test.ts`); burada yalnız İSTEMİN o seçimi
+  // gerçekten yazdığını ölçüyoruz.
+  it("konuşma geçmişini taşır — 10 mesajlık geçmişin TAMAMI isteme girer (eski -6 kesmesi kalktı)", () => {
     expect(prompt).toContain("mesaj 9");
-    expect(prompt).not.toContain("mesaj 0"); // trimmed to last 6
+    expect(prompt).toContain("mesaj 0");
   });
 
   it("handles an empty knowledge base gracefully", () => {
