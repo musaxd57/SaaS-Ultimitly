@@ -179,7 +179,46 @@ Nasıl okunur:
 - 🚨 Bu rapor, `docs/olcum/kb-retrieval-scale-*.md` (sentetik, modelsiz: "kaynak bloğa girdi mi") ile
   KARIŞTIRILMAZ: burada ölçülen "model doğru cevapladı mı"dır. İkisi birbirinin yerine geçmez.
 
+## MODEL KIYASI — iki modeli yan yana koşmak (09-11)
+
+```
+RUN_REAL_EVAL=1 node scripts/eval-compare-models.mjs gpt-5.1 gpt-5.6-luna
+```
+
+Betik her modeli **AYRI SÜREÇTE** koşar ve tek bir kıyas raporu üretir:
+`docs/olcum/eval-model-kiyas-<YYYY-MM-DD>.md`.
+
+🚨 **Neden ayrı süreç:** `suggestReply` modeli `process.env.OPENAI_MODEL`ten okur ve bu değer süreç
+başına sabittir. Tek vitest sürecinde modeli senaryolar arasında değiştirmek ölçümü "hangi model
+hangi satırı koştu" belirsizliğine sokardı. Her koşu kendi kanıt zincirini (commit · istem parmak
+izi · KB parmak izi) kendi raporuna yazar; betik yalnız onları birleştirir.
+
+🚨 **Markdown PARSE EDİLMEZ.** Her koşu, raporun yanına aynı kökle makine-okunur bir JSON yazar
+(`eval-2026-09-11-120000-ab12.md` → `.json`, `tests/eval/sidecar.ts`) ve iki yolu da stdout'a basar.
+Kıyas yalnız o JSON'u okur — rapor metni her turda değiştiği için markdown parse etmek sessizce
+yanlış sonuç üretirdi.
+
+🚨 **ÜCRETLİ KAPI:** betik başlamadan kaç GERÇEK model çağrısı yapacağını veri setlerinden OKUYARAK
+yazar ve `EVAL_COMPARE_YES=1` yoksa onay bekler. Model başına 24 çağrı (8 QR + 8 retrieval × 2 mod).
+
+🚨 **Eksik kıyas "geçti" diye okunamaz:** bir model yan-dosya bırakmadıysa satırlar BOŞ değil
+BİLİNMİYOR sayılır, rapor başlığa "BU KIYAS EKSİK" yazar ve **çıkış kodu 1** olur.
+
+Rapor üç bölüm taşır: koşu dosyaları · senaryo × model matrisi · **ayrışan satırlar** (modellerin
+AYNI sonucu vermediği yerler — kararın verildiği tek yer burasıdır).
+
+### Karar kuralı (kurucu, 09-11)
+
+Ucuz model (`gpt-5.6-luna`, ~%80 daha düşük maliyet) **geçerse geçilir**. Ayrışan tek bir
+**GÜVENLİK** satırı varsa (şikâyet / para / insan-talebi yanlış sınıflanıyorsa) **GEÇİLMEZ** —
+maliyet kazancı, host'un haberi olmadan giden yanlış bir cevabı telafi etmez.
+
+⚠️ **Gölge katmanı yarım kanıttır:** `src/lib/shadow-ai.ts` luna'yı Nuve'de canlıda koşuyor ama
+YALNIZ güvenlik sınıflandırmasını kıyaslıyor; **cevap kalitesini ölçmüyor.** Model değişimi iki
+kanıt ister; ikincisi bu harness'tan gelir.
+
 ## Ne zaman gerekir
 - `QR_INFORMATIONAL_BAND_ENABLED` bayrağı **bu eval bitmeden AÇILMAZ** (kurucu kararı).
-- Model değişiminden önce baseline, sonra kıyas.
+- `KB_RETRIEVAL_MODE=hybrid` açılmadan önce eşleştirilmiş retrieval eval'i koşulmalı (↑).
+- Model değişiminden önce baseline, sonra kıyas (↑ MODEL KIYASI).
 - Prompt'a dokunan her turda.
