@@ -113,7 +113,7 @@ describe("QR — KB yer tutucuları modele GİRMEDEN çözülür", () => {
     vi.clearAllMocks();
     vi.stubEnv("GUEST_CHAT_ENABLED", "1");
     vi.stubEnv("OPENAI_API_KEY", "test-key");
-    vi.stubEnv("KB_RETRIEVAL_MODE", "");
+    vi.stubEnv("KB_RETRIEVAL_MODE", "legacy");
   });
   afterAll(async () => {
     vi.unstubAllEnvs();
@@ -217,7 +217,7 @@ describe("Oto-yanıt — KB yer tutucuları GERÇEK ada çözülür (QR'dan fark
   beforeEach(async () => {
     await resetDb();
     vi.clearAllMocks();
-    vi.stubEnv("KB_RETRIEVAL_MODE", "");
+    vi.stubEnv("KB_RETRIEVAL_MODE", "legacy");
   });
 
   async function seedChannel(guestIdentifier: string, propertyName = "lale 7") {

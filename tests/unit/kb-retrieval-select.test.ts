@@ -49,19 +49,34 @@ const bigKb = (n = 20) => Array.from({ length: n }, (_, i) => mk(i));
 describe("bayrak", () => {
   afterEach(() => vi.unstubAllEnvs());
 
-  it("varsayılan legacy; yalnız tam 'hybrid' değeri açar; bilinmeyen değer legacy", () => {
+  // 🚨 YÖN TERSİNE ÇEVRİLDİ (kurucu talimatı 09-11: "RAG EKLE"). Hibrit artık
+  // VARSAYILAN; bayrak bir açma düğmesi değil bir ACİL DURDURMA düğmesidir.
+  it("varsayılan hibrit; bilinmeyen değer de hibrit (varsayılana düşer)", () => {
     vi.stubEnv("KB_RETRIEVAL_MODE", "");
-    expect(kbRetrievalMode()).toBe("legacy");
+    expect(kbRetrievalMode()).toBe("hybrid");
     vi.stubEnv("KB_RETRIEVAL_MODE", "1");
-    expect(kbRetrievalMode()).toBe("legacy");
+    expect(kbRetrievalMode()).toBe("hybrid");
     vi.stubEnv("KB_RETRIEVAL_MODE", "HYBRID");
-    expect(kbRetrievalMode()).toBe("legacy");
+    expect(kbRetrievalMode()).toBe("hybrid");
+    vi.stubEnv("KB_RETRIEVAL_MODE", "hybrid");
+    expect(kbRetrievalMode()).toBe("hybrid");
+  });
+
+  // 🚨 KİLL SWITCH KOLAY VURULMALI. Bir olay anında operatörün "kapattım"
+  // sanıp kapatamaması, bilinmeyen bir değerin legacy'ye düşmesinden ÇOK daha
+  // pahalıdır — o yüzden yaygın "kapalı" yazımlarının HEPSİ kabul edilir.
+  it("🚨 kapatma yazımlarının hepsi legacy'ye düşer (büyük/küçük harf ve boşluk dâhil)", () => {
+    for (const off of ["legacy", "LEGACY", " legacy ", "off", "0", "false", "no", "disabled", "Off"]) {
+      vi.stubEnv("KB_RETRIEVAL_MODE", off);
+      expect(kbRetrievalMode(), `"${off}" kapatmalıydı`).toBe("legacy");
+    }
+    // Anti-vakum: yüklem her şeye "legacy" demiyor.
     vi.stubEnv("KB_RETRIEVAL_MODE", "hybrid");
     expect(kbRetrievalMode()).toBe("hybrid");
   });
 
   it("🚨 KAPALIYKEN KİMLİK: aynı dizi referansı, 0 düşen, seçim 'all', kanıt null", () => {
-    vi.stubEnv("KB_RETRIEVAL_MODE", "");
+    vi.stubEnv("KB_RETRIEVAL_MODE", "legacy");
     const items = bigKb(25);
     const r = selectKbForPrompt({ items, guestMessage: "Otopark var mı?" });
     expect(r.mode).toBe("legacy");

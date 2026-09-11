@@ -122,7 +122,15 @@ ReAct (kademeli) · GraphRAG (ihtiyaç kanıtlanırsa). Ek: kaynaklı-sürümlü
   okumaz. Geçiş sırası: iCal bacağından SONRA intelligence (hafıza → event → örüntü). KB rotaları hafızayı anında
   eşitler (`refreshPropertyMemoryBestEffort`; silinen kalem → retired). Okuma yüzeyi: mülk sayfası "Mülk Hafızası" kartı.
 
-## Retrieval (RAG dilim 1+2+3 — KODLANDI 09-09, bayrak `KB_RETRIEVAL_MODE=hybrid` VARSAYILAN KAPALI; tasarım `docs/RAG-GRAPHRAG-TASARIM-2026-09-09.md`)
+## Retrieval (RAG dilim 1+2+3 — 🚨 **VARSAYILAN AÇIK 09-11**, kurucu talimatı "RAG EKLE"; tasarım `docs/RAG-GRAPHRAG-TASARIM-2026-09-09.md`)
+- 🚨 **Bayrak yön değiştirdi:** `KB_RETRIEVAL_MODE` artık AÇMA değil **ACİL DURDURMA** düğmesi —
+  `legacy`/`off`/`0`/`false`/`no`/`disabled` eski davranışa döner, **başka her değer (boş dâhil) hibrit**.
+  Kill switch bilinçli olarak GEVŞEK yazıldı: olay anında "kapattım sanıp kapatamamak", bilinmeyen bir
+  değerin yanlışlıkla legacy'ye düşmesinden pahalıdır. Açma kararının dayanağı ölçüm
+  (`docs/olcum/hibrit-yan-etki-2026-09-11.md`): gerileme 19.583 çiftte **%0,11** ve hepsi AYNI tartışmalı
+  soru · blok boyutu legacy'nin %9–32'si · geri çekilme dalı `cappedForFallback` ile legacy tavanına indi
+  (hibritin ÇOK gönderdiği tek yer kapandı) · ek gecikme soğuk 15 ms / sıcak 1,8 ms. ⚠️ Ölçülmeyen:
+  cevap KALİTESİ (model yok) — gerçek eval hâlâ borç. `""` ile legacy bekleyen testler `"legacy"`ye çevrildi.
 - `src/lib/ai/retrieval/` LLM'siz + deterministik + DB'siz (pin): parçalayıcı (cümle sınırı, 600/900; parça =
   `content.slice`, metin DEĞİŞMEZ) · Türkçe-öncelikli BM25 (kök sökücü + ünsüz yumuşaması geri alma + ~45 DAR kavramlık
   sözlük [`terms` genişletir, `detectOnly` yalnız tespit] + OSA yazım toleransı) · **ikinci aday kaynağı karakter 3-gram

@@ -118,7 +118,7 @@ type Input = { knowledgeBase: { id: string; content: string; chunk?: number }[];
 describe("kb-fetch okuma tavanı — bayrağa göre", () => {
   beforeEach(async () => {
     await resetDb();
-    vi.stubEnv("KB_RETRIEVAL_MODE", "");
+    vi.stubEnv("KB_RETRIEVAL_MODE", "legacy");
   });
   afterAll(async () => {
     vi.unstubAllEnvs();
@@ -170,7 +170,7 @@ describe("applyChannelAutoReply — hibrit retrieval bayrağı", () => {
     vi.clearAllMocks();
     vi.stubEnv("OPENAI_API_KEY", "test-key");
     vi.stubEnv("AUTO_REPLY_ENABLED", "1");
-    vi.stubEnv("KB_RETRIEVAL_MODE", "");
+    vi.stubEnv("KB_RETRIEVAL_MODE", "legacy");
     mockSuggest.mockResolvedValue(SAFE_REPLY);
     mockSend.mockResolvedValue({ ok: true, externalId: "ext-1" } as never);
   });

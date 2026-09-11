@@ -54,8 +54,11 @@ misafir mesajı
 
 ## 2. RETRIEVAL / RAG — `src/lib/ai/retrieval/` (LLM'siz, DB'siz, saf)
 
-> Bayrak `KB_RETRIEVAL_MODE=hybrid` **VARSAYILAN KAPALI**. Tasarım:
-> [`docs/RAG-GRAPHRAG-TASARIM-2026-09-09.md`](RAG-GRAPHRAG-TASARIM-2026-09-09.md)
+> 🚨 **VARSAYILAN AÇIK** (kurucu talimatı 2026-09-11: "RAG EKLE"). `KB_RETRIEVAL_MODE`
+> artık bir AÇMA düğmesi değil **ACİL DURDURMA** düğmesidir: `legacy` (ya da
+> `off`/`0`/`false`/`no`/`disabled`) eski davranışa döner, başka her değer hibrit kalır.
+> Yan etki ölçümü: [`docs/olcum/hibrit-yan-etki-2026-09-11.md`](olcum/hibrit-yan-etki-2026-09-11.md).
+> Tasarım: [`docs/RAG-GRAPHRAG-TASARIM-2026-09-09.md`](RAG-GRAPHRAG-TASARIM-2026-09-09.md)
 
 | Dosya | İşi |
 |---|---|
@@ -196,7 +199,7 @@ misafir mesajı
 |---|---|
 | `OPENAI_MODEL` | Üretim modeli (`gpt-5.1`). 🚨 Değiştirmek gönderim hot-path'i rekalibrasyonudur |
 | `OPENAI_API_KEY` | Model anahtarı; **normal test suite'inde ZORLA boşaltılır** |
-| `KB_RETRIEVAL_MODE` | `hybrid` = yeni retrieval. **VARSAYILAN KAPALI** |
+| `KB_RETRIEVAL_MODE` | 🚨 **VARSAYILAN AÇIK (hibrit)**. Kill switch: `legacy`/`off`/`0`/`false`/`no`/`disabled` |
 | `QR_INFORMATIONAL_BAND_ENABLED` | QR dar bant. **VARSAYILAN KAPALI** |
 | `SHADOW_AI_ENABLED` · `SHADOW_AI_MODEL` · `SHADOW_AI_ORG_IDS` | Gölge pilot (luna, yalnız güvenlik sınıflandırması) |
 | `AUTO_REPLY_ENABLED` · `GUEST_CHAT_ENABLED` · `LANDING_DEMO_ENABLED` | Yüzey açma/kapama |
