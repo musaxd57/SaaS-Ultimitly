@@ -284,9 +284,19 @@ export function AppShell({ user, superAdmin, guestChatEnabled, impersonating, pl
     // viewport, which left the sidebar/main ~5vh SHORT of the bottom ("havada
     // duruyor"). Sizing full-height elements to `100vh / .95` makes them render at
     // exactly 100vh after the zoom. (If the .95 ever changes, update these too.)
-    <div className="min-h-[calc(100vh/0.95)] lg:grid lg:grid-cols-[16rem_1fr]" style={{ zoom: 0.95 }}>
+    // 🚨 MASAÜSTÜNDE SAYFA KAYMAZ (kurucu 09-11): "sol taraftaki hamburger yeri
+    // her türlü kaplasın … panelin aşağı inmesine ne gerek var, sabitleyelim".
+    // Eskiden SAYFANIN TAMAMI kayıyordu; kenar çubuğu `sticky` olduğu için
+    // yerinde kalsa da altındaki alan boşalıyor ve uzun bir sayfada gövde
+    // yukarı kayınca kabuk "havada" duruyordu. Artık `lg`de dış kap tam ekran
+    // ve taşma KAPALI; kayan TEK öge `<main>`. Mobilde (tek sütun, tarayıcı
+    // çubukları 100vh'yi yalan söyler) eski davranış AYNEN korunur.
+    <div
+      className="min-h-[calc(100vh/0.95)] lg:grid lg:h-[calc(100vh/0.95)] lg:min-h-0 lg:grid-cols-[16rem_1fr] lg:overflow-hidden"
+      style={{ zoom: 0.95 }}
+    >
       {/* Desktop sidebar */}
-      <aside className="sticky top-0 hidden h-[calc(100vh/0.95)] border-r border-border bg-card lg:block">
+      <aside className="hidden h-[calc(100vh/0.95)] border-r border-border bg-card lg:block">
         {sidebarBody}
       </aside>
 
@@ -316,7 +326,7 @@ export function AppShell({ user, superAdmin, guestChatEnabled, impersonating, pl
       ) : null}
 
       {/* Main column */}
-      <div className="flex min-h-[calc(100vh/0.95)] flex-col">
+      <div className="flex min-h-[calc(100vh/0.95)] flex-col lg:h-full lg:min-h-0">
         {impersonating ? (
           <div className="flex flex-wrap items-center justify-between gap-2 bg-amber-500 px-4 py-2 text-sm font-medium text-amber-950 sm:px-6">
             <span>
@@ -390,7 +400,10 @@ export function AppShell({ user, superAdmin, guestChatEnabled, impersonating, pl
             </button>
           </div>
         ) : null}
-        <main className="flex-1 px-4 py-6 sm:px-6 lg:px-8">
+        {/* Kayan TEK öge (lg). `min-h-0` ŞART: flex çocuğunun varsayılan
+            `min-height:auto`u içeriğin tamamı kadar büyür ve `overflow-y`
+            hiç devreye girmez. */}
+        <main className="flex-1 px-4 py-6 sm:px-6 lg:min-h-0 lg:overflow-y-auto lg:px-8">
           {/* Settings uses the two-column (side-nav + content) layout, so it gets a
               wider container; every other page stays at the reading-width cap. */}
           <div

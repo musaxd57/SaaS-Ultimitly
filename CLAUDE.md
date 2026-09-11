@@ -11,7 +11,7 @@
 
 ## Ürün
 **Lixus AI** (lixusai.com) — Türkiye odaklı, çok kiracılı SaaS; kısa dönem kiralama hostlarının
-Airbnb/Booking misafir mesajlarını AI ile yanıtlar. Operatör: musaxd57 (Nuve, ~10 daire). Türkçe
+Airbnb/Booking misafir mesajlarını AI ile yanıtlar. Operatör: kurucunun kendi işletmesi (~10 daire). Türkçe
 öncelikli. Temel ilke: AI karar-verici değil yardımcı operatör — riskli mesaj hep insana kalır.
 Hedef: Hospitable geçici köprü, uzun vadede bağımsız AI-native PMS (V0 belgesi).
 
@@ -254,6 +254,12 @@ Bu dosyaya token/anahtar/parola yazma.
 - **APP_URL sabit taban:** e-posta linkleri/OAuth redirect `appBaseUrl()`; tarayıcı redirect'leri
   `baseUrlFromHost` (allowlist). Railway arkasında hiçbir rota `req.url`'den mutlak URL kurmaz.
 - **`"https://www.lixusai.com"` literal'i yalnız app-config'de** (tek kaynak pini).
+- 🚨 **KURUCUNUN GERÇEK İŞLETME ADI REPOYA YAZILMAZ (09-11):** 95 dosyada 296 geçiş vardı
+  (fikstür mülk adları, örnek SSID'ler, yorumlarda "… canlı hesabı"). Hepsi temizlendi: fikstürlerde
+  kurgusal **`Lale`**, canlı hesaba atıflarda **"kurucu org"**. Yeni fikstür yazarken gerçek müşteri /
+  işletme adı KULLANMA. ⚠️ `Lale` fikstür seçimi ÖLÇÜLDÜ: etiket (`daire/no/apt`) değil, sayaç
+  (`kişilik/yatak`) değil, cihaz listesinde yok → `apartmentNumberOf`un "tek sayı" dalını eski adla
+  BİREBİR aynı şekilde sınar (test davranışı değişmedi).
 
 ## Teknik mimari
 - Next.js 15 App Router · Prisma 6 · PostgreSQL · Railway (branch `claude/great-edison-3zqpZ` oto-deploy,
@@ -406,12 +412,12 @@ Bu dosyaya token/anahtar/parola yazma.
   bölümünde HİÇBİR taramadan geçmeden modele gider. Yani "Giriş kodu 8821" KB'deyse elenir, mülk ADINDAYSA modele
   gider (`tests/unit/qr-property-fields-unscanned.test.ts` karakterizasyonu; adresin gitmesi açık DEĞİL — o misafirin
   zaten bildiği bilgi, açık olan o alanın TARANMAMASI). Kapatmak gönderim politikası değişikliği + ölçülmemiş bedel
-  (meşru "Nuve 4590" adları düşer, `{daire}` ikamesi mülk adından türüyor) → AYRI ONAY:
+  (meşru "Lale 4590" adları düşer, `{daire}` ikamesi mülk adından türüyor) → AYRI ONAY:
   `docs/ONAY-qr-mulk-kimlik-alanlari-sir-taramasi-2026-09-11.md` (öneri: host'a kayıt anında uyarı + belge; ad/adres
   taraması prod ölçümü olmadan AÇILMAZ). 🚨 **`{daire}` BELİRSİZDE İKAME EDİLMEZ:** `apartmentNumberOf` önce
   "daire/no/apt/#" ETİKETİNDEN sonraki sayıyı alır, yoksa TEK sayıyı; birden çok sayı varsa `null` → belirteç
   dokunulmadan kalır. Eski "son sayı" kuralı Türkiye ilan adlarında YANLIŞ numara söylüyordu (ölçüldü:
-  "Nuve 3 | 2+1 Deniz Manzaralı" → "1", "Nuve 12 (2. kat)" → "2"). **09-11 turu dört ölçülmüş kusur daha kapattı:**
+  "Lale 3 | 2+1 Deniz Manzaralı" → "1", "Lale 12 (2. kat)" → "2"). **09-11 turu dört ölçülmüş kusur daha kapattı:**
   etiket dalı `/i` ile yazıldığı için noktalı İ'yi kaçırıyordu ("DAİRE 5 - 2 Yatak Odalı" → null, host AÇIKÇA
   yazmışken) → İKİ KATLAMA; etiketlerin KELİME SINIRI yoktu ("Mila**no** 12 | Daire 3" → "12") → önde sınır (sonda
   BİLİNÇLİ yok, "Daire 5A" → "5" kalsın); ve TEK sayı tek başına daire numarası SAYILMAZ — sayıyı bir SAYAÇ sözcüğü
@@ -435,7 +441,7 @@ Bu dosyaya token/anahtar/parola yazma.
   **"~75KB" YANLIŞ** (o, dosyanın tamamı; %40 sapma, bütçe kararı ona dayanmasın). Bir çağrının
   **%96,4'ü STATİK**; misafire özgü içerik 1.786 karakter → few-shot **onun 9,1 KATI** ve hibrit RAG
   bütçesinin (`KB_RETRIEVAL_CHAR_BUDGET` 6.000) **2,70 katı**. 🚨 **BEŞ örnek modele sahte Wi-Fi
-  şifresi öğretiyor** (`12345678`/`NuveApt`: ÖRNEK 1·8·11·13·24) — bu YENİ DEĞİL, `automation.ts:1589`
+  şifresi öğretiyor** (`12345678`/`LaleApt`: ÖRNEK 1·8·11·13·24) — bu YENİ DEĞİL, `automation.ts:1589`
   ve `guest-chat.ts:331` rezervasyon-öncesi sır filtresini TAM BU YÜZDEN kodda yazmış. **19 örnek
   PİNSİZ** (yalnız 11/12/14/20/24 adıyla bağlı). ⚠️ Few-shot bir DAVRANIŞ ÇAPASIDIR — komple silmek
   o sınıfta modeli serbest bırakır; daraltma ölçümle, tek hamlede değil (GOLDEN SET + eval ŞART).
@@ -465,8 +471,8 @@ Bu dosyaya token/anahtar/parola yazma.
 | `AUTO_REPLY_ENABLED=1` · `REGISTRATION_OPEN=1` · `TRIAL_EMAILS_ENABLED=1` · `LANDING_DEMO_ENABLED=1` · `GUEST_CHAT_ENABLED` · `DATA_RETENTION_MONTHS=24` | açık |
 | `BILLING_ENFORCED=true` | deneme bitince ücretsiz sürüm (kilit yok), oto-mesaj kapanır; `PRIMARY_ORG_ID` muaf |
 | Paddle PRODUCTION | canlı; gerçek ödeme + in-app upgrade/downgrade doğrulandı; `PADDLE_PLAN_CHANGE_ENABLED=1`; yıllık fiyat env'leri set |
-| `OPENAI_MODEL=gpt-5.1` · `SHADOW_AI_ENABLED=1` (`SHADOW_AI_MODEL=gpt-5.6-luna`, `SHADOW_AI_ORG_IDS`=Nuve, anahtar `OPENAI_API_KEY`'e düşer) · supply-ai OpenAI luna | Akash artık HİÇBİR yerde işleyen değil; `SUPPLY_AI_MODEL/BASE_URL` eski Akash değerleriyse SİL. KVKK metinlerindeki Akash satırları avukat paketinden önce güncellenmeli |
-| Hospitable OAuth canlı; Nuve aboneliği 402 (veri donmuş, bug değil) | `TRUST_CF_HEADER` EKLEME |
+| `OPENAI_MODEL=gpt-5.1` · `SHADOW_AI_ENABLED=1` (`SHADOW_AI_MODEL=gpt-5.6-luna`, `SHADOW_AI_ORG_IDS`=kurucu org, anahtar `OPENAI_API_KEY`'e düşer) · supply-ai OpenAI luna | Akash artık HİÇBİR yerde işleyen değil; `SUPPLY_AI_MODEL/BASE_URL` eski Akash değerleriyse SİL. KVKK metinlerindeki Akash satırları avukat paketinden önce güncellenmeli |
+| Hospitable OAuth canlı; kurucu org aboneliği 402 (veri donmuş, bug değil) | `TRUST_CF_HEADER` EKLEME |
 | `TRUSTED_PROXY_HOPS=2` · `SENTRY_DSN` + `ERROR_ALERT_EMAIL` · `EMAIL_OUTBOX_ENABLED=1` · `CALENDAR_URL_CONTRACT_ENABLED=1` (prod'da düz feed URL kalmadı) · `STORAGE_ENABLED=1` (Tigris `lixus-uploads`, virtual-hosted) | kanıtlı canlı |
 | `PASSWORD_RESET_CHALLENGE_ENABLED` | artık okunmuyor (Faz 3), silinmesi davranışı değiştirmez |
 | BİLİNÇLİ KAPALI | `DURABLE_OUTBOX_ENABLED` · `ICAL_DISAPPEARANCE_RECONCILE_ENABLED` · `UNVERIFIED_SWEEP_*` · `RETENTION_MESSAGE_AGE_ANCHOR` (onay paketi: `docs/RETENTION-MESSAGE-AGE-ANCHOR-ONAY-PAKETI.md`) · `GUEST_ERASURE_ENABLED` (avukat imzası) · `QR_PIN_ENABLED` · `APP_TRUST_BROWSER_TIMEZONE` |
@@ -724,13 +730,13 @@ Sekiz P1 KAPANDI (09-07), her biri ayrı commit, kırmızı-önce + iki yönlü 
 - **V0 Channel Independence:** V0.1 ✅ (`2034aba`) · V0.2 ✅ (`bc185db`: ortak fake `tests/helpers/fake-channel.ts`
   + conformance kiti `tests/helpers/outbound-conformance.ts` — fake ↔ gerçek adaptör aynı 14 senaryo; envanter §9).
   **V0.3 ✅ CANLI** (`922f784`, migration 49 prod'da 09-07 15:49Z; pg_dump SHA + kanıt envanter §10). Backfill 0
-  satır BEKLENEN: prod'da DB token'lı org yok, Nuve `PRIMARY_ORG_ID` env fallback'inde → `CHANNEL_CONNECTION_READ`
+  satır BEKLENEN: prod'da DB token'lı org yok, kurucu org `PRIMARY_ORG_ID` env fallback'inde → `CHANNEL_CONNECTION_READ`
   DB'ye kaydedilmiş ilk gerçek bağlantı olmadan AÇILMAZ. **V0.4 ✅ CANLI** (`c378a97`, migration 50 prod'da 09-07
   19:29Z; prod'daki 17.436 mesaj/1538 rezervasyon `legacy` sınıfında, çıkarım backfill'i bilerek yok; envanter §11).
   **V0.5 ✅ CANLI** (`19d5527`, CI #958). **V0.6 ✅ CANLI** (`a2e60fe`, migration 51 prod'da 09-08 03:13Z; IngestEvent boş —
-  Nuve 402'de donuk; envanter §12). **V0.7 ✅ kod hazırlığı CANLI** (`c1f8a2e`, migration'sız; envanter §13). Kolon
+  kurucu org 402'de donuk; envanter §12). **V0.7 ✅ kod hazırlığı CANLI** (`c1f8a2e`, migration'sız; envanter §13). Kolon
   DROP'u (`hospitable*`) V0.3 okuma anahtarı ≥2 hafta canlıda sorunsuz olmadan YOK — canlı geçiş adımları
-  `docs/V0.7-CANLI-GECIS-OPERATOR-PLANI.md` (aşama 1: Nuve "mevcut bağlantıyı aktar"; 2: anahtar; 3: env; 4: drop).
+  `docs/V0.7-CANLI-GECIS-OPERATOR-PLANI.md` (aşama 1: kurucu org "mevcut bağlantıyı aktar"; 2: anahtar; 3: env; 4: drop).
   **V1 Property Memory + Signals CANLI** (migration 52 prod'da 09-08; envanter §14). V0 kod dilimleri bitti. Kalan V0 işleri kendi adlarıyla: kolon contract'ı için kalan
   okuyucular (backfill · token teşhisi · connect rotası · credentials kolon dalı) · webhook girişi (write service hazır) ·
   bağlantı sağlığı sinyali · `toChannel` ham platform · `Property.hospitableId` global unique (kapsamlı kimlik) ·
@@ -982,7 +988,7 @@ Sekiz P1 KAPANDI (09-07), her biri ayrı commit, kırmızı-önce + iki yönlü 
   okur ve bu değer süreç başına sabittir. 🚨 ÜCRETLİ KAPI: kaç gerçek çağrı yapacağını DATASET'ten okuyup yazar,
   `EVAL_COMPARE_YES=1` yoksa onay bekler. 🚨 Eksik kıyas "geçti" diye okunamaz (çıkış kodu 1). Kullanım:
   `RUN_REAL_EVAL=1 node scripts/eval-compare-models.mjs gpt-5.1 gpt-5.6-luna`. **Gölge katmanı (`shadow-ai.ts`) luna'yı
-  Nuve'de zaten koşuyor ama YALNIZ güvenlik sınıflandırmasını kıyaslıyor; CEVAP KALİTESİ bu harness'la ölçülür** —
+  kurucu org'da zaten koşuyor ama YALNIZ güvenlik sınıflandırmasını kıyaslıyor; CEVAP KALİTESİ bu harness'la ölçülür** —
   model değişimi İKİ kanıt ister, gölge yalnız birini verir.
 - **KB onay sözleşmesi (A1) CANLI — migration 53 prod'da 09-08 16:42Z; §A doğrulandı (32 satır `legacy|legacy`, aktif = AI-okunabilir = 32).**
   `KnowledgeBaseItem`: `source` (`legacy·host_manual·extracted_draft·suggestion_accepted`) · `reviewState`
@@ -1063,6 +1069,53 @@ Sekiz P1 KAPANDI (09-07), her biri ayrı commit, kırmızı-önce + iki yönlü 
   `reviewState` sözleşmesinin aynısı) · ③ KVKK (sır kapısı + ad redaksiyonu + retention purge + erasure
   bu yüzeye de uygulanır). Ölçüm planı ve karar tablosu:
   `docs/DEGERLENDIRME-2026-09-11-gecmis-cevap-yeniden-kullanimi.md`. Sıra: hibrit bayrağından SONRA.
+- **KNOWLEDGE HUB — ŞABLON BACAĞI (kurucu kararı 09-11, `src/lib/kb-from-templates.ts`, migration YOK).**
+  Kurucu "AI'yı boş bilgiyle açtırma" KAPISINI REDDETTİ: *"zorunlu olmasın; adam platformunu bağladığında
+  hemen otomatik mesajlarından, şablonundan veya kendi yazdığı cevaptan görsün"*. 🚨 Ölçülen boşluk:
+  `MessageTemplate` misafire AYNEN gider ve MODELDEN HİÇ GEÇMEZ → host "Wi-Fi bilgisi" şablonu yazmışsa
+  bilgi SİSTEMDE VAR ama asistan KULLANAMAZ. Bacak şablonu KB ÖNERİSİNE çevirir (salt-okuma; kabul mevcut
+  `POST /api/kb` yolundan, `host_manual|approved`).
+  🚨 **P1 (inceleme ajanı, kodla doğrulandı): `kbPlaceholderTokens` `{{…}}` sınıfını TANIMIYOR** —
+  regex yalnız `[…]` / `<…>` / `___`. Düzeltilmeden önce bacak "Wi-Fi bilgileriniz: `{{wifiInfo}}`"
+  metnini ONAYLI BİLGİ yapıyordu ve `{{wifiInfo}}` tam olarak KB'nin wifi kalemine İŞARETÇİ, yani üretilen
+  kalem KENDİNE atıf yapıyordu. Kural: `{{guestName}}` → `{isim}` ÇEVRİLİR (ürünün dört yüzeyde de çözdüğü
+  belirteç), BAŞKA HER `{{…}}` → şablon TAMAMEN REDDEDİLİR. Varsayılan 16 şablonun 16'sı `{{…}}` taşıyor →
+  DB'ye seed edilse bile hiçbiri öneri olamaz (test-pinli, anti-vakumluk: allowlist kategorisindekiler ayrı
+  ölçülür).
+  🚨 **Kategori allowlist YALNIZ `wifi` + `rules`** — dışarıda kalanların ölçülmüş gerekçesi var:
+  `complaint_response` (tek misafire verilen karar, bilgi değil) · `checkin`/`checkout` (saat MÜLK ALANIDIR
+  → çift kopya + var olmayan çelişki, E7) · **`welcome`** (QR sır kapısının KATEGORİ bacağını zayıflatır:
+  aynı metin `wifi`/`checkin`'de İKİ bacaktan elenir, `welcome`de yalnız içerik sezgiselinden) ·
+  **`general`** (nezaket iskelesi + MAKBUZSUZ SÖZ — "en kısa sürede dönüş yapacağım" KB'ye girerse 09-09'da
+  `prompts.ts`ten silinen sınıf arka kapıdan döner). Genişletme bir ÖLÇÜM sorusudur.
+  Ayrıca: aynı mülk+kategoriye düşen İKİNCİ şablon önerilmez (TR/EN çifti; org dili kazanır) · "zaten dolu"
+  hükmünü yalnız AI'nın OKUYABİLDİĞİ kalem verir (`KB_APPROVAL_GATE_WHERE`; onaysız taslak boşluğu kapatmış
+  sayılmaz) · rota `?propertyId=` filtresini ŞABLON bacağında da uygular (org geneli hariç). Kanıt:
+  kırmızı-önce + **mutasyon 20/20**.
+- **ŞABLON DÜZENLEME (kurucu 09-11: "bunlar gözükmüyor düzenlenmiyr bile"):** `PATCH /api/templates/[id]`
+  ZATEN VARDI, ekranda DÜĞME YOKTU (özel şablon yalnız silinip yeniden yazılabiliyordu). Eklendi: özel
+  şablonda "Düzenle", varsayılanda **"Kendime uyarla"** (içerik forma dolar, kaydedince KENDİ şablonu olur;
+  varsayılanlar koddaki sabitlerdir, düzenlenemez yalnız KOPYALANABİLİR), özel şablonu olmayan hostta
+  varsayılanlar AÇIK başlar. 🚨 Rotanın kendi boşluğu da kapandı: şema `propertyId` alanını TANIMIYORDU,
+  yani düzenleme formunun mülk seçimi SESSİZCE YUTULUYORDU. ⚠️ Create şemasındaki
+  `.nullish().transform(v => v || null)` PATCH'e KOPYALANAMAZ — zod `undefined`'ı `null`'a çevirince anahtarı
+  çıktıya KOYAR, yani yalnız `isActive` güncelleyen bir istek şablonu sessizce "Tüm mülkler"e taşırdı
+  (regresyon kapanı test-pinli).
+- **ŞABLON UYGULAMA TEK KAYNAK `src/lib/template-apply.ts` (saf; 09-11):** inbox'ın tek-parantez sınıfı
+  YARIMDI — yalnız `{isim}`/`{ad}` çözülüyordu, `{name}`·`{daire}`·`{apartment}`·`{apt}` HİÇBİR yerde
+  çözülmüyordu ve sondaki temizlik YALNIZ `{{…}}` sildiği için ham belirteç yazma alanına düşüyordu
+  ("Kapı kodu: {daire}"). Ayrıca `{isim}` TAM ADA çözülüyordu ve adsız rezervasyonda "Merhaba
+  Rezervasyon 12345," yazıyordu. Artık anahtar çözümü `kb-placeholders.ts`ten ödünç alınır (kural TEK
+  YERDE), geçiş TEK kalır — ikinci bir geçiş misafir kontrolündeki `{{guestName}}` değerinden YENİ belirteç
+  doğurabilirdi. `Object.hasOwn` kapısı: `{{constructor}}` prototip üyesine çözülüp yazma alanına
+  "function Object…" basıyordu. Kırmızı-önce 6/6 (eski kod ölçüldü) + mutasyon.
+- **PANEL YERLEŞİMİ (kurucu 09-11, davranış değişikliği YOK):** `lg`de SAYFA KAYMAZ — dış kap tam ekran +
+  `overflow-hidden`, kayan TEK öge `<main>` (kenar çubuğu her zaman tam yükseklik; mobilde eski davranış
+  AYNEN). Konuşma sayfası: misafir adı ve "mülk · kanal · giriş→çıkış" sayfa başlığından KARTIN BAŞLIK
+  SATIRINA taşındı (ad durumun solunda, mülk önceliğin sağında), sağ ray sabit 20rem (yazma alanı geniş
+  ekranda genişledi), mesaj listesi 44vh→52vh, yazma kutusu 80px→160px. **"Mülk" kartı KALDIRILDI**:
+  adres çoğu hostta boş olduğu için kart pratikte tek satır (giriş/çıkış saati) gösteriyordu — o satır
+  başlıkta, adres varsa aynı satırın `title` ipucunda (bilgi kaybı yok).
 - **Codex P2 (F09–F18)** ilgili modül turlarında. `docs/DENETIM-2026-08-09.md` (27 açık),
   `docs/ACIK-ISLER-2026-08-08.md` (16), `docs/MIGRATION-BEKLEYEN-ISLER.md`.
 - Operatör: bucket sağlayıcı görünürlüğü (imzasız URL 403 olmalı) · `weekly-audit.yml` `main`'e ·
@@ -1076,7 +1129,16 @@ Sekiz P1 KAPANDI (09-07), her biri ayrı commit, kırmızı-önce + iki yönlü 
   yol · halka açık sayfada çerez yenileme · `PADDLE_WEBHOOK_SECRET` boot kapısı.
 
 ## Durum
-**7. TUR (09-11, otonom /loop, DÖRT+BİR ölçümlü ajan) — ÜÇ commit: `43098ab` envanter (19 cihaz adı; 30 gerçekçi
+**ÜRÜN TURU (09-11, iki ölçümlü ajan) — kurucu ekran görüntüleriyle bildirdi, dördü kapandı:**
+① **marka adı repodan silindi** (95 dosya / 296 geçiş → fikstürde `Lale`, canlı hesapta "kurucu org").
+② **şablonlar düzenlenebilir** (PATCH rotası vardı, düğme yoktu) + varsayılandan "Kendime uyarla" +
+PATCH'in yuttuğu `propertyId` alanı. ③ **şablon → KB önerisi** (`kb-from-templates.ts`) — inceleme ajanının
+P1'i düzeltilerek: `{{…}}` işaretçisi taşıyan şablon REDDEDİLİR, allowlist `wifi`+`rules`e daraltıldı.
+④ **panel yerleşimi**: masaüstünde sayfa kaymaz (kenar çubuğu tam yükseklik, kayan tek öge `<main>`),
+konuşma kartı başlığında ad+mülk, yazma alanı 80→160px ve sağ ray 20rem'e sabitlendi, ölü "Mülk" kartı
+kalktı. Ayrıca inbox şablon uygulamada ham `{daire}`/`{name}` sızıntısı ve `{{constructor}}` prototip
+kusuru kapandı (`template-apply.ts`). Migration YOK, bayrak değişikliği YOK, ücretli servis YOK.
+**Önceki: 7. TUR (09-11, otonom /loop, DÖRT+BİR ölçümlü ajan) — ÜÇ commit: `43098ab` envanter (19 cihaz adı; 30 gerçekçi
 bildirimin 26'sı kaçıyordu, çoğu OTO-GÖNDERİLİYORDU; `batarya` ölçülüp REDDEDİLDİ) · `59a6bae` inceleme düzeltmeleri
 (homoglif bypass'ı + 6. turun İKİ gerilemesi + `sorun` KOŞUL ailesi + yer tutucuda dört kusur) · `76490a2` eval MODEL
 KIYASI altyapısı (ücretli servis ÇAĞRILMADI). Kanıt: kırmızı-önce 5+9 blok · mutasyon 20/20 + 21/23 (iki ölçülmüş

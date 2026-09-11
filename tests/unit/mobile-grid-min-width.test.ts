@@ -148,14 +148,24 @@ describe("min-w-0 pini — ölçülmüş yatay kayma arızaları", () => {
     ).toBe(true);
   });
 
-  it("gelen kutusu: `lg:grid-cols-3` grid'inin İKİ çocuğu da min-w-0", () => {
+  it("gelen kutusu: grid'in İKİ çocuğu da min-w-0 + parça `minmax(0,1fr)`", () => {
+    // 09-11: kap `lg:grid-cols-3` → `lg:grid-cols-[minmax(0,1fr)_20rem]`
+    // (yazma alanı geniş ekranda genişlesin). `minmax(0,1fr)` bu arızaya karşı
+    // `min-w-0`dan DAHA GÜÇLÜ bir garantidir — küçülme sınırını PARÇA
+    // düzeyinde 0 yapar, yani çocuk sınıfını unutsa bile sütun daralabilir.
+    // Yine de İKİSİ birden aranır: parça yazımı bir gün `1fr`e dönerse
+    // (varsayılan `minmax(auto,1fr)`) tek savunma çocuğun `min-w-0`ıdır.
     const src = read(INBOX_PAGE);
     expect(
-      hasClassSet(src, ["min-w-0", "lg:col-span-2"]),
+      stripComments(src),
+      "grid parçası daraldı/değişti — `1fr` tek başına `minmax(auto,1fr)` demektir ve arıza geri gelir",
+    ).toContain("lg:grid-cols-[minmax(0,1fr)_20rem]");
+    expect(
+      hasClassSet(src, ["min-w-0"], ["space-y-4"]),
       "mesaj sütunu min-w-0 kaybetti → uzun misafir linki sayfayı kaydırır (ölçüldü: 560)",
     ).toBe(true);
     expect(
-      hasClassSet(src, ["min-w-0", "space-y-4"], ["lg:col-span-2"]),
+      hasClassSet(src, ["min-w-0", "space-y-4"]),
       "gelen kutusu yan sütunu min-w-0 kaybetti",
     ).toBe(true);
   });
@@ -211,7 +221,10 @@ describe("aynı hata sınıfının yayılmasına karşı", () => {
   it("`grid gap-4 lg:grid-cols-3` kabı olan dosyalar bilinen listede", () => {
     // Yeni bir üç-sütunlu panel grid'i eklenirse bu liste kırmızıya döner ve
     // ekleyen kişi "çocuklarım küçülebiliyor mu?" sorusunu ORADA yanıtlar.
-    const KNOWN = [PROPERTY_PAGE, INBOX_PAGE, KB_MANAGER, "src/app/(app)/reports/loading.tsx"];
+    // ⚠️ INBOX_PAGE bu listeden 09-11'de ÇIKTI: kabı artık
+    // `lg:grid-cols-[minmax(0,1fr)_20rem]`. Kapsam DÜŞMEDİ — o dosyanın yeni
+    // kap yazımı kendi testinde (yukarıda) ayrıca pinli.
+    const KNOWN = [PROPERTY_PAGE, KB_MANAGER, "src/app/(app)/reports/loading.tsx"];
     for (const rel of KNOWN) {
       expect(stripComments(read(rel)), `${rel}: beklenen grid kabı yok`).toContain(
         "grid gap-4 lg:grid-cols-3",

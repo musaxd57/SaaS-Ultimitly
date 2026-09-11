@@ -1,11 +1,10 @@
 import { notFound } from "next/navigation";
-import { ArrowLeft, Building2, CalendarDays, BookOpen, Clock, ArrowLeftRight, CheckSquare } from "lucide-react";
+import { ArrowLeft, CalendarDays, BookOpen, ArrowLeftRight, CheckSquare } from "lucide-react";
 import { requireAuth } from "@/lib/auth";
 import { orgTimezone, dateKeyInTimeZone } from "@/lib/timezone";
 import { canManage } from "@/lib/api";
 import { prisma } from "@/lib/db";
 import { reservationAmountNumber } from "@/lib/money";
-import { PageHeader } from "@/components/page-header";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { LinkButton } from "@/components/ui/link-button";
@@ -201,15 +200,16 @@ const SKIP_REASON_LABELS: Record<string, string> = {
   return (
     <>
       <AutoRefresh seconds={30} />
-      <PageHeader
-        title={conversation.guestIdentifier}
-        description={`${conversation.property.name} · ${channelLabel(conversation.channel)}`}
-      >
+      {/* Sayfa başlığı SADECE eylemler (kurucu 09-11): misafir adı ve mülk artık
+          konuşma kartının kendi başlık satırında. Eskiden ikisi de burada
+          duruyordu ve kartın başlık satırı yarı boştu — aynı bilgi iki kez yer
+          kaplayıp mesaj kutusundan dikey alan çalıyordu. */}
+      <div className="flex flex-wrap items-center justify-end gap-2">
         <LinkButton href={backHref} variant="outline" size="sm">
           <ArrowLeft className="size-4" /> {backHref.includes("status=problem") ? "Sorunlu konuşmalar" : "Mesajlar"}
         </LinkButton>
         <DeleteConversationButton conversationId={conversation.id} />
-      </PageHeader>
+      </div>
 
       {conversation.skippedReason && conversation.status !== "answered" ? (
         <p className="rounded-md border border-amber-200 dark:border-amber-500/25 bg-amber-50 dark:bg-amber-500/10 px-3 py-2 text-sm text-amber-800 dark:text-amber-300">
@@ -229,43 +229,33 @@ const SKIP_REASON_LABELS: Record<string, string> = {
           Çözüm sütunu küçülebilir yapmak; link o zaman `break-words` ile
           SARAR (kırpılmaz) — balonun kendisine `anywhere`/`break-all` VERİLMEDİ,
           o normal Türkçe metni de kelime ortasından bölerdi. */}
-      <div className="grid gap-4 lg:grid-cols-3">
-        <div className="min-w-0 lg:col-span-2">
+      {/* Sağ ray SABİT 20rem; kalan genişliğin TAMAMI konuşmaya gider. Eski
+          `lg:grid-cols-3` (2/3 ≈ %66) geniş ekranda yazma alanını gereksiz dar
+          bırakıyordu (kurucu: "genişliğini de biraz daha arttır"). */}
+      <div className="grid gap-4 lg:grid-cols-[minmax(0,1fr)_20rem]">
+        <div className="min-w-0">
           <ConversationThread
             conversationId={conversation.id}
             messages={messages}
             status={conversation.status}
             priority={conversation.priority}
             propertyId={conversation.propertyId}
+            guestName={conversation.guestIdentifier}
+            propertyLabel={`${conversation.property.name} · ${channelLabel(conversation.channel)} · ${conversation.property.checkInTime} → ${conversation.property.checkOutTime}`}
+            propertyTitle={
+              [conversation.property.address, conversation.property.city].filter(Boolean).join(", ") || undefined
+            }
             templateVars={templateVars}
             canReply={canManage(session)}
           />
         </div>
 
         <div className="min-w-0 space-y-4">
-          <Card>
-            <CardHeader>
-              <CardTitle className="flex items-center gap-2 text-base">
-                <Building2 className="size-4 text-muted-foreground" /> Mülk
-              </CardTitle>
-            </CardHeader>
-            <CardContent className="space-y-1 text-sm">
-              {/* Property name already shown in the page header above — avoid
-                  repeating it here, just the details the header doesn't have. */}
-              {conversation.property.address ? (
-                <p className="text-muted-foreground">
-                  {[conversation.property.address, conversation.property.city]
-                    .filter(Boolean)
-                    .join(", ")}
-                </p>
-              ) : null}
-              <p className="flex items-center gap-1 text-muted-foreground">
-                <Clock className="size-3.5" />
-                {conversation.property.checkInTime} → {conversation.property.checkOutTime}
-              </p>
-            </CardContent>
-          </Card>
-
+          {/* 🚨 "Mülk" KARTI KALDIRILDI (kurucu 09-11): adres çoğu hostta boş
+              olduğu için kart pratikte TEK BİR SATIR gösteriyordu — giriş/çıkış
+              saati. O satır artık konuşma kartının başlık satırında; adres,
+              varsa, aynı satırın `title` ipucunda. Bilgi kaybı YOK, bir kart
+              yüksekliği kazanıldı. */}
           <Card>
             <CardHeader>
               <CardTitle className="flex items-center gap-2 text-base">
