@@ -1,4 +1,4 @@
-import { KB_RETRIEVAL_CHAR_BUDGET, KB_RETRIEVAL_MAX_CHUNKS } from "@/lib/ai/limits";
+import { KB_ITEM_CAP, KB_RETRIEVAL_CHAR_BUDGET, KB_RETRIEVAL_MAX_CHUNKS } from "@/lib/ai/limits";
 import { reportError } from "@/lib/report-error";
 import type { KbChunk, KbChunkSource } from "./chunker";
 import { kbRetrievalMode, type KbRetrievalMode } from "./flag";
@@ -35,8 +35,11 @@ import { detectGuestLanguage } from "@/lib/ai/fallback";
 //   → çelişki koruma (aynı SAAT ALANINDA farklı saat; kategori-bağımsız)
 //   → bütçe (6k / 12 parça); sığmayan çelişki AÇIKÇA bildirilir (notes)
 //   → seçilen parçalar + düşen kalem sayısı + PII'siz kanıt
-// Aday hiç yoksa / selamlaşmada / hatada TAM küme gider: hibrit legacy'den az
-// bilgi taşımaz. Bayrak KAPALIYKEN çıktı girdinin KENDİSİDİR (aynı referans).
+// Aday hiç yoksa / selamlaşmada / hatada LEGACY'NİN ALDIĞI KÜME gider (en yeni
+// `KB_ITEM_CAP` kalem): hibrit legacy'den az bilgi taşımaz — 09-11 ölçümünden
+// SONRA fazlasını da taşımaz (o dal 200 kalemin tamamını gönderiyordu; 60
+// kalemde 1,69× · 300'de 7,57× ve gerçekçi bataryanın %72'si bu dala düşüyor).
+// Bayrak KAPALIYKEN çıktı girdinin KENDİSİDİR (aynı referans).
 //
 // Bu modül DB'ye erişmez, kalem EKLEYEMEZ, metni DEĞİŞTİREMEZ (pinler).
 // ---------------------------------------------------------------------------
@@ -282,6 +285,32 @@ function legacyResult<T extends KbChunkSource>(
   return { mode, items: items as SelectedKbItem<T>[], droppedItems: 0, selection: "all", notes: [], evidence };
 }
 
+/**
+ * 🚨 GERİ ÇEKİLME DALI LEGACY TAVANINI AŞAMAZ (ölçüm turu, 09-11 —
+ * `docs/olcum/hibrit-yan-etki-2026-09-11.md`).
+ *
+ * Hibrit açıkken `kb-fetch` 30 yerine 200 kalem çeker. Seçici "hepsini gönder"e
+ * düştüğünde (selamlaşma · sözcüksel isabet yok · hata) O 200'ÜN TAMAMI isteme
+ * giriyordu. ÖLÇÜLDÜ — legacy bloğuna göre: 30 kalemde 1,04× · 60'ta (plan
+ * tavanı) **1,69×** · 100'de **3,00×** · 300'de **7,57×**. Ve dal nadir DEĞİL:
+ * 25 mesajlık gerçekçi kısa-mesaj bataryasının **18'i (%72)** buraya düşüyor.
+ *
+ * İki sonuç, ikisi de istenmeyen: (a) hibritin legacy'den DAHA ÇOK gönderdiği
+ * ölçülen TEK yer; (b) legacy'nin "en yeni 30" penceresinin kalıcı olarak
+ * erişilmez tuttuğu bayat/kötü niyetli kalem, tek bir "Merhaba" ile HEPSİ
+ * BİRDEN modele gidiyordu (60 kalemde 37, 300'de 170 yeni erişilebilir kalem).
+ *
+ * Girdi `kb-fetch`ten `updatedAt desc` gelir → ilk `KB_ITEM_CAP` kalem
+ * legacy'nin aldığı kümenin TA KENDİSİDİR. Yani bu kırpma "hibrit legacy'den AZ
+ * bilgi taşımaz" değişmezini KORUR (eşit taşır), yalnız FAZLASINI keser.
+ *
+ * ⚠️ Yalnız tavanın ÜSTÜNDEKİ kümede yeni dizi üretilir: `small_kb` dalı zaten
+ * tavanın altındadır ve oradaki "aynı dizi referansı" sözleşmesi bozulmamalı.
+ */
+function cappedForFallback<T extends KbChunkSource>(items: readonly T[]): readonly T[] {
+  return items.length > KB_ITEM_CAP ? items.slice(0, KB_ITEM_CAP) : items;
+}
+
 export function selectKbForPrompt<T extends KbChunkSource>(input: KbSelectInput<T>): KbSelectResult<T> {
   const mode = input.mode ?? kbRetrievalMode();
   if (mode !== "hybrid") return legacyResult(input.items, "legacy", null);
@@ -316,7 +345,7 @@ export function selectKbForPrompt<T extends KbChunkSource>(input: KbSelectInput<
     const subqueries = splitQuestions(input.guestMessage);
     const index = getOrBuildKbIndex(items, input.now);
     if (subqueries.length === 0) {
-      return legacyResult(sup > 0 ? items : input.items, "hybrid", evidence("empty_query", 0, 0, index.chunks.length, { sup }));
+      return legacyResult(cappedForFallback(sup > 0 ? items : input.items), "hybrid", evidence("empty_query", 0, 0, index.chunks.length, { sup }));
     }
     const carryStems = (input.history ?? [])
       .filter((m) => m.direction === "inbound")
@@ -329,7 +358,7 @@ export function selectKbForPrompt<T extends KbChunkSource>(input: KbSelectInput<
     const srcs = rankedAll[0]?.sources ?? [];
     if (ranked.every((r) => r.length === 0)) {
       return legacyResult(
-        sup > 0 ? items : input.items,
+        cappedForFallback(sup > 0 ? items : input.items),
         "hybrid",
         evidence("no_lexical_hits", subqueries.length, 0, index.chunks.length, { srcs, sup }),
       );
@@ -415,6 +444,6 @@ export function selectKbForPrompt<T extends KbChunkSource>(input: KbSelectInput<
   } catch (err) {
     // Retrieval hatası ürünü BOZMAZ: legacy küme gider, hata raporlanır.
     void reportError("kb-retrieval-select", err);
-    return legacyResult(input.items, "hybrid", evidence("error", 0, 0, 0));
+    return legacyResult(cappedForFallback(input.items), "hybrid", evidence("error", 0, 0, 0));
   }
 }
