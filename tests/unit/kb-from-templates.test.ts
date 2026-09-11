@@ -302,7 +302,7 @@ describe("🚨 İNCELEME AJANI BULGULARI (09-11) — ölçülmüş iki kusur", (
     // tire taşıyan değişken adları HİÇBİR kapıya takılmıyordu; `kbPlaceholderTokens`
     // de bu sınıfı tanımaz → metin ONAYLI BİLGİ olup misafire HAM gidebiliyordu.
     for (const body of [
-      "Merhaba {{misafirAdı}}, ağ NuveApt yok, şifre 12345678.",
+      "Merhaba {{misafirAdı}}, ağ LaleApt yok, şifre 12345678.",
       "Hoş geldiniz {{property.name}} sakini.",
       "Merhaba {{guest-name}}.",
       "Merhaba {{ guestName }}, şifre 12345678.", // iç boşluk: inbox bunu SİLER
