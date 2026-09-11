@@ -13,7 +13,7 @@ import {
   type Candidate,
   type Supersedable,
 } from "./rerank";
-import { SOURCE_WEIGHTS } from "./semantic";
+import { SOURCE_WEIGHTS, SEMANTIC_QUALIFY_MIN } from "./semantic";
 import { NGRAM_QUALIFY_MIN } from "./sources";
 import { contentStems, normalizeForRetrieval } from "./text";
 import { detectGuestLanguage } from "@/lib/ai/fallback";
@@ -60,6 +60,14 @@ export interface KbRetrievalEvidence {
   ms: number;
   /** Etkin aday kaynakları. */
   srcs?: string[];
+  /**
+   * 🚨 ETKİN BİRLEŞİM — çağıranın İSTEDİĞİ değil, KOŞAN (inceleme turu, 09-11).
+   * Anlamsal kaynak varken `sum` istemi EZİLİR ve RRF koşar (CombSUM yoğun
+   * kosinüsle ezilir). Bu alan olmadan o anahtar dışarıdan GÖZLEMLENEMİYORDU:
+   * anahtarı silen mutasyon HAYATTA KALIYORDU (pin vakumluydu). Kapalı küme,
+   * PII yok; `RiskEvent.kbEvidenceJson` üzerinden denetlenebilir.
+   */
+  fus?: "sum" | "rrf";
   /** Sürüm kuralıyla düşen kalem sayısı. */
   sup?: number;
   /** Tespit edilen saat-alanı çelişkisi sayısı. */
@@ -191,7 +199,11 @@ interface RankOptions {
 }
 
 /** Bir alt sorgu için aday listesi (sıralı, eşiklenmiş). */
-function rankForSubquery(index: KbIndex, subquery: string, opt: RankOptions): { cands: Candidate[]; sources: string[] } {
+function rankForSubquery(
+  index: KbIndex,
+  subquery: string,
+  opt: RankOptions,
+): { cands: Candidate[]; sources: string[]; fusion: "sum" | "rrf" } {
   const own = contentStems(subquery);
   // İNCE SORGU ("Ücretli mi?"): önceki MİSAFİR mesajlarının kökleri hem ağırlığa
   // (0.5) hem kavram genişletmesine girer — tek adım, tek karar noktası.
@@ -249,16 +261,31 @@ function rankForSubquery(index: KbIndex, subquery: string, opt: RankOptions): { 
 
   // ADAY ŞARTI: güçlü kök isabeti YA DA kategori ipucu YA DA n-gram eşiği YA DA
   // anlamsal puan. Zayıf kökler ("var") tek başına aday yapmaz.
+  // 🚨 ANLAMSAL EŞİK n-gram EMSALİYLE AYNI (inceleme turu, 09-11). Burası
+  // `semanticScores[i] > 0` idi; kosinüs pratikte HER parçada > 0 olduğu için
+  // gerçek embedding bağlandığı an HER parça `hasEvidence` olur ve
+  // `no_lexical_hits` geri çekilmesi bir daha ASLA tetiklenmezdi (dürüstlük
+  // dalı sessizce ölürdü). Bugün etkisi YOK — üretimde `semantic` verilmiyor.
   const semanticScores = rankings.find((r) => r.source === "semantic")?.scores;
   const hasEvidence = (i: number): boolean =>
-    strongHit(i) || (ngram !== null && ngram[i] >= NGRAM_QUALIFY_MIN) || (semanticScores !== undefined && semanticScores[i] > 0);
+    strongHit(i) ||
+    (ngram !== null && ngram[i] >= NGRAM_QUALIFY_MIN) ||
+    (semanticScores !== undefined && semanticScores[i] >= SEMANTIC_QUALIFY_MIN);
   const qualified = (i: number): boolean => hasEvidence(i) || (categoryHints.get(index.chunks[i].category as never) ?? 0) > 0;
 
   // Niteliksiz parçalar birleşime girmez (kaynak sıralarını şişirmesin).
   for (const r of rankings) {
     for (let i = 0; i < n; i++) if (!qualified(i)) r.scores[i] = 0;
   }
-  const fused = opt.sources.fusion === "rrf" ? fuseRankings(rankings, n).fused : fuseNormalizedScores(rankings, n);
+  // 🚨 ANLAMSAL KAYNAK VARSA BİRLEŞİM RRF (inceleme turu, 09-11).
+  // CombSUM (`fuseNormalizedScores`) min-max normalize edilmiş PUANLARI toplar.
+  // BM25 skorları SEYREKTİR (çoğu parçada 0), kosinüs ise YOĞUNDUR — normalize
+  // edilince neredeyse her parça 0,6–1,0 katkı alır ve sözcüksel sıra SİLİNİR.
+  // RRF yalnız SIRAYA baktığı için bu sorunu yaşamaz. Çağıran açıkça `rrf`
+  // dediyse zaten RRF; anlamsal kaynak geldiğinde de RRF'e geçilir.
+  // ⚠️ Bugün etkisi YOK (üretimde `semantic` verilmiyor) — bu bir HAZIRLIKTIR.
+  const useRrf = opt.sources.fusion === "rrf" || semanticScores !== undefined;
+  const fused = useRrf ? fuseRankings(rankings, n).fused : fuseNormalizedScores(rankings, n);
   let max = 0;
   for (const v of fused) if (v > max) max = v;
   const base = new Float64Array(n);
@@ -274,7 +301,7 @@ function rankForSubquery(index: KbIndex, subquery: string, opt: RankOptions): { 
   const cands = rerank(index.chunks, index.bm25.docs, base, qualified, { ownStems: ownSet, expansionStems, bigrams, categoryHints }, hasEvidence);
   const best = cands.reduce((m, c) => Math.max(m, c.score), 0);
   const floor = Math.max(RELEVANCE_FLOOR_ABS, best * RELEVANCE_FLOOR_REL);
-  return { cands: sortCandidates(cands.filter((c) => c.score >= floor), index.chunks), sources };
+  return { cands: sortCandidates(cands.filter((c) => c.score >= floor), index.chunks), sources, fusion: useRrf ? ("rrf" as const) : ("sum" as const) };
 }
 
 function legacyResult<T extends KbChunkSource>(
@@ -320,7 +347,7 @@ export function selectKbForPrompt<T extends KbChunkSource>(input: KbSelectInput<
     q: number,
     sel: number,
     cand: number,
-    extra: Pick<KbRetrievalEvidence, "srcs" | "sup" | "conf" | "confDropped"> = {},
+    extra: Pick<KbRetrievalEvidence, "srcs" | "sup" | "conf" | "confDropped" | "fus"> = {},
   ): KbRetrievalEvidence => ({
     mode: "hybrid",
     q,
@@ -356,11 +383,12 @@ export function selectKbForPrompt<T extends KbChunkSource>(input: KbSelectInput<
     const rankedAll = subqueries.map((q) => rankForSubquery(index, q, { carryStems, semantic: input.semantic, sources, queryIsTurkish }));
     const ranked = rankedAll.map((r) => r.cands);
     const srcs = rankedAll[0]?.sources ?? [];
+    const fus = rankedAll[0]?.fusion;
     if (ranked.every((r) => r.length === 0)) {
       return legacyResult(
         cappedForFallback(sup > 0 ? items : input.items),
         "hybrid",
-        evidence("no_lexical_hits", subqueries.length, 0, index.chunks.length, { srcs, sup }),
+        evidence("no_lexical_hits", subqueries.length, 0, index.chunks.length, { srcs, fus, sup }),
       );
     }
 
@@ -436,6 +464,7 @@ export function selectKbForPrompt<T extends KbChunkSource>(input: KbSelectInput<
       notes,
       evidence: evidence("none", subqueries.length, selected.length, index.chunks.length, {
         srcs,
+        fus,
         sup,
         conf: conflicts.length,
         confDropped,

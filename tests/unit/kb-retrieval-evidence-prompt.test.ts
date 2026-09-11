@@ -237,7 +237,13 @@ describe("mimari pinler", () => {
     }
     const sem = read("src/lib/ai/retrieval/semantic.ts");
     expect(sem).not.toMatch(/fetch\(|openai|https?:\/\//i);
-    expect(sem).toContain("noopSemanticScorer");
+    // 🚨 `noopSemanticScorer` PİNİ KALDIRILDI ve yerine ASIL SÖZLEŞME kondu
+    // (inceleme turu, 09-11). Eski arayüz ÖLÜ ve YANLIŞ ŞEKİLLİYDİ: seçici onu
+    // hiç import etmiyordu, ve `score(query, texts)` metni parametre aldığı için
+    // doküman vektörü ÖNBELLEKLENEMEZ + parça KİMLİĞİ taşımıyordu. Gerçek
+    // sözleşme `KbSelectInput.semantic` = ÖNCEDEN hesaplanmış harita.
+    expect(sem).toContain("SEMANTIC_QUALIFY_MIN");
+    expect(sem).toContain("SOURCE_WEIGHTS");
     // Seçici bir puanlayıcı ÇAĞIRMAZ; yalnız hazır harita alır (parametre) — üretimde verilmediği için kaynak yoktur.
     const sel = read("src/lib/ai/retrieval/select.ts");
     expect(sel).not.toMatch(/SemanticScorer|noopSemanticScorer|\.score\(/);

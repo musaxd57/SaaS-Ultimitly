@@ -1295,6 +1295,15 @@ tetiklenmez) ve CombSUM embedding ile ezilir (BM25 seyrek, kosinüs yoğun) → 
 seçicinin gerçek sözleşmesi `ReadonlyMap<chunkKey, 0..1>` değişmeden çalışır ve ağ çağrısını çağırana çıkarır
 → `select.ts` saf+senkron+DB'siz kalır, fail-open YAPISAL olur. 🚨 En güçlü gerekçe maliyet değil:
 **Rusça/Arapça'da sözcüksel eşleşme YAPISAL OLARAK YOK**, DE/FR yalnız kazaen çalışıyor.
+✅ **E0 YAPILDI** (ücretsiz, migration'sız, bugün davranış DEĞİŞMEZ çünkü üretimde `semantic` verilmiyor):
+`SEMANTIC_QUALIFY_MIN` 0.3 (n-gram emsali) · anlamsal kaynak varken birleşim **RRF**e geçer · ölü
+`SemanticScorer`/`noopSemanticScorer` SİLİNDİ · `SOURCE_WEIGHTS` yorumu düzeltildi ("RRF, ağırlık ↓" diyordu
+ama `semantic: 1` bm25'e EŞİTTİ). 🚨 **Kanıta `fus` alanı eklendi** ("sum"|"rrf", etkin birleşim): o alan
+olmadan RRF anahtarı DIŞARIDAN GÖZLEMLENEMİYORDU ve anahtarı silen mutasyon HAYATTA KALIYORDU — pin
+vakumluydu, ölçüldü. Mutasyon 4/4 (eşik · anahtar sil · hep-rrf · kaynağı komple sil), kontrol yeşil.
+⚠️ **İlk yazımda `SEMANTIC_QUALIFY_MIN` import EDİLMEMİŞTİ** ve `select.ts`in try/catch'i bunu sessizce
+`fb:"error"` → "tüm kümeyi gönder" dalına çeviriyordu: yani embedding bağlandığı gün retrieval sessizce
+KAPANIRDI. Testler yakaladı — o try/catch bir güvenlik ağı ama aynı zamanda bir SESSİZLİK kaynağı.
 
 **Önceki: ÜRÜN TURU 3 (09-11, DÖRT ölçümlü ajan) — `8e414f8` · `3965ecb` · `2a41a60` · `089240e`:**
 ① 🚨 **MARKA ADI FİKSTÜRE GERİ GELMİŞTİ** (benim hatam, `34fc701` ile push edilmişti; ajan buldu) →
