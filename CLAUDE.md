@@ -351,7 +351,13 @@ Bu dosyaya token/anahtar/parola yazma.
   karşılama kalemi KALIR), yön fail-closed. 🚨 **`{daire}` BELİRSİZDE İKAME EDİLMEZ:** `apartmentNumberOf` önce
   "daire/no/apt/#" ETİKETİNDEN sonraki sayıyı alır, yoksa TEK sayıyı; birden çok sayı varsa `null` → belirteç
   dokunulmadan kalır. Eski "son sayı" kuralı Türkiye ilan adlarında YANLIŞ numara söylüyordu (ölçüldü:
-  "Nuve 3 | 2+1 Deniz Manzaralı" → "1", "Nuve 12 (2. kat)" → "2"). `guestFirstNameOf` Türkçe katlamayla büyük/küçük
+  "Nuve 3 | 2+1 Deniz Manzaralı" → "1", "Nuve 12 (2. kat)" → "2"). **09-11 turu dört ölçülmüş kusur daha kapattı:**
+  etiket dalı `/i` ile yazıldığı için noktalı İ'yi kaçırıyordu ("DAİRE 5 - 2 Yatak Odalı" → null, host AÇIKÇA
+  yazmışken) → İKİ KATLAMA; etiketlerin KELİME SINIRI yoktu ("Mila**no** 12 | Daire 3" → "12") → önde sınır (sonda
+  BİLİNÇLİ yok, "Daire 5A" → "5" kalsın); ve TEK sayı tek başına daire numarası SAYILMAZ — sayıyı bir SAYAÇ sözcüğü
+  izliyorsa ("Trabzon **4 Kişilik** Daire" → "4") ya da sayı 3 haneden uzunsa ("**2024** Yılı Dairesi" → "2024") ikame
+  YAPILMAZ. 🚨 Önceki turun pini "2024"ü DOĞRU sayıyordu — yanlış beklenti kodlanmıştı, tersine çevrildi; karşı yön de
+  pinli ("Bodrum Villa 8" → "8", "Kule 104" → "104"). `guestFirstNameOf` Türkçe katlamayla büyük/küçük
   harfe duyarsız ("rezervasyon 12345" da yer tutucudur), TAM eşleşme ("Misafirhan" gerçek ad). Tek geçiş `replace`+callback
   (`$&`/`$1` harfi harfine); değeri verilmeyen sınıf ve tanınmayan belirteç (`{kod}`) DOKUNULMAZ. 🚨 `/i` bayrağı
   noktalı **İ**'yi katlamaz → `{İSİM}` eski regex'te KAÇIYORDU; anahtar adı İKİ katlamadan geçer (tr + standart).

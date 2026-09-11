@@ -34,6 +34,17 @@ describe("apartmentNumberOf — etiket > tek sayı > BELİRSİZ (null)", () => {
     // Tek sayı: belirsizlik yok
     ["nuve 3", "3"],
     ["nuve teras 4", "4"],
+    // ── İNCELEME TURU 3 (09-11, ölçüldü) ──
+    // (a) `/i` Türkçe noktalı İ'yi KATLAMAZ → etiket dalına hiç girmiyordu, iki sayılı
+    //     ada düşüp `null` dönüyordu (host açıkça "DAİRE 5" yazmışken).
+    ["DAİRE 5 - 2 Yatak Odalı", "5"],
+    ["DAİRE 5", "5"],
+    // (b) Etiketlerin KELİME SINIRI yoktu → "no" başka kelimenin içinde yakalanıyordu.
+    ["Milano 12 | Daire 3", "3"],
+    ["Milano Residence Daire 7", "7"],
+    // Hane SINIRI ≤3: iki ve üç haneli çıplak numara hâlâ daire numarasıdır (kural yutmuyor).
+    ["Nuve Teras 12", "12"],
+    ["Kule 104", "104"],
     // Sayısız: mülk adının kendisi (uydurma numara yok)
     ["Deniz Manzara", "Deniz Manzara"],
     ["", ""],
@@ -45,8 +56,17 @@ describe("apartmentNumberOf — etiket > tek sayı > BELİRSİZ (null)", () => {
     // Ölçüldü (inceleme 09-10): eski "son sayı" kuralı sırasıyla "1", "2", "2024" veriyordu.
     expect(apartmentNumberOf("Nuve 3 | 2+1 Deniz Manzaralı")).toBe(null);
     expect(apartmentNumberOf("Nuve 12 (2. kat)")).toBe(null);
-    // Tek sayı → belirsizlik yok (eski kural burada da doğruydu).
-    expect(apartmentNumberOf("2024 Yılı Dairesi")).toBe("2024");
+    // 🚨 ÖNCEKİ TURUN PİNİ YANLIŞ BEKLENTİYİ KODLUYORDU (inceleme 09-11): "2024 Yılı
+    // Dairesi" için "2024" DOĞRU sayılmıştı — oysa bu bir YIL, misafire uydurma daire
+    // numarası söylüyordu. Türkiye'de daire numarası pratikte ≤3 hanedir.
+    expect(apartmentNumberOf("2024 Yılı Dairesi")).toBe(null);
+    // Aynı sınıf: sayıyı bir SAYAÇ sözcüğü izliyorsa o sayı kapasite/ölçüdür, daire değil.
+    expect(apartmentNumberOf("Trabzon 4 Kişilik Daire")).toBe(null);
+    expect(apartmentNumberOf("Bodrum 3 Yatak Odalı Ev")).toBe(null);
+    expect(apartmentNumberOf("Çeşme 2 Katlı Villa")).toBe(null);
+    // KARŞI YÖN: sayaç sözcüğü YOKSA tek sayı hâlâ daire numarasıdır (kural yutmuyor).
+    expect(apartmentNumberOf("Bodrum Villa 8")).toBe("8");
+    expect(apartmentNumberOf("Arnavutköy 5 numara")).toBe("5");
     // ETİKET belirsizliği ÇÖZER: iki sayı var ama host "Daire 5" demiş.
     expect(apartmentNumberOf("Daire 5 - 2 Yatak Odalı")).toBe("5");
   });

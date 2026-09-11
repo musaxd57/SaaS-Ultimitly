@@ -62,6 +62,36 @@ export function guestFirstNameOf(guestIdentifier: string | null | undefined): st
 }
 
 /**
+ * Etiket eşleşmesi — KELİME BAŞINDA olmalı.
+ *
+ * 🚨 `/i` YETMİYORDU, İKİ AYRI KUSUR (inceleme 09-11, ölçüldü):
+ * (a) `/i` Türkçe noktalı İ'yi KATLAMAZ → "DAİRE 5 - 2 Yatak Odalı" etiket dalına HİÇ
+ *     girmiyordu ve iki sayılı ada düşüp `null` dönüyordu (host açıkça "DAİRE 5" yazmışken).
+ *     Çözüm `keyKind`teki İKİ KATLAMA kuralının aynısı (tr + standart).
+ * (b) Etiketler kelime sınırsızdı → "no" BAŞKA kelimenin içinde yakalanıyordu:
+ *     "Milano 12 | Daire 3" → **"12"** (doğrusu 3). Öndeki sınır şartı bunu eler.
+ * Not: sondaki sınır BİLİNÇLİ YOK — "Daire 5A" gibi adlarda "5" dönmeye devam eder.
+ */
+const APARTMENT_LABEL = /(?<![\p{L}\p{N}])(?:daire|apart?ment|apartman|apt|no|#)\s*[:.]?\s*(\d+)/u;
+
+/**
+ * Sayıdan SONRA gelen SAYAÇ sözcükleri — o sayı daire numarası DEĞİL, kapasite/ölçüdür.
+ * Yalnız ölçülen sınıf (kişi/yatak/oda/kat/banyo/metre); liste dar tutulur, her girdi pinli.
+ */
+const COUNTER_AFTER_NUMBER = new Set([
+  "kişilik", "kisilik", "kişi", "kisi", "yatak", "yataklı", "yatakli",
+  "odalı", "odali", "oda", "kat", "katlı", "katli", "banyolu", "banyo",
+  "metre", "m2", "dönüm", "donum", "adet", "gece",
+]);
+
+/** Mülk adının iki katlanmış biçimi (`keyKind` ile aynı sözleşme; yalnız EŞLEŞME EKLER). */
+function foldedForms(s: string): string[] {
+  const tr = s.toLocaleLowerCase("tr");
+  const std = s.toLowerCase();
+  return tr === std ? [tr] : [tr, std];
+}
+
+/**
  * Misafire görünen daire numarası.
  *
  * SIRA: (1) "daire/no/apt/#" etiketinden SONRAKİ sayı — host niyetini AÇIKÇA yazmıştır;
@@ -73,13 +103,33 @@ export function guestFirstNameOf(guestIdentifier: string | null | undefined): st
  * "Daire 5 - 2 Yatak Odalı" → **"2"**, "Nuve 12 (2. kat)" → **"2"**. Misafire YANLIŞ
  * daire numarası söyleniyor ve hiçbir sinyal üretilmiyordu. Belirsizde susmak, uydurmaktan
  * iyidir (`null` → çağıran belirteci dokunulmadan bırakır).
+ *
+ * 🚨 TEK SAYI DA TEK BAŞINA YETMİYOR (inceleme 09-11, ölçüldü): "Trabzon 4 Kişilik Daire"
+ * → **"4"** (kapasite) ve "2024 Yılı Dairesi" → **"2024"** (yıl) misafire UYDURMA daire
+ * numarası söylüyordu. İki dar kural: sayıyı bir SAYAÇ sözcüğü izliyorsa ve sayı 3 haneden
+ * uzunsa (yıl/metrekare sınıfı; Türkiye'de daire numarası pratikte ≤3 hane) İKAME YAPILMAZ.
+ * Bedeli açık ve GÜVENLİ YÖNDE: gerçekten 4 haneli bir daire numarası varsa belirteç
+ * görünür kalır — yanlış numara söylemekten iyidir.
  */
 export function apartmentNumberOf(propertyName: string): string | null {
-  const labelled = /(?:daire|apart?ment|apt|no|#)\s*[:.]?\s*(\d+)/i.exec(propertyName);
-  if (labelled) return labelled[1];
+  for (const form of foldedForms(propertyName)) {
+    const labelled = APARTMENT_LABEL.exec(form);
+    if (labelled) return labelled[1];
+  }
   const nums = propertyName.match(/\d+/g);
   if (!nums) return propertyName;
-  return nums.length === 1 ? nums[0] : null;
+  if (nums.length !== 1) return null;
+  const only = nums[0];
+  if (only.length > 3) return null;
+  // ⚠️ Sayının etrafına sınır şartı YAZILDI ve mutasyonla ÖLÇÜLDÜ: ULAŞILAMAZ. Bu dala yalnız
+  // adda TEK sayı dizisi varken giriliyor (`nums.length !== 1` yukarıda eleniyor), yani `only`
+  // başka bir sayının parçası OLAMAZ. Pinlenemeyen kod tutulmaz.
+  const after = new RegExp(`${only}[^\\p{L}]*(\\p{L}+)`, "u");
+  for (const form of foldedForms(propertyName)) {
+    const next = after.exec(form);
+    if (next && COUNTER_AFTER_NUMBER.has(next[1])) return null;
+  }
+  return only;
 }
 
 /** Metinde ad yer tutucusu var mı (host kendi selamlamasını yazmış mı)? */
