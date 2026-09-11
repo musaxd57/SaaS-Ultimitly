@@ -798,6 +798,65 @@ Sekiz P1 KAPANDI (09-07), her biri ayrı commit, kırmızı-önce + iki yönlü 
   kelime sınırı ve zayıf etiket dalı pinsizdi · QR ad bacağı aynı sabiti kullandığı için izole değildi · bir QR testinde
   anti-vacuity çapası yoktu · üçüncü kolonun (`riskType`) çoğu satırda TÜRETİLMİŞ olduğu yazıldı.
   Kanıt: kırmızı-önce 26 + **mutasyon 28/28** (bir hayatta kalan pinsiz bilinçli kararı gösterdi → pinlendi).
+- **YEDİNCİ TUR (09-11, DÖRT paralel ölçümlü ajan) — (a) ENVANTER + (b) 6. TURUN İKİ GERİLEMESİ:**
+  **(a) `BREAKDOWN_DEVICES` bir ENVANTERDİR, dilbilgisi değil** — yazılmamış her cihaz adı arıza fiiliyle gelse bile
+  `general` kalır ve kapı OTO-GÖNDERİM İZNİ verir. İki partide ölçüldü: 1. partide 14 gerçekçi bildirimin 14'ü kaçıyordu,
+  **13'ü oto-gönderim izni alıyordu**; 2. partide 16'nın 12'si. Dördü BAŞKA bir bacaktan complaint'ti ve asimetrinin
+  kendisi kusurdu ("Çaydanlık bozuldu, ısıtmıyor" complaint / "Çaydanlığı fişe taktık, bozulmuş" general). **19 ad
+  eklendi** (davlumbaz · aspiratör · jaluzi · panjur · diyafon · termostat · vantilatör · duşakabin · süpürge · pencere ·
+  çaydanlık+**çaydanlığ** · havalandırma · boyler · kepenk+**kepeng** · rezervuar · interkom · avize · perde · router).
+  🚨 `router` POLİTİKA DEĞİŞİKLİĞİ DEĞİL, `modem` ile PARİTEDİR (modem 1. turdan beri listedeydi; aynı cihazın iki adı
+  farklı sınıf üretiyordu) — "İnternet gelmiyor"/"wifi çekmiyor" BİLİNÇLİ `wifi` kalır, test-pinli. 🚨 **`batarya`
+  ÖLÇÜLÜP REDDEDİLDİ** (geri ekleme): hem banyo armatürü hem telefon pili → "Telefonumun bataryası bozuldu" /
+  "Powerbank bataryamız bozuldu" = 2/2 yanlış pozitif; iyelik ZİNCİRİ kurtarmaz (belirtecin KENDİSİ cihaz sayılınca
+  zincir dalına ulaşılmaz). Bedeli pinli: banyo armatürü bildirimi KAÇIYOR. `çay` da mutasyonla pinsiz çıktı → tüketim
+  maddesi pini yazıldı. Bağımsız anti-sıkılaşma bataryası (130 mesaj + 42 sözcük çarpışma probu) bu 19 kelime için
+  **0 yeni yanlış pozitif** ölçtü. Kanıt: kırmızı-önce 5 blok + **mutasyon 20/20**.
+  **(b) İNCELEME — üç P1, ikisi 6. turun KENDİ gerilemesi:**
+  🚨 ① **Homoglif bypass'ı hâlâ açıktı:** 6. tur üçüncü okumayı YALNIZ `normalizeForMatch` üzerinden aldı, `deconfuse`
+  adayını ATLADI → tek bir Kiril "о" (U+043E) aynı oto-gönderim iznini yeniden açıyordu. `deconfuse(normalizeForMatch(…))`
+  ile sarıldı. 🚨 **`matchCandidates`i olduğu gibi dolaşmak YANLIŞ** (ölçüldü, yapma): `stripCombining` "yaşamadık"ı MELEZ
+  "yasamadık" yapar, o biçim ne TR ne ASCII olumsuzlama girdisiyle eşleşir → "Hiçbir sorun yaşamadık." ÖVGÜSÜ complaint'e
+  döner. Yalnız `deconfuse`; 11 olumsuzlama pini korundu.
+  🚨 ② **`"su"`yu filler'dan çıkarmak 6 GERÇEK BİLDİRİMİ düşürdü** ("Şofbeni açtık, su bozuldu." · "Duşta su bozuldu.").
+  6. turun gerekçesi ("SU gerçek bir tesis adıdır") KODDA TERSİNE çalışıyordu: `su` cihaz listesinde OLMADIĞI için özne
+  yuvasında "cihaz-DIŞI özne" sayılıp bildirimi REDDETTİRİYORDU. → `su` + `suy` (kaynaştırma gövdesi) **CİHAZ** yapıldı;
+  6. turun pini YANLIŞ YÖNÜ kodluyordu, ters çevrildi. Çekim kapısı türetmeleri eliyor (sunum · susuz · surat · suçlu · sucuk).
+  🚨 ③ **İzafet kalıpları ÇAPASIZ** — herhangi bir iyelik öbeğinde eşleşiyor ve 14 bilgi sorusunun 13'ünü complaint
+  yapıyordu ("Havuzun suyu akmıyor **mu**, şelale gibi mi?" · "Sokak lambası yanmıyor **mu** gece?" · "Kahve makinemizin
+  suyu akmıyor, biz getirmiştik"). → **SORU EKİ guard'ı** (`QUESTION_TAIL`, `CONDITIONAL_TAIL` emsaliyle) YALNIZ izafet
+  alt kümesine (`POSSESSIVE_FACILITY_COMPLAINTS`). 🚨 Guard'ı TÜM ağa açmak ÖLÇÜLDÜ: beş gerçek şikâyet düşüyor
+  ("Sıcak su gelmiyor mu acaba, duş alamadık.") → DAR tutuldu, mutasyon pinli. Harf sınırı (`(?!\p{L})`) ŞART: onsuz
+  "mutfakta/mumla" soru eki sayılıp üç bildirimi susturuyor. `"duşu akmıyo"` ÖLÜ girdi çıktı (mevcut "su akmıyo" ASCII
+  katlamada altdizi) → silindi.
+  **`sorun/problem` KOŞUL AİLESİ** (ölçülen EN BÜYÜK yanlış pozitif sınıfı, 11 mesaj): İZİN sorusu ailesi ("sorun olur mu")
+  08-01'den beri korunuyordu, KOŞUL ailesi unutulmuştu → "Bir sorun olursa sizi arayabilir miyiz?" oto-yanıtın VAR OLMA
+  SEBEBİ olan soruyken insana devrediliyordu. Ayrı liste `PROBLEM_CONDITIONAL_NEGATIONS` + iki dar kural: 🚨 **ALINTI
+  FRENİ** — `" diye "` görülürse koşul elemesi HİÇ uygulanmaz (fail-closed; fren olmadan 7 karışık mesajın 2'si `general`e
+  düşüyordu: "Sorun olursa diye yazıyorum, perde rayından çıkmış."); boşluklu yazılır ("diyet" içinde de geçer, pinli).
+  🚨 **İngilizce girdilerin "ı"lı İKİZİ ŞART** — `foldTurkishLowerTr` cümle başındaki "I"yı "ı" yapar, ikizsiz hâlde
+  İngilizce koşul cümlesi complaint kalıyordu.
+  **Yer tutucu — dört kusur:** 6. turun sayaç kuralı KANONİK TÜRK ADRESİNİ yok ediyordu ("No:12 D:5 Kat:3" → `null`,
+  5. turun KENDİ vitrin örneği; "Apartment 12 Floor 3" → `null`) → **sayaç sözcüğü KENDİ SAYISINI alıyorsa modifikatör
+  değil YENİ ETİKETTİR** · İngilizce ilan başlıklarında sayaç sayının SOLUNDA ("Cozy Studio **Sleeps 4**" → "Daireniz 4")
+  → dar `COUNTER_BEFORE_NUMBER` · 🚨 **`packKnowledgeBase` BAŞLIK taraması GERİ ALINDI**: başlıklar ETİKET taşır ve
+  `[...]` deseni etiketle yer tutucuyu ayırt edemez → "[ÖNEMLİ] Wi-Fi" · "[EN] Check-in" · "Kurallar [Güncellendi]" ·
+  "Otopark &lt;yeni&gt;" (4/4) DOLU kalemler için modele "bu bilgi kayıtlarımda yok" (KURAL-3) talimatı üretiyordu; kazanç
+  ÖLÇÜLDÜ ve SIFIR (`KB_PRESETS`in hiçbirinde parantezli BAŞLIK yok). İkame tarafı başlığı çözmeye DEVAM eder; sır kapısı
+  zaten `title\ncontent` tarar · `APOSTROPHES`teki **U+00B4 ÖLÜ girdiydi** (NFKC onu BOŞLUK + U+0301 yapar, `deviceTokens`e
+  hiç ulaşmaz) → silindi, sınır pinli; **U+02BC ve U+2032 EKLENDİ** (NFKC'den değişmeden geçiyor) · `guestFirstNameOf`
+  yorumu ("'Misafir Ahmet' KORUNUR") KODLA ÇELİŞİYORDU, dosyanın kendi testi tersini pinliyor → düzeltildi.
+  Kanıt: kırmızı-önce 9 blok + **mutasyon 21/23**; kalan ikisi ÖLÇÜLMÜŞ EŞDEĞER MUTANT ve ikisi de bir iddiayı KANITLIYOR
+  (U+00B4'ün geri konması davranışı değiştirmiyor = "ölü girdi"; sol-sayaç kontrolünü etiketli yola eklemek ULAŞILAMAZ).
+- **Eval MODEL KIYASI altyapısı (09-11, ücretli servis ÇAĞRILMADI):** `tests/eval/sidecar.ts` her koşunun yanına aynı
+  kökle makine-okunur JSON yazar (`.md` → `.json`) ve iki yolu stdout'a basar; `scripts/eval-compare-models.mjs` her
+  modeli AYRI SÜREÇTE koşup yan yana rapor üretir. 🚨 Markdown PARSE EDİLMEZ (rapor metni her turda değişiyor, bir tablo
+  başlığı değişince kıyas sessizce yanlış sonuç üretirdi). 🚨 AYRI SÜREÇ ŞART: `suggestReply` modeli `OPENAI_MODEL`den
+  okur ve bu değer süreç başına sabittir. 🚨 ÜCRETLİ KAPI: kaç gerçek çağrı yapacağını DATASET'ten okuyup yazar,
+  `EVAL_COMPARE_YES=1` yoksa onay bekler. 🚨 Eksik kıyas "geçti" diye okunamaz (çıkış kodu 1). Kullanım:
+  `RUN_REAL_EVAL=1 node scripts/eval-compare-models.mjs gpt-5.1 gpt-5.6-luna`. **Gölge katmanı (`shadow-ai.ts`) luna'yı
+  Nuve'de zaten koşuyor ama YALNIZ güvenlik sınıflandırmasını kıyaslıyor; CEVAP KALİTESİ bu harness'la ölçülür** —
+  model değişimi İKİ kanıt ister, gölge yalnız birini verir.
 - **KB onay sözleşmesi (A1) CANLI — migration 53 prod'da 09-08 16:42Z; §A doğrulandı (32 satır `legacy|legacy`, aktif = AI-okunabilir = 32).**
   `KnowledgeBaseItem`: `source` (`legacy·host_manual·extracted_draft·suggestion_accepted`) · `reviewState`
   (`legacy·approved·draft`) · `approvedAt` · `sourceRef`/`supersededById` (A5 için, bugün yazan YOK, pinli).
@@ -880,7 +939,16 @@ Sekiz P1 KAPANDI (09-07), her biri ayrı commit, kırmızı-önce + iki yönlü 
   yol · halka açık sayfada çerez yenileme · `PADDLE_WEBHOOK_SECRET` boot kapısı.
 
 ## Durum
-**RAG dilim 3 (Codex turu 3, 09-09) — bu commit: dört bulgu düzeltildi (alan bazlı çelişki + sığmayan çelişki notu ·
+**7. TUR (09-11, otonom /loop, DÖRT+BİR ölçümlü ajan) — ÜÇ commit: `43098ab` envanter (19 cihaz adı; 30 gerçekçi
+bildirimin 26'sı kaçıyordu, çoğu OTO-GÖNDERİLİYORDU; `batarya` ölçülüp REDDEDİLDİ) · `59a6bae` inceleme düzeltmeleri
+(homoglif bypass'ı + 6. turun İKİ gerilemesi + `sorun` KOŞUL ailesi + yer tutucuda dört kusur) · `76490a2` eval MODEL
+KIYASI altyapısı (ücretli servis ÇAĞRILMADI). Kanıt: kırmızı-önce 5+9 blok · mutasyon 20/20 + 21/23 (iki ölçülmüş
+eşdeğer) · tam kapılar yeşil (npm test **4434/371** · tsc · lint · build · audit). Migration YOK, bayrak değişikliği YOK.**
+🚨 **ANAHTAR BEKLENİYOR:** kurucu `OPENAI_API_KEY`i environment'a ekledi ama konteyner onu görmüyor (env açılışta
+yükleniyor) → **session yeniden başlatılınca** `npm run eval` + `scripts/eval-compare-models.mjs` koşulabilir. Sıra:
+eşleştirilmiş retrieval eval → `KB_RETRIEVAL_MODE=hybrid` tek mülk pilotu → genel; ayrıca `gpt-5.1` vs `gpt-5.6-luna`
+kıyası (6 kat maliyet; gölge katmanı yalnız GÜVENLİK sınıflandırmasını kıyaslıyor, CEVAP KALİTESİ bu harness'la ölçülür).
+**Önceki: RAG dilim 3 (Codex turu 3, 09-09) — dört bulgu düzeltildi (alan bazlı çelişki + sığmayan çelişki notu ·
 bildirim↔görev bağı · canlı tavan + cevap-metni ölçüsü · tazelik yakın-eşitlik bozucu) + anlamsal sözleşme dürüstlüğü
 (üretimde embedding YOK, pin) + n-gram ayrı ölçüm (`auto` varsayılanı ölçümle) + güvenlik filtresi davranışsal doğrulaması +
 eşleştirilmiş legacy/hibrit eval hazırlığı (R1–R8, kurucu koşar) + sentetik GraphRAG kıyas verisi (H1–H3 birebir, H4
@@ -893,10 +961,10 @@ DÜZELTME: `81a5f22` PUSH EDİLDİ (kurucu onayı, fast-forward; CI #1030 5/5 su
 yer tutucu notu + üçüncü-şahıs ve edilgen söz boşluğu; Codex ikinci tur: gerçek E4 cevabı ("…[ŞİFRE] olarak görünüyor…")
 regresyon pinli, reddederek alıntı da düşer, E5'e `noUnverifiedCommitment`; gerçek QR rotası karakterizasyonu (yer tutucu misafire
 dönüyor); veto raporu ayrı, uygulanmadı. Karşı örnekler pinli; mutasyon 12/12 + ikinci tur; kırmızı-önce.**
-**Origin HEAD `81a5f22` (09-09, E4 birinci tur; CI #1030 5/5 success; Railway ACTIVE teyidi BEKLENİYOR — kurucu). YEREL,
-PUSH YOK (kurucu kararı): `cc45ce6` (E4/E5 ikinci tur) · `1395dc8` (Türkçe olumsuz-fiil şikâyet boşluğu) · retrieval kaçak
-turu 09-10 (↓). Önceki `9699896` (dilim 3, CI #1026 5/5), `12ddd8e` (dilim 2, CI #1022 5/5) ve `061d62e` (dilim 1) ACTIVE —
-kurucu teyidi 09-09.** Prod'da canlı: migration 52/53/54 (09-08), `a52a30c`+ (selam tekrarı canlı doğrulaması hâlâ bekliyor).
+**Origin HEAD: 09-11 turu PUSH EDİLDİ (kurucu 09-11 "tam kapıları koşarak push edebilirsin" izni).** `27eb5f3` (6. tur)
+CI **#1032 success** ✅; ardından `43098ab` · `59a6bae` · `76490a2` (7. tur). Önceki `81a5f22` (CI #1030 5/5), `9699896`
+(dilim 3, CI #1026 5/5), `12ddd8e` (dilim 2, CI #1022 5/5) ve `061d62e` (dilim 1) ACTIVE — kurucu teyidi 09-09.
+Prod'da canlı: migration 52/53/54 (09-08), `a52a30c`+ (selam tekrarı canlı doğrulaması hâlâ bekliyor).
 **3. GERÇEK KOŞU (kurucu, 09-09 13:46 yerel, preflight klonu `2cfa8d4`): 8/8 ✅ (E1 dürüstlük sözleşmesiyle).** Rapor dosyası
 repoya henüz gelmedi (önceki iki koşununki de). Kurucunun preflight klonunda `npm install` 11 zafiyet gösterdi (node 24, engine
 uyarısı) — CI'daki triaj kapısı `061d62e`'de yeşil; yerelde `npm ci` + `npm run audit:check` ile kıyaslanmalı, `audit fix --force` YOK.

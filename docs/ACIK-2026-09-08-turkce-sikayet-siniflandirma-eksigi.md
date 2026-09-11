@@ -480,3 +480,133 @@ yoktu · üçüncü kolonun (`riskType`) çoğu satırda `isComplaint`ten TÜRET
 **Kanıt:** kırmızı-önce 26 düşen test; **mutasyon 28/28** — ilk koşuda bir mutant hayatta kaldı ve
 PİNSİZ BİLİNÇLİ BİR KARARI gösterdi (ham okumanın koruduğu şey: boşlukla bozulmuş olumsuzlamaya
 güvenilmemesi) → pinlendi.
+
+---
+
+## 7. TUR (09-11, otonom /loop — DÖRT paralel ölçümlü ajan)
+
+### (a) `BREAKDOWN_DEVICES` bir ENVANTERDİR — 19 ad eklendi
+
+Liste dilbilgisi değil envanterdir: yazılmamış her cihaz adı, arıza fiiliyle birlikte gelse bile
+`general` kalır ve `passesAutoReplySafetyGate` OTO-GÖNDERİM İZNİ verir.
+
+| Parti | Ölçülen | Kaçan | Oto-gönderim izni alan |
+|---|---|---|---|
+| 1 (davlumbaz · aspiratör · jaluzi · panjur · diyafon · termostat · vantilatör · duşakabin) | 14 bildirim | **14/14** | **13** |
+| 2 (süpürge · pencere · çaydanlık · havalandırma · boyler · kepenk · rezervuar · interkom · avize · perde · router) | 16 bildirim | **12/16** | — |
+
+Kalan dördü BAŞKA bir bacaktan complaint'ti ve **asimetrinin kendisi kusurdu**:
+`"Çaydanlık bozuldu, ısıtmıyor."` complaint ama `"Çaydanlığı fişe taktık, bozulmuş."` general.
+
+**Ünsüz yumuşaması gövdeleri ayrı yazıldı:** `çaydanlığ` (k→ğ), `kepeng` (k→g).
+
+🚨 **`router` politika değişikliği DEĞİL, `modem` ile PARİTE.** `modem` 1. turdan beri listedeydi;
+aynı cihazın iki adı farklı sınıf üretiyordu. `"İnternet gelmiyor"` / `"wifi çekmiyor"` BİLİNÇLİ
+olarak `wifi` intent'i olmaya devam eder (test-pinli).
+
+🚨 **`batarya` ÖLÇÜLÜP REDDEDİLDİ (geri ekleme).** Türkçede hem banyo armatürü hem telefon pili:
+
+| Mesaj | `batarya` eklenince |
+|---|---|
+| "Telefonumun bataryası bozuldu, şarj aleti var mı?" | ❌ complaint |
+| "Powerbank bataryamız bozuldu, sizde var mı?" | ❌ complaint |
+
+İyelik ZİNCİRİ kurtarmaz: belirtecin KENDİSİ cihaz sayılınca `reportSubjectSlot` zincir dalına hiç
+ulaşmaz. Bedeli dürüstçe pinlendi: **banyo armatürü bildirimi bu yüzden KAÇIYOR.**
+
+`çay` mutasyon turunda pinsiz çıktı → tüketim maddesi pini yazıldı ("Çayımız bozuldu, buzdolabında
+unutmuşuz.").
+
+**Bağımsız anti-sıkılaşma ölçümü** (130 gerçekçi mesaj + 42 sözcük çarpışma probu): bu 19 kelime
+için **0 yeni yanlış pozitif, 0 yanlış eşleşme**.
+
+### (b) İNCELEME — üç P1, ikisi 6. turun KENDİ gerilemesi
+
+**① Homoglif bypass'ı hâlâ açıktı.** 6. tur üçüncü okumayı yalnız `normalizeForMatch` üzerinden aldı,
+`deconfuse` adayını atladı:
+
+```
+complaint  "Dairede bir sorun var."
+general    "Dairede bir sоrun var."          ← tek Kiril о (U+043E), OTO-GÖNDERİM İZNİ
+general    "There is a prоblem in the flat."
+```
+
+🚨 `matchCandidates`i olduğu gibi dolaşmak YANLIŞ (ölçüldü): `stripCombining` "yaşamadık"ı MELEZ
+"yasamadık" yapar; o biçim ne TR ne ASCII olumsuzlama girdisiyle eşleşir → **"Hiçbir sorun yaşamadık."
+ÖVGÜSÜ complaint'e döner.** Yalnız `deconfuse` alındı.
+
+**② `"su"`yu filler'dan çıkarmak 6 gerçek bildirimi düşürdü.**
+
+```
+complaint → general   "Şofbeni açtık, su bozuldu."
+complaint → general   "Musluğu açtık, su bozuldu."
+complaint → general   "Duşta su bozuldu."                     (6/6)
+```
+
+6. turun gerekçesi ("SU gerçek bir tesis adıdır") KODDA TERSİNE çalışıyordu: `su` cihaz listesinde
+olmadığı için özne yuvasında "cihaz-DIŞI özne" sayılıp bildirimi REDDETTİRİYORDU. Gerekçe kodda
+doğru yapıldı: `su` + `suy` (kaynaştırma gövdesi) artık CİHAZ. 6. turun pini yanlış yönü kodluyordu,
+ters çevrildi.
+
+**③ İzafet kalıpları ÇAPASIZ — 14 bilgi sorusunun 13'ü complaint.**
+
+```
+general → complaint   "Havuzun suyu akmıyor mu, şelale gibi mi?"
+general → complaint   "Sokak lambası yanmıyor mu gece, karanlık mı oluyor?"
+general → complaint   "Otoparkın kapısı açılmıyor mu uzaktan kumandayla?"
+general → complaint   "Kahve makinemizin suyu akmıyor, biz getirmiştik."   (misafirin KENDİ cihazı)
+```
+
+Çözüm: **SORU EKİ guard'ı** (`QUESTION_TAIL`), `CONDITIONAL_TAIL` emsaliyle ve YALNIZ izafet alt
+kümesine (`POSSESSIVE_FACILITY_COMPLAINTS`).
+
+🚨 **Guard'ı TÜM ağa açmak ÖLÇÜLDÜ ve REDDEDİLDİ** — beş gerçek şikâyet düşüyor:
+"Sıcak su gelmiyor mu acaba, duş alamadık." · "Elektrikler gitti mi ne oldu, hiçbir şey çalışmıyor."
+
+🚨 **Harf sınırı (`(?!\p{L})`) ŞART:** onsuz "mutfakta/mumla" soru eki sayılıp üç bildirimi susturuyor
+("Banyo lavabosu tıkandı mutfakta da su birikiyor.").
+
+`"duşu akmıyo"` ÖLÜ girdi çıktı (mevcut `"su akmıyo"` ASCII katlamada altdizi) → silindi.
+
+### (c) `sorun/problem` KOŞUL AİLESİ — ölçülen EN BÜYÜK yanlış pozitif sınıfı
+
+İZİN sorusu ailesi ("sorun olur mu") 08-01'den beri `PROBLEM_NEGATIONS`ta korunuyordu; KOŞUL ailesi
+unutulmuştu. 11 mesaj, hepsi oto-yanıtın VAR OLMA SEBEBİ olan SSS soruları:
+
+```
+complaint → general   "Bir sorun olursa sizi arayabilir miyiz?"
+complaint → general   "Bir sorun çıkarsa hangi numarayı arayalım?"
+complaint → general   "Sorun yaşarsak size yazalım mı?"
+complaint → general   "If there is a problem, who should we contact?"
+```
+
+🚨 **ALINTI FRENİ:** `" diye "` görülürse koşul elemesi HİÇ uygulanmaz (fail-closed). Fren olmadan
+7 karışık mesajın 2'si `general`e düşüyordu — koşul bir SORU değil, yazma GEREKÇESİDİR:
+"Sorun olursa **diye** yazıyorum, perde rayından çıkmış." Boşluklu yazılır ("diyet" içinde de geçer).
+
+🚨 **İngilizce girdilerin "ı"lı İKİZİ ŞART:** `foldTurkishLowerTr` cümle başındaki "I"yı "ı" yapar;
+ikizsiz hâlde İngilizce koşul cümlesi complaint kalıyordu.
+
+Karşı yön korundu: "Dairede bir sorun var." · "Sorunumuz devam ediyor." · "Sorun çözülmedi."
+
+### Kanıt
+
+- Kırmızı-önce: **5 blok** (envanter) + **9 blok** (inceleme), kaynak stash'lenip ölçüldü.
+- Mutasyon: **20/20** + **21/23**. Kalan iki mutant ÖLÇÜLMÜŞ EŞDEĞER ve ikisi de bir iddiayı KANITLIYOR:
+  U+00B4'ün geri konması davranışı değiştirmiyor (= "ölü girdi" iddiasının kendisi); sol-sayaç
+  kontrolünü etiketli yola eklemek ULAŞILAMAZ.
+- Tam kapılar: `npm test` 4434/371 · tsc · lint · build · audit — hepsi yeşil.
+
+### Kalan borç (bu turda AÇILMADI)
+
+- `breakdownVerbRest` **fiil tarafında ek doğrulaması YOK** (çıplak `startsWith`): "Klima
+  bozulduğunda kimi aramalıyız?" · "Kombi bozulduktan sonra tamirci ne kadar sürede gelir?" 4 SSS
+  sorusu complaint oluyor. 🚨 DÜZELTMESİ ÖLÇÜLDÜ VE ERTELENDİ: aynı ek GERÇEK bildirimde de kullanılır
+  ("Klima bozulduğunda hemen haber verdik") — ayrım ekte değil ANA CÜMLENİN kipinde; ayırt edici
+  mekanizma bulunmadan gevşetmek tehlikeli.
+- Eski `KEYWORDS.complaint` ham kelimeleri (`bozuk`/`kirli`/`koku`/`böcek`/`kötü`) 15 yanlış pozitif
+  üretiyor ve bunlar 6 turun ürünü DEĞİL, 08-08'den beri var. Cihaz tarafına uygulanan çekim↔türetme
+  ayrımı bu bacağa HİÇ uygulanmamış ("Kirli çamaşırlarımızı nereye koyalım?" · "Kokulu mum yakmamızda
+  sakınca var mı?" · "Hiçbir şey bozuk değil, her şey harika!").
+- 51 cihaz adı daha ölçüldü ve GÜVENLİ çıktı (ampul · yatak+yatağ · koltuk+koltuğ · havuz · zil ·
+  kablo · küvet · evye · şalter · hidrofor · boru · pompa · depo …), ayrı tur.
