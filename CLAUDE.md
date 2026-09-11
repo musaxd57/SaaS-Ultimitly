@@ -1300,6 +1300,26 @@ teslim DENENMEDİ bile); `unfilled` alanı **opsiyonel** — `undefined` = ÖLÇ
 ⚠️ **`kbPlaceholderTokens` `prompts.ts`ten `kb-placeholders.ts`e TAŞINDI:** `prompts.ts` `import
 "server-only"` taşıyor, yani Bilgi Tabanı ekranı (client) onu import EDEMEZDİ; rozet ile gerçek davranış
 ayrışmasın diye yüklem saf modüle indi. `ANY_DOUBLE_BRACE` de `template-apply.ts`e (tek kaynak, üç tüketici).
+🚨 **MOBİL DEMO ÇERÇEVESİ (madde 10):** `.frame` SABİT 960px tasarım genişliğinde ve `rescale()`
+`Math.min(w/960, 1)` ile yalnız ÜST sınır koyuyordu — **ALT SINIR YOKTU**. Ölçüldü (Chromium, `.msg` 12,5px):
+1280px→12,50px · 430px→4,74 · **390px→4,22** · 360px→3,83. Düzeltme: `MIN_SCALE` 0.8 (→ **10,00px**,
+390px'te **2,37×**) + sahne KIRPILIR (`overflow:hidden`) ve demo **KENDİ odağını takip ederek** panorama
+yapar (`moveCursor` → `panTo`). 🚨 Yatay kaydırma ÇUBUĞU BİLİNÇLİ YOK: otomatik oynayan bir demoda elle
+kaydırma animasyonu görüş alanı dışına çıkarır. Ölçülen: masaüstü ölçek 1.0 + panorama **tam 0** (birebir
+eski davranış), mobilde panorama −165px'e kadar geziyor, sayfada yatay taşma 0.
+🚨 **BOZUK BESLEME "HAZIR" DİYORDU (madde 11):** mülk kartı ölçütü satırın VARLIĞIYDI
+(`Boolean(hospitableId) || _count.calendarSources > 0`) ve sorgu `lastStatus`/`lastSyncedAt` alanlarını
+**ÇEKMİYORDU BİLE** → kalıcı bozuk besleme "5/5 hazır" YEŞİLİ üretiyor, ipucu "kanal bağlantısı tamam"
+diyordu. Liste rozeti 4 durumun **0**'ını ayırıyordu (detay sayfası 2'sini ayırıyor — veri VARDI, liste
+okumuyordu). Artık üçüncü hâl KIRMIZI ("Takvim beslemesi hatalı", "hazır" DEMEZ) ve "hiç senkron olmadı"
+ayrı satır.
+🚨 **RAPORLARDA ÜÇ DÜRÜSTLÜK KUSURU:** ① performans rozeti `tone="success"` SABİT literal'dı → **F
+"Kritik" bile YEŞİL** basılıyordu (not gerçekten değişiyor: A≥90·B≥75·C≥60·D≥45·else F) → `GRADE_TONE`.
+② "~N saat kazandırdı" = mesaj × **4 dk** ve sabitin tek dayanağı bir YORUMDU → adlandırıldı
+(`MINUTES_PER_MESSAGE_ASSUMPTION`) ve cümle artık "mesaj başına 4 dk varsayımıyla" diyor (ölçüm gibi
+sunmuyor). ③ "En Çok Sorulanlar" sorgusunda **hiçbir tarih filtresi yoktu** (tüm zamanlar) — kardeş rapor
+30 gün kuruyor ve sayfa "Her kart kendi dönemini belirtir" DİYOR → `TOP_TOPICS_WINDOW_DAYS` 30 + başlıkta
+yazılı.
 🚨 **EMBEDDING PLANI ÖLÇÜLDÜ** (kurucu izni var): maliyet önemsiz (kurucu org'un TÜM KB'si **0,18 sent**,
 en ağır müşteri 3 sent; sorgu tarafı mesaj başına 67 token = sohbet isteminin **%0,37**'si); depo **pgvector
 DEĞİL** (aday kümesi ≤300 parça → brute-force 1,37 ms; pgvector Railway'de prod DB TAŞIMA projesi ister) →

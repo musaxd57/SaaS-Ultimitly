@@ -21,6 +21,12 @@ export default async function PropertiesPage() {
       include: {
         _count: { select: { reservations: true, tasks: true, knowledgeBase: true, calendarSources: true } },
         knowledgeBase: { where: { isActive: true }, select: { category: true } },
+        // 🚨 SAĞLIK OKUNUYOR, SATIR SAYMAK YETMİYOR (kurucu, 09-11: "bozuk
+        // besleme yeşil 'hazır' → düzelt"). Eski sorgu yalnız `_count` çekiyordu,
+        // yani rozetin ölçütü "satır VAR MI" idi; kalıcı olarak bozuk bir besleme
+        // (`lastStatus:"error"`) "hazır" yeşilini üretiyordu ve `title` ipucu da
+        // "kanal bağlantısı tamam" diyordu.
+        calendarSources: { select: { lastStatus: true, lastSyncedAt: true } },
       },
     }),
     getConnectionInfo(session.organizationId),
@@ -31,14 +37,22 @@ export default async function PropertiesPage() {
   // shows the host exactly what's still missing.
   const readiness = (p: (typeof properties)[number]) => {
     const cats = new Set(p.knowledgeBase.map((k) => k.category));
+    // 🚨 BESLEME SAĞLIĞI DÖRT DURUMU AYIRIR (eskiden SIFIRINI ayırıyordu):
+    // hiç senkron olmadı · son senkron başarılı · son senkron BAŞARISIZ · kaynak yok.
+    // "Bozuk" ayrı bir hâldir: eksik DEĞİL, ama hazır da DEĞİL — host'un müdahale
+    // etmesi gereken tek durum budur ve rozet onu SAKLIYORDU.
+    const broken = p.calendarSources.filter((c) => c.lastStatus === "error").length;
+    const never = p.calendarSources.filter((c) => !c.lastSyncedAt && c.lastStatus !== "error").length;
+    const hasChannel = Boolean(p.hospitableId) || p._count.calendarSources > 0;
     const items: { label: string; done: boolean }[] = [
       { label: "Wi-Fi bilgisi", done: cats.has("wifi") },
       { label: "Giriş talimatı", done: cats.has("checkin") },
       { label: "Ev kuralları", done: cats.has("rules") },
       { label: "Çıkış mesajı", done: cats.has("checkout") },
-      { label: "Kanal bağlantısı (Hospitable/iCal)", done: Boolean(p.hospitableId) || p._count.calendarSources > 0 },
+      // Bozuk besleme "tamam" SAYILMAZ: satır duruyor ama veri akmıyor.
+      { label: "Kanal bağlantısı (Hospitable/iCal)", done: hasChannel && broken === 0 },
     ];
-    return { items, done: items.filter((i) => i.done).length };
+    return { items, done: items.filter((i) => i.done).length, broken, never };
   };
 
   return (
@@ -97,21 +111,43 @@ export default async function PropertiesPage() {
                     <span>{p._count.tasks} görev</span>
                     <span>·</span>
                     <span>{p._count.knowledgeBase} bilgi</span>
+                    {/* 🚨 BOZUK BESLEME KENDİ RENGİNİ ALIR. Eski rozet iki
+                        renkliydi (yeşil "hepsi tamam" / amber "eksik var") ve
+                        bozuk besleme İKİSİNE DE uymuyordu — eksik değil ama
+                        çalışmıyor. Üçüncü hâl KIRMIZI ve "hazır" DEMEZ. */}
                     <span
                       className={
-                        ready.done === ready.items.length
-                          ? "ml-auto rounded-full bg-emerald-50 dark:bg-emerald-500/10 px-2 py-0.5 font-medium text-emerald-700 dark:text-emerald-400"
-                          : "ml-auto rounded-full bg-amber-50 dark:bg-amber-500/10 px-2 py-0.5 font-medium text-amber-700 dark:text-amber-300"
+                        ready.broken > 0
+                          ? "ml-auto rounded-full bg-destructive/10 px-2 py-0.5 font-medium text-destructive"
+                          : ready.done === ready.items.length
+                            ? "ml-auto rounded-full bg-emerald-50 dark:bg-emerald-500/10 px-2 py-0.5 font-medium text-emerald-700 dark:text-emerald-400"
+                            : "ml-auto rounded-full bg-amber-50 dark:bg-amber-500/10 px-2 py-0.5 font-medium text-amber-700 dark:text-amber-300"
                       }
                       title={
-                        missing.length > 0
-                          ? `Eksik: ${missing.join(", ")}`
-                          : "Wi-Fi, giriş, kurallar, çıkış mesajı ve kanal bağlantısı tamam"
+                        ready.broken > 0
+                          ? "Takvim beslemesi hata veriyor — rezervasyonlar güncellenmiyor olabilir. Mülk sayfasından bağlantıyı kontrol edin."
+                          : missing.length > 0
+                            ? `Eksik: ${missing.join(", ")}`
+                            : "Wi-Fi, giriş, kurallar, çıkış mesajı ve kanal bağlantısı tamam"
                       }
                     >
-                      {ready.done}/{ready.items.length} hazır
+                      {ready.broken > 0
+                        ? "Takvim beslemesi hatalı"
+                        : `${ready.done}/${ready.items.length} hazır`}
                     </span>
                   </div>
+                  {ready.broken > 0 ? (
+                    <p className="mt-1.5 text-xs text-destructive">
+                      Takvim beslemesi hata veriyor — yeni rezervasyonlar gelmiyor olabilir.
+                    </p>
+                  ) : null}
+                  {ready.never > 0 && ready.broken === 0 ? (
+                    /* "Hiç senkron olmadı" da AYRI bir hâl: bağlantı kurulmuş ama
+                       veri henüz akmamış. Eskiden bu da "hazır" sayılıyordu. */
+                    <p className="mt-1.5 text-xs text-muted-foreground">
+                      Takvim beslemesi henüz ilk kez senkronlanmadı.
+                    </p>
+                  ) : null}
                   {missing.length > 0 ? (
                     <p className="mt-1.5 text-xs text-amber-700 dark:text-amber-300/80">Eksik: {missing.join(", ")}</p>
                   ) : null}

@@ -448,12 +448,26 @@ export interface TopicCount {
   count: number;
 }
 
+/**
+ * 🚨 ZAMAN PENCERESİ EKLENDİ (kurucu iş emri, 09-11 — ölçülmüş kusur).
+ *
+ * Bu sorguda hiçbir tarih filtresi YOKTU: "En Çok Sorulanlar" TÜM ZAMANLARI
+ * sayıyordu. Kardeş rapor (`getAiOpsReport`) 30 günlük pencere kuruyor ve
+ * sayfanın kendi açıklaması "Her kart kendi dönemini belirtir" DİYOR — yani
+ * kart hem sessizce farklı bir dönem kullanıyor hem de sayfanın iddiasını
+ * yalanlıyordu. Sonuç: bir yıl önceki sorular listede sonsuza kadar kalıp yeni
+ * örüntüyü bastırıyordu.
+ */
+export const TOP_TOPICS_WINDOW_DAYS = 30;
+
 export async function getTopTopics(orgId: string, limit = 5): Promise<TopicCount[]> {
+  const since = new Date(Date.now() - TOP_TOPICS_WINDOW_DAYS * 86_400_000);
   const raw = await prisma.message.groupBy({
     by: ["aiIntent"],
     where: {
       conversation: { property: { organizationId: orgId } },
       aiIntent: { not: null },
+      createdAt: { gte: since },
     },
     _count: { aiIntent: true },
     orderBy: { _count: { aiIntent: "desc" } },

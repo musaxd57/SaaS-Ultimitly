@@ -58,7 +58,7 @@
   .head .badge{font-size:11px;font-weight:600;color:var(--accent);background:var(--accent-soft);
     border:1px solid #dbe3ff;padding:5px 10px;border-radius:999px}
 
-  .stageWrap{width:100%;max-width:960px;position:relative}
+  .stageWrap{width:100%;max-width:960px;position:relative;overflow:hidden}
   .frame{
     width:960px;height:540px;transform-origin:top left;position:absolute;top:0;left:0;
     border-radius:16px;overflow:hidden;background:#fff;
@@ -543,13 +543,46 @@
       }
     }catch(e){}
   }
+
+  /* 🚨 MOBİLDE PANEL OKUNAMAZ HÂLE GELİYORDU (kurucu, 2026-09-11: "mobil iframe
+     ~4px → düzelt o zaman"). ÖLÇÜLDÜ (Chromium, gerçek dosya):
+       1280px → ölçek 0.98, gövde yazısı 12,27px  (doğru)
+        430px → ölçek 0.379,               4,74px
+        390px → ölçek 0.3375,              4,22px  ← okunamaz
+        360px → ölçek 0.306,               3,83px
+     Kök neden `aspect-ratio`/`max-width` çakışması DEĞİL: `.frame` SABİT 960px
+     tasarım genişliğinde ve `rescale()` `Math.min(w/960, 1)` ile yalnız ÜST
+     sınır koyuyordu — ALT SINIR YOKTU, yani dar ekranda ölçek dilediğince
+     küçülüyordu. Tek mobil medya sorgusu da sadece iki rozeti gizliyordu,
+     yeniden akıtma (reflow) yoktu.
+
+     ÇÖZÜM: ölçeğe okunabilir bir TABAN (`MIN_SCALE`) + sahne KIRPILIR ve demo
+     KENDİ odağını takip ederek yatay KAYDIRIR. Yatay kaydırma ÇUBUĞU BİLİNÇLİ
+     OLARAK YOK: bu bir OTOMATİK OYNAYAN demodur, kullanıcı elle kaydırırsa
+     animasyon görüş alanının dışına çıkar; panoramayı demonun kendisi yapar.
+     Masaüstünde `panX` daima 0 → davranış BİREBİR eskisi. */
+
+  /* Okunabilirlik tabanı: 12,5px gövde yazısı × 0.8 = 10px. Altında metin
+     "gri bir leke"ye dönüyor (ölçüldü). */
+  var MIN_SCALE=0.8, panX=0, fitScale=1;
+  function applyFrameTransform(){frame.style.transform='translateX('+(-panX*scale)+'px) scale('+scale+')';}
+  /* Tasarım uzayındaki `x` görüş alanının ORTASINA gelecek şekilde panoramayı
+     kaydırır; kenarlarda kelepçelenir. Kırpma yoksa (masaüstü) panX=0. */
+  function panTo(x){
+    if(scale<=fitScale+0.0001){panX=0;applyFrameTransform();return;}
+    var visible=wrap.clientWidth/scale;
+    panX=Math.max(0,Math.min(960-visible,x-visible/2));
+    applyFrameTransform();
+  }
   function rescale(){
     var w = wrap.clientWidth;
-    scale = Math.min(w/960, 1);
-    frame.style.transform = 'scale('+scale+')';
+    fitScale = w/960;
+    scale = Math.min(Math.max(fitScale, MIN_SCALE), 1);
+    applyFrameTransform();
     var h = 540*scale;
     wrap.style.height = (h + 78) + 'px';
     controls.style.top = (h + 18) + 'px';
+    panTo(panX + wrap.clientWidth/scale/2);
     reportHeight();
   }
   window.addEventListener('resize', rescale);
@@ -568,7 +601,7 @@
   function showScene(id){ for(var k in scenes){ scenes[k].classList.toggle('show', k===id); } }
   function setChip(n, txt, isDone){ chipN.textContent = isDone?'✓':n; chipT.textContent = txt; chip.classList.toggle('done', !!isDone); }
   function setUrl(host, path){ urlHost.textContent=host; urlPath.textContent=path||''; }
-  function moveCursor(x,y){ cursor.classList.add('in'); cursor.style.transform='translate('+x+'px,'+y+'px)'; }
+  function moveCursor(x,y){ cursor.classList.add('in'); cursor.style.transform='translate('+x+'px,'+y+'px)'; panTo(x); }
   function hideCursor(){ cursor.classList.remove('in'); }
   function clickFx(x,y){
     ripple.style.left=(x+6)+'px'; ripple.style.top=(y+6)+'px';

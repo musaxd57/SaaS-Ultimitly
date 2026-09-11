@@ -15,6 +15,7 @@ import {
   getTopTopics,
   getHostPerformanceScore,
   getOccupancyByProperty,
+  TOP_TOPICS_WINDOW_DAYS,
 } from "@/lib/reports";
 import { getConnectionInfo } from "@/lib/hospitable-credentials";
 import { PageHeader } from "@/components/page-header";
@@ -22,6 +23,21 @@ import { StatCard } from "@/components/stat-card";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { EmptyState } from "@/components/empty-state";
+import type { BadgeTone } from "@/lib/constants";
+
+/**
+ * 🚨 PERFORMANS ROZETİ HEP YEŞİLDİ (ölçüldü, 09-11): `tone="success"` SABİT
+ * literal'dı. Not (`getHostPerformance`) gerçekten değişiyor — A ≥90 · B ≥75 ·
+ * C ≥60 · D ≥45 · else **F "Kritik"** — ama F bile YEŞİL rozette basılıyordu,
+ * yani gösterge host'a her koşulda "iyi gidiyorsun" diyordu.
+ */
+const GRADE_TONE: Record<string, BadgeTone> = {
+  A: "success",
+  B: "success",
+  C: "secondary",
+  D: "warning",
+  F: "destructive",
+};
 
 export const dynamic = "force-dynamic";
 
@@ -105,7 +121,11 @@ export default async function ReportsPage() {
   // minutes until it crosses an hour so small numbers don't round down to
   // "~0 saat" (which reads like nothing happened).
   const autoMessages = ai.aiReplies + ai.welcomes + ai.checkins + ai.checkouts;
-  const savedMinutes = autoMessages * 4;
+  // ⚠️ 4 DAKİKA BİR VARSAYIMDIR, ÖLÇÜM DEĞİL (09-11). Mesaj uzunluğu, dil,
+  // tekrar ve QR/kanal ayrımı hesaba girmiyor. Sabit burada ADLANDIRILDI ki
+  // satır içinde kaybolmasın ve ekrandaki cümle onu VARSAYIM diye söylesin.
+  const MINUTES_PER_MESSAGE_ASSUMPTION = 4;
+  const savedMinutes = autoMessages * MINUTES_PER_MESSAGE_ASSUMPTION;
   const savedHours = Math.round(savedMinutes / 60);
   // Overall occupancy ring (this month) — a simple average across units, shown as
   // a donut at the top of the per-property occupancy card.
@@ -140,9 +160,11 @@ export default async function ReportsPage() {
           Son 30 günde Lixus AI <strong className="text-foreground">{autoMessages}</strong> mesajı sizin yerinize
           yanıtladı
           {savedMinutes >= 60 ? (
-            <> — tahminen <strong className="text-foreground">~{savedHours} saat</strong> kazandırdı.</>
+            <> — mesaj başına {MINUTES_PER_MESSAGE_ASSUMPTION} dk varsayımıyla{" "}
+              <strong className="text-foreground">~{savedHours} saat</strong>.</>
           ) : (
-            <> — tahminen <strong className="text-foreground">~{savedMinutes} dakika</strong> kazandırdı.</>
+            <> — mesaj başına {MINUTES_PER_MESSAGE_ASSUMPTION} dk varsayımıyla{" "}
+              <strong className="text-foreground">~{savedMinutes} dakika</strong>.</>
           )}
         </p>
       ) : null}
@@ -154,7 +176,10 @@ export default async function ReportsPage() {
             <CardTitle className="flex items-center gap-2 text-base">
               <Trophy className="size-4 text-muted-foreground" /> Performans Skoru
             </CardTitle>
-            {score.hasData ? <Badge tone="success">{score.grade}</Badge> : null}
+            {/* 🚨 ROZET HEP YEŞİLDİ (ölçüldü): `tone` SABİT literal'dı, yani
+                skor 45'in altına düşüp harf "F / Kritik" olduğunda bile YEŞİL
+                basılıyordu. Not artık kendi rengini alır. */}
+            {score.hasData ? <Badge tone={GRADE_TONE[score.grade] ?? "secondary"}>{score.grade}</Badge> : null}
           </CardHeader>
           <CardContent className="space-y-2">
             {score.hasData ? (
@@ -205,7 +230,7 @@ export default async function ReportsPage() {
         <Card>
           <CardHeader>
             <CardTitle className="flex items-center gap-2 text-base">
-              <MessageSquare className="size-4 text-muted-foreground" /> En Çok Sorulanlar
+              <MessageSquare className="size-4 text-muted-foreground" /> En Çok Sorulanlar (son {TOP_TOPICS_WINDOW_DAYS} gün)
             </CardTitle>
           </CardHeader>
           <CardContent className="space-y-2">
