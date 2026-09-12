@@ -37,7 +37,20 @@ const REASONS = new Set([
   "guest_name_injection", "model_unavailable", "escalate_intent", "model_risk_type",
   "keyword_risk_type", "injection", "model_risk_level", "low_confidence",
   "informational_low_confidence", "unsourced_claim", "absence_admission",
+  // 🚨 GEÇMİŞTEKİ injection (displacement) — `injection`dan AYRI kod, çünkü
+  // canlıda "güncel mesaj mı yoksa saklanmış bir yük mü kapattı" sorusu farklı
+  // bir teşhis. Bu satır 09-12'de EKLENDİ ve eklenmesi bir TEST tarafından
+  // zorlandı: kod yeni gerekçeyi yazıyordu ama `clampTo` onu tanımadığı için
+  // sessizce NULL'a düşürüyordu — kapı doğru çalışırken teşhis körleşiyordu.
+  "history_injection",
 ]);
+/**
+ * 🚨 PARİTE: QR kapısının her `EscalationReason` değeri BURADA da olmalı.
+ * `clampTo` tanımadığı değeri sessizce `null` yapar (fail-safe, doğru) — ama o
+ * sessizlik yeni bir dal eklendiğinde teşhisi öldürür. Mekanik pin:
+ * `tests/unit/risk-event-reason-parity.test.ts`.
+ */
+export const ESCALATION_REASON_CODES = REASONS;
 // Exported: the shadow layer (shadow-ai.ts) clamps the second model's riskType
 // to the SAME closed set so the two columns stay directly comparable.
 export const RISK_TYPES = new Set([

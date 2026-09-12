@@ -319,13 +319,26 @@ Bu dosyaya token/anahtar/parola yazma.
   kapanış tespiti `looksLikeTopicClosure` — `isClosingAck` güvenlik beyaz listesi olduğu için genişletilmedi;
   yön `direction` alanından, sistem olayı/gövdesiz satır hariç, güncel mesaj geçmişte
   TEKRARLANMAZ) — `history: []` asimetrisi kapandı (inbox zaten veriyordu). Her yanıt kararı `RiskEvent`
-  (`surface:"guest_chat"`) yazar: dokuz kapalı-küme gerekçe (`low_confidence`, `model_risk_level`,
+  (`surface:"guest_chat"`) yazar: kapalı-küme gerekçe (`low_confidence`, `model_risk_level`,
   `model_unavailable`, `keyword_escalated`, …) + `gate_passed`; PII yok, await edilir (yarışsız), yazamazsa
-  misafirin yanıtını BOZMAZ.
+  misafirin yanıtını BOZMAZ. 🚨 **GEÇMİŞ DE TARANIR (`history_injection`, 09-12):** kapı 09-12'ye kadar
+  yalnız GÜNCEL mesaja ve ada bakıyordu — kanal yolunda `dfd1683` ile kapattığım DISPLACEMENT açığının
+  aynısı QR'da açıktı (misafir 1. turda injection yazar, devredilir ama mesaj KAYDEDİLİR; 2. turda zararsız
+  soru yazar, pencere yükü modele taşır, kapı görmez; QR devri yapışkan olmadığı için 2. tur temiz sayılır).
+  Kapı artık modele giden AYNI diziyi tarar (ikinci pencere HESAPLANMAZ — ayrışabilecek her kopya bu açığın
+  kendisidir). Kapsam DAR: geçmişte yalnız injection; şikâyet/risk ağlarını eski mesajlara koşturmak normal
+  sohbeti KALICI bloklardı. 🚨 **YENİ GEREKÇE = `risk-events.ts` REASONS'A DA EKLENİR** — `clampTo`
+  tanımadığı değeri SESSİZCE `null` yapar (fail-safe doğru, ama teşhis körleşir); ölçüldü ve mekanik pin
+  yazıldı (`tests/unit/risk-event-reason-parity.test.ts`). Bağlantı ayrıca DAVRANIŞSAL pinli
+  (`tests/integration/qr-history-injection-wiring.test.ts`): mutasyon turu "rota geçmişi kapıya VERMEZ"
+  mutantının yalnız unit pinlerle HAYATTA KALDIĞINI ölçtü — ve bu zaten kusurun kendi sınıfıydı (yüklem
+  vardı, ARGÜMAN yoktu).
 - **QR devir metni GERÇEĞE UYGUN** (`guest-chat.ts` `escalationReply()`): yalnız garanti edilen söylenir
   ("kaydedildi; ev sahibiniz sohbet ekranından görüntüleyebilir"). "İlettim" İDDİA EDİLMEZ — e-posta bayrak açıkken
   bile dedupe/5 dk cooldown/alıcı-yok/sağlayıcı hatasıyla bastırılabilir ve metin e-postadan ÖNCE yazıldığı için
-  sonuç okunamaz. QR devri yapışkan DEĞİL (her mesaj yeniden değerlendirilir, model `history: []`).
+  sonuç okunamaz. QR devri yapışkan DEĞİL (her mesaj yeniden değerlendirilir). ⚠️ Bu satırdaki eski
+  "model `history: []`" ifadesi 09-08'de BAYATLADI (↑ pencere bacağı) ve 09-12'de silindi — devrin yapışkan
+  olmaması, geçmişin modele GİTMEDİĞİ anlamına gelmez; tam tersine `history_injection` dalının gerekçesi budur.
 - 🚨 **"BİLGİM YOK" MİSAFİRE ASLA GİTMEZ (KURUCU KURALI, 09-11) — `src/lib/ai/absence.ts`.**
   Kurucu: *"müşteriye hiçbir zaman bilgim yok mesajı gitmemeli; bilgi yoksa da cevap gitmemeli —
   host neden 'bilgim yok' mesajı göndersin ki?"* ÖLÇÜLEN DAVRANIŞ (2. gerçek koşu 09-09): güven
@@ -379,6 +392,13 @@ Bu dosyaya token/anahtar/parola yazma.
   Kanıt: kırmızı-önce 2+4 blok + **mutasyon 22/22**. ⚠️ İlk koşuda KONTROL KIRMIZIYDI (bir eval pini
   eski hata metnini arıyordu) → sonuçlar geçersiz sayıldı, düzeltilip tekrarlandı (M0 kuralı);
   sonrakinde iki mutant hayatta kaldı ve ikisi de gerçek pin eksiğini gösterdi.
+- 🚨 **`hasUnsourcedSpecificClaim` BUGÜN ÜRETİMDE HİÇ KOŞMUYOR (ölçüldü 09-12).** Yüklem
+  `guest-chat-gate.ts`te ve o `if` bloğu ayrıca `informationalBandEnabled()` istiyor;
+  `QR_INFORMATIONAL_BAND_ENABLED` **yalnız testlerde** set ediliyor (4 test dosyası, 0 üretim/ops yolu).
+  Yani "0.75 ÜSTÜ kaynaksız somut iddia atlanıyor" DOĞRU, ama **0.75 ALTI da atlanıyor** — bant kapalı
+  olduğu için tamamı `low_confidence` ile devrediliyor. Kanal kapısında yüklem HİÇ YOK. Sonuç: iki kapının
+  cevap METNİNE bakan TEK dalı `admitsMissingKnowledge`. (Çıktı vetosu tasarımı + ölçülmüş yanlış pozitif
+  bataryası: `docs/DENETIM-2026-09-12-codex-ai-raporu.md` §A.)
 - **QR eksik bilgide DÜRÜST CEVAP (dar bant, `QR_INFORMATIONAL_BAND_ENABLED` VARSAYILAN KAPALI):** her açıdan
   risksiz mesajda güven `0.45 ≤ c < 0.75` ise modelin cevabı gider (`informational_low_confidence`). Bandın ALTI
   hâlâ devir; bant güvenlik dallarının ARDINDA (şikayet/para/insan-talebi/injection bastırılmaz, iki yönlü pinli).
@@ -1205,7 +1225,50 @@ Sekiz P1 KAPANDI (09-07), her biri ayrı commit, kırmızı-önce + iki yönlü 
   yol · halka açık sayfada çerez yenileme · `PADDLE_WEBHOOK_SECRET` boot kapısı.
 
 ## Durum
-**ÜRÜN TURU 4 (09-11, ON ölçümlü ajan, saatlik `/loop`) — karar belgesi `docs/KARAR-2026-09-11-kurucu-is-emri-10-ajan.md`:**
+**CODEX DENETİM TURU (09-12, SEKİZ ölçümlü ajan) — hüküm belgesi `docs/DENETIM-2026-09-12-codex-ai-raporu.md`.**
+Kurucu dış bir denetim raporu getirdi (21 bulgu + 10 maddelik yol haritası) ve "dediklerine başla ve bitir"
+dedi. 🚨 **RAPOR KOPYALANMADI, HER BULGU KODDA DOĞRULANDI** — rapor 09-11 12:05 UTC'ye bakıyor, araya 31+
+commit girdi: **bulgu 13 (RAG varsayılan kapalı) BAYAT** (aynı gün 19:29'da ters çevrilmişti), **bulgu 16'nın
+ana iddiası BAYAT** (`a1c274d` kapatmıştı), **bulgu 11'in "~75 KB"ı YANLIŞ** (gerçek 46.135 karakter).
+Çelişkide o belge kazanır.
+- **Migration 55 CANLI** (`6211bfa`, kurucu pg_dump SHA'sı + açık onay): oto-yanıt aktif saat varsayılanı
+  **0/9 → 0/0**. Ölçülen kusur: `hour >= 0 && hour < 9` yani AI günün yalnız 9 saatinde çalışıyor, **15
+  saatinde SUSUYOR** ve susan 15 saat misafir trafiğinin tamamına yakını. Backfill DAR (yalnız eski şema
+  varsayılanı 0/9); host'un bilinçli seçtiği her pencere DOKUNULMADAN kalır. Geri alma tam ters çevrilebilir
+  DEĞİL, bedel migration başlığında yazılı ve test-pinli. ⚠️ Kurucu SQL'i PowerShell'e yapıştırıp hata aldı —
+  **elle çalıştırmaya gerek YOK**, boot `prisma migrate deploy` uyguluyor.
+- ✅ **Bulgu 17 — "AI'yı Deneyin" kartı ÜRETİMİ YANLIŞ TEMSİL EDİYORDU** (`de2f782`). `api/ai/test/route.ts`
+  daire numarasını adın SON SAYISINDAN alıyordu; ortak modül bu kuralı 09-11'de ölçerek terk etmişti.
+  **7 ilan adının 7'si ayrışıyordu** — `No:12 D:5 Kat:3` → "3" (KAT), `DAİRE 5 - 2 Yatak Odalı` → "2"
+  (YATAK), `Cozy Seaside Flat` → MÜLK ADININ TAMAMI. Ayrıca `{İSİM}` çözülmüyor, BAŞLIK işlenmiyordu.
+  Bedeli sinsi: kart DAYANAKSIZ bir kalite onayı üretiyordu. Davranış PİNSİZDİ.
+- ✅ **Kurucu bildirimi — "QR sohbeti Mesajlar sekmesinde açılıyor"** (`de2f782`). Kusur liste sayfasında
+  DEĞİL, **panelin "Dikkat Gerektirenler" kartındaydı**: sorgu `channel` alanını SEÇMİYORDU, href SABİT
+  `/inbox/${id}` idi. Kozmetik değil — "AI yanıtlarını yeniden başlat", "siz yazarsanız AI susar" uyarısı ve
+  Enter=gönder YALNIZ `/guest-chats/[id]`de var; host AI'ı geri açamadığı bir ekranda açıyordu.
+- ✅ **§D P1 — QR displacement açığı** (`1f23e2c`, ↑ayrıntı). Rapor bunu GÖRMEDİ; ölçüm ajanı buldu.
+- 🚨 **ÇIKTI VETOSU ÖLÇÜLDÜ ve DURDURULDU (§A).** `tests/helpers/claim-detectors.ts` "P5 onaylanırsa ürün
+  koduna taşınır" diyor; bağlamadan ÖNCE batarya koşuldu: **77 meşru cevapta 9 yanlış pozitif**, genişletilmiş
+  tuzakta 20'nin 19'u. Kök neden Türkçe EDİLGEN ÇATI yüzeyde ayrışmıyor — *"Gürültü şikâyetleri site
+  yönetimine bildirilir"* (MEŞRU SSS) ile *"Konu apartman yönetimine bildirilmiştir"* (makbuzsuz iddia)
+  BİREBİR AYNI şablon. Ölçülmüş karar: ① lookahead genişletmesi BEDELSİZ (−2 FP, 0 kayıp) ② kapıya YALNIZ
+  ETKEN dallar → **0 yanlış pozitif**; edilgen dallar ÖLÇÜMDE kalır. "Muhatap çapası" varyantı ölçülüp
+  REDDEDİLDİ (iyelik eki gövdenin son harfine göre değişiyor = kural değil kaza). İngilizce kapsam SIFIR →
+  ayrı tur. **Uygulama sıradaki dilimde.**
+- ⛔ **Bulgu 14'ün ÖNERİSİ REDDEDİLDİ** ("eşleşme yoksa boş dön"): ru/ar/de sorguların TAMAMI
+  `no_lexical_hits`e düşüyor ve bugün fail-open sayesinde doğru cevabı alıyorlar; öneri uygulansaydı bilgi
+  YAZILI olduğu hâlde her yabancı misafir insana devredilirdi. Maruziyetin büyük kısmı zaten `cappedForFallback`
+  ile rapordan 53 dk ÖNCE kapanmıştı. Gerçek model verisi (R6) ilgisiz kalemlerin modeli uydurmaya İTMEDİĞİNİ
+  gösteriyor (iki modda da güven 0.35 → devir).
+- **Kalan açık maddeler ve sıra:** §A çıktı vetosu (tasarım hazır) → §B makbuzsuz iddia (6 few-shot örneği +
+  `HOLDING_ACK_TEXTS`; 🚨 **alıcısız org'da tamamen SAHTE**: e-posta `if (to)` bloğunun içinde,
+  `maybeSendHoldingAck` DIŞINDA → host'a hiçbir şey gitmezken misafir "ilettim; ilgilenecek" okuyor; ayrıca
+  "pinliyorum" diyen test dedektör TR-only olduğu için **24 örneğin 24'ünde boş dönüyor**) → §C temellendirme
+  (`packKnowledgeBase` `omitted` ATILIYOR → `RiskEvent.kbDropped` pack düşüşünü saymıyor; denetçiye
+  `Message.aiSourcesJson` verilmiyor, kolon zaten seçilen satırın üzerinde) → §E bütçe (önizleme **12 çağrı =
+  1 birim**; `summarizeHostStyle` **1 çağrı = 0 birim**, gerekçesi YOK).
+
+**Önceki: ÜRÜN TURU 4 (09-11, ON ölçümlü ajan, saatlik `/loop`) — karar belgesi `docs/KARAR-2026-09-11-kurucu-is-emri-10-ajan.md`:**
 🚨 **RAG VARSAYILAN AÇIK** (kurucu: "RAG EKLE"). `KB_RETRIEVAL_MODE` artık AÇMA değil **ACİL DURDURMA**
 düğmesi — `legacy/off/0/false/no/disabled` eski davranış, başka her değer (boş dâhil) hibrit. Dayanak
 `docs/olcum/hibrit-yan-etki-2026-09-11.md`; kill switch bilinçli GEVŞEK (olay anında kapatamamak, bilinmeyen
