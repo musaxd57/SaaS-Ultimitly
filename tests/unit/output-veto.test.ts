@@ -109,12 +109,54 @@ describe("sözleşme", () => {
     expect(vetoOutgoingReply("İlettim; şifre [ŞİFRE].")).toBe("placeholder_in_reply");
   });
 
-  it("⚠️ İNGİLİZCE KAPSAM SIFIR — BİLİNÇLİ sınır, ayrı tur", () => {
-    // Bu satır bir KUSUR pini DEĞİL, KARARIN pini: Türkçeyi açıp İngilizceyi
-    // açmamak gönderim politikasını dile göre ayrıştırır ve bu ayrı bir karar.
-    // Değiştirileceği gün bu satır KIRMIZI verir ve karar bilinçli alınır.
-    expect(vetoOutgoingReply("I've forwarded your request to the cleaning team.")).toBeNull();
-    expect(vetoOutgoingReply("The team will get back to you shortly.")).toBeNull();
+  it("✅ İNGİLİZCE KAPANDI (kurucu 09-12) — eski 'kapsam sıfır' pini TERS ÇEVRİLDİ", () => {
+    // Bu satırlar 09-12'ye kadar `toBeNull()` idi ve "bilinçli sınır" diye
+    // yazılıydı. Kurucu "kapatmadıklarını kapat" dedi → aynı disiplinle eklendi.
+    expect(vetoOutgoingReply("I've forwarded your request to the cleaning team.")).toBe(
+      "unverified_commitment",
+    );
+    // Kurucunun ADIYLA ANDIĞI cümle.
+    expect(vetoOutgoingReply("The team will get back to you shortly.")).toBe(
+      "unverified_commitment",
+    );
+    expect(vetoOutgoingReply("Your host will contact you soon.")).toBe("unverified_commitment");
+    expect(vetoOutgoingReply("I have created a maintenance ticket for you.")).toBe(
+      "unverified_commitment",
+    );
+  });
+
+  it("🚨 ÇIPLAK `will` HÜKÜM VERMEZ — yoksa meşru olgu cümleleri katledilirdi", () => {
+    // Ölçüldü: agent çapası olmadan bu dördü de bloklanırdı.
+    expect(vetoOutgoingReply("Check-in will be at 15:00 and check-out at 11:00.")).toBeNull();
+    expect(vetoOutgoingReply("The pool will be open from 09:00.")).toBeNull();
+    expect(vetoOutgoingReply("You will find the towels in the bathroom cupboard.")).toBeNull();
+    expect(vetoOutgoingReply("I will be honest: the flat has no balcony.")).toBeNull();
+  });
+
+  it("İngilizce meşru cevaplar GEÇER (aşırı uygulama kontrolü)", () => {
+    for (const t of [
+      "Breakfast is served between 08:00 and 10:00.",
+      "Towels are provided and changed every three days.",
+      "Which date were you asking about?",
+      "Could you send a photo of the issue?",
+      "Thank you for the photo you sent.",
+      "You can contact your host through the platform.",
+      "The host may be able to arrange an early check-in.",
+      "The cleaning team comes every Tuesday.",
+      "Our team is available from 09:00 to 18:00.",
+    ]) {
+      expect(vetoOutgoingReply(t), t).toBeNull();
+    }
+  });
+
+  it("⚠️ İngilizcede de EDİLGEN dal YOK (Türkçeyle aynı gerekçe)", () => {
+    // "has been passed on" ile "is served at 8" aynı belirsizliği taşır.
+    expect(vetoOutgoingReply("Your message has been passed on to your host.")).toBeNull();
+    expect(vetoOutgoingReply("The details will be shared with you shortly.")).toBeNull();
+  });
+
+  it("⚠️ DE/FR/RU/AR HÂLÂ kapsam dışı (bilinen sınır)", () => {
+    expect(vetoOutgoingReply("Ich habe Ihre Nachricht weitergeleitet.")).toBeNull();
   });
 
   it("⚠️ EDİLGEN dal kapıda YOK — ölçülmüş bedel, test-pinli", () => {

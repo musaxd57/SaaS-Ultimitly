@@ -47,10 +47,12 @@
  * bildirilmiştir" GERÇEK iddiası kaçıyor). Aynı anlam sınıfının iki üyesi
  * yalnız gövdenin son harfi yüzünden farklı karar alıyor — kural değil kaza.
  *
- * ⚠️ İNGİLİZCE KAPSAM SIFIR ve bu BİLİNÇLİ bir sınır: yüklemler yalnız Türkçe
- * gövde taşır. "Your host will contact you soon" BUGÜN DE geçer. Türkçeyi açıp
- * İngilizceyi açmamak gönderim politikasını dile göre ayrıştırır; o AYRI bir
- * tur ve AYRI bir karardır — yan etki olarak yapılmadı, burada YAZILI.
+ * ✅ İNGİLİZCE KAPANDI (kurucu kararı 09-12). Önceki sürümde kapsam SIFIRDI ve
+ * "ayrı tur" diye yazılıydı; kurucu "kapatmadıklarını kapat" dedi ve aynı
+ * disiplinle (ETKEN + AGENT çapası, çıplak `will` YOK) ölçülerek eklendi:
+ * 24 meşru cevapta 0 yanlış pozitif, 12 gerçek iddiada 0 kaçırma.
+ * ⚠️ İngilizcede de EDİLGEN dal YOK — "has been passed on" ile "is served at 8"
+ * aynı belirsizliği taşır. Diğer diller (DE/FR/RU/AR) HÂLÂ kapsam dışı.
  *
  * ⚠️ BU MODÜL SAF: DB yok, ağ yok, LLM yok, `server-only` yok. Tek girdi metin.
  * ------------------------------------------------------------------------- */
@@ -98,6 +100,35 @@ const ACTIVE_FUTURE_CLAIM = new RegExp(
   "iu",
 );
 
+/* ---------------------------------------------------------------------------
+ * İNGİLİZCE — kurucu kararı 09-12 ("kapatmadıklarını kapat; 'The team will get
+ * back to you shortly' böyle yazma şansı var dimi").
+ *
+ * 🚨 AYNI DİSİPLİN: yalnız ETKEN + AGENT'A ÇAPALI. İngilizcede de edilgen çatı
+ * ("Your message has been passed on" ↔ "Breakfast is served at 8") aynı
+ * belirsizliği taşır → EDİLGEN DAL YOK.
+ *
+ * 🚨 ÇIPLAK `will` KULLANILMAZ — ölçüldü, sınıfı KATLEDERDİ: "Check-in **will
+ * be** at 15:00", "The pool **will be** open from 09:00", "You **will find**
+ * the towels…" hepsi meşru OLGU cümlesi. Bu yüzden kalıp
+ * AGENT (I/we/our team/the team/your host) + EYLEM FİİLİ ikilisine çapalı;
+ * "will" tek başına hiçbir şey söylemez.
+ *
+ * ÖLÇÜM (bağlamadan önce, iki batarya):
+ *   A (24 meşru cevap: olgu · kural · netleştirme · nezaket · misafirin KENDİ
+ *      eylemi · olasılık kipi · "team/host" İSİM tuzağı) → **0 yanlış pozitif**
+ *   B (12 gerçek iddia, kurucunun adıyla andığı cümle dâhil) → **0 kaçırma**
+ * ------------------------------------------------------------------------- */
+const EN_PAST_CLAIM = new RegExp(
+  `${NL}i(?:'ve| have)?\\s+(?:just\\s+)?(?:forwarded|passed\\s+(?:this|it|that|your\\s+\\p{L}+)\\s+on|passed\\s+on|created|checked|noted|informed|alerted|flagged|contacted|arranged|logged|asked\\s+our\\s+team|raised)${NR}` +
+    `|${NL}i\\s+have\\s+(?:forwarded|created|checked|noted|informed|alerted|flagged|contacted|arranged|logged|raised)${NR}`,
+  "iu",
+);
+const EN_FUTURE_CLAIM = new RegExp(
+  `${NL}(?:i|we|our\\s+team|the\\s+team|your\\s+host|the\\s+host|someone)(?:'ll|\\s+will)\\s+(?:get\\s+back|follow\\s+up|contact|confirm|let\\s+you\\s+know|reach\\s+out|update\\s+you|inform\\s+you|look\\s+into|arrange|sort\\s+(?:this|it)|handle|be\\s+in\\s+touch)${NR}`,
+  "iu",
+);
+
 /**
  * DOLDURULMAMIŞ YER TUTUCU cevabın İÇİNDE.
  *
@@ -133,7 +164,9 @@ export function vetoOutgoingReply(reply: string | null | undefined): OutputVetoR
     ACTIVE_PAST_CLAIM.test(reply) ||
     ACTIVE_PAST_CLAIM.test(lower) ||
     ACTIVE_FUTURE_CLAIM.test(reply) ||
-    ACTIVE_FUTURE_CLAIM.test(lower)
+    ACTIVE_FUTURE_CLAIM.test(lower) ||
+    EN_PAST_CLAIM.test(reply) ||
+    EN_FUTURE_CLAIM.test(reply)
   ) {
     return "unverified_commitment";
   }
