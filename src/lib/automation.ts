@@ -1,6 +1,7 @@
 import "server-only";
 
 import { admitsMissingKnowledge } from "@/lib/ai/absence";
+import { vetoOutgoingReply } from "@/lib/ai/output-veto";
 import { addDays } from "date-fns";
 import { prisma } from "@/lib/db";
 import { orgTimezone, zonedDayRange, currentHourInTimeZone, dateKeyInTimeZone, addZonedDays } from "@/lib/timezone";
@@ -253,6 +254,43 @@ export function passesAutoReplySafetyGate(
   // cevabı MÜLK ALANINDAN gelir, kaynaksız görünür ama DAYANAKLIDIR (test-pinli).
   // QR rotasındaki `absence_admission` dalıyla PARİTE (aynı yüklem, tek kaynak).
   if (admitsMissingKnowledge(result.reply)) return false;
+  // ── ÇIKTI VETOSU (Codex denetimi §A, 09-12) ───────────────────────────────
+  //
+  // 🚨 Bu kapı 09-12'ye kadar cevap METNİNE yalnız `admitsMissingKnowledge` ile
+  // bakıyordu. Ölçüldü: model "Wi-Fi şifresi [ŞİFRE] olarak görünüyor" ya da
+  // "Talebinizi ilettim" dediğinde ürün bunu MİSAFİRE GÖNDERİYORDU.
+  //
+  // Kapsam `output-veto.ts`te ÖLÇÜLEREK daraltıldı (yalnız ETKEN dallar;
+  // 77 meşru cevapta 0 yanlış pozitif). Yön yalnız KISITLAYICI.
+  //
+  // 🚨 `isHandoffAck` MUAF — bu satır ilk yazımda YOKTU ve SUIT YAKALADI (üç
+  // kırmızı: human_request devir akışı). Gerekçe sınırın kendisidir: bu veto
+  // MODELİN ÜRETTİĞİ metin içindir. Devir bildirimi (`HOLDING_ACK_TEXTS`) ise
+  // ürünün KENDİ deterministik sabitidir ve tasarlanmış bir akışın parçasıdır
+  // (`HIGH_STAKES_RISK_TYPES` satırı da aynı muafiyeti taşıyor — emsal).
+  //
+  // ⚠️ O SABİTİN KENDİSİ DÜRÜST DEĞİL ve bu BİLİNİYOR: altı dilin altısı da
+  // "Mesajınızı ev sahibimize İLETTİM; en kısa sürede sizinle İLGİLENECEK"
+  // diyor; "ilgilenecek" fiilinin makbuzu HİÇBİR yolda yok ve model yolunda
+  // e-posta `if (to)` bloğunun içinde, `maybeSendHoldingAck` ise DIŞINDA —
+  // yani alıcısı olmayan org'da host'a hiçbir şey gitmezken misafir o cümleyi
+  // okuyor. Bu AYRI bir iş (denetim §B) ve metni DÜZELTEREK çözülür, kapıyı
+  // kendi sabitimize çevirerek değil: veto burada devreye girseydi tasarlanmış
+  // devir akışı sessizce ölürdü (testlerin ölçtüğü tam bu).
+  // 🚨 MUAFİYET `intent === "human_request"` — `isHandoffAck` DEĞİL. İlk yazımda
+  // dar tuttum (`isHandoffAck` ayrıca `riskType === "human_request"` ister) ve
+  // SUIT YAKALADI: modelin `riskType` vermediği tipik devir cevabı
+  // ("Talebinizi ev sahibimize ilettim…") vetoya takılıp TASARLANMIŞ devir
+  // akışını sessizce öldürüyordu (`out.sent` false, hold hiç kurulmuyor).
+  // Kapının kendi belgelenmiş sözleşmesi zaten "TEK MUAFİYET: human_request
+  // devir" — veto o muafiyeti daraltamaz.
+  //
+  // ⚠️ BEDELİ AÇIK VE BU TURDA KAPATILMADI: devir yolunda modelin "ilettim"
+  // cümlesi misafire GİTMEYE DEVAM EDİYOR. Bu, denetim §B'nin işi ve METNİ
+  // DÜZELTEREK çözülür (fallback/holding metinleri tek dürüstlük sözleşmesine
+  // bağlanır), kapıyı devir akışının üstüne kapatarak değil — aksi hâlde
+  // misafir hiçbir şey almaz ve host da devir sinyalini kaybeder.
+  if (result.intent !== "human_request" && vetoOutgoingReply(result.reply) !== null) return false;
   // İKİNCİ KEMER (Codex F01): güven değeri SONLU bir sayı olmak zorunda. Parser
   // zaten yalnız sonlu number geçiriyor, ama kapı başka çağıranlardan da ham
   // nesne alır (QR yolu, testler) — `Infinity >= 0.75` true olurdu.

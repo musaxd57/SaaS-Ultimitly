@@ -204,16 +204,25 @@ describe("QR: model taslağı ile ürünün döndürdüğü cevap AYNI ŞEY DEĞ
 
     const out = await ask(token, REPORTED.E1.guestMessage);
 
-    // Devir YOK: güven 0.75'in ÜSTÜNDE, intent devir kümesinde değil.
-    expect(out.escalated).toBeFalsy();
-    expect(out.reply).toBe(REPORTED.E1.reply);
-
-    // 🚨 ASIL BULGU: sıfır kaynakla verilen bir GELECEK TAAHHÜDÜ ürünün
-    // cevabında. `hasUnsourcedSpecificClaim` bunu YAKALAYAMAZ — o yalnız rakam
-    // ve yer kelimesi arar, üstelik yalnız 0.45-0.75 bandının İÇİNDE çalışır;
-    // 0.8'de hiç danışılmaz.
-    expect(unverifiedActionClaims(out.reply ?? "")).toContain("future_commitment");
+    // 🚨 DEĞİŞTİ (09-12, çıktı vetosu §A) — ESKİ DAVRANIŞ BURAYA YAZILI:
+    //   önce: `escalated` FALSY ve taslak AYNEN misafire dönüyordu, çünkü güven
+    //   0.8 (≥0.75), intent devir kümesinde değil, risk yok. Yani sıfır kaynakla
+    //   verilen bir GELECEK TAAHHÜDÜ ("döneceğim") misafire GİDİYORDU.
+    //   `hasUnsourcedSpecificClaim` bunu yakalayamazdı: yalnız rakam/yer arar ve
+    //   yalnız 0.45–0.75 bandının içinde koşar — 0.8'de hiç danışılmaz.
+    //   şimdi: `vetoOutgoingReply` ETKEN gelecek dalını yakalıyor → devir.
+    expect(out.escalated).toBe(true);
+    expect(out.reply).toBe(escalationReply());
+    // Taslakta iddia GERÇEKTEN vardı (kusur kurgusal değil) ama artık GİTMİYOR.
+    expect(unverifiedActionClaims(REPORTED.E1.reply)).toContain("future_commitment");
     expect(REPORTED.E1.usedSources).toEqual([]);
+
+    // Gerekçe KAPALI KÜMEDEN yazılır (canlı teşhis).
+    const ev = await prisma.riskEvent.findFirst({
+      where: { surface: "guest_chat" },
+      orderBy: { occurredAt: "desc" },
+    });
+    expect(ev?.reason).toBe("unverified_commitment");
   });
 
   it("🚨 E7 [güven 0.95 RAPORLANDI; intent/risk varsayıldı]: KESİN SAAT ürünün cevabına giriyor", async () => {
@@ -282,11 +291,21 @@ describe("QR: model taslağı ile ürünün döndürdüğü cevap AYNI ŞEY DEĞ
       const { token } = await seed();
       mockSuggest.mockResolvedValue(draft(bad, bad));
       const out = await ask(token, bad.guestMessage);
-      expect(out.escalated).toBeFalsy(); // kapı geçirdi — kanıt: eşik yetmez
-      const honest =
-        !/bina altında|ücretsiz|vardır|mevcuttur|bulunmaktadır|otoparkımız/.test(out.reply ?? "") &&
-        unverifiedActionClaims(out.reply ?? "").length === 0;
-      expect(honest, `dürüstlük kontrolü bunu YAKALAMALIYDI: ${out.reply}`).toBe(false);
+      // 🚨 İKİ EKSEN AYRIŞTI (09-12): çıktı vetosu YALNIZ makbuzsuz SÖZ eksenini
+      // kapatır. UYDURMA eksen (kaynaksız somut iddia) HÂLÂ AÇIK — yüksek
+      // güvende hiçbir kontrol koşmuyor (`hasUnsourcedSpecificClaim` ölü kod).
+      const isPromise = bad.reply.includes("döneceğim");
+      if (isPromise) {
+        // önce: kapı GEÇİRİYORDU. şimdi: durur.
+        expect(out.escalated, `vaat artık durmalı: ${out.reply}`).toBe(true);
+        expect(out.reply).toBe(escalationReply());
+      } else {
+        // ⚠️ DEĞİŞMEDİ ve BİLİNÇLİ: "Otopark bina altında ve ücretsizdir."
+        // uydurma olabilir ama makbuzsuz SÖZ değil; onu kapatmak AYRI bir iş
+        // (kaynaksız somut iddia kapısı, hâlâ açık — §A'da yazılı).
+        expect(out.escalated, "uydurma ekseni bu turda KAPATILMADI").toBeFalsy();
+        expect(out.reply).toBe(bad.reply);
+      }
     }
   });
 
@@ -317,14 +336,25 @@ describe("QR: model taslağı ile ürünün döndürdüğü cevap AYNI ŞEY DEĞ
 
     const out = await ask(token, MEASURED_E4_RUN4.guestMessage);
 
-    // Kapı: güven 0.95 ≥ 0.75, intent devir kümesinde değil, risk yok → DEVİR YOK.
-    // `unsourced_claim` yalnız 0.45–0.75 bandında bakılır ve "[ŞİFRE]" rakam/saat/kod kalıbı değildir.
-    expect(out.escalated).toBeFalsy();
-    expect(out.reply).toBe(MEASURED_E4_RUN4.reply);
-    expect(placeholderVerdict(out.reply ?? "")).toBe("leak");
-    // 🚨 Bu satır bugünkü davranışın KARAKTERİZASYONUDUR: yer tutucu için çıktı vetosu YOK
-    // (ayrı onay raporu). Veto uygulanınca değişecek satır tam olarak budur.
-    expect(out.reply).toContain("[ŞİFRE]");
+    // 🚨 DEĞİŞTİ (09-12, çıktı vetosu §A) — "veto uygulanınca değişecek satır
+    // tam olarak budur" diyen karakterizasyon GERÇEKLEŞTİ.
+    //   önce: `escalated` FALSY, `out.reply` AYNEN taslak, ve
+    //         `expect(out.reply).toContain("[ŞİFRE]")` YEŞİLDİ — yani ürün
+    //         doldurulmamış yer tutucuyu MİSAFİRE DÖNDÜRÜYORDU. Kapı geçiyordu
+    //         çünkü güven 0.95 ≥ 0.75 ve `unsourced_claim` yalnız 0.45–0.75
+    //         bandında bakılıyor, üstelik "[ŞİFRE]" rakam/saat/kod kalıbı değil.
+    //   şimdi: `vetoOutgoingReply` → `placeholder_in_reply` → devir.
+    expect(out.escalated).toBe(true);
+    expect(out.reply).toBe(escalationReply());
+    expect(out.reply, "yer tutucu misafire DÖNMEMELİ").not.toContain("[ŞİFRE]");
+    // Taslakta sızıntı GERÇEKTEN vardı (kusur kurgusal değil).
+    expect(placeholderVerdict(MEASURED_E4_RUN4.reply)).toBe("leak");
+
+    const ev = await prisma.riskEvent.findFirst({
+      where: { surface: "guest_chat" },
+      orderBy: { occurredAt: "desc" },
+    });
+    expect(ev?.reason).toBe("placeholder_in_reply");
   });
 
   it("KARŞILAŞTIRMA: aynı taslak, düşük güvende ürünün cevabı DEĞİŞİYOR", async () => {

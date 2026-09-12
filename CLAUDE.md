@@ -1257,14 +1257,26 @@ ana iddiası BAYAT** (`a1c274d` kapatmıştı), **bulgu 11'in "~75 KB"ı YANLIŞ
   `/inbox/${id}` idi. Kozmetik değil — "AI yanıtlarını yeniden başlat", "siz yazarsanız AI susar" uyarısı ve
   Enter=gönder YALNIZ `/guest-chats/[id]`de var; host AI'ı geri açamadığı bir ekranda açıyordu.
 - ✅ **§D P1 — QR displacement açığı** (`1f23e2c`, ↑ayrıntı). Rapor bunu GÖRMEDİ; ölçüm ajanı buldu.
-- 🚨 **ÇIKTI VETOSU ÖLÇÜLDÜ ve DURDURULDU (§A).** `tests/helpers/claim-detectors.ts` "P5 onaylanırsa ürün
+- ✅ **§A ÇIKTI VETOSU CANLI** (`src/lib/ai/output-veto.ts`, saf/DB'siz; iki kapıda da).
+  İki gerekçe: `placeholder_in_reply` (doldurulmamış alan cevabın İÇİNDE — 4. gerçek koşunun
+  E4 metni artık DURUYOR) · `unverified_commitment` (ETKEN makbuzsuz iddia). Üç karakterizasyon
+  testi DÜRÜSTÇE TERSİNE ÇEVRİLDİ (eski davranış yorumda AYNEN yazılı, sessiz gevşetme yok).
+  🚨 **İLK BAĞLAMA FAZLA GENİŞTİ ve SUIT YAKALADI (3 kırmızı):** `human_request` devir akışında
+  modelin cevabı "Talebinizi ev sahibimize ilettim…" diyor; veto onu durdurunca TASARLANMIŞ devir
+  akışı SESSİZCE ÖLÜYORDU (`out.sent` false, hold hiç kurulmuyor, misafir hiçbir şey almıyor,
+  host devir sinyalini kaybediyor). Muafiyet `intent === "human_request"` (kapının kendi belgelenmiş
+  "TEK MUAFİYET" sözleşmesi; `isHandoffAck` ise ayrıca `riskType` ister = FAZLA DAR).
+  ⚠️ **BEDEL AÇIK ve bu turda KAPATILMADI:** devir yolunda "ilettim" misafire GİTMEYE DEVAM EDİYOR
+  → §B'nin işi, METNİ düzelterek çözülür. ⚠️ **UYDURMA EKSENİ de AÇIK:** "Otopark bina altında ve
+  ücretsizdir" makbuzsuz SÖZ değil, kaynaksız somut İDDİA — o ayrı kapı (test-pinli).
+- 🚨 **ÇIKTI VETOSU: ölçülen tasarım (uygulandı).** `tests/helpers/claim-detectors.ts` "P5 onaylanırsa ürün
   koduna taşınır" diyor; bağlamadan ÖNCE batarya koşuldu: **77 meşru cevapta 9 yanlış pozitif**, genişletilmiş
   tuzakta 20'nin 19'u. Kök neden Türkçe EDİLGEN ÇATI yüzeyde ayrışmıyor — *"Gürültü şikâyetleri site
   yönetimine bildirilir"* (MEŞRU SSS) ile *"Konu apartman yönetimine bildirilmiştir"* (makbuzsuz iddia)
   BİREBİR AYNI şablon. Ölçülmüş karar: ① lookahead genişletmesi BEDELSİZ (−2 FP, 0 kayıp) ② kapıya YALNIZ
   ETKEN dallar → **0 yanlış pozitif**; edilgen dallar ÖLÇÜMDE kalır. "Muhatap çapası" varyantı ölçülüp
   REDDEDİLDİ (iyelik eki gövdenin son harfine göre değişiyor = kural değil kaza). İngilizce kapsam SIFIR →
-  ayrı tur. **Uygulama sıradaki dilimde.**
+  ayrı tur (test-pinli: KUSUR pini değil KARARIN pini).
 - ⛔ **Bulgu 14'ün ÖNERİSİ REDDEDİLDİ** ("eşleşme yoksa boş dön"): ru/ar/de sorguların TAMAMI
   `no_lexical_hits`e düşüyor ve bugün fail-open sayesinde doğru cevabı alıyorlar; öneri uygulansaydı bilgi
   YAZILI olduğu hâlde her yabancı misafir insana devredilirdi. Maruziyetin büyük kısmı zaten `cappedForFallback`

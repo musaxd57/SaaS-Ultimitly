@@ -1,6 +1,7 @@
 import "server-only";
 
 import { admitsMissingKnowledge } from "@/lib/ai/absence";
+import { vetoOutgoingReply } from "@/lib/ai/output-veto";
 import { classifyFallback, detectPromptInjection, detectRiskType } from "@/lib/ai/fallback";
 import { HIGH_STAKES_RISK_TYPES } from "@/lib/automation";
 
@@ -103,6 +104,9 @@ export const ESCALATION_REASONS = [
   "unsourced_claim",
   "absence_admission",
   "informational_low_confidence",
+  // Çıktı vetosu (§A) — `output-veto.ts` `OutputVetoReason` ile BİREBİR.
+  "placeholder_in_reply",
+  "unverified_commitment",
 ] as const;
 
 export type EscalationReason = (typeof ESCALATION_REASONS)[number];
@@ -212,6 +216,17 @@ export function evaluateEscalation(
   // kalemlerini sayar; "Giriş saati kaçta?" cevabı MÜLK ALANINDAN gelir, kaynaksız
   // görünür ama DAYANAKLIDIR ve gitmeye devam eder (test-pinli).
   if (admitsMissingKnowledge(result.reply)) return yes("absence_admission");
+  // ── ÇIKTI VETOSU (Codex denetimi §A, 09-12) ───────────────────────────────
+  //
+  // 🚨 Gerekçe KAPALI KÜMEDEN ve AYRI: canlıda "yer tutucu mu, makbuzsuz söz
+  // mü kapattı" sorusu farklı bir teşhis. `output-veto.ts` iki değer döndürür
+  // ve ikisi de `EscalationReason` birliğinde + `risk-events.ts` REASONS'ta.
+  //
+  // Kapsam ÖLÇÜLEREK daraltıldı (yalnız ETKEN dallar): Türkçe edilgen çatı
+  // yüzeyde ayrışmıyor, "Gürültü şikâyetleri yönetime bildirilir" (MEŞRU SSS)
+  // ile "Konu yönetime bildirilmiştir" (makbuzsuz) BİREBİR aynı şablon.
+  const vetoed = vetoOutgoingReply(result.reply);
+  if (vetoed !== null) return yes(vetoed);
   // ── EKSİK BİLGİDE DÜRÜST CEVAP — DAR BANT (kurucu, 09-08) ─────────────────
   //
   // Buraya gelen mesaj, YUKARIDAKİ SEKİZ KAPININ HEPSİNDEN geçmiştir: model

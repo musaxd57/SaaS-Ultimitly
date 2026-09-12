@@ -46,6 +46,8 @@ const REASONS = new Set([
   // zorlandı: kod yeni gerekçeyi yazıyordu ama `clampTo` onu tanımadığı için
   // sessizce NULL'a düşürüyordu — kapı doğru çalışırken teşhis körleşiyordu.
   "history_injection",
+  // Çıktı vetosu (Codex §A, 09-12): misafire GİDECEK metin son kez denetlenir.
+  "placeholder_in_reply", "unverified_commitment",
 ]);
 /**
  * 🚨 PARİTE: QR kapısının her `EscalationReason` değeri BURADA da olmalı.
