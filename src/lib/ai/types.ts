@@ -139,6 +139,18 @@ export interface SuggestReplyResult {
    * gider; sahte bir sıfır, olmayan bir ölçümü varmış gibi gösterirdi.
    */
   sourceAudit?: { declared: number; verified: number };
+  /**
+   * §C — İSTEMİN kendi KB muhasebesi: kaç kalem isteme GİREMEDİ (sorgu tavanı +
+   * sır süzgeci + seçici + pack karakter bütçesi TOPLAMI).
+   *
+   * Yüzeyler bu sayıyı `suggestReply`'dan ÖNCE hesaplıyor ve pack'in kendi
+   * kesmesini göremiyordu; istem modele "N kalem alınamadı" derken karar kaydı
+   * daha küçük bir sayı söylüyordu.
+   *
+   * Opsiyonel: yokluğu "ölçülmedi" demektir (0 DEĞİL) — fallback yolunda istem
+   * hiç kurulmaz, oraya uydurma bir sayı yazmak sahte kesinlik olurdu.
+   */
+  kbOmittedInPrompt?: number;
   /** What was missing to answer fully (short phrases; empty when nothing). */
   missingInfo: string[];
   /** The guest's own stated departure/check-out time as "HH:MM" (24h), or null. */

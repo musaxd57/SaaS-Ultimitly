@@ -1,5 +1,5 @@
 import "server-only";
-import { REPLY_SYSTEM_PROMPT, buildReplyUserPrompt } from "./prompts";
+import { REPLY_SYSTEM_PROMPT, buildReplyPrompt } from "./prompts";
 import { suggestReplyFallback, classifyFallback } from "./fallback";
 import { timeStatedInMessage } from "./stated-time";
 import type { ClassifyResult, SuggestReplyInput, SuggestReplyResult } from "./types";
@@ -248,7 +248,9 @@ function capReply(text: string): { text: string; truncated: boolean } {
 }
 
 export async function suggestReply(input: SuggestReplyInput): Promise<SuggestReplyResult> {
-  const raw = await callOpenAI(REPLY_SYSTEM_PROMPT, buildReplyUserPrompt(input));
+  // §C: istem TEK KEZ kurulur; metin modele, muhasebe karar kaydına gider.
+  const prompt = buildReplyPrompt(input);
+  const raw = await callOpenAI(REPLY_SYSTEM_PROMPT, prompt.text);
   if (raw) {
     try {
       const parsed = JSON.parse(raw) as Record<string, unknown>;
@@ -344,6 +346,10 @@ export async function suggestReply(input: SuggestReplyInput): Promise<SuggestRep
           // zaten eliyordu ama KAÇ TANE elediği hiçbir yere yazılmıyordu; fark
           // canlıda "model olmayan bir kaynağa dayandığını söyledi" sinyalidir.
           sourceAudit: { declared: declaredSources.length, verified: verified.length },
+          // §C: istemin GERÇEK KB muhasebesi. Yüzeyler bu sayıyı kendileri
+          // hesaplayamaz — pack karakter bütçesinin kesmesi yalnız istem
+          // kurulurken bilinir ve eskiden ATILIYORDU.
+          kbOmittedInPrompt: prompt.kbOmitted,
           missingInfo: sanitizeStringList(parsed.missingInfo, 5, 80),
           statedCheckoutTime:
             // Format-valid AND deterministically evidenced in the guest's own

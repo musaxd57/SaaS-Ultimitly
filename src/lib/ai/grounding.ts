@@ -83,6 +83,44 @@ function measured(v: number | null | undefined): v is number {
   return typeof v === "number" && Number.isInteger(v) && v >= 0;
 }
 
+/**
+ * §C (09-12) — SAYAÇLARI İSTEMİN GERÇEĞİNE ÇEKER.
+ *
+ * 🚨 ÖLÇÜLEN KUSUR: yüzeyler `kbRetrieved`/`kbDropped`i `suggestReply`'dan ÖNCE
+ * hesaplıyor, yani yalnız İSTEM-ÖNCESİ düşüşleri biliyorlar (sorgu tavanı + sır
+ * süzgeci + seçici). `packKnowledgeBase`in KENDİ karakter-bütçesi kesmesi o
+ * sayılara hiç girmiyordu: istem modele "N kalem alınamadı" derken karar kaydı
+ * daha küçük bir sayı (çoğu zaman 0) söylüyordu.
+ *
+ * @param omittedInPrompt `buildReplyPrompt(...).kbOmitted` — istemin TOPLAM
+ *   düşüşü (ön düşüşler DÂHİL). `undefined` = model yolu hiç koşmadı (fallback)
+ *   → A2 gereği hiçbir şey yazılmaz, uydurma sayı üretilmez.
+ * @param selectedCount Seçicinin istem oluşturucuya VERDİĞİ kalem sayısı.
+ *
+ * 🚨 `kbDropped` EKLENMEZ, DEĞİŞTİRİLİR: `omittedInPrompt` zaten çağıranın
+ * bildirdiği ön düşüşleri içerir (`packKnowledgeBase` `alreadyDropped`ı kendi
+ * sayısına ekleyerek döndürür). Eklemek ön düşüşleri İKİ KEZ sayardı.
+ *
+ * ⚠️ `kbRetrieved` de düzeltilir — eskiden SEÇİLEN kalem sayısıydı, yani
+ * modelin gördüğünün ÜST SINIRI. `grounding.ts`in kanıt başlığı bu sınırı
+ * dürüstçe yazıyordu; artık sınır DEĞİL GERÇEK sayı raporlanıyor.
+ */
+export function applyPromptKbAudit<T extends GroundingCounts>(
+  base: T,
+  omittedInPrompt: number | undefined,
+  selectedCount: number,
+): T {
+  if (typeof omittedInPrompt !== "number" || !Number.isFinite(omittedInPrompt)) return base;
+  // Kodun bildiği taraf ölçülmemişse düzeltilecek bir şey de yok (A2).
+  if (!measured(base.kbDropped) || !measured(base.kbRetrieved)) return base;
+  const packOwn = Math.max(0, omittedInPrompt - base.kbDropped);
+  return {
+    ...base,
+    kbDropped: omittedInPrompt,
+    kbRetrieved: Math.max(0, selectedCount - packOwn),
+  };
+}
+
 export function classifyGrounding(c: GroundingCounts): GroundingVerdict {
   const retrieved = measured(c.kbRetrieved) ? c.kbRetrieved : null;
   const dropped = measured(c.kbDropped) ? c.kbDropped : 0;
@@ -132,10 +170,16 @@ export function classifyGrounding(c: GroundingCounts): GroundingVerdict {
 // Misafire dönen QR yanıt gövdesine ASLA konmaz — QR yanıtları açık nesne
 // literalleridir, bağlam nesnesi hiçbir yerde serileştirilmez (davranışsal pin).
 //
-// 🚨 NE KADAR KESİN: bu, İSTEM OLUŞTURUCUYA VERİLEN kümedir. `packKnowledgeBase`
-// karakter bütçesi yüzünden içeride birkaç kalemi DAHA düşürebilir; dolayısıyla
-// kanıt, modelin gördüğü kümenin ÜST SINIRIDIR. "Model tam olarak bunları
-// gördü" diye okunmamalı — sınır bilinçli olarak burada yazılı.
+// 🚨 NE KADAR KESİN: bu LİSTE, İSTEM OLUŞTURUCUYA VERİLEN kümedir.
+// `packKnowledgeBase` karakter bütçesi yüzünden içeride birkaç kalemi DAHA
+// düşürebilir; dolayısıyla kanıt LİSTESİ, modelin gördüğü kümenin ÜST SINIRIDIR.
+// "Model tam olarak bunları gördü" diye okunmamalı — sınır bilinçli olarak
+// burada yazılı ve HÂLÂ GEÇERLİ (liste pack'ten önce kurulur).
+//
+// ⚠️ SAYAÇLAR ARTIK AYRIŞTI (§C, 09-12): `kbRetrieved`/`kbDropped` bu sınıra
+// TABİ DEĞİL — `applyPromptKbAudit` onları `suggestReply` dönünce istemin
+// gerçeğine çeker. Yani SAYI kesindir, LİSTE üst sınırdır. İkisini aynı
+// kesinlikte okumak hata olur.
 // ---------------------------------------------------------------------------
 
 /** Kanıt gövdesi için sert tavan — patolojik durumda satır şişmesin. */

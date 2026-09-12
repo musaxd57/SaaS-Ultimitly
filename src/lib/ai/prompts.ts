@@ -976,7 +976,28 @@ export function selectHistoryForPrompt<T extends { direction: "inbound" | "outbo
   return picked;
 }
 
-export function buildReplyUserPrompt(input: SuggestReplyInput): string {
+/**
+ * İstem metni + KB MUHASEBESİ (§C, 09-12).
+ *
+ * 🚨 NEDEN AYRI BİR FONKSİYON: `packKnowledgeBase` `{text, omitted}` döndürüyor
+ * ama `buildReplyUserPrompt` yalnız `.text` alıp `omitted`ı ATIYORDU. Sonuç:
+ * istem modele "N kalem bu yanıta alınamadı" diye AÇIKÇA yazarken aynı olayın
+ * karar kaydı (`RiskEvent.kbDropped`) o N'i hiç görmüyordu — iki kayıt aynı
+ * olay hakkında çelişiyordu.
+ *
+ * ⚠️ DÖNÜŞ TİPİNİ DEĞİŞTİRMEK YERİNE İKİNCİ FONKSİYON: `buildReplyUserPrompt`
+ * ÖLÇÜLDÜ — üretimde TEK çağıranı var (`ai/index.ts`) ama testlerde 9 dosya /
+ * ~40 çağrı `string` bekliyor. İmzayı değiştirmek 11 dosyalık gürültülü bir
+ * diff üretirdi ve hiçbir davranış kazandırmazdı. Bu yüzden hesap BURADA
+ * yapılır, `buildReplyUserPrompt` ince bir `.text` sarmalayıcısıdır — yani
+ * İKİ YOL AYRIŞAMAZ (test-pinli).
+ *
+ * 🚨 `kbOmitted` bir TOPLAMDIR: çağıranın bildirdiği ön düşüşler (`sorgu tavanı
+ * + sır süzgeci + seçici`) + pack'in KENDİ karakter-bütçesi kesmesi. Yüzeyin
+ * kendi sayısına EKLENMEZ, onun YERİNE geçer — aksi hâlde ön düşüşler iki kez
+ * sayılırdı (`applyPromptKbAudit`, test-pinli).
+ */
+export function buildReplyPrompt(input: SuggestReplyInput): { text: string; kbOmitted: number } {
   const { property, reservation, knowledgeBase, history, openTopics, guestMessage, tone, language } = input;
 
   // P4 — çelişki bloğu yalnız GERÇEK bir çelişki varken basılır (sakin durumda gürültü yok).
@@ -1002,12 +1023,13 @@ ${conflicts
     ("çıkış saati çelişkili: ayar X / bilgi tabanı Y") ve actionSuggestion'a ("bilgi tabanı ile mülk ayarındaki
     saati eşitle") yaz.`;
 
-  const kb = packKnowledgeBase(
+  const packed = packKnowledgeBase(
     knowledgeBase,
     input.knowledgeBaseDropped ?? 0,
     input.knowledgeBaseSelection ?? "all",
     input.knowledgeBaseNotes ?? [],
-  ).text;
+  );
+  const kb = packed.text;
 
   const res = reservation
     ? `Misafir: ${sanitizePromptValue(reservation.guestName)}
@@ -1168,7 +1190,7 @@ ${input.styleProfile.trim()}
 `
     : "";
 
-  return `════════════════════════════════════════════════════
+  const text = `════════════════════════════════════════════════════
 OPERATÖR TALİMATI
 ════════════════════════════════════════════════════
 İSTENEN TON:
@@ -1224,4 +1246,13 @@ ${guestMessage}
 GÖREV: Yukarıdaki bilgilere dayanarak yalnızca geçerli JSON döndür.
 Cevap metninde (reply) yalnızca verilen veri, zaman bağlamı ve bilgi tabanını kullan.
 ════════════════════════════════════════════════════`;
+  return { text, kbOmitted: packed.omitted };
+}
+
+/**
+ * İstem metni. `buildReplyPrompt`in İNCE sarmalayıcısı — iki yol ayrışamaz
+ * (test-pinli). Muhasebe gerekiyorsa `buildReplyPrompt` kullanılır.
+ */
+export function buildReplyUserPrompt(input: SuggestReplyInput): string {
+  return buildReplyPrompt(input).text;
 }

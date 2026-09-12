@@ -119,7 +119,7 @@ describe("collectAuditSample — misafir mesajı eşleştirmesi", () => {
 
   it("istem, guest null'u tek başına PROAKTİF saymaz (eksik bağlam ayrı anlatılır)", () => {
     const prompt = buildAuditPrompt([
-      { messageId: "m1", property: "Daire-1", at: T.toISOString(), guest: null, guestContext: "unmatched", ai: "x", aiIntent: null, language: "tr", threadRisk: null },
+      { messageId: "m1", property: "Daire-1", at: T.toISOString(), guest: null, guestContext: "unmatched", ai: "x", aiIntent: null, language: "tr", threadRisk: null, aiSources: null },
     ]);
     expect(prompt).toContain("guestContext");
     expect(prompt).toMatch(/unmatched/);

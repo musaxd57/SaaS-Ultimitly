@@ -28,7 +28,7 @@ import {
   hasNamePlaceholder,
   kbPlaceholderTokens,
 } from "@/lib/kb-placeholders";
-import { buildKbEvidence } from "@/lib/ai/grounding";
+import { applyPromptKbAudit, buildKbEvidence } from "@/lib/ai/grounding";
 import { consumeDailyAiBudget, peekDailyAiBudget } from "@/lib/ai/daily-budget";
 import {
   classifyFallback,
@@ -1716,8 +1716,11 @@ export async function applyChannelAutoReply(
   const kbForModel = kbSel.items;
   const kbDroppedTotal = kbDropped + (kb.length - kbVisible.length) + kbSel.droppedItems;
 
-  // A2: istemin GERÇEKTEN taşıdığı kalem sayısı — `kbDroppedTotal` ile aynı
-  // formül (`knowledgeBaseDropped`), yani sayaçlar modelin gördüğü bağlamla tutarlı.
+  // A2: istem-ÖNCESİ kb sayaçları. ⚠️ Bu satırlar İSTEMİN SON HÂLİNİ BİLMEZ —
+  // `packKnowledgeBase` karakter bütçesi içeride birkaç kalem DAHA düşürebilir.
+  // Eski yorum burada "sayaçlar modelin gördüğü bağlamla tutarlı" DİYORDU ve bu
+  // ölçülerek YANLIŞ çıktı (§C, 09-12): tutarlılık ancak `suggestReply` dönünce
+  // `applyPromptKbAudit` ile kurulur (↓ `groundingAudited`).
   const grounding = {
     ...groundingBase,
     kbRetrieved: kbForModel.length,
@@ -1791,6 +1794,21 @@ export async function applyChannelAutoReply(
     adjacency,
     lateCheckoutOfferText: org.lateCheckoutOfferText,
   });
+
+  // §C (09-12) — SAYAÇLARI İSTEMİN GERÇEĞİNE ÇEK.
+  //
+  // `grounding` yukarıda, `suggestReply`'dan ÖNCE kuruldu ve yalnız istem-ÖNCESİ
+  // düşüşleri biliyor. `packKnowledgeBase`in KENDİ karakter-bütçesi kesmesi
+  // (`KB_CHAR_BUDGET`) oraya giremiyordu: istem modele "N kalem bu yanıta
+  // alınamadı" diye AÇIKÇA yazarken aynı olayın karar kaydı daha küçük bir sayı
+  // (çoğu zaman 0) söylüyordu — iki kayıt birbiriyle çelişiyordu.
+  //
+  // 🚨 EKLEME DEĞİL DEĞİŞTİRME: `kbOmittedInPrompt` çağıranın bildirdiği ön
+  // düşüşleri ZATEN içerir (`packKnowledgeBase` `alreadyDropped`ı kendi sayısına
+  // ekleyerek döndürür) → eklemek ön düşüşleri İKİ KEZ saymak olurdu.
+  // ⚠️ Model çağrılmadıysa (fallback) alan `undefined` gelir ve sayaçlara
+  // DOKUNULMAZ — A2: "ölçülmedi" ile "sıfırdı" aynı şey değildir.
+  const groundingAudited = applyPromptKbAudit(grounding, result.kbOmittedInPrompt, kbForModel.length);
 
   // If the guest stated their own departure time, record it on the reservation
   // so the dashboard can show it (falling back to the property default). Guarded
@@ -2088,7 +2106,7 @@ export async function applyChannelAutoReply(
         riskType: result.riskType ?? detectRiskType(last.body),
         reason: "escalated_to_human",
         confidence: result.confidence,
-        ...grounding,
+        ...groundingAudited,
         srcDeclared: result.sourceAudit?.declared ?? null,
         srcVerified: result.sourceAudit?.verified ?? null,
       });
@@ -2125,7 +2143,7 @@ export async function applyChannelAutoReply(
         riskType: result.riskType ?? detectRiskType(last.body),
         reason: "low_confidence_or_risky",
         confidence: result.confidence,
-        ...grounding,
+        ...groundingAudited,
         srcDeclared: result.sourceAudit?.declared ?? null,
         srcVerified: result.sourceAudit?.verified ?? null,
       });
@@ -2267,7 +2285,7 @@ export async function applyChannelAutoReply(
       riskType: result.riskType,
       reason: "gate_passed",
       confidence: result.confidence,
-      ...grounding,
+      ...groundingAudited,
       srcDeclared: result.sourceAudit?.declared ?? null,
       srcVerified: result.sourceAudit?.verified ?? null,
     });
@@ -2441,7 +2459,7 @@ export async function applyChannelAutoReply(
     riskType: result.riskType,
     reason: "gate_passed",
     confidence: result.confidence,
-    ...grounding,
+    ...groundingAudited,
     srcDeclared: result.sourceAudit?.declared ?? null,
     srcVerified: result.sourceAudit?.verified ?? null,
   });

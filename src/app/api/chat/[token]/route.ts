@@ -29,7 +29,7 @@ import { limitsForOrg } from "@/lib/billing/plan-limits";
 import { consumeDailyAiBudgetForQr } from "@/lib/ai/daily-budget";
 import { recordIngestEvent } from "@/lib/ingest/events";
 import { recordRiskEvent } from "@/lib/risk-events";
-import { buildKbEvidence } from "@/lib/ai/grounding";
+import { applyPromptKbAudit, buildKbEvidence } from "@/lib/ai/grounding";
 import { selectKbForPrompt } from "@/lib/ai/retrieval/select";
 
 export const dynamic = "force-dynamic";
@@ -702,8 +702,15 @@ async function handleGuestChatPost(req: NextRequest, { params }: { params: Promi
     // Kodun bildiği (kaç kalem gitti, kaçı onay bekliyor, kaçı tavandan düştü,
     // hangi bilgi sürümü) ile modelin BEYANI yan yana yazılır; ikisi ayrı
     // olmadan "bilgi yok" ile "bilgi vardı, kullanılmadı" ayrılamaz.
-    kbRetrieved: kbSel.items.length,
-    kbDropped: kbDroppedTotal,
+    // §C: pack karakter bütçesinin kestiği kalemler de sayılır. `kbDroppedTotal`
+    // istem-ÖNCESİ sayıdır; `result.kbOmittedInPrompt` istemin TOPLAMIDIR
+    // (ön düşüşler DÂHİL) → EKLENMEZ, DEĞİŞTİRİLİR (çift sayım olurdu).
+    // Model çağrılmadıysa alan `undefined` gelir ve sayaçlara DOKUNULMAZ (A2).
+    ...applyPromptKbAudit(
+      { kbRetrieved: kbSel.items.length, kbDropped: kbDroppedTotal },
+      result.kbOmittedInPrompt,
+      kbSel.items.length,
+    ),
     kbPendingApproval: ctx.knowledgeBasePendingApproval,
     kbNewestUpdatedAt: ctx.knowledgeBaseNewestUpdatedAt,
     // YETKİLİ İÇ DENETİM: hangi kalemler, hangi sürümle. `max(updatedAt)` bunu

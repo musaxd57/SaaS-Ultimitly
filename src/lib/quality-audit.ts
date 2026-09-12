@@ -92,6 +92,38 @@ export interface AuditPair {
   aiIntent: string | null;
   language: string;
   threadRisk: string | null; // konuşmanın son risk kararı (seviye/tür)
+  /**
+   * §C — bu yanıtın DOĞRULANMIŞ kaynak etiketleri (`Message.aiSourcesJson`).
+   * Kapalı küme: "kb:<kategori>", "property:<alan>", "reservation:<alan>",
+   * "history". PII TAŞIMAZ (`erasure.ts` bu alanı "kişisel veri taşımaz"
+   * emsali olarak adıyla anar) ve `verifyUsedSources` uydurma atıfı zaten eler.
+   *
+   * 🚨 `null` = BU YÜZEYDE KAYDEDİLMEDİ, "kaynak yok" DEĞİL. Kolon yalnız kanal
+   * oto-yanıtında yazılıyor; QR ve host-onaylı satırlarda DAİMA null. Denetçiye
+   * bu ayrım AÇIKÇA söylenir (`buildAuditPrompt`) — 09-08'de `guest: null`ın
+   * "proaktif" diye okunup ürünü haksız yere suçlaması aynı sınıf hataydı.
+   */
+  aiSources: string[] | null;
+}
+
+/**
+ * `Message.aiSourcesJson` → etiket dizisi. FAIL-SAFE `null`:
+ *  · kolon boş (o yüzeyde hiç yazılmıyor) → null
+ *  · JSON bozuk → null (denetim koşusu bir satır yüzünden ÇÖKMEZ)
+ *  · dizi değilse → null
+ * 🚨 Yalnız STRING öğeler geçer: kolon kapalı kümeden geçmiş etiket tutuyor ama
+ * bu okuyucu ona GÜVENMEZ — nesne/sayı sızarsa denetçiye (dış modele) serbest
+ * metin gitmiş olurdu.
+ */
+function parseAiSources(raw: string | null): string[] | null {
+  if (!raw) return null;
+  try {
+    const v: unknown = JSON.parse(raw);
+    if (!Array.isArray(v)) return null;
+    return v.filter((x): x is string => typeof x === "string");
+  } catch {
+    return null;
+  }
 }
 
 /**
@@ -145,6 +177,10 @@ export async function collectAuditSample(
       createdAt: true,
       aiIntent: true,
       language: true,
+      // §C: kolon AYNI SATIRIN üzerinde — ek sorgu/join yok, yalnız bu satır
+      // eksikti ve denetçi "cevap bir kaynağa dayandı mı" sorusunu hiç
+      // göremiyordu.
+      aiSourcesJson: true,
       conversation: {
         select: {
           guestIdentifier: true,
@@ -228,6 +264,7 @@ export async function collectAuditSample(
       threadRisk: m.conversation.lastRiskLevel
         ? `${m.conversation.lastRiskLevel}${m.conversation.lastRiskType ? `/${m.conversation.lastRiskType}` : ""}`
         : null,
+      aiSources: parseAiSources(m.aiSourcesJson),
     });
   }
   // Kronolojik sıra denetçi için daha okunur (sorgu desc geldi).
@@ -261,6 +298,8 @@ export function buildAuditPrompt(pairs: AuditPair[]): string {
     `Aşağıda misafirlere GÖNDERİLMİŞ ${pairs.length} AI yanıtı ve her birinin öncesindeki misafir mesaj(lar)ı var (kişisel veriler redakte edildi).`,
     `Her çiftte "guestContext" alanı bağlamın NASIL bulunduğunu söyler: "matched" = misafir mesajı verildi; "proactive" = konuşmada hiç misafir mesajı yok, yanıt gerçekten proaktifti; "unmatched" = misafir mesajı VAR ama bu yanıtla eşleştirilemedi (bizim tarafımızda eksik bağlam).`,
     `⚠️ "guest" null olması TEK BAŞINA proaktif kanıtı DEĞİLDİR: yalnız "proactive" iken yanıtı "var olmayan bir soruya atıf" diye değerlendir. "unmatched" iken eksik bağlamı NOT ET ve o yanıt hakkında doğruluk bulgusu ÜRETME.`,
+    `"aiSources" alanı, yanıtın hangi kayıtlı bilgiye dayandığını gösteren DOĞRULANMIŞ etiketlerdir ("kb:<konu>" = bilgi tabanı kalemi, "property:<alan>" = mülk ayarı, "reservation:<alan>" = rezervasyon alanı, "history" = konuşma geçmişi). Dolu bir liste, yanıttaki somut detayın gerçekten bir kaynağı olduğunu gösterir.`,
+    `🚨 "aiSources" null ise bu "kaynak YOK" DEMEK DEĞİLDİR — o yüzeyde bu bilgi KAYDEDİLMEDİ (yalnız kanal otomatik yanıtlarında tutuluyor). null iken kaynak üzerinden doğruluk bulgusu ÜRETME; yalnız DOLU listeyle "iddia edilen detayın karşılığı var mı" diye bak. Boş liste ([]) ise gerçekten hiçbir kaynak doğrulanamamıştır.`,
     "Her çifti ürün kurallarına göre değerlendir ve YALNIZ şu şemaya uyan tek bir JSON nesnesi döndür:",
     "{",
     '  "overall": "1-3 cümlelik genel değerlendirme",',

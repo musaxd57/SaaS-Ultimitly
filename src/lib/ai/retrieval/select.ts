@@ -304,12 +304,29 @@ function rankForSubquery(
   return { cands: sortCandidates(cands.filter((c) => c.score >= floor), index.chunks), sources, fusion: useRrf ? ("rrf" as const) : ("sum" as const) };
 }
 
+/**
+ * @param droppedItems 🚨 GERİ ÇEKİLME KIRPMASINDA DÜŞEN kalem sayısı (§C, 09-12).
+ *   Eskiden burada SABİT `0` vardı ve bu ÖLÇÜLMÜŞ BİR YALANDI: hibritte
+ *   `kb-fetch` 200 kalem çeker, `cappedForFallback` 30'a indirir, karar kaydı
+ *   "hiç kalem düşmedi" derdi. O sayı `RiskEvent.kbDropped`a ve oradan
+ *   `classifyGrounding`e gidiyor — `dropped === 0` dalı etiketi `ungrounded`
+ *   ("kalem vardı, model kullanmadı") yapıyordu, oysa gerçek `capacity`
+ *   ("kalem isteme sığmadı"). Yani host'a YANLIŞ teşhis gösteriliyordu.
+ *
+ *   ⚠️ A2 sözleşmesi "NULL = ölçülmedi, 0 DEĞİL" der; ölçülmüş-ama-YANLIŞ bir
+ *   sıfır NULL'dan kötüdür, çünkü sahte kesinlik üretir.
+ *
+ *   🚨 Varsayılan 0 KASITLI: legacy modda kırpmayı `kb-fetch` yapar ve düşeni
+ *   KENDİ raporlar (`fetchKnowledgeBaseForPrompt.dropped`) — burada ikinci kez
+ *   saymak ÇİFT SAYIM olurdu (test-pinli).
+ */
 function legacyResult<T extends KbChunkSource>(
   items: readonly T[],
   mode: KbRetrievalMode,
   evidence: KbRetrievalEvidence | null,
+  droppedItems = 0,
 ): KbSelectResult<T> {
-  return { mode, items: items as SelectedKbItem<T>[], droppedItems: 0, selection: "all", notes: [], evidence };
+  return { mode, items: items as SelectedKbItem<T>[], droppedItems, selection: "all", notes: [], evidence };
 }
 
 /**
@@ -334,8 +351,14 @@ function legacyResult<T extends KbChunkSource>(
  * ⚠️ Yalnız tavanın ÜSTÜNDEKİ kümede yeni dizi üretilir: `small_kb` dalı zaten
  * tavanın altındadır ve oradaki "aynı dizi referansı" sözleşmesi bozulmamalı.
  */
-function cappedForFallback<T extends KbChunkSource>(items: readonly T[]): readonly T[] {
-  return items.length > KB_ITEM_CAP ? items.slice(0, KB_ITEM_CAP) : items;
+function cappedForFallback<T extends KbChunkSource>(
+  items: readonly T[],
+): { items: readonly T[]; dropped: number } {
+  // 🚨 KIRPMA ile SAYAÇ tek yerde üretilir (§C). İkisi ayrı yerde hesaplansaydı
+  // ayrışırlardı — bu dosyanın kendi tarihçesi tam olarak o sınıftan
+  // (kırpma eklendi, sayaç güncellenmedi, kayıt iki yıl "0" dedi).
+  if (items.length <= KB_ITEM_CAP) return { items, dropped: 0 };
+  return { items: items.slice(0, KB_ITEM_CAP), dropped: items.length - KB_ITEM_CAP };
 }
 
 export function selectKbForPrompt<T extends KbChunkSource>(input: KbSelectInput<T>): KbSelectResult<T> {
@@ -372,7 +395,8 @@ export function selectKbForPrompt<T extends KbChunkSource>(input: KbSelectInput<
     const subqueries = splitQuestions(input.guestMessage);
     const index = getOrBuildKbIndex(items, input.now);
     if (subqueries.length === 0) {
-      return legacyResult(cappedForFallback(sup > 0 ? items : input.items), "hybrid", evidence("empty_query", 0, 0, index.chunks.length, { sup }));
+      const cap = cappedForFallback(sup > 0 ? items : input.items);
+      return legacyResult(cap.items, "hybrid", evidence("empty_query", 0, 0, index.chunks.length, { sup }), cap.dropped);
     }
     const carryStems = (input.history ?? [])
       .filter((m) => m.direction === "inbound")
@@ -385,10 +409,12 @@ export function selectKbForPrompt<T extends KbChunkSource>(input: KbSelectInput<
     const srcs = rankedAll[0]?.sources ?? [];
     const fus = rankedAll[0]?.fusion;
     if (ranked.every((r) => r.length === 0)) {
+      const cap = cappedForFallback(sup > 0 ? items : input.items);
       return legacyResult(
-        cappedForFallback(sup > 0 ? items : input.items),
+        cap.items,
         "hybrid",
         evidence("no_lexical_hits", subqueries.length, 0, index.chunks.length, { srcs, fus, sup }),
+        cap.dropped,
       );
     }
 
@@ -473,6 +499,7 @@ export function selectKbForPrompt<T extends KbChunkSource>(input: KbSelectInput<
   } catch (err) {
     // Retrieval hatası ürünü BOZMAZ: legacy küme gider, hata raporlanır.
     void reportError("kb-retrieval-select", err);
-    return legacyResult(cappedForFallback(input.items), "hybrid", evidence("error", 0, 0, 0));
+    const cap = cappedForFallback(input.items);
+    return legacyResult(cap.items, "hybrid", evidence("error", 0, 0, 0), cap.dropped);
   }
 }

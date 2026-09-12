@@ -51,6 +51,7 @@ describe("buildAuditPrompt", () => {
     aiIntent: "wifi",
     language: "tr",
     threadRisk: null,
+      aiSources: null,
   };
 
   it("örneklemi güvenilmez-veri uyarısıyla ve şema tarifiyle sarar", () => {
