@@ -35,6 +35,7 @@
  *    körü körüne güvenmek sessiz eşleşme hatası üretirdi.
  * ------------------------------------------------------------------------- */
 
+import { createHash } from "node:crypto";
 import { reportError } from "@/lib/report-error";
 
 /**
@@ -42,7 +43,20 @@ import { reportError } from "@/lib/report-error";
  * TÜM bilgi tabanı için **0,18 sent** (tek sefer), sorgu tarafı mesaj başına
  * 67 token = sohbet isteminin %0,37'si.
  */
-export const EMBEDDING_MODEL = process.env.OPENAI_EMBEDDING_MODEL || "text-embedding-3-small";
+export const DEFAULT_EMBEDDING_MODEL = "text-embedding-3-small";
+
+/**
+ * 🚨 HER ÇAĞRIDA OKUNUR, import anında DONDURULMAZ.
+ *
+ * İlk yazımda `const EMBEDDING_MODEL = process.env… || default` idi ve test
+ * bunu YAKALADI: env sonradan değişse bile modül eski değeri kullanmaya devam
+ * ediyordu. Kardeş yol (`ai/index.ts:98`, `:396`) env'i çağrı anında okuyor;
+ * ayrışma sessizdir ve önbellek anahtarı modeli içerdiği için EN KÖTÜ hâlde
+ * "yeni modelin vektörü eski modelin anahtarıyla" saklanırdı.
+ */
+export function embeddingModel(): string {
+  return process.env.OPENAI_EMBEDDING_MODEL || DEFAULT_EMBEDDING_MODEL;
+}
 
 /** Beklenen boyut. Sağlayıcı başka boyut dönerse vektör KABUL EDİLMEZ (↓). */
 export const EMBEDDING_DIMENSIONS = 1536;
@@ -56,20 +70,117 @@ export const EMBEDDING_BATCH_MAX = 64;
  */
 export const EMBEDDING_INPUT_MAX_CHARS = 8_000;
 
-/** Ağ zaman aşımı. Retrieval bir SOHBETİN içinde koşuyor; beklemek yasak. */
+/** TEK deneme için ağ zaman aşımı. */
 const TIMEOUT_MS = 8_000;
 
-/** L2 normalizasyon: kosinüs = nokta çarpımı olsun diye. */
-function normalize(v: number[]): number[] | null {
+/**
+ * 🚨 TOPLAM bütçe — tekrar denemeler DÂHİL. Bu kod bir SOHBETİN içinde koşuyor:
+ * misafir ekranın başında bekliyor. "3 deneme × 8 sn" 24 saniye ederdi; tekrar
+ * deneme bir gecikme bütçesi ALMAZ, var olanı PAYLAŞIR (test-pinli sabit).
+ */
+export const EMBEDDING_TOTAL_DEADLINE_MS = 9_000;
+
+/** En fazla kaç deneme (ilk çağrı dâhil). */
+const MAX_ATTEMPTS = 3;
+/** İlk geri çekilme; her denemede ikiye katlanır (200 → 400). */
+const BACKOFF_BASE_MS = 200;
+
+/** Önbellek tavanı: 256 × 1536 × 8 bayt ≈ 3 MB — sınırsız büyüme YOK. */
+export const EMBEDDING_CACHE_MAX = 256;
+
+/**
+ * ① BELLEK İÇİ LRU ÖNBELLEK (kurucu iş emri 09-12).
+ *
+ * 🚨 ANAHTAR İÇERİKTİR (model + metin özeti) → **BAYATLAMA YAPISAL OLARAK
+ * İMKÂNSIZ**: metin değişirse anahtar da değişir. Bu yüzden TTL YOK; TTL
+ * koymak "eski vektör dönebilir" riskini çözmez, sadece isabet oranını düşürür.
+ *
+ * 🚨 HAM METİN SAKLANMAZ — anahtar SHA-256 özetidir. Misafirin sorusu zaten
+ * istek boyunca bellekte, ama uzun ömürlü bir Map'te ADIYLA tutulmaz
+ * (test-pinli). Vektörün kendisi kiracı taşımaz: embedding metnin SAF
+ * fonksiyonudur, iki kiracı aynı cümleyi sorarsa aynı vektörü hak eder.
+ *
+ * ⚠️ DÜRÜSTLÜK: bu önbellek ASIL PARA TASARRUFU DEĞİL. KB parçalarını iki kez
+ * ödememenin yolu içerik-hash'li KALICI saklamadır (E2 — migration ister).
+ * Buradaki kazanç GECİKMEDİR ve süreç ömrüyle sınırlıdır.
+ */
+const cache = new Map<string, number[]>();
+let cacheHits = 0;
+let cacheMisses = 0;
+
+/** Test/teşhis: önbelleği boşalt. */
+export function clearEmbeddingCache(): void {
+  cache.clear();
+  cacheHits = 0;
+  cacheMisses = 0;
+}
+
+/** Test/teşhis: PII'siz sayaçlar (`sampleKeys` yalnız ÖZETLER). */
+export function embeddingCacheStats(): {
+  size: number;
+  hits: number;
+  misses: number;
+  sampleKeys: string[];
+} {
+  return { size: cache.size, hits: cacheHits, misses: cacheMisses, sampleKeys: [...cache.keys()].slice(0, 5) };
+}
+
+function cacheKey(model: string, text: string): string {
+  return `${model}:${createHash("sha256").update(text).digest("base64url")}`;
+}
+
+/** LRU: okunan anahtar en TAZE konuma taşınır (Map ekleme sırasını korur). */
+function cacheGet(key: string): number[] | undefined {
+  const v = cache.get(key);
+  if (v === undefined) return undefined;
+  cache.delete(key);
+  cache.set(key, v);
+  return v;
+}
+
+function cacheSet(key: string, vec: number[]): void {
+  cache.set(key, vec);
+  while (cache.size > EMBEDDING_CACHE_MAX) {
+    // En eski (ilk) anahtar düşer.
+    const oldest = cache.keys().next();
+    if (oldest.done) break;
+    cache.delete(oldest.value);
+  }
+}
+
+/**
+ * ③ L2 normalizasyon — YERİNDE (in-place).
+ *
+ * 🚨 BU FONKSİYON AYNI ZAMANDA GEÇERLİLİK KAPISIDIR. Kurucu "OpenAI zaten
+ * normalize döndürüyor, bu adım gereksiz CPU" dedi; ölçüldü: tam boyutta DOĞRU
+ * ama EKSİK — NaN/Infinity ve sıfır vektör reddi de burada yaşıyor ve onlar
+ * sağlayıcının garantisi DEĞİL. Ayrıca `dimensions` ile kısaltma yapılırsa
+ * sonuç zaten normalize DEĞİLDİR. Bu yüzden adım KALDI, yalnız TAHSİS kalktı:
+ * ölçüldü (1536 boyut × 64 parça) → `.map()` 1,16 ms, in-place 0,32 ms (3,6×).
+ *
+ * ⚠️ Girdi dizisi sağlayıcı yanıtından TAZE ayrıştırılmıştır ve yalnız bize
+ * aittir; in-place yazmak çağıranın verisini bozmaz.
+ */
+function normalizeInPlace(v: number[]): number[] | null {
   let sum = 0;
-  for (const x of v) {
+  for (let i = 0; i < v.length; i++) {
+    const x = v[i];
     if (!Number.isFinite(x)) return null; // NaN/Infinity taşıyan vektör KULLANILMAZ
     sum += x * x;
   }
   const len = Math.sqrt(sum);
   if (!(len > 0)) return null; // sıfır vektör anlamsızdır
-  return v.map((x) => x / len);
+  const inv = 1 / len;
+  for (let i = 0; i < v.length; i++) v[i] *= inv;
+  return v;
 }
+
+/** Tekrar denemeye DEĞER mi? Kalıcı hatada ısrar hem para hem gecikme yakar. */
+function isRetryableStatus(status: number): boolean {
+  return status === 408 || status === 429 || status >= 500;
+}
+
+const sleep = (ms: number) => new Promise((r) => setTimeout(r, ms));
 
 /**
  * Metinleri vektöre çevirir. Girdi sırası KORUNUR.
@@ -86,52 +197,119 @@ export async function embedTexts(texts: readonly string[]): Promise<number[][] |
     return null;
   }
 
+  // ── ① ÖNBELLEK: yalnız EKSİK metinler sağlayıcıya gider ───────────────────
+  // 🚨 Sıra burada kurulur ve SONUNA KADAR korunur: `out` girdi uzunluğunda
+  // açılır, isabetler yerine oturur, eksikler `missing` ile toplanır ve dönen
+  // vektörler KENDİ indekslerine yazılır. Kısmi isabette sırayı yeniden
+  // kurmaya çalışmak tam olarak bu modülün baştan reddettiği hata sınıfıdır.
+  const model = embeddingModel();
+  const keys = texts.map((t) => cacheKey(model, t));
+  const out: (number[] | null)[] = new Array(texts.length).fill(null);
+  const missing: number[] = [];
+  for (let i = 0; i < texts.length; i++) {
+    const hit = cacheGet(keys[i]);
+    if (hit) {
+      out[i] = hit;
+      cacheHits += 1;
+    } else {
+      missing.push(i);
+      cacheMisses += 1;
+    }
+  }
+  if (missing.length === 0) return out as number[][];
+
   const key = process.env.OPENAI_API_KEY;
   if (!key) return null; // anahtar yok = ücretli servis YOK; alarm da yok (beklenen hâl)
 
-  try {
-    const res = await fetch("https://api.openai.com/v1/embeddings", {
-      method: "POST",
-      headers: { "Content-Type": "application/json", Authorization: `Bearer ${key}` },
-      body: JSON.stringify({ model: EMBEDDING_MODEL, input: texts }),
-      signal: AbortSignal.timeout(TIMEOUT_MS),
-    });
-    if (!res.ok) {
-      // 🚨 Yalnız DURUM KODU alarma girer; sağlayıcının hata GÖVDESİ GEÇİLMEZ.
-      // Kardeş yol (`ai/index.ts:181`) gövdeyi geçiriyor ama orada istek gövdesi
-      // İSTEMDİR; burada istek gövdesi KB metni + misafirin SORUSUDUR, yani hata
-      // ekosu PII taşıyabilir. Alarm/RiskEvent sözleşmesi PII'sizdir.
-      await reportError(`openai-embeddings ${res.status}`, new Error(`HTTP ${res.status}`));
-      return null;
-    }
-    const json: unknown = await res.json();
-    const data = (json as { data?: unknown }).data;
-    if (!Array.isArray(data) || data.length !== texts.length) {
-      await reportError(
-        "openai-embeddings shape violation",
-        new Error(`expected ${texts.length} rows`),
-      );
-      return null;
-    }
+  const input = missing.map((i) => texts[i]);
+  const startedAt = Date.now();
+  let lastStatus = 0;
 
-    // 🚨 SIRAYA GÜVENME: sağlayıcı `index` döndürür, ona göre yerleştir.
-    const out: (number[] | null)[] = new Array(texts.length).fill(null);
-    for (const row of data) {
-      const r = row as { index?: unknown; embedding?: unknown };
-      const i = typeof r.index === "number" ? r.index : -1;
-      if (!Number.isInteger(i) || i < 0 || i >= texts.length) return null;
-      if (!Array.isArray(r.embedding) || r.embedding.length !== EMBEDDING_DIMENSIONS) return null;
-      const unit = normalize(r.embedding as number[]);
-      if (!unit) return null;
-      out[i] = unit;
+  for (let attempt = 1; attempt <= MAX_ATTEMPTS; attempt++) {
+    // ── ② TOPLAM BÜTÇE: her deneme KALAN süreyi alır, yenisini değil ────────
+    const remaining = EMBEDDING_TOTAL_DEADLINE_MS - (Date.now() - startedAt);
+    if (remaining <= 0) break;
+
+    try {
+      const res = await fetch("https://api.openai.com/v1/embeddings", {
+        method: "POST",
+        headers: { "Content-Type": "application/json", Authorization: `Bearer ${key}` },
+        body: JSON.stringify({ model, input }),
+        signal: AbortSignal.timeout(Math.min(TIMEOUT_MS, remaining)),
+      });
+
+      if (!res.ok) {
+        lastStatus = res.status;
+        // 🚨 KALICI HATADA ISRAR YOK: 4xx (429/408 hariç) kendiliğinden
+        // düzelmez — tekrar denemek hem para hem misafirin beklediği saniyeleri
+        // yakar. Yalnız 408/429/5xx yeniden denenir.
+        if (!isRetryableStatus(res.status) || attempt === MAX_ATTEMPTS) break;
+        // `Retry-After` sağlayıcının kendi talimatıdır; ama KALAN BÜTÇEYİ
+        // aşamaz — misafir sağlayıcının takvimine göre beklemez.
+        const ra = Number(res.headers.get("retry-after"));
+        const wait = Number.isFinite(ra) && ra > 0 ? ra * 1000 : BACKOFF_BASE_MS * 2 ** (attempt - 1);
+        const left = EMBEDDING_TOTAL_DEADLINE_MS - (Date.now() - startedAt);
+        if (wait >= left) break;
+        await sleep(wait);
+        continue;
+      }
+
+      const json: unknown = await res.json();
+      const data = (json as { data?: unknown }).data;
+      if (!Array.isArray(data) || data.length !== input.length) {
+        await reportError(
+          "openai-embeddings shape violation",
+          new Error(`expected ${input.length} rows`),
+        );
+        return null;
+      }
+
+      // 🚨 SIRAYA GÜVENME: sağlayıcı `index` döndürür, ona göre yerleştir.
+      // `index` İSTEK dizisine (`input`) göredir; `missing` onu ÖZGÜN girdi
+      // konumuna çevirir.
+      const fetched: (number[] | null)[] = new Array(input.length).fill(null);
+      for (const row of data) {
+        const r = row as { index?: unknown; embedding?: unknown };
+        const i = typeof r.index === "number" ? r.index : -1;
+        if (!Number.isInteger(i) || i < 0 || i >= input.length) return null;
+        if (!Array.isArray(r.embedding) || r.embedding.length !== EMBEDDING_DIMENSIONS) return null;
+        const unit = normalizeInPlace(r.embedding as number[]);
+        if (!unit) return null;
+        fetched[i] = unit;
+      }
+      if (fetched.some((v) => v === null)) return null; // her girdiye TAM KARŞILIK şart
+
+      for (let j = 0; j < missing.length; j++) {
+        const vec = fetched[j] as number[];
+        out[missing[j]] = vec;
+        // 🚨 YALNIZ BAŞARI ÖNBELLEĞE GİRER — arıza önbelleklenirse geçici bir
+        // kesinti kalıcı bir körlüğe dönerdi.
+        cacheSet(keys[missing[j]], vec);
+      }
+      return out as number[][];
+    } catch (err) {
+      // Timeout/abort/ağ — son denemeyse bitir, değilse geri çekilip tekrar dene.
+      if (attempt === MAX_ATTEMPTS) {
+        await reportError("openai-embeddings", err);
+        return null;
+      }
+      const wait = BACKOFF_BASE_MS * 2 ** (attempt - 1);
+      if (wait >= EMBEDDING_TOTAL_DEADLINE_MS - (Date.now() - startedAt)) {
+        await reportError("openai-embeddings", err);
+        return null;
+      }
+      await sleep(wait);
     }
-    if (out.some((v) => v === null)) return null; // her girdiye TAM KARŞILIK şart
-    return out as number[][];
-  } catch (err) {
-    // Timeout/abort/ağ — hepsi aynı sonuç: anlamsal kaynak yok, sözcüksel devam.
-    await reportError("openai-embeddings", err);
-    return null;
   }
+
+  // 🚨 Yalnız DURUM KODU alarma girer; sağlayıcının hata GÖVDESİ GEÇİLMEZ.
+  // Kardeş yol (`ai/index.ts`) gövdeyi geçiriyor ama orada istek gövdesi
+  // İSTEMDİR; burada istek gövdesi KB metni + misafirin SORUSUDUR, yani hata
+  // ekosu PII taşıyabilir. Alarm/RiskEvent sözleşmesi PII'sizdir.
+  if (lastStatus) {
+    await reportError(`openai-embeddings ${lastStatus}`, new Error(`HTTP ${lastStatus}`));
+  }
+  return null;
 }
 
 /** Tek metin için kolaylık sarmalayıcı. */
