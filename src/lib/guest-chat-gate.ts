@@ -76,6 +76,12 @@ export type EscalationReason =
   | "model_risk_type"
   | "keyword_escalated"
   | "injection"
+  /**
+   * 🚨 GEÇMİŞ mesajlardan birinde injection (displacement saldırısı) — güncel
+   * mesaj zararsızdı. `injection`dan AYRI tutuluyor ki canlıda hangi dalın
+   * kapattığı görünsün (kapalı-küme gerekçe sözleşmesi).
+   */
+  | "history_injection"
   | "keyword_risk_type"
   | "model_risk_level"
   | "low_confidence"
@@ -112,6 +118,20 @@ export function evaluateEscalation(
   /** Reservation guest name (Airbnb-controlled) — the model sees it in the prompt,
    *  so an injection planted in the NAME must escalate even on a benign message. */
   guestName?: string | null,
+  /**
+   * 🚨 MODELE GİDEN GEÇMİŞ PENCERESİ (`buildGuestChatContextWindow` çıktısı).
+   *
+   * Bu parametre 09-12'de eklendi ve KANAL YOLUNDAKİ `dfd1683` DÜZELTMESİNİN
+   * AYNISIDIR. QR rotası 09-08'den beri modele kronolojik geçmiş veriyor ama
+   * kapı yalnız GÜNCEL mesaja bakıyordu — yani model görüyor, kapı görmüyordu.
+   *
+   * Saldırı (ölçüldü): misafir 1. turda injection yazar → devredilir AMA mesaj
+   * konuşmaya KAYDEDİLİR → 2. turda zararsız bir soru yazar → pencere yükü
+   * modele taşır. QR devri yapışkan olmadığı için 2. tur temiz sayılıyordu.
+   *
+   * ⚠️ Verilmezse davranış BİREBİR eski (geriye dönük uyumlu).
+   */
+  history?: readonly { body: string }[],
 ): { escalate: boolean; reason: EscalationReason | null } {
   const yes = (reason: EscalationReason) => ({ escalate: true, reason });
   if (guestName && detectPromptInjection(guestName)) return yes("guest_name_injection");
@@ -133,6 +153,15 @@ export function evaluateEscalation(
   // injection or a safety/rule/discrimination message is escalated even if the
   // model under-rated it as benign — the guest chat has no human-review draft.
   if (detectPromptInjection(message)) return yes("injection");
+  // 🚨 GEÇMİŞ DE TARANIR — model onu GÖRÜYOR (displacement açığı, 09-12).
+  //
+  // ⚠️ KAPSAM BİLEREK DAR: geçmişte YALNIZ injection aranır. Şikâyet/risk kelime
+  // ağlarını eski mesajlara yeniden koşturmak normal bir sohbeti KALICI olarak
+  // bloklardı — dünkü çözülmüş şikâyet, bugünkü wifi cevabını engellemek için
+  // sebep değildir. Kanal kapısındaki (`automation.ts`) gerekçenin aynısı.
+  if (history?.some((m) => m.body.trim() !== "" && detectPromptInjection(m.body))) {
+    return yes("history_injection");
+  }
   // 🚨 AYNI KÜMEYİ KULLAN, ELLE YAZILMIŞ ÜÇLÜYÜ DEĞİL (denetim, 08-09). Üstteki
   // yorum "inbox oto-gönderim kapısının aynası" diyordu ve bu satır o iddiayı
   // YALANLIYORDU: model ETİKETİ için (:144) tam küme kullanılırken, misafirin

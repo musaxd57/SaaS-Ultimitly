@@ -114,12 +114,73 @@ regex'leri dört turda (09-09, 09-10) ölçülerek sertleştirilmiş. Dosya kend
 diyor: *"P5 onaylanırsa bu fonksiyonlar ürün koduna taşınır ve gerçek bir kapı olur."*
 Kurucunun 09-12 iş emri bu onaydır.
 
-🚨 **ÖN KOŞUL — YANLIŞ POZİTİF ÖLÇÜMÜ.** Veto yanlış tetiklenirse bedel gerçek: kanalda
-mesaj hiç gitmez (host elle yazar), QR'da misafir cevap yerine devir metni alır. Yani
-"aşırı eşleşme bedava" DEĞİL — aynı hata `SAFETY_CRITICAL_WORDS` turunda ölçülmüştü.
-Bağlanmadan ÖNCE meşru cevap bataryası koşulacak.
+### 🚨 YANLIŞ POZİTİF BATARYASI KOŞULDU — **YÜKLEM BUGÜNKÜ HÂLİYLE KAPI OLAMAZ**
 
-⚠️ `PAST_ACTION`/`FUTURE_COMMITMENT` bugün **YALNIZ TÜRKÇE** (aşağı §B).
+Bağlamadan önce ölçüldü (77 meşru cevap + 45 gerçek iddia + 40 satırlık genişletilmiş
+tuzak; script'ler scratchpad `fp-battery.ts` / `fp-probe2.ts` / `fp-final.ts`):
+
+```
+A (meşru cevaplar):  77 mesaj /  9 YANLIŞ POZİTİF
+B (gerçek iddialar): 45 mesaj / 11 KAÇIRMA  (TR 3 · EN 8)
+genişletilmiş tuzak: 20 satırın 19'u yanlış pozitif → sınıflar TAM KAPALI
+```
+
+🚨 **KÖK NEDEN — TÜRKÇE EDİLGEN ÇATI YÜZEYDE AYRIŞMIYOR.** Aynı kip iki bambaşka iş
+yapıyor ve biçimleri BİREBİR AYNI:
+
+| kural/olgu bildirimi (MEŞRU, gitmeli) | vaat (MAKBUZSUZ, gitmemeli) |
+|---|---|
+| `Gürültü şikâyetleri site yönetimine bildirilir.` | `Giriş detayları size iletilir.` |
+| `Fatura, konaklama sonunda e-posta ile gönderilir.` | `Bilgi paylaşılacaktır.` |
+| `Bina kuralları kira sözleşmesinde bildirilmiştir.` | `Konu apartman yönetimine bildirilmiştir.` |
+
+Son satır çifti **dilbilgisel olarak birebir aynı şablon** (`<özne> + <merci>+e +
+bildirilmiştir`). Bunlar oto-yanıtın VAR OLMA SEBEBİ olan SSS cevapları — bloklanırsa
+kanalda hiç mesaj gitmez, QR'da misafir devir metni alır.
+
+İkinci sınıf: **2. şahıs soru/koşul** (`Fotoğrafı gönderecek misiniz?` ·
+`...iletecekseniz`). Mevcut fren `(?!s?[iı]n[iı]z)` yalnız `-ceğiniz`/`-ceksiniz`i
+kapatıyor; `-cekseniz` (lookahead `[iı]` bekler, `e` gelir) ve ayrı kelimedeki soru
+parçacığı (`-cek mi`) menzil dışında. Genişletilmiş bataryada **7/7 tetikledi.**
+
+Üçüncü: **İngilizce kapsam SIFIR** (8/8 gerçek iddia geçer) — `Ev sahibiniz dönüş
+yapacaktır` bloklanırken `Your host will contact you soon` serbest. Kapı dile göre
+ASİMETRİK olurdu.
+
+🚨 **"MUHATAP ÇAPASI" DENENDİ, ÖLÇÜLDÜ, REDDEDİLDİ** (tekrar tasarlanmasın): edilgen dalı
+"siz/size/2. çoğul iyelik" şartına bağlamak DİLBİLGİSEL OLARAK KEYFÎ — iyelik eki ünsüzle
+biten gövdede `-ınız`, ünlüyle bitende `-nız` olduğu için çapa rastgele tutuyor
+(`Faturanız … gönderilir` temiz ama `Kargolarınız … gönderilir` hâlâ FP; `Konu apartman
+yönetimine bildirilmiştir` GERÇEK iddiası kaçıyor). Aynı anlam sınıfının iki üyesi yalnız
+gövdenin son harfi yüzünden farklı karar alıyor — kural değil kaza.
+
+### Ölçülmüş varyant tablosu → **KARAR: ① + ②**
+
+| varyant | A yanlış pozitif | B kaçırma |
+|---|---|---|
+| V0 (bugünkü yüklem) | **9** | 11 |
+| V1 = lookahead genişletme (`-cekseniz`, `-cek mi`) | **7** | **11 (değişmedi)** |
+| V2 = V1 + kapıya YALNIZ ETKEN dallar (`P1`+`F1`+`F2`) | **0** | 23 |
+| V3 = V1 + edilgen dal "muhatap çapası"na bağlı | 0* | 12 |
+
+**① Lookahead genişletmesi BEDELSİZ** — A'da −2 (genişletilmiş bataryada −6), B'de **0
+kayıp**. Kapıdan bağımsız olarak zaten doğru (bugünkü eval ölçümünü de bozuyor olabilir).
+
+**② Kapıya YALNIZ ETKEN dallar bağlanır** (`ilettim` · `oluşturdum` · `döneceğim` ·
+`iletecek` · `hallederiz`). **A'da 0 yanlış pozitif.** Edilgen dallar (`P2`/`F3`) ÖLÇÜMDE
+kalır — `RiskEvent`'e sayaç/etiket olarak yazılabilir ama VETO ETMEZ. Kaybedilen 12 satırın
+tamamı edilgen; **yön güvenli**: kaçan iddia bugünkü durumdan kötü değil (bugün HİÇ veto
+yok), kazanılan şey hiçbir meşru cevabın bloklanmaması.
+
+**③ Edilgen dalı kapıya almak AYRI ve DAHA BÜYÜK bir iş** — ayrım yüzeyde yok; ya konuşma
+bağlamı gerekir (saflık kısıtı) ya da `actionReceipt` gerçekten uygulanıp edilgen dal
+YALNIZ makbuz yokken vetolar.
+
+**④ İngilizce AYRI TUR** — bugün sıfır kapsam. Türkçeyi açıp İngilizceyi açmamak gönderim
+politikasını dile göre ayrıştırır; bu BİLİNÇLİ karar olmalı, yan etki değil.
+
+⚠️ Yanılma yönü: veto yanlış tetiklenirse bedel GERÇEK (kanalda mesaj gitmez, QR'da devir).
+"Aşırı eşleşme bedava" DEĞİL — aynı hata `SAFETY_CRITICAL_WORDS` turunda ölçülmüştü.
 
 ---
 
@@ -217,7 +278,12 @@ eksen için açık bir fren var (`:262-263`), temellendirme ekseni için **hiç 
 
 ## §D — GİRDİ GÜVENİ (bulgu 6 + 18)
 
-🚨 **YENİ P1 (rapor görmedi): QR yolunda GEÇMİŞ hiç injection taranmıyor.**
+✅ **KAPANDI (bu tur) — YENİ P1 (rapor görmedi): QR yolunda GEÇMİŞ hiç injection
+taranmıyordu.** `evaluateEscalation` artık modele giden AYNI pencereyi tarıyor
+(`history_injection`, kapalı-küme gerekçe). Kapsam kanal yoluyla aynı şekilde DAR: yalnız
+injection — şikâyet/risk ağlarını eski mesajlara koşturmak normal sohbeti kalıcı
+bloklardı. Kırmızı-önce 2 düşen assert; temiz geçmiş gönderimi sürdürür (iki yönlü).
+Ölçüm notu aşağıda AYNEN korunuyor:
 QR rotası 09-08'den beri modele kronolojik geçmiş veriyor, ama `evaluateEscalation` yalnız
 `message` ve `guestName` tarıyor (`guest-chat-gate.ts:117,135`). **Kanal yolunda
 `dfd1683` ile kapattığım displacement açığının AYNISI QR'da açık.** Yol: misafir 1. turda
@@ -298,9 +364,11 @@ gerekçe ("yer sınırı") yazacaktı.
 
 ## Yürütme sırası (bu belge kazanır)
 
-1. **§A çıktı vetosu** — önce yanlış-pozitif bataryası, sonra iki kapıya bağlama.
-   `hasUnsourcedSpecificClaim`in ölü kod olması ayrıca karara bağlanacak.
-2. **§D QR geçmiş injection taraması** — kanal yolundaki `dfd1683` deseninin aynısı (P1).
+1. **§A çıktı vetosu** — batarya KOŞULDU (↑), tasarım kararı verildi: ① lookahead
+   genişletmesi (bedelsiz) + ② kapıya YALNIZ etken dallar. `hasUnsourcedSpecificClaim`in
+   ölü kod olması ayrıca karara bağlanacak.
+2. ✅ **§D QR geçmiş injection taraması** — KAPANDI (bu tur); kanal yolundaki `dfd1683`
+   deseninin aynısı.
 3. **§B makbuzsuz iddia** — dedektöre EN/AR dalı → vakumlu pin gerçekleşir → 6 few-shot
    örneği + `HOLDING_ACK_TEXTS` + alıcısız-org dalı.
 4. **§C temellendirme** — `packKnowledgeBase` `omitted` → kanıt; denetçiye `aiSourcesJson`.

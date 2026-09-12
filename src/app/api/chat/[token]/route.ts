@@ -656,10 +656,17 @@ async function handleGuestChatPost(req: NextRequest, { params }: { params: Promi
   // (The QR model call passes reservation:null — the name never reaches the model
   // today — so this is defense-in-depth: if the name is ever wired into the
   // prompt, the deterministic backstop is already in place.)
+  // 🚨 KAPININ TARADIĞI GEÇMİŞ, MODELİN GÖRDÜĞÜ GEÇMİŞLE AYNI DİZİ OLMALI
+  // (09-12). Kanal yolunda aynı asimetri `dfd1683`'te kapandı: istem penceresi
+  // büyüdüğünde kapının aynası geride kalırsa misafir, yükü pencerenin görünen
+  // kısmının dışına itip modele ulaştırabilir. Burada tek kaynak `history` —
+  // ikinci bir pencere hesaplanmıyor, çünkü ayrışabilecek her kopya bu açığın
+  // kendisidir.
   const verdict = evaluateEscalation(
     { ...result, reply: result.reply, usedSources: result.usedSources },
     message,
     res.guestName,
+    history,
   );
   const escalate = verdict.escalate;
 
