@@ -1469,7 +1469,21 @@ gövdesi İSTEMDİR; burada istek gövdesi KB metni + misafirin SORUSUDUR → ha
 🚨 **KVKK'da YENİ BİR ŞEY YOK (kurucu 09-12 haklıydı, kodda doğrulandı):** misafir mesajı (`prompts.ts`
 istem gövdesi) ve KB içeriği (`packKnowledgeBase`) ZATEN `api.openai.com`a gidiyor — embedding yeni veri
 SINIFI da yeni SAĞLAYICI da eklemiyor; benim önceki "ayrı KVKK kararı" çerçevem DAYANAKSIZDI. Kanıt:
-20 test (hepsi `fetch` mock'lu). **Sıradaki: E2 vektör tablosu = migration → taze `pg_dump` + açık onay.**
+21 test (hepsi `fetch` mock'lu). **Sıradaki: E2 vektör tablosu = migration → taze `pg_dump` + açık onay.**
+🚨 **REPODA GİT ÇAĞIRAN HER TEST İKİ KATMANLI OLMAK ZORUNDA (CI'da İKİNCİ KEZ ölçüldü — koşu #1076).**
+E1 pinini düz `git ls-files` ile yazdım, yerelde yeşildi, **CI KIRMIZI verdi**: `fatal: detected dubious
+ownership in repository at '/__w/…'` (checkout'u yapan kullanıcı ≠ testi koşan kullanıcı) → `4c5262c` CI'yı
+geçemedi, "Wait for CI" açık olduğu için deploy da atlandı. ⚠️ **DERS REPODA ZATEN YAZILIYDI:**
+`brand-name-absent.test.ts` AYNI hatayı koşu **#1058**'de ölçüp çözümünü kendi başlığına yazmıştı; ben yeni
+bir git tabanlı pin yazarken o satırları OKUMADIM. Zorunlu idiom: ① `safe.directory` **KOMUT kapsamında**
+(`git -c safe.directory=<repo> ls-files -z`) — global/system git ayarına ASLA dokunulmaz · ② git herhangi bir
+sebeple çalışmazsa **dosya sistemi taraması** devreye girer · ③ **FAIL-OPEN YOK**: "tarama çalışmadı" sessizce
+"eşleşme yok" diye okunamaz, anti-vakumluk ayrı iddia edilir. 🚨 Ve pinin KENDİSİ git'in varlığını ŞART
+KOŞMAZ — ilk düzeltmemdeki "iki katman aynı sonucu veriyor" testi git'i zorunlu kılıyordu, yani düzeltmeye
+çalıştığım ortam bağımlılığının ta kendisiydi (git'i `exit 128` döndüren stub'la ÖLÇÜLDÜ ve geri alındı).
+Doğrulama yöntemi: sahte `git` stub'ı ile test İKİ ortamda da koşulur; mutasyon (gerçek üretim çağıranı ekle)
+İKİ ortamda da yakalanmalı. Gerçek çalışma ağacına git ile bakan yalnız bu iki test var
+(`conversation-dedupe-apply` kendi yarattığı geçici repoya bakar → kapsam dışı).
 
 **Önceki: ÜRÜN TURU 3 (09-11, DÖRT ölçümlü ajan) — `8e414f8` · `3965ecb` · `2a41a60` · `089240e`:**
 ① 🚨 **MARKA ADI FİKSTÜRE GERİ GELMİŞTİ** (benim hatam, `34fc701` ile push edilmişti; ajan buldu) →

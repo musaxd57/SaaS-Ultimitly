@@ -1,6 +1,6 @@
 import { describe, it, expect, vi, beforeEach, afterEach } from "vitest";
 import { execFileSync } from "node:child_process";
-import { readFileSync } from "node:fs";
+import { readdirSync, readFileSync } from "node:fs";
 import { join } from "node:path";
 import {
   embedTexts,
@@ -164,29 +164,98 @@ describe("🚨 E1 MİMARİ PİN — ÜRETİMDE HİÇBİR ÇAĞIRAN YOK ($0)", ()
     expect(out, `üretimde çağıran belirdi: ${out.join(", ")}`).toEqual([]);
   });
 
-  it("anti-vakum: tarama GERÇEKTEN çalışıyor (test dosyası bulunuyor)", () => {
+  it("anti-vakum: tarama GERÇEKTEN çalışıyor (BU dosya bulunuyor)", () => {
+    // 🚨 FAIL-OPEN YOK: "tarama çalışmadı" sessizce "çağıran yok" diye
+    // okunamaz. Bu dosyanın KENDİSİ provider'ı import ediyor — bulunmuyorsa
+    // yukarıdaki boş-küme iddiası da anlamsızdır.
     const all = execImporters(true);
-    expect(all.some((f) => f.startsWith("tests/"))).toBe(true);
+    expect(all).toContain("tests/unit/embeddings-provider.test.ts");
+  });
+
+  it("🚨 İKİNCİ KATMAN TEK BAŞINA da aynı hükmü veriyor (git yoksa/çalışmazsa)", () => {
+    // 🚨 BU TEST GİT'İN VARLIĞINI ŞART KOŞMAZ — ilk yazımda koşuyordu ve o,
+    // düzeltmeye çalıştığım ortam bağımlılığının ta kendisiydi (ölçüldü: git'i
+    // 128 döndüren bir stub'la değiştirince YALNIZ bu satır kırmızıya döndü,
+    // mimari pin doğru çalışmaya devam etti).
+    const viaWalk = walkFiles(REPO)
+      .filter((f) => /\.tsx?$/.test(f) && f.startsWith("src/"))
+      .filter((f) => !f.endsWith("src/lib/ai/embeddings/provider.ts"))
+      .filter((f) => {
+        try {
+          return /from\s+"@\/lib\/ai\/embeddings\/provider"/.test(readFileSync(join(REPO, f), "utf8"));
+        } catch {
+          return false;
+        }
+      });
+    // Hüküm AYNI: üretimde çağıran yok. Git çalışsa da çalışmasa da.
+    expect(viaWalk).toEqual([]);
+    // Anti-vakumluk: tarama gerçekten dosya görüyor (boş dizin değil).
+    expect(walkFiles(REPO).length).toBeGreaterThan(100);
   });
 });
 
+// ---------------------------------------------------------------------------
+// 🚨 ORTAM BAĞIMSIZLIĞI — CI'DA ÖLÇÜLDÜ (koşu #1076, commit `4c5262c`).
+//
+// İlk yazımda düz `git ls-files` kullandım ve CI KIRMIZI verdi:
+//   fatal: detected dubious ownership in repository at '/__w/…'
+// Checkout'u yapan kullanıcı ile testi koşan kullanıcı farklı. Yerelde yeşildi.
+//
+// ⚠️ BU DERS REPODA ZATEN YAZILIYDI: `brand-name-absent.test.ts` AYNI hatayı
+// koşu #1058'de ölçmüş ve çözümünü kendi başlığına yazmıştı; ben yeni bir
+// git tabanlı pin yazarken o satırları okumadım. İdiom oradan AYNEN alındı:
+//   1) `safe.directory` KOMUT kapsamında verilir (`git -c …`) — global/system
+//      git ayarına DOKUNULMAZ.
+//   2) Git herhangi bir sebeple çalışmazsa DOSYA SİSTEMİ TARAMASI devreye girer.
+// 🚨 FAIL-OPEN YOK: iki katman da boş dönerse anti-vakumluk testi kırmızıdır —
+// "tarama çalışmadı" sessizce "çağıran yok" diye okunamaz.
+// ---------------------------------------------------------------------------
+
+const REPO = join(__dirname, "..", "..");
+const SKIP_DIRS = new Set([
+  ".git", "node_modules", ".next", "dist", "build", "coverage",
+  "playwright-report", "test-results", ".turbo", ".vercel",
+]);
+
+/** Katman 1 — takip edilen dosyalar. Başarısızsa `null` (istisna DEĞİL). */
+function trackedFiles(): string[] | null {
+  try {
+    const out = execFileSync("git", ["-c", `safe.directory=${REPO}`, "ls-files", "-z"], {
+      cwd: REPO,
+      encoding: "utf8",
+      maxBuffer: 64 * 1024 * 1024,
+    });
+    const files = out.split("\0").filter(Boolean);
+    return files.length > 0 ? files : null;
+  } catch {
+    return null;
+  }
+}
+
+/** Katman 2 — dosya sistemi taraması (git yoksa / çalışmazsa). */
+function walkFiles(dir: string, rel = ""): string[] {
+  const acc: string[] = [];
+  for (const entry of readdirSync(dir, { withFileTypes: true })) {
+    const relPath = rel ? `${rel}/${entry.name}` : entry.name;
+    if (entry.isDirectory()) {
+      if (SKIP_DIRS.has(entry.name)) continue;
+      acc.push(...walkFiles(join(dir, entry.name), relPath));
+    } else if (entry.isFile()) {
+      acc.push(relPath);
+    }
+  }
+  return acc;
+}
+
 /** `embeddings/provider` import eden dosyalar; varsayılan olarak yalnız `src/`. */
 function execImporters(includeTests = false): string[] {
-  const raw = execFileSync(
-    "git",
-    ["ls-files", "src/**/*.ts", "src/**/*.tsx", "tests/**/*.ts"],
-    { cwd: process.cwd(), encoding: "utf8" },
-  );
-  return raw
-    .split("\n")
-    .filter(Boolean)
+  return (trackedFiles() ?? walkFiles(REPO))
+    .filter((f) => /\.tsx?$/.test(f) && (f.startsWith("src/") || f.startsWith("tests/")))
     .filter((f) => {
       if (f.endsWith("src/lib/ai/embeddings/provider.ts")) return false;
       if (!includeTests && f.startsWith("tests/")) return false;
       try {
-        return /from\s+"@\/lib\/ai\/embeddings\/provider"/.test(
-          readFileSync(join(process.cwd(), f), "utf8"),
-        );
+        return /from\s+"@\/lib\/ai\/embeddings\/provider"/.test(readFileSync(join(REPO, f), "utf8"));
       } catch {
         return false;
       }
