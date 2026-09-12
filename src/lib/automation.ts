@@ -359,22 +359,63 @@ async function persistRiskVisibility(
 // (autoHoldingReplyEnabled) so the default product keeps the landing promise
 // ("complaints are never auto-answered") to the letter.
 // ---------------------------------------------------------------------------
+// 🚨 DÜRÜSTLÜK TURU (denetim §B, 09-12) — METİNLER YENİDEN YAZILDI.
+//
+// Altı dilin altısı da İKİ makbuzsuz iddia taşıyordu:
+//   · "ilettim / I've passed / Ich habe … weitergeleitet" → AI'ın KENDİ eylem
+//     iddiası; `actionReceipt` hiç uygulanmadığı için makbuzu YOK.
+//   · "en kısa sürede sizinle ilgilenecek / will follow up shortly" → ÜÇÜNCÜ
+//     ŞAHSIN (host'un) GELECEK eylemi. Ürün bunu hiçbir koşulda garanti edemez.
+// Üstelik model yolunda escalation e-postası `if (to)` bloğunun İÇİNDE,
+// `maybeSendHoldingAck` ise DIŞINDA (ve e-posta başarısızlığı bilinçli olarak
+// bu çağrıyı iptal ETMİYOR) — yani alıcısı olmayan ya da e-postası bozuk bir
+// org'da host'a hiçbir şey gitmezken misafir "ilettim, ilgilenecek" okuyordu.
+//
+// ⚠️ Bu metinler ÇIKTI VETOSUNDAN GEÇMEZ (veto yalnız MODELİN ürettiği metin
+// içindir; tasarlanmış devir akışının kendi sabitine kapanamaz) — dolayısıyla
+// dürüstlükleri KAYNAĞINDA pinlidir: `tests/unit/holding-ack-honesty.test.ts`.
+//
+// ÇAĞRI ANINDA GARANTİ OLAN TEK ŞEY, `maybeSendHoldingAck`in kendi sözleşmesi:
+// çağıran konuşmayı ATOMİK olarak "problem"e claim ETMİŞ olmak zorundadır.
+// Yani mesaj kayıtlıdır ve konuşma host'un panelinde ÖNCELİKLİ işaretlidir —
+// bu e-postadan da modelden de bağımsız SERT bir olgudur. Metin yalnız onu
+// söyler; `escalationReply()` ve `prompts.ts` çapasıyla aynı sınıf (kayıt +
+// görünürlük bildirilir, SÖZ verilmez).
 const HOLDING_ACK_TEXTS: Record<string, string> = {
   // ⚠️ "paylaşırsanız … hızlandırır" ÖZNESİZDİ (denetim 08-08): koşul cümlesinden
   // sonra gelen yüklemin öznesi yok. Metin misafire OTOMATİK gidiyor, yani bozuk
   // Türkçe doğrudan müşteriye ulaşıyordu. Doğru kuruluş isim-fiil öznesidir.
-  tr: "Bunun için özür dileriz. Mesajınızı ev sahibimize ilettim; en kısa sürede sizinle ilgilenecek. Sorunun kısa bir açıklamasını ya da fotoğrafını paylaşmanız çözümü hızlandırır.",
-  en: "Apologies for the trouble. I've passed your message to our host, who will follow up with you shortly. Sharing a short detail or a photo of the issue will help speed things up.",
+  tr: "Bunun için özür dileriz. Mesajınız kaydedildi ve ev sahibiniz için öncelikli olarak işaretlendi. Sorunun kısa bir açıklamasını ya da fotoğrafını paylaşmanız çözümü hızlandırır.",
+  en: "Apologies for the trouble. Your message has been recorded and marked as a priority for your host. Sharing a short detail or a photo of the issue helps speed things up.",
   // ⚠️ "er meldet sich" ev sahibinin ERKEK olduğunu varsayıyordu; ev sahibi
   // müşterimizdir ve cinsiyetini bilmiyoruz. Cümle yeniden kuruldu (zamir yok).
-  de: "Entschuldigen Sie die Unannehmlichkeit. Ich habe Ihre Nachricht an unseren Gastgeber weitergeleitet; Sie erhalten in Kürze eine Rückmeldung. Ein kurzes Detail oder ein Foto des Problems hilft uns, schneller zu helfen.",
-  fr: "Veuillez nous excuser pour ce désagrément. J'ai transmis votre message à notre hôte, qui reviendra vers vous rapidement. Un court détail ou une photo du problème nous aidera à aller plus vite.",
-  ar: "نعتذر عن هذا الإزعاج. لقد أرسلت رسالتكم إلى المضيف وسيتواصل معكم في أقرب وقت. مشاركة تفصيل قصير أو صورة للمشكلة تساعدنا على الحل بشكل أسرع.",
+  de: "Entschuldigen Sie die Unannehmlichkeit. Ihre Nachricht wurde erfasst und für Ihren Gastgeber als vorrangig gekennzeichnet. Ein kurzes Detail oder ein Foto des Problems hilft, die Sache zu beschleunigen.",
+  fr: "Veuillez nous excuser pour ce désagrément. Votre message a été enregistré et signalé en priorité à votre hôte. Un court détail ou une photo du problème permet d'accélérer la résolution.",
+  ar: "نعتذر عن هذا الإزعاج. تم تسجيل رسالتكم وتم تمييزها كأولوية لدى المضيف. مشاركة تفصيل قصير أو صورة للمشكلة تساعد على تسريع الحل.",
   // ⚠️ "Я передал" YAZANIN erkek olduğunu, "он свяжется" ev sahibinin erkek
   // olduğunu varsayıyordu — ikisini de bilmiyoruz. Edilgen kuruluş her ikisini
   // de çözer ve Rusçada tamamen doğaldır.
-  ru: "Приносим извинения за неудобство. Ваше сообщение передано хозяину — с вами свяжутся в ближайшее время. Короткое описание или фото проблемы поможет решить вопрос быстрее.",
+  ru: "Приносим извинения за неудобство. Ваше сообщение сохранено и отмечено как приоритетное для хозяина. Короткое описание или фото проблемы поможет решить вопрос быстрее.",
 };
+
+/**
+ * Desteklenen diller. Test tarafı bu listeyi okur — kaynak taraması TEK
+ * YÖNLÜDÜR, dil düşerse pin sessizce daralırdı.
+ */
+export const HOLDING_ACK_LANGS = ["tr", "en", "de", "fr", "ar", "ru"] as const;
+
+/**
+ * Bekletme mesajının metni. Bilinmeyen dil İngilizceye düşer.
+ *
+ * 🚨 DIŞA AÇIK OLMASININ SEBEBİ TEST DEĞİL, SÖZLEŞME: bu metinler misafire
+ * DOĞRUDAN gider ve çıktı vetosundan GEÇMEZ (veto yalnız MODELİN ürettiği
+ * metin içindir; devir akışının kendi sabitine kapanamaz, yoksa tasarlanmış
+ * akış sessizce ölür). Dolayısıyla dürüstlükleri kaynağında pinlenir:
+ * `tests/unit/holding-ack-honesty.test.ts`.
+ */
+export function holdingAckText(lang: string): string {
+  return HOLDING_ACK_TEXTS[lang] ?? HOLDING_ACK_TEXTS.en;
+}
 
 /**
  * ⛔ İPTAL EDİLMİŞ KONAKLAMAYA OTOMATİK MİSAFİR MESAJI GİTMEZ (denetim, 08-08).
@@ -480,7 +521,7 @@ async function maybeSendHoldingAck(opts: {
   if (!token) return false;
 
   const lang = (opts.language ?? detectGuestLanguage(opts.guestMessage)).slice(0, 2).toLowerCase();
-  const text = HOLDING_ACK_TEXTS[lang] ?? HOLDING_ACK_TEXTS.en;
+  const text = holdingAckText(lang);
   const note = automatedReplyNote(lang, opts.org.autoReplyDisclosure);
   const signature = opts.org.aiSignature?.trim();
   const body = [text, ...(note ? [note] : []), ...(signature ? [signature] : [])].join("\n\n");

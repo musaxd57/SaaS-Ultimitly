@@ -1,6 +1,7 @@
 import { describe, it, expect } from "vitest";
 import { REPLY_SYSTEM_PROMPT, buildReplyUserPrompt, findTimeConflicts } from "@/lib/ai/prompts";
 import type { SuggestReplyInput } from "@/lib/ai/types";
+import { vetoOutgoingReply } from "@/lib/ai/output-veto";
 import { unverifiedActionClaims } from "../helpers/claim-detectors";
 
 // ---------------------------------------------------------------------------
@@ -78,6 +79,38 @@ describe("P1 — istem kanıtsız taahhüt EMRETMEZ", () => {
       .map((r) => ({ intent: r.intent, claims: unverifiedActionClaims(r.reply), reply: r.reply }))
       .filter((r) => r.claims.length > 0);
     expect(offenders, JSON.stringify(offenders, null, 1)).toEqual([]);
+  });
+
+  it("🚨 ANTI-VAKUMLUK: dedektör GERÇEKTEN ateşliyor", () => {
+    // Yukarıdaki iddia boş bir listeyle de "geçer". Dedektör bozulsa (ya da
+    // bir kalıbı sessizce düşse) hiçbir şey kırmızıya dönmezdi.
+    expect(unverifiedActionClaims("Bu konuyu ekibimize ilettim.")).not.toEqual([]);
+    expect(unverifiedActionClaims("En kısa sürede size döneceğim.")).not.toEqual([]);
+  });
+
+  it("🚨 ÜRÜN VETOSU few-shot örneklerinin HEPSİNDE temiz — İNGİLİZCE DAHİL", () => {
+    // ÖLÇÜLEN BOŞLUK (denetim §B): `unverifiedActionClaims` TÜRKÇE-ONLY bir
+    // ÖLÇÜM dedektörüdür, ama örneklerin bir kısmı İNGİLİZCE `reply` taşıyor —
+    // yani o satırlar yukarıdaki pinde fiilen HİÇ TARANMIYORDU. Üretimin kendi
+    // vetosu (`vetoOutgoingReply`, 09-12'de İngilizce kapsamı açıldı) burada
+    // ikinci ve GERÇEK kapıdır: modele öğrettiğimiz bir cümleyi ürün misafire
+    // göndermeyecekse, o örnek istemde durmamalıdır.
+    const rows = exampleRows();
+    const english = rows.filter((r) => /^[\x20-\x7E]+$/.test(r.reply));
+    // Anti-vakumluk: İngilizce örnek GERÇEKTEN var (yoksa bu test boş küme
+    // üzerinde "geçer" ve boşluğu kapattığı iddiası yalan olur).
+    expect(english.length, "İngilizce few-shot örneği bulunamadı").toBeGreaterThanOrEqual(1);
+    const vetoed = rows
+      .map((r) => ({ intent: r.intent, veto: vetoOutgoingReply(r.reply), reply: r.reply }))
+      .filter((r) => r.veto !== null);
+    expect(vetoed, JSON.stringify(vetoed, null, 1)).toEqual([]);
+  });
+
+  it("🚨 ANTI-VAKUMLUK: üretim vetosu da GERÇEKTEN ateşliyor (iki dil)", () => {
+    expect(vetoOutgoingReply("Talebinizi ilettim.")).toBe("unverified_commitment");
+    expect(vetoOutgoingReply("The team will get back to you shortly.")).toBe(
+      "unverified_commitment",
+    );
   });
 
   it("kural metni modele 'ilettim / döneceğim / paylaşacağız' YAZMASINI emretmiyor", () => {
