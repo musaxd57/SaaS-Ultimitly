@@ -1424,6 +1424,23 @@ vakumluydu, ölçüldü. Mutasyon 4/4 (eşik · anahtar sil · hep-rrf · kayna�
 ⚠️ **İlk yazımda `SEMANTIC_QUALIFY_MIN` import EDİLMEMİŞTİ** ve `select.ts`in try/catch'i bunu sessizce
 `fb:"error"` → "tüm kümeyi gönder" dalına çeviriyordu: yani embedding bağlandığı gün retrieval sessizce
 KAPANIRDI. Testler yakaladı — o try/catch bir güvenlik ağı ama aynı zamanda bir SESSİZLİK kaynağı.
+✅ **E1 YAPILDI — sağlayıcı sözleşmesi** (`src/lib/ai/embeddings/provider.ts`; migration YOK, **ücretli
+servise TEK İSTEK GİTMEZ**): `embedTexts` / `embedText` / `cosineOfUnit` + `EMBEDDING_MODEL`
+(`text-embedding-3-small`, 1536) · `EMBEDDING_BATCH_MAX` 64 · `EMBEDDING_INPUT_MAX_CHARS` 8.000 ·
+timeout 8 sn. 🚨 **ÜRETİMDE HİÇBİR ÇAĞIRANI YOK ve bu MEKANİK PİNLİ** (`git ls-files` üzerinden import
+taraması + anti-vakumluk): bağlama E3/E5'te AYRI onayla olur, sessizce bağlanamaz. Sözleşme:
+① **ASLA FIRLATMAZ** — anahtar yok · timeout · 4xx/5xx · bozuk gövde · boyut uyuşmazlığı · NaN/Infinity ·
+sıfır vektör hepsi `null`; çağıran bunu "anlamsal kaynak yok" diye okur ve sözcüksel davranışa döner
+(fail-open YAPISAL; `select.ts`in sessiz try/catch'inden ders). ② **KISMİ SONUÇ DÖNMEZ** — yarım küme
+çağıranda SESSİZ EŞLEŞME HATASI üretirdi. ③ 🚨 **SIRA `index` ALANINDAN KURULUR**, dizi sırasına körü
+körüne güvenilmez ("2. parçanın vektörü" aslında 3. parçanınki olurdu ve hiçbir test görmezdi). ④ vektör
+**L2 NORMALİZE** döner → kosinüs = nokta çarpımı (okuma tarafında karekök/bölme yok). ⑤ 🚨 **hata
+GÖVDESİ alarma GEÇİLMEZ**, yalnız durum kodu: kardeş yol (`ai/index.ts`) gövdeyi geçirir ama orada istek
+gövdesi İSTEMDİR; burada istek gövdesi KB metni + misafirin SORUSUDUR → hata ekosu PII taşıyabilir.
+🚨 **KVKK'da YENİ BİR ŞEY YOK (kurucu 09-12 haklıydı, kodda doğrulandı):** misafir mesajı (`prompts.ts`
+istem gövdesi) ve KB içeriği (`packKnowledgeBase`) ZATEN `api.openai.com`a gidiyor — embedding yeni veri
+SINIFI da yeni SAĞLAYICI da eklemiyor; benim önceki "ayrı KVKK kararı" çerçevem DAYANAKSIZDI. Kanıt:
+20 test (hepsi `fetch` mock'lu). **Sıradaki: E2 vektör tablosu = migration → taze `pg_dump` + açık onay.**
 
 **Önceki: ÜRÜN TURU 3 (09-11, DÖRT ölçümlü ajan) — `8e414f8` · `3965ecb` · `2a41a60` · `089240e`:**
 ① 🚨 **MARKA ADI FİKSTÜRE GERİ GELMİŞTİ** (benim hatam, `34fc701` ile push edilmişti; ajan buldu) →
