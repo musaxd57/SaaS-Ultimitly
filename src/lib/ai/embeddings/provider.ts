@@ -180,6 +180,35 @@ function isRetryableStatus(status: number): boolean {
   return status === 408 || status === 429 || status >= 500;
 }
 
+/**
+ * ② TEKRAR DENEME POLİTİKASI — SAF ve tek başına sınanabilir.
+ *
+ * 🚨 AYRI FONKSİYON OLMASININ SEBEBİ ÖLÇÜLDÜ: politika döngünün içine gömülüyken
+ * mutasyon turu "toplam bütçe kapısını SİL" mutantını YAKALAYAMADI — testler
+ * mock'lu `fetch` ile milisaniyelerde bittiği için 9 saniyelik tavana hiç
+ * değmiyordu. Yani kural KODDA vardı ama hiçbir şey onu KORUMUYORDU. Saf
+ * fonksiyon olarak zaman uydurmaya gerek kalmadan pinlenebilir.
+ *
+ * @param status HTTP durumu; `null` = ağ/timeout (yeniden denenebilir sayılır).
+ * @param elapsedMs İlk denemeden bu yana geçen süre.
+ */
+export function retryPlan(opts: {
+  attempt: number;
+  status: number | null;
+  elapsedMs: number;
+  retryAfterSec?: number | null;
+}): { retry: boolean; waitMs: number } {
+  const { attempt, status, elapsedMs, retryAfterSec } = opts;
+  if (attempt >= MAX_ATTEMPTS) return { retry: false, waitMs: 0 };
+  if (status !== null && !isRetryableStatus(status)) return { retry: false, waitMs: 0 };
+  const ra = Number(retryAfterSec);
+  const waitMs = Number.isFinite(ra) && ra > 0 ? ra * 1000 : BACKOFF_BASE_MS * 2 ** (attempt - 1);
+  // 🚨 BEKLEME KALAN BÜTÇEYİ AŞAMAZ: `Retry-After` sağlayıcının talimatıdır ama
+  // misafir onun takvimine göre beklemez.
+  if (elapsedMs + waitMs >= EMBEDDING_TOTAL_DEADLINE_MS) return { retry: false, waitMs: 0 };
+  return { retry: true, waitMs };
+}
+
 const sleep = (ms: number) => new Promise((r) => setTimeout(r, ms));
 
 /**
@@ -240,17 +269,16 @@ export async function embedTexts(texts: readonly string[]): Promise<number[][] |
 
       if (!res.ok) {
         lastStatus = res.status;
-        // 🚨 KALICI HATADA ISRAR YOK: 4xx (429/408 hariç) kendiliğinden
-        // düzelmez — tekrar denemek hem para hem misafirin beklediği saniyeleri
-        // yakar. Yalnız 408/429/5xx yeniden denenir.
-        if (!isRetryableStatus(res.status) || attempt === MAX_ATTEMPTS) break;
-        // `Retry-After` sağlayıcının kendi talimatıdır; ama KALAN BÜTÇEYİ
-        // aşamaz — misafir sağlayıcının takvimine göre beklemez.
-        const ra = Number(res.headers.get("retry-after"));
-        const wait = Number.isFinite(ra) && ra > 0 ? ra * 1000 : BACKOFF_BASE_MS * 2 ** (attempt - 1);
-        const left = EMBEDDING_TOTAL_DEADLINE_MS - (Date.now() - startedAt);
-        if (wait >= left) break;
-        await sleep(wait);
+        // 🚨 KALICI HATADA ISRAR YOK ve BEKLEME KALAN BÜTÇEYİ AŞAMAZ — karar
+        // saf `retryPlan`da (tek başına test-pinli).
+        const plan = retryPlan({
+          attempt,
+          status: res.status,
+          elapsedMs: Date.now() - startedAt,
+          retryAfterSec: Number(res.headers.get("retry-after")),
+        });
+        if (!plan.retry) break;
+        await sleep(plan.waitMs);
         continue;
       }
 
@@ -288,17 +316,13 @@ export async function embedTexts(texts: readonly string[]): Promise<number[][] |
       }
       return out as number[][];
     } catch (err) {
-      // Timeout/abort/ağ — son denemeyse bitir, değilse geri çekilip tekrar dene.
-      if (attempt === MAX_ATTEMPTS) {
+      // Timeout/abort/ağ — `status: null` ile aynı politikadan geçer.
+      const plan = retryPlan({ attempt, status: null, elapsedMs: Date.now() - startedAt });
+      if (!plan.retry) {
         await reportError("openai-embeddings", err);
         return null;
       }
-      const wait = BACKOFF_BASE_MS * 2 ** (attempt - 1);
-      if (wait >= EMBEDDING_TOTAL_DEADLINE_MS - (Date.now() - startedAt)) {
-        await reportError("openai-embeddings", err);
-        return null;
-      }
-      await sleep(wait);
+      await sleep(plan.waitMs);
     }
   }
 

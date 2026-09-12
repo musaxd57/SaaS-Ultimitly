@@ -1496,6 +1496,29 @@ gövdesi İSTEMDİR; burada istek gövdesi KB metni + misafirin SORUSUDUR → ha
 istem gövdesi) ve KB içeriği (`packKnowledgeBase`) ZATEN `api.openai.com`a gidiyor — embedding yeni veri
 SINIFI da yeni SAĞLAYICI da eklemiyor; benim önceki "ayrı KVKK kararı" çerçevem DAYANAKSIZDI. Kanıt:
 21 test (hepsi `fetch` mock'lu). **Sıradaki: E2 vektör tablosu = migration → taze `pg_dump` + açık onay.**
+✅ **E1b SERTLEŞTİRME (kurucu iş emri 09-12 — beş madde): ÜÇÜ uygulandı, İKİSİ ÖLÇÜLEREK REDDEDİLDİ.**
+① **LRU önbellek** — 🚨 anahtar İÇERİKTİR (model + SHA-256 metin özeti) → **bayatlama YAPISAL OLARAK
+İMKÂNSIZ**, bu yüzden **TTL YOK** (TTL riski çözmez, yalnız isabeti düşürür). HAM METİN SAKLANMAZ (uzun
+ömürlü Map'te misafirin cümlesi adıyla durmaz, test-pinli). Kısmi isabette yalnız EKSİK metinler sağlayıcıya
+gider ve SIRA korunur. **Arıza önbelleğe GİRMEZ** (geçici kesinti kalıcı körlüğe dönerdi). Tavan 256 (~3 MB).
+⚠️ **DÜRÜSTLÜK: bu ASIL para tasarrufu DEĞİL** — KB parçalarını iki kez ödememenin yolu içerik-hash'li
+KALICI saklamadır (E2); buradaki kazanç GECİKMEDİR ve süreç ömrüyle sınırlıdır (deploy başına boşalır).
+② **Tekrar deneme** — yalnız 408/429/5xx; 4xx (401 dâhil) TEK ATIŞ. 🚨 **TOPLAM BÜTÇE
+`EMBEDDING_TOTAL_DEADLINE_MS` 9 sn, tekrar denemeler DÂHİL** ("3 deneme × 8 sn" 24 sn ederdi; bu kod bir
+SOHBETİN içinde koşuyor). `Retry-After` okunur ama KALAN bütçeyi aşamaz. Politika saf `retryPlan`da.
+③ **In-place normalizasyon** — ölçüldü (1536×64): `.map()` 1,16 ms → in-place **0,32 ms** (3,6×).
+⛔ **ZOD REDDEDİLDİ:** ölçüldü — `zod.safeParse` 11,47 ms vs el yazımı 0,007 ms = **1544× yavaş**
+(1536×64 = 98k eleman zod'un en kötü senaryosu); mevcut kontrol zaten strict. ⛔ **"NORMALIZE'I KALDIR"
+REDDEDİLDİ:** "OpenAI zaten normalize döndürüyor" tam boyutta DOĞRU ama EKSİK — bu fonksiyon aynı zamanda
+**GEÇERLİLİK KAPISI** (NaN/Infinity + sıfır vektör reddi) ve onlar sağlayıcının garantisi değil; `dimensions`
+ile kısaltmada sonuç zaten normalize DEĞİL. 🚨 **TESTLER BİR KUSUR DAHA YAKALADI:** `EMBEDDING_MODEL` import
+anında DONDURULUYORDU; kardeş yol (`ai/index.ts:98,:396`) env'i HER ÇAĞRIDA okuyor → `embeddingModel()`.
+Kanıt: kırmızı-önce 15 blok · **mutasyon 13/13** (ilk turda 2 hayatta kaldı: "toplam bütçe kapısını sil"
+mock'lu `fetch` milisaniyede bittiği için görünmüyordu → politika saf fonksiyona ÇIKARILDI; "NaN kapısını
+sil" ise fikstür `[NaN,0,0,…]` olduğu için SIFIR VEKTÖR kapısınca yakalanıyordu = iki kapı ayırt
+edilemiyordu → fikstüre sıfır olmayan ikinci eleman kondu). **E2 onay paketi:
+`docs/ONAY-E2-embedding-vektor-tablosu-2026-09-12.md` (migration 56; `Bytes`, pgvector DEĞİL; `contentHash`
+bayatlama kapısı; E5'ten ÖNCE E4 ölçümü ŞART).**
 🚨 **REPODA GİT ÇAĞIRAN HER TEST İKİ KATMANLI OLMAK ZORUNDA (CI'da İKİNCİ KEZ ölçüldü — koşu #1076).**
 E1 pinini düz `git ls-files` ile yazdım, yerelde yeşildi, **CI KIRMIZI verdi**: `fatal: detected dubious
 ownership in repository at '/__w/…'` (checkout'u yapan kullanıcı ≠ testi koşan kullanıcı) → `4c5262c` CI'yı

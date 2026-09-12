@@ -6,6 +6,7 @@ import {
   EMBEDDING_DIMENSIONS,
   EMBEDDING_CACHE_MAX,
   EMBEDDING_TOTAL_DEADLINE_MS,
+  retryPlan,
 } from "@/lib/ai/embeddings/provider";
 
 // ---------------------------------------------------------------------------
@@ -163,6 +164,51 @@ describe("② TEKRAR DENEME — geçici arıza kaybedilmez, kalıcı arıza ısr
   });
 });
 
+describe("②b retryPlan — POLİTİKA tek başına pinli (saf fonksiyon)", () => {
+  // 🚨 NEDEN AYRI: mutasyon turu "toplam bütçe kapısını SİL" mutantını
+  // YAKALAYAMADI — mock'lu `fetch` milisaniyelerde bittiği için 9 saniyelik
+  // tavana hiç değilmiyordu. Kural KODDA vardı ama hiçbir şey KORUMUYORDU.
+  it("ilk denemede 5xx → tekrar dener, üstel geri çekilir", () => {
+    expect(retryPlan({ attempt: 1, status: 500, elapsedMs: 0 })).toEqual({ retry: true, waitMs: 200 });
+    expect(retryPlan({ attempt: 2, status: 500, elapsedMs: 0 })).toEqual({ retry: true, waitMs: 400 });
+  });
+
+  it("son denemede DURUR", () => {
+    expect(retryPlan({ attempt: 3, status: 500, elapsedMs: 0 }).retry).toBe(false);
+  });
+
+  it("4xx (429/408 hariç) DURUR", () => {
+    expect(retryPlan({ attempt: 1, status: 400, elapsedMs: 0 }).retry).toBe(false);
+    expect(retryPlan({ attempt: 1, status: 401, elapsedMs: 0 }).retry).toBe(false);
+    expect(retryPlan({ attempt: 1, status: 429, elapsedMs: 0 }).retry).toBe(true);
+    expect(retryPlan({ attempt: 1, status: 408, elapsedMs: 0 }).retry).toBe(true);
+  });
+
+  it("ağ/timeout (status null) yeniden denenir", () => {
+    expect(retryPlan({ attempt: 1, status: null, elapsedMs: 0 }).retry).toBe(true);
+  });
+
+  it("🚨 BÜTÇE BİTTİYSE DURUR — kapı gerçekten yük taşıyor", () => {
+    // Geçen süre + bekleme tavanı aşıyorsa tekrar deneme YOK.
+    expect(retryPlan({ attempt: 1, status: 500, elapsedMs: EMBEDDING_TOTAL_DEADLINE_MS - 100 }).retry).toBe(false);
+    // Hemen altındaysa devam.
+    expect(retryPlan({ attempt: 1, status: 500, elapsedMs: EMBEDDING_TOTAL_DEADLINE_MS - 1_000 }).retry).toBe(true);
+  });
+
+  it("🚨 Retry-After OKUNUR ama KALAN BÜTÇEYİ AŞAMAZ", () => {
+    // Sağlayıcı "2 sn bekle" diyor ve bütçe var → uyulur.
+    expect(retryPlan({ attempt: 1, status: 429, elapsedMs: 0, retryAfterSec: 2 })).toEqual({
+      retry: true,
+      waitMs: 2_000,
+    });
+    // Sağlayıcı "60 sn bekle" diyor → misafir onun takvimine göre beklemez.
+    expect(retryPlan({ attempt: 1, status: 429, elapsedMs: 0, retryAfterSec: 60 }).retry).toBe(false);
+    // Anlamsız/eksik başlık üstel geri çekilmeye düşer.
+    expect(retryPlan({ attempt: 1, status: 429, elapsedMs: 0, retryAfterSec: NaN }).waitMs).toBe(200);
+    expect(retryPlan({ attempt: 1, status: 429, elapsedMs: 0, retryAfterSec: -5 }).waitMs).toBe(200);
+  });
+});
+
 describe("③ IN-PLACE NORMALİZASYON — davranış AYNEN, tahsis yok", () => {
   it("vektör hâlâ L2 normalize ve geçerlilik kapısı KORUNUYOR", async () => {
     vi.stubGlobal("fetch", vi.fn(async () => ok(okBody(1))));
@@ -174,7 +220,13 @@ describe("③ IN-PLACE NORMALİZASYON — davranış AYNEN, tahsis yok", () => {
   it("🚨 NaN/sıfır vektör REDDİ in-place'te de duruyor (bu bir GÜVENLİK kapısı)", async () => {
     // Kurucu "normalize gereksiz, OpenAI zaten normalize döndürüyor" dedi.
     // Ölçüldü: doğru ama EKSİK — bu fonksiyon aynı zamanda GEÇERLİLİK kapısı.
-    const bad = Array.from({ length: EMBEDDING_DIMENSIONS }, (_, i) => (i === 0 ? NaN : 0));
+    // 🚨 İKİNCİ ELEMAN SIFIR DEĞİL: mutasyon turu ölçtü — eski fikstür
+    // [NaN, 0, 0, …] idi ve NaN atlanınca toplam 0 kalıyordu, yani kararı
+    // SIFIR VEKTÖR kapısı veriyordu. İki kapı ayırt edilemiyordu, "NaN kapısını
+    // kaldır" mutantı HAYATTA KALIYORDU.
+    const bad = Array.from({ length: EMBEDDING_DIMENSIONS }, (_, i) =>
+      i === 0 ? NaN : i === 1 ? 5 : 0,
+    );
     vi.stubGlobal("fetch", vi.fn(async () => ok({ data: [{ index: 0, embedding: bad }] })));
     expect(await embedTexts(["x"])).toBeNull();
 
