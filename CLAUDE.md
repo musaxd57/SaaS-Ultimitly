@@ -1282,13 +1282,42 @@ ana iddiası BAYAT** (`a1c274d` kapatmıştı), **bulgu 11'in "~75 KB"ı YANLIŞ
   YAZILI olduğu hâlde her yabancı misafir insana devredilirdi. Maruziyetin büyük kısmı zaten `cappedForFallback`
   ile rapordan 53 dk ÖNCE kapanmıştı. Gerçek model verisi (R6) ilgisiz kalemlerin modeli uydurmaya İTMEDİĞİNİ
   gösteriyor (iki modda da güven 0.35 → devir).
-- **Kalan açık maddeler ve sıra:** §A çıktı vetosu (tasarım hazır) → §B makbuzsuz iddia (6 few-shot örneği +
-  `HOLDING_ACK_TEXTS`; 🚨 **alıcısız org'da tamamen SAHTE**: e-posta `if (to)` bloğunun içinde,
-  `maybeSendHoldingAck` DIŞINDA → host'a hiçbir şey gitmezken misafir "ilettim; ilgilenecek" okuyor; ayrıca
-  "pinliyorum" diyen test dedektör TR-only olduğu için **24 örneğin 24'ünde boş dönüyor**) → §C temellendirme
-  (`packKnowledgeBase` `omitted` ATILIYOR → `RiskEvent.kbDropped` pack düşüşünü saymıyor; denetçiye
-  `Message.aiSourcesJson` verilmiyor, kolon zaten seçilen satırın üzerinde) → §E bütçe (önizleme **12 çağrı =
-  1 birim**; `summarizeHostStyle` **1 çağrı = 0 birim**, gerekçesi YOK).
+- ✅ **§B MAKBUZSUZ İDDİA KAPANDI** (`aa2a0e4`). İki yüzey, tek kusur. **(a) `HOLDING_ACK_TEXTS` altı dilde
+  yeniden yazıldı:** eski metin hem "ilettim / I've passed / Ich habe … weitergeleitet" (AI'ın KENDİ eylem
+  iddiası, `actionReceipt` hiç uygulanmadı) hem "en kısa sürede sizinle ilgilenecek / will follow up shortly"
+  (ÜÇÜNCÜ ŞAHSIN gelecek eylemi) diyordu; üstelik model yolunda escalation e-postası `if (to)` bloğunun
+  İÇİNDE, `maybeSendHoldingAck` DIŞINDA → alıcısız/bozuk e-postalı org'da host'a hiçbir şey gitmezken misafir
+  o cümleyi okuyordu. 🚨 **Çağrı anında GARANTİ olan tek şey fonksiyonun kendi ön koşuludur**: çağıran
+  konuşmayı ATOMİK olarak `problem`e claim ETMİŞ olmak zorunda — yani mesaj kayıtlı ve konuşma panelde
+  öncelikli işaretli; bu e-postadan da modelden de bağımsız SERT bir olgu. Metin artık yalnız onu söylüyor
+  (`escalationReply()` + `prompts.ts` çapasıyla aynı sınıf); özür + fotoğraf/ayrıntı isteği KORUNDU —
+  dürüstleştirme mesajı işe yaramaz hâle getirmenin bahanesi değil. Yapısal: `HOLDING_ACK_LANGS` +
+  `holdingAckText()` dışa açıldı, çünkü bu metinler **çıktı vetosundan GEÇMEZ** (veto yalnız MODELİN ürettiği
+  metin içindir; tasarlanmış devir akışının kendi sabitine kapanamaz) → dürüstlük KAYNAĞINDA, kaynak taraması
+  değil DAVRANIŞSAL pinle (`tests/unit/holding-ack-honesty.test.ts`). **(b) 🚨 DÖRT İNGİLİZCE FEW-SHOT ÖRNEĞİ
+  ÖLÇÜLDÜ ve düzeltildi** — bir PİN BOŞLUĞUNUN sonucuydu: few-shot dürüstlük pini TR-only `unverifiedActionClaims`
+  ile koşuyordu, oysa örneklerin bir kısmı İNGİLİZCE `reply` taşıyor, yani o satırlar fiilen HİÇ TARANMIYORDU.
+  Üretim vetosu (`vetoOutgoingReply`, 09-12'de EN kapsamı açıldı) pine bağlanınca dördü de düştü:
+  `early_checkin` "I've asked our team … I'll confirm" · `complaint` "I've flagged it to our team and we'll
+  check it" · `checkin` "I've alerted our team to contact you right now" · `general` "I've passed this on, and
+  our team will get back to you shortly" (sonuncusu kurucunun ADIYLA andığı cümle). **Kozmetik DEĞİL:** veto
+  09-12'den beri CANLI → istem modele tam olarak ürünün BLOKLAYACAĞI cümleyi öğretiyordu, yani model onu
+  üretir, kapı durdurur, misafir HİÇBİR ŞEY almaz. Etiketler (intent/riskLevel/riskType) DEĞİŞMEDİ (pinli).
+  İki anti-vakumluk satırı eklendi (her iki dedektörün de gerçekten ateşlediği ayrıca iddia edilir).
+  🚨 **Denetim ALTI ihlalci saymıştı; veto DÖRDÜNÜ görüyor** — kalan ikisi vetonun YAPISAL sınırında ve
+  kaynağında (istemde) düzeltildi + regresyon pinli: ÖRNEK 11 (TR) "ekibimiz anında devreye girecek" —
+  `devreye gir-` fiili vetoya **EKLENMEDİ** çünkü MEŞRU tesis cümlesi üretir ("Sigorta devreye girer",
+  "Klima otomatik devreye giriyor"); aynı dilbilgisi hem vaadi hem olguyu taşıyor = §A'nın EDİLGEN ÇATI
+  dersinin birebir aynısı. ÖRNEK 9 (AR) — vetonun **Arapça kapsamı YOK** (DE/FR/RU/AR hepsi dışarıda, ayrı
+  ölçüm turu). Bu ikisi için doğru yer istemin kendisidir: modele öğretmezsek üretmesini beklemek için sebep
+  de kalmaz. ⚠️ O iki pin METİN TARAMASIDIR ve bu bilerek kabul edildi (davranışsal pin ancak kapı
+  genişletilirse mümkün, o da ayrı onay); anti-vakumluk olarak iki örneğin HÂLÂ yerinde olduğu da iddia edilir.
+  Kanıt: kırmızı-önce 4+1 blok · **mutasyon 17/17** (altı dil geri alma · fotoğraf isteğini sil · dilleri tek
+  metne çökert · fallback en→tr · dil listesinden düşür · altı few-shot geri alma · vetoyu hep-null yap).
+- **Kalan açık maddeler ve sıra:** §C temellendirme (`packKnowledgeBase` `omitted` ATILIYOR →
+  `RiskEvent.kbDropped` pack düşüşünü saymıyor; denetçiye `Message.aiSourcesJson` verilmiyor, kolon zaten
+  seçilen satırın üzerinde) → §E bütçe (önizleme **12 çağrı = 1 birim**; `summarizeHostStyle` **1 çağrı =
+  0 birim**, gerekçesi YOK).
 
 **Önceki: ÜRÜN TURU 4 (09-11, ON ölçümlü ajan, saatlik `/loop`) — karar belgesi `docs/KARAR-2026-09-11-kurucu-is-emri-10-ajan.md`:**
 🚨 **RAG VARSAYILAN AÇIK** (kurucu: "RAG EKLE"). `KB_RETRIEVAL_MODE` artık AÇMA değil **ACİL DURDURMA**

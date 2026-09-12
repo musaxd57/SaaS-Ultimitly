@@ -186,6 +186,40 @@ politikasını dile göre ayrıştırır; bu BİLİNÇLİ karar olmalı, yan etk
 
 ## §B — MAKBUZSUZ İDDİA: İSTEM ↔ ÖRNEK ↔ SABİT ÜÇLÜ ÇELİŞKİSİ (bulgu 3 + 4)
 
+> ## ✅ KAPANDI (09-12, `aa2a0e4` + izleyen commit)
+>
+> **Bulgunun tamamı doğrulandı ve uygulandı.** Aşağıdaki teşhis AYNEN duruyor (tarihsel
+> kayıt); yapılanlar:
+>
+> **(a) `HOLDING_ACK_TEXTS` altı dilde yeniden yazıldı.** Yeni metin yalnız çağrı anında
+> GARANTİ olanı söylüyor: `maybeSendHoldingAck`in kendi ön koşulu gereği konuşma ATOMİK
+> olarak `problem`e claim EDİLMİŞ durumda — yani mesaj kayıtlı ve konuşma panelde
+> öncelikli işaretli, bu e-postadan da modelden de bağımsız. Örnek (tr): *"Bunun için özür
+> dileriz. Mesajınız kaydedildi ve ev sahibiniz için öncelikli olarak işaretlendi. Sorunun
+> kısa bir açıklamasını ya da fotoğrafını paylaşmanız çözümü hızlandırır."* Raporun işaret
+> ettiği emsal (`escalationReply()`) aynen izlendi. Özür + fotoğraf/ayrıntı isteği KORUNDU.
+> `HOLDING_ACK_LANGS` + `holdingAckText()` dışa açıldı → dürüstlük artık KAYNAK TARAMASI
+> değil DAVRANIŞSAL pin (`tests/unit/holding-ack-honesty.test.ts`).
+>
+> ⚠️ Raporun *"e-posta `if (to)` içinde, `maybeSendHoldingAck` dışında"* teşhisi DOĞRU ve
+> o yapı **DEĞİŞMEDİ** — bilinçli: e-posta başarısızlığının bekletme mesajını iptal etmesi
+> daha önce ölçülüp geri alınmış bir tasarımdır (claim geri alınmadığı için konuşma kalıcı
+> "problem" olur ve ikinci bir geçiş gelmez). Çözüm METNİ düzeltmekti, akışı kesmek değil.
+>
+> **(b) Altı ihlalci few-shot örneğinin ALTISI da düzeltildi** (etiketler DEĞİŞMEDİ).
+> Raporun *"pin vakumlu"* tespiti doğrulandı ve kapatıldı: üretim vetosu
+> (`vetoOutgoingReply`, 09-12'de İngilizce kapsamı açıldı) pine bağlandı ve **dört İngilizce
+> örneği (5·13·16·18) kendiliğinden düşürdü**. Kalan ikisi vetonun YAPISAL sınırında:
+> · **ÖRNEK 11 (TR)** `devreye gir-` fiili vetoya **EKLENMEDİ** — MEŞRU tesis cümlesi
+>   üretir ("Sigorta devreye girer", "Klima otomatik devreye giriyor"); aynı dilbilgisi hem
+>   vaadi hem olguyu taşıyor, yani §A'nın EDİLGEN ÇATI dersinin birebir aynısı.
+> · **ÖRNEK 9 (AR)** — vetonun Arapça kapsamı YOK (DE/FR/RU/AR ayrı ölçüm turu).
+> İkisi de istemin kendisinde düzeltildi + regresyon pinli. ⚠️ O iki pin METİN TARAMASIDIR
+> ve bu bilerek kabul edildi; davranışsal pin ancak kapı genişletilirse mümkün (ayrı onay).
+>
+> Kanıt: kırmızı-önce 4+1 blok · **mutasyon 17/17** · tam kapılar yeşil.
+
+
 ### İstem kuralı NET (6 ayrı yerde)
 `prompts.ts:369-374` §10.5: *"MAKBUZSUZ EYLEM VE SÖZ YASAĞI: sen mesaj İLETEMEZSİN…
 'ilettim', 'yönlendirdim', 'kontrol ettim' … 'size döneceğim', 'ekibimiz iletişime
@@ -364,14 +398,26 @@ gerekçe ("yer sınırı") yazacaktı.
 
 ## Yürütme sırası (bu belge kazanır)
 
-1. **§A çıktı vetosu** — batarya KOŞULDU (↑), tasarım kararı verildi: ① lookahead
-   genişletmesi (bedelsiz) + ② kapıya YALNIZ etken dallar. `hasUnsourcedSpecificClaim`in
-   ölü kod olması ayrıca karara bağlanacak.
-2. ✅ **§D QR geçmiş injection taraması** — KAPANDI (bu tur); kanal yolundaki `dfd1683`
+1. ✅ **§A çıktı vetosu** — KAPANDI (`c607be6` + `05ae131`): batarya KOŞULDU, ① lookahead
+   genişletmesi + ② kapıya YALNIZ etken dallar; ardından kurucunun *"kapatmadıklarını
+   kapat"* talimatıyla İNGİLİZCE kapsam da açıldı. `hasUnsourcedSpecificClaim`in ölü kod
+   olması AYRI karar olarak duruyor.
+2. ✅ **§D QR geçmiş injection taraması** — KAPANDI (`1f23e2c`); kanal yolundaki `dfd1683`
    deseninin aynısı.
-3. **§B makbuzsuz iddia** — dedektöre EN/AR dalı → vakumlu pin gerçekleşir → 6 few-shot
-   örneği + `HOLDING_ACK_TEXTS` + alıcısız-org dalı.
+3. ✅ **§B makbuzsuz iddia** — KAPANDI (`aa2a0e4`+): vakumlu pin ÜRETİM VETOSUNA bağlandı
+   (dört İngilizce örneği kendiliğinden düşürdü), kalan iki örnek (TR 11 · AR 9) istemde
+   düzeltildi + regresyon pinli, `HOLDING_ACK_TEXTS` altı dilde yeniden yazıldı. ⚠️ Veto
+   dedektörüne AR/DE/FR/RU dalı EKLENMEDİ — ayrı ölçüm turu (gerekçe §B başındaki kutuda).
 4. **§C temellendirme** — `packKnowledgeBase` `omitted` → kanıt; denetçiye `aiSourcesJson`.
+   🚨 **Kodda doğrulandı (09-12):** `buildReplyUserPrompt:1005` `packKnowledgeBase(...).text`
+   alıyor, `omitted` ATILIYOR. Yani `RiskEvent.kbDropped` yalnız sorgu tavanı + sır filtresi
+   + seçici düşüşlerini sayıyor; `KB_CHAR_BUDGET` (24k) kesmesi HİÇ sayılmıyor. Model AÇIKÇA
+   uyarılıyor (`[NOT] … ${omitted} kalem`), yani MİSAFİR zarar görmüyor — bozuk olan DENETİM
+   KAYDI: istem "12 kalem sığmadı" derken RiskEvent "0 düştü" diyor. ⚠️ A2 sözleşmesi
+   "NULL = ölçülmedi" der; ölçülmüş-ama-YANLIŞ bir sayı NULL'dan kötüdür. Hibrit açıkken
+   seçici zaten 6k'da kestiği için dar; ama tam da FAIL-OPEN dalında (tüm küme gönderilir)
+   tetikleniyor, yani teşhisin en çok gerektiği yerde. `buildReplyUserPrompt`in yalnız 2
+   üretim çağıranı var → ortak `packKnowledgeBaseForPrompt(input)` ile tek kaynak mümkün.
 5. **§E bütçe** — `summarizeHostStyle` sessiz sapması + CLAUDE.md bayat satırı.
 6. Bulgu 19b · EK (`take: 200`) · 7 · 9 · 11 — ölçek/eval borcuna bağlı.
 7. Bulgu 21 → ROADMAP V3+ (stratejik, bu turun işi değil).

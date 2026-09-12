@@ -113,6 +113,30 @@ describe("P1 — istem kanıtsız taahhüt EMRETMEZ", () => {
     );
   });
 
+  it("🚨 VETONUN GÖREMEDİĞİ İKİ ÖRNEK — kaynağında pinli (ölçülmüş sınır)", () => {
+    // Denetim §B altı ihlalci örnek saydı; üretim vetosu DÖRDÜNÜ yakalıyor.
+    // Kalan ikisi vetonun YAPISAL sınırında ve bu bilinçli:
+    //
+    //  · ÖRNEK 11 (TR) "Çözülmezse ekibimiz anında devreye girecek." — fiil
+    //    `devreye gir-` vetoya EKLENMEDİ çünkü MEŞRU tesis cümlesi üretir:
+    //    "Sigorta devreye girer", "Klima otomatik devreye giriyor". Aynı
+    //    dilbilgisi hem vaadi hem olguyu taşıyor — EDİLGEN ÇATI dersinin
+    //    birebir aynısı (§A ölçümü). Kapıyı genişletmek yanlış pozitif üretir.
+    //  · ÖRNEK 9 (AR) "طلبت من فريقنا … وسنؤكد" — vetonun ARAPÇA kapsamı YOK
+    //    (DE/FR/RU/AR hepsi kapsam dışı, ayrı ölçüm turu).
+    //
+    // Yani bu ikisi için tek doğru yer İSTEMİN KENDİSİDİR: modele öğretmezsek
+    // üretmesini beklemek için de sebep kalmaz. Aşağısı o kararın REGRESYON
+    // pinidir (metin taraması olduğu BİLEREK kabul edildi — davranışsal pin
+    // ancak kapı genişletilirse mümkün, o da ayrı bir onay).
+    expect(REPLY_SYSTEM_PROMPT).not.toContain("ekibimiz anında devreye girecek");
+    expect(REPLY_SYSTEM_PROMPT).not.toContain("طلبت من فريقنا");
+    // Anti-vakumluk: iki örnek HÂLÂ yerinde (silinerek "temizlenmediler").
+    const rows = exampleRows();
+    expect(rows.some((r) => r.intent === "late_checkout")).toBe(true);
+    expect(rows.filter((r) => r.intent === "complaint").length).toBeGreaterThanOrEqual(2);
+  });
+
   it("kural metni modele 'ilettim / döneceğim / paylaşacağız' YAZMASINI emretmiyor", () => {
     for (const re of INSTRUCTED_COMMITMENTS) {
       expect(REPLY_SYSTEM_PROMPT, `hâlâ emrediyor: ${re}`).not.toMatch(re);

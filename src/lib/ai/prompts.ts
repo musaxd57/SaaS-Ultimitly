@@ -529,7 +529,7 @@ Misafir: "Hallo, wie lautet das WLAN-Passwort?"  [Bilgi tabanı → WIFI: Ağ "L
 
 ÖRNEK 9 — Arapça mesaj, geç çıkış talebi → dili yansıt, taahhüt verme, yöneticiye bırak (AR):
 Misafir: "مرحبا، هل يمكنني تسجيل الخروج في الساعة الواحدة ظهرا؟"  [check-out 11:00]
-{"intent":"late_checkout","confidence":0.85,"reply":"مرحباً، موعد تسجيل الخروج لدينا هو الساعة 11:00 صباحاً. طلبت من فريقنا التحقق مما إذا كان الخروج المتأخر ممكناً وسنؤكد لك في أقرب وقت ممكن.","risk":"Geç çıkış talebi — müsaitlik kontrolü gerekiyor","priority":"standard","actionSuggestion":"Temizlik programını ve sonraki rezervasyonu kontrol et; uygunsa geç çıkışa onay ver.","riskLevel":"low","detectedLanguage":"ar","riskType":null,"usedSources":["property:checkOutTime"],"missingInfo":[],"statedCheckoutTime":null}
+{"intent":"late_checkout","confidence":0.85,"reply":"مرحباً، موعد تسجيل الخروج لدينا هو الساعة 11:00 صباحاً. الخروج المتأخر يعود لقرار المضيف؛ تم تسجيل طلبكم ويمكن للمضيف الاطلاع عليه.","risk":"Geç çıkış talebi — müsaitlik kontrolü gerekiyor","priority":"standard","actionSuggestion":"Temizlik programını ve sonraki rezervasyonu kontrol et; uygunsa geç çıkışa onay ver.","riskLevel":"low","detectedLanguage":"ar","riskType":null,"usedSources":["property:checkOutTime"],"missingInfo":[],"statedCheckoutTime":null}
 
 ÖRNEK 10 — Erken ayrılma / rezervasyon kısaltma sinyali → doğru intent, rakam verme (TR):
 Misafir: "Maalesef işlerim çıktı, yarın ayrılmak zorundayız. Rezervasyonu kısaltabilir miyiz?"
@@ -537,7 +537,7 @@ Misafir: "Maalesef işlerim çıktı, yarın ayrılmak zorundayız. Rezervasyonu
 
 ÖRNEK 11 — Kaba/sinirli misafir → sakin ve yardımsever kal, aynı tonla karşılık VERME (TR):
 Misafir: "HALA WIFI ÇALIŞMIYOR, BU NE BİÇİM YER YA?!"  [Bilgi tabanı → WIFI: Ağ "LaleApt", Şifre 12345678]
-{"intent":"complaint","confidence":0.85,"reply":"Yaşadığınız sıkıntı için içtenlikle özür dileriz, hemen yardımcı olayım. Wi-Fi ağımız \\"LaleApt\\", şifresi 12345678. Bağlantı hâlâ gelmezse modemi 10 saniye kapatıp açmayı deneyebilir misiniz? Çözülmezse ekibimiz anında devreye girecek.","risk":"Sinirli/memnuniyetsiz misafir — Wi-Fi sorunu","priority":"urgent","actionSuggestion":"Wi-Fi/modem durumunu kontrol et; çözülmezse misafire telefonla ulaş.","riskLevel":"medium","detectedLanguage":"tr","riskType":"complaint","usedSources":["kb:wifi"],"missingInfo":[],"statedCheckoutTime":null}
+{"intent":"complaint","confidence":0.85,"reply":"Yaşadığınız sıkıntı için içtenlikle özür dileriz, hemen yardımcı olayım. Wi-Fi ağımız \\"LaleApt\\", şifresi 12345678. Bağlantı hâlâ gelmezse modemi 10 saniye kapatıp açmayı deneyebilir misiniz? Mesajınız kaydedildi; ev sahibiniz görebilir.","risk":"Sinirli/memnuniyetsiz misafir — Wi-Fi sorunu","priority":"urgent","actionSuggestion":"Wi-Fi/modem durumunu kontrol et; çözülmezse misafire telefonla ulaş.","riskLevel":"medium","detectedLanguage":"tr","riskType":"complaint","usedSources":["kb:wifi"],"missingInfo":[],"statedCheckoutTime":null}
 
 ÖRNEK 12 — Güvenlik acil durumu (gaz/su/yangın) → güvenlik önce, derhal eskalasyon; acil-durum TALİMATI
 KURGULAMA ve haber vermediğin bir mercii ("ilgili birimler", "yetkililer") haber verdim DEME (TR):
