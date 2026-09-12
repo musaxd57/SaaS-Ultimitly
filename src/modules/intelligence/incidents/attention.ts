@@ -62,6 +62,30 @@ export const ATTENTION_MAX_ITEMS = 8;
 /** Tek sorguda incelenecek en fazla konuşma (sınırsız tarama yok). */
 export const CONVERSATION_CANDIDATE_CAP = 200;
 
+/**
+ * KONUŞMANIN KENDİ YÜZEYİ (kurucu bildirimi 09-12: "normalde qr sohbeti ama
+ * ordan tıklayınca mesajlar sekmesinde açıyor sohbeti").
+ *
+ * 🚨 Bu satırlar eskiden KOŞULSUZ `/inbox/${id}` üretiyordu ve sorgu `channel`
+ * alanını SEÇMİYORDU bile. Panel, QR sohbetini kanal (Airbnb) yüzeyinin
+ * arkasına koyuyordu — üstelik iki yüzeyin İŞLEVLERİ farklı: "AI yanıtlarını
+ * yeniden başlat" düğmesi, "siz yanıtlarsanız AI susar" ön uyarısı ve
+ * "İnsan desteğinde" rozeti YALNIZ `/guest-chats/[id]` üzerinde var. Yani
+ * host, AI'ı geri açamadığı ve sustuğunu söylemeyen bir ekranda açıyordu.
+ *
+ * Ayrım ürünün başka yerinde ZATEN yaşıyor: gelen kutusu listesi QR'ı
+ * `channel: { not: "chat" }` ile dışlar, QR konuşmaları `channel: "chat"`
+ * doğar. Burada aynı ayrımı kullanıyoruz — yeni bir kavram icat etmiyoruz.
+ *
+ * ⚠️ Yalnız YÖNLENDİRME. Inbox'tan bir QR konuşmasına yazmak BUGÜN DE
+ * çalışıyor (mesaj `local` rotayla kalıcı yazılır, misafir onu görür, AI
+ * duraklatması da tetiklenir); o yol kapatılmadı — host artık oraya
+ * YANLIŞLIKLA düşmüyor.
+ */
+function conversationHref(id: string, channel: string | null): string {
+  return channel === "chat" ? `/guest-chats/${id}` : `/inbox/${id}`;
+}
+
 export interface AttentionItem {
   kind: AttentionKind;
   certainty: AttentionCertainty;
@@ -143,6 +167,10 @@ export async function findAttentionItems(
       select: {
         id: true,
         propertyId: true,
+        // 🚨 Kanal, BAĞLANTIYI belirler (↓ `conversationHref`). Eskiden bu alan
+        // seçilmiyordu bile ve href sabit `/inbox/${id}` idi — QR sohbetleri
+        // kanal yüzeyinin arkasına düşüyordu.
+        channel: true,
         reservation: { select: { departureDate: true, status: true } },
         messages: {
           // Misafirin GÖRMEDİĞİ satırlar (sistem olayı, gövdesiz) mesaj sayılmaz.
@@ -209,7 +237,7 @@ export async function findAttentionItems(
         // saat başı düşüyor. Tabanı `unanswered_aging`in TAVANININ üstünde.
         severity: 90 + Math.min(9, hoursWaiting),
         occurredAt: last.createdAt,
-        href: `/inbox/${convo.id}`,
+        href: conversationHref(convo.id, convo.channel),
         hoursWaiting,
       });
       continue;
@@ -223,7 +251,7 @@ export async function findAttentionItems(
       propertyName: nameById.get(convo.propertyId) ?? "",
       severity: 50 + Math.min(39, hoursWaiting),
       occurredAt: last.createdAt,
-      href: `/inbox/${convo.id}`,
+      href: conversationHref(convo.id, convo.channel),
       hoursWaiting,
     });
   }

@@ -16,6 +16,11 @@ import { premiumAllowed } from "@/lib/billing/subscription";
 import { fetchKnowledgeBaseForPrompt } from "@/lib/ai/kb-fetch";
 import { selectKbForPrompt } from "@/lib/ai/retrieval/select";
 import { consumeDailyAiBudget, dailyBudgetMessage } from "@/lib/ai/daily-budget";
+import {
+  fillGuestPlaceholdersInItems,
+  guestFirstNameOf,
+  GUEST_NAME_FALLBACK,
+} from "@/lib/kb-placeholders";
 
 // ---------------------------------------------------------------------------
 // AI reply PLAYGROUND — safe dry-run.
@@ -29,6 +34,13 @@ import { consumeDailyAiBudget, dailyBudgetMessage } from "@/lib/ai/daily-budget"
 
 const TONES = ["warm", "formal", "short", "luxury"] as const;
 type Tone = (typeof TONES)[number];
+
+/**
+ * Örnek rezervasyonun misafir adı. TEK SABİT: hem `suggestReply`a giden
+ * `reservation.guestName` hem KB yer tutucularının hitabı buradan türer —
+ * ikisi ayrı yazılırsa kart, kendi istemiyle çelişen bir cevap gösterir.
+ */
+const TEST_GUEST_NAME = "Test Misafir";
 
 export const POST = withManage(async (session, req) => {
   // Paid AI feature: blocked once the trial lapses (dormant-safe until enforced).
@@ -76,13 +88,26 @@ export const POST = withManage(async (session, req) => {
     propertyId: property.id,
     isActive: true,
   });
-  const aptNumber = property.name.match(/\d+/g)?.pop() ?? property.name;
-  const kb = kbRaw.map((k) => ({
-    ...k,
-    content: k.content
-      .replace(/\{\s*(isim|ad|name)\s*\}/gi, "misafirimiz")
-      .replace(/\{\s*(daire|apartment|apt)\s*\}/gi, aptNumber),
-  }));
+  // 🚨 YER TUTUCU: ORTAK MODÜL, KENDİ REGEX'İ DEĞİL (Codex bulgu 17, ölçüldü).
+  //
+  // Burada eskiden iki elle yazılmış `replace` ve daire numarası için
+  // `name.match(/\d+/g)?.pop()` vardı. O kural ortak modülde 09-11'de ÖLÇEREK
+  // terk edilmişti; test rotası geride kalmıştı. Yedi gerçekçi ilan adının
+  // YEDİSİ de ayrışıyordu — üçünde YANLIŞ numara ("No:12 D:5 Kat:3" → kat "3";
+  // "DAİRE 5 - 2 Yatak Odalı" → yatak "2"; "Trabzon 4 Kişilik Daire" →
+  // kapasite "4"), birinde `?? property.name` düşüşüyle MÜLK ADININ TAMAMI
+  // ("Kapı kodu: Cozy Seaside Flat"). Ayrıca `{İSİM}` (noktalı İ) `/gi` ile
+  // katlanmadığı için ÇÖZÜLMÜYOR ve yalnız `content` map'lendiği için BAŞLIK
+  // ham belirteçle modele gidiyordu.
+  //
+  // Bu kartın TEK işi üretimi temsil etmek: host burada gördüğü cevaba bakıp
+  // özelliği açıyor. Ayrışan bir önizleme, dayanaksız bir kalite onayıdır.
+  // Hitap da `suggestReply`a verilen AYNI addan türer (↓ `TEST_GUEST_NAME`),
+  // yoksa kart kendi içinde tutarsız olurdu.
+  const kb = fillGuestPlaceholdersInItems(kbRaw, {
+    guestFirstName: guestFirstNameOf(TEST_GUEST_NAME) ?? GUEST_NAME_FALLBACK,
+    propertyName: property.name,
+  });
 
   const org = await prisma.organization.findUnique({
     where: { id: session.organizationId },
@@ -117,7 +142,7 @@ export const POST = withManage(async (session, req) => {
       city: property.city,
     },
     reservation: {
-      guestName: "Test Misafir",
+      guestName: TEST_GUEST_NAME,
       arrivalDate: now,
       departureDate: new Date(now.getTime() + 3 * 24 * 60 * 60 * 1000),
       status: "confirmed",
