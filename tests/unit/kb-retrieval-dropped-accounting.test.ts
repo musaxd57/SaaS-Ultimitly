@@ -57,9 +57,14 @@ describe("§C — geri çekilme dalında DÜŞEN kalem sayılır", () => {
   });
 
   it("🚨 TAVANIN ALTINDA hiçbir şey düşmez (aşırı uygulama kontrolü)", () => {
-    const items = Array.from({ length: 10 }, (_, i) => item(i));
+    // ⚠️ 12'den FAZLA kalem: yoksa `small_kb` dalına düşer ve `cappedForFallback`
+    // HİÇ çağrılmaz — mutasyon turu (M3) tam bu boşluğu ölçtü: "tavan altında
+    // sahte düşüş üret" mutantı HAYATTA KALMIŞTI, çünkü eski fikstür (10 kalem)
+    // kırpma fonksiyonuna hiç uğramıyordu.
+    const items = Array.from({ length: 20 }, (_, i) => item(i));
     const out = selectKbForPrompt({ items, guestMessage: NO_HIT_QUESTION, now: NOW, mode: "hybrid" });
-    expect(out.items.length).toBe(10);
+    expect(out.evidence?.fb).toBe("no_lexical_hits"); // gerçekten kırpma dalındayız
+    expect(out.items.length).toBe(20); // tavanın altında → kırpma YOK
     expect(out.droppedItems).toBe(0);
   });
 

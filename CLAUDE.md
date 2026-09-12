@@ -1314,9 +1314,35 @@ ana iddiası BAYAT** (`a1c274d` kapatmıştı), **bulgu 11'in "~75 KB"ı YANLIŞ
   genişletilirse mümkün, o da ayrı onay); anti-vakumluk olarak iki örneğin HÂLÂ yerinde olduğu da iddia edilir.
   Kanıt: kırmızı-önce 4+1 blok · **mutasyon 17/17** (altı dil geri alma · fotoğraf isteğini sil · dilleri tek
   metne çökert · fallback en→tr · dil listesinden düşür · altı few-shot geri alma · vetoyu hep-null yap).
-- **Kalan açık maddeler ve sıra:** §C temellendirme (`packKnowledgeBase` `omitted` ATILIYOR →
-  `RiskEvent.kbDropped` pack düşüşünü saymıyor; denetçiye `Message.aiSourcesJson` verilmiyor, kolon zaten
-  seçilen satırın üzerinde) → §E bütçe (önizleme **12 çağrı = 1 birim**; `summarizeHostStyle` **1 çağrı =
+- ✅ **§C TEMELLENDİRME KAPANDI** (`4c6bccc`+). Denetim "pack `omitted` atılıyor" demişti; ölçüm **daha
+  büyük bir yalan** buldu. 🚨 **(1) GERİ ÇEKİLME KIRPMASI HİÇ SAYILMIYORDU:** hibritte `kb-fetch` 200 kalem
+  çeker, sözcüksel isabet yoksa seçici "hepsini gönder"e düşer ve `cappedForFallback` 30'a indirir — ama
+  `legacyResult` `droppedItems: 0` **SABİTLİYORDU**. 170 kalem isteme girmiyor, karar kaydı "hiç kalem
+  düşmedi" diyor. Bedeli kozmetik DEĞİL: sayı `classifyGrounding`e gidiyor ve `dropped === 0` dalı etiketi
+  **`ungrounded`** ("kalem vardı, model kullanmadı") yapıyordu; gerçek **`capacity`**. `select.ts`in kendi
+  yorumu bu dalın kısa mesajların **%72'sinde** çalıştığını yazıyor. Kırpmanın KENDİSİ doğru ve DEĞİŞMEDİ
+  (09-11 kararı); kırpma ile sayaç artık TEK YERDE (`cappedForFallback` → `{items, dropped}`) — ayrı yerde
+  hesaplanmaları bu hatanın kendi sınıfıydı. **(2) PACK BÜTÇESİ:** `buildReplyUserPrompt`
+  `packKnowledgeBase(...).text` alıp `omitted`ı atıyordu → istem modele "N kalem alınamadı" derken kayıt
+  daha küçük sayı söylüyordu. İmza DEĞİŞTİRİLMEDİ (üretimde 1 çağıran ama testlerde 9 dosya/~40 çağrı
+  `string` bekliyor, ölçüldü): yeni `buildReplyPrompt(input) → {text, kbOmitted}`, `buildReplyUserPrompt`
+  onun ince `.text` sarmalayıcısı (iki yol AYRIŞAMAZ, pinli). Sayı `SuggestReplyResult.kbOmittedInPrompt`
+  ile taşınır (`sourceAudit` deyimi: opsiyonel = ÖLÇÜLMEDİ, 0 DEĞİL). 🚨 **ÇİFT SAYIM TUZAĞI:**
+  `packKnowledgeBase` `alreadyDropped`ı kendi düşüşüne EKLEYEREK döndürür → yüzeyin sayısına eklemek iki kez
+  saymak olurdu; `applyPromptKbAudit` **DEĞİŞTİRİR** ve `kbRetrieved`i de düzeltir. **(3) ÖLÇÜLÜP REDDEDİLDİ:**
+  `supersededById` düşüşü `droppedItems`e GİRMEZ — halefi kümede, bilgi modele gider; "düştü" demek "bilgi
+  ulaşmadı" demek olurdu (kanıtta zaten `sup`). **(4) KALİTE DENETÇİSİ** artık `Message.aiSourcesJson`
+  görüyor (kolon AYNI SATIRDA, ek sorgu yok). 🚨 `null` ≠ "kaynak yok": kolon yalnız kanal oto-yanıtında
+  dolu, QR ve host-onaylı satırlarda DAİMA null → denetçiye bu AÇIKÇA söylenir (09-08'de `guest: null`ın
+  "proaktif" diye okunup ürünü haksız suçlaması aynı sınıftı); `parseAiSources` fail-safe null + yalnız
+  STRING öğe (dış modele serbest metin sızamaz). **(5) İKİ BAYAT YORUM** düzeltildi: `automation.ts`
+  "sayaçlar modelin gördüğü bağlamla tutarlı" DİYORDU (ölçülerek yanlış); `grounding.ts`in "ÜST SINIR"
+  uyarısı **LİSTE için hâlâ geçerli, SAYAÇ için artık değil** — ikisi ayrıştı ve yazıldı.
+  ⚠️ Gönderim kararı DEĞİŞMEDİ; bu tur yalnız KARAR KAYDINI düzeltir. Kanıt: kırmızı-önce 3+10+5 blok ·
+  **mutasyon 17/17** (ilk turda 2 hayatta kaldı ve İKİSİ de gerçek pin eksiğiydi: `cappedForFallback`
+  tavan-altı hiç sınanmıyordu [10 kalemlik fikstür `small_kb` dalına düşüyor], ve `suggestReply`ın alanı
+  taşıdığı hiç sınanmıyordu = **YÜKLEM VAR, ARGÜMAN YOK** — QR `history_injection` turunun aynı sınıfı).
+- **Kalan açık madde:** §E bütçe (önizleme **12 çağrı = 1 birim**; `summarizeHostStyle` **1 çağrı =
   0 birim**, gerekçesi YOK).
 
 **Önceki: ÜRÜN TURU 4 (09-11, ON ölçümlü ajan, saatlik `/loop`) — karar belgesi `docs/KARAR-2026-09-11-kurucu-is-emri-10-ajan.md`:**

@@ -1,4 +1,8 @@
-import { describe, it, expect } from "vitest";
+import { describe, it, expect, vi, beforeEach, afterEach } from "vitest";
+
+vi.mock("@/lib/report-error", () => ({ reportError: vi.fn(async () => {}) }));
+
+import { suggestReply } from "@/lib/ai";
 import { buildReplyPrompt, buildReplyUserPrompt } from "@/lib/ai/prompts";
 import { applyPromptKbAudit } from "@/lib/ai/grounding";
 import { KB_CHAR_BUDGET } from "@/lib/ai/limits";
@@ -73,6 +77,62 @@ describe("§C — buildReplyPrompt kb muhasebesini DIŞA VERİR", () => {
     const knowledgeBase = Array.from({ length: 30 }, (_, i) => kbItem(i, 1_500));
     const i = input({ knowledgeBase, knowledgeBaseDropped: 2 });
     expect(buildReplyUserPrompt(i)).toBe(buildReplyPrompt(i).text);
+  });
+});
+
+describe("🚨 §C BAĞLANTI PİNİ — suggestReply sayıyı GERÇEKTEN taşır", () => {
+  // ⚠️ MUTASYON TURU BU BOŞLUĞU ÖLÇTÜ (M12): `ai/index.ts`ten
+  // `kbOmittedInPrompt: prompt.kbOmitted` satırını SİLEN mutant, yukarıdaki saf
+  // testlerin hepsi yeşilken HAYATTA KALDI — çünkü hiçbiri `suggestReply`'ı
+  // uçtan uca koşturmuyordu. Bu, reponun kendi belgelediği sınıf: YÜKLEM vardı,
+  // ARGÜMAN yoktu (QR `history_injection` turunun aynısı).
+  const stubModel = (payload: Record<string, unknown>) =>
+    vi.stubGlobal(
+      "fetch",
+      vi.fn(
+        async () =>
+          new Response(
+            JSON.stringify({ choices: [{ finish_reason: "stop", message: { content: JSON.stringify(payload) } }] }),
+            { status: 200 },
+          ),
+      ),
+    );
+  const MODEL_OUT = {
+    intent: "general",
+    confidence: 0.9,
+    reply: "Örnek cevap.",
+    risk: null,
+    priority: "standard",
+    actionSuggestion: null,
+    riskLevel: "none",
+    detectedLanguage: "tr",
+    riskType: null,
+    missingInfo: [],
+  };
+
+  beforeEach(() => vi.stubEnv("OPENAI_API_KEY", "test-key"));
+  afterEach(() => {
+    vi.unstubAllEnvs();
+    vi.unstubAllGlobals();
+  });
+
+  it("pack kestiğinde sonuç alanı DOLU ve istemle AYNI sayıyı taşır", async () => {
+    stubModel(MODEL_OUT);
+    const knowledgeBase = Array.from({ length: 30 }, (_, i) => kbItem(i, 1_500));
+    const i = input({ knowledgeBase, knowledgeBaseDropped: 3 });
+    const out = await suggestReply(i);
+    expect(out.source).toBe("openai");
+    expect(out.kbOmittedInPrompt).toBe(buildReplyPrompt(i).kbOmitted);
+    // Anti-vakumluk: gerçekten sıfırdan farklı bir şey ölçüyoruz.
+    expect(out.kbOmittedInPrompt).toBeGreaterThan(3);
+  });
+
+  it("🚨 MODEL ÇAĞRILMADIYSA alan YOK — uydurma 0 yazılmaz (A2)", async () => {
+    // Anahtar yok → fallback yolu; istem hiç kurulmaz.
+    vi.stubEnv("OPENAI_API_KEY", "");
+    const out = await suggestReply(input({ knowledgeBase: [kbItem(0, 50)] }));
+    expect(out.source).toBe("fallback");
+    expect(out.kbOmittedInPrompt).toBeUndefined();
   });
 });
 

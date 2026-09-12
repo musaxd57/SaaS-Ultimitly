@@ -273,6 +273,51 @@ yani düzeltme QR'dakinden DAHA ucuz.
 
 ## §C — TEMELLENDİRME DÜRÜSTLÜĞÜ (bulgu 2 + 15 + 20)
 
+> ## ✅ KAPANDI (09-12, `4c6bccc`+) — ve raporun GÖRMEDİĞİ daha büyük bir yalanla
+>
+> Raporun teşhisi (`packKnowledgeBase` `omitted` atılıyor) DOĞRU ve uygulandı.
+> Ama ölçüm sırasında **aynı sayacın çok daha büyük bir kaçağı** çıktı:
+>
+> 🚨 **GERİ ÇEKİLME KIRPMASI HİÇ SAYILMIYORDU.** Hibrit açıkken `kb-fetch` 200
+> kalem çeker; sözcüksel isabet yoksa seçici "hepsini gönder"e düşer ve
+> `cappedForFallback` bunu 30'a indirir — ama `legacyResult` `droppedItems: 0`
+> **SABİTLİYORDU**. Yani 170 kalem isteme girmiyor ve karar kaydı "hiç kalem
+> düşmedi" diyor. `select.ts`in kendi yorumu bu dalın kısa mesajların
+> **%72'sinde** çalıştığını yazıyor — yani nadir değil, OLAĞAN yol.
+>
+> Bedeli kozmetik değil: sayı `classifyGrounding`e gidiyor ve `dropped === 0`
+> dalı etiketi **`ungrounded`** ("kalem vardı, model kullanmadı") yapıyordu;
+> gerçek **`capacity`** ("kalem isteme sığmadı"). Host'a yanlış teşhis.
+>
+> **Kırpmanın kendisi DOĞRU ve DEĞİŞMEDİ** (09-11 ölçümü: hibritin legacy'den
+> fazla gönderdiği tek yerdi). Düzeltilen tek şey sayaç — ve kırpma ile sayaç
+> artık TEK YERDE üretiliyor (`cappedForFallback` → `{items, dropped}`), çünkü
+> ayrı yerlerde hesaplanmaları bu hatanın kendi sınıfıydı.
+>
+> **Pack bütçesi (raporun bulgusu):** `buildReplyPrompt(input) → {text, kbOmitted}`
+> eklendi; `buildReplyUserPrompt` onun ince `.text` sarmalayıcısı (imza
+> DEĞİŞMEDİ — üretimde 1 çağıran ama testlerde 9 dosya/~40 çağrı `string`
+> bekliyor). Sayı `SuggestReplyResult.kbOmittedInPrompt` ile taşınır.
+> 🚨 `applyPromptKbAudit` sayıyı **EKLEMEZ, DEĞİŞTİRİR** (pack `alreadyDropped`ı
+> kendi düşüşüne ekleyerek döndürdüğü için eklemek çift sayım olurdu) ve
+> `kbRetrieved`i de düzeltir.
+>
+> ⚠️ **Raporun "2 üretim çağıranı" sayısı BAYATTI** — kodda 1 tane var.
+>
+> **Ölçülüp REDDEDİLDİ:** `supersededById` düşüşü `droppedItems`e girmez —
+> halefi kümede, bilgi modele gider; "düştü" demek "bilgi ulaşmadı" demek olurdu.
+>
+> **Denetçi tarafı:** `Message.aiSourcesJson` artık `quality-audit.ts` select'inde
+> (kolon AYNI SATIRDA, ek sorgu gerekmedi). 🚨 `null` ≠ "kaynak yok" — kolon
+> yalnız kanal oto-yanıtında dolu; denetçiye bu ayrım açıkça söylenir, yoksa QR
+> satırları için "kaynaksız cevap" diye yanlış bulgu üretirdi (09-08'deki
+> `guest: null` hatasının aynı sınıfı).
+>
+> Kanıt: kırmızı-önce 3+10+5 blok · **mutasyon 17/17** · tam kapılar yeşil.
+> ⚠️ İlk mutasyon turunda 2 mutant hayatta kaldı ve İKİSİ de gerçek pin
+> eksiğiydi (tavan-altı kırpma hiç sınanmıyordu; `suggestReply`ın alanı taşıdığı
+> hiç sınanmıyordu = **yüklem var, argüman yok**).
+
 **2 — `verifyUsedSources` KATEGORİ üyeliği sınıyor:** `index.ts:47` `kbCats = new
 Set(knowledgeBase.map(k => k.category))`. Model `kb:wifi` derse kod yalnız "girdide
 kategorisi wifi olan bir kalem var mı" diye sorar; **hangisi, içeriği, cevapla ilgisi
@@ -408,16 +453,11 @@ gerekçe ("yer sınırı") yazacaktı.
    (dört İngilizce örneği kendiliğinden düşürdü), kalan iki örnek (TR 11 · AR 9) istemde
    düzeltildi + regresyon pinli, `HOLDING_ACK_TEXTS` altı dilde yeniden yazıldı. ⚠️ Veto
    dedektörüne AR/DE/FR/RU dalı EKLENMEDİ — ayrı ölçüm turu (gerekçe §B başındaki kutuda).
-4. **§C temellendirme** — `packKnowledgeBase` `omitted` → kanıt; denetçiye `aiSourcesJson`.
-   🚨 **Kodda doğrulandı (09-12):** `buildReplyUserPrompt:1005` `packKnowledgeBase(...).text`
-   alıyor, `omitted` ATILIYOR. Yani `RiskEvent.kbDropped` yalnız sorgu tavanı + sır filtresi
-   + seçici düşüşlerini sayıyor; `KB_CHAR_BUDGET` (24k) kesmesi HİÇ sayılmıyor. Model AÇIKÇA
-   uyarılıyor (`[NOT] … ${omitted} kalem`), yani MİSAFİR zarar görmüyor — bozuk olan DENETİM
-   KAYDI: istem "12 kalem sığmadı" derken RiskEvent "0 düştü" diyor. ⚠️ A2 sözleşmesi
-   "NULL = ölçülmedi" der; ölçülmüş-ama-YANLIŞ bir sayı NULL'dan kötüdür. Hibrit açıkken
-   seçici zaten 6k'da kestiği için dar; ama tam da FAIL-OPEN dalında (tüm küme gönderilir)
-   tetikleniyor, yani teşhisin en çok gerektiği yerde. `buildReplyUserPrompt`in yalnız 2
-   üretim çağıranı var → ortak `packKnowledgeBaseForPrompt(input)` ile tek kaynak mümkün.
+4. ✅ **§C temellendirme** — KAPANDI (`4c6bccc`+); ayrıntı §C başındaki kutuda. Raporun bulgusu
+   uygulandı + raporun GÖRMEDİĞİ daha büyük kaçak (geri çekilme kırpması hiç sayılmıyordu) kapatıldı.
+   ⚠️ Bu satırın ön-ölçüm hâlinde **iki yanlışım vardı** ve düzeltildi: (a) `buildReplyUserPrompt`in
+   "2 üretim çağıranı" DEĞİL **1** çağıranı var; (b) pack bütçesini tek kusur sanmıştım — asıl ve
+   çok daha büyük kaçak geri çekilme kırpmasıydı (§C kutusu).
 5. **§E bütçe** — `summarizeHostStyle` sessiz sapması + CLAUDE.md bayat satırı.
 6. Bulgu 19b · EK (`take: 200`) · 7 · 9 · 11 — ölçek/eval borcuna bağlı.
 7. Bulgu 21 → ROADMAP V3+ (stratejik, bu turun işi değil).
