@@ -38,6 +38,8 @@ async function conversationWithLastMessage(
     laterSystemEvent?: boolean;
     reservationId?: string;
     lastMessageAtOverride?: Date;
+    /** QR sohbeti "chat" doğar; kanal konuşmaları "airbnb"/"manual"/… */
+    channel?: string;
   },
 ) {
   const at = new Date(Date.now() - opts.ageHours * HOUR);
@@ -47,6 +49,7 @@ async function conversationWithLastMessage(
       guestIdentifier: "Misafir A",
       status: "new",
       lastMessageAt: opts.lastMessageAtOverride ?? at,
+      ...(opts.channel ? { channel: opts.channel } : {}),
       ...(opts.reservationId ? { reservationId: opts.reservationId } : {}),
     },
   });
@@ -147,6 +150,42 @@ describe("dikkat gerektirenler — salt-okuma exception feed", () => {
     expect(items.map((i) => i.kind)).toEqual(["unanswered_aging"]);
     expect(items[0].hoursWaiting).toBeGreaterThanOrEqual(UNANSWERED_HOURS);
     expect(items[0].certainty).toBe("observed");
+  });
+
+  // ── BAĞLANTI KANALA GÖRE (kurucu bildirimi 09-12) ───────────────────────
+  //
+  // 🚨 BU İKİ SATIR BİR İNCELEME BULGUSUNDAN DOĞDU. Kusur önce yalnız KAYNAK
+  // TARAMASIYLA pinlenmişti (`attention-qr-conversation-href.test.ts`) ve o pin
+  // YAŞAYAN BİR MUTANT bırakıyordu: `conversationHref(convo.id, "airbnb")` —
+  // yani yardımcı çağrılır, `channel` seçilir, iki çağrı noktası da yerinde
+  // durur, BEŞ İDDİANIN BEŞİ DE GEÇER ve QR sohbetleri sessizce kanal yüzeyine
+  // geri döner. Kaynak taraması tek yönlüdür: metin durur, davranış ölür.
+
+  it("🚨 QR sohbeti KENDİ yüzeyine bağlanır (davranışsal)", async () => {
+    const { orgId, propertyId } = await makeOrgWithProperty();
+    await conversationWithLastMessage(propertyId, {
+      direction: "inbound",
+      ageHours: UNANSWERED_HOURS + 3,
+      channel: "chat",
+    });
+
+    const items = await findAttentionItems(orgId);
+    expect(items).toHaveLength(1);
+    expect(items[0].href).toMatch(/^\/guest-chats\//);
+    expect(items[0].href).not.toMatch(/^\/inbox\//);
+  });
+
+  it("kanal konuşması ESKİSİ GİBİ inbox'a bağlanır (aşırı uygulama kontrolü)", async () => {
+    const { orgId, propertyId } = await makeOrgWithProperty();
+    await conversationWithLastMessage(propertyId, {
+      direction: "inbound",
+      ageHours: UNANSWERED_HOURS + 3,
+      channel: "airbnb",
+    });
+
+    const items = await findAttentionItems(orgId);
+    expect(items).toHaveLength(1);
+    expect(items[0].href).toMatch(/^\/inbox\//);
   });
 
   it("son mesaj BİZDEN ise cevapsız SAYILMAZ", async () => {

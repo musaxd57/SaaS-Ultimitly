@@ -1,7 +1,6 @@
 import { describe, it, expect } from "vitest";
-import { readFileSync } from "node:fs";
-import { join } from "node:path";
 import { ESCALATION_REASON_CODES } from "@/lib/risk-events";
+import { ESCALATION_REASONS, type EscalationReason } from "@/lib/guest-chat-gate";
 
 // ---------------------------------------------------------------------------
 // DEVİR GEREKÇESİ ↔ KAYIT KODU PARİTESİ (09-12).
@@ -19,31 +18,34 @@ import { ESCALATION_REASON_CODES } from "@/lib/risk-events";
 // bir dal eklendiğinde fark edilmemesiydi. Bu dosya farkı MEKANİK kılar.
 // ---------------------------------------------------------------------------
 
-const GATE = "src/lib/guest-chat-gate.ts";
-
 /**
- * `EscalationReason` birleşim tipindeki string literalleri kaynaktan çıkarır.
- * (Tip düzeyi bilgi çalışma zamanında yok; tek yol metin. Anti-vakum ↓.)
+ * 🚨 KAYNAK TARAMASI DEĞİL, GERÇEK DEĞER (09-12 incelemesi bunu zorladı).
+ *
+ * İlk yazımda liste `guest-chat-gate.ts` metninden regex ile çıkarılıyordu ve o
+ * yaklaşım TAM DA korumak istediği yerde körleşiyordu: `indexOf(";")` ile
+ * kesilen blokta, üyeler arasındaki JSDoc yorumlarından birine tek bir `;`
+ * girse tarama erken bitiyordu (ölçüldü: 13 üye → 6). Kesme SON yorumda olsaydı
+ * anti-vakum çapaları (`>= 10`, iki bilinen üye) da geçerdi ve **en yeni
+ * gerekçe sessizce denetimden düşerdi** — yeni dallar hep sona, hep yorumla
+ * ekleniyor, yani kaçak testin var olma sebebinin tam ortasındaydı.
+ *
+ * Çözüm: `ESCALATION_REASONS` artık `as const` bir DİZİ ve tip ondan türüyor.
+ * Bu dosya iki gerçek değeri karşılaştırıyor; metin taraması kalmadı.
  */
-function gateReasons(): string[] {
-  const src = readFileSync(join(process.cwd(), GATE), "utf8");
-  const at = src.indexOf("export type EscalationReason");
-  expect(at, "EscalationReason tipi bulunamadı").toBeGreaterThan(-1);
-  const end = src.indexOf(";", at);
-  expect(end, "tip bildirimi kapanmıyor").toBeGreaterThan(at);
-  const block = src.slice(at, end);
-  return [...block.matchAll(/"([a-z_]+)"/g)].map((m) => m[1]);
-}
+const gateReasons = (): readonly string[] => ESCALATION_REASONS;
 
 describe("QR devir gerekçesi → RiskEvent kodu", () => {
-  it("anti-vakum: tip GERÇEKTEN bir dizi gerekçe taşıyor", () => {
+  it("anti-vakum: liste GERÇEKTEN dolu ve tipi BESLİYOR", () => {
     const rs = gateReasons();
-    // Ölçüldüğü gün 12 daldı. Sayı değil, ALT SINIR pinleniyor: yeni dal
-    // eklemek serbest, listeyi boşaltıp bu dosyayı yeşil bırakmak değil.
+    // Sayı değil ALT SINIR: yeni dal eklemek serbest, listeyi boşaltıp bu
+    // dosyayı yeşil bırakmak değil.
     expect(rs.length).toBeGreaterThanOrEqual(10);
-    // Bilinen iki uç gerçekten listede (regex yanlış bloğu okumadı).
     expect(rs).toContain("low_confidence");
     expect(rs).toContain("absence_admission");
+    // 🚨 Tip ↔ dizi bağı: `EscalationReason` diziden TÜRÜYOR. Bu satır
+    // derlenmiyorsa bağ kopmuştur (biri tipi elle yeniden yazmıştır).
+    const sample: EscalationReason = "history_injection";
+    expect(rs).toContain(sample);
   });
 
   it("🚨 HER gerekçe RiskEvent kapalı kümesinde VAR (yoksa sessizce null yazılır)", () => {

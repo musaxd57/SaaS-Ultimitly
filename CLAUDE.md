@@ -394,7 +394,7 @@ Bu dosyaya token/anahtar/parola yazma.
   sonrakinde iki mutant hayatta kaldı ve ikisi de gerçek pin eksiğini gösterdi.
 - 🚨 **`hasUnsourcedSpecificClaim` BUGÜN ÜRETİMDE HİÇ KOŞMUYOR (ölçüldü 09-12).** Yüklem
   `guest-chat-gate.ts`te ve o `if` bloğu ayrıca `informationalBandEnabled()` istiyor;
-  `QR_INFORMATIONAL_BAND_ENABLED` **yalnız testlerde** set ediliyor (4 test dosyası, 0 üretim/ops yolu).
+  `QR_INFORMATIONAL_BAND_ENABLED` **yalnız testlerde** set ediliyor (5 test dosyası, 0 üretim/ops yolu).
   Yani "0.75 ÜSTÜ kaynaksız somut iddia atlanıyor" DOĞRU, ama **0.75 ALTI da atlanıyor** — bant kapalı
   olduğu için tamamı `low_confidence` ile devrediliyor. Kanal kapısında yüklem HİÇ YOK. Sonuç: iki kapının
   cevap METNİNE bakan TEK dalı `admitsMissingKnowledge`. (Çıktı vetosu tasarımı + ölçülmüş yanlış pozitif
@@ -432,7 +432,9 @@ Bu dosyaya token/anahtar/parola yazma.
   `[NOT] DOLDURULMAMIŞ YER TUTUCU` yazar ("gerçek değer DEĞİLDİR; misafire yazma; KURAL-3"); `{isim}` BİLEREK dışarıda
   (ad ikamesi çağıranda — ↓ artık DÖRT yüzeyde de var).
 - **Yer tutucu İKAMESİ tek kaynak `src/lib/kb-placeholders.ts` (09-10, saf/DB'siz):** `{isim}·{ad}·{name}` ve
-  `{daire}·{apartment}·{apt}`. Aynı ikame ÜÇ yerde kopyalanmıştı (oto-yanıt göndericisi · inbox `ai-suggest` ·
+  `{daire}·{apartment}·{apt}`. 🚨 **09-12: BEŞİNCİ ayrışan yüzey `api/ai/test` bulundu ve ortak modüle
+  bağlandı** (kendi `match(/\d+/g)?.pop()` kuralıyla 7 ilan adının 7'sinde farklı sonuç veriyordu).
+  Aynı ikame ÜÇ yerde kopyalanmıştı (oto-yanıt göndericisi · inbox `ai-suggest` ·
   Gönderilenler önizlemesi) ve DÖRDÜNCÜ yüzeyde — halka açık QR asistanında — HİÇ YOKTU: host'un karşılama şablonu
   KB'deyse misafire ham `{isim}` gidiyordu (ölçüldü). 🚨 **QR'da GERÇEK AD KULLANILMAZ** → `GUEST_NAME_FALLBACK`
   ("misafirimiz"): QR bağlantısı dairede asılıdır, sohbeti açan kişi rezervasyon sahibi olmayabilir (eş, arkadaş,
@@ -727,7 +729,12 @@ Sekiz P1 KAPANDI (09-07), her biri ayrı commit, kırmızı-önce + iki yönlü 
   (`messagesUnimportable`); `str()` trimlemez → `!body.trim()`.
 - Provider mesajı sessiz atlanır ve imleç ilerler (bilinçli; ölçüm sayacı var).
 - Günlük AI kotası oto-yanıtı da sayar; tavana çarpınca konuşma `new` kalır; kart "AI işlemi" der.
-- Yeni org 7/24 açık doğar (şema varsayılanı değişmedi); kurucu muafiyeti `limitsForOrg`.
+- Yeni org 7/24 açık doğar. 🚨 **09-12 GÜNCELLEME — bu satır "şema varsayılanı DEĞİŞMEDİ" diyordu ve
+  ARTIK YANLIŞ:** migration 55 `autoReplyEndHour` varsayılanını **9 → 0** yaptı, yani 7/24 artık
+  ŞEMANIN kendi varsayılanı. Eski hâlde koruma yalnız UYGULAMA katmanındaydı (`NEW_ORG_AUTO_REPLY_WINDOW`
+  kayıt rotalarında) ve org yaratan üçüncü bir yol (seed, davet, fikstür) eklendiği an sessizce gece-only
+  bir org doğuruyordu; ayrıca düzeltmeden ÖNCE kurulmuş org'lara (kurucu org dâhil) hiç uygulanmamıştı.
+  Sabit hâlâ duruyor ve niyeti belgeliyor. Kurucu muafiyeti `limitsForOrg`.
 - Plan sınırları POST/PATCH/COPY hepsinde; yalnız büyüme reddedilir; fail-open (kullanım kapısı).
 - Şablon yer tutucu ikamesi TEK GEÇİŞ (`replace` + callback); sıralı split/join ASLA.
 
@@ -1227,11 +1234,14 @@ Sekiz P1 KAPANDI (09-07), her biri ayrı commit, kırmızı-önce + iki yönlü 
 ## Durum
 **CODEX DENETİM TURU (09-12, SEKİZ ölçümlü ajan) — hüküm belgesi `docs/DENETIM-2026-09-12-codex-ai-raporu.md`.**
 Kurucu dış bir denetim raporu getirdi (21 bulgu + 10 maddelik yol haritası) ve "dediklerine başla ve bitir"
-dedi. 🚨 **RAPOR KOPYALANMADI, HER BULGU KODDA DOĞRULANDI** — rapor 09-11 12:05 UTC'ye bakıyor, araya 31+
-commit girdi: **bulgu 13 (RAG varsayılan kapalı) BAYAT** (aynı gün 19:29'da ters çevrilmişti), **bulgu 16'nın
+dedi. 🚨 **RAPOR KOPYALANMADI, HER BULGU KODDA DOĞRULANDI** — rapor 09-11 12:05 UTC'ye bakıyor, araya
+commit girdi (ölçüldü: 23): **bulgu 13 (RAG varsayılan kapalı) BAYAT** (aynı gün 19:29'da ters çevrilmişti), **bulgu 16'nın
 ana iddiası BAYAT** (`a1c274d` kapatmıştı), **bulgu 11'in "~75 KB"ı YANLIŞ** (gerçek 46.135 karakter).
 Çelişkide o belge kazanır.
-- **Migration 55 CANLI** (`6211bfa`, kurucu pg_dump SHA'sı + açık onay): oto-yanıt aktif saat varsayılanı
+- **Migration 55 PUSH EDİLDİ** (`6211bfa`, kurucu pg_dump SHA'sı + açık onay; CI #1074 success) —
+  ⚠️ **PROD DAMGASI HENÜZ YOK**: kardeş migration'larda ("52 prod'da 09-08 06:11Z") olduğu gibi bir
+  salt-okuma doğrulaması yapılmadı, dolayısıyla "CANLI" DENMİYOR. Boot `prisma migrate deploy` uygular;
+  damga kurucunun doğrulamasıyla yazılacak. İçeriği: oto-yanıt aktif saat varsayılanı
   **0/9 → 0/0**. Ölçülen kusur: `hour >= 0 && hour < 9` yani AI günün yalnız 9 saatinde çalışıyor, **15
   saatinde SUSUYOR** ve susan 15 saat misafir trafiğinin tamamına yakını. Backfill DAR (yalnız eski şema
   varsayılanı 0/9); host'un bilinçli seçtiği her pencere DOKUNULMADAN kalır. Geri alma tam ters çevrilebilir

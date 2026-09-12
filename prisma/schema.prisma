@@ -522,7 +522,7 @@ model Conversation {
   id                     String    @id @default(cuid())
   propertyId             String
   reservationId          String?
-  channel                String    @default("manual") // manual | whatsapp | email | airbnb | booking
+  channel                String    @default("manual") // manual | whatsapp | email | airbnb | booking | chat (QR misafir sohbeti — panel bağlantısı buna bakar)
   guestIdentifier        String // name / phone / email used to address the guest
   status                 String    @default("new") // new | waiting | answered | problem | closed
   priority               String    @default("standard") // urgent | standard | low

@@ -82,7 +82,7 @@ export const CONVERSATION_CANDIDATE_CAP = 200;
  * duraklatması da tetiklenir); o yol kapatılmadı — host artık oraya
  * YANLIŞLIKLA düşmüyor.
  */
-function conversationHref(id: string, channel: string | null): string {
+function conversationHref(id: string, channel: string): string {
   return channel === "chat" ? `/guest-chats/${id}` : `/inbox/${id}`;
 }
 

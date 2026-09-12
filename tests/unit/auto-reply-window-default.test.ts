@@ -19,6 +19,13 @@ import { isWithinActiveHours } from "@/lib/automation";
 // ---------------------------------------------------------------------------
 
 const read = (rel: string) => readFileSync(join(process.cwd(), rel), "utf8");
+
+/** `--` yorum satırları soyulmuş SQL — yalnız GERÇEKTEN çalışan ifadeler. */
+const executable = (sql: string) =>
+  sql
+    .split("\n")
+    .filter((l) => !l.trimStart().startsWith("--"))
+    .join("\n");
 const MIG = "prisma/migrations/55_auto_reply_window_default/migration.sql";
 
 describe("aktif saat penceresi — anlam", () => {
@@ -59,12 +66,21 @@ describe("şema varsayılanı ve migration 55", () => {
   });
 
   it("🚨 BACKFILL DAR: koşul tam olarak ESKİ VARSAYILAN (0 ve 9)", () => {
-    const sql = read(MIG);
+    // 🚨 YORUMSUZ SQL (09-12 incelemesi): migration'ın GERİ ALMA bloğu, örnek
+    // olarak aynı `WHERE "autoReplyStartHour" = 0` satırını YORUM İÇİNDE
+    // taşıyor — ham metinde iddia o yorumdan da tatmin oluyordu. Çalışan SQL'i
+    // taramak için `--` satırları soyulur. (Kardeş dosyadaki `code()` ile aynı
+    // ders: belge, kendi pinini vakumlaştırabilir.)
+    const sql = executable(read(MIG));
+    expect(sql.length, "yorum soyma SQL'i boşaltmış").toBeGreaterThan(100);
     // Host'un bilinçli seçtiği pencereler dokunulmadan kalmalı → iki kolon da
     // koşulda OLMAK ZORUNDA. Yalnız `endHour = 9` yazan bir koşul "1/9"u da
     // ezerdi (shadow DB'de ölçüldü: dokunulmadı).
     expect(sql).toMatch(/WHERE\s+"autoReplyStartHour"\s*=\s*0/);
     expect(sql).toMatch(/AND\s+"autoReplyEndHour"\s*=\s*9/);
+    // Geri alma SQL'i YALNIZ yorumda yaşamalı — çalışan blokta bir `= 9` ataması
+    // olsaydı migration kendi kendini geri alırdı.
+    expect(sql).not.toMatch(/SET\s+"autoReplyEndHour"\s*=\s*9/);
   });
 
   it("GERİ ALMA yazılı ve tam-tersinir OLMADIĞI söyleniyor (dürüstlük)", () => {

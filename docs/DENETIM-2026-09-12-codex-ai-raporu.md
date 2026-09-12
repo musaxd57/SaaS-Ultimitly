@@ -4,8 +4,8 @@ Kurucu 2026-09-12'de dış bir denetim raporu getirdi (OpenAI Agents API, `gpt-5
 salt-okuma; 21 bulgu + 10 maddelik yol haritası) ve **"dediklerine başla ve bitir"** dedi.
 
 🚨 **BU BELGE RAPORUN KOPYASI DEĞİL.** Rapor `claude/great-edison-3zqpZ` dalının
-**09-11 12:05 UTC**'deki hâline bakıyor; o andan bu yana **31+ commit** girdi ve bazı
-bulgular BAYATLADI. Sekiz paralel ölçüm ajanı her bulguyu bugünkü HEAD'de doğruladı ya
+**09-11 12:05 UTC**'deki hâline bakıyor; o andan bu yana **23 commit** girdi (ölçüldü:
+`git log --since="2026-09-11T12:05:00Z"`) ve bazı bulgular BAYATLADI. Sekiz paralel ölçüm ajanı her bulguyu bugünkü HEAD'de doğruladı ya
 da çürüttü. **Sıra ve hüküm bu belgededir; çelişkide BU belge kazanır.**
 
 **Ajanların koştuğu ortam:** yalnız okuma + grep + saf `node/tsx`. Gerçek model çağrısı

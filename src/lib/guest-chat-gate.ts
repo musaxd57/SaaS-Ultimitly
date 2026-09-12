@@ -69,28 +69,43 @@ export function hasUnsourcedSpecificClaim(reply: string, usedSources: string[]):
  * Canlıda "her soruya ilettim" gözlendiğinde hangi dalın kapattığı görünsün diye
  * eklendi: karar tek boolean iken teşhis yalnız yeniden üretimle yapılabiliyordu.
  */
-export type EscalationReason =
-  | "guest_name_injection"
-  | "model_unavailable"
-  | "escalate_intent"
-  | "model_risk_type"
-  | "keyword_escalated"
-  | "injection"
-  /**
-   * 🚨 GEÇMİŞ mesajlardan birinde injection (displacement saldırısı) — güncel
-   * mesaj zararsızdı. `injection`dan AYRI tutuluyor ki canlıda hangi dalın
-   * kapattığı görünsün (kapalı-küme gerekçe sözleşmesi).
-   */
-  | "history_injection"
-  | "keyword_risk_type"
-  | "model_risk_level"
-  | "low_confidence"
-  /** Bant içindeydi AMA cevap kaynaksız somut iddia taşıyordu → devir. */
-  | "unsourced_claim"
-  /** 🚨 Cevabın KENDİSİ bilginin kayıtlarda olmadığını söylüyordu → misafire GİTMEZ (09-11). */
-  | "absence_admission"
-  /** Devir DEĞİL: risksiz soru, orta güven, kaynaksız iddia YOK → dürüst cevap gitti. */
-  | "informational_low_confidence";
+/**
+ * 🚨 DİZİ, ELLE YAZILMIŞ BİRLEŞİM TİPİ DEĞİL (09-12 incelemesi).
+ *
+ * Tip, ÇALIŞMA ZAMANINDA yok. Parite testi (`risk-event-reason-parity`) bu
+ * listeyi önce KAYNAK TARAYARAK çıkarıyordu ve o yaklaşım tam da korumak
+ * istediği yerde körleşiyordu: üyeler arasındaki JSDoc bloklarından birine tek
+ * bir `;` girse tarama erken kesiliyor (ölçüldü: 13 üye → 6) ve kesme SON
+ * yorumda olursa anti-vakum çapaları da geçiyor — yani EN YENİ gerekçe sessizce
+ * denetimden düşüyordu. Liste artık gerçek bir değer; tip ondan TÜRETİLİYOR.
+ *
+ * Anlamları:
+ *  · `history_injection` — GEÇMİŞ mesajlardan birinde injection (displacement);
+ *    güncel mesaj zararsızdı. `injection`dan AYRI ki canlıda hangi dalın
+ *    kapattığı görünsün.
+ *  · `unsourced_claim` — bant içindeydi AMA cevap kaynaksız somut iddia taşıyordu.
+ *  · `absence_admission` — cevabın KENDİSİ bilginin kayıtlarda olmadığını
+ *    söylüyordu → misafire GİTMEZ (09-11).
+ *  · `informational_low_confidence` — DEVİR DEĞİL: risksiz soru, orta güven,
+ *    kaynaksız iddia yok → dürüst cevap gitti.
+ */
+export const ESCALATION_REASONS = [
+  "guest_name_injection",
+  "model_unavailable",
+  "escalate_intent",
+  "model_risk_type",
+  "keyword_escalated",
+  "injection",
+  "history_injection",
+  "keyword_risk_type",
+  "model_risk_level",
+  "low_confidence",
+  "unsourced_claim",
+  "absence_admission",
+  "informational_low_confidence",
+] as const;
+
+export type EscalationReason = (typeof ESCALATION_REASONS)[number];
 
 /**
  * Real-time public chat gate. Unlike the Airbnb auto-reply gate (whose failure
@@ -159,6 +174,13 @@ export function evaluateEscalation(
   // ağlarını eski mesajlara yeniden koşturmak normal bir sohbeti KALICI olarak
   // bloklardı — dünkü çözülmüş şikâyet, bugünkü wifi cevabını engellemek için
   // sebep değildir. Kanal kapısındaki (`automation.ts`) gerekçenin aynısı.
+  //
+  // ⚠️ BİLİNEN SINIR (09-12 incelemesi): tarama YÖN FİLTRESİ UYGULAMAZ, yani
+  // GİDEN satırlar da (bot/host metni) taranır. Teorik olarak host kendi
+  // cevabında "jailbreak"/"developer mode" gibi bir sözcük kullanırsa konuşma
+  // pencere boyunca kendini kilitler. KANAL YOLUYLA PARİTE (`automation.ts`
+  // aynası da `selectHistoryForPrompt(messages)` çıktısını yön ayırmadan tarar)
+  // ve yön GÜVENLİ (yalnız fazladan devir) → bilinçli olarak dokunulmadı.
   if (history?.some((m) => m.body.trim() !== "" && detectPromptInjection(m.body))) {
     return yes("history_injection");
   }

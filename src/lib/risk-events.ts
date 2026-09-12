@@ -29,11 +29,14 @@ const LEVELS = new Set(["none", "low", "medium", "high"]);
 // CLOSED SETS, not sanitization: stripping separators from free text still
 // leaks concatenated names/digits ("adalovelace555…"). A value either IS one
 // of the known codes or it becomes NULL — guest text can never survive.
-// QR kapısının dokuz dalı AYRI kodlarla izlenir (hangi kapının kapattığı
-// canlıda görünsün): tek "low_confidence_or_risky" kovası teşhis için yetersizdi.
+// QR kapısının HER dalı AYRI kodla izlenir (hangi kapının kapattığı canlıda
+// görünsün): tek "low_confidence_or_risky" kovası teşhis için yetersizdi.
+// ⚠️ Burada eskiden "dokuz dal" ve "mustEscalate" yazıyordu; ikisi de BAYATLADI
+// (dal sayısı büyüdü, fonksiyonun adı `evaluateEscalation`). Sayı yazmıyoruz —
+// parite artık mekanik (`tests/unit/risk-event-reason-parity.test.ts`).
 const REASONS = new Set([
   "escalated_to_human", "low_confidence_or_risky", "keyword_escalated", "gate_passed",
-  // guest_chat (QR) — mustEscalate dallarıyla BİREBİR:
+  // guest_chat (QR) — `evaluateEscalation` dallarıyla BİREBİR:
   "guest_name_injection", "model_unavailable", "escalate_intent", "model_risk_type",
   "keyword_risk_type", "injection", "model_risk_level", "low_confidence",
   "informational_low_confidence", "unsourced_claim", "absence_admission",
@@ -50,7 +53,7 @@ const REASONS = new Set([
  * sessizlik yeni bir dal eklendiğinde teşhisi öldürür. Mekanik pin:
  * `tests/unit/risk-event-reason-parity.test.ts`.
  */
-export const ESCALATION_REASON_CODES = REASONS;
+export const ESCALATION_REASON_CODES: ReadonlySet<string> = REASONS;
 // Exported: the shadow layer (shadow-ai.ts) clamps the second model's riskType
 // to the SAME closed set so the two columns stay directly comparable.
 export const RISK_TYPES = new Set([

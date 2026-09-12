@@ -38,8 +38,14 @@ export { hasUnsourcedSpecificClaim };
 // önceki yorum "iki bacak" diyordu ve İKİSİ DE yanlış adlandırılmıştı):
 //  · `guest_name_injection` — kapı üçüncü argüman olarak `guestName` ister,
 //    dataset misafir adı taşımaz → verilmez. (MESAJ injection taraması TAM
-//    çalışır; `history`/`pendingGuestMessages` bu kapının parametresi bile
-//    DEĞİL, eski yorum onları "eksik bacak" diye sayıyordu.)
+//    çalışır; `pendingGuestMessages` bu kapının parametresi bile DEĞİL, eski
+//    yorum onu "eksik bacak" diye sayıyordu.)
+//  · `history_injection` — 09-12'de EKLENDİ ve bu listeyi BOZDU: `history`
+//    artık kapının DÖRDÜNCÜ parametresi (bu satırın üstündeki cümle onu
+//    "parametre bile değil" diye sayıyordu, düzeltildi). Dataset konuşma
+//    geçmişi taşımadığı için dal yine ulaşılamaz — ama artık SEBEBİ farklı:
+//    "parametre yok" değil, "veri yok". Ayrım önemli: dataset'e geçmiş
+//    eklendiği gün bu dal KENDİLİĞİNDEN canlanır.
 //  · `informational_low_confidence` ve `unsourced_claim` — ikisi de
 //    `QR_INFORMATIONAL_BAND_ENABLED` bandının içinde; bayrak eval config'inde
 //    set EDİLMEZ (varsayılan kapalı) → dallar ulaşılamaz. Bandın altı davranışı
