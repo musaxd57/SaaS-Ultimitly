@@ -65,7 +65,27 @@ function stripComments(src: string): string {
 
 /** Kaynaktaki tüm `className="..."` düz-metin değerlerini döndürür. */
 function classAttributes(src: string): string[] {
-  return Array.from(stripComments(src).matchAll(/className="([^"]*)"/g)).map((m) => m[1]);
+  const clean = stripComments(src);
+  const plain = Array.from(clean.matchAll(/className="([^"]*)"/g)).map((m) => m[1]);
+  // 🚨 `className={cn("…", "…")}` BİÇİMİ DE OKUNUR (09-12).
+  //
+  // Eskiden yalnız düz `className="…"` taranıyordu. Tam ekran okuma sütunu
+  // eklenirken yazma alanı `cn("shrink-0 space-y-2 p-4", readingColumnCn)`
+  // oldu ve `shrink-0` pini KIRMIZI verdi — oysa sınıf YERİNDEYDİ. O pin
+  // gerçek bir şeyi koruyor (yazma alanı ezilmesin), yani doğru hamle pini
+  // GEVŞETMEK değil, ayıklayıcıya bu biçimi ÖĞRETMEK.
+  //
+  // Tek bir `cn(...)` çağrısının TÜM string literalleri TEK öznitelik gibi
+  // birleştirilir: `forbidden` anlamı korunsun (ikinci literalde geçen yasak
+  // bir sınıf da aynı öğeye aittir). Değişkenler (ör. `readingColumnCn`)
+  // literal olmadıkları için doğal olarak DIŞARIDA kalır — koşullu sınıf
+  // hakkında hüküm vermeyiz.
+  const composed = Array.from(clean.matchAll(/className=\{cn\(([\s\S]*?)\)\}/g)).map((m) =>
+    Array.from(m[1].matchAll(/"([^"]*)"/g))
+      .map((x) => x[1])
+      .join(" "),
+  );
+  return [...plain, ...composed];
 }
 
 /**
@@ -97,6 +117,17 @@ describe("önkoşul — yorum elemesi", () => {
     expect(stripComments(src)).not.toContain("min-w-0");
     // ...ama gerçek öznitelik korunur:
     expect(classAttributes(src)).toEqual(["lg:col-span-2"]);
+  });
+
+  it("`className={cn(\"…\")}` biçimi de ayıklanır (09-12) ve TEK öznitelik sayılır", () => {
+    const src = `<div className={cn("shrink-0 space-y-2 p-4", readingColumnCn)} />`;
+    expect(classAttributes(src)).toEqual(["shrink-0 space-y-2 p-4"]);
+    expect(hasClassSet(src, ["shrink-0", "p-4"])).toBe(true);
+    // Değişken literal DEĞİL → hakkında hüküm verilmez.
+    expect(hasClassSet(src, ["mx-auto"])).toBe(false);
+    // İki literal AYNI öğeye ait → `forbidden` ikisini birden görmeli.
+    const two = `<div className={cn("a b", "c")} />`;
+    expect(hasClassSet(two, ["a"], ["c"]), "forbidden ikinci literali görmüyor").toBe(false);
   });
 
   it("`//` elemesi SATIR BAŞINA çapalı — URL içindeki `//` metni kesmez", () => {

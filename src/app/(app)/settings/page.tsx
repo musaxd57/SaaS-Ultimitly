@@ -1,3 +1,4 @@
+import Link from "next/link";
 import { requireAuth } from "@/lib/auth";
 import { prisma } from "@/lib/db";
 import { PageHeader } from "@/components/page-header";
@@ -76,6 +77,7 @@ export default async function SettingsPage({
         autoSupplyRequestEnabled: true,
         icalShowGuestName: true,
         handoffHoldHours: true,
+        autoReplyHospitable: true,
         autoWelcome: true,
         autoCheckin: true,
         autoCheckout: true,
@@ -187,6 +189,50 @@ export default async function SettingsPage({
   // ── İşletme Ayarları › Otomatik Mesajlar — the scheduled messages ────────────
   const autoMessagesView = (
     <>
+      {/* ── AI ANA ANAHTARI (kurucu 09-12) ──────────────────────────────────
+          🚨 Bu anahtar Ayarlar'da HİÇ YOKTU (yalnız Mesajlar sayfasının
+          üstünde). Panel onboarding'i host'u `/settings`e gönderiyor ve
+          anahtar orada olmadığı için ÇIKMAZ SOKAKTI.
+
+          🚨 AD DEĞİŞTİ: "Otomatik yanıt" host'a "her otomatik mesaj" diye
+          okunuyordu. Kodda ölçülen gerçek: bu alan YALNIZ misafir mesajına
+          verilen AI cevabını (`applyChannelAutoReply`) kapatır; aşağıdaki üç
+          yaşam-döngüsü mesajı onu SELECT ETMİYOR bile. */}
+      <Card>
+        <CardHeader>
+          <CardTitle className="text-base">AI misafir mesajlarını yanıtlasın</CardTitle>
+        </CardHeader>
+        <CardContent className="space-y-3">
+          <p className="text-sm text-muted-foreground">
+            Açıkken, misafirin <strong>yazdığı mesaja</strong> AI cevap üretir ve güvenlik
+            kapısından geçen düşük riskli cevaplar otomatik gider. Riskli veya belirsiz her mesaj
+            size bırakılır. Kapatırsanız AI cevap <strong>göndermez</strong>; öneri düğmesi
+            Mesajlar ekranında çalışmaya devam eder.
+          </p>
+          <div className="flex flex-wrap items-center gap-3">
+            <AutoReplyToggle
+              field="autoReplyHospitable"
+              label="AI misafir mesajlarını yanıtlasın"
+              enabled={org?.autoReplyHospitable ?? false}
+              locked={automationLocked}
+              title="Açıkken: misafirin yazdığı mesaja AI cevap üretir; güvenlik kapısından geçen düşük riskli cevaplar otomatik gider."
+            />
+          </div>
+          {/* 🚨 BAĞIMSIZLIK AÇIKÇA YAZILI. Ölçüldü: üç gönderici bu alanı
+              okumuyor. Eskiden üç ipucu da "Ana şalter de açık olmalı"
+              diyordu — ÜÇÜ DE YANLIŞTI ve host "hepsini kapattım" sanıyordu. */}
+          <p className="rounded-md bg-muted px-3 py-2 text-sm text-muted-foreground">
+            <strong>Aşağıdaki üç mesaj bu anahtardan bağımsızdır.</strong> Karşılama, giriş ve
+            çıkış mesajları AI&apos;dan geçmez — sizin{" "}
+            <Link href="/knowledge" className="underline underline-offset-2">
+              Bilgi Tabanı
+            </Link>
+            &apos;na yazdığınız metin aynen gider. Bu anahtar kapalıyken de, kendi anahtarları
+            açıksa gönderilirler.
+          </p>
+        </CardContent>
+      </Card>
+
       <Card>
         <CardHeader>
           <CardTitle className="text-base">Otomatik Karşılama Mesajı</CardTitle>
@@ -207,7 +253,7 @@ export default async function SettingsPage({
               label="Otomatik karşılama"
               enabled={org?.autoWelcome ?? false}
               locked={automationLocked}
-              title="Açıkken: yaklaşan rezervasyon onaylarında, o dairenin karşılama mesajı misafire bir kez otomatik gider. Güvenlik ana şalteri de açık olmalı."
+              title="Açıkken: rezervasyon onaylanınca, Bilgi Tabanı'ndaki Karşılama Mesajı misafire bir kez otomatik gider. AI anahtarından bağımsızdır."
             />
           </div>
         </CardContent>
@@ -234,7 +280,7 @@ export default async function SettingsPage({
               label="Otomatik giriş bilgileri"
               enabled={org?.autoCheckin ?? false}
               locked={automationLocked}
-              title="Açıkken: girişe 4 gün kala, o dairenin 'Giriş Talimatı' bilgi tabanı girişi misafire bir kez otomatik gider. Ana şalter de açık olmalı."
+              title="Açıkken: girişe 4 gün kala, Bilgi Tabanı'ndaki Giriş Talimatı misafire bir kez otomatik gider. AI anahtarından bağımsızdır."
             />
           </div>
         </CardContent>
@@ -259,7 +305,7 @@ export default async function SettingsPage({
               label="Otomatik çıkış mesajı"
               enabled={org?.autoCheckout ?? false}
               locked={automationLocked}
-              title="Açıkken: çıkış günü sabah 08:00'da, o dairenin çıkış mesajı misafire bir kez aynı-gün hatırlatması olarak gider. Ana şalter de açık olmalı."
+              title="Açıkken: çıkış günü sabah 08:00'da, Bilgi Tabanı'ndaki Çıkış mesajı misafire bir kez gider. AI anahtarından bağımsızdır."
             />
           </div>
         </CardContent>

@@ -318,6 +318,25 @@ export function ConversationThread({
   // ⚠️ Yalnız GÖRÜNÜM: hiçbir veri/gönderim yolu değişmez, kalıcı da değil
   // (sayfa yenilenince kapanır — kalıcı tercih ayrı bir karar).
   const [fullscreen, setFullscreen] = useState(false);
+
+  // ── OKUMA SÜTUNU (kurucu 09-12: "tam ekranda mesajlar arası mesafe çok
+  // uzak, adam gözünü sağa sola çekmeli") ───────────────────────────────────
+  //
+  // 🚨 MEKANİZMA: balonlar kabın YÜZDESİ (`max-w-[90%] sm:max-w-[85%]`), kap
+  // ise tam ekranda VIEWPORT'un tamamı (`fixed inset-0`). 1920px bir monitörde
+  // bu ~1630px demektir: gelen balon en solda, giden balon en sağda başlar ve
+  // aradaki boşluk ~1000px olur. Göz her mesajda bir uçtan öteki uca gider.
+  //
+  // Sınır YÜZDEYE değil KABA konur — yüzdeyi düşürmek (ör. %50) dar ekranlarda
+  // balonları gereksiz sıkıştırırdı; sütun tavanı ise yalnız GENİŞ ekranda
+  // devreye girer ve dar ekranda hiçbir şeyi değiştirmez.
+  //
+  // ⚠️ YALNIZ TAM EKRAN: kart modunda kap zaten grid içinde dar; orada tavan
+  // koymak var olan genişliği boşa harcardı (kart modunda `""`, test-pinli).
+  // ⚠️ KAP DEĞİL İÇERİK sınırlanır: kaydırma kabı tam genişlikte kalmalı ki
+  // kaydırma çubuğu ekranın kenarında dursun; `mx-auto` İÇ sarmalayıcıdadır.
+  const readingColumnCn = fullscreen ? "mx-auto w-full max-w-4xl" : "";
+
   useEffect(() => {
     if (!fullscreen) return;
     const onKey = (e: KeyboardEvent) => {
@@ -623,8 +642,11 @@ export function ConversationThread({
         // ⚠️ DÜRÜST SINIR: CSS FARE TEKERLEĞİNE ATALET EKLEYEMEZ. Tekerlek adımı
         //    tarayıcının/işletim sisteminin kararıdır; JS ile ele geçirmek
         //    (wheel hijack) trackpad'i ve erişilebilirliği BOZAR — yapılmadı.
-        className="scrollbar-thin max-h-[52vh] space-y-3 overflow-y-auto overscroll-contain scroll-smooth p-4 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-ring lg:max-h-none lg:min-h-0 lg:flex-1"
+        className="scrollbar-thin max-h-[52vh] overflow-y-auto overscroll-contain scroll-smooth p-4 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-ring lg:max-h-none lg:min-h-0 lg:flex-1"
       >
+        {/* İç sarmalayıcı: okuma sütunu. `space-y-3` KABI DEĞİL bunu süsler —
+            kap tam genişlikte kalmalı (kaydırma çubuğu ekranın kenarında). */}
+        <div className={cn("space-y-3", readingColumnCn)}>
         {messages.map((m) => (
           <div
             key={m.id}
@@ -710,6 +732,7 @@ export function ConversationThread({
             ) : null}
           </div>
         ))}
+        </div>
       </div>
 
       <Separator />
@@ -718,7 +741,7 @@ export function ConversationThread({
       {/* Dikey dolgu 4 → 2.5 ve ton kutusu 9 → 8: bu satır yazma alanından ve
           mesaj listesinden yer çalıyordu (kurucu 09-11: "AI cevap öner satırı da
           biraz küçülebilir"). İşlev aynı, yalnız yükseklik düştü. */}
-      <div className="shrink-0 space-y-3 px-4 py-2.5">
+      <div className={cn("shrink-0 space-y-3 px-4 py-2.5", readingColumnCn)}>
         {/* 🚨 "Misafir cevap bekliyor / AI ile cevapla" DAVET KARTI KALDIRILDI
             (kurucu 09-11). Düğmesi hemen altındaki kalıcı "AI cevap öner" ile
             AYNI `handleSuggest()`i çağırıyordu — iki farklı isim, tek eylem.
@@ -972,7 +995,7 @@ export function ConversationThread({
 
       {/* Composer — owner/manager only; staff see a read-only thread. */}
       {canReply ? (
-        <div className="shrink-0 space-y-2 p-4">
+        <div className={cn("shrink-0 space-y-2 p-4", readingColumnCn)}>
           {/* Placeholder bir AD DEĞİLDİR (yazmaya başlayınca kaybolur ve bazı
               ekran okuyucular hiç okumaz) → görünmez ama gerçek bir etiket.
               Gönderim hatası hem alana BAĞLI (aria-describedby + aria-invalid)
