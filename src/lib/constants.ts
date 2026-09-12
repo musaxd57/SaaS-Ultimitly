@@ -260,10 +260,15 @@ export const AUTOMATION_TRIGGER = optionMap<AutomationTrigger>([
 // Kod "başlangıç == bitiş → TÜM GÜN" kuralını zaten destekliyor
 // (`isWithinActiveHours`), o yüzden 0/0 doğru varsayılan.
 //
-// ŞEMA VARSAYILANI DEĞİŞTİRİLMEDİ — bu bir migration gerektirir ve migration
-// yazmak bu turda yasak. Bunun yerine org yaratan İKİ yol da değeri AÇIKÇA
-// yazıyor. Sonuç aynı, migration yok. MEVCUT müşteriler etkilenmez: kayıtlı
-// değerleri neyse o kalır.
+// 🚨 ŞEMA VARSAYILANI DA DÜZELTİLDİ (migration 55, 09-12) — bu yorum
+// "değiştirilmedi, migration yazmak bu turda yasak" diyordu ve BAYATLADI.
+// Uygulama katmanı yalnız İKİ rotayı kurtarıyordu; şema varsayılanı 9 kaldığı
+// sürece org yaratan ÜÇÜNCÜ bir yol (seed, davet akışı, fikstür) sessizce
+// gece-only bir org doğurabilirdi — yani bu sabit bir YAMAYDI, çözüm değil.
+// Migration 55 varsayılanı 0 yaptı ve HİÇ ELLENMEMİŞ (tam 0/9) satırları dar
+// bir UPDATE ile düzeltti; host'un bilinçli seçtiği her pencere DOKUNULMADAN
+// kaldı. Bu sabit YİNE DE duruyor: kayıt rotalarının niyeti açık kalsın ve
+// varsayılan bir gün yine kayarsa iki rota etkilenmesin.
 export const NEW_ORG_AUTO_REPLY_WINDOW = { autoReplyStartHour: 0, autoReplyEndHour: 0 } as const;
 
 /* ---------------------------------------------------------------------------
