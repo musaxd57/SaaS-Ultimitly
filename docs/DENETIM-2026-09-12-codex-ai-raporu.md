@@ -393,6 +393,49 @@ gösteriyor.
 
 ## §E — BÜTÇE ↔ MALİYET AYRIŞMASI (bulgu 12)
 
+> ## ✅ KAPANDI (09-12) — ve raporun KENDİ §E'sinde bir YANLIŞ YÜZEY var
+>
+> 🚨 **RAPOR YANLIŞ YÜZEYE BAĞLAMIŞ:** "12 çağrı / 1 birim" olan yüzey **Ayarlar
+> "AI'yı Deneyin" kartı DEĞİL**, **Inbox'taki "Oto-yanıt testi (önizleme)"**
+> düğmesidir (`api/hospitable/auto-reply-test` → `previewChannelAutoReplies`,
+> `limit = 12`). Ayarlar kartı (`api/ai/test`) kod yolu izlendiğinde **1 model
+> çağrısı / 1 birim**tir ve ekranı da bunu söylüyor ("Her deneme günlük AI işlem
+> hakkınızdan bir adet düşer"). Bu ayrım önemli: yanlış yüzeye bakan bir düzeltme
+> doğru olanı bozardı.
+>
+> **12:1 takası DEĞİŞTİRİLMEDİ** — rota kendi yorumunda bunu açıkça ilan ediyor
+> ("amaç meşru kullanıcıyı iki denemede kilitlemek değil, sınırsız döngüyü
+> kesmek"). Oranı değiştirmek bir FİYATLANDIRMA kararıdır ve kurucuya aittir;
+> sessizce değiştirilmedi.
+>
+> **DÜZELTİLEN (latent):** `consumeDailyAiBudgetForQr` her iki RET dalında da
+> `cap: qrCeiling` döndürüyordu — ORTAK tavan dolduğunda bile "planınız günde 45"
+> denirdi, oysa dolan kova org'un 150'liğiydi. Artık DOLAN kovanın tavanı döner.
+> ⚠️ **BU BUGÜN CANLI BİR KUSUR DEĞİLDİ**: QR rotası `dailyBudgetMessage`i hiç
+> çağırmıyor, yani yanlış sayı hiçbir ekrana basılmıyordu. Ölçüm ajanı bunu
+> "müşteriye gösterilen tavan uyuşmuyor" diye raporladı; **kodda doğrulandı ve
+> yanlış çıktı**, iddia dürüstleştirildi. Düzeltilen şey latent tuzak.
+>
+> **YAZILAN GEREKÇELER** (hepsi "asimetri var ama sebebi yazılı değil" sınıfıydı):
+> · `summarizeHostStyle` 0 birim — arka plan işi, org başına 24 saatte en fazla
+>   bir kez, basan kullanıcı yok; kotadan düşseydi host'un GÖREBİLDİĞİ hakkını
+>   görünmez bir iş yerdi. ⚠️ Gerekçe BUGÜN yazıldı, "hep böyle tasarlanmıştı"
+>   diye okunmamalı.
+> · QR "önce tüket" — cron `peek` kullanır (fallback bedava olduğu hâlde birim
+>   yakıyordu), QR KULLANMAZ ve fark kasıtlı: kimliksiz halka açık yüzeyde
+>   "önce bak sonra tüket" penceresi tam olarak suistimal edilecek penceredir.
+>   Bedeli yazılı: sağlayıcı düştüğünde misafirin mesajı 2 birim yakar.
+>
+> **CLAUDE.md BAYAT SATIRI DÜZELTİLDİ:** *"Landing demo … bütçe doğrulamadan
+> SONRA tüketilir (boş istek hak yakmıyor)"* — `api/demo/ai/route.ts` o sıra
+> değişikliğini AYNI TUR İÇİNDE geri almış ve gerekçesini yazmış. Gerçek: saatlik
+> IP hakkı ÖNCE tüketilir, **boş istek DE hak yakar**; yalnız global 300/gün
+> sayacı doğrulamadan sonra artar. Yani parantez tersini söylüyordu.
+>
+> **DOKUNULMAYAN ve NEDEN:** `.catch(() => {})` ile yutulan tüketim
+> (`automation.ts`) — `daily-budget.ts` başlığı "KULLANIM kapılarında fail-open"
+> diyor; DB arızasında oto-yanıtı durdurmak yanlış yön olurdu. Tutarlı, bug değil.
+
 "12 çağrı / 1 birim" **birebir doğrulandı**: `auto-reply-test/route.ts:42` tek
 `consumeDailyAiBudget`, `previewChannelAutoReplies(limit = 12)` konuşma başına 1 model
 çağrısı, `dryRun` bütçe tüketimini kapatıyor. Dakikalık limitle **6 istek/dk → 72 model

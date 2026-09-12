@@ -569,6 +569,15 @@ async function handleGuestChatPost(req: NextRequest, { params }: { params: Promi
   // olarak yerinde duruyor.
   // ⚠️ QR'A ÖZEL: kimliksiz yüzey org'un bütçesini TEK BAŞINA bitiremesin.
   // İki kova (kendi payı + org ortak tavanı) — gerekçe `daily-budget.ts`'te.
+  //
+  // 🚨 "ÖNCE TÜKET" ve bu BİLİNÇLİ (§E, 09-12 — gerekçe önceden burada YAZILI
+  // DEĞİLDİ). Cron yolu `peekDailyAiBudget` kullanır çünkü orada sağlayıcı
+  // arızasında fallback'e düşen çağrı BEDAVA olduğu hâlde birim yakıyordu
+  // (`daily-budget.ts` başlığı). QR'da AYNI DESEN KULLANILMAZ ve fark kasıtlı:
+  // burası KİMLİKSİZ, HALKA AÇIK bir yüzey — "önce bak, sonra tüket" penceresi
+  // tam olarak suistimal edilecek penceredir. Bedeli yazılı: sağlayıcı düştüğünde
+  // misafirin mesajı 2 birim yakar ve devir metnini alır. Bu takas QR için
+  // güvenlik lehine seçildi; cron için tersi doğrudur.
   const budget = await consumeDailyAiBudgetForQr(ctx.property.organizationId);
   if (!budget.ok) {
     const escalationText = escalationReply({ critical: physicalEmergency });

@@ -172,8 +172,17 @@ export async function consumeDailyAiBudgetForQr(organizationId: string): Promise
   if (!own.ok) return { ok: false, retryAfter: own.retryAfter, cap: qrCeiling };
 
   // 2) Org'un ortak tavanı — toplam harcama `cap`'i aşmasın.
+  //
+  // 🚨 `cap` DOLAN KOVANIN tavanıdır (§E, 09-12). Eskiden her iki dalda da
+  // `qrCeiling` dönüyordu: ORTAK tavan dolduğunda bile "planınız günde 45"
+  // denirdi, oysa dolan kova 150'likti. ⚠️ Bu BUGÜN CANLI BİR KUSUR DEĞİLDİ —
+  // QR rotası `dailyBudgetMessage`i hiç çağırmıyor (misafire deterministik devir
+  // metni gider), yani yanlış sayı hiçbir ekrana basılmıyordu. Düzeltilen şey
+  // LATENT tuzak: bu verdict'i mesaja veren ilk çağıran host'a yanlış plan
+  // rakamı gösterirdi. Başarı yolunda `qrCeiling` KALIR — "QR'ın kendi bütçesi
+  // ne kadar" sorusunun doğru cevabı odur (test-pinli).
   const shared = await rateLimit(`ai-daily:${organizationId}`, cap, DAY_MS);
-  return { ok: shared.ok, retryAfter: shared.retryAfter, cap: qrCeiling };
+  return { ok: shared.ok, retryAfter: shared.retryAfter, cap: shared.ok ? qrCeiling : cap };
 }
 
 export async function consumeDailyAiBudget(organizationId: string): Promise<DailyBudgetVerdict> {

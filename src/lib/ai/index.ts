@@ -375,6 +375,19 @@ export async function suggestReply(input: SuggestReplyInput): Promise<SuggestRep
  * drafts can mirror their voice and typical decisions. Internal summarisation —
  * uses a cheap model. Returns null if OpenAI isn't configured, on any failure,
  * or when there isn't enough signal. Never throws.
+ *
+ * 🚨 GÜNLÜK AI KOTASINDAN DÜŞMEZ — GEREKÇE (§E, 09-12; önceden HİÇBİR YERDE
+ * YAZILI DEĞİLDİ ve denetim bunu "gerekçesiz asimetri" diye işaretledi):
+ *  · Bu ARKA PLAN işidir, misafirin ya da host'un beklediği bir istek değil.
+ *    Kota "kullanıcının bastığı düğme" için bir suistimal kapısıdır
+ *    (`daily-budget.ts`: interaktif rotalar "önce tüket"); burada basan kimse yok.
+ *  · Frekansı KENDİ kapılarıyla zaten sınırlı ve ölçüldü: org başına 24 saatte
+ *    EN FAZLA BİR kez (`automation.ts` `refreshStyleProfile` throttle'ı), ≥5
+ *    örnek şartı, ≤40 örnek tavanı. Yani org başına günde ~1 ucuz çağrı.
+ *  · Kotadan düşseydi host'un GÖREBİLDİĞİ hakkını görünmez bir arka plan işi
+ *    yerdi ve "neden 149 hakkım kaldı" sorusunun cevabı hiçbir ekranda olmazdı.
+ * ⚠️ Bu gerekçe BUGÜN YAZILDI; "hep böyle tasarlanmıştı" diye okunmamalı —
+ * ölçülen durum "kapı yok ve sebebi yazılı değil" idi, karar şimdi kayda geçti.
  */
 export async function summarizeHostStyle(sampleReplies: string[]): Promise<string | null> {
   const key = process.env.OPENAI_API_KEY;

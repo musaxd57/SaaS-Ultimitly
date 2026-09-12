@@ -1342,8 +1342,44 @@ ana iddiası BAYAT** (`a1c274d` kapatmıştı), **bulgu 11'in "~75 KB"ı YANLIŞ
   **mutasyon 17/17** (ilk turda 2 hayatta kaldı ve İKİSİ de gerçek pin eksiğiydi: `cappedForFallback`
   tavan-altı hiç sınanmıyordu [10 kalemlik fikstür `small_kb` dalına düşüyor], ve `suggestReply`ın alanı
   taşıdığı hiç sınanmıyordu = **YÜKLEM VAR, ARGÜMAN YOK** — QR `history_injection` turunun aynı sınıfı).
-- **Kalan açık madde:** §E bütçe (önizleme **12 çağrı = 1 birim**; `summarizeHostStyle` **1 çağrı =
-  0 birim**, gerekçesi YOK).
+- ✅ **§E BÜTÇE KAPANDI (09-12) — DENETİM RAPORUNUN KENDİ §E'sinde YANLIŞ YÜZEY VARDI.**
+  🚨 "12 çağrı = 1 birim" olan yüzey **Ayarlar "AI'yı Deneyin" DEĞİL**, **Inbox "Oto-yanıt testi
+  (önizleme)"** düğmesidir (`api/hospitable/auto-reply-test` → `previewChannelAutoReplies` `limit = 12`).
+  Ayarlar kartı (`api/ai/test`) kod yolu izlenince **1 çağrı / 1 birim** ve ekranı da bunu yazıyor. Yanlış
+  yüzeye bakan bir düzeltme doğru olanı bozardı. **12:1 takası DEĞİŞTİRİLMEDİ** — rota gerekçesini kendi
+  yorumunda ilan ediyor ve oranı değiştirmek FİYATLANDIRMA kararıdır (kurucunun).
+  **Düzeltilen (LATENT):** `consumeDailyAiBudgetForQr` her iki ret dalında `cap: qrCeiling` dönüyordu →
+  ORTAK tavan dolduğunda bile "planınız günde 45" derdi; artık DOLAN kovanın tavanı döner. ⚠️ **Bugün
+  CANLI kusur DEĞİLDİ** — QR rotası `dailyBudgetMessage`i hiç çağırmıyor; ölçüm ajanının "müşteriye
+  gösterilen tavan uyuşmuyor" iddiası kodda YANLIŞ çıktı ve dürüstleştirildi.
+  **Yazılan gerekçeler** (hepsi "asimetri var, sebebi yazılı değil" sınıfıydı): `summarizeHostStyle`
+  0 birim (arka plan, org başına 24 saatte ≤1, basan kullanıcı yok; kotadan düşseydi host'un GÖRDÜĞÜ hakkı
+  görünmez bir iş yerdi — ⚠️ gerekçe BUGÜN yazıldı, "hep böyleydi" diye okunmaz) · QR "önce tüket" (cron
+  `peek` kullanır çünkü fallback bedavayken birim yakıyordu; QR kimliksiz/halka açık olduğu için
+  "önce bak sonra tüket" penceresi suistimal penceresidir — bedeli yazılı: sağlayıcı düşünce 2 birim yanar).
+  **DOKUNULMAYAN:** `.catch(() => {})` ile yutulan tüketim — `daily-budget.ts` "KULLANIM kapılarında
+  fail-open" diyor, tutarlı. Kanıt: kırmızı-önce 1 blok + tam kapılar.
+- ✅ **BAĞLAMSAL PARÇA METNİ (kurucu iş emri 09-12, madde 1)** — `src/lib/ai/embeddings/context-text.ts`,
+  saf, **üretimde çağıranı YOK** (E3'te bağlanır, o da E2 onayına bağlı). Ölçülmüş gerekçe: sözcüksel
+  tarafta sorun YOK (rerank başlık kökünü zaten 0.15 ile ödüllendiriyor, başlık ayrı alanda) ama
+  **embedding yalnız verilen METNİ görür** → uzun rehberin ORTA parçası başlığı olmadan gömülürse zayıf
+  eşleşir. 🚨 **`text` DEĞİŞTİRİLMEZ** — "parça = `content.slice`, metin DEĞİŞMEZ" pini İSTEME giden metin
+  içindir; bağlam YALNIZ vektöre eklenir (ne gösterildiği ≠ ne gömüldüğü). Deterministik (önbellek anahtarı
+  buna bağlı), başlık İKİ KEZ yazılmaz (parça zaten başlıkla başlıyorsa eklenmez — yoksa o terim yapay
+  ağırlaşır), bağlam ve toplam tavanlı.
+- 🚨 **KURUCUNUN DÖRT RAG ÖNERİSİ — İKİSİ REDDEDİLDİ (09-12, gerekçeler ölçülü):**
+  ⛔ **Semantik önbellek**: "%95 benziyor mu" diye sorabilmek için yeni soruyu ÖNCE gömmek gerekir — yani
+  kaçınılmak istenen çağrı zaten yapılır; sorgu gömme maliyeti mesaj başına ~0,00013 sent, %20-30'u sıfırdır.
+  Asıl tasarruf CEVABI önbelleklemek olurdu ve cevap MÜLKE/rezervasyona/saate/KB sürümüne bağlıdır —
+  soru metnine göre anahtarlamak mülkler arası sızıntı üretir. Redis altyapısı da yok.
+  ⛔ **Streaming (misafir yüzeyi)**: tüm güvenlik mimarisi model BİTTİKTEN sonra karar veriyor
+  (`admitsMissingKnowledge`, `vetoOutgoingReply`, güven eşiği cevabın TAMAMINI okur). Token akıtmak,
+  kapının BLOKLAYACAĞI metni misafire çoktan göndermek demektir. Ayrıca kanal yolunda teknik olarak
+  imkânsız (sağlayıcıya tek mesaj). ✅ Host'un inbox TASLAĞINDA streaming güvenli (host onaylıyor) — ayrı iş.
+  ✅ **Eval/tracing ilkesi doğru ama ARAÇ hayır**: üç metriğin karşılığı zaten bizde (`srcVerified` ≈
+  faithfulness · ölçek harness'ı `inPrompt` ≈ context precision · eşleştirilmiş eval ≈ answer relevance);
+  eksik olan tek şey PANO. Langfuse/LangSmith = misafir konuşmasını YENİ bir üçüncü tarafa göndermek
+  (alt-işleyen, KVKK) → kendi `RiskEvent` verimiz üstüne pano doğrusu.
 
 **Önceki: ÜRÜN TURU 4 (09-11, ON ölçümlü ajan, saatlik `/loop`) — karar belgesi `docs/KARAR-2026-09-11-kurucu-is-emri-10-ajan.md`:**
 🚨 **RAG VARSAYILAN AÇIK** (kurucu: "RAG EKLE"). `KB_RETRIEVAL_MODE` artık AÇMA değil **ACİL DURDURMA**
@@ -1392,8 +1428,14 @@ ama yalnız `resume-ai-button`da, yani iş işten geçtikten SONRA.
 `::-webkit-scrollbar-track` HİÇ yazılmamıştı → oluk saydam, "kanal" hissi yok. Artık `--muted-foreground`
 (iki temada da okunur olması için hesaplanmış tek ikincil renk) + gerçek oluk + hover.
 **Landing demo:** 8 çip (eskiden 6 çip / saatte 6 istek = ziyaretçinin KENDİ sorusuna hak kalmıyordu),
-`DEMO_HOURLY_LIMIT` 12 tek kaynak (rota + ekran metni aynı sabit), limit ekranda yazılı, bütçe
-**doğrulamadan SONRA** tüketilir (boş istek hak yakmıyor).
+`DEMO_HOURLY_LIMIT` 12 tek kaynak (rota + ekran metni aynı sabit), limit ekranda yazılı.
+🚨 **BU SATIR BAYATTI ve §E turunda (09-12) DÜZELTİLDİ** — eskiden "bütçe doğrulamadan SONRA tüketilir
+(boş istek hak yakmıyor)" yazıyordu ve **kendi kodumla çelişiyordu**: `api/demo/ai/route.ts` o sıra
+değişikliğini AYNI TUR İÇİNDE geri almış ve gerekçesini yazmış ("depo kuralı KİMLİKLİ rotalar içindir;
+`demo/ai` `leads` ile aynı sınıftadır — anonim rotada rate limit KOTA değil KÖTÜYE KULLANIM
+KONTROLÜDÜR; sonraya alınca saldırgan sınırsız geçersiz gövdeyle rotayı dövüyordu"). Gerçek sıra:
+**saatlik IP hakkı (12) ÖNCE tüketilir, boş/geçersiz istek DE hak yakar**; yalnız global günlük 300
+sayacı doğrulamadan sonra artar. Yani eski cümlenin parantezi tersini söylüyordu.
 🚨 **KURUCUNUN ÜÇ SORUSUNA CEVAP (gerekçeler karar belgesinde):** ① oto-mesaj varsayılanı **ÇEVRİLMEZ** —
 `*EnabledAt` baseline'ı yalnız Ayarlar PATCH'i yazdığı için sessiz no-op olurdu ("Açık" der, sıfır mesaj
 gider) ve `KB_PRESETS`in iki TRIGGER şablonu doldurulmamış `[AÇIK ADRES]` taşıyor + bu yol modelden HİÇ
