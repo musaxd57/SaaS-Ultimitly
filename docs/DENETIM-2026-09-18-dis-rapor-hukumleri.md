@@ -183,6 +183,47 @@ misafir-etkili metin taşıyabilen bacaklar var. Ayrı iş.
 | **`inbox/[id]` mesaj penceresi** | Aynı sınıf, host yüzeyi, bedeli düşük (30 sn + görünürlük kapısı). |
 | **KB'ye genel injection taraması** | Ayrı ölçüm turu ister (yanlış pozitif bataryası). |
 
+## 🚨 Raporun kendisinin ölçemediği bir şey: TESTTE ZAMAN BOMBASI
+
+Tam suit `quality-audit-pairing.test.ts`te **4 kırmızı** verdi ve teşhis sırasında
+"bu turun gerilemesi" gibi görünüyordu. Gerçek sebep başkaydı:
+
+```
+const T = new Date("2026-09-08T09:00:00.000Z");   // SABİT
+collectAuditSample → clampDays varsayılan 7 → since = Date.now() - 7 gün
+```
+
+Yani o dosya **2026-09-15'te, kodda hiçbir şey değişmeden** kendiliğinden
+kırmızıya döndü. Testin İDDİASI zamana bağlı değil (aynı `createdAt` damgasında
+eşleştirme), o yüzden çapası da olmamalıydı → taban `Date.now() - 2 gün`e
+bağlandı, gerekçe dosyaya yazıldı.
+
+⚠️ **Sınıf açık:** repoda 65 test dosyası sabit tarih içeriyor. Bugün yalnız bu
+biri `Date.now()` penceresiyle çakışıyor (tam suit tek kırmızı verdi), ama sınıf
+mekanik olarak pinli DEĞİL. Ayrı iş: "gerçek DB + `Date.now()` penceresi kullanan
+testte sabit tarih çapası olamaz" kuralı için mekanik pin.
+
+## Kanıt
+
+| Kapı | Sonuç |
+|---|---|
+| Kırmızı-önce | **8 + 3 + 1 + 3 blok** ölçüldü (eski kodla koşuldu, `cp`-yedek harness'ı) |
+| İki yönlü mutasyon | **20/20 yakalandı** |
+| `npm test` | **4915 / 413 dosya** yeşil |
+| `tsc` · `lint` · `build` · `audit:check` | 0 · 0 · temiz · yeşil |
+
+Mutasyon kapsamı: eşleştirme fail-closed kuralları (belirsiz kategori · peş peşe
+gruplama · zaman penceresi · gerçek çift · konuşma sayımı) · `existingKb` filtresi
+· ad maskeleme (tam ad + örnek soru) · rota bayrağı · `capped` off-by-one · gövde
+alan listesi · mesaj penceresi + kronoloji · görünürlük kapısı · terminal durdurma
+· durma uyarısı · ayraç etkisizleştirme (kaldırma **ve** aşırı uygulama) · bayrak
+teşhisi (`recognized` + teşhis ile gerçek seçicinin AYRIŞAMAMASI).
+
+⚠️ **Süreç notu:** M16 ilk turda koşmadı — çapa iki yerde geçiyordu ve harness
+"eşsiz değil" diyerek atladı. Bu bir HAYATTA KALAN değil, ÖLÇÜLMEMİŞ mutanttı;
+replace-all ile ayrıca koşuldu ve yakalandı. Harness'ın "çapa eşsiz olmalı"
+kuralı doğru — sessizce yanlış yere mutasyon uygulamaktansa atlaması iyi.
+
 ## Geri açma ön koşulları — geçmiş cevap bacağı
 
 | # | Koşul | Durum |

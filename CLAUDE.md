@@ -1321,6 +1321,19 @@ bir bulgunun ana iddiası **BAYAT** çıktı ve raporun GÖRMEDİĞİ iki kusur 
   `?propertyId=` göndermeli ve `capped`i OKUMALI → geri açma ön koşuluna yazıldı. Kapalı yüzey için UI
   kotası inşa etmek israf. **Bulgu 7** (RAG henüz anlamsal değil) DOĞRU ama kod değişikliği İSTEMEZ —
   E0–E5 planı zaten bu, `semantic` üretimde verilmiyor (pinli).
+- 🚨 **TESTTE ZAMAN BOMBASI (bu turun değişikliği DEĞİL, ama tam suit onu patlattı).**
+  `quality-audit-pairing.test.ts` fikstürü `2026-09-08`e SABİTLENMİŞ, `collectAuditSample` penceresi
+  **7 GÜN** → o dosya **09-15'te kodda hiçbir şey değişmeden** kendiliğinden kırmızıya döndü ve teşhiste
+  "son değişikliğin gerilemesi" gibi görünüyordu. Taban `Date.now() - 2 gün`e bağlandı. ⚠️ **SINIF AÇIK:**
+  repoda 65 test dosyası sabit tarih içeriyor; bugün yalnız bu biri `Date.now()` penceresiyle çakışıyor
+  ama kural mekanik olarak PİNLİ DEĞİL (ayrı iş).
+- **Kanıt:** kırmızı-önce 8+3+1+3 blok (eski kodla ölçüldü, `cp`-yedek harness'ı) · **mutasyon 20/20** ·
+  `npm test` **4915/413** · tsc 0 · lint 0 · build temiz · audit yeşil. ⚠️ M16 ilk turda ÖLÇÜLMEDİ (çapa
+  iki yerde, harness "eşsiz değil" deyip atladı — hayatta kalan DEĞİL); replace-all ile ayrıca koşuldu.
+  🚨 **NEXT.JS ROTA EXPORT DERSİ YİNE YAŞANDI:** `route.ts`ten yalnız bilinen rota alanları export
+  edilebilir; `GUEST_CHAT_MESSAGE_WINDOW` ve bayrak sabitini rotaya koyunca `tsc` patladı. Ders repoda
+  ZATEN yazılıydı (`chat/[token]/route.ts` yorumu) — sabitler baştan yaprak modülde durmalı
+  (`src/lib/kb-suggestions-flag.ts`, `src/lib/guest-chat.ts`).
 
 **Önceki: CODEX DENETİM TURU (09-12, SEKİZ ölçümlü ajan) — hüküm belgesi `docs/DENETIM-2026-09-12-codex-ai-raporu.md`.**
 Kurucu dış bir denetim raporu getirdi (21 bulgu + 10 maddelik yol haritası) ve "dediklerine başla ve bitir"
