@@ -44,7 +44,7 @@ import { detectGuestLanguage } from "@/lib/ai/fallback";
 // Bu modül DB'ye erişmez, kalem EKLEYEMEZ, metni DEĞİŞTİREMEZ (pinler).
 // ---------------------------------------------------------------------------
 
-export { kbRetrievalMode, type KbRetrievalMode } from "./flag";
+export { kbRetrievalMode, kbRetrievalModeInfo, type KbRetrievalMode } from "./flag";
 
 export type KbSelectFallback = "none" | "small_kb" | "empty_query" | "no_lexical_hits" | "error";
 

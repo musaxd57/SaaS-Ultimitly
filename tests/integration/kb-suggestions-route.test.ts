@@ -1,4 +1,4 @@
-import { describe, it, expect, beforeEach, vi } from "vitest";
+import { describe, it, expect, beforeEach, afterEach, vi } from "vitest";
 import { NextRequest } from "next/server";
 import { prisma, resetDb, makeOrgWithProperty } from "../helpers/db";
 import type { SessionPayload } from "@/lib/auth";
@@ -10,6 +10,7 @@ vi.mock("@/lib/api", async (orig) => {
 });
 
 import { GET } from "@/app/api/kb/suggestions/route";
+import { HISTORY_MESSAGE_CAP as MESSAGE_CAP } from "@/lib/kb-suggestions-flag";
 import { DEFAULT_TEMPLATES } from "@/lib/templates";
 
 // ---------------------------------------------------------------------------
@@ -85,7 +86,7 @@ const body = async (r: Response) => (await r.json()) as {
     content: string;
     fromOrgWide: boolean;
   }[];
-  scanned: number;
+  scanned: number | null;
   capped: boolean;
 };
 
@@ -93,7 +94,12 @@ describe("GET /api/kb/suggestions — Bacak B okuma rotası", () => {
   beforeEach(async () => {
     await resetDb();
     vi.clearAllMocks();
+    // 🚨 Geçmiş bacağı ÜRETİMDE KAPALI (dış denetim 09-18). Bu blok bacağın
+    // KENDİ davranışını ölçüyor, o yüzden açıkça açılır; kapalı hâlin sözleşmesi
+    // aşağıda AYRI bir blokta pinli.
+    vi.stubEnv("KB_HISTORY_SUGGESTIONS_ENABLED", "1");
   });
+  afterEach(() => vi.unstubAllEnvs());
 
   it("host iki kez cevaplamışsa ÖNERİ döner, mülk adıyla", async () => {
     const a = await seedOrg("Lale 1");
@@ -312,5 +318,118 @@ describe("GET /api/kb/suggestions — Bacak B okuma rotası", () => {
     expect(out.suggestions).toEqual([]);
     expect(out.scanned).toBe(0);
     expect(out.capped).toBe(false);
+  });
+
+  it("🚨 İÇ MESAJ KİMLİKLERİ GÖVDEYE KONMAZ (bulgu 10)", async () => {
+    const a = await seedOrg("Lale 10");
+    session = { userId: a.userId, organizationId: a.orgId, role: "owner", email: "a@x.com", name: "O", sessionEpoch: 0 };
+    const c1 = await writeTurn(a.propertyId, "Wifi şifresi nedir?", "Şifre AAA.");
+    await writeTurn(a.propertyId, "wifi parolası ne acaba", "Şifre AAA.");
+
+    const res = await GET(req(), ctx);
+    const raw = await res.text();
+    expect(JSON.parse(raw).suggestions).toHaveLength(1);
+    expect(raw, "sourceMessageIds tel üzerinden gidiyor").not.toContain("sourceMessageIds");
+    expect(raw, "lastAnsweredAt hiçbir yüzeyde okunmuyor").not.toContain("lastAnsweredAt");
+    // Anti-vakumluk: kimliklerin GERÇEKTEN var olduğu ve gövdede geçmediği ayrı iddia.
+    const anyMsgId = (await prisma.message.findFirst({ where: { conversationId: c1 } }))!.id;
+    expect(anyMsgId.length).toBeGreaterThan(0);
+    expect(raw).not.toContain(anyMsgId);
+  });
+
+  it("🚨 MEVCUT KB ÖNERİYİ BASTIRIR (bulgu 2) — rota `existingKb`i geçmiş bacağına da verir", async () => {
+    const a = await seedOrg("Lale 11");
+    session = { userId: a.userId, organizationId: a.orgId, role: "owner", email: "a@x.com", name: "O", sessionEpoch: 0 };
+    await writeTurn(a.propertyId, "Wifi şifresi nedir?", "Şifre AAA.");
+    await writeTurn(a.propertyId, "wifi parolası ne acaba", "Şifre AAA.");
+    // Önce öneri VAR (anti-vakumluk).
+    expect((await body(await GET(req(), ctx))).suggestions).toHaveLength(1);
+
+    // Host öneriyi kabul etti → aynı mülk+kategoride onaylı kalem oluştu.
+    await prisma.knowledgeBaseItem.create({
+      data: {
+        propertyId: a.propertyId,
+        category: "wifi",
+        title: "Wi-Fi",
+        content: "Şifre AAA.",
+        reviewState: "approved",
+      },
+    });
+    expect(
+      (await body(await GET(req(), ctx))).suggestions,
+      "'Yeniden tara' aynı öneriyi geri getiriyor → ikinci kez eklenirse çelişkili iki kalem",
+    ).toEqual([]);
+  });
+
+  it("🚨 `capped` KESİN: tam tavanda false, tavanın üstünde true (bulgu 9)", async () => {
+    const a = await seedOrg("Lale 12");
+    session = { userId: a.userId, organizationId: a.orgId, role: "owner", email: "a@x.com", name: "O", sessionEpoch: 0 };
+    const conv = await prisma.conversation.create({
+      data: { propertyId: a.propertyId, guestIdentifier: "cap", status: "answered", lastMessageAt: new Date() },
+    });
+    const row = (i: number) => ({
+      conversationId: conv.id,
+      direction: "inbound",
+      authorType: "guest",
+      senderName: "Misafir",
+      body: `m${i}`,
+      createdAt: new Date(Date.now() - i * 1_000),
+    });
+    await prisma.message.createMany({ data: Array.from({ length: MESSAGE_CAP }, (_, i) => row(i)) });
+    expect((await body(await GET(req(), ctx))).capped, "TAM tavan 'kesildi' DEĞİLDİR").toBe(false);
+
+    await prisma.message.createMany({ data: [row(MESSAGE_CAP)] });
+    expect((await body(await GET(req(), ctx))).capped).toBe(true);
+  });
+});
+
+// ---------------------------------------------------------------------------
+// 🚨 KAPALI YÜZEY SÖZLEŞMESİ (dış denetim 09-18).
+//
+// Kart 09-11'de söküldü ama ÖLÇÜLDÜ: yalnız GÖSTERİM durmuştu. Rota geçmiş
+// bacağını koşulsuz hesaplayıp tarayıcıya gönderiyordu ve bunun bedelini BUGÜN
+// CANLI olan şablon kartı ödüyordu (her "Tara" 3.000 satırlık sorgu).
+// ---------------------------------------------------------------------------
+describe("🚨 geçmiş bacağı VARSAYILAN KAPALI", () => {
+  beforeEach(async () => {
+    await resetDb();
+    vi.clearAllMocks();
+    vi.unstubAllEnvs(); // bayrak YOK — üretim hâli
+  });
+
+  it("bayrak yokken öneri ÜRETİLMEZ ve MESAJ SORGUSU HİÇ KOŞMAZ", async () => {
+    const a = await seedOrg("Lale 13");
+    session = { userId: a.userId, organizationId: a.orgId, role: "owner", email: "a@x.com", name: "O", sessionEpoch: 0 };
+    await writeTurn(a.propertyId, "Wifi şifresi nedir?", "Şifre GIZLI-AAA.");
+    await writeTurn(a.propertyId, "wifi parolası ne acaba", "Şifre GIZLI-AAA.");
+
+    const spy = vi.spyOn(prisma.message, "findMany");
+    const out = await body(await GET(req(), ctx));
+    expect(out.suggestions).toEqual([]);
+    expect(JSON.stringify(out), "host cevabı hâlâ tele gidiyor").not.toContain("GIZLI-AAA");
+    // 🚨 ASIL İDDİA: tarama hiç yapılmadı — şablon kartı geçmiş bacağının
+    // bedelini ödemez.
+    expect(spy, "3.000 satırlık sorgu kapalı bacak için koşuyor").not.toHaveBeenCalled();
+    // 🚨 `null` = ÖLÇÜLMEDİ (A2 deyimi), `0` DEĞİL: "sıfır mesaj tarandı" ile
+    // "tarama hiç yapılmadı" FARKLI iddialardır.
+    expect(out.scanned).toBeNull();
+    spy.mockRestore();
+  });
+
+  it("ŞABLON BACAĞI BAYRAKTAN ETKİLENMEZ (canlı kart aynen çalışır)", async () => {
+    const a = await seedOrg("Lale 14");
+    session = { userId: a.userId, organizationId: a.orgId, role: "owner", email: "a@x.com", name: "O", sessionEpoch: 0 };
+    await prisma.messageTemplate.create({
+      data: {
+        organizationId: a.orgId,
+        propertyId: a.propertyId,
+        category: "wifi",
+        title: "Wi-Fi bilgisi",
+        body: "Ağ adı LaleApt, şifre 12345678. Modem salonda.",
+      },
+    });
+    const out = await body(await GET(req(), ctx));
+    expect(out.fromTemplates).toHaveLength(1);
+    expect(out.fromTemplates[0].content).toContain("12345678");
   });
 });

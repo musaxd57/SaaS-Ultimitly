@@ -4,6 +4,7 @@ import { withManage } from "@/lib/route-guard";
 import { buildKbSuggestionsFromHistory } from "@/lib/kb-from-history";
 import { buildKbSuggestionsFromTemplates } from "@/lib/kb-from-templates";
 import { KB_APPROVAL_GATE_WHERE } from "@/lib/kb-review";
+import { kbHistorySuggestionsEnabled, HISTORY_MESSAGE_CAP } from "@/lib/kb-suggestions-flag";
 
 // ---------------------------------------------------------------------------
 // KNOWLEDGE HUB BACAK B — OKUMA ROTASI (SALT OKUMA).
@@ -19,80 +20,14 @@ import { KB_APPROVAL_GATE_WHERE } from "@/lib/kb-review";
 
 /** Kaç günlük geçmişe bakılır — eski cevap büyük ihtimalle bayat. */
 const WINDOW_DAYS = 365;
-/**
- * 🚨 SORGU TAVANI. Prod'da ~17.000 mesaj var; tavansız `findMany` bir panel
- * isteğini dakikalara çıkarır. En yeniden geriye doğru okunur, yani tavan
- * "en taze N mesaj" demektir — öneri zaten TAZELİK üzerine kurulu.
- */
-const MESSAGE_CAP = 3_000;
 
 export const GET = withManage(async (session, req) => {
   const { searchParams } = new URL(req.url);
   const propertyId = searchParams.get("propertyId") ?? undefined;
   const since = new Date(Date.now() - WINDOW_DAYS * 86_400_000);
 
-  const rows = await prisma.message.findMany({
-    where: {
-      createdAt: { gte: since },
-      conversation: {
-        // 🚨 KİRACI KAPSAMI: konuşma → mülk → org. Doğrudan org kolonu YOK.
-        property: { organizationId: session.organizationId, ...(propertyId ? { id: propertyId } : {}) },
-      },
-    },
-    select: {
-      id: true,
-      conversationId: true,
-      direction: true,
-      authorType: true,
-      senderName: true,
-      body: true,
-      createdAt: true,
-      aiAssisted: true,
-      systemEventType: true,
-      conversation: {
-        select: {
-          status: true,
-          propertyId: true,
-          reservation: { select: { guestName: true } },
-        },
-      },
-    },
-    orderBy: [{ createdAt: "desc" }, { id: "desc" }],
-    take: MESSAGE_CAP,
-  });
-
-  const messages = rows
-    .filter((m) => m.conversation?.propertyId)
-    .map((m) => ({
-      id: m.id,
-      conversationId: m.conversationId,
-      propertyId: m.conversation!.propertyId,
-      direction: m.direction,
-      authorType: m.authorType,
-      senderName: m.senderName,
-      body: m.body,
-      createdAt: m.createdAt,
-      aiAssisted: m.aiAssisted,
-      systemEventType: m.systemEventType,
-    }));
-
-  // Konuşma durumu ve misafir adı, mesaj satırlarından tekilleştirilerek çıkarılır
-  // (ayrı sorgu yok). Ad YALNIZ `{isim}` maskesi için kullanılır, çıktıya GİRMEZ.
-  const convStatus = new Map<string, string | null>();
-  const guestNames: Record<string, string | null> = {};
-  for (const m of rows) {
-    if (!m.conversation) continue;
-    convStatus.set(m.conversationId, m.conversation.status ?? null);
-    guestNames[m.conversationId] = m.conversation.reservation?.guestName ?? null;
-  }
-
-  const suggestions = buildKbSuggestionsFromHistory(
-    messages,
-    [...convStatus].map(([id, status]) => ({ id, status })),
-    { guestNamesByConversation: guestNames },
-  );
-
-  // Mülk adları — host'a hangi daire olduğunu göstermek için.
+  // Mülk adları — host'a hangi daire olduğunu göstermek için. Şablon bacağı da
+  // kullanır, yani bayraktan BAĞIMSIZ olarak gerekir.
   const names = await prisma.property.findMany({
     where: { organizationId: session.organizationId, ...(propertyId ? { id: propertyId } : {}) },
     select: { id: true, name: true },
@@ -135,16 +70,102 @@ export const GET = withManage(async (session, req) => {
     preferredLanguage: org?.language ?? "tr",
   });
 
+  // 🚨 BAYRAK KAPALIYSA MESAJ SORGUSU HİÇ KOŞMAZ. Erken çıkış BİLİNÇLİ: aşağıdaki
+  // 3.000 satırlık tarama ve sınıflandırma turu YALNIZ geçmiş bacağı içindir.
+  // `scanned: null` = ÖLÇÜLMEDİ (A2 deyimi) — `0` DEĞİL, çünkü "sıfır mesaj
+  // tarandı" ile "tarama hiç yapılmadı" farklı iddialardır.
+  if (!kbHistorySuggestionsEnabled()) {
+    return jsonOk({ suggestions: [], fromTemplates, scanned: null, windowDays: WINDOW_DAYS, capped: false });
+  }
+
+  const rows = await prisma.message.findMany({
+    where: {
+      createdAt: { gte: since },
+      conversation: {
+        // 🚨 KİRACI KAPSAMI: konuşma → mülk → org. Doğrudan org kolonu YOK.
+        property: { organizationId: session.organizationId, ...(propertyId ? { id: propertyId } : {}) },
+      },
+    },
+    select: {
+      id: true,
+      conversationId: true,
+      direction: true,
+      authorType: true,
+      senderName: true,
+      body: true,
+      createdAt: true,
+      aiAssisted: true,
+      systemEventType: true,
+      conversation: {
+        select: {
+          status: true,
+          propertyId: true,
+          reservation: { select: { guestName: true } },
+        },
+      },
+    },
+    orderBy: [{ createdAt: "desc" }, { id: "desc" }],
+    // 🚨 CAP + 1 (dış denetim 09-18, bulgu 9): `take: CAP` ile `rows.length`
+    // asla CAP'i AŞAMAZ, yani eski `>= CAP` ifadesi fiilen `=== CAP` idi ve TAM
+    // 3.000 satırı olup devamı OLMAYAN org "kesildi" görünüyordu. Bir fazla
+    // satır isteyip işlememek belirsizliği kaldırır.
+    take: HISTORY_MESSAGE_CAP + 1,
+  });
+  const capped = rows.length > HISTORY_MESSAGE_CAP;
+  if (capped) rows.length = HISTORY_MESSAGE_CAP;
+
+  const messages = rows
+    .filter((m) => m.conversation?.propertyId)
+    .map((m) => ({
+      id: m.id,
+      conversationId: m.conversationId,
+      propertyId: m.conversation!.propertyId,
+      direction: m.direction,
+      authorType: m.authorType,
+      senderName: m.senderName,
+      body: m.body,
+      createdAt: m.createdAt,
+      aiAssisted: m.aiAssisted,
+      systemEventType: m.systemEventType,
+    }));
+
+  // Konuşma durumu ve misafir adı, mesaj satırlarından tekilleştirilerek çıkarılır
+  // (ayrı sorgu yok). Ad YALNIZ `{isim}` maskesi için kullanılır, çıktıya GİRMEZ.
+  const convStatus = new Map<string, string | null>();
+  const guestNames: Record<string, string | null> = {};
+  for (const m of rows) {
+    if (!m.conversation) continue;
+    convStatus.set(m.conversationId, m.conversation.status ?? null);
+    guestNames[m.conversationId] = m.conversation.reservation?.guestName ?? null;
+  }
+
+  const suggestions = buildKbSuggestionsFromHistory(
+    messages,
+    [...convStatus].map(([id, status]) => ({ id, status })),
+    // 🚨 `existingKb` GEÇMİŞ BACAĞINA DA VERİLİR (bulgu 2): eskiden yalnız
+    // şablon bacağına gidiyordu, yani host öneriyi ekleyip "Yeniden tara"
+    // deyince aynı öneri geri geliyordu.
+    { guestNamesByConversation: guestNames, existingKb },
+  );
+
   return jsonOk({
+    // 🚨 `sourceMessageIds` ve `lastAnsweredAt` GÖVDEYE KONMAZ (bulgu 10):
+    // hiçbir yüzey okumuyordu, yani iç mesaj kimlikleri her taramada boşuna
+    // tel üzerinden gidiyordu. Alanlar sunucuda DURUYOR (iz), yalnız
+    // serileştirilmiyor. Spread yerine AÇIK ALAN LİSTESİ: yeni bir alan
+    // eklendiğinde sessizce istemciye sızmasın.
     suggestions: suggestions.map((s) => ({
-      ...s,
+      propertyId: s.propertyId,
       propertyName: nameById.get(s.propertyId) ?? null,
-      // 🚨 `sourceMessageIds` İZDİR, misafire ya da modele DÖNMEZ — yalnız
-      // host'un "bu nereden geldi" sorusunu yanıtlar. PII taşımaz.
+      category: s.category,
+      answer: s.answer,
+      exampleQuestion: s.exampleQuestion,
+      occurrences: s.occurrences,
+      sensitiveClasses: s.sensitiveClasses,
     })),
     fromTemplates,
     scanned: messages.length,
     windowDays: WINDOW_DAYS,
-    capped: rows.length >= MESSAGE_CAP,
+    capped,
   });
 });

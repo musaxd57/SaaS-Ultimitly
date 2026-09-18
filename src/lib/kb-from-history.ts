@@ -88,16 +88,39 @@ export interface KbSuggestionFromHistory {
   occurrences: number;
   /** En son ne zaman cevaplanmış. */
   lastAnsweredAt: Date;
-  /** Öneriyi doğuran host mesajlarının kimlikleri (iz; PII taşımaz). */
+  /**
+   * Öneriyi doğuran host mesajlarının kimlikleri (iz; PII taşımaz).
+   *
+   * 🚨 SUNUCUDA KALIR. Rota bunu HTTP gövdesine KOYMAZ (dış denetim 09-18,
+   * bulgu 10): hiçbir yüzey okumuyordu, yani saf artık yüktü.
+   */
   sourceMessageIds: string[];
   /** Misafirin o soruyu nasıl sorduğu — host'a BAĞLAM olarak gösterilir. */
   exampleQuestion: string;
+  /**
+   * Cevapta kalmış olabilecek hassas sınıflar (`email` · `phone` · `iban` ·
+   * `idNumber`). BOŞ DEĞİLSE öneri host'a "içinde kişisel/tek kullanımlık bilgi
+   * olabilir" uyarısıyla gösterilir ve tek tıkla eklenemez.
+   */
+  sensitiveClasses: string[];
 }
 
 export interface BuildOptions {
   minOccurrences?: number;
   /** Misafir adları; cevabın içinde geçerlerse `{isim}` yer tutucusuna çevrilir. */
   guestNamesByConversation?: Readonly<Record<string, string | null | undefined>>;
+  /**
+   * AI'nın ZATEN okuyabildiği KB kalemleri (`propertyId` + `category`).
+   *
+   * 🚨 DIŞ DENETİM 09-18, BULGU 2: rota bu listeyi çekiyordu ama YALNIZ şablon
+   * bacağına veriyordu. Sonuç ölçüldü: host öneriyi ekleyip "Yeniden tara"
+   * deyince AYNI öneri geri geliyor; ikinci kez eklenirse aynı mülk+kategoride
+   * ÇELİŞKİLİ iki aktif kalem oluşuyor ve retrieval'ın çelişki koruması
+   * misafire kesin cevap VERMİYOR — yani öneriyi kabul etmek ürünü bozuyordu.
+   */
+  existingKb?: readonly { propertyId: string; category: string }[];
+  /** Soru↔cevap azami boşluk (test edilebilirlik; varsayılan `PAIR_MAX_GAP_MS`). */
+  maxPairGapMs?: number;
 }
 
 /**
@@ -139,10 +162,51 @@ export function isHostAuthored(m: HistoryMessage): boolean {
  * olarak nötr hitap kullanılır.
  */
 export function maskGuestName(text: string, guestName: string | null | undefined): string {
-  const first = (guestName ?? "").trim().split(/\s+/u)[0];
-  if (!first || first.length < 3) return text;
-  const safe = first.replace(/[.*+?^${}()|[\]\\]/gu, "\\$&");
-  return text.replace(new RegExp(`(?<![\\p{L}])${safe}(?![\\p{L}])`, "giu"), "{isim}");
+  const full = (guestName ?? "").trim().replace(/\s+/gu, " ");
+  if (!full) return text;
+  const esc = (s: string) => s.replace(/[.*+?^${}()|[\]\\]/gu, "\\$&");
+  const sub = (input: string, needle: string) =>
+    input.replace(new RegExp(`(?<![\\p{L}])${esc(needle)}(?![\\p{L}])`, "giu"), "{isim}");
+
+  let out = text;
+  // 🚨 ÖNCE TAM AD: "Li Wei" gibi iki harfli parçalardan kurulu adlar tek tek
+  // maskelenemez (yanlış ikame riski) ama BİRLİKTE ayırt edicidir. Ölçüm
+  // (09-18 ajanı): eski kod 2 harfli adda maskelemeyi KOMPLE kapatıyordu.
+  const parts = full.split(" ");
+  if (parts.length > 1 && full.length >= 3) out = sub(out, full);
+  // 🚨 SONRA HER PARÇA: eski kod YALNIZ İLK kelimeyi alıyordu → soyadı ve
+  // ikinci ön ad ("Ömer Faruk Tan" → yalnız "Ömer") açıkta kalıyordu.
+  // Tek tek maskelemede 3 harf alt sınırı KORUNUR ("Al bunu." bozulmasın).
+  for (const p of parts) if (p.length >= 3) out = sub(out, p);
+  return out;
+}
+
+/**
+ * Cevapta KALMIŞ olabilecek hassas içerik SINIFLARI (redakte EDİLMEZ, İŞARETLENİR).
+ *
+ * 🚨 NEDEN SİLMİYORUZ (ölçülmüş): bu bacağın İŞİ host'un "wifi şifresi X" gibi
+ * cümlelerini bilgiye çevirmektir — sır silen bir filtre ürünün kendisini siler.
+ * Mevcut `withoutSecretKbItems` de yanlış araç: o kalemi KOMPLE ELER ve ölçümde
+ * 25 metnin yalnız 5'ini yakaladı (biri kazara), yani ne kapatıyor ne koruyor.
+ * Doğru desen `kb-manager`'daki "Doldurulmamış alan" rozetinin aynısı: UYARIYI
+ * KARARIN VERİLECEĞİ YERE koy, içeriği bozma.
+ *
+ * ⚠️ Kişi ADLARI burada YOK ve olamaz: üçüncü kişilerin adlarını (komşu,
+ * görevli, ÖNCEKİ MİSAFİR) hiçbir katman bilmiyor. Bilinen sınır.
+ */
+const SENSITIVE_PATTERNS: ReadonlyArray<readonly [string, RegExp]> = [
+  ["email", /[\w.+-]+@[\w-]+\.[\w.]{2,}/u],
+  // Uluslararası ya da yerel biçim; en az 10 hane, ayırıcılara toleranslı.
+  ["phone", /(?:\+|00)?\d[\d\s().-]{8,}\d/u],
+  ["iban", /\bTR\s?\d{2}[\s\d]{16,}/iu],
+  // Rezervasyon / takip / kimlik gibi uzun kimlik dizileri.
+  ["idNumber", /\b(?=[A-Z0-9-]{8,})(?:[A-Z]+\d|\d+[A-Z])[A-Z0-9-]*\b/u],
+];
+
+export function sensitiveClassesIn(text: string): string[] {
+  const out: string[] = [];
+  for (const [name, re] of SENSITIVE_PATTERNS) if (re.test(text)) out.push(name);
+  return out;
 }
 
 /** Cevabın sonunu kelime sınırında keser (ortadan bölmez). */
@@ -155,27 +219,113 @@ function clip(text: string, max: number): string {
 }
 
 /**
- * Bir host cevabına EN YAKIN ÖNCEKİ misafir mesajını bulur.
+ * Soru ile cevap arasında kabul edilen EN BÜYÜK boşluk.
  *
- * ⚠️ BU BİR YAKINLIK ÇIKARIMIDIR, KAYIT DEĞİL. `Message.replyToMessageId` YOK
- * (CLAUDE.md'de açık iş). `quality-audit.ts:195-200` ile AYNI kural: `lte` +
- * `id` kopma noktası — QR'da misafir ve bot satırı AYNI TX'te yazıldığı için
- * damgalar eşit olabilir ve `lt` misafir mesajını ELERDİ.
+ * 🚨 DIŞ DENETİM 09-18, BULGU 1c: hiçbir zaman sınırı YOKTU. Ölçülen kusur —
+ * host'un çıkıştan GÜNLER sonra attığı PROAKTİF mesaj ("Değerlendirme bırakır
+ * mısınız?"), arada misafir mesajı olmadığı için günler önceki soruyla
+ * eşleşiyordu. 12 saat "aynı gün / ertesi sabah" cevaplarını korur, proaktif
+ * mesajı eler. Değer BİR SEÇİMDİR, ölçüm değil — iki yönü de test-pinli.
  */
-function precedingGuestMessage(all: HistoryMessage[], answer: HistoryMessage): HistoryMessage | null {
-  let best: HistoryMessage | null = null;
-  for (const m of all) {
-    if (m.conversationId !== answer.conversationId) continue;
-    if (m.direction !== "inbound") continue;
-    if (!m.body || !m.body.trim()) continue;
-    const t = m.createdAt.getTime();
-    const at = answer.createdAt.getTime();
-    if (t > at || (t === at && m.id >= answer.id)) continue;
-    if (!best) { best = m; continue; }
-    const bt = best.createdAt.getTime();
-    if (t > bt || (t === bt && m.id > best.id)) best = m;
+export const PAIR_MAX_GAP_MS = 12 * 60 * 60 * 1000;
+
+/** Eşleştirilmiş bir "soru → cevap" OLAYI (konuşma başına birden çok olabilir). */
+interface AnswerEvent {
+  conversationId: string;
+  propertyId: string;
+  category: string;
+  /** Peş peşe host mesajlarının BİRLEŞİK gövdesi. */
+  answer: string;
+  /** Bu olayın KENDİ sorusu (gösterilen çift gerçek çift olsun diye). */
+  question: string;
+  at: Date;
+  ids: string[];
+}
+
+/**
+ * Konuşmayı soldan sağa yürüyerek GERÇEK soru→cevap olaylarını çıkarır.
+ *
+ * ⚠️ BU BİR ÇIKARIMDIR, KAYIT DEĞİL — `Message.replyToMessageId` YOK (CLAUDE.md
+ * açık iş). O yüzden yön FAIL-CLOSED: belirsizse olay ÜRETİLMEZ. Öneri kaybı
+ * ucuzdur, yanlış kategoride ONAYLI BİLGİ pahalıdır.
+ *
+ * Üç kural (üçü de ölçülmüş kusurdan doğdu):
+ *  ① **Peş peşe giden mesajlar TEK cevaptır.** Host cevabı iki mesaja bölerse
+ *     eskiden İKİ TEKRAR sayılıyor ve `minOccurrences=2` eşiği TEK OLAYLA
+ *     geçiliyordu. Gövdeler birleştirilir (bilgi kaybolmaz), olay bir sayılır.
+ *  ② **Bekleyen misafir bloğu TEK bilgi kategorisi göstermeli.** "Wifi şifresi?"
+ *     + "Otopark var mı?" → host tek cevap yazarsa hangisini cevapladığı
+ *     BİLİNEMEZ; eski kod "en yakın önceki"yi alıp wifi şifresini `parking`
+ *     kategorisine yazıyordu. İki aday → olay DÜŞER. Selamlama gibi
+ *     kategorisiz mesajlar aday SAYILMAZ, yani "Merhaba + wifi şifresi?"
+ *     yaygın hâli korunur.
+ *  ③ **Araya giren HER giden mesaj bekleyen bloğu TÜKETİR.** AI cevapladıysa
+ *     sonraki host mesajı o sorunun cevabı sayılamaz.
+ */
+function extractAnswerEvents(
+  messages: readonly HistoryMessage[],
+  excluded: ReadonlySet<string>,
+  maxGapMs: number,
+): AnswerEvent[] {
+  const byConv = new Map<string, HistoryMessage[]>();
+  for (const m of messages) {
+    if (excluded.has(m.conversationId)) continue;
+    const list = byConv.get(m.conversationId);
+    if (list) list.push(m);
+    else byConv.set(m.conversationId, [m]);
   }
-  return best;
+
+  const events: AnswerEvent[] = [];
+  for (const rows of byConv.values()) {
+    // Deterministik sıra; eşit damgada `id` kopma noktası (QR'da misafir ve bot
+    // satırı aynı TX'te yazılabiliyor — `quality-audit.ts` ile aynı kural).
+    rows.sort((a, b) => a.createdAt.getTime() - b.createdAt.getTime() || a.id.localeCompare(b.id));
+
+    let pending: HistoryMessage[] = [];
+    let i = 0;
+    while (i < rows.length) {
+      if (rows[i].direction === "inbound") {
+        if (rows[i].body?.trim()) pending.push(rows[i]);
+        i += 1;
+        continue;
+      }
+      // ① Giden mesajların peş peşe giden TÜM dizisi tek bir cevap olayıdır.
+      const group: HistoryMessage[] = [];
+      while (i < rows.length && rows[i].direction !== "inbound") {
+        group.push(rows[i]);
+        i += 1;
+      }
+      const parts = group.filter(isHostAuthored);
+      const block = pending;
+      pending = []; // ③ blok her hâlükârda tüketilir (AI cevabı da tüketir).
+      if (!parts.length || !block.length) continue;
+
+      // ② Bekleyen blokta KAÇ FARKLI bilgi kategorisi var? Son geçen kazanır
+      // (cevaba en yakın olan), ama SAYI birden büyükse olay düşer.
+      const candidates = new Map<string, HistoryMessage>();
+      for (const q of block) {
+        const category = INTENT_TO_CATEGORY[classifyFallback(q.body!).intent];
+        if (category) candidates.set(category, q);
+      }
+      if (candidates.size !== 1) continue;
+      const [category, question] = [...candidates][0];
+
+      const gap = parts[0].createdAt.getTime() - question.createdAt.getTime();
+      if (gap < 0 || gap > maxGapMs) continue;
+
+      const last = parts[parts.length - 1];
+      events.push({
+        conversationId: last.conversationId,
+        propertyId: last.propertyId,
+        category,
+        answer: parts.map((p) => (p.body ?? "").trim()).filter(Boolean).join("\n"),
+        question: question.body!,
+        at: last.createdAt,
+        ids: parts.map((p) => p.id),
+      });
+    }
+  }
+  return events;
 }
 
 /**
@@ -196,47 +346,49 @@ export function buildKbSuggestionsFromHistory(
     conversations.filter((c) => c.status === "problem").map((c) => c.id),
   );
 
-  const all = [...messages];
-  type Bucket = { answers: HistoryMessage[]; question: string };
-  const buckets = new Map<string, Bucket>();
+  const events = extractAnswerEvents(messages, excluded, opts.maxPairGapMs ?? PAIR_MAX_GAP_MS);
 
-  for (const answer of all) {
-    if (excluded.has(answer.conversationId)) continue;
-    if (!isHostAuthored(answer)) continue;
-    const question = precedingGuestMessage(all, answer);
-    if (!question?.body) continue;
+  // Ayırıcı "|": cuid ve kategori adları bu karakteri İÇEREMEZ.
+  const keyOf = (propertyId: string, category: string) => `${propertyId}|${category}`;
+  const taken = new Set((opts.existingKb ?? []).map((k) => keyOf(k.propertyId, k.category)));
 
-    const intent = classifyFallback(question.body).intent;
-    const category = INTENT_TO_CATEGORY[intent];
-    if (!category) continue;
-
-    // Ayırıcı "|": cuid ve kategori adları bu karakteri İÇEREMEZ.
-    const key = `${answer.propertyId}|${category}`;
-    const b = buckets.get(key) ?? { answers: [], question: question.body };
-    b.answers.push(answer);
-    buckets.set(key, b);
+  const buckets = new Map<string, AnswerEvent[]>();
+  for (const e of events) {
+    const key = keyOf(e.propertyId, e.category);
+    // 🚨 AI'nın ZATEN okuyabildiği kalem varsa öneri üretilmez (bulgu 2).
+    if (taken.has(key)) continue;
+    const list = buckets.get(key);
+    if (list) list.push(e);
+    else buckets.set(key, [e]);
   }
 
   const out: KbSuggestionFromHistory[] = [];
-  for (const [key, b] of buckets) {
-    if (b.answers.length < minOcc) continue;
+  for (const [key, list] of buckets) {
+    // 🚨 EŞİK KONUŞMA SAYAR, MESAJ DEĞİL (bulgu 1b). "Bu host'un yerleşik
+    // bilgisi mi" sorusunun anlamlı olması için farklı MİSAFİRLERE tekrar
+    // edilmiş olması gerekir; aynı konuşmadaki iki cümle tek olaydır.
+    const conversations = new Set(list.map((e) => e.conversationId));
+    if (conversations.size < minOcc) continue;
     const [propertyId, category] = key.split("|");
     // 🚨 EN YENİ cevap önerilir, en SIK olan değil: host bir şeyi değiştirdiyse
     // (yeni wifi şifresi) eski cevabın çoğunlukta olması onu DOĞRU yapmaz.
-    // Sayım yalnız "bu host'un yerleşik bilgisi mi" eşiği içindir.
-    const sorted = [...b.answers].sort(
-      (x, y) => y.createdAt.getTime() - x.createdAt.getTime() || y.id.localeCompare(x.id),
+    const sorted = [...list].sort(
+      (x, y) => y.at.getTime() - x.at.getTime() || y.ids[0].localeCompare(x.ids[0]),
     );
     const newest = sorted[0];
     const guestName = opts.guestNamesByConversation?.[newest.conversationId];
+    // 🚨 SORU DA MASKELENİR (bulgu 3): `exampleQuestion` misafirin KENDİ
+    // metnidir ve cevapla aynı ekranda gösterilir; eskiden ham gidiyordu.
+    const answer = clip(maskGuestName(newest.answer, guestName), SUGGESTION_MAX_CHARS);
     out.push({
       propertyId,
       category,
-      answer: clip(maskGuestName(newest.body ?? "", guestName), SUGGESTION_MAX_CHARS),
-      occurrences: b.answers.length,
-      lastAnsweredAt: newest.createdAt,
-      sourceMessageIds: sorted.map((m) => m.id),
-      exampleQuestion: clip(b.question, 200),
+      answer,
+      occurrences: conversations.size,
+      lastAnsweredAt: newest.at,
+      sourceMessageIds: sorted.flatMap((e) => e.ids),
+      exampleQuestion: clip(maskGuestName(newest.question, guestName), 200),
+      sensitiveClasses: sensitiveClassesIn(answer),
     });
   }
   // Deterministik sıra: çok cevaplanan önce, sonra mülk/kategori adı.

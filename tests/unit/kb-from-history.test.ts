@@ -3,6 +3,7 @@ import {
   buildKbSuggestionsFromHistory,
   isHostAuthored,
   maskGuestName,
+  sensitiveClassesIn,
   INTENT_TO_CATEGORY,
   SUGGESTION_MAX_CHARS,
   type HistoryMessage,
@@ -186,12 +187,195 @@ describe("🚨 KURAL ③ — KVKK: misafir adı KB'ye SIZMAZ", () => {
     expect(maskGuestName("metin", "")).toBe("metin");
   });
 
+  it("🚨 SOYADI ve İKİNCİ ÖN AD da temizlenir (eskiden yalnız İLK kelime)", () => {
+    // Ölçüm (09-18 ajanı): 25 gerçekçi metinde misafirin TAM adı hiçbirinde
+    // temizlenmiyordu; "Ömer Faruk Tan" → yalnız "Ömer" düşüyordu.
+    expect(maskGuestName("Ömer Faruk Tan adına kayıt açtım.", "Ömer Faruk Tan")).toBe("{isim} adına kayıt açtım.");
+    expect(maskGuestName("Ayşe Yılmaz'ın faturası hazır.", "Ayşe Yılmaz")).toBe("{isim}'ın faturası hazır.");
+    expect(maskGuestName("Yılmaz Bey, hoş geldiniz.", "Ayşe Yılmaz")).toBe("{isim} Bey, hoş geldiniz.");
+  });
+
+  it("🚨 KISA PARÇALI TAM AD da temizlenir (eskiden maskeleme KOMPLE kapanıyordu)", () => {
+    // Eski kod `first.length < 3` görünce HİÇBİR ŞEY yapmıyordu; "Li Wei" gibi
+    // adlarda metin ham kalıyordu. Tam ad birlikte AYIRT EDİCİDİR.
+    expect(maskGuestName("Li Wei için not bıraktım.", "Li Wei")).toBe("{isim} için not bıraktım.");
+    // Karşı yön KORUNDU: tek başına kısa parça ikame edilmez (yanlış ikame riski).
+    expect(maskGuestName("Al bunu.", "Al")).toBe("Al bunu.");
+    expect(maskGuestName("Li bunu aldı.", "Li Wei")).toBe("Li bunu aldı.");
+  });
+
+  it("hassas sınıflar İŞARETLENİR, içerik BOZULMAZ", () => {
+    // 🚨 Sır SİLİNMEZ: bu bacağın işi "wifi şifresi X" cümlesini bilgiye
+    // çevirmektir. Uyarı KARARIN VERİLECEĞİ YERE konur, metne değil.
+    expect(sensitiveClassesIn("Sorularınız için 0532 118 4477 numarasını arayın.")).toContain("phone");
+    expect(sensitiveClassesIn("Bana host.lale@example.com adresinden yazın.")).toContain("email");
+    expect(sensitiveClassesIn("Rezervasyon numaranız HMX8842193.")).toContain("idNumber");
+    // Karşı yön: sıradan bir wifi cevabı hassas SAYILMAZ (yoksa her öneri uyarılı olurdu).
+    expect(sensitiveClassesIn("Ağ adı LaleApt, şifre 12345678.")).toEqual([]);
+  });
+
+  it("öneri hassas sınıfları TAŞIR (uyarı host'a ulaşsın)", () => {
+    const out = buildKbSuggestionsFromHistory([
+      ...turn("Otopark var mı?", "Otopark altta; sorun olursa 0532 118 4477 arayın.", { conversationId: "cA" }),
+      ...turn("park yeri var mı", "Otopark altta; sorun olursa 0532 118 4477 arayın.", { conversationId: "cB" }),
+    ]);
+    expect(out[0].sensitiveClasses).toContain("phone");
+    expect(out[0].answer, "içerik bozulmadı").toContain("0532");
+  });
+
   it("ad verilmezse metin DEĞİŞMEZ (uydurma ikame yok)", () => {
     const out = buildKbSuggestionsFromHistory([
       ...turn("wifi şifresi?", "Merhaba Ayşe, şifre 12345678.", { conversationId: "cA" }),
       ...turn("wifi şifresi?", "Merhaba Ayşe, şifre 12345678.", { conversationId: "cB" }),
     ]);
     expect(out[0].answer).toContain("Ayşe");
+  });
+});
+
+// ---------------------------------------------------------------------------
+// 🚨 EŞLEŞTİRME DÜRÜSTLÜĞÜ (dış denetim 09-18, bulgu 1 — KODDA DOĞRULANDI).
+//
+// `Message.replyToMessageId` YOK, yani "bu cevap ŞU soruya verildi" bağı bir
+// ÇIKARIMDIR. Çıkarımın yanlış olduğu ÜÇ ölçülmüş sınıf vardı ve üçünde de
+// bedel aynı: YANLIŞ KATEGORİDE ONAYLI BİLGİ. Fail-closed yön seçildi —
+// belirsizse öneri ÜRETİLMEZ (öneri kaybı ucuz, yanlış bilgi pahalı).
+// ---------------------------------------------------------------------------
+describe("🚨 eşleştirme dürüstlüğü — belirsizse ÖNERİ YOK", () => {
+  it("🚨 ARAYA GİREN FARKLI KONU cevabı ÇALAMAZ (wifi cevabı parking'e yazılıyordu)", () => {
+    // Ölçülen senaryo: misafir önce wifi sorar, sonra otopark sorar, host
+    // wifi'yi cevaplar. Eski kod "en yakın önceki misafir mesajı" dediği için
+    // cevabı OTOPARK sorusuyla eşleştiriyor ve şifreyi `parking` kategorisine
+    // yazıyordu.
+    const conv = (id: string) => [
+      msg({ direction: "inbound", body: "Wifi şifresi nedir?", conversationId: id }),
+      msg({ direction: "inbound", body: "Otopark var mı?", conversationId: id }),
+      msg({ direction: "outbound", body: "Şifre 12345678.", conversationId: id }),
+    ];
+    const out = buildKbSuggestionsFromHistory([...conv("cA"), ...conv("cB")]);
+    expect(out, "iki AYRI bilgi kategorisi bekliyor → hangisine cevap verildiği BİLİNEMEZ").toEqual([]);
+  });
+
+  it("selamlama araya girse bile TEK bilgi kategorisi varsa eşleşme SÜRER", () => {
+    // Karşı yön: "Merhaba" + "wifi şifresi?" YAYGIN ve belirsiz DEĞİL —
+    // selamlama hiçbir bilgi kategorisine eşlenmez, geriye tek aday kalır.
+    const conv = (id: string) => [
+      msg({ direction: "inbound", body: "Merhaba, iyi akşamlar.", conversationId: id }),
+      msg({ direction: "inbound", body: "Wifi şifresi nedir?", conversationId: id }),
+      msg({ direction: "outbound", body: "Şifre 12345678.", conversationId: id }),
+    ];
+    const out = buildKbSuggestionsFromHistory([...conv("cA"), ...conv("cB")]);
+    expect(out.map((s) => s.category)).toEqual(["wifi"]);
+  });
+
+  it("🚨 PEŞ PEŞE HOST MESAJI TEK CEVAPTIR — tek olay eşiği geçemez", () => {
+    // Host cevabı iki mesaj hâlinde yazıyor. Eski kod bunu İKİ TEKRAR sayıyor
+    // ve `minOccurrences=2` eşiği TEK OLAYLA geçiliyordu.
+    const out = buildKbSuggestionsFromHistory([
+      msg({ direction: "inbound", body: "Wifi şifresi nedir?", conversationId: "cA" }),
+      msg({ direction: "outbound", body: "Şifre 12345678.", conversationId: "cA" }),
+      msg({ direction: "outbound", body: "Ağ adı LaleNet.", conversationId: "cA" }),
+    ]);
+    expect(out, "tek soru + iki parçalı cevap = BİR olay").toEqual([]);
+  });
+
+  it("peş peşe host mesajlarının İÇERİĞİ birleşir (bilgi kaybolmaz)", () => {
+    const conv = (id: string) => [
+      msg({ direction: "inbound", body: "Wifi şifresi nedir?", conversationId: id }),
+      msg({ direction: "outbound", body: "Şifre 12345678.", conversationId: id }),
+      msg({ direction: "outbound", body: "Ağ adı LaleNet.", conversationId: id }),
+    ];
+    const out = buildKbSuggestionsFromHistory([...conv("cA"), ...conv("cB")]);
+    expect(out).toHaveLength(1);
+    expect(out[0].answer).toContain("12345678");
+    expect(out[0].answer, "ikinci parça da bilgidir").toContain("LaleNet");
+    expect(out[0].occurrences, "iki KONUŞMA = iki olay").toBe(2);
+  });
+
+  it("🚨 ZAMAN PENCERESİ — günler sonraki PROAKTİF host mesajı cevap sayılmaz", () => {
+    // Ölçülen kusur: host çıkıştan günler sonra "değerlendirme bırakır mısınız?"
+    // yazıyor; arada misafir mesajı olmadığı için günler önceki soruyla
+    // eşleşiyordu.
+    const far = (id: string) => {
+      const q = msg({ direction: "inbound", body: "Otopark var mı?", conversationId: id });
+      const a = msg({ direction: "outbound", body: "Değerlendirme bırakır mısınız?", conversationId: id });
+      a.createdAt = new Date(q.createdAt.getTime() + 40 * 86_400_000);
+      return [q, a];
+    };
+    const out = buildKbSuggestionsFromHistory([...far("cA"), ...far("cB")]);
+    expect(out).toEqual([]);
+  });
+
+  it("🚨 GÖSTERİLEN ÇİFT GERÇEK ÇİFTTİR — en yeni cevabın KENDİ sorusu basılır", () => {
+    // Eski kod kovayı İLK açan soruyu saklıyor ama EN YENİ cevabı basıyordu:
+    // ekranda hiç var olmamış bir çift görünüyordu.
+    const out = buildKbSuggestionsFromHistory([
+      ...turn("wifi şifresi ESKİSORU nedir?", "Şifre ESKI1111.", { conversationId: "cA" }),
+      ...turn("wifi parolası YENİSORU ne acaba", "Şifre YENI2222.", { conversationId: "cB" }),
+    ]);
+    expect(out).toHaveLength(1);
+    expect(out[0].answer).toContain("YENI2222");
+    expect(out[0].exampleQuestion, "gösterilen soru, gösterilen cevabın kendi sorusu olmalı").toContain("YENİSORU");
+    expect(out[0].exampleQuestion).not.toContain("ESKİSORU");
+  });
+
+  it("occurrences KONUŞMA sayar, MESAJ değil (aynı misafir iki kez sorarsa bir olay)", () => {
+    const out = buildKbSuggestionsFromHistory([
+      ...turn("wifi şifresi?", "Şifre AAA.", { conversationId: "cA" }),
+      ...turn("wifi şifresi tekrar?", "Şifre AAA.", { conversationId: "cA" }),
+    ]);
+    expect(out, "tek konuşma = tek olay; eşik 2 geçilmemeli").toEqual([]);
+  });
+});
+
+// ---------------------------------------------------------------------------
+// 🚨 MEVCUT KB'YE KARŞI FİLTRE (dış denetim 09-18, bulgu 2).
+// `existingKb` çekiliyordu ama YALNIZ şablon bacağına veriliyordu → host öneriyi
+// ekledikten sonra "Yeniden tara" deyince AYNI öneri geri geliyor, ikinci kez
+// eklenirse aynı kategoride ÇELİŞKİLİ iki aktif kalem oluşuyordu.
+// ---------------------------------------------------------------------------
+describe("🚨 mevcut KB ile çakışan öneri ÜRETİLMEZ", () => {
+  const twice = [
+    ...turn("wifi şifresi?", "Şifre AAA.", { conversationId: "cA" }),
+    ...turn("wifi şifresi?", "Şifre AAA.", { conversationId: "cB" }),
+  ];
+
+  it("aynı mülk+kategoride AI'nın okuyabildiği kalem varsa öneri düşer", () => {
+    const out = buildKbSuggestionsFromHistory(twice, [], {
+      existingKb: [{ propertyId: "p1", category: "wifi" }],
+    });
+    expect(out).toEqual([]);
+  });
+
+  it("BAŞKA mülkün aynı kategorisi bastırmaz (kapsam mülk düzeyinde)", () => {
+    const out = buildKbSuggestionsFromHistory(twice, [], {
+      existingKb: [{ propertyId: "p2", category: "wifi" }],
+    });
+    expect(out.map((s) => s.category)).toEqual(["wifi"]);
+  });
+
+  it("existingKb verilmezse davranış BİREBİR eski (sessiz daralma yok)", () => {
+    expect(buildKbSuggestionsFromHistory(twice).map((s) => s.category)).toEqual(["wifi"]);
+  });
+});
+
+// ---------------------------------------------------------------------------
+// 🚨 KVKK — MİSAFİRİN KENDİ METNİ DE MASKELENİR (dış denetim 09-18, bulgu 3).
+// `maskGuestName` YALNIZ `answer`a uygulanıyordu; `exampleQuestion` misafirin
+// HAM metnidir ve aynı ekranda gösterilir.
+// ---------------------------------------------------------------------------
+describe("🚨 KVKK — örnek soru da maskelenir", () => {
+  it("exampleQuestion'daki misafir adı {isim}'e çevrilir", () => {
+    const out = buildKbSuggestionsFromHistory(
+      [
+        ...turn("Ben Ayşe, wifi şifresi nedir?", "Şifre 12345678.", { conversationId: "cA" }),
+        ...turn("Ben Ayşe, wifi şifresi nedir?", "Şifre 12345678.", { conversationId: "cB" }),
+      ],
+      [],
+      { guestNamesByConversation: { cA: "Ayşe Yılmaz", cB: "Ayşe Yılmaz" } },
+    );
+    expect(out).toHaveLength(1);
+    expect(out[0].exampleQuestion, "misafirin adı host'un ekranına ham gidiyor").not.toContain("Ayşe");
+    expect(out[0].exampleQuestion).toContain("{isim}");
   });
 });
 

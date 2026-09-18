@@ -10,6 +10,13 @@
 // same authenticated path the external scheduler uses. Both triggers are
 // idempotent and guarded by an in-process lock, so running both is safe.
 
+// ⚠️ TEK STATİK IMPORT ve bilinçli: `retrieval/flag.ts` bir YAPRAK modüldür
+// (hiçbir şey import etmez, Prisma/nodemailer taşımaz), yani yukarıdaki "ağır
+// server-only modülleri bundle'a sokma" kuralını ihlal etmez. Env'i doğrudan
+// okumak da SEÇENEK DEĞİL: `KB_RETRIEVAL_MODE`un tek okuyucusunun flag.ts
+// olduğu mekanik olarak pinli (kb-retrieval-evidence-prompt.test.ts).
+import { kbRetrievalModeInfo } from "@/lib/ai/retrieval/flag";
+
 const INTERVAL_MS = 2 * 60 * 1000; // 2 minutes
 
 // NOTE: critical-env validation (AUTH_SECRET / ENCRYPTION_KEY) is NOT done here.
@@ -23,6 +30,24 @@ export async function register() {
   // Only on the Node.js runtime, only in production, only once per process.
   if (process.env.NEXT_RUNTIME !== "nodejs") return;
   if (process.env.NODE_ENV !== "production") return;
+
+  // 🚨 ETKİN RETRIEVAL MODU BOOT'TA YAZILIR (dış denetim 09-18, bulgu 6).
+  // `KB_RETRIEVAL_MODE` bir ACİL DURDURMA düğmesidir ama etkin modu gözlemenin
+  // tek yolu bir mesaj aktıktan SONRAKİ `RiskEvent` kaydıydı. Olay anında
+  // "kapattım mı?" sorusu boot logundan yanıtlanabilmeli. Tanınmayan değer
+  // (`legcy`, `kapali`) davranışı DEĞİŞTİRMEZ — hibrit kalır, gerekçe
+  // `flag.ts`te ölçülü — ama artık GÜRÜLTÜLÜ olarak görünür.
+  // ⚠️ Bu blok cron kapılarından ÖNCE: `CRON_SECRET` yokken de yazılmalı.
+  const kb = kbRetrievalModeInfo();
+  if (!kb.recognized) {
+    console.warn(
+      `[kb-retrieval] KB_RETRIEVAL_MODE="${kb.raw}" TANINMADI — etkin mod: ${kb.mode}. ` +
+        `Kapatmak için: legacy | off | 0 | false | no | disabled`,
+    );
+  } else {
+    console.log(`[kb-retrieval] mode=${kb.mode}${kb.raw ? "" : " (varsayılan)"}`);
+  }
+
   // Opt-out hatch if you rely solely on an external scheduler.
   if (process.env.INTERNAL_CRON_DISABLED === "1") return;
   // Needs the shared secret to call the protected endpoint.

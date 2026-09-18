@@ -13,6 +13,7 @@ import {
   escalationReply,
   isPhysicalEmergency,
   buildGuestChatContextWindow,
+  GUEST_CHAT_MESSAGE_WINDOW,
   type GuestChatContext,
   type GuestChatDb,
 } from "@/lib/guest-chat";
@@ -307,12 +308,30 @@ export async function GET(req: NextRequest, { params }: { params: Promise<{ toke
     where: { propertyId: ctx.property.id, externalReservationId: marker },
     select: {
       messages: {
-        orderBy: { createdAt: "asc" },
+        // 🚨 PENCERE (dış denetim 09-18, bulgu 4). Bu uç TAVANSIZDI ve istemci
+        // 5 saniyede bir çağırıyor: konuşmanın TAMAMI dakikada 12 kez hem
+        // sorgulanıyor hem tel üzerinden taşınıyordu.
+        //
+        // 🚨 CURSOR (`afterId`) DEĞİL PENCERE — üç ölçülmüş sebep:
+        //  ① İstemci zaten pencere-uyumlu: listeyi TOPTAN değiştiriyor
+        //    (`setMessages(data.messages)`), yani sunucu tarafı tek başına
+        //    yeter, istemcide birleştirme/boşluk-doldurma mantığı GEREKMEZ.
+        //  ② `createdAt` üzerinde cursor GÜVENSİZ: QR yolu misafiri `now`,
+        //    botu `now+1ms` damgalıyor ve bu düzeltmeden ÖNCEKİ satırların
+        //    damgaları EŞİT — eşit damgada cursor satır ATLAR.
+        //  ③ Doğru desen repoda ZATEN yazılı ve gerekçeli: host tarafındaki
+        //    `guest-chats/[id]` sayfası aynı işi `take` + TAM SIRA ile yapıyor.
+        //    Halka açık misafir rotasına uygulanmamıştı.
+        //
+        // TAM SIRA (`createdAt` + `id`): eşit damgada pencere sınırı kaymasın.
+        orderBy: [{ createdAt: "desc" }, { id: "desc" }],
+        take: GUEST_CHAT_MESSAGE_WINDOW,
         select: { id: true, direction: true, senderName: true, authorType: true, systemEventType: true, body: true },
       },
     },
   });
-  const messages = (convo?.messages ?? []).map((m) => ({
+  // En yeni N alındı → kronolojiye geri çevrilir (istemci sırayı değiştirmez).
+  const messages = (convo?.messages ?? []).slice().reverse().map((m) => ({
     id: m.id,
     // Reliable, typed role (authorType) — never the message text or host senderName.
     role: guestChatDisplayRole(m),

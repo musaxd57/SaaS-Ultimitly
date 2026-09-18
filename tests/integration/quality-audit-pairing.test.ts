@@ -25,7 +25,21 @@ import { collectAuditSample, buildAuditPrompt } from "@/lib/quality-audit";
 // proaktif kanıtı DEĞİLDİR.
 // ---------------------------------------------------------------------------
 
-const T = new Date("2026-09-08T09:00:00.000Z");
+/**
+ * 🚨 ÇAPAYA GÖRE DEĞİL, ŞİMDİYE GÖRE (zaman bombası düzeltildi 09-18).
+ *
+ * Buradaki değer `2026-09-08T09:00:00.000Z` olarak SABİTLENMİŞTİ ve
+ * `collectAuditSample`ın varsayılan penceresi **7 GÜNDÜR**
+ * (`quality-audit.ts` `clampDays` → 7, `since = Date.now() - days`).
+ * Yani fikstür 2026-09-15'te kendiliğinden pencerenin DIŞINA düştü ve bu
+ * dosyanın 4 testi, kodda hiçbir şey değişmeden KIRMIZIYA döndü —
+ * teşhis edilirken de "son değişikliğin gerilemesi" gibi görünüyordu.
+ *
+ * Testin İDDİASI zamana bağlı DEĞİL (aynı `createdAt` damgasında eşleştirme,
+ * proaktif/eşleşmemiş ayrımı), o yüzden çapa da olmamalı. Göreli offsetler
+ * (±60 sn / ±120 sn) aynen korunur; yalnız taban şimdiye bağlandı.
+ */
+const T = new Date(Date.now() - 2 * 86_400_000);
 
 async function conv(propertyId: string) {
   return prisma.conversation.create({

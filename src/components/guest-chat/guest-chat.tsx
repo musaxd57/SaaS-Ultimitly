@@ -15,6 +15,14 @@ interface ChatMessage {
 // unauthenticated QR page. The guest is physically in the unit, so no
 // per-property label is needed to orient them.
 const GUEST_ASSISTANT_TITLE = "Lixus AI Misafir Asistanı";
+/**
+ * Kaç ARDIŞIK başarısız yenilemeden sonra misafire söylenir.
+ *
+ * 3 = ~15 saniye. Tek seferlik ağ titremesi ekrana uyarı basmamalı; kalıcı
+ * durma (429 kotası, sunucu arızası) ise SÖYLENMELİ — eskiden sessizce
+ * yutuluyordu ve sohbet hiçbir açıklama olmadan donuyordu.
+ */
+const STALL_AFTER_FAILURES = 3;
 
 /**
  * Public guest concierge chat UI (mobile-first). Two-way: it loads the stay's
@@ -48,6 +56,9 @@ export function GuestChat({ token }: { token: string }) {
   // poll reads to avoid clobbering the optimistic bubble mid-send.
   const loadSeq = useRef(0);
   const sendingRef = useRef(false);
+  // Üst üste başarısız poll sayacı → "güncellenmiyor" uyarısı (429/5xx/ağ).
+  const failuresRef = useRef(0);
+  const [stalled, setStalled] = useState(false);
   // Per-composed-message idempotency id (Codex 07-24 #2, composer parity): a
   // connection-loss retry of the SAME text reuses one id, so the server dedupes
   // instead of recording the guest message + AI reply twice. Editing the text
@@ -67,7 +78,19 @@ export function GuestChat({ token }: { token: string }) {
         setClosed(true);
         return;
       }
-      if (!res.ok) return; // 5xx/ağ: geçici, bir sonraki poll tekrar dener
+      if (!res.ok) {
+        // 🚨 SESSİZ DURMA GÖRÜNÜR OLMALI (dış denetim 09-18, bulgu 4).
+        // GET kotası IP başına 60/dk ve her sohbet 12/dk yakıyor → aynı IP'de
+        // (bina NAT'ı, aile) BEŞ cihaz tavanı doldurur, ALTINCISI 429 alır ve
+        // eski kod onu sessizce yutuyordu: misafirin sohbeti hiçbir uyarı
+        // olmadan güncellenmeyi bırakıyordu. Üst üste birkaç başarısızlıktan
+        // sonra durum ekranda söylenir; tek seferlik titremede söylenmez.
+        failuresRef.current += 1;
+        if (failuresRef.current >= STALL_AFTER_FAILURES) setStalled(true);
+        return; // 5xx/ağ/429: geçici, bir sonraki poll tekrar dener
+      }
+      failuresRef.current = 0;
+      setStalled(false);
       const data = (await res.json()) as {
         open?: boolean;
         boundElsewhere?: boolean;
@@ -95,17 +118,38 @@ export function GuestChat({ token }: { token: string }) {
       setClosed(false);
       if (Array.isArray(data.messages)) setMessages(data.messages);
     } catch {
+      failuresRef.current += 1;
+      if (failuresRef.current >= STALL_AFTER_FAILURES) setStalled(true);
       /* transient — the next poll retries */
     }
   }, [token]);
 
   useEffect(() => {
+    // 🚨 TERMİNAL DURUMDA POLL DURUR (dış denetim 09-18, bulgu 4). Eski kod
+    // interval'i YALNIZ unmount'ta temizliyordu: konaklama bittikten ya da QR
+    // başka cihaza bağlandıktan GÜNLER sonra bile, sekme açık kaldığı sürece
+    // 5 saniyede bir istek gidiyordu. Bu ekranlar kapanış afişi gösterir;
+    // arkalarında yenilenecek bir şey YOKTUR.
+    if (closed || boundElsewhere) return;
+
+    // 🚨 GÖRÜNÜRLÜK KAPISI — ürünün KENDİ standardı, bu yüzeye uygulanmamıştı
+    // (`inbox/auto-refresh.tsx` aynı işi doğru yapıyor). Misafir telefonu cebine
+    // koyduğunda arka plan sekmesi sunucuya poll başına ~6 DB turu (biri YAZMA:
+    // hız-limiti sayacı) bindirmeye devam ediyordu.
+    const visible = () => typeof document === "undefined" || document.visibilityState === "visible";
+    const tick = () => {
+      // Gönderim sürerken atla: ön-gönderim anlık görüntüsü iyimser balonu ezmesin.
+      if (!sendingRef.current && visible()) void loadHistory();
+    };
     void loadHistory();
-    // Skip the poll while a send is in flight so its pre-message snapshot can't
-    // overwrite the optimistic bubble; the post-send loadHistory refreshes it.
-    const t = setInterval(() => { if (!sendingRef.current) void loadHistory(); }, 5000);
-    return () => clearInterval(t);
-  }, [loadHistory]);
+    const t = setInterval(tick, 5000);
+    // Sekmeye dönüldüğünde bir sonraki turu BEKLEME — hemen yakala.
+    document.addEventListener("visibilitychange", tick);
+    return () => {
+      clearInterval(t);
+      document.removeEventListener("visibilitychange", tick);
+    };
+  }, [loadHistory, closed, boundElsewhere]);
 
   useEffect(() => {
     endRef.current?.scrollIntoView?.({ behavior: "smooth" });
@@ -396,6 +440,19 @@ export function GuestChat({ token }: { token: string }) {
         ) : null}
         <div ref={endRef} />
       </div>
+
+      {stalled && !closed && !boundElsewhere ? (
+        // 🚨 Sessiz durma yerine DÜRÜST satır. Ne söz veriyoruz ne suçluyoruz:
+        // yalnız gözlemlenebilir olguyu söylüyoruz (yeni mesaj gelmiyor) ve
+        // misafirin yapabileceği tek şeyi öneriyoruz. Yazma kutusu AÇIK kalır —
+        // gönderim ayrı bir uçtan gider ve çalışıyor olabilir.
+        <div
+          role="status"
+          className="border-t border-border bg-muted/50 px-3 py-2 text-center text-xs text-muted-foreground"
+        >
+          Yeni mesajlar şu an alınamıyor. Bağlantınızı kontrol edip sayfayı yenileyebilirsiniz.
+        </div>
+      ) : null}
 
       {!closed && !boundElsewhere ? (
         <form

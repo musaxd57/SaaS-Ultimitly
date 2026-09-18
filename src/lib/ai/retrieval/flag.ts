@@ -39,7 +39,47 @@ const OFF_SPELLINGS: ReadonlySet<string> = new Set([
   "disabled",
 ]);
 
+/** Hibriti AÇIKÇA isteyen yazımlar. Tanınmayan değeri AYIRT ETMEK için gerekir. */
+const ON_SPELLINGS: ReadonlySet<string> = new Set([
+  "hybrid",
+  "on",
+  "1",
+  "true",
+  "yes",
+  "enabled",
+]);
+
 export function kbRetrievalMode(): KbRetrievalMode {
   const raw = (process.env.KB_RETRIEVAL_MODE ?? "").trim().toLowerCase();
   return OFF_SPELLINGS.has(raw) ? "legacy" : "hybrid";
+}
+
+/**
+ * Teşhis görünümü: etkin mod + değerin TANINIP TANINMADIĞI.
+ *
+ * 🚨 DIŞ DENETİM 09-18, BULGU 6 — İDDİA DOĞRU, ÖNERİ REDDEDİLDİ (ölçümle).
+ * İddia: `KB_RETRIEVAL_MODE=legcy` yazan operatör kapattığını sanır, sistem
+ * hibrit kalır. DOĞRU. Önerilen çözüm ("tanınmayan değer legacy'ye düşsün")
+ * ÖLÇÜLDÜ ve REDDEDİLDİ: 20 gerçekçi "RAG açık olsun" değerinden (`true`, `1`,
+ * `on`, `enabled`, `acik`, `hibrit`, `rag`…) **12–17'si sessizce legacy'ye
+ * düşerdi**, ve sessiz legacy'nin ölçülmüş bedeli host'un yazdığı bilginin
+ * YARISININ isteme hiç girmemesidir (inPrompt legacy %51 ↔ hibrit %99–100,
+ * `docs/olcum/hibrit-yan-etki-2026-09-11.md`). Yani öneri, kapatmak isteyenin
+ * hatasını düzeltirken AÇIK KALSIN diyenin hatasını sessiz bir ürün
+ * gerilemesine çeviriyor — daha pahalı hata sınıfı.
+ *
+ * 🚨 GERÇEK BOŞLUK YÖN DEĞİL, GÖRÜNÜRLÜKTÜ: bugün ne `verify-env` bu bayrağı
+ * doğruluyor, ne boot etkin modu yazıyor, ne de `.env.example`'da geçiyor —
+ * yani operatörün "kapandı mı" sorusuna bakabileceği TEK yer bir mesaj
+ * aktıktan sonraki `RiskEvent.kbEvidenceJson`du. Üçü de kapatıldı; yazım
+ * hatası artık boot'ta GÜRÜLTÜLÜ olarak görünür, davranış DEĞİŞMEDEN.
+ */
+export function kbRetrievalModeInfo(): { mode: KbRetrievalMode; raw: string; recognized: boolean } {
+  const raw = (process.env.KB_RETRIEVAL_MODE ?? "").trim().toLowerCase();
+  return {
+    mode: OFF_SPELLINGS.has(raw) ? "legacy" : "hybrid",
+    raw,
+    // Boş/ayarsız = varsayılanı KASITLI kabul etmek; yazım hatası değildir.
+    recognized: raw === "" || OFF_SPELLINGS.has(raw) || ON_SPELLINGS.has(raw),
+  };
 }

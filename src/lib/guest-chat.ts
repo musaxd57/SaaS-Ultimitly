@@ -55,6 +55,26 @@ export const QR_SECRET_CATEGORIES = ["wifi", "checkin"] as const;
 export const AI_RESUME_MARKER = LEGACY_AI_RESUME_SENDER;
 
 /**
+ * Misafire dönen mesaj penceresi (en yeni N) — `GET /api/chat/[token]`.
+ *
+ * 🚨 DIŞ DENETİM 09-18, BULGU 4: o uç mesajları `take` OLMADAN çekiyordu ve
+ * istemci 5 saniyede bir çağırıyor — konuşmanın TAMAMI dakikada 12 kez hem
+ * sorgulanıyor hem tel üzerinden taşınıyordu. Ölçülen asıl maliyet bant
+ * genişliği DEĞİL SUNUCU: poll başına ~6 DB turu, biri YAZMA (hız-limiti
+ * sayacı UPSERT) → açık sohbet başına dakikada ~72 sorgu / 12 yazma.
+ *
+ * Host tarafındaki kardeş sayfa (`guest-chats/[id]`) ile AYNI gerekçe ve aynı
+ * büyüklük sınıfı: *"bir QR konaklaması bunu neredeyse hiç aşmaz."* Tipik QR
+ * konaklaması 10–40 mesaj; 200 rahat bir tavan. Aşan konuşmada misafir en yeni
+ * 200'ü görür — eski kısım için sayfalama AYRI iştir (bugün hiçbir yüzey
+ * istemiyor ve misafirin ihtiyacı sohbetin SONUDUR).
+ *
+ * ⚠️ Rota dosyasında DURAMAZ: Next.js `route.ts`ten yalnız bilinen rota
+ * alanlarını export etmeye izin verir (bu dosyanın kendi yorumunun dediği gibi).
+ */
+export const GUEST_CHAT_MESSAGE_WINDOW = 200;
+
+/**
  * Is the QR AI currently PAUSED for this thread? True when the most recent handoff
  * event is a host reply not yet followed by a system resume event. Keys off the
  * reliable authorType (falls back to the legacy derivation for any pre-migration /

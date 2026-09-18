@@ -8,6 +8,7 @@ vi.mock("@/lib/report-error", async (orig) => {
 import { reportError } from "@/lib/report-error";
 import {
   kbRetrievalMode,
+  kbRetrievalModeInfo,
   selectKbForPrompt,
   splitQuestions,
   MAX_CHUNKS_PER_ITEM,
@@ -93,6 +94,42 @@ describe("bayrak", () => {
     expect(r.mode).toBe("hybrid");
     expect(r.selection).toBe("retrieved");
     expect(r.items.length).toBeLessThan(items.length);
+  });
+
+  // ---------------------------------------------------------------------
+  // 🚨 YAZIM HATASI GÖRÜNÜR OLMALI (dış denetim 09-18, bulgu 6).
+  // Denetim "tanınmayan değer legacy'ye düşsün" dedi; ÖLÇÜLDÜ ve REDDEDİLDİ
+  // (20 gerçekçi "açık olsun" değerinin 12–17'si sessizce RAG'ı kapatırdı).
+  // Kabul edilen kısım TEŞHİS: davranış aynı kalır, ama tanınmayan değer
+  // `recognized:false` ile işaretlenir ve boot logunda uyarı basılır.
+  // ---------------------------------------------------------------------
+  it("🚨 tanınmayan değer DAVRANIŞI DEĞİŞTİRMEZ ama İŞARETLENİR", () => {
+    for (const typo of ["legcy", "kapali", "disable", "none", "stop"]) {
+      vi.stubEnv("KB_RETRIEVAL_MODE", typo);
+      const info = kbRetrievalModeInfo();
+      expect(info.mode, `"${typo}" sessizce RAG'ı kapatmamalı`).toBe("hybrid");
+      expect(info.recognized, `"${typo}" yazım hatası olarak görünmeli`).toBe(false);
+    }
+  });
+
+  it("tanınan değerler (boş · açma · kapatma) uyarı ÜRETMEZ", () => {
+    for (const ok of ["", "hybrid", "HYBRID", " on ", "1", "true", "yes", "enabled"]) {
+      vi.stubEnv("KB_RETRIEVAL_MODE", ok);
+      expect(kbRetrievalModeInfo(), `"${ok}"`).toMatchObject({ mode: "hybrid", recognized: true });
+    }
+    for (const off of ["legacy", "off", "0", "false", "no", "disabled"]) {
+      vi.stubEnv("KB_RETRIEVAL_MODE", off);
+      expect(kbRetrievalModeInfo(), `"${off}"`).toMatchObject({ mode: "legacy", recognized: true });
+    }
+  });
+
+  it("teşhis görünümü ile GERÇEK seçici AYRIŞAMAZ (tek kaynak)", () => {
+    // Anti-vakumluk: `kbRetrievalModeInfo` ayrı bir mantık kopyası olsaydı
+    // uyarı doğru, davranış yanlış olabilirdi.
+    for (const v of ["", "legacy", "legcy", "hybrid", "OFF", "acik"]) {
+      vi.stubEnv("KB_RETRIEVAL_MODE", v);
+      expect(kbRetrievalModeInfo().mode, `"${v}"`).toBe(kbRetrievalMode());
+    }
   });
 });
 
