@@ -178,7 +178,22 @@ try {
   $env:DATABASE_URL = "postgresql://postgres@127.0.0.1:5599/prova"
   npx tsx scripts/verify-calendar-url-enc.ts --post-contract
   if ($LASTEXITCODE -ne 0) { throw "POST-CONTRACT dogrulama BASARISIZ (exit=$LASTEXITCODE)" }
-  Write-Host "PROVA TAMAM - restore + migrationlar + tablolar + sifreli takvim alanlari DOGRULANDI" -ForegroundColor Green
+  # !! VAKUMLU YESIL YASAK (2026-09-19 canli provasinin dersi).
+  # CalendarSource BOSKEN verify --post-contract "TEMIZ" der ve eski son satir
+  # "sifreli takvim alanlari DOGRULANDI" diye YESIL basiyordu - oysa dogrulanan
+  # HICBIR SEY yok (0 satirda "hepsi cozuluyor" bos bir dogrudur). Bu, bir
+  # operatorun uc ay sonra "anahtarim calisiyor" diye okuyacagi bir YALANDI.
+  # Dosyanin kendi yorumu bu tuzagi 40 satir yukarida zaten yaziyordu; eksik
+  # olan onu SON MESAJA yansitmakti. Anahtar kaniti ancak sifreli satir VARSA
+  # alinir; yoksa bunu ACIKCA soyleriz.
+  if ($vals[2] -eq '0') {
+    Write-Host "PROVA TAMAM - restore + migrationlar + tablolar DOGRULANDI" -ForegroundColor Green
+    Write-Host "!! ANCAK: sifreli alan kontrolu VAKUMLU - CalendarSource BOS (0 satir)." -ForegroundColor Yellow
+    Write-Host "   'TEMIZ' ciktisi 0 == 0 demektir; ENCRYPTION_KEY'in calistigi bu kosuda" -ForegroundColor Yellow
+    Write-Host "   KANITLANMADI. Sifreli satir olan bir yedekte tekrar kosulmali." -ForegroundColor Yellow
+  } else {
+    Write-Host "PROVA TAMAM - restore + migrationlar + tablolar + sifreli takvim alanlari DOGRULANDI" -ForegroundColor Green
+  }
 } catch {
   Write-Host "PROVA DURDU: $_" -ForegroundColor Red
   exit 1
