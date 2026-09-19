@@ -108,10 +108,26 @@ try {
   $sha = (Get-FileHash $dump.FullName -Algorithm SHA256).Hash
   if ($sha -ne $ExpectedSha.ToUpperInvariant()) { throw "SHA256 UYUSMUYOR - bu, dogrulanan yedek DEGIL. Bulunan: $sha" }
   Write-Host "SHA256 dogrulandi - dogrulanmis yedegin ta kendisi." -ForegroundColor Green
-  & (Join-Path $PgBin "initdb.exe") -D "$dir" -U postgres -A trust -E UTF8 --locale=C *> $null
-  if ($LASTEXITCODE -ne 0) { throw "initdb basarisiz (exit=$LASTEXITCODE)" }
+  # !! CIKTIYI YUTMA, DOSYAYA YAZ (2026-09-19 canli provasinin dersi).
+  # Burasi `*> $null` idi: initdb patladiginda NEDENI de birlikte siliniyordu ve
+  # elde yalniz "exit=1" kaliyordu - teshis edilemez bir kurtarma araci.
+  # Ayni dosyanin pg_restore adimi DOGRUSUNU yapiyordu (loga yaz, hata olursa
+  # kuyrugu bas); o desen buraya da uygulandi. Normal akista ekran yine sessiz.
+  $initLog = "$dir.initdb.log"
+  & (Join-Path $PgBin "initdb.exe") -D "$dir" -U postgres -A trust -E UTF8 --locale=C *> $initLog
+  if ($LASTEXITCODE -ne 0) {
+    Write-Host "initdb ciktisi:" -ForegroundColor Yellow
+    if (Test-Path $initLog) { Get-Content $initLog -Tail 25 }
+    throw "initdb basarisiz (exit=$LASTEXITCODE)"
+  }
   & (Join-Path $PgBin "pg_ctl.exe") -D "$dir" -o "-p 5599 -c listen_addresses=127.0.0.1" -l (Join-Path $dir "pg.log") -s -w start
-  if ($LASTEXITCODE -ne 0) { throw "pg_ctl start basarisiz (exit=$LASTEXITCODE)" }
+  if ($LASTEXITCODE -ne 0) {
+    # pg_ctl'in kendi mesaji yetmez: asil sebep sunucu gunlugundedir.
+    Write-Host "pg.log kuyrugu:" -ForegroundColor Yellow
+    $pgLog = Join-Path $dir "pg.log"
+    if (Test-Path $pgLog) { Get-Content $pgLog -Tail 25 }
+    throw "pg_ctl start basarisiz (exit=$LASTEXITCODE)"
+  }
   $started = $true
   & (Join-Path $PgBin "createdb.exe") -h 127.0.0.1 -p 5599 -U postgres prova
   if ($LASTEXITCODE -ne 0) { throw "createdb basarisiz (exit=$LASTEXITCODE)" }
@@ -175,6 +191,10 @@ try {
   }
   if (Test-Path $dir) { Remove-Item -Recurse -Force $dir -ErrorAction SilentlyContinue }
   if (Test-Path $sqlDir) { Remove-Item -Recurse -Force $sqlDir -ErrorAction SilentlyContinue }
+  # initdb gunlugu $dir'in KARDESIDIR (initdb hedef klasoru kendi yarattigi icin
+  # icine yazilamaz). PII TASIMAZ - yalniz initdb'nin kendi mesajlari - bu yuzden
+  # silinememesi $cleanupOk'i DUSURMEZ; yine de ardimizda cop birakmayiz.
+  if (Test-Path "$dir.initdb.log") { Remove-Item -Force "$dir.initdb.log" -ErrorAction SilentlyContinue }
   if (Test-Path $dir) { $cleanupOk = $false }
   if (Test-Path $sqlDir) { $cleanupOk = $false }
   if ($cleanupOk) {
