@@ -116,6 +116,41 @@ try {
   $env:PGDATABASE = [Uri]::UnescapeDataString($u.AbsolutePath.TrimStart("/"))
   $env:PGSSLMODE = "require"
 
+  # !! SURUM UYUMU UYARISI (2026-09-19 canli kosusunun dersi).
+  # Bu script SUNUCU bileseni ARAMAZ (yedek almak icin gerekmiyor) ve "en yuksek
+  # istemci" surumunu secer. Restore PROVASI ise sunucu bileseni SART oldugu
+  # icin baska (daha eski) bir surumu secebilir. O zaman kural ihlal edilir:
+  # pg_restore, dump'i ureten surumden YENI olabilir ama ESKI OLAMAZ; ihlalde
+  # "unsupported version in file header" beklenir ve yedek DOGRULANAMAZ.
+  #
+  # !! AMA BU BIR KESINLIK DEGIL, RISK NOTUDUR - OLCULDU (2026-09-19): pg_dump
+  # 18 ile alinan arsiv, pg_restore 17 ile 0,7 saniyede SORUNSUZ geri yuklendi
+  # ve satir sayilari manifestle BIREBIR tuttu. Yani bir surum fark bu arsiv
+  # bicimi icin tolere edildi. Uyari yine de duruyor cunku (a) fark buyudukce
+  # kirilma gercek, (b) sessiz kalirsak bir sonraki operator bunu ancak provada
+  # ogrenir. Alarm degil, bilgi.
+  #
+  # Yedegi almayi ENGELLEMIYORUZ (dogrulanmamis yedek, yedeksizlikten iyidir).
+  $chosenVer = 0; $serverVer = 0
+  [void][int]::TryParse((Split-Path (Split-Path $PgBin -Parent) -Leaf), [ref]$chosenVer)
+  Get-ChildItem -Path (Split-Path (Split-Path $PgBin -Parent) -Parent) -Directory -ErrorAction SilentlyContinue |
+    Where-Object { $_.Name -match '^\d+$' -and (Test-Path (Join-Path $_.FullName "share\postgres.bki")) } |
+    ForEach-Object { if ([int]$_.Name -gt $serverVer) { $serverVer = [int]$_.Name } }
+  if ($chosenVer -gt 0 -and $serverVer -gt 0 -and $chosenVer -gt $serverVer) {
+    Write-Host ""
+    Write-Host "UYARI: yedek pg_dump $chosenVer ile alinacak, ama bu makinede SUNUCU bileseni olan en yuksek surum $serverVer." -ForegroundColor Yellow
+    Write-Host "       Restore provasi $serverVer ile kosar. TEK surum farki 2026-09-19 da OLCULDU ve CALISTI;" -ForegroundColor Yellow
+    Write-Host "       fark buyurse arsiv okunamayabilir - garanti degil, risk notu." -ForegroundColor Yellow
+    Write-Host "       Caresi (biri): PostgreSQL $chosenVer'in SERVER bilesenini kur, ya da bu yedegi" -ForegroundColor Yellow
+    Write-Host "       -PgBin 'C:\Program Files\PostgreSQL\$serverVer\bin' ile tekrar al." -ForegroundColor Yellow
+    Write-Host ""
+  } elseif ($serverVer -eq 0) {
+    Write-Host ""
+    Write-Host "UYARI: bu makinede SUNUCU bileseni olan PostgreSQL kurulumu YOK." -ForegroundColor Yellow
+    Write-Host "       Yedek alinir ama restore provasi KOSULAMAZ (initdb sunucu dosyalarini ister)." -ForegroundColor Yellow
+    Write-Host ""
+  }
+
   if (-not $OutDir) { $OutDir = [Environment]::GetFolderPath("Desktop") }
   if (-not (Test-Path $OutDir)) { throw "Hedef klasor yok: $OutDir" }
   $stamp = Get-Date -Format "yyyy-MM-dd-HHmmss"
