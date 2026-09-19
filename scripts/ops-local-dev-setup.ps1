@@ -48,10 +48,19 @@ param(
 # lazim, yani "client only" kurulum bu is icin YETMEZ ve ONCEDEN anlasilir.
 # ---------------------------------------------------------------------------
 function Resolve-PgBin {
-  param([string]$Explicit, [string[]]$Required)
+  param([string]$Explicit, [string[]]$Required, [switch]$NeedsServer)
+  # !! SUNUCU BILESENI KONTROLU (2026-09-19 canli provasinin dersi): initdb.exe
+  # "Command Line Tools" kurulumunda da VARDIR ama sunucunun veri dosyalari
+  # (share\postgres.bki) YOKTUR -> initdb "postgres.bki does not exist" ile
+  # patlar. Eski kontrol yalniz exe'lere bakiyordu: EN YUKSEK surum olan
+  # ISTEMCI kurulumu seciliyor, TAM KURULU eski surum atlaniyordu. Yedek alma
+  # scriptleri bu switch'i GECMEZ (onlara sunucu gerekmiyor) - ayrim bilincli.
   if ($Explicit) {
     foreach ($exe in $Required) {
       if (-not (Test-Path (Join-Path $Explicit $exe))) { throw "$exe bulunamadi: $Explicit" }
+    }
+    if ($NeedsServer -and -not (Test-Path (Join-Path (Split-Path $Explicit -Parent) "share\postgres.bki"))) {
+      throw "SUNUCU BILESENI YOK: $Explicit -> share\postgres.bki bulunamadi (yalniz Command Line Tools kurulu). initdb bu kurulumla kosamaz."
     }
     return $Explicit
   }
@@ -65,10 +74,11 @@ function Resolve-PgBin {
     Sort-Object { [int]$_.Name } -Descending |
     Where-Object {
       $b = Join-Path $_.FullName 'bin'
-      (Test-Path $b) -and (@($Required | Where-Object { -not (Test-Path (Join-Path $b $_)) }).Count -eq 0)
+      (Test-Path $b) -and (@($Required | Where-Object { -not (Test-Path (Join-Path $b $_)) }).Count -eq 0) -and
+      ((-not $NeedsServer) -or (Test-Path (Join-Path $_.FullName "share\postgres.bki")))
     } | Select-Object -First 1
   if (-not $best) {
-    throw ("Gerekli araclarin (" + ($Required -join ', ') + ") tamami tek bir PostgreSQL surumunde bulunamadi. -PgBin ile elle ver.")
+    throw ("Gerekli araclarin (" + ($Required -join ', ') + ") tamami tek bir PostgreSQL SUNUCU kurulumunda bulunamadi (share\postgres.bki dahil). -PgBin ile elle ver.")
   }
   $bin = Join-Path $best.FullName 'bin'
   Write-Host "PostgreSQL $($best.Name) kullaniliyor: $bin"
@@ -84,7 +94,7 @@ function New-Secret {
 
 try {
   if (-not (Test-Path "package.json")) { throw "Repo kokunde degilsin (package.json yok). Once repo klasorune gec." }
-  $PgBin = Resolve-PgBin -Explicit $PgBin -Required @("initdb.exe", "pg_ctl.exe", "psql.exe", "createdb.exe")
+  $PgBin = Resolve-PgBin -Explicit $PgBin -Required @("initdb.exe", "pg_ctl.exe", "psql.exe", "createdb.exe") -NeedsServer
   if (-not $DataDir) { $DataDir = Join-Path $env:LOCALAPPDATA "lixus-dev-pg" }
 
   if ($Port -eq 5433) {

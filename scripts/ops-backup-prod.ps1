@@ -44,10 +44,19 @@ param(
 # degistiren OTEKINI de degistirir.
 # ---------------------------------------------------------------------------
 function Resolve-PgBin {
-  param([string]$Explicit, [string[]]$Required)
+  param([string]$Explicit, [string[]]$Required, [switch]$NeedsServer)
+  # !! SUNUCU BILESENI KONTROLU (2026-09-19 canli provasinin dersi): initdb.exe
+  # "Command Line Tools" kurulumunda da VARDIR ama sunucunun veri dosyalari
+  # (share\postgres.bki) YOKTUR -> initdb "postgres.bki does not exist" ile
+  # patlar. Eski kontrol yalniz exe'lere bakiyordu: EN YUKSEK surum olan
+  # ISTEMCI kurulumu seciliyor, TAM KURULU eski surum atlaniyordu. Yedek alma
+  # scriptleri bu switch'i GECMEZ (onlara sunucu gerekmiyor) - ayrim bilincli.
   if ($Explicit) {
     foreach ($exe in $Required) {
       if (-not (Test-Path (Join-Path $Explicit $exe))) { throw "$exe bulunamadi: $Explicit" }
+    }
+    if ($NeedsServer -and -not (Test-Path (Join-Path (Split-Path $Explicit -Parent) "share\postgres.bki"))) {
+      throw "SUNUCU BILESENI YOK: $Explicit -> share\postgres.bki bulunamadi (yalniz Command Line Tools kurulu). initdb bu kurulumla kosamaz."
     }
     return $Explicit
   }
@@ -61,7 +70,8 @@ function Resolve-PgBin {
     Sort-Object { [int]$_.Name } -Descending |
     Where-Object {
       $b = Join-Path $_.FullName 'bin'
-      (Test-Path $b) -and (@($Required | Where-Object { -not (Test-Path (Join-Path $b $_)) }).Count -eq 0)
+      (Test-Path $b) -and (@($Required | Where-Object { -not (Test-Path (Join-Path $b $_)) }).Count -eq 0) -and
+      ((-not $NeedsServer) -or (Test-Path (Join-Path $_.FullName "share\postgres.bki")))
     } | Select-Object -First 1
   if (-not $best) {
     throw ("Gerekli araclarin (" + ($Required -join ', ') + ") tamami tek bir PostgreSQL surumunde bulunamadi. -PgBin ile elle ver.")
