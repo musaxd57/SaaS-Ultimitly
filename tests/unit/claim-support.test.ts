@@ -7,7 +7,7 @@ vi.mock("@/lib/alert-state", () => ({ alertOnTransition: vi.fn(async () => "aler
 
 import { auditClaims, auditClaimsSafe, CLAIM_CLASSES, type ClaimContext } from "@/lib/ai/claim-support";
 import { buildReplyPrompt, buildReplyUserPrompt } from "@/lib/ai/prompts";
-import { suggestReply } from "@/lib/ai";
+import { suggestReply, parseLlmUsage } from "@/lib/ai";
 import { buildKbEvidence } from "@/lib/ai/grounding";
 import { CONTEXTS, CASES, HARD, type Case } from "../helpers/claim-battery";
 
@@ -67,6 +67,14 @@ describe("sınıflama davranışı", () => {
     expect(auditClaims("Wi-Fi şifresi: Deniz2024!", c).u).toBe(0);
   });
 
+  it("BİLİNEN SINIR: aynı cevapta bir kod iki farklı harf yazımıyla geçerse İLK yazım hepsini temsil eder", () => {
+    // Kod iddiasının özgün yazımı katlanmış anahtarla bulunur (konum değil — sayı sözcüğü çevirisi
+    // uzunlukları değiştirir). İlk yazım doğruysa sonraki yanlış yazım görünmez; tersi de geçerli.
+    const c = ctx(["Wi-Fi şifresi: Deniz2024"]);
+    expect(auditClaims("Şifre: Deniz2024 — ağ adı da deniz2024.", c).u).toBe(0);
+    expect(auditClaims("Şifre: deniz2024 — ağ adı da Deniz2024.", c).u).toBe(2);
+  });
+
   it("destek düzeyleri ayrı sayılır: operatör geçmişi, misafir yankısı (otorite değil), acil sabit", () => {
     const c = ctx([], { operator: ["Anahtar kutusunun kodu 5821."], guest: ["Kodum 7777 mi?"] });
     expect(auditClaims("Kod 5821.", c)).toMatchObject({ op: 1, u: 0 });
@@ -90,6 +98,24 @@ describe("sınıflama davranışı", () => {
       language: "tr",
     });
     expect(auditClaims("Şifre: 12345678", claimContext)).toMatchObject({ u: 1, uc: ["code"] });
+  });
+
+  it("🚨 istem bağlamı YETKİ düzeylerini ayırır: misafir metni otorite değil (echo), bizim geçmiş cevabımız op", () => {
+    const { claimContext } = buildReplyPrompt({
+      property: { name: "Lale", checkInTime: "15:00", checkOutTime: "11:00", address: null, city: null },
+      reservation: null,
+      knowledgeBase: [],
+      guestMessage: "Kodum 7777 mi?",
+      history: [
+        { direction: "inbound", body: "Otopark 250 TL mi?" },
+        { direction: "outbound", body: "Anahtar kutusunun kodu 5821." },
+      ],
+      tone: "warm",
+      language: "tr",
+    });
+    expect(auditClaims("Evet, kod 7777.", claimContext)).toMatchObject({ echo: 1, ctx: 0, u: 0 });
+    expect(auditClaims("Otopark 250 TL.", claimContext)).toMatchObject({ echo: 1, ctx: 0 });
+    expect(auditClaims("Kod 5821.", claimContext)).toMatchObject({ op: 1, ctx: 0 });
   });
 
   it("kodun yazdığı '[NOT]' satırları ve istem talimatları desteğe SAYILMAZ; KB verisi sayılır", () => {
@@ -120,10 +146,35 @@ describe("gizlilik, güvenlik, dayanıklılık", () => {
 
   it("kanıt JSON'u yalnız temizlenmiş alanları taşır (sahte alan/serbest metin sızamaz)", () => {
     const dirty = { v: 1, n: 2, ctx: 1, op: 0, echo: 0, k: 0, u: 1, uc: ["code", "SIZINTI 4827"], ec: [], raw: "4827" } as never;
-    const json = String(buildKbEvidence({ retrieved: [], usedLabels: [], claims: dirty, llm: { pt: 10, cpt: 4, m: "gpt-5.1", x: "sız" } as never }));
+    const json = String(buildKbEvidence({ retrieved: [], usedLabels: [], claims: dirty, llm: { pt: 10, cpt: 4, ct: -2, m: "model <sız>", x: "sız" } as never }));
     expect(json).not.toContain("4827");
     expect(json).not.toContain("sız");
-    expect(JSON.parse(json)).toMatchObject({ claims: { u: 1, uc: ["code"] }, llm: { pt: 10, cpt: 4, m: "gpt-5.1" } });
+    expect(JSON.parse(json)).toMatchObject({ claims: { u: 1, uc: ["code"] } });
+    expect(JSON.parse(json).llm).toEqual({ pt: 10, cpt: 4 });
+  });
+
+  it("sağlayıcı kullanım gövdesi SAYIYA indirgenir: bozuk alan ölçülmemiş sayılır, model adı biçim dışıysa yazılmaz", () => {
+    expect(
+      parseLlmUsage({ model: "gpt 5.1 <x>", usage: { prompt_tokens: -3, completion_tokens: "80", prompt_tokens_details: { cached_tokens: Number.NaN } } }),
+    ).toBeUndefined();
+    expect(parseLlmUsage({ model: "gpt-5.1", usage: { prompt_tokens: 10.7, completion_tokens_details: { reasoning_tokens: 4 } } })).toEqual({ pt: 10, rt: 4, m: "gpt-5.1" });
+    expect(parseLlmUsage(null)).toBeUndefined();
+  });
+
+  it("kanıt kırpılsa bile iddia özeti ve kullanım KORUNUR (kırpma yalnız kalem listesini kısaltır)", () => {
+    const retrieved = Array.from({ length: 120 }, (_, i) => ({ id: `kb-item-${String(i).padStart(4, "0")}-xxxxxxxx`, updatedAt: new Date(0) }));
+    const json = JSON.parse(
+      String(
+        buildKbEvidence({
+          retrieved,
+          usedLabels: [],
+          claims: { v: 1, n: 1, ctx: 0, op: 0, echo: 0, k: 0, u: 1, uc: ["time"], ec: [] },
+          llm: { pt: 5 },
+        }),
+      ),
+    );
+    expect(json.omitted).toBeGreaterThan(0); // KONTROL: gerçekten kırpıldı
+    expect(json).toMatchObject({ claims: { u: 1, uc: ["time"] }, llm: { pt: 5 } });
   });
 
   it("ölçülmediyse kanıt biçimi DEĞİŞMEZ (anahtar eklenmez)", () => {
@@ -135,11 +186,22 @@ describe("gizlilik, güvenlik, dayanıklılık", () => {
     expect(auditClaimsSafe("Saat 15:00", { facts: null as never, operator: [], guest: [] })).toBeUndefined();
   });
 
-  it("çekişmeli 24k girdi makul sürede biter (ReDoS pini)", () => {
-    const evil = "1.2.3.".repeat(4000) + "a@" + "b.".repeat(2000);
+  it("çekişmeli 24k girdiler makul sürede biter (ReDoS + karesel iş pini)", () => {
+    // Ölçüldü (09-23): bugünkü kodla hepsi birlikte ~230 ms. Sınırsız e-posta kalıbı üç e-posta
+    // girdisinin her birinde ~1 sn; kod iddiası başına tüm metni yeniden bölmek "şifre: X1"
+    // tekrarında 2,8 sn. Eşik ikisini de ayırır, yavaş CI'ya ~6× pay bırakır.
+    const evils = [
+      "1.2.3.".repeat(4000) + "a@" + "b.".repeat(2000),
+      "a".repeat(24000),
+      "a".repeat(12000) + "@" + "b.".repeat(6000),
+      "Kod " + "9".repeat(24000),
+      "12:00 ".repeat(4000),
+      "0532 ".repeat(4800),
+      "şifre: X1 ".repeat(2400),
+    ];
     const t0 = performance.now();
-    auditClaims(evil, { facts: [evil.slice(0, 8000)], operator: [], guest: [] });
-    expect(performance.now() - t0).toBeLessThan(2000);
+    for (const e of evils) auditClaims(e, { facts: [e], operator: [e.slice(0, 8000)], guest: [e.slice(0, 8000)] });
+    expect(performance.now() - t0).toBeLessThan(1500);
   });
 
   it("🚨 mimari: gönderim kapıları iddia ölçümünü İÇE AKTARMAZ (gölge sessizce kapıya dönüşemez)", () => {

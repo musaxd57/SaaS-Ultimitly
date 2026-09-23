@@ -77,3 +77,29 @@ deterministik bir araçtan gelir. Bu dilim o aracın çekirdeğini ve ilk ürün
 Kırmızı-önce + iki yönlü mutasyon **46/46** (ilk turda 7 mutant hayatta kaldı, hepsi gerçek pin eksikliğiydi:
 milisaniye çapası, boşluksuz küme değişimi, "birebir aynı tarih", karışık boş/bilinmeyen gece, yükleme
 tavanı, köprü filtresi, motor arızasının paneli düşürmesi).
+
+## Dilim 2 (09-23 ikinci tur) — konuşma sayfasında erken giriş / geç çıkış / uzatma geceleri (yalnız host)
+
+`src/modules/availability/stay-edges.ts` (saf) + `stay-edges-load.ts` (tek DB dosyası). Konuşma sayfasında
+rezervasyon varsa ve konaklama bitmediyse "Önceki ve sonraki geceler" bloğu: girişten önceki gece (erken
+giriş), çıkış gecesi (geç çıkış / uzatma), bilinen bir sonraki rezervasyona kadar boş gece sayısı (en fazla
+14 gece ileri) ve konaklamanın kendi içindeki çakışma. Her satır motorun kararı + kesinliği: kanıtsızsa
+"(kayıt güncel olmayabilir)"; bilinmeyen gece "bilinmiyor", ASLA "boş". Blok tek bir alt satırla biter:
+"Misafire söz vermeden önce kanal takviminden kontrol edin." Misafirin kendi rezervasyonu hesaba katılmaz
+(kendi gecesi "dolu" görünmesin); iptal/red durumundaki konaklamada blok yok.
+**İsteme / yapay zekâya BAĞLANMADI** — yalnız host görür.
+
+## Ölçülen açık (09-23 ajan, kodla doğrulandı) — ONAY BEKLİYOR, uygulanmadı
+
+- **Gönderim kapısı müsaitlik iddiasını DURDURMUYOR.** "Evet, 14 Ekim gecesi daire boş; bir gece daha
+  kalabilirsiniz." · "Yes, next weekend is available." · "Unfortunately we're fully booked that night." —
+  üçü de `passesAutoReplySafetyGate`ten GEÇİYOR (güven ≥0.75, `riskLevel:none`). Uzatma isteklerinin
+  çoğu `general` / düşük öncelik sınıflanıyor ("Konaklamamızı uzatmak istiyoruz", "Rezervasyonu uzatabilir
+  miyiz?", "Can I extend my stay?"); bir kısmı yanlışlıkla `early_departure` + `cancellation` (güvenli yön).
+- **İstem "muhtemelen müsait" diyor:** komşuluk bloğu kayıtlı önceki/sonraki rezervasyon YOKSA "daire
+  muhtemelen müsait / geç çıkış daha esnek olabilir" yazıyor — motorun "boş yalnız kanıtla" kuralıyla
+  çelişen bir ima (iCal/kanal beslemesi hiç yoksa kayıt yokluğu boşluk kanıtı değildir).
+- **Öneri (kurucu onayı ister, gönderim politikası):** oto-yanıtta misafire müsaitlik İDDİASI (boş/dolu,
+  "kalabilirsiniz", "available/booked") taşıyan cevap, motorun `verified` kararıyla eşleşmedikçe
+  GÖNDERİLMEZ (kanal → taslak; QR → devir). Ayrıca istemdeki "muhtemelen müsait" cümlesi motorun
+  kararıyla değiştirilir. İkisi de ayrı dilim + GOLDEN SET + iki yönlü senaryo.

@@ -1,7 +1,9 @@
-# Demo hesabı (Airbnb başvurusu) — işletim notu (09-24)
+# Demo hesabı (Airbnb başvurusu) — işletim notu (09-24, güncelleme 09-23 ikinci tur)
 
 Airbnb başvurusu öncesi 6 kapıdan biri: demo tenant (demo@lixusai.com, 10–15 örnek mülk).
-**Kod + betik hazır; CANLIYA KOŞULMADI.** Canlı koşu kurucu onayı + taze `pg_dump` ister.
+**Kod + betik + arayüz hazır; CANLIYA KOŞULMADI.** Canlı koşu kurucu onayı + taze `pg_dump` ister.
+Kurucu kararı (09-23): Airbnb API başvurusu YAKINDA YAPILMAYACAK; demo hesabı Railway geri açılınca
+aktif edilecek (↓ Aktivasyon).
 
 ## Ne üretir
 
@@ -18,7 +20,9 @@ cevapları, host cevapları, 2 sorunlu, 2 cevap bekleyen) · ~350 görev (ürün
   "bilinmiyor" der — ürünün gerçek davranışı.
 - Rezervasyon kodu, misafir telefonu/e-postası, Wi-Fi şifresi, kapı kodu, QR/takvim token'ı.
 - Abonelik satırı (hesap "tam erişim" görünür; deneme bandı/e-postası yok).
-- Sinyal/hafıza olayı (yeni bir kaynak türü = kapalı kaynak sözleşmesi değişikliği → ayrı karar).
+- `IngestEvent` (kapalı kaynak sözleşmesi değişmedi). Sinyaller ürünün tüketicisinin AYNI saf
+  türetmesiyle (`deriveMessageSignal`, kaynak/anahtar aynı) doğrudan yazılır; "tekrar eden arıza"
+  kartı UYDURULMAZ, senkron geçişinin örüntü kuralıyla (`refreshPatternMemory`) doğar.
 
 ## Güvenlik
 
@@ -51,19 +55,43 @@ DATABASE_URL=... npx tsx scripts/demo-tenant.ts
 Yenileme aynı komuttur: kimlikler aynı kalır, tarihler bugüne kayar, inceleme ekibinin değişiklikleri geri
 alınır; inceleme hesabının şifresi ve oturumu (açıkça istenmedikçe) korunur.
 
+## Arayüzde demo'ya özel olan (09-23, `isDemoOrg` tek kaynak)
+
+- Her sayfanın üstünde bant: "Örnek hesap … hiçbir misafire mesaj gönderilmez" (gerçekten gitmez:
+  hiçbir konuşmanın kanal hedefi yok).
+- Gizlenen kırık dürtüler: panel kurulum rehberi, Mesajlar'daki "Mesajları çek" + oto-yanıt önizlemesi
+  (her zaman boş dönüp AI hakkı yakıyordu), raporlardaki "bağlantı kurulunca dolar", mülk hazırlık
+  listesindeki kanal adımı. Ayarlarda demo'ya özel dürüst metin.
+- Operatör paneli demo org'unu MÜŞTERİ SAYMAZ (satırda "Demo" etiketi) — "gerçek kullanım kanıtı"
+  metriklerine girmez.
+- Arayüzde PMS adı YOK (ürün geneli; hata metinleri tek sabit `NOT_CONNECTED_MESSAGE`).
+
+## Aktivasyon (Railway geri açılınca) — sırayla
+
+1. Taze `pg_dump` (`scripts/ops-*` yedek betiği) + kurucunun açık onayı.
+2. Önce YEREL (5434) kuru koşu → uygula → ekran görüntüleri (panel, Mesajlar, mülk, Bilgi Tabanı).
+3. Canlıya kuru koşu (`DEMO_TENANT_REMOTE_HOST` = adresin sunucu adı, birebir; tünel YOK).
+4. Uygula (`DEMO_TENANT_APPLY=1 …`, şifre ≥20 karakter, kasada sakla).
+5. Bir zamanlanmış senkron geçişini bekle (2 dk) ya da `/api/cron/sync`i `CRON_SECRET` ile tetikle →
+   örüntü hafızası "tekrar eden arıza" kartını üretir (demo org'u mülkü olduğu için geçişe girer; kanal
+   kimliği olmadığından senkron bacağı hiçbir şey çekmez, alarm üretmez).
+6. İnceleme hesabıyla giriş: bant görünüyor mu, "Dikkat Gerektirenler" kartında çakışma/tekrar eden
+   arıza satırları var mı, hiçbir yerde "bağlantıyı kur" dürtüsü yok mu.
+7. Operatör panelinde demo satırı "Demo" etiketli ve müşteri sayısına girmiyor mu.
+
 ## Kurucu kararı bekleyenler
 
-1. Canlıya koşu zamanı (Railway duraklatıldı; önce yerel 5434'te koşup ekran görüntüsü).
-2. Panelde "Örnek veri" bandı + "kanal bağlı değil" ipuçlarının demo org'unda gizlenmesi (küçük görüntü değişikliği).
-3. Arayüzdeki "Hospitable" sözcüklerinin temizlenmesi (inceleme ekibi görür; "PMS logosu yok" kuralı).
-4. `demo@lixusai.com` posta kutusu (şifre değişikliği kodları oraya gider).
-5. İnceleme hesabında 2FA (öneri: kapalı; sentetik veri + yönetici rolü; MFA başvuru dosyasında gösterilir).
-6. Demo org'unun "gerçek kullanım" metriklerinden dışlanması.
-7. Sinyal/hafıza için `demo_seed` kaynak türü (tekrar eden arıza kartını demoda göstermek için).
+1. Canlıya koşu zamanı (Railway açılınca; önce yerel 5434'te koşup ekran görüntüsü).
+2. `demo@lixusai.com` posta kutusu (şifre değişikliği kodları oraya gider).
+3. İnceleme hesabında 2FA (öneri: kapalı; sentetik veri + yönetici rolü; MFA başvuru dosyasında gösterilir).
+
+Kapananlar (09-23): örnek veri bandı + bağlantı dürtüleri · arayüzden PMS adı · metrik dışlama ·
+tekrar eden arıza kartı (yeni kaynak türü GEREKMEDİ — ürünün kendi türetmesi).
 
 ## Kanıt
 
-Birim 34 + entegrasyon 13 test (komşu iki org'un tüm satırları önce/sonra birebir; iki koşu idempotent;
+Birim 34 + entegrasyon 13 test (09-23: + sinyal eşiği/tarih tutarlılığı/gerekçe kümesi birim, apply →
+`refreshPatternMemory` → panel satırı entegrasyon, bant metni UI, arayüz kapıları yapısal pin) (komşu iki org'un tüm satırları önce/sonra birebir; iki koşu idempotent;
 reddetmelerde sıfır yazma; hiçbir satır kanaldan mesajlanabilir sayılmıyor; panel yalnız tasarlanan iki
 satırı gösteriyor; ürünün görev üreticisi sıfır eksik görev buluyor) + betik boş bir geçici veritabanında
 uçtan uca koşuldu. Mutasyon sonuçları: bu turun hüküm belgesi.

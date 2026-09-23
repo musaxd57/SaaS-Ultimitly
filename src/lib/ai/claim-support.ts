@@ -285,6 +285,8 @@ const UNIT_FAMILIES: { cls: ClaimClass; long: string[]; short: string[] }[] = [
 /** Katlanmış + sayıya çevrilmiş metinden iddialar. `raw` = özgün metin (kod büyük/küçük harfi için). */
 function extract(text: string, raw: string): Claim[] {
   const out: Claim[] = [];
+  let rawIndex: Map<string, string> | undefined;
+  const rawToken = (foldedTok: string) => (rawIndex ??= rawTokenIndex(raw)).get(foldedTok) ?? foldedTok;
   // Karakter başına bayrak: bir karakter iki iddiaya giremez (O(1) örtüşme — liste O(n²) idi).
   const used = new Uint8Array(text.length + 1);
   const take = (re: RegExp, fn: (m: RegExpExecArray) => Omit<Claim, "at" | "end"> | Omit<Claim, "at" | "end">[] | null) => {
@@ -410,7 +412,7 @@ function extract(text: string, raw: string): Claim[] {
     const tok = m[2].replace(/[.!?:]+$/, "");
     if (!/\d/.test(tok) && m[1] === "") return null;
     if (/^(ve|and|or|veya|yok|none|nedir|neydi|ne|what)$/.test(tok)) return null;
-    const r = rawToken(raw, tok);
+    const r = rawToken(tok);
     return { cls: "code", keys: [`c${r}`], raw: r };
   });
   // Harf + rakam karışık tekil belirteç ("3b", "lalenet_5g"); "15te", "2nd", "10dk" DEĞİL.
@@ -418,7 +420,7 @@ function extract(text: string, raw: string): Claim[] {
     const t = m[0];
     if (/^\d{1,4}[a-z]{2,}$/.test(t)) return null;
     if (/^m2$/.test(t)) return null;
-    const r = rawToken(raw, t);
+    const r = rawToken(t);
     return { cls: "code", keys: [`c${r}`], raw: r };
   });
 
@@ -444,15 +446,26 @@ function extract(text: string, raw: string): Claim[] {
   return out;
 }
 
-/** Kodun özgün yazımını geri bul (kodlar büyük/küçük harfe duyarlıdır). */
-function rawToken(raw: string, foldedTok: string): string {
+/**
+ * Kodun özgün yazımını geri bul (kodlar büyük/küçük harfe duyarlıdır).
+ * 🚨 Metin BİR KEZ bölünüp katlanır (katlanmış → ilk özgün yazım). Eskiden her kod iddiası için
+ * tüm metin yeniden bölünüp katlanıyordu: 24k'lık "şifre: X1 …" girdisi 2,8 sn senkron CPU
+ * (ölçüldü 09-23) — cevap yolunda, misafirin geçmişiyle beslenebilir. Anlam aynı: ilk eşleşen
+ * parça kazanır (önce temiz parça, sonra içindeki alfanümerik çekirdek).
+ */
+function rawTokenIndex(raw: string): Map<string, string> {
+  const map = new Map<string, string>();
   for (const p of raw.normalize("NFKC").split(/[\s"“”«»',;()]+/)) {
     const clean = p.replace(/[.!?:]+$/, "");
-    if (foldForClaims(clean) === foldedTok) return clean;
+    const fc = foldForClaims(clean);
+    if (!map.has(fc)) map.set(fc, clean);
     const inner = /[A-Za-z0-9_-]+/.exec(clean)?.[0];
-    if (inner && foldForClaims(inner) === foldedTok) return inner;
+    if (inner) {
+      const fi = foldForClaims(inner);
+      if (!map.has(fi)) map.set(fi, inner);
+    }
   }
-  return foldedTok;
+  return map;
 }
 
 // ─── bağlam dizini ─────────────────────────────────────────────────────────
