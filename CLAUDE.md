@@ -130,9 +130,11 @@ ReAct (kademeli) · GraphRAG (ihtiyaç kanıtlanırsa). Ek: kaynaklı-sürümlü
   değer (boş dâhil) hibrit. Gevşek yazım bilinçli; "tanınmayan → legacy" ölçülüp REDDEDİLDİ. Görünürlük:
   `kbRetrievalModeInfo().recognized` + boot `[kb-retrieval] mode=…` + `.env.example`.
 - **TEK BOĞAZ `selectKbForPrompt`** — yetki/mülk/onay (`kb-fetch`) ve sır elemesi ÖNCE, `suggestReply` SONRA; dört
-  AI yüzeyi geçer (pin). Hibrit legacy'den AZ bilgi taşımaz: küçük KB (🚨 ≤30 kalem = legacy tavanı, ≤6k; 09-23'e
-  kadar ≤12 idi ve tipik host KB'sinde parafraz soruların cevabını düşürüyordu — `docs/olcum/kb-retrieval-parafraz-
-  2026-09-23.md`; seçim MEKANİĞİ testleri küçük fikstürde eski eşiği AÇIKÇA verir) · selamlaşma · sözcüksel
+  AI yüzeyi geçer (pin). Hibrit legacy'den AZ bilgi taşımaz: küçük KB (🚨 ≤30 kalem VE ≤24k = legacy'nin KENDİ
+  kümesi → seçim YOK; 09-23'e kadar ≤12 kalem/≤6k idi ve tipik host KB'sinde parafraz soruların cevabını
+  düşürüyordu — `docs/olcum/kb-retrieval-parafraz-2026-09-23.md`; seçim MEKANİĞİ testleri üretim varsayılanıyla,
+  30 kalemi aşan nötr dolgulu fikstürde koşar — `tests/helpers/kb-padding.ts`, eşiği eğen sarmalayıcı YOK) ·
+  cevapsız önceki misafir soruları (son cevaptan sonra, ≤3) alt sorgu olarak eklenir (kanıtta `pq`) · selamlaşma · sözcüksel
   isabet yok · hata → TAM küme (geri çekilme `cappedForFallback` ile legacy tavanı 30; kırpma `kbDropped`e sayılır).
   `kb-fetch` hibritte en yeni 200 kalem. İstem notu "SORUYA GÖRE SEÇİLDİ … 'bilgi yok' DEME — insana devret".
 - `src/lib/ai/retrieval/` LLM'siz + deterministik + DB'siz (pin): parçalayıcı (cümle sınırı, 600/900; parça =
@@ -267,6 +269,11 @@ Bu dosyaya token/anahtar/parola yazma.
   `Message.replyToMessageId`, migration); QR bot cevabı misafirden +1 ms damgalanır, `id` kopma noktası korunur.
   Kalite denetçisi `lte` + `id` kopma noktası; `guest: null` tek başına proaktif kanıtı değil. Gölge pilotu QR'da
   çalışmaz (tasarım). Selam tekrarı: `isFirstOperatorReply` kodda.
+- 🚨 **KB talimat-ele-geçirme süzgeci (`detectKbInstructionHijack`, 09-23):** `kb-fetch` tek boğazında, her boyutta,
+  seçiciden ÖNCE; kalem isteme girmez, `dropped`a karışmaz, kanıtta `hj`, host'a "Yapay zekâ kullanmıyor" rozeti.
+  Misafir kalıpları KB'ye UYGULANMAZ (16 host cümlesinin 10'u yanlış pozitif). Yalnız yapay zekâya yönelen biçimler
+  (sahte rol/çit işareti, çıktı alanı, TEKİL emir / 2. çoğul iyelik, rol değişimi). Kör batarya 0/150 yanlış
+  pozitif, genelleme 22/60 → "düz emir" sınıfı içerik süzgeciyle ayrılamaz (bilinen sınır, pinli).
 - **KB sır kapısı:** `withoutSecretKbItems` (TAM tarama, 24k üstü fail-closed) + `QR_SECRET_CATEGORIES` +
   `verifiedActiveStay`; stil profili 4 yüzeyde süzülür. 🚨 Kapı KB KALEMLERİNİ süzer; mülk KİMLİK ALANLARI (ad/adres/
   şehir/saat) taranmadan gider (karakterizasyon pinli; kapatmak ayrı onay `docs/ONAY-qr-mulk-kimlik-…md`).
@@ -829,6 +836,13 @@ Kontrol listesi + geri açma adımları: `docs/OPS-2026-09-19-DURAKLATMA-VE-LOCA
 - **Kanal sözleşmesi / müsaitlik / demo** kuralları ↑"Kalıcı kararlar" bölümünde.
 
 ## Durum
+**09-23 DÖRDÜNCÜ TUR (kurucu: "RAG'i milyar dolarlık şirket seviyesinde bitir"; dış AI eleştirisi; 4 ajan).**
+Migration'sız, hepsi kırmızı-önce + mutasyon (20/20): inceleme ajanının 3 bulgusu (otopark/site girişi sahte
+çelişki → her soru devrediliyordu · kategori ödüncü kaçan gerçek çelişki · iddia ölçümünde 31,9 sn → 15 ms) ·
+KB talimat-ele-geçirme süzgeci + host rozeti · küçük-KB eşiği 24k (21–30 kalemde parafraz %35–61 → %100) ·
+cevapsız önceki sorular sorguya (%10–12 → %97–99) · eşiği eğen test sarmalayıcısı kaldırıldı. Eleştirinin
+"sayıyla karar" öncülü YANLIŞ (sayı VE karakter). Ayrıntı `docs/olcum/kb-retrieval-parafraz-2026-09-23.md`.
+
 **09-23 ÜÇÜNCÜ TUR (RAG + embedding genel; demo hazır; yol planı).** Hepsi migration'sız, hepsi kırmızı-önce + mutasyon:
 - **Cevap iddia desteği gölge ölçümü + token/önbellek gözlemi + kanal kanıt paritesi** (`217e45f`, `b9ae3d8`; ↑AI
   bölümü). Ölçüm kodunda karesel iş vardı (24k "şifre: X1" girdisi 2,8 sn senkron CPU → 80 ms). Mutasyon 34/34.

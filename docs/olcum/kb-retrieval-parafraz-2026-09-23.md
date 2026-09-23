@@ -26,7 +26,7 @@ Bu, 09-11'de bayrak açılırken yazılan "hibrit legacy'den AZ bilgi taşımaz"
 yan etki ölçümü yalnız kelime paylaşan soruları kullandığı için görmedi.
 
 **Düzeltme (`select.ts`):** küçük-KB kalem eşiği legacy tavanı (`KB_ITEM_CAP` = 30). Tamamı 6k'ya sığan
-≤30 kalemlik KB'de seçim yapılmaz; blok legacy ile BİREBİR. Bedel: bu KB'lerde blok artık legacy boyutunda
+(⚠️ ikinci turda 24k'ya çıktı, ↓) ≤30 kalemlik KB'de seçim yapılmaz; blok legacy ile BİREBİR. Bedel: bu KB'lerde blok artık legacy boyutunda
 (15 kalemde ~133–440 → 3.129 karakter; ≈ +0,8k token, gpt-5.1 fiyatıyla cevap başına ~0,1 sent). Kötü niyetli
 kalem maruziyeti de legacy ile aynı (retrieval zaten politika değildi; koruma sır elemesi + injection vetosu).
 
@@ -55,6 +55,47 @@ parafraz inPrompt belirgin artmalı, ölçek sınıfı %99'un altına inmemeli, 
 
 `tests/unit/kb-retrieval-small-kb.test.ts` (15/20 kalemde her parafrazın cevabı blokta ve blok legacy ile
 birebir · ESKİ eşikle aynı KB'de 46 sorgunun 20'si düşüyordu · sınır 30/31 · 6k'yı aşan ≤30 kalemde seçim
-sürer). Kırmızı-önce: eski eşikle 2 test düşer. Mutasyon 6/6. Seçim MEKANİĞİ testleri küçük fikstürde eski
-eşiği açıkça verir (`tests/helpers/select-mechanics.ts`); rota entegrasyon testleri 30 kalemi aşan KB kurar.
+sürer). Kırmızı-önce: eski eşikle 2 test düşer. Mutasyon 6/6. (⚠️ İlk turda seçim mekaniği testleri eski eşiği
+veren bir sarmalayıcı kullanıyordu; ikinci turda KALDIRILDI ↓.) Rota entegrasyon testleri 30 kalemi aşan KB kurar.
 Eşleştirilmiş gerçek-model eval'i v2: R4/R5 dolgu 20 → 34 (hibrit mekaniği sınamaya devam etsin).
+
+## İkinci tur (aynı gün) — dış eleştiri, ajan önerileri, ölçümler
+
+**Dış bir yapay zekânın üç eleştirisi, kodla sınandı:**
+1. *"Kalem SAYISIYLA karar vermek tehlikeli; 15 kalem 50k token olabilir"* — **öncül yanlış**: kural
+   sayı VE karakter birlikte (15 kalem 50k token → karakter eşiğini aşar → seçim yapılır).
+2. *"Küçük KB'de filtre kapanınca zararlı içerik modele ulaşıyor"* — **yarı doğru**: retrieval hiç
+   güvenlik katmanı değildi (legacy ve ≤12 kalemlik KB hep tüm kümeyi gönderiyordu), ama KB içeriği için
+   HİÇBİR tarama yoktu → her boyutta çalışan KB talimat-ele-geçirme süzgeci eklendi (↓).
+3. *"Eski davranışı taklit eden sarmalayıcı test geçirmek içindir"* — **kısmen haklı**: sarmalayıcı
+   üretim kodunu değiştirmiyordu ama üretim varsayılanını da sınamıyordu → kaldırıldı; seçim mekaniği
+   testleri üretim varsayılanlarıyla, 30 kalemi aşan (nötr dolgulu) fikstürde koşar.
+
+**Karakter eşiği 6k → 24k (legacy'nin kendi bütçesi)** — ajan ölçümü, kodda tekrarlandı:
+
+| KB | parafraz TR (önce → sonra) | parafraz EN | legacy |
+|---|---|---|---|
+| 21 kalem / 7,6k | %35 → **%100** | %53 → **%100** | %100 |
+| 26 kalem / 8,8k | %41 → **%100** | %61 → **%100** | %100 |
+| 30 kalem / 9,9k | %38 → **%100** | %56 → **%100** | %100 |
+
+**Cevapsız önceki misafir soruları sorguya** (son cevaptan sonraki, en fazla 3): art arda iki soruda
+İLK sorunun cevabı isteme %12/%10 → **%99/%97** (100/300 kalem). Bedel: 300 kalemde son sorunun cevabı
+%100 → %95 (bütçe paylaşılıyor); blok +100–330 karakter.
+
+**Ölçülüp REDDEDİLENLER (tekrar denenmesin):**
+- İsabetsiz soruda önceki misafir mesajıyla yeniden sorgu: takip sorusunda +12–15 puan, ama ilgisiz
+  parafraz sorusunda −5–8 puan (100/300 kalem) → net belirsiz.
+- Anahtar kelime sınıflandırıcısının niyetini kategori ipucu yapmak: parafrazda 0/44 doğru kategori,
+  %11 yanlış kategori ("nerede" → konum).
+- İsabetsizlikte en yeni 30 yerine tahmini kategorinin kalemleri: daha kötü (16→14, 8→6, 11→9).
+- Kategorilerin retrieval katkısı (ablasyon: hepsini "general" yap): anahtar kelimeli soruda ±1 puan.
+  Kategoriler zamanlanmış mesajları ve sır gizlemeyi yönetir; retrieval için yeni kategori eklenmez.
+
+**KB talimat-ele-geçirme süzgeci** (`detectKbInstructionHijack`, `kb-fetch` tek boğaz, her boyutta):
+misafir kalıpları KB'de 16 gerçekçi host cümlesinin 10'unda yanlış pozitif → ayrı dar liste. İki ayrı
+ajanın KÖR bataryası: 150 meşru metin + repodaki 530+ KB metni **0 yanlış pozitif**; kör v2 ilk koşu
+**22/60** saldırı (genelleme ölçüsü; sonra 38/60, görülmüş küme). Kalan sınıf "düz emir" (kodu paylaş,
+devretme, teknisyen yolda de): meşru host talimatıyla biçimce aynı → çıktı katmanları (sır filtresi,
+çıktı vetosu, kelime ağı kapısı) ve hesap güvenliği karşılar. Eleme sessiz değil: host "Yapay zekâ
+kullanmıyor" rozetini görür; karar kaydında `hj`.
