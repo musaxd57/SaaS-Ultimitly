@@ -286,6 +286,11 @@ describe("V1 intelligence — hafıza", () => {
   });
 
   it("örüntü hafızası: aynı kategoride ≥ PATTERN_MIN_SIGNALS negatif sinyal → 'pattern' (kanıt = sinyal id'leri, observedAt = son sinyal); eşiğin altı üretmez; yeniden hesap idempotent", async () => {
+    // 🚨 SAAT SABİTLENDİ (09-23, hata ajanı): fikstür sinyalleri 2026-05-10…12 tarihli ve
+    // `refreshPatternMemory` varsayılan olarak "şimdi" + 180 günlük pencere kullanıyor →
+    // test 2026-11-06'da kodda hiçbir şey değişmeden kırmızıya dönerdi (09-15'te
+    // `quality-audit-pairing`de yaşanan sınıf). Pencere fikstür dönemine bağlanır.
+    const AT = new Date("2026-06-20T00:00:00Z");
     const { orgId, propertyId } = await seedOrg(TOKEN_A, HP_A);
     const mk = (i: number) => m(`c-${i}`, `2026-0${5 + Math.floor(i / 20)}-${String(10 + (i % 20)).padStart(2, "0")}T09:00:00Z`, `Sıcak su yok, şikayet ${i}`);
     fake.setReservations(HP_A, [R1({ lastMessageAt: new Date("2026-06-15T09:00:00Z") })]);
@@ -293,14 +298,14 @@ describe("V1 intelligence — hafıza", () => {
     await syncHospitable(orgId);
     await processIngestEvents({ organizationId: orgId });
     expect(PATTERN_MIN_SIGNALS).toBe(3);
-    await refreshPatternMemory(orgId);
+    await refreshPatternMemory(orgId, undefined, AT);
     expect(await prisma.propertyMemory.count({ where: { propertyId, source: "signal_pattern" } })).toBe(0);
 
     fake.setReservations(HP_A, [R1({ lastMessageAt: new Date("2026-06-16T09:00:00Z") })]);
     fake.setMessages("res-1", [mk(0), mk(1), mk(2)]);
     await syncHospitable(orgId);
     await processIngestEvents({ organizationId: orgId });
-    const r = await refreshPatternMemory(orgId);
+    const r = await refreshPatternMemory(orgId, undefined, AT);
     expect(r.upserted).toBe(1);
     const pat = await prisma.propertyMemory.findFirstOrThrow({ where: { propertyId, source: "signal_pattern" } });
     const sig = await signals(propertyId);
@@ -309,7 +314,7 @@ describe("V1 intelligence — hafıza", () => {
     expect(pat.observedAt.getTime()).toBe(sig[sig.length - 1].occurredAt.getTime());
     expect(pat.confidence).toBeGreaterThan(0);
     expect(pat.confidence).toBeLessThanOrEqual(1);
-    await refreshPatternMemory(orgId);
+    await refreshPatternMemory(orgId, undefined, AT);
     expect(await prisma.propertyMemory.count({ where: { propertyId, source: "signal_pattern" } })).toBe(1);
 
     const view = await getPropertyMemory(orgId, propertyId);

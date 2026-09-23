@@ -69,9 +69,26 @@ yok, takvim sözleşmesi değişmezi ve 🚨 **her şifreli alanın kasadaki
 
 | Ne | Nereye | Neden |
 |---|---|---|
-| `.dump` + `.sql` + `manifest` | **İki ayrı yer**, biri çevrimdışı (harici disk) | Tek kopya kopya değildir |
-| `ENCRYPTION_KEY` | Kasa — **dump'la AYNI yere ASLA** | Aynı yerde: sızıntı. Ayrı yerde: biri gidince öteki tek başına işe yaramaz ama saldırgan da açamaz |
+| `.dump` + `.sql` + `manifest` | **İki ayrı yer**, biri çevrimdışı (harici disk) — **7-Zip AES-256 ile ŞİFRELİ** | Tek kopya kopya değildir |
+| `ENCRYPTION_KEY` | Kasa — **dump'la AYNI yere ASLA** | Aynı yerde: şifreli kolonlar da açılır. Ayrı yerde: `*Enc` kolonları korunur |
 | Diğer `.env` (AUTH_SECRET, Paddle, Resend/SMTP, Tigris) | Kasa | Sen kaydettin ✅ |
+
+🚨 **DÜZELTME (09-23 denetimi, tedarik zinciri ajanı):** bu tablo önceden "ayrı yerde saldırgan da
+açamaz" diyordu — **YANLIŞTI.** `ENCRYPTION_KEY` yalnız `*Enc` kolonlarını (Hospitable token'ları,
+takvim feed URL'leri, 2FA sırları) korur. Dump'ın GERİ KALANI düz okunur: misafir adları/telefonları/
+**17.462 mesaj**, **QR sohbet ve iCal erişim token'ları** (`Property.chatToken` / `icalToken` — servis
+geri açılınca ÇALIŞIRLAR; `chatToken` bilinçli olarak döndürülmüyor çünkü QR'lar dairelerde basılı) ve
+parola hash'leri. Yani dump'ın kendisi şifrelenmeli ve OneDrive'la eşitlenen bir klasörde durmamalı.
+
+**Mevcut 09-19 yedeğini şifrele (PowerShell, yedeğin olduğu klasörde):**
+```powershell
+& 'C:\Program Files\7-Zip\7z.exe' a -t7z -mhe=on -p lixus-prod-pause-2026-09-19-104239.7z lixus-prod-pause-2026-09-19-104239.dump lixus-prod-pause-2026-09-19-104239.sql lixus-prod-pause-2026-09-19-104239-manifest.txt
+& 'C:\Program Files\7-Zip\7z.exe' t lixus-prod-pause-2026-09-19-104239.7z
+```
+`-p` değersiz verilir → 7-Zip parolayı SORAR (komut geçmişine yazılmaz). `-mhe=on` dosya adlarını da
+gizler. `7z t` "Everything is Ok" dedikten sonra düz `.dump`/`.sql` dosyalarını sil; OneDrive'daki
+Masaüstü kopyasını da sil (OneDrive geri dönüşüm kutusunu da boşalt). Parola `ENCRYPTION_KEY`den
+FARKLI olsun ve ondan AYRI yerde saklansın.
 
 🚨 **Dump tek başına kurtarma DEĞİLDİR.** Hospitable token'ları ve 8 takvim feed
 URL'i at-rest şifreli; `ENCRYPTION_KEY` olmadan geri yüklenen DB'de o alanlar

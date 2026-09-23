@@ -21,9 +21,9 @@ const nextConfig = {
   //  * REPORT-ONLY: the FULL policy incl. script-src. Enforcing script-src needs
   //    per-request nonces for Next's inline bootstrap (ayrı altyapı turu) —
   //    'unsafe-inline'ı enforce etmek koruma katmaz, nonce'suz sıkılaştırmak
-  //    paneli komple kırar. NOT: `report-uri`/`report-to` YOK — ihlaller yalnız
-  //    ziyaretçinin KENDİ tarayıcı konsolunda görünür, merkezi toplanmaz. Nonce
-  //    turunda script-src'i enforce'a çekerken bir rapor endpoint'i de eklenir.
+  //    paneli komple kırar. Rapor ucu (`report-uri /api/csp-report`) 08-09'da
+  //    EKLENDİ ve YALNIZ ÜRETİM derlemesinde yayınlanır (↓ gerekçe, 09-23) —
+  //    bu satır eskiden "report-uri YOK" diyordu, bayattı.
   //
   //    The report-only policy must describe the app HONESTLY, or the enforcement
   //    round is guaranteed to break billing on day one. It used to say
@@ -92,7 +92,12 @@ const nextConfig = {
       // yapisal alan secimi, log enjeksiyonu) rotanin kendi basliginda yazili.
       // ⚠️ Bu satir CSP'yi ENFORCE ETMEZ ve etmemeli: nonce altyapisi olmadan
       // script-src enforce paneli komple kirar (CLAUDE.md). Once OLCUM.
-      "report-uri /api/csp-report",
+      // 🚨 YALNIZ URETIMDE (09-23, yapisal ajan + kurucunun dev konsolu): `next dev`
+      // HMR icin `eval` kullanir; report-only politika bunu HER sayfa yuklemesinde ihlal
+      // diye raporluyor, yerel uc da kendi 30/saat/IP sayaciyla 429'a dusuyordu ->
+      // gelistirme konsolu `blocked-eval` + 429 seliyle doluyordu. Gelistirmede olculecek
+      // gercek bir sey yok; olcum uretim derlemesinde (`next build` → NODE_ENV=production).
+      ...(process.env.NODE_ENV === "production" ? ["report-uri /api/csp-report"] : []),
     ].join("; ");
     return [
       {

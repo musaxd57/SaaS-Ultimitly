@@ -153,6 +153,21 @@ try {
 
   if (-not $OutDir) { $OutDir = [Environment]::GetFolderPath("Desktop") }
   if (-not (Test-Path $OutDir)) { throw "Hedef klasor yok: $OutDir" }
+  # !! BULUT ESITLEMESI UYARISI (2026-09-23 denetimi). Yedek SIFRESIZ ve sunlari icerir:
+  # misafir adlari/telefonlari/mesajlari, QR ve iCal erisim tokenlari (DUZ METIN), parola
+  # hash'leri. Windows 10/11'de Masaustu cogu zaman OneDrive'a esitlenir -> yedek kisisel
+  # bulut hesabina da gider. Akis DEGISMEZ (yalniz uyari); karar operatorun.
+  $resolvedOut = (Resolve-Path -LiteralPath $OutDir).Path
+  foreach ($syncRoot in @($env:OneDrive, $env:OneDriveConsumer, $env:OneDriveCommercial)) {
+    if ($syncRoot -and $resolvedOut.StartsWith($syncRoot, [System.StringComparison]::OrdinalIgnoreCase)) {
+      Write-Host ""
+      Write-Host "UYARI: hedef klasor OneDrive ile esitleniyor: $resolvedOut" -ForegroundColor Yellow
+      Write-Host "       Yedek misafir verisi ve erisim tokenlari icerir; esitlenmeyen bir klasor sec:" -ForegroundColor Yellow
+      Write-Host "       -OutDir 'C:\LixusYedek'   (sonra sifrele ve harici diske kopyala)" -ForegroundColor Yellow
+      Write-Host ""
+      break
+    }
+  }
   $stamp = Get-Date -Format "yyyy-MM-dd-HHmmss"
   # !! Dosya adindaki "pause" ETIKETTIR: restore provasi varsayilan olarak
   # "post-contract" desenini arar, bu yuzden asagida provanin TAM komutu
@@ -217,6 +232,11 @@ try {
   $lines += "    Hospitable token'lari ve takvim feed URL'leri ACILMAZ."
   $lines += "  - .env degerleri (AUTH_SECRET, Paddle, Resend/SMTP, Tigris) ayrica saklanir."
   $lines += "  - Tigris 'lixus-uploads' bucket'i AYRI bir saglayicidir, bu dump'ta YOKTUR."
+  $lines += ""
+  $lines += "BU DOSYALAR SIFRESIZDIR (.dump ve .sql):"
+  $lines += "  ENCRYPTION_KEY yalniz *Enc kolonlarini korur. Geri kalan HER SEY okunur:"
+  $lines += "  misafir adlari/telefonlari/mesajlari, QR ve iCal erisim tokenlari (duz metin;"
+  $lines += "  servis geri acilinca CALISIRLAR), parola hash'leri. Sifrele, OneDrive'a koyma."
   Set-Content -Path $manifest -Value $lines -Encoding UTF8
 
   Write-Host ""
@@ -225,6 +245,11 @@ try {
   Write-Host ""
   Write-Host "SIRADAKI ADIM - PROVA (bunu KOSMADAN yedek dogrulanmis SAYILMAZ):" -ForegroundColor Yellow
   Write-Host "  powershell -NoProfile -ExecutionPolicy Bypass -File .\scripts\ops-restore-drill.ps1 -ExpectedSha $dumpSha -DumpPattern 'lixus-prod-pause-*.dump'"
+  Write-Host ""
+  Write-Host "PROVADAN SONRA - SIFRELE (7-Zip, AES-256; dosya adlari da gizlenir, parolayi 7-Zip sorar):" -ForegroundColor Yellow
+  Write-Host "  & 'C:\Program Files\7-Zip\7z.exe' a -t7z -mhe=on -p `"$base.7z`" `"$dump`" `"$sqlOut`" `"$manifest`""
+  Write-Host "  Parola ENCRYPTION_KEY'den FARKLI olsun ve ondan AYRI yerde saklansin."
+  Write-Host "  Arsivi 7z t ile dogruladiktan sonra duz dosyalari sil: Remove-Item `"$dump`", `"$sqlOut`""
 } catch {
   Write-Host "YEDEK ALINAMADI: $_" -ForegroundColor Red
   exit 1
