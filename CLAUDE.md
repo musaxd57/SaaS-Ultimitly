@@ -610,6 +610,17 @@ Sekiz P1 KAPANDI (09-07), her biri ayrı commit, kırmızı-önce + iki yönlü 
   gölge pilotta teslimat takibi/per-org kota · supply türetmenin import TX'ine alınması.
 
 **Kimlik / oturum**
+- 🚨 **PAROLA ASLA KIRPILMAZ (09-23):** kayıt/giriş parolayı olduğu gibi alır; değiştirme ve sıfırlama da
+  öyle (eskiden kırpıyordu → boşluklu parola sıfırlamadan sonra girişte kilitliyordu). Kod/token kırpılır.
+- 🚨 **bcrypt EŞZAMANLILIK KAPISI (`auth/password.ts`):** bcryptjs saf JS — ölçüldü: 8 eşzamanlı karşılaştırma
+  olay döngüsünü ~800 ms dondurur. Aynı anda en fazla 2 iş (env `PASSWORD_HASH_MAX_IN_FLIGHT`), 32'lik kuyruk,
+  8 sn; taşarsa `PasswordHashBusyError` → `serverError` 503 (alarm YOK). Doğrulama/hash/SAHTE doğrulama AYNI
+  kapıdan geçer (numaralandırma kâhini doğmaz). bcrypt'i kapı dışında çağırma.
+- **Doğrulama e-postası kişiselleştirilmez** (kimliksiz yolla herhangi bir adrese gider → ad alanı içerik
+  enjeksiyonu); yeniden gönderme günlük tavanı 6/adres. **Kimlik rotalarında JSON kontrolü IP kovasından ÖNCE**
+  (login/register/forgot/resend; 415).
+- **Süper-admin e-postası JWT iddiasından okunur** — bugün `User.email`i değiştiren HİÇBİR yol yok (ölçüldü).
+  🚨 **E-posta değiştirme özelliği eklenirse** `requireSession`/`requireAuth` e-postayı DB'den okumalı (ön koşul).
 - 2FA aktifliğinin tek koşulu `twoFactorEnabledAt`; bayat secret arıza değil → `/admin` "2FA'yı sıfırla"
   (bayat dalda epoch artmaz). Operatör müşteri hesabında 2FA kuramaz.
 - Operatör yetkisi = allowlist + `mfa === true` (`isSuperAdmin`, tek boğaz noktası). `login` `mfa`yı
@@ -675,6 +686,16 @@ Sekiz P1 KAPANDI (09-07), her biri ayrı commit, kırmızı-önce + iki yönlü 
   (OpenAI SDK hatası da `status: 402` taşır = kota; "Hospitable aboneliği" DEĞİL). Ingest sözlüğünde 402 =
   **`blocked`** (giden yönle AYNI sözcük; eskiden `unknown`). Yeni sarmal/adaptör eklerken: çağıranın özel
   dalları (402 sus · 401 revoke · 429 bekle) sarmaldan SONRA da eşleşiyor mu — davranışsal test şart.
+- 🚨 **PERİYODİK İŞİN ALARMI GEÇİŞ TABANLIDIR (09-23, `src/lib/alert-state.ts`, migration YOK):** 2 dk'lık
+  döngüde `reportError`ı DOĞRUDAN çağırmak kalıcı arızada günde ~130 e-posta demektir (kısıt bellek-içi, context
+  başına 10 dk, yeniden başlatmada sıfırlanır). Yeni periyodik aşama `alertTracker(prefix)` kullanır: `fail(key,
+  context, err)` ilk arıza / SINIF değişiminde bir kez + 24 sa hatırlatma; `ok(key)` başarıda temizler (yalnız
+  AKTİF anahtara sorgu atar — sağlıklı yol geçiş başına 1 okuma, sayaçla pinli). Anahtar AŞAMA başınadır (bir
+  aşamanın başarısı ötekinin alarmını silmesin); e-posta KONUSU değişmez. Hata sınıfı mesaj METNİ taşımaz.
+  E-posta gitmediyse ya da KISITA takıldıysa 15 dk sonra yeniden dener; DB düşerse susmaz (eski yol).
+  Bilinen sınır: hızlı dalgalanan arıza hâlâ yalnız 10 dk kısıtıyla sınırlı (histerezis ayrı iş).
+- **Kimlik e-postası kurtarması HER geçişte** (`recoverEmailOutbox`), silme saatlik (`purgeEmailOutbox`):
+  15 sn'lik poller yalnız drain eder; kurtarma saatlik kalırsa deploy ortasında düşen sıfırlama kodu hiç ulaşmaz.
 - **Channel Layer (V0.1–V0.2, `src/lib/channels`):** giden-mesaj çekirdeği (`messaging.ts`, `outbox/worker.ts`)
   `@/lib/hospitable` istemcisini import ETMEZ, yalnız `@/lib/channels`; `sendMessage(` src/ içinde TEK yerde =
   `channels/hospitable-outbound.ts` (pin `core-channel-independence.test.ts`). `qr-chat:` iç-thread kuralı
@@ -1297,6 +1318,25 @@ adaptörüne taşıdı ve adaptör hatayı `IngestError`a SARIYOR → dal **09-0
 geçiriyordu ama `reportError`ı yalnız mock'luyor, hiç SORGULAMIYORDU (yüklem vardı, iddia yoktu).
 Düzeltme + sınıf kuralı ↑"Mesajlaşma / outbox / sync" ilk madde. Kanıt: kırmızı-önce 16 (eski kodda
 entegrasyon testi canlı e-postanın gövdesini BİREBİR üretti: 3 geçiş → 3 × `unknown (HTTP 402)`).
+**Üretim kanıtı:** CI #1114 08:11Z → son alarm e-postası 08:08:22Z, 08:10Z sonrası SIFIR.
+**Aynı günün devamı — SINIF + güvenlik turu (yedi ölçümlü ajan, login ajanı dahil; hüküm belgesi
+`docs/DENETIM-2026-09-23-alarm-seli-ve-guvenlik-turu.md`):** kalıcı arıza = tek e-posta (`alert-state`) ·
+ReDoS ×2 (yer tutucu regex'i 3.000 karakterde 8,1 sn; kesme regex'i O(n²)) · login: tanınan cihaz, günlük TOTP
+tavanı, açık yönlendirme, JSON-önce, bcrypt eşzamanlılık kapısı · kiracılar arası: cevap kotası + export sırası
++ sekiz tutamaçta DAVRANIŞSAL pin · görev fotoğrafı keyfi aynı-kaynak yolu (tıksız GET) · doğrulama e-postası
+içerik enjeksiyonu + e-posta bombası · parola kırpma · OAuth kod reddi alarmı · zafiyet kapısında GHSA'sız
+danışma fail-open · ham NUL baytı · `env:recover` kilidi · test saat-bombası · şifresiz yedek uyarısı.
+Kanıt: kırmızı-önce (her yeni davranış eski kodda düşüyor) · mutasyon 23/25 → 36/36+8/8+9/9 (iki perf
+önbelleği ölçümle karara bağlandı) · tam kapılar (`2a2548f`): **npm test 5060/428** · tsc · lint · build ·
+audit yeşil. **Migration YOK.**
+🚨 **KENDİ KAZAM (kayda geçsin):** `env:recover` korumasını "denemek" için betiği bu konteynerde DOĞRUDAN
+çalıştırdım; koruma tasarım gereği geçti, `git reset --hard` commit edilmemiş ~30 dosyayı sildi. Yerel
+commit'ler reflog'dan, düzenlemeler oturum kaydından (`~/.claude/projects/…jsonl`) birebir geri kuruldu.
+**KURAL: yıkıcı bir betik "denemek" için ASLA çalıştırılmaz — koruma SAF fonksiyonla test edilir; uzun iş
+arasında yerel commit/yama yedeği alınır.** Betik artık kirli ağaçta da reddeder. Ayrıca ölçüldü: Prisma
+temsilcisine `vi.spyOn` aynı dosyadaki SONRAKİ testlere sızıyor (`mockRestore` → "is not a function") → DB
+arızası testi AYRI dosyada. Yorumlarda `\uXXXX` kaçışı YAZILMAZ (okunamaz; araç katmanı `\u`yu çözüyor) —
+yalnız görünmez/karıştırılabilir karakter gösteriminde bilinçli kaçış.
 
 **DIŞ DENETİM TURU (09-18, DÖRT paralel ölçümlü ajan) — hüküm belgesi
 `docs/DENETIM-2026-09-18-dis-rapor-hukumleri.md`.** Kurucu dış bir rapor getirdi (10 bulgu; raporun
