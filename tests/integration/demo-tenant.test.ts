@@ -229,6 +229,18 @@ describe("demo hesabı — reddetmeler SIFIR yazma", () => {
     expect(await totalRows()).toEqual(before);
   });
 
+  it("🚨 veri kümesindeki kullanıcı kimliği başka bir org'da varsa reddedilir (o satır ezilmez, atlanmaz)", async () => {
+    const other = await makeOrgWithProperty();
+    const ds = buildDemoDataset({ now: NOW });
+    await prisma.user.create({ data: { id: ds.users[2].id, organizationId: other.orgId, name: "Başka", email: "baska@example.org", passwordHash: "x" } });
+    const before = await totalRows();
+    await expect(applyDemoTenant(prisma, ds, { reviewerPasswordHash: PW_HASH, staffPasswordHash: STAFF_HASH })).rejects.toMatchObject({
+      reason: "user_id_collision",
+    });
+    expect(await totalRows()).toEqual(before);
+    expect(await prisma.user.findUniqueOrThrow({ where: { id: ds.users[2].id } })).toMatchObject({ organizationId: other.orgId, name: "Başka" });
+  });
+
   it("veri kümesindeki mülk kimliği başka bir org'da varsa reddedilir", async () => {
     const other = await makeOrgWithProperty();
     const ds = buildDemoDataset({ now: NOW });

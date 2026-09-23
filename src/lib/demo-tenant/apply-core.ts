@@ -20,6 +20,7 @@ export type DemoRefusal =
   | "staff_email_taken"
   | "live_connection_present"
   | "property_id_collision"
+  | "user_id_collision"
   | "first_run_needs_password";
 
 export class DemoRefusedError extends Error {
@@ -83,6 +84,11 @@ async function check(db: Db | Tx, ds: DemoDataset, hasReviewerPassword: boolean,
     where: { id: { in: ds.properties.map((p) => p.id) }, NOT: { organizationId: DEMO_ORG_ID } },
   });
   if (foreignProps > 0) throw new DemoRefusedError("property_id_collision");
+  // Aynı kimlikli kullanıcı başka org'daysa ne güncellenir ne atlanır — REDDEDİLİR (inceleme 09-24).
+  const foreignUsers = await db.user.count({
+    where: { id: { in: ds.users.map((u) => u.id) }, NOT: { organizationId: DEMO_ORG_ID } },
+  });
+  if (foreignUsers > 0) throw new DemoRefusedError("user_id_collision");
 
   const [properties, reservations, conversations, tasks] = await Promise.all([
     db.property.count({ where: { organizationId: DEMO_ORG_ID } }),
