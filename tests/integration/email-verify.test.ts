@@ -618,8 +618,12 @@ describe("registration → verification → login", () => {
     expect(mockSendReporting).toHaveBeenCalledOnce();
     const html = String(mockSendReporting.mock.calls[0][2]);
     expect(html).toContain("https://www.lixusai.com/e-posta-dogrula#t="); // anti-vakum: gerçek doğrulama e-postası
-    expect(html).not.toContain("askiya");
-    expect(html).not.toContain("0850");
+    // 🚨 Rastgele doğrulama token'ı (64 onaltılık) tesadüfen "0850" içerebilir — CI #1120'de oldu
+    // (`#t=48870850…`, olasılık ~%0,1). Numara araması token'lar ÇIKARILMIŞ metinde yapılır.
+    const withoutTokens = html.replace(/#t=[0-9a-f]+/g, "#t=<token>");
+    expect(withoutTokens).not.toContain("askiya");
+    expect(withoutTokens).not.toContain("0850 000");
+    expect(withoutTokens).not.toContain("0850");
   });
 
   it("🚨 E-POSTA BOMBASI (09-23): aynı adrese 24 saatte en fazla 6 doğrulama e-postası (15 dk'lık kovalar dolsa da)", async () => {

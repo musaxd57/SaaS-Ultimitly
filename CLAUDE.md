@@ -1392,7 +1392,12 @@ retrieval sözlüğü: cevap cümlesi isteme %63 → %97, Türkçe/İngilizce se
 ⑤ `getAdjacency` karışık tarih yazımında aynı gün devri kaçırıp isteme "giriş öncesi daire boş" yazıyordu →
 motorun takvim günü kuralıyla düzeltildi. Kanıt: kırmızı-önce + mutasyon (kanal+müsaitlik 46/46 · retrieval
 18/18 · demo 21/22 + 1 ölçülmüş eşdeğer · komşuluk 11/11; her turda hayatta kalanlar gerçek pin eksikliğiydi
-ve kapatıldı).
+ve kapatıldı). **Kapanış inceleme ajanı** (salt-okuma + tsx probları) P1 bulmadı; 5 P2'nin HEPSİ kodda doğrulandı ve
+kapandı: besleme iddiası gerçekte hiç "taze" olamıyordu (koşu başı/sonu damgası) · silinen beslemenin öksüzleri
+host girişi sayılıyordu · sıfır gecelik satır "boş" üretiyordu · girdi yüklendiği aralığı taşımıyordu · panel
+satırı gürültülüydü (mülk başına tek satır, kanıta göre önem, doğru gece etiketi) + seçili P3'ler (Rusça/Arapça
+önek çarpışmaları `=` ile, umlaut'suz Almanca, demo kullanıcı kimliği çakışması reddi). Kırmızı-önce 27 test +
+mutasyon **18/18**. `1addc32` push edildi (kapılar yeşil: 5401 test · tsc · lint · build · audit).
 **09-23 İKİNCİ TUR — GİRİŞ EKRANINA SALDIRGAN GÖZÜYLE (beş saldırı ajanı; hüküm belgesi
 `docs/DENETIM-2026-09-23-alarm-seli-ve-guvenlik-turu.md` §9).** Kurucunun onayladığı dört öneri uygulandı
 (`ca6bdf8` 2FA açınca oturum düşürme + girişte hash yükseltme + NFC/72 bayt · `d851afe` `__Host-` önek) ve 12 açık
