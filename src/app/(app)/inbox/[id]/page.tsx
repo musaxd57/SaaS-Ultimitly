@@ -19,6 +19,7 @@ import { formatDate, formatDateTime, formatCurrency } from "@/lib/utils";
 import { channelLabel, riskTypeLabel } from "@/lib/ui-labels";
 import { getReturningGuestInfo } from "@/lib/returning-guest";
 import { getAdjacency } from "@/lib/turnover";
+import { loadStayEdgeSummary } from "@/modules/availability/stay-edges-load";
 
 export const dynamic = "force-dynamic";
 
@@ -74,7 +75,13 @@ export default async function ConversationPage({
   // sanmak, kırpmayı sessiz veri kaybına çevirirdi.
   const hiddenStays = returning ? returning.stayCount - 1 - returning.pastStays.length : 0;
 
-  const [kb, adjacency, tasks, outboxRows] = await Promise.all([
+  // Konaklama bitti mi (org diliminde gün anahtarı) — aşağıdaki kenar/devir bloklarının kapısı.
+  const todayKey = dateKeyInTimeZone(new Date(), TZ);
+  const stayIsOver = conversation.reservation
+    ? dateKeyInTimeZone(conversation.reservation.departureDate, TZ) < todayKey
+    : false;
+
+  const [kb, adjacency, tasks, outboxRows, stayEdges] = await Promise.all([
     prisma.knowledgeBaseItem.findMany({
       where: { propertyId: conversation.propertyId, isActive: true },
       orderBy: { category: "asc" },
@@ -99,6 +106,21 @@ export default async function ConversationPage({
     // Durable Outbox delivery status per outbound message (#3): a queued / sending /
     // ambiguous / review reply must never look like a normally-delivered bubble.
     prisma.messageOutbox.findMany({ where: { conversationId: id }, select: { messageId: true, status: true } }),
+    // Müsaitlik motoru dilim 2: erken giriş / geç çıkış / uzatma gecelerinin durumu + kanıtı.
+    // YALNIZ HOST'A — yapay zekâya bağlı DEĞİL. Biten konaklamada sorulmaz (sorgu da atılmaz).
+    conversation.reservation && !stayIsOver
+      ? loadStayEdgeSummary(
+          session.organizationId,
+          conversation.propertyId,
+          {
+            id: conversation.reservation.id,
+            arrival: conversation.reservation.arrivalDate,
+            departure: conversation.reservation.departureDate,
+            status: conversation.reservation.status,
+          },
+          { timeZone: TZ },
+        )
+      : null,
   ]);
   const outboxByMessage = new Map(
     outboxRows.filter((o) => o.messageId).map((o) => [o.messageId as string, o.status]),
@@ -114,10 +136,6 @@ export default async function ConversationPage({
   // 11–12 Haziran'da biten bir rezervasyonda "devir günü" yazması gürültü.
   // ⚠️ Karşılaştırma GÜN ANAHTARI ile: `departureDate` iCal'de 12:00Z, Hospitable'da
   // 00:00Z damgalı — ham `Date` karşılaştırması iki kaynağı farklı ele alırdı.
-  const todayKey = dateKeyInTimeZone(new Date(), TZ);
-  const stayIsOver = conversation.reservation
-    ? dateKeyInTimeZone(conversation.reservation.departureDate, TZ) < todayKey
-    : false;
   // "Aynı gün devir" kararı `getAdjacency`de, müsaitlik motorunun takvim günü kuralıyla verilir
   // (istemle AYNI karar — ekran ile model aynı olguyu görür).
   const turnoverIn = !stayIsOver && adjacency?.previousSameDay === true;
@@ -319,6 +337,28 @@ const SKIP_REASON_LABELS: Record<string, string> = {
                           ? `Giriş günü aynı günde önceki misafir saat ${conversation.property.checkOutTime}'te çıkıyor — devir günü.`
                           : `Çıkış günü aynı günde yeni misafir saat ${conversation.property.checkInTime}'te giriyor — devir günü.`}
                       </span>
+                    </div>
+                  ) : null}
+                  {stayEdges && stayEdges.lines.length > 0 ? (
+                    <div className="mt-2 space-y-1 rounded-md border p-2 text-xs" data-testid="stay-edges">
+                      <p className="font-medium">Önceki ve sonraki geceler</p>
+                      <ul className="space-y-0.5">
+                        {stayEdges.lines.map((l) => (
+                          <li
+                            key={l.text}
+                            className={
+                              l.tone === "warn"
+                                ? "text-warning-foreground"
+                                : l.tone === "ok"
+                                  ? "text-success"
+                                  : "text-muted-foreground"
+                            }
+                          >
+                            {l.text}
+                          </li>
+                        ))}
+                      </ul>
+                      {stayEdges.footer ? <p className="text-muted-foreground">{stayEdges.footer}</p> : null}
                     </div>
                   ) : null}
                 </>
