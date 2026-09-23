@@ -8,6 +8,7 @@ import { baseUrlFromHost } from "@/lib/auth/email-verify";
 import {
   getHospitableOAuthConfig,
   exchangeCodeForToken,
+  HospitableOAuthError,
   parseOAuthStateCookie,
   OAUTH_STATE_COOKIE,
 } from "@/lib/hospitable-oauth";
@@ -80,13 +81,22 @@ export async function GET(req: NextRequest) {
     });
     return clearStateCookie(NextResponse.redirect(`${base}/settings?hospitable=connected`));
   } catch (err) {
-    const reason = err instanceof HospitableError ? "invalid_token" : "exchange_failed";
-    // A non-Hospitable error is an INTERNAL fault (encryptSecret / the DB write in
-    // setOrgHospitableOAuthTokens), NOT the provider rejecting us — surface it so a
-    // systemic ENCRYPTION_KEY/DB failure that breaks "Hospitable ile Bağlan" for
-    // every host pages ops instead of being silently mislabeled as an external
-    // Hospitable error. (The sibling PAT-connect route already reportErrors this.)
-    if (!(err instanceof HospitableError)) {
+    // 🚨 SAĞLAYICI REDDİ ≠ İÇ ARIZA (09-23, alarm ajanı — kodda doğrulandı): kod değişimi
+    // `HospitableOAuthError` fırlatır ve o `HospitableError` DEĞİLDİR → sağlayıcının kodu
+    // REDDETMESİ (süresi dolmuş/tekrar kullanılmış kod = OAuth `invalid_grant`, 4xx,
+    // `authFailure`) "iç arıza" sayılıp her seferinde operatöre alarm e-postası
+    // düşüyordu, kullanıcıya da "bağlantı kurulamadı" yerine anlamsız bir sebep. Beklenen
+    // bir dış olaydır: kullanıcı yeniden dener, alarm GİTMEZ. Geçici sağlayıcı sorunu
+    // (5xx/429/ağ) ve yapılandırma hatası `authFailure:false` ile gelir ve alarm vermeye
+    // DEVAM eder — sistemik kırılma görünür kalmalı.
+    const providerRejected =
+      err instanceof HospitableError || (err instanceof HospitableOAuthError && err.authFailure);
+    const reason = providerRejected ? "invalid_token" : "exchange_failed";
+    // A non-provider-rejection is an INTERNAL or transient fault (encryptSecret / the DB
+    // write in setOrgHospitableOAuthTokens / provider 5xx) — surface it so a systemic
+    // ENCRYPTION_KEY/DB failure that breaks "Hospitable ile Bağlan" for every host pages
+    // ops. (The sibling PAT-connect route already reportErrors this.)
+    if (!providerRejected) {
       const { reportError } = await import("@/lib/report-error");
       void reportError("hospitable.oauth.callback", err).catch(() => {});
     }

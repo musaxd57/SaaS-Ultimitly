@@ -14,6 +14,7 @@ import { safeJsonParse, cn, daysUntilDate, formatDayInTz } from "@/lib/utils";
 import { zonedDayRange } from "@/lib/automation";
 import { orgTimezone } from "@/lib/timezone";
 import { clampPage, MAX_LIST_PAGE } from "@/lib/pagination";
+import { latestRenderablePhotoByTask } from "@/lib/storage/keys";
 
 export const dynamic = "force-dynamic";
 
@@ -163,10 +164,9 @@ export default async function TasksPage({
     select: { taskId: true, photoUrl: true },
     orderBy: { createdAt: "desc" },
   });
-  const latestPhotoByTask = new Map<string, string>();
-  for (const row of photoRows) {
-    if (row.photoUrl && !latestPhotoByTask.has(row.taskId)) latestPhotoByTask.set(row.taskId, row.photoUrl);
-  }
+  // Yalnız bu org'un gerçek yükleme yolları çizilir (09-23: eski dönemden kalan keyfi
+  // aynı-kaynak yolu sahibin panosunda `<img src>` olarak TIKSIZ GET üretirdi).
+  const latestPhotoByTask = latestRenderablePhotoByTask(photoRows, session.organizationId);
 
   const cards: TaskCardData[] = tasks.map((t) => {
     const parsedChecklist = safeJsonParse<ChecklistItem[]>(t.checklistJson, []);

@@ -31,11 +31,22 @@ vi.mock("@/lib/hospitable", async (orig) => {
 });
 vi.mock("@/lib/hospitable-credentials", () => ({ setOrgHospitableOAuthTokens: vi.fn(async () => {}) }));
 vi.mock("@/lib/audit", () => ({ writeAudit: vi.fn(async () => {}) }));
+vi.mock("@/lib/report-error", async (orig) => {
+  const actual = await orig<typeof import("@/lib/report-error")>();
+  return { ...actual, reportError: vi.fn(async () => ({ notified: true, throttled: false, configured: true })) };
+});
 
 import { GET as authorize } from "@/app/api/hospitable/oauth/authorize/route";
 import { GET as callback } from "@/app/api/hospitable/oauth/callback/route";
 import { setOrgHospitableOAuthTokens } from "@/lib/hospitable-credentials";
-import { exchangeCodeForToken, OAUTH_STATE_COOKIE, packOAuthStateCookie, parseOAuthStateCookie } from "@/lib/hospitable-oauth";
+import {
+  exchangeCodeForToken,
+  HospitableOAuthError,
+  OAUTH_STATE_COOKIE,
+  packOAuthStateCookie,
+  parseOAuthStateCookie,
+} from "@/lib/hospitable-oauth";
+import { reportError } from "@/lib/report-error";
 
 const mockSave = vi.mocked(setOrgHospitableOAuthTokens);
 const mockExchange = vi.mocked(exchangeCodeForToken);
@@ -120,5 +131,31 @@ describe("OAuth state ↔ session context binding", () => {
     const res = await callback(callbackReq("forged-state", cookie));
     expect(res.headers.get("location")).toContain("hospitable=state_mismatch");
     expect(mockSave).not.toHaveBeenCalled();
+  });
+});
+
+describe("OAuth callback — sağlayıcı reddi ile iç arıza AYRIŞIR (09-23)", () => {
+  it("🚨 kod reddi (invalid_grant, 4xx) BEKLENEN dış olaydır → invalid_token, operatöre ALARM YOK", async () => {
+    session = owner("org_a", "user_1");
+    const { cookie, state } = await startFlow();
+    mockExchange.mockRejectedValueOnce(new HospitableOAuthError("Token request failed (400)", true));
+
+    const res = await callback(callbackReq(state, cookie));
+    expect(res.headers.get("location")).toContain("hospitable=invalid_token");
+    expect(vi.mocked(reportError)).not.toHaveBeenCalled();
+    expect(mockSave).not.toHaveBeenCalled();
+  });
+
+  it("geçici sağlayıcı sorunu (5xx) ya da iç arıza HÂLÂ alarm üretir → exchange_failed", async () => {
+    for (const err of [new HospitableOAuthError("Token request failed (503)", false), new Error("db write failed")]) {
+      vi.mocked(reportError).mockClear();
+      session = owner("org_a", "user_1");
+      const { cookie, state } = await startFlow();
+      mockExchange.mockRejectedValueOnce(err);
+
+      const res = await callback(callbackReq(state, cookie));
+      expect(res.headers.get("location")).toContain("hospitable=exchange_failed");
+      await vi.waitFor(() => expect(vi.mocked(reportError)).toHaveBeenCalledTimes(1));
+    }
   });
 });

@@ -346,13 +346,23 @@ describe("task PATCH — write-time guard rejects a cross-org storage photoUrl",
     expect((await taskPATCH(patchReq(taskId, { photoUrl: own }), patchCtx(taskId))).status).toBe(200);
     const bad = await taskPATCH(patchReq(taskId, { photoUrl: foreign }), patchCtx(taskId));
     expect(bad.status).toBe(400);
-    expect((await taskPATCH(patchReq(taskId, { photoUrl: "/uploads/x/legacy.png" }), patchCtx(taskId))).status).toBe(200);
+    // Eski yerel yükleme YALNIZ bu org'un dizininde kabul edilir (09-23 daraltması).
+    const legacyOwn = `/uploads/${orgId.replace(/[^a-zA-Z0-9-]/g, "")}/legacy.png`;
+    expect((await taskPATCH(patchReq(taskId, { photoUrl: legacyOwn }), patchCtx(taskId))).status).toBe(200);
+    // 🚨 TERS ÇEVRİLDİ (09-23): eski satır `/uploads/x/legacy.png`in 200 aldığını pinliyordu —
+    // şema yalnız "göreli yol" istediği için en düşük yetkili kullanıcı keyfi aynı-kaynak
+    // yolu yazabiliyordu ve değer sahibin panosunda `<img src>` olarak TIKSIZ GET üretiyordu.
+    for (const arbitrary of ["/uploads/x/legacy.png", "/logout", "/api/account/export"]) {
+      const r = await taskPATCH(patchReq(taskId, { photoUrl: arbitrary }), patchCtx(taskId));
+      expect(r.status, arbitrary).toBe(400);
+    }
 
-    // Only the two accepted updates recorded a photoUrl; the cross-org one never persisted.
+    // Only the two accepted updates recorded a photoUrl; the rejected ones never persisted.
     const urls = (await prisma.taskUpdate.findMany({ select: { photoUrl: true } })).map((u) => u.photoUrl);
     expect(urls).toContain(own);
-    expect(urls).toContain("/uploads/x/legacy.png");
+    expect(urls).toContain(legacyOwn);
     expect(urls).not.toContain(foreign);
+    expect(urls).not.toContain("/logout");
   });
 });
 

@@ -7,6 +7,8 @@ import {
   keyFromPhotoUrl,
   isStoragePhotoUrl,
   isAcceptablePhotoUrl,
+  isRenderablePhotoUrl,
+  latestRenderablePhotoByTask,
   STORAGE_PHOTO_URL_PREFIX,
 } from "@/lib/storage/keys";
 import { getStorageConfig, storageConfigured, storageUploadsEnabled } from "@/lib/storage/config";
@@ -75,9 +77,54 @@ describe("object keys — the tenant boundary, fail-closed", () => {
     expect(isAcceptablePhotoUrl(foreign, "orgA")).toBe(false); // cross-tenant → rejected at write time
     expect(isAcceptablePhotoUrl(STORAGE_PHOTO_URL_PREFIX + "garbage", "orgA")).toBe(false); // malformed storage url
     expect(isAcceptablePhotoUrl(STORAGE_PHOTO_URL_PREFIX + "org/orgA/task/t1/../x.jpg", "orgA")).toBe(false); // traversal
-    // Non-storage (legacy /uploads or a plain relative) is unaffected by this guard.
+    // Eski yerel yükleme: YALNIZ bu org'un dizini + görsel dosya adı.
     expect(isAcceptablePhotoUrl("/uploads/orgA/1-a.jpg", "orgA")).toBe(true);
-    expect(isAcceptablePhotoUrl("/uploads/whatever.png", "orgA")).toBe(true);
+    expect(isAcceptablePhotoUrl("/uploads/orgA/1726000000000-0a1b2c3d4e5f.webp", "orgA")).toBe(true);
+    // 🚨 TERS ÇEVRİLDİ (09-23): eski pin "düz göreli yol da geçer" diyordu — kusurun kendisi.
+    expect(isAcceptablePhotoUrl("/uploads/whatever.png", "orgA")).toBe(false); // org dizini yok
+  });
+
+  it("🚨 09-23: depolama-DIŞI keyfi aynı-kaynak yolu REDDEDİLİR (panoda <img src> = tıksız GET)", () => {
+    for (const bad of [
+      "/logout",
+      "/api/account/export",
+      "/api/auth/logout?next=/",
+      "/uploads/orgB/1-a.jpg", // başka kiracının dizini
+      "/uploads/orgA/../orgB/1-a.jpg", // dizin dışına çıkma
+      "/uploads/orgA/sub/1-a.jpg", // alt dizin
+      "/uploads/orgA/1-a.svg", // görsel olmayan / betik taşıyabilen biçim
+      "/uploads/orgA/1-a.html",
+      "/uploads/orgA/.hidden.png",
+      "/uploads/orgA/", // dosya adı yok
+    ]) {
+      expect(isAcceptablePhotoUrl(bad, "orgA"), bad).toBe(false);
+      expect(isRenderablePhotoUrl(bad, "orgA"), bad).toBe(false);
+    }
+    // Org kimliği `/api/upload` ile AYNI türetmeyle dizine iner (tire korunur, diğerleri düşer).
+    expect(isAcceptablePhotoUrl("/uploads/org-A1/1-a.png", "org-A1")).toBe(true);
+  });
+
+  it("pano: görev başına EN YENİ çizilebilir foto; eski keyfi yol yuvayı KAPATMAZ (önceki gerçek foto gösterilir)", () => {
+    const good = STORAGE_PHOTO_URL_PREFIX + "org/orgA/task/t1/1-a.jpg";
+    const rows = [
+      { taskId: "t1", photoUrl: "/logout" }, // en yeni satır — eski dönemden kalma, ÇİZİLMEZ
+      { taskId: "t1", photoUrl: good }, // bir önceki gerçek foto
+      { taskId: "t2", photoUrl: null },
+      { taskId: "t3", photoUrl: STORAGE_PHOTO_URL_PREFIX + "org/orgB/task/t3/1-a.jpg" }, // başka kiracı
+    ];
+    const m = latestRenderablePhotoByTask(rows, "orgA");
+    expect(m.get("t1")).toBe(good);
+    expect(m.has("t2")).toBe(false);
+    expect(m.has("t3")).toBe(false);
+    // Sıra: yeniden eskiye gelen İLK çizilebilir satır kazanır.
+    const newer = STORAGE_PHOTO_URL_PREFIX + "org/orgA/task/t1/2-b.jpg";
+    expect(latestRenderablePhotoByTask([{ taskId: "t1", photoUrl: newer }, { taskId: "t1", photoUrl: good }], "orgA").get("t1")).toBe(newer);
+  });
+
+  it("çizim kapısı görev şartı OLMADAN yazma kapısının aynısıdır (eski satırlar da elenir)", () => {
+    const other = STORAGE_PHOTO_URL_PREFIX + "org/orgA/task/t2/1-a.jpg";
+    expect(isRenderablePhotoUrl(other, "orgA")).toBe(true); // aynı org, başka görev → çizilir
+    expect(isRenderablePhotoUrl(STORAGE_PHOTO_URL_PREFIX + "org/orgB/task/t2/1-a.jpg", "orgA")).toBe(false);
   });
 
   it("isAcceptablePhotoUrl: taskId verilince key'in TASK segmenti de eşleşmeli (Codex — org-içi çapraz-görev)", () => {

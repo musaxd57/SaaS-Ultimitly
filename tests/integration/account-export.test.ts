@@ -195,6 +195,19 @@ describe("GET /api/account/export — complete + secret-free", () => {
     return out;
   }
 
+  it("🚨 SIRA (09-23): yöneticinin 403'lük istekleri SAHİBİN KVKK export kotasını TÜKETMEZ", async () => {
+    // Eski sıra: kota (org başına 3/saat) yetki kontrolünden ÖNCE tüketiliyordu → bir
+    // yönetici üç reddedilen istekle sahibin dışa aktarımını bir saat kilitliyordu.
+    const call = () =>
+      exportRoute(new NextRequest("http://localhost/api/account/export"), {
+        params: Promise.resolve({} as Record<string, never>),
+      });
+    session = { ...session, role: "manager" };
+    for (let i = 0; i < 5; i++) expect((await call()).status).toBe(403);
+    session = { ...session, role: "owner" };
+    expect((await call()).status).toBe(200);
+  });
+
   it("PARİTE: admin export ↔ account export aynı yapıyı döner ve admin de secret-free", async () => {
     await seedRichOrg();
 

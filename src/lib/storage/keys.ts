@@ -73,19 +73,65 @@ export function keyFromPhotoUrl(url: string | null | undefined): string | null {
   return isSafeObjectKey(key) ? key : null;
 }
 
+/** Eski yerel disk yüklemesinin dosya adı (`/api/upload` bayrak-kapalı dalı + öncesi). */
+const LEGACY_UPLOAD_FILE = /^[a-zA-Z0-9][a-zA-Z0-9._-]{0,127}\.(?:jpe?g|png|webp)$/i;
+
+/**
+ * Eski yerel yükleme yolu mu: YALNIZ `/uploads/<bu org'un dizini>/<görsel dosya adı>`.
+ *
+ * 🚨 09-23 (güvenlik ajanı, kodda doğrulandı): depolama-DIŞI her URL için bu kapı eskiden
+ * koşulsuz `true` dönüyordu. Şema yalnız "göreli yol" istediği için en düşük yetkili
+ * kullanıcı (temizlikçi, `staff`) kendi görevine `/logout` ya da `/api/...` gibi HERHANGİ
+ * bir aynı-kaynak yolu yazabiliyordu; değer sahibin panosunda `<img src>` + `<a href>`
+ * olarak çiziliyor → sahibin çerezleriyle TIKSIZ bir GET (CSRF yüzeyi) ve güvenilir
+ * görünen iç bağlantı. Uygulamanın ürettiği tek iki biçim depolama yolu ve bu dizindir.
+ */
+export function isLegacyUploadPhotoUrl(url: string, organizationId: string): boolean {
+  const orgSlug = organizationId.replace(/[^a-zA-Z0-9-]/g, ""); // `/api/upload` ile AYNI türetme
+  if (!orgSlug) return false;
+  const prefix = `/uploads/${orgSlug}/`;
+  return url.startsWith(prefix) && LEGACY_UPLOAD_FILE.test(url.slice(prefix.length));
+}
+
 /**
  * Guard a client-supplied photoUrl at WRITE time: a STORAGE url must resolve to a
  * safe key whose org segment equals `organizationId` AND (when a taskId is given)
- * whose task segment equals `taskId`. Returns true for a non-storage (legacy
- * /uploads) url — this only rejects a storage url that is malformed, points at
- * ANOTHER tenant, or (Codex) belongs to a DIFFERENT task in the same org: without
- * the taskId check a member could PATCH task-A's object key onto task-B, and
- * deleting task-B would enqueue task-A's still-referenced object for deletion.
- * Defense-in-depth alongside the deletion choke point + the serve-time org check.
+ * whose task segment equals `taskId` — without the taskId check a member could PATCH
+ * task-A's object key onto task-B, and deleting task-B would enqueue task-A's
+ * still-referenced object for deletion (Codex). A NON-storage url must be this org's
+ * legacy upload path (↑`isLegacyUploadPhotoUrl`) — any other same-origin path is
+ * rejected. Defense-in-depth alongside the deletion choke point + the serve-time org check.
  */
 export function isAcceptablePhotoUrl(url: string, organizationId: string, taskId?: string): boolean {
-  if (!isStoragePhotoUrl(url)) return true; // legacy /uploads or plain path — unaffected here
+  if (!isStoragePhotoUrl(url)) return isLegacyUploadPhotoUrl(url, organizationId);
   const key = keyFromPhotoUrl(url);
   if (key === null || orgIdFromKey(key) !== organizationId) return false;
   return taskId === undefined || taskIdFromKey(key) === taskId;
+}
+
+/**
+ * ÇİZİM kapısı: panoda `<img src>`/`<a href>` olarak basılacak değer. Yazma kapısının
+ * görev şartı OLMADAN aynısı — bu düzeltmeden ÖNCE yazılmış (her aynı-kaynak yolunu kabul
+ * eden dönemden kalma) satırlar da çizilmeden elenir.
+ */
+export function isRenderablePhotoUrl(url: string, organizationId: string): boolean {
+  return isAcceptablePhotoUrl(url, organizationId);
+}
+
+/**
+ * Görev başına EN YENİ ÇİZİLEBİLİR fotoğraf (satırlar yeniden eskiye sıralı gelir).
+ * Çizilemeyen bir satır o görevin yuvasını KAPATMAZ: eski dönemden kalma keyfi bir yol
+ * atlanır ve bir önceki gerçek fotoğraf gösterilir (kanıt kaybolmaz).
+ */
+export function latestRenderablePhotoByTask(
+  rows: ReadonlyArray<{ taskId: string; photoUrl: string | null }>,
+  organizationId: string,
+): Map<string, string> {
+  const out = new Map<string, string>();
+  for (const row of rows) {
+    if (!row.photoUrl || out.has(row.taskId)) continue;
+    if (!isRenderablePhotoUrl(row.photoUrl, organizationId)) continue;
+    out.set(row.taskId, row.photoUrl);
+  }
+  return out;
 }

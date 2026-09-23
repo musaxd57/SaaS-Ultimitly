@@ -72,6 +72,21 @@ describe("POST /api/conversations/[id]/reply — staff RBAC gate", () => {
     expect(count).toBe(0);
   });
 
+  it("🚨 KİRACILAR ARASI KOTA TÜKETME YOK (09-23): başka org'un kullanıcısı bu konuşmanın kimliğiyle istek yağdırsa da SAHİBİN cevap kotası yanmaz", async () => {
+    // Eski anahtar yalnız konuşma kimliğiydi ve sahiplik kontrolünden ÖNCE tüketiliyordu.
+    const other = await prisma.organization.create({ data: { name: "Other" } });
+    session = { userId: "x", organizationId: other.id, role: "owner", email: "x@x.com", name: "X", sessionEpoch: 0 };
+    for (let i = 0; i < 25; i++) {
+      const r = await POST(req(conversationId, { body: "spam" }), { params: Promise.resolve({ id: conversationId }) });
+      expect(r.status, "başka kiracı ASLA gönderemez").not.toBe(201);
+    }
+    expect(mockSend).not.toHaveBeenCalled();
+
+    session = { userId: "u", organizationId: orgId, role: "owner", email: "o@x.com", name: "Owner", sessionEpoch: 0 };
+    const res = await POST(req(conversationId, { body: "Merhaba" }), { params: Promise.resolve({ id: conversationId }) });
+    expect(res.status).toBe(201);
+  });
+
   it("ALLOWS an owner to send — 201, delivered once, outbound row persisted", async () => {
     session = { userId: "u", organizationId: orgId, role: "owner", email: "o@x.com", name: "Owner", sessionEpoch: 0 };
     const res = await POST(req(conversationId, { body: "Merhaba" }), {
