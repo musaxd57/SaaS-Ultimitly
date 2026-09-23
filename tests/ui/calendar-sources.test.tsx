@@ -93,8 +93,9 @@ describe("CalendarSources — kaynak chip'leri", () => {
     expect(screen.getByText(/Yalnızca https/)).toBeTruthy();
   });
 
-  it("Hospitable çakışma uyarısı görünür (aynı ilan iki kaynaktan çift düşer)", () => {
+  it("kanal bağlantısı çakışma uyarısı görünür (aynı ilan iki kaynaktan çift düşer); arayüzde PMS adı YOK", () => {
     renderEmpty();
-    expect(screen.getByText(/Hospitable\s+bağlıysa aynı ilanın iCal/)).toBeTruthy();
+    expect(screen.getByText(/kanal bağlantınızdan zaten geliyorsa aynı ilanın iCal/)).toBeTruthy();
+    expect(document.body.textContent).not.toMatch(/Hospitable/);
   });
 });
