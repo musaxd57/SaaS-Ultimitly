@@ -131,6 +131,13 @@ Dondurulmuş çalışma ağacında (`2a2548f`): **`npm test` 428 dosya / 5060 te
 `tsc` 0 · `lint` 0 · `build` temiz · `audit:check` yeşil (üretim: 4 danışma, 4 triaj kaydı). Migration YOK →
 push kurucu onayı gerektirmez (kural: migration içeren push onay ister).
 
+**İkinci tur + inceleme turu sonu (`5b5cf5b`, dondurulmuş ağaç):** **`npm test` 444 dosya / 5176 test yeşil**
+(24 atlanan, 1 todo) · `tsc` 0 · `lint` 0 · `build` temiz · `audit:check` yeşil. **Uçtan uca (Playwright,
+üretim derlemesi + ayrı PostgreSQL, yerelde) 8/8** — giriş → panel akışı `__Host-` + `hv` ile gerçek
+tarayıcıda. Kırmızı-önce: 421c5da'daki e2e testi aynı derlemeye karşı DÜŞTÜ (400 beklenen, 415 alınan) →
+inceleme ajanı yakalamasaydı CI kırmızı olur ve canlıya çıkış atlanırdı. Ara koşuda tam paket bu turun iki
+hatasını yakaladı (08-07 pini, test tip hatası) — ikisi de düzeltildi. Migration YOK.
+
 ## 9. İkinci tur (aynı gün) — giriş ekranına SALDIRGAN GÖZÜYLE
 
 İstek (kurucu, aynen): *"giriş ekranına karşı kötü niyetli birisi olarak düşünüp uzun uzun didik didik

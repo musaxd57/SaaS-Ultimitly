@@ -1350,10 +1350,19 @@ kapandı (`e62f95c`): IPv6 /64 kova atlatması · 2FA yönetiminde günlük tava
 eski maliyet-10 hash zamanlama kâhini (oran 0.26 → ~1) · kayıt yarışında 500 + alarm · `?next=/api/...` ·
 `localhost:@evil` host · verify-email JSON sırası · deneme e-postasında ad enjeksiyonu · sürekli kilitleme (sıfırlayan
 tarayıcı tanınan cihaz) · şifre değişince bu cihazın düşmesi · sır yanıtlarında no-store · denetim yazımı zamanlaması.
-Hepsi eski kodda kırmızı-önce. **Onay bekleyen yedi öneri §9.4'te** (güvenlik bildirim e-postası, operatör
-"beni hatırla", impersonation'da plan/export, `lower(email)` eşsizliği, doğrulanmamışa deneme e-postası,
-`AUTH_SECRET` ≥32 zorunluluğu, mutlak oturum ömrü). **P3-4 kararı:** elle yazılan rezervasyon referansı NOTTUR,
-gönderim yetkisi vermez (uygulama işaret kolonu = migration, Airbnb Direct zeminiyle).
+Hepsi eski kodda kırmızı-önce. Ardından (`4440c4d`) oturum içi ŞİFRE tahmini kapandı: 2FA kurulumu günde 1.440,
+hesap silme 480 tahmin bırakıyordu → 2FA + silme için ORTAK günlük 20 hata. Kurucu metin kararı: "Şifre çok uzun.
+Lütfen daha kısa bir şifre oluşturun." Sonra bir **inceleme ajanı BU TURUN kodunu** okudu (`d7b8772`, §9.6):
+🚨 **uçtan uca test kırmızı olacaktı** (verify-email 415 ↔ test 400; canlıya çıkış atlanırdı — yerelde eski
+testle kanıtlandı) · zamanlama dolgusu eşzamanlı isteklerde sızıyordu (→ İŞ EŞİTLİĞİ) · 🚨 **takvim beslemesi
+kovası** /64'e inince platform sunucuları tek kovayı paylaşacaktı (→ takvim başına kova; çift rezervasyon riski)
+· epoch işlem sonrası okunuyordu · `__Host-` geçişinde fırlatılan oturum kalıcılaşıyordu (→ `hv`) · bozuk
+`?next=` kodlaması. Kanıt: mutasyon 37/37 + 12/12 + 16/16 · **npm test 5176/444** · tsc · lint · build · audit
+(`5b5cf5b`) · **uçtan uca 8/8 yerel** (ayrı PostgreSQL + üretim derlemesi). **Onay bekleyen dokuz öneri §9.4'te**
+(güvenlik bildirim e-postası, operatör "beni hatırla", impersonation'da plan/export, `lower(email)` eşsizliği,
+doğrulanmamışa deneme e-postası, `AUTH_SECRET` ≥32 zorunluluğu, mutlak oturum ömrü, NFC-dışı ham denemenin bitiş
+tarihi, kalan maliyet-10 hash'ler). **P3-4 kararı:** elle yazılan rezervasyon referansı NOTTUR, gönderim yetkisi
+vermez (uygulama işaret kolonu = migration, Airbnb Direct zeminiyle).
 
 **🚨 CANLI OLAY + DENETİM TURU (09-23) — alarm seli kapandı (`82bb675`).** Kurucunun gelen kutusu
 "⚠️ Lixus AI sistem hatası — scheduled-sync org <id>" e-postalarıyla doldu; gövde `IngestError: hospitable
