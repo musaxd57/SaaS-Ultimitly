@@ -1,4 +1,4 @@
-import { KB_ITEM_CAP, KB_RETRIEVAL_CHAR_BUDGET, KB_RETRIEVAL_MAX_CHUNKS } from "@/lib/ai/limits";
+import { KB_CHAR_BUDGET, KB_ITEM_CAP, KB_RETRIEVAL_CHAR_BUDGET, KB_RETRIEVAL_MAX_CHUNKS } from "@/lib/ai/limits";
 import { reportError } from "@/lib/report-error";
 import type { KbChunk, KbChunkSource } from "./chunker";
 import { kbRetrievalMode, type KbRetrievalMode } from "./flag";
@@ -75,6 +75,8 @@ export interface KbRetrievalEvidence {
   conf?: number;
   /** Bütçe yüzünden tüm tarafları bloğa SIĞMAYAN çelişki sayısı (istem notuyla bildirilir). */
   confDropped?: number;
+  /** Cevapsız ÖNCEKİ misafir mesajlarından eklenen alt sorgu sayısı (↓`pendingGuestMessages`). */
+  pq?: number;
 }
 
 export interface KbSelectSources {
@@ -144,6 +146,39 @@ export const DEFAULT_SOURCES: Required<KbSelectSources> = { ngram: "auto", fusio
 /** Sorgu bu kadar az içerik kökü taşıyorsa önceki misafir mesajları bağlam olarak eklenir. */
 const THIN_QUERY_STEMS = 2;
 const CARRY_HISTORY_MESSAGES = 2;
+/** Sorguya katılan cevapsız önceki misafir mesajı tavanı (en yenisi önce). */
+export const PENDING_QUERY_MESSAGES = 3;
+/** Güncel mesaj + cevapsız mesajlardan gelen alt sorguların toplam tavanı. */
+export const MAX_TOTAL_SUBQUERIES = 6;
+
+/**
+ * CEVAPSIZ ÖNCEKİ MİSAFİR MESAJLARI (09-23 ölçümü): son operatör/AI mesajından SONRA gelen, güncel
+ * mesaj DIŞINDAKİ misafir mesajları, en yenisi önce. Misafir art arda iki soru sorunca sorgu yalnız
+ * sonuncusuydu → ilk sorunun cevabı isteme %10–12 giriyordu (100/300 kalem); ikisi birlikte
+ * sorgulanınca %97–99. Güvenlik kapısı aynı listeyi zaten ayrı hesaplıyor; burada yalnız RETRIEVAL
+ * girdisidir. Tüm yüzeyler `history` verdiği için tek yerden (yüzeyler ayrışamaz).
+ */
+export function pendingGuestMessages(
+  history: readonly { direction: "inbound" | "outbound"; body: string }[] | undefined,
+  current: string,
+): string[] {
+  const h = history ?? [];
+  let lastOut = -1;
+  for (let i = h.length - 1; i >= 0; i--) {
+    if (h[i].direction !== "inbound") {
+      lastOut = i;
+      break;
+    }
+  }
+  const cur = current.trim();
+  const out: string[] = [];
+  for (let i = h.length - 1; i > lastOut && out.length < PENDING_QUERY_MESSAGES; i--) {
+    const b = (h[i].body ?? "").trim();
+    if (!b || b === cur || out.includes(b)) continue;
+    out.push(b);
+  }
+  return out;
+}
 
 const SUBQUERY_SPLIT = /[?\n;,]+|\s+(?:ve|ayrica|ayrıca|bir de|and|also|plus)\s+/i;
 
@@ -383,7 +418,7 @@ export function selectKbForPrompt<T extends KbChunkSource>(input: KbSelectInput<
     q: number,
     sel: number,
     cand: number,
-    extra: Pick<KbRetrievalEvidence, "srcs" | "sup" | "conf" | "confDropped" | "fus"> = {},
+    extra: Pick<KbRetrievalEvidence, "srcs" | "sup" | "conf" | "confDropped" | "fus" | "pq"> = {},
   ): KbRetrievalEvidence => ({
     mode: "hybrid",
     q,
@@ -407,11 +442,25 @@ export function selectKbForPrompt<T extends KbChunkSource>(input: KbSelectInput<
     // 6k'ya sığdığı hâlde daraltılıyordu; kelime paylaşmayan (parafraz) Türkçe soruda cevap
     // cümlesi isteme %33–36 giriyordu, legacy'de %91–100 — "hibrit legacy'den AZ bilgi taşımaz"
     // değişmezinin ihlali. `docs/olcum/kb-retrieval-parafraz-2026-09-23.md`.
+    // 🚨 KARAKTER EŞİĞİ de legacy'nin KENDİ bütçesi (`KB_CHAR_BUDGET` 24k), seçim çıktısı bütçesi
+    // (6k) DEĞİL (ajan ölçümü 09-23): 21–30 kalem / 7,6–10k karakterlik KB'de 6k eşiğiyle parafraz
+    // cevabı isteme TR %35–41 · EN %53–61 giriyordu, legacy'de %100. Kural artık tanım gereği:
+    // legacy'nin HİÇBİR ŞEY düşürmeyeceği KB'de seçim yapılmaz; retrieval yalnız legacy'nin bilgi
+    // KAYBEDECEĞİ yerde (>30 kalem ya da >24k) devreye girer — orada hibrit legacy'yi geçer.
     const fullSetMaxItems = input.fullSetMaxItems ?? KB_ITEM_CAP;
-    if (items.length <= fullSetMaxItems && renderedCharsAll(items) <= budget) {
+    if (items.length <= fullSetMaxItems && renderedCharsAll(items) <= KB_CHAR_BUDGET) {
       return legacyResult(sup > 0 ? items : input.items, "hybrid", evidence("small_kb", 0, items.length, items.length, { sup }));
     }
     const subqueries = splitQuestions(input.guestMessage);
+    let pq = 0;
+    for (const msg of pendingGuestMessages(input.history, input.guestMessage)) {
+      for (const sq of splitQuestions(msg)) {
+        if (subqueries.length >= MAX_TOTAL_SUBQUERIES) break;
+        if (subqueries.includes(sq)) continue;
+        subqueries.push(sq);
+        pq += 1;
+      }
+    }
     const index = getOrBuildKbIndex(items, input.now);
     if (subqueries.length === 0) {
       const cap = cappedForFallback(sup > 0 ? items : input.items);
@@ -432,7 +481,7 @@ export function selectKbForPrompt<T extends KbChunkSource>(input: KbSelectInput<
       return legacyResult(
         cap.items,
         "hybrid",
-        evidence("no_lexical_hits", subqueries.length, 0, index.chunks.length, { srcs, fus, sup }),
+        evidence("no_lexical_hits", subqueries.length, 0, index.chunks.length, { srcs, fus, sup, ...(pq ? { pq } : {}) }),
         cap.dropped,
       );
     }
@@ -513,6 +562,7 @@ export function selectKbForPrompt<T extends KbChunkSource>(input: KbSelectInput<
         sup,
         conf: conflicts.length,
         confDropped,
+        ...(pq ? { pq } : {}),
       }),
     };
   } catch (err) {

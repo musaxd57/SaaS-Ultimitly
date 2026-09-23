@@ -9,6 +9,7 @@ import { reportError } from "@/lib/report-error";
 import {
   kbRetrievalMode,
   kbRetrievalModeInfo,
+  selectKbForPrompt,
   splitQuestions,
   MAX_CHUNKS_PER_ITEM,
 } from "@/lib/ai/retrieval/select";
@@ -18,12 +19,11 @@ import {
   fingerprintItems,
   getOrBuildKbIndex,
 } from "@/lib/ai/retrieval/index-cache";
-import { KB_RETRIEVAL_CHAR_BUDGET, KB_RETRIEVAL_MAX_CHUNKS } from "@/lib/ai/limits";
+import { KB_ITEM_CAP, KB_RETRIEVAL_CHAR_BUDGET, KB_RETRIEVAL_MAX_CHUNKS } from "@/lib/ai/limits";
 import { extractFieldTimes, preserveTimeConflicts, rerank, sortCandidates, SCORE_TIE_STEP } from "@/lib/ai/retrieval/rerank";
 import { findTimeConflicts } from "@/lib/ai/prompts";
 import { FILLERS, longGuide } from "../helpers/kb-retrieval-scenarios";
-// Seçim MEKANİĞİ: küçük fikstürde eski küçük-KB eşiği (↓helper gerekçesi). Üretim eşiği ayrı dosyada.
-import { selectKbForPrompt } from "../helpers/select-mechanics";
+import { neutralPadding } from "../helpers/kb-padding";
 
 // ---------------------------------------------------------------------------
 // RAG dilim 1 — hibrit seçici sözleşmesi.
@@ -45,8 +45,12 @@ const mk = (
   updatedAt: new Date(T0 + i * 60_000),
   ...over,
 });
-/** Hibritin devreye girmesi için küçük-KB eşiğinin üstünde bir taban. */
-const bigKb = (n = 20) => Array.from({ length: n }, (_, i) => mk(i));
+/**
+ * Hibritin devreye girmesi için küçük-KB eşiğinin (üretimde ≤30 kalem + 24k → seçim YOK) üstünde bir
+ * taban: `n` gerçek dolgu + 12 nötr dolgu (kb-padding.ts). Seçici parametreyle EĞİLMEZ; mekanik
+ * üretim varsayılanlarıyla, seçimin gerçekten devreye girdiği boyutta sınanır.
+ */
+const bigKb = (n = 20) => [...Array.from({ length: n }, (_, i) => mk(i)), ...neutralPadding(12).map((p) => ({ ...p, supersededById: null }))];
 
 describe("bayrak", () => {
   afterEach(() => vi.unstubAllEnvs());
@@ -246,19 +250,19 @@ describe("hibrit seçim", () => {
     expect(onlyOutbound.items.map((i) => i.id)).not.toContain("p");
   });
 
-  it("SELAMLAŞMA: içerik kökü yok → geri çekilir, TAMAMI (aynı dizi) gider", () => {
-    const items = bigKb(20);
+  it("SELAMLAŞMA: içerik kökü yok → geri çekilir, LEGACY'NİN KÜMESİ (ilk 30) gider, fazlası sayılır", () => {
+    const items = bigKb(20); // 32 kalem (üretim şekli)
     const r = selectKbForPrompt({ items, guestMessage: "Merhaba, iyi akşamlar!", mode: "hybrid" });
-    expect(r.items).toBe(items);
+    expect(r.items).toEqual(items.slice(0, KB_ITEM_CAP));
     expect(r.selection).toBe("all");
-    expect(r.droppedItems).toBe(0);
+    expect(r.droppedItems).toBe(items.length - KB_ITEM_CAP);
     expect(r.evidence?.fb).toBe("empty_query");
   });
 
   it("İSABET YOK: konu tabanda değilse geri çekilir — hibrit legacy'den AZ bilgi taşımaz", () => {
     const items = bigKb(20);
     const r = selectKbForPrompt({ items, guestMessage: "Jakuzi var mı?", mode: "hybrid" });
-    expect(r.items).toBe(items);
+    expect(r.items).toEqual(items.slice(0, KB_ITEM_CAP));
     expect(r.evidence?.fb).toBe("no_lexical_hits");
   });
 
@@ -309,7 +313,7 @@ describe("hibrit seçim", () => {
     // `content` string değil → parçalayıcı fırlatır.
     const broken = items.map((i) => ({ ...i, content: null as unknown as string }));
     const r = selectKbForPrompt({ items: broken, guestMessage: "Otopark var mı?", mode: "hybrid" });
-    expect(r.items).toBe(broken);
+    expect(r.items).toEqual(broken.slice(0, KB_ITEM_CAP));
     expect(r.selection).toBe("all");
     expect(r.evidence?.fb).toBe("error");
     expect(vi.mocked(reportError)).toHaveBeenCalledWith("kb-retrieval-select", expect.anything());
@@ -473,7 +477,7 @@ describe("dilim 2 — kaynak birleşimi, sürüm kuralı, kategori-bağımsız �
     const items = [...bigKb(20), ...tiny];
     const r = selectKbForPrompt({ items, guestMessage: "Jakuzi var mı?", mode: "hybrid" });
     expect(r.evidence?.fb).toBe("no_lexical_hits");
-    expect(r.items).toBe(items);
+    expect(r.items).toEqual(items.slice(0, KB_ITEM_CAP));
   });
 
   it("BİRLEŞİM ölçümle seçildi: CombSUM iki terimli kesin isabeti öne alır; aynı girdide RRF seçeneği de çalışır (kanıtta srcs aynı)", () => {

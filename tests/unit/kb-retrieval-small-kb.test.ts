@@ -1,8 +1,8 @@
 import { describe, it, expect, beforeEach } from "vitest";
-import { selectKbForPrompt } from "@/lib/ai/retrieval/select";
+import { pendingGuestMessages, selectKbForPrompt } from "@/lib/ai/retrieval/select";
 import { __resetKbIndexCache } from "@/lib/ai/retrieval/index-cache";
 import { packKnowledgeBase } from "@/lib/ai/prompts";
-import { KB_ITEM_CAP, KB_RETRIEVAL_CHAR_BUDGET } from "@/lib/ai/limits";
+import { KB_CHAR_BUDGET, KB_ITEM_CAP } from "@/lib/ai/limits";
 import { makeSyntheticKb, type SyntheticKb } from "../helpers/kb-retrieval-synthetic";
 import { PARAPHRASES } from "../helpers/kb-paraphrase-set";
 
@@ -33,7 +33,7 @@ const blockHas = (text: string, needles: readonly string[]) => needles.some((n) 
 
 beforeEach(() => __resetKbIndexCache());
 
-describe("küçük KB eşiği = legacy tavanı", () => {
+describe("küçük KB eşiği = legacy tavanı (≤30 kalem VE ≤24k karakter)", () => {
   it("🚨 15 ve 20 kalemlik KB (6k içinde): seçim YOK, girdi dizisinin KENDİSİ döner", () => {
     for (const n of [15, 20]) {
       const pool = sortedPool(makeSyntheticKb(n));
@@ -58,6 +58,25 @@ describe("küçük KB eşiği = legacy tavanı", () => {
         expect(blockHas(text, c.needles), `${n}: ${c.text}`).toBe(true);
         expect(text).toBe(legacy);
       }
+    }
+  });
+
+  it("🚨 26 kalem / 6k–24k karakter (ajan ölçümü: eski 6k eşiğiyle parafraz TR %35–41): seçim YOK, blok legacy ile birebir", () => {
+    const kb = makeSyntheticKb(30);
+    // Kalemleri uzat (nötr ek): toplam 6k'yı aşsın ama legacy bütçesi 24k'nın altında kalsın.
+    const pool = sortedPool(kb)
+      .slice(0, 26)
+      .map((it) => ({ ...it, content: `${it.content} ${"Qzxw vbnm plkj. ".repeat(12)}` }));
+    const total = pool.reduce((n, it) => n + it.content.length, 0);
+    expect(total).toBeGreaterThan(6_000); // KONTROL: eski eşiğin ÜSTÜNDE
+    expect(total).toBeLessThan(KB_CHAR_BUDGET);
+    const legacy = packKnowledgeBase(pool.slice(0, KB_ITEM_CAP)).text;
+    const cases = paraphrasesFor(kb).filter((c) => c.needles.some((n) => legacy.includes(n)));
+    expect(cases.length).toBeGreaterThanOrEqual(20);
+    for (const c of cases) {
+      const r = selectKbForPrompt({ items: pool, guestMessage: c.text, mode: "hybrid", now: NOW });
+      expect(r.evidence?.fb).toBe("small_kb");
+      expect(packKnowledgeBase(r.items, r.droppedItems, r.selection).text).toBe(legacy);
     }
   });
 
@@ -88,12 +107,12 @@ describe("küçük KB eşiği = legacy tavanı", () => {
     expect(r.selection).toBe("retrieved");
   });
 
-  it("≤30 kalem ama karakter bütçesini aşan KB'de seçim SÜRER (uzun rehberler daraltılır)", () => {
+  it("≤30 kalem ama legacy karakter bütçesini (24k) aşan KB'de seçim SÜRER (uzun rehberler daraltılır)", () => {
     const long = (i: number, topic: string) => ({
       id: `long_${i}`,
       category: "faq",
       title: `${topic} rehberi`,
-      content: `${topic} hakkında ayrıntılı açıklama. `.repeat(20),
+      content: `${topic} hakkında ayrıntılı açıklama. `.repeat(50),
       updatedAt: new Date(NOW - i * 60_000),
     });
     const items = [
@@ -101,10 +120,65 @@ describe("küçük KB eşiği = legacy tavanı", () => {
       { id: "parking", category: "parking", title: "Otopark", content: "Bina altı otopark ücretsizdir.", updatedAt: new Date(NOW - 99 * 60_000) },
     ];
     const total = items.reduce((s, it) => s + it.content.length, 0);
-    expect(total).toBeGreaterThan(KB_RETRIEVAL_CHAR_BUDGET); // KONTROL
+    expect(total).toBeGreaterThan(KB_CHAR_BUDGET); // KONTROL
     const r = selectKbForPrompt({ items, guestMessage: "Otopark var mı?", mode: "hybrid", now: NOW });
     expect(r.evidence?.fb).toBe("none");
     expect(r.items.map((i) => i.id)).toContain("parking");
     expect(r.items.length).toBeLessThan(items.length);
+  });
+});
+
+describe("cevapsız önceki misafir soruları sorguya katılır (09-23 ölçümü: ilk sorunun cevabı %10–12 → %97–99)", () => {
+  const kb = makeSyntheticKb(100);
+  const pool = sortedPool(kb);
+  const q = (id: string) => kb.questions.find((x) => x.id === id)!;
+
+  it("art arda iki soru, arada cevap YOK: İLK sorunun cevabı da blokta; kanıtta pq", () => {
+    const a = q("q_parking_tr");
+    const b = q("q_wifi_tr");
+    const r = selectKbForPrompt({
+      items: pool,
+      guestMessage: b.text,
+      history: [{ direction: "inbound", body: a.text }, { direction: "inbound", body: b.text }],
+      mode: "hybrid",
+      now: NOW,
+    });
+    const text = packKnowledgeBase(r.items, r.droppedItems, r.selection).text;
+    expect(blockHas(text, a.needles), "önceki soru").toBe(true);
+    expect(blockHas(text, b.needles), "son soru").toBe(true);
+    expect(r.evidence?.pq).toBeGreaterThanOrEqual(1);
+  });
+
+  it("KONTROL: arada bizim/host'un CEVABI varsa önceki soru cevaplanmıştır → sorguya katılmaz", () => {
+    const a = q("q_parking_tr");
+    const b = q("q_wifi_tr");
+    const r = selectKbForPrompt({
+      items: pool,
+      guestMessage: b.text,
+      history: [
+        { direction: "inbound", body: a.text },
+        { direction: "outbound", body: "Otopark bina altında." },
+        { direction: "inbound", body: b.text },
+      ],
+      mode: "hybrid",
+      now: NOW,
+    });
+    expect(r.evidence?.pq).toBeUndefined();
+  });
+
+  it("pendingGuestMessages: yalnız son giden mesajdan SONRAKİ, güncel olmayan, tekrarsız misafir mesajları (en yenisi önce, en fazla 3)", () => {
+    const h = [
+      { direction: "inbound" as const, body: "eski" },
+      { direction: "outbound" as const, body: "cevap" },
+      { direction: "inbound" as const, body: "bir" },
+      { direction: "inbound" as const, body: "iki" },
+      { direction: "inbound" as const, body: "iki" },
+      { direction: "inbound" as const, body: "üç" },
+      { direction: "inbound" as const, body: "dört" },
+      { direction: "inbound" as const, body: "güncel" },
+    ];
+    expect(pendingGuestMessages(h, "güncel")).toEqual(["dört", "üç", "iki"]);
+    expect(pendingGuestMessages([], "x")).toEqual([]);
+    expect(pendingGuestMessages(undefined, "x")).toEqual([]);
   });
 });

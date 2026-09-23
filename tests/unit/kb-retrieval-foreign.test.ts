@@ -6,8 +6,8 @@ import {
 } from "@/lib/ai/retrieval/lexicon-foreign";
 import { CONCEPTS, matchConcepts } from "@/lib/ai/retrieval/lexicon";
 import { contentStems, isStopword } from "@/lib/ai/retrieval/text";
-// Seçim MEKANİĞİ: küçük fikstürde eski küçük-KB eşiği (helper gerekçesi).
-import { selectKbForPrompt } from "../helpers/select-mechanics";
+import { selectKbForPrompt } from "@/lib/ai/retrieval/select";
+import { neutralPadding } from "../helpers/kb-padding";
 import { __resetKbIndexCache } from "@/lib/ai/retrieval/index-cache";
 import { makeSyntheticKb } from "../helpers/kb-retrieval-synthetic";
 
@@ -230,7 +230,9 @@ const KB = [
   ["elevator", "faq", "Asansör", "Asansör tüm katlara çıkar; bebek arabası için rampa vardır."],
   ["grocery", "local_tips", "Market", "En yakın market köşedeki bakkaldır; büyük süpermarket beş dakika yürüme mesafesindedir."],
   ["pharmacy", "local_tips", "Eczane", "Nöbetçi eczane listesi apartman girişindeki panodadır."],
-].map(([id, category, title, content], i) => ({ id, category, title, content, updatedAt: new Date(T0 + i * 60_000) }));
+].map(([id, category, title, content], i) => ({ id, category, title, content, updatedAt: new Date(T0 + i * 60_000) }))
+  // + nötr dolgu: üretimde ≤30 kalemlik KB'de seçim yapılmaz; mekanik 30'u aşan KB'de sınanır (kb-padding.ts).
+  .concat(neutralPadding(16));
 
 function firstId(guestMessage: string, foreign = true) {
   __resetKbIndexCache();

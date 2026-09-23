@@ -2,8 +2,8 @@ import { describe, it, expect } from "vitest";
 import { stem, contentStems } from "@/lib/ai/retrieval/text";
 import { matchConcepts, expandQuery } from "@/lib/ai/retrieval/lexicon";
 import { WEAK_QUERY_TERMS } from "@/lib/ai/retrieval/select";
-// Seçim MEKANİĞİ: küçük fikstürde eski küçük-KB eşiği (helper gerekçesi).
-import { selectKbForPrompt } from "../helpers/select-mechanics";
+import { selectKbForPrompt } from "@/lib/ai/retrieval/select";
+import { neutralPadding } from "../helpers/kb-padding";
 import { packKnowledgeBase } from "@/lib/ai/prompts";
 import { makeSyntheticKb, TOPICS } from "../helpers/kb-retrieval-synthetic";
 
@@ -136,7 +136,11 @@ describe("WEAK_QUERY_TERMS kök uzayında YAŞAR — kök sökücü değişince 
 describe("select — zayıf kök 'ca' (çalışıyor/çalarsa artefaktı) tek başına ilgisiz kalemi öne çekmez", () => {
   const T0 = Date.UTC(2026, 8, 1, 10, 0, 0);
   const item = (i: number, title: string, content: string, category = "faq") => ({ id: `w_${i}`, category, title, content, updatedAt: new Date(T0 + i * 60_000), supersededById: null });
-  const filler = Array.from({ length: 14 }, (_, i) => item(i, `Bilgi ${i}`, `Genel bilgi paragrafı ${i}: havlular dolapta, çöp yeşil konteynere, kahve kapsülleri çekmecede.`));
+  // + nötr dolgu: üretimde ≤30 kalemlik KB'de seçim yapılmaz; mekanik 30'u aşan KB'de sınanır (kb-padding.ts).
+  const filler = [
+    ...Array.from({ length: 14 }, (_, i) => item(i, `Bilgi ${i}`, `Genel bilgi paragrafı ${i}: havlular dolapta, çöp yeşil konteynere, kahve kapsülleri çekmecede.`)),
+    ...neutralPadding(17).map((p) => ({ ...p, supersededById: null })),
+  ];
   // Yalnız BM25 (n-gram kapalı): zayıf kök kuralı BM25 ağırlığı/aday şartıdır, n-gram kosinüsü ölçümü bulandırır.
   // ⚠️ DÜRÜSTLÜK ETİKETİ (inceleme 09-10): bu CANLI varsayılandan (`auto`) bir SAPMADIR. Pinlenen iki sonucun
   // `auto` ile de birebir tuttuğu ÖLÇÜLDÜ (asansör ilk + yangın aday değil; jakuzi w_30 ilk) — yani test
