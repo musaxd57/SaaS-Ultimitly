@@ -133,6 +133,8 @@ describe("demo hesabı — uygulama", () => {
     await prisma.property.create({ data: { organizationId: DEMO_ORG_ID, name: "Eklenen mülk" } });
     await prisma.reservation.update({ where: { id: firstIds[0] }, data: { guestName: "Değiştirildi" } });
     await prisma.organization.update({ where: { id: DEMO_ORG_ID }, data: { alertEmail: "saldirgan@example.org" } });
+    // İnceleme ekibi 2FA açmış olabilir: sıradan yenileme kurtarma kodlarını SİLMEZ (hesap kilitlenmez).
+    await prisma.twoFactorRecoveryCode.create({ data: { userId: reviewerBefore.id, codeHash: "korunmali" } });
 
     await applyDemoTenant(prisma, ds, { reviewerPasswordHash: null, staffPasswordHash: STAFF_HASH });
     expect(await ids()).toEqual(firstIds);
@@ -144,6 +146,7 @@ describe("demo hesabı — uygulama", () => {
     const reviewerAfter = await prisma.user.findUniqueOrThrow({ where: { email: DEMO_LOGIN_EMAIL } });
     expect(reviewerAfter.passwordHash).toBe(reviewerBefore.passwordHash);
     expect(reviewerAfter.sessionEpoch).toBe(reviewerBefore.sessionEpoch);
+    expect(await prisma.twoFactorRecoveryCode.count({ where: { userId: reviewerBefore.id } })).toBe(1);
 
     // Şifre verilse bile "yenile" denmedikçe mevcut şifre DEĞİŞMEZ (inceleme ekibi kilitlenmez).
     await applyDemoTenant(prisma, ds, { reviewerPasswordHash: bcrypt.hashSync("baska-bir-sifre-cok-uzun-0924", 4), staffPasswordHash: STAFF_HASH });
