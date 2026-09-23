@@ -58,7 +58,7 @@ export function buildKbIndex(items: readonly KbChunkSource[]): KbIndex {
   const chunks = chunkItems(items);
   const bm25 = new Bm25Index(chunks.map((c) => ({ key: chunkKey(c), title: c.title, text: c.text })));
   const ngram = new NgramIndex(chunks.map((c) => `${c.title} ${c.text}`));
-  const fieldTimes = chunks.map((c) => extractFieldTimes(c.title, c.text));
+  const fieldTimes = chunks.map((c) => extractFieldTimes(c.title, c.text, c.category));
   return { fingerprint: fingerprintItems(items), chunks, bm25, ngram, fieldTimes };
 }
 

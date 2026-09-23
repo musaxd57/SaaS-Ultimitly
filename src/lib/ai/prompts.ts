@@ -922,7 +922,7 @@ export function findTimeConflicts(property: PropertyContext, kb: KbContext[]): T
     if (!propertyValue) continue;
     const seen = new Set<string>();
     for (const item of kb) {
-      const times = extractFieldTimes(item.title, item.content).get(field);
+      const times = extractFieldTimes(item.title, item.content, item.category).get(field);
       for (const t of propertyTimeMismatch(times, propertyValue)) seen.add(t);
     }
     if (seen.size > 0) out.push({ field: key, propertyValue, kbValues: [...seen].sort() });

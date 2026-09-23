@@ -471,8 +471,15 @@ function rawTokenIndex(raw: string): Map<string, string> {
 // ─── bağlam dizini ─────────────────────────────────────────────────────────
 
 interface Index {
-  /** Telefon/tarih/saat/para/url/e-posta/yüzde aralıkları: içlerindeki rakam dizisi KOD değildir. */
-  nonCodeSpans: [number, number][];
+  /**
+   * Telefon/tarih/saat/para/url/e-posta/yüzde aralıkları (içlerindeki rakam dizisi KOD değildir) —
+   * önek toplamı olarak: [a,b) aralığı bir tanesiyle örtüşüyor ⇔ `nonCode[b] - nonCode[a] > 0`.
+   * 🚨 Eskiden her eşleşme her aralıkla kıyaslanıyordu (inceleme 09-23 ölçtü: misafirin yazdığı
+   * "www.q.co/A1 " tekrarı + cevapta "A1" tekrarı 4.000 karakterlik cevapta 4,3 sn senkron CPU).
+   */
+  nonCode: Int32Array;
+  /** Kod belirteci → destek sonucu (aynı belirteç bağlamı bir kez tarar). */
+  codeCache: Map<string, boolean>;
   keys: Set<string>;
   typed: Set<string>;
   nums: Set<string>;
@@ -522,8 +529,11 @@ function buildIndex(texts: readonly string[], derived: readonly number[] = []): 
     typed.add(`nights|${d}`);
     typed.add(`duration|s${d * 86400}`);
   }
-  const nonCodeSpans = claims.filter((c) => NON_CODE_CLASSES.has(c.cls)).map((c) => [c.at, c.end] as [number, number]);
-  return { keys, typed, nums, folded: f, raw, nonCodeSpans };
+  const mark = new Uint8Array(f.length + 1);
+  for (const c of claims) if (NON_CODE_CLASSES.has(c.cls)) mark.fill(1, c.at, c.end);
+  const nonCode = new Int32Array(f.length + 1);
+  for (let i = 0; i < f.length; i++) nonCode[i + 1] = nonCode[i] + mark[i];
+  return { keys, typed, nums, folded: f, raw, nonCode, codeCache: new Map() };
 }
 
 const escapeRe = (x: string) => x.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
@@ -538,19 +548,29 @@ function supportedBy(c: Claim, ix: Index): boolean {
     }
     if (ix.keys.has(k)) return true;
     if (k.startsWith("c")) {
-      const tok = k.slice(1);
-      // Özgün bağlamda büyük/küçük harfe DUYARLI tekil belirteç …
-      if (!new RegExp(`(?<![\\p{L}\\p{N}])${escapeRe(tok)}(?![\\p{L}\\p{N}])`, "u").test(ix.raw)) continue;
-      // … ve en az bir geçişi telefon/tarih/saat/para aralığının DIŞINDA ("0532" telefonun parçası).
-      const re = new RegExp(`(?<![\\p{L}\\p{N}])${escapeRe(foldForClaims(tok))}(?![\\p{L}\\p{N}])`, "gu");
-      for (let m = re.exec(ix.folded); m; m = re.exec(ix.folded)) {
-        const a = m.index;
-        const b = m.index + m[0].length;
-        if (!ix.nonCodeSpans.some(([x, y]) => a < y && b > x)) return true;
+      const cached = ix.codeCache.get(k);
+      if (cached !== undefined) {
+        if (cached) return true;
+        continue;
       }
+      const ok = codeSupported(k.slice(1), ix);
+      ix.codeCache.set(k, ok);
+      if (ok) return true;
     }
     if ((k.startsWith("u") || k.startsWith("e")) && ix.folded.includes(k.slice(1))) return true;
     if (k.startsWith("p") && ix.folded.replace(/[\s().-]/g, "").includes(k.slice(1))) return true;
+  }
+  return false;
+}
+
+/** Kod belirteci bağlamda destekleniyor mu (bir kez hesaplanır, `codeCache`). */
+function codeSupported(tok: string, ix: Index): boolean {
+  // Özgün bağlamda büyük/küçük harfe DUYARLI tekil belirteç …
+  if (!new RegExp(`(?<![\\p{L}\\p{N}])${escapeRe(tok)}(?![\\p{L}\\p{N}])`, "u").test(ix.raw)) return false;
+  // … ve en az bir geçişi telefon/tarih/saat/para aralığının DIŞINDA ("0532" telefonun parçası).
+  const re = new RegExp(`(?<![\\p{L}\\p{N}])${escapeRe(foldForClaims(tok))}(?![\\p{L}\\p{N}])`, "gu");
+  for (let m = re.exec(ix.folded); m; m = re.exec(ix.folded)) {
+    if (ix.nonCode[m.index + m[0].length] - ix.nonCode[m.index] === 0) return true;
   }
   return false;
 }

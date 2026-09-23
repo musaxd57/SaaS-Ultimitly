@@ -27,7 +27,7 @@ export interface FieldTimeHit {
   field: string;
   time: string;
   /** "clause" = cümleciğin kendisi alanı adlandırıyor · "title" = başlığın alanından ödünç. */
-  via: "clause" | "title";
+  via: "clause" | "title" | "category";
   clause: string;
 }
 
@@ -65,11 +65,18 @@ export function timesIn(text: string): Set<string> {
   return out;
 }
 
-/** "Bina girişi / otopark girişi / ön giriş" — konaklama GİRİŞİ değil, bir KAPI. */
-const ENTRANCE_HEADS = new Set([
-  "bina", "binanin", "binaya", "otopark", "otoparkin", "site", "sitenin", "havuz", "apartman", "garaj",
-  "ana", "arka", "on", "yan", "park", "bahce", "lobi", "bodrum", "blok", "sokak", "kat",
-]);
+/**
+ * "Bina girişi / otoparka giriş / siteye giriş / otopark çıkışı" — konaklama giriş/çıkışı değil, bir
+ * KAPI. 🚨 KÖK ÖNEKİYLE eşleşir (inceleme 09-23 ölçtü): tam-kelime kümesi "otoparka", "siteye",
+ * "otopark çıkışı" biçimlerini kaçırıyor ve "Otoparka giriş 23:00'ten sonra kapalıdır" mülkün giriş
+ * saatiyle ÇELİŞKİ sayılıyordu → uyumlu KB'de her soru insana devrediliyordu.
+ */
+const PLACE_HEAD_STEMS = ["bina", "otopark", "site", "havuz", "apartman", "garaj", "park", "bahce", "lobi", "bodrum", "blok", "sokak", "resepsiyon"];
+/** Kısa yön sözcükleri önek OLAMAZ ("on" → "onu", "ana" → "anahtar"): yalnız tam eşleşme. */
+const PLACE_HEAD_EXACT = new Set(["ana", "arka", "on", "yan", "kat", "main", "back", "front", "side"]);
+const isPlaceHead = (t: string) => PLACE_HEAD_EXACT.has(t) || PLACE_HEAD_STEMS.some((h) => t.startsWith(h));
+/** Kendi çalışma saati olan yerler (kalemin konaklama saatine ödünç verilmez). */
+const OWN_HOURS_STEMS = ["resepsiyon", "reception", "danisma", "concierge", "ofis", "office", "lobi", "lobby", "guvenlik", "security", "kapici"];
 /** "Acil çıkış / yangın çıkışı" — konaklama ÇIKIŞI değil, bir KAPI. */
 const EXIT_HEADS = new Set(["acil", "yangin", "emergency", "fire"]);
 /** "Erken giriş / geç çıkış" AYRI alandır: mülkün giriş/çıkış saatiyle KIYASLANMAZ. */
@@ -94,11 +101,12 @@ function clauseFields(clause: string): { fields: string[]; otherConcept: boolean
     // ("te" → çay/tea; ölçüldü: saat yazılı her parça kahve sorusuna çekiliyordu).
     if (TIME_TOKEN.test(prev) && t.length <= 3) continue;
     if (isIn(t) || isOut(t)) {
-      if (isIn(t) && (ENTRANCE_HEADS.has(prev) || next.startsWith("kapi"))) {
+      if (isIn(t) && (isPlaceHead(prev) || next.startsWith("kapi"))) {
         homonym = true;
         continue;
       }
-      if (isOut(t) && EXIT_HEADS.has(prev)) {
+      // "Çıkış kapısı" yalnız YALIN biçimde kapıdır ("Çıkışta kapıyı kilitleyin" konaklama çıkışıdır).
+      if (isOut(t) && (EXIT_HEADS.has(prev) || isPlaceHead(prev) || ((t === "cikis" || t === "exit") && next.startsWith("kapi")))) {
         homonym = true;
         continue;
       }
@@ -119,7 +127,10 @@ function clauseFields(clause: string): { fields: string[]; otherConcept: boolean
   }
   const stems = contentStems(keep.join(" "));
   const fields = [...timeFieldsIn(stems), ...extra];
-  const otherConcept = homonym || matchConcepts(stems).some((m) => !m.concept.timeField);
+  // Kendi çalışma saati olan yerler sözlükte kavram değil ama konaklama saati de DEĞİL: "Giriş"
+  // başlıklı kalemde "Resepsiyon 09:00-18:00 arası açıktır" giriş saati sanılıyordu (ölçüldü 09-23).
+  const ownHours = toks.some((t) => OWN_HOURS_STEMS.some((h) => t.startsWith(h)));
+  const otherConcept = homonym || ownHours || matchConcepts(stems).some((m) => !m.concept.timeField);
   return { fields, otherConcept };
 }
 
@@ -129,9 +140,14 @@ function clauseFields(clause: string): { fields: string[]; otherConcept: boolean
  * atfedilmez (belirsizde hüküm yok). Cümlecik alan adlandırmıyorsa başlığın TEK alanı ödünç
  * alınır — ama cümlecik BAŞKA bir konudan söz ediyorsa ("Kahvaltı 08:00'de") ödünç ALINMAZ.
  */
-export function fieldTimeHits(title: string, text: string): FieldTimeHit[] {
+export function fieldTimeHits(title: string, text: string, category?: string | null): FieldTimeHit[] {
   const titleFields = clauseFields(title).fields;
   const titleField = titleFields.length === 1 ? titleFields[0] : null;
+  // KATEGORİ ÖDÜNCÜ — en zayıf dayanak, en son (inceleme 09-23): "Varış bilgileri" başlıklı `checkin`
+  // kalemindeki "14:00'ten sonra gelebilirsiniz" hiçbir alan adlandırmıyor; kategori bilgisi atılınca
+  // mülkün 15:00'ı ile GERÇEK çelişki kaçıyordu. Yalnız cümlecik ve başlık alan adlandırmıyorsa ve
+  // cümlecik başka bir konudan söz etmiyorsa kullanılır (başlık ödüncüyle aynı kural).
+  const categoryField = category === "checkin" || category === "checkout" ? category : null;
   const clauses: string[] = [];
   // "p.m." noktaları cümlecik sınırı sanılmasın (işaret kaybolur, 15:00 → 03:00 okunurdu).
   const flat = text.replace(/\b([ap])\.m\./gi, "$1m");
@@ -150,6 +166,9 @@ export function fieldTimeHits(title: string, text: string): FieldTimeHit[] {
     else if (fields.length === 0 && titleField && !otherConcept) {
       field = titleField;
       via = "title";
+    } else if (fields.length === 0 && titleFields.length === 0 && categoryField && !otherConcept) {
+      field = categoryField;
+      via = "category";
     }
     if (!field) continue;
     for (const time of ts) hits.push({ field, time, via, clause: clause.trim() });
@@ -158,9 +177,9 @@ export function fieldTimeHits(title: string, text: string): FieldTimeHit[] {
 }
 
 /** Parça başına: alan → saatler (retrieval tüketicisi; başlık ödüncü DAHİL — temkinli taraf). */
-export function extractFieldTimes(title: string, text: string): FieldTimes {
+export function extractFieldTimes(title: string, text: string, category?: string | null): FieldTimes {
   const out = new Map<string, Set<string>>();
-  for (const h of fieldTimeHits(title, text)) {
+  for (const h of fieldTimeHits(title, text, category)) {
     const set = out.get(h.field) ?? new Set<string>();
     set.add(h.time);
     out.set(h.field, set);

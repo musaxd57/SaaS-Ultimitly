@@ -66,7 +66,7 @@ function heading(field: string): string {
 
 function perItemFieldTimes(item: KbTimeConflictItem): Map<string, { times: Set<string>; sentence: string }> {
   const out = new Map<string, { times: Set<string>; sentence: string }>();
-  for (const h of fieldTimeHits(item.title, item.content)) {
+  for (const h of fieldTimeHits(item.title, item.content, item.category)) {
     if (h.via !== "clause") continue;
     const cur = out.get(h.field) ?? { times: new Set<string>(), sentence: h.clause };
     cur.times.add(h.time);

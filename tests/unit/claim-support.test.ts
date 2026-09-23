@@ -204,6 +204,17 @@ describe("gizlilik, güvenlik, dayanıklılık", () => {
     expect(performance.now() - t0).toBeLessThan(1500);
   });
 
+  it("🚨 misafirin yazdığı ↔ cevabın yankıladığı kod belirteçleri karesel iş üretmez (inceleme 09-23: 4,3–10 sn)", () => {
+    // Cevapta "A1" tekrarı + misafir bağlamında "www.q.co/A1" tekrarı: her kod iddiası her URL
+    // aralığıyla kıyaslanıyordu. Artık belirteç başına bir tarama + önek toplamı (~15 ms).
+    const reply = "A1 ".repeat(1300);
+    const guest = "www.q.co/A1 ".repeat(4000);
+    const t0 = performance.now();
+    const a = auditClaims(reply, { facts: [], operator: [], guest: [guest] });
+    expect(performance.now() - t0).toBeLessThan(1000);
+    expect(a.n).toBeGreaterThan(1000); // KONTROL: iddialar gerçekten çıkarıldı
+  });
+
   it("🚨 mimari: gönderim kapıları iddia ölçümünü İÇE AKTARMAZ (gölge sessizce kapıya dönüşemez)", () => {
     for (const f of ["src/lib/ai/fallback.ts", "src/lib/guest-chat-gate.ts", "src/lib/ai/output-veto.ts", "src/lib/ai/absence.ts"]) {
       const src = readFileSync(path.resolve(__dirname, "../..", f), "utf8");

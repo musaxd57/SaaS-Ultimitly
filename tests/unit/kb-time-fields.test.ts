@@ -97,6 +97,47 @@ describe("findTimeConflicts — mülkle UYUMLU bilgi tabanı çelişki SAYILMAZ 
   });
 });
 
+describe("inceleme bulguları (09-23 ikinci tur) — sahte çelişki ve kaçan gerçek çelişki", () => {
+  it("🚨 otoparka/siteye giriş, otopark çıkışı, çıkış kapısı KONAKLAMA saati değildir (her soru devrediliyordu)", () => {
+    for (const [cat, text] of [
+      ["parking", "Otoparka giriş 23:00'ten sonra kapalıdır."],
+      ["rules", "Siteye giriş 23:00'ten sonra yalnız kartla yapılır."],
+      ["rules", "Otopark çıkışı 23:00'te kilitlenir."],
+      ["rules", "Çıkış kapısı 23:00'te kilitlenir."],
+      ["checkin", "Resepsiyon 09:00-18:00 arası açıktır."],
+    ] as const) {
+      expect(fieldTimeHits(cat === "checkin" ? "Giriş" : "Not", text, cat), text).toEqual([]);
+    }
+  });
+
+  it("KONTROL — yalın 'çıkışta kapıyı…' konaklama çıkışıdır; aynı cümlecikteki çıkış saati sayılır", () => {
+    expect(fieldTimeHits("Çıkış", "Anahtarı çıkışta kutuya bırakın, çıkış saati 11:00.", "checkout").map((h) => `${h.field}:${h.time}`)).toEqual(["checkout:11:00"]);
+    expect(fieldTimeHits("Çıkış", "Arka çıkış 22:00'de kilitlenir; konaklama çıkışı 11:00.", "checkout").map((h) => `${h.field}:${h.time}`)).toEqual(["checkout:11:00"]);
+  });
+
+  it("🚨 KATEGORİ ödüncü: alan adlandırmayan checkin kalemi ('14:00'ten sonra gelebilirsiniz') GERÇEK çelişki üretir", () => {
+    const hits = fieldTimeHits("Varış bilgileri", "14:00'ten sonra gelebilirsiniz.", "checkin");
+    expect(hits.map((h) => `${h.field}:${h.time}:${h.via}`)).toEqual(["checkin:14:00:category"]);
+    const conflicts = findTimeConflicts({ name: "Lale", checkInTime: "15:00", checkOutTime: "11:00" }, [
+      { category: "checkin", title: "Varış bilgileri", content: "14:00'ten sonra gelebilirsiniz." },
+    ]);
+    expect(conflicts.map((c) => c.field)).toEqual(["checkInTime"]);
+    // Aynı cümle kategorisiz (general) kalemde saat ATANMAZ; başka konu adlandıran cümlecik de ödünç almaz.
+    expect(fieldTimeHits("Not", "14:00'ten sonra gelebilirsiniz.", "general")).toEqual([]);
+    expect(fieldTimeHits("Varış", "Kahvaltı 08:00'de başlar.", "checkin")).toEqual([]);
+  });
+
+  it("🚨 istem: otopark saati içeren UYUMLU 14 kalemlik KB'de Wi-Fi sorusu çelişki bloğu ALMAZ (inceleme uçtan uca)", () => {
+    const kb = [
+      { category: "wifi", title: "Wi-Fi", content: "Ağ adı LaleNet, şifre modemin altında yazıyor." },
+      { category: "checkin", title: "Giriş", content: "Giriş 15:00'ten itibaren, anahtar kutusundan." },
+      { category: "checkout", title: "Çıkış", content: "Çıkış 11:00'e kadar. Anahtarı kutuya bırakın." },
+      { category: "parking", title: "Otopark", content: "Otoparka giriş 23:00'ten sonra kapalıdır, aracınızı erken park edin." },
+    ];
+    expect(findTimeConflicts({ name: "Lale", checkInTime: "15:00", checkOutTime: "11:00" }, kb)).toEqual([]);
+  });
+});
+
 describe("alan atfı (retrieval + rapor ortak)", () => {
   it("rakamdan sonraki nokta cümlecik sınırıdır ('Giriş 15:00. Çıkış 11:00.'); '12.00' bölünmez", () => {
     expect(fields("Saatler", "Giriş 15:00. Çıkış 11:00.")).toEqual({ checkin: ["15:00"], checkout: ["11:00"] });
